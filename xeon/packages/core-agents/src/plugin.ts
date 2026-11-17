@@ -10,6 +10,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { LeaseHolder, LeaseToken } from "@fresnel/contracts/records";
 import {
+  ApprovalServicePortKey,
   ModelServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
@@ -17,7 +18,7 @@ import {
   ToolServicePortKey,
   type AgentDefinition,
 } from "@fresnel/contracts/services";
-import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
+import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import type { AgentsLoop, AgentsSettingsSource } from "./deps.ts";
 import { AgentServicePortKey, LoopServicePortKey } from "./ports.ts";
 import { createAgentService } from "./service.ts";
@@ -77,6 +78,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
       const tasks = host.port(TaskServicePortKey);
       const tools = host.port(ToolServicePortKey);
       const store = host.port(StoreServicePortKey);
+      const ext = host.port(ExtHostPortKey);
       const service = createAgentService({
         session,
         // fresnel.loop는 core-loop 플러그인이 올린다. 적재 순서에 묶이지 않게 자식 turn을 돌릴 때 얻는다
@@ -92,6 +94,30 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
           leases: store.leases,
         },
         log: options.log,
+        // 서브에이전트 앞뒤 훅은 ext-host 디스패처로 발화한다. 결정 합치기(block > replace > ask)는 디스패처가 한다
+        hooks: {
+          spawnBefore: async (input) => {
+            const outcome = await ext.dispatch("agent.spawn.before", input.payload, {
+              threadId: input.payload.threadId,
+              dispatchKey: input.dispatchKey,
+              signal: input.signal,
+            });
+            return { decision: outcome.decision, extension: outcome.decidedBy?.extension ?? null };
+          },
+          spawnAfter: async (input) => {
+            const outcome = await ext.dispatch("agent.spawn.after", input.payload, {
+              threadId: input.payload.threadId,
+              dispatchKey: input.dispatchKey,
+              initial: input.initial,
+            });
+            return outcome.value;
+          },
+        },
+        // 묻기 카드는 승인 서비스(core-tools가 올린다)의 request로 연다. 없으면 훅의 묻기는 확인 불가로 거부한다
+        approvals: () => {
+          const found = attempt(() => host.port(ApprovalServicePortKey));
+          return found.ok ? found.value : undefined;
+        },
         // fresnel.models는 core-models가 올린다. 판정 때마다 얻고, 아직 없으면 판정은 failed다(적재 순서에 묶이지 않는다)
         models: () => {
           const found = attempt(() => host.port(ModelServicePortKey));

@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { describe, expect, test } from "bun:test";
 import {
   KnowledgeLedger,
@@ -42,7 +43,7 @@ describe("knowledge definitions", () => {
   });
 
   test("the manifest provides only what is implemented", () => {
-    expect(knowledgeManifest().plugins[0]?.provides?.map((entry) => entry.id)).toEqual([
+    expect(pluginDeclsOf(knowledgeManifest())[0]?.provides?.map((entry) => entry.id)).toEqual([
       "knowledge.skills",
       "knowledge.memory",
       "knowledge.search",

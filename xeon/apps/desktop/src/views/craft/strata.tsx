@@ -65,7 +65,7 @@ type FailureKey =
   | "desktop.craft.strata.error.reset"
   | "desktop.craft.strata.error.toggle";
 
-/** 줄 하나를 그리는 데 필요한 훅 정보. 13개(HOOKS)와 33개(OTHER_HOOKS)가 같은 모양으로 쓴다 */
+/** 줄 하나를 그리는 데 필요한 훅 정보. 17개(HOOKS)와 33개(OTHER_HOOKS)가 같은 모양으로 쓴다 */
 export interface RowDef {
   readonly id: string;
   readonly fold: Fold;
@@ -76,7 +76,10 @@ export interface RowDef {
 const ROW =
   "relative grid grid-cols-[24px_minmax(0,11rem)_minmax(0,1fr)] gap-x-3 rounded-2xl px-2 py-2.5";
 
-/** 화면에 늘 보이는 13개 순간의 이름. 키는 메시지 카탈로그의 id다 */
+/**
+ * 화면에 늘 보이는 순간의 이름. 키는 메시지 카탈로그의 id다. 17개 가운데 13개만 이름이 있다.
+ * 새 네 순간(사람에게 묻기, 서브에이전트)은 이름이 없어 훅 id가 그대로 보인다 [미결: 데스크톱 이름]
+ */
 const HOOK_LABEL: Readonly<Record<string, MessageId>> = {
   "thread.start": "desktop.craft.strata.hook.thread.start",
   "input.user.before": "desktop.craft.strata.hook.input.user.before",

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { repeatAsync } from "@fresnel/contracts";
 import type { EventWire, HostConnection, Transport } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost, startStdioHost } from "../../src/main.ts";
+import { startInProcessHost, startStdioHost } from "../../src/command-run.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

@@ -68,7 +68,10 @@ function lockedSession(
         },
         "thread.fork": (params) => {
           forks.push({ ...params });
-          return { threadId: T2, position: { storeId: "sto_00000000000000000000000001", seq: 0 } };
+          return {
+            threadId: T2,
+            position: { storeId: "sto_00000000000000000000000001", seq: 0 },
+          };
         },
       },
     },

@@ -115,6 +115,7 @@ export function commandErrorRefOf(error: CommandError): MsgRef {
   switch (error.kind) {
     case "offline":
       return { id: "desktop.settings.offline" };
+    case "not_available":
     case "unsupported":
       return { id: "desktop.settings.mcp.error.unsupported" };
     case "switching":

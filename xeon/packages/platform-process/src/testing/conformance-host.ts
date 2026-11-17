@@ -181,7 +181,7 @@ export function serveConformanceHost(
         const threadId = `thr_${ulid(threads.size + 1)}`;
         threads.add(threadId);
         append("thread.started", threadId);
-        return { threadId, position: { storeId: STORE_ID, seq: events.length } };
+        return { threadId, position: { storeId: STORE_ID, seq: events.length }, sameFolder: [] };
       }
       case "turn.start": {
         const threadId = String(params["threadId"]);

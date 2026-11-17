@@ -1,17 +1,12 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { DriveLockArbiterPortKey } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   createGroupService,
   type GroupModule,
-  type GroupServiceWithSetting,
+  type GroupServiceWithUsage,
 } from "../../src/index.ts";
-import {
-  groupCatalogOf,
-  memoryDriveHolderSettings,
-  type MemoryDriveHolderSettings,
-} from "../../src/testing/index.ts";
+import { groupCatalogOf } from "../../src/testing/index.ts";
 
 export function install(
   t: TestHost,
@@ -24,6 +19,17 @@ export function install(
     loadIndex,
     builtin: true,
   });
+}
+
+/**
+ * 주도 시작 요청을 넣고 턴 경계를 한 번 돌려 부여받게 한다(E3: 중재가 없어 그룹은 시작 요청으로만 스택에 오른다).
+ * 요청이 거부되면 시험이 실패하도록 결과를 확인한다.
+ */
+export async function startDriveOf(t: TestHost, thread: ThreadId, scope: string): Promise<void> {
+  const started = t.host.startDrive(thread, scope);
+  if (!started.ok) throw new Error(`startDrive ${scope} refused: ${started.error.kind}`);
+  await t.boundary(thread).turnSettled();
+  await t.settled();
 }
 
 /** agent_settled 지점을 한 번 발화한다. 이 지점에 on을 건 그룹의 핸들러가 부른다 */
@@ -47,12 +53,11 @@ async function installInOrder(
   await installInOrder(t, rest, index + 1);
 }
 
-/** GroupService 시험이 쓰는 호스트 묶음: 구동 그룹 설정을 X와 서비스가 같은 값으로 읽는다 */
+/** GroupService 시험이 쓰는 호스트 묶음 */
 export interface ServiceRig {
   readonly t: TestHost;
   readonly thread: ThreadId;
-  readonly holder: MemoryDriveHolderSettings;
-  readonly service: GroupServiceWithSetting;
+  readonly service: GroupServiceWithUsage;
   readonly reported: unknown[];
 }
 
@@ -60,12 +65,11 @@ export async function serviceRig(
   modules: readonly GroupModule[],
   extra: { readonly onEnabled?: (id: string) => void } = {},
 ): Promise<ServiceRig> {
-  const holder = memoryDriveHolderSettings();
   const t = await createTestHost({
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriver: () => holder.read(null),
+      driveMaxDepth: () => 8,
       driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },
@@ -75,21 +79,14 @@ export async function serviceRig(
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf(modules),
-    holder,
     currentThread: () => thread,
     report: (cause) => {
       reported.push(cause);
     },
     ...(extra.onEnabled === undefined ? {} : { onEnabled: extra.onEnabled }),
   });
-  await t.host.registerPlatform({
-    name: "fresnel-groups",
-    setup(ctx) {
-      ctx.providePort(DriveLockArbiterPortKey, service);
-    },
-  });
   await installInOrder(t, modules);
   await t.host.openThread(thread);
   await t.settled();
-  return { t, thread, holder, service, reported };
+  return { t, thread, service, reported };
 }

@@ -66,7 +66,8 @@ async function boot(
       },
     ),
   );
-  await t.host.openThread(thread);
+  // 시작 요청으로 임대를 연다. 임대가 없으면 명령이 상태를 커밋해도 드라이브는 부르지 않는다
+  await t.host.openThread(thread, { startDrive: "cmd-drive" });
   // 첫 turn이 열릴 때까지 기다리면 settled()는 끝나지 않는다
   if (turnOnFirst) await flushMicrotasks(200);
   else await t.settled();

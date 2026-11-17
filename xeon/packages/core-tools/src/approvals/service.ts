@@ -1,5 +1,7 @@
 import {
   Bug,
+  assertNever,
+  attemptAsync,
   detach,
   err,
   ok,
@@ -11,6 +13,11 @@ import {
   type TimerHandle,
 } from "@fresnel/contracts";
 import type { EffectId, EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  AskHumanAfterPayload,
+  AskHumanBeforePayload,
+  AskOrigin,
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalRequestedPayloadSchema,
   StepCheckpointSchema,
@@ -23,6 +30,7 @@ import {
 } from "@fresnel/contracts/records";
 import type {
   ApprovalApplyOutcome,
+  ApprovalBody,
   CallerId,
   RunSource,
   ApprovalOrigin,
@@ -41,7 +49,7 @@ import { UNATTENDED_DEFAULTS, type ToolsUnattendedConfig } from "../settings.ts"
 import { messageOf } from "../util.ts";
 import { requestCommitKey, resolveCommitKey } from "./keys.ts";
 import { scanApprovals, type ScannedApprovals } from "./pending.ts";
-import { unattendedPlan } from "./unattended.ts";
+import { unattendedPlan, type UnattendedPlan } from "./unattended.ts";
 import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
 // L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 질문(question), 검토(review)가 하나의 대기 형식을 쓴다.
@@ -211,6 +219,48 @@ function invalidRequest(detail: string): CommitFailure {
   return { kind: "rejected", code: "approvals.request_invalid", detail };
 }
 
+/** 훅 payload의 origin. 값이 없는 곳(null)은 키를 뺀다 */
+function askOriginOf(origin: ApprovalOrigin): AskOrigin {
+  return {
+    ...(origin.turnId === null ? {} : { turnId: origin.turnId }),
+    ...(origin.stepId === null ? {} : { stepId: origin.stepId }),
+    ...(origin.toolCallId === null ? {} : { toolCallId: origin.toolCallId }),
+    caller: origin.caller,
+  };
+}
+
+/** 훅 payload의 요약. 도구면 이름과 등급, 질문이면 질문 id들, 검토면 없다 */
+function askSummaryOf(body: ApprovalBody): AskHumanBeforePayload["summary"] {
+  switch (body.kind) {
+    case "tool":
+      return { toolName: body.tool.toolName, risk: body.tool.risk };
+    case "question":
+      return { questionIds: body.question.questions.map((question) => question.id) };
+    case "review":
+      return {};
+    default:
+      return assertNever(body, "approvals.askSummaryOf");
+  }
+}
+
+/** 무인 정책의 종류를 훅 payload의 값으로. 계획이 없으면(사람이 답할 수 있는 호출) null이다 */
+function unattendedKindOf(plan: UnattendedPlan | undefined): AskHumanBeforePayload["unattended"] {
+  if (plan === undefined) return null;
+  if (plan.silent) return "silent";
+  return plan.timeoutAt === null ? "wait" : "expire";
+}
+
+/** `ask.human.before`를 발화하는 데 쓰는 요청 문맥 */
+interface HumanAskContext {
+  readonly input: ApprovalRequestInput;
+  readonly origin: ApprovalOrigin;
+  readonly surfaceThreadId: ThreadId;
+  readonly requestedAt: number;
+  readonly requestedId: EventId;
+  readonly call: ActiveCall | undefined;
+  readonly unattended: UnattendedPlan | undefined;
+}
+
 export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   const byId = new Map<string, Entry>();
   const byKey = new Map<string, string>();
@@ -319,6 +369,126 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
   }
 
+  /**
+   * `ask.human.before`(M5e 스펙 §4.3.1). 새 요청마다 한 번 발화한다(`known`이면 발화하지 않는다, 복원된 요청도 같다: E-7).
+   * 결정이 있으면 카드 없이 해결할 해결을 돌려준다. 없으면 undefined다. 실패, 시간 초과, 허용되지 않는 값도 결정 없음이다(열린 실패).
+   * `cancel`은 모든 종류에서 허용한다. `answer`는 질문 종류만 받는다. 도구와 검토에서 허용을 값으로 내는 것은 H-1이 막는다.
+   */
+  async function askHumanBefore(ctx: HumanAskContext): Promise<ApprovalResolution | undefined> {
+    const { input, origin, surfaceThreadId, requestedAt, requestedId, call, unattended } = ctx;
+    const askedBy = input.body.kind === "tool" ? input.body.tool.askedBy : undefined;
+    const payload: AskHumanBeforePayload = {
+      threadId: origin.threadId,
+      surfaceThreadId,
+      requestKey: input.requestKey,
+      askKind: input.body.kind,
+      title: input.title,
+      origin: askOriginOf(origin),
+      summary: askSummaryOf(input.body),
+      interactive: call === undefined ? true : call.run.interactive,
+      unattended: unattendedKindOf(unattended),
+      ...(askedBy === undefined ? {} : { askedBy: askedBy.extension }),
+    };
+    const dispatched = await attemptAsync(() =>
+      deps.ext.dispatch("ask.human.before", payload, {
+        threadId: surfaceThreadId,
+        dispatchKey: `approval:${input.requestKey}:ask_human_before`,
+      }),
+    );
+    if (!dispatched.ok) {
+      // 열린 실패: 디스패치의 오류는 승인을 조용히 허용하지도, 요청을 멈추지도 않는다. 사람에게 묻는다
+      deps.logger?.warn("tools.ask_human_before_failed", {
+        requestKey: input.requestKey,
+        message: messageOf(dispatched.error.cause),
+      });
+      return undefined;
+    }
+    const outcome = dispatched.value;
+    const decision = outcome.decision;
+    const extension = outcome.decidedBy?.extension;
+    if (decision === undefined || extension === undefined) return undefined;
+    if ("cancel" in decision) {
+      return {
+        approvalId: requestedId,
+        decision: "deny",
+        answer: null,
+        remember: "once",
+        requestedRemember: null,
+        resolvedBy: "extension",
+        resolvedByExtension: extension,
+      };
+    }
+    if (input.body.kind !== "question") {
+      // 도구와 검토 승인에 훅이 답을 내면 무시한다. 승인은 권한이라 훅이 대신 줄 수 없다(H-1)
+      deps.logger?.warn("tools.ask_human_answer_ignored", {
+        requestKey: input.requestKey,
+        askKind: input.body.kind,
+        extension,
+      });
+      return undefined;
+    }
+    const candidate: ApprovalRequest = {
+      ...input,
+      origin,
+      approvalId: requestedId,
+      surfaceThreadId,
+      requestedAt,
+    };
+    const checked = validateResponse(candidate, { decision: "answer", answer: decision.answer });
+    if (!checked.ok) {
+      deps.logger?.warn("tools.ask_human_answer_invalid", {
+        requestKey: input.requestKey,
+        extension,
+        reason: checked.error.kind,
+      });
+      return undefined;
+    }
+    return {
+      approvalId: requestedId,
+      decision: "answer",
+      answer: checked.value.answer,
+      remember: "once",
+      requestedRemember: null,
+      resolvedBy: "extension",
+      resolvedByExtension: extension,
+    };
+  }
+
+  /**
+   * `ask.human.after`(M5e 스펙 §4.3.2). 이 프로세스가 해결을 새로 커밋한 뒤 한 번 발화한다. 복원된 해결에는 발화하지 않는다.
+   * 관찰만 하므로 실패는 기록하고 넘어간다
+   */
+  async function announceAfter(entry: Entry, resolution: ApprovalResolution): Promise<void> {
+    const { request } = entry;
+    const payload: AskHumanAfterPayload = {
+      threadId: request.origin.threadId,
+      approvalId: entry.eventId,
+      askKind: request.body.kind,
+      resolution: {
+        decision: resolution.decision,
+        resolvedBy: resolution.resolvedBy,
+        ...(resolution.resolvedByExtension === undefined
+          ? {}
+          : { resolvedByExtension: resolution.resolvedByExtension }),
+        answer: resolution.answer,
+      },
+      durationMs: Math.max(0, deps.clock.now() - request.requestedAt),
+      origin: askOriginOf(request.origin),
+    };
+    const dispatched = await attemptAsync(() =>
+      deps.ext.dispatch("ask.human.after", payload, {
+        threadId: request.surfaceThreadId,
+        dispatchKey: `approval:${request.approvalId}:ask_human_after`,
+      }),
+    );
+    if (!dispatched.ok) {
+      deps.logger?.warn("tools.ask_human_after_failed", {
+        approvalId: request.approvalId,
+        message: messageOf(dispatched.error.cause),
+      });
+    }
+  }
+
   /** 해결된 요청이 상한을 넘으면 가장 오래전에 해결된 것을 표에서 뺀다. `resolvedOrder`에는 `settle`이 대기자를 모두 깨우고 비운 뒤에 들어가고, 해결된 요청에는 `waitFor`가 대기자를 더하지 않으므로 빼지 못할 요청은 없다 */
   function evictResolved(): void {
     for (const approvalId of resolvedOrder) {
@@ -387,6 +557,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (!committed.ok) return err(committed.failure);
     settle(entry, resolution);
     await prompt(entry, "end");
+    await announceAfter(entry, resolution);
     return ok(undefined);
   }
 
@@ -461,6 +632,16 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     // 턴 밖의 요청(call 없음)은 대화형으로 본다
     const silent = unattended?.silent === true;
     const requestedId = deps.ids.next("evt");
+    // 사람에게 묻기 앞 훅(M5e §4.3.1). 결정이 있으면 카드 없이 해결하고, 없으면 무인 정책이나 사람이 답한다
+    const hookResolution = await askHumanBefore({
+      input,
+      origin,
+      surfaceThreadId,
+      requestedAt,
+      requestedId,
+      call,
+      unattended,
+    });
     const requestedDraft = deps.producer.draft({
       id: requestedId,
       kind: "approval.requested",
@@ -480,7 +661,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       requestedRemember: null,
       resolvedBy: "noninteractive",
     };
-    if (silent) {
+    // 카드 없이 해결하는 요청: 훅의 결정이 먼저이고, 없으면 비대화형 거부다
+    const immediate = hookResolution ?? (silent ? silentResolution : undefined);
+    if (immediate !== undefined) {
       drafts.push(
         deps.producer.draft({
           id: deps.ids.next("evt"),
@@ -490,7 +673,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
           stepId: sameThread ? origin.stepId : null,
           causationId: requestedId,
           correlationId: null,
-          payload: silentResolution,
+          payload: immediate,
         }),
       );
     }
@@ -502,7 +685,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       call !== undefined &&
       call.turnless !== true &&
       input.origin.toolCallId !== null &&
-      !silent &&
+      immediate === undefined &&
       sameThread
     ) {
       const waiting: PendingToolCall = {
@@ -555,8 +738,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       // 그 사이 응답이 커밋되었으면 이어 받는다
       const resolved = stored.resolved.get(entry.request.approvalId);
       if (resolved !== undefined) settle(entry, resolved);
-    } else if (silent) {
-      settle(entry, silentResolution);
+    } else if (immediate !== undefined) {
+      settle(entry, immediate);
+      await announceAfter(entry, immediate);
     } else {
       await prompt(entry, "start");
     }

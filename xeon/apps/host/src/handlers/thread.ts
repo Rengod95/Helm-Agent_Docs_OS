@@ -19,7 +19,7 @@ import {
 import { renderMarkdownHeader } from "../export/thread-markdown.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
-import { markTestRun, wireErrorOfApply } from "./m4/profile-test-run.ts";
+import { markTestRun, wireErrorOfProfile } from "./m4/profile-test-run.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M1 표. thread.create: thread를 만들고 쓰기 소유를 함께 얻는다(M1에서는 create가 소유를 얻는다).
@@ -32,37 +32,68 @@ export function createThreadCreateHandler(
   const { ports } = engine;
   const profiles = ports.m4.profileTestRun;
   return async (params, context) => {
-    // W-34: 프로필은 Test run 대화에만 붙는다. 일반 대화에 조용히 무시하며 붙이지 않고 거부한다
-    if (params.profileId !== undefined && params.testRun !== true) {
-      throw wireError("jsonrpc.invalidParams", {
-        details: { issues: [{ path: "profileId", message: "profileId requires testRun: true" }] },
-      });
-    }
-    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다
+    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다(M5c §3.4)
     if (params.profileId !== undefined) {
-      const found = await profiles.getProfile(params.profileId);
-      if (!found.ok) throw wireErrorOfApply(found.error, profiles.errors);
+      const found = await profiles.get(params.profileId);
+      if (!found.ok) throw wireErrorOfProfile(found.error);
     }
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
       ...(params.testRun === true ? { testRun: true } : {}),
+      ...(params.profileId === undefined ? {} : { profileId: params.profileId }),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
-    if (params.testRun === true) {
-      // 프로필 적용과 표지 달기는 `ext.test.run`(testRun)과 같은 함수다(`markTestRun`)
-      const marked = await markTestRun(
-        { threads: ports.threads, profiles, log: ports.log },
-        created.threadId,
-        params.profileId,
-        "thread.create",
-      );
-      if (!marked.ok) throw wireErrorOfApply(marked.error, profiles.errors);
-    }
+    // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7)
+    await ports.threads.applyOpenWorkspace(created.threadId);
+    if (params.testRun === true) markTestRun(profiles, created.threadId, params.profileId);
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(created.threadId);
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.create position");
-    return { threadId: created.threadId, position: position.value };
+    // 같은 폴더의 다른 열린 대화는 알리기만 한다(U6). 막지 않고 복사하지 않는다
+    const sameFolder = ports.threads.sameFolder(created.threadId);
+    return {
+      threadId: created.threadId,
+      position: position.value,
+      sameFolder,
+      // 저장된 프로필 id가 없으면 기본이다(M5c §4.1.1). 저장한 값을 그대로 돌려준다
+      profileId: params.profileId ?? "default",
+    };
+  };
+}
+
+/**
+ * M5c §3.4 `thread.setProfile`. 대화가 참조하는 프로필을 바꾼다(`thread.updated { profileId }` 커밋). 쓰기 소유자만 부른다.
+ * 프로필이 없으면 `profile.notFound`다. 적용은 다음 단계 경계부터다(§4.1.8).
+ */
+export function createThreadSetProfileHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"thread.setProfile"> {
+  const { ports } = engine;
+  const profiles = ports.m4.profileTestRun;
+  return async (params, context) => {
+    const { threadId, profileId } = params;
+    requireThread(engine, threadId, "thread.setProfile");
+    const conn = hub().state(context.connectionId);
+    if (conn === undefined || conn.phase === "closed") throw wireError("request.cancelled");
+    if (!engine.ports.locks.holds(threadId)) throw wireError("thread.notOwner");
+    const found = await profiles.get(profileId);
+    if (!found.ok) throw wireErrorOfProfile(found.error);
+    const previewed = await profiles.preview({
+      source: { kind: "stored", id: profileId },
+      threadId,
+    });
+    if (!previewed.ok) throw wireErrorOfProfile(previewed.error);
+    const set = ports.threads.setProfile(threadId, profileId);
+    if (!set.ok) throw wireErrorOfLifecycle(set.error, "thread.setProfile");
+    // 전환은 다음 단계 경계에서 적용된다. 유휴 대화도 다음 매크로태스크에 맞춘다(M5c §4.1.8)
+    engine.ports.m4.pluginSet.recompute(threadId);
+    return {
+      position: set.value.position,
+      preview:
+        previewed.value.permission === undefined ? {} : { permission: previewed.value.permission },
+    };
   };
 }
 
@@ -84,6 +115,7 @@ export function createThreadOpenHandler(
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     if (params.mode === "write") {
       await claimWrite(engine, hub(), context.connectionId, threadId);
+      await ports.threads.applyOpenWorkspace(threadId);
     } else {
       const conn = hub().state(context.connectionId);
       if (conn === undefined || conn.phase === "closed") throw wireError("request.cancelled");
@@ -136,7 +168,9 @@ export function createThreadListHandler(engine: Engine): WireHandler<"thread.lis
     const threads: ThreadSummary[] = [];
     for (const summary of page.threads) {
       const testRun = profiles.testRunMarker(summary.threadId);
-      threads.push(testRun === undefined ? summary : { ...summary, testRun });
+      // 저장된 프로필 id가 없으면 기본이다(M5c §4.1.1)
+      const withProfile = { ...summary, profileId: summary.profileId ?? "default" };
+      threads.push(testRun === undefined ? withProfile : { ...withProfile, testRun });
     }
     return { ...page, threads };
   };
@@ -266,6 +300,7 @@ export function createThreadForkHandler(
     const forked = await ports.threads.fork(params.threadId, params.at);
     if (!forked.ok) throw wireErrorOfLifecycle(forked.error, "thread.fork");
     await claimWrite(engine, hub(), context.connectionId, forked.value.threadId);
+    await ports.threads.applyOpenWorkspace(forked.value.threadId);
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(forked.value.threadId);
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.fork position");

@@ -27,7 +27,12 @@ import {
   type Redactor,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
-import { defineManifest, validateManifest, type PortKey } from "@fresnel/contracts/extensions";
+import {
+  defineManifest,
+  validateManifest,
+  type PortKey,
+  pluginDeclsOf,
+} from "@fresnel/contracts/extensions";
 import { fakeRedactor, manualTimers, realApprovals } from "@fresnel/core-tools/testing";
 import type {
   CommitBatch,
@@ -307,23 +312,27 @@ describe("manifest", () => {
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     const manifest = checked.manifest;
     expect(manifest?.name).toBe(DIALOG_EXTENSION_NAME);
-    expect(manifest?.plugins[0]?.layer).toBe("L2");
-    expect(manifest?.plugins[0]?.provides?.map((entry) => entry.id)).toEqual([
+    expect(pluginDeclsOf(manifest ?? { plugins: [] })[0]?.layer).toBe("L2");
+    expect(
+      pluginDeclsOf(manifest ?? { plugins: [] })[0]?.provides?.map((entry) => entry.id),
+    ).toEqual([
       "dialog.ask",
       "dialog.commands",
       "dialog.status",
       "dialog.attachments",
       "dialog.notify",
     ]);
-    expect(manifest?.plugins[0]?.requires).toEqual([{ id: "workspace.images", range: "^1.0.0" }]);
-    expect(manifest?.plugins[0]?.hooks).toEqual([
+    expect(pluginDeclsOf(manifest ?? { plugins: [] })[0]?.requires).toEqual([
+      { id: "workspace.images", range: "^1.0.0" },
+    ]);
+    expect(pluginDeclsOf(manifest ?? { plugins: [] })[0]?.hooks).toEqual([
       "input.user.before",
       "tool.execution.before",
       "tool.execution.after",
       "input.agent.before",
     ]);
-    expect(manifest?.plugins[0]?.usesPost).toBe(false);
-    expect(manifest?.plugins[0]?.drives).toBeUndefined();
+    expect(pluginDeclsOf(manifest ?? { plugins: [] })[0]?.usesPost).toBe(false);
+    expect(pluginDeclsOf(manifest ?? { plugins: [] })[0]?.drives).toBeUndefined();
   });
 });
 
@@ -427,7 +436,7 @@ describe("plugin", () => {
     await t.host.openThread(thread);
     const out = await t.host.dispatch(
       "input.agent.before",
-      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
+      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {}, driver: null, stack: [] },
       {
         threadId: thread,
         dispatchKey: "k",

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { LoopPort } from "@fresnel/contracts/extensions";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { EXPLORER } from "../fixtures/agent-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
@@ -90,7 +90,8 @@ realTest(
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // 사용자 입력 없이 임대가 부여되고 drive가 자식을 띄운다
+    // 주도 시작 요청을 넣는다. 그룹을 켠 것만으로는 주도하지 않는다(drive-isolation.md 2.2). 그러면 사용자 입력 없이 drive가 자식을 띄운다
+    expect(group.probe.ext?.startDrive(created.threadId, group.module.manifest.name).ok).toBe(true);
     await group.probe.committed;
 
     expect(group.probe.outcomes.map((outcome) => outcome.status)).toEqual(

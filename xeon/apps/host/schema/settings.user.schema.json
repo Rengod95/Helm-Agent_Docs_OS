@@ -23,35 +23,8 @@
         }
       }
     },
-    "ext.account-rotation.enabled": {
-      "default": false,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Account rotation",
-          "labelArgs": {
-            "name": "Account rotation"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.account-rotation.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -67,6 +40,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Account rotation isolation",
           "labelArgs": {
             "name": "Account rotation"
@@ -75,465 +49,6 @@
           "order": 20,
           "tab": "plugins",
           "widget": "select"
-        }
-      }
-    },
-    "ext.authoring.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Plugin Builder",
-          "labelArgs": {
-            "name": "Plugin Builder"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-artifacts.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Artifacts and reviews",
-          "labelArgs": {
-            "name": "Artifacts and reviews"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-dialog.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Dialog",
-          "labelArgs": {
-            "name": "Dialog"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-knowledge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Knowledge and memory",
-          "labelArgs": {
-            "name": "Knowledge and memory"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-mcp.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable MCP client",
-          "labelArgs": {
-            "name": "MCP client"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-schedule.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Schedules",
-          "labelArgs": {
-            "name": "Schedules"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-web.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Web tools",
-          "labelArgs": {
-            "name": "Web tools"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-work.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Work management",
-          "labelArgs": {
-            "name": "Work management"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.cap-workspace.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Workspace tools",
-          "labelArgs": {
-            "name": "Workspace tools"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-agents.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Subagents",
-          "labelArgs": {
-            "name": "Subagents"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-context.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Context",
-          "labelArgs": {
-            "name": "Context"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-loop.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Agent loop",
-          "labelArgs": {
-            "name": "Agent loop"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-models.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Model gateway",
-          "labelArgs": {
-            "name": "Model gateway"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-persistence.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Session persistence",
-          "labelArgs": {
-            "name": "Session persistence"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-tasks.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Task engine",
-          "labelArgs": {
-            "name": "Task engine"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.core-tools.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L1",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Tool runtime",
-          "labelArgs": {
-            "name": "Tool runtime"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.guide.enabled": {
-      "default": false,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Fresnel Guide",
-          "labelArgs": {
-            "name": "Fresnel Guide"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
         }
       }
     },
@@ -559,7 +74,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -614,35 +129,8 @@
         }
       }
     },
-    "ext.helm.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Helm",
-          "labelArgs": {
-            "name": "Helm"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.helm.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -658,6 +146,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Helm isolation",
           "labelArgs": {
             "name": "Helm"
@@ -725,141 +214,6 @@
         }
       }
     },
-    "ext.host-dialog-area-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Dialog area bridge",
-          "labelArgs": {
-            "name": "Dialog area bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.host-dialog-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Dialog bridge",
-          "labelArgs": {
-            "name": "Dialog bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.host-groups.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Group service",
-          "labelArgs": {
-            "name": "Group service"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.host-proposals-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Proposals bridge",
-          "labelArgs": {
-            "name": "Proposals bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "ext.learning.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Learning",
-          "labelArgs": {
-            "name": "Learning"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.provider-anthropic-oauth.acknowledgeRisk": {
       "default": false,
       "type": "boolean",
@@ -911,35 +265,8 @@
         }
       }
     },
-    "ext.provider-anthropic-oauth.enabled": {
-      "default": false,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Anthropic OAuth provider",
-          "labelArgs": {
-            "name": "Anthropic OAuth provider"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.provider-anthropic-oauth.isolation": {
-      "default": "none",
+      "default": "process",
       "enum": [
         "none",
         "process"
@@ -955,6 +282,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
           "label": "Anthropic OAuth provider isolation",
           "labelArgs": {
             "name": "Anthropic OAuth provider"
@@ -2334,6 +1662,29 @@
         }
       }
     },
+    "l1.context.instructionFiles.maxBytes": {
+      "default": 65536,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Instruction file size limit",
+          "labelKey": "settings.l1.context.instructionFiles.maxBytes.label",
+          "order": 280,
+          "tab": "sessions",
+          "unit": "bytes",
+          "unitKey": "settings.l1.context.instructionFiles.maxBytes.unit",
+          "widget": "number"
+        }
+      }
+    },
     "l1.context.keepRecentTokens": {
       "default": 20000,
       "maximum": 262144,
@@ -2744,7 +2095,8 @@
           "user",
           "project",
           "local",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -3652,7 +3004,8 @@
           "user",
           "project",
           "local",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -6927,7 +6280,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Shows the enabled groups and the active driver group in the status line.",
+          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
           "helpKey": "settings.l3.groupSdk.statusLine.help",
           "label": "Show groups in status line",
           "labelKey": "settings.l3.groupSdk.statusLine.label",
@@ -7479,6 +6832,27 @@
         }
       }
     },
+    "x.loading-trust.sourceWatch": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Watch extension source folders for changes",
+          "labelKey": "settings.x.loadingTrust.sourceWatch.label",
+          "order": 450,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "x.operations.autoDisable.consecutive": {
       "default": 5,
       "maximum": 1000,
@@ -7811,6 +7185,60 @@
         }
       }
     },
+    "x.operations.findings.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Compute findings",
+          "labelKey": "settings.x.operations.findings.enabled.label",
+          "order": 550,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.operations.findings.overrides": {
+      "default": {},
+      "patternProperties": {
+        "^.*$": {
+          "patternProperties": {
+            "^.*$": {
+              "type": "number"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Rule id to numeric thresholds. Unknown keys are ignored.",
+          "helpKey": "settings.x.operations.findings.overrides.help",
+          "label": "Finding thresholds",
+          "labelKey": "settings.x.operations.findings.overrides.label",
+          "order": 551,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.operations.hookDefs": {
       "default": [],
       "items": {
@@ -8015,6 +7443,56 @@
         }
       }
     },
+    "x.operations.metrics.defaultWindowDays": {
+      "default": 30,
+      "maximum": 365,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Default metrics window",
+          "labelKey": "settings.x.operations.metrics.defaultWindowDays.label",
+          "order": 541,
+          "tab": "plugins",
+          "unit": "days",
+          "unitKey": "settings.x.operations.metrics.defaultWindowDays.unit",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.metrics.minSample": {
+      "default": 20,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "A rate or distribution is shown as insufficient below this many turns or calls",
+          "helpKey": "settings.x.operations.metrics.minSample.help",
+          "label": "Minimum sample for a metric",
+          "labelKey": "settings.x.operations.metrics.minSample.label",
+          "order": 540,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
     "x.operations.safeMode.default": {
       "default": false,
       "type": "boolean",
@@ -8132,39 +7610,6 @@
         }
       }
     },
-    "x.primitives.activeDriver": {
-      "anyOf": [
-        {
-          "maxLength": 65,
-          "pattern": "^[a-z][a-z0-9-]{1,31}(/[a-z][a-z0-9-]{1,31})?$",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "launch"
-        ],
-        "layer": "X",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Registration id that receives the drive lock when two or more Registrations use drive.",
-          "helpKey": "settings.x.primitives.activeDriver.help",
-          "label": "Driving plugin",
-          "labelKey": "settings.x.primitives.activeDriver.label",
-          "order": 110,
-          "tab": "plugins",
-          "widget": "text"
-        }
-      }
-    },
     "x.primitives.capabilityProviders": {
       "default": {},
       "patternProperties": {
@@ -8220,7 +7665,8 @@
           "managed",
           "user",
           "project",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",
@@ -8277,6 +7723,33 @@
         }
       }
     },
+    "x.primitives.driveMaxDepth": {
+      "default": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "launch",
+          "profile"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "How many plugins may lead one conversation at once, one on top of another. A handoff past this depth is refused.",
+          "helpKey": "settings.x.primitives.driveMaxDepth.help",
+          "label": "Drive stack depth limit",
+          "labelKey": "settings.x.primitives.driveMaxDepth.label",
+          "order": 102,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
     "x.primitives.driveRequiresGroup": {
       "default": true,
       "type": "boolean",
@@ -8297,31 +7770,6 @@
           "order": 112,
           "tab": "plugins",
           "widget": "toggle"
-        }
-      }
-    },
-    "x.primitives.leaseWaitLimit": {
-      "default": 8,
-      "minimum": 1,
-      "type": "integer",
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "launch"
-        ],
-        "layer": "X",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Number of turn-settled or idle boundaries a group waits after failing to get a drive lease. When exceeded, the request is rejected and lease.rejected is recorded.",
-          "helpKey": "settings.x.primitives.leaseWaitLimit.help",
-          "label": "Lease wait limit",
-          "labelKey": "settings.x.primitives.leaseWaitLimit.label",
-          "order": 111,
-          "tab": "plugins",
-          "widget": "number"
         }
       }
     },

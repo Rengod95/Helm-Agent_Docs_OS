@@ -24,7 +24,7 @@ export interface ExtReadSchemas {
   "group.list": Io<U<Req<r.GroupListParams>>, U<r.GroupListResult>>;
   "group.metrics": Io<U<Req<r.GroupMetricsParams>>, U<r.GroupMetricsResult>>;
   "group.promotion": Io<U<Req<r.GroupPromotionParams>>, U<r.GroupPromotionResult>>;
-  "group.driveLock": Io<U<Req<r.GroupDriveLockParams>>, U<r.GroupDriveLockResult>>;
+  "drive.frames": Io<U<Req<r.DriveFramesParams>>, U<r.DriveFramesResult>>;
   "hooks.list": Io<U<Req<r.HooksListParams>>, U<r.HooksListResult>>;
   "hooks.disableConfirm": Io<U<Req<r.HookNameParams>>, U<r.ExtAppliedResult>>;
   "hooks.reenable": Io<U<Req<r.HookNameParams>>, U<r.ExtAppliedResult>>;
@@ -32,6 +32,7 @@ export interface ExtReadSchemas {
   "hooks.order.set": Io<U<Req<r.HooksOrderSetParams>>, U<r.HooksOrderSetResult>>;
   "hooks.order.reset": Io<U<Req<r.HooksOrderResetParams>>, U<r.HooksOrderResetResult>>;
   "hooks.order.preview": Io<U<Req<r.HooksOrderPreviewParams>>, U<r.HooksOrderPreviewResult>>;
+  "blocks.describe": Io<U<NoParams>, U<r.BlocksDescribeResult>>;
   "mcp.servers": Io<U<Req<r.McpServersParams>>, U<r.McpServersResult>>;
   "mcp.serverAction": Io<U<Req<r.McpServerActionParams>>, U<r.McpServerActionResult>>;
 }
@@ -61,7 +62,7 @@ export const EXT_READ_METHODS: Table = {
   "group.list": m4(r.GroupListParamsSchema, r.GroupListResultSchema),
   "group.metrics": m4(r.GroupMetricsParamsSchema, r.GroupMetricsResultSchema),
   "group.promotion": m4(r.GroupPromotionParamsSchema, r.GroupPromotionResultSchema),
-  "group.driveLock": m4(r.GroupDriveLockParamsSchema, r.GroupDriveLockResultSchema),
+  "drive.frames": m4(r.DriveFramesParamsSchema, r.DriveFramesResultSchema),
   "hooks.list": m4(r.HooksListParamsSchema, r.HooksListResultSchema),
   "hooks.disableConfirm": m4(r.HookNameParamsSchema, r.ExtAppliedResultSchema),
   "hooks.reenable": m4(r.HookNameParamsSchema, r.ExtAppliedResultSchema),
@@ -69,6 +70,7 @@ export const EXT_READ_METHODS: Table = {
   "hooks.order.set": m4(r.HooksOrderSetParamsSchema, r.HooksOrderSetResultSchema),
   "hooks.order.reset": m4(r.HooksOrderResetParamsSchema, r.HooksOrderResetResultSchema),
   "hooks.order.preview": m4(r.HooksOrderPreviewParamsSchema, r.HooksOrderPreviewResultSchema),
+  "blocks.describe": m4(NoParamsSchema, r.BlocksDescribeResultSchema),
   "mcp.servers": m4(r.McpServersParamsSchema, r.McpServersResultSchema),
   "mcp.serverAction": m4(r.McpServerActionParamsSchema, r.McpServerRowSchema),
 };

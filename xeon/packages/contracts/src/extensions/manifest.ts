@@ -13,13 +13,14 @@ import {
 } from "typebox";
 import {
   CapabilityIdSchema,
+  COMMAND_NAME_PATTERN,
   SemVerRangeSchema,
   SemVerSchema,
   TOOL_NAME_PATTERN,
 } from "../capabilities/index.ts";
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { HookNameSchema } from "./hooks.ts";
+import { DecisionKindSchema, HookNameSchema } from "./hooks.ts";
 import { PluginIdSchema } from "./registration-id.ts";
 import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
@@ -117,21 +118,52 @@ export const ManifestAuthorSchema: TObject<{
   { additionalProperties: false },
 );
 
-/** Claude Code 구성요소 경로. 해석은 X */
+/** Claude Code 구성요소 경로. 해석은 X. `instructions`는 항상 싣는 지침 파일 경로(M5c-1 추가) */
 export const ManifestComponentsSchema: TObject<{
   skills: TOptional<typeof StringListSchema>;
   commands: TOptional<typeof StringListSchema>;
   agents: TOptional<typeof StringListSchema>;
   mcpServers: TOptional<TString>;
+  instructions: TOptional<typeof StringListSchema>;
 }> = Type.Object(
   {
     skills: Type.Optional(StringListSchema),
     commands: Type.Optional(StringListSchema),
     agents: Type.Optional(StringListSchema),
     mcpServers: Type.Optional(Type.String({ maxLength: 512 })),
+    instructions: Type.Optional(StringListSchema),
   },
   { additionalProperties: false },
 );
+
+/**
+ * 도구 선언 하나(`tools`, M5c-1). 코드가 등록할 도구를 정적으로 알린다. 카드와 비용의 근거다.
+ * 이름이 같은 선언이 둘이면 `tool_duplicate`다(validateManifest)
+ */
+export const ManifestToolDeclSchema: TObject<{
+  name: TString;
+  description: TString;
+}> = Type.Object(
+  {
+    name: Type.String({ pattern: TOOL_NAME_PATTERN, maxLength: 64 }),
+    description: Type.String({ maxLength: 512 }),
+  },
+  { additionalProperties: false },
+);
+export type ManifestToolDecl = Static<typeof ManifestToolDeclSchema>;
+
+/** 명령 선언 하나(`commands`, M5c-1). 이름이 같은 선언이 둘이면 `command_duplicate`다(validateManifest) */
+export const ManifestCommandDeclSchema: TObject<{
+  name: TString;
+  description: TString;
+}> = Type.Object(
+  {
+    name: Type.String({ pattern: COMMAND_NAME_PATTERN, maxLength: 96 }),
+    description: Type.String({ maxLength: 512 }),
+  },
+  { additionalProperties: false },
+);
+export type ManifestCommandDecl = Static<typeof ManifestCommandDeclSchema>;
 
 /** 확장이 담는 플러그인 하나. 이 선언 하나가 Registration 하나가 된다 */
 export const PluginDeclSchema: TObject<{
@@ -140,6 +172,9 @@ export const PluginDeclSchema: TObject<{
   title: TOptional<TString>;
   defaultEnabled: TOptional<TBoolean>;
   hooks: TArray<typeof HookNameSchema>;
+  hookDecides: TOptional<
+    TArray<TObject<{ hook: typeof HookNameSchema; decides: TArray<typeof DecisionKindSchema> }>>
+  >;
   usesPost: TOptional<TBoolean>;
   drives: TOptional<TBoolean>;
   requires: TOptional<TArray<typeof CapabilityRequirementSchema>>;
@@ -158,6 +193,22 @@ export const PluginDeclSchema: TObject<{
     defaultEnabled: Type.Optional(Type.Boolean()),
     /** 이 플러그인이 on을 거는 Hook 목록. 정적 선언. 빈 배열 허용 */
     hooks: Type.Array(HookNameSchema, { maxItems: 64 }),
+    /**
+     * 이 플러그인의 훅이 낼 수 있는 결정 종류를 미리 적는 선언(M5e 스펙 §4.1.1). `hooks`는 이름 문자열 목록이라
+     * 결정 선언은 훅 이름과 짝을 이룬 별도 목록이다. 선언이 없는 훅은 정적으로 알 수 없다고 표시한다. 강제하지 않는다.
+     */
+    hookDecides: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            hook: HookNameSchema,
+            decides: Type.Array(DecisionKindSchema, { minItems: 1, maxItems: 3 }),
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 64 },
+      ),
+    ),
     usesPost: Type.Optional(Type.Boolean()),
     /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다 */
     drives: Type.Optional(Type.Boolean()),
@@ -219,8 +270,11 @@ export const ExtensionManifestSchema: TObject<{
   defaultEnabled: TOptional<TBoolean>;
   components: TOptional<typeof ManifestComponentsSchema>;
   userConfig: TOptional<TRecord<"^.*$", typeof UserConfigEntrySchema>>;
-  entry: TString;
-  plugins: TArray<typeof PluginDeclSchema>;
+  purpose: TOptional<TString>;
+  tools: TOptional<TArray<typeof ManifestToolDeclSchema>>;
+  commands: TOptional<TArray<typeof ManifestCommandDeclSchema>>;
+  entry: TOptional<TString>;
+  plugins: TOptional<TArray<typeof PluginDeclSchema>>;
   group: TOptional<typeof GroupDeclSchema>;
   ui: TOptional<TUnsafe<UiDecl>>;
   methods: TOptional<TArray<TUnsafe<ExtMethodDecl>>>;
@@ -245,9 +299,19 @@ export const ExtensionManifestSchema: TObject<{
       Type.Record(Type.String({ pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }), UserConfigEntrySchema),
     ),
     // Fresnel 필드: 확장 수준
-    /** 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다 */
-    entry: Type.String({ minLength: 1, maxLength: 512 }),
-    plugins: Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 }),
+    /** 한 문장짜리 목적(M5c-1). 카드의 `purpose`가 된다. 없으면 검토에서 승인할 수 없다 */
+    purpose: Type.Optional(Type.String({ maxLength: 200 })),
+    /** 코드가 등록할 도구의 정적 선언(M5c-1). 이름은 검사에서 중복을 막는다 */
+    tools: Type.Optional(Type.Array(ManifestToolDeclSchema, { maxItems: 64 })),
+    /** 명령의 정적 선언(M5c-1). 이름은 검사에서 중복을 막는다 */
+    commands: Type.Optional(Type.Array(ManifestCommandDeclSchema, { maxItems: 64 })),
+    /**
+     * 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다.
+     * 생략할 수 있다(M5c-1). 생략하면 코드 플러그인이 아니고 폴더 신호에서 추론한다(§4.5.4)
+     */
+    entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
+    /** 확장이 담는 플러그인. 생략할 수 있다(M5c-1). 생략하면 루트 플러그인 하나를 추론한다(§4.5.4) */
+    plugins: Type.Optional(Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 })),
     group: Type.Optional(GroupDeclSchema),
     /** Plugin UI 기여(ADR-0021). 확장 수준이고 화면마다 mode가 native 또는 app이다 */
     ui: Type.Optional(UiDeclSchema),
@@ -283,6 +347,19 @@ export function registrationIdOf(
   return pluginId === undefined ? manifest.name : `${manifest.name}/${pluginId}`;
 }
 
+/**
+ * `plugins`가 없을 때 §4.5.4가 채우는 루트 플러그인 하나(층 `plugin`, 훅 없음). 추론한 매니페스트는 파일에 쓰지 않는다.
+ * 검사와 목록이 같은 모양을 보도록 여기 둔다
+ */
+const INFERRED_PLUGIN_DECLS: readonly PluginDecl[] = [{ layer: "plugin", hooks: [] }];
+
+/** 플러그인 선언 목록. `plugins`가 있으면 그대로, 없으면 추론한 루트 플러그인 하나 */
+export function pluginDeclsOf(manifest: {
+  readonly plugins?: readonly PluginDecl[];
+}): readonly PluginDecl[] {
+  return manifest.plugins ?? INFERRED_PLUGIN_DECLS;
+}
+
 export interface PluginEntry {
   /** `plugins` 안의 위치. 검증 경로(`/plugins/<index>`)에 쓴다 */
   readonly index: number;
@@ -298,7 +375,7 @@ export function pluginsOf(
   manifest: Pick<ExtensionManifest, "name" | "plugins" | "group">,
 ): readonly PluginEntry[] {
   const members = manifest.group?.members;
-  return manifest.plugins.map((decl, index) => ({
+  return pluginDeclsOf(manifest).map((decl, index) => ({
     index,
     registrationId: registrationIdOf(manifest, decl.id),
     decl,
@@ -325,7 +402,7 @@ const LAYER_RANK: Readonly<Record<ExtensionLayer, number>> = { plugin: 0, L1: 1,
  */
 export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): ExtensionLayer {
   let best: ExtensionLayer = "plugin";
-  for (const { layer } of manifest.plugins) {
+  for (const { layer } of pluginDeclsOf(manifest)) {
     if (LAYER_RANK[layer] > LAYER_RANK[best]) best = layer;
   }
   return best;

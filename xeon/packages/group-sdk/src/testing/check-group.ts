@@ -1,5 +1,5 @@
 import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
-import { validateManifest, type ManifestIssue } from "@fresnel/contracts/extensions";
+import { validateManifest, type ManifestIssue, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { createExtHost, PrimitiveError } from "@fresnel/ext-host";
 import type { GroupDefIssue, GroupModule } from "../types.ts";
 
@@ -36,7 +36,7 @@ export async function checkGroup(
   const issues: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(module.manifest).issues];
   const rootIndex = Math.max(
     0,
-    module.manifest.plugins.findIndex((plugin) => plugin.id === undefined),
+    pluginDeclsOf(module.manifest).findIndex((plugin) => plugin.id === undefined),
   );
   const host = createExtHost({
     ids: counterIds(),
@@ -45,7 +45,7 @@ export async function checkGroup(
     settings: {
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
-      activeDriver: () => null,
+      driveMaxDepth: () => 8,
       driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },

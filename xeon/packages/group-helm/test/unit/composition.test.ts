@@ -3,6 +3,7 @@ import {
   validateComposition,
   validateManifest,
   type CompositionDecl,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import { validateGroupDef } from "@fresnel/group-sdk";
 import { helmComposition } from "../../src/composition.ts";
@@ -82,12 +83,11 @@ test("composition.blocks: one drive block, hooks are the root plugin's hooks, pr
     ["tool-observe", "on"],
     ["signal-settle", "on"],
     ["restore", "on"],
-    ["lease-rejected", "on"],
     ["command", "register"],
     ["methods", "register"],
     ["drive", "drive"],
   ]);
-  const rootHooks = helmManifest.plugins[0]?.hooks ?? [];
+  const rootHooks = pluginDeclsOf(helmManifest)[0]?.hooks ?? [];
   const hooks = blocks.flatMap((block) => block.hooks ?? []);
   expect(hooks.filter((hook) => !rootHooks.includes(hook))).toEqual([]);
   expect(hooks.toSorted()).toEqual([...rootHooks].toSorted());

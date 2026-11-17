@@ -65,6 +65,9 @@ export function overrideNoticeOf(
       };
     case "launch":
       return { text: t("desktop.settings.override.thread"), path: null };
+    // 프로필은 사용자 값 위, 대화 값 아래의 층이다(M5c §4.1.7). 대화가 참조한 프로필이 정한 값이다
+    case "profile":
+      return { text: t("desktop.settings.override.profile"), path: null };
     case "user":
     case "managed":
     case "default":

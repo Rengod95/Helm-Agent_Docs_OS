@@ -1,0 +1,53 @@
+{
+  "block.context": { "ko": "컨텍스트 조립", "en": "Context assembly" },
+  "block.model": { "ko": "모델 호출", "en": "Model call" },
+  "block.tools": { "ko": "도구 실행", "en": "Tool execution" },
+  "block.ask": { "ko": "사람에게 묻기", "en": "Ask the human" },
+  "block.agents": { "ko": "서브에이전트", "en": "Subagents" },
+  "block.record": { "ko": "기록", "en": "Record" },
+  "boundary.conversation-start": { "ko": "대화 시작", "en": "Conversation start" },
+  "boundary.input-received": { "ko": "입력 받기", "en": "Input received" },
+  "boundary.before-turn-end": { "ko": "턴 종료 직전", "en": "Before turn end" },
+  "part.summarizer": { "ko": "요약기", "en": "Summarizer" },
+  "part.tool.read": { "ko": "읽기 도구", "en": "Read tool" },
+  "part.tool.write": { "ko": "쓰기 도구", "en": "Write tool" },
+  "part.tool.edit": { "ko": "편집 도구", "en": "Edit tool" },
+  "part.tool.grep": { "ko": "검색 도구", "en": "Search tool" },
+  "part.tool.bash": { "ko": "셸 도구", "en": "Shell tool" },
+  "part.web-search-provider": { "ko": "웹 검색 제공자", "en": "Web search provider" },
+  "guarantee.context.recorded-only": {
+    "ko": "기록된 것만 모델에 보인다",
+    "en": "Only recorded items reach the model"
+  },
+  "guarantee.context.truncation-visible": { "ko": "잘리면 표시된다", "en": "Truncation is shown" },
+  "guarantee.model.request-response-recorded": {
+    "ko": "요청과 응답 기록",
+    "en": "Requests and responses are recorded"
+  },
+  "guarantee.model.tokens-counted": { "ko": "토큰 집계", "en": "Tokens are counted" },
+  "guarantee.model.request-guard-retry": {
+    "ko": "요청 가드, 재시도",
+    "en": "Request guard and retry"
+  },
+  "guarantee.tools.permission-check": { "ko": "권한 확인", "en": "Permission check" },
+  "guarantee.tools.approval": { "ko": "승인", "en": "Approval" },
+  "guarantee.tools.sandbox": { "ko": "샌드박스", "en": "Sandbox" },
+  "guarantee.tools.execution-recorded": { "ko": "실행 기록", "en": "Execution is recorded" },
+  "guarantee.tools.result-recorded": { "ko": "결과 기록", "en": "Result is recorded" },
+  "guarantee.ask.waits-for-answer": {
+    "ko": "답이 올 때까지 멈춤",
+    "en": "Waits until the answer arrives"
+  },
+  "guarantee.ask.restored-after-restart": {
+    "ko": "재시작 뒤 복원",
+    "en": "Restored after restart"
+  },
+  "guarantee.agents.inherit-parent": {
+    "ko": "부모의 프로필·권한 상속",
+    "en": "Inherits the parent's profile and permissions"
+  },
+  "guarantee.record.no-repeat-after-restart": {
+    "ko": "재시작해도 같은 일을 두 번 하지 않음",
+    "en": "Does not repeat the same work after a restart"
+  }
+}

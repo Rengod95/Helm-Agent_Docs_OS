@@ -1,4 +1,4 @@
-import type { AgentToolResult, JsonValue } from "@fresnel/contracts/conversation";
+import type { ImageContent, JsonValue, TextContent } from "@fresnel/contracts/conversation";
 import type { EffectStatus } from "@fresnel/contracts/records";
 import type { CallerId, ToolResultView, ToolRisk } from "@fresnel/contracts/services";
 import { TOOL_RISK_ORDER } from "@fresnel/contracts/services";
@@ -42,7 +42,14 @@ export function riskRankOf(risk: ToolRisk): number {
 }
 
 /** 도구 결과를 플러그인 호출의 결과 값으로 옮긴다. 텍스트 내용만 모으고 이미지는 뺀다 */
-export function viewOfExecution(result: AgentToolResult, isError: boolean): ToolResultView {
+export function viewOfExecution(
+  result: {
+    readonly content: readonly (TextContent | ImageContent)[];
+    readonly structuredContent?: JsonValue | undefined;
+    readonly details?: JsonValue | undefined;
+  },
+  isError: boolean,
+): ToolResultView {
   return {
     content: result.content
       .map((part) => (part.type === "text" ? part.text : ""))

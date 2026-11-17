@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 

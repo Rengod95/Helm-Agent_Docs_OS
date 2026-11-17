@@ -126,7 +126,7 @@ export function ComposeScreen(): ReactNode {
                   link={link}
                   builder={builder}
                   onMake={(name) => {
-                    openNew({ name, kind: "plugin-group" });
+                    openNew({ name, kind: "single-plugin" });
                   }}
                   onEnable={enableBuilder}
                 />
@@ -142,7 +142,7 @@ export function ComposeScreen(): ReactNode {
                     setFlowDrafts((current) => ({ ...current, [group.name]: draft }));
                   }}
                   onMake={(composition) => {
-                    openNew({ name: "", kind: "plugin-group", composition });
+                    openNew({ name: "", kind: "single-plugin", composition });
                   }}
                 />
               )}

@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { cp, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -86,7 +87,9 @@ test("authoring.drive-bundle: a drive group packed as one file loads from the us
   expect(packed.value.files).toEqual([".fresnel-plugin/plugin.json", "README.md", "dist/index.js"]);
   const manifest = readManifest(packed.value.path);
   expect(manifest.entry).toBe("./dist/index.js");
-  expect(manifest.plugins.map((plugin) => [plugin.layer, plugin.drives])).toEqual([["L3", true]]);
+  expect(pluginDeclsOf(manifest).map((plugin) => [plugin.layer, plugin.drives])).toEqual([
+    ["L3", true],
+  ]);
   const bundle = await readFile(join(packed.value.path, "dist", "index.js"), "utf8");
   expect(bundle).not.toContain('from "./');
 
@@ -126,7 +129,8 @@ test("authoring.drive-bundle: a drive group packed as one file loads from the us
 
   // 3. drive가 한 번 돈다: 단계마다 turn을 내고 상태를 커밋한다
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  // 중재가 없어 그룹은 시작 요청으로만 주도한다. 프로필의 시작 설정으로 연다(drive-isolation.md 2.2)
+  await t.host.openThread(thread, { startDrive: NAME });
   await t.settled();
   await drain(t, thread, 4);
   expect(t.loop.turns.length).toBeGreaterThan(0);

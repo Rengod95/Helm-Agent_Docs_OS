@@ -6,6 +6,7 @@ import {
   type ProviderResourceDef,
   type ToolReplaceClaim,
   type ToolResourceDef,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
@@ -194,7 +195,7 @@ test("an external group from plugin.json replaces a built-in tool through g.regi
     plugins: [{ layer: "L3", hooks: [], replaces: ["read"] }],
     group: {},
   });
-  expect(manifest.plugins[0]?.replaces).toEqual(["read"]);
+  expect(pluginDeclsOf(manifest)[0]?.replaces).toEqual(["read"]);
   const t = await createTestHost();
   const claims: ToolReplaceClaim[] = [];
   await t.host.registerPlatform({

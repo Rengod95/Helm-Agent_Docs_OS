@@ -74,8 +74,8 @@ test("authoring.guard-blocks-outside-dir: writes inside the target folder pass, 
       toolName: "write",
       risk: "write",
       input: { path: "/work/demo-evil/a.ts" },
-    })?.block,
-  ).toBe(true);
+    }),
+  ).toMatchObject({ block: true });
 });
 
 test("authoring.package-requires-ask: the confirmation is a yes-or-no question with a stable request id (A-4)", () => {

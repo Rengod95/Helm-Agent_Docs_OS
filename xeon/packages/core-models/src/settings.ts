@@ -110,6 +110,8 @@ export const DEFAULT_MODELS_SETTINGS: ModelsSettings = {
 };
 
 const MUPLoS = ["managed", "user", "project", "local", "launch"] as const;
+// l1.models.default만 프로필 범위를 받는다(M5c §3.3)
+const MUPLoSPf = [...MUPLoS, "profile"] as const;
 const MUPLo = ["managed", "user", "project", "local"] as const;
 const MUP = ["managed", "user", "project"] as const;
 
@@ -219,7 +221,7 @@ const group = defineSettings("l1.models", {
     type: defaultRefSchema,
     default: null,
     runtimeChange: "nextTurn",
-    allowedScopes: MUPLoS,
+    allowedScopes: MUPLoSPf,
     ui: {
       tab: "models",
       widget: "text",

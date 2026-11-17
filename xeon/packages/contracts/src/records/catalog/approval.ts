@@ -99,6 +99,7 @@ const ToolApprovalDetail: TObject<{
   argsHash: TString;
   ruleId: TUnion<[TString, TNull]>;
   mcp: TOptional<TObject<{ server: TString; declared: TOptional<typeof McpDeclaredHintsSchema> }>>;
+  askedBy: TOptional<TObject<{ extension: TString; reason: TString }>>;
 }> = Type.Object(
   {
     toolName: Type.String({ minLength: 1, maxLength: 128 }),
@@ -121,6 +122,16 @@ const ToolApprovalDetail: TObject<{
         {
           server: Type.String({ minLength: 1, maxLength: 128 }),
           declared: Type.Optional(McpDeclaredHintsSchema),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    /** 훅이 이 카드를 물었으면 그 확장 이름과 사유(`hook:<확장 이름>` 규칙 옆에 실린다). 훅이 묻지 않았으면 없다 [제안: 4.2] */
+    askedBy: Type.Optional(
+      Type.Object(
+        {
+          extension: Type.String({ minLength: 1, maxLength: 64 }),
+          reason: Type.String({ minLength: 1, maxLength: 500 }),
         },
         { additionalProperties: false },
       ),
@@ -301,21 +312,33 @@ export const ApprovalRequestedPayloadSchema: TObject<{
 );
 export type ApprovalRequestedPayload = Static<typeof ApprovalRequestedPayloadSchema>;
 
+/** 해결한 주체(`ApprovalResolvedBy`). 기록과 훅 payload(`ask.human.after`)가 같은 목록을 쓴다 */
+export const ApprovalResolvedBySchema: TUnion<
+  [
+    TLiteral<"user">,
+    TLiteral<"noninteractive">,
+    TLiteral<"cancelled">,
+    TLiteral<"superseded">,
+    TLiteral<"expired">,
+    TLiteral<"extension">,
+  ]
+> = Type.Union([
+  Type.Literal("user"),
+  Type.Literal("noninteractive"),
+  Type.Literal("cancelled"),
+  Type.Literal("superseded"),
+  Type.Literal("expired"),
+  Type.Literal("extension"),
+]);
+
 export const ApprovalResolvedPayloadSchema: TObject<{
   approvalId: TUnsafe<EventId>;
   decision: TUnion<[TLiteral<"allow">, TLiteral<"deny">, TLiteral<"answer">]>;
   answer: TUnsafe<JsonValue>;
   remember: typeof RememberScope;
   requestedRemember: TUnion<[typeof RememberScope, TNull]>;
-  resolvedBy: TUnion<
-    [
-      TLiteral<"user">,
-      TLiteral<"noninteractive">,
-      TLiteral<"cancelled">,
-      TLiteral<"superseded">,
-      TLiteral<"expired">,
-    ]
-  >;
+  resolvedBy: typeof ApprovalResolvedBySchema;
+  resolvedByExtension: TOptional<TString>;
   deviceId: TOptional<TString>;
 }> = Type.Object(
   {
@@ -326,13 +349,9 @@ export const ApprovalResolvedPayloadSchema: TObject<{
     answer: JsonValueSchema,
     remember: RememberScope,
     requestedRemember: Nullable(RememberScope),
-    resolvedBy: Type.Union([
-      Type.Literal("user"),
-      Type.Literal("noninteractive"),
-      Type.Literal("cancelled"),
-      Type.Literal("superseded"),
-      Type.Literal("expired"),
-    ]),
+    resolvedBy: ApprovalResolvedBySchema,
+    /** `resolvedBy`가 `extension`이면 해결한 확장 이름. 다른 값에는 없다 [제안: 4.2] */
+    resolvedByExtension: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     /** 다른 기기에서 답했으면 그 기기 id(게이트웨이가 hello에 실은 값). 이 컴퓨터에서 답했으면 없다 [결정: 2026-11-12 사용자] */
     deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   },

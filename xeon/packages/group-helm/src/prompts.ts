@@ -2,7 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { PostItem } from "@fresnel/contracts/extensions";
 import type { LensDef } from "./lenses.ts";
 import type { InquiryFinishedPayload } from "./records.ts";
-import { LIMIT_TEXT, OUTCOME_TEXT } from "./texts.ts";
+import { builderDeclineText, handoffRefusalText, LIMIT_TEXT, OUTCOME_TEXT } from "./texts.ts";
 import {
   PHASE_TEXT,
   type HelmLens,
@@ -186,9 +186,41 @@ export function phaseNotice(from: HelmPhase, to: HelmPhase): PostItem {
   );
 }
 
-export function rejectedNotice(): PostItem {
-  return notice(
-    "status",
-    "[helm] 시작을 기다리는 시간이 너무 길어져 탐구 요청을 거두었어요. 다시 시작하려면 /helm start 를 쓰세요.",
-  );
+/** 플러그인 맡기기가 끝난 모양. 맡은 쪽의 답(`accepted`)과 엔진의 끝(`aborted`, `refused`)을 가른다 */
+export type PluginOutcome =
+  | { readonly kind: "accepted" }
+  | { readonly kind: "declined"; readonly reason: string | null }
+  /** 맡은 쪽의 `done` 값을 읽지 못했다 */
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "aborted" }
+  | { readonly kind: "refused"; readonly code: string };
+
+/** 맡기기 결과 한 줄. 상태 문서에는 남기지 않고 알림으로 남긴다(결과 기록 종류를 더하지 않는다) */
+export function pluginResultNotice(purpose: string, outcome: PluginOutcome): PostItem {
+  switch (outcome.kind) {
+    case "accepted":
+      return notice(
+        "status",
+        `[helm] 플러그인 제작을 authoring이 받았어요: ${purpose}. 만드는 일은 authoring 도구(authoring_start)로 이어 가세요.`,
+      );
+    case "declined":
+      return notice(
+        "status",
+        `[helm] authoring이 플러그인 제작을 받지 않았어요: ${purpose}${outcome.reason === null ? "" : ` (${builderDeclineText(outcome.reason)})`}.`,
+      );
+    case "unreadable":
+      return notice("status", `[helm] authoring의 답을 읽지 못했어요: ${purpose}.`);
+    case "aborted":
+      return notice(
+        "status",
+        `[helm] 플러그인 맡기기가 멈췄어요(중단되거나 오류로 끝남): ${purpose}.`,
+      );
+    case "refused":
+      return notice(
+        "status",
+        `[helm] 플러그인 맡기기를 거부당했어요: ${purpose} (${handoffRefusalText(outcome.code)}).`,
+      );
+    default:
+      return assertNever(outcome, "PluginOutcome");
+  }
 }

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -82,7 +82,8 @@ function writeStored(home: EngineHome, input: PluginInput): void {
 
 async function startReal(first: PluginInput) {
   const home = useEngineHome();
-  writeUserSettings(home, TAPE_SETTINGS);
+  // 사용자 확장은 기본이 격리(플러그인 호스트 프로세스)다. 이 시험은 엔진 안의 다시 읽기와 되돌리기 규칙을 보므로 명시로 끈다(L4.host-service.spec §4.9)
+  writeUserSettings(home, { ...TAPE_SETTINGS, [`ext.${NAME}.isolation`]: "none" });
   writeFiles(installedRoot(home), first);
   const host = await startInProcessHost({
     devChecks: true,

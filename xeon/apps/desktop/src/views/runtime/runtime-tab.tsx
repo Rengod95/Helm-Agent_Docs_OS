@@ -1,5 +1,5 @@
 // 런타임 탭(대화 영역 오른쪽 "런타임", spec §4.9.8). 구역 넷: 주도 락, 켜진 그룹과 확장, 전환 기록, 실패.
-// 데이터는 열린 대화 하나를 따라 읽는다(`ext.list`, `group.list`, `group.driveLock`). 목록 알림(`reloadOnExtChanges`)마다 다시 읽는다.
+// 데이터는 열린 대화 하나를 따라 읽는다(`ext.list`, `group.list`, `drive.frames`). 목록 알림(`reloadOnExtChanges`)마다, 그리고 주도권 스택이 바뀐 알림(`drive.framesChanged`)마다 다시 읽는다.
 // 전환 기록과 실패 기록은 엔진 거울이 받은 이벤트를 쓴다(읽기를 하지 않는다).
 // 모양은 `RuntimeBody`가 그린다. 값은 `packages/client/src/workbench/runtime.ts`의 모델이 만든다.
 import { t, type MessageId } from "@fresnel/client/i18n";
@@ -19,8 +19,9 @@ import {
 } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
-import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
 import { Alert, Badge, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -42,10 +43,10 @@ export type Load<T> =
   | { readonly kind: "error" }
   | { readonly kind: "ready"; readonly value: T };
 
-/** drive 구역의 읽은 값: 그룹 목록과 대화의 drive 락 */
+/** drive 구역의 읽은 값: 그룹 목록과 대화의 주도권 스택(`drive.frames`) */
 interface DriveData {
   readonly groups: readonly GroupStatusWire[];
-  readonly lock: GroupDriveLockResult;
+  readonly frames: readonly DriveFrameView[];
 }
 
 /** 탭이 읽는 값 전부. 연결이 없으면 `offline`이라 읽지 않는다 */
@@ -57,7 +58,7 @@ export interface RuntimeData {
 const LOADING: RuntimeData = { entries: { kind: "loading" }, drive: { kind: "loading" } };
 
 /**
- * 열린 대화의 런타임 값을 읽는다. 대화가 바뀌거나 연결이 서면 다시 읽고, 확장 목록 알림마다 다시 읽는다.
+ * 열린 대화의 런타임 값을 읽는다. 대화가 바뀌거나 연결이 서면 다시 읽고, 확장 목록 알림과 주도권 스택 알림마다 다시 읽는다.
  * 대화가 없거나 연결이 없으면 읽지 않는다. 읽은 값은 대화 id와 함께 둔다. 대화가 바뀌면 다른 대화의 값은 읽는 중으로 보인다.
  */
 function useRuntimeData(threadId: ThreadId | null, live: boolean): RuntimeData {
@@ -70,10 +71,10 @@ function useRuntimeData(threadId: ThreadId | null, live: boolean): RuntimeData {
     if (!live || threadId === null) return undefined;
     let active = true;
     const load = async (): Promise<void> => {
-      const [entries, groups, lock] = await Promise.all([
+      const [entries, groups, frames] = await Promise.all([
         commands.workbench.list(threadId),
         commands.workbench.groups(threadId),
-        commands.workbench.driveLock(threadId),
+        commands.workbench.driveFrames(threadId),
       ]);
       if (!active) return;
       setLoaded({
@@ -81,17 +82,21 @@ function useRuntimeData(threadId: ThreadId | null, live: boolean): RuntimeData {
         data: {
           entries: entries.ok ? { kind: "ready", value: entries.value } : { kind: "error" },
           drive:
-            groups.ok && lock.ok
-              ? { kind: "ready", value: { groups: groups.value, lock: lock.value } }
+            groups.ok && frames.ok
+              ? { kind: "ready", value: { groups: groups.value, frames: frames.value } }
               : { kind: "error" },
         },
       });
     };
     detach(load(), rethrow);
     const off = reloadOnExtChanges(commands.workbench, load);
+    const offDrive = commands.workbench.onDriveFramesChanged(threadId, () => {
+      detach(load(), rethrow);
+    });
     return () => {
       active = false;
       off();
+      offDrive();
     };
   }, [commands, live, threadId, key]);
   return loaded !== null && loaded.key === key ? loaded.data : LOADING;
@@ -121,39 +126,12 @@ function Member(props: { readonly member: DriveMemberVM }): ReactNode {
     <li className="flex flex-wrap items-center gap-2 text-ui">
       <span className="text-text-primary">{member.displayName}</span>
       <span className="font-mono text-text-tertiary">{member.id}</span>
-      {member.waits !== null && member.waitLimit !== null && (
-        <span className="ms-auto text-text-tertiary">
-          {t("desktop.runtime.queue.waits", { waits: member.waits, waitLimit: member.waitLimit })}
-        </span>
-      )}
     </li>
   );
 }
 
-/** 턴·spawn·토큰 사용량 한 줄. 토큰 상한이 없으면 사용량만 보인다 */
-function driveUsageText(view: RuntimeDriveView): string {
-  const { limits, used } = view;
-  return limits.tokens === null
-    ? t("desktop.runtime.lock.usage.noTokenLimit", {
-        turns: used.turns,
-        turnsLimit: limits.turns,
-        spawns: used.spawns,
-        spawnsLimit: limits.spawns,
-        tokens: used.tokens,
-      })
-    : t("desktop.runtime.lock.usage", {
-        turns: used.turns,
-        turnsLimit: limits.turns,
-        spawns: used.spawns,
-        spawnsLimit: limits.spawns,
-        tokens: used.tokens,
-        tokensLimit: limits.tokens,
-      });
-}
-
 function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
   const { view } = props;
-  const usage = driveUsageText(view);
   return (
     <div className="grid gap-2">
       {!view.holderAgrees && <Alert tone="warning">{t("desktop.runtime.lock.mismatch")}</Alert>}
@@ -167,15 +145,6 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
             <span className="font-mono text-text-tertiary">{view.holder.id}</span>
           </>
         )}
-        <span className="ms-auto font-mono text-text-tertiary">
-          {t("desktop.runtime.lock.epoch", { epoch: view.leaseEpoch })}
-        </span>
-      </p>
-      <p className="m-0 text-ui text-text-tertiary">{usage}</p>
-      <p className="m-0 text-ui text-text-tertiary">
-        {view.activeDriver === null
-          ? t("desktop.runtime.lock.activeDriver.auto")
-          : t("desktop.runtime.lock.activeDriver", { name: view.activeDriver })}
       </p>
       <div className="grid gap-1">
         <h4 className="m-0 text-ui font-medium text-text-secondary">
@@ -186,20 +155,6 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
         ) : (
           <ul className="m-0 grid list-none gap-1 p-0">
             {view.queue.map((member) => (
-              <Member key={member.id} member={member} />
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="grid gap-1">
-        <h4 className="m-0 text-ui font-medium text-text-secondary">
-          {t("desktop.runtime.rejected.title")}
-        </h4>
-        {view.rejected.length === 0 ? (
-          <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.rejected.empty")}</p>
-        ) : (
-          <ul className="m-0 grid list-none gap-1 p-0">
-            {view.rejected.map((member) => (
               <Member key={member.id} member={member} />
             ))}
           </ul>
@@ -217,15 +172,6 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
           </ul>
         </div>
       )}
-      {view.lastRejected !== null && (
-        <p className="m-0 text-ui text-text-tertiary">
-          {t("desktop.runtime.lock.lastRejected", {
-            group: view.lastRejected.groupId,
-            reason: view.lastRejected.reason,
-            seq: view.lastRejected.requestSeq,
-          })}
-        </p>
-      )}
     </div>
   );
 }
@@ -234,13 +180,13 @@ function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
 export const RoleText: Readonly<Record<DriveRoleOf, MessageId>> = {
   holder: "desktop.runtime.role.holder",
   waiting: "desktop.runtime.role.waiting",
-  rejected: "desktop.runtime.role.rejected",
   error: "desktop.runtime.role.error",
   none: "desktop.runtime.role.none",
 };
 
 /** 전환 기록의 해제 사유마다 글 하나다(템플릿으로 만들지 않는다) */
 const ReleasedText: Readonly<Record<LeaseReleasedPayload["reason"], MessageId>> = {
+  done: "desktop.runtime.transitions.released.done",
   disabled: "desktop.runtime.transitions.released.disabled",
   budget: "desktop.runtime.transitions.released.budget",
   error: "desktop.runtime.transitions.released.error",
@@ -371,8 +317,8 @@ export function RuntimeBody(props: {
     if (link === "pending" || data.drive.kind === "loading") return <Skeleton height={48} />;
     if (data.drive.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.lock.failed")}</Alert>;
-    const { groups, lock } = data.drive.value;
-    return <DriveSection view={runtimeViewOf(groups, lock)} />;
+    const { groups, frames } = data.drive.value;
+    return <DriveSection view={runtimeViewOf(groups, frames)} />;
   };
   const extsBody = (): ReactNode => {
     if (noThread) return null;

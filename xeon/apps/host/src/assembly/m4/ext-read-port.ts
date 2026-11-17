@@ -32,7 +32,7 @@ import type {
   ExtHealthEntry,
   ExtListEntry,
   ExtListPlugin,
-  GroupDriveLockResult,
+  DriveFramesResult,
   GroupMetricsFull,
   GroupPromotionResult,
   GroupStatusWire,
@@ -50,6 +50,7 @@ import {
   checkOrder,
   hookOrderValue,
   hookIdOfUnit,
+  isHookUnitName,
   previewOrder,
   TIERS,
   type GuardRiskNote,
@@ -192,7 +193,10 @@ export interface ExtReadSources {
   ): Promise<GroupMetricsFull | null | undefined>;
   /** 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
   promotion(threadIds: readonly string[] | undefined): Promise<GroupPromotionResult>;
-  driveLock(threadId: string): Promise<GroupDriveLockResult>;
+  /** 주도권 스택의 프레임(`drive.frames`, 맨 아래가 코어 루프). thread가 없으면 빈 목록 */
+  driveFrames(threadId: string): Promise<DriveFramesResult>;
+  /** 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
+  driveFramesChanged(listener: (threadId: string) => void): () => void;
   /** 호스트 핸들러 레지스트리의 실제 등록. 지점 이름 오름차순, 안에서는 디스패치 순서(`ExtReadView.handlers`) */
   hookHandlers(): readonly {
     readonly point: HookName;
@@ -226,7 +230,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   extensions: () => [],
   registrations: () => [],
   threadStatus: () => undefined,
-  enabledSource: () => "default",
+  enabledSource: () => "none",
   managedLocked: () => false,
   forcedOn: () => null,
   mcpClient: () => undefined,
@@ -253,16 +257,8 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
-  driveLock: () =>
-    Promise.resolve({
-      holder: null,
-      leaseEpoch: 0,
-      activeDriver: null,
-      limits: { turns: 0, spawns: 0, tokens: null },
-      used: { turns: 0, spawns: 0, tokens: 0 },
-      candidates: [],
-      lastRejected: null,
-    }),
+  driveFrames: () => Promise.resolve({ frames: [] }),
+  driveFramesChanged: () => () => {},
   hookHandlers: () => [],
   hookOrder: () => ({ saved: () => new Map(), applied: () => new Map(), pending: () => false }),
   boundCapabilities: () => [],
@@ -369,6 +365,8 @@ function writerOf(scope: SettingScope | null): SettingWriter {
     case "project":
     case "local":
       return "user";
+    case "profile":
+      return "profile";
     default:
       return assertNever(scope, "SettingScope");
   }
@@ -519,7 +517,14 @@ async function serverRowsOf(
 }
 
 export function createExtReadPort(
-  deps: Pick<M4PortDeps, "traceRead"> & { readonly env: HookOrderEnv },
+  deps: Pick<M4PortDeps, "traceRead"> & {
+    readonly env: HookOrderEnv;
+    /**
+     * 새 대화가 쓰는 기본 프로필의 플러그인 이름(M5c §4.1). 순서 미리 보기는 대화가 없으니 이 집합에 든 확장의 핸들러만 본다.
+     * 조립이 넘긴다. 없으면 거르지 않는다(확장 목록을 직접 넣는 시험).
+     */
+    readonly defaultPlugins?: () => readonly string[];
+  },
   sources: ExtReadSources,
 ): ExtReadPort {
   /**
@@ -933,11 +938,13 @@ export function createExtReadPort(
       return ok(await sources.promotion(params.threadIds));
     },
 
-    async groupDriveLock(params, signal) {
+    async driveFrames(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      return ok(await sources.driveLock(params.threadId));
+      return ok(await sources.driveFrames(params.threadId));
     },
+
+    onDriveFramesChanged: (listener) => sources.driveFramesChanged(listener),
 
     async hooks(params, signal) {
       const thread = await checkThread(params.threadId, signal);
@@ -1103,7 +1110,15 @@ export function createExtReadPort(
     orderPreview(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
-      const rows = defaultRowsOf(hook).map(previewRowOf);
+      // 기본 프로필에서 빠진 확장의 핸들러는 새 대화에서 돌지 않으므로 순서에도 끼지 않는다. 훅 단위(설정 파일의 훅)는 그 밖이다
+      const admitted =
+        deps.defaultPlugins === undefined ? undefined : new Set(deps.defaultPlugins());
+      const rows = defaultRowsOf(hook)
+        .filter(
+          (row) =>
+            admitted === undefined || isHookUnitName(row.extension) || admitted.has(row.extension),
+        )
+        .map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));
     },

@@ -162,7 +162,8 @@ describe("policyContextOf", () => {
   });
 
   test("a manifest that does not parse is an error value, not a throw", () => {
-    const broken = { ...HELM_MANIFEST, entry: undefined };
+    // `entry`와 `plugins`는 M5c-1에서 선택 필드다. 모양이 틀린 값으로 실패를 만든다
+    const broken = { ...HELM_MANIFEST, plugins: "not-a-list" };
     const result = policyContextOf({
       get: extGetOf(broken),
       entry: uiEntryOf(),

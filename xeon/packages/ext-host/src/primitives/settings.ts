@@ -1,9 +1,4 @@
-import {
-  REGISTRATION_ID_PATTERN,
-  type DriveLimits,
-  type ExtensionName,
-  type RegistrationId,
-} from "@fresnel/contracts/extensions";
+import type { DriveLimits, ExtensionName } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineSettings,
@@ -16,14 +11,14 @@ import type { PrimitivesSettingsSource } from "./core.ts";
 export type { PrimitivesSettingsSource } from "./core.ts";
 
 /** 상한을 명시하지 않은 drive 임대의 일반 기본 상한(X.primitives.spec §4.4.2, review.decisions-2 U-12) */
-/** 임대 대기 상한 기본값: 임대를 받지 못한 후보가 넘기는 `turn_settled`·`idle` 경계 수 [제안] */
-export const DEFAULT_LEASE_WAIT_LIMIT = 8;
-
 export const DEFAULT_DRIVE_LIMITS: Required<DriveLimits> = {
   maxTurns: 4,
   maxSpawns: 8,
   maxTokens: 400_000,
 };
+
+/** 주도권 스택의 깊이 상한 기본값(코어 위 프레임 수). drive-isolation.md 2.3 [결정: 2026-11-17 사용자] */
+const DEFAULT_DRIVE_MAX_DEPTH = 8;
 
 const DriveLimitsSchema = Type.Object(
   {
@@ -36,25 +31,23 @@ const DriveLimitsSchema = Type.Object(
 
 /**
  * x.primitives.* 설정 키(X.primitives.spec §6).
- * activeDriver의 위젯은 문서가 select로 적었지만 F의 D8 규칙이 select에 range.enum을 요구한다.
- * 후보 목록은 ExtHost.scopes()에서 오므로 정적 enum을 둘 수 없어 text로 둔다.
+ * activeDriver와 leaseWaitLimit은 중재를 걷어 내면서 없앴다(drive-isolation.md 2.2).
  */
 export const primitivesSettings: SettingGroup<
   "x.primitives",
   {
     readonly driveDefaultLimits: SettingDefInput;
     readonly driveLimits: SettingDefInput;
-    readonly activeDriver: SettingDefInput;
+    readonly driveMaxDepth: SettingDefInput;
     readonly driveRequiresGroup: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
-    readonly leaseWaitLimit: SettingDefInput;
   }
 > = defineSettings("x.primitives", {
   driveDefaultLimits: {
     type: DriveLimitsSchema,
     default: DEFAULT_DRIVE_LIMITS,
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "launch"],
+    allowedScopes: ["managed", "user", "project", "launch", "profile"],
     ui: {
       tab: "plugins",
       widget: "table",
@@ -78,20 +71,17 @@ export const primitivesSettings: SettingGroup<
     },
     since: "0.1.0",
   },
-  activeDriver: {
-    type: Type.Union([
-      Type.String({ pattern: REGISTRATION_ID_PATTERN, maxLength: 65 }),
-      Type.Null(),
-    ]),
-    default: null,
+  driveMaxDepth: {
+    type: Type.Integer({ minimum: 1 }),
+    default: DEFAULT_DRIVE_MAX_DEPTH,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "launch"],
+    allowedScopes: ["managed", "user", "project", "launch", "profile"],
     ui: {
       tab: "plugins",
-      widget: "text",
-      order: 110,
-      label: "Driving plugin",
-      help: "Registration id that receives the drive lock when two or more Registrations use drive.",
+      widget: "number",
+      order: 102,
+      label: "Drive stack depth limit",
+      help: "How many plugins may lead one conversation at once, one on top of another. A handoff past this depth is refused.",
     },
     since: "0.1.0",
   },
@@ -106,20 +96,6 @@ export const primitivesSettings: SettingGroup<
       order: 112,
       label: "Drive only from plugin groups",
       help: "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
-    },
-    since: "0.1.0",
-  },
-  leaseWaitLimit: {
-    type: Type.Integer({ minimum: 1 }),
-    default: DEFAULT_LEASE_WAIT_LIMIT,
-    runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "launch"],
-    ui: {
-      tab: "plugins",
-      widget: "number",
-      order: 111,
-      label: "Lease wait limit",
-      help: "Number of turn-settled or idle boundaries a group waits after failing to get a drive lease. When exceeded, the request is rejected and lease.rejected is recorded.",
     },
     since: "0.1.0",
   },
@@ -142,10 +118,9 @@ export const primitivesSettings: SettingGroup<
 export interface StaticPrimitivesSettings {
   readonly driveDefaultLimits?: DriveLimits;
   readonly driveLimits?: DriveLimits;
-  readonly activeDriver?: RegistrationId | null;
+  readonly driveMaxDepth?: number;
   readonly driveRequiresGroup?: boolean;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
-  readonly leaseWaitLimit?: number;
 }
 
 /**
@@ -156,16 +131,15 @@ export function withDriveDefaults(value: DriveLimits): DriveLimits {
   return { ...DEFAULT_DRIVE_LIMITS, ...value };
 }
 
-/** 값이 정해진 설정 읽기. 값이 없으면 기본 상한은 DEFAULT_DRIVE_LIMITS, 천장 없음, 구동 그룹 없음, 공급자 지정 없음이다. 일부 필드만 주면 나머지는 DEFAULT_DRIVE_LIMITS로 채운다 */
+/** 값이 정해진 설정 읽기. 값이 없으면 기본 상한은 DEFAULT_DRIVE_LIMITS, 천장 없음, 깊이 상한 기본값, 구동 그룹 제한 기본값, 공급자 지정 없음이다 */
 export function createStaticPrimitivesSettings(
   values: StaticPrimitivesSettings = {},
 ): PrimitivesSettingsSource {
   return {
     driveDefaultLimits: (_threadId: ThreadId) => withDriveDefaults(values.driveDefaultLimits ?? {}),
     driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
-    activeDriver: (_threadId: ThreadId) => values.activeDriver ?? null,
+    driveMaxDepth: (_threadId: ThreadId) => values.driveMaxDepth ?? DEFAULT_DRIVE_MAX_DEPTH,
     driveRequiresGroup: () => values.driveRequiresGroup ?? true,
     capabilityProviders: () => values.capabilityProviders ?? {},
-    leaseWaitLimit: (_threadId: ThreadId) => values.leaseWaitLimit ?? DEFAULT_LEASE_WAIT_LIMIT,
   };
 }

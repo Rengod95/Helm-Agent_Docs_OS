@@ -52,8 +52,30 @@ function catalogOf(...defs: readonly SettingDef[]): SettingCatalog {
 const KEY = intDef().key;
 
 describe("precedence (S5)", () => {
-  test("the table is managed > session > local > project > user", () => {
-    expect(SCOPE_PRECEDENCE).toEqual(["managed", "launch", "local", "project", "user"]);
+  test("the table is managed > launch > profile > local > project > user (default last)", () => {
+    expect(SCOPE_PRECEDENCE).toEqual(["managed", "launch", "profile", "local", "project", "user"]);
+  });
+
+  test("a profile value beats local, project and user but loses to launch and managed", () => {
+    const def = intDef({
+      allowedScopes: ["managed", "launch", "profile", "local", "project", "user"],
+    });
+    const key = def.key;
+    const { setting } = resolveSetting(def, [
+      layer("user", key, 1),
+      layer("project", key, 2),
+      layer("local", key, 3),
+      layer("profile", key, 4),
+      layer("launch", key, 5),
+    ]);
+    expect(setting.source.scope).toBe("launch");
+    const withoutLaunch = resolveSetting(def, [
+      layer("user", key, 1),
+      layer("local", key, 3),
+      layer("profile", key, 4),
+    ]);
+    expect(withoutLaunch.setting.source.scope).toBe("profile");
+    expect(withoutLaunch.setting.value).toBe(4);
   });
 
   test("session wins, shadowed lists local, project, user in order", () => {

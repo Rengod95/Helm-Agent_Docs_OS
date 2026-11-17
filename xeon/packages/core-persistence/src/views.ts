@@ -232,6 +232,7 @@ export interface ThreadRow {
   readonly title: string | null;
   readonly titleSource: ThreadTitleSource | null;
   readonly model: string | null;
+  readonly profileId: string | null;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -246,7 +247,7 @@ export interface ThreadRow {
 
 export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | undefined, RowFault> {
   const row = tx.get(
-    `SELECT thread_id, title, title_source, model, status, workspace, created_at, updated_at, head_seq, leaf_event_id,
+    `SELECT thread_id, title, title_source, model, profile_id, status, workspace, created_at, updated_at, head_seq, leaf_event_id,
        forked_from_thread, forked_from_event, open_turn_id, running_since, resume_attempts
      FROM p_threads WHERE thread_id = ?`,
     [threadId],
@@ -271,6 +272,8 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
   if (!titleSource.ok) return titleSource;
   const model = c.nullableString("model");
   if (!model.ok) return model;
+  const profileId = c.nullableString("profile_id");
+  if (!profileId.ok) return profileId;
   const status = c.parsed(ThreadStatusSchema, "status");
   if (!status.ok) return status;
   const workspace = c.nullableString("workspace");
@@ -298,6 +301,7 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
     title: title.value,
     titleSource: titleSource.value,
     model: model.value,
+    profileId: profileId.value,
     status: status.value,
     workspace: workspace.value,
     createdAt: createdAt.value,
@@ -395,6 +399,7 @@ export function readThreadSummary(
     title: thread.title,
     ...(thread.titleSource === null ? {} : { titleSource: thread.titleSource }),
     ...(thread.model === null ? {} : { model: thread.model }),
+    ...(thread.profileId === null ? {} : { profileId: thread.profileId }),
     status: thread.status,
     workspace: thread.workspace,
     createdAt: thread.createdAt,

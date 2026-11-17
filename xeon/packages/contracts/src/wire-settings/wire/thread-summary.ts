@@ -48,6 +48,7 @@ export function threadSummaryOf(row: ThreadSummaryRow): Result<ThreadSummary, Th
     pendingApprovals: row.pendingApprovals,
     ...(row.lastTurnId === null ? {} : { lastTurnId: row.lastTurnId }),
     ...(row.model === undefined ? {} : { model: row.model }),
+    ...(row.profileId === undefined ? {} : { profileId: row.profileId }),
     ...(row.preview === undefined ? {} : { preview: row.preview }),
   });
 }

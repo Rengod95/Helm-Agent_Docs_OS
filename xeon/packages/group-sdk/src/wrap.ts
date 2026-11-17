@@ -1,5 +1,6 @@
 import { Bug, assertNever, attempt, attemptAsync, parse, rethrow } from "@fresnel/contracts";
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type {
   DriveCommand,
   DriveOptions,
@@ -45,6 +46,7 @@ import type {
   GroupSettingDefs,
   GroupSettingNamespace,
   GroupSettingValues,
+  GroupStartDriveResult,
 } from "./types.ts";
 
 /** 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호. 원천은 X `hostOf(g).callContext()`다 */
@@ -63,6 +65,8 @@ export interface GroupHostAccess {
   agents(): AgentService | undefined;
   /** 재실행 문맥 안이면 그 문맥. 문맥 밖(명령 처리기, 도구 execute, onDispose)이면 undefined */
   callContext(): GroupCallContext | undefined;
+  /** 주도 시작 요청(X `hostOf(g).startDrive`). 문맥의 thread에 이 scope를 넣는다 */
+  startDrive(input?: JsonValue): GroupStartDriveResult;
 }
 
 export type HostAccessFactory<S> = (api: RegistrationApi<S>) => GroupHostAccess;
@@ -91,6 +95,7 @@ export function realHostAccess<S>(api: RegistrationApi<S>): GroupHostAccess {
     settingsSource: () => ({ value: (key) => hostOf(api).settingValue(key) }),
     agents: () => optionalPort(api, AgentServicePortKey),
     callContext: () => hostOf(api).callContext(),
+    startDrive: (input) => hostOf(api).startDrive(input),
   };
 }
 
@@ -290,6 +295,8 @@ export function wrap<S, D extends GroupSettingDefs>(
           point === "boundary.settle.after" ? afterSettle : undefined,
         ),
       ),
+    // 이벤트 구독은 `g.on`의 도우미라 X의 subscribe를 그대로 부른다(M5e §4.4.1). 호출 계측은 `on`과 같은 카운터를 쓰지 않는다
+    subscribe: (events, handler, options) => api.subscribe(events, handler, options),
     post: async (item, options) => {
       ensure(checkPostItem(def.manifest, item), api.id);
       const receipt = await api.post(item, options);
@@ -403,6 +410,7 @@ export function wrap<S, D extends GroupSettingDefs>(
       return { ok: true, cancelled: called.value.cancelled };
     },
     metrics: counter.handle,
+    startDrive: (input) => access.startDrive(input),
     registerTool: (toolDef) => {
       access.registerTool(toolDef);
     },

@@ -86,6 +86,10 @@ export const operationsSettings: SettingGroup<
     readonly "trace.enabled": SettingDefInput;
     readonly "trace.retentionDays": SettingDefInput;
     readonly "trace.storeRequestBody": SettingDefInput;
+    readonly "metrics.minSample": SettingDefInput;
+    readonly "metrics.defaultWindowDays": SettingDefInput;
+    readonly "findings.enabled": SettingDefInput;
+    readonly "findings.overrides": SettingDefInput;
     readonly hookOrder: SettingDefInput;
     readonly hookDisabled: SettingDefInput;
     readonly "budget.hookMs": SettingDefInput;
@@ -249,6 +253,59 @@ export const operationsSettings: SettingGroup<
       order: 530,
       label: "Store model request bodies",
       help: "When on, requests sent to the model are stored with secret values masked, for the raw data retention period",
+    },
+    since: "0.1.0",
+  },
+  // 지표와 살펴볼 것(M5d §3.6, 키 이름은 [제안]). 표본 최소 20은 문서의 `minSample` 기본값이다
+  "metrics.minSample": {
+    type: Type.Integer(),
+    default: 20,
+    range: { min: 1, max: 10000 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 540,
+      label: "Minimum sample for a metric",
+      help: "A rate or distribution is shown as insufficient below this many turns or calls",
+    },
+    since: "0.1.0",
+  },
+  "metrics.defaultWindowDays": {
+    type: Type.Integer(),
+    default: 30,
+    range: { min: 1, max: 365 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 541,
+      label: "Default metrics window",
+      unit: "days",
+    },
+    since: "0.1.0",
+  },
+  "findings.enabled": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: { tab: "plugins", widget: "toggle", order: 550, label: "Compute findings" },
+    since: "0.1.0",
+  },
+  "findings.overrides": {
+    type: Type.Record(Type.String(), Type.Record(Type.String(), Type.Number())),
+    default: {},
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "table",
+      order: 551,
+      label: "Finding thresholds",
+      help: "Rule id to numeric thresholds. Unknown keys are ignored.",
     },
     since: "0.1.0",
   },

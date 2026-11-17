@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { pickPlugin, selectedEntry, type HandlerFailureEntry } from "@fresnel/client/workbench";
-import type { ExtTimingsResult } from "@fresnel/contracts/extensions";
+import type { DriveFrameView, ExtTimingsResult } from "@fresnel/contracts/extensions";
 import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
-  GroupDriveLockResult,
   GroupStatusWire,
   SettingsExplainResult,
 } from "@fresnel/contracts/wire";
@@ -104,21 +103,42 @@ const WAITING: GroupStatusWire[] = [
   },
 ];
 
-const LOCK: GroupDriveLockResult = {
-  holder: "helm",
-  leaseEpoch: 1,
-  activeDriver: null,
-  limits: { turns: 4, spawns: 4, tokens: null },
-  used: { turns: 2, spawns: 0, tokens: 0 },
-  candidates: [{ registrationId: "review", waits: 1, waitLimit: 3 }],
-  lastRejected: null,
-};
+/** 주도권 스택: 코어 루프, 대기 review, 맨 위 보유 helm(사용량 2턴, 상한 4턴·4 하위 실행) */
+const FRAMES: readonly DriveFrameView[] = [
+  {
+    depth: 0,
+    plugin: null,
+    versionId: null,
+    leaseId: null,
+    state: "waiting",
+    used: { turns: 0, spawns: 0, tokens: 0 },
+    limits: {},
+  },
+  {
+    depth: 1,
+    plugin: "review",
+    versionId: "1.0.0",
+    leaseId: "lease-review",
+    state: "waiting",
+    used: { turns: 0, spawns: 0, tokens: 0 },
+    limits: {},
+  },
+  {
+    depth: 2,
+    plugin: "helm",
+    versionId: "1.0.0",
+    leaseId: "lease-helm",
+    state: "driving",
+    used: { turns: 2, spawns: 0, tokens: 0 },
+    limits: { turns: 4, spawns: 4 },
+  },
+];
 
 /** 기본 값 */
 const READY_DATA: InspectData = {
   detail: { kind: "ready", value: REVIEW_DETAIL },
   timings: { kind: "ready", value: TIMINGS },
-  drive: { kind: "ready", value: { groups: WAITING, lock: LOCK } },
+  drive: { kind: "ready", value: { groups: WAITING, frames: FRAMES } },
   settings: { kind: "ready", value: [] },
 };
 
@@ -195,17 +215,15 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     expect(features).toContain(t("desktop.inspect.features.unmet"));
   });
 
-  test("그룹은 구성 블록을 보이고, drive를 쓰면 대기 역할과 대기 횟수를 보인다", () => {
+  test("그룹은 구성 블록을 보이고, drive를 쓰면 프레임 목록에서 정한 대기 역할을 보인다", () => {
     const html = body(REVIEW, READY_DATA);
     expect(sectionOf(html, t("desktop.inspect.composition.title"))).toContain("Lint");
     const lock = sectionOf(html, t("desktop.inspect.drive.title"));
     expect(lock).toContain(t("desktop.runtime.role.waiting"));
-    expect(textOf(lock)).toContain(t("desktop.inspect.drive.waits", { waits: 1, waitLimit: 3 }));
   });
 
-  test("주도 구역은 차수와 턴·하위 실행 사용량 막대를 보이고, 토큰 상한이 없으면 그렇게 적는다", () => {
+  test("주도 구역은 턴·하위 실행 사용량 막대를 맨 위 프레임 값으로 보이고, 토큰 상한이 없으면 그렇게 적는다", () => {
     const lock = sectionOf(body(REVIEW, READY_DATA), t("desktop.inspect.drive.title"));
-    expect(textOf(lock)).toContain(t("desktop.runtime.lock.epoch", { epoch: 1 }));
     expect(textOf(lock)).toContain("2 / 4");
     expect(textOf(lock)).toContain("0 / 4");
     expect(lock).toContain(t("desktop.inspect.drive.noLimit"));
@@ -216,11 +234,15 @@ describe("검사 탭 구역: 값이 있을 때", () => {
           kind: "ready",
           value: {
             groups: WAITING,
-            lock: {
-              ...LOCK,
-              limits: { ...LOCK.limits, tokens: 400 },
-              used: { ...LOCK.used, tokens: 120 },
-            },
+            frames: FRAMES.map((frame) =>
+              frame.plugin === "helm"
+                ? {
+                    ...frame,
+                    limits: { ...frame.limits, tokens: 400 },
+                    used: { ...frame.used, tokens: 120 },
+                  }
+                : frame,
+            ),
           },
         },
       }),
@@ -245,7 +267,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     ];
     const html = body(REVIEW, {
       ...READY_DATA,
-      drive: { kind: "ready", value: { groups: noDrive, lock: LOCK } },
+      drive: { kind: "ready", value: { groups: noDrive, frames: FRAMES } },
     });
     expect(html).not.toContain(`aria-label="${t("desktop.inspect.drive.title")}"`);
   });

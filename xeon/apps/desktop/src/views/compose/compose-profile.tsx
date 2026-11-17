@@ -1,22 +1,23 @@
-// 구성기의 프로필 보기(§6.28.3). 저장된 프로필을 고르거나 새로 만들고, 확장마다 켜기·끄기·그대로를 정해 저장한다(`profile.put`).
-// 삭제(`profile.delete`)는 확인을 거친다. 미리 보기(`profile.preview`)는 저장된 값으로 계산한 "적용했다면"이다. 적용은 열린 대화에 한다.
+// 구성기의 프로필 보기(§6.28.3). 저장된 프로필을 고르거나 새로 만들고, 플러그인 목록에 넣을 것과 뺄 것을 정해 저장한다(`profile.put`).
+// M5c-1부터 프로필은 플러그인 목록(순서가 있다)이다. 목록에 없는 플러그인은 꺼진 것이다(끄기 목록과 "그대로"는 없다).
+// 삭제(`profile.delete`)는 확인을 거친다. 미리 보기(`profile.preview`)는 저장된 값으로 계산한 "적용했다면"이다. 적용은 열린 대화에 한다(`thread.setProfile`).
 // 저장·삭제·적용은 엔진에 연결되어 있을 때만 켜진다. 프로필은 호스트 설정에 있어 어느 창에서 저장해도 같은 목록이다(U-5).
 import { FolderArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
-  choiceOf,
   AUTO_DRIVER_PICK,
   coreLockedOf,
   driverChoicesOf,
   driverOfPick,
   driverPicksOf,
+  hasPluginOf,
   profileDraftOf,
   profileDraftProblemOf,
   profileInputOf,
   profileUnsavedOf,
-  withChoice,
   withDriver,
-  type ProfileChoice,
+  withPluginAdded,
+  withPluginRemoved,
   type ProfileDraft,
   type TabLink,
 } from "@fresnel/client/workbench";
@@ -47,7 +48,9 @@ import { CHOICE_TEXT, PROBLEM_TEXT, profileErrorText } from "./compose-text.ts";
 import type { MessageId, MessageArgs } from "@fresnel/client/i18n";
 
 const MUTED = "m-0 text-ui text-text-tertiary";
-const CHOICES: readonly ProfileChoice[] = ["on", "off", "keep"];
+/** 플러그인 하나의 목록 칸: 프로필 목록에 넣었나(on)·뺐나(off) */
+export type PluginChoice = "on" | "off";
+const CHOICES: readonly PluginChoice[] = ["on", "off"];
 const NEW_PROFILE = "\u0000new";
 
 function run(job: Promise<void>): void {
@@ -63,12 +66,12 @@ type Notice = {
   readonly info?: MessageId;
 };
 
-/** 확장 한 줄. 내장 코어(`locked`)는 켜기·끄기 자리 대신 잠금 표시만 보인다. 저장 값과 무관하게 잠긴다 */
+/** 확장 한 줄. 내장 코어(`locked`)는 목록 칸 자리 대신 잠금 표시만 보인다. 저장 값과 무관하게 잠긴다 */
 export function ChoiceRow(props: {
   readonly entry: ExtListEntry;
-  readonly choice: ProfileChoice;
+  readonly choice: PluginChoice;
   readonly locked: boolean;
-  readonly onChange: (choice: ProfileChoice) => void;
+  readonly onChange: (choice: PluginChoice) => void;
 }): ReactNode {
   const { entry } = props;
   return (
@@ -159,6 +162,7 @@ export function TestRunButton(props: {
   );
 }
 
+/** 미리 보기 줄. 해소된 플러그인(공통 묶음 먼저, 그다음 프로필), 이 프로필을 쓰는 대화 수, 검사 문제 수를 보인다 */
 function PreviewBlock(props: { readonly preview: ProfilePreviewResult }): ReactNode {
   const { preview } = props;
   return (
@@ -170,21 +174,15 @@ function PreviewBlock(props: { readonly preview: ProfilePreviewResult }): ReactN
         {t("desktop.compose.profile.preview.title")}
       </h3>
       <p className={MUTED}>
-        {t("desktop.compose.profile.preview.enabled", { names: preview.enabled.join(", ") || "-" })}
-      </p>
-      <p className={MUTED}>
-        {t("desktop.compose.profile.preview.disabled", {
-          names: preview.disabled.join(", ") || "-",
+        {t("desktop.compose.profile.preview.enabled", {
+          names: preview.resolved.map((plugin) => plugin.name).join(", ") || "-",
         })}
       </p>
       <p className={MUTED}>
-        {t("desktop.compose.profile.preview.holder", { name: preview.expectedHolder ?? "-" })}
+        {t("desktop.compose.profile.preview.threads", { count: preview.threadsUsing })}
       </p>
       <p className={MUTED}>
-        {t("desktop.compose.profile.preview.hooks", { count: preview.hookCount })}
-      </p>
-      <p className={MUTED}>
-        {t("desktop.compose.profile.preview.overrides", { count: preview.overrides.length })}
+        {t("desktop.compose.profile.preview.issues", { count: preview.issues.length })}
       </p>
     </section>
   );
@@ -432,10 +430,15 @@ export function ProfilePanel(props: {
                 <ChoiceRow
                   key={entry.name}
                   entry={entry}
-                  choice={choiceOf(draft, entry.name)}
+                  choice={hasPluginOf(draft, entry.name) ? "on" : "off"}
                   locked={locked}
                   onChange={(choice) => {
-                    if (!locked) setDraft(withChoice(draft, entry.name, choice));
+                    if (locked) return;
+                    setDraft(
+                      choice === "on"
+                        ? withPluginAdded(draft, entry.name)
+                        : withPluginRemoved(draft, entry.name),
+                    );
                   }}
                 />
               );

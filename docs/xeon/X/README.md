@@ -23,7 +23,7 @@ X가 정하지 않는 것:
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 훅 이름 46개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
+| 훅 이름 50개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
 | 훅을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
 | 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), drive 락 정책의 그룹 측 판단 | `L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec` |
 | 대화 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |
@@ -35,7 +35,7 @@ X가 정하지 않는 것:
 | 도메인 | 계획 v2 | 한 줄 책임 | 소유 설정 키 | 문서 | 1차 / 2차 |
 |---|---|---|---|---|---|
 | loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 작업 폴더 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 작업 폴더 신뢰. 2차: 프로세스 격리. M3a: 외부 확장 로더, 안전 모드, SDK 가상 모듈, 기본 플러그인 설치 |
-| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 락 중재, Registration 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriver`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
+| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, 주도권 스택(프레임), Registration 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `driveMaxDepth`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
 | operations | X-c 운영 규칙 | tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(`ExtStorage`), 이름 충돌, 안전 모드, 외부 훅 프로토콜. `DispatchPolicy`·`ResourcePolicy` 구현 | `x.operations.*` | `X.operations.spec`, `X.operations.plan` | 1차: tier, 예산·실패 격리, 저장 영역. 2차: 이름 충돌, 안전 모드, 외부 훅 |
 
 - [제안] 소유 경계 조정: `F.extensions.spec` §1·§4.2는 tier와 핸들러 시간 예산을 primitives 몫으로 적었다. X 세 문서는 계획 v2 X-c와 `eng.transactions.design` §8을 근거로 operations 소유로 둔다. primitives는 `DispatchPolicy` 주입 구멍만 정의한다. F 문구 수정 요청은 §8 미결 1이다.

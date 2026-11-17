@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { describe, expect, test } from "bun:test";
 import {
   DIALOG_CAPABILITIES,
@@ -37,13 +38,13 @@ describe("정의 검증", () => {
   test("DialogAttachments.requires가 workspace.images이고 매니페스트와 같다", () => {
     expect(DialogAttachments.requires).toEqual(["workspace.images"]);
     const manifest = dialogManifest();
-    expect((manifest.plugins[0]?.requires ?? []).map((entry) => entry.id)).toEqual([
+    expect((pluginDeclsOf(manifest)[0]?.requires ?? []).map((entry) => entry.id)).toEqual([
       "workspace.images",
     ]);
   });
 
   test("매니페스트가 제공하는 기능이 구현한 정의와 같다", () => {
-    const provided = (dialogManifest().plugins[0]?.provides ?? []).map(
+    const provided = (pluginDeclsOf(dialogManifest())[0]?.provides ?? []).map(
       (entry) => `${entry.id}@${entry.version}`,
     );
     expect(provided).toEqual([...M2, DialogNotify].map((def) => `${def.id}@${def.version}`));

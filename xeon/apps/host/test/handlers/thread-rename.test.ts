@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { err } from "@fresnel/contracts";
 import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
-import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { HELLO_PARAMS, requestTurn } from "../fixtures/wire-client.ts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 // thread.rename(F wire §3.3.1, HS-73)과 첫 입력 자동 제목(G2-12). 가짜 엔진 위의 실제 처리기다.
@@ -108,7 +108,7 @@ test("the first input names a thread that has no title: the first 80 characters,
   const host = createFakeHost();
   const connection = await open(host);
   const created = await connection.request("thread.create", {});
-  await connection.request("turn.start", {
+  await requestTurn(connection, {
     threadId: created.threadId,
     input: `  첫 질문입니다.\n${"가".repeat(100)}`,
   });
@@ -121,12 +121,12 @@ test("a later input does not rename, and a title the person chose is never overw
   const host = createFakeHost();
   const connection = await open(host);
   const first = await connection.request("thread.create", {});
-  await connection.request("turn.start", { threadId: first.threadId, input: "one" });
+  await requestTurn(connection, { threadId: first.threadId, input: "one" });
   host.fake.setRunningTurn(undefined);
-  await connection.request("turn.start", { threadId: first.threadId, input: "two" });
+  await requestTurn(connection, { threadId: first.threadId, input: "two" });
   expect(host.fake.titles.get(first.threadId)).toBe("one");
   await connection.request("thread.rename", { threadId: first.threadId, title: "mine" });
-  await connection.request("turn.start", { threadId: first.threadId, input: "three" });
+  await requestTurn(connection, { threadId: first.threadId, input: "three" });
   expect(host.fake.titles.get(first.threadId)).toBe("mine");
   await connection.close();
 });
@@ -137,13 +137,13 @@ test("an image-only first input leaves the title empty, and a failed rename does
   });
   const connection = await open(host);
   const created = await connection.request("thread.create", {});
-  const started = await connection.request("turn.start", {
+  const started = await requestTurn(connection, {
     threadId: created.threadId,
     input: [{ type: "image", data: "blob:sha256:00", mimeType: "image/png" }],
   });
   expect(started.turnId.startsWith("trn_")).toBe(true);
   expect(host.fake.log.errors).toEqual([]);
-  const text = await connection.request("turn.start", {
+  const text = await requestTurn(connection, {
     threadId: created.threadId,
     input: "hello",
   });
@@ -162,7 +162,7 @@ test("a turn the loop refused names nothing", async () => {
   host.fake.setRejection({ kind: "input_invalid", message: "empty" });
   const connection = await open(host);
   const created = await connection.request("thread.create", {});
-  await wireErrorOf(connection.request("turn.start", { threadId: created.threadId, input: "x" }));
+  await wireErrorOf(requestTurn(connection, { threadId: created.threadId, input: "x" }));
   expect(host.fake.titles.size).toBe(0);
   await connection.close();
 });

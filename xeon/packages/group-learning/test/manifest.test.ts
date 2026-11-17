@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { RECORD_KIND_PATTERN, validateManifest } from "@fresnel/contracts/extensions";
+import {
+  RECORD_KIND_PATTERN,
+  validateManifest,
+  pluginDeclsOf,
+} from "@fresnel/contracts/extensions";
 import { buildCatalog } from "@fresnel/contracts/settings";
 import { checkGroup } from "@fresnel/group-sdk/testing";
 import { createLearningGroup, learningManifest, learningSettings } from "../src/index.ts";
@@ -19,13 +23,13 @@ test("manifest.validates", async () => {
   );
   // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
   expect(learningManifest.group).toEqual({});
-  expect(learningManifest.plugins.map((plugin) => [plugin.id, plugin.layer])).toEqual([
+  expect(pluginDeclsOf(learningManifest).map((plugin) => [plugin.id, plugin.layer])).toEqual([
     [undefined, "L3"],
   ]);
-  expect(learningManifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
+  expect(pluginDeclsOf(learningManifest).map((plugin) => plugin.drives)).toEqual([undefined]);
   expect(learningManifest.defaultEnabled).toBe(true);
   expect(learningManifest.trust).toEqual({ level: "builtin" });
-  const root = learningManifest.plugins.find((plugin) => plugin.id === undefined);
+  const root = pluginDeclsOf(learningManifest).find((plugin) => plugin.id === undefined);
   if (root === undefined) throw new Error("learning has no root plugin");
   expect(root.usesPost).toBe(false);
   expect(root.hooks).toEqual([

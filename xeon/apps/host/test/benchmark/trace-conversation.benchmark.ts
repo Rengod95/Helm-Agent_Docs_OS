@@ -5,7 +5,7 @@
 // 출력: stdout에 JSON 한 줄씩(metric, unit, value, note). 판정은 하지 않는다. 코드 기본값은 켬이고 Turn 수 상한은 없다(결과는 X.operations.spec 미결 23).
 // 한계: 모델 응답이 즉시라 모델 시간이 0에 가깝다. 계측 비용이 turn 시간에서 차지하는 비중의 상한에 가깝고, 실제 대화에서는 모델 시간만큼 비중이 작아진다.
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";

@@ -2,19 +2,18 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok } from "@fresnel/contracts";
+import { ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
-import type { ScopeLayer, SettingScope } from "@fresnel/contracts/settings";
+import { WIRE_METHODS, WireError } from "@fresnel/contracts/wire";
 import type { ProfileInput } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
-import { isDevMode } from "../../src/assembly/m4/profile-test-run-port.ts";
-import type { SettingsStorePort, SettingsWriteFailure } from "../../src/types.ts";
+import { isDevMode, type PluginFact } from "../../src/assembly/m4/profile-test-run-port.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// spec-deltas/t-wb.md §1, §2. 프로필 처리기 6개, trace.turn, testRun.*, thread.create { testRun, profileId }.
-// 설정 저장소는 범위별 메모리 대역이고 프로필 파일은 임시 폴더의 실제 파일이다.
+// M5c §3.4 프로필 처리기. 저장은 임시 폴더의 실제 `profiles.json`(v2)이고, 검증은 실제 설정 카탈로그를 쓴다.
+// 플러그인 사실(`pluginFacts`)과 열린 대화 수, 설정 값은 시험이 넣는다.
 
 const roots: string[] = [];
 function tempDir(): string {
@@ -26,107 +25,33 @@ afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-const KEY_STEPS = "l1.loop.maxSteps";
-const KEY_REPEAT = "l1.loop.repeat.enabled";
-const KEY_DRIVER = "x.primitives.activeDriver";
-
-interface WriteRecord {
-  readonly op: "write" | "reset";
-  readonly scope: SettingScope;
-  readonly key: string;
-  readonly value: unknown;
-  readonly threadId: ThreadId | undefined;
-}
-
-interface MemorySettings {
-  readonly port: Partial<SettingsStorePort>;
-  readonly values: ReadonlyMap<SettingScope, Map<string, unknown>>;
-  readonly records: WriteRecord[];
-}
-
-/** 범위별 메모리 설정. `failWrite`가 실패를 돌려주는 쓰기(op와 키)를 정한다 */
-function memorySettings(
-  failWrite: (record: WriteRecord) => SettingsWriteFailure | undefined = () => undefined,
-): MemorySettings {
-  const values = new Map<SettingScope, Map<string, unknown>>([
-    ["user", new Map()],
-    ["project", new Map()],
-    ["launch", new Map()],
-  ]);
-  const records: WriteRecord[] = [];
-  const scopeValues = (scope: SettingScope): Map<string, unknown> => {
-    const found = values.get(scope);
-    if (found === undefined) throw new Error(`no scope ${scope}`);
-    return found;
-  };
-  return {
-    values,
-    records,
-    port: {
-      layers: () =>
-        [...values].map(([scope, map]): ScopeLayer => ({ scope, values: new Map(map) })),
-      prepare: () => Promise.resolve(),
-      write(scope, key, value, threadId) {
-        const record: WriteRecord = { op: "write", scope, key, value, threadId };
-        records.push(record);
-        const failure = failWrite(record);
-        if (failure !== undefined) return Promise.resolve(err(failure));
-        scopeValues(scope).set(key, value);
-        return Promise.resolve(ok(undefined));
-      },
-      reset(scope, key, threadId) {
-        const record: WriteRecord = { op: "reset", scope, key, value: undefined, threadId };
-        records.push(record);
-        const failure = failWrite(record);
-        if (failure !== undefined) return Promise.resolve(err(failure));
-        scopeValues(scope).delete(key);
-        return Promise.resolve(ok(undefined));
-      },
-    },
-  };
-}
-
-function inputOf(over: Partial<ProfileInput> = {}): ProfileInput {
-  return {
-    id: "review",
-    title: "Review",
-    enable: [],
-    disable: [],
-    settings: [],
-    driver: null,
-    ...over,
-  };
-}
+const PERMISSION = "l1.tools.permissionMode";
+const DEMO_FACTS: readonly PluginFact[] = [
+  { name: "helm", replaces: [], drives: false, requiredKeys: [] },
+  { name: "demo", replaces: [], drives: true, requiredKeys: [] },
+];
 
 interface Rig {
   readonly host: FakeHost;
   readonly dir: string;
-  readonly memory: MemorySettings;
-  readonly toggles: {
-    id: string;
-    enabled: boolean;
-    reason: string;
-    threadId: ThreadId | undefined;
-  }[];
   readonly removed: ThreadId[];
 }
 
-function rigOf(
-  options: {
-    readonly failWrite?: (record: WriteRecord) => SettingsWriteFailure | undefined;
-    readonly registrations?: readonly RegistrationInfo[];
-    readonly traceRead?: TraceReadPort;
-    readonly testRunControl?: TestRunControlPort;
-    readonly settingValue?: (key: string) => unknown;
-  } = {},
-): Rig {
+interface RigOptions {
+  readonly pluginFacts?: readonly PluginFact[];
+  readonly registrations?: readonly RegistrationInfo[];
+  readonly traceRead?: TraceReadPort;
+  readonly testRunControl?: TestRunControlPort;
+  readonly settingValue?: (key: string) => unknown;
+  /** 닫히지 않은 대화가 저장한 프로필 id(없으면 null) */
+  readonly openThreads?: readonly (string | null)[];
+}
+
+function rigOf(options: RigOptions = {}): Rig {
   const dir = tempDir();
-  const memory = memorySettings(options.failWrite);
-  const toggles: Rig["toggles"] = [];
   const removed: ThreadId[] = [];
   const host = createFakeHost({
     overrides: {
-      settings: memory.port,
       threads: {
         remove: (threadId) => {
           removed.push(threadId);
@@ -136,21 +61,21 @@ function rigOf(
     },
     profiles: {
       configDir: dir,
+      pluginFacts: () => options.pluginFacts ?? DEMO_FACTS,
       ...(options.traceRead === undefined ? {} : { traceRead: options.traceRead }),
       ...(options.testRunControl === undefined ? {} : { testRunControl: options.testRunControl }),
       env: {
         registrations: () => options.registrations ?? [],
-        toggles: {
-          scopes: () => [],
-          request: (id, enabled, reason, threadId) => {
-            toggles.push({ id, enabled, reason, threadId });
-          },
-        },
+        openThreadProfiles: () => options.openThreads ?? [],
+        openThreadIds: () => [],
+        threadProfileId: () => null,
+        forcedPlugins: () => [],
+        defaultPlugins: () => ["helm"],
         ...(options.settingValue === undefined ? {} : { settingValue: options.settingValue }),
       },
     },
   });
-  return { host, dir, memory, toggles, removed };
+  return { host, dir, removed };
 }
 
 async function connect(rig: Rig) {
@@ -166,35 +91,81 @@ function failureOf(call: Promise<unknown>): Promise<unknown> {
   );
 }
 
-function registration(
-  id: string,
-  extension: string,
-  drive: RegistrationInfo["drive"],
-): RegistrationInfo {
-  return { id, extension, status: "enabled", generation: 1, waiting: [], drive };
+function inputOf(over: Partial<ProfileInput> = {}): ProfileInput {
+  return {
+    id: "review",
+    title: "Review",
+    plugins: [{ name: "demo" }],
+    settings: [],
+    startDrive: null,
+    ...over,
+  };
 }
 
-const INSTALLED = [
-  registration("helm", "helm", "registered"),
-  registration("account-rotation", "account-rotation", "none"),
-];
+/** 거절된 저장의 이슈 코드들. 와이어 오류가 아니면 빈 목록이다 */
+function issueCodesOf(error: unknown): string[] {
+  if (!(error instanceof WireError)) return [];
+  const issues = error.data.details?.["issues"];
+  if (!Array.isArray(issues)) return [];
+  return issues.flatMap((issue: unknown) =>
+    typeof issue === "object" && issue !== null && "code" in issue && typeof issue.code === "string"
+      ? [issue.code]
+      : [],
+  );
+}
 
-// ── 저장 ────────────────────────────────────────────────────────────────
+function profileFileOf(dir: string): unknown {
+  return JSON.parse(readFileSync(join(dir, "profiles.json"), "utf8"));
+}
+
+// ── 목록과 기본 프로필 ──────────────────────────────────────────────────
+
+test("profile.list starts with the factory default at rev 0 and an empty common set, and writes nothing", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  const listed = await connection.request("profile.list", {});
+  expect(listed.rev).toBe(0);
+  expect(listed.common).toMatchObject({ plugins: [], settings: [], rev: 0 });
+  expect(listed.profiles).toEqual([
+    {
+      id: "default",
+      title: "default",
+      builtin: true,
+      plugins: [{ name: "helm" }],
+      settings: [{ key: PERMISSION, value: "bypass" }],
+      startDrive: null,
+      updatedAt: "1970-01-01T00:00:00.000Z",
+      rev: 0,
+    },
+  ]);
+  expect((await connection.request("profile.get", { id: "default" })).profile.rev).toBe(0);
+  await connection.close();
+});
+
+test("the first save of default is accepted at baseRev null, and the file is schemaVersion 2 with the default row", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  const saved = await connection.request("profile.put", {
+    profile: inputOf({ id: "default", title: "기본", plugins: [{ name: "helm" }] }),
+    baseRev: null,
+  });
+  expect(saved.profile).toMatchObject({ id: "default", builtin: true, rev: 1 });
+  const file = profileFileOf(rig.dir);
+  expect(file).toMatchObject({
+    schemaVersion: 2,
+    common: { plugins: [], settings: [], rev: 0 },
+    profiles: [{ id: "default", builtin: true, rev: 1 }],
+  });
+  await connection.close();
+});
+
+// ── 저장과 충돌 ─────────────────────────────────────────────────────────
 
 test("profile.put creates at rev 1, updates with the matching baseRev and rejects every other baseRev as profile.conflict", async () => {
   const rig = rigOf();
   const connection = await connect(rig);
   const created = await connection.request("profile.put", { profile: inputOf(), baseRev: null });
-  expect(created.profile).toEqual({
-    id: "review",
-    title: "Review",
-    enable: [],
-    disable: [],
-    settings: [],
-    driver: null,
-    updatedAt: "2026-01-05T00:00:00.000Z",
-    rev: 1,
-  });
+  expect(created.profile).toMatchObject({ id: "review", builtin: false, rev: 1, startDrive: null });
   const updated = await connection.request("profile.put", {
     profile: inputOf({ title: "Review 2" }),
     baseRev: 1,
@@ -212,31 +183,57 @@ test("profile.put creates at rev 1, updates with the matching baseRev and reject
   ).toMatchObject({ data: { kind: "profile.conflict", details: { rev: 2, baseRev: null } } });
   expect(
     await failureOf(
-      connection.request("profile.put", { profile: inputOf({ id: "ghost" }), baseRev: 4 }),
+      connection.request("profile.put", { profile: inputOf({ id: "default" }), baseRev: 4 }),
     ),
   ).toMatchObject({
-    data: { kind: "profile.conflict", details: { id: "ghost", rev: null, baseRev: 4 } },
+    data: { kind: "profile.conflict", details: { id: "default", rev: 0, baseRev: 4 } },
   });
   await connection.close();
 });
 
-test("profile.list, get and delete read the file; a missing id is profile.notFound and the list rev rises with every write", async () => {
+test("profile.put refuses a profile with an error and stores nothing; the details carry the issues", async () => {
   const rig = rigOf();
   const connection = await connect(rig);
-  expect(await connection.request("profile.list", {})).toEqual({ profiles: [], rev: 0 });
-  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
-  await connection.request("profile.put", { profile: inputOf({ id: "second" }), baseRev: null });
-  const list = await connection.request("profile.list", {});
-  expect(list.profiles.map((profile) => profile.id)).toEqual(["review", "second"]);
-  expect(list.rev).toBe(2);
-  expect((await connection.request("profile.get", { id: "second" })).profile.id).toBe("second");
-  expect(await connection.request("profile.delete", { id: "review" })).toEqual({ rev: 3 });
+  const refused = await failureOf(
+    connection.request("profile.put", {
+      profile: inputOf({
+        plugins: [{ name: "ghost" }],
+        startDrive: "helm",
+        settings: [{ key: "ext.demo.missing", value: 1 }],
+      }),
+      baseRev: null,
+    }),
+  );
+  expect(refused).toMatchObject({
+    code: 3307,
+    data: { kind: "profile.invalid" },
+  });
+  expect(issueCodesOf(refused)).toEqual([
+    "plugin_unknown",
+    "driver_not_in_list",
+    "setting_unknown_key",
+  ]);
   expect(
     (await connection.request("profile.list", {})).profiles.map((profile) => profile.id),
-  ).toEqual(["second"]);
+  ).toEqual(["default"]);
+  await connection.close();
+});
+
+test("profile.delete removes a profile; the default cannot be deleted and an unknown id is notFound", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
+  expect(await connection.request("profile.delete", { id: "review" })).toEqual({
+    rev: 2,
+    reassignedThreads: 0,
+  });
   expect(await failureOf(connection.request("profile.get", { id: "review" }))).toMatchObject({
     code: 3301,
     data: { kind: "profile.notFound", details: { id: "review" } },
+  });
+  expect(await failureOf(connection.request("profile.delete", { id: "default" }))).toMatchObject({
+    code: 3308,
+    data: { kind: "profile.builtinProtected", details: { id: "default" } },
   });
   expect(await failureOf(connection.request("profile.delete", { id: "review" }))).toMatchObject({
     data: { kind: "profile.notFound" },
@@ -244,324 +241,331 @@ test("profile.list, get and delete read the file; a missing id is profile.notFou
   await connection.close();
 });
 
-test("a corrupted profiles.json is a profile.fileCorrupt value and is never overwritten", async () => {
+test("profile.delete counts the open threads that reference the profile; a thread on a missing profile counts as default", async () => {
+  // review 프로필을 쓰는 열린 대화 둘, 기본을 쓰는 대화 하나, 없는 프로필 gone을 쓰는 대화 하나(기본으로 읽는다)
+  const rig = rigOf({ openThreads: ["review", "review", null, "gone"] });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "default", plugins: [{ name: "helm" }] }),
+    baseRev: null,
+  });
+  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
+  expect(await connection.request("profile.delete", { id: "review" })).toMatchObject({
+    reassignedThreads: 2,
+  });
+  await connection.close();
+});
+
+test("profile.clone copies the plugins and settings into a new profile; a taken id is conflict", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
+  const cloned = await connection.request("profile.clone", {
+    id: "review",
+    newId: "review-2",
+    title: "Copy",
+  });
+  expect(cloned.profile).toMatchObject({
+    id: "review-2",
+    title: "Copy",
+    builtin: false,
+    plugins: [{ name: "demo" }],
+    rev: 1,
+  });
+  expect(
+    await failureOf(
+      connection.request("profile.clone", { id: "review", newId: "review", title: "x" }),
+    ),
+  ).toMatchObject({ data: { kind: "profile.conflict" } });
+  expect(
+    await failureOf(
+      connection.request("profile.clone", { id: "review", newId: "default", title: "x" }),
+    ),
+  ).toMatchObject({ data: { kind: "profile.builtinProtected" } });
+  await connection.close();
+});
+
+// ── 공통 묶음 ───────────────────────────────────────────────────────────
+
+test("profile.common.put stores the common set with the matching baseRev and bumps its rev; a wrong baseRev is conflict", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  const put = await connection.request("profile.common.put", {
+    common: { plugins: [{ name: "helm" }], settings: [] },
+    baseRev: 0,
+  });
+  expect(put.common).toMatchObject({ plugins: [{ name: "helm" }], rev: 1 });
+  expect(put.issues).toEqual([]);
+  expect(
+    await failureOf(
+      connection.request("profile.common.put", {
+        common: { plugins: [], settings: [] },
+        baseRev: 0,
+      }),
+    ),
+  ).toMatchObject({
+    data: { kind: "profile.conflict", details: { id: "common", rev: 1, baseRev: 0 } },
+  });
+  expect((await connection.request("profile.list", {})).common).toMatchObject({ rev: 1 });
+  await connection.close();
+});
+
+// ── 미리 보기 ───────────────────────────────────────────────────────────
+
+test("profile.preview of a draft reports the resolved list, unknown cost, the threads using it and the permission change", async () => {
+  const rig = rigOf({
+    openThreads: [null, null],
+    settingValue: (key) => (key === PERMISSION ? "ask" : undefined),
+  });
+  const connection = await connect(rig);
+  const preview = await connection.request("profile.preview", {
+    draft: inputOf({
+      settings: [{ key: PERMISSION, value: "bypass" }],
+      plugins: [{ name: "helm" }, { name: "demo" }],
+    }),
+  });
+  expect(preview.resolved).toEqual([{ name: "helm" }, { name: "demo" }]);
+  expect(preview.issues).toEqual([]);
+  expect(preview.cost).toEqual({
+    total: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+    byPlugin: [
+      {
+        plugin: "helm",
+        cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+      },
+      {
+        plugin: "demo",
+        cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+      },
+    ],
+  });
+  expect(preview.permission).toEqual({ from: "ask", to: "bypass" });
+  expect(preview.dropsDrive).toBeNull();
+  // 초안 id를 저장한 대화가 없으므로 0이다(기본을 쓰는 대화는 초안이 아니라 기본 프로필을 가리킨다)
+  expect(preview.threadsUsing).toBe(0);
+  await connection.close();
+});
+
+test("profile.preview of the stored default counts the open threads and reports the missing required keys as warnings", async () => {
+  const rig = rigOf({
+    openThreads: [null, "gone"],
+    pluginFacts: [
+      { name: "helm", replaces: [], drives: false, requiredKeys: ["ext.helm.token"] },
+      { name: "demo", replaces: [], drives: true, requiredKeys: [] },
+    ],
+  });
+  const connection = await connect(rig);
+  const preview = await connection.request("profile.preview", { id: "default" });
+  expect(preview.threadsUsing).toBe(2);
+  expect(preview.missingRequired).toEqual([{ plugin: "helm", key: "ext.helm.token" }]);
+  expect(preview.issues.map((issue) => issue.code)).toEqual(["required_unset"]);
+  expect(await failureOf(connection.request("profile.preview", { id: "ghost" }))).toMatchObject({
+    data: { kind: "profile.notFound" },
+  });
+  await connection.close();
+});
+
+test("profile.preview names a plugin the library does not have, and a replaced tool that two plugins claim", async () => {
+  const rig = rigOf({
+    pluginFacts: [
+      { name: "alpha", replaces: ["web.fetch"], drives: false, requiredKeys: [] },
+      { name: "beta", replaces: ["web.fetch"], drives: false, requiredKeys: [] },
+    ],
+  });
+  const connection = await connect(rig);
+  const preview = await connection.request("profile.preview", {
+    draft: inputOf({ plugins: [{ name: "alpha" }, { name: "beta" }, { name: "ghost" }] }),
+  });
+  expect(preview.issues).toEqual([
+    { code: "plugin_unknown", severity: "error", plugin: "ghost" },
+    {
+      code: "replace_conflict",
+      severity: "error",
+      plugin: "beta",
+      other: "alpha",
+      tool: "web.fetch",
+    },
+  ]);
+  await connection.close();
+});
+
+// ── 플러그인 빼기와 기본 값 되돌리기 ─────────────────────────────────────
+
+test("profile.removePlugin drops the plugin and clears it as the startDrive; a plugin not in the profile is refused and a stale baseRev is conflict", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "demo" }], startDrive: "demo" }),
+    baseRev: null,
+  });
+  const removed = await connection.request("profile.removePlugin", {
+    id: "review",
+    plugin: "demo",
+    baseRev: 1,
+  });
+  expect(removed.profile).toMatchObject({ plugins: [{ name: "helm" }], startDrive: null, rev: 2 });
+  expect(removed.preview).toEqual({ threadsUsing: 0, dropsDrive: null });
+  expect(
+    await failureOf(
+      connection.request("profile.removePlugin", { id: "review", plugin: "demo", baseRev: 2 }),
+    ),
+  ).toMatchObject({ data: { kind: "profile.pluginNotInProfile", details: { name: "demo" } } });
+  expect(
+    await failureOf(
+      connection.request("profile.removePlugin", { id: "review", plugin: "helm", baseRev: 1 }),
+    ),
+  ).toMatchObject({ data: { kind: "profile.conflict" } });
+  await connection.close();
+});
+
+test("profile.default.reset previews the change without writing, then removes the stored default so the factory values return", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ id: "default", plugins: [{ name: "helm" }, { name: "demo" }] }),
+    baseRev: null,
+  });
+  const previewed = await connection.request("profile.default.reset", { preview: true });
+  // 저장된 기본은 공장 값과 다르다(플러그인 목록과 설정 값이 모두 다르다)
+  expect(previewed.changed).toEqual({ plugins: true, settings: true });
+  expect(previewed.profile.plugins).toEqual([{ name: "helm" }, { name: "demo" }]);
+  expect((await connection.request("profile.get", { id: "default" })).profile.rev).toBe(1);
+
+  const reset = await connection.request("profile.default.reset", {});
+  expect(reset.profile).toMatchObject({ id: "default", rev: 0, plugins: [{ name: "helm" }] });
+  expect((await connection.request("profile.get", { id: "default" })).profile.rev).toBe(0);
+  await connection.close();
+});
+
+test("profile.defaultFor is default: no thread binds another profile yet", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  expect(await connection.request("profile.defaultFor", { workspace: "/w" })).toEqual({
+    profileId: "default",
+  });
+  await connection.close();
+});
+
+// ── 손상된 파일 ─────────────────────────────────────────────────────────
+
+test("a corrupted profiles.json is a profile.fileCorrupt value and is never overwritten; the default factory values stay readable", async () => {
   const rig = rigOf();
   const file = join(rig.dir, "profiles.json");
   mkdirSync(rig.dir, { recursive: true });
-  writeFileSync(file, '{"schemaVersion":1,"profiles":"nope"}');
+  writeFileSync(file, '{"schemaVersion":3,"profiles":"nope"}');
   const connection = await connect(rig);
   expect(await failureOf(connection.request("profile.list", {}))).toMatchObject({
     code: 3303,
     data: { kind: "profile.fileCorrupt" },
   });
+  expect((await connection.request("profile.get", { id: "default" })).profile.id).toBe("default");
+  expect(await failureOf(connection.request("profile.get", { id: "review" }))).toMatchObject({
+    data: { kind: "profile.fileCorrupt" },
+  });
   expect(
     await failureOf(connection.request("profile.put", { profile: inputOf(), baseRev: null })),
   ).toMatchObject({ data: { kind: "profile.fileCorrupt" } });
-  expect(readFileSync(file, "utf8")).toBe('{"schemaVersion":1,"profiles":"nope"}');
+  expect(readFileSync(file, "utf8")).toBe('{"schemaVersion":3,"profiles":"nope"}');
   await connection.close();
 });
 
-// ── 적용 ────────────────────────────────────────────────────────────────
+// ── 대화 쪽 ─────────────────────────────────────────────────────────────
 
-const FULL: ProfileInput = inputOf({
-  enable: ["helm"],
-  disable: ["account-rotation"],
-  settings: [
-    { key: KEY_STEPS, value: 5 },
-    { key: KEY_REPEAT, value: false },
-  ],
-  driver: "helm",
-});
-
-test("profile.apply writes the extension switches, the settings and the driver to the user layer, and a missing layer means user", async () => {
+test("thread.create takes the default profile id without testRun and returns it; an unknown profile is notFound before a thread is made", async () => {
   const rig = rigOf();
   const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  const applied = await connection.request("profile.apply", { id: "review" });
-  expect(applied).toEqual({
-    written: [
-      "ext.helm.enabled",
-      "ext.account-rotation.enabled",
-      KEY_STEPS,
-      KEY_REPEAT,
-      KEY_DRIVER,
-    ],
-    layer: "user",
-    appliesAt: "now",
-  });
-  expect(rig.memory.records).toEqual([
-    { op: "write", scope: "user", key: "ext.helm.enabled", value: true, threadId: undefined },
-    {
-      op: "write",
-      scope: "user",
-      key: "ext.account-rotation.enabled",
-      value: false,
-      threadId: undefined,
-    },
-    { op: "write", scope: "user", key: KEY_STEPS, value: 5, threadId: undefined },
-    { op: "write", scope: "user", key: KEY_REPEAT, value: false, threadId: undefined },
-    { op: "write", scope: "user", key: KEY_DRIVER, value: "helm", threadId: undefined },
-  ]);
-  await connection.close();
-});
-
-test("a failing write restores every key already written: earlier values come back and keys that were absent are reset", async () => {
-  const rig = rigOf({
-    failWrite: (record) =>
-      record.op === "write" && record.key === KEY_REPEAT
-        ? { kind: "file_unwritable", path: "/x/settings.json", code: "EACCES" }
-        : undefined,
-  });
-  rig.memory.values.get("user")?.set(KEY_STEPS, 3);
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  expect(await failureOf(connection.request("profile.apply", { id: "review" }))).toMatchObject({
-    data: { kind: "store.io", details: { code: "EACCES" } },
-  });
-  expect([...(rig.memory.values.get("user") ?? [])]).toEqual([[KEY_STEPS, 3]]);
-  expect(rig.memory.records.map((record) => `${record.op}:${record.key}`)).toEqual([
-    "write:ext.helm.enabled",
-    "write:ext.account-rotation.enabled",
-    `write:${KEY_STEPS}`,
-    `write:${KEY_REPEAT}`,
-    `write:${KEY_STEPS}`,
-    "reset:ext.account-rotation.enabled",
-    "reset:ext.helm.enabled",
-  ]);
-  await connection.close();
-});
-
-test("when the restore fails too, profile.applyPartial names the keys left written", async () => {
-  const rig = rigOf({
-    failWrite: (record) => {
-      if (record.key === KEY_REPEAT) return { kind: "io", code: "EIO" };
-      if (record.op === "reset" && record.key === "ext.account-rotation.enabled") {
-        return { kind: "io", code: "EIO" };
-      }
-      return undefined;
-    },
-  });
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  expect(await failureOf(connection.request("profile.apply", { id: "review" }))).toMatchObject({
-    code: 3305,
-    data: {
-      kind: "profile.applyPartial",
-      details: { written: ["ext.account-rotation.enabled"], failed: KEY_REPEAT },
-    },
-  });
-  expect([...(rig.memory.values.get("user") ?? [])].map(([key]) => key)).toEqual([
-    "ext.account-rotation.enabled",
-  ]);
-  await connection.close();
-});
-
-test("settings the catalog rejects are refused before anything is written", async () => {
-  const rig = rigOf();
-  const connection = await connect(rig);
-  await connection.request("profile.put", {
-    profile: inputOf({
-      id: "bad-key",
-      settings: [
-        { key: KEY_STEPS, value: 1 },
-        { key: "l1.nope.missing", value: 1 },
-      ],
-    }),
-    baseRev: null,
-  });
-  await connection.request("profile.put", {
-    profile: inputOf({
-      id: "bad-value",
-      settings: [
-        { key: KEY_STEPS, value: 1 },
-        { key: KEY_REPEAT, value: "yes" },
-      ],
-    }),
-    baseRev: null,
-  });
-  expect(await failureOf(connection.request("profile.apply", { id: "bad-key" }))).toMatchObject({
-    data: { kind: "settings.unknownKey", details: { key: "l1.nope.missing" } },
-  });
-  expect(await failureOf(connection.request("profile.apply", { id: "bad-value" }))).toMatchObject({
-    data: { kind: "settings.invalidValue", details: { key: KEY_REPEAT } },
-  });
-  expect(rig.memory.records).toEqual([]);
-  await connection.close();
-});
-
-test("an untrusted project refuses a project-layer apply as profile.trustRequired and keeps what it wrote", async () => {
-  const rig = rigOf({
-    failWrite: (record) =>
-      record.scope === "project" ? { kind: "untrusted_project", workspace: "/w" } : undefined,
-  });
-  const connection = await connect(rig);
-  const threadId = rig.host.fake.seedThread();
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
+  const created = await connection.request("thread.create", { profileId: "default" });
+  expect(created.profileId).toBe("default");
   expect(
-    await failureOf(
-      connection.request("profile.apply", { id: "review", layer: "project", threadId }),
-    ),
-  ).toMatchObject({
-    code: 3304,
-    data: { kind: "profile.trustRequired", details: { workspace: "/w" } },
-  });
-  expect([...(rig.memory.values.get("project") ?? [])]).toEqual([]);
-  // project 층은 작업 폴더를 알려면 대화가 있어야 한다
-  expect(
-    await failureOf(connection.request("profile.apply", { id: "review", layer: "project" })),
-  ).toMatchObject({ code: -32602, data: { details: { issues: [{ path: "threadId" }] } } });
-  await connection.close();
-});
-
-test("the thread layer writes the launch scope and sends per-thread switch requests for the extensions", async () => {
-  const rig = rigOf({
-    registrations: [
-      registration("helm", "helm", "registered"),
-      registration("helm/side", "helm", "none"),
-      registration("account-rotation", "account-rotation", "none"),
-    ],
-  });
-  const connection = await connect(rig);
-  const threadId = rig.host.fake.seedThread();
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  expect(
-    await failureOf(connection.request("profile.apply", { id: "review", layer: "thread" })),
-  ).toMatchObject({ code: -32602, data: { details: { issues: [{ path: "threadId" }] } } });
-
-  const applied = await connection.request("profile.apply", {
-    id: "review",
-    layer: "thread",
-    threadId,
-  });
-  expect(applied).toEqual({
-    written: [
-      "ext.helm.enabled",
-      "ext.account-rotation.enabled",
-      KEY_STEPS,
-      KEY_REPEAT,
-      KEY_DRIVER,
-    ],
-    layer: "thread",
-    appliesAt: "nextStepBoundary",
-  });
-  expect(rig.memory.records.map((record) => [record.scope, record.key, record.threadId])).toEqual([
-    ["launch", KEY_STEPS, threadId],
-    ["launch", KEY_REPEAT, threadId],
-    ["launch", KEY_DRIVER, threadId],
-  ]);
-  expect(rig.toggles).toEqual([
-    { id: "helm", enabled: true, reason: "request", threadId },
-    { id: "helm/side", enabled: true, reason: "request", threadId },
-    { id: "account-rotation", enabled: false, reason: "request", threadId },
-  ]);
-
-  await connection.request("profile.put", {
-    profile: inputOf({ id: "ghost", enable: ["ghost"] }),
-    baseRev: null,
-  });
-  expect(
-    await failureOf(
-      connection.request("profile.apply", { id: "ghost", layer: "thread", threadId }),
-    ),
-  ).toMatchObject({ data: { kind: "settings.unknownKey", details: { key: "ext.ghost.enabled" } } });
-  expect(rig.toggles).toHaveLength(3);
-  await connection.close();
-});
-
-test("an unknown thread is thread.notFound for apply and preview", async () => {
-  const rig = rigOf();
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  const ghost = rig.host.fake.ids.next("thr");
-  expect(
-    await failureOf(
-      connection.request("profile.apply", { id: "review", layer: "thread", threadId: ghost }),
-    ),
-  ).toMatchObject({ data: { kind: "thread.notFound", details: { threadId: ghost } } });
-  expect(
-    await failureOf(connection.request("profile.preview", { id: "review", threadId: ghost })),
-  ).toMatchObject({ data: { kind: "thread.notFound" } });
-  await connection.close();
-});
-
-// ── 미리보기 ────────────────────────────────────────────────────────────
-
-test("profile.preview computes the holder and the overrides without writing, and refuses what apply would refuse", async () => {
-  const rig = rigOf({
-    registrations: [
-      registration("helm", "helm", "registered"),
-      { ...registration("account-rotation", "account-rotation", "registered"), status: "disabled" },
-      registration("plain", "plain", "none"),
-    ],
-    settingValue: () => null,
-  });
-  const connection = await connect(rig);
-  await connection.request("profile.put", {
-    profile: inputOf({
-      enable: ["account-rotation"],
-      settings: [{ key: KEY_STEPS, value: 7 }],
-      driver: "account-rotation",
-    }),
-    baseRev: null,
-  });
-  expect(await connection.request("profile.preview", { id: "review" })).toEqual({
-    enabled: ["account-rotation"],
-    disabled: [],
-    candidates: ["helm", "account-rotation"],
-    expectedHolder: "account-rotation",
-    overrides: [
-      { key: KEY_STEPS, value: 7 },
-      { key: KEY_DRIVER, value: "account-rotation" },
-    ],
-    hookCount: 0,
-    layer: "user",
-  });
-  // 드라이버를 정하지 않으면 이미 켜져 있던 쪽이 먼저다
-  await connection.request("profile.put", {
-    profile: inputOf({ id: "auto", enable: ["account-rotation"] }),
-    baseRev: null,
-  });
-  expect((await connection.request("profile.preview", { id: "auto" })).expectedHolder).toBe("helm");
-  // 켜져 있던 쪽을 끄면 새로 켜지는 쪽만 남는다
-  await connection.request("profile.put", {
-    profile: inputOf({ id: "swap", enable: ["account-rotation"], disable: ["helm"] }),
-    baseRev: null,
-  });
-  const swapped = await connection.request("profile.preview", { id: "swap" });
-  expect([swapped.candidates, swapped.expectedHolder]).toEqual([
-    ["account-rotation"],
-    "account-rotation",
-  ]);
-  // 지정한 드라이버가 후보가 아니면 아무도 받지 않는다
-  await connection.request("profile.put", {
-    profile: inputOf({ id: "named", driver: "plain" }),
-    baseRev: null,
-  });
-  expect((await connection.request("profile.preview", { id: "named" })).expectedHolder).toBeNull();
-  await connection.request("profile.put", {
-    profile: inputOf({ id: "broken", settings: [{ key: "l1.nope.missing", value: 1 }] }),
-    baseRev: null,
-  });
-  expect(await failureOf(connection.request("profile.preview", { id: "broken" }))).toMatchObject({
-    data: { kind: "settings.unknownKey" },
-  });
-  expect(rig.memory.records).toEqual([]);
-  await connection.close();
-});
-
-// ── thread.create ───────────────────────────────────────────────────────
-
-test("thread.create { testRun, profileId } applies the profile to the thread layer and marks the thread in thread.list", async () => {
-  const rig = rigOf({ registrations: INSTALLED });
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
+    await failureOf(connection.request("thread.create", { profileId: "ghost" })),
+  ).toMatchObject({ data: { kind: "profile.notFound", details: { id: "ghost" } } });
   const plain = await connection.request("thread.create", {});
-  const created = await connection.request("thread.create", { testRun: true, profileId: "review" });
-  expect(rig.memory.records.map((record) => [record.scope, record.key, record.threadId])).toEqual([
-    ["launch", KEY_STEPS, created.threadId],
-    ["launch", KEY_REPEAT, created.threadId],
-    ["launch", KEY_DRIVER, created.threadId],
+  expect(plain.profileId).toBe("default");
+  expect(
+    (await connection.request("thread.list", {})).threads.map((thread) => thread.profileId),
+  ).toEqual(["default", "default"]);
+  await connection.close();
+});
+
+test("thread.create with a stored profile binds the thread to it, and the list shows that profile", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
+  const created = await connection.request("thread.create", { profileId: "review" });
+  expect(created.profileId).toBe("review");
+  expect((await connection.request("thread.list", {})).threads.map((t) => t.profileId)).toEqual([
+    "review",
   ]);
+  await connection.close();
+});
+
+test("thread.create with a profile that is not stored is profile.notFound and makes no thread", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  expect(
+    await failureOf(connection.request("thread.create", { profileId: "review" })),
+  ).toMatchObject({ data: { kind: "profile.notFound" } });
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("thread.setProfile switches the binding and previews the permission change; an unknown profile is notFound and keeps the old binding", async () => {
+  const rig = rigOf({ settingValue: (key) => (key === PERMISSION ? "ask" : undefined) });
+  const connection = await connect(rig);
+  const thread = await connection.request("thread.create", {});
+  await connection.request("profile.put", { profile: inputOf(), baseRev: null });
+  const switched = await connection.request("thread.setProfile", {
+    threadId: thread.threadId,
+    profileId: "review",
+  });
+  expect(switched.position.seq).toBeGreaterThan(thread.position.seq);
+  expect((await connection.request("thread.list", {})).threads.map((t) => t.profileId)).toEqual([
+    "review",
+  ]);
+  expect(
+    await failureOf(
+      connection.request("thread.setProfile", { threadId: thread.threadId, profileId: "ghost" }),
+    ),
+  ).toMatchObject({ data: { kind: "profile.notFound" } });
+  expect((await connection.request("thread.list", {})).threads.map((t) => t.profileId)).toEqual([
+    "review",
+  ]);
+  await connection.close();
+});
+
+// ── 제거된 메서드 ───────────────────────────────────────────────────────
+
+test("profile.apply and the ext install and remove methods are not in the wire registry", () => {
+  const registered: Record<string, unknown> = WIRE_METHODS;
+  for (const removed of [
+    "profile.apply",
+    "ext.install",
+    "ext.installPreview",
+    "ext.remove",
+    "ext.removePreview",
+  ]) {
+    expect(Object.hasOwn(registered, removed)).toBe(false);
+  }
+  for (const added of [
+    "profile.list",
+    "profile.common.put",
+    "profile.defaultFor",
+    "thread.setProfile",
+  ]) {
+    expect(Object.hasOwn(registered, added)).toBe(true);
+  }
+});
+
+// ── Test run ────────────────────────────────────────────────────────────
+
+test("thread.create { testRun } marks the thread with the profile id and thread.list shows the marker", async () => {
+  const rig = rigOf();
+  const connection = await connect(rig);
+  const plain = await connection.request("thread.create", {});
+  const created = await connection.request("thread.create", {
+    testRun: true,
+    profileId: "default",
+  });
   const bare = await connection.request("thread.create", { testRun: true });
   const list = await connection.request("thread.list", {});
   const markers = Object.fromEntries(
@@ -569,55 +573,14 @@ test("thread.create { testRun, profileId } applies the profile to the thread lay
   );
   expect(markers).toEqual({
     [plain.threadId]: undefined,
-    [created.threadId]: { profileId: "review", target: null, paused: false },
+    [created.threadId]: { profileId: "default", target: null, paused: false },
     [bare.threadId]: { profileId: null, target: null, paused: false },
   });
   await connection.close();
 });
 
-test("thread.create refuses a profile on a plain thread and an unknown profile before it makes a thread", async () => {
-  const rig = rigOf();
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  expect(
-    await failureOf(connection.request("thread.create", { profileId: "review" })),
-  ).toMatchObject({
-    code: -32602,
-    data: { details: { issues: [{ path: "profileId" }] } },
-  });
-  expect(
-    await failureOf(connection.request("thread.create", { testRun: true, profileId: "ghost" })),
-  ).toMatchObject({ data: { kind: "profile.notFound", details: { id: "ghost" } } });
-  expect((await connection.request("thread.list", {})).threads).toEqual([]);
-  await connection.close();
-});
-
-test("a profile that fails to apply removes the thread it just created and reports the failure", async () => {
-  const rig = rigOf({
-    registrations: INSTALLED,
-    failWrite: (record) => (record.key === KEY_REPEAT ? { kind: "io", code: "EIO" } : undefined),
-  });
-  const connection = await connect(rig);
-  await connection.request("profile.put", { profile: FULL, baseRev: null });
-  expect(
-    await failureOf(connection.request("thread.create", { testRun: true, profileId: "review" })),
-  ).toMatchObject({ data: { kind: "store.io" } });
-  expect(rig.removed).toHaveLength(1);
-  expect([...(rig.memory.values.get("launch") ?? [])]).toEqual([]);
-  await connection.close();
-});
-
-const readerOf = (value: unknown) => (key: string) =>
-  key === "l3.authoring.devMode" ? value : "unrelated";
-
-// ── 개발 모드 판정(§3) ───────────────────────────────────────────────────
-
 test("isDevMode is true only when l3.authoring.devMode is the value true", () => {
-  expect([true, false, undefined, "true", 1].map((value) => isDevMode(readerOf(value)))).toEqual([
-    true,
-    false,
-    false,
-    false,
-    false,
-  ]);
+  expect(isDevMode((key) => (key === "l3.authoring.devMode" ? true : undefined))).toBe(true);
+  expect(isDevMode((key) => (key === "l3.authoring.devMode" ? "true" : undefined))).toBe(false);
+  expect(isDevMode(() => undefined)).toBe(false);
 });

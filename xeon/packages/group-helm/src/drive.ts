@@ -9,6 +9,7 @@ import type {
   TurnOutcome,
 } from "@fresnel/contracts/extensions";
 import type { GroupApi } from "@fresnel/group-sdk";
+import { Type } from "typebox";
 import { dedupeFindings } from "./findings.ts";
 import { failureOfRefusal, failureOfTurn, type HelmFailure } from "./failures.ts";
 import type { ExplorationMarker } from "./guard.ts";
@@ -22,15 +23,19 @@ import {
   explorerTask,
   finishedNotice,
   phaseNotice,
+  pluginResultNotice,
   postRequestId,
+  type PluginOutcome,
 } from "./prompts.ts";
 import { reactionOf } from "./reaction.ts";
 import type { HelmSettings } from "./settings.ts";
 import {
   fitState,
   HelmStateSchema,
+  pluginNeedOf,
   type HelmLens,
   type HelmPhase,
+  type HelmPluginNeed,
   type HelmState,
   type InquiryId,
 } from "./state.ts";
@@ -39,6 +44,15 @@ type DriveApi = Pick<GroupApi<HelmState>, "record" | "post" | "capability">;
 type Command = DriveCommand<HelmState>;
 type TurnCommand = Extract<Command, { readonly do: "turn" }>;
 type Limit = "turns" | "spawns" | "tokens";
+
+/** 플러그인 제작을 맡는 내장 그룹(plugin-builder)의 이름. 매니페스트 `name`과 같다 */
+export const BUILDER_PLUGIN = "authoring";
+
+/** 맡은 쪽이 `done`으로 돌려주는 값(plugin-builder `accepted`). 모양이 맞지 않으면 답을 읽지 못한 것이다 */
+const HandoffReplySchema = Type.Object({
+  accepted: Type.Boolean(),
+  reason: Type.Optional(Type.String({ maxLength: 200 })),
+});
 
 function pick(left: number | undefined, right: number | undefined): number | undefined {
   if (left === undefined) return right;
@@ -150,6 +164,10 @@ async function nextCommand(
   state: Readonly<HelmState>,
   last: StepResult | null,
 ): Promise<Command> {
+  // 맡기기 결과는 중지 표지보다 먼저 본다. 요청이 없으면(중지로 취소됨) 결과는 알림 없이 지나간다
+  const need = pluginNeedOf(state);
+  const outcome = pluginOutcomeOf(last);
+  if (need !== null && outcome !== undefined) return pluginSettle(ctx, state, need, outcome);
   if (state.stopRequested) return step(ctx, state, { type: "stopRequested" });
   // 사용자 메시지는 `turn`으로 처리하고 원래 단계로 이어 간다(drive-isolation 2.4). 턴 한도가 없으면 턴을 낼 수 없어 단계 진행으로 넘긴다
   if (last?.kind === "user" && turnLimitOf(ctx.budget) === undefined) {
@@ -166,6 +184,9 @@ async function advance(
 ): Promise<Command> {
   if (last?.kind === "refused") return settle(ctx, state, failureOfRefusal(last.code));
   if (state.phase === "idle") {
+    // 플러그인 맡기기는 탐구보다 먼저 한다. 맡긴 쪽이 끝나 요청이 비워진 뒤에야 대기 중인 탐구가 시작된다
+    const need = pluginNeedOf(state);
+    if (need !== null) return handoffOf(need);
     if (state.pending === null) return { do: "done" };
     const lenses = selectLenses(state.pending, ctx.settings().maxLenses, BUILTIN_LENSES);
     return step(ctx, state, { type: "leaseGranted", lenses });
@@ -184,6 +205,51 @@ async function advance(
     default:
       return assertNever(state.phase, "helmDrive");
   }
+}
+
+/**
+ * 플러그인 맡기기 명령(drive-isolation.md 2.2, 2.6). 맡은 쪽은 `input`의 `id`로 같은 요청의 알림을 한 번만 낸다.
+ * 요청 id는 엔진이 정하므로 여기서 만들지 않는다
+ */
+function handoffOf(need: HelmPluginNeed): Command {
+  return { do: "handoff", to: BUILDER_PLUGIN, input: { purpose: need.purpose, id: need.id } };
+}
+
+/** 직전 결과가 맡기기의 끝인가. 맡기기와 무관한 결과는 `undefined`다 */
+function pluginOutcomeOf(last: StepResult | null): PluginOutcome | undefined {
+  if (last === null) return undefined;
+  if (last.kind === "handoff") {
+    if (last.status === "aborted") return { kind: "aborted" };
+    return replyOf(last.result);
+  }
+  if (last.kind === "refused") return { kind: "refused", code: last.code };
+  if (last.kind === "aborted") return { kind: "aborted" };
+  return undefined;
+}
+
+/** 맡은 쪽의 `done` 값을 읽는다. 모양이 맞지 않으면 답을 읽지 못한 것이다(예외가 아니다) */
+function replyOf(result: unknown): PluginOutcome {
+  const read = parse(HandoffReplySchema, result);
+  if (!read.ok) return { kind: "unreadable" };
+  if (read.value.accepted) return { kind: "accepted" };
+  return { kind: "declined", reason: read.value.reason ?? null };
+}
+
+/**
+ * 맡기기가 끝났다: 결과를 알림으로 남기고 요청을 비운다. 비운 상태를 커밋한 뒤 이어 할 일을 본다(대기 중인 탐구가 있으면 그 시작).
+ * 알림 requestId는 요청 id에서 정해져 재시작 뒤 같은 단계가 다시 와도 한 번만 난다
+ */
+async function pluginSettle(
+  ctx: Ctx,
+  state: Readonly<HelmState>,
+  need: HelmPluginNeed,
+  outcome: PluginOutcome,
+): Promise<Command> {
+  await ctx.g.post(pluginResultNotice(need.purpose, outcome), {
+    when: "next",
+    requestId: `helm:plugin:${need.id}:result`,
+  });
+  return commitThen(ctx, { ...state, pluginNeed: null });
 }
 
 /** 실패를 반응으로 바꾼다(L3.helm.spec §4.12). 끝내는 반응만 상태를 바꾸고, 나머지는 커밋 없이 반환한다 */

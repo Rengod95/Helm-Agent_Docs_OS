@@ -10,7 +10,7 @@ const NOT_PROVIDED_YET: ReadonlySet<string> = new Set(["web.research"]);
 
 test("every built-in capability that carries tools is declared by the core-tools manifest", () => {
   const declared = new Set<string>(
-    toolsManifest(L2_TOOL_CAPABILITIES).plugins.flatMap((plugin) =>
+    (toolsManifest(L2_TOOL_CAPABILITIES).plugins ?? []).flatMap((plugin) =>
       (plugin.optional ?? []).map((requirement) => requirement.id),
     ),
   );

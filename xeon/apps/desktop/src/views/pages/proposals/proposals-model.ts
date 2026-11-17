@@ -407,6 +407,7 @@ export function skillFailureOf(error: SkillViewError): SkillPeekFailure {
   switch (error.kind) {
     case "not_found":
       return "notFound";
+    case "not_available":
     case "unsupported":
       return "unsupported";
     case "offline":

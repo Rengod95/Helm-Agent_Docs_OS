@@ -164,7 +164,7 @@ export function createRuntimeReplayHarness(): CountingReplayHarness {
         loadIndex: 0,
         builtin: true,
       });
-      await t.host.openThread(thread);
+      await t.host.openThread(thread, { startDrive: group.manifest.name });
       await t.settled();
       await drain(t, thread, DRAIN_ROUNDS);
       const events = t.records.events(thread).map((draft) => {

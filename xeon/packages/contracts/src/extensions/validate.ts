@@ -15,13 +15,15 @@ import {
   ExtensionManifestSchema,
   MANIFEST_SCHEMA_VERSION,
   extensionPrefix,
+  pluginDeclsOf,
   pluginDefaultEnabled,
   pluginsOf,
   type ExtensionManifest,
   type PluginDecl,
   type PluginEntry,
 } from "./manifest.ts";
-import type { HookName } from "./hooks.ts";
+import { FIRST_RANK, type DecisionKind, type HookName } from "./hooks.ts";
+import { HOOK_POSITIONS } from "./hook-positions.ts";
 import type { CompositionDecl } from "./composition.ts";
 import type { ExtMethodDecl } from "./ext-method.ts";
 import { PLACEMENT_LIMITS, PLACEMENT_MODES, type Placement, type UiDecl } from "./ui.ts";
@@ -52,6 +54,12 @@ export type ManifestIssueCode =
   | "group_member_duplicate"
   | "hook_unknown"
   | "hook_duplicate"
+  /** 내부 훅(H-4)을 내장이 아닌 등급이 선언했다. 거부다 */
+  | "hook_internal"
+  /** 지금 빌드가 발화하지 않는 훅을 선언했다(H-4). 경고다 */
+  | "hook_not_fired"
+  /** `hookDecides`가 그 훅이 낼 수 없는 결정 종류를 선언했다(M5e 스펙 §4.1.1). 거부다 */
+  | "hook_decision_not_allowed"
   | "capability_invalid"
   | "range_invalid"
   | "capability_duplicate"
@@ -74,6 +82,8 @@ export type ManifestIssueCode =
   | "widgets_required"
   | "method_invalid"
   | "method_duplicate"
+  | "tool_duplicate"
+  | "command_duplicate"
   | "composition_invalid"
   // validateComposition
   | "composition_duplicate"
@@ -470,7 +480,7 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
 /** 구성 검사가 대조하는 매니페스트 부분과 이 맥락에서 쓸 수 있는 기능(provider가 켜진 것) */
 export interface CompositionContext {
   /** 있으면 블록이 속한 플러그인의 `hooks`, `requires`, `optional`, `drives`, `usesPost`와 대조한다 */
-  readonly manifest?: { readonly plugins: readonly PluginDecl[] };
+  readonly manifest?: { readonly plugins?: readonly PluginDecl[] };
   /** 있으면 `requires` 기능의 제공자를 대조한다. 없으면 `capability_missing`은 검사하지 않는다 */
   readonly providers?: readonly CapabilityId[];
 }
@@ -513,7 +523,10 @@ function checkComposition(
     }
 
     // 블록이 속한 플러그인: plugin이 없으면 루트(id 없음)
-    const owner = manifest?.plugins.find((decl) => decl.id === block.plugin);
+    const owner =
+      manifest === undefined
+        ? undefined
+        : pluginDeclsOf(manifest).find((decl) => decl.id === block.plugin);
     if (manifest !== undefined && owner === undefined) {
       issues.push(
         issue(
@@ -753,13 +766,18 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
     );
   }
 
-  if (!isEntryInsideRoot(manifest.entry)) {
+  // entry는 선택이다(M5c-1). 없으면 검사할 경로가 없다
+  if (manifest.entry !== undefined && !isEntryInsideRoot(manifest.entry)) {
     issues.push(
       issue("error", "entry_invalid", "/entry", "entry must be a relative path inside the root"),
     );
   }
 
   issues.push(...checkPluginList(manifest));
+  issues.push(...checkDeclaredNames(manifest));
+  pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
+    issues.push(...checkPluginHooks(manifest, plugin, `/plugins/${pluginIndex}`));
+  });
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
   if (manifest.group?.composition !== undefined) {
@@ -769,7 +787,7 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   }
 
   const prefix = ownPrefix(manifest);
-  manifest.plugins.forEach((plugin, pluginIndex) => {
+  pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
     const base = `/plugins/${pluginIndex}`;
     for (const { index, id } of duplicatesIn(plugin.hooks)) {
       issues.push(
@@ -920,12 +938,93 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
 }
 
 /** 플러그인 id, 루트, 층 섞임, 그룹 구성원 검사 */
+/** 결정을 낼 수 있다고 선언할 수 있는 종류(M5e 스펙 §4.1.1). 합치기 지점(H-2)만 낸다. 그 밖의 훅은 빈 목록이다 */
+function declarableDecisionsOf(hook: HookName): readonly DecisionKind[] {
+  if (hook === "tool.call.before" || hook === "agent.spawn.before") return FIRST_RANK[hook];
+  return [];
+}
+
+/**
+ * 플러그인의 훅 선언 검사. 내부 훅(H-4)은 내장 등급만 선언할 수 있고, 지금 발화하지 않는 훅은 경고다.
+ * 결정 선언(`hookDecides`)은 같은 플러그인의 훅이고 그 훅이 낼 수 있는 종류의 부분집합이어야 한다. 순수 함수
+ */
+function checkPluginHooks(
+  manifest: ExtensionManifest,
+  plugin: PluginDecl,
+  base: string,
+): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const builtin = manifest.trust?.level === "builtin";
+  plugin.hooks.forEach((hook, index) => {
+    const row = HOOK_POSITIONS[hook];
+    if (!builtin && row.positions.some((position) => position.kind === "internal")) {
+      issues.push(
+        issue(
+          "error",
+          "hook_internal",
+          `${base}/hooks/${index}`,
+          `hook "${hook}" is internal; only a builtin extension may declare it`,
+        ),
+      );
+    }
+    if (!row.fired) {
+      issues.push(
+        issue(
+          "warning",
+          "hook_not_fired",
+          `${base}/hooks/${index}`,
+          `hook "${hook}" is declared, but this build does not fire it`,
+        ),
+      );
+    }
+  });
+  const decides = plugin.hookDecides ?? [];
+  for (const { index, id } of duplicatesIn(decides.map((entry) => entry.hook))) {
+    issues.push(
+      issue(
+        "error",
+        "hook_duplicate",
+        `${base}/hookDecides/${index}`,
+        `hook "${id}" is listed twice in hookDecides`,
+      ),
+    );
+  }
+  decides.forEach((entry, index) => {
+    const at = `${base}/hookDecides/${index}`;
+    if (!plugin.hooks.includes(entry.hook)) {
+      issues.push(
+        issue(
+          "error",
+          "hook_decision_not_allowed",
+          at,
+          `hook "${entry.hook}" is not listed in the hooks of this plugin`,
+        ),
+      );
+      return;
+    }
+    const allowed = declarableDecisionsOf(entry.hook);
+    entry.decides.forEach((kind, kindIndex) => {
+      if (allowed.includes(kind)) return;
+      issues.push(
+        issue(
+          "error",
+          "hook_decision_not_allowed",
+          `${at}/decides/${kindIndex}`,
+          `hook "${entry.hook}" cannot decide "${kind}"`,
+        ),
+      );
+    });
+  });
+  return issues;
+}
+
 function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
   const named: string[] = [];
   const namedAt: number[] = [];
   const roots: number[] = [];
-  manifest.plugins.forEach((plugin, index) => {
+  const plugins = pluginDeclsOf(manifest);
+  plugins.forEach((plugin, index) => {
     if (plugin.id === undefined) {
       roots.push(index);
     } else {
@@ -950,12 +1049,10 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     );
   }
 
-  const [firstPlugin] = manifest.plugins;
+  const [firstPlugin] = plugins;
   if (firstPlugin !== undefined) {
     const external = firstPlugin.layer === "plugin";
-    const mixedAt = manifest.plugins.findIndex(
-      (plugin) => (plugin.layer === "plugin") !== external,
-    );
+    const mixedAt = plugins.findIndex((plugin) => (plugin.layer === "plugin") !== external);
     if (mixedAt >= 0) {
       issues.push(
         issue(
@@ -993,6 +1090,37 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     );
   }
 
+  return issues;
+}
+
+/**
+ * `tools`·`commands` 선언 이름이 같은 것이 둘이면 오류다(M5c-1, F.extensions.spec §4.5.6). 두 목록은 따로 센다.
+ * 중복 검사는 스키마를 통과한 뒤에만 돈다
+ */
+function checkDeclaredNames(manifest: ExtensionManifest): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  for (const { index, id } of duplicatesIn((manifest.tools ?? []).map((tool) => tool.name))) {
+    issues.push(
+      issue(
+        "error",
+        "tool_duplicate",
+        `/tools/${index}/name`,
+        `tool name "${id}" is declared twice`,
+      ),
+    );
+  }
+  for (const { index, id } of duplicatesIn(
+    (manifest.commands ?? []).map((command) => command.name),
+  )) {
+    issues.push(
+      issue(
+        "error",
+        "command_duplicate",
+        `/commands/${index}/name`,
+        `command name "${id}" is declared twice`,
+      ),
+    );
+  }
   return issues;
 }
 
@@ -1202,7 +1330,7 @@ export function validateManifestSet(
   // 두 확장이 같은 내장 도구를 대체하겠다고 선언하면 어느 쪽도 고르지 않고 오류다(F.capabilities.spec §10)
   const replacers = new Map<string, string>();
   for (const manifest of manifests) {
-    manifest.plugins.forEach((plugin, pluginIndex) => {
+    pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
       (plugin.replaces ?? []).forEach((tool, index) => {
         const first = replacers.get(tool);
         if (first === undefined) {
@@ -1240,11 +1368,11 @@ export function validateManifestSet(
 
   const provided = new Set<string>(
     manifests.flatMap((m) =>
-      m.plugins.flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
+      pluginDeclsOf(m).flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
     ),
   );
   for (const manifest of manifests) {
-    manifest.plugins.forEach((plugin, pluginIndex) => {
+    pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
       (plugin.requires ?? []).forEach((entry, index) => {
         if (!provided.has(entry.id) && !coreCapabilityIds.has(entry.id)) {
           issues.push(

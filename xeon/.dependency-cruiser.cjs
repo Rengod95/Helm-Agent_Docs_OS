@@ -58,7 +58,7 @@ const sameLayerGroups = [
     to: "^packages/(cap-|group-|plugin-builder/)",
     own: ["^packages/$1/", "^packages/group-sdk/src/(index|testing/index)\\.ts$"],
   },
-  // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries "." and "./client" only.
+  // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries ".", "./client" and "./plugin-host" only.
   // DR-10/cli-client, DR-10/desktop-client, DR-10/host-client: apps may import packages/client, so it is not in the "to" of the app groups.
   {
     name: "L4",
@@ -70,7 +70,7 @@ const sameLayerGroups = [
     name: "L4-cli",
     from: "^apps/(cli)/",
     to: "^apps/",
-    own: ["^apps/$1/", "^apps/host/src/(index|client)\\.ts$"],
+    own: ["^apps/$1/", "^apps/host/src/(index|client|plugin-host/run)\\.ts$"],
   },
 ];
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { err, ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
-import type { Profile, ProfileApplyResult } from "@fresnel/contracts/wire";
+import type { Profile } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
 import { createRuntimeReplayHarness, replayDrive, smokeGroup } from "@fresnel/group-sdk/testing";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
@@ -79,6 +79,7 @@ interface Rig {
     readonly workspace?: string;
     readonly title?: string;
     readonly testRun?: boolean;
+    readonly profileId?: string;
   }[];
   readonly removed: ThreadId[];
   readonly toggles: {
@@ -107,9 +108,9 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
   mkdirSync(join(dir, "os"), { recursive: true });
   const lock = await openFileLock(join(dir, "os"));
   locks.push(lock);
-  // 프로필을 주지 않은 시험도 표지를 달 수 있게 빈 프로필 포트를 쓴다(applyProfile은 호출되지 않는다)
+  // 프로필을 주지 않은 시험도 표지를 달 수 있게 빈 프로필 포트를 쓴다
   const defaultProfiles = partial<ProfileTestRunPort>({
-    getProfile: (id) => Promise.resolve(err({ kind: "not_found", id })),
+    get: (id) => Promise.resolve(err({ kind: "not_found", id })),
     registerTestRun: () => undefined,
   });
   const created: Rig["created"][number][] = [];
@@ -469,7 +470,7 @@ test("a test run of a target that is installed but not loaded is invalid_input, 
 
 test("a test run with a profile that does not exist is not_found and makes no thread", async () => {
   const profiles = partial<ProfileTestRunPort>({
-    getProfile: (id) => Promise.resolve(err({ kind: "not_found", id })),
+    get: (id) => Promise.resolve(err({ kind: "not_found", id })),
   });
   const session = await rig({ installed: GROUP, loaded: ["demo-plugin"], profiles });
   expect(
@@ -482,40 +483,11 @@ test("a test run with a profile that does not exist is not_found and makes no th
   expect(session.created).toEqual([]);
 });
 
-test("a profile that fails to apply removes the new thread, marks nothing and records nothing", async () => {
+test("a profile other than the default is bound to the test run thread, and the thread is marked with it", async () => {
   const profile = partial<Profile>({ id: "p-1" });
-  const profiles = partial<ProfileTestRunPort>({
-    getProfile: () => Promise.resolve(ok(profile)),
-    applyProfile: () => Promise.resolve(err({ kind: "unknown_extension", name: "demo-plugin" })),
-    registerTestRun: () => {
-      throw new Error("a failed profile must not mark the thread");
-    },
-  });
-  const session = await rig({ installed: GROUP, loaded: ["demo-plugin"], profiles });
-  expect(
-    await session.port.testRun({
-      kind: "testRun",
-      target: "demo-plugin",
-      options: { profileId: "p-1" },
-    }),
-  ).toEqual(err({ kind: "invalid_input", message: "demo-plugin is not installed" }));
-  expect(session.removed).toEqual([THREAD]);
-  expect(session.toggles).toEqual([]);
-  expect(await session.port.testList()).toEqual(ok({ tests: [] }));
-});
-
-test("a profile that applies marks the thread with the profile id and enables the target", async () => {
-  const profile = partial<Profile>({ id: "p-1" });
-  const applied: string[] = [];
   const marked: { readonly threadId: ThreadId; readonly profileId: string | null }[] = [];
   const profiles = partial<ProfileTestRunPort>({
-    getProfile: () => Promise.resolve(ok(profile)),
-    applyProfile: (request) => {
-      applied.push(`${request.id}:${request.layer}`);
-      return Promise.resolve(
-        ok(partial<ProfileApplyResult>({ written: [], layer: "thread", appliesAt: "now" })),
-      );
-    },
+    get: () => Promise.resolve(ok(profile)),
     registerTestRun: (threadId, profileId) => {
       marked.push({ threadId, profileId });
     },
@@ -528,8 +500,29 @@ test("a profile that applies marks the thread with the profile id and enables th
       options: { profileId: "p-1" },
     }),
   ).toMatchObject({ ok: true, value: { threadId: THREAD } });
-  expect(applied).toEqual(["p-1:thread"]);
+  expect(session.created).toEqual([{ title: "demo-plugin", testRun: true, profileId: "p-1" }]);
   expect(marked).toEqual([{ threadId: THREAD, profileId: "p-1" }]);
+  expect(session.toggles).toEqual([{ id: "reg-demo-plugin", enabled: true, threadId: THREAD }]);
+});
+
+test("the default profile marks the thread with its id and enables the target", async () => {
+  const profile = partial<Profile>({ id: "default" });
+  const marked: { readonly threadId: ThreadId; readonly profileId: string | null }[] = [];
+  const profiles = partial<ProfileTestRunPort>({
+    get: () => Promise.resolve(ok(profile)),
+    registerTestRun: (threadId, profileId) => {
+      marked.push({ threadId, profileId });
+    },
+  });
+  const session = await rig({ installed: GROUP, loaded: ["demo-plugin"], profiles });
+  expect(
+    await session.port.testRun({
+      kind: "testRun",
+      target: "demo-plugin",
+      options: { profileId: "default" },
+    }),
+  ).toMatchObject({ ok: true, value: { threadId: THREAD } });
+  expect(marked).toEqual([{ threadId: THREAD, profileId: "default" }]);
   expect(session.toggles).toEqual([{ id: "reg-demo-plugin", enabled: true, threadId: THREAD }]);
 });
 

@@ -148,7 +148,8 @@ export function createHelmReplay(
         loadIndex,
         builtin: true,
       });
-      await t.host.openThread(thread);
+      // 재개(복원)는 프로필의 시작 설정으로 이어 준다. 열린 임대가 있으면 복원된 스택을 잇고 없으면 시작 요청을 넣는다
+      await t.host.openThread(thread, restore === null ? undefined : { startDrive: "helm" });
       await t.settled();
       if (restore === null) {
         await callCommand(t, thread, `start ${topic}`);

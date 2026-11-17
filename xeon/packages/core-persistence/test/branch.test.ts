@@ -269,8 +269,11 @@ describe("revert", () => {
     completeTurn(h, threadId);
     const result = await h.service.threads.revert(threadId, itemAt(h, threadId, 1).itemId, "rv1");
     expect(result.ok).toBe(false);
+    // 열기 훅(thread.resources, thread.start)은 이 시험의 관심이 아니다
     expect(
-      refused.calls.map((call) => call.point).filter((point) => point !== "thread.start"),
+      refused.calls
+        .map((call) => call.point)
+        .filter((point) => point !== "thread.start" && point !== "thread.resources"),
     ).toEqual(["thread.tree.before"]);
   });
 });
@@ -287,6 +290,9 @@ describe("fork", () => {
     const originEvents = kindsFrom(h, threadId).length;
     const newId = h.ids.next("thr");
     const forked = expectOk(await h.service.threads.fork(threadId, at.itemId, newId));
+    // 포크의 열기 단계(thread.resources → thread.start)가 끝난 뒤에 훅 기록을 본다
+    await h.service.threads.openSettled(newId);
+    await Promise.resolve();
     expect(forked).toMatchObject({ threadId: newId, replayed: false, token: null });
     expect(kindsFrom(h, threadId)).toHaveLength(originEvents);
     const row = expectOk(h.service.query.thread(newId));
@@ -296,7 +302,9 @@ describe("fork", () => {
     });
     expect(kindsFrom(h, newId)).toEqual(["thread.started"]);
     const forkCalls = recording.calls.filter(
-      (call) => call.threadId === newId || call.point === "thread.fork.before",
+      (call) =>
+        (call.threadId === newId || call.point === "thread.fork.before") &&
+        call.point !== "thread.resources",
     );
     expect(forkCalls.map((call) => call.point)).toEqual(["thread.fork.before", "thread.start"]);
     expect(forkCalls[1]?.payload).toEqual({
@@ -379,13 +387,18 @@ describe("prepareSwitch", () => {
     const { threadId } = newThread(h);
     const before = h.store.rowCounts();
     expectOk(await h.service.threads.prepareSwitch(threadId, null));
-    expect(allowed.calls.at(-1)).toMatchObject({
+    // 열기 훅의 비동기 발화가 끼어들 수 있어 이 시험이 보는 훅 이름으로 거른다
+    const switches = (): unknown[] =>
+      allowed.calls.filter((call) => call.point === "thread.switch.before");
+    expect(switches().at(-1)).toMatchObject({
       point: "thread.switch.before",
       payload: { reason: "new" },
     });
     const target = h.ids.next("thr");
     expectOk(await h.service.threads.prepareSwitch(threadId, target));
-    expect(allowed.calls.at(-1)?.payload).toEqual({ reason: "resume", targetThreadId: target });
+    expect(switches().at(-1)).toMatchObject({
+      payload: { reason: "resume", targetThreadId: target },
+    });
     expect(h.store.rowCounts()).toEqual(before);
 
     const refused = recordingHooks({ cancel: { "thread.switch.before": "busy" } });

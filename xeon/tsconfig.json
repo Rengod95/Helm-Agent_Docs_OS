@@ -83,6 +83,9 @@
       "path": "./packages/plugin-builder"
     },
     {
+      "path": "./packages/plugin-migration"
+    },
+    {
       "path": "./packages/group-helm"
     },
     {

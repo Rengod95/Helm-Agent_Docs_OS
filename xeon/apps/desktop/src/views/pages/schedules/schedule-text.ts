@@ -206,6 +206,7 @@ export function commandErrorOf(error: CommandError): MessageRef {
   switch (error.kind) {
     case "offline":
       return message("desktop.schedules.offline");
+    case "not_available":
     case "unsupported":
       return message("desktop.schedules.unsupported");
     case "failed":

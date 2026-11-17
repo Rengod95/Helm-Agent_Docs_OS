@@ -2,35 +2,9 @@ import type { GroupApi } from "@fresnel/group-sdk";
 import { activeInquiry } from "./drive.ts";
 import { recordFinished } from "./outputs.ts";
 import { transition } from "./phase.ts";
-import { postRequestId, rejectedNotice } from "./prompts.ts";
 import { updateState, type HelmState } from "./state.ts";
 
-type LifecycleApi = Pick<GroupApi<HelmState>, "state" | "commit" | "post" | "record">;
-
-/** 이 그룹의 이름. 임대 거부 이벤트의 groupId와 맞춘다 */
-const HELM_GROUP_ID = "helm";
-
-/**
- * `lifecycle.lease.rejected` 구독 핸들러(L3.helm.spec §4.13). 입력은 이벤트 페이로드와 커밋된 상태뿐이다.
- * 이 그룹의 요청이 거부되면 pending을 지우고 알림을 한 번 남긴다. 같은 이벤트로 다시 실행돼도 알림은 duplicate다
- */
-export function onLeaseRejected(
-  g: LifecycleApi,
-): (
-  payload: { readonly groupId: string },
-  ctx: { readonly state: Readonly<HelmState> },
-) => Promise<void> {
-  return async (payload, ctx) => {
-    if (payload.groupId !== HELM_GROUP_ID) return;
-    const pending = ctx.state.pending;
-    if (pending === null) return;
-    await g.post(rejectedNotice(), {
-      when: "next",
-      requestId: `${postRequestId(pending.inquiryId, "idle", 0)}:rejected`,
-    });
-    await updateState(g, (current) => ({ ...current, pending: null }));
-  };
-}
+type LifecycleApi = Pick<GroupApi<HelmState>, "state" | "commit" | "record">;
 
 /**
  * `thread.start` tap. 마지막 커밋 상태가 일관된지만 본다(L3.helm.spec §4.9). 탐구 단계인데 inquiryId·topic이 없으면

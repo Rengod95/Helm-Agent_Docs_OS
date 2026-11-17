@@ -54,6 +54,7 @@ export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined
           argsHash: tool.argsHash,
           ruleId: tool.ruleId,
           ...(tool.mcp === undefined ? {} : { mcp: tool.mcp }),
+          ...(tool.askedBy === undefined ? {} : { askedBy: tool.askedBy }),
         },
       };
     }

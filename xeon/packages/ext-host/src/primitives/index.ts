@@ -2,7 +2,6 @@
 export { PrimitiveError, type ExtDiagnostic, type PrimitiveErrorCode } from "./errors.ts";
 export {
   ExtHostPortKey,
-  DriveLockArbiterPortKey,
   InputQueuePortKey,
   LoopPortKey,
   ProcessPortKey,
@@ -10,7 +9,6 @@ export {
   RecordCommitPortKey,
   ScopedStorePortKey,
   type InputQueuePort,
-  type DriveLockArbiterPort,
   type LoopPort,
   type PortKey,
   type PortLookup,
@@ -62,8 +60,6 @@ export {
 export {
   extReadViewOf,
   type BoundCapabilityView,
-  type DriveLockCandidate,
-  type DriveLockView,
   type ExtReadView,
   type HookHandlerView,
 } from "./read-view.ts";
@@ -74,6 +70,7 @@ export {
   type EventQueryError,
 } from "./event-query.ts";
 export {
+  bindHostApiForIsolation,
   hostOf,
   type RegistrationCallContext,
   type RegistrationHostApi,

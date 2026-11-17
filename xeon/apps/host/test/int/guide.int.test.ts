@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
@@ -33,10 +33,15 @@ interface Run {
   readonly extGuide: { readonly status: string; readonly forcedOn?: string } | undefined;
 }
 
-/** 모델이 `calls`에 적은 도구를 차례로 부르고 끝내는 대화 하나를 돌린다. 호출이 없으면 "hi"에 답만 한다 */
+/**
+ * 모델이 `calls`에 적은 도구를 차례로 부르고 끝내는 대화 하나를 돌린다. 호출이 없으면 "hi"에 답만 한다.
+ * `profile.add`가 있으면 기본 프로필의 플러그인에 그것을 더한 프로필을 저장하고 대화를 그 프로필로 만든다(가이드는 대화의 프로필이 켠다, M5c §4.1).
+ * 기본 목록을 빼지 않는 것은 의도다: 기본 목록에서 빠진 내장 단위(`host-groups` 등)가 꺼지면 턴이 응답하지 않는다([미결], X §4.5.8)
+ */
 async function run(options: {
   readonly settings?: Readonly<Record<string, unknown>>;
   readonly calls?: readonly { readonly tool: string; readonly args: JsonObject }[];
+  readonly profile?: { readonly id: string; readonly add: readonly string[] };
 }): Promise<Run> {
   const home = useEngineHome();
   writeUserSettings(home, { ...TAPE_SETTINGS, ...options.settings });
@@ -82,12 +87,40 @@ async function run(options: {
     await connection.request("host.hello", HELLO_PARAMS);
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
-    const created = await connection.request("thread.create", { workspace });
+    if (options.profile !== undefined) {
+      // 기본 목록은 설치된 것만 옮긴다: 공장 기본은 번들 helm을 이름으로 든다. 이 시험은 번들 폴더가 비어 있어 helm이 없다(없는 이름은 `plugin_unknown`)
+      const listed = await connection.request("profile.list", {});
+      const installed = new Set(
+        (await connection.request("ext.list", {})).extensions.map((entry) => entry.name),
+      );
+      const base = listed.profiles.find((item) => item.id === "default")?.plugins ?? [];
+      const names = [
+        ...new Set([
+          ...base.map((ref) => ref.name).filter((name) => installed.has(name)),
+          ...options.profile.add,
+        ]),
+      ];
+      await connection.request("profile.put", {
+        profile: {
+          id: options.profile.id,
+          title: options.profile.id,
+          plugins: names.map((name) => ({ name })),
+          settings: [],
+          startDrive: null,
+        },
+        baseRev: null,
+      });
+    }
+    const created = await connection.request("thread.create", {
+      workspace,
+      ...(options.profile === undefined ? {} : { profileId: options.profile.id }),
+    });
     await connection.request("turn.start", { threadId: created.threadId, input: "hi" });
     await collector.waitFor((event) => event.kind === "turn.completed");
     const first = provider.calls()[0];
     const toolText = toolResultTexts(collector.events, 6000).join("\n");
-    const listed = await connection.request("ext.list", {});
+    // 이 대화의 켜짐(E(T))를 읽는다: 대화가 쓰는 프로필에 든 가이드만 켜진다
+    const listed = await connection.request("ext.list", { threadId: created.threadId });
     const row = listed.extensions.find((entry) => entry.name === "guide");
     const extGuide =
       row === undefined
@@ -130,13 +163,18 @@ realTest(
   60_000,
 );
 
+// 사용자 범위의 `ext.<이름>.enabled`는 없다(M5c §4.1.10). 가이드를 켜는 길은 대화가 쓰는 프로필에 넣는 것이다.
 realTest(
-  "the guide group switch turns the skills on outside dev mode, and off means off",
+  "a profile that adds the guide to the default plugins turns the skills on outside dev mode; a thread whose profile does not list it has none",
   async () => {
-    const on = await run({ settings: { "ext.guide.enabled": true } });
+    const on = await run({ profile: { id: "with-guide", add: ["guide"] } });
     for (const name of GUIDE_SKILLS) expect(on.payloadText).toContain(name);
-    const off = await run({ settings: { "ext.guide.enabled": false } });
+    expect(on.extGuide).toMatchObject({ status: "enabled" });
+    expect(on.extGuide?.forcedOn).toBeUndefined();
+    // 기본 프로필(가이드 없음)의 대화에는 스킬이 없다
+    const off = await run({});
     for (const name of GUIDE_SKILLS) expect(off.payloadText).not.toContain(name);
+    expect(off.extGuide).toMatchObject({ status: "disabled" });
   },
   60_000,
 );

@@ -78,7 +78,7 @@ export function wrongReturnsAreRejected(g: ExtensionOps<unknown>): void {
   g.on("thread.start", () => ({ block: true, reason: "x" }));
   // @ts-expect-error -- first 핸들러는 패치가 아니라 결정을 반환한다 (F.extensions.spec §9 5)
   g.on("tool.call.before", () => ({ continue: true }));
-  // @ts-expect-error -- 훅 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
+  // @ts-expect-error -- 훅 이름은 표의 50개뿐이다 (F.extensions.spec §4.10)
   g.on("tool.before", () => undefined);
   // @ts-expect-error -- collect 핸들러는 current를 받지 않는다(두 번째 인자는 ctx다)
   g.on("input.agent.before", (_payload, current) => ({ systemPrompt: current.systemPrompt }));

@@ -5,7 +5,6 @@ import {
   dropDataOf,
   keepsDialogOpen,
   removeOutcomeOfError,
-  removeDoneCopyOf,
   storageNoteOf,
   totalRowsOf,
   type StoragePreview,
@@ -42,19 +41,12 @@ describe("저장 데이터 판단", () => {
     expect(dropDataOf(false, [])).toBe(false);
   });
 
-  test("지운 알림은 적용 시점 문장을 제목으로 두고, 저장 테이블이 있을 때만 수를 덧붙인다", () => {
-    expect(removeDoneCopyOf("now", 2)).toEqual({
-      title: "desktop.workbench.remove.done.now",
-      data: 2,
-    });
-    expect(removeDoneCopyOf("restart", undefined)).toEqual({
-      title: "desktop.workbench.remove.done.restart",
-      data: null,
-    });
-    expect(removeDoneCopyOf("nextStepBoundary", 0)).toEqual({
-      title: "desktop.workbench.remove.done.boundary",
-      data: null,
-    });
+  test("저장 데이터 목록을 확인하지 못하면(not_available) 한 줄 실패 글이고 표는 없다", () => {
+    expect(storageNoteOf({ kind: "failed" })).toBe("desktop.workbench.remove.storage.failed");
+    expect(storageNoteOf({ kind: "ready", tables: [] })).toBe(
+      "desktop.workbench.remove.storage.none",
+    );
+    expect(storageNoteOf({ kind: "ready", tables: TABLES })).toBeNull();
   });
 });
 

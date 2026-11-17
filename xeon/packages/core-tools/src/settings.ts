@@ -79,6 +79,8 @@ export const UNATTENDED_DEFAULTS: ToolsUnattendedConfig = {
 };
 
 const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
+// 권한 모드만 프로필 범위를 받는다(M5c §3.3). 다른 키는 프로필에서 바꾸지 않는다
+const PERMISSION_MODE_SCOPES = [...ALL_SCOPES, "profile"] as const;
 const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
 const MANAGED_ONLY = ["managed"] as const;
 
@@ -94,7 +96,7 @@ const group = defineSettings("l1.tools", {
     default: TOOLS_SETTING_DEFAULTS.permissionMode,
     range: { enum: [...PERMISSION_MODES] },
     runtimeChange: "live",
-    allowedScopes: ALL_SCOPES,
+    allowedScopes: PERMISSION_MODE_SCOPES,
     ui: { tab: "permissions", widget: "select", order: 10, label: "Permission mode" },
     since: "0.1.0",
   },
@@ -305,7 +307,7 @@ function pickMode(layers: ScopeStack): {
   readonly fromRepository: boolean;
 } {
   for (const scope of SCOPE_PRECEDENCE) {
-    if (!ALL_SCOPES.some((allowed) => allowed === scope)) continue;
+    if (!PERMISSION_MODE_SCOPES.some((allowed) => allowed === scope)) continue;
     const layer = layers.find((candidate) => candidate.scope === scope);
     if (layer === undefined || !layer.values.has(TOOLS_SETTING_KEYS.permissionMode)) continue;
     const mode = normalizeStoredMode(layer.values.get(TOOLS_SETTING_KEYS.permissionMode));

@@ -140,15 +140,24 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
       });
     }),
   );
-  await t.host.openThread(a);
-  await t.host.openThread(b);
+  await t.host.openThread(a, { startDrive: "ts-group" });
+  await t.host.openThread(b, { startDrive: "ts-group" });
   await t.settled();
   expect(t.host.leaseOf(a)).toMatchObject({ scopeId: "ts-group", status: "active" });
   expect(t.host.leaseOf(b)).toMatchObject({ scopeId: "ts-group", status: "active" });
+  expect(t.host.driveFrames(a).at(-1)).toMatchObject({ depth: 1, plugin: "ts-group" });
+  expect(t.host.driveFrames(b).at(-1)).toMatchObject({ depth: 1, plugin: "ts-group" });
   registrationToggleSourceOf(t.host).request("ts-group", false, "request", a);
   await t.settled();
+  // a의 프레임은 코어만 남고, b의 ts-group 프레임은 그대로 주도 중이다
   expect(t.host.leaseOf(a)).toBeNull();
+  expect(t.host.driveFrames(a).map((frame) => frame.depth)).toEqual([0]);
   expect(t.host.leaseOf(b)).not.toBeNull();
+  expect(t.host.driveFrames(b).at(-1)).toMatchObject({
+    depth: 1,
+    plugin: "ts-group",
+    state: "driving",
+  });
   const released = t.records.events(a).filter((e) => e.kind === "lease.released");
   expect(released.map((e) => e.payload)).toMatchObject([{ reason: "disabled" }]);
   expect(t.records.events(b).filter((e) => e.kind === "lease.released")).toEqual([]);
@@ -256,7 +265,7 @@ test("onChange reports toggle requests, their application and lease changes; a t
       g.drive(() => Promise.resolve({ do: "yield" }));
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ts-notify" });
   await t.settled();
   const seen: string[] = [];
   t.host.onChange(() => {

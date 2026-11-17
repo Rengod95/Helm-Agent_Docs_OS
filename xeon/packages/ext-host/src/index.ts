@@ -21,8 +21,6 @@ export {
   type SwapOutcome,
   type ResetRegistrationStateHostError,
   extReadViewOf,
-  type DriveLockCandidate,
-  type DriveLockView,
   type ExtReadView,
   type BoundCapabilityView,
   type HookHandlerView,
@@ -58,8 +56,6 @@ export {
   ScopedStorePortKey,
   type ProcessPort,
   ProcessPortKey,
-  type DriveLockArbiterPort,
-  DriveLockArbiterPortKey,
   ExtHostPortKey,
   SessionFeedPortKey,
   SessionBranchPortKey,
@@ -72,6 +68,8 @@ export {
   providerServiceName,
   isReservedServiceName,
   hostOf,
+  // 플러그인 호스트 프로세스(자식 쪽) 전용. 자식이 만든 g에 부가 API를 붙인다. 엔진 쪽 등록은 이 함수를 쓰지 않는다
+  bindHostApiForIsolation,
   type RegistrationHostApi,
   type RegistrationCallContext,
   type StateMigration,
@@ -304,4 +302,58 @@ export {
   type AdmitInfo,
   type RegistrationToggleSource,
 } from "./operations/index.ts";
-export type { LoaderSettingsSource } from "./loading-trust/index.ts";
+export type { LoaderIsolation, LoaderSettingsSource } from "./loading-trust/index.ts";
+
+// 플러그인 호스트 프로세스의 자식 쪽 실행과 줄 프레이밍(isolation-protocol.ts). 엔진 쪽 감독과 대리 등록은 다음 단계가 만든다
+export {
+  runPluginHost,
+  type ImportEntry,
+  type ImportEntryError,
+  type PluginHostDeps,
+  type PluginHostExit,
+} from "./isolation/child-runtime.ts";
+export {
+  createFrameReader,
+  createFrameWriter,
+  type FrameReader,
+  type FrameReadError,
+  type FrameReadResult,
+  type FrameSink,
+  type FrameWriteError,
+  type FrameWriter,
+} from "./isolation/framing.ts";
+// 엔진 쪽 감독(프로세스 띄우기, 호출, 취소, 유휴 내리기, 재시작 셈)과 `engine.call` 라우터(M5b-1). 대리 등록과 로더 연결은 다음 단계가 쓴다
+export { isPluginProcessError, PluginProcessError } from "./isolation/errors.ts";
+export {
+  createPluginHostSupervisor,
+  type CallError,
+  type PluginCallOptions,
+  type PluginHostStatus,
+  type PluginHostStatusState,
+  type PluginHostSupervisor,
+  type PluginHostSupervisorDeps,
+  type RestartLimitInfo,
+  type SupervisorError,
+} from "./isolation/supervisor.ts";
+export {
+  createEngineCallRouter,
+  type EngineCallRouter,
+  type EngineCallRouterDeps,
+} from "./isolation/engine-calls.ts";
+// 격리 확장의 실효 판정(F5)과 엔진 쪽 대리 등록(part 2): 로더가 격리 여부를 정하고, 대리 등록이 실제 ExtHost에 선언을 옮긴다
+export {
+  effectiveIsolationOf,
+  type InEngineReason,
+  type IsolationDecision,
+  type IsolationInput,
+  type IsolationMode,
+  type IsolationRefusal,
+} from "./isolation/effective.ts";
+export {
+  createIsolatedEntry,
+  IsolatedEntryError,
+  type IsolatedEntryCode,
+  type IsolatedEntryDeps,
+  type IsolationLaunch,
+  type IsolationLaunchInfo,
+} from "./isolation/proxy-entry.ts";

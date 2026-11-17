@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { budgetClassOf, DEFAULT_BUDGETS_MS, extReadViewOf } from "../../src/index.ts";
-import { HOOKS } from "@fresnel/contracts/extensions";
-import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
+import { HOOKS, type DriveCommand, type DriveFrameView } from "@fresnel/contracts/extensions";
+import { createTestHost } from "../../src/testing/index.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { echoDefs, makeGroupUnit, makeUnit } from "./fixtures/support.ts";
@@ -25,24 +25,51 @@ test("threadStatus: unknown for a thread that is not open, then enabled, disabli
   expect(view.threadStatus(other, "scp-group")).toBeUndefined();
 });
 
-test("driveLock: no holder and no wait for an idle thread, the holder and its limits once a drive holds the lock", async () => {
+/** 시험용 단계 명령: 첫 단계는 turn을 내고, 그 결과를 받은 단계는 끝낸다 */
+function turnThenYield(last: unknown): DriveCommand<never> {
+  return last === null ? { do: "turn", input: { kind: "user", content: "go" } } : { do: "yield" };
+}
+
+test("driveFrames: only the core frame until a start request is granted, then the plugin frame at depth 1 with its lease and usage", async () => {
   const t = await createTestHost();
-  const view = extReadViewOf(t.host);
-  const thread = t.newThread();
-  expect(view.driveLock(thread)).toBeUndefined();
   await t.host.install(
-    makeGroupUnit({ name: "driver", hooks: [] }, (g) => {
-      g.drive(() => new Promise<never>(() => {}));
+    makeGroupUnit({ name: "frame-driver" }, (g) => {
+      g.drive(({ last }) => Promise.resolve(turnThenYield(last)), { limits: { maxTurns: 3 } });
     }),
   );
+  const thread = t.newThread();
   await t.host.openThread(thread);
-  // 끝나지 않는 drive 호출은 추적 작업이라 settled를 막는다
-  await flushMicrotasks(50);
-  const locked = view.driveLock(thread);
-  expect(locked?.holder).toBe("driver");
-  expect(locked?.used).toEqual({ turns: 0, spawns: 0, tokens: 0 });
-  expect(locked?.candidates).toEqual([]);
-  expect(locked?.leaseEpoch).toBeGreaterThan(0);
+  await t.settled();
+  const core: DriveFrameView = {
+    depth: 0,
+    plugin: null,
+    versionId: null,
+    leaseId: null,
+    state: "driving",
+    used: { turns: 0, spawns: 0, tokens: 0 },
+    limits: {},
+  };
+  expect(t.host.driveFrames(thread)).toEqual([core]);
+
+  expect(t.host.startDrive(thread, "frame-driver")).toEqual({ ok: true, value: undefined });
+  await t.settled();
+  const lease = t.host.leaseOf(thread);
+  expect(lease).toMatchObject({ scopeId: "frame-driver" });
+  const leaseId = lease?.leaseId ?? null;
+  expect(t.host.driveFrames(thread)).toEqual([
+    core,
+    {
+      depth: 1,
+      plugin: "frame-driver",
+      versionId: null,
+      leaseId,
+      state: "driving",
+      // 턴 하나는 기본 사용량 10 토큰으로 센다
+      used: { turns: 1, spawns: 0, tokens: 10 },
+      // 요청한 턴 상한 3은 turns 키로, 요청하지 않은 spawns·tokens는 일반 기본 상한(8, 400000)으로 채워진다
+      limits: { turns: 3, spawns: 8, tokens: 400_000 },
+    },
+  ]);
 });
 
 test("budgetClassOf and DEFAULT_BUDGETS_MS are public: a first hook uses the first-class default", () => {

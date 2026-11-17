@@ -1,5 +1,5 @@
-// X-17 loop.ask(X.primitives.spec §4.4.4) 시험. 승인 서비스 대역 위에서 `ask` 명령의 drive 락 반납, 답 뒤의 재부여와 재호출,
-// 거부·만료의 결과, 대기 계수 제외, 끄기, 포트 부재를 본다. 시계와 타이머는 가짜다(결정적이다).
+// X-17 loop.ask(X.primitives.spec §4.4.4) 시험. 승인 서비스 대역 위에서 `ask` 명령이 임대를 반납하지 않고 프레임을 질문 대기("asking")로 두는 것,
+// 답·거부·만료가 같은 호출 안에서 `last`로 오는 것, 끄기, 포트 부재, 잘못된 요청, 저장된 답 오류를 본다. 시계와 타이머는 가짜다(결정적이다).
 // 단계 함수는 `ask` 명령을 돌려주고 결과는 다음 단계의 `last`로 받는다. 기다리는 동안에는 단계 함수가 다시 불리지 않는다.
 import { expect, test } from "bun:test";
 import type {
@@ -9,7 +9,6 @@ import type {
   DriveLockBudget,
   StepResult,
 } from "@fresnel/contracts/extensions";
-import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import {
   acquiredOf,
@@ -71,10 +70,6 @@ function yieldOf(): Command {
   return { do: "yield" };
 }
 
-function turnOf(content: string, requestId: string): Command {
-  return { do: "turn", input: { kind: "user", content }, requestId };
-}
-
 /** `AskRequest`를 `ask` 명령으로 옮긴다. 생략한 선택 필드는 싣지 않는다(exactOptionalPropertyTypes) */
 function askOf(request: AskRequest): Command {
   return request.title === undefined
@@ -84,7 +79,7 @@ function askOf(request: AskRequest): Command {
 
 /**
  * `ask`를 부르는 drive 그룹이 본 것: 단계 함수가 불린 차례마다의 `last`와 `budget`. 첫 단계는 `last`가 null이다.
- * 기다리는 동안에는 단계 함수가 다시 불리지 않으므로 `last` 목록에 그 반납은 나타나지 않는다
+ * 기다리는 동안에는 단계 함수가 다시 불리지 않는다. 답이 오면 같은 호출 안에서 `last`로 한 번 더 불린다
  */
 interface AskProbe {
   readonly lasts: (StepResult | null)[];
@@ -113,17 +108,17 @@ async function installAsker(
   );
 }
 
-test("loop.ask opens one question approval and hands the drive lock back as waiting", async () => {
+test("loop.ask opens one question approval and keeps the frame asking, with no release", async () => {
   const t = await createTestHost();
   const approvals = fakeApprovals(t.timers.now);
   await provideApprovals(t, approvals);
   const probe = newProbe();
   await installAsker(t, "ask-one", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-one" });
   await t.settled();
 
-  // 답을 기다리는 `ask`는 결과를 주지 않고 drive 락을 `waiting`으로 반납한다. 단계 함수는 그 한 번만 불린다
+  // 답을 기다리는 `ask`는 결과를 주지 않는다. 임대는 반납하지 않고 프레임 상태만 질문 대기가 된다. 단계 함수는 그 한 번만 불린다
   expect(probe.lasts).toEqual([null]);
   // 기다리는 동안 turn·spawn 예산은 그대로다(처음 본 예산이 가득 찬 값)
   expect(probe.budgets).toEqual([FULL_BUDGET]);
@@ -144,18 +139,23 @@ test("loop.ask opens one question approval and hands the drive lock back as wait
   expect(approvals.created.map((approval) => approval.body)).toEqual([
     { kind: "question", question: questionBody },
   ]);
-  expect(releasedOf(t, thread)).toMatchObject([{ scopeId: "ask-one", reason: "waiting" }]);
-  expect(t.host.leaseOf(thread)).toBeNull();
+  // 반납이 없으므로 lease.released는 없고, 임대는 그대로 열려 있으며 맨 위 프레임이 질문을 기다린다
+  expect(releasedOf(t, thread)).toEqual([]);
+  expect(t.host.driveFrames(thread)).toMatchObject([
+    { depth: 0, state: "driving" },
+    { depth: 1, state: "asking" },
+  ]);
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "ask-one", status: "active" });
 });
 
-test("an answered question re-grants the lock, and the replayed ask returns the same answer with no second approval", async () => {
+test("an answered question returns to the same step with its answer, with no re-grant and no second approval", async () => {
   const t = await createTestHost();
   const approvals = fakeApprovals(t.timers.now);
   await provideApprovals(t, approvals);
   const probe = newProbe();
   await installAsker(t, "ask-two", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-two" });
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -167,21 +167,15 @@ test("an answered question re-grants the lock, and the replayed ask returns the 
   ).toEqual({ applied: true });
   await t.settled();
 
-  // 답이 오면 Registration이 다시 후보가 되어 차수가 오른 새 drive 락을 받고, 단계 함수가 `last` null로 다시 불린다
-  const acquired = acquiredOf(t, thread);
-  expect(acquired).toMatchObject([
-    { scopeId: "ask-two", leaseEpoch: 1 },
-    { scopeId: "ask-two", leaseEpoch: 2 },
-  ]);
-  expect(acquired[1]?.leaseId).not.toBe(acquired[0]?.leaseId);
-  // 재부여된 단계는 같은 ask를 다시 내고, 기록된 답을 다음 단계의 `last`로 받는다
-  expect(probe.lasts).toEqual([null, null, { kind: "ask", answer: "answered", value: answerJson }]);
+  // 답이 오면 같은 호출 안에서 단계 함수가 `last`로 답을 받고 다시 불린다. 임대는 다시 부여하지 않으므로 부여는 한 건이다
+  expect(acquiredOf(t, thread)).toMatchObject([{ scopeId: "ask-two", leaseEpoch: 1 }]);
+  expect(probe.lasts).toEqual([null, { kind: "ask", answer: "answered", value: answerJson }]);
+  // 질문은 한 번만 열고, 답을 받은 뒤에는 다시 묻지 않는다
   expect(approvals.created).toHaveLength(1);
-  expect(approvals.openedKeys).toHaveLength(2);
-  expect(new Set(approvals.openedKeys).size).toBe(1);
-  // 재부여된 뒤 예산도 가득 차 있다(기다리는 동안 소모하지 않았다)
-  expect(probe.budgets).toEqual([FULL_BUDGET, FULL_BUDGET, FULL_BUDGET]);
-  expect(releasedOf(t, thread)).toMatchObject([{ reason: "waiting" }]);
+  expect(approvals.openedKeys).toHaveLength(1);
+  // 기다리는 동안도 답을 받은 뒤도 예산은 줄지 않았다
+  expect(probe.budgets).toEqual([FULL_BUDGET, FULL_BUDGET]);
+  expect(releasedOf(t, thread)).toEqual([]);
 });
 
 test("a denied question returns the user's feedback and takes its title from loop.ask", async () => {
@@ -191,7 +185,7 @@ test("a denied question returns the user's feedback and takes its title from loo
   const probe = newProbe();
   await installAsker(t, "ask-deny", probe, askRequestOf("q1", "Confirm plan"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-deny" });
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -201,12 +195,9 @@ test("a denied question returns the user's feedback and takes its title from loo
   });
   await t.settled();
 
-  // 사람이 거부하면 `denied`이고 사유는 피드백이다. 거부 뒤 임대가 다시 부여되어 단계 함수가 `last` null로 한 번 더 불린다
-  expect(probe.lasts).toStrictEqual([
-    null,
-    null,
-    { kind: "denied", by: "human", reason: "not now" },
-  ]);
+  // 사람이 거부하면 `denied`이고 사유는 피드백이다. 거부도 같은 호출 안에서 `last`로 오고, 임대는 다시 부여하지 않는다
+  expect(probe.lasts).toStrictEqual([null, { kind: "denied", by: "human", reason: "not now" }]);
+  expect(acquiredOf(t, thread)).toHaveLength(1);
   expect(approvals.created.map((created) => created.title)).toEqual(["Confirm plan"]);
 });
 
@@ -217,52 +208,16 @@ test("an expired question is denied as expired, with no feedback key", async () 
   const probe = newProbe();
   await installAsker(t, "ask-expire", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-expire" });
   await t.settled();
 
   const approval = onlyApproval(approvals);
   approvals.settle(approval.approvalId, { decision: "deny", answer: null, resolvedBy: "expired" });
   await t.settled();
 
-  // 만료도 답 없는 해결이라 임대가 다시 부여되고, 단계 함수가 `last` null로 한 번 더 불린 뒤 expired를 받는다
-  expect(probe.lasts).toStrictEqual([null, null, { kind: "ask", answer: "expired", value: null }]);
-});
-
-test("a question that waits for the user does not count toward the lease wait limit", async () => {
-  const t = await createTestHost({ settings: { activeDriver: "wait-ask", leaseWaitLimit: 4 } });
-  const approvals = fakeApprovals(t.timers.now);
-  await provideApprovals(t, approvals);
-  const asker = newProbe();
-  await installAsker(t, "wait-ask", asker, askRequestOf("q1"));
-  let ticks = 0;
-  await t.host.install(
-    makeGroupUnit({ name: "wait-turns" }, (g) => {
-      g.drive(
-        ({ last }) => {
-          if (last !== null) return Promise.resolve(yieldOf());
-          ticks += 1;
-          return Promise.resolve(turnOf(`tick ${String(ticks)}`, `tick-${String(ticks)}`));
-        },
-        { limits: { maxTurns: 10 } },
-      );
-    }),
-  );
-  const thread = t.newThread();
-  await t.host.openThread(thread);
-  await t.settled();
-  // 질문을 기다리는 그룹이 drive 락을 반납하면 다음 후보가 drive 락을 받는다
-  expect(acquiredOf(t, thread)).toMatchObject([{ scopeId: "wait-ask" }, { scopeId: "wait-turns" }]);
-  // leaseWaitLimit(4)보다 많은 턴 정착 경계를 넘긴다. 답을 기다리는 그룹이 대기 계수에 들었다면 여기서 거부됐을 것이다.
-  // wait-turns가 drive 락을 받기 전 세인 대기는 한도(4) 안이어서 이 시험에서 거부가 나지 않는다
-  await eachInOrder([1, 2, 3, 4, 5], async () => {
-    await t.boundary(thread).turnSettled();
-    await t.settled();
-    return "continue";
-  });
-  expect(eventsOf(t, thread, "lease.rejected")).toEqual([]);
-  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "wait-turns", status: "active" });
-  expect(asker.lasts).toEqual([null]);
-  expect(ticks).toBe(6);
+  // 만료도 답 없는 해결이다. 같은 호출 안에서 expired가 `last`로 오고, 임대는 다시 부여하지 않는다
+  expect(probe.lasts).toStrictEqual([null, { kind: "ask", answer: "expired", value: null }]);
+  expect(acquiredOf(t, thread)).toHaveLength(1);
 });
 
 test("disabling a waiting group leaves its approval pending, and a later answer grants no lock", async () => {
@@ -272,7 +227,7 @@ test("disabling a waiting group leaves its approval pending, and a later answer 
   const probe = newProbe();
   await installAsker(t, "ask-off", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-off" });
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -301,7 +256,7 @@ test("loop.ask without the approval port is refused as port_unavailable and keep
   const probe = newProbe();
   await installAsker(t, "ask-bare", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-bare" });
   await t.settled();
 
   // 거부는 `refused` 결과로 다음 단계에 온다. 임대와 예산은 그대로다
@@ -318,7 +273,7 @@ test("an invalid ask request is refused as record_invalid before any approval is
   const probe = newProbe();
   await installAsker(t, "ask-bad", probe, { requestId: "", card: questionCard });
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-bad" });
   await t.settled();
 
   expect(probe.lasts).toEqual([null, { kind: "refused", code: "record_invalid" }]);
@@ -335,14 +290,15 @@ test("a stored answer that is not a question answer is refused as record_invalid
   const probe = newProbe();
   await installAsker(t, "ask-broken", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "ask-broken" });
   await t.settled();
 
   const approval = onlyApproval(approvals);
   approvals.settle(approval.approvalId, { decision: "answer", answer: "yes", resolvedBy: "user" });
   await t.settled();
 
-  // 재부여된 단계의 ask가 기록된 답을 읽다가 거부된다. 그 거부가 다음 단계의 `last`다
-  expect(probe.lasts).toEqual([null, null, { kind: "refused", code: "record_invalid" }]);
-  expect(probe.budgets).toEqual([FULL_BUDGET, FULL_BUDGET, FULL_BUDGET]);
+  // 답을 기다리던 ask가 기록된 답을 읽다가 거부된다. 그 거부가 같은 호출 안에서 다음 단계의 `last`로 온다
+  expect(probe.lasts).toEqual([null, { kind: "refused", code: "record_invalid" }]);
+  expect(probe.budgets).toEqual([FULL_BUDGET, FULL_BUDGET]);
+  expect(acquiredOf(t, thread)).toHaveLength(1);
 });

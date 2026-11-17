@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
@@ -29,9 +29,11 @@ function failureOf(call: Promise<unknown>): Promise<unknown> {
 
 /**
  * `<config>/extensions/ext-probe`: `boundary.settle.after` 핸들러를 걸고 기능 `probe.cap`을 내며 `fail`이 참이면 핸들러가 던진다.
- * 루트가 아닌 플러그인 `idle`(같은 훅 선언)은 기본이 꺼짐이라 Registration은 있어도 핸들러가 레지스트리에 없다
+ * `idle`이 참이면 루트가 아닌 플러그인 `idle`(같은 훅 선언)을 더한다. 대화를 열면 E(T)가 이 확장의 모든 Registration을 켜므로
+ * (M5c §4.1.9, 기본값은 읽지 않는다) `idle`이 대화에서 돌고, 같은 확장의 실패 장부(`ext:ext-probe`)를 성공으로 비운다.
+ * 연속 실패를 보는 시험은 `idle`을 빼고 실패하는 핸들러 하나만 남긴다
  */
-function writeProbe(home: EngineHome, fail: boolean): void {
+function writeProbe(home: EngineHome, fail: boolean, idle: boolean): void {
   const root = join(home.root, "config", "extensions", PROBE);
   mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(root, "src"), { recursive: true });
@@ -48,7 +50,7 @@ function writeProbe(home: EngineHome, fail: boolean): void {
           hooks: ["boundary.settle.after"],
           provides: [{ id: "probe.cap", version: "1.0.0" }],
         },
-        { id: "idle", layer: "plugin", hooks: ["boundary.settle.after"] },
+        ...(idle ? [{ id: "idle", layer: "plugin", hooks: ["boundary.settle.after"] }] : []),
       ],
     }),
   );
@@ -60,10 +62,14 @@ function writeProbe(home: EngineHome, fail: boolean): void {
       ${fail ? 'throw new Error("probe handler failed");' : ""}
     });
   });
-  register(${JSON.stringify(`${PROBE}/idle`)}, {}, (g) => {
+${
+  idle
+    ? `  register(${JSON.stringify(`${PROBE}/idle`)}, {}, (g) => {
     g.on("boundary.settle.after", () => {});
   });
-};
+`
+    : ""
+}};
 `,
   );
 }
@@ -75,10 +81,17 @@ async function startReal(options: {
   readonly withGroup?: boolean;
   /** 사용자 설정에 더할 값 */
   readonly settings?: Readonly<Record<string, unknown>>;
+  /** 루트가 아닌 `idle` 플러그인을 더할지(기본 참). 연속 실패를 보는 시험은 끈다(writeProbe 주석) */
+  readonly idle?: boolean;
 }) {
   const home = useEngineHome();
-  writeUserSettings(home, { ...TAPE_SETTINGS, ...options.settings });
-  writeProbe(home, options.fail);
+  // 사용자 확장은 기본이 격리(플러그인 호스트 프로세스)다. 이 시험은 엔진 안의 실패 장부와 읽기 규칙을 보므로 명시로 끈다(L4.host-service.spec §4.9)
+  writeUserSettings(home, {
+    ...TAPE_SETTINGS,
+    [`ext.${PROBE}.isolation`]: "none",
+    ...options.settings,
+  });
+  writeProbe(home, options.fail, options.idle ?? true);
   const group = testGroup(fixedIdFactory(9));
   const host = await startInProcessHost({
     devChecks: true,
@@ -134,7 +147,8 @@ realTest(
         requestedGrade: "user",
         effectiveGrade: "user",
         status: "enabled",
-        enabledSource: "default",
+        // 켜짐의 출처는 E(T)(프로필 계산)가 생길 때까지 `none`이다(M5c §4.1). 사용자 스위치는 없다
+        enabledSource: "none",
         hookCount: 2,
         origin: "user",
         autoDisabled: false,
@@ -230,17 +244,17 @@ realTest(
 );
 
 realTest(
-  "a real host reads per-thread status and the drive lock of the group, its metrics, and refuses unknown names and threads",
+  "a real host reads per-thread status, the drive frames of an idle thread, the group list and metrics, and refuses unknown names and threads",
   async () => {
     const { home, host, connection, group } = await startReal({ fail: false });
     try {
       const groupId = group.module.manifest.name;
       const created = await connection.request("thread.create", {});
-      // 임대는 경계 커밋 뒤에 보유자가 된다
-      const lock = await until(
-        () => connection.request("group.driveLock", { threadId: created.threadId }),
-        (value) => value.holder !== null,
-      );
+      // 그룹을 켠 것만으로는 주도하지 않는다(drive-isolation.md 2.2). 주도한 적 없는 대화의 스택은 코어 루프 한 칸이다
+      const frames = await connection.request("drive.frames", { threadId: created.threadId });
+      expect(frames.frames.map((frame) => [frame.depth, frame.plugin, frame.state])).toEqual([
+        [0, null, "driving"],
+      ]);
 
       const scoped = await connection.request("ext.list", { threadId: created.threadId });
       const groupRow = scoped.extensions.find((entry) => entry.name === groupId);
@@ -260,26 +274,14 @@ realTest(
         [groupId, true, "enabled"],
       ]);
 
-      expect(lock.holder).toBe(groupId);
-      expect(lock.leaseEpoch).toBe(1);
-      expect(lock.activeDriver).toBeNull();
-      expect(lock.limits.turns).toBeGreaterThan(0);
-      expect(lock.used).toEqual({
-        turns: expect.any(Number),
-        spawns: 0,
-        tokens: expect.any(Number),
-      });
-      expect(lock.candidates).toEqual([]);
-      expect(lock.lastRejected).toBeNull();
-
       const metrics = await connection.request("group.metrics", {
         id: groupId,
         threadId: created.threadId,
       });
       expect(metrics.id).toBe(groupId);
-      expect(metrics.metrics?.leases).toBe(1);
+      expect(metrics.metrics?.leases).toBe(0);
       expect(metrics.sinceIgnoredBy).toEqual([]);
-      // since 이전의 임대는 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
+      // since 이전의 drive 락 기록은 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
       const later = await connection.request("group.metrics", {
         id: groupId,
         threadId: created.threadId,
@@ -320,7 +322,11 @@ realTest(
 realTest(
   "a handler that throws lands in the failure ledger and the timing buffer, and ext.health and ext.timings report it",
   async () => {
-    const { home, host, connection } = await startReal({ fail: true, withGroup: false });
+    const { home, host, connection } = await startReal({
+      fail: true,
+      withGroup: false,
+      idle: false,
+    });
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     try {
@@ -363,6 +369,7 @@ realTest(
     const { home, host, connection } = await startReal({
       fail: true,
       withGroup: false,
+      idle: false,
       settings: { "x.operations.autoDisable.consecutive": 1 },
     });
     const collector = collectEvents(connection);

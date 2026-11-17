@@ -1,9 +1,10 @@
 import { isLoopbackHost } from "@fresnel/platform-process";
 import type { HostCommand } from "./host-command.ts";
+import { parsePluginHostArgv } from "./plugin-host/argv.ts";
 import type { SettingsFileScope } from "./settings.ts";
 
 // L4.host-service.spec §3.2. 개발 진입 `bun xeon/apps/host/src/main.ts <서브커맨드>`의 인자 해석. 배포 바이너리의
-// 명령줄 파싱과 도움말은 L4.cli.spec이 정한다. 여기서는 호스트가 소유한 서브커맨드(host --stdio, service *, config schema)만 본다.
+// 명령줄 파싱과 도움말은 L4.cli.spec이 정한다. 여기서는 호스트가 소유한 서브커맨드(host --stdio, plugin-host --stdio, service *, config schema)만 본다.
 
 const SCOPES: readonly SettingsFileScope[] = ["managed", "user", "project", "local"];
 
@@ -107,6 +108,12 @@ export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   if (first === "host" && second === "--stdio" && rest.length === 0) {
     return { ok: true, command: { kind: "host-stdio" } };
   }
+  if (first === "plugin-host") {
+    const parsed = parsePluginHostArgv(argv.slice(1));
+    return parsed.ok
+      ? { ok: true, command: { kind: "plugin-host" } }
+      : { ok: false, message: parsed.message };
+  }
   if (first === "host" && second === "--service") return parseServiceRun(rest);
   if (first === "config" && second === "schema") return parseConfigSchema(rest);
   if (first === "service") {
@@ -126,6 +133,6 @@ export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   return {
     ok: false,
     message:
-      "usage: main.ts host --stdio | host --service [--safe-mode] [--listen-tcp <host>:<port>] | config schema --scope <scope> | service <command>",
+      "usage: main.ts host --stdio | plugin-host --stdio | host --service [--safe-mode] [--listen-tcp <host>:<port>] | config schema --scope <scope> | service <command>",
   };
 }

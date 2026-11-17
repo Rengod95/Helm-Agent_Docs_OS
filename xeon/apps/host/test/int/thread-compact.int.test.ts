@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { WireError } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
@@ -12,6 +12,7 @@ import {
   compactWhenIdle,
   HELLO_PARAMS,
   startTurnWhenIdle,
+  requestTurn,
 } from "../fixtures/wire-client.ts";
 
 // G2-01 (int): 실제 엔진과 저장소 위의 수동 컴팩션. 긴 대화를 thread.compact로 요약하면 thread.compacted가 커밋되고 응답의 위치가 그 이벤트를 가리킨다.
@@ -135,7 +136,7 @@ realTest(
     await connection.request("events.subscribe", { from: "head" });
     try {
       const created = await connection.request("thread.create", {});
-      const started = await connection.request("turn.start", {
+      const started = await requestTurn(connection, {
         threadId: created.threadId,
         input: "응답하지 않는 질문",
       });

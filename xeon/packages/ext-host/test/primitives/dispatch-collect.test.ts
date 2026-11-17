@@ -4,7 +4,13 @@ import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
 
-const beforeAgentStart = { prompt: "hi", systemPrompt: "sys", systemPromptOptions: {} };
+const beforeAgentStart = {
+  prompt: "hi",
+  systemPrompt: "sys",
+  systemPromptOptions: {},
+  driver: null,
+  stack: [],
+};
 const hint = (content: string) => ({
   customType: "grp.helm.hint.added",
   content,
@@ -86,10 +92,20 @@ test("collect is fail-open: a throwing handler loses only its contribution", asy
     {
       threadId: thread,
       dispatchKey: "k",
-      initial: { skillPaths: ["/base"], promptPaths: [], themePaths: [] },
+      initial: {
+        skillPaths: ["/base"],
+        promptPaths: [],
+        themePaths: [],
+        workspaceCandidates: [],
+      },
     },
   );
-  expect(outcome.value).toEqual({ skillPaths: ["/base", "/s"], promptPaths: [], themePaths: [] });
+  expect(outcome.value).toEqual({
+    skillPaths: ["/base", "/s"],
+    promptPaths: [],
+    themePaths: [],
+    workspaceCandidates: [],
+  });
   expect(outcome.contributed.map((ref) => ref.extension)).toEqual(["col-ok"]);
   expect(outcome.failures.map((failure) => failure.reason)).toEqual(["threw"]);
 });

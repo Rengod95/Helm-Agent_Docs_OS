@@ -8,6 +8,7 @@ import {
 } from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
+  pluginDeclsOf,
   validateManifest,
   type ExtensionEntry,
   type PortKey,
@@ -151,7 +152,7 @@ describe("the agents.judge capability", () => {
     expect(validateCapability(AgentsJudge)).toEqual([]);
     const checked = validateManifest(agentsManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
-    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? {})[0]?.provides).toEqual([
       { id: "agents.judge", version: "1.0.0" },
     ]);
   });

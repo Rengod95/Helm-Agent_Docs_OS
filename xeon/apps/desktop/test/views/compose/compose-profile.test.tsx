@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { profileDraftOf, withChoice, type ProfileDraft } from "@fresnel/client/workbench";
+import { profileDraftOf, withPluginAdded, type ProfileDraft } from "@fresnel/client/workbench";
 import type { ExtListEntry, Profile } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import {
@@ -38,10 +38,10 @@ function entryOf(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
 const PROFILE: Profile = {
   id: "quiet",
   title: "조용히",
-  enable: ["helm"],
-  disable: [],
+  builtin: false,
+  plugins: [{ name: "helm" }],
   settings: [],
-  driver: null,
+  startDrive: null,
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 2,
 };
@@ -74,12 +74,12 @@ describe("drive 그룹 고르기", () => {
       <DriverField driver={null} choices={["helm", "lens"]} onChange={NOOP} />,
     );
     expect(html).toContain("drive 그룹");
-    expect(html).toContain("바꾸면 적용 뒤 다음 경계에서 지금 drive 락을 회수해요");
+    expect(html).toContain("바꿔도 이미 쥔 drive는 회수하지 않아요");
   });
 });
 
 describe("확장 줄의 잠김", () => {
-  test("내장 코어 줄은 잠김 글과 잠금 아이콘만 두고 켜기·끄기·그대로를 그리지 않는다", () => {
+  test("내장 코어 줄은 잠김 글과 잠금 아이콘만 두고 켜기·끄기 칸을 그리지 않는다", () => {
     const html = renderToString(
       <ul>
         <ChoiceRow
@@ -98,15 +98,15 @@ describe("확장 줄의 잠김", () => {
     expect(html).not.toContain("그대로");
   });
 
-  test("잠기지 않은 줄은 켜기·끄기·그대로를 그린다", () => {
+  test("잠기지 않은 줄은 프로필 목록 칸(켜기·끄기)을 그린다. 그대로는 없다", () => {
     const html = renderToString(
       <ul>
-        <ChoiceRow entry={entryOf("helm")} choice="keep" locked={false} onChange={NOOP} />
+        <ChoiceRow entry={entryOf("helm")} choice="off" locked={false} onChange={NOOP} />
       </ul>,
     );
     expect(html).toContain("켜기");
     expect(html).toContain("끄기");
-    expect(html).toContain("그대로");
+    expect(html).not.toContain("그대로");
     expect(html).not.toContain("잠김");
   });
 });
@@ -134,7 +134,7 @@ describe("새 Test run으로", () => {
   });
 
   test("저장하지 않은 바꿈이 있으면 잠기고 저장하라는 줄이 보인다", () => {
-    const draft = withChoice(profileDraftOf(PROFILE), "web", "on");
+    const draft = withPluginAdded(profileDraftOf(PROFILE), "web");
     const html = testRunOf({}, draft);
     const button = buttonsOf(html).find((item) => item.label === "새 Test run으로");
     expect(button?.disabled).toBe(true);

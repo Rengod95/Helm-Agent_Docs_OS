@@ -15,6 +15,7 @@ const ORDER: ReadonlyArray<readonly [string, number]> = [
   ["extensions", 3],
   ["wire-settings/settings", 4],
   ["services", 4],
+  ["blocks", 4],
   ["wire-settings/wire", 5],
 ];
 

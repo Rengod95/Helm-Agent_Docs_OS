@@ -8,6 +8,13 @@ import type {
   SessionService,
 } from "@fresnel/contracts/records";
 import type {
+  AgentSpawnAfterPayload,
+  AgentSpawnAfterValue,
+  AgentSpawnBeforeDecision,
+  AgentSpawnBeforePayload,
+} from "@fresnel/contracts/extensions";
+import type {
+  ApprovalService,
   InputQueue,
   LoopService,
   TaskService,
@@ -16,6 +23,35 @@ import type {
 import type { StructuredModels } from "./structured.ts";
 
 // core-agents는 core-loop, core-tasks, core-tools, core-persistence를 import하지 않는다(DR-02). 협력은 F 서비스 타입의 부분형으로 받는다.
+
+/** `agent.spawn.before`의 입력. 디스패치 키와 취소 신호를 함께 받는다 */
+export interface AgentsSpawnBeforeInput {
+  readonly payload: AgentSpawnBeforePayload;
+  readonly dispatchKey: string;
+  readonly signal: AbortSignal;
+}
+
+/** `agent.spawn.before`의 결과. 결정이 없으면 `decision`이 `undefined`다. `extension`은 결정한 확장(없으면 null) */
+export interface AgentsSpawnBeforeOutcome {
+  readonly decision: AgentSpawnBeforeDecision | undefined;
+  readonly extension: string | null;
+}
+
+/** `agent.spawn.after`의 입력. 초기 값은 결과 검사를 거친 보고다 */
+export interface AgentsSpawnAfterInput {
+  readonly payload: AgentSpawnAfterPayload;
+  readonly dispatchKey: string;
+  readonly initial: AgentSpawnAfterValue;
+}
+
+/**
+ * 서브에이전트 앞뒤 훅의 발화(M5e 스펙 §4.3.3, §4.3.4). 조립은 플러그인이 ext-host 디스패처에 잇는다(`plugin.ts`).
+ * 디스패치 자체가 실패하면 두 메서드 모두 거부(reject)한다. 앞 훅은 거부로, 뒤 훅은 보고를 그대로 두는 것으로 받는다.
+ */
+export interface AgentsHooks {
+  spawnBefore(input: AgentsSpawnBeforeInput): Promise<AgentsSpawnBeforeOutcome>;
+  spawnAfter(input: AgentsSpawnAfterInput): Promise<AgentSpawnAfterValue>;
+}
 
 /** 이 패키지가 쓰는 SessionService의 부분 */
 export type AgentsSession = Pick<
@@ -86,6 +122,13 @@ export interface AgentsDeps {
   readonly tools: AgentsTools;
   /** core.agents 생산자. 플러그인 setup에서 한 번 받는다 */
   readonly producer: ProducerHandle;
+  /** 서브에이전트 앞뒤 훅 발화(`agent.spawn.before`, `agent.spawn.after`) */
+  readonly hooks: AgentsHooks;
+  /**
+   * 승인 요청(`fresnel.approvals`의 `request`). 호출 때마다 얻는다. 없으면 훅의 묻기는 "확인 불가"로 거부한다.
+   * 주 대화의 깊이 0 호출에서만 쓴다(E-4)
+   */
+  readonly approvals?: () => Pick<ApprovalService, "request"> | undefined;
   readonly ids: IdFactory;
   readonly settings: AgentsSettingsSource;
   readonly ownership: AgentsOwnership;

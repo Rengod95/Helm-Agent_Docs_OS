@@ -989,6 +989,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - `F.extensions.spec` §3.4 #28 `thread.resources`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 훅이다. pi에서 확장이 스킬 경로를 더하는 경로다.
 - 이 기능은 그 훅을 정의하지 않고 결과만 쓴다. 훅의 합성 결과(확장 이름과 함께 추가된 스킬 경로)를 확장 제공 루트로 받아 읽기 전용 스킬로 싣는다 [가정: X가 합성 결과를 대화 시작 때 `cap-knowledge`에 넘기는 API를 `X.loading-trust.spec`이 정한다].
+- 구현 [제안]: 대화를 열 때 `thread.resources`가 낸 스킬 경로는 설정 `skills.paths` 뒤에 붙어 그 대화의 탐색 입력이 된다(`KnowledgePluginOptions.contributedSkillPaths`, 대화별로 호출한다). 없는 경로는 버리고 `skill_path_missing` 진단을 남긴다(E-13). 훅 실패가 아니다. 낸 경로가 없으면 탐색 입력은 설정만으로 만든 것과 같다. 확장 제공 루트(`extensionSkillRoots`)와는 다른 길이다.
 - 확장 제공 스킬의 쓰기는 `read_only_scope`로 거부한다. 확장을 지우면 그 루트가 빠지고 다음 재색인 때 색인에서 빠진다.
 
 #### 4.2.8 컴팩션 뒤 재주입

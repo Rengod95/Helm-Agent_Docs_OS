@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildCatalog, checkSettingDef, validateSettingValue } from "@fresnel/contracts/settings";
 import { CONTEXT_SETTING_DEFS, contextSettingsOf, DEFAULT_CONTEXT_SETTINGS } from "../src/index.ts";
+import { DEFAULT_INSTRUCTION_FILES_MAX_BYTES } from "../src/settings.ts";
 
 function defOf(key: string) {
   const def = CONTEXT_SETTING_DEFS.find((candidate) => candidate.key === key);
@@ -23,6 +24,7 @@ describe("l1.context settings", () => {
       "l1.context.pruneThresholdChars",
       "l1.context.reinjectRecentFiles",
       "l1.context.cacheWarming",
+      "l1.context.instructionFiles.maxBytes",
     ]);
   });
 
@@ -49,6 +51,7 @@ describe("l1.context settings", () => {
       "l1.context.pruneThresholdChars": 200,
       "l1.context.reinjectRecentFiles": 5,
       "l1.context.cacheWarming": "off",
+      "l1.context.instructionFiles.maxBytes": 65536,
     });
   });
 
@@ -71,9 +74,14 @@ describe("contextSettingsOf", () => {
   test("the defaults in the declaration come from the same constant", () => {
     const defaults: unknown = DEFAULT_CONTEXT_SETTINGS;
     for (const def of CONTEXT_SETTING_DEFS) {
+      if (def.key === "l1.context.instructionFiles.maxBytes") continue;
       const name = def.key.replace("l1.context.", "");
       expect(def.default).toEqual(isRecord(defaults) ? defaults[name] : undefined);
     }
+    expect(
+      CONTEXT_SETTING_DEFS.find((def) => def.key === "l1.context.instructionFiles.maxBytes")
+        ?.default,
+    ).toBe(DEFAULT_INSTRUCTION_FILES_MAX_BYTES);
   });
 
   test("valid values are taken and out-of-range ones fall back per key", () => {

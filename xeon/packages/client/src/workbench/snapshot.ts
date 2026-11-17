@@ -1,6 +1,7 @@
 // `ext.list`·`ext.get`·`ext.health` 캐시를 캔버스 스냅샷(지도·순서·링크가 읽는 모양)으로 옮긴다.
 // 값이 없는 칸은 비운다. 엔진이 준 데이터만 쓰고 지어내지 않는다.
 import {
+  pluginDeclsOf,
   validateManifest,
   type ExtensionManifest,
   type PluginDecl,
@@ -145,7 +146,8 @@ function pluginOf(
   carriesPieces: boolean,
 ): CanvasPlugin {
   // 루트 플러그인은 id가 없고, 그 선언도 id가 없다
-  const decl = manifest?.plugins.find((d) => d.id === plugin.id);
+  const decl =
+    manifest === undefined ? undefined : pluginDeclsOf(manifest).find((d) => d.id === plugin.id);
   const root = plugin.id === undefined;
   const role = root ? manifest?.description : undefined;
   const requires = capabilityNames(detail, plugin.registrationId, decl, "requires");

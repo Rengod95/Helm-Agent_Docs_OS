@@ -38,7 +38,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 다루지 않는 것:
 
-- 매니페스트 스키마, 훅 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
+- 매니페스트 스키마, 훅 50행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
 - 4연산 실행, 디스패처, post 큐, drive 락 중재, Registration 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
 - tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(접두 테이블 API), 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜(M4로 옮김 [결정: 2026-10-28 사용자]), 설정 키 `x.operations.*`: X.operations.spec. tier와 시간 예산은 operations 소유로 본다 [제안]. F.extensions.spec §1·§4.2의 primitives 표기는 정합성 단계에서 고친다.
 - 설정 파일 경로와 읽기, 유효 값 계산: F.wire-settings.spec과 L1.persistence.spec. 이 문서는 키 정의와 신뢰 전 적용 제외 규칙만 둔다.
@@ -56,7 +56,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 로드 세대 (generation) | 한 확장의 엔트리를 한 번 실행한 단위. 핫 리로드나 격리 재시작마다 1씩 오른다 |
 | 진단 레코드 | 로드 중 생긴 문제 하나를 적은 `LoadDiagnostic` 값 |
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
-| 격리 확장 | `ext.<name>.isolation`이 `process`인 확장. 자식 프로세스에서 실행된다 |
+| 격리 확장 | 실효 격리 값이 `process`인 확장(§4.9.0). 플러그인 호스트 프로세스에서 실행된다 |
 | 프록시 | 격리 확장 대신 호스트 프로세스에서 훅 핸들러와 리소스를 등록하는 대리 객체 |
 | SDK 가상 모듈 | 플러그인 번들이 import하는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
@@ -538,93 +538,23 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 
 - `emitProjectTrust`의 반환 형태는 pi `ProjectTrustEventResult`(`types.ts:693-696`)에서 `undecided`를 뺀 것이다. 정본은 F.extensions.spec §3.5.1의 `ProjectTrustDecision`(`{ trusted: "yes" | "no"; remember?: boolean }`)이고, 위 반환 형태와 같다.
 
-### 3.8 프로세스 격리 (`isolation/rpc.ts`, `isolation/proxy.ts`, `isolation/outbox-agent.ts`) — 2차
+### 3.8 프로세스 격리 (`isolation/`) [구현: M5b-1, 2026-11-18]
+
+사용자·프로젝트 등급 플러그인은 플러그인 호스트 프로세스에서 돈다(설계 정본 `review.m5-drive-isolation` §3, 프로토콜 정본 `F.extensions.spec` 부록과 `contracts/src/extensions/isolation-protocol.ts`). 통신은 앱과 엔진 사이에 쓰는 줄 단위 JSON이고 새 외부 의존을 더하지 않는다(옛 구상의 `vscode-jsonrpc`는 쓰지 않는다).
+
+| 모듈 | 내용 |
+|---|---|
+| `isolation/framing.ts` | 줄 단위 프레임 읽기·쓰기. 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값 |
+| `isolation/child-runtime.ts`, `child-api.ts`, `params.ts` | 호스트 프로세스 안의 실행기 `runPluginHost`. 엔트리를 import하고 `g`와 `hostOf(g)`의 얇은 대리 객체를 만든다. 요청마다 실려 온 상태·설정 스냅샷을 즉시 읽기(`g.state()`, `settingValue`)에 쓴다 |
+| `isolation/supervisor.ts` | 엔진 쪽 프로세스 관리: 처음 불릴 때 띄우기, 한동안 안 불리면 내리기(`idleMs`), 시간 초과 때 프로세스 종료(`process_killed`), 비정상 종료(`process_exit`)와 재시작 한도, 표준오류 수집 |
+| `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
+| `isolation/proxy-entry.ts` | 선언(`host.init` 응답)으로 같은 등록을 엔진의 ExtHost에 만들고 훅·도구·명령·메서드마다 대리 핸들러를 건다. 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`)은 응답을 기다리지 않는 알림이다 |
+| `isolation/effective.ts` | 격리 여부 결정(§4.9.0) |
 
 ```ts
-// 자식 프로세스 기동 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1, ProcessPort의 부분).
-// 구현은 platform-process(서비스 fresnel.process, ProcessService extends ProcessPort)다. 여기서는 다시 export만 한다
-import type { IsolationProcessPort, IsolatedChild } from "@fresnel/contracts/extensions";
-export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild } from "@fresnel/contracts/extensions";
-
-export const ISOLATION_PROTOCOL_VERSION = 1;
-
-/** vscode-jsonrpc 메서드 이름. 접두 "xeon/"는 F.wire-settings의 호스트 계약과 겹치지 않게 둔다 */
-export const IsoMethods = {
-  // 호스트 → 자식
-  init: "fresnel/iso.init",
-  dispatch: "fresnel/iso.dispatch",
-  toolExecute: "fresnel/iso.tool.execute",
-  dispose: "fresnel/iso.dispose",
-  // 자식 → 호스트
-  register: "fresnel/iso.register",
-  post: "fresnel/iso.post",
-  commit: "fresnel/iso.commit",
-  record: "fresnel/iso.record",
-  readRecords: "fresnel/iso.readRecords",
-  capabilityCall: "fresnel/iso.capability.call",
-  log: "fresnel/iso.log",
-} as const;
-
-export const IsoInitParams = Type.Object({
-  protocolVersion: Type.Literal(1),
-  manifest: ExtensionManifestSchema,
-  entryPath: Type.String(),
-  generation: Type.Integer({ minimum: 1 }),
-  /** 이 확장의 ext.<name>.* 유효 값. secret 키는 참조 문자열만 */
-  settings: Type.Record(Type.String(), Type.Unknown()),
-});
-export const IsoInitResult = Type.Object({
-  /** setup 동안의 사용 기록(ExtensionUsage와 같은 형태) */
-  usage: Type.Object({
-    on: Type.Array(Type.String()),
-    post: Type.Boolean(),
-    drive: Type.Boolean(),
-    capabilities: Type.Array(Type.String()),
-    recordKinds: Type.Array(Type.String()),
-    readsRecordKinds: Type.Array(Type.String()),
-  }),
-  tools: Type.Array(Type.Object({ name: Type.String(), definition: Type.Unknown() })),
-});
-
-export const IsoDispatchParams = Type.Object({
-  dispatchId: Type.String(),
-  point: Type.String(),
-  scopeId: Type.String(),
-  threadId: Type.String(),
-  /** JSON 직렬화된 페이로드. 동결은 자식이 다시 한다 */
-  payload: Type.Unknown(),
-  /** chain 훅만 */
-  current: Type.Optional(Type.Unknown()),
-  state: Type.Unknown(),
-});
-export const IsoDispatchResult = Type.Object({
-  /** tap은 null. first는 결정 또는 null(=undefined), chain은 패치 또는 null */
-  result: Type.Unknown(),
-});
-
-export const IsoPostParams = Type.Object({
-  scopeId: Type.String(),
-  item: Type.Unknown(),          // PostItem. 호스트가 F 스키마로 다시 검사한다
-  requestId: Type.String({ minLength: 1, maxLength: 64 }),
-  when: Type.Union([Type.Literal("steer"), Type.Literal("followUp"), Type.Literal("next")]),
-});
-
-/** 호스트 쪽 대리인. 격리 확장의 기록을 세션 커밋 경로로 옮긴다 */
-export interface OutboxAgent {
-  post(params: Static<typeof IsoPostParams>): Promise<{ readonly requestId: string; readonly duplicate: boolean }>;
-  commit(scopeId: string, state: unknown, rev: number): Promise<void>;
-  record(scopeId: string, kind: string, subject: { readonly type: string; readonly id: string }, payload: unknown): Promise<void>;
-}
-
-/** 페이로드·결정·패치 스키마가 JSON으로 왕복 가능한 지점. HOOKS에서 계산한다(§4.9.4) */
-export function isolatableHooks(): ReadonlySet<HookName>;
-
-export interface IsolationPolicy {
-  readonly maxRestarts: number;
-  readonly restartWindowSec: number;
-  /** 취소 요청 뒤 강제 종료까지의 유예 시간 [제안] 2000ms */
-  readonly killGraceMs: number;
-}
+// 자식 프로세스 기동 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1). 구현은 platform-process(서비스 fresnel.process)다
+export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, IsolationSpawnError } from "@fresnel/contracts/extensions";
+// 로더 의존: LoaderDeps.process와 LoaderDeps.isolation(launch, setTimer, idleMs, maxRestarts, maskSecrets, onRestartLimit, onSupervisor)가 모두 있어야 격리가 켜진다
 ```
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
@@ -1016,7 +946,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.4.2 엔트리 모듈 형태
 
-- 외부 확장: 매니페스트 `entry`(확장 루트 상대 경로)를 import한다. export는 `default` 또는 named `extension` 중 하나가 `ExtensionEntry` 함수여야 한다. 둘 다 없으면 `entry_not_function`이다.
+- 외부 확장: 매니페스트 `entry`(확장 루트 상대 경로)를 import한다. export는 `default` 또는 named `extension` 중 하나가 `ExtensionEntry` 함수여야 한다. 둘 다 없으면 `entry_not_function`이다. `entry`가 없으면 코드가 없는 플러그인이다(M5c §4.5.4): import하지 않고, 선언한 플러그인마다 설정도 상태도 없는 Registration 하나만 만든다(훅과 Drive는 선언하지 않는다).
 - 내장 확장: `BuiltinExtensionModule.extension`을 그대로 쓴다. import는 조립 루트가 이미 했다. Fresnel 코드의 lint는 default export를 막으므로 내장 패키지는 named export만 쓴다(`xeon/AGENTS.md` 코드 규칙). F.extensions.spec §3.2의 "default export 형식" 주석과의 조정은 §10 미결 2다.
 - `entry`가 확장 루트 밖을 가리키는 경우는 `validateManifest`의 `entry_invalid`가 막는다. 로더는 import 직전에 `realpath` 결과가 확장 루트 안인지 다시 확인한다.
 
@@ -1134,12 +1064,12 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 | 키 | 타입 | 기본값 | 범위(allowedScopes) | runtimeChange | 대상 |
 |---|---|---|---|---|---|
-| `ext.<name>.enabled` | `boolean` | 매니페스트 `defaultEnabled`, 없으면 `true` | `managed`, `user`, `project`, `local`, `launch` | `live` | 모든 확장 |
-| `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 없으면 `"none"` | `managed`, `user` | `restart` | 내장이 아닌 확장 |
+| `ext.<name>.enabled` | `boolean` | 매니페스트 `defaultEnabled`, 없으면 `true` | `managed`만(D10) | `live` | 모든 확장 |
+| `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 값이 없으면 `"process"` | `managed`, `user` | `restart` | 내장이 아닌 확장 |
 
-- `enabled`의 대화 중 변경: 가능하다. 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
+- `enabled`의 범위는 `managed`뿐이라(D10) 사용자가 설정이나 대화에서 바꾸지 못한다. 이 범위 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
-- `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
+- `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 값 `none`은 엔진 안에서 돌리기를 허락하는 예외이고 매니페스트 `isolation`은 설정 값이 없을 때의 요청이다(§4.9.0, F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
 - 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `group.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
@@ -1322,69 +1252,49 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 없으면 `error`(`capability_missing`)이고 진단에 기능 ID와 범위를 적는다. `optional`은 검사하지 않는다. 실행 중 `optional` 기능이 없을 때의 호출 거부는 F.capabilities.spec §5 2번(`unavailable`)을 따른다.
 - 이 단계는 엔트리 실행 전에 한다. 요구가 채워지지 않은 확장의 코드는 실행하지 않는다.
 
-### 4.9 프로세스 격리 (2차)
+### 4.9 프로세스 격리 [구현: M5b-1]
 
-#### 4.9.1 구조
+#### 4.9.0 격리 여부 결정
 
-```mermaid
-flowchart LR
-  subgraph host[호스트 프로세스]
-    D[X.primitives 디스패처] --> P[프록시 확장]
-    P <--> R[vscode-jsonrpc 연결]
-    O[outbox 대리인] --> W[세션 커밋 경로]
-  end
-  subgraph child[자식 프로세스]
-    C[child-main.ts] --> E[확장 엔트리]
-  end
-  R <-- "stdio JSON-RPC" --> C
-  C -- "post, commit, record" --> R
-  R --> O
-```
+`builtin`(저장소 패키지)은 늘 엔진 안이다. 사용자·프로젝트 등급은 설정 `ext.<name>.isolation`, 매니페스트 `isolation`, 기본 `process` 순으로 정한다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"다 [결정: 2026-11-17 사용자]. 값을 직접 정한 경우(설정이나 매니페스트가 `process`)를 "명시"라 한다.
 
-- 전송: vscode-jsonrpc 9.0.3(MIT, 의존 0)을 stdio에 그대로 쓴다(`_research/packages.md` §2.5, §4.5). 연결은 `vscode-jsonrpc/node`의 `StreamMessageReader`, `StreamMessageWriter`로 만든다. 프로토콜과 outbox는 자체다. pi-protocol은 Chord 결합이라 쓰지 않는다(같은 표).
-- 자식 프로세스 기동·종료는 `IsolationProcessPort`(platform-process 서비스)로만 한다. ext-host는 `Bun.spawn`, `node:child_process`를 import하지 않는다(eng.dependency-rules.guide DR-07).
-- 자식 진입점은 ext-host 패키지의 `isolation/child-main.ts`다. 자식은 매니페스트와 엔트리 경로를 `fresnel/iso.init`으로 받아 엔트리를 import하고 실행한다.
+| 상황 | 결과 |
+|---|---|
+| 매니페스트에 `entry`가 없음(코드 없는 확장) | 엔진 안. 띄울 코드가 없어 설정이 `process`여도 격리하지 않는다(`no_entry`) |
+| 실효 값 `none` | 엔진 안 |
+| `process`, 포트(`process`·`isolation` 의존) 없음 | 명시면 `error`(`isolation_unavailable`), 기본이면 엔진 안 |
+| `process`, `plugins[].drives: true` | 명시면 `error`(`isolation_drive_unsupported`), 기본이면 엔진 안(주도는 P2에서 넘긴다) |
+| 그 밖의 `process` | 호스트 프로세스. `LoadedExtensionInfo.isolation = "process"` |
+
+`LoadedExtensionInfo.isolation`은 실제로 도는 곳이다. `bundled` 출처(Helm)는 이 로더의 `InstallSource`가 아니라(내장·관리·사용자·프로젝트 넷뿐) 조립 루트가 `builtin: false`로 싣는 기본 플러그인이고, 주도를 쓰므로 위 표의 `drives` 줄로 엔진 안에 남는다.
+
+#### 4.9.1 구조와 수명
+
+프로세스 하나가 플러그인(확장) 하나를 맡는다. 호스트 프로세스는 엔진 실행 파일을 하위 명령으로 다시 실행한 것이고 OS 샌드박스로 감싼다(§4.9.6). 새 `versionId`(`<매니페스트 버전>.<로드 세대>`)는 새 프로세스를 뜻한다. 다시 읽기는 새 감독자를 만들고 옛 것을 내린다. 마지막 등록이 꺼지면 연결을 닫고, 다시 켜면 새 연결을 연다. 감독자는 `dispose` 뒤 쓸 수 없다.
 
 #### 4.9.2 프록시
 
-- [제안] 호스트 쪽 프록시 확장은 격리 확장 대신 scope를 만들고(프록시도 `ExtensionUnit`으로 `ExtHost.install`에 넘긴다), `init` 결과의 `usage.on` 중 매니페스트 `plugins[].hooks`에 선언된 훅에만 핸들러를 등록한다. 선언 밖 훅의 등록 요청은 `validateUsage`로 거부한다(8단계와 같다).
-- 프록시 핸들러는 페이로드를 JSON으로 직렬화해 `fresnel/iso.dispatch`를 보내고 결과를 F 스키마(`HookDecl.result`)로 검사한 뒤 돌려준다. 검사 실패는 핸들러 예외와 같다(F.extensions.spec §5 2번, 3번).
-- 리소스: 격리 확장이 등록한 도구는 프록시가 같은 이름으로 대신 등록한다. 실행은 `fresnel/iso.tool.execute`로 자식에게 보낸다.
-- 기능 호출: 자식의 `capability(key)` 메서드 호출은 `fresnel/iso.capability.call`로 호스트에 와서 실행된다. 매니페스트 `requires`·`optional` 밖의 기능은 거부한다.
+선언은 `host.init`의 응답이다. 같은 등록 id로 `host.register`를 하고 훅은 `(지점, handlerIndex)`마다 하나씩 대리 핸들러를 건다. 상태 선언의 스키마는 JSON Schema 문서이고 엔진이 그대로 검사에 쓴다(`schemaOfJson`).
 
 #### 4.9.3 직렬화와 취소
 
-- 페이로드, 현재값, 결정, 패치, scope 상태는 JSON으로 왕복할 수 있어야 한다. `undefined`는 `null`로 보내고 받는 쪽에서 `undefined`로 되돌린다(결정 없음).
-- `HandlerContext.signal`은 직렬화하지 않는다. 디스패처가 신호를 중단하면 프록시는 vscode-jsonrpc 취소(`$/cancelRequest`)를 보낸다. 자식 런타임은 받은 취소로 자기 `AbortController`를 중단해 핸들러의 `ctx.signal`에 전한다.
-- 시간 예산: 프록시 핸들러의 시간 예산은 X.operations.spec이 정한 훅별 예산과 같다. 예산을 넘으면 디스패처는 그 핸들러를 예외로 처리한다. 그래서 first 훅이면 `FIRST_DENY`, chain이면 그 패치 생략, tap이면 기록 후 계속이다(F.extensions.spec §4.1). 프록시는 동시에 취소를 보내고, `killGraceMs` 안에 자식이 응답하지 않으면 자식을 `SIGKILL`로 끝낸다.
-- 비협조적인 확장 코드를 강제로 멈출 수 있는 경로는 프로세스 경계뿐이다(adr.0007 §4.2, adr.0006 §4.2). 같은 프로세스 확장의 시간 초과는 결과를 버릴 뿐 실행 중인 코드를 멈추지 못한다.
+모든 값은 JSON이다. 프레임이 상한을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다). 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
 
 #### 4.9.4 격리 가능 훅
 
-- [제안] 훅 N이 격리 가능하려면 `HOOKS[N].payload`와 `HOOKS[N].result`가 JSON 왕복 가능한 스키마여야 한다. `isolatableHooks()`는 스키마를 훑어 `Type.Unknown()`, 함수, `Uint8Array`, `AbortSignal`을 포함한 훅을 뺀다.
-- [제안] 위 계산과 별개로 고빈도 휘발 훅 `request.stream`, `boundary.message.update`, `tool.execution.update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
-- 격리 확장의 `plugins[].hooks`에 격리 불가 훅이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
-- M1 이후 페이로드가 정확화되면(F.extensions.plan M2) 목록이 바뀐다. 목록은 코드가 계산하고 문서는 규칙만 둔다.
+모든 훅이 격리 가능하다. 토큰마다 불리는 스트림 지켜보기 훅(`request.stream`, `boundary.message.update`, `tool.execution.update`)은 응답을 기다리지 않는 알림(`event.notify`)으로 보낸다. 알림은 같은 대화 안에서 발화 순서로 하나씩 가고 적어도 한 번 전달된다(핸들러는 `eventKey`로 멱등이어야 한다). 옛 `isolation_point_unsupported`는 내지 않는다. `g.subscribe`는 자식 안에서 `g.on` 등록 위에 돈다(엔진 안과 같은 `every`·`coalesce`, 선언된 이벤트만, 봉투의 `eventKey`는 엔진 디스패치 키). 선언 목록은 `host.init`의 매니페스트에서 읽는다. 새 훅 넷(`ask.human.*`, `agent.spawn.*`), `tool.call.before`의 `ask`·`replace` 결정과 합치기, `thread.resources`의 `workspace`, 매니페스트 `hookDecides`는 엔진 안과 같게 돈다(결정은 JSON 결과로 돌아와 엔진의 합치기가 처리한다). 내부 훅(`hook_internal`)을 선언한 비내장 플러그인은 자식의 `host.init` 매니페스트 검사에서도 거부된다. 도구의 `ctx.changes.report`는 `engine.call` `reportChanges`로 건넨다.
 
 #### 4.9.5 drive
 
-- [제안] 격리 확장은 `drive`를 쓸 수 없다. `plugins[].drives: true`이고 `isolation: "process"`면 `error`(`isolation_drive_unsupported`)다.
-- 이유: `LoopHandle`의 `turn`, `spawn`은 오래 걸리는 양방향 호출이고, drive 재호출 규칙(F.extensions.spec §4.6)을 프로세스 재시작과 함께 맞추는 설계가 없다. 허용 여부는 §10 미결 8.
+호스트 프로세스에서 `drive`를 등록하면 `host.init`이 `unsupported_api`로 실패하고 로더는 `isolation_drive_unsupported`로 거부한다. 넘기지 않는 API는 `drive`, `migrateState`, `provide`, `providePort`, `updateState`, `awaitUser`, `registerWebProvider`, `registerShortcut`이다(`port`는 `service_reserved`로 답한다). 이름은 진단 메시지에 실린다. 사용자는 `ext.<name>.isolation = none`으로 엔진 안에서 돌린다.
 
 #### 4.9.6 기록 경로와 접근 경계
 
-- 격리 프로세스는 대화 DB를 열지 않는다. 자식 환경 변수에 DB 경로와 시크릿을 넣지 않는다. `IsolationSpawnSpec.env`는 허용 목록(`PATH`, `HOME`, `LANG`, `FRESNEL_EXT_NAME`, `FRESNEL_EXT_DATA`)으로만 만든다 [제안].
-- 격리 확장의 `post`, `commit`, `record`는 RPC로 호스트에 오고, 호스트 쪽 대리인(`OutboxAgent`)이 그 확장의 scope로 실행한다(eng.transactions.design §7 "격리 확장이 세션에 결과를 돌려줄 때는 호스트 쪽 대리인이 그 확장의 `requestId`로 `post`나 확장 이벤트 커밋을 한다").
-- `post`의 `requestId`는 자식이 만든 값을 그대로 쓴다. 같은 키의 재전송은 `duplicate: true`가 된다(F.extensions.spec §4.4). 자식 재시작 뒤 같은 핸들러가 같은 키로 다시 post해도 한 번만 들어간다.
-- 격리 확장이 자기 데이터를 오래 보관하려면 `FRESNEL_EXT_DATA` 디렉터리의 자기 파일을 쓴다. 대화 이벤트를 읽어 자기 파일에 반영하는 경우의 커서 규칙은 eng.transactions.design §7 "신뢰 등급 2·3 확장이 별도 프로세스이고 자기 DB 파일을 쓸 때" 행을 따른다. 접두 테이블 API와 그 접근 차단 장치는 X.operations.spec이 소유한다. 이 문서는 격리 확장에 DB 핸들을 주지 않는다는 경계만 정한다.
+플러그인의 `commit`, `record`, `post`, `capability`는 모두 `engine.call`로 엔진의 같은 길(상태 서비스, 도구 실행 블록)을 지난다. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. 프로세스의 환경 변수는 허용 목록으로만 만든다(DB 경로와 시크릿 없음). 샌드박스: 읽기는 L0 샌드박스의 보호 경로 거부 목록을 따르고(`L0.sandbox.spec` §4.9), 쓰기 루트는 없고, 네트워크는 전체 허용이다 [결정: 2026-11-17 사용자, 3단계에서 플러그인별 허용 목록].
 
 #### 4.9.7 비정상 종료와 재시작
 
-- 자식이 예기치 않게 끝나면 진행 중인 요청은 모두 오류로 끝난다. 디스패처는 각 핸들러를 예외로 처리한다(fold 규칙).
-- [제안] 재시작 정책: `isolation.restartWindowSec`(기본 600초) 안의 종료 횟수가 `isolation.maxRestarts`(기본 3) 이하면 지수 대기(1초, 2초, 4초) 뒤 새 세대로 다시 띄운다. 재시작 때 `init`의 `usage`가 이전 세대와 다르면 `error`(`isolation_protocol`)다.
-- 횟수를 넘으면 `error`(`isolation_restart_limit`)로 두고 scope 끄기를 요청한다. 자동 끄기 기록과 사용자 알림은 X.operations.spec의 실패 격리 경로를 쓴다.
-- 대기 중에 들어온 디스패치는 프로세스가 없으므로 즉시 예외로 처리한다.
-- 호스트 종료(`ExtensionLoader.dispose`) 때는 `fresnel/iso.dispose`를 보내고 `killGraceMs` 뒤 `SIGKILL`한다. 서비스 모드의 유휴 종료도 같은 경로를 쓴다(adr.0006 §3.4).
+호스트가 스스로 끝나면(`process_exit`) 진행 중 요청은 그 훅의 실패 규칙으로 처리되고(막는 훅은 막고 고치는 훅은 건너뛴다) 다음 호출 때 한 번 다시 띄운다(`maxRestarts` 기본 1). 한도를 넘으면 `restart_limit`이고 `onRestartLimit`이 자동 끄기 질문을 부른다. 성공한 응답이 죽은 횟수를 0으로 되돌린다. 설정 키 `x.loading-trust.isolation.maxRestarts`(기본 3)와 `restartWindowSec`는 이 감독자가 읽지 않는다 (키의 정리는 사용자 확인 대기) [근거: m5-plan.md M5b-1]. 엔진이 죽으면 호스트는 표준 입력이 닫힌 것을 보고 스스로 끝난다. 표준오류는 엔진이 모아(줄 상한, 시크릿 마스킹) 진단에 잇는다.
 
 ### 4.10 pi 확장 호환 (두지 않음)
 
@@ -1415,7 +1325,7 @@ flowchart LR
 | userConfig `setting`이 `l1.loop.maxSteps` | `foreignNamespace` → `rejected`(`settings_rejected`) |
 | `requires: [{ id: "web.search", range: "^2.0.0" }]`인데 provider가 1.x | `error`(`capability_missing`). 진단에 기능 ID와 범위 |
 | provider 확장이 9단계에서 실패 | 그 기능을 `requires`한 확장도 `error`(`capability_provider_failed`) |
-| 격리 설정인데 `fresnel.process` 서비스 없음 | `error`(`isolation_unavailable`). 2차 격리 실행이 구현되기 전에는 포트가 있어도 같다. 이때 `LoadedExtensionInfo.isolation`은 실제 격리가 없으므로 `none`으로 보고한다 |
+| 격리를 명시했는데 `fresnel.process` 서비스나 `isolation` 의존이 없음 | `error`(`isolation_unavailable`). 기본값이 정한 격리면 엔진 안에서 돌리고 `LoadedExtensionInfo.isolation`은 `none`으로 보고한다(§4.9.0) |
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
 | 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패함 | 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`, `ui_limit`). 확장은 `active`이고 훅이 실행된다(§4.3.4) |
@@ -1430,12 +1340,13 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.widget |
 |---|---|---|---|---|---|---|
-| `ext.<name>.enabled` | `boolean` | 매니페스트 `defaultEnabled`, 없으면 `true` | - | `live` | `managed`, `user`, `project`, `local`, `launch` | `toggle` |
-| `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 없으면 `"none"` | enum `none`, `process` | `restart` | `managed`, `user` | `select` |
+| `ext.<name>.enabled` | `boolean` | 매니페스트 `defaultEnabled`, 없으면 `true` | - | `live` | `managed` | `toggle` |
+| `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 값이 없으면 `"process"` | enum `none`, `process` | `restart` | `managed`, `user` | `select` |
 | `x.loading-trust.defaultProjectTrust` | `"ask" \| "always" \| "never"` | `"ask"` | enum | `restart` | `managed`, `user` | `select` |
 | `x.loading-trust.paths` | `string[]` | `[]` | - | `restart` | `managed`, `user` | `list` |
 | `x.loading-trust.isolation.maxRestarts` | `integer` | `3` | 0~20 | `live` | `managed`, `user` | `number` |
 | `x.loading-trust.isolation.restartWindowSec` | `integer` | `600` | 10~86400 | `live` | `managed`, `user` | `number` |
+| `x.loading-trust.sourceWatch` | `boolean` | `true` | - | `live` | `managed`, `user` | `toggle` |
 | `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 

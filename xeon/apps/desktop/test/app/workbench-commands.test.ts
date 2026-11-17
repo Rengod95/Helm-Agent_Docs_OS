@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { CompositionDecl, TraceTurnResult } from "@fresnel/contracts/extensions";
+import type {
+  CompositionDecl,
+  DriveFrameView,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
 import {
   WIRE_ERRORS,
   type EventWire,
@@ -13,11 +17,11 @@ import {
   type HooksOrderSetResult,
   type VolatileEventWire,
   type Profile,
-  type ProfileApplyResult,
-  type ProfileGetResult,
+  type ProfilePutResult,
   type ProfileInput,
   type ProfileListResult,
   type ProfilePreviewResult,
+  type ThreadSetProfileResult,
   type ExtValidateResult,
 } from "@fresnel/contracts/wire";
 import {
@@ -340,68 +344,19 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("이 대화에서 끄기는 settings.set을 범위 launch와 대화 id와 함께 보내고 값 null을 돌려준다", async () => {
-    const saved = {
-      setting: {
-        key: "ext.helm.enabled",
-        value: false,
-        source: { scope: "launch" },
-        locked: false,
-        shadowed: [],
-        runtimeChange: "live",
-        pendingUntil: null,
-        deprecated: false,
-      },
-    };
-    const { app, params } = await liveApp({ results: { "settings.set": saved } });
-    const request = {
-      key: "ext.helm.enabled",
-      value: false,
-      scope: "launch" as const,
-      threadId: thr(1),
-    };
-    expect(await app.commands.workbench.toggleForThread(request)).toEqual({
-      ok: true,
-      value: null,
-    });
-    expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.helm.enabled", value: false, scope: "launch", threadId: thr(1) },
-    ]);
-    await app.stop();
-  });
-
-  test("이 대화에서 끄기가 대화 범위 거절(thread.notFound)이면 코드를 담은 오류 값이다", async () => {
-    const { app } = await liveApp({
-      errors: {
-        "settings.set": { code: WIRE_ERRORS["thread.notFound"].code, kind: "thread.notFound" },
-      },
-    });
-    expect(
-      await app.commands.workbench.toggleForThread({
-        key: "ext.helm.enabled",
-        value: true,
-        scope: "launch",
-        threadId: thr(1),
-      }),
-    ).toEqual({
-      ok: false,
-      error: { kind: "rejected", code: WIRE_ERRORS["thread.notFound"].code },
-    });
-    await app.stop();
-  });
-
   test("프로필 목록은 빈 params로 보내고 프로필 배열을 돌려준다", async () => {
     const QUIET: Profile = {
       id: "quiet",
       title: "조용히",
-      enable: ["helm"],
-      disable: [],
+      builtin: false,
+      plugins: [{ name: "helm" }],
       settings: [],
-      driver: null,
+      startDrive: null,
       updatedAt: "2026-11-04T10:00:00Z",
       rev: 1,
     };
-    const listed: ProfileListResult = { profiles: [QUIET], rev: 1 };
+    const common = { plugins: [], settings: [], updatedAt: "2026-11-04T10:00:00Z", rev: 0 };
+    const listed: ProfileListResult = { profiles: [QUIET], common, rev: 1 };
     const { app, params } = await liveApp({ results: { "profile.list": listed } });
     expect(await app.commands.workbench.profiles()).toEqual({ ok: true, value: [QUIET] });
     expect(paramsOf(params, "profile.list")).toEqual([{}]);
@@ -412,13 +367,13 @@ describe("크래프트 명령의 wire 호출", () => {
     const input: ProfileInput = {
       id: "quiet",
       title: "조용히",
-      enable: ["helm"],
-      disable: ["web"],
+      plugins: [{ name: "helm" }, { name: "notes" }],
       settings: [],
-      driver: null,
+      startDrive: null,
     };
-    const saved: ProfileGetResult = {
-      profile: { ...input, updatedAt: "2026-11-04T10:00:00Z", rev: 2 },
+    const saved: ProfilePutResult = {
+      profile: { ...input, builtin: false, updatedAt: "2026-11-04T10:00:00Z", rev: 2 },
+      issues: [],
     };
     const { app, params } = await liveApp({ results: { "profile.put": saved } });
     expect(await app.commands.workbench.putProfile(input, 1)).toEqual({ ok: true, value: saved });
@@ -427,7 +382,9 @@ describe("크래프트 명령의 wire 호출", () => {
   });
 
   test("프로필 삭제는 id를 보내고 목록 개정을 돌려준다", async () => {
-    const { app, params } = await liveApp({ results: { "profile.delete": { rev: 5 } } });
+    const { app, params } = await liveApp({
+      results: { "profile.delete": { rev: 5, reassignedThreads: 0 } },
+    });
     expect(await app.commands.workbench.deleteProfile("quiet")).toEqual({ ok: true, value: 5 });
     expect(paramsOf(params, "profile.delete")).toEqual([{ id: "quiet" }]);
     await app.stop();
@@ -435,13 +392,15 @@ describe("크래프트 명령의 wire 호출", () => {
 
   test("프로필 미리 보기는 id와 대화를 보내고 계산 결과를 돌려준다", async () => {
     const preview: ProfilePreviewResult = {
-      enabled: ["helm"],
-      disabled: ["web"],
-      candidates: ["helm"],
-      expectedHolder: "helm",
-      overrides: [{ key: "ext.helm.maxLenses", value: 3 }],
-      hookCount: 4,
-      layer: "user",
+      resolved: [{ name: "helm" }],
+      issues: [],
+      cost: {
+        total: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+        byPlugin: [],
+      },
+      missingRequired: [],
+      threadsUsing: 2,
+      dropsDrive: null,
     };
     const { app, params } = await liveApp({ results: { "profile.preview": preview } });
     expect(await app.commands.workbench.previewProfile("quiet", thr(1))).toEqual({
@@ -488,10 +447,9 @@ describe("크래프트 명령의 wire 호출", () => {
     });
     expect(await app.commands.workbench.kinds()).toEqual({ ok: true, value: [] });
     const input = {
-      kind: "plugin-group" as const,
+      kind: "single-plugin" as const,
       name: "lens-review",
       dir: "/w/lens-review",
-      group: {},
     };
     expect(await app.commands.workbench.scaffold(input)).toEqual({ ok: true, value: scaffolded });
     expect(paramsOf(params, "ext.scaffold")).toEqual([input]);
@@ -514,7 +472,9 @@ describe("크래프트 명령의 wire 호출", () => {
 
   test("Test run 대화 만들기는 프로필 id가 있을 때만 profileId를 보낸다", async () => {
     const { app, params } = await liveApp({
-      results: { "thread.create": { threadId: thr(7), position: { storeId: STORE, seq: 6 } } },
+      results: {
+        "thread.create": { threadId: thr(7), position: { storeId: STORE, seq: 6 }, sameFolder: [] },
+      },
     });
     expect(await app.commands.tests.createTestRun()).toEqual({ ok: true, value: thr(7) });
     expect(await app.commands.tests.createTestRun("quiet")).toEqual({ ok: true, value: thr(7) });
@@ -525,19 +485,18 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("프로필 적용은 id, threadId, layer thread를 보내고 쓴 키와 적용 시점을 돌려준다", async () => {
-    const applied: ProfileApplyResult = {
-      written: ["ext.helm.enabled"],
-      layer: "thread",
-      appliesAt: "nextStepBoundary",
+  test("프로필 적용은 thread.setProfile로 대화 id와 프로필 id만 보내고 바뀜의 미리 보기를 돌려준다", async () => {
+    const set: ThreadSetProfileResult = {
+      position: { storeId: STORE, seq: 9 },
+      preview: { cacheImpact: "none" },
     };
-    const { app, params } = await liveApp({ results: { "profile.apply": applied } });
+    const { app, params } = await liveApp({ results: { "thread.setProfile": set } });
     expect(await app.commands.workbench.applyProfile("quiet", thr(1))).toEqual({
       ok: true,
-      value: applied,
+      value: set,
     });
-    expect(paramsOf(params, "profile.apply")).toEqual([
-      { id: "quiet", threadId: thr(1), layer: "thread" },
+    expect(paramsOf(params, "thread.setProfile")).toEqual([
+      { threadId: thr(1), profileId: "quiet" },
     ]);
     await app.stop();
   });
@@ -545,7 +504,10 @@ describe("크래프트 명령의 wire 호출", () => {
   test("프로필이 없으면(profile.notFound) 코드를 담은 오류 값이다", async () => {
     const { app } = await liveApp({
       errors: {
-        "profile.apply": { code: WIRE_ERRORS["profile.notFound"].code, kind: "profile.notFound" },
+        "thread.setProfile": {
+          code: WIRE_ERRORS["profile.notFound"].code,
+          kind: "profile.notFound",
+        },
       },
     });
     expect(await app.commands.workbench.applyProfile("gone", thr(1))).toEqual({
@@ -586,45 +548,50 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("installPreview는 출처를, install은 출처와 미리 보기 해시를 그대로 보낸다", async () => {
-    const sha256 = "b".repeat(64);
-    const installed = {
-      name: "docs",
-      version: "1.0.0",
-      location: "/ext/docs",
-      appliesAt: "restart",
-    } as const;
-    const { app, params } = await liveApp({ results: { "ext.install": installed } });
-    expect(await app.commands.workbench.install("/plugins/docs", sha256)).toEqual({
-      ok: true,
-      value: installed,
+  test("설치 미리 보기와 설치는 wire를 보내지 않고 not_available을 돌려준다(M5c-1에서 wire가 빠졌다)", async () => {
+    const { app, params } = await liveApp({});
+    expect(await app.commands.workbench.installPreview("/plugins/docs")).toEqual({
+      ok: false,
+      error: { kind: "not_available", command: "ext.installPreview" },
     });
-    expect(paramsOf(params, "ext.install")).toEqual([{ source: "/plugins/docs", sha256 }]);
+    expect(await app.commands.workbench.install("/plugins/docs", "b".repeat(64))).toEqual({
+      ok: false,
+      error: { kind: "not_available", command: "ext.install" },
+    });
+    expect(paramsOf(params, "ext.installPreview")).toEqual([]);
+    expect(paramsOf(params, "ext.install")).toEqual([]);
     await app.stop();
   });
 
-  test("removePreview는 이름만 ext.removePreview로 보내고 저장 테이블 목록을 그대로 돌려준다", async () => {
-    const body = { name: "web", tables: [{ name: "ext_web_cache", rows: 3 }] };
-    const { app, params } = await liveApp({ results: { "ext.removePreview": body } });
-    expect(await app.commands.workbench.removePreview("web")).toEqual({ ok: true, value: body });
-    expect(paramsOf(params, "ext.removePreview")).toEqual([{ name: "web" }]);
+  test("저장 테이블 목록(removePreview)은 대체가 없어 보내지 않고 not_available이다", async () => {
+    const { app, params } = await liveApp({});
+    expect(await app.commands.workbench.removePreview("web")).toEqual({
+      ok: false,
+      error: { kind: "not_available", command: "ext.removePreview" },
+    });
+    expect(paramsOf(params, "ext.removePreview")).toEqual([]);
     await app.stop();
   });
 
-  test("remove는 dropData를 참일 때만 싣는다(생략과 거짓은 이름만 보낸다)", async () => {
-    const result = { name: "web", appliesAt: "now", dataDropped: 1 } as const;
-    const { app, params } = await liveApp({ results: { "ext.remove": result } });
+  test("remove는 plugin.requestRemove로 이름만 보내고 검토 항목 id를 돌려준다", async () => {
+    const requested = { itemId: "rvw_1" };
+    const { app, params } = await liveApp({ results: { "plugin.requestRemove": requested } });
+    expect(await app.commands.workbench.remove("web")).toEqual({ ok: true, value: requested });
+    expect(await app.commands.workbench.remove("web", { dropData: false })).toEqual({
+      ok: true,
+      value: requested,
+    });
+    expect(paramsOf(params, "plugin.requestRemove")).toEqual([{ name: "web" }, { name: "web" }]);
+    await app.stop();
+  });
+
+  test("remove에 dropData를 참으로 주면 저장 데이터 지우기는 대체가 없어 보내지 않고 not_available이다", async () => {
+    const { app, params } = await liveApp({});
     expect(await app.commands.workbench.remove("web", { dropData: true })).toEqual({
-      ok: true,
-      value: result,
+      ok: false,
+      error: { kind: "not_available", command: "ext.remove.dropData" },
     });
-    await app.commands.workbench.remove("web");
-    await app.commands.workbench.remove("web", { dropData: false });
-    expect(paramsOf(params, "ext.remove")).toEqual([
-      { name: "web", dropData: true },
-      { name: "web" },
-      { name: "web" },
-    ]);
+    expect(paramsOf(params, "plugin.requestRemove")).toEqual([]);
     await app.stop();
   });
 
@@ -643,15 +610,6 @@ describe("크래프트 명령의 wire 호출", () => {
       error: { kind: "rejected", code: 3403 },
     });
     await refused.app.stop();
-  });
-
-  test("install이 안전 모드와 잠금으로 거절되면 화면이 가를 수 있는 오류로 돌아온다", async () => {
-    const { app } = await liveApp({
-      errors: { "ext.install": { code: 3403, kind: "extension.safeModeActive" } },
-    });
-    const refused = await app.commands.workbench.install("/plugins/docs", "b".repeat(64));
-    expect(refused).toEqual({ ok: false, error: { kind: "rejected", code: 3403 } });
-    await app.stop();
   });
 
   test("rollback은 번들 판을 version으로 보내고 clearState는 참일 때만 싣는다", async () => {
@@ -792,6 +750,36 @@ describe("확장 목록을 다시 읽을 알림", () => {
       events: [durable("scope.changed", 8)],
     });
     expect(woke).toBe(2);
+  });
+
+  test("drive.frames는 threadId를 담아 보내고 프레임 배열을 돌려준다", async () => {
+    const core: DriveFrameView = {
+      depth: 0,
+      plugin: null,
+      versionId: null,
+      leaseId: null,
+      state: "waiting",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
+    };
+    const { app, params } = await liveApp({ results: { "drive.frames": { frames: [core] } } });
+    expect(await app.commands.workbench.driveFrames(thr(1))).toEqual({ ok: true, value: [core] });
+    expect(paramsOf(params, "drive.frames")).toEqual([{ threadId: thr(1) }]);
+    await app.stop();
+  });
+
+  test("onDriveFramesChanged는 이 대화의 drive.framesChanged에만 부르고, 구독을 풀면 더 부르지 않는다", async () => {
+    const { app, fake } = await liveApp({});
+    let woke = 0;
+    const stop = app.commands.workbench.onDriveFramesChanged(thr(1), () => void (woke += 1));
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(2) } });
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(1) } });
+    await until(() => woke === 1, "drive frames wake-up");
+    stop();
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(1) } });
+    await tick(20);
+    expect(woke).toBe(1);
+    await app.stop();
   });
 
   test("명령의 onChanged는 살아 있는 연결의 ext 설정 무효화 알림에 반응한다", async () => {

@@ -38,6 +38,7 @@ export interface SessionPluginOptions {
   /** 이 엔진 인스턴스의 임대 홀더. 자식 thread 생성(`inheritOwnerFrom`)에 필요하다 */
   readonly holder?: LeaseHolder;
   readonly onLeaseLost?: (threadId: ThreadId) => void;
+  readonly onThreadRemoved?: (threadId: ThreadId) => void;
   readonly loadIndex?: number;
 }
 
@@ -83,6 +84,9 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
           : { guardProjectors: options.guardProjectors }),
         ...(options.holder === undefined ? {} : { holder: options.holder }),
         ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
+        ...(options.onThreadRemoved === undefined
+          ? {}
+          : { onThreadRemoved: options.onThreadRemoved }),
       });
       if (!created.ok) return err({ reason: created.error.kind, cause: created.error });
       host.providePort(SessionPortKey, created.value);

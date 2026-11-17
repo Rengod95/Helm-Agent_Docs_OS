@@ -189,11 +189,10 @@ export interface SpawnResult extends SpawnOutcome {
   readonly reused: boolean;
 }
 
-export interface DelegateReceipt {
-  readonly requestId: string;
-  readonly childThreadId: ThreadId;
-  readonly status: "accepted" | "duplicate";
-}
+export type DelegateReceipt =
+  | { readonly requestId: string; readonly childThreadId: ThreadId; readonly status: "accepted" | "duplicate" }
+  /** `agent.spawn.before`가 `replace`를 냈다(§7.1). 자식 thread와 기록은 없고 `childThreadId`는 만들지 않은 자리 id다 */
+  | { readonly requestId: string; readonly childThreadId: ThreadId; readonly status: "replaced"; readonly report: string };
 
 export type ChildStatus =
   | { readonly state: "queued" | "running"; readonly childThreadId: ThreadId }
@@ -370,6 +369,8 @@ export type AgentJudgedPayload = JudgeRecord;
 | drive `loop.spawn` | X → `spawn` | `SpawnOutcome`(answer = `report.text`) |
 | 그룹 `GroupApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
 
+훅이 `replace`를 낸 호출(§7.1)은 자식을 만들지 않으므로 위 표와 다르다. 포그라운드(`spawn`)는 `SpawnResult{ status: "completed", answer: 훅이 준 보고, report: null, usage: null, reused: false }`를, 백그라운드(`delegate`)는 `DelegateReceipt{ status: "replaced", report }`를 돌려준다. 어느 쪽도 완료 보고 입력을 쓰지 않는다.
+
 ### 4.3 권한 상한
 
 [제안] 자식 권한은 부모 권한의 부분집합이고 자식별 도구 차단 목록을 둔다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "권한 상한").
@@ -458,7 +459,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 [제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 락 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
 
-1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다.
+1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다. 앞 훅이 `replace`를 내면 자식 없이 `"replaced"`와 보고를 돌려준다(§7.1). 앞 훅이 막으면 `agents.denied`다.
 2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `fresnel.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
    - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
@@ -515,6 +516,10 @@ export type AgentJudgedPayload = JudgeRecord;
 8. 판정 모델 오류(네트워크, 스키마 위반 아님): `{ kind: "failed" }`. 실행 수에 넣지 않는다 [제안]. 연속 실패의 처리는 완료 게이트(L1.loop.spec)가 정한다.
 9. 정의 파일 프런트매터 파싱 오류(2차): 그 파일만 빼고 진단(`agents.definition_invalid`, 파일 경로와 YAML 오류 위치)을 남긴다. 같은 이름의 하위 우선순위 정의가 있으면 그것을 쓴다.
 10. 동시 풀 대기 중 부모 취소: 대기 중인 포그라운드 자식은 실행되지 않고 `aborted`로 정착한다.
+11. 앞 훅이 `block`을 냄: 자식 thread를 만들지 않는다. 포그라운드는 `status: "error"`와 글머리 `[fresnel:subagent_error] agents.denied: [fresnel:denied_by_extension] <사유>`, 백그라운드는 `agents.denied`다. `agent.spawned`가 없다(§7.1).
+12. 앞 훅이 `ask`를 냈지만 깊이가 있는 호출(`depth > 0`)이거나 카드를 열 수 없음: 카드 없이 거부하고 사유에 `(confirmation unavailable)`를 붙인다. 사용자가 카드를 거부하면 `The user denied this subagent run.`이다(§7.1 E-4).
+13. 앞 훅 디스패치가 실패(핸들러 예외): 거부다. 사유는 `extension handler failed`다(closed).
+14. 뒤 훅 디스패치가 실패: 보고는 그대로 `agent.settled`에 남는다(skip). 정착은 실패하지 않는다.
 
 ## 6. 설정 노출
 
@@ -533,11 +538,38 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ## 7. 훅
 
-- core-agents는 훅을 소유하지 않는다(`L1.readme` §6 소유표).
+- core-agents는 훅을 소유하지 않는다(`L1.readme` §6 소유표). 서브에이전트 앞뒤 훅 둘(`agent.spawn.before`, `agent.spawn.after`)은 이 서비스가 발화한다(§7.1). 훅의 정의와 합치기는 F 계약(`contracts/src/extensions/hooks.ts`)과 ext-host가 정하고, core-agents는 디스패치 결과만 받는다.
 - 자식 대화 안의 훅(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
 - drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 락 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
 - post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `fresnel.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
+
+### 7.1 서브에이전트 앞뒤 훅 [구현 결정: 2026-11-18, 2c층]
+
+근거: `docs/xeon/review/m5/hooks-core-boundary.md` §4.3.3, §4.3.4, §5.1(H-2), §7(E-4).
+
+**앞 훅 `agent.spawn.before`**(first, 실패 closed)
+
+- 발화 자리: `provision`(`core-agents/src/service.ts`)이다. `spawn`(포그라운드)과 `delegate`(백그라운드)가 모두 지난다. 부모 쓰기 토큰을 확인한 뒤, 같은 requestId의 기존 연결을 본 뒤, 자식 thread를 만들기 전에 한 번 건다. 입력 검사(`prepare`)에 걸린 호출과 같은 requestId의 기존 자식으로 이어 받는 호출은 발화하지 않는다(자식을 만들 자리에 이르지 않았다). 같은 requestId의 순차 재호출은 발화하지 않는다.
+- 입구(`entry`): 자식을 만든 쪽의 소유 종류로 정한다. 모델 도구 `agent`는 `tool`(`toolCallId`를 함께 싣는다), `loop.spawn`은 `drive`, `g.delegate`는 `delegate`다. `tool.call.before`는 도구 블록에서 따로 발화하므로 플러그인은 `entry`와 `toolCallId`로 중복을 가린다.
+- 페이로드: `{ threadId(부모), requestId, agent, task(앞 4,000자), caller, depth(호출자 깊이), entry, toolCallId?, background, model(자식이 쓸 역할), limits? }`.
+- 결정: `{ block: true, reason }`, `{ ask: true, reason }`, `{ replace: { report }, reason }`. 여러 확장이 낸 결정은 ext-host가 `block` > `replace` > `ask`로 합친다. 같은 종류면 앞선 확장이 이긴다.
+- 막기(`block`): 자식을 만들지 않는다. 포그라운드는 `[fresnel:subagent_error] agents.denied: [fresnel:denied_by_extension] <사유>`인 `status: "error"` 결과, 백그라운드는 `agents.denied` 오류다.
+- 묻기(`ask`): 카드를 한 장 연다. 카드는 `tool` 종류이고 `toolName`은 `agent`, `args`는 `{ agent, task }`, `ruleId`는 `hook:<확장 이름>`, `askedBy`는 `{ extension, reason }`, `remember`는 `["once"]`다. 출처 `origin`은 부모 대화이고 `turnId`는 호출의 턴(없으면 null), `toolCallId`는 null이다. 카드는 승인 서비스의 `request`(`fresnel.approvals` port, core-tools 제공)로 연다. 같은 requestId의 두 번째 요청은 같은 requestKey로 처음 카드를 돌려받는다. 허용이면 자식을 만들고, 거부이면 `The user denied this subagent run.` 거부다.
+- E-4(사람에게 묻지 않는 자리): 깊이가 있는 호출(`depth > 0`, 서브에이전트가 띄우는 것)과 사람이 없는 실행은 카드를 열지 않는다. `[fresnel:denied_by_extension] <사유> (confirmation unavailable)`로 거부한다. 승인 서비스가 없거나 카드를 열지 못해도 같다(확인 불가 거부). 현재 조립에서 주 대화는 항상 대화형이라 `depth > 0`만 이 경우를 만든다.
+- 디스패치 실패(핸들러 예외가 디스패처까지 올라온 경우): 거부다. 사유는 `extension handler failed`(`FIRST_DENY`)다. 실패를 기록한다(`agents.spawn_before_failed`).
+- 대체(`replace`) 결과 [구현 결정: 2026-11-18, 2c층]: 자식을 만들지 않고 기록도 남기지 않는다. thread 생성, `agent.spawned`, `agent.settled`, 보고 입력(`input.queued`), `agent.spawn.after`가 모두 없다. 포그라운드는 `SpawnResult{ status: "completed", answer: 보고, report: null, usage: null, reused: false }`이고, `childThreadId`는 만들지 않은 자리 id다(`failure`와 같은 방식). 백그라운드는 `DelegateReceipt{ status: "replaced", report }`다(`childThreadId`는 자리 id). 보고는 훅이 준 본문 그대로이며 격리 블록을 씌우지 않는다. 같은 requestId로 다시 부르면 기록이 없으므로 훅을 다시 부른다. 그 결과 `status(부모, requestId)`는 `undefined`다.
+
+**뒤 훅 `agent.spawn.after`**(chain, 실패 skip)
+
+- 발화 자리: 자식이 정착하고 결과 검사(§4.6, `guardReport`)를 거친 뒤, 부모 대화에 `agent.settled`를 커밋하기 전이다(`recordSettled`). 포그라운드와 백그라운드가 모두 지난다. 정착의 종류는 정상, 중단, 오류를 모두 포함한다. 재시작 뒤 끊긴 자식을 닫는 정리 정착(`cancel({ ownerScopeId })`의 저장 자식)은 자식이 돌지 않았으므로 발화하지 않는다.
+- 페이로드: `{ threadId(부모), requestId, agent, status, usage, childThreadId }`. `status`와 `usage`는 자식 정착의 값이고 고칠 수 없다.
+- 값과 패치: 값 `{ report: { text, truncated } }`(text는 격리 블록을 씌운 본문), 패치 `{ reportText? }`. 패치는 보고 본문만 바꾼다.
+- 상한: 병합 규칙이 `AGENT_REPORT_TEXT_MAX`(60,000자)로 자르고 `truncated`를 참으로 한다. core-agents가 `STORED_REPORT_MAX`로 한 번 더 자른다. 고친 본문은 `agent.settled` 기록, 부모가 받는 결과, 보고 입력에 같이 들어간다.
+- 디스패치 실패: 보고를 그대로 두고 정착한다(skip). 정착은 막히지 않는다.
+- `lifecycle.agent.settled`(§3.5의 정착 기록 커밋 뒤)는 그대로 커밋 뒤에 발화한다. 뒤 훅이 정착을 늦추는 것은 디스패치를 기다리는 동안뿐이다.
+
+**발화 횟수**: 새 요청 하나는 앞 훅을 한 번, 정착하면 뒤 훅을 한 번 받는다. 같은 requestId의 동시 호출은 앞 훅을 각각 받을 수 있다. 자식은 하나뿐이다. 경쟁은 자식을 만들기 직전에 연결을 다시 보는 장치가 막는다(§10 미결).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -604,6 +636,8 @@ export type AgentJudgedPayload = JudgeRecord;
 - [미결] 정의 위치 우선순위에 확장 정의를 넣는 자리(§4.9)와 M2 조기 도입 범위.
 - [미결] 지시문 모방 검사의 표지 목록과 한국어 문구 목록(§4.6). Claude Code 원문 표지를 확인한 뒤 고친다.
 - [미결] 백그라운드 자식 정착 때 부모 대화가 삭제된 경우 보고 처리(§5 사례 7).
+- [미결] 같은 requestId의 동시 호출이 앞 훅을 각각 받는다(§7.1). 정확히 한 번을 동시 호출까지 보장하려면 (부모, requestId)의 생성 중 호출을 기다리게 하는 장치가 필요하다. 지금은 자식 생성 직전의 연결 다시 보기로 자식 중복만 막는다 [근거: core-agents/src/service.ts `provision`의 연결 다시 보기].
+- [미결] `DelegateReceipt.status: "replaced"`를 그룹 쪽이 읽는다. `group-learning/src/review/fork.ts`의 `status === "accepted"` 분기는 `replaced`를 "이미 있음"(`already`)으로 바꾼다. 검토 위임을 훅이 대체한 경우 학습 그룹이 어떻게 볼지 정해야 한다(L3.learning.spec) [근거: group-learning/src/review/fork.ts:79].
 - [미결] 자식 사용량의 부모 귀속 표시 방식(§3.5). 부모 합계에 더하는 화면 규칙은 L4와 함께 정한다.
 - [결정: M3-REQ-67, 오케스트레이터 기본값] `maxConcurrent`(기본 8)는 루트별 상한이고 전체 풀 `l1.tasks.limits.subagents`(기본 16) 안에서 FIFO로 함께 적용한다. 루트 둘이 각각 8을 쓰면 전체 풀이 찬다.
 - [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.

@@ -84,8 +84,8 @@ import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } f
 import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
-import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
+import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -134,6 +134,8 @@ export interface ExtensionDeps {
   readonly web: WebStatusHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
+  /** 열기 훅(`thread.resources`)이 대화에 낸 스킬 경로(H-7). 조립 루트가 세션을 읽어 준다 */
+  readonly openedSkillPaths: (threadId: ThreadId) => Promise<readonly string[]>;
   readonly db: StoreDb;
   readonly faults: FaultInjector;
   readonly holder: LeaseHolder;
@@ -142,6 +144,8 @@ export interface ExtensionDeps {
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 엔진 포트가 만들어진 뒤에 채워진다(core-agents가 자식 thread의 소유를 부모에게서 이어받는다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
+  /** 대화가 지워졌을 때 부른다(측정 저장소의 그 대화 행 지우기). 조립 루트가 넘긴다 */
+  readonly onThreadRemoved: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
   /** 그룹 서비스(`fresnel.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
   readonly groups: {
@@ -253,6 +257,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
   const workspaceOfId = (threadId: string): string | undefined =>
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
+  const openedSkillPathsOfId = (threadId: string): Promise<readonly string[]> =>
+    isId("thr", threadId) ? deps.openedSkillPaths(threadId) : Promise.resolve([]);
   const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const authoring = authoringLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const guide = guideLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
@@ -269,6 +275,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: persistenceSource(settings, deps.reportSetting),
           holder: deps.holder,
           onLeaseLost: deps.onLeaseLost,
+          onThreadRemoved: deps.onThreadRemoved,
           loadIndex,
         }),
     ],
@@ -345,11 +352,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       (loadIndex) =>
         hostGroupsPlugin({
           ext: deps.ext,
-          catalog: deps.groups.catalog,
           settings,
-          store: deps.groups.store,
           currentThread: deps.groups.currentThread,
-          heldThreads: deps.groups.heldThreads,
           groups: deps.groups.entries,
           onEnabled: deps.groups.onEnabled,
           onService: deps.groups.onService,
@@ -444,6 +448,12 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workspaceOf: workspaceOfId,
           ...(deps.mcpProcess === undefined ? {} : { process: deps.mcpProcess }),
           ...(deps.onMcpClient === undefined ? {} : { onClient: deps.onMcpClient }),
+          // 서버 변화는 그 단계를 연 대화의 `thread.mcp.after`다(M5e §5.1 H-8). 키는 대화와 단계로 정해진다
+          dispatchServersChanged: ({ threadId, stepId, payload }) =>
+            deps.ext.dispatch("thread.mcp.after", payload, {
+              threadId,
+              dispatchKey: `${threadId}:mcp.after:${stepId}`,
+            }),
           loadIndex,
         }),
     ],
@@ -484,10 +494,12 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           // 프로젝트 폴더는 그 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없다(HS-76)
           workspaceOf: workspaceOfId,
+          // 열기 훅이 낸 스킬 경로를 그 대화의 탐색 입력에 더한다(H-7)
+          contributedSkillPaths: openedSkillPathsOfId,
           // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
           trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
-          // 가이드 그룹이 켜진 때(또는 개발 모드)만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
-          extensionSkillRoots: () => (guide ? guideSkillRoots(deps.guide) : []),
+          // 이 대화의 켜짐 집합에 가이드가 있거나 개발 모드일 때만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
+          extensionSkillRoots: (threadId) => (guide ? guideSkillRoots(deps.guide, threadId) : []),
           loadIndex,
         }),
     ],

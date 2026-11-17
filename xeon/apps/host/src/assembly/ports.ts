@@ -77,6 +77,7 @@ import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
+import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
   createUsageSource,
   EMPTY_TALLY,
@@ -95,6 +96,9 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
+import type { RegistrationId } from "@fresnel/contracts/extensions";
+import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
@@ -105,6 +109,8 @@ import type { ProjectTrust, TrustInspection } from "./trust.ts";
 export interface PortsDeps {
   /** 엔진 수명 신호. 닫히면 진행 중인 알림 같은 기다리지 않는 호출을 중단한다 */
   readonly signal: AbortSignal;
+  /** 개발 모드처럼 모든 대화에 켜 두는 플러그인(대화별 켜짐 집합에 항상 든다) */
+  readonly pluginsForced?: () => readonly string[];
   readonly mode: HostMode;
   readonly os: OsService;
   /** 지운 대화의 잘린 출력 사본을 함께 지운다 */
@@ -139,6 +145,8 @@ export interface PortsDeps {
   readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
+  /** 호스트 상태 디렉터리(L0.os의 `dirs.state`). 프로필 옮김 기록 `migration.log`가 여기에 놓인다 */
+  readonly stateDir: string;
   /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 설정 파일 쓰기가 이 안에서 일어난다(M3-REQ-82) */
   readonly fileLock: FileLock;
   readonly trust: ProjectTrust;
@@ -264,6 +272,53 @@ function backgroundCallsOf(source: MeasureReadSource): BackgroundCallReader {
   };
 }
 
+/** 닫히지 않은 대화 id 목록. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
+function openThreadIdsOf(session: PortsDeps["session"]): readonly ThreadId[] {
+  const ids: ThreadId[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = session.threads.list({
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: 200,
+    });
+    for (const row of page.threads) {
+      if (row.status !== "closed") ids.push(row.threadId);
+    }
+    cursor = page.nextCursor ?? undefined;
+    // 되돌아온 커서는 더 읽을 곳이 없다. 이 루프는 동기라서 멈추지 않으면 이벤트 루프 전체가 멈춘다
+    if (cursor !== undefined && seen.has(cursor)) break;
+    if (cursor !== undefined) seen.add(cursor);
+  } while (cursor !== undefined);
+  return ids;
+}
+
+/**
+ * 닫히지 않은 대화가 저장한 프로필 id를 대화마다 하나씩 돌려준다. 저장한 id가 없으면 null(기본 프로필)이다.
+ * 목록을 쪽마다 끝까지 읽는다(프로필을 쓰는 대화를 셀 때)
+ */
+function openThreadProfilesOf(session: PortsDeps["session"]): readonly (string | null)[] {
+  const profiles: (string | null)[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = session.threads.list({
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: 200,
+    });
+    for (const row of page.threads) {
+      if (row.status !== "closed") profiles.push(row.profileId ?? null);
+    }
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return profiles;
+}
+
+/** 열기 훅이 낸 경로를 정규 경로로 바꾼다. 없거나 폴더가 아니면 undefined다(H-7 `workspace_missing`) */
+async function canonicalFolder(path: string): Promise<string | undefined> {
+  const canonical = await canonicalWorkspace(path);
+  return canonical.ok ? canonical.value : undefined;
+}
+
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
@@ -282,6 +337,35 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /** Test run 대화(X-19). 만들 때 표지하고 다시 열 때도 확장 호스트에 넘긴다. 지우면 비운다 */
   const testRunThreads = new Set<ThreadId>();
+  /** 같은 표지를 측정 저장소에도 적는다(규칙 32). 재시작 뒤 메모리 표지가 비어도 되살린다 */
+  const testMarks = createTestRunMarks({
+    store: () => deps.measure.store(),
+    clock: deps.clock,
+    logger,
+  });
+  /**
+   * 대화가 참조하는 프로필의 시작 Drive(`startDrive`)를 Registration id로 푼다(drive-isolation.md 2.2).
+   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음)
+   */
+  async function startDriveOf(threadId: ThreadId): Promise<RegistrationId | undefined> {
+    const stored = session.query.thread(threadId);
+    const profileId = stored.ok
+      ? (stored.value?.profileId ?? DEFAULT_PROFILE_ID)
+      : DEFAULT_PROFILE_ID;
+    const profile = await ports.m4.profileTestRun.get(profileId);
+    if (!profile.ok || profile.value.startDrive === null) return undefined;
+    const named = profile.value.startDrive;
+    return deps.ext
+      .registrations()
+      .find((info) => info.extension === named && info.drive !== "none")?.id;
+  }
+  /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
+  function isTestRunThread(threadId: ThreadId): boolean {
+    if (testRunThreads.has(threadId)) return true;
+    if (testMarks.recall(threadId) === undefined) return false;
+    testRunThreads.add(threadId);
+    return true;
+  }
 
   const threads: ThreadPort = {
     async create(input) {
@@ -298,10 +382,15 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(workspace === undefined ? {} : { workspace }),
+        ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
-      if (input.testRun === true) testRunThreads.add(created.value.threadId);
+      if (input.testRun === true) {
+        testRunThreads.add(created.value.threadId);
+        // 범위 표지는 계측 설정과 무관하게 쓴다(`tr_thread.scope_kind = test`)
+        testMarks.remember(created.value.threadId, null);
+      }
       const head = session.feed.headSeq();
       if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
       return { threadId: created.value.threadId, position: { storeId, seq: head.value } };
@@ -373,6 +462,29 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!head.ok) return head;
       return ok({ threadId: forked.value.threadId, position: { storeId, seq: head.value } });
     },
+    async applyOpenWorkspace(threadId) {
+      // 열기마다 새 키다. 같은 키로 다른 폴더를 쓰면 key_reused라서 호출 한 번이 커밋 한 번이다
+      const applied = await session.threads.applyOpenWorkspace(
+        threadId,
+        canonicalFolder,
+        deps.ids.next("evt"),
+      );
+      if (!applied.ok) {
+        logger.warn("host.open_workspace_failed", { threadId, reason: applied.error.kind });
+        return;
+      }
+      for (const diagnostic of applied.value.diagnostics) {
+        logger.warn(`hook.${diagnostic.code}`, { threadId, candidate: diagnostic.candidate });
+      }
+    },
+    sameFolder(threadId) {
+      const found = session.threads.sameFolder(threadId);
+      if (!found.ok) {
+        logger.warn("host.same_folder_unreadable", { threadId, reason: found.error.kind });
+        return [];
+      }
+      return found.value.map((thread) => ({ threadId: thread.threadId, status: thread.status }));
+    },
     async revert(threadId, to) {
       // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다
       const reverted = await session.threads.revert(threadId, to, deps.ids.next("evt"));
@@ -390,6 +502,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     setModel(threadId, model) {
       // 호출마다 새 키다: 같은 키로 다른 모델을 쓰면 key_reused라 호출 한 번이 모델 한 번이다
       const set = session.threads.setModel(threadId, model, deps.ids.next("evt"));
+      if (!set.ok) return set;
+      const head = session.feed.headSeq();
+      if (!head.ok) return head;
+      return ok({ position: { storeId, seq: head.value } });
+    },
+    setProfile(threadId, profileId) {
+      // 호출마다 새 키다: 같은 키로 다른 프로필을 쓰면 key_reused라 호출 한 번이 전환 한 번이다
+      const set = session.threads.setProfile(threadId, profileId, deps.ids.next("evt"));
       if (!set.ok) return set;
       const head = session.feed.headSeq();
       if (!head.ok) return head;
@@ -498,7 +618,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         }
         throw new Bug("loop.admit queued the input without a running turn");
       case "handled":
-        throw new Bug("loop.admit: an extension handled the input without starting a turn");
+        // 주도 중인 플러그인이 받았거나 input 훅이 처리를 끝냈다. 접수는 됐고 turn은 아직 없다
+        return { ok: true, delivered: true };
       default:
         return assertNever(outcome, "AdmitResult");
     }
@@ -665,7 +786,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
-      await ext.openThread(threadId, testRunThreads.has(threadId) ? { testRun: true } : undefined);
+      const testRun = isTestRunThread(threadId);
+      const startDrive = await startDriveOf(threadId);
+      await ext.openThread(
+        threadId,
+        testRun || startDrive !== undefined
+          ? {
+              ...(testRun ? { testRun: true } : {}),
+              ...(startDrive === undefined ? {} : { startDrive }),
+            }
+          : undefined,
+      );
     } catch (caught) {
       await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
@@ -893,12 +1024,33 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           request: (scopeId, enabled, reason, threadId) => {
             registrationToggleSourceOf(deps.ext).request(scopeId, enabled, reason, threadId);
           },
+          requestApply: (threadId) => {
+            registrationToggleSourceOf(deps.ext).requestApply(threadId);
+          },
         },
         registrations: () => deps.ext.registrations(),
         configDir: deps.configDir,
+        stateDir: deps.stateDir,
+        secretNames: async () => {
+          const listed = await deps.secrets.admin.ls({ usage: false });
+          if (!listed.ok) return null;
+          return new Set(
+            listed.value.flatMap((listing) => (listing.meta === null ? [] : [listing.meta.name])),
+          );
+        },
+        openThreadProfiles: () => openThreadProfilesOf(session),
+        openThreadIds: () => openThreadIdsOf(session),
+        forcedPlugins: () => deps.pluginsForced?.() ?? [],
+        // 번들 기본 플러그인(`DEFAULT_PLUGIN_NAMES`)은 기본 프로필에 항상 든다. 나머지는 m4가 등급으로 더한다(§4.1.2)
+        defaultPlugins: () => [...DEFAULT_PLUGIN_NAMES],
+        threadProfileId: (threadId) => {
+          const found = session.query.thread(threadId);
+          return found.ok ? (found.value?.profileId ?? null) : null;
+        },
         fileLock: deps.fileLock,
         clock: deps.clock,
         signal: deps.signal,
+        testRunMarks: testMarks,
       },
       createExtReadSources(deps.extRead, {
         ext: deps.ext,

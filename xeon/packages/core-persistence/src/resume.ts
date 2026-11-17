@@ -3,7 +3,6 @@
 import {
   assertNever,
   Bug,
-  detach,
   err,
   ok,
   parse,
@@ -42,6 +41,7 @@ import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
 import { sessionResource } from "./ids.ts";
 import { releaseOpenSession, type OpenSessions } from "./ownership.ts";
+import type { OpenChain } from "./open-chain.ts";
 import type { ThreadHooks } from "./points.ts";
 import type { ProjectorController } from "./projector/registry.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
@@ -81,6 +81,8 @@ export interface ResumeDeps {
   readonly takeStartupRebuilt: () => readonly string[];
   readonly logger: Logger | undefined;
   readonly points: ThreadHooks;
+  /** 열기 한 번(thread.resources → thread.start) */
+  readonly opening: OpenChain;
 }
 
 export interface Resumer {
@@ -306,16 +308,15 @@ export function createResumer(deps: ResumeDeps): Resumer {
       const marker = markerOf(thread.value);
       // 커밋도 복구도 하지 않은 열기 직후에 알린다. 표식이 남은 thread면 재개 후보라 resume이다(§7.1)
       if (readOnly === null) {
-        detach(
-          points.start(
-            { reason: marker === null ? "startup" : "resume", threadId },
-            `${threadId}:session.start:${String(thread.value.headSeq)}`,
-          ),
-          (cause) => {
-            deps.logger?.warn("session.point_failed", { point: "thread.start", threadId });
-            deps.logger?.debug("session.point_failure_cause", { cause: String(cause) });
-          },
-        );
+        deps.opening.open({
+          threadId,
+          // 다시 연 것(표식이 남은 thread)은 thread.resources에 reload로 알린다. 처음 여는 것은 startup이다 [제안]
+          resourcesReason: marker === null ? "startup" : "reload",
+          cwd: thread.value.workspace ?? "",
+          start: { reason: marker === null ? "startup" : "resume", threadId },
+          resourcesKey: `${threadId}:session.resources:${String(thread.value.headSeq)}`,
+          startKey: `${threadId}:session.start:${String(thread.value.headSeq)}`,
+        });
       }
       return ok({
         threadId,

@@ -2,7 +2,7 @@ import { parse } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import type { DevkitService } from "@fresnel/contracts/services";
-import { checkGroupName } from "@fresnel/group-sdk";
+import { checkGroupName, type GroupApi } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import { CATALOG_VERSION } from "./catalog.ts";
 import {
@@ -52,10 +52,14 @@ export interface AuthoringGuide {
     | { readonly ok: false; readonly error: { readonly kind: string; readonly message: string } };
 }
 
-/** 도구가 쓰는 상태 문서 면. `RegistrationApi`의 부분형이다 */
+/**
+ * 도구가 쓰는 상태 문서와 주도 시작 면. `GroupApi`의 부분형이다. `startDrive`는 도구 문맥의 thread에 이 그룹을 시작 요청으로 넣는다
+ * (drive-isolation.md 2.2, 빌더는 모델이 부르는 이 도구로 시작한다)
+ */
 interface StateAccess {
   state(): Readonly<AuthoringState>;
   commit(next: AuthoringState): Promise<unknown>;
+  startDrive(): ReturnType<GroupApi<AuthoringState>["startDrive"]>;
 }
 
 export interface ToolsEnv {
@@ -136,6 +140,19 @@ function optStr(input: Record<string, unknown>, key: string): string | undefined
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * 사람 확인 질문을 drive가 열 수 있게 주도 시작을 다시 요청한다. 엔진은 두 번 연속 효과 없이 `yield`한 프레임을 `idle`로 내리므로
+ * 확인이 필요해질 때마다 깨운다. 이미 맨 위에 있으면 엔진이 같은 scope의 요청을 버린다. 거부되면 상태를 바꾸지 않도록 오류 값을 돌려준다
+ */
+function wakeDrive(env: ToolsEnv): JsonValue | undefined {
+  const started = env.g.startDrive();
+  if (started.ok) return undefined;
+  return refusal(
+    "drive_unavailable",
+    `the authoring drive cannot start in this conversation (${started.error.kind})`,
+  );
+}
+
 /** 요청 하나를 pending으로 올리거나 지난 결과를 돌려준다. 거절 뒤 첫 호출은 거절을 알리고, 다음 호출이 다시 묻는다 */
 async function request(
   env: ToolsEnv,
@@ -152,6 +169,8 @@ async function request(
     return { ok: false, status: "denied", action, hint: "call again to ask the user again" };
   }
   if (done !== undefined) return { ok: true, status: "done", action, result: done };
+  const woke = wakeDrive(env);
+  if (woke !== undefined) return woke;
   await patch(env, { pending: action, askRound: state.askRound + 1, ...extra });
   return { ok: true, status: "awaiting_confirmation", action };
 }
@@ -264,6 +283,9 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
             );
       const kind = entry.id;
       const sessionId = `auth-${name}`;
+      // 시작 요청은 다음 경계에서 부여되므로 먼저 낸다. 거부되면 세션을 열지 않아 상태가 어긋나지 않는다
+      const refusedStart = wakeDrive(env);
+      if (refusedStart !== undefined) return refusedStart;
       await env.g.commit({
         ...env.g.state(),
         phase: "intent",
@@ -379,6 +401,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       }
       const runs = key === state.lastErrorKey ? state.sameErrorRuns + 1 : 1;
       const limit = runs >= env.fixLoopLimit();
+      const woke = limit ? wakeDrive(env) : undefined;
+      if (woke !== undefined) return woke;
       await patch(env, {
         ...base,
         phase: "fix",

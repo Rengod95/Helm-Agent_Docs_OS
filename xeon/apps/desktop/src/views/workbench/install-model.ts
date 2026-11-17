@@ -1,10 +1,12 @@
 import { assertNever, type Result, type Thrown } from "@fresnel/contracts";
 import { hookFold } from "@fresnel/client/workbench/canvas";
 import type { DevkitReason, InstallPreview } from "@fresnel/contracts/services";
-import { WIRE_ERRORS, type ExtInstallResult } from "@fresnel/contracts/wire";
+import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 
-// 앱 안 설치(Q9)의 순수 부분: 단계 전이, 실패 갈래, 거절 사유 목록, 미리 보기를 화면이 그릴 경고 목록으로 바꾸기. 화면은 `install-dialog.tsx`다.
+// 앱 안 설치의 순수 부분: 단계 전이, 실패 갈래, 거절 사유 목록, 미리 보기를 화면이 그릴 경고 목록으로 바꾸기. 화면은 `install-dialog.tsx`다.
+// M5c-1부터 설치는 wire(`ext.installPreview`, `ext.install`)가 없고 검토함을 거친다. 이 앱은 아직 그 길을 쓰지 않아 설치 명령은
+// `not_available`로 끝난다. 결과 화면(설치 완료)은 그 값이 없어 뺐다.
 
 /** 설치 흐름의 단계. 출처 입력 → 읽는 중 → 권한 확인 → 설치하는 중 → 결과 */
 export type InstallFlow =
@@ -23,13 +25,7 @@ export type InstallFlow =
       /** 설치가 거절된 사유 목록. 실패가 없거나 사유가 없으면 빈 목록이다 */
       readonly reasons: readonly InstallReason[];
     }
-  | { readonly step: "installing"; readonly preview: InstallPreview }
-  | {
-      readonly step: "done";
-      readonly result: ExtInstallResult;
-      /** 실행 중인 판을 바꾸는 `ext.reload`가 거절됐을 때의 갈래. 바꿀 일이 없었거나 바꿨으면 `null` */
-      readonly reloadFailure: InstallFailure | null;
-    };
+  | { readonly step: "installing"; readonly preview: InstallPreview };
 
 export type InstallFailure =
   | "safe_mode"
@@ -42,6 +38,8 @@ export type InstallFailure =
   | "denied"
   | "offline"
   | "unsupported"
+  /** 이 버전이 설치 명령을 보내지 않는다(`not_available`). 호스트가 거절한 것이 아니다 */
+  | "not_available"
   | "other";
 
 export const INITIAL_INSTALL_FLOW: InstallFlow = {
@@ -66,6 +64,7 @@ const ISSUE_KINDS: Readonly<Record<string, InstallFailure>> = {
 export function installFailureOf(error: CommandError): InstallFailure {
   if (error.kind === "offline") return "offline";
   if (error.kind === "unsupported") return "unsupported";
+  if (error.kind === "not_available") return "not_available";
   if (error.kind !== "rejected") return "other";
   if (error.code === SAFE_MODE_CODE) return "safe_mode";
   const head = error.issue?.split(":")[0];
@@ -147,11 +146,6 @@ export type InstallAction =
     }
   | { readonly type: "installStart" }
   | {
-      readonly type: "installed";
-      readonly result: ExtInstallResult;
-      readonly reloadFailure: InstallFailure | null;
-    }
-  | {
       readonly type: "installFailed";
       readonly failure: InstallFailure;
       readonly reasons: readonly InstallReason[];
@@ -185,10 +179,6 @@ export function installReduce(flow: InstallFlow, action: InstallAction): Install
         : flow;
     case "installStart":
       return flow.step === "confirm" ? { step: "installing", preview: flow.preview } : flow;
-    case "installed":
-      return flow.step === "installing"
-        ? { step: "done", result: action.result, reloadFailure: action.reloadFailure }
-        : flow;
     case "installFailed":
       return flow.step === "installing"
         ? {
@@ -295,54 +285,6 @@ export function bridgeAccessOf(preview: InstallPreview): readonly BridgeAccess[]
 /** 확인 화면이 "요청하는 권한"에 보일 것이 하나도 없는가 */
 export function accessIsEmpty(preview: InstallPreview): boolean {
   return warningsOf(preview).length === 0 && bridgeAccessOf(preview).length === 0;
-}
-
-/**
- * 설치가 끝난 뒤 실행 중인 판을 바꾼다. 같은 이름이 이미 돌아 호스트가 `needsReload`를 알릴 때만 `ext.reload`를 부른다.
- * 새 이름은 호스트가 설치 뒤 곧바로 싣는다(`now`, 켜기가 미뤄지면 `nextStepBoundary`이지만 `needsReload`는 없다).
- * 거절은 삼키지 않고 갈래로 돌려줘 화면이 보인다.
- */
-export async function applyInstalled(
-  reload: (name: string) => Promise<Result<null, CommandError>>,
-  result: ExtInstallResult,
-): Promise<InstallFailure | null> {
-  if (result.needsReload !== true) return null;
-  const done = await reload(result.name);
-  return done.ok ? null : installFailureOf(done.error);
-}
-
-/** 설치 결과를 화면이 말하는 갈래. 파일은 복사됐는데 싣지 못한 상태(`notLoaded`)를 따로 보인다 */
-export type InstallDone =
-  /** 재시작 없이 목록에 올랐다 */
-  | { readonly kind: "listed" }
-  /** 실행 중인 turn이 있어 다음 단계 경계에서 켜지거나, 같은 이름의 판이 바뀐다 */
-  | { readonly kind: "boundary" }
-  /** 로더가 없어 다음 시작에 불러온다 */
-  | { readonly kind: "restart" }
-  /** 복사는 됐지만 싣지 못했다. `detail`은 첫 오류 진단의 문장이고 없으면 `null` */
-  | {
-      readonly kind: "notLoaded";
-      readonly reason: "safe_mode" | "disabled" | "error";
-      readonly detail: string | null;
-    };
-
-export function installDoneOf(result: ExtInstallResult): InstallDone {
-  const failure = result.loadFailure;
-  if (failure !== undefined) {
-    if (failure.reason === "loader_unavailable") return { kind: "restart" };
-    const reason =
-      failure.reason === "safe_mode" || failure.reason === "disabled" ? failure.reason : "error";
-    const first =
-      failure.diagnostics.find((entry) => entry.severity === "error") ?? failure.diagnostics[0];
-    // 꺼진 이유는 문장이 이미 말한다. 진단 원문(`ext.<이름>.enabled is false`)은 영어 내부 메시지라 붙이지 않는다(rtC R-5)
-    return {
-      kind: "notLoaded",
-      reason,
-      detail: reason === "disabled" ? null : (first?.message ?? null),
-    };
-  }
-  if (result.appliesAt === "now") return { kind: "listed" };
-  return result.appliesAt === "restart" ? { kind: "restart" } : { kind: "boundary" };
 }
 
 /** 폴더 선택 창의 답이 입력란에 하는 일. 취소는 입력란을 그대로 두고, 창을 못 연 실패는 한 줄로 알린다 */

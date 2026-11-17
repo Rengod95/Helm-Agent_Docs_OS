@@ -22,7 +22,7 @@ import {
   type SecretsRuntimeDeps,
 } from "@fresnel/platform-secrets";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost, type InProcessHost } from "../../src/main.ts";
+import { startInProcessHost, type InProcessHost } from "../../src/command-run.ts";
 import { connectServiceTransport, startService, type ServiceHandle } from "../../src/index.ts";
 import { fakeKeychain, type FakeKeychain } from "../fixtures/fake-keychain.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";

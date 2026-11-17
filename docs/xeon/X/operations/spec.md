@@ -724,8 +724,10 @@ export interface HookInput<N extends HookHookName = HookHookName> {
 
 /** stdout JSON. 빈 출력은 {}와 같다 */
 export const HookOutputSchema = Type.Object({
-  /** first 훅. 지점의 결정 스키마(HOOKS[point].result)로 다시 검사한다 */
+  /** first 훅. 지점의 결정 스키마(HOOKS[point].result)로 다시 검사한다. 문자열 "ask"이면 `reason`과 함께 `{ ask: true, reason }`으로 읽는다(M5e §4.2) */
   decision: Type.Optional(Type.Unknown()),
+  /** `decision`이 "ask"일 때의 사유. 500자에서 자른다 [결정: M5e §4.2] */
+  reason: Type.Optional(Type.String({ maxLength: 2000 })),
   /** chain 훅. 지점의 패치 스키마로 다시 검사한다 */
   patch: Type.Optional(Type.Unknown()),
   /** 진단용. 모델이나 대화에 넣지 않는다 */
@@ -1347,7 +1349,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 #### 4.7.3 입력, 출력, 종료 코드
 
 - 입력: stdin에 `HookInput` JSON 한 줄과 개행을 쓰고 닫는다. `schemaVersion`은 `"fresnel.hook.v1"`이다(Hermes `hermes.observer.v1` 방식, `_research/item-catalog.md` X절 훅 페이로드 스키마 버전 행). payload 형식이 바뀌면 이 값을 올린다.
-- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 훅은 `decision`, chain 훅은 `patch`만 읽고, 훅의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 훅은 stdout을 읽지 않는다.
+- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 훅은 `decision`, chain 훅은 `patch`만 읽고, 훅의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 훅은 stdout을 읽지 않는다. `tool.call.before`에서는 `{"decision":"ask","reason":"…"}`가 묻기 결정 `{ ask: true, reason }`이다(M5e 스펙 §4.2). 객체 결정(`{"decision":{"block":true,…}}`)은 지금과 같다.
 - 종료 코드(`interpretHookRun`):
 
   | 결과 | tap | first | chain |
@@ -1374,7 +1376,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 같은 훅에 건 외부 훅은 순서대로 하나씩 실행한다. 정렬은 §4.1의 정렬 키를 따른다.
 - 디스패처 등록 [결정: 2026-11-03 사용자, m4-decisions 15-2 "훅 순서는 자유롭게 바꾼다"; 이름 모양은 제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 외부 훅 하나마다 내부 내장 확장 단위 하나(`fresnel-hooks-<훅 id>`)를 만들어 `ExtHost.install`로 싣고, 그 단위가 그 훅이 걸린 훅 이름(`def.point`)에 on 핸들러 하나를 등록한다. 단위 이름이 Registration id다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고(`1_000_000 + 범위 순번 × 10_000 + 범위 안의 자리`), `TierTable`에는 §4.7.6 표의 tier(훅이 적힌 범위)로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, 실행기가 훅 id로 직접 넣는다. 단위 이름의 접두 `fresnel-hooks-`는 외부 확장이 쓸 수 없다(F.extensions §4.7 `name_reserved`, 로더와 설치 미리 보기가 거절한다). 그래서 단위 판정(`isHookUnitName`)은 접두로 한다. 이전 방식(범위마다 단위 하나)은 훅을 `hooks.order.*`로 옮길 수 없어 바꿨다.
 - 구현 방식 [제안]: 단위는 호출 때 그 thread에 적용되는 훅 정의(`hookDefs`를 병합한 목록)에서 자기 id의 훅을 찾아 실행한다. 정의가 없거나 꺼졌거나 도구 이름이 맞지 않으면 아무것도 하지 않는다. 단위의 집합은 조립(`createExternalHooks`)이 맞춘다: 시작할 때 관리·사용자 범위 훅의 단위를 싣고, `sync`가 훅 정의 변경(설정 `x.operations.hookDefs`), 작업 폴더 신뢰 결정, thread의 작업 폴더 설정 읽기 뒤에 단위를 더하고 뺀다(훅 이름·tier·순번이 바뀐 훅은 다시 싣는다). 새로 싣은 단위는 다른 Registration처럼 다음 단계 경계에서 켜진다. 정의를 고치는 일은 단위를 바꾸지 않는 한 다시 등록하지 않고(`hookDefs`는 live), 작업 폴더·로컬 훅의 단위는 그 폴더가 신뢰된 thread를 본 뒤에만 실린다. 단위 핸들러에는 바깥 시간 예산을 걸지 않고(`budgetMs`가 null) 훅마다 `timeoutMs`(없으면 `x.operations.budget.hookMs`)를 건다. 단위의 실패·성공 보고는 `ext:` 장부에 넣지 않고 실행기가 훅 id 단위로 직접 넣는다. 같은 훅 이름의 외부 훅끼리도 다른 핸들러와 같은 접기 규칙을 따른다: first는 결정·거부·실패에서 멈추고 chain은 그 훅 이름의 stop 규칙에서만 멈춘다(패치 하나로 멈추지 않는다).
-- 훅별 결과 [제안: 2026-11-04 hookrun 기본값]: first 훅은 첫 결정·거부·실패에서 멈춘다. 실패는 그 훅의 `FIRST_DENY`로 거부한다. `thread.compact.before`는 fail-open 훅이라 거부값이 없어 실패와 exit 2가 모두 결정 없음이다. chain 훅은 한 범위 안에서 첫 패치에서 멈추고 뒤 훅은 그 호출에서 실행하지 않는다(패치 병합을 훅 프로세스 사이에서 하지 않는다). tap 훅은 멈추지 않는다. tap과 chain의 실패(시간 초과, 비정상 종료, 출력 오류)는 기록만 남기고 뒤 훅을 그대로 돈다. chain의 실패는 그 훅의 패치만 버린다 [제안: 위 표와 같은 뜻을 문장으로 적음]. 멈춘 뒤에 매칭된 훅만 `skipped` 행을 남기고 `skippedBy`가 멈춘 훅이다(§4.8.2). 결정·패치는 `HOOKS[point].result` 스키마로 다시 검사하고 틀리면 `hook_output` 실패다.
+- 훅별 결과 [제안: 2026-11-04 hookrun 기본값]: first 훅은 첫 결정·거부·실패에서 멈춘다. 다만 `tool.call.before`는 합치기 훅이라(X.primitives §4.3, M5e H-2) 묻기와 결과 대신 주기에서 멈추지 않고, 뒤 핸들러까지 돈 뒤 `block` > `replace` > `ask`로 정한다. 실패는 그 훅의 `FIRST_DENY`로 거부한다. `thread.compact.before`는 fail-open 훅이라 거부값이 없어 실패와 exit 2가 모두 결정 없음이다. chain 훅은 한 범위 안에서 첫 패치에서 멈추고 뒤 훅은 그 호출에서 실행하지 않는다(패치 병합을 훅 프로세스 사이에서 하지 않는다). tap 훅은 멈추지 않는다. tap과 chain의 실패(시간 초과, 비정상 종료, 출력 오류)는 기록만 남기고 뒤 훅을 그대로 돈다. chain의 실패는 그 훅의 패치만 버린다 [제안: 위 표와 같은 뜻을 문장으로 적음]. 멈춘 뒤에 매칭된 훅만 `skipped` 행을 남기고 `skippedBy`가 멈춘 훅이다(§4.8.2). 결정·패치는 `HOOKS[point].result` 스키마로 다시 검사하고 틀리면 `hook_output` 실패다.
 - 훅별 순서(`hooks.order.*`, §4.1.5) [결정: 2026-11-03 사용자, 15-2]: 외부 훅은 훅마다 Registration(`fresnel-hooks-<훅 id>`)이라 `hooks.order.get`, `preview`, `set`에 다른 핸들러처럼 나오고 옮길 수 있다. 읽기 원천도 단위 행을 거르지 않는다. 설정 `x.operations.hookOrder`의 값은 훅 이름 → Registration id 목록이고, 외부 훅의 id는 단위 이름이다. 읽기(`hookOrderOf`)는 훅 이름이 아닌 키, 배열이 아닌 값, 문자열이 아닌 원소, 중복만 버리고 단위 이름은 그대로 둔다. 순서에 든 이름의 훅이 없으면(지운 훅, 다른 작업 폴더의 훅) 오류 없이 저장하고 디스패치에서 무시한다. 예전에 단위 이름(`fresnel-hooks-<범위>`)이 들면 `jsonrpc.invalidParams`로 거절하던 규칙은 없앴다. 옮기면 안전 검사가 건너뛰어질 수 있다는 경고는 `guardRisk`가 그대로 낸다. 권한 판정과 샌드박스는 이 순서와 무관하게 고정 단계로 돈다(§4.1.4).
 - 안전 모드와 시작 [제안]: 안전 모드(§4.6.2)면 외부 훅 단위를 하나도 싣지 않는다. `fresnel.process` 포트가 없으면 훅은 실행하지 않는다. 설정 `x.operations.hookDisabled`의 id는 매 호출에서 건너뛴다.
 - 재생: 훅도 on 핸들러이므로 "다시 실행해도 되는 질의" 계약을 따른다(`F.extensions.spec` §4.3). 크래시 뒤 같은 페이로드로 다시 실행될 수 있다. 사용자 문서에 적는다.
@@ -1442,6 +1444,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - `atMs`: 핸들러가 시작한 시점이다. 그 Turn의 첫 디스패치(`trn_` 키)가 시작된 때부터 잰 ms다. 앞 핸들러 때문에 건너뛴 기록은 건너뜀을 정한 시점이다.
 - `size`: 바뀐 크기다. `modified`일 때 낸 값의 JSON 문자 수이고 직렬화할 수 없으면 0이다. 그 밖의 결과는 0이다. 계측이 꺼져 있으면 세지 않는다.
 - `skippedBy`: chain의 `stop` 규칙이나 first의 결정(거부 대체 포함)이 뒤 핸들러를 멈췄을 때, 실행하지 못한 핸들러마다 멈춘 핸들러의 RegistrationId를 적는다. 이 기록의 수가 "앞 핸들러 때문에 건너뛴 횟수"다(측정 저장소는 Turn 요약 행의 `hookSkippedByEarlier`로 둔다). 훅별 순서에서 빠진(꺼진) 핸들러는 세지 않는다.
+- 도구 호출 id(`toolCallId`, 선택) [제안: M5d 턴 기록 정본 `review/m5/turn-record-metrics.md` §4.2 규칙 13]: 디스패치 키가 `<stepId>:<훅>:<toolCallId>[:<n>]` 모양인 도구 호출 훅(`tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.before`, `tool.execution.update`, `tool.execution.after`)의 핸들러 기록에는 셋째 자리를 `toolCallId`로 남긴다. 다른 훅의 키(예: 승인 `approval:<id>:…`)나 접미가 없는 키의 기록에는 이 칸을 두지 않는다(생략한다, 옛 기록과 같은 모양) [근거: packages/ext-host/src/operations/trace-buffer.ts `toolCallIdOf`]. 와이어 `TraceHandlerEntry`(`trace.turn`)에 선택 필드로 더했다. 다섯 결과 이름과 나머지 칸은 그대로다.
 - 값을 낸 뒤 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`)는 `failed`다. tap이 값을 반환한 `value_from_tap`은 동작에 영향이 없어 `passed`다.
 - collect는 병합이 끝난 뒤에 기록을 남기고(병합 거부가 기여 하나를 `failed`로 바꿀 수 있다), 순서는 실행 순서를 유지한다.
 - 외부 훅(§4.7) 행 [제안: 2026-11-04 hookrun 기본값]: 외부 훅 단위(`fresnel-hooks-<훅 id>`)는 자기 행을 기록하지 않는다(`hidden`). 실행기가 맞은 훅마다 `registrationId`가 `hook:<id>`인 행을 같은 항목에 넣는다. `ms`는 그 훅의 활성 시간, `atMs`는 그 훅이 시작한 시점이다. 결과는 패치가 합쳐지면 `modified`(`size`는 패치의 JSON 문자 수), `block`·`cancel`·`type: deny` 결정이나 종료 코드 2의 거부면 `blocked`, 빈 출력·패치 없는 출력이면 `passed`, 시간 초과는 `failed`(`timeout`), 출력 검사 실패는 `failed`(`result_invalid`), 그 밖의 비정상 종료와 시작 실패는 `failed`(`threw`)다. 훅이 하나도 맞지 않은 호출에는 단위 행도 항목도 없다 [근거: packages/ext-host/test/operations/hooks.test.ts, "trace: a call no external hook matches"]. 앞선 핸들러(다른 확장이나 같은 훅 이름의 앞 훅)가 디스패치를 멈춰 단위가 실행되지 않으면 그 훅은 행이 없다. 디스패처가 남기는 단위의 `skipped` 행은 숨겨진다(알려진 한계: 이 thread에 적용되지 않는 훅의 건너뜀과 구별할 수 없다) [근거: 미구현, 알려진 한계].
@@ -1454,7 +1457,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 읽기(`timings`, `turn`, `enabled`)는 현재 `enabled` 값을 따른다. 꺼져 있으면 `timings`는 `{traceEnabled: false, timings: []}`, `turn`은 `undefined`다. 기록은 남아 있어서 다시 켜면 보인다.
 - thread는 `MAX_THREADS`(32)개까지 가진다 [제안]. 넘으면 가장 오래 쓰이지 않은 thread를 뺀다.
 - 닫기(`closeThread`)와 호스트 정리(`dispose`)는 `forgetThread`로 그 thread의 기록을 메모리에서 푼다. Turn 수 상한이 없으므로 닫기가 메모리를 푸는 경로다 [제안]. 닫은 대화의 원본은 측정 저장소에 `trace.retentionDays`(기본 30일) 동안 남고 거기서 읽는다. 앱 종료는 프로세스와 함께 메모리가 사라진다.
-- 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다.
+- 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다. 다만 턴이 끝나면 같은 훅 실행이 측정 저장소 `measure.db`에 `hook` 행으로 사본이 남는다(`assembly/measure/recorder.ts`, L4 host-service §4.20). 재시작 뒤 최근 실행의 원천은 그 사본이다. 단계 끝에는 같은 훅 실행이 턴 기록 테이블 `tr_hook`에도 쓰인다(L4 host-service §4.20). 턴 밖(단계 밖) 훅과 단계 끝 뒤에 도착한 훅은 아직 `tr_hook`에 쓰지 않는다(`review/m5/turn-record-metrics.md` §7의 늦은 행은 남은 일이다) [근거: apps/host/src/assembly/measure/turn-writer.ts]. 버퍼 자체는 여전히 메모리에만 있다.
 
 #### 4.8.4 시간 분포 (`ExtHookTiming`)
 
@@ -1511,6 +1514,10 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
+| `x.operations.metrics.minSample` | integer | 20 | 1~10000 | live | managed, user | plugins | 1차 |
+| `x.operations.metrics.defaultWindowDays` | integer | 30 | 1~365 | live | managed, user | plugins | 1차 |
+| `x.operations.findings.enabled` | boolean | true | | live | managed, user | plugins | 1차 |
+| `x.operations.findings.overrides` | `Record<규칙 id, Record<이름, number>>` | {} | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.hookDisabled` | string[] (꺼진 외부 훅 id) | [] | | live | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { AssembleError, assemble } from "../../src/assemble.ts";
 import { STARTUP_HEALTH_FILE } from "../../src/assembly/startup-health.ts";
-import { startStdioHost } from "../../src/main.ts";
+import { startStdioHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
 

@@ -80,6 +80,8 @@ export interface HarnessOptions {
   /** 가려진 입력 대본. 한 번 부를 때마다 하나를 꺼낸다. 끝나면 null이다 */
   readonly secretInputs?: readonly (string | null)[];
   readonly startStdioHost?: (options: StdioHostOptions) => Promise<HostExit>;
+  /** `plugin-host --stdio` 가짜. 없으면 호출이 실패한다: 쓰는 시험이 넣어야 한다 */
+  readonly runPluginHost?: CliDeps["runPluginHost"];
   /** host --stdio의 원격 주소 해석 가짜(기본은 주소 없음) */
   readonly resolveRemote?: CliDeps["resolveRemote"];
   /** host --stdio의 원격 중계 가짜(기본은 stdin이 닫힌 것) */
@@ -371,6 +373,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         })),
     runHostCommand: options.runHostCommand ?? (() => Promise.resolve(0)),
     startStdioHost: options.startStdioHost ?? (() => Promise.resolve({ code: 0, reason: "eof" })),
+    runPluginHost:
+      options.runPluginHost ?? (() => Promise.reject(new Error("runPluginHost was not injected"))),
     resolveRemote: options.resolveRemote ?? (() => Promise.resolve({ kind: "none" })),
     bridgeStdio:
       options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),

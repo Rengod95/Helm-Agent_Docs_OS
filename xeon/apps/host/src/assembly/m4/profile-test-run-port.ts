@@ -1,253 +1,579 @@
 import { join } from "node:path";
-import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, TurnIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
-import { checkSettingWrite, type ScopeStack, type SettingScope } from "@fresnel/contracts/settings";
+import { checkSettingWrite, type ScopeStack } from "@fresnel/contracts/settings";
+import type { RegistrationInfo } from "@fresnel/ext-host";
 import type {
+  CommonGetResult,
+  CommonInput,
+  CommonPutParams,
+  CommonSet,
+  PermissionChange,
+  ProfilePluginCost,
+  PluginRef,
   Profile,
-  ProfileApplyResult,
-  ProfileLayer,
+  ProfileCloneParams,
+  ProfileCostFigures,
+  ProfileDefaultForResult,
+  ProfileDefaultResetParams,
+  ProfileDefaultResetResult,
+  ProfileDeleteResult,
+  ProfileInput,
+  ProfileIssue,
+  ProfileListResult,
   ProfilePreviewResult,
+  ProfilePutResult,
+  ProfileRemovePluginParams,
+  ProfileRemovePluginResult,
+  ProfileSetting,
   TestRunMarker,
+  Unsubscribe,
 } from "@fresnel/contracts/wire";
 import type {
-  ProfileApplyFailure,
-  ProfileApplyRequest,
+  ProfilePortFailure,
+  ProfilePreviewRequest,
   ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
-import { sequentially } from "../../util.ts";
-import type { M4PortDeps } from "./deps.ts";
+import type { ProfilesChange, ProfilesWritten } from "./profile-store.ts";
 import { createProfileStore } from "./profile-store.ts";
+import {
+  factoryDefaultProfile,
+  DEFAULT_PROFILE_ID,
+  PERMISSION_MODE_KEY,
+} from "./profile-defaults.ts";
+import {
+  hasBlockingIssue,
+  validateProfile,
+  type ProfileBody,
+  type ProfileCatalog,
+  type ProfileLibrary,
+  type ProfileLibraryEntry,
+} from "./profile-validate.ts";
+import type { M4HostEnv, M4PortDeps } from "./deps.ts";
+import type { LegacyInputs } from "./profile-migrate.ts";
 
-// ProfileTestRun 포트 구현(`spec-deltas/t-wb.md` §1, §2). 프로필 저장은 `profile-store.ts`, 적용과 되돌리기는 이 파일이 한다.
+// ProfileTestRun 포트 구현(M5c §3.4, §4.2). 프로필 저장은 `profile-store.ts`, 검증은 `profile-validate.ts`가 한다.
+// 이 파일은 저장된 내용을 읽고, 검증을 거쳐 쓰고, 미리 보기 값을 계산한다. 대화에 켜짐을 적용하지 않는다(E(T)는 나중 작업이다).
 
-/** 프로필의 `driver`를 쓰는 설정 키(T-REG §3.3) */
-const ACTIVE_DRIVER_KEY = "x.primitives.activeDriver";
+/** 플러그인 하나의 매니페스트 사실. 라이브러리가 검증에 쓴다 */
+export interface PluginFact {
+  readonly name: string;
+  /** 대체하는 내장 도구(`PluginDecl.replaces`를 모두 모은 것) */
+  readonly replaces: readonly string[];
+  /** 시작 Drive를 등록할 수 있는가(`PluginDecl.drives`) */
+  readonly drives: boolean;
+  /** 필수 설정 키(`userConfig`의 `required` 항목) */
+  readonly requiredKeys: readonly string[];
+}
 
-/** 개발 모드(replay·benchmark·core diff 실행 허용) 판정(§3). `l3.authoring.devMode`가 참인가. 키가 아직 카탈로그에 없으면 거짓이다 */
+export interface ProfileTestRunPortDeps extends Pick<
+  M4PortDeps,
+  "traceRead" | "testRunControl" | "env"
+> {
+  /** 설치된 플러그인의 매니페스트 사실. 확장 읽기 원천에서 온다 */
+  readonly pluginFacts: () => readonly PluginFact[];
+}
+
+/** 비용을 셀 수 없을 때의 값. 정적 추정이 아직 없다(카드 비용은 나중 작업) */
+const UNKNOWN_COST: ProfileCostFigures = {
+  always: null,
+  drive: null,
+  onDemand: null,
+  toolCount: null,
+  basis: "unknown",
+};
+
+const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], startDrive: null };
+const NO_LAYERS: ScopeStack = [];
+const EXT_KEY = /^ext\.([^.]+)\./u;
+
+/** `ext.<name>.<key>`의 소유 플러그인. 코어 키는 null */
+function ownerOf(key: string): string | null {
+  const match = EXT_KEY.exec(key);
+  return match?.[1] ?? null;
+}
+
+/** 같은 키가 여러 번 나오면 마지막 값이 이긴다 */
+function lastValueOf(settings: readonly ProfileSetting[], key: string): unknown {
+  let value: unknown = undefined;
+  for (const setting of settings) if (setting.key === key) value = setting.value;
+  return value;
+}
+
+/** 저장된 목록에 기본 프로필을 더한다. 기본이 저장되어 있지 않으면 공장 값이다(§4.1.2) */
+function effectiveProfiles(stored: readonly Profile[], factory: Profile): readonly Profile[] {
+  return stored.some((profile) => profile.id === DEFAULT_PROFILE_ID)
+    ? stored
+    : [factory, ...stored];
+}
+
+/** 개발 모드(replay·benchmark·core diff 실행 허용) 판정(M5c §3). `l3.authoring.devMode`가 참인가. 키가 아직 카탈로그에 없으면 거짓이다 */
 export function isDevMode(settingValue: (key: string) => unknown): boolean {
   return settingValue("l3.authoring.devMode") === true;
 }
 
-function scopeOf(layer: ProfileLayer): SettingScope {
-  switch (layer) {
-    case "user":
-      return "user";
-    case "project":
-      return "project";
-    case "thread":
-      return "launch";
-    default:
-      return assertNever(layer, "ProfileLayer");
+function isoNow(clockMs: number): string {
+  return new Date(clockMs).toISOString();
+}
+
+function libraryOf(env: M4HostEnv, facts: readonly PluginFact[]): ProfileLibrary {
+  return {
+    lookup(name): ProfileLibraryEntry | undefined {
+      const fact = facts.find((item) => item.name === name);
+      if (fact === undefined) return undefined;
+      const infos: readonly RegistrationInfo[] = env
+        .registrations()
+        .filter((info) => info.extension === name);
+      return {
+        name,
+        // 검토함이 들어오기 전까지 설치된 확장은 검토된 것으로 본다(설치 승인 경로가 검토를 대신했다)
+        reviewed: true,
+        replaces: fact.replaces,
+        drives: fact.drives,
+        unmet: infos.some((info) => info.waiting.length > 0),
+        requiredKeys: fact.requiredKeys,
+      };
+    },
+  };
+}
+
+/** 카탈로그 조회. `names`가 null이면 시크릿 존재를 모르므로 존재하는 것으로 본다(경고를 내지 않는다) */
+function catalogOf(env: M4HostEnv, names: ReadonlySet<string> | null): ProfileCatalog {
+  return {
+    lookup(key) {
+      const def = env.catalog.get(key);
+      if (def === undefined) return undefined;
+      return {
+        key,
+        allowedScopes: [...def.allowedScopes],
+        secret: def.secret === true,
+        owner: ownerOf(key),
+        checkValue(value) {
+          // 쓰기 검사와 같은 함수다. 범위·잠금은 위에서 따로 보므로 빈 층을 넘긴다
+          const verdict = checkSettingWrite(env.catalog, NO_LAYERS, key, "profile", value);
+          if (verdict.ok) return { ok: true };
+          return {
+            ok: false,
+            reason: verdict.kind === "settings.secretValue" ? "secret_literal" : "invalid",
+          };
+        },
+      };
+    },
+    secretExists: (name) => names === null || names.has(name),
+    managedDisabled(plugin) {
+      const managed = env.settings.layers(undefined).find((layer) => layer.scope === "managed");
+      return managed?.values.get(`ext.${plugin}.enabled`) === false;
+    },
+  };
+}
+
+/** 사용자 범위의 설정 값에서 옮김 입력을 만든다(§7.2). 옛 `ext.<name>.enabled`와 권한 모드를 읽는다 */
+function legacyInputsOf(env: M4HostEnv): LegacyInputs {
+  const user = env.settings.layers(undefined).find((layer) => layer.scope === "user");
+  const userEnabled = new Map<string, boolean>();
+  if (user !== undefined) {
+    for (const [key, value] of user.values) {
+      const match = EXT_KEY.exec(key);
+      if (match !== null && key.endsWith(".enabled") && typeof value === "boolean") {
+        userEnabled.set(match[1] ?? "", value);
+      }
+    }
   }
+  const mode = user?.values.get(PERMISSION_MODE_KEY);
+  return {
+    userEnabled,
+    // 옮김의 기본 켜짐은 공장 기본 플러그인과 같다(코어가 아닌 기본 켜짐, §7.2)
+    defaultEnabled: env.defaultPlugins(),
+    permissionMode: typeof mode === "string" ? mode : undefined,
+    profileAllows: (key) => env.catalog.get(key)?.allowedScopes.includes("profile") === true,
+  };
 }
 
-function extensionEnabledKey(name: string): string {
-  return `ext.${name}.enabled`;
+function sameNames(left: readonly PluginRef[], right: readonly PluginRef[]): boolean {
+  return left.length === right.length && left.every((ref, at) => right[at]?.name === ref.name);
 }
 
-interface PlannedWrite {
-  readonly key: string;
-  readonly value: unknown;
+function unknownCostByPlugin(plugins: readonly PluginRef[]): readonly ProfilePluginCost[] {
+  return plugins.map((ref) => ({ plugin: ref.name, cost: UNKNOWN_COST }));
 }
 
-/** 쓰기 전에 그 범위에 있던 값. 없었으면 되돌릴 때 지운다 */
-type Previous = { readonly had: true; readonly value: unknown } | { readonly had: false };
-
-interface Plan {
-  readonly scope: SettingScope;
-  readonly threadId: ThreadId | undefined;
-  /** 설정 층에 쓸 키. 쓰는 순서다 */
-  readonly writes: readonly PlannedWrite[];
-  /** thread 층에서 대화별 켜짐 요청으로 보낼 확장 */
-  readonly toggles: readonly { readonly name: string; readonly enabled: boolean }[];
+function resolvedOf(body: ProfileBody, common: CommonSet): PluginRef[] {
+  const names = new Set<string>();
+  for (const ref of [...common.plugins, ...body.plugins]) names.add(ref.name);
+  return [...names].map((name) => ({ name }));
 }
 
-/** 같은 키가 여러 번 나오면 마지막 값이 이긴다(처음 자리에 둔다) */
-function collapsed(writes: readonly PlannedWrite[]): PlannedWrite[] {
-  const out: PlannedWrite[] = [];
-  for (const write of writes) {
-    const at = out.findIndex((item) => item.key === write.key);
-    if (at === -1) out.push(write);
-    else out[at] = write;
-  }
-  return out;
+function idsOf(profiles: readonly Profile[]): ReadonlySet<string> {
+  return new Set(profiles.map((profile) => profile.id));
 }
 
-function previousOf(layers: ScopeStack, scope: SettingScope, key: string): Previous {
-  const layer = layers.find((item) => item.scope === scope);
-  return layer !== undefined && layer.values.has(key)
-    ? { had: true, value: layer.values.get(key) }
-    : { had: false };
+function findProfile(
+  stored: readonly Profile[],
+  id: string,
+  factory: Profile,
+): Profile | undefined {
+  return effectiveProfiles(stored, factory).find((profile) => profile.id === id);
 }
 
-export function createProfileTestRunPort(
-  deps: Pick<M4PortDeps, "traceRead" | "testRunControl" | "env">,
-): ProfileTestRunPort {
+export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileTestRunPort {
   const { env } = deps;
+  /** 기본 공장 값. 플러그인 목록은 조립이 준 기본 설치 플러그인이다(코어가 아닌 내장 가운데 기본 켜짐과 번들, §4.1.2) */
+  const factory = (): Profile => factoryDefaultProfile(env.defaultPlugins());
   const store = createProfileStore({
     path: join(env.configDir, "profiles.json"),
+    migrationLogPath: join(env.stateDir, "migration.log"),
     fileLock: env.fileLock,
     clock: env.clock,
     signal: env.signal,
+    legacy: () => legacyInputsOf(env),
   });
-  // Test run 대화 표지. 호스트 메모리에만 둔다: 다시 시작하면 사라진다(저장 위치는 계약에 아직 없다)
+  // Test run 대화 표지. 메모리에 두고 같은 표지를 측정 저장소의 `tr_thread`에도 적는다(규칙 32). 재시작 뒤 메모리가 비면 저장된 표지로 되살린다
   const markers = new Map<ThreadId, TestRunMarker>();
-
-  /** 쓰기 전에 모든 키를 검사하고 쓸 계획을 만든다. 아무것도 쓰지 않는다 */
-  async function planOf(
-    profile: Profile,
-    request: ProfileApplyRequest,
-  ): Promise<Result<Plan, ProfileApplyFailure>> {
-    const scope = scopeOf(request.layer);
-    const { threadId } = request;
-    if (threadId !== undefined) await env.settings.prepare(threadId);
-    const layers = env.settings.layers(threadId);
-    const raw: PlannedWrite[] = [];
-    const toggles: { name: string; enabled: boolean }[] = [];
-    const extensions = new Set(env.registrations().map((info) => info.extension));
-    const enableSteps = [
-      ...profile.enable.map((name) => ({ name, enabled: true })),
-      ...profile.disable.map((name) => ({ name, enabled: false })),
-    ];
-    for (const step of enableSteps) {
-      if (request.layer === "thread") {
-        // thread 층은 설정 파일이 아니라 대화별 켜짐 요청이다. 설치되지 않은 확장은 거절한다
-        if (!extensions.has(step.name)) return err({ kind: "unknown_extension", name: step.name });
-        toggles.push(step);
-      } else {
-        raw.push({ key: extensionEnabledKey(step.name), value: step.enabled });
-      }
-    }
-    for (const setting of profile.settings) raw.push({ key: setting.key, value: setting.value });
-    if (profile.driver !== null) raw.push({ key: ACTIVE_DRIVER_KEY, value: profile.driver });
-    const writes = collapsed(raw);
-    for (const write of writes) {
-      const checked = checkSettingWrite(env.catalog, layers, write.key, scope, write.value);
-      if (!checked.ok) return err({ kind: "setting_rejected", rejected: checked });
-    }
-    return ok({ scope, threadId, writes, toggles });
+  /** 표지를 찾는다. 메모리에 없으면 저장된 표지를 읽어 메모리에 옮긴다 */
+  function markerOf(threadId: ThreadId): TestRunMarker | undefined {
+    const known = markers.get(threadId);
+    if (known !== undefined) return known;
+    const stored = deps.env.testRunMarks?.recall(threadId);
+    if (stored === undefined) return undefined;
+    const restored: TestRunMarker = {
+      profileId: stored.testBaseProfile,
+      target: stored.testTarget,
+      paused: false,
+    };
+    markers.set(threadId, restored);
+    return restored;
   }
 
-  /** 쓴 키를 거꾸로 이전 값으로 돌린다. 돌리지 못한 키를 돌려준다 */
-  async function rollback(
-    written: readonly { readonly key: string; readonly previous: Previous }[],
-    plan: Plan,
-  ): Promise<string[]> {
-    const stuck: string[] = [];
-    await sequentially(written.toReversed(), async (item) => {
-      const restored = item.previous.had
-        ? await env.settings.write(plan.scope, item.key, item.previous.value, plan.threadId)
-        : await env.settings.reset(plan.scope, item.key, plan.threadId);
-      if (!restored.ok) stuck.push(item.key);
-    });
-    return stuck;
+  /**
+   * 검증기를 만든다. 시크릿 이름과 플러그인 사실은 쓰기 잠금 밖에서 한 번 읽는다(검증 함수는 동기다).
+   * 저장된 목록을 바꾸는 계산은 이 함수가 돌려준 검증기를 잠금 안에서 쓴다.
+   */
+  async function checksOf(): Promise<
+    (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[]
+  > {
+    const names = await env.secretNames();
+    const lib = libraryOf(env, deps.pluginFacts());
+    const catalog = catalogOf(env, names);
+    return (body, common) => validateProfile(body, common, lib, catalog);
   }
 
-  async function apply(
-    request: ProfileApplyRequest,
-  ): Promise<Result<ProfileApplyResult, ProfileApplyFailure>> {
-    const found = await store.get(request.id);
-    if (!found.ok) return found;
-    const planned = await planOf(found.value, request);
-    if (!planned.ok) return planned;
-    const plan = planned.value;
-    const before = env.settings.layers(plan.threadId);
-    const written: { key: string; previous: Previous }[] = [];
-    const stopped: { failure: ProfileApplyFailure | undefined } = { failure: undefined };
-    await sequentially(plan.writes, async (write) => {
-      if (stopped.failure !== undefined) return;
-      const previous = previousOf(before, plan.scope, write.key);
-      const done = await env.settings.write(plan.scope, write.key, write.value, plan.threadId);
-      if (done.ok) {
-        written.push({ key: write.key, previous });
-        return;
-      }
-      // 하나라도 실패하면 이미 쓴 키를 이전 값으로 되돌린다(원자적). 되돌리기까지 실패하면 남은 키를 알린다
-      const stuck = await rollback(written, plan);
-      stopped.failure =
-        stuck.length > 0
-          ? { kind: "apply_partial", written: stuck, failed: write.key }
-          : { kind: "write_failed", key: write.key, failure: done.error };
-    });
-    if (stopped.failure !== undefined) return err(stopped.failure);
-    // 켜짐 요청은 실패하지 않는 기록이라 설정 쓰기가 모두 끝난 뒤에 보낸다(되돌릴 것이 없다)
-    const infos = env.registrations();
-    for (const toggle of plan.toggles) {
-      for (const info of infos) {
-        if (info.extension !== toggle.name) continue;
-        env.toggles.request(info.id, toggle.enabled, "request", plan.threadId);
-      }
+  /**
+   * 이 프로필을 참조하는 열린 대화 수(M5c §4.1.14). 대화가 저장한 프로필 id가 `stored`(저장된 프로필 id 목록)에 없으면
+   * 기본을 쓰는 것으로 센다(§4.1.1). 지우는 경우 `stored`는 지우기 전 목록이다.
+   */
+  function threadsUsing(profileId: string, stored: ReadonlySet<string>): number {
+    let count = 0;
+    for (const saved of env.openThreadProfiles()) {
+      const effective = saved !== null && stored.has(saved) ? saved : DEFAULT_PROFILE_ID;
+      if (effective === profileId) count += 1;
     }
-    return ok({
-      written: [
-        ...plan.toggles.map((toggle) => extensionEnabledKey(toggle.name)),
-        ...plan.writes.map((write) => write.key),
-      ],
-      layer: request.layer,
-      appliesAt: plan.toggles.length > 0 ? "nextStepBoundary" : "now",
-    });
+    return count;
   }
 
-  async function preview(
-    request: ProfileApplyRequest,
-  ): Promise<Result<ProfilePreviewResult, ProfileApplyFailure>> {
-    const found = await store.get(request.id);
-    if (!found.ok) return found;
-    const profile = found.value;
-    const planned = await planOf(profile, request);
-    if (!planned.ok) return planned;
-    const enabled = new Set(profile.enable);
-    const disabled = new Set(profile.disable);
-    const infos = env.registrations();
-    // 켜진 채 남는 것(이미 켜져 있고 끄지 않음)이 먼저, 새로 켜지는 것이 뒤다: 요청 순서 중재 규칙과 같은 순서
-    const staying = infos.filter(
-      (info) => info.status === "enabled" && !disabled.has(info.extension) && info.drive !== "none",
-    );
-    const joining = infos.filter(
-      (info) =>
-        info.status !== "enabled" &&
-        enabled.has(info.extension) &&
-        !disabled.has(info.extension) &&
-        info.drive !== "none",
-    );
-    const candidates = [...staying, ...joining].map((info) => info.id);
-    const current = env.settingValue(ACTIVE_DRIVER_KEY, request.threadId);
-    const named = profile.driver ?? (typeof current === "string" ? current : null);
-    let expectedHolder: string | null;
-    if (named !== null) {
-      expectedHolder = candidates.find((id) => id === named) ?? null;
-    } else {
-      expectedHolder = candidates[0] ?? null;
-    }
-    return ok({
-      enabled: [...profile.enable],
-      disabled: [...profile.disable],
-      candidates,
-      expectedHolder,
-      overrides: collapsed([
-        ...profile.settings.map((setting) => ({ key: setting.key, value: setting.value })),
-        ...(profile.driver === null ? [] : [{ key: ACTIVE_DRIVER_KEY, value: profile.driver }]),
-      ]),
-      // ext-host가 등록별 Hook 수를 내놓지 않는다(계약 간극): T-WA의 `hooks.list` 원천이 생기면 채운다
-      hookCount: 0,
-      layer: request.layer,
-    });
+  /** 권한 모드가 바뀌는 경우의 `from`, `to`. `to`는 공통 묶음과 프로필 가운데 프로필 쪽 값이 이긴다(§4.2.7) */
+  function permissionOf(
+    body: ProfileBody,
+    common: CommonSet,
+    threadId: ThreadId | undefined,
+  ): PermissionChange | undefined {
+    const to = lastValueOf([...common.settings, ...body.settings], PERMISSION_MODE_KEY);
+    if (typeof to !== "string") return undefined;
+    const from = env.settingValue(PERMISSION_MODE_KEY, threadId);
+    if (typeof from !== "string" || from === to) return undefined;
+    return { from, to };
   }
 
   return {
     errors: env.errors,
-    listProfiles: () => store.list(),
-    getProfile: (id) => store.get(id),
-    async putProfile(input, baseRev) {
-      const put = await store.put(input, baseRev);
-      return put.ok ? ok(put.value.profile) : put;
+    async list(): Promise<Result<ProfileListResult, ProfilePortFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      return ok({
+        profiles: effectiveProfiles(snapshot.value.profiles, factory()),
+        common: snapshot.value.common,
+        rev: snapshot.value.rev,
+      });
     },
-    async deleteProfile(id) {
-      return store.remove(id);
+    async get(id): Promise<Result<Profile, ProfilePortFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) {
+        // 파일이 깨져도 기본 프로필은 공장 값으로 쓴다(M5c §5)
+        if (id === DEFAULT_PROFILE_ID && snapshot.error.kind === "corrupt") return ok(factory());
+        return snapshot;
+      }
+      const found = findProfile(snapshot.value.profiles, id, factory());
+      return found === undefined ? err({ kind: "not_found", id }) : ok(found);
     },
-    applyProfile: apply,
-    previewProfile: preview,
-    onProfilesChanged: (listener) => store.onChange(listener),
+    async put(
+      input: ProfileInput,
+      baseRev: number | null,
+    ): Promise<Result<ProfilePutResult, ProfilePortFailure>> {
+      const issuesOf = await checksOf();
+      const done = await store.transact<ProfilePutResult, ProfilePortFailure>((snapshot) => {
+        const existing = snapshot.profiles.find((profile) => profile.id === input.id);
+        // 기본 프로필은 저장되지 않았으면 공장 값 rev 0이다. 처음 저장할 때 null도 받는다
+        const storedRev =
+          existing !== undefined ? existing.rev : input.id === DEFAULT_PROFILE_ID ? 0 : null;
+        const firstDefault =
+          existing === undefined && input.id === DEFAULT_PROFILE_ID && baseRev === null;
+        if (storedRev !== baseRev && !firstDefault) {
+          return err({ kind: "conflict" as const, id: input.id, rev: storedRev, baseRev });
+        }
+        const profile: Profile = {
+          id: input.id,
+          title: input.title,
+          builtin: input.id === DEFAULT_PROFILE_ID,
+          plugins: input.plugins,
+          settings: input.settings,
+          startDrive: input.startDrive,
+          updatedAt: isoNow(env.clock.now()),
+          rev: (storedRev ?? 0) + 1,
+        };
+        const issues = issuesOf(profile, snapshot.common);
+        if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
+        const next =
+          existing === undefined
+            ? [...snapshot.profiles, profile]
+            : snapshot.profiles.map((item) => (item.id === input.id ? profile : item));
+        return ok({
+          profiles: next,
+          common: snapshot.common,
+          value: { profile, issues: issues.filter((issue) => issue.severity === "warning") },
+        });
+      });
+      if (!done.ok) return done;
+      return ok(done.value.value);
+    },
+    async remove(id): Promise<Result<ProfileDeleteResult, ProfilePortFailure>> {
+      if (id === DEFAULT_PROFILE_ID) return err({ kind: "builtin_protected", id });
+      // 지우기 전 목록으로 잴 때 이 프로필을 쓰던 대화를 센다
+      const before = await store.read();
+      if (!before.ok) return before;
+      const beforeIds = idsOf(before.value.profiles);
+      const done = await store.transact<undefined, ProfilePortFailure>((snapshot) => {
+        if (!snapshot.profiles.some((profile) => profile.id === id))
+          return err({ kind: "not_found" as const, id });
+        return ok({
+          profiles: snapshot.profiles.filter((profile) => profile.id !== id),
+          common: snapshot.common,
+          value: undefined,
+        });
+      });
+      if (!done.ok) return done;
+      return ok({ rev: done.value.rev, reassignedThreads: threadsUsing(id, beforeIds) });
+    },
+    async clone(
+      params: ProfileCloneParams,
+    ): Promise<Result<{ readonly profile: Profile }, ProfilePortFailure>> {
+      if (params.newId === DEFAULT_PROFILE_ID)
+        return err({ kind: "builtin_protected", id: params.newId });
+      const issuesOf = await checksOf();
+      const done = await store.transact<Profile, ProfilePortFailure>((snapshot) => {
+        const eff = effectiveProfiles(snapshot.profiles, factory());
+        const source = eff.find((profile) => profile.id === params.id);
+        if (source === undefined) return err({ kind: "not_found" as const, id: params.id });
+        const taken = eff.find((profile) => profile.id === params.newId);
+        if (taken !== undefined) {
+          return err({
+            kind: "conflict" as const,
+            id: params.newId,
+            rev: taken.rev,
+            baseRev: null,
+          });
+        }
+        const profile: Profile = {
+          id: params.newId,
+          title: params.title,
+          builtin: false,
+          plugins: source.plugins,
+          settings: source.settings,
+          startDrive: source.startDrive,
+          updatedAt: isoNow(env.clock.now()),
+          rev: 1,
+        };
+        const issues = issuesOf(profile, snapshot.common);
+        if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
+        return ok({
+          profiles: [...snapshot.profiles, profile],
+          common: snapshot.common,
+          value: profile,
+        });
+      });
+      if (!done.ok) return done;
+      return ok({ profile: done.value.value });
+    },
+    async commonGet(): Promise<Result<CommonGetResult, ProfilePortFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      const issuesOf = await checksOf();
+      return ok({
+        common: snapshot.value.common,
+        issues: issuesOf(EMPTY_BODY, snapshot.value.common),
+      });
+    },
+    async commonPut(params: CommonPutParams): Promise<Result<CommonGetResult, ProfilePortFailure>> {
+      const input: CommonInput = params.common;
+      const issuesOf = await checksOf();
+      const done = await store.transact<CommonGetResult, ProfilePortFailure>((snapshot) => {
+        if (snapshot.common.rev !== params.baseRev) {
+          return err({
+            kind: "conflict" as const,
+            id: "common",
+            rev: snapshot.common.rev,
+            baseRev: params.baseRev,
+          });
+        }
+        const next: CommonSet = {
+          plugins: input.plugins,
+          settings: input.settings,
+          updatedAt: isoNow(env.clock.now()),
+          rev: snapshot.common.rev + 1,
+        };
+        const issues = issuesOf(EMPTY_BODY, next);
+        if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
+        return ok({ profiles: snapshot.profiles, common: next, value: { common: next, issues } });
+      });
+      if (!done.ok) return done;
+      return ok(done.value.value);
+    },
+    async preview(
+      request: ProfilePreviewRequest,
+    ): Promise<Result<ProfilePreviewResult, ProfilePortFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      const { source, threadId } = request;
+      let body: ProfileBody;
+      let id: string;
+      if (source.kind === "stored") {
+        const found = findProfile(snapshot.value.profiles, source.id, factory());
+        if (found === undefined) return err({ kind: "not_found", id: source.id });
+        body = found;
+        id = found.id;
+      } else {
+        body = source.draft;
+        id = source.draft.id;
+      }
+      const common = snapshot.value.common;
+      const issuesOf = await checksOf();
+      const issues = issuesOf(body, common);
+      const missingRequired: { plugin: string; key: string }[] = [];
+      for (const issue of issues) {
+        if (
+          issue.code === "required_unset" &&
+          issue.plugin !== undefined &&
+          issue.key !== undefined
+        ) {
+          missingRequired.push({ plugin: issue.plugin, key: issue.key });
+        }
+      }
+      const resolved = resolvedOf(body, common);
+      const permission = permissionOf(body, common, threadId);
+      return ok({
+        resolved,
+        issues,
+        cost: { total: UNKNOWN_COST, byPlugin: unknownCostByPlugin(resolved) },
+        missingRequired,
+        threadsUsing: threadsUsing(id, idsOf(snapshot.value.profiles)),
+        ...(permission === undefined ? {} : { permission }),
+        // 드라이브 프레임과 도구 목록은 아직 이 호스트가 셀 수 없다(E(T)와 Drive 프레임은 나중 작업). 그래서 이 값들을 싣지 않는다
+        dropsDrive: null,
+      });
+    },
+    defaultFor(): Promise<Result<ProfileDefaultForResult, ProfilePortFailure>> {
+      // 대화가 프로필 id를 아직 저장하지 못하므로 가장 최근 대화도 기본을 쓴다(§4.4.8의 계산은 투영 뒤에 바뀐다)
+      return Promise.resolve(ok({ profileId: DEFAULT_PROFILE_ID }));
+    },
+    async removePlugin(
+      params: ProfileRemovePluginParams,
+    ): Promise<Result<ProfileRemovePluginResult, ProfilePortFailure>> {
+      const issuesOf = await checksOf();
+      const done = await store.transact<
+        {
+          readonly profile: Profile;
+          readonly common: CommonSet;
+          readonly known: ReadonlySet<string>;
+        },
+        ProfilePortFailure
+      >((snapshot) => {
+        const current = findProfile(snapshot.profiles, params.id, factory());
+        if (current === undefined) return err({ kind: "not_found" as const, id: params.id });
+        if (current.rev !== params.baseRev) {
+          return err({
+            kind: "conflict" as const,
+            id: params.id,
+            rev: current.rev,
+            baseRev: params.baseRev,
+          });
+        }
+        if (!current.plugins.some((ref) => ref.name === params.plugin)) {
+          if (snapshot.common.plugins.some((ref) => ref.name === params.plugin)) {
+            return err({ kind: "common_plugin" as const, plugin: params.plugin });
+          }
+          return err({ kind: "plugin_not_in_profile" as const, plugin: params.plugin });
+        }
+        // 그 플러그인의 설정 값도 함께 뺀다. 남겨 두면 소유 플러그인이 없어 저장이 막힌다(§4.2.2)
+        const profile: Profile = {
+          ...current,
+          plugins: current.plugins.filter((ref) => ref.name !== params.plugin),
+          settings: current.settings.filter((setting) => ownerOf(setting.key) !== params.plugin),
+          startDrive: current.startDrive === params.plugin ? null : current.startDrive,
+          updatedAt: isoNow(env.clock.now()),
+          rev: current.rev + 1,
+        };
+        const issues = issuesOf(profile, snapshot.common);
+        if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
+        const next = snapshot.profiles.some((item) => item.id === profile.id)
+          ? snapshot.profiles.map((item) => (item.id === profile.id ? profile : item))
+          : [...snapshot.profiles, profile];
+        return ok({
+          profiles: next,
+          common: snapshot.common,
+          value: { profile, common: snapshot.common, known: idsOf(snapshot.profiles) },
+        });
+      });
+      if (!done.ok) return done;
+      const { profile, common, known } = done.value.value;
+      const permission = permissionOf(profile, common, undefined);
+      return ok({
+        profile,
+        preview: {
+          threadsUsing: threadsUsing(profile.id, known),
+          ...(permission === undefined ? {} : { permission }),
+          dropsDrive: null,
+        },
+      });
+    },
+    async defaultReset(
+      params: ProfileDefaultResetParams,
+    ): Promise<Result<ProfileDefaultResetResult, ProfilePortFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      const current =
+        findProfile(snapshot.value.profiles, DEFAULT_PROFILE_ID, factory()) ?? factory();
+      const reference = factory();
+      const changed = {
+        plugins: !sameNames(current.plugins, reference.plugins),
+        settings: JSON.stringify(current.settings) !== JSON.stringify(reference.settings),
+      };
+      const count = threadsUsing(DEFAULT_PROFILE_ID, idsOf(snapshot.value.profiles));
+      if (params.preview === true) return ok({ profile: current, changed, threadsUsing: count });
+      const done = await store.transact<undefined, ProfilePortFailure>((stored) =>
+        ok({
+          // 저장된 기본 행을 지운다. 다음 읽기에서 공장 값이 된다(§4.1.2)
+          profiles: stored.profiles.filter((profile) => profile.id !== DEFAULT_PROFILE_ID),
+          common: stored.common,
+          value: undefined,
+        }),
+      );
+      if (!done.ok) return done;
+      return ok({ profile: reference, changed, threadsUsing: count });
+    },
+    onProfilesChanged(listener: (change: ProfilesChange) => void): Unsubscribe {
+      return store.onChange(listener);
+    },
+    onProfilesWritten(listener: (written: ProfilesWritten) => void): Unsubscribe {
+      return store.onWritten(listener);
+    },
     lookupThread(raw) {
       const parsed = parse(ThreadIdSchema, raw);
       if (!parsed.ok) return ok(undefined);
@@ -261,19 +587,20 @@ export function createProfileTestRunPort(
       const found = turnId.ok ? deps.traceRead.turn(threadId, turnId.value) : undefined;
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
-    testRunMarker: (threadId) => markers.get(threadId),
+    testRunMarker: (threadId) => markerOf(threadId),
     registerTestRun(threadId, profileId) {
       markers.set(threadId, { profileId, target: null, paused: false });
+      deps.env.testRunMarks?.remember(threadId, profileId);
     },
     controlTestRun(threadId, op) {
-      const marker = markers.get(threadId);
+      const marker = markerOf(threadId);
       if (marker === undefined) return err({ kind: "not_a_test_run" });
       const done = deps.testRunControl[op](threadId);
       if (done.ok) markers.set(threadId, { ...marker, paused: done.value.paused });
       return done;
     },
     testRunPhase(threadId) {
-      if (!markers.has(threadId)) return err({ kind: "not_a_test_run" });
+      if (markerOf(threadId) === undefined) return err({ kind: "not_a_test_run" });
       return deps.testRunControl.phase(threadId);
     },
   };

@@ -2,6 +2,7 @@ import type { TSchema } from "typebox";
 import type {
   CallerInfo,
   CapabilityId,
+  FileChangeEntry,
   PluginCallRequest,
   PluginModelError,
   PluginModelRequest,
@@ -32,9 +33,10 @@ import type {
 } from "./trace-types.ts";
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
 import type { HookName } from "./hooks.ts";
-import type { ExtensionName } from "./name.ts";
 import type { PostItem, PostWhen } from "./post.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
+import type { EvidenceRef } from "./plugin-card.ts";
+import type { ManifestIssue } from "./validate.ts";
 
 // 호스트 포트와 로더 포트의 정본이다(F.extensions.spec §3.2.1, review.decisions-2 U-14·D-04).
 // X(ext-host)는 이 이름을 import type으로 가져와 다시 export하고 자기 정의를 두지 않는다.
@@ -201,15 +203,19 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort> = {
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ───────────
 
-/** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
+/**
+ * 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다
+ * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다: 파일은 `readRoot`와 런타임 읽기뿐,
+ * 쓰기 없음, 네트워크 전체 허용(§3.4 [결정: 2026-11-17 사용자])
+ */
 export interface IsolationSpawnSpec {
-  /** 자식 런타임 진입점. ext-host의 isolation/child-main.ts 절대 경로 */
-  readonly main: string;
+  readonly command: string;
   readonly args: readonly string[];
-  readonly cwd: string;
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다(X.loading-trust.spec §4.9.6) */
+  /** 플러그인 패키지 폴더(검토본 `tree/`, 초안은 `drafts/<draftId>/tree/`). 읽기 전용으로 열린다. 작업 폴더이기도 하다 */
+  readonly readRoot: string;
+  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
-  /** "ext:<name>:<generation>" */
+  /** "ext:<name>:<versionId>" */
   readonly label: string;
 }
 
@@ -219,11 +225,17 @@ export interface IsolatedChild {
   readonly stdout: NodeJS.ReadableStream;
   readonly stderr: NodeJS.ReadableStream;
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
+  /** 프로세스 트리 전체에 보낸다 */
   kill(signal: "SIGTERM" | "SIGKILL"): void;
 }
 
+export type IsolationSpawnError =
+  | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
+  /** 샌드박스에 넣어야 하는데 이 기기에서 격리할 수 없다. 격리 없이 띄우지 않는다(닫힌 실패) */
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };
+
 export interface IsolationProcessPort {
-  spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>;
+  spawn(spec: IsolationSpawnSpec): Promise<Result<IsolatedChild, IsolationSpawnError>>;
 }
 
 /** 외부 훅 실행. 사용처: X.operations.spec §3.7 */
@@ -253,23 +265,6 @@ export interface HookProcessPort {
 
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort> = { name: "fresnel.process" };
-
-// ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────────
-
-export interface DriveLockCandidate {
-  readonly scopeId: RegistrationId;
-  readonly extension: ExtensionName;
-  readonly loadIndex: number;
-  readonly defaultEnabled: boolean;
-  /** 그 thread 활성 가지의 마지막 `scope.changed{status:"enabled"}` seq. 기록이 없으면 null */
-  readonly enabledAtSeq: number | null;
-}
-
-export interface DriveLockArbiterPort {
-  /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
-  choose(threadId: ThreadId, candidates: readonly DriveLockCandidate[]): RegistrationId | null;
-}
-export const DriveLockArbiterPortKey: PortKey<DriveLockArbiterPort> = { name: "fresnel.groups" };
 
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────────
 
@@ -302,8 +297,16 @@ export interface ToolResourceDef {
       readonly toolCallId: string;
       /** 호출 주체. 이번 turn에 untrusted 도구 결과를 읽었으면 `afterUntrusted`가 참이다(M3-REQ-100) */
       readonly caller: CallerInfo;
+      /** 이 호출이 바꾼 파일을 알린다(M5e §4.7 `reported`). 코어가 `source`를 정하고 검증해 결과의 `fileChanges`에 합친다 */
+      readonly changes?: ToolChangeReport;
     },
   ): Promise<unknown>;
+}
+/** 플러그인 도구가 알리는 파일 변경 한 건. `source`는 코어가 `reported`로 정하므로 적지 않는다 */
+export type ReportedFileChange = Omit<FileChangeEntry, "source">;
+/** `ctx.changes`. 알린 항목은 검증되지 않은 값으로 받아 코어가 모양을 확인한다(F.capabilities.spec §3.13) */
+export interface ToolChangeReport {
+  report(entries: readonly ReportedFileChange[]): void;
 }
 /** 모양은 L1.models.spec이 정한다 */
 export type ProviderResourceDef = JsonValue;
@@ -466,4 +469,73 @@ export interface TestRunControlPort {
   /** 경계 하나만 진행하고 다시 멈춘다 */
   step(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
   phase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
+}
+
+// ── 플러그인 로더 포트(M5c-1, docs/xeon/review/m5/profile-project-loader.md §3.5). 인터페이스만 둔다. PortKey 이름은 스펙이 정하지 않아 두지 않는다 ──
+
+/** 대화가 쓰는 플러그인 집합. 구현은 호스트다. X는 호스트의 프로필 저장소를 import하지 않고 이 포트로 읽는다(DR-14) */
+export interface PluginSetView {
+  /** E(T): 이 대화의 켜짐 집합(플러그인 이름). 코어를 포함한다 */
+  readonly plugins: readonly string[];
+  /** 적용한 프로필 id. 대화가 가리키는 프로필이 없으면 `default`다(M5c §4.1.1) */
+  readonly profileId: string;
+  readonly profileRev: number;
+  readonly commonRev: number;
+  /** 대화가 저장한 프로필 id가 가리키는 프로필이 없어 `default`로 읽었으면 그 id. 있으면 `profile.applied { reason: "profile_missing" }` */
+  readonly missingProfileId?: string;
+}
+export interface PluginSetPort {
+  resolve(threadId: ThreadId): PluginSetView;
+}
+/** 대화별 켜짐 집합(E(T))을 주는 포트. 구현은 호스트이고, X는 이 키로 읽는다(M5c §3.5) */
+export const PluginSetPortKey: PortKey<PluginSetPort> = {
+  name: "fresnel.pluginSet",
+};
+
+/** 재료 한 덩어리의 키와 본문. 지침, 명령(프롬프트형), 에이전트 정의가 같은 모양을 쓴다 */
+export interface MaterialText {
+  readonly key: string;
+  readonly text: string;
+}
+/** MCP 서버 정의 하나와 소유 플러그인. 합친 뒤에도 기록(E)이 `mcp.<서버>`의 소유자를 알아야 한다(§4.5.10) */
+export interface McpServerMaterial {
+  readonly plugin: string;
+  readonly name: string;
+  readonly config: McpServerResourceDef;
+}
+/**
+ * 대화의 재료 공급. 구현은 X다. 반환 모양 가운데 스펙이 적지 않은 것(`skillRoots`, `agentDefinitions`, `commands`, `mcpServers`)은
+ * 본문이나 경로로 가장 가까운 모양을 골랐다. [미결] 구현 때 확정한다
+ */
+export interface MaterialPort {
+  instructions(threadId: ThreadId): readonly MaterialText[];
+  /** 검토본 폴더의 루트 경로. 스킬 색인이 `roots.extension`으로 읽는다 */
+  skillRoots(threadId: ThreadId): readonly string[];
+  agentDefinitions(threadId: ThreadId): readonly MaterialText[];
+  mcpServers(threadId: ThreadId): readonly McpServerMaterial[];
+  commands(threadId: ThreadId): readonly MaterialText[];
+}
+
+/** 제출 요청. 담당 AI(플러그인 빌더)가 만든 폴더를 검토함으로 보낸다. 증거는 한 개 이상 필수다(§4.7.1) */
+export interface PluginSubmitRequest {
+  readonly dir: string;
+  readonly originThreadId: ThreadId;
+  readonly evidence: readonly [EvidenceRef, ...EvidenceRef[]];
+  readonly purpose?: string;
+}
+export interface PluginSubmitResult {
+  readonly draftId: string;
+  readonly itemId: string;
+}
+/** 제출 실패. `kind`는 `plugin.invalid`·`plugin.tooLarge`·`plugin.symlinkRefused` 오류 이름에 대응한다 */
+export type PluginSubmitError =
+  | { readonly kind: "invalid"; readonly issues: readonly ManifestIssue[] }
+  | { readonly kind: "too_large" }
+  | { readonly kind: "symlink_refused" };
+/**
+ * 담당 AI만 부른다(wire 메서드가 아니다). 안에서 초안 만들기와 검토 항목 만들기를 한 번에 한다(§4.9).
+ * 디스크 복사와 해시 계산이 있어 비동기다
+ */
+export interface PluginSubmitPort {
+  submit(request: PluginSubmitRequest): Promise<Result<PluginSubmitResult, PluginSubmitError>>;
 }

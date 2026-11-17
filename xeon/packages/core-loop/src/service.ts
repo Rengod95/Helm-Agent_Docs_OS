@@ -137,6 +137,8 @@ function unansweredCalls(reduction: OpenTurnReduction): AgentToolCall[] {
   );
 }
 
+const CLAIMED_REQUEST_LIMIT = 64;
+
 export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   const ctx: LoopContext = {
     ...deps,
@@ -148,6 +150,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   const leaves = new Map<ThreadId, EventId>();
   /** 사용자가 중단한 thread. 큐에 남은 입력을 자동으로 시작하지 않는다. 새 입력(`admit`)이나 `resume`이 풀어 준다 */
   const heldQueues = new Set<ThreadId>();
+  /** 주도 중인 플러그인에게 넘긴 사용자 입력의 requestId(thread별, 최근 것만). 같은 키의 재제출을 다시 넘기지 않는다 */
+  const claimedRequests = new Map<ThreadId, string[]>();
 
   // 커밋한 쪽과 무관하게 활성 가지의 마지막 이벤트를 따라간다(도구 커밋 포함)
   const unsubscribeCommits = deps.session.feed.onCommit((batch) => {
@@ -621,6 +625,12 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     if (requestId.length < 1 || requestId.length > 64) {
       return err({ kind: "input_invalid", message: "requestId must be 1-64 characters" });
     }
+    if (
+      request.requestId !== undefined &&
+      claimedRequests.get(request.threadId)?.includes(request.requestId) === true
+    ) {
+      return ok({ status: "handled" });
+    }
     const thread = runtimeOf(request.threadId);
     const wasBusy = thread.running !== null || thread.starting !== null;
     const mode: InputMode = wasBusy ? (request.whenBusy ?? "followUp") : "followUp";
@@ -663,7 +673,15 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           : [{ type: "text", text: chain.value.text }, ...images],
     };
     // 단계 함수가 주도 중이면 사용자 메시지는 그쪽 다음 단계로 간다. 기다리는 명령(turn, spawn)이 있어도 입력은 쌓이지 않는다
-    if (deps.ext.claimUserInput(request.threadId, item)) return ok({ status: "handled" });
+    if (deps.ext.claimUserInput(request.threadId, item)) {
+      if (request.requestId !== undefined) {
+        const claimed = claimedRequests.get(request.threadId) ?? [];
+        claimed.push(request.requestId);
+        if (claimed.length > CLAIMED_REQUEST_LIMIT) claimed.shift();
+        claimedRequests.set(request.threadId, claimed);
+      }
+      return ok({ status: "handled" });
+    }
     const enqueued = await deps.tasks.inputs.enqueue({
       threadId: request.threadId,
       mode,

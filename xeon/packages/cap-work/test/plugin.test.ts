@@ -13,6 +13,7 @@ import {
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import {
   SessionPortKey,
@@ -148,18 +149,18 @@ describe("manifest", () => {
     const checked = validateManifest(workManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORK_EXTENSION_NAME);
-    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
-    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.layer).toBe("L2");
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.provides).toEqual([
       { id: "work.tasks", version: "1.0.0" },
       { id: "work.goals", version: "1.0.0" },
       { id: "work.reports", version: "1.0.0" },
     ]);
-    expect(checked.manifest?.plugins[0]?.hooks).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.hooks).toEqual([
       "input.agent.before",
       "boundary.step.after",
       "boundary.settle.before",
     ]);
-    expect(checked.manifest?.plugins[0]?.drives).toBeUndefined();
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.drives).toBeUndefined();
   });
 });
 
@@ -257,7 +258,7 @@ describe("commands through the plugin", () => {
 async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>) {
   return await t.host.dispatch(
     "input.agent.before",
-    { prompt: "go on", systemPrompt: "", systemPromptOptions: {} },
+    { prompt: "go on", systemPrompt: "", systemPromptOptions: {}, driver: null, stack: [] },
     {
       threadId,
       dispatchKey: `bas:${Math.random()}`,

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { WireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost, startStdioHost, type InProcessHost } from "../../src/main.ts";
+import { startInProcessHost, startStdioHost, type InProcessHost } from "../../src/command-run.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

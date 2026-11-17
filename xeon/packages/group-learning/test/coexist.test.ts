@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { driveStandIn } from "./support/drive-group.ts";
 import { createRig } from "./support/rig.ts";
@@ -6,7 +7,7 @@ test("coexist.helm-lease-held-fork-still-runs: the review starts while another g
   const rig = await createRig({ settings: { "l3.learning.trigger.userTurns": 1 } });
   const drive = driveStandIn("fake-drive");
   await rig.t.host.install(drive.unit);
-  await rig.t.host.openThread(rig.thread);
+  await rig.t.host.openThread(rig.thread, { startDrive: "fake-drive" });
   // 임대를 쥔 drive 함수가 끝나지 않으므로 host.settled()는 기다리지 않는다
   await Bun.sleep(20);
   rig.control.waitSettled = false;
@@ -20,7 +21,7 @@ test("coexist.helm-lease-held-fork-still-runs: the review starts while another g
   expect(rig.t.host.leaseOf(rig.thread)?.scopeId).toBe("fake-drive");
   // 학습 그룹은 drive를 부르지 않는다: 루프 turn은 늘지 않았고 임대 후보가 아니다
   expect(rig.t.loop.turns.length).toBe(turnsBefore);
-  expect(rig.module.manifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
+  expect(pluginDeclsOf(rig.module.manifest).map((plugin) => plugin.drives)).toEqual([undefined]);
   drive.release();
   rig.control.waitSettled = true;
   await rig.t.settled();

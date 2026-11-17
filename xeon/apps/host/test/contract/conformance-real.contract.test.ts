@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { WIRE_CONFORMANCE_CASES } from "@fresnel/contracts/wire";
-import { startInProcessHost, startStdioHost } from "../../src/main.ts";
+import { startInProcessHost, startStdioHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { stdioStreams } from "../fixtures/stdio-pair.ts";

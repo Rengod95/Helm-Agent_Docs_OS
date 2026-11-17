@@ -16,6 +16,7 @@ const PROJECTION_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "title",
     "title_source",
     "model",
+    "profile_id",
     "status",
     "workspace",
     "created_at",

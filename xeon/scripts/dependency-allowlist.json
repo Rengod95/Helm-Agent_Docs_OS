@@ -4,8 +4,8 @@
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@fresnel/host",
-    "entries": [".", "./client"],
-    "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
+    "entries": [".", "./client", "./plugin-host"],
+    "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15). The internal plugin-host --stdio command loads the plugin-host runner through the lightweight ./plugin-host entry (L4.host-service.spec 4.9) so the child does not load the engine.",
     "approvedBy": "review.decisions-2"
   },
   {

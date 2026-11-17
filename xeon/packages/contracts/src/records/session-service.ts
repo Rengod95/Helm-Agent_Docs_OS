@@ -82,6 +82,11 @@ export interface ThreadSummaryRow {
   readonly titleSource?: ThreadTitleSource;
   /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 없다(기본 모델) */
   readonly model?: string;
+  /**
+   * 이 대화가 참조하는 프로필 id(M5c §4.1.1). 활성 가지의 마지막 `thread.updated.profileId`, 없으면 `thread.started.profileId`.
+   * 둘 다 없으면 없다(기본 `default`로 읽는다). 값이 가리키는 프로필이 없는지는 호스트가 본다
+   */
+  readonly profileId?: string;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -267,6 +272,8 @@ export interface ThreadCreateInput {
   readonly threadId: ThreadId;
   readonly title?: string;
   readonly workspace?: string;
+  /** 만들 때 고른 프로필 id(`thread.started.profileId`). 없으면 `default`로 읽는다 (M5c §4.1.1) */
+  readonly profileId?: string;
   /** 전역 생성 멱등 키 1~200자. 같은 키의 두 번째 호출은 새 thread를 만들지 않는다 */
   readonly creationKey?: string;
   /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */
@@ -320,9 +327,60 @@ export type LifecycleError =
       readonly reason: string | null;
     };
 
+/**
+ * 대화 열기 때 `thread.resources`(collect)가 낸 값 가운데 열기가 쓰는 부분. extensions의 `ResourcesValue`와 같은 모양이다
+ * (이 파일은 확장 타입을 import하지 않는다)
+ */
+export interface OpenResources {
+  readonly skillPaths: readonly string[];
+  readonly promptPaths: readonly string[];
+  readonly themePaths: readonly string[];
+  /** 기여한 대화 폴더 후보 전부, 등록 순서. 첫 번째가 채택 후보다 */
+  readonly workspaceCandidates: readonly string[];
+}
+
+/** 대화 폴더 결정에서 버린 것을 알리는 진단(H-7, E-13). 호출자가 기록한다 */
+export interface OpenWorkspaceDiagnostic {
+  readonly code:
+    | "workspace_conflict"
+    | "workspace_outside_project"
+    | "workspace_late"
+    | "workspace_missing";
+  readonly candidate: string;
+}
+
+export interface OpenWorkspaceOutcome {
+  /** 커밋한 대화 폴더. 바꾸지 않았으면 null */
+  readonly workspace: string | null;
+  readonly diagnostics: readonly OpenWorkspaceDiagnostic[];
+}
+
+/** 같은 폴더에서 아직 닫히지 않은 다른 대화(U6). 코어는 알리기만 하고 막거나 복사하지 않는다 */
+export interface SameFolderThread {
+  readonly threadId: ThreadId;
+  readonly status: ThreadStatus;
+}
+
 export interface ThreadLifecycle {
   /** thread.started 커밋. 새 thread의 첫 이벤트라 쓰기 소유 검사를 건너뛴다 */
   create(input: ThreadCreateInput): Result<ThreadCreated, LifecycleError>;
+  /**
+   * 가장 최근 열기의 `thread.resources` 단계가 끝나기를 기다려 그 결과를 돌려준다. 훅이 실패했거나 열기가 없었으면 undefined다.
+   * `thread.start`보다 먼저 끝나며, 그 뒤 `thread.start`가 발화된다(H-7)
+   */
+  openSettled(threadId: ThreadId): Promise<OpenResources | undefined>;
+  /**
+   * 열기 훅이 낸 대화 폴더를 첫 턴 전에 커밋한다(`thread.updated { workspace }`). 쓰기 소유자만 부른다.
+   * `resolveFolder`는 경로를 정규 경로로 바꾸고 없으면 undefined를 준다(호스트가 준다). 같은 프로젝트 루트(지금 대화 폴더) 안이어야 하고,
+   * 턴이 하나라도 있으면 늦은 것이라 무시한다. 무시한 사유는 진단으로 돌려준다
+   */
+  applyOpenWorkspace(
+    threadId: ThreadId,
+    resolveFolder: (path: string) => Promise<string | undefined>,
+    requestKey: string,
+  ): Promise<Result<OpenWorkspaceOutcome, LifecycleError>>;
+  /** 같은 정규 작업 폴더에서 닫히지 않은 다른 대화(U6). 자기 자신과 닫힌 대화는 뺀다 */
+  sameFolder(threadId: ThreadId): Result<readonly SameFolderThread[], LifecycleError>;
   list(query: ThreadListQuery): ThreadPage;
   /** thread.closed 커밋. 쓰기 소유자만. 열린 turn이 있으면 turn_running */
   close(threadId: ThreadId, reason: string | null): Result<void, LifecycleError>;
@@ -365,6 +423,15 @@ export interface ThreadLifecycle {
   setModel(
     threadId: ThreadId,
     model: string | null,
+    requestKey: string,
+  ): Result<void, LifecycleError>;
+  /**
+   * 이 대화가 참조하는 프로필을 바꾼다(`thread.updated { profileId }` 커밋, M5c §4.1.8). 프로필이 있는지는 부르는 쪽이 본다.
+   * 다음 단계 경계부터 `E(T)`로 적용된다. 쓰기 소유자만 부른다
+   */
+  setProfile(
+    threadId: ThreadId,
+    profileId: string,
     requestKey: string,
   ): Result<void, LifecycleError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
@@ -469,6 +536,12 @@ export interface OpenLease {
     readonly spawns: number;
     readonly tokens: number;
   };
+  /** 맡긴 프레임이면 맡긴 쪽 leaseId(`lease.acquired.parent`). 아니면 null */
+  readonly parent: string | null;
+  /** 스택 인덱스(`lease.acquired.depth`, 코어 위 첫 프레임 0). 옛 기록은 0으로 읽는다 */
+  readonly depth: number;
+  /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
+  readonly contentHash: string | null;
 }
 
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
@@ -481,13 +554,11 @@ export interface ExtThreadSnapshot {
   /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
   readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
-  /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
-  readonly openLease: OpenLease | null;
   /**
-   * 활성 가지 위 마지막 lease.* 이벤트가 사유 `waiting`의 lease.released이면 그 scope와 반납한 drive 락의 계통 id.
-   * 다음 부여가 같은 scope로 가면 이 계통을 이어받는다. 아니면 null
+   * lease.acquired 뒤 lease.released가 없는 임대의 목록. 오래된 것부터이고 맨 위 프레임이 마지막이다(drive-isolation.md 2.1).
+   * 재시작 복원은 이 목록으로 주도권 스택을 다시 세운다.
    */
-  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
+  readonly openLeases: readonly OpenLease[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

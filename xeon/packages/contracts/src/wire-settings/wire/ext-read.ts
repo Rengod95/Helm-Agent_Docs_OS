@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type {
   AppDecl,
   CompositionDecl,
+  DriveFrameView,
   ManifestIssue,
   Placement,
   PluginDecl,
@@ -12,9 +13,12 @@ import type {
 import {
   AppDeclSchema,
   CompositionDeclSchema,
+  DriveFrameViewSchema,
+  HookNameSchema,
   PluginDeclSchema,
   UiNodeSchema,
 } from "../../extensions/index.ts";
+import type { BlockModel } from "../../blocks/index.ts";
 import type { SchemaProof } from "../../base/index.ts";
 import {
   McpApprovalModeSchema,
@@ -44,8 +48,12 @@ const RegistrationStatusShape = Type.Union([
   Type.Literal("disabled"),
   Type.Literal("disabling"),
 ]);
-/** 켜짐 요청이 어느 층에서 왔는가(T-REG §7 5번). 화면은 "전역 / 프로젝트 / 이 대화" 배지로 보인다 */
-export const ENABLED_SOURCES = ["managed", "thread", "project", "user", "default"] as const;
+/**
+ * 켜짐이 어디서 왔는가. M5c-1에서 바뀌었다(docs/xeon/review/m5/profile-project-loader.md §3.4): 켜짐은 프로필에서 계산하므로
+ * `core`(코어 블록), `common`(모든 프로필 공통 묶음), `profile`(대화의 프로필), `overlay`(이번 턴의 덧씌우기), `managed`(관리 잠금), `none`(꺼짐)이다.
+ * 옛 값 `thread`·`project`·`user`·`default`는 없다
+ */
+export const ENABLED_SOURCES = ["core", "common", "profile", "overlay", "managed", "none"] as const;
 export type EnabledSource = (typeof ENABLED_SOURCES)[number];
 const EnabledSourceShape = Type.Union(ENABLED_SOURCES.map((name) => Type.Literal(name)));
 
@@ -375,7 +383,7 @@ export interface GroupStatusWire {
   readonly scope: RegistrationStatus;
   readonly pendingToggle: "enable" | "disable" | null;
   readonly usesDrive: boolean;
-  readonly drive: "holder" | "waiting" | "none" | "error" | "rejected";
+  readonly drive: "holder" | "waiting" | "none" | "error";
   readonly lastError: { readonly kind: string; readonly message: string } | null;
   readonly metrics: GroupMetricsSummaryWire | null;
 }
@@ -390,7 +398,6 @@ const GroupStatusShape = closed({
     Type.Literal("waiting"),
     Type.Literal("none"),
     Type.Literal("error"),
-    Type.Literal("rejected"),
   ]),
   lastError: Type.Union([closed({ kind: Name, message: Line }), Type.Null()]),
   metrics: Type.Union([MetricsSummaryShape, Type.Null()]),
@@ -527,64 +534,43 @@ export const GroupPromotionResultSchema: TUnsafe<GroupPromotionResult> =
     >,
   );
 
-/** `group.driveLock`(W-42). 옛 이름 `group.lease`(저장 이름 `lease.*`는 그대로) */
-export interface GroupDriveLockParams {
+/**
+ * `drive.frames`(drive-isolation.md 2.6). 주도권 스택의 프레임 목록을 아래에서 위 순서로 준다. 맨 아래가 코어 루프(depth 0)다.
+ */
+export interface DriveFramesParams {
   readonly threadId: string;
 }
-const GroupDriveLockParamsShape2 = request({ threadId: ThreadRef });
-export const GroupDriveLockParamsSchema: TUnsafe<Req<GroupDriveLockParams>> = Type.Unsafe<
-  Req<GroupDriveLockParams>
+const DriveFramesParamsShape = request({ threadId: ThreadRef });
+export const DriveFramesParamsSchema: TUnsafe<Req<DriveFramesParams>> = Type.Unsafe<
+  Req<DriveFramesParams>
 >(
-  GroupDriveLockParamsShape2 satisfies SchemaProof<
-    Req<GroupDriveLockParams>,
-    typeof GroupDriveLockParamsShape2
+  DriveFramesParamsShape satisfies SchemaProof<
+    Req<DriveFramesParams>,
+    typeof DriveFramesParamsShape
   >,
 );
-export interface DriveLockWait {
-  /** 기다리는 Registration id */
-  readonly registrationId: string;
-  /** 거절·양보로 기다린 횟수. 사유 `waiting`(loop.ask) 반납 중에는 세지 않는다 */
-  readonly waits: number;
-  /** `leaseWaitLimit`. 넘으면 거부된다 */
-  readonly waitLimit: number;
+/** 코어 루프 1 + 스택 최대 64. `drive.frames`의 `frames` 상한이다 */
+const DRIVE_FRAMES_MAX = 65;
+export interface DriveFramesResult {
+  readonly frames: readonly DriveFrameView[];
 }
-const DriveLockWaitShape = closed({ registrationId: Name, waits: Count, waitLimit: Count });
-/** drive lock 요청이 대기 상한 뒤 거부된 가장 최근 기록(`lease.rejected`) */
-export interface DriveLockRejection {
-  readonly groupId: string;
-  readonly reason: string;
-  readonly requestSeq: number;
-}
-const DriveLockRejectionShape = closed({ groupId: Name, reason: Line, requestSeq: Count });
-export interface GroupDriveLockResult {
-  /** drive lock을 가진 Registration id. 없으면 null */
-  readonly holder: string | null;
-  readonly leaseEpoch: number;
-  /** 설정 `x.primitives.activeDriver`의 값. 없으면 null(자동 중재) */
-  readonly activeDriver: string | null;
-  readonly limits: {
-    readonly turns: number;
-    readonly spawns: number;
-    readonly tokens: number | null;
-  };
-  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
-  readonly candidates: readonly DriveLockWait[];
-  readonly lastRejected: DriveLockRejection | null;
-}
-const GroupDriveLockResultShape2 = closed({
-  holder: Type.Union([Name, Type.Null()]),
-  leaseEpoch: Count,
-  activeDriver: Type.Union([Name, Type.Null()]),
-  limits: closed({ turns: Count, spawns: Count, tokens: Type.Union([Count, Type.Null()]) }),
-  used: closed({ turns: Count, spawns: Count, tokens: Count }),
-  candidates: Type.Array(DriveLockWaitShape, { maxItems: 64 }),
-  lastRejected: Type.Union([DriveLockRejectionShape, Type.Null()]),
+const DriveFramesResultShape = closed({
+  frames: Type.Array(DriveFrameViewSchema, { maxItems: DRIVE_FRAMES_MAX }),
 });
-export const GroupDriveLockResultSchema: TUnsafe<GroupDriveLockResult> =
-  Type.Unsafe<GroupDriveLockResult>(
-    GroupDriveLockResultShape2 satisfies SchemaProof<
-      GroupDriveLockResult,
-      typeof GroupDriveLockResultShape2
+export const DriveFramesResultSchema: TUnsafe<DriveFramesResult> = Type.Unsafe<DriveFramesResult>(
+  DriveFramesResultShape satisfies SchemaProof<DriveFramesResult, typeof DriveFramesResultShape>,
+);
+
+/** 알림 `drive.framesChanged { threadId }`. 주도권 스택이 바뀌었으니 `drive.frames`를 다시 읽는다 */
+export interface DriveFramesChangedParams {
+  readonly threadId: string;
+}
+const DriveFramesChangedParamsShape = closed({ threadId: ThreadRef });
+export const DriveFramesChangedParamsSchema: TUnsafe<DriveFramesChangedParams> =
+  Type.Unsafe<DriveFramesChangedParams>(
+    DriveFramesChangedParamsShape satisfies SchemaProof<
+      DriveFramesChangedParams,
+      typeof DriveFramesChangedParamsShape
     >,
   );
 
@@ -919,6 +905,127 @@ export const HooksOrderGetResultSchema: TUnsafe<HooksOrderGetResult> =
       HooksOrderGetResult,
       typeof HooksOrderGetResultShape2
     >,
+  );
+
+/**
+ * `blocks.describe`(M5e §4.9). 블록 모델의 정적 부분이다. 입력이 없고 결과는 엔진 빌드의 `BLOCK_MODEL`이다.
+ * 화면은 이 데이터로 블록과 훅 위치를 그린다. 기록 블록의 `hooks.before`·`hooks.after`는 빈 배열로 온다(생략하지 않는다).
+ */
+const BlockIdShape = Type.Union([
+  Type.Literal("context"),
+  Type.Literal("model"),
+  Type.Literal("tools"),
+  Type.Literal("ask"),
+  Type.Literal("agents"),
+  Type.Literal("record"),
+]);
+const ExecBlockIdShape = Type.Union([
+  Type.Literal("context"),
+  Type.Literal("model"),
+  Type.Literal("tools"),
+  Type.Literal("ask"),
+  Type.Literal("agents"),
+]);
+const BoundaryIdShape = Type.Union([
+  Type.Literal("conversation-start"),
+  Type.Literal("input-received"),
+  Type.Literal("before-turn-end"),
+]);
+const SideShape = Type.Union([Type.Literal("before"), Type.Literal("after")]);
+const HookPowerShape = Type.Union([
+  Type.Literal("observe"),
+  Type.Literal("modify"),
+  Type.Literal("decide"),
+  Type.Literal("contribute"),
+]);
+const HookPositionShape = Type.Union([
+  closed({
+    kind: Type.Literal("block"),
+    block: ExecBlockIdShape,
+    side: SideShape,
+  }),
+  closed({ kind: Type.Literal("boundary"), boundary: BoundaryIdShape }),
+  closed({
+    kind: Type.Literal("event"),
+    anchor: Type.Optional(closed({ block: BlockIdShape, side: SideShape })),
+  }),
+  closed({ kind: Type.Literal("internal") }),
+]);
+const HookPositionRowShape = closed({
+  hook: HookNameSchema,
+  positions: Type.Array(HookPositionShape, { minItems: 1, maxItems: 4 }),
+  powers: Type.Array(HookPowerShape, { minItems: 1, maxItems: 4 }),
+  fired: Type.Boolean(),
+  highFrequency: Type.Optional(Type.Literal(true)),
+});
+const LabelShape = closed({
+  ko: Type.String({ minLength: 1, maxLength: 200 }),
+  en: Type.String({ minLength: 1, maxLength: 200 }),
+});
+const BlockSettingShape = closed({
+  key: Type.String({ minLength: 1, maxLength: 200 }),
+  owner: Type.String({ minLength: 1, maxLength: 96 }),
+  scope: Type.Array(
+    Type.Union([
+      Type.Literal("managed"),
+      Type.Literal("launch"),
+      Type.Literal("profile"),
+      Type.Literal("local"),
+      Type.Literal("project"),
+      Type.Literal("user"),
+    ]),
+    { maxItems: 6 },
+  ),
+});
+const InjectKindShape = Type.Union([
+  Type.Literal("instructions"),
+  Type.Literal("skill"),
+  Type.Literal("tool"),
+  Type.Literal("mcp-server"),
+  Type.Literal("agent-definition"),
+  Type.Literal("model-provider"),
+  Type.Literal("web-provider"),
+  Type.Literal("command"),
+  Type.Literal("ui"),
+]);
+const ReplaceablePartShape = closed({
+  id: Type.String({ minLength: 1, maxLength: 96 }),
+  label: LabelShape,
+  how: Type.Union([Type.Literal("replaces"), Type.Literal("provider"), Type.Literal("hook")]),
+  default: Type.String({ minLength: 1, maxLength: 96 }),
+});
+const GuaranteeShape = closed({
+  id: Type.String({ minLength: 1, maxLength: 96 }),
+  text: LabelShape,
+});
+const BlockDescriptionShape = closed({
+  id: BlockIdShape,
+  label: LabelShape,
+  settings: Type.Array(BlockSettingShape, { maxItems: 200 }),
+  inject: Type.Array(InjectKindShape, { maxItems: 9 }),
+  parts: Type.Array(ReplaceablePartShape, { maxItems: 16 }),
+  hooks: closed({
+    before: Type.Array(HookNameSchema, { maxItems: 50 }),
+    after: Type.Array(HookNameSchema, { maxItems: 50 }),
+    events: Type.Array(HookNameSchema, { maxItems: 50 }),
+  }),
+  guarantees: Type.Array(GuaranteeShape, { maxItems: 16 }),
+});
+const BoundaryDescriptionShape = closed({
+  id: BoundaryIdShape,
+  label: LabelShape,
+  hooks: Type.Array(HookNameSchema, { maxItems: 50 }),
+});
+const BlockModelShape = closed({
+  version: Type.Literal(1),
+  blocks: Type.Array(BlockDescriptionShape, { maxItems: 6 }),
+  boundaries: Type.Array(BoundaryDescriptionShape, { maxItems: 3 }),
+  positions: Type.Array(HookPositionRowShape, { maxItems: 100 }),
+});
+export type BlocksDescribeResult = BlockModel;
+export const BlocksDescribeResultSchema: TUnsafe<BlocksDescribeResult> =
+  Type.Unsafe<BlocksDescribeResult>(
+    BlockModelShape satisfies SchemaProof<BlocksDescribeResult, typeof BlockModelShape>,
   );
 
 /** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 외부 훅도 훅마다 Registration(`fresnel-hooks-<훅 id>`)이라 다른 핸들러처럼 순서에 넣을 수 있다(X.operations §4.7.4). 알 수 없는 이름은 오류 없이 저장하고 디스패치에서 무시한다 */

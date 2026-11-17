@@ -571,6 +571,17 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/plugin-migration": {
+      "name": "@fresnel/plugin-migration",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fresnel/contracts": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "plugins/provider-anthropic-oauth": {
       "name": "@fresnel/provider-anthropic-oauth",
       "version": "0.0.0",
@@ -799,6 +810,8 @@
     "@fresnel/platform-store": ["@fresnel/platform-store@workspace:packages/platform-store"],
 
     "@fresnel/plugin-builder": ["@fresnel/plugin-builder@workspace:packages/plugin-builder"],
+
+    "@fresnel/plugin-migration": ["@fresnel/plugin-migration@workspace:packages/plugin-migration"],
 
     "@fresnel/provider-anthropic-oauth": ["@fresnel/provider-anthropic-oauth@workspace:plugins/provider-anthropic-oauth"],
 

@@ -1,6 +1,6 @@
 // 구성기 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다).
 import type { MessageId } from "@fresnel/client/i18n";
-import type { ProfileChoice, ProfileDraftProblem, ProductText } from "@fresnel/client/workbench";
+import type { ProfileDraftProblem, ProductText } from "@fresnel/client/workbench";
 import type { PhaseNodeKind } from "@fresnel/contracts/extensions";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS } from "@fresnel/contracts/wire";
@@ -34,10 +34,10 @@ export const NODE_TEXT: Readonly<Record<PhaseNodeKind, MessageId>> = {
   end: "desktop.compose.node.end",
 };
 
-export const CHOICE_TEXT: Readonly<Record<ProfileChoice, MessageId>> = {
+/** 플러그인의 프로필 목록 칸 글: 목록에 넣었나(on)·뺐나(off) */
+export const CHOICE_TEXT: Readonly<Record<"on" | "off", MessageId>> = {
   on: "desktop.compose.profile.choice.on",
   off: "desktop.compose.profile.choice.off",
-  keep: "desktop.compose.profile.choice.keep",
 };
 
 export const PROBLEM_TEXT: Readonly<Record<ProfileDraftProblem, MessageId>> = {
@@ -50,6 +50,7 @@ export function profileErrorText(error: CommandError): MessageId {
   switch (error.kind) {
     case "offline":
       return "desktop.compose.offline";
+    case "not_available":
     case "unsupported":
       return "desktop.compose.error.unsupported";
     case "rejected":

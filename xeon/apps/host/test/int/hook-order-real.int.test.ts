@@ -5,7 +5,7 @@ import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WireResult } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { sequencedModels } from "../fixtures/tape-host.ts";
@@ -106,6 +106,7 @@ function settingsOf(home: EngineHome): unknown {
 /** 같은 엔진 홈에서 실제 호스트를 세운다. 기본 플러그인 폴더는 비워 사용자 위치의 확장만 실린다 */
 async function openHost(answers: readonly string[]) {
   const host = await startInProcessHost({
+    pluginHost: { disabled: true },
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "hook-order-bundles-")),
     buildModels: sequencedModels("hook-order-real", answers),
@@ -307,12 +308,23 @@ realTest(
   "preview of a closed first hook names the handler after the first answer as first_answer and first_failure_deny, with the handlers before it",
   async () => {
     const home = useEngineHome();
-    // 내장 `authoring`의 쓰기 가드(`tool.call.before`)는 기본 켜짐이라 이 hook의 순서에 끼어든다. 이 시험은 사용자 확장 둘의 순서만 보므로 끈다(명시적 끔은 존중된다)
-    writeUserSettings(home, { ...TAPE_SETTINGS, "ext.authoring.enabled": false });
+    writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, FIRST_A, CALL);
     writeHookProbe(home, FIRST_B, CALL);
     const running = await openHost(ANSWERS);
     try {
+      // 내장 `authoring`의 쓰기 가드(`tool.call.before`)는 기본 프로필에 기본으로 든다(매니페스트 기본 켜짐)이라 이 hook의 순서에 끼어든다.
+      // 이 시험은 사용자 확장 둘의 순서만 보므로 기본 프로필에서 뺀다: 기본 프로필은 두 확장만 든다(M5c §4.1). 미리 보기는 기본 프로필의 집합만 본다
+      await running.connection.request("profile.put", {
+        profile: {
+          id: "default",
+          title: "default",
+          plugins: [{ name: FIRST_A }, { name: FIRST_B }],
+          settings: [],
+          startDrive: null,
+        },
+        baseRev: null,
+      });
       // 제안 [B, A]: B가 먼저 답하면 A는 실행되지 않고(first_answer), B가 실패하면 closed라서 거부로 멈춘다(first_failure_deny)
       expect(
         await running.connection.request("hooks.order.preview", {

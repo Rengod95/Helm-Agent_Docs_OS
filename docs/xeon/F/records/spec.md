@@ -178,7 +178,8 @@ export type CoreEventKind =
   | "input.queued" | "input.placed" | "input.withdrawn"
   | "agent.spawned" | "agent.settled" | "agent.judged"
   | "secret.used" | "secret.denied" | "secret.approved" | "secret.masked"
-  | "tool.sandbox_bypassed" | "tool.untrusted_read";
+  | "tool.sandbox_bypassed" | "tool.untrusted_read"
+  | "profile.applied";
 
 /** 내장 L2 도메인이 소유하는 영역(§3.3.2). 카탈로그 파일이 있는 영역만 */
 export type DomainArea = "work" | "dialog" | "artifact" | "schedule";
@@ -257,12 +258,12 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(44종, 모두 version 1). 아래 표는 `xeon/packages/contracts/test/records/catalog-doc.test.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 이 시험은 `just test packages/contracts`에서 돈다. 표 행을 고치면 코드도 고친다.
+코어 카탈로그(45종, 모두 version 1). 아래 표는 `xeon/packages/contracts/test/records/catalog-doc.test.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 이 시험은 `just test packages/contracts`에서 돈다. 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
 |---|---|---|---|
-| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event) |
+| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event), 생성 때 고른 프로필 id(`profileId`, 선택. 없으면 `default`) |
 | `thread.updated` | 예 | `ThreadUpdatedPayloadSchema` | 제목·상태 변경 |
 | `thread.closed` | 예 | `ThreadClosedPayloadSchema` | 종료 사유 |
 | `thread.leaf_moved` | 예 | `LeafMovedPayloadSchema` | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` |
@@ -306,6 +307,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `secret.masked` | 예 | `SecretMaskedPayloadSchema` | 마스킹 계층과 적중 수 |
 | `tool.sandbox_bypassed` | 예 | `ToolSandboxBypassedPayloadSchema` | 샌드박스 밖에서 실행한 도구 호출(`reason`: `escape`·`run_unsandboxed`·`disabled`). 명령과 출력 값은 싣지 않는다 |
 | `tool.untrusted_read` | 예 | `ToolUntrustedReadPayloadSchema` | 턴 안에서 웹·MCP 도구 결과를 읽은 기록(`afterUntrusted`의 재시작 유지). 결과 본문은 싣지 않는다 |
+| `profile.applied` | 예 | `ProfileAppliedPayloadSchema` | 대화의 켜짐 집합이 바뀌어 적용된 경계마다 하나. 사유, 프로필 id와 개정, 공통 묶음 개정, 플러그인 집합 차이, 덧씌우기 |
 <!-- catalog:end -->
 
 - [제안] 토큰 델타(`item.updated`의 `update.kind: "part_delta"`, payload `PartDelta`)와 진행 표시(`*.updated`, `item.started`)는 휘발이다. 델타 전용 kind는 두지 않는다. 알림 `type`과 카탈로그 kind를 같게 두는 `F.conversation.spec` §3.5.3 규칙 때문이다. 완성 파트(`part.recorded`)와 완성 item(`item.recorded`)만 내구다(`_research/session-storage.md` 권장안, `docs/design/19-client-protocol.md` §3.5.2).
@@ -358,6 +360,12 @@ export interface LeaseAcquiredPayload {
    * 선택이라 version을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
    */
   leaseEpoch?: number;
+  /** 맡긴 쪽 프레임의 leaseId(`handoff`). 사용자 명령이나 프로필 시작으로 쌓인 프레임에는 싣지 않는다. 선택(drive-isolation.md 2.6) */
+  parent?: string;
+  /** 스택 인덱스. 코어 위 첫 프레임이 0이고 옛 기록은 0으로 읽는다. 읽기의 frameDepth는 depth + 1이다. 선택 */
+  depth?: number;
+  /** 그 프레임을 낸 플러그인의 versionId. 값이 없는 경로는 싣지 않는다. 선택 */
+  contentHash?: string;
 }
 export interface LeaseReleasedPayload {
   leaseId: string;
@@ -365,7 +373,7 @@ export interface LeaseReleasedPayload {
   /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
    *  done: 단계 함수가 `done` 명령으로 주도권을 내려놓음(M5a E1, `review.m5-drive-isolation` 2.6),
-   *  waiting: drive가 `ask` 명령으로 사람 확인을 기다리며 반납(X-17, F.extensions.spec §3.2). 번호는 F.extensions.spec 절 */
+   *  waiting: 옛 기록 읽기용. 더 쓰지 않는다. 질문 대기는 반납이 아니라 프레임 상태 `asking`이다(drive-isolation.md 2.1, 2.6). 맡기기로 아래 프레임이 기다리는 상태도 반납이 아니다. 번호는 F.extensions.spec 절 */
   reason: "done" | "disabled" | "budget" | "error" | "idle" | "revoked" | "restart" | "waiting";
 }
 /** 주도 명령 하나의 결과 [제안: 이름은 C0에서 확정] [결정: 2026-11-17 사용자, U1]. 재시작 뒤 같은 명령을 다시 실행하지 않는 근거다 */
@@ -376,7 +384,7 @@ export interface DriveCommandSettledPayload {
   outcome: string;                // 결과 요약(`completed`, `answered`, `committed` 등, 1~48자)
   ref?: string;                   // 결과 참조(turn id, 자식 thread id 등)
 }
-/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-sdk이 `GroupStatus.drive: "rejected"`를 채운다 */
+/** drive 락 요청이 대기 상한 뒤 거부됐다(옛 기록). E3부터 엔진은 발행하지 않고 읽기 전용으로 남긴다(drive-isolation.md 2.6). 스키마는 옛 기록을 읽으려고 둔다 [결정: adr.0017, M3-REQ-99] */
 export interface LeaseRejectedPayload {
   groupId: string;                // 요청한 그룹(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
@@ -459,7 +467,8 @@ export interface ApprovalResolvedPayload {
   answer: JsonValue | null;
   remember: "once" | "thread" | "always";
   requestedRemember: "once" | "thread" | "always" | null;
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired" | "extension";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]. extension: 확장 훅이 카드를 취소로 해결 [결정: M5e §4.3.1]
+  resolvedByExtension?: string;   // resolvedBy가 extension일 때 해결한 확장 이름. 선택이라 version을 올리지 않는다 [제안: M5e §4.2]
 }
 
 - [결정: m2c G1-11] 승인 만료는 내구 필드 두 개와 해결자 하나다. `expiresAt`(요청 커밋 시각 + 제한, epoch ms)은 `approval.requested`에 기록되어 프로세스를 다시 시작해도 제한 시간이 처음부터 다시 재어지지 않는다. `onExpire`는 만료 때의 해결이고, 생략하면 `{ decision: "deny" }`다. `allow`는 쓸 수 없다. 응답이 없던 요청이 허용으로 끝나면 안 되기 때문이다. `answer`는 질문의 추천 답처럼 호출자가 정한 답이고 모양은 요청 kind가 정한다. 만료로 해결되면 `approval.resolved`의 `resolvedBy`가 `expired`이고 `decision`과 `answer`는 `onExpire`의 값이다. 두 필드는 선택이라 `version`을 올리지 않는다(옛 기록은 그대로 읽힌다). 서비스 쪽 입력은 `ApprovalRequestInput.expiresAt`·`onExpire`, L2 포트는 `L2ApprovalRequest`의 같은 이름 필드다(`F.capabilities.spec` §3.12).
@@ -594,6 +603,7 @@ export interface ToolUntrustedReadPayload {
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 대화 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 대화 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
+- [제안] `profile.applied`는 내구 kind이고 생산자는 X(`xh`, `scope.`·`lease.`와 같은 쪽)다. 프로필 적용 경계마다 X가 계산한 켜짐 집합의 차이를 적는다. 상태 사건이라 E §3.1의 관찰값 로그 거부와 겹치지 않는다(`review.m5-profile-project-loader` §3.2). payload 모양은 `ProfileAppliedPayloadSchema`(`src/records/catalog/profile.ts`)가 정하고, 덧씌우기 항목은 최대 4개다.
 - [제안] `tool.untrusted_read`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다. 턴 안에서 웹·MCP 도구 결과를 읽었음을 적어, 재시작 뒤에도 같은 턴의 `afterUntrusted`가 이어지게 한다(`L1.tools.spec` §4.3). 결과 본문은 싣지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
 - [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 표를 대조하는 `catalog-doc.test.ts`가 이 15종을 확인하기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
@@ -613,7 +623,7 @@ export interface ToolUntrustedReadPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 44종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 45종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 기능 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
@@ -1097,6 +1107,9 @@ export interface OpenLease {
   readonly leaseEpoch: number;
   readonly limits: { readonly maxTurns?: number; readonly maxSpawns?: number; readonly maxTokens?: number };
   readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  readonly parent: string | null;   // lease.acquired.parent
+  readonly depth: number;           // lease.acquired.depth(스택 인덱스). 옛 기록은 0
+  readonly contentHash: string | null;   // lease.acquired.contentHash. 기록에 없으면 null
 }
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
 export interface ExtThreadSnapshot {
@@ -1108,10 +1121,8 @@ export interface ExtThreadSnapshot {
   /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
   readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
-  /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
-  readonly openLease: OpenLease | null;
-  /** 활성 가지 위 마지막 lease.* 이벤트가 사유 waiting의 lease.released이면 그 scope와 반납한 drive 락의 계통 id. 아니면 null */
-  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
+  /** lease.acquired 뒤 lease.released가 없는 임대의 목록. 오래된 것부터이고 맨 위 프레임이 마지막이다(drive-isolation.md 2.1). 재시작 복원이 이 목록으로 주도권 스택을 다시 세운다 */
+  readonly openLeases: readonly OpenLease[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }
@@ -1262,7 +1273,7 @@ export interface RecordCommitPort {
 5. `@fresnel/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@fresnel/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
 7. `parseEventKind`는 코어 kind 44개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
-8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(44종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
+8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(45종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
 9. 카탈로그의 모든 payload 스키마가 대표 픽스처의 JSON 왕복 뒤 검증을 통과한다.
 10. `StepCheckpointSchema`는 `schemaVersion` 누락과 `stepIndex` 음수를 거부한다.
 11. `ChunkMigration.runChunk`는 동기이고 실행기가 같은 `tx`에 커서를 저장한다. 청크 중간에 던지면 그 청크의 행과 커서가 함께 롤백된다.

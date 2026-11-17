@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { TraceReadPort } from "@fresnel/contracts/extensions";
+import type { DriveFrameView, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { GroupStatus } from "@fresnel/contracts/services";
 import type { ExtListEntry, WireMethodName } from "@fresnel/contracts/wire";
 import {
@@ -35,7 +35,7 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "group.list",
   "group.metrics",
   "group.promotion",
-  "group.driveLock",
+  "drive.frames",
   "hooks.list",
   "hooks.disableConfirm",
   "hooks.reenable",
@@ -80,14 +80,14 @@ const ALPHA_ENTRY: ExtListEntry = {
   effectiveGrade: "user",
   tier: "user",
   status: "enabled",
-  enabledSource: "user",
+  enabledSource: "none",
   plugins: [
     {
       registrationId: "alpha",
       layer: "L2",
       status: "enabled",
       inGroup: false,
-      enabledSource: "user",
+      enabledSource: "none",
     },
   ],
   diagnostics: [],
@@ -130,14 +130,14 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       effectiveGrade: "user",
       tier: "user",
       status: "enabled",
-      enabledSource: "user",
+      enabledSource: "none",
       plugins: [
         {
           registrationId: "team",
           layer: "L3",
           status: "enabled",
           inGroup: true,
-          enabledSource: "user",
+          enabledSource: "none",
         },
         {
           registrationId: "team/scout",
@@ -145,7 +145,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
           layer: "L2",
           status: "disabled",
           inGroup: true,
-          enabledSource: "user",
+          enabledSource: "none",
         },
       ],
       diagnostics: [],
@@ -161,7 +161,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       layer: "L3",
       status: "enabled",
       inGroup: true,
-      enabledSource: "user",
+      enabledSource: "none",
     },
     {
       registrationId: "team/scout",
@@ -170,7 +170,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       status: "disabled",
       thread: "enabled",
       inGroup: true,
-      enabledSource: "thread",
+      enabledSource: "profile",
     },
   ]);
   const unknown = await failureOf(connection.request("ext.list", { threadId: "thr_missing" }));
@@ -561,23 +561,43 @@ test("group.promotion: an empty candidate list when the learning group is off", 
   await connection.close();
 });
 
-test("group.driveLock: the drive lock holder, waiting candidates, activeDriver and the last rejection", async () => {
-  const snapshot = {
-    holder: "team",
-    leaseEpoch: 4,
-    activeDriver: "team",
-    limits: { turns: 20, spawns: 5, tokens: null },
-    used: { turns: 2, spawns: 0, tokens: 1500 },
-    candidates: [{ registrationId: "alpha", waits: 1, waitLimit: 3 }],
-    lastRejected: { groupId: "alpha", reason: "wait_limit", requestSeq: 11 },
-  };
-  const { sources } = createRecordedSources({ driveLock: () => Promise.resolve(snapshot) });
+test("drive.frames: the stack from the core loop up, a waiting frame under the driving one, and an unknown thread is 3001", async () => {
+  const frames: readonly DriveFrameView[] = [
+    {
+      depth: 0,
+      plugin: null,
+      versionId: null,
+      leaseId: null,
+      state: "driving",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
+    },
+    {
+      depth: 1,
+      plugin: "alpha",
+      versionId: "v1",
+      leaseId: "lease-a",
+      state: "waiting",
+      used: { turns: 1, spawns: 0, tokens: 200 },
+      limits: { turns: 4 },
+    },
+    {
+      depth: 2,
+      plugin: "beta",
+      versionId: null,
+      leaseId: "lease-b",
+      state: "driving",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
+    },
+  ];
+  const { sources } = createRecordedSources({
+    driveFrames: () => Promise.resolve({ frames }),
+  });
   const connection = connect(sources);
   await connection.request("host.hello", HELLO_PARAMS);
-  expect(await connection.request("group.driveLock", { threadId: "thr_known" })).toEqual(snapshot);
-  const unknown = await failureOf(
-    connection.request("group.driveLock", { threadId: "thr_missing" }),
-  );
+  expect(await connection.request("drive.frames", { threadId: "thr_known" })).toEqual({ frames });
+  const unknown = await failureOf(connection.request("drive.frames", { threadId: "thr_missing" }));
   expect(unknown).toMatchObject({ code: 3001 });
   await connection.close();
 });

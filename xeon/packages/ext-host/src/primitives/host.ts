@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
-import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { IdFactory, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { portAs } from "../erase.ts";
 import { pluginsOf } from "@fresnel/contracts/extensions";
 import type {
@@ -22,6 +22,7 @@ import type {
   TrustRequest,
   Unsubscribe,
   PostItem,
+  DriveFrameView,
 } from "@fresnel/contracts/extensions";
 import { isHookUnitName } from "../operations/hooks/names.ts";
 import {
@@ -42,15 +43,17 @@ import {
 import { createLifecycle, type CommittedEvent } from "./lifecycle.ts";
 import { createEffectWorker, type EffectWorkerPort } from "./effect-worker.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
-import type {
-  ExtChange,
-  HostCore,
-  InstalledUnit,
-  RegistrationRecord,
-  ThreadOpenOptions,
-  ThreadRuntime,
-  PrimitivesSettingsSource,
-  ResolvedDeps,
+import {
+  topFrame,
+  type ExtChange,
+  type HostCore,
+  type InstalledUnit,
+  type RegistrationRecord,
+  type StartDriveError,
+  type ThreadOpenOptions,
+  type ThreadRuntime,
+  type PrimitivesSettingsSource,
+  type ResolvedDeps,
 } from "./core.ts";
 import { createCordisBridge } from "./cordis-bridge.ts";
 import {
@@ -301,6 +304,21 @@ export interface ExtHost {
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-sdk.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
   /**
+   * 주도 시작 요청을 큐에 넣는다(drive-isolation.md 2.2). 사용자 명령이 `trigger` `user`(기본)로 부른다. scope를 모르거나 thread가 없거나
+   * 자식 대화이거나 drive가 없거나 drive 오류면 거부한다. 스택이 비어 있으면 다음 경계에서 부여되고, 주도 중이면 전환 정책
+   * (X.primitives.spec §4.4.1a)에 따라 스택 전체를 내리고 새 주도를 부여한다
+   */
+  startDrive(
+    threadId: ThreadId,
+    scopeId: RegistrationId,
+    options?: { readonly input?: JsonValue; readonly trigger?: "user" | "profile" },
+  ): Result<void, StartDriveError>;
+  /**
+   * thread의 주도권 스택을 아래에서 위로 읽는다(`drive.frames`, drive-isolation.md 2.6). 맨 아래는 코어 루프(깊이 0)다.
+   * thread가 열려 있지 않으면 빈 목록이다
+   */
+  driveFrames(threadId: ThreadId): readonly DriveFrameView[];
+  /**
    * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
    * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
    */
@@ -359,6 +377,8 @@ export interface ExtHostInternals {
     reason?: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
+  /** thread의 적용을 예약한다(`RegistrationToggleSourceOf.requestApply`의 바탕). 열려 있지 않으면 무시한다 */
+  requestApply(threadId: ThreadId): void;
   /** thread가 Test run 대화인가(`openThread`에 `testRun` 참으로 열었다). testRunControlOf가 읽는다 */
   readonly isTestRun: (threadId: ThreadId) => boolean;
   /** Test run 단계 경계 멈춤 상태(X-19). dispatch가 `boundary.step.after` 뒤에 기다리고 testRunControlOf가 요청을 바꾼다 */
@@ -380,6 +400,11 @@ export interface RegistrationToggleSourceOf {
     reason: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
+  /**
+   * 이 thread의 적용을 예약한다. 실행 중이면 다음 단계 경계가, 유휴면 다음 매크로태스크가 E(T)의 차이를 적용한다(M5c §4.1.5).
+   * 열려 있지 않은 thread는 무시한다
+   */
+  requestApply(threadId: ThreadId): void;
 }
 
 const internalsByHost = new WeakMap<ExtHost, ExtHostInternals>();
@@ -403,6 +428,9 @@ export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSou
     scopes: () => host.registrations().map((info) => ({ id: info.id, extension: info.extension })),
     request: (scopeId, enabled, reason, threadId) => {
       internals.requestScope(scopeId, enabled, reason, threadId);
+    },
+    requestApply: (threadId) => {
+      internals.requestApply(threadId);
     },
   };
 }
@@ -740,6 +768,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
           resources,
           capabilityDefs: deps.capabilityDefs ?? EMPTY_CAPABILITY_DEFS,
           effects,
+          startDrive: (threadId, scopeId, trigger, input) =>
+            lease.startDrive(threadId, scopeId, trigger, input),
         },
         record,
         generation,
@@ -1111,8 +1141,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       await boundary.closeThread(threadId);
     },
     leaseOf(threadId) {
-      const held = core.threads.get(threadId)?.lease;
-      if (held === null || held === undefined || held.status === "released") return null;
+      const thread = core.threads.get(threadId);
+      const held = thread === undefined ? null : topFrame(thread);
+      if (held === null || held.status === "released") return null;
       if (!held.committed) return null;
       return {
         leaseId: held.leaseId,
@@ -1120,6 +1151,18 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         leaseEpoch: held.leaseEpoch,
         status: held.status,
       };
+    },
+    startDrive(threadId, scopeId, options) {
+      return lease.startDrive(
+        threadId,
+        scopeId,
+        options?.trigger ?? "user",
+        options?.input ?? null,
+      );
+    },
+    driveFrames(threadId) {
+      const thread = core.threads.get(threadId);
+      return thread === undefined ? [] : lease.framesOf(thread);
     },
     onChange(listener) {
       listeners.add(listener);
@@ -1171,6 +1214,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       const record = core.scopes.get(scopeId);
       if (record === undefined) return;
       scope.request(record, enabled, reason === "request" ? undefined : reason, threadId);
+    },
+    requestApply(threadId) {
+      if (core.threads.has(threadId)) boundary.requestApply(threadId);
     },
     isTestRun: (threadId) => testRunThreads.has(threadId),
     stepPause,

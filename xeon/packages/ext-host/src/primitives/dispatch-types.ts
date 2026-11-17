@@ -6,6 +6,7 @@ import type {
   FirstSig,
   HookName,
   HookSignatures,
+  PluginProcessFailureReason,
   RegistrationId,
   TapSig,
 } from "@fresnel/contracts/extensions";
@@ -65,7 +66,9 @@ export type HandlerFailureReason =
   | "timeout"
   | "result_invalid"
   | "merge_rejected"
-  | "value_from_tap";
+  | "value_from_tap"
+  /** 격리된 플러그인 프로세스가 스스로 끝났거나(`process_exit`) 엔진이 시간 초과로 멈췄다(`process_killed`) */
+  | PluginProcessFailureReason;
 
 export interface HandlerFailure {
   readonly point: HookName;

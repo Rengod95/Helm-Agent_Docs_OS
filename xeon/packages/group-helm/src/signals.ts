@@ -214,6 +214,11 @@ export function inquiryIdFrom(seed: string): string {
   return `h${base32Of(fnv1a64(seed))}`;
 }
 
+/** 순수 함수. 결정적 맡기기 id(플러그인 요청마다 하나). "n" + base32(fnv1a64(seed)) 13자 */
+export function needIdFrom(seed: string): string {
+  return `n${base32Of(fnv1a64(seed))}`;
+}
+
 const STOPWORDS: ReadonlySet<string> = new Set([
   "그리고",
   "하지만",
@@ -309,7 +314,10 @@ export interface SignalSeed {
   readonly terms: readonly string[];
 }
 
-/** 순수 함수. 신호와 autoStart로 할 일을 정한다(L3.helm.spec §4.3 표) */
+/**
+ * 순수 함수. 신호와 autoStart로 할 일을 정한다(L3.helm.spec §4.3 표). `auto`는 대기 요청(pending)만 만든다.
+ * 주도는 사용자가 `/helm start`로 시작 요청을 낼 때만 시작한다. 신호가 주도를 바로 시작하지 않는다(drive-isolation.md 2.2)
+ */
 export function decideAction(
   state: Readonly<HelmState>,
   crossed: readonly HelmSignalKind[],

@@ -152,7 +152,7 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "counted" });
   await t.settled();
   await fireSettled(t, thread, "k1");
   await t.settled();
@@ -203,7 +203,7 @@ test("wrap.ask-command-reaches-the-host-loop", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "asks" });
   await t.settled();
   // ask 명령은 호스트의 loop.ask까지 닿는다. 시험 호스트에는 승인 서비스가 없어 승인 포트 부재로 거부된다
   expect(results).toEqual([{ kind: "refused", code: "port_unavailable" }]);
@@ -256,7 +256,7 @@ test("wrap.commit-command-is-checked-like-g-commit", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "checked" });
   await t.settled();
   // g.commit과 같은 검사로 거부한다. 단계가 던져 임대는 오류로 반납되고, 상태 사건은 남지 않는다
   expect(t.diagnostics).toMatchObject([
@@ -294,7 +294,7 @@ test("wrap.commit-command-counts-only-a-changed-state", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "tally" });
   await t.settled();
   expect(api?.metrics.snapshot()).toMatchObject({ commits: 1 });
   await t.boundary(thread).turnSettled();
@@ -322,7 +322,7 @@ test("wrap.done-releases-the-lease-with-reason-done", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "finisher" });
   await t.settled();
   // done은 주도권을 내려놓는다. 반납 사유는 done이다
   expect(
@@ -346,7 +346,7 @@ test("wrap.two-effect-free-yields-release-the-lease-as-idle", async () => {
       },
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "resting" });
   await t.settled();
   // 첫 yield는 주도권을 유지한다. 같은 상태 판의 두 번째 효과 없는 yield에서 idle로 반납한다
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "resting" });

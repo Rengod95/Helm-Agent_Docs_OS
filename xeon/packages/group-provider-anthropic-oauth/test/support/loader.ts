@@ -60,7 +60,7 @@ export interface LoaderRig {
 
 /**
  * 플러그인 산출물 디렉터리를 `<userDir>/extensions/provider-anthropic-oauth`에 복사하고 그 위치를 보는 로더를 만든다.
- * `userEnabled`는 사용자가 `ext.provider-anthropic-oauth.enabled`를 켠 것처럼 설정 값을 준다(없으면 매니페스트 기본값)
+ * `userEnabled`는 `ext.<이름>.enabled` 값이다. 거짓이면 관리 잠금처럼 로더가 플러그인을 싣지 않는다(켜짐은 대화별 E(T)가 정하고 로더는 잠금만 본다, M5c §4.1.11)
  */
 export async function loaderFor(
   t: TestHost,
@@ -69,8 +69,7 @@ export async function loaderFor(
   options: { readonly userEnabled: boolean },
 ): Promise<LoaderRig> {
   const settings: LoaderSettingsSource = {
-    enabled: (name) =>
-      options.userEnabled && name === "provider-anthropic-oauth" ? true : undefined,
+    enabled: (name) => (name === "provider-anthropic-oauth" ? options.userEnabled : undefined),
     hasValue: () => false,
   };
   const paths: LoaderPaths = {

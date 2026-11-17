@@ -3,7 +3,7 @@ import { helmComposition } from "./composition.ts";
 import { helmDrive } from "./drive.ts";
 import { guardWrite, type ExplorationMarker } from "./guard.ts";
 import { injectLens } from "./inject.ts";
-import { checkRestore, onLeaseRejected } from "./lifecycle.ts";
+import { checkRestore } from "./lifecycle.ts";
 import { helmCommand } from "./command-def.ts";
 import { helmManifest } from "./manifest.ts";
 import { registerHelmMethods } from "./methods.ts";
@@ -30,7 +30,6 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   const guard = guardWrite(settings, missingMeta, marker);
   const inject = injectLens(tallies);
   const restore = checkRestore(g);
-  const rejected = onLeaseRejected(g);
 
   g.registerCommand("helm", helmCommand(g, tallies, signalTerms, missingMeta));
   registerHelmMethods(g);
@@ -52,7 +51,6 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
     settleTurn(payload, { threadId: ctx.threadId, state: ctx.state }),
   );
   g.on("thread.start", (payload, ctx) => restore(payload, ctx));
-  g.on("lifecycle.lease.rejected", (payload, ctx) => rejected(payload, ctx));
   // X는 임대를 받을 때 options.limits를 읽는다. getter라 설정 변경이 다음 임대(다음 탐구)부터 반영된다
   g.drive(helmDrive(g, settings, marker), {
     get limits() {

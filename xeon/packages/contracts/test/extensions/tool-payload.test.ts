@@ -130,18 +130,29 @@ describe("JSON payload fields are checked deeply (M3-REQ-05)", () => {
     const stream = { provider: "p", api: "a", model: "m" };
     expect(accepts(ProviderStreamPayloadSchema, { ...stream, data: [1, { a: null }] })).toBe(true);
     expect(accepts(ProviderStreamPayloadSchema, { ...stream, data: { a: undefined } })).toBe(false);
+    // 턴 시작 훅은 주도 중이 아니면 driver가 null이고 stack이 빈 배열이다(drive-isolation.md 2.5)
+    const agentStart = { prompt: "p", systemPrompt: "s", systemPromptOptions: { cwd: "/x" } };
     expect(
       accepts(BeforeAgentStartPayloadSchema, {
-        prompt: "p",
-        systemPrompt: "s",
+        ...agentStart,
         systemPromptOptions: { cwd: "/x", tools: ["a"] },
+        driver: null,
+        stack: [],
       }),
     ).toBe(true);
     expect(
+      accepts(BeforeAgentStartPayloadSchema, { ...agentStart, driver: "helm", stack: ["helm"] }),
+    ).toBe(true);
+    expect(accepts(BeforeAgentStartPayloadSchema, agentStart)).toBe(false);
+    expect(
+      accepts(BeforeAgentStartPayloadSchema, { ...agentStart, driver: null, stack: ["Bad Name"] }),
+    ).toBe(false);
+    expect(
       accepts(BeforeAgentStartPayloadSchema, {
-        prompt: "p",
-        systemPrompt: "s",
+        ...agentStart,
         systemPromptOptions: 1,
+        driver: null,
+        stack: [],
       }),
     ).toBe(false);
   });

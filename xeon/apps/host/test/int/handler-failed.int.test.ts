@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import type { StreamChunkParams } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

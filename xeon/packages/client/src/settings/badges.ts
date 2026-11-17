@@ -25,6 +25,7 @@ const SCOPE_TEXT_ID: Readonly<Record<BadgeScope, MessageId>> = {
   project: "client.settings.scope.project",
   local: "client.settings.scope.local",
   launch: "client.settings.scope.launch",
+  profile: "client.settings.scope.profile",
   default: "client.settings.scope.default",
 };
 

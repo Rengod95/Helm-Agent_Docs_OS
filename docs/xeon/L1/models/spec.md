@@ -800,11 +800,11 @@ export function resolveRole(input: {
 
 ## 6. 설정 노출
 
-키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 작업 폴더, Lo 로컬, S launch.
+키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 작업 폴더, Lo 로컬, S launch, Pf 프로필.
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | 탭 / 위젯 | 단계 |
 |---|---|---|---|---|---|---|
-| `l1.models.default` | `ModelRefString \| null` | `null` | M U P Lo S | nextTurn | models / select | M1 |
+| `l1.models.default` | `ModelRefString \| null` | `null` | M U P Lo S Pf | nextTurn | models / select | M1 |
 | `l1.models.routing.review` | `ModelRefString \| null` | `null` | M U P Lo S | nextTurn | models / table(역할 표) | M2 |
 | `l1.models.routing.summary` | 같음 | `null` | 같음 | nextTurn | 같음 | M2 |
 | `l1.models.routing.subagent` | 같음 | `null` | 같음 | nextTurn | 같음 | M2 |
