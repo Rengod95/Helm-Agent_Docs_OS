@@ -1,20 +1,28 @@
 // primitives 내부 공유 타입과 호스트 핵심 상태. 패키지 밖으로 내보내지 않는다.
 import type { CapabilityId } from "@fresnel/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId, StepId, EventId } from "@fresnel/contracts/conversation";
+import type {
+  IdFactory,
+  JsonValue,
+  ThreadId,
+  TurnId,
+  StepId,
+  EventId,
+} from "@fresnel/contracts/conversation";
 import type {
   DriveLimits,
   ExtensionManifest,
   ExtensionName,
   HookName,
   PluginEntry,
-  PostItem,
   PortLookup,
+  PostItem,
   RecordKind,
   RegistrationApi,
   RegistrationDef,
   RegistrationId,
   RegistrationSetup,
   RegistrationStatus,
+  StepResult,
   TrustRequest,
 } from "@fresnel/contracts/extensions";
 import type {
@@ -40,8 +48,6 @@ export interface PrimitivesSettingsSource {
   driveDefaultLimits(threadId: ThreadId): DriveLimits;
   /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장. thread의 session 범위 값까지 합친 실효 값 */
   driveLimits(threadId: ThreadId): DriveLimits;
-  /** x.primitives.activeDriver */
-  activeDriver(threadId: ThreadId): RegistrationId | null;
   /**
    * x.primitives.driveRequiresGroup(기본 true). 참이면 플러그인 그룹의 구성원이 아닌 플러그인은 drive를 등록하지 못한다
    * (`drive_requires_group`). 등록 시점(setup)에 읽으므로 Registration을 다시 켜거나 `ext.reload`할 때 바뀐 값이 적용된다
@@ -50,10 +56,10 @@ export interface PrimitivesSettingsSource {
   /** x.primitives.capabilityProviders */
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
   /**
-   * x.primitives.leaseWaitLimit [제안]. 임대를 받지 못한 후보가 `turn_settled`·`idle` 경계를 이만큼 넘기면 요청을 거부한다
-   * (review.m3-design-inputs D-M3-05 a). 없으면 `DEFAULT_LEASE_WAIT_LIMIT`
+   * x.primitives.driveMaxDepth [결정: 2026-11-17 사용자]. 주도권 스택의 깊이 상한(코어 위 프레임 수). 넘는 맡기기는 `depth_limit`으로 거부한다.
+   * 3a에서는 값을 정의만 하고 소비는 맡기기(3b)가 한다. 없으면 `DEFAULT_DRIVE_MAX_DEPTH`
    */
-  leaseWaitLimit?(threadId: ThreadId): number;
+  driveMaxDepth(threadId: ThreadId): number;
 }
 
 /** 이미 기본값이 채워진 호스트 의존 */
@@ -164,31 +170,54 @@ export interface RegistrationRecord extends RegistrationDefinition {
   busy: boolean;
 }
 
-// ── 임대 ───────────────────────────────────────────────────────────────────
+// ── 주도권 스택과 시작 요청 ───────────────────────────────────────────────
 
 export type ReleaseReason = LeaseReleasedPayload["reason"];
 
+/**
+ * 주도권 스택의 프레임 하나(drive-isolation.md 2.1). `ThreadRuntime.frames`의 0번이 맨 아래 플러그인 프레임이고 마지막이 맨 위다.
+ * 맨 위 프레임만 단계 함수를 부른다. 아래 프레임은 `waiting`으로 기록만 남는다
+ */
 export interface LeaseRuntime {
   /** 부여마다 새로 발급한다. 펜싱(`lease_revoked`)과 `lease:<leaseId>:released` 커밋 키의 재료라 재사용하지 않는다 */
   readonly leaseId: string;
-  /** 기본 키 계통. `waiting` 반납 바로 뒤 같은 Registration의 부여가 이어받고, 아니면 `leaseId`와 같다 */
+  /** 기본 키 계통. 3a에서는 `leaseId`와 같다. 맡기기(3b)가 같은 계통을 이어받을 때 쓴다 */
   readonly lineageId: string;
   readonly scopeId: RegistrationId;
   readonly threadId: ThreadId;
   readonly leaseEpoch: number;
   readonly limits: DriveLimits;
+  /** 이 프레임이 쓴 양. 위 프레임이 쓴 양도 더한다(charge). 복원할 때는 위 프레임들의 own 합으로 다시 센다 */
   readonly used: { turns: number; spawns: number; tokens: number };
   /** active: 사용 가능. releasing: 반납 예정(다음 경계에서 커밋). released: 커밋됨 */
   status: "active" | "releasing" | "released";
   reason: ReleaseReason | undefined;
   readonly abort: AbortController;
+  /** 맡긴 쪽 프레임의 leaseId(`lease.acquired.parent`). 사용자 명령이나 프로필 시작으로 쌓인 프레임은 null */
+  readonly parent: string | null;
+  /** 스택 인덱스(`lease.acquired.depth`). 코어 위 첫 프레임이 0이다. 옛 기록은 0으로 읽는다 */
+  readonly depth: number;
+  /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
+  readonly contentHash: string | null;
+  /** driving: 주도 중(맨 위). waiting: 위 프레임을 기다리는 중(맡기기, 3b) */
+  state: "driving" | "waiting";
+  /** 질문 대기 중이다. 임대는 반납하지 않으므로 상태만 바뀐다(drive-isolation.md 2.1) */
+  asking: boolean;
+  /** 명령 입력. 사용자 명령의 `input`이고, 맡기기에서는 맡긴 쪽이 준 입력이다. 기록에 없어 복원하면 null이다 */
+  readonly input: JsonValue | null;
+  /** 다음 호출의 첫 `last`. 위 프레임이 반납되면 이 프레임의 맡긴 결과가 여기 놓인다 */
+  pendingLast: StepResult | null;
+  /** 맡긴 쪽 플러그인 이름(`handoff`). 사용자 명령이나 프로필 시작이면 null */
+  readonly calledBy: string | null;
+  /** 단계 함수가 `done`으로 낸 결과. 반납이 정해질 때 채운다 */
+  result: JsonValue | null;
+  /** 첫 호출이 남았다(부여 직후, 재개 직후) */
+  wantInvoke: boolean;
   idleStreak: number;
   idleRev: number | null;
   /** 직전 호출 시작 때의 상태 판 */
   lastBaseRev: number | null;
   running: boolean;
-  /** 첫 호출이 남았다(부여 직후, 재개 직후) */
-  wantInvoke: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
   /** 단계 함수가 `done`이 아닌 명령이나 `yield`를 낸 적이 있다(주도를 이어 가겠다는 뜻). 아니면 막 받은 임대라 사용자 메시지를 가로채지 않는다 */
@@ -204,6 +233,25 @@ export interface LeaseRuntime {
   /** lease.acquired가 커밋되었는가 */
   committed: boolean;
 }
+
+/**
+ * 주도 시작 요청 하나(drive-isolation.md 2.2). 큐 맨 앞부터 부여를 본다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다
+ * (커밋이 실패하면 다음 경계가 다시 시도한다)
+ */
+export interface StartRequest {
+  readonly scopeId: RegistrationId;
+  readonly trigger: "user" | "profile" | "handoff";
+  readonly input: JsonValue | null;
+  readonly parentLeaseId: string | null;
+}
+
+/** `ExtHost.startDrive`의 거부. 예상 가능한 실패라 값으로 돌려준다 */
+export type StartDriveError =
+  | { readonly kind: "unknown_thread" }
+  | { readonly kind: "unknown_scope" }
+  | { readonly kind: "child_thread" }
+  | { readonly kind: "not_drive" }
+  | { readonly kind: "drive_error" };
 
 // ── thread별 런타임 ────────────────────────────────────────────────────────
 
@@ -228,23 +276,12 @@ export interface BoundaryTxn {
   /** 이 커밋이 반영되면 기록된 켜짐 집합에 더하거나 뺄 scope */
   readonly recordEnabled: RegistrationId[];
   readonly recordDisabled: RegistrationId[];
-  /** 이 커밋에서 반납이 기록될 임대 */
+  /** 이 커밋에서 반납이 기록될 프레임(맨 위부터) */
   readonly releasing: LeaseRuntime[];
-  /** 이 커밋에서 부여가 기록될 임대 */
+  /** 이 커밋에서 부여가 기록될 프레임. 맨 위에 더한다 */
   grant: LeaseRuntime | null;
-  /** 이 커밋에서 `lease.rejected`로 기록될 임대 요청(M3-REQ-28) */
-  readonly rejected: LeaseRejection[];
-  /** 이 경계가 대기 계수를 올린 scope. 커밋이 실패하면 되돌린다 */
-  readonly waited: RegistrationId[];
-}
-
-/** 대기 상한을 넘겨 거부된 임대 요청 하나 */
-interface LeaseRejection {
-  readonly scopeId: RegistrationId;
-  readonly requestSeq: number;
-  /** 거부 때 임대를 가진 scope와 그 임대 차수. 둘 다 커밋된 값이라 thread를 다시 열어도 같은 거부에 같은 값이다(커밋 키 재료) */
-  readonly holder: RegistrationId | null;
-  readonly holderEpoch: number;
+  /** `grant`를 만든 시작 요청. 커밋이 성공하면 큐에서 지운다 */
+  startRequest: StartRequest | null;
 }
 
 /** `ExtHost.openThread`의 선택 인자 */
@@ -253,6 +290,11 @@ export interface ThreadOpenOptions {
   readonly child?: boolean;
   /** Test run 대화면 참(ThreadSummary.testRun). Test run만 단계 경계 멈춤을 받는다(X-19, X.primitives.spec §4.4.8) */
   readonly testRun?: boolean;
+  /**
+   * 프로필의 시작 설정(drive-isolation.md 2.2). 열 때 열린 임대가 없으면 이 scope의 profile 시작 요청을 큐에 넣는다.
+   * 열린 임대가 있으면(재시작) 아무것도 하지 않고 복원된 스택을 잇는다
+   */
+  readonly startDrive?: RegistrationId;
 }
 
 export interface ThreadRuntime {
@@ -272,23 +314,14 @@ export interface ThreadRuntime {
   refused: Set<RegistrationId>;
   /** scope별 활성 가지 위 scope.changed 수(열 때 스냅샷에서 시작해 커밋마다 오른다). 커밋 키를 전이마다 구분한다 */
   flips: Map<RegistrationId, number>;
-  /** 켜진 scope의 마지막 scope.changed{enabled} seq. 임대 후보의 enabledAtSeq가 된다 */
+  /** 켜진 scope의 마지막 scope.changed{enabled} seq */
   enabledAtSeq: Map<RegistrationId, number>;
   leaseEpochs: Map<RegistrationId, number>;
-  lease: LeaseRuntime | null;
-  /** 마지막 lease.* 커밋이 사유 `waiting` 반납이면 그 scope와 계통. 같은 scope의 다음 부여가 이어받고, 다른 lease.* 커밋이 지운다 */
-  waitingLineage: { readonly scopeId: RegistrationId; readonly lineageId: string } | null;
-  /** 임대를 받지 못하고 기다리는 후보. requestSeq는 대기를 시작한 순번, waited는 넘긴 `turn_settled`·`idle` 경계 수 */
-  leaseWait: Map<RegistrationId, { readonly requestSeq: number; waited: number }>;
-  /** 대기 상한을 넘겨 거부된 scope. 다음 임대 반납이 커밋되면 다시 후보가 된다 */
-  leaseRejected: Set<RegistrationId>;
-  /** 다음 임대 요청 순번 */
-  nextRequestSeq: number;
-  /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
-  cooldown: Map<RegistrationId, number>;
-  /** 단계 함수가 `done`으로 주도권을 내려놓은 scope와 그때의 상태 판. 그 scope의 상태가 바뀌기 전까지 후보가 아니다(`turn_settled`로 지우지 않는다) */
-  withdrawn: Map<RegistrationId, number>;
-  /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 drive 후보가 없다 */
+  /** 주도권 스택. 0번이 맨 아래 플러그인 프레임, 마지막이 맨 위(주도 중인 프레임). 비면 아무도 주도하지 않는다 */
+  frames: LeaseRuntime[];
+  /** 주도 시작 요청 큐(사용자 명령, 프로필 시작, 맡기기). 맨 앞부터 부여를 본다 */
+  startQueue: StartRequest[];
+  /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 프로필·맡기기 시작을 막는다 */
   userStopped: boolean;
   txn: BoundaryTxn | null;
   /** 같은 thread에서 포트 부재 경고를 한 번만 내는 표시 */
@@ -301,6 +334,11 @@ export interface ThreadRuntime {
   idleApply: Promise<void> | null;
   /** 경계 txn이 정산되기 전이라 유휴 적용을 시작하지 못했다. 그 txn이 정산되면 다시 요청한다 */
   applyDeferred: boolean;
+}
+
+/** 맨 위 프레임(주도 중이거나 다음 호출을 기다리는 프레임). 스택이 비었으면 null */
+export function topFrame(thread: ThreadRuntime): LeaseRuntime | null {
+  return thread.frames.at(-1) ?? null;
 }
 
 // ── 호스트 핵심 ────────────────────────────────────────────────────────────

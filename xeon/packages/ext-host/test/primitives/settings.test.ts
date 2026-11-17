@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { parse } from "@fresnel/contracts";
 import { buildCatalog } from "@fresnel/contracts/settings";
 import { fixedIdFactory } from "../../src/testing/index.ts";
 import {
@@ -12,12 +13,11 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.primitives", defs }]);
   expect(catalog.ok).toBe(true);
   expect(defs.map((def) => def.key).toSorted()).toEqual([
-    "x.primitives.activeDriver",
     "x.primitives.capabilityProviders",
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
+    "x.primitives.driveMaxDepth",
     "x.primitives.driveRequiresGroup",
-    "x.primitives.leaseWaitLimit",
   ]);
   expect(primitivesSettings.defs.driveLimits.default).toEqual({});
   expect(primitivesSettings.defs.driveDefaultLimits.default).toEqual({
@@ -33,8 +33,12 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     expect(def.allowedScopes).toEqual(["managed", "user", "project", "launch"]);
     expect(def.ui?.widget).toBe("table");
   }
-  expect(primitivesSettings.defs.leaseWaitLimit.default).toBe(8);
-  expect(primitivesSettings.defs.activeDriver.default).toBeNull();
+  expect(primitivesSettings.defs.driveMaxDepth.default).toBe(8);
+  expect(primitivesSettings.defs.driveMaxDepth.runtimeChange).toBe("nextTurn");
+  // 깊이 상한은 정수 1 이상만 받는다
+  expect(parse(primitivesSettings.defs.driveMaxDepth.type, 1).ok).toBe(true);
+  expect(parse(primitivesSettings.defs.driveMaxDepth.type, 0).ok).toBe(false);
+  expect(parse(primitivesSettings.defs.driveMaxDepth.type, 1.5).ok).toBe(false);
   expect(primitivesSettings.defs.capabilityProviders.default).toEqual({});
   expect(primitivesSettings.defs.driveRequiresGroup.default).toBe(true);
   expect(primitivesSettings.defs.driveRequiresGroup.runtimeChange).toBe("restart");
@@ -48,13 +52,14 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
   }
 });
 
-test("a static settings source defaults to the default caps, no ceiling, no selection and no provider choice", () => {
+test("a static settings source defaults to the default caps, no ceiling, the default depth limit and no provider choice", () => {
   const source = createStaticPrimitivesSettings();
   const thread = fixedIdFactory().next("thr");
   expect(source.driveDefaultLimits(thread)).toEqual(DEFAULT_DRIVE_LIMITS);
   expect(source.driveLimits(thread)).toEqual({});
-  expect(source.activeDriver(thread)).toBeNull();
+  expect(source.driveMaxDepth(thread)).toBe(8);
   expect(source.capabilityProviders()).toEqual({});
+  expect(createStaticPrimitivesSettings({ driveMaxDepth: 3 }).driveMaxDepth(thread)).toBe(3);
 });
 
 test("the drive policy reads group-only by default and can be opened by the static source", () => {

@@ -1243,7 +1243,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 3 | drive 함수 예외 | X가 drive lock을 반납한다(`lease.released{reason:"error"}`, F.extensions.spec §5 6번). `GroupStatus.drive = "error"`, `lastError = group.driveThrew`. `on` 핸들러와 `post`, `delegate`는 계속 동작한다. 오류 표시는 그룹을 끄고 다시 켜면 지워진다(X.primitives.spec §4.4.3 예외 규칙). 그동안 X는 그 그룹을 후보(`DriveLockCandidate`)에 넣지 않는다 |
 | 4 | 대기 중인 그룹이 비활성화됨 | 단계 경계에서 `waiting`에서 빠진다. drive lock 이벤트는 없다. `scope.changed{disabled}`만 커밋된다 |
 | 5 | holder가 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 turn 명령은 정착까지 돈다(X.primitives.spec §4.5.3). 그 뒤 판단 시점에 `choose`가 다음 후보를 고르고 `lease.acquired`가 기록된다 [가정: 같은 경계 커밋 여부는 §3.13] |
-| 6 | drive lock 교체 중 프로세스 종료 | 반납 커밋 전 종료면 이전 holder가 그대로이고 재개 뒤 X가 열린 drive lock(`openLease`)로 drive를 다시 부른다. 반납 커밋 뒤 부여 전 종료면 재개 뒤 `openThread`에서 `choose`가 다시 정한다. 부여 커밋 뒤 종료면 새 holder의 drive 함수가 마지막 커밋 상태로 다시 불린다 |
+| 6 | drive lock 교체 중 프로세스 종료 | 반납 커밋 전 종료면 이전 holder가 그대로이고 재개 뒤 `openThread`가 열린 drive 락 목록(`openLeases`, 오래된 것부터)으로 스택을 세우고 맨 위 프레임의 drive 함수를 다시 부른다. 반납 커밋 뒤 부여 전 종료면 시작 요청 큐는 기록에 없어 재개 때 비어 있다(X.primitives.spec §10 미결). 부여 커밋 뒤 종료면 새 holder의 drive 함수가 마지막 커밋 상태로 다시 불린다 |
 | 7 | 홀더 설정 변경이 진행 중 turn이나 다른 그룹의 drive lock과 겹침 | 설정은 즉시 저장된다. drive lock이 없으면 다음 판단 시점(단계 경계)에 `decide`의 입력이 된다. 다른 그룹이 drive lock을 가지고 있고 지정한 그룹이 후보이면 X가 다음 경계에서 그 drive lock을 `revoked`로 반납하고 지정한 그룹에 부여한다. 지정한 그룹이 후보가 아니면 현재 drive lock을 유지하고, 지정한 그룹이 후보가 되는 경계나 drive lock이 반납되는 경계에 적용된다(§3.5 규칙 4). 진행 중 `loop.turn`은 끝까지 돈다. 그 사이 `GroupStatus`와 상태줄은 적용 대기 문구를 보인다 |
 | 8 | 같은 단계에서 켜기와 끄기 요청이 겹침 | 마지막 요청만 적용한다(X `RegistrationHandle` 규칙 [가정]). 상태줄은 마지막 요청을 보인다 |
 | 9 | 상태 커밋이 스키마나 크기 한도 위반 | `commit` 거부, 상태 유지, `group.stateInvalid`. drive 함수 안이면 예외로 이어져 3번 처리 |

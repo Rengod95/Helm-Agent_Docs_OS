@@ -132,7 +132,7 @@ test("the request applies only at the boundary: handlers and loop.turn proceed u
       });
     }),
   );
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-b" });
   await t.settled();
   expect(t.loop.turns.map((turn) => turn.requestId)).toEqual(["pause-b:1"]);
 
@@ -186,7 +186,7 @@ test("a held boundary keeps the drive lock: no second drive call, no release, no
       });
     }),
   );
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-c" });
   await flushMicrotasks(200);
   // drive가 turn을 시작하고 gate에서 기다린다. 아직 멈춤 요청은 없다
   const lease = t.host.leaseOf(thread);
@@ -420,7 +420,7 @@ test("phase reads the committed phase of the drive-lock holder's group", async (
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-phase", PHASES, "build"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-phase" });
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
@@ -441,7 +441,7 @@ test("a committed phase outside the declared nodes reads as null, with the group
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-phase-x", PHASES, "ghost"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-phase-x" });
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
@@ -462,7 +462,7 @@ test("a drive-lock holder without a phases declaration answers the phase fields 
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-plain", undefined, "build"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-plain" });
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
@@ -518,7 +518,7 @@ test("a Test run logs one boundary per boundary.step.after, with the rev and com
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-bounds", PHASES, "build"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-bounds" });
   await t.settled();
   const control = testRunControlOf(t.host);
 
@@ -554,7 +554,7 @@ test("a group without composition phases logs phase null and still the committed
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-bounds-plain", undefined, "build"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-bounds-plain" });
   await t.settled();
   await stepEnd(t, thread);
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
@@ -620,7 +620,7 @@ test("the boundary log keeps the newest 200 entries, oldest first", async () => 
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-bounds-cap", PHASES, "build"));
-  await t.host.openThread(thread, { testRun: true });
+  await t.host.openThread(thread, { testRun: true, startDrive: "pause-bounds-cap" });
   await t.settled();
   const control = testRunControlOf(t.host);
   const total = MAX_BOUNDARIES + 5;

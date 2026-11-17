@@ -1,17 +1,25 @@
 import { createHash } from "node:crypto";
-import { Bug, assertNever, attemptAsync, detach, parse } from "@fresnel/contracts";
+import {
+  Bug,
+  assertNever,
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  parse,
+  type Result,
+} from "@fresnel/contracts";
 import {
   AskRequestSchema,
-  DriveLockArbiterPortKey,
   LoopPortKey,
   RecordCommitPortKey,
   type AskCard,
   type AskOutcome,
   type AskRequest,
   type DriveCommand,
+  type DriveFrameView,
   type DriveLimits,
   InputQueuePortKey,
-  pluginDefaultEnabled,
   type DriveLockBudget,
   type OpenLease,
   type PostItem,
@@ -22,12 +30,11 @@ import {
   type TurnInput,
   type TurnOutcome,
 } from "@fresnel/contracts/extensions";
-import type { Usage } from "@fresnel/contracts/conversation";
+import type { JsonValue, ThreadId, Usage } from "@fresnel/contracts/conversation";
 import { DenyAnswerSchema, QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   type ApprovalResolution,
-  type ApprovalService,
   type QuestionBody,
   type QuestionItem,
   type QuestionOption,
@@ -35,18 +42,21 @@ import {
 import { withAmbient, withoutAmbient, type DriveInvocation } from "./ambient.ts";
 import { stateAs } from "../erase.ts";
 import type { AnyState } from "./erased-types.ts";
-import type {
-  BoundarySignal,
-  BoundaryTxn,
-  HostCore,
-  LeaseRuntime,
-  ReleaseReason,
-  RegistrationRecord,
-  ThreadRuntime,
+import {
+  topFrame,
+  type BoundarySignal,
+  type BoundaryTxn,
+  type Generation,
+  type HostCore,
+  type LeaseRuntime,
+  type ReleaseReason,
+  type RegistrationRecord,
+  type StartDriveError,
+  type StartRequest,
+  type ThreadRuntime,
 } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
-import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
 import type { StateService } from "./state.ts";
 
 /** 효과 없는 명령(`commit`만, 거부 결과)이 이어지는 단계 수 상한. 넘으면 이번 호출을 `yield`로 끝낸다(X.primitives.spec §4.4.3) [제안] */
@@ -55,36 +65,48 @@ export const MAX_CHAINED_REINVOKES = 8;
 /** 사용자 메시지를 전달한 뒤 단계 함수가 `turn`이나 `done`으로 처리하지 않고 지나갈 수 있는 단계 수(drive-isolation.md 2.4) */
 const USER_MESSAGE_STEP_LIMIT = 3;
 
+/**
+ * 주도권 스택의 유지와 부여(drive-isolation.md 2.1, 2.2). 프레임 스택은 `ThreadRuntime.frames`에 있고 맨 위 프레임만 단계 함수를 부른다.
+ * 부여 계기는 시작 요청 큐 하나뿐이다(사용자 명령, 프로필 시작). 중재와 후보 추첨은 없다
+ */
 export interface LeaseBroker {
-  /** openThread: 저장된 열린 임대를 되살린다. 설치되지 않았거나 꺼진 scope의 임대는 restart로 반납 예정이 된다 */
-  restore(thread: ThreadRuntime, open: OpenLease | null): void;
-  /** scope가 꺼지면 모든 thread에서 그 scope의 임대를 반납 예정(disabled)으로 바꾼다 */
+  /** openThread: 저장된 열린 임대 목록(오래된 것부터, 맨 위가 마지막)으로 스택을 세운다. 죽은 scope의 프레임은 restart로 반납 예정이 된다 */
+  restore(thread: ThreadRuntime, open: readonly OpenLease[]): void;
+  /** scope가 꺼지면 모든 thread에서 그 scope의 프레임과 그 위 프레임을 반납 예정으로 바꾼다 */
   releaseForRegistration(scopeId: RegistrationId, reason: ReleaseReason): void;
-  /** 한 thread에서만 scope가 꺼질 때 그 thread의 임대를 반납 예정으로 바꾼다(P-28) */
+  /** 한 thread에서만 scope가 꺼질 때 그 프레임과 그 위 프레임을 반납 예정으로 바꾼다(P-28) */
   releaseForRegistrationIn(
     thread: ThreadRuntime,
     scopeId: RegistrationId,
     reason: ReleaseReason,
   ): void;
-  /** prepare: 반납 예정 임대의 lease.released 초안 */
+  /** prepare: 반납 예정 프레임의 lease.released 초안(맨 위부터) */
   collectReleases(thread: ThreadRuntime, txn: BoundaryTxn): void;
-  /** prepare: 후보 계산과 lease.acquired 초안 */
+  /** prepare: 시작 요청 큐 맨 앞으로 부여 초안과 `txn.grant`를 만든다 */
   grant(thread: ThreadRuntime, txn: BoundaryTxn): void;
-  /** settle(failed): 이 경계가 올린 대기 계수를 되돌린다 */
-  revertWait(thread: ThreadRuntime, txn: BoundaryTxn): void;
-  /** settle(committed): 커밋된 반납·부여를 반영한다 */
+  /** settle(committed): 커밋된 반납·부여를 스택에 반영한다 */
   applyCommitted(thread: ThreadRuntime, txn: BoundaryTxn): void;
-  /** settle 뒤: 경계 종류에 맞게 drive 함수를 부른다 */
+  /** settle 뒤: 경계 종류에 맞게 맨 위 프레임의 단계 함수를 부른다 */
   onBoundary(thread: ThreadRuntime, signal: BoundarySignal): void;
-  /** 명령·도구 호출이 상태 판을 올렸다: 임대가 있고 thread가 유휴면 drive를 한 번 예약한다(X.primitives.spec §4.4.3) */
+  /** 명령·도구 호출이 상태 판을 올렸다: 맨 위 프레임이 있고 thread가 유휴면 단계를 한 번 예약한다(X.primitives.spec §4.4.3) */
   onDirectCommit(thread: ThreadRuntime, scopeId: RegistrationId): void;
-  /** 임대를 반납 예정으로 바꾼다. 활성이 아니면 아무 일도 하지 않는다 */
-  release(lease: LeaseRuntime, reason: ReleaseReason): void;
   /**
    * 사용자가 보낸 메시지를 주도 중인 단계 함수에 전달한다(drive-isolation.md 2.4). 주도 중이면 메시지를 받아 참을 돌려주고
    * 다음 단계의 `last: { kind: "user" }`로 준다. 주도 중이 아니면 거짓이고 코어 루프가 평소대로 받는다
    */
   claimUserInput(thread: ThreadRuntime, item: PostItem): boolean;
+  /**
+   * 주도 시작 요청을 큐에 넣는다(사용자 명령, drive-isolation.md 2.2). 사용자 요청은 멈춤을 푼다. 대상이 맞지 않는 것은
+   * 부여 경계에서 버리므로 여기서는 scope와 drive 자격의 명백한 실패만 거부한다
+   */
+  startDrive(
+    threadId: ThreadId,
+    scopeId: RegistrationId,
+    trigger: "user" | "profile",
+    input: JsonValue | null,
+  ): Result<void, StartDriveError>;
+  /** 읽기: thread의 스택을 아래에서 위로 주는 `drive.frames` 모양. 코어 루프가 맨 아래 깊이 0이다 */
+  framesOf(thread: ThreadRuntime): readonly DriveFrameView[];
 }
 
 /**
@@ -126,6 +148,13 @@ function release(lease: LeaseRuntime, reason: ReleaseReason): void {
   lease.abort.abort(new DOMException(`lease released: ${reason}`, "AbortError"));
 }
 
+/** 스택의 `index`번 프레임과 그 위 프레임 전부를 반납한다. 그 프레임은 `reason`, 위 프레임은 `revoked`다 */
+function releaseFrom(thread: ThreadRuntime, index: number, reason: ReleaseReason): void {
+  thread.frames
+    .slice(index)
+    .forEach((frame, offset) => release(frame, offset === 0 ? reason : "revoked"));
+}
+
 function leaseError(lease: LeaseRuntime): PrimitiveError {
   return lease.reason === "budget"
     ? new PrimitiveError("lease_budget", `lease ${lease.leaseId} is out of budget`, {
@@ -156,6 +185,21 @@ function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
   if ((left !== null && left <= 0) || (tokensLeft !== null && tokensLeft <= 0)) {
     release(lease, "budget");
     throw leaseError(lease);
+  }
+}
+
+/**
+ * 쓴 양을 스택의 모든 프레임에 더한다. 맨 위가 쓴 양은 자기와 아래 프레임의 사용량에 들어간다(drive-isolation.md 2.3).
+ * 스택 안의 프레임은 모두 맨 위보다 아래거나 맨 위다
+ */
+function charge(
+  thread: ThreadRuntime,
+  delta: { readonly turns: number; readonly spawns: number; readonly tokens: number },
+): void {
+  for (const frame of thread.frames) {
+    frame.used.turns += delta.turns;
+    frame.used.spawns += delta.spawns;
+    frame.used.tokens += delta.tokens;
   }
 }
 
@@ -226,13 +270,15 @@ interface StepProgress {
   nextIndex: number;
   totalEffects: number;
   quiet: number;
+  /** `done`으로 끝났을 때 그 결과 */
+  result: JsonValue | null;
 }
 
 /** 한 단계의 실행이 끝난 모양. `result`면 다음 단계로 이어지고 나머지는 이번 호출이 끝난다 */
 type StepOutcome =
   | { readonly kind: "result"; readonly result: StepResult }
   | { readonly kind: "yield" }
-  | { readonly kind: "done" }
+  | { readonly kind: "done"; readonly result: JsonValue | null }
   | { readonly kind: "inactive" };
 
 const INACTIVE: StepOutcome = { kind: "inactive" };
@@ -310,11 +356,83 @@ export interface LeaseBrokerHooks {
   requestApply(threadId: ThreadRuntime["threadId"]): void;
 }
 
+/** 프레임 하나를 만드는 재료. 부여와 복원이 같은 모양을 만든다 */
+interface FrameInit {
+  readonly leaseId: string;
+  readonly lineageId: string;
+  readonly scopeId: RegistrationId;
+  readonly threadId: ThreadId;
+  readonly leaseEpoch: number;
+  readonly limits: DriveLimits;
+  readonly used: { turns: number; spawns: number; tokens: number };
+  readonly parent: string | null;
+  readonly depth: number;
+  readonly contentHash: string | null;
+  readonly calledBy: string | null;
+  readonly input: JsonValue | null;
+  readonly state: "driving" | "waiting";
+  readonly wantInvoke: boolean;
+  readonly committed: boolean;
+}
+
+function frameOf(init: FrameInit): LeaseRuntime {
+  return {
+    leaseId: init.leaseId,
+    lineageId: init.lineageId,
+    scopeId: init.scopeId,
+    threadId: init.threadId,
+    leaseEpoch: init.leaseEpoch,
+    limits: init.limits,
+    used: init.used,
+    status: "active",
+    reason: undefined,
+    abort: new AbortController(),
+    parent: init.parent,
+    depth: init.depth,
+    contentHash: init.contentHash,
+    state: init.state,
+    asking: false,
+    input: init.input,
+    pendingLast: null,
+    calledBy: init.calledBy,
+    result: null,
+    wantInvoke: init.wantInvoke,
+    idleStreak: 0,
+    idleRev: null,
+    lastBaseRev: null,
+    running: false,
+    missed: false,
+    engaged: false,
+    userSeq: 0,
+    inbox: [],
+    userSteps: null,
+    deliveredUser: null,
+    committed: init.committed,
+  };
+}
+
+/**
+ * 실행 하나의 추적 표지. 단계 함수가 질문을 기다리는 동안에는 추적을 떼어, `whenSettled`(시험의 settled, 교체, 종료)가
+ * 사람의 답을 기다리며 멈추지 않게 한다. 답이 오면 다시 건다
+ */
+interface RunTrack {
+  current: PromiseWithResolvers<void> | null;
+}
+
+/** 주도 중인 scope가 꺼지거나 정의가 지워질 때: 그 scope의 가장 아래 프레임과 그 위 프레임을 반납한다 */
+function releaseScope(thread: ThreadRuntime, scopeId: RegistrationId, reason: ReleaseReason): void {
+  const index = thread.frames.findIndex((frame) => frame.scopeId === scopeId);
+  if (index >= 0) releaseFrom(thread, index, reason);
+}
+
 export function createLeaseBroker(
   core: HostCore,
   stateService: StateService,
   hooks: LeaseBrokerHooks,
 ): LeaseBroker {
+  /** 맨 위 프레임이 도는 실행의 추적 표지(프레임마다). `start`가 만들고 `ask`가 떼고 붙인다 */
+  const tracks = new WeakMap<LeaseRuntime, RunTrack>();
+
   function loopStatusIdle(threadId: LeaseRuntime["threadId"]): boolean {
     const loop = core.ports.get(LoopPortKey);
     return loop === undefined || loop.status(threadId) !== "running";
@@ -330,60 +448,26 @@ export function createLeaseBroker(
     });
   }
 
-  /**
-   * `loop.ask`로 답을 기다리는 Registration과 그 승인 id(thread별). 답이 해결되면 지운다. thread 객체를 키로 두어
-   * 같은 thread id로 다시 연 thread의 항목과 섞이지 않는다(X-17)
-   */
-  const askWaiting = new WeakMap<ThreadRuntime, Map<RegistrationId, string>>();
-
-  function markAskWaiting(
-    thread: ThreadRuntime,
-    scopeId: RegistrationId,
-    approvalId: string,
-  ): void {
-    const waiting = askWaiting.get(thread) ?? new Map<RegistrationId, string>();
-    waiting.set(scopeId, approvalId);
-    askWaiting.set(thread, waiting);
+  function trackRun(track: RunTrack): void {
+    const done = Promise.withResolvers<void>();
+    track.current = done;
+    core.track(done.promise);
   }
 
-  function unmarkAskWaiting(
-    thread: ThreadRuntime,
-    scopeId: RegistrationId,
-    approvalId: string,
-  ): void {
-    const waiting = askWaiting.get(thread);
-    if (waiting?.get(scopeId) === approvalId) waiting.delete(scopeId);
+  function untrackRun(track: RunTrack): void {
+    track.current?.resolve();
+    track.current = null;
   }
 
-  /**
-   * 답을 기다린다. 답은 사람이 언제 줄지 모르므로 정산이 기다리는 추적 작업(`core.track`)으로 두지 않는다.
-   * 답이 해결되면 Registration을 다시 후보로 올린다. thread가 닫혀 기다림이 끊기거나 승인을 모르면 항목만 지운다.
-   * 승인 요청은 닫지 않는다(답은 사용자의 것이다)
-   */
-  function awaitAnswer(
-    thread: ThreadRuntime,
-    scopeId: RegistrationId,
-    approvals: ApprovalService,
-    approvalId: string,
-  ): void {
-    detach(
-      (async () => {
-        const waited = await approvals.wait(approvalId, thread.abort.signal);
-        unmarkAskWaiting(thread, scopeId, approvalId);
-        if (waited.ok && core.threads.get(thread.threadId) === thread) {
-          hooks.requestApply(thread.threadId);
-        }
-      })(),
-      (cause) => {
-        core.deps.report({
-          level: "error",
-          code: "handler_failed",
-          scopeId,
-          message: "loop.ask could not wait for the answer",
-          cause,
-        });
-      },
-    );
+  /** 질문 대기 중인 실행을 추적에서 뗀다. 답이 오면 `resumeRun`이 다시 건다 */
+  function parkRun(lease: LeaseRuntime): void {
+    const track = tracks.get(lease);
+    if (track !== undefined) untrackRun(track);
+  }
+
+  function resumeRun(lease: LeaseRuntime): void {
+    const track = tracks.get(lease);
+    if (track !== undefined && track.current === null) trackRun(track);
   }
 
   function makeStepLoop(
@@ -401,8 +485,8 @@ export function createLeaseBroker(
       return loop;
     };
     return {
-      // X-17 `ask` 명령(X.primitives.spec §4.4.4). 첫 호출은 question 승인을 열고 drive lock을 `waiting`으로 반납한다.
-      // 약속은 이행되지 않고 lease_revoked로 거부된다(drive 함수가 그 거부를 받아 unwind한다). 답이 이미 있으면 기록된 결과를 바로 돌려준다.
+      // X-17 `ask` 명령(X.primitives.spec §4.4.4, drive-isolation.md 2.1·2.6). 임대는 반납하지 않는다. 프레임 상태만 질문 대기가 되고,
+      // 답이나 반납(끊김)이 올 때까지 이 호출이 기다린다. 답이 이미 있으면 기록된 결과를 바로 돌려준다.
       // 기다리는 동안 turn·spawn 예산과 호출 순번은 쓰지 않는다
       async ask(request: AskRequest): Promise<AskOutcome> {
         if (lease.status !== "active") throw leaseError(lease);
@@ -422,7 +506,7 @@ export function createLeaseBroker(
           });
         }
         const record = core.scopes.get(lease.scopeId);
-        // 활성 drive 락의 scope는 정의가 있어야 한다. 정의를 지우기 전에 teardown이 drive 락을 반납한다
+        // 활성 프레임의 scope는 정의가 있어야 한다. 정의를 지우기 전에 teardown이 프레임을 반납한다
         if (record === undefined) throw new Bug("loop.ask_scope_missing_for_active_lease");
         const opened = await approvals.open({
           origin: {
@@ -446,15 +530,26 @@ export function createLeaseBroker(
           );
         }
         const { request: approval, resolution } = opened.value;
-        // 이미 답이 있으면(drive 락 재부여 뒤, 재시작 뒤의 재호출) drive 락을 건드리지 않고 기록된 결과를 돌려준다
+        // 이미 답이 있으면(재시작 뒤의 재호출, 같은 requestId의 되돌아온 호출) 기록된 결과를 돌려준다
         if (resolution !== null) return askOutcomeOf(resolution, lease.scopeId);
-        // 답이 아직 없다. drive 락을 `waiting`으로 반납하고, 답이 올 때까지 이 Registration은 후보가 아니다
-        markAskWaiting(thread, lease.scopeId, approval.approvalId);
-        release(lease, "waiting");
-        // 닫히는 중인 thread에는 적용을 예약하지 않는다(requestApply는 열린 thread만 찾는다)
-        if (core.threads.get(thread.threadId) === thread) hooks.requestApply(thread.threadId);
-        awaitAnswer(thread, lease.scopeId, approvals, approval.approvalId);
-        throw leaseError(lease);
+        // 답을 기다린다. 프레임은 질문 대기가 되고 임대는 그대로다(drive-isolation.md 2.1). 반납이나 닫기가 기다림을 끊는다
+        lease.asking = true;
+        parkRun(lease);
+        const signal = AbortSignal.any([thread.abort.signal, lease.abort.signal]);
+        const waited = await approvals.wait(approval.approvalId, signal).finally(() => {
+          lease.asking = false;
+          resumeRun(lease);
+        });
+        if (!waited.ok) {
+          // 기다림이 끊겼다(반납, 닫기). 임대가 활성이 아니면 runGuarded가 이 거부를 inactive로 본다
+          if (waited.error.kind === "aborted") throw leaseError(lease);
+          throw new PrimitiveError(
+            "storage_unavailable",
+            "the question approval is not waiting in this runtime",
+            { scopeId: lease.scopeId },
+          );
+        }
+        return askOutcomeOf(waited.value, lease.scopeId);
       },
       async turn(input: TurnInput): Promise<TurnOutcome> {
         if (lease.status !== "active") throw leaseError(lease);
@@ -477,8 +572,7 @@ export function createLeaseBroker(
           }),
         );
         if (!result.replayed) {
-          lease.used.turns += 1;
-          lease.used.tokens += tokensOf(result.usage);
+          charge(thread, { turns: 1, spawns: 0, tokens: tokensOf(result.usage) });
           invocation.effects += 1;
         }
         return result.outcome;
@@ -502,8 +596,7 @@ export function createLeaseBroker(
           }),
         );
         if (!result.replayed) {
-          lease.used.spawns += 1;
-          lease.used.tokens += tokensOf(result.usage);
+          charge(thread, { turns: 0, spawns: 1, tokens: tokensOf(result.usage) });
           invocation.effects += 1;
         }
         return result.outcome;
@@ -615,7 +708,7 @@ export function createLeaseBroker(
       case "yield":
         return { kind: "yield" };
       case "done":
-        return { kind: "done" };
+        return { kind: "done", result: command.result ?? null };
       case "model":
       case "tool":
       case "handoff":
@@ -750,7 +843,7 @@ export function createLeaseBroker(
           state: stateAs(stateService.docOf(thread.threadId, lease.scopeId)),
           last: next.last,
           budget: budgetOf(lease),
-          frame: { frameDepth: 1, calledBy: null, input: null },
+          frame: { frameDepth: lease.depth + 1, calledBy: lease.calledBy, input: lease.input },
         });
         if (lease.deliveredUser !== null) {
           // 처리는 `turn`(commit으로 감싸도 같다)이나 `done`이다. `done`으로 물러나면 메시지는 코어 루프가 받는다
@@ -768,6 +861,7 @@ export function createLeaseBroker(
     progress.totalEffects += invocation.effects;
     progress.quiet = invocation.effects > 0 ? 0 : progress.quiet + 1;
     if (outcome.kind === "result" || outcome.kind === "yield") lease.engaged = true;
+    if (outcome.kind === "done") progress.result = outcome.result;
     if (outcome.kind !== "result") return outcome.kind;
     progress.last = outcome.result;
     if (progress.quiet >= MAX_CHAINED_REINVOKES) {
@@ -804,12 +898,16 @@ export function createLeaseBroker(
       return;
     }
     const startRev = stateService.revOf(thread.threadId, lease.scopeId);
+    // 반납된 위 프레임의 결과는 이 프레임의 첫 `last`다(맡기기 복귀). 한 번만 쓴다
+    const first = lease.pendingLast;
+    lease.pendingLast = null;
     const progress: StepProgress = {
-      last: null,
+      last: first,
       rev: null,
       nextIndex: 0,
       totalEffects: 0,
       quiet: 0,
+      result: null,
     };
     let end: "yield" | "done" | "inactive" = "yield";
     try {
@@ -843,7 +941,7 @@ export function createLeaseBroker(
     lease.lastBaseRev = endRev;
     if (lease.status !== "active" || end === "done") flushUserMessages(thread, lease);
     if (end === "done" && lease.status === "active") {
-      thread.withdrawn.set(lease.scopeId, endRev);
+      lease.result = progress.result;
       release(lease, "done");
       hooks.requestApply(thread.threadId);
       return;
@@ -876,84 +974,86 @@ export function createLeaseBroker(
     lease.running = true;
     lease.wantInvoke = false;
     lease.missed = false;
-    core.track(invoke(thread, lease));
+    const track: RunTrack = { current: null };
+    tracks.set(lease, track);
+    trackRun(track);
+    detach(
+      invoke(thread, lease).finally(() => {
+        untrackRun(track);
+      }),
+      (cause) => {
+        core.deps.report({
+          level: "error",
+          code: "handler_failed",
+          message: "background task failed",
+          cause,
+        });
+      },
+    );
   }
 
-  function candidatesFor(thread: ThreadRuntime, txn: BoundaryTxn): RegistrationRecord[] {
-    const out: RegistrationRecord[] = [];
-    if (thread.userStopped) return out;
-    for (const record of core.scopes.values()) {
-      if (record.driveError) continue;
-      const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
-      if (!activeHere) continue;
-      const generation = record.generation;
-      if (generation === null || generation.stale) continue;
-      if (!generation.open && !txn.opening.includes(record)) continue;
-      if (generation.drive === null) continue;
-      // `done`으로 물러난 scope는 그 상태 판이 바뀌기 전까지 후보가 아니다(턴이 정착해도 풀리지 않는다)
-      const withdrawnAt = thread.withdrawn.get(record.id);
-      if (
-        withdrawnAt !== undefined &&
-        withdrawnAt === stateService.revOf(thread.threadId, record.id)
-      ) {
-        continue;
-      }
-      // `ask` 명령으로 답을 기다리는 Registration은 답이 해결될 때까지 후보가 아니다. trackWaiting도 이 목록으로 대기를 세므로
-      // 답을 기다리는 동안에는 x.primitives.leaseWaitLimit의 대기 계수에 들지 않는다(X-17)
-      if (askWaiting.get(thread)?.has(record.id) === true) continue;
-      const cooled = thread.cooldown.get(record.id);
-      if (cooled !== undefined && cooled === stateService.revOf(thread.threadId, record.id)) {
-        continue;
-      }
-      out.push(record);
-    }
-    return out;
+  /** 부여 대상이 지금 주도할 수 있는가: 열린 세대에 drive가 있고 오류가 없으며 이 thread가 켜 둔 scope다 */
+  function drivableOf(
+    thread: ThreadRuntime,
+    txn: BoundaryTxn,
+    scopeId: RegistrationId,
+  ): {
+    readonly record: RegistrationRecord;
+    readonly generation: Generation;
+    readonly drive: NonNullable<Generation["drive"]>;
+  } | null {
+    const record = core.scopes.get(scopeId);
+    if (record === undefined || record.driveError) return null;
+    const generation = record.generation;
+    if (generation === null || generation.stale) return null;
+    if (!generation.open && !txn.opening.includes(record)) return null;
+    const drive = generation.drive;
+    if (drive === null) return null;
+    const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
+    if (!activeHere) return null;
+    return { record, generation, drive };
   }
 
-  /** 임대가 없을 때 후보를 골라 `lease.acquired` 초안과 `txn.grant`를 만든다 */
+  /** 시작 요청 하나를 큐에서 뺀다. 대상이 맞지 않아 버릴 때와 스택이 차서 버릴 때 쓴다(진단 scope_notice) */
+  function dropRequest(thread: ThreadRuntime, request: StartRequest, why: string): void {
+    const at = thread.startQueue.indexOf(request);
+    if (at >= 0) thread.startQueue.splice(at, 1);
+    core.deps.report({
+      level: "info",
+      code: "scope_notice",
+      scopeId: request.scopeId,
+      message: `drive start of ${request.scopeId} was dropped: ${why}`,
+    });
+  }
+
+  /**
+   * 시작 요청 큐 맨 앞으로 부여를 판단한다. 스택이 비어 있어야 부여한다(사용자 명령의 전환은 맡기기 단계 3b가 맡는다).
+   * 대상이 맞지 않으면 요청을 버린다. 부여하면 `lease.acquired` 초안과 `txn.grant`를 만든다. 큐에서 지우는 일은 커밋 뒤다
+   */
   function decide(thread: ThreadRuntime, txn: BoundaryTxn): void {
     if (thread.child) return;
-    if (thread.lease !== null || txn.grant !== null || txn.releasing.length > 0) return;
+    if (txn.grant !== null || txn.releasing.length > 0) return;
+    const request = thread.startQueue[0];
+    if (request === undefined) return;
+    if (topFrame(thread) !== null) {
+      // 스택이 차 있으면 사용자 명령은 큐에 둔 채 기다린다. 프로필 시작은 버린다
+      if (request.trigger === "profile") dropRequest(thread, request, "the drive stack is busy");
+      return;
+    }
+    // 사용자가 멈춘 뒤에는 사용자 명령만 주도를 시작한다
+    if (thread.userStopped && request.trigger !== "user") return;
     const loop = core.ports.get(LoopPortKey);
     const records = core.ports.get(RecordCommitPortKey);
-    const candidates = candidatesFor(thread, txn);
-    if (candidates.length === 0) return;
     if (loop === undefined || records === undefined) {
       warnPortOnce(thread, loop === undefined ? "fresnel.loop" : "fresnel.session");
       return;
     }
-    let chosen: RegistrationRecord | undefined;
-    const arbiter = core.ports.get(DriveLockArbiterPortKey);
-    if (arbiter !== undefined) {
-      const picked = arbiter.choose(
-        thread.threadId,
-        candidates.map((record) => ({
-          scopeId: record.id,
-          extension: record.extension,
-          loadIndex: record.loadIndex,
-          defaultEnabled:
-            record.def.defaultEnabled ?? pluginDefaultEnabled(record.manifest, record.plugin),
-          enabledAtSeq: thread.enabledAtSeq.get(record.id) ?? null,
-        })),
-      );
-      chosen = candidates.find((record) => record.id === picked);
-    } else if (candidates.length === 1) {
-      chosen = candidates[0];
-    } else {
-      const active = core.deps.settings.activeDriver(thread.threadId);
-      chosen = candidates.find((record) => record.id === active);
-      if (chosen === undefined) {
-        core.deps.report({
-          level: "warning",
-          code: "drive_conflict",
-          message: `drive groups ${candidates.map((record) => record.id).join(", ")} are enabled; set x.primitives.activeDriver`,
-        });
-      }
+    const target = drivableOf(thread, txn, request.scopeId);
+    if (target === null) {
+      dropRequest(thread, request, "the scope cannot lead this conversation now");
+      return;
     }
-    const generation = chosen?.generation;
-    if (chosen === undefined || generation === null || generation === undefined) return;
-    const drive = generation.drive;
-    if (drive === null) return;
+    const { record, drive } = target;
     const { limits, clamped } = effectiveLimits(
       core.deps.settings.driveDefaultLimits(thread.threadId),
       core.deps.settings.driveLimits(thread.threadId),
@@ -963,238 +1063,182 @@ export function createLeaseBroker(
       core.deps.report({
         level: "info",
         code: "drive_limits_clamped",
-        scopeId: chosen.id,
-        extension: chosen.extension,
+        scopeId: record.id,
+        extension: record.extension,
         message: `drive limits ${clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
       });
     }
-    const leaseEpoch = (thread.leaseEpochs.get(chosen.id) ?? 0) + 1;
+    const leaseEpoch = (thread.leaseEpochs.get(record.id) ?? 0) + 1;
+    const depth = thread.frames.length;
     const draft = makeDraft(core.deps.ids, {
       threadId: thread.threadId,
       kind: "lease.acquired",
-      payload: { leaseId: "", scopeId: chosen.id, lineageId: "", limits, leaseEpoch },
+      payload: { leaseId: "", scopeId: record.id, lineageId: "", limits, leaseEpoch },
       turnId: txn.signal.turnId,
       stepId: txn.signal.stepId,
     });
-    // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하)
+    // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하). 3a에서는 계통이 임대와 같다
     const leaseId = draft.id;
-    // waiting 반납 바로 뒤 같은 Registration의 부여는 앞 계통을 이어받는다. 그 밖의 부여는 새 계통이다(REQ-X-04)
-    const waited = thread.waitingLineage;
-    const lineageId = waited !== null && waited.scopeId === chosen.id ? waited.lineageId : leaseId;
+    // 선택 필드는 값이 있을 때만 싣는다(exactOptionalPropertyTypes). versionId 값이 없어 contentHash는 싣지 않는다
     txn.drafts.push({
       ...draft,
-      payload: { leaseId, scopeId: chosen.id, lineageId, limits, leaseEpoch },
+      payload: {
+        leaseId,
+        scopeId: record.id,
+        lineageId: leaseId,
+        limits,
+        leaseEpoch,
+        depth,
+        ...(request.parentLeaseId === null ? {} : { parent: request.parentLeaseId }),
+      },
     });
-    txn.grant = {
+    txn.grant = frameOf({
       leaseId,
-      lineageId,
-      scopeId: chosen.id,
+      lineageId: leaseId,
+      scopeId: record.id,
       threadId: thread.threadId,
       leaseEpoch,
       limits,
       used: { turns: 0, spawns: 0, tokens: 0 },
-      status: "active",
-      reason: undefined,
-      abort: new AbortController(),
-      idleStreak: 0,
-      idleRev: null,
-      lastBaseRev: null,
-      running: false,
+      parent: request.parentLeaseId,
+      depth,
+      contentHash: null,
+      calledBy: null,
+      input: request.input,
+      state: "driving",
       wantInvoke: true,
-      missed: false,
-      engaged: false,
-      userSeq: 0,
-      inbox: [],
-      userSteps: null,
-      deliveredUser: null,
       committed: false,
-    };
-  }
-
-  /**
-   * 임대를 받지 못한 후보의 대기를 센다(M3-REQ-28, D-M3-05 a). 대기는 `turn_settled`·`idle` 경계마다 하나씩 늘고,
-   * `x.primitives.leaseWaitLimit`을 넘으면 `lease.rejected` 초안을 경계 기여에 넣는다. 거부된 scope는 다음 반납이 커밋될 때까지 다시 세지 않는다
-   */
-  function trackWaiting(thread: ThreadRuntime, txn: BoundaryTxn): void {
-    if (
-      core.ports.get(LoopPortKey) === undefined ||
-      core.ports.get(RecordCommitPortKey) === undefined
-    )
-      return;
-    const holder = txn.grant?.scopeId ?? thread.lease?.scopeId ?? null;
-    const waiting = candidatesFor(thread, txn).filter(
-      (record) => record.id !== holder && !thread.leaseRejected.has(record.id),
-    );
-    const names = new Set(waiting.map((record) => record.id));
-    for (const id of thread.leaseWait.keys()) {
-      if (!names.has(id)) thread.leaseWait.delete(id);
-    }
-    const limit = core.deps.settings.leaseWaitLimit?.(thread.threadId) ?? DEFAULT_LEASE_WAIT_LIMIT;
-    for (const record of waiting) {
-      let entry = thread.leaseWait.get(record.id);
-      if (entry === undefined) {
-        entry = { requestSeq: thread.nextRequestSeq, waited: 0 };
-        thread.nextRequestSeq += 1;
-        thread.leaseWait.set(record.id, entry);
-      }
-      if (txn.signal.kind === "step_end") continue;
-      entry.waited += 1;
-      txn.waited.push(record.id);
-      if (entry.waited <= limit) continue;
-      txn.drafts.push(
-        makeDraft(core.deps.ids, {
-          threadId: thread.threadId,
-          kind: "lease.rejected",
-          payload: {
-            groupId: record.extension,
-            reason: "wait_limit",
-            requestSeq: entry.requestSeq,
-          },
-          turnId: txn.signal.turnId,
-          stepId: txn.signal.stepId,
-        }),
-      );
-      txn.rejected.push({
-        scopeId: record.id,
-        requestSeq: entry.requestSeq,
-        holder,
-        holderEpoch:
-          holder === null
-            ? 0
-            : ((txn.grant?.scopeId === holder ? txn.grant.leaseEpoch : thread.lease?.leaseEpoch) ??
-              0),
-      });
-    }
+    });
+    txn.startRequest = request;
   }
 
   return {
     restore(thread, open) {
-      if (open === null) return;
-      const record = core.scopes.get(open.scopeId);
-      const lease: LeaseRuntime = {
-        leaseId: open.leaseId,
-        lineageId: open.lineageId,
-        scopeId: open.scopeId,
-        threadId: thread.threadId,
-        leaseEpoch: open.leaseEpoch,
-        limits: open.limits,
-        used: { ...open.used },
-        status: "active",
-        reason: undefined,
-        abort: new AbortController(),
-        idleStreak: 0,
-        idleRev: null,
-        lastBaseRev: null,
-        running: false,
-        wantInvoke: true,
-        missed: false,
-        engaged: false,
-        userSeq: 0,
-        inbox: [],
-        userSteps: null,
-        deliveredUser: null,
-        committed: true,
-      };
-      thread.lease = lease;
-      thread.leaseEpochs.set(
-        open.scopeId,
-        Math.max(open.leaseEpoch, thread.leaseEpochs.get(open.scopeId) ?? 0),
-      );
-      const alive =
-        record !== undefined &&
-        thread.active.has(open.scopeId) &&
-        record.generation?.open === true &&
-        !record.generation.stale;
-      if (!alive) release(lease, "restart");
+      // 위에서 아래로 더해 각 프레임이 쓴 양(위 프레임의 own 포함)을 다시 센다. 저장된 `used`는 각 프레임의 own이다
+      const running = { turns: 0, spawns: 0, tokens: 0 };
+      const rebuilt: LeaseRuntime[] = [];
+      for (const item of open.toReversed()) {
+        running.turns += item.used.turns;
+        running.spawns += item.used.spawns;
+        running.tokens += item.used.tokens;
+        rebuilt.push(
+          frameOf({
+            leaseId: item.leaseId,
+            lineageId: item.lineageId,
+            scopeId: item.scopeId,
+            threadId: thread.threadId,
+            leaseEpoch: item.leaseEpoch,
+            limits: item.limits,
+            used: { ...running },
+            parent: item.parent,
+            depth: item.depth,
+            contentHash: item.contentHash,
+            calledBy: null,
+            input: null,
+            state: "waiting",
+            wantInvoke: false,
+            committed: true,
+          }),
+        );
+        thread.leaseEpochs.set(
+          item.scopeId,
+          Math.max(item.leaseEpoch, thread.leaseEpochs.get(item.scopeId) ?? 0),
+        );
+      }
+      rebuilt.reverse();
+      // 맨 위만 다시 묻는다. 아래 프레임은 맡긴 기록으로 기다린다
+      const top = rebuilt.at(-1);
+      if (top !== undefined) {
+        top.state = "driving";
+        top.wantInvoke = true;
+      }
+      thread.frames.push(...rebuilt);
+      // 죽은 scope(레코드 없음, 꺼짐, 세대 닫힘, stale)의 프레임은 그 프레임과 위 프레임 전부를 restart로 반납한다
+      const deadAt = rebuilt.findIndex((frame) => {
+        const record = core.scopes.get(frame.scopeId);
+        const alive =
+          record !== undefined &&
+          thread.active.has(frame.scopeId) &&
+          record.generation?.open === true &&
+          !record.generation.stale;
+        return !alive;
+      });
+      if (deadAt >= 0) releaseFrom(thread, deadAt, "restart");
     },
     releaseForRegistration(scopeId, reason) {
-      for (const thread of core.threads.values()) {
-        if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
-      }
+      for (const thread of core.threads.values()) releaseScope(thread, scopeId, reason);
     },
     releaseForRegistrationIn(thread, scopeId, reason) {
-      if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
+      releaseScope(thread, scopeId, reason);
     },
-    release,
     collectReleases(thread, txn) {
       if (txn.signal.kind === "turn_settled") {
-        // 사용자 중단이면 이 경계에서 임대를 내려놓고 사용자의 다음 명령이 정착할 때까지 후보로 올리지 않는다
+        // 사용자 중단이면 스택 전체를 내리고 시작 요청을 비운다. 사용자의 다음 명령이 정착할 때까지 프로필·맡기기 시작을 막는다
         thread.userStopped = txn.signal.userInterrupted === true;
-        const held = thread.lease;
-        if (thread.userStopped && held !== null && held.status === "active" && held.committed) {
-          release(held, "revoked");
+        if (thread.userStopped) {
+          thread.startQueue.splice(0);
+          releaseFrom(thread, 0, "revoked");
         }
       }
-      const lease = thread.lease;
-      if (lease !== null && lease.status === "active" && lease.committed) {
-        // 사용자가 다른 그룹을 구동 그룹으로 골랐고 그 그룹이 후보이면 현재 임대를 회수한다(P-22 revoked)
-        const named = core.deps.settings.activeDriver(thread.threadId);
-        if (named !== null && named !== lease.scopeId) {
-          const target = candidatesFor(thread, txn).find((record) => record.id === named);
-          if (target !== undefined) release(lease, "revoked");
-        }
+      // 반납이 정해진 프레임을 맨 위부터 모은다. 커밋되지 않은 프레임은 없다(부여는 커밋 뒤에 스택에 들어간다)
+      for (const frame of thread.frames.toReversed()) {
+        if (frame.status !== "releasing" || !frame.committed) continue;
+        if (frame.reason === undefined) throw new Bug("lease.releasing_without_reason");
+        txn.drafts.push(
+          makeDraft(core.deps.ids, {
+            threadId: thread.threadId,
+            kind: "lease.released",
+            payload: { leaseId: frame.leaseId, scopeId: frame.scopeId, reason: frame.reason },
+            turnId: txn.signal.turnId,
+            stepId: txn.signal.stepId,
+          }),
+        );
+        txn.releasing.push(frame);
       }
-      if (lease === null || lease.status !== "releasing" || !lease.committed) return;
-      if (lease.reason === undefined) throw new Bug("lease.releasing_without_reason");
-      txn.drafts.push(
-        makeDraft(core.deps.ids, {
-          threadId: thread.threadId,
-          kind: "lease.released",
-          payload: { leaseId: lease.leaseId, scopeId: lease.scopeId, reason: lease.reason },
-          turnId: txn.signal.turnId,
-          stepId: txn.signal.stepId,
-        }),
-      );
-      txn.releasing.push(lease);
     },
     grant(thread, txn) {
       decide(thread, txn);
-      trackWaiting(thread, txn);
-    },
-    revertWait(thread, txn) {
-      for (const id of txn.waited) {
-        const entry = thread.leaseWait.get(id);
-        if (entry !== undefined && entry.waited > 0) entry.waited -= 1;
-      }
     },
     applyCommitted(thread, txn) {
-      for (const lease of txn.releasing) {
-        lease.status = "released";
-        thread.waitingLineage =
-          lease.reason === "waiting"
-            ? { scopeId: lease.scopeId, lineageId: lease.lineageId }
-            : null;
-        if (thread.lease === lease) thread.lease = null;
-        // waiting은 쿨다운을 걸지 않는다. 답이 오면 같은 상태 판에서도 바로 다시 후보가 되어야 한다(X-17)
-        if (lease.reason === "idle" || lease.reason === "budget") {
-          thread.cooldown.set(lease.scopeId, stateService.revOf(thread.threadId, lease.scopeId));
+      if (txn.releasing.length > 0) {
+        const released = new Set(txn.releasing);
+        const before = thread.frames;
+        // 반납된 프레임 가운데 가장 아래 것이 새 맨 위 바로 위였다. 그 결과가 맡긴 쪽의 복귀 값이다
+        const lowest = before.findIndex((frame) => released.has(frame));
+        const finished = lowest >= 0 ? before[lowest] : undefined;
+        thread.frames = before.filter((frame) => !released.has(frame));
+        for (const frame of txn.releasing) {
+          frame.status = "released";
+          core.notify({ kind: "lease", scopeId: frame.scopeId, threadId: thread.threadId });
         }
-        core.notify({ kind: "lease", scopeId: lease.scopeId, threadId: thread.threadId });
+        const top = topFrame(thread);
+        if (top !== null && top.state === "waiting" && finished !== undefined) {
+          top.pendingLast =
+            finished.reason === "done"
+              ? { kind: "handoff", status: "done", result: finished.result }
+              : { kind: "handoff", status: "aborted", result: null };
+          top.state = "driving";
+          top.wantInvoke = true;
+        }
+        // 새 임대 판단이 시작된다. 같은 경계에서 못 한 다음 요청의 부여를 이어서 판단한다
+        hooks.requestApply(thread.threadId);
       }
       const grant = txn.grant;
       if (grant !== null) {
         grant.committed = true;
-        thread.waitingLineage = null;
-        thread.lease = grant;
+        thread.frames.push(grant);
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
+        // 커밋이 성공해야 요청을 뺀다. 실패하면 다음 경계가 같은 요청을 다시 판단한다
+        if (txn.startRequest !== null) {
+          const at = thread.startQueue.indexOf(txn.startRequest);
+          if (at >= 0) thread.startQueue.splice(at, 1);
+        }
         core.notify({ kind: "lease", scopeId: grant.scopeId, threadId: thread.threadId });
       }
-      for (const rejection of txn.rejected) {
-        thread.leaseWait.delete(rejection.scopeId);
-        thread.leaseRejected.add(rejection.scopeId);
-        core.notify({ kind: "lease", scopeId: rejection.scopeId, threadId: thread.threadId });
-      }
-      if (txn.releasing.length > 0) {
-        // 새 임대 판단이 시작된다. 거부된 요청도 다시 후보가 된다
-        thread.leaseRejected.clear();
-        thread.leaseWait.clear();
-      }
-      // 반납이 커밋되면 같은 경계에서 못 한 다음 후보의 부여를 이어서 판단한다
-      if (txn.releasing.length > 0) hooks.requestApply(thread.threadId);
     },
     claimUserInput(thread, item) {
       if (thread.child) return false;
-      const lease = thread.lease;
+      const lease = topFrame(thread);
       if (lease === null || lease.status !== "active" || !lease.committed || !lease.engaged) {
         return false;
       }
@@ -1204,6 +1248,49 @@ export function createLeaseBroker(
       if (!lease.running && loopStatusIdle(thread.threadId)) start(thread, lease);
       return true;
     },
+    startDrive(threadId, scopeId, trigger, input) {
+      const thread = core.threads.get(threadId);
+      if (thread === undefined) return err({ kind: "unknown_thread" });
+      const record = core.scopes.get(scopeId);
+      if (record === undefined) return err({ kind: "unknown_scope" });
+      if (thread.child) return err({ kind: "child_thread" });
+      if (record.driveError) return err({ kind: "drive_error" });
+      // 세대가 열려 있으면 drive 등록을 확인한다. 꺼진 scope는 세대가 없어 확인하지 못하고, 부여 경계가 버린다
+      if (record.generation !== null && record.generation.drive === null) {
+        return err({ kind: "not_drive" });
+      }
+      // 사용자가 다시 명령하면 멈춤을 푼다
+      if (trigger === "user") thread.userStopped = false;
+      thread.startQueue.push({ scopeId, trigger, input, parentLeaseId: null });
+      hooks.requestApply(threadId);
+      return ok(undefined);
+    },
+    framesOf(thread) {
+      // 맨 아래는 코어 루프(깊이 0)다. 플러그인 프레임의 깊이는 스택 인덱스에 1을 더한 값이다
+      const coreFrame: DriveFrameView = {
+        depth: 0,
+        plugin: null,
+        versionId: null,
+        leaseId: null,
+        state: "driving",
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        limits: {},
+      };
+      const plugins = thread.frames.map((frame): DriveFrameView => ({
+        depth: frame.depth + 1,
+        plugin: core.scopes.get(frame.scopeId)?.extension ?? null,
+        versionId: frame.contentHash,
+        leaseId: frame.leaseId,
+        state: frame.asking ? "asking" : frame.state,
+        used: { turns: frame.used.turns, spawns: frame.used.spawns, tokens: frame.used.tokens },
+        limits: {
+          ...(frame.limits.maxTurns === undefined ? {} : { turns: frame.limits.maxTurns }),
+          ...(frame.limits.maxSpawns === undefined ? {} : { spawns: frame.limits.maxSpawns }),
+          ...(frame.limits.maxTokens === undefined ? {} : { tokens: frame.limits.maxTokens }),
+        },
+      }));
+      return [coreFrame, ...plugins];
+    },
     onDirectCommit(thread, scopeId) {
       // 명령이 돌아온 뒤에 실행하려고 lifecycle 디스패치처럼 한 번 넘긴다
       core.track(
@@ -1211,12 +1298,8 @@ export function createLeaseBroker(
           await new Promise<void>((resolve) => {
             setImmediate(resolve);
           });
-          const lease = thread.lease;
-          if (lease === null) {
-            // 임대가 없으면 유휴 경계에서 후보 판단을 받는다
-            if (core.threads.get(thread.threadId) === thread) hooks.requestApply(thread.threadId);
-            return;
-          }
+          const lease = topFrame(thread);
+          if (lease === null) return;
           if (lease.scopeId !== scopeId || lease.status !== "active" || !lease.committed) return;
           const record = core.scopes.get(scopeId);
           if (record === undefined || record.generation?.open !== true) return;
@@ -1232,8 +1315,7 @@ export function createLeaseBroker(
       );
     },
     onBoundary(thread, signal) {
-      if (signal.kind === "turn_settled") thread.cooldown.clear();
-      const lease = thread.lease;
+      const lease = topFrame(thread);
       if (lease === null || lease.status !== "active" || !lease.committed) return;
       const record = core.scopes.get(lease.scopeId);
       if (record === undefined || record.generation?.open !== true) return;

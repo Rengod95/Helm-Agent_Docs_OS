@@ -21,7 +21,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 - 디스패처: fold `tap`, `first`, `chain`, `collect`의 실행 알고리즘, 예외·스키마 위반 처리, 스냅샷, 순서 키를 받는 구멍(`DispatchPolicy`)
 - 자체 핸들러 레지스트리와 Cordis 사용 범위, Cordis 함정을 막는 래퍼 규칙
 - `post`: `when` 세 값의 큐 위치, 멱등, `usesPost` 검사
-- `drive`: drive 락 중재, `leaseEpoch`, 재호출 시점, 상한 집행, 기본 `requestId` 규칙, 반납 조건, 사람 확인 원시 `loop.ask`(승인 연결, `waiting` 반납과 재부여)
+- `drive`: 주도권 스택과 시작 요청 큐, `leaseEpoch`, 재호출 시점, 상한 집행, 기본 `requestId` 규칙, 반납 조건, 사람 확인 원시 `ask`(승인 연결, `asking` 프레임과 복원)
 - `scope`: 상태 문서와 커밋, 마이그레이션 훅, 켜기·끄기 상태기계와 적용 시점(실행 중인 turn이 없을 때 포함), `record`/`readRecords` 구현
 - 리소스 등록(pi API 형태)의 유지·변환·비지원 표와 자동 해제
 - `@fresnel/ext-host` 공개 API 이름과 시그니처, 호스트 포트, `CapabilityId`에서 Cordis 서비스 이름을 유도하는 규칙
@@ -33,7 +33,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 - 확장 탐색, 로드 순서 결정, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, SDK 가상 모듈, 설정 키 `ext.<name>.enabled`·`ext.<name>.isolation`: X.loading-trust.spec
 - tier 값의 정의, 핸들러 시간 예산 값, 실패 격리와 자동 끄기, 확장 전용 저장 영역 정책, 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜, 설정 키 `x.operations.*`: X.operations.spec
 - 훅을 실제로 발화하는 코드와 boundary 최종 검증 로직: L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec [가정: 문서 이름은 `_routing/routes.yaml` layout 기준]
-- drive 락 정책(어느 그룹에 기본 drive 락을 줄지 고르는 판단)의 그룹 측 구현 `DriveArbiter`: L3.group-sdk.spec
+- 주도권 중재 정책(어느 등록이 주도할지 고르는 판단)은 3a에서 없앴다. 주도권은 시작 계기와 맡기기로만 생긴다(§4.4.1). 옛 그룹 측 정책 `DriveArbiter`의 정리는 L3.group-sdk.spec 몫이다
 
 소유 경계 조정 [제안]: F.extensions.spec §1과 §4.2는 tier와 핸들러 시간 예산을 이 문서의 몫으로 적었다. `_research/layer-plan-v2.json` X-c와 eng.transactions.design §8은 둘 다 X.operations 소유로 둔다. 이 문서는 후자를 따른다. 디스패처는 tier 정렬 키와 시간 예산을 `DispatchPolicy`로 주입받는 인터페이스만 정의하고 값은 정하지 않는다(§3.4). F §1·§4.2 문구 수정을 요청한다(§10).
 
@@ -53,6 +53,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 | 디스패치 키 (dispatch key) | L1이 디스패치마다 넘기는 결정적 문자열. 같은 훅이 같은 위치에서 다시 발화하면 같은 값이다. 핸들러 안의 `commit`·`record` 멱등 키의 재료다 |
 | 활성 가지 (active branch) | thread의 현재 leaf에서 `parentId`를 따라 처음 이벤트까지 올라간 사슬(F.records.spec §2 leaf) |
 | 상태 판 (stateRev) | (thread, scope)의 활성 가지 위 마지막 상태 이벤트의 판. 초기값은 0이다. 되감기·분기 뒤에는 그 가지의 값으로 돌아간다(§4.6.1) |
+| 주도권 프레임 (frame) | 대화의 주도권 스택 한 칸. 프레임 하나가 drive 락 하나(`lease.acquired`)다. 이 문서의 "drive 락"도 프레임 하나를 뜻한다. 0번이 맨 아래 플러그인 프레임이고 마지막이 맨 위다. 맨 위 프레임만 단계 함수를 부른다 |
 | drive 락 차수 (leaseEpoch) | (thread, scope)의 활성 가지 위 `lease.acquired` 개수. 1부터 센다 |
 | 호출 (invocation) | drive 함수를 한 번 부른 것. drive 락 하나에 여러 번 일어난다 |
 
@@ -78,7 +79,7 @@ import type { ThreadId, TurnId, StepId, JsonValue, Usage, IdFactory } from "@fre
 // 호스트 포트와 리소스 등록 정의는 F ports.ts가 정본이다(F.extensions.spec §3.2.1, 이 문서 §3.6·§3.9)
 import type {
   PortKey, PortLookup, LoopPort, InputQueuePort, RecordCommitPort, ProjectorRegistryPort, ScopedStorePort,
-  ProcessPort, DriveLockArbiterPort, ToolsPort, ModelsPort, McpPort,
+  ProcessPort, ToolsPort, ModelsPort, McpPort,
   ToolResourceDef, ProviderResourceDef, McpServerResourceDef,
 } from "@fresnel/contracts/extensions";
 ```
@@ -136,7 +137,7 @@ import type {
 | `hookOrderOf`, `hookOrderValue`, `createHookOrderState`, `checkOrder`, `previewOrder`, `HookOrderMap`, `HookOrderState`, `OrderRow`, `PreviewRow`, `PreviewRef`, `SkipReason`, `SkipNote`, `ValueChangeNote`, `AutoDisableNote`, `GuardRiskNote`, `OrderPreview` | 함수, 타입 | X.operations.spec §4.1.5 |
 | `traceReadOf`, `TraceSettings`, `DEFAULT_TRACE_SETTINGS` | 함수, 타입, 상수 | X.operations.spec §3.9 |
 | `testRunControlOf` | 함수 | 이 문서 §4.4.8 |
-| `extReadViewOf`, `ExtReadView`, `DriveLockView`, `DriveLockCandidate`, `HookHandlerView`, `BoundCapabilityView` | 함수, 인터페이스 | 이 문서 §4.4.9 |
+| `extReadViewOf`, `ExtReadView`, `HookHandlerView`, `BoundCapabilityView` | 함수, 인터페이스 | 이 문서 §4.4.9 |
 | `budgetClassOf`, `DEFAULT_BUDGETS_MS`, `BudgetClass`, `BudgetTable` | 함수, 상수, 타입 | X.operations.spec §4.2.2 |
 
 패키지 안에서만 쓰는 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
@@ -183,7 +184,7 @@ export interface ExtHostDeps {
 export interface PrimitivesSettingsSource {
   driveDefaultLimits(threadId: ThreadId): DriveLimits; // x.primitives.driveDefaultLimits (review.decisions-2 U-12). launch 범위까지 합친 값, 빠진 필드는 내장 기본값으로 채움
   driveLimits(threadId: ThreadId): DriveLimits;        // x.primitives.driveLimits (천장). launch 범위까지 합친 값
-  activeDriver(threadId: ThreadId): RegistrationId | null; // x.primitives.activeDriver
+  driveMaxDepth(threadId: ThreadId): number;           // x.primitives.driveMaxDepth (3a는 읽기만. 소비는 3b 맡기기)
   driveRequiresGroup(): boolean;                       // x.primitives.driveRequiresGroup (기본 true). 등록 시점(setup)에 읽는다
   capabilityProviders(): Readonly<Record<CapabilityId, ExtensionName>>; // x.primitives.capabilityProviders
 }
@@ -282,15 +283,19 @@ export interface ExtHost {
   readonly boundary: BoundaryHooks;
   /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_HOOKS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
-  /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
-  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a). `options.testRun`이 참이면 Test run 대화다(§4.4.8) */
+  /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 drive 락를 읽어 들인다 */
+  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive drive 락는 받지 않는다(§4.4.1 3a). `options.testRun`이 참이면 Test run 대화다(§4.4.8) */
   openThread(threadId: ThreadId, options?: { readonly child?: boolean; readonly testRun?: boolean }): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
-  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-sdk.spec §3.13 요청 2의 답이다 */
+  /** thread의 현재 drive 락. 없거나 반납이 커밋되었으면 null. L3.group-sdk.spec §3.13 요청 2의 답이다 */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
+  /** 주도 시작 요청을 큐에 넣는다(§4.4.1 4번). 사용자 명령은 trigger `user`(기본)다. 문맥이 없는 호출은 `RegistrationHostApi.startDrive`가 `no_context`로 거부한다 */
+  startDrive(threadId: ThreadId, scopeId: RegistrationId, options?: { readonly input?: JsonValue; readonly trigger?: "user" | "profile" }): Result<void, StartDriveError>;
+  /** thread의 주도권 스택을 아래에서 위로 읽는다(`DriveFrameView[]`). 맨 아래는 코어 루프(깊이 0)다. thread가 열려 있지 않으면 빈 목록이다(§4.4.9 2번) */
+  driveFrames(threadId: ThreadId): readonly DriveFrameView[];
   /**
-   * scope 토글 요청·적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3의 답).
-   * 요청은 곧바로, 적용과 임대 변화는 경계 커밋 뒤에 부른다. 구독자의 예외는 `report`로 남기고 다른 구독자에게 이어 간다
+   * scope 토글 요청·적용, drive 락 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3의 답).
+   * 요청은 곧바로, 적용과 drive 락 변화는 경계 커밋 뒤에 부른다. 구독자의 예외는 `report`로 남기고 다른 구독자에게 이어 간다
    */
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표 */
@@ -328,7 +333,7 @@ export interface LeaseInfo {
 }
 
 export interface ExtChange {
-  /** scope: 토글 요청, 적용, 오류 표시, 켜짐 집합 변화. lease: 임대 부여나 반납이 커밋됨 */
+  /** scope: 토글 요청, 적용, 오류 표시, 켜짐 집합 변화. lease: drive 락 부여나 반납이 커밋됨 */
   readonly kind: "scope" | "lease";
   readonly scopeId: RegistrationId;
   /** thread 단위 변화면 그 thread, 전체 요청이면 null */
@@ -494,7 +499,7 @@ export const DEFAULT_DISPATCH_POLICY: DispatchPolicy;
 
 ### 3.5 경계 훅
 
-L1 루프는 단계 경계와 유휴 진입 때 X를 부른다. X는 이 훅에서만 토글 적용, drive 락 부여·반납, drive 재호출 예약을 한다.
+L1 루프는 단계 경계와 유휴 진입 때 X를 부른다. X는 이 훅에서만 토글 적용, 주도권 프레임의 부여·반납, drive 재호출 예약을 한다.
 
 ```ts
 // primitives/boundary.ts
@@ -504,9 +509,9 @@ export interface BoundarySignal {
   readonly kind: "step_end" | "turn_settled" | "idle";
   readonly turnId?: TurnId;
   readonly stepId?: StepId;
-  /** 이 경계를 만든 turn이 drive 임대의 loop.turn으로 시작됐으면 그 임대 id */
+  /** 이 경계를 만든 turn이 drive drive 락의 loop.turn으로 시작됐으면 그 drive 락 id */
   readonly drivenBy?: DriveLockId;
-  /** turn_settled만: 그 turn이 사용자 중단(취소 사유 코드 `user`)으로 끝났다. 임대가 있으면 `revoked`로 반납하고, 사용자의 다음 명령이 정착할 때까지 후보를 올리지 않는다(§4.4.1 12번) */
+  /** turn_settled만: 그 turn이 사용자 중단(취소 사유 코드 `user`)으로 끝났다. 스택의 모든 프레임을 맨 위부터 `revoked`로 내리고 시작 요청 큐를 비운다(§4.4.1 12번) */
   readonly userInterrupted?: true;
 }
 
@@ -523,7 +528,7 @@ export interface BoundaryHooks {
 }
 ```
 
-- `step_end`와 `turn_settled`는 같은 경계에서 차례로 올 수 있다. 토글과 drive 락 반납은 `step_end`에서 적용한다. drive 재호출은 `turn_settled`와 `idle`에서만 시작한다(turn 안에서는 `loop.turn`이 새 turn을 시작할 수 없기 때문이다).
+- `step_end`와 `turn_settled`는 같은 경계에서 차례로 올 수 있다. 토글과 프레임 반납은 `step_end`에서 적용한다. drive 재호출은 `turn_settled`와 `idle`에서만 시작한다(turn 안에서는 `loop.turn`이 새 turn을 시작할 수 없기 때문이다).
 - L1이 경계 기여를 커밋에 넣지 못하는 구현(M0 인메모리 포트)이면 X가 `RecordCommitPort.commit`으로 따로 커밋한다. 이 경우 원자성은 경계 커밋과 분리된다 [제안, M0 한정].
 
 ### 3.6 호스트 포트
@@ -552,8 +557,6 @@ export type {
   ScopedStorePort,
   // 프로세스 실행 (fresnel.process). spawn 사용처는 X.loading-trust.spec §3.8, run 사용처는 X.operations.spec §3.7
   ProcessPort, IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, HookProcessPort, HookRunSpec, HookRawRun,
-  // 임대 정책 (fresnel.groups, 선택)
-  DriveLockArbiterPort, DriveLockCandidate,
 } from "@fresnel/contracts/extensions";
 export {
   LoopPortKey,                // { name: "fresnel.loop" }
@@ -562,7 +565,6 @@ export {
   ProjectorRegistryPortKey,   // { name: "fresnel.session", member: "projectors" }
   ScopedStorePortKey,         // { name: "fresnel.store" }
   ProcessPortKey,             // { name: "fresnel.process" }
-  DriveLockArbiterPortKey,        // { name: "fresnel.groups" }
 } from "@fresnel/contracts/extensions";
 
 // ── 확장 호스트 자신 (서비스 fresnel.ext, 제공 ext-host) ───────────────
@@ -580,8 +582,8 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
 포트 주입 규칙:
 
 1. X는 포트마다 내부 Cordis 플러그인 하나를 두고 `inject: [<포트 이름>]`으로 주입받는다. 포트 fiber가 ACTIVE가 되면 참조를 잡고, 해제되면 참조를 비운다. 포트를 따로 두므로 한 포트가 없어도 나머지 연산은 동작한다.
-2. 포트가 없을 때: `dispatch`는 포트 없이 동작한다. `post`는 `InputQueuePort`, `drive`는 `LoopPort`와 `RecordCommitPort`, `commit`·`record`·`readRecords`는 `RecordCommitPort`가 필요하다. 없으면 `PrimitiveError("port_unavailable")`로 거부한다. drive 락은 두 포트가 모두 있을 때만 부여한다. `loop.ask`는 승인 서비스 포트(`ApprovalServicePortKey`, 아래 대응 목록)가 없으면 `port_unavailable`로 거부한다(§4.4.4).
-3. `DriveLockArbiterPort`는 선택이다. 없으면 §4.4.1의 기본 규칙을 쓴다.
+2. 포트가 없을 때: `dispatch`는 포트 없이 동작한다. `post`는 `InputQueuePort`, `drive`는 `LoopPort`와 `RecordCommitPort`, `commit`·`record`·`readRecords`는 `RecordCommitPort`가 필요하다. 없으면 `PrimitiveError("port_unavailable")`로 거부한다. 주도권(프레임 부여)은 두 포트가 모두 있을 때만 한다. `loop.ask`는 승인 서비스 포트(`ApprovalServicePortKey`, 아래 대응 목록)가 없으면 `port_unavailable`로 거부한다(§4.4.4).
+3. X는 `DriveLockArbiterPort`를 내보내지 않는다(3a). 주도권은 시작 계기로만 생기고 중재 포트를 부르지 않는다(§4.4.1). F 정의(`extensions/ports.ts`)의 정리는 F 쪽 몫이다 [미결, 근거: packages/contracts/src/extensions/ports.ts].
 4. `fresnel.*` 이름의 서비스는 `ExtensionUnit.builtin`이 참인 확장과 `registerPlatform`으로 등록한 L0 패키지만 제공할 수 있다(§3.7).
 5. 확장이 아닌 사용처의 포트 경로 [제안]: X 안의 loading-trust·operations는 Cordis를 쓰지 않고 `ExtHost.ports`(`PortLookup`)로 포트를 얻는다. operations는 `OperationsDeps.ports`로 받은 `PortLookup`에서 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(확장 전용 저장, `storageOf`)와 `ProcessPortKey`(외부 훅)를 꺼낸다. operations 정책은 `ExtHost`보다 먼저 만들어지므로 조립 루트가 `ExtHost.ports`를 늦은 연결로 넘긴다(X.operations.spec §3.8). 로더의 `IsolationProcessPort`는 조립 루트가 `ExtHost.ports.get(ProcessPortKey)`로 꺼내 `LoaderDeps.process`에 넣는다(X.loading-trust.spec §3.5).
 6. [결정: review.decisions-2 D-04] 포트와 서비스 인터페이스의 관계. 같은 서비스 이름에 등록되는 서비스 인터페이스는 F에 있고, 이 포트를 부분형으로 포함한다. 서비스 이름 하나에는 인터페이스 하나만 등록되므로 X 포트의 메서드와 서비스 인터페이스의 메서드가 어긋나지 않는다.
@@ -596,9 +598,9 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
    | `fresnel.tools` | `ToolService`(`@fresnel/contracts/services`) | `ToolsPort`(§3.9) |
    | `fresnel.models` | `ModelService`(`@fresnel/contracts/services`) | `ModelsPort`(§3.9) |
    | `fresnel.mcp` | `McpService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/mcp.ts`) | `McpPort`(§3.9) |
-   | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `DriveLockArbiterPort` |
+   | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | 없음(3a: X는 중재 포트를 쓰지 않는다) |
 
-   - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12 `GroupService extends DriveLockArbiterPort`도 같은 규칙을 따른다.
+   - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12의 `GroupService`도 같은 규칙을 따른다. 중재 포트 확장은 F 정리 뒤에 빠진다 [미결, 근거: packages/contracts/src/services/groups.ts].
 7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@fresnel/ext-host/testing` 안에 F 인터페이스로 만든다.
 
 ### 3.7 Cordis 서비스 이름 유도
@@ -632,7 +634,7 @@ F의 `RegistrationApi<S>`에는 서비스 제공, 포트 조회, 리소스 등�
 // primitives/host-api.ts
 export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue;
 
-/** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 임대의 취소 신호다 */
+/** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 drive 락의 취소 신호다 */
 export interface RegistrationCallContext {
   readonly kind: "on" | "drive";
   readonly threadId: ThreadId;
@@ -694,7 +696,7 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 ```
 
 - `hostOf`는 `WeakMap<RegistrationApi, RegistrationHostApi>`로 찾는다. 같은 g에 대해 같은 객체를 돌려준다.
-- `callContext`는 ambient(§4.2 `withAmbient`)를 읽는다. ambient의 `scopeId`가 g를 만든 scope와 다르면 undefined다. drive 문맥의 `signal`은 `LoopHandle.signal`과 같은 drive 락 신호이고, on 문맥의 `signal`은 핸들러 `ctx.signal`과 같아 시간 초과 때 abort된 상태가 된다. drive의 `turn`·`spawn`과 기능 공급자 호출은 ambient를 끊으므로(§4.4.7) 그 안에서는 undefined다. 이 값으로 L3가 `g.delegate`의 thread를 얻고, on·drive에서 허용되지 않는 연산을 거부한다.
+- `callContext`는 ambient(§4.2 `withAmbient`)를 읽는다. ambient의 `scopeId`가 g를 만든 scope와 다르면 undefined다. drive 문맥의 `signal`은 `lease.signal`과 같은 drive 락 신호이고, on 문맥의 `signal`은 핸들러 `ctx.signal`과 같아 시간 초과 때 abort된 상태가 된다. drive의 `turn`·`spawn`과 기능 공급자 호출은 ambient를 끊으므로(§4.4.7) 그 안에서는 undefined다. 이 값으로 L3가 `g.delegate`의 thread를 얻고, on·drive에서 허용되지 않는 연산을 거부한다.
 - 포트로 넘기는 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)는 F.extensions.spec §3.2.1 정의를 쓰고, X가 보관하는 리소스 정의(`CommandResourceDef` 등)는 §3.9에 둔다.
 - [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
@@ -1059,7 +1061,7 @@ collect(entries, payload, options):
 
 lifecycle [결정: adr.0017]:
 
-- lifecycle 훅(`lifecycle.agent.settled`, `lifecycle.lease.rejected`)은 `failure: "open"`인 tap이다. 디스패치 키는 내구 이벤트 id다(`dispatchKey`). 내구 kind에서 훅 이름은 F의 `LIFECYCLE_HOOKS` 표 하나로 찾는다. 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다. 발화 위치(커밋 뒤)는 L1이 정한다(M3-REQ-109).
+- lifecycle 훅(`lifecycle.agent.settled`; `lifecycle.lease.rejected`는 3a에서 발화하지 않는다)은 `failure: "open"`인 tap이다. 디스패치 키는 내구 이벤트 id다(`dispatchKey`). 내구 kind에서 훅 이름은 F의 `LIFECYCLE_HOOKS` 표 하나로 찾는다. 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다. 발화 위치(커밋 뒤)는 L1이 정한다(M3-REQ-109).
 - 위임 주체가 그 scope인 이벤트만 넘기는 필터는 발화하는 쪽이 `dispatch`에 해당 scope의 핸들러만 남기는 방식으로 정한다 [미결]. 이 계층의 디스패처는 훅 이름과 payload만 받는다.
 
 
@@ -1085,37 +1087,38 @@ lifecycle [결정: adr.0017]:
 
 ### 4.4 drive
 
-#### 4.4.1 등록과 중재
+#### 4.4.1 등록과 주도권 계기 [결정: 2026-11-17 사용자, 3a]
 
 1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 정책 `x.primitives.driveRequiresGroup`(기본 `true`)이 참이고 이 플러그인이 플러그인 그룹의 구성원(`inGroup`)이 아니면 `drive_requires_group`, 플러그인의 `drives`가 참이 아니면 `drive_undeclared`, 같은 Registration에서 두 번 부르면 `drive_duplicate`다. Registration당 슬롯은 하나다([결정] ADR-0007 §3.1). 정책을 거짓으로 풀면 `drives: true`를 선언한 모든 플러그인이 등록할 수 있다([결정: 2026-11-01 사용자]). 정책은 setup 때 읽으므로 바뀐 값은 Registration을 다시 켜거나 `ext.reload`할 때 적용된다. `untrusted` 확장은 로드되지 않으므로 정책과 무관하게 drive를 못 쓴다.
-2. 등록은 drive 락을 만들지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
-3. drive 락은 thread마다 하나다. 한 thread에서 동시에 drive 락을 가진 scope는 최대 하나다([결정] ADR-0007 §3.6). drive 락 부여는 경계 훅(`step_end`, `turn_settled`, `idle`)과 `openThread`에서만 판단한다.
+2. 등록은 주도권을 주지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
+3. 주도권 스택은 thread마다 하나다. 스택의 프레임 하나가 drive 락 하나(§2 용어의 주도권 프레임)이고, 0번이 맨 아래 플러그인 프레임(코어 루프 위), 마지막이 맨 위다. 맨 위 프레임만 단계 함수를 부른다. 아래 프레임은 `waiting`이며 맡기기(3b)에서만 생긴다. 한 thread에서 단계 함수를 부르는 scope는 맨 위 하나다([결정] ADR-0007 §3.6). 부여 판단(시작 요청 큐 처리)은 경계 훅(`step_end`, `turn_settled`, `idle`)에서만 한다. `openThread`는 프로필 시작 요청을 큐에 넣을 뿐 부여하지 않는다.
 3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 drive 락을 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
-4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 Registration이다. 고르는 순서 [제안]:
-   - `DriveLockArbiterPort`가 있으면 그 결과를 쓴다(L3.group-sdk.spec의 `DriveArbiter`).
-   - 없으면 후보가 하나일 때 그 scope를 고른다.
-   - 둘 이상이면 설정 `x.primitives.activeDriver`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정: review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
-   - 후보는 그 thread에서 켜진 scope만 센다(§4.5.2). 한 thread에서 꺼진 그룹은 다른 thread의 후보여도 이 thread의 후보가 아니다.
-5. 이미 drive 락이 있으면 중재자와 후보 수를 다시 묻지 않는다. 설정 `x.primitives.activeDriver`이 다른 그룹을 가리킬 때만 예외다. 가리킨 그룹이 이 thread의 후보(켜져 있고 drive를 등록했고 오류 상태가 아니고 `idle`·`budget` 반납 뒤 대기 중이 아님)이면 현재 drive 락을 `revoked` 사유로 `releasing`으로 바꾼다. 반납은 다음 경계 커밋에서 기록되고, 그 커밋이 끝나면 곧바로 이어서 후보를 다시 판단해 가리킨 그룹에 `lease.acquired`를 기록한다. 가리킨 그룹이 후보가 아니면 현재 drive 락을 유지한다. 진행 중인 `loop.turn`은 끊지 않는다(§4.4.4). 설정이 `null`로 바뀌거나 중재자가 다른 그룹을 고르게 되어도 회수하지 않는다. 회수는 사용자가 이름을 지정한 경우의 동작이다([결정: P-22]).
-6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId = ids`로 만든 불투명 문자열(40자 이하) [제안]. 경계 기여에 `lease.acquired { leaseId, scopeId, limits }`(F.records.spec §3.3)를 넣는다. drive 락 상태는 `active`다.
-7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLease.leaseEpoch`와 `leaseEpochs`로 같은 drive 락을 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(drive 락마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
-8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. drive 락을 받지 못한 후보(다른 그룹이 drive 락을 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 drive 락 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부 이벤트의 커밋 키는 `lease:<대기 scope>:rejected:<임대를 가진 scope>.<그 임대 차수>`다. 둘 다 커밋된 값이라 thread를 다시 열어 `requestSeq`가 0부터 다시 시작해도 다른 drive 락 아래의 거부와 키가 겹쳐 사라지지 않는다. 같은 drive 락 아래의 같은 거부를 다시 열린 thread가 한 번 더 내면 `replayed`로 한 건만 남는다. 경계 커밋이 실패하면 그 경계가 올린 대기 계수를 되돌린다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-sdk 몫이다.
-9. 역할 분담: `DriveArbiter`(group-sdk)는 누가 받는지(정책)를, X는 대기 계수, 상한 집행, `lease.rejected` 커밋, 부여·반납 커밋(메커니즘)을 맡는다. 유휴 중 drive 락을 받은 그룹은 drive 락 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
-10. [결정: X-17, 2026-10-31 사용자] `loop.ask`의 첫 호출로 사유 `waiting`으로 반납한 Registration은 그 질문 승인이 해결될 때까지 이 thread의 후보가 아니다. 그래서 8번의 대기 계수에도 들지 않는다(후보 목록으로 대기를 세므로 제외가 계수에도 그대로 적용된다). 승인이 해결되면 X가 그 Registration을 다시 후보로 올리고, 같은 상태 판에서도 바로 부여할 수 있다. `waiting`은 `idle`·`budget`과 달리 쿨다운(`cooldown`)을 걸지 않는다. 답이 온 뒤 `x.primitives.activeDriver`이 이 그룹을 가리키면 지금 가진 다른 그룹의 drive 락은 5번에 따라 회수된다.
-11. [결정: X-17 재부여, REQ-X-04] 계통 id(`lineageId`). `leaseId`는 부여마다 새로 발급하는 펜싱 값이다. 앞 부여의 핸들은 재부여 뒤에도 `lease_revoked`를 받고, `lease:<leaseId>:released` 같은 커밋 키가 `leaseId`의 유일성에 기대므로 재사용하지 않는다. 대신 `lease.acquired` 페이로드에 `lineageId`를 싣는다(필수 필드, 옛 기록 읽기 없음). 같은 thread에서 사유 `waiting`의 `lease.released`가 마지막 `lease.*` 기록이고 다음 부여가 같은 Registration에게 가면 앞 drive 락의 `lineageId`를 이어받는다. 그 밖의 모든 부여(첫 부여, `budget`·`idle`·`error`·`revoked`·`restart`·`disabled` 반납 뒤, 다른 Registration이 끼어든 뒤)는 자기 `leaseId`와 같은 값으로 새 계통을 연다. 재시작 뒤에도 같다: `ExtThreadSnapshot.openLease.lineageId`가 열린 drive 락의 계통을, `ExtThreadSnapshot.waitingLineage`가 활성 가지 위 마지막 `lease.*` 기록이 `waiting` 반납일 때 그 scope와 계통을 돌려준다. 구현은 `primitives/lease.ts`의 `decide`(부여), `applyCommitted`(반납 반영)다.
-12. [결정: 2026-11-16 사용자] 사용자가 턴을 중지하면 그 대화의 drive 락을 내려놓고 기본 루프로 돌아간다. L1은 사용자 중단(취소 사유 코드 `user`)으로 끝난 turn의 `turn_settled` 신호에 `userInterrupted: true`를 싣는다. 그 경계의 `prepare`에서 `active`인 drive 락을 사유 `revoked`로 `releasing`으로 바꾸고 같은 커밋에 `lease.released`를 기록한다. 이후 사용자의 다음 명령이 정착한 `turn_settled`(`userInterrupted` 없음)가 올 때까지 그 thread에는 후보가 없다. 그 사이 낡은 핸들의 `loop.turn`은 `lease_revoked`로 거부되므로 drive 함수는 `aborted` 결과로 다시 불리지 않는다. 같은 turn 범위 아래 진행 중인 서브에이전트는 turn의 취소 신호를 따라 함께 멈춘다. 백그라운드 서브에이전트는 경계를 넘어 계속 돈다(core-tasks의 백그라운드 경계). 구현은 `primitives/lease.ts`의 `collectReleases`와 `candidatesFor`, `core-loop/src/loop/finish-turn.ts`다.
+4. 시작 계기는 셋뿐이다([결정: 2026-11-17 사용자], drive-isolation.md 2.2). 중재 후보 목록, 선택 설정, 대기 계수는 없다 [근거: packages/ext-host/src/primitives/lease.ts].
+   - 사용자 명령: `ExtHost.startDrive(threadId, scopeId, options?)`다(`trigger`의 기본값은 `user`). 플러그인은 `RegistrationHostApi.startDrive(input?)`를 쓰고 ambient 문맥의 thread를 쓴다. 문맥이 없으면 `no_context`다. 주도 중에도 받아 큐에 넣는다.
+   - 프로필 시작: `ThreadOpenOptions.startDrive`다. 열 때 열린 drive 락(`openLeases`)가 없을 때만 그 scope의 `profile` 요청을 넣는다.
+   - 맡기기: 현재 맨 위 프레임의 `handoff` 명령이다(3b). 3a에서는 `handoff`가 `{ kind: "refused", code: "command_unavailable" }`다.
+   - 대상 scope의 켜짐은 그 thread 기준이다(§4.5.2). 한 thread에서 꺼진 scope는 다른 thread에서 켜져 있어도 이 thread의 요청 대상이 아니다.
+5. 부여 규칙. 큐 맨 앞 요청만 본다. 스택이 비어 있어야 부여한다. 스택이 차 있을 때 사용자 명령은 큐에 둔 채 아무것도 하지 않는다(전환은 3b). 스택이 차 있을 때 `profile` 요청은 버리고 진단 `scope_notice`를 낸다. 사용자가 멈춘 뒤(`userStopped`)에는 사용자 명령만 부여한다. 요청의 대상은 열려 있어야 하고, drive가 있어야 하며, `driveError`가 아니어야 하고, 이 thread에서 켜져 있어야 한다. 아니면 요청을 버리고 `scope_notice`를 낸다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다. 커밋이 실패하면 다음 경계가 다시 시도한다. 사용자 명령은 멈춤(`userStopped`)을 푼다.
+6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId`는 부여 초안의 이벤트 id를 그대로 쓴 불투명 문자열(40자 이하)이다. `lineageId`는 `leaseId`와 같다(3a). 경계 기여에 `lease.acquired { leaseId, scopeId, lineageId, limits, leaseEpoch, depth }`(F.records.spec §3.3)를 넣는다. `depth`는 스택 인덱스다. 부여는 빈 스택에서만 하므로 3a에서는 0이다. `parent`는 맡기기 요청에만 싣는다(3b). `contentHash`는 지금 값이 없어 싣지 않는다. 부여된 프레임은 `driving`이다.
+7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLeases`의 `leaseEpoch`와 `leaseEpochs`로 같은 drive 락를 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(부여마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
+8. 옛 중재의 대기와 거부(대기 계수, 상한 `leaseWaitLimit`, `lease.rejected` 발행, `lifecycle.lease.rejected` 발화, 쿨다운, `withdrawn`)는 3a에서 걷어 냈다. `lease.rejected` 이벤트 종류와 `lifecycle.lease.rejected` 점의 스키마는 옛 기록을 읽을 때만 남는다. X는 두 값을 발행하지 않는다.
+9. 역할 분담: X는 시작 계기를 받아 큐에 넣고, 경계 커밋에서 부여와 반납을 기록하며, 상한(§4.4.2)을 집행한다. 어느 등록이 주도할지 고르는 정책은 X에 없다 [근거: packages/ext-host/src/primitives/lease.ts]. 유휴 중 부여받은 프레임은 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
+10. [결정: X-17, 2026-10-31 사용자, 3a에서 바뀜] 질문 대기(`ask`)는 drive 락를 반납하지 않는다. 맨 위 프레임을 `asking`으로 두고 답을 기다린다(§4.4.4a). 옛 방식(사유 `waiting`으로 반납하고 후보에서 뺐다가 답 뒤 다시 부여)은 걷어 냈다. 그래서 대기 계수와 쿨다운이 없다 [근거: packages/ext-host/src/primitives/lease.ts].
+11. 계통 id(`lineageId`)는 부여마다 drive 락 id와 같다(3a: `lineageId = leaseId`). `leaseId`는 부여마다 새로 발급하는 펜싱 값이라 재사용하지 않는다. `lease.acquired` 페이로드의 `lineageId`는 필수 필드다. 기본 키 `loop.turn`·`loop.spawn`은 이 값으로 만든다(§4.4.4). 재시작 뒤에는 `ExtThreadSnapshot.openLeases`의 `lineageId`를 그대로 쓴다. `waitingLineage`는 없다 [근거: packages/core-persistence/src/ext-queries.ts]. 구현은 `primitives/lease.ts`의 `startDrive`·`decide`(부여)와 `applyCommitted`(반납 반영)다.
+12. [결정: 2026-11-16 사용자, 3a에서 바뀜] 사용자가 턴을 중지하면(`turn_settled`의 `userInterrupted`) 그 대화의 스택 전체를 내리고 시작 요청 큐를 비운다. L1은 사용자 중단(취소 사유 코드 `user`)으로 끝난 turn의 `turn_settled` 신호에 `userInterrupted: true`를 싣는다. 그 경계의 `prepare`에서 스택의 프레임을 맨 위부터 사유 `revoked`로 `releasing`으로 바꾸고 같은 커밋에 `lease.released`를 기록한다. 그 뒤 `userStopped`가 켜지고, 사용자의 다음 주도 명령(`startDrive`, `user`)이 이를 푼다. 그 사이 내려간 프레임의 `turn` 명령은 `lease_revoked`로 거부되므로 단계 함수는 `aborted` 결과로 다시 불리지 않는다. 같은 turn 범위 아래 진행 중인 서브에이전트는 turn의 취소 신호를 따라 함께 멈춘다. 백그라운드 서브에이전트는 경계를 넘어 계속 돈다(core-tasks의 백그라운드 경계). 구현은 `primitives/lease.ts`의 `collectReleases`와 `core-loop/src/loop/finish-turn.ts`다.
 
 #### 4.4.2 상한
 
-1. [결정] 일반 대화 턴에는 기본 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` 20행). 상한은 drive 락에만 건다. [결정: review.decisions-2 U-12] drive 락에는 기본 상한을 둔다. drive는 사용자 입력 없이 턴을 만들기 때문이다. 기본 상한은 설정 두 단계로 정하고, 둘 다 사용자가 설정 화면에서 조정한다(§6).
+1. [결정] 일반 대화 턴에는 기본 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` 20행). 상한은 주도권 프레임(drive 락)에만 건다. [결정: review.decisions-2 U-12] 주도권 프레임에는 기본 상한을 둔다. drive는 사용자 입력 없이 턴을 만들기 때문이다. 기본 상한은 설정 두 단계로 정하고, 둘 다 사용자가 설정 화면에서 조정한다(§6).
    - 일반 기본값 `x.primitives.driveDefaultLimits`(기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`): 상한을 명시하지 않은 drive 락에 쓴다.
    - 그룹 덮어쓰기: 그룹이 자기 설정(예: `ext.helm.driveLimits`, Helm 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)을 `DriveOptions.limits`로 넘긴다.
    - 천장 `x.primitives.driveLimits`(기본 `{}`, 천장 없음): 어떤 drive 락도 이 값을 넘지 못한다.
 2. 실효 상한은 필드마다 정한다. 먼저 `base[k] = DriveOptions.limits[k] ?? driveDefaultLimits(threadId)[k]`다. `driveLimits(threadId)[k]`가 있으면 `min(base[k], driveLimits(threadId)[k])`, 없으면 `base[k]`다. `base[k]`도 천장도 없으면 그 필드는 상한 없음(`DriveLockBudget`의 `null`)이다. 두 설정은 drive 락을 받는 thread로 읽는다(둘 다 session 범위를 받는 키이기 때문이다). 사용자가 `driveDefaultLimits`에 일부 필드만 적으면(`{ maxTurns: 6 }`) 빠진 필드는 내장 기본값(`withDriveDefaults`)으로 채워 돌려준다. 그래서 필드를 비워도 기본 상한은 사라지지 않고, 상한을 풀려면 큰 값을 적는다. `DriveOptions.limits`가 천장보다 크면 천장 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
-3. 실효 상한은 drive 락 부여 때 한 번 정하고 `lease.acquired.limits`에 기록한다. `DriveOptions.limits`도 등록 때 복사하지 않고 부여 때 읽는다(getter로 넘긴 설정은 다음 drive 락부터 반영된다). drive 락 도중 설정을 바꿔도 현재 drive 락에는 반영하지 않는다 [제안].
-4. 사용량: `turns`는 새로 실행된(재생이 아닌) `loop.turn` 수, `spawns`는 새로 실행된 `loop.spawn` 수, `tokens`는 그 결과 `usage.totalTokens`의 합이다 [가정: pi-ai `Usage`의 필드 이름]. 재개 때는 `OpenLease.used`로 복원한다.
-5. 검사 시점은 `loop.turn`·`loop.spawn` 호출 직전이다. 남은 양이 0 이하면 `PrimitiveError("lease_budget")`로 거부하고 drive 락을 `releasing`으로 바꾼다. 실행 중인 turn이 토큰 상한을 넘겨도 그 turn을 끊지 않는다.
+3. 실효 상한은 프레임 부여 때 한 번 정하고 `lease.acquired.limits`에 기록한다. `DriveOptions.limits`도 등록 때 복사하지 않고 부여 때 읽는다(getter로 넘긴 설정은 다음 drive 락부터 반영된다). drive 락 도중 설정을 바꿔도 현재 프레임에는 반영하지 않는다 [제안].
+4. 사용량: `turns`는 새로 실행된(재생이 아닌) `loop.turn` 수, `spawns`는 새로 실행된 `loop.spawn` 수, `tokens`는 그 결과 `usage.totalTokens`의 합이다 [가정: pi-ai `Usage`의 필드 이름]. 복원 때는 프레임마다 자기 `own` 합으로 다시 센다(프레임의 `used`는 자기와 위 프레임이 쓴 양이다). 쓴 양은 스택의 모든 프레임(자기와 아래)에 더한다.
+5. 검사 시점은 `loop.turn`·`loop.spawn` 호출 직전이다. 남은 양이 0 이하면 `PrimitiveError("lease_budget")`로 거부하고 프레임을 `releasing`으로 바꾼다. 검사는 실행 중인 맨 위 프레임에서만 한다. 아래 프레임의 한도 강제는 3b의 맡기기가 한다. 실행 중인 turn이 토큰 상한을 넘겨도 그 turn을 끊지 않는다.
 6. `loop.budget`은 호출 시점의 남은 양을 돌려주는 getter다.
+7. [결정: 2026-11-17 사용자, 3a] 깊이 상한 `x.primitives.driveMaxDepth`(정수 1 이상, 기본 8)는 코어 루프 위 프레임 수의 상한이다. 3a에서는 값을 정의하고 읽기만 한다. 맡기기(`handoff`)가 상한을 넘으면 `{ kind: "refused", code: "depth_limit" }`를 돌려주는 일은 3b에서 한다. 설정 범위는 managed, user, project, launch다. `profile` 범위는 아직 `SettingScope`에 없으므로 넣지 않았다. profile 범위는 M5c에서 더한다.
 
 #### 4.4.3 호출과 재호출
 
@@ -1123,17 +1126,17 @@ drive 함수를 부르는 시점([결정] F.extensions.spec §4.6의 세 시점�
 
 | 시점 | 조건 | 경계 훅 |
 |---|---|---|
-| drive 락을 받을 때 | 부여가 커밋된 직후. thread가 유휴면 바로, 실행 중이면 그 turn이 정착한 뒤 | `settle(step_end·idle, committed)` 뒤 |
-| 프로세스 재시작 뒤 재개 | `openThread`에서 열린 drive 락(`openLease`)이 있고 그 scope가 켜져 있을 때. 첫 `idle` 또는 `turn_settled` 경계에서 | `settle(idle·turn_settled)` |
-| 반환 뒤 그룹이 아직 활성 | 직전 호출이 반환했고 drive 락이 `active`일 때. 다음 `turn_settled`(어떤 turn이든) 또는 상태 판이 바뀐 뒤의 `idle` | `settle(turn_settled·idle)` |
-| 사람 확인 답 뒤 drive 락을 다시 받을 때 | `loop.ask`가 `waiting`으로 반납한 Registration의 질문 승인이 해결되어 후보로 돌아왔을 때(§4.4.1 10번). thread가 유휴이면 바로, 실행 중이면 그 turn이 정착한 뒤 | 유휴 적용의 `settle(idle, committed)` 뒤(§4.5.5) |
+| 시작 요청이 부여될 때 | `lease.acquired`가 커밋된 직후. thread가 유휴면 바로, 실행 중이면 그 turn이 정착한 뒤 | `settle(step_end·idle, committed)` 뒤 |
+| 프로세스 재시작 뒤 재개 | `openThread`에서 열린 drive 락(`openLeases`)로 스택을 세웠고 맨 위 scope가 켜져 있을 때. 맨 위 프레임만 부른다. 첫 `idle` 또는 `turn_settled` 경계에서 | `settle(idle·turn_settled)` |
+| 반환 뒤 맨 위가 아직 활성 | 직전 호출이 반환했고 맨 위 프레임이 `driving`일 때. 다음 `turn_settled`(어떤 turn이든) 또는 상태 판이 바뀐 뒤의 `idle` | `settle(turn_settled·idle)` |
+| 질문 답 뒤 | 맨 위 프레임이 `asking`이던 실행. 답 기다림이 풀리면 같은 실행이 결과를 받아 이어 간다(§4.4.4a). 반납과 재부여는 없다 | 경계 훅을 거치지 않는다 [제안] |
 
 ```text
 invoke(lease):
   st = cache.state(thread, scope)              // 마지막 커밋 상태(판 rev)
   inv = { baseRev: st.rev, i: 0, effects: 0 }
-  handle = makeLoopHandle(lease, inv)
-  try: await withAmbient({ threadId, scopeId, drive: inv }, () => fn(handle, st.doc))
+  loop = makeStepLoop(thread, lease, inv)
+  try: await withAmbient({ threadId, scopeId, drive: inv }, () => runSteps(loop, st.doc))
   catch err:
     release(lease, "error"); markDriveError(scope, err); return   // on 핸들러는 유지
   if lease.status != "active": return
@@ -1147,101 +1150,78 @@ invoke(lease):
   scheduleNextInvocation(lease)                 // 위 표의 셋째 행
 ```
 
-- [결정: X-17] 답을 받고 drive 락을 다시 받은 호출은 마지막 커밋 상태로 drive 함수를 처음부터 다시 부른다. 같은 `requestId`의 `loop.ask`는 새 승인을 만들지 않고 기록된 `AskOutcome`을 돌려준다(§4.4.4). 재부여된 drive 락은 새 `leaseId`를 받지만 계통 id(`lineageId`)는 앞 drive 락에서 이어받으므로(§4.4.1 11번) 기본 키 `loop.turn`·`loop.spawn`의 키가 그대로이고, 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려준다. 그래서 `loop.ask` 앞의 호출은 기본 키여도 안전하다. 낡은 핸들은 계통이 같아도 `leaseId`로 펜싱되어 `lease_revoked`를 받는다.
+- [결정: X-17] 재시작 뒤 복원된 프레임은 마지막 커밋 상태로 drive 함수를 처음부터 다시 부른다. 같은 `requestId`의 `ask`는 새 승인을 만들지 않고 기록된 `AskOutcome`을 돌려준다(§4.4.4). 복원된 프레임은 기록된 `lineageId`를 그대로 쓰므로(§4.4.1 11번) 기본 키 `loop.turn`·`loop.spawn`의 키가 그대로이고, 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려준다. 그래서 `ask` 앞의 호출은 기본 키여도 안전하다. 내려간 프레임의 낡은 `leaseId`는 `lease_revoked`를 받는다.
 - 효과(`effects`)로 세는 것: 재생이 아닌 `loop.turn`, 재생이 아닌 `loop.spawn`, `duplicate`가 아닌 `post`, `commit`, `record`. 재생된 호출과 중복 post는 효과가 아니다.
-- 같은 상태 판으로 연속 두 번 효과 없이 반환하면 drive 락을 `idle` 사유로 반납한다(F.extensions.spec §5 7번 [제안]을 구현한다).
-- `idle`로 반납된 scope는 다음 `turn_settled`나 그 scope의 상태 판이 바뀐 뒤에만 다시 후보가 된다 [제안]. 같은 경계에서 부여와 반납이 되풀이되는 것을 막는다.
-- 예외 [제안]: drive 락을 `error` 사유로 반납하고 drive 등록을 오류 상태로 표시한다. on 핸들러와 post는 계속 동작한다. 그 scope는 사용자가 끄고 다시 켤 때까지 후보에서 빠진다(자동 재시도 없음). 끄고 켜면 새 세대에서 등록이 새로 생기므로 오류 표시가 지워진다.
+- 같은 상태 판으로 연속 두 번 효과 없이 반환하면 프레임을 `idle` 사유로 내린다(F.extensions.spec §5 7번 [제안]을 구현한다).
+- `idle`로 내린 scope는 자동으로 다시 부여되지 않는다. 부여는 시작 요청 큐에서만 나오므로 새 사용자 명령이나 프로필 시작 요청이 있어야 한다 [제안]. 같은 경계에서 부여와 반납이 되풀이되는 것을 막는다.
+- 예외 [제안]: 프레임을 `error` 사유로 내리고 drive 등록을 오류 상태로 표시한다. on 핸들러와 post는 계속 동작한다. 그 scope는 사용자가 끄고 다시 켤 때까지 시작 요청을 받지 않는다(자동 재시도 없음, §4.4.1 4번의 `driveError` 검사). 끄고 켜면 새 세대에서 등록이 새로 생기므로 오류 표시가 지워진다.
 - 동시 실행 금지: 한 drive 락의 drive 함수는 한 번에 한 호출만 돈다. 앞 호출이 끝나지 않았으면 다음 호출을 예약하지 않는다.
 - [결정: M5a-1 E1] 상태만 커밋하는 호출 뒤의 재호출은 없다. 한 번의 호출(`invoke`) 안에서 엔진이 단계 함수를 되풀이해 부르므로(`runSteps`) 명령을 실행하고 결과를 `last`로 주는 것이 곧 이어 가기다. 효과(`effects`)가 없는 단계가 `MAX_CHAINED_REINVOKES`(8) [제안] 번 이어지면 `scope_notice` 정보 진단을 남기고 그 호출을 `yield`로 끝낸다. 단계 사이에 사용자 메시지가 있으면(`claimUserInput`) 그것이 다음 단계의 `last`다.
-- [결정: M5a-1 E1, 2026-11-17] `wants`는 없다(`DriveOptions`에서 삭제, 어댑터 없음). 후보 판단은 상태를 읽지 않는다. 대신 단계 함수가 `yield`(주도권 유지, 같은 상태 판에서 효과 없이 두 번 연속 `yield`로 끝나면 `idle` 반납)나 `done`(반납 사유 `done`)을 돌려준다. `done`으로 물러난 Registration은 그 상태 판(`ThreadRuntime.withdrawn`)이 바뀌기 전까지 후보가 아니고 `turn_settled`로 풀리지 않는다(다른 drive 그룹이 지연 없이 락을 받는다). 주도 중재(`DriveArbiter`, `activeDriver`)는 E3가 없앤다.
-- [결정] drive 호출 밖의 상태 커밋 뒤 호출. 명령 처리기나 도구 `execute`(§4.6.6)가 상태 판을 올리면 그 호출은 drive 호출이 아니라서 위 재호출 경로가 닿지 않는다. 그래서 `StateService`가 직접 호출 ambient(`invocation`이 있고 `drive`가 없다)의 커밋을 `LeaseBroker.onDirectCommit`에 알린다. 이 함수는 lifecycle 디스패치처럼 `setImmediate`로 한 번 넘겨 명령이 반환한 뒤에 판단한다. 그 scope가 `active`이고 커밋된 drive 락을 들고 있고 thread가 유휴이고 상태 판이 마지막 호출 때와 다르거나 아직 한 번도 부르지 않았으면 drive를 한 번 부른다. drive 락이 없으면 후보 판단을 요청해 부여 경계가 돌게 한다. drive가 실행 중이면 `missed`로 표시해 반환 뒤에 이어 부르고, thread에서 turn이 돌고 있으면 부르지 않는다. 그 turn이 끝나는 `turn_settled` 경계가 위 표의 셋째 행으로 부른다. 같은 판은 `lastBaseRev`로 걸러 두 번 부르지 않는다. 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`를 그대로 따른다.
+- [결정: M5a-1 E1, 2026-11-17] `wants`는 없다(`DriveOptions`에서 삭제, 어댑터 없음). 부여 판단은 상태를 읽지 않는다. 대신 단계 함수가 `yield`(주도권 유지, 같은 상태 판에서 효과 없이 두 번 연속 `yield`로 끝나면 `idle` 반납)나 `done`(반납 사유 `done`)을 돌려준다. `done`으로 물러난 scope는 시작 요청이 없으면 다시 부여되지 않는다. 주도 중재(`DriveArbiter`, `activeDriver`)는 3a에서 없앴다.
+- [결정] drive 호출 밖의 상태 커밋 뒤 호출. 명령 처리기나 도구 `execute`(§4.6.6)가 상태 판을 올리면 그 호출은 drive 호출이 아니라서 위 재호출 경로가 닿지 않는다. 그래서 `StateService`가 직접 호출 ambient(`invocation`이 있고 `drive`가 없다)의 커밋을 `LeaseBroker.onDirectCommit`에 알린다. 이 함수는 lifecycle 디스패치처럼 `setImmediate`로 한 번 넘겨 명령이 반환한 뒤에 판단한다. 그 scope가 `active`이고 커밋된 drive 락를 들고 있고 thread가 유휴이고 상태 판이 마지막 호출 때와 다르거나 아직 한 번도 부르지 않았으면 drive를 한 번 부른다. drive 락가 없으면 부여 판단을 요청해 경계가 돌게 한다. drive가 실행 중이면 `missed`로 표시해 반환 뒤에 이어 부르고, thread에서 turn이 돌고 있으면 부르지 않는다. 그 turn이 끝나는 `turn_settled` 경계가 위 표의 셋째 행으로 부른다. 같은 판은 `lastBaseRev`로 걸러 두 번 부르지 않는다. 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`를 그대로 따른다.
 
 #### 4.4.4 단계 실행과 기본 requestId [M5a-1 E1]
 
-[결정: 2026-11-17 사용자, review.m5-drive-isolation 1.1] 이 절과 이 문서의 나머지에서 "drive 함수"는 단계 함수(`DriveStep`)이고 `loop.turn`·`loop.spawn`·`loop.ask`는 `turn`·`spawn`·`ask` 명령이다. `LoopHandle`은 공개 계약에서 없어졌고 `lease.ts` 안의 `StepLoop`(엔진 안쪽 통로)가 같은 일을 한다. 엔진의 한 호출은 `runSteps`다: (1) `nextLast`로 `last`를 정한다(전달할 사용자 메시지가 있으면 그것, 없으면 직전 명령 결과) (2) 단계 함수를 `DriveStepInput`(상태 문서, `last`, 남은 한도, 프레임 정보 `{ frameDepth: 1, calledBy: null, input: null }`)으로 부른다 (3) 돌려받은 명령을 `executeCommand`로 실행한다. `commit`은 상태를 커밋하고 `next`를 이어 실행한다. `model`·`tool`·`handoff`는 `{ kind: "refused", code: "command_unavailable" }`로 거부한다(E2, E3). 거부 가능한 오류(`PrimitiveError`의 코드, 루프 거부의 `kind`)는 예외가 아니라 `refused` 결과다. 주도권이 활성이 아니거나 한도 소진(`lease_budget`)이면 호출을 끝내고 반납은 다음 경계에서 커밋한다. 그 밖의 예외는 `error` 반납이다.
+[결정: 2026-11-17 사용자, review.m5-drive-isolation 1.1] 이 절과 이 문서의 나머지에서 "drive 함수"는 단계 함수(`DriveStep`)이고 `loop.turn`·`loop.spawn`·`loop.ask`는 `turn`·`spawn`·`ask` 명령이다. `LoopHandle`은 공개 계약에서 없어졌고 `lease.ts` 안의 `StepLoop`(엔진 안쪽 통로)가 같은 일을 한다. 엔진의 한 호출은 `runSteps`다: (1) `nextLast`로 `last`를 정한다(전달할 사용자 메시지가 있으면 그것, 없으면 직전 명령 결과) (2) 단계 함수를 `DriveStepInput`(상태 문서, `last`, 남은 한도, 프레임 정보 `{ frameDepth: 1, calledBy: null, input: null }`)으로 부른다 (3) 돌려받은 명령을 `executeCommand`로 실행한다. `commit`은 상태를 커밋하고 `next`를 이어 실행한다. `model`·`tool`은 `{ kind: "refused", code: "command_unavailable" }`로 거부한다(E2). `handoff`도 3a에서 같은 거부를 받고 3b에서 구현한다. 거부 가능한 오류(`PrimitiveError`의 코드, 루프 거부의 `kind`)는 예외가 아니라 `refused` 결과다. 주도권이 활성이 아니거나 한도 소진(`lease_budget`)이면 호출을 끝내고 반납은 다음 경계에서 커밋한다. 그 밖의 예외는 `error` 반납이다.
 
 - 기본 `requestId`: `${lineageId}:${그 단계 시작 때의 상태 판}.${순번}`. 순번은 같은 상태 판에서 이어서 세고(`StepProgress.nextIndex`) 상태 판이 바뀌면 0부터 다시 센다. 그래서 재시작 뒤 같은 상태에서 단계를 다시 돌리면 같은 명령이 같은 id를 만들고 이미 실행한 명령은 기록된 결과를 돌려준다.
 - 결과 기록: `turn`, `ask`, `spawn`이 정착하면 `drive.command_settled`(F.records §3.3)를 커밋 키 (scope, 명령 요청 id)로 남긴다. 내용은 scope, 요청 id, 명령, 결과 요약, 결과 참조뿐이고 주도권 id는 싣지 않는다. 그래서 재시작이나 `waiting` 뒤 재부여로 다른 주도권이 같은 명령을 다시 기록해도 내용이 같아 멱등이다.
-- 사용자 메시지: L1 루프가 `input.user.before` 뒤 `ExtHost.claimUserInput(threadId, item)`을 부른다. 단계 함수가 주도 중이면(주도권 활성·커밋) 메시지를 `inbox`에 넣고 참을 돌려주며, 루프는 그 입력을 처리하지 않는다. 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 입력 큐에 `when: "next"`로 돌려보낸다(코어 루프가 받는다) [안: 프레임 스택 전의 구현. 스택 전체 내림과 `userMessages` 표지는 E3].
-- 아래 옛 `LoopHandle` 설명은 명령으로 읽는다.
+- 사용자 메시지: L1 루프가 `input.user.before` 뒤 `ExtHost.claimUserInput(threadId, item)`을 부른다. 단계 함수가 주도 중이면(주도권 활성·커밋) 메시지를 `inbox`에 넣고 참을 돌려주며, 루프는 그 입력을 처리하지 않는다. 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 입력 큐에 `when: "next"`로 돌려보낸다(코어 루프가 받는다) [안. 스택 전체 내림과 `userMessages` 표지는 3b 몫이다].
 
-#### 4.4.4a LoopHandle(옛 설명)
+#### 4.4.4a 질문 대기(`ask`)와 복원 [결정: X-17, 3a 구조]
 
-```text
-makeLoopHandle(lease, inv):
-  ask(request):                              // 사람 확인 원시(X-17). 아래 bullets가 정본
-    assertLeaseActive(lease)                 // releasing·released면 lease_revoked
-    승인 서비스 없음 → port_unavailable; AskRequestSchema 위반 → record_invalid
-    opened = approvals.open({ origin: { threadId, turnId: null, stepId: null, toolCallId: null, caller: `ext:${extension}` },
-                              requestKey: requestKeyFor(`ask:${scopeId}:${requestId}`, sha256Hex),
-                              title, body: { kind: "question", question }, remember: ["once"] })
-    if opened.resolution != null: return outcomeOf(opened.resolution)   // drive 락·예산·inv는 그대로
-    waiting[thread][scope] = approvalId; release(lease, "waiting"); requestApply(thread)  // thread가 열려 있을 때
-    detach(approvals.wait(approvalId, thread.signal).then(해제, 적용 요청))
-    throw lease_revoked                      // 약속은 이행되지 않는다
-  turn(input):
-    assertLeaseActive(lease)                 // releasing·released면 lease_revoked
-    assertBudget(lease, "turns")             // 0 이하면 lease_budget + releasing
-    rid = input.requestId ?? `${lease.leaseId}:${inv.baseRev}.${inv.i}`; inv.i++
-    r = await LoopPort.runTurn({ threadId, scopeId, leaseId, leaseEpoch, requestId: rid, input: input.input, signal: threadSignal })
-    if !r.replayed: lease.used.turns++; lease.used.tokens += tokens(r.usage); inv.effects++
-    return r.outcome
-  spawn(spec): 같은 규칙. 카운터 "spawns", 신호는 lease.signal
-  budget: getter
-  signal: lease.signal                       // 반납이 시작되면 abort
-```
+`ask`는 `StepLoop`의 명령이다(`primitives/lease.ts`의 `makeStepLoop`). 옛 `LoopHandle` 의사 코드는 3a에서 걷어 냈다. 아래 bullet이 정본이다.
 
-- [결정] 기본 키 형식은 `${lineageId}:${순번}`이다(F.extensions.spec §3.2 `TurnInput.requestId`, §4.4.1 11번). `lineageId`는 `waiting` 재부여를 넘어 유지되고 그 밖의 부여마다 새로 시작한다. [제안] 순번은 `<호출 시작 때의 상태 판>.<호출 안 일련번호>`다. 이유: 재호출된 함수는 마지막 커밋 상태에서 다시 시작한다. 같은 상태 판으로 다시 불리면 같은 호출이 같은 키를 받아 이미 커밋된 turn과 spawn을 다시 실행하지 않고 기록된 결과를 받는다. 상태가 새 판으로 커밋된 뒤에 다시 불리면 키가 달라지므로, 옛 판에서 쓴 키가 새 진행에 잘못 재사용되지 않는다. 판 없이 일련번호만 쓰면 이 둘째 경우에 지난 turn의 결과가 돌아온다.
+- [결정] 기본 키 형식은 `${lineageId}:${순번}`이다(F.extensions.spec §3.2 `TurnInput.requestId`, §4.4.1 11번). `lineageId`는 drive 락 부여마다 정하고, 복원 때는 기록의 값을 그대로 쓴다. [제안] 순번은 `<호출 시작 때의 상태 판>.<호출 안 일련번호>`다. 이유: 재호출된 함수는 마지막 커밋 상태에서 다시 시작한다. 같은 상태 판으로 다시 불리면 같은 호출이 같은 키를 받아 이미 커밋된 turn과 spawn을 다시 실행하지 않고 기록된 결과를 받는다. 상태가 새 판으로 커밋된 뒤에 다시 불리면 키가 달라지므로, 옛 판에서 쓴 키가 새 진행에 잘못 재사용되지 않는다. 판 없이 일련번호만 쓰면 이 둘째 경우에 지난 turn의 결과가 돌아온다.
 - [결정] 키에서 계통 id를 빼지 않는다. 함수가 커밋 없이 반환했다가(`idle` 반납 등) 같은 상태 판에서 다시 부여받으면 새 turn을 열어야 한다. 키에 계통이 없으면 옛 결과가 재생되어 그 drive가 멈춘다. `drive-lineage.test.ts`가 이 경우를 고정한다.
 - [결정] 상태 커밋·`record`의 멱등 키(`state.ts`의 `nextIdentity`)는 이 결정의 범위가 아니다. 그 키는 `leaseId`를 그대로 쓴다. 상태 커밋은 판을 올려 `baseRev`를 바꾸므로 같은 판의 재호출이 같은 커밋을 다시 내는 경우가 없다.
 - 키 길이: `lineageId` 40자 이하(`leaseId`와 같은 발급 값이거나 앞 부여의 계통) + 판·일련번호 십진수. 64자 상한(F.extensions.spec §2) 안이다.
 - 명시 `requestId`(예: L3.helm.spec의 `helm:<inquiryId>:turn:<phase>:<round>`)는 그대로 쓴다. 포트의 멱등 범위가 (scopeId, requestId)라서 다른 그룹의 키와 섞이지 않는다.
-- thread가 실행 중이면 `loop.turn`은 그 turn이 정착한 뒤에 새 turn을 시작한다. 사용자 입력은 drive 락과 관계없이 turn을 시작할 수 있다 [제안]. drive 락은 drive 함수가 turn을 시작할 권한을 뜻하고, 사용자 입력을 막지 않는다.
+- thread가 실행 중이면 `loop.turn`은 그 turn이 정착한 뒤에 새 turn을 시작한다. 사용자 입력은 주도권과 관계없이 turn을 시작할 수 있다 [제안]. 주도권은 단계 함수가 turn을 시작할 권한을 뜻하고, 사용자 입력을 막지 않는다.
 - 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 `loop.turn`은 끊지 않는다([제안] ADR-0007 §3.6, F.extensions.spec §4.5). `lease.signal`은 반납이 시작되면 abort되어 drive 함수가 협조적으로 멈출 수 있게 한다. `runTurn`에는 이 신호를 넘기지 않고 thread 신호를 넘긴다. thread 신호는 `closeThread`에서만 abort되며 사용자 중단 경로가 아니다. 사용자 중단은 turn 범위의 취소(`interrupt`)로 들어가고 X에는 `turn_settled`의 `userInterrupted`로 알려진다(§4.4.1 12번). 반납으로 진행 중인 turn이 끊기지 않게 하기 위해서다 [제안]. `spawn`에는 `lease.signal`을 넘긴다.
 - eng.transactions.design §4.7·§4.8의 drive 턴·spawn 키는 이 규칙을 따른다. 옛 형식(`drive:<scopeId>:<leaseEpoch>:<turnIndex>`)은 쓰지 않는다.
 
-- [결정: X-17, 2026-10-31 사용자] `ask(request)`는 사람 확인 원시다. 계약은 F.extensions.spec §3.2(`LoopHandle.ask`, `AskRequest`, `AskOutcome`)이고, 구현은 `primitives/lease.ts`의 `makeLoopHandle`이다. 검사 순서는 drive 락이 `active`인지(아니면 `lease_revoked`, 사유가 budget이면 `lease_budget`), 승인 서비스 포트가 있는지(없으면 `port_unavailable`), 입력이 `AskRequestSchema`에 맞는지(아니면 `record_invalid`)다. 셋 모두 승인을 만들기 전에 본다.
-- 요청 키는 `requestKeyFor("ask:<Registration id>:<requestId>", sha256Hex)`다 [제안]. 원문에 `:`가 있어 F가 해시하므로 키는 `h_` + sha256 앞 40자다. Registration id를 넣어 같은 `requestId`를 쓰는 두 Registration의 승인이 겹치지 않는다. 출처(`origin`)는 `threadId`가 drive 락을 가진 thread이고, `turnId`·`stepId`·`toolCallId`가 `null`이며, `caller`가 `ext:<확장 이름>`이다. 기억 범위는 `["once"]`다.
+- [결정: X-17, 2026-10-31 사용자] `ask(request)`는 사람 확인 원시다. 계약은 F.extensions.spec §3.2(`ask` 명령, `AskRequest`, `AskOutcome`)이고, 구현은 `primitives/lease.ts`의 `makeStepLoop`(`ask`)다. 검사 순서는 drive 락가 `active`인지(아니면 `lease_revoked`, 사유가 budget이면 `lease_budget`), 승인 서비스 포트가 있는지(없으면 `port_unavailable`), 입력이 `AskRequestSchema`에 맞는지(아니면 `record_invalid`)다. 셋 모두 승인을 만들기 전에 본다.
+- 요청 키는 `requestKeyFor("ask:<Registration id>:<requestId>", sha256Hex)`다 [제안]. 원문에 `:`가 있어 F가 해시하므로 키는 `h_` + sha256 앞 40자다. Registration id를 넣어 같은 `requestId`를 쓰는 두 Registration의 승인이 겹치지 않는다. 출처(`origin`)는 `threadId`가 drive 락를 가진 thread이고, `turnId`·`stepId`·`toolCallId`가 `null`이며, `caller`가 `ext:<확장 이름>`이다. 기억 범위는 `["once"]`다.
 - 승인 제목은 `title`이 있으면 그것이고, 없으면 매니페스트 `displayName`(빈 값이 아닐 때), 없으면 확장 이름이다 [제안]. 본문은 `kind: "question"`이고 카드의 질문을 그대로 옮긴다(선택 필드는 값이 있을 때만 싣는다). 화면 문구에서는 Question이라 부른다(ADR-0022 §3.5).
-- 첫 호출(답이 아직 없음)은 승인을 열고, 그 Registration을 thread별 답 대기 표(§4.4.1 10번)에 넣은 뒤, drive 락을 사유 `waiting`으로 `releasing`으로 바꾼다. thread가 열려 있으면 적용을 요청하고 답 기다림을 시작한 다음, 호출은 `lease_revoked`로 거부된다. 약속은 이행되지 않는다. drive 함수가 그 거부를 잡고 돌아와도 이후의 `loop.turn`·`loop.spawn`은 같은 거부를 받는다. 기다리는 동안 `loop.budget`, `inv.i`, `inv.effects`는 바뀌지 않는다.
-- 답 기다림은 정산이 기다리는 추적 작업(`core.track`) 대신 분리된 작업(`detach`)으로 건다 [제안]. 답은 사람이 언제 줄지 모르므로 추적 작업으로 두면 정산(`whenSettled`)이 답이 올 때까지 막힌다(§10 미결). 기다림이 `ok`로 끝나면 답 대기 표에서 지우고, thread가 열려 있을 때만 적용을 요청한다. 기다림이 끊기면(thread가 닫힘, 또는 승인을 모르는 `unknown`) 항목만 지운다. `unknown`이면 적용을 요청하지 않는다. 다시 올리면 같은 기다림이 바로 되풀이되기 때문이다 [제안]. 승인 요청은 닫지 않는다.
-- 답이 이미 있으면(drive 락 재부여 뒤, 재시작 뒤, 같은 `requestId`의 재호출) `open`이 돌려준 기록된 해결을 `AskOutcome`으로 옮겨 바로 돌려준다. drive 락과 예산, `inv.i`, `inv.effects`는 건드리지 않는다. 같은 `requestId`의 재호출이 같은 결과를 내는 것은 키가 결정적이고 승인 서비스가 같은 키에 멱등이기 때문이다(ADR-0015 §3.4).
+- 첫 호출(답이 아직 없음)은 승인을 열고, 맨 위 프레임을 `asking=true`로 둔 뒤 `approvals.wait(approvalId, AbortSignal.any([thread 취소 신호, drive 락 취소 신호]))`로 기다린다. drive 락는 반납하지 않는다. 기다리는 동안 프레임의 사용량은 바뀌지 않는다. 기다림이 끝나면 `asking=false`로 돌아와 결과를 준다. 기다리는 동안 그 실행은 `whenSettled`(테스트의 settled, 교체, 종료)가 기다리지 않는다(정산 추적에서 뗀다).
+- 기다리는 실행은 정산 추적에서 뗀다. 답은 사람이 언제 줄지 모르므로 정산(`whenSettled`)이 답을 기다리면 안 된다(§10 미결). 기다림이 `ok`로 끝나면 `asking=false`로 돌리고 결과를 준다. 기다림이 끊기면(thread가 닫힘, drive 락 취소, 또는 승인을 모르는 `unknown`) 그 실행은 `inactive`로 끝난다. 다시 부르면 같은 기다림이 바로 되풀이되기 때문이다 [제안]. 승인 요청은 닫지 않는다.
+- 답이 이미 있으면(재시작 뒤 복원된 프레임이 같은 `requestId`로 다시 부른 때, 같은 실행의 재호출) `open`이 돌려준 기록된 해결을 `AskOutcome`으로 옮겨 바로 돌려준다. drive 락와 사용량은 건드리지 않는다. 같은 `requestId`의 재호출이 같은 결과를 내는 것은 키가 결정적이고 승인 서비스가 같은 키에 멱등이기 때문이다(ADR-0015 §3.4). 재시작 뒤 복원된 `asking` 프레임이 같은 `requestId`로 `ask`를 다시 내면 `approvals.open`이 기존 미해결 승인을 돌려주므로 새 승인 없이 다시 기다린다(F6 해소).
 - 해결의 옮김: `decision`이 `answer`이면 `{ status: "answered", answer }`다. `answer`는 `QuestionAnswerSchema`로 검사하고, 맞지 않으면 `record_invalid`다. 그 밖의 결정(`deny`, 취소, 만료, 비대화형, 대체)은 `{ status: "denied", resolvedBy }`다. `feedback`은 답이 `DenyAnswer`(`{ feedback }`) 모양일 때만 싣는다. 맞지 않으면 키를 두지 않는다.
 - 승인을 여는 `open`이 오류 값을 돌려주면 `storage_unavailable`이다. X는 승인을 닫거나 취소하지 않는다.
-- Registration이 꺼지거나 안전 모드로 내려가도 질문 승인은 그대로 남는다(사용자의 것이다). 답이 오면 기다림이 항목을 지우고 적용을 요청하지만, 꺼진 Registration은 후보가 아니라서 새 drive 락이 생기지 않는다. 다시 켜도 답이 해결되기 전까지는 후보가 아니다(§4.4.1 10번). thread를 닫으면 기다림은 끊기고 승인은 남는다. 같은 `requestId`로 다시 열면 같은 승인을 본다.
+- Registration이 꺼지면 그 프레임은 `disabled`로 내려가고 기다림은 `inactive`로 끝난다. 질문 승인은 그대로 남는다(사용자의 것이다). thread를 닫으면 기다림은 끊기고 승인은 남는다. 같은 `requestId`로 다시 열면 같은 승인을 본다.
 
 #### 4.4.5 반납
 
 | 사유(`LeaseReleasedPayload.reason`) | 일어나는 때 | 적용 시점 |
 |---|---|---|
-| `disabled` | scope 끄기 적용 | 그 단계 경계(§4.5.3 둘째 단계) |
+| `disabled` | scope 끄기 적용. 그 scope의 프레임과 위 프레임을 내린다(위쪽은 `revoked`) | 그 단계 경계(§4.5.3 둘째 단계) |
 | `budget` | 상한 소진으로 `releasing` | 다음 경계 |
-| `error` | drive 함수 예외 | 다음 경계. 함수가 이미 반환했으므로 진행 중인 `loop.turn`이 없다 |
+| `error` | 단계 함수 예외 | 다음 경계. 함수가 이미 반환했으므로 진행 중인 `loop.turn`이 없다 |
 | `idle` | 같은 판으로 연속 두 번 효과 없음 | 다음 경계 |
-| `revoked` | `x.primitives.activeDriver`이 다른 후보 그룹을 가리켜 회수(§4.4.1 5번) | 다음 경계. 같은 thread의 다음 부여는 이어서 판단 |
-| `revoked` | 사용자가 턴을 중지함(`turn_settled`의 `userInterrupted`, §4.4.1 12번). 맞는 전용 값이 없어 기존 `revoked`를 쓴다 | 그 `turn_settled` 경계 |
-| `restart` | 재개 때 drive 락 scope가 설치되지 않았거나 꺼져 있음 | `openThread` 직후 첫 경계 |
-| `waiting` | `loop.ask`의 첫 호출(§4.4.4). drive 함수가 답을 기다리려고 반납한다 | 다음 경계. 실행 중인 `loop.turn`은 끊지 않는다. 답이 오면 그 Registration이 다시 후보가 된다(§4.4.1 10번). 쿨다운을 걸지 않는다 |
+| `done` (신규) | 단계 함수가 `done`으로 물러남. 그 프레임만 내리고 `result`를 싣는다 | 다음 경계. 바로 아래 프레임이 `waiting`이면 `pendingLast`로 `{ kind: "handoff", status: "done", result }`를 받고 `driving`이 된다(맡기기 복귀는 3b) |
+| `revoked` | 사용자가 턴을 중지함(`turn_settled`의 `userInterrupted`, §4.4.1 12번). 스택 전체를 맨 위부터 내린다 | 그 `turn_settled` 경계 |
+| `restart` | 재개 때 프레임의 scope가 설치되지 않았거나 꺼져 있음. 그 프레임과 위 프레임을 내린다 | `openThread` 직후 첫 경계 |
+| (없음) | 질문 대기(`ask`)와 맡기기 대기(`waiting`)는 반납하지 않는다. 프레임 상태만 `asking`이나 `waiting`이 된다. 사유 `waiting`은 옛 기록을 읽을 때만 나온다 | - |
 
 - `releasing` 상태에서 `loop.turn`·`loop.spawn`은 `lease_revoked`(사유가 budget이면 `lease_budget`)로 거부한다.
-- 사유 `waiting`의 `lease.released` 초안도 `lease:<leaseId>:released` 커밋 키를 쓴다(`boundary.ts`의 `commitPlanOf`, 변경 없음). 사유는 페이로드에만 담긴다 [결정: X-17]. `leaseId`는 재부여마다 새로 발급되므로 `waiting`을 여러 번 반납해도 키가 겹치지 않는다. 계통 id는 이 키에 들어가지 않는다.
+- `lease.released` 초안은 `lease:<leaseId>:released` 커밋 키를 쓴다(`boundary.ts`의 `commitPlanOf`). 사유는 페이로드에만 담긴다. `leaseId`는 부여마다 새로 발급되므로 같은 scope를 여러 번 부여해도 키가 겹치지 않는다. 계통 id는 이 키에 들어가지 않는다.
 - `lease.released` 초안은 경계 기여로 커밋된다. 커밋 뒤 상태는 `released`다. 반납 뒤 루프 소유는 사용자 입력으로 돌아간다.
 - [결정] drive 상한과 반납은 협조적 코드에만 유효하다. drive 함수가 포트를 거치지 않는 작업(무한 루프, 타이머, 자체 네트워크 호출)을 하면 X는 멈추지 못한다. 프로세스 격리(2차, X.loading-trust.spec) 없이 비협조적 확장을 강제로 끝낼 수 없다(ADR-0007 §4.2, durable `spec.md:5109-5123`).
 
 #### 4.4.6 Helm과 학습 그룹의 공존
 
-[결정] Helm과 학습은 L3 기본 플러그인 그룹이고 학습은 `drives: false`라 drive를 쓰지 않는다(F.extensions.spec §4.6). 그룹의 Registration만 주도 후보다.
+[결정] Helm과 학습은 L3 기본 플러그인 그룹이고 학습은 `drives: false`라 drive를 쓰지 않는다(F.extensions.spec §4.6). drive를 등록한 Registration만 주도할 수 있다.
 
 ```text
 thread T, 두 Registration 모두 켜짐
   helm      : drive 등록, on(before_agent_start chain, tool_call first, turn_end chain), post
   learning  : on(turn_end chain, agent_settled tap), post, 백그라운드 위임(fresnel.agents)
-경계 b1: 후보 = [helm] → helm 임대 부여(lease.acquired)
+경계 b1: 사용자 명령 `helm`(startDrive) → helm 프레임 부여(lease.acquired, depth 0)
 helm drive: loop.turn(diverge) → turn 실행 중 dispatch(turn_end) 스냅샷 = [helm.h, learning.h] 둘 다 실행
-learning 핸들러: grp.learning.skill.proposed 레코드 초안을 BoundaryPatch.entries에 추가, 백그라운드 위임 시작(임대와 무관)
+learning 핸들러: grp.learning.skill.proposed 레코드 초안을 BoundaryPatch.entries에 추가, 백그라운드 위임 시작(drive 락와 무관)
 helm drive: commit(state) → loop.turn(apply) ...
-learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다. validateManifestSet의 drive_conflict도 나오지 않는다
+learning이 drive를 등록하지 않으므로 주도권을 받는 쪽은 helm 하나다
 ```
 
 - 학습 그룹의 검토 포크는 L1 백그라운드 위임 서비스로 실행하고 `loop.spawn`을 쓰지 않는다. 그래서 Helm drive 락의 `spawns` 상한에 들어가지 않는다.
@@ -1280,12 +1260,12 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 10. `not_available`은 이 구현에 없다. 포트를 제공하지 않는 조립이 쓰는 값이다.
 11. [결정: 2026-11-04 사용자 지시에 따른 기본값] 단계 경계 기록(`boundaries`, `primitives/boundary-log.ts`). Test run thread에서 `boundary.step.after` 디스패치 하나마다 멈춤을 기다리기 직전에 기록 한 건을 붙인다. dispatch는 `onBoundary(threadId)`만 부르고 기록은 호스트(`host.ts`의 `noteBoundary`)가 적는다. 칸은 `paused`(기다리기 전에 멈춤 요청이 걸려 있었는가), `seq`(드라이브 락 보유자 scope의 커밋된 상태 판 `rev`, 보유자가 없으면 0), `phase`(9와 같은 규칙으로 읽은 값, 없으면 null)다. thread마다 최근 200건(`MAX_BOUNDARIES`)만 두고 가장 오래된 것부터 뺀다. Test run 표지를 지우는 자리(다시 열기, 닫기, dispose)에서 함께 지운다. Test run이 아닌 thread는 아무것도 적지 않는다. `phase`는 기록의 복사본을 오래된 것부터 새것 순으로 돌려준다.
 
-#### 4.4.9 확장 읽기 조회 (wire `ext.*`, `group.driveLock`)
+#### 4.4.9 확장 읽기 조회 (wire `ext.*`)와 주도권 읽기
 
 [결정: 2026-11-02 M4 wire] 조립 루트가 wire 확장 읽기에 쓰는 읽기 전용 조회 `extReadViewOf(host)`를 루트로 내보낸다. 내부(`ThreadRuntime`)는 부를 때 얻고(`traceReadOf`와 같다) 아무것도 바꾸지 않는다.
 
 1. `threadStatus(threadId, scopeId)`: thread가 열려 있지 않거나 모르는 Registration이면 `undefined`다. 열려 있으면 그 thread에서 켜져 있는가(`ThreadRuntime.active`)와 그 thread의 요청(`ThreadRuntime.want`, 없으면 `RegistrationRecord.desired`)을 견준다. 켜져 있고 요청도 켜짐이면 `enabled`, 켜져 있는데 요청이 꺼짐이면 `disabling`, 꺼져 있는데 요청이 켜짐이면 `enabling`, 둘 다 꺼짐이면 `disabled`다.
-2. `driveLock(threadId)`: thread가 열려 있지 않으면 `undefined`다. `holder`는 커밋되었고 반납이 커밋되지 않은 drive 락을 가진 Registration id이고 아니면 `null`(`leaseEpoch` 0)이다. `limits`는 그 drive 락이 정한 상한(없는 필드는 상한 없음), `used`는 지금까지 쓴 turn·spawn·토큰이다. `candidates`는 drive 락을 받지 못해 기다리는 후보마다 넘긴 경계 수(`waits`)와 상한(`waitLimit`, `x.primitives.leaseWaitLimit`)이다. 거부 기록(`lease.rejected`)과 `x.primitives.activeDriver` 설정 값은 이 조회에 없고 호출자가 이벤트와 설정에서 읽는다.
+2. drive 락 조회(`driveLock`)와 그 후보 목록은 3a에서 뺐다. 주도권 스택은 `ExtHost.driveFrames(threadId)`가 `DriveFrameView[]`로 읽는다(맨 아래가 코어 루프, 깊이 0, §3.1). wire `drive.frames`와 `group.driveLock`을 이 읽기에 잇는 일은 후속 층이 한다.
 3. `handlers()`: 호스트 핸들러 레지스트리에 실제로 등록된 핸들러 전부를 `HookHandlerView`(`point`, `scopeId`, `extension`, `tier`, `loadIndex`, `seq`)로 돌려준다. 정렬은 훅 이름 오름차순, 안에서는 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2에 사용자 순서 덮어쓰기 X.operations.spec §4.1.5를 적용한 순서)다. `tier`는 디스패처가 쓰는 `DispatchPolicy.tierOf` 값이다. 디스패치는 닫힌 세대와 꺼진 thread의 항목을 스냅샷에서 빼지만 이 조회는 빼지 않는다: 켜는 중·끄는 중인 scope의 핸들러도 보이고, 상태는 `registrations()`의 `status`·`lastError`로 짝짓는다. scope를 끄는 일이 끝나면(세대가 닫히면) 그 핸들러는 레지스트리에서 지워지고, setup이 실패한 scope는 핸들러를 등록하지 못한다. 그래서 꺼졌거나 실패한 Registration은 이 조회에 행이 없고 `registrations()`에만 남는다(그 선언 Hook은 매니페스트에서 읽는다). 매니페스트 선언이 아니라 등록 결과다.
 4. `boundCapabilities()`: 지금 바인딩된 기능 공급자(`BoundCapabilityView`: 기능 id, 공급 확장 이름, 버전)를 기능 id 오름차순으로 돌려준다. 공급자가 선언만 있고 바인딩되지 않은 기능(후보 여럿에 선택이 없음, major 불일치)은 없다.
 5. `budgetClassOf`, `DEFAULT_BUDGETS_MS`(`BudgetClass`, `BudgetTable`)는 X.operations §4.2.2의 순수 함수와 기본값이다. 조립 루트가 `hooks.list`·`ext.get`의 훅 예산을 설정 값과 함께 계산할 때 쓴다.
@@ -1333,7 +1313,7 @@ stateDiagram-v2
   - 요청은 두 층이다. `RegistrationHandle.enable()`·`disable()`은 전체 기본값(`RegistrationRecord.desired`)을 바꾸고 모든 thread의 별도 요청을 지운다. 새로 여는 thread도 이 기본값으로 시작한다. 한 thread만의 요청은 조립 루트가 쓰는 `registrationToggleSourceOf(host).request(scopeId, enabled, reason, threadId)`(`launch` 범위 `ext.<name>.enabled`)로 기록한다. 이 요청은 그 thread만 바꾼다.
   - 디스패치 스냅샷은 그 thread에서 켜진 scope의 핸들러만 고른다. 켜진 scope는 세대가 열려 있고 그 thread가 켠 상태(`ThreadRuntime.active`)인 것이다. 열어 두지 않은 thread(M0 시험)는 세대가 열려 있으면 켜진 것으로 본다.
   - 세대와 fiber는 scope마다 하나이고 한 thread라도 켜 두거나 켜기를 바라는 동안 살아 있다. 어느 thread도 쓰지 않으면 다음 경계 적용에서 닫는다. 다른 thread가 이미 연 세대를 켜는 thread는 setup을 다시 실행하지 않고 그 thread의 켜짐 집합과 상태 문서 준비(§4.6.1 3번)만 한다. `onDispose`는 세대를 닫을 때 한 번 실행된다.
-  - drive 락, 상태 판, `scope.changed`는 thread마다 따로다. 한 thread에서 scope를 끄면 그 thread의 drive 락만 `disabled`로 반납한다.
+  - drive 락, 상태 판, `scope.changed`는 thread마다 따로다. 한 thread에서 scope를 끄면 그 thread의 주도권 프레임 가운데 그 scope의 프레임과 그 위 프레임만 내린다(그 scope는 `disabled`, 위쪽은 `revoked`).
   - 같은 thread에서 같은 세대가 켜졌다 꺼졌다 반복되면 유휴 적용의 커밋 키에 전이 횟수를 붙인다(`scope:<scopeId>:<세대>.<횟수>:enabled`, 횟수가 0이면 생략). thread를 열 때 횟수는 `ExtThreadSnapshot.scopeTransitions`(활성 가지 위 `scope.changed` 개수)에서 시작하므로 프로세스를 다시 시작해도 이전 실행이 쓴 키와 겹치지 않는다 [제안].
 
 #### 4.5.3 적용 순서
@@ -1350,7 +1330,7 @@ stateDiagram-v2
 끄기(`disabling` → `disabled`), 순서 [제안, F.extensions.spec §4.5]:
 
 1. 핸들러 제외: `prepare`에서 세대를 닫는다. 이후 스냅샷에 들어가지 않는다.
-2. drive 락 반납: 이 scope가 drive 락을 가지고 있으면 `releasing`으로 바꾸고 경계 기여에 `lease.released { reason: "disabled" }`를 넣는다. 진행 중인 `loop.turn`이 있으면 이 경계는 그 turn 안의 단계 경계다. 반납은 기록되지만 그 `runTurn`은 정착까지 진행한다. drive 함수에는 `lease.signal` abort로 알린다. 끄기 요청(`disable()`, 대화별 포함)은 경계를 기다리지 않고 요청 즉시 락을 `releasing`으로 바꿔 `lease.signal`을 abort한다(진행 중인 spawn이 끝난다). 경계를 기다리면 하위 대화의 승인 답을 기다리는 drive가 경계에 닿지 못해 `disabling`에 멈춘다. `lease.released` 기록은 다음 경계가 남긴다.
+2. 주도권 반납: 이 scope의 프레임이 스택에 있으면 그 프레임과 위 프레임을 맨 위부터 `releasing`으로 바꾸고(그 scope는 `disabled`, 위쪽은 `revoked`) 경계 기여에 `lease.released { reason: "disabled" }`를 넣는다. 진행 중인 `loop.turn`이 있으면 이 경계는 그 turn 안의 단계 경계다. 반납은 기록되지만 그 `runTurn`은 정착까지 진행한다. drive 함수에는 `lease.signal` abort로 알린다. 끄기 요청(`disable()`, 대화별 포함)은 경계를 기다리지 않고 요청 즉시 락을 `releasing`으로 바꿔 `lease.signal`을 abort한다(진행 중인 spawn이 끝난다). 경계를 기다리면 하위 대화의 승인 답을 기다리는 drive가 경계에 닿지 못해 `disabling`에 멈춘다. `lease.released` 기록은 다음 경계가 남긴다.
 3. 경계 기여에 `scope.changed { status: "disabled" }`를 넣는다.
 4. `settle(committed)`에서 세대 `AbortController`를 abort하고 `fiber.dispose()`를 await한다. 이 dispose가 `onDispose` 정리 동작과 등록 해제기(on, drive 등록, 리소스, provide)를 실행한다.
 
@@ -1371,7 +1351,7 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 [결정: 2026-11-04 사용자, R19] 유휴 thread는 즉시 적용한다(구현은 다음 매크로태스크). thread가 유휴이면 토글 요청을 다음 매크로태스크에서 적용한다. 절차는 다음과 같다.
 
 1. X는 `LoopPort.whenIdle(threadId, apply)`를 부른다. L1은 `apply`가 끝날 때까지 새 turn 시작을 막는다.
-2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 임대 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정: review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
+2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 drive 락 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정: review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
 3. 실행 중에 요청이 오면 다음 단계 경계에서 적용한다. 같은 요청이 유휴 적용과 경계 적용 양쪽에 걸리지 않게 요청마다 처리 표시를 둔다.
 4. [결정] 유휴 적용과 다른 경계 훅은 한 thread에서 겹치지 않는다. 유휴 적용이 진행 중이면(`prepare`부터 `settle`까지) 그 사이에 들어온 `boundary.prepare`는 적용이 끝난 뒤에 시작한다. 반대로 루프가 커밋한 경계(`turn_settled`)가 아직 정산되지 않았으면 유휴 적용은 시작하지 않고 그 경계가 정산된 뒤에 다시 요청한다. 겹치면 뒤 prepare가 앞 txn을 실패로 되돌려 이미 커밋된 끄기·켜기가 `scope.changed`로 두 번 기록되고 `RegistrationHandle.status`가 `disabling`에 남기 때문이다.
 
@@ -1639,10 +1619,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 ### 4.11 수명주기 훅 디스패치
 
-[결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`와 `lease.rejected`가 커밋되면 대응 훅 `lifecycle.agent.settled`, `lifecycle.lease.rejected`를 디스패치한다. 이벤트 kind에서 훅 이름으로 가는 길은 F `LIFECYCLE_HOOKS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
+[결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`가 커밋되면 대응 훅 `lifecycle.agent.settled`를 디스패치한다(3a: X는 `lease.rejected`를 발행하지 않으므로 `lifecycle.lease.rejected`는 발화하지 않는다). 이벤트 kind에서 훅 이름으로 가는 길은 F `LIFECYCLE_HOOKS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
 
 - 피드의 `onCommit`은 저장소 커밋 안에서 동기로 불려 X의 상태 캐시와 drive 락 갱신보다 앞서므로, 호스트는 한 번 매크로태스크를 넘긴 뒤 발화한다. 핸들러가 읽는 `ctx.state`는 커밋 뒤 판이다.
-- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `fresnel.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
+- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다(3a에서 X는 `lease.rejected`를 내지 않는다). 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `fresnel.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
 - 피드가 없는 구성에서는 `ExtHost.afterCommit(threadId, events)`를 L1이 직접 부를 수 있다.
 - 페이로드는 F 스키마로 검사한다. 어기면 진단을 남기고 건너뛴다.
 - [제안] 소유 scope 거르기: `agent.settled.owner`가 `scope` 또는 `drive`이면 그 `scopeId`의 핸들러만 받는다(`DispatchOptions.onlyScope`). F.extensions.spec 훅 45행이 "소유 scope 거르기는 X"라고만 적었다. `owner`가 `tool`이거나 없으면(옛 기록) 거르지 않고 모든 구독자가 받는다 [미결: 옛 기록의 `agent.spawned.owner` 대조는 하지 않는다].
@@ -1689,7 +1669,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 7. detached tap(`dispatch: "detached"`, 훅 5개)은 핸들러 완료를 기다리지 않고 `{ detached: true, failures: [] }`를 바로 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 `policy.onHandlerFailure`와 진단으로만 보고된다. 시간 예산은 받는다(초과하면 signal을 abort하고 `timeout`으로 센다). thread가 닫히면(대화 종료, `ExtHost.dispose`) 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행하지 않으며, 늦게 끝난 값과 예외는 버린다(`aborted`는 실패로 세지 않는다). 디스패치 옵션의 `signal`은 detached에는 쓰지 않는다. 호출한 turn이 끝나도 계속 도는 것이 목적이기 때문이다.
 8. 같은 `requestId`로 두 번째 post: `duplicate: true`, 큐 변화 없음.
 9. `usesPost` 없이 post: `post_undeclared`로 거부. 확장은 계속 로드된 상태다(경고로 끝내지 않는다. X.loading-trust.spec이 로드 실패로 바꿀 수 있다).
-10. 두 그룹이 drive를 등록하고 기본 활성: 중재 규칙(§4.4.1)에 따라 하나에만 drive 락을 준다. 선택 설정이 없으면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 다른 그룹의 drive 함수는 호출되지 않는다.
+10. 두 그룹이 drive를 등록하고 기본 활성: X는 중재하지 않는다. 주도권은 시작 계기(§4.4.1 4번)로만 생기고 맨 위 프레임 하나만 단계 함수를 부른다. 주도 중 사용자 명령은 큐에 남고 스택은 그대로 둔다(전환은 3b).
 11. drive 함수가 예외: drive 락 반납(`error`), drive 오류 표시, on 핸들러 유지, 사용자 토글까지 재시도 없음.
 12. `turns` 상한 2에서 세 번째 `loop.turn`: `lease_budget`으로 거부, drive 락 `releasing`, 다음 경계에서 `lease.released { reason: "budget" }`.
 13. 비협조적 확장(시간 예산을 넘긴 핸들러, 반납 신호를 무시하는 drive 함수): X는 결과를 버리고 포트 호출을 거부할 뿐 코드 실행을 멈추지 못한다. 반복 실패의 자동 끄기는 X.operations.spec, 격리는 X.loading-trust.spec(2차)이다.
@@ -1702,7 +1682,9 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 20. 상태 커밋 뒤 소비 커밋 전 크래시: 재시작 뒤 핸들러가 이미 커밋된 판을 보고 다시 실행된다. 같은 키의 커밋은 `replayed`이고 X는 저장된 doc을 캐시와 반환값에 쓴다(§4.6.1 재실행 규칙).
 21. 되감기 뒤 상태: 활성 가지 위 마지막 상태로 돌아간다. 버려진 가지의 판과 drive 락은 보이지 않는다(§4.6.1 활성 가지 규칙).
 22. 저장소가 쓰기 잠금 대기 초과나 저장 매체 실패를 돌려줌: `storage_unavailable`. 저장소가 `key_reused`를 돌려줌: X 결함이라 `Bug`다.
-23. `loop.ask`: 승인 서비스 포트가 없으면 `port_unavailable`, 입력이 `AskRequestSchema`를 어기면 `record_invalid`, 승인을 여는 `open`이 오류 값을 돌려주면 `storage_unavailable`, 기록된 답이 질문 답 모양이 아니면 `record_invalid`다. 이 거부들은 drive 락을 반납하지 않는다. drive 락은 답 기다림을 시작할 때만 사유 `waiting`으로 반납된다(§4.4.4). drive 락이 이미 반납 중이면 `lease_revoked`다.
+23. `loop.ask`: 승인 서비스 포트가 없으면 `port_unavailable`, 입력이 `AskRequestSchema`를 어기면 `record_invalid`, 승인을 여는 `open`이 오류 값을 돌려주면 `storage_unavailable`, 기록된 답이 질문 답 모양이 아니면 `record_invalid`다. 이 거부들은 drive 락를 반납하지 않는다. 답 기다림은 프레임을 `asking`으로 두고 drive 락를 유지한다(§4.4.4a). drive 락가 이미 반납 중이면 `lease_revoked`다.
+24. (3a) 주도 중 사용자 명령은 시작 요청으로 큐에 남고 스택은 바뀌지 않는다. 스택 전환은 3b 몫이다.
+25. (3a) 스택이 차 있을 때 `profile` 요청은 버리고 `scope_notice` 진단을 낸다.
 
 ## 6. 설정 노출
 
@@ -1712,15 +1694,14 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|---|---|---|---|
 | `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
 | `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
-| `x.primitives.activeDriver` | `RegistrationId \| null` | `null` | user, project, launch | `nextTurn`. 다른 후보 그룹을 가리키면 현재 drive 락을 다음 경계에서 `revoked`로 반납하고 이어서 부여(§4.4.1 5번) | 같은 탭 "주도 플러그인" 선택. 후보 목록은 `ExtHost.registrations()`의 drive 등록 Registration |
+| `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자] | 정수≥1 | `8` | managed, user, project, launch. `profile` 범위는 M5c에서 더한다 | `nextTurn`. 3a는 읽기만 한다. 소비는 3b의 맡기기가 한다(§4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
 | `x.primitives.driveRequiresGroup` [제안] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인 그룹만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
-| `x.primitives.leaseWaitLimit` [제안] | 정수≥1 | `8` | user, project, launch | `nextTurn` | 같은 탭 "임대 대기 상한" 숫자 칸. 단위는 `turn_settled`·`idle` 경계 수(§4.4.1 8번) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "기능 공급자" 표 |
 
-- `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriver`는 `text`(후보 목록이 동적이라 select 불가), `driveRequiresGroup`은 `toggle`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
-- [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriver` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
+- `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `driveRequiresGroup`은 `toggle`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
+- 3a에서 `x.primitives.activeDriver`와 `x.primitives.leaseWaitLimit`을 없앴다(drive-isolation.md 2.2). 구동 그룹을 고르는 키는 없다 [근거: packages/ext-host/src/primitives/settings.ts]. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
 - [결정: review.decisions-2 U-12] 상한을 명시하지 않은 drive 락의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `ext.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
-- 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext drive <registrationId>`가 `activeDriver`를 `launch` 범위로 바꾸고, `fresnel ext enable|disable <registrationId>`가 `RegistrationHandle.enable/disable`을 부른다.
+- 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext enable|disable <registrationId>`가 `RegistrationHandle.enable/disable`을 부른다.
 - 파일: 사용자·작업 폴더 설정 파일의 같은 키(F.wire-settings.spec).
 
 ## 7. 훅
@@ -1731,7 +1712,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|---|
 | `on` | 레지스트리, 스냅샷, fold 디스패처, 시간 예산 | 기록하지 않는다. fold 결과는 해당 이벤트(예: `effect.intent`)에 남는다 |
 | `post` | `InputQueuePort.enqueue` 위임, 멱등, `usesPost` 검사 | `input.queued`(`source.type: "extension"`) |
-| `drive` | `LeaseBroker`, `LoopHandle`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
+| `drive` | `LeaseBroker`(주도권 스택, 시작 요청 큐), `StepLoop`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
 | `scope` | `RegistrationRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
 
 - `post`, `drive`, `boundary.settle.before`의 `continue`가 겹치는 문제(ADR-0007 §4.2)는 다음 구분으로 둔다. 같은 turn 안의 한 번 연장은 경계 훅 chain의 `continue`, 다음 turn에 붙는 입력은 `post`, turn을 스스로 시작하는 루프 소유는 `drive`다.
@@ -1748,8 +1729,9 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext` | L0 플랫폼 패키지 문서, L4.host-service.spec(조립 루트) |
 | `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`thread.mcp.after`) |
 | `DispatchPolicy`(`onHandlerSettled`, `run` 포함), `HandlerGate`, `HandlerRunOutcome`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord` | X.operations.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, X.operations.spec(`ExtHost.ports`로 조회) |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, X.operations.spec(`ExtHost.ports`로 조회) |
 | `hostOf`, `RegistrationHostApi` | L1·L2 내장 확장, L3.group-sdk.spec, X.loading-trust.spec(외부 확장 로더) |
+| `ExtHost.startDrive`, `ExtHost.driveFrames`, `ThreadOpenOptions.startDrive` | L1.loop.spec(열 때 프로필 시작 요청), L3.group-sdk.spec(사용자 명령 계기), L4.host-service.spec(조립 루트). 와이어 `drive.frames`는 후속 층 |
 | `capabilityServiceName`, `providerServiceName` | F.capabilities.spec §3.5(위임 답), L2 전체 |
 | `RegistrationInfo`, `ResourceRegistry`, 설정 키 `x.primitives.*` | L4.settings-ui.spec, L4.cli.spec, L4.desktop.spec |
 | `@fresnel/ext-host/testing`의 테스트 호스트(인메모리 포트, 가짜 타이머 연결) | eng.testing.guide §1.2, L1·L3 테스트 |
@@ -1758,10 +1740,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 이름 | 출처 |
 |---|---|
-| `HookName`, `HookSignatures`, `HOOKS`, `HookDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLock`, `DriveLimits`, `DriveLockBudget`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
+| `HookName`, `HookSignatures`, `HOOKS`, `HookDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `DriveLock`, `DriveLimits`, `DriveLockBudget`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
 | `CapabilityId`, `ServiceKey`, `ApiOf` | F.capabilities.spec |
 | `DurableEventDraft`, `EventId`, `ENVELOPE_MAX_BYTES`, `Projector`, `StoreDb`, 코어 kind `scope.changed`·`lease.acquired`·`lease.released`·`input.queued`·`thread.leaf_moved`와 payload, leaf·`parentId` 분기 트리 | F.records.spec |
-| 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
+| 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
 | `RecordCommitPort`, `ExtCommitRequest`(`visibility` 포함), `ExtRecordQuery`, `ExtRecordRow`와 부속 타입, `queryRecords`의 `reader` 인자와 비공개 기록 규칙 | F.records.spec §3.9 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`) | L1.persistence.spec §3.4 |
 | setup 시간 예산 값(`OperationsPolicy.setupBudgetMs`) | X.operations.spec §3.8 |
@@ -1772,7 +1754,6 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | 탐색·로드 순서(`loadIndex`)·신뢰(`builtin`)·`ext.<name>.enabled` | X.loading-trust.spec |
 | tier 값, 시간 예산 값, 자동 끄기, 이름 충돌 판정 | X.operations.spec |
 | 단계 경계 훅 호출, `finalize` 검증, `whenIdle`, `runTurn` 멱등 | L1.loop.spec |
-| `DriveArbiter`(DriveLockArbiterPort 구현) | L3.group-sdk.spec §3.5 |
 | `ApprovalServicePortKey`, `ApprovalService`, `ApprovalResolution`, `QuestionBody`, `QuestionItem`, `QuestionOption`(`@fresnel/contracts/services`), `requestKeyFor`, `QuestionAnswerSchema`, `DenyAnswerSchema`(`@fresnel/contracts/records`), `AskRequestSchema`, `AskCard`, `AskRequest`, `AskOutcome`(`@fresnel/contracts/extensions`) | F.extensions.spec §3.2(`loop.ask`), F `services/approvals.ts`(구현은 core-tools), F.records.spec(`approval.requested`·`approval.resolved` 기록) |
 
 ## 9. 수용 기준
@@ -1789,7 +1770,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 8. 시간 예산 50ms 정책에서 100ms 걸리는 first 핸들러는 `timeout` 실패와 `FIRST_DENY` 결정을 낸다(가짜 타이머로 진행).
 9. 같은 `requestId`로 두 번 post하면 두 번째 `PostReceipt.duplicate`가 참이고 큐 항목은 하나다.
 10. `usesPost`가 없는 매니페스트의 scope가 post하면 `post_undeclared`로 거부된다.
-11. drive를 등록한 두 그룹이 켜져 있고 `x.primitives.activeDriver`이 그중 하나를 가리키면 그 그룹의 drive 함수만 호출되고, 다른 그룹의 함수 호출 횟수는 0이다.
+11. drive를 등록한 두 그룹이 켜져 있어도 주도권은 시작 계기로만 생긴다. 사용자 명령 하나로 그 등록의 프레임만 쌓이고, 다른 등록의 단계 함수 호출 수는 0이다.
 12. `maxTurns: 2` drive 락에서 세 번째 `loop.turn`은 `lease_budget`으로 거부되고 drive 락 상태가 `releasing`이 된다.
 13. 첫 호출에서 `loop.turn` 한 번 뒤 프로세스 재시작을 흉내 내고 같은 상태 판으로 다시 호출하면, 같은 기본 `requestId`가 만들어지고 `runTurn`이 `replayed: true`를 돌려주며 새 turn이 실행되지 않는다.
 14. drive 함수가 같은 상태 판으로 두 번 연속 효과 없이 반환하면 drive 락이 `idle` 사유로 반납된다.
@@ -1811,8 +1792,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 30. [M3-REQ-102] 도구 `execute`와 명령 처리기 안에서 `recordPrivate`, `record`, `commit`, `state()`가 `no_thread` 없이 동작한다. 같은 도구 호출 id(명령은 호출 id)로 다시 실행하면 기록과 상태 커밋이 한 번만 남고, 다른 id면 새로 남는다. 위임 자식 대화에서 실행된 도구의 기록은 그 자식 대화에만 남는다. thread가 열려 있지 않거나 명령의 `threadId`가 `null`이면 `no_thread`다.
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
 31. `fresnel.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
-32. (M2, X.1) `DriveLockArbiterPort`가 있으면 후보 전체(`scopeId`, `extension`, `loadIndex`, `defaultEnabled`)를 받아 고른 그룹이 drive 락을 받고, drive 락이 있는 동안에는 다시 묻지 않는다. `null`을 돌려주면 drive 락이 없다.
-33. (M2, X.1) drive 락을 가진 그룹이 있을 때 `activeDriver`이 다른 후보 그룹을 가리키면, 다음 경계에서 `lease.released { reason: "revoked" }`와 가리킨 그룹의 `lease.acquired`가 차례로 기록되고 가리킨 그룹의 drive 함수가 호출된다. 후보가 아닌 그룹을 가리키면 drive 락을 유지한다. `idle`로 반납된 그룹은 다음 `turn_settled`(또는 상태 판 변화) 전까지 후보가 아니다.
+32. (3a, X.1) 중재 포트와 후보 추첨은 없다 [근거: packages/ext-host/src/primitives/lease.ts]. 시작 요청 큐의 맨 앞 요청은 스택이 빈 때 부여되고, 그 부여는 `lease.acquired`(`depth` 0, `parent` 없음)로 기록된다.
+33. (3a) 스택이 차 있을 때 사용자 명령은 큐에 남고 `lease.released`와 `lease.acquired`는 기록되지 않는다(전환은 3b). 스택이 차 있을 때 `profile` 요청은 버려지고 `scope_notice` 진단이 남는다.
 34. (M2, X.1) 저장된 상태가 낮은 버전이면 `migrateState` 훅의 결과가 새 판(`rev + 1`, 선언 버전)으로 커밋된다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 저장된 버전이 선언보다 높으면 `state_future_version`이고 그 thread에서는 켜지지 않는다. 같은 이동을 두 번째 시작에서 다시 하지 않는다.
 35. (M2, X.1) 같은 기능의 공급자가 둘이면 `capabilityProviders`가 고른 공급자만 `cap:<id>`에 바인딩된다. 설정이 없거나 후보가 아닌 확장을 가리키면 `capability_ambiguous` 진단을 내고 바인딩하지 않는다. major가 다른 공급자는 진단과 함께 제외된다.
 36. (M2, X.1) 두 thread가 열려 있을 때 한 thread에서 scope를 끄면 그 thread의 핸들러와 drive 락만 빠지고 세대는 유지된다. 마지막 thread에서도 끄면 세대가 닫히고 `onDispose`가 한 번 실행된다. 전체 `enable()`·`disable()`은 thread별 요청을 지운다.
@@ -1826,14 +1807,14 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 44. (M2, X.3) detached 훅(`thread.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
 54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 기능을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 기능을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
-58. (M4, X-17) drive 함수가 `loop.ask`를 부르면 question 승인이 하나 열리고(`origin.caller`는 `ext:<확장 이름>`), drive 락이 사유 `waiting`으로 반납되며, 호출은 `lease_revoked`로 거부된다. 답이 오면 그 Registration이 차수가 오른 새 drive 락을 받되 계통 id를 이어받고, 같은 `requestId`의 재호출이 `answered`를 돌려주며, 승인은 한 번만 열린다. 거부와 만료는 `denied`와 `resolvedBy`로 돌려준다. 답을 기다리는 Registration은 `x.primitives.leaseWaitLimit`의 대기 계수에 들지 않는다. 끈 Registration의 승인은 닫히지 않고 남는다. 승인 포트가 없으면 `port_unavailable`이다. 확인: `packages/ext-host/test/primitives/drive-ask.test.ts`.
+58. (M4, X-17) drive 함수가 `loop.ask`를 부르면 question 승인이 하나 열리고(`origin.caller`는 `ext:<확장 이름>`), 프레임이 `asking`이 되어 답을 기다리며 drive 락는 반납하지 않는다. 답이 오면 같은 프레임이 이어 가고(차수는 바뀌지 않는다), 같은 `requestId`의 재호출이 `answered`를 돌려주며, 승인은 한 번만 열린다. 거부와 만료는 `denied`와 `resolvedBy`로 돌려준다. 끈 Registration의 승인은 닫히지 않고 남는다. 승인 포트가 없으면 `port_unavailable`이다. 확인: `packages/ext-host/test/primitives/drive-ask.test.ts`.
 59. (M4, X-19) Test run 대화에서 `pause`를 부르면 다음 `boundary.step.after` 디스패치가 처리 뒤에 멈추고, `resume`이 풀면 같은 결과로 끝난다. 멈춘 동안 drive 함수는 한 번만 불렸고 drive 락은 같으며 `lease.released`가 없고 `loop.turn`은 하나뿐이다. `step`은 경계 하나만 지나가게 하고 요청이 없으면 `not_paused`, Test run이 아니면 `not_a_test_run`이다. 중단과 thread 닫기도 멈춘 디스패치를 푼다. `phase`는 drive 락 보유자의 `composition.phases`와 커밋된 `phase`를 읽고 쓰지 않는다. 확인: `packages/ext-host/test/primitives/test-run-pause.test.ts`(단계 경계 기록과 200건 상한 포함), `packages/ext-host/test/operations/trace-buffer.test.ts`(`guardHits`).
 
 ## 10. 미결 사항
 
-- [결정: M4 T-ASKRUN 확인, 2026-11-03] drive 함수가 `loop.ask`에 다시 닿는 경우의 동작은 맞다. `drive-ask.test.ts`와 `drive-ask-rerun.test.ts`(실제 호스트와 drive 락 중재자, 승인 서비스만 대역)가 값으로 고정한다. 답이 아직 없으면(답 없이 재시작해 drive 락을 다시 받은 경우 포함) 같은 `requestKey`로 승인을 다시 열어 새 승인 없이 `waiting`으로 다시 반납한다. 답이 있으면 재부여, 재시작, 열린 drive 락 이어 가기 어느 쪽이든 기록된 `AskOutcome`을 돌려준다. 서로 다른 `requestId`의 ask 둘은 각자 승인을 만들고, 앞의 ask는 재호출마다 기록된 답을 받는다. 승인 키는 같은 대화 안에서만 같으므로 다른 thread의 같은 `requestId`와 섞이지 않는다.
-- [닫힘] (X-17) 재부여 뒤 기본 키 `loop.turn`·`loop.spawn`의 재실행. 선택지 (A)를 골랐다(사용자 결정, 2026-11-03: 락 신원을 가능한 한 안정되게 유지해 재개한 drive가 turn·문맥·캐시를 지키게 한다). `leaseId`는 부여마다 새로 발급하는 펜싱 값으로 두고, `lease.acquired`에 `lineageId`를 더해 `waiting` 반납 바로 뒤 같은 Registration의 부여가 앞 계통을 이어받게 했다. 기본 키는 `lineageId`로 만든다(§4.4.1 11번, §4.4.4). 키에서 id를 통째로 빼는 (B)는 `idle` 반납 뒤 같은 판에서 다시 받은 drive가 옛 결과를 재생해 멈추므로 고르지 않았다. 확인: `drive-ask-rerun.test.ts`(turn·spawn·재시작·ask 둘·낡은 핸들), `drive-lineage.test.ts`(`idle`, `budget`, `revoked` 재부여는 새 계통).
-- [미결] (X-17) `host.ts`의 `track`이 `abandoned` 옵션을 무시한다. `core.ts`의 `HostCore.track(task, options)`은 `abandoned`를 선언하고 `registration.ts`의 시간 초과 setup 뒤처리가 쓰지만, `host.ts`의 구현은 `task`만 받는다. 그래서 `loop.ask`의 답 기다림은 정산 대상이 아닌 `detach`로 건다(§4.4.4). `host.ts`가 옵션을 지키면 그 자리를 `core.track(…, { abandoned: true })`로 바꿀 수 있다. 이 문서는 `host.ts`의 수정을 정하지 않는다.
+- [결정: M4 T-ASKRUN 확인, 2026-11-03] drive 함수가 `loop.ask`에 다시 닿는 경우의 동작은 맞다. `drive-ask.test.ts`와 `drive-ask-rerun.test.ts`(실제 호스트와 승인 서비스 대역)가 값으로 고정한다. 옛 방식(답이 없으면 `waiting`으로 반납하고 재부여)은 3a에서 걷어 냈다. 3a에서는 재시작 뒤 복원된 `asking` 프레임이 같은 `requestId`로 `ask`를 다시 내면 `approvals.open`이 기존 미해결 승인을 돌려주고, 프레임은 다시 기다린다. 답이 있으면 기록된 `AskOutcome`을 돌려준다. 서로 다른 `requestId`의 ask 둘은 각자 승인을 만들고, 앞의 ask는 재호출마다 기록된 답을 받는다. 승인 키는 같은 대화 안에서만 같으므로 다른 thread의 같은 `requestId`와 섞이지 않는다.
+- [닫힘] (X-17) 재부여 뒤 기본 키 `loop.turn`·`loop.spawn`의 재실행. 선택지 (A)를 골랐다(사용자 결정, 2026-11-03: 락 신원을 가능한 한 안정되게 유지해 재개한 drive가 turn·문맥·캐시를 지키게 한다). `leaseId`는 부여마다 새로 발급하는 펜싱 값으로 두고, `lease.acquired`에 `lineageId`를 더했다. 3a에서 대기 반납이 없어져 계통을 이어받는 경우는 남지 않는다(`lineageId = leaseId`, §4.4.1 11번). 기본 키는 `lineageId`로 만든다(§4.4.4). 키에서 id를 통째로 빼는 (B)는 `idle` 반납 뒤 같은 판에서 다시 받은 drive가 옛 결과를 재생해 멈추므로 고르지 않았다. 확인: `drive-ask-rerun.test.ts`(turn·spawn·재시작·ask 둘·낡은 핸들), `drive-lineage.test.ts`(`idle`, `budget`, `revoked` 재부여는 새 계통).
+- [미결] (X-17) `host.ts`의 `track`이 `abandoned` 옵션을 무시한다. `core.ts`의 `HostCore.track(task, options)`은 `abandoned`를 선언하고 `registration.ts`의 시간 초과 setup 뒤처리가 쓰지만, `host.ts`의 구현은 `task`만 받는다. 그래서 `ask`의 답 기다림은 정산 추적에서 뗀다(§4.4.4a). `host.ts`가 옵션을 지키면 그 자리를 `core.track(…, { abandoned: true })`로 바꿀 수 있다. 이 문서는 `host.ts`의 수정을 정하지 않는다.
 - [미결] (X-17) `loop.ask`의 기본 제목. F.extensions.spec §3.2는 "플러그인 그룹 표시 이름"이라고만 적었다. 매니페스트에 그룹 전용 표시 이름 필드가 없어서 지금은 `displayName`(없거나 빈 값이면 확장 이름)을 쓴다(§4.4.4). 그룹 표시 이름의 정본이 정해지면 바꾼다.
 - [미결] `post.when = next`가 turn을 스스로 시작하는지. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 시작하지 않음을 확인했다. [제안] 시작하지 않는다(§4.7). 확정되면 ADR-0007 §3.1, architecture.runtime-flow.design §4 표를 고친다.
 - [미결] 유휴 상태 post의 동작(보관, 시작, 오류)과 `start` 값 추가 여부(§4.7).
@@ -1862,10 +1843,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 47. (M3) 같은 상태 판으로 drive를 두 번 호출해도 기능 쓰기 효과와 `loop.turn`은 한 번이다(§4.4.7).
 48. (M3) 같은 scope의 겹친 `commit`은 호출 순서대로 실행되고 뒤의 것은 `state_conflict`다. `updateState` 셋이 겹쳐도 갱신이 모두 반영된다(§4.6.1).
 49. (M3) `commitWith`는 상태와 레코드를 한 커밋 요청으로 내고, 충돌하면 레코드가 남지 않는다(§4.6.1).
-50. (M3) drive 락 대기가 `x.primitives.leaseWaitLimit`을 넘으면 `lease.rejected`가 경계 기여로 커밋되고 커밋 뒤에만 `lifecycle.lease.rejected`가 발화한다(§4.4.1 8번, §4.11).
+50. (3a) X는 `lease.rejected`와 `lifecycle.lease.rejected`를 발행하지 않는다(§4.4.1 8번, §4.11). 옛 기록의 `lease.rejected`는 읽기만 한다.
 51. (M3) 피드로 온 `agent.settled`는 `owner` scope의 구독자만 받고 같은 이벤트는 한 번만 발화한다(§4.11).
 52. (M3) 선언 없는 쓰기 요청은 requested → started → settled 순으로 한 번 실행되고, 재시작 뒤 결과 없는 `started`는 `unsafe` 메서드에서 `unknown`으로 닫힌다(§4.10).
-53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 훅, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 `LoopHandle.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
+53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 훅, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 drive 락의 `lease.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
 55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
 56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
 57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
@@ -1876,10 +1857,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 62. (M4, X-3) 호출 신호가 이미 abort되었으면 `aborted`이고 처리기를 부르지 않는다. 처리기가 도는 중에 호출 신호가 abort되면 처리기 결과를 기다리지 않고 `aborted`를 돌려주며, 그때 처리기의 `ctx.signal`은 abort된 상태다.
 63. (M4, X-3) scope를 끄고 다시 켜면 메서드가 `list()`에 다시 나타나고 검사기가 새로 만들어져 `params` 검사가 그대로 된다.
 64. (M4, X-3) thread가 열려 있으면 처리기는 `invocation: "method"`인 ambient 안에서 돌아 `hostOf(g).commit`이 `no_thread` 없이 동작한다. `threadId`가 `null`이면 처리기는 ambient 없이 돈다.
-65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 명령이 정착하면 다시 부여된다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
+65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 주도 명령(시작 요청)이 새 프레임을 받는다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
-- [미결] drive 락 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.
+- [미결] (3a) 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).
 - (닫힘, M3b B4-GRP) 코어 이벤트(`turn.*`, `tool.*`)의 계측 조회는 `ExtHost.queryEvents`가 맡는다(§4.6.4, M3-REQ-39).

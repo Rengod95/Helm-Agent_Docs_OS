@@ -255,7 +255,7 @@ export interface MemoryRecordStore extends RecordCommitPort {
   rewindTo(threadId: ThreadId, eventId: EventId | null): void;
   /** 다음 commit 하나를 거부하게 한다 */
   failNext(code: InjectedFault): void;
-  /** 임대 사용량. loadThread의 openLease.used에 실린다 */
+  /** 임대 사용량(그 프레임이 쓴 own 양). loadThread의 openLeases[].used에 실린다 */
   setLeaseUsage(leaseId: string, used: OpenLease["used"]): void;
   /** commit 호출 수(재생 포함) */
   readonly commitCalls: number;
@@ -345,8 +345,8 @@ export function memoryRecordStore(): MemoryRecordStore {
     const enabledAtSeq = new Map<string, number>();
     const scopeIds = new Set<string>();
     const epochs: Record<string, number> = {};
-    let open: OpenLease | null = null;
-    let waitingLineage: ExtThreadSnapshot["waitingLineage"] = null;
+    // 열린 임대 목록(오래된 것부터). 반납된 임대는 leaseId로 뺀다
+    const open: OpenLease[] = [];
     for (const event of branch) {
       const payload = event.draft.payload;
       if (!isRecord(payload)) continue;
@@ -367,8 +367,10 @@ export function memoryRecordStore(): MemoryRecordStore {
         epochs[id] = (epochs[id] ?? 0) + 1;
         const limits = isRecord(payload["limits"]) ? payload["limits"] : {};
         const leaseId = String(payload["leaseId"]);
-        waitingLineage = null;
-        open = {
+        const depth = payload["depth"];
+        const parent = payload["parent"];
+        const contentHash = payload["contentHash"];
+        open.push({
           leaseId,
           lineageId: String(payload["lineageId"]),
           scopeId: id,
@@ -379,13 +381,14 @@ export function memoryRecordStore(): MemoryRecordStore {
             ...(typeof limits["maxTokens"] === "number" ? { maxTokens: limits["maxTokens"] } : {}),
           },
           used: usage.get(leaseId) ?? { turns: 0, spawns: 0, tokens: 0 },
-        };
+          parent: typeof parent === "string" ? parent : null,
+          depth: typeof depth === "number" ? depth : 0,
+          contentHash: typeof contentHash === "string" ? contentHash : null,
+        });
       } else if (event.draft.kind === "lease.released") {
-        waitingLineage =
-          open !== null && open.leaseId === payload["leaseId"] && payload["reason"] === "waiting"
-            ? { scopeId: open.scopeId, lineageId: open.lineageId }
-            : null;
-        if (open?.leaseId === payload["leaseId"]) open = null;
+        const released = payload["leaseId"];
+        const at = open.findIndex((lease) => lease.leaseId === released);
+        if (at >= 0) open.splice(at, 1);
       } else if (STATE_KIND.test(event.draft.kind)) {
         scopeIds.add(String(payload["scopeId"]));
       }
@@ -400,8 +403,7 @@ export function memoryRecordStore(): MemoryRecordStore {
       scopeTransitions: Object.fromEntries(transitions),
       enabledAtSeq: Object.fromEntries(enabledAtSeq),
       states,
-      openLease: open,
-      waitingLineage,
+      openLeases: open,
       leaseEpochs: epochs,
     };
   }

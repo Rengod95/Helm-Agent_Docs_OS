@@ -4,7 +4,13 @@ import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
 
-const beforeAgentStart = { prompt: "hi", systemPrompt: "sys", systemPromptOptions: {} };
+const beforeAgentStart = {
+  prompt: "hi",
+  systemPrompt: "sys",
+  systemPromptOptions: {},
+  driver: null,
+  stack: [],
+};
 const hint = (content: string) => ({
   customType: "grp.helm.hint.added",
   content,
