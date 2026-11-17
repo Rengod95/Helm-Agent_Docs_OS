@@ -209,7 +209,7 @@ export type LoadDiagnosticCode =
   | "setup_threw" | "setup_timeout" | "setup_action" | "reload_failed" | "reload_rejected"
   | "usage_invalid" | "usage_warning" | "plugin_not_registered"
   | "essential_failed" | "disabled_by_setting" | "safe_mode" | "disabled_flag"
-  | "isolation_unavailable" | "isolation_point_unsupported" | "isolation_drive_unsupported"
+  | "isolation_unavailable" | "isolation_point_unsupported"
   | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol"
   | UiDiagnosticCode;
 
@@ -1263,10 +1263,10 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 매니페스트에 `entry`가 없음(코드 없는 확장) | 엔진 안. 띄울 코드가 없어 설정이 `process`여도 격리하지 않는다(`no_entry`) |
 | 실효 값 `none` | 엔진 안 |
 | `process`, 포트(`process`·`isolation` 의존) 없음 | 명시면 `error`(`isolation_unavailable`), 기본이면 엔진 안 |
-| `process`, `plugins[].drives: true` | 명시면 `error`(`isolation_drive_unsupported`), 기본이면 엔진 안(주도는 P2에서 넘긴다) |
+| `process`, `plugins[].drives: true` | 격리한다. `drives`는 격리를 막지 않는다(M5 P2). 주도 단계 함수는 `drive.step` 요청으로 자식에서 돈다(F.extensions 부록) |
 | 그 밖의 `process` | 호스트 프로세스. `LoadedExtensionInfo.isolation = "process"` |
 
-`LoadedExtensionInfo.isolation`은 실제로 도는 곳이다. `bundled` 출처(Helm)는 이 로더의 `InstallSource`가 아니라(내장·관리·사용자·프로젝트 넷뿐) 조립 루트가 `builtin: false`로 싣는 기본 플러그인이고, 주도를 쓰므로 위 표의 `drives` 줄로 엔진 안에 남는다.
+`LoadedExtensionInfo.isolation`은 실제로 도는 곳이다. `bundled` 출처(Helm)는 이 로더의 `InstallSource`가 아니라(내장·관리·사용자·프로젝트 넷뿐) 조립 루트가 `builtin: false`로 싣는 기본 플러그인이고, 사용자 등급이므로 기본 격리의 대상이다. `drives`는 격리를 막지 않는다(위 표의 `drives` 줄, review.m5-drive-isolation §3.1).
 
 #### 4.9.1 구조와 수명
 
@@ -1286,7 +1286,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.5 drive
 
-호스트 프로세스에서 `drive`를 등록하면 `host.init`이 `unsupported_api`로 실패하고 로더는 `isolation_drive_unsupported`로 거부한다. 넘기지 않는 API는 `drive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`이다(`startDrive`는 엔진 왕복으로 넘긴다, X.primitives.spec §3.8)(`port`는 `service_reserved`로 답한다). `migrateState`, `hostOf(g).updateState`, `awaitUser`는 프로토콜로 넘긴다(F.extensions 부록). 이름은 진단 메시지에 실린다. 사용자는 `ext.<name>.isolation = none`으로 엔진 안에서 돌린다.
+`drive`는 넘긴다(M5 P2). setup에서 `g.drive(step, options)`를 한 번 받아 두고, 엔진이 주도 단계마다 `drive.step` 요청으로 부른다(F.extensions 부록). 넘기지 않는 API는 `provide`, `providePort`, `registerWebProvider`, `registerShortcut`이다(`startDrive`는 엔진 왕복으로 넘긴다, X.primitives.spec §3.8)(`port`는 `service_reserved`로 답한다). `migrateState`, `hostOf(g).updateState`, `awaitUser`는 프로토콜로 넘긴다(F.extensions 부록). 이름은 진단 메시지에 실린다. 사용자는 `ext.<name>.isolation = none`으로 엔진 안에서 돌린다.
 
 #### 4.9.6 기록 경로와 접근 경계
 
@@ -1363,7 +1363,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `thread.trust.before`(session, first) | 발화한다 | 작업 폴더 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 작업 폴더 탐색 전. 판정 한 번에 한 번 |
 | `thread.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. 로더 수명에 맞춘다 [제안]. 작업 폴더 불신이면 작업 폴더 확장의 핸들러는 없다 |
 
-- post, drive와의 관계: 로더는 post와 drive를 직접 쓰지 않는다. 격리 확장의 post는 `OutboxAgent`가 그 확장 scope로 대신 실행한다(§4.9.6). drive는 격리 확장에 허용하지 않는다(§4.9.5).
+- post, drive와의 관계: 로더는 post와 drive를 직접 쓰지 않는다. 격리 확장의 post는 `OutboxAgent`가 그 확장 scope로 대신 실행한다(§4.9.6). drive는 격리 확장에도 허용한다(§4.9.5, M5 P2).
 - 4연산 사용과 매니페스트의 대조(`validateUsage`)는 primitives가 `install` 안에서 하고, 로더는 그 결과를 진단으로 옮긴다(§4.4.3). 연산 실행 자체도 X.primitives.spec이다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1451,7 +1451,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 5. [결정: review.m3-design-inputs D-M3-31 행 3] 작업 폴더 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4).
 6. [미결] 로드 진단을 내구·휘발 이벤트로 낼지와 type 접두(`ext.`/`extension.`). F.records.spec과 eng.context-map.design 변경이 필요하다.
 7. [결정: review.m3-design-inputs D-M3-31 행 3] "이번 세션만" 신뢰의 범위는 호스트 프로세스 수명이다. 서비스 모드에서도 thread·클라이언트 단위로 좁히지 않는다.
-8. [미결] 격리 확장의 drive 허용(§4.9.5). [제안] 1차 격리에서는 금지.
+8. (닫힘, M5 P2) 격리 확장의 drive 허용(§4.9.5). 단계 함수는 `drive.step` 요청으로 자식에서 돈다.
 9. (닫힘) pi `pi-coding-agent` 도구 팩토리 15종의 대응. pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c].
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. 가상 모듈 `typebox`가 플러그인 번들에 워크스페이스와 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.

@@ -132,6 +132,7 @@ realTest(
         devChecks: true,
         defaultPluginsDir: bundleRoot,
         buildModels: tapeBuildModels(tapeProvider(helmResumeTape("helm-sigkill-resume"))),
+        pluginHost: { disabled: true },
       });
       const connection = createHostConnection(host.client);
       const hello = await connection.request("host.hello", HELLO_PARAMS);

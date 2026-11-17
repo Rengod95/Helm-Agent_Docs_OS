@@ -1,5 +1,6 @@
 // 격리 호스트의 주도 시작(`startDrive`) 시험. 자식이 부른 시작 요청은 엔진 왕복으로 가고 값으로 돌아온다.
-// 격리 등록은 드라이브를 가질 수 없어 엔진의 답은 `not_drive`이고, 설치 때 부른 것은 문맥이 없어 `no_context`다.
+// 이 픽스처는 드라이브를 등록하지 않으므로 엔진의 답은 `not_drive`다(드라이브를 등록한 격리 등록은 큐에 넣는다: isolated-drive.test.ts).
+// 설치 때 부른 것은 문맥이 없어 `no_context`다.
 // 큐에 든 요청의 값(범위, thread, 입력, trigger)은 엔진 라우터 시험(engine-calls.test.ts)이 드라이브 단계로 본다.
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";

@@ -79,11 +79,7 @@ import {
 import { resolveProjectTrust, type ProjectTrustResult } from "./trust/resolve.ts";
 import { createProjectTrustStore } from "./trust/store.ts";
 import { registerSdkModules, X_SDK_MODULES, type SdkModules } from "./virtual-modules.ts";
-import {
-  effectiveIsolationOf,
-  type IsolationDecision,
-  type IsolationRefusal,
-} from "../isolation/effective.ts";
+import { effectiveIsolationOf, type IsolationDecision } from "../isolation/effective.ts";
 import {
   createIsolatedEntry,
   type IsolationLaunch,
@@ -512,10 +508,8 @@ function projectDiagnostic(
   };
 }
 
-function refusalMessage(name: ExtensionName, code: IsolationRefusal): string {
-  return code === "isolation_drive_unsupported"
-    ? `${name} requires process isolation, but it declares drives, which an isolated extension does not support; set ext.${name}.isolation to none to run it inside the engine`
-    : `${name} requires process isolation, but no fresnel.process service is available; set ext.${name}.isolation to none to run it inside the engine`;
+function refusalMessage(name: ExtensionName): string {
+  return `${name} requires process isolation, but no fresnel.process service is available; set ext.${name}.isolation to none to run it inside the engine`;
 }
 
 /** 격리 감독 손잡이의 세션을 닫는다. 손잡이가 없으면 아무것도 하지 않는다 */
@@ -856,19 +850,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       setting: deps.settings?.isolation?.(record.name),
       manifest: manifest?.isolation,
       hasEntry: manifest?.entry !== undefined,
-      hasDrives:
-        manifest === undefined
-          ? false
-          : pluginDeclsOf(manifest).some((plugin) => plugin.drives === true),
       portAvailable: deps.process !== undefined && deps.isolation !== undefined,
     });
   }
 
-  /** 4b단계: 명시 요청이 맞지 않으면 거부한다. 기본 격리는 포트가 없거나 drives가 있으면 엔진 안에서 돈다 */
+  /** 4b단계: 명시 요청이 맞지 않으면 거부한다. 기본 격리는 포트가 없으면 엔진 안에서 돈다 */
   function checkIsolation(record: ExtRecord): void {
     const decision = isolationOf(record, record.manifest);
     if (decision.kind !== "refused") return;
-    fail(record, "error", "isolation", decision.code, refusalMessage(record.name, decision.code));
+    fail(record, "error", "isolation", decision.code, refusalMessage(record.name));
   }
 
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
@@ -1445,7 +1435,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         found,
         "isolation",
         decision.code,
-        `reload of ${name}: ${refusalMessage(name, decision.code)}`,
+        `reload of ${name}: ${refusalMessage(name)}`,
       );
       return rejected();
     }

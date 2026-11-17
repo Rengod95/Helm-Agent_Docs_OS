@@ -6,8 +6,16 @@ import { Type } from "typebox";
 import { parse, type ParseError, type Result } from "@fresnel/contracts";
 import { JsonValueSchema, ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
+  DriveFrameInfoSchema,
+  DriveLimitsSchema,
+  DriveLockBudgetSchema,
+  DriveStepLastSchema,
   GroupRecordSchema,
   type CommandRunParams,
+  type DriveFrameInfo,
+  type DriveLockBudget,
+  type DriveStepParams,
+  type DriveStepReply,
   type EventNotifyParams,
   type GroupRecord,
   type HookInvokeParams,
@@ -19,6 +27,7 @@ import {
   type ScopeDisposeParams,
   type StartDriveReply,
   type StateMigrateParams,
+  type StepResult,
   type ToolExecuteParams,
   type UpdateStateReply,
 } from "@fresnel/contracts/extensions";
@@ -150,6 +159,20 @@ const startDriveReplySchema = Type.Union([
   }),
 ]);
 
+const driveStepSchema = Type.Object({
+  ...callContextShape,
+  threadId: ThreadIdSchema,
+  registration: Type.String(),
+  last: DriveStepLastSchema,
+  budget: DriveLockBudgetSchema,
+  frame: DriveFrameInfoSchema,
+});
+
+const driveStepReplySchema = Type.Object({
+  command: JsonValueSchema,
+  limits: Type.Union([DriveLimitsSchema, Type.Null()]),
+});
+
 const postReceiptSchema = Type.Object({
   requestId: Type.String(),
   duplicate: Type.Boolean(),
@@ -177,6 +200,13 @@ export type EventNotifyInput = Omit<EventNotifyParams, "threadId"> & {
 };
 export type RequestCancelInput = RequestCancelParams;
 export type StateMigrateInput = StateMigrateParams;
+/** 검증을 통과한 `drive.step` params. `last`는 `StepResult`(또는 첫 단계의 null)이고 `threadId`는 대화 안에서 null이 아니다 */
+export type DriveStepInput = Omit<DriveStepParams, "threadId" | "last" | "budget" | "frame"> & {
+  readonly threadId: ThreadId;
+  readonly last: StepResult | null;
+  readonly budget: DriveLockBudget;
+  readonly frame: DriveFrameInfo;
+};
 
 export function parseHostInit(value: unknown): Result<HostInitInput, ParseError> {
   return parse(hostInitSchema, value);
@@ -221,6 +251,16 @@ export function parseStateMigrate(value: unknown): Result<StateMigrateInput, Par
 /** 엔진이 답한 `updateState` 결과. 값이라서 모양이 맞지 않으면 호출하는 쪽이 오류로 본다 */
 export function parseUpdateStateReply(value: unknown): Result<UpdateStateReply, ParseError> {
   return parse(updateStateReplySchema, value);
+}
+
+/** 엔진 → 호스트 `drive.step`의 params 검사. 단계 함수에 넘길 입력 모양을 맞춘다 */
+export function parseDriveStep(value: unknown): Result<DriveStepInput, ParseError> {
+  return parse(driveStepSchema, value);
+}
+
+/** 호스트가 낸 `drive.step` 응답의 모양. 엔진이 명령과 한도를 읽는다 */
+export function parseDriveStepReply(value: unknown): Result<DriveStepReply, ParseError> {
+  return parse(driveStepReplySchema, value);
 }
 
 /** 엔진이 답한 `engine.call` `startDrive` 결과. 거부는 값이라서 모양이 맞지 않는 것만 오류다 */

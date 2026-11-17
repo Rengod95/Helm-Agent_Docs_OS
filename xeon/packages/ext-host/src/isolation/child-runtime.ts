@@ -20,12 +20,14 @@ import {
 } from "@fresnel/contracts";
 import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import {
+  DriveLimitsSchema,
   HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   pluginsOf,
   PLUGIN_HOST_REQUESTS,
   PLUGIN_HOST_STDERR_LINE_MAX,
   validateManifest,
+  type DriveLimits,
   type EngineCallParams,
   type ExtensionEntry,
   type HookName,
@@ -65,6 +67,7 @@ import {
 } from "./framing.ts";
 import {
   parseCommandRun,
+  parseDriveStep,
   parseEventNotify,
   parseHookInvoke,
   parseHostDispose,
@@ -75,6 +78,7 @@ import {
   parseStateMigrate,
   parseToolExecute,
   type CommandRunInput,
+  type DriveStepInput,
   type EventNotifyInput,
   type HookInvokeInput,
   type HostInitInput,
@@ -122,7 +126,8 @@ type ServedName =
   | "command.run"
   | "method.call"
   | "scope.dispose"
-  | "state.migrate";
+  | "state.migrate"
+  | "drive.step";
 type UnknownCallable = (...args: readonly unknown[]) => unknown;
 
 /** 프로토콜 FrameShape의 error.message 상한(isolation-protocol.ts)과 같다 */
@@ -559,6 +564,65 @@ function createRuntime(deps: PluginHostDeps) {
   }
 
   /**
+   * 주도 단계 함수 하나를 부른다(`drive.step`, drive-isolation.md 1.1). 명령은 JSON으로 돌려준다(모양은 엔진이 검사한다).
+   * 한도는 응답을 만들 때 읽는다(설정 스냅샷 아래). 던지거나 JSON이 아니면 `handler_threw`다
+   */
+  async function runDriveStep(
+    id: number,
+    input: DriveStepInput,
+    signal: AbortSignal,
+  ): Promise<Outcome> {
+    const state = registrations.get(input.registration)?.state;
+    const drive = state?.drive;
+    if (state === undefined || drive === undefined) {
+      return unknownTarget(`drive of ${input.registration}`);
+    }
+    const scope: CallScope = {
+      kind: "drive",
+      registration: state.id,
+      requestId: id,
+      threadId: input.threadId,
+      signal,
+      point: null,
+      settings: input.settings,
+      snapshot: { doc: input.state },
+    };
+    const stepped = await attemptAsync(() =>
+      Promise.resolve(
+        scopes.run(scope, () =>
+          drive.step({
+            state: stateAs(input.state),
+            last: input.last,
+            budget: input.budget,
+            frame: input.frame,
+          }),
+        ),
+      ),
+    );
+    if (!stepped.ok) return err(threw(messageOf(stepped.error.cause)));
+    const command = toJsonValue(stepped.value);
+    if (command === undefined) {
+      return err(threw(`the step of ${state.id} returned a value that is not JSON`));
+    }
+    const read = await attemptAsync(() =>
+      Promise.resolve(scopes.run(scope, () => drive.options?.limits)),
+    );
+    if (!read.ok) return err(threw(messageOf(read.error.cause)));
+    let limits: DriveLimits | null = null;
+    if (read.value !== undefined) {
+      const checked = parse(DriveLimitsSchema, read.value);
+      if (!checked.ok) {
+        return err(threw(`the drive limits of ${state.id} do not match their shape`));
+      }
+      limits = checked.value;
+    }
+    const reply = toJsonValue({ command, limits });
+    return reply === undefined
+      ? err(threw(`the drive reply of ${state.id} is not JSON`))
+      : ok(reply);
+  }
+
+  /**
    * 저장된 상태 문서를 `migrateState` 함수로 옮긴다. 결과는 JSON 문서여야 한다(`null`도 문서다). 던지거나 JSON이 아니면 `handler_threw`다
    */
   async function runMigration(input: {
@@ -618,6 +682,10 @@ function createRuntime(deps: PluginHostDeps) {
       case "state.migrate": {
         const input = parseStateMigrate(params);
         return input.ok ? await runMigration(input.value) : invalidParams(input.error);
+      }
+      case "drive.step": {
+        const input = parseDriveStep(params);
+        return input.ok ? await runDriveStep(id, input.value, signal) : invalidParams(input.error);
       }
       default:
         return assertNever(name, "dispatch");
@@ -706,6 +774,7 @@ function createRuntime(deps: PluginHostDeps) {
       case "method.call":
       case "scope.dispose":
       case "state.migrate":
+      case "drive.step":
         // host.init이 먼저 와야 한다. 그 전의 요청은 준비를 기다리지 않고 바로 오류로 답한다
         if (!started) {
           respond(

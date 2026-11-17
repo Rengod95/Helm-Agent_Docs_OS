@@ -207,19 +207,138 @@ export default function extension({ register }) {
     },
   );
 
-  test("a drive registration fails init with unsupported_api naming drive", async () => {
+  test("a drive registration is declared with its limits and no longer fails init", async () => {
     const root = await writePluginRoot(`
 export default function extension({ register }) {
   register("demo", {}, (g) => {
-    g.drive(async () => undefined);
+    g.drive(async () => ({ do: "yield" }), { limits: { maxTurns: 3 } });
   });
 }
 `);
     const host = startHost();
     const reply = await initialize(host, root);
-    expect(reply).toMatchObject({ id: 1, error: { kind: "unsupported_api" } });
-    expect(reply).toMatchObject({ error: { message: expect.stringContaining("drive") } });
+    expect(reply).toMatchObject({
+      id: 1,
+      result: { registrations: [{ id: "demo", drive: { limits: { maxTurns: 3 } } }] },
+    });
+  });
+
+  test("a drive registration without options is declared with no limits", async () => {
+    const root = await writePluginRoot(`
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    g.drive(async () => ({ do: "yield" }));
+  });
+}
+`);
+    const host = startHost();
+    const reply = await initialize(host, root);
+    expect(reply).toMatchObject({
+      id: 1,
+      result: { registrations: [{ id: "demo", drive: { limits: null } }] },
+    });
+  });
+
+  test("a second drive in setup fails init with drive_duplicate", async () => {
+    const root = await writePluginRoot(`
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    g.drive(async () => ({ do: "yield" }));
+    g.drive(async () => ({ do: "yield" }));
+  });
+}
+`);
+    const host = startHost();
+    const reply = await initialize(host, root);
+    expect(reply).toMatchObject({ id: 1, error: { kind: "handler_threw" } });
+    expect(reply).toMatchObject({
+      error: { message: expect.stringContaining("drive_duplicate") },
+    });
     expect(await host.exit).toBe("init_failed");
+  });
+
+  test("drive.step runs the step with the input and answers the command with the limits read at that moment", async () => {
+    const root = await writePluginRoot(`
+export default function extension({ register }) {
+  register("demo", { state: { schema: { type: "object" }, initial: { count: 0 }, version: 1 } }, (g) => {
+    g.drive(async ({ state, last, budget, frame }) => ({
+      do: "done",
+      result: { count: state.count, last, budget, frame },
+    }), { get limits() { return { maxTurns: 5 }; } });
+  });
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    host.send({
+      id: 2,
+      method: "drive.step",
+      params: {
+        threadId: THREAD_ID,
+        deadlineMs: null,
+        replay: false,
+        caller: "engine",
+        state: { count: 7 },
+        settings: {},
+        registration: "demo",
+        last: null,
+        budget: { turns: 4, spawns: null, tokens: null },
+        frame: { frameDepth: 1, calledBy: "helm", input: { topic: "t" } },
+      },
+    });
+    expect(await host.out.waitFor((frame) => frame.id === 2)).toEqual({
+      id: 2,
+      result: {
+        command: {
+          do: "done",
+          result: {
+            count: 7,
+            last: null,
+            budget: { turns: 4, spawns: null, tokens: null },
+            frame: { frameDepth: 1, calledBy: "helm", input: { topic: "t" } },
+          },
+        },
+        limits: { maxTurns: 5 },
+      },
+    });
+  });
+
+  test("drive.step fails with handler_threw when the step throws, and with unknown_target for a registration without a drive", async () => {
+    const root = await writePluginRoot(`
+export default function extension({ register }) {
+  register("boom", {}, (g) => {
+    g.drive(async () => { throw new Error("step boom"); });
+  });
+  register("plain", {}, () => undefined);
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    const params = {
+      threadId: THREAD_ID,
+      deadlineMs: null,
+      replay: false,
+      caller: "engine",
+      state: {},
+      settings: {},
+      last: null,
+      budget: { turns: null, spawns: null, tokens: null },
+      frame: { frameDepth: 1, calledBy: null, input: null },
+    };
+    host.send({ id: 2, method: "drive.step", params: { ...params, registration: "boom" } });
+    expect((await host.out.waitFor((frame) => frame.id === 2)).error).toEqual({
+      kind: "handler_threw",
+      message: "step boom",
+    });
+    host.send({ id: 3, method: "drive.step", params: { ...params, registration: "plain" } });
+    expect((await host.out.waitFor((frame) => frame.id === 3)).error).toEqual({
+      kind: "unknown_target",
+      message: "no drive of plain",
+    });
+    host.send({ id: 4, method: "drive.step", params: { ...params, last: { kind: "nope" } } });
+    expect((await host.out.waitFor((frame) => frame.id === 4)).error).toMatchObject({
+      kind: "invalid_params",
+    });
   });
 
   test("a startDrive call in setup answers no_context at once without asking the engine, and init goes on", async () => {

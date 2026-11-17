@@ -1,13 +1,24 @@
 import { Type, type TUnsafe } from "typebox";
-import type { SchemaProof } from "../base/schema-proof.ts";
-import type { ItemId, JsonValue, ThreadId, TurnId } from "../conversation/index.ts";
+import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
+import {
+  ItemIdSchema,
+  JsonObjectSchema,
+  JsonValueSchema,
+  ThreadIdSchema,
+  TurnIdSchema,
+  type ItemId,
+  type JsonObject,
+  type JsonValue,
+  type ThreadId,
+  type TurnId,
+} from "../conversation/index.ts";
 import {
   QuestionApprovalDetailSchema,
   type ApprovalResolvedPayload,
   type QuestionAnswerJson,
   type QuestionApprovalDetail,
 } from "../records/index.ts";
-import type { PostItem } from "./post.ts";
+import { PostItemSchema, type PostItem } from "./post.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
 
@@ -263,3 +274,203 @@ export interface DriveLock {
   readonly limits: DriveLimits;
   readonly status: "active" | "releasing" | "released";
 }
+
+// ── 격리 프로토콜의 검사 모양(drive-isolation.md 1.1, 3.2). 엔진이 자식이 돌려준 명령과 자식이 받은 `last`를 여기로 검사한다 ──
+
+const DriveLimitsShape = Type.Object(
+  {
+    maxTurns: Type.Optional(Type.Integer({ minimum: 0 })),
+    maxSpawns: Type.Optional(Type.Integer({ minimum: 0 })),
+    maxTokens: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+/** 한도 옵션의 검사. 프로토콜의 `drive` 선언과 `drive.step` 응답이 쓴다 */
+export const DriveLimitsSchema: TUnsafe<DriveLimits> = Type.Unsafe<DriveLimits>(
+  DriveLimitsShape satisfies SchemaProof<DriveLimits, typeof DriveLimitsShape>,
+);
+
+const DriveLockBudgetShape = Type.Object(
+  {
+    turns: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    spawns: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+    tokens: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+/** 남은 예산(`null`은 상한 없음)의 검사 */
+export const DriveLockBudgetSchema: TUnsafe<DriveLockBudget> = Type.Unsafe<DriveLockBudget>(
+  DriveLockBudgetShape satisfies SchemaProof<DriveLockBudget, typeof DriveLockBudgetShape>,
+);
+
+const DriveFrameInfoShape = Type.Object(
+  {
+    frameDepth: Type.Integer({ minimum: 0 }),
+    calledBy: Type.Union([ExtensionNameSchema, Type.Null()]),
+    input: Type.Union([JsonValueSchema, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+/** 프레임 정보의 검사(`DriveStepInput.frame`) */
+export const DriveFrameInfoSchema: TUnsafe<DriveFrameInfo> = Type.Unsafe<DriveFrameInfo>(
+  DriveFrameInfoShape satisfies SchemaProof<DriveFrameInfo, typeof DriveFrameInfoShape>,
+);
+
+const StepHookSourceShape = Type.Object(
+  {
+    plugin: Type.Union([Type.String(), Type.Null()]),
+    hook: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+const StepResultShape = Type.Union([
+  Type.Object({
+    kind: Type.Literal("ok"),
+    of: Type.Literal("turn"),
+    value: Type.Object(
+      {
+        turnId: TurnIdSchema,
+        status: Type.Union([
+          Type.Literal("completed"),
+          Type.Literal("aborted"),
+          Type.Literal("error"),
+        ]),
+        finalItemId: Type.Optional(ItemIdSchema),
+      },
+      { additionalProperties: false },
+    ),
+  }),
+  Type.Object({
+    kind: Type.Literal("ok"),
+    of: Type.Literal("spawn"),
+    value: Type.Object(
+      {
+        childThreadId: ThreadIdSchema,
+        status: Type.Union([
+          Type.Literal("completed"),
+          Type.Literal("aborted"),
+          Type.Literal("error"),
+        ]),
+        answer: Type.Optional(Type.String()),
+      },
+      { additionalProperties: false },
+    ),
+  }),
+  Type.Object({
+    kind: Type.Literal("ok"),
+    of: Type.Union([Type.Literal("model"), Type.Literal("tool")]),
+    value: JsonValueSchema,
+  }),
+  Type.Object({
+    kind: Type.Literal("ask"),
+    answer: Type.Union([
+      Type.Literal("answered"),
+      Type.Literal("cancelled"),
+      Type.Literal("expired"),
+      Type.Literal("noninteractive"),
+    ]),
+    value: JsonValueSchema,
+  }),
+  Type.Object({ kind: Type.Literal("blocked"), by: StepHookSourceShape, reason: Type.String() }),
+  Type.Object({
+    kind: Type.Literal("denied"),
+    by: Type.Union([Type.Literal("policy"), Type.Literal("human"), Type.Literal("noninteractive")]),
+    reason: Type.Union([Type.String(), Type.Null()]),
+  }),
+  Type.Object({ kind: Type.Literal("replaced"), by: StepHookSourceShape, value: JsonValueSchema }),
+  Type.Object({ kind: Type.Literal("refused"), code: Type.String() }),
+  Type.Object({ kind: Type.Literal("aborted") }),
+  Type.Object({ kind: Type.Literal("user"), message: PostItemSchema }),
+  Type.Object({
+    kind: Type.Literal("handoff"),
+    status: Type.Union([Type.Literal("done"), Type.Literal("aborted")]),
+    result: JsonValueSchema,
+  }),
+]);
+/** 직전 명령의 결과(`StepResult`)이거나 첫 단계의 null. 격리 자식이 `drive.step`의 `last`를 받을 때 쓴다 */
+const DriveStepLastShape = Type.Union([StepResultShape, Type.Null()]);
+export const DriveStepLastSchema: TUnsafe<StepResult | null> = Type.Unsafe<StepResult | null>(
+  DriveStepLastShape satisfies SchemaSound<StepResult | null, typeof DriveStepLastShape>,
+);
+
+const DriveCommandCyclic = Type.Cyclic(
+  {
+    DriveCommand: Type.Union([
+      Type.Object(
+        {
+          do: Type.Literal("turn"),
+          input: PostItemSchema,
+          note: Type.Optional(Type.String()),
+          requestId: Type.Optional(Type.String()),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        {
+          do: Type.Literal("model"),
+          messages: Type.Array(
+            Type.Object(
+              {
+                role: Type.Union([
+                  Type.Literal("system"),
+                  Type.Literal("user"),
+                  Type.Literal("assistant"),
+                ]),
+                content: Type.String(),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+          label: Type.Optional(Type.String()),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        { do: Type.Literal("tool"), name: Type.String(), args: JsonValueSchema },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        {
+          do: Type.Literal("ask"),
+          card: QuestionApprovalDetailSchema,
+          title: Type.Optional(Type.String()),
+          requestId: Type.Optional(Type.String()),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        {
+          do: Type.Literal("spawn"),
+          agent: Type.String(),
+          task: Type.String(),
+          requestId: Type.Optional(Type.String()),
+          background: Type.Optional(Type.Boolean()),
+          label: Type.Optional(Type.String()),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        { do: Type.Literal("handoff"), to: Type.String(), input: JsonValueSchema },
+        { additionalProperties: false },
+      ),
+      Type.Object(
+        { do: Type.Literal("commit"), state: JsonObjectSchema, next: Type.Ref("DriveCommand") },
+        { additionalProperties: false },
+      ),
+      Type.Object({ do: Type.Literal("yield") }, { additionalProperties: false }),
+      Type.Object(
+        { do: Type.Literal("done"), result: Type.Optional(JsonValueSchema) },
+        { additionalProperties: false },
+      ),
+    ]),
+  },
+  "DriveCommand",
+);
+/**
+ * 단계 함수가 돌려준 명령의 검사(격리 자식이 낸 것). 상태 문서는 JSON 객체다(엔진 안의 `StateDecl`도 객체다).
+ * 모양이 맞지 않으면 엔진은 그 단계를 오류로 처리한다(drive-isolation.md 2.4, 3.3)
+ */
+export const DriveCommandSchema: TUnsafe<DriveCommand<JsonObject>> = Type.Unsafe<
+  DriveCommand<JsonObject>
+>(DriveCommandCyclic satisfies SchemaSound<DriveCommand<JsonObject>, typeof DriveCommandCyclic>);

@@ -1,4 +1,9 @@
-import type { ExtensionName, ManifestIssue, RegistrationId } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionName,
+  ManifestIssue,
+  PluginProcessFailureReason,
+  RegistrationId,
+} from "@fresnel/contracts/extensions";
 
 /** X.primitives.spec §3.10. ManifestIssue 코드와 겹치는 항목은 같은 문자열을 쓴다 */
 export type PrimitiveErrorCode =
@@ -74,7 +79,9 @@ export interface ExtDiagnostic {
     /** DriveOptions.limits가 x.primitives.driveLimits(천장)보다 커서 천장 값으로 줄였다(X.primitives.spec §4.4.2) */
     | "drive_limits_clamped"
     /** 시작 때 이미 열린 scope의 켜짐을 알리는 정보 진단 등 */
-    | "scope_notice";
+    | "scope_notice"
+    /** 격리 프로세스가 주도 단계 중에 끝났다(process_exit, process_killed). 이유는 감독이 정한다(drive-isolation.md 3.3) */
+    | PluginProcessFailureReason;
   readonly scopeId?: RegistrationId;
   readonly extension?: ExtensionName;
   readonly message: string;

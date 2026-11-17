@@ -4,7 +4,8 @@
 //
 // `migrateState`, `updateState`(`hostOf`), `awaitUser`, `startDrive`(`hostOf`)는 프로토콜로 넘긴다. 함수는 자식에서 돌리고 엔진은 저장과 비교만 한다
 // (`state.migrate` 요청, `engine.call` `updateState`, `awaitUser`, `startDrive`, isolation-protocol.ts).
-// 막힌 API(`drive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
+// `drive`는 setup에서 단계 함수를 한 번 받아 두고, 엔진이 단계마다 `drive.step` 요청으로 부른다(drive-isolation.md 1.1, 3.2).
+// 막힌 API(`provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
 // setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
 // `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
@@ -24,6 +25,8 @@ import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/c
 import {
   HOOKS,
   isHighFrequency,
+  type DriveOptions,
+  type DriveStep,
   type EngineCallParams,
   type GroupRecord,
   type Handler,
@@ -87,7 +90,7 @@ export class PluginEngineCallError extends Error {
 
 /** 요청 하나의 문맥. `g.state()`, `g.commit`, `hostOf(g).callContext()`, `settingValue`가 읽는다 */
 export interface CallScope {
-  readonly kind: "hook" | "notify" | "tool" | "command" | "method";
+  readonly kind: "hook" | "notify" | "tool" | "command" | "method" | "drive";
   readonly registration: RegistrationId;
   /** 이 요청을 보낸 엔진 요청의 id. 알림이면 null */
   readonly requestId: number | null;
@@ -126,6 +129,12 @@ export interface HandlerSlot {
   tail: Promise<void>;
 }
 
+/** setup이 받은 주도 단계 함수와 한도 옵션. 엔진이 `drive.step`으로 부른다 */
+interface DriveReg {
+  readonly step: DriveStep<AnyState>;
+  readonly options: DriveOptions | undefined;
+}
+
 /** 등록 하나의 자식 쪽 상태 */
 export interface RegState {
   readonly id: RegistrationId;
@@ -146,6 +155,8 @@ export interface RegState {
   readonly disposers: (() => void | Promise<void>)[];
   /** 막힌 API 이름. setup이 쓰면 등록이 `unsupported_api`로 떨어진다 */
   readonly unsupported: string[];
+  /** `drive`로 등록한 단계 함수. setup 안에서 한 번 정해진다 */
+  drive: DriveReg | undefined;
   /** `migrateState`로 등록한 함수. setup 안에서 한 번 정해진다 */
   migration: StateMigration | undefined;
   /** (thread)별 `updateState` 줄의 꼬리. 같은 줄의 호출은 호출 순서대로 하나씩 돈다 */
@@ -426,8 +437,22 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
       const reply = await callEngine(env, state, "post", jsonOf({ item, options }, "the post"));
       return checked(parsePostReceipt(reply), "the post receipt");
     },
-    drive() {
-      unsupported(state, "drive");
+    drive(step: DriveStep<AnyState>, options?: DriveOptions): void {
+      if (!state.inSetup) {
+        throw new PrimitiveError(
+          "drive_outside_setup",
+          "drive can only be registered inside setup",
+          {
+            scopeId: state.id,
+          },
+        );
+      }
+      if (state.drive !== undefined) {
+        throw new PrimitiveError("drive_duplicate", "a registration has one drive slot", {
+          scopeId: state.id,
+        });
+      }
+      state.drive = { step, options };
     },
     state(): Readonly<AnyState> {
       return stateAs(currentState(state, env));
@@ -517,9 +542,14 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
     },
     callContext(): RegistrationCallContext | undefined {
       const scope = env.scopes.getStore();
-      if (scope === undefined || scope.registration !== state.id) return undefined;
+      if (scope === undefined || scope.registration !== state.id || scope.threadId === null) {
+        return undefined;
+      }
+      if (scope.kind === "drive") {
+        return { kind: "drive", threadId: scope.threadId, signal: scope.signal };
+      }
       if (scope.kind !== "hook" && scope.kind !== "notify") return undefined;
-      if (scope.threadId === null || scope.point === null) return undefined;
+      if (scope.point === null) return undefined;
       return { kind: "on", threadId: scope.threadId, signal: scope.signal, point: scope.point };
     },
     async commitWith(next: AnyState, records: readonly RecordInput[]): Promise<Readonly<AnyState>> {
@@ -620,6 +650,7 @@ export function createChildRegistration(
     disposers: [],
     unsupported: [],
     migration: undefined,
+    drive: undefined,
     updateTails: new Map<string, Promise<void>>(),
   };
   const api = makeApi(state, env);
@@ -702,5 +733,6 @@ export function declOf(state: RegState): Result<PluginRegistrationDecl, PluginHo
     renderers,
     hasDisposers: state.disposers.length > 0,
     hasMigration: state.migration !== undefined,
+    drive: state.drive === undefined ? null : { limits: state.drive.options?.limits ?? null },
   });
 }

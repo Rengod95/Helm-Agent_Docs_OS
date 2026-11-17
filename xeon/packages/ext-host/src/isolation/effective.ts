@@ -1,6 +1,7 @@
 // 확장의 실효 격리 판정(F5, 2026-11-17 결정). 순수 함수다. 로더가 설치 전에 한 번, 설치와 다시 읽기에서 한 번 부른다.
 // 규칙: builtin은 언제나 엔진 안이다. 그 밖은 설정(`ext.<이름>.isolation`)의 명시 값, 매니페스트 `isolation`, 기본 `process` 순이다.
 // 설정 값 `none`이 엔진 안 실행을 허용한다. "명시"는 설정이나 매니페스트가 `process`라고 했다는 뜻이다(기본 선택과 구분한다).
+// `drives`는 격리를 막지 않는다. 주도 단계 함수는 `drive.step` 요청으로 격리 자식에서 돈다(drive-isolation.md 3.2).
 
 /** 격리 설정 값. 설정과 매니페스트가 같은 두 값을 쓴다 */
 export type IsolationMode = "none" | "process";
@@ -11,11 +12,10 @@ export type InEngineReason =
   | "setting_none"
   | "manifest_none"
   | "default_no_port"
-  | "default_drives"
   | "no_entry";
 
 /** 거부 코드. 로더가 이 값을 진단 코드로 쓴다(LoadDiagnosticCode) */
-export type IsolationRefusal = "isolation_unavailable" | "isolation_drive_unsupported";
+export type IsolationRefusal = "isolation_unavailable";
 
 export type IsolationDecision =
   | { readonly kind: "in_engine"; readonly reason: InEngineReason }
@@ -29,8 +29,6 @@ export interface IsolationInput {
   readonly setting: IsolationMode | undefined;
   /** 매니페스트 `isolation`. 없으면 undefined */
   readonly manifest: IsolationMode | undefined;
-  /** 매니페스트 플러그인 중 `drives`가 참인 것이 있는가 */
-  readonly hasDrives: boolean;
   /** 매니페스트에 `entry`가 있는가. 없으면(코드 없는 확장) 띄울 코드가 없어 엔진 안이다. 생략하면 있다고 본다 */
   readonly hasEntry?: boolean;
   /** 격리 포트와 띄우기 설정이 모두 주입되었는가 */
@@ -43,7 +41,6 @@ export interface IsolationInput {
  * - `entry` 없음(코드 없는 확장) → 엔진 안(`no_entry`)
  * - 요청(설정이 있으면 설정, 없으면 매니페스트)이 none → 엔진 안
  * - 포트가 없음 → 명시면 `isolation_unavailable`, 기본이면 엔진 안
- * - drives가 있음 → 명시면 `isolation_drive_unsupported`, 기본이면 엔진 안
  * - 그 밖 → process
  */
 export function effectiveIsolationOf(input: IsolationInput): IsolationDecision {
@@ -61,11 +58,6 @@ export function effectiveIsolationOf(input: IsolationInput): IsolationDecision {
     return explicit
       ? { kind: "refused", code: "isolation_unavailable" }
       : { kind: "in_engine", reason: "default_no_port" };
-  }
-  if (input.hasDrives) {
-    return explicit
-      ? { kind: "refused", code: "isolation_drive_unsupported" }
-      : { kind: "in_engine", reason: "default_drives" };
   }
   return { kind: "process" };
 }

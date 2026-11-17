@@ -18,10 +18,14 @@ import {
 import { ToolHintsSchema, ToolNameSchema, ToolRiskSchema } from "@fresnel/contracts/capabilities";
 import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import {
+  DriveCommandSchema,
   HOOKS,
   PLUGIN_HOST_NOTIFY_HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   RecordKindSchema,
+  type DriveLimits,
+  type DriveOptions,
+  type DriveStep,
   type ExtensionEntry,
   type ExtensionManifest,
   type ExtensionName,
@@ -51,7 +55,8 @@ import type {
 } from "../primitives/resources.ts";
 import { isHookName } from "./child-api.ts";
 import { createEngineCallRouter, type OpenWaits } from "./engine-calls.ts";
-import { PluginProcessError } from "./errors.ts";
+import { DriveCommandError, PluginProcessError } from "./errors.ts";
+import { parseDriveStepReply } from "./params.ts";
 import {
   createPluginHostSupervisor,
   type CallError,
@@ -62,6 +67,13 @@ import {
 
 /** 시작 응답 시간 기본 한도(ms). 자식이 엔트리를 싣고 등록을 만드는 시간이다 */
 const DEFAULT_INIT_TIMEOUT_MS = 10_000;
+
+/**
+ * 단계 함수 하나(`drive.step` 요청)의 시간 한도(ms). 넘으면 감독이 프로세스를 멈추고(`process_killed`) 프레임을 내린다
+ * (drive-isolation.md 3.3). 질문 대기(`ask`)는 엔진이 명령으로 실행하므로 이 시간에 들지 않는다. 설정 키는 아직 없어
+ * 이 값을 기본으로 쓴다(`IsolatedEntryDeps.driveStepDeadlineMs`로 바꾼다)
+ */
+const DRIVE_STEP_DEADLINE_MS = 120_000;
 
 /** 이 종류의 오류는 프로세스가 없어서 생긴 것이다. 호출은 `process_exit`로 센다 */
 const SUPERVISOR_FAILURE_KINDS: ReadonlySet<string> = new Set([
@@ -84,11 +96,7 @@ const SILENT: Logger = {
 };
 
 /** 격리 확장 시작 실패. `code`는 로더 진단 코드와 같은 이름이다(X.loading-trust.spec §4.9, 격리 실패 표) */
-export type IsolatedEntryCode =
-  | "isolation_unavailable"
-  | "isolation_drive_unsupported"
-  | "isolation_protocol"
-  | "entry_threw";
+export type IsolatedEntryCode = "isolation_unavailable" | "isolation_protocol" | "entry_threw";
 
 export class IsolatedEntryError extends Error {
   override readonly name: string = "IsolatedEntryError";
@@ -135,6 +143,8 @@ export interface IsolatedEntryDeps {
   /** 설정 키의 유효 값. host.init의 설정에 쓴다(`hostOf(g).settingValue`와 같은 값) */
   readonly settingValue?: (key: string) => unknown;
   readonly initTimeoutMs?: number;
+  /** 단계 함수 하나의 시간 한도(ms). 생략하면 `DRIVE_STEP_DEADLINE_MS` */
+  readonly driveStepDeadlineMs?: number;
   readonly idleMs?: number;
   readonly killGraceMs?: number;
   readonly maxRestarts?: number;
@@ -239,27 +249,12 @@ export function schemaOfJson(json: JsonValue): TSchema | undefined {
   return json;
 }
 
-/** `drive` 또는 다른 막힌 API 이름 목록을 메시지에서 읽는다(child-api의 `unsupported`가 낸 문장) */
-function unsupportedNamesOf(message: string): readonly string[] {
-  const marker = " uses ";
-  const start = message.indexOf(marker);
-  if (start < 0) return [];
-  const from = start + marker.length;
-  const end = message.indexOf(", which", from);
-  return (end < 0 ? message.slice(from) : message.slice(from, end)).split(", ");
-}
-
 function startErrorOf(error: SupervisorError): IsolatedEntryError {
   switch (error.kind) {
     case "spawn_failed":
     case "sandbox_unavailable":
       return new IsolatedEntryError("isolation_unavailable", error.message);
     case "init_failed":
-      if (error.hostKind === "unsupported_api") {
-        return unsupportedNamesOf(error.message).includes("drive")
-          ? new IsolatedEntryError("isolation_drive_unsupported", error.message)
-          : new IsolatedEntryError("isolation_protocol", error.message);
-      }
       return error.hostKind === "handler_threw"
         ? new IsolatedEntryError("entry_threw", error.message)
         : new IsolatedEntryError("isolation_protocol", error.message);
@@ -410,6 +405,7 @@ function requireEntry(entry: string | undefined): string {
  */
 export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   const logger = deps.logger ?? SILENT;
+  const driveStepDeadlineMs = deps.driveStepDeadlineMs ?? DRIVE_STEP_DEADLINE_MS;
   // 코드 없는 확장(`entry` 없음)은 로더가 엔진 안으로 정한다(`no_entry`). 여기에 오면 로더의 불변 조건 위반이다
   const entryPath = requireEntry(deps.manifest.entry);
   const settingKeys = Object.values(deps.manifest.userConfig ?? {}).map((entry) => entry.setting);
@@ -501,11 +497,13 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     signal: AbortSignal | undefined,
     amb: Ambient | undefined,
     changes?: ToolChangeReport,
+    deadlineMs?: number,
   ): Promise<Result<JsonValue, CallError>> {
     const session = sessionNow();
     let requestId: number | undefined;
     const call = session.supervisor.call(method, params, {
       ...(signal === undefined ? {} : { signal }),
+      ...(deadlineMs === undefined ? {} : { deadlineMs }),
       onRequestId: (id) => {
         requestId = id;
         if (amb !== undefined) {
@@ -670,6 +668,55 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     };
   }
 
+  /**
+   * 주도 단계 함수 하나. `drive.step` 요청을 보내고, 돌아온 명령의 모양을 검사해 엔진에 준다(엔진이 그 명령을 실행한다).
+   * 응답의 한도 값은 `limits`에 옮겨 두고, 다음 임대를 받을 때 읽힌다. 요청 실패는 프로세스가 끝났거나 시간 초과면
+   * `PluginProcessError`, 그 밖이면 일반 오류다. 명령 모양이 틀리면 `DriveCommandError`다
+   */
+  function drivingOf(
+    g: RegistrationApi<AnyState>,
+    p: PreparedDecl,
+    limits: { current: DriveLimits },
+  ): DriveStep<AnyState> {
+    return async (input) => {
+      const amb = ambient();
+      if (amb === undefined || amb.drive === null) throw new Bug("isolation.drive_context_missing");
+      const driveCall = amb.drive;
+      const body = jsonOf(
+        {
+          ...frameOf(g, amb.threadId, jsonOf(input.state, `the state of ${p.decl.id}`)),
+          deadlineMs: driveStepDeadlineMs,
+          registration: p.decl.id,
+          last: input.last,
+          budget: input.budget,
+          frame: input.frame,
+        },
+        "the drive step",
+      );
+      const reply = await invoke(
+        "drive.step",
+        body,
+        driveCall.signal,
+        amb,
+        undefined,
+        driveStepDeadlineMs,
+      );
+      if (!reply.ok) throw failureOf(reply.error);
+      const checked = parseDriveStepReply(reply.value);
+      if (!checked.ok) {
+        throw new Error(`the drive.step reply of ${p.decl.id} does not match its shape`);
+      }
+      limits.current = checked.value.limits ?? {};
+      const command = parse(DriveCommandSchema, checked.value.command);
+      if (!command.ok) {
+        throw new DriveCommandError(
+          `the step of ${p.decl.id} returned a command that is not a DriveCommand`,
+        );
+      }
+      return command.value;
+    };
+  }
+
   /** 등록 하나의 setup. 실제 `g`를 받아 대리 훅과 리소스를 붙이고, 정리 때 자식의 정리 동작과 세션 닫기를 맡는다 */
   function setupOf(p: PreparedDecl): RegistrationSetup<AnyState> {
     return (g) => {
@@ -706,6 +753,16 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
           // 문서 `null`도 옮긴 결과일 수 있으므로 `settledOf`를 쓰지 않는다
           return reply.value;
         });
+      }
+      // 주도 단계 함수는 자식이 가진다. 한도 옵션은 선언의 값으로 시작하고 단계 응답으로 바뀐다(다음 임대부터 읽힌다)
+      if (p.decl.drive !== null) {
+        const limits: { current: DriveLimits } = { current: p.decl.drive.limits ?? {} };
+        const options: DriveOptions = {
+          get limits() {
+            return limits.current;
+          },
+        };
+        g.drive(drivingOf(g, p, limits), options);
       }
       for (const hook of p.hooks) {
         g.on(

@@ -90,7 +90,6 @@ export type LoadDiagnosticCode =
   | "disabled_flag"
   | "isolation_unavailable"
   | "isolation_point_unsupported"
-  | "isolation_drive_unsupported"
   | "isolation_restart_limit"
   | "isolation_protocol"
   | UiDiagnosticCode;

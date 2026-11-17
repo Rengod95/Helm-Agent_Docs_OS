@@ -3,6 +3,7 @@ import { err, ok, type Result } from "../base/index.ts";
 import type { SchemaProof } from "../base/schema-proof.ts";
 import type { CallerInfo } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
+import type { DriveFrameInfo, DriveLimits, DriveLockBudget } from "./drive.ts";
 import type { RecordKind, RecordSubject } from "./group-record.ts";
 
 // review.m5-drive-isolation §3.2 P1 프로토콜 한 표. 엔진과 플러그인 호스트 프로세스는 줄 단위 JSON으로 말한다.
@@ -33,6 +34,7 @@ export const PLUGIN_HOST_REQUESTS = [
   "scope.dispose",
   "host.dispose",
   "state.migrate",
+  "drive.step",
 ] as const;
 export type PluginHostRequestName = (typeof PLUGIN_HOST_REQUESTS)[number];
 
@@ -224,6 +226,11 @@ export interface PluginRegistrationDecl {
    * 상태 선언이 없으면 거짓이다
    */
   readonly hasMigration: boolean;
+  /**
+   * `drive`를 등록했는가(drive-isolation.md 3.2). 있으면 `limits`는 setup 때 읽은 한도 옵션이다(없으면 null).
+   * 엔진은 이 값으로 대리 `drive`를 등록하고 한도의 첫 값으로 쓴다. 없으면 null이다
+   */
+  readonly drive: { readonly limits: DriveLimits | null } | null;
 }
 
 /** 도구 선언. `execute`를 뺀 `ToolResourceDef`다. 모양은 JSON이다 */
@@ -304,6 +311,27 @@ export interface StateMigrateParams {
   readonly registration: string;
   readonly doc: JsonValue;
   readonly fromVersion: number;
+}
+
+/**
+ * 엔진 → 호스트 요청 `drive.step`(drive-isolation.md 1.1). 단계 함수를 한 번 부른다. 상태는 `PluginCallContext.state`다.
+ * `last`는 직전 명령의 결과(`StepResult`)이고 첫 단계면 null이다. `budget`은 남은 예산(null은 상한 없음)이다.
+ * 응답은 `DriveStepReply`다. 엔진은 그 명령을 실행하고 결과를 다음 단계의 `last`로 준다
+ */
+export interface DriveStepParams extends PluginCallContext {
+  readonly registration: string;
+  readonly last: JsonValue;
+  readonly budget: DriveLockBudget;
+  readonly frame: DriveFrameInfo;
+}
+
+/**
+ * `drive.step`의 응답. `command`는 `DriveCommand` 모양의 JSON이다(엔진이 검사한다). `limits`는 응답을 만들 때 읽은 한도 옵션이고,
+ * 엔진은 이것을 다음 임대를 받을 때의 한도로 쓴다(실행 중인 임대의 한도는 바뀌지 않는다). 없으면 null이다
+ */
+export interface DriveStepReply {
+  readonly command: JsonValue;
+  readonly limits: DriveLimits | null;
 }
 
 /**

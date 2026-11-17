@@ -86,6 +86,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
+      pluginHost: { disabled: true },
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -166,6 +167,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
+      pluginHost: { disabled: true },
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -206,12 +208,20 @@ realTest(
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
-    const first = await startInProcessHost({ devChecks: true, defaultPluginsDir: bundleRoot });
+    const first = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      pluginHost: { disabled: true },
+    });
     await first.close();
     const installed = join(home.root, "config", "extensions", "helm");
     expect(existsSync(installed)).toBe(true);
     rmSync(installed, { recursive: true, force: true });
-    const second = await startInProcessHost({ devChecks: true, defaultPluginsDir: bundleRoot });
+    const second = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      pluginHost: { disabled: true },
+    });
     await second.close();
     expect(existsSync(installed)).toBe(false);
     // 표지도 지우면 새로 설치되지만 안전 모드에서는 싣지 않는다
@@ -220,6 +230,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       safeMode: true,
+      pluginHost: { disabled: true },
     });
     const connection = createHostConnection(safe.client);
     await connection.request("host.hello", HELLO_PARAMS);

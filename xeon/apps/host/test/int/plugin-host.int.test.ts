@@ -240,7 +240,7 @@ realTest(
 );
 
 realTest(
-  "the bundled Helm plugin stays inside the engine: it drives, so the default isolation leaves it in-process",
+  "the bundled Helm plugin runs in its own process: it drives, and drives no longer keep a plugin in the engine",
   async () => {
     const home = useEngineHome();
     const bundles = mkdtempSync(join(tmpdir(), "plugin-host-helm-"));
@@ -262,7 +262,7 @@ realTest(
         },
       });
       try {
-        expect(helmIsolation).toBe("none");
+        expect(helmIsolation).toBe("process");
       } finally {
         await host.close();
       }

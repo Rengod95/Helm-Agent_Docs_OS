@@ -23,6 +23,7 @@ import {
   type JsonValue,
 } from "@fresnel/contracts/conversation";
 import {
+  DriveLimitsSchema,
   PLUGIN_HOST_ERROR_KINDS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   PLUGIN_HOST_STDERR_LINE_MAX,
@@ -222,6 +223,10 @@ const DeclSchema = Type.Object({
   ),
   hasDisposers: Type.Boolean(),
   hasMigration: Type.Boolean(),
+  drive: Type.Union([
+    Type.Null(),
+    Type.Object({ limits: Type.Union([DriveLimitsSchema, Type.Null()]) }),
+  ]),
 });
 
 const HostInitResultSchema = Type.Object({

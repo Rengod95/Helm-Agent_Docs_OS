@@ -86,6 +86,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(spare())),
+      pluginHost: { disabled: true },
     });
     const raw = rawClient(host.client);
     await call(raw, "host.hello", { ...HELLO_PARAMS });

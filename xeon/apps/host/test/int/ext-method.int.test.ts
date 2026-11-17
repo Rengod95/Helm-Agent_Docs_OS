@@ -96,6 +96,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
+      pluginHost: { disabled: true },
     });
     const raw = rawClient(host.client);
     await call(raw, "host.hello", { ...HELLO_PARAMS });
@@ -184,6 +185,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(inquiryPlayer())),
+      pluginHost: { disabled: true },
     });
     const rawAgain = rawClient(again.client);
     await call(rawAgain, "host.hello", { ...HELLO_PARAMS });

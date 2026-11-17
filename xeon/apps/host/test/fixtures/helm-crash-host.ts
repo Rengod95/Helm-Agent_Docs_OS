@@ -24,6 +24,7 @@ async function main(): Promise<number> {
       buildModels: tapeBuildModels(
         tapeProvider(holdingPlayer(helmDivergeTape("helm-sigkill-child"), HELD_CALL)),
       ),
+      pluginHost: { disabled: true },
     },
     handleSignals: false,
   });
