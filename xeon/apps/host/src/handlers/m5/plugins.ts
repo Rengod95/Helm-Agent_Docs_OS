@@ -4,6 +4,8 @@ import {
   wireError,
   type DraftInfo,
   type InvocableEntry,
+  type PluginDraftFromInstructionParams,
+  type PluginDraftFromInstructionResult,
   type PluginGetResult,
   type PluginListFilter,
   type PluginListResult,
@@ -15,8 +17,8 @@ import { wireErrorOfProfile, type ProfilePortFailure } from "../m4/profile-test-
 import type { PluginEditIssue } from "../../assembly/m4/plugin-edit.ts";
 
 // 플러그인 wire(M5c §3.4). `plugin.list`, `plugin.get`, `plugin.scan`(읽기)과 `plugin.requestRemove`, `plugin.revert`,
-// `plugin.draft.create`, `plugin.draft.list`, `plugin.draft.discard`(검토 흐름)다. 처리기는 포트가 돌려준 값을 그대로 옮기고 오류만 wire 오류로 바꾼다.
-// 계산은 `assembly/plugins/`가 한다. `plugin.draft.fromInstruction`은 아직 `notImplemented`다.
+// `plugin.draft.create`, `plugin.draft.list`, `plugin.draft.discard`(검토 흐름)과 `plugin.draft.fromInstruction`(한 줄 지침, §4.10)이다.
+// 처리기는 포트가 돌려준 값을 그대로 옮기고 오류만 wire 오류로 바꾼다. 계산은 `assembly/plugins/`가 한다.
 // 검토함(`pluginReview.*`)은 `handlers/m5/plugin-review.ts`가 맡는다. 두 파일이 쓰는 실패 종류는 이 파일에 함께 둔다.
 
 /** 초안 검사 이슈 하나. 와이어에는 `code`와 `severity`만 간다 */
@@ -42,6 +44,8 @@ export type PluginPortFailure =
   | { readonly kind: "draft_not_found"; readonly draftId: string }
   /** 폴더 검사가 실패했다. 이슈가 `plugin.invalid`의 `details.issues`다 */
   | { readonly kind: "draft_invalid"; readonly issues: readonly DraftIssue[] }
+  /** 같은 이름의 원본 폴더가 이미 있고, 한 줄 지침이 새 버전으로 덮어쓸 수 없다(`plugin.exists`, §4.10.1) */
+  | { readonly kind: "exists"; readonly name: string }
   | { readonly kind: "too_large" }
   | { readonly kind: "symlink_refused" }
   | { readonly kind: "review_not_found"; readonly itemId: string }
@@ -86,6 +90,13 @@ export interface PluginPort {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /**
+   * 한 줄 지침(§4.10): 지침만 든 원본 폴더를 쓰고 초안과 `user_instruction` 검토 항목을 만든다. 입력은 wire 매개변수 그대로다.
+   * 같은 이름을 새 버전으로 덮어쓰는 규칙과 기본 프로필은 포트가 정한다
+   */
+  draftFromInstruction(
+    params: PluginDraftFromInstructionParams,
+  ): Promise<Result<PluginDraftFromInstructionResult, PluginPortFailure>>;
 }
 
 export type PluginMethods =
@@ -97,7 +108,8 @@ export type PluginMethods =
   | "plugin.revert"
   | "plugin.draft.create"
   | "plugin.draft.list"
-  | "plugin.draft.discard";
+  | "plugin.draft.discard"
+  | "plugin.draft.fromInstruction";
 
 /** 플러그인 실패를 wire 오류로 옮긴다. 검토함 처리기도 같은 표를 쓴다 */
 export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError {
@@ -123,6 +135,8 @@ export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError 
           issues: failure.issues.map((issue) => ({ code: issue.code, severity: issue.severity })),
         },
       });
+    case "exists":
+      return wireError("plugin.exists", { details: { name: failure.name } });
     case "too_large":
       return wireError("plugin.tooLarge");
     case "symlink_refused":
@@ -171,5 +185,6 @@ export function createPluginHandlers(port: PluginPort): Pick<WireHandlers, Plugi
       await unwrapVoid(port.draftDiscard(params.draftId));
       return {};
     },
+    "plugin.draft.fromInstruction": (params) => unwrap(port.draftFromInstruction(params)),
   };
 }

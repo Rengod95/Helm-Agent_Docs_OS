@@ -80,6 +80,7 @@ function openRig(root: string, hooks?: ApprovalHooks): Rig {
     store,
     plugins: service,
     profiles: { list: () => Promise.resolve(ok(EMPTY_LIST)) },
+    userDir: join(root, "config", "plugins"),
     ids: createLocalIdFactory({ now: () => 1_800_000_000_000 }, systemRandom()),
     now: isoNow,
     log: SILENT,

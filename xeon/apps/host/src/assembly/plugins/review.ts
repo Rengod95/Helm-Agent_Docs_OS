@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { copyFile, chmod, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -21,6 +22,8 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type {
   DraftInfo,
+  PluginDraftFromInstructionParams,
+  PluginDraftFromInstructionResult,
   PluginReviewFileResult,
   Provenance,
   ProfileListResult,
@@ -33,11 +36,20 @@ import type {
 } from "@fresnel/contracts/wire";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
+import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import { buildPluginCard } from "./card.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 import { diffCards } from "./diff.ts";
+import {
+  generatedNameOf,
+  instructionIssuesOf,
+  isInstructionFolder,
+  manifestTextOf,
+  purposeOf,
+  writeInstructionFolder,
+} from "./instruction.ts";
 import { sequentially } from "../../util.ts";
 import { readPluginFolder, type FolderRejection, type PluginFolder } from "./folder-reader.ts";
 import type { PluginService, PluginSourceEntry, PluginSources } from "./service.ts";
@@ -97,8 +109,10 @@ type PluginReviewSource = Pick<PluginService, "scan" | "sources" | "get">;
 export interface PluginReviewDeps {
   readonly store: PluginStore;
   readonly plugins: PluginReviewSource;
-  /** 제거 미리 보기(영향받는 프로필)를 만들 때 읽는다 */
+  /** 제거 미리 보기(영향받는 프로필)와 한 줄 지침의 프로필 확인에 읽는다 */
   readonly profiles: Pick<ProfileTestRunPort, "list">;
+  /** 사용자 플러그인 폴더(`<configDir>/plugins`). 한 줄 지침이 여기에 `<name>` 폴더를 만든다(§4.10) */
+  readonly userDir: string;
   readonly ids: LocalIdFactory;
   /** 지금 시각(ISO) */
   readonly now: () => string;
@@ -138,6 +152,10 @@ export interface PluginReview {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /** 한 줄 지침 초안과 `user_instruction` 항목(§4.10). 폴더를 쓰고, 초안을 만들고, 항목을 연다. 직렬로 돈다 */
+  fromInstruction(
+    request: PluginDraftFromInstructionParams,
+  ): Promise<Result<PluginDraftFromInstructionResult, PluginPortFailure>>;
   list(filter: {
     readonly state?: ReviewState;
     readonly name?: string;
@@ -526,6 +544,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     readonly origin: PluginOriginKind;
     readonly provenance: Provenance;
     readonly originThreadId: string | null;
+    readonly originProfileId: string | null;
     readonly evidence: readonly EvidenceRef[];
     readonly purpose: string | undefined;
   }): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
@@ -556,7 +575,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         baseHash: reviewed.value?.contentHash ?? null,
         provenance: input.provenance,
         originThreadId: input.originThreadId,
-        originProfileId: null,
+        originProfileId: input.originProfileId,
         card: withPurpose,
         diff: diffCards(reviewed.value?.meta.card ?? null, withPurpose),
         evidence: input.evidence,
@@ -615,6 +634,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       origin: entry.origin,
       provenance: entry.origin === "user" ? "unknown" : "project",
       originThreadId: null,
+      originProfileId: null,
       evidence: [],
       purpose: undefined,
     });
@@ -958,7 +978,12 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   /** 초안 하나를 검토 항목으로 보낸다. 만든 초안은 `submittedItemId`로 항목을 가리킨다 */
   async function submitDraftItem(
     draftId: string,
-    options: { readonly evidence: readonly EvidenceRef[]; readonly purpose: string | undefined },
+    options: {
+      readonly evidence: readonly EvidenceRef[];
+      readonly purpose: string | undefined;
+      readonly provenance: Provenance;
+      readonly originProfileId: string | null;
+    },
   ): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const info = await store.readDraft(draftId);
     if (!info.ok) {
@@ -974,8 +999,9 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const made = await proposeItem({
       candidateHash: candidate.value.contentHash,
       origin: "user",
-      provenance: "assistant",
+      provenance: options.provenance,
       originThreadId: info.value.originThreadId,
+      originProfileId: options.originProfileId,
       evidence: options.evidence,
       purpose: options.purpose,
     });
@@ -988,6 +1014,56 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     return made;
   }
 
+  /** 같은 이름의 가장 최근 검토본이 이 기능이 만든 지침이면 그 이름의 새 버전을 허용한다(§4.10.4). 모호하면 아니다 */
+  async function replaceableInstruction(name: string, dir: string): Promise<boolean> {
+    const reviewed = await store.current(name);
+    if (!reviewed.ok || reviewed.value === null) return false;
+    const decided = await store.readItem(reviewed.value.meta.decisionId);
+    if (!decided.ok || decided.value.provenance !== "user_instruction") return false;
+    return isInstructionFolder(dir, name);
+  }
+
+  /** 대상 프로필이 있는가. 내장 `default`는 파일에 없어도 있다(§4.1.1) */
+  async function profileKnown(id: string): Promise<Result<void, PluginPortFailure>> {
+    if (id === DEFAULT_PROFILE_ID) return ok(undefined);
+    const listed = await deps.profiles.list();
+    if (!listed.ok) return err({ kind: "profiles", failure: listed.error });
+    if (listed.value.profiles.some((profile) => profile.id === id)) return ok(undefined);
+    return err({ kind: "profiles", failure: { kind: "not_found", id } });
+  }
+
+  /**
+   * 한 줄 지침의 본체(§4.10). 입력을 검사하고, 원본 폴더를 쓰고, 그 폴더로 초안을 만들고, `user_instruction` 항목을 만든다.
+   * 같은 이름의 폴더는 이름을 명시로 준 경우에만 새 버전으로 덮어쓴다. 그 밖의 충돌은 `plugin.exists`다
+   */
+  async function instructionDraft(
+    request: PluginDraftFromInstructionParams,
+  ): Promise<Result<PluginDraftFromInstructionResult, PluginPortFailure>> {
+    const issues = instructionIssuesOf(request.text, request.name);
+    if (issues.length > 0) return err({ kind: "draft_invalid", issues });
+    const name = request.name ?? generatedNameOf(request.text);
+    const dir = join(deps.userDir, name);
+    const replacing =
+      request.name !== undefined && existsSync(dir) && (await replaceableInstruction(name, dir));
+    if (existsSync(dir) && !replacing) return err({ kind: "exists", name });
+    const profileId = request.profileId ?? DEFAULT_PROFILE_ID;
+    const known = await profileKnown(profileId);
+    if (!known.ok) return err(known.error);
+    const purpose = purposeOf(request.text);
+    const written = await writeInstructionFolder(dir, manifestTextOf(name, purpose), request.text);
+    if (!written.ok) return err({ kind: "store", code: "io" });
+    const created = await createDraft(dir, null);
+    if (!created.ok) return err(created.error);
+    const made = await submitDraftItem(created.value.draftId, {
+      evidence: [],
+      purpose,
+      provenance: "user_instruction",
+      originProfileId: profileId,
+    });
+    if (!made.ok) return err(made.error);
+    return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
+  }
+
   const submitPort: PluginSubmitPort = {
     submit: (
       request: PluginSubmitRequest,
@@ -998,6 +1074,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         const made = await submitDraftItem(created.value.draftId, {
           evidence: request.evidence,
           purpose: request.purpose,
+          provenance: "assistant",
+          originProfileId: null,
         });
         if (!made.ok) return err(submitFailureOf(made.error));
         return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
@@ -1104,6 +1182,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return ok({ drafts });
     },
 
+    fromInstruction: (request) => serial(() => instructionDraft(request)),
+
     draftDiscard: (draftId) =>
       serial(async () => {
         const info = await store.readDraft(draftId);
@@ -1169,7 +1249,12 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
 
     submitDraft: (draftId) =>
       serial(async () => {
-        const made = await submitDraftItem(draftId, { evidence: [], purpose: undefined });
+        const made = await submitDraftItem(draftId, {
+          evidence: [],
+          purpose: undefined,
+          provenance: "assistant",
+          originProfileId: null,
+        });
         if (!made.ok) return err(made.error);
         return ok({ itemId: made.value.item.itemId });
       }),

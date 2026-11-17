@@ -123,7 +123,7 @@ test("a profile list failure under plugin.list is the profile error, not a silen
   await connection.close();
 });
 
-test("host.hello lists plugin.list, plugin.get, plugin.invocables and plugin.scan as implemented and the other plugin methods as not", async () => {
+test("host.hello lists the implemented plugin methods, including plugin.draft.fromInstruction (M5c §4.10)", async () => {
   const host = createFakeHost();
   const { connection } = host.connect();
   const hello = await connection.request("host.hello", HELLO_PARAMS);
@@ -132,8 +132,104 @@ test("host.hello lists plugin.list, plugin.get, plugin.invocables and plugin.sca
   expect(featured.has("plugin.get")).toBe(true);
   // plugin.invocables는 M5c §3.4 읽기 처리기로 구현됐다(§4.3.2)
   expect(featured.has("plugin.invocables")).toBe(true);
-  expect(featured.has("plugin.draft.fromInstruction")).toBe(false);
   // plugin.scan은 M5c §3.4 읽기 처리기로 구현됐다(검토 항목은 만들지 않는다)
   expect(featured.has("plugin.scan")).toBe(true);
+  // 한 줄 지침은 `notImplemented`가 아니다(§4.10)
+  expect(featured.has("plugin.draft.fromInstruction")).toBe(true);
+  await connection.close();
+});
+
+test("plugin.draft.fromInstruction passes the parameters to the port and returns its two ids", async () => {
+  const seen: unknown[] = [];
+  const port: Partial<PluginPort> = {
+    draftFromInstruction: (params) => {
+      seen.push(params);
+      return Promise.resolve(ok({ draftId: "drf_1", itemId: "rvw_1" }));
+    },
+  };
+  const host = createFakeHost({ overrides: { plugins: port } });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+
+  expect(
+    await connection.request("plugin.draft.fromInstruction", { text: "Answer briefly." }),
+  ).toEqual({
+    draftId: "drf_1",
+    itemId: "rvw_1",
+  });
+  expect(
+    await connection.request("plugin.draft.fromInstruction", {
+      text: "Answer briefly.",
+      name: "brief",
+      profileId: "work",
+    }),
+  ).toEqual({ draftId: "drf_1", itemId: "rvw_1" });
+  expect(seen).toEqual([
+    { text: "Answer briefly." },
+    { text: "Answer briefly.", name: "brief", profileId: "work" },
+  ]);
+  await connection.close();
+});
+
+test("a same-name plugin folder that cannot be replaced answers plugin.exists (3624) with the name", async () => {
+  const port: Partial<PluginPort> = {
+    draftFromInstruction: () => Promise.resolve(err({ kind: "exists", name: "instr-3f9a1c" })),
+  };
+  const host = createFakeHost({ overrides: { plugins: port } });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+
+  const error = await wireErrorOf(
+    connection.request("plugin.draft.fromInstruction", { text: "Answer briefly." }),
+  );
+  expect(error.code).toBe(3624);
+  expect(error.data).toMatchObject({ kind: "plugin.exists", details: { name: "instr-3f9a1c" } });
+  await connection.close();
+});
+
+test("an instruction the port refuses as invalid answers plugin.invalid (3621) with the issue codes", async () => {
+  const port: Partial<PluginPort> = {
+    draftFromInstruction: () =>
+      Promise.resolve(
+        err({
+          kind: "draft_invalid",
+          issues: [{ code: "text_blank", severity: "error", path: "/text", message: "blank" }],
+        }),
+      ),
+  };
+  const host = createFakeHost({ overrides: { plugins: port } });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+
+  const error = await wireErrorOf(
+    connection.request("plugin.draft.fromInstruction", { text: "   " }),
+  );
+  expect(error.code).toBe(3621);
+  expect(error.data).toMatchObject({
+    kind: "plugin.invalid",
+    details: { issues: [{ code: "text_blank", severity: "error" }] },
+  });
+  await connection.close();
+});
+
+test("the wire rejects an empty or over-2000-character instruction before the port is called (jsonrpc.invalidParams)", async () => {
+  let calls = 0;
+  const port: Partial<PluginPort> = {
+    draftFromInstruction: () => {
+      calls += 1;
+      return Promise.resolve(err({ kind: "exists", name: "x" }));
+    },
+  };
+  const host = createFakeHost({ overrides: { plugins: port } });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+
+  const empty = await wireErrorOf(connection.request("plugin.draft.fromInstruction", { text: "" }));
+  expect(empty.data.kind).toBe("jsonrpc.invalidParams");
+  const long = await wireErrorOf(
+    connection.request("plugin.draft.fromInstruction", { text: "a".repeat(2001) }),
+  );
+  expect(long.data.kind).toBe("jsonrpc.invalidParams");
+  expect(calls).toBe(0);
   await connection.close();
 });

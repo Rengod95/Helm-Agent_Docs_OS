@@ -49,7 +49,7 @@ import {
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { PluginSubmitPortKey } from "@fresnel/contracts/extensions";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { itemPagesOf } from "@fresnel/core-persistence";
 import { PrimitiveError, registrationToggleSourceOf, type ExtHost } from "@fresnel/ext-host";
@@ -981,6 +981,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     store: deps.pluginStore,
     plugins: pluginService,
     profiles: { list: () => ports.m4.profileTestRun.list() },
+    // 한 줄 지침(§4.10)이 쓰는 사용자 플러그인 폴더. 읽기 서비스가 보는 것과 같다
+    userDir: join(deps.configDir, "plugins"),
     ids: deps.localIds,
     now: () => new Date(deps.clock.now()).toISOString(),
     log: deps.logger,
@@ -1106,6 +1108,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       draftCreate: (dir, originThreadId) => pluginReview.draftCreate(dir, originThreadId),
       draftList: (name) => pluginReview.draftList(name),
       draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
+      draftFromInstruction: (params) => pluginReview.fromInstruction(params),
       invocables: async (threadId) => {
         if (!isId("thr", threadId)) return err({ kind: "thread_not_found", threadId });
         const exists = threads.exists(threadId);

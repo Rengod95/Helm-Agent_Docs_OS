@@ -656,6 +656,25 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("addInstruction은 한 줄을 plugin.draft.fromInstruction으로 보내고 초안과 검토 항목 id를 돌려준다", async () => {
+    const made = { draftId: "drf_1", itemId: "rvw_1" };
+    const { app, params } = await liveApp({ results: { "plugin.draft.fromInstruction": made } });
+    expect(await app.commands.workbench.addInstruction("Answer in Korean.")).toEqual({
+      ok: true,
+      value: made,
+    });
+    expect(await app.commands.workbench.addInstruction("Be terse.", "work")).toEqual({
+      ok: true,
+      value: made,
+    });
+    // 프로필을 주지 않으면 params에 profileId를 싣지 않는다(호스트가 default로 고른다)
+    expect(paramsOf(params, "plugin.draft.fromInstruction")).toEqual([
+      { text: "Answer in Korean." },
+      { text: "Be terse.", profileId: "work" },
+    ]);
+    await app.stop();
+  });
+
   test("remove에 dropData를 참으로 주면 저장 데이터 지우기는 대체가 없어 보내지 않고 not_available이다", async () => {
     const { app, params } = await liveApp({});
     expect(await app.commands.workbench.remove("web", { dropData: true })).toEqual({

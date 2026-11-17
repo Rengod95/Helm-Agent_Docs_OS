@@ -48,6 +48,7 @@ import type {
   McpServerAction,
   McpServerRow,
   Profile,
+  PluginDraftFromInstructionResult,
   PluginRequestRemoveResult,
   ProfileInput,
   ProfilePutResult,
@@ -868,6 +869,14 @@ export interface WorkbenchCommands {
     name: string,
     options?: { readonly dropData?: boolean },
   ): Promise<Result<PluginRequestRemoveResult, CommandError>>;
+  /**
+   * "지침 추가": 한 줄 지침을 `plugin.draft.fromInstruction`으로 보낸다. 지침만 든 플러그인 초안이 되고 검토함에 올라간다(§4.10).
+   * 승인하면 `profileId`(없으면 호스트가 `default`로 고른다)에 들어간다. 결과는 초안과 검토 항목 id다
+   */
+  addInstruction(
+    text: string,
+    profileId?: string,
+  ): Promise<Result<PluginDraftFromInstructionResult, CommandError>>;
   /**
    * 지우기 확인에 보일 저장 테이블과 행 수. M5c-1에서 `ext.removePreview`가 빠졌고 대체가 없어 항상 `not_available`이다
    */

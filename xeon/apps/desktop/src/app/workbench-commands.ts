@@ -121,6 +121,14 @@ export function createWorkbenchCommands(
       options?.dropData === true
         ? Promise.resolve(err(unavailable("ext.remove.dropData")))
         : withConnection((c) => c.request("plugin.requestRemove", { name })),
+    // "지침 추가"는 지침 한 줄을 그대로 보낸다. 승인은 검토함이 하므로 여기서 프로필을 고치지 않는다
+    addInstruction: (text, profileId) =>
+      withConnection((c) =>
+        c.request(
+          "plugin.draft.fromInstruction",
+          profileId === undefined ? { text } : { text, profileId },
+        ),
+      ),
     // 저장 테이블 목록을 읽는 wire(`ext.removePreview`)가 빠졌고 `plugin.get`의 카드에는 저장 테이블이 없다. 대체가 없다
     removePreview: () => Promise.resolve(err(unavailable("ext.removePreview"))),
     bindings: (threadId) =>

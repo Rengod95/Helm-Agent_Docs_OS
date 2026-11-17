@@ -103,6 +103,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       onChanged: () => () => {},
       installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
+      addInstruction: () => Promise.resolve(err({ kind: "unsupported" })),
       removePreview: () =>
         Promise.resolve(err({ kind: "not_available", command: "ext.removePreview" })),
       bindings: () => Promise.resolve(err({ kind: "unsupported" })),

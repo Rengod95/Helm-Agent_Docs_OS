@@ -143,7 +143,6 @@ export function createWireHandlers(
     "project.rename": notImplemented("project.rename"),
     "project.delete": notImplemented("project.delete"),
     "project.instructions": notImplemented("project.instructions"),
-    "plugin.draft.fromInstruction": notImplemented("plugin.draft.fromInstruction"),
   };
   return table;
 }
