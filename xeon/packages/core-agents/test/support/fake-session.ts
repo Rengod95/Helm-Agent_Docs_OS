@@ -62,6 +62,8 @@ export interface FakeSession extends AgentsSession, Pick<SessionService, "feed">
   /** 부모의 쓰기 토큰 */
   tokenOf(threadId: ThreadId): LeaseToken;
   setThreadClosed(threadId: ThreadId): void;
+  /** 만든 thread의 작업 폴더(없으면 undefined) */
+  workspaceOf(threadId: ThreadId): string | undefined;
 }
 
 interface StoredRequest {
@@ -73,6 +75,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
   const events: DurableEventEnvelope[] = [];
   const requests = new Map<string, StoredRequest>();
   const threads = new Map<ThreadId, { status: "idle" | "closed"; leaf: EventId | null }>();
+  const workspaces = new Map<ThreadId, string>();
   const creationKeys = new Map<string, ThreadId>();
   const links = new Map<string, Link>();
   const aborted = new Set<string>();
@@ -202,6 +205,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
   const session: FakeSession = {
     events,
     created,
+    workspaceOf: (threadId) => workspaces.get(threadId),
     opened,
     released,
     commit,
@@ -234,6 +238,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
           }
         }
         threads.set(input.threadId, { status: "idle", leaf: null });
+        if (input.workspace !== undefined) workspaces.set(input.threadId, input.workspace);
         creationKeys.set(input.creationKey ?? `none:${input.threadId}`, input.threadId);
         created.push(input.threadId);
         makeEnvelope({
@@ -245,7 +250,11 @@ export function fakeSession(ids: IdFactory): FakeSession {
           stepId: null,
           causationId: null,
           correlationId: null,
-          payload: { title: input.title ?? null, forkedFrom: null },
+          payload: {
+            title: input.title ?? null,
+            forkedFrom: null,
+            ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+          },
           durable: true,
         });
         const token: LeaseToken | null =
@@ -263,7 +272,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
           threadId,
           title: null,
           status: thread.status,
-          workspace: null,
+          workspace: workspaces.get(threadId) ?? null,
           createdAt: 0,
           updatedAt: 0,
           headSeq: seq,
@@ -285,7 +294,24 @@ export function fakeSession(ids: IdFactory): FakeSession {
       prepareSwitch: () => Promise.resolve(ok(undefined)),
     },
     query: {
-      thread: () => ok(undefined),
+      thread: (threadId) => {
+        const thread = threads.get(threadId);
+        if (thread === undefined) return ok(undefined);
+        return ok({
+          threadId,
+          title: null,
+          status: thread.status,
+          workspace: workspaces.get(threadId) ?? null,
+          createdAt: 0,
+          updatedAt: 0,
+          headSeq: seq,
+          forkedFrom: null,
+          marker: null,
+          queuedInputs: 0,
+          pendingApprovals: 0,
+          lastTurnId: null,
+        });
+      },
       turn: () => ok(undefined),
       openTurn: () => ok(undefined),
       turnByRequestId: () => ok(undefined),

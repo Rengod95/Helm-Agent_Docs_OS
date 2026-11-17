@@ -1031,9 +1031,16 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     const newId = ids.next("thr");
     let childThreadId: ThreadId;
     if (request.fork === undefined) {
+      // 자식은 부모의 작업 폴더를 물려받는다. 없으면 엔진 프로세스의 현재 폴더로 떨어진다
+      const parentRow = session.query.thread(origin.parentThreadId);
+      if (!parentRow.ok) {
+        return refused("agents.unavailable", "the parent's workspace could not be read");
+      }
+      const workspace = parentRow.value?.workspace ?? null;
       const created = session.threads.create({
         threadId: newId,
         title: prepared.definition.name,
+        ...(workspace === null ? {} : { workspace }),
         creationKey: creationKeyOf(origin.parentThreadId, prepared.requestId),
         inheritOwnerFrom: parentToken,
       });
