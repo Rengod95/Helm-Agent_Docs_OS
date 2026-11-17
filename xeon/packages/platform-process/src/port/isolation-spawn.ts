@@ -20,8 +20,9 @@ import { spawnPiped } from "./spawn-piped.ts";
 // L0.process.spec §4.8 `spawn`, review.m5-drive-isolation §3.1·§3.4(M5b-1). 격리 확장의 플러그인 호스트 프로세스를 띄운다.
 // 1. 명령줄은 샌드박스 서비스 `wrapArgv`가 만든 것이다. 격리를 쓸 수 없으면 띄우지 않고 `sandbox_unavailable`이다(닫힌 실패).
 //    사용자가 격리를 껐거나(`disabled`) 격리 불가 시 실행을 허락한(`run_unsandboxed`) 때만 격리 없이 띄우고 경고 `isolation.sandbox_not_enforced`를 남긴다.
-// 2. 정책은 §3.4대로다. 쓰기 루트 없음과 쓰기 거부 `/`(srt가 정책 밖에서 여는 경로까지 막는다), 네트워크는 허용 목록 없이 거부 목록만
-//    (사용자 차단 도메인), 샌드박스 밖 실행 없음. 읽기는 허용 목록이 아니라 보호 경로 거부 목록을 따른다.
+// 2. 정책은 §3.4대로다. 샌드박스의 "쓰기 없음" 프로필(`profile: "no-write"`): 쓰기 루트 없음(이 프로세스 전용 빈 임시 폴더 하나만, 끝나면 지운다),
+//    네트워크는 허용 목록 없이 거부 목록만(사용자 차단 도메인), 샌드박스 밖 실행 없음. 읽기는 허용 목록이다:
+//    `readRoot`(플러그인 폴더), 실행 파일, `spec.runtimeReadRoots`(소스 실행의 작업 공간)와 런타임이 꼭 필요한 시스템 경로뿐이다.
 //    `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다.
 // 3. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 `spec.env`(호출자가 허용 목록으로 만든 값)를 더하고, 샌드박스가 준 env를 마지막에 덮는다.
 //    시크릿은 넘기지 않는다. cwd는 `spec.readRoot`다.
@@ -55,21 +56,20 @@ function spawnFailed(code: string, message: string): Result<never, IsolationSpaw
 }
 
 /**
- * 플러그인 호스트의 샌드박스 정책. `defaultPolicy`가 보호 경로 거부 목록과 사용자의 차단 도메인을 채운다.
- * 쓰기 루트는 비우고, 쓰기 거부에 `/`를 더해 모든 경로의 쓰기를 막는다. srt는 정책 밖에서도 `/tmp/claude` 같은 임시·로그
- * 경로에 쓰기를 열어 두므로(platform-sandbox `srtImplicitWritePaths`), 쓰기 루트만 비우면 그 경로가 열린 채 남는다.
- * 네트워크는 허용 목록 없이 거부 목록만 둔다. `profile`은 쓰지 않는다(읽기 전용 프로필은 네트워크를 막는다). `allowEscape`는 false다.
+ * 플러그인 호스트의 샌드박스 정책: "쓰기 없음" 프로필과 읽기 허용 목록이다(L0.sandbox.spec §4.9). `defaultPolicy`가 보호 경로,
+ * 사용자의 차단 도메인, 런타임이 꼭 필요한 시스템 읽기 경로를 채운다. 이 포트는 플러그인 폴더, 실행 파일, 런타임 읽기 경로만 더한다.
  */
-function pluginHostPolicy(sandbox: IsolationSandboxSource, cwd: string): SandboxPolicy {
-  // defaultPolicy는 임시 디렉터리 인자를 쓰기 루트에 넣는다. 아래에서 쓰기 루트를 비우므로 이 값은 정책에 남지 않는다
-  const base = sandbox.defaultPolicy({ workspaceRoots: [], tempDir: cwd });
-  return {
-    writeRoots: [],
-    readDeny: base.readDeny,
-    writeDeny: [...base.writeDeny, "/"],
-    network: { allowedDomains: [], deniedDomains: base.network.deniedDomains },
-    allowEscape: false,
-  };
+function pluginHostPolicy(
+  sandbox: IsolationSandboxSource,
+  cwd: string,
+  spec: IsolationSpawnSpec,
+): SandboxPolicy {
+  return sandbox.defaultPolicy({
+    workspaceRoots: [],
+    tempDir: cwd,
+    profile: "no-write",
+    readRoots: [cwd, spec.command, ...(spec.runtimeReadRoots ?? [])],
+  });
 }
 
 /** 격리 자식을 띄우는 포트를 만든다. `ProcessService.spawn`이 이 포트를 그대로 쓴다 */
@@ -91,7 +91,7 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
       return err({ kind: "sandbox_unavailable", reason: "service_missing" });
     }
     const wrapped = await sandbox.wrapArgv(
-      pluginHostPolicy(sandbox, cwd),
+      pluginHostPolicy(sandbox, cwd, spec),
       { command: spec.command, args: spec.args, cwd },
       { abortSignal: undefined },
     );

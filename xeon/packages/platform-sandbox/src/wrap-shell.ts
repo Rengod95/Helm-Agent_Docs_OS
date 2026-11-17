@@ -21,7 +21,7 @@ import {
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { posix } from "node:path";
-import { canonicalizePath } from "./paths.ts";
+import { canonicalizePath, sortedUnique } from "./paths.ts";
 import type { EffectivePolicy, SrtTools } from "./policy.ts";
 import { toSrtFileConfig, validationCandidate } from "./policy.ts";
 import type { SandboxProvider } from "./provider.ts";
@@ -55,7 +55,7 @@ export interface WrapShellDeps {
 
 const SAFE_ARG = /^[A-Za-z0-9_@%+:,./-]+$/;
 
-function quoteArg(arg: string): string {
+export function quoteArg(arg: string): string {
   if (arg !== "" && SAFE_ARG.test(arg)) return arg;
   return `'${arg.replaceAll("'", `'\\''`)}'`;
 }
@@ -221,11 +221,20 @@ export async function srtWrap(
   }
   const resolved = deps.resolvePolicy(policy, request.baseDir);
   const effective: EffectivePolicy =
-    policy.profile === "read-only"
+    policy.profile === "read-only" || policy.profile === "no-write"
       ? {
           ...resolved,
           writeRoots:
             request.readOnlyTemp === undefined ? [] : [canonicalizePath(request.readOnlyTemp)],
+          // 쓸 수 있는 임시 폴더는 읽기도 된다(허용 목록 방식에서도)
+          ...(resolved.readAllow === undefined || request.readOnlyTemp === undefined
+            ? {}
+            : {
+                readAllow: sortedUnique([
+                  ...resolved.readAllow,
+                  canonicalizePath(request.readOnlyTemp),
+                ]),
+              }),
         }
       : resolved;
   const customConfig = toSrtFileConfig(effective);
@@ -237,7 +246,8 @@ export async function srtWrap(
   try {
     wrapped = await deps.srt.wrapWithSandboxArgv({
       command: request.command,
-      binShell: "bash",
+      // 읽기 허용 목록 아래에서는 셸 경로가 허용 목록에 들어가야 하므로 사용자 PATH의 bash가 아니라 시스템 bash를 쓴다
+      binShell: effective.readAllow === undefined ? "bash" : "/bin/bash",
       customConfig,
       abortSignal: request.abortSignal,
       cwd: request.cwd,

@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SandboxPolicy } from "@fresnel/contracts/services";
 import {
   BLOCKED_NETWORK,
   candidateWriteRoots,
   mergePolicy,
+  socatPathOf,
   toSrtFileConfig,
   toSrtGlobalConfig,
   type PolicyInput,
@@ -143,5 +144,71 @@ describe("policy", () => {
     expect(
       toSrtFileConfig({ writeRoots: [], readDeny: [], writeDeny: [] }).filesystem?.allowGitConfig,
     ).toBe(false);
+  });
+
+  test("a read allow-list denies the whole root and reopens only the allowed paths", () => {
+    const dirs = makeTestDirs();
+    const plugin = join(dirs.root, "plugin");
+    mkdirSync(plugin, { recursive: true });
+    const merged = mergePolicy(
+      input(basePolicy({ readAllow: [plugin, "/usr/lib"] }), dirs.home, dirs.root),
+      [],
+    );
+    expect(merged.readAllow).toEqual([plugin, "/usr/lib"].toSorted());
+    const fs = toSrtFileConfig(merged).filesystem;
+    expect(fs?.denyRead).toEqual(["/"]);
+    expect(fs?.allowRead).toEqual([plugin, "/usr/lib"].toSorted());
+  });
+
+  test("without a read allow-list the config is the deny-list form it always was", () => {
+    const merged = mergePolicy(input(basePolicy({ readDeny: ["/r"] }), "/h", "/b"), []);
+    expect(merged.readAllow).toBeUndefined();
+    const fs = toSrtFileConfig(merged).filesystem;
+    expect(fs?.denyRead).toEqual(["/r"]);
+    expect("allowRead" in (fs ?? {})).toBe(false);
+  });
+
+  test("an allow-list entry that overlaps a read-protected path is dropped, an empty list stays a list", () => {
+    const dirs = makeTestDirs();
+    const protectedDir = join(dirs.root, "data");
+    const inside = join(protectedDir, "ext");
+    const outside = join(dirs.root, "plugin");
+    mkdirSync(inside, { recursive: true });
+    mkdirSync(outside, { recursive: true });
+    const merged = mergePolicy(
+      input(basePolicy({ readAllow: [protectedDir, inside, dirs.root, outside] }), dirs.home, "/", {
+        protectedReadDeny: [protectedDir],
+      }),
+      [],
+    );
+    expect(merged.readAllow).toEqual([outside]);
+    const none = mergePolicy(input(basePolicy({ readAllow: [] }), dirs.home, "/"), []);
+    expect(none.readAllow).toEqual([]);
+    expect(toSrtFileConfig(none).filesystem?.denyRead).toEqual(["/"]);
+  });
+
+  test("a symlink name stays in the allow-list next to its real path", () => {
+    const dirs = makeTestDirs();
+    const real = join(dirs.root, "real");
+    const link = join(dirs.root, "link");
+    mkdirSync(real, { recursive: true });
+    symlinkSync(real, link);
+    const merged = mergePolicy(input(basePolicy({ readAllow: [link] }), dirs.home, "/"), []);
+    expect(merged.readAllow).toEqual([link, real].toSorted());
+  });
+
+  test("socatPathOf follows a socat symlink to the real file and leaves other names alone", () => {
+    const dirs = makeTestDirs();
+    const real = join(dirs.root, "socat1");
+    writeFileSync(real, "");
+    const link = join(dirs.root, "socat");
+    symlinkSync(real, link);
+    expect(socatPathOf(link)).toBe(real);
+    const multicall = join(dirs.root, "busybox");
+    writeFileSync(multicall, "");
+    const alias = join(dirs.root, "socat-alias");
+    symlinkSync(multicall, alias);
+    expect(socatPathOf(alias)).toBe(alias);
+    expect(socatPathOf("/missing/socat")).toBe("/missing/socat");
   });
 });

@@ -3,6 +3,7 @@ import type {
   SandboxArgvRequest,
   SandboxedArgv,
   SandboxPolicy,
+  SandboxProfile,
   SandboxWrapError,
 } from "@fresnel/contracts/services";
 import type { McpSandboxSource } from "../../src/index.ts";
@@ -26,6 +27,9 @@ interface FakeSandbox {
   readonly policyInputs: readonly {
     readonly workspaceRoots: readonly string[];
     readonly tempDir: string;
+    /** 입력에 있을 때만 기록한다 */
+    readonly profile?: SandboxProfile;
+    readonly readRoots?: readonly string[];
   }[];
   /** wrapArgv에 들어온 정책과 요청 순서대로 */
   readonly wrapCalls: readonly {
@@ -37,13 +41,34 @@ interface FakeSandbox {
 }
 
 export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSandbox {
-  const policyInputs: { workspaceRoots: string[]; tempDir: string }[] = [];
+  const policyInputs: {
+    workspaceRoots: string[];
+    tempDir: string;
+    profile?: SandboxProfile;
+    readRoots?: string[];
+  }[] = [];
   const wrapCalls: { policy: SandboxPolicy; request: SandboxArgvRequest }[] = [];
   let cleanupCount = 0;
 
   const source: McpSandboxSource = {
     defaultPolicy(input): SandboxPolicy {
-      policyInputs.push({ workspaceRoots: [...input.workspaceRoots], tempDir: input.tempDir });
+      policyInputs.push({
+        workspaceRoots: [...input.workspaceRoots],
+        tempDir: input.tempDir,
+        ...(input.profile === undefined ? {} : { profile: input.profile }),
+        ...(input.readRoots === undefined ? {} : { readRoots: [...input.readRoots] }),
+      });
+      if (input.profile === "no-write") {
+        return {
+          writeRoots: [],
+          readDeny: [],
+          writeDeny: [],
+          network: { allowedDomains: [], deniedDomains: [] },
+          allowEscape: false,
+          profile: "no-write",
+          readAllow: [...(input.readRoots ?? [])],
+        };
+      }
       return {
         writeRoots: [...input.workspaceRoots, input.tempDir],
         readDeny: [],

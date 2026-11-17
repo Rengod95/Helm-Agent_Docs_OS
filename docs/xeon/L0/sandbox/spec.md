@@ -52,7 +52,7 @@ binds: [xeon/packages/platform-sandbox/**]
 |---|---|---|---|
 | 격리 수단 | bwrap 인자 직접 조립(S1), `systemd-run --user` 일회성 단위(S1b) | srt `wrapWithSandboxArgv`. macOS Seatbelt, Linux bubblewrap + seccomp | foundation-plan §2 |
 | 수준 | S0, S1b, S1, S2 판별 합집합(`SandboxSpec`) | `level: "srt" \| "none"` 두 값 | [제안] srt가 플랫폼 수단을 고른다 |
-| 읽기 범위 | 홈을 빈 tmpfs로 덮는 허용 목록(R-4) | srt 기본(읽기 전체 허용) + `denyRead` 목록 | `_research/notes/L0-1.md` §3.2 "읽기는 전체 허용". [제안] 읽기 허용 목록 방식은 2차 프로필에서 다시 본다 |
+| 읽기 범위 | 홈을 빈 tmpfs로 덮는 허용 목록(R-4) | srt 기본(읽기 전체 허용) + `denyRead` 목록. 정책에 `readAllow`가 있으면 허용 목록 방식(`denyRead: ["/"]` + `allowRead`, 플러그인 호스트의 "쓰기 없음" 프로필이 쓴다, 4.9절) | `_research/notes/L0-1.md` §3.2 "읽기는 전체 허용". 허용 목록 방식은 [결정: 2026-11-18 메인 제안, 사용자 보고됨] |
 | 네트워크 | 네트워크 네임스페이스 + 데몬 CONNECT 프록시(R-6) | 1차 전부 차단, 2차 srt 내장 프록시와 도메인 목록 | 계획 v2 L0-b |
 | 프로세스 분리 | PID 네임스페이스 권장(R-5) | srt의 플랫폼 동작을 따른다 [가정: srt Linux 구성의 PID 네임스페이스 여부 미확인] | `_research/notes/L0-1.md` §6 |
 | 자원 한도 | `MemoryMax`, `TasksMax`(R-7) | 1차 없음. 시간 제한은 `fresnel.exec` timeout | [제안] |
@@ -154,8 +154,16 @@ export interface SandboxPolicy {
   network: SandboxNetworkPolicy;
   /** 참이면 이 호출을 샌드박스 밖에서 실행한다. L1 tools가 사람 승인을 받은 호출에만 참으로 둔다 */
   allowEscape: boolean;
-  /** `"read-only"`면 읽기 전용 프로필이다(4.2절 읽기 전용 프로필). 생략하면 보통 프로필이다 [결정: 2026-11-13 사용자] */
-  profile?: "read-only";
+  /**
+   * `"read-only"`면 읽기 전용 프로필이다(4.2절 읽기 전용 프로필, 네트워크 차단). `"no-write"`면 쓰기 없음 프로필이다(4.9절, 네트워크는 정책 그대로).
+   * 생략하면 보통 프로필이다 [결정: 2026-11-13 사용자]
+   */
+  profile?: "read-only" | "no-write";
+  /**
+   * 읽기 허용 목록. 있으면(빈 목록도) 허용 목록 방식이다: `/` 전체를 읽기 거부하고 이 경로(와 `readDeny`에 겹치지 않는 것)만 다시 연다.
+   * 없으면 지금까지와 같은 거부 목록 방식이다. 보호 경로(읽기)나 `readDeny`와 겹치는 항목(같거나 그 안이거나 그것을 품은 것)은 정책 병합에서 빠진다 [결정: 2026-11-18 메인 제안, 사용자 보고됨]
+   */
+  readAllow?: string[];
 }
 export const SandboxPolicySchema: Schema<SandboxPolicy>;
 
@@ -492,6 +500,16 @@ export function selectSandboxProvider(input: {
 5. 호출자는 `argv`를 spawn하고, 프로세스가 끝났거나 spawn이 실패하면 `cleanup()`을 부릅니다. 여러 장수 프로세스의 정리 시점이 겹치는 문제는 10절 11번의 [미결]입니다.
 
 위반 기록은 모으지 않습니다. 그래서 결과에 `sandbox` 보고가 없고, 수집 방식은 10절 10번의 [미결]입니다.
+
+#### 쓰기 없음 프로필과 읽기 허용 목록 [결정: 2026-11-18 메인 제안, 사용자 보고됨]
+
+`policy.profile`이 `"no-write"`면 플러그인 호스트처럼 오래 사는 프로세스를 "쓰기 없음, 읽기는 허용 목록, 네트워크는 정책 그대로"로 감쌉니다. 읽기 전용 프로필(4.2절)과 다른 점은 네트워크를 막지 않고 읽기가 허용 목록이라는 것입니다. 이전에 플러그인 호스트가 쓰던 쓰기 거부 `/` 우회책은 없앴습니다.
+
+- **쓰기**: 정책의 `writeRoots`와 설정 `writeRoots.extra`를 쓰지 않습니다. srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부 목록에 더합니다(읽기 전용 프로필과 같습니다). 쓸 수 있는 곳은 `wrapArgv`가 호출마다 만드는 이 프로세스 전용의 빈 임시 폴더 `<os.dirs.tmp>/nw-<commandId>`(권한 0700) 하나뿐이고 읽기도 됩니다. 다른 프로세스와 나누지 않으며 `cleanup`이 지웁니다. 명령은 `export TMPDIR=<폴더>; exec <명령>`으로 감쌉니다. srt가 env로 정한 `TMPDIR=/tmp/claude`를 덮으려면 셸 안에서 정해야 합니다. 폴더를 만들지 못하면 `err({ kind: "failed" })`입니다.
+- **읽기**: `srt`에 `denyRead: ["/", ...보호 경로]`와 `allowRead: readAllow`를 넘깁니다. `readAllow`는 호출자가 준 경로(`defaultPolicy`의 `readRoots`: 플러그인 폴더, 실행 파일)에 아래 시스템 경로를 더한 목록입니다. 심볼릭 링크 이름(`/lib`, `/usr/bin/socat`)은 실제 경로만으로는 열리지 않으므로 이름과 실제 경로를 둘 다 둡니다. 셸은 사용자 `PATH`의 bash가 아니라 `/bin/bash`를 씁니다(허용 목록에 들어가야 하므로).
+- **시스템 경로**(실제 샌드박스에서 하나씩 빼 보며 좁힌 목록, `platform-sandbox/src/runtime-read-paths.ts`): macOS는 `/usr/share/icu`(Bun의 ICU 데이터, 없으면 소스 실행의 Bun이 시작 직후 죽는다) 하나입니다. 컴파일된 호스트 바이너리는 실행 파일 하나라 이것도 없이 뜹니다. Linux는 `/bin/bash`(srt가 샌드박스 안에서 돌리는 셸), `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`(동적 링커와 공유 라이브러리)이고 서비스가 srt 도우미를 더합니다: srt 패키지의 `vendor/seccomp`(seccomp 실행 파일), 프록시 소켓 파일(srt가 최상위 폴더를 빈 tmpfs로 덮으므로 허용 목록에 없으면 프록시 연결이 끊긴다), 탐지한 `socat`의 실제 파일(`socat`이 `socat1` 링크인 배포판이 있다. srt에 넘기는 `socatPath`도 같은 실제 경로로 푼다). 인증서 묶음과 DNS 설정은 넣지 않습니다: https는 샌드박스 프록시를 거치고(TLS 인증서는 Bun에 내장) 이름 풀이는 프록시가 합니다.
+- **한계**: 소스 실행(개발)의 호스트는 진입 파일이 가져오는 소스와 `node_modules`를 읽어야 해서 호출자가 `readRoots`에 소스 작업 공간(`bun.lock`이 있는 폴더)을 더합니다. 읽기 허용 목록 항목이 보호 경로와 겹치면 항목이 빠지므로 플러그인 폴더가 데이터 폴더나 `~/.claude` 아래면 호스트가 자기 코드를 읽지 못합니다. Linux x64는 실행해 보지 못했고(arm64 Docker에서만 확인) `/lib64`(x64 로더 위치)는 이 목록의 추측이 아닌 일반 규칙이지만 실측은 아닙니다.
+- 확인: `sandbox.no-write.int.test.ts`(실제 srt). 플러그인 폴더 안 읽기, 다른 플러그인 폴더·홈 파일 읽기 거부, 폴더 안 쓰기·작업 폴더 쓰기 거부, 자기 임시 폴더 쓰기와 읽기, `cleanup` 뒤 폴더 삭제, 두 프로세스의 폴더가 다름을 값으로 본다. macOS Seatbelt와 Linux bubblewrap(Docker arm64)에서 모두 통과했다. https(example.com)가 되는 것은 실제 샌드박스 아래 컴파일 바이너리로 손으로 확인했다(시험에 넣지 않았다: 바깥 인터넷이 필요하다).
 
 ## 5. 실패와 경계 사례
 

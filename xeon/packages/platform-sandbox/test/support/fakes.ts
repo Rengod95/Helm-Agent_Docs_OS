@@ -237,6 +237,7 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
       return options.validateIssues ?? [];
     },
     getLinuxGlobPatternWarnings: () => options.globWarnings ?? [],
+    helperReadPaths: () => [],
   };
   return fake;
 }

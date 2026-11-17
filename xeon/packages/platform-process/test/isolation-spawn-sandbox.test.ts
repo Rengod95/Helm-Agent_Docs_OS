@@ -135,37 +135,63 @@ function collectLines(child: IsolatedChild): string[] {
 }
 
 describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () => {
-  test("the policy has no write root, no allow-listed network, no escape, and the default profile", async () => {
+  test("the policy is the no-write profile with a read allow-list, no allow-listed network and no escape", async () => {
     const dir = tempDirOf();
     const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
     const { port, background } = open({ sandbox: () => sandbox.source });
     const child = await started(port, specOf({ readRoot: dir, args: [MCP_CHILD, "echo"] }));
 
     const call = onlyWrapCall(sandbox);
-    expect(sandbox.policyInputs).toEqual([{ workspaceRoots: [], tempDir: dir }]);
+    expect(sandbox.policyInputs).toEqual([
+      { workspaceRoots: [], tempDir: dir, profile: "no-write", readRoots: [dir, ORIGINAL] },
+    ]);
     expect(call.request).toEqual({ command: ORIGINAL, args: [MCP_CHILD, "echo"], cwd: dir });
     expect(call.policy.writeRoots).toEqual([]);
-    // 쓰기 거부 `/`는 srt가 정책 밖에서 여는 임시·로그 경로와 설정 추가분까지 막는다(실측은 scratch 점검)
-    expect(call.policy.writeDeny).toContain("/");
+    // 쓰기 거부 `/` 우회책은 없다: 쓰기 없음은 프로필이다
+    expect(call.policy.writeDeny).not.toContain("/");
+    expect(call.policy.readAllow).toEqual([dir, ORIGINAL]);
     expect(call.policy.network.allowedDomains).toEqual([]);
     expect(call.policy.allowEscape).toBe(false);
-    expect(call.policy.profile).toBeUndefined();
+    expect(call.policy.profile).toBe("no-write");
     expect(background.list({ kind: "plugin-host" })).toHaveLength(1);
 
     child.stdin.end();
     expect(await child.exited).toEqual({ code: 0, signal: null });
   });
 
-  test("the protected defaults of the sandbox stay in force and its blocked domains are kept", async () => {
+  test("the runtime read roots of the launch are added to the read allow-list", async () => {
+    const dir = tempDirOf();
+    const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
+    const { port } = open({ sandbox: () => sandbox.source });
+    const child = await started(
+      port,
+      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], runtimeReadRoots: ["/work/source"] }),
+    );
+    expect(sandbox.policyInputs).toEqual([
+      {
+        workspaceRoots: [],
+        tempDir: dir,
+        profile: "no-write",
+        readRoots: [dir, ORIGINAL, "/work/source"],
+      },
+    ]);
+    child.stdin.end();
+    await child.exited;
+  });
+
+  test("the policy of the sandbox is handed to wrapArgv unchanged: protected defaults and blocked domains stay", async () => {
     const seen: SandboxPolicy[] = [];
+    const given: SandboxPolicy = {
+      writeRoots: [],
+      readDeny: ["/home/user/.ssh"],
+      writeDeny: ["/home/user/.ssh", "/home/user/.config/fresnel"],
+      network: { allowedDomains: [], deniedDomains: ["blocked.example"] },
+      allowEscape: false,
+      profile: "no-write",
+      readAllow: ["/plugin"],
+    };
     const source: IsolationSandboxSource = {
-      defaultPolicy: () => ({
-        writeRoots: ["/tmp"],
-        readDeny: ["/home/user/.ssh"],
-        writeDeny: ["/home/user/.ssh", "/home/user/.config/fresnel"],
-        network: { allowedDomains: [], deniedDomains: ["blocked.example"] },
-        allowEscape: true,
-      }),
+      defaultPolicy: () => given,
       wrapArgv: (policy) => {
         seen.push(policy);
         return Promise.resolve(
@@ -180,15 +206,7 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     };
     const { port } = open({ sandbox: () => source });
     const child = await started(port, specOf({ args: [MCP_CHILD, "echo"] }));
-    expect(seen).toEqual([
-      {
-        writeRoots: [],
-        readDeny: ["/home/user/.ssh"],
-        writeDeny: ["/home/user/.ssh", "/home/user/.config/fresnel", "/"],
-        network: { allowedDomains: [], deniedDomains: ["blocked.example"] },
-        allowEscape: false,
-      },
-    ]);
+    expect(seen).toEqual([given]);
     child.stdin.end();
     await child.exited;
   });

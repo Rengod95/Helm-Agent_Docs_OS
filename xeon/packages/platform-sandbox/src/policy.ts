@@ -1,5 +1,6 @@
 import type { SandboxNetworkPolicy, SandboxPolicy } from "@fresnel/contracts/services";
 import { toAbsolutePath, canonicalizePath, sortedUnique } from "./paths.ts";
+import { basename } from "node:path";
 import type { SrtCommandConfig, SrtConfig } from "./srt.ts";
 
 // L0.sandbox.spec §3.2. Fresnel 정책을 srt 설정으로 바꾸는 순수 함수들이다. 경로 정규화는 파일 시스템을 읽는다(realpath).
@@ -9,6 +10,8 @@ export interface EffectivePolicy {
   readonly writeRoots: readonly string[];
   readonly readDeny: readonly string[];
   readonly writeDeny: readonly string[];
+  /** 읽기 허용 목록. 있으면 허용 목록 방식이다(`SandboxPolicy.readAllow`). 보호 경로를 품은 항목은 빠져 있다 */
+  readonly readAllow?: readonly string[];
 }
 
 /** 상태 탐지가 찾은 헬퍼 절대 경로(L0.sandbox.spec §3.2 마지막 행, §5.3) */
@@ -64,7 +67,20 @@ export function mergePolicy(
     home,
     base,
   );
-  return { writeRoots: sortedUnique(keptWriteRoots), readDeny, writeDeny };
+  const merged = { writeRoots: sortedUnique(keptWriteRoots), readDeny, writeDeny };
+  if (input.policy.readAllow === undefined) return merged;
+  // allowRead는 같은 영역의 denyRead보다 앞서므로, 읽기 금지 경로와 겹치는 항목은 허용 목록에서 뺀다(보호 경로는 줄일 수 없다)
+  // 심볼릭 링크 이름(`/lib`, `/usr/bin/socat`)은 실제 경로만 허용해서는 열리지 않는다: 링크 자체를 읽어야 따라간다. 이름과 실제 경로를 둘 다 둔다
+  const spelled = input.policy.readAllow.map((path) => toAbsolutePath(path, home, base));
+  const readAllow = sortedUnique([...spelled, ...spelled.map(canonicalizePath)]).filter(
+    (allowed) => !readDeny.some((denied) => isWithin(allowed, denied) || isWithin(denied, allowed)),
+  );
+  return { ...merged, readAllow };
+}
+
+/** `inner`가 `outer`와 같거나 그 아래인가(정규 절대 경로끼리) */
+function isWithin(inner: string, outer: string): boolean {
+  return inner === outer || inner.startsWith(outer.endsWith("/") ? outer : `${outer}/`);
 }
 
 /** 정책이 쓸 쓰기 루트 후보(호출자 정책 + 설정 추가분)를 정규 절대 경로로 만든다 */
@@ -88,7 +104,12 @@ export function toSrtFileConfig(policy: EffectivePolicy): SrtCommandConfig {
   return {
     filesystem: {
       allowWrite: policy.writeRoots.map(toPathEntry),
-      denyRead: policy.readDeny.map(toPathEntry),
+      // 허용 목록 방식은 `/` 전체를 막고 허용 항목만 다시 연다. 읽기 금지 경로는 허용 항목과 겹치지 않는다(mergePolicy)
+      denyRead:
+        policy.readAllow === undefined
+          ? policy.readDeny.map(toPathEntry)
+          : ["/", ...policy.readDeny.map(toPathEntry)],
+      ...(policy.readAllow === undefined ? {} : { allowRead: policy.readAllow.map(toPathEntry) }),
       denyWrite: policy.writeDeny.map(toPathEntry),
       allowGitConfig: false,
     },
@@ -100,6 +121,15 @@ export interface GlobalConfigOptions {
   readonly allowUnlistedHosts?: boolean;
   /** 참이면 중첩 사용자 네임스페이스를 허용한다(M3-REQ-56, 격리가 약해진다) */
   readonly nestedNamespaces?: boolean;
+}
+
+/**
+ * srt가 샌드박스 안에서 부르는 socat 경로. 배포판이 `socat`을 `socat1` 링크로 두면 읽기 허용 목록 방식에서는 링크 이름이 안 열리므로
+ * 실제 파일 경로를 쓴다(같은 파일이다). socat이 아닌 이름(멀티콜 바이너리)으로 풀리면 그대로 둔다
+ */
+export function socatPathOf(path: string): string {
+  const real = canonicalizePath(path);
+  return basename(real).startsWith("socat") ? real : path;
 }
 
 /** 허용 목록 없이 거부 목록만 있는 네트워크 정책(차단 목록 방식) */
@@ -132,7 +162,7 @@ export function toSrtGlobalConfig(
     allowPty: false,
     ...(tools.ripgrepCommand === undefined ? {} : { ripgrep: { command: tools.ripgrepCommand } }),
     ...(tools.bwrapPath === undefined ? {} : { bwrapPath: tools.bwrapPath }),
-    ...(tools.socatPath === undefined ? {} : { socatPath: tools.socatPath }),
+    ...(tools.socatPath === undefined ? {} : { socatPath: socatPathOf(tools.socatPath) }),
   };
 }
 
