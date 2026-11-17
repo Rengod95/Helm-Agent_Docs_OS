@@ -10,15 +10,21 @@
 //   DR-05 no src/dist deep import and no relative import that leaves the package
 //   DR-07 Bun.spawn, Bun.spawnSync and node:child_process: sources of the L0 owner packages only; test files of any platform-*
 //         package and of packages with a `scope: "test"` allowlist entry (review.decisions-2 B-06)
+//   DR-15 a plugin (P) imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources or runtime dependencies,
+//         except allowlist entries DR-15/<name>; test files and devDependencies are exempt (6.3 P.2)
 //   WEB-R16 no network calls, `Bun.` access or socket construction in packages/cap-web/src/fetch/convert (L2.web.spec 4.9.3)
-// Rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6). plugins/* count as L1, apps/* and packages/client as L4, vendor/* is excluded.
+// Rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5). plugins/* count as L1, cap-*, group-* and plugin-builder as P (6.3),
+// apps/* and packages/client as L4, vendor/* is excluded. A P package may still declare "fresnel": {"layer": "L2"} or "L3" (transition aliases).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 
-export const RANK = { F: 0, X: 1, L0: 2, L1: 3, L2: 4, L3: 5, L4: 6 } as const;
+export const RANK = { F: 0, X: 1, L0: 2, L1: 3, P: 4, L4: 5 } as const;
 export type Layer = keyof typeof RANK;
+
+/** Declared layer names a P package may still use during the transition (6.3). The aliases are read only where the directory is P. */
+const PLUGIN_ALIASES: ReadonlySet<string> = new Set(["L2", "L3"]);
 
 export const ALLOWLIST_FILE = "scripts/dependency-allowlist.json";
 const ROUTES_FILE = "../docs/xeon/_routing/routes.yaml";
@@ -32,6 +38,8 @@ export interface PackageInfo {
   /** Line of the "fresnel" key in package.json, 1 when absent. */
   fresnelLine: number;
   declared: string[];
+  /** The declared dependencies that are not devDependencies (dependencies, peerDependencies, optionalDependencies). DR-15 reads these. */
+  runtime: string[];
   /** Line in package.json of each declared dependency. */
   declaredLines: Record<string, number>;
   imports: { spec: string; file: string; line: number }[];
@@ -87,13 +95,15 @@ function isAllowList(data: unknown): data is AllowEntry[] {
 export interface AnalyzeOptions {
   allow?: readonly AllowEntry[];
   /** routes.yaml layout.<layer>.domains for the layers whose package names map one to one. */
-  routeDomains?: Partial<Record<Layer, readonly string[]>>;
+  routeDomains?: Partial<Record<RoutedLayer, readonly string[]>>;
 }
 
 const SOURCE_GLOB = "**/*.{ts,tsx,mts,cts,js,mjs,cjs}";
 const SKIP = /(^|\/)(node_modules|dist|\.turbo|coverage)(\/|$)/;
 const WORKSPACE_ROOTS = ["packages", "apps", "plugins", "vendor"] as const;
+/** routes.yaml layout keys (routes.yaml names the cap-* packages L2; their rank name is P). */
 const ROUTED_LAYERS = ["L0", "L1", "L2"] as const;
+type RoutedLayer = (typeof ROUTED_LAYERS)[number];
 
 function isLayer(value: string | undefined): value is Layer {
   return value !== undefined && Object.hasOwn(RANK, value);
@@ -115,8 +125,26 @@ export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   if (name === CLIENT_DIR_NAME) return "L4";
   if (name.startsWith("platform-")) return "L0";
   if (name.startsWith("core-")) return "L1";
-  if (name.startsWith("cap-")) return "L2";
-  if (name.startsWith("group-")) return "L3";
+  if (name.startsWith("cap-") || name.startsWith("group-") || name === "plugin-builder") return "P";
+  return undefined;
+}
+
+/**
+ * Layer a package is ranked at. A P directory that declares L2 or L3 counts as P during the transition (6.3);
+ * every other declared name is returned as written.
+ */
+export function rankedLayer(pkg: PackageInfo): string | undefined {
+  const declared = pkg.layer;
+  if (declared !== undefined && PLUGIN_ALIASES.has(declared) && expectedLayer(pkg.dir) === "P") {
+    return "P";
+  }
+  return declared;
+}
+
+/** routes.yaml layout key that lists the domains of a package (DR-03). cap-* are listed under L2; group-* and plugin-builder have path entries only. */
+function routedLayerOf(dir: string, layer: Layer): RoutedLayer | undefined {
+  if (layer === "P") return dir.startsWith("packages/cap-") ? "L2" : undefined;
+  if (layer === "L0" || layer === "L1") return layer;
   return undefined;
 }
 
@@ -261,6 +289,7 @@ function readPackage(root: string, dir: string): PackageInfo {
   const text = readText(manifest);
   const json = stringRecord(parseJson(manifest, text, false));
   const declared: string[] = [];
+  const runtime: string[] = [];
   const declaredLines: Record<string, number> = {};
   for (const key of [
     "dependencies",
@@ -270,6 +299,7 @@ function readPackage(root: string, dir: string): PackageInfo {
   ]) {
     for (const dep of Object.keys(stringRecord(json[key]))) {
       declared.push(dep);
+      if (key !== "devDependencies") runtime.push(dep);
       declaredLines[dep] ??= lineOfString(text, dep);
     }
   }
@@ -295,6 +325,7 @@ function readPackage(root: string, dir: string): PackageInfo {
     domain: typeof domain === "string" ? domain : undefined,
     fresnelLine: lineOfString(text, "fresnel"),
     declared,
+    runtime,
     declaredLines,
     imports,
     spawns,
@@ -420,29 +451,31 @@ export function analyze(
         pkg.fresnelLine,
       );
     } else if (isLayer(expected) && pkg.dir.startsWith("packages/")) {
-      const known = options.routeDomains?.[expected];
-      if (known !== undefined && !known.includes(pkg.domain)) {
+      const routed = routedLayerOf(pkg.dir, expected);
+      const known = routed === undefined ? undefined : options.routeDomains?.[routed];
+      if (routed !== undefined && known !== undefined && !known.includes(pkg.domain)) {
         add(
           "DR-03",
           pkg,
-          `domain ${pkg.domain} is not in routes.yaml layout.${expected}.domains`,
+          `domain ${pkg.domain} is not in routes.yaml layout.${routed}.domains`,
           undefined,
           pkg.fresnelLine,
         );
       }
     }
 
-    if (!isLayer(pkg.layer)) {
+    const ranked = rankedLayer(pkg);
+    if (!isLayer(ranked)) {
       add(
         "DR-03",
         pkg,
-        `fresnel.layer is ${String(pkg.layer)}; expected one of ${Object.keys(RANK).join(", ")}`,
+        `fresnel.layer is ${String(pkg.layer)}; expected one of ${Object.keys(RANK).join(", ")} (L2 and L3 only for P packages)`,
         undefined,
         pkg.fresnelLine,
       );
       continue;
     }
-    if (expected !== undefined && expected !== pkg.layer) {
+    if (expected !== undefined && expected !== ranked) {
       add(
         "DR-03",
         pkg,
@@ -451,13 +484,13 @@ export function analyze(
         pkg.fresnelLine,
       );
     }
-    const layer = pkg.layer;
+    const layer = ranked;
     const rank = RANK[layer];
 
     const rankCheck = (name: string, entry: string | undefined, file?: string, line?: number) => {
       const target = byName.get(name);
       if (target === undefined) return;
-      const targetLayer = expectedLayer(target.dir) === "vendor" ? "vendor" : target.layer;
+      const targetLayer = expectedLayer(target.dir) === "vendor" ? "vendor" : rankedLayer(target);
       if (targetLayer === "vendor" || !isLayer(targetLayer)) return;
       const targetRank = RANK[targetLayer];
       const how = file === undefined ? "declares a dependency on" : "imports";
@@ -520,6 +553,51 @@ export function analyze(
           last.line = pkg.declaredLines[dep] ?? 1;
         }
       }
+    }
+  }
+  return violations;
+}
+
+/**
+ * DR-15 (6.3 P.2): a plugin package (P) imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources or in its
+ * runtime dependencies. contracts and ext-host (lower ranks) and group-sdk (same rank, DR-02) are the allowed workspace packages.
+ * Test files and devDependencies are exempt. The exceptions are allowlist entries DR-15/<name>; a dependency entry is covered by any entry point.
+ */
+export function checkPluginImports(
+  packages: readonly PackageInfo[],
+  allow: readonly AllowEntry[],
+): Violation[] {
+  const byName = new Map(packages.map((pkg) => [pkg.name, pkg]));
+  const violations: Violation[] = [];
+  for (const pkg of packages) {
+    if (expectedLayer(pkg.dir) !== "P") continue;
+    const check = (
+      name: string,
+      entry: string | undefined,
+      file: string | undefined,
+      line: number | undefined,
+    ): void => {
+      const target = byName.get(name);
+      if (target === undefined) return;
+      const targetLayer = rankedLayer(target);
+      if (targetLayer !== "L0" && targetLayer !== "L1") return;
+      if (isAllowed(allow, "DR-15", pkg.dir, name, entry)) return;
+      const how = file === undefined ? "declares a runtime dependency on" : "imports";
+      violations.push({
+        rule: "DR-15",
+        file: file === undefined ? `${pkg.dir}/package.json` : `${pkg.dir}/${file}`,
+        line: line ?? 1,
+        message: `P package ${pkg.name} ${how} ${targetLayer} package ${name}; a plugin imports only contracts, ext-host, group-sdk and external packages`,
+      });
+    };
+    for (const { spec, file, line } of pkg.imports) {
+      if (isTestFile(file)) continue;
+      const name = workspaceName(spec);
+      if (name === undefined || name === pkg.name) continue;
+      check(name, entryOf(spec, name), file, line);
+    }
+    for (const dep of pkg.runtime) {
+      check(dep, undefined, undefined, pkg.declaredLines[dep]);
     }
   }
   return violations;
@@ -806,10 +884,10 @@ export function missingManifests(root: string): Violation[] {
 }
 
 /** domains of the layers whose package names map one to one onto routes.yaml (L0, L1, L2). */
-export function loadRouteDomains(file: string): Partial<Record<Layer, string[]>> {
+export function loadRouteDomains(file: string): Partial<Record<RoutedLayer, string[]>> {
   const parsed: unknown = Bun.YAML.parse(readText(file));
   const layout = stringRecord(stringRecord(parsed)["layout"]);
-  const result: Partial<Record<Layer, string[]>> = {};
+  const result: Partial<Record<RoutedLayer, string[]>> = {};
   for (const layer of ROUTED_LAYERS) {
     const domains = stringRecord(layout[layer])["domains"];
     if (!Array.isArray(domains) || !domains.every((item) => typeof item === "string")) {
@@ -836,6 +914,7 @@ export function checkLayers(
       routeDomains === undefined ? { allow: entries } : { allow: entries, routeDomains },
     ),
     ...checkReferences(packages),
+    ...checkPluginImports(packages, entries),
     ...checkSpawns(packages, entries),
     ...relativeEscapes(root, packages),
     ...checkSourcePatterns(root),

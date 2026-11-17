@@ -94,9 +94,8 @@ export interface FresnelPackageField {
 | X 확장 체계 | 1 | Cordis 위의 `on`/`post`/`drive`/`scope`, 확장 로딩과 신뢰, 운영 규칙 | X-a 로딩과 신뢰, X-b 원시 연산 네 개, X-c 운영 규칙 | `xeon/packages/ext-host/src/{domain}/**` |
 | L0 플랫폼 | 2 | OS·환경마다 구현이 바뀌는 부분. `os.*` provider 공통 인터페이스 뒤에 둔다 | L0-a 실행 환경, L0-b 격리, L0-c 시크릿, L0-d 프로세스, L0-e 저장 기반, L0-f OS 연동 | `xeon/packages/platform-{domain}/**` |
 | L1 코어 | 3 | 거의 바뀌지 않는 코어 플러그인. 태스크, 루프, 모델, 도구, 컨텍스트, 영속성, 서브에이전트 | L1-a 태스크 엔진, L1-b 에이전트 루프, L1-c 모델 게이트웨이, L1-d 도구 실행과 권한, L1-e 컨텍스트와 컴팩션, L1-f 영속성과 복구, L1-g 서브에이전트 | `xeon/packages/core-{domain}/**` |
-| L2 기능 | 4 | 서비스 API와 모델 도구 쌍. 기능 정의는 F3에 있다 | L2-a 작업 도구, L2-b MCP 통합, L2-c 웹, L2-d 지식과 기억 (저장소), L2-e 작업 관리, L2-f 사용자 대화, L2-g 산출물과 대화, L2-h 예약과 백그라운드 | `xeon/packages/cap-{domain}/**` |
-| L3 플러그인 그룹 | 5 | `scope`로 묶인 플러그인 그룹. Helm과 학습 그룹이 기본 그룹이다 | L3-a 그룹 기반, L3-b Helm (기본 그룹), L3-c 학습 그룹 (기본 그룹), L3-d 추가 그룹 슬롯 | `xeon/packages/group-sdk/**`, `xeon/packages/group-helm/**`, `xeon/packages/group-learning/**` (slots는 코드 없음) |
-| L4 배포 런타임 | 6 | 엔진 조립과 배포 단위. CLI, 데스크톱, 호스트·서비스, 설정 화면, 클라이언트 공유 코드 | 계획 v2 데이터에 하위 층이 없다. 도메인은 4.7절 | `xeon/apps/cli/**`, `xeon/apps/desktop/**`, `xeon/apps/host/**`, `xeon/packages/client/**`([결정: adr.0020]) |
+| P 플러그인 | 4 | 플러그인 등급(6.3 DR-15). 기능은 서비스 API와 모델 도구 쌍이고(정의는 F3에 있다), 그룹은 `scope`로 묶인 플러그인 묶음이다. Helm과 학습 그룹이 기본 그룹이다. 소스는 F, X, `group-sdk`와 외부 패키지만 import한다. 옛 `L2`, `L3` 선언은 전환 별칭이다 | L2-a 작업 도구, L2-b MCP 통합, L2-c 웹, L2-d 지식과 기억 (저장소), L2-e 작업 관리, L2-f 사용자 대화, L2-g 산출물과 대화, L2-h 예약과 백그라운드. L3-a 그룹 기반, L3-b Helm (기본 그룹), L3-c 학습 그룹 (기본 그룹), L3-d 추가 그룹 슬롯 | `xeon/packages/cap-{domain}/**`, `xeon/packages/group-sdk/**`, `xeon/packages/group-helm/**`, `xeon/packages/group-learning/**`, `xeon/packages/plugin-builder/**` (slots는 코드 없음) |
+| L4 배포 런타임 | 5 | 엔진 조립과 배포 단위. CLI, 데스크톱, 호스트·서비스, 설정 화면, 클라이언트 공유 코드 | 계획 v2 데이터에 하위 층이 없다. 도메인은 4.7절 | `xeon/apps/cli/**`, `xeon/apps/desktop/**`, `xeon/apps/host/**`, `xeon/packages/client/**`([결정: adr.0020]) |
 
 - `xeon/plugins/provider-anthropic-oauth`는 L1-c의 배포 제외 구성요소(Anthropic OAuth 위장 provider)다. `check-layers.ts`는 `plugins/*`를 L1로 본다 [결정: review.decisions-2 U-16]. `core-*`를 import하지 않고 F provider 인터페이스로 `core-models` 서비스에 등록한다(3.2절). 배포판에는 넣지 않는다 [결정: `_research/decisions-log.md` 2026-10-21 결정(2차)].
 - `xeon/vendor/cordis`는 층 검사 대상에서 빠진다. Cordis는 `ext-host` 뒤에 숨긴다 [결정: ADR-0002 3번]. 직접 import하는 패키지를 `ext-host` 하나로 제한한다 [제안: ADR-0002 4번].
@@ -105,7 +104,7 @@ export interface FresnelPackageField {
 
 #### 4.2.1 층 단위 허용 의존
 
-화살표는 import 방향이다. 각 층은 자기보다 순위가 낮은 층을 import할 수 있다. 다만 L3는 `cap-*`(L2)를 import하지 않는다 [결정: 계획 v2 '층 사이 규칙' 2, DR-14](3.1절 2행). 이 금지는 foundation-plan §3 기본 규칙(순위)에는 없고 DR-14가 컨텍스트 규칙으로 막는다. 그림에는 L3 → L2 간선을 두지 않고 L3 → L1 간선을 그렸다. 그림은 인접 층만 그리고, 건너뛰는 import도 허용된다.
+화살표는 import 방향이다. 각 층은 자기보다 순위가 낮은 층을 import할 수 있다. 다만 L3는 `cap-*`(L2)를 import하지 않는다 [결정: 계획 v2 '층 사이 규칙' 2, DR-14](3.1절 2행). 이 금지는 foundation-plan §3 기본 규칙(순위)에는 없고 DR-14가 컨텍스트 규칙으로 막는다. P 등급(6.3 DR-15) 이후에는 플러그인끼리 import하지 않고(DR-02), 플러그인은 소스에서 L0·L1을 import하지 않는다(시험 파일 예외, 허용 목록 두 쌍은 [미결] [근거: `xeon/scripts/dependency-allowlist.json`]). 그림에는 L3 → L2 간선을 두지 않고 L3 → L1 간선을 그렸다. 이 그림은 DR-15 이전 것이다. 그림은 인접 층만 그리고, 건너뛰는 import도 허용된다.
 
 ```mermaid
 flowchart TB
@@ -280,7 +279,7 @@ flowchart TB
 
 | 안 | 순위 | X가 L0 저장소를 쓰는 방법 | L0가 Cordis 플러그인이 되는 방법 | `drive`가 L1 루프를 부르는 방법 | 판단 |
 |---|---|---|---|---|---|
-| A (현재) | F → X → L0 → L1 → L2 → L3 → L4 | F2 저장소 인터페이스 타입만 import하고, 구현은 Cordis 서비스로 주입받는다 | `ext-host`의 플러그인 API를 import한다 | F4의 루프 인터페이스 타입만 import하고, `core-loop`가 제공하는 서비스를 주입받는다 | 채택 [결정: `_research/foundation-plan.md` §3] |
+| A (현재) | F → X → L0 → L1 → P → L4 | F2 저장소 인터페이스 타입만 import하고, 구현은 Cordis 서비스로 주입받는다 | `ext-host`의 플러그인 API를 import한다 | F4의 루프 인터페이스 타입만 import하고, `core-loop`가 제공하는 서비스를 주입받는다 | 채택 [결정: `_research/foundation-plan.md` §3] |
 | B | F → L0 → X → L1 → … | `platform-store`를 직접 import한다 | L0가 Cordis를 직접 import하거나 L4가 감싸야 한다. Cordis 접근 경로가 둘이 된다 | A와 같다 | ADR-0002의 "Cordis는 ext-host 뒤에 숨긴다"와 충돌 |
 | C (계획 v2 도면) | X를 L1~L3 옆의 띠로 둔다 | 띠 안에서 정하지 않음 | 정하지 않음 | 정하지 않음 | 순위 숫자가 없어 `check-layers.ts`로 검사할 수 없다. 도면 표현으로만 쓴다 |
 | D | X를 L1 안의 코어 패키지(`core-ext`)로 둔다 | L0를 import할 수 있다 | L0는 Cordis를 직접 쓰게 된다 | 같은 층 import가 되어 규칙 2에 걸린다 | L1 내부 협력이 늘어 규칙 2 예외가 많아진다 |

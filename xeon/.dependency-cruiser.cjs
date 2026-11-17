@@ -1,16 +1,17 @@
 /**
- * Layer rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6).
+ * Layer rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5).
  * A package imports only lower ranks. Same-layer packages never import each other.
- * plugins/* rank as L1, apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
+ * P is the plugin rank (6.3 DR-15): packages/cap-*, packages/group-*, packages/plugin-builder. plugins/* rank as L1,
+ * apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
  * Keep in sync with scripts/check-layers.ts (it reads package.json fresnel.layer; this reads paths).
  */
+const P_RE = "^(packages/cap-|packages/group-|packages/plugin-builder/)";
 const LAYERS = [
   { name: "F", re: "^packages/contracts/" },
   { name: "X", re: "^packages/ext-host/" },
   { name: "L0", re: "^packages/platform-" },
   { name: "L1", re: "^(packages/core-|plugins/)" },
-  { name: "L2", re: "^packages/cap-" },
-  { name: "L3", re: "^packages/group-" },
+  { name: "P", re: P_RE },
   { name: "L4", re: "^(apps/|packages/client/)" },
 ];
 
@@ -42,13 +43,19 @@ const sameLayerGroups = [
     to: "^(packages/core-|plugins/)",
     own: "^plugins/$1/",
   },
-  { name: "L2", from: "^packages/(cap-[^/]+)/", to: "^packages/cap-", own: "^packages/$1/" },
-  // DR-02/group-sdk (scripts/dependency-allowlist.json): every packages/group-<name> may import the group-sdk entries "." and "./testing"
-  // and nothing else of group-sdk or of another group. The same family pattern "packages/group-*" is in the allowlist entry.
+  // P (6.3 DR-15): a plugin imports no other plugin. "to" is every P package (cap-*, group-*, plugin-builder).
   {
-    name: "L3",
-    from: "^packages/(group-[^/]+)/",
-    to: "^packages/group-",
+    name: "P-cap",
+    from: "^packages/(cap-[^/]+)/",
+    to: "^packages/(cap-|group-|plugin-builder/)",
+    own: "^packages/$1/",
+  },
+  // DR-02/group-sdk and DR-02/plugin-builder-group-sdk (scripts/dependency-allowlist.json): every group and the Plugin Builder may import
+  // the group-sdk entries "." and "./testing" and nothing else of group-sdk or of another plugin.
+  {
+    name: "P-group",
+    from: "^packages/(group-[^/]+|plugin-builder)/",
+    to: "^packages/(cap-|group-|plugin-builder/)",
     own: ["^packages/$1/", "^packages/group-sdk/src/(index|testing/index)\\.ts$"],
   },
   // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries "." and "./client" only.
@@ -83,10 +90,44 @@ const sameLayer = sameLayerGroups.map((group) => ({
   to: { path: group.to, pathNot: group.own },
 }));
 
+// DR-15 (6.3 P.2): a plugin imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources. Test files are exempt.
+// The two allowlisted edges are the only exceptions (DR-15/cap-dialog-core-tools, DR-15/cap-workspace-core-workspace in
+// scripts/dependency-allowlist.json). This tool checks the package edge; check-layers checks the entry points of each edge.
+const P_TEST = "(^|/)(test|tests)/|\\.(test|spec)\\.[cm]?[jt]sx?$";
+const P_LOWER = "^(packages/platform-|packages/core-|plugins/)";
+const P_EXCEPTIONS = [
+  { id: "cap-dialog-core-tools", from: "^packages/cap-dialog/", to: "^packages/core-tools/" },
+  {
+    id: "cap-workspace-core-workspace",
+    from: "^packages/cap-workspace/",
+    to: "^packages/core-workspace/",
+  },
+];
+const pLowerImports = [
+  {
+    name: "no-l0-or-l1-import-from-P",
+    severity: "error",
+    comment: "A plugin imports only contracts, ext-host, group-sdk and external packages (DR-15).",
+    from: {
+      path: P_RE,
+      pathNot: `(?:${P_TEST}|${P_EXCEPTIONS.map((exception) => exception.from).join("|")})`,
+    },
+    to: { path: P_LOWER },
+  },
+  ...P_EXCEPTIONS.map((exception) => ({
+    name: `no-l0-or-l1-import-from-P-${exception.id}`,
+    severity: "error",
+    comment: `DR-15/${exception.id}: the one allowlisted L1 target of this plugin; other L0 or L1 imports stay violations.`,
+    from: { path: exception.from, pathNot: P_TEST },
+    to: { path: P_LOWER, pathNot: exception.to },
+  })),
+];
+
 module.exports = {
   forbidden: [
     ...upward,
     ...sameLayer,
+    ...pLowerImports,
     {
       name: "no-circular",
       severity: "error",

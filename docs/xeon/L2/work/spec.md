@@ -870,7 +870,7 @@ export interface GoalEvidence {
 - 증거는 `fresnel.session`의 이벤트 읽기로 모은다(eng.context-map.design §4.1 work 행의 의존 `fresnel.session`). 다른 컨텍스트의 테이블을 직접 읽지 않는다(CM-02).
 - 결과 대응: `judged`·`recorded`의 `record.verdict`가 `met`이면 `met: true`, `not_met`·`undecidable`이면 `met: false`다. `reason`은 `record.rationale`, `missing`은 `record.missing`이다. `failed`는 판정 실패이고 `failure.code`는 `upstream_error`다. `capped`는 §4.3.2의 상한 처리다.
 - 사용량은 `record.usage`를 `work.goal_judged.usage`에 남긴다. 보고의 `resources.judge`가 이 합계다.
-- 판정 호출은 공개 기능 `agents.judge`로 한다. 매니페스트는 `optional: [{ id: "agents.judge", range: "^1.0.0" }]`로 선언하고 공급자는 core-agents다. `g.capability`가 `capability_unavailable`을 내면 공급자가 없다고 보고 판정 실패로 둔다 [근거: xeon/packages/cap-work/src/plugin.ts]. 포트를 얻지 않으므로 L2는 core-agents를 import하지 않는다(D-30).
+- 판정 호출은 공개 기능 `agents.judge`로 한다. 매니페스트는 `optional: [{ id: "agents.judge", range: "^1.0.0" }]`로 선언하고 공급자는 core-agents다. `g.capability`가 `capability_unavailable`을 내면 공급자가 없다고 보고 판정 실패로 둔다 [근거: `xeon/packages/cap-work/src/plugin.ts`]. 포트를 얻지 않으므로 L2는 core-agents를 import하지 않는다(D-30).
 
 ```ts
 // xeon/packages/cap-work/src/ports/judge.ts  (L1.agents.spec §3.4 judge를 감싼다)

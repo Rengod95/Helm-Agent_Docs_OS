@@ -32,12 +32,12 @@ Fresnel 워크스페이스의 패키지가 무엇을 import할 수 있는지 정
 | 1 | X 확장 호스트 | `packages/ext-host` | `X` |
 | 2 | L0 플랫폼 | `packages/platform-*` | `L0` |
 | 3 | L1 코어 | `packages/core-*`, `plugins/*` | `L1` |
-| 4 | L2 기능 | `packages/cap-*` | `L2` |
-| 5 | L3 플러그인 그룹 | `packages/group-*` | `L3` |
-| 6 | L4 배포 런타임 | `apps/*` | `L4` |
+| 4 | P 플러그인 | `packages/cap-*`, `packages/group-*`, `packages/plugin-builder` | `P` (옛 `L2`, `L3`은 전환 동안 P의 별칭) |
+| 5 | L4 배포 런타임 | `apps/*` | `L4` |
 | 제외 | 고정 외부 코드 | `vendor/*` | 없음 |
 
-- 숫자가 작을수록 아래 층이다. 화살표 F → X → L0 → L1 → L2 → L3 → L4는 "왼쪽이 오른쪽에 쓰인다"는 뜻이다.
+- 숫자가 작을수록 아래 층이다. 화살표 F → X → L0 → L1 → P → L4는 "왼쪽이 오른쪽에 쓰인다"는 뜻이다.
+- [제안: `review/m5/hooks-core-boundary.md` 6.3, DR-15] 플러그인 등급 P(순위 4)는 L2 기능과 L3 그룹을 한 등급으로 본다. `package.json`의 `"fresnel": {"layer": "L2"}`와 `"L3"`은 전환 동안 P의 별칭으로 읽는다(P 디렉터리에서만, 다른 디렉터리에서는 DR-03 위반). 플러그인이 import할 수 있는 범위는 DR-15가 정한다.
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위로 센다. 현재 `scripts/check-layers.ts`의 `expectedLayer()`와 `.dependency-cruiser.cjs`의 `LAYERS`가 이 값을 쓴다. 플러그인이 import할 수 있는 범위는 DR-09가 정한다.
 - [결정: review.decisions-2 U-14] X는 L0 아래(순위 1)에 둔다. 판정과 근거는 `architecture.layers.spec` 4.3.3절이다. 이 순위에서 `ext-host`는 OS 기능(프로세스 실행, 파일 잠금, 저장)을 L0에서 import할 수 없고, 다음 세 조건을 지킨다.
   1. X 소스와 테스트에서 L0·L1 import가 0건이다(DR-01. 테스트도 대상이다).
@@ -51,7 +51,7 @@ Fresnel 워크스페이스의 패키지가 무엇을 import할 수 있는지 정
 
 ```text
 <파일>:<행> <규칙ID> <설명>
-packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer L2 (@fresnel/cap-web)
+packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer P (@fresnel/cap-web)
 ```
 
 - `check-layers.ts`는 이 형식을 직접 출력한다. 현재 구현은 `FAIL <규칙이름> <패키지>: <설명>` 형식이고 행 번호가 없다. 규칙 이름을 아래 대응표의 DR ID로 바꾸고 행 번호를 더하는 작업이 남아 있다(`eng.toolchain.guide` 수용 기준).
@@ -90,7 +90,7 @@ import { StoreServiceName, type StoreService } from "@fresnel/contracts"; // L0 
 ```
 
 ```ts
-// apps/host/src/assemble.ts  (L4, 순위 6, 조립 루트)
+// apps/host/src/assemble.ts  (L4, 순위 5, 조립 루트)
 import { storePlugin } from "@fresnel/platform-store";     // L0(2). 조립 루트라 DR-14 예외
 import { loopPlugin } from "@fresnel/core-loop";           // L1(3)
 ```
@@ -101,7 +101,7 @@ import { loopPlugin } from "@fresnel/core-loop";           // L1(3)
 
 ```ts
 // packages/core-loop/src/turn.ts  (L1, 순위 3)
-import type { SearchResult } from "@fresnel/cap-web";    // DR-01: L2(4)는 L1보다 위다
+import type { SearchResult } from "@fresnel/cap-web";    // DR-01: P(4)는 L1(3)보다 위다
 ```
 
 ```ts
@@ -113,7 +113,7 @@ export type { ExtHost } from "@fresnel/ext-host";  // DR-01: F는 어떤 워크�
 
 [결정] `_research/foundation-plan.md §3`. 같은 층의 협력은 F에 둔 정의(타입, 스키마, 서비스 이름)와 Cordis 서비스로만 한다. L3 그룹(`group-helm`, `group-learning`)끼리도 같다.
 
-- L1 코어끼리(`core-loop`와 `core-models` 등), L2 기능끼리, L3 그룹끼리, L4 앱끼리(DR-10) 모두 해당한다.
+- L1 코어끼리(`core-loop`와 `core-models` 등), P 플러그인끼리(`cap-*`, `group-*`, `plugin-builder`), L4 앱끼리(DR-10) 모두 해당한다.
 - 협력 방법:
   1. 주고받을 타입과 서비스 이름을 F(`packages/contracts`)에 정의한다.
   2. 제공하는 쪽은 그 서비스를 Cordis 컨텍스트에 등록한다(`X.primitives.spec`이 등록 API를 정한다).
@@ -151,8 +151,8 @@ import { resolveModel } from "@fresnel/core-models";     // DR-02: 같은 L1
 ```
 
 ```ts
-// packages/group-learning/src/index.ts  (L3)
-import { helmSignals } from "@fresnel/group-helm";       // DR-02: L3 그룹끼리
+// packages/group-learning/src/index.ts  (P)
+import { helmSignals } from "@fresnel/group-helm";       // DR-02: P 그룹끼리
 ```
 
 - [결정: review.decisions-2 U-15] `group-sdk`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
@@ -161,7 +161,7 @@ import { helmSignals } from "@fresnel/group-helm";       // DR-02: L3 그룹끼�
 
 [결정] `_research/foundation-plan.md §3`: `check-layers.ts`와 dependency-cruiser가 이 값으로 위반을 거부한다.
 
-- `layer`는 `F`, `X`, `L0`, `L1`, `L2`, `L3`, `L4` 중 하나다. 디렉터리에서 나온 층(1.1 표)과 같아야 한다.
+- `layer`는 `F`, `X`, `L0`, `L1`, `P`, `L4` 중 하나다(P 디렉터리의 `L2`, `L3`은 전환 별칭이다). 디렉터리에서 나온 층(1.1 표)과 같아야 한다.
 - `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. 예외: `packages/group-sdk`은 `"domain": "group-sdk"`이다(M3-35, L3.group-sdk.spec §10 공통 모순 3). [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). `check-layers.ts`의 DR-03 검사가 `domain`을 보고, L0~L2는 routes 목록과도 맞춘다.
 - `vendor/*`는 `fresnel` 필드를 두지 않는다.
 
@@ -327,7 +327,7 @@ import { SecretServiceName, type SecretService } from "@fresnel/contracts/servic
 나쁜 예:
 
 ```ts
-// packages/cap-knowledge/src/index.ts  (L2)
+// packages/cap-knowledge/src/index.ts  (P)
 import { Database } from "bun:sqlite";                  // DR-07: SQLite는 platform-store만
 ```
 
@@ -489,7 +489,7 @@ const verdict = await ext.dispatch(ToolCallHook, payload);
 ```
 
 ```ts
-// packages/group-helm/src/setup.ts  (L3): adr.0007 §3.7 모양으로 처리기를 단다
+// packages/group-helm/src/setup.ts  (P): adr.0007 §3.7 모양으로 처리기를 단다
 g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWrite(call) ? { deny: "helm.readonly_phase" } : undefined));
 ```
 
@@ -584,6 +584,29 @@ import { openEventStore } from "@fresnel/platform-store";   // DR-14: 컨텍스�
 import { openStore } from "@fresnel/platform-store";        // DR-14: 확장이 저장소 구현을 직접 연다
 ```
 
+### DR-15 플러그인(P)은 L0·L1 패키지를 import하지 않는다
+
+[제안: `review/m5/hooks-core-boundary.md` 6.3 P.2] P 패키지(`packages/cap-*`, `packages/group-*`, `packages/plugin-builder`)는 소스에서 `@fresnel/contracts`, `@fresnel/ext-host`, 플러그인 SDK `@fresnel/group-sdk`와 외부 패키지만 import한다. `core-*`와 `platform-*`(L0·L1), `plugins/*`는 import하지 않는다. 코어와 L0는 `contracts`의 서비스 타입, `fresnel.*` 포트, 기능 id로만 쓴다.
+
+- 대상: 소스 파일(`src/**`)의 import와 `dependencies`·`peerDependencies`·`optionalDependencies`의 워크스페이스 의존. 시험 파일(`test/**`, `*.test.*`)과 `devDependencies`는 예외다. 시험은 `core-*`와 `platform-*`를 그대로 쓴다.
+- 같은 등급은 DR-02다. 플러그인끼리 import하지 않는다. `group-*`와 `plugin-builder`만 `group-sdk`의 `.`과 `./testing`을 허용 목록 `DR-02/group-sdk`, `DR-02/plugin-builder-group-sdk`로 쓴다.
+- 예외 [미결]: 허용 목록의 `DR-15/cap-dialog-core-tools`, `DR-15/cap-workspace-core-workspace` 두 쌍만 있다. 질문 서비스와 파일 서비스를 코어로 옮긴(D-27, D-28) 뒤 플러그인이 그 서비스를 주입받는 구조(포트와 기능 id)는 후속이다. 두 항목은 승인 대기다 [근거: `xeon/scripts/dependency-allowlist.json`].
+- 도구: `check-layers.ts`의 `DR-15`, `.dependency-cruiser.cjs`의 `no-l0-or-l1-import-from-P`(허용 쌍은 `no-l0-or-l1-import-from-P-<id>`). 두 도구는 같은 커밋에서 고친다.
+
+나쁜 예:
+
+```ts
+// packages/cap-web/src/index.ts  (P)
+import { storePlugin } from "@fresnel/platform-store";   // DR-15: 플러그인은 L0를 import하지 않는다
+```
+
+좋은 예:
+
+```ts
+// packages/cap-web/src/index.ts  (P)
+import { StoreServiceName, type StoreService } from "@fresnel/contracts"; // 저장소는 F 서비스 타입으로 주입받는다
+```
+
 ## 3. 강제 수단
 
 ### 3.1 도구별 역할
@@ -650,6 +673,7 @@ export interface SourcePattern {
 | DR-12 훅 선언 | △ 훅 선언 함수 이름이 정해지면 스캔 [제안] | | | | | ○ |
 | DR-13 OS 분기 | ○ 호출 패턴 [제안] | | △ `no-restricted-globals`로는 `process` 전체만 막을 수 있다 | | | ○ |
 | DR-14 컨텍스트 사이 | ○ `CONTEXTS` 대조 [제안, M1부터] | | | | | ○ |
+| DR-15 플러그인은 L0·L1 import 금지 | ○ `DR-15` | ○ `no-l0-or-l1-import-from-P` | | | | |
 
 - oxlint `overrides`로 소유 패키지만 `no-restricted-imports`를 다르게 둘 때, override의 옵션은 기본 설정의 패턴 목록을 대체한다 [가정: 병합하지 않는다고 보고 쓴다]. 그래서 소유 패키지용 override에도 나머지 금지 패턴을 다시 적는다. 이 중복이 틀리기 쉬우므로 DR-07의 1차 강제는 `check-layers.ts`로 두고 oxlint는 편집기 안 즉시 피드백 용도로 둔다 [제안].
 - [미결] oxlint에 `no-restricted-paths`가 없을 때의 보완: 현재 안은 `check-layers.ts`의 정규식 스캔과 dependency-cruiser 경로 규칙의 이중 검사다. 정규식 스캔은 문자열 안의 `import` 같은 오탐이 생길 수 있다(`_research/notes/eng-1.md §7` 마지막 항목). 별도 파서 패키지를 더할지, Bun 내장 트랜스파일러(`Bun.Transpiler#scanImports`)로 바꿀지 구현 단계에서 정한다. `Bun.Transpiler`로 노드 수준 검출이 되는지는 확인하지 않았다.
@@ -814,3 +838,4 @@ export const AllowList = Type.Array(AllowEntry);
 - [미결] 타입 전용 순환(`import type` 순환)의 허용 여부. oxlint 기본값은 허용, depcruise 현재 설정은 금지다.
 - [결정: review.decisions-2 U-15] `group-sdk`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위이고 `core-*`를 import하지 않는다. 같은 층 예외는 두지 않는다(DR-09).
+- [미결] DR-15 예외 두 쌍(`cap-dialog` → `core-tools`, `cap-workspace` → `core-workspace`)을 없애는 설계. 플러그인이 코어 서비스를 포트와 기능 id로 주입받는 구조이고, 승인 전까지 허용 목록 항목의 `approvedBy`는 `pending-user-approval`이다(`review/m5/hooks-core-boundary.md` 6.3, 12절 O-20, [근거: `xeon/scripts/dependency-allowlist.json`]).

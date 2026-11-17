@@ -436,7 +436,7 @@ export type DelegateResult =
 | 일 | 소유 | 근거 |
 |---|---|---|
 | drive lock 부여, 반납, `lease.acquired`·`lease.released` 기록, 상한 집행, drive 함수 재호출, `idle` 반납 | X.primitives.spec §4.4 | F.extensions.spec §4.6, F.records.spec §3.3 |
-| 정책을 X에 넣는 포트 `DriveLockArbiterPort`(서비스 `fresnel.groups`, 선택) | 타입 정본 F.extensions.spec §3.2.1, 호출 규칙 X.primitives.spec §3.6 | X(순위 1)는 group-sdk(순위 5)을 import하지 않는다 |
+| 정책을 X에 넣는 포트 `DriveLockArbiterPort`(서비스 `fresnel.groups`, 선택) | 타입 정본 F.extensions.spec §3.2.1, 호출 규칙 X.primitives.spec §3.6 | X(순위 1)는 group-sdk(P, 순위 4)을 import하지 않는다 |
 | 누가 drive lock을 받는지(정책 `DriveArbiter`), 그 정책을 `DriveLockArbiterPort`로 옮기는 어댑터, 대기 목록, 정책 결과의 노출(`GroupStatus`, 상태줄) | group-sdk | 이 절 |
 
 X 쪽 규칙(X.primitives.spec §4.4.1) 가운데 이 절이 기대는 것:
