@@ -169,6 +169,13 @@ export interface MeasureStore {
   turnRecordAvailable(): boolean;
   /** 설치별 소금(HMAC 키). 첫 열기에 무작위로 만들고 그 뒤로 바꾸지 않는다 */
   installSalt(): Result<string, MeasureStoreError>;
+  /**
+   * 턴 기록을 쓸 수 있게 된 시각(`tr_meta.recording_since`)을 처음 한 번 적는다. 이미 있으면 그대로 둔다. 보관 정리가 행을 지워도 값은 남는다.
+   * 이 시각 전에 시작한 턴은 행이 없어도 `purged`가 아니라 `never_recorded`다(§3.5 absent)
+   */
+  markRecordingSince(at: number): Result<number, MeasureStoreError>;
+  /** `recording_since`. 턴 기록을 아직 쓴 적이 없으면 undefined */
+  recordingSince(): Result<number | undefined, MeasureStoreError>;
   upsertThread(row: TrThreadRow): Result<number, MeasureStoreError>;
   getThread(threadId: string): Result<TrThreadRow | undefined, MeasureStoreError>;
   /** 테스트 실행 대화(`scope_kind = test`)의 표지. 재시작 뒤 표지를 되살린다 */
@@ -558,6 +565,24 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         return out;
       }),
     turnRecordAvailable: () => turnRecord,
+    markRecordingSince: (at) =>
+      turnGuarded(() =>
+        ok(
+          db
+            .query("INSERT OR IGNORE INTO tr_meta (key, value) VALUES ('recording_since', ?)")
+            .run(String(at)).changes,
+        ),
+      ),
+    recordingSince: () =>
+      turnGuarded<number | undefined>(() => {
+        const raw = colTextOrNull(
+          colsOf(db.query("SELECT value FROM tr_meta WHERE key = 'recording_since'").get()),
+          "value",
+        );
+        if (raw === null) return ok(undefined);
+        const at = Number(raw);
+        return Number.isFinite(at) ? ok(at) : err({ kind: "corrupt" });
+      }),
     installSalt: () =>
       turnGuarded<string>(() => {
         const salt = colTextOrNull(

@@ -26,6 +26,7 @@ import {
   type TurnSkillRead,
   type TurnToolRow,
 } from "./turn-context.ts";
+import { fitTurnRecord } from "./turn-fit.ts";
 import type { TrCallRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
@@ -84,6 +85,8 @@ export interface TurnDraft {
   readonly origin: TurnRecord["origin"];
   /** 계측이 켜진 턴이면 `full`, 꺼진 턴이면 `log_only`(§4.1 규칙 3). 턴이 처음 보일 때 정한다 */
   readonly level: RecordLevel;
+  /** `record_json`의 상한(바이트, `x.operations.trace.maxTurnBytes`). 턴이 처음 보일 때 정한다(규칙 6, 8) */
+  readonly maxBytes: number;
   /** 범위 표지. 턴을 열 때 대화의 `tr_thread`에서 정한다(§4.6) */
   scope: ScopeKind;
   /** 끝난 단계의 기록 */
@@ -142,6 +145,7 @@ export function newDraft(input: {
   readonly startedEventId: string | null;
   readonly origin: TurnRecord["origin"];
   readonly level: RecordLevel;
+  readonly maxBytes: number;
 }): TurnDraft {
   return {
     ...input,
@@ -609,7 +613,8 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
 
 /** 턴 행(`tr_turn`). `record_json`은 `TurnRecord` 전체의 직렬화다 */
 export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
-  const recordJson = JSON.stringify(turnRecordOf(draft, state));
+  // 상한을 넘으면 줄인다(§4.1 규칙 8). 요약으로 바꾼 턴은 행의 `complete`도 거짓이다
+  const fitted = fitTurnRecord(turnRecordOf(draft, state), draft.maxBytes);
   const firstModel = draft.steps[0]?.modelCalls[0]?.modelId ?? null;
   return {
     threadId: draft.threadId,
@@ -625,11 +630,11 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     overlayJson: null,
     pluginStderrJson: null,
     level: draft.level,
-    complete: state.complete,
+    complete: state.complete && !fitted.summarized,
     model: firstModel,
     flags: 0,
-    recordJson,
-    recordBytes: new TextEncoder().encode(recordJson).byteLength,
+    recordJson: fitted.json,
+    recordBytes: fitted.bytes,
     startedEventId: draft.startedEventId,
   };
 }

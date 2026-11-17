@@ -790,7 +790,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S. [구현: `service.ts:127`의 `removed`가 두 경로를 잇고 `SessionDeps.onThreadRemoved`(`deps.ts`)로 조립 루트가 `forgetThread`를 건다] |
 | `apps/host/src/assembly/ports.ts:285`, `:319`, `:430`, `:686`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M. [구현: `measure/test-run-marks.ts`가 `tr_thread`에 쓰고 되살린다. `host.ts:584`의 Set은 그대로다] |
 | `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
-| `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 [구현: M5d-1 층 4. `block.*`(시간 나눔, 캐시), `drive.*`(프레임)를 `metrics.ts`에 더하고 행이 없으면 `not_recorded`다. 비교는 `pluginVersion`·`profileRev`를 원본 턴으로 나눈다(`compareByGroups`). 발견 규칙 8과 12를 더했다. `profileCost.get`의 정적 줄은 프로필 플러그인 이름만 낸다. 미구현: 지침·도구 정의 어림(로더 대기), 모델 대기(단계 시간이 행에 없음), 컴팩션 횟수(행에 없음, `not_recorded`)] | L |
+| `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 [구현: M5d-1 층 4. `block.*`(시간 나눔, 캐시), `drive.*`(프레임)를 `metrics.ts`에 더하고 행이 없으면 `not_recorded`다. 비교는 `pluginVersion`·`profileRev`를 원본 턴으로 나눈다(`compareByGroups`). 발견 규칙 8과 12를 더했다. `profileCost.get`의 정적 줄은 프로필 플러그인 이름만 낸다. 미구현: 지침·도구 정의 어림(로더 대기), 모델 대기(단계 시간이 행에 없음), 컴팩션 횟수(행에 없음, `not_recorded`)] | L | 층 5 [구현: `turnRecord.watch·unwatch`와 알림 `turnRecord.delta`(`handlers/m5/watch.ts`, 사건 버스 `turn-events.ts`), `absent`의 `purged`(`turn-read.ts`, 기록 시각 `tr_meta.recording_since`, `turn-log.ts`로 로그 확인), 크기 상한(`turn-fit.ts`), `testRunsAlwaysOn`(`turn-writer.ts` `levelOf`). 훅 행의 추적 버퍼는 계측 꺼짐에서 아직 비므로 테스트 실행의 훅 행은 `trace.enabled`가 꺼지면 빈다]
 | 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 | L |
 | `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 | S |
 | `apps/desktop/src/views/workbench/craft-source.ts:119`, `apps/desktop/src/views/craft/turn-flow.ts:229`, `apps/desktop/src/views/panels/context/context-model.ts:125` | M6의 일. 읽기를 `turnRecord.get`으로 옮기고 구성 표를 플러그인별로 낸다. 이 문서는 데이터만 | M(M6) |
@@ -807,7 +807,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 5. (R12) 단계 도중 프로세스를 죽이면 마지막 완료 단계까지의 기록이 남고 턴은 `lost`로 읽힌다. 잃은 단계는 `recorded: false`다.
 6. (R12) `trace.enabled`를 끄면 새 턴은 `level: log_only`이고 훅 값은 `null`이며 지표는 `measurement_off`다. 켜면 다음 턴부터 `full`이다.
 7. (R12) 대화를 지우면 그 `thread_id`의 `tr_*` 행이 없어진다. `tr_daily`에 대화 id, 인자, 사유가 없다.
-8. (R12) 턴당 상한을 넘는 합성 턴(훅 600, 호출 600)이 `elided` 수와 함께 저장되고 `record_json`이 `maxTurnBytes` 이하다.
+8. (R12) 턴당 상한을 넘는 합성 턴(훅 600, 호출 600)이 `elided` 수와 함께 저장되고 `record_json`이 `maxTurnBytes` 이하다. [구현 일부: M5d-1 층 5. `turn-fit.test.ts`가 줄이기 순서와 셈을 값으로 확인하고, 요약 뒤 단계 행이 남는 것을 `turn-record-write.test.ts`가 본다. 600개 합성 턴 자체는 시험하지 않는다]
 9. (R12) 시크릿이 든 훅 사유와 인자가 저장된 행 어디에도 평문으로 없다.
 10. (R19) 재료를 낸 플러그인이 둘인 턴에서 `PluginCost.always`가 각자 합과 `composition` 합(`injected` 포함)의 차이 안에서 맞는다. 귀속을 못 정한 훅 메시지는 `shared`로 표시된다.
 11. (R19) 지연 도구를 `tool_search`로 활성화한 턴의 `Advertised.tools`가 `state: "activated"`이고 `PluginCost.onDemand`에 그 정의 토큰이 있다.
@@ -823,9 +823,9 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 21. (R16) 후보 Hook을 `backtest.run`으로 최근 N턴에 돌리면 실행된 도구가 하나도 없다(효과 이벤트가 늘지 않는다). 요청의 `replay: true` 아래에서 후보가 `capability()`를 부르면 `replay_mode_denied`이고 그 호출은 `candidate_fault`다.
 22. (R16) 합성 기록에서 후보가 실제로 실행된 호출을 막으면 `newly_caught`, 사람이 허용했던 호출이면 추가로 `would_block_allowed_by_human`이 된다. 후보가 던지면 `candidate_fault`이고 막음으로 세지 않는다.
 23. (R16) 결과에 `notReproducible` 여섯 항목이 항상 있다. 지원하지 않는 훅은 `3522`다.
-24. (R16) 테스트 실행 대화를 만들고 앱을 다시 시작해도 그 대화의 `scope_kind`가 `test`이고 기본 지표에 들지 않는다. `overlay_draft` 턴도 같다.
+24. [구현 일부: M5d-1 층 5, 항상 켜기 `turn-record-write.test.ts`(켠 때와 끈 때)] (R16) 테스트 실행 대화를 만들고 앱을 다시 시작해도 그 대화의 `scope_kind`가 `test`이고 기본 지표에 들지 않는다. `overlay_draft` 턴도 같다.
 25. (R16) 같은 입력으로 만든 테스트 실행 둘에서 `testRun.compare`가 `sameInput: true`와 `verdict`·훅 결과 수 비교를 낸다. 입력이 다르면 `false`다.
-26. (R23) 훅이 `tool.result`를 고친 호출에서 `turnRecord.delta`가 단계 끝 전에 `modified` 행을 보낸다. 닫은 뒤 다시 열어 `turnRecord.get`으로 같은 행을 읽는다.
+26. [미구현: 알림은 단계 행을 쓴 뒤에만 간다(M5d-1 층 5). 단계 끝 전의 `modified` 행은 아직 없다] (R23) 훅이 `tool.result`를 고친 호출에서 `turnRecord.delta`가 단계 끝 전에 `modified` 행을 보낸다. 닫은 뒤 다시 열어 `turnRecord.get`으로 같은 행을 읽는다.
 27. (R23) 계측이 꺼져 있어도 막힌 호출의 toolResult `details`만으로 막음 칩의 데이터가 있다.
 28. (R23, R13) 하위 에이전트 자식 대화의 턴 기록이 `parent`와 부모와 같은 프로필 표지를 가진다.
 29. 성능. 계측 켠 턴과 끈 턴의 디스패치·턴 시간 차이를 기존 `dispatch_overhead_trace_on_vs_off` 벤치(`docs/xeon/X/operations/spec.md` §4.8.5)와 같은 방식으로 재서 기록한다. 지금 기준값이 없으므로 이 문서도 수치를 정하지 않는다. 단계당 쓰기 묶음이 모델 호출 경로를 기다리게 하지 않는다(`measure` 기존 TX-09 규칙).

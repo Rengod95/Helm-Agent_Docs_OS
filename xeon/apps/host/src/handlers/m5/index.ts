@@ -1,13 +1,15 @@
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/wire";
+import type { ConnectionHub } from "../../connection-types.ts";
 import type { Engine } from "../../types.ts";
 import type { TurnReadError } from "../../assembly/measure/turn-read.ts";
 import { wireErrorOfStore } from "../../store-error.ts";
 
 // M5d 턴 기록과 지표의 처리기(문서 `review/m5/turn-record-metrics.md` §3.5, §3.8). 읽기 포트는 `engine.ports.measure.turnRecord`다.
 // 계측이 꺼졌거나 저장소를 열지 못한 것은 오류가 아니다(`enabled`, `level`로 낸다). 없는 대화는 `thread.notFound`(3001)다.
-// 등록하지 않은 것: `turnRecord.watch`, `turnRecord.unwatch`, 알림 `turnRecord.delta`, `backtest.*`.
+// 구독(`turnRecord.watch`, `unwatch`)은 연결의 `turnWatches`에 둔다. 알림 `turnRecord.delta`는 `watch.ts`가 보낸다.
+// 등록하지 않은 것: `backtest.*`.
 
 /** 포트의 실패 값을 wire 오류로 옮긴다. 같은 kind는 같은 오류다 */
 function wireErrorOfTurnRead(error: TurnReadError): WireError {
@@ -30,6 +32,8 @@ function wireErrorOfTurnRead(error: TurnReadError): WireError {
       return wireError("metrics.unknownMetric", { message: error.id });
     case "turn_missing":
       return wireError("turnRecord.turnNotFound", { message: "no such turn in the log" });
+    case "log_read":
+      return wireError("store.io", { message: `turnRecord log: ${error.reason}` });
     case "finding_not_found":
       return wireError("findings.notFound", { message: "no such finding in the latest result" });
     case "not_a_test_run":
@@ -48,11 +52,16 @@ function done<T>(value: T): Promise<T> {
   return Promise.resolve(value);
 }
 
-export function createM5Handlers(engine: Engine): {
+export function createM5Handlers(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): {
   readonly "turnRecord.list": WireHandler<"turnRecord.list">;
   readonly "turnRecord.get": WireHandler<"turnRecord.get">;
   readonly "turnRecord.search": WireHandler<"turnRecord.search">;
   readonly "turnRecord.mark": WireHandler<"turnRecord.mark">;
+  readonly "turnRecord.watch": WireHandler<"turnRecord.watch">;
+  readonly "turnRecord.unwatch": WireHandler<"turnRecord.unwatch">;
   readonly "metrics.catalog": WireHandler<"metrics.catalog">;
   readonly "metrics.query": WireHandler<"metrics.query">;
   readonly "findings.list": WireHandler<"findings.list">;
@@ -93,6 +102,21 @@ export function createM5Handlers(engine: Engine): {
       const out = port.get(params.threadId, params.turnId);
       if (!out.ok) throw wireErrorOfTurnRead(out.error);
       return done(out.value);
+    },
+
+    "turnRecord.watch": (params, context) => {
+      requireThread(params.threadId);
+      const conn = hub().state(context.connectionId);
+      if (conn === undefined) throw wireError("request.cancelled");
+      const sub = conn.nextSubId();
+      conn.turnWatches.set(sub, { sub, threadId: params.threadId });
+      return done({ sub, level: port.status().level });
+    },
+
+    "turnRecord.unwatch": (params, context) => {
+      // 모르는 구독은 오류가 아니다. 연결이 이미 없으면 가진 구독도 없다
+      hub().state(context.connectionId)?.turnWatches.delete(params.sub);
+      return done({});
     },
 
     "turnRecord.search": (params) => {

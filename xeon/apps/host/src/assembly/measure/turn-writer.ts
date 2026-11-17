@@ -14,11 +14,13 @@ import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
   SCOPE_KINDS,
+  type DeltaRow,
   type RecordLevel,
   type ScopeKind,
   type TurnStatus,
 } from "@fresnel/contracts/wire";
 import type { MeasureStore } from "./store.ts";
+import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import {
   advertisedRecordOf,
   cacheBreakOf,
@@ -34,7 +36,7 @@ import {
   trToolUseRowOf,
   type CacheUsage,
 } from "./turn-context.ts";
-import type { TrSkillRow, TrStepBatch, TrToolUseRow } from "./turn-tables.ts";
+import type { TrSkillRow, TrStepBatch, TrToolUseRow, TrTurnRow } from "./turn-tables.ts";
 import {
   callRecordOf,
   flatHooksOf,
@@ -71,6 +73,12 @@ export interface TurnWriterDeps {
   readonly logger: Logger;
   /** 쓰기를 묶음에 넣는다. 마이크로태스크에서 넣은 순서대로 실행된다 */
   readonly queue: (op: StoreOp) => void;
+  /** 쓰인 행을 알린다(읽기 전용 사건). 없으면 아무것도 하지 않는다 */
+  readonly events?: Pick<TurnRecordEvents, "emit">;
+  /** 한 턴 `record_json`의 상한(바이트, `x.operations.trace.maxTurnBytes`의 현재 값). 턴을 처음 볼 때 한 번 읽는다 */
+  readonly maxTurnBytes: () => number;
+  /** 테스트 실행 대화를 계측이 꺼져도 기록할지(`x.operations.trace.testRunsAlwaysOn`의 현재 값). 턴을 처음 볼 때 한 번 읽는다 */
+  readonly testRunsAlwaysOn: () => boolean;
 }
 
 export interface TurnWriter {
@@ -122,8 +130,18 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     return salt;
   }
 
-  function levelNow(): RecordLevel {
-    return deps.enabled() ? "full" : "log_only";
+  /** 턴의 기록 수준. 계측이 켜졌으면 `full`, 꺼졌어도 테스트 실행 대화이고 항상 켜기가 참이면 `full`이다(§4.1 규칙 3, 4) */
+  function levelOf(threadId: string): RecordLevel {
+    if (deps.enabled()) return "full";
+    if (deps.testRunsAlwaysOn() && scopeOf(deps.store, threadId, deps.logger) === "test") {
+      return "full";
+    }
+    return "log_only";
+  }
+
+  /** 쓰인 행을 알린다. 리스너 실패는 버스가 기록하므로 여기서는 쓰기를 건드리지 않는다 */
+  function publish(event: TurnRecordEvent): void {
+    deps.events?.emit(event);
   }
 
   function remember(draft: TurnDraft): void {
@@ -133,18 +151,20 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     if (oldest.done !== true) drafts.delete(oldest.value);
   }
 
-  /** 턴 행 하나를 쓴다. 범위는 쓰는 때마다 대화의 표지에서 다시 읽는다 */
+  /** 턴 행 하나를 쓴다. 범위는 쓰는 때마다 대화의 표지에서 다시 읽는다. 쓴 행을 돌려준다(알림의 `complete`가 이것을 따른다) */
   function writeTurnRow(
     store: MeasureStore,
     draft: TurnDraft,
     state: TurnState,
     phase: "open" | "closed",
-  ): void {
+  ): TrTurnRow {
     draft.scope = scopeOf(store, draft.threadId, deps.logger);
-    const written = store.upsertTurn(turnRowOf(draft, state));
+    const row = turnRowOf(draft, state);
+    const written = store.upsertTurn(row);
     if (!written.ok) {
       deps.logger.warn("measure.turn_write_failed", { reason: written.error.kind, phase });
     }
+    return row;
   }
 
   function turnStarted(record: DurableEventEnvelope, turnId: TurnId): void {
@@ -158,7 +178,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       startedAt: record.recordedAt,
       startedEventId: record.id,
       origin,
-      level: levelNow(),
+      level: levelOf(record.threadId),
+      maxBytes: deps.maxTurnBytes(),
     });
     remember(draft);
     deps.queue((store) => {
@@ -181,7 +202,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       startedAt: record.recordedAt,
       startedEventId: null,
       origin: "user",
-      level: levelNow(),
+      level: levelOf(record.threadId),
+      maxBytes: deps.maxTurnBytes(),
     });
     remember(draft);
     return draft;
@@ -357,7 +379,22 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     };
     deps.queue((store) => {
       const written = store.writeStep(batch);
-      if (written.ok) return;
+      if (written.ok) {
+        // 쓴 단계만 알린다. 단계 행 다음에 그 행의 훅과 호출 행을 같은 단계 번호로 싣는다
+        publish({
+          kind: "rows",
+          threadId: draft.threadId,
+          turnId: draft.turnId,
+          stepIndex,
+          rows: [
+            { kind: "step", stepIndex, step },
+            ...step.hooks.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
+            ...step.calls.map((call): DeltaRow => ({ kind: "call", stepIndex, call })),
+          ],
+          final: false,
+        });
+        return;
+      }
       draft.writeFailures += 1;
       deps.logger.warn("measure.step_write_failed", {
         reason: written.error.kind,
@@ -418,7 +455,28 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
       const complete = full && draft.writeFailures === 0;
-      writeTurnRow(store, draft, { status, endedAt, complete, turnHooks }, "closed");
+      const written = writeTurnRow(
+        store,
+        draft,
+        { status, endedAt, complete, turnHooks },
+        "closed",
+      );
+      // 턴 행은 쓰기가 실패해도 알린다(구독이 끝을 기다리지 않게 한다). 늦은 훅 행은 턴 행 앞에 온다
+      publish({
+        kind: "rows",
+        threadId: draft.threadId,
+        turnId,
+        stepIndex: null,
+        rows: [
+          ...late.rows.map((row): DeltaRow => ({
+            kind: "hook",
+            stepIndex: row.stepIndex,
+            hook: row.run,
+          })),
+          { kind: "turn", status, complete: written.complete },
+        ],
+        final: true,
+      });
     });
   }
 

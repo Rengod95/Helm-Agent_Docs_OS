@@ -1516,6 +1516,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
+| `x.operations.trace.maxTurnBytes` | integer | 262144 | 16384~4194304 | nextTurn | managed, user | plugins | 1차 |
+| `x.operations.trace.testRunsAlwaysOn` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.metrics.minSample` | integer | 20 | 1~10000 | live | managed, user | plugins | 1차 |
 | `x.operations.metrics.defaultWindowDays` | integer | 30 | 1~365 | live | managed, user | plugins | 1차 |
 | `x.operations.findings.enabled` | boolean | true | | live | managed, user | plugins | 1차 |

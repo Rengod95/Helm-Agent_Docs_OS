@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { Bug, parse, type Logger } from "@fresnel/contracts";
+import { Bug, parse, parseJson, type Logger } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   ToolCallTraceEvent,
@@ -15,6 +15,12 @@ import type { UsageRecord } from "@fresnel/contracts/services";
 import { TurnRecordSchema } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { startMeasurement, type MeasurementDeps } from "../../../src/assembly/measure/recorder.ts";
+import {
+  createTurnRecordEvents,
+  type TurnRecordEvent,
+  type TurnRecordEvents,
+} from "../../../src/assembly/measure/turn-events.ts";
+import { DEFAULT_MAX_TURN_BYTES } from "../../../src/assembly/measure/turn-fit.ts";
 import { createTestRunMarks } from "../../../src/assembly/measure/test-run-marks.ts";
 
 // T-MEAS-TURN: 턴 기록의 쓰는 쪽. 단계 끝에 단계 행과 훅 행을 쓰고(턴 도중에도 읽힌다), 턴 행은 열 때 `open`, 끝날 때 최종 상태다.
@@ -135,7 +141,13 @@ interface Harness {
 /** 측정을 한 폴더에 연다. 이벤트는 피드 구독자에 직접 흘리고, 모델 호출은 합산기 구독자에 흘린다 */
 function openHarness(
   dir: string,
-  options: { readonly enabled: boolean; readonly trace?: Pick<TraceReadPort, "turn"> },
+  options: {
+    readonly enabled: boolean;
+    readonly trace?: Pick<TraceReadPort, "turn">;
+    readonly events?: Pick<TurnRecordEvents, "emit">;
+    readonly testRunsAlwaysOn?: boolean;
+    readonly maxTurnBytes?: number;
+  },
 ): Harness {
   const listeners = new Set<CommitListener>();
   let meterListener: ((record: UsageRecord) => void) | undefined;
@@ -163,6 +175,9 @@ function openHarness(
     enabled: () => options.enabled,
     logger,
     now: () => AT,
+    ...(options.events === undefined ? {} : { events: options.events }),
+    testRunsAlwaysOn: () => options.testRunsAlwaysOn ?? true,
+    maxTurnBytes: () => options.maxTurnBytes ?? DEFAULT_MAX_TURN_BYTES,
   };
   const measurement = startMeasurement(deps);
   return {
@@ -337,9 +352,10 @@ test("a test run thread keeps its test scope after a restart and while the trace
     first.commit([event(1, "turn.started", TURN_STARTED)]);
     first.commit([event(2, "turn.completed", TURN_COMPLETED)]);
     await settle();
+    // 항상 켜기(`testRunsAlwaysOn`, 기본 참)라서 계측이 꺼져도 테스트 실행 턴은 full이다(§4.1 규칙 4)
     expect(storeOf(first.measurement).readTurn(THREAD, TURN)).toMatchObject({
       ok: true,
-      value: { turn: { scopeKind: "test", level: "log_only" } },
+      value: { turn: { scopeKind: "test", level: "full" } },
     });
     first.stop();
 
@@ -814,6 +830,92 @@ test("a decision ask takes its wait, approval id and answer from the call's appr
       ],
       ["ext:waiter", "none", "awaitUser", 2, 90, null, '{"toolCallId":"call_2"}'],
     ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a subscriber hears the step rows, then the turn row with final true, from the real writer", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  const events = createTurnRecordEvents(logger);
+  const heard: TurnRecordEvent[] = [];
+  events.subscribe((event) => {
+    heard.push(event);
+  });
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port, events });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(
+      heard.map((item) =>
+        item.kind === "rows"
+          ? [item.stepIndex, item.final, item.rows.map((row) => row.kind)]
+          : item.kind,
+      ),
+    ).toEqual([
+      [1, false, ["step"]],
+      [null, true, ["turn"]],
+    ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 계측이 꺼진 테스트 실행 턴 하나를 쓰고 그 수준을 돌려준다 */
+async function testRunLevelWith(alwaysOn: boolean): Promise<string | undefined> {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: false, testRunsAlwaysOn: alwaysOn });
+    const marks = createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    });
+    expect(marks.remember(THREAD, "profile-a")).toBe(true);
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    harness.stop();
+    return bundle.ok ? bundle.value?.turn.level : undefined;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a test run turn is full with the trace off while test runs are always on, and log_only when that is off", async () => {
+  expect(await Promise.all([testRunLevelWith(true), testRunLevelWith(false)])).toEqual([
+    "full",
+    "log_only",
+  ]);
+});
+
+test("an over-cap turn keeps its step rows, stores a summary record, and is not complete", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port, maxTurnBytes: 1 });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined)
+      throw new Bug("the over-cap turn must be written");
+    expect(bundle.value.turn.complete).toBe(false);
+    expect(bundle.value.steps.length).toBe(1);
+    const json = parseJson(bundle.value.turn.recordJson);
+    if (!json.ok) throw new Bug("the stored record must be JSON");
+    const record = parse(TurnRecordSchema, json.value);
+    if (!record.ok) throw new Bug("the stored record must parse");
+    expect(record.value.steps).toEqual([]);
+    expect(record.value.complete).toBe(false);
+    expect(record.value.elided.hooks).toBe(undefined);
     harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });

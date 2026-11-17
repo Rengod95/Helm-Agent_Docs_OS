@@ -22,6 +22,7 @@ import {
   type TurnStatus,
   type TurnSummary,
   type TurnFlagKey,
+  type Unsubscribe,
 } from "@fresnel/contracts/wire";
 import { Type } from "typebox";
 import { hookOutcomeOf, HOOK_OUTCOME_CLASSES } from "./classify.ts";
@@ -45,6 +46,7 @@ import {
   type OverrideMap,
 } from "./findings.ts";
 import type { MeasureStore, MeasureStoreError, TurnBundleRow } from "./store.ts";
+import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import { dailyId, foldTurn, mergeAggregates, type DailyCell } from "./turn-fold.ts";
 import type { TrTurnRow } from "./turn-tables.ts";
 
@@ -65,6 +67,8 @@ export type TurnReadError =
   | { readonly kind: "invalid_filter"; readonly message: string }
   | { readonly kind: "unknown_metric"; readonly id: string }
   | { readonly kind: "turn_missing" }
+  /** 대화 로그를 읽지 못했다(턴이 로그에 있는지 가릴 수 없다) */
+  | { readonly kind: "log_read"; readonly reason: string }
   | { readonly kind: "finding_not_found" }
   | { readonly kind: "not_a_test_run" };
 
@@ -80,6 +84,13 @@ export interface MetricsSettingsValues {
 /** 포트의 원천. 조립 루트가 채운다 */
 export interface TurnReadSource {
   readonly store: () => MeasureStore | undefined;
+  /** 대화 로그에서 턴의 시작 시각을 찾는다(`turn-log.ts`). 없으면 undefined */
+  readonly logTurnStartedAt: (
+    threadId: string,
+    turnId: string,
+  ) => Result<number | undefined, { readonly reason: string }>;
+  /** 턴 기록 사건의 구독(구독 알림의 원천, `turn-events.ts`) */
+  readonly events: Pick<TurnRecordEvents, "subscribe">;
   /** `x.operations.trace.enabled`의 현재 값 */
   readonly enabled: () => boolean;
   /** `x.operations.trace.retentionDays`의 현재 값. 이보다 오래된 턴은 접혔다 */
@@ -146,6 +157,8 @@ interface Snapshot {
 export interface TurnRecordReadPort {
   /** 계측 켜짐과 기록 수준(저장소가 없으면 `none`) */
   status(): { readonly enabled: boolean; readonly level: RecordLevel };
+  /** 턴 기록 사건을 구독한다(구독 알림 `turnRecord.delta`의 원천). 끊는 함수를 돌려준다 */
+  onEvent(listener: (event: TurnRecordEvent) => void): Unsubscribe;
   list(query: ListQuery): Result<ListOut, TurnReadError>;
   get(threadId: string, turnId: string): Result<GetOut, TurnReadError>;
   search(query: {
@@ -249,6 +262,29 @@ function windowOf(
 /** 저장된 문자열이 정본 목록에 있으면 그 값이다. 없으면 null(저장 데이터 손상) */
 function listedOf<T extends string>(values: readonly T[], value: string): T | null {
   return values.find((candidate) => candidate === value) ?? null;
+}
+
+/**
+ * 행이 없는 턴의 이유(§3.5). 순서대로 본다: 계측이 꺼졌으면 `off`, 턴 기록 저장소가 없거나 쓸 수 없으면 `never_recorded`,
+ * 턴이 기록을 쓸 수 있게 된 시각(`recording_since`) 뒤에 시작했고 보관 기간보다 오래되었으면 `purged`(보관 정리가 지웠다),
+ * 그 밖은 `never_recorded`다(기록 전에 시작했거나 기록이 없었다).
+ */
+function absentOf(input: {
+  readonly enabled: boolean;
+  readonly store: MeasureStore | undefined;
+  readonly startedAt: number;
+  readonly now: number;
+  readonly retentionDays: number;
+}): Absent {
+  if (!input.enabled) return "off";
+  const { store } = input;
+  if (store === undefined || !store.turnRecordAvailable()) return "never_recorded";
+  const since = store.recordingSince();
+  // 읽지 못하면 지운 것으로 단정하지 않는다
+  if (!since.ok || since.value === undefined) return "never_recorded";
+  const cutoff = input.now - input.retentionDays * DAY_MS;
+  const afterStart = input.startedAt >= since.value;
+  return afterStart && input.startedAt < cutoff ? "purged" : "never_recorded";
 }
 
 /** 턴 기록 행 하나를 목록 요약으로 바꾼다. `record_json`을 검증해 플래그와 자식 수를 얻는다 */
@@ -584,29 +620,40 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
       });
     },
 
+    onEvent(listener) {
+      return source.events.subscribe(listener);
+    },
+
     get(threadId, turnId) {
+      const enabled = source.enabled();
       const store = source.store();
-      if (store === undefined)
-        return ok({ enabled: source.enabled(), level: "none", record: null, absent: "off" });
-      const bundle = store.readTurn(threadId, turnId);
-      if (!bundle.ok) return err(storeError(bundle.error));
-      if (bundle.value === undefined) {
-        return ok({
-          enabled: source.enabled(),
-          level: source.enabled() ? "full" : "log_only",
-          record: null,
-          absent: source.enabled() ? "never_recorded" : "off",
-        });
+      const level: RecordLevel = store === undefined ? "none" : enabled ? "full" : "log_only";
+      if (store !== undefined) {
+        const bundle = store.readTurn(threadId, turnId);
+        if (!bundle.ok) return err(storeError(bundle.error));
+        if (bundle.value !== undefined) {
+          const parsedJson = parseJson(bundle.value.turn.recordJson);
+          if (!parsedJson.ok) return err({ kind: "corrupt" });
+          const record = parse(TurnRecordSchema, parsedJson.value);
+          if (!record.ok) return err({ kind: "corrupt" });
+          return ok({ enabled, level, record: record.value, absent: null });
+        }
       }
-      const parsedJson = parseJson(bundle.value.turn.recordJson);
-      if (!parsedJson.ok) return err({ kind: "corrupt" });
-      const record = parse(TurnRecordSchema, parsedJson.value);
-      if (!record.ok) return err({ kind: "corrupt" });
+      // 행이 없다. 턴이 로그에도 없으면 오류다(3501). 있으면 왜 없는지 준다
+      const started = source.logTurnStartedAt(threadId, turnId);
+      if (!started.ok) return err({ kind: "log_read", reason: started.error.reason });
+      if (started.value === undefined) return err({ kind: "turn_missing" });
       return ok({
-        enabled: source.enabled(),
-        level: source.enabled() ? "full" : "log_only",
-        record: record.value,
-        absent: null,
+        enabled,
+        level,
+        record: null,
+        absent: absentOf({
+          enabled,
+          store,
+          startedAt: started.value,
+          now: source.now(),
+          retentionDays: source.retentionDays(),
+        }),
       });
     },
 

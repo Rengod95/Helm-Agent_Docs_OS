@@ -1372,7 +1372,7 @@ export const BacktestSummarySchema: TUnsafe<BacktestSummary> = Type.Unsafe<Backt
 );
 
 // ── 메서드 params·result (§3.5, §3.8) ─────────────────────────────────
-// 아래 스키마는 레지스트리에 없다. 처리기가 생기면 methods.ts 표에 더하고 wire 시험이 문서와 대조한다.
+// 아래 스키마는 레지스트리에 있다(`turn-record-methods.ts`, 알림은 `methods.ts`의 알림 표). wire 시험이 문서 표와 대조한다.
 // `result`가 `{}`인 메서드는 EmptyParamsSchema(notifications.ts)를 쓴다.
 
 /** `turnRecord.list` params. `limit`은 기본 50, 최대 200 */

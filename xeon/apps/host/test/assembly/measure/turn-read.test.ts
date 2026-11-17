@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@fresnel/contracts";
+import { Bug, ok } from "@fresnel/contracts";
 import {
   hookOutcomeOf,
   postBlockClassOf,
@@ -43,11 +43,14 @@ function portOf(
   minSample = 20,
   now = NOW,
   enabled = true,
+  logged: ReadonlyMap<string, number> = new Map(),
 ): TurnRecordReadPort {
   return createTurnRecordPort({
     store: () => store,
     enabled: () => enabled,
     retentionDays: () => 30,
+    logTurnStartedAt: (_threadId, turnId) => ok(logged.get(turnId)),
+    events: { subscribe: () => () => undefined },
     now: () => now,
     metrics: () => ({
       minSample,
@@ -945,15 +948,44 @@ test("turnRecord.list and get read the stored record and say why a turn is absen
   if (!got.ok) throw new Bug("get must answer in this test");
   expect(got.value.absent).toBeNull();
   expect(got.value.record?.turnId).toBe("trn_r1");
-  const missing = port.get(T, "trn_none");
-  expect(missing).toEqual({
+  // 로그에도 없는 턴은 3501이다
+  expect(port.get(T, "trn_none")).toEqual({ ok: false, error: { kind: "turn_missing" } });
+  // 로그에는 있고 행이 없으면 이유를 준다. 기록 시각 표지가 없으면 지운 것으로 보지 않는다
+  const logged = new Map([["trn_none", NOW - HOUR]]);
+  expect(portOf(store, 20, NOW, true, logged).get(T, "trn_none")).toEqual({
     ok: true,
     value: { enabled: true, level: "full", record: null, absent: "never_recorded" },
   });
-  expect(portOf(store, 20, NOW, false).get(T, "trn_none")).toEqual({
+  expect(portOf(store, 20, NOW, false, logged).get(T, "trn_none")).toEqual({
     ok: true,
     value: { enabled: false, level: "log_only", record: null, absent: "off" },
   });
+  store.close();
+});
+
+test("a turn with no row is purged only when it started after recording began and before the retention cutoff", () => {
+  const store = memory();
+  const T = "thr_purge";
+  // 기록이 쓸 수 있게 된 시각: 40일 전. 그 뒤로 시작한 턴의 행은 보관 정리가 지웠을 수 있다
+  expect(store.markRecordingSince(NOW - 40 * DAY)).toEqual({ ok: true, value: 1 });
+  // 한 번 더 적어도 처음 값이 남는다
+  expect(store.markRecordingSince(NOW)).toEqual({ ok: true, value: 0 });
+  const logged = new Map([
+    ["trn_old", NOW - 35 * DAY], // 기록 뒤, 보관 기간(30일) 밖: 지워졌다
+    ["trn_young", NOW - 2 * DAY], // 보관 기간 안: 행이 있어야 했다
+    ["trn_before", NOW - 50 * DAY], // 기록 시작 전: 원래 기록이 없었다
+  ]);
+  const port = portOf(store, 20, NOW, true, logged);
+  for (const [turnId, reason] of [
+    ["trn_old", "purged"],
+    ["trn_young", "never_recorded"],
+    ["trn_before", "never_recorded"],
+  ] as const) {
+    expect(port.get(T, turnId)).toEqual({
+      ok: true,
+      value: { enabled: true, level: "full", record: null, absent: reason },
+    });
+  }
   store.close();
 });
 

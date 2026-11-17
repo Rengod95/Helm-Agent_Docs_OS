@@ -7560,6 +7560,33 @@
         }
       }
     },
+    "x.operations.trace.maxTurnBytes": {
+      "default": 262144,
+      "maximum": 4194304,
+      "minimum": 16384,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "A larger turn is shortened: material names, tool lists, and hook decision texts are dropped first",
+          "helpKey": "settings.x.operations.trace.maxTurnBytes.help",
+          "label": "Maximum stored size of one turn record",
+          "labelKey": "settings.x.operations.trace.maxTurnBytes.label",
+          "order": 525,
+          "tab": "plugins",
+          "unit": "bytes",
+          "unitKey": "settings.x.operations.trace.maxTurnBytes.unit",
+          "widget": "number"
+        }
+      }
+    },
     "x.operations.trace.retentionDays": {
       "default": 30,
       "maximum": 3650,
@@ -7605,6 +7632,29 @@
           "label": "Store model request bodies",
           "labelKey": "settings.x.operations.trace.storeRequestBody.label",
           "order": 530,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.operations.trace.testRunsAlwaysOn": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "When on, a test run is recorded even when handler tracing is off",
+          "helpKey": "settings.x.operations.trace.testRunsAlwaysOn.help",
+          "label": "Always record test runs",
+          "labelKey": "settings.x.operations.trace.testRunsAlwaysOn.label",
+          "order": 535,
           "tab": "plugins",
           "widget": "toggle"
         }

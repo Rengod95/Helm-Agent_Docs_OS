@@ -23,6 +23,8 @@ import {
   type MeasureStore,
 } from "./store.ts";
 import { cacheExpired } from "./turn-context.ts";
+import { DEFAULT_MAX_TURN_BYTES } from "./turn-fit.ts";
+import type { TurnRecordEvents } from "./turn-events.ts";
 import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
 import { createTurnWriter } from "./turn-writer.ts";
 
@@ -68,6 +70,12 @@ interface MeasureRecorderDeps {
   readonly storeBody: () => boolean;
   /** 시크릿 값을 가린다. 없으면 본문을 저장하지 않는다 */
   readonly mask: ((text: string) => string) | undefined;
+  /** 턴 기록이 쓰인 사건의 버스(구독 알림의 원천) */
+  readonly events?: Pick<TurnRecordEvents, "emit">;
+  /** `x.operations.trace.maxTurnBytes`의 현재 값 */
+  readonly maxTurnBytes: () => number;
+  /** `x.operations.trace.testRunsAlwaysOn`의 현재 값 */
+  readonly testRunsAlwaysOn: () => boolean;
 }
 
 /** 확장 핸들러 실패 한 건(`scope.handler_failed`의 값). 휘발 이벤트라 이 기록이 재시작 뒤에도 남는 유일한 사본이다 */
@@ -324,6 +332,9 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
         enabled: deps.enabled,
         logger: deps.logger,
         queue: enqueueOp,
+        ...(deps.events === undefined ? {} : { events: deps.events }),
+        maxTurnBytes: deps.maxTurnBytes,
+        testRunsAlwaysOn: deps.testRunsAlwaysOn,
       })
     : undefined;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
@@ -551,6 +562,12 @@ export interface MeasurementDeps {
   readonly storeRequestBody?: () => boolean;
   /** 시크릿 값을 가리는 함수. 없으면 본문을 저장하지 않는다 */
   readonly mask?: (text: string) => string;
+  /** 턴 기록 사건 버스. 턴 기록이 쓰이거나 대화가 지워지면 알린다 */
+  readonly events?: Pick<TurnRecordEvents, "emit">;
+  /** `x.operations.trace.maxTurnBytes`의 현재 값. 없으면 기본 262144 */
+  readonly maxTurnBytes?: () => number;
+  /** `x.operations.trace.testRunsAlwaysOn`의 현재 값. 없으면 참 */
+  readonly testRunsAlwaysOn?: () => boolean;
 }
 
 /**
@@ -602,6 +619,11 @@ export function startMeasurement(deps: MeasurementDeps): {
     if (!pruned.ok) deps.logger.warn("measure.prune_failed", { reason: pruned.error.kind });
   }
   maintain();
+  // 턴 기록을 쓸 수 있게 된 시각(§4.8, 지난 턴의 `purged`와 `never_recorded`를 가른다). 이미 있으면 바꾸지 않는다
+  if (store.turnRecordAvailable()) {
+    const marked = store.markRecordingSince(deps.now());
+    if (!marked.ok) deps.logger.warn("measure.mark_since_failed", { reason: marked.error.kind });
+  }
   const recorder = startMeasureRecorder({
     session: deps.session,
     usage: deps.usage,
@@ -613,6 +635,9 @@ export function startMeasurement(deps: MeasurementDeps): {
     storeBody: deps.storeRequestBody ?? (() => false),
     mask: deps.mask,
     turnRecords: store.turnRecordAvailable(),
+    ...(deps.events === undefined ? {} : { events: deps.events }),
+    maxTurnBytes: deps.maxTurnBytes ?? (() => DEFAULT_MAX_TURN_BYTES),
+    testRunsAlwaysOn: deps.testRunsAlwaysOn ?? (() => true),
   });
   return {
     stop: () => {
