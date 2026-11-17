@@ -99,7 +99,11 @@ import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-source
 import { createM4Ports } from "./m4/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
-import type { RegistrationId } from "@fresnel/contracts/extensions";
+import {
+  pluginDeclsOf,
+  registrationIdOf,
+  type RegistrationId,
+} from "@fresnel/contracts/extensions";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -361,9 +365,18 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const profile = await ports.m4.profileTestRun.get(profileId);
     if (!profile.ok || profile.value.startDrive === null) return undefined;
     const named = profile.value.startDrive;
-    return deps.ext
-      .registrations()
-      .find((info) => info.extension === named && info.drive !== "none")?.id;
+    const registrations = deps.ext.registrations();
+    // 세대는 대화가 그 플러그인을 켤 때 열리므로 첫 열기에서는 아직 "none"일 수 있다. 매니페스트가 주도를 선언한 Registration을 먼저 본다
+    const record = deps.extRead.extensions().find((one) => one.manifest.name === named);
+    const declared = new Set(
+      pluginDeclsOf(record?.manifest ?? {})
+        .filter((decl) => decl.drives === true)
+        .map((decl) => registrationIdOf({ name: named }, decl.id)),
+    );
+    return (
+      registrations.find((info) => info.extension === named && declared.has(info.id))?.id ??
+      registrations.find((info) => info.extension === named && info.drive !== "none")?.id
+    );
   }
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
   function isTestRunThread(threadId: ThreadId): boolean {

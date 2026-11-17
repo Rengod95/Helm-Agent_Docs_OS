@@ -106,7 +106,7 @@ export const PROFILE_LIMITS = { plugins: 128, settings: 128, profiles: 200 } as 
 
 export type ProfileIssueCode =
   | "plugin_unknown" | "plugin_not_reviewed" | "replace_conflict" | "driver_not_in_list"
-  | "driver_cannot_drive" | "setting_unknown_key" | "setting_scope_not_allowed" | "setting_invalid_value"
+  | "driver_cannot_drive" | "driver_unavailable" | "setting_unknown_key" | "setting_scope_not_allowed" | "setting_invalid_value"
   | "secret_literal" | "secret_missing" | "required_unset" | "requirement_unmet" | "managed_forbidden" | "limit";
 export interface ProfileIssue {
   readonly code: ProfileIssueCode;
@@ -346,7 +346,7 @@ export interface TestRunStart {
 | `craftChat.list` | `{ plugin?: string }` | `{ items: { threadId; plugin: string \| null; title: string \| null; lastActivityAt: string; status: string; draftCount: number; lastDraftId: string \| null; pendingItemId: string \| null }[] }` | - |
 | `thread.list` (변경) | `include?: "craft"` | 기존 | - |
 | `thread.create` (변경) | `craftChat?: { plugin?: string; contexts?: ContextRef[] }` (`craftChat.open`이 내부에서 쓴다. 클라이언트는 `craftChat.open`만 부른다) | 기존 | `profile.builtinProtected` |
-| `profile.preview` (변경) | 결과에 `dropsDrive: { threadCount: number } \| null`(그 변경이 Drive 중인 플러그인을 빼서 프레임을 내리는 열린 대화 수. 없으면 null) [구현 2026-11-18: 항상 null. 프레임 스택은 E3가 이 브랜치에 없다. 열린 임대(`openLease`)는 대화당 하나인 드라이브 락이라 프레임 스택이 아니고, 호스트가 읽는 포트도 없어서 원천으로 쓰지 않는다] | | |
+| `profile.preview` (변경) | 결과에 `dropsDrive: { threadCount: number } \| null`(그 변경이 Drive 중인 플러그인을 빼서 프레임을 내리는 열린 대화 수. 없으면 null) [구현 2026-11-18: 그 프로필을 참조하는 열린 대화의 주도권 스택(`ExtHost.driveFrames`)에 새 목록에 없거나 멈추거나 관리 잠금으로 꺼진 플러그인의 프레임이 있으면 그 대화를 센다(`dropsDriveOf`)] | | |
 | `project.list` (변경) | 결과의 각 프로젝트에 `threadCount: number`, `runningCount: number` | | |
 
 알림: `craftChat.changed { plugin }`(초안이 생기거나 검토 결과가 오면). 새 오류는 이름만 정하고 숫자는 3600~3649 안에서 구현 때 순서대로 배정한다.
@@ -405,7 +405,7 @@ export type ContextRef =
    - `driver_not_in_list`, `driver_cannot_drive`
    - `setting_unknown_key`, `setting_scope_not_allowed`, `setting_invalid_value`, `secret_literal`
    - `limit`(`plugins` 128, `settings` 128, 프로필 200)
-   경고: `secret_missing`, `required_unset`(필수 `userConfig`가 비어 있음. 그 플러그인은 대화에서 `waiting`(`config_required`)으로 보이고 켜지지 않는다), `requirement_unmet`(필요한 기능이 목록 안에 없음. 기존 Registration `waiting`), `managed_forbidden`.
+   경고: `secret_missing`, `required_unset`(필수 `userConfig`가 비어 있음. 그 플러그인은 대화에서 `waiting`(`config_required`)으로 보이고 켜지지 않는다), `requirement_unmet`(필요한 기능이 목록 안에 없음. 기존 Registration `waiting`), `managed_forbidden`, `driver_unavailable`(시작 Drive 플러그인이 관리 잠금으로 꺼졌거나 오류로 멈춰 있어 대화를 열 때 시작 Drive가 쌓이지 않는다 [제안: 저장은 막지 않는다]. 열 때 주도 등록이 없어 시작 요청이 빠지면 호스트가 `profile.start_drive_unavailable`을 로그에 남긴다).
 8. 비용 미리 보기 입력은 카드의 `cost`(`CostFigures`: `always`, `drive`, `onDemand`, `toolCount`, `basis`)다. `profile.preview.cost`는 해소된 목록의 정적 추정 합계(항상 / 필요할 때 / Drive 중)와 플러그인별 값이고, 측정값과 턴 기록 기반 값은 E의 `profileCost.get`이 낸다(같은 필드명, `basis`가 `measured`·`estimated`). 주도 중에만 싣는 지침은 훅이 넣으므로(§9.1) 정적 `drive` 값의 원천이 없다: 선언이 없으면 `null`, `basis: "unknown"`이고 E가 측정에서만 `inferred`로 채운다. 토큰은 문맥 조립이 쓰는 추정기와 같은 것으로 센다(`core-context/src/assemble.ts:242` `textTokens`). 항상 싣는 양 = 지침 파일 + 선언된 도구 설명. 필요할 때 = 스킬 색인 줄(설명 글자 수)과 본문 크기. 선언이 없는 코드 플러그인의 도구 비용은 `null`이다(`basis: "declared" | "unknown"`. `CostBasis`는 E §3.3이 `measured | estimated | declared | unknown` 넷으로 한 번 정의한다).
 9. 같은 프로필의 `settings`에 같은 키가 둘이면 마지막 값이 이긴다(지금 `collapsed`, `profile-test-run-port.ts:66-75`와 같다).
 
@@ -621,7 +621,7 @@ plugin-store/
 |---|---|---|---|
 | 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`; 적용 경로는 이 변경으로 제거되었다). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
 | 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `startDrive`, `builtin`, 공통 묶음, 파일 v2 | M |
-| 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 [구현 2026-11-18: 충돌, 정적 비용(§4.2.8), 도구 변화와 캐시 영향(§4.3.7)은 있다. `dropsDrive`는 null(E3), 재시작 키 경고는 코드 결정 대기(§4.1.7)] | M |
+| 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 [구현 2026-11-18: 충돌, 정적 비용(§4.2.8), 도구 변화와 캐시 영향(§4.3.7)은 있다. `dropsDrive`는 열린 대화의 프레임 스택에서 센다, 재시작 키 경고는 코드 결정 대기(§4.1.7)] | M |
 | 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`, 2026-11-18 확인: 이 줄 번호에 그 함수가 없다) | 새 설정 범위 `profile`(`layers.ts:9`, 이미 있음), `packages/core-tools/src/settings.ts:270` `pickMode`가 `profile`을 순회한다(이미 있음). 구현(2026-11-18): 엔진 `layers(threadId)`에 프로필 층을 더하고(`settings-engine.ts` `bindProfiles`), 도구 설정은 `ToolsSettingsSource.profileLayer`로 받는다 | M |
 | 스레드 켜짐 | `thread.want`/`record.desired`(`registration.ts:225`, `:835-871`)가 전역 기본값과 대화별 요청 | 대화별 값이 유일한 원천(`E(T)`), 전역 `desired`는 오류 정지만 | M |
 | 켜짐 설정 키 | 2026-11-18 확인: 키는 이미 관리 범위만 연다(`settings-keys.ts:32`). `followExtEnabled`는 코드에 없다(`apps/host/src/assembly/ext-enabled.ts`에는 `BUILTIN_GROUP_NAMES`만 있다) | 키를 관리 범위로 한정(완료), 프로필 변경 구독은 `plugin-set.ts`의 `onProfilesWritten`이 낸다 | M |

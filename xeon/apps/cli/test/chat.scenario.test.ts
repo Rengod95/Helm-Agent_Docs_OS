@@ -235,11 +235,6 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       tape("cli/group-toggle", [
         {
           role: "main",
-          label: "first user turn: a plain answer",
-          response: { type: "message", content: [t.text("hello.")], stopReason: "stop" },
-        },
-        {
-          role: "main",
           label: "the group's drive turn",
           response: {
             type: "message",
@@ -302,34 +297,24 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       protocolVersion: WIRE_PROTOCOL_VERSION,
       client: { name: "fresnel-cli-scenario", version: "0.0.0", kind: "other" },
     });
-    // 대화를 열 때 프로필의 시작 Drive가 주도 시작 요청을 낸다(drive-isolation.md 2.2)
-    await connection.request("profile.put", {
-      profile: {
-        id: "drive-start",
-        title: "Drive start",
-        plugins: [{ name: groupId }],
-        settings: [],
-        startDrive: groupId,
-      },
-      baseRev: null,
-    });
-    const created = await connection.request("thread.create", {
-      workspace: home.work,
-      profileId: "drive-start",
-    });
-    await connection.request("events.subscribe", {
-      from: created.position,
-      filter: { threadIds: [created.threadId] },
-    });
-    // 그룹을 넣은 프로필. 대화는 기본 프로필(그룹 없음)로 열리므로, 이 프로필을 참조하게 바꿔야 그룹이 켜진다(M5c §4.1.1·§4.1.2)
+    // 그룹을 넣은 프로필. 시작 Drive는 프로필의 시작 설정(`startDrive`)만 정한다(drive-isolation.md 2.2, §4.2.6). 그룹은 대화가 열릴 때 켜지고,
+    // 시작 요청은 대화의 첫 경계에서 처리된다. 열 때부터 Drive를 쥐어 첫 입력을 가져가지 않는다
     const groupProfile: ProfileInput = {
       id: "with-smoke-group",
       title: "with smoke group",
       plugins: [{ name: groupId }],
       settings: [],
-      startDrive: null,
+      startDrive: groupId,
     };
     await connection.request("profile.put", { profile: groupProfile, baseRev: null });
+    const created = await connection.request("thread.create", {
+      workspace: home.work,
+      profileId: groupProfile.id,
+    });
+    await connection.request("events.subscribe", {
+      from: created.position,
+      filter: { threadIds: [created.threadId] },
+    });
     // turn.completed가 커밋된 직후에는 루프가 아직 정착 중일 수 있어 turn.busy(retryable)가 온다.
     // M1 엔진에는 정착을 알리는 포트가 없다(ActivityPort는 task 그래프 변화만 알리고 snapshot은 M1에서 던진다).
     // 그래서 이벤트 루프를 한 바퀴 넘기며 시도 횟수 상한 안에서 다시 시도한다: 전역 시각과 고정 지연을 쓰지 않는다
@@ -351,19 +336,8 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       }
     };
 
-    // 첫 사용자 turn. 대화는 그룹 없는 기본 프로필로 열렸으므로 이 입력은 코어 루프가 받아 turn을 만든다(turnId가 온다).
-    // turn을 시작한 뒤 이 대화가 그룹 프로필을 참조하게 바꾸면 그룹은 다음 단계 경계에서 켜지고, 그 뒤 유휴가 되면 drive가 임대를 받아 turn을 만든다
-    const first = await startTurn("hello");
-    if (!("turnId" in first)) throw new Error("the first turn was not started");
-    await connection.request("thread.setProfile", {
-      threadId: created.threadId,
-      profileId: groupProfile.id,
-    });
-    const firstStarted = await log.waitFor(
-      (event) => event.kind === "turn.started" && event.turnId === first.turnId,
-      "the first turn's start",
-    );
-    await log.waitFor(turnEnded(first.turnId), "first turn end");
+    // 대화를 열면 시작 Drive가 임대를 받아 turn을 만든다. 사용자 입력은 아직 없다. 이 turn은 프로필의 시작 설정에서 온 것이다
+    await connection.request("thread.open", { threadId: created.threadId, mode: "write" });
     const driveStarted = await log.waitFor(
       (event) => event.kind === "turn.started" && payloadField(event, "scopeId") === groupId,
       "the drive's turn.started",
@@ -373,15 +347,6 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     const driveEnded = await log.waitFor(turnEnded(driveTurnId), "the drive turn's end");
     const enabled = log.need(scopeChanged(groupId, "enabled"), "scope enabled");
     const acquired = log.need(isKind("lease.acquired"), "lease.acquired");
-    const applied = log.need(
-      (event) =>
-        event.kind === "profile.applied" && payloadField(event, "profileId") === groupProfile.id,
-      "profile.applied of the group profile",
-    );
-    // 프로필 전환은 첫 turn이 시작된 뒤에 적용되고, 적용 기록과 그룹 켜기가 그 뒤다
-    expect(firstStarted.seq).toBeLessThan(applied.seq);
-    expect(firstStarted.seq).toBeLessThan(enabled.seq);
-    expect(payloadField(applied, "added")).toContain(groupId);
     // drive: 임대는 켜진 뒤에 나오고, 그 임대가 만든 turn이 끝까지 돈다
     expect(enabled.seq).toBeLessThan(acquired.seq);
     expect(acquired.seq).toBeLessThan(driveStarted.seq);
