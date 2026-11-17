@@ -363,6 +363,7 @@ function harness(): Harness {
         extensions: () => [],
         groupService: () => undefined,
       },
+      defaultPluginsDir: join(tmpdir(), "fresnel-ports-default-plugins"),
       schedule: partial<ScheduleService>({
         open: () => Promise.resolve(ok(undefined)),
         list: () => [],

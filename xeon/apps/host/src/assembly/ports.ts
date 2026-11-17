@@ -96,6 +96,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { createPluginService } from "./plugins/index.ts";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -164,6 +165,8 @@ export interface PortsDeps {
   readonly dialogArea: DialogAreaHolder;
   /** 확장 읽기 wire(`ext.*`, `group.*`, `hooks.list`)의 원천 재료. 조립 루트가 확장 목록, 운영 정책, 그룹 서비스를 넘긴다 */
   readonly extRead: ExtReadAssembly;
+  /** 기본 플러그인 번들 뿌리(`defaultPluginsDir()` 또는 옵션). 플러그인 읽기 서비스가 번들 폴더로 본다 */
+  readonly defaultPluginsDir: string;
   /** 시작 때 저장소 등이 알린 일(`host.status.startupNotices`). 없으면 알릴 것이 없는 것이다 */
   readonly startupNotices?: readonly StartupNotice[] | undefined;
 }
@@ -976,6 +979,18 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,
+    // 플러그인 읽기(M5c §3.4). 프로필 목록은 M4 포트가 쥔 것을 부를 때마다 읽는다(`ports`는 이 객체가 만들어진 뒤에 채워진다)
+    plugins: createPluginService({
+      configDir: deps.configDir,
+      // 프로젝트 개념(enC2 트랙)이 주입하기 전까지 프로젝트 위치를 보지 않는다
+      projectRoots: () => [],
+      // 관리 폴더는 아직 조립되지 않았다
+      managedDir: null,
+      bundleDir: deps.defaultPluginsDir,
+      records: () => deps.extRead.extensions(),
+      profiles: { list: () => ports.m4.profileTestRun.list() },
+      log,
+    }),
     m4: createM4Ports(
       deps.ext,
       {

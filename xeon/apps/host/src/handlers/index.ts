@@ -24,6 +24,7 @@ import {
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
 import { createM5Handlers } from "./m5/index.ts";
+import { createPluginHandlers } from "./m5/plugins.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -132,6 +133,7 @@ export function createWireHandlers(
     ...createDevkitHandlers(engine.ports.m4.devkit),
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
+    ...createPluginHandlers(engine.ports.plugins),
     // 프로젝트·플러그인 검토 메서드(M5c §3.4)는 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
     "project.list": notImplemented("project.list"),
     "project.get": notImplemented("project.get"),
@@ -139,8 +141,6 @@ export function createWireHandlers(
     "project.rename": notImplemented("project.rename"),
     "project.delete": notImplemented("project.delete"),
     "project.instructions": notImplemented("project.instructions"),
-    "plugin.list": notImplemented("plugin.list"),
-    "plugin.get": notImplemented("plugin.get"),
     "plugin.invocables": notImplemented("plugin.invocables"),
     "plugin.scan": notImplemented("plugin.scan"),
     "plugin.revert": notImplemented("plugin.revert"),

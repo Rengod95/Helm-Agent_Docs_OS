@@ -442,6 +442,12 @@ export type ContextRef =
 
 ### 4.5 플러그인 원본과 로더
 
+> **구현 상태(M5c 읽기 단계, 2026-11-18).** 발견(2번), 폴더 읽기와 신호(3번), 추론(4번), 카드(5번)와 읽기 처리기 `plugin.list`·`plugin.get`(§3.4)을 구현했다. 코드는 `apps/host/src/assembly/plugins/`(`discover.ts`, `folder-reader.ts`, `card.ts`, `content-hash.ts`, `material-port.ts`, `service.ts`)와 `apps/host/src/handlers/m5/plugins.ts`다. 아직 없는 것은 검토본 저장소(6·8번), 원본 감시(7번), 재료 로더의 코어 연결(10번: `MaterialPort`는 만들었지만 코어가 아직 부르지 않는다), 검토함이다. 이 단계의 `plugin.get`은 `versions`, `entries`, `settingsDefs`를 빈 배열로 준다.
+>
+> 이 단계에서 정한 것은 다음과 같다. [제안] 목록은 `scan()`이 채운 캐시를 읽는다. 원본이 바뀌어도 `plugin.scan`(다음 단계)을 부르기 전에는 다시 훑지 않는다. 사용처(`usedBy`)는 캐시하지 않고 읽을 때 프로필에서 계산한다. [제안] 발견 순서는 내장 레코드, 폴더 원본, 나머지 레코드 순이다. 폴더 원본이 있는 이름의 로드된 레코드는 카드를 만들지 않는다. 기본 제공 번들 `helm`은 기본 설치 때 `<config>/extensions/helm`에도 놓이므로, 번들 쪽이 `name_conflict` 진단으로 남는다(§10 17번). 프로젝트 루트 목록은 enC2 트랙이 주입하기 전까지 빈 목록이고, 관리 폴더는 조립에 없어 `null`이다.
+>
+> 아래의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다. 이 단계의 구현 위치는 위 목록이 정본이다.
+
 1. 플러그인은 폴더다. 이름은 매니페스트 `name`, 없으면 폴더 이름이며 `ExtensionNameSchema`를 만족해야 한다(아니면 진단 `name_invalid`, 후보 아님).
 2. 발견 위치(위가 먼저, 이름 충돌 처리는 8번):
 
@@ -627,8 +633,8 @@ plugin-store/
 | 지침 파일 | 코어는 읽지 않음(`prepare-request.ts:95` `sections: {}`, `grep AGENTS` 결과 없음). 문서만 읽힌다고 적음 | 루트→대화 폴더 경로의 `AGENTS.md`를 `sections`로(§4.4.7) | M |
 | 서브에이전트 상속 | 대화 폴더는 이미 상속(`core-agents/service.ts:1033-1043`). 프로필 필드 없음 | 자식이 부모 `profileId`를 받는다(`service.ts:1041` 생성 입력). 엔진 설계 F2("상속 안 함")는 커밋 `9ce14f8b0`으로 non-fork 경로에서 이미 고쳐졌다 | S |
 | 매니페스트 | `entry`, `plugins` 필수(`manifest.ts:249-250`). `components.skills/commands/mcpServers`는 선언만 있고 읽는 곳이 없다(`components`를 읽는 곳은 `default-plugins.ts:259`의 `agents`뿐) | 선택으로, `purpose`, `components.instructions`, `tools`, `commands` 추가, 추론(§4.5.4) | M |
-| 발견 | `<config>/extensions/*`, `.fresnel/extensions/*`, 한 단계, `.fresnel-plugin/plugin.json` 필수(`discover.ts:56-62`, `:121-`) | 새 위치 `plugins/`, 매니페스트 없는 폴더 추론, 느슨한 자원을 후보로 | M |
-| 재료 로더 | 스킬은 가이드만(`extensions.ts:484`), MCP는 설정과 루트 `.mcp.json`만(`cap-mcp/servers/loader.ts:12`. `.mcp.json` 읽기는 제거한다, §4.4.10), 에이전트는 기본 플러그인만(`default-plugins.ts:259`), 명령은 코드만 | `MaterialPort`와 §4.5.10 표. `E(T)` 필터 | L |
+| 발견 | `<config>/extensions/*`, `.fresnel/extensions/*`, 한 단계, `.fresnel-plugin/plugin.json` 필수(`discover.ts:56-62`, `:121-`) | 새 위치 `plugins/`, 매니페스트 없는 폴더 추론, 느슨한 자원을 후보로. 이 단계에서 구현했다(`assembly/plugins/discover.ts`, `folder-reader.ts`) | M |
+| 재료 로더 | 스킬은 가이드만(`extensions.ts:484`), MCP는 설정과 루트 `.mcp.json`만(`cap-mcp/servers/loader.ts:12`. `.mcp.json` 읽기는 제거한다, §4.4.10), 에이전트는 기본 플러그인만(`default-plugins.ts:259`), 명령은 코드만 | `MaterialPort`와 §4.5.10 표. `E(T)` 필터. 포트 구현은 이 단계에서 끝났다(`assembly/plugins/material-port.ts`, 시험 있음). 코어 연결은 다음 단계 | L |
 | 검토본 | 없음. 사용자 설치본은 `<config>/extensions/<name>`에서 바로 실행. 버전 보관은 설치본 복사와 `manifestHash`(`version-history.ts:32-39`) | 내용 해시, `plugin-store/`, 항상 검토본에서 적재, 적재 때 해시 재확인 | L |
 | 검토함 | 없음. 설치는 `ext.installPreview`(`sha256`로 `source_changed` 거부) + `ext.install`, 삭제는 `ext.remove` | 검토 항목·결정·기록, `pluginReview.*`, `plugin.*`. 위 `ext.*` 설치·삭제 제거. 플러그인 빌더의 산출 경로(`link` → `ext.install`)는 이 단계에서 `PluginSubmitPort.submit`으로 바꾼다(엔진 설계 E1은 기존 `link`를 그대로 둔다) | L |
 | 신뢰 등급 | 4등급과 tier, 폴더 신뢰 카드가 플러그인류 자원도 판정(`trust/resources.ts:20-33`) | 등급은 유지, 검토본 없음 = `untrusted`, 플러그인류는 검토함이 판정(§4.6.9) | M |
@@ -771,6 +777,7 @@ plugin-store/
 14. **[제안] 배치 이름.** `.fresnel/hooks`와 그 밖의 비인식 형식 범위, `.fresnel/mcp.json` 등 느슨한 자원의 이름(§4.4.10).
 15. **[확인 대기] 테스트 대화의 시작 Drive 재쌓기**(§4.8.6)와 숨은 프로필이 공통 묶음을 받지 않는 것. 기본값은 본문대로.
 16. **[확인 대기] 초안 보관 20개**(§4.9.2).
+17. **[미결] 기본 제공 번들과 설치 복사의 이름 충돌.** [근거: `apps/host/src/assemble.ts:983`, `:1009`] 기본값: 기본 설치로 놓인 `<config>/extensions/helm`이 먼저 발견되어 카드가 되고, 번들 `helm`은 `name_conflict` 진단으로 남는다(§4.5 8번). 대안: 번들을 먼저 발견되는 쪽으로 세우거나, 설치 복사를 두지 않는다.
 
 ## 11. 요구 추적표
 

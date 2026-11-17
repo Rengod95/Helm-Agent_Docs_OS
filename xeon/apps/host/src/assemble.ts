@@ -1352,6 +1352,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     portsHandle = createEnginePorts({
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
+      defaultPluginsDir: bundleRoot,
       startupNotices,
       measure: {
         store: () => measurement.store,
