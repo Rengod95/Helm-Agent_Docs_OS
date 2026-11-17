@@ -140,21 +140,26 @@ function recorded(inner: Transport, frames: string[]): Transport {
   };
 }
 
-/** `security` 해석만 가짜 스크립트로 바꾼다. 나머지 해석과 운영 제공자 코드는 그대로다 */
+/** OS 키 저장소 도구(macOS security, Linux secret-tool) 해석만 가짜 스크립트로 바꾼다. 나머지 해석과 운영 제공자 코드는 그대로다 */
 function runtimeWith(keychain: FakeKeychain): (deps: SecretsRuntimeDeps) => SecretsRuntime {
   const shim: ResolvedBinary = {
-    name: "security",
-    path: keychain.securityPath,
+    name: keychain.toolName,
+    path: keychain.toolPath,
     version: "fake",
     source: "system",
   };
   return (deps) =>
     createSecretsRuntime({
       ...deps,
+      // Linux의 probe는 세션 버스 단서(env)를 본다. 가짜 secret-tool은 버스를 쓰지 않으므로 주소만 채운다
+      env:
+        keychain.toolName === "secret-tool"
+          ? { ...deps.env, DBUS_SESSION_BUS_ADDRESS: "unix:path=/nonexistent/fresnel-test-bus" }
+          : deps.env,
       os: {
         ...deps.os,
         resolveBinary: (name, options, signal) =>
-          name === "security"
+          name === keychain.toolName
             ? Promise.resolve(ok(shim))
             : deps.os.resolveBinary(name, options, signal),
       },
