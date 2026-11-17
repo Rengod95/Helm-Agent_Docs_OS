@@ -199,24 +199,13 @@ export function userConfigOf(
   });
 }
 
-/** 이 확장의 drive 상태(그룹이고 drive를 쓸 때만). 역할과 대기 횟수는 `RuntimeDriveView`에서 찾는다 */
-export interface InspectDriveVM {
-  readonly role: DriveRoleOf;
-  readonly waits: number | null;
-  readonly waitLimit: number | null;
-}
-
-/** 검사기 drive 역할: 보유, 대기, 거절, 오류, 후보 아님(`none`) */
-export type DriveRoleOf = "holder" | "waiting" | "rejected" | "error" | "none";
+/** 검사기 drive 역할: 보유(맨 위 플러그인 프레임), 대기(`waiting` 프레임), 오류, 후보 아님(`none`) */
+export type DriveRoleOf = "holder" | "waiting" | "error" | "none";
 
 /** 그룹 id의 drive 역할을 drive 구역 값에서 찾는다. 구역에 없으면 후보가 아니다(`none`) */
-export function inspectDriveOf(view: RuntimeDriveView, id: string): InspectDriveVM {
-  if (view.holder?.id === id) return { role: "holder", waits: null, waitLimit: null };
-  const queued = view.queue.find((m) => m.id === id);
-  if (queued !== undefined)
-    return { role: "waiting", waits: queued.waits, waitLimit: queued.waitLimit };
-  if (view.rejected.some((m) => m.id === id))
-    return { role: "rejected", waits: null, waitLimit: null };
-  if (view.errored.some((m) => m.id === id)) return { role: "error", waits: null, waitLimit: null };
-  return { role: "none", waits: null, waitLimit: null };
+export function inspectDriveOf(view: RuntimeDriveView, id: string): DriveRoleOf {
+  if (view.holder?.id === id) return "holder";
+  if (view.queue.some((m) => m.id === id)) return "waiting";
+  if (view.errored.some((m) => m.id === id)) return "error";
+  return "none";
 }

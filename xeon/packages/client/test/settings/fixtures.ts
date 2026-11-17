@@ -73,6 +73,7 @@ export function fakeConnection(table: ConnectionTable): FakeConnection {
     "settings.invalidated": new Set(),
     "notify.delivered": new Set(),
     "profile.changed": new Set(),
+    "drive.framesChanged": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];
   const connection: HostConnection = {

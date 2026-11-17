@@ -82,7 +82,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 - [제안] 정식 예 3종은 `src/testing/policies/`에 두고 `testing` 진입점에서만 내보낸다. 템플릿 파일은 패키지 루트의 `templates/`에 두고 진입점에 넣지 않는다(L3.slots.spec §3.3.1, L3.slots.plan §2.1 후보 a). 위치의 최종 확정은 §10 템플릿 위치 [미결]과 함께 한다.
 
 - [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06).
-- [제안] `group-sdk`은 `@fresnel/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@fresnel/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `DriveLockArbiterPort`·`DriveLockCandidate`는 F `@fresnel/contracts/extensions`(F.extensions.spec §3.2.1 `ports.ts`)에서, `GroupService`와 부속 타입은 F `@fresnel/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@fresnel/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `fresnel.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-sdk` 행).
+- [제안] `group-sdk`은 `@fresnel/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@fresnel/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `GroupService`와 부속 타입은 F `@fresnel/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@fresnel/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `fresnel.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-sdk` 행).
 - [결정: review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@fresnel/group-sdk`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-sdk`(`from`은 `packages/group-*`, 진입점 `.`와 `./testing`)이다. `group-sdk`은 어떤 그룹 패키지도 import하지 않는다.
 - [결정: 계획 v2 규칙 2, DR-14] L3 패키지는 `cap-*`를 import하지 않는다. 기능은 `g.capability(ServiceKey)`로 쓴다(`architecture.layers.spec` 3.1절 2행, F.capabilities.spec §3.5).
 
@@ -444,7 +444,7 @@ export type DelegateResult =
 | 스택에 없음(켜졌고 drive 등록) | `none` | 후보 대기가 없어졌으므로 `waiting`으로 내지 않는다 |
 | 꺼짐, 또는 drive 미사용 | `none` | §3.8 기존 규칙 |
 | drive 함수 오류(`RegistrationInfo.drive = "error"`) | `error` | 스택 위치보다 먼저 본다 |
-| `rejected` | 더는 내지 않음 | 대기 상한 거부가 없어졌다. 계약 값만 남았고 계약 정리 단계에서 지운다 [미결] | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| `rejected` | 없음 | 대기 상한 거부가 없어졌고, 계약의 `rejected` 값도 계약 정리 단계(E3)에서 걷었다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 
 3. `GroupService`가 확장하던 X `DriveLockArbiterPort.choose`와 그 포트 키는 계약 정리 단계에서 걷었다(E3). `GroupService`는 포트를 확장하지 않는다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 4. `setDriveHolder`와 `/group drive`는 계약 정리 단계에서 키 `x.primitives.activeDriver`와 함께 걷었다. 지정은 주도를 바꾸지 않았으므로 남은 경로가 없다. [근거: E3 구현, drive-isolation.md 2.2]
@@ -541,7 +541,7 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 
 ### 3.8 GroupService (`fresnel.groups`)
 
-[결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `GroupService`가 X `DriveLockArbiterPort`(`F.extensions.spec` §3.2.1)를 확장하고 X가 그 포트로 주입받기 때문이다. 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. group-sdk은 `service.ts`에서 이 인터페이스를 구현한다.
+[결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `GroupService`는 X 중재 포트를 확장하지 않는다(E3에서 걷었다). 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. group-sdk은 `service.ts`에서 이 인터페이스를 구현한다.
 
 ```ts
 // xeon/packages/contracts/src/services/groups.ts  (F.capabilities.spec §3.12)
@@ -617,14 +617,14 @@ export interface GroupService {
 
 - 구현 [M2, E3에서 `driveHolderSetting()`과 `setDriveHolder`를 걷음]: `createGroupService(deps)`가 `GroupServiceWithUsage`(`GroupService` + 계측 메서드)를 만든다. 의존은 `host`(`ExtHost`의 `registrations`·`registration`·`driveFrames`·`onChange`·`ports`·`queryEvents`·`toolOwner`·`resetRegistrationState`), `catalog`, `currentThread`, `report`이고 `instrumentation`·`onEnabled`·`metrics`·`promotion`은 선택이다.
 - 서비스 이름 `fresnel.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`다. 서비스는 포트가 아니라 조립 루트가 `onService`로 받는다(E3).
-- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
+- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 Registration 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
 - 거부 표시 [M3a, G-30, E3에서 걷음]: `lease.rejected` 구독과 거부 집합(`lease-rejections.ts`)은 없다. 엔진은 이 이벤트를 더 발행하지 않는다. `GroupStatus.drive`의 `rejected`도 더 내지 않는다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. Registration 토글과 drive lock이 thread마다 따로인지는 X.primitives.spec이 정한다.
 
 ### 3.9 전환 명령과 상태줄
 
-명령 문법(L4가 등록하고 group-sdk은 해석과 실행만 제공한다). `on`, `off`, `reset`의 대상은 플러그인 그룹이다. 그룹 하나는 확장 하나이므로 `on`과 `off`는 구성원 전체(`group.members`, 없으면 모든 플러그인)를 한 번에 켜고 끈다. `drive`의 대상은 플러그인 그룹 이름이다. 그 그룹의 Registration id가 주도 플러그인 설정 `x.primitives.activeDriver`에 적힌다(§3.5).
+명령 문법(L4가 등록하고 group-sdk은 해석과 실행만 제공한다). `on`, `off`, `reset`의 대상은 플러그인 그룹이다. 그룹 하나는 확장 하나이므로 `on`과 `off`는 구성원 전체(`group.members`, 없으면 모든 플러그인)를 한 번에 켜고 끈다. `drive` 명령은 E3에서 걷었다. 주도 시작은 `/helm start`(`g.startDrive()`)가 맡는다(§3.5).
 
 ```text
 group-cmd = "/group" [ SP sub ]
@@ -675,11 +675,8 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 
 | 경우 | `text` |
 |---|---|
-| 인자 해석 실패 | `사용법: /group status [이름] \| on <이름> \| off <이름> \| drive <이름\|auto>` |
+| 인자 해석 실패 | `사용법: /group status [이름] \| on <이름> \| off <이름>` |
 | 알 수 없는 이름 | `알 수 없는 그룹: xyz. 설치된 그룹: helm, learning` |
-| drive 미사용 그룹을 holder로 지정 | `learning 그룹은 drive를 쓰지 않아 구동 그룹으로 지정할 수 없다` |
-| 잠긴 설정 | `x.primitives.activeDriver은 상위 범위 설정이 잠가 바꿀 수 없다` |
-| 쓸 수 없는 설정 | `x.primitives.activeDriver을 쓸 수 없다: <이유>`. 이유 문구: `no_thread` 쓸 대화가 없다 / `ambiguous_thread` 열린 대화가 여럿이라 어느 대화에 쓸지 정할 수 없다 / `not_owner` 그 대화의 쓰기 소유를 이 프로세스가 쥐고 있지 않다 / `project_unavailable` 작업 폴더 설정 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않는다) / `invalid_value` 값이 설정 정의에 맞지 않는다 / `storage` 저장소나 설정 파일 쓰기에 실패했다 |
 | 켜기 요청(실행 중) | `helm 켜기 요청을 기록했다. 다음 단계 경계에 적용한다` |
 | 켜기 적용(유휴) | `helm 그룹을 켰다` |
 | 끄기 요청(실행 중) | `helm 끄기 요청을 기록했다. 다음 단계 경계에 적용한다` |
@@ -1004,8 +1001,8 @@ X.primitives.spec에 있는 것:
 | 토글 | `ExtHost.registration(id): RegistrationHandle \| undefined`의 `enable()`, `disable()` | §3.1, §4.5.2 |
 | 주도 스택 읽기 | `ExtHost.driveFrames(threadId): readonly DriveFrameView[]`(E3, drive-isolation.md 2.6). 맨 아래가 코어 루프 깊이 0이다. 계약 `DriveFrameView`는 F.extensions.spec | §3.5, §4.3 |
 | 주도 시작 요청 | `ExtHost.startDrive(threadId, scopeId, options?)`, `RegistrationHostApi.startDrive(input?)` | §3.2, §3.5 |
-| 중재 포트(제거) | `DriveLockArbiterPort.choose`와 `DriveLockArbiterPortKey`는 E3에서 엔진이 쓰지 않는다. 계약 정리 단계에서 지운다 [미결] | §3.5 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-| 구동 그룹 설정(쓰기만) | `x.primitives.activeDriver`. 엔진은 읽지 않는다(E3) | §3.5, §6 |
+| 중재 포트(제거) | `DriveLockArbiterPort.choose`와 `DriveLockArbiterPortKey`는 E3에서 엔진이 쓰지 않는다. 계약 정리 단계(E3)에서 걷었다 | §3.5 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 구동 그룹 설정 | `x.primitives.activeDriver`는 E3에서 설정과 계약에서 걷었다. 주도 시작은 명령과 프로필이 한다 | §3.5, §6 |
 | 리소스 등록 | `hostOf(g).registerTool`, `hostOf(g).registerCommand`, `hostOf(g).registerProvider`, `ExtHost.resources` | §3.8, §3.9, §4.8 |
 | 상태 커밋과 크기 상한 | `commit`의 `expectStateRev`, `state_too_large` | §4.6.1 |
 | 유휴 토글 적용 | 유휴면 다음 매크로태스크에 적용 | §4.5.5 |
@@ -1039,7 +1036,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 ### 4.2 로드와 setup 순서
 
 1. 조립 루트(`apps/host`)가 `group-sdk`을 Cordis 플러그인으로 등록한다 [가정: X 플러그인 정의 API]. `group-sdk`은 확장 매니페스트를 갖지 않는 내장 서비스 플러그인이다 [제안]. `group` 선언이 있고 L3 루트 플러그인을 가진 매니페스트만 그룹으로 읽히기 때문이다(매니페스트 검증에서 이 검사를 둘지는 [미결]이고, 지금은 `defineGroup`이 `group_missing_orchestration`으로 검사한다).
-2. `group-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.groups`(`GroupService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약이 요구하는 동안만 `() => null`로 남는다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+2. `group-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.groups`(`GroupService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약에서 걷었다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 3. X 로더가 그룹 모듈마다 `validateManifest`, `validateManifestSet`을 부르고, 설정 묶음을 카탈로그에 넣고, `entry`를 부른다. setup 직후 X가 `validateUsage`를 부른다.
 4. 그룹 setup 안의 `g.drive(fn)`은 등록만 한다. drive lock은 §4.3이 정한다.
 
@@ -1140,7 +1137,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | # | 사례 | 처리 |
 |---|---|---|
 | 1 | 이름 충돌: 같은 `name`의 그룹이 둘 설치됨 | X `validateManifestSet`이 `name_conflict` 오류를 낸다. 뒤에 로드한 쪽을 거부한다 [가정: X.loading-trust.spec]. 이름이 `RESERVED_GROUP_NAMES`(예: `auto`)면 `defineGroup`이 `group_name`으로 거부한다 |
-| 2 | 존재하지 않는 구동 그룹 지정 | 명령·서비스 경로는 `group.unknown`으로 거부하고 설정을 바꾸지 않는다. 설정 파일에 이미 없는 이름이 있어도 엔진은 그 값을 읽지 않으므로 주도에 영향이 없다. `/group status`는 설정 줄을 내지 않는다(E3) | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 2 | 존재하지 않는 그룹 이름 | 구동 그룹 설정은 없다(E3). 이름 해석은 명령 경로의 규칙을 따른다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 | 3 | drive 함수 예외 | X가 그 프레임을 내린다(`lease.released{reason:"error"}`, F.extensions.spec §5 6번). `GroupStatus.drive = "error"`, `lastError = group.driveThrew`. `on` 핸들러와 `post`, `delegate`는 계속 동작한다. 오류 표시는 그룹을 끄고 다시 켜면 지워진다(X.primitives.spec §4.4.3 예외 규칙). 그동안 시작 요청은 `drive_error`로 거부된다 |
 | 4 | 맡기고 기다리는 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 그 프레임과 위 프레임이 `disabled`로 내려간다(X.primitives.spec §4.5.3) [가정]. `scope.changed{disabled}`가 커밋된다 |
 | 5 | 주도 중인 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 turn 명령은 정착까지 돈다(X.primitives.spec §4.5.3). 아래 프레임은 `aborted`로 이어 받는다. 새 후보를 고르지 않는다. 다음 주도는 사용자의 시작 요청으로 한다 |
@@ -1151,7 +1148,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 10 | 상태 마이그레이션 실패 | 그 그룹만 로드 실패(`group.migrationFailed`). 다른 그룹과 대화는 계속 |
 | 11 | 매니페스트에 없는 레코드 kind 쓰기 | F `validateUsage` `record_kind_undeclared`. 이벤트를 쓰지 않는다 |
 | 12 | `delegate`의 `requestId`가 48자 초과이거나 `report.customType`이 자기 접두가 아님 | 호출 전 `{ ok: false, error: { kind: "group.delegateInvalid" } }`. 위임은 만들지 않는다 |
-| 13 | `x.primitives.activeDriver`이 drive를 쓰지 않는 그룹으로 설정 파일에 적힘 | 엔진이 읽지 않으므로 주도에 영향이 없다. 설정 경고는 남기지 않는다(E3) | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 13 | (E3에서 걷음) `x.primitives.activeDriver` 키가 없어 이 경우가 생기지 않는다 | 해당 없음 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 | 14 | drive 그룹이 하나도 없음 | 스택이 비어 있으면 상태줄에 `[구동]` 항목이 없다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 | 15 | 저장 상태가 스키마를 어겨 켜지지 못함(X `state_schema`) | `GroupStatus.lastError = group.stateInvalid`. 상태는 그대로 두고 그룹을 켜지 않는다. `/group reset <이름>`(B4-GRP, §3.9)이 선언 초기값을 새 판으로 쓰고 오류를 지운다. 켜기 상태(`scope`)는 바꾸지 않으며 적용은 다음 단계 경계에 일어난다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`) |
 
@@ -1164,7 +1161,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | `l3.group-sdk.instrumentation` | boolean | `true` | managed, user, project, local, launch | 가능 | `live` | `toggle` | 그룹 계측 기록(§4.9, 2차) |
 | `l3.group-sdk.statusLine` | boolean | `true` | user, project, local, launch | 가능 | `live` | `toggle` | 상태줄 그룹 표시(§3.9) |
 
-- 구동 그룹 선택 [결정: review.decisions-2 S-15, E3에서 읽기를 걷음]: group-sdk은 구동 그룹 키를 두지 않는다. 키 `x.primitives.activeDriver`는 계약에 남아 있지만 엔진은 읽지 않는다(E3, drive-isolation.md 2.2). group-sdk은 이 값을 읽지 않고 `/group status`도 설정 줄을 내지 않는다. 쓰기(`setDriveHolder`, `/group drive`)는 계약 정리 단계에서 키와 함께 걷는다 [미결]. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+- 구동 그룹 선택 [결정: review.decisions-2 S-15, E3에서 걷음]: group-sdk은 구동 그룹 키를 두지 않는다. 키 `x.primitives.activeDriver`는 설정과 계약에서 걷었다(E3, drive-isolation.md 2.2). group-sdk은 이 값을 읽거나 쓰지 않고 `/group status`도 설정 줄을 내지 않는다. `setDriveHolder`와 `/group drive`도 계약 정리 단계에서 함께 걷었다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-sdk은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - drive lock 상한의 일반 기본값은 X 키 `x.primitives.driveDefaultLimits`, 천장은 `x.primitives.driveLimits`다(F.extensions.spec §6). 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 기본값을 덮어쓰고, 천장보다 클 수 없다(review.decisions-2 U-12).
 - 명령: `/group status|on <이름>|off <이름>|drive <이름|auto>`(§3.9). 설정 파일과 `fresnel config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
@@ -1200,10 +1197,10 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 |---|---|
 | `ExtensionManifest`, `RegistrationApi`, `StateDecl`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveOptions`, `DriveLock`, `DriveLockId`, `RegistrationId`, `RegistrationStatus`, `RegistrationHandle`, `ExtensionEntry`, `GroupRecord`, `RecordKind`, `GroupId`, `validateManifest`, `validateUsage`, `validateManifestSet` | F.extensions.spec |
 | `Upcaster`, `DurableEventEnvelope`, `scope.changed`, `lease.acquired`, `lease.released`, `checkpoint.step`의 `leaseRefs`, 분기 규칙 | F.records.spec |
-| `ServiceKey`, `ToolName`. `@fresnel/contracts/services`의 `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`(§3.12 `services/groups.ts`) | F.capabilities.spec |
+| `ServiceKey`, `ToolName`. `@fresnel/contracts/services`의 `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`(§3.12 `services/groups.ts`) | F.capabilities.spec |
 | `SettingDefInput`, `SettingGroup`, `defineSettings`, `SettingScope`, `EffectiveSetting`, `WriteCheck` | F.wire-settings.spec |
 | `ThreadId`, `ItemId`, `EventId`, `JsonValue`, 단계 경계 용어 | F.conversation.spec |
-| drive lock 메커니즘(§4.4), `DriveLockArbiterPort`·`DriveLockCandidate` 호출 규칙(§3.6. 타입 정본은 F.extensions.spec §3.2.1), `ExtHost`(`fresnel.ext`)의 `registrations()`·`registration()`(§3.1, §3.9), `hostOf(g).registerTool`·`registerCommand`·`registerProvider`와 `ToolResourceDef`·`CommandResourceDef`·`ProviderResourceDef`(§3.8, §4.8), 유휴 토글 적용(§4.5.5). 요청 사항 4개(§3.13)와 테스트 호스트(`@fresnel/ext-host/testing`)는 [가정] | X.primitives.spec |
+| drive lock 메커니즘(§4.4), 중재 포트 호출 규칙은 E3에서 없앴다(§3.5), `ExtHost`(`fresnel.ext`)의 `registrations()`·`registration()`(§3.1, §3.9), `hostOf(g).registerTool`·`registerCommand`·`registerProvider`와 `ToolResourceDef`·`CommandResourceDef`·`ProviderResourceDef`(§3.8, §4.8), 유휴 토글 적용(§4.5.5). 요청 사항 4개(§3.13)와 테스트 호스트(`@fresnel/ext-host/testing`)는 [가정] | X.primitives.spec |
 | `AgentService.delegate`, `DelegateRequest`, `ChildToolPolicy`, `ChildLimits`, `ForkPoint`, `DelegateReceipt`(§3.2, §3.3). 서비스 키 경로는 [가정] | L1.agents.spec |
 | 모델 테이프(`@fresnel/core-models/testing`) [가정] | L1.models.spec |
 | 명령 등록부, 상태줄 표시 위치 [가정] | L4.cli.spec, L4.desktop.spec |
@@ -1218,7 +1215,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 3. holder A가 있을 때 C를 새로 켜도 단계 경계 뒤 C는 스택에 오르지 않는다(켜기는 주도 요청이 아니다). `GroupStatus.drive`는 C가 `"none"`이다.
 4. A가 맨 위에서 주도하는 동안 B가 `startDrive`를 내면 A의 진행 중 turn 명령은 `completed`로 끝나고, 전환 정책(`USER_SWITCH_AT`)에 따라 스택 전체가 `revoked`로 내려간 뒤 B가 주도한다. 같은 scope의 시작 요청은 버린다. A를 끄면 끄기가 적용된 경계에 `lease.released{reason:"disabled"}`(A)가 기록된다.
 5. 시작 요청의 대상이 drive를 쓰지 않는 그룹이면 `startDrive`는 `not_drive`를 돌려주고 drive 함수는 하나도 호출되지 않는다.
-6. `setDriveHolder("learning")`(drive 미사용)은 `group.noDrive`를 돌려주고 설정 값은 바뀌지 않는다. `/group drive xyz`는 `알 수 없는 그룹: xyz. 설치된 그룹: …`을 출력한다.
+6. (E3에서 걷음) `setDriveHolder`와 `/group drive`는 없다. 이 항목은 시험하지 않는다. [근거: drive-isolation.md 2.2]
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
 8. `group-sdk` 소스에서 `@fresnel/group-helm`, `@fresnel/group-learning` import가 0이다(check-layers). `group-helm`에 `@fresnel/group-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
 9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
@@ -1235,7 +1232,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 17. 그룹 A가 등록한 도구를 그룹 B의 drive lock turn이 호출하면 `buildPromotionReport`의 A 도구 항목이 `candidate: true`이고 소비자는 B다. 사용자 입력 turn의 호출은 `userCalls`에만 더해진다.
 18. `l3.group-sdk.instrumentation = false`면 `grp.<그룹>.metrics.recorded` 기록이 0개이고 `GroupStatus.metrics`는 null이다.
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
-20. `group-sdk` 운영 소스에서 `DriveLockArbiterPort`, `DriveLockCandidate`, `GroupService`, `GroupStatus`, `DriveHolderSetting`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@fresnel/contracts/extensions` 또는 `@fresnel/contracts/services`에서 온다. `services/groups.ts`의 `HolderReceipt["scope"]`는 F.wire-settings `SettingScope`에 대입 가능하고 그 반대도 된다(타입 테스트).
+20. `group-sdk` 운영 소스에서 `GroupService`, `GroupStatus`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@fresnel/contracts/services`에서 온다. 중재 이름(`DriveLockArbiterPort`, `DriveLockCandidate`, `DriveHolderSetting`, `HolderReceipt`)은 E3에서 계약에서 걷었다.
 21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
 22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 시점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
@@ -1259,7 +1256,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-sdk`). `eng.context-map.design` C-5와 같은 항목이다.
 - (닫힘) 정책 포트 타입 `DriveLockArbiterPort`·`DriveLockCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-sdk은 `@fresnel/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
-- [미결] M2 구현이 남긴 연결: 설정 읽기 포트 `GroupSettingsSourceKey`(`fresnel.settings`), `DriveHolderSettingsPort`, `GroupCatalogPort`는 조립 루트(HOST)가 설정 서비스와 로더 보고에 연결한다. 그 전까지 시험은 `memoryDriveHolderSettings`, `groupCatalogOf`를 쓴다.
+- [미결] M2 구현이 남긴 연결: 설정 읽기 포트 `GroupSettingsSourceKey`(`fresnel.settings`)와 `GroupCatalogPort`는 조립 루트(HOST)가 설정 서비스와 로더 보고에 연결한다. 그 전까지 시험은 `groupCatalogOf`를 쓴다.
 - (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 중 drive lock 부여로 자율 turn을 시작하는 것을 drive lock 상한 안에서 허용한다. X.primitives.spec §4.5.5의 [제안]과 같다.
 - [미결] `GroupService`가 thread별 상태를 보이는 방식(§3.8 [가정]).
 - [미결] 위임 상한의 귀속(§3.4, `_research/notes/L3-1.md` §6). 완료 보고와 끄기 때 처리는 아래 결정으로 닫았다. 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].

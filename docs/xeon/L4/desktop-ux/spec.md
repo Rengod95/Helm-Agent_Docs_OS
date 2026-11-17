@@ -97,7 +97,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | SC-18 | 플러그인 적용: 켜기, 대화 범위, 신뢰 | `X.loading-trust.spec` §4.6, `L3.group-sdk.spec` §3.8 |
 | SC-19 | 시험 실행: replay, 테이프, Test run | `L3.group-sdk.spec` §3.10, `just benchmark --server` |
 | SC-20 | 평가와 측정: 지표, 비용, 핸들러 시간, 승격 보고, 코어 변경 검사 | `L3.group-sdk.spec` §3.12, `X.operations.spec` §4.2, `scripts/core-diff-check.ts` |
-| SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, `x.primitives.activeDriver` |
+| SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, 프로필 `startDrive` |
 | SC-22 | 제어: 켜기·끄기, 안전 모드, 자동 끄기 복구, 버전과 되돌리기 | `X.operations.spec` §4.3, §4.6 |
 | SC-23 | 플러그인 화면 쓰기(Helm 탐구 전체 화면) | ADR-0021 §3.9 |
 
@@ -352,7 +352,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 단계
   1. 크래프트(P-16 지도 선택 패널, P-13 층 패널, P-17 자세히 보기)에서 켭니다. 크래프트는 전역만 다루고 범위를 고르지 않습니다 [결정: 2026-11-03 사용자, 크래프트 8차 시안]. 이 대화만 끄는 일(`session`)은 대화 영역 오른쪽 "플러그인" 탭에서 합니다(4번). 런타임 탭(§4.9.8)은 그 결과를 보이기만 합니다. 값은 `ext.<이름>.enabled`이고 적용은 다음 단계 경계입니다. 그룹은 그룹 하나의 스위치로 켜고 끕니다(구성원 하나씩 끄기 없음, 15-1).
   2. 처음 켜는 `user`·`project` 위치 확장은 신뢰 확인(O-10)에 매니페스트 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장)을 보입니다. `project` 위치는 작업 폴더 신뢰(O-04)가 `allow`일 때만 켤 수 있습니다.
-  3. drive를 등록한 플러그인이 있으면 주도 플러그인 고르기(`x.primitives.activeDriver`)를 함께 보입니다.
+  3. drive를 등록한 플러그인이 있으면 시작 설정 고르기(프로필의 `startDrive`)를 함께 보입니다.
   4. 대화 영역 오른쪽 "플러그인" 탭에는 맨 위에 "이 대화에서 끄기" 스위치 목록이 펼쳐져 있고(접힌 줄 아님, 시안 `chat-plugin-off`), 그 아래에 플러그인 화면이 옵니다. 끄면 이 대화에만 적용되고 전역 설정은 그대로입니다. 전역에서 꺼진 플러그인은 스위치가 잠기고 크래프트로 안내합니다. 엔진은 `settings.set` 범위 launch에 `threadId`를 실어 받습니다. 행은 그룹 하나 또는 그룹 없는 플러그인 하나이고(`ext.list` 한 행) 그룹 구성원마다 스위치를 두지 않습니다. 확인 대화 상자는 없고, 경계를 기다리는 동안은 "이번 단계가 끝나면 적용돼요" 배지를 보입니다. 기다리는 동안 스위치는 기다리는 값(끄는 중이면 꺼짐)을 보이고 잠깁니다. 엔진은 이 값을 그 대화의 등록 요청으로 옮깁니다(`followThreadEnabled`, HS-113) [결정: 2026-11-07 기본값, rtC R-4]. 대화가 하나뿐이라 전체 상태가 "꺼짐"으로 보여도 켜짐 값의 출처가 `thread`이면 "전역에서 꺼져 있어요"로 잠그지 않습니다. 구현은 시안(`mockups/chat-plugin-off`)을 따릅니다 [결정: 2026-11-04 사용자: A5]. 탭에서는 화면(프레임)이 위에서 남는 높이를 쓰고, 이 구역은 맨 아래에 접힌 줄 하나로 둡니다(시안은 목록이 맨 위지만 목록이 길면 프레임이 밀려나서 접습니다) [제안]. 상태 막대의 사용량 칸은 쓴 토큰과 문맥 창을 `41k / 100k`로 보이고 막대를 붙입니다(문맥 창을 알 때만 한도와 막대).
 - 거치는 화면: P-13, P-17, O-10, O-04
 - 성공 기준: 상태가 `enabling` → `enabled`로 바뀌는 것이 "다음 단계 경계에 적용" 배지와 함께 보입니다. 신뢰가 부족하면 진단(`trust_denied`, `trust_undecided`)이 그대로 보입니다.
@@ -2258,7 +2258,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 그룹·확장 목록(이름, 패키지, 켜짐, drive 사용, 외부 여부, 신뢰) | 켜짐은 설정 키 `ext.<id>.enabled`, 나머지 메타는 `ext.list` |
-| 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
+| 시작 설정 | 프로필의 `startDrive`(빈 값 = 자동) |
 | drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 그룹 설정 | `ext.helm.*`, `l3.learning.*`, `ext.account-rotation.acknowledgeRisk` 필드(`buildSettingsView` plugins 탭) |
 | 안전 모드 | `host.status.safeMode` |
@@ -2620,7 +2620,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 캔버스 라운드에서 찾은 §14.5 고정 데이터의 오류입니다. 구현 고정 데이터(`packages/client/src/workbench` 시험)는 고친 값을 씁니다.
 
 - 대기열: work는 L2 plugin이라 drive를 쓰지 못하고(`F.extensions.spec` §2, §4.6), review는 자동 꺼짐이라 drive 락 후보가 아닙니다(`X.primitives.spec` §4.4.1 4번). 둘째 drive 그룹 `plan-first`(user, drive)를 대기열에 둡니다.
-- drive 락 교대: 반납 주체는 core가 아니라 drive 락을 가진 Registration입니다. "plan-first가 턴 6 끝에 상한(4/4)으로 반납 → 사용자가 helm 제안 카드에서 탐구 시작 → `x.primitives.activeDriver = helm`(session) → 턴 7 첫 단계 경계에서 helm 임대"입니다.
+- drive 락 교대: 반납 주체는 core가 아니라 drive 락을 가진 Registration입니다. "plan-first가 턴 6 끝에 상한(4/4)으로 반납 → 사용자가 helm 제안 카드에서 탐구 시작 → 프로필 시작 설정 `startDrive = helm` → 턴 7 첫 단계 경계에서 helm이 drive 락을 쥠"입니다.
 - acme-notes `tool.call.before` 실패는 first·closed 훅이라 예외가 거부로 처리됩니다. 런타임 행과 기록 문구는 "예외 → 거부로 처리"입니다.
 - helm의 `knowledge.search`는 제공자가 없습니다. knowledge 블록은 `knowledge.skills`·`memory`만 제공합니다.
 - 프로필 "조용히"는 `disable: [helm, plan-first]`를 가집니다.
@@ -2668,7 +2668,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|
 | 이름, 표시 이름, 층, 종류, 버전, 설치 위치, 유효 등급, tier, 상태(`ScopeStatus`), 진단, 자동 꺼짐 여부, 안전 모드 제외 사유 | `ext.list` |
 | 켜짐 값과 범위 | `settings.get { keys: ["ext.<이름>.enabled"] }` |
-| 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
+| 시작 설정 | 프로필의 `startDrive`(빈 값 = 자동) |
 | drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 실패 수 | `scope.handler_failed` 이벤트 묶음, 장부 |
 
@@ -2676,7 +2676,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|
 | 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
 | 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` |
-| 주도 플러그인 바꾸기 | `settings.set { key: "x.primitives.activeDriver" }` |
+| 시작 설정 바꾸기 | 프로필 저장 `profile.put`의 `startDrive` |
 | drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치(W-32. 확장 목록 머리의 "플러그인 가져오기", 아래 W-32 줄) |
 
@@ -2684,7 +2684,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·작업 폴더로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 작업 폴더 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`ext.reload`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
   - 끌까요 질문 [결정: 2026-11-04 사용자, "자동꺼짐은 5회 및 끄기 전에 사용자에게 끌까요 물어보고 꺼". 앞선 B5의 시작 3회 질문을 대체. 문구, 자리, 단추 이름은 [제안]]: 연속 5회 실패(또는 실패율 규칙)에서 호스트는 끄지 않고 `ext.list`의 `keepOffQuestion { rule, consecutive, windowFailures }`로 묻습니다. 답이 올 때까지 확장은 켜 둔 채입니다. 자리는 세 곳입니다. 선택 패널(플러그인 카드)의 "다시 켜기" 단추 자리, 자세히 보기(P-17) 머리 아래, 오른쪽 "플러그인" 탭 맨 위입니다. 목록 위 띠는 두지 않고(묻는 확장이어도 목록 위에는 글이 없습니다), 목록 행에도 두지 않습니다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 보입니다(DP-58). 새 질문은 휘발 `scope.handler_failed`의 `asksDisable`이 알리면 목록을 다시 읽어 나타납니다(열린 대화가 없으면 이 조각이 가지 않으므로 다음에 목록을 읽을 때 나타납니다). 글은 "{확장} · {n}번 연달아 실패했어요"(실패율 규칙은 "{확장} · 최근 호출 중 {n}번 실패했어요"), 질문은 "끌까요?", 두 단추는 "끄기"와 "켜 두기"입니다. "끄기"는 설정에 `ext.<이름>.enabled` 꺼짐을 user 범위로 쓴 뒤 `ext.disableConfirm`을 보냅니다(다음 시작에도 꺼진 채로 둡니다) [제안]. "켜 두기"와 "다시 켜기"는 설정에 켜짐을 user 범위로 쓴 뒤 `ext.reenable`을 보냅니다(장부를 비웁니다. 아니오 뒤에 다시 5번 실패하면 또 묻습니다) [제안]. 두 단추는 연결이 끊기거나 확장이 잠겼으면(관리 위치, 안전 모드 제외) 누를 수 없습니다. 답하면 목록을 다시 읽고 질문 자리에 결과 한 줄을 남깁니다. 끈 뒤에는 "껐어요. 다시 켜려면 '다시 켜기'를 누르세요.", 켠 채 두었으면 "켜 두었어요. 다시 5번 실패하면 또 물어요."입니다(영어: "Turned off. Press 'Turn back on' to turn it on again.", "Kept on. It asks again after 5 more failures."). 설정 쓰기가 거절되면 끄기를 보내지 않고 "바꾸지 못했어요" 토스트를 띄웁니다. 설정 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정만 꺼진 채 남습니다(되돌리지 않음) [미결] [근거: `apps/desktop/src/app/workbench-commands.ts`의 `keepOff`, `apps/host/src/assembly/m4/ext-read-port.ts`의 `disableConfirm`].
   - 외부 훅 끌까요 질문 [결정: 2026-11-04 사용자, 설계는 제안]: 확장과 같은 규칙이다. 질문은 경고(`Alert tone="warning"`)로 바로 보이고 "{훅} 훅이 {n}번 연속 실패했어요 / 지금은 켜져 있어요. 끌까요?"와 "켜 두기", "끄기"를 둔다. 설명("연속 5번 실패하거나 최근 50번 중 절반 이상 실패하면 물어봐요…")은 정보 아이콘 뒤다(DP-58). 자리는 크래프트 선택 패널(훅을 고르면)과 오른쪽 "플러그인" 탭 맨 위이고, 탭 칸 숫자는 확장 알림 수에 훅 알림 수를 더한다. 답하는 동안 두 단추를 잠그고, 연결이 끊기면 잠그고 흐리게 보인다. 답하면 질문 대신 결과 한 줄("껐어요. 다시 켜려면 아래 버튼을 눌러 주세요." / "계속 켜 둘게요. 또 5번 실패하면 다시 물어볼게요.")과 "다시 켜기"가 남는다. 답이 실패하면 "답을 보내지 못했어요. 다시 시도해 주세요."와 "다시 시도"를 보인다. 이미 꺼진 훅은 danger 띠와 "다시 켜기", 그 아래 최근 실패 세 줄(훅 이름, 메시지. 엔진 거울의 `handlerFailures`, 시각은 기록에 없어 싣지 않는다)을 보인다. 확장과 달리 화면이 설정을 쓰지 않고 호스트가 쓴다. 대화 영역 "런타임" 탭, 안전 모드에서 질문 숨김, 확장 목록 위 개수 띠는 아직 없다 [미결] [근거: `apps/desktop/src/views/workbench/hook-notice.tsx`, `apps/desktop/src/views/runtime/runtime-tab.tsx`].
-  - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 락 보유와 epoch·턴·spawn·렌즈, `x.primitives.activeDriver` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
+  - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 락 보유와 epoch·턴·spawn·렌즈, 시작 설정 `startDrive` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
   - P-17 기록 탭과 LightCraft 오른쪽 "기록" 탭에 둡니다: `scope.handler_failed` 기록.
   - 데이터: 메타·훅·등급 `ext.list`, 대화별 켜진 그룹과 drive 락 읽기 `group.list`, 다시 읽기 `ext.reload`.
 - 상태: 빈(사용자 확장 없음 "그룹을 만들려면 [새 그룹]"), 읽는 중 `Skeleton` 행, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서 외부 확장 행은 "안전 모드라 빠짐", `project` 위치는 "작업 폴더 신뢰 필요"), 긴 내용(가상 목록 `[gap:C-04]`, 거르기 유지).
@@ -3000,7 +3000,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 층마다 띠 하나(X 외부 훅, L3 플러그인 그룹, plugin, L2 기능, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
 - 블록 줄에 "지금 <상태> → <바뀔 상태>"를 보입니다. 지금 상태는 맥락 칸의 대화(또는 전체) 기준입니다.
-- drive 락 칸: `x.primitives.activeDriver`은 한 Registration(플러그인) 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 drive 락을 회수합니다(`L3.group-sdk.spec` §3.5).
+- drive 그룹 칸: 시작 설정 `startDrive`는 한 Registration(플러그인) 또는 자동입니다. 바꿔도 이미 쥔 drive 락은 회수하지 않고 다음에 대화를 열 때 적용합니다(`L3.group-sdk.spec` §3.5).
 - first·chain 훅 순서는 기본이 (tier, loadIndex, 등록 순번)이고 사용자가 바꿀 수 있습니다 [결정: 2026-11-03 사용자, 15-2]. 순서 입력은 `hooks.order.get`·`set`·`reset`·`preview` wire와 설정 `x.operations.hookOrder`입니다(`X.operations.spec` §4.1.5). 기본은 guard가 맨 앞이고, guard를 옮겨 안전 검사가 건너뛰어질 수 있으면 경고 모달로 알립니다. 그래서 "런타임에 순서 입력 없음" 배지는 달지 않습니다. 순서 입력 범위는 좁혀졌습니다 [결정: 2026-11-04 사용자, 시안 Q2 A·Q5 A]. 층 패널의 순서는 보기 전용이고, 훅 줄의 끌기는 승자나 값이 바뀌고 플러그인이 둘 이상일 때만 보입니다(위 6.22.0 표).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 훅 수)이고 `profile.preview`(W-44)의 결과입니다.
 - 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 Test run으로(`thread.create { testRun: true, profileId }`), 저장(`profile.put`).
@@ -3529,7 +3529,7 @@ export const palette = [
 | W-O3b | 시작 때 저장소가 알린 일(`host.status.startupNotices`, 빈 DB를 옮긴 일)과 데이터 복원 열기 단추 | P-01 대화 화면 맨 위, P-09 개요 탭, S-03 상태 표시줄 | 구현됨. 데스크톱은 `hostNoticesOf`(`app/setup.ts`)로 `startupNotices`를 `HostNoticesSnapshot`에 싣고 `StoreReplacedBanner`(`views/store-replaced-banner.tsx`)가 띠로 보인다. 단추는 `engineRestoreShownOf`(`views/status-bar.tsx`)가 종료 코드 71·72를 가려 `requestSettingsJump({ tab: "advanced" })`를 부른다 [결정: 오케스트레이터 기본값, fxSF] | `host.status {}`의 `startupNotices`(F wire §3.3.1, `StartupNotice`). 쓰기 쪽은 없음 |
 | W-40 | 기능 바인딩(기능 id마다 제공 확장과 버전, 받는 확장과 requires·optional, 미충족) | P-16, P-21 | 구현됨. `ext.bindings`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.bindings { threadId? }` |
 | W-41 | 그룹이 아닌 확장의 대화별 scope 상태 | P-16, P-13 | `ext.list`의 `threadId` 인자로 대화별 scope 상태를 싣는지는 이 감사에서 확인하지 않았다 [근거: `packages/contracts/src/wire-settings/wire/ext-read-methods.ts:10`] | `ext.list { threadId }`가 대화별 scope 상태를 실음 |
-| W-42 | drive 락 읽기(holder, `leaseEpoch`, limits, used, 후보별 대기 계수) | P-16, 런타임 탭 | `group.driveLock`이 있다(제안의 `group.lease`와 이름이 다르다). 후보별 대기 계수가 있는지는 확인하지 않았다 [근거: `apps/host/src/handlers/m4/ext-read.ts:144`] | `group.lease { threadId }` |
+| W-42 | 주도권 프레임 읽기(보유자는 맨 위 플러그인 프레임, 대기는 `waiting` 프레임) | P-16, 런타임 탭 | `drive.frames`(`DriveFrameView[]`)가 있다. 옛 `group.driveLock`은 E3에서 걷었다. 차수와 후보별 대기 계수는 없다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.lease { threadId }` |
 | W-43 | 트레이스 기록(훅 발화 순서, 핸들러별 시간·결과, 단계 경계) | P-16, P-19, P-21 | 구현됨. `trace.turn`이 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts:122`] | `trace.turn { threadId, turnId }` → `{ seq, point, step, handlers: { ext, ms, result }[] }[]`. 원천은 X-15. W-23(`ext.timings`)의 원천도 같음 |
 | W-44 | 프로필 미리 보기(켜질 scope, 후보, 예상 holder) | P-16, P-21 | 구현됨. `profile.preview`가 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts`] | `profile.preview { id, threadId? }`(중재 규칙 `X.primitives.spec` §4.4.1 4번) |
 | W-45 | 설정 값의 출처(이긴 범위, 그 값을 쓴 쪽: 프로필, 시험, 사용자) | P-16 검사기, P-17 | 구현됨. `settings.explain`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `settings.explain { key, threadId }` |

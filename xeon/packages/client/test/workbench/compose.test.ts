@@ -75,7 +75,7 @@ const PROFILE: Profile = {
   enable: ["helm"],
   disable: ["web"],
   settings: [{ key: "ext.helm.maxLenses", value: 3 }],
-  driver: "helm",
+  startDrive: "helm",
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 4,
 };
@@ -205,7 +205,7 @@ describe("프로필 편집", () => {
       enable: ["alpha", "helm", "zeta"],
       disable: ["web"],
       settings: [{ key: "ext.helm.maxLenses", value: 3 }],
-      driver: "helm",
+      startDrive: "helm",
     });
   });
   test("새 프로필은 id 규칙을, 모든 프로필은 이름 입력을 본다", () => {
@@ -422,9 +422,9 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
     expect(withDriver(draft, null).driver).toBeNull();
   });
 
-  test("저장 입력에 driver가 실린다", () => {
+  test("저장 입력에 시작 설정 startDrive로 실린다", () => {
     const draft = withDriver({ ...profileDraftOf(null), id: "p1", title: "t" }, "helm");
-    expect(profileInputOf(draft).driver).toBe("helm");
+    expect(profileInputOf(draft).startDrive).toBe("helm");
   });
 
   test("코어 잠금은 core tier나 내장이다", () => {

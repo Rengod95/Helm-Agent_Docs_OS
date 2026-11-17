@@ -41,7 +41,7 @@ const PROFILE: Profile = {
   enable: ["helm"],
   disable: [],
   settings: [],
-  driver: null,
+  startDrive: null,
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 2,
 };
@@ -74,7 +74,7 @@ describe("drive 그룹 고르기", () => {
       <DriverField driver={null} choices={["helm", "lens"]} onChange={NOOP} />,
     );
     expect(html).toContain("drive 그룹");
-    expect(html).toContain("바꾸면 적용 뒤 다음 경계에서 지금 drive 락을 회수해요");
+    expect(html).toContain("바꿔도 이미 쥔 drive는 회수하지 않아요");
   });
 });
 

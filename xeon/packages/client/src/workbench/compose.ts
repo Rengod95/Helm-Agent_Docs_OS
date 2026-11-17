@@ -145,6 +145,7 @@ export interface ProfileDraft {
   readonly disable: readonly string[];
   /** 화면이 고치지 않는 값은 저장할 때 그대로 돌려 보낸다 */
   readonly settings: readonly ProfileSetting[];
+  /** 시작 설정(`startDrive`)과 같은 값. 화면의 drive 그룹 고르기가 쓴다 */
   readonly driver: string | null;
   /** 저장된 프로필이면 그 `rev`, 새 프로필이면 null(`profile.put`의 `baseRev`) */
   readonly baseRev: number | null;
@@ -168,7 +169,7 @@ export function profileDraftOf(profile: Profile | null): ProfileDraft {
     enable: profile.enable,
     disable: profile.disable,
     settings: profile.settings,
-    driver: profile.driver,
+    driver: profile.startDrive,
     baseRev: profile.rev,
   };
 }
@@ -205,7 +206,7 @@ export function profileInputOf(draft: ProfileDraft): ProfileInput {
     enable: draft.enable.toSorted(),
     disable: draft.disable.toSorted(),
     settings: draft.settings,
-    driver: draft.driver,
+    startDrive: draft.driver,
   };
 }
 
@@ -541,7 +542,7 @@ function savedKeyOf(input: ProfileInput): string {
   return JSON.stringify([
     input.id,
     input.title,
-    input.driver,
+    input.startDrive,
     input.enable,
     input.disable,
     input.settings,

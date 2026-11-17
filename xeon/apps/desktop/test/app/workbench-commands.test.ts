@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { CompositionDecl, TraceTurnResult } from "@fresnel/contracts/extensions";
+import type {
+  CompositionDecl,
+  DriveFrameView,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
 import {
   WIRE_ERRORS,
   type EventWire,
@@ -397,7 +401,7 @@ describe("크래프트 명령의 wire 호출", () => {
       enable: ["helm"],
       disable: [],
       settings: [],
-      driver: null,
+      startDrive: null,
       updatedAt: "2026-11-04T10:00:00Z",
       rev: 1,
     };
@@ -415,7 +419,7 @@ describe("크래프트 명령의 wire 호출", () => {
       enable: ["helm"],
       disable: ["web"],
       settings: [],
-      driver: null,
+      startDrive: null,
     };
     const saved: ProfileGetResult = {
       profile: { ...input, updatedAt: "2026-11-04T10:00:00Z", rev: 2 },
@@ -792,6 +796,36 @@ describe("확장 목록을 다시 읽을 알림", () => {
       events: [durable("scope.changed", 8)],
     });
     expect(woke).toBe(2);
+  });
+
+  test("drive.frames는 threadId를 담아 보내고 프레임 배열을 돌려준다", async () => {
+    const core: DriveFrameView = {
+      depth: 0,
+      plugin: null,
+      versionId: null,
+      leaseId: null,
+      state: "waiting",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
+    };
+    const { app, params } = await liveApp({ results: { "drive.frames": { frames: [core] } } });
+    expect(await app.commands.workbench.driveFrames(thr(1))).toEqual({ ok: true, value: [core] });
+    expect(paramsOf(params, "drive.frames")).toEqual([{ threadId: thr(1) }]);
+    await app.stop();
+  });
+
+  test("onDriveFramesChanged는 이 대화의 drive.framesChanged에만 부르고, 구독을 풀면 더 부르지 않는다", async () => {
+    const { app, fake } = await liveApp({});
+    let woke = 0;
+    const stop = app.commands.workbench.onDriveFramesChanged(thr(1), () => void (woke += 1));
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(2) } });
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(1) } });
+    await until(() => woke === 1, "drive frames wake-up");
+    stop();
+    fake.emitLine({ jsonrpc: "2.0", method: "drive.framesChanged", params: { threadId: thr(1) } });
+    await tick(20);
+    expect(woke).toBe(1);
+    await app.stop();
   });
 
   test("명령의 onChanged는 살아 있는 연결의 ext 설정 무효화 알림에 반응한다", async () => {

@@ -8,6 +8,7 @@ import type {
 } from "@fresnel/contracts/conversation";
 import type {
   CompositionDecl,
+  DriveFrameView,
   ExtTimingsResult,
   TestRunPhaseResult,
   TraceTurnResult,
@@ -32,7 +33,6 @@ import type {
   ExtListEntry,
   ExtUiEntry,
   ExtVersionsResult,
-  GroupDriveLockResult,
   GroupMetricsResult,
   GroupStatusWire,
   HookEntry,
@@ -848,8 +848,12 @@ export interface WorkbenchCommands {
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */
   groups(threadId: ThreadId): Promise<Result<readonly GroupStatusWire[], CommandError>>;
-  /** `group.driveLock { threadId }`: 대화의 drive 락(보유, 차수, 상한과 사용량, 후보별 대기) */
-  driveLock(threadId: ThreadId): Promise<Result<GroupDriveLockResult, CommandError>>;
+  /** `drive.frames { threadId }`: 대화의 주도권 스택 프레임(아래에서 위, 맨 아래는 코어 루프) */
+  driveFrames(threadId: ThreadId): Promise<Result<readonly DriveFrameView[], CommandError>>;
+  /**
+   * `drive.framesChanged`가 이 대화의 것이면 부른다(주도권 스택이 바뀌었으니 `driveFrames`를 다시 읽는다). 반환값은 구독 해제
+   */
+  onDriveFramesChanged(threadId: ThreadId, listener: () => void): () => void;
   /** `ext.timings`: 훅마다 p50·p95와 실패 수. 계측이 꺼져 있으면 `traceEnabled`가 거짓이다 */
   timings(name: string, threadId?: ThreadId): Promise<Result<ExtTimingsResult, CommandError>>;
   /** `settings.explain { key, threadId }`: 설정 값, 이긴 범위, 그 값을 쓴 쪽(읽기만) */
