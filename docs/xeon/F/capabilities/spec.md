@@ -951,6 +951,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 - `before`와 `after`는 `{ sha256, size }` 내용 참조다. 되감기가 읽는다. 이 파일 안에서 정의하며, 공유 내용 참조 스키마는 두지 않았다(`records/blob.ts`의 `BlobRefSchema`와 다른 모양이다).
 - `FILE_CHANGES_KEY`는 도구 결과 `details`의 예약 키다. 코어가 쓴다. 훅이 `details`를 통째로 바꿔도 코어가 관찰한 변경은 `tool.result` 체인 뒤에 다시 들어간다(스펙 §4.7).
 - `fileChangesOf`(순수 함수)는 새 형식을 먼저 읽는다. 키가 없으면 옛 `FileChange` 한 건을 `source: "observed"` 항목 하나로 읽는다. `op`은 `existed`가 참이면 `modify`, 거짓이면 `create`다. `null`과 모양이 맞지 않는 값은 빈 목록이다. 키가 있는데 모양이 틀리면 옛 형식으로 넘어가지 않고 빈 목록이다.
+- 플러그인 도구의 `ctx.changes.report`는 `Omit<FileChangeEntry, "source">`를 받는다. `source`는 코어가 `"reported"`로 정하므로 호출자가 적지 않는다. 코어는 받은 값을 `FileChangeEntrySchema`로 검증하고 모양이 틀린 항목은 버린다(M5e §4.7, F-4). `ToolChangeReport`와 `ReportedFileChange`는 `extensions/ports.ts`에 둔다.
 
 ## 4. 동작 규칙
 

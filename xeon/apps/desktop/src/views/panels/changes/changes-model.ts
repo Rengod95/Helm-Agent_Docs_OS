@@ -1,23 +1,25 @@
+import { fileChangesOf, type FileChangeEntry } from "@fresnel/contracts/capabilities";
 import type { ItemId, ItemRecord, TurnId } from "@fresnel/contracts/conversation";
 import { messageCopyText, type TurnSummary } from "../../../state/engine/index.ts";
 import { previewOf, summarizeToolArgs } from "../../../state/engine/tool-summary.ts";
-import { fileChangeViewOfArgs, type FileChangeView } from "../../approval-form.ts";
+import { DIFF_HEAD_ROWS, type FileChangeRow, type FileChangeView } from "../../approval-form.ts";
 
-// 변경 탭(DP-198~200)의 순수 모델. 열린 대화의 확정 item에서 `edit`·`write` 호출을 턴(사용자 말 하나에서 다음 사용자 말 앞까지)별로 모은다.
-// 엔진은 파일 변경을 따로 기록하지 않으므로 도구 호출 인자가 원천이다. `edit`은 바꾼 줄이 정확하고, `write`는 쓴 줄 수만 안다(옛 내용을 모른다).
-// 명령(`bash`)과 하위 에이전트(`agent`)가 바꾼 파일은 알 수 없어 "추적 밖" 호출로만 남긴다.
+// 변경 탭(DP-198~200)의 순수 모델. 열린 대화의 확정 item 가운데 완료된 도구 호출의 결과에서 파일 변경을 턴(사용자 말 하나에서 다음 사용자 말 앞까지)별로 모은다.
+// 원천은 결과 `details`의 파일 변경 기록이고, 읽는 방법은 `fileChangesOf`다(M5e 스펙 §4.7, F-5). 엔진이 도구 결과에 싣는다(내장 `edit`·`write`는 옛 `FileChange` 한 건, 대체 도구와 플러그인은 `fileChanges` 목록).
+// 도구 이름과 인자 모양은 보지 않는다. 결과가 아직 없는 호출은 파일로 세지 않는다(경로와 diff가 결과에서만 온다). 오류 결과도 세지 않는다.
+// 명령(`bash`)과 하위 에이전트(`agent`)가 바꾼 파일은 알 수 없어 인자 이름으로 "추적 밖" 호출만 남긴다(P-4 계측 전).
 
-/** 호출의 결과. 결과가 아직 없고 턴이 돌고 있으면 `pending`, 오류 결과거나 턴이 끝났는데 결과가 없으면 `failed`다 */
+/** 호출의 결과. 결과가 아직 없고 턴이 돌고 있으면 `pending`, 오류 결과거나 턴이 끝났는데 결과가 없으면 `failed`다. 추적 밖 호출에만 쓴다 */
 type CallState = "applied" | "failed" | "pending";
 
-/** 파일 하나를 바꾼 호출 하나 */
+/** 파일 하나를 바꾼 호출 하나(완료된 결과 하나가 실은 파일 여럿이면 여럿이다) */
 interface FileEdit {
   readonly callId: string;
   /** `ChangesView.turns` 안 자리 */
   readonly turnIndex: number;
   readonly view: FileChangeView;
   readonly added: number;
-  /** 지운 줄 수. `write`는 옛 내용을 몰라 null이다 */
+  /** 지운 줄 수. 결과 기록이 지운 줄 수를 항상 실으므로 지금은 null이 없다 */
   readonly removed: number | null;
   readonly state: Exclude<CallState, "failed">;
 }
@@ -27,7 +29,7 @@ export interface FileChange {
   readonly path: string;
   readonly added: number;
   readonly removed: number;
-  /** 전체 쓰기(`write`)가 끼어 있어 지운 줄 수를 다 알지 못한다 */
+  /** 지운 줄 수를 다 알지 못하는 쓰기가 끼어 있다. 결과의 변경 기록은 지운 줄 수를 항상 실으므로 지금 원천에서는 참이 되지 않는다 */
   readonly wholeWrite: boolean;
   readonly pending: boolean;
   readonly edits: readonly FileEdit[];
@@ -124,19 +126,40 @@ function stateOf(
   return isError ? "failed" : "applied";
 }
 
-/** diff 줄에서 더한 줄과 지운 줄을 센다. `write`는 쓴 줄 전부가 더한 줄이다 */
-function lineCountOf(view: FileChangeView): {
-  readonly added: number;
-  readonly removed: number | null;
-} {
-  if (view.kind === "write") return { added: view.head.length + view.hiddenLines, removed: null };
-  let added = 0;
-  let removed = 0;
-  for (const row of [...view.head, ...view.rest]) {
-    if (row.kind === "add") added += 1;
-    else if (row.kind === "remove") removed += 1;
+/**
+ * 완료된 결과의 파일 변경 한 건을 그림 값으로 바꾼다. diff 줄을 더함·지움·문맥으로 나눈다(승인 카드의 edit 그림과 같은 모양).
+ * 머리 `DIFF_HEAD_ROWS`줄 뒤는 `rest`다. diff가 없는 항목(보고된 것 중 diff를 안 준 것)은 줄 없는 그림이다.
+ */
+function viewOfEntry(entry: FileChangeEntry): FileChangeView {
+  const rows = rowsOfDiff(entry.diff ?? "");
+  return {
+    kind: "edit",
+    path: entry.path,
+    head: rows.slice(0, DIFF_HEAD_ROWS),
+    rest: rows.slice(DIFF_HEAD_ROWS),
+  };
+}
+
+/**
+ * 통합 diff 글을 줄 목록으로 바꾼다. 첫 `@@` 머리 앞의 파일 머리(`---`, `+++`)는 버린다. 머리 뒤의 본문 줄은 첫 글자가
+ * `+`·`-`·` `이고, `\`(줄바꿈 없음 표시)와 빈 줄은 버린다. 본문 줄은 항상 이 표지로 시작하므로 `-- x` 같은 지운 줄도 맞게 읽는다.
+ */
+function rowsOfDiff(diff: string): readonly FileChangeRow[] {
+  const rows: FileChangeRow[] = [];
+  let inHunk = false;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("@@")) {
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk || line === "" || line.startsWith("\\")) continue;
+    const mark = line.charAt(0);
+    const text = line.slice(1);
+    if (mark === "+") rows.push({ kind: "add", text });
+    else if (mark === "-") rows.push({ kind: "remove", text });
+    else if (mark === " ") rows.push({ kind: "context", text });
   }
-  return { added, removed };
+  return rows;
 }
 
 /** 호출들을 경로별로 모은다. 처음 나온 경로 순서를 지킨다 */
@@ -220,18 +243,28 @@ export function changesOf(input: {
     const untracked: UntrackedCall[] = [];
     for (const id of segment.ids) {
       const item = items[id];
+      // 완료된 호출의 결과에 실린 파일 변경만 센다. 오류 결과는 세지 않는다. 결과가 없는 호출은 경로와 diff가 없어 그릴 것이 없다
+      if (item?.kind === "toolResult" && !item.message.isError) {
+        for (const entry of fileChangesOf(item.message.details ?? null)) {
+          edits.push({
+            callId: item.message.toolCallId,
+            turnIndex: index,
+            view: viewOfEntry(entry),
+            added: entry.added,
+            removed: entry.removed,
+            state: "applied",
+          });
+        }
+        continue;
+      }
       if (item?.kind !== "assistant") continue;
       for (const block of item.message.content) {
         if (block.type !== "toolCall") continue;
-        const state = stateOf(results, block.id, running);
-        const view = fileChangeViewOfArgs(block.name, block.arguments);
-        if (view !== null) {
-          if (state === "failed") continue;
-          edits.push({ callId: block.id, turnIndex: index, view, ...lineCountOf(view), state });
-          continue;
-        }
         const loose = untrackedOf(block.name, block.arguments);
-        if (loose !== null) untracked.push({ callId: block.id, turnIndex: index, state, ...loose });
+        if (loose !== null) {
+          const state = stateOf(results, block.id, running);
+          untracked.push({ callId: block.id, turnIndex: index, state, ...loose });
+        }
       }
     }
     allEdits.push(...edits);

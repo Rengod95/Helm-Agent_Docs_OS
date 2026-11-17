@@ -419,13 +419,15 @@ function directEntry(registration: DirectToolRegistration, bridge: InputBridge):
   };
 }
 
-/** 확장 `hostOf(g).registerTool` 결과를 AgentToolResult로 바꾼다 */
+/**
+ * 확장 `hostOf(g).registerTool` 결과를 AgentToolResult로 바꾼다. 확장의 반환값은 글과 구조 값이 전부라 `details`를 싣지 않는다.
+ * 코어가 쓰는 `fileChanges`는 파이프라인이 체인 뒤에 합친다(`file-changes.ts`)
+ */
 function resourceResult(value: unknown): RawToolResult | undefined {
-  if (typeof value === "string") return { content: [textBlock(value)], details: null };
+  if (typeof value === "string") return { content: [textBlock(value)] };
   if (!isJsonValue(value)) return undefined;
   return {
     content: [textBlock(canonicalJson(value))],
-    details: null,
     structuredContent: value,
   };
 }
@@ -464,6 +466,7 @@ export function resourceEntry(owner: RegistrationId, def: ToolResourceDef): Tool
           signal: call.signal,
           toolCallId: call.toolCallId,
           caller: callerInfoOf(call.run.caller, call.afterUntrusted),
+          changes: { report: (entries) => call.reportChanges(entries) },
         });
         const result = resourceResult(value);
         if (result === undefined) {

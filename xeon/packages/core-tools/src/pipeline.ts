@@ -70,6 +70,7 @@ import { evaluatePolicy, evaluateReadOnlySandboxed, evaluateReplacement } from "
 import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
+import { observedEntriesOf, reportedEntriesOf, withFileChanges } from "./file-changes.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
 import type { CallState, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { validateToolArguments } from "./validate.ts";
@@ -1082,6 +1083,7 @@ export function createPipeline(
       maskedHits: new Map(),
       release: undefined,
       settledItem: undefined,
+      reported: [],
     };
     calls.put(state);
     let verdict: Denied | undefined;
@@ -1178,6 +1180,16 @@ export function createPipeline(
         onUpdate: masking,
         secretApproval: state.secretApproval,
         afterUntrusted,
+        reportChanges: (values) => {
+          const reported = reportedEntriesOf(values);
+          state.reported.push(...reported.entries);
+          if (reported.rejected > 0) {
+            warn("tools.changes_rejected", {
+              toolCallId: state.toolCallId,
+              rejected: reported.rejected,
+            });
+          }
+        },
       });
       state.interrupted = outcome.interrupted;
       state.sandboxBypass = sandboxBypassOf(outcome.result.structuredContent);
@@ -1310,13 +1322,18 @@ export function createPipeline(
     const first = maskResult(deps.redactor, input);
     addHits(state.maskedHits, first.hits);
     const terminate = input.terminate;
+    // 코어 기능 도구의 관찰 변경(F-1)은 체인에 들어가기 전에 떼어 둔다. 체인이 `details`를 지워도 남는다(F-3)
+    const observed = observedEntriesOf(first.result.details, entry.capability !== undefined);
     let current = toValue(first.result, isError);
     if (!options.skipChain) {
       current = await chain(state, current, options.signal);
-      const again = maskResult(deps.redactor, fromValue(current, terminate));
-      addHits(state.maskedHits, again.hits);
-      current = toValue(again.result, current.isError);
     }
+    // `fileChanges`는 체인이 끝난 뒤에 합친다(F-3, F-4). 오류 결과도 관찰 항목을 지우지 않는다(F-6).
+    // 합친 뒤에 마스킹해서 보고된 diff의 가릴 값도 가린다
+    const merged = withFileChanges(current.details ?? null, observed, state.reported);
+    const again = maskResult(deps.redactor, { ...fromValue(current, terminate), details: merged });
+    addHits(state.maskedHits, again.hits);
+    current = toValue(again.result, current.isError);
 
     const finalResult = fromValue(current, terminate);
     let content = finalResult.content;
@@ -1595,6 +1612,7 @@ export function createPipeline(
       maskedHits: new Map(),
       release: undefined,
       settledItem: undefined,
+      reported: [],
     };
     calls.put(state);
     try {

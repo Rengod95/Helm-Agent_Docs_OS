@@ -1188,12 +1188,12 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 
 | `changes.type` | 근거 | 수집 방법 |
 |---|---|---|
-| `turn` | 그 턴의 `tool.settled` 중 workspace 쓰기 도구(`edit`, `write`) 결과 | 결과 `details.diff`를 도구 호출 순서로 모은다. 같은 파일의 여러 diff는 §4.2.2 규칙 4로 합친다 |
-| `toolCalls` | 지정한 도구 호출의 결과 | 위와 같다. workspace 도구가 아닌 호출이 섞이면 무시하고 `review_opened`에 빠진 호출을 적지 않는다 |
+| `turn` | 그 턴의 `tool.settled` 가운데 오류가 아닌 도구 결과 | 결과 `details`의 파일 변경 기록을 `fileChangesOf`로 읽어 도구 호출 순서로 모은다. 한 결과가 여러 파일을 바꿨으면 파일마다 한 항목이고, `diff`가 빈 항목은 건너뛴다. 같은 파일의 여러 diff는 §4.2.2 규칙 4로 합친다. 도구 이름은 보지 않는다(M5e §4.7 F-5) |
+| `toolCalls` | 지정한 도구 호출의 결과 | 위와 같다. 파일 변경 기록이 없는 결과는 무시하고 `review_opened`에 빠진 호출을 적지 않는다 |
 | `checkpoint` | L1 체크포인트의 파일 상태와 현재 파일 | `checkpointFile`로 기준 내용을 얻고 현재 내용은 `fresnel.exec`로 읽어 diff를 계산한다 |
 | `patch` | 호출자가 준 통합 diff | 그대로 정규화한다 |
 
-- [가정] `L2.workspace.spec`은 `edit`·`write` 도구 결과 `details`에 `{ diff: string; path: string }`(통합 diff, 컨텍스트 3줄)을 싣는다. 이 계약이 바뀌면 이 기능의 수집기도 바뀐다(`L2.artifacts.plan` §7 위험 2). 이 의존을 줄이려고 F에 `WorkspaceDiffDetailsSchema`를 두는 안을 §10 미결 6에 둔다.
+- 결과 `details`의 모양은 두 가지다. 내장 `edit`·`write`는 옛 `FileChange` 한 건 `{ path, existed, diff, added, removed, firstChangedLine? }`(`diff`는 통합 diff, 컨텍스트 3줄)이고, 대체 도구와 플러그인 도구는 예약 키 `fileChanges`의 목록이다(F.capabilities.spec §3.13). `fileChangesOf`가 둘 다 읽는다. 목록 형식의 `source`(`observed`, `reported`)는 여기서 보지 않는다. 옛 형식의 수집은 전과 같다. 이 계약이 바뀌면 수집기도 바뀐다(`L2.artifacts.plan` §7 위험 2). 이 의존을 줄이려고 F에 `WorkspaceDiffDetailsSchema`를 두는 안을 §10 미결 6에 둔다.
 - 도구 결과는 이벤트(`tool.settled`)에서 읽는다. `p_tool_calls`는 다른 컨텍스트 테이블이라 읽지 않는다(CM-02). 1차 구현은 `fresnel.session.readEvents`로 그 턴 구간을 읽는다.
 
 #### 4.2.2 정규화와 hunk ID
