@@ -31,10 +31,11 @@ export interface PluginCallRequest {
   /** 이 호출을 시작한 훅 스택의 길이. 설정 `l1.tools.pluginCallDepth`를 넘으면 `hook_depth`로 거부한다 */
   readonly hookDepth?: number;
   /**
-   * 바깥 도구 호출이 받은 사용자 승인(U-11). 정책이 묻기만 하는 호출이고 위험 등급이 `risk` 이하이면 카드를 다시 띄우지 않는다.
-   * 승인 기록이 같은 대화의 `parentToolCallId`가 받은 허용이고 위험 등급이 `risk` 이상일 때만 쓴다. 아니면 무시한다
+   * 사람이 이미 답한 승인을 이 호출이 이어받는다는 주장(U-11). 정책이 묻기만 하는 호출에서만 카드를 건너뛴다.
+   * 엔진이 승인 기록과 대조해 맞을 때만 쓰고, 맞지 않으면 무시하고 보통의 승인 카드를 띄운다.
+   * `risk`는 옛 주장 모양이라 쓰지 않는다(위험 등급은 승인 기록의 값을 본다)
    */
-  readonly inheritApproval?: { readonly approvalId: string; readonly risk: ToolRisk };
+  readonly inheritApproval?: { readonly approvalId: string; readonly risk?: ToolRisk };
   /**
    * 호출 조건(U-12). 효과 작업자는 요청 때 기록한 `interactive`와 샌드박스 천장을 싣는다(나중에 돌아도 같은 조건이다).
    * 없으면 이 대화에서 진행 중인 호출의 값을 따르고, 그것도 없으면 대화형이다

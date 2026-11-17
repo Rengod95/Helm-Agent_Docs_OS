@@ -426,6 +426,8 @@ async function callThroughPipeline(call: PipelineCall): Promise<unknown> {
   const conditions = conditionsFor(target, threadId);
   const parent = amb?.invocation === "tool" ? amb.callId : undefined;
   const signal = call.given?.signal ?? amb?.handler?.signal ?? amb?.drive?.signal;
+  // 승인 상속 주장은 내장 확장만 싣는다. 외부·격리 플러그인이 넘긴 값은 버린다(엔진은 싣는다 해도 승인 기록과 대조한다, U-11)
+  const claim = target.contextTrusted ? call.given?.inheritApproval : undefined;
   const request: PluginCallRequest = {
     threadId,
     plugin: { name: target.extension, scopeId: target.scopeId },
@@ -435,6 +437,7 @@ async function callThroughPipeline(call: PipelineCall): Promise<unknown> {
     requestId,
     hookDepth: stack.length,
     ...(parent === undefined ? {} : { parentToolCallId: parent }),
+    ...(claim === undefined ? {} : { inheritApproval: { approvalId: claim.approvalId } }),
     ...(conditions === undefined ? {} : { conditions }),
     ...(signal === undefined ? {} : { signal }),
   };

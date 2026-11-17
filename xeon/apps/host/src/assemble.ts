@@ -1427,6 +1427,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         learningStore: () => learning.reader.current,
         runner: learning.runner,
         knowledge: () => learning.knowledge.current,
+        humanDecision: (grant, work) => tools.withHumanDecision(grant, work),
         report: (message, fields) => {
           logger.warn(message, fields);
         },

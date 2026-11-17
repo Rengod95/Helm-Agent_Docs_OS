@@ -150,6 +150,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell: (request, run) => pipeline.runUserShell(request, run),
     executeForPlugin: (request) => pipeline.executeForPlugin(request),
+    withHumanDecision: (grant, work) => pipeline.withHumanDecision(grant, work),
     toolMappedFor(capability, method) {
       // 합성 항목은 레지스트리에 들어가지 않으므로 매핑은 등록된 도구 항목만 본다
       return registry

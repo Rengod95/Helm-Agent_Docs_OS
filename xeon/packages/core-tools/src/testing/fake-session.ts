@@ -202,15 +202,21 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     itemEvent: () => ok(undefined),
     // 활성 가지는 흉내 내지 않는다. 최상위 payload 필드(`/필드`) 일치만 본다
     latestEvent(threadId, kind, match) {
-      const field = match?.pointer.slice(1);
+      const fields = match?.pointer.split("/").slice(1);
+      // 실제 저장소처럼 JSON 포인터(`/a/b`)를 끝까지 따라간다
+      const valueAt = (payload: unknown): unknown => {
+        let current: unknown = payload;
+        for (const field of fields ?? []) {
+          if (!isJsonObject(current)) return undefined;
+          current = current[field];
+        }
+        return current;
+      };
       const found = events.findLast(
         (event) =>
           event.threadId === threadId &&
           event.kind === kind &&
-          (match === undefined ||
-            (isJsonObject(event.payload) &&
-              field !== undefined &&
-              event.payload[field] === match.equals)),
+          (match === undefined || valueAt(event.payload) === match.equals),
       );
       return ok(found);
     },

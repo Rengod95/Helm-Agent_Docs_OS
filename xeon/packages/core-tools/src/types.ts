@@ -147,7 +147,11 @@ export interface CallState {
    */
   readonly silent: boolean;
   /** 바깥 도구 호출이 받은 승인 증거(U-11). 검증을 마쳤을 때만 있다. 위험 등급이 이 값 이하인 묻기는 카드를 다시 띄우지 않는다 */
-  readonly inherit?: { readonly approvalId: string; readonly risk: ToolRisk } | undefined;
+  readonly inherit?:
+    | { readonly approvalId: string; readonly risk: ToolRisk; readonly key: string }
+    | undefined;
+  /** 이 호출이 상속으로 승인 카드를 건너뛰었으면 그 승인 id와 사용 키. 의도 기록에 남는다 */
+  inheritApplied?: { readonly approvalId: string; readonly key: string } | undefined;
   /** 실행 중 쥔 `tools` 풀 슬롯. 실행이 끝나면 놓는다. 자식을 기다리는 도구는 이 슬롯을 내려놓고 기다린다(`suspendWhile`) */
   slot: Slot | undefined;
   /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 시크릿 사용 증거로 쓴다(U-19) */

@@ -397,7 +397,7 @@ interface PluginCallRequest {
   readonly requestId: string;           // 1~64자. 재생 멱등 키(스코프, 요청 id)
   readonly parentToolCallId?: string;   // 플러그인 도구 안에서 부른 호출
   readonly hookDepth?: number;          // 훅 스택 길이. `l1.tools.pluginCallDepth`를 넘으면 hook_depth
-  readonly inheritApproval?: { readonly approvalId: string; readonly risk: ToolRisk };  // U-11
+  readonly inheritApproval?: { readonly approvalId: string; readonly risk?: ToolRisk };  // U-11. 주장일 뿐이고 엔진이 승인 기록과 대조한다(risk는 쓰지 않는다)
   readonly signal?: AbortSignal;
 }
 interface ToolResultView {
@@ -424,7 +424,7 @@ executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, Too
 - 결과: `ToolResultView`에 `structuredContent`를 더했다. 기능 메서드의 반환 모양을 되돌리려면 구조화 값이 필요하다. 재생은 durable 기록의 상태와 `structuredContent`만 되살린다. 텍스트와 `details`는 저장되지 않으므로 같은 프로세스 안의 재생만 실행 때의 값을 그대로 돌려준다.
 - 오류 종류: `unknown_outcome`을 더했다. 같은 (스코프, 요청 id)의 의도만 있고 결과가 없으면 다시 실행하지 않고 이 값을 준다. 결과 커밋이 실패한 호출도 결과가 기록되지 않았으므로 같은 규칙을 받는다. `hook_cycle`은 다음 층이 훅 스택과 함께 낸다.
 - 깊이: `hookDepth`가 설정 `l1.tools.pluginCallDepth`(기본 3, 범위 1~8)보다 크면 `hook_depth`로 거부한다(U-8 (다)). 스택 길이를 `>`로 비교한다.
-- 승인 상속: `inheritApproval`은 승인 기록이 같은 대화의 `parentToolCallId`에 대해 허용한 것이고 그 위험 등급이 `risk` 이상일 때만 물려받는다(U-11). 맞지 않는 주장은 무시하고 보통의 승인 카드를 띄운다. 기록에 없는 승인 id는 카드를 건너뛰지 못한다.
+- 승인 상속: 규칙은 U-11 (12.1절 아래)에 있다. `inheritApproval`은 주장이고 엔진(`pipeline.ts`의 `inheritedOf`)이 승인 기록과 대조한다. 맞지 않는 주장은 무시하고 보통의 승인 카드를 띄운다. 기록에 없는 승인 id는 카드를 건너뛰지 못한다.
 - 자기 훅: 플러그인 호출이 낸 `tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.*`는 호출한 플러그인 자신의 핸들러를 건너뛴다(U-8 (가)). `ext.dispatch` 옵션 `exceptExtension`으로 구현했다(ext-host 변경).
 - 턴 없는 기록: 턴이 없으므로 효과 기록에 합성 `trn`·`stp` id를 쓴다. 대화 항목(toolResult)은 남기지 않는다(`silent`). 턴이 없는 승인 요청은 대기 체크포인트를 만들지 않는다(`turnless`, 승인 서비스). 효과 기록 스키마의 `turnId: null` 허용 여부는 O-7로 남는다.
 - 다음 층이 할 것: 훅 스택과 순환 검사(U-8 (나)), 가벼운 경로 분류(U-1), 기능 래퍼와 효과 작업자의 연결(D-13, D-17), 합성 도구 등록(D-16 중 스택 부분).
@@ -437,7 +437,7 @@ executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, Too
 - 합성 이름과 훅 payload [결정 필요 없음, 구현 중 발견]: 합성 이름 `cap:…`은 provider 와이어 패턴 `^[a-zA-Z0-9_-]{1,64}$`를 지나지 못한다. 훅 payload의 `ToolNameSchema`가 이 패턴만 받아서 `tool.call.before`가 검사 실패로 거부했다. 그래서 `ToolNameSchema`가 와이어 이름이나 합성 이름(`SYNTHETIC_TOOL_NAME_PATTERN`)을 받게 넓혔다(`contracts/src/capabilities/ids.ts`). 모델 광고 이름의 검사(`TOOL_NAME_WIRE_PATTERN`, `validate.ts`)는 그대로다.
 - 멱등 키(U-5): 명시 `requestId`가 있으면 그것을 쓴다. 없으면 `call:` 뒤에 SHA-256(범위, 계통, 기준 판 번호, 기능.메서드, 순번) 앞 40자를 쓴다. 계통은 `DriveInvocation.lineageId`다. 핸들러 안의 호출은 디스패치 키와 순번을 쓴다(`state.ts`의 `nextIdentity`와 같은 순번 카운터). 상태 쓰기 id의 `leaseId`와 다른 까닭은 재개 뒤에도 같은 호출이 같은 키를 받게 하려는 것이다. 식별할 것이 없으면(대화 없음, 디스패치 키 없음) 옛 경로다.
 - 되돌이(U-8 (나)): 핸들러가 도는 칸은 `Ambient.hookStack`에 쌓는다(`dispatch.ts`). 파이프라인 호출은 `{플러그인, 기능.메서드, 인자 해시}` 칸을 더해 그 호출이 낸 훅에 보이게 한다. 같은 (플러그인, 대상, 인자 해시)가 스택에 이미 있으면 `plugin_call_hook_cycle`(메시지 `[fresnel:hook_cycle]`)로 거부하고 실행하지 않는다. 깊이는 스택 길이를 `hookDepth`로 넘기고, core-tools가 `l1.tools.pluginCallDepth`와 비교한다. `hookStack`은 선택 필드다. 리스 쪽 맥락(`lease.ts`)을 바꾸지 않으려고 `undefined`를 빈 스택으로 읽는다.
-- 도구 안의 호출: 플러그인 도구 execute의 맥락은 `Ambient.callId`(도구 호출 id)를 가지며 `parentToolCallId`로 싣는다. 승인 상속 주장(`inheritApproval`)은 아직 싣지 않는다. 기능 래퍼가 바깥 승인 id를 알지 못하므로 U-11의 상속은 이 층에서 빠진다([미결]).
+- 도구 안의 호출: 플러그인 도구 execute의 맥락은 `Ambient.callId`(도구 호출 id)를 가지며 `parentToolCallId`로 싣는다. 승인 상속 주장(`inheritApproval`)은 `CallOptions.inheritApproval`로 받아 싣되 내장 확장(`contextTrusted`)이 넘긴 것만 싣는다(외부·격리 플러그인의 주장은 버린다). 도구 안의 호출은 엔진이 바깥 호출의 승인을 직접 안다(`parentToolCallId`로 진행 중인 호출 상태를 본다). 상속의 규칙과 구현은 U-11의 구현 기록(2026-11-18, enE2u)이다.
 - 내장 어댑터의 되돌이 방지: 신뢰한 확장(L1 도구 어댑터)이 도구 호출 id를 싣고 부른 호출은 이미 파이프라인 안에서 도는 것이다. 경로를 다시 고르면 `resolveCapability`의 `g.capability` 호출이 파이프라인으로 되돌아가므로 검사 없이 옛 경로로 부른다.
 - 결과 오류: 공급자가 낸 오류 코드(도구 결과 `details.code`)는 그대로 `CapabilityError` 코드로 싣는다. 호출자(예: cap-artifacts)가 코드로 나눠 처리하기 때문이다. 코드가 없으면 `plugin_call_failed`, 파이프라인의 Err는 `plugin_call_<종류>`다.
 - 조건: 파이프라인 호출은 대화 조건(`conditions`, interactive와 샌드박스 천장)을 싣는다. 효과 작업자는 요청 때 기록한 값을 싣는다(U-10, U-12). 샌드박스 천장은 같은 모드의 정책 천장으로 옮기므로 더 엄격한 쪽만 남는다.
@@ -615,6 +615,15 @@ export const BLOCK_MODEL: BlockModel;
 - **U-9 호출자 신원은 호스트가 정한다.** 격리 프로세스의 플러그인은 서비스 객체를 갖지 못하고 요청만 보낸다. 신원 `plugin:<이름>`은 연결을 연 호스트가 붙인다. 요청 본문의 신원 주장은 무시한다. 엔진 안의 플러그인은 래퍼가 `target.extension`으로 붙인다(지금 `untrustedContext`와 같다).
 - **U-10 효과 작업자.** `requestEffect`의 작업자도 서비스를 직접 부르지 않고 `executeForPlugin(via: "effect")`를 부른다. 요청 키는 기존 `key`다. `effect.requested|started|settled` 기록은 그대로 두고 파이프라인의 기록이 더해진다.
 - **U-11 중첩 호출의 승인 상속** [제안]. 플러그인 도구 호출(예: 대체 `edit`)이 사용자 승인을 받은 뒤 그 안에서 같은 플러그인이 부르는 호출은, (가) 위험 등급이 바깥 호출 이하이고 (나) 정책 deny 규칙에 걸리지 않고 (다) 훅의 묻기가 없을 때 바깥 호출의 승인 증거(`approval`)를 물려받아 카드를 다시 띄우지 않는다. 훅 발화, 샌드박스, 보호 경로는 그대로다. 근거: 대체 도구는 위험 등급이 원본 이상으로 고정되어(`core-tools/src/registry.ts:141-151`) 승인을 한 번 받는데, 안에서 쓰는 `workspace.files.edit` 호출이 한 번 더 묻으면 대체 도구가 쓸 수 없게 된다. 12절 O-4.
+
+  상속은 승인을 건너뛰는 길이므로 다음으로 좁힌다(구현 2026-11-18, enE2u). 위 (가)~(다)는 스펙 그대로이고 아래는 스펙이 말하지 않아 더한 [제안]이다.
+  1. **사람이 답한 승인에서만 나온다.** 승인 기록이 `resolvedBy: "user"`일 때만이다. 훅의 `answer`, 무인 처리, 만료, 취소, 정책 자동 허용은 승인 기록이 없거나 사람의 답이 아니므로 상속하지 않는다. 도구 승인은 허용만, 검토 카드는 사람의 답(`answer`, `deny`) 모두 물려준다(되돌림은 그 결정의 결과다).
+  2. **승인이 가리킨 대상에만 쓴다.** 같은 대화의 승인이어야 한다. 도구 승인은 그 승인을 받은 바깥 호출 안의 호출(`parentToolCallId`)이다. 검토 카드는 본문 `review.writes`(되돌림 쓰기 호출 입력의 정규 JSON sha256 hex 목록)에 입력이 든 쓰기다. 다른 경로나 다른 내용의 쓰기는 해시가 달라 새 카드를 띄운다. 호스트의 사람 결정(학습 제안 승인·수정)은 호스트가 결정을 실행하는 동안만 켜는 허용(`ToolService.withHumanDecision`, `HumanDecisionGrant.covers`)이 가리킨 호출이다. 학습 제안은 그 제안의 `learning.queue` 증거를 단 지식 스킬·메모리 쓰기다.
+  3. **한 번 쓰면 끝이다.** 키는 `<승인 id>:<호출 입력 해시>`이고 같은 키는 한 번만 통과한다. 같은 승인 id라도 다른 호출(다른 hunk)은 자기 해시로 한 번씩 통과한다. 쓴 키는 의도 기록 `effect.intent.inheritedApproval.key`에 남고, 재시작 뒤에도 이 기록을 읽어 다시 받지 않는다(재생 규칙의 요청 id 멱등과 별개다). 실행 전에 막힌 호출(훅 block, 가드)은 키를 쓰지 않은 것으로 둔다.
+  4. **막는 것은 그대로다.** 정책 deny는 상속보다 먼저다. 플러그인 훅의 `block`도 적용된다. 훅이 물은 호출은 상속하지 않는다(위 (다)). 시크릿 사용 승인 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않고 `inheritApplied`에만 둔다).
+  5. **플러그인이 승인 id를 지어내지 못한다.** 주장(`PluginCallRequest.inheritApproval`)은 엔진이 승인 기록과 대조하므로 없는 id, 취소된 승인, 답하지 않은 승인, 다른 쓰기에는 소용이 없다. 주장을 싣는 길(`CallOptions.inheritApproval`)은 내장 확장(`contextTrusted`)만 쓴다. 격리·외부 플러그인의 `engine.call` 기능 호출은 같은 가드를 지나므로 주장이 버려진다. 호스트의 사람 결정 허용은 플러그인이 받지 못하는 `ToolService` 메서드다.
+  6. **기록.** 상속한 호출의 `effect.intent`에 `inheritedApproval: { approvalId, key }`가 남는다(옛 읽기 쪽은 선택 필드라 영향이 없다). 턴 기록(M5d)의 `CallRecord`에 `inheritedApprovalId`로 옮기는 것은 M5d가 정한다.
+  알려진 한계 [제안]: 검토 카드의 `writes`는 카드를 연 플러그인이 정한다. 사용자는 카드의 파일 목록을 보고 답하므로 목록에 없는 경로의 쓰기는 해시가 있어도 카드의 뜻 밖이지만, 엔진은 경로와 카드 파일 목록의 일치를 따로 검사하지 않는다. 도구 승인의 상속은 위 대상 규칙이 바깥 호출까지만이라 안쪽 호출의 경로·내용을 바깥 호출의 인자와 대조하지 않는다.
 - **U-12 무인 실행.** 파이프라인 경로의 `interactive`는 대화의 값이다. 중첩과 플러그인 호출은 `depth`를 올리지 않는다(`approvals/unattended.ts:16-34`는 `depth !== 0`이면 묻지 않고 거부하므로, 중첩을 깊이로 세면 모든 중첩 호출이 조용히 거부된다). 대신 `via`와 `hookStack` 길이를 따로 둔다.
 - **U-13 모델 쪽 `guardExecution`.** `guard.output.before`의 `execution` 대상(`core-loop/src/guard-execution.ts:26`, L2가 파일 쓰기 전에 부른다)은 파이프라인 경로에서는 `guard.tool.before`와 겹친다. 이 스펙은 이를 건드리지 않는다. 겹침 제거는 12절 O-8.
 - **U-14 범위 밖.** `g.commit`, `g.record`, `readRecords`, `post`는 기능 호출이 아니라서 이 경로 밖이다(레코드 블록의 보장은 별도다).
@@ -722,7 +731,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
   도구 매핑이 있는 메서드(`workspace.files`의 `write`·`edit`, `workspace.shell`의 `bash` 등)는 매핑의 `policy.risk`를 쓰므로 위 표에 없다. 파일 쓰기와 셸은 모델이 부른 도구와 같은 등급이다.
 - `dialog.commands.run`을 `read`로 둔 것은 판단이다: 템플릿은 텍스트를 돌려주고 동작 명령의 핸들러가 하는 일은 핸들러 안의 기능 호출이 각자의 등급으로 지난다.
-- 켜 본 결과: `l1.tools.pluginCalls` 기본값을 켰다. 시험 8개 가운데 6개(helm-sigkill, ext-method, dialog-area, goal-judge, uc2 둘)는 등급 선언으로 풀렸다. `review-approval`의 hunk 거절과 `proposals` UC-3(과 cli의 같은 거절 시험)은 풀리지 않았다. 원인(`review-approval`은 카드 내용을 찍어 확인했다): 사용자가 이미 답한 검토 카드가 적용하는 되돌림이 `plugin:cap-artifacts`의 `workspace.files.edit` 호출(도구 매핑이 있는 `write`)로 가서 새 승인 카드를 띄우고 시험에는 답하는 쪽이 없다. `proposals` UC-3도 같은 모양으로 본다(승인한 제안이 스킬 파일을 쓰는 호출이 새 카드를 띄운다. 카드는 확인하지 않았다). 승인 상속(U-11, 사용자의 답을 이 호출이 이어받기)이 연결되면 풀린다. 등급을 `read`로 낮추면 풀리지만 파일 쓰기를 승인 없이 지나게 하는 것이라 하지 않았다. [미결]
+- 켜 본 결과: `l1.tools.pluginCalls` 기본값을 켰다. 시험 8개 가운데 6개(helm-sigkill, ext-method, dialog-area, goal-judge, uc2 둘)는 등급 선언으로 풀렸다. `review-approval`의 hunk 거절과 `proposals` UC-3(과 cli의 같은 거절 시험)은 풀리지 않았다. 원인(`review-approval`은 카드 내용을 찍어 확인했다): 사용자가 이미 답한 검토 카드가 적용하는 되돌림이 `plugin:cap-artifacts`의 `workspace.files.edit` 호출(도구 매핑이 있는 `write`)로 가서 새 승인 카드를 띄우고 시험에는 답하는 쪽이 없다. `proposals` UC-3도 같은 모양으로 본다(승인한 제안이 스킬 파일을 쓰는 호출이 새 카드를 띄운다. 카드는 확인하지 않았다). 승인 상속(U-11, 사용자의 답을 이 호출이 이어받기)이 연결되면 풀린다. 등급을 `read`로 낮추면 풀리지만 파일 쓰기를 승인 없이 지나게 하는 것이라 하지 않았다. [미결] **해결(enE2u, 2026-11-18)**: 승인 상속(U-11)을 이어 세 시험이 통과한다. `review-approval` hunk 거절은 검토 카드의 `writes` 해시로, `proposals` UC-3(카드 내용 확인: `cap:knowledge.skills.create`, 호출 주체 `plugin:learning`, 입력의 증거가 `learning.queue`)은 호스트의 사람 결정 허용으로 풀렸다. UC-3은 승인 기록이 없는 `proposal.decide` 결정이라 승인 id 주장으로는 이을 수 없었다.
 
 ### 6.3 새 의존 규칙
 
@@ -857,7 +866,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 |---|---|---|
 | O-2 | 훅의 묻기에 "이 대화에서 계속 허용"을 줄지 | 주지 않는다(`once`뿐). 반복 질문 피로가 생기면 훅이 `rememberFor` 같은 필드를 선택하게 한다 |
 | O-3 | `thread.switch|fork|tree.before`를 내부로 둘지 | 내부. 쓰려는 번들이 없다 |
-| O-4 | 중첩 호출 승인 상속(U-11)을 쓸지 | 쓴다. 안 쓰면 대체 도구와 플러그인 도구의 이중 승인이 생긴다 |
+| O-4 | 중첩 호출 승인 상속(U-11)을 쓸지 | 쓴다. 안 쓰면 대체 도구와 플러그인 도구의 이중 승인이 생긴다. 구현했다(좁힌 규칙은 U-11) |
 | O-5 | `bash`가 바꾼 파일을 어떻게 추적하는지(변경 관찰 범위) | 이 스펙에서는 하지 않는다. 별도 트랙 |
 | O-6 | 도구 인자 재작성 훅(`L1.tools.spec` §4.10) | M5e에 넣지 않는다 |
 | O-7 | 턴 없는 호출(대화 시작 훅, 명령)의 효과 기록 `turnId: null` 허용 여부 | 구현 트랙의 첫 일로 `F.records` 스키마를 읽고 정한다 |

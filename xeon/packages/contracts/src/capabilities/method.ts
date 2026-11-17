@@ -104,6 +104,11 @@ export interface CallOptions {
   readonly context?: CallContext;
   /** `input_required` 뒤의 재호출(2라운드부터). L1.tools 어댑터가 채운다. `CallContinuation` 참고 */
   readonly continuation?: CallContinuation;
+  /**
+   * 사람이 이미 답한 승인(검토 카드 등)이 가리킨 쓰기를 새 카드 없이 통과시켜 달라는 주장(U-11). 내장 확장(`contextTrusted`)이 넘긴 것만 싣는다.
+   * 엔진이 승인 기록과 대조해 맞을 때만 쓰고(사람의 허용, 같은 대화, 카드가 가리킨 대상, 한 번), 틀리면 무시하고 보통의 승인 카드를 띄운다
+   */
+  readonly inheritApproval?: { readonly approvalId: string };
 }
 
 /** `idempotent` 메서드를 부를 때의 옵션. `requestId`가 필수다(ADR-0015 §3.3 5) */

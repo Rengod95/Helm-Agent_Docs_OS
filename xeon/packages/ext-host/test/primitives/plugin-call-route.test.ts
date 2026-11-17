@@ -12,6 +12,7 @@ import {
 import type { PortKey, ToolsPort } from "@fresnel/contracts/extensions";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
+import { createEngineCallRouter } from "../../src/isolation/engine-calls.ts";
 import { capabilityDefTable, hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, type TestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
@@ -359,4 +360,92 @@ test("a requestEffect of a declared write goes to the pipeline with via effect a
   const off = await run(false);
   expect(off.fake.requests).toEqual([]);
   expect(off.saved).toEqual(["e"]);
+});
+
+// U-11: 승인 상속 주장은 내장 확장만 싣는다. 외부·격리 플러그인이 넘긴 값은 버려지고, 격리 플러그인의 `engine.call` 기능 호출도
+// 같은 가드를 지나 파이프라인으로 가며 호출 주체는 그 플러그인의 이름이다.
+
+async function saveWithClaim(
+  builtin: boolean,
+  claim: CallOptions,
+): Promise<readonly PluginCallRequest[]> {
+  const fake = fakeTools(() => okView({ saved: "a" }));
+  const t = await createTestHost({ capabilityDefs: writerDefs });
+  await provideToolsPort(t, fake.port);
+  await t.host.install(providerUnit(NO_PROVIDER_EFFECT));
+  await t.host.install(
+    makeUnit(
+      {
+        name: "pc-consumer",
+        builtin,
+        loadIndex: 1,
+        hooks: [POINT],
+        requires: [{ id: "demo.writer", range: "^1.0.0" }],
+      },
+      (g) => {
+        g.on(POINT, async () => {
+          await g.capability(writerKey).save({ text: "a" }, claim);
+        });
+      },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await fire(t, thread, "claim");
+  return fake.requests;
+}
+
+test("a built-in plugin's approval claim reaches the engine; an external plugin's claim is dropped", async () => {
+  const claim: CallOptions = { inheritApproval: { approvalId: "apv_card" } };
+  const trusted = await saveWithClaim(true, claim);
+  expect(trusted[0]?.inheritApproval).toEqual({ approvalId: "apv_card" });
+  const external = await saveWithClaim(false, claim);
+  expect(external).toHaveLength(1);
+  expect(external[0]?.inheritApproval).toBeUndefined();
+});
+
+test("an isolated plugin's engine.call capability call goes to the pipeline as that plugin and carries no approval claim", async () => {
+  const fake = fakeTools(() => okView({ saved: "a" }));
+  const t = await createTestHost({ capabilityDefs: writerDefs });
+  await provideToolsPort(t, fake.port);
+  await t.host.install(providerUnit(NO_PROVIDER_EFFECT));
+  let reply: unknown;
+  await t.host.install(
+    makeUnit(
+      {
+        name: "pc-isolated",
+        builtin: false,
+        loadIndex: 1,
+        hooks: [POINT],
+        requires: [{ id: "demo.writer", range: "^1.0.0" }],
+      },
+      (g) => {
+        const router = createEngineCallRouter({ gOf: () => g, replayOf: () => false });
+        g.on(POINT, async () => {
+          reply = await router({
+            method: "capability",
+            registration: "pc-isolated",
+            requestId: null,
+            params: {
+              key: { capability: "demo.writer", version: "1.0.0" },
+              member: "save",
+              input: { text: "a" },
+              options: { inheritApproval: { approvalId: "apv_card" } },
+            },
+          });
+        });
+      },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await fire(t, thread, "engine-call");
+  expect(reply).toEqual({ ok: true, value: { saved: "a" } });
+  expect(fake.requests).toHaveLength(1);
+  expect(fake.requests[0]).toMatchObject({
+    plugin: { name: "pc-isolated" },
+    target: { kind: "capability", capability: "demo.writer", method: "save" },
+    input: { text: "a" },
+  });
+  expect(fake.requests[0]?.inheritApproval).toBeUndefined();
 });

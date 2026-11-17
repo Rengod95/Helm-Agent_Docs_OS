@@ -53,6 +53,8 @@ interface SubmitOptions {
   readonly by: "user" | "model" | "group";
   readonly turnId: CallScope["turnId"];
   readonly signal: AbortSignal | undefined;
+  /** 이 제출을 낳은 사람의 승인(검토 카드) id. 있으면 되돌림 쓰기가 그 카드를 가리킨다(U-11) */
+  readonly approvalId?: string;
 }
 
 type SubmitFailure =
@@ -573,7 +575,13 @@ export function createReviews(deps: ReviewsDeps): ReviewsRuntime {
       state = current.value;
     }
 
-    const applied = await applyRejections(kernel, threadId, state, options.signal);
+    const applied = await applyRejections(
+      kernel,
+      threadId,
+      state,
+      options.signal,
+      options.approvalId,
+    );
     if (!("outcomes" in applied)) return err(applied);
     const outcomes: ApplyOutcome[] = applied.outcomes;
     if (outcomes.length > 0) {

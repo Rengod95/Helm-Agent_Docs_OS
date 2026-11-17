@@ -218,6 +218,7 @@ const ReviewApprovalDetail: TObject<{
   title: TString;
   round: TInteger;
   files: TArray<typeof ReviewFileSummary>;
+  writes: TOptional<TArray<TString>>;
 }> = Type.Object(
   {
     reviewId: Type.String({ pattern: REVIEW_ID_PATTERN }),
@@ -227,6 +228,13 @@ const ReviewApprovalDetail: TObject<{
     /** 이 요청이 묻는 라운드. 열 때 1 */
     round: Type.Integer({ minimum: 1 }),
     files: Type.Array(ReviewFileSummary, { maxItems: 256 }),
+    /**
+     * 사용자가 hunk를 거절하면 검토가 작업 공간에 하는 되돌림 쓰기의 해시 목록 [제안: U-11].
+     * 해시는 쓰기 호출 입력(`{ path, edits }`)의 정규 JSON sha256 hex다. 이 카드에 사람이 답하면 엔진이 이 목록에 든 쓰기에만 새 승인 카드를 건너뛴다
+     */
+    writes: Type.Optional(
+      Type.Array(Type.String({ pattern: "^[0-9a-f]{64}$" }), { maxItems: 4096 }),
+    ),
   },
   { additionalProperties: false },
 );

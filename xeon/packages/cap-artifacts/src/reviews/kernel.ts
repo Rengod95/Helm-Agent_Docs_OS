@@ -24,6 +24,7 @@ import type { L2ApprovalSnapshot, L2ApprovalsPort } from "@fresnel/contracts/ser
 import { sha256Hex } from "../hash.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "../ports.ts";
 import { readEvents } from "./collect.ts";
+import { revertWriteHashes } from "./revert-plan.ts";
 import { foldReview, type ReviewState } from "./state.ts";
 
 // 리뷰 서비스가 공유하는 의존과 도우미. 상태 읽기(이벤트 접기), 커밋, 승인 요청, 보기 만들기.
@@ -151,6 +152,8 @@ export function createKernel(deps: ReviewsDeps): Kernel {
             binary: file.binary,
             hunks: file.hunks.length,
           })),
+          // 사람이 이 카드에 답하면 hunk 거절의 되돌림 쓰기가 새 승인 카드 없이 지난다(U-11, 엔진이 해시로 대조한다)
+          writes: revertWriteHashes(deps.blobs, state),
         },
       });
       if (!result.ok) {

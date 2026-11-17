@@ -51,10 +51,12 @@ import {
   type CallerId,
   type PluginCallRequest,
   type PluginCallTarget,
+  type HumanDecisionGrant,
   type ToolCallOutcome,
   type ToolCallState,
   type ToolError,
   type ToolResultView,
+  type ToolRisk,
   type ToolRunContext,
 } from "@fresnel/contracts/services";
 import { denialDetails, denialReason } from "./approvals/protocol.ts";
@@ -128,6 +130,7 @@ export interface Pipeline {
   runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
   executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
   suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
+  withHumanDecision<T>(grant: HumanDecisionGrant, work: () => Promise<T>): Promise<T>;
 }
 
 /**
@@ -824,9 +827,16 @@ export function createPipeline(
     // 훅의 묻기도 같게 둔다(가정: 사용자가 친 명령에 확장이 다시 묻는 경로는 지금 없다)
     if (state.userShell) return undefined;
     // 바깥 도구 호출이 받은 승인을 물려받는다(U-11). 위험 등급이 그 승인 이하이면 카드를 다시 띄우지 않는다. deny와 allow는 위에서 갈렸다
+    // 훅이 물은 호출은 상속하지 않는다(훅의 묻기는 그대로 사용자에게 간다). 시크릿 사용 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않는다)
     const inherit = state.inherit;
-    if (inherit !== undefined && riskRankOf(input.risk) <= riskRankOf(inherit.risk)) {
-      state.userApprovalId = inherit.approvalId;
+    if (
+      hookAsk === undefined &&
+      inherit !== undefined &&
+      riskRankOf(input.risk) <= riskRankOf(inherit.risk) &&
+      !inheritUsed.has(inherit.key)
+    ) {
+      inheritUsed.add(inherit.key);
+      state.inheritApplied = { approvalId: inherit.approvalId, key: inherit.key };
       return undefined;
     }
 
@@ -1012,6 +1022,7 @@ export function createPipeline(
       args: argsPayload,
       replay: entry.replay,
       idempotencyKey: null,
+      ...(state.inheritApplied === undefined ? {} : { inheritedApproval: state.inheritApplied }),
     };
     const committed = commitWithRetry(
       deps.session,
@@ -1933,22 +1944,79 @@ export function createPipeline(
     return ok({ kind: "done", view: viewOfRecord(result.value.status, structured) });
   }
 
+  /** 상속으로 이미 쓴 `<승인 id>:<인자 해시>` 키(이 프로세스). 재시작 뒤에는 `effect.intent`의 `inheritedApproval.key`를 읽는다 */
+  const inheritUsed = new Set<string>();
+
+  /** 호스트가 사람의 결정을 실행하는 동안 켠 허용(`withHumanDecision`). 끝나면 지운다 */
+  const humanGrants = new Set<HumanDecisionGrant>();
+
+  /** 같은 키로 상속한 호출의 의도가 이미 기록됐는가. 읽기가 실패하면 쓴 것으로 본다(카드를 건너뛰지 못하게 닫는다) */
+  function inheritKeyRecorded(threadId: ThreadId, key: string): boolean {
+    const found = deps.session.query.latestEvent(
+      threadId,
+      "effect.intent",
+      { pointer: "/inheritedApproval/key", equals: key },
+      { onActiveBranch: false },
+    );
+    return !found.ok || found.value !== undefined;
+  }
+
   /**
-   * 바깥 도구 호출이 받은 승인을 이 호출에 물려줄 만한가(U-11). 같은 대화의 부모 호출이 받은 허용이고 그 위험 등급이 주장한 값 이상일 때만 맞다.
-   * 맞지 않으면 물려주지 않고 보통의 승인을 받는다(주장만으로 카드를 건너뛰지 못하게 한다)
+   * 사람이 이미 답한 승인을 이 호출이 이어받을 만한가(U-11). 승인 기록이 다음을 모두 만족할 때만 맞다.
+   * - 사람이 답했다(`resolvedBy: "user"`, 도구 승인은 허용만). 훅의 답, 무인 처리, 만료, 정책 자동 허용은 승인 기록이 아니거나 사람이 아니다
+   * - 같은 대화의 승인이다
+   * - 승인이 가리킨 대상이다: 검토 카드는 본문 `writes`에 든 쓰기(입력 해시), 도구 승인은 그 승인을 받은 바깥 도구 호출 안의 호출이다
+   * - 같은 키(승인 id와 입력 해시)를 아직 쓰지 않았다
+   * 주장(`inheritApproval`)과 엔진이 아는 바깥 호출의 승인을 차례로 본다. 주장은 지어낸 값이어도 기록과 대조하므로 카드를 건너뛰지 못한다.
+   * 맞지 않으면 undefined로 두고 보통의 승인을 받는다
    */
-  function inheritedOf(request: PluginCallRequest): CallState["inherit"] {
-    const claim = request.inheritApproval;
-    if (claim === undefined || request.parentToolCallId === undefined) return undefined;
-    const opened = approvals.get(claim.approvalId);
-    if (opened === undefined || opened.resolution?.decision !== "allow") return undefined;
-    const { origin, body } = opened.request;
-    if (origin.threadId !== request.threadId || origin.toolCallId !== request.parentToolCallId) {
-      return undefined;
+  async function inheritedOf(
+    request: PluginCallRequest,
+    input: JsonObject,
+  ): Promise<CallState["inherit"]> {
+    const outerId =
+      request.parentToolCallId === undefined
+        ? undefined
+        : calls.get(request.threadId, request.parentToolCallId)?.userApprovalId;
+    const candidates = [request.inheritApproval?.approvalId, outerId].filter(
+      (id): id is string => id !== undefined,
+    );
+    if (candidates.length === 0 && humanGrants.size === 0) return undefined;
+    const digest = await argsHashOf(input);
+    // 호스트가 사람의 결정을 실행하는 동안의 호출이 그 결정이 가리킨 대상이면 이어받는다(플러그인이 고르는 값이 없다)
+    if (request.target.kind === "capability") {
+      const call = { capability: request.target.capability, method: request.target.method, input };
+      for (const grant of humanGrants) {
+        if (!grant.covers(call)) continue;
+        const key = `${grant.id}:${digest}`;
+        if (inheritUsed.has(key) || inheritKeyRecorded(request.threadId, key)) continue;
+        return { approvalId: grant.id, risk: grant.risk, key };
+      }
     }
-    if (body.kind !== "tool" || riskRankOf(body.tool.risk) < riskRankOf(claim.risk))
-      return undefined;
-    return claim;
+    for (const approvalId of candidates) {
+      const opened = approvals.get(approvalId);
+      if (opened === undefined) continue;
+      const { resolution, request: asked } = opened;
+      if (resolution === null || resolution.resolvedBy !== "user") continue;
+      if (asked.origin.threadId !== request.threadId) continue;
+      let risk: ToolRisk;
+      if (asked.body.kind === "tool") {
+        // 도구 승인은 허용만 물려준다
+        if (resolution.decision !== "allow") continue;
+        if (asked.origin.toolCallId !== request.parentToolCallId) continue;
+        risk = asked.body.tool.risk;
+      } else if (asked.body.kind === "review") {
+        // 검토 카드의 답(hunk 결정 `answer`, 전체 거부 `deny`)은 모두 사람의 결정이고, 되돌림은 그 결정의 결과다
+        if (asked.body.review.writes?.includes(digest) !== true) continue;
+        risk = "write";
+      } else {
+        continue;
+      }
+      const key = `${approvalId}:${digest}`;
+      if (inheritUsed.has(key) || inheritKeyRecorded(request.threadId, key)) continue;
+      return { approvalId, risk, key };
+    }
+    return undefined;
   }
 
   /**
@@ -2084,7 +2152,8 @@ export function createPipeline(
       interrupted: false,
       userShell: false,
       silent: true,
-      inherit: inheritedOf(request),
+      inherit: await inheritedOf(request, request.input),
+      inheritApplied: undefined,
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
@@ -2118,6 +2187,10 @@ export function createPipeline(
       );
     }
     if (verdict !== undefined) {
+      // 카드를 건너뛰었어도 실행 전에 막혔으면 그 승인을 쓰지 않은 것이다(의도가 없으면 기록도 없다)
+      if (state.inheritApplied !== undefined && state.intent === undefined) {
+        inheritUsed.delete(state.inheritApplied.key);
+      }
       forget(state);
       // 실행 전에 막힌 호출은 효과가 없으므로 기록하지 않고 끝 tap만 낸다
       await recordWithoutEffect(run, call, {
@@ -2157,6 +2230,18 @@ export function createPipeline(
     return ok(view);
   }
 
+  async function withHumanDecision<T>(
+    grant: HumanDecisionGrant,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    humanGrants.add(grant);
+    try {
+      return await work();
+    } finally {
+      humanGrants.delete(grant);
+    }
+  }
+
   /** 슬롯을 쥔 호출이 다른 노드를 기다리는 동안 슬롯을 내려놓는다(L1.tasks.spec §4.5 C2). 슬롯이 없으면 그냥 기다린다 */
   function suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T> {
     const slot = calls.get(threadId, toolCallId)?.slot;
@@ -2171,5 +2256,6 @@ export function createPipeline(
     runUserShell,
     executeForPlugin,
     suspendWhile,
+    withHumanDecision,
   };
 }
