@@ -21,19 +21,19 @@ const profile = {
   title: "Inquiry heavy",
   enable: ["helm"],
   disable: ["other"],
-  settings: [{ key: "x.primitives.activeDriver", value: "helm" }],
-  driver: "helm",
+  settings: [{ key: "x.primitives.driveMaxDepth", value: 4 }],
+  startDrive: "helm",
   updatedAt: "2026-10-31T00:00:00.000Z",
   rev: 2,
 };
 
 describe("profile storage and Test run marker", () => {
-  test("Profile and ProfilesFile round trip by value, driver replaces driveGroup", () => {
+  test("Profile and ProfilesFile round trip by value, startDrive replaces driveGroup", () => {
     roundTrip(ProfileSchema, profile);
     roundTrip(ProfilesFileSchema, { schemaVersion: 1, profiles: [profile] });
     expect(parse(ProfileSchema, { ...profile, id: "Bad Id" }).ok).toBe(false);
     expect(parse(ProfileSchema, { ...profile, extra: 1 }).ok).toBe(false);
-    const { driver: _driver, ...rest } = profile;
+    const { startDrive: _startDrive, ...rest } = profile;
     expect(parse(ProfileSchema, { ...rest, driveGroup: "helm" }).ok).toBe(false);
     expect(parse(ProfilesFileSchema, { schemaVersion: 2, profiles: [] }).ok).toBe(false);
   });

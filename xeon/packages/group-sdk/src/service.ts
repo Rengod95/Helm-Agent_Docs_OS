@@ -1,4 +1,3 @@
-import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
@@ -10,14 +9,11 @@ import {
 import type { ExtHost, RegistrationInfo } from "@fresnel/ext-host";
 import {
   GroupServiceName,
-  type DriveHolderSetting,
   type DriveRole,
-  type GroupCommandError,
   type GroupError,
   type GroupMetricsSummary,
   type GroupResult,
   type GroupStatus,
-  type HolderReceipt,
   type ToggleReceipt,
 } from "@fresnel/contracts/services";
 import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
@@ -26,11 +22,6 @@ import { buildPromotionReport, type PromotionReport } from "./promotion/report.t
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-import type {
-  DriveHolderSettingsPort,
-  HolderSettingScope,
-  HolderWriteError,
-} from "./ports/holder.ts";
 import { orchestrationOf } from "./util.ts";
 
 export { GroupServiceName };
@@ -52,7 +43,6 @@ export type GroupHostView = Pick<
 export interface GroupServiceDeps {
   readonly host: GroupHostView;
   readonly catalog: GroupCatalogPort;
-  readonly holder: DriveHolderSettingsPort;
   /**
    * 서비스가 상태를 보여 줄 thread. 서비스 한 인스턴스는 활성 thread 하나의 그룹 상태를 보인다
    * (L3.group-sdk.spec §3.8 [가정]). 없으면 null
@@ -104,7 +94,7 @@ function errorOf(info: RegistrationInfo): GroupError | null {
 /**
  * 그룹의 drive 역할을 thread의 주도권 스택(`driveFrames`, drive-isolation.md 2.1·2.6)에서 읽는다. `at`은 그룹 프레임의 스택 인덱스(없으면 -1)다.
  * 맨 위 프레임(주도 중이거나 질문 대기 중)은 `holder`, 그 아래 프레임(맡기고 기다리는 중)은 `waiting`이다.
- * 스택에 없으면 `none`이다. drive 오류는 `error`다. `rejected`는 중재가 없어져 더 내지 않는다(계약 값만 남아 있다).
+ * 스택에 없으면 `none`이다. drive 오류는 `error`다.
  */
 function driveRoleOf(
   entry: GroupCatalogEntry,
@@ -123,18 +113,6 @@ function driveRoleOf(
  * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록·켜기 끄기·구동 그룹 지정을 한 객체로 낸다.
  * 상태는 `ExtHost.registrations()`·`driveFrames()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
-/** 설정 쓰기 실패를 서비스 오류로 옮긴다. 관리 범위의 잠금만 `group.settingLocked`고 나머지는 이유를 그대로 싣는다 */
-function groupErrorOf(error: HolderWriteError): GroupCommandError {
-  switch (error.kind) {
-    case "locked":
-      return { kind: "group.settingLocked", key: error.key };
-    case "unwritable":
-      return { kind: "group.settingUnwritable", key: error.key, reason: error.reason };
-    default:
-      return assertNever(error, "HolderWriteError");
-  }
-}
-
 export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
   const listeners = new Set<(groups: readonly GroupStatus[]) => void>();
   let hostSubscription: Unsubscribe | undefined;
@@ -264,28 +242,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     };
   }
 
-  /**
-   * 지정한 그룹이 켜져 있고 drive를 등록했고 오류 상태가 아니다. 중재가 있던 때의 후보 판정이다(E3 이전).
-   * E3부터 엔진은 이 설정을 읽지 않는다. 계약 정리 단계에서 `setDriveHolder`와 함께 걷는다.
-   */
-  function isCandidate(scopeId: RegistrationId): boolean {
-    const info = deps.host.registrations().find((scope) => scope.id === scopeId);
-    return info !== undefined && info.status === "enabled" && info.drive === "registered";
-  }
-
-  /** 쓴 지정의 적용 시점. E3 이전의 중재 규칙을 그대로 옮긴다. 엔진은 이 설정을 더 읽지 않는다(계약 정리 대기) */
-  function appliesAtOf(
-    next: DriveHolderSetting,
-    target: ThreadId | null,
-  ): HolderReceipt["appliesAt"] {
-    const thread = target ?? deps.currentThread();
-    const lease = thread === null ? null : deps.host.leaseOf(thread);
-    if (next === null) return "now";
-    if (lease === null) return "nextStepBoundary";
-    if (lease.scopeId === next) return "now";
-    return isCandidate(next) ? "nextStepBoundary" : "afterLeaseRelease";
-  }
-
   /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
   async function defaultPromotion(): Promise<PromotionReport> {
     const thread = deps.currentThread();
@@ -294,9 +250,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   }
 
   return {
-    // 중재는 없다(E3, drive-isolation.md 2.2). X는 이 메서드를 부르지 않는다. 계약의 DriveLockArbiterPort 확장을
-    // 지우는 다음 단계에서 함께 없앤다.
-    choose: () => null,
     list,
     currentThread: () => deps.currentThread(),
     promotionReport: () => (deps.promotion ?? defaultPromotion)(),
@@ -337,27 +290,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     },
     enable: (id) => toggle(id, true),
     disable: (id) => toggle(id, false),
-    async setDriveHolder(holder, options) {
-      const scope: HolderSettingScope = options?.scope ?? "launch";
-      const next: DriveHolderSetting = holder === "auto" ? null : holder;
-      if (next !== null) {
-        const entry = find(next);
-        if (entry === undefined) {
-          return { ok: false, error: { kind: "group.unknown", id: next, known: knownIds() } };
-        }
-        if (orchestrationOf(entry.manifest)?.drives !== true) {
-          return { ok: false, error: { kind: "group.noDrive", id: entry.manifest.name } };
-        }
-      }
-      const target = options?.threadId ?? null;
-      const appliesAt = appliesAtOf(next, target);
-      const written = await deps.holder.write(next, scope, target);
-      if (!written.ok) {
-        return { ok: false, error: groupErrorOf(written.error) };
-      }
-      schedule();
-      return { ok: true, value: { holder: next, scope, appliesAt } };
-    },
     onChange(listener) {
       listeners.add(listener);
       hostSubscription ??= deps.host.onChange(schedule);

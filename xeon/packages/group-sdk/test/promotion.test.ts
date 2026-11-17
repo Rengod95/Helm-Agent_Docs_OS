@@ -13,7 +13,7 @@ import {
   runGroupCommand,
   type PromotionHostView,
 } from "../src/index.ts";
-import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
+import { groupCatalogOf } from "../src/testing/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -363,7 +363,6 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([owner]),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => thread,
     report: () => undefined,
   });

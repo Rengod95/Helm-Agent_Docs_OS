@@ -2,12 +2,11 @@ import { expect, test } from "bun:test";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, fakeUsage } from "@fresnel/ext-host/testing";
 import { createGroupService } from "@fresnel/group-sdk";
-import { groupCatalogOf, memoryDriveHolderSettings } from "@fresnel/group-sdk/testing";
+import { groupCatalogOf } from "@fresnel/group-sdk/testing";
 import { helmGroup } from "../../src/index.ts";
 import { callCommand, drainRounds, settleOnce } from "../support/rig.ts";
 
 test("failures.unknown-error-rethrown: an unexpected exception leaves the drive and marks the group driveThrew", async () => {
-  const holder = memoryDriveHolderSettings();
   const t = await createTestHost({
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
@@ -31,7 +30,6 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([helmGroup]),
-    holder,
     currentThread: () => thread,
     report: () => {},
   });

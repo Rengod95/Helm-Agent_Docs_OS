@@ -446,8 +446,8 @@ export type DelegateResult =
 | drive 함수 오류(`RegistrationInfo.drive = "error"`) | `error` | 스택 위치보다 먼저 본다 |
 | `rejected` | 더는 내지 않음 | 대기 상한 거부가 없어졌다. 계약 값만 남았고 계약 정리 단계에서 지운다 [미결] | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 
-3. `GroupService`가 확장하는 X `DriveLockArbiterPort.choose`는 계약이 요구하는 동안 `() => null`로만 남는다. X가 더는 부르지 않는다. 계약 정리 단계에서 같이 지운다 [미결]. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-4. `setDriveHolder`와 `/group drive`는 계약(`GroupService.setDriveHolder`)이 남아 있어 쓰기 경로만 남았다. 설정 `x.primitives.activeDriver`는 엔진이 더 읽지 않으므로 지정은 주도를 바꾸지 않는다. 계약 정리 단계에서 키와 함께 걷는다 [미결]. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+3. `GroupService`가 확장하던 X `DriveLockArbiterPort.choose`와 그 포트 키는 계약 정리 단계에서 걷었다(E3). `GroupService`는 포트를 확장하지 않는다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+4. `setDriveHolder`와 `/group drive`는 계약 정리 단계에서 키 `x.primitives.activeDriver`와 함께 걷었다. 지정은 주도를 바꾸지 않았으므로 남은 경로가 없다. [근거: E3 구현, drive-isolation.md 2.2]
 
 ### 3.6 그룹 상태 레코드
 
@@ -546,16 +546,10 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 ```ts
 // xeon/packages/contracts/src/services/groups.ts  (F.capabilities.spec §3.12)
 import type {
-  GroupId, DriveLockArbiterPort, DriveLockId, RecordKind, RegistrationId, RegistrationStatus, Unsubscribe,
+  GroupId, DriveLockId, RecordKind, RegistrationStatus, Unsubscribe,
 } from "../extensions";
 
 export const GroupServiceName = "fresnel.groups";
-
-/** 설정 x.primitives.activeDriver의 유효 값. null은 auto(요청 순서)다 */
-export type DriveHolderSetting = RegistrationId | null;
-
-/** settings를 import하지 않으므로 F.wire-settings SettingScope와 같은 모양의 리터럴 유니언으로 적는다(F.capabilities.spec §3.12) */
-type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
 
 /** GroupStatus.metrics. group-sdk GroupMetrics(§3.12)의 부분 필드와 같은 모양이다 */
 export interface GroupMetricsSummary {
@@ -567,8 +561,8 @@ export interface GroupMetricsSummary {
   readonly leaseMs: number;
 }
 
-/** rejected: drive lock 요청이 대기 상한 뒤 거부됐다(`lease.rejected`, M3-REQ-99). 채우는 일은 X 커밋이 낸 이벤트를 읽는 group-sdk 작업이 한다 */
-export type DriveRole = "holder" | "waiting" | "none" | "error" | "rejected";
+/** 스택에서 읽는 그룹의 drive 역할(§3.5). `rejected`는 중재가 없어져 계약에서 걷었다(E3) */
+export type DriveRole = "holder" | "waiting" | "none" | "error";
 
 export interface GroupError {
   readonly kind: "group.driveThrew" | "group.setupFailed" | "group.stateInvalid" | "group.migrationFailed";
@@ -594,15 +588,8 @@ export interface GroupStatus {
   readonly metrics: GroupMetricsSummary | null;
 }
 
-export type GroupSettingUnwritableReason =
-  | "no_thread" | "ambiguous_thread" | "not_owner" | "project_unavailable" | "invalid_value" | "storage";
-
 export type GroupCommandError =
-  | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] }
-  | { readonly kind: "group.noDrive"; readonly id: GroupId }
-  | { readonly kind: "group.settingLocked"; readonly key: string }
-  /** 잠금은 아니지만 쓸 수 없었다. 쓸 thread를 정하지 못했거나(no_thread, ambiguous_thread), 소유가 없거나(not_owner), 작업 폴더 파일을 쓸 수 없거나(project_unavailable), 값이 정의에 맞지 않거나(invalid_value), 저장소가 실패했다(storage) */
-  | { readonly kind: "group.settingUnwritable"; readonly key: string; readonly reason: GroupSettingUnwritableReason };
+  | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] };
 
 export type GroupResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -615,34 +602,23 @@ export interface ToggleReceipt {
   readonly appliesAt: "nextStepBoundary" | "now";
 }
 
-export interface HolderReceipt {
-  readonly holder: DriveHolderSetting;
-  readonly scope: HolderSettingScope;
-  /** 다른 그룹이 drive lock을 가지고 있으면 afterLeaseRelease. drive lock이 없으면 X가 다음 판단 시점에 읽는다 */
-  readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
-}
-
-/** fresnel.groups 서비스. 계약은 아직 X DriveLockArbiterPort(choose)를 확장한다(F.capabilities.spec §3.12 규칙 2). E3 이후 choose는 `() => null`이다(§3.5) */
-export interface GroupService extends DriveLockArbiterPort {
+/** fresnel.groups 서비스. 중재 포트(choose)와 구동 그룹 설정 쓰기(setDriveHolder)는 E3에서 걷었다(§3.5) */
+export interface GroupService {
   /** 설치된 모든 그룹. 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
   list(): readonly GroupStatus[];
   status(id: string): GroupResult<GroupStatus>;
   /** RegistrationHandle.enable() 요청만 기록. 이미 켜져 있으면 그대로 ok */
   enable(id: string): GroupResult<ToggleReceipt>;
   disable(id: string): GroupResult<ToggleReceipt>;
-  /** 설정 x.primitives.activeDriver을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "session". E3 이후 엔진은 이 설정을 읽지 않는다(§3.5 규칙 4) */
-  setDriveHolder(holder: string, options?: { readonly scope?: HolderSettingScope; readonly threadId?: ThreadId }): Promise<GroupResult<HolderReceipt>>;
   /** 상태가 바뀔 때 전체 목록을 넘긴다. 단계 경계마다 최대 한 번 */
   onChange(listener: (groups: readonly GroupStatus[]) => void): Unsubscribe;
 }
 ```
 
-- 구현 [M2, E3에서 `driveHolderSetting()`을 걷음]: `createGroupService(deps)`가 `GroupServiceWithUsage`(`GroupService` + 계측 메서드)를 만든다. 의존은 `host`(`ExtHost`의 `scopes`·`scope`·`leaseOf`·`onChange`·`ports`·`queryEvents`, M3b에 `queryEvents`를 더했다), `catalog`(`GroupCatalogPort`: 설치된 그룹의 매니페스트와 로드 순서), `holder`(`DriveHolderSettingsPort`: 설정 `x.primitives.activeDriver` 읽기·쓰기), `currentThread`, `report`다. `DriveHolderSettingsPort.write(holder, scope, threadId)`의 `threadId`는 `setDriveHolder`의 `options.threadId`(없으면 null)이고, 쓰기 실패는 `HolderWriteError`(`locked`, 또는 `unwritable`과 `reason`)로 돌려준다. 서비스는 `locked`를 `group.settingLocked`로, `unwritable`을 `group.settingUnwritable`(같은 `reason`)로 옮기고 `appliesAt`는 `options.threadId`가 있으면 그 thread의 drive lock으로 잰다 [결정: 통합 검토 L8]. 쓸 thread를 정하는 일(`no_thread`·`ambiguous_thread`)은 포트 구현(HOST)이 한다. `catalog`와 `holder`는 조립 루트가 로더 보고와 설정 서비스에 연결한다. 선택 의존 `onEnabled(id)`는 `enable`이 `RegistrationHandle.enable()`을 부른 직후 불린다. 조립 루트가 `AutoDisabler.clearLedger("ext:<id>")`를 연결해 `/group on`이 실패 장부를 비운다 [결정: 오케스트레이터 기본값, M4 X-4]. 상태는 호출 때마다 `ExtHost`에서 새로 읽고 사본을 쌓지 않는다. `onChange`는 같은 동기 구간의 변경을 구독자에게 한 번만 알린다. `GroupStatus.metrics`는 계측이 꺼졌거나 그룹이 아직 설정되지 않았으면 null이다. 나머지는 등록부의 카운터에 `refreshUsage`로 캐시한 이벤트 집계를 합친다(M3b, §4.9). `deps.metrics`를 주면 그 값을 그대로 쓴다.
-- `setDriveHolder`의 `appliesAt` [M2, E3 이후 옛 규칙을 그대로 옮긴 값이다. 엔진은 이 설정을 읽지 않는다]: `auto`는 `"now"`(현재 holder 유지). 지정한 그룹이 이미 holder면 `"now"`. drive lock이 없으면 `"nextStepBoundary"`. 다른 그룹이 drive lock을 갖고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 `"nextStepBoundary"`, 후보가 아니면 현재 drive lock을 유지하므로 `"afterLeaseRelease"`다. `contracts/services/groups.ts`의 `setDriveHolder` 주석 "현재 drive lock은 회수하지 않는다"는 이 규칙과 맞지 않아 F 레인에 고침을 요청한다.
-- 서비스 이름 `fresnel.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`, 그리고 `DriveLockArbiterPort`로 주입받는 X다. `choose`는 `() => null`이다(E3, §3.5). 계약 정리까지 남는다.
+- 구현 [M2, E3에서 `driveHolderSetting()`과 `setDriveHolder`를 걷음]: `createGroupService(deps)`가 `GroupServiceWithUsage`(`GroupService` + 계측 메서드)를 만든다. 의존은 `host`(`ExtHost`의 `registrations`·`registration`·`driveFrames`·`onChange`·`ports`·`queryEvents`·`toolOwner`·`resetRegistrationState`), `catalog`, `currentThread`, `report`이고 `instrumentation`·`onEnabled`·`metrics`·`promotion`은 선택이다.
+- 서비스 이름 `fresnel.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`다. 서비스는 포트가 아니라 조립 루트가 `onService`로 받는다(E3).
 - [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 Registration 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
-- `setDriveHolder` 오류: 설치되지 않은 이름은 `group.unknown`, `drives`가 false인 그룹은 `group.noDrive`, 관리 범위가 값을 잠갔으면 `group.settingLocked`, 잠기지는 않았지만 쓸 수 없었으면 `group.settingUnwritable`(이유는 `reason`). 오류면 설정을 바꾸지 않는다. `options.threadId`는 설정을 쓰고 `appliesAt`를 재는 thread다. 생략하면 `session`·`project`·`local` 범위는 쓰기 소유를 쥔 thread가 하나일 때 그 thread에 쓰고, 정할 수 없으면 대상이 없을 때 `no_thread`, 여럿일 때 `ambiguous_thread`다. "마지막으로 쥔 thread"를 고르지 않는다 [결정: 통합 검토 L8].
 - 거부 표시 [M3a, G-30, E3에서 걷음]: `lease.rejected` 구독과 거부 집합(`lease-rejections.ts`)은 없다. 엔진은 이 이벤트를 더 발행하지 않는다. `GroupStatus.drive`의 `rejected`도 더 내지 않는다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. Registration 토글과 drive lock이 thread마다 따로인지는 X.primitives.spec이 정한다.
 

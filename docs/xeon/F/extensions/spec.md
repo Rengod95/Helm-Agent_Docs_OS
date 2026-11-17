@@ -803,21 +803,6 @@ export interface HookProcessPort {
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort>;                 // { name: "fresnel.process" }
 
-// ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────
-export interface DriveLockCandidate {
-  readonly scopeId: RegistrationId;
-  readonly extension: ExtensionName;
-  readonly loadIndex: number;
-  readonly defaultEnabled: boolean;
-  /** 그 thread 활성 가지의 마지막 `scope.changed{status:"enabled"}` seq. 기록이 없으면 null */
-  readonly enabledAtSeq: number | null;
-}
-export interface DriveLockArbiterPort {
-  /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
-  choose(threadId: ThreadId, candidates: readonly DriveLockCandidate[]): RegistrationId | null;
-}
-export const DriveLockArbiterPortKey: PortKey<DriveLockArbiterPort>;       // { name: "fresnel.groups" }
-
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────
 export interface ToolResourceDef {
   readonly name: ToolName;
@@ -922,7 +907,7 @@ export interface TrustPrompter {
 | `ScopedStorePort` | `fresnel.store` | platform-store | `StoreService`(`F.records.spec` §3.9) | `X.primitives.spec` §3.6 |
 | `ExtensionTablesPort` | `fresnel.store`(member `extensions`) | platform-store | `ExtensionTables`(`F.records.spec` §3.9) | `X.operations.spec` §4.4.7 |
 | `ProcessPort` | `fresnel.process` | platform-process | `ProcessService extends ProcessPort` | `X.primitives.spec` §3.6, `X.loading-trust.spec` §3.8, `X.operations.spec` §3.7 |
-| `DriveLockArbiterPort` | `fresnel.groups` | group-sdk | `GroupService extends DriveLockArbiterPort`(`F.capabilities.spec` §3.12 `services/groups.ts`) | `X.primitives.spec` §3.6 |
+| `DriveLockArbiterPort` | 없음(E3에서 걷음) | — | 중재가 없다. 주도권은 주도권 스택과 세 계기로만 받는다(drive-isolation.md 2.2) | `X.primitives.spec` §4.4.1a |
 | `ToolsPort` | `fresnel.tools` | core-tools | `ToolService extends ToolsPort` | `X.primitives.spec` §3.9 |
 | `ModelsPort` | `fresnel.models` | core-models | `ModelService extends ModelsPort` | `X.primitives.spec` §3.9 |
 | `McpPort` | `fresnel.mcp` | cap-mcp | `McpService extends McpPort`(`F.capabilities.spec` §3.12 `services/mcp.ts`) | `X.primitives.spec` §3.9 |
@@ -1632,7 +1617,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 2. first 핸들러가 `undefined`도 결정 타입도 아닌 값을 돌려줌: 결정 스키마(`HookDecl.result`) 위반은 예외와 같게 거부값으로 처리한다.
 3. chain 핸들러가 패치 스키마를 위반함: 그 핸들러의 패치를 버린다(skip).
 4. detached tap 핸들러가 끝나기 전에 대화가 종료됨: 결과를 기다리지 않는다. 핸들러 예외는 기록만 한다.
-5. 두 Registration이 동시에 drive lock을 요청함: X가 하나에만 준다. 다른 쪽의 drive 함수는 호출되지 않는다. 사용자는 L4 설정에서 어느 Registration이 주도할지 고른다. 설정 키는 `x.primitives.activeDriver` 하나다(소유 X.primitives.spec). 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresGroup`(기본 참)이 `drive_requires_group`으로 거부한다.
+5. 주도권은 후보 가운데 고르지 않는다(E3, drive-isolation.md 2.2). 주도를 받는 계기는 사용자의 주도 시작 명령(`startDrive`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`) 셋뿐이다. 설정 키 `x.primitives.activeDriver`와 대기 상한 `leaseWaitLimit`은 없다. 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresGroup`(기본 참)이 `drive_requires_group`으로 거부한다.
 5-1. 매니페스트에 선언한 플러그인을 엔트리가 `register`하지 않음: 로더 진단 `plugin_not_registered`(warning)를 낸다 [제안].
 6. drive 함수가 예외를 던짐: drive lock을 반납하고 그룹의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
 7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 drive lock을 반납한다 [제안].
@@ -1649,7 +1634,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
 | 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
-| 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 옛 키 `x.primitives.activeDriveGroup`은 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
+| 시작 설정 | 프로필의 `startDrive`(처음 열 때 그 Registration이 주도를 시작한다). 설정 키 `x.primitives.activeDriver`는 없다(drive-isolation.md 2.2) | 프로필 화면의 "시작 설정" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
 | 격리 | [제안] 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec). 매니페스트 `isolation`은 요청이고 실제 값은 사용자 설정이 정한다(2차) | 같은 탭 |
 
@@ -1683,7 +1668,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | `HookName`, `HookSignatures`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_HOOKS`, `LIFECYCLE_HOOKS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
 | `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `DriveFrameView`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind` | X.loading-trust.spec, L0.os.spec(구현), L4.cli.spec·L4.desktop.spec(프롬프트 구현) |
 
 요구:

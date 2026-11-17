@@ -101,19 +101,11 @@ export {
 } from "./service.ts";
 export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
 export type {
-  DriveHolderSettingsPort,
-  HolderSettingScope,
-  HolderUnwritableReason,
-  HolderWriteError,
-} from "./ports/holder.ts";
-export type {
-  DriveHolderSetting,
   DriveRole,
   GroupCommandError,
   GroupError,
   GroupResult,
   GroupService,
   GroupStatus,
-  HolderReceipt,
   ToggleReceipt,
 } from "@fresnel/contracts/services";

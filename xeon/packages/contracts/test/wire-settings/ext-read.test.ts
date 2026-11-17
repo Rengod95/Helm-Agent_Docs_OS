@@ -164,17 +164,7 @@ describe("M4 ext read methods", () => {
     expect(parse(result, { frames: [{ ...frame, extra: 1 }] }).ok).toBe(false);
   });
 
-  test("group.driveLock, metrics, timings and version history round trip", () => {
-    const lock = {
-      holder: "helm",
-      leaseEpoch: 3,
-      activeDriver: null,
-      limits: { turns: 10, spawns: 2, tokens: null },
-      used: { turns: 1, spawns: 0, tokens: 40 },
-      candidates: [{ registrationId: "other", waits: 2, waitLimit: 5 }],
-      lastRejected: { groupId: "other", reason: "wait_limit", requestSeq: 9 },
-    };
-    roundTrip(WIRE_METHODS["group.driveLock"].result, lock);
+  test("metrics, timings and version history round trip", () => {
     const timings = {
       traceEnabled: true,
       timings: [

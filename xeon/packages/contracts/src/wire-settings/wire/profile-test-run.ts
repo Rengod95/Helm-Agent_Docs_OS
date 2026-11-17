@@ -48,8 +48,8 @@ export interface Profile {
   readonly enable: readonly string[];
   readonly disable: readonly string[];
   readonly settings: readonly ProfileSetting[];
-  /** drive를 가질 Registration id(설정 `x.primitives.activeDriver`에 쓴다). 없으면 null */
-  readonly driver: string | null;
+  /** 시작 설정. 대화를 열 때 drive를 쥘 Registration id(주도권 스택의 첫 프레임, drive-isolation.md 2.2). 없으면 null */
+  readonly startDrive: string | null;
   /** 저장이 정한 값. 쓰는 쪽은 보내도 무시된다 */
   readonly updatedAt: string;
   /** 저장이 정한 값. `profile.put`의 `baseRev` 비교에 쓴다 */
@@ -63,7 +63,7 @@ const ProfileShape = closed({
   settings: Type.Array(closed({ key: SettingKey, value: Type.Unknown() }), {
     maxItems: PROFILE_LIMITS.settings,
   }),
-  driver: Type.Union([Name, Type.Null()]),
+  startDrive: Type.Union([Name, Type.Null()]),
   updatedAt: Iso,
   rev: Count,
 });
@@ -91,7 +91,7 @@ export interface ProfileInput {
   readonly enable: readonly string[];
   readonly disable: readonly string[];
   readonly settings: readonly ProfileSetting[];
-  readonly driver: string | null;
+  readonly startDrive: string | null;
 }
 const ProfileInputShape = closed({
   id: ProfileShape.properties.id,
@@ -99,7 +99,7 @@ const ProfileInputShape = closed({
   enable: ProfileShape.properties.enable,
   disable: ProfileShape.properties.disable,
   settings: ProfileShape.properties.settings,
-  driver: ProfileShape.properties.driver,
+  startDrive: ProfileShape.properties.startDrive,
 });
 export const ProfileInputSchema: TUnsafe<ProfileInput> = Type.Unsafe<ProfileInput>(
   ProfileInputShape satisfies SchemaProof<ProfileInput, typeof ProfileInputShape>,

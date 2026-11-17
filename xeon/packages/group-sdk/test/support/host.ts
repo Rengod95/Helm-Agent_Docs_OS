@@ -6,11 +6,7 @@ import {
   type GroupModule,
   type GroupServiceWithUsage,
 } from "../../src/index.ts";
-import {
-  groupCatalogOf,
-  memoryDriveHolderSettings,
-  type MemoryDriveHolderSettings,
-} from "../../src/testing/index.ts";
+import { groupCatalogOf } from "../../src/testing/index.ts";
 
 export function install(
   t: TestHost,
@@ -57,11 +53,10 @@ async function installInOrder(
   await installInOrder(t, rest, index + 1);
 }
 
-/** GroupService 시험이 쓰는 호스트 묶음. 구동 그룹 설정은 서비스가 쓰기만 하는 holder 대역이다 */
+/** GroupService 시험이 쓰는 호스트 묶음 */
 export interface ServiceRig {
   readonly t: TestHost;
   readonly thread: ThreadId;
-  readonly holder: MemoryDriveHolderSettings;
   readonly service: GroupServiceWithUsage;
   readonly reported: unknown[];
 }
@@ -70,7 +65,6 @@ export async function serviceRig(
   modules: readonly GroupModule[],
   extra: { readonly onEnabled?: (id: string) => void } = {},
 ): Promise<ServiceRig> {
-  const holder = memoryDriveHolderSettings();
   const t = await createTestHost({
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
@@ -85,7 +79,6 @@ export async function serviceRig(
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf(modules),
-    holder,
     currentThread: () => thread,
     report: (cause) => {
       reported.push(cause);
@@ -95,5 +88,5 @@ export async function serviceRig(
   await installInOrder(t, modules);
   await t.host.openThread(thread);
   await t.settled();
-  return { t, thread, holder, service, reported };
+  return { t, thread, service, reported };
 }

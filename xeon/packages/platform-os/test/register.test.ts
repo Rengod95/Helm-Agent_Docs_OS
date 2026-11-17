@@ -19,7 +19,7 @@ function newHost() {
     settings: {
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
-      activeDriver: () => null,
+      driveMaxDepth: () => 8,
       driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },

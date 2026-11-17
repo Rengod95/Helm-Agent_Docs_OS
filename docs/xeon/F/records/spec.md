@@ -382,7 +382,7 @@ export interface DriveCommandSettledPayload {
   outcome: string;                // 결과 요약(`completed`, `answered`, `committed` 등, 1~48자)
   ref?: string;                   // 결과 참조(turn id, 자식 thread id 등)
 }
-/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-sdk이 `GroupStatus.drive: "rejected"`를 채운다 */
+/** drive 락 요청이 대기 상한 뒤 거부됐다(옛 기록). E3부터 엔진은 발행하지 않고 읽기 전용으로 남긴다(drive-isolation.md 2.6). 스키마는 옛 기록을 읽으려고 둔다 [결정: adr.0017, M3-REQ-99] */
 export interface LeaseRejectedPayload {
   groupId: string;                // 요청한 그룹(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]

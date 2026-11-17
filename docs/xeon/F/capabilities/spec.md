@@ -836,7 +836,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `SecretService` | `SecretServiceName` | `fresnel.secrets` | `services/secrets.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.3~§3.6, §3.10 |
 | `SecretAdminService` | `SecretAdminServiceName` | `fresnel.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
 | `McpService` | `McpServiceName` | `fresnel.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
-| `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | `DriveLockArbiterPort` | `L3.group-sdk.spec` §3.8 |
+| `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | 없음(서비스만 낸다. X 포트 아님) | `L3.group-sdk.spec` §3.8 |
 | `DevkitService` | `DevkitServiceName` | `fresnel.devkit` | `services/devkit.ts` | `apps/host`(L4) | 없음 | `L3.authoring.spec` §3.3 [결정: M4 T-F, X-22] |
 
 파일별 이름. 위 표의 인터페이스와 이름 상수 외에 각 파일에 두는 이름이다. 필드는 오른쪽 열 블록을 옮겨 확정한다(규칙 1).
@@ -857,7 +857,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `services/approvals.ts` | `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`과 비차단 `open`·`wait`·`get`, `OpenedApproval`, `ApprovalWaitFailure`, `respond`의 결과 `ApprovalApplyOutcome`과 이유 `ApprovalNotAppliedReason`·`APPROVAL_NOT_APPLIED_REASONS` [결정: m2c G1-09]). 만료: `ApprovalRequestInput.expiresAt`·`onExpire`(`ApprovalOnExpire`), `ApprovalResolvedBy`의 `expired`, `L2ApprovalRequest`의 같은 이름 필드, `L2ApprovalSnapshot.resolution.resolvedBy` [결정: m2c G1-11], `L2ApprovalRequest.remember`(선택, 기본 `["once"]`)·`L2ApprovalSnapshot.resolution.remember`·`ApprovalService.remembered`·`L2ApprovalsPort.remembered`(선택)·`WRITE_ACCESS_RULE_ID` [결정: 2026-11-13 사용자, L2.workspace.spec §4.3.1]·`WEB_ACCESS_RULE_ID` [결정: 2026-11-15 사용자, L2.web.spec §4.5.5], `ApprovalServiceName`, 호출자 `ApprovalCaller`와 변환 함수 `approvalCallerOf` [결정: m2c G1-09], 승인 값 타입(`ApprovalKind`은 `tool`, `question`, `review`(`plan`은 은퇴 [결정: 2026-11-13 사용자]), `ApprovalBody`의 `review` 변형과 `ReviewBody`, `ReviewFileSummary` [결정: adr.0018, M3-REQ-09], `ApprovalRequest`, `ApprovalResolution`, `ApprovalRequestError`, `QuestionAnswer`, `PlanAnswer`, `DenyAnswer` 등. 질문 항목에 선택 필드 `header`, 선택지에 `recommended`) [결정: m2 F.8]. L2 공통 승인 포트 `L2ApprovalsPort`와 `L2ApprovalKind`, `L2ApprovalSnapshot`, `L2ApprovalRequest`, `L2ApprovalRespondInput`(`respond`의 결과도 `ApprovalApplyOutcome`), `L2_APPROVAL_REQUEST_ID_MAX`(48. services는 records를 값으로 import하지 않아 `records/commit.ts`의 `APPROVAL_REQUEST_KEY_MAX`와 같은 값을 거울로 두고 시험이 지킨다. 키 변환은 `requestKeyFor` 하나다 [결정: 통합 검토 L6]). 실패는 `Result` 오류 값이다. cap-*가 `ApprovalService`를 이 모양으로 감싼다 [결정: m2-plan F.4, L2.readme §5.7] | `L1.tools.spec` §3.6, `L2.readme` §5.7 |
 | `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다. M3a 추가 [결정: M3-REQ-10, 11]: `SpawnOrigin.parentToken?`(부모 쓰기 프로세스 락 토큰), `DelegateRequest.report?`(선택. 없으면 보고 입력 없이 `agent.settled`만 남고 D-M3-03 a), `CancelTarget`의 `{ ownerScopeId }` 변형(그룹 끄기 때 주체 단위 취소, D-M3-04 b [제안]). 완료 통지 수단은 새로 두지 않고 기존 `agent.settled` 레코드, `lifecycle.agent.settled` 훅, `AgentService.status`로 한다. 취소는 `AgentService.cancel(target)`이고 (부모, requestId) 변형이 `cancel(requestId)`에 해당한다. `services/loop.ts`: `ChildTurnRequest.tools.deny?`·`denyHint?` | `L1.agents.spec` §3.3 |
 | `services/mcp.ts` | `McpService`, `McpServiceName`. `McpClient` 기능 정의는 `capabilities/defs/mcp.ts`(§3.9)에 두고 이 파일이 import한다 | `L2.mcp.spec` §3.2 |
-| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.settingUnwritable`과 이유 집합 `GroupSettingUnwritableReason` 포함), `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`. `GroupId`·`RegistrationId`·`RegistrationStatus`·`DriveLockId`·`RecordKind`·`Unsubscribe`·`DriveLockArbiterPort`는 `../extensions`에서 가져온다. settings를 import하지 않으므로 `setDriveHolder`의 `scope` 옵션과 `HolderReceipt.scope`는 `SettingScope`와 같은 모양(`"managed" \| "user" \| "project" \| "local" \| "launch"`)으로 적는다 | `L3.group-sdk.spec` §3.8 |
+| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.unknown`만), `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`. `GroupId`·`RegistrationStatus`·`DriveLockId`·`RecordKind`·`Unsubscribe`는 `../extensions`에서 가져온다. 중재 포트 `DriveLockArbiterPort`, `setDriveHolder`, `HolderReceipt`, `DriveHolderSetting`과 설정 쓰기 오류(`group.settingLocked`, `group.settingUnwritable`, `group.noDrive`)는 E3에서 걷었다(drive-isolation.md 2.2) | `L3.group-sdk.spec`
 
 ```ts
 // src/services/names.ts
@@ -886,7 +886,7 @@ export interface McpService extends McpPort {
   /** 기능 API. 같은 객체를 cap:mcp.client 바인딩(g.capability(McpClientKey))으로도 얻는다 */
   readonly client: CapabilityApi<typeof McpClient>;
 }
-export interface GroupService extends DriveLockArbiterPort { /* L3.group-sdk.spec §3.8 */ }
+export interface GroupService { /* list, status, enable, disable, onChange. L3.group-sdk.spec §3.8 */ }
 
 // src/services/exec.ts (발췌)
 export interface ExecService extends ExecutionEnv {

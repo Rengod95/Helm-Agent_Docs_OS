@@ -8,7 +8,7 @@ import {
   type GroupApi,
   type MetricsRecordedPayload,
 } from "../src/index.ts";
-import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
+import { groupCatalogOf } from "../src/testing/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -188,11 +188,9 @@ test("metrics.status-is-null-when-instrumentation-is-off", async () => {
   await install(t, module);
   await t.host.openThread(thread);
   await t.settled();
-  const holder = memoryDriveHolderSettings();
   const off = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([module]),
-    holder,
     currentThread: () => thread,
     report: () => {},
     instrumentation: () => false,
@@ -200,7 +198,6 @@ test("metrics.status-is-null-when-instrumentation-is-off", async () => {
   const on = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([module]),
-    holder,
     currentThread: () => thread,
     report: () => {},
   });
