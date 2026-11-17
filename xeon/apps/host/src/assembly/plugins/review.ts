@@ -51,7 +51,14 @@ import {
   writeInstructionFolder,
 } from "./instruction.ts";
 import { sequentially } from "../../util.ts";
+import { collectInOrder, runInOrder } from "./in-order.ts";
 import { readPluginFolder, type FolderRejection, type PluginFolder } from "./folder-reader.ts";
+import {
+  createPluginDraftIntake,
+  type AdmitInput,
+  type AdmitResult,
+  type PluginDraftIntake,
+} from "./intake.ts";
 import type { PluginService, PluginSourceEntry, PluginSources } from "./service.ts";
 import type {
   PluginReviewMeta,
@@ -175,8 +182,13 @@ export interface PluginReview {
   ): Promise<Result<DecisionOutcome, PluginPortFailure>>;
   /** 대기 중인 검토 항목의 플러그인 이름(검토본이 없는 것 포함). 프로필 검증이 `plugin_not_reviewed`를 낼 때 쓴다 */
   pendingNames(): Promise<Result<readonly string[], PluginPortFailure>>;
-  /** 담당 AI(플러그인 빌더)의 제출 포트. wire 메서드가 아니다(§3.5) */
+  /** 담당 AI(플러그인 빌더)의 제출 포트. wire 메서드가 아니다(§3.5). 입구(`intake`)를 `assistant`로 부르는 얼굴이다 */
   readonly submitPort: PluginSubmitPort;
+  /**
+   * 공유 입구(§7.5 [제안]). 폴더를 초안으로 만들고 같은 직렬 구간에서 검토 항목을 만든다.
+   * 마이그레이션 제출(`createMigrationSubmitter`)이 쓴다. 담당 AI와 한 줄 지침도 이 입구를 부른다
+   */
+  readonly intake: PluginDraftIntake;
   /** 항목과 검토본이 바뀔 때 알림을 받는다. 연결 허브가 `pluginReview.changed`와 `plugin.changed`로 보낸다 */
   onChanged(listener: (change: PluginChange) => void): () => void;
 }
@@ -364,38 +376,6 @@ function draftsNamed(drafts: readonly DraftInfo[], name: string): DraftInfo[] {
           ? -1
           : 1,
     );
-}
-
-/** 항목을 차례로 처리하고 값을 모은다. 첫 실패에서 멈추고 그 실패를 돌려준다. 루프 안 await 대신 쓴다 */
-function collectInOrder<T, U, E>(
-  items: readonly T[],
-  step: (item: T) => Promise<Result<readonly U[], E>>,
-): Promise<Result<U[], E>> {
-  return items.reduce<Promise<Result<U[], E>>>(
-    async (chain, item) => {
-      const done = await chain;
-      if (!done.ok) return done;
-      const next = await step(item);
-      if (!next.ok) return next;
-      return ok([...done.value, ...next.value]);
-    },
-    Promise.resolve(ok([])),
-  );
-}
-
-/** 항목을 차례로 처리한다. 첫 실패에서 멈춘다 */
-function runInOrder<T, E>(
-  items: readonly T[],
-  step: (item: T) => Promise<Result<void, E>>,
-): Promise<Result<void, E>> {
-  return items.reduce<Promise<Result<void, E>>>(
-    async (chain, item) => {
-      const done = await chain;
-      if (!done.ok) return done;
-      return step(item);
-    },
-    Promise.resolve(ok(undefined)),
-  );
 }
 
 /** 검토본 기준: 이름마다 현재 검토본(없으면 null)과, 읽지 못해 이번에 건드리지 않을 이름 */
@@ -1033,8 +1013,33 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   }
 
   /**
-   * 한 줄 지침의 본체(§4.10). 입력을 검사하고, 원본 폴더를 쓰고, 그 폴더로 초안을 만들고, `user_instruction` 항목을 만든다.
-   * 같은 이름의 폴더는 이름을 명시로 준 경우에만 새 버전으로 덮어쓴다. 그 밖의 충돌은 `plugin.exists`다
+   * 입구의 본체(§7.5 [제안]). 호출자가 직렬화 안에 있다: 준비(폴더 쓰기), 초안 만들기, 검토 항목 만들기를 이 순서로 한다.
+   * 준비가 실패하면 초안도 항목도 없다
+   */
+  async function admitCore(input: AdmitInput): Promise<Result<AdmitResult, PluginPortFailure>> {
+    if (input.prepare !== undefined) {
+      const prepared = await input.prepare();
+      if (!prepared.ok) return prepared;
+    }
+    const created = await createDraft(input.dir, input.originThreadId);
+    if (!created.ok) return created;
+    const made = await submitDraftItem(created.value.draftId, {
+      evidence: input.evidence,
+      purpose: input.purpose,
+      provenance: input.provenance,
+      originProfileId: input.originProfileId,
+    });
+    if (!made.ok) return made;
+    return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
+  }
+
+  const intake = createPluginDraftIntake({
+    admit: (input) => serial(() => admitCore(input)),
+  });
+
+  /**
+   * 한 줄 지침의 본체(§4.10). 입력을 검사하고, 입구로 원본 폴더를 쓰고 초안과 `user_instruction` 항목을 만든다.
+   * 폴더 쓰기는 입구의 준비 단계에서 직렬 구간 안에서 한다. 같은 이름의 폴더는 이름을 명시로 준 경우에만 새 버전으로 덮어쓴다. 그 밖의 충돌은 `plugin.exists`다
    */
   async function instructionDraft(
     request: PluginDraftFromInstructionParams,
@@ -1043,43 +1048,50 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (issues.length > 0) return err({ kind: "draft_invalid", issues });
     const name = request.name ?? generatedNameOf(request.text);
     const dir = join(deps.userDir, name);
-    const replacing =
-      request.name !== undefined && existsSync(dir) && (await replaceableInstruction(name, dir));
-    if (existsSync(dir) && !replacing) return err({ kind: "exists", name });
     const profileId = request.profileId ?? DEFAULT_PROFILE_ID;
-    const known = await profileKnown(profileId);
-    if (!known.ok) return err(known.error);
     const purpose = purposeOf(request.text);
-    const written = await writeInstructionFolder(dir, manifestTextOf(name, purpose), request.text);
-    if (!written.ok) return err({ kind: "store", code: "io" });
-    const created = await createDraft(dir, null);
-    if (!created.ok) return err(created.error);
-    const made = await submitDraftItem(created.value.draftId, {
+    const made = await intake.submit({
+      dir,
+      provenance: "user_instruction",
+      originThreadId: null,
+      originProfileId: profileId,
       evidence: [],
       purpose,
-      provenance: "user_instruction",
-      originProfileId: profileId,
+      prepare: async (): Promise<Result<void, PluginPortFailure>> => {
+        const replacing =
+          request.name !== undefined &&
+          existsSync(dir) &&
+          (await replaceableInstruction(name, dir));
+        if (existsSync(dir) && !replacing) return err({ kind: "exists", name });
+        const known = await profileKnown(profileId);
+        if (!known.ok) return err(known.error);
+        const written = await writeInstructionFolder(
+          dir,
+          manifestTextOf(name, purpose),
+          request.text,
+        );
+        return written.ok ? ok(undefined) : err({ kind: "store", code: "io" });
+      },
     });
-    if (!made.ok) return err(made.error);
-    return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
+    if (!made.ok) return made;
+    return ok({ draftId: made.value.draftId, itemId: made.value.itemId });
   }
 
   const submitPort: PluginSubmitPort = {
-    submit: (
+    submit: async (
       request: PluginSubmitRequest,
-    ): Promise<Result<PluginSubmitResult, PluginSubmitError>> =>
-      serial(async () => {
-        const created = await createDraft(request.dir, request.originThreadId);
-        if (!created.ok) return err(submitFailureOf(created.error));
-        const made = await submitDraftItem(created.value.draftId, {
-          evidence: request.evidence,
-          purpose: request.purpose,
-          provenance: "assistant",
-          originProfileId: null,
-        });
-        if (!made.ok) return err(submitFailureOf(made.error));
-        return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
-      }),
+    ): Promise<Result<PluginSubmitResult, PluginSubmitError>> => {
+      const made = await intake.submit({
+        dir: request.dir,
+        provenance: "assistant",
+        originThreadId: request.originThreadId,
+        originProfileId: null,
+        evidence: request.evidence,
+        purpose: request.purpose,
+      });
+      if (!made.ok) return err(submitFailureOf(made.error));
+      return ok({ draftId: made.value.draftId, itemId: made.value.itemId });
+    },
   };
 
   return {
@@ -1182,7 +1194,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return ok({ drafts });
     },
 
-    fromInstruction: (request) => serial(() => instructionDraft(request)),
+    fromInstruction: (request) => instructionDraft(request),
 
     draftDiscard: (draftId) =>
       serial(async () => {
@@ -1279,6 +1291,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     applyApproval: (item, decision, hooks) => serial(() => applyApproval(item, decision, hooks)),
 
     submitPort,
+    intake,
 
     onChanged(listener) {
       listeners.add(listener);

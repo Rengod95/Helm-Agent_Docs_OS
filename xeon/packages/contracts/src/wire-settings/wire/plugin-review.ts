@@ -45,9 +45,11 @@ export const PROVENANCES = [
   "unknown",
   "bundled",
   "user_instruction",
+  "migration",
 ] as const;
 /**
- * 출처. `unknown`은 손으로 고친 것으로 보이는 변경(승인 불가, §4.7.4). `user_instruction`은 사용자가 "지침 추가"로 쓴 한 줄(§4.10)이라 승인할 수 있다
+ * 출처. `unknown`은 손으로 고친 것으로 보이는 변경(승인 불가, §4.7.4). `user_instruction`은 사용자가 "지침 추가"로 쓴 한 줄(§4.10)이라 승인할 수 있다.
+ * `migration`은 다른 하네스의 설정에서 옮긴 플러그인(migration.md §7.5 [제안])이라 손 수정 판정을 받지 않고 승인할 수 있다
  */
 export type Provenance = (typeof PROVENANCES)[number];
 const ProvenanceShape = Type.Union(PROVENANCES.map((name) => Type.Literal(name)));

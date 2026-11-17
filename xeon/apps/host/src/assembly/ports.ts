@@ -104,6 +104,7 @@ import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-source
 import { createM4Ports } from "./m4/index.ts";
 import {
   approvalHooksOf,
+  createMigrationSubmitter,
   createPluginReview,
   createOverlayPort,
   createPluginService,
@@ -977,12 +978,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     store: deps.pluginStore,
     log,
   });
+  // 사용자 플러그인 폴더(`<config>/plugins`). 읽기 서비스, 한 줄 지침(§4.10), 마이그레이션 제출(§7.5)이 같이 본다
+  const userPluginsDir = join(deps.configDir, "plugins");
   const pluginReview = createPluginReview({
     store: deps.pluginStore,
     plugins: pluginService,
     profiles: { list: () => ports.m4.profileTestRun.list() },
     // 한 줄 지침(§4.10)이 쓰는 사용자 플러그인 폴더. 읽기 서비스가 보는 것과 같다
-    userDir: join(deps.configDir, "plugins"),
+    userDir: userPluginsDir,
     ids: deps.localIds,
     now: () => new Date(deps.clock.now()).toISOString(),
     log: deps.logger,
@@ -1063,6 +1066,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       cancelOverlay: (threadId) => ports.m4.pluginSet.cancelOverlay(threadId),
     },
   });
+  // 마이그레이션 제출(M5g 전 조각, migration.md §7.5 [제안]). wire로 열지 않고 `engine.ports`로만 낸다. `migration.apply`가 부른다
+  const pluginMigration = createMigrationSubmitter({
+    userDir: userPluginsDir,
+    intake: pluginReview.intake,
+    review: pluginReview,
+    log: deps.logger,
+  });
   const ports: EnginePorts = {
     threads,
     turns,
@@ -1119,6 +1129,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     overlay,
     pluginReview,
+    pluginMigration,
     m4: createM4Ports(
       deps.ext,
       {

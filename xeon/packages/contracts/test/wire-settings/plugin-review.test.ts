@@ -68,8 +68,15 @@ describe("review item (M5c-1)", () => {
     });
   });
 
-  test("provenance is one of the five values and a hand edit is not one of them", () => {
-    for (const provenance of ["assistant", "project", "unknown", "bundled", "user_instruction"]) {
+  test("provenance is one of the six values and a hand edit is not one of them", () => {
+    for (const provenance of [
+      "assistant",
+      "project",
+      "unknown",
+      "bundled",
+      "user_instruction",
+      "migration",
+    ]) {
       expect(parse(ReviewItemSchema, { ...NEW_ITEM, provenance }).ok).toBe(true);
     }
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, provenance: "hand_edit" }).ok).toBe(false);

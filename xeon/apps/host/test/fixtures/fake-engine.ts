@@ -21,6 +21,7 @@ import { partial } from "./unsafe.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import type { PluginPort } from "../../src/handlers/m5/plugins.ts";
 import type { OverlayPort } from "../../src/assembly/plugins/overlay.ts";
+import type { MigrationSubmitPort } from "../../src/assembly/plugins/migration-submit.ts";
 import type { PluginReviewPort } from "../../src/handlers/m5/plugin-review.ts";
 import type { SandboxSelfTestPort } from "../../src/handlers/m4/sandbox-self-test.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
@@ -578,6 +579,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.pluginReview,
     }),
     overlay: partial<OverlayPort>({ ...options.overrides?.overlay }),
+    pluginMigration: partial<MigrationSubmitPort>({}),
     m4: {
       extRead: createExtReadPort(
         {

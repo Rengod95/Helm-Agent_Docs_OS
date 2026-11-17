@@ -662,6 +662,16 @@ export function emit(plan: PlannedPlugin): ReadonlyMap<string, Uint8Array>;     
 - 원본 폴더에 쓴 직후 원본 감시(`sourceWatch`)가 "원본 해시가 검토본과 다름"으로 `provenance: "unknown"` 항목을 따로 만들면 안 된다. 같은 해시의 대기 항목이 이미 있으면 새 항목을 만들지 않는다는 규칙이 M5c-1에 필요하다(수용 기준 12, §12 요청).
 - 목적 한 문장은 변환이 결정적으로 만든다(스킬은 `description`, MCP는 "`<서버>` MCP 서버(<하네스>에서 가져옴)" 형태). 없으면 승인할 수 없다(M5c §4.7.6).
 
+> **구현 상태(M5c 공유 입구 단계, 2026-11-18).** 공유 입구는 `apps/host/src/assembly/plugins/intake.ts`의 `createPluginDraftIntake(admission)`이다. 입구의 본체(`admitCore`, 준비 → 초안 → 항목)와 직렬 큐는 검토 서비스 `review.ts`가 쥔다. 얼굴은 셋이다. 담당 AI(`submitPort`, `assistant`, 증거 한 개 이상), 한 줄 지침(`fromInstruction`, `user_instruction`), 마이그레이션(`apps/host/src/assembly/plugins/migration-submit.ts`의 `createMigrationSubmitter`, `migration`). 입구의 `submit`은 `{ dir, provenance, originThreadId, originProfileId?, evidence, purpose?, prepare? }`를 받는다. `assistant`만 증거를 요구하고 타입과 실행 때 둘 다 본다. `migration`은 `originThreadId: null`에 증거 없이 제출한다. [제안] 입구는 검토 서비스 전체가 아니라 `admit` 한 면을 받는다. 초안과 항목을 한 직렬 구간에서 만들어야 해서다. `prepare`는 초안보다 먼저, 같은 구간 안에서 돈다.
+>
+> 마이그레이션 제출(`createMigrationSubmitter`의 `submitPlanned`)은 다음을 한다. (1) 계획마다 `emit()`의 트리를 임시 폴더에 쓰고 `readPluginFolder`로 검사한다. 이름이 규칙에 어긋나면 `draft_invalid`(`name_invalid`), 절대 경로와 `..`와 빈 조각은 `path_invalid`, 폴더 검사 실패는 `draft_invalid`다. 하나라도 거절되면 아무것도 쓰지 않는다. (2) 통과한 트리를 `<userDir>/<이름>/`에 쓴다. 파일은 `0644`이고 `emit`은 실행 비트를 내지 않는다. (3) 최근 승인본과 내용 해시가 같은 계획은 건너뛰어 결과에 들지 않는다(수용 14). (4) 같은 이름의 폴더가 있으면 새 버전은 최근 승인본이 `migration`이고 폴더 내용 해시가 그 승인본과 같을 때만이다. 손으로 고친 폴더는 아니다. 이 규칙은 §4.10.4의 지침 규칙과 같은 방식이다 [제안]. 새 버전을 쓸 때는 옛 파일 가운데 새 트리에 없는 것을 지운다. 그 밖의 충돌은 `{ kind: "exists" }`(`plugin.exists`)다.
+>
+> 원본 감시와의 중복(수용 12): 쓰기, 초안, 항목이 한 직렬 구간이라 훑기가 그 사이에 끼지 못한다. 쓴 뒤의 훑기는 같은 후보 해시의 대기 항목이나 승인본을 보고 `unknown` 항목을 만들지 않는다. 이 규칙은 `review.ts`의 `scanEntry`가 이미 가지고 있었다. 확인은 `test/assembly/plugins/migration-submit.test.ts`가 한다. 승인 규칙(`migration`은 `handEditNotAllowed` 없이 승인, 목적이 비면 `purpose_required`, 승인 전에는 대기 이름이고 재료가 읽지 않는다)은 `test/assembly/plugins/intake.test.ts`가 본다.
+>
+> 증거: `EvidenceRef.kind: "migration"`은 추가하지 않았다. 마이그레이션 항목은 증거 없이 제출한다. 증거 자리는 M5g가 정한다(Q9).
+>
+> M5g에 남는 것: wire `migration.*`(`apply`가 `engine.ports.pluginMigration.submitPlanned`를 부른다. 포트는 `types.ts`의 `EnginePorts`에 있고 wire로 열지 않는다), 상태 파일과 훑기 샌드박스, 카드의 "가져온 항목" 구역, 원본 폴더를 손으로 고친 뒤 다시 가져오는 정책. 저장소 실패로 쓴 뒤 초안이 실패하면 폴더가 남고, 그 폴더는 다음 훑기가 `unknown` 항목으로 올릴 수 있다. 쓰기를 되돌리는 방법은 M5g가 정한다 [미결] [근거: 이 절의 M5g 범위].
+
 ### 7.6 테스트 대화(빌더)를 쓰는 곳
 
 결정적으로 만들 수 없거나 만들어도 의미가 어긋나기 쉬운 항목은 모델이 판단해야 한다. 빌더에게 맡긴다.
@@ -825,8 +835,8 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 9. (라이브러리) 정답 사례집의 스킬 사례: 이름·설명이 규칙을 지키면 폴더가 그대로 복사되고 보고서가 `exact`다. 설명이 1024자를 넘으면 초안을 만들지 않고 질문이 열린다.
 10. (라이브러리) 서브에이전트: 모든 `AgentDefinition` 필드 사례가 맞게 번역된다. `model` 별칭은 질문으로 열리고 기본 생략이다. `maxTurns`, `isolation`, `memory`, `hooks`는 `not_ported`다. 도착 정의가 `parseDefinitionFile`을 통과한다.
 11. (라이브러리) 지침: Claude `@경로` 가져오기가 깊이 4까지 가져온 자리에서 쪼개져 파일 순서가 보존되고 내용 해시가 원문 해시와 같다. 스캔 루트 밖 가져오기는 `not_ported`다. 지침 본문에 머리글이나 설명 문장이 더해지지 않는다(원문 바이트 보존 시험).
-12. (호스트 통합) 앱이 쓴 원본 폴더 때문에 `provenance: "unknown"` 검토 항목이 따로 생기지 않는다. 같은 후보 해시의 대기 항목이 이미 있으면 새 항목이 없다.
-13. (호스트 통합) 모든 초안은 검토함을 지난다. 승인 전에는 `E(T)`에 들지 않고(`plugin_not_reviewed`) 어떤 코드도 돌지 않는다. `provenance: "migration"` 항목은 승인할 수 있고(`pluginReview.handEditNotAllowed` 없음) 목적 문장이 비어 있으면 승인할 수 없다.
+12. (호스트 통합) 앱이 쓴 원본 폴더 때문에 `provenance: "unknown"` 검토 항목이 따로 생기지 않는다. 같은 후보 해시의 대기 항목이 이미 있으면 새 항목이 없다. [구현 2026-11-18: `migration-submit.test.ts`가 쓴 직후의 훑기와 동시 실행을 확인한다]
+13. (호스트 통합) 모든 초안은 검토함을 지난다. [구현 2026-11-18: 승인 규칙과 대기 이름은 `intake.test.ts`가 확인한다. 훑기 전체의 재료 차단은 M5g 전체 시험이 맡는다] 승인 전에는 `E(T)`에 들지 않고(`plugin_not_reviewed`) 어떤 코드도 돌지 않는다. `provenance: "migration"` 항목은 승인할 수 있고(`pluginReview.handEditNotAllowed` 없음) 목적 문장이 비어 있으면 승인할 수 없다.
 14. (호스트 통합) 같은 원본을 다시 훑어 아무것도 바뀌지 않았으면 새 초안과 검토 항목이 0개다.
 15. (호스트 통합) 원본 항목 하나가 바뀌면 그 플러그인의 새 초안(`parent` = 앞 초안)과 `update` 검토 항목(`baseHash` = 현재 검토본)이 하나 생기고 카드가 차이를 보인다.
 16. (호스트 통합) 가져온 뒤 검토본이 수정된 플러그인의 원본이 바뀌면 자동으로 초안을 만들지 않고 "수정됨 + 원본 변경" 항목을 올린다.
@@ -862,7 +872,7 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 | Q6 | 조건부 규칙(경로 glob)의 기본 변환 | 필요할 때 읽는 스킬(A). 파일 도구 결과에 붙이는 Hook(B)은 선택 | 코드 없는 쪽이 검토가 가볍다. 대신 자동 첨부가 모델 판단이 된다 |
 | Q7 | `PreToolUse`의 `updatedInput`을 낼 수 있는 Hook | 기본 `ask`(`onUnsupported`로 `block`·`ignore`) | 조용히 무시하면 원래 입력이 실행된다. 인자 변경 Hook은 M5e O-6으로 미뤄졌다 |
 | Q8 | 현재 환경 변수에서 시크릿 저장소로 값을 옮기는 단추 | 만들지 않는다 | 값을 읽는 길 자체를 두지 않는다 |
-| Q9 | 새 `Provenance` 값과 `EvidenceRef` 종류 | `provenance: "migration"`, `EvidenceRef.kind: "migration"`, `ContextRef.kind: "migration"` | 세 곳 모두 다른 스펙의 합집합이라 C0 동결 때 확정 |
+| Q9 | 새 `Provenance` 값과 `EvidenceRef` 종류 | `provenance: "migration"`, `EvidenceRef.kind: "migration"`, `ContextRef.kind: "migration"` | 세 곳 모두 다른 스펙의 합집합이라 C0 동결 때 확정. 구현 상태(2026-11-18): `provenance: "migration"`만 추가했다([제안], `docs/xeon/F/wire-settings/spec.md`에 반영). `EvidenceRef.kind`와 `ContextRef.kind`는 보류다(증거 없이 제출, M5g) |
 | Q10 | 패키지 이름과 위치 | `xeon/packages/plugin-migration`(`@fresnel/plugin-migration`) | `plugin-builder` 옆 이름 |
 | Q11 | 일괄 승인 | 항목별 결정을 한 번에 묶는 화면 기능. 결정 기록은 항목별 | 검토 절차가 하나로 모이는 원칙을 지킨다 |
 | Q12 | 사용자 수준 지침의 프로필 배치 | "모든 프로필 공통" 후보로 제안하고 사용자가 고른다 | ADR §3.6.2의 공통 묶음 |

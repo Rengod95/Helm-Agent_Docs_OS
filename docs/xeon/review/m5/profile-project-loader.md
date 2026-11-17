@@ -155,7 +155,7 @@ export interface SkillEntry { readonly name: string; readonly path: string; read
 // F: 검토
 export type ReviewKind = "new" | "update" | "remove";
 export type ReviewState = "pending" | "approved" | "sent_back" | "discarded" | "superseded" | "withdrawn";
-export type Provenance = "assistant" | "project" | "unknown" | "bundled" | "user_instruction"; // unknown = 손으로 고친 것으로 보이는 변경. user_instruction = 사용자가 "지침 추가"로 한 줄을 쓴 것(§4.10)
+export type Provenance = "assistant" | "project" | "unknown" | "bundled" | "user_instruction" | "migration"; // unknown = 손으로 고친 것으로 보이는 변경. user_instruction = 사용자가 "지침 추가"로 한 줄을 쓴 것(§4.10). migration = 다른 하네스에서 옮긴 플러그인(migration.md §7.5 [제안]). 손 수정 판정을 받지 않아 승인할 수 있다
 export interface ReviewItem {
   readonly itemId: string;                 // "rvw_" + 난수
   readonly kind: ReviewKind;
@@ -588,6 +588,7 @@ plugin-store/
 7. 시험과 재생(B-7): 빌더의 시험 도구는 `testRun.start`, 재생 도구는 E의 `backtest.run`을 쓴다. 개발 모드 전용인 옛 `authoring_replay`는 폐기한다.
 8. 단계 함수로 다시 구현(B-8)과 상주(B-5), 새 도구 `authoring_context`(B-4)는 엔진 설계 §1.4(E1)가 정하고, 도구는 이 절의 §4.8.8이 읽는다.
 9. 돌려보내기 사유는 `originThreadId` 대화의 다음 입력으로 간다(§4.7.3). 그 대화가 테스트 대화면 그 대화의 `craft.context`에 `{ kind: "review", itemId }`가 붙는다. 대화가 없으면 항목에만 남고 사용자가 테스트 대화를 다시 열 때 맥락으로 붙는다.
+10. **공유 입구(§7.5 [제안]).** 폴더 하나에서 초안과 검토 항목을 한 번에 만드는 길은 호스트 안의 `PluginDraftIntake`다(wire 메서드가 아니다). 출처는 `assistant`(담당 AI, 증거 한 개 이상), `user_instruction`(한 줄 지침, §4.10), `migration`(마이그레이션, 증거 없음, `originThreadId: null`)이다. 세 얼굴(`PluginSubmitPort`, `fromInstruction`, 마이그레이션 제출)이 입구를 좁게 부른다. 초안을 만들기 전 폴더를 쓰는 일도 같은 직렬 구간 안에서 하므로 원본 훑기가 초안과 항목 사이에 끼지 못한다. 그래서 쓴 원본 폴더 때문에 `unknown` 항목이 따로 생기지 않는다.
 
 ### 4.10 지침 추가 (한 줄 지침 플러그인) [결정: 2026-11-17 사용자 밤]
 
@@ -601,6 +602,8 @@ plugin-store/
 > **구현 상태(M5c 한 줄 지침 단계, 2026-11-18).** `plugin.draft.fromInstruction`을 구현했다. 처리기는 `handlers/m5/plugins.ts`이고, 포트 `PluginPort.draftFromInstruction`이 검토 서비스의 `fromInstruction`(`assembly/plugins/review.ts`, 직렬 큐 안에서 돈다)을 부른다. 입력 규칙, 이름과 내용 해시, 최소 매니페스트, 지침 파일 쓰기는 `assembly/plugins/instruction.ts`가 한다. 초안은 `draftCreate`와 같은 `createDraft`로, 항목은 `submitDraftItem`으로 만든다. `submitDraftItem`은 `provenance`와 `originProfileId`를 인자로 받는다(담당 AI 제출은 `assistant`와 `null`). 승인은 기존 `decide`와 `approvalHooksOf`가 `originProfileId`의 프로필에 넣는다. 재료는 `MaterialPort`가 검토본 사본을 읽으므로 승인 전에는 빈 목록이다. 시험: `apps/host/test/assembly/plugins/instruction.test.ts`(값 비교), `apps/host/test/handlers/plugins.test.ts`(처리기와 오류 값). 데스크톱은 `WorkbenchCommands.addInstruction(text, profileId?)`(`apps/desktop/src/app/workbench-commands.ts`)만 두었다. 프로필 화면의 "지침 추가" 단추와 화면은 미구현이다 [근거: `apps/desktop/src/views`에 "지침 추가" 자리가 없다].
 >
 > 오류: 새 오류 이름은 추가하지 않았다 [근거: `packages/contracts/src/wire-settings/wire/errors.ts`의 `plugin.invalid` 3621, `plugin.exists` 3624를 그대로 쓴다]. 연결 계층이 스키마로 먼저 거절하는 입력(0자, 2001자 이상)은 `jsonrpc.invalidParams`(-32602)다. 포트를 직접 부르는 쪽을 위해 서비스가 같은 규칙을 한 번 더 지켜 `plugin.invalid`(3621, `details.issues`의 `code`는 `text_length`·`text_blank`·`name_invalid`)로 거절한다. 같은 이름의 원본 폴더를 덮어쓸 수 없으면 `plugin.exists`(3624, `details.name`)다. 없는 `profileId`는 프로필 실패 `not_found`를 그대로 옮겨 `profile.notFound`다.
+>
+> 공유 입구(2026-11-18): 지침 추가는 이제 입구의 준비 단계(`prepare`)에서 원본 폴더를 쓰고 입구로 초안과 항목을 만든다. 동작은 그대로다(`instruction.test.ts`가 그대로 통과한다). 입구의 자세한 모양은 §4.9의 10번이다.
 >
 > [제안] 이 문서가 정하지 않은 것을 구현에서 정했다. (1) 이름: 생략하면 `instr-` 뒤에 입력 텍스트 UTF-8 sha256의 앞 6자(16진수)다. 같은 텍스트를 이름 없이 다시 내면 같은 이름이라 `plugin.exists`다. (2) 새 버전: 같은 이름을 명시로 준 경우에만 덮어쓴다. 그 폴더가 (a) 파일이 `.fresnel-plugin/plugin.json`과 `instructions.md`뿐이고, (b) 매니페스트가 검증을 통과하며 이름이 같고 목적이 있으며 `components`가 `instructions: ["instructions.md"]` 하나뿐이고, (c) 현재 검토본을 승인한 항목이 `user_instruction`일 때만 새 버전이다. 하나라도 어긋나거나 판정이 모호하면(대기 중인 같은 이름, 사용자가 손으로 만든 플러그인, 파일이 더 붙은 지침 폴더 포함) `plugin.exists`로 거절한다. (3) 프로필: `profileId`가 없으면 `default`다(호스트는 "지금 프로필"을 모른다). 있으면 프로필 목록에 있는지 본다. `default`는 파일에 없어도 있다. (4) 지침 파일은 입력 텍스트 그대로 쓴다(앞뒤 공백과 개행을 고치지 않고 끝 개행을 더하지 않는다). 공백만 든 입력은 목적이 비어 승인할 수 없으므로 `plugin.invalid`(`text_blank`)다. (5) 목적은 개행을 공백으로 바꾼 앞 200자(글자 단위이고 UTF-16 단위로도 200을 넘지 않는다)에서 앞뒤 공백을 뗀 것이다. (6) 본문 길이는 와이어 스키마와 같이 UTF-16 단위로 잰다. (7) 초안의 `originThreadId`는 null이고, 검토 항목의 `originProfileId`는 위의 프로필이다. 항목은 `provenance: "user_instruction"`이라 손 수정 판정을 받지 않는다. (8) 매니페스트 버전은 `0.0.0`이다. 같은 이름의 새 버전은 내용 해시로 구별한다. (9) 폴더를 쓰는 중 실패하면 원본 폴더는 반쯤 쓰인 채 남을 수 있다. 다음 훑기가 그 폴더를 `unknown` 항목으로 올린다. 이름을 명시해 같은 지침을 다시 내면 (2)에 따라 새 버전으로 바로잡히고, 그 항목은 `user_instruction`이다.
 

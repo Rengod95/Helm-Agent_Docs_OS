@@ -82,6 +82,7 @@ import type { M4Ports } from "./assembly/m4/index.ts";
 import type { PluginPort } from "./handlers/m5/plugins.ts";
 import type { PluginReviewPort } from "./handlers/m5/plugin-review.ts";
 import type { OverlayPort } from "./assembly/plugins/overlay.ts";
+import type { MigrationSubmitPort } from "./assembly/plugins/migration-submit.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
 // (L4.host-service.plan §2). 포트 구현(어댑터)은 assemble.ts와 src/assembly/ 에 있다.
@@ -345,6 +346,8 @@ export interface EnginePorts {
   readonly pluginReview: PluginReviewPort;
   /** 턴 덧씌우기(`turn.start.overlay`, M5c §4.3). `turn.start` 처리기가 입력 처리 앞에 쓴다 */
   readonly overlay: OverlayPort;
+  /** 마이그레이션 제출(migration.md §7.5 [제안]). wire 메서드가 아니다. M5g의 `migration.apply`가 부른다 */
+  readonly pluginMigration: MigrationSubmitPort;
   /** M4 wire 처리기 43개의 포트 묶음. 소유 트랙이 채울 때까지 빈 구현이다(`spec-deltas/t-f.md` §5) */
   readonly m4: M4Ports;
 }
