@@ -43,53 +43,45 @@ X9 packages/client test/web/tools-web.test.ts
 X10 apps/cli test/x10-settings-keys.int.test.ts
 # Track B5-REL (release smoke, Linux CI and macOS job)
 X11 scripts release-smoke.test.ts
-# M4 conditions Y1 to Y17 (review.m4-plan 1.3, product.scope.spec 4.4 M4). Each Y line below is a placeholder, like the M3b lines:
-# the owning track removes the leading "# " when its test file exists and replaces <파일> with the real path. An uncommented line
-# with an unfilled <파일> fails as missing, so an unfinished condition cannot pass by accident.
-# Enabled now: Y4 (host half), Y10 (host half), Y11, Y13, Y16: their test files exist and pass without skips. Every other Y line
-# stays commented because its test file does not exist yet; the "Track ..." comment above it names the owner. A condition with
-# one enabled and one commented line (Y4, Y10) is only half checked until the owner enables the second line.
-# Track T-CHAT1, T-CHAT2 (pages.six-states-render, approval-card.same-in-three-places, the P0 screenshots)
-# Y1 apps/desktop <파일>
-# Track T-BENCH, T-CANVAS, T-COMPOSE, T-TRIAL, T-VIEW (the workbench pages in six states)
+# M4 conditions Y1 to Y17 (review.m4-plan 1.3, product.scope.spec 4.4 M4). 2026-11-17 (user): Y2 to Y5 and Y8 to Y10, the ones tied to
+# Craft, left M4 and went to M6 (review.m6-plan 3). Their numbers are not reused and their placeholder lines below stay commented;
+# M6 states the new conditions (W1 to W15). Y4 and Y10 host lines are still enabled and keep running.
+# A commented line is a placeholder for a test file that is not written yet; an uncommented line with an unfilled <파일> fails as
+# missing, so an unfinished condition cannot pass by accident.
+# M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry; no host
+# int test for knowledge.memory.add and remove), Y7 (half: no replayDrive test for a group that asks), Y14 (no axe, no keyboard path
+# test), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
+# Y1 half: approval-card.same-in-three-places. pages.six-states-render is not written (Y1 stays partial).
+Y1 apps/desktop test/views/approval-card-mounts.test.tsx
+# Moved to M6 (Craft): Y2, Y3, Y5 (placeholders, no test file yet)
 # Y2 apps/desktop <파일>
-# Track T-SHELL, T-BENCH (area.switch-restores-place, workbench.context-drives-all-pages, workbench.context-follows-unless-pinned)
 # Y3 apps/desktop <파일>
-# Track T-CANVAS and T-XD (canvas.selection-sync, canvas.no-edit-actions, canvas.order-persists-and-resets, replay-bar.matches-trace)
-# Y4 packages/client <파일>   (owner T-CANVAS, T-XD: not written yet)
+# Y4 packages/client <파일>   (moved to M6, not written)
 Y4 apps/host test/int/trace-turn.int.test.ts
-# Track T-VIEW (view-host.*, and the Linux frame-isolation e2e)
 # Y5 packages/client <파일>
 # Y5 apps/desktop test/e2e/frame-isolation.e2e.test.ts
-# Track T-F, T-WA, T-WB (wire-methods.doc.test.ts, one host int test per M4 wire method)
-# Y6 packages/contracts <파일>
-# Y6 apps/host test/int/<파일>
-# Track T-XD and T-GK (drive-ask.test.ts, replay of a group that asks)
-# Y7 packages/ext-host test/drive-ask.test.ts
-# Y7 packages/group-sdk <파일>
-# Track T-AUTH (authoring.*)
+# Y6 half: the wire doc tables equal the registry. One host int test per method is not complete (knowledge.memory.add and remove have none).
+Y6 packages/contracts test/wire-settings/wire.doc.test.ts
+# Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run. Missing: replayDrive on a group that asks.
+Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
+Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
+# Y7 packages/group-sdk <파일>   (replayDrive with ask: not written)
+# Moved to M6 (Craft): Y8, Y9 (the ext-host pause test already exists as test-run-pause.test.ts; M6 W8 re-states it)
 # Y8 packages/plugin-builder <파일>
-# Track T-XD, T-WB, T-TRIAL (trial-pause.test.ts, trial.int.test.ts, trial.dev-only-locked)
 # Y9 packages/ext-host test/trial-pause.test.ts
 # Y9 apps/host test/int/trial.int.test.ts
 # Y9 apps/desktop <파일>
-# Track T-WB (profile.int.test.ts and the CLI profile list)
+# Y10 host half stays; the CLI half left M4 scope (2026-11-01 (1), (6)); the profile model moved to M5c/M6 (Z7)
 Y10 apps/host test/int/profile.int.test.ts
-# Y10 apps/cli <파일>   (owner T-WB: the CLI profile list test is not written yet)
-# Track T-XV and T-BENCH (version-history.test.ts or bundled-revert.test.ts)
 Y11 packages/ext-host test/loading-trust/version-history.test.ts
-# Track T-FIX and T-XD (the four code defects)
-# Y12 packages/ext-host <파일>
-# Y12 packages/group-sdk <파일>
-# Y12 apps/host <파일>
-# Track T-CAU1 and T-CAU2 (caustic-gaps.test.ts; the grep check is not a test file)
+# Y12: the four code defects (ledger cleared on enable, managed install capped at tier user, handler times per hook, safe mode drops X hooks, suggestSafeMode)
+Y12 packages/ext-host test/loading-trust/levels.test.ts test/operations/handler-timings.test.ts test/operations/safe-mode-x-hooks.test.ts
+Y12 packages/group-sdk test/service.test.ts
+Y12 apps/host test/int/startup-health.int.test.ts test/assembly/ext-enabled.test.ts
 Y13 scripts caustic-gaps.test.ts
-# Track T-A11Y (a11y.axe-all-pages and the keyboard path)
-# Y14 apps/desktop <파일>
-# Track T-I18N (the hardcoded-Korean rule and the desktop en smoke)
-# Y15 scripts <파일>
-# Y15 apps/desktop <파일>
-# Track T-LED, T-RT1, T-RT2 (req-ledger.test.ts: no carry-over item unassigned)
+# Y14 apps/desktop <파일>   (axe over all pages and the keyboard path: not written, large)
+# Y15 half: en locale tests and the Hangul rule's own tests. The repo scan is `just check-ts-rules`, `just terms check`.
+Y15 apps/desktop test/en-locale-no-hangul.test.ts test/views/en-locale-smoke.test.tsx test/desktop-locale.test.ts
+Y15 scripts check-ts-rules.test.ts terms-stage3.test.ts
 Y16 scripts req-ledger.test.ts
-# Track T-PERF (scripts/desktop-benchmark.ts result and the size check)
 Y17 scripts desktop-benchmark.test.ts
