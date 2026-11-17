@@ -12,6 +12,7 @@ import {
   type CapabilityRequirement,
   type ExtensionEntry,
   type ExtensionManifest,
+  type ToolCallTraceSink,
 } from "@fresnel/contracts/extensions";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
@@ -66,6 +67,8 @@ export interface ToolsPluginOptions {
    * 조립 루트가 내장 기능 정의 전체를 넘긴다
    */
   readonly pluginCapabilities?: readonly AnyCapabilityDef[];
+  /** 도구 호출 추적 싱크(읽기 전용). 조립 루트가 턴 기록 쓰는 쪽에 잇는다. 생략하면 추적하지 않는다 */
+  readonly callTrace?: ToolCallTraceSink;
   readonly loadIndex?: number;
 }
 
@@ -144,6 +147,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         ...(scheduler === undefined ? {} : { scheduler }),
         ids: options.ids,
         logger: options.logger,
+        ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
         capabilityDefs: [
           ...BUILTIN_CAPABILITIES,
           ...(options.capabilities ?? []),

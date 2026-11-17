@@ -14,6 +14,7 @@ export * from "./ext-method.ts";
 export * from "./composition.ts";
 export * from "./manifest.ts";
 export * from "./trace-types.ts";
+export * from "./tool-call-trace.ts";
 export * from "./ports.ts";
 export * from "./validate.ts";
 export * from "./effects.ts";

@@ -3,6 +3,7 @@ import type { AnyCapabilityDef } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ProducerHandle, SessionService, StoreService } from "@fresnel/contracts/records";
 import type { Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
+import type { ToolCallTraceSink } from "@fresnel/contracts/extensions";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
 import type { LockEnv, ToolTasks } from "./tasks.ts";
@@ -51,4 +52,9 @@ export interface ToolsDeps {
   readonly scheduler?: Scheduler;
   readonly ids: IdFactory;
   readonly logger: Logger | undefined;
+  /**
+   * 도구 호출 추적 싱크(읽기 전용). 호출이 닫힐 때 한 줄씩 받는다. 없으면 기록 값을 만들지 않는다.
+   * 싱크의 실패는 호출 결과를 바꾸지 않는다(정본 turn-record-metrics.md §4.1 규칙 2·7)
+   */
+  readonly callTrace?: ToolCallTraceSink;
 }

@@ -2,8 +2,10 @@ import { Type, type TLiteral, type TUnion, type TUnsafe } from "typebox";
 import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import { StepCompositionSchema, type StepComposition } from "../../conversation/index.ts";
 import {
+  TOOL_CALL_VERDICTS,
   TRACE_FAILURE_REASONS,
   TRACE_HANDLER_RESULTS,
+  type ToolCallVerdict,
   type TraceFailureReason,
   type TraceHandlerResult,
 } from "../../extensions/index.ts";
@@ -48,24 +50,9 @@ export const CALLER_KINDS = ["main", "subagent", "plugin"] as const;
 export type CallerKind = (typeof CALLER_KINDS)[number];
 export const CallerKindSchema: TUnion<TLiteral<CallerKind>[]> = literalUnion(CALLER_KINDS);
 
-/** 도구 호출의 판정 열네 가지(§3.2). 막음(intent)과 고장(fault)은 다른 값이다 */
-export const VERDICTS = [
-  "allowed", // 실행됨
-  "blocked_hook", // tool.call.before 핸들러가 막는 결정을 냄(뜻을 가진 거부)
-  "blocked_hook_fault", // tool.call.before 핸들러의 실패·시간 초과·검사 실패가 거부로 대체됨
-  "blocked_guard", // guard.tool.before 핸들러가 막는 결정을 냄
-  "blocked_guard_fault", // guard.tool.before 핸들러 실패가 거부로 대체됨
-  "denied_policy", // 정책 규칙이 거부
-  "denied_human", // 사람이 물음(정책 ask 또는 훅의 ask)에 거부로 답함
-  "denied_noninteractive", // 사람이 없는 실행이라 묻지 않고 거부(approval.resolvedBy: "noninteractive"). 훅 묻기가 무인 정책으로 거부된 경우 포함
-  "replaced_hook", // tool.call.before의 replace가 실행 없이 결과를 대신 줌(effectId null)
-  "blocked_spawn", // agent.spawn.before가 서브에이전트 생성을 막음(spawn의 판정)
-  "cancelled_ask", // ask.human.before가 카드를 취소함
-  "aborted", // 턴 중단
-  "invalid_args", // 스키마 검증 실패
-  "unavailable", // 도구 이름을 못 찾음
-] as const;
-export type Verdict = (typeof VERDICTS)[number];
+/** 도구 호출의 판정 열네 가지(§3.2). 목록의 정본은 extensions의 `TOOL_CALL_VERDICTS`다(싱크와 같은 값을 쓴다) */
+export const VERDICTS: typeof TOOL_CALL_VERDICTS = TOOL_CALL_VERDICTS;
+export type Verdict = ToolCallVerdict;
 export const VerdictSchema: TUnion<TLiteral<Verdict>[]> = literalUnion(VERDICTS);
 
 /** 훅 결과의 표시값 여섯(F §4.5, R12). 저장 열이 아니라 `result`·`reason`·`decision`에서 파생한다 */

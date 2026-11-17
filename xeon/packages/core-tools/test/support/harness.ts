@@ -18,7 +18,12 @@ import type {
   JsonValue,
   ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, HookName, RegistrationSetup } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionManifest,
+  HookName,
+  RegistrationSetup,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import type {
   CallerId,
@@ -73,6 +78,8 @@ export interface HarnessOptions {
   readonly capabilityDefs?: readonly AnyCapabilityDef[];
   /** 기록기. 생략하면 기록하지 않는다. 진단 로그를 확인하는 시험이 넣는다 */
   readonly logger?: Logger;
+  /** 도구 호출 추적 싱크. 생략하면 추적하지 않는다 */
+  readonly callTrace?: ToolCallTraceSink;
 }
 
 export interface Harness {
@@ -166,6 +173,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
     logger: options.logger,
+    ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
   };
   const runtime = createToolRuntime(deps);
   return {

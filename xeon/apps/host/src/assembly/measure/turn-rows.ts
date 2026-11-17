@@ -1,8 +1,14 @@
+import { createHmac } from "node:crypto";
 import type { StepComposition } from "@fresnel/contracts/conversation";
-import type { TraceHandlerEntry, TraceTurnEntry } from "@fresnel/contracts/extensions";
+import type {
+  TraceHandlerEntry,
+  TraceTurnEntry,
+  ToolCallTraceEvent,
+} from "@fresnel/contracts/extensions";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import type {
   Advertised,
+  CallRecord,
   HookRun,
   ModelCall,
   RecordLevel,
@@ -12,7 +18,7 @@ import type {
   TurnRecord,
   TurnStatus,
 } from "@fresnel/contracts/wire";
-import type { TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import type { TrCallRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
 // 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 프로필·덧씌우기·초안·프레임·재료·광고·캐시 원인은
@@ -20,6 +26,14 @@ import type { TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 /** 턴 하나의 훅 행 상한(§4.1 규칙 8). 넘는 행은 `elided.hooks`에 센다 */
 export const MAX_HOOK_ROWS_PER_TURN = 500;
+
+/** 턴 하나의 도구 호출 행 상한(§4.1 규칙 8). 넘는 줄은 `elided.calls`에 센다 */
+export const MAX_CALL_ROWS_PER_TURN = 500;
+
+/** 등록되지 않은 도구의 소유자 자리 값. 와이어 이름 규칙(1자 이상)을 지키려고 훅과 같은 값을 쓴다 */
+const UNKNOWN_PLUGIN = "none";
+/** 등록되지 않은 도구의 위험 등급 자리 값. 알 수 없으면 가장 무거운 등급으로 센다(meta_json의 `riskKnown`이 구분한다) */
+const UNKNOWN_RISK: CallRecord["risk"] = "exec";
 
 /** 아직 채우지 않는 광고 요약의 자리 값(§3.2). 지문이 비어 있으면 스키마가 거부하므로 "none"을 둔다 */
 const ADVERTISED_NONE: Advertised = {
@@ -68,6 +82,12 @@ export interface TurnDraft {
   readonly steps: StepRecord[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
+  /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly toolCalls: Map<string, ToolCallTraceEvent[]>;
+  /** 이 턴에 모은 도구 호출 줄 수. 상한을 셀 때 쓴다 */
+  callRows: number;
+  /** 상한 때문에 버린 도구 호출 줄 수 */
+  elidedCalls: number;
   /** 이 턴에 쓴 훅 행 수. 상한을 셀 때 쓴다 */
   hookRows: number;
   /** 상한 때문에 버린 훅 행 수 */
@@ -98,6 +118,9 @@ export function newDraft(input: {
     scope: "live",
     steps: [],
     calls: new Map(),
+    toolCalls: new Map(),
+    callRows: 0,
+    elidedCalls: 0,
     hookRows: 0,
     elidedHooks: 0,
     writeFailures: 0,
@@ -237,12 +260,121 @@ function modelCallOf(call: UsageRecord, turnStartedAt: number): ModelCall {
   };
 }
 
-/** 단계 하나의 기록(§3.2 `StepRecord`) */
+/** 설치별 소금으로 HMAC한 앞 16 hex(§4.3 규칙 20·21). 소금 없이는 인자 값을 사전 대입으로 되짚을 수 없다 */
+function keyedHex(salt: string, text: string): string {
+  return createHmac("sha256", salt).update(text).digest("hex").slice(0, 16);
+}
+
+/**
+ * 호출 추적 줄 하나를 저장 모양(`CallRecord`)으로 옮긴다. 인자와 대상은 해시를 소금으로 한 번 더 HMAC한 짧은 값만 남긴다.
+ * `hooks`는 이 호출의 `toolCallId`에 묶인 훅 행이다(§4.3)
+ */
+export function callRecordOf(
+  event: ToolCallTraceEvent,
+  input: {
+    readonly salt: string;
+    readonly turnStartedAt: number;
+    readonly hooks: readonly HookRun[];
+  },
+): CallRecord {
+  return {
+    toolCallId: event.toolCallId,
+    parentToolCallId: event.parentToolCallId,
+    tool: event.tool,
+    plugin: event.plugin ?? UNKNOWN_PLUGIN,
+    caller: event.caller,
+    callerPlugin: event.callerPlugin,
+    via: event.via,
+    risk: event.risk ?? UNKNOWN_RISK,
+    capability: event.capability,
+    callKey: keyedHex(input.salt, event.argsHash),
+    targetKey: event.targetHash === null ? null : keyedHex(input.salt, event.targetHash),
+    afterUntrusted: event.afterUntrusted,
+    verdict: event.verdict,
+    blockedBy: event.blockedBy,
+    hooks: [...input.hooks],
+    policy: event.policy,
+    approval:
+      event.approval === null
+        ? null
+        : {
+            approvalId: event.approval.approvalId,
+            decision: event.approval.decision,
+            resolvedBy: event.approval.resolvedBy,
+            waitMs: event.approval.waitMs,
+            inheritedFrom: event.approval.inheritedFrom,
+          },
+    exec:
+      event.exec === null
+        ? null
+        : {
+            startedAtMs: Math.max(0, event.exec.startedAt - input.turnStartedAt),
+            durationMs: event.exec.durationMs,
+            status: event.exec.status,
+            effectId: event.exec.effectId,
+          },
+    result:
+      event.result === null
+        ? null
+        : {
+            tokens: event.result.tokens,
+            bytes: event.result.bytes,
+            truncated: event.result.truncated,
+            isError: event.result.isError,
+            itemId: event.result.itemId,
+          },
+  };
+}
+
+/**
+ * 호출 한 줄의 저장 모양(`tr_call`). 열은 거르기용 사본이고, 위험 등급·기능·`afterUntrusted`·인자 글자 수는 `meta_json`에 든다.
+ * `riskKnown`이 거짓이면 위험 등급은 자리 값이다
+ */
+export function trCallRowOf(
+  event: ToolCallTraceEvent,
+  record: CallRecord,
+  base: { readonly threadId: string; readonly turnId: string; readonly stepIndex: number },
+): TrCallRow {
+  return {
+    threadId: base.threadId,
+    turnId: base.turnId,
+    toolCallId: record.toolCallId,
+    stepIndex: base.stepIndex,
+    tool: record.tool,
+    plugin: record.plugin,
+    caller: record.caller,
+    callerPlugin: record.callerPlugin,
+    via: record.via,
+    inheritedFrom: record.approval?.inheritedFrom ?? null,
+    verdict: record.verdict,
+    blockedPlugin: record.blockedBy?.plugin ?? null,
+    blockedHook: record.blockedBy?.hook ?? null,
+    callKey: record.callKey,
+    targetKey: record.targetKey,
+    execMs: record.exec?.durationMs ?? null,
+    execStatus: record.exec?.status ?? null,
+    resultTokens: record.result?.tokens ?? null,
+    resultTruncated: record.result?.truncated ?? null,
+    resultItemId: record.result?.itemId ?? null,
+    metaJson: JSON.stringify({
+      risk: record.risk,
+      riskKnown: event.risk !== null,
+      capability: record.capability,
+      afterUntrusted: record.afterUntrusted,
+      parentToolCallId: record.parentToolCallId,
+      argTokens: event.argTokens,
+      registrationId: record.blockedBy?.registrationId ?? null,
+    }),
+  };
+}
+
+/** 단계 하나의 기록(§3.2 `StepRecord`). `toolCalls`는 이 단계의 도구 호출 기록이다 */
 export function stepRecordOf(input: {
   readonly stepIndex: number;
   readonly stepId: string;
   readonly turnStartedAt: number;
   readonly calls: readonly UsageRecord[];
+  readonly toolCalls: readonly CallRecord[];
   readonly composition: StepComposition | null;
   readonly hooks: readonly HookRun[];
 }): StepRecord {
@@ -254,7 +386,7 @@ export function stepRecordOf(input: {
     advertised: ADVERTISED_NONE,
     cache: null,
     hooks: [...input.hooks],
-    calls: [],
+    calls: [...input.toolCalls],
     composition: input.composition,
     recorded: true,
   };
@@ -324,7 +456,10 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     pluginCalls: [],
     pluginStderr: [],
     flags: NO_FLAGS,
-    elided: draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks },
+    elided: {
+      ...(draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks }),
+      ...(draft.elidedCalls === 0 ? {} : { calls: draft.elidedCalls }),
+    },
   };
 }
 

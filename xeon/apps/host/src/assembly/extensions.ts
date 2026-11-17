@@ -6,7 +6,7 @@ import {
   type LocalIdFactory,
   type ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionName } from "@fresnel/contracts/extensions";
+import type { ExtensionName, ToolCallTraceSink } from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS } from "./capability-defs.ts";
 import {
   EVENT_CATALOG,
@@ -181,6 +181,8 @@ export interface ExtensionDeps {
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
   /** 최종 요청 본문을 측정 기록기로 넘긴다(T-MEAS-REC) */
   readonly offerBody?: ModelsExtensionOptions["offerBody"];
+  /** 도구 호출 추적 싱크(읽기 전용). 턴 기록이 받는다(turn-record-metrics §4.3) */
+  readonly callTrace?: ToolCallTraceSink;
 }
 
 /** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 fresnel.* 포트를 쓸 수 있다 */
@@ -331,6 +333,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           capabilities: L2_TOOL_CAPABILITIES,
           // 플러그인 기능 호출은 도구 매핑이 없는 메서드도 부른다(U-1 (다)). 그 정의는 내장 기능 전체다. 매니페스트에는 더하지 않는다
           pluginCapabilities: [...BUILTIN_CAPABILITY_DEFS, ...(deps.extraCapabilityDefs ?? [])],
+          ...(deps.callTrace === undefined ? {} : { callTrace: deps.callTrace }),
           loadIndex,
         }),
     ],

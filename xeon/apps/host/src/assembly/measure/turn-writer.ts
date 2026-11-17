@@ -5,7 +5,7 @@ import {
   TurnStartedPayloadSchema,
   type TurnId,
 } from "@fresnel/contracts/conversation";
-import type { TraceReadPort } from "@fresnel/contracts/extensions";
+import type { ToolCallTraceEvent, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
@@ -17,12 +17,15 @@ import {
 import type { MeasureStore } from "./store.ts";
 import type { TrStepBatch } from "./turn-tables.ts";
 import {
+  callRecordOf,
   flatHooksOf,
   hooksOfStep,
+  MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
   newDraft,
   stepRecordOf,
   stepRowOf,
+  trCallRowOf,
   trHookRowOf,
   turnRowOf,
   type TurnDraft,
@@ -54,6 +57,8 @@ export interface TurnWriter {
   event(record: DurableEventEnvelope): void;
   /** 모델 호출 한 번(사용량 합산기). 단계의 모델 호출을 모은다 */
   usage(call: UsageRecord): void;
+  /** 도구 호출 하나가 닫힌 줄(추적 싱크). 계측이 켜진 턴의 단계에 모은다. 반환값은 호출 경로로 돌아가지 않는다 */
+  call(event: ToolCallTraceEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
   forget(threadId: string): void;
 }
@@ -73,6 +78,19 @@ function scopeOf(store: MeasureStore, threadId: string, logger: Logger): ScopeKi
 export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   /** 열려 있는 턴. 끝나면(`turn.completed`) 지운다 */
   const drafts = new Map<string, TurnDraft>();
+  /** 설치별 소금(`tr_meta`). 호출 해시를 HMAC할 때 처음 한 번 읽고, 성공한 값만 쥔다 */
+  let salt: string | undefined;
+
+  function installSaltOf(): string | undefined {
+    if (salt !== undefined) return salt;
+    const read = deps.store.installSalt();
+    if (!read.ok) {
+      deps.logger.warn("measure.salt_read_failed", { reason: read.error.kind });
+      return undefined;
+    }
+    salt = read.value;
+    return salt;
+  }
 
   function levelNow(): RecordLevel {
     return deps.enabled() ? "full" : "log_only";
@@ -156,13 +174,30 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     );
     draft.hookRows += hooks.rows.length;
     draft.elidedHooks += hooks.elided;
+    const hookRuns = hooks.rows.map((row) => row.run);
+    // 도구 호출 줄은 단계의 CallRecord와 tr_call 행이 된다. 각 호출에는 그 호출 id로 묶인 훅 행을 붙인다(§4.3)
+    const toolEvents = draft.toolCalls.get(stepId) ?? [];
+    draft.toolCalls.delete(stepId);
+    const sealed = toolEvents.length === 0 ? undefined : installSaltOf();
+    const pairs =
+      sealed === undefined
+        ? []
+        : toolEvents.map((event) => ({
+            event,
+            record: callRecordOf(event, {
+              salt: sealed,
+              turnStartedAt: draft.startedAt,
+              hooks: hookRuns.filter((run) => run.toolCallId === event.toolCallId),
+            }),
+          }));
     const step = stepRecordOf({
       stepIndex,
       stepId,
       turnStartedAt: draft.startedAt,
       calls: draft.calls.get(stepId) ?? [],
+      toolCalls: pairs.map((pair) => pair.record),
       composition: composition ?? null,
-      hooks: hooks.rows.map((row) => row.run),
+      hooks: hookRuns,
     });
     draft.steps.push(step);
     const batch: TrStepBatch = {
@@ -172,7 +207,13 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         stepIndex,
         calls: step.modelCalls,
       }),
-      calls: [],
+      calls: pairs.map((pair) =>
+        trCallRowOf(pair.event, pair.record, {
+          threadId: draft.threadId,
+          turnId: draft.turnId,
+          stepIndex,
+        }),
+      ),
       hooks: hooks.rows.map((row) =>
         trHookRowOf(row, { threadId: draft.threadId, turnId: draft.turnId, stepIndex }),
       ),
@@ -230,6 +271,21 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const calls = draft.calls.get(call.stepId) ?? [];
       calls.push(call);
       draft.calls.set(call.stepId, calls);
+    },
+    call(event) {
+      if (event.turnId === null || event.stepId === null) return;
+      const draft = drafts.get(event.turnId);
+      if (draft === undefined || draft.level !== "full" || draft.threadId !== event.threadId) {
+        return;
+      }
+      if (draft.callRows >= MAX_CALL_ROWS_PER_TURN) {
+        draft.elidedCalls += 1;
+        return;
+      }
+      draft.callRows += 1;
+      const bucket = draft.toolCalls.get(event.stepId) ?? [];
+      bucket.push(event);
+      draft.toolCalls.set(event.stepId, bucket);
     },
     forget(threadId) {
       for (const [turnId, draft] of drafts) {

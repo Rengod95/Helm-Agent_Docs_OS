@@ -5,7 +5,7 @@ import {
   TurnCompletedPayloadSchema,
   type StepContextWarning,
 } from "@fresnel/contracts/conversation";
-import type { TraceReadPort } from "@fresnel/contracts/extensions";
+import type { ToolCallTraceEvent, TraceReadPort } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
   type CommitBatch,
@@ -299,6 +299,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly stop: () => void;
   readonly offerBody: (input: RequestBodyInput) => void;
   readonly offerFailure: (input: HandlerFailureInput) => void;
+  readonly offerCall: (input: ToolCallTraceEvent) => void;
   /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
   readonly forget: (threadId: string) => void;
 } {
@@ -514,11 +515,17 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     },
     offerBody,
     offerFailure,
+    offerCall,
     forget: (threadId) => {
       flush();
       turns?.forget(threadId);
     },
   };
+
+  /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
+  function offerCall(input: ToolCallTraceEvent): void {
+    turns?.call(input);
+  }
 }
 
 export interface MeasurementDeps {
@@ -550,6 +557,8 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerBody: (input: RequestBodyInput) => void;
   /** 확장 핸들러 실패를 `handler_failed` 행으로 남긴다. 계측이 꺼져 있으면 아무것도 하지 않는다 */
   readonly offerFailure: (input: HandlerFailureInput) => void;
+  /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
+  readonly offerCall: (input: ToolCallTraceEvent) => void;
   /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
   readonly forgetThread: (threadId: string) => void;
 } {
@@ -561,6 +570,7 @@ export function startMeasurement(deps: MeasurementDeps): {
       store: undefined,
       offerBody: () => undefined,
       offerFailure: () => undefined,
+      offerCall: () => undefined,
       forgetThread: () => undefined,
     };
   }
@@ -601,6 +611,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     store,
     offerBody: recorder.offerBody,
     offerFailure: recorder.offerFailure,
+    offerCall: recorder.offerCall,
     forgetThread: (threadId) => {
       recorder.forget(threadId);
       const removed = store.forgetThread(threadId);

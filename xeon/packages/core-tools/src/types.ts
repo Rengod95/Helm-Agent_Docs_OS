@@ -18,6 +18,7 @@ import type {
   ThreadId,
   Usage,
 } from "@fresnel/contracts/conversation";
+import type { ToolCallTraceEvent } from "@fresnel/contracts/extensions";
 import type {
   ApprovalEvidence,
   ExecService,
@@ -121,10 +122,40 @@ export interface ToolEntry {
  */
 export type OutputTruncator = Pick<ExecService, "truncateHead" | "formatSize">;
 
+/**
+ * 추적 맥락: 누가 낸 호출이고 어느 턴과 단계에 속하는지. 모델 호출은 실행 맥락에서, 플러그인 호출은 요청에서 얻는다.
+ * 읽기 전용 기록(`ToolCallTraceSink`)에만 쓰고 호출의 흐름은 읽지 않는다
+ */
+export interface CallTraceOrigin {
+  readonly threadId: ThreadId;
+  readonly toolCallId: string;
+  readonly parentToolCallId: string | null;
+  /** 턴에 속하지 않는 호출(턴 밖 플러그인 호출)은 null */
+  readonly turnId: string | null;
+  readonly stepId: string | null;
+  readonly caller: ToolCallTraceEvent["caller"];
+  readonly callerPlugin: string | null;
+  readonly via: ToolCallTraceEvent["via"];
+}
+
+/** 추적 사실: 판정 경로가 호출 상태에 쌓고, 닫을 때 기록 싱크에 넘긴다. 읽기 전용 기록이라 흐름을 바꾸지 않는다 */
+export interface CallTraceFacts {
+  /** 이 호출이 시작될 때 같은 턴이 웹·MCP 결과를 이미 읽었나. 실행 직전에 쓴다 */
+  afterUntrusted: boolean | undefined;
+  /** 막음·대체를 낸 핸들러. 막히거나 대체된 호출에서만 채운다 */
+  blockedBy: ToolCallTraceEvent["blockedBy"];
+  policy: ToolCallTraceEvent["policy"];
+  approval: ToolCallTraceEvent["approval"];
+}
+
 /** 도구 호출 하나의 메모리 상태. 의도 표(intent table)를 포함한다 */
 export interface CallState {
   readonly threadId: ThreadId;
   readonly toolCallId: string;
+  /** 추적 맥락(읽기 전용 기록용) */
+  readonly origin: CallTraceOrigin;
+  /** 추적 사실(읽기 전용 기록용). 판정 경로가 채운다 */
+  readonly facts: CallTraceFacts;
   /** 커밋 키에 넣는 toolCallId 부분(commitKeyPart) */
   readonly key: string;
   readonly run: ToolRunContext;

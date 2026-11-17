@@ -1,10 +1,15 @@
+import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { Bug, parse, type Logger } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import type { TraceReadPort, TraceTurnEntry } from "@fresnel/contracts/extensions";
+import type {
+  ToolCallTraceEvent,
+  TraceReadPort,
+  TraceTurnEntry,
+} from "@fresnel/contracts/extensions";
 import type { CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import { TurnRecordSchema } from "@fresnel/contracts/wire";
@@ -122,6 +127,8 @@ interface Harness {
   readonly measurement: ReturnType<typeof startMeasurement>;
   readonly commit: (events: readonly DurableEventEnvelope[]) => void;
   readonly meter: (record: UsageRecord) => void;
+  /** 도구 호출 추적 줄(싱크가 넘기는 값)을 턴 기록에 넘긴다 */
+  readonly call: (event: ToolCallTraceEvent) => void;
   readonly stop: () => void;
 }
 
@@ -167,6 +174,9 @@ function openHarness(
     },
     meter: (record) => {
       meterListener?.(record);
+    },
+    call: (event) => {
+      measurement.offerCall(event);
     },
     stop: () => measurement.stop(),
   };
@@ -403,6 +413,235 @@ test("deleting a thread removes its turn rows and its test marker", async () => 
     const store = storeOf(harness.measurement);
     expect(store.readTurn(THREAD, TURN)).toMatchObject({ ok: true, value: undefined });
     expect(store.getThread(THREAD)).toMatchObject({ ok: true, value: undefined });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 도구 호출 추적 줄 하나. 값은 시험마다 덮어쓴다(기본은 성공한 읽기 호출) */
+function callEvent(
+  toolCallId: string,
+  overrides: Partial<ToolCallTraceEvent> = {},
+): ToolCallTraceEvent {
+  return {
+    threadId: THREAD,
+    turnId: TURN,
+    stepId: STEP,
+    toolCallId,
+    parentToolCallId: null,
+    tool: "read",
+    plugin: "workspace.files",
+    caller: "main",
+    callerPlugin: null,
+    via: null,
+    risk: "read",
+    capability: { id: "workspace.files", method: "read" },
+    argsHash: createHmac("sha256", "args").update(toolCallId).digest("hex"),
+    argTokens: 6,
+    targetHash: null,
+    afterUntrusted: false,
+    verdict: "allowed",
+    blockedBy: null,
+    policy: null,
+    approval: null,
+    exec: { startedAt: AT + 100, durationMs: 4, status: "ok", effectId: "efx_1" },
+    result: { tokens: 3, bytes: 12, truncated: false, isError: false, itemId: "itm_1" },
+    closedAt: AT + 104,
+    ...overrides,
+  };
+}
+
+/** 설치 소금은 저장소에서 읽는다. 기대 값은 시험이 따로 HMAC으로 계산해 구현과 대조한다 */
+function saltOf(measurement: ReturnType<typeof startMeasurement>): string {
+  const salt = storeOf(measurement).installSalt();
+  if (!salt.ok) throw new Bug("the install salt must be readable in this test");
+  return salt.value;
+}
+
+function keyedOf(salt: string, text: string): string {
+  return createHmac("sha256", salt).update(text).digest("hex").slice(0, 16);
+}
+
+test("a closed step writes its tool call rows with keyed hashes and links each call to the hooks bound to its own id", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    trace.entries.push({
+      seq: 0,
+      hook: "tool.call.before",
+      step: 1,
+      handlers: [handler("ext:a", "blocked", "call_1")],
+    });
+    harness.call(
+      callEvent("call_1", {
+        tool: "bash",
+        plugin: "workspace.shell",
+        risk: "exec",
+        capability: { id: "workspace.shell", method: "run" },
+        verdict: "blocked_hook",
+        blockedBy: { plugin: "ext", hook: "tool.call.before", registrationId: "ext:a" },
+        exec: null,
+        result: { tokens: 2, bytes: 8, truncated: false, isError: true, itemId: "itm_b" },
+        targetHash: null,
+      }),
+    );
+    harness.call(
+      callEvent("call_2", {
+        targetHash: createHmac("sha256", "target").update("src/a.ts").digest("hex"),
+        policy: { effect: "ask", tier: "default" },
+        approval: {
+          approvalId: "apr_1",
+          decision: "allow",
+          resolvedBy: "user",
+          waitMs: 25,
+          inheritedFrom: null,
+        },
+      }),
+    );
+    harness.call(
+      callEvent("call_3", {
+        tool: "no_such_tool",
+        plugin: null,
+        risk: null,
+        capability: null,
+        verdict: "unavailable",
+        exec: null,
+        result: null,
+      }),
+    );
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const salt = saltOf(harness.measurement);
+    const store = storeOf(harness.measurement);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    const rowOf = (toolCallId: string) =>
+      bundle.value?.calls.find((row) => row.toolCallId === toolCallId);
+    expect(bundle.value.calls).toHaveLength(3);
+    expect(rowOf("call_1")).toEqual({
+      threadId: THREAD,
+      turnId: TURN,
+      toolCallId: "call_1",
+      stepIndex: 1,
+      tool: "bash",
+      plugin: "workspace.shell",
+      caller: "main",
+      callerPlugin: null,
+      via: null,
+      inheritedFrom: null,
+      verdict: "blocked_hook",
+      blockedPlugin: "ext",
+      blockedHook: "tool.call.before",
+      callKey: keyedOf(salt, createHmac("sha256", "args").update("call_1").digest("hex")),
+      targetKey: null,
+      execMs: null,
+      execStatus: null,
+      resultTokens: 2,
+      resultTruncated: false,
+      resultItemId: "itm_b",
+      metaJson: JSON.stringify({
+        risk: "exec",
+        riskKnown: true,
+        capability: { id: "workspace.shell", method: "run" },
+        afterUntrusted: false,
+        parentToolCallId: null,
+        argTokens: 6,
+        registrationId: "ext:a",
+      }),
+    });
+    const second = rowOf("call_2");
+    expect(second?.inheritedFrom).toBeNull();
+    expect(second?.execMs).toBe(4);
+    expect(second?.targetKey).toBe(
+      keyedOf(salt, createHmac("sha256", "target").update("src/a.ts").digest("hex")),
+    );
+    // 알 수 없는 도구는 소유자와 위험 등급이 없다. 행은 자리 값을 쓰고 meta_json이 그 사실을 남긴다
+    expect(rowOf("call_3")).toMatchObject({
+      plugin: "none",
+      verdict: "unavailable",
+      execMs: null,
+      resultItemId: null,
+    });
+    expect(JSON.parse(rowOf("call_3")?.metaJson ?? "null")).toMatchObject({
+      risk: "exec",
+      riskKnown: false,
+    });
+
+    const turn = bundle.value.turn;
+    const checked = parse(TurnRecordSchema, JSON.parse(turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    const calls = checked.value.steps[0]?.calls ?? [];
+    expect(calls.map((call) => call.toolCallId)).toEqual(["call_1", "call_2", "call_3"]);
+    expect(calls[0]?.hooks.map((run) => [run.registrationId, run.toolCallId, run.result])).toEqual([
+      ["ext:a", "call_1", "blocked"],
+    ]);
+    expect(calls[1]?.hooks).toEqual([]);
+    expect(calls[1]?.approval).toEqual({
+      approvalId: "apr_1",
+      decision: "allow",
+      resolvedBy: "user",
+      waitMs: 25,
+      inheritedFrom: null,
+    });
+    // 호출 시작은 턴 시작(AT + 10) 기준 상대 ms다: AT + 100 - (AT + 10)
+    expect(calls[1]?.exec).toEqual({
+      startedAtMs: 90,
+      durationMs: 4,
+      status: "ok",
+      effectId: "efx_1",
+    });
+    expect(calls[2]).toMatchObject({ plugin: "none", risk: "exec", capability: null });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("calls of a turn with the trace off are not written", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: false });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(callEvent("call_off"));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect(bundle.value.turn.level).toBe("log_only");
+    expect(bundle.value.calls).toEqual([]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a turn keeps at most 500 call rows and counts the rest in elided.calls", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    for (let index = 0; index < 501; index += 1) {
+      harness.call(callEvent(`cap_${String(index).padStart(3, "0")}`));
+    }
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect(bundle.value.calls).toHaveLength(500);
+    const checked = parse(TurnRecordSchema, JSON.parse(bundle.value.turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    expect(checked.value.elided).toEqual({ calls: 1 });
+    expect(checked.value.steps[0]?.calls).toHaveLength(500);
     harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });

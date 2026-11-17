@@ -12,7 +12,12 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionManifest,
+  PortKey,
+  ToolCallTraceEvent,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -656,9 +661,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
     recordBody: ((input: RequestBodyInput) => void) | undefined;
+    /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined, recordBody: undefined, forgetThread: undefined };
+  } = {
+    stop: undefined,
+    recordFailure: undefined,
+    recordBody: undefined,
+    recordCall: undefined,
+    forgetThread: undefined,
+  };
+  // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
+  const callTraceSink: ToolCallTraceSink = {
+    record: (event) => {
+      measureSlot.recordCall?.(event);
+    },
+  };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
   const bodySteps = new Map<string, number>();
   const offerRequestBody = (offer: RequestBodyOffer): void => {
@@ -1141,6 +1160,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         offerBody: offerRequestBody,
+        callTrace: callTraceSink,
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
@@ -1334,6 +1354,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
+    measureSlot.recordCall = measurement.offerCall;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
