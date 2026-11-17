@@ -12,6 +12,7 @@ import {
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import {
   ToolServicePortKey,
@@ -108,8 +109,8 @@ describe("manifest", () => {
     const checked = validateManifest(scheduleManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe("cap-schedule");
-    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
-    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.layer).toBe("L2");
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.provides).toEqual([
       { id: "schedule.entries", version: "1.0.0" },
     ]);
     const unit = schedulePlugin({
@@ -117,8 +118,8 @@ describe("manifest", () => {
       settings: { layers: () => [] },
     });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.plugins[0]?.hooks).toEqual([]);
-    expect(unit.manifest.plugins[0]?.drives).toBeUndefined();
+    expect(pluginDeclsOf(unit.manifest)[0]?.hooks).toEqual([]);
+    expect(pluginDeclsOf(unit.manifest)[0]?.drives).toBeUndefined();
   });
 });
 

@@ -70,20 +70,23 @@ test("settings: turning an active extension off and on requests scope toggles", 
   expect(harness.t.host.registration("set-flip")?.status).toBe("enabled");
 });
 
-test("settings: an explicit enabled=true overrides the manifest default", async () => {
-  const harness = await createLoaderHarness();
-  harness.settings.enabled.set("set-default-off", true);
-  const report = await harness.loader.loadAll(
-    harness.options([moduleOf({ name: "set-default-off", defaultEnabled: false })]),
+test("settings: a managed lock stops the load, and without one the manifest default no longer gates the load", async () => {
+  // M5c §4.1.10~11: 관리 잠금(`ext.<이름>.enabled = false`)만 싣기를 막는다. 켜짐은 대화별 E(T)가 정하므로 매니페스트 기본(꺼짐)은 싣기를 막지 않는다
+  const locked = await createLoaderHarness();
+  locked.settings.enabled.set("set-default-off", false);
+  const lockedReport = await locked.loader.loadAll(
+    locked.options([moduleOf({ name: "set-default-off", defaultEnabled: false })]),
   );
-  expect(report.extensions[0]?.state).toBe("active");
-  expect(harness.t.host.registration("set-default-off")?.status).toBe("enabled");
-  // 설정 값이 없으면 매니페스트 기본값(꺼짐)을 따른다
-  const second = await createLoaderHarness();
-  const other = await second.loader.loadAll(
-    second.options([moduleOf({ name: "set-default-off", defaultEnabled: false })]),
+  expect(lockedReport.extensions[0]?.state).toBe("disabled");
+  expect(lockedReport.extensions[0]?.diagnostics.at(-1)?.code).toBe("disabled_by_setting");
+
+  const free = await createLoaderHarness();
+  const loaded = await free.loader.loadAll(
+    free.options([moduleOf({ name: "set-default-off", defaultEnabled: false })]),
   );
-  expect(other.extensions[0]?.state).toBe("disabled");
+  expect(loaded.extensions[0]?.state).toBe("active");
+  // 전역 기본은 여전히 꺼짐이라 대화가 E(T)에 넣기 전에는 등록이 켜지지 않는다
+  expect(free.t.host.registration("set-default-off")?.status).toBe("disabled");
 });
 
 test("settings: foreign namespace rejects load", async () => {
@@ -143,7 +146,7 @@ test("settings: reserved defs shape", () => {
     key: "ext.set-shape.enabled",
     default: false,
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "launch"],
+    allowedScopes: ["managed"],
     layer: "L2",
   });
   expect(isolation).toMatchObject({
@@ -187,7 +190,7 @@ test("settings: reserved defs shape", () => {
 test("settings: x.loading-trust keys pass the catalog and refuse the project scope", () => {
   const defs = Object.values(loadingTrustSettings.defs);
   expect(buildCatalog([{ owner: "ext-host", namespace: "x.loading-trust", defs }]).ok).toBe(true);
-  expect(defs).toHaveLength(4);
+  expect(defs).toHaveLength(5);
   // pi 호환 키는 없다(adr.0017 §3.7)
   expect(Object.keys(loadingTrustSettings.defs)).not.toContain("piCompat");
   for (const def of defs) {
@@ -197,6 +200,11 @@ test("settings: x.loading-trust keys pass the catalog and refuse the project sco
   expect(loadingTrustSettings.defs.defaultProjectTrust.default).toBe("ask");
   expect(loadingTrustSettings.defs["isolation.maxRestarts"].default).toBe(3);
   expect(loadingTrustSettings.defs["isolation.restartWindowSec"].default).toBe(600);
+  expect(loadingTrustSettings.defs.sourceWatch).toMatchObject({
+    default: true,
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+  });
 });
 
 test("settings: turning an auto-disabled extension back on clears its failure ledger", async () => {

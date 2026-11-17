@@ -28,11 +28,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -83,11 +79,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -110,11 +102,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -137,11 +125,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -164,11 +148,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -191,11 +171,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -218,11 +194,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -245,11 +217,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -272,11 +240,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -299,11 +263,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -326,11 +286,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -353,11 +309,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -380,11 +332,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -407,11 +355,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -434,11 +378,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -461,11 +401,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -488,11 +424,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -515,11 +447,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -619,11 +547,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -730,11 +654,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -757,11 +677,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -784,11 +700,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -811,11 +723,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -838,11 +746,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -916,11 +820,7 @@
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "launch"
+          "managed"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -2369,6 +2269,29 @@
         }
       }
     },
+    "l1.context.instructionFiles.maxBytes": {
+      "default": 65536,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Instruction file size limit",
+          "labelKey": "settings.l1.context.instructionFiles.maxBytes.label",
+          "order": 280,
+          "tab": "sessions",
+          "unit": "bytes",
+          "unitKey": "settings.l1.context.instructionFiles.maxBytes.unit",
+          "widget": "number"
+        }
+      }
+    },
     "l1.context.keepRecentTokens": {
       "default": 20000,
       "maximum": 262144,
@@ -2779,7 +2702,8 @@
           "user",
           "project",
           "local",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -3709,7 +3633,8 @@
           "user",
           "project",
           "local",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -6868,6 +6793,27 @@
         }
       }
     },
+    "x.loading-trust.sourceWatch": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Watch extension source folders for changes",
+          "labelKey": "settings.x.loadingTrust.sourceWatch.label",
+          "order": 450,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "x.operations.autoDisable.consecutive": {
       "default": 5,
       "maximum": 1000,
@@ -7548,7 +7494,8 @@
           "managed",
           "user",
           "project",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",

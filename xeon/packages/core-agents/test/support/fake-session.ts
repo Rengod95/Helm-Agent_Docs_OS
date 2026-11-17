@@ -291,6 +291,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
       moveLeaf: () => Promise.reject(new Bug("fakeSession: threads.moveLeaf is not supported")),
       setTitle: () => unsupported("threads.setTitle"),
       setModel: () => unsupported("threads.setModel"),
+      setProfile: () => unsupported("threads.setProfile"),
       prepareSwitch: () => Promise.resolve(ok(undefined)),
     },
     query: {

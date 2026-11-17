@@ -375,7 +375,7 @@ export type ContextRef =
 2. 내장 기본 프로필(`default`)은 삭제할 수 없고(`profile.builtinProtected`), 공장 값은 권한 모드 `bypass`(`core-tools/src/settings.ts:55`, 2026-11-13 결정), 시작 Drive 없음, 플러그인은 매니페스트 기본이 켜짐인 기본 설치 플러그인(`bundled` 출처와 저장소 패키지 가운데 코어가 아닌 것)이다. 내용은 사용자가 고칠 수 있다. 권한 모드를 프로필이 가진다 [결정: 2026-11-16].
 3. 대화 T의 켜짐 집합은 경계마다 `E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins ∪ 덧씌우기) − 관리 잠금 − 오류 정지`다. 코어는 tier `guard`, `core`(`tier.ts:assignTier`)이고 프로필에 적지 않으며 항상 켜진다. 순서는 공통, 프로필 순이고 중복은 처음 것을 남긴다.
 4. 프로필 저장(`profile.put`, `profile.common.put`)이 커밋되면 호스트가 `profile.changed`를 보내고, 그 프로필을 참조하는 모든 열린 대화에 대해 다음 단계 경계에서 `E(T)`를 다시 계산해 적용한다. 유휴 대화는 다음 매크로태스크에서 적용한다(`X.primitives.spec` §4.5.5). 열려 있지 않은 대화는 열 때 계산한다.
-5. 적용은 지금의 대화별 켜짐 요청 경로(`registration.ts:835-871` `toggle`, `:894-899` `request`, `:963` `applyToggles`)를 재사용한다. 계산 결과와 현재 상태의 차이만 켜기·끄기 요청으로 바꾸고, 경계 기여에 `profile.applied`와 `scope.changed`를 넣는다. `profile.applied.added/removed`는 집합 차이다.
+5. 적용은 지금의 대화별 켜짐 요청 경로(`registration.ts:835-871` `toggle`, `:894-899` `request`, `:963` `applyToggles`)를 재사용한다. 계산 결과와 등록별로 마지막에 맞춘 값의 차이만(엔진이 직접 끈 등록은 E(T)가 바뀔 때까지 건드리지 않는다) 켜기·끄기 요청으로 바꾸고, 경계 기여에 `profile.applied`와 `scope.changed`를 넣는다. `profile.applied.added/removed`는 집합 차이다.
 6. 실행 중인 턴 안의 프로필 편집이나 전환도 같은 규칙이다: 현재 단계는 끝까지 이전 집합으로 돌고 다음 단계 경계에서 바뀐다. 이미 시작한 도구 호출은 끝나고 결과가 기록된다.
 7. 설정 값도 같은 경계에서 바꾼다. 대화의 `profile` 범위 층은 `공통.settings`와 `프로필.settings`의 병합(프로필이 이긴다)이다. `runtimeChange`가 `restart`인 키(예: `ext.<name>.isolation`)는 다음 시작까지 이전 값을 쓰고 `profile.preview`가 경고한다.
 8. 대화 전환 `thread.setProfile`은 프로필이 있으면 `thread.updated { profileId }`를 커밋하고 4~6번 규칙으로 적용한다. 전환으로 권한 모드가 넓어지면 결과의 `preview.permission`에 `from`, `to`를 싣고 확인은 받지 않는다 [결정: 2026-11-16]. 승인 카드의 "이 대화에서 계속 허용"은 대화의 실행 상태이고 프로필 전환이 지우지 않는다 [결정: 2026-11-16].
@@ -611,10 +611,10 @@ plugin-store/
 
 | 주제 | 지금 | 바꿀 것 | 크기 |
 |---|---|---|---|
-| 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
-| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(`profile-test-run.ts:45-62`), 한도 64/64/128(`:34`), 파일 v1(`profile-store.ts:156`) | `plugins`, `settings`, `driver`, `builtin`, 공통 묶음, 파일 v2 | M |
+| 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`; 적용 경로는 이 변경으로 제거되었다). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
+| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `driver`, `builtin`, 공통 묶음, 파일 v2 | M |
 | 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 | M |
-| 프로필 층 | `PROFILE_LAYERS = user/project/thread`(`:151`), 범위 `scopeOf`(`:31-41`) | 새 설정 범위 `profile`(`layers.ts:8`), `core-tools/settings.ts:265-275` `pickMode` 순회에 반영 | M |
+| 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`) | 새 설정 범위 `profile`(`layers.ts:8`), `core-tools/settings.ts:265-275` `pickMode` 순회에 반영 | M |
 | 스레드 켜짐 | `thread.want`/`record.desired`(`registration.ts:225`, `:835-871`)가 전역 기본값과 대화별 요청 | 대화별 값이 유일한 원천(`E(T)`), 전역 `desired`는 오류 정지만 | M |
 | 켜짐 설정 키 | 사용자·프로젝트·local·launch 범위(`settings-keys.ts:30-38`), 설정 변경을 따라가는 `followExtEnabled`(`ext-enabled.ts:25-60`, 호스트 `assemble.ts:1203-1215`) | 키를 관리 범위로 한정, `followExtEnabled`를 프로필 변경 구독으로 대체 | M |
 | 적재 트리거 | `enabled` 설정이 거짓이면 적재 안 함(`loading-trust/index.ts:837`, `:1670`) | `PluginSetPort`가 "열린 대화 중 쓰는 곳 있음"을 알림 | M |

@@ -9,24 +9,13 @@ import {
   validateManifest,
   type ExtensionManifest,
 } from "@fresnel/contracts/extensions";
-import type {
-  ExtDiagnostic,
-  ExtInstallResult,
-  ExtLoadFailureReason,
-  ExtRemoveResult,
-  ExtTestRunParams,
-  ExtTestRunResult,
-} from "@fresnel/contracts/wire";
-import type { LoadDiagnostic } from "@fresnel/ext-host";
-import type { DevkitError, LinkInput, ReplayReport } from "@fresnel/contracts/services";
+import type { ExtTestRunParams, ExtTestRunResult } from "@fresnel/contracts/wire";
+import type { DevkitError, ReplayReport } from "@fresnel/contracts/services";
 import {
-  installExtension,
-  previewInstall,
   KIND_CATALOG,
   locateTemplateDirs,
   MANIFEST_PATH,
   packExtension,
-  removeExtension,
   scaffoldExtension,
   validateCompositionReport,
   validateExtensionDir,
@@ -35,13 +24,12 @@ import {
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import {
   markTestRun,
-  type ProfileApplyFailure,
+  type ProfilePortFailure,
   type ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
 import { hostResourceDir } from "../../state-paths.ts";
 import { messageOf } from "../../util.ts";
 import type { M4PortDeps } from "./deps.ts";
-import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import {
   installedReplayRunner,
   replayReportOf,
@@ -84,65 +72,13 @@ function notInstalled(name: string): Result<never, DevkitError> {
 
 const EXTENSION_NAME = new RegExp(EXTENSION_NAME_PATTERN);
 
-/** 사용자 확장 위치에 그 이름의 설치본 폴더가 있는가. 이름이 규칙에 맞지 않거나 읽을 수 없으면 없는 것으로 본다(`manifestIdentity`와 같은 규칙) */
+/** 사용자 확장 위치에 그 이름의 설치본 폴더가 있는가. 이름이 규칙에 맞지 않거나 읽을 수 없으면 없는 것으로 본다(설치 폴더 매니페스트 읽기와 같은 규칙) */
 async function hasInstalledFolder(extensionsDir: string, name: string): Promise<boolean> {
   if (!EXTENSION_NAME.test(name)) return false;
   return stat(join(extensionsDir, name)).then(
     (found) => found.isDirectory(),
     () => false,
   );
-}
-
-/** 실행 중인 확장을 내리고 적용 시점을 돌려준다 */
-async function stopExtension(
-  source: ExtUiVersionSource,
-  name: string,
-): Promise<ExtRemoveResult["appliesAt"]> {
-  // 로더가 실은 확장은 재시작 없이 내려가 목록에서 바로 빠진다(X.loading-trust §4.4.5)
-  if ((await source.loader()?.unload(name)) === true) return "now";
-  // 로더가 모르는 확장은 실행 중인 등록의 끄기를 청한다. 단계 경계에서 적용되고, 등록이 없으면 다음 시작부터 빠진다
-  const scopes = source.host.registrations().filter((scope) => scope.extension === name);
-  for (const scope of scopes) source.host.registration(scope.id)?.disable();
-  return scopes.length > 0 ? "nextStepBoundary" : "restart";
-}
-
-/**
- * 저장 테이블까지 지운다. 데이터를 먼저 지운다. 폴더를 먼저 지우면 데이터 지우기가 실패했을 때 폴더가 없어
- * 같은 요청을 다시 보낼 수 없다(not_found). 데이터는 지웠는데 폴더 지우기가 실패하면 폴더가 남아 다시 보낼 수 있다.
- */
-async function removeWithData(
-  source: ExtUiVersionSource,
-  name: string,
-): Promise<Result<ExtRemoveResult, DevkitError>> {
-  const storage = source.storage;
-  if (storage === undefined)
-    return err({ kind: "io", message: "extension storage is not available" });
-  if (!(await hasInstalledFolder(source.extensionsDir, name))) return notInstalled(name);
-  const appliesAt = await stopExtension(source, name);
-  const dropped = storage.drop(name);
-  if (!dropped.ok)
-    return err({
-      kind: "io",
-      message: `could not drop the stored data (${dropped.error.kind}); the extension folder is kept`,
-    });
-  const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
-  if (!removed.ok) return removed;
-  return ok({ name, appliesAt, dataDropped: dropped.value.dropped.length });
-}
-
-/** 설치 위치에 있는 지금 설치본의 이름 확인에 쓰는 매니페스트 이름과 버전. 읽을 수 없으면 null */
-async function manifestIdentity(
-  root: string,
-): Promise<{ readonly name: string; readonly version: string; readonly text: string } | null> {
-  const text = await readFile(join(root, MANIFEST_PATH), "utf8").then(
-    (value) => value,
-    () => null,
-  );
-  if (text === null) return null;
-  const json = parseJson(text);
-  if (!json.ok) return null;
-  const manifest = validateManifest(json.value).manifest;
-  return manifest === undefined ? null : { name: manifest.name, version: manifest.version, text };
 }
 
 /** 설치 폴더의 매니페스트 전체. 읽지 못하거나 규칙에 맞지 않으면 null (replay가 그룹인지 보려고 쓴다) */
@@ -177,27 +113,21 @@ function storeFailureOf(failure: ExtTestStoreFailure): DevkitError {
   }
 }
 
-/** 프로필 적용과 읽기의 실패를 포트 오류로 옮긴다. 값 검사 거절과 없는 프로필은 입력 문제(`not_found`, `invalid_input`), 저장과 쓰기 실패는 `io`다 */
-function devkitErrorOfProfile(failure: ProfileApplyFailure): DevkitError {
+/** 프로필 실패를 포트 오류로 옮긴다. 없는 프로필과 검증 거절은 입력 문제(`not_found`, `invalid_input`), 저장 실패와 손상은 `io`다 */
+function devkitErrorOfProfile(failure: ProfilePortFailure): DevkitError {
   switch (failure.kind) {
     case "not_found":
       return { kind: "not_found", message: `profile ${failure.id} is not found` };
-    case "setting_rejected":
+    case "invalid":
       return {
         kind: "invalid_input",
-        message: `a setting of the profile was refused (${failure.rejected.kind})`,
+        message: `the profile has ${String(failure.issues.filter((issue) => issue.severity === "error").length)} error(s)`,
       };
-    case "unknown_extension":
-      return { kind: "invalid_input", message: `${failure.name} is not installed` };
-    case "thread_required":
-      return { kind: "invalid_input", message: `layer ${failure.layer} needs a thread` };
-    case "write_failed":
-      return { kind: "io", message: `could not write ${failure.key}` };
-    case "apply_partial":
-      return {
-        kind: "io",
-        message: `the profile was only partly applied (${String(failure.written.length)} keys stay written)`,
-      };
+    case "builtin_protected":
+      return { kind: "invalid_input", message: `profile ${failure.id} is built in` };
+    case "plugin_not_in_profile":
+    case "common_plugin":
+      return { kind: "invalid_input", message: `${failure.plugin} is not removable here` };
     case "corrupt":
       return { kind: "io", message: "the profiles file is damaged; it is kept as it is" };
     case "io":
@@ -207,30 +137,8 @@ function devkitErrorOfProfile(failure: ProfileApplyFailure): DevkitError {
     case "limit":
       return { kind: "io", message: `the profiles file is full (at most ${String(failure.max)})` };
     default:
-      return assertNever(failure, "ProfileApplyFailure");
+      return assertNever(failure, "ProfilePortFailure");
   }
-}
-
-function wireDiagnosticOf(entry: LoadDiagnostic): ExtDiagnostic {
-  return {
-    severity: entry.severity === "warning" || entry.severity === "info" ? "warning" : "error",
-    code: entry.code,
-    message: entry.message,
-    ...(entry.path === undefined ? {} : { file: entry.path }),
-  };
-}
-
-/** 파일은 복사됐지만 싣지 못한 결과. 재시작해도 같은 파일을 다시 싣는다 */
-function notLoaded(
-  placed: { readonly name: string; readonly version: string; readonly location: string },
-  reason: ExtLoadFailureReason,
-  diagnostics: readonly LoadDiagnostic[],
-): ExtInstallResult {
-  return {
-    ...placed,
-    appliesAt: "restart",
-    loadFailure: { reason, diagnostics: diagnostics.slice(0, 64).map(wireDiagnosticOf) },
-  };
 }
 
 export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = {}): DevkitPort {
@@ -369,7 +277,7 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     }
     const profileId = params.options?.profileId;
     if (profileId !== undefined) {
-      const found = await profiles.getProfile(profileId);
+      const found = await profiles.get(profileId);
       if (!found.ok) return err(devkitErrorOfProfile(found.error));
     }
     // 켜짐 요청은 이 확장의 등록에 건다(프로필의 thread 층과 같은 통로다). 실리지 않은 확장은 등록이 없어 거절한다
@@ -386,14 +294,10 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       ...(workspace === undefined ? {} : { workspace }),
       title: params.target,
       testRun: true,
+      // 테스트 대화도 고른 프로필을 저장한다(thread.started.profileId). 표지는 그 값을 그대로 적는다
+      ...(profileId === undefined ? {} : { profileId }),
     });
-    const marked = await markTestRun(
-      { threads: deps.threads, profiles, log: deps.log },
-      created.threadId,
-      profileId,
-      "ext.test.run",
-    );
-    if (!marked.ok) return err(devkitErrorOfProfile(marked.error));
+    markTestRun(profiles, created.threadId, profileId);
     for (const info of infos) {
       deps.env.toggles.request(info.id, true, "request", created.threadId);
     }
@@ -448,99 +352,6 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       ),
     }),
     pack: (input) => packExtension(input),
-    installPreview: async (input) => {
-      const source = deps.extUi;
-      if (source === undefined) return noLocation();
-      return previewInstall(input, { extensionsDir: source.extensionsDir });
-    },
-    install: async (input) => {
-      const source = deps.extUi;
-      if (source === undefined) return noLocation();
-      // 안전 모드와 managed 잠금은 신뢰 검사 앞에서 거절한다. 설치본은 평소 로더와 신뢰 경로로만 읽힌다
-      if (source.installGate.safeMode())
-        return err({ kind: "safe_mode_active", message: "install is refused in safe mode" });
-      const incoming = await manifestIdentity(input.source);
-      if (incoming !== null && source.installGate.managedLocked(incoming.name))
-        return err({
-          kind: "managed_locked",
-          message: `${incoming.name} is locked by the managed scope`,
-        });
-      // 같은 이름의 설치본이 있으면 지우기 전에 버전 기록에 남겨 되돌릴 수 있게 한다(HS-108). 첫 설치는 남기지 않는다
-      if (incoming !== null) {
-        const location = join(source.extensionsDir, incoming.name);
-        const current = await manifestIdentity(location);
-        if (current !== null) {
-          await source.history.record({
-            name: current.name,
-            version: current.version,
-            // 앱 안 설치는 폴더를 가져오는 일이라 사용자가 둔 설치본이다. Plugin Builder 묶음(`authored`)이라는 표시는 폴더에 없다
-            source: "user",
-            extensionDir: location,
-            manifestText: current.text,
-            stateSchemaVersion: source.stateSchemaVersion(current.name),
-          });
-        }
-      }
-      const installed = await installExtension(input satisfies LinkInput, {
-        extensionsDir: source.extensionsDir,
-      });
-      if (!installed.ok) return installed;
-      // 같은 이름이 실행 중이면 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 로더가 곧바로 싣는다(X.loading-trust §4.4.4)
-      const name = installed.value.name;
-      const placed = {
-        name,
-        version: installed.value.version,
-        location: installed.value.location,
-      };
-      const loader = source.loader();
-      if (loader === undefined) {
-        return ok(notLoaded(placed, "loader_unavailable", []));
-      }
-      const current = loader.list().find((info) => info.name === name);
-      if (current?.state === "active") {
-        return ok({ ...placed, appliesAt: "nextStepBoundary", needsReload: true });
-      }
-      // 실려 있지 못한 옛 기록(거부, 오류, 꺼짐)은 새 설치본으로 다시 싣는다
-      if (current !== undefined) await loader.unload(name);
-      const loaded = await loader.loadInstalled(name, deps.env.signal);
-      if (loaded.ok) return ok({ ...placed, appliesAt: loaded.value.appliesAt });
-      const failure = loaded.error;
-      switch (failure.kind) {
-        case "already_loaded":
-          return ok({ ...placed, appliesAt: "nextStepBoundary", needsReload: true });
-        case "safe_mode":
-          return ok(notLoaded(placed, "safe_mode", []));
-        case "not_found":
-          return ok(notLoaded(placed, "not_found", failure.diagnostics));
-        case "not_active":
-          return ok(notLoaded(placed, failure.state, failure.diagnostics));
-        default:
-          return assertNever(failure, "LoadInstalledFailure");
-      }
-    },
-    removePreview: async (name) => {
-      const source = deps.extUi;
-      // 사용자 확장 위치가 없으면 지울 저장 테이블도 없는 것으로 본다
-      if (source === undefined) return ok({ name, tables: [] });
-      if (!(await hasInstalledFolder(source.extensionsDir, name))) return notInstalled(name);
-      if (source.storage === undefined) return ok({ name, tables: [] });
-      const counted = source.storage.preview(name);
-      if (!counted.ok)
-        return err({
-          kind: "io",
-          message: `could not read the stored data (${counted.error.kind})`,
-        });
-      // 와이어는 64개까지 싣는다. 지우기는 목록과 관계없이 그 확장의 테이블을 모두 지운다
-      return ok({ name, tables: counted.value.tables.slice(0, 64) });
-    },
-    remove: async (name, removeOptions) => {
-      const source = deps.extUi;
-      if (source === undefined) return noLocation();
-      if (removeOptions?.dropData === true) return removeWithData(source, name);
-      const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
-      if (!removed.ok) return removed;
-      return ok({ name, appliesAt: await stopExtension(source, name) });
-    },
     testRun: (params) => (params.kind === "replay" ? replay(params) : testRunThread(params)),
     testList: async () => {
       const listed = await recordStore().list();

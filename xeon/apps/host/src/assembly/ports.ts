@@ -95,6 +95,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
@@ -105,6 +106,8 @@ import type { ProjectTrust, TrustInspection } from "./trust.ts";
 export interface PortsDeps {
   /** 엔진 수명 신호. 닫히면 진행 중인 알림 같은 기다리지 않는 호출을 중단한다 */
   readonly signal: AbortSignal;
+  /** 개발 모드처럼 모든 대화에 켜 두는 플러그인(대화별 켜짐 집합에 항상 든다) */
+  readonly pluginsForced?: () => readonly string[];
   readonly mode: HostMode;
   readonly os: OsService;
   /** 지운 대화의 잘린 출력 사본을 함께 지운다 */
@@ -139,6 +142,8 @@ export interface PortsDeps {
   readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
+  /** 호스트 상태 디렉터리(L0.os의 `dirs.state`). 프로필 옮김 기록 `migration.log`가 여기에 놓인다 */
+  readonly stateDir: string;
   /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 설정 파일 쓰기가 이 안에서 일어난다(M3-REQ-82) */
   readonly fileLock: FileLock;
   readonly trust: ProjectTrust;
@@ -264,6 +269,47 @@ function backgroundCallsOf(source: MeasureReadSource): BackgroundCallReader {
   };
 }
 
+/** 닫히지 않은 대화 id 목록. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
+function openThreadIdsOf(session: PortsDeps["session"]): readonly ThreadId[] {
+  const ids: ThreadId[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const page = session.threads.list({
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: 200,
+    });
+    for (const row of page.threads) {
+      if (row.status !== "closed") ids.push(row.threadId);
+    }
+    cursor = page.nextCursor ?? undefined;
+    // 되돌아온 커서는 더 읽을 곳이 없다. 이 루프는 동기라서 멈추지 않으면 이벤트 루프 전체가 멈춘다
+    if (cursor !== undefined && seen.has(cursor)) break;
+    if (cursor !== undefined) seen.add(cursor);
+  } while (cursor !== undefined);
+  return ids;
+}
+
+/**
+ * 닫히지 않은 대화가 저장한 프로필 id를 대화마다 하나씩 돌려준다. 저장한 id가 없으면 null(기본 프로필)이다.
+ * 목록을 쪽마다 끝까지 읽는다(프로필을 쓰는 대화를 셀 때)
+ */
+function openThreadProfilesOf(session: PortsDeps["session"]): readonly (string | null)[] {
+  const profiles: (string | null)[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = session.threads.list({
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: 200,
+    });
+    for (const row of page.threads) {
+      if (row.status !== "closed") profiles.push(row.profileId ?? null);
+    }
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor !== undefined);
+  return profiles;
+}
+
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
@@ -298,6 +344,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(workspace === undefined ? {} : { workspace }),
+        ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
@@ -390,6 +437,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     setModel(threadId, model) {
       // 호출마다 새 키다: 같은 키로 다른 모델을 쓰면 key_reused라 호출 한 번이 모델 한 번이다
       const set = session.threads.setModel(threadId, model, deps.ids.next("evt"));
+      if (!set.ok) return set;
+      const head = session.feed.headSeq();
+      if (!head.ok) return head;
+      return ok({ position: { storeId, seq: head.value } });
+    },
+    setProfile(threadId, profileId) {
+      // 호출마다 새 키다: 같은 키로 다른 프로필을 쓰면 key_reused라 호출 한 번이 전환 한 번이다
+      const set = session.threads.setProfile(threadId, profileId, deps.ids.next("evt"));
       if (!set.ok) return set;
       const head = session.feed.headSeq();
       if (!head.ok) return head;
@@ -893,9 +948,29 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           request: (scopeId, enabled, reason, threadId) => {
             registrationToggleSourceOf(deps.ext).request(scopeId, enabled, reason, threadId);
           },
+          requestApply: (threadId) => {
+            registrationToggleSourceOf(deps.ext).requestApply(threadId);
+          },
         },
         registrations: () => deps.ext.registrations(),
         configDir: deps.configDir,
+        stateDir: deps.stateDir,
+        secretNames: async () => {
+          const listed = await deps.secrets.admin.ls({ usage: false });
+          if (!listed.ok) return null;
+          return new Set(
+            listed.value.flatMap((listing) => (listing.meta === null ? [] : [listing.meta.name])),
+          );
+        },
+        openThreadProfiles: () => openThreadProfilesOf(session),
+        openThreadIds: () => openThreadIdsOf(session),
+        forcedPlugins: () => deps.pluginsForced?.() ?? [],
+        // 번들 기본 플러그인(`DEFAULT_PLUGIN_NAMES`)은 기본 프로필에 항상 든다. 나머지는 m4가 등급으로 더한다(§4.1.2)
+        defaultPlugins: () => [...DEFAULT_PLUGIN_NAMES],
+        threadProfileId: (threadId) => {
+          const found = session.query.thread(threadId);
+          return found.ok ? (found.value?.profileId ?? null) : null;
+        },
         fileLock: deps.fileLock,
         clock: deps.clock,
         signal: deps.signal,

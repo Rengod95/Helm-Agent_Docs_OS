@@ -91,6 +91,8 @@ describe("settings_defs_pass_checks", () => {
     expect(validateSettingValue(def, "anthropic/claude-x:high").ok).toBe(true);
     expect(validateSettingValue(def, null).ok).toBe(true);
     expect(validateSettingValue(def, "anthropic").ok).toBe(false);
+    // 프로필 범위는 기본 모델에만 있다(M5c §3.3)
+    expect(def.allowedScopes).toEqual(["managed", "user", "project", "local", "launch", "profile"]);
   });
 
   test("provider api key references must be secret references, never literal keys", () => {

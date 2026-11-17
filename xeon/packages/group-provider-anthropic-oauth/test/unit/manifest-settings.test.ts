@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { validateManifest } from "@fresnel/contracts/extensions";
+import { validateManifest, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import { checkGroup } from "@fresnel/group-sdk/testing";
 import {
@@ -14,13 +14,13 @@ test("manifest.valid-and-off-by-default", () => {
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
   expect(providerAnthropicOauthManifest.group).toEqual({});
-  expect(providerAnthropicOauthManifest.plugins.map((plugin) => [plugin.id, plugin.layer])).toEqual(
-    [[undefined, "L3"]],
-  );
-  expect(providerAnthropicOauthManifest.plugins.map((plugin) => plugin.drives)).toEqual([
+  expect(
+    pluginDeclsOf(providerAnthropicOauthManifest).map((plugin) => [plugin.id, plugin.layer]),
+  ).toEqual([[undefined, "L3"]]);
+  expect(pluginDeclsOf(providerAnthropicOauthManifest).map((plugin) => plugin.drives)).toEqual([
     undefined,
   ]);
-  expect(providerAnthropicOauthManifest.plugins.map((plugin) => plugin.hooks)).toEqual([[]]);
+  expect(pluginDeclsOf(providerAnthropicOauthManifest).map((plugin) => plugin.hooks)).toEqual([[]]);
   expect(providerAnthropicOauthManifest).toMatchObject({
     schemaVersion: 2,
     name: "provider-anthropic-oauth",

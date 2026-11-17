@@ -350,6 +350,8 @@ export interface ThreadPort {
     readonly creationKey?: string;
     /** Test run 대화다. 이 thread를 열 때(처음과 다시 열 때) 확장 호스트에 Test run 표지를 넘긴다(X-19) */
     readonly testRun?: boolean;
+    /** 대화가 참조할 프로필 id(`thread.started.profileId`). 없으면 `default`다 */
+    readonly profileId?: string;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
@@ -378,6 +380,14 @@ export interface ThreadPort {
   setModel(
     threadId: ThreadId,
     model: string | null,
+  ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
+  /**
+   * 쓰기 소유자만. 대화가 참조할 프로필을 바꾼다(`thread.updated { profileId }` 커밋, M5c §4.1.8). 프로필이 있는지는 처리기가 본다.
+   * 호출마다 새 요청 키를 만든다. 다음 단계 경계부터 `E(T)`로 적용된다
+   */
+  setProfile(
+    threadId: ThreadId,
+    profileId: string,
   ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;

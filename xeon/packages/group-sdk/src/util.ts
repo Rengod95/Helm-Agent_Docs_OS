@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import type { ExtensionManifest, PluginDecl } from "@fresnel/contracts/extensions";
 
 /** 키로 읽을 수 있는 객체인가(배열과 null 제외) */
@@ -13,5 +14,5 @@ export function isRecord(value: unknown): value is Readonly<Record<string, unkno
 export function orchestrationOf(
   manifest: Pick<ExtensionManifest, "plugins">,
 ): PluginDecl | undefined {
-  return manifest.plugins.find((plugin) => plugin.id === undefined && plugin.layer === "L3");
+  return pluginDeclsOf(manifest).find((plugin) => plugin.id === undefined && plugin.layer === "L3");
 }

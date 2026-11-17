@@ -445,6 +445,8 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
           threadId: newThreadId,
           ...(thread.title === null ? {} : { title: thread.title }),
           ...(thread.workspace === null ? {} : { workspace: thread.workspace }),
+          // 분기한 대화는 출처가 참조하던 프로필을 이어받는다(workspace와 같다). 없으면 default로 읽는다
+          ...(thread.profileId === null ? {} : { profileId: thread.profileId }),
         },
         { threadId, eventId },
       );

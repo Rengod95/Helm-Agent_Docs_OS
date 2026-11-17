@@ -1,3 +1,6 @@
+import { detach } from "@fresnel/contracts";
+import { PluginSetPortKey } from "@fresnel/contracts/extensions";
+import { resolveSetting } from "@fresnel/contracts/settings";
 import { testRunControlOf, traceReadOf, type ExtHost } from "@fresnel/ext-host";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import type { DialogAreaPort } from "../../handlers/m4/dialog-area.ts";
@@ -10,9 +13,10 @@ import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
-import { createExtReadPort, type ExtReadSources } from "./ext-read-port.ts";
+import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
-import { createProfileTestRunPort } from "./profile-test-run-port.ts";
+import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
+import { createProfileTestRunPort, type PluginFact } from "./profile-test-run-port.ts";
 import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
@@ -24,6 +28,8 @@ export interface M4Ports {
   /** 확장 메서드 `ext.<확장>.<동사>`의 호출(X-2, X-3). 닫힌 처리기 표 밖이라 연결 층이 바로 쓴다 */
   readonly extMethod: ExtMethodPort;
   readonly profileTestRun: ProfileTestRunPort;
+  /** 대화별 켜짐 집합(E(T)). X가 `PluginSetPortKey`로 읽고, 처리기가 프로필 전환 뒤 다시 맞춘다 */
+  readonly pluginSet: PluginSetHandle;
   readonly dialogArea: DialogAreaPort;
   readonly devkit: DevkitPort;
   /** 샌드박스 자가 시험 읽기와 실행(`sandbox.lastSelfTest`, `sandbox.selfTest`) */
@@ -49,9 +55,75 @@ export function createM4Ports(
     extUi,
   };
   // 프로필·Test run 포트는 표지 장부를 쥐므로 제작 포트와 한 인스턴스를 나눠 쓴다(`ext.test.run`의 testRun이 표지를 단다)
-  const profileTestRun = createProfileTestRunPort(deps);
+  // 코어(등급 guard·core)는 모든 대화에 항상 켜진다. 공장 기본 프로필은 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것이다(§4.1.2, §7.2)
+  const coreNames = (): readonly string[] =>
+    extReadSources
+      .extensions()
+      .filter((record) => record.tier === "guard" || record.tier === "core")
+      .map((record) => record.manifest.name);
+  const defaultNames = (): readonly string[] =>
+    extReadSources
+      .extensions()
+      .filter(
+        (record) =>
+          record.tier !== "guard" &&
+          record.tier !== "core" &&
+          record.manifest.defaultEnabled !== false,
+      )
+      .map((record) => record.manifest.name);
+  const scopedEnv: M4HostEnv = {
+    ...env,
+    forcedPlugins: () => [...coreNames(), ...env.forcedPlugins()],
+    defaultPlugins: () => [...new Set([...env.defaultPlugins(), ...defaultNames()])],
+  };
+  const profileTestRun = createProfileTestRunPort({
+    ...deps,
+    env: scopedEnv,
+    pluginFacts: () => extReadSources.extensions().map(pluginFactOf),
+  });
+  const pluginSet = createPluginSet({
+    profiles: profileTestRun,
+    threadProfileId: env.threadProfileId,
+    forcedPlugins: scopedEnv.forcedPlugins,
+    defaultPlugins: scopedEnv.defaultPlugins,
+    openThreadIds: env.openThreadIds,
+    managedOff: (name) => managedOffOf(env, name),
+    registrations: env.registrations,
+    toggles: env.toggles,
+    report: (message, fields) => {
+      engine.log.error(message, fields);
+    },
+  });
+  // X가 `fresnel.pluginSet` 포트로 읽는다. 플랫폼 모듈로 내놓아 확장 설치와 같은 등록 경로를 쓴다
+  detach(
+    host
+      .registerPlatform({
+        name: "fresnel.plugin-set",
+        setup(ctx) {
+          ctx.providePort(PluginSetPortKey, pluginSet.port);
+        },
+      })
+      .then((registered) => {
+        if (!registered.ok) engine.log.error("plugin_set.register_failed", {});
+        return registered.ok;
+      }),
+    (cause) => {
+      engine.log.error("plugin_set.register_failed", {
+        reason: cause instanceof Error ? cause.message : String(cause),
+      });
+    },
+  );
+  detach(pluginSet.refresh(), (cause) => {
+    engine.log.error("plugin_set.initial_refresh_failed", {
+      reason: cause instanceof Error ? cause.message : String(cause),
+    });
+  });
   return {
-    extRead: createExtReadPort(deps, extReadSources),
+    pluginSet,
+    extRead: createExtReadPort(
+      { ...deps, defaultPlugins: () => pluginSet.defaultView().plugins },
+      extReadSources,
+    ),
     extUi: createExtUiVersionPort(deps),
     extMethod: {
       async call(request) {
@@ -69,5 +141,30 @@ export function createM4Ports(
     dialogArea: createDialogAreaPort(deps),
     devkit: createDevkitPort(deps, { profiles: profileTestRun }),
     sandboxSelfTest: createSandboxSelfTestPort(host),
+  };
+}
+
+/**
+ * 관리 범위가 `ext.<이름>.enabled`를 거짓으로 잠갔는가(M5c §4.1.10). 키는 관리 범위만 허용되므로 값의 출처가 관리일 때만 잠금이다.
+ * 기본값(매니페스트 기본이 꺼짐이면 거짓)은 잠금이 아니라 프로필이 정한다.
+ */
+function managedOffOf(env: M4HostEnv, name: string): boolean {
+  const def = env.catalog.get(`ext.${name}.enabled`);
+  if (def === undefined) return false;
+  const { setting } = resolveSetting(def, env.settings.layers(undefined));
+  return setting.source.scope === "managed" && setting.value === false;
+}
+
+/** 매니페스트에서 프로필 검증이 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키 */
+function pluginFactOf(record: ExtensionRecord): PluginFact {
+  const manifest = record.manifest;
+  const plugins = manifest.plugins ?? [];
+  return {
+    name: manifest.name,
+    replaces: plugins.flatMap((plugin) => plugin.replaces ?? []),
+    drives: plugins.some((plugin) => plugin.drives === true),
+    requiredKeys: Object.values(manifest.userConfig ?? {})
+      .filter((entry) => entry.required === true)
+      .map((entry) => entry.setting),
   };
 }

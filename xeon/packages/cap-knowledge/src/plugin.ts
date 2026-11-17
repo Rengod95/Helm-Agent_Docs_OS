@@ -65,8 +65,11 @@ export interface KnowledgePluginOptions {
   readonly ids: LocalIdFactory;
   /** 시험이 메모리 가짜를 넣는다. 기본은 node:fs 구현 */
   readonly fs?: KnowledgeFs;
-  /** `thread.resources`가 알린 확장 제공 스킬 루트(spec §4.2.7) */
-  readonly extensionSkillRoots?: () => readonly {
+  /**
+   * 확장 제공 스킬 루트(spec §4.2.7). 대화를 지정한 읽기는 그 대화를 넘기고, 조립은 그 대화의 켜짐 집합으로 거른다
+   * (프로필이 넣은 확장만 스킬을 낸다, M5c §4.5.10). 대화가 없으면 undefined다
+   */
+  readonly extensionSkillRoots?: (threadId: string | undefined) => readonly {
     readonly dir: string;
     readonly extension: string;
   }[];
@@ -204,7 +207,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
               projectSkills: settings.skills.projectSkills,
               projectTrusted,
               paths: settings.skills.paths,
-              extension: options.extensionSkillRoots?.() ?? [],
+              extension: options.extensionSkillRoots?.(threadId) ?? [],
             }),
             diagnostics,
           };

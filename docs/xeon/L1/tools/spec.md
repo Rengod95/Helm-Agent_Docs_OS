@@ -871,7 +871,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 위험 등급 [제안]: 도구가 등급을 선언하고 선언이 없으면 가장 위험한 쪽을 쓴다(`_research/item-catalog.md` L1-d "위험 등급과 승인 필요 선언", omp 미선언 시 exec). 등급과 재생 선언은 도구 등록 필드로 받는다. 미선언 등급은 `exec`, 미선언 재생은 `unsafe`다.
 - 등급 유도 [제안]: `ToolPolicyMeta.risk`가 있으면 그 값이다. 없으면 `hints.readOnly === true`면 `read`, 그 밖은 `exec`다. MCP annotation(`readOnlyHint` 등)은 `hints`로 들어오는 입력일 뿐이다. annotation이 `destructiveHint: false`라도 등급을 `write`로 낮추지 않는다. 신뢰할 수 없는 서버의 선언이기 때문이다.
 - 위험 등급은 F `ToolSpec`에 필드가 없다. F.capabilities.spec에 `risk?: ToolRisk`, `classes?: ToolClass[]` 추가를 요청한다(§8.3 F 요청 1). 추가 전에는 `CapabilityToolsRegistration.policy`로 받는다.
-- 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
+- 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 우선순위는 managed > launch > profile > local > project > user다(M5c §3.3, 프로필 범위는 대화가 참조한 프로필의 `settings` 값). 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
 - 옛 `plan` 값 [결정: 2026-11-13 사용자, 옛 대화 보호. 읽기 규칙 정리 2026-11-15 사용자]: 계획 모드 시절에 저장된 대화·설정의 `l1.tools.permissionMode` 값이 문자열 `"plan"`이면 `default`로 읽는다. 저장된 문자열은 바꾸지 않는다. 이 읽기는 `core-tools/src/settings.ts`의 `normalizeStoredMode` 한 곳에 있고, 엔진(`pickMode`)이 그 함수를 쓴다. `"plan"` 층에서 멈추고 아래 층으로 넘어가지 않는다. 설정 값 검사(`validateSettingValue`)는 `plan`을 거부하므로 새로 쓸 수 없다.
   - 설정 읽기(`settings.get`)도 엔진과 같은 `default`를 보여야 한다 [결정: 2026-11-15 사용자]. `resolveSetting`(F wire-settings)은 값 검사에 걸리는 층을 건너뛰므로, `settings.get`은 옛 `plan` 층을 건너뛰고 아래 층의 값을 보인다. 정의에는 값 정규화 훅이 없다. 그래서 `settings.get`을 만드는 host 층이 `resolveSetting`에 넘기기 전에 `normalizeStoredMode`를 거쳐야 한다 [미결: host 층에서 할 것. L4.host-service 범위라 이 층에서 고치지 않았다]. 그 전까지 화면과 엔진이 다른 값을 보일 수 있다. [근거: packages/contracts/src/wire-settings/settings/effective.ts resolveSetting]
   - 사용자 정책 규칙의 `resource.mode`에 든 `"plan"`은 그 항목만 뺀다(`policy/rules.ts` `withoutRetiredModes`). 목록이 비면 그 규칙만 건너뛴다. 빈 목록은 모든 모드에 적용되는 규칙이라 그렇게 두지 않는다. 건너뛰면 진단 하나를 남긴다(`collectRules`의 issues) [결정: 2026-11-15 사용자]. 계약은 읽기에서만 `plan`을 받는다(`RetiredPermissionMode`).
@@ -1057,7 +1057,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 키 | 타입 | 기본값 | runtimeChange | allowedScopes | 탭 | widget |
 |---|---|---|---|---|---|---|
-| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch | permissions | select |
+| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "bypass"` | `"bypass"` [결정: 2026-11-13 사용자] | live | managed, user, project, local, launch, profile | permissions | select |
 | `l1.tools.bypassAllowed` | boolean | `true` | live | managed | permissions | toggle |
 | `l1.tools.rules` | `PolicyRule[]` | `[]` | live | managed, user, project, local, launch | permissions | table |
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |

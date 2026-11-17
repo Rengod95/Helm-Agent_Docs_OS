@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -70,8 +71,8 @@ test("authoring.scaffold: a composition draft is patched into the manifest and t
   const manifest = readManifest(dir);
   expect(manifest.displayName).toBe("Patched");
   expect(manifest.group).toEqual({ composition });
-  expect(manifest.plugins[0]?.hooks).toContain("tool.call.before");
-  expect(manifest.plugins[0]?.drives).toBeUndefined();
+  expect(pluginDeclsOf(manifest)[0]?.hooks).toContain("tool.call.before");
+  expect(pluginDeclsOf(manifest)[0]?.drives).toBeUndefined();
 });
 
 test("authoring.scaffold: a single plugin takes the requested layer", async () => {
@@ -82,7 +83,7 @@ test("authoring.scaffold: a single plugin takes the requested layer", async () =
   );
   if (!made.ok) throw new Error(made.error.message);
   const manifest = readManifest(dir);
-  expect(manifest.plugins.map((plugin) => plugin.layer)).toEqual(["L2"]);
+  expect(pluginDeclsOf(manifest).map((plugin) => plugin.layer)).toEqual(["L2"]);
   expect(manifest.group).toBeUndefined();
 });
 

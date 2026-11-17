@@ -80,14 +80,14 @@ const ALPHA_ENTRY: ExtListEntry = {
   effectiveGrade: "user",
   tier: "user",
   status: "enabled",
-  enabledSource: "user",
+  enabledSource: "none",
   plugins: [
     {
       registrationId: "alpha",
       layer: "L2",
       status: "enabled",
       inGroup: false,
-      enabledSource: "user",
+      enabledSource: "none",
     },
   ],
   diagnostics: [],
@@ -130,14 +130,14 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       effectiveGrade: "user",
       tier: "user",
       status: "enabled",
-      enabledSource: "user",
+      enabledSource: "none",
       plugins: [
         {
           registrationId: "team",
           layer: "L3",
           status: "enabled",
           inGroup: true,
-          enabledSource: "user",
+          enabledSource: "none",
         },
         {
           registrationId: "team/scout",
@@ -145,7 +145,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
           layer: "L2",
           status: "disabled",
           inGroup: true,
-          enabledSource: "user",
+          enabledSource: "none",
         },
       ],
       diagnostics: [],
@@ -161,7 +161,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       layer: "L3",
       status: "enabled",
       inGroup: true,
-      enabledSource: "user",
+      enabledSource: "none",
     },
     {
       registrationId: "team/scout",
@@ -170,7 +170,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       status: "disabled",
       thread: "enabled",
       inGroup: true,
-      enabledSource: "thread",
+      enabledSource: "profile",
     },
   ]);
   const unknown = await failureOf(connection.request("ext.list", { threadId: "thr_missing" }));

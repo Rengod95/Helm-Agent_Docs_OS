@@ -33,10 +33,9 @@ export interface M4EngineDeps {
   readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
 }
 
-/** 프로필 적용이 쓰는 설정 저장소의 부분형(`types.ts`의 `SettingsStorePort`가 그대로 대입된다. 순환을 피하려고 거기서 가져오지 않는다) */
+/** 설정 저장소의 부분형(`types.ts`의 `SettingsStorePort`가 그대로 대입된다. 순환을 피하려고 거기서 가져오지 않는다). 확장 읽기가 쓰기 경로로 쓴다 */
 interface ProfileSettingsPort {
   layers(threadId: ThreadId | undefined): ScopeStack;
-  prepare(threadId: ThreadId): Promise<void>;
   write(
     scope: SettingScope,
     key: string,
@@ -58,11 +57,27 @@ export interface M4HostEnv {
   /** 카탈로그 키의 유효 값. 모르는 키는 undefined */
   readonly settingValue: (key: string, threadId?: ThreadId) => unknown;
   readonly threadExists: (threadId: ThreadId) => Result<boolean, ReadFailure>;
-  /** 확장(Registration)의 켜짐 요청 통로. thread 층 프로필 적용이 쓴다 */
+  /** 확장(Registration)의 켜짐 요청과 적용 예약 통로. 대화별 켜짐 집합(E(T))의 적용이 쓴다 */
   readonly toggles: RegistrationToggleSourceOf;
   readonly registrations: () => readonly RegistrationInfo[];
   /** 사용자 설정 폴더(L0.os의 `dirs.config`). `profiles.json`이 여기에 놓인다 */
   readonly configDir: string;
+  /** 호스트 상태 폴더(`OsDirs.state`). 옮김 기록 `migration.log`가 여기에 놓인다 */
+  readonly stateDir: string;
+  /** 시크릿 이름 목록. 읽지 못하면 null이고, 그때 검증은 `secret_missing` 경고를 내지 않는다 */
+  readonly secretNames: () => Promise<ReadonlySet<string> | null>;
+  /**
+   * 닫히지 않은 대화마다 저장한 프로필 id(없으면 null = 기본). 프로필을 참조하는 열린 대화를 셀 때 쓴다(M5c §4.1.14)
+   */
+  readonly openThreadProfiles: () => readonly (string | null)[];
+  /** 닫히지 않은 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
+  readonly openThreadIds: () => readonly ThreadId[];
+  /** 대화가 저장한 프로필 id(없거나 대화가 없으면 null). 대화별 켜짐 집합(E(T))이 읽는다 */
+  readonly threadProfileId: (threadId: ThreadId) => string | null;
+  /** 모든 대화에 항상 켜는 플러그인(개발 모드의 가이드 그룹) */
+  readonly forcedPlugins: () => readonly string[];
+  /** 공장 기본 프로필의 플러그인(코어가 아닌 내장 가운데 기본 켜짐과 번들) */
+  readonly defaultPlugins: () => readonly string[];
   /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`) */
   readonly fileLock: FileLock;
   readonly clock: Clock;

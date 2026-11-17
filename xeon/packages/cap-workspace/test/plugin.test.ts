@@ -15,6 +15,7 @@ import {
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ToolRegistration, Unregister } from "@fresnel/contracts/services";
@@ -182,16 +183,16 @@ describe("manifest", () => {
     const checked = validateManifest(workspaceManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORKSPACE_EXTENSION_NAME);
-    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
-    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.layer).toBe("L2");
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.provides).toEqual([
       { id: "workspace.files", version: "1.0.0" },
       { id: "workspace.shell", version: "1.0.0" },
       { id: "workspace.images", version: "1.0.0" },
     ]);
     const unit = workspacePlugin({ settings: { layers: () => [] } });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.plugins[0]?.hooks).toEqual([]);
-    expect(unit.manifest.plugins[0]?.drives).toBeUndefined();
+    expect(pluginDeclsOf(unit.manifest)[0]?.hooks).toEqual([]);
+    expect(pluginDeclsOf(unit.manifest)[0]?.drives).toBeUndefined();
   });
 });
 

@@ -115,44 +115,26 @@ function lineWith(source: string, needle: string): number {
   return lines.findIndex((line) => line.includes(needle)) + 1;
 }
 
-test("previewInstall and installExtension name a misspelt manifest key with its field and line, and the required key it stands for", async () => {
+test("previewInstall warns about a misspelt manifest key; entry is optional, so the folder is a code-less plugin", async () => {
   const source = await packed("pv-misspelt");
   editManifest(source, (text) => text.replace('"entry"', '"entrie"'));
-  const extensions = root.path("pv-misspelt-ext");
-  const refusal = {
-    ok: false,
-    error: {
-      kind: "invalid_input",
-      message: "manifest is not valid: must have required properties entry",
-      reasons: [
-        {
-          code: "unknown_key",
-          field: "entrie",
-          line: lineWith(source, '"entrie"'),
-          message: 'unknown top-level key "entrie" was removed',
-        },
-        { code: "missing_field", field: "entry", message: "must have required properties entry" },
-      ],
+  const preview = await previewInstall({ source }, { extensionsDir: root.path("pv-misspelt-ext") });
+  expect(preview).toMatchObject({
+    ok: true,
+    value: {
+      name: "pv-misspelt",
+      warnings: [{ code: "unknown_key", path: "/entrie", severity: "warning" }],
     },
-  } as const;
-  expect(await previewInstall({ source }, { extensionsDir: extensions })).toEqual(refusal);
-  expect(await installExtension({ source }, { extensionsDir: extensions })).toEqual(refusal);
-  expect(existsSync(extensions)).toBe(false);
+  });
 });
 
-test("previewInstall names a misspelt plugins key and the plugins list it stands for", async () => {
+test("previewInstall warns about a misspelt plugins key; plugins is optional, so the root plugin is inferred", async () => {
   const source = await packed("pv-plugins-key");
   editManifest(source, (text) => text.replace('"plugins"', '"pluginz"'));
   const preview = await previewInstall({ source }, { extensionsDir: root.path("pv-plugins-ext") });
   expect(preview).toMatchObject({
-    ok: false,
-    error: {
-      kind: "invalid_input",
-      reasons: [
-        { code: "unknown_key", field: "pluginz", line: lineWith(source, '"pluginz"') },
-        { code: "missing_field", field: "plugins" },
-      ],
-    },
+    ok: true,
+    value: { warnings: [{ code: "unknown_key", path: "/pluginz", severity: "warning" }] },
   });
 });
 

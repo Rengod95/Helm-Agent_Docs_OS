@@ -11,7 +11,7 @@ import {
   parse,
   type Logger,
 } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
@@ -142,12 +142,7 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
-import {
-  BUILTIN_GROUP_NAMES,
-  followBuiltinEnabled,
-  followExtEnabled,
-  followThreadEnabled,
-} from "./assembly/ext-enabled.ts";
+import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
@@ -649,12 +644,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const external: {
     loader: ExtensionLoader | undefined;
     unbridge: (() => void) | undefined;
-    unfollowEnabled: (() => void) | undefined;
     unfollowBuiltin: (() => void) | undefined;
   } = {
     loader: undefined,
     unbridge: undefined,
-    unfollowEnabled: undefined,
     unfollowBuiltin: undefined,
   };
 
@@ -671,7 +664,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
-      external.unfollowEnabled?.();
       external.unfollowBuiltin?.();
       external.unbridge?.();
       await external.loader?.dispose();
@@ -1014,12 +1006,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       learningAgents.length === 0
         ? undefined
         : [...(options.agentDefinitions ?? []), ...learningAgents, ...pluginAgents];
-    // 가이드 폴더(스킬 원본). 개발 모드이거나 `ext.guide.enabled`가 참일 때만 모델에게 스킬로 내보인다. 플러그인 빌더는 켜짐과 무관하게 읽는다
+    // 가이드 폴더(스킬 원본). 개발 모드이거나 대화의 프로필이 가이드를 넣었을 때만 모델에게 스킬로 내보인다(E(T)). 플러그인 빌더는 켜짐과 무관하게 읽는다
     const guideWiring = guideWiringOf({
       env: process.env,
       resourceDir: hostResourceDir(),
       devMode: () => settings.value("l3.authoring.devMode") === true,
-      enabledSetting: () => settings.value("ext.guide.enabled") === true,
+      inSet: (threadId) => {
+        if (threadId === undefined || !isId("thr", threadId)) return false;
+        const view = portsHandle?.ports.m4.pluginSet.port.resolve(threadId);
+        return view?.plugins.includes(GUIDE_GROUP_NAME) ?? false;
+      },
     });
     const units: ExtensionUnit[] = [
       ...builtinUnits({
@@ -1103,10 +1099,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       return typeof value === "boolean" ? value : undefined;
     };
     const installable = units.map((unit): ExtensionUnit => {
-      // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다)
+      // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다). 대화별 켜짐은 E(T)가 정한다
       const initialEnabled =
         unit.builtin && unit.manifest.name === GUIDE_GROUP_NAME
-          ? guideWiring.active()
+          ? guideWiring.forced()
           : unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
             ? enabledOfBuiltin(unit.manifest.name)
             : undefined;
@@ -1122,42 +1118,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ]);
       }
     });
-
-    const unfollowThread = followThreadEnabled({
-      onChange: (listener) => settings.onChange(listener),
-      value: (key, threadId) => settings.value(key, threadId),
-      toggles: registrationToggleSourceOf(ext),
-    });
-    const unfollowGlobal = followBuiltinEnabled({
-      onChange: (listener) => settings.onChange(listener),
-      // 가이드 그룹의 켜짐은 개발 모드와 스위치를 합친 값이다
-      value: (key) =>
-        key === `ext.${GUIDE_GROUP_NAME}.enabled` ? guideWiring.active() : settings.value(key),
-      host: ext,
-      names: () =>
-        unitList.units
-          .filter((unit) => unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name))
-          .map((unit) => unit.manifest.name),
-      onEnabled: (name) => {
-        operations.autoDisabler.clearLedger(`ext:${name}`);
-      },
-    });
-    // 개발 모드 설정이 바뀌면 가이드 그룹의 등록도 따라간다
-    const unfollowGuideDevMode = settings.onChange((change) => {
-      if (change.threadId !== null || !change.keys.includes("l3.authoring.devMode")) return;
-      for (const info of ext
-        .registrations()
-        .filter((scope) => scope.extension === GUIDE_GROUP_NAME)) {
-        const handle = ext.registration(info.id);
-        if (guideWiring.active()) handle?.enable();
-        else handle?.disable();
-      }
-    });
-    external.unfollowBuiltin = () => {
-      unfollowGuideDevMode();
-      unfollowGlobal();
-      unfollowThread();
-    };
 
     // 3a. 외부 훅 단위. 안전 모드에서는 싣지 않는다(X.operations.spec §4.6.2)
     await externalHooks.install(ext, safeMode, operations.tiers);
@@ -1187,9 +1147,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         enabled: (name) => {
           const key = `ext.${name}.enabled`;
           // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그때는 사용자 파일에 적힌 값을 그대로 읽는다(재시작 뒤에도 끈 채로 있게)
-          const value = built.catalog.has(key)
-            ? settings.value(key)
-            : settings.raw("ext.")[`${name}.enabled`];
+          const value = built.catalog.has(key) ? settings.value(key) : undefined;
           return typeof value === "boolean" ? value : undefined;
         },
         cwd: process.cwd(),
@@ -1200,19 +1158,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
       });
       external.loader = loaded.loader;
-      // 일반 켜기 스위치도 "다시 켜기"와 같은 결과를 낸다(싣지 않은 확장을 싣고, 자동 꺼짐 표시를 지운다)
-      external.unfollowEnabled = followExtEnabled({
-        onChange: (listener) => settings.onChange(listener),
-        value: (key) => settings.value(key),
-        loader: () => external.loader,
-        autoDisabler: operations.autoDisabler,
-        logger: os.logger("ext-enabled"),
-        // 빈 변경 목록은 "전부 다시 읽으라"는 알림이다(설정 저장소의 전체 갱신과 같다). 확장 키 목록을 비워 이 알림이 다시 적용을 부르지 않게 한다
-        settled: () => {
-          settings.notifyChanged({ keys: [], scopes: ["user"], threadId: null });
-        },
-        signal: lifetime.signal,
-      });
       externalGroups.push(...loaded.manifests);
       external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
     }
@@ -1338,6 +1283,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
+      // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
+      pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
       startupNotices,
       measure: {
         store: () => measurement.store,
@@ -1412,6 +1359,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
       }),
       configDir: os.dirs.config,
+      stateDir: os.dirs.state,
       fileLock: osHandle.fileLock,
       trust: projectTrust,
       afterSettingsPrepare: (threadId) => externalHooks.sync(threadId),

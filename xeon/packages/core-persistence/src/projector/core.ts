@@ -41,7 +41,7 @@ import {
 } from "@fresnel/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 8;
+export const CORE_PROJECTOR_VERSION = 9;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -61,6 +61,7 @@ const CORE_PROJECTOR_DDL: readonly string[] = [
   title              TEXT,
   title_source       TEXT CHECK (title_source IN ('user', 'auto', 'model')),
   model              TEXT,
+  profile_id         TEXT,
   status             TEXT NOT NULL CHECK (status IN ('idle', 'running', 'closed')),
   workspace          TEXT,
   created_at         INTEGER NOT NULL,
@@ -222,13 +223,14 @@ function sourceKeyOf(source: InputQueuedPayload["source"]): string {
 function reduceThreadStarted(tx: ProjectionTx, event: DurableEventEnvelope): void {
   const payload = expectPayload(parse(ThreadStartedPayloadSchema, event.payload), event);
   tx.run(
-    `INSERT INTO p_threads (thread_id, title, status, workspace, created_at, updated_at, first_seq, head_seq,
+    `INSERT INTO p_threads (thread_id, title, status, workspace, profile_id, created_at, updated_at, first_seq, head_seq,
        leaf_event_id, forked_from_thread, forked_from_event, closed_reason, open_turn_id, running_since, resume_attempts)
-     VALUES (?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)`,
+     VALUES (?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)`,
     [
       event.threadId,
       payload.title,
       payload.workspace ?? null,
+      payload.profileId ?? null,
       event.recordedAt,
       event.recordedAt,
       event.seq,
@@ -264,6 +266,13 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
       if (payload.model !== undefined) {
         tx.run("UPDATE p_threads SET model = ? WHERE thread_id = ?", [
           payload.model,
+          event.threadId,
+        ]);
+      }
+      // 프로필 전환은 model과 같은 규칙이다: 활성 가지의 마지막 값이 현재 값이다 (M5c §4.1.1)
+      if (payload.profileId !== undefined) {
+        tx.run("UPDATE p_threads SET profile_id = ? WHERE thread_id = ?", [
+          payload.profileId,
           event.threadId,
         ]);
       }

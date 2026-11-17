@@ -207,7 +207,7 @@ const WEB_HOOKS = ["input.user.before", "thread.shutdown"] as const;
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
   const base = webManifest();
-  const [root] = base.plugins;
+  const [root] = base.plugins ?? [];
   // webManifest는 루트 플러그인(L2) 하나를 낸다. 없으면 조립이 잘못된 것이다
   if (root === undefined) throw new Bug("webManifest must declare its root plugin");
   const manifest = defineManifest({

@@ -15,6 +15,7 @@ import {
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import type { SessionService, StoreService } from "@fresnel/contracts/records";
 import type { ScopeStack } from "@fresnel/contracts/settings";
@@ -177,8 +178,8 @@ describe("manifest", () => {
     const checked = validateManifest(knowledgeManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(KNOWLEDGE_EXTENSION_NAME);
-    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
-    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.layer).toBe("L2");
+    expect(pluginDeclsOf(checked.manifest ?? { plugins: [] })[0]?.provides).toEqual([
       { id: "knowledge.skills", version: "1.0.0" },
       { id: "knowledge.memory", version: "1.0.0" },
       { id: "knowledge.search", version: "1.0.0" },
@@ -186,7 +187,7 @@ describe("manifest", () => {
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.plugins[0]?.hooks).toEqual([
+    expect(pluginDeclsOf(unit.manifest)[0]?.hooks).toEqual([
       "thread.start",
       "input.agent.before",
       "thread.shutdown",

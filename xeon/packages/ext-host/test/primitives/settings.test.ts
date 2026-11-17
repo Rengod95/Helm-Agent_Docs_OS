@@ -26,11 +26,24 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     maxTokens: 400_000,
   });
   expect(primitivesSettings.defs.driveDefaultLimits.runtimeChange).toBe("nextTurn");
+  // 프로필은 시작 한도만 바꿀 수 있다. 천장(driveLimits)은 프로필 범위를 열지 않는다
+  expect(primitivesSettings.defs.driveDefaultLimits.allowedScopes).toEqual([
+    "managed",
+    "user",
+    "project",
+    "launch",
+    "profile",
+  ]);
+  expect(primitivesSettings.defs.driveLimits.allowedScopes).toEqual([
+    "managed",
+    "user",
+    "project",
+    "launch",
+  ]);
   for (const def of [
     primitivesSettings.defs.driveDefaultLimits,
     primitivesSettings.defs.driveLimits,
   ]) {
-    expect(def.allowedScopes).toEqual(["managed", "user", "project", "launch"]);
     expect(def.ui?.widget).toBe("table");
   }
   expect(primitivesSettings.defs.leaseWaitLimit.default).toBe(8);

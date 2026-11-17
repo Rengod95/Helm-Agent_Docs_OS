@@ -5,109 +5,29 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// 확장 화면의 켜기·끄기 스위치(전역은 `user`, 이 대화에서 끄기는 `launch`)가 쓰는 `ext.<이름>.enabled`가 모든 내장 확장에서 받아들여진다.
-// 예전에는 helm 등 세 확장의 키만 카탈로그에 있어서 나머지는 `settings.unknownKey`로 거절됐다(F-S4-1, F-S4-2).
+// M5c §3.3, §4.1.9·§4.1.10: 플러그인별 켜기·끄기 스위치는 설정과 wire에 없다. 켜짐은 프로필에서 계산한다.
+// `ext.<이름>.enabled`는 관리 범위만 받는다(관리자가 잠그는 용도). 사용자 범위 쓰기는 `settings.scopeNotAllowed`로 거절한다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
 realTest(
-  "a built-in extension switch is writable globally and per thread, and the value reads back",
+  "a plugin switch is not a user setting: ext.<name>.enabled is refused in the user scope",
   async () => {
-    const home = useEngineHome();
+    useEngineHome();
     const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
-    const key = "ext.cap-web.enabled";
-
-    const global = await connection.request("settings.set", { key, value: false, scope: "user" });
-    expect(global.setting).toMatchObject({ key, value: false, source: { scope: "user" } });
-    const read = await connection.request("settings.get", { keys: [key] });
-    expect(read.settings[0]).toMatchObject({ value: false, source: { scope: "user" } });
-
-    const created = await connection.request("thread.create", {});
-    const perThread = await connection.request("settings.set", {
-      key,
-      value: true,
-      scope: "launch",
-      threadId: created.threadId,
-    });
-    expect(perThread.setting).toMatchObject({ key, value: true, source: { scope: "launch" } });
-
-    // 목록에 있는 모든 확장의 스위치 키가 받아들여진다
-    const listed = await connection.request("ext.list", {});
-    expect(listed.extensions.length).toBeGreaterThan(10);
-    const reads = await Promise.all(
-      listed.extensions.map((entry) =>
-        connection.request("settings.get", { keys: [`ext.${entry.name}.enabled`] }),
-      ),
-    );
-    for (const done of reads) expect(done.settings).toHaveLength(1);
-    await connection.close();
-    await host.close();
-    home.dispose();
+    const refused = await connection
+      .request("settings.set", {
+        key: "ext.cap-web.enabled",
+        value: false,
+        scope: "user",
+      })
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    expect(refused).toMatchObject({ data: { kind: "settings.scopeNotAllowed" } });
   },
-  60_000,
-);
-
-// 내장 그룹(authoring, 기본 켜짐)의 켜기·끄기 스위치가 값만 쓰는 것이 아니라 실제로 켜고 끈다(rtC R-3).
-realTest(
-  "turning the authoring group on through its setting enables it and turning it off disables it",
-  async () => {
-    const home = useEngineHome();
-    const host = await startInProcessHost({ devChecks: true });
-    const connection = createHostConnection(host.client);
-    await connection.request("host.hello", HELLO_PARAMS);
-    const key = "ext.authoring.enabled";
-    const statusOf = async (): Promise<string | undefined> => {
-      const listed = await connection.request("ext.list", {});
-      return listed.extensions.find((entry) => entry.name === "authoring")?.status;
-    };
-    // 기본은 켜짐이다([결정: 2026-11-13 사용자]). 끄면 꺼지고 다시 켜면 켜진다
-    expect(await statusOf()).toBe("enabled");
-    await connection.request("settings.set", { key, value: false, scope: "user" });
-    await Bun.sleep(300);
-    // 끄기도 다음 단계 경계에서 적용되므로 경계가 없으면 "disabling"으로 대기한다
-    expect(["disabling", "disabled"]).toContain((await statusOf()) ?? "");
-    await connection.request("settings.set", { key, value: true, scope: "user" });
-    await Bun.sleep(300);
-    // 단계 경계가 없으면 켜짐은 "enabling"으로 대기한다(다음 경계에서 적용). 꺼짐 상태로 남지 않는다
-    expect(["enabling", "enabled"]).toContain((await statusOf()) ?? "");
-    await connection.close();
-    await host.close();
-    home.dispose();
-  },
-  60_000,
-);
-
-// 이 대화에서 끄기(`launch`)가 그 대화의 등록에 닿는다: 목록이 끄는 중·꺼짐을 보이고 다른 대화는 그대로다(rtC R-4).
-realTest(
-  "a per-thread off request reaches that thread's registration and leaves other threads alone",
-  async () => {
-    const home = useEngineHome();
-    const host = await startInProcessHost({ devChecks: true });
-    const connection = createHostConnection(host.client);
-    await connection.request("host.hello", HELLO_PARAMS);
-    const first = await connection.request("thread.create", {});
-    const second = await connection.request("thread.create", {});
-    const key = "ext.cap-web.enabled";
-    const registrationOf = async (threadId: typeof first.threadId): Promise<string | undefined> => {
-      const listed = await connection.request("ext.list", { threadId });
-      const entry = listed.extensions.find((item) => item.name === "cap-web");
-      return entry?.registration ?? entry?.status;
-    };
-    await connection.request("settings.set", {
-      key,
-      value: false,
-      scope: "launch",
-      threadId: first.threadId,
-    });
-    await Bun.sleep(1500);
-    expect(["disabling", "disabled"]).toContain((await registrationOf(first.threadId)) ?? "");
-    expect(await registrationOf(second.threadId)).toBe("enabled");
-    await connection.close();
-    await host.close();
-    home.dispose();
-  },
-  60_000,
 );

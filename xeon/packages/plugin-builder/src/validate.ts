@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import {
+  pluginDeclsOf,
   validateComposition,
   validateManifest,
   type CompositionDecl,
@@ -212,20 +213,25 @@ export async function validateExtensionDir(
         path: "/name",
         message: `name "${manifest.name}" is ${named.error.reason === "pattern" ? "not valid" : "reserved"}`,
       });
-    const entryPath = join(dir, manifest.entry);
-    const entryFile = await io(manifest.entry, () => stat(entryPath));
-    if (!entryFile.ok)
-      issues.push({
-        severity: "error",
-        code: "entry_missing",
-        path: "/entry",
-        message: `entry ${manifest.entry} does not exist`,
-      });
+    // 엔트리가 없으면 코드가 없으므로 엔트리 파일을 찾지 않는다(§4.5.4)
+    const declaredEntry = manifest.entry;
+    if (declaredEntry !== undefined) {
+      const entryPath = join(dir, declaredEntry);
+      const entryFile = await io(declaredEntry, () => stat(entryPath));
+      if (!entryFile.ok)
+        issues.push({
+          severity: "error",
+          code: "entry_missing",
+          path: "/entry",
+          message: `entry ${declaredEntry} does not exist`,
+        });
+    }
   }
 
   const files = await sourceFiles(dir);
   if (!files.ok) return files;
-  const drives = manifest?.plugins.some((plugin) => plugin.drives === true) === true;
+  const drives =
+    manifest !== undefined && pluginDeclsOf(manifest).some((plugin) => plugin.drives === true);
   const scanDrive = options.scanDrive;
   const texts: SourceText[] = [];
   const sources = await mapAll(files.value, async (file) => {

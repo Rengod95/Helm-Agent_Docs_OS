@@ -29,7 +29,7 @@ export function reservedExtensionSettings(
     type: Type.Boolean(),
     default: manifest.defaultEnabled ?? true,
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "launch"],
+    allowedScopes: ["managed"],
     ui: {
       tab: "plugins",
       widget: "toggle",
@@ -96,7 +96,7 @@ export function settingsFromManifest(manifest: ExtensionManifest): {
       ...(secret ? {} : { default: "" }),
       runtimeChange: "live",
       layer,
-      allowedScopes: ["managed", "user", "project", "local", "launch"],
+      allowedScopes: ["managed", "user", "project", "local", "launch", "profile"],
       ui: {
         tab: "plugins",
         widget: secret ? "secret" : "text",
@@ -131,6 +131,7 @@ export const loadingTrustSettings: SettingGroup<
     readonly paths: SettingDefInput;
     readonly "isolation.maxRestarts": SettingDefInput;
     readonly "isolation.restartWindowSec": SettingDefInput;
+    readonly sourceWatch: SettingDefInput;
   }
 > = defineSettings("x.loading-trust", {
   defaultProjectTrust: {
@@ -176,6 +177,19 @@ export const loadingTrustSettings: SettingGroup<
       order: 440,
       label: "Isolated extension restart window",
       unit: "s",
+    },
+    since: "0.1.0",
+  },
+  sourceWatch: {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "plugins",
+      widget: "toggle",
+      order: 450,
+      label: "Watch extension source folders for changes",
     },
     since: "0.1.0",
   },

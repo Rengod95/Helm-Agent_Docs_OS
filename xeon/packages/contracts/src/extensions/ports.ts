@@ -446,14 +446,22 @@ export interface TestRunControlPort {
 
 /** 대화가 쓰는 플러그인 집합. 구현은 호스트다. X는 호스트의 프로필 저장소를 import하지 않고 이 포트로 읽는다(DR-14) */
 export interface PluginSetView {
+  /** E(T): 이 대화의 켜짐 집합(플러그인 이름). 코어를 포함한다 */
   readonly plugins: readonly string[];
+  /** 적용한 프로필 id. 대화가 가리키는 프로필이 없으면 `default`다(M5c §4.1.1) */
   readonly profileId: string;
   readonly profileRev: number;
   readonly commonRev: number;
+  /** 대화가 저장한 프로필 id가 가리키는 프로필이 없어 `default`로 읽었으면 그 id. 있으면 `profile.applied { reason: "profile_missing" }` */
+  readonly missingProfileId?: string;
 }
 export interface PluginSetPort {
   resolve(threadId: ThreadId): PluginSetView;
 }
+/** 대화별 켜짐 집합(E(T))을 주는 포트. 구현은 호스트이고, X는 이 키로 읽는다(M5c §3.5) */
+export const PluginSetPortKey: PortKey<PluginSetPort> = {
+  name: "fresnel.pluginSet",
+};
 
 /** 재료 한 덩어리의 키와 본문. 지침, 명령(프롬프트형), 에이전트 정의가 같은 모양을 쓴다 */
 export interface MaterialText {

@@ -54,7 +54,7 @@ test("authoring is loaded unless default groups are off or the engine is in safe
   expect(authoringLoaded({ defaultGroups: undefined, safeMode: true })).toBe(false);
 });
 
-test("the service forwards to the wire port and maps install to link", async () => {
+test("the service forwards to the wire port; link is not wired until the plugin review flow lands", async () => {
   const calls: string[] = [];
   const port = partial<DevkitPort>({
     kinds: async () => [],
@@ -73,10 +73,6 @@ test("the service forwards to the wire port and maps install to link", async () 
       calls.push(`pack:${input.dir}`);
       return ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) });
     },
-    install: async (input) => {
-      calls.push(`install:${input.source}`);
-      return ok({ name: "demo", version: "0.1.0", location: "/ext/demo", appliesAt: "restart" });
-    },
   });
   const service = devkitServiceOf(wiringOf(port));
   expect(await service.scaffold({ kind: "plugin-group", name: "demo", dir: "/w/demo" })).toEqual(
@@ -92,10 +88,12 @@ test("the service forwards to the wire port and maps install to link", async () 
   expect(await service.pack({ dir: "/w/demo" })).toEqual(
     ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) }),
   );
-  expect(await service.link({ source: "/out" })).toEqual(
-    ok({ name: "demo", version: "0.1.0", location: "/ext/demo" }),
-  );
-  expect(calls).toEqual(["scaffold:/w/demo", "validate:/w/demo", "pack:/w/demo", "install:/out"]);
+  // 연결은 검토 흐름의 제출 경로가 맡는다. 아직 연결되지 않아 설치를 부르지 않고 io로 거절한다
+  expect(await service.link({ source: "/out" })).toMatchObject({
+    ok: false,
+    error: { kind: "io" },
+  });
+  expect(calls).toEqual(["scaffold:/w/demo", "validate:/w/demo", "pack:/w/demo"]);
 });
 
 test("a missing port is an io error for replay, test runs and the other calls", async () => {

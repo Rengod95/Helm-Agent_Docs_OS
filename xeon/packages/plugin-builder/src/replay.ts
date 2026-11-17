@@ -144,6 +144,8 @@ export async function runInstalledReplay(
   }
 
   const declared = manifest.value.entry;
+  // 엔트리가 없으면 다시 돌릴 코드가 없다. 이 함수 문서가 정한 `err`다
+  if (declared === undefined) return err(invalid("the plugin group has no entry to replay"));
   const real = await attemptAsync(() => realpath(join(root.value, declared)));
   if (!real.ok) return err({ kind: "not_found", message: `entry ${declared} does not exist` });
   if (!real.value.startsWith(`${root.value}${sep}`)) {

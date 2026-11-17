@@ -25,7 +25,10 @@ import { matchesFilter } from "../../src/handlers/events.ts";
 import { threadLocked } from "../../src/handlers/owner.ts";
 import { wireErrorOfStore } from "../../src/store-error.ts";
 import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
-import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
+import {
+  createProfileTestRunPort,
+  type PluginFact,
+} from "../../src/assembly/m4/profile-test-run-port.ts";
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import type { ExtMethodPort } from "../../src/handlers/m4/ext-method.ts";
@@ -115,6 +118,8 @@ export interface FakeEngineOptions {
     readonly configDir?: string;
     readonly traceRead?: TraceReadPort;
     readonly testRunControl?: TestRunControlPort;
+    /** 설치된 플러그인의 매니페스트 사실. 생략하면 설치된 플러그인이 없다 */
+    readonly pluginFacts?: () => readonly PluginFact[];
     readonly env?: Partial<M4HostEnv>;
   };
   /** 확장 버전과 화면 목록 포트를 바꿔 끼운다(`ext.versions`·`ext.rollback`·`ext.ui.list`). 생략하면 확장이 없는 포트다 */
@@ -205,6 +210,8 @@ export interface FakeEngine {
   readonly titles: ReadonlyMap<ThreadId, string>;
   /** `thread.setModel`이 정한 모델 */
   readonly chosenModels: ReadonlyMap<ThreadId, string>;
+  /** `thread.create`와 `thread.setProfile`이 정한 프로필 id */
+  readonly chosenProfiles: ReadonlyMap<ThreadId, string>;
 }
 
 const RECORDED_AT = 1_767_571_200_000;
@@ -249,8 +256,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const held = new Set<ThreadId>();
   const titles = new Map<ThreadId, string>();
   const models = new Map<ThreadId, string>();
+  const chosenProfiles = new Map<ThreadId, string>();
   const summaryOf = (threadId: ThreadId): ThreadSummary => {
     const model = models.get(threadId);
+    const profileId = chosenProfiles.get(threadId);
     return {
       threadId,
       title: titles.get(threadId) ?? null,
@@ -264,6 +273,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       queuedInputs: 0,
       pendingApprovals: 0,
       ...(model === undefined ? {} : { model }),
+      ...(profileId === undefined ? {} : { profileId }),
     };
   };
   const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
@@ -317,9 +327,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
 
   const ports: EnginePorts = {
     threads: {
-      create() {
+      create(input) {
         const threadId = ids.next("thr");
         threads.add(threadId);
+        if (input.profileId !== undefined) chosenProfiles.set(threadId, input.profileId);
         commit([{ kind: "thread.started", threadId }]);
         return Promise.resolve({ threadId, position: position() });
       },
@@ -345,6 +356,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         if (model === null) models.delete(threadId);
         else models.set(threadId, model);
         commit([{ kind: "thread.updated", threadId, payload: { model } }]);
+        return ok({ position: position() });
+      },
+      setProfile(threadId, profileId) {
+        if (!held.has(threadId)) return err({ kind: "not_owner", threadId });
+        chosenProfiles.set(threadId, profileId);
+        commit([{ kind: "thread.updated", threadId, payload: { profileId } }]);
         return ok({ position: position() });
       },
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
@@ -548,9 +565,20 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ),
       extUi: options.extUi ?? noExtensionsPort,
       extMethod: options.extMethod ?? { call: () => Promise.resolve({ kind: "not_found" }) },
+      // 대화별 켜짐 집합은 시험 가짜에서 항상 기본 집합을 준다. 실제 집합은 `createPluginSet`이 낸다(plugin-set 시험)
+      pluginSet: {
+        port: {
+          resolve: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        },
+        refresh: () => Promise.resolve(),
+        recompute: () => undefined,
+        defaultView: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        dispose: () => undefined,
+      },
       profileTestRun: createProfileTestRunPort({
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,
         testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,
+        pluginFacts: options.profiles?.pluginFacts ?? (() => []),
         env: {
           catalog: built.catalog,
           // 포트가 호출할 때마다 읽는다: `ports`는 이 객체가 만들어진 뒤에 채워진다
@@ -560,8 +588,18 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           errors: { ofStore: wireErrorOfStore, threadLocked: () => threadLocked(null) },
           settingValue: () => undefined,
           threadExists: (threadId) => ports.threads.exists(threadId),
-          toggles: { scopes: () => [], request: () => undefined },
+          toggles: { scopes: () => [], request: () => undefined, requestApply: () => undefined },
           registrations: () => [],
+          // 시크릿과 대화 수는 빈 저장소의 값이다. 시험이 `env`로 바꿔 끼운다
+          secretNames: () => Promise.resolve(new Set<string>()),
+          // 닫히지 않은 대화가 저장한 프로필 id. 가짜 대화 목록의 값이다
+          openThreadProfiles: () =>
+            [...threads].map((threadId) => chosenProfiles.get(threadId) ?? null),
+          openThreadIds: () => [...threads],
+          threadProfileId: (threadId) => chosenProfiles.get(threadId) ?? null,
+          forcedPlugins: () => [],
+          defaultPlugins: () => ["helm"],
+          stateDir: join(tmpdir(), "fresnel-fake-profiles-state"),
           configDir:
             options.profiles?.configDir ??
             join(
@@ -653,6 +691,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     secrets,
     titles,
     chosenModels: models,
+    chosenProfiles,
     submitted,
     held,
     acquisitions,

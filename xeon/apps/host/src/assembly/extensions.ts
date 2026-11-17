@@ -480,8 +480,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workspaceOf: workspaceOfId,
           // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
           trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
-          // 가이드 그룹이 켜진 때(또는 개발 모드)만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
-          extensionSkillRoots: () => (guide ? guideSkillRoots(deps.guide) : []),
+          // 이 대화의 켜짐 집합에 가이드가 있거나 개발 모드일 때만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
+          extensionSkillRoots: (threadId) => (guide ? guideSkillRoots(deps.guide, threadId) : []),
           loadIndex,
         }),
     ],

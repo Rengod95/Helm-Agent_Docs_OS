@@ -46,6 +46,7 @@ import {
   createThreadReadHandler,
   createThreadRenameHandler,
   createThreadSetModelHandler,
+  createThreadSetProfileHandler,
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
@@ -91,6 +92,7 @@ export function createWireHandlers(
     "thread.revert": createThreadRevertHandler(engine),
     "thread.rename": createThreadRenameHandler(engine, hub),
     "thread.setModel": createThreadSetModelHandler(engine, hub),
+    "thread.setProfile": createThreadSetProfileHandler(engine, hub),
     "thread.compact": createThreadCompactHandler(engine, hub),
     "thread.export": createThreadExportHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),
@@ -126,6 +128,28 @@ export function createWireHandlers(
     ...createDevkitHandlers(engine.ports.m4.devkit),
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
+    // 프로젝트·플러그인 검토 메서드(M5c §3.4)는 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
+    "project.list": notImplemented("project.list"),
+    "project.get": notImplemented("project.get"),
+    "project.create": notImplemented("project.create"),
+    "project.rename": notImplemented("project.rename"),
+    "project.delete": notImplemented("project.delete"),
+    "project.instructions": notImplemented("project.instructions"),
+    "plugin.list": notImplemented("plugin.list"),
+    "plugin.get": notImplemented("plugin.get"),
+    "plugin.invocables": notImplemented("plugin.invocables"),
+    "plugin.scan": notImplemented("plugin.scan"),
+    "plugin.revert": notImplemented("plugin.revert"),
+    "plugin.requestRemove": notImplemented("plugin.requestRemove"),
+    "plugin.draft.create": notImplemented("plugin.draft.create"),
+    "plugin.draft.list": notImplemented("plugin.draft.list"),
+    "plugin.draft.discard": notImplemented("plugin.draft.discard"),
+    "plugin.draft.fromInstruction": notImplemented("plugin.draft.fromInstruction"),
+    "pluginReview.list": notImplemented("pluginReview.list"),
+    "pluginReview.get": notImplemented("pluginReview.get"),
+    "pluginReview.decide": notImplemented("pluginReview.decide"),
+    "pluginReview.file": notImplemented("pluginReview.file"),
+    "pluginReview.submitDraft": notImplemented("pluginReview.submitDraft"),
   };
   return table;
 }

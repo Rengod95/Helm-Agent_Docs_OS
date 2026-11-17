@@ -133,11 +133,12 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
         {
           threadId,
           requestId: `thread:${threadId}:start`,
-          // workspace는 있을 때만 지문에 넣는다: 필드가 없던 때의 같은 키 재시도가 key_reused가 되지 않게 한다
+          // workspace와 profileId는 있을 때만 지문에 넣는다: 필드가 없던 때의 같은 키 재시도가 key_reused가 되지 않게 한다
           fingerprintSource: {
             title: input.title ?? null,
             creationKey: creationKey ?? null,
             ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+            ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
             ...(forkedFrom === undefined ? {} : { forkedFrom: forkedFrom.eventId }),
           },
           build(view): CommitPlan {
@@ -162,6 +163,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
                     title: input.title ?? null,
                     forkedFrom: forkedFrom ?? null,
                     ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+                    ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
                   },
                 }),
               ],

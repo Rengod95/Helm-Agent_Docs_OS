@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { assertNever, parse, type Result } from "@fresnel/contracts";
+import { parse, type Result } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import { HOOKS, type RegistrationStatus } from "@fresnel/contracts/extensions";
 import {
@@ -91,29 +91,19 @@ function layersOf(settings: SettingsEngine, threadId: string | undefined): Scope
   return settings.layers(threadIdOf(threadId));
 }
 
+/**
+ * 켜짐의 출처(`ext.list`의 `enabledSource`). E(T)가 아직 없어 프로필·공통 묶음·덧씌우기의 출처는 아직 계산하지 않는다(M5c §4.1).
+ * 그래서 관리 잠금(관리 범위의 `ext.<name>.enabled`가 거짓)만 `managed`로 보고, 나머지는 `none`이다.
+ */
 function enabledSourceOf(
   catalog: SettingCatalog,
   layers: ScopeStack,
   extension: string,
 ): EnabledSource {
-  const def = catalog.get(`ext.${extension}.enabled`);
-  if (def === undefined) return "default";
-  const scope = resolveSetting(def, layers).setting.source.scope;
-  switch (scope) {
-    case "managed":
-      return "managed";
-    case "launch":
-      return "thread";
-    case "project":
-    case "local":
-      return "project";
-    case "user":
-      return "user";
-    case "default":
-      return "default";
-    default:
-      return assertNever(scope, "SettingScope");
-  }
+  const key = `ext.${extension}.enabled`;
+  if (!catalog.has(key)) return "none";
+  const managed = layers.find((layer) => layer.scope === "managed");
+  return managed?.values.get(key) === false ? "managed" : "none";
 }
 
 /** 대화 범위(launch)에 저장된 켜짐 값이 이 대화의 상태다. 그 범위에 값이 없으면 undefined(전역 값을 따른다) */
@@ -362,7 +352,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     },
     enabledSource(registrationId, threadId) {
       const extension = extensionOf(registrationId);
-      if (extension === undefined) return "default";
+      if (extension === undefined) return "none";
       return enabledSourceOf(catalog, layersOf(env.settings, threadId), extension);
     },
     forcedOn: (name) => assembly.forcedOn(name),

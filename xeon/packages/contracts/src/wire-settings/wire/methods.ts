@@ -625,7 +625,10 @@ export const ThreadCreateParamsSchema: TObject<{
     title: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
     /** Test run 대화로 만든다(W-34). Test run만 멈춤(`testRun.*`)이 있다 */
     testRun: Type.Optional(Type.Boolean()),
-    /** 만들면서 `thread` 층에 적용할 프로필(`profile.apply`와 같은 쓰기). `testRun`이 참일 때만 */
+    /**
+     * 대화가 참조할 프로필 id(M5c §3.4). `testRun`과 무관하게 받는다. 없으면 `default`다.
+     * 프로필이 없으면 `profile.notFound`로 거절하고 대화를 만들지 않는다.
+     */
     profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },

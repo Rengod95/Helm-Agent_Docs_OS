@@ -82,6 +82,11 @@ export interface ThreadSummaryRow {
   readonly titleSource?: ThreadTitleSource;
   /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 없다(기본 모델) */
   readonly model?: string;
+  /**
+   * 이 대화가 참조하는 프로필 id(M5c §4.1.1). 활성 가지의 마지막 `thread.updated.profileId`, 없으면 `thread.started.profileId`.
+   * 둘 다 없으면 없다(기본 `default`로 읽는다). 값이 가리키는 프로필이 없는지는 호스트가 본다
+   */
+  readonly profileId?: string;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -267,6 +272,8 @@ export interface ThreadCreateInput {
   readonly threadId: ThreadId;
   readonly title?: string;
   readonly workspace?: string;
+  /** 만들 때 고른 프로필 id(`thread.started.profileId`). 없으면 `default`로 읽는다 (M5c §4.1.1) */
+  readonly profileId?: string;
   /** 전역 생성 멱등 키 1~200자. 같은 키의 두 번째 호출은 새 thread를 만들지 않는다 */
   readonly creationKey?: string;
   /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */
@@ -365,6 +372,15 @@ export interface ThreadLifecycle {
   setModel(
     threadId: ThreadId,
     model: string | null,
+    requestKey: string,
+  ): Result<void, LifecycleError>;
+  /**
+   * 이 대화가 참조하는 프로필을 바꾼다(`thread.updated { profileId }` 커밋, M5c §4.1.8). 프로필이 있는지는 부르는 쪽이 본다.
+   * 다음 단계 경계부터 `E(T)`로 적용된다. 쓰기 소유자만 부른다
+   */
+  setProfile(
+    threadId: ThreadId,
+    profileId: string,
     requestKey: string,
   ): Result<void, LifecycleError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */

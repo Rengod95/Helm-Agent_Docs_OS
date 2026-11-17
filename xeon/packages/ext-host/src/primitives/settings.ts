@@ -54,7 +54,7 @@ export const primitivesSettings: SettingGroup<
     type: DriveLimitsSchema,
     default: DEFAULT_DRIVE_LIMITS,
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "launch"],
+    allowedScopes: ["managed", "user", "project", "launch", "profile"],
     ui: {
       tab: "plugins",
       widget: "table",

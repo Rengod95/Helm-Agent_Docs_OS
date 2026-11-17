@@ -166,20 +166,27 @@ export async function packExtension(input: PackInput): Promise<Result<PackResult
   const scratch = await io("tmp", () => mkdtemp(join(tmpdir(), "fresnel-pack-")));
   if (!scratch.ok) return scratch;
   try {
-    const bundled = await bundleEntry(join(input.dir, manifest.entry), scratch.value);
-    if (!bundled.ok) return bundled;
-    const copied = await copyTree(input.dir, out, "");
-    if (!copied.ok) return copied;
-    const placed = await io("dist", async () => {
-      await mkdir(join(out, "dist"), { recursive: true });
-      await cp(join(scratch.value, "index.js"), join(out, "dist", "index.js"));
-      await mkdir(join(out, ".fresnel-plugin"), { recursive: true });
-      await writeFile(
-        join(out, MANIFEST_PATH),
-        `${JSON.stringify({ ...manifest, entry: BUNDLE_ENTRY }, null, 2)}\n`,
-      );
-    });
-    if (!placed.ok) return placed;
+    const declaredEntry = manifest.entry;
+    if (declaredEntry === undefined) {
+      // 엔트리가 없으면 코드가 없다(§4.5.4). 묶을 것이 없으니 폴더를 그대로 옮긴다
+      const copied = await copyTree(input.dir, out, "");
+      if (!copied.ok) return copied;
+    } else {
+      const bundled = await bundleEntry(join(input.dir, declaredEntry), scratch.value);
+      if (!bundled.ok) return bundled;
+      const copied = await copyTree(input.dir, out, "");
+      if (!copied.ok) return copied;
+      const placed = await io("dist", async () => {
+        await mkdir(join(out, "dist"), { recursive: true });
+        await cp(join(scratch.value, "index.js"), join(out, "dist", "index.js"));
+        await mkdir(join(out, ".fresnel-plugin"), { recursive: true });
+        await writeFile(
+          join(out, MANIFEST_PATH),
+          `${JSON.stringify({ ...manifest, entry: BUNDLE_ENTRY }, null, 2)}\n`,
+        );
+      });
+      if (!placed.ok) return placed;
+    }
   } finally {
     await rm(scratch.value, { recursive: true, force: true });
   }

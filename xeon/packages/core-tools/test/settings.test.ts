@@ -35,6 +35,29 @@ test("precedence is managed, session, local, project, user and out-of-range valu
   expect(config.output.maxLines).toBe(500);
 });
 
+test("the profile layer sits between launch and local for the permission mode only", () => {
+  // managed > launch > profile > local > project > user (M5c §3.3)
+  const overUser = readScalarConfig([
+    layer("user", { "l1.tools.permissionMode": "acceptEdits" }),
+    layer("profile", { "l1.tools.permissionMode": "default" }),
+  ]);
+  expect(overUser.mode).toBe("default");
+  const underLaunch = readScalarConfig([
+    layer("profile", { "l1.tools.permissionMode": "default" }),
+    layer("launch", { "l1.tools.permissionMode": "bypass" }),
+  ]);
+  expect(underLaunch.mode).toBe("bypass");
+  const overLocal = readScalarConfig([
+    layer("local", { "l1.tools.permissionMode": "acceptEdits" }),
+    layer("profile", { "l1.tools.permissionMode": "default" }),
+  ]);
+  expect(overLocal.mode).toBe("default");
+  // 프로필은 다른 l1.tools 키를 읽지 않는다
+  expect(
+    readScalarConfig([layer("profile", { "l1.tools.output.maxLines": 500 })]).output.maxLines,
+  ).toBe(2000);
+});
+
 test("the scope that set the mode is reported, and a repository scope is flagged", () => {
   const bypass = { "l1.tools.permissionMode": "bypass" };
   expect(readScalarConfig([layer("project", bypass)]).modeFromRepository).toBe(true);

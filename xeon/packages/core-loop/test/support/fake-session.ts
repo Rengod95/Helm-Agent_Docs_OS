@@ -765,6 +765,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       moveLeaf: () => notImplemented("threads.moveLeaf"),
       setTitle: () => notImplemented("threads.setTitle"),
       setModel: () => notImplemented("threads.setModel"),
+      setProfile: () => notImplemented("threads.setProfile"),
       prepareSwitch: () => notImplemented("threads.prepareSwitch"),
     },
     sessionSettings: {

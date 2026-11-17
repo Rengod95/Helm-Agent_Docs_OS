@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { driveStandIn } from "./support/drive-group.ts";
 import { NEW_SKILL, queueApi, submit, type Review } from "./support/flow.ts";
@@ -39,7 +40,7 @@ test("uc3.threshold-review-queue-and-helm-coexist", async () => {
 
   // (2) 임대는 Helm 대역이 그대로 쥐고, 학습 그룹은 drive를 부르지 않았다
   expect(rig.t.host.leaseOf(rig.thread)?.scopeId).toBe("helm-stand-in");
-  expect(rig.module.manifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
+  expect(pluginDeclsOf(rig.module.manifest).map((plugin) => plugin.drives)).toEqual([undefined]);
 
   // 검토 포크가 스킬 후보와 피드백 후보를 제출한다
   expect(await submit(review, NEW_SKILL)).toMatchObject({ ok: true, status: "pending" });

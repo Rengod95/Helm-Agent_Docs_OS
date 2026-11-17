@@ -142,7 +142,7 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
       threadId === "thr_known" && registrationId === "team/scout" ? "enabled" : undefined,
     threadKnown: (threadId) => Promise.resolve(threadId !== "thr_missing"),
     enabledSource: (registrationId, threadId) =>
-      threadId !== undefined && registrationId === "team/scout" ? "thread" : "user",
+      threadId !== undefined && registrationId === "team/scout" ? "profile" : "none",
     reenable: (name) => {
       reenabled.push(name);
     },

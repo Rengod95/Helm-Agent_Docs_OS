@@ -485,7 +485,7 @@ export interface ThreadStartedPayload {
   workspace?: string | null;
   /**
    * 생성 때 고른 프로필 id(M5c-1 §3.2). 없으면 `default`로 읽는다. 시작 시점의 값이고 이후 전환은 `thread.updated.profileId`가 쓴다.
-   * 선택 필드라 version은 1 그대로다(F.records.spec §3.2 규칙 5).
+   * 선택 필드라 version은 1 그대로다(F.records.spec §3.2 규칙 5). 투영 `p_threads.profile_id`(core 투영 규칙 버전 9)가 활성 가지의 마지막 값을 든다. 값이 없으면 대화 요약의 `profileId`도 없고 읽는 쪽이 `default`로 본다.
    */
   profileId?: string;
 }

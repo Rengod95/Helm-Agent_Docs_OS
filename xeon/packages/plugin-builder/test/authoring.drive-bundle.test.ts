@@ -1,3 +1,4 @@
+import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { cp, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -86,7 +87,9 @@ test("authoring.drive-bundle: a drive group packed as one file loads from the us
   expect(packed.value.files).toEqual([".fresnel-plugin/plugin.json", "README.md", "dist/index.js"]);
   const manifest = readManifest(packed.value.path);
   expect(manifest.entry).toBe("./dist/index.js");
-  expect(manifest.plugins.map((plugin) => [plugin.layer, plugin.drives])).toEqual([["L3", true]]);
+  expect(pluginDeclsOf(manifest).map((plugin) => [plugin.layer, plugin.drives])).toEqual([
+    ["L3", true],
+  ]);
   const bundle = await readFile(join(packed.value.path, "dist", "index.js"), "utf8");
   expect(bundle).not.toContain('from "./');
 

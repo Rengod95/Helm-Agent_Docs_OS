@@ -6,6 +6,7 @@ import {
   pluginsOf,
   validateManifest,
   validateUsage,
+  pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import { capabilityDefTable } from "@fresnel/ext-host";
 import { helmComposition, helmManifest } from "../../src/index.ts";
@@ -35,10 +36,10 @@ test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks
   expect(helmManifest.schemaVersion).toBe(2);
   expect(helmManifest.group).toEqual({ composition: helmComposition });
   expect(helmManifest.plugins).toHaveLength(1);
-  expect(helmManifest.plugins.map((plugin) => plugin.id)).toEqual([undefined]);
-  expect(helmManifest.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
-  expect(helmManifest.plugins.map((plugin) => plugin.drives)).toEqual([true]);
-  expect(helmManifest.plugins.map((plugin) => plugin.hooks)).toEqual([
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.id)).toEqual([undefined]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.layer)).toEqual(["L3"]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.drives)).toEqual([true]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.hooks)).toEqual([
     [
       "input.agent.before",
       "tool.call.before",

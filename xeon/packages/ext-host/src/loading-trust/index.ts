@@ -4,6 +4,7 @@ import { attemptAsync, Bug, err, ok, parseJson, type Result } from "@fresnel/con
 import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
   effectiveLayer,
+  pluginDeclsOf,
   validateManifest,
   validateManifestSet,
   type ExtensionManifest,
@@ -12,6 +13,7 @@ import {
   type LoaderPaths,
   type IsolationProcessPort,
   type ManifestIssue,
+  type PluginDecl,
   type TrustPrompter,
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
@@ -169,6 +171,11 @@ export {
 export { verdictOfInstall } from "./entry-loader.ts";
 
 export type { LoaderMode } from "./trust/levels.ts";
+
+/** 매니페스트의 플러그인 선언(`plugins` 없으면 추론한 루트 하나). 기록에 매니페스트가 없으면 빈 목록이다 */
+function declsOfManifest(manifest: ExtensionManifest | undefined): readonly PluginDecl[] {
+  return manifest === undefined ? [] : pluginDeclsOf(manifest);
+}
 
 export interface LoadOptions {
   readonly builtins: readonly BuiltinExtensionModule[];
@@ -834,7 +841,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return false;
     }
-    const enabled = enabledSettingOf(record) ?? manifest.defaultEnabled ?? true;
+    // 켜짐은 대화별 E(T)가 정한다(M5c §4.1.11). 여기서는 관리 잠금(`ext.<이름>.enabled = false`)만 본다
+    const enabled = enabledSettingOf(record) ?? true;
     if (!enabled) {
       fail(
         record,
@@ -868,16 +876,20 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       for (const record of alive.filter((candidate) => candidate.state === "resolved")) {
         const manifest = record.manifest;
         if (manifest === undefined) continue;
-        for (const requirement of manifest.plugins.flatMap((plugin) => plugin.requires ?? [])) {
+        for (const requirement of pluginDeclsOf(manifest).flatMap(
+          (plugin) => plugin.requires ?? [],
+        )) {
           const provided = alive.some(
             (other) =>
               other !== record &&
               (other.state === "resolved" || other.state === "active") &&
-              (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-                (provision) =>
-                  provision.id === requirement.id &&
-                  satisfiesRange(provision.version, requirement.range),
-              ),
+              declsOfManifest(other.manifest)
+                .flatMap((plugin) => plugin.provides ?? [])
+                .some(
+                  (provision) =>
+                    provision.id === requirement.id &&
+                    satisfiesRange(provision.version, requirement.range),
+                ),
           );
           const core = [...(deps.coreCapabilities ?? [])].some(
             ([id, version]) => id === requirement.id && satisfiesRange(version, requirement.range),
@@ -904,19 +916,21 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    */
   function installSequence(loadOrdered: readonly ExtRecord[]): readonly ExtRecord[] {
     const providersOf = (record: ExtRecord): ExtRecord[] => {
-      const requirements =
-        record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? [];
+      const requirements = declsOfManifest(record.manifest).flatMap(
+        (plugin) => plugin.requires ?? [],
+      );
       return loadOrdered.filter(
         (other) =>
           other !== record &&
-          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-            (provision) =>
+          declsOfManifest(other.manifest)
+            .flatMap((plugin) => plugin.provides ?? [])
+            .some((provision) =>
               requirements.some(
                 (requirement) =>
                   requirement.id === provision.id &&
                   satisfiesRange(provision.version, requirement.range),
               ),
-          ),
+            ),
       );
     };
     const sequence: ExtRecord[] = [];
@@ -934,15 +948,16 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
   /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
   function deadProvider(record: ExtRecord): CapabilityId | undefined {
-    for (const requirement of record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ??
-      []) {
+    for (const requirement of declsOfManifest(record.manifest).flatMap(
+      (plugin) => plugin.requires ?? [],
+    )) {
       const potential = order.some(
         (other) =>
           other !== record &&
           (other.state === "resolved" || other.state === "loading" || other.state === "active") &&
-          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-            (provision) => provision.id === requirement.id,
-          ),
+          declsOfManifest(other.manifest)
+            .flatMap((plugin) => plugin.provides ?? [])
+            .some((provision) => provision.id === requirement.id),
       );
       const core = [...(deps.coreCapabilities ?? [])].some(([id]) => id === requirement.id);
       if (!potential && !core) return toCapabilityIds([requirement.id])[0];
@@ -1063,14 +1078,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     const orphan = order
       .filter((candidate) => candidate.state === "active")
       .find((record) =>
-        (record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).some(
-          (requirement) => !hasProvider(record, requirement.id),
-        ),
+        declsOfManifest(record.manifest)
+          .flatMap((plugin) => plugin.requires ?? [])
+          .some((requirement) => !hasProvider(record, requirement.id)),
       );
     if (orphan === undefined) return;
-    const lost = (orphan.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).find(
-      (requirement) => !hasProvider(orphan, requirement.id),
-    );
+    const lost = declsOfManifest(orphan.manifest)
+      .flatMap((plugin) => plugin.requires ?? [])
+      .find((requirement) => !hasProvider(orphan, requirement.id));
     fail(
       orphan,
       "error",
@@ -1088,9 +1103,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       (other) =>
         other !== record &&
         other.state === "active" &&
-        (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
-          (provision) => provision.id === id,
-        ),
+        declsOfManifest(other.manifest)
+          .flatMap((plugin) => plugin.provides ?? [])
+          .some((provision) => provision.id === id),
     );
     return provider || [...(deps.coreCapabilities ?? [])].some(([coreId]) => coreId === id);
   }
@@ -1158,7 +1173,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       owner: {
         name: manifest.name,
         ...(manifest.group === undefined ? {} : { group: manifest.group }),
-        readsRecordKinds: manifest.plugins.flatMap((decl) => decl.readsRecordKinds ?? []),
+        readsRecordKinds: pluginDeclsOf(manifest).flatMap((decl) => decl.readsRecordKinds ?? []),
       },
       policy: uiPolicy,
       hostWidgetsVersion: HOST_WIDGETS_VERSION,
@@ -1667,7 +1682,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const record = records.get(name);
       if (record === undefined) return undefined;
       throwIfCancelled(signal, `applying the setting of ${name}`);
-      const enabled = enabledSettingOf(record) ?? record.manifest?.defaultEnabled ?? true;
+      const enabled = enabledSettingOf(record) ?? true;
       if (record.state === "disabled" && enabled) return ensureLoaded(name, signal);
       if (record.state === "active") {
         for (const info of deps.host.registrations().filter((scope) => scope.extension === name)) {

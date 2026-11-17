@@ -297,6 +297,8 @@ function harness(): Harness {
     }),
   });
   const ext = partial<ExtHost>({
+    // 대화별 켜짐 집합 포트를 플랫폼 모듈로 등록한다(m4/index.ts). 시험 가짜는 등록만 받는다
+    registerPlatform: () => Promise.resolve(ok(undefined)),
     openThread: () => {
       calls.push("ext.openThread");
       return state.openThreadError === undefined
@@ -404,6 +406,7 @@ function harness(): Harness {
       holder: { holderId: "h", kind: "app" as const, pid: 1, startedAt: 1, host: "m" },
       settings: createSettingsEngine(built.catalog),
       configDir: "/nonexistent-config",
+      stateDir: "/nonexistent-state",
       trust: {
         resolve: () => Promise.reject(new Error("trust is not used by these tests")),
         isTrusted: () => Promise.resolve(false),

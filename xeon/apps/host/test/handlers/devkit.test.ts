@@ -6,9 +6,9 @@ import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// 제작 처리기(`ext.kinds`, `ext.scaffold`, `ext.validate`, `ext.package`, `ext.install`, `ext.remove`, `ext.validateComposition`)를
+// 제작 처리기(`ext.kinds`, `ext.scaffold`, `ext.validate`, `ext.package`, `ext.validateComposition`)를
 // 가짜 포트 위에서 본다. 처리기는 포트 값을 와이어 결과로 옮기고 포트의 실패 값을 정해진 와이어 오류로 바꾼다.
-// 포트 구현은 test/assembly/devkit-port.test.ts, 실제 엔진은 test/int/devkit.int.test.ts다.
+// 포트 구현은 test/assembly/devkit-port.test.ts에서 본다.
 
 const KIND: KindEntry = {
   id: "plugin-group",
@@ -21,8 +21,6 @@ const KIND: KindEntry = {
   decisions: [],
   security: [],
 };
-
-const SHA = "a".repeat(64);
 
 async function open(host: FakeHost) {
   const { connection } = host.connect();
@@ -45,7 +43,7 @@ test("ext.kinds returns the port's catalog entries", async () => {
   await connection.close();
 });
 
-test("ext.scaffold, ext.validate, ext.package and ext.install hand their params to the port and return its value", async () => {
+test("ext.scaffold, ext.validate and ext.package hand their params to the port and return its value", async () => {
   const seen: unknown[] = [];
   const host = createFakeHost({
     overrides: {
@@ -67,12 +65,6 @@ test("ext.scaffold, ext.validate, ext.package and ext.install hand their params 
           seen.push(["pack", input]);
           return Promise.resolve(ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) }));
         },
-        install: (input) => {
-          seen.push(["install", input]);
-          return Promise.resolve(
-            ok({ name: "demo", version: "0.1.0", location: "/ext/demo", appliesAt: "restart" }),
-          );
-        },
       },
     },
   });
@@ -89,100 +81,11 @@ test("ext.scaffold, ext.validate, ext.package and ext.install hand their params 
     files: ["a"],
     sha256: "a".repeat(64),
   });
-  expect(await connection.request("ext.install", { source: "/out", sha256: SHA })).toEqual({
-    name: "demo",
-    version: "0.1.0",
-    location: "/ext/demo",
-    appliesAt: "restart",
-  });
   expect(seen).toEqual([
     ["scaffold", { kind: "single-plugin", name: "demo", dir: "/d" }],
     ["validate", "/d"],
     ["pack", { dir: "/d", out: "/o" }],
-    ["install", { source: "/out", expectedSha256: SHA }],
   ]);
-  await connection.close();
-});
-
-test("ext.remove returns when the removal applies, and an unknown name is extension.notFound", async () => {
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        remove: (name) =>
-          Promise.resolve(
-            name === "demo"
-              ? ok({ name, appliesAt: "nextStepBoundary" })
-              : err({ kind: "not_found", message: "no such extension" }),
-          ),
-      },
-    },
-  });
-  const connection = await open(host);
-  expect(await connection.request("ext.remove", { name: "demo" })).toEqual({
-    name: "demo",
-    appliesAt: "nextStepBoundary",
-  });
-  const missing = await wireErrorOf(connection.request("ext.remove", { name: "ghost" }));
-  expect(missing.data).toMatchObject({ kind: "extension.notFound" });
-  await connection.close();
-});
-
-test("ext.remove passes dropData to the port (false when omitted) and ext.removePreview returns the port's tables", async () => {
-  const seen: unknown[] = [];
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        remove: (name, options) => {
-          seen.push(["remove", name, options]);
-          return Promise.resolve(
-            ok(
-              options?.dropData === true
-                ? { name, appliesAt: "now", dataDropped: 2 }
-                : { name, appliesAt: "now" },
-            ),
-          );
-        },
-        removePreview: (name) => {
-          seen.push(["removePreview", name]);
-          return Promise.resolve(ok({ name, tables: [{ name: "x_demo_pins", rows: 3 }] }));
-        },
-      },
-    },
-  });
-  const connection = await open(host);
-  expect(await connection.request("ext.removePreview", { name: "demo" })).toEqual({
-    name: "demo",
-    tables: [{ name: "x_demo_pins", rows: 3 }],
-  });
-  expect(await connection.request("ext.remove", { name: "demo", dropData: true })).toEqual({
-    name: "demo",
-    appliesAt: "now",
-    dataDropped: 2,
-  });
-  expect(await connection.request("ext.remove", { name: "demo" })).toEqual({
-    name: "demo",
-    appliesAt: "now",
-  });
-  expect(seen).toEqual([
-    ["removePreview", "demo"],
-    ["remove", "demo", { dropData: true }],
-    ["remove", "demo", { dropData: false }],
-  ]);
-  await connection.close();
-});
-
-test("ext.removePreview of an unknown name is extension.notFound", async () => {
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        removePreview: () =>
-          Promise.resolve(err({ kind: "not_found", message: "ghost is not installed" })),
-      },
-    },
-  });
-  const connection = await open(host);
-  const missing = await wireErrorOf(connection.request("ext.removePreview", { name: "ghost" }));
-  expect(missing.data).toMatchObject({ kind: "extension.notFound" });
   await connection.close();
 });
 
@@ -232,13 +135,12 @@ test("a port failure becomes the wire error of the table: input problems are inv
         scaffold: () => Promise.resolve(err({ kind: "exists", message: "/d is not empty" })),
         validate: () => Promise.resolve(err({ kind: "not_found", message: "no manifest" })),
         pack: () => Promise.resolve(err({ kind: "io", message: "disk" })),
-        install: () => Promise.resolve(err({ kind: "denied", message: "builtin" })),
       },
     },
   });
   const connection = await open(host);
   const exists = await wireErrorOf(
-    connection.request("ext.scaffold", { kind: "plugin-group", name: "demo", dir: "/d" }),
+    connection.request("ext.scaffold", { kind: "single-plugin", name: "demo", dir: "/d" }),
   );
   expect(exists.data).toMatchObject({
     kind: "jsonrpc.invalidParams",
@@ -250,88 +152,6 @@ test("a port failure becomes the wire error of the table: input problems are inv
   });
   const io = await wireErrorOf(connection.request("ext.package", { dir: "/d" }));
   expect(io.data).toMatchObject({ kind: "store.io" });
-  const denied = await wireErrorOf(
-    connection.request("ext.install", { source: "/s", sha256: SHA }),
-  );
-  expect(denied.data).toMatchObject({
-    details: { issues: [{ path: "/source", message: "denied: builtin" }] },
-  });
-  await connection.close();
-});
-
-test("ext.installPreview tells a relative path and a folder without the plugin file apart from a missing folder", async () => {
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        installPreview: (input) =>
-          Promise.resolve(
-            input.source === "relative/dir"
-              ? err({ kind: "not_absolute", message: "source must be an absolute path" })
-              : input.source === "/bare"
-                ? err({ kind: "no_manifest", message: ".fresnel-plugin/plugin.json is missing" })
-                : err({ kind: "not_found", message: "/gone is not found" }),
-          ),
-      },
-    },
-  });
-  const connection = await open(host);
-  const relative = await wireErrorOf(
-    connection.request("ext.installPreview", { source: "relative/dir" }),
-  );
-  expect(relative.data).toMatchObject({
-    kind: "jsonrpc.invalidParams",
-    details: {
-      issues: [{ path: "/source", message: "not_absolute: source must be an absolute path" }],
-    },
-  });
-  const bare = await wireErrorOf(connection.request("ext.installPreview", { source: "/bare" }));
-  expect(bare.data).toMatchObject({
-    details: {
-      issues: [{ path: "/source", message: "no_manifest: .fresnel-plugin/plugin.json is missing" }],
-    },
-  });
-  const gone = await wireErrorOf(connection.request("ext.installPreview", { source: "/gone" }));
-  expect(gone.data).toMatchObject({
-    details: { issues: [{ path: "/source", message: "not_found: /gone is not found" }] },
-  });
-  await connection.close();
-});
-
-test("ext.installPreview carries the reasons of a refused manifest in the invalidParams details", async () => {
-  const misspelt = {
-    code: "unknown_key",
-    field: "entrie",
-    line: 6,
-    message: 'unknown top-level key "entrie" was removed',
-  };
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        installPreview: () =>
-          Promise.resolve(
-            err({
-              kind: "invalid_input",
-              message: "manifest is not valid: must have required properties entry",
-              reasons: [misspelt, { code: "missing_field", field: "entry" }],
-            }),
-          ),
-      },
-    },
-  });
-  const connection = await open(host);
-  const refused = await wireErrorOf(connection.request("ext.installPreview", { source: "/bad" }));
-  expect(refused.data).toMatchObject({
-    kind: "jsonrpc.invalidParams",
-    details: {
-      issues: [
-        {
-          path: "/source",
-          message: "invalid_input: manifest is not valid: must have required properties entry",
-        },
-      ],
-      reasons: [misspelt, { code: "missing_field", field: "entry" }],
-    },
-  });
   await connection.close();
 });
 
@@ -345,13 +165,14 @@ test("host.hello lists the authoring methods, the test run pair included, as fea
     "ext.scaffold",
     "ext.validate",
     "ext.package",
-    "ext.install",
-    "ext.remove",
     "ext.validateComposition",
     "ext.test.run",
     "ext.test.list",
   ])
     expect(names).toContain(name);
+  // 설치와 지우기는 검토 흐름으로 대체되어 처리기가 없다(M5c §7.7)
+  for (const removed of ["ext.install", "ext.installPreview", "ext.remove", "ext.removePreview"])
+    expect(names).not.toContain(removed);
   await connection.close();
 });
 
@@ -458,73 +279,4 @@ test("ext.test.run maps the dev gate, an unknown target and a busy replay to inv
   const io = await wireErrorOf(connection.request("ext.test.list", {}));
   expect(io.data).toMatchObject({ kind: "store.io" });
   await connection.close();
-});
-
-const PREVIEW = {
-  name: "demo",
-  version: "0.2.0",
-  displayName: null,
-  description: null,
-  source: "/out",
-  sha256: SHA,
-  trustRequest: "user",
-  installedVersion: "0.1.0",
-  hooks: ["boundary.settle.after"],
-  tools: [],
-  capabilities: [{ id: "web.fetch", optional: false }],
-  network: ["web.fetch"],
-  files: [],
-  shell: [],
-  drives: false,
-  screens: [],
-  warnings: [],
-} as const;
-
-test("ext.installPreview returns the port's preview values as they are", async () => {
-  const seen: unknown[] = [];
-  const host = createFakeHost({
-    overrides: {
-      devkit: {
-        installPreview: (input) => {
-          seen.push(input);
-          return Promise.resolve(ok(PREVIEW));
-        },
-      },
-    },
-  });
-  const connection = await open(host);
-  expect(await connection.request("ext.installPreview", { source: "/out" })).toEqual(PREVIEW);
-  expect(seen).toEqual([{ source: "/out" }]);
-  await connection.close();
-});
-
-async function installFailure(kind: "source_changed" | "safe_mode_active" | "managed_locked") {
-  const host = createFakeHost({
-    overrides: {
-      devkit: { install: () => Promise.resolve(err({ kind, message: `${kind} message` })) },
-    },
-  });
-  const connection = await open(host);
-  const caught = await wireErrorOf(
-    connection.request("ext.install", { source: "/s", sha256: SHA }),
-  );
-  await connection.close();
-  return caught.data;
-}
-
-test("ext.install maps a changed source, safe mode and a managed lock to wire errors", async () => {
-  const [changed, safe, locked] = await Promise.all([
-    installFailure("source_changed"),
-    installFailure("safe_mode_active"),
-    installFailure("managed_locked"),
-  ]);
-  expect(safe).toMatchObject({ kind: "extension.safeModeActive" });
-  expect(changed).toMatchObject({
-    kind: "jsonrpc.invalidParams",
-    details: { issues: [{ path: "/source", message: "source_changed: source_changed message" }] },
-  });
-  expect(locked).toMatchObject({
-    kind: "jsonrpc.invalidParams",
-    details: { issues: [{ path: "/source", message: "managed_locked: managed_locked message" }] },
-  });
 });
