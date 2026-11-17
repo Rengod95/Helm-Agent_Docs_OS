@@ -91,12 +91,17 @@ test("the repository list parses and names every exit condition it covers", () =
     "X7",
     "X8",
     "X9",
+    "Y1",
     "Y10",
     "Y11",
+    "Y12",
     "Y13",
+    "Y15",
     "Y16",
     "Y17",
     "Y4",
+    "Y6",
+    "Y7",
   ]);
 });
 
