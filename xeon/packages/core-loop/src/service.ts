@@ -80,8 +80,20 @@ function settledNow(): Promise<void> {
   return Promise.resolve();
 }
 
-function beginRunning(thread: ThreadRuntime, turnId: TurnId, scope: TaskScope): void {
-  thread.running = { turnId, scope, stepIndex: null, phase: "requesting" };
+function beginRunning(
+  thread: ThreadRuntime,
+  turnId: TurnId,
+  scope: TaskScope,
+  conditions: { readonly interactive: boolean; readonly sandbox: "read-only" | undefined },
+): void {
+  thread.running = {
+    turnId,
+    scope,
+    stepIndex: null,
+    phase: "requesting",
+    interactive: conditions.interactive,
+    sandbox: conditions.sandbox,
+  };
 }
 
 /** settle이 drive 재호출을 시작하려면 thread가 유휴로 보여야 한다 */
@@ -236,7 +248,10 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       );
       return undefined;
     }
-    beginRunning(thread, turnId, scope);
+    beginRunning(thread, turnId, scope, {
+      interactive: planned.interactive,
+      sandbox: child?.tools.ceiling?.sandbox,
+    });
     for (const input of planned.inputs) thread.placed.set(input.inputId, turnId);
     onStarted({ status: "started", turnId, planned });
     const unlink = child === null ? null : linkRequestSignal(child.signal, scope);
@@ -395,7 +410,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     // 이 turn이 남긴 미해결 승인 요청은 답을 받을 호출이 없다. 닫는 turn에 커밋이 막히기 전에 취소로 닫는다(L1.tools.spec §4.7 8번)
     await cancelTurnApprovals(thread.threadId, turnId, reason);
     const scope = openTurnScope(thread, turnId);
-    beginRunning(thread, turnId, scope);
+    beginRunning(thread, turnId, scope, { interactive: false, sandbox: undefined });
     // 취소 신호를 켠다. 의도 커밋은 같은 키라 이미 있으면 다시 쓰지 않는다
     await deps.tasks.abort(scope, {
       code: opened.abortCode === "user" ? "user" : "parent",
@@ -556,7 +571,10 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     onBegin(ok({ status: "resumed", turnId: open.turnId, from: reentry.from }));
 
     const scope = openTurnScope(thread, open.turnId, child?.scope);
-    beginRunning(thread, open.turnId, scope);
+    beginRunning(thread, open.turnId, scope, {
+      interactive: child === null ? reduction.scopeId === null : child.tools.interactive,
+      sandbox: child?.tools.ceiling?.sandbox,
+    });
     const entry: TurnEntry = reentry.entry;
     const checkpoint =
       plan.checkpoint !== null && plan.checkpoint.turnId === open.turnId ? plan.checkpoint : null;
@@ -944,6 +962,14 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   }
 
   const service: LoopServiceHandle = {
+    callConditions(threadId) {
+      const running = threads.get(threadId)?.running;
+      if (running === null || running === undefined) return undefined;
+      return {
+        interactive: running.interactive,
+        ...(running.sandbox === undefined ? {} : { sandbox: running.sandbox }),
+      };
+    },
     status: (threadId) =>
       (threads.get(threadId)?.running?.phase ?? "idle") === "idle" ? "idle" : "running",
     runTurn,

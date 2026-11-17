@@ -75,6 +75,10 @@ export interface RunningTurn {
   readonly scope: TaskScope;
   stepIndex: number | null;
   phase: ThreadLoopStatus["phase"];
+  /** 이 turn에서 사람이 승인 요청에 답할 수 있는가. 플러그인 발 기능 호출이 이어받는다 */
+  readonly interactive: boolean;
+  /** 자식 turn의 읽기 전용 샌드박스 천장. 없으면 천장이 없다 */
+  readonly sandbox: "read-only" | undefined;
 }
 
 /** thread 하나의 구동 상태 */

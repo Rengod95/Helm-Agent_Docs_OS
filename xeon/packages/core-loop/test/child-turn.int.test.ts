@@ -280,3 +280,25 @@ test("the request signal cancels the child turn", async () => {
   expect(result.ok && result.value.outcome.status).toBe("aborted");
   expect(h.models.requests).toHaveLength(1);
 });
+
+test("callConditions of a running child turn carries its unattended flag and read-only ceiling", async () => {
+  const h = await createHarness({ script: [{ kind: "stall" }] });
+  const child = await newChild(h);
+  const base = request(child);
+  const running = h.loop.runChildTurn({
+    ...base,
+    tools: {
+      ...base.tools,
+      ceiling: { caller: "main", depth: 0, mode: "acceptEdits", sandbox: "read-only" },
+    },
+  });
+  await h.tick();
+  await h.tick();
+  expect(h.loop.callConditions?.(child.threadId)).toEqual({
+    interactive: false,
+    sandbox: "read-only",
+  });
+  expect(await h.loop.interrupt(child.threadId)).toBe(true);
+  await running;
+  expect(h.loop.callConditions?.(child.threadId)).toBeUndefined();
+});
