@@ -151,6 +151,8 @@ export function settingsOf(overrides: Partial<SandboxSettings> = {}): SandboxSet
 export interface FakeSrtOptions {
   readonly supported?: boolean;
   readonly dependencyErrors?: readonly string[];
+  /** true이면 중첩 사용자 네임스페이스 시험이 restricted를 돌려준다 */
+  readonly nestedUsernsRestricted?: boolean;
   readonly initializeError?: Error;
   readonly wrapError?: Error;
   /** getViolationLines가 돌려줄 줄 */
@@ -188,6 +190,12 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
     cleanupCalls: 0,
     resetCalls: 0,
     isSupportedPlatform: () => options.supported ?? true,
+    probeNestedUserns: () =>
+      Promise.resolve(
+        options.nestedUsernsRestricted === true
+          ? { kind: "restricted" as const }
+          : { kind: "ok" as const },
+      ),
     checkDependencies: (): SrtDependencyReport => ({
       errors: options.dependencyErrors ?? [],
       warnings: [],
