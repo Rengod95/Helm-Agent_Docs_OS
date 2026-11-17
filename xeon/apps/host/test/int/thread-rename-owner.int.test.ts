@@ -1,13 +1,13 @@
 import { afterAll, expect, test } from "bun:test";
 import { WireError } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, requestTurn } from "../fixtures/wire-client.ts";
 
 // M2 마감 재검토 결함 10 (int): 아무도 쥐지 않은 thread에서 thread.rename이 빌린 잠금을, 같은 순간의 turn.start가 이어받으면 rename이 놓지 않는다.
 // 놓아 버리면 turn이 도는 thread를 다른 호스트가 쓰기로 열 수 있다(쓰기 소유자 둘). 실제 잠금과 sys_leases 위에서 다른 호스트의 열기로 견준다.
@@ -45,7 +45,7 @@ realTest(
     try {
       const [renamed, started] = await Promise.all([
         connection.request("thread.rename", { threadId: created.threadId, title: "새 제목" }),
-        connection.request("turn.start", { threadId: created.threadId, input: "질문" }),
+        requestTurn(connection, { threadId: created.threadId, input: "질문" }),
       ]);
       expect(renamed.position.seq).toBeGreaterThan(0);
       await collector.waitFor(

@@ -2,6 +2,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { MeasurePort } from "../../src/assembly/measure/read.ts";
+import { createTurnRecordPort } from "../../src/assembly/measure/turn-read.ts";
 import type { Notice } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
@@ -335,6 +336,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         return Promise.resolve({ threadId, position: position() });
       },
       exists: (threadId) => ok(threads.has(threadId)),
+      // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
+      applyOpenWorkspace: () => Promise.resolve(),
+      sameFolder: () => [],
       list: () =>
         Promise.resolve({
           threads: [...threads].map(summaryOf),
@@ -511,6 +515,18 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     measure: {
       turn: () => ok({ enabled: false, rows: [] }),
       daily: () => ok({ enabled: false, days: [] }),
+      turnRecord: createTurnRecordPort({
+        store: () => undefined,
+        enabled: () => false,
+        retentionDays: () => 30,
+        now: () => 0,
+        metrics: () => ({
+          minSample: 20,
+          defaultWindowDays: 30,
+          findingsEnabled: true,
+          findingOverrides: {},
+        }),
+      }),
       ...options.overrides?.measure,
     },
     trust: {

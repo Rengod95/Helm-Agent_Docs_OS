@@ -1159,6 +1159,9 @@ export interface RewindPlan {
 - 자식 thread 생성 [제안]: `inheritOwnerFrom`이 있으면 core-persistence가 그 토큰의 holder(같은 엔진 인스턴스)로 `fresnel.store.leases.acquire("thread:<threadId>", holder)`를 부른 뒤 `thread.started` 커밋을 한다. 새 id라 프로세스 락 경합이 없다. 커밋이 실패하면 프로세스 락을 반납한다. 얻은 토큰은 `ThreadCreated.token`으로 돌려주고 보관해 이후 그 thread의 커밋 소유 확인에 쓴다. 하트비트(`leases.keepAlive`)도 core-persistence가 걸고, 잃으면(`onLost`) 부모와 같은 처리(그 thread의 메모리 작업 취소)를 호출자에게 알린다. 정착 때 반납은 `release(threadId, …)`다. 재개 때 자식 소유는 `openForWrite(child, token)`으로 다시 얻는다(`L1.agents.spec` §4.1, §4.5). 같은 holder가 엔진 인스턴스마다 하나이므로 holder 값은 조립 루트가 core-persistence에 넘긴다 [가정: 조립 루트 배선은 `L4.host-service.spec`이 정한다].
 - `workspace`: `ThreadCreateInput.workspace`는 `thread.started.workspace`(F가 선택 필드로 더했다, FR-P5 반영)에 실려 `p_threads.workspace`로 투영된다. 없으면 null이고 필드를 쓰지 않는다. 멱등 지문에는 workspace가 있을 때만 넣어, 필드가 없던 때의 같은 키 재시도가 `key_reused`가 되지 않게 한다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 올렸고 다음 열기에서 core가 다시 만들어진다.
 - 생성 뒤 `session_start{ reason: "new" }`를 발화한다(재전송이면 발화하지 않는다). `openForWrite`는 읽기 전용이 아닐 때 `session_start{ reason: "startup" }`을, 복구 표식이 남은 thread면 `resume`을 발화한다. 훅 발화는 모두 `ThreadHooks`(`points.ts`)를 거치고, tap은 기다리지 않는다(`detach`, 실패는 Logger). `reload`는 엔진 재적재를 아는 호스트의 몫이다.
+- 대화 열기 한 번의 훅 순서 [결정: 2026-11-17 사용자, U6; 구현 제안은 H-7]. 새 대화(`create`, 포크가 아닌 것), `openForWrite`의 열기(읽기 전용이 아닐 때), 포크의 새 thread는 `open-chain.ts` 한 길을 탄다: `thread.resources`(collect, `cwd`는 대화 폴더 또는 빈 문자열)가 끝난 뒤에 `thread.start`를 발화한다. 열기 결과는 `openSettled`가 준다. 훅이 실패하면 기록하고 열기는 계속된다(open). `thread.resources`의 사유는 새 대화·포크·처음 여는 것이 `startup`, 다시 여는 것이 `reload`다 [제안].
+- 대화 폴더 결정(`applyOpenWorkspace`, H-7, A-20). 쓰기 소유를 얻은 호스트가 첫 턴 전에 부른다. 훅 후보가 없으면 아무것도 하지 않는다. 후보가 여럿이면 첫 것만 쓰고 나머지는 `workspace_conflict`로 알린다. 다음 경우에는 바꾸지 않고 진단을 돌려준다: 턴 기록이 하나라도 있으면 `workspace_late`, 폴더가 없으면 `workspace_missing`, 대화 폴더(지금은 프로젝트 루트로 본다)의 밖이거나 이름 접두만 같으면 `workspace_outside_project`(경로 조각 단위로 견준다), 대화 폴더가 없으면 `workspace_outside_project`. 채택하면 `thread.updated { workspace }`를 커밋한다. 새 이벤트 종류는 아니다. 턴 기록 검사는 커밋과 같은 트랜잭션이 아니다 [제안]. 프로젝트 루트 접근자가 코드에 아직 없어서 루트는 대화의 현재 폴더다.
+- 같은 폴더 알림(`sameFolder`, U6). 같은 `workspace`의 닫히지 않은 다른 대화를 `{ threadId, status }`로 돌려준다. `thread.create` 결과의 `sameFolder`로 실린다. 막지 않고 복사하지 않는다.
 - 오류 통로가 없는 `list`는 읽기 실패(busy, io, 손상 행)를 Logger에 남기고 빈 쪽을 돌려준다 [제안: F `ThreadLifecycle.list`를 `Result`로 바꾸는 요청]. 커서는 `<updatedAt>:<threadId>` 불투명 문자열이고 해석할 수 없으면 빈 쪽이다.
 
 #### 4.10.2 leaf 이동과 떠난 가지 요약
@@ -1211,7 +1214,7 @@ export interface RewindPlan {
 
 | 메서드 | 단계 | 호스트 처리 | L1.persistence 몫 | L1 오류 → wire |
 |---|---|---|---|---|
-| `thread.create` | M1 | 새 id 발급, 잠금 | `threads.create`, `openForWrite`, `session_start{new}` | 없음 |
+| `thread.create` | M1 | 새 id 발급, 잠금 | `threads.create`, `openForWrite`, `thread.resources`, `applyOpenWorkspace`, `session_start{new}` | 없음 |
 | `thread.list` | M2 | 결과 변환 | `threads.list`(`p_threads`) | 없음 |
 | `thread.open` | M2 | `write`면 잠금, 실패면 3002 | `openForWrite` 또는 `openForRead`, `recover`(write), `session_start{resume\|startup}` | `thread_not_found` → 3001 |
 | `thread.close` | M2 | 열기 기록 삭제, 잠금 해제 조건 | `release`(`thread.shutdown`) | 3001 |

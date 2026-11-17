@@ -288,6 +288,12 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
           event.threadId,
         ]);
       }
+      if (payload.workspace !== undefined) {
+        tx.run("UPDATE p_threads SET workspace = ? WHERE thread_id = ?", [
+          payload.workspace,
+          event.threadId,
+        ]);
+      }
     },
   ],
   [

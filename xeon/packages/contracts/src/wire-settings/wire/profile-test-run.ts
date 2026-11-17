@@ -44,11 +44,20 @@ export interface TestRunMarker {
   /** 시험 대상 확장 이름. 없으면 null */
   readonly target: string | null;
   readonly paused: boolean;
+  /** 표지의 종류. 초안을 쓰는 테스트 실행은 "draft"다(M5c §4.8.1). 없으면 생략 [제안] */
+  readonly kind?: "draft";
+  /** 초안을 쓰는 테스트 실행인가. 없으면 생략 [제안] */
+  readonly draft?: boolean;
+  /** 같은 입력으로 다시 돌린 실행의 묶음 id. 없으면 생략 [제안] */
+  readonly runGroupId?: string;
 }
 const TestRunMarkerShape = closed({
   profileId: Type.Union([Id, Type.Null()]),
   target: Type.Union([Name, Type.Null()]),
   paused: Type.Boolean(),
+  kind: Type.Optional(Type.Literal("draft")),
+  draft: Type.Optional(Type.Boolean()),
+  runGroupId: Type.Optional(Id),
 });
 export const TestRunMarkerSchema: TUnsafe<TestRunMarker> = Type.Unsafe<TestRunMarker>(
   TestRunMarkerShape satisfies SchemaProof<TestRunMarker, typeof TestRunMarkerShape>,

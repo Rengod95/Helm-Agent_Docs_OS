@@ -6,7 +6,13 @@ import type {
   SecretMeta,
   SecretName,
 } from "@fresnel/contracts/capabilities";
-import type { IdFactory, ItemId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  IdFactory,
+  ItemId,
+  ThreadId,
+  ThreadStatus,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   LeaseToken,
@@ -67,8 +73,10 @@ import type {
 } from "@fresnel/cap-schedule";
 import type { ModelsExtensionOptions } from "@fresnel/core-models";
 import type { SecretKeys, SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secrets";
-import type { BuiltinExtensionModule } from "@fresnel/ext-host";
+import type { BuiltinExtensionModule, LoadReport } from "@fresnel/ext-host";
+import type { IsolationSandboxSource } from "@fresnel/platform-process";
 import type { BinaryCheckReport, NotifierProvider } from "@fresnel/platform-os";
+import type { SelfRunTarget } from "./self-command.ts";
 import type { SecretOfferStore } from "./secrets/offers.ts";
 import type { M4Ports } from "./assembly/m4/index.ts";
 
@@ -120,6 +128,21 @@ export interface AssembleOptions {
    * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
    */
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
+  /**
+   * 격리 확장(플러그인 호스트 프로세스)의 테스트 주입. 모든 항목이 선택이다(L4.host-service.spec §4.9).
+   * `self`는 자식을 띄울 실행 파일(운영은 생략해 이 실행 파일을 쓴다. 소스 시험은 `apps/host/src/main.ts`를 넣는다).
+   * `sandbox`는 자식의 샌드박스 서비스 대역(생략하면 실제 `fresnel.sandbox`). `onLoadReport`는 외부 확장 적재 보고를 받는다(격리 여부를 읽는다)
+   */
+  readonly pluginHost?: {
+    readonly self?: SelfRunTarget;
+    readonly sandbox?: () => IsolationSandboxSource | undefined;
+    readonly onLoadReport?: (report: LoadReport) => void;
+    /**
+     * true면 격리 포트와 격리 설정을 로더에 넘기지 않는다. 사용자·프로젝트 확장은 포트가 없으므로 엔진 안에서 돈다(X.loading-trust §4.9.0).
+     * 격리를 보지 않는 시험이 엔진 안의 동작을 그대로 보게 하는 용도다. 운영은 생략한다
+     */
+    readonly disabled?: boolean;
+  };
   /** 기본 true. false면 기본 플러그인(Helm) 설치와 외부 확장 적재를 건너뛴다 */
   readonly defaultGroups?: boolean;
   /**
@@ -355,6 +378,13 @@ export interface ThreadPort {
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /**
+   * 열기 훅(`thread.resources`)이 정한 대화 폴더를 첫 턴 전에 커밋한다(H-7). 쓰기 소유를 얻은 뒤에 부른다.
+   * 거부한 후보는 진단으로 남기고 열기를 막지 않는다
+   */
+  applyOpenWorkspace(threadId: ThreadId): Promise<void>;
+  /** 같은 작업 폴더의 닫히지 않은 다른 대화(U6). 알림뿐이라 읽지 못하면 빈 목록이다 */
+  sameFolder(threadId: ThreadId): { readonly threadId: ThreadId; readonly status: ThreadStatus }[];
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
   /** 새 thread를 만든다. 쓰기 소유는 얻지 않는다(처리기가 `SessionLockPort`로 얻는다). 실패는 수명 주기 오류 값이다 */
   fork(
@@ -418,6 +448,8 @@ export interface ThreadPort {
 export type SubmitOutcome =
   /** 같은 requestId 재제출이면 처음 turnId. `queued`가 참이면 입력은 실행 중인 turn 뒤의 큐에 들어갔고 `turnId`는 그 실행 중인 turn이다 */
   | { readonly ok: true; readonly turnId: TurnId; readonly queued?: true }
+  /** 주도 중인 플러그인이 입력을 받았다. 아직 turn이 없다(플러그인이 `turn`으로 처리하거나 코어 루프로 돌아와 시작한다) */
+  | { readonly ok: true; readonly delivered: true }
   | { readonly ok: false; readonly reason: "busy"; readonly turnId: TurnId }
   /** 루프가 입력을 받지 않았다(저장소 부족·읽기 전용, 소유 상실, 잘못된 입력 등 예상 가능한 실패). 와이어 오류로 옮기는 것은 처리기 몫이다 */
   | { readonly ok: false; readonly reason: "rejected"; readonly error: LoopError };

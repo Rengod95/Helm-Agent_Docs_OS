@@ -32,9 +32,7 @@ test("driveLock: no holder and no wait for an idle thread, the holder and its li
   expect(view.driveLock(thread)).toBeUndefined();
   await t.host.install(
     makeGroupUnit({ name: "driver", hooks: [] }, (g) => {
-      g.drive(async () => {
-        await new Promise<void>(() => {});
-      });
+      g.drive(() => new Promise<never>(() => {}));
     }),
   );
   await t.host.openThread(thread);

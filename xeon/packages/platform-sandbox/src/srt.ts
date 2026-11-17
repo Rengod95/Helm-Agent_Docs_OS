@@ -3,6 +3,7 @@ import {
   SandboxRuntimeConfigSchema,
   type SandboxRuntimeConfig,
 } from "@anthropic-ai/sandbox-runtime";
+import { execFile } from "node:child_process";
 import { createLogMonitorGuard } from "./log-monitor.ts";
 
 // @anthropic-ai/sandbox-runtime(srt)를 import하는 유일한 파일이다(DR-07, L0.sandbox.plan §2).
@@ -31,8 +32,16 @@ export interface SrtWrapOutput {
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * 중첩 사용자 네임스페이스 시험 결과. srt는 모든 명령에서 bwrap 안에 한 번 더 네임스페이스를 만든다(apply-seccomp).
+ * `restricted`는 bwrap 자체는 뜨는데 그 안의 중첩 네임스페이스만 거부되는 경우다(Ubuntu AppArmor `bwrap-userns-restrict`).
+ */
+type NestedUsernsProbe = { readonly kind: "ok" } | { readonly kind: "restricted" };
+
 export interface SrtPort {
   isSupportedPlatform(): boolean;
+  /** Linux에서 srt가 쓰는 것과 같은 중첩 네임스페이스를 bwrap 안에서 만들어 본다. 시험 자체를 못 돌리면 ok다(자가 시험이 다시 거른다) */
+  probeNestedUserns(bwrapPath: string, signal: AbortSignal): Promise<NestedUsernsProbe>;
   /** ripgrepCommand가 없으면 srt 기본값("rg")을 검사한다 */
   checkDependencies(ripgrepCommand: string | undefined): SrtDependencyReport;
   /**
@@ -54,11 +63,53 @@ export interface SrtPort {
   getLinuxGlobPatternWarnings(): readonly string[];
 }
 
+const PROBE_TIMEOUT_MS = 5000;
+
+function runsOk(file: string, args: readonly string[], signal: AbortSignal): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(file, [...args], { timeout: PROBE_TIMEOUT_MS, signal }, (error) => {
+      resolve(error === null);
+    });
+  });
+}
+
+/** bwrap이 사용자 네임스페이스를 만들 수 있고(기준) 그 안에서 한 번 더 만들 수 없을 때만 restricted다 */
+async function probeNestedUsernsWith(
+  bwrapPath: string,
+  signal: AbortSignal,
+): Promise<NestedUsernsProbe> {
+  const base = ["--unshare-user", "--unshare-pid", "--ro-bind", "/", "/", "--dev", "/dev"];
+  const outer = await runsOk(
+    bwrapPath,
+    [...base, "--bind", "/proc", "/proc", "--", "true"],
+    signal,
+  );
+  if (!outer) return { kind: "ok" };
+  const nested = await runsOk(
+    bwrapPath,
+    [
+      ...base,
+      "--bind",
+      "/proc",
+      "/proc",
+      "--",
+      "unshare",
+      "--user",
+      "--map-root-user",
+      "--mount",
+      "true",
+    ],
+    signal,
+  );
+  return nested ? { kind: "ok" } : { kind: "restricted" };
+}
+
 /** 실제 srt 싱글턴을 감싼 포트. srt는 프로세스 전역 상태이므로 프로세스에 하나만 쓴다 */
 export function createSrtPort(): SrtPort {
   const monitorGuard = createLogMonitorGuard();
   return {
     isSupportedPlatform: () => SandboxManager.isSupportedPlatform(),
+    probeNestedUserns: probeNestedUsernsWith,
     checkDependencies: (ripgrepCommand) => {
       const report = SandboxManager.checkDependencies(
         ripgrepCommand === undefined ? undefined : { command: ripgrepCommand },

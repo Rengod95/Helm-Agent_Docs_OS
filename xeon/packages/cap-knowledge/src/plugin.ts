@@ -44,7 +44,12 @@ import {
   type KnowledgeSettingsSource,
 } from "./settings.ts";
 import type { SkillDiagnostic } from "./upstream/skills.ts";
-import { projectSkillsDir, resolveSkillRoots, type RootsResult } from "./skills/roots.ts";
+import {
+  existingContributedPaths,
+  projectSkillsDir,
+  resolveSkillRoots,
+  type RootsResult,
+} from "./skills/roots.ts";
 
 // L2.knowledge.plan K2 조립. 구현 패키지(platform-store, platform-os, core-tools)를 import하지 않고 F 서비스 인터페이스를
 // 포트로만 받는다. Cordis는 import하지 않는다(DR-11).
@@ -89,6 +94,11 @@ export interface KnowledgePluginOptions {
    * 선언에서 채운다(M3-REQ-104, D-11). 이 패키지는 그룹 이름을 기본값으로 갖지 않는다
    */
   readonly trustedEvidenceSources?: readonly string[];
+  /**
+   * 대화 열기 훅(`thread.resources`)이 그 대화에 낸 스킬 경로(H-7). 스킬 탐색 때마다 대화별로 부른다. 설정 `skills.paths` 뒤에 붙는다.
+   * 없는 경로는 버리고 진단한다(E-13). 훅 실패가 아니다. 없거나 비어 있으면 탐색 입력은 설정만 쓴 것과 같다
+   */
+  readonly contributedSkillPaths?: (threadId: string) => Promise<readonly string[]>;
   readonly loadIndex?: number;
 }
 
@@ -189,6 +199,14 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           const projectTrusted =
             wantsProject && (await isProjectTrusted(options.projectTrust, projectDir, logger));
           const diagnostics: SkillDiagnostic[] = [];
+          // 대화를 지정하지 않은 탐색에는 대화가 낸 경로도 없다
+          const contributed = await existingContributedPaths(
+            fs,
+            threadId === undefined || options.contributedSkillPaths === undefined
+              ? []
+              : await options.contributedSkillPaths(threadId),
+          );
+          diagnostics.push(...contributed.diagnostics);
           if (wantsProject && !projectTrusted) {
             // 싣지 않은 스킬이 실제로 있을 때만 알린다
             const skillsDir = projectSkillsDir(projectDir);
@@ -206,7 +224,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
               projectDir,
               projectSkills: settings.skills.projectSkills,
               projectTrusted,
-              paths: settings.skills.paths,
+              paths: [...settings.skills.paths, ...contributed.paths],
               extension: options.extensionSkillRoots?.(threadId) ?? [],
             }),
             diagnostics,

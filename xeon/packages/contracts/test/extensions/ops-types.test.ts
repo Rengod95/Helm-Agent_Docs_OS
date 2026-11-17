@@ -5,18 +5,19 @@ import type {
   BeforeAgentStartPatch,
   BeforeAgentStartPayload,
   BoundaryValue,
-  DriveFn,
+  DriveStep,
+  DriveStepInput,
+  DriveCommand,
   ExtensionOps,
   Handler,
   HandlerContext,
-  LoopHandle,
   RegistrationApi,
   ToolCallDecision,
   ToolCallPayload,
   TurnEndPayload,
 } from "../../src/extensions/index.ts";
 import type { WebSearchKey } from "../capabilities/fixtures/web-search.ts";
-import type { Assignable, Equal, Expect } from "../types/expect.ts";
+import type { Equal, Expect } from "../types/expect.ts";
 
 // 이 파일의 단언은 tsc -b가 판정한다(컴파일 시점). 아래 테스트는 파일이 bun test와 knip 진입점에 들게 한다.
 
@@ -77,7 +78,7 @@ export function wrongReturnsAreRejected(g: ExtensionOps<unknown>): void {
   g.on("thread.start", () => ({ block: true, reason: "x" }));
   // @ts-expect-error -- first 핸들러는 패치가 아니라 결정을 반환한다 (F.extensions.spec §9 5)
   g.on("tool.call.before", () => ({ continue: true }));
-  // @ts-expect-error -- 훅 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
+  // @ts-expect-error -- 훅 이름은 표의 50개뿐이다 (F.extensions.spec §4.10)
   g.on("tool.before", () => undefined);
   // @ts-expect-error -- collect 핸들러는 current를 받지 않는다(두 번째 인자는 ctx다)
   g.on("input.agent.before", (_payload, current) => ({ systemPrompt: current.systemPrompt }));
@@ -105,12 +106,12 @@ export function capabilityIsTypedByKey(
   return g.capability(key);
 }
 
-/** DriveFn 시그니처 */
-export type DriveFnSignature = Expect<
-  Equal<DriveFn<{ n: number }>, (loop: LoopHandle, state: Readonly<{ n: number }>) => Promise<void>>
->;
-export type DriveFnAcceptsAsync = Expect<
-  Assignable<(loop: LoopHandle) => Promise<void>, DriveFn<unknown>>
+/** DriveStep 시그니처: 입력 하나를 받아 명령 하나를 돌려준다 */
+export type DriveStepSignature = Expect<
+  Equal<
+    DriveStep<{ n: number }>,
+    (input: DriveStepInput<{ n: number }>) => Promise<DriveCommand<{ n: number }>>
+  >
 >;
 
 test("type assertions compile", () => {});

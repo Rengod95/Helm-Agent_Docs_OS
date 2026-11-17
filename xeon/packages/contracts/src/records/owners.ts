@@ -257,6 +257,7 @@ export const TYPE_PREFIX_OWNERS: Readonly<Record<string, string>> = {
   "lease.": "xh",
   /** M5c-1: 프로필 적용 경계(X의 계산 결과)가 낸다 */
   "profile.": "xh",
+  "drive.": "xh",
   "model.": "core.models",
   "workspace.": "cap.workspace",
   "mcp.": "cap.mcp",

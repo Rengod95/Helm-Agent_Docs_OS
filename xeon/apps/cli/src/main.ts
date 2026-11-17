@@ -128,6 +128,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runHostStdio } = await import("./commands/host.ts");
       return runHostStdio(ctx, command);
     }
+    case "plugin-host": {
+      const { runPluginHostStdio } = await import("./commands/plugin-host.ts");
+      return runPluginHostStdio(ctx);
+    }
     case "service": {
       const { runService } = await import("./commands/service.ts");
       return runService(ctx, command);

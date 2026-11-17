@@ -138,6 +138,26 @@ describe("status", () => {
     ).toBe("wsl1");
   });
 
+  test("reports a restricted nested user namespace with the fix instead of starting", async () => {
+    const service = await create(linuxPlatform(), { srt: { nestedUsernsRestricted: true } });
+    const status = service.status();
+    expect(status).toMatchObject({
+      level: "none",
+      available: false,
+      reason: "missing_dependency",
+      missing: ["nested user namespaces"],
+    });
+    expect(status.installHints?.join(" ")).toContain("bwrap-userns-restrict");
+    expect(status.installHints?.join(" ")).toContain("apparmor_parser");
+    const summary = describeSandboxStatus(status);
+    expect(summary.summary).toBe(
+      "Sandbox is unavailable: missing nested user namespaces. Shell commands are disabled.",
+    );
+    expect(summary.severity).toBe("critical");
+    const ok = await create(linuxPlatform());
+    expect(ok.status()).toMatchObject({ level: "srt", available: true });
+  });
+
   test("maps what srt itself reports", async () => {
     const unsupported = await create(linuxPlatform(), { srt: { supported: false } });
     expect(unsupported.status().reason).toBe("unsupported_os");

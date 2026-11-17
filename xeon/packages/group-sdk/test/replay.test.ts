@@ -127,11 +127,15 @@ test("replay.counts-effects-and-asserts-each-happened-once", async () => {
 test("replay.fails-with-effects-doubled-when-events-match-but-effects-repeat", async () => {
   const harness = createReplayHarness();
   const report = await replayDrive({ group: doubledEffectGroup(harness), harness });
-  // 가짜 루프·큐·위임 서비스는 이벤트를 쓰지 않으므로 이벤트열 비교만으로는 통과한다
+  // post와 delegate는 이벤트를 남기지 않으므로 이벤트열 비교만으로는 통과한다. turn과 spawn은 커밋된 상태의 요청 id라 두 번 나지 않는다
   expect(report.cuts.every((cut) => cut.equal)).toBe(true);
   expect(report).toMatchObject({ ok: false, failure: "effects-doubled" });
-  const repeated = report.cuts.map((cut) => cut.effects?.turn);
-  expect(repeated.some((count) => count !== undefined && count > 0)).toBe(true);
+  // 절단 k에서 다시 도는 단계는 k번째 커밋부터 끝까지다(3단계 중 k=1은 2단계, k=2는 1단계, k=3은 0단계)
+  expect(report.cuts.map((cut) => cut.effects)).toEqual([
+    { turn: 0, spawn: 0, delegate: 2, post: 2 },
+    { turn: 0, spawn: 0, delegate: 1, post: 1 },
+    { turn: 0, spawn: 0, delegate: 0, post: 0 },
+  ]);
 });
 
 test("replay.fails-with-effects-mismatch-when-the-baseline-count-is-not-as-expected", async () => {

@@ -12,6 +12,7 @@ import {
 import { memoryDriveHolderSettings, groupCatalogOf } from "../src/testing/index.ts";
 import { serviceRig } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
+import { turnFinished } from "./support/steps.ts";
 
 test("command.parse-grammar", () => {
   expect(parseGroupCommand("")).toEqual({ ok: true, command: { op: "status" } });
@@ -60,8 +61,9 @@ function driver(name: string): GroupModule {
   return defineGroup({
     manifest: groupManifestOf({ name, drives: true }),
     setup(g) {
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: name } });
+      g.drive(async ({ last }) => {
+        if (turnFinished(last)) return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: name } };
       });
     },
   });

@@ -293,6 +293,9 @@ export function fakeSession(ids: IdFactory): FakeSession {
       setModel: () => unsupported("threads.setModel"),
       setProfile: () => unsupported("threads.setProfile"),
       prepareSwitch: () => Promise.resolve(ok(undefined)),
+      openSettled: () => Promise.resolve(undefined),
+      applyOpenWorkspace: () => unsupported("threads.applyOpenWorkspace"),
+      sameFolder: () => ok([]),
     },
     query: {
       thread: (threadId) => {

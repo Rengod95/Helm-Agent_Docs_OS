@@ -247,6 +247,7 @@ test("trace buffer: atMs counts from the turn's first dispatch now", () => {
             size: 0,
             skippedBy: null,
             reason: null,
+            toolCallId: "call_1",
           },
         ],
       },
@@ -297,6 +298,7 @@ test("trace buffer: a skipped record keeps its skippedBy and a zero size through
             size: 0,
             skippedBy: null,
             reason: null,
+            toolCallId: "call_1",
           },
           {
             registrationId: "ext-b",
@@ -306,6 +308,7 @@ test("trace buffer: a skipped record keeps its skippedBy and a zero size through
             size: 0,
             skippedBy: "ext-a",
             reason: null,
+            toolCallId: "call_1",
           },
         ],
       },
@@ -681,6 +684,55 @@ test("trace buffer: blockedCount does not see a hidden registration's row", () =
   expect(buffer.blockedCount(thread)).toBe(1);
 });
 
+test("trace buffer: a tool call hook row carries the call id from its dispatch key suffix", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const step = "stp_1";
+  const passed = (registrationId: string) => ({
+    registrationId,
+    durationMs: 1,
+    result: "passed" as const,
+    startedAt: T0,
+    size: 0,
+    skippedBy: null,
+    reason: null,
+  });
+  // 처음 보이는 Turn은 trn_ 키로 연다
+  dispatchHits(buffer, thread, `${turn}:turn.start`, "boundary.settle.after", T0, [
+    passed("ext-z"),
+  ]);
+  dispatchHits(buffer, thread, `${step}:tool.call.before:call_a`, "tool.call.before", T0, [
+    passed("ext-a"),
+  ]);
+  dispatchHits(
+    buffer,
+    thread,
+    `${step}:tool.execution.update:call_b:2`,
+    "tool.execution.update",
+    T0,
+    [passed("ext-b")],
+  );
+  dispatchHits(buffer, thread, `${step}:boundary.step.after`, "boundary.step.after", T0, [
+    passed("ext-c"),
+  ]);
+  // 셋째 자리가 호출 id가 아닌 키(승인 디스패치)는 호출 id를 얻지 못한다
+  dispatchHits(buffer, thread, `approval:apr_1:ui_prompt_open`, "tool.call.before", T0, [
+    passed("ext-d"),
+  ]);
+  const handlers = (buffer.turn(thread, turn)?.entries ?? []).flatMap((entry) => entry.handlers);
+  expect(handlers.map((handler) => [handler.registrationId, handler.toolCallId ?? null])).toEqual([
+    ["ext-z", null],
+    ["ext-a", "call_a"],
+    ["ext-b", "call_b"],
+    ["ext-c", null],
+    ["ext-d", null],
+  ]);
+  // 호출 지점이 아닌 행에는 키가 아예 없다(옛 기록과 같은 모양)
+  expect(handlers[0]).not.toHaveProperty("toolCallId");
+});
+
 test("trace settings: the policy reads x.operations.trace.* with the documented defaults", async () => {
   const off = await createOperationsHarness({ settings: { trace: { enabled: false } } });
   expect(off.policy.trace()).toEqual({ enabled: false });
@@ -774,6 +826,7 @@ test("trace: real dispatches through the host land in traceReadOf(host)", async 
             size: 0,
             skippedBy: null,
             reason: "threw",
+            toolCallId: "call_1",
           },
         ],
       },

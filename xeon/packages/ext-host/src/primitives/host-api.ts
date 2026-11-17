@@ -1,7 +1,7 @@
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
-import { extensionPrefix, LoopPortKey } from "@fresnel/contracts/extensions";
+import { extensionPrefix, isHighFrequency, LoopPortKey } from "@fresnel/contracts/extensions";
 import type {
   DriveOptions,
   ExtensionName,
@@ -68,6 +68,7 @@ import type {
   ShortcutResourceDef,
 } from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
+import { ambientDispatch, subscribedNames, subscribeWith } from "./subscribe.ts";
 import { awaitUser } from "./user-wait.ts";
 import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
@@ -204,6 +205,17 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S> {
   return restoreAs(witness, found);
 }
 
+/**
+ * 플러그인 호스트 프로세스(자식 쪽) 전용. 자식이 만든 g에 부가 API를 붙여 플러그인 코드의 `hostOf(g)`가 읽게 한다.
+ * 엔진 쪽은 `createRegistrationApi`가 같은 표를 채우므로 이 함수를 부르지 않는다(X.isolation, isolation-protocol.ts)
+ */
+export function bindHostApiForIsolation(
+  g: RegistrationApi<AnyState>,
+  api: RegistrationHostApi<AnyState>,
+): void {
+  hostApis.set(g, api);
+}
+
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */
 export function scopeInternalsOf<S>(g: RegistrationApi<S>): RegistrationInternals {
   const found = internals.get(g);
@@ -294,11 +306,24 @@ export function createRegistrationApi(
       };
       return fiberOf(generation).effect(() => core.registry.add(entry), `on(${point})`);
     },
+    subscribe(events, handler, options) {
+      assertOpen(record, generation);
+      const sample = options?.sample ?? "every";
+      const names = subscribedNames(events, plugin.decl.hooks, record.id, sample);
+      return subscribeWith({
+        names,
+        handler,
+        sampleOf: (name) => (sample === "coalesce" && isHighFrequency(name) ? "coalesce" : "every"),
+        register: (name, fn) => api.on(name, fn),
+        track: (task) => core.track(task),
+        dispatchOf: ambientDispatch,
+      });
+    },
     post(item: PostItem, options: PostOptions) {
       assertWritable(record);
       return deps.post.post(record, generation, item, options);
     },
-    drive(fn, options?: DriveOptions<AnyState>) {
+    drive(step, options?: DriveOptions) {
       assertOpen(record, generation);
       if (!generation.setupPhase) {
         throw new PrimitiveError(
@@ -327,7 +352,7 @@ export function createRegistrationApi(
         });
       }
       generation.usage.drive = true;
-      const registration = { fn: eraseDrive(fn), options: eraseDriveOptions(options) };
+      const registration = { fn: eraseDrive(step), options: eraseDriveOptions(options) };
       generation.drive = registration;
       fiberOf(generation).effect(
         () => () => {

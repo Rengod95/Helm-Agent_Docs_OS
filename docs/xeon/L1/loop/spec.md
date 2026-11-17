@@ -107,7 +107,7 @@ export type AdmitResult =
   | { readonly status: "started"; readonly inputId: EventId; readonly turnId: TurnId }
   | { readonly status: "queued"; readonly inputId: EventId; readonly mode: InputMode; readonly runningTurnId: TurnId | null }
   | { readonly status: "duplicate"; readonly inputId: EventId; readonly turnId: TurnId | null }
-  /** input 훅 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
+  /** input 훅 chain이 handled로 끝났거나 주도 중인 플러그인이 입력을 받았다(`claimUserInput`). 아무것도 기록하지 않는다. 호스트의 `turn.start`는 이 경우 `{ delivered: true }`를 돌려준다 */
   | { readonly status: "handled" };
 
 // drive의 LoopHandle.turn 진입점은 LoopPort.runTurn(LoopTurnRequest)이다(X.primitives.spec §3.6, 이 문서 §4.8).
@@ -199,7 +199,7 @@ export interface LoopService extends LoopPort {
    */
   runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   guardExecution(request: GuardExecutionRequest): Promise<Result<GuardExecutionOutcome, LoopError>>;
-  /** 사용자 중단(Esc). fresnel.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
+  /** 사용자 중단(Esc). fresnel.tasks.abort를 부른다. 도는 turn이나 이 대화의 백그라운드 서브에이전트를 멈췄으면 true(§4.4) */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다(§4.6) */
   resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
@@ -528,6 +528,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 - 큐에 남은 steer는 turn 취소로 지우지 않는다(`L1.tasks.spec` §4.6 끝).
 - [제안] 사용자 `interrupt`로 turn이 멈추면 큐에 남은 `steer`·`followUp`은 자동으로 새 turn을 열지 않는다. 사용자가 새 입력을 보내거나 `resume`을 부를 때(열린 turn이 없으면 `nothing`을 답하고 큐로 시작한다) 시작한다. 멈추려는 뜻 뒤에 다음 일이 도는 것을 막는다(시나리오 scB-S4) [결정: 기본값].
 - `interrupt`는 이 프로세스가 돌리는 turn이 없어도 이전 프로세스가 남긴 열린 turn(복구 표식)이 있으면 그 turn을 `interrupted`로 닫고 `true`를 답한다. 닫은 뒤 재개 후보는 없다(시나리오 scB-S10).
+- 사용자 `interrupt`는 도는 turn이 없어도 이 대화의 백그라운드 서브에이전트를 멈춘다 [결정: 2026-11-17 사용자]. thread 노드 아래 정착하지 않은 `background: true` 노드(`L1.agents.spec` §4.7 3번)를 사유 `user`로 `fresnel.tasks.abort`한다. 하나라도 멈추면 `true`다. `turnId`를 주면 그 turn과 맞을 때만 멈추고 백그라운드도 그때만 멈춘다. 구현은 `xeon/packages/core-loop/src/service.ts`의 `interrupt`와 `stopBackgroundSubagents`다.
 - 중단으로 끝난 응답이 스트리밍 중 받은 글·생각보다 적게 돌려주면 받은 글·생각 블록을 보존해 기록한다. 끝나지 않은 도구 호출은 기록하지 않는다.
 
 ### 4.4b 입력 출처 origin

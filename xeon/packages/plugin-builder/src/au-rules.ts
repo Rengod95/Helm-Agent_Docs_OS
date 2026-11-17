@@ -76,12 +76,13 @@ export function au008(items: readonly unknown[]): readonly DevkitIssue[] {
   return found;
 }
 
-const COSTLY_STEP = /\bloop\.spawn\s*\(|\.delegate\s*\(/;
-const ASKS = /\.ask\s*\(/;
+// 주도 단계 함수의 명령 `{ do: "spawn" }`·`{ do: "ask" }`를 호출 형태와 같게 본다(drive-isolation.md §1.1). `{ do: "commit" }`은 아래 STATE_USE에서 본다
+const COSTLY_STEP = /\bloop\.spawn\s*\(|\.delegate\s*\(|\bdo\s*:\s*["']spawn["']/;
+const ASKS = /\.ask\s*\(|\bdo\s*:\s*["']ask["']/;
 
 /**
  * AU-010(경고): 비용이 드는 단계(서브에이전트 spawn, 위임)가 있는데 사람 확인이 없다.
- * 확인은 소스의 `loop.ask(`, 단계 선언의 `human` 노드, 메서드 선언의 `approval: true` 중 하나다.
+ * 확인은 소스의 `loop.ask(`나 `{ do: "ask" }` 명령, 단계 선언의 `human` 노드, 메서드 선언의 `approval: true` 중 하나다.
  */
 export function au010(
   manifest: ExtensionManifest,
@@ -111,7 +112,7 @@ export function au010(
   ];
 }
 
-const STATE_USE = /\bg\.(?:commit|state)\s*\(/;
+const STATE_USE = /\bg\.(?:commit|state)\s*\(|\bdo\s*:\s*["']commit["']/;
 const STATE_DECL = /\bstate\s*:\s*\{[^}]*\bversion\s*:\s*(\d+)/s;
 const MIGRATIONS = /\bmigrations\b/;
 

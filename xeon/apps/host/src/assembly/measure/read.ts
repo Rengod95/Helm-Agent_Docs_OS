@@ -1,8 +1,10 @@
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { MeasureStore, MeasureStoreError } from "./store.ts";
+import type { MeasureStoreError } from "./store.ts";
+import { createTurnRecordPort, type TurnReadSource, type TurnRecordReadPort } from "./turn-read.ts";
 
 // T-MEAS-READ. 측정 저장소를 wire(`measure.turn`, `measure.daily`)가 읽는 포트다. 읽기만 하고 켬 여부는 호출자가 준다.
 // 저장소를 열지 못했거나 이미 닫혔으면 `enabled`가 거짓이 아니라 저장소 오류(`closed`)로 알린다. 열지 못한 경우는 빈 결과다(측정 없이 간다).
+// 턴 기록 읽기(`turnRecord.*`, `metrics.*`, `findings.*`, `profileCost.get`, `testRun.compare`)는 `turnRecord` 아래에 있다(M5d, `turn-read.ts`).
 
 /** wire 한 줄. 저장소의 `MeasureRecord`에서 thread·Turn 식별자를 뺀 모양이다 */
 interface MeasureRowView {
@@ -36,14 +38,12 @@ export interface MeasurePort {
     { readonly enabled: boolean; readonly days: readonly MeasureDayView[] },
     MeasureStoreError
   >;
+  /** 턴 기록 읽기 포트(M5d). 저장소가 없으면 빈 결과와 `level: none`이다 */
+  readonly turnRecord: TurnRecordReadPort;
 }
 
-export interface MeasureReadSource {
-  /** 열린 저장소. 열지 못했으면 undefined */
-  readonly store: () => MeasureStore | undefined;
-  /** `x.operations.trace.enabled`의 현재 값 */
-  readonly enabled: () => boolean;
-}
+/** 측정 읽기의 원천. 턴 기록 원천(`TurnReadSource`)과 같다 */
+export type MeasureReadSource = TurnReadSource;
 
 export function createMeasurePort(source: MeasureReadSource): MeasurePort {
   return {
@@ -80,5 +80,6 @@ export function createMeasurePort(source: MeasureReadSource): MeasurePort {
         })),
       });
     },
+    turnRecord: createTurnRecordPort(source),
   };
 }

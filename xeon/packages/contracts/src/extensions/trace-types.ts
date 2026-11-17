@@ -59,6 +59,8 @@ export const TRACE_FAILURE_REASONS = [
   "timeout",
   "result_invalid",
   "merge_rejected",
+  "process_exit",
+  "process_killed",
 ] as const;
 export type TraceFailureReason = (typeof TRACE_FAILURE_REASONS)[number];
 export interface TraceHandlerEntry {
@@ -73,6 +75,11 @@ export interface TraceHandlerEntry {
   readonly skippedBy: string | null;
   /** `failed`의 이유. 그 밖에는 null */
   readonly reason: TraceFailureReason | null;
+  /**
+   * 도구 호출 지점(`tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.*`)의 디스패치 키 접미에서 얻은 호출 id.
+   * 그 밖의 지점이나 접미가 없는 디스패치에는 없다(생략). 턴 기록 정본 `turn-record-metrics.md` §4.2 규칙 13
+   */
+  readonly toolCallId?: string;
 }
 export interface TraceTurnEntry {
   readonly seq: number;
@@ -111,6 +118,7 @@ const TraceTurnResultShape = Type.Object(
                   ...TRACE_FAILURE_REASONS.map((name) => Type.Literal(name)),
                   Type.Null(),
                 ]),
+                toolCallId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
               },
               { additionalProperties: false },
             ),

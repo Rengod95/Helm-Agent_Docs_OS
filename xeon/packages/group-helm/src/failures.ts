@@ -1,3 +1,4 @@
+import type { TurnOutcome } from "@fresnel/contracts/extensions";
 import {
   CapabilityError,
   COMMON_ERROR_CODES,
@@ -34,7 +35,9 @@ export type HelmFailure =
   /** loop.spawn 결과가 completed가 아니거나 거부됨 */
   | { readonly kind: "spawn"; readonly lensId: string; readonly status: "aborted" | "error" }
   /** 탐구 단계인데 필수 필드가 없음 */
-  | { readonly kind: "state_inconsistent"; readonly detail: string };
+  | { readonly kind: "state_inconsistent"; readonly detail: string }
+  /** 엔진이 명령을 거부했다(알려진 상태·저장소 코드가 아닌 것). 예외가 아니라 `last`의 거부 결과다 */
+  | { readonly kind: "refused"; readonly code: string };
 
 export type HelmCommandError =
   | { readonly kind: "usage"; readonly message: string }
@@ -98,4 +101,26 @@ export function failureOf(error: unknown, at: FailureSite): HelmFailure | undefi
     return { kind: "capability", capability: at.capability, code: "unavailable" };
   }
   return undefined;
+}
+
+/**
+ * 엔진의 거부 코드(`last`의 `refused`)를 실패로 바꾼다. 상태 판 충돌, 크기, 저장소, 등록 꺼짐은 알려진 kind로 두고
+ * 나머지는 `refused`로 둔다. 순수 함수
+ */
+export function failureOfRefusal(code: string): HelmFailure {
+  if (code === "state_conflict") return { kind: "state_conflict" };
+  if (code === "state_too_large") return { kind: "state_too_large" };
+  if (code === "storage_unavailable") return { kind: "storage" };
+  if (code === "registration_inactive") return { kind: "disabled" };
+  return { kind: "refused", code };
+}
+
+/** 턴 결과가 완료가 아니면 turn 실패로 바꾼다. 완료면 undefined. 순수 함수 */
+export function failureOfTurn(
+  outcome: TurnOutcome,
+  phase: "diverge" | "apply",
+): HelmFailure | undefined {
+  return outcome.status === "completed"
+    ? undefined
+    : { kind: "turn", phase, status: outcome.status };
 }

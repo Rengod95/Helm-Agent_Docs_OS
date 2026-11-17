@@ -9,7 +9,7 @@ import type {
   CommonPutParams,
   CommonSet,
   PermissionChange,
-  PluginCost,
+  ProfilePluginCost,
   PluginRef,
   Profile,
   ProfileCloneParams,
@@ -193,7 +193,7 @@ function sameNames(left: readonly PluginRef[], right: readonly PluginRef[]): boo
   return left.length === right.length && left.every((ref, at) => right[at]?.name === ref.name);
 }
 
-function unknownCostByPlugin(plugins: readonly PluginRef[]): readonly PluginCost[] {
+function unknownCostByPlugin(plugins: readonly PluginRef[]): readonly ProfilePluginCost[] {
   return plugins.map((ref) => ({ plugin: ref.name, cost: UNKNOWN_COST }));
 }
 
@@ -227,8 +227,22 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     signal: env.signal,
     legacy: () => legacyInputsOf(env),
   });
-  // Test run 대화 표지. 호스트 메모리에만 둔다: 다시 시작하면 사라진다(저장 위치는 계약에 아직 없다)
+  // Test run 대화 표지. 메모리에 두고 같은 표지를 측정 저장소의 `tr_thread`에도 적는다(규칙 32). 재시작 뒤 메모리가 비면 저장된 표지로 되살린다
   const markers = new Map<ThreadId, TestRunMarker>();
+  /** 표지를 찾는다. 메모리에 없으면 저장된 표지를 읽어 메모리에 옮긴다 */
+  function markerOf(threadId: ThreadId): TestRunMarker | undefined {
+    const known = markers.get(threadId);
+    if (known !== undefined) return known;
+    const stored = deps.env.testRunMarks?.recall(threadId);
+    if (stored === undefined) return undefined;
+    const restored: TestRunMarker = {
+      profileId: stored.testBaseProfile,
+      target: stored.testTarget,
+      paused: false,
+    };
+    markers.set(threadId, restored);
+    return restored;
+  }
 
   /**
    * 검증기를 만든다. 시크릿 이름과 플러그인 사실은 쓰기 잠금 밖에서 한 번 읽는다(검증 함수는 동기다).
@@ -573,19 +587,20 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const found = turnId.ok ? deps.traceRead.turn(threadId, turnId.value) : undefined;
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
-    testRunMarker: (threadId) => markers.get(threadId),
+    testRunMarker: (threadId) => markerOf(threadId),
     registerTestRun(threadId, profileId) {
       markers.set(threadId, { profileId, target: null, paused: false });
+      deps.env.testRunMarks?.remember(threadId, profileId);
     },
     controlTestRun(threadId, op) {
-      const marker = markers.get(threadId);
+      const marker = markerOf(threadId);
       if (marker === undefined) return err({ kind: "not_a_test_run" });
       const done = deps.testRunControl[op](threadId);
       if (done.ok) markers.set(threadId, { ...marker, paused: done.value.paused });
       return done;
     },
     testRunPhase(threadId) {
-      if (!markers.has(threadId)) return err({ kind: "not_a_test_run" });
+      if (markerOf(threadId) === undefined) return err({ kind: "not_a_test_run" });
       return deps.testRunControl.phase(threadId);
     },
   };

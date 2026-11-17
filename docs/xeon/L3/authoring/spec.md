@@ -66,7 +66,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(플러그인 그룹) |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 켜짐. 도구 열한 개가 모두 지연 노출(`exposure: "deferred"`)이라 켜 두어도 "hi" 턴의 문맥은 늘지 않고 모델은 `tool_search`로 찾습니다 [결정: 2026-11-13 사용자, 2026-11-01 결정을 대체]. 안전 모드와 `defaultGroups: false`에서는 싣지 않고, 사용자가 `ext.authoring.enabled`를 명시적으로 끈 설정은 존중합니다 |
-| drive | 씀. 제작 대화 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
+| drive | 씀. 제작 대화 단계 머신(§4.1)을 주도 단계 함수로 돌립니다. 사람 확인은 `ask` 명령(X-17, drive-isolation.md §1.1)을 씁니다 |
 | 훅 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 대화 복원) |
 | 화면 기여 | 선언형 `page` "제작"(대화 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
 | 구성요소 | 스킬 `authoring-guide`(종류 고르기, 모드 고르기, 보안 규칙), 명령 `/author` |
@@ -197,17 +197,17 @@ M4 첫 카탈로그 [제안]:
 | AU-007 | 화면: 프레임 화면에 `fallback`도 `cli.command`도 없음 | 경고 |
 | AU-008 | 화면: 위젯 카탈로그로 그릴 수 있는 모양을 프레임으로 냄(트리 후보가 있음) | 정보 |
 | AU-009 | 시크릿: 설정에 시크릿처럼 보이는 키가 `secret: true` 없이 있음, 소스에 시크릿 리터럴 패턴 | 오류 |
-| AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask` 또는 `approval: true`가 없음 | 경고 |
+| AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask`·`{ do: "ask" }` 명령 또는 `approval: true`가 없음 | 경고 |
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류(검사기를 넘긴 호출). 릴리즈 바이너리에는 파서가 없어(`@swc/core`는 바이너리에 들어가면 안 됨) 검사가 돌지 않았다는 경고 |
 
-- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). 릴리즈 바이너리에는 파서가 없다(`@swc/core`는 바이너리에 들어가면 안 된다). 그래서 그 바이너리는 검사기를 넘기지 않고, AU-012는 검사가 돌지 않았다는 경고 하나만 낸다. 검사기를 넘긴 호출만 오류 규칙을 받는다. AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`이나 `.delegate(`가 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`를 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
+- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). 릴리즈 바이너리에는 파서가 없다(`@swc/core`는 바이너리에 들어가면 안 된다). 그래서 그 바이너리는 검사기를 넘기지 않고, AU-012는 검사가 돌지 않았다는 경고 하나만 낸다. 검사기를 넘긴 호출만 오류 규칙을 받는다. AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`·`.delegate(`·`{ do: "spawn" }`이 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`·`{ do: "ask" }`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`나 `{ do: "commit" }`을 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
 
 ## 4. 동작 규칙
 
 ### 4.1 제작 대화 단계
 
-[제안] drive 단계 머신입니다. 모든 전이는 단계 경계에서 커밋됩니다.
+[제안] drive 단계 머신입니다. 주도 단계 함수(drive-isolation.md §1.1)로 구현합니다. 엔진이 단계마다 `last`를 주고 명령 하나를 받습니다. 모든 전이는 단계 경계에서 커밋됩니다(`commit` 명령 또는 `g.commit`).
 
 ```text
 idle → intent → compose → scaffold → validate ⇄ fix → trial → (replay: 개발 모드만) → package → done
@@ -216,15 +216,18 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 | 단계 | 하는 일 | 사람 확인 |
 |---|---|---|
-| intent | 사용자 요구를 종류 하나와 결정 목록으로 정리. 스킬 `authoring-guide`의 판정 기준(그룹으로 만들지, `L3.slots.spec` §3.1.1)을 씀 | 종류와 이름 확인(`loop.ask`) |
+| intent | 사용자 요구를 종류 하나와 결정 목록으로 정리. 스킬 `authoring-guide`의 판정 기준(그룹으로 만들지, `L3.slots.spec` §3.1.1)을 씀 | 종류와 이름 확인(`ask` 명령) |
 | compose | 구성 초안을 만들거나 구성기에서 받은 초안을 읽음 | 없음 |
 | scaffold | 템플릿 복사, 치환, 구성 초안에서 매니페스트 필드와 `setup` 등록 줄 패치 | 없음(대상 폴더 안) |
 | validate, fix | 검사, 고치기 반복. 같은 오류가 3번 남으면 멈추고 사용자에게 물음 | 반복 한도 도달 때 |
 | trial | Test run에서 대상을 켜고 프롬프트를 보냄. 결과를 대화에 요약 | 시험 시작 전(비용) |
 | replay | 개발 모드면 `replayDrive`. 배포 앱은 건너뛰고 "개발 모드에서 확인 필요" 표시 | 없음 |
-| package | 묶음 만들기, 사용자 위치 연결 | 묶기 전, 연결 전(`loop.ask`) |
+| package | 묶음 만들기, 사용자 위치 연결 | 묶기 전, 연결 전(`ask` 명령) |
 
-- 사람 확인을 기다리는 동안 drive 락을 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 다시 후보가 되어 같은 단계에서 이어 갑니다.
+- 사람 확인을 기다리는 동안 엔진이 drive 락을 `waiting`으로 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 단계 함수가 `last=null`로 다시 불리고, 같은 `ask`(같은 requestId)가 기록된 답을 돌려주므로 같은 단계에서 이어 갑니다.
+- 단계 함수의 규칙(drive-isolation.md §1.1, §2.4): 사용자 메시지(`last.kind === "user"`)는 `turn`으로 그 메시지를 입력으로 처리합니다. 열린 제작 대화에서 할 일이 없으면 `yield`로 상주하고, 제작 대화가 닫혀 있고 확인도 없으면 `done`으로 물러납니다(그 상태가 바뀌기 전까지 후보가 아닙니다). 명령은 `state`와 `last`만 보고 정하므로 같은 입력에는 같은 명령이 나옵니다(재시작 안전, 시험 `authoring.drive-steps`).
+- 확인의 답이 `yes`가 아니면(거절, 취소, 만료, 무인 실행) `pack`, `link`, `testRun`을 부르지 않습니다. 답을 기다리는 동안에는 같은 `ask`를 다시 냅니다.
+- [미결] [근거: packages/ext-host/src/primitives/lease.ts, packages/core-loop/src/service.ts] 열린 제작 대화에서 사용자 메시지를 두 번째로 받으면 턴의 요청 id가 첫 턴과 같아져, 코어 루프가 기록된 결과로 재생하고 그 메시지를 처리하지 않습니다. 엔진의 기본 요청 id가 호출마다 0부터 세기 때문입니다(`lease.ts`의 `invocation.i`). 빌더 쪽 우회(상태 문서에 턴 수를 더하고 버전을 올림)는 하지 않았습니다. 엔진을 고친 뒤 다시 봅니다.
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
@@ -234,12 +237,12 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - 가드는 대화가 끝나면 풀립니다. Plugin Builder가 꺼져도 풀립니다.
 
 - [결정: M4 T-AUTH] 가드 판정은 함수 `authoringWriteGuard`(`guard.ts`)다. `write` 위험 등급 도구는 입력의 `path`·`file_path`·`filePath`가 대상 폴더 안이어야 하고, `exec`(셸)는 `cwd`·`workdir`가 안쪽이어야 한다. 경로를 읽을 수 없는 `write`와 작업 폴더가 없는 `exec`는 막는다. 한계 [미결]: 셸 명령 문자열 속 절대 경로는 보지 않는다.
-- [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인은 `packWithConfirmation`, `installWithConfirmation`(`release.ts`)이다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). `ask`는 drive의 `loop.ask`를 그대로 넘긴다. replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
-- [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, devMode?, fixLoopLimit? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: true`([결정: 2026-11-13 사용자])·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 1)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·설치 결과를 가진다.
-- [결정: M4 T-AUTH] 도구 열(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `loop.ask`로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive lock이 `waiting`으로 반납된다). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`loop.ask`) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르고, 호스트는 그 포트로 Test run 대화를 연다(HS-112). 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
+- [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인의 카드와 요청 id는 `packConfirmation`, `installConfirmation`(`release.ts`)이 만들고, drive가 `ask` 명령으로 냅니다. 답이 `yes`인지는 `confirmedYes`가 읽는다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
+- [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, guide?, devMode?, fixLoopLimit?, workspaceOf? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: true`([결정: 2026-11-13 사용자])·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 1)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·설치 결과를 가진다.
+- [결정: M4 T-AUTH] 도구 열(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `ask` 명령으로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive lock이 `waiting`으로 반납된다). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`ask` 명령) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르고, 호스트는 그 포트로 Test run 대화를 연다(HS-112). 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
 - [결정: 오케스트레이터 기본값, scI] `authoring_start`의 `dir`은 절대 경로로 정한다(`target-dir.ts`의 `resolveTargetDir`). 절대 경로는 그대로 쓰고, 상대 경로는 그 대화의 작업 폴더(`thread.started.workspace`) 안으로만 푼다(밖으로 나가면 `outside_workspace`). 작업 폴더가 없는 대화가 상대 경로를 주면 제작 대화를 열지 않고 `needs_folder`를 돌려주며, 모델은 사용자에게 폴더를 묻는다(앱은 크래프트 "새로 만들기"가 폴더 고르기 창 `pickFolder` 길로 작업 폴더를 정한 대화를 열고, CLI는 경로를 묻는다). 숨은 기본 출력 위치는 두지 않는다. 사용자 결정 목록에 "제작물 기본 출력 위치"로 올린다. 호스트는 `AuthoringWiring.workspaceOf`로 작업 폴더를 준다.
 - [결정: 오케스트레이터 기본값, scI] 열린 제작 대화는 도구 `authoring_stop`으로 닫는다(상태를 `idle`로 되돌리고 가드를 풀며 만든 파일은 지우지 않는다). 다른 폴더로 다시 열려면 닫은 뒤 `authoring_start`를 다시 부른다. 열린 대화가 있을 때 `authoring_start`는 `session_open`으로 거절하고 `authoring_stop`을 먼저 부르라고 알린다. `sessionId`를 주면 열린 대화와 같아야 한다(`unknown_session`). 앱의 닫기 단추는 화면 기여(T-VIEW) 때 더한다 [미결].
-- [결정: 오케스트레이터 기본값, scI] 사람이 확인에 답하면(종류·이름, 고치기 한도, 시험, 묶기, 설치의 yes와 no 모두) drive는 답의 결과를 알리는 `followUp` post를 하나 더한다(`display: false`, `requestId` 끝 `:r`). `next`는 유휴 대화에서 턴을 열지 않으므로(`L1.tasks` §4.9) 이것이 없으면 답 뒤에 턴이 끊겨 사용자가 "계속"을 쳐야 했다. 같은 단계 흐름이 사용자 입력 없이 이어진다. 도구 승인(쓰기 위험도)은 그대로 따로 뜬다.
+- [결정: 오케스트레이터 기본값, scI] 사람이 확인에 답하면(종류·이름, 고치기 한도, 시험, 묶기, 설치의 yes와 no 모두) drive는 답의 결과를 알리는 `followUp` post를 하나 더한다(`display: false`, `requestId` 끝 `:r`). `g.post`는 상태를 커밋하는 `commit` 명령보다 먼저 나간다. `next`는 유휴 대화에서 턴을 열지 않으므로(`L1.tasks` §4.9) 이것이 없으면 답 뒤에 턴이 끊겨 사용자가 "계속"을 쳐야 했다. 같은 단계 흐름이 사용자 입력 없이 이어진다. 도구 승인(쓰기 위험도)은 그대로 따로 뜬다.
 - [결정: 오케스트레이터 기본값, scI] 제작 대화의 확인 카드는 한국어다: 카드 제목은 확장 표시 이름(`displayName` "Plugin Builder", 앱은 확장 이름표로 "플러그인 빌더"를 보인다 [미결: 승인 카드 제목에 이름표 적용]), 질문은 "플러그인 \"이름\"을 <폴더>에 만들까요?" 같은 문장, 선택지는 "예"·"아니요"다(`group-drive.ts`, `release.ts`). `authoring_*` 도구 행의 사람 말 요약(단계 이름, "파일 3개를 만들었어요", "오류 2개가 남아 있어요" 등)은 `apps/desktop/src/views/authoring-row-model.ts`의 `authoringRowOf`가 만들고 키는 `desktop.item.authoring.*`다. 대화 행(`item-view.tsx`)에 이 함수를 잇는 일은 그 파일을 맡은 트랙이 한다 [미결].
 - [결정: M4 T-AUTH] 쓰기 범위 가드는 `tool.call.before`가 `authoringWriteGuard`를 부르고, 제작 대화가 열려 있는 동안(`idle`·`done`이 아닌 단계)에만 켜진다. 이 그룹의 도구(`authoring_*`)는 가드에서 뺀다. `thread.start`는 열린 대화가 있으면 알림을 하나 낸다(대화 복원). 화면 기여(`page`, `well`, `card`, `command`)와 `authoring_scaffold`의 `views` 인자, A-6은 T-VIEW 뒤로 미룬다. 설정 `l3.authoring.fixLoopLimit`는 만들지 않고 값은 주입한다. `l3.authoring.devMode`는 카탈로그에 있고(§6) 호스트가 그 값을 읽어 준다.
 - [결정: M4 T-AUTH] 호스트는 `assembly/authoring.ts`의 `authoringUnit`으로 그룹을 내장 단위로 싣는다(기본 그룹을 끄거나 안전 모드면 싣지 않고, 기본 켜짐, [결정: 2026-11-13 사용자]). 서비스는 wire 제작 포트(`m4.devkit`)를 어댑터(`devkitServiceOf`)로 감싼 것이라 에이전트와 화면이 같은 검사와 뼈대를 얻는다. 포트는 엔진 포트가 만들어진 뒤에야 있어 쓸 때 읽고, 없으면 `io` 오류다. 개발 모드 판정은 호스트가 한 곳에서 주며 `l3.authoring.devMode` 설정의 현재 값을 도구를 부를 때마다 읽는다(기본 거짓). 거짓이면 `authoring_replay`는 `dev_mode_required`다. 참이면 서비스 `replay`는 호스트의 `ext.test.run`(replay)을 불러 보고를 돌려준다(HS-112). 재생기는 `@fresnel/plugin-builder`의 `runInstalledReplay`이고, 호스트의 기본 실행기가 설치 폴더를 넘긴다 [결정: 2026-11-04 사용자 지시에 따른 기본값] [근거: HS-112 (8), packages/plugin-builder/src/replay.ts]. `testRun`은 호스트 포트가 Test run 대화를 열고 기록한다(HS-112).
@@ -294,14 +297,14 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 |---|---|---|
 | `tool.call.before` | first | 쓰기 범위 가드(§4.2) |
 | `thread.start` | tap | 대화 복원 |
-| drive | | 제작 대화 단계 머신. 사람 확인은 `loop.ask`(X-17) |
+| drive | | 제작 대화 주도 단계 함수. 사람 확인은 `ask` 명령(X-17) |
 
 ## 8. 다른 문서와의 인터페이스
 
 | 문서 | 관계 |
 |---|---|
 | `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `fresnel.devkit` 계약 |
-| `X.primitives.spec` | 요구: `loop.ask`와 반납 사유 `waiting`(X-17), Test run 단계 경계 멈춤(X-19) |
+| `X.primitives.spec` | 요구: `ask` 명령과 반납 사유 `waiting`(X-17), Test run 단계 경계 멈춤(X-19) |
 | `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
@@ -323,7 +326,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 1. (결정) `L3/README.md` 도메인 표에 `authoring`을 더했다 [결정: 2026-11-04 사용자 B20].
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
-3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 기본 켜짐인 빌더가 유휴 상태로 drive 락을 쥐어 다른 drive 그룹을 기다리게 하지 않도록, 빌더는 제작 대화가 열려 있는 동안(또는 사람 확인 요청이 남아 있을 때)만 drive 락 후보가 됩니다(`drive(fn, { wants })`, `X.primitives.spec` §4.4). `authoring_start` 전과 `authoring_stop`·완료 뒤에는 참여하지 않습니다 [결정: 2026-11-13 사용자 지시]. 쓰기 가드(`tool.call.before`)는 제작 대화가 없으면 아무 일도 하지 않지만 핸들러는 등록된 채라 `hooks.order.preview`의 가림·자동 끄기 목록에 tier 5 항목으로 보입니다(핸들러 등록은 세대 단위로 고정이고 미리보기는 대화와 무관한 전역 순서라 끌 수 없습니다) [미결] [근거: 2026-11-13 사용자 지시 2번, apps/host/test/int/hook-order-real.int.test.ts].
+3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 기본 켜짐인 빌더가 유휴 상태로 drive 락을 쥐어 다른 drive 그룹을 기다리게 하지 않도록, 빌더는 제작 대화가 열려 있는 동안 상주하고(`yield`), 닫혀 있고 확인도 없으면 `done`으로 물러납니다. `wants`는 없어졌습니다(drive-isolation.md §1.1). 그래서 기본 켜짐인 빌더도 thread마다 첫 경계에 한 번 drive 락을 받고 `done`으로 물러나며(`lease.acquired`와 `lease.released`가 한 쌍 남는다), 그 상태가 바뀌기 전까지 다시 들어오지 않습니다 [미결: 기록의 잡음과 다른 drive 그룹과의 순서, `X.primitives.spec` §4.4]. `authoring_start` 전과 `authoring_stop`·완료 뒤에는 상주하지 않습니다(물러나 있습니다) [결정: 2026-11-13 사용자 지시]. 쓰기 가드(`tool.call.before`)는 제작 대화가 없으면 아무 일도 하지 않지만 핸들러는 등록된 채라 `hooks.order.preview`의 가림·자동 끄기 목록에 tier 5 항목으로 보입니다(핸들러 등록은 세대 단위로 고정이고 미리보기는 대화와 무관한 전역 순서라 끌 수 없습니다) [미결] [근거: 2026-11-13 사용자 지시 2번, apps/host/test/int/hook-order-real.int.test.ts].
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [결정: 2026-11-04 사용자, 결정 목록 R16] 로컬 카탈로그 공유와 묶음 서명은 M4 밖입니다(`review.m4-plan` §1.2). 로컬 카탈로그 경로는 구현 세부로 남깁니다.
 6. [결정: 2026-11-04 사용자, 결정 목록 R16] replay·benchmark·코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4, m4-decisions Desktop UX 4). 배포 앱에서 개발 모드를 켜는 조건은 M4 밖입니다. 켬/끔 비교(Test run 묶음 실행)는 배포 앱에도 엽니다(2026-11-03 결정).

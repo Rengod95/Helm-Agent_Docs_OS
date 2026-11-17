@@ -165,7 +165,10 @@ test("sessions fork prints the new id and passes --at", async () => {
       handlers: {
         "thread.fork": (params) => {
           seen.push(params);
-          return { threadId: T2, position: { storeId: "sto_00000000000000000000000001", seq: 3 } };
+          return {
+            threadId: T2,
+            position: { storeId: "sto_00000000000000000000000001", seq: 3 },
+          };
         },
       },
     },

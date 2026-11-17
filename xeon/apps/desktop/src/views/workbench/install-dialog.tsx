@@ -61,7 +61,7 @@ const REASON_TEXT: Readonly<Record<InstallReasonKey, MessageId>> = {
   other: "desktop.install.reason.other",
 };
 
-/** 훅 이름의 사람 말 사건 이름. 훅 선언 46개 전부다 */
+/** 훅 이름의 사람 말 사건 이름. 훅 선언 50개 가운데 46개만 이름이 있다. 나머지 네 개(M5e)는 id가 그대로 보인다 [미결: 데스크톱 이름] */
 const HOOK_EVENT_TEXT: Readonly<Record<string, MessageId>> = {
   "input.user.before": "desktop.install.hook.event.input.user.before",
   "input.bash.before": "desktop.install.hook.event.input.bash.before",

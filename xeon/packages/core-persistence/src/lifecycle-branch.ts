@@ -25,6 +25,7 @@ import {
 import { sha256Hex } from "./hash.ts";
 import { ownerError } from "./lifecycle-admin.ts";
 import type { OpenSessions } from "./ownership.ts";
+import type { OpenChain } from "./open-chain.ts";
 import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
@@ -38,6 +39,8 @@ export interface BranchDeps {
   readonly sessions: OpenSessions;
   readonly ids: IdFactory;
   readonly points: ThreadHooks;
+  /** 열기 한 번(thread.resources → thread.start). fork의 새 thread도 이 길을 탄다 */
+  readonly opening: OpenChain;
   readonly logger: Logger | undefined;
   /** fork의 새 thread를 만든다(thread.started{forkedFrom}) */
   readonly createForked: (
@@ -452,13 +455,14 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
       );
       if (!created.ok) return created;
       if (!created.value.replayed) {
-        detach(
-          points.start(
-            { reason: "fork", threadId: newThreadId, previousThreadId: threadId },
-            `${newThreadId}:session.start:${String(created.value.headSeq)}`,
-          ),
-          failPoint("thread.start", newThreadId),
-        );
+        deps.opening.open({
+          threadId: newThreadId,
+          resourcesReason: "startup",
+          cwd: thread.workspace ?? "",
+          start: { reason: "fork", threadId: newThreadId, previousThreadId: threadId },
+          resourcesKey: `${newThreadId}:session.resources:${String(created.value.headSeq)}`,
+          startKey: `${newThreadId}:session.start:${String(created.value.headSeq)}`,
+        });
       }
       return created;
     },

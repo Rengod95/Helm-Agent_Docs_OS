@@ -5,7 +5,7 @@ import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/cor
 import { accountRotationGroup } from "@fresnel/group-account-rotation";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { createFakeKeys } from "../fixtures/fake-keys.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

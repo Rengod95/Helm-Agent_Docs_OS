@@ -51,6 +51,10 @@ export interface PluginFiles {
   readonly ui?: unknown;
   /** 루트 플러그인의 `replaces`(내장 도구 대체 선언). 생략하면 없다 */
   readonly replaces?: readonly string[];
+  /** 루트 플러그인의 `drives`. 참이면 매니페스트에 drives가 선언된다(격리 판정의 drives 행) */
+  readonly drives?: boolean;
+  /** 매니페스트 `isolation`. 생략하면 없다 */
+  readonly isolation?: "none" | "process";
 }
 
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
@@ -88,11 +92,13 @@ export async function writePlugin(
         layer: files.layer ?? "plugin",
         hooks: files.hooks ?? ["boundary.settle.after"],
         ...(files.replaces === undefined ? {} : { replaces: [...files.replaces] }),
+        ...(files.drives === true ? { drives: true } : {}),
       },
     ],
     ...(files.group === true ? { group: {} } : {}),
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
     ...(files.ui === undefined ? {} : { ui: files.ui }),
+    ...(files.isolation === undefined ? {} : { isolation: files.isolation }),
   };
   await putFile(join(root, ".fresnel-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));
   await putFile(join(root, "src", "index.ts"), files.entry ?? defaultEntry(files.name));

@@ -1,14 +1,13 @@
-import { Bug, attempt, attemptAsync, parse, rethrow } from "@fresnel/contracts";
+import { Bug, assertNever, attempt, attemptAsync, parse, rethrow } from "@fresnel/contracts";
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import type {
-  DriveFn,
+  DriveCommand,
   DriveOptions,
+  DriveStep,
   ExtensionManifest,
-  LoopHandle,
   PortKey,
   ProviderResourceDef,
   RegistrationApi,
-  SpawnSpec,
   StateDecl,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
@@ -164,26 +163,74 @@ function isEmptyValues<D extends GroupSettingDefs>(
   return Object.keys(values).length === 0;
 }
 
-function wrapLoop(loop: LoopHandle, counter: MetricsCounter): LoopHandle {
-  return {
-    turn: (input) => loop.turn(input),
-    ask: (request) => loop.ask(request),
-    spawn: (spec: SpawnSpec) => {
-      counter.bump("spawns");
-      return loop.spawn(spec);
-    },
-    get budget() {
-      return loop.budget;
-    },
-    get signal() {
-      return loop.signal;
-    },
-  };
-}
-
 /** 검사 실패를 X가 던지는 것과 같은 PrimitiveError로 바꿔 던진다 */
 function ensure(check: RecordCheck, scopeId: string): void {
   if (!check.ok) throw new PrimitiveError(check.code, check.message, { scopeId });
+}
+
+/**
+ * 상태 커밋 전 검사. `g.commit`과 drive의 `commit` 명령이 같이 쓴다(L3.group-sdk.spec §4.5 2번). 실패하면 X와 같은 PrimitiveError를 던진다.
+ * 돌려주는 값은 상태가 바뀌었는가다. 같은 값이면 X를 부르지 않아도 된다(§4.5 3번)
+ */
+function checkedCommit<S>(
+  decl: StateDecl<S>,
+  scopeId: string,
+  current: Readonly<S>,
+  next: S,
+): boolean {
+  const checked = checkStateCommit(decl, current, next);
+  if (!checked.ok) {
+    throw new PrimitiveError(
+      checked.kind === "state.schema" ? "state_schema" : "state_too_large",
+      checked.kind === "state.schema"
+        ? `state of ${scopeId} does not match its schema: ${checked.issues.join("; ")}`
+        : `state of ${scopeId} is ${checked.bytes} bytes, over the ${checked.limit} byte limit`,
+      { scopeId },
+    );
+  }
+  return !checked.unchanged;
+}
+
+/**
+ * 단계 함수가 돌려준 명령을 검사하고 계측한 뒤 그대로 돌려준다. 엔진이 그 명령을 바로 실행한다.
+ * `spawn`은 `spawns`를 올린다. `commit`은 g.commit과 같은 검사를 받고 값이 바뀐 것만 `commits`로 세며, 같은 값이면 명령을 `next`로 바꿔 넘긴다.
+ * `next` 사슬 안의 `commit`도 직전 커밋 값(`current`)과 비교해 같은 검사를 받는다. 상태 정의가 없으면 X가 `state_undeclared`로
+ * 거부하므로 그대로 둔다
+ */
+function instrumentCommand<S>(
+  command: DriveCommand<S>,
+  scope: { readonly id: string; readonly decl: StateDecl<S> | undefined },
+  current: Readonly<S>,
+  counter: MetricsCounter,
+): DriveCommand<S> {
+  switch (command.do) {
+    case "spawn":
+      counter.bump("spawns");
+      return command;
+    case "commit": {
+      const { decl } = scope;
+      if (decl === undefined) return command;
+      // 값이 같으면 상태 사건을 쓰지 않고 `next`로 넘어간다(L3.group-sdk.spec §4.5 3번). 계측도 하지 않는다
+      if (!checkedCommit(decl, scope.id, current, command.state)) {
+        return instrumentCommand(command.next, scope, current, counter);
+      }
+      counter.bump("commits");
+      return {
+        ...command,
+        next: instrumentCommand(command.next, scope, command.state, counter),
+      };
+    }
+    case "turn":
+    case "model":
+    case "tool":
+    case "ask":
+    case "handoff":
+    case "yield":
+    case "done":
+      return command;
+    default:
+      return assertNever(command, "instrumentCommand");
+  }
 }
 
 /**
@@ -243,31 +290,27 @@ export function wrap<S, D extends GroupSettingDefs>(
           point === "boundary.settle.after" ? afterSettle : undefined,
         ),
       ),
+    // 이벤트 구독은 `g.on`의 도우미라 X의 subscribe를 그대로 부른다(M5e §4.4.1). 호출 계측은 `on`과 같은 카운터를 쓰지 않는다
+    subscribe: (events, handler, options) => api.subscribe(events, handler, options),
     post: async (item, options) => {
       ensure(checkPostItem(def.manifest, item), api.id);
       const receipt = await api.post(item, options);
       if (!receipt.duplicate) counter.bump("posts");
       return receipt;
     },
-    drive: (fn: DriveFn<S>, options?: DriveOptions<S>) => {
-      api.drive((loop, state) => fn(wrapLoop(loop, counter), state), options);
+    drive: (step: DriveStep<S>, options?: DriveOptions) => {
+      const scope = { id: api.id, decl: def.state };
+      api.drive(async (input) => {
+        const command = await step(input);
+        return instrumentCommand(command, scope, input.state, counter);
+      }, options);
     },
     state: () => api.state(),
     commit: async (next) => {
       const decl = def.state;
       if (decl === undefined) return api.commit(next); // X가 state_undeclared로 거부한다
       const current = api.state();
-      const checked = checkStateCommit(decl, current, next);
-      if (!checked.ok) {
-        throw new PrimitiveError(
-          checked.kind === "state.schema" ? "state_schema" : "state_too_large",
-          checked.kind === "state.schema"
-            ? `state of ${api.id} does not match its schema: ${checked.issues.join("; ")}`
-            : `state of ${api.id} is ${checked.bytes} bytes, over the ${checked.limit} byte limit`,
-          { scopeId: api.id },
-        );
-      }
-      if (checked.unchanged) return current;
+      if (!checkedCommit(decl, api.id, current, next)) return current;
       const committed = await api.commit(next);
       counter.bump("commits");
       return committed;

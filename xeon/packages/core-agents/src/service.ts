@@ -1,5 +1,5 @@
 // AgentService 구현(L1.agents.spec §3.3, §4.1~§4.8, AG-1·2·3·6·7·8·11). 포그라운드 spawn, 백그라운드 delegate, 목표 판정을 한다.
-import { assertNever, attemptAsync, detach, parse } from "@fresnel/contracts";
+import { assertNever, attemptAsync, canonicalJson, detach, parse } from "@fresnel/contracts";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -20,6 +20,7 @@ import {
   type AdvertisedToolset,
   type AgentService,
   type AgentsErrorCode,
+  type ApprovalRequestInput,
   type CancelTarget,
   type ChildStatus,
   type DelegateRequest,
@@ -37,7 +38,14 @@ import {
   type SpawnResult,
   type TaskScope,
 } from "@fresnel/contracts/services";
-import type { RecordKind, RegistrationId } from "@fresnel/contracts/extensions";
+import {
+  AGENT_REPORT_TEXT_MAX,
+  FIRST_DENY,
+  type AgentSpawnBeforePayload,
+  type AgentSpawnEntry,
+  type RecordKind,
+  type RegistrationId,
+} from "@fresnel/contracts/extensions";
 import { ceilingOf, childMode } from "./permission-ceiling.ts";
 import { AGENTS_RULE_SOURCE, definitionRules, subagentRules } from "./denylist.ts";
 import { createDefinitionRegistry } from "./definitions/registry.ts";
@@ -49,8 +57,23 @@ import { childRequestId, createSpawnCounter, derivedRequestId } from "./request-
 import { createJudge, JUDGE_MAX_RUNS_DEFAULT } from "./judge.ts";
 import { guardReport } from "./result-guard.ts";
 
-/** agent.settled에 싣는 보고 본문 상한(AgentSettledEventPayload.report.text 65,536자에서 격리 블록 여유를 뺀다) */
-const STORED_REPORT_MAX = 60_000;
+/**
+ * agent.settled에 싣는 보고 본문 상한(AgentSettledEventPayload.report.text 65,536자에서 격리 블록 여유를 뺀다).
+ * 계약의 `AGENT_REPORT_TEXT_MAX`와 같은 값이고, 훅이 고친 본문도 이 상한을 다시 적용한다(M5e §4.3.4)
+ */
+const STORED_REPORT_MAX = AGENT_REPORT_TEXT_MAX;
+
+/** `agent.spawn.before`의 과제 본문 앞부분 길이(글자). 페이로드 스키마 상한이다 */
+const HOOK_TASK_MAX = 4_000;
+
+/** 승인 카드의 도구 이름. 모델 도구 `agent`와 같다(tool.ts의 AGENT_TOOL_NAME). tool.ts가 이 파일을 import하므로 여기 적는다 */
+const CARD_TOOL_NAME = "agent";
+
+/** 사람에게 묻지 못하는 자리의 거부 사유 꼬리(M5e 스펙 §7 E-4) */
+const UNCONFIRMED = "(confirmation unavailable)";
+
+/** 사용자가 묻기 카드를 거부했을 때 모델에 보일 사유 */
+const DENIED_BY_USER = "The user denied this subagent run.";
 
 const KNOWN_FLAGS: ReadonlySet<string> = new Set<MimicryFlag>([
   "role_marker",
@@ -169,7 +192,9 @@ function creationKeyOf(parent: ThreadId, requestId: string): string {
 type Provisioned =
   | { readonly kind: "run"; readonly childThreadId: ThreadId }
   | { readonly kind: "exists"; readonly link: AgentView }
-  | { readonly kind: "refused"; readonly refusal: Refusal };
+  | { readonly kind: "refused"; readonly refusal: Refusal }
+  /** `agent.spawn.before`가 자식 없이 보고를 돌려줬다(replace). 자식 thread와 기록을 만들지 않는다 */
+  | { readonly kind: "replaced"; readonly report: string };
 
 function refused(code: AgentsErrorCode, message: string, childThreadId?: ThreadId): Provisioned {
   return {
@@ -186,12 +211,70 @@ function receiptOf(
   return { ok: true, receipt: { requestId, childThreadId, status } };
 }
 
+/**
+ * 세 입구의 이름. 자식을 만든 쪽의 소유 종류로 가른다: 모델 도구 `agent`는 tool, `loop.spawn`은 drive,
+ * `g.delegate`는 scope다(M5e 스펙 §4.3.3). 입구마다 따로 표시하지 않아도 소유에서 정해진다
+ */
+function entryOf(owner: SpawnOwner): AgentSpawnEntry {
+  switch (owner.kind) {
+    case "tool":
+      return "tool";
+    case "drive":
+      return "drive";
+    case "scope":
+      return "delegate";
+    default:
+      return assertNever(owner, "entryOf");
+  }
+}
+
+/** `agent.spawn.before`의 페이로드. 과제는 앞 4,000자만 싣고, 모델은 자식이 실제로 쓸 역할을 싣는다 */
+function beforePayloadOf(
+  origin: SpawnOrigin,
+  prepared: PreparedSpawn,
+  request: SpawnRequest,
+): AgentSpawnBeforePayload {
+  const { owner } = origin;
+  return {
+    threadId: origin.parentThreadId,
+    requestId: prepared.requestId,
+    agent: prepared.definition.name,
+    task: request.task.slice(0, HOOK_TASK_MAX),
+    caller: origin.caller,
+    depth: origin.depth,
+    entry: entryOf(owner),
+    ...(owner.kind === "tool" ? { toolCallId: owner.toolCallId } : {}),
+    background: prepared.background,
+    model: request.model ?? prepared.definition.model ?? "subagent",
+    ...(request.limits === undefined ? {} : { limits: request.limits }),
+  };
+}
+
+/** 훅이 막았을 때의 거부. 모델에는 `[fresnel:denied_by_extension] <사유>` 줄이 들어간다(묻기 실패는 꼬리를 붙인다) */
+function deniedByExtension(reason: string, unconfirmed: boolean): Refusal {
+  const tail = unconfirmed ? ` ${UNCONFIRMED}` : "";
+  return {
+    code: "agents.denied",
+    message: `[fresnel:denied_by_extension] ${reason}${tail}`,
+  };
+}
+
+function messageOfCause(cause: unknown): string {
+  return cause instanceof Error ? cause.message : "non_error_thrown";
+}
+
+/** `agent.spawn.before` 판정. 막음이나 확인 불가 묻기는 거부, 보고 대체는 자식 없는 결과, 통과는 계속이다 */
+type SpawnGate =
+  | { readonly kind: "proceed" }
+  | { readonly kind: "refused"; readonly refusal: Refusal }
+  | { readonly kind: "replaced"; readonly report: string };
+
 function abortReasonOf(reason: string): { readonly code: "user"; readonly message: string } {
   return { code: "user", message: reason };
 }
 
 export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
-  const { session, tasks, tools, producer, ids, settings, ownership, log } = deps;
+  const { session, tasks, tools, producer, ids, settings, ownership, log, hooks } = deps;
   const live = new Map<ThreadId, LiveChild>();
   const meta = new Map<ThreadId, ChildMeta>();
   const gates = new Map<ThreadId, ConcurrencyGate>();
@@ -237,6 +320,126 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     usage: null,
     reused: false,
   });
+
+  /**
+   * `replace`로 돌려준 보고의 정착 결과. 자식 thread를 만들지 않으므로 childThreadId는 `failure`와 같이 만들지 않은 자리 id다.
+   * 보고는 훅이 준 본문 그대로이고 결과 검사(격리 블록)를 거치지 않는다. 훅이 보고를 쓰는 주체이기 때문이다
+   */
+  const replacedResult = (requestId: string, report: string): SpawnResult => ({
+    childThreadId: ids.next("thr"),
+    status: "completed",
+    answer: report,
+    requestId,
+    report: null,
+    usage: null,
+    reused: false,
+  });
+
+  /**
+   * 묻기 결정(`ask`)을 카드로 바꾼다. 깊이가 있는 호출(서브에이전트가 띄우는 것)과 사람이 없는 실행은 묻지 않고 거부한다(E-4).
+   * 카드는 `tool` 종류이고 도구 이름은 `agent`, 인자는 `{ agent, task }`다. 같은 요청 키의 두 번째 요청은 처음 카드를 돌려준다.
+   */
+  const askSpawn = async (
+    origin: SpawnOrigin,
+    prepared: PreparedSpawn,
+    request: SpawnRequest,
+    reason: string,
+    extension: string | null,
+  ): Promise<SpawnGate> => {
+    const { definition } = prepared;
+    const unconfirmed: SpawnGate = {
+      kind: "refused",
+      refusal: deniedByExtension(reason, true),
+    };
+    if (origin.depth > 0 || !prepared.interactive) return unconfirmed;
+    const approvals = deps.approvals?.();
+    if (approvals === undefined) return unconfirmed;
+    const args = { agent: definition.name, task: request.task };
+    const owner = origin.owner;
+    const askedBy = { extension: extension ?? "unknown", reason };
+    const input: ApprovalRequestInput = {
+      origin: {
+        threadId: origin.parentThreadId,
+        turnId: owner.kind === "scope" ? null : owner.turnId,
+        stepId: null,
+        // 도구 호출 id는 싣지 않는다. 싣으면 승인 서비스가 그 호출의 대기 체크포인트를 쓰는데 이 호출은 자식 실행 중이다
+        toolCallId: null,
+        caller: origin.caller,
+      },
+      requestKey: `spawn-ask:${sha256Hex(prepared.requestId).slice(0, 32)}`,
+      title: `Allow subagent "${definition.name}"?`,
+      body: {
+        kind: "tool",
+        tool: {
+          toolName: CARD_TOOL_NAME,
+          risk: "exec",
+          args,
+          argsHash: sha256Hex(canonicalJson(args)),
+          ruleId: `hook:${askedBy.extension}`,
+          askedBy,
+        },
+      },
+      remember: ["once"],
+    };
+    const asked = await attemptAsync(() => approvals.request(input, origin.signal));
+    if (!asked.ok) {
+      log.warn("agents.spawn_ask_failed", {
+        requestId: prepared.requestId,
+        message: messageOfCause(asked.error.cause),
+      });
+      return unconfirmed;
+    }
+    const answered = asked.value;
+    if (!answered.ok) {
+      log.warn("agents.spawn_ask_failed", {
+        requestId: prepared.requestId,
+        reason: answered.error.kind,
+      });
+      return unconfirmed;
+    }
+    if (answered.value.decision === "allow") return { kind: "proceed" };
+    return {
+      kind: "refused",
+      refusal: { code: "agents.denied", message: DENIED_BY_USER },
+    };
+  };
+
+  /**
+   * `agent.spawn.before`(M5e 스펙 §4.3.3, 실패 closed). 자식 thread를 만들기 전에 한 번 건다. 세 입구가 모두 `provision`을 지나므로
+   * 여기서 한 번 발화한다. 중복 호출(같은 requestId의 기존 자식으로 이어 받기)은 자식을 만들지 않으므로 발화하지 않는다.
+   * 같은 requestId의 동시 호출은 예외다(`provision`의 연결 다시 보기 주석 참조).
+   * 디스패치가 실패하면 거부다(FIRST_DENY). 결정은 ext-host가 `block` > `replace` > `ask`로 합친 값이다.
+   */
+  const gateSpawnBefore = async (
+    origin: SpawnOrigin,
+    prepared: PreparedSpawn,
+    request: SpawnRequest,
+  ): Promise<SpawnGate> => {
+    const dispatched = await attemptAsync(() =>
+      hooks.spawnBefore({
+        payload: beforePayloadOf(origin, prepared, request),
+        dispatchKey: `agent.spawn.before:${prepared.requestId}`,
+        signal: origin.signal,
+      }),
+    );
+    if (!dispatched.ok) {
+      log.warn("agents.spawn_before_failed", {
+        requestId: prepared.requestId,
+        message: messageOfCause(dispatched.error.cause),
+      });
+      return {
+        kind: "refused",
+        refusal: deniedByExtension(FIRST_DENY["agent.spawn.before"].reason, false),
+      };
+    }
+    const { decision, extension } = dispatched.value;
+    if (decision === undefined) return { kind: "proceed" };
+    if ("block" in decision) {
+      return { kind: "refused", refusal: deniedByExtension(decision.reason, false) };
+    }
+    if ("replace" in decision) return { kind: "replaced", report: decision.replace.report };
+    return await askSpawn(origin, prepared, request, decision.reason, extension);
+  };
 
   const contextOf: AgentServiceImpl["contextOf"] = (threadId) => {
     const known = meta.get(threadId);
@@ -839,6 +1042,49 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     return settledCount;
   };
 
+  /**
+   * `agent.spawn.after`(chain, M5e 스펙 §4.3.4). 정착한 보고 본문만 고칠 수 있고 status와 usage는 그대로다.
+   * 병합 규칙이 상한을 한 번 적용하고, 여기서 `STORED_REPORT_MAX`로 다시 자른다. 디스패치가 실패하면 보고를 그대로 둔다(실패는 건너뜀).
+   * 정리 목적의 정착(재시작 뒤 끊긴 자식을 닫는 `settleStoredOwnedBy`)은 자식이 돌지 않았으므로 발화하지 않는다.
+   */
+  const reportAfterSettled = async (
+    origin: SpawnOrigin,
+    prepared: PreparedSpawn,
+    childThreadId: ThreadId,
+    ran: RanTurn,
+    guarded: GuardedReport,
+  ): Promise<GuardedReport> => {
+    const dispatched = await attemptAsync(() =>
+      hooks.spawnAfter({
+        payload: {
+          threadId: origin.parentThreadId,
+          requestId: prepared.requestId,
+          agent: prepared.definition.name,
+          status: ran.status,
+          usage: ran.usage,
+          childThreadId,
+        },
+        dispatchKey: `agent.spawn.after:${prepared.requestId}`,
+        initial: { report: { text: guarded.text, truncated: guarded.truncated } },
+      }),
+    );
+    if (!dispatched.ok) {
+      log.warn("agents.spawn_after_failed", {
+        childThreadId,
+        message: messageOfCause(dispatched.error.cause),
+      });
+      return guarded;
+    }
+    const { text, truncated } = dispatched.value.report;
+    if (text === guarded.text && truncated === guarded.truncated) return guarded;
+    const over = text.length > STORED_REPORT_MAX;
+    return {
+      ...guarded,
+      text: over ? text.slice(0, STORED_REPORT_MAX) : text,
+      truncated: truncated || over,
+    };
+  };
+
   /** 결과 검사(§4.6)를 거쳐 부모 대화에 agent.settled를 커밋하고 자식 임대를 놓는다 */
   const recordSettled = async (
     origin: SpawnOrigin,
@@ -847,7 +1093,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     ran: RanTurn,
   ): Promise<SpawnResult> => {
     const maxChars = Math.min(settings.resultMaxChars(), STORED_REPORT_MAX);
-    const report = guardReport({
+    const guarded = guardReport({
       agent: prepared.definition.name,
       childThreadId,
       status: ran.status,
@@ -855,6 +1101,8 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       ...(ran.reason === undefined ? {} : { reason: ran.reason }),
       maxChars,
     });
+    // 결과 검사 뒤, agent.settled 커밋 앞에서 보고 본문을 훅이 고칠 수 있다(M5e §4.3.4)
+    const report = await reportAfterSettled(origin, prepared, childThreadId, ran, guarded);
     const committed = session.commit({
       threadId: origin.parentThreadId,
       requestId: `agent:${childThreadId}:settled`,
@@ -1028,6 +1276,18 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     if (parentToken === undefined) {
       return refused("agents.unavailable", "the parent's write token is unknown");
     }
+    // 자식 thread를 만들기 전 앞 훅(M5e §4.3.3). 세 입구(agent 도구, loop.spawn, g.delegate)가 모두 이 자리를 지난다
+    const gate = await gateSpawnBefore(origin, prepared, request);
+    if (gate.kind === "refused") return { kind: "refused", refusal: gate.refusal };
+    if (gate.kind === "replaced") return { kind: "replaced", report: gate.report };
+    // 앞 훅을 기다리는 사이 같은 requestId의 다른 호출이 자식을 먼저 만들었을 수 있다. 그 연결을 따른다.
+    // 이 다시 보기와 아래 생성·커밋 사이에는 기다림이 없어서 두 호출이 같은 자식을 두 번 만들지 않는다.
+    // (겹친 호출은 앞 훅을 각각 받을 수 있다. 정확히 한 번은 순차 재호출에서 보장된다)
+    const raced = linkOf(origin.parentThreadId, prepared.requestId);
+    if (raced === "unreadable") {
+      return refused("agents.unavailable", "the child links are unreadable");
+    }
+    if (raced !== undefined) return { kind: "exists", link: raced };
     const newId = ids.next("thr");
     let childThreadId: ThreadId;
     if (request.fork === undefined) {
@@ -1152,6 +1412,8 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
           return await attach(provisioned.link, origin, prepared.value, request);
         case "refused":
           return failureOf(prepared.value.requestId, provisioned.refusal);
+        case "replaced":
+          return replacedResult(prepared.value.requestId, provisioned.report);
         default:
           return assertNever(provisioned, "spawn.provision");
       }
@@ -1218,6 +1480,16 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
           return {
             ok: false,
             error: { kind: provisioned.refusal.code, message: provisioned.refusal.message },
+          };
+        case "replaced":
+          return {
+            ok: true,
+            receipt: {
+              requestId: prepared.value.requestId,
+              childThreadId: ids.next("thr"),
+              status: "replaced",
+              report: provisioned.report,
+            },
           };
         default:
           return assertNever(provisioned, "delegate.provision");

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Bug, detach, parse } from "@fresnel/contracts";
+import { Bug, assertNever, attemptAsync, detach, parse } from "@fresnel/contracts";
 import {
   AskRequestSchema,
   DriveLockArbiterPortKey,
@@ -8,11 +8,14 @@ import {
   type AskCard,
   type AskOutcome,
   type AskRequest,
+  type DriveCommand,
   type DriveLimits,
+  InputQueuePortKey,
   pluginDefaultEnabled,
   type DriveLockBudget,
-  type LoopHandle,
   type OpenLease,
+  type PostItem,
+  type StepResult,
   type RegistrationId,
   type SpawnOutcome,
   type SpawnSpec,
@@ -30,6 +33,8 @@ import {
   type QuestionOption,
 } from "@fresnel/contracts/services";
 import { withAmbient, withoutAmbient, type DriveInvocation } from "./ambient.ts";
+import { stateAs } from "../erase.ts";
+import type { AnyState } from "./erased-types.ts";
 import type {
   BoundarySignal,
   BoundaryTxn,
@@ -44,8 +49,11 @@ import { PrimitiveError } from "./errors.ts";
 import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
 import type { StateService } from "./state.ts";
 
-/** 경계 없이 상태 커밋만 하고 반환한 drive를 바로 다시 부르는 연속 횟수 상한(X.primitives.spec §4.4.3) [제안] */
+/** 효과 없는 명령(`commit`만, 거부 결과)이 이어지는 단계 수 상한. 넘으면 이번 호출을 `yield`로 끝낸다(X.primitives.spec §4.4.3) [제안] */
 export const MAX_CHAINED_REINVOKES = 8;
+
+/** 사용자 메시지를 전달한 뒤 단계 함수가 `turn`이나 `done`으로 처리하지 않고 지나갈 수 있는 단계 수(drive-isolation.md 2.4) */
+const USER_MESSAGE_STEP_LIMIT = 3;
 
 export interface LeaseBroker {
   /** openThread: 저장된 열린 임대를 되살린다. 설치되지 않았거나 꺼진 scope의 임대는 restart로 반납 예정이 된다 */
@@ -72,6 +80,11 @@ export interface LeaseBroker {
   onDirectCommit(thread: ThreadRuntime, scopeId: RegistrationId): void;
   /** 임대를 반납 예정으로 바꾼다. 활성이 아니면 아무 일도 하지 않는다 */
   release(lease: LeaseRuntime, reason: ReleaseReason): void;
+  /**
+   * 사용자가 보낸 메시지를 주도 중인 단계 함수에 전달한다(drive-isolation.md 2.4). 주도 중이면 메시지를 받아 참을 돌려주고
+   * 다음 단계의 `last: { kind: "user" }`로 준다. 주도 중이 아니면 거짓이고 코어 루프가 평소대로 받는다
+   */
+  claimUserInput(thread: ThreadRuntime, item: PostItem): boolean;
 }
 
 /**
@@ -198,6 +211,102 @@ function askOutcomeOf(resolution: ApprovalResolution, scopeId: RegistrationId): 
   return { status: "denied", resolvedBy: resolution.resolvedBy, feedback: deny.value.feedback };
 }
 
+/** 엔진이 명령을 실행하는 데 쓰는 안쪽 통로. 플러그인에게는 보이지 않는다(공개 계약은 `DriveStep`) */
+interface StepLoop {
+  turn(input: TurnInput): Promise<TurnOutcome>;
+  spawn(spec: SpawnSpec): Promise<SpawnOutcome>;
+  ask(request: AskRequest): Promise<AskOutcome>;
+}
+
+/** 한 호출 안에서 단계 사이에 이어 가는 값 */
+interface StepProgress {
+  last: StepResult | null;
+  /** 요청 id 순번이 이어지는 상태 판과 다음 순번. 상태 판이 바뀌면 0부터 다시 센다(재시작 뒤 같은 단계가 같은 id를 만들게) */
+  rev: number | null;
+  nextIndex: number;
+  totalEffects: number;
+  quiet: number;
+}
+
+/** 한 단계의 실행이 끝난 모양. `result`면 다음 단계로 이어지고 나머지는 이번 호출이 끝난다 */
+type StepOutcome =
+  | { readonly kind: "result"; readonly result: StepResult }
+  | { readonly kind: "yield" }
+  | { readonly kind: "done" }
+  | { readonly kind: "inactive" };
+
+const INACTIVE: StepOutcome = { kind: "inactive" };
+
+/** `commit`으로 감싼 명령의 맨 안쪽(실제로 실행되는 마지막) 명령 */
+function finalCommandOf(command: DriveCommand<AnyState>): DriveCommand<AnyState> {
+  return command.do === "commit" ? finalCommandOf(command.next) : command;
+}
+
+/** 명령 하나를 실행하는 문맥 */
+interface StepContext {
+  readonly thread: ThreadRuntime;
+  readonly lease: LeaseRuntime;
+  readonly record: RegistrationRecord;
+  readonly generation: NonNullable<RegistrationRecord["generation"]>;
+  readonly loop: StepLoop;
+  readonly invocation: DriveInvocation;
+  /** 이 단계의 `last`가 사용자 메시지이면 그 메시지의 순번. 그 메시지로 여는 turn의 기본 요청 id 재료다 */
+  readonly userSeq: number | null;
+}
+
+/** 예외가 "거부" 결과가 될 수 있으면 그 코드. PrimitiveError는 `code`, 루프 거부는 `kind`를 쓴다. 그 밖은 버그라 undefined */
+function refusalCodeOf(error: unknown): string | undefined {
+  if (error instanceof PrimitiveError) return error.code;
+  if (error instanceof Error && "kind" in error && typeof error.kind === "string") {
+    return error.kind;
+  }
+  return undefined;
+}
+
+/** 승인 결과를 단계 결과로 옮긴다. 사람이 거부했으면 `denied`, 취소·만료·무인 처리는 `ask`의 변형이다 */
+function askStepResult(outcome: AskOutcome): StepResult {
+  if (outcome.status === "answered") {
+    return { kind: "ask", answer: "answered", value: outcome.answer };
+  }
+  switch (outcome.resolvedBy) {
+    case "user":
+      return { kind: "denied", by: "human", reason: outcome.feedback ?? null };
+    case "noninteractive":
+      return { kind: "ask", answer: "noninteractive", value: null };
+    case "expired":
+      return { kind: "ask", answer: "expired", value: null };
+    case "cancelled":
+    case "superseded":
+    // 플러그인의 `ask.human.before`가 질문을 취소한 경우다. 주도 쪽에는 취소로 보인다
+    case "extension":
+      return { kind: "ask", answer: "cancelled", value: null };
+    default:
+      return assertNever(outcome.resolvedBy, "askStepResult");
+  }
+}
+
+/** 명령 실행 하나를 부른다. 임대가 더는 활성이 아니면 이번 호출을 끝내고, 거부 사유가 있으면 `refused` 결과로 바꾼다 */
+async function runGuarded<T>(
+  ctx: StepContext,
+  call: () => Promise<T>,
+): Promise<
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly out: StepOutcome }
+> {
+  const called = await attemptAsync(call);
+  if (called.ok) return { ok: true, value: called.value };
+  const cause = called.error.cause;
+  if (ctx.lease.status !== "active") return { ok: false, out: INACTIVE };
+  if (
+    cause instanceof PrimitiveError &&
+    (cause.code === "lease_revoked" || cause.code === "lease_budget")
+  ) {
+    return { ok: false, out: INACTIVE };
+  }
+  const code = refusalCodeOf(cause);
+  if (code === undefined) throw cause;
+  return { ok: false, out: { kind: "result", result: { kind: "refused", code } } };
+}
+
 export interface LeaseBrokerHooks {
   /** 함수 쪽 사유로 반납이 정해진 뒤(error, idle) 다음 경계를 기다리지 않고 유휴 적용을 예약한다 */
   requestApply(threadId: ThreadRuntime["threadId"]): void;
@@ -279,11 +388,11 @@ export function createLeaseBroker(
     );
   }
 
-  function makeLoopHandle(
+  function makeStepLoop(
     thread: ThreadRuntime,
     lease: LeaseRuntime,
     invocation: DriveInvocation,
-  ): LoopHandle {
+  ): StepLoop {
     const requireLoop = () => {
       const loop = core.ports.get(LoopPortKey);
       if (loop === undefined) {
@@ -294,7 +403,7 @@ export function createLeaseBroker(
       return loop;
     };
     return {
-      // X-17 loop.ask(X.primitives.spec §4.4.4). 첫 호출은 question 승인을 열고 drive lock을 `waiting`으로 반납한다.
+      // X-17 `ask` 명령(X.primitives.spec §4.4.4). 첫 호출은 question 승인을 열고 drive lock을 `waiting`으로 반납한다.
       // 약속은 이행되지 않고 lease_revoked로 거부된다(drive 함수가 그 거부를 받아 unwind한다). 답이 이미 있으면 기록된 결과를 바로 돌려준다.
       // 기다리는 동안 turn·spawn 예산과 호출 순번은 쓰지 않는다
       async ask(request: AskRequest): Promise<AskOutcome> {
@@ -401,13 +510,280 @@ export function createLeaseBroker(
         }
         return result.outcome;
       },
-      get budget(): DriveLockBudget {
-        return budgetOf(lease);
-      },
-      get signal(): AbortSignal {
-        return lease.abort.signal;
-      },
     };
+  }
+
+  /**
+   * 명령 결과를 대화 로그에 남긴다(`drive.command_settled`, 결정 U1). 커밋 키가 (임대 scope, 명령 요청 id)라
+   * 재시작 뒤 같은 단계가 다시 돌아도 사건이 하나만 남는다
+   */
+  async function recordSettled(
+    ctx: StepContext,
+    requestId: string,
+    command: "turn" | "ask" | "spawn",
+    outcome: string,
+    ref?: string,
+  ): Promise<void> {
+    const records = core.ports.get(RecordCommitPortKey);
+    if (records === undefined) return;
+    const { thread, lease } = ctx;
+    const result = await records.commit({
+      threadId: thread.threadId,
+      requestId: `dcs:${sha256Hex(`${lease.scopeId}|${requestId}`).slice(0, 40)}`,
+      drafts: [
+        makeDraft(core.deps.ids, {
+          threadId: thread.threadId,
+          kind: "drive.command_settled",
+          payload: {
+            scopeId: lease.scopeId,
+            requestId,
+            command,
+            outcome,
+            ...(ref === undefined ? {} : { ref }),
+          },
+        }),
+      ],
+    });
+    if (result.status === "rejected") {
+      throw new PrimitiveError(
+        "storage_unavailable",
+        `the drive command result could not be recorded: ${result.code}`,
+        { scopeId: lease.scopeId },
+      );
+    }
+  }
+
+  /** 명령 하나를 블록으로 실행한다. `model`, `tool`, `handoff`는 E2·E3 전이라 거부 결과를 돌려준다 */
+  async function executeCommand(
+    ctx: StepContext,
+    command: DriveCommand<AnyState>,
+  ): Promise<StepOutcome> {
+    const { lease, invocation, loop, thread, record, generation } = ctx;
+    const nextId = (): string =>
+      ctx.userSeq === null
+        ? `${lease.lineageId}:${invocation.baseRev}.${invocation.i}`
+        : `${lease.lineageId}:u${String(ctx.userSeq)}.${invocation.i}`;
+    switch (command.do) {
+      case "turn": {
+        const requestId = command.requestId ?? nextId();
+        const ran = await runGuarded(ctx, () => loop.turn({ input: command.input, requestId }));
+        if (!ran.ok) return ran.out;
+        await recordSettled(ctx, requestId, "turn", ran.value.status, ran.value.turnId);
+        if (ran.value.status === "aborted" && thread.userStopped) {
+          return { kind: "result", result: { kind: "aborted" } };
+        }
+        return { kind: "result", result: { kind: "ok", of: "turn", value: ran.value } };
+      }
+      case "spawn": {
+        const requestId = command.requestId ?? nextId();
+        const ran = await runGuarded(ctx, () =>
+          loop.spawn({
+            agent: command.agent,
+            task: command.task,
+            requestId,
+            ...(command.background === undefined ? {} : { background: command.background }),
+            ...(command.label === undefined ? {} : { label: command.label }),
+          }),
+        );
+        if (!ran.ok) return ran.out;
+        await recordSettled(ctx, requestId, "spawn", ran.value.status, ran.value.childThreadId);
+        return { kind: "result", result: { kind: "ok", of: "spawn", value: ran.value } };
+      }
+      case "ask": {
+        const requestId = command.requestId ?? nextId();
+        const ran = await runGuarded(ctx, () =>
+          loop.ask({
+            requestId,
+            card: command.card,
+            ...(command.title === undefined ? {} : { title: command.title }),
+          }),
+        );
+        if (!ran.ok) return ran.out;
+        await recordSettled(
+          ctx,
+          requestId,
+          "ask",
+          ran.value.status === "answered" ? "answered" : ran.value.resolvedBy,
+        );
+        return { kind: "result", result: askStepResult(ran.value) };
+      }
+      case "commit": {
+        const committed = await runGuarded(ctx, () =>
+          stateService.commit(record, generation, command.state),
+        );
+        if (!committed.ok) return committed.out;
+        return executeCommand(ctx, command.next);
+      }
+      case "yield":
+        return { kind: "yield" };
+      case "done":
+        return { kind: "done" };
+      case "model":
+      case "tool":
+      case "handoff":
+        return { kind: "result", result: { kind: "refused", code: "command_unavailable" } };
+      default:
+        return assertNever(command, "executeCommand");
+    }
+  }
+
+  /** 전달 중이던 사용자 메시지를 코어 루프로 돌려보낸다. 입력 큐에 다음 입력으로 넣어 평소처럼 처리되게 한다 */
+  function returnUserMessage(
+    thread: ThreadRuntime,
+    lease: LeaseRuntime,
+    item: PostItem,
+    index = 0,
+  ): void {
+    const queue = core.ports.get(InputQueuePortKey);
+    if (queue === undefined) return;
+    detach(
+      queue
+        .enqueue({
+          threadId: thread.threadId,
+          scopeId: lease.scopeId,
+          requestId: `user-return:${lease.leaseId}:${String(index)}`.slice(0, 64),
+          // `next`는 도는 turn에 붙기만 하고 유휴 thread에서 turn을 시작하지 않는다. 돌려받은 사용자 말은 끝난 뒤에라도 turn이 되어야 한다
+          when: "followUp",
+          item,
+        })
+        .then(() => undefined),
+      (cause) => {
+        core.deps.report({
+          level: "error",
+          code: "handler_failed",
+          scopeId: lease.scopeId,
+          message: "a user message could not be handed back to the loop",
+          cause,
+        });
+      },
+    );
+  }
+
+  /** 임대가 내려가면 전달하지 못한 사용자 메시지를 코어 루프로 돌려보낸다(메시지가 묻히지 않게) */
+  function flushUserMessages(thread: ThreadRuntime, lease: LeaseRuntime): void {
+    const pending = [
+      ...(lease.deliveredUser === null ? [] : [lease.deliveredUser]),
+      ...lease.inbox,
+    ];
+    lease.deliveredUser = null;
+    lease.userSteps = null;
+    lease.inbox.length = 0;
+    pending.forEach((item, index) => {
+      returnUserMessage(thread, lease, item, index);
+    });
+  }
+
+  /**
+   * 다음 단계의 `last`를 정한다. 전달할 사용자 메시지가 있으면 그 메시지가 `last`다(2.4).
+   * 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT` 단계 안에 처리하지 않으면 임대를 내리고 메시지를 코어 루프로 돌려보낸다.
+   * 처리는 `turn`이나 `done` 명령이다. 돌려보냈으면 참
+   */
+  function nextLast(
+    thread: ThreadRuntime,
+    lease: LeaseRuntime,
+    last: StepResult | null,
+  ): { readonly last: StepResult | null; readonly handedBack: boolean } {
+    if (lease.deliveredUser !== null && lease.userSteps !== null) {
+      lease.userSteps += 1;
+      if (lease.userSteps > USER_MESSAGE_STEP_LIMIT) {
+        returnUserMessage(thread, lease, lease.deliveredUser);
+        lease.deliveredUser = null;
+        lease.userSteps = null;
+        release(lease, "revoked");
+        return { last, handedBack: true };
+      }
+    }
+    const message = lease.inbox.shift();
+    if (message === undefined) return { last, handedBack: false };
+    lease.deliveredUser = message;
+    lease.userSteps = 0;
+    lease.userSeq += 1;
+    return { last: { kind: "user", message }, handedBack: false };
+  }
+
+  /**
+   * 단계를 하나씩 돌린다: 단계 함수에 입력을 주고, 돌려받은 명령을 실행하고, 결과를 다음 단계의 `last`로 준다.
+   * `yield`, `done`, 임대 반납, 효과 없는 단계의 상한(`MAX_CHAINED_REINVOKES`)에서 끝난다
+   */
+  async function runSteps(
+    thread: ThreadRuntime,
+    lease: LeaseRuntime,
+    record: RegistrationRecord,
+    generation: NonNullable<RegistrationRecord["generation"]>,
+    drive: NonNullable<NonNullable<RegistrationRecord["generation"]>["drive"]>,
+    progress: StepProgress,
+  ): Promise<"yield" | "done" | "inactive"> {
+    if (lease.status !== "active") return "inactive";
+    const next = nextLast(thread, lease, progress.last);
+    if (next.handedBack) return "inactive";
+    const baseRev = stateService.revOf(thread.threadId, lease.scopeId);
+    if (progress.rev !== baseRev) {
+      progress.rev = baseRev;
+      progress.nextIndex = 0;
+    }
+    const invocation: DriveInvocation = {
+      leaseId: lease.leaseId,
+      lineageId: lease.lineageId,
+      baseRev,
+      signal: lease.abort.signal,
+      i: progress.nextIndex,
+      effects: 0,
+    };
+    const ctx: StepContext = {
+      thread,
+      lease,
+      record,
+      generation,
+      loop: makeStepLoop(thread, lease, invocation),
+      invocation,
+      userSeq: next.last?.kind === "user" ? lease.userSeq : null,
+    };
+    const outcome = await withAmbient(
+      {
+        threadId: thread.threadId,
+        scopeId: lease.scopeId,
+        point: null,
+        dispatchKey: null,
+        counter: 0,
+        drive: invocation,
+        handler: null,
+      },
+      async () => {
+        const command = await drive.fn({
+          state: stateAs(stateService.docOf(thread.threadId, lease.scopeId)),
+          last: next.last,
+          budget: budgetOf(lease),
+          frame: { frameDepth: 1, calledBy: null, input: null },
+        });
+        if (lease.deliveredUser !== null) {
+          // 처리는 `turn`(commit으로 감싸도 같다)이나 `done`이다. `done`으로 물러나면 메시지는 코어 루프가 받는다
+          const final = finalCommandOf(command);
+          if (final.do === "turn" || final.do === "done") {
+            if (final.do === "done") returnUserMessage(thread, lease, lease.deliveredUser);
+            lease.deliveredUser = null;
+            lease.userSteps = null;
+          }
+        }
+        return executeCommand(ctx, command);
+      },
+    );
+    progress.nextIndex = Math.max(invocation.i, progress.nextIndex + 1);
+    progress.totalEffects += invocation.effects;
+    progress.quiet = invocation.effects > 0 ? 0 : progress.quiet + 1;
+    if (outcome.kind === "result" || outcome.kind === "yield") lease.engaged = true;
+    if (outcome.kind !== "result") return outcome.kind;
+    progress.last = outcome.result;
+    if (progress.quiet >= MAX_CHAINED_REINVOKES) {
+      core.deps.report({
+        level: "info",
+        code: "scope_notice",
+        scopeId: lease.scopeId,
+        extension: record.extension,
+        message: `drive of ${lease.scopeId} ran ${String(MAX_CHAINED_REINVOKES)} commands in a row without an effect; it is asked again at the next boundary`,
+      });
+      return "yield";
+    }
+    return runSteps(thread, lease, record, generation, drive, progress);
   }
 
   async function invoke(thread: ThreadRuntime, lease: LeaseRuntime): Promise<void> {
@@ -419,7 +795,7 @@ export function createLeaseBroker(
       return;
     }
     if (generation.stale) {
-      // 공급자 재시작으로 세대를 다시 만드는 중이다. 임대는 두고 다음 경계에서 새 drive 함수로 이어 간다
+      // 공급자 재시작으로 세대를 다시 만드는 중이다. 임대는 두고 다음 경계에서 새 단계 함수로 이어 간다
       lease.running = false;
       lease.wantInvoke = true;
       return;
@@ -430,48 +806,35 @@ export function createLeaseBroker(
       lease.running = false;
       return;
     }
-    const baseRev = stateService.revOf(thread.threadId, lease.scopeId);
-    const invocation: DriveInvocation = {
-      leaseId: lease.leaseId,
-      lineageId: lease.lineageId,
-      baseRev,
-      signal: lease.abort.signal,
-      i: 0,
-      effects: 0,
+    const startRev = stateService.revOf(thread.threadId, lease.scopeId);
+    const progress: StepProgress = {
+      last: null,
+      rev: null,
+      nextIndex: 0,
+      totalEffects: 0,
+      quiet: 0,
     };
-    lease.lastBaseRev = baseRev;
-    const handle = makeLoopHandle(thread, lease, invocation);
+    let end: "yield" | "done" | "inactive" = "yield";
     try {
-      await withAmbient(
-        {
-          threadId: thread.threadId,
-          scopeId: lease.scopeId,
-          point: null,
-          dispatchKey: null,
-          counter: 0,
-          drive: invocation,
-          handler: null,
-        },
-        () => drive.fn(handle, stateService.docOf(thread.threadId, lease.scopeId)),
-      );
+      end = await runSteps(thread, lease, record, generation, drive, progress);
     } catch (error) {
       lease.running = false;
       if (lease.status !== "active") {
-        // 상한 소진·회수로 이미 반납이 정해졌다. 함수가 그 거부를 그대로 던진 것은 오류가 아니다
+        // 상한 소진·회수로 이미 반납이 정해졌다. 거부를 그대로 던진 것은 오류가 아니다
         if (lease.status === "releasing") hooks.requestApply(thread.threadId);
         return;
       }
       record.driveError = true;
       record.lastError = {
         code: error instanceof PrimitiveError ? error.code : "registration_setup_failed",
-        message: error instanceof Error ? error.message : "drive function threw",
+        message: error instanceof Error ? error.message : "drive step threw",
       };
       core.deps.report({
         level: "error",
         code: error instanceof PrimitiveError ? error.code : "handler_failed",
         scopeId: lease.scopeId,
         extension: record.extension,
-        message: "drive function threw; lease released with error",
+        message: "drive step threw; lease released with error",
         cause: error,
       });
       release(lease, "error");
@@ -479,46 +842,40 @@ export function createLeaseBroker(
       return;
     }
     lease.running = false;
+    const endRev = stateService.revOf(thread.threadId, lease.scopeId);
+    lease.lastBaseRev = endRev;
+    if (lease.status !== "active" || end === "done") flushUserMessages(thread, lease);
+    if (end === "done" && lease.status === "active") {
+      thread.withdrawn.set(lease.scopeId, endRev);
+      release(lease, "done");
+      hooks.requestApply(thread.threadId);
+      return;
+    }
     if (lease.status !== "active") {
       if (lease.status === "releasing") hooks.requestApply(thread.threadId);
       return;
     }
-    // 같은 상태 판으로 효과 없이 두 번 연속 반환하면 idle 반납(X.primitives.spec §4.4.3)
-    if (invocation.effects > 0) {
+    // 같은 상태 판으로 효과 없이 두 번 연속 `yield`로 끝나면 idle 반납(X.primitives.spec §4.4.3)
+    if (progress.totalEffects > 0) {
       lease.idleStreak = 0;
-    } else if (lease.idleRev === baseRev) {
+    } else if (lease.idleRev === startRev) {
       lease.idleStreak += 1;
     } else {
-      lease.idleRev = baseRev;
+      lease.idleRev = startRev;
       lease.idleStreak = 1;
     }
-    if (lease.idleStreak >= 2) {
+    // 전달한 사용자 메시지를 아직 처리하지 않았으면 idle로 내리지 않는다: 아래에서 다시 불러 단계 한도 안에 돌려보내게 한다
+    if (lease.idleStreak >= 2 && lease.inbox.length === 0 && lease.deliveredUser === null) {
       release(lease, "idle");
       hooks.requestApply(thread.threadId);
       return;
     }
-    // 실행 중에 호출 조건이 지나갔고 thread가 유휴면 바로 다시 부른다
-    if (lease.missed && loopStatusIdle(thread.threadId)) {
-      start(thread, lease);
-      return;
-    }
-    // 이 호출이 상태만 커밋하고 반환하면(turn·spawn 경계가 없다) 다음 경계가 오지 않는다. 새 상태 판으로 바로 다시 부른다.
-    // 상태를 계속 바꾸는 drive가 무한히 돌지 않게 연속 횟수에 상한을 둔다(X.primitives.spec §4.4.3)
+    // 실행 중에 호출 조건이 지나갔거나 사용자 메시지가 와 있고 thread가 유휴면 바로 다시 부른다
+    // 전달한 메시지를 `yield`로 넘겼으면 다음 경계를 기다리지 않고 다시 불러 단계를 센다(2.4: 3단계 안에 처리하지 않으면 코어 루프로 돌아간다)
     if (
-      stateService.revOf(thread.threadId, lease.scopeId) !== baseRev &&
+      (lease.missed || lease.inbox.length > 0 || lease.deliveredUser !== null) &&
       loopStatusIdle(thread.threadId)
     ) {
-      if (lease.chained >= MAX_CHAINED_REINVOKES) {
-        core.deps.report({
-          level: "info",
-          code: "scope_notice",
-          scopeId: lease.scopeId,
-          extension: record.extension,
-          message: `drive of ${lease.scopeId} committed state ${String(MAX_CHAINED_REINVOKES)} times in a row without a boundary; it is called again at the next boundary`,
-        });
-        return;
-      }
-      lease.chained += 1;
       start(thread, lease);
     }
   }
@@ -541,10 +898,15 @@ export function createLeaseBroker(
       if (generation === null || generation.stale) continue;
       if (!generation.open && !txn.opening.includes(record)) continue;
       if (generation.drive === null) continue;
-      // 그 상태 문서에서 락을 원하지 않으면 후보가 아니다(`DriveOptions.wants`). 유휴 drive가 락을 쥐고 다른 그룹을 기다리게 하지 않는다
-      const wants = generation.drive.options.wants;
-      if (wants !== undefined && !wants(stateService.docOf(thread.threadId, record.id))) continue;
-      // loop.ask로 답을 기다리는 Registration은 답이 해결될 때까지 후보가 아니다. trackWaiting도 이 목록으로 대기를 세므로
+      // `done`으로 물러난 scope는 그 상태 판이 바뀌기 전까지 후보가 아니다(턴이 정착해도 풀리지 않는다)
+      const withdrawnAt = thread.withdrawn.get(record.id);
+      if (
+        withdrawnAt !== undefined &&
+        withdrawnAt === stateService.revOf(thread.threadId, record.id)
+      ) {
+        continue;
+      }
+      // `ask` 명령으로 답을 기다리는 Registration은 답이 해결될 때까지 후보가 아니다. trackWaiting도 이 목록으로 대기를 세므로
       // 답을 기다리는 동안에는 x.primitives.leaseWaitLimit의 대기 계수에 들지 않는다(X-17)
       if (askWaiting.get(thread)?.has(record.id) === true) continue;
       const cooled = thread.cooldown.get(record.id);
@@ -648,7 +1010,11 @@ export function createLeaseBroker(
       running: false,
       wantInvoke: true,
       missed: false,
-      chained: 0,
+      engaged: false,
+      userSeq: 0,
+      inbox: [],
+      userSteps: null,
+      deliveredUser: null,
       committed: false,
     };
   }
@@ -730,7 +1096,11 @@ export function createLeaseBroker(
         running: false,
         wantInvoke: true,
         missed: false,
-        chained: 0,
+        engaged: false,
+        userSeq: 0,
+        inbox: [],
+        userSteps: null,
+        deliveredUser: null,
         committed: true,
       };
       thread.lease = lease;
@@ -830,6 +1200,18 @@ export function createLeaseBroker(
       // 반납이 커밋되면 같은 경계에서 못 한 다음 후보의 부여를 이어서 판단한다
       if (txn.releasing.length > 0) hooks.requestApply(thread.threadId);
     },
+    claimUserInput(thread, item) {
+      if (thread.child) return false;
+      const lease = thread.lease;
+      if (lease === null || lease.status !== "active" || !lease.committed || !lease.engaged) {
+        return false;
+      }
+      const record = core.scopes.get(lease.scopeId);
+      if (record === undefined || record.generation?.open !== true) return false;
+      lease.inbox.push(item);
+      if (!lease.running && loopStatusIdle(thread.threadId)) start(thread, lease);
+      return true;
+    },
     onDirectCommit(thread, scopeId) {
       // 명령이 돌아온 뒤에 실행하려고 lifecycle 디스패치처럼 한 번 넘긴다
       core.track(
@@ -864,7 +1246,6 @@ export function createLeaseBroker(
       const record = core.scopes.get(lease.scopeId);
       if (record === undefined || record.generation?.open !== true) return;
       if (signal.kind === "step_end") return;
-      lease.chained = 0;
       if (lease.running) {
         lease.missed = true;
         return;

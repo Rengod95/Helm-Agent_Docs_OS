@@ -1,18 +1,23 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { RegistrationSetup } from "@fresnel/contracts/extensions";
+import type { DriveCommand, RegistrationSetup } from "@fresnel/contracts/extensions";
 import { createStaticPrimitivesSettings } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeGroupUnit, makeManifest, makeUnit } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
-/** drive를 등록하는 setup. 드라이브 함수가 불리면 `name`을 기록하고 turn을 하나 낸다 */
+/** 상태가 없는 그룹의 명령(S가 never) */
+type Command = DriveCommand<never>;
+
+/** drive를 등록하는 setup. 첫 단계(`last`가 null)에서 `name`을 기록하고 turn을 하나 낸다. turn 결과를 받은 단계는 끝낸다 */
 function drivingSetup(calls: string[], name: string): RegistrationSetup<never> {
   return (g) => {
-    g.drive(async (loop) => {
-      calls.push(name);
-      await loop.turn({ input: { kind: "user", content: name } });
+    g.drive(({ last }) => {
+      if (last === null) calls.push(name);
+      const command: Command =
+        last === null ? { do: "turn", input: { kind: "user", content: name } } : { do: "yield" };
+      return Promise.resolve(command);
     });
   };
 }
@@ -68,7 +73,12 @@ test("an open policy lets the same plain extension register drive and take the l
   await t.host.openThread(thread);
   await t.settled();
   expect(calls).toEqual(["drv-open"]);
-  expect(eventKinds(t, thread)).toEqual(["scope.changed", "lease.acquired"]);
+  // 턴 결과가 주도 명령 정착 사건으로 남는다(drive.command_settled)
+  expect(eventKinds(t, thread)).toEqual([
+    "scope.changed",
+    "lease.acquired",
+    "drive.command_settled",
+  ]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-open", status: "active" });
   expect(t.host.registrations()).toMatchObject([
     { id: "drv-open", status: "enabled", drive: "holding" },

@@ -149,13 +149,22 @@ test("settings: reserved defs shape", () => {
     allowedScopes: ["managed"],
     layer: "L2",
   });
+  // 기본은 process다(F5). 매니페스트가 isolation을 정하면 그 값이 기본이다. 설정 값 none은 엔진 안 실행을 허용한다
   expect(isolation).toMatchObject({
     key: "ext.set-shape.isolation",
-    default: "none",
+    default: "process",
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
     range: { enum: ["none", "process"] },
   });
+  expect(isolation?.ui).toMatchObject({
+    help: "none = allow running inside the engine. process = run in its own plugin process (default).",
+  });
+  // 매니페스트가 none을 정하면 설정 기본도 none이다
+  const pinned = reservedExtensionSettings({ ...manifest, isolation: "none" }, "user").defs.find(
+    (def) => def.key === "ext.set-shape.isolation",
+  );
+  expect(pinned?.default).toBe("none");
   expect(enabled?.ui).toMatchObject({
     label: "Enable set-shape",
     labelKey: "settings.ext.enabled.label",

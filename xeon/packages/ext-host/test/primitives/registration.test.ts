@@ -23,8 +23,9 @@ test("disable applies at step boundary", async () => {
       g.onDispose(() => {
         order.push("onDispose-2");
       });
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: "go" } });
+      g.drive(async ({ last }) => {
+        if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: "go" } };
       });
     }),
   );
@@ -339,8 +340,9 @@ async function disableRacingIdle(
   const thread = t.newThread();
   await t.host.install(
     makeGroupUnit({ name: "scp-race" }, (g) => {
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: "go" } });
+      g.drive(async ({ last }) => {
+        if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: "go" } };
       });
     }),
   );

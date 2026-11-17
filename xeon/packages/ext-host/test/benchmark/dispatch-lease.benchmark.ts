@@ -94,7 +94,7 @@ async function turnBatch(withDrive: boolean): Promise<TurnBatch> {
       makeGroupUnit({ name: "benchmark-drive" }, (g) => {
         g.drive(() => {
           drives += 1;
-          return Promise.resolve();
+          return Promise.resolve({ do: "yield" });
         });
       }),
     );

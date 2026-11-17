@@ -125,6 +125,7 @@ import {
   type RequestBodyInput,
 } from "./assembly/measure/recorder.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
+import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -143,7 +144,13 @@ import {
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
 import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
+import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
+import {
+  createPluginHostAssembly,
+  processPortOf,
+  sandboxSourceOf,
+} from "./assembly/plugin-host.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
@@ -250,6 +257,28 @@ function retentionDaysOf(catalog: SettingCatalog, settings: SettingsEngine): num
   return typeof value === "number" && Number.isInteger(value) && value >= 1
     ? value
     : DEFAULT_RETENTION_DAYS;
+}
+
+/** 지표와 발견 설정의 유효 값(M5d §3.6). 카탈로그에 없거나 모양이 틀리면 문서의 기본값이다 */
+function metricsSettingsOf(
+  catalog: SettingCatalog,
+  settings: SettingsEngine,
+): MetricsSettingsValues {
+  const read = (key: string): unknown => (catalog.has(key) ? settings.value(key) : undefined);
+  const minSample = read("x.operations.metrics.minSample");
+  const windowDays = read("x.operations.metrics.defaultWindowDays");
+  return {
+    minSample:
+      typeof minSample === "number" && Number.isInteger(minSample) && minSample >= 1
+        ? minSample
+        : 20,
+    defaultWindowDays:
+      typeof windowDays === "number" && Number.isInteger(windowDays) && windowDays >= 1
+        ? windowDays
+        : 30,
+    findingsEnabled: read("x.operations.findings.enabled") !== false,
+    findingOverrides: read("x.operations.findings.overrides") ?? {},
+  };
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -366,6 +395,19 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
  * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `input.bash.before`의 cwd가 왜 비었는지 알 수 없다.
  * 설정 층(project·local 파일)과 `input.bash.before`의 cwd가 같은 값을 쓴다
  */
+/**
+ * 열기 훅(`thread.resources`)이 대화에 낸 스킬 경로(H-7). 열기 결과는 열기 단계가 끝나야 나온다(`openSettled`).
+ * 세션이 아직 없으면 빈 목록이다
+ */
+function openedSkillPathsOf(ext: ExtHost): (threadId: ThreadId) => Promise<readonly string[]> {
+  return async (threadId) => {
+    const session = ext.ports.get(SESSION_KEY);
+    if (session === undefined) return [];
+    const opened = await session.threads.openSettled(threadId);
+    return opened?.skillPaths ?? [];
+  };
+}
+
 export function threadWorkspaceOf(
   ext: ExtHost,
   logger: Logger,
@@ -614,7 +656,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
     recordBody: ((input: RequestBodyInput) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined, recordBody: undefined };
+    /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
+    forgetThread: ((threadId: string) => void) | undefined;
+  } = { stop: undefined, recordFailure: undefined, recordBody: undefined, forgetThread: undefined };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
   const bodySteps = new Map<string, number>();
   const offerRequestBody = (offer: RequestBodyOffer): void => {
@@ -645,10 +689,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     loader: ExtensionLoader | undefined;
     unbridge: (() => void) | undefined;
     unfollowBuiltin: (() => void) | undefined;
+    /** 격리 확장의 표준오류 꼬리 읽기(진단용). 외부 확장을 싣지 않으면 undefined다 */
+    pluginHostStderrTail: ((name: string) => readonly string[]) | undefined;
   } = {
     loader: undefined,
     unbridge: undefined,
     unfollowBuiltin: undefined,
+    pluginHostStderrTail: undefined,
   };
 
   const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
@@ -785,6 +832,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         settings: { shutdownTimeoutMs: shutdownTimeoutMs(settings) },
         exit,
         shutdown: shutdownCoordinator,
+        // 격리 자식의 샌드박스. fresnel.sandbox는 이 포트보다 늦게 올라오므로 spawn 때마다 찾는다. 없으면 격리 자식은 막힌다(닫힌 실패)
+        sandbox: options.pluginHost?.sandbox ?? sandboxSourceOf(ext),
       }),
     );
 
@@ -1041,6 +1090,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         settings,
         workspaceOf,
+        openedSkillPaths: openedSkillPathsOf(ext),
         db: store.value.root,
         faults: store.value.faults,
         holder,
@@ -1080,6 +1130,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
         onLeaseLost: (threadId) => {
           logger.error("persistence.lease_lost", { threadId });
+        },
+        // 대화를 지우면 측정 저장소의 턴 기록도 지운다(규칙 9). 저장소가 아직 없으면 지울 것도 없다
+        onThreadRemoved: (threadId) => {
+          measureSlot.forgetThread?.(threadId);
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
@@ -1133,6 +1187,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         os.logger("ext-loader").warn("ext.extra_path_ignored", { path });
       }
       // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
+      // 격리 확장: 띄우기 포트(fresnel.process)와 띄우기 설정이 둘 다 있어야 격리가 켜진다(L4.host-service.spec §4.9)
+      const processPort = processPortOf(ext);
+      const pluginHosts = createPluginHostAssembly({
+        scheduler: os.time.scheduler,
+        logger: os.logger("plugin-host"),
+        maskSecrets: (line) => secrets.service.redactor.mask(line).text,
+        autoDisabler: operations.autoDisabler,
+        ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
+      });
       const loaded = await loadExternalExtensions({
         ext,
         operations,
@@ -1144,12 +1207,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         trustBackend: fileBackend(join(os.dirs.config, "trust.json"), osHandle.fileLock),
         clock,
         logger: os.logger("ext-loader"),
-        enabled: (name) => {
-          const key = `ext.${name}.enabled`;
-          // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그때는 사용자 파일에 적힌 값을 그대로 읽는다(재시작 뒤에도 끈 채로 있게)
-          const value = built.catalog.has(key) ? settings.value(key) : undefined;
-          return typeof value === "boolean" ? value : undefined;
-        },
+        // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그래서 키가 카탈로그에 없으면 사용자 파일의 값을 읽는다(ext-settings.ts)
+        settings: extSettingsOf(built.catalog, settings),
+        // 시험이 끄면 포트와 설정을 둘 다 넘기지 않는다(그러면 사용자 확장은 엔진 안에서 돈다)
+        ...(processPort === undefined || options.pluginHost?.disabled === true
+          ? {}
+          : { process: processPort }),
+        ...(options.pluginHost?.disabled === true ? {} : { isolation: pluginHosts.isolation }),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
         signal: lifetime.signal,
@@ -1157,6 +1221,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
       });
+      options.pluginHost?.onLoadReport?.(loaded.report);
+      external.pluginHostStderrTail = pluginHosts.stderrTail;
       external.loader = loaded.loader;
       externalGroups.push(...loaded.manifests);
       external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
@@ -1265,6 +1331,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
+    measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,
@@ -1289,6 +1356,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       measure: {
         store: () => measurement.store,
         enabled: () => operations.trace().enabled,
+        retentionDays: () => retentionDaysOf(built.catalog, settings),
+        now: () => clock.now(),
+        metrics: () => metricsSettingsOf(built.catalog, settings),
       },
       mode: options.mode,
       toolOutputs,

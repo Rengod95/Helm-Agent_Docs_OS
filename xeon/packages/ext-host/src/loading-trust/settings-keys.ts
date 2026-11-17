@@ -42,8 +42,9 @@ export function reservedExtensionSettings(
   };
   const isolation: SettingDefInput = {
     // 열거는 range.enum이 정한다(F.wire-settings D5·D6: 타입과 range에 같은 제약을 두지 않는다)
+    // 기본은 매니페스트 값이고, 매니페스트가 없으면 process다(F5). 설정 값 none은 엔진 안 실행을 허용한다
     type: Type.String(),
-    default: manifest.isolation ?? "none",
+    default: manifest.isolation ?? "process",
     range: { enum: ["none", "process"] },
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
@@ -52,6 +53,7 @@ export function reservedExtensionSettings(
       widget: "select",
       order: 20,
       label: `${shownName} isolation`,
+      help: "none = allow running inside the engine. process = run in its own plugin process (default).",
       labelKey: "settings.ext.isolation.label",
       labelArgs: { name: shownName },
     },

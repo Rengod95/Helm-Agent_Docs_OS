@@ -88,10 +88,10 @@ export const ThreadUpdatedPayloadSchema: TObject<{
   title: TAddOptional<TUnion<[TString, TNull]>>;
   titleSource: TAddOptional<typeof ThreadTitleSourceSchema>;
   model: TAddOptional<TUnion<[TString, TNull]>>;
+  workspace: TAddOptional<TString>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
   profileId: TAddOptional<TString>;
-  workspace: TAddOptional<TString>;
 }> = Type.Object(
   {
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
@@ -99,16 +99,14 @@ export const ThreadUpdatedPayloadSchema: TObject<{
     titleSource: Type.Optional(ThreadTitleSourceSchema),
     /** 이 대화가 다음 turn부터 쓸 모델 참조(`provider/id`). null이면 지정을 거둬 기본 모델로 돌아간다. 필드가 없으면 바꾸지 않는다 */
     model: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 200 }))),
+    /** 대화 폴더(절대 경로, 정규 경로). 첫 턴 전에 열기 훅(`thread.resources`)의 결과로만 커밋한다(H-7). 없으면 바꾸지 않는다 */
+    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
     /**
      * 프로필 전환(`thread.setProfile`). `model`과 같은 규칙이다: 활성 가지의 마지막 값이 현재 값이다. 필드가 없으면 바꾸지 않는다 [M5c §3.2]
      */
     profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
-    /**
-     * 대화 폴더 확정. "대화 시작" 훅이 경로를 정할 때만 쓰고, 첫 턴 전에만 쓴다. 새 폴더는 같은 프로젝트 루트 안이어야 한다 [M5c §3.2, §4.4.9]
-     */
-    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
   },
   { additionalProperties: false },
 );

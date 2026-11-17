@@ -22,7 +22,7 @@ function installDriveGroups(t: Host, names: readonly string[]): Promise<void> {
     await t.host.install(
       makeGroupUnit({ name, loadIndex }, (g) => {
         g.drive(() => {
-          return Promise.resolve();
+          return Promise.resolve({ do: "yield" });
         });
       }),
     );
@@ -201,9 +201,11 @@ function installStableGroups(t: Host, names: readonly string[]): Promise<void> {
   return eachInOrder(names.entries(), async ([loadIndex, name]) => {
     await t.host.install(
       makeGroupUnit({ name, loadIndex, def: counterDef }, (g) => {
-        g.drive(async (_loop, state) => {
-          await g.commit({ n: state.n + 1 });
-        });
+        g.drive(async ({ state }) => ({
+          do: "commit",
+          state: { n: state.n + 1 },
+          next: { do: "yield" },
+        }));
       }),
     );
     return "continue";

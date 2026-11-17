@@ -33,7 +33,11 @@ async function rig(name: string, kind: "on" | "drive") {
         );
       };
       if (kind === "on") api.on("boundary.settle.after", run);
-      else api.drive(run);
+      else
+        api.drive(async () => {
+          await run();
+          return { do: "yield" };
+        });
     },
   );
   return { t, thread, agents, g, seen };

@@ -73,10 +73,18 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   await t.host.openThread(thread);
   await t.settled();
 
-  // drive: 임대를 받아 loop.turn을 한 번 부르고 상태를 커밋한다
+  // drive: 임대를 받아 turn 명령을 한 번 내고 상태를 커밋한다. turn 명령의 결과 사건(drive.command_settled)이 남고 commit은 상태 커밋 사건이 그 기록이다
   expect(t.loop.turns).toHaveLength(1);
-  const kinds = t.records.events(thread).map((event) => event.kind);
-  expect(kinds).toEqual(["scope.changed", "lease.acquired", "grp.smoke-group.state.committed"]);
+  const events = t.records.events(thread);
+  expect(events.map((event) => event.kind)).toEqual([
+    "scope.changed",
+    "lease.acquired",
+    "drive.command_settled",
+    "grp.smoke-group.state.committed",
+  ]);
+  expect(
+    events.filter((event) => event.kind === "drive.command_settled").map((event) => event.payload),
+  ).toMatchObject([{ command: "turn", outcome: "completed" }]);
 
   // tool_call: 쓰기 도구만 거부한다
   const denied = await t.host.dispatch(
@@ -140,7 +148,7 @@ test("smoke.toggle-applies-at-step-boundary", async () => {
   await install(t, smokeGroup());
   await t.host.openThread(thread);
   await flushMicrotasks(200);
-  // drive의 loop.turn이 진행 중이다
+  // drive의 turn 명령이 진행 중이다
   expect(t.loop.turns).toHaveLength(1);
 
   t.host.registration("smoke-group")?.disable();

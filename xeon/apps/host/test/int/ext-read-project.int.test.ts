@@ -67,7 +67,7 @@ realTest(
     const handle = handleOf(
       await startService({
         runtimeDir: runtime.dir,
-        assemble: { devChecks: true, defaultPluginsDir: bundles },
+        assemble: { pluginHost: { disabled: true }, devChecks: true, defaultPluginsDir: bundles },
         time: manualTime(),
         handleSignals: false,
         startupGraceMs: 0,

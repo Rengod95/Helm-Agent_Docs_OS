@@ -77,6 +77,7 @@ import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
+import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
   createUsageSource,
   EMPTY_TALLY,
@@ -310,6 +311,12 @@ function openThreadProfilesOf(session: PortsDeps["session"]): readonly (string |
   return profiles;
 }
 
+/** 열기 훅이 낸 경로를 정규 경로로 바꾼다. 없거나 폴더가 아니면 undefined다(H-7 `workspace_missing`) */
+async function canonicalFolder(path: string): Promise<string | undefined> {
+  const canonical = await canonicalWorkspace(path);
+  return canonical.ok ? canonical.value : undefined;
+}
+
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
@@ -328,6 +335,19 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /** Test run 대화(X-19). 만들 때 표지하고 다시 열 때도 확장 호스트에 넘긴다. 지우면 비운다 */
   const testRunThreads = new Set<ThreadId>();
+  /** 같은 표지를 측정 저장소에도 적는다(규칙 32). 재시작 뒤 메모리 표지가 비어도 되살린다 */
+  const testMarks = createTestRunMarks({
+    store: () => deps.measure.store(),
+    clock: deps.clock,
+    logger,
+  });
+  /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
+  function isTestRunThread(threadId: ThreadId): boolean {
+    if (testRunThreads.has(threadId)) return true;
+    if (testMarks.recall(threadId) === undefined) return false;
+    testRunThreads.add(threadId);
+    return true;
+  }
 
   const threads: ThreadPort = {
     async create(input) {
@@ -348,7 +368,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
-      if (input.testRun === true) testRunThreads.add(created.value.threadId);
+      if (input.testRun === true) {
+        testRunThreads.add(created.value.threadId);
+        // 범위 표지는 계측 설정과 무관하게 쓴다(`tr_thread.scope_kind = test`)
+        testMarks.remember(created.value.threadId, null);
+      }
       const head = session.feed.headSeq();
       if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
       return { threadId: created.value.threadId, position: { storeId, seq: head.value } };
@@ -419,6 +443,29 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const head = session.feed.headSeq();
       if (!head.ok) return head;
       return ok({ threadId: forked.value.threadId, position: { storeId, seq: head.value } });
+    },
+    async applyOpenWorkspace(threadId) {
+      // 열기마다 새 키다. 같은 키로 다른 폴더를 쓰면 key_reused라서 호출 한 번이 커밋 한 번이다
+      const applied = await session.threads.applyOpenWorkspace(
+        threadId,
+        canonicalFolder,
+        deps.ids.next("evt"),
+      );
+      if (!applied.ok) {
+        logger.warn("host.open_workspace_failed", { threadId, reason: applied.error.kind });
+        return;
+      }
+      for (const diagnostic of applied.value.diagnostics) {
+        logger.warn(`hook.${diagnostic.code}`, { threadId, candidate: diagnostic.candidate });
+      }
+    },
+    sameFolder(threadId) {
+      const found = session.threads.sameFolder(threadId);
+      if (!found.ok) {
+        logger.warn("host.same_folder_unreadable", { threadId, reason: found.error.kind });
+        return [];
+      }
+      return found.value.map((thread) => ({ threadId: thread.threadId, status: thread.status }));
     },
     async revert(threadId, to) {
       // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다
@@ -553,7 +600,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         }
         throw new Bug("loop.admit queued the input without a running turn");
       case "handled":
-        throw new Bug("loop.admit: an extension handled the input without starting a turn");
+        // 주도 중인 플러그인이 받았거나 input 훅이 처리를 끝냈다. 접수는 됐고 turn은 아직 없다
+        return { ok: true, delivered: true };
       default:
         return assertNever(outcome, "AdmitResult");
     }
@@ -720,7 +768,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
-      await ext.openThread(threadId, testRunThreads.has(threadId) ? { testRun: true } : undefined);
+      await ext.openThread(threadId, isTestRunThread(threadId) ? { testRun: true } : undefined);
     } catch (caught) {
       await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
@@ -974,6 +1022,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         fileLock: deps.fileLock,
         clock: deps.clock,
         signal: deps.signal,
+        testRunMarks: testMarks,
       },
       createExtReadSources(deps.extRead, {
         ext: deps.ext,

@@ -76,10 +76,13 @@ test("authoring.validate: AU-012 reports replay-discipline violations of the dri
   const dir = await scaffolded("v-replay");
   const file = join(dir, "src", "index.ts");
   const source = readFileSync(file, "utf8");
-  expect(source).toContain('if (st.phase === "done") return;');
+  expect(source).toContain('if (state.phase === "done") return { do: "yield" };');
   writeFileSync(
     file,
-    source.replace('if (st.phase === "done") return;', "if (Date.now() < 0) return;"),
+    source.replace(
+      'if (state.phase === "done") return { do: "yield" };',
+      'if (Date.now() < 0) return { do: "yield" };',
+    ),
   );
   const report = await validateExtensionDir(dir, { scanDrive: scanDriveSource });
   if (!report.ok) throw new Error(report.error.message);

@@ -333,15 +333,17 @@ test("two idle threads swap together and both switch", async () => {
 test("a drive lock held by the old generation continues with the new drive function", async () => {
   const calls: string[] = [];
   const v1 = makeGroupUnit({ name: NAME }, (g) => {
-    g.drive(async (loop) => {
-      calls.push("v1");
-      await loop.turn({ input: { kind: "user", content: "go" } });
+    g.drive(async ({ last }) => {
+      if (last === null) calls.push("v1");
+      if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+      return { do: "turn", input: { kind: "user", content: "go" } };
     });
   });
   const v2 = makeGroupUnit({ name: NAME }, (g) => {
-    g.drive(async (loop) => {
-      calls.push("v2");
-      await loop.turn({ input: { kind: "user", content: "go" } });
+    g.drive(async ({ last }) => {
+      if (last === null) calls.push("v2");
+      if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+      return { do: "turn", input: { kind: "user", content: "go" } };
     });
   });
   const { t, threads } = await openWith(v1);

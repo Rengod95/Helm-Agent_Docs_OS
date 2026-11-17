@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { type EventWire, WireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import {

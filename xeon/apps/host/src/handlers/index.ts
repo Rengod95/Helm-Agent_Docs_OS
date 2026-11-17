@@ -3,6 +3,7 @@ import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { createApprovalListHandler, createApprovalRespondHandler } from "./approval.ts";
 import { createCommandHandlers } from "./command.ts";
+import { createBlocksHandlers } from "./blocks.ts";
 import { createDialogHandlers } from "./dialog.ts";
 import { createDevkitHandlers } from "./m4/devkit.ts";
 import { createDialogAreaHandlers } from "./m4/dialog-area.ts";
@@ -22,6 +23,7 @@ import {
 } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
+import { createM5Handlers } from "./m5/index.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -112,6 +114,7 @@ export function createWireHandlers(
     "usage.get": createUsageGetHandler(engine),
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
+    ...createM5Handlers(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),
@@ -122,6 +125,7 @@ export function createWireHandlers(
     ...createScheduleHandlers(engine),
     ...createDialogHandlers(engine),
     ...createExtReadHandlers(engine.ports.m4.extRead),
+    ...createBlocksHandlers(),
     ...createExtUiVersionHandlers(engine.ports.m4.extUi),
     ...createProfileTestRunHandlers(engine.ports.m4.profileTestRun),
     ...createDialogAreaHandlers(engine.ports.m4.dialogArea),

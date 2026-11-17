@@ -1,6 +1,7 @@
 import {
   defineManifest,
   LoopPortKey,
+  type DriveCommand,
   type LoopPort,
   type SpawnOutcome,
 } from "@fresnel/contracts/extensions";
@@ -48,16 +49,27 @@ export function childModels(
 const SPAWN_GROUP_NAME = "spawn-group";
 
 const StateSchema = Type.Object({ answers: Type.Array(Type.String()) });
-const INITIAL_STATE: Static<typeof StateSchema> = { answers: [] };
+type SpawnGroupState = Static<typeof StateSchema>;
+const INITIAL_STATE: SpawnGroupState = { answers: [] };
+
+/** `index`번째 자식을 띄우는 명령. 요청 id가 순서를 정하므로 재실행돼도 같은 자식이다 */
+function childCommand(index: number): DriveCommand<SpawnGroupState> {
+  return {
+    do: "spawn",
+    agent: "explorer",
+    task: `look at ${String(index)}`,
+    requestId: `${SPAWN_GROUP_NAME}:child:${String(index)}`,
+  };
+}
 
 export interface SpawnGroupProbe {
   /** drive가 받은 자식 결과를 순서대로 */
   readonly outcomes: SpawnOutcome[];
-  /** drive 함수가 불린 횟수 */
+  /** 단계 함수가 불린 횟수 */
   calls: number;
   /** 첫 호출을 받은 thread. 자식 thread에도 임대가 부여되므로 이 thread의 호출만 자식을 띄운다 */
   mainThread: string | undefined;
-  /** drive가 자식 결과를 상태에 커밋한 뒤 이행된다 */
+  /** 마지막 자식 결과를 상태에 커밋하는 명령을 돌려줄 때 이행된다 */
   readonly committed: Promise<void>;
 }
 
@@ -94,26 +106,29 @@ export function spawnGroup(count: number): {
           SPAWN_GROUP_NAME,
           { state: { schema: StateSchema, initial: INITIAL_STATE, version: 1 } },
           (g) => {
+            // 순서가 의미다: 자식은 하나씩 끝나야 테이프가 순서대로 소비된다 (L1.loop.spec §4.8).
+            // 자식 결과는 `last`로 받고, 받은 답마다 상태에 커밋해 다음 자식을 답 수로 정한다. 클로저에 진행 상태를 두지 않는다
             g.drive(
-              async (loop, state) => {
+              async ({ state, last }) => {
                 probe.calls += 1;
                 const thread = hostOf(g).callContext()?.threadId;
                 probe.mainThread ??= thread;
-                if (thread !== probe.mainThread || state.answers.length >= count) return;
-                const answers: string[] = [];
-                for (let index = 0; index < count; index += 1) {
-                  // 순서가 의미다: 자식은 하나씩 끝나야 테이프가 순서대로 소비된다
-                  // oxlint-disable-next-line no-await-in-loop -- 자식을 차례로 띄운다 (L1.loop.spec §4.8)
-                  const outcome = await loop.spawn({
-                    agent: "explorer",
-                    task: `look at ${String(index)}`,
-                    requestId: `${SPAWN_GROUP_NAME}:child:${String(index)}`,
-                  });
-                  probe.outcomes.push(outcome);
-                  answers.push(outcome.answer ?? "");
+                if (thread !== probe.mainThread) return { do: "yield" };
+                if (last?.kind === "ok" && last.of === "spawn") {
+                  probe.outcomes.push(last.value);
+                  const answers = [...state.answers, last.value.answer ?? ""];
+                  if (answers.length >= count) {
+                    committed.resolve();
+                    return { do: "commit", state: { answers }, next: { do: "yield" } };
+                  }
+                  return {
+                    do: "commit",
+                    state: { answers },
+                    next: childCommand(answers.length),
+                  };
                 }
-                await g.commit({ answers });
-                committed.resolve();
+                if (last !== null || state.answers.length >= count) return { do: "yield" };
+                return childCommand(state.answers.length);
               },
               { limits: { maxSpawns: count, maxTurns: 1 } },
             );

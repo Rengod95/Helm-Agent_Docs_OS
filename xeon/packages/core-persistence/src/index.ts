@@ -10,6 +10,7 @@ export {
 export { type RetentionApi } from "./retention.ts";
 export {
   createThreadHooks,
+  emptyResources,
   NO_THREAD_HOOKS,
   type SessionDispatcher,
   type ThreadHooks,

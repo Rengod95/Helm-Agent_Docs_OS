@@ -468,7 +468,9 @@ describe("크래프트 명령의 wire 호출", () => {
 
   test("Test run 대화 만들기는 프로필 id가 있을 때만 profileId를 보낸다", async () => {
     const { app, params } = await liveApp({
-      results: { "thread.create": { threadId: thr(7), position: { storeId: STORE, seq: 6 } } },
+      results: {
+        "thread.create": { threadId: thr(7), position: { storeId: STORE, seq: 6 }, sameFolder: [] },
+      },
     });
     expect(await app.commands.tests.createTestRun()).toEqual({ ok: true, value: thr(7) });
     expect(await app.commands.tests.createTestRun("quiet")).toEqual({ ok: true, value: thr(7) });

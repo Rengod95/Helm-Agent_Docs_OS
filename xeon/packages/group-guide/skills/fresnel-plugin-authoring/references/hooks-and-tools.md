@@ -7,17 +7,19 @@ Sources: `xeon/packages/contracts/src/extensions/hooks.ts` (registry), `ops.ts` 
 A hook name is `<kind>.<target>[.before|after]`, lowercase, with no aliases. A plugin can use only the hooks in its `hooks` array.
 
 - `tap`: every handler runs. Return value is ignored. An error is logged and the next handler runs.
-- `first`: handlers run in order. The first non-`undefined` return is the decision, and later handlers do not run. An error becomes the deny value (`closed`).
+- `first`: handlers run in order. The first non-`undefined` return is the decision, and later handlers do not run. An error becomes the deny value (`closed`). The exception is `tool.call.before` and `agent.spawn.before`: every handler runs, and the strongest decision wins (`block` over `replace` over `ask`; among equal kinds the earlier handler wins). A `block` still stops the run at once.
 - `chain`: each handler gets `(payload, current)` and may return a patch that is merged into `current`. An error drops only that handler's patch.
 - `collect`: each handler gets `payload` and may return a contribution. Contributions are merged once at the end. An error drops only that contribution.
 
 Handler shapes: tap `(payload, ctx)`; first `(payload, ctx)` returns a decision; chain `(payload, current, ctx)` returns a patch; collect `(payload, ctx)` returns a contribution. `ctx` has `scopeId`, `state` (last committed), `threadId`, `signal`.
 
-Deny values: `tool.call.before` and the guard hooks return `{ block: true, reason }`. Switch, fork, and tree hooks return `{ cancel: true, reason }`. Guard handlers cannot change the value; they only block or pass.
+Deny values: `tool.call.before` and the guard hooks return `{ block: true, reason }`. Switch, fork, and tree hooks return `{ cancel: true, reason }`. Guard handlers cannot change the value; they only block or pass. `tool.call.before` may also return `{ ask: true, reason }` (asks the user; allowing it lets the policy continue) or `{ replace: { content, details?, isError? }, reason }` (gives the result without running the tool). A hook never grants permission by itself.
+
+Hooks that are listed in this document but not yet fired by this build (`ask.human.before`, `ask.human.after`, `agent.spawn.before`, `agent.spawn.after`) are marked "not fired yet" below. A plugin that declares one gets a `hook_not_fired` warning.
 
 `dispatch: detached` (not awaited): `request.thinking.after`, `thread.mcp.after`, `thread.info.after`, `thread.prompt.before`, `thread.prompt.after`.
 
-## Hook list (46)
+## Hook list (50)
 
 Only meanings that the source states are written. Others are listed by name.
 
@@ -28,6 +30,8 @@ Only meanings that the source states are written. Others are listed by name.
 - **thread** (15): `thread.trust.before` first, threadless (folder trust, decided before any thread exists); `thread.resources` collect (contributes resource paths); `thread.start` tap; `thread.mcp.after` tap (detached); `thread.info.after` tap (detached); `thread.switch.before`, `thread.fork.before`, `thread.tree.before` first (can cancel); `thread.compact.before` first, fail-open (a handler error does not block compaction); `thread.compact.after`, `thread.compact.failed`, `thread.tree.after`, `thread.shutdown` tap; `thread.prompt.before`, `thread.prompt.after` tap (detached).
 - **guard** (3): `guard.model.before` first (before the provider request is sent, after all `request.provider.before` handlers); `guard.tool.before` first (before a tool runs, after `tool.call.before`); `guard.output.before` first (before model output reaches display or execution).
 - **lifecycle** (2): `lifecycle.agent.settled` tap (after the durable `agent.settled` event commits; not the same as `boundary.settle.after`); `lifecycle.lease.rejected` tap (after the durable `lease.rejected` event commits: a drive lock request was refused).
+- **ask** (2): `ask.human.before` first (before an approval card opens; `{ cancel: true, reason }` resolves it without a card, `{ answer, reason }` answers a question; a failing handler means the user is asked) [not fired yet]; `ask.human.after` tap (after the card is resolved; the answer is not changed by any hook) [not fired yet].
+- **agent** (2): `agent.spawn.before` first (before a subagent is created; `{ block }`, `{ ask }`, or `{ replace: { report }, reason }`, merged like `tool.call.before`) [not fired yet]; `agent.spawn.after` chain (after the child settles; a `{ reportText }` patch replaces the report text, capped at 60,000 characters) [not fired yet].
 
 ## Plugin API (`g` in `setup`)
 

@@ -1,8 +1,8 @@
-// REQ-X-04 drive 락 계통 id. `leaseId`는 부여마다 새로 발급하고, 기본 키(`loop.turn`·`loop.spawn`)는 계통 id로 만든다.
+// REQ-X-04 drive 락 계통 id. `leaseId`는 부여마다 새로 발급하고, 기본 키(`turn`·`spawn`)는 계통 id로 만든다.
 // `waiting` 반납 바로 뒤의 같은 Registration 부여만 계통을 잇고, 그 밖의 재부여는 새 계통이라 새 turn을 연다.
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { RegistrationId } from "@fresnel/contracts/extensions";
+import type { DriveCommand, RegistrationId } from "@fresnel/contracts/extensions";
 import {
   createStaticPrimitivesSettings,
   type PrimitivesSettingsSource,
@@ -10,6 +10,26 @@ import {
 import { createTestHost } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
 import { makeGroupUnit } from "./fixtures/support.ts";
+
+/** 상태가 없는 그룹의 명령(S가 never) */
+type Command = DriveCommand<never>;
+
+function yieldOf(): Command {
+  return { do: "yield" };
+}
+
+function turnOf(content: string): Command {
+  return { do: "turn", input: { kind: "user", content } };
+}
+
+/** 첫 단계에서 `name`의 turn을 내고, 결과를 받은 단계는 끝낸다 */
+function turnGroup(name: string, loadIndex: number) {
+  return makeGroupUnit({ name, loadIndex }, (g) => {
+    g.drive(({ last }) => {
+      return Promise.resolve(last === null ? turnOf(name) : yieldOf());
+    });
+  });
+}
 
 function turnKeys(t: Host): string[] {
   return t.loop.turns.map((turn) => turn.requestId);
@@ -26,9 +46,8 @@ test("a drive that returns without committing and is granted again at the same r
   const t = await createTestHost();
   await t.host.install(
     makeGroupUnit({ name: "lin-idle" }, (g) => {
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: "go" } });
-      });
+      // 첫 단계는 turn을 내고, 그 결과를 받은 단계는 효과 없이 끝낸다
+      g.drive(({ last }) => Promise.resolve(last === null ? turnOf("go") : yieldOf()));
     }),
   );
   const thread = t.newThread();
@@ -60,10 +79,12 @@ test("a re-grant after a budget release starts a new lineage", async () => {
   const t = await createTestHost();
   await t.host.install(
     makeGroupUnit({ name: "lin-budget" }, (g) => {
+      // 첫 turn 뒤 둘째 turn을 낸다. 한도(1)를 넘는 둘째 turn이 budget으로 임대를 반납하게 한다
       g.drive(
-        async (loop) => {
-          await loop.turn({ input: { kind: "user", content: "one" } });
-          await loop.turn({ input: { kind: "user", content: "two" } });
+        ({ last }) => {
+          if (last === null) return Promise.resolve(turnOf("one"));
+          if (last.kind === "ok") return Promise.resolve(turnOf("two"));
+          return Promise.resolve(yieldOf());
         },
         { limits: { maxTurns: 1 } },
       );
@@ -90,15 +111,7 @@ test("a re-grant after another group revoked the lock starts a new lineage", asy
   };
   const t = await createTestHost({ settingsSource: source });
   await Promise.all(
-    ["lin-one", "lin-two"].map((name, loadIndex) =>
-      t.host.install(
-        makeGroupUnit({ name, loadIndex }, (g) => {
-          g.drive(async (loop) => {
-            await loop.turn({ input: { kind: "user", content: name } });
-          });
-        }),
-      ),
-    ),
+    ["lin-one", "lin-two"].map((name, loadIndex) => t.host.install(turnGroup(name, loadIndex))),
   );
   const thread = t.newThread();
   await t.host.openThread(thread);

@@ -185,6 +185,10 @@ export type WireErrorKind =
   | "extension.safeModeActive"
   | "hooks.notFound"
   | "mcp.serverNotFound"
+  | "turnRecord.turnNotFound"
+  | "metrics.unknownMetric"
+  | "metrics.filterInvalid"
+  | "findings.notFound"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -905,6 +909,15 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  // 3500~3599: 턴 기록과 지표(`turnRecord.*`, `metrics.*`, `findings.*`). 백테스트 3521~3525는 M5d-2에서 더한다
+  /** 로그에도 없는 턴이다(`turnRecord.get`, `turnRecord.mark`). 기록이 꺼졌거나 지워진 턴은 오류가 아니라 `absent`로 준다 */
+  "turnRecord.turnNotFound": { code: 3501, kind: "turnRecord.turnNotFound", retryable: false },
+  /** `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) */
+  "metrics.unknownMetric": { code: 3511, kind: "metrics.unknownMetric", retryable: false },
+  /** 필터가 잘못되었다(`metrics.query`, `turnRecord.search`). 필터 검사는 두 메서드가 같다 */
+  "metrics.filterInvalid": { code: 3512, kind: "metrics.filterInvalid", retryable: false },
+  /** 그 id의 발견이 없다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) */
+  "findings.notFound": { code: 3531, kind: "findings.notFound", retryable: false },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {
     code: 5002,
@@ -1077,7 +1090,7 @@ export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
     to: 3999,
     owner: "L1",
     purpose:
-      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), profiles and Test run(3300~3399), extension reads(3400~3499), rest of L1 reserved",
+      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), profiles and Test run(3300~3399), extension reads(3400~3499), turn record and metrics(3500~3599), rest of L1 reserved",
   },
   {
     name: "capability",

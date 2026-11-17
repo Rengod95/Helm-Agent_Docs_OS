@@ -115,12 +115,18 @@ test("uc2.write-deny-and-n-lenses", async () => {
       const checked = parse(HelmStateSchema, payload.doc);
       return checked.ok ? [checked.value] : [];
     });
+  // 단계마다 커밋한다: 턴을 내기 전 표지(turnIssued), 렌즈 하나가 끝날 때마다(lensFinished), 적용 턴 전 표지
   expect(states.map((state) => state.phase)).toEqual([
     "idle",
     "diverge",
+    "diverge",
+    "explore",
+    "explore",
+    "explore",
     "explore",
     "explore",
     "converge",
+    "apply",
     "apply",
     "idle",
   ]);

@@ -140,7 +140,8 @@ test("commands: stop issued while the lenses run ends the inquiry stopped before
   expect(finished).toHaveLength(1);
   expect(finished[0]).toMatchObject({ outcome: "stopped" });
   expect(rig.t.loop.turns).toHaveLength(1);
-  expect(rig.t.loop.spawns).toHaveLength(3);
+  // 렌즈는 한 번에 하나씩 돈다. 정지는 실행 중인 렌즈가 끝난 다음 단계에서 읽히므로 두 번째 렌즈부터는 돌지 않는다
+  expect(rig.t.loop.spawns).toHaveLength(1);
 });
 
 test("guard.exception-becomes-deny", async () => {

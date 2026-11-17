@@ -1,4 +1,10 @@
-import { defineManifest, type ExtensionEntry, type StateDecl } from "@fresnel/contracts/extensions";
+import {
+  defineManifest,
+  type DriveCommand,
+  type ExtensionEntry,
+  type StateDecl,
+  type StepResult,
+} from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { defineGroup } from "../define-group.ts";
 import type { GroupApi, GroupManifest, GroupModule } from "../types.ts";
@@ -30,14 +36,14 @@ export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
 });
 
 export interface SmokeGroupState {
-  /** drive가 지금까지 끝낸 loop.turn 횟수. 커밋된 상태에만 둔다(클로저 상태 금지) */
+  /** drive가 지금까지 끝낸 turn 명령 횟수. 커밋된 상태에만 둔다(클로저 상태 금지) */
   readonly count: number;
 }
 
 export interface SmokeGroupOptions {
   /** tool_call에서 거부할 도구 이름. 기본은 쓰기 도구 write, edit */
   readonly denyTools?: readonly string[];
-  /** drive가 부를 loop.turn 횟수. 상태 count가 이 값이 되면 멈춘다. 기본 1 */
+  /** drive가 낼 turn 명령 횟수. 상태 count가 이 값이 되면 멈춘다(yield). 기본 1 */
   readonly driveTurns?: number;
   /**
    * turn_end에서 followUp을 post하는 최대 횟수. 기본은 제한 없음이다(X 시험이 turn_end마다 post를 본다).
@@ -69,6 +75,25 @@ const SMOKE_STATE: StateDecl<SmokeGroupState> = {
   version: 1,
 };
 
+/** 단계 함수의 명령. 턴의 결과가 돌아왔으면 커밋하고, 목표 턴 수에 닿았으면 주도권을 유지한 채 기다리고, 아니면 턴을 낸다 */
+function smokeStep(
+  state: Readonly<SmokeGroupState>,
+  last: StepResult | null,
+  driveTurns: number,
+): DriveCommand<SmokeGroupState> {
+  if (last !== null) {
+    return { do: "commit", state: { count: state.count + 1 }, next: { do: "yield" } };
+  }
+  // 더 할 일이 없으면 주도권을 유지하고 다음 경계에 다시 묻는다
+  if (state.count >= driveTurns) return { do: "yield" };
+  // 턴의 요청 id는 커밋된 상태에서 정한다. 엔진이 만든 기본 id는 턴과 뒤의 커밋이 같아 충돌한다
+  return {
+    do: "turn",
+    input: { kind: "user", content: "smoke drive turn" },
+    requestId: `smoke:turn:${state.count}`,
+  };
+}
+
 function registerSmoke(
   g: GroupApi<SmokeGroupState>,
   probe: SmokeGroupProbe,
@@ -88,15 +113,10 @@ function registerSmoke(
     probe.posts.push(requestId);
     await g.post({ kind: "user", content: "smoke follow up" }, { when: "followUp", requestId });
   });
-  // drive는 경계마다 마지막 커밋 상태로 다시 불린다. 지난 호출의 클로저 값을 읽지 않는다
-  g.drive(
-    async (loop, state) => {
-      if (state.count >= driveTurns) return;
-      await loop.turn({ input: { kind: "user", content: "smoke drive turn" } });
-      await g.commit({ count: state.count + 1 });
-    },
-    { limits: { maxTurns: 4, maxSpawns: 0 } },
-  );
+  // 단계 함수는 경계마다 커밋된 상태와 직전 명령의 결과로만 명령을 고른다. 지난 호출의 클로저 값을 읽지 않는다
+  g.drive(({ state, last }) => Promise.resolve(smokeStep(state, last, driveTurns)), {
+    limits: { maxTurns: 4, maxSpawns: 0 },
+  });
 }
 
 /** M1 테스트 그룹. on(tool.call.before, boundary.step.after), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */

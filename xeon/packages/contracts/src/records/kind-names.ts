@@ -8,6 +8,7 @@ export type CoreArea =
   | "checkpoint"
   | "scope"
   | "lease"
+  | "drive"
   | "post"
   | "settings"
   | "approval"
@@ -46,6 +47,7 @@ export const CORE_EVENT_KINDS: readonly [
   "lease.acquired",
   "lease.released",
   "lease.rejected",
+  "drive.command_settled",
   "post.accepted",
   "settings.changed",
   "approval.requested",
@@ -91,6 +93,7 @@ export const CORE_EVENT_KINDS: readonly [
   "lease.acquired",
   "lease.released",
   "lease.rejected",
+  "drive.command_settled",
   "post.accepted",
   "settings.changed",
   "approval.requested",
@@ -122,6 +125,7 @@ export const CORE_AREAS: readonly CoreArea[] = [
   "checkpoint",
   "scope",
   "lease",
+  "drive",
   "post",
   "settings",
   "approval",

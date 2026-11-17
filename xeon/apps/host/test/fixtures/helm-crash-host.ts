@@ -1,5 +1,5 @@
 import { tapeBuildModels, tapeProvider } from "@fresnel/core-models/testing";
-import { startStdioHost } from "../../src/main.ts";
+import { startStdioHost } from "../../src/command-run.ts";
 import { helmDivergeTape, holdingPlayer } from "./helm-tape.ts";
 
 // SIGKILL 시험의 자식 호스트. 운영 진입(startStdioHost)에 실제 Helm 묶음(FRESNEL_TEST_HELM_BUNDLE)과 모델 테이프를 넣는다.

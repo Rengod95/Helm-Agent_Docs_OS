@@ -63,6 +63,7 @@ export function createTurnStartHandler(
       throw wireError("turn.busy", { details: { turnId: outcome.turnId } });
     }
     nameThreadFromFirstInput(engine, threadId, params.input);
+    if ("delivered" in outcome) return { delivered: true };
     return outcome.queued === true
       ? { turnId: outcome.turnId, queued: true }
       : { turnId: outcome.turnId };

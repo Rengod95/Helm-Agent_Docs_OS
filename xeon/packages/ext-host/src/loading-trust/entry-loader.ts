@@ -9,6 +9,7 @@ import type {
   TrustRequest,
 } from "@fresnel/contracts/extensions";
 import { pluginsOf } from "@fresnel/contracts/extensions";
+import { IsolatedEntryError } from "../isolation/proxy-entry.ts";
 import { PrimitiveError } from "../primitives/errors.ts";
 import type { ExtensionUnit, InstallResult } from "../primitives/host.ts";
 import type { BuiltinExtensionModule } from "./discover.ts";
@@ -50,6 +51,15 @@ function issuesOf(code: ManifestIssue["code"], message: string): readonly Manife
 export function verdictOfInstall(result: InstallResult): InstallVerdict {
   const diagnostics: InstallDiagnostic[] = [];
   if (result.entryError !== undefined) {
+    // 격리 확장의 시작 실패는 격리 진단 코드로 남긴다(isolation_unavailable, isolation_drive_unsupported, isolation_protocol, entry_threw)
+    if (result.entryError instanceof IsolatedEntryError) {
+      diagnostics.push({
+        severity: "error",
+        code: result.entryError.code,
+        message: result.entryError.message,
+      });
+      return { ok: false, diagnostics };
+    }
     const unknownPlugin =
       result.entryError instanceof PrimitiveError &&
       result.entryError.code === "registration_unknown_plugin";

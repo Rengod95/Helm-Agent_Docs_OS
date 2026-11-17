@@ -383,7 +383,7 @@ export interface TurnFlags {
 | `tr_finding_state` | `finding_id` | `state`, `dismissed_at`, `snooze_until`, `fingerprint` | |
 | `tr_backtest_run`, `tr_backtest_item` | `run_id`, `(run_id, tool_call_id)` | 요청, 상태, 항목 결과(§3.7) | 보존은 원본과 같다 |
 
-대화 로그(`events`, `p_*`)에는 관찰 값을 더하지 않는다(훅 시간·결과, 재료, 광고처럼 매번 달라지고 재생 같음 검사를 흔드는 값). 대화 로그에 더하는 상태 사건(`profile.applied`, `lease.acquired`의 선택 필드)은 M5c와 엔진 설계가 정하고 이 문서는 읽기만 한다. 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1]로 대화 로그에 상태 사건 하나(예: `drive.command.settled`)를 더한다(이름은 [제안]). 이 문서의 방안 A 거부는 "관찰 값"에 대한 것이고 이 상태 사건은 관찰이 아니라 재시작 복원용 상태라 충돌하지 않는다. 기록되지 않는 턴 밖 명령(`model`, `tool`, `commit`, `yield`)은 `StepRecord`가 아니라 `FrameMark`의 명령 수, `pluginCalls`, `CallRecord`(caller `plugin`)로 잡힌다.
+대화 로그(`events`, `p_*`)에는 관찰 값을 더하지 않는다(훅 시간·결과, 재료, 광고처럼 매번 달라지고 재생 같음 검사를 흔드는 값). 대화 로그에 더하는 상태 사건(`profile.applied`, `lease.acquired`의 선택 필드)은 M5c와 엔진 설계가 정하고 이 문서는 읽기만 한다. 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1]로 대화 로그에 상태 사건 하나(예: `drive.command_settled`)를 더한다(이름은 [제안]). 이 문서의 방안 A 거부는 "관찰 값"에 대한 것이고 이 상태 사건은 관찰이 아니라 재시작 복원용 상태라 충돌하지 않는다. 기록되지 않는 턴 밖 명령(`model`, `tool`, `commit`, `yield`)은 `StepRecord`가 아니라 `FrameMark`의 명령 수, `pluginCalls`, `CallRecord`(caller `plugin`)로 잡힌다.
 
 ### 3.5 wire 메서드와 알림
 
@@ -774,8 +774,8 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 
 | 위치 | 변경 | 크기 |
 |---|---|---|
-| `packages/contracts/src/extensions/trace-types.ts:64` (`TraceHandlerEntry`) | 선택 필드 `toolCallId`, `subject`, `decision`, `ask`, `source`를 더한다(스키마의 `additionalProperties: false` 때문에 `Type.Optional`로). 다섯 결과 이름(`:48`)은 그대로 | S |
-| `packages/ext-host/src/operations/trace-buffer.ts:56~210` | `TraceRecord`에 `toolCallId`(디스패치 키 접미), `plugin`, `versionId`, `subject`, `decision`, `ask`, `decisionText`, `seq` 추가. `MAX_*` 상수를 설정으로 연결 | M |
+| `packages/contracts/src/extensions/trace-types.ts:64` (`TraceHandlerEntry`) | 선택 필드 `toolCallId`, `subject`, `decision`, `ask`, `source`를 더한다(스키마의 `additionalProperties: false` 때문에 `Type.Optional`로). 다섯 결과 이름(`:48`)은 그대로. [구현: `toolCallId`만, `:80`과 스키마 `:119`. 나머지는 다른 트랙] | S |
+| `packages/ext-host/src/operations/trace-buffer.ts:56~210` | `TraceRecord`에 `toolCallId`(디스패치 키 접미), `plugin`, `versionId`, `subject`, `decision`, `ask`, `decisionText`, `seq` 추가. `MAX_*` 상수를 설정으로 연결 | M. [구현: `toolCallId`만, `toolCallIdOf`(`:136`)와 `dispatchOf`(`:202`)에서 칸으로 싣는다] |
 | `packages/ext-host/src/primitives/user-wait.ts:7`, `dispatch-types.ts:130` | `awaitUser`가 대기 횟수와 시간을 실행 기록에 알린다 | S |
 | `packages/ext-host/src/primitives/dispatch-types.ts:93` | `ChainOutcome`에 `contributions`(핸들러별 기여)를 더한다. 격리 뒤에는 엔진 쪽 합치기에서 채운다 | M |
 | `packages/core-tools/src/pipeline.ts:511`, `:550`, `:1150`, `:149~188` | 호출마다 `CallRecord` 싱크에 판정, 훅 묶음, 정책·승인, 소요·결과 크기를 보낸다. `hookDenialDetails`에 시간 초과와 던짐을 가를 선택 필드 `fault`를 더한다 | M |
@@ -783,9 +783,9 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `packages/core-loop/src/loop/prepare-request.ts:95`, `:111`, `step-end.ts:266`, `provider-retry.ts:8` | 단계 끝에서 `StepRecord`를 수집기에 넘긴다. 재시도 알림 수와 대기 시간을 센다. `sections: {}`는 Inject가 들어오는 M5c에서 채운다 | M |
 | `xeon/packages/cap-knowledge/src/skills/prompt-block.ts:57`, `xeon/packages/cap-knowledge/src/turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S |
 | `apps/host/src/assembly/measure/store.ts:73`, `:172` | `user_version` 마이그레이션, `tr_*` 테이블, 접기를 `tr_daily`까지 넓힘, `forgetThread` | L |
-| `apps/host/src/assembly/measure/recorder.ts:293~470` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L |
-| `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S |
-| `apps/host/src/assembly/ports.ts:284`, `:304`, `:412`, `:668`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M |
+| `apps/host/src/assembly/measure/recorder.ts:298~530` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L. [구현: 턴 행 `open`·최종, 단계 행과 `tr_hook`, `log_only`, 열 때 `markLostTurns`, 범위 `test`. 쓰기 로직은 `turn-writer.ts`와 `turn-rows.ts`. 프로필 표지와 덧씌우기는 남음] |
+| `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S. [구현: `service.ts:127`의 `removed`가 두 경로를 잇고 `SessionDeps.onThreadRemoved`(`deps.ts`)로 조립 루트가 `forgetThread`를 건다] |
+| `apps/host/src/assembly/ports.ts:285`, `:319`, `:430`, `:686`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M. [구현: `measure/test-run-marks.ts`가 `tr_thread`에 쓰고 되살린다. `host.ts:584`의 Set은 그대로다] |
 | `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
 | `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 | L |
 | 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 | L |

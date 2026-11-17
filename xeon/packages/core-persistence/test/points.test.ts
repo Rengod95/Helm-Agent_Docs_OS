@@ -9,12 +9,23 @@ describe("session points", () => {
     const recording = recordingHooks();
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h, "t");
-    const names = (): string[] => recording.calls.map((call) => call.point);
+    // thread.resources는 thread.start 앞에서 열기마다 한 번 발화한다(H-7). 이 시험은 start의 순서를 본다
+    const names = (): string[] =>
+      recording.calls.map((call) => call.point).filter((point) => point !== "thread.resources");
     // create가 session.start{new}, 열기가 session.start{startup}
+    await h.service.threads.openSettled(threadId);
     await Promise.resolve();
-    expect(recording.calls.map((call) => [call.point, call.payload])).toEqual([
+    expect(
+      recording.calls
+        .filter((call) => call.point === "thread.start")
+        .map((call) => [call.point, call.payload]),
+    ).toEqual([
       ["thread.start", { reason: "new", threadId }],
       ["thread.start", { reason: "startup", threadId }],
+    ]);
+    expect(recording.calls.slice(0, 2).map((call) => call.point)).toEqual([
+      "thread.resources",
+      "thread.resources",
     ]);
     completeTurn(h, threadId);
     completeTurn(h, threadId);
@@ -22,6 +33,9 @@ describe("session points", () => {
     expectOk(await h.service.threads.prepareSwitch(threadId, null));
     const newId = h.ids.next("thr");
     expectOk(await h.service.threads.fork(threadId, itemAt(h, threadId, 1).itemId, newId));
+    // 포크의 열기(thread.resources → thread.start)가 끝난 뒤에 되돌리기를 본다
+    await h.service.threads.openSettled(newId);
+    await Promise.resolve();
     expectOk(await h.service.threads.revert(threadId, itemAt(h, threadId, 1).itemId, "rv1"));
     await h.service.release(threadId, "quit");
     await Promise.resolve();
@@ -57,7 +71,11 @@ describe("session points", () => {
       }),
     );
     await Promise.resolve();
-    expect(second.calls.map((call) => call.payload)).toEqual([{ reason: "resume", threadId }]);
+    await restarted.service.threads.openSettled(threadId);
+    await Promise.resolve();
+    expect(
+      second.calls.filter((call) => call.point === "thread.start").map((call) => call.payload),
+    ).toEqual([{ reason: "resume", threadId }]);
   });
 
   test("a read-only open fires nothing", async () => {

@@ -1,0 +1,20 @@
+{
+  "harness": "agents-md",
+  "rulesVersion": "2026-11-17",
+  "docs": ["https://agents.md/"],
+  "toolNames": {},
+  "rules": [
+    {
+      "match": { "kind": "instruction", "code": "agents_md" },
+      "status": "not_needed"
+    },
+    {
+      "match": { "kind": "blocked", "code": "agents_md_subfolder" },
+      "status": "not_needed",
+      "difference": {
+        "kind": "scope_change",
+        "text": "하위 폴더의 AGENTS.md는 대화를 시작한 폴더까지만 읽힌다. 그 폴더에서 대화를 시작하면 읽힌다."
+      }
+    }
+  ]
+}

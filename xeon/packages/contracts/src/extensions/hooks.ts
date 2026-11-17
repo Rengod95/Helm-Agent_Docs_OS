@@ -1,4 +1,4 @@
-import { Type, type TSchema, type TUnsafe } from "typebox";
+import { Type, type Static, type TLiteral, type TSchema, type TUnion, type TUnsafe } from "typebox";
 import {
   AfterProviderResponsePayloadSchema,
   BeforeProviderHeadersPayloadSchema,
@@ -45,6 +45,26 @@ import {
   type UserBashDecision,
   type UserBashPayload,
 } from "./hooks/input.ts";
+import {
+  AgentSpawnAfterPatchSchema,
+  AgentSpawnAfterPayloadSchema,
+  AgentSpawnBeforeDecisionSchema,
+  AgentSpawnBeforePayloadSchema,
+  AGENT_REPORT_TEXT_MAX,
+  type AgentSpawnAfterPatch,
+  type AgentSpawnAfterPayload,
+  type AgentSpawnAfterValue,
+  type AgentSpawnBeforeDecision,
+  type AgentSpawnBeforePayload,
+} from "./hooks/agent.ts";
+import {
+  AskHumanAfterPayloadSchema,
+  AskHumanBeforeDecisionSchema,
+  AskHumanBeforePayloadSchema,
+  type AskHumanAfterPayload,
+  type AskHumanBeforeDecision,
+  type AskHumanBeforePayload,
+} from "./hooks/ask.ts";
 import {
   ToolCallDecisionSchema,
   ToolCallPayloadSchema,
@@ -151,11 +171,22 @@ export * from "./hooks/tool.ts";
 export * from "./hooks/boundary.ts";
 export * from "./hooks/thread.ts";
 export * from "./hooks/guard.ts";
+export * from "./hooks/ask.ts";
+export * from "./hooks/agent.ts";
 
 // ── 기본 타입 ────────────────────────────────────────────────────────────
 
 export type Fold = "tap" | "first" | "chain" | "collect";
-export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard";
+export type HookKind =
+  | "input"
+  | "request"
+  | "tool"
+  | "boundary"
+  | "thread"
+  | "lifecycle"
+  | "guard"
+  | "ask"
+  | "agent";
 
 export interface TapSig<P> {
   readonly fold: "tap";
@@ -184,7 +215,7 @@ export interface CollectSig<P, V, C> {
   readonly contribution: C;
 }
 
-/** 훅 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 46행 */
+/** 훅 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 50행 */
 export interface HookSignatures {
   "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
   "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
@@ -244,6 +275,10 @@ export interface HookSignatures {
   "guard.output.before": FirstSig<GuardOutputPayload, GuardDecision>;
   "lifecycle.agent.settled": TapSig<AgentSettledEventPayload>;
   "lifecycle.lease.rejected": TapSig<LeaseRejectedPayload>;
+  "ask.human.before": FirstSig<AskHumanBeforePayload, AskHumanBeforeDecision>;
+  "ask.human.after": TapSig<AskHumanAfterPayload>;
+  "agent.spawn.before": FirstSig<AgentSpawnBeforePayload, AgentSpawnBeforeDecision>;
+  "agent.spawn.after": ChainSig<AgentSpawnAfterPayload, AgentSpawnAfterValue, AgentSpawnAfterPatch>;
 }
 
 export type HookName = keyof HookSignatures;
@@ -260,7 +295,7 @@ export type TapHookName = {
   [N in HookName]: HookSignatures[N]["fold"] extends "tap" ? N : never;
 }[HookName];
 
-/** §3.4 표 순서(번호 1~46)의 훅 이름 */
+/** §3.4 표 순서(번호 1~50)의 훅 이름. 47~50번은 M5e에서 더한 사람에게 묻기와 서브에이전트의 앞뒤 훅이다 */
 export const HOOK_NAMES: readonly HookName[] = [
   "input.user.before",
   "input.bash.before",
@@ -308,6 +343,10 @@ export const HOOK_NAMES: readonly HookName[] = [
   "guard.output.before",
   "lifecycle.agent.settled",
   "lifecycle.lease.rejected",
+  "ask.human.before",
+  "ask.human.after",
+  "agent.spawn.before",
+  "agent.spawn.after",
 ];
 
 /** HOOKS 키의 문자열 열거 */
@@ -328,7 +367,7 @@ export type FoldFailure<F extends Fold> = F extends "tap" | "collect"
     : "skip";
 
 /** 지점이 fold 기본값과 다른 실패 정책을 가진 지점(사유는 HOOKS 선언 주석) */
-export type FailOpenFirstHookName = "thread.compact.before";
+export type FailOpenFirstHookName = "thread.compact.before" | "ask.human.before";
 
 export interface PiSource {
   /** 옛 pi 이벤트명. 훅 이름과 다르다(훅 이름은 `name`) */
@@ -369,7 +408,7 @@ function pi(event: string, def: string, emit: string, piFold: PiSource["piFold"]
 }
 
 /**
- * 훅 선언 표. 46행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
+ * 훅 선언 표. 50행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
  * 이 표와 F.extensions.spec §3.4 표가 일치하는지는 test/extensions/hooks.doc.test.ts가 대조한다.
  */
 export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
@@ -895,6 +934,47 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     payload: LeaseRejectedPayloadSchema,
     m1: false,
   },
+  "ask.human.before": {
+    name: "ask.human.before",
+    kind: "ask",
+    fold: "first",
+    // fail-open 예외(M5e 스펙 §4.3.1). 훅 오류가 승인을 조용히 허용하지도, 대화를 멈추지도 않게 한다.
+    // 예외를 낸 핸들러는 결정 없음으로 보고 사람에게 묻는다
+    failure: "open",
+    dispatch: "await",
+    payload: AskHumanBeforePayloadSchema,
+    result: AskHumanBeforeDecisionSchema,
+    m1: false,
+  },
+  "ask.human.after": {
+    name: "ask.human.after",
+    kind: "ask",
+    fold: "tap",
+    failure: "open",
+    dispatch: "await",
+    payload: AskHumanAfterPayloadSchema,
+    m1: false,
+  },
+  "agent.spawn.before": {
+    name: "agent.spawn.before",
+    kind: "agent",
+    fold: "first",
+    failure: "closed",
+    dispatch: "await",
+    payload: AgentSpawnBeforePayloadSchema,
+    result: AgentSpawnBeforeDecisionSchema,
+    m1: false,
+  },
+  "agent.spawn.after": {
+    name: "agent.spawn.after",
+    kind: "agent",
+    fold: "chain",
+    failure: "skip",
+    dispatch: "await",
+    payload: AgentSpawnAfterPayloadSchema,
+    result: AgentSpawnAfterPatchSchema,
+    m1: false,
+  },
 };
 
 /** guard 훅 셋(adr.0017 §3.6). 키는 발화 시점의 대상이다 */
@@ -936,7 +1016,34 @@ export const FIRST_DENY: {
   "guard.model.before": { block: true, reason: DENY_REASON },
   "guard.tool.before": { block: true, reason: DENY_REASON },
   "guard.output.before": { block: true, reason: DENY_REASON },
+  "agent.spawn.before": { block: true, reason: DENY_REASON },
 };
+
+/**
+ * 같은 위치의 여러 핸들러가 낸 결정을 합치는 지점(M5e 스펙 §5.1 H-2). 이 훅들은 모든 핸들러를 돌린 뒤 강한 쪽이 이긴다.
+ * 다른 first 훅은 처음 결정에서 멈춘다. 막기(`block`)는 어느 순서에서도 이기므로 나머지를 건너뛴다.
+ */
+export type MergedFirstHookName = "tool.call.before" | "agent.spawn.before";
+
+/** 결정 종류. 판별은 `decisionKindOf`가 한다. 매니페스트의 `hookDecides`가 같은 목록을 쓴다 */
+export const DecisionKindSchema: TUnion<[TLiteral<"block">, TLiteral<"replace">, TLiteral<"ask">]> =
+  Type.Union([Type.Literal("block"), Type.Literal("replace"), Type.Literal("ask")]);
+export type DecisionKind = Static<typeof DecisionKindSchema>;
+
+/** 합치기 순위. 앞에 있는 종류가 이긴다. 같은 종류 안에서는 순서가 앞선 핸들러의 값이 이긴다 */
+export const FIRST_RANK: { readonly [N in MergedFirstHookName]: readonly DecisionKind[] } = {
+  "tool.call.before": ["block", "replace", "ask"],
+  "agent.spawn.before": ["block", "replace", "ask"],
+};
+
+/** 결정 값의 종류. 세 모양(막기, 결과 대신, 묻기) 가운데 하나가 아니면 null이다. 스키마 검사는 호출하는 쪽이 한다 */
+export function decisionKindOf(decision: unknown): DecisionKind | null {
+  if (typeof decision !== "object" || decision === null) return null;
+  if ("block" in decision && decision.block === true) return "block";
+  if ("replace" in decision) return "replace";
+  if ("ask" in decision && decision.ask === true) return "ask";
+  return null;
+}
 
 // ── chain 병합 규칙 ──────────────────────────────────────────────────────
 
@@ -1039,6 +1146,22 @@ const boundaryRule: ChainRule<BoundaryValue, BoundaryPatch> = {
   }),
 };
 
+/**
+ * 보고 본문 교체. 상한을 넘는 본문은 상한에서 자르고 `truncated`를 참으로 한다. 상태와 사용량은 패치로 고치지 못한다(M5e 스펙 §4.3.4)
+ */
+const agentReportRule: ChainRule<AgentSpawnAfterValue, AgentSpawnAfterPatch> = {
+  merge: (current, patch) => {
+    if (patch.reportText === undefined) return current;
+    const overflow = patch.reportText.length > AGENT_REPORT_TEXT_MAX;
+    return {
+      report: {
+        text: overflow ? patch.reportText.slice(0, AGENT_REPORT_TEXT_MAX) : patch.reportText,
+        truncated: current.report.truncated || overflow,
+      },
+    };
+  },
+};
+
 export const CHAIN_RULES: {
   readonly [N in ChainHookName]: ChainRule<HookSignatures[N]["value"], HookSignatures[N]["patch"]>;
 } = {
@@ -1052,6 +1175,7 @@ export const CHAIN_RULES: {
   "boundary.message.after": messageEndRule,
   "boundary.step.after": boundaryRule,
   "boundary.settle.before": boundaryRule,
+  "agent.spawn.after": agentReportRule,
 };
 
 /** collect 훅의 병합 규칙. initial에 모은 기여를 등록 순서대로 한 번 합친다. 순수 함수 */
@@ -1094,12 +1218,25 @@ function mergeSystemPrompts(original: string, prompts: readonly string[]): strin
   return base === "" ? additions.join("\n\n") : `${base}\n\n${additions.join("\n\n")}`;
 }
 
+/**
+ * 대화 폴더 후보는 등록 순서대로 모은다. 첫 후보가 `workspace`가 되고 나머지는 호스트가 `workspace_conflict`로 알린다(H-7).
+ * 후보가 없으면 `workspace` 필드를 싣지 않는다
+ */
 const resourcesRule: CollectRule<ResourcesValue, ResourcesPatch> = {
-  merge: (initial, contributions) => ({
-    skillPaths: [...initial.skillPaths, ...contributions.flatMap((p) => p.skillPaths ?? [])],
-    promptPaths: [...initial.promptPaths, ...contributions.flatMap((p) => p.promptPaths ?? [])],
-    themePaths: [...initial.themePaths, ...contributions.flatMap((p) => p.themePaths ?? [])],
-  }),
+  merge: (initial, contributions) => {
+    const workspaceCandidates = [
+      ...initial.workspaceCandidates,
+      ...contributions.flatMap((p) => (p.workspace === undefined ? [] : [p.workspace])),
+    ];
+    const first = workspaceCandidates[0];
+    return {
+      skillPaths: [...initial.skillPaths, ...contributions.flatMap((p) => p.skillPaths ?? [])],
+      promptPaths: [...initial.promptPaths, ...contributions.flatMap((p) => p.promptPaths ?? [])],
+      themePaths: [...initial.themePaths, ...contributions.flatMap((p) => p.themePaths ?? [])],
+      ...(first === undefined ? {} : { workspace: first }),
+      workspaceCandidates,
+    };
+  },
 };
 
 export const COLLECT_RULES: {

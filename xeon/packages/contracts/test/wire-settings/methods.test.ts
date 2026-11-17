@@ -33,7 +33,10 @@ function stageOfName(name: string): string | undefined {
 
 describe("WIRE_METHODS", () => {
   test("has the 48 M1~M3 methods of the spec table with their stages", () => {
-    expect(names.filter((n) => stageOfName(n) !== "M4")).toHaveLength(48);
+    expect(names.filter((n) => stageOfName(n) !== "M4" && stageOfName(n) !== "M5")).toHaveLength(
+      48,
+    );
+    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(12);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
@@ -135,7 +138,9 @@ describe("M1 method schemas", () => {
     expect(parse(params, {}).ok).toBe(true);
     expect(parse(params, { workspace: "/work", title: "t" }).ok).toBe(true);
     expect(parse(params, { title: "" }).ok).toBe(false);
-    expect(parse(result, { threadId: THREAD, position: { storeId: STORE, seq: 1 } }).ok).toBe(true);
+    expect(
+      parse(result, { threadId: THREAD, position: { storeId: STORE, seq: 1 }, sameFolder: [] }).ok,
+    ).toBe(true);
   });
 
   test("turn.start", () => {

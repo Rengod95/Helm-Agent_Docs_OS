@@ -295,6 +295,7 @@ if (import.meta.main) {
     "licenses/LICENSE.electron",
     "licenses/LICENSES.chromium.html",
     "licenses/THIRD-PARTY-NOTICES-SHELL.txt",
+    "licenses/THIRD-PARTY-NOTICES-UI.txt",
     "licenses/THIRD-PARTY-NOTICES.txt",
   ]) {
     check(`structure ${rel}`, existsSync(join(resources, rel)));

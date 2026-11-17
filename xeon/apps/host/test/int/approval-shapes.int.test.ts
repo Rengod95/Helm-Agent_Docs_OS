@@ -4,7 +4,7 @@ import type { JsonObject, ThreadId, TurnId } from "@fresnel/contracts/conversati
 import type { QuestionAnswerJson } from "@fresnel/contracts/records";
 import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { callingModels, type ToolStep } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

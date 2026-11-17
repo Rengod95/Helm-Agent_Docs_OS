@@ -107,13 +107,19 @@ describe("threads.close", () => {
 describe("threads.remove", () => {
   // spec plan remove_deletes_thread_rows_and_blocks_other_deletes
   test("remove_deletes_thread_rows_and_blocks_other_deletes", async () => {
-    const h = await openHarness();
+    const removedBy: ThreadId[] = [];
+    const h = await openHarness({
+      onThreadRemoved: (threadId) => {
+        removedBy.push(threadId);
+      },
+    });
     const keep = newThread(h, "keep");
     completeTurn(h, keep.threadId);
     const gone = newThread(h, "gone");
     completeTurn(h, gone.threadId);
     const headBefore = expectOk(h.service.feed.headSeq());
     expectOk(h.service.threads.remove(gone.threadId));
+    expect(removedBy).toEqual([gone.threadId]);
     for (const table of ["events", "requests", "p_threads", "p_items", "p_turns", "p_effects"]) {
       expect(
         countOf(h, `SELECT COUNT(*) AS n FROM ${table} WHERE thread_id = '${gone.threadId}'`),

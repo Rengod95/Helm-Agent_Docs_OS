@@ -1,4 +1,10 @@
-import type { CapabilityId, ToolName, ToolRef, ToolSpec } from "@fresnel/contracts/capabilities";
+import type {
+  CapabilityId,
+  FileChangeEntry,
+  ToolName,
+  ToolRef,
+  ToolSpec,
+} from "@fresnel/contracts/capabilities";
 import type {
   AgentTool,
   AgentToolUpdateCallback,
@@ -57,6 +63,11 @@ export interface RawCall {
    * 도구 구현에는 `CallContext.caller`와 확장 도구 `execute`의 `ctx.caller`로 전달한다
    */
   readonly afterUntrusted: boolean;
+  /**
+   * 플러그인 도구가 `ctx.changes.report`로 알린 파일 변경을 호출 상태에 모은다. 값은 플러그인이 낸 그대로라
+   * 모양 검사와 `source: "reported"` 표시는 모으는 쪽(`pipeline.ts` runBody)이 한다
+   */
+  readonly reportChanges: (entries: readonly unknown[]) => void;
 }
 
 export interface RawOutcome {
@@ -146,6 +157,8 @@ export interface CallState {
   release: (() => void) | undefined;
   /** 결과를 커밋했을 때의 toolResult item */
   settledItem: ItemId | undefined;
+  /** 실행 중 플러그인 도구가 알린 파일 변경(`source: "reported"`). 결과 체인이 끝난 뒤 `fileChanges`에 합친다(F-3, F-4) */
+  readonly reported: FileChangeEntry[];
   /** 실행 결과가 샌드박스 밖에서 돌았다고 알린 이유. 있으면 결과 커밋에 `tool.sandbox_bypassed`를 함께 쓴다(L1.tools.spec §4.12.2) */
   sandboxBypass: "escape" | "run_unsandboxed" | "disabled" | undefined;
 }

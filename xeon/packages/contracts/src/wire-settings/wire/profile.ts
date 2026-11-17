@@ -222,11 +222,11 @@ export const ProfileCostFiguresSchema: TUnsafe<ProfileCostFigures> =
     >,
   );
 
-export interface PluginCost {
+export interface ProfilePluginCost {
   readonly plugin: string;
   readonly cost: ProfileCostFigures;
 }
-const PluginCostShape = closed({
+const ProfilePluginCostShape = closed({
   plugin: ExtensionNameSchema,
   cost: ProfileCostFiguresSchema,
 });
@@ -472,7 +472,7 @@ export interface ProfilePreviewResult {
   readonly issues: readonly ProfileIssue[];
   readonly cost: {
     readonly total: ProfileCostFigures;
-    readonly byPlugin: readonly PluginCost[];
+    readonly byPlugin: readonly ProfilePluginCost[];
   };
   readonly missingRequired: readonly { readonly plugin: string; readonly key: string }[];
   readonly threadsUsing: number;
@@ -486,7 +486,7 @@ const ProfilePreviewResultShape = closed({
   issues: Type.Array(ProfileIssueShape, { maxItems: 512 }),
   cost: closed({
     total: ProfileCostFiguresSchema,
-    byPlugin: Type.Array(PluginCostShape, { maxItems: PROFILE_LIMITS.plugins }),
+    byPlugin: Type.Array(ProfilePluginCostShape, { maxItems: PROFILE_LIMITS.plugins }),
   }),
   missingRequired: Type.Array(closed({ plugin: ExtensionNameSchema, key: SettingKeySchema }), {
     maxItems: 512,

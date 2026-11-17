@@ -323,7 +323,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.setModel` | `{ threadId: ThreadId, model: string(1..200) \| null }` | `{ position: StreamPosition }` | M4 |
 | thread | `thread.compact` | `{ threadId: ThreadId, instructions?: string(1..20000) }` | `{ status: "compacted", eventId: EventId, tokensBefore: integer, tokensAfter: integer, fromExtension: string \| null, position: StreamPosition }`, `{ status: "skipped", why: "nothing_to_summarize"\|"last_entry_is_compaction"\|"disabled" }` | M2 |
 | thread | `thread.export` | `{ threadId: ThreadId, format: "markdown"\|"json", after?: ItemId }` | `{ format: "markdown"\|"json", filename: string(1..200), chunk: string, next?: ItemId, itemCount: integer }`. 쪽 나누기, 가림, 파일 이름은 §3.4.7 | M4 |
-| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }`. `whenBusy`와 `queued`는 §3.3.1 0a | M1 |
+| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }` 또는 `{ delivered: true }`. `whenBusy`와 `queued`는 §3.3.1 0a, `delivered`는 0b | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
 | turn | `turn.withdraw` | `{ threadId: string, requestId: string(1..64) }` | `{ withdrawn: boolean }`. 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 쓰기 소유자만 한다(`turn.interrupt`와 같다). 요청 키가 맞는 대기 입력을 찾지 못했거나 이미 배치됐으면 거짓이다 | M4 (W-17) |
@@ -395,6 +395,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | hooks | `hooks.order.set` | `{ hook: string, order: string[](Registration id, 최대 256) }` | `{ hook, saved: string[], appliesAt: "nextStepBoundary" }`. `saved`는 제안한 순서를 지킨 중복 없는 저장 값이다(guard 핸들러 이름도 남는다). 이름이 없는 핸들러는 기본 자리를 지키고, 지워졌거나 싣지 않았거나 꺼진 핸들러의 이름은 오류 없이 저장되고 디스패치에서 무시된다. guard 핸들러를 옮겨도 거절하지 않는다. [결정: 2026-11-03 사용자] 모르는 훅이면 `hooks.notFound`다. 외부 훅도 훅마다 Registration(`fresnel-hooks-<훅 id>`, X.operations §4.7.4)이라 다른 핸들러처럼 순서에 넣는다 [결정: 2026-11-03 사용자, 15-2]. 그 밖에는 저장을 막는 사유가 없다 [근거: packages/ext-host/src/operations/hook-order.ts `checkOrder`] | M4 (W-51) |
 | hooks | `hooks.order.reset` | `{ hook?: string }` | `{ hooks: string[], appliesAt: "nextStepBoundary" }`. 그 훅(생략하면 모든 훅)의 저장된 덮어쓰기를 지우고 기본 순서로 돌린다. `hooks`는 실제로 지운 훅이다. 저장된 값이 없으면 빈 목록이다. 모르는 훅이면 `hooks.notFound` | M4 (W-51) |
 | hooks | `hooks.order.preview` | `{ hook: string, order: string[] }` | `{ hook, order: string[], saveable: true, skips: HookSkipNote[], valueChanges: HookValueChangeNote[], autoDisable: HookAutoDisableNote[], guardRisk: HookGuardRiskNote[] }`. 저장하기 전에 읽는다. `order`는 이 제안을 적용했을 때의 전체 순서(덮어쓰기 적용 뒤, 덮어쓰기가 없으면 guard가 먼저)다. `skips`는 핸들러마다 `reason`(`first_answer`: 앞선 first 핸들러가 답하면 실행되지 않는다, `first_failure_deny`: closed first 훅에서 앞선 핸들러가 실패하면 `FIRST_DENY`가 결정이 되고 디스패치가 멈춘다, `chain_stop`: chain 훅의 멈춤 규칙)와 `by`(앞선 핸들러 `{ registrationId, extension, tier }[]`)를 가진다. `valueChanges`는 건너뜀이 아니라 "값이 바뀔 수 있음"이다: chain에서 뒤 핸들러의 패치가 앞 핸들러의 패치를 덮어쓴다. `autoDisable`은 closed first 훅에서 자동 끄기 대상인 핸들러가 실패하는 동안 가려지는 뒤 핸들러(`affects`)다. guard 핸들러는 면제라 나오지 않는다. 외부 훅 단위 이름이 든 `order`는 `jsonrpc.invalidParams`다(`set`과 같다) [제안]. [결정: 2026-11-03 사용자] `saveable`은 항상 참이다(저장을 막는 사유가 없다 [근거: packages/ext-host/src/operations/hook-order.ts `checkOrder`]). `guardRisk`는 guard 핸들러의 위험 노트다. `mayBeSkipped`는 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다는 뜻이다(기본 순서에서 이미 앞이던 핸들러는 세지 않는다). `losesFirstPosition`은 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다는 뜻이다. `by`는 앞선 핸들러다. 비어 있지 않으면 UI는 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다. `skips`와 따로 낸다 | M4 (W-51) |
+| blocks | `blocks.describe` | `{}` | `BlockModel`(`version: 1`, `blocks` 여섯, `boundaries` 셋, `positions` 훅 위치 표 전체). 엔진 빌드의 정적 상수를 돌려주므로 대화 없이 읽는다. 기록 블록의 `hooks.before`·`hooks.after`는 빈 배열로 온다(생략하지 않는다). 스키마는 `wire/ext-read.ts`, 값은 `@fresnel/contracts/blocks`의 `BLOCK_MODEL`이다 [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.9] | M4 |
 | review | `review.get` | `{ reviewId: string }` | `{ reviewId, files: { path, hunks: HunkView[] }[] }` | M4 (W-02) |
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
@@ -410,6 +411,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trace | `trace.turn` | `{ threadId: string, turnId: string }` | `{ traceEnabled: boolean, retained: boolean, entries: { seq, hook, step, handlers: { registrationId, ms, result, atMs, size, skippedBy, reason }[] }[] }`. `result`는 `modified`·`passed`·`blocked`·`failed`·`skipped`, `atMs`는 Turn 시작 후 시점(ms), `size`는 바뀐 크기, `skippedBy`는 앞 핸들러 때문에 건너뛴 경우 그 RegistrationId(아니면 null), `reason`은 `failed`의 이유(`threw`·`timeout`·`result_invalid`·`merge_rejected`, 아니면 null). 정본은 X.operations §4.8.2다 | M4 (W-43) |
 | measure | `measure.turn` | `{ threadId: string, turnId: string }` | `{ enabled: boolean, rows: { at: number, kind: string, metrics: Record<string, number>, tags: Record<string, string> }[] }` | M4 (T-MEAS-READ) |
 | measure | `measure.daily` | `{ kind: string, metric: string }` | `{ enabled: boolean, days: { day: string, count: integer, sum: number, min: number, max: number }[] }` | M4 (T-MEAS-READ) |
+| turnRecord | `turnRecord.list` | `{ threadId, cursor?, limit?(기본 50, 최대 200), scope?, flags? }` | `{ enabled, level, items: TurnSummary[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.get` | `{ threadId, turnId, detail? }` | `{ enabled, level, record: TurnRecord \| null, absent: "never_recorded" \| "purged" \| "off" \| null }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.search` | `{ plugin, hook?, outcome?, period, scopes?, cursor?, limit? }` | `{ items: { threadId, turnId, hookSeq, plugin, outcome, at }[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.mark` | `{ threadId, turnId, plugin, mark: "followed" \| "not_followed" }` | `{}` | M5 (M5d, 턴 기록) |
+| metrics | `metrics.catalog` | `{}` | `{ metrics: MetricDef[] }` | M5 (M5d, 지표) |
+| metrics | `metrics.query` | `{ metrics: string[](최대 16), filter: MetricFilter, groupBy?, compare? }` | `{ window, rows, notes }` | M5 (M5d, 지표) |
+| findings | `findings.list` | `{ profileId?, period?, state? }` | `{ asOf, dataRevision, findings: Finding[] }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.evidence` | `{ findingId, cursor? }` | `{ items: EvidenceRef[], next }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.dismiss` | `{ findingId, until? }` | `{}` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.bundle` | `{ findingId }` | `{ bundle: FindingBundle, bytes }`(16 KiB 이하) | M5 (M5d, 살펴볼 것) |
+| profileCost | `profileCost.get` | `{ profileId, basis? }` | `{ profileId, rev, basis, nTurns, plugins: ProfileCostRow[], total: ProfileCostRow }` | M5 (M5d, 비용) |
+| testRun | `testRun.compare` | `{ threadIds: string[](2~8) }` | `{ sameInput, columns, rows: CompareRow[] }` | M5 (M5d, 테스트 실행) |
 | testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
@@ -455,6 +468,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | pluginReview | `pluginReview.decide` | `{ itemId: string, decision: ReviewDecision }`(§3.3.4a) | `{ item: ReviewItem, appliedTo: string[] }`(적용된 프로필 id). `pluginReview.notFound`(3651), `pluginReview.notPending`(3652), `pluginReview.handEditNotAllowed`(3654), `pluginReview.purposeRequired`(3655), `pluginReview.profileInvalid`(3656, `details.issues`) | M4 (M5c-1) |
 
 - 0a. [결정: 2026-11-04 오케스트레이터 기본값] `turn.start`의 `whenBusy`는 실행 중 사용자 입력의 큐 자리다(`L1.loop.spec` `admit`의 `whenBusy`와 같다). 이 문서와 호스트 스펙은 사용자 입력에 `turn.busy`를 쓰라고 정한 적이 없고(3003은 컴팩션·재개 같은 turn 사이 연산의 거절이다), `turn.busy`가 남은 것은 큐를 연결하지 않았기 때문이다. `whenBusy`가 있고 열린 turn이 있으면 호스트는 `loop.admit`으로 그 자리의 큐에 넣고 `{ turnId: <실행 중인 turn>, queued: true }`를 돌려준다(새 turn이 아니다). 입력은 `input.queued`로 보이고 `turn.withdraw { requestId }`로 거둔다. 같은 `requestId`를 다시 보내면 같은 답이다. `whenBusy`가 없으면 전과 같이 `turn.busy`(3003)다: `whenBusy`를 모르는 클라이언트(CLI의 재시도 방식)는 바뀌지 않는다. 열린 turn이 없으면 `whenBusy`는 무시하고 turn을 시작한다.
+- 0b. [제안: enE1f 기본값] 주도 중인 플러그인이 있으면(`X.drive-isolation` §2.4) 사용자 입력은 새 turn이 아니라 그 플러그인 단계 함수의 `last: { kind: "user" }`로 간다. 이때 `turn.start`는 오류 없이 `{ delivered: true }`를 돌려준다. `turnId`가 없다: 접수만 뜻하고 아직 turn이 없다. 플러그인이 `turn` 명령으로 처리하면 그 turn은 평소의 `turn.started`로 보이고, 3단계 안에 처리하지 않으면 코어 루프가 같은 입력을 followUp으로 받아 turn을 시작한다(그 turn의 `requestId`는 `user-return:`으로 시작한다). 클라이언트는 `delivered`에서 turn을 기다리지 않고 이벤트로 이어지는 turn을 본다. input 훅이 입력을 처리 끝(`handled`)으로 낸 경우도 같은 결과다. 같은 `requestId`의 재제출은 주도 중인 동안 입력을 다시 넘기지 않고 `{ delivered: true }`를 돌려준다(thread마다 최근 64개를 기억하는 메모리 상태이고 재시작 뒤에는 잊는다).
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `note`, `revision`, `scope`, `afterUntrusted`, `createdAt`, `expiresAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. `note`는 거절할 때 사용자가 적은 메모(1~500자, 없으면 null)이고 `expiresAt`은 대기 중인 학습 후보의 만료 시각(epoch ms, 대기 상태가 아니면 null)이다. 지식 출처는 두 필드를 모두 null로 둔다 [결정: 오케스트레이터 기본값, fxLM]. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -1132,6 +1146,10 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3403 | `extension.safeModeActive` | false | 안전 모드라 `ext.reenable`·`ext.reload`를 받지 않는다. 안전 모드를 끄고 다시 시작해야 한다 | - |
 | 3405 | `hooks.notFound` | false | 그런 이름의 훅이 없다(`hooks.order.set`, `hooks.order.reset`, `hooks.order.preview`, `hooks.disableConfirm`, `hooks.reenable`). [결정: 2026-11-03 사용자] 3404는 옛 `hooks.guardPinned`(guard 고정 거절)가 쓰던 번호라 지금은 비어 있다. guard 이동은 거절하지 않는다 [근거: `apps/host/src/assembly/m4/ext-read-port.ts`의 `hookKnown`] | `hook` |
 | 3406 | `mcp.serverNotFound` | false | 그 id의 MCP 서버가 정의되어 있지 않다(`mcp.serverAction`) | `server` |
+| 3501 | `turnRecord.turnNotFound` | false | 로그에도 없는 턴이다(`turnRecord.get`, `turnRecord.mark`). 기록이 꺼졌거나 지워진 턴은 오류가 아니라 `absent`로 준다 [제안] | - |
+| 3511 | `metrics.unknownMetric` | false | `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) [제안] | - |
+| 3512 | `metrics.filterInvalid` | false | 필터가 잘못되었다(`metrics.query`, `turnRecord.search`). 두 메서드의 필터 검사는 같다 [제안] | - |
+| 3531 | `findings.notFound` | false | 그 id의 발견이 저장되어 있지 않다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) [제안] | - |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -1148,7 +1166,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32768 ~ -32000 | JSON-RPC 예약 | 표준 다섯 개만 쓴다 |
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
-| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 나머지 L1 예비 |
+| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 턴 기록·지표(3500~3599) [제안], 나머지 L1 예비 |
 | 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
@@ -1472,6 +1490,24 @@ export declare function checkSettingWrite(
 export declare function validateSettingValue(def: SettingDef, value: unknown):
   { readonly ok: true } | { readonly ok: false; readonly issues: readonly { readonly path: string; readonly message: string }[] };
 ```
+
+### 3.10 턴 기록 스키마 (`wire/turn-record.ts`) [제안]
+
+턴 기록(M5d)의 저장 문자열 정본은 `review/m5/turn-record-metrics.md`의 §3.2(기록), §3.5(메서드), §3.7(지난 턴에 돌려 보기), §3.8(화면용 읽기)이다. 이 파일은 다음을 export한다. 메서드는 처리기가 생기기 전까지 레지스트리(§3.3.1)에 넣지 않는다.
+
+- 값 목록과 타입: `RecordLevel`, `ScopeKind`(`live|overlay_reviewed|overlay_draft|test|craft`), `CallerKind`, `Verdict`(열네 가지), `HookOutcome`(표시값 여섯), `Dim`, 지표 상태와 이유, 턴 플래그 키.
+- 기록 타입과 TypeBox 스키마: `TurnRecord`와 하위 타입(`StepRecord`, `CallRecord`, `HookRun`, `FrameMark`, `OverlayMark`, `PluginCost`, `TurnFlags` 등). `HookRun.result`는 `TraceHandlerResult`를, `StepRecord.composition`은 `StepComposition`을 그대로 쓴다.
+- 지표와 발견, 지난 턴에 돌려 보기의 타입: `MetricFilter`, `MetricValue`, `MetricDef`, `EvidenceRef`, `Finding`, `BacktestItem`, `BacktestSummary`(`backtest.*` 메서드 스키마는 M5d-2다).
+- 메서드 params·result 스키마: `turnRecord.list·get·watch·unwatch·search·mark`, `metrics.query`, `findings.list·evidence·dismiss·bundle`, `profileCost.get`, `testRun.compare`와 알림 `turnRecord.delta`. `metrics.catalog`의 params는 `NoParamsSchema`, 결과 `{}`는 `EmptyParamsSchema`(`notifications.ts`)를 쓴다.
+
+재사용과 바뀐 곳:
+
+- `HookRun.reason`은 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(`threw`, `timeout`, `result_invalid`, `merge_rejected`, `process_exit`, `process_killed`)를 쓴다. 격리 프로세스 종료 둘은 enP1이 라이브 목록에 더했고, 기록 전용 목록(`HOOK_FAILURE_REASONS`)은 없앴다. apps/desktop의 `RESULT_REASON` 표에 새 두 값의 글을 더했다.
+- `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안].
+- 오류 3501, 3511, 3512, 3531은 §3.5.2 표에 있다. 백테스트 3521~3525는 M5d-2에서 더한다.
+- 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
+- `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
+- 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].
 
 ## 4. 동작 규칙
 

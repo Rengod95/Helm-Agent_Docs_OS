@@ -38,9 +38,12 @@ test("the drive function is re-invoked after a restart with the same request key
   const keys: string[] = [];
   const unitOf = () =>
     makeGroupUnit({ name: "res-replay" }, (g) => {
-      g.drive(async (loop) => {
-        const outcome = await loop.turn({ input: { kind: "user", content: "go" } });
-        keys.push(String(outcome.turnId));
+      g.drive(async ({ last }) => {
+        if (last === null) return { do: "turn", input: { kind: "user", content: "go" } };
+        if (last.kind === "ok" && last.of === "turn") {
+          keys.push(String(last.value.turnId));
+        }
+        return { do: "yield" };
       });
     });
   await first.host.install(unitOf());

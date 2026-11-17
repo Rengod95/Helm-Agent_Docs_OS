@@ -119,10 +119,19 @@ export function createSmokeGroup(options: SmokeGroupOptions): {
           };
         });
         g.drive(
-          async (loop, state) => {
-            if (state.count >= driveTurns) return;
-            await loop.turn({ input: { kind: "user", content: "smoke drive turn" } });
-            await g.commit({ count: state.count + 1 });
+          ({ state, last }) => {
+            if (state.count >= driveTurns) return Promise.resolve({ do: "yield" });
+            if (last?.kind === "ok" && last.of === "turn") {
+              return Promise.resolve({
+                do: "commit",
+                state: { count: state.count + 1 },
+                next: { do: "yield" },
+              });
+            }
+            return Promise.resolve({
+              do: "turn",
+              input: { kind: "user", content: "smoke drive turn" },
+            });
           },
           { limits: { maxTurns: 4, maxSpawns: 0 } },
         );

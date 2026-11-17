@@ -5,7 +5,7 @@ import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WireResult } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/main.ts";
+import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { sequencedModels } from "../fixtures/tape-host.ts";
@@ -106,6 +106,7 @@ function settingsOf(home: EngineHome): unknown {
 /** 같은 엔진 홈에서 실제 호스트를 세운다. 기본 플러그인 폴더는 비워 사용자 위치의 확장만 실린다 */
 async function openHost(answers: readonly string[]) {
   const host = await startInProcessHost({
+    pluginHost: { disabled: true },
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "hook-order-bundles-")),
     buildModels: sequencedModels("hook-order-real", answers),

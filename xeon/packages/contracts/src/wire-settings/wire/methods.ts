@@ -75,6 +75,7 @@ import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
+import { TURN_RECORD_WIRE_METHODS, type TurnRecordWireSchemas } from "./turn-record-methods.ts";
 import {
   CacheImpactSchema,
   OverlayListSchema,
@@ -640,8 +641,8 @@ export const ThreadCreateResultSchema: TObject<{
   position: typeof StreamPositionSchema;
   project: TOptional<TUnion<[typeof ThreadProjectRefSchema, TNull]>>;
   profileId: TOptional<TString>;
-  sameFolder: TOptional<
-    TArray<TObject<{ threadId: typeof ThreadIdSchema; status: typeof ThreadStatusSchema }>>
+  sameFolder: TArray<
+    TObject<{ threadId: typeof ThreadIdSchema; status: typeof ThreadStatusSchema }>
   >;
 }> = Type.Object(
   {
@@ -651,15 +652,16 @@ export const ThreadCreateResultSchema: TObject<{
     project: Type.Optional(Nullable(ThreadProjectRefSchema)),
     /** 대화가 참조하게 된 프로필 */
     profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
-    /** 같은 정규 폴더에서 열려 있거나 도는 다른 대화. 알리기만 하고 막지 않는다 */
-    sameFolder: Type.Optional(
-      Type.Array(
-        Type.Object(
-          { threadId: ThreadIdSchema, status: ThreadStatusSchema },
-          { additionalProperties: false },
-        ),
-        { maxItems: 64 },
+    /**
+     * 같은 작업 폴더에서 닫히지 않은 다른 대화(U6). 알림일 뿐이라 생성을 막지 않고 복사도 하지 않는다. 없으면 빈 배열이다
+     * [제안: 이름은 프로필·프로젝트 문서의 `sameFolder`를 따랐다]
+     */
+    sameFolder: Type.Array(
+      Type.Object(
+        { threadId: ThreadIdSchema, status: ThreadStatusSchema },
+        { additionalProperties: false },
       ),
+      { maxItems: 200 },
     ),
   },
   { additionalProperties: false },
@@ -1028,20 +1030,30 @@ export type TurnStartParams = Static<typeof TurnStartParamsSchema>;
 
 /**
  * turn 접수만 뜻한다. 접수된 turn을 멈추려면 turn.interrupt를 쓴다. `queued`가 참이면 입력은 새 turn이 아니라 큐에 들어갔고
- * `turnId`는 실행 중인 turn이다(입력은 `input.queued` 이벤트로 보이고 `turn.withdraw { requestId }`로 거둔다)
+ * `turnId`는 실행 중인 turn이다(입력은 `input.queued` 이벤트로 보이고 `turn.withdraw { requestId }`로 거둔다).
+ * `delivered`가 참이면 주도 중인 플러그인이 입력을 받았다: 아직 turn이 없으므로 `turnId`가 없다. 플러그인이 `turn` 명령으로
+ * 처리하면 그 turn은 평소의 `turn.started` 이벤트로 보이고, 3단계 안에 처리하지 않으면 코어 루프가 같은 입력으로 turn을 시작한다
  */
-export const TurnStartResultSchema: TObject<{
-  turnId: typeof TurnIdSchema;
-  queued: TOptional<TLiteral<true>>;
-  cacheImpact: TOptional<typeof CacheImpactSchema>;
-}> = Type.Object(
-  {
-    turnId: TurnIdSchema,
-    queued: Type.Optional(Type.Literal(true)),
-    cacheImpact: Type.Optional(CacheImpactSchema),
-  },
-  { additionalProperties: false },
-);
+export const TurnStartResultSchema: TUnion<
+  [
+    TObject<{
+      turnId: typeof TurnIdSchema;
+      queued: TOptional<TLiteral<true>>;
+      cacheImpact: TOptional<typeof CacheImpactSchema>;
+    }>,
+    TObject<{ delivered: TLiteral<true> }>,
+  ]
+> = Type.Union([
+  Type.Object(
+    {
+      turnId: TurnIdSchema,
+      queued: Type.Optional(Type.Literal(true)),
+      cacheImpact: Type.Optional(CacheImpactSchema),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object({ delivered: Type.Literal(true) }, { additionalProperties: false }),
+]);
 export type TurnStartResult = Static<typeof TurnStartResultSchema>;
 
 export const TurnInterruptParamsSchema: TObject<{
@@ -1992,7 +2004,8 @@ interface WireSchemas
     PluginWireSchemas,
     PluginReviewWireSchemas,
     DevkitWireSchemas,
-    MeasureWireSchemas {
+    MeasureWireSchemas,
+    TurnRecordWireSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -2323,13 +2336,13 @@ export interface WireMethodSpec {
   readonly since: SemVer;
   readonly status: FeatureStatus;
   /** 처음 구현하는 마일스톤 */
-  readonly stage: "M1" | "M2" | "M3" | "M4";
+  readonly stage: "M1" | "M2" | "M3" | "M4" | "M5";
 }
 
 function spec<P extends TSchema, R extends TSchema>(
   params: P,
   result: R,
-  stage: "M1" | "M2" | "M3" | "M4",
+  stage: "M1" | "M2" | "M3" | "M4" | "M5",
 ): WireMethodSpec & { readonly params: P; readonly result: R } {
   return { params, result, since: "0.1.0", status: "active", stage };
 }
@@ -2485,6 +2498,7 @@ export const WIRE_METHODS: {
   ...PLUGIN_REVIEW_WIRE_METHODS,
   ...DEVKIT_WIRE_METHODS,
   ...MEASURE_WIRE_METHODS,
+  ...TURN_RECORD_WIRE_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 

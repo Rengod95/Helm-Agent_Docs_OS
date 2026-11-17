@@ -31,6 +31,7 @@ import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.
 import { ProfileAppliedPayloadSchema } from "./profile.ts";
 import {
   LeaseAcquiredPayloadSchema,
+  DriveCommandSettledPayloadSchema,
   LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
   PostAcceptedPayloadSchema,
@@ -99,6 +100,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("lease.acquired", true, LeaseAcquiredPayloadSchema),
   core("lease.released", true, LeaseReleasedPayloadSchema),
   core("lease.rejected", true, LeaseRejectedPayloadSchema),
+  core("drive.command_settled", true, DriveCommandSettledPayloadSchema),
   retiredCore("post.accepted", true, PostAcceptedPayloadSchema),
   core("settings.changed", true, SettingsChangedPayloadSchema),
   core("approval.requested", true, ApprovalRequestedPayloadSchema),
