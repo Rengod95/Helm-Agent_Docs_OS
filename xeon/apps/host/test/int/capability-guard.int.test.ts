@@ -84,7 +84,7 @@ function manifestOf(name: string, kind: "plugin" | "group") {
 async function probeRun(
   settings: Readonly<Record<string, unknown>> | undefined,
   expected: Readonly<Record<string, string>>,
-  expectedCalls: readonly string[],
+  expectedCalls: string[],
 ): Promise<void> {
   const home = useEngineHome();
   if (settings !== undefined) writeUserSettings(home, settings);
