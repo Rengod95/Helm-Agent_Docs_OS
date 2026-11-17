@@ -1,5 +1,9 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
+import {
+  defineSettings,
+  JUDGE_MAX_RUNS_SETTING,
+  type SettingDef,
+} from "@fresnel/contracts/settings";
 
 // L1.agents.spec §6. 모두 layer L1, since 0.1.0이다. F 12탭에 agents 탭이 없어 ui.tab은 models다
 // (review.decisions-2 S-14). 정의 파일은 파일로만 편집하므로 정의 목록 키는 두지 않는다.
@@ -54,22 +58,11 @@ const group = defineSettings("l1.agents", {
     },
     since: "0.1.0",
   },
-  "judge.maxRuns": {
-    type: Type.Integer(),
-    default: 3,
-    range: { min: 1, max: 20 },
-    runtimeChange: "nextTurn",
-    allowedScopes: [...FILE_SCOPES, "launch"],
-    ui: {
-      tab: "models",
-      widget: "number",
-      order: 330,
-      label: "Max goal judge runs",
-      unit: "times",
-    },
-    since: "0.1.0",
-  },
 });
 
 /** `l1.agents.*` 선언 전체. 카탈로그 조립(buildCatalog)이 쓴다 */
-export const AGENTS_SETTING_DEFS: readonly SettingDef[] = Object.values(group.defs);
+// `judge.maxRuns`의 선언은 F(`@fresnel/contracts/settings`)에 있다. L2.work가 이 키를 core-agents 없이 읽는다
+export const AGENTS_SETTING_DEFS: readonly SettingDef[] = [
+  ...Object.values(group.defs),
+  JUDGE_MAX_RUNS_SETTING,
+];

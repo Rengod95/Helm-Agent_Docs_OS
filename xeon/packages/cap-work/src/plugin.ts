@@ -1,5 +1,6 @@
 import { err, ok } from "@fresnel/contracts";
 import {
+  AgentsJudgeKey,
   WorkGoalsKey,
   WorkReportsKey,
   WorkTasks,
@@ -13,12 +14,10 @@ import {
   type PortKey,
 } from "@fresnel/contracts/extensions";
 import {
-  AgentServicePortKey,
   OsPortKey,
   SessionPortKey,
   ToolServicePortKey,
   type ToolRegistration,
-  type AgentService,
   type ToolService,
 } from "@fresnel/contracts/services";
 import {
@@ -63,6 +62,17 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
     return host.port(key);
   } catch (caught) {
     if (caught instanceof PrimitiveError && caught.code === "port_unavailable") return undefined;
+    throw caught;
+  }
+}
+
+/** 아직 공급되지 않은 공개 기능은 undefined. 그 밖의 오류는 그대로 던진다(선언되지 않은 기능 포함) */
+function optionalCapability<Api>(get: () => Api): Api | undefined {
+  try {
+    return get();
+  } catch (caught) {
+    if (caught instanceof PrimitiveError && caught.code === "capability_unavailable")
+      return undefined;
     throw caught;
   }
 }
@@ -126,7 +136,8 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       const gate = createSettleGate({
         goals,
         reader,
-        agents: () => optionalPort<AgentService>(host, AgentServicePortKey),
+        // 판정은 공개 기능 `agents.judge`로 한다(hooks-core-boundary §6.2, D-30). 공급자는 core-agents다
+        judge: () => optionalCapability(() => g.capability(AgentsJudgeKey)),
         ids: options.ids,
         clock: os.time.clock,
         logger,

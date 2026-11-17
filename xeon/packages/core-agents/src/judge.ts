@@ -13,9 +13,6 @@ import type { AgentsSession } from "./deps.ts";
 import { sha256Hex } from "./hash.ts";
 import { completeStructured, JudgeAnswerSchema, type StructuredModels } from "./structured.ts";
 
-/** 판정 기본 상한(`l1.agents.judge.maxRuns` 기본값) */
-export const JUDGE_MAX_RUNS_DEFAULT = 3;
-
 export interface JudgeDeps {
   readonly session: Pick<AgentsSession, "commit" | "query">;
   readonly producer: ProducerHandle;

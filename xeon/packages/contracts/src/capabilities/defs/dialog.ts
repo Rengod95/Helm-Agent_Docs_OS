@@ -697,6 +697,7 @@ export const DialogCommands: CapabilityDef<CommandsMethods, readonly []> = defin
   service: {
     methods: {
       register: {
+        risk: "read",
         description: "Registers a template command.",
         input: CommandRegisterInput,
         output: CommandRegisterOutput,
@@ -720,6 +721,7 @@ export const DialogCommands: CapabilityDef<CommandsMethods, readonly []> = defin
         errors: COMMAND_ERRORS,
       },
       run: {
+        risk: "read",
         description:
           "Runs a command. Templates return the final text, and action commands return the handler result.",
         input: CommandRunInput,
@@ -836,12 +838,14 @@ export const DialogStatus: CapabilityDef<StatusMethods, readonly []> = defineCap
   service: {
     methods: {
       setItem: {
+        risk: "read",
         description: "Creates or changes a segment.",
         input: StatusItemSchema,
         output: EmptyOutput,
         replay: "unsafe",
       },
       clearItem: {
+        risk: "read",
         description: "Removes a segment.",
         input: StatusClearInput,
         output: EmptyOutput,
@@ -985,6 +989,7 @@ export const DialogAttachments: CapabilityDef<AttachmentsMethods, readonly []> =
   service: {
     methods: {
       add: {
+        risk: "read",
         description: "Checks and stores one attachment, then creates the input part.",
         input: AttachmentAddInput,
         output: AttachmentAddOutput,
@@ -1048,6 +1053,7 @@ export const DialogAside: CapabilityDef<AsideMethods, readonly []> = defineCapab
   service: {
     methods: {
       ask: {
+        risk: "read",
         description: "Reads a snapshot of the main thread and answers with a separate model call.",
         input: AsideAskInput,
         output: AsideAskOutput,
@@ -1119,12 +1125,14 @@ export const DialogStyles: CapabilityDef<StylesMethods, readonly []> = defineCap
   service: {
     methods: {
       register: {
+        risk: "read",
         description: "Registers a style.",
         input: StyleSchema,
         output: EmptyOutput,
         replay: "unsafe",
       },
       select: {
+        risk: "read",
         description: "Selects the style for this session. null means the default style.",
         input: StyleSelectInput,
         output: StyleSelectOutput,
@@ -1268,6 +1276,7 @@ export const DialogNotify: CapabilityDef<NotifyMethods, readonly []> = defineCap
   service: {
     methods: {
       emit: {
+        risk: "read",
         description: "Groups and plugins emit notifications directly (durable record).",
         input: NotifyEmitInput,
         output: NotifyEmitOutput,

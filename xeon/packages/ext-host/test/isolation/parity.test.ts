@@ -2,7 +2,7 @@
 // 내부 훅 거부)을 같은 픽스처로 엔진 안과 격리 자식에서 돌려, 같은 결과를 내는지 본다.
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
-import { ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   pluginDeclsOf,
@@ -76,6 +76,11 @@ async function hostWithTools(): Promise<{
     name: "parity-tools-port",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {

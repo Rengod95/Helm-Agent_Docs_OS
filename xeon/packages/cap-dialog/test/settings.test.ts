@@ -5,8 +5,8 @@ import {
   type ScopeLayer,
   type ScopeStack,
 } from "@fresnel/contracts/settings";
-import { createAskService } from "../src/ask/service.ts";
-import { realApprovals } from "./support/real-approvals.ts";
+import { createAskService } from "@fresnel/core-tools";
+import { realApprovals } from "@fresnel/core-tools/testing";
 import {
   DEFAULT_DIALOG_SETTINGS,
   DIALOG_SETTING_DEFS,

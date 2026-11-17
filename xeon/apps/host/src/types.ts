@@ -377,7 +377,14 @@ export interface ThreadPort {
     readonly testRun?: boolean;
     /** 대화가 참조할 프로필 id(`thread.started.profileId`). 없으면 `default`다 */
     readonly profileId?: string;
+    /**
+     * 작업 폴더가 없을 때 기본 폴더 아래 `<threadId>` 폴더를 만들어 쓴다(review m5 §4.4.5). `thread.create`만 켠다.
+     * 다른 생성 경로(예약, 제작)는 작업 폴더 없이 두는 지금 동작을 그대로 쓴다
+     */
+    readonly defaultFolder?: boolean;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
+  /** 대화의 정규 작업 폴더(없으면 null). 모르는 대화는 `thread_not_found`가 아니라 읽기 실패로 준다 */
+  workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   /**

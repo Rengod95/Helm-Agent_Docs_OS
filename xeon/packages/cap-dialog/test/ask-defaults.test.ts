@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { defaultAskAnswer, type AskQuestion } from "@fresnel/contracts/capabilities";
-import { createAskService } from "../src/ask/service.ts";
+import { createAskService } from "@fresnel/core-tools";
+import { realApprovals } from "@fresnel/core-tools/testing";
 import { callOptions, harness, newThread } from "./support/harness.ts";
-import { realApprovals } from "./support/real-approvals.ts";
+// 설정 층(`l2.dialog.ask.timeoutSec`)을 읽는 시험이라 cap-dialog에 남는다. 질문 서비스 자체는 core-tools/src/ask에 있다
 
 const SCOPE: AskQuestion = {
   id: "scope",

@@ -769,6 +769,7 @@ export const WorkspaceImages: CapabilityDef<ImagesMethods, readonly []> = define
         errors: IMAGE_ERRORS,
       },
       register: {
+        risk: "read",
         description: "Prepares and registers base64 image data. Used for pasted attachments.",
         input: RegisterImageInput,
         output: WorkspaceImageSchema,

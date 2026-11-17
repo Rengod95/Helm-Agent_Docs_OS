@@ -474,6 +474,7 @@ export const ArtifactsRegistry: CapabilityDef<
         readOnly: true,
       },
       archive: {
+        risk: "read",
         description: "Archives the artifact. Events and blobs are not deleted.",
         input: ArchiveInput,
         output: ArtifactSummarySchema,
@@ -885,6 +886,7 @@ export const ArtifactsReviews: CapabilityDef<
         readOnly: true,
       },
       approve: {
+        risk: "read",
         description: "Marks a hunk as approved.",
         input: HunksInput,
         output: ReviewViewSchema,
@@ -896,6 +898,7 @@ export const ArtifactsReviews: CapabilityDef<
         },
       },
       reject: {
+        risk: "read",
         description: "Marks a hunk as rejected. The revert is applied on submit.",
         input: HunksInput,
         output: ReviewViewSchema,
@@ -907,6 +910,7 @@ export const ArtifactsReviews: CapabilityDef<
         },
       },
       comment: {
+        risk: "read",
         description: "Adds a comment to a hunk line, a file, or the whole review.",
         input: CommentInput,
         output: CommentViewSchema,
@@ -922,6 +926,7 @@ export const ArtifactsReviews: CapabilityDef<
         },
       },
       submit: {
+        risk: "write",
         description:
           "Finalizes the current round. Reverts rejected hunks and passes decisions and comments to the agent as input.",
         input: SubmitInput,
@@ -941,6 +946,7 @@ export const ArtifactsReviews: CapabilityDef<
         },
       },
       close: {
+        risk: "read",
         description: "Closes the review. Decisions and comments are no longer accepted.",
         input: CloseInput,
         output: ReviewViewSchema,

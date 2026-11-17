@@ -1,5 +1,5 @@
 import { assertNever, attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
-import { isId } from "@fresnel/contracts/conversation";
+import { isId, type JsonObject, type JsonValue } from "@fresnel/contracts/conversation";
 import { isCapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
 import type {
   ProposalDecideParams,
@@ -11,6 +11,7 @@ import type {
   ProposalStatusWire,
 } from "@fresnel/contracts/wire";
 import type { KnowledgeProposalWire } from "@fresnel/cap-knowledge";
+import type { HumanDecisionGrant } from "@fresnel/contracts/services";
 import {
   decisionCommandLine,
   proposalView,
@@ -58,6 +59,11 @@ export interface ProposalPortDeps {
   readonly runner: LearningRunner;
   /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
   readonly knowledge: () => KnowledgeProposalWire | undefined;
+  /**
+   * 사람의 결정을 실행하는 동안 그 결정이 가리킨 쓰기가 새 승인 카드를 띄우지 않게 한다(`ToolService.withHumanDecision`, U-11).
+   * 없으면 결정이 부르는 쓰기는 보통의 승인 카드를 띄운다
+   */
+  readonly humanDecision?: <T>(grant: HumanDecisionGrant, work: () => Promise<T>) => Promise<T>;
   /** 오류 기록(결정에 쓰지 않는 실패: 정리, 알 수 없는 오류 코드) */
   readonly report: (message: string, fields: LogFields) => void;
 }
@@ -240,6 +246,34 @@ function learningDecision(params: ProposalDecideParams): ProposalDecision {
   }
 }
 
+function isObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 학습 제안 승인 증거의 출처(`group-learning`의 `APPROVAL_SOURCE`와 같은 값) */
+const LEARNING_EVIDENCE_SOURCE = "learning.queue";
+
+/**
+ * 사용자가 학습 제안 하나를 승인·수정했을 때 그 결정이 가리킨 쓰기: 지식 스킬·메모리 쓰기 가운데 승인 증거가 이 제안의 것인 호출이다.
+ * 다른 제안의 증거나 다른 출처의 증거를 단 호출은 맞지 않는다
+ */
+function learningDecisionGrant(proposalId: string): HumanDecisionGrant {
+  return {
+    id: `decision:learning:${proposalId}`,
+    risk: "write",
+    covers: ({ capability, input }) => {
+      if (capability !== "knowledge.skills" && capability !== "knowledge.memory") return false;
+      const approval = input.approval;
+      if (!isObject(approval)) return false;
+      return (
+        approval.source === LEARNING_EVIDENCE_SOURCE &&
+        typeof approval.ref === "string" &&
+        approval.ref.startsWith(`${proposalId}:`)
+      );
+    },
+  };
+}
+
 export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
   /**
    * 그룹이 꺼져 있을 때의 학습 목록: 저장소의 기록을 읽기만 한다(과거 기록과 대기 행이 그대로 보인다). 그룹이 돌지 않으므로 정리는 하지 않는다.
@@ -361,11 +395,14 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
         const owner = listed.ok
           ? listed.value.find((view) => view.id === params.id)?.evidence[0]?.threadId
           : undefined;
-        const ran = await deps.runner.run(
-          decisionCommandLine(learningDecision(params)),
-          owner,
-          signal,
-        );
+        const run = (): ReturnType<LearningRunner["run"]> =>
+          deps.runner.run(decisionCommandLine(learningDecision(params)), owner, signal);
+        // 승인과 수정만 쓰기를 낳는다. 사람이 이 결정을 내렸으므로 그 제안의 쓰기는 카드를 다시 띄우지 않는다
+        const ran =
+          deps.humanDecision !== undefined &&
+          (params.decision === "approve" || params.decision === "edit")
+            ? await deps.humanDecision(learningDecisionGrant(params.id), run)
+            : await run();
         return ran.kind === "unavailable"
           ? decideFailure("unavailable", ran.detail)
           : resultOfReport(ran.report);

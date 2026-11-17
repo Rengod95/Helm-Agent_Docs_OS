@@ -26,8 +26,9 @@ const GO: Command = { do: "turn", input: { kind: "user", content: "go" } };
 const YIELD: Command = { do: "yield" };
 const DONE: Command = { do: "done" };
 const MESSAGE: PostItem = { kind: "user", content: "wait, one more thing" };
-const TOOL: Command = { do: "tool", name: "read", args: {} };
-const REFUSED: StepResult = { kind: "refused", code: "command_unavailable" };
+const UNHANDLED: Command = { do: "handoff", to: "nobody", input: "x" };
+/** 없는 대상에 `handoff`를 내면 받는 거부 결과(`model`, `tool`은 실행되므로 거부 예시는 `handoff`다) */
+const REFUSED: StepResult = { kind: "refused", code: "target_unavailable" };
 
 const CARD: AskCard = {
   questions: [
@@ -302,8 +303,8 @@ test("a user message the top frame does not answer in three steps revokes the wh
   const bCalls: (StepResult | null)[] = [];
   await t.host.install(
     makeGroupUnit({ name: "frame-b" }, (g) => {
-      // 사용자 메시지에 답하지 않는다: 도구 명령은 이 자리에서 거부 결과가 된다
-      g.drive(recordingStep(bCalls, (last) => (last === null ? YIELD : TOOL)));
+      // 사용자 메시지에 답하지 않는다: 없는 대상에 맡기는 명령은 이 자리에서 거부 결과가 된다
+      g.drive(recordingStep(bCalls, (last) => (last === null ? YIELD : UNHANDLED)));
     }),
   );
   await t.host.openThread(thread, { startDrive: "frame-a" });

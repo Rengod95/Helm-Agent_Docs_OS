@@ -229,6 +229,11 @@ const IdDetails = Type.Object(
   { id: Type.String({ maxLength: 128 }) },
   { additionalProperties: false },
 );
+/** `plugin.requiredByCore`(M5c §4.1.17)가 싣는 플러그인 이름. 다른 플러그인 오류의 `name`과 이름이 다른 것은 spec이 정한 것이다 */
+const PluginDetails = Type.Object(
+  { plugin: Type.String({ maxLength: 128 }) },
+  { additionalProperties: false },
+);
 
 export const WIRE_ERRORS: {
   readonly [K in WireErrorKind]: WireErrorSpec & { readonly kind: K };
@@ -811,12 +816,12 @@ export const WIRE_ERRORS: {
     retryable: false,
     details: NameDetails,
   },
-  /** 코어 분할 전까지 뺄 수 없는 내장 플러그인이다 */
+  /** 코어 분할 전까지 뺄 수 없는 내장 플러그인이다(프로필 편집이 이 단위를 뺄 때. M5c §4.1.17). `details.plugin`이 그 이름이다 */
   "plugin.requiredByCore": {
     code: 3626,
     kind: "plugin.requiredByCore",
     retryable: false,
-    details: NameDetails,
+    details: PluginDetails,
   },
   /** 그 id의 검토 항목이 없다 */
   "pluginReview.notFound": {

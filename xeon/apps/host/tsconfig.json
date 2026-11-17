@@ -41,6 +41,9 @@
       "path": "../../packages/core-tools"
     },
     {
+      "path": "../../packages/core-workspace"
+    },
+    {
       "path": "../../packages/platform-exec"
     },
     {

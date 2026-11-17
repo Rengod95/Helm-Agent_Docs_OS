@@ -1,0 +1,32 @@
+{
+  "name": "pi-durable-tools",
+  "upstream": "https://github.com/earendil-works/pi",
+  "commit": "cdaf6c227d4718a72b59ccd02152c9614df44cfc",
+  "version": "1.1.0",
+  "package": "@earendil-works/pi-durable",
+  "license": "MIT",
+  "licenseFile": "LICENSE.pi",
+  "copiedFrom": "packages/durable",
+  "copiedPaths": [
+    "packages/durable/src/tools/path-utils.ts -> src/files/upstream/path-utils.ts",
+    "packages/durable/src/tools/bash.ts -> src/shell/upstream/bash.ts",
+    "packages/durable/src/harness/output.ts -> src/upstream/output.ts",
+    "LICENSE -> LICENSE.pi"
+  ],
+  "originalSha256": {
+    "packages/durable/src/tools/path-utils.ts": "3e689aa44a02cc2c89e4b84eca59ac6737ef9dbf0d1b31a13633a38293165a14",
+    "packages/durable/src/tools/bash.ts": "abf2c18f21e93a2a25d271dff28a83c199196b7095cf6671fa65e1f0419728cc",
+    "packages/durable/src/harness/output.ts": "ca3f76d5a880448283fed145e2559a5ceccdfa6601f84f8a9cb23bff486f5bcb",
+    "LICENSE": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+  },
+  "partialCopies": [
+    "packages/durable/src/harness/output.ts -> src/upstream/output.ts (Progress와 PROGRESS_BYTES_PER_SECOND 외 나머지를 뺐다. 상수만 남겼다)"
+  ],
+  "notCopied": [
+    "packages/durable/src/tools/env.ts (requireEnv는 서비스 주입으로 대체. L2.workspace.plan §2)",
+    "packages/durable/src/tools/index.ts (Harness 확장 객체 createCodingTools라 쓰지 않는다)",
+    "packages/durable/src/truncate.ts (platform-exec로 옮겼다. review.decisions-2 D-08, B-04. 이 패키지는 fresnel.exec의 truncateHeadOf를 부른다)"
+  ],
+  "modifications": ["P1", "P2", "P3", "P4", "P6", "P8", "P9", "P10"],
+  "usedBy": "xeon/packages/core-workspace (path-utils, bash, output 복사본. adr.0003, L1.workspace.plan §2)"
+}

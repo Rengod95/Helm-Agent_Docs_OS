@@ -10,8 +10,8 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope, StoreError } from "@fresnel/contracts/records";
+import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
-import { DialogFailure, guarded } from "../errors.ts";
 import type { NoticeEmitFailure, NoticePort, NoticeReadFilter } from "../ports/notices.ts";
 import { classifyNotice } from "./classify.ts";
 

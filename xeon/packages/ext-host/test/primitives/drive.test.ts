@@ -19,9 +19,9 @@ function turnOf(content: string): Command {
   return { do: "turn", input: { kind: "user", content } };
 }
 
-function toolOf(): Command {
-  // E1 엔진은 tool을 `command_unavailable`로 거부한다. 효과가 없는 명령의 본보기로 쓴다
-  return { do: "tool", name: "noop", args: null };
+function handoffOf(): Command {
+  // E2 엔진도 handoff는 `command_unavailable`로 거부한다(E3). 효과가 없는 명령의 본보기로 쓴다
+  return { do: "handoff", to: "other", input: null };
 }
 
 const questionCard: AskCard = {
@@ -416,7 +416,7 @@ test("a drive whose commands have no effect is called again at most the chain li
     makeGroupUnit({ name: "drv-noop-forever", def: counterDef }, (g) => {
       g.drive(({ state }) => {
         seen.push(state.n);
-        return Promise.resolve(toolOf());
+        return Promise.resolve(handoffOf());
       });
     }),
   );

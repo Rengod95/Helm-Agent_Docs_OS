@@ -22,7 +22,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
   4. 오류 클래스와 선언 함수: 오류를 나타내는 `Error` 하위 클래스(`CapabilityError`, `WireError`, `SettingDefError`, 루트의 `Bug`)와, 선언을 받아 그대로 또는 정규화해 돌려주는 `define*` 함수(`defineCapability`, `defineManifest`, `defineSettings`). `define*`는 규칙 위반이면 오류 클래스를 던질 수 있다(`defineSettings` → `SettingDefError`, `F.wire-settings.spec` §3.8.3). 호출 결함과 선언 결함은 `Result` 대신 예외로 알린다(`eng.typescript.guide` TY-11).
   5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `HOOKS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
 - 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정: review.decisions-2 U-03](§8 10번).
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@fresnel/contracts`는 다른 fresnel 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `fresnel.layer = "F"`로 이를 검사한다.
+- 층 순위는 F → X → L0 → L1 → P → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@fresnel/contracts`는 다른 fresnel 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `fresnel.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
   - `typebox` 1.3.27(워크스페이스 catalog). 값 import 허용.
   - `@earendil-works/pi-ai` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1). `@earendil-works/pi-agent-core`에는 의존하지 않는다(adr.0009).

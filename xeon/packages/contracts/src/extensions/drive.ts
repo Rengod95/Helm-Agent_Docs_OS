@@ -4,6 +4,7 @@ import {
   ItemIdSchema,
   JsonObjectSchema,
   JsonValueSchema,
+  StopReasonSchema,
   ThreadIdSchema,
   TurnIdSchema,
   type ItemId,
@@ -12,6 +13,11 @@ import {
   type ThreadId,
   type TurnId,
 } from "../conversation/index.ts";
+import type {
+  PluginModelMessage,
+  PluginModelValue,
+  ToolResultView,
+} from "../capabilities/index.ts";
 import {
   QuestionApprovalDetailSchema,
   type ApprovalResolvedPayload,
@@ -181,29 +187,27 @@ export interface DriveStepInput<S> {
   readonly frame: DriveFrameInfo;
 }
 
-/** `turn`, `spawn`의 명령 공통: 생략하면 엔진이 `${lineageId}:${상태 판}.${단계 번호}`로 결정적으로 만든다(ADR-0015 §3.4 1) */
+/** `turn`, `model`, `tool`, `spawn`의 명령 공통: 생략하면 엔진이 `${lineageId}:${상태 판}.${단계 번호}`로 결정적으로 만든다(ADR-0015 §3.4 1) */
 export interface DriveCommandBase {
   readonly requestId?: string;
 }
 
-/** 모델 호출 한 번(E2). 타입 자리만 있고 E1은 `refused` 결과로 거부한다 */
-export interface DriveModelMessage {
-  readonly role: "system" | "user" | "assistant";
-  readonly content: string;
-}
+/** `model` 명령의 메시지 한 개. 모델 호출의 값(`PluginModelMessage`)과 같다 */
+export type DriveModelMessage = PluginModelMessage;
 
 /**
- * 단계 함수가 돌려주는 명령 하나(drive-isolation.md §1.1). `model`, `tool`, `handoff`는 자리만 있고 E1 엔진은
- * `{ kind: "refused", code: "command_unavailable" }`를 `last`로 돌려준다(예외 아님)
+ * 단계 함수가 돌려주는 명령 하나(drive-isolation.md §1.1). `turn`, `model`, `tool`, `ask`, `spawn`, `commit`, `yield`, `done`은
+ * 엔진이 실행한다. `handoff`는 자리만 있고 E2 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 `last`로 돌려준다(예외 아님)
  */
 export type DriveCommand<S> =
   | (DriveCommandBase & { readonly do: "turn"; readonly input: PostItem; readonly note?: string })
-  | {
+  | (DriveCommandBase & {
       readonly do: "model";
       readonly messages: readonly DriveModelMessage[];
       readonly label?: string;
-    }
-  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue }
+    })
+  /** 도구 실행 한 번. 관문 전체를 지난다(`ToolsPort.executeForPlugin`). 횟수 한도는 없고 토큰 소진만 막는다 */
+  | (DriveCommandBase & { readonly do: "tool"; readonly name: string; readonly args: JsonValue })
   | {
       readonly do: "ask";
       readonly card: AskCard;
@@ -234,12 +238,13 @@ export interface StepHookSource {
 
 /**
  * 엔진이 다음 단계의 `last`로 주는 값(drive-isolation.md §1.1). 명령 결과, 훅의 결정, 사용자 메시지, 맡기기 복귀의 합집합이다.
- * `turn`과 `spawn`의 `value`는 정본 결과 모양이고(둘 다 JSON), `model`, `tool`은 E2가 정한다
+ * `turn`과 `spawn`의 `value`는 정본 결과 모양이고(둘 다 JSON), `model`은 응답 글과 사용량, `tool`은 도구 결과 뷰다
  */
 export type StepResult =
   | { readonly kind: "ok"; readonly of: "turn"; readonly value: TurnOutcome }
   | { readonly kind: "ok"; readonly of: "spawn"; readonly value: SpawnOutcome }
-  | { readonly kind: "ok"; readonly of: "model" | "tool"; readonly value: JsonValue | null }
+  | { readonly kind: "ok"; readonly of: "model"; readonly value: PluginModelValue }
+  | { readonly kind: "ok"; readonly of: "tool"; readonly value: ToolResultView }
   | {
       readonly kind: "ask";
       readonly answer: "answered" | "cancelled" | "expired" | "noninteractive";
@@ -359,8 +364,34 @@ const StepResultShape = Type.Union([
   }),
   Type.Object({
     kind: Type.Literal("ok"),
-    of: Type.Union([Type.Literal("model"), Type.Literal("tool")]),
-    value: JsonValueSchema,
+    of: Type.Literal("model"),
+    value: Type.Object(
+      {
+        text: Type.String(),
+        usage: Type.Union([
+          Type.Object(
+            { input: Type.Number(), output: Type.Number(), total: Type.Number() },
+            { additionalProperties: false },
+          ),
+          Type.Null(),
+        ]),
+        stopReason: StopReasonSchema,
+      },
+      { additionalProperties: false },
+    ),
+  }),
+  Type.Object({
+    kind: Type.Literal("ok"),
+    of: Type.Literal("tool"),
+    value: Type.Object(
+      {
+        content: Type.String(),
+        structuredContent: Type.Union([JsonValueSchema, Type.Null()]),
+        isError: Type.Boolean(),
+        details: Type.Union([JsonValueSchema, Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
   }),
   Type.Object({
     kind: Type.Literal("ask"),
@@ -423,11 +454,17 @@ const DriveCommandCyclic = Type.Cyclic(
             ),
           ),
           label: Type.Optional(Type.String()),
+          requestId: Type.Optional(Type.String()),
         },
         { additionalProperties: false },
       ),
       Type.Object(
-        { do: Type.Literal("tool"), name: Type.String(), args: JsonValueSchema },
+        {
+          do: Type.Literal("tool"),
+          name: Type.String(),
+          args: JsonValueSchema,
+          requestId: Type.Optional(Type.String()),
+        },
         { additionalProperties: false },
       ),
       Type.Object(

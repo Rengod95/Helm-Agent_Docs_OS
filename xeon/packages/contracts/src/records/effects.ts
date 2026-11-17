@@ -46,6 +46,7 @@ export const EffectIntentSchema: TObject<{
   args: TUnion<[TUnsafe<JsonObject>, typeof BlobRefSchema]>;
   replay: typeof ReplayPolicySchema;
   idempotencyKey: TUnion<[TString, TNull]>;
+  inheritedApproval: TOptional<TObject<{ approvalId: TString; key: TString }>>;
 }> = Type.Object(
   {
     effectId: EffectIdSchema,
@@ -61,6 +62,19 @@ export const EffectIntentSchema: TObject<{
     replay: ReplayPolicySchema,
     /** 외부 멱등 키(도구가 제공할 때) */
     idempotencyKey: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
+    /**
+     * 이 호출이 사람이 답한 승인을 이어받아 카드 없이 지났으면 그 승인 id와 사용 키(`<승인 id>:<인자 해시>`) [제안: U-11].
+     * 사용 키는 한 번만 쓰기 위한 표시다. 재시작 뒤에도 이 기록을 읽어 같은 키를 다시 받지 않는다
+     */
+    inheritedApproval: Type.Optional(
+      Type.Object(
+        {
+          approvalId: Type.String({ minLength: 1, maxLength: 256 }),
+          key: Type.String({ minLength: 1, maxLength: 512 }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );

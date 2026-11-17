@@ -8,25 +8,23 @@ import type { ExtMethodPort } from "../../handlers/m4/ext-method.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import type { ProjectPort } from "../../handlers/m4/project.ts";
 import type { SandboxSelfTestPort } from "../../handlers/m4/sandbox-self-test.ts";
 import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
+import { withEnabledSources } from "./enabled-source.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
+import { REQUIRED_BY_CORE } from "./profile-defaults.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
 import { createProfileTestRunPort, type PluginFact } from "./profile-test-run-port.ts";
+import { readTextFile } from "./profile-cost.ts";
 import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
-
-/**
- * 코어 서비스가 아직 이 단위에 기대는 L2 내장 플러그인(M5c §4.1.17, `plugin.requiredByCore`). 도구 파이프라인의 파일 서비스(`cap-workspace`)와
- * 사람에게 묻기(`cap-dialog`)다. E2의 L1 분할이 끝나면 이 표시를 지운다. 프로필에 남지만 프로필과 무관하게 켜진다
- */
-const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "cap-dialog"]);
 
 /** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
 function isCore(record: ExtensionRecord): boolean {
@@ -37,12 +35,36 @@ function isCore(record: ExtensionRecord): boolean {
   );
 }
 
+/** 코어 확장의 이름: 등급이 guard·core이거나 내장 L1 단위이거나 코어 필수 단위다(§4.1.3, §4.1.17). 프로필과 무관하게 켜진다 */
+export function coreNamesOf(records: readonly ExtensionRecord[]): readonly string[] {
+  return records
+    .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
+    .map((record) => record.manifest.name);
+}
+
+/** 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것의 이름(§4.1.2). 공장 기본 프로필의 플러그인 가운데 이 부분이다 */
+function defaultNamesOf(records: readonly ExtensionRecord[]): readonly string[] {
+  return records
+    .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
+    .map((record) => record.manifest.name);
+}
+
+/** 공장 기본 프로필의 플러그인 이름: 기본 번들 `base`와 `defaultNamesOf`의 합집합(중복 없음). 옮김과 기본 프로필이 같은 목록을 쓴다 */
+export function factoryPluginsOf(
+  base: readonly string[],
+  records: readonly ExtensionRecord[],
+): readonly string[] {
+  return [...new Set([...base, ...defaultNamesOf(records)])];
+}
+
 export interface M4Ports {
   readonly extRead: ExtReadPort;
   readonly extUi: ExtUiVersionPort;
   /** 확장 메서드 `ext.<확장>.<동사>`의 호출(X-2, X-3). 닫힌 처리기 표 밖이라 연결 층이 바로 쓴다 */
   readonly extMethod: ExtMethodPort;
   readonly profileTestRun: ProfileTestRunPort;
+  /** 프로젝트 wire(`project.*`). 포트는 조립 루트가 만들어 `M4EngineDeps.projects`로 넘긴다 */
+  readonly project: ProjectPort;
   /** 대화별 켜짐 집합(E(T)). X가 `PluginSetPortKey`로 읽고, 처리기가 프로필 전환 뒤 다시 맞춘다 */
   readonly pluginSet: PluginSetHandle;
   readonly dialogArea: DialogAreaPort;
@@ -72,25 +94,16 @@ export function createM4Ports(
   // 프로필·Test run 포트는 표지 장부를 쥐므로 제작 포트와 한 인스턴스를 나눠 쓴다(`ext.test.run`의 testRun이 표지를 단다)
   // 코어는 모든 대화에 항상 켜진다(빠지면 `core-tasks`의 `fresnel.tasks`가 없어 `turn.start`가 응답하지 않는다).
   // 공장 기본 프로필은 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것이다(§4.1.2, §7.2)
-  const coreNames = (): readonly string[] =>
-    extReadSources
-      .extensions()
-      .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
-      .map((record) => record.manifest.name);
-  const defaultNames = (): readonly string[] =>
-    extReadSources
-      .extensions()
-      .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
-      .map((record) => record.manifest.name);
   const scopedEnv: M4HostEnv = {
     ...env,
-    forcedPlugins: () => [...coreNames(), ...env.forcedPlugins()],
-    defaultPlugins: () => [...new Set([...env.defaultPlugins(), ...defaultNames()])],
+    forcedPlugins: () => [...coreNamesOf(extReadSources.extensions()), ...env.forcedPlugins()],
+    defaultPlugins: () => [...factoryPluginsOf(env.defaultPlugins(), extReadSources.extensions())],
   };
   const profileTestRun = createProfileTestRunPort({
     ...deps,
     env: scopedEnv,
     pluginFacts: () => extReadSources.extensions().map(pluginFactOf),
+    readText: readTextFile,
   });
   const pluginSet = createPluginSet({
     profiles: profileTestRun,
@@ -99,12 +112,16 @@ export function createM4Ports(
     defaultPlugins: scopedEnv.defaultPlugins,
     openThreadIds: env.openThreadIds,
     managedOff: (name) => managedOffOf(env, name),
+    stopped: env.stopped,
     registrations: env.registrations,
     toggles: env.toggles,
+    settingsChanged: env.settingsChanged,
     report: (message, fields) => {
       engine.log.error(message, fields);
     },
   });
+  // 확장 목록의 `enabledSource`와 정지 풀기 뒤의 다시 맞춤은 E(T)가 낸다(M5c §3.4, §4.1.12)
+  const sources = withEnabledSources(extReadSources, pluginSet, env.registrations);
   // X가 `fresnel.pluginSet` 포트로 읽는다. 플랫폼 모듈로 내놓아 확장 설치와 같은 등록 경로를 쓴다
   detach(
     host
@@ -133,7 +150,7 @@ export function createM4Ports(
     pluginSet,
     extRead: createExtReadPort(
       { ...deps, defaultPlugins: () => pluginSet.defaultView().plugins },
-      extReadSources,
+      sources,
     ),
     extUi: createExtUiVersionPort(deps),
     extMethod: {
@@ -149,6 +166,7 @@ export function createM4Ports(
       },
     },
     profileTestRun,
+    project: engine.projects,
     dialogArea: createDialogAreaPort(deps),
     devkit: createDevkitPort(deps, { profiles: profileTestRun }),
     sandboxSelfTest: createSandboxSelfTestPort(host),
@@ -166,7 +184,7 @@ function managedOffOf(env: M4HostEnv, name: string): boolean {
   return setting.source.scope === "managed" && setting.value === false;
 }
 
-/** 매니페스트에서 프로필 검증이 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키 */
+/** 매니페스트에서 프로필 검증과 미리 보기가 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키, 선언된 재료 */
 function pluginFactOf(record: ExtensionRecord): PluginFact {
   const manifest = record.manifest;
   const plugins = manifest.plugins ?? [];
@@ -177,5 +195,12 @@ function pluginFactOf(record: ExtensionRecord): PluginFact {
     requiredKeys: Object.values(manifest.userConfig ?? {})
       .filter((entry) => entry.required === true)
       .map((entry) => entry.setting),
+    declared: {
+      code: manifest.entry !== undefined,
+      root: record.location,
+      tools: manifest.tools ?? [],
+      instructions: manifest.components?.instructions ?? [],
+      skills: manifest.components?.skills ?? [],
+    },
   };
 }

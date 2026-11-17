@@ -1,10 +1,16 @@
 import { expect, test } from "bun:test";
+import { Bug } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SessionService } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { configReader } from "../src/plugin.ts";
 import { eachInOrder } from "../src/util.ts";
 import {
   normalizeStoredMode,
   readScalarConfig,
   TOOLS_SETTING_DEFAULTS,
   TOOLS_SETTING_KEYS,
+  type ToolsSettingsSource,
 } from "../src/settings.ts";
 import { callTool, createHarness, layer, registerWorkspace } from "./support/harness.ts";
 
@@ -16,9 +22,10 @@ test("defaults match the l1.tools settings table", () => {
     output: { maxLines: 2000, maxBytes: 51_200 },
     deferThreshold: 64,
     unattended: { approval: "expire", timeoutSeconds: 3600 },
+    pluginCallDepth: 3,
   });
   expect(TOOLS_SETTING_DEFAULTS.outputMaxBytes).toBe(51_200);
-  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(8);
+  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(10);
   for (const key of Object.values(TOOLS_SETTING_KEYS))
     expect(key.startsWith("l1.tools.")).toBe(true);
 });
@@ -215,4 +222,38 @@ test("the unattended approval policy reads its two keys and skips invalid values
     }),
   ]);
   expect(invalid.unattended).toEqual({ approval: "expire", timeoutSeconds: 3600 });
+});
+
+test("the thread's profile layer reaches the mode the thread uses: over the file layers, under its session value", () => {
+  const threadId: ThreadId = fixedIdFactory().next("thr");
+  const sessionValues: Record<string, unknown> = {};
+  const session: Pick<SessionService, "sessionSettings"> = {
+    sessionSettings: {
+      // 세션 층은 값의 맵만 다르다(`SessionSettingsLayer`의 범위는 launch로 고정)
+      layer: () => ({ scope: "launch", values: new Map(Object.entries(sessionValues)) }),
+      set: () => {
+        throw new Bug("not used");
+      },
+      reset: () => {
+        throw new Bug("not used");
+      },
+    },
+  };
+  const profiles: Record<string, unknown> = { "l1.tools.permissionMode": "bypass" };
+  const source: ToolsSettingsSource = {
+    layers: () => [layer("user", { "l1.tools.permissionMode": "acceptEdits" })],
+    profileLayer: (id) => (id === threadId ? layer("profile", profiles) : undefined),
+  };
+  const read = configReader(source, session);
+  // 프로필 값이 사용자 파일 값을 이긴다
+  expect(read(threadId).mode).toBe("bypass");
+  // 대화 밖 읽기에는 프로필 층이 없다
+  expect(read(null).mode).toBe("acceptEdits");
+  // 세션 값은 프로필을 이긴다
+  sessionValues["l1.tools.permissionMode"] = "default";
+  expect(read(threadId).mode).toBe("default");
+  // 프로필 층이 없는 대화는 파일 층 값을 쓴다
+  sessionValues["l1.tools.permissionMode"] = undefined;
+  const other: ThreadId = fixedIdFactory(9).next("thr");
+  expect(read(other).mode).toBe("acceptEdits");
 });

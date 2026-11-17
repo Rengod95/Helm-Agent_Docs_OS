@@ -80,12 +80,18 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     // thread.create { workspace }: 상대 경로와 없는 폴더는 -32602이고 대화를 만들지 않는다. 폴더가 있으면 정규 경로가 대화에 남는다
     expect(pick(nthReply(run.responses, "thread.create", 1), "error", "code")).toBe(-32602);
     expect(pick(nthReply(run.responses, "thread.create", 2), "error", "code")).toBe(-32602);
+    // 작업 폴더 없이 만든 대화의 작업 폴더는 기본 폴더 아래 그 대화의 폴더다(spec profile-project-loader §4.4.5). 이전의 null이 아니다
+    const untitledThreadId = pick(
+      nthReply(run.responses, "thread.create", 0),
+      "result",
+      "threadId",
+    );
     const listed = nthReply(run.responses, "thread.list", 1);
     const threads = pick(listed, "result", "threads");
     if (!Array.isArray(threads)) throw new Error("thread.list gave no threads");
     expect(threads.map((t: unknown) => String(pick(t, "workspace"))).toSorted()).toEqual([
+      `<data>/default-project/${String(untitledThreadId)}`,
       "<home>/project",
-      "null",
     ]);
 
     // trust.get: 홈은 신뢰할 자원이 없고, 프로젝트는 자원이 있어 결정을 기다린다. 선택지의 저장 폴더가 대화의 폴더와 같은 문자열이다

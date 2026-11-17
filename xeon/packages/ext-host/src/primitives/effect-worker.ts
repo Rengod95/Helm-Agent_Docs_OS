@@ -9,11 +9,17 @@ import {
   RecordCommitPortKey,
   type ExtensionName,
   type RegistrationId,
+  type ToolsPort,
 } from "@fresnel/contracts/extensions";
 import type { ExtensionEventKind } from "@fresnel/contracts/records";
 import { Type, type Static } from "typebox";
 import { withoutAmbient } from "./ambient.ts";
-import type { CapabilityDefLookup } from "./capability-guard.ts";
+import {
+  pluginCallWiringOf,
+  providerCodeOf,
+  routeOf,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
 import type { HostCore } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { eachInOrder } from "./sequence.ts";
@@ -99,12 +105,72 @@ function isMethod(value: unknown): value is (...args: readonly unknown[]) => unk
   return typeof value === "function";
 }
 
+/**
+ * 도구 파이프라인으로 보낸다(U-10). 요청 키는 기존 `key`이고 `effect.requested|started|settled` 기록은 워커가 그대로 남긴다.
+ * 결과의 모양은 효과 기록의 결과(`ok`, `failed`, `unknown`)로 옮긴다
+ */
+async function viaPipeline(
+  port: ToolsPort,
+  capability: CapabilityId,
+  request: Requested,
+  job: EffectJob,
+): Promise<EffectOutcome> {
+  const input = toJsonValue(request.input);
+  if (input === undefined) {
+    return { kind: "failed", code: "invalid_input", message: "effect input must be JSON" };
+  }
+  const result = await port.executeForPlugin({
+    threadId: job.threadId,
+    plugin: { name: job.extension, scopeId: job.scopeId },
+    via: "effect",
+    target: { kind: "capability", capability, method: request.method },
+    input,
+    requestId: request.key,
+    ...(request.interactive === undefined
+      ? {}
+      : {
+          conditions: {
+            interactive: request.interactive,
+            ...(request.sandbox === undefined ? {} : { sandbox: request.sandbox }),
+          },
+        }),
+  });
+  if (!result.ok) {
+    if (result.error.kind === "unknown_outcome") return { kind: "unknown" };
+    return {
+      kind: "failed",
+      code: `plugin_call_${result.error.kind}`,
+      message: result.error.message,
+    };
+  }
+  if (result.value.isError) {
+    return {
+      kind: "failed",
+      code: providerCodeOf(result.value.details) ?? "plugin_call_failed",
+      message:
+        result.value.content === ""
+          ? `${capability}.${request.method} failed`
+          : result.value.content,
+    };
+  }
+  return { kind: "ok", output: result.value.structuredContent ?? null };
+}
+
 export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): EffectWorkerPort {
   const running = new Map<string, "running" | "again">();
 
   async function call(request: Requested, job: EffectJob): Promise<EffectOutcome> {
     if (!isCapabilityId(request.capability)) {
       return { kind: "failed", code: "invalid_input", message: "capability id is malformed" };
+    }
+    const wiring = pluginCallWiringOf(core.ports);
+    const declared = defs(request.capability)?.service.methods[request.method];
+    const port = wiring.tools();
+    if (
+      port !== undefined &&
+      routeOf(wiring, request.capability, request.method, declared) === "pipeline"
+    ) {
+      return viaPipeline(port, request.capability, request, job);
     }
     const service = core.bridge.service(capabilityServiceName(request.capability));
     const method = isIndexable(service) ? service[request.method] : undefined;

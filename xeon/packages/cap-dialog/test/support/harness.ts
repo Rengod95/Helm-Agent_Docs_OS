@@ -11,9 +11,8 @@ import type { NoticePort } from "../../src/ports/notices.ts";
 import type { ShellFailure, ShellPort } from "../../src/ports/shell.ts";
 import type { StatusPublisher } from "../../src/ports/session.ts";
 import { readDialogSettings } from "../../src/settings.ts";
-import type { RealApprovals } from "./real-approvals.ts";
+import { manualTimers, type ManualTimers, type RealApprovals } from "@fresnel/core-tools/testing";
 import { memoryCommandFiles, type MemoryCommandFiles } from "./memory-command-files.ts";
-import { manualTimers, type ManualTimers } from "./timers.ts";
 
 export interface LogLine {
   readonly event: string;

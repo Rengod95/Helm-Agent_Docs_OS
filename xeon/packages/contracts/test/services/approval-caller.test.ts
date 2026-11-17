@@ -58,12 +58,29 @@ describe("approvalCallerOf", () => {
 });
 
 describe("origin.caller format", () => {
-  test("accepts the five forms and rejects anything else", () => {
+  test("accepts the six forms (plugin calls included) and rejects anything else", () => {
     const pattern = new RegExp(APPROVAL_CALLER_PATTERN);
-    for (const ok of ["main", "background", "host", "subagent:review", "ext:grp-helm"]) {
+    for (const ok of [
+      "main",
+      "background",
+      "host",
+      "subagent:review",
+      "ext:grp-helm",
+      "plugin:notes",
+    ]) {
       expect({ ok, matches: pattern.test(ok) }).toEqual({ ok, matches: true });
     }
-    for (const bad of ["model:main", "subagent:", "ext:", "Main", "robot", "subagent", ""]) {
+    for (const bad of [
+      "model:main",
+      "subagent:",
+      "ext:",
+      "plugin:",
+      "plugin:Notes",
+      "Main",
+      "robot",
+      "subagent",
+      "",
+    ]) {
       expect({ bad, matches: pattern.test(bad) }).toEqual({ bad, matches: false });
     }
     expect(parse(ApprovalOriginJsonSchema, { ...ORIGIN, caller: "model:main" }).ok).toBe(false);

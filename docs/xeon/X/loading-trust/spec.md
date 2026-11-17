@@ -1173,7 +1173,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
 - [결정: 오케스트레이터 기본값, fxPT] 이 목록의 파일을 "판정 전에 읽지 않는다"는 로드를 가리킨다. 신뢰 카드가 결정 전에 이름을 보이려고 하는 미리 보기는 §4.7.4의 이름 읽기만 한다.
-- `AGENTS.md`, `CLAUDE.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다. 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
+- `AGENTS.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다(턴 시작에 `L1.context.spec` §4.2a가 읽는다). `CLAUDE.md`는 읽지 않는다(M5c 미결 5 결정). 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
 
 #### 4.7.3 판정 순서와 선택지
 

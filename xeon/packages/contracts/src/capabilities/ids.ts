@@ -33,7 +33,16 @@ export const TOOL_NAME_PATTERN: string = "^[a-z][a-z0-9_]{0,63}$";
 export const TOOL_NAME_WIRE_PATTERN: string = "^[a-zA-Z0-9_-]{1,64}$";
 /** 확장 모델 도구의 정식 이름 "<확장 이름>__<이름>"(X.operations.spec §4.5). 전체 길이는 TOOL_NAME_WIRE_PATTERN의 64자 */
 export const EXTENSION_TOOL_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,31}__[a-z][a-z0-9_]*$";
-export const ToolNameSchema: TString = Type.String({ pattern: TOOL_NAME_WIRE_PATTERN });
+/**
+ * 플러그인 기능 호출의 합성 도구 이름 `cap:<기능 id>.<메서드>`(hooks-core-boundary §5.3 U-1 (다)). 모델에는 광고하지 않으므로 provider 와이어 패턴을 따르지 않는다
+ */
+export const SYNTHETIC_TOOL_NAME_PATTERN: string = `^cap:${CAPABILITY_ID_PATTERN.slice(1, -1)}\\.[a-zA-Z][a-zA-Z0-9_]{0,47}$`;
+const TOOL_NAME_WIRE_BODY = TOOL_NAME_WIRE_PATTERN.slice(1, -1);
+const SYNTHETIC_TOOL_NAME_BODY = SYNTHETIC_TOOL_NAME_PATTERN.slice(1, -1);
+/** 훅 payload의 도구 이름. 모델 도구의 와이어 이름이거나 합성 기능 도구 이름이다 */
+export const ToolNameSchema: TString = Type.String({
+  pattern: `^(?:${TOOL_NAME_WIRE_BODY}|${SYNTHETIC_TOOL_NAME_BODY})$`,
+});
 
 const CAPABILITY_ID_REGEX = new RegExp(CAPABILITY_ID_PATTERN);
 const SEMVER_REGEX = new RegExp(SEMVER_PATTERN);

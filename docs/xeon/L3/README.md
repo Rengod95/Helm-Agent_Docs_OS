@@ -93,8 +93,8 @@ flowchart TD
 | L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 기능은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
 | L3 → X `ext-host` | `group-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
-| L3 → L0 `platform-*` | 순위상 허용이나 DR-14로 구현 import 금지. 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-14 나쁜 예 |
-| L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
+| L3 → L0 `platform-*` | DR-15로 소스 import 금지(시험 파일 예외). 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-15, DR-14 나쁜 예 |
+| L3 → L1 `core-*` | DR-15로 소스 import 금지(시험 파일 예외). `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-15, DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
 | 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
 각 패키지 `package.json`의 `fresnel` 필드(현재 값):

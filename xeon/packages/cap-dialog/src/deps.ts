@@ -1,6 +1,6 @@
 import type { Logger } from "@fresnel/contracts";
 import type { CallContext, Notice } from "@fresnel/contracts/capabilities";
-import type { ApprovalsPortFactory } from "./ports/approvals.ts";
+import type { ApprovalsPortFactory, Timers } from "@fresnel/core-tools";
 import type { AttachmentFiles } from "./ports/files.ts";
 import type { ImagesPort } from "./ports/images.ts";
 import type { BlobSink } from "./ports/blobs.ts";
@@ -8,7 +8,6 @@ import type { CommandFiles, CommandRoots } from "./ports/command-files.ts";
 import type { NoticePort } from "./ports/notices.ts";
 import type { ShellPort } from "./ports/shell.ts";
 import type { DialogFeed, StatusPublisher } from "./ports/session.ts";
-import type { Timers } from "./ports/timers.ts";
 import type { DialogSettings } from "./settings.ts";
 
 /** 서비스 조립에 필요한 의존. 플러그인이 포트에서 모아 넘기고, 시험은 대역을 넘긴다 */

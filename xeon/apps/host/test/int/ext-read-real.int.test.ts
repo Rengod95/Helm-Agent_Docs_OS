@@ -147,8 +147,8 @@ realTest(
         requestedGrade: "user",
         effectiveGrade: "user",
         status: "enabled",
-        // 켜짐의 출처는 E(T)(프로필 계산)가 생길 때까지 `none`이다(M5c §4.1). 사용자 스위치는 없다
-        enabledSource: "none",
+        // 켜짐의 출처는 E(T)다(M5c §3.4). 이 확장은 매니페스트 기본이 켜짐이라 공장 기본 프로필에 든다: `profile`
+        enabledSource: "profile",
         hookCount: 2,
         origin: "user",
         autoDisabled: false,

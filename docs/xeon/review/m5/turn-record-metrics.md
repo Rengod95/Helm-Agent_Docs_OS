@@ -129,7 +129,10 @@ export interface TurnRecord {
   /** 이 턴의 모든 단계 기록이 저장됐나 */
   readonly complete: boolean;
   readonly scope: ScopeKind;
-  /** rev는 턴 시작 값. 한 턴 안에서 프로필 개정이 단계 경계마다 바뀔 수 있으므로(M5c §4.1.6) 바뀐 곳을 따로 적는다 */
+  /**
+   * rev는 턴 시작 값. 한 턴 안에서 프로필 개정이 단계 경계마다 바뀔 수 있으므로(M5c §4.1.6) 바뀐 곳을 `profileRevChanges`에 적는다.
+   * `source`: `thread`는 쓰인 id가 대화가 저장한 id와 같을 때, `builtin`은 저장한 id가 없거나 저장한 프로필이 없어 `default`를 쓸 때다. `inherited`: 부모 턴의 `agent.spawned`로 만든 하위 대화면 참이다 [제안, §4.10 규칙 61~62]
+   */
   readonly profile: { id: string; rev: number; source: "thread" | "builtin"; inherited: boolean } | null;
   readonly profileRevChanges: { stepIndex: number; rev: number }[];
   readonly overlay: OverlayMark | null;
@@ -563,7 +566,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 
 ### 4.4 Drive, 하위 에이전트, 물음
 
-23. Drive 프레임은 `lease.acquired`(`packages/contracts/src/records/catalog/extension-ops.ts:100`), `lease.released`와 `turn.started.scopeId`로 만든다. E3이 `parent`, `depth`, `contentHash`를 `lease.acquired`에 더하면(`docs/xeon/review/m5/drive-isolation.md` §2.6) 그 값을 `FrameMark`의 `parentLeaseId`, `depth`, `versionId`로 옮긴다. 더하기 전의 기록은 깊이 0·1로 읽는다 [가정]. `exitReason`은 저장된 `lease.released.reason`(`disabled`, `budget`, `error`, `idle`, `revoked`, `restart`, `waiting`, 새 값 `done`)을 그대로 적고 화면 표시는 읽는 쪽이 푼다: `revoked` = 사용자 중지(또는 사용자 명령에 의한 교체. 중지 때 이 값으로 반납한다, 커밋 `117b90719`), `disabled` = 프로필에서 빠짐, `done` = 단계 함수가 끝냄, `waiting` = 맡기기로 아래 프레임이 기다림(해제가 아니라 상태). 맡기기가 취소되어 아래 프레임이 돌아오는 것(`handoff_aborted`)은 종료 사유가 아니라 아래 프레임의 `lowerResumedWith`다. 한도 소비량은 `used`, 주도 중에 받은 사용자 메시지 수는 `userMessages`다(내용은 대화 로그가 갖는다).
+23. Drive 프레임은 `lease.acquired`(`packages/contracts/src/records/catalog/extension-ops.ts:100`), `lease.released`와 `turn.started.scopeId`로 만든다. E3이 `parent`, `depth`, `contentHash`를 `lease.acquired`에 더하면(`docs/xeon/review/m5/drive-isolation.md` §2.6) 그 값을 `FrameMark`의 `parentLeaseId`, `depth`, `versionId`로 옮긴다. 더하기 전의 기록은 깊이 0·1로 읽는다 [가정]. `exitReason`은 저장된 `lease.released.reason`(`disabled`, `budget`, `error`, `idle`, `revoked`, `restart`, `waiting`, 새 값 `done`)을 그대로 적고 화면 표시는 읽는 쪽이 푼다: `revoked` = 사용자 중지(또는 사용자 명령에 의한 교체. 중지 때 이 값으로 반납한다, 커밋 `117b90719`), `disabled` = 프로필에서 빠짐, `done` = 단계 함수가 끝냄, `waiting` = 맡기기로 아래 프레임이 기다림(해제가 아니라 상태). 맡기기가 취소되어 아래 프레임이 돌아오는 것(`handoff_aborted`)은 종료 사유가 아니라 아래 프레임의 `lowerResumedWith`다. 한도 소비량은 `used`, 주도 중에 받은 사용자 메시지 수는 `userMessages`다(내용은 대화 로그가 갖는다). [구현 2026-11-18, 트랙 enC2m] 호스트 기록기(`turn-writer.ts`)가 `lease.acquired`·`lease.released`로 대화별 스택을 따르고, 턴 시작 때 열려 있던 프레임(`enteredAtMs` 0)과 턴 안의 변화를 `record.frames`와 `tr_frame` 행(`level: full`만)으로 쓴다. `depth`는 코어를 0으로 세므로 `lease.acquired.depth`에 1을 더하고, `plugin`은 `scopeId`다. 코어 프레임(깊이 0, `leaseId` 없음)은 `tr_frame`의 기본 키(`lease_id`)에 담을 수 없어 쓰지 않는다. `used`는 0, `userMessages`는 0, `lowerResumedWith`는 null이다. 이 값을 싣는 사건이 없다(`lease.released`는 사유만 싣는다). 계약(`FrameMark`)과 스택의 차이로 정할 것이다.
 24. 하위 에이전트는 `agent.spawned`, `agent.settled`(`packages/contracts/src/records/catalog/agent.ts:76`, `:120`)로 부모 쪽 자리와 한도 도달(`limitHit`)을 얻는다. 자식 대화의 턴은 따로 `tr_turn`을 갖고 `parent` 링크와 부모와 같은 프로필 표지(`inherited: true`)를 단다(R13). 부모 턴 기록은 자식 목록(`TurnRecord.children`: `childThreadId`, `agent`, `status`, 사용량)만 품는다.
 25. 사람에게 묻기는 `approval.requested/resolved`(`origin.toolCallId`, `origin.source.scopeId`, `decision`, `resolvedBy`)를 호출 기록의 `approval`과 훅 행의 `ask`로 잇는다. 응답을 기다린 시간은 `requested`와 `resolved`의 `recordedAt` 차이다.
 
@@ -645,6 +648,13 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 57. 갱신 사건은 둘이다. (a) 기존 대화 로그 이벤트: `lease.acquired/released`, `turn.started.scopeId`, `approval.requested/resolved`, `agent.spawned/settled`가 현재 프레임과 물음 카드를 계속 갱신한다. (b) 새 알림 `turnRecord.delta`: 훅 결과와 호출 판정을 단계 끝보다 먼저(메모리 수집기에서 바로) 보낸다. 화면이 열린 대화는 `turnRecord.watch`를 한 번 걸고, 닫힌 턴은 `turnRecord.get`으로 읽는다.
 58. 현재 Drive 프레임 스택(`기본 › Helm › 검증`)은 로그 이벤트에서 클라이언트가 만든다. `group.driveLock`(기존 W-42)은 주도자 하나를 돌려 주므로(`docs/xeon/F/wire-settings/spec.md` 표) E3이 프레임 목록으로 바꾸는 시점에 이 스펙도 `FrameMark`를 같은 모양으로 맞춘다 [가정].
 59. 흔적에서 턴 기록으로 가는 이동은 `turnRecord.get { threadId, turnId }`와 `EvidenceRef`다. 대화의 항목은 이미 `turnId`를 갖는다.
+
+### 4.10 프로필 표지 (R16 데이터)
+
+60. [제안] 턴 기록의 `profile`(id, 개정)과 `tr_turn.profile_id`, `profile_rev`는 턴이 시작할 때 정한다. 값은 그 턴 앞에 있는 같은 대화의 마지막 `profile.applied`다(M5c §4.1.5, 턴 밖의 경계에서 적용된 것도 든다). 그런 사건이 없으면(새 대화의 첫 턴, 또는 기록기를 켠 뒤 처음 보는 대화) 대화의 `PluginSetPort.resolve`가 주는 현재 값을 쓰고, 포트도 없으면 `default`와 개정 0이다. 조립이 포트를 기록기에 넘기는 일은 아직 연결하지 않았다 [미결] [근거: apps/host/src/assemble.ts:1317, `startMeasurement`에 `pluginSet` 한 줄을 더한다]. 연결 전에는 기록기를 켠 뒤 처음 보는 대화의 시작 값이 `default`·0이 된다.
+61. [제안] `source`: `thread`는 쓰인 프로필 id가 대화가 저장한 id(`thread.started`·`thread.updated`의 `profileId`)와 같을 때, `builtin`은 그 밖일 때다. 저장한 id가 없어 `default`를 쓰면 `builtin`이다. 저장한 프로필이 없어 `default`를 쓰면(`profile.applied { reason: "profile_missing" }`) 역시 `builtin`이다. 저장한 프로필이 없었다는 사실은 턴 기록의 칸이 없어 싣지 않는다. 기록기가 저장한 id를 모르면 포트 값에서 되짚고, 포트도 없으면 적용된 값에서 되짚는다(기본이 아닌 id는 저장한 id로만 쓰이므로 그것이 저장한 id다). 포트 값에서 되짚을 때는 저장한 id가 `default`인지 가릴 수 없어 `builtin`으로 본다.
+62. [제안] `inherited`: 이 대화가 부모 턴의 `agent.spawned`(`childThreadId`)로 만들어진 하위 대화면 참이다(규칙 24). 자식의 `thread.started.profileId`는 생성 때의 부모 값이고(M5c §4.1.15), `agent.spawned`는 자식의 첫 턴보다 먼저 커밋되므로 자식 턴이 시작할 때 이미 안다.
+63. [제안] `profileRevChanges`: 턴 안의 `profile.applied`는 단계 경계에서 온다. 그 사건은 경계가 끝낸 단계의 `step.completed`와 같은 커밋에 있다. 개정이 직전 값(시작 값 또는 직전 바뀜)과 다르면 `{ stepIndex, rev }`를 더한다. `stepIndex`는 그 경계가 끝낸 단계의 다음 번호다(턴의 첫 단계는 0). 마지막 단계 뒤의 경계는 실행되지 않을 단계 번호를 가질 수 있다. 프로필 id만 바뀌고 개정이 같으면 줄을 더하지 않는다(스키마의 `profileRevChanges`는 id 칸을 두지 않는다). `tr_turn.profile_rev_changes_json`은 배열이 비면 null이고 아니면 `record_json`의 같은 배열을 직렬화한 값이다.
 
 ## 5. 지표 정의 표
 
@@ -866,7 +876,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | 12 | 쓰는 때 `step.completed` 뒤의 비원자성(한 단계 손실)을 받아들일지 | 받아들인다. 로그에 사실이 남아 있으므로 `log_only`로 복원 가능 |
 | 14 | `measure.db` 마이그레이션 방식(`user_version`) | 위 제안대로 |
 
-가정(이 문서가 다른 스펙이 낼 값이라고 가정한 것): 프로필 id·개정·출처, `versionId`, Inject 재료의 `when`·소유 선언(M5c §4.5.10이 낸다), `mcp.<서버>` 소유 플러그인, 사용자가 부른 스킬·명령 표지, `lease.acquired`의 `parent`·`depth`·`contentHash`, 플러그인 프로세스와 `replay` 플래그. 전부 이 문서의 외부 의존이고 없는 동안 해당 필드는 `null`로 기록된다.
+가정(이 문서가 다른 스펙이 낼 값이라고 가정한 것): `versionId`, Inject 재료의 `when`·소유 선언(M5c §4.5.10이 낸다), `mcp.<서버>` 소유 플러그인, 사용자가 부른 스킬·명령 표지, `lease.acquired`의 `parent`·`depth`·`contentHash`, 플러그인 프로세스와 `replay` 플래그. 전부 이 문서의 외부 의존이고 없는 동안 해당 필드는 `null`로 기록된다.
 
 ## 12. 요구 추적표
 

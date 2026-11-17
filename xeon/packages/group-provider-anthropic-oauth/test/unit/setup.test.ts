@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { err } from "@fresnel/contracts";
 import { ModelsPortKey, type ProviderResourceDef } from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { GroupSettingsSourceKey } from "@fresnel/group-sdk";
@@ -27,6 +28,10 @@ async function rigWith(values: Readonly<Record<string, unknown>>): Promise<{
             registered.delete(name);
           };
         },
+        completeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "provider_unavailable", message: "test double: no model calls" }),
+          ),
       });
     },
   });

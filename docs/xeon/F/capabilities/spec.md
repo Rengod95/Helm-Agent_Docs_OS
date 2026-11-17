@@ -143,6 +143,8 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
   readonly idempotent?: true;
   /** 대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다(ADR-0015 §3.3). replay "safe"여야 한다 */
   readonly readOnly?: true;
+  /** 도구 매핑이 없는 쓰기 메서드를 플러그인이 부를 때 정책이 보는 위험 등급. 생략하면 가장 엄한 "exec". readOnly와 함께 쓸 수 없다. 모델이 부르는 같은 효과의 도구와 같은 등급이어야 한다(파일 쓰기 "write", 셸·네트워크 "exec", 대화 안 상태만 바꾸면 "read") [제안: enE2m] */
+  readonly risk?: ToolRisk;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -533,12 +535,12 @@ export function diffToolsets(prev: readonly OrderedTool[], next: readonly Ordere
 
 [제안] 이 예시는 정의 형식을 설명하려고 줄인 것이다. `web.search`의 정본은 정의 파일 `xeon/packages/contracts/src/capabilities/defs/web.ts`이고 내용은 `L2.web.spec` §3.2가 정한다. 이 예시는 L2 정의와의 일치 검사 대상이 아니다. 줄인 점: 정본은 provider 정보를 최상위 `provider` 대신 `meta: WebCallMeta`(§3.11 `ProviderSelectionMeta` 포함)에 싣고, 출력에 `sources`·`answer`를, 결과에 `sourceId`와 발췌 위치·점수를, 입력에 `objective`·`freshness`·`provider`를 더하며(도구 파라미터는 `provider`를 빼고 `toInput`을 쓴다), 렌더링 표지를 `[${sourceId}]`로 쓰고, 고유 오류 `session_limit`와 `hints.idempotent`를 더한다(`L2.web.spec` §3.2 차이 표). 입력 필드는 `_research/web-tools.md` §4.2의 부분 집합이다.
 
-[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(기능 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 모두 `capabilities/index.ts`가 재노출하고 `@fresnel/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
+[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(기능 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 층 E에서 `defs/agents.ts`(기능 `agents.judge` 1.0.0)와 `defs/models.ts`(기능 `models.complete` 1.0.0)가 더해졌다. 둘 다 `idempotent`이고 `readOnly`가 아니며 모델 도구가 없다 [근거: `xeon/packages/contracts/src/capabilities/defs/agents.ts`]. 모두 `capabilities/index.ts`가 재노출하고 `@fresnel/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
 
 - 객체·유니온 스키마는 `isolatedDeclarations` 때문에 export마다 타입이 필요하다. 읽기 전용 정적 타입을 손으로 적고 `Type.Unsafe<T>(shape satisfies SchemaProof<T, typeof shape>)`로 내보낸다(`eng.typescript.guide` TY-26 U5). 모양이 어긋나면 컴파일 오류다. 스키마를 이루는 하위 객체는 export하지 않는 `const`로 둔다. 정적 타입은 `type` 별칭이다. `interface`는 `ToolContent.structuredContent`(`JsonValue`)에 대입할 수 없기 때문이다.
 - 모델에 가는 텍스트를 만드는 렌더러(`renderSearch`, `renderFetch`, `renderBrowse`, `renderTaskList`, `renderAsk` 등)와 경계 감싸기(`wrapUntrusted`, `wrapUntrustedMcp`, `wrapUntrustedSession`)는 순수 함수로 정의 파일에 둔다. 경계 표지를 닫는 문자열은 본문 안에서 `<`를 `&lt;`로 바꿔 무력화한다. 도메인별 표지 이름은 `<untrusted_web_content>`, `<untrusted_mcp_content>`, `<untrusted_session_content>`다.
 - 정의 파일은 `records/`를 import하지 않는다(같은 순서, `F.readme` §3). BlobRef가 필요하면 `defs/workspace.ts`의 `ImageBlobRefSchema`(같은 모양)를 쓴다. 이 모양은 `records/blob.ts`와 일치하는지 시험이 확인한다.
-- 도구가 없는 기능(`knowledge.ledger`, `work.goals`, `work.reports`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`)은 `tools: []`로 `validateCapability` 이슈 0건을 통과한다. §3.4가 도구 없는 기능을 허용한다.
+- 도구가 없는 기능(`knowledge.ledger`, `work.goals`, `work.reports`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`, `agents.judge`, `models.complete`)은 `tools: []`로 `validateCapability` 이슈 0건을 통과한다. §3.4가 도구 없는 기능을 허용한다.
 - 경로를 다루는 스키마: `SkillFilePathSchema`(`defs/knowledge.ts`)의 패턴 `SKILL_FILE_PATH_PATTERN`은 마디가 영숫자·`_`·`-`로 시작하고 끝나게 해서 `.`·`..` 마디와 점으로 시작하는 마디(`references/.hidden`)를 거른다 [결정: m2 F.8, KN.1 요청]. 트리 해시와 안전 캡처가 점 항목을 건너뛰어, 해시가 덮지 못하는 파일을 가리키는 경로를 받지 않으려는 것이다. `isSkillFilePath`는 같은 규칙이다. 서비스는 파일 시스템에 닿기 전에 한 번 더 부른다.
 - MCP 서버 주도 요청의 질문 옮기기(`defs/mcp-questions.ts`) [결정: m2 F.8]: `McpQuestion[]`을 승인 본문 `QuestionBody`와 같은 모양(`McpQuestionBody`)으로 옮기는 `planMcpQuestionBody`, 사용자 답 `QuestionAnswer`(`McpQuestionAnswer`)를 입력 요청 키별 `inputResponses`로 되돌리는 `decodeMcpAnswer`, 승인이 거부·취소됐을 때 모든 질문에 같은 동작으로 답하는 `uniformMcpAnswer`, 키별 응답을 `requestedSchema`로 검증하는 `buildMcpInputResponses`·`checkMcpFormContent`가 있다. 폼 필드가 4개 이하이면 필드마다 질문 하나, 넘으면 폼마다 JSON 한 칸이다. sampling 질문은 응답 키를 보내지 않는다(승인돼도 거부). 질문 본문이 L1.tools와 cap-mcp 양쪽에서 필요하고 L1은 L2를 import할 수 없어 F에 둔다. `capabilities`는 `services`를 import할 수 없으므로 `QuestionBody`·`QuestionAnswer` 모양을 같은 구조로 따로 적고, `contracts/test/capabilities/mcp-questions.test.ts`가 서로 대입되는지 확인한다. `McpInputRequiredSchema`는 `input_required` 변형(승인 id 없음)을 알아보는 스키마다.
 
@@ -1048,7 +1050,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 | `replay_widened` | error | 도구 `replay`가 `"safe"`인데 메서드 `replay`가 `"unsafe"`(생략 포함) |
 | `idempotent_replay_unsafe` | error | 메서드가 `idempotent: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
 | `read_only_replay_unsafe` | error | 메서드가 `readOnly: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
-| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언함 |
+| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언하거나 `risk`와 `readOnly`를 함께 선언함 |
 | `effect_class_missing` | warning | `replay: "safe"`인데 `idempotent`와 `readOnly`가 모두 없음. L2 정의 분류(M3-REQ-88)가 끝나면 error로 올릴지 다시 본다 |
 | `parameters_not_object` | error | `parameters` 루트가 객체가 아님 |
 | `schema_ref_external` | error | §4.3 `$ref` 규칙 위반 |

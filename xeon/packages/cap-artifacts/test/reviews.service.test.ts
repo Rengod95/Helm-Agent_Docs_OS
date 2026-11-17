@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { canonicalJson } from "@fresnel/contracts";
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { ReviewView } from "@fresnel/contracts/capabilities";
 import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
@@ -38,6 +40,12 @@ function openOne(h: ReviewsHarness, turnId: TurnId = h.ids.next("trn")): Promise
     { changes: { type: "patch", patch: ONE_FILE_THREE_HUNKS } },
     h.opts(undefined, turnId),
   );
+}
+
+function writeHash(path: string, oldText: string, newText: string): string {
+  return createHash("sha256")
+    .update(canonicalJson({ path, edits: [{ oldText, newText }] }))
+    .digest("hex");
 }
 
 describe("open", () => {
@@ -87,6 +95,12 @@ describe("open", () => {
           files: [
             { path: "src/a.ts", change: "modified", binary: false, hunks: 2 },
             { path: "src/b.ts", change: "modified", binary: false, hunks: 1 },
+          ],
+          // 되돌림 쓰기 입력의 해시(U-11): 거절하면 새 쪽 글을 옛 쪽 글로 바꾸는 편집 하나씩
+          writes: [
+            writeHash("src/a.ts", "const x = 10;\n", "const x = 1;\n"),
+            writeHash("src/a.ts", "const y = 20;\n", "const y = 2;\n"),
+            writeHash("src/b.ts", "const z = 30;\n", "const z = 3;\n"),
           ],
         },
       },
@@ -356,6 +370,8 @@ describe("submit", () => {
         oldText: "const y = 20;\n",
         newText: "const y = 2;\n",
         requestId: `${reviewId}:f0h1`,
+        // 카드의 답이 아닌 직접 제출은 승인 상속을 주장하지 않는다(U-11)
+        approvalId: undefined,
       },
     ]);
     expect(h.files.contents.get("src/a.ts")).toBe("const x = 10;\nconst y = 2;\nconst z = 30;\n");

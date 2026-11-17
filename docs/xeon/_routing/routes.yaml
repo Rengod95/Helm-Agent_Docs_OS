@@ -50,7 +50,7 @@ layout:
     domains: [exec, sandbox, secrets, process, store, os]
     path: "xeon/packages/platform-{domain}/**"
   L1:
-    domains: [tasks, loop, models, tools, context, persistence, agents]
+    domains: [tasks, loop, models, tools, context, persistence, agents, workspace]
     path: "xeon/packages/core-{domain}/**"
   L2:
     domains: [workspace, mcp, web, knowledge, work, dialog, artifacts, schedule]

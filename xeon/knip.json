@@ -37,6 +37,9 @@
     "packages/ext-host": {
       "entry": ["test/**/*.test.ts", "test/**/*.benchmark.ts"]
     },
+    "packages/core-workspace": {
+      "entry": ["test/**/*.test.ts"]
+    },
     "packages/cap-workspace": {
       "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
     },

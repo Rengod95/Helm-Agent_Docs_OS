@@ -161,6 +161,7 @@ export const PROFILE_ISSUE_CODES = [
   "replace_conflict",
   "driver_not_in_list",
   "driver_cannot_drive",
+  "driver_unavailable",
   "setting_unknown_key",
   "setting_scope_not_allowed",
   "setting_invalid_value",

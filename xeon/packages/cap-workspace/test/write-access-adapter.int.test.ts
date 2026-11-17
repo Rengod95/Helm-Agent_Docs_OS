@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { repeatAsync } from "@fresnel/contracts";
 import { fakeApprovals, l2ApprovalsPort } from "@fresnel/core-tools/testing";
-import { createWriteAccessAdapter, writeAccessTitle } from "../src/write-access-adapter.ts";
+import { createWriteAccessAdapter, writeAccessTitle } from "@fresnel/core-workspace";
 
 // 어댑터를 core-tools의 실제 ApprovalService에 붙인다. 대역 포트로는 body 모양·기억 범위 불일치를 잡지 못한다.
 

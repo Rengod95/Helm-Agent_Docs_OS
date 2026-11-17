@@ -30,7 +30,8 @@ export type LocalIdPrefix =
   | "knl"
   | "knp" // L2.knowledge: 원장, 제안
   | "bgp" // L0.process: 백그라운드 프로세스
-  | "sls"; // L0.secrets: 시크릿 임대
+  | "sls" // L0.secrets: 시크릿 임대
+  | "prj"; // L4.host-service: 프로젝트(review m5 §3.2, `projects.json`)
 
 /** 등록된 지역 접두와 소유 문서. 새 접두는 이 표에 행을 더해서만 쓴다(데이터 상수) */
 export const LOCAL_ID_PREFIXES: Readonly<Record<LocalIdPrefix, { readonly owner: string }>> = {
@@ -49,6 +50,7 @@ export const LOCAL_ID_PREFIXES: Readonly<Record<LocalIdPrefix, { readonly owner:
   knp: { owner: "L2.knowledge" },
   bgp: { owner: "L0.process" },
   sls: { owner: "L0.secrets" },
+  prj: { owner: "L4.host-service" },
 };
 
 /** 지역 ID는 브랜드를 두지 않는다. 브랜드가 필요하면 소유 문서가 Brand<LocalId<P>, "...">로 감싼다. */

@@ -14,8 +14,8 @@ binds: [xeon/packages/cap-*/**]
 
 L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provider 모음이다. 같은 기능이 서비스 API와 모델 도구로 함께 노출되므로, L3 그룹은 도구 호출 없이 코드에서 서비스를 바로 호출한다(`_research/layer-plan-v2.json` L2 intro, `F.capabilities.spec` §1).
 
-- 층 순위는 4다. F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md` §3, `architecture.layers.spec` §4.1).
-- L2 패키지는 F, X, L0, L1만 import한다. L2 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02).
+- 층 순위는 P(4)다(옛 L2 등급. 6.3 DR-15). F(0) → X(1) → L0(2) → L1(3) → P(4) → L4(5)이다(`_research/foundation-plan.md` §3, `architecture.layers.spec` §4.1). 선언 `"layer": "L2"`는 전환 동안 P의 별칭이다.
+- L2 패키지는 소스에서 F와 X만 import한다. L0·L1은 시험 파일에서만 쓴다. 두 예외(`cap-dialog` → `core-tools`, `cap-workspace` → `core-workspace`)는 허용 목록 `DR-15/*`의 [미결] 항목이다(`eng.dependency-rules.guide` DR-15, [근거: `xeon/scripts/dependency-allowlist.json`]). L2 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02).
 - 같은 층 협력은 F의 `ServiceKey`와 매니페스트 `requires`/`optional` 선언으로만 한다. 협력 방향은 §6에 모았다.
 - L3는 L2의 정의(F3)만 참조하고 `cap-*` 패키지를 import하지 않는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 2, `architecture.layers.spec` §3.1 2행).
 - 기능 정의의 내용(메서드, 도구, 스키마)은 각 `L2.<domain>.spec`이 정하고, 정의 데이터는 F `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다(`F.capabilities.spec` §3.9).
@@ -203,7 +203,7 @@ export interface WebService {
 
 - `schedule.remote`는 요청하지 않고 원격 클라이언트의 응답을 `respond`로 중계만 한다(`L2.schedule.spec` §4.5.2).
 - [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@fresnel/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
-- [제안] L2 공통 승인 포트. 각 `cap-*`는 `fresnel.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다.
+- [제안] L2 공통 승인 포트. 각 `cap-*`는 `fresnel.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다. [이동: review.m5 D-28, 2026-11-18] 질문(`dialog.ask`)의 승인 포트는 cap-dialog에 두지 않고 L1 `core-tools/src/ask/approvals.ts`에 둔다. 이 조항은 승인을 쓰는 다른 `cap-*`(예: `cap-knowledge/src/ports/approvals.ts`)에 그대로 적용한다.
 
 ```ts
 // cap-<domain>/src/ports/approvals.ts  (패키지 내부. L1.tools.spec 승인 프로토콜을 감싼다 [가정])
