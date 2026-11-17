@@ -7,6 +7,7 @@ import type {
   ThreadId,
   UserMessage,
 } from "@fresnel/contracts/conversation";
+import type { ContextMaterialFact } from "@fresnel/contracts/extensions";
 import type {
   AssembleOptions,
   AssembledContext,
@@ -226,6 +227,100 @@ function textTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+/** 소유자를 정할 수 없는 재료의 자리 값(로더 미병합. §4.5 규칙 27) */
+const UNOWNED_PLUGIN = "none";
+const PLUGIN_SECTION_PREFIX = "plugin:";
+
+/** 절 키 `plugin:<이름>:<경로>`(MaterialPort 지침 키 모양)에서 소유자와 경로를 읽는다. 모양이 다르면 소유자를 정하지 않는다 */
+function sectionOwnerOf(key: string): { readonly plugin: string; readonly ref: string } {
+  if (!key.startsWith(PLUGIN_SECTION_PREFIX)) return { plugin: UNOWNED_PLUGIN, ref: key };
+  const rest = key.slice(PLUGIN_SECTION_PREFIX.length);
+  const cut = rest.indexOf(":");
+  if (cut <= 0 || cut === rest.length - 1) return { plugin: UNOWNED_PLUGIN, ref: key };
+  return { plugin: rest.slice(0, cut), ref: rest.slice(cut + 1) };
+}
+
+/**
+ * 이번 요청의 재료(§4.5 규칙 26·27). 입력이 이미 가진 값만 쓴다: 기본 프롬프트, 절(키의 소유자), 덧씌운 지침(`volatile.instructions`),
+ * 합치기 훅이 더한 몫(적용한 핸들러의 첫 플러그인). 스킬 색인·기억은 사용자 정의 메시지로 들어와 여기서 가리지 못하므로 빠진다
+ */
+function materialsOf(input: {
+  readonly basePrompt: string;
+  readonly sections: Readonly<Record<string, string>>;
+  readonly volatile: Readonly<Record<string, string>>;
+  readonly hookInjected: number;
+  readonly hookAppliers: readonly HookApplier[];
+}): ContextMaterialFact[] {
+  const out: ContextMaterialFact[] = [];
+  if (input.basePrompt !== "") {
+    out.push({
+      plugin: UNOWNED_PLUGIN,
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "instruction",
+      ref: "base-prompt",
+      tokens: textTokens(input.basePrompt),
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: "shared",
+    });
+  }
+  for (const key of Object.keys(input.sections).toSorted()) {
+    const text = input.sections[key];
+    if (text === undefined || text === "") continue;
+    const owner = sectionOwnerOf(key);
+    out.push({
+      plugin: owner.plugin,
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "instruction",
+      ref: owner.ref.slice(0, 256),
+      tokens: textTokens(text),
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: owner.plugin === UNOWNED_PLUGIN ? "shared" : "declared",
+    });
+  }
+  const addition = input.volatile["instructions"];
+  if (addition !== undefined && addition !== "") {
+    out.push({
+      plugin: UNOWNED_PLUGIN,
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "instruction",
+      ref: "prompt-addition",
+      tokens: textTokens(addition),
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: "shared",
+    });
+  }
+  if (input.hookInjected > 0) {
+    // 기여를 모르는 훅 메시지는 한 덩어리다. 소유자는 적용한 핸들러의 첫 플러그인이고 `shared`다(§4.5 규칙 27)
+    const first = input.hookAppliers[0];
+    out.push({
+      plugin: first?.plugin ?? UNOWNED_PLUGIN,
+      versionId: null,
+      registrationId: first?.registrationId ?? null,
+      kind: "always",
+      material: "hook_text",
+      ref: "request-hooks",
+      tokens: input.hookInjected,
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: "shared",
+    });
+  }
+  return out;
+}
+
 /** 요청 구성 토큰(T-MEAS-CTX). 절은 이름이 소유자다. history는 total에서 나머지를 뺀 값이라 합이 항상 total과 같다(음수면 0) */
 function compositionOf(input: {
   readonly prefix: SystemMessage;
@@ -371,6 +466,8 @@ export async function assembleContext(
   }
 
   const tokensAfterHooks = deps.models.tokens.estimateContext(finalMessages).tokens;
+  const hookInjected = Math.max(0, tokensAfterHooks - tokensBeforeHooks);
+  const hookAppliers = [...afterContext.appliers, ...withSystem.appliers];
   const cacheMarks = computeCacheMarks(opts.cachePolicy, finalMessages);
 
   // volatile 계층은 표식 뒤, 대화 끝에 둔다. 커밋하지 않는 조립 전용 메시지다(§4.1)
@@ -410,9 +507,16 @@ export async function assembleContext(
     prefix: prefixMessage,
     prefixTokens: deps.models.tokens.estimateMessage(prefixMessage),
     tools: opts.tools,
-    injected: Math.max(0, tokensAfterHooks - tokensBeforeHooks),
+    injected: hookInjected,
     volatile: volatileTokens,
     total: estimate.tokens,
+  });
+  const materials = materialsOf({
+    basePrompt: opts.basePrompt,
+    sections: opts.sections,
+    volatile: opts.volatile,
+    hookInjected,
+    hookAppliers,
   });
 
   const prefix: PrefixInfo = {
@@ -427,6 +531,7 @@ export async function assembleContext(
     cacheMarks,
     estimate,
     composition,
+    materials,
     compactionHead:
       head === null ? null : { eventId: head.eventId, firstKeptEventId: head.firstKeptEventId },
     pendingItems,

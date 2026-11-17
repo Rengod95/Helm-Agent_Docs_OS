@@ -6,7 +6,11 @@ import {
   type LocalIdFactory,
   type ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionName, ToolCallTraceSink } from "@fresnel/contracts/extensions";
+import type {
+  ContextTraceSink,
+  ExtensionName,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS } from "./capability-defs.ts";
 import {
   EVENT_CATALOG,
@@ -183,6 +187,8 @@ export interface ExtensionDeps {
   readonly offerBody?: ModelsExtensionOptions["offerBody"];
   /** 도구 호출 추적 싱크(읽기 전용). 턴 기록이 받는다(turn-record-metrics §4.3) */
   readonly callTrace?: ToolCallTraceSink;
+  /** 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 턴 기록이 받는다(turn-record-metrics §4.5) */
+  readonly contextTrace?: ContextTraceSink;
 }
 
 /** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 fresnel.* 포트를 쓸 수 있다 */
@@ -347,6 +353,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: loopSource(settings),
           kindLookup,
           cancelledByOwnerOf,
+          ...(deps.contextTrace === undefined ? {} : { contextTrace: deps.contextTrace }),
           loadIndex,
         }),
     ],

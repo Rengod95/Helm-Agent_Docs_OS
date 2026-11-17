@@ -5,7 +5,11 @@ import {
   TurnCompletedPayloadSchema,
   type StepContextWarning,
 } from "@fresnel/contracts/conversation";
-import type { ToolCallTraceEvent, TraceReadPort } from "@fresnel/contracts/extensions";
+import type {
+  ContextTraceEvent,
+  ToolCallTraceEvent,
+  TraceReadPort,
+} from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
   type CommitBatch,
@@ -18,6 +22,7 @@ import {
   type MeasureRecord,
   type MeasureStore,
 } from "./store.ts";
+import { cacheExpired } from "./turn-context.ts";
 import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
 import { createTurnWriter } from "./turn-writer.ts";
 
@@ -181,11 +186,8 @@ interface PriorCall {
   readonly cacheWrite: number;
 }
 
-/** 캐시 쓰기가 이 토큰 수 아래면 접두를 새로 쓴 것으로 보지 않는다 */
-const CACHE_EXPIRED_MIN_WRITE = 1000;
-
 /**
- * 캐시 만료 사건. 같은 모델의 앞 main 호출보다 캐시 쓰기가 두 배 넘게(그리고 `CACHE_EXPIRED_MIN_WRITE` 이상) 늘고 캐시 읽기가 반 밑으로 줄었으면
+ * 캐시 만료 사건. 같은 모델의 앞 main 호출보다 캐시 쓰기가 두 배 넘게(그리고 1000 이상) 늘고 캐시 읽기가 반 밑으로 줄었으면
  * 접두를 통째로 다시 쓴 것이다(보통 5분을 넘겨 캐시가 만료된 호출). 앞 호출이 없거나 모델이 바뀌었으면(`cache_reset_model_switch`가 따로 있다) 아니다
  */
 function cacheExpiredRecord(
@@ -193,11 +195,10 @@ function cacheExpiredRecord(
   call: UsageRecord,
   step: number,
 ): MeasureRecord | undefined {
-  if (prior === undefined || prior.model !== call.modelId) return undefined;
-  if (prior.cacheRead + prior.cacheWrite === 0) return undefined;
+  // 판정은 턴 기록의 캐시 원인과 같은 함수를 쓴다(turn-context.ts `cacheExpired`)
+  const current = { model: call.modelId, ...call.usage };
+  if (prior === undefined || !cacheExpired(prior, current)) return undefined;
   const { cacheRead, cacheWrite } = call.usage;
-  if (cacheWrite < CACHE_EXPIRED_MIN_WRITE || cacheWrite < prior.cacheWrite * 2) return undefined;
-  if (cacheRead > prior.cacheRead / 2) return undefined;
   return {
     at: call.recordedAt,
     threadId: call.threadId,
@@ -300,6 +301,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly offerBody: (input: RequestBodyInput) => void;
   readonly offerFailure: (input: HandlerFailureInput) => void;
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  readonly offerContext: (input: ContextTraceEvent) => void;
   /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
   readonly forget: (threadId: string) => void;
 } {
@@ -516,6 +518,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     offerBody,
     offerFailure,
     offerCall,
+    offerContext,
     forget: (threadId) => {
       flush();
       turns?.forget(threadId);
@@ -525,6 +528,11 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
   function offerCall(input: ToolCallTraceEvent): void {
     turns?.call(input);
+  }
+
+  /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
+  function offerContext(input: ContextTraceEvent): void {
+    turns?.context(input);
   }
 }
 
@@ -559,6 +567,8 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerFailure: (input: HandlerFailureInput) => void;
   /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
+  readonly offerContext: (input: ContextTraceEvent) => void;
   /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
   readonly forgetThread: (threadId: string) => void;
 } {
@@ -571,6 +581,7 @@ export function startMeasurement(deps: MeasurementDeps): {
       offerBody: () => undefined,
       offerFailure: () => undefined,
       offerCall: () => undefined,
+      offerContext: () => undefined,
       forgetThread: () => undefined,
     };
   }
@@ -612,6 +623,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     offerBody: recorder.offerBody,
     offerFailure: recorder.offerFailure,
     offerCall: recorder.offerCall,
+    offerContext: recorder.offerContext,
     forgetThread: (threadId) => {
       recorder.forget(threadId);
       const removed = store.forgetThread(threadId);

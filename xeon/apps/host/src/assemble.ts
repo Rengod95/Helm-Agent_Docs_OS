@@ -13,6 +13,8 @@ import {
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type {
+  ContextTraceEvent,
+  ContextTraceSink,
   ExtensionManifest,
   PortKey,
   ToolCallTraceEvent,
@@ -663,6 +665,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordBody: ((input: RequestBodyInput) => void) | undefined;
     /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
     recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
+    /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordContext: ((input: ContextTraceEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
   } = {
@@ -670,12 +674,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordFailure: undefined,
     recordBody: undefined,
     recordCall: undefined,
+    recordContext: undefined,
     forgetThread: undefined,
   };
   // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
   const callTraceSink: ToolCallTraceSink = {
     record: (event) => {
       measureSlot.recordCall?.(event);
+    },
+  };
+  // 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 모델 요청 조립과 같은 슬롯을 거친다(§4.1 규칙 2)
+  const contextTraceSink: ContextTraceSink = {
+    record: (event) => {
+      measureSlot.recordContext?.(event);
     },
   };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
@@ -1161,6 +1172,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         offerBody: offerRequestBody,
         callTrace: callTraceSink,
+        contextTrace: contextTraceSink,
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
@@ -1355,6 +1367,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
     measureSlot.recordCall = measurement.offerCall;
+    measureSlot.recordContext = measurement.offerContext;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({

@@ -779,9 +779,9 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `packages/ext-host/src/primitives/user-wait.ts:7`, `dispatch-types.ts:130` | `awaitUser`가 대기 횟수와 시간을 실행 기록에 알린다 | S |
 | `packages/ext-host/src/primitives/dispatch-types.ts:93` | `ChainOutcome`에 `contributions`(핸들러별 기여)를 더한다. 격리 뒤에는 엔진 쪽 합치기에서 채운다 | M |
 | `packages/core-tools/src/pipeline.ts:511`, `:550`, `:1150`, `:149~188` | 호출마다 `CallRecord` 싱크에 판정, 훅 묶음, 정책·승인, 소요·결과 크기를 보낸다. `hookDenialDetails`에 시간 초과와 던짐을 가를 선택 필드 `fault`를 더한다 | M. [구현: 싱크는 F `extensions/tool-call-trace.ts`(`ToolCallTraceSink`), 줄 만들기는 `core-tools/src/call-trace.ts`, 판정은 거부를 낸 자리가 정한다. `fault` 필드는 더하지 않았다(`details.outcome`이 `threw`를 이미 구분한다). 훅 묶음은 `blockedBy`와 `CallRecord.hooks`로 옮겼다. 훅 행의 `toolCallId` 묶음은 `apps/host` 수집기가 한다. `hooks`에 든 훅 행은 `step.hooks`에도 그대로 남는다(§3.2의 '호출에 묶이지 않은 것'과 다르다, [미결 §11 16번]). 가벼운 길(`capability-guard.ts`의 `light`)은 아직 줄을 남기지 않는다 [근거: `packages/ext-host/src/primitives/capability-guard.ts`의 `routeOf`]] |
-| `packages/core-context/src/assemble.ts:230`, `:264~430`, `packages/contracts/src/services/`의 `AssembledContext` | `materials`, 광고 요약, 캐시 원인(도구·절 귀속 포함)을 낸다. `toolset-diff.ts`가 추가·제거 도구의 소유 플러그인을 알린다 | M |
-| `packages/core-loop/src/loop/prepare-request.ts:95`, `:111`, `step-end.ts:266`, `provider-retry.ts:8` | 단계 끝에서 `StepRecord`를 수집기에 넘긴다. 재시도 알림 수와 대기 시간을 센다. `sections: {}`는 Inject가 들어오는 M5c에서 채운다 | M |
-| `xeon/packages/cap-knowledge/src/skills/prompt-block.ts:57`, `xeon/packages/cap-knowledge/src/turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S |
+| `packages/core-context/src/assemble.ts:230`, `:264~430`, `packages/contracts/src/services/`의 `AssembledContext` | `materials`, 광고 요약, 캐시 원인(도구·절 귀속 포함)을 낸다. `toolset-diff.ts`가 추가·제거 도구의 소유 플러그인을 알린다 | M. [구현: `AssembledContext.materials`(`assemble.ts`의 `materialsOf`)와 싱크 `ContextTraceSink`(`contracts/src/extensions/context-trace.ts`). 캐시 원인은 기록기가 `step.completed`의 경고와 사용량으로 정한다(`apps/host/.../turn-context.ts`의 `cacheBreakOf`). 스킬 색인의 이름과 `skill_index`·`memory` 재료는 싣지 않는다(조립 입력에 이름이 들어오지 않는다, 보고 참조)] |
+| `packages/core-loop/src/loop/prepare-request.ts:95`, `:111`, `step-end.ts:266`, `provider-retry.ts:8` | 단계 끝에서 `StepRecord`를 수집기에 넘긴다. 재시도 알림 수와 대기 시간을 센다. `sections: {}`는 Inject가 들어오는 M5c에서 채운다 | M. [구현: `prepare-request.ts`가 `step_context`를, `step-end.ts`가 `skill_read`를 싱크로 넘긴다(`loop/context-trace.ts`). 재시도 알림은 아직 세지 않는다] |
+| `xeon/packages/cap-knowledge/src/skills/prompt-block.ts:57`, `xeon/packages/cap-knowledge/src/turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S. [미구현: 조립 입력에 색인 이름이 없어 `skills.listed`는 빈 값이다. cap-knowledge가 싱크로 알리는 일은 다음 단계다] |
 | `packages/ext-host/src/primitives/capability-guard.ts:215~260`(`light` 길) | 읽기 전용 플러그인 호출의 `tr_plugincall` 줄을 턴에 묶으려면 턴 id와 단계 순번이 있는 싱크가 필요하다. 지금은 턴 id가 가드 안에 없어 줄을 남기지 않는다 | M |
 | `apps/host/src/assembly/measure/store.ts:73`, `:172` | `user_version` 마이그레이션, `tr_*` 테이블, 접기를 `tr_daily`까지 넓힘, `forgetThread` | L |
 | `apps/host/src/assembly/measure/recorder.ts:298~530` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L. [구현: 턴 행 `open`·최종, 단계 행과 `tr_hook`, `log_only`, 열 때 `markLostTurns`, 범위 `test`. 쓰기 로직은 `turn-writer.ts`와 `turn-rows.ts`. 프로필 표지와 덧씌우기는 남음] |
@@ -798,8 +798,8 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 
 번호 뒤는 근거 요구다.
 
-1. (R12, 제약) 같은 대화 입력을 계측 켠 상태와 끈 상태로 돌려 모델 요청 본문(가림 뒤)이 바이트 단위로 같다. 수집기가 시스템 프롬프트, 도구 목록, 메시지를 바꾸지 않는다.
-2. (R12) 앱을 다시 열어도 지난 턴의 `turnRecord.get`이 훅 실행, 호출, 재료, 광고, 스킬을 돌려준다. 하나의 턴에서 `blocked_hook`과 `blocked_hook_fault`(시간 초과)가 서로 다른 `verdict` 값으로 저장된다.
+1. (R12, 제약) 같은 대화 입력을 계측 켠 상태와 끈 상태로 돌려 모델 요청 본문(가림 뒤)이 바이트 단위로 같다. 수집기가 시스템 프롬프트, 도구 목록, 메시지를 바꾸지 않는다. [구현: M5d-1, `packages/core-loop/test/context-trace.test.ts`가 메시지, 도구 정의, 추론 옵션을 직렬화해 바이트로 비교한다. 싱크가 던져도 같다. 가림 장치를 켠 본문은 이 시험이 다루지 않는다]
+2. (R12) 앱을 다시 열어도 지난 턴의 `turnRecord.get`이 훅 실행, 호출, 재료, 광고, 스킬을 돌려준다. 하나의 턴에서 `blocked_hook`과 `blocked_hook_fault`(시간 초과)가 서로 다른 `verdict` 값으로 저장된다. [부분 구현: 재료, 광고, 스킬, 캐시 행을 저장하고 `store.readTurn`으로 읽는 것을 시험한다(`turn-context-write.test.ts`). `turnRecord.get` 등록과 다시 연 뒤의 시험은 단계 M5에서 한다]
 3. (R12) 도구 호출 앞뒤에서 돈 훅이 그 호출의 `toolCallId`와 함께 기록되고, 같은 턴에서 호출마다 훅 목록이 맞다.
 4. (R12) 훅이 사람에게 물으면(`awaitUser`) `ask.waits ≥ 1`, `ask.answer`가 `approval.resolved`와 같고 `ms`는 사람 대기를 뺀 값이다.
 5. (R12) 단계 도중 프로세스를 죽이면 마지막 완료 단계까지의 기록이 남고 턴은 `lost`로 읽힌다. 잃은 단계는 `recorded: false`다.
@@ -809,7 +809,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 9. (R12) 시크릿이 든 훅 사유와 인자가 저장된 행 어디에도 평문으로 없다.
 10. (R19) 재료를 낸 플러그인이 둘인 턴에서 `PluginCost.always`가 각자 합과 `composition` 합(`injected` 포함)의 차이 안에서 맞는다. 귀속을 못 정한 훅 메시지는 `shared`로 표시된다.
 11. (R19) 지연 도구를 `tool_search`로 활성화한 턴의 `Advertised.tools`가 `state: "activated"`이고 `PluginCost.onDemand`에 그 정의 토큰이 있다.
-12. (R19) 도구를 추가한 프로필 전환 뒤 첫 단계에서 `tr_cache.kind = "toolset"`과 그 플러그인이 귀속된다. 같은 단계에 사용량이 깨짐을 안 보이면 `observed: false`다.
+12. (R19) 도구를 추가한 프로필 전환 뒤 첫 단계에서 `tr_cache.kind = "toolset"`과 그 플러그인이 귀속된다. 같은 단계에 사용량이 깨짐을 안 보이면 `observed: false`다. [부분 구현: `cacheBreakOf`가 `tools_deferred` 경고의 추가·제거 도구가 한 플러그인에 속할 때만 그 플러그인을 쓰고, 사용량이 안 깨지면 `observed: false`로 쓴다(`turn-context.test.ts`와 `turn-context-write.test.ts`). 프로필 전환이 도구를 더하는 경로는 M5c 대기이고, 지금의 경고는 대화 중 도구 변경이 미뤄질 때만 난다]
 13. (R19) `profileCost.get`이 턴이 없는 프로필에도 `basis: "estimated"`로 합계를 낸다.
 14. (R18) `metrics.catalog`가 §5의 모든 지표를 `feasible` 구분과 함께 낸다. `metrics.query`가 `minSample` 미만을 `insufficient_sample`로 낸다.
 15. (R18) 같은 합성 데이터에서 `inst.defied`가 §5.1-①의 정의대로 계산되고, 고장(`*_fault`) 판정은 분자에서 빠진다.

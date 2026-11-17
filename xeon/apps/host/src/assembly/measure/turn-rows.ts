@@ -8,8 +8,10 @@ import type {
 import type { UsageRecord } from "@fresnel/contracts/services";
 import type {
   Advertised,
+  CacheBreak,
   CallRecord,
   HookRun,
+  Material,
   ModelCall,
   RecordLevel,
   ScopeKind,
@@ -18,6 +20,12 @@ import type {
   TurnRecord,
   TurnStatus,
 } from "@fresnel/contracts/wire";
+import {
+  pluginCostOf,
+  type StepContextEvent,
+  type TurnSkillRead,
+  type TurnToolRow,
+} from "./turn-context.ts";
 import type { TrCallRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
@@ -84,6 +92,22 @@ export interface TurnDraft {
   readonly calls: Map<string, UsageRecord[]>;
   /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
   readonly toolCalls: Map<string, ToolCallTraceEvent[]>;
+  /** 단계 id별 조립 사실(재료와 광고, 측정 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly contexts: Map<string, StepContextEvent>;
+  /** 단계 id별 스킬 본문 읽기(측정 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly skillReads: Map<string, { readonly toolCallId: string; readonly name: string }[]>;
+  /** 턴의 도구 줄(이름 → 줄). 첫 광고 토큰은 고정이고 상태와 호출 수를 갱신한다 */
+  readonly tools: Map<string, TurnToolRow>;
+  /** 턴에서 처음 읽은 스킬(이름 → 읽기) */
+  readonly skills: Map<string, TurnSkillRead>;
+  /** 이 턴의 `tr_material`에 이미 쓴 재료 키. 같은 재료는 처음 나타난 단계에만 쓴다 */
+  readonly materialKeys: Set<string>;
+  /** 이 턴의 `StepRecord`에 실은 재료 수(상한을 셀 때 쓴다) */
+  materialCount: number;
+  /** 상한 때문에 버린 재료 수, 도구 줄 수, 스킬 수 */
+  elidedMaterials: number;
+  elidedTools: number;
+  elidedSkills: number;
   /** 이 턴에 모은 도구 호출 줄 수. 상한을 셀 때 쓴다 */
   callRows: number;
   /** 상한 때문에 버린 도구 호출 줄 수 */
@@ -119,6 +143,15 @@ export function newDraft(input: {
     steps: [],
     calls: new Map(),
     toolCalls: new Map(),
+    contexts: new Map(),
+    skillReads: new Map(),
+    tools: new Map(),
+    skills: new Map(),
+    materialKeys: new Set(),
+    materialCount: 0,
+    elidedMaterials: 0,
+    elidedTools: 0,
+    elidedSkills: 0,
     callRows: 0,
     elidedCalls: 0,
     hookRows: 0,
@@ -368,7 +401,7 @@ export function trCallRowOf(
   };
 }
 
-/** 단계 하나의 기록(§3.2 `StepRecord`). `toolCalls`는 이 단계의 도구 호출 기록이다 */
+/** 단계 하나의 기록(§3.2 `StepRecord`). `toolCalls`는 이 단계의 도구 호출 기록이다. 재료·광고·캐시는 측정 싱크가 없으면 자리 값이다 */
 export function stepRecordOf(input: {
   readonly stepIndex: number;
   readonly stepId: string;
@@ -377,14 +410,17 @@ export function stepRecordOf(input: {
   readonly toolCalls: readonly CallRecord[];
   readonly composition: StepComposition | null;
   readonly hooks: readonly HookRun[];
+  readonly materials?: readonly Material[];
+  readonly advertised?: Advertised;
+  readonly cache?: CacheBreak | null;
 }): StepRecord {
   return {
     stepIndex: input.stepIndex,
     stepId: input.stepId,
     modelCalls: input.calls.map((call) => modelCallOf(call, input.turnStartedAt)),
-    materials: [],
-    advertised: ADVERTISED_NONE,
-    cache: null,
+    materials: [...(input.materials ?? [])],
+    advertised: input.advertised ?? ADVERTISED_NONE,
+    cache: input.cache ?? null,
     hooks: [...input.hooks],
     calls: [...input.toolCalls],
     composition: input.composition,
@@ -392,12 +428,13 @@ export function stepRecordOf(input: {
   };
 }
 
-/** 단계 행(`tr_step`). 사용량 열은 모델 호출의 합이다 */
+/** 단계 행(`tr_step`). 사용량 열은 모델 호출의 합이다. `context`가 있으면 광고 열과 지문을 채운다 */
 export function stepRowOf(input: {
   readonly threadId: string;
   readonly turnId: string;
   readonly stepIndex: number;
   readonly calls: readonly ModelCall[];
+  readonly context?: { readonly advertised: Advertised; readonly materialsFp: string | null };
 }): TrStepRow {
   let inputTokens = 0;
   let outputTokens = 0;
@@ -419,11 +456,11 @@ export function stepRowOf(input: {
     cacheRead,
     cacheWrite,
     retries: 0,
-    advCount: 0,
-    advTokens: 0,
-    deferredCount: 0,
-    toolsetFp: null,
-    materialsFp: null,
+    advCount: input.context?.advertised.count ?? 0,
+    advTokens: input.context?.advertised.tokens ?? 0,
+    deferredCount: input.context?.advertised.deferredCount ?? 0,
+    toolsetFp: input.context?.advertised.fingerprint ?? null,
+    materialsFp: input.context?.materialsFp ?? null,
     recorded: true,
   };
 }
@@ -451,14 +488,36 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     steps: [...draft.steps],
     turnHooks: [...state.turnHooks],
     continues: [],
-    skills: { listed: [], listedOmitted: 0, read: [] },
-    cost: [],
+    // 스킬 색인에 실린 이름(`listed`)은 조립 입력에 없어 아직 비운다(§4.5 규칙 29, 보고 참조)
+    skills: {
+      listed: [],
+      listedOmitted: 0,
+      read: [...draft.skills.values()].map((skill) => ({
+        name: skill.name,
+        plugin: skill.plugin,
+        via: "model" as const,
+        stepIndex: skill.stepIndex,
+        tokens: skill.tokens,
+      })),
+    },
+    cost: pluginCostOf({
+      materials: draft.steps.at(-1)?.materials ?? [],
+      tools: [...draft.tools.values()],
+      skills: [...draft.skills.values()],
+    }),
     pluginCalls: [],
     pluginStderr: [],
-    flags: NO_FLAGS,
+    flags: {
+      ...NO_FLAGS,
+      cacheBreak: draft.steps.some((step) => step.cache?.observed === true),
+      truncatedMaterials: draft.elidedMaterials,
+    },
     elided: {
       ...(draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks }),
       ...(draft.elidedCalls === 0 ? {} : { calls: draft.elidedCalls }),
+      ...(draft.elidedMaterials === 0 ? {} : { materials: draft.elidedMaterials }),
+      ...(draft.elidedTools === 0 ? {} : { tools: draft.elidedTools }),
+      ...(draft.elidedSkills === 0 ? {} : { skills: draft.elidedSkills }),
     },
   };
 }

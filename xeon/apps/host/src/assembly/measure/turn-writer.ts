@@ -5,7 +5,11 @@ import {
   TurnStartedPayloadSchema,
   type TurnId,
 } from "@fresnel/contracts/conversation";
-import type { ToolCallTraceEvent, TraceReadPort } from "@fresnel/contracts/extensions";
+import type {
+  ContextTraceEvent,
+  ToolCallTraceEvent,
+  TraceReadPort,
+} from "@fresnel/contracts/extensions";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
@@ -15,7 +19,22 @@ import {
   type TurnStatus,
 } from "@fresnel/contracts/wire";
 import type { MeasureStore } from "./store.ts";
-import type { TrStepBatch } from "./turn-tables.ts";
+import {
+  advertisedRecordOf,
+  cacheBreakOf,
+  MAX_MATERIAL_ROWS_PER_TURN,
+  MAX_SKILL_ROWS_PER_TURN,
+  materialKeyOf,
+  materialPlanOf,
+  materialsFingerprintOf,
+  nameOf,
+  noteToolRows,
+  trCacheRowsOf,
+  trMaterialRowOf,
+  trToolUseRowOf,
+  type CacheUsage,
+} from "./turn-context.ts";
+import type { TrSkillRow, TrStepBatch, TrToolUseRow } from "./turn-tables.ts";
 import {
   callRecordOf,
   flatHooksOf,
@@ -59,6 +78,8 @@ export interface TurnWriter {
   usage(call: UsageRecord): void;
   /** 도구 호출 하나가 닫힌 줄(추적 싱크). 계측이 켜진 턴의 단계에 모은다. 반환값은 호출 경로로 돌아가지 않는다 */
   call(event: ToolCallTraceEvent): void;
+  /** 조립 재료·광고(`step_context`)와 스킬 본문 읽기(`skill_read`)의 읽기 전용 사건. 단계가 끝날 때 행으로 바뀐다 */
+  context(event: ContextTraceEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
   forget(threadId: string): void;
 }
@@ -80,6 +101,13 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   const drafts = new Map<string, TurnDraft>();
   /** 설치별 소금(`tr_meta`). 호출 해시를 HMAC할 때 처음 한 번 읽고, 성공한 값만 쥔다 */
   let salt: string | undefined;
+  /** 대화별 앞 모델 호출의 사용량(캐시 판정의 앞 호출, §4.5 규칙 30). 단계가 끝날 때 갈아 끼운다 */
+  const priorUsage = new Map<
+    string,
+    CacheUsage & { readonly model: string; readonly endedAt: number }
+  >();
+  /** 압축 사건이 있었던 대화. 다음 단계 끝에서 한 번 읽고 지운다 */
+  const compactedThreads = new Set<string>();
 
   function installSaltOf(): string | undefined {
     if (salt !== undefined) return salt;
@@ -159,11 +187,13 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
 
   function stepCompleted(record: DurableEventEnvelope, turnId: TurnId): void {
     const parsed = parse(StepCompletedPayloadSchema, record.payload);
+    // 압축은 이 단계 앞에 있었는지만 본다. 계측이 꺼진 턴도 다음 단계를 위해 비운다
+    const compacted = compactedThreads.delete(record.threadId);
     if (!parsed.ok) return;
     const draft = draftOf(record, turnId);
     // 계측이 꺼진 턴은 단계 행을 쓰지 않는다(규칙 3: 턴 행만)
     if (draft.level !== "full") return;
-    const { stepIndex, composition } = parsed.value;
+    const { stepIndex, composition, contextWarnings } = parsed.value;
     const stepId = record.stepId ?? `step:${String(stepIndex)}`;
     // 단계 끝의 훅(`boundary.step.after`, `boundary.settle.before`)은 이 커밋 전에 실행되어 이미 버퍼에 있다
     const entries = deps.trace?.turn(record.threadId, turnId)?.entries ?? [];
@@ -190,6 +220,91 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
               hooks: hookRuns.filter((run) => run.toolCallId === event.toolCallId),
             }),
           }));
+    const base = { threadId: draft.threadId, turnId: draft.turnId, stepIndex };
+    const usage = draft.calls.get(stepId) ?? [];
+
+    // 조립 재료·광고와 스킬 읽기(측정 싱크가 준 것). 싱크가 없었던 단계는 자리 값이다
+    const context = draft.contexts.get(stepId);
+    draft.contexts.delete(stepId);
+    const reads = draft.skillReads.get(stepId) ?? [];
+    draft.skillReads.delete(stepId);
+    const calledNames = toolEvents.flatMap((event) =>
+      event.caller === "plugin" ? [] : [event.tool],
+    );
+    const noted = noteToolRows({
+      tools: draft.tools,
+      advertised: context?.advertised,
+      calledNames,
+    });
+    draft.elidedTools += noted.elided;
+    const materialPlan = materialPlanOf({
+      materials: context?.materials ?? [],
+      budget: MAX_MATERIAL_ROWS_PER_TURN - draft.materialCount,
+      seen: draft.materialKeys,
+    });
+    for (const material of materialPlan.fresh) draft.materialKeys.add(materialKeyOf(material));
+    draft.materialCount += materialPlan.kept.length;
+    draft.elidedMaterials += materialPlan.elided;
+    const advertised =
+      context === undefined ? undefined : advertisedRecordOf(context.advertised, noted.stepTools);
+    const freshSkills: TrSkillRow[] = [];
+    for (const read of reads) {
+      const call = toolEvents.find((event) => event.toolCallId === read.toolCallId);
+      // 실행되지 않은 호출은 읽은 것이 아니다
+      if (call === undefined || call.verdict !== "allowed") continue;
+      const name = nameOf(read.name);
+      if (draft.skills.has(name)) continue;
+      if (draft.skills.size >= MAX_SKILL_ROWS_PER_TURN) {
+        draft.elidedSkills += 1;
+        continue;
+      }
+      const skill = {
+        name,
+        plugin: nameOf(call.plugin ?? "none"),
+        stepIndex,
+        tokens: call.result?.tokens ?? 0,
+      };
+      draft.skills.set(name, skill);
+      freshSkills.push({
+        threadId: draft.threadId,
+        turnId: draft.turnId,
+        skill: skill.name,
+        plugin: skill.plugin,
+        listed: false,
+        read: true,
+        via: "model",
+        stepIndex,
+        tokens: skill.tokens,
+      });
+    }
+
+    // 캐시 원인(§4.5 규칙 30). 앞 모델 호출과 이 단계의 사용량, 구조 경고, 압축 사건으로 정한다
+    const first = usage[0];
+    const current =
+      first === undefined
+        ? undefined
+        : {
+            model: first.modelId,
+            startedAt: first.startedAt ?? first.recordedAt,
+            cacheRead: usage.reduce((sum, call) => sum + call.usage.cacheRead, 0),
+            cacheWrite: usage.reduce((sum, call) => sum + call.usage.cacheWrite, 0),
+          };
+    const cache = cacheBreakOf({
+      warnings: contextWarnings ?? [],
+      current,
+      prior: priorUsage.get(draft.threadId),
+      compacted,
+      pluginOfTool: (name) => draft.tools.get(nameOf(name))?.plugin,
+    });
+    if (current !== undefined) {
+      priorUsage.set(draft.threadId, {
+        model: current.model,
+        endedAt: Math.max(...usage.map((call) => call.recordedAt)),
+        cacheRead: current.cacheRead,
+        cacheWrite: current.cacheWrite,
+      });
+    }
+
     const step = stepRecordOf({
       stepIndex,
       stepId,
@@ -198,30 +313,39 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       toolCalls: pairs.map((pair) => pair.record),
       composition: composition ?? null,
       hooks: hookRuns,
+      materials: materialPlan.kept,
+      ...(advertised === undefined ? {} : { advertised }),
+      cache,
     });
     draft.steps.push(step);
+    const toolRows: TrToolUseRow[] = [];
+    for (const name of noted.touched) {
+      const row = draft.tools.get(name);
+      if (row !== undefined) toolRows.push(trToolUseRowOf(row, draft));
+    }
     const batch: TrStepBatch = {
       step: stepRowOf({
         threadId: draft.threadId,
         turnId: draft.turnId,
         stepIndex,
         calls: step.modelCalls,
+        ...(advertised === undefined
+          ? {}
+          : {
+              context: {
+                advertised,
+                materialsFp:
+                  step.materials.length === 0 ? null : materialsFingerprintOf(step.materials),
+              },
+            }),
       }),
-      calls: pairs.map((pair) =>
-        trCallRowOf(pair.event, pair.record, {
-          threadId: draft.threadId,
-          turnId: draft.turnId,
-          stepIndex,
-        }),
-      ),
-      hooks: hooks.rows.map((row) =>
-        trHookRowOf(row, { threadId: draft.threadId, turnId: draft.turnId, stepIndex }),
-      ),
-      materials: [],
-      tooluse: [],
-      skills: [],
+      calls: pairs.map((pair) => trCallRowOf(pair.event, pair.record, base)),
+      hooks: hooks.rows.map((row) => trHookRowOf(row, base)),
+      materials: materialPlan.fresh.map((material) => trMaterialRowOf(material, base)),
+      tooluse: toolRows,
+      skills: freshSkills,
       plugincalls: [],
-      cache: [],
+      cache: cache === null ? [] : trCacheRowsOf(cache, base),
     };
     deps.queue((store) => {
       const written = store.writeStep(batch);
@@ -258,6 +382,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
 
   return {
     event(record) {
+      if (record.kind === "thread.compacted") compactedThreads.add(record.threadId);
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
@@ -287,10 +412,25 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       bucket.push(event);
       draft.toolCalls.set(event.stepId, bucket);
     },
+    context(event) {
+      const draft = drafts.get(event.turnId);
+      if (draft === undefined || draft.level !== "full" || draft.threadId !== event.threadId) {
+        return;
+      }
+      if (event.kind === "step_context") {
+        draft.contexts.set(event.stepId, event);
+        return;
+      }
+      const reads = draft.skillReads.get(event.stepId) ?? [];
+      reads.push({ toolCallId: event.toolCallId, name: event.name });
+      draft.skillReads.set(event.stepId, reads);
+    },
     forget(threadId) {
       for (const [turnId, draft] of drafts) {
         if (draft.threadId === threadId) drafts.delete(turnId);
       }
+      priorUsage.delete(threadId);
+      compactedThreads.delete(threadId);
     },
   };
 }

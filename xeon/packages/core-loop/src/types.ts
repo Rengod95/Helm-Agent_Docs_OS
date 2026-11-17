@@ -12,6 +12,7 @@ import type {
   ToolService,
 } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
+import type { ContextTraceSink } from "@fresnel/contracts/extensions";
 import type { CommitFailure } from "./commit.ts";
 import type { Drafter } from "./drafts.ts";
 import type { TurnStartPlanned } from "./turn-start.ts";
@@ -57,6 +58,8 @@ export interface LoopDeps {
    * `undefined`를 돌려주면 `spawn`은 `input_invalid`로 거부한다
    */
   readonly agents?: () => Pick<AgentService, "spawn"> | undefined;
+  /** 조립 재료와 광고, 스킬 본문 읽기의 읽기 전용 측정 싱크(턴 기록). 없으면 아무것도 만들지 않는다 */
+  readonly contextTrace?: ContextTraceSink;
 }
 
 /** turn 시작(T1) 결과. 큐 입력 시작과 drive 시작이 함께 쓴다 */

@@ -12,7 +12,7 @@ import type {
   TurnId,
   Usage,
 } from "../conversation/index.ts";
-import type { PortKey } from "../extensions/index.ts";
+import type { ContextMaterialFact, PortKey } from "../extensions/index.ts";
 import type {
   CacheMarks,
   CachePolicy,
@@ -122,6 +122,11 @@ export interface AssembledContext {
   readonly estimate: ContextUsageEstimate;
   /** 요청 구성 토큰. 대역은 생략할 수 있다 */
   readonly composition?: ContextComposition;
+  /**
+   * 이번 요청에 실린 재료(§4.5 규칙 26). 측정 전용 부산물이다: 요청 메시지·도구·절을 바꾸지 않고, 요청 빌더는 이 값을 쓰지 않는다.
+   * 대역은 생략할 수 있다
+   */
+  readonly materials?: readonly ContextMaterialFact[];
   readonly compactionHead: {
     readonly eventId: EventId;
     readonly firstKeptEventId: EventId;

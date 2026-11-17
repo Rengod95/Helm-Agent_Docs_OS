@@ -17,6 +17,7 @@ import { canContinue, stepLimitReached } from "../budget.ts";
 import { finalizeBoundary } from "../checkpoint.ts";
 import { commitWithRetry } from "../commit.ts";
 import { stepEndRequest, type PlacedInput } from "../commits.ts";
+import { emitContextTrace, skillReadsOf } from "./context-trace.ts";
 import {
   boundarySignal,
   commitFailure,
@@ -280,6 +281,17 @@ export async function endStep(
     pendingToolCalls: pending,
   });
   run.emitter.flush();
+  // 스킬 본문 읽기는 커밋 전에 보낸다: 커밋이 이 단계의 기록을 바로 쓰므로 뒤에 보내면 놓친다(§4.5 규칙 29)
+  for (const read of skillReadsOf(message)) {
+    emitContextTrace(ctx, {
+      kind: "skill_read",
+      threadId,
+      turnId,
+      stepId: step.stepId,
+      toolCallId: read.toolCallId,
+      name: read.name,
+    });
+  }
   const committed = commitWithRetry(ctx.session, planned.request);
   if (!committed.ok) {
     await ctx.ext.boundary.settle(signal, "failed");

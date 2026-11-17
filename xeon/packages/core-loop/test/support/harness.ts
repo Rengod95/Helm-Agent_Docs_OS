@@ -74,6 +74,8 @@ export interface HarnessOptions {
   readonly withoutLoop?: boolean;
   /** `loop.spawn`이 위임하는 `fresnel.agents` 대역. 생략하면 서비스가 없는 구성이다 */
   readonly agents?: LoopDeps["agents"];
+  /** 조립 재료·광고·스킬 읽기의 측정 싱크. 생략하면 측정 값을 만들지 않는다 */
+  readonly contextTrace?: LoopDeps["contextTrace"];
 }
 
 export interface Harness {
@@ -180,6 +182,7 @@ async function build(
           models: models.service,
           ext: host.host,
           ...(options.agents === undefined ? {} : { agents: options.agents }),
+          ...(options.contextTrace === undefined ? {} : { contextTrace: options.contextTrace }),
           ...(options.withApprovals === true
             ? {
                 approvals: {
