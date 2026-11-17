@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { canonicalJson, parse } from "@fresnel/contracts";
 import {
@@ -8,8 +11,12 @@ import {
   WorkspaceShellKey,
 } from "@fresnel/contracts/capabilities";
 import { EffectIntentSchema } from "@fresnel/contracts/records";
-import type { JsonValue } from "@fresnel/contracts/conversation";
-import type { PluginCallRequest } from "@fresnel/contracts/services";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  ApprovalCaller,
+  HumanDecisionGrant,
+  PluginCallRequest,
+} from "@fresnel/contracts/services";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
   createHarness,
@@ -90,11 +97,14 @@ function registerWorkspace(h: Harness): { readonly calls: { readonly method: str
   return { calls };
 }
 
-/** 검토 카드를 열고 사람이 답하게 한 승인 id를 돌려준다 */
+/**
+ * 검토 카드를 열고 사람이 답하게 한 승인 id를 돌려준다. `files`는 카드가 보여 준 파일 목록이다(기본은 `src/a.ts` 하나)
+ */
 async function answeredReviewCard(
   h: Harness,
   writes: readonly string[],
   key: string = "rvw-card",
+  files: readonly string[] = ["src/a.ts"],
 ): Promise<string> {
   const opened = await h.runtime.approvals.open({
     origin: { threadId: h.thread, turnId: null, stepId: null, toolCallId: null, caller: "main" },
@@ -107,7 +117,7 @@ async function answeredReviewCard(
         artifactId: "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
         title: "t",
         round: 1,
-        files: [{ path: "src/a.ts", change: "modified", binary: false, hunks: 1 }],
+        files: files.map((path) => ({ path, change: "modified", binary: false, hunks: 1 })),
         writes,
       },
     },
@@ -125,15 +135,39 @@ async function answer(h: Harness, approvalId: string): Promise<void> {
   expect(applied).toEqual({ applied: true });
 }
 
-/** 카드가 뜨는지 본다: 대기 카드가 하나 생기면 거부해서 호출을 끝낸다 */
-async function expectsCard(h: Harness, pending: Promise<unknown>): Promise<void> {
+/**
+ * 카드가 뜨는지 본다: 대화 `threadId`에 도구 카드가 하나 생기면(`caller` 주체) 거부해서 호출을 끝낸다
+ */
+async function expectsCard(
+  h: Harness,
+  pending: Promise<unknown>,
+  threadId: ThreadId = h.thread,
+  caller: ApprovalCaller = "plugin:cap-artifacts",
+): Promise<void> {
   const toolCards = (): ReturnType<typeof h.runtime.approvals.pending> =>
-    h.runtime.approvals.pending(h.thread).filter((request) => request.body.kind === "tool");
+    h.runtime.approvals.pending(threadId).filter((request) => request.body.kind === "tool");
   await until(() => toolCards().length === 1);
   const [card] = toolCards();
-  expect(card?.origin.caller).toBe("plugin:cap-artifacts");
+  expect(card?.origin.caller).toBe(caller);
   await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "deny" });
   expect(await pending).toMatchObject({ ok: false, error: { kind: "denied" } });
+}
+
+/**
+ * 이 대화의 `cap-artifacts` 플러그인이 `path`를 편집하는 호출에 쓰는 사람의 결정 허용. `covers`는 호출 입력의 `path`로 쓰기를 고른다
+ * (학습 제안 결정은 증거의 출처와 제안 id로 고르지만 편집 도구 입력에는 그 필드가 없다. 그 대조는 apps/host 시험이 본다)
+ */
+function decisionFor(h: Harness, path: string): HumanDecisionGrant {
+  return {
+    id: `decision:test:${path}`,
+    threadId: h.thread,
+    plugin: "cap-artifacts",
+    risk: "write",
+    covers: (call) =>
+      call.capability === "workspace.files" &&
+      call.method === "edit" &&
+      call.input["path"] === path,
+  };
 }
 
 test("a human-answered review card lets the write it names run without a new card, and the intent records which approval was inherited", async () => {
@@ -315,19 +349,28 @@ test("a plugin hook block still applies to an inherited write, and the blocked c
 test("a host human decision lets the covered write pass without a card only while the decision runs, and only once", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
-  const grant = {
+  const grant: HumanDecisionGrant = {
     id: "decision:test:prop_1",
+    threadId: h.thread,
+    plugin: "cap-artifacts",
     risk: "write",
-    covers: (call: { readonly capability: string; readonly method: string }) =>
-      call.capability === "workspace.files" && call.method === "edit",
-  } as const;
+    covers: (call) => call.capability === "workspace.files" && call.method === "edit",
+  };
   // 결정 밖: 카드가 뜬다
   await expectsCard(h, h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "outside")));
   // 결정 안: 가리킨 쓰기는 카드 없이, 가리키지 않은 기능은 카드가 뜬다
-  await h.runtime.tools.withHumanDecision(grant, async () => {
+  await h.runtime.withHumanDecision(grant, async () => {
     const covered = await h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "inside-1"));
     expect(covered).toMatchObject({ ok: true });
     expect(h.runtime.approvals.pending(h.thread)).toEqual([]);
+    // 기록: 의도에 어느 결정(grant id)으로 통과했는지가 승인 상속과 같은 모양으로 남는다
+    const intents = h.session.events.filter((event) => event.kind === "effect.intent");
+    const last = intents.at(-1);
+    const intent = parse(EffectIntentSchema, last?.payload);
+    expect(intent.ok && intent.value.inheritedApproval).toEqual({
+      approvalId: grant.id,
+      key: `${grant.id}:${digestOf(EDIT_A)}`,
+    });
     const second = h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "inside-2"));
     await expectsCard(h, second);
     const uncovered = h.runtime.tools.executeForPlugin(
@@ -341,4 +384,140 @@ test("a host human decision lets the covered write pass without a card only whil
   // 결정이 끝나면 꺼진다
   await expectsCard(h, h.runtime.tools.executeForPlugin(editCall(h, EDIT_OTHER_PATH, "after")));
   expect(probe.calls).toHaveLength(1);
+});
+
+test("a human decision passes only the calls of its own conversation", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const other = h.deps.ids.next("thr");
+  await h.host.host.openThread(other);
+  await h.runtime.withHumanDecision(decisionFor(h, EDIT_A.path), async () => {
+    // 같은 쓰기라도 다른 대화의 호출은 카드를 건너뛰지 못한다
+    await expectsCard(
+      h,
+      h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "other-thread", { threadId: other })),
+      other,
+    );
+    // 결정이 실행되는 대화의 같은 호출은 지난다
+    const here = await h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "this-thread"));
+    expect(here).toMatchObject({ ok: true });
+  });
+  expect(probe.calls).toHaveLength(1);
+});
+
+test("a human decision passes only the calls of the plugin it names", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  await h.runtime.withHumanDecision(decisionFor(h, EDIT_A.path), async () => {
+    const otherPlugin = editCall(h, EDIT_A, "other-plugin", {
+      plugin: { name: "cap-other", scopeId: "scope-other" },
+    });
+    await expectsCard(
+      h,
+      h.runtime.tools.executeForPlugin(otherPlugin),
+      h.thread,
+      "plugin:cap-other",
+    );
+    const named = await h.runtime.tools.executeForPlugin(editCall(h, EDIT_A, "named-plugin"));
+    expect(named).toMatchObject({ ok: true });
+  });
+  expect(probe.calls).toHaveLength(1);
+});
+
+test("a human decision covers only the write it names: a write to another path opens a card", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  await h.runtime.withHumanDecision(decisionFor(h, EDIT_A.path), async () => {
+    await expectsCard(
+      h,
+      h.runtime.tools.executeForPlugin(editCall(h, EDIT_OTHER_PATH, "other-path")),
+    );
+  });
+  expect(probe.calls).toEqual([]);
+});
+
+/** 작업 폴더 하나를 임시로 만들어 파일과 링크를 채우고, 시험이 끝나면 지운다 */
+async function withTree(
+  setup: (dir: string) => void,
+  body: (dir: string) => Promise<void>,
+): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), "inherit-links-"));
+  try {
+    setup(dir);
+    await body(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a write through a link to a file the card lists by its own name inherits; a link to an unlisted file opens a card", async () => {
+  await withTree(
+    (dir) => {
+      writeFileSync(join(dir, "real.ts"), "one\n");
+      writeFileSync(join(dir, "other.ts"), "two\n");
+      symlinkSync("real.ts", join(dir, "alias.ts"));
+      symlinkSync("other.ts", join(dir, "to-other.ts"));
+    },
+    async (dir) => {
+      const h = await createHarness({ workdir: dir });
+      const probe = registerWorkspace(h);
+      const alias = { path: "alias.ts", edits: EDIT_A.edits };
+      const listed = await answeredReviewCard(h, [digestOf(alias)], "alias-card", ["real.ts"]);
+      await answer(h, listed);
+      const passed = await h.runtime.tools.executeForPlugin(
+        editCall(h, alias, "alias-call", { inheritApproval: { approvalId: listed } }),
+      );
+      expect(passed).toMatchObject({ ok: true });
+      // 같은 카드가 가리키지 않은 파일(other.ts)을 가리키는 링크는 카드를 건너뛰지 못한다
+      const toOther = { path: "to-other.ts", edits: EDIT_A.edits };
+      const unlisted = await answeredReviewCard(h, [digestOf(toOther)], "other-card", ["real.ts"]);
+      await answer(h, unlisted);
+      await expectsCard(
+        h,
+        h.runtime.tools.executeForPlugin(
+          editCall(h, toOther, "other-call", { inheritApproval: { approvalId: unlisted } }),
+        ),
+      );
+      expect(probe.calls).toHaveLength(1);
+    },
+  );
+});
+
+test("a card that names only a link, while the file it points to is not on the card, does not pass that link's write", async () => {
+  await withTree(
+    (dir) => {
+      writeFileSync(join(dir, "real.ts"), "one\n");
+      symlinkSync("real.ts", join(dir, "shown-link.ts"));
+    },
+    async (dir) => {
+      const h = await createHarness({ workdir: dir });
+      const probe = registerWorkspace(h);
+      const input = { path: "shown-link.ts", edits: EDIT_A.edits };
+      const approvalId = await answeredReviewCard(h, [digestOf(input)], "link-card", [
+        "shown-link.ts",
+      ]);
+      await answer(h, approvalId);
+      await expectsCard(
+        h,
+        h.runtime.tools.executeForPlugin(
+          editCall(h, input, "link-call", { inheritApproval: { approvalId } }),
+        ),
+      );
+      expect(probe.calls).toEqual([]);
+    },
+  );
+});
+
+test("without a path resolver the call never inherits a review card's approval", async () => {
+  const h = await createHarness({ noPathEnv: true });
+  const probe = registerWorkspace(h);
+  const approvalId = await answeredReviewCard(h, [digestOf(EDIT_A)]);
+  await answer(h, approvalId);
+  await expectsCard(
+    h,
+    h.runtime.tools.executeForPlugin(
+      editCall(h, EDIT_A, "no-resolver", { inheritApproval: { approvalId } }),
+    ),
+  );
+  expect(probe.calls).toEqual([]);
 });

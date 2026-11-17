@@ -24,6 +24,7 @@ import {
   TaskServicePortKey,
   ToolServicePortKey,
   type ToolOutputFiles,
+  type WithHumanDecision,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
@@ -66,6 +67,11 @@ export interface ToolsPluginOptions {
    * 조립 루트가 내장 기능 정의 전체를 넘긴다
    */
   readonly pluginCapabilities?: readonly AnyCapabilityDef[];
+  /**
+   * 사람의 결정을 실행하는 함수를 조립 루트에 넘긴다(U-11). 포트(`fresnel.tools`)로는 나가지 않는다: 확장과 플러그인이 받을 수 없다.
+   * setup 중 한 번 부른다
+   */
+  readonly onHumanDecision?: (withHumanDecision: WithHumanDecision) => void;
   readonly loadIndex?: number;
 }
 
@@ -139,6 +145,13 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         store,
         tasks,
         lockEnv: exec,
+        // 승인 상속의 경로 대조는 대화의 작업 폴더 기준으로 푼다(파일 도구와 같은 env). 대화 행을 못 읽으면 상속하지 않는다
+        pathEnvOf: (threadId) => {
+          const row = session.query.thread(threadId);
+          if (!row.ok) return undefined;
+          const workspace = row.value?.workspace ?? null;
+          return workspace === null ? exec : exec.withCwd(workspace);
+        },
         // 출력 절단은 fresnel.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
         truncator: exec,
         ...(options.outputFiles === undefined ? {} : { outputFiles: options.outputFiles }),
@@ -160,6 +173,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
       const runtime = createToolRuntime(deps);
       host.providePort(ToolServicePortKey, runtime.tools);
       host.providePort(ApprovalServicePortKey, runtime.approvals);
+      options.onHumanDecision?.(runtime.withHumanDecision);
     });
   };
   return {

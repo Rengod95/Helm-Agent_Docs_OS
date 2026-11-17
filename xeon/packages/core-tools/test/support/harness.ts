@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { InputBridge } from "../../src/mcp-input.ts";
 import {
   type AnyCapabilityDef,
@@ -47,6 +50,7 @@ import {
   type FakeStore,
 } from "../../src/testing/index.ts";
 import { fakeTasks, type FakeTasks } from "./fake-tasks.ts";
+import { realPathEnv } from "./real-path-env.ts";
 
 // 테스트 조립. 실제 ext-host 테스트 호스트(디스패치)에 대역 세션·저장소·시크릿·태스크를 붙인다.
 
@@ -73,7 +77,19 @@ export interface HarnessOptions {
   readonly capabilityDefs?: readonly AnyCapabilityDef[];
   /** 기록기. 생략하면 기록하지 않는다. 진단 로그를 확인하는 시험이 넣는다 */
   readonly logger?: Logger;
+  /**
+   * 승인 상속이 경로를 푸는 작업 폴더. 생략하면 시험 프로세스의 빈 임시 폴더다. 링크와 파일을 만든 시험은 자기 폴더를 넘긴다
+   */
+  readonly workdir?: string;
+  /** 승인 상속의 경로 풀이 수단을 주지 않는다(조립에서 비어 있는 경우). 경로로 대조하는 상속은 모두 닫힌다 */
+  readonly noPathEnv?: true;
 }
+
+/** 승인 상속 시험의 기본 작업 폴더. 프로세스가 끝나면 지운다 */
+const SHARED_WORKDIR = mkdtempSync(join(tmpdir(), "core-tools-harness-"));
+process.once("exit", () => {
+  rmSync(SHARED_WORKDIR, { recursive: true, force: true });
+});
 
 export interface Harness {
   readonly clock: Clock;
@@ -147,6 +163,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     outputFiles,
     tasks: options.withTasks === false ? undefined : tasks,
     lockEnv: undefined,
+    ...(options.noPathEnv === true
+      ? {}
+      : { pathEnvOf: () => realPathEnv(options.workdir ?? SHARED_WORKDIR) }),
     truncator: fakeTruncator(),
     redactor: fakeRedactor(options.secrets),
     secrets: options.secretChecker,

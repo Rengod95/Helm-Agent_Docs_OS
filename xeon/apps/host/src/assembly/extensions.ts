@@ -49,7 +49,11 @@ import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
 import { writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
-import type { AgentDefinition, ToolOutputFiles } from "@fresnel/contracts/services";
+import type {
+  AgentDefinition,
+  ToolOutputFiles,
+  WithHumanDecision,
+} from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import {
   contextSettingsOf,
@@ -113,6 +117,8 @@ export interface ExtensionDeps {
   readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /** 잘린 도구 출력의 파일 사본. core-tools가 쓰고 cap-workspace가 읽기 루트에 더한다 */
   readonly toolOutputs: ToolOutputFiles;
+  /** core-tools가 사람의 결정 실행 함수를 넘기는 자리(U-11). 포트로 나가지 않는다 */
+  readonly toolHumanDecision?: (withHumanDecision: WithHumanDecision) => void;
   readonly clock: Clock;
   /** 계정 회전의 간격·한도 대기가 쓰는 타이머. 시계를 따로 넘기면 core-models가 OS 타이머를 쓰지 않으므로 함께 넘긴다 */
   readonly scheduler: Scheduler;
@@ -341,6 +347,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
           outputFiles: deps.toolOutputs,
+          ...(deps.toolHumanDecision === undefined
+            ? {}
+            : { onHumanDecision: deps.toolHumanDecision }),
           // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(RegistrationHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
           // 플러그인 기능 호출은 도구 매핑이 없는 메서드도 부른다(U-1 (다)). 그 정의는 내장 기능 전체다. 매니페스트에는 더하지 않는다

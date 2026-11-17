@@ -38,6 +38,7 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
+  type WithHumanDecision,
 } from "@fresnel/contracts/services";
 import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
@@ -391,6 +392,16 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
   const found = ext.ports.get(key);
   if (found === undefined) throw new AssembleError([{ code: "missingService", service }]);
   return found;
+}
+
+/** core-tools가 조립 때 넘긴 사람의 결정 실행 함수. 포트가 아니라 이 조립 루트의 슬롯으로 받는다(U-11) */
+function requireHumanDecision(slot: { current: WithHumanDecision | undefined }): WithHumanDecision {
+  if (slot.current === undefined) {
+    throw new AssembleError([
+      { code: "missingService", service: "fresnel.tools (human decision)" },
+    ]);
+  }
+  return slot.current;
 }
 
 /**
@@ -960,6 +971,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
     /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
     const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    // 사람의 결정 실행 함수(core-tools가 setup 때 넘긴다). 학습 제안 결정이 읽는다. 포트로는 나가지 않는다(U-11)
+    const humanDecisionSlot: { current: WithHumanDecision | undefined } = { current: undefined };
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1091,6 +1104,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { extraCapabilityDefs: options.extraCapabilityDefs }),
         toolOutputs,
+        toolHumanDecision: (withHumanDecision) => {
+          humanDecisionSlot.current = withHumanDecision;
+        },
         clock,
         scheduler: runtime.scheduler,
         ids,
@@ -1276,6 +1292,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tasks = requirePort(ext, TASKS_KEY, "fresnel.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "fresnel.approvals");
     const tools = requirePort(ext, TOOLS_KEY, "fresnel.tools");
+    const withHumanDecision = requireHumanDecision(humanDecisionSlot);
     const models = requirePort(ext, MODELS_KEY, "fresnel.models");
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
@@ -1457,7 +1474,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         learningStore: () => learning.reader.current,
         runner: learning.runner,
         knowledge: () => learning.knowledge.current,
-        humanDecision: (grant, work) => tools.withHumanDecision(grant, work),
+        humanDecision: withHumanDecision,
         report: (message, fields) => {
           logger.warn(message, fields);
         },

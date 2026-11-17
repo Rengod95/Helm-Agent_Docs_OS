@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import { CapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ProposalDecideParams,
   ProposalRow,
@@ -131,6 +132,8 @@ function rig(options: {
   readonly sweepFails?: boolean;
   /** 열린 대화가 없다 */
   readonly noThread?: boolean;
+  /** 이 호스트에서 열려 있는 대화. 생략하면 `THREAD` 하나다. `noThread`면 없다 */
+  readonly openThreads?: readonly ThreadId[];
   readonly knowledgeDecide?: KnowledgeProposalWire["decide"];
   /** 사람의 결정을 실행하는 동안 켠 허용을 받는다. 없으면 허용 경로가 없는 구성이다 */
   readonly humanDecision?: <T>(grant: HumanDecisionGrant, work: () => Promise<T>) => Promise<T>;
@@ -153,8 +156,12 @@ function rig(options: {
       return Promise.resolve(ok(rows));
     },
   };
+  const openThreads: readonly ThreadId[] =
+    options.noThread === true ? [] : (options.openThreads ?? [THREAD]);
   const runner: LearningRunner = {
     report: () => undefined,
+    openThreadOf: (preferred) =>
+      preferred === undefined ? undefined : openThreads.find((thread) => thread === preferred),
     run: (line, preferred) => {
       calls.runs.push({ line, preferred });
       if (options.noThread === true) {
@@ -721,7 +728,7 @@ const GRANT_CALL: Parameters<HumanDecisionGrant["covers"]>[0] = {
 test("proposal.decide opens a human-decision grant for approve and edit only, and the grant covers only that proposal's learning.queue evidence", async () => {
   const grants: HumanDecisionGrant[] = [];
   const { port } = rig({
-    learning: [],
+    learning: [view({ id: "prop_1" })],
     humanDecision: (grant, work) => {
       grants.push(grant);
       return work();
@@ -757,4 +764,40 @@ test("proposal.decide opens a human-decision grant for approve and edit only, an
   ).toBe(false);
   expect(grant.covers({ ...GRANT_CALL, input: { name: "n" } })).toBe(false);
   expect(grant.covers({ ...GRANT_CALL, capability: "workspace.files" })).toBe(false);
+  // 허용은 결정이 실행되는 대화(부모 대화)와 학습 그룹 플러그인에만 쓴다
+  expect(grant.threadId).toBe(THREAD);
+  expect(grant.plugin).toBe("learning");
+});
+
+test("proposal.decide opens no grant when the parent conversation is not open, and the decision runs in the open conversation as a normal card", async () => {
+  const grants: HumanDecisionGrant[] = [];
+  const closed = fixedIdFactory(2).next("thr");
+  // 부모 대화가 열려 있지 않으면 결정은 열린 대화에서 실행되고, 그 대화를 알 수 없으니 허용을 켜지 않는다(보통의 승인 카드)
+  const { port, calls } = rig({
+    learning: [view({ id: "prop_1", evidence: [{ eventId: "evt_1", threadId: closed }] })],
+    humanDecision: (grant, work) => {
+      grants.push(grant);
+      return work();
+    },
+  });
+  await port.decide({ source: "learning", id: "prop_1", decision: "approve", revision: 3 }, SIGNAL);
+  expect(grants).toEqual([]);
+  expect(calls.runs.map((run) => run.preferred)).toEqual([closed]);
+});
+
+test("proposal.decide opens no grant when the proposal has no parent conversation", async () => {
+  const grants: HumanDecisionGrant[] = [];
+  const { port, calls } = rig({
+    learning: [view({ id: "prop_1", evidence: [] })],
+    humanDecision: (grant, work) => {
+      grants.push(grant);
+      return work();
+    },
+  });
+  await port.decide(
+    { source: "learning", id: "prop_1", decision: "edit", revision: 2, body: "b" },
+    SIGNAL,
+  );
+  expect(grants).toEqual([]);
+  expect(calls.runs.map((run) => run.preferred)).toEqual([undefined]);
 });

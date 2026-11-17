@@ -1984,43 +1984,61 @@ export function createPipeline(
     );
     if (candidates.length === 0 && humanGrants.size === 0) return undefined;
     const digest = await argsHashOf(input);
-    // 호스트가 사람의 결정을 실행하는 동안의 호출이 그 결정이 가리킨 대상이면 이어받는다(플러그인이 고르는 값이 없다)
+    // 호스트가 사람의 결정을 실행하는 동안의 호출이 그 결정이 가리킨 대상이면 이어받는다(플러그인이 고르는 값이 없다).
+    // 결정은 그 결정이 실행되는 대화의, 그 결정이 허용한 플러그인의 호출에만 쓴다
     if (request.target.kind === "capability") {
       const call = { capability: request.target.capability, method: request.target.method, input };
       for (const grant of humanGrants) {
+        if (grant.threadId !== request.threadId || grant.plugin !== request.plugin.name) continue;
         if (!grant.covers(call)) continue;
         const key = `${grant.id}:${digest}`;
         if (inheritUsed.has(key) || inheritKeyRecorded(request.threadId, key)) continue;
         return { approvalId: grant.id, risk: grant.risk, key };
       }
     }
+    // 경로로 대조하는 승인 상속은 대화의 작업 폴더 기준 실제 경로가 필요하다. 풀 수단이 없으면 상속하지 않는다
+    const pathEnv = candidates.length === 0 ? undefined : deps.pathEnvOf?.(request.threadId);
+    // 기록으로 맞는 후보를 먼저 고르고, 경로 대조는 후보마다 한꺼번에 기다린다. 후보의 순서는 그대로 지킨다
+    const pending: {
+      readonly approvalId: string;
+      readonly risk: ToolRisk;
+      readonly same: Promise<boolean>;
+    }[] = [];
     for (const approvalId of candidates) {
       const opened = approvals.get(approvalId);
       if (opened === undefined) continue;
       const { resolution, request: asked } = opened;
       if (resolution === null || resolution.resolvedBy !== "user") continue;
       if (asked.origin.threadId !== request.threadId) continue;
-      let risk: ToolRisk;
+      if (pathEnv === undefined) continue;
       if (asked.body.kind === "tool") {
         // 도구 승인은 허용만 물려준다
         if (resolution.decision !== "allow") continue;
         if (asked.origin.toolCallId !== request.parentToolCallId) continue;
-        // 안쪽 호출이 바깥 호출의 승인 카드가 보여 준 대상(카드 인자의 경로)과 같은 경로일 때만 물려준다.
-        // 경로가 없거나(셸 등) 인자가 blob으로 빠져 엔진이 읽을 수 없으면 아니다
-        if (!samePathAsOuter(input, asked.body.tool.args)) continue;
-        risk = asked.body.tool.risk;
+        // 안쪽 호출이 바깥 호출의 승인 카드가 보여 준 대상(카드 인자의 경로)과 같은 실제 파일일 때만 물려준다.
+        // 경로가 없거나(셸 등) 인자가 blob으로 빠져 엔진이 읽을 수 없거나 풀 수 없으면 아니다
+        pending.push({
+          approvalId,
+          risk: asked.body.tool.risk,
+          same: samePathAsOuter(pathEnv, input, asked.body.tool.args),
+        });
       } else if (asked.body.kind === "review") {
         // 검토 카드의 답(hunk 결정 `answer`, 전체 거부 `deny`)은 모두 사람의 결정이고, 되돌림은 그 결정의 결과다
         if (asked.body.review.writes?.includes(digest) !== true) continue;
-        // 해시는 카드를 연 플러그인이 정한다. 사용자가 카드에서 본 파일 목록 안의 경로인지 엔진이 따로 본다
-        if (!pathInCard(input, asked.body.review.files)) continue;
-        risk = "write";
-      } else {
-        continue;
+        // 해시는 카드를 연 플러그인이 정한다. 사용자가 카드에서 본 파일 목록 안의 실제 파일인지 엔진이 따로 본다
+        pending.push({
+          approvalId,
+          risk: "write",
+          same: pathInCard(pathEnv, input, asked.body.review.files),
+        });
       }
-      const key = `${approvalId}:${digest}`;
+    }
+    const verdicts = await Promise.all(pending.map((entry) => entry.same));
+    for (const [index, entry] of pending.entries()) {
+      if (verdicts[index] !== true) continue;
+      const key = `${entry.approvalId}:${digest}`;
       if (inheritUsed.has(key) || inheritKeyRecorded(request.threadId, key)) continue;
-      return { approvalId, risk, key };
+      return { approvalId: entry.approvalId, risk: entry.risk, key };
     }
     return undefined;
   }

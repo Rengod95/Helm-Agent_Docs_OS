@@ -5,6 +5,7 @@ import type { ProducerHandle, SessionService, StoreService } from "@fresnel/cont
 import type { Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
+import type { InheritPathEnv } from "./inherit-target.ts";
 import type { LockEnv, ToolTasks } from "./tasks.ts";
 import type { SecretChecker } from "./secret-gate.ts";
 import type { ToolsScalarConfig } from "./settings.ts";
@@ -31,6 +32,11 @@ export interface ToolsDeps {
   readonly tasks: ToolTasks | undefined;
   /** 잠금 키 산출용. 없으면 키 큐를 쓰지 않는다 */
   readonly lockEnv: LockEnv | undefined;
+  /**
+   * 승인 상속이 경로를 작업 폴더 기준 실제 경로로 풀 때 쓰는 env를 대화마다 준다(U-11). 없거나 undefined를 돌려주면 상속하지 않는다
+   * (해석 수단이 없으면 카드를 건너뛰지 못하게 닫는다)
+   */
+  readonly pathEnvOf?: (threadId: ThreadId) => InheritPathEnv | undefined;
   readonly truncator: OutputTruncator;
   /** 잘린 출력의 파일 사본. 없으면 안내 문장에 경로가 없다 */
   readonly outputFiles?: ToolOutputFiles;

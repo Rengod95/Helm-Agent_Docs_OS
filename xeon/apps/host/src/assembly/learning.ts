@@ -81,6 +81,11 @@ export interface LearningRunner {
    * 열린 대화가 없으면 `unavailable`이다(결정 기록을 쓸 대화가 없다). `signal`은 부른 쪽의 취소 신호로, 처리기의 `ctx.signal`에 그대로 넘긴다
    */
   run(line: string, preferred: string | undefined, signal: AbortSignal): Promise<LearningRun>;
+  /**
+   * `run(…, preferred, …)`이 실행할 대화가 `preferred`일 때 그 값이다. `preferred`가 이 호스트에서 열려 있을 때만 그렇고,
+   * 아니면 undefined다(`run`이 열린 대화로 바꾼다). 같은 틱에 부르면 `run`이 고르는 대화와 같다
+   */
+  openThreadOf(preferred: string | undefined): ThreadId | undefined;
   /** 그룹이 명령 결과를 내는 자리(`LearningDeps.report`) */
   report(report: CommandReport, invocationId: string): void;
 }
@@ -100,10 +105,16 @@ function isCommandDef(def: unknown): def is CommandResourceDef {
 
 export function createLearningRunner(deps: LearningRunnerDeps): LearningRunner {
   const reports = new Map<string, CommandReport>();
+  /** `preferred`가 이 호스트에서 열려 있으면 그 대화 */
+  function openThreadOf(preferred: string | undefined): ThreadId | undefined {
+    if (preferred === undefined || !isId("thr", preferred)) return undefined;
+    return deps.heldThreads().includes(preferred) ? preferred : undefined;
+  }
   return {
     report(report, invocationId) {
       reports.set(invocationId, report);
     },
+    openThreadOf,
     async run(line, preferred, signal) {
       const record = deps
         .resources()
@@ -112,11 +123,7 @@ export function createLearningRunner(deps: LearningRunnerDeps): LearningRunner {
       if (record === undefined || !isCommandDef(record.def)) {
         return { kind: "unavailable", detail: "the learning command is not registered" };
       }
-      const held = deps.heldThreads();
-      const threadId =
-        preferred !== undefined && isId("thr", preferred) && held.includes(preferred)
-          ? preferred
-          : deps.activeThread();
+      const threadId = openThreadOf(preferred) ?? deps.activeThread();
       if (threadId === null) {
         return { kind: "unavailable", detail: "no conversation is open to record the decision" };
       }

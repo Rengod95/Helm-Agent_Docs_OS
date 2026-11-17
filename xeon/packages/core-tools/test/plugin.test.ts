@@ -10,6 +10,7 @@ import {
   ApprovalServicePortKey,
   ToolServicePortKey,
   type Redactor,
+  type WithHumanDecision,
 } from "@fresnel/contracts/services";
 import type { OutputTruncator } from "../src/types.ts";
 import { createTestHost } from "@fresnel/ext-host/testing";
@@ -42,7 +43,9 @@ const TasksKey: PortKey<FakeTasks> = { name: "fresnel.tasks" };
 const ExecKey: PortKey<FakeExec> = { name: "fresnel.exec" };
 const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "fresnel.secrets" };
 
-async function boot() {
+async function boot(
+  options: { readonly onHumanDecision?: (withHumanDecision: WithHumanDecision) => void } = {},
+) {
   // 테스트 호스트의 기록 포트(fresnel.session의 ext 속성)는 빼고, 이 패키지가 쓰는 세션 대역을 올린다
   const t = await createTestHost({ without: ["records", "queue", "loop"] });
   const clock = { now: () => NOW };
@@ -79,6 +82,9 @@ async function boot() {
           }),
         ],
       },
+      ...(options.onHumanDecision === undefined
+        ? {}
+        : { onHumanDecision: options.onHumanDecision }),
     }),
   );
   return { t, installed, session, tasks, ids };
@@ -153,4 +159,29 @@ test("setup takes the truncation functions from fresnel.exec and needs no trunca
   const { installed, t } = await boot();
   expect(installed.setups[0]?.status).toBe("applied");
   expect(t.host.ports.get(ToolServicePortKey)).toBeDefined();
+});
+
+test("the fresnel.tools port value carries no withHumanDecision, so an extension holding the port cannot reach the host-only decision (U-11)", async () => {
+  const { t } = await boot();
+  const tools = t.host.ports.get(ToolServicePortKey);
+  if (tools === undefined) throw new Error("fresnel.tools is not provided");
+  expect(Object.keys(tools)).not.toContain("withHumanDecision");
+  // @ts-expect-error -- ToolService의 모양에는 withHumanDecision이 없다(호스트 전용 함수는 포트로 나가지 않는다)
+  expect(tools.withHumanDecision).toBeUndefined();
+});
+
+test("the host-only decision function reaches the composition root once, at setup, and no port value holds it", async () => {
+  const handed: WithHumanDecision[] = [];
+  const { t } = await boot({
+    onHumanDecision: (withHumanDecision) => {
+      handed.push(withHumanDecision);
+    },
+  });
+  const [decide] = handed;
+  expect(handed).toHaveLength(1);
+  expect(decide).toBeDefined();
+  const tools = t.host.ports.get(ToolServicePortKey);
+  const approvals = t.host.ports.get(ApprovalServicePortKey);
+  expect(Object.values(tools ?? {})).not.toContain(decide);
+  expect(Object.values(approvals ?? {})).not.toContain(decide);
 });

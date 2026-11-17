@@ -520,7 +520,6 @@ export function createFakeTools(options: {
     register: () => notImplemented("register"),
     toolMappedFor: () => false,
     executeForPlugin: () => notImplemented("executeForPlugin"),
-    withHumanDecision: (_grant, work) => work(),
     replacements: () => [],
     meta(name): ToolMeta | undefined {
       const def = defs.get(name);
