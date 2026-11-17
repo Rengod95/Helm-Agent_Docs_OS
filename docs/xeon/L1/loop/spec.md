@@ -107,7 +107,7 @@ export type AdmitResult =
   | { readonly status: "started"; readonly inputId: EventId; readonly turnId: TurnId }
   | { readonly status: "queued"; readonly inputId: EventId; readonly mode: InputMode; readonly runningTurnId: TurnId | null }
   | { readonly status: "duplicate"; readonly inputId: EventId; readonly turnId: TurnId | null }
-  /** input 훅 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
+  /** input 훅 chain이 handled로 끝났거나 주도 중인 플러그인이 입력을 받았다(`claimUserInput`). 아무것도 기록하지 않는다. 호스트의 `turn.start`는 이 경우 `{ delivered: true }`를 돌려준다 */
   | { readonly status: "handled" };
 
 // drive의 LoopHandle.turn 진입점은 LoopPort.runTurn(LoopTurnRequest)이다(X.primitives.spec §3.6, 이 문서 §4.8).

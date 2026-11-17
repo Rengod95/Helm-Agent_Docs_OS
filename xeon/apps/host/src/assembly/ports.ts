@@ -545,7 +545,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         }
         throw new Bug("loop.admit queued the input without a running turn");
       case "handled":
-        throw new Bug("loop.admit: an extension handled the input without starting a turn");
+        // 주도 중인 플러그인이 받았거나 input 훅이 처리를 끝냈다. 접수는 됐고 turn은 아직 없다
+        return { ok: true, delivered: true };
       default:
         return assertNever(outcome, "AdmitResult");
     }

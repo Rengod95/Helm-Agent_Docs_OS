@@ -31,6 +31,7 @@ import {
   HELLO_PARAMS,
   startTurnWhenIdle,
   type EventCollector,
+  requestTurn,
 } from "../fixtures/wire-client.ts";
 
 // L1.loop.spec `whenBusy`, F.wire-settings §3.3.1 0a(`turn.start`의 whenBusy, `input.queued`, `turn.withdraw`), L0.secrets.spec §3.5.1(대기 입력 칩의 가림).
@@ -179,19 +180,19 @@ describe("a turn that is running takes a followUp", () => {
       try {
         const { connection, collector, held } = session;
         const { threadId } = await connection.request("thread.create", {});
-        const first = await connection.request("turn.start", { threadId, input: "first question" });
+        const first = await requestTurn(connection, { threadId, input: "first question" });
         await held.entered;
 
         // whenBusy가 없으면 큐에 넣지 않고 turn.busy(3003)로 거절한다
         const busy = await wireErrorOf(
-          connection.request("turn.start", { threadId, input: "rejected, not queued" }),
+          requestTurn(connection, { threadId, input: "rejected, not queued" }),
         );
         expect(busy.code).toBe(3003);
         expect(busy.data.kind).toBe("turn.busy");
         expect(busy.data.details).toEqual({ turnId: first.turnId });
         expect(await queuedCountOf(connection, threadId)).toBe(0);
 
-        const queued = await connection.request("turn.start", {
+        const queued = await requestTurn(connection, {
           threadId,
           input: "follow-up question",
           whenBusy: "followUp",
@@ -274,10 +275,10 @@ describe("turn.withdraw takes back a queued input", () => {
       try {
         const { connection, collector, held } = session;
         const { threadId } = await connection.request("thread.create", {});
-        const first = await connection.request("turn.start", { threadId, input: "first question" });
+        const first = await requestTurn(connection, { threadId, input: "first question" });
         await held.entered;
         expect(
-          await connection.request("turn.start", {
+          await requestTurn(connection, {
             threadId,
             input: "withdrawn question",
             whenBusy: "followUp",
@@ -335,14 +336,14 @@ describe("the queued chip text carries marks from the host", () => {
       try {
         const { connection, collector, held } = session;
         const { threadId } = await connection.request("thread.create", {});
-        const first = await connection.request("turn.start", { threadId, input: "first question" });
+        const first = await requestTurn(connection, { threadId, input: "first question" });
         await held.entered;
 
         // "ghp_" 뒤 36자는 호스트의 깃허브 토큰 패턴(platform-secrets redactor)에 걸린다. 실제 값이 아니다
         const TOKEN = "ghp_0123456789abcdefghijklmnopqrstuvwxyz";
         const text = `deploy with ${TOKEN} now`;
         expect(
-          await connection.request("turn.start", {
+          await requestTurn(connection, {
             threadId,
             input: text,
             whenBusy: "followUp",

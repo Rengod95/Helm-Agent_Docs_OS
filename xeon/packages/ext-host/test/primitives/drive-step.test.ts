@@ -487,7 +487,7 @@ test("three steps after a user message without a turn or done give the lease bac
       threadId: thread,
       scopeId: "user-hand-back",
       requestId: `user-return:${grant.leaseId}:0`,
-      when: "next",
+      when: "followUp",
       item: message,
     },
   ]);
