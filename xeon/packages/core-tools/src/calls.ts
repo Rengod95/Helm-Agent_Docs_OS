@@ -9,11 +9,15 @@ export interface CallTable {
   get(threadId: ThreadId, toolCallId: string): CallState | undefined;
   put(state: CallState): void;
   remove(state: CallState): void;
-  /** thread에서 진행 중인 도구 호출의 요청자(caller)와 표면 thread. 진행 중인 호출이 없으면 undefined */
+  /**
+   * thread에서 진행 중인 도구 호출의 요청자(caller)와 표면 thread, 대화형 여부. 진행 중인 호출이 없으면 undefined.
+   * 플러그인 기능 호출은 이 값으로 자기 `interactive`를 정한다(hooks-core-boundary §5.3 U-12)
+   */
   requesterOf(threadId: ThreadId):
     | {
         readonly surfaceThreadId: ThreadId;
         readonly caller: CallerId;
+        readonly interactive: boolean;
         readonly source?: RunSource;
       }
     | undefined;
@@ -40,6 +44,7 @@ export function createCallTable(): CallTable {
           return {
             surfaceThreadId: state.run.surfaceThreadId,
             caller: state.run.caller,
+            interactive: state.run.interactive,
             ...(state.run.source === undefined ? {} : { source: state.run.source }),
           };
         }

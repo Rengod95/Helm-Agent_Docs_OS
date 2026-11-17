@@ -518,6 +518,7 @@ export function createFakeTools(options: {
 
   const service: ToolService = {
     register: () => notImplemented("register"),
+    executeForPlugin: () => notImplemented("executeForPlugin"),
     replacements: () => [],
     meta(name): ToolMeta | undefined {
       const def = defs.get(name);

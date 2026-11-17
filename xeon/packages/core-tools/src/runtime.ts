@@ -61,9 +61,12 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     callOf: (origin) => {
       if (origin.toolCallId === null) return undefined;
       const state = calls.get(origin.threadId, origin.toolCallId);
-      return state === undefined
-        ? undefined
-        : { run: state.run, effectId: state.intent?.effectId ?? null };
+      if (state === undefined) return undefined;
+      return {
+        run: state.run,
+        effectId: state.intent?.effectId ?? null,
+        ...(state.silent ? { turnless: true } : {}),
+      };
     },
     requesterOf: (threadId) => calls.requesterOf(threadId),
   });
@@ -145,6 +148,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     rerun: (intent, run) => pipeline.rerun(intent, run),
     registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell: (request, run) => pipeline.runUserShell(request, run),
+    executeForPlugin: (request) => pipeline.executeForPlugin(request),
     suspendWhile: (threadId, toolCallId, wait) => pipeline.suspendWhile(threadId, toolCallId, wait),
     checkSpawn(input) {
       const config = deps.config(input.threadId);

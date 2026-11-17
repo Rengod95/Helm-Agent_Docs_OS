@@ -19,9 +19,12 @@ export const ToolRiskSchema: TUnion<[TLiteral<"read">, TLiteral<"write">, TLiter
 /** 정책이 도구 이름 대신 쓰는 의미 표지. L1.agents의 자식 차단 목록이 쓴다 */
 export type ToolClass = "spawn" | "user_interaction" | "shared_state_write" | "external_send";
 
-/** 호출 주체. 정의 이름은 L1.agents의 AgentDefinition.name */
-export type CallerId = "main" | `subagent:${string}`;
-export const CALLER_ID_PATTERN: string = "^(main|subagent:.{1,64})$";
+/**
+ * 호출 주체. 서브에이전트 정의 이름은 L1.agents의 AgentDefinition.name. `plugin:<이름>`은 플러그인 코드가 낸 기능 호출이며
+ * 이름은 확장 이름 스키마(`EXTENSION_NAME_PATTERN`)와 같다 [결정: hooks-core-boundary §4.6]
+ */
+export type CallerId = "main" | `subagent:${string}` | `plugin:${string}`;
+export const CALLER_ID_PATTERN: string = "^(main|subagent:.{1,64}|plugin:[a-z][a-z0-9-]{1,31})$";
 export const CallerIdSchema: TUnsafe<CallerId> = Type.Unsafe<CallerId>(
   Type.String({ pattern: CALLER_ID_PATTERN, maxLength: 72 }),
 );

@@ -128,8 +128,15 @@ export interface CallState {
   startedAt: number | undefined;
   /** 중단으로 끝났는가(effect.result.status = interrupted) */
   interrupted: boolean;
-  /** 사용자가 직접 친 셸 명령(`runUserShell`)인가. 정책 ask는 사용자 본인이 낸 명령이라 허용으로 보고, toolResult item은 기록하지 않는다 */
+  /** 사용자가 직접 친 셸 명령(`runUserShell`)인가. 정책 ask는 사용자 본인이 낸 명령이라 허용으로 보고 묻지 않는다 */
   readonly userShell: boolean;
+  /**
+   * toolResult item을 쓰지 않는 호출인가(사용자 셸, 플러그인 기능 호출). 효과 기록(intent, exec, result)은 남는다.
+   * 플러그인 호출은 턴이 없어 대화 항목으로 남기지 않는다(hooks-core-boundary §5.3 U-4)
+   */
+  readonly silent: boolean;
+  /** 바깥 도구 호출이 받은 승인 증거(U-11). 검증을 마쳤을 때만 있다. 위험 등급이 이 값 이하인 묻기는 카드를 다시 띄우지 않는다 */
+  readonly inherit?: { readonly approvalId: string; readonly risk: ToolRisk } | undefined;
   /** 실행 중 쥔 `tools` 풀 슬롯. 실행이 끝나면 놓는다. 자식을 기다리는 도구는 이 슬롯을 내려놓고 기다린다(`suspendWhile`) */
   slot: Slot | undefined;
   /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 시크릿 사용 증거로 쓴다(U-19) */

@@ -2,6 +2,7 @@ export * from "./ids.ts";
 export * from "./method.ts";
 export * from "./tool-spec.ts";
 export * from "./tool-meta.ts";
+export * from "./plugin-call.ts";
 export * from "./capability.ts";
 export * from "./service-key.ts";
 export * from "./errors.ts";

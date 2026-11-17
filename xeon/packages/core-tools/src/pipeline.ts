@@ -1,5 +1,6 @@
-import { Bug, canonicalJson, ok, parse, type Result } from "@fresnel/contracts";
+import { Bug, canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
+  ExtensionNameSchema,
   FIRST_DENY,
   type CapabilityRef,
   type ExtensionName,
@@ -8,6 +9,8 @@ import {
 } from "@fresnel/contracts/extensions";
 import {
   BlobRefSchema,
+  EffectIntentSchema,
+  EffectResultSchema,
   NOT_STARTED_TEXT,
   OUTCOME_UNKNOWN_TEXT,
   commitKeyPart,
@@ -44,8 +47,13 @@ import {
   type RejectReason,
   type Slot,
   type TaskScope,
+  type CallerId,
+  type PluginCallRequest,
+  type PluginCallTarget,
   type ToolCallOutcome,
   type ToolCallState,
+  type ToolError,
+  type ToolResultView,
   type ToolRunContext,
 } from "@fresnel/contracts/services";
 import { denialDetails, denialReason } from "./approvals/protocol.ts";
@@ -56,6 +64,15 @@ import type { CallTable } from "./calls.ts";
 import { commitWithRetry, describeFailure } from "./commit.ts";
 import type { ToolsDeps } from "./deps.ts";
 import { errorOutcome } from "./entries.ts";
+import {
+  isPluginRequestId,
+  pluginCallerOf,
+  pluginNameOf,
+  pluginToolCallIdOf,
+  riskRankOf,
+  viewOfExecution,
+  viewOfRecord,
+} from "./plugin-call.ts";
 import {
   argsHashOf,
   execRequest,
@@ -106,6 +123,7 @@ export interface Pipeline {
   ): Promise<readonly ToolCallOutcome[]>;
   rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
   runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
+  executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
   suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
 }
 
@@ -144,15 +162,27 @@ interface Denied {
   readonly reason: string;
   readonly terminate: boolean;
   readonly details: JsonObject | null;
+  /** 플러그인 호출에서 `ToolError`의 종류가 된다(모델 호출에는 쓰지 않는다) */
+  readonly kind: DeniedKind;
 }
+
+/** 실행 전에 막은 이유의 종류. `blocked`는 훅이 막음, `storage`는 저장소 실패, `aborted`는 중단, 나머지는 `denied` */
+type DeniedKind = "denied" | "blocked" | "storage" | "aborted";
 
 function denied(
   reason: string,
   terminate: boolean = false,
   details: JsonObject | null = null,
+  kind: DeniedKind = "denied",
 ): Denied {
-  return { reason, terminate, details };
+  return { reason, terminate, details, kind };
 }
+
+/** 같은 플러그인 호출의 durable 기록 상태. `none`은 의도가 없음, `open`은 의도만 있음(결과 없음) */
+type PluginRecord =
+  | { readonly kind: "none" }
+  | { readonly kind: "open" }
+  | { readonly kind: "done"; readonly view: ToolResultView };
 
 /**
  * `tool.call.before`가 막은 호출의 UI용 details(L1.tools §5 사례 3). `blocked`는 핸들러가 결정을 냈다는 뜻이고 `threw`는
@@ -216,6 +246,14 @@ function callInfo(state: CallState): ToolCallPayload {
     hints: state.entry.hints,
     caller: state.run.caller,
   };
+}
+
+/**
+ * 플러그인 기능 호출이 낸 지점에서는 그 플러그인 자신의 핸들러를 건너뛴다(hooks-core-boundary §5.3 U-8 (가)). 모델 호출은 빈 값이라 바뀌지 않는다
+ */
+function skipOwnOf(run: ToolRunContext): { readonly exceptExtension?: string } {
+  const name = pluginNameOf(run.caller);
+  return name === undefined ? {} : { exceptExtension: name };
 }
 
 function notExecuted(text: string, code: string): RawOutcome {
@@ -432,7 +470,11 @@ export function createPipeline(
           toolName: call.name,
           args: deps.redactor.maskDeep(call.arguments).value,
         },
-        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool.execution.before:${call.id}` },
+        {
+          threadId: run.threadId,
+          dispatchKey: `${run.stepId}:tool.execution.before:${call.id}`,
+          ...skipOwnOf(run),
+        },
       );
     } catch (error) {
       warn("tools.observe_failed", { point: "tool.execution.before", message: messageOf(error) });
@@ -457,6 +499,7 @@ export function createPipeline(
         {
           threadId: run.threadId,
           dispatchKey: `${run.stepId}:tool.execution.update:${call.id}:${n}`,
+          ...skipOwnOf(run),
         },
       );
     } catch (error) {
@@ -481,7 +524,11 @@ export function createPipeline(
           isError: outcome.isError,
           ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
         },
-        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool.execution.after:${call.id}` },
+        {
+          threadId: run.threadId,
+          dispatchKey: `${run.stepId}:tool.execution.after:${call.id}`,
+          ...skipOwnOf(run),
+        },
       );
     } catch (error) {
       warn("tools.observe_failed", { point: "tool.execution.after", message: messageOf(error) });
@@ -510,6 +557,7 @@ export function createPipeline(
         threadId: run.threadId,
         dispatchKey: `${run.stepId}:tool.call.before:${toolCallId}`,
         signal,
+        ...skipOwnOf(run),
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
@@ -520,12 +568,14 @@ export function createPipeline(
           `[fresnel:denied_by_extension] ${decision.reason}`,
           decision.terminate === true,
           hookDenialDetails("threw", extension, null),
+          "blocked",
         );
       }
       return denied(
         `[fresnel:denied_by_extension] ${decision.reason}`,
         decision.terminate === true,
         hookDenialDetails("blocked", extension, decision.reason),
+        "blocked",
       );
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
@@ -534,6 +584,7 @@ export function createPipeline(
         `[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`,
         false,
         hookDenialDetails("threw", null, null),
+        "blocked",
       );
     }
   }
@@ -549,6 +600,7 @@ export function createPipeline(
         threadId: run.threadId,
         dispatchKey: `${run.stepId}:guard.tool.before:${toolCallId}`,
         signal,
+        ...skipOwnOf(run),
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
@@ -559,12 +611,14 @@ export function createPipeline(
           `[fresnel:denied_by_guard] ${decision.reason}`,
           false,
           guardDenialDetails("threw", extension, null),
+          "blocked",
         );
       }
       return denied(
         `[fresnel:denied_by_guard] ${decision.reason}`,
         false,
         guardDenialDetails("blocked", extension, decision.reason),
+        "blocked",
       );
     } catch (error) {
       warn("tools.guard_dispatch_failed", { toolCallId, message: messageOf(error) });
@@ -572,6 +626,7 @@ export function createPipeline(
         `[fresnel:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`,
         false,
         guardDenialDetails("threw", null, null),
+        "blocked",
       );
     }
   }
@@ -637,6 +692,12 @@ export function createPipeline(
     if (decision.effect === "allow") return undefined;
     // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다
     if (state.userShell) return undefined;
+    // 바깥 도구 호출이 받은 승인을 물려받는다(U-11). 위험 등급이 그 승인 이하이면 카드를 다시 띄우지 않는다. deny와 allow는 위에서 갈렸다
+    const inherit = state.inherit;
+    if (inherit !== undefined && riskRankOf(input.risk) <= riskRankOf(inherit.risk)) {
+      state.userApprovalId = inherit.approvalId;
+      return undefined;
+    }
 
     const asked = await askUser(
       state,
@@ -707,7 +768,12 @@ export function createPipeline(
     };
     const answered = await approvals.request(request, signal);
     if (!answered.ok) {
-      return denied(`[fresnel:tools.commit_failed] ${describeFailure(answered.error)}`);
+      return denied(
+        `[fresnel:tools.commit_failed] ${describeFailure(answered.error)}`,
+        false,
+        null,
+        "storage",
+      );
     }
     const resolution = answered.value;
     if (resolution.decision === "allow") {
@@ -792,7 +858,12 @@ export function createPipeline(
       intentRequest(kit, { run, key: state.key, intent }),
     );
     if (!committed.ok) {
-      return denied(`[fresnel:tools.commit_failed] ${describeFailure(committed.failure)}`);
+      return denied(
+        `[fresnel:tools.commit_failed] ${describeFailure(committed.failure)}`,
+        false,
+        null,
+        "storage",
+      );
     }
     if (!committed.result.replayed) {
       state.intent = { effectId: intent.effectId, itemId: intent.itemId };
@@ -801,11 +872,21 @@ export function createPipeline(
     // 같은 키의 의도가 이미 커밋되어 있었다. 저장된 효과의 id를 이어 쓴다
     const open = deps.session.query.openEffects(run.threadId);
     if (!open.ok) {
-      return denied(`[fresnel:tools.commit_failed] session read failed: ${open.error.kind}`);
+      return denied(
+        `[fresnel:tools.commit_failed] session read failed: ${open.error.kind}`,
+        false,
+        null,
+        "storage",
+      );
     }
     const stored = open.value.find((effect) => effect.toolCallId === toolCallId);
     if (stored === undefined) {
-      return denied("[fresnel:tools.commit_failed] the stored effect.intent is already settled");
+      return denied(
+        "[fresnel:tools.commit_failed] the stored effect.intent is already settled",
+        false,
+        null,
+        "storage",
+      );
     }
     state.intent = { effectId: stored.effectId, itemId: intent.itemId };
     return undefined;
@@ -844,7 +925,9 @@ export function createPipeline(
         : { details: result.details }),
     };
     const itemId = deps.ids.next("itm");
-    const draft = itemDraftOf({ run, itemId, effectId: null, message });
+    // 조용한 호출(사용자 셸, 플러그인 호출)은 항목 초안을 만들지 않는다. 턴 없는 맥락의 초안 생성기는 쓰이지 않는다
+    const draft =
+      input.silent === true ? undefined : itemDraftOf({ run, itemId, effectId: null, message });
     const key = commitKeyPart(call.id, sha256HexSync);
     let recorded: ItemId | null = null;
     if (input.silent === true) {
@@ -901,14 +984,17 @@ export function createPipeline(
     _assistant: AssistantMessage,
     run: ToolRunContext,
   ): Promise<CallPreparation> {
-    return prepareCall(call, run, false);
+    return prepareCall(call, run, { userShell: false, silent: false });
   }
 
-  /** `user`가 참이면 사용자가 직접 친 셸 명령이다(runUserShell) */
+  /**
+   * `userShell`은 사용자가 직접 친 셸 명령(runUserShell)이라 정책 ask를 묻지 않는다. `silent`는 toolResult item을 쓰지 않는다
+   * (사용자 셸과 플러그인 기능 호출)
+   */
   async function prepareCall(
     call: AgentToolCall,
     run: ToolRunContext,
-    user: boolean,
+    flags: { readonly userShell: boolean; readonly silent: boolean },
   ): Promise<CallPreparation> {
     await tapStart(run, call);
     const settle = async (
@@ -920,7 +1006,7 @@ export function createPipeline(
       outcome: await recordWithoutEffect(run, call, {
         state: "rejected",
         result: rejectedResult(reason, terminate, details),
-        silent: user,
+        silent: flags.silent,
       }),
     });
 
@@ -942,7 +1028,8 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
-      userShell: user,
+      userShell: flags.userShell,
+      silent: flags.silent,
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
@@ -979,7 +1066,12 @@ export function createPipeline(
 
     const argsPayload = inlineOrBlob(state.args);
     if (argsPayload === undefined) {
-      return denied("[fresnel:tools.commit_failed] the tool arguments could not be stored");
+      return denied(
+        "[fresnel:tools.commit_failed] the tool arguments could not be stored",
+        false,
+        null,
+        "storage",
+      );
     }
     const argsHash = await argsHashOf(state.args);
     const verdict = await decide(state, argsPayload, argsHash, signal);
@@ -989,7 +1081,8 @@ export function createPipeline(
     const guardVerdict = await dispatchGuard(state, signal);
     if (guardVerdict !== undefined) return guardVerdict;
     // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
-    if (signal.aborted) return denied("[fresnel:aborted] Operation aborted");
+    if (signal.aborted)
+      return denied("[fresnel:aborted] Operation aborted", false, null, "aborted");
     return commitIntent(state, argsPayload, argsHash);
   }
 
@@ -1150,6 +1243,7 @@ export function createPipeline(
         dispatchKey: `${run.stepId}:tool.result:${toolCallId}`,
         initial: value,
         ...(signal === undefined ? {} : { signal }),
+        ...skipOwnOf(run),
       });
       return withResultPatchedBy(value, outcome.value, outcome.applied);
     } catch (error) {
@@ -1235,7 +1329,7 @@ export function createPipeline(
     const effectResult: EffectResult = {
       effectId: intent.effectId,
       status,
-      resultItemId: state.userShell ? null : resultItemId,
+      resultItemId: state.silent ? null : resultItemId,
       output: {
         structuredContent: fitForEvent(current.structuredContent ?? null),
         terminate: terminate === true,
@@ -1245,7 +1339,7 @@ export function createPipeline(
       synthesized: false,
     };
     // 사용자 셸의 결과는 toolResult item으로 기록하지 않는다(호출한 쪽이 기록 방식을 정한다)
-    const itemDraft = state.userShell
+    const itemDraft = state.silent
       ? undefined
       : itemDraftOf({ run, itemId: resultItemId, effectId: intent.effectId, message });
     const extra: StampedDraft[] = [];
@@ -1448,6 +1542,7 @@ export function createPipeline(
       startedAt: undefined,
       interrupted: false,
       userShell: false,
+      silent: false,
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
@@ -1558,13 +1653,294 @@ export function createPipeline(
       name: USER_SHELL_TOOL,
       arguments: { command: request.command },
     };
-    const prepared = await prepareCall(call, run, true);
+    const prepared = await prepareCall(call, run, { userShell: true, silent: true });
     if (prepared.kind === "settled") {
       // 실행 전에 닫힌 호출(정책 deny, 확장 거부, 인자 오류)은 명령이 돌지 않았다는 표지를 달아 호출한 쪽이 거부로 알아보게 한다
       return toToolResultRecord({ ...prepared.outcome.result, details: { code: "not_executed" } });
     }
     const outcome = await execute(prepared.call, () => {}, run);
     return toToolResultRecord(outcome.result);
+  }
+
+  // ── 플러그인 기능 호출(L1.tools §4.6, hooks-core-boundary §4.6·§5.3) ───────
+
+  /** 실행 중인 플러그인 호출. 같은 키의 동시 호출은 이 결과를 함께 기다려 의도가 두 번 쓰이지 않게 한다 */
+  const pluginInFlight = new Map<string, Promise<Result<ToolResultView, ToolError>>>();
+  /** 끝난 플러그인 호출의 결과. 같은 프로세스 안의 재생은 실행 때와 같은 값을 돌려준다(durable 기록에는 텍스트가 없다) */
+  const pluginDone = new Map<string, ToolResultView>();
+
+  function rememberPlugin(toolCallId: string, view: ToolResultView): void {
+    pluginDone.delete(toolCallId);
+    pluginDone.set(toolCallId, view);
+    if (pluginDone.size > CLOSED_OUTCOME_LIMIT) {
+      const oldest = pluginDone.keys().next();
+      if (oldest.done !== true) pluginDone.delete(oldest.value);
+    }
+  }
+
+  /** 대상 도구 항목. 기능 메서드는 도구 매핑(`ToolSpec.method`)으로 찾고, 없으면 합성 이름 `cap:<기능>.<메서드>`를 본다 */
+  function pluginEntryOf(target: PluginCallTarget): ToolEntry | undefined {
+    if (target.kind === "tool") return registry.get(target.name);
+    const mapped = registry
+      .all()
+      .find(
+        (entry) =>
+          entry.capability?.id === target.capability && entry.capability.method === target.method,
+      );
+    return mapped ?? registry.get(`cap:${target.capability}.${target.method}`);
+  }
+
+  /** 같은 호출의 기록을 durable 저장소에서 찾는다. 의도가 없으면 none, 의도만 있으면 open, 결과가 있으면 done */
+  function recordOfPluginCall(
+    threadId: ThreadId,
+    toolCallId: string,
+  ): Result<PluginRecord, ToolError> {
+    const intentRow = deps.session.query.latestEvent(
+      threadId,
+      "effect.intent",
+      { pointer: "/toolCallId", equals: toolCallId },
+      { onActiveBranch: false },
+    );
+    if (!intentRow.ok) {
+      return err({
+        kind: "storage",
+        message: `[fresnel:tools.commit_failed] the plugin call record could not be read: ${intentRow.error.kind}`,
+      });
+    }
+    if (intentRow.value === undefined) return ok({ kind: "none" });
+    const intent = parse(EffectIntentSchema, intentRow.value.payload);
+    if (!intent.ok) {
+      return err({
+        kind: "storage",
+        message:
+          "[fresnel:tools.commit_failed] the stored effect.intent of the plugin call is unreadable",
+      });
+    }
+    const resultRow = deps.session.query.latestEvent(
+      threadId,
+      "effect.result",
+      { pointer: "/effectId", equals: intent.value.effectId },
+      { onActiveBranch: false },
+    );
+    if (!resultRow.ok) {
+      return err({
+        kind: "storage",
+        message: `[fresnel:tools.commit_failed] the plugin call result could not be read: ${resultRow.error.kind}`,
+      });
+    }
+    if (resultRow.value === undefined) return ok({ kind: "open" });
+    const result = parse(EffectResultSchema, resultRow.value.payload);
+    if (!result.ok) {
+      return err({
+        kind: "storage",
+        message:
+          "[fresnel:tools.commit_failed] the stored effect.result of the plugin call is unreadable",
+      });
+    }
+    const structured = result.value.output === null ? null : result.value.output.structuredContent;
+    return ok({ kind: "done", view: viewOfRecord(result.value.status, structured) });
+  }
+
+  /**
+   * 바깥 도구 호출이 받은 승인을 이 호출에 물려줄 만한가(U-11). 같은 대화의 부모 호출이 받은 허용이고 그 위험 등급이 주장한 값 이상일 때만 맞다.
+   * 맞지 않으면 물려주지 않고 보통의 승인을 받는다(주장만으로 카드를 건너뛰지 못하게 한다)
+   */
+  function inheritedOf(request: PluginCallRequest): CallState["inherit"] {
+    const claim = request.inheritApproval;
+    if (claim === undefined || request.parentToolCallId === undefined) return undefined;
+    const opened = approvals.get(claim.approvalId);
+    if (opened === undefined || opened.resolution?.decision !== "allow") return undefined;
+    const { origin, body } = opened.request;
+    if (origin.threadId !== request.threadId || origin.toolCallId !== request.parentToolCallId) {
+      return undefined;
+    }
+    if (body.kind !== "tool" || riskRankOf(body.tool.risk) < riskRankOf(claim.risk))
+      return undefined;
+    return claim;
+  }
+
+  /**
+   * 플러그인 호출의 실행 맥락. 턴과 단계는 합성 id다(턴이 없다). 대화형 여부는 이 대화에서 진행 중인 호출의 값을 따르고 없으면 대화형이다(U-12).
+   * 깊이는 올리지 않는다(무인 판정이 깊이 0만 본다)
+   */
+  function pluginRunOf(request: PluginCallRequest, caller: CallerId): ToolRunContext {
+    return {
+      threadId: request.threadId,
+      turnId: deps.ids.next("trn"),
+      stepId: deps.ids.next("stp"),
+      caller,
+      depth: 0,
+      interactive: calls.requesterOf(request.threadId)?.interactive ?? true,
+      surfaceThreadId: request.threadId,
+      signal: request.signal ?? new AbortController().signal,
+      drafts: {
+        // 플러그인 호출은 toolResult item을 쓰지 않는다(silent). 승인 대기 체크포인트도 턴이 없어 만들지 않는다(approvals의 turnless)
+        toolResultItem: () => {
+          throw new Bug("tools.plugin_call_has_no_tool_result_item");
+        },
+        waitingCheckpoint: () => {
+          throw new Bug("tools.plugin_call_cannot_wait_in_turn");
+        },
+      },
+    };
+  }
+
+  /**
+   * 플러그인 기능 호출 하나(F `ToolService.executeForPlugin`). 모델 도구 호출과 같은 순서로 대상 해석, 인자 검증, `tool.call.before`,
+   * 정책, 승인, `guard.tool.before`, 의도, 실행, `tool.result`를 지난다. 호출 주체는 `plugin:<이름>`이고 결과는 대화 항목으로 남지 않는다.
+   * 같은 (스코프, 요청 id)는 한 번만 실행하고 기록된 결과를 돌려준다. 의도만 있으면 `unknown_outcome`으로 두고 다시 실행하지 않는다.
+   */
+  async function executeForPlugin(
+    request: PluginCallRequest,
+  ): Promise<Result<ToolResultView, ToolError>> {
+    const limit = deps.config(request.threadId).pluginCallDepth;
+    if (request.hookDepth !== undefined && request.hookDepth > limit) {
+      return err({
+        kind: "hook_depth",
+        message: `[fresnel:hook_depth] The plugin call is nested ${request.hookDepth} hook frames deep, above the limit ${limit}.`,
+      });
+    }
+    if (!isPluginRequestId(request.requestId)) {
+      return err({
+        kind: "invalid_args",
+        message: "[fresnel:invalid_args] The request id must be 1 to 64 characters.",
+      });
+    }
+    const named = parse(ExtensionNameSchema, request.plugin.name);
+    if (!named.ok) {
+      return err({
+        kind: "invalid_args",
+        message: "[fresnel:invalid_args] The plugin name is not a valid extension name.",
+      });
+    }
+    const toolCallId = pluginToolCallIdOf(request.plugin.scopeId, request.requestId, sha256HexSync);
+    const running = pluginInFlight.get(toolCallId);
+    if (running !== undefined) return running;
+    const work = runPluginCall(request, toolCallId);
+    pluginInFlight.set(toolCallId, work);
+    try {
+      return await work;
+    } finally {
+      if (pluginInFlight.get(toolCallId) === work) pluginInFlight.delete(toolCallId);
+    }
+  }
+
+  async function runPluginCall(
+    request: PluginCallRequest,
+    toolCallId: string,
+  ): Promise<Result<ToolResultView, ToolError>> {
+    const cached = pluginDone.get(toolCallId);
+    if (cached !== undefined) return ok(cached);
+    const recorded = recordOfPluginCall(request.threadId, toolCallId);
+    if (!recorded.ok) return recorded;
+    if (recorded.value.kind === "open") {
+      return err({
+        kind: "unknown_outcome",
+        message:
+          "[fresnel:unknown_outcome] An earlier call with this request id was started but has no recorded result. It may have taken effect, so it is not run again.",
+      });
+    }
+    if (recorded.value.kind === "done") {
+      rememberPlugin(toolCallId, recorded.value.view);
+      return ok(recorded.value.view);
+    }
+
+    const entry = pluginEntryOf(request.target);
+    if (entry === undefined) {
+      const name =
+        request.target.kind === "tool"
+          ? request.target.name
+          : `${request.target.capability}.${request.target.method}`;
+      return err({
+        kind: "unavailable",
+        message: `[fresnel:tool_unavailable] ${name} is not available.`,
+      });
+    }
+    if (!isJsonObject(request.input)) {
+      return err({
+        kind: "invalid_args",
+        message: "[fresnel:invalid_args] The tool input must be a JSON object.",
+      });
+    }
+    const call: AgentToolCall = {
+      type: "toolCall",
+      id: toolCallId,
+      name: entry.name,
+      arguments: request.input,
+    };
+    const checked = validateToolArguments(entry.parameters, call);
+    if (!checked.ok) return err({ kind: "invalid_args", message: checked.error.message });
+
+    const run = pluginRunOf(request, pluginCallerOf(request.plugin.name));
+    const state: CallState = {
+      threadId: run.threadId,
+      toolCallId,
+      key: commitKeyPart(toolCallId, sha256HexSync),
+      run,
+      entry,
+      args: checked.value,
+      intent: undefined,
+      execCommitted: false,
+      startedAt: undefined,
+      interrupted: false,
+      userShell: false,
+      silent: true,
+      inherit: inheritedOf(request),
+      slot: undefined,
+      userApprovalId: undefined,
+      secretApproval: null,
+      sandboxBypass: undefined,
+      attempt: 0,
+      updates: 0,
+      maskedHits: new Map(),
+      release: undefined,
+      settledItem: undefined,
+    };
+    calls.put(state);
+    await tapStart(run, call);
+    let verdict: Denied | undefined;
+    try {
+      verdict = await gate(state, run.signal);
+    } catch (error) {
+      if (error instanceof Bug) {
+        forget(state);
+        throw error;
+      }
+      deps.logger?.error("tools.before_failed", {
+        toolCallId,
+        message: messageOf(error),
+      });
+      verdict = denied(
+        "[fresnel:tools.internal_error] The tool call could not be prepared.",
+        false,
+        null,
+        "storage",
+      );
+    }
+    if (verdict !== undefined) {
+      forget(state);
+      // 실행 전에 막힌 호출은 효과가 없으므로 기록하지 않고 끝 tap만 낸다
+      await recordWithoutEffect(run, call, {
+        state: "rejected",
+        result: rejectedResult(verdict.reason, verdict.terminate, verdict.details),
+        silent: true,
+      });
+      return err({ kind: verdict.kind, message: verdict.reason });
+    }
+    const outcome = await execute({ toolCall: call, args: checked.value }, () => {}, run);
+    // 결과가 durable하게 기록됐을 때만 돌려주고 기억한다. 결과 커밋이 실패했으면 의도만 남아 같은 요청 id는 `unknown_outcome`이 된다
+    const landed = recordOfPluginCall(request.threadId, toolCallId);
+    if (!landed.ok) return err(landed.error);
+    if (landed.value.kind !== "done") {
+      return err({
+        kind: "storage",
+        message:
+          "[fresnel:tools.commit_failed] The plugin call ran, but its result could not be recorded.",
+      });
+    }
+    const view = viewOfExecution(outcome.result, outcome.isError);
+    rememberPlugin(toolCallId, view);
+    return ok(view);
   }
 
   /** 슬롯을 쥔 호출이 다른 노드를 기다리는 동안 슬롯을 내려놓는다(L1.tasks.spec §4.5 C2). 슬롯이 없으면 그냥 기다린다 */
@@ -1579,6 +1955,7 @@ export function createPipeline(
     settleRejected,
     rerun,
     runUserShell,
+    executeForPlugin,
     suspendWhile,
   };
 }

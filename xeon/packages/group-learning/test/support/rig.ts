@@ -227,6 +227,10 @@ export async function rigOn(
       });
       // L1.tools의 등록 면 대역: 등록한 도구 정의를 모아 시험이 execute를 직접 부른다
       ctx.providePort(ToolsPortKey, {
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {

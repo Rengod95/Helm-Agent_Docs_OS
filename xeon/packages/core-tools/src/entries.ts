@@ -31,6 +31,7 @@ import {
   answerMcpInput,
   type InputBridge,
 } from "./mcp-input.ts";
+import { pluginNameOf } from "./plugin-call.ts";
 import { deriveRisk } from "./policy/modes.ts";
 import type { LockDecl, RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { sandboxBlockContent, sandboxBlockDetails, sandboxBlocksOf } from "./sandbox-blocks.ts";
@@ -94,6 +95,9 @@ const SUBAGENT_PREFIX = "subagent:";
 function callerInfoOf(caller: CallerId, afterUntrusted: boolean): CallContext["caller"] {
   const flag = afterUntrusted ? { afterUntrusted: true } : {};
   if (caller === "main") return { kind: "model", agent: "main", ...flag };
+  // 플러그인 기능 호출은 기능 서비스에 확장 호출자로 보인다(L1.tools §4.6). 승인 origin의 주체는 `plugin:<이름>` 그대로다
+  const pluginName = pluginNameOf(caller);
+  if (pluginName !== undefined) return { kind: "extension", extension: pluginName, ...flag };
   return {
     kind: "model",
     agent: "subagent",

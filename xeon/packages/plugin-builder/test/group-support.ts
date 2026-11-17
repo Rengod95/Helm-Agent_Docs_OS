@@ -227,6 +227,10 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
     name: "test-tools",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {

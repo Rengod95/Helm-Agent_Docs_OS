@@ -63,6 +63,15 @@ export const ToolServicePortKey: PortKey<ToolService> = { name: ToolServiceName 
 // ── 도구 메타 ────────────────────────────────────────────────────────────
 
 export type { CallerId, ToolClass, ToolRisk } from "../capabilities/index.ts";
+// 플러그인 기능 호출의 값은 capabilities/plugin-call.ts가 정의한다(ToolsPort와 같은 층에서 쓰려고). 여기서 다시 내보낸다
+export type {
+  PluginCallRequest,
+  PluginCallTarget,
+  PluginCallVia,
+  ToolError,
+  ToolErrorKind,
+  ToolResultView,
+} from "../capabilities/index.ts";
 
 export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
 
@@ -604,7 +613,11 @@ export interface RuleRegistration {
   dispose(): void;
 }
 
-/** ToolsPort(F.extensions.spec §3.2.1)를 확장한다. 확장의 hostOf(g).registerTool은 register(owner, def) 오버로드로 들어온다 */
+/**
+ * ToolsPort(F.extensions.spec §3.2.1)를 확장한다. 확장의 hostOf(g).registerTool은 register(owner, def) 오버로드로 들어온다.
+ * `executeForPlugin`(ToolsPort에서 상속)은 플러그인 기능 호출을 모델 도구 호출과 같은 파이프라인(prepare, execute)으로 돌린다.
+ * 호출 주체는 `plugin:<이름>`이고 턴이 없어 효과 기록은 합성한 id로 남는다(L1.tools §4.6)
+ */
 export interface ToolService extends ToolsPort {
   /** L1·L2 코드 등록. 같은 이름이 이미 있으면 name_conflict를 돌려주고 표는 바뀌지 않는다 */
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;

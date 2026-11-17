@@ -39,7 +39,13 @@ async function ownedToolHost(): Promise<{ t: TestHost; thread: ThreadId }> {
   await t.host.registerPlatform({
     name: "promotion-tools",
     setup(ctx) {
-      ctx.providePort(ToolsPortKey, { register: () => ok(() => undefined) });
+      ctx.providePort(ToolsPortKey, {
+        register: () => ok(() => undefined),
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
+      });
     },
   });
   await install(t, toolGroup("group-a", "a_tool"));
@@ -353,7 +359,13 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
   await t.host.registerPlatform({
     name: "promotion-tools",
     setup(ctx) {
-      ctx.providePort(ToolsPortKey, { register: () => ok(() => undefined) });
+      ctx.providePort(ToolsPortKey, {
+        register: () => ok(() => undefined),
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
+      });
     },
   });
   await install(t, owner);

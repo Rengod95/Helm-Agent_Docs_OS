@@ -21,7 +21,8 @@ import {
 // L1.tools.spec §4.7 내구화와 재개. 미해결 approval.requested를 이벤트에서 다시 읽는다.
 
 function isCallerId(value: string): value is CallerId {
-  return value === "main" || value.startsWith("subagent:");
+  // 플러그인 기능 호출의 승인도 다시 읽어야 재시작 뒤에 카드가 돌아온다(hooks-core-boundary §4.6)
+  return value === "main" || value.startsWith("subagent:") || value.startsWith("plugin:");
 }
 
 function isRisk(value: string): value is ToolRisk {

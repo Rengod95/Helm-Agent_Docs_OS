@@ -2197,6 +2197,33 @@
         }
       }
     },
+    "l1.tools.pluginCallDepth": {
+      "default": 3,
+      "maximum": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "How many hook frames deep a plugin's own tool call may nest before it is refused",
+          "helpKey": "settings.l1.tools.pluginCallDepth.help",
+          "label": "Plugin call nesting limit",
+          "labelKey": "settings.l1.tools.pluginCallDepth.label",
+          "order": 40,
+          "tab": "tools",
+          "widget": "number"
+        }
+      }
+    },
     "l1.tools.rules": {
       "default": [],
       "items": {

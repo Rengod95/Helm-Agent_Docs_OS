@@ -4839,6 +4839,8 @@
   "settings.l1.tools.unattended.timeoutSeconds.label": "무인 실행의 승인 제한 시간",
   "settings.l1.tools.unattended.timeoutSeconds.help": "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝내요",
   "settings.l1.tools.unattended.timeoutSeconds.unit": "초",
+  "settings.l1.tools.pluginCallDepth.label": "플러그인 호출의 중첩 한도",
+  "settings.l1.tools.pluginCallDepth.help": "플러그인이 훅 안에서 자기 도구를 부를 때 몇 단계까지 중첩할 수 있는지 정해요. 넘으면 거부해요",
   "settings.l1.context.autoCompact.label": "자동 컴팩션",
   "settings.l1.context.reserveTokens.label": "응답용 예약 토큰",
   "settings.l1.context.reserveTokens.unit": "토큰",

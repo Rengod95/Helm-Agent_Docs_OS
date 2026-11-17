@@ -96,9 +96,9 @@ binds: []
 | 12 | `request.thinking.after` | tap, detached | `core-models/src/pipeline.ts:452` | 이벤트(모델 뒤) | 관찰 | open | 없음 |
 | 13 | `tool.call.before` | first | `core-tools/src/pipeline.ts:509` | 도구 실행 앞 | 막기 (신규: 묻기, 결과 대신 주기) | closed | group-helm `index.ts:40`, plugin-builder `src/group.ts:71`과 템플릿 |
 | 14 | `tool.result` | chain | `core-tools/src/pipeline.ts:1148` | 도구 실행 뒤 | 고치기(content, details, isError, usage) | skip | 없음 |
-| 15 | `tool.execution.before` | tap | `core-tools/src/pipeline.ts:429` | 이벤트(도구 앞) | 관찰 | open | cap-dialog `plugin.ts:196` |
-| 16 | `tool.execution.update` | tap | `core-tools/src/pipeline.ts:450` | 이벤트(도구, 고빈도) | 관찰 | open | 없음 |
-| 17 | `tool.execution.after` | tap | `core-tools/src/pipeline.ts:474` | 이벤트(도구 뒤) | 관찰 | open | cap-dialog `plugin.ts:199`, group-helm `index.ts:41` |
+| 15 | `tool.execution.before` | tap | `core-tools/src/pipeline.ts:428` | 이벤트(도구 앞) | 관찰 | open | cap-dialog `plugin.ts:196` |
+| 16 | `tool.execution.update` | tap | `core-tools/src/pipeline.ts:449` | 이벤트(도구, 고빈도) | 관찰 | open | 없음 |
+| 17 | `tool.execution.after` | tap | `core-tools/src/pipeline.ts:473` | 이벤트(도구 뒤) | 관찰 | open | cap-dialog `plugin.ts:199`, group-helm `index.ts:41` |
 | 18 | `boundary.turn.before` | tap | `core-loop/src/loop/open-step.ts:21` | 이벤트(턴 시작) | 관찰 | open | group-learning `handlers.ts:209` |
 | 19 | `boundary.step.before` | tap | `core-loop/src/loop/open-step.ts:41` | 이벤트(단계 시작) | 관찰. 호스트 cap-mcp는 여기서 정의를 다시 읽는 일을 한다(`apps/host/src/assembly/cap-mcp.ts:185`) | open | apps/host cap-mcp |
 | 20 | `boundary.message.before` | tap | `core-loop/src/loop/sink.ts:26` | 이벤트(모델 뒤) | 관찰 | open | 없음 |
@@ -241,7 +241,7 @@ export type ToolCallDecision =
 - 권한 모드가 `bypass`여도 훅의 묻기는 카드를 띄운다. `bypass`는 "코어가 스스로 묻지 않는다"는 뜻이고 훅이 요청한 질문은 코어의 질문이 아니다. 단 저장소가 고른 bypass의 평가 규칙(`bypassAllowed`)은 바뀌지 않는다.
 - 카드의 기억 범위는 `once`뿐이다(`remember: ["once"]`, `pipeline.ts:652`와 같다). 훅의 묻기가 영구 허용 규칙이나 "이 대화에서 계속 허용"을 만들지 못한다 [제안, 12절 O-2].
 - 카드 본문: `ToolApprovalBody`(`contracts/src/services/approvals.ts:72-85`)에 `askedBy?: { extension: string; reason: string }`를 더한다. 값이 있으면 `ruleId`는 `hook:<확장 이름>`이다. 화면은 이 필드로 "어느 플러그인이 물었나"를 보인다.
-- 사람이 없는 실행(`interactive: false`): 기존 무인 정책을 그대로 탄다(`approvals/unattended.ts:15-35`). 서브에이전트, 깊이가 있는 호출, 표면 대화가 다른 호출은 묻지 않고 거부한다(`resolvedBy: "noninteractive"`). 주 대화의 비대화형 턴은 설정 `l1.tools.unattended.approval`(`deny`, `wait`, `expire`)을 따른다. 거부될 때 모델에 보이는 사유는 `[fresnel:denied_by_extension] <reason> (confirmation unavailable)` 한 줄이다. 턴 기록의 훅 결과는 `asked`로 적고 답은 `noninteractive`로 이어 적는다.
+- 사람이 없는 실행(`interactive: false`): 기존 무인 정책을 그대로 탄다(`approvals/unattended.ts:16-34`). 서브에이전트, 깊이가 있는 호출, 표면 대화가 다른 호출은 묻지 않고 거부한다(`resolvedBy: "noninteractive"`). 주 대화의 비대화형 턴은 설정 `l1.tools.unattended.approval`(`deny`, `wait`, `expire`)을 따른다. 거부될 때 모델에 보이는 사유는 `[fresnel:denied_by_extension] <reason> (confirmation unavailable)` 한 줄이다. 턴 기록의 훅 결과는 `asked`로 적고 답은 `noninteractive`로 이어 적는다.
 - 응답 기록: 카드의 답(`approval.resolved`)이 기존 방식대로 기록된다. 결과가 "허용"이면 도구가 실행되고 `effect.intent`에 훅 묻기를 거쳤다는 사실을 `approvalId`로 잇는다(지금도 `state.userApprovalId`가 있다, `pipeline.ts:661`). "거부"면 `[fresnel:denied_by_user]` 계열의 기존 거부 결과다.
 - 어느 핸들러도 허용을 값으로 낼 수 없으므로 훅이 정책 거부나 승인 요구를 건너뛰게 만드는 길이 없다. 규칙 H-1 (5.1).
 
@@ -379,24 +379,51 @@ interface EventEnvelope<E extends SubscribableEvent = SubscribableEvent> {
 플러그인 코드가 효과 있는 기능 호출을 하면 그 호출은 도구 실행 블록(`prepare`, `execute`)을 지난다. 새 진입점 하나를 둔다.
 
 ```ts
-// contracts/src/services/tools.ts — ToolService에 추가
+// 값: contracts/src/capabilities/plugin-call.ts (구현). services/tools.ts가 다시 내보내고, ToolsPort(extensions/ports.ts)와 ToolService가 쓴다
+type PluginCallVia = "hook" | "tool" | "command" | "method" | "drive" | "effect";
+type PluginCallTarget =
+  | { readonly kind: "tool"; readonly name: ToolName }                       // 주도 `tool` 명령: 도구 이름
+  | { readonly kind: "capability"; readonly capability: CapabilityId; readonly method: string };
 interface PluginCallRequest {
   readonly threadId: ThreadId;
   readonly plugin: { readonly name: string; readonly scopeId: string };
-  readonly via: "hook" | "tool" | "command" | "method" | "drive" | "effect";
-  readonly capability: CapabilityId;
-  readonly method: string;
-  readonly input: JsonValue;
-  readonly requestId: string;           // 1~64자. 재생 멱등 키
+  readonly via: PluginCallVia;
+  readonly target: PluginCallTarget;
+  readonly input: JsonValue;            // 도구 대상이면 인자 객체
+  readonly requestId: string;           // 1~64자. 재생 멱등 키(스코프, 요청 id)
   readonly parentToolCallId?: string;   // 플러그인 도구 안에서 부른 호출
+  readonly hookDepth?: number;          // 훅 스택 길이. `l1.tools.pluginCallDepth`를 넘으면 hook_depth
+  readonly inheritApproval?: { readonly approvalId: string; readonly risk: ToolRisk };  // U-11
   readonly signal?: AbortSignal;
 }
+interface ToolResultView {
+  readonly content: string;                     // 텍스트 내용을 줄바꿈으로 이은 값
+  readonly structuredContent: JsonValue | null; // 기능 메서드의 반환 모양(구현이 더했다, 아래 구현 기록)
+  readonly isError: boolean;
+  readonly details: JsonValue | null;
+}
+type ToolErrorKind =
+  | "unavailable" | "invalid_args" | "denied" | "blocked" | "hook_cycle" | "hook_depth"
+  | "aborted" | "storage" | "unknown_outcome";                                   // unknown_outcome은 구현이 더했다
+interface ToolError { readonly kind: ToolErrorKind; readonly message: string }
 executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
 ```
 
-경로: `g.capability(key).method(input, options)`(`ext-host/src/primitives/host-api.ts:357-393`)가 만드는 래퍼(`guardCapabilityService`, `capability-guard.ts:111`)가 메서드를 `읽기 전용 가벼운 경로`와 `파이프라인 경로`로 나눈다(5.3 규칙 U-1). 파이프라인 경로는 래퍼가 `executeForPlugin`을 부르고 결과를 서비스 메서드의 반환 모양으로 되돌린다. 주도 함수의 `tool` 명령(주도 스펙 E2)과 `hostOf(g).requestEffect`의 효과 작업자(`ext-host/src/primitives/effect-worker.ts:116-122`)도 같은 진입점을 부른다. 어느 쪽이든 서비스를 직접 부르는 줄은 남지 않는다 [결정 D: 직접 호출도 남기되 같은 관문을 지난다].
+경로: `g.capability(key).method(input, options)`(`ext-host/src/primitives/host-api.ts:357-393`)가 만드는 래퍼(`guardCapabilityService`, `capability-guard.ts:122`)가 메서드를 `읽기 전용 가벼운 경로`와 `파이프라인 경로`로 나눈다(5.3 규칙 U-1). 파이프라인 경로는 래퍼가 `executeForPlugin`을 부르고 결과를 서비스 메서드의 반환 모양으로 되돌린다. 주도 함수의 `tool` 명령(주도 스펙 E2)과 `hostOf(g).requestEffect`의 효과 작업자(`ext-host/src/primitives/effect-worker.ts:118-124`)도 같은 진입점을 부른다. 어느 쪽이든 서비스를 직접 부르는 줄은 남지 않는다 [결정 D: 직접 호출도 남기되 같은 관문을 지난다].
 
-호출 주체: `CallerId`(`contracts/src/capabilities/tool-meta.ts:22-27`, 패턴 `^(main|subagent:.{1,64})$`, 최대 72자)에 `plugin:<이름>`을 더한다 [제안]. 플러그인 이름 스키마는 `^[a-z][a-z0-9-]{1,31}$`(최대 32자, `contracts/src/extensions/name.ts`)라 `plugin:<이름>`은 39자 이하이고 최대 길이 72에 들어간다. 패턴은 `^(main|subagent:.{1,64}|plugin:[a-z][a-z0-9-]{1,31})$`로 고정한다. 읽는 쪽이 모르는 값을 통과시키는지는 열거를 넓힐 때 확인한다(옛 앱이 새 기록을 읽을 때 엄격 검증이 깨지지 않게, 교차 점검 X3). 기록 스펙(M5d)은 호출 주체 종류에 `plugin`을 더해 `callerPlugin`을 이름으로 둔다. 훅 payload의 `caller`와 정책 입력의 `caller`와 승인 기록의 `ApprovalCaller`(`approvalCallerOf`)가 같은 값을 쓴다. 기능 서비스가 받는 `CallContext.caller`(`{ kind: "extension", extension }`, `capability-guard.ts:92-104`)는 이미 있으므로 그대로 두고 도구 쪽 문자열만 더한다.
+호출 주체: `CallerId`(`contracts/src/capabilities/tool-meta.ts:22-27`, 옛 패턴 `^(main|subagent:.{1,64})$`, 최대 72자)에 `plugin:<이름>`을 더했다(구현 2026-11-18). 승인 기록의 `APPROVAL_CALLER_PATTERN`(`contracts/src/records/catalog/approval.ts`)도 같은 형식을 받게 넓혔다. 플러그인 이름 스키마는 `^[a-z][a-z0-9-]{1,31}$`(최대 32자, `contracts/src/extensions/name.ts`)라 `plugin:<이름>`은 39자 이하이고 최대 길이 72에 들어간다. 패턴은 `^(main|subagent:.{1,64}|plugin:[a-z][a-z0-9-]{1,31})$`로 고정한다. 읽는 쪽이 모르는 값을 통과시키는지는 열거를 넓힐 때 확인한다(옛 앱이 새 기록을 읽을 때 엄격 검증이 깨지지 않게, 교차 점검 X3). 기록 스펙(M5d)은 호출 주체 종류에 `plugin`을 더해 `callerPlugin`을 이름으로 둔다. 훅 payload의 `caller`와 정책 입력의 `caller`와 승인 기록의 `ApprovalCaller`(`approvalCallerOf`)가 같은 값을 쓴다. 기능 서비스가 받는 `CallContext.caller`(`{ kind: "extension", extension }`, `capability-guard.ts:95-110`)는 이미 있으므로 그대로 두고 도구 쪽 문자열만 더한다.
+
+**구현 기록(층 A, 2026-11-18).** 위 모양은 다음과 같이 구현했다. 이 절의 [제안]은 아래 결정으로 바뀌었다.
+
+- 값의 자리: `PluginCallRequest`, `ToolResultView`, `ToolError`는 `contracts/src/capabilities/plugin-call.ts`에 둔다. `ToolsPort`(`extensions/ports.ts`)가 같은 타입을 써야 하는데, `extensions`가 `services`를 import하면 순환이 생겨 `import/no-cycle`과 dependency-cruiser의 `no-circular`가 막는다. `services/tools.ts`는 이 타입을 다시 내보낸다. `executeForPlugin`은 `ToolsPort`에 있고 `ToolService`는 이것을 상속한다.
+- 대상: `target`은 판별 유니온이다. `tool`은 도구 이름이고 `capability`는 기능과 메서드다. 기능 메서드는 `ToolSpec.method` 매핑으로 도구를 찾고, 없으면 합성 이름 `cap:<기능>.<메서드>`의 등록을 본다. 합성 등록은 다음 층이 한다.
+- 결과: `ToolResultView`에 `structuredContent`를 더했다. 기능 메서드의 반환 모양을 되돌리려면 구조화 값이 필요하다. 재생은 durable 기록의 상태와 `structuredContent`만 되살린다. 텍스트와 `details`는 저장되지 않으므로 같은 프로세스 안의 재생만 실행 때의 값을 그대로 돌려준다.
+- 오류 종류: `unknown_outcome`을 더했다. 같은 (스코프, 요청 id)의 의도만 있고 결과가 없으면 다시 실행하지 않고 이 값을 준다. 결과 커밋이 실패한 호출도 결과가 기록되지 않았으므로 같은 규칙을 받는다. `hook_cycle`은 다음 층이 훅 스택과 함께 낸다.
+- 깊이: `hookDepth`가 설정 `l1.tools.pluginCallDepth`(기본 3, 범위 1~8)보다 크면 `hook_depth`로 거부한다(U-8 (다)). 스택 길이를 `>`로 비교한다.
+- 승인 상속: `inheritApproval`은 승인 기록이 같은 대화의 `parentToolCallId`에 대해 허용한 것이고 그 위험 등급이 `risk` 이상일 때만 물려받는다(U-11). 맞지 않는 주장은 무시하고 보통의 승인 카드를 띄운다. 기록에 없는 승인 id는 카드를 건너뛰지 못한다.
+- 자기 훅: 플러그인 호출이 낸 `tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.*`는 호출한 플러그인 자신의 핸들러를 건너뛴다(U-8 (가)). `ext.dispatch` 옵션 `exceptExtension`으로 구현했다(ext-host 변경).
+- 턴 없는 기록: 턴이 없으므로 효과 기록에 합성 `trn`·`stp` id를 쓴다. 대화 항목(toolResult)은 남기지 않는다(`silent`). 턴이 없는 승인 요청은 대기 체크포인트를 만들지 않는다(`turnless`, 승인 서비스). 효과 기록 스키마의 `turnId: null` 허용 여부는 O-7로 남는다.
+- 다음 층이 할 것: 훅 스택과 순환 검사(U-8 (나)), 가벼운 경로 분류(U-1), 기능 래퍼와 효과 작업자의 연결(D-13, D-17), 합성 도구 등록(D-16 중 스택 부분).
 
 ### 4.7 변경 기록 공통 결과 형식 (R22)
 
@@ -549,10 +576,10 @@ export const BLOCK_MODEL: BlockModel;
 
 지금 확인한 것(코드 읽기):
 
-- 플러그인이 `g.capability(key)`로 부르면 `guardCapabilityService`(`ext-host/src/primitives/capability-guard.ts:111-180`)가 서비스 메서드를 감싼다. 그 안에서 하는 일은 선언 검사, 재실행 문맥의 효과 분류 검사(`isEffectAllowed`), 멱등 키 검사, 호출 문맥 채우기뿐이다. 정책 평가, 승인, `tool.call.before`, `guard.tool.before`, `effect.intent|exec|result`, `tool.result`, 시크릿 마스킹은 없다(이들은 `core-tools/src/pipeline.ts`의 `gate`와 `execute`에만 있다).
+- 플러그인이 `g.capability(key)`로 부르면 `guardCapabilityService`(`ext-host/src/primitives/capability-guard.ts:122-208`)가 서비스 메서드를 감싼다. 그 안에서 하는 일은 선언 검사, 재실행 문맥의 효과 분류 검사(`isEffectAllowed`), 멱등 키 검사, 호출 문맥 채우기뿐이다. 정책 평가, 승인, `tool.call.before`, `guard.tool.before`, `effect.intent|exec|result`, `tool.result`, 시크릿 마스킹은 없다(이들은 `core-tools/src/pipeline.ts`의 `gate`와 `execute`에만 있다).
 - 서비스 쪽에서 남는 안전장치: 루트와 보호 경로 검사(`cap-workspace/src/roots.ts`), 작업 폴더 밖 쓰기 승인(`cap-workspace/src/write-access.ts`), 셸의 샌드박스 래핑(`cap-workspace/src/shell/run.ts`).
 - 주도 함수 안에서는 효과 표(`ext-host/src/primitives/effects` 계열의 `REPLAY_EFFECT_TABLE`)가 `workspace.files.write`, `edit`, `workspace.shell.run`을 거부한다. `on` 핸들러에서는 `idempotent` 메서드만 허용한다. 도구 `execute`, 명령, 확장 메서드, setup에서는 검사 없이 모두 부를 수 있다(`replayContextOf`가 null, `capability-guard.ts:70-74`).
-- E0로 고친 것: 이 경로가 대화의 `interactive`와 읽기 전용 샌드박스 천장을 호출 문맥에 싣는다(`capability-guard.ts:92-104`의 `untrustedContext`, 호출 조건은 `LoopPort.callConditions`, `core-loop/src/service.ts:965`, 커밋 `32a96b116`, `efefd10a6`). `engine-block-surface-inventory.md` §3a의 "버려짐"은 이 트리에서는 해소되어 있다. 효과 작업자도 `request.interactive`와 `request.sandbox`를 싣는다(`effect-worker.ts:116-122`). 이 스펙은 그 값이 파이프라인에서 쓰이도록 한다.
+- E0로 고친 것: 이 경로가 대화의 `interactive`와 읽기 전용 샌드박스 천장을 호출 문맥에 싣는다(`capability-guard.ts:95-110`의 `untrustedContext`, 호출 조건은 `LoopPort.callConditions`, `core-loop/src/service.ts:982-989`, 커밋 `32a96b116`, `efefd10a6`). `engine-block-surface-inventory.md` §3a의 "버려짐"은 이 트리에서는 해소되어 있다. 효과 작업자도 `request.interactive`와 `request.sandbox`를 싣는다(`effect-worker.ts:118-124`). 이 스펙은 그 값이 파이프라인에서 쓰이도록 한다.
 - 플러그인이 등록한 도구 결과의 `details`는 항상 `null`이다(`core-tools/src/entries.ts:424-428`).
 
 통합 규칙:
@@ -560,15 +587,15 @@ export const BLOCK_MODEL: BlockModel;
 - **U-1 분류.** 플러그인 코드의 기능 호출 하나를 이렇게 나눈다. (가) 도구 매핑이 있는 메서드(`ToolSpec.method`로 모델 도구가 있는 것: `read`, `write`, `edit`, `grep`, `bash`, `web_search` 등)는 효과 여부와 무관하게 파이프라인 경로다. (나) 도구 매핑이 없고 `readOnly: true`로 선언된 메서드는 가벼운 경로다. (다) 도구 매핑이 없고 `readOnly`가 아닌 메서드는 파이프라인 경로이고 도구 이름은 합성한 `cap:<기능 id>.<메서드>`다. 읽기 호출도 도구 매핑이 있으면 정책의 deny 규칙(경로 기반)을 받아야 하기 때문에 (가)에 둔다 [제안].
 - **U-2 가벼운 경로가 하는 일.** 서비스 안의 안전장치(루트, 보호 경로, 샌드박스)는 그대로 돈다. 훅과 승인은 없고 `effect.*` 기록도 없다. 대신 호출 한 줄(플러그인, `기능.메서드`, 요청 키, 성공 여부, 걸린 시간)이 턴 기록의 플러그인 호출 목록에 남는다(저장은 M5d). 대화 로그에는 쓰지 않는다.
 - **U-3 파이프라인 경로가 하는 일.** `ToolService.executeForPlugin`(4.6)이 모델 도구 호출과 같은 순서로 도구 이름 해석, 스키마 검증, `tool.call.before`, 정책 평가, 승인, 시크릿 사용 승인, `guard.tool.before`, `effect.intent`, 키 잠금과 풀 슬롯, 실행, `tool.result`, 결과 기록, `tool.execution.*`를 지난다(`L1.tools.spec` §4.2 표의 1~11단계 전부).
-- **U-4 호출 주체와 기록.** 도구 결과 항목과 효과 기록의 호출 주체는 `plugin:<이름>`이다. 플러그인 도구 안에서 부른 호출은 `parentToolCallId`에 바깥 도구 호출 id를 싣는다(`ToolCallPayload.parentToolCallId`는 이미 계약에 있다: `contracts/src/extensions/hooks/tool.ts:53,104,168,185`. `L1.tools.spec` §4.2의 "중첩 호출의 진입점은 미결"을 이 규칙이 채운다). 턴이 있으면 그 `turnId`와 `stepId`를 쓰고 없으면(대화 시작 훅, 명령) 턴 없는 효과 기록으로 남긴다 [미확인: 턴 없는 호출의 효과 기록 스키마가 `turnId: null`을 허용하는지는 읽지 않았다. 12절 O-7].
-- **U-5 재생 안전.** 호출 키는 `해시(범위, 디스패치 키 또는 주도권 계통과 기준 판 번호, 호출 순번)`이다(`ext-host/src/primitives/state.ts:170-196`의 요청 id 규칙과 같다). 같은 키로 다시 불리면 기록된 결과를 돌려주고 실행하지 않는다. 의도만 있고 결과가 없는 호출은 `unknown`으로 두고 다시 실행하지 않는다(지금 `requestEffect`의 규칙, `effect-worker.ts:197-205`). 이 보장이 있으므로 재실행되는 문맥(주도 함수, `on` 핸들러)에서 `write`, `edit`, `run`을 거부하던 효과 표 검사는 파이프라인 경로 호출에서는 적용하지 않는다. 가벼운 경로의 `capability.undeclared` 메서드는 효과가 없다고 선언된 것이 아니므로 파이프라인 경로(위 (다))로 가고 거부 대신 이 키 규칙을 받는다.
+- **U-4 호출 주체와 기록.** 도구 결과 항목과 효과 기록의 호출 주체는 `plugin:<이름>`이다. 플러그인 도구 안에서 부른 호출은 `parentToolCallId`에 바깥 도구 호출 id를 싣는다(`ToolCallPayload.parentToolCallId`는 이미 계약에 있다: `contracts/src/extensions/hooks/tool.ts:53,104,168,185`. `L1.tools.spec` §4.2의 "중첩 호출의 진입점은 미결"을 이 규칙이 채운다). 턴이 있으면 그 `turnId`와 `stepId`를 쓰고 없으면(대화 시작 훅, 명령) 턴 없는 효과 기록으로 남긴다 [미확인: 턴 없는 호출의 효과 기록 스키마가 `turnId: null`을 허용하는지는 읽지 않았다. 12절 O-7]. 층 A 구현은 합성 `trn`·`stp` id로 남겼다(4.6 구현 기록).
+- **U-5 재생 안전.** 호출 키는 `해시(범위, 디스패치 키 또는 주도권 계통과 기준 판 번호, 호출 순번)`이다(`ext-host/src/primitives/state.ts:170-196`의 요청 id 규칙과 같다). 같은 키로 다시 불리면 기록된 결과를 돌려주고 실행하지 않는다. 의도만 있고 결과가 없는 호출은 `unknown`으로 두고 다시 실행하지 않는다(지금 `requestEffect`의 규칙, `effect-worker.ts:207-209`). 이 보장이 있으므로 재실행되는 문맥(주도 함수, `on` 핸들러)에서 `write`, `edit`, `run`을 거부하던 효과 표 검사는 파이프라인 경로 호출에서는 적용하지 않는다. 가벼운 경로의 `capability.undeclared` 메서드는 효과가 없다고 선언된 것이 아니므로 파이프라인 경로(위 (다))로 가고 거부 대신 이 키 규칙을 받는다.
 - **U-6 권한 모드.** 플러그인 호출도 대화의 권한 모드로 평가한다. `bypass`면 코어가 카드를 띄우지 않고, `default`와 `acceptEdits`는 모델 호출과 같은 규칙으로 묻는다. 플러그인이 자기 호출의 위험 등급을 낮춰 신고하는 길은 없다(위험 등급은 기능 정의의 `ToolSpec`과 메서드 선언에서 온다). 번들과 사용자 플러그인을 구별하지 않는다(한 등급). 훅의 묻기는 모드와 상관없이 묻는다(4.2). **[결정: 2026-11-17 사용자, U2]** 초안 출신 호출(`overlay_draft`, 호출 주체 `plugin:<이름>`이 초안일 때)은 권한 모드와 무관하게 항상 승인 카드를 띄우고 "초안" 표시를 단다. 위 `bypass` 규칙은 검토본 플러그인에만 적용한다(M5c §4.3.8).
 - **U-7 다른 플러그인의 훅.** `tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.*`가 모두 발화하고 payload의 `caller`는 `plugin:<이름>`이다.
-- **U-8 되돌이 방지.** (가) 자기 호출 건너뛰기: 플러그인 P가 낸 호출에서는 P 자신의 핸들러를 부르지 않는다. (나) 훅 스택: 훅 핸들러 안에서 시작된 호출은 `Ambient`(`ext-host/src/primitives/ambient.ts:23-39`의 `point`, `dispatchKey`에 더해 `hookStack: { plugin, point, tool, argsHash }[]`)에 현재 핸들러를 쌓는다. 새 호출의 `(플러그인, 도구, argsHash)`가 스택에 이미 있으면 `[fresnel:hook_cycle]`로 거부한다. (다) 깊이 상한: 스택 길이가 설정 `l1.tools.pluginCallDepth`(기본 3, 범위 1~8) 넘으면 `[fresnel:hook_depth]`로 거부한다. (라) 거부는 호출한 핸들러에게 오류 결과로 돌아가고 훅 결과 값 `blocked`와 사유로 기록된다. 시험: 플러그인 P가 자기 `tool.result` 핸들러 안에서 `write`를 부르면 P의 핸들러는 그 호출에 돌지 않는다. P의 `tool.call.before`가 Q의 도구를 부르고 Q의 `tool.call.before`가 다시 P의 같은 호출을 만들면 `hook_cycle`이다.
+- **U-8 되돌이 방지.** (가) 자기 호출 건너뛰기: 플러그인 P가 낸 호출에서는 P 자신의 핸들러를 부르지 않는다. (나) 훅 스택: 훅 핸들러 안에서 시작된 호출은 `Ambient`(`ext-host/src/primitives/ambient.ts:23-45`의 `point`, `dispatchKey`에 더해 `hookStack: { plugin, point, tool, argsHash }[]`)에 현재 핸들러를 쌓는다. 새 호출의 `(플러그인, 도구, argsHash)`가 스택에 이미 있으면 `[fresnel:hook_cycle]`로 거부한다. (다) 깊이 상한: 스택 길이가 설정 `l1.tools.pluginCallDepth`(기본 3, 범위 1~8) 넘으면 `[fresnel:hook_depth]`로 거부한다. (라) 거부는 호출한 핸들러에게 오류 결과로 돌아가고 훅 결과 값 `blocked`와 사유로 기록된다. 시험: 플러그인 P가 자기 `tool.result` 핸들러 안에서 `write`를 부르면 P의 핸들러는 그 호출에 돌지 않는다. P의 `tool.call.before`가 Q의 도구를 부르고 Q의 `tool.call.before`가 다시 P의 같은 호출을 만들면 `hook_cycle`이다.
 - **U-9 호출자 신원은 호스트가 정한다.** 격리 프로세스의 플러그인은 서비스 객체를 갖지 못하고 요청만 보낸다. 신원 `plugin:<이름>`은 연결을 연 호스트가 붙인다. 요청 본문의 신원 주장은 무시한다. 엔진 안의 플러그인은 래퍼가 `target.extension`으로 붙인다(지금 `untrustedContext`와 같다).
 - **U-10 효과 작업자.** `requestEffect`의 작업자도 서비스를 직접 부르지 않고 `executeForPlugin(via: "effect")`를 부른다. 요청 키는 기존 `key`다. `effect.requested|started|settled` 기록은 그대로 두고 파이프라인의 기록이 더해진다.
 - **U-11 중첩 호출의 승인 상속** [제안]. 플러그인 도구 호출(예: 대체 `edit`)이 사용자 승인을 받은 뒤 그 안에서 같은 플러그인이 부르는 호출은, (가) 위험 등급이 바깥 호출 이하이고 (나) 정책 deny 규칙에 걸리지 않고 (다) 훅의 묻기가 없을 때 바깥 호출의 승인 증거(`approval`)를 물려받아 카드를 다시 띄우지 않는다. 훅 발화, 샌드박스, 보호 경로는 그대로다. 근거: 대체 도구는 위험 등급이 원본 이상으로 고정되어(`core-tools/src/registry.ts:141-151`) 승인을 한 번 받는데, 안에서 쓰는 `workspace.files.edit` 호출이 한 번 더 묻으면 대체 도구가 쓸 수 없게 된다. 12절 O-4.
-- **U-12 무인 실행.** 파이프라인 경로의 `interactive`는 대화의 값이다. 중첩과 플러그인 호출은 `depth`를 올리지 않는다(`approvals/unattended.ts:15-35`는 `depth !== 0`이면 묻지 않고 거부하므로, 중첩을 깊이로 세면 모든 중첩 호출이 조용히 거부된다). 대신 `via`와 `hookStack` 길이를 따로 둔다.
+- **U-12 무인 실행.** 파이프라인 경로의 `interactive`는 대화의 값이다. 중첩과 플러그인 호출은 `depth`를 올리지 않는다(`approvals/unattended.ts:16-34`는 `depth !== 0`이면 묻지 않고 거부하므로, 중첩을 깊이로 세면 모든 중첩 호출이 조용히 거부된다). 대신 `via`와 `hookStack` 길이를 따로 둔다.
 - **U-13 모델 쪽 `guardExecution`.** `guard.output.before`의 `execution` 대상(`core-loop/src/guard-execution.ts:26`, L2가 파일 쓰기 전에 부른다)은 파이프라인 경로에서는 `guard.tool.before`와 겹친다. 이 스펙은 이를 건드리지 않는다. 겹침 제거는 12절 O-8.
 - **U-14 범위 밖.** `g.commit`, `g.record`, `readRecords`, `post`는 기능 호출이 아니라서 이 경로 밖이다(레코드 블록의 보장은 별도다).
 
@@ -695,12 +722,12 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-10 | `group-sdk/src/` 와 `ext-host/src/primitives/host-api.ts:273-296` | `g.subscribe`, `EventEnvelope`, 샘플 옵션 | M |
 | D-11 | `apps/host/src/assembly/cap-mcp.ts:170` | `onServersChange` 연결(H-8) | S |
 | D-12 | 대화 시작 경로(`core-persistence/src/points.ts:63`, `lifecycle.ts:217`) | `thread.resources` 발화와 스킬 탐색 합류(H-7) | M |
-| D-13 | `ext-host/src/primitives/capability-guard.ts:111-180` | 분류(U-1), `executeForPlugin` 호출, 효과 표 검사 완화(U-5) | L |
-| D-14 | `contracts/src/services/tools.ts` `ToolService` | `executeForPlugin`, `PluginCallRequest` | S |
-| D-15 | `core-tools/src/pipeline.ts`(+ `entries.ts`) | 플러그인 호출을 위한 `prepare`/`execute` 진입점, 합성 도구 이름, `caller: plugin:*`, 승인 상속(U-11) | L |
-| D-16 | `ext-host/src/primitives/ambient.ts:23-39` | `hookStack`, 순환·깊이 검사(U-8), 설정 `l1.tools.pluginCallDepth` | M |
-| D-17 | `ext-host/src/primitives/effect-worker.ts:116-122` | 서비스 직접 호출을 `executeForPlugin`으로 | S |
-| D-18 | `contracts/src/capabilities/tool-meta.ts:22-27` | `CallerId`에 `plugin:<이름>` | S |
+| D-13 | `ext-host/src/primitives/capability-guard.ts:122-208` | 분류(U-1), `executeForPlugin` 호출, 효과 표 검사 완화(U-5) | L |
+| D-14 | `contracts/src/services/tools.ts` `ToolService` | `executeForPlugin`, `PluginCallRequest`. **완료(층 A)**: 값은 `capabilities/plugin-call.ts`에 두고 `ToolsPort`·`ToolService`가 `executeForPlugin`을 가진다(4.6 구현 기록) | S |
+| D-15 | `core-tools/src/pipeline.ts`(+ `entries.ts`) | 플러그인 호출을 위한 `prepare`/`execute` 진입점, 합성 도구 이름, `caller: plugin:*`, 승인 상속(U-11). **완료(층 A)**: `executeForPlugin`(pipeline.ts)과 `plugin-call.ts`. 호출 주체 `plugin:*`, 합성 효과 id, 재생 검사, 승인 상속(증거 검증). 합성 `cap:` 등록과 가벼운 경로는 다음 층 | L |
+| D-16 | `ext-host/src/primitives/ambient.ts:23-45` | `hookStack`, 순환·깊이 검사(U-8), 설정 `l1.tools.pluginCallDepth` | M |
+| D-17 | `ext-host/src/primitives/effect-worker.ts:118-124` | 서비스 직접 호출을 `executeForPlugin`으로 | S |
+| D-18 | `contracts/src/capabilities/tool-meta.ts:22-27` | `CallerId`에 `plugin:<이름>`. **완료(층 A)**: 패턴 고정, 승인 기록 패턴(`records/catalog/approval.ts`)도 넓힘 | S |
 | D-19 | `contracts/src/capabilities/file-change.ts` (신규) | `FileChangeEntry`, `fileChangesOf`, 예약 키 | S |
 | D-20 | `core-tools/src/entries.ts:424-428` | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합 | M |
 | D-21 | `apps/desktop/src/views/panels/changes/changes-model.ts`, `apps/desktop/src/views/approval-form.ts:424-443` | 결과 기반 읽기로 교체 | M |

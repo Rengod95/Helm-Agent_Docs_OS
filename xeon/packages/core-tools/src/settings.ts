@@ -22,6 +22,7 @@ export const TOOLS_SETTING_KEYS: {
   readonly deferThreshold: "l1.tools.exposure.deferThreshold";
   readonly unattendedApproval: "l1.tools.unattended.approval";
   readonly unattendedTimeoutSeconds: "l1.tools.unattended.timeoutSeconds";
+  readonly pluginCallDepth: "l1.tools.pluginCallDepth";
 } = {
   permissionMode: "l1.tools.permissionMode",
   bypassAllowed: "l1.tools.bypassAllowed",
@@ -31,6 +32,7 @@ export const TOOLS_SETTING_KEYS: {
   deferThreshold: "l1.tools.exposure.deferThreshold",
   unattendedApproval: "l1.tools.unattended.approval",
   unattendedTimeoutSeconds: "l1.tools.unattended.timeoutSeconds",
+  pluginCallDepth: "l1.tools.pluginCallDepth",
 };
 
 /**
@@ -50,6 +52,7 @@ export const TOOLS_SETTING_DEFAULTS: {
   readonly deferThreshold: number;
   readonly unattendedApproval: UnattendedApproval;
   readonly unattendedTimeoutSeconds: number;
+  readonly pluginCallDepth: number;
 } = {
   // [결정: 2026-11-13 사용자] 새 대화의 기본은 "모두 허용"이다. 저장된 대화의 모드와 안전 모드는 바꾸지 않는다
   permissionMode: "bypass",
@@ -60,6 +63,8 @@ export const TOOLS_SETTING_DEFAULTS: {
   unattendedApproval: "expire",
   // [제안] 한 시간. 알림을 늦게 봐도 답할 수 있고 실행이 무기한 묶이지 않는 길이다
   unattendedTimeoutSeconds: 3600,
+  // [제안] 플러그인 기능 호출이 훅 안에서 중첩될 수 있는 깊이(hooks-core-boundary §5.3 U-8 (다), 범위 1~8)
+  pluginCallDepth: 3,
 };
 
 /** 설정이 없을 때의 무인 승인 정책 */
@@ -181,6 +186,21 @@ const group = defineSettings("l1.tools", {
     },
     since: "0.1.0",
   },
+  pluginCallDepth: {
+    type: Type.Integer(),
+    default: TOOLS_SETTING_DEFAULTS.pluginCallDepth,
+    range: { min: 1, max: 8 },
+    runtimeChange: "nextTurn",
+    allowedScopes: FILE_SCOPES,
+    ui: {
+      tab: "tools",
+      widget: "number",
+      order: 40,
+      label: "Plugin call nesting limit",
+      help: "How many hook frames deep a plugin's own tool call may nest before it is refused",
+    },
+    since: "0.1.0",
+  },
 });
 
 /** `l1.tools.*` 선언 전체. 카탈로그 조립(buildCatalog)이 쓴다 */
@@ -238,6 +258,8 @@ export interface ToolsScalarConfig {
   readonly output: { readonly maxLines: number; readonly maxBytes: number };
   readonly deferThreshold: number;
   readonly unattended: ToolsUnattendedConfig;
+  /** 훅 안에서 시작한 플러그인 기능 호출의 중첩 상한(`l1.tools.pluginCallDepth`) */
+  readonly pluginCallDepth: number;
 }
 
 export interface ToolsUnattendedConfig {
@@ -295,6 +317,9 @@ export function readScalarConfig(layers: ScopeStack): ToolsScalarConfig {
     deferThreshold:
       pick(layers, TOOLS_SETTING_KEYS.deferThreshold, FILE_SCOPES, integerIn(0, 128)) ??
       defaults.deferThreshold,
+    pluginCallDepth:
+      pick(layers, TOOLS_SETTING_KEYS.pluginCallDepth, FILE_SCOPES, integerIn(1, 8)) ??
+      defaults.pluginCallDepth,
     unattended: {
       approval:
         pick(layers, TOOLS_SETTING_KEYS.unattendedApproval, ALL_SCOPES, isUnattendedApproval) ??

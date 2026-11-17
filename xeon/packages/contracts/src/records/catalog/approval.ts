@@ -37,7 +37,8 @@ import { BlobRefSchema } from "../blob.ts";
  * `origin.caller`가 따라야 하는 형식. 값을 만드는 함수는 `approvalCallerOf`(`services/approvals.ts`)이고 타입은 `ApprovalCaller`다.
  * records는 services보다 낮아 그 타입을 import하지 못하므로 형식만 여기에 두고 services가 이 상수를 쓴다.
  */
-export const APPROVAL_CALLER_PATTERN: string = "^(main|background|host|subagent:.+|ext:.+)$";
+export const APPROVAL_CALLER_PATTERN: string =
+  "^(main|background|host|subagent:.+|ext:.+|plugin:[a-z][a-z0-9-]{1,31})$";
 
 export const ApprovalOriginJsonSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
@@ -52,7 +53,7 @@ export const ApprovalOriginJsonSchema: TObject<{
     turnId: Nullable(TurnIdSchema),
     stepId: Nullable(StepIdSchema),
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
-    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름> */
+    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름>, 플러그인 기능 호출은 plugin:<이름> */
     caller: Type.String({ minLength: 1, maxLength: 128, pattern: APPROVAL_CALLER_PATTERN }),
     /** 하위 대화를 띄운 그룹의 출처(`RunSource`). 선택이라 옛 기록에는 없다 */
     source: Type.Optional(

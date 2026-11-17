@@ -25,6 +25,11 @@ interface DispatchOptionsBase {
   readonly signal?: AbortSignal;
   /** 있으면 그 scope의 핸들러만 실행한다. 수명주기 지점의 소유 scope 거르기에 쓴다(ADR-0017 §3.6) */
   readonly onlyScope?: RegistrationId;
+  /**
+   * 있으면 그 확장(extension 이름)의 핸들러는 건너뛴다. 플러그인 기능 호출이 낸 지점에서 그 플러그인 자신의 훅을 다시 부르지 않게 한다
+   * (hooks-core-boundary §5.3 U-8 (가)). 다른 확장의 핸들러는 그대로 돈다
+   */
+  readonly exceptExtension?: ExtensionName;
 }
 
 export type DispatchOptions<N extends HookName> =

@@ -405,8 +405,10 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       const entries = sortEntries(
         deps.registry
           .snapshot(point, options.threadId)
+          .filter((entry) => options.onlyScope === undefined || entry.scopeId === options.onlyScope)
           .filter(
-            (entry) => options.onlyScope === undefined || entry.scopeId === options.onlyScope,
+            (entry) =>
+              options.exceptExtension === undefined || entry.extension !== options.exceptExtension,
           ),
         point,
         policy,

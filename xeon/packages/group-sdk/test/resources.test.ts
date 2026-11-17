@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ok } from "@fresnel/contracts";
+import { ok, err } from "@fresnel/contracts";
 import {
   ModelsPortKey,
   ToolsPortKey,
@@ -20,6 +20,10 @@ test("resources.tool-and-command-released-on-disable", async () => {
     name: "fake-tools",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {
@@ -192,6 +196,10 @@ test("an external group from plugin.json replaces a built-in tool through g.regi
     name: "claim-recorder",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           if (def.replaces !== undefined) claims.push(def.replaces);
           return ok(() => {});

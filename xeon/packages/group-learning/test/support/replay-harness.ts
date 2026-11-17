@@ -1,4 +1,4 @@
-import { canonicalJson, ok } from "@fresnel/contracts";
+import { canonicalJson, ok, err } from "@fresnel/contracts";
 import {
   toJsonValue,
   type ItemId,
@@ -190,7 +190,16 @@ export function createLearningReplayHarness(
         setup(ctx) {
           ctx.providePort(AgentServicePortKey, ports.agents);
           ctx.providePort(GroupSettingsSourceKey, { value: (key) => settings[key] });
-          ctx.providePort(ToolsPortKey, { register: () => ok(() => {}) });
+          ctx.providePort(ToolsPortKey, {
+            register: () => ok(() => {}),
+            executeForPlugin: () =>
+              Promise.resolve(
+                err({
+                  kind: "unavailable",
+                  message: "test double: plugin calls are not used here",
+                }),
+              ),
+          });
         },
       });
       await t.host.install(ports.knowledge.unit(0));

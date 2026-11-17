@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ok } from "@fresnel/contracts";
+import { ok, err } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ToolsPortKey,
@@ -48,6 +48,10 @@ async function boot(): Promise<Setup> {
     name: "test-tools-port",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {

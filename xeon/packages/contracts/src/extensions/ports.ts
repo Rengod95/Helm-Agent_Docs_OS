@@ -1,5 +1,13 @@
 import type { TSchema } from "typebox";
-import type { CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
+import type {
+  CallerInfo,
+  PluginCallRequest,
+  ToolError,
+  ToolHints,
+  ToolName,
+  ToolResultView,
+  ToolRisk,
+} from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
@@ -326,9 +334,13 @@ export interface ToolReplaceClaim {
   readonly trust: "builtin" | "user" | "project" | "untrusted";
 }
 
-/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
+/**
+ * ToolService(fresnel.tools)가 포함하는 부분형. 등록은 이름이 겹치면 통째로 실패하고 표는 그대로다.
+ * `executeForPlugin`은 플러그인 기능 호출을 도구 실행 블록에 태운다(hooks-core-boundary §4.6). X(ext-host)가 `ToolsPortKey`로 받는다
+ */
 export interface ToolsPort {
   register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
+  executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
 }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {
