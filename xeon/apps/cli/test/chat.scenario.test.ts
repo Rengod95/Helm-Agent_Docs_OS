@@ -7,6 +7,7 @@ import {
   WIRE_PROTOCOL_VERSION,
   WireError,
   type EventWire,
+  type ProfileInput,
   type TurnStartResult,
 } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
@@ -264,9 +265,11 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       { clock: realTapeClock() },
     ),
   );
-  // 테스트 그룹(group-sdk). 시험이 덧붙인 도구 호출 지점 처리기가 자기 scope를 끄도록 요청한다
+  // 테스트 그룹(group-sdk). 기본 프로필에 들지 않도록 매니페스트 기본 켜짐을 끈 사본을 싣는다(M5c §4.1.2).
+  // 그룹은 이 시험이 저장하는 프로필을 대화가 참조할 때만 켜진다. 시험이 덧붙인 도구 호출 지점 처리기는 자기 scope를 끄도록 요청한다
   // (단계 안에서 요청하고, 적용은 단계 경계여야 한다)
   const group = smokeGroup({ followUps: 0, driveTurns: 1 });
+  const groupManifest = { ...group.manifest, defaultEnabled: false };
   const hold: { handle: RegistrationHandle | undefined } = { handle: undefined };
   const entry: ExtensionEntry = (host) =>
     group.entry({
@@ -286,7 +289,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
   const host = await startInProcessHost({
     buildModels: tapeBuildModels(fake),
     defaultGroups: false,
-    extraPlugins: [{ manifest: group.manifest, extension: entry }],
+    extraPlugins: [{ manifest: groupManifest, extension: entry }],
   });
   try {
     const groupId = group.manifest.name;
@@ -304,6 +307,15 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       from: created.position,
       filter: { threadIds: [created.threadId] },
     });
+    // 그룹을 넣은 프로필. 대화는 기본 프로필(그룹 없음)로 열리므로, 이 프로필을 참조하게 바꿔야 그룹이 켜진다(M5c §4.1.1·§4.1.2)
+    const groupProfile: ProfileInput = {
+      id: "with-smoke-group",
+      title: "with smoke group",
+      plugins: [{ name: groupId }],
+      settings: [],
+      driver: null,
+    };
+    await connection.request("profile.put", { profile: groupProfile, baseRev: null });
     // turn.completed가 커밋된 직후에는 루프가 아직 정착 중일 수 있어 turn.busy(retryable)가 온다.
     // M1 엔진에는 정착을 알리는 포트가 없다(ActivityPort는 task 그래프 변화만 알리고 snapshot은 M1에서 던진다).
     // 그래서 이벤트 루프를 한 바퀴 넘기며 시도 횟수 상한 안에서 다시 시도한다: 전역 시각과 고정 지연을 쓰지 않는다
@@ -325,10 +337,19 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       }
     };
 
-    // 첫 사용자 turn. 그룹의 scope는 첫 단계 경계에서 켜지고, 그 뒤 유휴가 되면 drive가 임대를 받아 turn을 만든다
+    // 첫 사용자 turn. 대화는 그룹 없는 기본 프로필로 열렸으므로 이 입력은 코어 루프가 받아 turn을 만든다(turnId가 온다).
+    // turn을 시작한 뒤 이 대화가 그룹 프로필을 참조하게 바꾸면 그룹은 다음 단계 경계에서 켜지고, 그 뒤 유휴가 되면 drive가 임대를 받아 turn을 만든다
     const first = await startTurn("hello");
     if (!("turnId" in first)) throw new Error("the first turn was not started");
-    const firstEnded = await log.waitFor(turnEnded(first.turnId), "first turn end");
+    await connection.request("thread.setProfile", {
+      threadId: created.threadId,
+      profileId: groupProfile.id,
+    });
+    const firstStarted = await log.waitFor(
+      (event) => event.kind === "turn.started" && event.turnId === first.turnId,
+      "the first turn's start",
+    );
+    await log.waitFor(turnEnded(first.turnId), "first turn end");
     const driveStarted = await log.waitFor(
       (event) => event.kind === "turn.started" && payloadField(event, "scopeId") === groupId,
       "the drive's turn.started",
@@ -338,8 +359,15 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     const driveEnded = await log.waitFor(turnEnded(driveTurnId), "the drive turn's end");
     const enabled = log.need(scopeChanged(groupId, "enabled"), "scope enabled");
     const acquired = log.need(isKind("lease.acquired"), "lease.acquired");
-    // 유휴 thread의 켜기는 실제 기록 포트로 thread를 열 때 커밋된다(open-issues M-01 이후): 첫 turn보다 앞이다
-    expect(enabled.seq).toBeLessThan(firstEnded.seq);
+    const applied = log.need(
+      (event) =>
+        event.kind === "profile.applied" && payloadField(event, "profileId") === groupProfile.id,
+      "profile.applied of the group profile",
+    );
+    // 프로필 전환은 첫 turn이 시작된 뒤에 적용되고, 적용 기록과 그룹 켜기가 그 뒤다
+    expect(firstStarted.seq).toBeLessThan(applied.seq);
+    expect(firstStarted.seq).toBeLessThan(enabled.seq);
+    expect(payloadField(applied, "added")).toContain(groupId);
     // drive: 임대는 켜진 뒤에 나오고, 그 임대가 만든 turn이 끝까지 돈다
     expect(enabled.seq).toBeLessThan(acquired.seq);
     expect(acquired.seq).toBeLessThan(driveStarted.seq);
