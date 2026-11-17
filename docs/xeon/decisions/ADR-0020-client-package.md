@@ -33,6 +33,7 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
    - 연결: `createHostConnection`, 전송 구현(JSON Lines 프레이밍, stdio, 소켓 전송의 클라이언트 쪽), 재연결과 리플레이 커서 처리
    - 설정 화면 view-model(`L4.settings-ui.spec`)
    - CLI와 데스크톱이 함께 쓰는 표시 로직: 오류·알림 문장화와 i18n 카탈로그(ADR-0016), 승인 카드 상태
+   - [구현: M5d] 턴 기록과 지표의 읽기 헬퍼(`src/turn-record/`, `review/m5/turn-record-metrics.md` §3.8): 메서드 호출 틀과 쪽 나눔, `watchTurnRecord`, 훅 표시값 `hookDisplayOutcomeOf`, 알림 행을 누적본에 넣는 `applyDeltaRow`. 타입은 F `@fresnel/contracts/wire`에서 다시 내보낸다. 화면 코드는 두지 않는다.
 4. [결정] F `@fresnel/contracts/wire`에는 타입, 스키마, 메서드 표(`WIRE_METHODS`), 적합성 사례 데이터만 남긴다. M2 F.8에서 F로 옮긴 런타임 구현(`wire/client.ts`, `framing.ts`, `stdio.ts`의 구현부)은 `@fresnel/client`로 옮긴다.
    - [미결] 구현 편차(M3a). `framing.ts`와 `stdio.ts`는 서버 쪽(L0 `platform-process`, `apps/host`)이 같은 코드를 써서 F에 남겼고, `wire/client.ts`(`createHostConnection`)만 옮겼다. L0와 호스트는 L4인 `@fresnel/client`를 import할 수 없어, 옮기려면 서버용 구현을 따로 두어야 한다. `@fresnel/client/stdio`는 F 구현을 다시 내보낸다(`F.wire-settings.spec` §3.1).
 5. [결정] 같은 층 예외를 둘 더한다. `DR-10/cli-client`(`apps/cli` → `packages/client`), `DR-10/desktop-client`(`apps/desktop` → `packages/client`). `apps/host`는 서버 쪽이라 `@fresnel/client`를 import하지 않는다. `DR-10/cli-host`는 in-process 전송 때문에 그대로 둔다.

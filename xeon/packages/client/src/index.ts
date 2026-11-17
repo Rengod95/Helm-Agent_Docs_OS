@@ -68,3 +68,5 @@ export {
   type SettingsFileError,
   type UsageLimitAction,
 } from "./accounts/index.ts";
+// 턴 기록과 지표의 읽기 헬퍼와 순수 함수(M5d, turn-record-metrics.md §3.8). 화면은 `.` 진입으로만 client를 쓰므로 여기서 다시 낸다. 화면 코드는 없다.
+export * from "./turn-record/index.ts";
