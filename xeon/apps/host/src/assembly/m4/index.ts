@@ -22,6 +22,12 @@ import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
 
+/**
+ * 코어 서비스가 아직 이 단위에 기대는 L2 내장 플러그인(M5c §4.1.17, `plugin.requiredByCore`). 도구 파이프라인의 파일 서비스(`cap-workspace`)와
+ * 사람에게 묻기(`cap-dialog`)다. E2의 L1 분할이 끝나면 이 표시를 지운다. 프로필에 남지만 프로필과 무관하게 켜진다
+ */
+const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "cap-dialog"]);
+
 /** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
 function isCore(record: ExtensionRecord): boolean {
   return (
@@ -69,7 +75,7 @@ export function createM4Ports(
   const coreNames = (): readonly string[] =>
     extReadSources
       .extensions()
-      .filter((record) => isCore(record))
+      .filter((record) => isCore(record) || REQUIRED_BY_CORE.has(record.manifest.name))
       .map((record) => record.manifest.name);
   const defaultNames = (): readonly string[] =>
     extReadSources
