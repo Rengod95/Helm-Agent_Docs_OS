@@ -176,6 +176,24 @@ test("a write to another path or with other content than the card names opens a 
   expect(probe.calls).toEqual([]);
 });
 
+test("a write whose hash is on the card but whose path is not in the card's file list opens a new card", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  // 카드의 파일 목록은 src/a.ts뿐인데 writes에는 src/b.ts 쓰기의 해시가 들었다(카드를 연 플러그인이 해시를 바꿔 넣은 경우)
+  const approvalId = await answeredReviewCard(h, [digestOf(EDIT_A), digestOf(EDIT_OTHER_PATH)]);
+  await answer(h, approvalId);
+  const pending = h.runtime.tools.executeForPlugin(
+    editCall(h, EDIT_OTHER_PATH, "inherit-off-list", { inheritApproval: { approvalId } }),
+  );
+  await expectsCard(h, pending);
+  expect(probe.calls).toEqual([]);
+  // 목록 안의 경로는 그대로 지난다
+  const listed = await h.runtime.tools.executeForPlugin(
+    editCall(h, EDIT_A, "inherit-on-list", { inheritApproval: { approvalId } }),
+  );
+  expect(listed).toMatchObject({ ok: true, value: { isError: false } });
+});
+
 test("the same approval and the same write pass only once; the second use opens a card", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
