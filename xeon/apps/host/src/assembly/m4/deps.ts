@@ -7,6 +7,7 @@ import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contract
 import type { RegistrationInfo, RegistrationToggleSourceOf } from "@fresnel/ext-host";
 import type { FileLock } from "@fresnel/platform-os";
 import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
+import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 
@@ -67,6 +68,8 @@ export interface M4HostEnv {
   readonly fileLock: FileLock;
   readonly clock: Clock;
   readonly signal: AbortSignal;
+  /** Test run 표지의 내구 사본(`tr_thread`). 없으면 메모리 표지만 쓴다. 조립 루트가 넘긴다 */
+  readonly testRunMarks?: TestRunMarks;
 }
 
 export interface M4PortDeps extends M4EngineDeps {

@@ -56,6 +56,8 @@ export interface SessionDeps {
   readonly holder?: LeaseHolder;
   /** 하트비트가 임대를 잃었다고 알렸을 때. 그 thread의 메모리 작업을 취소하는 일은 호출자 몫이다 */
   readonly onLeaseLost?: (threadId: ThreadId) => void;
+  /** 대화가 지워졌을 때(수동 삭제와 보관 정리 둘 다) 부른다. 호스트가 측정 저장소의 그 대화 행을 지운다(core-persistence는 apps/host를 import하지 않으므로 콜백으로 잇는다) */
+  readonly onThreadRemoved?: (threadId: ThreadId) => void;
 }
 
 export const DEFAULT_PERSISTENCE_SETTINGS: PersistenceSettings = {

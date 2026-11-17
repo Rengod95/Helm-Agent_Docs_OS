@@ -48,6 +48,20 @@ function lastSeqOf(h: Harness, threadId: ThreadId): number {
 }
 
 describe("oldestReplayableSeq follows the retention prune (M3-REQ-80)", () => {
+  test("a pruned thread is reported to onThreadRemoved, so the host can drop its measurement rows", async () => {
+    const removedBy: ThreadId[] = [];
+    const h = await openHarness({
+      settings: withSettings({ retentionMaxCount: 1 }),
+      onThreadRemoved: (threadId) => {
+        removedBy.push(threadId);
+      },
+    });
+    const first = await agedThread(h, "first");
+    await agedThread(h, "second");
+    expect(expectOk(h.retention.prune())).toEqual([first.threadId]);
+    expect(removedBy).toEqual([first.threadId]);
+  });
+
   test("it is 0 until a thread is pruned, then the largest seq of the removed events", async () => {
     const h = await openHarness({ settings: withSettings({ retentionMaxCount: 1 }) });
     const first = await agedThread(h, "first");
