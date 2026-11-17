@@ -694,7 +694,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 
 ### 6.2.1 코어 단위 항상 켜기와 기능 메서드 위험 등급 (enE2m 기록, 2026-11-18)
 
-- `core-workspace`는 라이브러리라 항상 켜짐 집합에 더하지 않는다. `cap-workspace`·`cap-dialog`의 필수 표시는 지웠다(`profile-project-loader.md` §4.1.17).
+- `core-workspace`는 설치 단위가 아닌 라이브러리라 항상 켜짐 집합에 더하지 않는다. `cap-workspace`·`cap-dialog`의 필수 표시(`REQUIRED_BY_CORE`)는 남겼다: 지우면 코어 시험은 통과하지만 `apps/cli`의 `scenario-3`(그룹 하나만 켠 프로필에서 `read` 도구를 쓰는 턴)이 깨진다. 지울지는 정해야 한다(`profile-project-loader.md` §4.1.17 기록). [미결]
 - `MethodDef.risk`: 도구 매핑이 없는 쓰기 메서드의 위험 등급. 선언이 없으면 `exec`. 같은 효과의 모델 도구와 같은 등급으로 맞췄다: 대화 안 상태·내부 기록만 바꾸면 `read`(`task_write`, `artifact_create`, `review_request`가 `read`인 것과 같다), 작업 공간이나 공유 상태 파일을 쓰면 `write`(`skill_manage`, `memory_manage`와 같다), 실행·네트워크는 `exec`. [제안: 메인 세션, 사용자 확인 대기]
 
 | 기능 | 메서드: 등급 |
