@@ -4085,6 +4085,7 @@
   "desktop.runtime.transitions.turn": "Turn {turn}",
   "desktop.runtime.transitions.acquired": "Received the lead lock.",
   "desktop.runtime.transitions.released.disabled": "Released the lead lock when the group was turned off.",
+  "desktop.runtime.transitions.released.done": "Finished its work and returned the drive lock.",
   "desktop.runtime.transitions.released.budget": "Released the lead lock at the limit.",
   "desktop.runtime.transitions.released.error": "Released the lead lock after an error.",
   "desktop.runtime.transitions.released.idle": "Released the lead lock when idle.",

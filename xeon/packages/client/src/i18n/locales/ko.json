@@ -4085,6 +4085,7 @@
   "desktop.runtime.transitions.turn": "턴 {turn}",
   "desktop.runtime.transitions.acquired": "주도 락을 받았어요.",
   "desktop.runtime.transitions.released.disabled": "그룹을 꺼서 주도 락을 반납했어요.",
+  "desktop.runtime.transitions.released.done": "할 일을 마쳐 주도 락을 반납했어요.",
   "desktop.runtime.transitions.released.budget": "상한에 닿아 주도 락을 반납했어요.",
   "desktop.runtime.transitions.released.error": "오류가 나서 주도 락을 반납했어요.",
   "desktop.runtime.transitions.released.idle": "할 일이 없어 주도 락을 반납했어요.",

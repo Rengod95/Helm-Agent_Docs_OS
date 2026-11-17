@@ -242,6 +242,7 @@ export const RoleText: Readonly<Record<DriveRoleOf, MessageId>> = {
 /** 전환 기록의 해제 사유마다 글 하나다(템플릿으로 만들지 않는다) */
 const ReleasedText: Readonly<Record<LeaseReleasedPayload["reason"], MessageId>> = {
   disabled: "desktop.runtime.transitions.released.disabled",
+  done: "desktop.runtime.transitions.released.done",
   budget: "desktop.runtime.transitions.released.budget",
   error: "desktop.runtime.transitions.released.error",
   idle: "desktop.runtime.transitions.released.idle",

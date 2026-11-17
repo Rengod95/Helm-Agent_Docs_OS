@@ -206,6 +206,7 @@ export function releaseTextOf(lead: LeadSegment): string {
       return t("desktop.convo.lead.release.revoked", { name });
     case "restart":
       return t("desktop.convo.lead.release.restart", { name });
+    case "done":
     case null:
       return t("desktop.convo.lead.release.done", { name });
     default:
