@@ -100,7 +100,7 @@ import type {
 | `ReplaceOptions`, `ReplaceResult`, `ReplaceStarted`, `ReplaceFailure`, `SwapOutcome` | 타입 | 이 문서 §4.4.10 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
-| `hostOf`, `RegistrationHostApi`, `RegistrationCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
+| `hostOf`, `RegistrationHostApi`, `RegistrationCallContext`, `RegistrationStartDriveError`, `StateMigration` | 함수, 인터페이스, 타입 | 이 문서 §3.8 |
 | `RegistrationInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
 | `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
 | `ExtMethods`, `ExtMethodInfo`, `ExtMethodCallInput`, `ExtMethodOutcome`, `ExtMethodIssue`, `ExtMethodSettled`, `ExtMethodResourceDef`, `ExtMethodCallContext` | 인터페이스, 타입 | 이 문서 §3.9.2, §4.12 (`ExtMethods`는 `ExtHost.methods`) |
@@ -634,7 +634,7 @@ F의 `RegistrationApi<S>`에는 서비스 제공, 포트 조회, 리소스 등�
 
 ```ts
 // primitives/host-api.ts
-export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue;
+export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue | Promise<JsonValue>;
 
 /** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 drive 락의 취소 신호다 */
 export interface RegistrationCallContext {
@@ -703,7 +703,9 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 - [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
 
-격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `drive`, `migrateState`, `provide`, `providePort`, `updateState`, `awaitUser`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5).
+격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `provide`, `providePort`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5). `drive`는 setup에서 단계 함수를 받아 두고, 엔진이 단계마다 `drive.step` 요청으로 부른다(F.extensions 부록, drive-isolation.md 3.2). `migrateState`, `hostOf(g).updateState`, `awaitUser`, `hostOf(g).startDrive`는 넘긴다(F.extensions 부록 `state.migrate`, `engine.call` `updateState`·`awaitUser`·`startDrive`). `startDrive`는 약속(`Promise<Result<void, …>>`)을 돌려준다. 엔진 호출의 기능·확장 오류는 원래 종류(`origin`)를 싣고 자식은 같은 `CapabilityError`·`PrimitiveError`로 되던진다(F.extensions 부록). 자식은 호출을 낳은 엔진 요청이 있을 때만 엔진에 보내고, 요청 밖(설치, 알림)은 엔진을 부르지 않고 `no_context`로 답한다(설치 중에는 엔진이 이 등록의 g를 아직 모른다). 엔진은 호출을 낳은 요청의 thread로 `lease.startDrive`를 부르고 값을 돌려준다. 드라이브를 등록하지 않은 격리 등록의 답은 `not_drive`이고, 드라이브를 등록한 격리 등록은 시작 요청을 큐에 넣는다(M5 P2). 함수는 자식이 돌리고 엔진은 저장과 비교만 한다. `updateState`의 줄 세우기와 충돌 재시도는 자식이 (등록, thread)별로 한다. 엔진의 `updateState` 답은 커밋, 현재 문서(충돌), 저장 실패 값 가운데 하나이고, 엔진은 줄 안에서 현재 문서가 호스트가 읽은 문서와 같을 때만 커밋한다. `awaitUser`의 시계 멈춤은 `begin`과 `end` 호출로 엔진에 알리고, 요청이 `end` 없이 끝나면 엔진이 남은 대기를 푼다. 요청 밖에서 부른 `awaitUser`의 신호는 호스트 수명 신호다(엔진 안의 scope 세대 신호와 같은 자리).
+
+격리에서의 고빈도 전달 [제안, P2]. 스트림 훅(`request.stream`, `boundary.message.update`, `tool.execution.update`)은 `event.notify`로 자식에 보내고 엔진은 기다리지 않는다. 자식의 `g.subscribe`는 엔진 안과 같은 `every`와 `coalesce`를 자식 안에서 돌린다. 봉투의 `eventKey`는 엔진 디스패치 키이고, 엔진이 앞에서 합친 수(`event.notify`의 `dropped`)는 봉투의 `dropped`에 자식 대기 칸의 수와 더해진다. 그래서 `coalesce` 구독의 `dropped`는 엔진 안과 같은 값이다(시험 `test/isolation/notify-subscribe.test.ts`가 값으로 비교한다). 자식은 `event.notify`의 처리가 끝나면(성공과 실패 모두) `event.done`으로 확인하고, 엔진은 확인을 받을 때까지 키마다 상한(8개)만 보낸다(F.extensions 부록의 흐름 제어). [미결] [근거: packages/ext-host/src/isolation/notify-gate.ts] `every` 구독의 "모두 전달"과 엔진의 합치기가 부딪힌다(F.extensions 부록의 [미결]).
 
 ### 3.9 scope 정보, 리소스 표, 리소스 포트
 
@@ -1108,7 +1110,7 @@ lifecycle [결정: adr.0017]:
 3. 주도권 스택은 thread마다 하나다. 스택의 프레임 하나가 drive 락 하나(§2 용어의 주도권 프레임)이고, 0번이 맨 아래 플러그인 프레임(코어 루프 위), 마지막이 맨 위다. 맨 위 프레임만 단계 함수를 부른다. 아래 프레임은 `waiting`이며 맡기기(§4.4.1b)에서만 생긴다. 한 thread에서 단계 함수를 부르는 scope는 맨 위 하나다([결정] ADR-0007 §3.6). 부여 판단(시작 요청 큐 처리)은 경계 훅(`step_end`, `turn_settled`, `idle`)에서만 한다. `openThread`는 프로필 시작 요청을 큐에 넣을 뿐 부여하지 않는다.
 3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 drive 락을 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
 4. 시작 계기는 셋뿐이다([결정: 2026-11-17 사용자], drive-isolation.md 2.2). 중재 후보 목록, 선택 설정, 대기 계수는 없다 [근거: packages/ext-host/src/primitives/lease.ts].
-   - 사용자 명령: `ExtHost.startDrive(threadId, scopeId, options?)`다(`trigger`의 기본값은 `user`). 플러그인은 `RegistrationHostApi.startDrive(input?)`를 쓰고 ambient 문맥의 thread를 쓴다. 문맥이 없으면 `no_context`다. 주도 중에도 받아 큐에 넣는다.
+   - 사용자 명령: `ExtHost.startDrive(threadId, scopeId, options?)`다(`trigger`의 기본값은 `user`). 플러그인은 `RegistrationHostApi.startDrive(input?)`를 쓰고 ambient 문맥의 thread를 쓴다. 이 호출은 약속이다(격리 자식에서는 엔진 왕복이므로, §3.8의 격리 호스트 단락). 문맥이 없으면 `no_context`다. 주도 중에도 받아 큐에 넣는다.
    - 프로필 시작: `ThreadOpenOptions.startDrive`다. 열 때 열린 drive 락(`openLeases`)가 없을 때만 그 scope의 `profile` 요청을 넣는다.
    - 맡기기: 맨 위 프레임의 `handoff` 명령이다(§4.4.1b). 시작 요청 `trigger: "handoff"`를 큐 맨 앞에 넣는다. 거부는 `{ kind: "refused", code }` 결과다.
    - 대상 scope의 켜짐은 그 thread 기준이다(§4.5.2). 한 thread에서 꺼진 scope는 다른 thread에서 켜져 있어도 이 thread의 요청 대상이 아니다.
@@ -1454,7 +1456,7 @@ M5에서 정할 것 [제안]: 호스트 저장소에 프로젝트 레코드(`pro
 
 1. 상태 문서는 (thread, scope)마다 하나다. `RegistrationDef.state`가 없는 scope는 상태가 없다. 그런 scope에서 `state()`·`commit()`을 부르면 `state_undeclared`다.
 2. 처음 읽을 때 저장된 문서가 없으면 `StateDecl.initial`을 판 0으로 쓴다. 판 0은 저장하지 않는다.
-3. 상태 문서는 thread에서 scope를 켤 때 준비한다(thread를 열 때 이미 세대가 열린 scope, 경계 적용의 켜기, 시작 적용 때 이미 열린 thread). 저장된 판이 없으면 할 일이 없다. 저장된 `version`이 같으면 `StateDecl.schema`로 검사해 어기면 `state_schema`다. 작으면 setup이 `hostOf(g).migrateState`로 등록한 함수를 `(doc, fromVersion)`으로 부른다. 결과를 `StateDecl.schema`로 검사하고 크기를 확인한 뒤 새 판(`rev + 1`, `prevEventId`는 저장된 판의 이벤트 id, `version`은 선언 버전)으로 커밋한다. 이 커밋은 `RecordCommitPort.commit`으로 경계 기여와 따로 하고(`expectStateRev`로 충돌 검사) 키는 `mig:<scope 해시>:<저장 버전>-<선언 버전>:<저장 판>`이라 같은 이동을 다시 하면 `replayed`다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 크기를 넘으면 `state_too_large`로 그 thread의 켜기를 실패시킨다. 저장된 `version`이 더 크면 `state_future_version`으로 그 scope를 그 thread에서 켜지 않는다(F.records.spec §3.7 규칙 3의 `future_version`과 같은 취지). `migrateState`는 setup 안에서(`state_migration_outside_setup`) 상태를 선언한 scope(`state_undeclared`)가 한 번만(`state_migration_duplicate`) 부를 수 있다.
+3. 상태 문서는 thread에서 scope를 켤 때 준비한다(thread를 열 때 이미 세대가 열린 scope, 경계 적용의 켜기, 시작 적용 때 이미 열린 thread). 저장된 판이 없으면 할 일이 없다. 저장된 `version`이 같으면 `StateDecl.schema`로 검사해 어기면 `state_schema`다. 작으면 setup이 `hostOf(g).migrateState`로 등록한 함수를 `(doc, fromVersion)`으로 부른다. 함수는 동기 값이나 약속을 돌려줄 수 있고 약속이면 기다린다(격리 호스트에서는 자식이 부르고 엔진이 `state.migrate` 요청으로 기다린다). 결과를 `StateDecl.schema`로 검사하고 크기를 확인한 뒤 새 판(`rev + 1`, `prevEventId`는 저장된 판의 이벤트 id, `version`은 선언 버전)으로 커밋한다. 이 커밋은 `RecordCommitPort.commit`으로 경계 기여와 따로 하고(`expectStateRev`로 충돌 검사) 키는 `mig:<scope 해시>:<저장 버전>-<선언 버전>:<저장 판>`이라 같은 이동을 다시 하면 `replayed`다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 크기를 넘으면 `state_too_large`로 그 thread의 켜기를 실패시킨다. 저장된 `version`이 더 크면 `state_future_version`으로 그 scope를 그 thread에서 켜지 않는다(F.records.spec §3.7 규칙 3의 `future_version`과 같은 취지). `migrateState`는 setup 안에서(`state_migration_outside_setup`) 상태를 선언한 scope(`state_undeclared`)가 한 번만(`state_migration_duplicate`) 부를 수 있다.
 4. `commit(next)`:
 
 ```text

@@ -1,12 +1,17 @@
 import { afterAll, expect, test } from "bun:test";
-import { ok, type Result } from "@fresnel/contracts";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import { PLUGIN_HOST_MAX_FRAME_BYTES, type EngineCallParams } from "@fresnel/contracts/extensions";
+import {
+  PLUGIN_HOST_MAX_FRAME_BYTES,
+  type EngineCallParams,
+  type PluginHostError,
+} from "@fresnel/contracts/extensions";
 import {
   createPluginHostSupervisor,
   type PluginHostSupervisor,
   type RestartLimitInfo,
 } from "../../src/index.ts";
+import type { DeadlineClock } from "../../src/isolation/supervisor.ts";
 import {
   createFakeProcessPort,
   createManualClock,
@@ -45,6 +50,11 @@ interface RigOptions {
   readonly maskSecrets?: (line: string) => string;
   readonly initTimeoutMs?: number;
   readonly protocolVersion?: number;
+  /** 있으면 엔진 호출마다 이 실패로 답한다 */
+  readonly engineFailure?: PluginHostError;
+  /** 재시작 한도와 창. 기본은 한도 1, 창 600초다 */
+  readonly maxRestarts?: () => number;
+  readonly restartWindowSec?: () => number;
 }
 
 function rigOf(root: string, options: RigOptions = {}): Rig {
@@ -70,10 +80,11 @@ function rigOf(root: string, options: RigOptions = {}): Rig {
     initTimeoutMs: options.initTimeoutMs ?? 1000,
     idleMs: 60_000,
     killGraceMs: 2000,
-    maxRestarts: 1,
+    maxRestarts: options.maxRestarts ?? (() => 1),
+    restartWindowSec: options.restartWindowSec ?? (() => 600),
     onEngineCall: async (params) => {
       engineCalls.push(params);
-      return ok(params.params);
+      return options.engineFailure === undefined ? ok(params.params) : err(options.engineFailure);
     },
     onRestartLimit: (info) => {
       restarts.push(info);
@@ -171,7 +182,8 @@ test("a timeout abort kills the process: that call gets process_killed, the othe
     { pong: 5 },
   );
   expect(rig.port.children.length).toBe(2);
-  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 0 });
+  // 성공한 응답은 죽음을 지우지 않는다. 죽음은 창이 지나야 빠진다
+  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 1 });
 });
 
 test("a deadline that elapses kills the process as well", async () => {
@@ -182,6 +194,31 @@ test("a deadline that elapses kills the process as well", async () => {
   });
   await until(sentWith(rig.port.children[0], "call_d"), "sent");
   rig.clock.advance(500);
+  expect(errorOf(await pending).kind).toBe("process_killed");
+  expect(rig.port.children[0]?.signals).toEqual(["SIGTERM"]);
+});
+
+test("time spent with the deadline clock paused does not count against the deadline", async () => {
+  const rig = rigOf(await fixtureRoot());
+  okValue(await rig.supervisor.start());
+  const clocks: DeadlineClock[] = [];
+  const pending = rig.supervisor.call("method.call", methodParams("hang", {}, "call_p"), {
+    deadlineMs: 500,
+    onDeadlineClock: (clock) => clocks.push(clock),
+  });
+  await until(sentWith(rig.port.children[0], "call_p"), "sent");
+  const [clock] = clocks;
+  expect(clocks).toHaveLength(1);
+  rig.clock.advance(300);
+  clock?.pause();
+  // 멈춘 동안은 얼마가 지나도 죽이지 않는다
+  rig.clock.advance(10_000);
+  expect(rig.port.children[0]?.signals).toEqual([]);
+  clock?.resume();
+  // 남은 시간은 200ms다
+  rig.clock.advance(199);
+  expect(rig.port.children[0]?.signals).toEqual([]);
+  rig.clock.advance(1);
   expect(errorOf(await pending).kind).toBe("process_killed");
   expect(rig.port.children[0]?.signals).toEqual(["SIGTERM"]);
 });
@@ -240,7 +277,7 @@ test("an unexpected exit fails the in-flight call and the next call relaunches t
     { pong: 4 },
   );
   expect(rig.port.children.length).toBe(2);
-  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 0 });
+  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 1 });
   expect(rig.restarts).toEqual([]);
 });
 
@@ -266,6 +303,77 @@ test("a second death without a success refuses restarts and notifies the restart
   ).toMatchObject({ kind: "restart_limit" });
   expect(rig.restarts).toEqual([{ deaths: 2, reason: "process_exit", label: "ext:demo:v1" }]);
   expect(rig.port.children.length).toBe(2);
+});
+
+/** 자식 `index`를 죽이고, 감독이 그 죽음을 셀 때까지 기다린다 */
+async function dieAt(rig: Rig, index: number, next: "stopped" | "restart_limit"): Promise<void> {
+  rig.port.children[index]?.crash();
+  await until(() => rig.supervisor.status().state === next, `death of child ${index} observed`);
+}
+
+/** 죽은 뒤 첫 호출은 프로세스를 다시 띄운다 */
+function pingAfterRelaunch(rig: Rig, n: number): ReturnType<PluginHostSupervisor["call"]> {
+  return rig.supervisor.call("method.call", methodParams("ping", { n }));
+}
+
+test("with maxRestarts 2 a success between deaths keeps the count, and the third death in the window is the limit", async () => {
+  const rig = rigOf(await fixtureRoot(), { maxRestarts: () => 2, restartWindowSec: () => 60 });
+  okValue(await rig.supervisor.start());
+  await dieAt(rig, 0, "stopped");
+  expect(okValue(await pingAfterRelaunch(rig, 1))).toEqual({ pong: 1 });
+  await dieAt(rig, 1, "stopped");
+  expect(okValue(await pingAfterRelaunch(rig, 2))).toEqual({ pong: 2 });
+  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 2 });
+
+  await dieAt(rig, 2, "restart_limit");
+  expect(rig.supervisor.status()).toMatchObject({ state: "restart_limit", deaths: 3 });
+  expect(errorOf(await pingAfterRelaunch(rig, 3))).toMatchObject({ kind: "restart_limit" });
+  expect(rig.restarts).toEqual([{ deaths: 3, reason: "process_exit", label: "ext:demo:v1" }]);
+  expect(rig.port.children.length).toBe(3);
+});
+
+test("a death older than the window is not counted, so the next death starts the process again", async () => {
+  const rig = rigOf(await fixtureRoot(), { maxRestarts: () => 1, restartWindowSec: () => 60 });
+  okValue(await rig.supervisor.start());
+  await dieAt(rig, 0, "stopped");
+  rig.clock.advance(61_000);
+  expect(okValue(await pingAfterRelaunch(rig, 1))).toEqual({ pong: 1 });
+  expect(rig.supervisor.status()).toMatchObject({ state: "running", deaths: 0 });
+
+  await dieAt(rig, 1, "stopped");
+  expect(rig.supervisor.status()).toMatchObject({ state: "stopped", deaths: 1 });
+  expect(okValue(await pingAfterRelaunch(rig, 2))).toEqual({ pong: 2 });
+  expect(rig.restarts).toEqual([]);
+  expect(rig.port.children.length).toBe(3);
+});
+
+test("the limit is read at each death, so a lowered value applies to the next decision", async () => {
+  let limit = 2;
+  const rig = rigOf(await fixtureRoot(), { maxRestarts: () => limit, restartWindowSec: () => 60 });
+  okValue(await rig.supervisor.start());
+  await dieAt(rig, 0, "stopped");
+  expect(okValue(await pingAfterRelaunch(rig, 1))).toEqual({ pong: 1 });
+
+  limit = 0;
+  await dieAt(rig, 1, "restart_limit");
+  expect(rig.restarts).toEqual([{ deaths: 2, reason: "process_exit", label: "ext:demo:v1" }]);
+});
+
+test("the window length is read at each death, so a shortened window drops the older death", async () => {
+  let windowSec = 600;
+  const rig = rigOf(await fixtureRoot(), {
+    maxRestarts: () => 1,
+    restartWindowSec: () => windowSec,
+  });
+  okValue(await rig.supervisor.start());
+  await dieAt(rig, 0, "stopped");
+  expect(okValue(await pingAfterRelaunch(rig, 1))).toEqual({ pong: 1 });
+
+  rig.clock.advance(30_000);
+  windowSec = 10;
+  await dieAt(rig, 1, "stopped");
+  expect(rig.supervisor.status()).toMatchObject({ state: "stopped", deaths: 1 });
+  expect(rig.restarts).toEqual([]);
 });
 
 test("a restart that declares different registrations is refused and the new process is stopped", async () => {
@@ -373,6 +481,30 @@ test("a plugin's engine call reaches the engine and its answer returns to the pl
   const reply = await rig.supervisor.call("method.call", methodParams("bump", {}));
   expect(okValue(reply)).toEqual({ count: 1 });
   expect(rig.engineCalls).toMatchObject([{ method: "commit", registration: "demo" }]);
+});
+
+test("an engine call failure reaches the plugin with its origin", async () => {
+  const rig = rigOf(await fixtureRoot(), {
+    engineFailure: {
+      kind: "engine_call_failed",
+      message: "state_schema: bad",
+      origin: { kind: "primitive", code: "state_schema", scopeId: "demo" },
+    },
+  });
+  await rig.supervisor.call("method.call", methodParams("bump", {}));
+  // 엔진이 자식에게 쓴 줄 가운데 오류 응답 하나(엔진 호출의 답)
+  const answer = rig.port.children[0]
+    ?.received()
+    .split("\n")
+    .find((line) => line.includes('"error"'));
+  const parsed = answer === undefined ? undefined : parseJson(answer);
+  expect(parsed?.ok ? parsed.value : undefined).toMatchObject({
+    error: {
+      kind: "engine_call_failed",
+      message: "state_schema: bad",
+      origin: { kind: "primitive", code: "state_schema", scopeId: "demo" },
+    },
+  });
 });
 
 test("a notification is sent without an answer and the process keeps serving calls", async () => {

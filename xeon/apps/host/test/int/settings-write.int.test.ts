@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { WireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
@@ -232,20 +232,31 @@ describe("project and local scope", () => {
     await fx.close();
   });
 
-  realTest("a thread without a workspace cannot take project settings", async () => {
-    const fx = await start({ "x.loading-trust.defaultProjectTrust": "always" });
-    const created = await fx.connection.request("thread.create", {});
-    const error = await wireErrorOf(
-      fx.connection.request("settings.set", {
+  realTest(
+    "a thread without a workspace gets its own folder under the default folder, where project settings go",
+    async () => {
+      // review m5 §4.4.5: 작업 폴더 없이 만든 대화는 `<기본 폴더>/<threadId>`에서 돈다. 그 폴더는 작업 폴더이므로 프로젝트 설정을 받는다
+      const fx = await start({ "x.loading-trust.defaultProjectTrust": "always" });
+      const created = await fx.connection.request("thread.create", {});
+      const listed = await fx.connection.request("thread.list", {});
+      const summary = listed.threads.find((thread) => thread.threadId === created.threadId);
+      const workspace = summary?.workspace;
+      if (typeof workspace !== "string")
+        throw new Error("the default-folder thread must have a workspace");
+      expect(basename(dirname(workspace))).toBe("default-project");
+      const project = await fx.connection.request("settings.set", {
         key: KEY,
         value: 5,
         scope: "project",
         threadId: created.threadId,
-      }),
-    );
-    expect(error.data.details).toMatchObject({ reason: "workspaceRequired" });
-    await fx.close();
-  });
+      });
+      expect(project.setting).toMatchObject({
+        value: 5,
+        source: { scope: "project", path: join(workspace, ".fresnel", "settings.json") },
+      });
+      await fx.close();
+    },
+  );
 
   realTest(
     "a trusted workspace gets .fresnel/settings.json and settings.local.json, and local wins",

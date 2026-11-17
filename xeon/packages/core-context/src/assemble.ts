@@ -38,6 +38,7 @@ import { resolveImageBlobs, type BlobByHashReader } from "./resolve-blobs.ts";
 import { convertToLlm } from "./convert.ts";
 import { buildPrefixMessage, prefixHash, prefixToolset, replaySystemMessages } from "./prefix.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "./settings.ts";
+import { textTokens } from "./tokens.ts";
 import { decideToolChange } from "./toolset-diff.ts";
 
 // L1.context.spec §4.1 조립 순서: 가지 읽기 → 컴팩션 머리 → 메시지 변환 → context 지점 → 도구·절 변경 →
@@ -220,11 +221,6 @@ async function applyContextWithSystemHook(
   const appliers = outcome.applied.map(applierOf);
   if (outcome.applied.length === 0) return { messages: assembled, changed: false, appliers };
   return { messages: convertToLlm(outcome.value.messages), changed: true, appliers };
-}
-
-/** 글자 수 / 4 올림. pi-ai 추정과 같은 규칙이다 */
-function textTokens(text: string): number {
-  return Math.ceil(text.length / 4);
 }
 
 /** 소유자를 정할 수 없는 재료의 자리 값(로더 미병합. §4.5 규칙 27) */

@@ -1,5 +1,14 @@
-import type { ImageContent, JsonValue, TextContent } from "../conversation/index.ts";
-import type { RecordKind } from "./group-record.ts";
+import { Type, type TUnsafe } from "typebox";
+import {
+  ImageContentSchema,
+  JsonValueSchema,
+  TextContentSchema,
+  type ImageContent,
+  type JsonValue,
+  type TextContent,
+} from "../conversation/index.ts";
+import type { SchemaProof } from "../base/schema-proof.ts";
+import { RecordKindSchema, type RecordKind } from "./group-record.ts";
 
 /** steer: 현재 step 도구 라운드 뒤 / followUp: 현재 turn 정착 뒤 / next: 다음 경계 뒤 모델 요청 한 번 */
 export type PostWhen = "steer" | "followUp" | "next";
@@ -30,3 +39,30 @@ export interface PostReceipt {
   /** 같은 requestId가 이미 있어 아무것도 넣지 않았으면 참 */
   readonly duplicate: boolean;
 }
+
+const PostContentShape = Type.Union([
+  Type.String(),
+  Type.Array(Type.Union([TextContentSchema, ImageContentSchema])),
+]);
+
+const PostItemShape = Type.Union([
+  Type.Object(
+    { kind: Type.Literal("user"), content: PostContentShape },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("context"),
+      customType: RecordKindSchema,
+      content: PostContentShape,
+      display: Type.Boolean(),
+      details: Type.Optional(JsonValueSchema),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+/** `PostItem`의 검사. 엔진의 `post` 요청과 주도 명령의 `turn` 입력이 같은 모양을 쓴다 */
+export const PostItemSchema: TUnsafe<PostItem> = Type.Unsafe<PostItem>(
+  PostItemShape satisfies SchemaProof<PostItem, typeof PostItemShape>,
+);

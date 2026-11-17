@@ -10,6 +10,7 @@ import type {
   Advertised,
   CacheBreak,
   CallRecord,
+  FrameMark,
   HookRun,
   Material,
   ModelCall,
@@ -27,11 +28,16 @@ import {
   type TurnToolRow,
 } from "./turn-context.ts";
 import { fitTurnRecord } from "./turn-fit.ts";
-import type { TrCallRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import type { TrCallRow, TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
-// 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 프로필·덧씌우기·초안·프레임·재료·광고·캐시 원인은
-// 자리만 두고(null, 빈 배열, 0, "none") 다른 트랙이 채운다. 이 파일은 저장소와 시계를 모른다.
+// 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
+// 자리만 두고(null, 빈 배열, 0, "none") 다른 트랙이 채운다. 프로필 표지는 쓰는 쪽이 턴 시작에 `TurnDraft.profile`로 넣는다. 이 파일은 저장소와 시계를 모른다.
+
+/** 턴 기록의 프로필 표지(§3.2 `TurnRecord.profile`). 턴 시작 값이다 */
+export type TurnProfileMark = NonNullable<TurnRecord["profile"]>;
+/** 턴 안에서 프로필 개정이 바뀐 단계 경계(§3.2 `profileRevChanges`의 한 줄) */
+type ProfileRevChange = TurnRecord["profileRevChanges"][number];
 
 /** 턴 하나의 훅 행 상한(§4.1 규칙 8). 넘는 행은 `elided.hooks`에 센다 */
 export const MAX_HOOK_ROWS_PER_TURN = 500;
@@ -87,10 +93,18 @@ export interface TurnDraft {
   readonly level: RecordLevel;
   /** `record_json`의 상한(바이트, `x.operations.trace.maxTurnBytes`). 턴이 처음 보일 때 정한다(규칙 6, 8) */
   readonly maxBytes: number;
+  /** 턴 시작 때의 프로필 표지. 턴을 열 때 정한다(§4.10 규칙 60~62) */
+  readonly profile: TurnProfileMark;
+  /** 턴 안에서 프로필 개정이 시작 값(또는 직전 바뀜)과 달라진 단계 경계(§4.10 규칙 63) */
+  readonly profileRevChanges: ProfileRevChange[];
+  /** 마지막으로 끝난 단계의 번호. 프로필 경계가 가리키는 다음 단계를 정하는 데 쓴다 */
+  lastStepIndex: number | null;
   /** 범위 표지. 턴을 열 때 대화의 `tr_thread`에서 정한다(§4.6) */
   scope: ScopeKind;
   /** 끝난 단계의 기록 */
   readonly steps: StepRecord[];
+  /** 주도권 스택의 프레임: 턴 시작 때 열려 있던 것과 턴 안의 변화(코어 위 프레임만, 깊이는 코어를 0으로 센다) */
+  readonly frames: FrameMark[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
   /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
@@ -146,11 +160,15 @@ export function newDraft(input: {
   readonly origin: TurnRecord["origin"];
   readonly level: RecordLevel;
   readonly maxBytes: number;
+  readonly profile: TurnProfileMark;
 }): TurnDraft {
   return {
     ...input,
+    profileRevChanges: [],
+    lastStepIndex: null,
     scope: "live",
     steps: [],
+    frames: [],
     calls: new Map(),
     toolCalls: new Map(),
     contexts: new Map(),
@@ -170,6 +188,14 @@ export function newDraft(input: {
     elidedHooks: 0,
     writeFailures: 0,
   };
+}
+
+/**
+ * 프로필 경계가 가리키는 단계 번호(§4.10 규칙 63). 경계는 끝난 단계(`step_end`) 뒤에 오므로 다음 단계다.
+ * 끝난 단계가 없으면 턴의 첫 단계(0)다
+ */
+export function stepAfterBoundary(lastStepIndex: number | null): number {
+  return lastStepIndex === null ? 0 : lastStepIndex + 1;
 }
 
 /** 트레이스의 항목과 처리기 기록을 턴 안의 순서로 펼친 한 줄. `seqGlobal`은 턴 안에서 세는 순번이다 */
@@ -568,12 +594,12 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     level: draft.level,
     complete: state.complete,
     scope: draft.scope,
-    profile: null,
-    profileRevChanges: [],
+    profile: draft.profile,
+    profileRevChanges: [...draft.profileRevChanges],
     overlay: null,
     testRun: null,
     children: [],
-    frames: [],
+    frames: draft.frames.map((frame) => ({ ...frame })),
     steps: [...draft.steps],
     turnHooks: [...state.turnHooks],
     continues: [],
@@ -624,9 +650,10 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     status: state.status,
     origin: draft.origin,
     scopeKind: draft.scope,
-    profileId: null,
-    profileRev: null,
-    profileRevChangesJson: null,
+    profileId: draft.profile.id,
+    profileRev: draft.profile.rev,
+    profileRevChangesJson:
+      draft.profileRevChanges.length === 0 ? null : JSON.stringify(draft.profileRevChanges),
     overlayJson: null,
     pluginStderrJson: null,
     level: draft.level,
@@ -636,5 +663,29 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     recordJson: fitted.json,
     recordBytes: fitted.bytes,
     startedEventId: draft.startedEventId,
+  };
+}
+
+/** 프레임 표지를 `tr_frame` 행으로 옮긴다. 코어(`leaseId` 없음)는 행으로 쓰지 않는다 */
+export function trFrameRowOf(
+  ids: { readonly threadId: string; readonly turnId: string },
+  frame: FrameMark,
+): TrFrameRow | null {
+  if (frame.leaseId === null) return null;
+  return {
+    threadId: ids.threadId,
+    turnId: ids.turnId,
+    leaseId: frame.leaseId,
+    depth: frame.depth,
+    plugin: frame.plugin,
+    versionId: frame.versionId,
+    parentLeaseId: frame.parentLeaseId,
+    enteredAtMs: frame.enteredAtMs,
+    exitedAtMs: frame.exitedAtMs,
+    exitReason: frame.exitReason,
+    lowerResumedWith: frame.lowerResumedWith,
+    limitsJson: JSON.stringify(frame.limits),
+    usedJson: JSON.stringify(frame.used),
+    userMessages: frame.userMessages,
   };
 }

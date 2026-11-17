@@ -69,6 +69,8 @@ export interface LoopPluginOptions {
   readonly basePrompt?: string;
   /** `input.bash.before` 지점 페이로드의 작업 디렉터리를 대화별로 돌려준다 */
   readonly workingDirectory?: LoopDeps["workingDirectory"];
+  /** 턴 시작 지침 절 원천(M5c §4.4.7). 조립 루트가 core-context의 `createInstructionSections`로 만든다. 없으면 절이 비어 있다 */
+  readonly instructionSectionsOf?: LoopDeps["instructionSectionsOf"];
   readonly kindLookup?: LoopDeps["kindLookup"];
   /** 소유 사슬 취소 판정을 만든다. 세션 서비스는 확장이 올라올 때 정해지므로 받아서 돌려준다(L1.tasks.spec §4.8 3번). 없으면 거짓이다 */
   readonly cancelledByOwnerOf?: (session: SessionService) => LoopDeps["cancelledByOwner"];
@@ -108,6 +110,9 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
         ...(options.workingDirectory === undefined
           ? {}
           : { workingDirectory: options.workingDirectory }),
+        ...(options.instructionSectionsOf === undefined
+          ? {}
+          : { instructionSectionsOf: options.instructionSectionsOf }),
         hostMode: options.hostMode,
         kindLookup:
           options.kindLookup ?? ((kind) => EVENT_CATALOG.find((catalog) => catalog.kind === kind)),

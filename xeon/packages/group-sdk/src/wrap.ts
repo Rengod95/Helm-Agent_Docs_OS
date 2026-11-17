@@ -65,8 +65,8 @@ export interface GroupHostAccess {
   agents(): AgentService | undefined;
   /** 재실행 문맥 안이면 그 문맥. 문맥 밖(명령 처리기, 도구 execute, onDispose)이면 undefined */
   callContext(): GroupCallContext | undefined;
-  /** 주도 시작 요청(X `hostOf(g).startDrive`). 문맥의 thread에 이 scope를 넣는다 */
-  startDrive(input?: JsonValue): GroupStartDriveResult;
+  /** 주도 시작 요청(X `hostOf(g).startDrive`, 격리 자식에서는 엔진 왕복). 문맥의 thread에 이 scope를 넣는다 */
+  startDrive(input?: JsonValue): Promise<GroupStartDriveResult>;
 }
 
 export type HostAccessFactory<S> = (api: RegistrationApi<S>) => GroupHostAccess;

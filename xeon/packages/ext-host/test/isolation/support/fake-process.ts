@@ -27,6 +27,8 @@ export interface FakeChild {
   readonly child: IsolatedChild;
   /** 자식이 읽은 바이트(엔진이 쓴 줄들)를 문자열로 */
   received(): string;
+  /** 자식이 쓴 바이트(자식이 엔진에 보낸 줄들: 요청, 응답, `engine.call`)를 문자열로 */
+  emitted(): string;
   /** 받은 신호 목록 */
   readonly signals: string[];
   /** 스스로 끝난 것처럼 만든다(예기치 않은 종료) */
@@ -62,6 +64,7 @@ function startFakeChild(pid: number, options: FakeChildOptions): FakeChild {
   const stderr = new PassThrough();
   const decoder = new TextDecoder();
   const received: string[] = [];
+  const emitted: string[] = [];
   const signals: string[] = [];
   const exitHolder: { settle?: (info: ExitInfo) => void } = {};
   const exited = new Promise<ExitInfo>((resolve) => {
@@ -85,6 +88,7 @@ function startFakeChild(pid: number, options: FakeChildOptions): FakeChild {
       }),
       output: {
         write: (line) => {
+          emitted.push(line);
           if (!finished) stdout.write(line);
         },
       },
@@ -117,6 +121,7 @@ function startFakeChild(pid: number, options: FakeChildOptions): FakeChild {
   return {
     child,
     received: () => received.join(""),
+    emitted: () => emitted.join(""),
     signals,
     crash: () => finish({ code: 1, signal: null }),
     writeStderr: (text) => {

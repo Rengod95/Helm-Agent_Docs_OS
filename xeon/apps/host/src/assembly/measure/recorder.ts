@@ -7,6 +7,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import type {
   ContextTraceEvent,
+  PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
 } from "@fresnel/contracts/extensions";
@@ -58,6 +59,8 @@ interface MeasureRecorderDeps {
   readonly usage: Pick<UsageMeter, "subscribe">;
   /** 핸들러 계측 링 버퍼 읽기. 없으면 `hook` 기록을 하지 않는다 */
   readonly trace: Pick<TraceReadPort, "turn"> | undefined;
+  /** 대화의 프로필 포트를 얻는 함수. 없거나 undefined면 턴 시작의 프로필은 대화 로그의 사건만으로 정한다 */
+  readonly pluginSet: (() => Pick<PluginSetPort, "resolve"> | undefined) | undefined;
   readonly store: MeasureStore;
   /** 턴 기록 테이블을 쓸 수 있는가(`store.turnRecordAvailable()`). 거짓이면 턴 행과 단계 행을 쓰지 않는다 */
   readonly turnRecords: boolean;
@@ -329,6 +332,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     ? createTurnWriter({
         store: deps.store,
         trace: deps.trace,
+        pluginSet: deps.pluginSet,
         enabled: deps.enabled,
         logger: deps.logger,
         queue: enqueueOp,
@@ -553,6 +557,11 @@ export interface MeasurementDeps {
   readonly session: { readonly feed: Pick<EventFeed, "onCommit"> };
   readonly usage: Pick<UsageMeter, "subscribe">;
   readonly trace?: Pick<TraceReadPort, "turn">;
+  /**
+   * 대화의 프로필 포트(`PluginSetPortKey`)를 얻는 함수. 조립이 포트를 만들기 전에는 undefined를 준다.
+   * 기록기를 켠 뒤 처음 보는 대화의 턴 시작 프로필 값에만 쓴다(§4.10 규칙 60)
+   */
+  readonly pluginSet?: () => Pick<PluginSetPort, "resolve"> | undefined;
   readonly enabled: () => boolean;
   readonly logger: Logger;
   readonly now: () => number;
@@ -628,6 +637,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     session: deps.session,
     usage: deps.usage,
     trace: deps.trace,
+    pluginSet: deps.pluginSet,
     store,
     enabled: deps.enabled,
     logger: deps.logger,

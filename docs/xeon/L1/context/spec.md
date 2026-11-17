@@ -18,6 +18,7 @@ binds: [xeon/packages/core-context/**]
 
 - Cordis 서비스 `fresnel.context`의 인터페이스 `ContextService`: `assemble`, `compact`, `shouldCompact`, `estimate`, `recoverOverflow`, `summarizeBranch`.
 - 컨텍스트 조립: 고정 접두(시스템 프롬프트, 도구 목록, 스킬 인덱스, 메모리)와 말미의 변동 정보. stable·context·volatile 3계층.
+- 지침 파일 절: 루트에서 대화 폴더까지의 `AGENTS.md`를 접두의 `sections`로 싣는다(§4.2a, M5c §4.4.7).
 - 도구 목록 변경을 접두 밖에서 알리는 규칙(`SystemMessage.toolsAdded`·`toolsRemoved`)과 재광고 기준.
 - 캐시 표식 위치 계산(`CacheMarks`). 정책 객체 `CachePolicy`는 `L1.models.spec` §3.6이 만든다.
 - 롤링 요약 컴팩션(pi 컴팩션 포크), 임계와 예약 여유, 비파괴 컴팩션 엔트리, 오버플로우 복구.
@@ -295,6 +296,18 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 호출 순서: core-loop는 요청마다 요청 준비 단계(`loop/prepare-request.ts`)에서 `assemble`을 부르고, 스트림을 열 때 결과 `messages`를 `convertToLlm`으로 바꿔 streamFn에 넘긴다(`L1.loop.spec` §3.2 표).
 - 접두는 컴팩션 때만 다시 만든다. `compact`가 `thread.compacted`와 같은 커밋에 새 접두 system item을 넣는다(§4.6 5번). pi `CompactionEntry.systemMessage`("compaction 경계의 프롬프트와 도구 상태")에 해당하는 값을 F 필드 추가 없이 별도 item으로 남기는 방식이다 [제안](`_research/notes/L1-3.md` §12 미결 (c)).
 - 근거: 접두 3계층(her, cc), 대화당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
+
+### 4.2a 지침 파일 절 [구현: 2026-11-18, M5c §4.4.7]
+
+접두의 `sections`는 프로젝트 루트 R에서 대화 폴더 F까지의 `AGENTS.md`로 채운다. 읽기는 `core-context/src/instructions.ts`의 `createInstructionSections`가 하고, 루프가 턴 시작마다 한 번 부른다(`core-loop/src/loop/run-turn.ts`). 그 turn의 모든 요청은 같은 값을 `sections`로 받는다(`loop/prepare-request.ts`). 원천이 없으면 `{}`다.
+
+1. 읽는 파일은 `AGENTS.md` 하나다. `CLAUDE.md`와 다른 이름은 읽지 않는다 [결정: 2026-11-18 사용자].
+2. 폴더는 R부터 F까지 거쳐 가는 것이다. R이 먼저, F가 마지막이다. 대화에 프로젝트 루트가 없으면 R은 F다(F의 `AGENTS.md`만 읽는다). R이 F를 포함하지 않으면 진단 `instruction_root_mismatch`를 남기고 R을 F로 쓴다.
+3. 키는 `project:<R 기준 상대 경로>`다. R 자신은 `project:.`이다(예: `project:.`, `project:a/b`). 값은 파일 내용 그대로다. 머리말이나 설명 문장을 더하지 않고 BOM과 끝 공백도 그대로 둔다. 접두를 만들 때 절의 순서는 `prefix.ts`가 키 정렬로 정한다.
+4. 건너뛰는 경우는 넷이다. 파일이 없으면 진단 없이 건너뛴다. 크기가 `l1.context.instructionFiles.maxBytes`를 넘으면 읽지 않고 `instruction_too_large`를 남긴다(크기는 읽은 뒤에도 한 번 더 본다). 정규 경로(심볼릭 링크를 푼 경로)가 R 밖이면 읽지 않고 `instruction_outside_root`를 남긴다. 읽기 실패나 UTF-8이 아닌 내용이면 `instruction_read_failed`를 남긴다.
+5. 진단은 턴마다 `loop.instruction_skipped` 경고(필드 `code`, `path`)로 남는다. 턴은 계속한다.
+6. 읽는 시점은 턴 시작이다. 대화를 열었다는 것만으로는 읽지 않는다. 접두는 요청을 만들 때만 생기므로 턴이 없으면 읽을 값도 없고, 첫 턴 시작이 M5c §4.4.7의 "대화를 열 때"와 같은 시점이다 [구현 결정: 2026-11-18]. 턴 사이에 바뀐 파일은 다음 턴 시작에 든다. 바뀐 절은 §4.1의 절 변경 규칙을 따른다.
+7. 같은 정규 경로의 파일은 수정 시각과 크기가 같으면 다시 읽지 않는다(프로세스 안 캐시, 키는 경로, 수정 시각, 크기).
 
 ### 4.3 도구 변경과 재광고 기준
 

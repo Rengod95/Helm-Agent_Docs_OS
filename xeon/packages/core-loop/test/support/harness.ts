@@ -76,6 +76,8 @@ export interface HarnessOptions {
   readonly agents?: LoopDeps["agents"];
   /** 조립 재료·광고·스킬 읽기의 측정 싱크. 생략하면 측정 값을 만들지 않는다 */
   readonly contextTrace?: LoopDeps["contextTrace"];
+  /** 턴 시작 지침 절 원천. 생략하면 루프에 원천이 없다(절은 `{}`) */
+  readonly instructionSectionsOf?: LoopDeps["instructionSectionsOf"];
 }
 
 export interface Harness {
@@ -210,6 +212,9 @@ async function build(
             ? {}
             : { workingDirectory: options.workingDirectory }),
           ...(options.platform === undefined ? {} : { platform: options.platform }),
+          ...(options.instructionSectionsOf === undefined
+            ? {}
+            : { instructionSectionsOf: options.instructionSectionsOf }),
         });
   await host.host.registerPlatform({
     name: "loop-test-ports",

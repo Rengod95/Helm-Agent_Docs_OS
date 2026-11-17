@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   hasBlockingIssue,
+  restartKeysOf,
   validateProfile,
   type ProfileCatalog,
   type ProfileLibrary,
@@ -32,6 +33,7 @@ interface SettingSpec {
   readonly scopes?: readonly ("profile" | "user" | "managed")[];
   readonly owner?: string | null;
   readonly secret?: boolean;
+  readonly restart?: boolean;
   readonly valid?: (value: unknown) => "ok" | "invalid" | "secret_literal";
 }
 
@@ -42,6 +44,7 @@ function settingOf(spec: SettingSpec): ProfileSettingInfo {
     allowedScopes: [...(spec.scopes ?? ["profile"])],
     secret: spec.secret === true,
     owner: spec.owner ?? null,
+    restart: spec.restart === true,
     checkValue(value) {
       const verdict = valid(value);
       return verdict === "ok"
@@ -53,15 +56,21 @@ function settingOf(spec: SettingSpec): ProfileSettingInfo {
 
 function catalogOf(
   settings: readonly ProfileSettingInfo[],
-  options: { readonly secrets?: readonly string[]; readonly managedOff?: readonly string[] } = {},
+  options: {
+    readonly secrets?: readonly string[];
+    readonly managedOff?: readonly string[];
+    readonly stopped?: readonly string[];
+  } = {},
 ): ProfileCatalog {
   const byKey = new Map(settings.map((item) => [item.key, item] as const));
   const secrets = new Set(options.secrets ?? []);
   const managedOff = new Set(options.managedOff ?? []);
+  const stopped = new Set(options.stopped ?? []);
   return {
     lookup: (key) => byKey.get(key),
     secretExists: (name) => secrets.has(name),
     managedDisabled: (plugin) => managedOff.has(plugin),
+    unavailable: (plugin) => stopped.has(plugin) || managedOff.has(plugin),
   };
 }
 
@@ -107,6 +116,20 @@ test("replace_conflict: two plugins in the resolved list that replace the same b
   );
   expect(issues).toEqual([
     { code: "replace_conflict", severity: "error", plugin: "b", other: "a", tool: "web.fetch" },
+  ]);
+});
+
+test("driver_unavailable: a start drive that is stopped or managed off is a warning that it will not start", () => {
+  const library = libraryOf([entry("runner", { drives: true })]);
+  const profile = { plugins: [{ name: "runner" }], settings: [], startDrive: "runner" };
+  expect(
+    validateProfile(profile, NO_COMMON, library, catalogOf([], { stopped: ["runner"] })),
+  ).toEqual([{ code: "driver_unavailable", severity: "warning", plugin: "runner" }]);
+  expect(
+    validateProfile(profile, NO_COMMON, library, catalogOf([], { managedOff: ["runner"] })),
+  ).toEqual([
+    { code: "managed_forbidden", severity: "warning", plugin: "runner" },
+    { code: "driver_unavailable", severity: "warning", plugin: "runner" },
   ]);
 });
 
@@ -298,4 +321,33 @@ test("the common set is resolved before the profile; a setting from the common s
   ]);
   expect(hasBlockingIssue(issues)).toBe(true);
   expect(hasBlockingIssue([{ code: "required_unset", severity: "warning" }])).toBe(false);
+});
+
+// M5c §4.1.7. 다시 시작해야 적용되는 키는 카탈로그 정의의 `runtimeChange`에서 온다. 지금 프로필에 허용된 그런 키는 없다
+
+test("restartKeysOf lists the profile settings whose catalog definition needs a restart, once each, in order", () => {
+  const catalog = catalogOf([
+    settingOf({ key: "ext.demo.isolation", owner: "demo", restart: true }),
+    settingOf({ key: "ext.demo.port", owner: "demo", restart: true }),
+    settingOf({ key: "ext.demo.label", owner: "demo" }),
+  ]);
+  expect(
+    restartKeysOf(
+      [
+        { key: "ext.demo.port", value: 1 },
+        { key: "ext.demo.label", value: "a" },
+        { key: "ext.demo.isolation", value: "none" },
+        { key: "ext.demo.isolation", value: "process" },
+      ],
+      catalog,
+    ),
+  ).toEqual(["ext.demo.port", "ext.demo.isolation"]);
+});
+
+test("restartKeysOf leaves out keys the catalog does not define", () => {
+  const catalog = catalogOf([
+    settingOf({ key: "ext.demo.isolation", owner: "demo", restart: true }),
+  ]);
+  expect(restartKeysOf([{ key: "ext.ghost.isolation", value: "none" }], catalog)).toEqual([]);
+  expect(restartKeysOf([], catalog)).toEqual([]);
 });

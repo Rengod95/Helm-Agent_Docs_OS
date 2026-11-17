@@ -2369,6 +2369,8 @@
   "settings.l4.desktop.engine.shutdownGraceMs.label": "Engine shutdown grace period",
   "settings.l4.desktop.window.closeBehavior.help": "With tray, closing the window leaves a menu bar (tray) icon, and the engine and running turns keep going. The icon offers Open, New conversation, and Quit.",
   "settings.l4.desktop.window.closeBehavior.label": "Window close behavior",
+  "settings.l4.host.defaultFolder.help": "Folder that holds one working folder per conversation when none is given. Empty uses the data folder's default-project. Must be an absolute path",
+  "settings.l4.host.defaultFolder.label": "Default folder for conversations without a project",
   "settings.l4.hostService.maxReplayEvents.help": "Events one subscription can replay. Beyond this, subscribe again from a newer position",
   "settings.l4.hostService.maxReplayEvents.label": "Maximum events replayed per subscription",
   "settings.l4.hostService.maxSubscriptionsPerConnection.label": "Subscriptions per connection",

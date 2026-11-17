@@ -23,11 +23,13 @@ import {
   type JsonValue,
 } from "@fresnel/contracts/conversation";
 import {
+  DriveLimitsSchema,
   PLUGIN_HOST_ERROR_KINDS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   PLUGIN_HOST_STDERR_LINE_MAX,
   PLUGIN_HOST_STDERR_LINES_MAX,
   PLUGIN_HOST_MAX_FRAME_BYTES,
+  isPluginHostToEngineNotification,
   type EngineCallParams,
   type HostDisposeParams,
   type HostInitParams,
@@ -55,9 +57,14 @@ import { parseEngineCallParams } from "./engine-calls.ts";
 
 const DEFAULT_IDLE_MS = 60_000;
 const DEFAULT_KILL_GRACE_MS = 2_000;
-const DEFAULT_MAX_RESTARTS = 1;
 const MESSAGE_MAX = 4000;
 const ENCODER = new TextEncoder();
+
+/**
+ * 재시작 한도의 기본. 설정 정의(`x.loading-trust.isolation.maxRestarts`, `restartWindowSec`)의 기본과 같다.
+ * 설정 정의가 이 값을 쓰고, 감독자는 설정 함수가 없을 때 이 값을 쓴다
+ */
+export const PLUGIN_HOST_RESTART_DEFAULTS = { maxRestarts: 3, restartWindowSec: 600 } as const;
 
 /** 감독이 보는 프로세스 상태. `starting`은 띄우고 `host.init`을 기다리는 동안이다 */
 export type PluginHostStatusState = "idle" | "starting" | "running" | "stopped" | "restart_limit";
@@ -65,7 +72,7 @@ export type PluginHostStatusState = "idle" | "starting" | "running" | "stopped" 
 export interface PluginHostStatus {
   readonly state: PluginHostStatusState;
   readonly pid: number | null;
-  /** 연속으로 죽은 횟수. 성공한 호출 응답이 0으로 되돌린다 */
+  /** 창(`restartWindowSec`) 안에서 죽은 횟수. 창 밖으로 나간 죽음은 세지 않는다 */
   readonly deaths: number;
   /** 지금 상태가 된 시각(deps.now) */
   readonly since: number;
@@ -104,6 +111,17 @@ export interface PluginCallOptions {
    * 대리 등록이 호출 때의 디스패치 문맥을 그 호출에 잇는 데 쓴다(isolation/proxy-entry.ts)
    */
   readonly onRequestId?: (id: number) => void;
+  /**
+   * 시간 한도(`deadlineMs`)가 있는 호출의 시계를 넘겨 준다(쓰기 직전, 동기). 시계를 멈추는 동안은 한도에서 빠진다:
+   * 사람을 기다리는 시간(`awaitUser`)으로 플러그인이 죽지 않게 한다. 멈춤은 겹칠 수 있고 마지막 풂에서 이어 간다
+   */
+  readonly onDeadlineClock?: (clock: DeadlineClock) => void;
+}
+
+/** 시간 한도의 시계. `pause`한 만큼 `resume`하면 남은 시간으로 이어 간다 */
+export interface DeadlineClock {
+  pause(): void;
+  resume(): void;
 }
 
 /** 재시작 한도를 넘었을 때 한 번 알린다. 앱은 이 알림으로 플러그인을 끌지 묻는다 */
@@ -130,13 +148,22 @@ export interface PluginHostSupervisorDeps {
   readonly initTimeoutMs: number;
   /** 멈춤 요청 뒤 강제 종료까지 기다리는 시간. 기본 2초 */
   readonly killGraceMs?: number;
-  /** 죽은 뒤 다시 띄우는 횟수. 기본 1 */
-  readonly maxRestarts?: number;
+  /**
+   * 창(`restartWindowSec`초) 안에서 `maxRestarts + 1`번째 종료가 나면 `restart_limit`이다. 죽음을 셀 때마다 부른다
+   * (설정 `x.loading-trust.isolation.maxRestarts`는 live다). 없으면 `PLUGIN_HOST_RESTART_DEFAULTS`
+   */
+  readonly maxRestarts?: () => number;
+  /** 죽음을 세는 창의 길이(초). 죽음을 셀 때마다 부른다. 없으면 `PLUGIN_HOST_RESTART_DEFAULTS` */
+  readonly restartWindowSec?: () => number;
   /** 자식이 보낸 `engine.call`을 처리한다. 등록 라우터(`createEngineCallRouter`)가 맡는다 */
   readonly onEngineCall: (params: EngineCallParams) => Promise<Result<JsonValue, PluginHostError>>;
   readonly onRestartLimit: (info: RestartLimitInfo) => void;
   /** 표준오류 한 줄을 저장하기 전에 거른다(시크릿 마스킹). 던지면 그 줄은 버린다 */
   readonly maskSecrets?: (line: string) => string;
+  /** 자식이 `event.done`으로 알림 처리를 확인했다(`eventKey`). 엔진의 알림 흐름 제어가 미확인 수를 줄인다 */
+  readonly onEventDone?: (eventKey: string) => void;
+  /** 프로세스가 끝났다. 흐름 제어는 여기서 미확인 수를 버리고, 다음 프로세스는 빈 상태로 시작한다 */
+  readonly onProcessEnd?: () => void;
 }
 
 export interface PluginHostSupervisor {
@@ -207,7 +234,11 @@ const DeclSchema = Type.Object({
     }),
   ]),
   hooks: Type.Array(
-    Type.Object({ point: Type.String(), handlerIndex: Type.Integer({ minimum: 0 }) }),
+    Type.Object({
+      point: Type.String(),
+      handlerIndex: Type.Integer({ minimum: 0 }),
+      coalesce: Type.Boolean(),
+    }),
   ),
   tools: Type.Array(Type.Object({ name: Type.String(), def: JsonValueSchema })),
   commands: Type.Array(
@@ -221,7 +252,15 @@ const DeclSchema = Type.Object({
     Type.Object({ customType: Type.String(), module: Type.String(), export: Type.String() }),
   ),
   hasDisposers: Type.Boolean(),
+  hasMigration: Type.Boolean(),
+  drive: Type.Union([
+    Type.Null(),
+    Type.Object({ limits: Type.Union([DriveLimitsSchema, Type.Null()]) }),
+  ]),
 });
+
+/** 자식이 보낸 `event.done`의 params */
+const EventDoneSchema = Type.Object({ eventKey: Type.String() });
 
 const HostInitResultSchema = Type.Object({
   protocolVersion: Type.Integer(),
@@ -365,11 +404,15 @@ function writeFrameError(error: FrameWriteError): CallError {
 export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): PluginHostSupervisor {
   const idleMs = deps.idleMs ?? DEFAULT_IDLE_MS;
   const killGraceMs = deps.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
-  const maxRestarts = deps.maxRestarts ?? DEFAULT_MAX_RESTARTS;
+  const maxRestartsOf =
+    deps.maxRestarts ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.maxRestarts);
+  const restartWindowSecOf =
+    deps.restartWindowSec ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.restartWindowSec);
 
   let state: PluginHostStatusState = "idle";
   let since = deps.now();
-  let deaths = 0;
+  /** 죽은 시각(deps.now)들. 창 밖으로 나간 것은 세기 전에 뺀다 */
+  let deathTimes: number[] = [];
   let nextId = 1;
   let current: Proc | undefined;
   let starting: Promise<Result<Ready, SupervisorError>> | undefined;
@@ -404,11 +447,20 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     proc.timers.add(cancel);
   }
 
+  /** 창 안에서 죽은 시각들. `now` 시점의 창이다(창 밖 죽음은 빠진다, gateway.ts `recordDeath`와 같은 규칙) */
+  function deathsInWindow(now: number): number[] {
+    const windowMs = restartWindowSecOf() * 1000;
+    return deathTimes.filter((at) => at > now - windowMs);
+  }
+
+  /** 죽음 하나를 센다. 창 안의 죽음이 `maxRestarts`를 넘으면 `restart_limit`이다 */
   function recordDeath(reason: PluginProcessFailureReason): void {
-    deaths += 1;
-    if (deaths <= maxRestarts || state === "restart_limit") return;
+    const now = deps.now();
+    deathTimes = [...deathsInWindow(now), now];
+    const count = deathTimes.length;
+    if (count <= maxRestartsOf() || state === "restart_limit") return;
     setState("restart_limit");
-    const notified = attempt(() => deps.onRestartLimit({ deaths, reason, label }));
+    const notified = attempt(() => deps.onRestartLimit({ deaths: count, reason, label }));
     if (!notified.ok) deps.logger.error("plugin_host.restart_limit_handler_failed", {});
   }
 
@@ -514,8 +566,6 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         settled = true;
         proc.pending.delete(id);
         for (const cleanup of cleanups) cleanup();
-        // 성공한 호출 응답은 죽음 셈을 0으로 되돌린다. 시작 응답은 되돌리지 않는다(죽는 시작이 한도를 피하지 못하게)
-        if (outcome.ok && method !== "host.init") deaths = 0;
         resolve(outcome);
         if (proc.pending.size === 0) armIdle();
       };
@@ -536,11 +586,32 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       }
       const deadlineMs = options?.deadlineMs;
       if (deadlineMs !== undefined) {
-        cleanups.push(
-          deps.setTimer(deadlineMs, () => {
+        let remaining = deadlineMs;
+        let startedAt = deps.now();
+        let paused = 0;
+        let cancel: (() => void) | undefined;
+        const arm = (): void => {
+          startedAt = deps.now();
+          cancel = deps.setTimer(remaining, () => {
             timeoutKill(proc, id, "the call passed its deadline");
-          }),
-        );
+          });
+        };
+        arm();
+        cleanups.push(() => cancel?.());
+        options?.onDeadlineClock?.({
+          pause: () => {
+            paused += 1;
+            if (paused !== 1 || cancel === undefined) return;
+            cancel();
+            cancel = undefined;
+            remaining = Math.max(0, remaining - (deps.now() - startedAt));
+          },
+          resume: () => {
+            if (paused === 0) return;
+            paused -= 1;
+            if (paused === 0 && !settled) arm();
+          },
+        });
       }
     });
   }
@@ -550,7 +621,12 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       ? { id, result: outcome.value }
       : {
           id,
-          error: { kind: outcome.error.kind, message: clipTo(outcome.error.message, MESSAGE_MAX) },
+          error: {
+            kind: outcome.error.kind,
+            message: clipTo(outcome.error.message, MESSAGE_MAX),
+            // 엔진 호출 실패의 원래 종류는 자식이 엔진 안과 같은 오류로 되던지는 데 쓴다(isolation-protocol.ts)
+            ...(outcome.error.origin === undefined ? {} : { origin: outcome.error.origin }),
+          },
         };
     const sent = writeFrame(proc, frame);
     if (sent.ok) return;
@@ -592,6 +668,24 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     detach(serveEngineCall(proc, id, params), () => {
       deps.logger.error("plugin_host.engine_call_unhandled", {});
     });
+  }
+
+  /**
+   * 자식이 보낸 알림. 지금은 `event.done`(알림 처리 확인)뿐이라 종류를 나누지 않는다. 모르는 알림은 버린다.
+   * 새 알림을 더하면 이 자리에서 종류를 나눈다
+   */
+  function onChildNotification(method: string, params: unknown): void {
+    if (!isPluginHostToEngineNotification(method)) {
+      deps.logger.debug("plugin_host.notification_ignored", {});
+      return;
+    }
+    const done = parse(EventDoneSchema, params);
+    if (!done.ok) {
+      deps.logger.warn("plugin_host.event_done_invalid", {});
+      return;
+    }
+    const told = attempt(() => deps.onEventDone?.(done.value.eventKey));
+    if (!told.ok) deps.logger.error("plugin_host.event_done_handler_failed", {});
   }
 
   function settleById(proc: Proc, id: number, outcome: Result<JsonValue, CallError>): void {
@@ -640,7 +734,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         answerRequest(proc, frame.id, frame.method, frame.params);
         return;
       case "notification":
-        deps.logger.debug("plugin_host.notification_ignored", {});
+        onChildNotification(frame.method, frame.params);
         return;
       default:
         return assertNever(frame, "ClassifiedFrame");
@@ -693,6 +787,8 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     for (const entry of Array.from(proc.pending.values())) {
       entry.settle(err(exitedError(detail)));
     }
+    const ended = attempt(() => deps.onProcessEnd?.());
+    if (!ended.ok) deps.logger.error("plugin_host.process_end_handler_failed", {});
     const reason = proc.endReason;
     deps.logger.info("plugin_host.exited", {
       reason: reason ?? "unexpected",
@@ -839,7 +935,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       return Promise.resolve(
         err({
           kind: "restart_limit",
-          message: `the plugin host died ${deaths} times; it is not restarted`,
+          message: `the plugin host died ${deathTimes.length} times in the restart window; it is not restarted`,
         }),
       );
     }
@@ -890,7 +986,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       return {
         state,
         pid: proc !== undefined && !proc.exited ? proc.child.pid : null,
-        deaths,
+        deaths: deathsInWindow(deps.now()).length,
         since,
       };
     },

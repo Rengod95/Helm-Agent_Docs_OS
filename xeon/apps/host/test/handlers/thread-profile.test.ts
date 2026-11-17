@@ -104,9 +104,10 @@ test("profile.delete reports how many open threads referenced the profile", asyn
   await connection.request("profile.put", { profile: REVIEW, baseRev: null });
   await connection.request("thread.create", { profileId: "review" });
   await connection.request("thread.create", { profileId: "review" });
+  // 세 번째 대화는 프로필을 주지 않았다. 기본 값은 같은 폴더의 가장 최근 대화(review)다(review m5 §4.4.8)
   await connection.request("thread.create", {});
   expect(await connection.request("profile.delete", { id: "review" })).toMatchObject({
-    reassignedThreads: 2,
+    reassignedThreads: 3,
   });
   await connection.close();
 });

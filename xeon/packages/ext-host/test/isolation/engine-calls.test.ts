@@ -1,34 +1,71 @@
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
 import type { Result } from "@fresnel/contracts";
+import {
+  CapabilityError,
+  type CapabilityErrorData,
+  type ServiceKey,
+} from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import type {
-  EngineCallParams,
-  PluginHostError,
-  RegistrationApi,
+import {
+  PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES,
+  type DriveCommand,
+  type EngineCallParams,
+  type PluginHostError,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
-import { createEngineCallRouter, parseEngineCallParams } from "../../src/isolation/engine-calls.ts";
+import {
+  createEngineCallRouter,
+  parseEngineCallParams,
+  type OpenWaits,
+} from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
+import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeUnit } from "../primitives/fixtures/support.ts";
+import { echoDefs, makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
 
 const REGISTRATION = "ext-state";
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
+const ECHO_KEY: ServiceKey<{ echo(input: unknown): Promise<unknown> }> = {
+  capability: "demo.echo",
+  version: "1.0.0",
+};
+/** 공급자가 던지는 기능 오류의 데이터. 시험마다 `echo.thrown`으로 바꿀 수 있다 */
+const ECHO_ERROR: CapabilityErrorData = {
+  capability: "demo.echo",
+  method: "echo",
+  code: "unavailable",
+  message: "every provider failed",
+  retryable: true,
+  detail: { tried: 2 },
+};
 
 /**
  * 실제 확장 호스트에 등록 하나를 올리고, 그 `g`로 라우터를 만든다. 라우터는 디스패치 안에서 불린다.
- * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다
+ * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다.
+ * `withEcho`이면 `demo.echo` 공급자를 올리고 등록이 그 기능을 요구한다. 공급자가 던질 값은 `echo.thrown`이다
  */
-async function rig(replayId: number | null = null) {
-  const t = await createTestHost();
+async function rig(replayId: number | null = null, withEcho = false, waits?: OpenWaits) {
+  // 공급자의 메서드 정의(멱등 `echo`)가 있어야 가드가 재실행 문맥에서도 기능 호출을 통과시킨다
+  const t = await createTestHost(withEcho ? { capabilityDefs: echoDefs } : {});
   const thread = t.newThread();
   await t.host.openThread(thread);
+  const echo: { thrown: Error } = { thrown: new CapabilityError(ECHO_ERROR) };
+  if (withEcho) {
+    await t.host.install(
+      makeUnit({ name: "ext-echo", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+        hostOf(g).provide(ECHO_KEY, { echo: () => Promise.reject(echo.thrown) });
+      }),
+    );
+  }
   const slot: { g?: RegistrationApi<AnyState> } = {};
   await t.host.install(
     makeUnit<AnyState>(
       {
         name: REGISTRATION,
         usesPost: true,
+        loadIndex: withEcho ? 1 : 0,
+        ...(withEcho ? { requires: [{ id: "demo.echo", range: "^1.0.0" }] } : {}),
         def: {
           state: {
             schema: Type.Object({ count: Type.Number() }),
@@ -54,6 +91,7 @@ async function rig(replayId: number | null = null) {
   const router = createEngineCallRouter({
     gOf: (registration) => (registration === REGISTRATION ? slot.g : undefined),
     replayOf: (requestId) => requestId !== null && requestId === replayId,
+    ...(waits === undefined ? {} : { waitsOf: () => waits }),
   });
   let seq = 0;
   /** `work`를 디스패치 안에서 한 번 실행하고 그 값을 돌려준다. 스레드와 등록의 ambient 문맥이 있는 자리다 */
@@ -81,7 +119,17 @@ async function rig(replayId: number | null = null) {
       return slot.g.state();
     });
   }
-  return { call, stateNow };
+  return { call, stateNow, echo };
+}
+
+/** 공급자의 `echo`를 부르는 기능 호출 params */
+function capabilityCall(): EngineCallParams {
+  return callOf("capability", {
+    key: { capability: "demo.echo", version: "1.0.0" },
+    member: "echo",
+    input: { text: "hi" },
+    options: { requestId: "cap:1" },
+  });
 }
 
 function callOf(
@@ -247,6 +295,51 @@ test("a capability call outside a replay goes through the guarded service and re
   expect(refused.message).toMatch(/^capability_undeclared: /);
 });
 
+test("a capability error from a provider answers engine_call_failed with its code and data as origin", async () => {
+  const { call } = await rig(null, true);
+  expect(errorOf(await call(capabilityCall()))).toEqual({
+    kind: "engine_call_failed",
+    message: "unavailable: every provider failed",
+    origin: { kind: "capability", data: ECHO_ERROR },
+  });
+});
+
+test("a capability error whose detail is over the protocol limit answers without the detail and keeps the rest", async () => {
+  const { call, echo } = await rig(null, true);
+  echo.thrown = new CapabilityError({
+    ...ECHO_ERROR,
+    detail: "x".repeat(PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES),
+  });
+  expect(errorOf(await call(capabilityCall())).origin).toEqual({
+    kind: "capability",
+    data: {
+      capability: "demo.echo",
+      method: "echo",
+      code: "unavailable",
+      message: "every provider failed",
+      retryable: true,
+    },
+  });
+});
+
+test("a primitive error answers engine_call_failed with its code and the registration as origin", async () => {
+  const { call } = await rig();
+  expect(errorOf(await call(callOf("commit", { count: "not a number" }))).origin).toEqual({
+    kind: "primitive",
+    code: "state_schema",
+    scopeId: REGISTRATION,
+  });
+});
+
+test("an error that is neither a capability nor a primitive error answers without an origin", async () => {
+  const { call, echo } = await rig(null, true);
+  echo.thrown = new Error("boom");
+  expect(errorOf(await call(capabilityCall()))).toEqual({
+    kind: "engine_call_failed",
+    message: "boom",
+  });
+});
+
 test("a malformed capability key is invalid_params", async () => {
   const { call } = await rig();
   expect(
@@ -319,4 +412,162 @@ test("parseEngineCallParams accepts a known method and refuses an unknown one", 
     params: {},
   });
   expect(unknown.ok).toBe(false);
+});
+
+test("updateState commits when the engine's state is the one the handler read", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: 1 }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "committed", state: { count: 1 } } });
+  expect(await stateNow()).toEqual({ count: 1 });
+});
+
+test("updateState answers conflict with the engine's current state and commits nothing", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 5 }, next: { count: 6 }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "conflict", current: { count: 0 } } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("updateState answers a state the schema refuses as a failed value with its kind", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: "x" }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "failed", failure: "state_schema" } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("updateState in a replay answers the input state and leaves the state unchanged", async () => {
+  const { call, stateNow } = await rig(7);
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: 9 }, records: [] }, 7),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "committed", state: { count: 9 } } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("awaitUser without a request context answers null and changes nothing", async () => {
+  const { call, stateNow } = await rig();
+  expect(await call(callOf("awaitUser", { phase: "begin" }))).toEqual({ ok: true, value: null });
+  expect(await call(callOf("awaitUser", { phase: "end" }))).toEqual({ ok: true, value: null });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("awaitUser pauses the request's deadline clock from begin to end, as many times as it began", async () => {
+  const log: string[] = [];
+  const waits: OpenWaits = {
+    count: 0,
+    clock: {
+      pause: () => log.push("pause"),
+      resume: () => log.push("resume"),
+    },
+  };
+  const { call } = await rig(null, false, waits);
+  await call(callOf("awaitUser", { phase: "begin" }));
+  await call(callOf("awaitUser", { phase: "begin" }));
+  expect(waits.count).toBe(2);
+  await call(callOf("awaitUser", { phase: "end" }));
+  await call(callOf("awaitUser", { phase: "end" }));
+  // 끝 신호가 더 와도 풀 것이 없다
+  await call(callOf("awaitUser", { phase: "end" }));
+  expect(waits.count).toBe(0);
+  expect(log).toEqual(["pause", "pause", "resume", "resume"]);
+});
+
+/** 드라이브가 있는 등록 `drv-q`와 라우터 하나. `inDispatch`는 디스패치 안에서(thread 문맥이 있는) 라우터를 부르고, 밖에서는 `router`를 직접 부른다 */
+async function driveRig() {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const slot: { g?: RegistrationApi<AnyState> } = {};
+  /** 드라이브 단계가 본 시작 요청. 단계가 열린 thread의 임대 등록도 함께 본다 */
+  const seen: { input: JsonValue | null; calledBy: string | null; scope: string | undefined }[] =
+    [];
+  await t.host.install(
+    makeGroupUnit<AnyState>({ name: "drv-q" }, (g) => {
+      slot.g = g;
+      g.drive(({ frame }) => {
+        seen.push({
+          input: frame.input,
+          calledBy: frame.calledBy,
+          scope: t.host.leaseOf(thread)?.scopeId,
+        });
+        const stop: DriveCommand<AnyState> = { do: "yield" };
+        return Promise.resolve(stop);
+      });
+    }),
+  );
+  const probe: { run: () => Promise<void> } = { run: async () => {} };
+  await t.host.install(
+    makeUnit({ name: "ext-probe-q", hooks: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", async () => {
+        await probe.run();
+        return undefined;
+      });
+    }),
+  );
+  let replay = false;
+  const router = createEngineCallRouter({
+    gOf: (registration) => (registration === "drv-q" ? slot.g : undefined),
+    replayOf: () => replay,
+  });
+  let seq = 0;
+  async function inDispatch(params: EngineCallParams): Promise<Result<JsonValue, PluginHostError>> {
+    const slotReply: { value?: Result<JsonValue, PluginHostError> } = {};
+    probe.run = async () => {
+      slotReply.value = await router(params);
+    };
+    seq += 1;
+    await t.host.dispatch("tool.call.before", toolCall, {
+      threadId: thread,
+      dispatchKey: `probe-drv-q:${seq}`,
+    });
+    if (slotReply.value === undefined) throw new Error("the probe handler did not run");
+    return slotReply.value;
+  }
+  return {
+    t,
+    seen,
+    router,
+    inDispatch,
+    setReplay: (value: boolean): void => {
+      replay = value;
+    },
+  };
+}
+
+function startDriveOf(input: JsonValue | null, requestId: number | null = null): EngineCallParams {
+  return { method: "startDrive", registration: "drv-q", requestId, params: { input } };
+}
+
+test("startDrive in a dispatch queues the start request on that thread, and the drive step sees its input as a user request", async () => {
+  const { t, seen, inDispatch } = await driveRig();
+  expect(await inDispatch(startDriveOf({ topic: "t" }))).toEqual({
+    ok: true,
+    value: { ok: true },
+  });
+  await t.settled();
+  expect(seen).toEqual([{ input: { topic: "t" }, calledBy: null, scope: "drv-q" }]);
+});
+
+test("startDrive outside any request context answers no_context as a value and queues nothing", async () => {
+  const { t, seen, router } = await driveRig();
+  expect(await router(startDriveOf(null))).toEqual({
+    ok: true,
+    value: { ok: false, error: { kind: "no_context" } },
+  });
+  await t.settled();
+  expect(seen).toEqual([]);
+});
+
+test("a replayed startDrive answers ok without queueing a start request", async () => {
+  const { t, seen, inDispatch, setReplay } = await driveRig();
+  setReplay(true);
+  expect(await inDispatch(startDriveOf(null, 7))).toEqual({ ok: true, value: { ok: true } });
+  await t.settled();
+  expect(seen).toEqual([]);
 });

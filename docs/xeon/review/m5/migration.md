@@ -484,7 +484,7 @@ interface ReportLine {
 
 ### 6.2 프로젝트 지침 파일: Fresnel이 직접 읽는 것
 
-제거 뒤 Fresnel이 프로젝트에서 다른 하네스 쪽 파일 이름으로 읽는 것은 **`AGENTS.md` 하나뿐**이다. 정확한 규칙은 M5c §4.4.7이 정한다: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모으고, 모델 문맥에는 `sections["project:<R 기준 상대 경로>"]`로 파일 내용 그대로 넣으며(머리말이나 설명을 더하지 않는다), 파일 하나가 `l1.context.instructionFiles.maxBytes`(기본 65536)를 넘으면 싣지 않고 진단만 남기고, R 밖으로 나가는 심볼릭 링크는 읽지 않는다. 지금 코드는 `AGENTS.md`를 읽지 않는다(`core-loop/src/loop/prepare-request.ts:95`가 `sections: {}`, `trust/resources.ts:17` 주석이 "`AGENTS.md` 같은 컨텍스트 파일은 목록에 없다"고 적는다). 읽기는 M5c-1이 새로 만든다.
+제거 뒤 Fresnel이 프로젝트에서 다른 하네스 쪽 파일 이름으로 읽는 것은 **`AGENTS.md` 하나뿐**이다. 정확한 규칙은 M5c §4.4.7이 정한다: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모으고, 모델 문맥에는 `sections["project:<R 기준 상대 경로>"]`로 파일 내용 그대로 넣으며(머리말이나 설명을 더하지 않는다), 파일 하나가 `l1.context.instructionFiles.maxBytes`(기본 65536)를 넘으면 싣지 않고 진단만 남기고, R 밖으로 나가는 심볼릭 링크는 읽지 않는다. 이 구현(2026-11-18)으로 `AGENTS.md`를 턴 시작에 읽는다(`L1.context.spec` §4.2a). 신뢰 목록 주석(`trust/resources.ts:17`)은 그대로 맞다.
 
 이 문서의 선택 [결정: 2026-11-18 사용자]:
 

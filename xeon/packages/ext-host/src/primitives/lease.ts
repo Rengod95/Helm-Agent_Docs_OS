@@ -59,6 +59,7 @@ import {
   type StartRequest,
   type ThreadRuntime,
 } from "./core.ts";
+import { isPluginProcessError } from "../isolation/errors.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { shouldSwitchNow } from "./switch-policy.ts";
@@ -1205,19 +1206,32 @@ export function createLeaseBroker(
         if (lease.status === "releasing") hooks.requestApply(thread.threadId);
         return;
       }
-      record.driveError = true;
-      record.lastError = {
-        code: error instanceof PrimitiveError ? error.code : "registration_setup_failed",
-        message: error instanceof Error ? error.message : "drive step threw",
-      };
-      core.deps.report({
-        level: "error",
-        code: error instanceof PrimitiveError ? error.code : "handler_failed",
-        scopeId: lease.scopeId,
-        extension: record.extension,
-        message: "drive step threw; lease released with error",
-        cause: error,
-      });
+      // 프로세스가 끝나서(종료, 시간 초과) 생긴 실패는 등록을 고장으로 표시하지 않는다. 감독이 한 번 다시 띄우고, 다음 시작 요청이
+      // 새 프레임을 맡는다(drive-isolation.md 3.3). 그 밖의 던짐은 단계 오류다
+      if (isPluginProcessError(error)) {
+        core.deps.report({
+          level: "error",
+          code: error.reason,
+          scopeId: lease.scopeId,
+          extension: record.extension,
+          message: "drive step ended with its plugin process; lease released with error",
+          cause: error,
+        });
+      } else {
+        record.driveError = true;
+        record.lastError = {
+          code: error instanceof PrimitiveError ? error.code : "registration_setup_failed",
+          message: error instanceof Error ? error.message : "drive step threw",
+        };
+        core.deps.report({
+          level: "error",
+          code: error instanceof PrimitiveError ? error.code : "handler_failed",
+          scopeId: lease.scopeId,
+          extension: record.extension,
+          message: "drive step threw; lease released with error",
+          cause: error,
+        });
+      }
       release(lease, "error");
       hooks.requestApply(thread.threadId);
       return;

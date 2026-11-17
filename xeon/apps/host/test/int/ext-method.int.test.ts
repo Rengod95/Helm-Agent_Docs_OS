@@ -11,6 +11,7 @@ import { isRecord, rawClient, type RawClient } from "../fixtures/raw-client.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 
 // X-2, X-3, X-9: 조립된 호스트가 실제로 설치한 Helm 플러그인의 `ext.helm.status|inquiries|findings`에 wire로 답한다.
 // 닫힌 처리기 표 밖의 이름이 연결 층에서 X의 `ExtHost.methods`로 가고, 결과는 매니페스트 선언으로 검사된다. 모델은 테이프다.
@@ -96,6 +97,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
+      pluginHost: isolatedPluginHost(),
     });
     const raw = rawClient(host.client);
     await call(raw, "host.hello", { ...HELLO_PARAMS });
@@ -184,6 +186,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(inquiryPlayer())),
+      pluginHost: isolatedPluginHost(),
     });
     const rawAgain = rawClient(again.client);
     await call(rawAgain, "host.hello", { ...HELLO_PARAMS });

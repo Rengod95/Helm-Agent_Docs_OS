@@ -14,7 +14,7 @@ import {
   type LogValue,
   type Logger,
 } from "@fresnel/contracts";
-import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { IdFactory, LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   LeaseHolder,
   LeaseToken,
@@ -70,6 +70,7 @@ import type {
   WithdrawFailure,
 } from "../types.ts";
 import { threadLocked } from "../handlers/owner.ts";
+import { wireErrorOfProject } from "../handlers/m4/project.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
@@ -96,8 +97,13 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
-import type { RegistrationId } from "@fresnel/contracts/extensions";
+import {
+  pluginDeclsOf,
+  registrationIdOf,
+  type RegistrationId,
+} from "@fresnel/contracts/extensions";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -147,6 +153,10 @@ export interface PortsDeps {
   readonly configDir: string;
   /** 호스트 상태 디렉터리(L0.os의 `dirs.state`). 프로필 옮김 기록 `migration.log`가 여기에 놓인다 */
   readonly stateDir: string;
+  /** `OsDirs.data`. 프로젝트 없는 대화의 기본 폴더(`default-project`)가 여기에 놓인다(review m5 §4.4.5) */
+  readonly dataDir: string;
+  /** 지역 접두 id 발급(`prj_`). 프로젝트 id에 쓴다 */
+  readonly localIds: LocalIdFactory;
   /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 설정 파일 쓰기가 이 안에서 일어난다(M3-REQ-82) */
   readonly fileLock: FileLock;
   readonly trust: ProjectTrust;
@@ -355,9 +365,22 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const profile = await ports.m4.profileTestRun.get(profileId);
     if (!profile.ok || profile.value.startDrive === null) return undefined;
     const named = profile.value.startDrive;
-    return deps.ext
-      .registrations()
-      .find((info) => info.extension === named && info.drive !== "none")?.id;
+    const registrations = deps.ext.registrations();
+    // 세대는 대화가 그 플러그인을 켤 때 열리므로 첫 열기에서는 아직 "none"일 수 있다. 매니페스트가 주도를 선언한 Registration을 먼저 본다
+    const record = deps.extRead.extensions().find((one) => one.manifest.name === named);
+    const declared = new Set(
+      pluginDeclsOf(record?.manifest ?? {})
+        .filter((decl) => decl.drives === true)
+        .map((decl) => registrationIdOf({ name: named }, decl.id)),
+    );
+    const found =
+      registrations.find((info) => info.extension === named && declared.has(info.id))?.id ??
+      registrations.find((info) => info.extension === named && info.drive !== "none")?.id;
+    // 조용히 넘어가지 않는다: 이 대화는 시작 Drive 없이 열린다. 같은 사유는 `profile.preview`의 이슈(`driver_unavailable` 등)로도 보인다
+    if (found === undefined) {
+      logger.warn("profile.start_drive_unavailable", { profileId, plugin: named, threadId });
+    }
+    return found;
   }
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
   function isTestRunThread(threadId: ThreadId): boolean {
@@ -366,6 +389,45 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     testRunThreads.add(threadId);
     return true;
   }
+
+  /** 모든 대화(닫힌 것 포함)를 최근순으로. Test run 표지를 붙인다(프로젝트 소속과 프로필 기본값의 원천) */
+  function allThreadRows(): ProjectThreadRow[] {
+    const rows: ProjectThreadRow[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = session.threads.list({
+        includeClosed: true,
+        limit: 200,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      for (const row of page.threads) {
+        rows.push({
+          threadId: row.threadId,
+          workspace: row.workspace,
+          status: row.status,
+          profileId: row.profileId ?? null,
+          updatedAt: row.updatedAt,
+          testRun: isTestRunThread(row.threadId),
+        });
+      }
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+    return rows;
+  }
+  // 프로젝트 포트(review m5 §4.4). 설정과 저장소 폴더는 조립이 넘기고, 대화 목록은 위 원천이다
+  const projects = createProjectPort({
+    configDir: deps.configDir,
+    dataDir: deps.dataDir,
+    fileLock: deps.fileLock,
+    clock: deps.clock,
+    signal: deps.signal,
+    ids: deps.localIds,
+    settingValue: (key) => deps.settings.value(key),
+    threadRows: allThreadRows,
+    report: (message, fields) => {
+      log.error(message, fields);
+    },
+  });
 
   const threads: ThreadPort = {
     async create(input) {
@@ -378,6 +440,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }
       // 같은 creationKey의 재생이면 세션이 처음 thread의 id를 돌려준다. 여기서 발급한 id는 쓰이지 않고 버려진다
       const threadId = deps.ids.next("thr");
+      // 작업 폴더가 없으면 기본 폴더 아래 `<threadId>` 폴더를 만든다(review m5 §4.4.5). 재생이면 빈 폴더 하나가 남는다
+      if (workspace === undefined && input.defaultFolder === true) {
+        const folder = await projects.defaultWorkspace(threadId);
+        if (!folder.ok) throw wireErrorOfProject(folder.error);
+        workspace = folder.value;
+      }
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
@@ -398,6 +466,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     exists(threadId) {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value !== undefined) : found;
+    },
+    workspaceOf(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok ? ok(found.value?.workspace ?? null) : found;
     },
     async list(params) {
       // 필터는 저장된 값(정규 경로)과 같은 형태로 견준다(HS-76)
@@ -1011,6 +1083,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         threads,
         dialogArea: deps.dialogArea,
         log,
+        projects,
       },
       {
         catalog: deps.settings.catalog,
@@ -1029,6 +1102,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           },
         },
         registrations: () => deps.ext.registrations(),
+        // 오류로 멈춘 확장(M5c §4.1.12). 자동 끄기 장부가 든 `ext:<이름>`이다
+        stopped: (name) => deps.extRead.operations.autoDisabler.disabled().includes(`ext:${name}`),
+        // 대화의 프로필 설정 값이 바뀌면 설정 구독자(wire 알림, 확장 구독)에게 바뀐 키를 전한다
+        settingsChanged: (change) => {
+          deps.settings.notifyChanged({
+            keys: [...change.keys],
+            scopes: [...change.scopes],
+            threadId: change.threadId,
+          });
+        },
         configDir: deps.configDir,
         stateDir: deps.stateDir,
         secretNames: async () => {
@@ -1040,6 +1123,18 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         },
         openThreadProfiles: () => openThreadProfilesOf(session),
         openThreadIds: () => openThreadIdsOf(session),
+        driveFramePlugins: (threadId) =>
+          deps.ext
+            .driveFrames(threadId)
+            .flatMap((frame) => (frame.plugin === null ? [] : [frame.plugin])),
+        // 대화의 모델 참조로 main 역할을 풀어 캐시 정책을 읽는다(`core-loop`의 `roleOf`와 같은 기준). 없으면 undefined
+        cachePolicyOf: (threadId) => {
+          const found = session.query.thread(threadId);
+          if (!found.ok || found.value === undefined) return undefined;
+          const ref = found.value.model;
+          const resolved = deps.models.resolve("main", ref === undefined ? {} : { ref });
+          return resolved.ok ? resolved.value.cachePolicy : undefined;
+        },
         forcedPlugins: () => deps.pluginsForced?.() ?? [],
         // 번들 기본 플러그인(`DEFAULT_PLUGIN_NAMES`)은 기본 프로필에 항상 든다. 나머지는 m4가 등급으로 더한다(§4.1.2)
         defaultPlugins: () => [...DEFAULT_PLUGIN_NAMES],

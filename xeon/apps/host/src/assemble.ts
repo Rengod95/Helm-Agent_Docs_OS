@@ -148,6 +148,7 @@ import {
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
   bundledPluginVersionOf,
+  DEFAULT_PLUGIN_NAMES,
   defaultPluginNamesFor,
   installDefaultPlugins,
   installedAgentDefinitions,
@@ -162,6 +163,9 @@ import {
   sandboxSourceOf,
 } from "./assembly/plugin-host.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
+import { runFirstStartMigration, threadRowsOf } from "./assembly/m4/first-start-migration.ts";
+import { coreNamesOf, factoryPluginsOf } from "./assembly/m4/index.ts";
+import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
@@ -639,7 +643,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     ports: {
       get: (key) => late.host?.ports.get(key),
     },
-    notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+    // 엔진이 확장을 멈추면 열린 대화의 E(T)에서 빠지도록 다시 맞춘다(M5c §4.1.12). 포트는 아래에서 만들어진다(호출 때 읽는다)
+    notifier: observeStops(
+      createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+      () => portsHandle?.ports.m4.pluginSet.recomputeAll(),
+    ),
     log: logOperations,
     // 답할 화면(연결된 클라이언트)이 없으면 자동 끄기 기준을 넘어도 묻지도 끄지도 않는다(X.operations §4.3.3)
     canAsk: () => options.hasClient?.() === true,
@@ -1010,6 +1018,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
+    // 대화의 프로젝트 루트(M5c §4.4.7): 작업 폴더를 포함하는 가장 깊은 루트다. 기본 폴더 대화는 기본 폴더가 루트다. 포트가 아직 없으면 없다
+    const projectRootOfThread = (threadId: ThreadId): string | undefined => {
+      const workspace = workspaceOf(threadId);
+      return workspace === undefined
+        ? undefined
+        : portsHandle?.ports.m4.project.rootOfWorkspace(workspace);
+    };
     const commands: CommandRegistryHolder = {
       current: undefined,
       api: undefined,
@@ -1144,6 +1159,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         settings,
         workspaceOf,
+        projectRootOf: projectRootOfThread,
         openedSkillPaths: openedSkillPathsOf(ext),
         db: store.value.root,
         faults: store.value.faults,
@@ -1167,6 +1183,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
           onEnabled: (id) => {
             operations.autoDisabler.clearLedger(`ext:${id}`);
+            // 자동 끄기 장부를 비우면 멈춘 확장이 다시 E(T)에 들 수 있다(M5c §4.1.12)
+            portsHandle?.ports.m4.pluginSet.recomputeAll();
           },
           onService: (service) => {
             groupServiceSlot.current = service;
@@ -1246,14 +1264,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }
       // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
       // 격리 확장: 띄우기 포트(fresnel.process)와 띄우기 설정이 둘 다 있어야 격리가 켜진다(L4.host-service.spec §4.9)
-      const processPort = processPortOf(ext);
       const pluginHosts = createPluginHostAssembly({
         scheduler: os.time.scheduler,
         logger: os.logger("plugin-host"),
         maskSecrets: (line) => secrets.service.redactor.mask(line).text,
         autoDisabler: operations.autoDisabler,
+        processPort: processPortOf(ext),
+        stateDir: os.dirs.state,
+        settingValue: (key) => settings.value(key),
+        now: () => clock.now(),
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
+        ...(options.pluginHost?.onSupervisor === undefined
+          ? {}
+          : { onSupervisor: options.pluginHost.onSupervisor }),
       });
+      // 엔진이 죽고 남은 플러그인 호스트 자식을 먼저 정리한다(L4.host-service §4.9, drive-isolation.md §3.6). 던지지 않는다
+      if (options.pluginHost?.disabled !== true) await pluginHosts.sweepOrphans();
       const loaded = await loadExternalExtensions({
         ext,
         operations,
@@ -1268,9 +1294,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그래서 키가 카탈로그에 없으면 사용자 파일의 값을 읽는다(ext-settings.ts)
         settings: extSettingsOf(built.catalog, settings),
         // 시험이 끄면 포트와 설정을 둘 다 넘기지 않는다(그러면 사용자 확장은 엔진 안에서 돈다)
-        ...(processPort === undefined || options.pluginHost?.disabled === true
+        ...(pluginHosts.process === undefined || options.pluginHost?.disabled === true
           ? {}
-          : { process: processPort }),
+          : { process: pluginHosts.process }),
         ...(options.pluginHost?.disabled === true ? {} : { isolation: pluginHosts.isolation }),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
@@ -1368,6 +1394,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
     settings.bindWorkspaces(workspaceOf);
+    // 프로필 층(M5c §4.1.7): 대화가 참조한 프로필과 공통 묶음의 값. 복사는 집합 쪽이 메모리에 둔다
+    settings.bindProfiles((threadId) => portsHandle?.ports.m4.pluginSet.settingsOf(threadId));
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
@@ -1380,6 +1408,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       session,
       usage: models.usage,
       trace: traceReadOf(ext),
+      // 턴 시작 프로필 값의 원천. 포트는 아래에서 만들어진다(호출 때 읽는다)
+      pluginSet: () => portsHandle?.ports.m4.pluginSet.port,
       enabled: () => operations.trace().enabled,
       logger,
       now: () => clock.now(),
@@ -1499,6 +1529,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
       configDir: os.dirs.config,
       stateDir: os.dirs.state,
+      dataDir: os.dirs.data,
+      localIds,
       fileLock: osHandle.fileLock,
       trust: projectTrust,
       afterSettingsPrepare: (threadId) => externalHooks.sync(threadId),
@@ -1517,6 +1549,28 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       signal: lifetime.signal,
     });
     scheduleRunner.ports = portsHandle.ports;
+    const enginePorts = portsHandle.ports;
+    // 첫 시작 옮김(M5c §7). 한 번만 돌고 표지를 `migration.log`에 남긴다. 프로필 옮김과 사용자 설정 옛 키 지우기는 같은 읽기 값을 쓴다
+    const firstStart = await runFirstStartMigration({
+      configDir: os.dirs.config,
+      stateDir: os.dirs.state,
+      settingsPath: settings.userPath() ?? join(os.dirs.config, "settings.json"),
+      fileLock: osHandle.fileLock,
+      clock,
+      signal: lifetime.signal,
+      ids: localIds,
+      catalog: built.catalog,
+      factoryPlugins: () => factoryPluginsOf(DEFAULT_PLUGIN_NAMES, extensionRecords()),
+      coreNames: () => coreNamesOf(extensionRecords()),
+      threads: () =>
+        threadRowsOf(
+          session,
+          (threadId) => enginePorts.m4.profileTestRun.testRunMarker(threadId) !== undefined,
+        ),
+      roots: () => enginePorts.m4.project.roots(),
+      refreshUserSettings: () => enginePorts.settings.refreshUserFile(),
+    });
+    for (const failure of firstStart.failures) logger.warn("migration.failed", { failure });
     // 다른 프로세스가 사용자 설정 파일을 바꾸면 메모리 층을 다시 읽고 알린다(M3-REQ-49)
     const userSettingsPath = settings.userPath();
     const settingsPort = portsHandle.ports.settings;

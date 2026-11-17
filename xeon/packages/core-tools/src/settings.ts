@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineSettings,
   SCOPE_PRECEDENCE,
@@ -230,6 +231,11 @@ export const TOOLS_SETTING_DEFS: readonly SettingDef[] = Object.values(group.def
 /** 설정 층을 돌려준다. 파일 범위(managed, user, project, local)는 조립 루트가 읽어 넘긴다 */
 export interface ToolsSettingsSource {
   layers(): ScopeStack;
+  /**
+   * 대화가 참조한 프로필의 `profile` 범위 층(M5c §4.1.7). 대화마다 다르므로 대화 밖 읽기(`layers`)에는 없다.
+   * 없으면 그 대화는 아래 층의 값을 쓴다
+   */
+  profileLayer?(threadId: ThreadId): ScopeLayer | undefined;
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {

@@ -2369,6 +2369,8 @@
   "settings.l4.desktop.engine.shutdownGraceMs.label": "엔진 종료 대기 시간",
   "settings.l4.desktop.window.closeBehavior.help": "트레이로 두면 창을 닫아도 메뉴 막대(트레이) 아이콘이 남고 엔진과 진행 중인 턴이 계속돼요. 아이콘이 열기, 새 대화, 끝내기를 줘요.",
   "settings.l4.desktop.window.closeBehavior.label": "창 닫기 동작",
+  "settings.l4.host.defaultFolder.help": "작업 폴더 없이 만든 대화마다 이 아래에 작업 폴더를 하나씩 만들어요. 비워 두면 데이터 폴더의 default-project를 써요. 절대 경로여야 해요.",
+  "settings.l4.host.defaultFolder.label": "프로젝트 없는 대화의 기본 폴더",
   "settings.l4.hostService.maxReplayEvents.help": "구독 한 번에 다시 보낼 수 있는 이벤트 수예요. 넘으면 새 위치에서 다시 구독해야 해요.",
   "settings.l4.hostService.maxReplayEvents.label": "구독 재전송 최대 이벤트 수",
   "settings.l4.hostService.maxSubscriptionsPerConnection.label": "연결당 구독 한도",

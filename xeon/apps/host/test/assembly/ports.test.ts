@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -46,6 +46,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import type { CommandRegistryHolder, NotifyApi } from "../../src/assembly/l2-units.ts";
 import { createDialogAreaHolder } from "../../src/assembly/m4/dialog-area-bridge.ts";
+import { createLocalIdFactory, systemClock, systemRandom } from "@fresnel/platform-os";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
@@ -425,6 +426,8 @@ function harness(configDir = "/nonexistent-config"): Harness {
       settings: createSettingsEngine(built.catalog),
       configDir,
       stateDir: "/nonexistent-state",
+      dataDir: "/nonexistent-data",
+      localIds: createLocalIdFactory(systemClock(), systemRandom()),
       // 측정 저장소를 열지 못한 호스트와 같다. 테스트 표지는 메모리에만 남는다
       measure: { store: () => undefined, enabled: () => false },
       trust: {
@@ -487,6 +490,30 @@ describe("threads", () => {
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
+  });
+
+  test("a create that asks for the default folder makes <data>/default-project/<thread> and forwards it as the workspace", async () => {
+    const h = harness();
+    const dataDir = realpathSync(mkdtempSync(join(tmpdir(), "xh-ports-data-")));
+    try {
+      const { ports } = createEnginePorts({ ...h.deps, dataDir });
+      const created = await ports.threads.create({ defaultFolder: true, profileId: "default" });
+      expect(created.threadId).toBe(THREAD);
+      const folders = readdirSync(join(dataDir, "default-project"));
+      expect(folders).toHaveLength(1);
+      expect(h.calls[0]).toContain(
+        `"workspace":${JSON.stringify(join(dataDir, "default-project", folders[0] ?? ""))}`,
+      );
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  test("workspaceOf reads the stored workspace of a thread, and null when there is none", () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    // 가짜 세션은 목록 행이 없으면 undefined를 준다. 그 경우 작업 폴더가 없는 것으로 본다
+    expect(ports.threads.workspaceOf(THREAD)).toEqual({ ok: true, value: null });
   });
 
   test("opening a thread whose profile names a start drive passes that plugin's drive registration as startDrive", async () => {

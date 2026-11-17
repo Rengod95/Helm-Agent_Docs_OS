@@ -123,13 +123,14 @@ describe("profile storage (M5c-1 §3.1)", () => {
 });
 
 describe("profile issues (M5c §4.2.7)", () => {
-  test("the issue codes are the fourteen in the spec", () => {
+  test("the issue codes are the fifteen in the spec", () => {
     expect([...PROFILE_ISSUE_CODES]).toEqual([
       "plugin_unknown",
       "plugin_not_reviewed",
       "replace_conflict",
       "driver_not_in_list",
       "driver_cannot_drive",
+      "driver_unavailable",
       "setting_unknown_key",
       "setting_scope_not_allowed",
       "setting_invalid_value",

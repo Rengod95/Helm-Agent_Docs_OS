@@ -154,6 +154,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "l3.group-sdk.instrumentation",
     "l3.authoring.devMode",
     "l4.host-service.maxReplayEvents",
+    "l4.host.defaultFolder",
     "l4.remote.web.enabled",
     "l4.remote.web.listen",
     "l4.remote.web.listenTls",

@@ -15,7 +15,12 @@ export interface ContextSettings {
   readonly pruneThresholdChars: number;
   readonly reinjectRecentFiles: number;
   readonly cacheWarming: "off" | "idle";
+  /** 지침 파일(`AGENTS.md`) 하나의 상한 바이트. 넘으면 그 파일을 싣지 않는다(M5c §4.4.7) */
+  readonly instructionFilesMaxBytes: number;
 }
+
+/** 지침 파일 하나의 상한 바이트. 기본값은 이 상수 한 곳에만 둔다(BP-06, M5c §3.3) */
+export const DEFAULT_INSTRUCTION_FILES_MAX_BYTES = 65_536;
 
 export const DEFAULT_CONTEXT_SETTINGS: ContextSettings = {
   autoCompact: true,
@@ -26,13 +31,11 @@ export const DEFAULT_CONTEXT_SETTINGS: ContextSettings = {
   pruneThresholdChars: 200,
   reinjectRecentFiles: 5,
   cacheWarming: "off",
+  instructionFilesMaxBytes: DEFAULT_INSTRUCTION_FILES_MAX_BYTES,
 };
 
 /** 호출 시점의 유효 설정을 읽는 함수. 읽는 경로는 조립 루트가 넘긴다 */
 export type ContextSettingsSource = () => ContextSettings;
-
-/** 지침 파일 하나의 상한 바이트. 기본값은 이 상수 한 곳에만 둔다(BP-06, M5c §3.3) */
-export const DEFAULT_INSTRUCTION_FILES_MAX_BYTES = 65_536;
 
 const MUPLoS = ["managed", "user", "project", "local", "launch"] as const;
 const MUPLo = ["managed", "user", "project", "local"] as const;
@@ -132,7 +135,7 @@ const group = defineSettings("l1.context", {
     ui: { tab: "sessions", widget: "select", order: 270, label: "Prompt cache warming" },
     since: "0.1.0",
   },
-  // 지침 파일 하나의 상한 바이트(M5c §3.3, §4.4.7). 읽는 쪽은 아직 이 키를 쓰지 않는다
+  // 지침 파일 하나의 상한 바이트(M5c §3.3, §4.4.7). 턴 시작의 지침 절 읽기(`instructions.ts`)와 `project.instructions`가 읽는다
   "instructionFiles.maxBytes": {
     type: Type.Integer(),
     default: DEFAULT_INSTRUCTION_FILES_MAX_BYTES,
@@ -191,6 +194,12 @@ export function contextSettingsOf(read: ContextSettingReader): ContextSettings {
       d.reinjectRecentFiles,
     ),
     cacheWarming: warming === "idle" ? "idle" : "off",
+    instructionFilesMaxBytes: intIn(
+      read("l1.context.instructionFiles.maxBytes"),
+      1,
+      Number.MAX_SAFE_INTEGER,
+      d.instructionFilesMaxBytes,
+    ),
   };
 }
 

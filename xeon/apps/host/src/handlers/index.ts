@@ -10,6 +10,7 @@ import { createDialogAreaHandlers } from "./m4/dialog-area.ts";
 import { createExtReadHandlers } from "./m4/ext-read.ts";
 import { createExtUiVersionHandlers } from "./m4/ext-ui-version.ts";
 import { createProfileTestRunHandlers } from "./m4/profile-test-run.ts";
+import { createProjectHandlers } from "./m4/project.ts";
 import { createSandboxSelfTestHandlers } from "./m4/sandbox-self-test.ts";
 import { createRemoteHandlers, remotePortOf } from "./remote.ts";
 import { createEventsSubscribeHandler, createEventsUnsubscribeHandler } from "./events.ts";
@@ -128,17 +129,12 @@ export function createWireHandlers(
     ...createBlocksHandlers(),
     ...createExtUiVersionHandlers(engine.ports.m4.extUi),
     ...createProfileTestRunHandlers(engine.ports.m4.profileTestRun),
+    ...createProjectHandlers(engine.ports.m4.project),
     ...createDialogAreaHandlers(engine.ports.m4.dialogArea),
     ...createDevkitHandlers(engine.ports.m4.devkit),
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
-    // 프로젝트·플러그인 검토 메서드(M5c §3.4)는 후속 작업이 처리기를 채운다. 그 전까지는 -32601이다
-    "project.list": notImplemented("project.list"),
-    "project.get": notImplemented("project.get"),
-    "project.create": notImplemented("project.create"),
-    "project.rename": notImplemented("project.rename"),
-    "project.delete": notImplemented("project.delete"),
-    "project.instructions": notImplemented("project.instructions"),
+    // 플러그인 메서드와 검토 메서드(M5c §3.4)는 다른 트랙이 처리기를 채운다. 그 전까지는 -32601이다. 프로젝트(`project.*`)는 위에서 채웠다
     "plugin.list": notImplemented("plugin.list"),
     "plugin.get": notImplemented("plugin.get"),
     "plugin.invocables": notImplemented("plugin.invocables"),

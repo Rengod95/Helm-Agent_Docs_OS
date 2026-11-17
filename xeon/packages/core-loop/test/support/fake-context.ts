@@ -52,6 +52,7 @@ export interface FakeContext {
     readonly leaf: EventId;
     /** 조립 옵션 중 루프가 채우는 값 */
     readonly basePrompt: string;
+    readonly sections: Readonly<Record<string, string>>;
     readonly volatile: Readonly<Record<string, string>>;
   }[];
 }
@@ -138,6 +139,7 @@ export function createFakeContext(options: {
     leaf: EventId;
     messages: readonly Message[];
     basePrompt: string;
+    sections: Readonly<Record<string, string>>;
     volatile: Readonly<Record<string, string>>;
   }[] = [];
 
@@ -186,6 +188,7 @@ export function createFakeContext(options: {
       leaf,
       messages: all,
       basePrompt: opts.basePrompt,
+      sections: opts.sections,
       volatile: opts.volatile,
     });
     return ok({

@@ -1,5 +1,5 @@
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { GroupApi, GroupStartDriveResult } from "@fresnel/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
 import { inquiryIdFrom, needIdFrom } from "./signals.ts";
 import {
@@ -149,10 +149,7 @@ function failedWrite(failure: StateWriteFailure): Result<never, HelmCommandError
 }
 
 /** `GroupApi.startDrive`가 거부했을 때의 오류 값 */
-type StartFailure = Extract<
-  ReturnType<GroupApi<HelmState>["startDrive"]>,
-  { readonly ok: false }
->["error"];
+type StartFailure = Extract<GroupStartDriveResult, { readonly ok: false }>["error"];
 
 /** 주도 시작 요청이 거부된 이유를 한 줄 문장으로 바꾼다. 상태는 이미 커밋돼 있어 다시 `/helm start`로 이어 갈 수 있다 */
 export function startFailureText(error: StartFailure): string {

@@ -18,18 +18,22 @@ import {
   type ParseError,
   type Result,
 } from "@fresnel/contracts";
+import { CapabilityError, CapabilityErrorDataSchema } from "@fresnel/contracts/capabilities";
 import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import {
+  DriveLimitsSchema,
   HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   pluginsOf,
   PLUGIN_HOST_REQUESTS,
   PLUGIN_HOST_STDERR_LINE_MAX,
   validateManifest,
+  type DriveLimits,
   type EngineCallParams,
   type ExtensionEntry,
   type HookName,
   type PluginHostError,
+  type PluginHostErrorOrigin,
   type ToolChangeReport,
   type PluginHostRequestName,
   type PluginRegistrationDecl,
@@ -38,7 +42,7 @@ import {
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { eraseRegistration, stateAs } from "../erase.ts";
-import { PrimitiveError } from "../primitives/errors.ts";
+import { isPrimitiveErrorCode, PrimitiveError } from "../primitives/errors.ts";
 import {
   registerSdkModules,
   X_SDK_MODULES,
@@ -65,6 +69,8 @@ import {
 } from "./framing.ts";
 import {
   parseCommandRun,
+  parseDriveStep,
+  parseEventKey,
   parseEventNotify,
   parseHookInvoke,
   parseHostDispose,
@@ -72,8 +78,10 @@ import {
   parseMethodCall,
   parseRequestCancel,
   parseScopeDispose,
+  parseStateMigrate,
   parseToolExecute,
   type CommandRunInput,
+  type DriveStepInput,
   type EventNotifyInput,
   type HookInvokeInput,
   type HostInitInput,
@@ -115,7 +123,14 @@ export interface PluginHostDeps {
 
 type Outcome = Result<JsonValue, PluginHostError>;
 /** 응답을 만드는 엔진 요청. host.init과 host.dispose는 따로 다룬다 */
-type ServedName = "hook.invoke" | "tool.execute" | "command.run" | "method.call" | "scope.dispose";
+type ServedName =
+  | "hook.invoke"
+  | "tool.execute"
+  | "command.run"
+  | "method.call"
+  | "scope.dispose"
+  | "state.migrate"
+  | "drive.step";
 type UnknownCallable = (...args: readonly unknown[]) => unknown;
 
 /** 프로토콜 FrameShape의 error.message 상한(isolation-protocol.ts)과 같다 */
@@ -146,6 +161,11 @@ function deferred<T>(): Deferred<T> {
 
 function threw(message: string): PluginHostError {
   return { kind: "handler_threw", message };
+}
+
+/** 던진 값을 사람이 읽는 문장으로. 엔진 쪽 `PrimitiveError`처럼 검사 코드를 앞에 붙인다(엔진 안의 같은 오류와 맞춘다) */
+function causeTextOf(cause: unknown): string {
+  return cause instanceof PrimitiveError ? `${cause.code}: ${cause.message}` : messageOf(cause);
 }
 
 function unknownTarget(what: string): Outcome {
@@ -199,12 +219,34 @@ function replyOf(value: unknown): Result<JsonValue, Error> {
     : err(new PluginEngineCallError("invalid_reply", "the engine reply is not JSON"));
 }
 
+/**
+ * 엔진의 실패 응답을 자식의 오류로 바꾼다. `origin`이 있으면 엔진 안과 같은 종류(`CapabilityError`, `PrimitiveError`)로 되던진다.
+ * 알 수 없거나 맞지 않는 origin은 싣지 않은 것과 같다
+ */
 function failureOf(error: RawPluginHostFrame["error"]): Result<JsonValue, Error> {
-  return err(
-    new PluginEngineCallError(
-      error?.kind ?? "invalid_reply",
-      error?.message ?? "the engine sent a failure without an error",
-    ),
+  const kind = error?.kind ?? "invalid_reply";
+  const message = error?.message ?? "the engine sent a failure without an error";
+  return err(originErrorOf(error?.origin, message) ?? new PluginEngineCallError(kind, message));
+}
+
+/** 원래 오류의 종류로 되던질 오류. origin이 없거나 알 수 없는 종류·코드·모양이면 undefined다 */
+function originErrorOf(
+  origin: PluginHostErrorOrigin | undefined,
+  message: string,
+): Error | undefined {
+  if (origin === undefined) return undefined;
+  if (origin.kind === "capability") {
+    const checked = parse(CapabilityErrorDataSchema, origin.data);
+    return checked.ok ? new CapabilityError(checked.value) : undefined;
+  }
+  if (!isPrimitiveErrorCode(origin.code)) return undefined;
+  // 엔진은 메시지 앞에 코드를 붙여 보낸다. 되던지는 오류는 코드를 따로 가지므로 앞의 코드는 떼어 낸다
+  const prefix = `${origin.code}: `;
+  const text = message.startsWith(prefix) ? message.slice(prefix.length) : message;
+  return new PrimitiveError(
+    origin.code,
+    text,
+    origin.scopeId === undefined ? undefined : { scopeId: origin.scopeId },
   );
 }
 
@@ -546,6 +588,86 @@ function createRuntime(deps: PluginHostDeps) {
     });
   }
 
+  /**
+   * 주도 단계 함수 하나를 부른다(`drive.step`, drive-isolation.md 1.1). 명령은 JSON으로 돌려준다(모양은 엔진이 검사한다).
+   * 한도는 응답을 만들 때 읽는다(설정 스냅샷 아래). 던지거나 JSON이 아니면 `handler_threw`다
+   */
+  async function runDriveStep(
+    id: number,
+    input: DriveStepInput,
+    signal: AbortSignal,
+  ): Promise<Outcome> {
+    const state = registrations.get(input.registration)?.state;
+    const drive = state?.drive;
+    if (state === undefined || drive === undefined) {
+      return unknownTarget(`drive of ${input.registration}`);
+    }
+    const scope: CallScope = {
+      kind: "drive",
+      registration: state.id,
+      requestId: id,
+      threadId: input.threadId,
+      signal,
+      point: null,
+      settings: input.settings,
+      snapshot: { doc: input.state },
+    };
+    const stepped = await attemptAsync(() =>
+      Promise.resolve(
+        scopes.run(scope, () =>
+          drive.step({
+            state: stateAs(input.state),
+            last: input.last,
+            budget: input.budget,
+            frame: input.frame,
+          }),
+        ),
+      ),
+    );
+    if (!stepped.ok) return err(threw(messageOf(stepped.error.cause)));
+    const command = toJsonValue(stepped.value);
+    if (command === undefined) {
+      return err(threw(`the step of ${state.id} returned a value that is not JSON`));
+    }
+    const read = await attemptAsync(() =>
+      Promise.resolve(scopes.run(scope, () => drive.options?.limits)),
+    );
+    if (!read.ok) return err(threw(messageOf(read.error.cause)));
+    let limits: DriveLimits | null = null;
+    if (read.value !== undefined) {
+      const checked = parse(DriveLimitsSchema, read.value);
+      if (!checked.ok) {
+        return err(threw(`the drive limits of ${state.id} do not match their shape`));
+      }
+      limits = checked.value;
+    }
+    const reply = toJsonValue({ command, limits });
+    return reply === undefined
+      ? err(threw(`the drive reply of ${state.id} is not JSON`))
+      : ok(reply);
+  }
+
+  /**
+   * 저장된 상태 문서를 `migrateState` 함수로 옮긴다. 결과는 JSON 문서여야 한다(`null`도 문서다). 던지거나 JSON이 아니면 `handler_threw`다
+   */
+  async function runMigration(input: {
+    registration: string;
+    doc: JsonValue;
+    fromVersion: number;
+  }): Promise<Outcome> {
+    const state = registrations.get(input.registration)?.state;
+    const migrate = state?.migration;
+    if (state === undefined || migrate === undefined) {
+      return unknownTarget(`state migration of ${input.registration}`);
+    }
+    const called = await attemptAsync(() => Promise.resolve(migrate(input.doc, input.fromVersion)));
+    if (!called.ok) return err(threw(messageOf(called.error.cause)));
+    const json = toJsonValue(called.value);
+    return json === undefined
+      ? err(threw(`the migrated state of ${state.id} is not JSON`))
+      : ok(json);
+  }
+
   async function disposeRegistration(registration: string): Promise<Outcome> {
     const reg = registrations.get(registration);
     if (reg === undefined) return unknownTarget(`registration ${registration}`);
@@ -582,6 +704,14 @@ function createRuntime(deps: PluginHostDeps) {
           ? await disposeRegistration(input.value.registration)
           : invalidParams(input.error);
       }
+      case "state.migrate": {
+        const input = parseStateMigrate(params);
+        return input.ok ? await runMigration(input.value) : invalidParams(input.error);
+      }
+      case "drive.step": {
+        const input = parseDriveStep(params);
+        return input.ok ? await runDriveStep(id, input.value, signal) : invalidParams(input.error);
+      }
       default:
         return assertNever(name, "dispatch");
     }
@@ -600,8 +730,25 @@ function createRuntime(deps: PluginHostDeps) {
     respond(id, outcome);
   }
 
-  /** 스트림 관찰 알림. 같은 핸들러에는 발화 순서대로 하나씩 전달하고, 결과는 버리고 실패는 진단으로 남긴다 */
+  /**
+   * 스트림 관찰 알림. 처리가 끝나면(성공과 실패 모두) `event.done`으로 엔진에 확인한다. 엔진은 이 확인으로 미확인 수를 줄인다
+   */
   async function deliver(params: unknown): Promise<void> {
+    const key = parseEventKey(params);
+    try {
+      await deliverEvent(params);
+    } finally {
+      if (key.ok) acknowledge(key.value);
+    }
+  }
+
+  function acknowledge(eventKey: string): void {
+    const sent = writer.write({ method: "event.done", params: { eventKey } });
+    if (!sent.ok) diag(`event.done for ${eventKey} could not be sent (${sent.error.kind})`);
+  }
+
+  /** 알림 하나를 같은 핸들러에 발화 순서대로 하나씩 돌린다. 결과는 버리고 실패는 진단으로 남긴다 */
+  async function deliverEvent(params: unknown): Promise<void> {
     const up = await ready.promise;
     if (!up) return;
     const input = parseEventNotify(params);
@@ -626,6 +773,7 @@ function createRuntime(deps: PluginHostDeps) {
       settings: event.settings,
       snapshot: { doc: event.state },
       dispatchKey: event.dispatchKey ?? event.eventKey,
+      ...(event.dropped === undefined ? {} : { dropped: event.dropped }),
     };
     const ctx = {
       scopeId: state.id,
@@ -668,6 +816,8 @@ function createRuntime(deps: PluginHostDeps) {
       case "command.run":
       case "method.call":
       case "scope.dispose":
+      case "state.migrate":
+      case "drive.step":
         // host.init이 먼저 와야 한다. 그 전의 요청은 준비를 기다리지 않고 바로 오류로 답한다
         if (!started) {
           respond(
@@ -754,6 +904,7 @@ function createRuntime(deps: PluginHostDeps) {
       extension: input.extension,
       initSettings: input.settings,
       scopes,
+      lifetime: lifetime.signal,
       engineCall,
       declaredHooks: new Map(
         pluginsOf(manifest).map((entry) => [entry.registrationId, entry.decl.hooks]),
@@ -797,7 +948,7 @@ function createRuntime(deps: PluginHostDeps) {
       const outcome = await attemptAsync(() => Promise.resolve(reg.setup(reg.api)));
       if (!outcome.ok) {
         return {
-          value: threw(`setup of ${reg.state.id} threw: ${messageOf(outcome.error.cause)}`),
+          value: threw(`setup of ${reg.state.id} threw: ${causeTextOf(outcome.error.cause)}`),
         };
       }
       const refusal = refusalOf(outcome.value);
