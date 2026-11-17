@@ -1,7 +1,9 @@
-// 완료 게이트가 판정 결과를 소비하는 규칙(L1.loop.spec §4.9, L1.agents.spec §4.8, D-M3-15).
-// `boundary.settle.before` chain 핸들러는 L2.work가 걸고, 결과를 이 순수 함수로 BoundaryValue의 `continue`와 안내로 바꾼다.
-import { assertNever } from "@fresnel/contracts";
-import type { JudgeOutcome } from "@fresnel/contracts/services";
+import { assertNever } from "../base/index.ts";
+import type { JudgeOutcome } from "./judge.ts";
+
+// 완료 게이트가 판정 결과를 소비하는 규칙(L1.loop.spec §4.9, L1.agents.spec §4.8, D-M3-15). 순수 함수다.
+// `boundary.settle.before` chain 핸들러(L2.work, cap-work)가 이 함수로 BoundaryValue의 `continue`와 안내를 정한다.
+// 원래 core-agents에 있었다. L2가 core-agents를 import하지 않도록 F로 올렸다(hooks-core-boundary §6.1, D-30).
 
 export type GoalGateReason = "met" | "not_met" | "undecidable" | "capped" | "failed";
 

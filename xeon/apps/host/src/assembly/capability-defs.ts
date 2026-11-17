@@ -1,4 +1,5 @@
 import {
+  AgentsJudge,
   ArtifactsRegistry,
   ArtifactsReviews,
   ArtifactsSessions,
@@ -14,6 +15,7 @@ import {
   KnowledgeSearch,
   KnowledgeSkills,
   McpClient,
+  ModelsComplete,
   ScheduleEntries,
   WebBrowse,
   WebFetch,
@@ -37,6 +39,7 @@ import { capabilityDefTable, type CapabilityDefLookup } from "@fresnel/ext-host"
 
 /** F가 내보내는 내장 L2 기능 정의 전체 */
 export const BUILTIN_CAPABILITY_DEFS: readonly AnyCapabilityDef[] = [
+  AgentsJudge,
   ArtifactsRegistry,
   ArtifactsReviews,
   ArtifactsSessions,
@@ -52,6 +55,7 @@ export const BUILTIN_CAPABILITY_DEFS: readonly AnyCapabilityDef[] = [
   KnowledgeSearch,
   KnowledgeSkills,
   McpClient,
+  ModelsComplete,
   ScheduleEntries,
   WebBrowse,
   WebFetch,

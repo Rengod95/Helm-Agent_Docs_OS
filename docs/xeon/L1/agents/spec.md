@@ -359,7 +359,7 @@ export type AgentJudgedPayload = JudgeRecord;
   - `agent.settled`에는 `owner`(`agent.spawned.owner`와 같은 값)와 `limitHit`를 싣는다. `limitHit`는 자식의 마지막 `turn.completed.error`(`step_limit`, `child_limit`)에서 읽는다. `child_limit`는 단계 상한과 토큰 상한이 같은 값이라 `stepCount`가 `limits.maxSteps` 이상이면 `steps`, 아니면 `tokens`로 본다 [제안].
   - `DelegateRequest.report`가 있으면 `agent.settled` 커밋 안에서 `tasks.inputs.draftQueued`로 보고 입력을 같이 쓴다. 없으면 `agent.settled`만 남는다. 코어 `customType` `agent.report`는 F `RecordKind` 형식에 없어 `x.core-agents.agent.report`로 싣는다 [제안: F 요청 6 전까지].
   - `cancel({ ownerScopeId })`는 이 프로세스에서 도는 그 scope(`owner.kind`가 `scope` 또는 `drive`)의 자식을 모두 취소한다. 취소된 자식도 `agent.settled { aborted }`와 보고 입력을 남긴다. 재시작으로 끊겨 이 프로세스에서 돌지 않는 자식은 저장된 `agent.spawned`의 `owner`로 소유 scope를 찾아 `agent.settled { aborted }`만 남기고 닫는다(보고 입력은 위임 때의 `report` 설정이 저장되지 않아 남기지 않는다). 그래서 이어지는 같은 requestId의 위임은 닫힌 기록을 돌려받고 끊긴 대화를 재개하지 않는다.
-  - `judge`는 §4.8을 따른다. `completeStructured`는 F `ModelService`에 아직 없어 core-agents가 `ModelService.resolve`·`complete` 위에 둔다(`structured.ts`) [제안]. 완료 게이트가 판정 결과를 소비하는 규칙은 순수 함수 `goalGateDecision`(`goal-gate.ts`)이 정한다: `met`은 종료, `not_met`·`undecidable`은 계속, `capped`는 turn 종료와 알림, `failed`는 `stop`이다.
+  - `judge`는 §4.8을 따른다. `completeStructured`는 F `ModelService`에 아직 없어 core-agents가 `ModelService.resolve`·`complete` 위에 둔다(`structured.ts`) [제안]. 완료 게이트가 판정 결과를 소비하는 규칙은 순수 함수 `goalGateDecision`(`@fresnel/contracts/capabilities`, 층 E에서 core-agents에서 올렸다)이 정한다: `met`은 종료, `not_met`·`undecidable`은 계속, `capped`는 turn 종료와 알림, `failed`는 `stop`이다.
 
 ### 4.2 결과 경로
 
@@ -485,6 +485,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 기록 [제안]: `judge`는 모델 응답을 받은 직후 `agent.judged`를 자기 커밋(requestId `judge:<threadId 해시>:<goalRef>:<run>`)으로 남기고 결과를 돌려준다. 재개 때 같은 `(goalRef, run)`의 기록이 있으면 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. 모델 호출 뒤 커밋 전에 끝나면 재개 때 다시 판정한다(비용만 든다).
 - 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `boundary.settle.before` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
 - 판정 모델 요청의 requestId(모델 호출 멱등 키가 생기면)는 `judge:<goalRef>:<run>`이다.
+- 공개 기능 `agents.judge`(층 E, F.capabilities §3.9): core-agents가 매니페스트 `provides`로 공급하고 `host.provide(AgentsJudgeKey, { judge })`로 서비스 메서드를 넘긴다. 호출은 `requestId`를 넘기고(멱등), 기록된 판정은 `recorded`로 돌아온다. 결과와 실패 값(`capped`, `failed`)은 `AgentService.judge`와 같다. 판정 호출 사용량의 주도 한도 차감은 [미결](`review/m5/hooks-core-boundary.md` §6.2) [근거: ext-host/src/primitives/lease.ts].
 - 목표 저장은 L2.work 소관이고 판정 결과의 소비는 루프의 완료 게이트다. 이 문서는 판정 호출과 기록만 제공한다.
 
 ### 4.9 서브에이전트 정의 (정의 파일 로더는 2차)

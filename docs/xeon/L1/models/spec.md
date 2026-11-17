@@ -161,6 +161,7 @@ export interface ModelService extends ModelsPort {
   /**
    * 플러그인 주도 단계의 `model` 명령(drive-isolation.md §1.2). 역할 `judge`로 해석하고 `complete`를 거친다(`request.provider.before`, `guard.model.before`가 지나고 `request.context.before`, `request.system.before`는 지나지 않는다).
    * 같은 대화의 같은 (scopeId, requestId)의 성공은 이 프로세스 안에서 저장된 결과를 돌려주고 제공자를 다시 부르지 않는다. 재시작 뒤에는 기억이 없어 다시 부른다 [미결] [근거: xeon/packages/core-models/src/plugin-model.ts]. 가드 차단과 제공자 오류는 `{ ok: false }`로 돌려주고 던지지 않는다.
+   * 공개 기능 `models.complete`(층 E, F.capabilities §3.9)가 이 메서드를 감싼다(core-models `complete-capability.ts`). 호출자 이름은 호출 문맥의 `caller.extension`이고, 실패는 기능 오류(`CapabilityError`)로 거부한다.
    */
   completeForPlugin(request: PluginModelRequest): Promise<Result<PluginModelResult, PluginModelError>>;
   /** core-loop 자체 루프가 부르는 StreamFn(F 정의). ctx의 귀속 정보로 사용량을 기록하고 지점을 발화한다 */

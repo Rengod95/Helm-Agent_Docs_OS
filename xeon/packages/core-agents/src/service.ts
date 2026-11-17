@@ -46,7 +46,8 @@ import { createConcurrencyGate, type ConcurrencyGate } from "./gate.ts";
 import { sha256Hex } from "./hash.ts";
 import { readFinalText } from "./report-reader.ts";
 import { childRequestId, createSpawnCounter, derivedRequestId } from "./request-id.ts";
-import { createJudge, JUDGE_MAX_RUNS_DEFAULT } from "./judge.ts";
+import { JUDGE_MAX_RUNS_DEFAULT } from "@fresnel/contracts/settings";
+import { createJudge } from "./judge.ts";
 import { guardReport } from "./result-guard.ts";
 
 /** agent.settled에 싣는 보고 본문 상한(AgentSettledEventPayload.report.text 65,536자에서 격리 블록 여유를 뺀다) */

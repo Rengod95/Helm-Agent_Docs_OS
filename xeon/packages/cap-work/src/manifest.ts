@@ -1,4 +1,4 @@
-import { WorkGoals, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
+import { AgentsJudge, WorkGoals, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
 import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const WORK_EXTENSION_NAME = "cap-work";
@@ -21,6 +21,8 @@ export function workManifest(): ExtensionManifest {
       {
         layer: "L2",
         hooks: ["input.agent.before", "boundary.step.after", "boundary.settle.before"],
+        // 목표 판정(완료 게이트)이 쓴다. 공급자는 core-agents다
+        optional: [{ id: AgentsJudge.id, range: `^${AgentsJudge.version}` }],
         provides: [
           { id: WorkTasks.id, version: WorkTasks.version },
           { id: WorkGoals.id, version: WorkGoals.version },

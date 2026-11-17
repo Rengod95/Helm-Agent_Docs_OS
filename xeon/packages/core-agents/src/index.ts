@@ -46,5 +46,4 @@ export {
   type StructuredRequest,
   type StructuredSuccess,
 } from "./structured.ts";
-export { createJudge, JUDGE_MAX_RUNS_DEFAULT, type JudgeDeps } from "./judge.ts";
-export { goalGateDecision, type GoalGateDecision, type GoalGateReason } from "./goal-gate.ts";
+export { createJudge, type JudgeDeps } from "./judge.ts";

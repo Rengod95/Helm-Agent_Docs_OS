@@ -251,7 +251,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-agents": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },

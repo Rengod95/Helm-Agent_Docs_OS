@@ -6,6 +6,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { AgentMessage, StepId, TurnId } from "@fresnel/contracts/conversation";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
+import type { IdempotentCallOptions } from "@fresnel/contracts/capabilities";
 import type { JudgeInput, JudgeOutcome } from "@fresnel/contracts/services";
 import { createSettleGate } from "../../src/goals/gate.ts";
 import type { Harness } from "./harness.ts";
@@ -24,6 +25,8 @@ export interface GateOptions {
 
 export interface GateRig {
   readonly calls: JudgeInput[];
+  /** 판정 기능 호출마다 넘어온 requestId(멱등 키) */
+  readonly requestIds: string[];
   readonly turnId: TurnId;
   readonly stepId: StepId;
   /** turn 정착 직전의 호출. 이번 turn의 메시지는 어시스턴트 텍스트, 성공한 도구 호출 하나, 오류인 도구 호출 하나다 */
@@ -47,13 +50,15 @@ const SILENT = {
 
 export function gateAnswers(h: Harness, script: JudgeScript, options: GateOptions = {}): GateRig {
   const calls: JudgeInput[] = [];
+  const requestIds: string[] = [];
   const answers = script === "absent" ? [] : [...script];
   const agents =
     script === "absent"
       ? undefined
       : {
-          async judge(input: JudgeInput): Promise<JudgeOutcome> {
+          async judge(input: JudgeInput, call: IdempotentCallOptions): Promise<JudgeOutcome> {
             calls.push(input);
+            requestIds.push(call.requestId);
             await options.beforeAnswer?.();
             const next = answers.shift();
             if (next === undefined) throw new Bug("the judge script is empty");
@@ -64,7 +69,7 @@ export function gateAnswers(h: Harness, script: JudgeScript, options: GateOption
   const gate = createSettleGate({
     goals: h.goalsRuntime,
     reader: h.store.service.scoped("cap.work"),
-    agents: () => agents,
+    judge: () => agents,
     ids: h.ids,
     clock: h.clock,
     logger: SILENT,
@@ -139,6 +144,7 @@ export function gateAnswers(h: Harness, script: JudgeScript, options: GateOption
   });
   return {
     calls,
+    requestIds,
     turnId,
     stepId,
     noticeEntry: () => entryOf("x.other.note", "another handler"),
