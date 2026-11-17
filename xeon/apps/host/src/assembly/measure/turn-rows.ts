@@ -15,8 +15,13 @@ import type {
 import type { TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
-// 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 프로필·덧씌우기·초안·프레임·재료·광고·캐시 원인은
-// 자리만 두고(null, 빈 배열, 0, "none") 다른 트랙이 채운다. 이 파일은 저장소와 시계를 모른다.
+// 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
+// 자리만 두고(null, 빈 배열, 0, "none") 다른 트랙이 채운다. 프로필 표지는 쓰는 쪽이 턴 시작에 `TurnDraft.profile`로 넣는다. 이 파일은 저장소와 시계를 모른다.
+
+/** 턴 기록의 프로필 표지(§3.2 `TurnRecord.profile`). 턴 시작 값이다 */
+export type TurnProfileMark = NonNullable<TurnRecord["profile"]>;
+/** 턴 안에서 프로필 개정이 바뀐 단계 경계(§3.2 `profileRevChanges`의 한 줄) */
+type ProfileRevChange = TurnRecord["profileRevChanges"][number];
 
 /** 턴 하나의 훅 행 상한(§4.1 규칙 8). 넘는 행은 `elided.hooks`에 센다 */
 export const MAX_HOOK_ROWS_PER_TURN = 500;
@@ -62,6 +67,12 @@ export interface TurnDraft {
   readonly origin: TurnRecord["origin"];
   /** 계측이 켜진 턴이면 `full`, 꺼진 턴이면 `log_only`(§4.1 규칙 3). 턴이 처음 보일 때 정한다 */
   readonly level: RecordLevel;
+  /** 턴 시작 때의 프로필 표지. 턴을 열 때 정한다(§4.10 규칙 60~62) */
+  readonly profile: TurnProfileMark;
+  /** 턴 안에서 프로필 개정이 시작 값(또는 직전 바뀜)과 달라진 단계 경계(§4.10 규칙 63) */
+  readonly profileRevChanges: ProfileRevChange[];
+  /** 마지막으로 끝난 단계의 번호. 프로필 경계가 가리키는 다음 단계를 정하는 데 쓴다 */
+  lastStepIndex: number | null;
   /** 범위 표지. 턴을 열 때 대화의 `tr_thread`에서 정한다(§4.6) */
   scope: ScopeKind;
   /** 끝난 단계의 기록 */
@@ -92,9 +103,12 @@ export function newDraft(input: {
   readonly startedEventId: string | null;
   readonly origin: TurnRecord["origin"];
   readonly level: RecordLevel;
+  readonly profile: TurnProfileMark;
 }): TurnDraft {
   return {
     ...input,
+    profileRevChanges: [],
+    lastStepIndex: null,
     scope: "live",
     steps: [],
     calls: new Map(),
@@ -102,6 +116,14 @@ export function newDraft(input: {
     elidedHooks: 0,
     writeFailures: 0,
   };
+}
+
+/**
+ * 프로필 경계가 가리키는 단계 번호(§4.10 규칙 63). 경계는 끝난 단계(`step_end`) 뒤에 오므로 다음 단계다.
+ * 끝난 단계가 없으면 턴의 첫 단계(0)다
+ */
+export function stepAfterBoundary(lastStepIndex: number | null): number {
+  return lastStepIndex === null ? 0 : lastStepIndex + 1;
 }
 
 /** 트레이스의 항목과 처리기 기록을 턴 안의 순서로 펼친 한 줄. `seqGlobal`은 턴 안에서 세는 순번이다 */
@@ -310,8 +332,8 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     level: draft.level,
     complete: state.complete,
     scope: draft.scope,
-    profile: null,
-    profileRevChanges: [],
+    profile: draft.profile,
+    profileRevChanges: [...draft.profileRevChanges],
     overlay: null,
     testRun: null,
     children: [],
@@ -340,9 +362,10 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     status: state.status,
     origin: draft.origin,
     scopeKind: draft.scope,
-    profileId: null,
-    profileRev: null,
-    profileRevChangesJson: null,
+    profileId: draft.profile.id,
+    profileRev: draft.profile.rev,
+    profileRevChangesJson:
+      draft.profileRevChanges.length === 0 ? null : JSON.stringify(draft.profileRevChanges),
     overlayJson: null,
     pluginStderrJson: null,
     level: draft.level,

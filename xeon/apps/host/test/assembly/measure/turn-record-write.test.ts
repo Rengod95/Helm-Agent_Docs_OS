@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { Bug, parse, type Logger } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import type { TraceReadPort, TraceTurnEntry } from "@fresnel/contracts/extensions";
+import type { PluginSetPort, TraceReadPort, TraceTurnEntry } from "@fresnel/contracts/extensions";
 import type { CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import { TurnRecordSchema } from "@fresnel/contracts/wire";
@@ -34,13 +34,17 @@ function event(
   seq: number,
   kind: DurableEventEnvelope["kind"],
   payload: unknown,
-  extra: { readonly stepId?: StepId | null; readonly turnId?: TurnId | null } = {},
+  extra: {
+    readonly stepId?: StepId | null;
+    readonly turnId?: TurnId | null;
+    readonly threadId?: ThreadId;
+  } = {},
 ): DurableEventEnvelope {
   return {
     id: ids.next("evt"),
     kind,
     version: 1,
-    threadId: THREAD,
+    threadId: extra.threadId ?? THREAD,
     turnId: extra.turnId === undefined ? TURN : extra.turnId,
     stepId: extra.stepId ?? null,
     recordedAt: AT + seq * 10,
@@ -128,11 +132,17 @@ interface Harness {
 /** 측정을 한 폴더에 연다. 이벤트는 피드 구독자에 직접 흘리고, 모델 호출은 합산기 구독자에 흘린다 */
 function openHarness(
   dir: string,
-  options: { readonly enabled: boolean; readonly trace?: Pick<TraceReadPort, "turn"> },
+  options: {
+    readonly enabled: boolean;
+    readonly trace?: Pick<TraceReadPort, "turn">;
+    readonly pluginSet?: Pick<PluginSetPort, "resolve">;
+  },
 ): Harness {
   const listeners = new Set<CommitListener>();
   let meterListener: ((record: UsageRecord) => void) | undefined;
+  const pluginSet = options.pluginSet;
   const deps: MeasurementDeps = {
+    ...(pluginSet === undefined ? {} : { pluginSet: () => pluginSet }),
     dir,
     session: {
       feed: {
@@ -251,7 +261,14 @@ test("the record_json of a closed turn is a valid TurnRecord with its step and t
     if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
     expect(checked.value.steps[0]?.hooks[0]?.toolCallId).toBe("call_1");
     expect(checked.value.steps[0]?.modelCalls[0]?.modelId).toBe("tape-1");
-    expect(checked.value.profile).toBeNull();
+    // 프로필 사건이 없고 저장한 id도 없으면 기본 프로필이 개정 0으로 쓰인 것이다(§4.10 규칙 60~62)
+    expect(checked.value.profile).toEqual({
+      id: "default",
+      rev: 0,
+      source: "builtin",
+      inherited: false,
+    });
+    expect(checked.value.profileRevChanges).toEqual([]);
     expect(checked.value.frames).toEqual([]);
     harness.stop();
   } finally {
@@ -403,6 +420,271 @@ test("deleting a thread removes its turn rows and its test marker", async () => 
     const store = storeOf(harness.measurement);
     expect(store.readTurn(THREAD, TURN)).toMatchObject({ ok: true, value: undefined });
     expect(store.getThread(THREAD)).toMatchObject({ ok: true, value: undefined });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// 프로필 표지(정본 `review/m5/turn-record-metrics.md` §4.10 규칙 60~63). 사건은 실제 커밋 순서를 따른다:
+// 대화 시작과 적용은 턴 밖, 단계 경계의 `profile.applied`는 그 단계의 `step.completed`와 같은 커밋에 든다.
+
+const PARENT: ThreadId = ids.next("thr");
+const TURN_2: TurnId = ids.next("trn");
+
+function threadStarted(profileId: string | null) {
+  return profileId === null
+    ? { title: null, forkedFrom: null }
+    : { title: null, forkedFrom: null, profileId };
+}
+
+function profileApplied(reason: string, profileId: string, profileRev: number) {
+  return { reason, profileId, profileRev, commonRev: 0, added: [], removed: [], overlay: [] };
+}
+
+function agentSpawned(child: ThreadId) {
+  return {
+    childThreadId: child,
+    agent: "explorer",
+    requestId: "req_child_1",
+    owner: { kind: "scope", scopeId: "helm" },
+    caller: "subagent:explorer",
+    depth: 1,
+    background: false,
+    fork: null,
+    modelRole: "subagent",
+  };
+}
+
+function turnBundle(harness: Harness, turnId: TurnId = TURN) {
+  const bundle = storeOf(harness.measurement).readTurn(THREAD, turnId);
+  if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+  return bundle.value;
+}
+
+function recordOf(json: string) {
+  const checked = parse(TurnRecordSchema, JSON.parse(json));
+  if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+  return checked.value;
+}
+
+test("a turn with no profile event and no stored id reads the builtin default at rev 0", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect([turn.profileId, turn.profileRev, turn.profileRevChangesJson]).toEqual([
+      "default",
+      0,
+      null,
+    ]);
+    const record = recordOf(turn.recordJson);
+    expect(record.profile).toEqual({ id: "default", rev: 0, source: "builtin", inherited: false });
+    expect(record.profileRevChanges).toEqual([]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a turn of a thread the recorder has not seen reads the profile the port gives", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      pluginSet: {
+        resolve: () => ({ plugins: [], profileId: "work", profileRev: 5, commonRev: 1 }),
+      },
+    });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect([turn.profileId, turn.profileRev]).toEqual(["work", 5]);
+    expect(recordOf(turn.recordJson).profile).toEqual({
+      id: "work",
+      rev: 5,
+      source: "thread",
+      inherited: false,
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a stored profile id and the profile applied before the turn give its profile, and a switch shows in the next turn", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "thread.started", threadStarted("work"), { turnId: null })]);
+    harness.commit([
+      event(2, "profile.applied", profileApplied("open", "work", 2), { turnId: null }),
+    ]);
+    harness.commit([event(3, "turn.started", TURN_STARTED)]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    // 대화의 프로필을 바꾸면 다음 경계에서 적용되고, 그 뒤의 턴은 바뀐 프로필을 쓴다
+    harness.commit([event(5, "thread.updated", { profileId: "other" }, { turnId: null })]);
+    harness.commit([
+      event(6, "profile.applied", profileApplied("switched", "other", 1), { turnId: null }),
+    ]);
+    harness.commit([event(7, "turn.started", TURN_STARTED, { turnId: TURN_2 })]);
+    harness.commit([event(8, "turn.completed", TURN_COMPLETED, { turnId: TURN_2 })]);
+    await settle();
+
+    const first = turnBundle(harness);
+    expect([first.turn.profileId, first.turn.profileRev]).toEqual(["work", 2]);
+    expect(recordOf(first.turn.recordJson).profile).toEqual({
+      id: "work",
+      rev: 2,
+      source: "thread",
+      inherited: false,
+    });
+    const second = turnBundle(harness, TURN_2);
+    expect([second.turn.profileId, second.turn.profileRev]).toEqual(["other", 1]);
+    expect(recordOf(second.turn.recordJson).profile).toEqual({
+      id: "other",
+      rev: 1,
+      source: "thread",
+      inherited: false,
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a revision that changes at the boundary after step N is a change at step N+1, and a repeat of the same revision is not", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "thread.started", threadStarted("work"), { turnId: null })]);
+    harness.commit([
+      event(2, "profile.applied", profileApplied("open", "work", 2), { turnId: null }),
+    ]);
+    harness.commit([event(3, "turn.started", TURN_STARTED)]);
+    // 단계 0과 1이 끝난 뒤의 경계(단계 1 뒤)에서 개정이 3이 된다. 같은 커밋에 `step.completed`가 든다
+    const stepA = ids.next("stp");
+    const stepB = ids.next("stp");
+    const stepC = ids.next("stp");
+    const stepD = ids.next("stp");
+    harness.commit([event(4, "step.completed", STEP_COMPLETED(0), { stepId: stepA })]);
+    harness.commit([
+      event(5, "step.completed", STEP_COMPLETED(1), { stepId: stepB }),
+      event(6, "profile.applied", profileApplied("profile_edited", "work", 3), { stepId: stepB }),
+    ]);
+    // 단계 2 뒤에도 개정은 3이다. 바뀐 것이 아니므로 줄이 더해지지 않는다
+    harness.commit([
+      event(7, "step.completed", STEP_COMPLETED(2), { stepId: stepC }),
+      event(8, "profile.applied", profileApplied("profile_edited", "work", 3), { stepId: stepC }),
+    ]);
+    // 단계 3 뒤에 개정이 다시 2가 된다. 직전 값과 달라졌으므로 단계 4의 줄이 남는다
+    harness.commit([
+      event(9, "step.completed", STEP_COMPLETED(3), { stepId: stepD }),
+      event(10, "profile.applied", profileApplied("profile_edited", "work", 2), { stepId: stepD }),
+    ]);
+    harness.commit([event(11, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect([turn.profileId, turn.profileRev]).toEqual(["work", 2]);
+    const changes = [
+      { stepIndex: 2, rev: 3 },
+      { stepIndex: 4, rev: 2 },
+    ];
+    expect(turn.profileRevChangesJson).toBe(JSON.stringify(changes));
+    const record = recordOf(turn.recordJson);
+    expect(record.profile).toEqual({ id: "work", rev: 2, source: "thread", inherited: false });
+    expect(record.profileRevChanges).toEqual(changes);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a child thread's turn is inherited and carries the profile its parent gave it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    // 자식 대화는 부모의 프로필 값으로 만들어지고, 부모의 `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다
+    harness.commit([event(1, "thread.started", threadStarted("work"), { turnId: null })]);
+    harness.commit([
+      event(2, "agent.spawned", agentSpawned(THREAD), { threadId: PARENT, turnId: null }),
+    ]);
+    harness.commit([
+      event(3, "profile.applied", profileApplied("open", "work", 2), { turnId: null }),
+    ]);
+    harness.commit([event(4, "turn.started", TURN_STARTED)]);
+    harness.commit([event(5, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect(recordOf(turn.recordJson).profile).toEqual({
+      id: "work",
+      rev: 2,
+      source: "thread",
+      inherited: true,
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a stored profile that is missing reads as the builtin default, at the default's rev", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "thread.started", threadStarted("gone"), { turnId: null })]);
+    // 저장한 프로필이 없으면 기본을 쓰고 `profile_missing`을 남긴다(M5c §4.1.1)
+    harness.commit([
+      event(2, "profile.applied", profileApplied("profile_missing", "default", 0), {
+        turnId: null,
+      }),
+    ]);
+    harness.commit([event(3, "turn.started", TURN_STARTED)]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect([turn.profileId, turn.profileRev]).toEqual(["default", 0]);
+    expect(recordOf(turn.recordJson).profile).toEqual({
+      id: "default",
+      rev: 0,
+      source: "builtin",
+      inherited: false,
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a non-default profile applied for a thread the recorder has not seen is its stored profile when no port is wired", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    // 기록기를 켜기 전에 만들어진 대화다. 기본이 아닌 프로필은 저장한 id로만 쓰이므로 적용된 값에서 저장한 id를 되짚는다
+    harness.commit([
+      event(1, "profile.applied", profileApplied("open", "work", 4), { turnId: null }),
+    ]);
+    harness.commit([event(2, "turn.started", TURN_STARTED)]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect([turn.profileId, turn.profileRev]).toEqual(["work", 4]);
+    expect(recordOf(turn.recordJson).profile).toEqual({
+      id: "work",
+      rev: 4,
+      source: "thread",
+      inherited: false,
+    });
     harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });

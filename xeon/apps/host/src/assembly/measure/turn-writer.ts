@@ -1,12 +1,19 @@
 import { parse, type Logger } from "@fresnel/contracts";
 import {
   StepCompletedPayloadSchema,
+  ThreadStartedPayloadSchema,
+  ThreadUpdatedPayloadSchema,
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
+  type ThreadId,
   type TurnId,
 } from "@fresnel/contracts/conversation";
-import type { TraceReadPort } from "@fresnel/contracts/extensions";
-import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import type { PluginSetPort, PluginSetView, TraceReadPort } from "@fresnel/contracts/extensions";
+import {
+  AgentSpawnedPayloadSchema,
+  ProfileAppliedPayloadSchema,
+  type DurableEventEnvelope,
+} from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
   SCOPE_KINDS,
@@ -21,11 +28,13 @@ import {
   hooksOfStep,
   MAX_HOOK_ROWS_PER_TURN,
   newDraft,
+  stepAfterBoundary,
   stepRecordOf,
   stepRowOf,
   trHookRowOf,
   turnRowOf,
   type TurnDraft,
+  type TurnProfileMark,
   type TurnState,
 } from "./turn-rows.ts";
 
@@ -33,15 +42,50 @@ import {
 // 쓰기는 모두 `queue`로 넘겨 마이크로태스크의 묶음에서 실행한다(TX-09): 모델 호출 경로는 SQLite 쓰기를 기다리지 않는다.
 // 턴은 `turn.started`에 `open` 행으로 열고, 단계가 끝날 때 그 단계의 행을 쓰고, `turn.completed`에 최종 상태로 닫는다.
 // 계측이 꺼진 턴은 턴 행만 쓴다(`log_only`, 규칙 3). 켜진 턴은 단계 행과 훅 행을 쓴다(`full`).
+// 프로필 표지(§4.10 규칙 60~63)는 커밋된 사건으로 정한다. 대화의 저장 id(`thread.started`·`thread.updated`), 마지막 적용(`profile.applied`),
+// 하위 대화(`agent.spawned`)를 기억하고, 턴 시작 값이 없을 때만 포트(`PluginSetPort.resolve`)를 읽는다.
 
 /** 아직 끝나지 않은 턴의 상태를 쥐는 상한. 넘으면 가장 먼저 연 턴부터 버린다(그 턴의 행은 `open`으로 남고 다음 열기 때 `lost`가 된다) */
 const MAX_OPEN_TURNS = 64;
+/** 대화별 프로필 상태를 쥐는 상한. 넘으면 가장 먼저 들어온 대화부터 뺀다 */
+const MAX_TRACKED_THREADS = 500;
+/** 저장한 프로필이 없을 때 쓰는 기본 프로필 id(M5c §4.1.1) */
+const PROFILE_DEFAULT_ID = "default";
 
 type StoreOp = (store: MeasureStore) => void;
+
+/** 같은 키를 맨 뒤로 넣고, 상한을 넘으면 가장 먼저 들어온 것부터 뺀다 */
+function rememberBounded<K, V>(map: Map<K, V>, key: K, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size <= MAX_TRACKED_THREADS) return;
+  const oldest = map.keys().next();
+  if (oldest.done !== true) map.delete(oldest.value);
+}
+
+/** `rememberBounded`의 집합판 */
+function addBounded<K>(set: Set<K>, key: K): void {
+  set.delete(key);
+  set.add(key);
+  if (set.size <= MAX_TRACKED_THREADS) return;
+  const oldest = set.values().next();
+  if (oldest.done !== true) set.delete(oldest.value);
+}
+
+/**
+ * 포트 값에서 저장한 프로필 id를 되짚는다. 저장한 프로필이 없으면 `missingProfileId`다.
+ * 저장한 id가 `default`였는지는 포트 값으로 가릴 수 없어 null(기본)로 둔다
+ */
+function storedIdOf(view: PluginSetView | undefined): string | null {
+  if (view === undefined) return null;
+  return view.missingProfileId ?? (view.profileId === PROFILE_DEFAULT_ID ? null : view.profileId);
+}
 
 export interface TurnWriterDeps {
   readonly store: MeasureStore;
   readonly trace: Pick<TraceReadPort, "turn"> | undefined;
+  /** 대화의 프로필 포트(`PluginSetPortKey`). 기록기를 켠 뒤에 처음 보는 대화의 턴 시작 값을 채울 때만 읽는다 */
+  readonly pluginSet: (() => Pick<PluginSetPort, "resolve"> | undefined) | undefined;
   /** 계측 켬 여부(`x.operations.trace.enabled`의 현재 값). 턴을 처음 볼 때 한 번 읽는다(규칙 6) */
   readonly enabled: () => boolean;
   readonly logger: Logger;
@@ -73,9 +117,92 @@ function scopeOf(store: MeasureStore, threadId: string, logger: Logger): ScopeKi
 export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   /** 열려 있는 턴. 끝나면(`turn.completed`) 지운다 */
   const drafts = new Map<string, TurnDraft>();
+  /** 대화가 저장한 프로필 id(`thread.started`·`thread.updated`의 `profileId`). 저장하지 않았으면 null. 모르는 대화는 키가 없다 */
+  const storedProfiles = new Map<string, string | null>();
+  /** 대화마다 마지막으로 적용된 프로필(`profile.applied`) */
+  const appliedProfiles = new Map<
+    string,
+    { readonly profileId: string; readonly profileRev: number }
+  >();
+  /** 하위 대화 id(`agent.spawned`의 `childThreadId`). 이 대화의 턴 표지는 `inherited`다(§4.4 규칙 24) */
+  const childThreads = new Set<string>();
 
   function levelNow(): RecordLevel {
     return deps.enabled() ? "full" : "log_only";
+  }
+
+  /**
+   * 턴 시작의 프로필 표지(§4.10 규칙 60~62). 마지막 `profile.applied`가 시작 값이다. 없으면 포트가 주는 현재 값이고,
+   * 포트도 없으면 `default`와 개정 0이다. 쓰인 프로필이 저장한 id와 같으면 `thread`, 아니면 `builtin`이다
+   */
+  function profileAtStart(threadId: ThreadId): TurnProfileMark {
+    const applied = appliedProfiles.get(threadId);
+    // 적용된 값이 없거나 저장한 id를 모르면 포트의 현재 값을 본다(포트가 없으면 undefined)
+    const view =
+      applied === undefined || !storedProfiles.has(threadId)
+        ? deps.pluginSet?.()?.resolve(threadId)
+        : undefined;
+    const storedId = storedIdFor(threadId, applied, view);
+    const id = applied?.profileId ?? view?.profileId ?? storedId ?? PROFILE_DEFAULT_ID;
+    return {
+      id,
+      rev: applied?.profileRev ?? view?.profileRev ?? 0,
+      source: storedId !== null && storedId === id ? "thread" : "builtin",
+      inherited: childThreads.has(threadId),
+    };
+  }
+
+  /**
+   * 대화가 저장한 프로필 id. 기록한 값이 있으면 그것이고, 없으면 포트 값에서 되짚고, 포트도 없으면 적용된 값에서 되짚는다.
+   * 기본이 아닌 프로필은 저장한 id로만 쓰이므로 적용된 id가 `default`가 아니면 그것이 저장한 id다
+   */
+  function storedIdFor(
+    threadId: ThreadId,
+    applied: { readonly profileId: string } | undefined,
+    view: PluginSetView | undefined,
+  ): string | null {
+    const stored = storedProfiles.get(threadId);
+    if (stored !== undefined) return stored;
+    if (view !== undefined) return storedIdOf(view);
+    if (applied !== undefined && applied.profileId !== PROFILE_DEFAULT_ID) return applied.profileId;
+    return null;
+  }
+
+  /** 저장한 프로필 id를 기억한다. 턴과 무관하다 */
+  function rememberStored(record: DurableEventEnvelope): void {
+    if (record.kind === "thread.started") {
+      const parsed = parse(ThreadStartedPayloadSchema, record.payload);
+      if (parsed.ok)
+        rememberBounded(storedProfiles, record.threadId, parsed.value.profileId ?? null);
+      return;
+    }
+    const parsed = parse(ThreadUpdatedPayloadSchema, record.payload);
+    if (parsed.ok && parsed.value.profileId !== undefined) {
+      rememberBounded(storedProfiles, record.threadId, parsed.value.profileId);
+    }
+  }
+
+  /** 적용된 프로필을 기억하고, 턴 안의 경계에서 개정이 시작 값(또는 직전 바뀜)과 달라졌으면 턴 기록에 적는다(§4.10 규칙 63) */
+  function profileApplied(record: DurableEventEnvelope): void {
+    const parsed = parse(ProfileAppliedPayloadSchema, record.payload);
+    if (!parsed.ok) return;
+    const { profileId, profileRev } = parsed.value;
+    rememberBounded(appliedProfiles, record.threadId, { profileId, profileRev });
+    if (record.turnId === null) return;
+    const draft = drafts.get(record.turnId);
+    if (draft === undefined) return;
+    const current = draft.profileRevChanges.at(-1)?.rev ?? draft.profile.rev;
+    if (profileRev === current) return;
+    draft.profileRevChanges.push({
+      stepIndex: stepAfterBoundary(draft.lastStepIndex),
+      rev: profileRev,
+    });
+  }
+
+  /** 하위 대화를 기억한다. `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다 */
+  function rememberChild(record: DurableEventEnvelope): void {
+    const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
+    if (parsed.ok) addBounded(childThreads, parsed.value.childThreadId);
   }
 
   function remember(draft: TurnDraft): void {
@@ -111,6 +238,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       startedEventId: record.id,
       origin,
       level: levelNow(),
+      profile: profileAtStart(record.threadId),
     });
     remember(draft);
     deps.queue((store) => {
@@ -134,6 +262,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       startedEventId: null,
       origin: "user",
       level: levelNow(),
+      profile: profileAtStart(record.threadId),
     });
     remember(draft);
     return draft;
@@ -143,9 +272,11 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     const parsed = parse(StepCompletedPayloadSchema, record.payload);
     if (!parsed.ok) return;
     const draft = draftOf(record, turnId);
+    const { stepIndex, composition } = parsed.value;
+    // 프로필 경계가 가리키는 다음 단계를 정한다. 계측이 꺼진 턴도 턴 행의 프로필 변화에 필요하다
+    draft.lastStepIndex = stepIndex;
     // 계측이 꺼진 턴은 단계 행을 쓰지 않는다(규칙 3: 턴 행만)
     if (draft.level !== "full") return;
-    const { stepIndex, composition } = parsed.value;
     const stepId = record.stepId ?? `step:${String(stepIndex)}`;
     // 단계 끝의 훅(`boundary.step.after`, `boundary.settle.before`)은 이 커밋 전에 실행되어 이미 버퍼에 있다
     const entries = deps.trace?.turn(record.threadId, turnId)?.entries ?? [];
@@ -217,6 +348,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
 
   return {
     event(record) {
+      if (record.kind === "profile.applied") profileApplied(record);
+      else if (record.kind === "thread.started" || record.kind === "thread.updated") {
+        rememberStored(record);
+      } else if (record.kind === "agent.spawned") rememberChild(record);
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
@@ -235,6 +370,9 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       for (const [turnId, draft] of drafts) {
         if (draft.threadId === threadId) drafts.delete(turnId);
       }
+      storedProfiles.delete(threadId);
+      appliedProfiles.delete(threadId);
+      childThreads.delete(threadId);
     },
   };
 }
