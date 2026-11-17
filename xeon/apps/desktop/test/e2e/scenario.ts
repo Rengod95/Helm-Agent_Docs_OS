@@ -32,11 +32,16 @@ const ID_PATTERN = /^[a-z]{3,4}_[0-9A-HJKMNP-TV-Z]{26}$/;
 /**
  * 식별자를 처음 나온 순서의 번호로, 시각과 프로세스 값을 고정 문자열로 바꾼다. `roots`(엔진 홈과 그 정규 경로)로 시작하는 경로는
  * 앞부분을 `<home>`으로 바꾼다: `trust.get`의 `projectRoot`와 `thread.list`의 `workspace`는 실행마다 다른 임시 폴더를 담는다.
+ * 기본 폴더의 대화 폴더(`<데이터 폴더>/default-project/<threadId>`)는 실행마다 다른 대화 id를 담으므로 transport-parity 시험과 같이
+ * 그 id를 번호로 바꾼다(`thread.create`가 낸 threadId와 같은 번호가 된다).
  */
 function normalizer(roots: readonly string[] = []): (value: unknown) => unknown {
   const seen = new Map<string, string>();
   function walk(value: unknown, key: string | undefined): unknown {
     if (typeof value === "string") {
+      const folder = /^.*\/default-project\/(thr_[0-9A-Za-z]+)$/u.exec(value);
+      if (folder?.[1] !== undefined)
+        return `<data>/default-project/${String(walk(folder[1], undefined))}`;
       for (const root of roots) {
         if (value === root) return "<home>";
         if (value.startsWith(`${root}/`)) return `<home>${value.slice(root.length)}`;
