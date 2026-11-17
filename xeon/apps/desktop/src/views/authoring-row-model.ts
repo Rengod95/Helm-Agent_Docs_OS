@@ -84,7 +84,9 @@ const SUMMARIES: Readonly<Record<string, Summary>> = {
       : t("desktop.item.authoring.noSession"),
   authoring_trial: confirmOrDone,
   authoring_package: confirmOrDone,
-  authoring_install: confirmOrDone,
+  // 검토함 제출은 확인을 묻지 않는다(M5c §4.9): 결과가 올라가면 끝이다
+  authoring_submit: (result) =>
+    result["ok"] === true ? t("desktop.item.authoring.submitted") : "",
   authoring_replay: (result) =>
     result["ok"] === true
       ? t("desktop.item.authoring.replayPassed")
@@ -104,6 +106,6 @@ const NAMES: Readonly<Record<string, Parameters<typeof t>[0]>> = {
   authoring_trial: "desktop.item.authoring.name.trial",
   authoring_replay: "desktop.item.authoring.name.replay",
   authoring_package: "desktop.item.authoring.name.package",
-  authoring_install: "desktop.item.authoring.name.install",
+  authoring_submit: "desktop.item.authoring.name.submit",
   authoring_stop: "desktop.item.authoring.name.stop",
 };

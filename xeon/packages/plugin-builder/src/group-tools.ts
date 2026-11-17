@@ -12,11 +12,13 @@ import {
   type AuthoringState,
   type PendingAction,
 } from "./group-state.ts";
-import { replayInDevMode } from "./release.ts";
+import { replayInDevMode } from "./confirm.ts";
 import { resolveTargetDir } from "./target-dir.ts";
 
 // L3.authoring.spec §3.2 모델 도구 열하나(모두 지연 노출). 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 하고 일은 `fresnel.devkit` 서비스가 한다.
-// 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 요청(`pending`)만 커밋하고 drive가 `loop.ask`로 확인한 뒤 실행한다(A-4).
+// 사람 확인이 필요한 단계(시험, 묶기, 고치기 한도)는 도구가 요청(`pending`)만 커밋하고 drive가 `loop.ask`로 확인한 뒤 실행한다(A-4).
+// 검토함으로 보내기(`authoring_submit`)는 확인을 묻지 않는다: 폴더를 초안으로 만들고 검토 항목을 여는 일뿐이라 아무 것도 실행되지 않으며,
+// 승인은 검토함에서 사용자가 한다(M5c §4.7, §4.9). 설치 도구는 없다(M5c §7.7).
 
 export const AUTHORING_TOOL_NAMES = [
   "authoring_guide",
@@ -28,7 +30,7 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_trial",
   "authoring_replay",
   "authoring_package",
-  "authoring_install",
+  "authoring_submit",
   "authoring_stop",
 ] as const;
 
@@ -161,7 +163,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const guide = tool(
     "authoring_guide",
-    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, install location, build flow). Without a topic it lists the topics.",
+    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, review inbox, build flow). Without a topic it lists the topics.",
     Type.Object(
       {
         topic: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
@@ -282,7 +284,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         replay: "none",
         trial: null,
         packaged: null,
-        installed: null,
+        submitted: null,
         denied: null,
         askRound: 0,
       });
@@ -341,7 +343,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         phase: "validate",
         files: [...made.value.files],
         packaged: null,
-        installed: null,
+        submitted: null,
       });
       return { ok: true, dir: made.value.dir, files: [...made.value.files] };
     },
@@ -367,7 +369,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (!checked.ok) return failure(checked.error);
       const report = checked.value;
       const key = errorKeyOf(report.issues);
-      const base = { packaged: null, installed: null };
+      const base = { packaged: null, submitted: null };
       if (key === null) {
         await patch(env, {
           ...base,
@@ -457,7 +459,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const pack = tool(
     "authoring_package",
-    "Pack the extension into one installable bundle. The user confirms before anything is written.",
+    "Pack the extension into one bundle file the user can keep. The user confirms before anything is written. Sending to the review inbox does not need it.",
     Type.Object(
       { ...sessionShape, out: Type.Optional(Type.String({ maxLength: 1024 })) },
       { additionalProperties: false },
@@ -476,17 +478,56 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  const install = tool(
-    "authoring_install",
-    "Install the packed bundle in the user extension location. The user confirms before it is linked.",
-    Type.Object({ ...sessionShape, scope: Type.Literal("user") }, { additionalProperties: false }),
+  // 검토함으로 보낸다(M5c §4.9.1). 폴더를 초안으로 만들고 검토 항목을 연다. 설치하지 않는다: 승인은 검토함에서 사용자가 한다.
+  // 확인을 묻지 않는 까닭은 위 파일 머리 주석에 있다. 증거는 시험 대화의 턴 하나다(M5c §4.7.1: 담당 AI의 제출은 증거 한 개 이상).
+  const submit = tool(
+    "authoring_submit",
+    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial), and the turnId of a turn in that Test run as evidence.",
+    Type.Object(
+      {
+        ...sessionShape,
+        purpose: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+        turnId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+      },
+      { additionalProperties: false },
+    ),
     "write",
-    async (input) => {
+    async (input, threadId) => {
       const refused = checkSession(env, str(input, "sessionId")) ?? awaitingIntent(env.g.state());
       if (refused !== undefined) return refused;
       const state = env.g.state();
-      if (state.packaged === null) return refusal("not_packaged", "call authoring_package first");
-      return request(env, "install", state.installed === null ? undefined : json(state.installed));
+      if (state.dir === null) return refusal("no_session", "the session has no folder");
+      if (state.phase !== "trial" && state.phase !== "replay" && state.phase !== "package")
+        return refusal("not_validated", "the extension must pass authoring_validate first");
+      // 증거는 시험 대화의 턴이다. 시험을 돌리지 않았으면 증거가 없다(거절하고 시험 도구를 먼저 돌리라고 안내한다)
+      if (state.trial === null)
+        return refusal(
+          "no_evidence",
+          "the review needs evidence from a Test run: call authoring_trial first, then submit with the turnId of that Test run",
+        );
+      const turnId = optStr(input, "turnId");
+      if (turnId === undefined)
+        return refusal(
+          "no_evidence",
+          `the review needs evidence: pass turnId, a turn of the Test run thread ${state.trial.threadId}`,
+        );
+      const purpose = optStr(input, "purpose");
+      const sent = await devkit.submit({
+        dir: state.dir,
+        originThreadId: threadId,
+        evidence: [{ kind: "turn", threadId: state.trial.threadId, turnId }],
+        ...(purpose === undefined ? {} : { purpose }),
+      });
+      if (!sent.ok) return failure(sent.error);
+      await patch(env, {
+        submitted: { draftId: sent.value.draftId, itemId: sent.value.itemId },
+      });
+      return {
+        ok: true,
+        draftId: sent.value.draftId,
+        itemId: sent.value.itemId,
+        notice: "검토함에서 승인해야 쓸 수 있다",
+      };
     },
   );
 
@@ -515,5 +556,5 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  return [guide, kinds, start, compose, scaffold, validate, trial, replay, pack, install, stop];
+  return [guide, kinds, start, compose, scaffold, validate, trial, replay, pack, submit, stop];
 }

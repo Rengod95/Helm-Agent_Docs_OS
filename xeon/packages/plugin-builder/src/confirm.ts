@@ -1,13 +1,14 @@
-import { createHash } from "node:crypto";
-import { err, parse, type Result } from "@fresnel/contracts";
+import { parse, err, type Result } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { AskCard } from "@fresnel/contracts/extensions";
 import { QuestionAnswerSchema } from "@fresnel/contracts/records";
 import type { DevkitError, ReplayInput, ReplayReport } from "@fresnel/contracts/services";
+import { createHash } from "node:crypto";
 
-// L3.authoring.spec §3.3 `replay`, §4.1 package 단계, §9 A-4·A-5. 그룹 `authoring`의 drive와 도구가 쓴다.
-// 묶기·설치 앞 사람 확인은 drive가 `ask` 명령으로 낸다(drive-isolation.md §1.1). 이 파일은 질문 카드, 요청 id,
-// 답을 읽는 규칙만 만든다. 답이 `yes`가 아니면 drive는 파일을 쓰는 호출(`pack`, `link`)을 하지 않는다.
+// L3.authoring.spec §4.1 package 단계, §9 A-4·A-5. 그룹 `authoring`의 drive와 도구가 쓴다.
+// 묶기 앞 사람 확인은 drive가 `ask` 명령으로 낸다(drive-isolation.md §1.1). 이 파일은 질문 카드, 요청 id,
+// 답을 읽는 규칙만 만든다. 답이 `yes`가 아니면 drive는 파일을 쓰는 호출(`pack`)을 하지 않는다.
+// 옛 `release.ts`에서 설치 확인(`installConfirmation`)을 뺀 나머지다(M5c §7.7: 설치 경로 폐기).
 
 const CONFIRM_QUESTION = "confirm";
 const CONFIRM_YES = "yes";
@@ -32,7 +33,7 @@ export function confirmCard(text: string): AskCard {
 }
 
 /** requestId는 64자 이하여야 한다. 경로는 짧은 지문으로 줄이고 `round`로 거절 뒤 다시 묻는 질문을 가른다 */
-function requestIdOf(action: "package" | "install", target: string, round: number): string {
+function requestIdOf(action: "package", target: string, round: number): string {
   const digest = createHash("sha256").update(target).digest("hex").slice(0, 12);
   return `authoring:${action}:${digest}:${String(round)}`;
 }
@@ -45,17 +46,6 @@ export function packConfirmation(
   return {
     requestId: requestIdOf("package", dir, round),
     card: confirmCard(`다음 폴더를 묶을까요? ${dir}`),
-  };
-}
-
-/** 설치(연결) 확인의 `ask` 명령 재료 */
-export function installConfirmation(
-  source: string,
-  round: number,
-): { readonly requestId: string; readonly card: AskCard } {
-  return {
-    requestId: requestIdOf("install", source, round),
-    card: confirmCard(`다음 묶음을 설치할까요? ${source}`),
   };
 }
 

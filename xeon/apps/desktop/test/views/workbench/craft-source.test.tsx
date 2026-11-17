@@ -411,6 +411,9 @@ const refuse = (): Promise<boolean> => Promise.resolve(false);
 
 describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => {
   const controller: WorkbenchController = {
+    reviewSent: null,
+    installSubmitted: noop,
+    dismissReviewSent: () => {},
     reload: noop,
     reloadOrders: noop,
     toggle: noop,

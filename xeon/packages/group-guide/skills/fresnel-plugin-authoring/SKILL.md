@@ -29,7 +29,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 4. `authoring_scaffold`: write the files into an empty or missing folder.
 5. Edit the files, then `authoring_validate`. Repeat until there are no errors.
 6. `authoring_trial`: the user confirms, because it uses model calls. `authoring_replay`: development mode only.
-7. `authoring_package`: the user confirms. Then `authoring_install`: the user confirms.
+7. `authoring_submit` with the `turnId` of a turn in the Test run (the evidence): it sends the folder to the review inbox as a draft. Nothing is installed; the user approves it in the review inbox, and only then can the plugin be used. `authoring_package` (optional): packs one bundle file the user can keep; the user confirms.
 8. `authoring_stop`: close the session. Files stay.
 
 These tools are deferred: find them with tool search before you call them.

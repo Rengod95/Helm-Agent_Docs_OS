@@ -59,7 +59,7 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | `authoring_trial` | `sessionId`, `prompt`, `profile?` | starts a Test run on the folder | validation has not passed | yes (it uses model calls). Denied runs ask again on the next call |
 | `authoring_replay` | `sessionId`, `maxCommits?` | replays the drive | not in development mode (`l3.authoring.devMode`, default off): `dev_mode_required` | no |
 | `authoring_package` | `sessionId`, `out?` | builds the bundle | validation has not passed | yes, before anything is written |
-| `authoring_install` | `sessionId`, `scope: "user"` | copies the bundle into the user extensions folder | not packaged | yes, before it is written |
+| `authoring_submit` | `sessionId`, `purpose?`, `turnId?` | sends the folder to the review inbox as a draft (nothing is installed; the user approves it there) | validation has not passed; no Test run yet (`no_evidence`: start `authoring_trial` first); no `turnId` (`no_evidence`: pass a turn of that Test run) | no. The review inbox is the approval step |
 | `authoring_stop` | `sessionId?` | closes the session. Files stay. The write guard is lifted | never | no |
 
 Notes:

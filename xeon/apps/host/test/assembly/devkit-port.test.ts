@@ -2,10 +2,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
-import { ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
-import type { RegistrationHandle } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  EvidenceRef,
+  PluginSubmitPort,
+  RegistrationHandle,
+} from "@fresnel/contracts/extensions";
 import type { RecordVersionInput, RegistrationInfo } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type {
@@ -91,6 +97,43 @@ test("devkit port: kinds are the catalog, and scaffold, validate and package run
   const packed = await port.pack({ dir });
   if (!packed.ok) throw new Error(packed.error.message);
   expect(packed.value.files).toEqual([".fresnel-plugin/plugin.json", "README.md", "dist/index.js"]);
+});
+
+test("devkit port: submit goes to the plugin submit port, maps its refusals to reasons, and is io without the port", async () => {
+  const state = fakes("submit");
+  const sent: string[] = [];
+  const submitPort: PluginSubmitPort = {
+    submit: (request) => {
+      sent.push(request.dir);
+      if (request.dir === "/bad") {
+        return Promise.resolve(
+          err({
+            kind: "invalid",
+            issues: [{ severity: "error", code: "schema", path: "/plugins/0", message: "bad" }],
+          }),
+        );
+      }
+      return Promise.resolve(ok({ draftId: "draft_1", itemId: "rvw_1" }));
+    },
+  };
+  const origin: ThreadId = fixedIdFactory(702).next("thr");
+  const evidence: readonly [EvidenceRef] = [{ kind: "turn", threadId: origin, turnId: "t-1" }];
+  const withPort = createDevkitPort(state.deps, { templates, submit: () => submitPort });
+  expect(await withPort.submit({ dir: "/ok", originThreadId: origin, evidence })).toEqual(
+    ok({ draftId: "draft_1", itemId: "rvw_1" }),
+  );
+  expect(await withPort.submit({ dir: "/bad", originThreadId: origin, evidence })).toEqual(
+    err({
+      kind: "invalid_input",
+      message: "the plugin folder is not valid",
+      reasons: [{ code: "schema", field: "plugins/0", message: "bad" }],
+    }),
+  );
+  expect(sent).toEqual(["/ok", "/bad"]);
+  const withoutPort = createDevkitPort(state.deps, { templates });
+  expect(await withoutPort.submit({ dir: "/ok", originThreadId: origin, evidence })).toEqual(
+    err({ kind: "io", message: "the plugin review flow is not connected" }),
+  );
 });
 
 test("devkit port: validateComposition reports composition issues against the given plugin declarations", () => {

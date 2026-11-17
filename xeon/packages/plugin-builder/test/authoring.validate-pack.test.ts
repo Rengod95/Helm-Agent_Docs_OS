@@ -1,12 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import {
-  installExtension,
   looksSecret,
   packExtension,
-  removeExtension,
   scaffoldExtension,
   validateCompositionReport,
   validateExtensionDir,
@@ -166,7 +164,7 @@ test("authoring.validate-composition: draft checked against plugin declarations 
   expect(bad.issues.every((found) => found.severity === "error")).toBe(true);
 });
 
-test("authoring.pack: bundles the entry into one file and the packed folder installs and replaces", async () => {
+test("authoring.pack: bundles the entry into one file, the same input packs to the same hash", async () => {
   const dir = await scaffolded("p-group");
   const packed = await packExtension({ dir });
   if (!packed.ok) throw new Error(packed.error.message);
@@ -184,40 +182,11 @@ test("authoring.pack: bundles the entry into one file and the packed folder inst
   if (!again.ok) throw new Error(again.error.message);
   expect(again.value.sha256).toBe(packed.value.sha256);
 
-  const extensions = root.path("extensions");
-  const first = await installExtension(
-    { source: packed.value.path },
-    { extensionsDir: extensions },
-  );
-  expect(first).toEqual({
-    ok: true,
-    value: {
-      name: "p-group",
-      version: "0.1.0",
-      location: join(extensions, "p-group"),
-      replaced: false,
-    },
-  });
-  expect(readdirSync(extensions)).toEqual(["p-group"]);
-  const second = await installExtension(
-    { source: packed.value.path },
-    { extensionsDir: extensions },
-  );
-  expect(second.ok && second.value.replaced).toBe(true);
-  const removed = await removeExtension("p-group", { extensionsDir: extensions });
-  expect(removed).toEqual({ ok: true, value: { location: join(extensions, "p-group") } });
-  expect(existsSync(join(extensions, "p-group"))).toBe(false);
-  expect(await removeExtension("p-group", { extensionsDir: extensions })).toMatchObject({
-    ok: false,
-    error: { kind: "not_found" },
-  });
-  expect(await removeExtension("../escape", { extensionsDir: extensions })).toMatchObject({
-    ok: false,
-    error: { kind: "invalid_input" },
-  });
+  // 묶은 파일은 사용자가 가질 수 있는 한 파일이다. 설치 위치로 옮기는 길은 없다(M5c §7.7)
+  expect(existsSync(join(packed.value.path, "dist", "index.js"))).toBe(true);
 });
 
-test("authoring.pack: refuses invalid input, leaves secret-looking files out and keeps an unbundled source out of install", async () => {
+test("authoring.pack: refuses invalid input and leaves secret-looking files out of the bundle", async () => {
   const bad = await scaffolded("p-bad");
   editManifest(bad, (manifest) => {
     manifest["trust"] = { level: "builtin" };
@@ -244,16 +213,6 @@ test("authoring.pack: refuses invalid input, leaves secret-looking files out and
   const occupied = await packExtension({ dir, out: root.path("p-secret-out") });
   expect(occupied.ok).toBe(false);
 
-  const source = await installExtension({ source: dir }, { extensionsDir: root.path("ext2") });
-  expect(source).toEqual({
-    ok: false,
-    error: {
-      kind: "invalid_input",
-      message: "entry must be a bundled single file (run ext.package first)",
-      // 템플릿 매니페스트의 `"entry": "./src/index.ts"`는 여섯 번째 줄이다
-      reasons: [{ code: "entry_format", field: "entry", line: 6 }],
-    },
-  });
   expect(looksSecret(".env.local")).toBe(true);
   expect(looksSecret("id_rsa")).toBe(true);
   expect(looksSecret("notes.txt")).toBe(false);

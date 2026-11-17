@@ -1,5 +1,9 @@
 import { detach } from "@fresnel/contracts";
-import { effectiveLayer, PluginSetPortKey } from "@fresnel/contracts/extensions";
+import {
+  effectiveLayer,
+  PluginSetPortKey,
+  PluginSubmitPortKey,
+} from "@fresnel/contracts/extensions";
 import { resolveSetting } from "@fresnel/contracts/settings";
 import { testRunControlOf, traceReadOf, type ExtHost } from "@fresnel/ext-host";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
@@ -153,7 +157,11 @@ export function createM4Ports(
     },
     profileTestRun,
     dialogArea: createDialogAreaPort(deps),
-    devkit: createDevkitPort(deps, { profiles: profileTestRun }),
+    // 제출 포트는 플랫폼 모듈(`fresnel.plugin-submit`)이 올라온 뒤에 찾는다(M5c §3.5). 호출 때 읽는다
+    devkit: createDevkitPort(deps, {
+      profiles: profileTestRun,
+      submit: () => host.ports.get(PluginSubmitPortKey),
+    }),
     sandboxSelfTest: createSandboxSelfTestPort(host),
   };
 }

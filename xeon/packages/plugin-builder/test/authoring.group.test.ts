@@ -63,19 +63,10 @@ test("authoring.A-3: the guard lifts when the session ends", async () => {
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   expect(rig.probe.calls).toEqual([`scaffold:${DIR}`]);
-  await rig.call("authoring_validate", { sessionId: "auth-demo" });
-  await rig.call("authoring_package", { sessionId: "auth-demo" });
-  await rig.t.boundary(rig.thread).turnSettled();
-  await rig.t.settled();
-  await rig.answer("yes");
-  await rig.call("authoring_install", { sessionId: "auth-demo", scope: "user" });
-  await rig.t.boundary(rig.thread).turnSettled();
-  await rig.t.settled();
-  await rig.answer("yes");
-  expect(rig.state()).toMatchObject({
-    phase: "done",
-    installed: { name: "demo", version: "0.1.0", location: "/ext/demo" },
-  });
+  expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeDefined();
+  // 설치 단계는 없다(M5c §7.7). 세션이 끝나면 쓰기 범위 가드가 풀린다
+  await rig.call("authoring_stop", { sessionId: "auth-demo" });
+  expect(rig.state()).toMatchObject({ phase: "idle", sessionId: null, submitted: null });
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
 });
 
@@ -397,4 +388,62 @@ test("authoring.lease: with no authoring session the builder takes the drive loc
       payload.reason === "done",
   );
   expect(doneCount).toHaveLength(1);
+});
+
+test("authoring.submit: without a Test run the review refuses with no_evidence and names authoring_trial, and sends nothing", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  const refused = await rig.call("authoring_submit", { sessionId: "auth-demo" });
+  expect(refused).toMatchObject({
+    ok: false,
+    error: { kind: "no_evidence", message: expect.stringContaining("authoring_trial") },
+  });
+  expect(rig.probe.calls.filter((call) => call.startsWith("submit:"))).toEqual([]);
+  expect(rig.state()).toMatchObject({ submitted: null });
+});
+
+test("authoring.submit: after a Test run, the turn of that run is the evidence and the draft and item are recorded; nothing is installed", async () => {
+  const rig = await createGroupRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("yes");
+  expect(rig.state().trial).toEqual({ threadId: "thr_trial" });
+  // 턴 id 없이 보내면 거절하고 어느 대화의 턴이 필요한지 알린다
+  const needsTurn = await rig.call("authoring_submit", { sessionId: "auth-demo" });
+  expect(needsTurn).toMatchObject({
+    ok: false,
+    error: { kind: "no_evidence", message: expect.stringContaining("thr_trial") },
+  });
+  const sent = await rig.call("authoring_submit", {
+    sessionId: "auth-demo",
+    turnId: "turn_1",
+    purpose: "데모 플러그인",
+  });
+  expect(sent).toEqual({
+    ok: true,
+    draftId: "draft_demo",
+    itemId: "rvw_demo",
+    notice: "검토함에서 승인해야 쓸 수 있다",
+  });
+  expect(rig.probe.submits).toEqual([
+    {
+      dir: DIR,
+      originThreadId: rig.thread,
+      evidence: [{ kind: "turn", threadId: "thr_trial", turnId: "turn_1" }],
+      purpose: "데모 플러그인",
+    },
+  ]);
+  expect(rig.state()).toMatchObject({
+    submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
+    phase: "trial",
+  });
+  // 다시 검사하면 제출 기록은 지운다(검토함의 항목은 그대로다). 고친 뒤에는 새 초안으로 다시 보낸다
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  expect(rig.state()).toMatchObject({ submitted: null });
 });

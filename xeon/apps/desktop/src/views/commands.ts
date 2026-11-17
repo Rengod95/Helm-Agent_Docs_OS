@@ -144,11 +144,7 @@ export type BusyInputMode = "steer" | "followUp";
 export type SwitchMode = "default" | "acceptEdits" | "bypass";
 
 /** `not_available`로 막는 명령 이름. `ext.remove.dropData`는 `ext.remove`의 저장 데이터 지우기 칸이다 */
-export type NotAvailableCommand =
-  | "ext.installPreview"
-  | "ext.install"
-  | "ext.removePreview"
-  | "ext.remove.dropData";
+export type NotAvailableCommand = "ext.removePreview" | "ext.remove.dropData";
 
 export type CommandError =
   | { readonly kind: "offline" }
@@ -161,7 +157,7 @@ export type CommandError =
       readonly options: readonly LockedOption[];
     }
   /**
-   * 이 앱이 보내지 않는 명령. M5c-1에서 wire가 빠졌고 정확한 대체가 없다(설치, 저장 데이터 목록, 저장 데이터 지우기).
+   * 이 앱이 보내지 않는 명령. wire가 빠졌고 정확한 대체가 없다(저장 데이터 목록, 저장 데이터 지우기).
    * 보내지 않았으므로 호스트 상태는 그대로다. 화면은 실패 갈래로 보인다(조용한 무시가 아니다)
    */
   | { readonly kind: "not_available"; readonly command: NotAvailableCommand }
@@ -832,9 +828,14 @@ export interface StorageTableRow {
   readonly rows: number;
 }
 
-/** `removePreview`의 값. M5c-1 뒤로 만들어지지 않는다(항상 `not_available`) */
+/** `removePreview`의 값. 대체 wire가 없어 만들어지지 않는다(항상 `not_available`) */
 export interface StorageTablesPreview {
   readonly tables: readonly StorageTableRow[];
+}
+
+/** 검토함으로 보낸 요청의 결과(`pluginReview.submitDraft`). `itemId`는 검토 항목이다 */
+interface ReviewSubmitted {
+  readonly itemId: string;
 }
 
 export interface WorkbenchCommands {
@@ -849,14 +850,15 @@ export interface WorkbenchCommands {
    */
   onChanged(listener: (settled: boolean) => void): () => void;
   /**
-   * 폴더의 설치 미리 보기. M5c-1에서 `ext.installPreview`가 빠졌다. 설치는 검토함을 거치며 이 앱은 아직 그 길을 쓰지 않으므로
-   * 항상 `not_available`이다
+   * 폴더의 설치 미리 보기: `plugin.draft.create { dir }`의 카드를 미리 보기 모양으로 옮긴다(초안이 만들어지지만 검토함에는 가지 않는다).
+   * `sha256`은 초안의 내용 해시다
    */
   installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
   /**
-   * 설치. M5c-1에서 `ext.install`이 빠졌다. 항상 `not_available`이다. 성공하면 `null`이다(호출하는 쪽이 목록을 다시 읽는다)
+   * 설치 요청: 미리 본 초안(`installPreview`)을 `pluginReview.submitDraft`로 검토함에 보낸다. 바로 설치되지 않고 승인되면 들어간다.
+   * 미리 보기 없이 불렀고 폴더 내용이 `sha256`과 다르면 `source_changed`로 거절한다. 성공하면 검토 항목 id다
    */
-  install(source: string, sha256: string): Promise<Result<null, CommandError>>;
+  install(source: string, sha256: string): Promise<Result<ReviewSubmitted, CommandError>>;
   /**
    * 지우기 요청: `plugin.requestRemove { name }`(검토 항목을 만든다). `dropData`를 참으로 주면 저장 데이터 지우기는
    * 대체가 없어 `not_available`이다(보내지 않는다)

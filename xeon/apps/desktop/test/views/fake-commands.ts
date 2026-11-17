@@ -101,13 +101,12 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},
-      installPreview: () =>
-        Promise.resolve(err({ kind: "not_available", command: "ext.installPreview" })),
+      installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
       removePreview: () =>
         Promise.resolve(err({ kind: "not_available", command: "ext.removePreview" })),
       bindings: () => Promise.resolve(err({ kind: "unsupported" })),
-      install: () => Promise.resolve(err({ kind: "not_available", command: "ext.install" })),
+      install: () => Promise.resolve(err({ kind: "unsupported" })),
       reload: () => Promise.resolve(ok(null)),
       get: () => Promise.resolve(err({ kind: "unsupported" })),
       groups: () => Promise.resolve(err({ kind: "unsupported" })),

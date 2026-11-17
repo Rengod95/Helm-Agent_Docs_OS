@@ -8,10 +8,11 @@ import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { printFailure, withEngine, type CommandContext } from "./context.ts";
 
 // L3.authoring.spec §4.5 `fresnel author <명령>`, L4.cli.spec §3.1. 모델 없이 도는 제작 명령이다.
-// 엔진의 wire(`ext.scaffold`, `ext.validate`, `ext.package`, `plugin.requestRemove`, `ext.list`)를 그대로 부른다:
-// 이 명령은 `@fresnel/plugin-builder`를 직접 읽지 않는다(DR-10). 종료 코드는 검사 실패가 1, 인자와 확인 거부가 2다.
-// M5c-1에서 `ext.installPreview`·`ext.install`과 `ext.removePreview`·`ext.remove`가 wire에서 빠졌다. 설치는 검토함을 거치고
-// (호스트 `plugin.draft.create`·`pluginReview.submitDraft`) 이 명령은 아직 그 길을 부르지 않으므로 `not_available`로 끝낸다.
+// 엔진의 wire(`ext.scaffold`, `ext.validate`, `ext.package`, `plugin.draft.create`, `pluginReview.submitDraft`,
+// `plugin.requestRemove`, `ext.list`)를 그대로 부른다: 이 명령은 `@fresnel/plugin-builder`를 직접 읽지 않는다(DR-10).
+// 종료 코드는 검사 실패가 1, 인자와 확인 거부가 2다.
+// M5c-1에서 `ext.installPreview`·`ext.install`과 `ext.removePreview`·`ext.remove`가 wire에서 빠졌다. 설치는 검토함을 거친다:
+// 원본 폴더를 초안으로 만들고(`plugin.draft.create`) 그 초안을 검토 항목으로 보낸다(`pluginReview.submitDraft`). 승인 전에는 쓸 수 없다.
 // 지우기는 `plugin.requestRemove`가 검토 항목을 만든다. 저장 데이터 지우기(`--drop-data`)의 대체는 없어 `not_available`이다.
 
 async function writeJson(ctx: CommandContext, body: unknown): Promise<void> {
@@ -147,21 +148,12 @@ async function runPack(
 }
 
 /**
- * 쓸 수 없는 명령의 typed `not_available` 결과. 글은 텍스트면 두 줄 오류, JSON이면 `{ kind, command }`로 쓰고 종료 코드는 1이다.
+ * `--drop-data`의 typed `not_available` 결과. 글은 텍스트면 두 줄 오류, JSON이면 `{ kind, command }`로 쓰고 종료 코드는 1이다.
  * 아무것도 보내지 않으므로 호스트 쪽 상태는 바뀌지 않는다.
  */
-async function notAvailable(
-  ctx: CommandContext,
-  output: OutputMode,
-  command: "author.install" | "author.remove.dropData",
-): Promise<ExitCode> {
+async function notAvailableDropData(ctx: CommandContext, output: OutputMode): Promise<ExitCode> {
   if (output === "json") {
-    await writeJson(ctx, { kind: "not_available", command });
-  } else if (command === "author.install") {
-    await printFailure(ctx.io, {
-      message: t("cli.author.notAvailable.install.message"),
-      fix: t("cli.author.notAvailable.install.fix"),
-    });
+    await writeJson(ctx, { kind: "not_available", command: "author.remove.dropData" });
   } else {
     await printFailure(ctx.io, {
       message: t("cli.author.notAvailable.dropData.message"),
@@ -171,12 +163,26 @@ async function notAvailable(
   return EXIT.error;
 }
 
+/**
+ * 설치는 검토함을 거친다. 원본 폴더를 초안으로 만들고(`plugin.draft.create`) 그 초안을 검토 항목으로 보낸다(`pluginReview.submitDraft`).
+ * 아직 설치하지 않으므로 확인을 묻지 않는다. 실패한 wire 호출은 `withEngine`이 종류별로 알린다(검토 항목이 생기지 않는다).
+ */
 async function runInstall(
   ctx: CommandContext,
+  handle: EngineHandle,
   command: Extract<AuthorCommand, { kind: "author.install" }>,
 ): Promise<ExitCode> {
-  // `ext.installPreview`·`ext.install`은 M5c-1에서 wire에서 빠졌다. 설치는 검토함을 거치는데 이 명령은 그 길을 아직 부르지 않는다
-  return notAvailable(ctx, command.output, "author.install");
+  const dir = resolve(ctx.workspace, command.dir);
+  const draft = await handle.connection.request("plugin.draft.create", { dir });
+  const submitted = await handle.connection.request("pluginReview.submitDraft", {
+    draftId: draft.draftId,
+  });
+  if (command.output === "json") {
+    await writeJson(ctx, { draftId: draft.draftId, itemId: submitted.itemId });
+    return EXIT.ok;
+  }
+  await ctx.io.stdout(`${t("cli.author.install.submitted", { itemId: submitted.itemId })}\n`);
+  return EXIT.ok;
 }
 
 async function runRemove(
@@ -185,7 +191,7 @@ async function runRemove(
   command: Extract<AuthorCommand, { kind: "author.remove" }>,
 ): Promise<ExitCode> {
   // 저장 데이터 지우기는 대체가 없다(`ext.removePreview`가 빠졌다). 플러그인만 지우는 요청은 보낸다
-  if (command.dropData) return notAvailable(ctx, command.output, "author.remove.dropData");
+  if (command.dropData) return notAvailableDropData(ctx, command.output);
   const refused = await confirmOrRefuse(
     ctx,
     command.yes,
@@ -249,7 +255,7 @@ export async function runAuthor(ctx: CommandContext, command: AuthorCommand): Pr
       case "author.pack":
         return runPack(ctx, handle, command);
       case "author.install":
-        return runInstall(ctx, command);
+        return runInstall(ctx, handle, command);
       case "author.remove":
         return runRemove(ctx, handle, command);
       case "author.ls":

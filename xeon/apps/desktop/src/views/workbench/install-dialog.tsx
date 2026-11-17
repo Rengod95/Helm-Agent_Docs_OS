@@ -160,8 +160,8 @@ function run(work: Promise<void>): void {
 export function InstallDialog(props: {
   readonly open: boolean;
   readonly onClose: () => void;
-  /** 설치가 끝났을 때(목록을 다시 읽는다) */
-  readonly onInstalled: () => void;
+  /** 설치 요청이 검토함에 들어갔을 때(검토 항목 id) */
+  readonly onInstalled: (itemId: string) => void;
 }): ReactNode {
   const commands = useCommands();
   const [flow, dispatch] = useReducer(installReduce, INITIAL_INSTALL_FLOW);
@@ -197,8 +197,8 @@ export function InstallDialog(props: {
     dispatch({ type: "installStart" });
     const got = await commands.workbench.install(source, sha256);
     if (got.ok) {
-      // 설치가 됐으면 목록을 다시 읽고 상자를 닫는다. 결과 화면은 두지 않는다(결과 값이 wire에서 빠졌다)
-      props.onInstalled();
+      // 검토함에 들어갔으면 알리고 상자를 닫는다. 결과 화면은 두지 않는다
+      props.onInstalled(got.value.itemId);
       props.onClose();
     } else {
       dispatch({

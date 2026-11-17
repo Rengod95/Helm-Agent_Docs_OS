@@ -161,7 +161,7 @@ describe("설치 실패 갈래", () => {
     expect(installFailureOf(issue("denied: builtin"))).toBe("denied");
     expect(installFailureOf({ kind: "offline" })).toBe("offline");
     expect(installFailureOf({ kind: "unsupported" })).toBe("unsupported");
-    expect(installFailureOf({ kind: "not_available", command: "ext.install" })).toBe(
+    expect(installFailureOf({ kind: "not_available", command: "ext.removePreview" })).toBe(
       "not_available",
     );
     expect(installFailureOf({ kind: "failed" })).toBe("other");

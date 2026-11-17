@@ -1,6 +1,10 @@
 import { err, ok, parse } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
-import { ToolsPortKey, type ToolResourceDef } from "@fresnel/contracts/extensions";
+import {
+  ToolsPortKey,
+  type PluginSubmitRequest,
+  type ToolResourceDef,
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   type ApprovalRequest,
@@ -131,10 +135,14 @@ function fakeApprovals(now: () => number): FakeApprovals {
   return { service, created };
 }
 
+type DevkitSubmitInput = PluginSubmitRequest;
+
 interface DevkitProbe {
   readonly devkit: DevkitService;
   /** 호출 기록 `이름:대상` */
   readonly calls: string[];
+  /** `submit`에 넘어온 입력(증거와 목적을 시험이 본다) */
+  readonly submits: DevkitSubmitInput[];
   validation: ValidationReport;
 }
 
@@ -142,8 +150,10 @@ const OK_REPORT: ValidationReport = { ok: true, issues: [] };
 
 function devkitProbe(): DevkitProbe {
   const calls: string[] = [];
+  const submits: DevkitSubmitInput[] = [];
   const probe: DevkitProbe = {
     calls,
+    submits,
     validation: OK_REPORT,
     devkit: {
       kinds: async () => KIND_CATALOG,
@@ -179,9 +189,10 @@ function devkitProbe(): DevkitProbe {
         calls.push(`pack:${input.dir}`);
         return ok({ path: `${input.dir}/dist/package`, files: ["a"], sha256: "a".repeat(64) });
       },
-      link: async (input) => {
-        calls.push(`link:${input.source}`);
-        return ok({ name: "demo", version: "0.1.0", location: "/ext/demo" });
+      submit: async (input) => {
+        calls.push(`submit:${input.dir}`);
+        submits.push(input);
+        return ok({ draftId: "draft_demo", itemId: "rvw_demo" });
       },
     },
   };

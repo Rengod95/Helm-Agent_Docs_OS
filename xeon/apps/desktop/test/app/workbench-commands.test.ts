@@ -19,6 +19,7 @@ import {
   type ProfilePreviewResult,
   type ThreadSetProfileResult,
   type ExtValidateResult,
+  type PluginDraftCreateResult,
 } from "@fresnel/contracts/wire";
 import {
   asksDisable,
@@ -51,6 +52,43 @@ const paramsOf = (
 /** 보낸 메서드 이름 가운데 `names`에 든 것만 보낸 순서대로 모은다(두 호출의 순서를 본다) */
 const orderOf = (methods: readonly string[], ...names: readonly string[]): string[] =>
   methods.filter((method) => names.includes(method));
+
+const HASH = `sha256:${"a".repeat(64)}`;
+const DRAFT: PluginDraftCreateResult = {
+  draftId: "drf_1",
+  contentHash: HASH,
+  card: {
+    name: "docs",
+    displayName: "Docs",
+    purpose: "문서를 읽는다",
+    does: {
+      inject: null,
+      hook: {
+        hooks: [
+          { name: "tool.call.before", fold: "first", position: "before", powers: ["decide"] },
+        ],
+      },
+      drive: null,
+    },
+    enforcement: "advisory",
+    runs: { code: false, isolated: null },
+    cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+    health: { state: "idle", lastActiveAt: null, lastError: null },
+    origin: { kind: "user" },
+    review: { state: "draft", currentHash: null, pendingItemId: null, approvedAt: null },
+    usedBy: [],
+  },
+  info: {
+    draftId: "drf_1",
+    name: "docs",
+    contentHash: HASH,
+    parent: null,
+    createdAt: "2026-11-18T00:00:00Z",
+    originThreadId: null,
+    label: null,
+    submittedItemId: null,
+  },
+};
 
 /** `settings.set`이 돌려주는 저장 결과. 답 명령은 이 결과를 받아야 다음 호출로 넘어간다 */
 const SETTING_WRITTEN = {
@@ -544,18 +582,55 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("설치 미리 보기와 설치는 wire를 보내지 않고 not_available을 돌려준다(M5c-1에서 wire가 빠졌다)", async () => {
-    const { app, params } = await liveApp({});
-    expect(await app.commands.workbench.installPreview("/plugins/docs")).toEqual({
-      ok: false,
-      error: { kind: "not_available", command: "ext.installPreview" },
+  test("설치 미리 보기는 plugin.draft.create의 카드를 미리 보기로 옮기고, 설치는 그 초안을 pluginReview.submitDraft로 보낸다", async () => {
+    const { app, params, methods } = await liveApp({
+      results: { "plugin.draft.create": DRAFT, "pluginReview.submitDraft": { itemId: "rvw_9" } },
     });
-    expect(await app.commands.workbench.install("/plugins/docs", "b".repeat(64))).toEqual({
-      ok: false,
-      error: { kind: "not_available", command: "ext.install" },
+    const previewed = await app.commands.workbench.installPreview("/plugins/docs");
+    expect(previewed).toEqual({
+      ok: true,
+      value: {
+        name: "docs",
+        version: "a".repeat(12),
+        displayName: "Docs",
+        description: "문서를 읽는다",
+        source: "/plugins/docs",
+        sha256: HASH,
+        trustRequest: null,
+        installedVersion: null,
+        hooks: ["tool.call.before"],
+        tools: [],
+        capabilities: [],
+        network: [],
+        files: [],
+        shell: [],
+        drives: false,
+        screens: [],
+        warnings: [],
+      },
     });
-    expect(paramsOf(params, "ext.installPreview")).toEqual([]);
-    expect(paramsOf(params, "ext.install")).toEqual([]);
+    expect(await app.commands.workbench.install("/plugins/docs", HASH)).toEqual({
+      ok: true,
+      value: { itemId: "rvw_9" },
+    });
+    expect(paramsOf(params, "plugin.draft.create")).toEqual([{ dir: "/plugins/docs" }]);
+    expect(paramsOf(params, "pluginReview.submitDraft")).toEqual([{ draftId: "drf_1" }]);
+    expect(orderOf(methods, "plugin.draft.create", "pluginReview.submitDraft")).toEqual([
+      "plugin.draft.create",
+      "pluginReview.submitDraft",
+    ]);
+    await app.stop();
+  });
+
+  test("미리 보기 없이 설치하면 초안을 만들고, 내용 해시가 다르면 source_changed로 거절하며 보내지 않는다", async () => {
+    const { app, params } = await liveApp({ results: { "plugin.draft.create": DRAFT } });
+    expect(
+      await app.commands.workbench.install("/plugins/docs", `sha256:${"c".repeat(64)}`),
+    ).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: null, issue: "source_changed: content hash differs" },
+    });
+    expect(paramsOf(params, "pluginReview.submitDraft")).toEqual([]);
     await app.stop();
   });
 

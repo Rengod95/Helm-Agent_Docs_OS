@@ -3,7 +3,6 @@ import { err, ok } from "@fresnel/contracts";
 import {
   authoringWriteGuard,
   confirmedYes,
-  installConfirmation,
   packConfirmation,
   replayInDevMode,
 } from "../src/index.ts";
@@ -98,13 +97,13 @@ test("authoring.package-requires-ask: the confirmation is a yes-or-no question w
   ).toEqual([["confirm", ["yes", "no"]]]);
 });
 
-test("authoring.install-requires-ask: the install confirmation has its own request id under 64 characters (A-4)", () => {
-  const asked = installConfirmation("/out", 0);
-  expect(asked.requestId).toMatch(/^authoring:install:[0-9a-f]{12}:0$/);
+test("authoring.package-requires-ask: the packing confirmation has its own request id under 64 characters (A-4)", () => {
+  const asked = packConfirmation("/out", 0);
+  expect(asked.requestId).toMatch(/^authoring:package:[0-9a-f]{12}:0$/);
   expect(asked.requestId.length).toBeLessThanOrEqual(64);
-  expect(installConfirmation("/out", 0).requestId).toBe(asked.requestId);
+  expect(packConfirmation("/out", 0).requestId).toBe(asked.requestId);
   expect(asked.card.questions.map((question) => question.text)).toEqual([
-    "다음 묶음을 설치할까요? /out",
+    "다음 폴더를 묶을까요? /out",
   ]);
 });
 

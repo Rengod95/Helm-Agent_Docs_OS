@@ -9,7 +9,7 @@ import type {
 import type { DevkitService, ValidationReport } from "@fresnel/contracts/services";
 import { authoringDrive, type DriveApi } from "../src/group-drive.ts";
 import { INITIAL_AUTHORING_STATE, type AuthoringState } from "../src/group-state.ts";
-import { installConfirmation, packConfirmation } from "../src/release.ts";
+import { packConfirmation } from "../src/confirm.ts";
 
 // 주도 단계 함수(group-drive.ts)를 직접 부른다. 엔진 없이 명령이 무엇인지만 본다: 상태와 직전 결과가 같으면 같은 명령이다(재시작 안전).
 
@@ -57,9 +57,9 @@ function drive(): {
         ok({ path: `${input.dir}/dist/package`, files: ["a"], sha256: "a".repeat(64) }),
       );
     },
-    link: (input) => {
-      calls.push(`link:${input.source}`);
-      return Promise.resolve(ok({ name: "demo", version: "0.1.0", location: "/ext/demo" }));
+    submit: (input) => {
+      calls.push(`submit:${input.dir}`);
+      return Promise.resolve(ok({ draftId: "draft_demo", itemId: "rvw_demo" }));
     },
   };
   return { step: authoringDrive(api, devkit), posts, calls };
@@ -185,7 +185,7 @@ test("authoring.drive.e: the same state and the same last give the same command 
   expect(await step(stepInput(packing))).toEqual(packAsk);
 });
 
-test("authoring.drive.f: nothing is packed or linked without a yes, and the packing ask carries the release request id", async () => {
+test("authoring.drive.f: nothing is packed without a yes, and the packing ask carries the release request id; the drive never submits", async () => {
   const packing: AuthoringState = {
     ...SESSION,
     phase: "validate",
@@ -216,32 +216,16 @@ test("authoring.drive.f: nothing is packed or linked without a yes, and the pack
   });
   expect(pack.calls).toEqual([`pack:${DIR}`]);
 
+  // 검토함으로 보내는 일(`authoring_submit`)은 도구가 한다. drive는 묶은 뒤 아무 것도 더 하지 않고 상주하며, 제출을 부르지 않는다
   const packaged: AuthoringState = {
     ...SESSION,
     phase: "package",
-    pending: "install",
+    pending: null,
     packaged: { path: `${DIR}/dist/package`, sha256: "a".repeat(64), files: 1 },
   };
-  const install = drive();
-  expect(await install.step(stepInput(packaged))).toEqual({
-    do: "ask",
-    card: installConfirmation(`${DIR}/dist/package`, 0).card,
-    requestId: installConfirmation(`${DIR}/dist/package`, 0).requestId,
-  });
-  expect(await install.step(stepInput(packaged, answered("no")))).toMatchObject({
-    do: "commit",
-    state: { pending: null, denied: "install" },
-  });
-  expect(install.calls).toEqual([]);
-  expect(await install.step(stepInput(packaged, answered("yes")))).toMatchObject({
-    do: "commit",
-    state: {
-      pending: null,
-      phase: "done",
-      installed: { name: "demo", version: "0.1.0", location: "/ext/demo" },
-    },
-  });
-  expect(install.calls).toEqual([`link:${DIR}/dist/package`]);
+  const after = drive();
+  expect(await after.step(stepInput(packaged))).toEqual({ do: "yield" });
+  expect(after.calls).toEqual([]);
 });
 
 test("authoring.drive.g: a trial starts only after a yes and the fix limit keeps going only after a yes", async () => {

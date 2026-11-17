@@ -89,16 +89,6 @@ function lineOf(text: string, index: number): number {
   return line;
 }
 
-/**
- * 원문에서 `"key":`가 처음 나오는 줄(1부터). 원문에 없으면 undefined다. JSON 파서는 위치를 주지 않아 글자 찾기로 본다.
- * 같은 이름의 키가 여러 곳에 있으면 처음 것이라 중첩된 같은 이름의 키는 다른 줄을 가리킬 수 있다
- */
-export function lineOfKey(text: string, key: string): number | undefined {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const found = new RegExp(`"${escaped}"\\s*:`).exec(text);
-  return found === null ? undefined : lineOf(text, found.index);
-}
-
 function recordOf(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? { ...value }
@@ -170,8 +160,17 @@ export async function validateExtensionDir(
 ): Promise<Result<ValidationReport, DevkitError>> {
   const folder = await io(dir, () => stat(dir));
   if (!folder.ok) return folder;
+  // 폴더는 있는데 플러그인 파일이 없으면 `no_manifest`다(폴더가 없으면 위에서 `not_found`로 끝났다)
   const text = await io(MANIFEST_PATH, () => readFile(join(dir, MANIFEST_PATH), "utf8"));
-  if (!text.ok) return text;
+  if (!text.ok) {
+    return text.error.kind === "not_found"
+      ? err({
+          kind: "no_manifest",
+          message: `${MANIFEST_PATH} is missing`,
+          reasons: [{ code: "no_manifest" }],
+        })
+      : text;
+  }
   const parsed = manifestOf(text.value);
   if (!parsed.ok) return parsed;
   const issues: DevkitIssue[] = [...parsed.value.issues];

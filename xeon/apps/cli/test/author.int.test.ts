@@ -28,6 +28,27 @@ function namesOf(text: string): readonly string[] {
   );
 }
 
+/** `author install --json`이 낸 초안 번호 */
+function draftIdOf(text: string): string {
+  const doc: unknown = JSON.parse(text);
+  if (
+    typeof doc === "object" &&
+    doc !== null &&
+    "draftId" in doc &&
+    typeof doc.draftId === "string"
+  )
+    return doc.draftId;
+  throw new Error("author install --json has no draftId");
+}
+
+/** `author install --json`이 낸 검토 항목 번호 */
+function itemIdOf(text: string): string {
+  const doc: unknown = JSON.parse(text);
+  if (typeof doc === "object" && doc !== null && "itemId" in doc && typeof doc.itemId === "string")
+    return doc.itemId;
+  throw new Error("author install --json has no itemId");
+}
+
 test("author subcommands parse into their command values", () => {
   expect(parse(["author", "scaffold", "demo-ext", "--dir", "out"])).toEqual({
     kind: "author.scaffold",
@@ -110,15 +131,22 @@ test("scaffold, validate, pack, install, ls and remove run end to end without a 
   expect(packed).toMatchObject({ path: packedPath });
   expect(existsSync(join(packedPath, "dist", "index.js"))).toBe(true);
 
-  // 설치는 M5c-1에서 wire에서 빠졌다. 검토함 길을 아직 부르지 않으므로 typed not_available로 끝나고, 아무것도 설치되지 않는다
+  // 설치는 검토함을 거친다: 원본 폴더를 초안으로 만들고(`plugin.draft.create`) 그 초안을 검토 항목으로 보낸다(`pluginReview.submitDraft`).
+  // 승인 전이라 목록에는 아직 없다
   clear();
-  h.useTerminal({ stdinIsTty: false, stdoutIsTty: false });
-  expect(await h.run(["author", "install", packedPath, "--yes", "--json"])).toBe(EXIT.error);
-  expect(JSON.parse(h.stdoutText())).toEqual({ kind: "not_available", command: "author.install" });
+  expect(await h.run(["author", "install", "demo-ext", "--json"])).toBe(EXIT.ok);
+  const draftId = draftIdOf(h.stdoutText());
+  expect(JSON.parse(h.stdoutText())).toMatchObject({ draftId, itemId: expect.any(String) });
+  expect(cli.sent("plugin.draft.create").map((request) => request.params)).toEqual([{ dir }]);
+  expect(cli.sent("pluginReview.submitDraft").map((request) => request.params)).toEqual([
+    { draftId },
+  ]);
+  // 사람용 출력은 같은 항목 번호를 한 줄로 알리고 승인 전에는 쓸 수 없다고 한다
+  const itemId = itemIdOf(h.stdoutText());
   clear();
-  expect(await h.run(["author", "install", packedPath])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("fresnel author install은 이 버전에서 쓸 수 없다.");
-  expect(h.stderrText()).toContain("해결:");
+  expect(await h.run(["author", "install", "demo-ext"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toBe(`검토함에 올렸다(${itemId}). 검토함에서 승인해야 쓸 수 있다.\n`);
+  clear();
   expect(await h.run(["author", "ls", "--json"])).toBe(EXIT.ok);
   expect(namesOf(h.stdoutText())).not.toContain("demo-ext");
 
@@ -132,8 +160,27 @@ test("scaffold, validate, pack, install, ls and remove run end to end without a 
     command: "author.remove.dropData",
   });
 
-  // 지우기 요청(`plugin.requestRemove`)의 성공 경로는 여기서 시험하지 않는다. 호스트가 아직 이 메서드를 구현하지 않았다
-  // (`apps/host/src/handlers/index.ts`의 notImplemented). 구현되면 `{ name, itemId }`를 값으로 시험한다
+  // 지우기 요청은 `plugin.requestRemove { name }`을 보낸다. 이 시험의 기기에는 기본 플러그인 `helm`이 등록돼 있지 않아
+  // 호스트가 `extension.notFound`로 거절하고, 종료 코드는 1이다(성공 경로 `{ name, itemId }`는 호스트 시험이 본다)
+  clear();
+  expect(await h.run(["author", "remove", "helm", "--yes", "--json"])).toBe(EXIT.error);
+  expect(cli.sent("plugin.requestRemove").map((request) => request.params)).toEqual([
+    { name: "helm" },
+  ]);
+  expect(h.stderr.join("")).toContain("extension.notFound");
+}, 120_000);
+
+test("install sends no review submission when the draft cannot be made", async () => {
+  const cli = createRealCli({ loadExtensions: true });
+  clis.push(cli);
+  const h = cli.harness;
+  const missing = join(cli.home.work, "missing-folder");
+
+  expect(await h.run(["author", "install", "missing-folder", "--json"])).toBe(EXIT.error);
+  expect(cli.sent("plugin.draft.create").map((request) => request.params)).toEqual([
+    { dir: missing },
+  ]);
+  expect(cli.sent("pluginReview.submitDraft")).toEqual([]);
 }, 120_000);
 
 test("validate prints one line per issue with the path and code, and pack refuses a broken manifest", async () => {

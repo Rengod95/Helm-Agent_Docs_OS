@@ -8,6 +8,10 @@ import {
   isGroupExtension,
   validateManifest,
   type ExtensionManifest,
+  type PluginSubmitError,
+  type PluginSubmitPort,
+  type PluginSubmitRequest,
+  type PluginSubmitResult,
 } from "@fresnel/contracts/extensions";
 import type { ExtTestRunParams, ExtTestRunResult } from "@fresnel/contracts/wire";
 import type { DevkitError, ReplayReport } from "@fresnel/contracts/services";
@@ -57,6 +61,11 @@ export interface DevkitPortOptions {
   readonly replay?: ReplayRunner;
   /** 시험 기록 ID 만들기. 생략하면 무작위 ID다(시험이 고정 값을 넣는다) */
   readonly newTestId?: () => string;
+  /**
+   * 담당 AI의 제출 포트(`PluginSubmitPortKey`, 플랫폼 모듈 `fresnel.plugin-submit`이 낸다). 호출 때 읽는다.
+   * 조립 루트가 확장 호스트에서 찾아 넘긴다. 없으면 제출은 `io`다
+   */
+  readonly submit?: () => PluginSubmitPort | undefined;
 }
 
 const DEFAULT_MAX_COMMITS = 200;
@@ -71,6 +80,36 @@ function notInstalled(name: string): Result<never, DevkitError> {
 }
 
 const EXTENSION_NAME = new RegExp(EXTENSION_NAME_PATTERN);
+
+/** 제출 포트의 실패를 제작 서비스 오류로 옮긴다. 검사 사유는 `reasons`로 싣는다(매니페스트 경로는 `/` 없이) */
+function submitErrorOf(failure: PluginSubmitError): DevkitError {
+  switch (failure.kind) {
+    case "invalid":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder is not valid",
+        reasons: failure.issues.map((issue) => ({
+          code: issue.code,
+          ...(issue.path === "" ? {} : { field: issue.path.replace(/^\//, "") }),
+          message: issue.message,
+        })),
+      };
+    case "too_large":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder is too large",
+        reasons: [{ code: "too_large" }],
+      };
+    case "symlink_refused":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder has a symbolic link",
+        reasons: [{ code: "symlink_refused" }],
+      };
+    default:
+      return assertNever(failure, "PluginSubmitError");
+  }
+}
 
 /** 사용자 확장 위치에 그 이름의 설치본 폴더가 있는가. 이름이 규칙에 맞지 않거나 읽을 수 없으면 없는 것으로 본다(설치 폴더 매니페스트 읽기와 같은 규칙) */
 async function hasInstalledFolder(extensionsDir: string, name: string): Promise<boolean> {
@@ -353,6 +392,15 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     }),
     pack: (input) => packExtension(input),
     testRun: (params) => (params.kind === "replay" ? replay(params) : testRunThread(params)),
+    submit: async (
+      input: PluginSubmitRequest,
+    ): Promise<Result<PluginSubmitResult, DevkitError>> => {
+      const port = options.submit?.();
+      if (port === undefined)
+        return err({ kind: "io", message: "the plugin review flow is not connected" });
+      const made = await port.submit(input);
+      return made.ok ? ok(made.value) : err(submitErrorOf(made.error));
+    },
     testList: async () => {
       const listed = await recordStore().list();
       return listed.ok ? ok({ tests: listed.value }) : err(storeFailureOf(listed.error));

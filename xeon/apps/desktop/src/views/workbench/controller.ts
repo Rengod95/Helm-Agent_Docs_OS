@@ -5,7 +5,7 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { toast } from "@caustic/react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
@@ -16,7 +16,8 @@ import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileFailureText } from "./profile-text.ts";
-import { REMOVE_REQUESTED_TEXT, removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
+import { removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
+import { reviewSentTextOf, type ReviewSent } from "./review-sent.ts";
 
 /** `ext.get`을 동시에 보내는 상한. 확장이 많아도 엔진에 한꺼번에 몰리지 않는다 */
 const DETAIL_IN_FLIGHT = 8;
@@ -40,6 +41,12 @@ export function reloadOnExtChanges(
 }
 
 export interface WorkbenchController {
+  /** 마지막으로 검토함에 보낸 요청(설치나 지우기). 보낸 적이 없거나 `dismissReviewSent` 뒤면 null이다 */
+  readonly reviewSent: ReviewSent | null;
+  /** 설치 요청이 검토함에 들어갔다(`install`이 성공했다). 알리고 `reviewSent`를 채우고 목록을 다시 읽는다 */
+  installSubmitted(itemId: string): Promise<void>;
+  /** `reviewSent`를 비운다 */
+  dismissReviewSent(): void;
   /** `settled`는 확장 설정 적용이 끝난 뒤의 다시 읽기다. 대기 중인 켜기·끄기가 목표에 못 닿았으면 그 사유를 알린다 */
   reload(settled?: boolean): Promise<void>;
   /** 훅 순서만 다시 읽는다(`hooks.list`와 `hooks.order.get`). 저장·되돌리기 뒤에 쓴다 */
@@ -175,6 +182,20 @@ export function useWorkbenchController(): WorkbenchController {
     [commands, reload],
   );
 
+  const [reviewSent, setReviewSent] = useState<ReviewSent | null>(null);
+  const dismissReviewSent = useCallback((): void => {
+    setReviewSent(null);
+  }, []);
+  const installSubmitted = useCallback(
+    async (itemId: string): Promise<void> => {
+      const sent: ReviewSent = { kind: "install", itemId };
+      setReviewSent(sent);
+      toast({ tone: "success", title: t(reviewSentTextOf(sent)) });
+      await reload();
+    },
+    [reload],
+  );
+
   const remove = useCallback(
     async (name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome> => {
       const done = await commands.workbench.remove(name, options);
@@ -191,7 +212,9 @@ export function useWorkbenchController(): WorkbenchController {
         return outcome;
       }
       // 지우기는 검토 항목으로 올라간다. 지워지는 시점은 검토가 정한다
-      toast({ tone: "success", title: t(REMOVE_REQUESTED_TEXT) });
+      const sent: ReviewSent = { kind: "remove", itemId: done.value.itemId };
+      setReviewSent(sent);
+      toast({ tone: "success", title: t(reviewSentTextOf(sent)) });
       actions.closeDetail();
       actions.clearPick();
       await reload();
@@ -245,6 +268,9 @@ export function useWorkbenchController(): WorkbenchController {
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(
     () => ({
+      reviewSent,
+      installSubmitted,
+      dismissReviewSent,
       reload,
       reloadOrders,
       toggle,
@@ -256,6 +282,9 @@ export function useWorkbenchController(): WorkbenchController {
       applyProfile,
     }),
     [
+      reviewSent,
+      installSubmitted,
+      dismissReviewSent,
       reload,
       reloadOrders,
       toggle,

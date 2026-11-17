@@ -3,6 +3,8 @@ import type {
   BridgeCapability,
   CompositionDecl,
   ExtensionLayer,
+  PluginSubmitRequest,
+  PluginSubmitResult,
   UiDecl,
 } from "../extensions/index.ts";
 
@@ -136,12 +138,6 @@ export interface PackResult {
   readonly sha256: string;
 }
 
-export interface LinkInput {
-  /** 묶음 또는 폴더 경로 */
-  readonly source: string;
-  /** 미리 보기(`InstallPreview.sha256`)에서 본 내용 해시. 있으면 복사본의 해시가 같을 때만 놓는다(다르면 `source_changed`) */
-  readonly expectedSha256?: string;
-}
 /** 앱 안 설치의 미리 보기(`ext.installPreview`). 디스크에 아무것도 쓰지 않는다 */
 /** 설치 미리 보기에 보이는 화면(`ui.items`) 하나. 프레임(`app`)이면 선언한 다리 권한이 따른다 */
 export interface InstallPreviewScreen {
@@ -159,7 +155,7 @@ export interface InstallPreview {
   readonly description: string | null;
   /** 출처 폴더 경로 */
   readonly source: string;
-  /** 폴더 내용 해시(`folderHash`). 설치 때 `LinkInput.expectedSha256`으로 돌려준다 */
+  /** 폴더 내용 해시(`folderHash`). 설치 경로는 폐기됐고(M5c §7.7) 이 값은 미리 보기 화면의 표시용으로만 남는다 */
   readonly sha256: string;
   /** 매니페스트가 요청한 신뢰 등급. 요청이 없으면 null */
   readonly trustRequest: "user" | "project" | "untrusted" | null;
@@ -179,12 +175,6 @@ export interface InstallPreview {
   readonly screens: readonly InstallPreviewScreen[];
   readonly warnings: readonly DevkitIssue[];
 }
-export interface LinkResult {
-  readonly name: string;
-  readonly version: string;
-  readonly location: string;
-}
-
 export const DEVKIT_ERROR_KINDS = [
   "dev_mode_required",
   "invalid_input",
@@ -234,6 +224,9 @@ export interface DevkitService {
   /** 개발 모드가 아니면 `err({ kind: "dev_mode_required" })` */
   replay(input: ReplayInput): Promise<DevkitResult<ReplayReport>>;
   pack(input: PackInput): Promise<DevkitResult<PackResult>>;
-  /** 사용자 확장 위치에 연결한다(W-32). 사람 확인 뒤에만 부른다 */
-  link(input: LinkInput): Promise<DevkitResult<LinkResult>>;
+  /**
+   * 담당 AI의 제출(M5c §3.5, §4.9). 폴더를 초안으로 만들고 검토 항목을 연다. 설치하지 않는다: 승인은 검토함에서 사용자가 한다.
+   * 포트 `PluginSubmitPort`는 호스트가 `PluginSubmitPortKey`로 조회해 부른다
+   */
+  submit(input: PluginSubmitRequest): Promise<DevkitResult<PluginSubmitResult>>;
 }

@@ -33,10 +33,6 @@ export interface AuthoringWiring {
 }
 
 const NOT_READY = { kind: "io", message: "the devkit is not ready yet" } as const;
-const LINK_NOT_WIRED = {
-  kind: "io",
-  message: "linking a plugin waits for the plugin review flow, which is not wired yet",
-} as const;
 
 /**
  * wire 포트를 서비스 계약으로 맞춘다. `replay`와 `testRun`은 wire `ext.test.run`과 같은 포트 호출이다.
@@ -87,8 +83,8 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
       return ok(report);
     },
     pack: async (input) => (await port()?.pack(input)) ?? err(NOT_READY),
-    // 연결(link)은 `ext.install`이 빠져 검토 흐름의 제출 경로로 옮긴다(M5c §7.7). 그 경로는 아직 연결되지 않았다
-    link: () => Promise.resolve(err(LINK_NOT_WIRED)),
+    // 제출은 검토 흐름의 제출 포트다(M5c §3.5, §4.9). 설치(`link`)는 폐기됐다(M5c §7.7)
+    submit: async (input) => (await port()?.submit(input)) ?? err(NOT_READY),
   };
 }
 

@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DevkitError } from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import {
   authoringDepsOf,
@@ -73,6 +75,10 @@ test("the service forwards to the wire port; link is not wired until the plugin 
       calls.push(`pack:${input.dir}`);
       return ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) });
     },
+    submit: async (input) => {
+      calls.push(`submit:${input.dir}`);
+      return ok({ draftId: "draft_1", itemId: "rvw_1" });
+    },
   });
   const service = devkitServiceOf(wiringOf(port));
   expect(await service.scaffold({ kind: "plugin-group", name: "demo", dir: "/w/demo" })).toEqual(
@@ -88,13 +94,18 @@ test("the service forwards to the wire port; link is not wired until the plugin 
   expect(await service.pack({ dir: "/w/demo" })).toEqual(
     ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) }),
   );
-  // 연결은 검토 흐름의 제출 경로가 맡는다. 아직 연결되지 않아 설치를 부르지 않고 io로 거절한다
-  expect(await service.link({ source: "/out" })).toMatchObject({
-    ok: false,
-    error: { kind: "io" },
-  });
-  expect(calls).toEqual(["scaffold:/w/demo", "validate:/w/demo", "pack:/w/demo"]);
+  // 제출은 검토 흐름의 제출 포트로 간다(설치는 없다, M5c §7.7). 증거와 목적은 그대로 넘어간다
+  expect(
+    await service.submit({
+      dir: "/w/demo",
+      originThreadId: THREAD,
+      evidence: [{ kind: "turn", threadId: THREAD, turnId: "t-1" }],
+    }),
+  ).toEqual(ok({ draftId: "draft_1", itemId: "rvw_1" }));
+  expect(calls).toEqual(["scaffold:/w/demo", "validate:/w/demo", "pack:/w/demo", "submit:/w/demo"]);
 });
+
+const THREAD: ThreadId = fixedIdFactory(701).next("thr");
 
 test("a missing port is an io error for replay, test runs and the other calls", async () => {
   const service = devkitServiceOf(wiringOf(undefined));
@@ -103,6 +114,13 @@ test("a missing port is an io error for replay, test runs and the other calls", 
   expect(await service.testRun({ target: "/w/demo" })).toEqual(err(notReady));
   expect(await service.validate("/w/demo")).toEqual(err(notReady));
   expect(await service.kinds()).toEqual([]);
+  expect(
+    await service.submit({
+      dir: "/w/demo",
+      originThreadId: THREAD,
+      evidence: [{ kind: "turn", threadId: THREAD, turnId: "t-1" }],
+    }),
+  ).toEqual(err(notReady));
 });
 
 test("replay runs ext.test.run of kind replay and returns the report its record holds; testRun returns the thread it opened", async () => {

@@ -20,8 +20,8 @@ export const AUTHORING_PHASES = [
 ] as const;
 export type AuthoringPhase = (typeof AUTHORING_PHASES)[number];
 
-/** drive가 사람 확인 뒤에 실행할 요청 */
-export type PendingAction = "trial" | "package" | "install" | "fix_limit";
+/** drive가 사람 확인 뒤에 실행할 요청. 제출(`authoring_submit`)은 확인을 묻지 않는다(group-tools.ts 주석) */
+export type PendingAction = "trial" | "package" | "fix_limit";
 
 interface TrialResult {
   readonly threadId: string;
@@ -31,10 +31,10 @@ interface PackageResult {
   readonly sha256: string;
   readonly files: number;
 }
-interface InstallResult {
-  readonly name: string;
-  readonly version: string;
-  readonly location: string;
+/** 검토함으로 보낸 결과(`pluginReview.submitDraft`가 만든 항목). 설치가 아니라서 검토 항목의 id를 적는다 */
+interface SubmitResult {
+  readonly draftId: string;
+  readonly itemId: string;
 }
 
 export interface AuthoringState {
@@ -60,7 +60,7 @@ export interface AuthoringState {
   readonly replay: "none" | "dev_mode_required" | "passed" | "failed";
   readonly trial: TrialResult | null;
   readonly packaged: PackageResult | null;
-  readonly installed: InstallResult | null;
+  readonly submitted: SubmitResult | null;
   /** 사용자가 확인을 거절한 요청. 같은 요청을 다시 하면 새 확인을 받는다(`askRound`가 오른다) */
   readonly denied: PendingAction | null;
   /** 확인 질문마다 오르는 번호. requestId를 가르는 값이라 거절 뒤 다시 물을 수 있다 */
@@ -84,7 +84,7 @@ export const INITIAL_AUTHORING_STATE: AuthoringState = {
   replay: "none",
   trial: null,
   packaged: null,
-  installed: null,
+  submitted: null,
   denied: null,
   askRound: 0,
 };
@@ -108,7 +108,6 @@ const shape = Type.Object(
     pending: Type.Union([
       Type.Literal("trial"),
       Type.Literal("package"),
-      Type.Literal("install"),
       Type.Literal("fix_limit"),
       Type.Null(),
     ]),
@@ -134,12 +133,11 @@ const shape = Type.Object(
       ),
       Type.Null(),
     ]),
-    installed: Type.Union([
+    submitted: Type.Union([
       Type.Object(
         {
-          name: Type.String({ maxLength: 64 }),
-          version: Type.String({ maxLength: 64 }),
-          location: Type.String({ maxLength: 1024 }),
+          draftId: Type.String({ minLength: 1, maxLength: 128 }),
+          itemId: Type.String({ minLength: 1, maxLength: 128 }),
         },
         { additionalProperties: false },
       ),
@@ -148,7 +146,6 @@ const shape = Type.Object(
     denied: Type.Union([
       Type.Literal("trial"),
       Type.Literal("package"),
-      Type.Literal("install"),
       Type.Literal("fix_limit"),
       Type.Null(),
     ]),

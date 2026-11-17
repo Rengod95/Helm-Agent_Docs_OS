@@ -1,11 +1,4 @@
 export { CATALOG_VERSION, KIND_CATALOG, kindEntryOf } from "./catalog.ts";
-export {
-  installExtension,
-  previewInstall,
-  removeExtension,
-  type InstallOptions,
-  type InstallOutcome,
-} from "./install.ts";
 export { BUNDLE_ENTRY, folderHash, looksSecret, packExtension } from "./pack.ts";
 export {
   DEFAULT_VERSION,
@@ -25,11 +18,10 @@ export { authoringWriteGuard } from "./guard.ts";
 export {
   confirmCard,
   confirmedYes,
-  installConfirmation,
   packConfirmation,
   replayInDevMode,
   type ReplayRunner,
-} from "./release.ts";
+} from "./confirm.ts";
 export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";
 export { authoringSettings } from "./settings.ts";
 export {

@@ -9,6 +9,7 @@ import type {
   StreamChunkParams,
 } from "@fresnel/contracts/wire";
 import type { CommandError, NotAvailableCommand, WorkbenchCommands } from "../views/commands.ts";
+import { installPreviewOfDraft } from "./plugin-draft.ts";
 
 // 크래프트 명령. 결과는 요청의 반환값이다(거울에 넣지 않는다). 상태 반영은 `views/workbench`의 컨트롤러가 스토어에 한다.
 
@@ -60,15 +61,21 @@ export function subscribeExtChanges(
   };
 }
 
-/** M5c-1에서 wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
+/** wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
 function unavailable(command: NotAvailableCommand): CommandError {
   return { kind: "not_available", command };
+}
+
+function draftKey(source: string, sha256: string): string {
+  return `${source}\n${sha256}`;
 }
 
 export function createWorkbenchCommands(
   withConnection: WithConnection,
   subscribeChanges: (listener: (settled: boolean) => void) => () => void,
 ): WorkbenchCommands {
+  // 미리 본 초안: 원본 폴더와 내용 해시 → draftId. `install`이 같은 초안을 검토함으로 보낸다
+  const drafts = new Map<string, string>();
   return {
     async list(threadId) {
       const listed = await withConnection((c) =>
@@ -77,15 +84,44 @@ export function createWorkbenchCommands(
       return listed.ok ? ok(listed.value.extensions) : err(listed.error);
     },
     onChanged: subscribeChanges,
-    // 설치는 검토함을 거친다(`plugin.draft.create`, `pluginReview.submitDraft`). 이 앱은 아직 그 길을 쓰지 않으므로 보내지 않는다
-    installPreview: () => Promise.resolve(err(unavailable("ext.installPreview"))),
-    install: () => Promise.resolve(err(unavailable("ext.install"))),
+    // 설치는 검토함을 거친다. 미리 보기는 `plugin.draft.create`의 카드이고, 설치는 그 초안을 `pluginReview.submitDraft`로 보낸다
+    async installPreview(source) {
+      const made = await withConnection((c) => c.request("plugin.draft.create", { dir: source }));
+      if (!made.ok) return err(made.error);
+      drafts.set(draftKey(source, made.value.contentHash), made.value.draftId);
+      return ok(installPreviewOfDraft(source, made.value));
+    },
+    async install(source, sha256) {
+      const key = draftKey(source, sha256);
+      const known = drafts.get(key);
+      let draftId = known;
+      if (draftId === undefined) {
+        // 미리 보기 없이 부르면 여기서 초안을 만든다. 내용이 미리 본 것과 다르면 보내지 않는다
+        const made = await withConnection((c) => c.request("plugin.draft.create", { dir: source }));
+        if (!made.ok) return err(made.error);
+        if (made.value.contentHash !== sha256) {
+          return err({
+            kind: "rejected",
+            code: null,
+            issue: "source_changed: content hash differs",
+          });
+        }
+        draftId = made.value.draftId;
+      }
+      const id = draftId;
+      const sent = await withConnection((c) =>
+        c.request("pluginReview.submitDraft", { draftId: id }),
+      );
+      if (!sent.ok) return err(sent.error);
+      drafts.delete(key);
+      return ok({ itemId: sent.value.itemId });
+    },
     // 지우기는 `plugin.requestRemove`가 검토 항목을 만든다. 저장 데이터 지우기(`dropData`)는 대체가 없어 보내지 않는다
     remove: (name, options) =>
       options?.dropData === true
         ? Promise.resolve(err(unavailable("ext.remove.dropData")))
         : withConnection((c) => c.request("plugin.requestRemove", { name })),
-    // 저장 테이블 목록을 읽는 wire(`ext.removePreview`)가 빠졌다. 대체가 없다
+    // 저장 테이블 목록을 읽는 wire(`ext.removePreview`)가 빠졌고 `plugin.get`의 카드에는 저장 테이블이 없다. 대체가 없다
     removePreview: () => Promise.resolve(err(unavailable("ext.removePreview"))),
     bindings: (threadId) =>
       withConnection((c) => c.request("ext.bindings", threadId === undefined ? {} : { threadId })),

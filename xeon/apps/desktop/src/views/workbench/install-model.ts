@@ -5,8 +5,8 @@ import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 
 // 앱 안 설치의 순수 부분: 단계 전이, 실패 갈래, 거절 사유 목록, 미리 보기를 화면이 그릴 경고 목록으로 바꾸기. 화면은 `install-dialog.tsx`다.
-// M5c-1부터 설치는 wire(`ext.installPreview`, `ext.install`)가 없고 검토함을 거친다. 이 앱은 아직 그 길을 쓰지 않아 설치 명령은
-// `not_available`로 끝난다. 결과 화면(설치 완료)은 그 값이 없어 뺐다.
+// 설치는 검토함을 거친다: 미리 보기는 `plugin.draft.create`, 설치는 `pluginReview.submitDraft`다. 설치 요청이 들어가면 상자를 닫고
+// 컨트롤러가 "검토함으로 보냈다"를 알린다. 결과 화면(설치 완료)은 없다.
 
 /** 설치 흐름의 단계. 출처 입력 → 읽는 중 → 권한 확인 → 설치하는 중 → 결과 */
 export type InstallFlow =
@@ -38,7 +38,7 @@ export type InstallFailure =
   | "denied"
   | "offline"
   | "unsupported"
-  /** 이 버전이 설치 명령을 보내지 않는다(`not_available`). 호스트가 거절한 것이 아니다 */
+  /** 이 앱이 보내지 않는 명령(`not_available`). 호스트가 거절한 것이 아니다 */
   | "not_available"
   | "other";
 

@@ -9,6 +9,7 @@ import {
   type WireError,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
+import type { PluginSubmitRequest, PluginSubmitResult } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
   KindEntry,
@@ -30,6 +31,11 @@ export interface DevkitPort {
   validate(dir: string): Promise<Result<ValidationReport, DevkitError>>;
   validateComposition(params: ExtValidateCompositionParams): ExtValidateResult;
   pack(input: PackInput): Promise<Result<PackResult, DevkitError>>;
+  /**
+   * 담당 AI의 제출(`PluginSubmitPort.submit`, M5c §3.5). wire 메서드가 아니라 제작 서비스(`fresnel.devkit`의 `submit`)가 부른다.
+   * 포트가 아직 없으면 `io`다. 설치하지 않는다(검토함에서 승인해야 쓸 수 있다)
+   */
+  submit(input: PluginSubmitRequest): Promise<Result<PluginSubmitResult, DevkitError>>;
   /**
    * `ext.test.run`. `replay`는 개발 모드에서만 돌고 끝까지 기다린 뒤 결과를 돌려준다(통과든 실패든 값이다). 재생이 실행되지 못하면 `io`다.
    * `testRun`은 Test run 대화를 열고 그 대화를 돌려준다. 끝내는 것은 사용자가 한다.

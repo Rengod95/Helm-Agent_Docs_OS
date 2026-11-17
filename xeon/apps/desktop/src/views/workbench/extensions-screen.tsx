@@ -92,8 +92,8 @@ export function ExtensionsScreen(): ReactNode {
             onClose={() => {
               setInstalling(false);
             }}
-            onInstalled={() => {
-              detachVoid(controller.reload());
+            onInstalled={(itemId) => {
+              detachVoid(controller.installSubmitted(itemId));
               // 설치한 확장의 화면이 재시작 없이 플러그인 화면 탭에 오른다(rtC R-1)
               detachVoid(pluginUi.runtime.refresh());
             }}

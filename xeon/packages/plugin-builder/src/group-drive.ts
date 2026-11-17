@@ -7,7 +7,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { DevkitService } from "@fresnel/contracts/services";
 import { INITIAL_AUTHORING_STATE, sessionOpen, type AuthoringState } from "./group-state.ts";
-import { confirmCard, confirmedYes, installConfirmation, packConfirmation } from "./release.ts";
+import { confirmCard, confirmedYes, packConfirmation } from "./confirm.ts";
 
 // L3.authoring.spec §4.1 drive, drive-isolation.md §1.1·§1.4(B-5, B-8). 단계 함수다: 커밋된 상태와 직전 결과(`last`)만 보고
 // 명령 하나를 고른다. 클로저에 진행 상태를 두지 않으므로 같은 단계가 재시작 뒤 다시 돌아도 같은 명령이 나온다.
@@ -201,7 +201,11 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
           files: packed.value.files.length,
         },
       };
-      await resume(state, "package", "the extension was packed: continue with authoring_install");
+      await resume(
+        state,
+        "package",
+        "the extension was packed: the user may keep the bundle, or send the folder with authoring_submit",
+      );
       return commitThen(next);
     }
     if (packed.error.kind === "denied") {
@@ -214,44 +218,6 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     return commitThen({ ...state, pending: null });
   };
 
-  const installStep = async (
-    state: Readonly<AuthoringState>,
-    answer: Answer,
-  ): Promise<DriveCommand<AuthoringState>> => {
-    if (state.packaged === null) return { do: "yield" };
-    const source = state.packaged.path;
-    const confirm = installConfirmation(source, state.askRound);
-    if (answer === "none") return askOf(confirm.requestId, confirm.card);
-    if (answer === "no") {
-      const next: AuthoringState = { ...state, pending: null, denied: "install" };
-      await resume(state, "install", "the user declined installing");
-      return commitThen(next);
-    }
-    const linked = await devkit.link({ source });
-    if (linked.ok) {
-      const next: AuthoringState = {
-        ...state,
-        pending: null,
-        phase: "done",
-        installed: {
-          name: linked.value.name,
-          version: linked.value.version,
-          location: linked.value.location,
-        },
-      };
-      await resume(state, "install", "the extension was installed");
-      return commitThen(next);
-    }
-    if (linked.error.kind === "denied") {
-      const next: AuthoringState = { ...state, pending: null, denied: "install" };
-      await resume(state, "install", "the user declined installing");
-      return commitThen(next);
-    }
-    await tell(state, "install", `installing failed: ${linked.error.kind} ${linked.error.message}`);
-    await resume(state, "install", "installing failed");
-    return commitThen({ ...state, pending: null });
-  };
-
   return async ({ state, last }): Promise<DriveCommand<AuthoringState>> => {
     // B-5: 사용자 메시지는 이 단계에서 턴으로 처리한다. 세션이 닫혀 있어도 메시지를 버리지 않는다
     if (last?.kind === "user") return { do: "turn", input: last.message };
@@ -261,7 +227,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     if (state.pending === null) return restOf(state);
     if (state.pending === "fix_limit") return fixStep(state, answer);
     if (state.pending === "trial") return trialStep(state, answer);
-    if (state.pending === "package") return packageStep(state, answer);
-    return installStep(state, answer);
+    // 남은 요청은 묶기뿐이다(`fix_limit`·`trial`을 위에서 뺐다)
+    return packageStep(state, answer);
   };
 }
