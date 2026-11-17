@@ -54,8 +54,10 @@ import {
   type TrDailyRow,
   type TrFindingStateRow,
   type TrCallRow,
+  type TrCacheRow,
   type TrFrameRow,
   type TrHookRow,
+  type TrStepRow,
   type TrMarkRow,
   type TrMaterialRow,
   type TrSkillRow,
@@ -237,6 +239,9 @@ export interface TurnBundleRow {
   readonly materials: readonly TrMaterialRow[];
   readonly tooluse: readonly TrToolUseRow[];
   readonly skills: readonly TrSkillRow[];
+  readonly steps: readonly TrStepRow[];
+  readonly cache: readonly TrCacheRow[];
+  readonly frames: readonly TrFrameRow[];
 }
 
 /** 훅 검색 질의. `plugin`과 창은 필수, `hook`은 선택이다 */
@@ -863,6 +868,9 @@ function planTurnFolds(
       materials: turnChildren(db, "tr_material", turn.threadId, turn.turnId, "rowid", materialOf),
       tooluse: turnChildren(db, "tr_tooluse", turn.threadId, turn.turnId, "rowid", toolUseOf),
       skills: turnChildren(db, "tr_skill", turn.threadId, turn.turnId, "rowid", skillOf),
+      steps: turnChildren(db, "tr_step", turn.threadId, turn.turnId, "step_index", stepOf),
+      cache: turnChildren(db, "tr_cache", turn.threadId, turn.turnId, "step_index, n", cacheOf),
+      frames: turnChildren(db, "tr_frame", turn.threadId, turn.turnId, "rowid", frameOf),
     });
     for (const cell of folded) {
       const id = dailyId(cell.key);
@@ -1020,6 +1028,15 @@ function windowBundlesOf(
   const skills = groupByTurn(
     selectAll(db, `SELECT * FROM tr_skill WHERE ${inTurns}`, params, skillOf),
   );
+  const steps = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_step WHERE ${inTurns}`, params, stepOf),
+  );
+  const cache = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_cache WHERE ${inTurns}`, params, cacheOf),
+  );
+  const frames = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_frame WHERE ${inTurns}`, params, frameOf),
+  );
   return ok(
     turns.map((turn) => {
       const key = turnKeyOf(turn.threadId, turn.turnId);
@@ -1030,6 +1047,9 @@ function windowBundlesOf(
         materials: materials.get(key) ?? [],
         tooluse: tooluse.get(key) ?? [],
         skills: skills.get(key) ?? [],
+        steps: steps.get(key) ?? [],
+        cache: cache.get(key) ?? [],
+        frames: frames.get(key) ?? [],
       };
     }),
   );

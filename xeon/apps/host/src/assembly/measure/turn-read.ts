@@ -32,6 +32,7 @@ import {
   passesFilter,
   queryMetrics,
   type CounterFilter,
+  type MetricsQueryOutput,
 } from "./metrics.ts";
 import {
   bundleOf,
@@ -177,7 +178,8 @@ export interface TurnRecordReadPort {
   findingsBundle(
     findingId: string,
   ): Result<{ readonly bundle: FindingBundle; readonly bytes: number }, TurnReadError>;
-  profileCost(profileId: string): Result<ProfileCostOut, TurnReadError>;
+  /** `plugins`는 프로필이 정한 플러그인 이름이다(턴이 없을 때의 정적 줄을 만든다) */
+  profileCost(profileId: string, plugins: readonly string[]): Result<ProfileCostOut, TurnReadError>;
   testRunCompare(threadIds: readonly string[]): Result<TestRunCompareOut, TurnReadError>;
 }
 
@@ -198,6 +200,19 @@ interface ProfileCostOut {
   readonly nTurns: number;
   readonly plugins: ProfileCostRowOut[];
   readonly total: ProfileCostRowOut;
+}
+
+/** 정적 값이 없는 줄. 칸은 모두 null이고 basis는 unknown이다(0으로 채우지 않는다) */
+function unknownCostRow(plugin: string): ProfileCostRowOut {
+  return {
+    plugin,
+    always: null,
+    drive: null,
+    onDemand: null,
+    toolCount: null,
+    basis: "unknown",
+    shared: false,
+  };
 }
 
 interface TestRunCompareOut {
@@ -313,6 +328,9 @@ function foldBundles(bundles: readonly TurnBundleRow[]): DailyCell[] {
       materials: bundle.materials,
       tooluse: bundle.tooluse,
       skills: bundle.skills,
+      steps: bundle.steps,
+      cache: bundle.cache,
+      frames: bundle.frames,
     }),
   );
 }
@@ -370,6 +388,139 @@ function counterFilterOf(filter: MetricFilter): CounterFilter {
     modelVersion: filter.modelVersion ?? null,
     caller: filter.caller ?? "any",
   };
+}
+
+// ---- 버전 비교(`metrics.query`의 compare, §4.7 규칙 40) -------------------------------
+
+/** 턴 하나의 비교 그룹 키. 버전은 이 플러그인 훅 행의 `versionId`들을 정렬해 이은 값이고, 개정은 `tr_turn.profile_rev`다. 없으면 `unknown` */
+function compareKeyOf(
+  bundle: TurnBundleRow,
+  by: "pluginVersion" | "profileRev",
+  plugin: string,
+): string {
+  if (by === "profileRev") {
+    return bundle.turn.profileRev === null ? "unknown" : String(bundle.turn.profileRev);
+  }
+  const versions = versionsOf(bundle, plugin);
+  return versions.length === 0 ? "unknown" : versions.join("+");
+}
+
+function versionsOf(bundle: TurnBundleRow, plugin: string): string[] {
+  const set = new Set<string>();
+  for (const hook of bundle.hooks) {
+    if (hook.plugin === plugin && hook.versionId !== null) set.add(hook.versionId);
+  }
+  return [...set].toSorted();
+}
+
+/** 두 그룹 사이에 함께 바뀐 다른 차원(§4.7 규칙 40). 비교하는 차원은 뺀다 */
+function confoundersOf(
+  a: readonly TurnBundleRow[],
+  b: readonly TurnBundleRow[],
+  by: "pluginVersion" | "profileRev",
+  plugin: string,
+): string[] {
+  const setsOf = (bundles: readonly TurnBundleRow[]) => ({
+    model: new Set(bundles.map((bundle) => bundle.turn.model ?? "unknown")),
+    profileRev: new Set(bundles.map((bundle) => String(bundle.turn.profileRev ?? "unknown"))),
+    pluginVersion: new Set(bundles.flatMap((bundle) => versionsOf(bundle, plugin))),
+  });
+  const left = setsOf(a);
+  const right = setsOf(b);
+  const dims = by === "pluginVersion" ? (["model", "profileRev"] as const) : (["model"] as const);
+  const changed: string[] = [];
+  for (const dim of dims) {
+    const same =
+      left[dim].size === right[dim].size && [...left[dim]].every((v) => right[dim].has(v));
+    if (!same) changed.push(dim);
+  }
+  return changed;
+}
+
+interface GroupCompareInput {
+  readonly window: { readonly from: number; readonly to: number };
+  readonly bundles: readonly TurnBundleRow[];
+  readonly by: "pluginVersion" | "profileRev";
+  readonly a: string;
+  readonly b: string;
+  readonly filter: CounterFilter;
+  readonly plugin: string;
+  readonly metrics: readonly string[];
+  readonly minSample: number;
+  readonly partial: boolean;
+}
+
+/**
+ * 버전 또는 개정으로 턴을 나눠 두 그룹을 나란히 낸다. 카운터는 원본 턴을 그룹마다 다시 접어 만든다
+ * (접힌 날은 그룹을 나눌 수 없어 빠지고 `partial_window`로 알린다). 버전이 없는 턴은 `unknown` 그룹이다.
+ */
+function compareByGroups(input: GroupCompareInput): MetricsOut {
+  const groups = new Map<string, TurnBundleRow[]>();
+  for (const bundle of input.bundles) {
+    if (input.filter.profileId !== null && bundle.turn.profileId !== input.filter.profileId) {
+      continue;
+    }
+    const key = compareKeyOf(bundle, input.by, input.plugin);
+    groups.set(key, [...(groups.get(key) ?? []), bundle]);
+  }
+  const run = (key: string): MetricsQueryOutput => {
+    const cells = foldBundles(groups.get(key) ?? []);
+    const counts = turnCountsOf(cells, input.filter);
+    return queryMetrics({
+      cells,
+      metrics: [...input.metrics],
+      groupBy: [],
+      filter: input.filter,
+      minSample: input.minSample,
+      turnsFull: counts.full,
+      turnsOff: counts.off,
+      partialWindow: input.partial,
+    });
+  };
+  const left = run(input.a);
+  const right = run(input.b);
+  const keyOf = (key: string): MetricRow["key"] =>
+    input.by === "pluginVersion"
+      ? { pluginVersion: key }
+      : { profile: input.filter.profileId ?? "" };
+  const rows: MetricRow[] = [
+    { key: keyOf(input.a), values: left.rows[0]?.values ?? {} },
+    { key: keyOf(input.b), values: right.rows[0]?.values ?? {} },
+  ];
+  const confounders = confoundersOf(
+    groups.get(input.a) ?? [],
+    groups.get(input.b) ?? [],
+    input.by,
+    input.plugin,
+  );
+  const unknownSide = input.a === "unknown" || input.b === "unknown";
+  const notes: MetricNote[] = [...left.notes, ...right.notes];
+  for (const metric of input.metrics) {
+    if (confounders.length > 0) {
+      notes.push({ metric, code: "confounded", text: `changed with: ${confounders.join(", ")}` });
+    }
+    if (unknownSide) {
+      notes.push({
+        metric,
+        code: "confounded",
+        text: "unknown group: versionId or profileRev is not recorded for these turns",
+      });
+    }
+    if (input.partial) notes.push({ metric, code: "partial_window", text: null });
+  }
+  return { window: input.window, rows, notes: uniqueNotes(notes) };
+}
+
+function uniqueNotes(notes: readonly MetricNote[]): MetricNote[] {
+  const seen = new Set<string>();
+  const out: MetricNote[] = [];
+  for (const note of notes) {
+    const id = JSON.stringify([note.metric, note.code, note.text]);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(note);
+  }
+  return out;
 }
 
 // ---- 포트 -----------------------------------------------------------------------
@@ -568,16 +719,41 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
         turnsOff: counts.off,
         partialWindow: counters.value.partial,
       };
-      const out =
-        query.compare === null
-          ? queryMetrics(input)
-          : compareMetrics({
-              ...input,
-              by: query.compare.by,
-              a: query.compare.a,
-              b: query.compare.b,
-            });
-      return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      const compare = query.compare;
+      if (compare === null) {
+        const out = queryMetrics(input);
+        return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      }
+      if (compare.by === "model") {
+        const out = compareMetrics({ ...input, by: "model", a: compare.a, b: compare.b });
+        return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      }
+      // 버전과 개정은 키에 없어 원본 턴으로 그룹을 나눈다. 비교 차원의 필터가 필요하다
+      if (compare.by === "pluginVersion" && filter.plugin === null) {
+        return err({
+          kind: "invalid_filter",
+          message: "compare by pluginVersion needs filter.plugin",
+        });
+      }
+      if (compare.by === "profileRev" && filter.profileId === null) {
+        return err({
+          kind: "invalid_filter",
+          message: "compare by profileRev needs filter.profileId",
+        });
+      }
+      const grouped = compareByGroups({
+        window: window.value,
+        bundles: counters.value.bundles,
+        by: compare.by,
+        a: compare.a,
+        b: compare.b,
+        filter,
+        plugin: filter.plugin ?? "",
+        metrics: query.metrics,
+        minSample: settings.minSample,
+        partial: counters.value.partial,
+      });
+      return ok(grouped);
     },
 
     findingsList(query) {
@@ -676,25 +852,18 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
       return ok({ bundle: shaped.bundle, bytes: shaped.bytes });
     },
 
-    profileCost(profileId) {
+    profileCost(profileId, pluginNames) {
       const settings = source.metrics();
       const store = source.store();
       const now = source.now();
       const window = { from: now - settings.defaultWindowDays * DAY_MS, to: now };
+      // 턴이 없을 때는 프로필의 플러그인 이름만 안다. 지침과 도구 정의의 어림은 로더가 낼 때까지 null이다(§3.3)
       const empty: ProfileCostOut = {
         profileId,
         basis: "estimated",
         nTurns: 0,
-        plugins: [],
-        total: {
-          plugin: "",
-          always: null,
-          drive: null,
-          onDemand: null,
-          toolCount: null,
-          basis: "unknown",
-          shared: false,
-        },
+        plugins: pluginNames.map((plugin) => unknownCostRow(plugin)),
+        total: unknownCostRow(""),
       };
       if (store === undefined) return ok(empty);
       const counters = countersOf(

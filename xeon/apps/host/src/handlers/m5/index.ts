@@ -171,7 +171,10 @@ export function createM5Handlers(engine: Engine): {
         }
         throw wireError("store.io", { message: `profileCost.get: ${profile.error.kind}` });
       }
-      const out = port.profileCost(params.profileId);
+      const out = port.profileCost(
+        params.profileId,
+        profile.value.plugins.map((plugin) => plugin.name),
+      );
       if (!out.ok) throw wireErrorOfTurnRead(out.error);
       return {
         profileId: params.profileId,

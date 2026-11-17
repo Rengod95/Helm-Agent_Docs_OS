@@ -714,6 +714,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 - "우회 의심"은 `rewrite`, `other_tool_same_target`, `rewrite_text`의 합이다. 화면에서 "우회"라고 단정하지 않는다.
 - 한계: 모델의 의도를 알 수 없다. `targetKey`는 파일 경로를 선언한 도구에만 있다. `bash`로 막힌 명령을 다른 문법의 `bash` 명령으로 우회한 것은 `rewrite_text`의 토큰 겹침이 높을 때만 잡히고, 도구가 다른 우회(`rm`을 막으니 `python -c`를 씀)는 잡히지 않는다. 그래서 이 지표는 `state: "approx"`이고 `bash` 전용 분류는 낮은 신뢰로 따로 표시한다.
 - 접기: 분류는 턴 기록을 쓸 때(턴 끝) 끝내고 분류별 카운터로 `tr_daily`에 접는다.
+- [미결: 인자 토큰 목록] 판정에 필요한 `meta_json.argTokens` 목록은 지금 수집기가 쓰지 않는다. `packages/core-tools/src/call-trace.ts:122`는 토큰 수(숫자, 글자 수 / 4 올림)만 싣고 계약 `extensions/tool-call-trace.ts`의 `argTokens`도 숫자다. 목록이 없는 막힌 호출은 `rewrite_text` 판정을 못 하므로 `hook.post_block.rewrite_text`는 목록이 한 번도 없으면 `not_recorded`다(0으로 세지 않는다). 목록을 설치별 소금 HMAC으로 싣는 일은 layer-1 수집기와 F 계약의 모양 변경이라 이 트랙 밖이다.
 
 **③ 모델 버전별 스킬 발동률** (`skill.activation_by_model`)
 
@@ -784,12 +785,12 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `packages/core-loop/src/loop/prepare-request.ts:95`, `:111`, `step-end.ts:266`, `provider-retry.ts:8` | 단계 끝에서 `StepRecord`를 수집기에 넘긴다. 재시도 알림 수와 대기 시간을 센다. `sections: {}`는 Inject가 들어오는 M5c에서 채운다 | M. [구현: `prepare-request.ts`가 `step_context`를, `step-end.ts`가 `skill_read`를 싱크로 넘긴다(`loop/context-trace.ts`). 재시도 알림은 아직 세지 않는다] |
 | `xeon/packages/cap-knowledge/src/skills/prompt-block.ts:57`, `xeon/packages/cap-knowledge/src/turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S. [미구현: 조립 입력에 색인 이름이 없어 `skills.listed`는 빈 값이다. cap-knowledge가 싱크로 알리는 일은 다음 단계다] |
 | `packages/ext-host/src/primitives/capability-guard.ts:215~260`(`light` 길) | 읽기 전용 플러그인 호출의 `tr_plugincall` 줄을 턴에 묶으려면 턴 id와 단계 순번이 있는 싱크가 필요하다. 지금은 턴 id가 가드 안에 없어 줄을 남기지 않는다 | M |
-| `apps/host/src/assembly/measure/store.ts:73`, `:172` | `user_version` 마이그레이션, `tr_*` 테이블, 접기를 `tr_daily`까지 넓힘, `forgetThread` | L |
+| `apps/host/src/assembly/measure/store.ts:73`, `:172` | `user_version` 마이그레이션, `tr_*` 테이블, 접기를 `tr_daily`까지 넓힘, `forgetThread` [구현: `windowBundles`와 `planTurnFolds`가 `tr_step`, `tr_cache`, `tr_frame`을 같은 접기로 읽는다] | L |
 | `apps/host/src/assembly/measure/recorder.ts:298~530` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L. [구현: 턴 행 `open`·최종, 단계 행과 `tr_hook`, `log_only`, 열 때 `markLostTurns`, 범위 `test`. 쓰기 로직은 `turn-writer.ts`와 `turn-rows.ts`. 늦은 행: 단계 끝 뒤에 끝난 실행을 턴을 닫을 때 `late: true`로 한 번 쓰고(`lateHooksOf`, `writeHooks`), 턴 훅(step 0)은 `turnHooks`에 든다. 승인 답은 호출 줄의 `approval`에서 잇는다. 남음: 턴 완료 커밋 뒤에 끝나는 실행(`boundary.turn.after`, `boundary.settle.after`), 요청 id 키의 입력 훅(`input.user.before`, `input.bash.before`)과 대화 시작 훅(`thread.start`)은 턴 귀속이 없다. 프로필 표지와 덧씌우기는 남음] |
 | `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S. [구현: `service.ts:127`의 `removed`가 두 경로를 잇고 `SessionDeps.onThreadRemoved`(`deps.ts`)로 조립 루트가 `forgetThread`를 건다] |
 | `apps/host/src/assembly/ports.ts:285`, `:319`, `:430`, `:686`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M. [구현: `measure/test-run-marks.ts`가 `tr_thread`에 쓰고 되살린다. `host.ts:584`의 Set은 그대로다] |
 | `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
-| `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 | L |
+| `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 [구현: M5d-1 층 4. `block.*`(시간 나눔, 캐시), `drive.*`(프레임)를 `metrics.ts`에 더하고 행이 없으면 `not_recorded`다. 비교는 `pluginVersion`·`profileRev`를 원본 턴으로 나눈다(`compareByGroups`). 발견 규칙 8과 12를 더했다. `profileCost.get`의 정적 줄은 프로필 플러그인 이름만 낸다. 미구현: 지침·도구 정의 어림(로더 대기), 모델 대기(단계 시간이 행에 없음), 컴팩션 횟수(행에 없음, `not_recorded`)] | L |
 | 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 | L |
 | `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 | S |
 | `apps/desktop/src/views/workbench/craft-source.ts:119`, `apps/desktop/src/views/craft/turn-flow.ts:229`, `apps/desktop/src/views/panels/context/context-model.ts:125` | M6의 일. 읽기를 `turnRecord.get`으로 옮기고 구성 표를 플러그인별로 낸다. 이 문서는 데이터만 | M(M6) |
@@ -811,11 +812,11 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 10. (R19) 재료를 낸 플러그인이 둘인 턴에서 `PluginCost.always`가 각자 합과 `composition` 합(`injected` 포함)의 차이 안에서 맞는다. 귀속을 못 정한 훅 메시지는 `shared`로 표시된다.
 11. (R19) 지연 도구를 `tool_search`로 활성화한 턴의 `Advertised.tools`가 `state: "activated"`이고 `PluginCost.onDemand`에 그 정의 토큰이 있다.
 12. (R19) 도구를 추가한 프로필 전환 뒤 첫 단계에서 `tr_cache.kind = "toolset"`과 그 플러그인이 귀속된다. 같은 단계에 사용량이 깨짐을 안 보이면 `observed: false`다. [부분 구현: `cacheBreakOf`가 `tools_deferred` 경고의 추가·제거 도구가 한 플러그인에 속할 때만 그 플러그인을 쓰고, 사용량이 안 깨지면 `observed: false`로 쓴다(`turn-context.test.ts`와 `turn-context-write.test.ts`). 프로필 전환이 도구를 더하는 경로는 M5c 대기이고, 지금의 경고는 대화 중 도구 변경이 미뤄질 때만 난다]
-13. (R19) `profileCost.get`이 턴이 없는 프로필에도 `basis: "estimated"`로 합계를 낸다.
+13. (R19) `profileCost.get`이 턴이 없는 프로필에도 `basis: "estimated"`로 합계를 낸다. [부분 구현: 플러그인 줄은 프로필의 이름으로 만들고 칸은 null, `basis: "unknown"`이다. 지침과 도구 정의의 어림은 로더(M5c enC3)가 낼 때까지 null이다(`turn-read.test.ts`)]
 14. (R18) `metrics.catalog`가 §5의 모든 지표를 `feasible` 구분과 함께 낸다. `metrics.query`가 `minSample` 미만을 `insufficient_sample`로 낸다.
 15. (R18) 같은 합성 데이터에서 `inst.defied`가 §5.1-①의 정의대로 계산되고, 고장(`*_fault`) 판정은 분자에서 빠진다.
 16. (R18) `hook.post_block`이 합성 시나리오 다섯(반복, 같은 대상 다시 쓰기, 다른 도구 같은 대상, 무관한 호출, 멈춤)을 각각의 분류로 낸다. `bash` 우회는 `rewrite_text`로만 분류된다.
-17. (R18) 보관 기간을 넘긴 창에서 `skill.activation_rate`, `hook.outcomes`, `tool.never_called`가 `tr_daily`에서 같은 값(원본에서 계산한 값과 일치)으로 나온다. `hook.post_block`도 같다.
+17. (R18) 보관 기간을 넘긴 창에서 `skill.activation_rate`, `hook.outcomes`, `tool.never_called`가 `tr_daily`에서 같은 값(원본에서 계산한 값과 일치)으로 나온다. `hook.post_block`도 같다. [구현: 블록, 캐시, 주도 카운터도 같은 시험(`turn-read.test.ts`, 접은 뒤 `metrics.query` 값이 같다)으로 확인한다]
 18. (R18) 모델이 바뀐 합성 데이터에서 `skill_activation_drop`이 발동하고, `minSample` 미만이면 발동하지 않는다. 발견마다 `next`가 하나 이상이다.
 19. (R18) 발견의 증거 참조로 `turnRecord.get`이 해당 턴을 돌려주고, 묶음 크기가 16 KiB 이하이며 내용 문자열이 없다.
 20. (R18) `dismiss`한 발견이 근거 값이 두 배 이상 바뀌면 다시 열린다.

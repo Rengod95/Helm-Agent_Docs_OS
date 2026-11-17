@@ -82,6 +82,17 @@ const POST = [
   "other_tool_same_target",
   "different_path",
 ] as const;
+/** 반납 사유 값(저장된 `lease.released.reason` 그대로, §3.2 `FrameMark.exitReason`) */
+const DRIVE_EXITS = [
+  "done",
+  "budget",
+  "error",
+  "idle",
+  "revoked",
+  "restart",
+  "waiting",
+  "disabled",
+] as const;
 
 /** 지표 카탈로그. §5의 행 전부이고, 분포 지표는 갈래마다 한 줄씩 더 낸다(`hook.outcomes.<갈래>`) [제안] */
 export const METRIC_CATALOG: readonly MetricCatalogEntry[] = [
@@ -129,15 +140,27 @@ export const METRIC_CATALOG: readonly MetricCatalogEntry[] = [
     ),
   ),
   entry("hook.post_block.bypass_suspect", "ratio", "ratio", HOOK, "approx"),
-  entry("drive.entries", "runs", "count", DRIVE, "exact", "needs_loader"),
-  entry("drive.usage_vs_limit", "ratio", "ratio", DRIVE, "exact", "needs_loader"),
-  entry("drive.exit_reasons", "runs", "count", DRIVE, "exact", "needs_loader"),
-  entry("drive.asks", "runs", "count", DRIVE, "exact", "needs_loader"),
-  entry("block.time_split", "ms", "ms", BLOCK, "approx", "not_recorded"),
+  entry("drive.entries", "runs", "count", DRIVE, "exact"),
+  entry("drive.usage_vs_limit", "ratio", "ratio", DRIVE, "exact"),
+  entry("drive.usage_vs_limit.spawns", "ratio", "ratio", DRIVE, "exact"),
+  entry("drive.usage_vs_limit.tokens", "ratio", "ratio", DRIVE, "exact"),
+  entry("drive.exit_reasons", "runs", "count", DRIVE, "exact"),
+  ...DRIVE_EXITS.map((r) => entry(`drive.exit_reasons.${r}`, "ratio", "ratio", DRIVE, "exact")),
+  entry("drive.asks", "runs", "count", DRIVE, "exact"),
+  entry("block.time_split", "ms", "ms", BLOCK, "approx"),
+  entry("block.time_split.tools", "ms", "ms", BLOCK, "approx"),
+  entry("block.time_split.hook", "ms", "ms", BLOCK, "approx"),
+  entry("block.time_split.ask", "ms", "ms", BLOCK, "approx"),
+  entry("block.time_split.model", "ms", "ms", BLOCK, "approx", "not_recorded"),
+  entry("block.time_split.rest", "ms", "ms", BLOCK, "approx"),
   entry("block.compactions", "runs", "count", BLOCK, "exact", "not_recorded"),
-  entry("block.cache_hit_rate", "ratio", "ratio", BLOCK, "approx", "not_recorded"),
-  entry("block.cache_breaks", "runs", "count", BLOCK, "partial", "not_recorded"),
-  entry("block.cache_breaks_by_plugin", "runs", "count", BLOCK, "approx", "not_recorded"),
+  entry("block.cache_hit_rate", "ratio", "ratio", BLOCK, "approx"),
+  entry("block.cache_breaks", "runs", "count", BLOCK, "partial"),
+  entry("block.cache_breaks.predicted", "runs", "count", BLOCK, "partial"),
+  entry("block.cache_breaks.unattributed", "ratio", "ratio", BLOCK, "approx"),
+  entry("block.cache_breaks_by_plugin", "runs", "count", BLOCK, "approx"),
+  entry("block.cache_breaks_by_plugin.inferred", "ratio", "ratio", BLOCK, "approx"),
+  entry("block.cache_breaks_by_plugin.tokens", "tokens", "tokens", BLOCK, "approx"),
   entry(
     "ver.compare",
     "ratio",
@@ -538,7 +561,109 @@ const COMPUTE = new Map<string, Compute>([
   ["cost.always", (c, x) => meanValue(pick(c, "cost", exactly("always")), x.minSample)],
   ["cost.drive", (c, x) => meanValue(pick(c, "cost", exactly("drive")), x.minSample)],
   ["cost.on_demand", (c, x) => meanValue(pick(c, "cost", exactly("on_demand")), x.minSample)],
+  // 블록 시간: 턴마다 한 번 센 합의 평균(ms/턴). 모델 대기는 행에 없어 `block.time_split.model`은 not_recorded다
+  ["block.time_split", (c, x) => meanValue(pick(c, "block", exactly("turn_ms")), x.minSample)],
+  [
+    "block.time_split.tools",
+    (c, x) => meanValue(pick(c, "block", exactly("tools_ms")), x.minSample),
+  ],
+  ["block.time_split.hook", (c, x) => meanValue(pick(c, "block", exactly("hook_ms")), x.minSample)],
+  ["block.time_split.ask", (c, x) => meanValue(pick(c, "block", exactly("ask_ms")), x.minSample)],
+  ["block.time_split.rest", (c, x) => meanValue(pick(c, "block", exactly("rest_ms")), x.minSample)],
+  // 캐시 적중: 칸의 합 비율(cacheRead / (input + cacheRead + cacheWrite))
+  [
+    "block.cache_hit_rate",
+    (c, x) => sumRatio(c, "block", "cache_read", "cache_input", x.minSample, "approx"),
+  ],
+  ["block.cache_breaks", (c) => breakCount(c, "break_observed")],
+  ["block.cache_breaks.predicted", (c) => breakCount(c, "break_predicted")],
+  [
+    "block.cache_breaks.unattributed",
+    (c, x) =>
+      rateValue(
+        countOf(pick(c, "block", exactly("break_unattributed"))),
+        countOf(pick(c, "block", exactly("break_observed"))),
+        x.minSample,
+        "approx",
+      ),
+  ],
+  [
+    "block.cache_breaks_by_plugin",
+    (c) => countValue(countOf(pick(c, "cache", exactly("break_observed")))),
+  ],
+  [
+    "block.cache_breaks_by_plugin.inferred",
+    (c, x) =>
+      rateValue(
+        countOf(pick(c, "cache", exactly("break_inferred"))),
+        countOf(pick(c, "cache", exactly("break_observed"))),
+        x.minSample,
+        "approx",
+      ),
+  ],
+  // 관찰된 깨짐의 캐시 쓰기 토큰을 플러그인 턴 수로 나눈 값(턴당 토큰, §6 cache_break_by_plugin의 영향)
+  [
+    "block.cache_breaks_by_plugin.tokens",
+    (c, x) => {
+      const turns = countOf(pick(c, "cache", exactly("plugin_turns")));
+      if (turns === 0 || turns < x.minSample) {
+        return { value: null, n: turns, state: "insufficient_sample" };
+      }
+      const write = sumOf(pick(c, "cache", exactly("break_write")));
+      return { value: write / turns, n: turns, state: "approx" };
+    },
+  ],
+  // 주도: 프레임 행이 있을 때만 값이 있다(`valuesFor`가 행이 없으면 not_recorded로 막는다)
+  ["drive.entries", (c) => countValue(countOf(pick(c, "drive", exactly("entries"))))],
+  ["drive.exit_reasons", (c) => countValue(driveExits(c))],
+  ["drive.asks", (c) => countValue(countOf(pick(c, "drive", exactly("asks"))))],
+  [
+    "drive.usage_vs_limit",
+    (c, x) => sumRatio(c, "drive", "used:turns", "limit:turns", x.minSample, "exact"),
+  ],
+  [
+    "drive.usage_vs_limit.spawns",
+    (c, x) => sumRatio(c, "drive", "used:spawns", "limit:spawns", x.minSample, "exact"),
+  ],
+  [
+    "drive.usage_vs_limit.tokens",
+    (c, x) => sumRatio(c, "drive", "used:tokens", "limit:tokens", x.minSample, "exact"),
+  ],
 ]);
+
+/** 블록의 깨짐 계산: 관찰(또는 예측)된 단계 수. 분모는 단계 수다 */
+function breakCount(cells: readonly DailyCell[], counter: string): MetricValue {
+  const steps = countOf(pick(cells, "block", exactly("steps")));
+  return {
+    value: countOf(pick(cells, "block", exactly(counter))),
+    n: steps,
+    denom: steps,
+    state: "exact",
+  };
+}
+
+/** 주도 프레임의 반납 수(사유가 있는 프레임). 사유별 칸의 분모다 */
+function driveExits(cells: readonly DailyCell[]): number {
+  return countOf(pick(cells, "drive", exactly("exits")));
+}
+
+/** 칸 합의 비율. 분모 칸이 없거나 표본이 적거나 합이 0이면 `insufficient_sample`이다 */
+function sumRatio(
+  cells: readonly DailyCell[],
+  subject: string,
+  numerator: string,
+  denominator: string,
+  minSample: number,
+  state: "exact" | "approx",
+): MetricValue {
+  const denCells = pick(cells, subject, exactly(denominator));
+  const n = countOf(denCells);
+  const den = sumOf(denCells);
+  if (n === 0 || n < minSample || den === 0) {
+    return { value: null, n, state: "insufficient_sample" };
+  }
+  return { value: sumOf(pick(cells, subject, exactly(numerator))) / den, n, state };
+}
 
 function outcomeTotal(cells: readonly DailyCell[]): number {
   return countOf(pick(cells, "hook_outcome", (name) => name.startsWith("outcome:")));
@@ -572,8 +697,22 @@ for (const answer of ANSWERS) {
   );
 }
 for (const posted of POST) {
-  COMPUTE.set(`hook.post_block.${posted}`, (c, x) =>
-    rateValue(postCount(c, posted), postTotal(c), x.minSample, "approx"),
+  COMPUTE.set(`hook.post_block.${posted}`, (c, x) => {
+    // 인자 토큰 목록이 한 번도 없으면 `rewrite_text`는 겹침을 잴 수 없다. 0으로 세지 않는다
+    if (posted === "rewrite_text" && countOf(pick(c, "postblock", exactly("args_known"))) === 0) {
+      return unavailableValue("not_recorded");
+    }
+    return rateValue(postCount(c, posted), postTotal(c), x.minSample, "approx");
+  });
+}
+for (const reason of DRIVE_EXITS) {
+  COMPUTE.set(`drive.exit_reasons.${reason}`, (c, x) =>
+    rateValue(
+      countOf(pick(c, "drive", exactly(`exit:${reason}`))),
+      driveExits(c),
+      x.minSample,
+      "exact",
+    ),
   );
 }
 
@@ -601,6 +740,7 @@ export interface MetricsQueryOutput {
 function valuesFor(
   cells: readonly DailyCell[],
   input: MetricsQueryInput,
+  framesRecorded: boolean,
 ): Record<string, MetricValue> {
   const values: Record<string, MetricValue> = {};
   for (const id of input.metrics) {
@@ -612,6 +752,11 @@ function valuesFor(
     }
     if (input.turnsFull === 0 && input.turnsOff > 0) {
       values[id] = unavailableValue("measurement_off");
+      continue;
+    }
+    // 주도 지표는 프레임 행이 한 번도 없으면 값이 없다(enC2m이 프레임을 쓰기 전). 0으로 채우지 않는다
+    if (def.appliesTo.includes("drive") && !framesRecorded) {
+      values[id] = unavailableValue("not_recorded");
       continue;
     }
     const compute = COMPUTE.get(id);
@@ -629,6 +774,13 @@ function valuesFor(
  */
 export function queryMetrics(input: MetricsQueryInput): MetricsQueryOutput {
   const filtered = input.cells.filter((cell) => passesFilter(cell, input.filter));
+  // 프레임 기록 여부는 플러그인 칸이 없는 표지(`frame_turns`)로 본다. 플러그인 필터로 걸러지지 않게 뺀다
+  const framesRecorded = input.cells.some(
+    (cell) =>
+      cell.key.subject === "drive" &&
+      cell.key.counter === "frame_turns" &&
+      passesFilter(cell, { ...input.filter, plugin: null }),
+  );
   const groups = new Map<string, { key: Partial<Record<Dim, string>>; cells: DailyCell[] }>();
   if (input.groupBy.length === 0) {
     groups.set("{}", { key: {}, cells: filtered });
@@ -647,10 +799,10 @@ export function queryMetrics(input: MetricsQueryInput): MetricsQueryOutput {
   }
   const rows: MetricRow[] = [];
   for (const group of groups.values()) {
-    rows.push({ key: group.key, values: valuesFor(group.cells, input) });
+    rows.push({ key: group.key, values: valuesFor(group.cells, input, framesRecorded) });
   }
   if (rows.length === 0) {
-    rows.push({ key: {}, values: valuesFor([], input) });
+    rows.push({ key: {}, values: valuesFor([], input, framesRecorded) });
   }
   const notes: MetricNote[] = [];
   for (const id of input.metrics) {
@@ -665,28 +817,17 @@ export function queryMetrics(input: MetricsQueryInput): MetricsQueryOutput {
 }
 
 export interface CompareInput extends MetricsQueryInput {
-  readonly by: "pluginVersion" | "model" | "profileRev";
+  readonly by: "model";
   readonly a: string;
   readonly b: string;
 }
 
 /**
- * 두 그룹을 나란히 낸다(규칙 40). `model`만 카운터 키로 나눌 수 있다. `profileRev`와 `pluginVersion`은 키에 없다.
+ * 모델 버전으로 두 그룹을 나란히 낸다(규칙 40). 카운터 키에 모델이 있어 거르기만 하면 된다.
+ * 버전과 개정은 키에 없어 `turn-read.ts`가 원본 턴으로 나눈다(`compareByGroups`).
  * 다른 차원(프로필 id)이 두 그룹에서 함께 바뀌었으면 `confounded` 주석을 단다. 인과는 말하지 않는다.
  */
 export function compareMetrics(input: CompareInput): MetricsQueryOutput {
-  if (input.by !== "model") {
-    const rows: MetricRow[] = [input.a, input.b].map((label) => ({
-      key: { model: label },
-      values: Object.fromEntries(
-        input.metrics.map((id) => [id, unavailableValue("not_recorded")] as const),
-      ),
-    }));
-    return {
-      rows,
-      notes: input.metrics.map((id) => ({ metric: id, code: "confounded", text: null })),
-    };
-  }
   const groupA = queryMetrics({
     ...input,
     groupBy: [],

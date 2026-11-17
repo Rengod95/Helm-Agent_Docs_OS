@@ -12,7 +12,9 @@ import {
   type TurnRecordReadPort,
 } from "../../../src/assembly/measure/turn-read.ts";
 import type {
+  TrCacheRow,
   TrCallRow,
+  TrFrameRow,
   TrHookRow,
   TrMaterialRow,
   TrSkillRow,
@@ -848,14 +850,25 @@ test("profileCost.get sums the material and advertised tool tokens per plugin ov
     materials: [material(T, "trn_c1", "r-core", "core", 10)],
     tooluse: [tool(T, "trn_c1", "bash", "core", 40, "advertised", 1)],
   });
-  const out = portOf(store).profileCost("prof-1");
+  const out = portOf(store).profileCost("prof-1", ["core"]);
   if (!out.ok) throw new Bug("profile cost must answer in this test");
   expect(out.value.basis).toBe("measured");
   expect(out.value.nTurns).toBe(1);
   expect(out.value.plugins.find((p) => p.plugin === "core")?.always).toBe(50);
-  const none = portOf(store).profileCost("prof-empty");
+  const none = portOf(store).profileCost("prof-empty", ["core"]);
   if (!none.ok) throw new Bug("profile cost must answer in this test");
-  expect(none.value).toMatchObject({ basis: "estimated", nTurns: 0, plugins: [] });
+  expect(none.value).toMatchObject({ basis: "estimated", nTurns: 0 });
+  expect(none.value.plugins).toEqual([
+    {
+      plugin: "core",
+      always: null,
+      drive: null,
+      onDemand: null,
+      toolCount: null,
+      basis: "unknown",
+      shared: false,
+    },
+  ]);
   store.close();
 });
 
@@ -941,5 +954,688 @@ test("turnRecord.list and get read the stored record and say why a turn is absen
     ok: true,
     value: { enabled: false, level: "log_only", record: null, absent: "off" },
   });
+  store.close();
+});
+
+// ---- M5d-1 층 4: 블록, 주도, 캐시, 버전 비교, 발견(§5, §6, §4.7 규칙 40) ------
+
+interface StepSpec {
+  readonly index: number;
+  readonly input?: number;
+  readonly cacheRead?: number;
+  readonly cacheWrite?: number;
+  readonly calls?: TrCallRow[];
+  readonly hooks?: TrHookRow[];
+  readonly cache?: TrCacheRow[];
+}
+
+/** 턴 하나를 단계마다 쓴다. 재료, 도구 광고, 스킬은 단계 0에 둔다 */
+function writeSteps(
+  store: MeasureStore,
+  thread: string,
+  turn: string,
+  startedAt: number,
+  steps: readonly StepSpec[],
+  extra: Partial<TrTurnRow> = {},
+  parts: { readonly materials?: TrMaterialRow[]; readonly tooluse?: TrToolUseRow[] } = {},
+): void {
+  must(store.upsertTurn(turnRow(thread, turn, startedAt, extra)));
+  for (const spec of steps) {
+    const base = stepRow(thread, turn, extra.model ?? "m-1");
+    must(
+      store.writeStep({
+        step: {
+          ...base,
+          stepIndex: spec.index,
+          input: spec.input ?? 0,
+          cacheRead: spec.cacheRead ?? 0,
+          cacheWrite: spec.cacheWrite ?? 0,
+        },
+        calls: spec.calls ?? [],
+        hooks: spec.hooks ?? [],
+        materials: spec.index === 0 ? (parts.materials ?? []) : [],
+        tooluse: spec.index === 0 ? (parts.tooluse ?? []) : [],
+        skills: [],
+        plugincalls: [],
+        cache: spec.cache ?? [],
+      }),
+    );
+  }
+}
+
+/** 원인 한 줄. 플러그인이 없으면 추정 근거다(기록기와 같은 규칙) */
+function causeRow(
+  thread: string,
+  turn: string,
+  step: number,
+  kind: string,
+  plugin: string | null,
+  observed: boolean,
+  cacheWrite: number,
+): TrCacheRow {
+  return {
+    threadId: thread,
+    turnId: turn,
+    stepIndex: step,
+    n: 0,
+    observed,
+    kind,
+    plugin,
+    registrations: "[]",
+    evidence: plugin === null ? "inferred" : "declared",
+    cacheRead: 0,
+    cacheWrite,
+    priorCacheRead: null,
+    priorCacheWrite: null,
+  };
+}
+
+/** 주도 프레임 한 줄. 깊이 0은 기본 흐름이라 플러그인이 없다 */
+function frameRow(
+  thread: string,
+  turn: string,
+  lease: string,
+  depth: number,
+  plugin: string | null,
+  range: { readonly entered: number; readonly exited: number | null },
+  reason: string | null,
+  limits: Record<string, number>,
+  used: Record<string, number>,
+): TrFrameRow {
+  return {
+    threadId: thread,
+    turnId: turn,
+    leaseId: lease,
+    depth,
+    plugin,
+    versionId: null,
+    parentLeaseId: depth > 0 ? "lease-root" : null,
+    enteredAtMs: range.entered,
+    exitedAtMs: range.exited,
+    exitReason: reason,
+    lowerResumedWith: null,
+    limitsJson: JSON.stringify(limits),
+    usedJson: JSON.stringify(used),
+    userMessages: 0,
+  };
+}
+
+function writeFrameRows(store: MeasureStore, rows: readonly TrFrameRow[]): void {
+  must(store.writeFrames(rows));
+}
+
+// 보관 기간(30일) 안의 창이다. 기간을 넘으면 접힌 날이 섞여 partial_window가 붙는다
+/** 턴이 없는 프로필의 정적 줄. 칸은 모두 null이다 */
+function unknownCostLine(plugin: string) {
+  return {
+    plugin,
+    always: null,
+    drive: null,
+    onDemand: null,
+    toolCount: null,
+    basis: "unknown" as const,
+    shared: false,
+  };
+}
+
+/** 문자열 인자 토큰을 `meta_json.argTokens`로 싣는다(수집기와 같은 모양) */
+function argTokensJson(values: string[]): string {
+  return JSON.stringify({ argTokens: values });
+}
+
+const READ_METRICS_WINDOW = { from: NOW - 20 * DAY, to: NOW };
+
+test("profileCost.get lists the profile's plugins with null figures and no invented numbers when it has no turns", () => {
+  const store = memory();
+  const out = portOf(store).profileCost("prof-none", ["core", "guard"]);
+  if (!out.ok) throw new Bug("profile cost must answer in this test");
+  expect(out.value).toMatchObject({ profileId: "prof-none", basis: "estimated", nTurns: 0 });
+  expect(out.value.plugins).toEqual([unknownCostLine("core"), unknownCostLine("guard")]);
+  expect(out.value.total).toEqual(unknownCostLine(""));
+  store.close();
+});
+
+test("block.time_split averages the tool, ask and rest milliseconds per turn and leaves the model share unrecorded", () => {
+  const store = memory();
+  const T = "thr_block";
+  // 턴 A: 도구 실행 5+5ms와 도구 훅 2ms, 물음 대기 300ms. 턴 B: 시간만 있다
+  writeSteps(
+    store,
+    T,
+    "trn_bA",
+    NOW - 2 * HOUR,
+    [
+      {
+        index: 0,
+        calls: [
+          call(T, "trn_bA", "bA1", { plugin: "guard" }),
+          call(T, "trn_bA", "bA2", { plugin: "guard" }),
+        ],
+        hooks: [
+          hook(T, "trn_bA", 1, { toolCallId: "bA1", ms: 2 }),
+          hook(T, "trn_bA", 2, { askVia: "awaitUser", askWaits: 1, askMs: 300, ms: 1 }),
+        ],
+      },
+    ],
+    { endedAt: NOW - 2 * HOUR + 10_000 },
+  );
+  writeSteps(store, T, "trn_bB", NOW - HOUR, [{ index: 0 }], { endedAt: NOW - HOUR + 4000 });
+  const values = valuesOf(portOf(store, 1), [
+    "block.time_split",
+    "block.time_split.tools",
+    "block.time_split.hook",
+    "block.time_split.ask",
+    "block.time_split.rest",
+    "block.time_split.model",
+    "block.compactions",
+  ]);
+  expect(values["block.time_split"]).toMatchObject({ value: 7000, n: 2, state: "approx" });
+  // 도구 실행 10ms(턴 A), 훅 3ms(턴 A), 물음 300ms(턴 A)를 턴 둘의 평균으로 낸다. 나머지는 9687과 4000의 평균
+  expect(values["block.time_split.tools"]).toMatchObject({ value: 5, n: 2, state: "approx" });
+  expect(values["block.time_split.hook"]).toMatchObject({ value: 1.5, n: 2, state: "approx" });
+  expect(values["block.time_split.ask"]).toMatchObject({ value: 150, n: 2 });
+  expect(values["block.time_split.rest"]).toMatchObject({ value: 6843.5, n: 2 });
+  expect(values["block.time_split.model"]).toEqual({
+    value: null,
+    n: 0,
+    state: "unavailable",
+    reason: "not_recorded",
+  });
+  expect(values["block.compactions"]).toMatchObject({
+    state: "unavailable",
+    reason: "not_recorded",
+  });
+  store.close();
+});
+
+test("the cache counters give the hit rate, observed and predicted breaks, the unattributed share and the per-plugin tokens", () => {
+  const store = memory();
+  const T = "thr_cache";
+  // 턴 C: 단계 0은 관찰된 깨짐(guard, 쓰기 50), 단계 1은 TTL 깨짐(플러그인 없음). 턴 D: 예측만 된 깨짐(guard)
+  writeSteps(store, T, "trn_cC", NOW - 3 * HOUR, [
+    {
+      index: 0,
+      input: 100,
+      cacheRead: 300,
+      cacheWrite: 50,
+      cache: [causeRow(T, "trn_cC", 0, "prefix_reset", "guard", true, 50)],
+    },
+    { index: 1, cache: [causeRow(T, "trn_cC", 1, "ttl", null, true, 0)] },
+  ]);
+  writeSteps(store, T, "trn_cD", NOW - 4 * HOUR, [
+    { index: 0, input: 100, cache: [causeRow(T, "trn_cD", 0, "toolset", "guard", false, 0)] },
+  ]);
+  const values = valuesOf(portOf(store, 1), [
+    "block.cache_hit_rate",
+    "block.cache_breaks",
+    "block.cache_breaks.predicted",
+    "block.cache_breaks.unattributed",
+    "block.cache_breaks_by_plugin",
+    "block.cache_breaks_by_plugin.inferred",
+    "block.cache_breaks_by_plugin.tokens",
+  ]);
+  // 사용량이 있는 단계는 C0(450칸 가운데 300)과 D0(100칸 가운데 0)
+  expect(values["block.cache_hit_rate"]?.value).toBeCloseTo(300 / 550, 10);
+  // 단계 셋 가운데 관찰된 깨짐은 둘, 예측만 된 것은 하나
+  expect(values["block.cache_breaks"]).toMatchObject({ value: 2, denom: 3, n: 3, state: "exact" });
+  expect(values["block.cache_breaks.predicted"]).toMatchObject({ value: 1, denom: 3 });
+  // 관찰된 깨짐 가운데 플러그인이 없는 것은 TTL 하나
+  expect(values["block.cache_breaks.unattributed"]).toMatchObject({ value: 0.5, n: 2 });
+  // 플러그인 귀속 관찰은 guard의 하나, 턴 둘(C, D)에 쓰기 50 토큰이라 턴당 25
+  expect(values["block.cache_breaks_by_plugin"]).toMatchObject({ value: 1, state: "exact" });
+  expect(values["block.cache_breaks_by_plugin.inferred"]).toMatchObject({ value: 0, n: 1 });
+  expect(values["block.cache_breaks_by_plugin.tokens"]).toMatchObject({ value: 25, n: 2 });
+  store.close();
+});
+
+test("drive metrics read the frame rows: entries, exits by reason, usage against limits and asks inside the frame", () => {
+  const store = memory();
+  const T = "thr_drive";
+  // 턴 E: 주도 프레임 helm(깊이 1, 0~5000ms, 한도 소진)과 그 안의 물음(atMs 100). 턴 F: helm 정상 끝. 턴 G: helm 한도 소진
+  writeSteps(
+    store,
+    T,
+    "trn_dE",
+    NOW - 5 * HOUR,
+    [
+      {
+        index: 0,
+        hooks: [hook(T, "trn_dE", 1, { askVia: "decision", atMs: 100, toolCallId: null })],
+      },
+    ],
+    { endedAt: NOW - 5 * HOUR + 20_000 },
+  );
+  writeSteps(store, T, "trn_dF", NOW - 6 * HOUR, [{ index: 0 }]);
+  writeSteps(store, T, "trn_dG", NOW - 7 * HOUR, [{ index: 0 }]);
+  writeFrameRows(store, [
+    frameRow(
+      T,
+      "trn_dE",
+      "lease-e0",
+      0,
+      null,
+      { entered: 0, exited: 20_000 },
+      "done",
+      {},
+      { turns: 1 },
+    ),
+    frameRow(
+      T,
+      "trn_dE",
+      "lease-e1",
+      1,
+      "helm",
+      { entered: 0, exited: 5000 },
+      "budget",
+      { maxTurns: 4 },
+      { turns: 4 },
+    ),
+    frameRow(
+      T,
+      "trn_dF",
+      "lease-f1",
+      1,
+      "helm",
+      { entered: 0, exited: 3000 },
+      "done",
+      { maxTurns: 4 },
+      { turns: 2 },
+    ),
+    frameRow(
+      T,
+      "trn_dG",
+      "lease-g1",
+      1,
+      "helm",
+      { entered: 0, exited: 1000 },
+      "budget",
+      { maxTurns: 4 },
+      { turns: 4 },
+    ),
+  ]);
+  const values = valuesOf(portOf(store, 1), [
+    "drive.entries",
+    "drive.exit_reasons",
+    "drive.exit_reasons.budget",
+    "drive.exit_reasons.done",
+    "drive.usage_vs_limit",
+    "drive.usage_vs_limit.spawns",
+    "drive.asks",
+  ]);
+  expect(values["drive.entries"]).toMatchObject({ value: 3, n: 3, state: "exact" });
+  expect(values["drive.exit_reasons"]).toMatchObject({ value: 3, state: "exact" });
+  expect(values["drive.exit_reasons.budget"]).toMatchObject({ value: 2 / 3, denom: 3 });
+  expect(values["drive.exit_reasons.done"]).toMatchObject({ value: 1 / 3, denom: 3 });
+  // 한도 합 12, 쓴 합 10
+  expect(values["drive.usage_vs_limit"]).toMatchObject({ value: 10 / 12, n: 3 });
+  // 서브에이전트 한도가 없는 프레임만 있어 표본이 없다
+  expect(values["drive.usage_vs_limit.spawns"]).toMatchObject({
+    value: null,
+    state: "insufficient_sample",
+  });
+  expect(values["drive.asks"]).toMatchObject({ value: 1, state: "exact" });
+  store.close();
+});
+
+test("drive metrics are not_recorded while no frame row exists, and do not read zero", () => {
+  const store = memory();
+  writeSteps(store, "thr_nof", "trn_nof", NOW - HOUR, [{ index: 0 }]);
+  const values = valuesOf(portOf(store, 1), ["drive.entries", "drive.exit_reasons.budget"]);
+  expect(values["drive.entries"]).toEqual({
+    value: null,
+    n: 0,
+    state: "unavailable",
+    reason: "not_recorded",
+  });
+  expect(values["drive.exit_reasons.budget"]).toMatchObject({
+    state: "unavailable",
+    reason: "not_recorded",
+  });
+  store.close();
+});
+
+test("compare by pluginVersion groups the turns by the plugin's hook versions and names the confounder and the unknown group", () => {
+  const store = memory();
+  const T = "thr_ver";
+  writeSteps(store, T, "trn_v1", NOW - 7 * HOUR, [
+    {
+      index: 0,
+      calls: [call(T, "trn_v1", "v1c", { plugin: "guard" })],
+      hooks: [hook(T, "trn_v1", 1, { plugin: "guard", versionId: "sha256:aaa" })],
+    },
+  ]);
+  writeSteps(store, T, "trn_v2", NOW - 8 * HOUR, [
+    {
+      index: 0,
+      calls: [call(T, "trn_v2", "v2c", { plugin: "guard" })],
+      hooks: [hook(T, "trn_v2", 1, { plugin: "guard", versionId: "sha256:aaa" })],
+    },
+  ]);
+  writeSteps(
+    store,
+    T,
+    "trn_v3",
+    NOW - 9 * HOUR,
+    [
+      {
+        index: 0,
+        calls: [
+          call(T, "trn_v3", "v3a", { plugin: "guard" }),
+          call(T, "trn_v3", "v3b", { plugin: "guard" }),
+          call(T, "trn_v3", "v3c", { plugin: "guard" }),
+        ],
+        hooks: [hook(T, "trn_v3", 1, { plugin: "guard", versionId: "sha256:bbb" })],
+      },
+    ],
+    { model: "m-2" },
+  );
+  const port = portOf(store, 1);
+  const compared = port.metrics({
+    metrics: ["tool.calls"],
+    filter: { period: READ_METRICS_WINDOW, plugin: "guard" },
+    groupBy: [],
+    compare: { by: "pluginVersion", a: "sha256:aaa", b: "sha256:bbb" },
+  });
+  if (!compared.ok) throw new Bug("pluginVersion compare must answer in this test");
+  expect(compared.value.rows).toEqual([
+    {
+      key: { pluginVersion: "sha256:aaa" },
+      values: { "tool.calls": { value: 2, n: 2, state: "exact" } },
+    },
+    {
+      key: { pluginVersion: "sha256:bbb" },
+      values: { "tool.calls": { value: 3, n: 3, state: "exact" } },
+    },
+  ]);
+  // 두 그룹 사이에 모델이 함께 바뀌었다. 인과는 말하지 않고 함께 바뀐 차원만 적는다
+  expect(compared.value.notes).toEqual([
+    { metric: "tool.calls", code: "confounded", text: "changed with: model" },
+  ]);
+  // 버전이 없는 턴은 unknown 그룹이고 값은 그대로 나온다(실패하지 않는다)
+  const unknownSide = port.metrics({
+    metrics: ["tool.calls"],
+    filter: { period: READ_METRICS_WINDOW, plugin: "guard" },
+    groupBy: [],
+    compare: { by: "pluginVersion", a: "sha256:aaa", b: "unknown" },
+  });
+  if (!unknownSide.ok) throw new Bug("pluginVersion compare must answer with unknown");
+  expect(unknownSide.value.rows[1]).toEqual({
+    key: { pluginVersion: "unknown" },
+    values: { "tool.calls": { value: 0, n: 0, state: "exact" } },
+  });
+  expect(unknownSide.value.notes).toContainEqual({
+    metric: "tool.calls",
+    code: "confounded",
+    text: "unknown group: versionId or profileRev is not recorded for these turns",
+  });
+  // 비교 차원의 필터가 없으면 거부한다
+  const noPlugin = port.metrics({
+    metrics: ["tool.calls"],
+    filter: { period: READ_METRICS_WINDOW },
+    groupBy: [],
+    compare: { by: "pluginVersion", a: "sha256:aaa", b: "sha256:bbb" },
+  });
+  expect(noPlugin.ok).toBe(false);
+  store.close();
+});
+
+test("compare by profileRev groups the turns by tr_turn.profile_rev for the one profile", () => {
+  const store = memory();
+  const T = "thr_rev";
+  writeSteps(
+    store,
+    T,
+    "trn_r1",
+    NOW - 10 * HOUR,
+    [
+      {
+        index: 0,
+        calls: [
+          call(T, "trn_r1", "r1a", { plugin: "guard" }),
+          call(T, "trn_r1", "r1b", { plugin: "guard" }),
+        ],
+      },
+    ],
+    { profileRev: 1 },
+  );
+  writeSteps(
+    store,
+    T,
+    "trn_r2",
+    NOW - 11 * HOUR,
+    [{ index: 0, calls: [call(T, "trn_r2", "r2a", { plugin: "guard" })] }],
+    { profileRev: 2 },
+  );
+  const out = portOf(store, 1).metrics({
+    metrics: ["tool.calls"],
+    filter: { period: READ_METRICS_WINDOW, profileId: "prof-1", plugin: "guard" },
+    groupBy: [],
+    compare: { by: "profileRev", a: "1", b: "2" },
+  });
+  if (!out.ok) throw new Bug("profileRev compare must answer in this test");
+  expect(out.value.rows.map((row) => row.values["tool.calls"])).toEqual([
+    { value: 2, n: 2, state: "exact" },
+    { value: 1, n: 1, state: "exact" },
+  ]);
+  // 모델이 같고 버전도 이 비교에 없으므로 함께 바뀐 차원이 없다
+  expect(out.value.notes).toEqual([]);
+  store.close();
+});
+
+test("cache_break_by_plugin fires on the observed breaks of one plugin and stays silent under the share and count", () => {
+  const store = memory();
+  const T = "thr_cbp";
+  // 열 턴 모두 guard의 관찰 깨짐(쓰기 1000): 깨짐 10회, 플러그인 턴 10 → 턴당 1000토큰
+  for (let i = 0; i < 10; i += 1) {
+    const turn = `trn_cb${String(i)}`;
+    writeSteps(store, T, turn, NOW - (i + 1) * HOUR, [
+      { index: 0, cache: [causeRow(T, turn, 0, "prefix_reset", "guard", true, 1000)] },
+    ]);
+  }
+  // helm은 스무 턴에 실렸고(지침으로 턴마다 낀 플러그인) 깨짐은 둘뿐이라 10회도 20%도 못 넘는다
+  const H = "thr_cbp_helm";
+  for (let i = 0; i < 20; i += 1) {
+    const turn = `trn_hm${String(i)}`;
+    writeSteps(
+      store,
+      H,
+      turn,
+      NOW - (i + 30) * HOUR,
+      [
+        {
+          index: 0,
+          cache: i < 2 ? [causeRow(H, turn, 0, "section", "helm", true, 10)] : [],
+        },
+      ],
+      {},
+      { materials: [material(H, turn, "r-helm", "helm", 10)] },
+    );
+  }
+  const found = portOf(store, 1).findingsList({ profileId: null, period: null, state: null });
+  if (!found.ok) throw new Bug("findings must list in this test");
+  const cache = found.value.findings.filter((f) => f.ruleId === "cache_break_by_plugin");
+  expect(cache).toHaveLength(1);
+  expect(cache[0]).toMatchObject({
+    subject: { kind: "block", plugin: "guard", ref: "context" },
+    impact: { unit: "tokens_per_turn", value: 1000 },
+    evidenceTotal: 10,
+    state: "open",
+  });
+  expect(cache[0]?.next.length).toBeGreaterThan(0);
+  store.close();
+});
+
+test("drive_budget_exhausted fires when the budget share of one plugin's exits reaches the threshold", () => {
+  const store = memory();
+  const T = "thr_dbe";
+  // helm의 반납 다섯: 한도 소진 셋, 끝남 둘
+  const reasons = ["budget", "budget", "budget", "done", "done"];
+  reasons.forEach((reason, i) => {
+    const turn = `trn_db${String(i)}`;
+    writeSteps(store, T, turn, NOW - (i + 1) * HOUR, [{ index: 0 }]);
+    writeFrameRows(store, [
+      frameRow(
+        T,
+        turn,
+        `lease-db${String(i)}`,
+        1,
+        "helm",
+        { entered: 0, exited: 1000 },
+        reason,
+        { maxTurns: 4 },
+        { turns: 4 },
+      ),
+    ]);
+  });
+  const found = portOf(store, 1).findingsList({ profileId: null, period: null, state: null });
+  if (!found.ok) throw new Bug("findings must list in this test");
+  const drive = found.value.findings.filter((f) => f.ruleId === "drive_budget_exhausted");
+  expect(drive).toHaveLength(1);
+  expect(drive[0]).toMatchObject({
+    subject: { kind: "drive", plugin: "helm", ref: null },
+    impact: { unit: "hits", value: 3 },
+    evidenceTotal: 3,
+  });
+  store.close();
+});
+
+test("rewrite_text marks a bash retry whose argument tokens overlap and different_path marks the rest", () => {
+  const store = memory();
+  const T = "thr_rw";
+  const blocked = (turn: string, values: string[]) =>
+    call(T, turn, `${turn}-b`, {
+      tool: "bash",
+      plugin: "core",
+      verdict: "blocked_hook",
+      blockedPlugin: "guard",
+      blockedHook: "tool.call.before",
+      callKey: `${turn}-kA`,
+      metaJson: argTokensJson(values),
+    });
+  const next = (turn: string, values: string[]) =>
+    call(T, turn, `${turn}-n`, {
+      tool: "bash",
+      plugin: "core",
+      verdict: "allowed",
+      stepIndex: 1,
+      callKey: `${turn}-kB`,
+      metaJson: argTokensJson(values),
+    });
+  // 턴 R1: 같은 토큰 다섯 가운데 다섯이 겹침(1.0 ≥ 0.8). 턴 R2: 겹침이 없다
+  writeSteps(store, T, "trn_rw1", NOW - 10 * HOUR, [
+    { index: 0, calls: [blocked("trn_rw1", ["a", "b", "c", "d", "e"])] },
+    { index: 1, calls: [next("trn_rw1", ["a", "b", "c", "d", "e"])] },
+  ]);
+  writeSteps(store, T, "trn_rw2", NOW - 11 * HOUR, [
+    { index: 0, calls: [blocked("trn_rw2", ["a", "b", "c", "d", "e"])] },
+    { index: 1, calls: [next("trn_rw2", ["x", "y", "z", "w", "v"])] },
+  ]);
+  const values = valuesOf(portOf(store, 1), [
+    "hook.post_block",
+    "hook.post_block.rewrite_text",
+    "hook.post_block.different_path",
+  ]);
+  expect(values["hook.post_block"]).toMatchObject({ value: 2 });
+  expect(values["hook.post_block.rewrite_text"]).toMatchObject({ value: 0.5, denom: 2 });
+  expect(values["hook.post_block.different_path"]).toMatchObject({ value: 0.5, denom: 2 });
+  store.close();
+});
+
+test("rewrite_text is not_recorded when the calls carry only the numeric argTokens count the collector writes today", () => {
+  const store = memory();
+  const T = "thr_rw_count";
+  // 수집기는 인자 토큰 목록 대신 토큰 수(숫자)를 쓴다. 겹침을 잴 수 없으니 rewrite_text는 값이 없고 나머지는 센다
+  const countOnly = (turn: string, stepIndex: number, extra: Partial<TrCallRow>) =>
+    call(T, turn, `${turn}-${String(stepIndex)}`, {
+      tool: "bash",
+      plugin: "core",
+      stepIndex,
+      metaJson: JSON.stringify({ argTokens: 12 }),
+      ...extra,
+    });
+  writeSteps(store, T, "trn_rc1", NOW - 10 * HOUR, [
+    {
+      index: 0,
+      calls: [
+        countOnly("trn_rc1", 0, {
+          verdict: "blocked_hook",
+          blockedPlugin: "guard",
+          blockedHook: "tool.call.before",
+          callKey: "rc1-a",
+        }),
+      ],
+    },
+    { index: 1, calls: [countOnly("trn_rc1", 1, { verdict: "allowed", callKey: "rc1-b" })] },
+  ]);
+  const values = valuesOf(portOf(store, 1), ["hook.post_block", "hook.post_block.rewrite_text"]);
+  expect(values["hook.post_block"]).toMatchObject({ value: 1 });
+  expect(values["hook.post_block.rewrite_text"]).toEqual({
+    value: null,
+    n: 0,
+    state: "unavailable",
+    reason: "not_recorded",
+  });
+  store.close();
+});
+
+test("the cache, block and drive counters read the same values from tr_daily as from the raw turns", () => {
+  const store = memory();
+  const T = "thr_fold_new";
+  const base = NOW - 40 * DAY;
+  for (let i = 0; i < 3; i += 1) {
+    const turn = `trn_fn${String(i)}`;
+    writeSteps(
+      store,
+      T,
+      turn,
+      base + i * HOUR,
+      [
+        {
+          index: 0,
+          input: 100,
+          cacheRead: 200,
+          cacheWrite: 20,
+          calls: [call(T, turn, `fn${String(i)}`, { plugin: "guard", execMs: 7 })],
+          hooks: [hook(T, turn, 1, { askVia: "decision", askMs: 50, atMs: 10 })],
+          cache: [causeRow(T, turn, 0, "prefix_reset", "guard", i !== 1, 20)],
+        },
+        { index: 1 },
+      ],
+      { endedAt: base + i * HOUR + 3000 },
+    );
+    writeFrameRows(store, [
+      frameRow(
+        T,
+        turn,
+        `lease-fn${String(i)}`,
+        1,
+        "helm",
+        { entered: 0, exited: 500 },
+        i === 0 ? "budget" : "done",
+        { maxTurns: 2 },
+        { turns: 1 },
+      ),
+    ]);
+  }
+  const metrics = [
+    "block.time_split",
+    "block.time_split.tools",
+    "block.time_split.ask",
+    "block.cache_hit_rate",
+    "block.cache_breaks",
+    "block.cache_breaks.predicted",
+    "block.cache_breaks_by_plugin",
+    "block.cache_breaks_by_plugin.tokens",
+    "drive.entries",
+    "drive.exit_reasons.budget",
+    "drive.usage_vs_limit",
+  ];
+  const before = valuesOf(portOf(store, 1), metrics, base - DAY, NOW);
+  expect(before["drive.entries"]).toMatchObject({ value: 3 });
+  must(store.prune(NOW, 30));
+  expect(must(store.readTurn(T, "trn_fn0"))).toBeUndefined();
+  const after = valuesOf(portOf(store, 1), metrics, base - DAY, NOW);
+  expect(after).toEqual(before);
+  expect(before["block.cache_breaks"]).toMatchObject({ value: 2 });
   store.close();
 });
