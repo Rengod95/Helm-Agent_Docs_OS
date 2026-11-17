@@ -35,6 +35,8 @@ const BUNDLE_ID = "dev.fresnel.desktop";
 
 const requiredInputs = [
   path.join(desktop, "dist", "ui", "index.html"),
+  // 화면 번들 npm 고지: `just desktop-ui`(Vite 뒤 scripts/ui-notices.ts)가 만든다
+  path.join(desktop, "dist", "ui-notices.txt"),
   path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
   path.join(desktop, "dist", "sidecar", "fresnel-web-aarch64-apple-darwin"),
   path.join(shell, "dist", "bundle", "main.mjs"),
@@ -74,6 +76,11 @@ copyFileSync(
 copyFileSync(
   path.join(shell, "resources", "THIRD-PARTY-NOTICES-SHELL.txt"),
   path.join(licenses, "THIRD-PARTY-NOTICES-SHELL.txt"),
+);
+// 화면 번들 고지: 번들러가 넣은 모듈에서 가린 npm 패키지(`just desktop-ui`가 scripts/ui-notices.ts로 만든다)
+copyFileSync(
+  path.join(desktop, "dist", "ui-notices.txt"),
+  path.join(licenses, "THIRD-PARTY-NOTICES-UI.txt"),
 );
 // 엔진 사이드카 고지는 `just desktop-build-electron`이 먼저 만든다(`scripts/notices.ts --out dist/engine-notices.txt`)
 copyFileSync(
