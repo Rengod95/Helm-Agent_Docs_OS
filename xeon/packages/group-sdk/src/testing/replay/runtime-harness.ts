@@ -58,16 +58,37 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
   return events.map(visit);
 }
 
-function isEventOfKind(event: JsonValue, kind: string): boolean {
-  if (typeof event !== "object" || event === null || Array.isArray(event)) return false;
-  const found: unknown = "kind" in event ? event.kind : undefined;
-  return found === kind;
+/** JSON 객체의 필드. 객체가 아니거나 필드가 없으면 undefined */
+function fieldOf(value: unknown, name: string): unknown {
+  if (typeof value !== "object" || value === null) return undefined;
+  const record: Readonly<Record<string, unknown>> = { ...value };
+  return record[name];
 }
 
-/** 커밋 지점: 그룹 상태 커밋(`grp.<이름>.state.committed`) 이벤트 바로 뒤의 이벤트 수 */
+function isEventOfKind(event: JsonValue, kind: string): boolean {
+  return fieldOf(event, "kind") === kind;
+}
+
+/** 단계 함수의 `commit` 명령이 낸 결과 사건(`drive.command_settled`, command가 commit)인가 */
+function isCommitSettled(event: JsonValue): boolean {
+  return (
+    isEventOfKind(event, "drive.command_settled") &&
+    fieldOf(fieldOf(event, "payload"), "command") === "commit"
+  );
+}
+
+/**
+ * 커밋 지점: 그룹 상태 커밋(`grp.<이름>.state.committed`) 이벤트 바로 뒤의 이벤트 수. 단계 함수의 `commit` 명령이면
+ * 그 결과 사건이 바로 따르므로 그것까지 지점에 든다. 복원은 지점까지의 이벤트를 넣고 재실행하므로, 결과 사건을 빼면
+ * 재실행이 그 자리에 다른 사건을 쓴다.
+ */
 function commitPointsOf(events: readonly JsonValue[], groupName: string): number[] {
   const kind = `grp.${groupName}.state.committed`;
-  return events.flatMap((event, index) => (isEventOfKind(event, kind) ? [index + 1] : []));
+  return events.flatMap((event, index) => {
+    if (!isEventOfKind(event, kind)) return [];
+    const next = events[index + 1];
+    return [next !== undefined && isCommitSettled(next) ? index + 2 : index + 1];
+  });
 }
 
 async function commitSeed(

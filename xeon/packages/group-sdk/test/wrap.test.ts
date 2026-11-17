@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
+import type { StepResult } from "@fresnel/contracts/extensions";
 import { defineSettings } from "@fresnel/contracts/settings";
-import { PrimitiveError } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { defineGroup, GroupSettingsSourceKey, type GroupApi } from "../src/index.ts";
@@ -145,8 +145,9 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
           );
           await g.commit({ n: ctx.state.n + 1 });
         });
-        g.drive(async (loop) => {
-          await loop.spawn({ agent: "helper", task: "t" });
+        g.drive(async ({ last }) => {
+          if (last?.kind === "ok" && last.of === "spawn") return { do: "yield" };
+          return { do: "spawn", agent: "helper", task: "t" };
         });
       },
     }),
@@ -167,47 +168,45 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
   });
 });
 
-test("wrap.loop-forwards-ask-to-the-host-loop", async () => {
+test("wrap.ask-command-reaches-the-host-loop", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  const outcomes: { readonly code: unknown; readonly message: unknown }[] = [];
+  // 직전 결과가 다음 단계의 last로 돌아온다. ask는 승인 서비스가 없어 거부 결과(refused)로 돌아온다
+  const results: StepResult[] = [];
   await install(
     t,
     defineGroup({
       manifest: groupManifestOf({ name: "asks", drives: true }),
       setup(g) {
-        g.drive(async (loop) => {
-          try {
-            await loop.ask({
-              requestId: "asks:gate:1",
-              card: {
-                questions: [
-                  {
-                    id: "go",
-                    header: "Go",
-                    text: "Go?",
-                    options: [],
-                    multiSelect: false,
-                    allowFreeText: true,
-                  },
-                ],
-              },
-            });
-          } catch (error) {
-            if (error instanceof PrimitiveError) {
-              outcomes.push({ code: error.code, message: error.message });
-            }
+        g.drive(async ({ last }) => {
+          if (last !== null) {
+            results.push(last);
+            return { do: "yield" };
           }
+          return {
+            do: "ask",
+            requestId: "asks:gate:1",
+            card: {
+              questions: [
+                {
+                  id: "go",
+                  header: "Go",
+                  text: "Go?",
+                  options: [],
+                  multiSelect: false,
+                  allowFreeText: true,
+                },
+              ],
+            },
+          };
         });
       },
     }),
   );
   await t.host.openThread(thread);
   await t.settled();
-  // ask는 wrapLoop을 지나 호스트의 loop.ask까지 닿는다. 시험 호스트에는 승인 서비스가 없어 승인 포트 부재로 거부된다
-  expect(outcomes).toEqual([
-    { code: "port_unavailable", message: "fresnel.approvals (ApprovalService) is not provided" },
-  ]);
+  // ask 명령은 호스트의 loop.ask까지 닿는다. 시험 호스트에는 승인 서비스가 없어 승인 포트 부재로 거부된다
+  expect(results).toEqual([{ kind: "refused", code: "port_unavailable" }]);
 });
 
 test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", async () => {
@@ -238,4 +237,125 @@ test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", asyn
     builtin: false,
   });
   expect(sink.api?.settings()).toEqual({ mode: "slow", limit: 9 });
+});
+
+test("wrap.commit-command-is-checked-like-g-commit", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await install(
+    t,
+    defineGroup<{ readonly n: number }>({
+      manifest: groupManifestOf({ name: "checked", drives: true }),
+      state: {
+        schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
+        initial: { n: 0 },
+        version: 1,
+      },
+      setup(g) {
+        g.drive(async () => ({ do: "commit", state: { n: -1 }, next: { do: "yield" } }));
+      },
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // g.commit과 같은 검사로 거부한다. 단계가 던져 임대는 오류로 반납되고, 상태 사건은 남지 않는다
+  expect(t.diagnostics).toMatchObject([
+    { level: "error", code: "state_schema", scopeId: "checked" },
+  ]);
+  expect(t.host.registrations().find((info) => info.id === "checked")?.drive).toBe("error");
+  expect(t.records.events(thread).map((event) => event.kind)).not.toContain(
+    "grp.checked.state.committed",
+  );
+});
+
+test("wrap.commit-command-counts-only-a-changed-state", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  let api: GroupApi<{ readonly n: number }> | undefined;
+  // 시험 관찰용: 단계 함수가 본 커밋 값을 적는다(상태가 아니라 시험 기록이다)
+  const seen: number[] = [];
+  await install(
+    t,
+    defineGroup<{ readonly n: number }>({
+      manifest: groupManifestOf({ name: "tally", drives: true }),
+      state: {
+        schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
+        initial: { n: 0 },
+        version: 1,
+      },
+      setup(g) {
+        api = g;
+        // 처음에는 값을 바꾸고, 다음 호출에서는 같은 값을 커밋한다
+        g.drive(async ({ state }) => {
+          seen.push(state.n);
+          const next = state.n === 0 ? 1 : state.n;
+          return { do: "commit", state: { n: next }, next: { do: "yield" } };
+        });
+      },
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(api?.metrics.snapshot()).toMatchObject({ commits: 1 });
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  // 두 번째 호출은 값 1을 보고 같은 값을 커밋하려 한다. 그 커밋은 상태 사건을 쓰지 않고 계측하지도 않는다(g.commit과 같은 규칙)
+  expect(seen.slice(0, 2)).toEqual([0, 1]);
+  const kinds = t.records.events(thread).map((event) => event.kind);
+  expect(kinds.filter((kind) => kind === "grp.tally.state.committed")).toHaveLength(1);
+  expect(kinds.filter((kind) => kind === "drive.command_settled")).toHaveLength(1);
+  expect(api?.metrics.snapshot()).toMatchObject({ commits: 1 });
+});
+
+test("wrap.done-releases-the-lease-with-reason-done", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await install(
+    t,
+    defineGroup({
+      manifest: groupManifestOf({ name: "finisher", drives: true }),
+      setup(g) {
+        g.drive(async ({ last }) => {
+          if (last?.kind === "ok" && last.of === "turn") return { do: "done" };
+          return { do: "turn", input: { kind: "user", content: "once" }, requestId: "finisher:1" };
+        });
+      },
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // done은 주도권을 내려놓는다. 반납 사유는 done이다
+  expect(
+    t.records
+      .events(thread)
+      .filter((event) => event.kind === "lease.released")
+      .map((event) => event.payload),
+  ).toMatchObject([{ scopeId: "finisher", reason: "done" }]);
+  expect(t.host.leaseOf(thread)).toBeNull();
+});
+
+test("wrap.two-effect-free-yields-release-the-lease-as-idle", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await install(
+    t,
+    defineGroup({
+      manifest: groupManifestOf({ name: "resting", drives: true }),
+      setup(g) {
+        g.drive(async () => ({ do: "yield" }));
+      },
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // 첫 yield는 주도권을 유지한다. 같은 상태 판의 두 번째 효과 없는 yield에서 idle로 반납한다
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "resting" });
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(
+    t.records
+      .events(thread)
+      .filter((event) => event.kind === "lease.released")
+      .map((event) => event.payload),
+  ).toMatchObject([{ scopeId: "resting", reason: "idle" }]);
 });

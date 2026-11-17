@@ -48,10 +48,31 @@ function kindOf(event: JsonValue): unknown {
     : undefined;
 }
 
-/** 커밋 지점: 그룹 상태 커밋 이벤트 바로 뒤의 이벤트 수 */
+/** 단계 함수의 `commit` 명령이 낸 결과 사건(`drive.command_settled`)인가 */
+function isCommitSettled(event: JsonValue): boolean {
+  const record: unknown = event;
+  if (typeof record !== "object" || record === null || !("payload" in record)) return false;
+  const payload: unknown = record.payload;
+  return (
+    kindOf(event) === "drive.command_settled" &&
+    typeof payload === "object" &&
+    payload !== null &&
+    "command" in payload &&
+    payload.command === "commit"
+  );
+}
+
+/**
+ * 커밋 지점: 그룹 상태 커밋 이벤트 바로 뒤의 이벤트 수. 단계 함수의 `commit` 명령이면 그 결과 사건(`drive.command_settled`)까지 든다.
+ * 복원은 지점까지의 이벤트를 넣고 재실행하므로 결과 사건을 빼면 재실행이 그 자리에 다른 사건을 쓴다
+ */
 function commitPointsOf(events: readonly JsonValue[], groupName: string): number[] {
   const kind = `grp.${groupName}.state.committed`;
-  return events.flatMap((event, index) => (kindOf(event) === kind ? [index + 1] : []));
+  return events.flatMap((event, index) => {
+    if (kindOf(event) !== kind) return [];
+    const next = events[index + 1];
+    return [next !== undefined && isCommitSettled(next) ? index + 2 : index + 1];
+  });
 }
 
 async function seed(

@@ -2,7 +2,7 @@ import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { GroupModule } from "../../types.ts";
 
 /**
- * 가짜 포트가 센 외부 효과 수(L3.group-sdk.spec §3.10, ADR-0015 §3.6). 중복 응답(`duplicate`, 재생된 `loop.turn`·`loop.spawn`,
+ * 가짜 포트가 센 외부 효과 수(L3.group-sdk.spec §3.10, ADR-0015 §3.6). 중복 응답(`duplicate`, 재생된 turn·spawn 명령,
  * 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출은 세지 않는다
  */
 export interface EffectCounts {

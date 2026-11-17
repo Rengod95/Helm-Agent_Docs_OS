@@ -21,7 +21,7 @@ export interface GroupMetrics extends GroupMetricsSummary {
   readonly handlerErrors: number;
   /** duplicate 제외 */
   readonly posts: number;
-  /** drive 안 loop.spawn */
+  /** drive 단계 함수가 낸 spawn 명령 */
   readonly spawns: number;
   /** accepted delegate */
   readonly delegates: number;

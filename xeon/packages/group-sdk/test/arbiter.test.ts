@@ -8,6 +8,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, type TestHost, type TestHostOptions } from "@fresnel/ext-host/testing";
+import { Type } from "typebox";
 import {
   defaultDriveArbiter,
   defineGroup,
@@ -17,6 +18,7 @@ import {
 } from "../src/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
+import { turnFinished } from "./support/steps.ts";
 
 function candidate(scopeId: string, loadOrder: number, requestSeq: number | null): DriveCandidate {
   return { scopeId, groupId: scopeId, loadOrder, requestSeq };
@@ -151,22 +153,38 @@ async function rig(): Promise<Rig> {
   };
 }
 
+/** 호출마다 턴을 내고 상태를 올려 커밋한다. 효과와 상태 변화가 있어야 임대가 idle로 반납되지 않는다 */
+const TICK = {
+  schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
+  initial: { n: 0 },
+  version: 1,
+} as const;
+
 function driveGroup(name: string, calls: string[], throwOnDrive = false): GroupModule {
-  return defineGroup({
+  return defineGroup<{ readonly n: number }>({
     manifest: groupManifestOf({
       name,
       hooks: ["tool.call.before"],
       usesPost: true,
       drives: true,
     }),
+    state: TICK,
     setup(g) {
       g.on("tool.call.before", (payload) =>
         payload.toolName === "danger" ? { block: true, reason: `${name} blocks` } : undefined,
       );
-      g.drive(async (loop) => {
-        calls.push(name);
+      g.drive(async ({ state, last }) => {
+        // 한 호출(처음 단계)을 한 번 센다. 같은 호출 안의 뒷 단계는 세지 않는다
+        if (last === null) calls.push(name);
         if (throwOnDrive) throw new TypeError(`${name} drive failed`);
-        await loop.turn({ input: { kind: "user", content: name } });
+        if (turnFinished(last)) {
+          return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
+        }
+        return {
+          do: "turn",
+          input: { kind: "user", content: name },
+          requestId: `${name}:${state.n}`,
+        };
       });
     },
   });

@@ -29,9 +29,11 @@ function stableGroup(name: string): GroupModule {
     manifest: groupManifestOf({ name, drives: true }),
     state: COUNTER,
     setup(g) {
-      g.drive(async (_loop, state) => {
-        await g.commit({ n: state.n + 1 });
-      });
+      g.drive(async ({ state }) => ({
+        do: "commit",
+        state: { n: state.n + 1 },
+        next: { do: "yield" },
+      }));
     },
   });
 }

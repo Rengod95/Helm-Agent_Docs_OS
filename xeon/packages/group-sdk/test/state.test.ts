@@ -12,6 +12,7 @@ import {
 } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
+import { turnFinished } from "./support/steps.ts";
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 const counterDecl: StateDecl<{ readonly n: number }> = {
@@ -97,11 +98,13 @@ const driven = (name: string, sink: number[]): GroupModule =>
     manifest: groupManifestOf({ name, drives: true }),
     state: counterDecl,
     setup(g) {
-      g.drive(async (loop, state) => {
+      g.drive(async ({ state, last }) => {
         sink.push(state.n);
-        if (state.n >= 2) return;
-        await loop.turn({ input: { kind: "user", content: "go" } });
-        await g.commit({ n: state.n + 1 });
+        if (turnFinished(last)) {
+          return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
+        }
+        if (state.n >= 2) return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: "go" }, requestId: `go:${state.n}` };
       });
     },
   });

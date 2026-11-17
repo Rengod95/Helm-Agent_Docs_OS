@@ -50,10 +50,11 @@ test("define-group.check-group-passes-a-correct-group", async () => {
     state: { schema: CounterSchema, initial: { n: 0 }, version: 1 },
     setup(g) {
       g.on("tool.call.before", () => undefined);
-      g.drive(async (loop, state) => {
-        await loop.turn({ input: { kind: "user", content: "go" } });
-        await g.commit({ n: state.n + 1 });
-      });
+      g.drive(async ({ state }) => ({
+        do: "commit",
+        state: { n: state.n + 1 },
+        next: { do: "yield" },
+      }));
     },
   });
   expect((await checkGroup(module)).filter((found) => found.severity === "error")).toEqual([]);
@@ -103,7 +104,7 @@ test("define-group.check-group-reports-usage-at-the-root-plugin", async () => {
   const driveGroup = defineGroup({
     manifest: groupManifestOf({ name: "drive-undeclared" }),
     setup(g) {
-      g.drive(async () => undefined);
+      g.drive(async () => ({ do: "yield" }));
     },
   });
   expect((await checkGroup(driveGroup)).map((found) => [found.code, found.path])).toEqual([
