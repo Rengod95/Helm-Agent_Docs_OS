@@ -83,7 +83,20 @@ export interface LoopSpawnResult {
   readonly usage: Usage | null;
 }
 
+/** 대화에서 지금 도는 turn의 호출 조건. 플러그인이 부른 기능 호출이 `CallContext`로 그대로 이어받는다 */
+export interface LoopCallConditions {
+  /** 사람이 승인 요청에 답할 수 있는 실행인가 */
+  readonly interactive: boolean;
+  /** 서브에이전트 정의의 읽기 전용 샌드박스 천장. 없으면 천장이 없다 */
+  readonly sandbox?: "read-only";
+}
+
 export interface LoopPort {
+  /**
+   * 이 대화에서 지금 도는 turn의 호출 조건. 도는 turn이 없으면 undefined(그러면 호출 문맥은 조건을 싣지 않는다).
+   * 구현이 없는 포트(시험 대역)도 허용한다
+   */
+  callConditions?(threadId: ThreadId): LoopCallConditions | undefined;
   status(threadId: ThreadId): "idle" | "running";
   /** 유휴일 때 turn을 시작하고, 정착한 뒤 결과를 돌려준다. 실행 중이면 현재 turn이 정착한 뒤 시작한다 */
   runTurn(request: LoopTurnRequest): Promise<LoopTurnResult>;
