@@ -46,6 +46,17 @@ export type PluginHostRequestName = (typeof PLUGIN_HOST_REQUESTS)[number];
 export const PLUGIN_HOST_NOTIFICATIONS_TO_HOST = ["event.notify", "request.cancel"] as const;
 export type PluginHostNotificationName = (typeof PLUGIN_HOST_NOTIFICATIONS_TO_HOST)[number];
 
+/** 플러그인 → 엔진 알림(응답 없음). `event.done`은 `event.notify` 처리를 마쳤다는 확인이다 */
+export const PLUGIN_HOST_NOTIFICATIONS_TO_ENGINE = ["event.done"] as const;
+export type PluginHostToEngineNotificationName =
+  (typeof PLUGIN_HOST_NOTIFICATIONS_TO_ENGINE)[number];
+
+export function isPluginHostToEngineNotification(
+  value: string,
+): value is PluginHostToEngineNotificationName {
+  return PLUGIN_HOST_NOTIFICATIONS_TO_ENGINE.some((name) => name === value);
+}
+
 /** 플러그인 → 엔진 요청. 호출자 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다(요청 필드에 없다) */
 export const PLUGIN_ENGINE_CALLS = [
   "commit",
@@ -346,6 +357,18 @@ export interface EventNotifyParams extends PluginCallContext {
   readonly payload: JsonValue;
   /** 엔진 디스패치 키. 격리된 `g.subscribe`가 봉투의 `eventKey`로 쓴다 */
   readonly dispatchKey?: string;
+  /**
+   * 엔진이 이 알림 앞에서 합친 수(덮인 전달). 합치기가 없었으면 생략한다. 격리된 `g.subscribe`가 봉투의 `dropped`에 더한다
+   */
+  readonly dropped?: number;
+}
+
+/**
+ * 플러그인 → 엔진 알림 `event.done`. `event.notify` 처리가 끝났음(성공과 실패 모두)을 알린다. 엔진은 이 확인으로 키마다
+ * 미확인 수를 줄인다(X.loading-trust와 drive-isolation.md 3.2의 이벤트 전달 규약)
+ */
+export interface EventDoneParams {
+  readonly eventKey: string;
 }
 
 export interface RequestCancelParams {

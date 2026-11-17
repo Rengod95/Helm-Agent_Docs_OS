@@ -29,6 +29,7 @@ import {
   PLUGIN_HOST_STDERR_LINE_MAX,
   PLUGIN_HOST_STDERR_LINES_MAX,
   PLUGIN_HOST_MAX_FRAME_BYTES,
+  isPluginHostToEngineNotification,
   type EngineCallParams,
   type HostDisposeParams,
   type HostInitParams,
@@ -138,6 +139,10 @@ export interface PluginHostSupervisorDeps {
   readonly onRestartLimit: (info: RestartLimitInfo) => void;
   /** 표준오류 한 줄을 저장하기 전에 거른다(시크릿 마스킹). 던지면 그 줄은 버린다 */
   readonly maskSecrets?: (line: string) => string;
+  /** 자식이 `event.done`으로 알림 처리를 확인했다(`eventKey`). 엔진의 알림 흐름 제어가 미확인 수를 줄인다 */
+  readonly onEventDone?: (eventKey: string) => void;
+  /** 프로세스가 끝났다. 흐름 제어는 여기서 미확인 수를 버리고, 다음 프로세스는 빈 상태로 시작한다 */
+  readonly onProcessEnd?: () => void;
 }
 
 export interface PluginHostSupervisor {
@@ -228,6 +233,9 @@ const DeclSchema = Type.Object({
     Type.Object({ limits: Type.Union([DriveLimitsSchema, Type.Null()]) }),
   ]),
 });
+
+/** 자식이 보낸 `event.done`의 params */
+const EventDoneSchema = Type.Object({ eventKey: Type.String() });
 
 const HostInitResultSchema = Type.Object({
   protocolVersion: Type.Integer(),
@@ -605,6 +613,24 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     });
   }
 
+  /**
+   * 자식이 보낸 알림. 지금은 `event.done`(알림 처리 확인)뿐이라 종류를 나누지 않는다. 모르는 알림은 버린다.
+   * 새 알림을 더하면 이 자리에서 종류를 나눈다
+   */
+  function onChildNotification(method: string, params: unknown): void {
+    if (!isPluginHostToEngineNotification(method)) {
+      deps.logger.debug("plugin_host.notification_ignored", {});
+      return;
+    }
+    const done = parse(EventDoneSchema, params);
+    if (!done.ok) {
+      deps.logger.warn("plugin_host.event_done_invalid", {});
+      return;
+    }
+    const told = attempt(() => deps.onEventDone?.(done.value.eventKey));
+    if (!told.ok) deps.logger.error("plugin_host.event_done_handler_failed", {});
+  }
+
   function settleById(proc: Proc, id: number, outcome: Result<JsonValue, CallError>): void {
     const entry = proc.pending.get(id);
     if (entry === undefined) {
@@ -651,7 +677,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         answerRequest(proc, frame.id, frame.method, frame.params);
         return;
       case "notification":
-        deps.logger.debug("plugin_host.notification_ignored", {});
+        onChildNotification(frame.method, frame.params);
         return;
       default:
         return assertNever(frame, "ClassifiedFrame");
@@ -704,6 +730,8 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     for (const entry of Array.from(proc.pending.values())) {
       entry.settle(err(exitedError(detail)));
     }
+    const ended = attempt(() => deps.onProcessEnd?.());
+    if (!ended.ok) deps.logger.error("plugin_host.process_end_handler_failed", {});
     const reason = proc.endReason;
     deps.logger.info("plugin_host.exited", {
       reason: reason ?? "unexpected",

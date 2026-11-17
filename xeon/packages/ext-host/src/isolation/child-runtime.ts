@@ -70,6 +70,7 @@ import {
 import {
   parseCommandRun,
   parseDriveStep,
+  parseEventKey,
   parseEventNotify,
   parseHookInvoke,
   parseHostDispose,
@@ -729,8 +730,25 @@ function createRuntime(deps: PluginHostDeps) {
     respond(id, outcome);
   }
 
-  /** 스트림 관찰 알림. 같은 핸들러에는 발화 순서대로 하나씩 전달하고, 결과는 버리고 실패는 진단으로 남긴다 */
+  /**
+   * 스트림 관찰 알림. 처리가 끝나면(성공과 실패 모두) `event.done`으로 엔진에 확인한다. 엔진은 이 확인으로 미확인 수를 줄인다
+   */
   async function deliver(params: unknown): Promise<void> {
+    const key = parseEventKey(params);
+    try {
+      await deliverEvent(params);
+    } finally {
+      if (key.ok) acknowledge(key.value);
+    }
+  }
+
+  function acknowledge(eventKey: string): void {
+    const sent = writer.write({ method: "event.done", params: { eventKey } });
+    if (!sent.ok) diag(`event.done for ${eventKey} could not be sent (${sent.error.kind})`);
+  }
+
+  /** 알림 하나를 같은 핸들러에 발화 순서대로 하나씩 돌린다. 결과는 버리고 실패는 진단으로 남긴다 */
+  async function deliverEvent(params: unknown): Promise<void> {
     const up = await ready.promise;
     if (!up) return;
     const input = parseEventNotify(params);
@@ -755,6 +773,7 @@ function createRuntime(deps: PluginHostDeps) {
       settings: event.settings,
       snapshot: { doc: event.state },
       dispatchKey: event.dispatchKey ?? event.eventKey,
+      ...(event.dropped === undefined ? {} : { dropped: event.dropped }),
     };
     const ctx = {
       scopeId: state.id,

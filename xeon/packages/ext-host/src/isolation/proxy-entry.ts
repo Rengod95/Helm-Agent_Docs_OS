@@ -7,7 +7,6 @@ import {
   assertNever,
   attempt,
   Bug,
-  detach,
   err,
   ok,
   parse,
@@ -16,7 +15,12 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import { ToolHintsSchema, ToolNameSchema, ToolRiskSchema } from "@fresnel/contracts/capabilities";
-import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import {
+  JsonValueSchema,
+  toJsonValue,
+  type JsonObject,
+  type JsonValue,
+} from "@fresnel/contracts/conversation";
 import {
   DriveCommandSchema,
   HOOKS,
@@ -56,6 +60,7 @@ import type {
 import { isHookName } from "./child-api.ts";
 import { createEngineCallRouter, type OpenWaits } from "./engine-calls.ts";
 import { DriveCommandError, PluginProcessError } from "./errors.ts";
+import { createNotifyGate, notifyKeyOf, type NotifyGate } from "./notify-gate.ts";
 import { parseDriveStepReply } from "./params.ts";
 import {
   createPluginHostSupervisor,
@@ -211,9 +216,11 @@ interface PreparedDecl {
   }[];
 }
 
-/** 세션 하나: 감독과, 요청 id에서 디스패치 문맥으로 가는 표 */
+/** 세션 하나: 감독과, 요청 id에서 디스패치 문맥으로 가는 표, 알림 흐름 제어 */
 interface Session {
   readonly supervisor: PluginHostSupervisor;
+  /** 스트림 알림의 보내기와 합치기. 자식의 `event.done`으로 미확인 수를 줄인다 */
+  readonly gate: NotifyGate;
   readonly ambients: Map<number, Ambient>;
   /** 도구 실행 요청 id에서 그 호출의 `ctx.changes`로 가는 표 */
   readonly changes: Map<number, ToolChangeReport>;
@@ -289,6 +296,17 @@ function settledOf(reply: Result<JsonValue, CallError>): JsonValue | undefined {
 function jsonOf(value: unknown, what: string): JsonValue {
   const json = toJsonValue(value);
   if (json === undefined) throw new Error(`${what} is not JSON`);
+  return json;
+}
+
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** JSON 객체로 바꾼다. 알림 본문은 이 파일이 만드는 객체라 항상 객체다 */
+function jsonObjectOf(value: unknown, what: string): JsonObject {
+  const json = jsonOf(value, what);
+  if (!isJsonObject(json)) throw new Bug("isolation.event_not_object");
   return json;
 }
 
@@ -455,6 +473,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
       waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
     });
+    // 흐름 제어는 감독이 보내는 알림을 쓰고, 감독의 확인과 종료를 받는다. 두 값이 서로를 가리키므로 흐름 제어는 감독 뒤에 만든다
     const supervisor = createPluginHostSupervisor({
       process: deps.port,
       specOf: spawnSpecOf,
@@ -467,12 +486,24 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       onRestartLimit: (info) => {
         deps.onRestartLimit?.(info);
       },
+      onEventDone: (eventKey) => {
+        gate.acknowledge(eventKey);
+      },
+      onProcessEnd: () => {
+        gate.reset();
+      },
       ...(deps.idleMs === undefined ? {} : { idleMs: deps.idleMs }),
       ...(deps.killGraceMs === undefined ? {} : { killGraceMs: deps.killGraceMs }),
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
     });
-    return { supervisor, ambients, changes, waits };
+    const gate = createNotifyGate({
+      send: (params) => supervisor.notify("event.notify", params).then((reply) => reply.ok),
+      setTimer: deps.setTimer,
+      now: deps.now,
+      logger,
+    });
+    return { supervisor, gate, ambients, changes, waits };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -487,6 +518,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   function retire(reason: HostDisposeParams["reason"]): void {
     const closing = current;
     current = undefined;
+    closing?.gate.reset();
     closing?.supervisor.dispose(reason);
   }
 
@@ -567,21 +599,13 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         ...(amb === undefined || amb.dispatchKey === null ? {} : { dispatchKey: amb.dispatchKey }),
       };
       if (notify) {
-        // 관찰 알림은 기다리지 않는다. 발화 순서대로 하나씩 전달하도록 eventKey를 늘린다(멱등 키)
+        // 관찰 알림은 기다리지 않는다. 발화 순서대로 eventKey를 늘린다(멱등 키). 보내기와 합치기는 흐름 제어가 맡는다
         const next = (eventCounters.get(eventBase) ?? 0) + 1;
         eventCounters.set(eventBase, next);
-        const sent = sessionNow().supervisor.notify(
-          "event.notify",
-          jsonOf({ ...body, eventKey: `${eventBase}#${next}` }, "the event"),
-        );
-        detach(
-          sent.then((reply) => {
-            if (!reply.ok) logger.warn("plugin_host.notify_failed", { point });
-            return reply.ok;
-          }),
-          () => {
-            logger.error("plugin_host.notify_unhandled", { point });
-          },
+        sessionNow().gate.offer(
+          { key: notifyKeyOf(p.decl.id, point, handlerIndex, threadId), point },
+          `${eventBase}#${next}`,
+          jsonObjectOf(body, "the event"),
         );
         return undefined;
       }

@@ -103,6 +103,8 @@ export interface CallScope {
   readonly snapshot: { doc: JsonValue };
   /** 훅이나 알림이면 엔진 디스패치 키. 구독 봉투의 `eventKey`가 된다 */
   readonly dispatchKey?: string;
+  /** 알림이면 엔진이 이 전달 앞에서 합친 수(덮인 전달). 합치기가 없었으면 생략한다. 구독 봉투의 `dropped`에 더한다 */
+  readonly dropped?: number;
 }
 
 export interface ChildEnv {
@@ -391,6 +393,7 @@ function childDispatch(env: ChildEnv): DispatchContext {
   return {
     eventKey: scope.dispatchKey,
     rerun: (work) => Promise.resolve(env.scopes.run(scope, work)),
+    ...(scope.dropped === undefined ? {} : { dropped: scope.dropped }),
   };
 }
 

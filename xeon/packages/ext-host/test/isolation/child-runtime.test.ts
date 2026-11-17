@@ -1079,7 +1079,7 @@ export default function extension({ register }) {
 });
 
 describe("notifications", () => {
-  test("an event.notify handler that throws is reported on stderr and sends no reply", async () => {
+  test("an event.notify handler that throws is reported on stderr, sends no reply, and is acknowledged", async () => {
     const root = await writePluginRoot(MAIN_ENTRY);
     const host = startHost();
     await initialize(host, root);
@@ -1097,6 +1097,11 @@ describe("notifications", () => {
     expect(await host.diagnostics.waitForText("stream boom")).toContain(
       "event handler of demo failed: stream boom",
     );
+    // 실패한 처리도 확인을 보낸다(엔진의 미확인 수를 줄인다). 알림 확인은 응답이 아니다
+    expect(await host.out.waitFor((frame) => frame.method === "event.done")).toEqual({
+      method: "event.done",
+      params: { eventKey: "e-1" },
+    });
     host.send({
       id: 2,
       method: "hook.invoke",
@@ -1110,7 +1115,10 @@ describe("notifications", () => {
       },
     });
     await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined);
-    const replyIds = host.out.lines.map(frameOf).map((frame) => frame.id);
+    const replyIds = host.out.lines
+      .map(frameOf)
+      .filter((frame) => frame.method === undefined)
+      .map((frame) => frame.id);
     expect(replyIds).toEqual([1, 2]);
   });
 });

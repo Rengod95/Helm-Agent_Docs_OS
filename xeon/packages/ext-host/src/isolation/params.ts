@@ -3,7 +3,7 @@
 // 훅, 도구, 알림 호출은 대화 안에서 돌므로 `threadId`를 `ThreadId`(null이 아님)로 좁힌다(HandlerContext, ToolResourceDef).
 // 명령과 메서드는 대화 밖에서도 불리므로 null을 받는다.
 import { Type } from "typebox";
-import { parse, type ParseError, type Result } from "@fresnel/contracts";
+import { err, ok, parse, type ParseError, type Result } from "@fresnel/contracts";
 import { JsonValueSchema, ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   DriveFrameInfoSchema,
@@ -118,7 +118,10 @@ const eventNotifySchema = Type.Object({
   eventKey: Type.String(),
   payload: JsonValueSchema,
   dispatchKey: Type.Optional(Type.String()),
+  dropped: Type.Optional(Type.Integer({ minimum: 0 })),
 });
+
+const eventKeySchema = Type.Object({ eventKey: Type.String() });
 
 const requestCancelSchema = Type.Object({ id: Type.Integer({ minimum: 0 }) });
 
@@ -238,6 +241,14 @@ export function parseHostDispose(value: unknown): Result<HostDisposeInput, Parse
 
 export function parseEventNotify(value: unknown): Result<EventNotifyInput, ParseError> {
   return parse(eventNotifySchema, value);
+}
+
+/**
+ * 알림의 `eventKey`만 읽는다. 처리 모양이 맞지 않아도 확인(`event.done`)을 보낼 키를 얻는 데 쓴다
+ */
+export function parseEventKey(value: unknown): Result<string, ParseError> {
+  const checked = parse(eventKeySchema, value);
+  return checked.ok ? ok(checked.value.eventKey) : err(checked.error);
 }
 
 export function parseRequestCancel(value: unknown): Result<RequestCancelInput, ParseError> {
