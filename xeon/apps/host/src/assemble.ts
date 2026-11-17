@@ -152,6 +152,7 @@ import {
   sandboxSourceOf,
 } from "./assembly/plugin-host.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
+import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
@@ -613,7 +614,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     ports: {
       get: (key) => late.host?.ports.get(key),
     },
-    notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+    // 엔진이 확장을 멈추면 열린 대화의 E(T)에서 빠지도록 다시 맞춘다(M5c §4.1.12). 포트는 아래에서 만들어진다(호출 때 읽는다)
+    notifier: observeStops(
+      createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+      () => portsHandle?.ports.m4.pluginSet.recomputeAll(),
+    ),
     log: logOperations,
     // 답할 화면(연결된 클라이언트)이 없으면 자동 끄기 기준을 넘어도 묻지도 끄지도 않는다(X.operations §4.3.3)
     canAsk: () => options.hasClient?.() === true,
@@ -1121,6 +1126,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
           onEnabled: (id) => {
             operations.autoDisabler.clearLedger(`ext:${id}`);
+            // 자동 끄기 장부를 비우면 멈춘 확장이 다시 E(T)에 들 수 있다(M5c §4.1.12)
+            portsHandle?.ports.m4.pluginSet.recomputeAll();
           },
           onService: (service) => {
             groupServiceSlot.current = service;
@@ -1318,6 +1325,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
     settings.bindWorkspaces(workspaceOf);
+    // 프로필 층(M5c §4.1.7): 대화가 참조한 프로필과 공통 묶음의 값. 복사는 집합 쪽이 메모리에 둔다
+    settings.bindProfiles((threadId) => portsHandle?.ports.m4.pluginSet.settingsOf(threadId));
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);

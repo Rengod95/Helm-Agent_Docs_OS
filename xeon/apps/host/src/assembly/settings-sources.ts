@@ -187,7 +187,12 @@ export function layersSource(settings: SettingsEngine): {
 }
 
 export function toolsSource(settings: SettingsEngine): ToolsSettingsSource {
-  return { layers: () => settings.layers(undefined) };
+  return {
+    layers: () => settings.layers(undefined),
+    // 권한 모드 같은 도구 설정이 대화의 프로필 값을 따른다(M5c §4.1.7). 세션 층은 `configReader`가 더한다
+    profileLayer: (threadId) =>
+      settings.layers(threadId).find((layer) => layer.scope === "profile"),
+  };
 }
 
 export function workspaceSource(settings: SettingsEngine): WorkspaceSettingsSource {

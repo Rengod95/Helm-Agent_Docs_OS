@@ -310,6 +310,101 @@ test("profile.common.put stores the common set with the matching baseRev and bum
   await connection.close();
 });
 
+// ── 코어 필수 단위(M5c §4.1.17) ──────────────────────────────────────────
+
+/** 코어가 기대는 내장 단위 두 개와 데모 플러그인의 사실. 저장 검증이 목록을 알아야 한다 */
+const REQUIRED_FACTS: readonly PluginFact[] = [
+  ...DEMO_FACTS,
+  { name: "cap-workspace", replaces: [], drives: false, requiredKeys: [] },
+  { name: "cap-dialog", replaces: [], drives: false, requiredKeys: [] },
+];
+
+test("a profile edit that drops a core-required unit is plugin.requiredByCore and stores nothing; adding it back is fine", async () => {
+  const rig = rigOf({ pluginFacts: REQUIRED_FACTS });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "cap-workspace" }, { name: "demo" }] }),
+    baseRev: null,
+  });
+  const dropped = await failureOf(
+    connection.request("profile.put", {
+      profile: inputOf({ plugins: [{ name: "demo" }] }),
+      baseRev: 1,
+    }),
+  );
+  expect(dropped).toMatchObject({
+    code: 3626,
+    data: { kind: "plugin.requiredByCore", details: { plugin: "cap-workspace" } },
+  });
+  expect(await connection.request("profile.get", { id: "review" })).toMatchObject({
+    profile: { rev: 1, plugins: [{ name: "helm" }, { name: "cap-workspace" }, { name: "demo" }] },
+  });
+  // 같은 목록을 그대로 두는 저장은 거절하지 않는다
+  expect(
+    await connection.request("profile.put", {
+      profile: inputOf({
+        plugins: [{ name: "helm" }, { name: "cap-workspace" }, { name: "demo" }],
+      }),
+      baseRev: 1,
+    }),
+  ).toMatchObject({ profile: { rev: 2 } });
+  await connection.close();
+});
+
+test("a profile that never listed a core-required unit may edit freely, and the unit's own removal is refused", async () => {
+  const rig = rigOf({ pluginFacts: REQUIRED_FACTS });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }] }),
+    baseRev: null,
+  });
+  expect(
+    await connection.request("profile.put", {
+      profile: inputOf({ plugins: [{ name: "demo" }], driver: null }),
+      baseRev: 1,
+    }),
+  ).toMatchObject({ profile: { rev: 2, plugins: [{ name: "demo" }] } });
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "cap-dialog" }] }),
+    baseRev: 2,
+  });
+  expect(
+    await failureOf(
+      connection.request("profile.removePlugin", {
+        id: "review",
+        plugin: "cap-dialog",
+        baseRev: 3,
+      }),
+    ),
+  ).toMatchObject({
+    code: 3626,
+    data: { kind: "plugin.requiredByCore", details: { plugin: "cap-dialog" } },
+  });
+  await connection.close();
+});
+
+test("profile.common.put refuses to drop a core-required unit from the common set", async () => {
+  const rig = rigOf({ pluginFacts: REQUIRED_FACTS });
+  const connection = await connect(rig);
+  await connection.request("profile.common.put", {
+    common: { plugins: [{ name: "cap-workspace" }], settings: [] },
+    baseRev: 0,
+  });
+  expect(
+    await failureOf(
+      connection.request("profile.common.put", {
+        common: { plugins: [], settings: [] },
+        baseRev: 1,
+      }),
+    ),
+  ).toMatchObject({
+    code: 3626,
+    data: { kind: "plugin.requiredByCore", details: { plugin: "cap-workspace" } },
+  });
+  expect((await connection.request("profile.list", {})).common).toMatchObject({ rev: 1 });
+  await connection.close();
+});
+
 // ── 미리 보기 ───────────────────────────────────────────────────────────
 
 test("profile.preview of a draft reports the resolved list, unknown cost, the threads using it and the permission change", async () => {

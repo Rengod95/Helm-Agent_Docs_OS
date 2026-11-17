@@ -659,7 +659,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         },
         refresh: () => Promise.resolve(),
         recompute: () => undefined,
+        recomputeAll: () => undefined,
+        forget: () => undefined,
         defaultView: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        settingsOf: () => new Map(),
+        sourceOf: () => "none",
         dispose: () => undefined,
       },
       project: projects,
@@ -679,6 +683,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           threadExists: (threadId) => ports.threads.exists(threadId),
           toggles: { scopes: () => [], request: () => undefined, requestApply: () => undefined },
           registrations: () => [],
+          stopped: () => false,
+          settingsChanged: () => undefined,
           // 시크릿과 대화 수는 빈 저장소의 값이다. 시험이 `env`로 바꿔 끼운다
           secretNames: () => Promise.resolve(new Set<string>()),
           // 닫히지 않은 대화가 저장한 프로필 id. 가짜 대화 목록의 값이다

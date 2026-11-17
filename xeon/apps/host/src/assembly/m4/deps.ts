@@ -64,6 +64,14 @@ export interface M4HostEnv {
   /** 확장(Registration)의 켜짐 요청과 적용 예약 통로. 대화별 켜짐 집합(E(T))의 적용이 쓴다 */
   readonly toggles: RegistrationToggleSourceOf;
   readonly registrations: () => readonly RegistrationInfo[];
+  /** 오류로 멈춘 확장인가(`autoDisabler.disabled()`의 `ext:<이름>`). 멈춘 확장은 대화의 E(T)에서 빠진다(M5c §4.1.12) */
+  readonly stopped: (name: string) => boolean;
+  /** 대화의 `profile` 범위 설정 값이 바뀌었음을 설정 구독자에게 전한다(M5c §4.1.7). 바뀐 키만 싣는다 */
+  readonly settingsChanged: (change: {
+    readonly keys: readonly string[];
+    readonly scopes: readonly ["profile"];
+    readonly threadId: ThreadId;
+  }) => void;
   /** 사용자 설정 폴더(L0.os의 `dirs.config`). `profiles.json`이 여기에 놓인다 */
   readonly configDir: string;
   /** 호스트 상태 폴더(`OsDirs.state`). 옮김 기록 `migration.log`가 여기에 놓인다 */

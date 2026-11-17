@@ -1057,6 +1057,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           },
         },
         registrations: () => deps.ext.registrations(),
+        // 오류로 멈춘 확장(M5c §4.1.12). 자동 끄기 장부가 든 `ext:<이름>`이다
+        stopped: (name) => deps.extRead.operations.autoDisabler.disabled().includes(`ext:${name}`),
+        // 대화의 프로필 설정 값이 바뀌면 설정 구독자(wire 알림, 확장 구독)에게 바뀐 키를 전한다
+        settingsChanged: (change) => {
+          deps.settings.notifyChanged({
+            keys: [...change.keys],
+            scopes: [...change.scopes],
+            threadId: change.threadId,
+          });
+        },
         configDir: deps.configDir,
         stateDir: deps.stateDir,
         secretNames: async () => {

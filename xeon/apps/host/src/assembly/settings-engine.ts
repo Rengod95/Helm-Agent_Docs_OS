@@ -46,6 +46,11 @@ export interface SettingsEngine {
   bindSession(store: SessionSettingsStore): void;
   /** thread의 작업 폴더를 찾는 함수. thread를 만들고 여는 세션 서비스가 올라온 뒤 연결한다 */
   bindWorkspaces(lookup: (threadId: ThreadId) => string | undefined): void;
+  /**
+   * thread의 `profile` 범위 값(M5c §3.3, §4.1.7: 공통 묶음과 참조한 프로필의 `settings` 병합). 프로필 집합(E(T))을 쥔 쪽이 연결한다.
+   * 돌려주지 않으면(undefined) 그 thread에는 프로필 층이 없다
+   */
+  bindProfiles(lookup: (threadId: ThreadId) => ReadonlyMap<string, unknown> | undefined): void;
   layers(threadId: ThreadId | undefined): ScopeStack;
   /** 사용자 설정 파일의 경로. `loadUserFile` 전에는 undefined */
   userPath(): string | undefined;
@@ -151,12 +156,14 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     userProblem: SettingsFileProblem | undefined;
     session: SessionSettingsStore | undefined;
     workspaceOf: ((threadId: ThreadId) => string | undefined) | undefined;
+    profileOf: ((threadId: ThreadId) => ReadonlyMap<string, unknown> | undefined) | undefined;
   } = {
     user: new Map(),
     userPath: undefined,
     userProblem: undefined,
     session: undefined,
     workspaceOf: undefined,
+    profileOf: undefined,
   };
   const workspaceFiles = new Map<string, WorkspaceSettingFiles>();
   const listeners = new Set<(change: SettingsChange) => void>();
@@ -177,6 +184,11 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
         { scope: "project", values: files.project, path: files.projectPath },
         { scope: "local", values: files.local, path: files.localPath },
       );
+    }
+    // 프로필 층은 대화마다 다르다. 대화가 없는 조회(기본 값)에는 없다(§4.1.7)
+    const profileValues = threadId === undefined ? undefined : state.profileOf?.(threadId);
+    if (threadId !== undefined && profileValues !== undefined) {
+      stack.push({ scope: "profile", values: profileValues });
     }
     if (threadId !== undefined && state.session !== undefined) {
       stack.push(state.session.layer(threadId));
@@ -206,6 +218,9 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     },
     bindWorkspaces(lookup) {
       state.workspaceOf = lookup;
+    },
+    bindProfiles(lookup) {
+      state.profileOf = lookup;
     },
     layers,
     userPath: () => state.userPath,

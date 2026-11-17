@@ -40,6 +40,7 @@ import {
   factoryDefaultProfile,
   DEFAULT_PROFILE_ID,
   PERMISSION_MODE_KEY,
+  REQUIRED_BY_CORE,
 } from "./profile-defaults.ts";
 import {
   hasBlockingIssue,
@@ -189,6 +190,18 @@ function legacyInputsOf(env: M4HostEnv): LegacyInputs {
   };
 }
 
+/**
+ * 이전 목록에 있었는데 새 목록에서 빠진 코어 필수 단위의 이름(M5c §4.1.17). 이전 목록에 없던 단위는 거절하지 않는다.
+ * 프로필이 처음부터 그 단위를 적지 않았으면 빠진 것이 아니다
+ */
+function droppedRequiredOf(
+  before: readonly PluginRef[],
+  after: readonly PluginRef[],
+): string | undefined {
+  const kept = new Set(after.map((ref) => ref.name));
+  return before.find((ref) => REQUIRED_BY_CORE.has(ref.name) && !kept.has(ref.name))?.name;
+}
+
 function sameNames(left: readonly PluginRef[], right: readonly PluginRef[]): boolean {
   return left.length === right.length && left.every((ref, at) => right[at]?.name === ref.name);
 }
@@ -319,6 +332,12 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         if (storedRev !== baseRev && !firstDefault) {
           return err({ kind: "conflict" as const, id: input.id, rev: storedRev, baseRev });
         }
+        // 지금 유효한 목록(저장본 또는 공장 값)에서 코어 필수 단위가 빠지면 거절한다(§4.1.17)
+        const previous = findProfile(snapshot.profiles, input.id, factory());
+        const dropped =
+          previous === undefined ? undefined : droppedRequiredOf(previous.plugins, input.plugins);
+        if (dropped !== undefined)
+          return err({ kind: "required_by_core" as const, plugin: dropped });
         const profile: Profile = {
           id: input.id,
           title: input.title,
@@ -423,6 +442,9 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
             baseRev: params.baseRev,
           });
         }
+        const dropped = droppedRequiredOf(snapshot.common.plugins, input.plugins);
+        if (dropped !== undefined)
+          return err({ kind: "required_by_core" as const, plugin: dropped });
         const next: CommonSet = {
           plugins: input.plugins,
           settings: input.settings,
@@ -520,6 +542,9 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
             return err({ kind: "common_plugin" as const, plugin: params.plugin });
           }
           return err({ kind: "plugin_not_in_profile" as const, plugin: params.plugin });
+        }
+        if (REQUIRED_BY_CORE.has(params.plugin)) {
+          return err({ kind: "required_by_core" as const, plugin: params.plugin });
         }
         // 그 플러그인의 설정 값도 함께 뺀다. 남겨 두면 소유 플러그인이 없어 저장이 막힌다(§4.2.2)
         const profile: Profile = {

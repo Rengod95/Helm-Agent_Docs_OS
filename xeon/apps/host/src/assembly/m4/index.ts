@@ -15,19 +15,15 @@ import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
+import { withEnabledSources } from "./ext-read-sources.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
+import { REQUIRED_BY_CORE } from "./profile-defaults.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
 import { createProfileTestRunPort, type PluginFact } from "./profile-test-run-port.ts";
 import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
-
-/**
- * 코어 서비스가 아직 이 단위에 기대는 L2 내장 플러그인(M5c §4.1.17, `plugin.requiredByCore`). 도구 파이프라인의 파일 서비스(`cap-workspace`)와
- * 사람에게 묻기(`cap-dialog`)다. E2의 L1 분할이 끝나면 이 표시를 지운다. 프로필에 남지만 프로필과 무관하게 켜진다
- */
-const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "cap-dialog"]);
 
 /** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
 function isCore(record: ExtensionRecord): boolean {
@@ -102,12 +98,16 @@ export function createM4Ports(
     defaultPlugins: scopedEnv.defaultPlugins,
     openThreadIds: env.openThreadIds,
     managedOff: (name) => managedOffOf(env, name),
+    stopped: env.stopped,
     registrations: env.registrations,
     toggles: env.toggles,
+    settingsChanged: env.settingsChanged,
     report: (message, fields) => {
       engine.log.error(message, fields);
     },
   });
+  // 확장 목록의 `enabledSource`와 정지 풀기 뒤의 다시 맞춤은 E(T)가 낸다(M5c §3.4, §4.1.12)
+  const sources = withEnabledSources(extReadSources, pluginSet, env.registrations);
   // X가 `fresnel.pluginSet` 포트로 읽는다. 플랫폼 모듈로 내놓아 확장 설치와 같은 등록 경로를 쓴다
   detach(
     host
@@ -136,7 +136,7 @@ export function createM4Ports(
     pluginSet,
     extRead: createExtReadPort(
       { ...deps, defaultPlugins: () => pluginSet.defaultView().plugins },
-      extReadSources,
+      sources,
     ),
     extUi: createExtUiVersionPort(deps),
     extMethod: {

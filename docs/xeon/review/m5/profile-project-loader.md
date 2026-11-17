@@ -17,6 +17,8 @@ binds: []
 >
 > **원천:** `_notes/design/lc/spec/m5c-profile-project-loader.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow"·"flow R<n>" = 화면 스펙 제1부(흐름 n), "개념 문서"·"개념 §9" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
 
+**구현 상태(2026-11-18, 트랙 enC2, 호스트 쪽).** 구현됨: §3.3 `profile` 범위의 값 층(대화의 프로필과 공통 묶음, 프로필이 이김, 바뀐 키 알림, §4.1.7), `ext.list.enabledSource`의 값과 호스트 출처(§3.4, §4.1.10·§4.1.12의 `managed`·`none`·`core`·`common`·`profile`), 오류 정지의 E(T) 제외와 정지 풀기 뒤 다시 맞춤(§4.1.12), 코어 필수 단위 거절(`plugin.requiredByCore`, `details.plugin`, §4.1.17). 아직 아님: §4.1.11의 적재 연결(참조 세기와 `PluginLifecycle` 자리는 `plugin-set.ts`에 있으나 조립은 연결하지 않았다. 로더가 시작 때 모두 싣고 `unload`는 기록을 지우므로 X 쪽 변경이 먼저다), 재시작 키의 보류(§4.1.7 뒤 문장), `overlay` 출처(덧씌우기 전). 공장 기본 프로필(저장 전)의 설정은 프로필 층에 싣지 않는다(§4.1.7 구현 결정).
+
 초안 1, 2026-11-17. 결정의 정본은 `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`(§3), `docs/xeon/review/m6/craft-flows.md`(제1부 흐름), `docs/xeon/review/m5-plan.md`, `docs/xeon/review/m5/drive-isolation.md`(2026-11-17 통합본), `_notes/m4-decisions.md` "2026-11-16~17"이다. 이 문서는 그 결정을 코드와 맞춘 스펙 초안이고, 결정이 없는 곳은 [제안]과 기본값을 적었다. 코드 사실은 `cyP 워크트리`(작업 트리, 읽기 전용으로 확인)의 `path:line`으로 인용한다. 번호는 읽은 시점 값이다.
 
 **통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 이름과 저장 문자열이 겹치는 곳은 엔진 설계 통합본의 "공통 어휘"가 정본이다: 플러그인 정체는 이름(`pluginId`), 버전 정체(`versionId`)는 검토본의 내용 해시와 초안의 `draft:<draftId>:<해시 앞 8자>`다. 훅 위치·결정값·기록된 결과값은 F(`m5e`)와 E(`m5d`)가 정의하고 이 문서는 인용만 한다. Craft 화면이 맡을 것은 `docs/xeon/review/m6/craft-flows.md`를 가리킨다. U1~U6은 2026-11-17에 사용자가 정해 본문에 반영했다. 아직 정해지지 않은 것은 [제안]·[권고: 메인 세션, 확인 대기]·[확인 대기]로 적었고 §10에 모았으며, 아래 규칙은 그 답을 조용히 가정하지 않는다.
@@ -230,8 +232,8 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 
 | 키 | 변경 | 값과 범위 | 비고 |
 |---|---|---|---|
-| `ext.<name>.enabled` | 사용자 범위에서 제거, 관리 범위만 남김 | boolean, `allowedScopes: ["managed"]`(지금 `settings-keys.ts:30-38`은 `managed,user,project,local,launch`) | 관리자가 플러그인을 막는 잠금으로만 쓴다(§4.1.10). 쓰기 화면과 wire 쓰기 경로는 없다 |
-| 새 범위 `profile` | `SettingScope`와 `SCOPE_PRECEDENCE` 추가 | 우선순위: `managed > launch > profile > local > project > user > default` | 지금 `layers.ts:8`은 `managed, launch, local, project, user`. 값은 대화가 참조한 프로필과 공통 묶음의 `settings` 병합 결과. `settings.set`으로 쓸 수 없다(`profile.put`만 쓴다) |
+| `ext.<name>.enabled` | 사용자 범위에서 제거, 관리 범위만 남김 | boolean, `allowedScopes: ["managed"]`(2026-11-18 확인: `settings-keys.ts:32`가 이미 `managed`만 연다) | 관리자가 플러그인을 막는 잠금으로만 쓴다(§4.1.10). 쓰기 화면과 wire 쓰기 경로는 없다 |
+| 새 범위 `profile` | `SettingScope`와 `SCOPE_PRECEDENCE` 추가 | 우선순위: `managed > launch > profile > local > project > user > default` | `layers.ts:9`(`SCOPE_PRECEDENCE`)는 2026-11-18 확인으로 이미 `profile`을 넣고 있다. 값은 대화가 참조한 프로필과 공통 묶음의 `settings` 병합 결과. `settings.set`으로 쓸 수 없다(`profile.put`만 쓴다) |
 | `l1.tools.permissionMode`, `l1.models.default` | `allowedScopes`에 `profile` 추가 | 기존 값 | 처음 허용하는 코어 키. 다른 키는 정의의 `allowedScopes`에 `profile`을 더해 연다 [제안] |
 | `x.primitives.driveDefaultLimits`, 깊이 상한 키(엔진 설계 §2.3, `x.primitives.driveMaxDepth` [제안: 이름]) | `allowedScopes`에 `profile` 추가 | 기존 값 | 프로필이 바꿀 수 있는 주도 한도. 천장 `x.primitives.driveLimits`는 `profile` 범위를 열지 않는다(프로필이 천장을 넘기지 못한다) |
 | `l2.*`, `l3.*` 중 소유 플러그인이 있는 키(예: `l2.web.policy.*`, `l2.mcp.*`, `skills.*`, `memory.*`, `commands.advertise`) | 키 정의의 `allowedScopes`에 개별로 `profile` 추가 | 기존 값 | F §12 O-10과 부록 A가 목록의 정본. 키의 소유 플러그인이 `E`에 있어야 프로필에 둘 수 있다(§4.2.2) |
@@ -245,7 +247,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 
 ### 3.4 wire 메서드
 
-이름 규칙은 `METHOD_NAME_PATTERN`(`method-name.ts:6-7`)을 따른다. 아래 변경은 `WIRE_PROTOCOL_VERSION`(`wire/version.ts`)을 올린다. 오류 이름은 `errors.ts:148-153`의 `profile.*` 계열 옆에 더한다.
+이름 규칙은 `METHOD_NAME_PATTERN`(`method-name.ts:6-7`)을 따른다. 아래 변경은 `WIRE_PROTOCOL_VERSION`(`wire/version.ts`)을 올린다. 오류 이름은 `errors.ts:156-157`의 `profile.*` 계열 옆에 더한다(2026-11-18 확인).
 
 | 메서드 | 소유 | params | result | 주요 오류 |
 |---|---|---|---|---|
@@ -284,7 +286,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 
 이름 공간과 오류 코드 배정(교차 점검 §5-C). 검토함 메서드와 알림은 이미 있는 변경 검토 `review.get`(`wire/dialog-area.ts:497`)과 겹치지 않도록 `pluginReview.*`로 쓴다(오류 이름도 같은 접두). `plugin.*`는 지금의 `ext.*` 곁에 두는 새 접두이고, 없는 플러그인은 새 오류를 만들지 않고 기존 `extension.notFound`(3401)를 쓴다. 오류 코드는 프로필 계열이 3300~3399의 남은 자리, 프로젝트·플러그인·덧씌우기·초안이 3600~3649, 검토함(`pluginReview.*`)이 3650~3669이고 3670~3699는 예약이다. 기록·지표(E)는 3500~3599, 블록(F `blocks.*`)은 3700~3719다. `WIRE_PROTOCOL_VERSION`은 M5 트랙이 각자 올리지 않고 통합 담당이 한 번에 올린다.
 
-제거: `profile.apply`, `ProfileApplyParams`, `ProfileLayer`, `PROFILE_LAYERS`(`xeon/packages/contracts/src/wire-settings/wire/profile-test-run.ts:151`), `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`(`devkit.ts:451-454`). 유지: `ext.list`, `ext.get`, `ext.health`, `ext.timings`, `ext.reload`, `ext.versions`, `ext.rollback`, `ext.reenable`, `ext.disableConfirm`(오류 정지 상태를 풀거나 확정하는 일에만 쓴다. 켜기·끄기 스위치가 아니다), `ext.scaffold`, `ext.validate`, `ext.package`, `ext.test.*`, `ext.ui.*`. `ext.list`의 `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:48`, 지금 `managed, thread, project, user, default`)를 `core | common | profile | overlay | managed | none`으로 바꾼다.
+제거: `profile.apply`, `ProfileApplyParams`, `ProfileLayer`, `PROFILE_LAYERS`(`xeon/packages/contracts/src/wire-settings/wire/profile-test-run.ts:151`), `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`(`devkit.ts:451-454`). 유지: `ext.list`, `ext.get`, `ext.health`, `ext.timings`, `ext.reload`, `ext.versions`, `ext.rollback`, `ext.reenable`, `ext.disableConfirm`(오류 정지 상태를 풀거나 확정하는 일에만 쓴다. 켜기·끄기 스위치가 아니다), `ext.scaffold`, `ext.validate`, `ext.package`, `ext.test.*`, `ext.ui.*`. `ext.list`의 `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:54` `ENABLED_SOURCES`, 2026-11-18 확인: 이미 `core | common | profile | overlay | managed | none`이다)
 
 `InvocableEntry`: `{ plugin: string; entry: string; kind: "skill" | "command" | "drive" | "plugin"; title: string; reviewedHash: string }`. `kind: "plugin"`은 이름으로 플러그인 전체를 얹는 입구이고 Hook 전용·도구 전용 플러그인처럼 사용자가 직접 부를 스킬·명령·Drive 시작이 없는 플러그인도 일회 사용으로 얹을 수 있게 한다(§4.3.2).
 
@@ -377,17 +379,17 @@ export type ContextRef =
 4. 프로필 저장(`profile.put`, `profile.common.put`)이 커밋되면 호스트가 `profile.changed`를 보내고, 그 프로필을 참조하는 모든 열린 대화에 대해 다음 단계 경계에서 `E(T)`를 다시 계산해 적용한다. 유휴 대화는 다음 매크로태스크에서 적용한다(`X.primitives.spec` §4.5.5). 열려 있지 않은 대화는 열 때 계산한다.
 5. 적용은 지금의 대화별 켜짐 요청 경로(`registration.ts:835-871` `toggle`, `:894-899` `request`, `:963` `applyToggles`)를 재사용한다. 계산 결과와 등록별로 마지막에 맞춘 값의 차이만(엔진이 직접 끈 등록은 E(T)가 바뀔 때까지 건드리지 않는다) 켜기·끄기 요청으로 바꾸고, 경계 기여에 `profile.applied`와 `scope.changed`를 넣는다. `profile.applied.added/removed`는 집합 차이다.
 6. 실행 중인 턴 안의 프로필 편집이나 전환도 같은 규칙이다: 현재 단계는 끝까지 이전 집합으로 돌고 다음 단계 경계에서 바뀐다. 이미 시작한 도구 호출은 끝나고 결과가 기록된다.
-7. 설정 값도 같은 경계에서 바꾼다. 대화의 `profile` 범위 층은 `공통.settings`와 `프로필.settings`의 병합(프로필이 이긴다)이다. `runtimeChange`가 `restart`인 키(예: `ext.<name>.isolation`)는 다음 시작까지 이전 값을 쓰고 `profile.preview`가 경고한다.
+7. 설정 값도 같은 경계에서 바꾼다. 대화의 `profile` 범위 층은 `공통.settings`와 `프로필.settings`의 병합(프로필이 이긴다)이다. `runtimeChange`가 `restart`인 키(예: `ext.<name>.isolation`)는 다음 시작까지 이전 값을 쓰고 `profile.preview`가 경고한다. [구현 2026-11-18: 이 보류는 아직 없다. 프로필 편집은 그 키도 바로 프로필 층에 든다. 프로필에 든 키 가운데 `restart`인 것이 아직 없어 이 경로를 쓰는 입력이 없다. `profile.preview` 경고도 아직 없다.] [구현 결정 2026-11-18: 저장하지 않은 공장 기본 프로필의 설정은 프로필 층에 싣지 않는다. 그래야 사용자 파일의 권한 모드가 가려지지 않는다. 저장하면 그 값이 프로필 층에 든다.]
 8. 대화 전환 `thread.setProfile`은 프로필이 있으면 `thread.updated { profileId }`를 커밋하고 4~6번 규칙으로 적용한다. 전환으로 권한 모드가 넓어지면 결과의 `preview.permission`에 `from`, `to`를 싣고 확인은 받지 않는다 [결정: 2026-11-16]. 승인 카드의 "이 대화에서 계속 허용"은 대화의 실행 상태이고 프로필 전환이 지우지 않는다 [결정: 2026-11-16].
 9. 플러그인별 켜기·끄기 조작은 wire와 설정에 없다. `RegistrationHandle.enable()·disable()`(`registration.ts:806-807`)은 엔진 안(자동 끄기, 안전 모드, 프로필 계산)에서만 쓴다. 전역 `record.desired`와 `wantedBy`(`registration.ts:225`)는 "프로필이 원하고(`E(T)`에 있고) 오류 정지가 아닐 때만 켜짐"으로 바뀐다. `defaultEnabled`는 `default` 프로필 공장 값 계산과 마이그레이션(§7)에서만 읽는다.
 10. 관리 범위 `ext.<name>.enabled = false`는 `E(T)`에서 그 플러그인을 뺀다(프로필이 넣어도 이긴다). 이때 `ext.list`의 `enabledSource`는 `managed`이고 프로필 저장은 `managed_forbidden` 경고를 낸다. 사용자 범위에 이 키를 쓰는 `settings.set`은 `settings.scopeNotAllowed`로 거절한다.
-11. 플러그인의 코드는 `E(T)`에 처음 들어올 때 적재한다(지금 `loading-trust/index.ts:837`, `:1670`의 `enabled` 설정 검사를 `PluginSetPort`의 "어느 열린 대화라도 쓰나"로 바꾼다). 어느 대화도 쓰지 않게 되면 정리(`onDispose`)를 실행한다(`X.primitives.spec` §4.5.3 끄기 4단계).
-12. 오류로 멈춘 플러그인은 상태로 보이고 스위치가 없다: `health.state: "stopped"`, `ext.list.autoDisabled: true`. 모든 대화의 `E(T)`에서 빠진다. 사용자는 `ext.reenable`로 재시도하거나 프로필에서 뺀다. 프로필 편집이 정지 상태를 풀지 않는다.
+11. 플러그인의 코드는 `E(T)`에 처음 들어올 때 적재한다(지금 `loading-trust/index.ts:930`(`checkEnabled`)의 관리 잠금 검사를 `PluginSetPort`의 "어느 열린 대화라도 쓰나"로 바꾼다. [구현 2026-11-18: 참조 세기와 `PluginLifecycle`(`ensureLoaded`, `unload`)은 `plugin-set.ts`에 있고 조립은 연결하지 않았다. 로더가 시작 때 모든 확장을 싣고, `unload`는 기록을 지워 같은 이름의 `ensureLoaded`가 `loader.unknown_extension`으로 멈추므로 X 쪽에서 "꺼진 채 기록을 남기는" 내리기가 먼저 있어야 한다.]) 어느 대화도 쓰지 않게 되면 정리(`onDispose`)를 실행한다(`X.primitives.spec` §4.5.3 끄기 4단계).
+12. 오류로 멈춘 플러그인은 상태로 보이고 스위치가 없다: `health.state: "stopped"`, `ext.list.autoDisabled: true`. 모든 대화의 `E(T)`에서 빠진다. 사용자는 `ext.reenable`로 재시도하거나 프로필에서 뺀다. 프로필 편집이 정지 상태를 풀지 않는다. [구현 2026-11-18: 정지는 자동 끄기 장부(`autoDisabler.disabled()`)를 `plugin-set.ts`의 `stopped`가 읽어 `E(T)`에서 뺀다. 자동 끄기 알림(`observeStops`), `ext.reenable`, `ext.disableConfirm`, `/group on`이 열린 대화의 `E(T)`를 다시 맞춘다. `profile.applied`의 `plugin_stopped` 사유는 아직 내지 않는다(`profile.applied` 기록은 아직 없다).]
 13. 프레임 처리: 플러그인이 `E(T)`에서 빠질 때 그 플러그인이 쥔 Drive 프레임과 그 위의 프레임을 모두 내리고, 아래 프레임에는 `last: { kind: "handoff", status: "aborted" }`를 준다(엔진 설계 §2.4). 맨 아래 프레임이면 코어 루프로 돌아간다. 해제는 경계에서 하지만 진행 중 명령의 취소는 즉시다(주도 함수에 `signal`을 주지 않는다. 엔진이 진행 중 명령을 취소하고 격리된 경우 요청 취소를 보낸다: 엔진 설계 §2.4). 해제 사유는 저장된 `lease.released.reason`의 `disabled`다(엔진 설계 §2.6의 표. 사용자 중지는 `revoked`다).
 14. 프로필 삭제는 참조하는 대화를 `default`로 다시 읽게 한다(1번). 삭제 결과의 `reassignedThreads`는 호스트가 아는 열린 대화 수다.
 15. 서브에이전트: 자식 대화의 `thread.started.profileId`는 생성 시점의 부모 값이다. 이후 그 프로필의 편집은 자식에게도 적용된다. 부모의 이후 전환은 이미 도는 자식을 바꾸지 않는다 [제안]. 대화 폴더는 부모 것을 물려받고(`core-agents/src/service.ts:1033-1043`이 이미 한다. fork 경로 제외) 권한은 부모 천장을 넘지 못한다(`core-agents/src/permission-ceiling.ts`). 덧씌우기는 물려주지 않는다 [제안].
 16. 프로필 변경의 감사 가능성: 한 대화에서 어느 프로필 개정(`profileRev`, `commonRev`)과 어느 검토본 해시로 돌았는지는 `profile.applied`의 `profileRev`, `commonRev`, `updated`로 복원된다.
-17. **내장 플러그인을 프로필에서 빼는 일의 순서.** `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 구현: 켜짐 집합 E(T)는 코어(내장 L1 단위 `core-*`와 등급 guard·core)와 이 필수 둘(`cap-workspace`, `cap-dialog`)을 프로필과 무관하게 항상 넣는다. 프로필이 이 단위를 적지 않아도 대화는 켜진다(`[guide]`만 든 프로필이 `core-tasks`를 빼 `turn.start`가 멈추던 결함을 닫는다). 오류 `plugin.requiredByCore` 자체는 아직 내지 않는다. 이 표시와 오류 `plugin.requiredByCore`는 L1 분할 전의 일시 조치이고 분할 뒤 삭제한다(코어는 코어이고 모든 플러그인은 프로필에서 뺄 수 있다). 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
+17. **내장 플러그인을 프로필에서 빼는 일의 순서.** [구현 2026-11-18: `profile.put`, `profile.common.put`, `profile.removePlugin`은 이전 목록(저장본 또는 공장 값)에 있던 `cap-workspace`·`cap-dialog`가 빠지면 `plugin.requiredByCore`(3626, `details.plugin`)로 거절하고 아무것도 저장하지 않는다. 이전 목록에 없던 것은 거절하지 않는다.] `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 구현: 켜짐 집합 E(T)는 코어(내장 L1 단위 `core-*`와 등급 guard·core)와 이 필수 둘(`cap-workspace`, `cap-dialog`)을 프로필과 무관하게 항상 넣는다. 프로필이 이 단위를 적지 않아도 대화는 켜진다(`[guide]`만 든 프로필이 `core-tasks`를 빼 `turn.start`가 멈추던 결함을 닫는다). 오류 `plugin.requiredByCore` 자체는 아직 내지 않는다. 이 표시와 오류 `plugin.requiredByCore`는 L1 분할 전의 일시 조치이고 분할 뒤 삭제한다(코어는 코어이고 모든 플러그인은 프로필에서 뺄 수 있다). 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
 
 ### 4.2 프로필 내용과 검증
 
@@ -618,10 +620,10 @@ plugin-store/
 | 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`; 적용 경로는 이 변경으로 제거되었다). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
 | 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `driver`, `builtin`, 공통 묶음, 파일 v2 | M |
 | 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 | M |
-| 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`) | 새 설정 범위 `profile`(`layers.ts:8`), `core-tools/settings.ts:265-275` `pickMode` 순회에 반영 | M |
+| 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`, 2026-11-18 확인: 이 줄 번호에 그 함수가 없다) | 새 설정 범위 `profile`(`layers.ts:9`, 이미 있음), `packages/core-tools/src/settings.ts:270` `pickMode`가 `profile`을 순회한다(이미 있음). 구현(2026-11-18): 엔진 `layers(threadId)`에 프로필 층을 더하고(`settings-engine.ts` `bindProfiles`), 도구 설정은 `ToolsSettingsSource.profileLayer`로 받는다 | M |
 | 스레드 켜짐 | `thread.want`/`record.desired`(`registration.ts:225`, `:835-871`)가 전역 기본값과 대화별 요청 | 대화별 값이 유일한 원천(`E(T)`), 전역 `desired`는 오류 정지만 | M |
-| 켜짐 설정 키 | 사용자·프로젝트·local·launch 범위(`settings-keys.ts:30-38`), 설정 변경을 따라가는 `followExtEnabled`(`ext-enabled.ts:25-60`, 호스트 `assemble.ts:1203-1215`) | 키를 관리 범위로 한정, `followExtEnabled`를 프로필 변경 구독으로 대체 | M |
-| 적재 트리거 | `enabled` 설정이 거짓이면 적재 안 함(`loading-trust/index.ts:837`, `:1670`) | `PluginSetPort`가 "열린 대화 중 쓰는 곳 있음"을 알림 | M |
+| 켜짐 설정 키 | 2026-11-18 확인: 키는 이미 관리 범위만 연다(`settings-keys.ts:32`). `followExtEnabled`는 코드에 없다(`apps/host/src/assembly/ext-enabled.ts`에는 `BUILTIN_GROUP_NAMES`만 있다) | 키를 관리 범위로 한정(완료), 프로필 변경 구독은 `plugin-set.ts`의 `onProfilesWritten`이 낸다 | M |
+| 적재 트리거 | 시작 때 관리 잠금만 본다(`loading-trust/index.ts:930` `checkEnabled`, 검사 `:947`). 그 밖은 시작 때 모두 싣는다. `ensureLoaded`는 `:1610`, `unload`는 `:1677`(2026-11-18 확인) | `PluginSetPort`가 "열린 대화 중 쓰는 곳 있음"을 알림. 구현 2026-11-18: `plugin-set.ts`의 참조 세기와 `PluginLifecycle` 자리(조립 미연결) | M |
 | 클라이언트 스위치 | `threadSwitchOf`, `threadToggleRequestOf`(`client/workbench/thread.ts:38-77`), 프로필 편집 on/off/keep(`compose.ts:139-190`), `profileApplyRequestOf`(`thread.ts:78`) | 스위치 제거, 프로필 편집을 목록 편집으로. Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`)이 소유 | M |
 | 스레드의 프로필 필드 | 없음. `ThreadCreateParams.profileId`는 `testRun`만(`methods.ts:584-600`, `handlers/thread.ts:35-40`) | `thread.started/updated.profileId`, `thread.setProfile`, 요약에 노출 | M |
 | 시작 Drive | `driver`를 `x.primitives.activeDriver`에 씀(`profile-test-run-port.ts:24`, `:122`) | 시작 때만 프레임을 쌓는다. 키 제거는 엔진 스펙 | S(이 문서 몫) |
@@ -638,7 +640,7 @@ plugin-store/
 | 신뢰 등급 | 4등급과 tier, 폴더 신뢰 카드가 플러그인류 자원도 판정(`trust/resources.ts:20-33`) | 등급은 유지, 검토본 없음 = `untrusted`, 플러그인류는 검토함이 판정(§4.6.9) | M |
 | 프로젝트 동반 플러그인 | 폴더 신뢰 뒤 `.fresnel/extensions`를 적재(`discover.ts:62`) | 열 때 항목 생성, 승인 전 미적재 | M |
 | 덧씌우기 | 없음 | `turn.start.overlay`, `plugin.invocables`, `plugin.draft.*`, `profile.applied` | L |
-| `ext.list` 필드 | `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:48`) | 새 값 집합, 카드 필드 | S |
+| `ext.list` 필드 | `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:54`, 2026-11-18 확인: 값 집합은 이미 새 것이다) | 새 값 집합(완료), 호스트 출처(`ext-read-sources.ts` `withEnabledSources`, 2026-11-18). 카드 필드는 아직 없다 | S |
 | 기본 프로필 | 없음(`profile-store.ts`가 시드하지 않음) | `default` 항상 존재, 삭제 불가 | S |
 | 권한 칩 | `tools.setMode`가 대화 범위 설정을 쓴다(`contracts/services/tools.ts:681-686`) | UI는 프로필 칩에 흡수(Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`)). 엔진은 `setMode`를 `launch` 범위 덮어쓰기로 남긴다(CLI 플래그용) [제안] | S |
 

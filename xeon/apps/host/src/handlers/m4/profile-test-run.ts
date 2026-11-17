@@ -60,6 +60,8 @@ export type ProfilePortFailure =
   | { readonly kind: "invalid"; readonly issues: readonly ProfileIssue[] }
   | { readonly kind: "plugin_not_in_profile"; readonly plugin: string }
   | { readonly kind: "common_plugin"; readonly plugin: string }
+  /** 코어 필수 단위를 프로필(또는 공통 묶음)에서 빼려 한다(M5c §4.1.17) */
+  | { readonly kind: "required_by_core"; readonly plugin: string }
   /** 프로젝트 쪽 실패(`profile.defaultFor`가 대화의 소속을 읽을 때) */
   | { readonly kind: "project"; readonly failure: ProjectPortFailure };
 
@@ -184,6 +186,8 @@ export function wireErrorOfProfile(failure: ProfilePortFailure): WireError {
       return wireError("profile.pluginNotInProfile", { details: { name: failure.plugin } });
     case "common_plugin":
       return wireError("profile.commonPlugin", { details: { name: failure.plugin } });
+    case "required_by_core":
+      return wireError("plugin.requiredByCore", { details: { plugin: failure.plugin } });
     case "project":
       return wireErrorOfProject(failure.failure);
     default:

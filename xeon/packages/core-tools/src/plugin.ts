@@ -86,15 +86,22 @@ export function toolsManifest(extra: readonly AnyCapabilityDef[] = []): Extensio
   });
 }
 
-/** 파일 범위 층에 스레드의 세션 범위 층을 더해 현재 설정을 읽는다 */
+/** 파일 범위 층에 스레드의 프로필 층과 세션 범위 층을 더해 현재 설정을 읽는다(M5c §4.1.7: 프로필 층은 세션 층 아래, 파일 층 위) */
 export function configReader(
   source: ToolsSettingsSource,
   session: Pick<SessionService, "sessionSettings">,
 ): (threadId: ThreadId | null) => ToolsConfig {
   return (threadId) => {
     const base = source.layers();
-    const layers: ScopeStack =
-      threadId === null ? base : [...base, session.sessionSettings.layer(threadId)];
+    if (threadId === null) {
+      return { ...readScalarConfig(base), rules: collectRules(base).rules };
+    }
+    const profile = source.profileLayer?.(threadId);
+    const layers: ScopeStack = [
+      ...base,
+      ...(profile === undefined ? [] : [profile]),
+      session.sessionSettings.layer(threadId),
+    ];
     return { ...readScalarConfig(layers), rules: collectRules(layers).rules };
   };
 }

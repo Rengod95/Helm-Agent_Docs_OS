@@ -128,6 +128,8 @@ function devkitErrorOfProfile(failure: ProfilePortFailure): DevkitError {
     case "plugin_not_in_profile":
     case "common_plugin":
       return { kind: "invalid_input", message: `${failure.plugin} is not removable here` };
+    case "required_by_core":
+      return { kind: "invalid_input", message: `${failure.plugin} is required by the core` };
     case "corrupt":
       return { kind: "io", message: "the profiles file is damaged; it is kept as it is" };
     case "io":
