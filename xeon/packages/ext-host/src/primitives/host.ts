@@ -319,6 +319,11 @@ export interface ExtHost {
    */
   driveFrames(threadId: ThreadId): readonly DriveFrameView[];
   /**
+   * 플러그인 호출(훅 안의 `agents.judge`, `models.complete`)이 새로 쓴 토큰을 thread의 맨 위 주도 프레임과 스택 아래 모든 프레임의 한도 사용량에
+   * 더한다(drive-isolation.md 2.3). 재생된 호출은 부르지 않는다. 주도 프레임이 없으면 아무 일도 하지 않는다
+   */
+  chargeDriveTokens(threadId: ThreadId, tokens: number): void;
+  /**
    * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
    * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
    */
@@ -1163,6 +1168,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     driveFrames(threadId) {
       const thread = core.threads.get(threadId);
       return thread === undefined ? [] : lease.framesOf(thread);
+    },
+    chargeDriveTokens(threadId, tokens) {
+      const thread = core.threads.get(threadId);
+      if (thread !== undefined) lease.chargeTokens(thread, tokens);
     },
     onChange(listener) {
       listeners.add(listener);

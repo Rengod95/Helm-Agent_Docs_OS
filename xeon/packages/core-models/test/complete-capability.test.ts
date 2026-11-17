@@ -109,6 +109,19 @@ describe("models.complete capability", () => {
     ).toMatchObject({ calls: 1, totalTokens: 10 });
   });
 
+  test("a fresh call charges its tokens once through the charge hook, and a replayed call charges nothing", async () => {
+    const h = createHarness({ tape: JUDGE_ONCE, provider: JUDGE_PROVIDER });
+    const charged: [string, number][] = [];
+    const provider = modelsCompleteOf(h.service, (threadId, tokens) => {
+      charged.push([threadId, tokens]);
+    });
+    const input = { threadId: h.threadId, messages: MESSAGES };
+    await provider.complete(input, optionsOf("m-charge", h.threadId, "judge-group"));
+    await provider.complete(input, optionsOf("m-charge", h.threadId, "judge-group"));
+    // 같은 (범위, 요청 id)의 두 번째 호출은 재생이라 제공자를 다시 부르지 않고 토큰도 다시 빼지 않는다
+    expect(charged).toEqual([[h.threadId, 10]]);
+  });
+
   test("a call with no extension identity is refused as invalid_input before any model call", async () => {
     const h = createHarness({ tape: JUDGE_ONCE, provider: JUDGE_PROVIDER });
     const refused = await rejectionOf(

@@ -129,7 +129,7 @@ async function boot(models: FakeModels | undefined) {
   expect(consumed.setups.map((setup) => setup.status)).toEqual(["applied"]);
   await t.settled();
   if (service === undefined || apis.judge === undefined) throw new Error("boot failed");
-  return { ids, session, service, judge: apis.judge };
+  return { ids, session, service, judge: apis.judge, host: t.host };
 }
 
 /** 같은 내용의 판정 입력을 새 대화에서 만든다. 대화마다 판정 실행 수가 따로 세여 두 호출의 결과를 같은 값으로 비교할 수 있다 */
@@ -171,6 +171,21 @@ describe("the agents.judge capability", () => {
       kind: "judged",
       record: { run: 1, verdict: "not_met", missing: ["tests pass"] },
     });
+  });
+
+  test("a freshly judged call charges its tokens to the drive budget once, and a recorded judgement charges nothing", async () => {
+    const models = fakeModels([NOT_MET, NOT_MET]);
+    const { ids, session, judge, host } = await boot(models);
+    const charged: [string, number][] = [];
+    host.chargeDriveTokens = (threadId, tokens) => {
+      charged.push([threadId, tokens]);
+    };
+    const input = inputIn(session, ids);
+    await judge.judge(input, { requestId: "judge:stp-1:g1" });
+    // 같은 단계의 재호출은 기록된 판정을 따르므로 토큰을 쓰지 않는다
+    const again = await judge.judge(input, { requestId: "judge:stp-1:g1" });
+    expect(again.kind).toBe("recorded");
+    expect(charged).toEqual([[input.threadId, 15]]);
   });
 
   test("without a judge model the capability returns failed as a value, the same as AgentService.judge", async () => {

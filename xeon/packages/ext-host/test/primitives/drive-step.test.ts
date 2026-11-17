@@ -27,7 +27,7 @@ import {
   type DriveCommandSettledPayload,
 } from "@fresnel/contracts/records";
 import { Type } from "typebox";
-import { MAX_CHAINED_REINVOKES } from "../../src/primitives/lease.ts";
+import { MAX_CHAINED_REINVOKES, MAX_DRIVE_TOOL_COMMANDS } from "../../src/primitives/lease.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import {
@@ -963,6 +963,53 @@ test("successful tool commands are effects, so a run longer than the chain limit
   expect(tools.requests).toHaveLength(MAX_CHAINED_REINVOKES + 1);
   expect(t.diagnostics.filter((diagnostic) => diagnostic.code === "scope_notice")).toEqual([]);
   expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
+});
+
+test("a step function that only issues tool commands is ended by the tool command limit as budget", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const tools = fakeTools(() => ok(TOOL_VIEW));
+  await provideToolsPort(t, tools.port);
+  const calls: Call[] = [];
+  await install(
+    t,
+    "tool-forever",
+    stepOf(calls, () => ({ do: "tool", name: "read", args: null })),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "tool-forever" });
+  await t.settled();
+
+  // 상한만큼 실행하고 다음 명령은 부르지 않은 채 임대가 budget으로 반납된다
+  expect(tools.requests).toHaveLength(MAX_DRIVE_TOOL_COMMANDS);
+  expect(calls).toHaveLength(MAX_DRIVE_TOOL_COMMANDS + 1);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["budget"]);
+});
+
+test("tokens that a hook's agents.judge or models.complete spent are deducted from the top frame's budget", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const models = fakeModels(() => ok(modelResult(6, 4)));
+  await provideModelsPort(t, models.port);
+  const budgets: DriveLockBudget[] = [];
+  const thread = t.newThread();
+  await t.host.install(
+    makeGroupUnit<Counter>({ name: "charged", def: COUNTER_DEF }, (g) => {
+      g.drive(
+        (input) => {
+          budgets.push(input.budget);
+          if (input.last !== null) return Promise.resolve({ do: "done" });
+          // 훅이 쓴 토큰 30이 이 프레임에서 빠진다(재생이 아닌 호출만 부른다)
+          t.host.chargeDriveTokens(thread, 30);
+          return Promise.resolve(JUDGE);
+        },
+        { limits: { maxTokens: 100 } },
+      );
+    }),
+  );
+  await t.host.openThread(thread, { startDrive: "charged" });
+  await t.settled();
+
+  // 두 번째 단계는 훅 30과 model 명령 10을 뺀 남은 예산을 본다
+  expect(budgets.map((budget) => budget.tokens)).toEqual([100, 60]);
 });
 
 /** 한도를 준 그룹 하나를 설치한다. 단계 함수는 `step`이다 */

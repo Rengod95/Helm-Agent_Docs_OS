@@ -213,7 +213,12 @@ export function createModelsExtension(
       });
       host.providePort(ModelServicePortKey, service);
       // 공개 기능 `models.complete`(hooks-core-boundary §6.2). 같은 서비스의 `completeForPlugin`을 감싼다
-      host.provide(ModelsCompleteKey, modelsCompleteOf(service));
+      host.provide(
+        ModelsCompleteKey,
+        modelsCompleteOf(service, (threadId, tokens) => {
+          ext.chargeDriveTokens(threadId, tokens);
+        }),
+      );
     });
   };
   return { manifest, extension: entry };

@@ -147,7 +147,16 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
       });
       host.providePort(AgentServicePortKey, service);
       // 공개 기능 `agents.judge`(hooks-core-boundary §6.2). 서비스 메서드를 그대로 넘긴다. 실패는 값(`capped`, `failed`)으로 온다
-      host.provide(AgentsJudgeKey, { judge: (input) => service.judge(input) });
+      // 새로 판정한 호출의 토큰은 주도 한도에서 뺀다(drive-isolation.md 2.3). 기록된 판정을 따른 호출은 쓴 것이 없다
+      host.provide(AgentsJudgeKey, {
+        judge: async (input) => {
+          const outcome = await service.judge(input);
+          if (outcome.kind === "judged") {
+            ext.chargeDriveTokens(input.threadId, outcome.record.usage?.totalTokens ?? 0);
+          }
+          return outcome;
+        },
+      });
       g.onDispose(() => {
         stopWatching();
         unregisterTool?.();

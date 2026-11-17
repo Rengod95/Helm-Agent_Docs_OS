@@ -7,6 +7,7 @@ import {
   type CommonErrorCode,
   type PluginModelError,
 } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ModelService } from "@fresnel/contracts/services";
 
 type CompleteFor = Pick<ModelService, "completeForPlugin">;
@@ -51,7 +52,10 @@ function failureOf(error: PluginModelError): CapabilityError {
 }
 
 /** `models.complete` 공급자. 결과의 텍스트, 사용량, 정지 이유를 돌려준다 */
-export function modelsCompleteOf(service: CompleteFor): CapabilityApi<typeof ModelsComplete> {
+export function modelsCompleteOf(
+  service: CompleteFor,
+  charge?: (threadId: ThreadId, tokens: number) => void,
+): CapabilityApi<typeof ModelsComplete> {
   return {
     complete: async (input, options) => {
       const plugin = options.context?.caller.extension;
@@ -74,6 +78,8 @@ export function modelsCompleteOf(service: CompleteFor): CapabilityApi<typeof Mod
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       });
       if (!result.ok) throw failureOf(result.error);
+      // 새로 부른 호출의 토큰은 주도 한도에서 뺀다. 같은 프로세스 안의 재생은 처음 호출에서 이미 뺐다
+      if (!result.value.replayed) charge?.(input.threadId, result.value.usage?.total ?? 0);
       return {
         text: result.value.text,
         usage: result.value.usage,
