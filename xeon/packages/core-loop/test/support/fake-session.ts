@@ -115,6 +115,10 @@ type TurnRow = TurnView & { readonly requestId: string | null; readonly scopeId:
 export interface FakeSession {
   readonly session: SessionService;
   events(threadId?: ThreadId): readonly DurableEventEnvelope[];
+  /**
+   * 확장 기록 저장소(`RecordCommitPort`)에 커밋된 이벤트. 단계 경계 밖의 유휴 적용(임대 부여·반납)은 대화 기록이 아니라 여기에 쓰인다
+   */
+  extEvents(threadId: ThreadId): readonly DurableEventDraft[];
   kinds(threadId: ThreadId): readonly string[];
   volatile(): readonly VolatileEventEnvelope[];
   commitKeys(threadId: ThreadId): readonly string[];
@@ -779,6 +783,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
   return {
     session,
     events: (threadId) => (threadId === undefined ? log : eventsOf(threadId)),
+    extEvents: (threadId) => recordStore.events(threadId),
     kinds: (threadId) => eventsOf(threadId).map((event) => event.kind),
     volatile: () => volatileLog,
     commitKeys: (threadId) => eventsOf(threadId).map((event) => keysByEvent.get(event.id) ?? ""),

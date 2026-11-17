@@ -61,10 +61,20 @@ function driveGroup(
   };
 }
 
-/** 그룹을 올리면 임대를 받고 drive 함수가 바로 돈다 */
+/**
+ * 임대 사건(`lease.acquired`·`lease.released`)의 payload. turn 경계의 커밋은 대화 기록에, 유휴 경계의 적용은 확장 기록 저장소에 쓰이므로 둘 다 읽는다
+ */
+function leasePayloads(h: Harness, kind: "lease.acquired" | "lease.released"): readonly unknown[] {
+  return [...h.fake.events(h.threadId), ...h.fake.extEvents(h.threadId)]
+    .filter((event) => event.kind === kind)
+    .map((event) => event.payload);
+}
+
+/** 그룹을 올리고 사용자 시작 요청을 넣는다. 요청은 경계에서 임대가 되고 drive 함수가 돈다(X.primitives.spec §4.4.1 4번) */
 async function runWith(h: Harness, unit: ExtensionUnit): Promise<void> {
   await h.host.host.install(unit);
   await h.host.settled();
+  expect(h.host.host.startDrive(h.threadId, unit.manifest.name).ok).toBe(true);
   await h.settle();
 }
 
@@ -78,7 +88,8 @@ test("drive_budget_stops_at_turns_cap: the third turn of a lease with 2 turns is
   // drive turn 둘만 열렸고 세 번째 모델 요청은 나가지 않았다
   expect(countKind(h.fake.events(h.threadId), "turn.started")).toBe(2);
   expect(h.models.requests).toHaveLength(2);
-  // 세 번째 turn 명령은 거부되어 임대가 예산 사유로 반납된다(이 하니스는 lease.* 사건을 로그에 쓰지 않아 상태로 확인한다)
+  // 세 번째 turn 명령은 거부되어 임대가 예산 사유로 반납된다
+  expect(leasePayloads(h, "lease.released")).toMatchObject([{ reason: "budget" }]);
   // 임대를 쥔 채 남지 않는다
   expect(h.host.host.registrations()[0]?.drive).not.toBe("holding");
 });
@@ -93,11 +104,7 @@ test("the token budget is reported after each turn and never cuts the running tu
   expect(group.probe.outcomes.slice(0, 2)).toEqual(["completed", "completed"]);
   expect(group.probe.tokensLeft.slice(0, 2)).toEqual([50, 40]);
   // 예산 소진이나 오류로 반납되지 않았다(두 turn 모두 실행됐고 임대가 끊기지 않았다)
-  const released = h.fake
-    .events(h.threadId)
-    .filter((event) => event.kind === "lease.released")
-    .map((event) => event.payload);
-  expect(released).toEqual([]);
+  expect(leasePayloads(h, "lease.released")).toEqual([]);
   expect(h.models.requests).toHaveLength(2);
 });
 
@@ -138,20 +145,22 @@ test("a user interrupt releases the drive lock as revoked and the drive runs aga
   expect(await h.loop.interrupt(h.threadId)).toBe(true);
   await h.settle();
   await h.host.settled();
-  const released = h.fake
-    .events(h.threadId)
-    .filter((event) => event.kind === "lease.released")
-    .map((event) => event.payload);
-  expect(released).toMatchObject([{ reason: "revoked" }]);
+  expect(leasePayloads(h, "lease.released")).toMatchObject([{ reason: "revoked" }]);
   // 'work'를 받은 단계 한 번이 더 불렸다. 반납 뒤에는 불리지 않는다
   expect(calls).toEqual(["drive", "drive"]);
 
+  // 사용자가 멈춘 뒤에는 메시지만으로 임대가 돌아오지 않는다. 'again'은 드라이브 없이 turn으로만 돈다
   await h.loop.admit({ threadId: h.threadId, content: "again", via: "interactive" });
   await h.settle();
   await h.host.settled();
-  const kinds = h.fake.events(h.threadId).map((event) => event.kind);
-  // 반납 뒤 다음 명령의 turn이 정착해야 임대가 다시 부여된다
-  expect(kinds.slice(kinds.lastIndexOf("turn.started"))).toContain("lease.acquired");
-  // 'again'의 turn이 정착한 뒤 임대가 다시 부여되어 단계가 한 번 더 불렸다
+  expect(calls).toEqual(["drive", "drive"]);
+
+  // 다음 주도 명령(사용자 시작 요청)이 임대를 다시 준다. 'again'의 turn이 정착한 경계에서 부여된다
+  expect(h.host.host.startDrive(h.threadId, "stop-drive").ok).toBe(true);
+  await h.settle();
+  await h.host.settled();
+  // 임대는 'again'의 turn이 정착한 뒤의 경계에서 다시 부여된다. 처음 부여와 합쳐 두 번이다
+  expect(leasePayloads(h, "lease.acquired")).toHaveLength(2);
+  // 임대가 다시 부여되어 단계가 한 번 더 불렸다
   expect(calls).toEqual(["drive", "drive", "drive"]);
 });

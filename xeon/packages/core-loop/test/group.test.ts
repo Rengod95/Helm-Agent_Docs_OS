@@ -110,15 +110,17 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
   expect(changes).toEqual(["enabled", "disabled"]);
 });
 
-test("drive_group_gets_a_lease_at_a_boundary_and_runs_a_turn_after_the_user_turn_settles", async () => {
+test("a_start_request_becomes_a_lease_at_a_boundary_and_runs_a_turn_after_the_user_turn_settles", async () => {
   const state: { h: Harness | null } = { h: null };
   const h = await createHarness({
     tools: [
       {
         name: "read",
         run: () => {
-          // 단계 0 안에서 그룹을 켠다. 켜기와 drive 임대는 그 단계의 경계에서 적용된다
-          state.h?.host.host.registration(TEST_GROUP_ID)?.enable();
+          // 단계 0 안에서 그룹을 켜고 사용자 시작 요청을 넣는다. 켜기와 요청의 임대 부여는 그 단계의 경계에서 적용된다
+          const current = state.h;
+          current?.host.host.registration(TEST_GROUP_ID)?.enable();
+          if (current !== null) current.host.host.startDrive(current.threadId, TEST_GROUP_ID);
           return Promise.resolve({ text: "A" });
         },
       },
@@ -144,6 +146,11 @@ test("drive_group_gets_a_lease_at_a_boundary_and_runs_a_turn_after_the_user_turn
     "lease.acquired",
     "checkpoint.step",
   ]);
+  // 부여 기록: 빈 스택에 사용자 시작 요청이 받은 임대라 깊이 0, 이 scope의 첫 차수, 맡긴 쪽은 없다
+  const acquired = events
+    .filter((event) => event.kind === "lease.acquired")
+    .map((event) => event.payload);
+  expect(acquired).toMatchObject([{ scopeId: TEST_GROUP_ID, depth: 0, leaseEpoch: 1 }]);
   // drive 함수는 turn이 정착한 뒤 loop.turn을 불러 임대 scope의 turn을 연다
   const started = events.filter((event) => event.kind === "turn.started");
   expect(started).toHaveLength(2);
