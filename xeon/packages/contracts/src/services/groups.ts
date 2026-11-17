@@ -17,7 +17,7 @@ export const GroupServiceName = "fresnel.groups" as const;
 /** 설정 x.primitives.activeDriver의 유효 값. null은 auto(요청 순서)다 */
 export type DriveHolderSetting = RegistrationId | null;
 
-/** F.wire-settings의 SettingScope와 서로 대입 가능해야 한다 */
+/** F.wire-settings의 SettingWriteScope와 서로 대입 가능해야 한다(profile은 읽기 전용 범위라 빠진다, M5c §3.3) */
 type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
 
 /** GroupStatus.metrics. group-sdk GroupMetrics(L3.group-sdk.spec §3.12)의 부분 필드와 같은 모양이다 */

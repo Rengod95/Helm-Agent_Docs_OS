@@ -37,7 +37,7 @@ import type {
   TaskService,
   ToolService,
 } from "../../src/services/index.ts";
-import type { SettingScope } from "../../src/wire-settings/settings/index.ts";
+import type { SettingWriteScope } from "../../src/wire-settings/settings/index.ts";
 import type { Assignable, DeepMutable, Equal, Expect } from "../types/expect.ts";
 
 // 이 파일의 단언은 tsc -b가 판정한다(컴파일 시점). 아래 테스트는 파일이 bun test와 knip 진입점에 들게 한다.
@@ -85,9 +85,9 @@ export type ResolutionIsPayload = Expect<
   >
 >;
 
-/** GroupService의 설정 범위는 SettingScope와 서로 대입 가능하다(L3.group-sdk.spec §9 20) */
+/** GroupService의 설정 범위는 쓰기 범위(SettingWriteScope)와 같다. 프로필 범위는 읽기 전용이라 그룹이 쓰지 않는다(L3.group-sdk.spec §9 20, M5c §3.3) */
 type HolderScope = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>["scope"];
-export type HolderScopeIsSettingScope = Expect<Equal<NonNullable<HolderScope>, SettingScope>>;
+export type HolderScopeIsSettingScope = Expect<Equal<NonNullable<HolderScope>, SettingWriteScope>>;
 
 /** setDriveHolder는 쓸 thread를 옵션으로 받는다(L3.group-sdk.spec §3.8, 통합 검토 L8) */
 type HolderOptions = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>;

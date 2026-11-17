@@ -58,7 +58,7 @@ import {
   EffectiveSettingSchema,
   SettingDefWireSchema,
   SettingKeySchema,
-  SettingScopeSchema,
+  SettingWriteScopeSchema,
 } from "../settings/index.ts";
 import {
   EventsSubscribeParamsSchema,
@@ -75,6 +75,30 @@ import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
+import {
+  CacheImpactSchema,
+  OverlayListSchema,
+  PROFILE_WIRE_METHODS,
+  ThreadOverlayMarkSchema,
+  ThreadProjectRefSchema,
+  OVERLAY_LIMIT,
+  type ProfileWireSchemas,
+} from "./profile.ts";
+import {
+  PROJECT_WIRE_METHODS,
+  ProjectChangedParamsSchema,
+  type ProjectWireSchemas,
+} from "./project.ts";
+import {
+  PLUGIN_WIRE_METHODS,
+  PluginChangedParamsSchema,
+  type PluginWireSchemas,
+} from "./plugin.ts";
+import {
+  PLUGIN_REVIEW_WIRE_METHODS,
+  PluginReviewChangedParamsSchema,
+  type PluginReviewWireSchemas,
+} from "./plugin-review.ts";
 import {
   PROFILE_TEST_RUN_METHODS,
   ProfileChangedParamsSchema,
@@ -527,6 +551,9 @@ export const ThreadSummarySchema: TObject<{
   spawnedBy: TOptional<typeof ThreadSpawnedBySchema>;
   model: TOptional<TString>;
   preview: TOptional<TString>;
+  profileId: TOptional<TString>;
+  project: TOptional<TUnion<[typeof ThreadProjectRefSchema, TNull]>>;
+  overlay: TOptional<TArray<typeof ThreadOverlayMarkSchema>>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -564,6 +591,12 @@ export const ThreadSummarySchema: TObject<{
      * 보이는 자리다. 글이 없으면 생략한다. 상한 160은 80 코드 포인트가 UTF-16 최대 2단위씩인 경우다
      */
     preview: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+    /** 대화가 참조하는 프로필 id. 생략하면 `default` */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /** 대화 폴더가 속한 프로젝트. 기본 폴더 대화는 null */
+    project: Type.Optional(Nullable(ThreadProjectRefSchema)),
+    /** 이 대화의 덧씌우기 표지 */
+    overlay: Type.Optional(Type.Array(ThreadOverlayMarkSchema, { maxItems: OVERLAY_LIMIT })),
   },
   { additionalProperties: false },
 );
@@ -602,8 +635,30 @@ export type ThreadCreateParams = Static<typeof ThreadCreateParamsSchema>;
 export const ThreadCreateResultSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   position: typeof StreamPositionSchema;
+  project: TOptional<TUnion<[typeof ThreadProjectRefSchema, TNull]>>;
+  profileId: TOptional<TString>;
+  sameFolder: TOptional<
+    TArray<TObject<{ threadId: typeof ThreadIdSchema; status: typeof ThreadStatusSchema }>>
+  >;
 }> = Type.Object(
-  { threadId: ThreadIdSchema, position: StreamPositionSchema },
+  {
+    threadId: ThreadIdSchema,
+    position: StreamPositionSchema,
+    /** 대화 폴더가 속한 프로젝트(없으면 null) */
+    project: Type.Optional(Nullable(ThreadProjectRefSchema)),
+    /** 대화가 참조하게 된 프로필 */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /** 같은 정규 폴더에서 열려 있거나 도는 다른 대화. 알리기만 하고 막지 않는다 */
+    sameFolder: Type.Optional(
+      Type.Array(
+        Type.Object(
+          { threadId: ThreadIdSchema, status: ThreadStatusSchema },
+          { additionalProperties: false },
+        ),
+        { maxItems: 64 },
+      ),
+    ),
+  },
   { additionalProperties: false },
 );
 export type ThreadCreateResult = Static<typeof ThreadCreateResultSchema>;
@@ -952,6 +1007,7 @@ export const TurnStartParamsSchema: TObject<{
   input: typeof TurnStartInputSchema;
   requestId: TOptional<typeof RequestKeySchema>;
   whenBusy: TOptional<typeof WhenBusySchema>;
+  overlay: TOptional<typeof OverlayListSchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -960,6 +1016,8 @@ export const TurnStartParamsSchema: TObject<{
     requestId: Type.Optional(RequestKeySchema),
     /** 실행 중인 turn이 있으면 입력을 이 자리의 큐에 넣는다. 생략하면 큐에 넣지 않고 `turn.busy`(3003)로 거절한다 */
     whenBusy: Type.Optional(WhenBusySchema),
+    /** 이름으로 얹는 일회 사용(최대 4). 검토된 플러그인만 */
+    overlay: Type.Optional(OverlayListSchema),
   },
   { additionalProperties: false },
 );
@@ -972,8 +1030,13 @@ export type TurnStartParams = Static<typeof TurnStartParamsSchema>;
 export const TurnStartResultSchema: TObject<{
   turnId: typeof TurnIdSchema;
   queued: TOptional<TLiteral<true>>;
+  cacheImpact: TOptional<typeof CacheImpactSchema>;
 }> = Type.Object(
-  { turnId: TurnIdSchema, queued: Type.Optional(Type.Literal(true)) },
+  {
+    turnId: TurnIdSchema,
+    queued: Type.Optional(Type.Literal(true)),
+    cacheImpact: Type.Optional(CacheImpactSchema),
+  },
   { additionalProperties: false },
 );
 export type TurnStartResult = Static<typeof TurnStartResultSchema>;
@@ -1246,13 +1309,13 @@ export type SettingsGetResult = Static<typeof SettingsGetResultSchema>;
 export const SettingsSetParamsSchema: TObject<{
   key: typeof SettingKeySchema;
   value: TUnknown;
-  scope: typeof SettingScopeSchema;
+  scope: typeof SettingWriteScopeSchema;
   threadId: TOptional<typeof ThreadIdSchema>;
 }> = Type.Object(
   {
     key: SettingKeySchema,
     value: Type.Unknown(),
-    scope: SettingScopeSchema,
+    scope: SettingWriteScopeSchema,
     threadId: Type.Optional(ThreadIdSchema),
   },
   { additionalProperties: false },
@@ -1262,12 +1325,12 @@ export type SettingsSetParams = Static<typeof SettingsSetParamsSchema>;
 /** 값 지우기를 settings.set의 특수 값으로 표현하면 null이 유효한 설정 값과 겹치므로 따로 둔다 */
 export const SettingsResetParamsSchema: TObject<{
   key: typeof SettingKeySchema;
-  scope: typeof SettingScopeSchema;
+  scope: typeof SettingWriteScopeSchema;
   threadId: TOptional<typeof ThreadIdSchema>;
 }> = Type.Object(
   {
     key: SettingKeySchema,
-    scope: SettingScopeSchema,
+    scope: SettingWriteScopeSchema,
     threadId: Type.Optional(ThreadIdSchema),
   },
   { additionalProperties: false },
@@ -1921,6 +1984,10 @@ interface WireSchemas
     ExtReadSchemas,
     DialogAreaSchemas,
     ProfileTestRunSchemas,
+    ProfileWireSchemas,
+    ProjectWireSchemas,
+    PluginWireSchemas,
+    PluginReviewWireSchemas,
     DevkitWireSchemas,
     MeasureWireSchemas {
   "host.hello": {
@@ -2222,6 +2289,9 @@ interface ServerNotificationSchemas {
   "notify.delivered": typeof NotifyDeliveredParamsSchema;
   /** M4 */
   "profile.changed": typeof ProfileChangedParamsSchema;
+  "project.changed": typeof ProjectChangedParamsSchema;
+  "plugin.changed": typeof PluginChangedParamsSchema;
+  "pluginReview.changed": typeof PluginReviewChangedParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -2406,6 +2476,10 @@ export const WIRE_METHODS: {
   ...EXT_READ_METHODS,
   ...DIALOG_AREA_METHODS,
   ...PROFILE_TEST_RUN_METHODS,
+  ...PROFILE_WIRE_METHODS,
+  ...PROJECT_WIRE_METHODS,
+  ...PLUGIN_WIRE_METHODS,
+  ...PLUGIN_REVIEW_WIRE_METHODS,
   ...DEVKIT_WIRE_METHODS,
   ...MEASURE_WIRE_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
@@ -2428,6 +2502,9 @@ export const WIRE_NOTIFICATIONS: {
   },
   "notify.delivered": { params: NotifyDeliveredParamsSchema, since: "0.1.0", stage: "M3" },
   "profile.changed": { params: ProfileChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "project.changed": { params: ProjectChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "plugin.changed": { params: PluginChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "pluginReview.changed": { params: PluginReviewChangedParamsSchema, since: "0.1.0", stage: "M4" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

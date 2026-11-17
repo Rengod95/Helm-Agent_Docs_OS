@@ -44,8 +44,12 @@ const RegistrationStatusShape = Type.Union([
   Type.Literal("disabled"),
   Type.Literal("disabling"),
 ]);
-/** 켜짐 요청이 어느 층에서 왔는가(T-REG §7 5번). 화면은 "전역 / 프로젝트 / 이 대화" 배지로 보인다 */
-export const ENABLED_SOURCES = ["managed", "thread", "project", "user", "default"] as const;
+/**
+ * 켜짐이 어디서 왔는가. M5c-1에서 바뀌었다(docs/xeon/review/m5/profile-project-loader.md §3.4): 켜짐은 프로필에서 계산하므로
+ * `core`(코어 블록), `common`(모든 프로필 공통 묶음), `profile`(대화의 프로필), `overlay`(이번 턴의 덧씌우기), `managed`(관리 잠금), `none`(꺼짐)이다.
+ * 옛 값 `thread`·`project`·`user`·`default`는 없다
+ */
+export const ENABLED_SOURCES = ["core", "common", "profile", "overlay", "managed", "none"] as const;
 export type EnabledSource = (typeof ENABLED_SOURCES)[number];
 const EnabledSourceShape = Type.Union(ENABLED_SOURCES.map((name) => Type.Literal(name)));
 

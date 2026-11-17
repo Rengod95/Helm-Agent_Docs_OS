@@ -53,6 +53,7 @@ export const ThreadStartedPayloadSchema: TObject<{
   title: TUnion<[TString, TNull]>;
   forkedFrom: TUnion<[TObject<{ threadId: TUnsafe<ThreadId>; eventId: TUnsafe<EventId> }>, TNull]>;
   workspace: TAddOptional<TUnion<[TString, TNull]>>;
+  profileId: TAddOptional<TString>;
 }> = Type.Object(
   {
     title: Nullable(Type.String({ maxLength: 200 })),
@@ -67,6 +68,11 @@ export const ThreadStartedPayloadSchema: TObject<{
      * M1이 쓴 옛 행에는 필드가 없어 선택 필드로 더했다: 없는 값은 null과 같고 version 1 그대로 읽는다(F.records.spec §3.2 규칙 5).
      */
     workspace: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 4096 }))),
+    /**
+     * 대화를 만들 때 고른 프로필 id(F.records 규칙 5: 선택 필드, 없으면 `default`로 읽는다). M5c §3.2.
+     * 이 값은 시작 시점의 값이고, 이후 전환은 `thread.updated.profileId`가 쓴다.
+     */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );
@@ -84,6 +90,8 @@ export const ThreadUpdatedPayloadSchema: TObject<{
   model: TAddOptional<TUnion<[TString, TNull]>>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
+  profileId: TAddOptional<TString>;
+  workspace: TAddOptional<TString>;
 }> = Type.Object(
   {
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
@@ -93,6 +101,14 @@ export const ThreadUpdatedPayloadSchema: TObject<{
     model: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 200 }))),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
+    /**
+     * 프로필 전환(`thread.setProfile`). `model`과 같은 규칙이다: 활성 가지의 마지막 값이 현재 값이다. 필드가 없으면 바꾸지 않는다 [M5c §3.2]
+     */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /**
+     * 대화 폴더 확정. "대화 시작" 훅이 경로를 정할 때만 쓰고, 첫 턴 전에만 쓴다. 새 폴더는 같은 프로젝트 루트 안이어야 한다 [M5c §3.2, §4.4.9]
+     */
+    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
   },
   { additionalProperties: false },
 );

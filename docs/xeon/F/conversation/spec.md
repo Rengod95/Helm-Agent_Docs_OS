@@ -483,8 +483,23 @@ export interface ThreadStartedPayload {
    * cap-workspace의 root 계산과 thread.list의 workspace 필터가 이 값을 쓴다(open-issues M-06).
    */
   workspace?: string | null;
+  /**
+   * 생성 때 고른 프로필 id(M5c-1 §3.2). 없으면 `default`로 읽는다. 시작 시점의 값이고 이후 전환은 `thread.updated.profileId`가 쓴다.
+   * 선택 필드라 version은 1 그대로다(F.records.spec §3.2 규칙 5).
+   */
+  profileId?: string;
 }
-export interface ThreadUpdatedPayload { title?: string | null; status?: ThreadStatus; leafEventId?: EventId }
+/**
+ * `profileId`는 프로필 전환(`thread.setProfile`)이다. `model`과 같은 규칙으로 활성 가지의 마지막 값이 현재 값이다.
+ * `workspace`는 "대화 시작" 훅이 대화 폴더를 정할 때만 쓰며 첫 턴 전에만 쓴다(M5c §4.4.9). 필드가 없으면 바꾸지 않는다.
+ */
+export interface ThreadUpdatedPayload {
+  title?: string | null;
+  status?: ThreadStatus;
+  leafEventId?: EventId;
+  profileId?: string;
+  workspace?: string;
+}
 export interface ThreadClosedPayload { reason: string | null }
 export type ThreadStarted = Notification<"thread.started", ThreadStartedPayload>;
 export type ThreadUpdated = Notification<"thread.updated", ThreadUpdatedPayload>;

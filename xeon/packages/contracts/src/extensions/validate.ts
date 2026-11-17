@@ -15,6 +15,7 @@ import {
   ExtensionManifestSchema,
   MANIFEST_SCHEMA_VERSION,
   extensionPrefix,
+  pluginDeclsOf,
   pluginDefaultEnabled,
   pluginsOf,
   type ExtensionManifest,
@@ -74,6 +75,8 @@ export type ManifestIssueCode =
   | "widgets_required"
   | "method_invalid"
   | "method_duplicate"
+  | "tool_duplicate"
+  | "command_duplicate"
   | "composition_invalid"
   // validateComposition
   | "composition_duplicate"
@@ -470,7 +473,7 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
 /** 구성 검사가 대조하는 매니페스트 부분과 이 맥락에서 쓸 수 있는 기능(provider가 켜진 것) */
 export interface CompositionContext {
   /** 있으면 블록이 속한 플러그인의 `hooks`, `requires`, `optional`, `drives`, `usesPost`와 대조한다 */
-  readonly manifest?: { readonly plugins: readonly PluginDecl[] };
+  readonly manifest?: { readonly plugins?: readonly PluginDecl[] };
   /** 있으면 `requires` 기능의 제공자를 대조한다. 없으면 `capability_missing`은 검사하지 않는다 */
   readonly providers?: readonly CapabilityId[];
 }
@@ -513,7 +516,10 @@ function checkComposition(
     }
 
     // 블록이 속한 플러그인: plugin이 없으면 루트(id 없음)
-    const owner = manifest?.plugins.find((decl) => decl.id === block.plugin);
+    const owner =
+      manifest === undefined
+        ? undefined
+        : pluginDeclsOf(manifest).find((decl) => decl.id === block.plugin);
     if (manifest !== undefined && owner === undefined) {
       issues.push(
         issue(
@@ -753,13 +759,15 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
     );
   }
 
-  if (!isEntryInsideRoot(manifest.entry)) {
+  // entry는 선택이다(M5c-1). 없으면 검사할 경로가 없다
+  if (manifest.entry !== undefined && !isEntryInsideRoot(manifest.entry)) {
     issues.push(
       issue("error", "entry_invalid", "/entry", "entry must be a relative path inside the root"),
     );
   }
 
   issues.push(...checkPluginList(manifest));
+  issues.push(...checkDeclaredNames(manifest));
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
   if (manifest.group?.composition !== undefined) {
@@ -769,7 +777,7 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   }
 
   const prefix = ownPrefix(manifest);
-  manifest.plugins.forEach((plugin, pluginIndex) => {
+  pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
     const base = `/plugins/${pluginIndex}`;
     for (const { index, id } of duplicatesIn(plugin.hooks)) {
       issues.push(
@@ -925,7 +933,8 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
   const named: string[] = [];
   const namedAt: number[] = [];
   const roots: number[] = [];
-  manifest.plugins.forEach((plugin, index) => {
+  const plugins = pluginDeclsOf(manifest);
+  plugins.forEach((plugin, index) => {
     if (plugin.id === undefined) {
       roots.push(index);
     } else {
@@ -950,12 +959,10 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     );
   }
 
-  const [firstPlugin] = manifest.plugins;
+  const [firstPlugin] = plugins;
   if (firstPlugin !== undefined) {
     const external = firstPlugin.layer === "plugin";
-    const mixedAt = manifest.plugins.findIndex(
-      (plugin) => (plugin.layer === "plugin") !== external,
-    );
+    const mixedAt = plugins.findIndex((plugin) => (plugin.layer === "plugin") !== external);
     if (mixedAt >= 0) {
       issues.push(
         issue(
@@ -993,6 +1000,37 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     );
   }
 
+  return issues;
+}
+
+/**
+ * `tools`·`commands` 선언 이름이 같은 것이 둘이면 오류다(M5c-1, F.extensions.spec §4.5.6). 두 목록은 따로 센다.
+ * 중복 검사는 스키마를 통과한 뒤에만 돈다
+ */
+function checkDeclaredNames(manifest: ExtensionManifest): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  for (const { index, id } of duplicatesIn((manifest.tools ?? []).map((tool) => tool.name))) {
+    issues.push(
+      issue(
+        "error",
+        "tool_duplicate",
+        `/tools/${index}/name`,
+        `tool name "${id}" is declared twice`,
+      ),
+    );
+  }
+  for (const { index, id } of duplicatesIn(
+    (manifest.commands ?? []).map((command) => command.name),
+  )) {
+    issues.push(
+      issue(
+        "error",
+        "command_duplicate",
+        `/commands/${index}/name`,
+        `command name "${id}" is declared twice`,
+      ),
+    );
+  }
   return issues;
 }
 
@@ -1202,7 +1240,7 @@ export function validateManifestSet(
   // 두 확장이 같은 내장 도구를 대체하겠다고 선언하면 어느 쪽도 고르지 않고 오류다(F.capabilities.spec §10)
   const replacers = new Map<string, string>();
   for (const manifest of manifests) {
-    manifest.plugins.forEach((plugin, pluginIndex) => {
+    pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
       (plugin.replaces ?? []).forEach((tool, index) => {
         const first = replacers.get(tool);
         if (first === undefined) {
@@ -1240,11 +1278,11 @@ export function validateManifestSet(
 
   const provided = new Set<string>(
     manifests.flatMap((m) =>
-      m.plugins.flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
+      pluginDeclsOf(m).flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
     ),
   );
   for (const manifest of manifests) {
-    manifest.plugins.forEach((plugin, pluginIndex) => {
+    pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
       (plugin.requires ?? []).forEach((entry, index) => {
         if (!provided.has(entry.id) && !coreCapabilityIds.has(entry.id)) {
           issues.push(

@@ -20,7 +20,7 @@ const plugin = {
   status: "enabled",
   thread: "enabling",
   inGroup: true,
-  enabledSource: "thread",
+  enabledSource: "profile",
 };
 const entry = {
   name: "learning",
@@ -35,7 +35,7 @@ const entry = {
   tier: "user",
   status: "enabled",
   registration: "enabling",
-  enabledSource: "user",
+  enabledSource: "core",
   plugins: [
     plugin,
     {
@@ -87,11 +87,21 @@ describe("M4 ext read methods", () => {
     expect(
       parse(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, plugins: [] }] }).ok,
     ).toBe(false);
-    expect(
-      parse(WIRE_METHODS["ext.list"].result, {
-        extensions: [{ ...entry, enabledSource: "profile" }],
-      }).ok,
-    ).toBe(false);
+    // M5c-1: 옛 값 thread·project·user·default는 거절하고, 새 여섯 값은 받는다
+    for (const old of ["thread", "project", "user", "default"]) {
+      expect(
+        parse(WIRE_METHODS["ext.list"].result, {
+          extensions: [{ ...entry, enabledSource: old }],
+        }).ok,
+      ).toBe(false);
+    }
+    for (const source of ["core", "common", "profile", "overlay", "managed", "none"]) {
+      expect(
+        parse(WIRE_METHODS["ext.list"].result, {
+          extensions: [{ ...entry, enabledSource: source }],
+        }).ok,
+      ).toBe(true);
+    }
   });
 
   test("params reject unknown keys and accept _meta", () => {

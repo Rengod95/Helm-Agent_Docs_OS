@@ -67,6 +67,7 @@ describe("TYPE_PREFIX_OWNERS", () => {
     expect(ownerOfKind("input.queued")).toBe("core.tasks");
     expect(ownerOfKind("post.accepted")).toBe("core.tasks");
     expect(ownerOfKind("scope.handler_failed")).toBe("xh");
+    expect(ownerOfKind("profile.applied")).toBe("xh");
     expect(ownerOfKind("lease.acquired")).toBe("xh");
     expect(ownerOfKind("work.item_added")).toBe("cap.work");
     expect(ownerOfKind("artifact.created")).toBe("cap.artifacts");

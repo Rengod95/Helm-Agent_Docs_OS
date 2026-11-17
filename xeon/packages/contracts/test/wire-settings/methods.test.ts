@@ -74,6 +74,9 @@ describe("WIRE_METHODS", () => {
       "settings.invalidated",
       "notify.delivered",
       "profile.changed",
+      "project.changed",
+      "plugin.changed",
+      "pluginReview.changed",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

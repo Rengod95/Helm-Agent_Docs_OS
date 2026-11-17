@@ -23,6 +23,8 @@ import type { HookName } from "./hooks.ts";
 import type { ExtensionName } from "./name.ts";
 import type { PostItem, PostWhen } from "./post.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
+import type { EvidenceRef } from "./plugin-card.ts";
+import type { ManifestIssue } from "./validate.ts";
 
 // 호스트 포트와 로더 포트의 정본이다(F.extensions.spec §3.2.1, review.decisions-2 U-14·D-04).
 // X(ext-host)는 이 이름을 import type으로 가져와 다시 export하고 자기 정의를 두지 않는다.
@@ -438,4 +440,65 @@ export interface TestRunControlPort {
   /** 경계 하나만 진행하고 다시 멈춘다 */
   step(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
   phase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
+}
+
+// ── 플러그인 로더 포트(M5c-1, docs/xeon/review/m5/profile-project-loader.md §3.5). 인터페이스만 둔다. PortKey 이름은 스펙이 정하지 않아 두지 않는다 ──
+
+/** 대화가 쓰는 플러그인 집합. 구현은 호스트다. X는 호스트의 프로필 저장소를 import하지 않고 이 포트로 읽는다(DR-14) */
+export interface PluginSetView {
+  readonly plugins: readonly string[];
+  readonly profileId: string;
+  readonly profileRev: number;
+  readonly commonRev: number;
+}
+export interface PluginSetPort {
+  resolve(threadId: ThreadId): PluginSetView;
+}
+
+/** 재료 한 덩어리의 키와 본문. 지침, 명령(프롬프트형), 에이전트 정의가 같은 모양을 쓴다 */
+export interface MaterialText {
+  readonly key: string;
+  readonly text: string;
+}
+/** MCP 서버 정의 하나와 소유 플러그인. 합친 뒤에도 기록(E)이 `mcp.<서버>`의 소유자를 알아야 한다(§4.5.10) */
+export interface McpServerMaterial {
+  readonly plugin: string;
+  readonly name: string;
+  readonly config: McpServerResourceDef;
+}
+/**
+ * 대화의 재료 공급. 구현은 X다. 반환 모양 가운데 스펙이 적지 않은 것(`skillRoots`, `agentDefinitions`, `commands`, `mcpServers`)은
+ * 본문이나 경로로 가장 가까운 모양을 골랐다. [미결] 구현 때 확정한다
+ */
+export interface MaterialPort {
+  instructions(threadId: ThreadId): readonly MaterialText[];
+  /** 검토본 폴더의 루트 경로. 스킬 색인이 `roots.extension`으로 읽는다 */
+  skillRoots(threadId: ThreadId): readonly string[];
+  agentDefinitions(threadId: ThreadId): readonly MaterialText[];
+  mcpServers(threadId: ThreadId): readonly McpServerMaterial[];
+  commands(threadId: ThreadId): readonly MaterialText[];
+}
+
+/** 제출 요청. 담당 AI(플러그인 빌더)가 만든 폴더를 검토함으로 보낸다. 증거는 한 개 이상 필수다(§4.7.1) */
+export interface PluginSubmitRequest {
+  readonly dir: string;
+  readonly originThreadId: ThreadId;
+  readonly evidence: readonly [EvidenceRef, ...EvidenceRef[]];
+  readonly purpose?: string;
+}
+export interface PluginSubmitResult {
+  readonly draftId: string;
+  readonly itemId: string;
+}
+/** 제출 실패. `kind`는 `plugin.invalid`·`plugin.tooLarge`·`plugin.symlinkRefused` 오류 이름에 대응한다 */
+export type PluginSubmitError =
+  | { readonly kind: "invalid"; readonly issues: readonly ManifestIssue[] }
+  | { readonly kind: "too_large" }
+  | { readonly kind: "symlink_refused" };
+/**
+ * 담당 AI만 부른다(wire 메서드가 아니다). 안에서 초안 만들기와 검토 항목 만들기를 한 번에 한다(§4.9).
+ * 디스크 복사와 해시 계산이 있어 비동기다
+ */
+export interface PluginSubmitPort {
+  submit(request: PluginSubmitRequest): Promise<Result<PluginSubmitResult, PluginSubmitError>>;
 }

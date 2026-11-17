@@ -80,6 +80,32 @@ describe("WIRE_ERRORS", () => {
       "profile.trustRequired": 3304,
       "profile.applyPartial": 3305,
       "profile.limit": 3306,
+      "profile.invalid": 3307,
+      "profile.builtinProtected": 3308,
+      "profile.pluginNotInProfile": 3309,
+      "profile.commonPlugin": 3310,
+      "thread.notOwner": 3314,
+      "project.notFound": 3601,
+      "project.exists": 3602,
+      "project.rootInvalid": 3603,
+      "overlay.notReviewed": 3611,
+      "overlay.notFound": 3612,
+      "overlay.limit": 3613,
+      "overlay.noEntry": 3614,
+      "overlay.draftUnavailable": 3615,
+      "draft.notFound": 3616,
+      "plugin.invalid": 3621,
+      "plugin.tooLarge": 3622,
+      "plugin.symlinkRefused": 3623,
+      "plugin.exists": 3624,
+      "plugin.noReviewedCopy": 3625,
+      "plugin.requiredByCore": 3626,
+      "pluginReview.notFound": 3651,
+      "pluginReview.notPending": 3652,
+      "pluginReview.pathInvalid": 3653,
+      "pluginReview.handEditNotAllowed": 3654,
+      "pluginReview.purposeRequired": 3655,
+      "pluginReview.profileInvalid": 3656,
       "testRun.unavailable": 3311,
       "testRun.notATestRun": 3312,
       "testRun.notPaused": 3313,
@@ -119,6 +145,10 @@ describe("WIRE_ERRORS", () => {
       "profile.trustRequired",
       "profile.applyPartial",
       "profile.limit",
+      "profile.invalid",
+      "profile.builtinProtected",
+      "profile.pluginNotInProfile",
+      "profile.commonPlugin",
       "testRun.unavailable",
       "testRun.notATestRun",
       "testRun.notPaused",
@@ -144,6 +174,43 @@ describe("WIRE_ERRORS", () => {
     expect(parse(partial, { written: ["a", "b"], failed: "c" }).ok).toBe(true);
     expect(parse(partial, { written: "a", failed: "c" }).ok).toBe(false);
     expect(WIRE_ERRORS["testRun.notPaused"].details).toBeUndefined();
+  });
+
+  test("project.*, overlay.*, draft.*, plugin.* errors live in 3600~3649 and pluginReview.* in 3650~3669, none retryable", () => {
+    const own = specs.filter((s) => /^(project|overlay|draft|plugin|pluginReview)\./.test(s.kind));
+    expect(own.map((s) => s.kind)).toEqual([
+      "project.notFound",
+      "project.exists",
+      "project.rootInvalid",
+      "overlay.notReviewed",
+      "overlay.notFound",
+      "overlay.limit",
+      "overlay.noEntry",
+      "overlay.draftUnavailable",
+      "draft.notFound",
+      "plugin.invalid",
+      "plugin.tooLarge",
+      "plugin.symlinkRefused",
+      "plugin.exists",
+      "plugin.noReviewedCopy",
+      "plugin.requiredByCore",
+      "pluginReview.notFound",
+      "pluginReview.notPending",
+      "pluginReview.pathInvalid",
+      "pluginReview.handEditNotAllowed",
+      "pluginReview.purposeRequired",
+      "pluginReview.profileInvalid",
+    ]);
+    for (const spec of own) {
+      const inRange = spec.kind.startsWith("pluginReview.")
+        ? spec.code >= 3650 && spec.code <= 3669
+        : spec.code >= 3600 && spec.code <= 3649;
+      expect({ kind: spec.kind, in: inRange, r: spec.retryable }).toEqual({
+        kind: spec.kind,
+        in: true,
+        r: false,
+      });
+    }
   });
 
   test("jsonrpc.invalidParams may carry the reasons of a refused install, and refuses a reason with unknown fields", () => {

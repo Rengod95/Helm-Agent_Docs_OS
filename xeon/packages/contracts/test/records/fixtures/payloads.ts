@@ -265,4 +265,13 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       toolName: "web_fetch",
       at: 1_700_000_000_000,
     },
+    "profile.applied": {
+      reason: "switched",
+      profileId: "inquiry",
+      profileRev: 2,
+      commonRev: 1,
+      added: ["helm"],
+      removed: ["web-exa"],
+      overlay: [{ plugin: "helm", contentHash: SHA, until: "turn" }],
+    },
   };

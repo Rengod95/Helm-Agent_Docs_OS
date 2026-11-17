@@ -30,7 +30,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     layer: "X",
     domains: ["loading-trust", "primitives", "operations"],
     producers: ["xh"],
-    typePrefixes: ["scope.", "lease."],
+    typePrefixes: ["scope.", "lease.", "profile."],
     tablePrefixes: ["xh_"],
     services: ["fresnel.ext"],
   },
@@ -255,6 +255,8 @@ export const TYPE_PREFIX_OWNERS: Readonly<Record<string, string>> = {
   "tool.": "core.tools",
   "scope.": "xh",
   "lease.": "xh",
+  /** M5c-1: 프로필 적용 경계(X의 계산 결과)가 낸다 */
+  "profile.": "xh",
   "model.": "core.models",
   "workspace.": "cap.workspace",
   "mcp.": "cap.mcp",

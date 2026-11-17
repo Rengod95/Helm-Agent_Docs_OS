@@ -151,6 +151,32 @@ export type WireErrorKind =
   | "profile.trustRequired"
   | "profile.applyPartial"
   | "profile.limit"
+  | "profile.invalid"
+  | "profile.builtinProtected"
+  | "profile.pluginNotInProfile"
+  | "profile.commonPlugin"
+  | "thread.notOwner"
+  | "project.notFound"
+  | "project.exists"
+  | "project.rootInvalid"
+  | "overlay.notReviewed"
+  | "overlay.notFound"
+  | "overlay.limit"
+  | "overlay.noEntry"
+  | "overlay.draftUnavailable"
+  | "draft.notFound"
+  | "plugin.invalid"
+  | "plugin.tooLarge"
+  | "plugin.symlinkRefused"
+  | "plugin.exists"
+  | "plugin.noReviewedCopy"
+  | "plugin.requiredByCore"
+  | "pluginReview.notFound"
+  | "pluginReview.notPending"
+  | "pluginReview.pathInvalid"
+  | "pluginReview.handEditNotAllowed"
+  | "pluginReview.purposeRequired"
+  | "pluginReview.profileInvalid"
   | "testRun.unavailable"
   | "testRun.notATestRun"
   | "testRun.notPaused"
@@ -172,6 +198,34 @@ export type WireErrorKind =
  * M1 오류 목록(F.wire-settings.spec §3.5.2): kind → 정의. 키와 kind가 같고 code와 kind는 1:1이다.
  * 확장 구간(10000~19999)은 `ext.<id>.` kind로 M2에서 연다.
  */
+const IssuesDetails = Type.Object(
+  {
+    issues: Type.Array(
+      Type.Object(
+        {
+          code: Type.String({ maxLength: 64 }),
+          severity: Type.Optional(Type.String({ maxLength: 16 })),
+          plugin: Type.Optional(Type.String({ maxLength: 128 })),
+          key: Type.Optional(Type.String({ maxLength: 160 })),
+          other: Type.Optional(Type.String({ maxLength: 128 })),
+          tool: Type.Optional(Type.String({ maxLength: 128 })),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 256 },
+    ),
+  },
+  { additionalProperties: false },
+);
+const NameDetails = Type.Object(
+  { name: Type.String({ maxLength: 128 }) },
+  { additionalProperties: false },
+);
+const IdDetails = Type.Object(
+  { id: Type.String({ maxLength: 128 }) },
+  { additionalProperties: false },
+);
+
 export const WIRE_ERRORS: {
   readonly [K in WireErrorKind]: WireErrorSpec & { readonly kind: K };
 } = {
@@ -399,7 +453,7 @@ export const WIRE_ERRORS: {
       {
         key: Type.String({ maxLength: 128 }),
         scope: Type.String({ maxLength: 16 }),
-        allowedScopes: Type.Array(Type.String({ maxLength: 16 }), { maxItems: 5 }),
+        allowedScopes: Type.Array(Type.String({ maxLength: 16 }), { maxItems: 6 }),
         /** 열린 프로젝트 없이 project·local에 쓸 때 "workspaceRequired" [제안, L4.readme §8 G] */
         reason: Type.Optional(Type.String({ maxLength: 64 })),
       },
@@ -626,6 +680,180 @@ export const WIRE_ERRORS: {
     kind: "profile.limit",
     retryable: false,
     details: Type.Object({ max: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
+  },
+  /** 프로필 검증에서 오류가 났다(`profile.put`·`profile.common.put`·`testRun.start`). 저장하지 않았다 */
+  "profile.invalid": {
+    code: 3307,
+    kind: "profile.invalid",
+    retryable: false,
+    details: IssuesDetails,
+  },
+  /** 내장·숨은 프로필의 삭제나 `id`·`builtin` 변경, 숨은 `craft` 프로필의 전환은 할 수 없다 */
+  "profile.builtinProtected": {
+    code: 3308,
+    kind: "profile.builtinProtected",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** `profile.removePlugin`의 플러그인이 그 프로필에 없다 */
+  "profile.pluginNotInProfile": {
+    code: 3309,
+    kind: "profile.pluginNotInProfile",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** `profile.removePlugin`의 플러그인이 공통 묶음에서 온 것이다 */
+  "profile.commonPlugin": {
+    code: 3310,
+    kind: "profile.commonPlugin",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** `thread.setProfile`을 쓰기 연결이 아닌 쪽이 불렀다 */
+  "thread.notOwner": {
+    code: 3314,
+    kind: "thread.notOwner",
+    retryable: false,
+  },
+  /** 그 id의 프로젝트가 없다 */
+  "project.notFound": {
+    code: 3601,
+    kind: "project.notFound",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 같은 정규 루트의 프로젝트가 이미 있다 */
+  "project.exists": {
+    code: 3602,
+    kind: "project.exists",
+    retryable: false,
+  },
+  /** 루트가 없거나 절대 경로가 아니다 */
+  "project.rootInvalid": {
+    code: 3603,
+    kind: "project.rootInvalid",
+    retryable: false,
+  },
+  /** 검토본이 없는 플러그인은 얹을 수 없다 */
+  "overlay.notReviewed": {
+    code: 3611,
+    kind: "overlay.notReviewed",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 그 플러그인이나 항목이 없다 */
+  "overlay.notFound": {
+    code: 3612,
+    kind: "overlay.notFound",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 덧씌우기는 한 턴에 4개까지다 */
+  "overlay.limit": {
+    code: 3613,
+    kind: "overlay.limit",
+    retryable: false,
+  },
+  /** 그 플러그인에 그 이름의 항목이 없다 */
+  "overlay.noEntry": {
+    code: 3614,
+    kind: "overlay.noEntry",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 격리 1단계 전에는 초안을 얹지 않는다 */
+  "overlay.draftUnavailable": {
+    code: 3615,
+    kind: "overlay.draftUnavailable",
+    retryable: false,
+  },
+  /** 그 id의 초안이 없다 */
+  "draft.notFound": {
+    code: 3616,
+    kind: "draft.notFound",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 후보 폴더의 매니페스트나 구성이 올바르지 않다 */
+  "plugin.invalid": {
+    code: 3621,
+    kind: "plugin.invalid",
+    retryable: false,
+    details: IssuesDetails,
+  },
+  /** 후보 폴더가 파일 수, 크기, 깊이 상한을 넘는다 */
+  "plugin.tooLarge": {
+    code: 3622,
+    kind: "plugin.tooLarge",
+    retryable: false,
+  },
+  /** 후보 폴더에 심볼릭 링크가 있다 */
+  "plugin.symlinkRefused": {
+    code: 3623,
+    kind: "plugin.symlinkRefused",
+    retryable: false,
+  },
+  /** 같은 이름의 플러그인 폴더가 이미 있다 */
+  "plugin.exists": {
+    code: 3624,
+    kind: "plugin.exists",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 현재 검토본이 없다 */
+  "plugin.noReviewedCopy": {
+    code: 3625,
+    kind: "plugin.noReviewedCopy",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 코어 분할 전까지 뺄 수 없는 내장 플러그인이다 */
+  "plugin.requiredByCore": {
+    code: 3626,
+    kind: "plugin.requiredByCore",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 그 id의 검토 항목이 없다 */
+  "pluginReview.notFound": {
+    code: 3651,
+    kind: "pluginReview.notFound",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 대기 상태가 아닌 항목이다 */
+  "pluginReview.notPending": {
+    code: 3652,
+    kind: "pluginReview.notPending",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 후보 스냅샷에 없는 경로다 */
+  "pluginReview.pathInvalid": {
+    code: 3653,
+    kind: "pluginReview.pathInvalid",
+    retryable: false,
+  },
+  /** 손으로 고친 변경은 승인할 수 없다 */
+  "pluginReview.handEditNotAllowed": {
+    code: 3654,
+    kind: "pluginReview.handEditNotAllowed",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 목적 문장이 없어 승인할 수 없다 */
+  "pluginReview.purposeRequired": {
+    code: 3655,
+    kind: "pluginReview.purposeRequired",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다 */
+  "pluginReview.profileInvalid": {
+    code: 3656,
+    kind: "pluginReview.profileInvalid",
+    retryable: false,
+    details: IssuesDetails,
   },
   /** 이 호스트는 Test run 제어 포트가 없다(`testRun.*`) */
   "testRun.unavailable": { code: 3311, kind: "testRun.unavailable", retryable: false },

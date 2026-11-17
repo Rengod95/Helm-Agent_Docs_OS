@@ -1,0 +1,361 @@
+import { Type, type TUnsafe } from "typebox";
+import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
+import type { Fold } from "./hooks.ts";
+import { ExtensionNameSchema } from "./name.ts";
+
+// F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
+// 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
+// 승인 전에도 코드를 실행하지 않는다(§4.5.5). wire(`wire/plugin.ts`, `wire/plugin-review.ts`)와 검토 항목이 함께 쓴다.
+
+const Id = Type.String({ minLength: 1, maxLength: 128 });
+const Text = Type.String({ minLength: 1, maxLength: 512 });
+const Count = Type.Integer({ minimum: 0 });
+const Iso = Type.String({ minLength: 1, maxLength: 40 });
+
+/** 훅 위치(블록 앞·뒤, 경계, 이벤트, 내부). [미결] 코드에 정의가 없다. F §4.1 HOOK_POSITIONS는 F 문서에 없고 M5e 제안(`docs/xeon/review/m5/hooks-core-boundary.md` §훅 위치)만 있다. 정의가 생기면 그 타입으로 바꾼다 */
+type HookPosition = string;
+/** 훅이 하는 일(observe·modify·decide·contribute 제안). [미결] 위와 같은 이유로 문자열 자리다 */
+type HookPower = string;
+
+export const PLUGIN_ORIGIN_KINDS = ["builtin", "bundled", "user", "project", "managed"] as const;
+export type PluginOriginKind = (typeof PLUGIN_ORIGIN_KINDS)[number];
+const PluginOriginKindShape = Type.Union(PLUGIN_ORIGIN_KINDS.map((name) => Type.Literal(name)));
+
+export const PLUGIN_HEALTH_STATES = ["ok", "idle", "error", "stopped", "integrity"] as const;
+export type PluginHealthState = (typeof PLUGIN_HEALTH_STATES)[number];
+const PluginHealthStateShape = Type.Union(PLUGIN_HEALTH_STATES.map((name) => Type.Literal(name)));
+
+/** 카드의 검토 칸. 검토 항목의 상태(`ReviewState`)와 다른 집합이다 */
+export const CARD_REVIEW_STATES = ["approved", "pending", "draft", "none"] as const;
+export type CardReviewState = (typeof CARD_REVIEW_STATES)[number];
+const CardReviewStateShape = Type.Union(CARD_REVIEW_STATES.map((name) => Type.Literal(name)));
+
+export const PLUGIN_ENFORCEMENTS = ["advisory", "enforced"] as const;
+export type PluginEnforcement = (typeof PLUGIN_ENFORCEMENTS)[number];
+const PluginEnforcementShape = Type.Union(PLUGIN_ENFORCEMENTS.map((name) => Type.Literal(name)));
+
+export const UI_MODEL_VISIBILITIES = ["none", "partial", "all"] as const;
+export type UiModelVisibility = (typeof UI_MODEL_VISIBILITIES)[number];
+const UiModelVisibilityShape = Type.Union(UI_MODEL_VISIBILITIES.map((name) => Type.Literal(name)));
+
+/** 카드가 보는 MCP 서버 전송 이름. `capabilities`의 `McpTransport`(설정 객체 형태)와 다른 개념이라 이름을 달리한다 */
+export const CARD_MCP_TRANSPORTS = ["stdio", "http"] as const;
+export type CardMcpTransport = (typeof CARD_MCP_TRANSPORTS)[number];
+const CardMcpTransportShape = Type.Union(CARD_MCP_TRANSPORTS.map((name) => Type.Literal(name)));
+
+/**
+ * 비용 근거의 출처. [로컬 정의] E §3.3(`docs/xeon/review/m5/turn-record-metrics.md`)의 `CostBasis`·`CostFigures`를
+ * 최소한으로 옮긴 것이다. E 구현이 `contracts`에 들어오면 그 정의를 import하고 이 블록을 지운다.
+ * 카드의 값은 정적이라 `basis`는 `declared`나 `unknown`이다
+ */
+export const COST_BASES = ["measured", "estimated", "declared", "unknown"] as const;
+export type CostBasis = (typeof COST_BASES)[number];
+const CostBasisShape = Type.Union(COST_BASES.map((name) => Type.Literal(name)));
+
+export interface CostFigures {
+  readonly always: number | null;
+  readonly drive: number | null;
+  readonly onDemand: number | null;
+  readonly toolCount: number | null;
+  readonly basis: CostBasis;
+}
+const CountOrNull = Type.Union([Count, Type.Null()]);
+const CostFiguresShape = Type.Object(
+  {
+    always: CountOrNull,
+    drive: CountOrNull,
+    onDemand: CountOrNull,
+    toolCount: CountOrNull,
+    basis: CostBasisShape,
+  },
+  { additionalProperties: false },
+);
+export const CostFiguresSchema: TUnsafe<CostFigures> = Type.Unsafe<CostFigures>(
+  CostFiguresShape satisfies SchemaProof<CostFigures, typeof CostFiguresShape>,
+);
+
+/**
+ * 근거 참조. [로컬 정의] E §3.5(`turn-record-metrics.md`)의 `EvidenceRef` 정본을 최소한으로 옮긴 것이다.
+ * 검토 증거로 붙는 시험 기록은 대화·턴 참조이고, 지난 턴에 돌려 본 결과는 `backtest` 변형이다. E 구현이 생기면 import로 바꾼다
+ */
+export const EVIDENCE_KINDS = ["turn", "call", "hook", "material", "skill"] as const;
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
+const EvidenceKindShape = Type.Union(EVIDENCE_KINDS.map((name) => Type.Literal(name)));
+
+export type EvidenceRef =
+  | {
+      readonly kind: EvidenceKind;
+      readonly threadId: string;
+      readonly turnId: string;
+      readonly stepIndex?: number;
+      readonly toolCallId?: string;
+      readonly hookSeq?: number;
+    }
+  | { readonly kind: "backtest"; readonly backtestRunId: string; readonly toolCallId?: string };
+const EvidenceTurnShape = Type.Object(
+  {
+    kind: EvidenceKindShape,
+    threadId: Id,
+    turnId: Id,
+    stepIndex: Type.Optional(Count),
+    toolCallId: Type.Optional(Id),
+    hookSeq: Type.Optional(Count),
+  },
+  { additionalProperties: false },
+);
+const EvidenceBacktestShape = Type.Object(
+  {
+    kind: Type.Literal("backtest"),
+    backtestRunId: Id,
+    toolCallId: Type.Optional(Id),
+  },
+  { additionalProperties: false },
+);
+const EvidenceRefShape = Type.Union([EvidenceTurnShape, EvidenceBacktestShape]);
+export const EvidenceRefSchema: TUnsafe<EvidenceRef> = Type.Unsafe<EvidenceRef>(
+  EvidenceRefShape satisfies SchemaSound<EvidenceRef, typeof EvidenceRefShape>,
+);
+
+/** Inject 칸 가운데 항상 싣는 지침 파일 하나(`instructions.md`, `components.instructions`) */
+export interface InstructionEntry {
+  readonly path: string;
+  readonly bytes: number;
+}
+const InstructionEntryShape = Type.Object(
+  { path: Text, bytes: Count },
+  { additionalProperties: false },
+);
+
+/** Inject 칸의 스킬 하나. 본문은 필요할 때 읽으므로 설명 글자 수만 센다 */
+export interface SkillEntry {
+  readonly name: string;
+  readonly path: string;
+  readonly descriptionChars: number;
+}
+const SkillEntryShape = Type.Object(
+  { name: Id, path: Text, descriptionChars: Count },
+  { additionalProperties: false },
+);
+
+/**
+ * 카드가 보는 화면 선언 하나. [이름 변경] `ui.ts`의 `UiDecl`(매니페스트 `ui` 블록)과 이름이 겹쳐 `PluginUiDecl`로 쓴다.
+ * 저장 문자열이 아니라 읽기 전용 계산값이다
+ */
+export interface PluginUiDecl {
+  readonly id: string;
+  readonly placement: string;
+  readonly readsState: string | null;
+  readonly modelVisible: UiModelVisibility;
+}
+const PluginUiDeclShape = Type.Object(
+  {
+    id: Id,
+    placement: Id,
+    readsState: Type.Union([Id, Type.Null()]),
+    modelVisible: UiModelVisibilityShape,
+  },
+  { additionalProperties: false },
+);
+export const PluginUiDeclSchema: TUnsafe<PluginUiDecl> = Type.Unsafe<PluginUiDecl>(
+  PluginUiDeclShape satisfies SchemaProof<PluginUiDecl, typeof PluginUiDeclShape>,
+);
+
+/**
+ * 플러그인 설정 항목 하나(`plugin.get`의 `settingsDefs`). [이름 변경] 설정 카탈로그의 `SettingDef`(`contracts/settings`)와 이름이 겹쳐 `PluginSettingDef`로 쓴다.
+ * `default`는 값의 모양을 모르므로 unknown이다
+ */
+export interface PluginSettingDef {
+  readonly key: string;
+  readonly label: string;
+  readonly default: unknown;
+  readonly required: boolean;
+  readonly secret: boolean;
+}
+const PluginSettingDefShape = Type.Object(
+  {
+    key: Type.String({ minLength: 1, maxLength: 160 }),
+    label: Type.String({ minLength: 1, maxLength: 128 }),
+    default: Type.Unknown(),
+    required: Type.Boolean(),
+    secret: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export const PluginSettingDefSchema: TUnsafe<PluginSettingDef> = Type.Unsafe<PluginSettingDef>(
+  PluginSettingDefShape satisfies SchemaProof<PluginSettingDef, typeof PluginSettingDefShape>,
+);
+
+/** Inject 칸의 재료 목록. 항목마다 파일 경로나 이름만 두고 본문은 싣지 않는다 */
+export interface InjectInventory {
+  readonly instructions: {
+    readonly always: readonly InstructionEntry[];
+    readonly skills: readonly SkillEntry[];
+  };
+  readonly tools: readonly { readonly name: string; readonly description: string | null }[];
+  readonly mcpServers: readonly { readonly name: string; readonly transport: CardMcpTransport }[];
+  readonly agents: readonly string[];
+  readonly providers: readonly string[];
+  readonly commands: readonly string[];
+  readonly ui: readonly PluginUiDecl[];
+  readonly replaces: readonly string[];
+}
+const InjectInventoryShape = Type.Object(
+  {
+    instructions: Type.Object(
+      {
+        always: Type.Array(InstructionEntryShape, { maxItems: 256 }),
+        skills: Type.Array(SkillEntryShape, { maxItems: 512 }),
+      },
+      { additionalProperties: false },
+    ),
+    tools: Type.Array(
+      Type.Object(
+        { name: Id, description: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]) },
+        { additionalProperties: false },
+      ),
+      { maxItems: 512 },
+    ),
+    mcpServers: Type.Array(
+      Type.Object({ name: Id, transport: CardMcpTransportShape }, { additionalProperties: false }),
+      { maxItems: 64 },
+    ),
+    agents: Type.Array(Id, { maxItems: 256 }),
+    providers: Type.Array(Id, { maxItems: 256 }),
+    commands: Type.Array(Id, { maxItems: 256 }),
+    ui: Type.Array(PluginUiDeclShape, { maxItems: 64 }),
+    replaces: Type.Array(Id, { maxItems: 16 }),
+  },
+  { additionalProperties: false },
+);
+export const InjectInventorySchema: TUnsafe<InjectInventory> = Type.Unsafe<InjectInventory>(
+  InjectInventoryShape satisfies SchemaProof<InjectInventory, typeof InjectInventoryShape>,
+);
+
+/** 카드의 Hook 칸: 훅 하나마다 이름, fold(`chain`·`tap`·`first`·`collect`는 `hooks.ts`의 `Fold`를 쓴다), 위치, 하는 일 */
+export interface CardHook {
+  readonly name: string;
+  readonly fold: Fold;
+  readonly position: HookPosition;
+  readonly powers: readonly HookPower[];
+}
+const FoldShape = Type.Union([
+  Type.Literal("tap"),
+  Type.Literal("first"),
+  Type.Literal("chain"),
+  Type.Literal("collect"),
+]);
+const CardHookShape = Type.Object(
+  {
+    name: Id,
+    fold: FoldShape,
+    position: Id,
+    powers: Type.Array(Id, { maxItems: 8 }),
+  },
+  { additionalProperties: false },
+);
+
+/**
+ * 카드 한 장. 칸마다 값이 있으면 그 종류의 재료가 있다는 뜻이다. `does`의 세 칸은 종류이고 나머지는 층 2·3(실행과 사용처)이다.
+ * `origin`과 `review`는 호스트 기록이고 `health`는 `ext.health`의 값이다
+ */
+export interface PluginCard {
+  readonly name: string;
+  readonly displayName: string;
+  /** 목적 한 문장. 없으면 검토에서 승인할 수 없다(`pluginReview.purposeRequired`) */
+  readonly purpose: string | null;
+  readonly does: {
+    readonly inject: InjectInventory | null;
+    readonly hook: { readonly hooks: readonly CardHook[] } | null;
+    readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
+  };
+  readonly enforcement: PluginEnforcement;
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  readonly cost: CostFigures;
+  readonly health: {
+    readonly state: PluginHealthState;
+    readonly lastActiveAt: string | null;
+    readonly lastError: string | null;
+  };
+  readonly origin: {
+    readonly kind: PluginOriginKind;
+    readonly projectId?: string;
+    readonly createdIn?: { readonly threadId: string };
+  };
+  readonly review: {
+    readonly state: CardReviewState;
+    readonly currentHash: string | null;
+    readonly pendingItemId: string | null;
+    readonly approvedAt: string | null;
+  };
+  /** 이 플러그인을 쓰는 프로필 id. 공통 묶음은 `"common"` */
+  readonly usedBy: readonly string[];
+}
+const PluginCardShape = Type.Object(
+  {
+    name: ExtensionNameSchema,
+    displayName: Type.String({ minLength: 1, maxLength: 64 }),
+    purpose: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+    does: Type.Object(
+      {
+        inject: Type.Union([InjectInventoryShape, Type.Null()]),
+        hook: Type.Union([
+          Type.Object(
+            { hooks: Type.Array(CardHookShape, { maxItems: 64 }) },
+            { additionalProperties: false },
+          ),
+          Type.Null(),
+        ]),
+        drive: Type.Union([
+          Type.Object(
+            {
+              start: Type.Boolean(),
+              commands: Type.Array(Id, { maxItems: 64 }),
+            },
+            { additionalProperties: false },
+          ),
+          Type.Null(),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+    enforcement: PluginEnforcementShape,
+    runs: Type.Object(
+      {
+        code: Type.Boolean(),
+        isolated: Type.Union([Type.Boolean(), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+    cost: CostFiguresShape,
+    health: Type.Object(
+      {
+        state: PluginHealthStateShape,
+        lastActiveAt: Type.Union([Iso, Type.Null()]),
+        lastError: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+    origin: Type.Object(
+      {
+        kind: PluginOriginKindShape,
+        projectId: Type.Optional(Id),
+        createdIn: Type.Optional(Type.Object({ threadId: Id }, { additionalProperties: false })),
+      },
+      { additionalProperties: false },
+    ),
+    review: Type.Object(
+      {
+        state: CardReviewStateShape,
+        currentHash: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+        pendingItemId: Type.Union([Id, Type.Null()]),
+        approvedAt: Type.Union([Iso, Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+    usedBy: Type.Array(Id, { maxItems: 256 }),
+  },
+  { additionalProperties: false },
+);
+export const PluginCardSchema: TUnsafe<PluginCard> = Type.Unsafe<PluginCard>(
+  PluginCardShape satisfies SchemaProof<PluginCard, typeof PluginCardShape>,
+);
