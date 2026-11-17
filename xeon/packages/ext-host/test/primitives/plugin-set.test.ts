@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { PluginSetPortKey, type PluginSetPort } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { registrationToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost, type TestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
@@ -12,6 +13,12 @@ interface PluginSetState {
   plugins: readonly string[];
   /** 실행 중인 검토본의 해시. 없으면 E(T)에 `pluginHashes`를 싣지 않는다 */
   hashes?: readonly { readonly plugin: string; readonly contentHash: string }[];
+  /** 대화의 턴 덧씌우기(M5c §4.3). 없으면 E(T)에 `overlay`를 싣지 않는다 */
+  overlay?: readonly {
+    readonly plugin: string;
+    readonly contentHash: string;
+    readonly until: "turn";
+  }[];
 }
 
 async function providePluginSet(t: TestHost, state: PluginSetState): Promise<void> {
@@ -22,6 +29,7 @@ async function providePluginSet(t: TestHost, state: PluginSetState): Promise<voi
       profileRev: 0,
       commonRev: 0,
       ...(state.hashes === undefined ? {} : { pluginHashes: [...state.hashes] }),
+      ...(state.overlay === undefined ? {} : { overlay: [...state.overlay] }),
     }),
   };
   const registered = await t.host.registerPlatform({
@@ -152,6 +160,90 @@ test("a changed reviewed copy of a plugin in E(T) records profile.applied with p
       removed: [],
       overlay: [],
       updated: [{ plugin: "pset-a", fromHash: "sha256:aa", toHash: "sha256:bb" }],
+    },
+  ]);
+});
+
+test("a turn_settled boundary calls the port's turnSettled once the commit is settled", async () => {
+  const t = await createTestHost();
+  const settledThreads: ThreadId[] = [];
+  const port: PluginSetPort = {
+    resolve: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+    turnSettled: (threadId) => {
+      settledThreads.push(threadId);
+    },
+  };
+  const registered = await t.host.registerPlatform({
+    name: "test-plugin-set-settled",
+    setup(ctx) {
+      ctx.providePort(PluginSetPortKey, port);
+    },
+  });
+  expect(registered.ok).toBe(true);
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  await t.boundary(thread).turnSettled();
+  expect(settledThreads).toEqual([thread]);
+  await t.boundary(thread).idle();
+  expect(settledThreads).toEqual([thread]);
+});
+
+test("a turn overlay records profile.applied overlay_on when it joins E(T) and overlay_off when it leaves", async () => {
+  const t = await createTestHost();
+  const state: PluginSetState = { plugins: ["pset-keep"] };
+  await providePluginSet(t, state);
+  await t.host.install(makeUnit({ name: "pset-keep", hooks: ["tool.call.before"] }, () => {}));
+  await t.host.install(makeUnit({ name: "pset-extra", hooks: ["tool.call.before"] }, () => {}));
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  // 턴 덧씌우기가 얹혔다. 입력 처리 앞에 적용을 기다린다
+  state.plugins = ["pset-keep", "pset-extra"];
+  state.overlay = [{ plugin: "pset-extra", contentHash: "sha256:cc", until: "turn" }];
+  await registrationToggleSourceOf(t.host).applyNow(thread);
+  await t.settled();
+  expect(t.host.registration("pset-extra")?.status).toBe("enabled");
+
+  // 턴이 정착했다. 덧씌우기가 빠지고 집합을 다시 맞춘다
+  state.plugins = ["pset-keep"];
+  state.overlay = [];
+  registrationToggleSourceOf(t.host).requestApply(thread);
+  await t.settled();
+  expect(t.host.registration("pset-extra")?.status).toBe("disabled");
+
+  const recorded = t.records
+    .events(thread)
+    .filter((event) => event.kind === "profile.applied")
+    .map((event) => event.payload);
+  expect(recorded).toEqual([
+    {
+      reason: "open",
+      profileId: "default",
+      profileRev: 0,
+      commonRev: 0,
+      added: ["pset-keep"],
+      removed: [],
+      overlay: [],
+    },
+    {
+      reason: "overlay_on",
+      profileId: "default",
+      profileRev: 0,
+      commonRev: 0,
+      added: ["pset-extra"],
+      removed: [],
+      overlay: [{ plugin: "pset-extra", contentHash: "sha256:cc", until: "turn" }],
+    },
+    {
+      reason: "overlay_off",
+      profileId: "default",
+      profileRev: 0,
+      commonRev: 0,
+      added: [],
+      removed: ["pset-extra"],
+      overlay: [{ plugin: "pset-extra", contentHash: "sha256:cc", until: "turn" }],
     },
   ]);
 });

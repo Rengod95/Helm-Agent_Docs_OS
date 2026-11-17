@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
 import type {
+  InvocableEntry,
   PluginGetResult,
   PluginListFilter,
   PluginListResult,
@@ -12,9 +13,17 @@ import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginPort, PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import type { ExtensionRecord } from "../m4/ext-read-port.ts";
 import { compareUtf8 } from "./content-hash.ts";
+import { addsToolsOf, invocablesOf } from "./invocables.ts";
 import { buildPluginCard, type CardSubject } from "./card.ts";
 import { discoverPluginFolders } from "./discover.ts";
-import { readPluginFolder, type FolderDiagnostic, type PluginMaterials } from "./folder-reader.ts";
+import {
+  readPluginFolder,
+  type FolderDiagnostic,
+  type FolderRejection,
+  type PluginFolder,
+  type PluginMaterials,
+} from "./folder-reader.ts";
+import type { OverlayTarget } from "./overlay.ts";
 import type { PluginStore, PluginStoreError, ReviewedVersion } from "./store.ts";
 
 // 플러그인 읽기 서비스(M5c §3.4 `plugin.list`, `plugin.get`, `plugin.scan`, §4.5). 원본 폴더와 로드된 레코드와 검토본 저장소에서 카드를 만든다.
@@ -36,7 +45,7 @@ interface PluginDiagnostic {
 /** 검토본 저장소의 읽기 면. 서비스는 쓰지 않는다 */
 export type PluginStoreReader = Pick<
   PluginStore,
-  "names" | "current" | "versions" | "verifyIntegrity"
+  "names" | "current" | "versions" | "verifyIntegrity" | "treePath"
 >;
 
 export interface PluginServiceDeps {
@@ -59,6 +68,13 @@ export interface PluginServiceDeps {
 }
 
 export interface PluginService extends Pick<PluginPort, "list" | "get" | "scan"> {
+  /** 호출할 수 있는 항목 전부(검토된 플러그인의 스킬, 명령, Drive 시작, 플러그인 전체). 대화와 무관하게 같다 */
+  invocables(): Promise<Result<{ readonly entries: readonly InvocableEntry[] }, PluginPortFailure>>;
+  /**
+   * 덧씌우기 대상 하나(M5c §4.3.1). 없는 이름이면 undefined다. 검토본이 있으면 항목은 검토본 폴더에서 온다.
+   * 검토본이 없으면 항목이 없고 `reviewedHash`가 null이다
+   */
+  overlayTarget(name: string): Promise<Result<OverlayTarget | undefined, PluginPortFailure>>;
   /** 마지막 훑기에서 나온 진단. `plugin.list`의 결과에는 넣을 자리가 없어 이 함수로만 본다(§3.4) */
   diagnostics(): Promise<Result<readonly PluginDiagnostic[], PluginPortFailure>>;
   /** 원본 폴더가 검토본과 다른 이름들(검토본이 없는 원본 포함). 다음 층이 검토 항목을 만들 때 쓴다 */
@@ -376,6 +392,8 @@ function matches(card: PluginCard, filter: PluginListFilter): boolean {
  */
 export function createPluginService(deps: PluginServiceDeps): PluginService {
   let index: Index | undefined;
+  /** 검토본 폴더를 읽은 결과. 검토본은 내용 주소라 `이름 + 해시`가 키다(고정 복사본이라 다시 읽지 않는다) */
+  const reviewedReads = new Map<string, Result<PluginFolder, FolderRejection>>();
 
   async function rebuild(): Promise<Result<Index, PluginPortFailure>> {
     const next = await buildIndex(deps);
@@ -409,6 +427,84 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     return ok({ plugins });
   }
 
+  /**
+   * 검토본 폴더를 읽는다. 읽지 못하면 null이다(항목은 스킬과 명령을 뺀 것만 남는다). 기록만 남기고 계속한다:
+   * 검토본은 적재 때 이미 검사를 거쳤고, 여기서 막으면 목록 전체가 빈다
+   */
+  async function reviewedFolderOf(
+    name: string,
+    reviewedHash: string,
+    origin: PluginCard["origin"]["kind"],
+  ): Promise<Result<PluginFolder | null, PluginPortFailure>> {
+    const key = `${name}\0${reviewedHash}`;
+    let outcome = reviewedReads.get(key);
+    if (outcome === undefined) {
+      const tree = await deps.store.treePath(name);
+      if (!tree.ok) return err(storeFailure(tree.error));
+      outcome = readPluginFolder(tree.value, { origin });
+      reviewedReads.set(key, outcome);
+    }
+    if (!outcome.ok) {
+      deps.log.info("plugin.invocables.unreadable", { name, kind: outcome.error.kind });
+      return ok(null);
+    }
+    return ok(outcome.value);
+  }
+
+  /** 검토된 플러그인 하나의 호출 항목(M5c §3.4). 검토본이 없으면 빈 목록이다 */
+  async function entriesOf(
+    entry: Entry,
+  ): Promise<Result<readonly InvocableEntry[], PluginPortFailure>> {
+    const reviewedHash = entry.reviewedHash;
+    if (reviewedHash === null) return ok([]);
+    const folder = await reviewedFolderOf(entry.card.name, reviewedHash, entry.card.origin.kind);
+    if (!folder.ok) return folder;
+    return ok(
+      invocablesOf({
+        plugin: entry.card.name,
+        reviewedHash,
+        card: entry.card,
+        folder: folder.value,
+      }),
+    );
+  }
+
+  async function invocables(): Promise<
+    Result<{ readonly entries: readonly InvocableEntry[] }, PluginPortFailure>
+  > {
+    const read = await current();
+    if (!read.ok) return read;
+    const reviewed = read.value.entries.filter((entry) => entry.reviewedHash !== null);
+    const lists = await Promise.all(reviewed.map((entry) => entriesOf(entry)));
+    const entries: InvocableEntry[] = [];
+    for (const item of lists) {
+      if (!item.ok) return item;
+      entries.push(...item.value);
+    }
+    return ok({ entries });
+  }
+
+  async function overlayTarget(
+    name: string,
+  ): Promise<Result<OverlayTarget | undefined, PluginPortFailure>> {
+    const read = await current();
+    if (!read.ok) return read;
+    const entry = read.value.entries.find((item) => item.card.name === name);
+    if (entry === undefined) return ok(undefined);
+    const addsTools = addsToolsOf(entry.card);
+    if (entry.reviewedHash === null) {
+      return ok({ name, reviewedHash: null, entries: [], addsTools });
+    }
+    const listed = await entriesOf(entry);
+    if (!listed.ok) return listed;
+    return ok({
+      name,
+      reviewedHash: entry.reviewedHash,
+      entries: listed.value.map((item) => ({ entry: item.entry, kind: item.kind })),
+      addsTools,
+    });
+  }
+
   async function get(name: string): Promise<Result<PluginGetResult, PluginPortFailure>> {
     const read = await current();
     if (!read.ok) return read;
@@ -416,6 +512,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     if (entry === undefined) return err({ kind: "unknown_plugin", name });
     const listed = await deps.profiles.list();
     if (!listed.ok) return err({ kind: "profiles", failure: listed.error });
+    const entries = await entriesOf(entry);
+    if (!entries.ok) return entries;
     const versions = await deps.store.versions(name);
     if (!versions.ok) return err(storeFailure(versions.error));
     const shaped: readonly PluginVersion[] = versions.value.map((item) => ({
@@ -433,12 +531,14 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
               path: entry.source,
               matchesReviewed: entry.sourceHash !== null && entry.sourceHash === entry.reviewedHash,
             },
-      entries: [],
+      entries: [...entries.value],
       settingsDefs: [],
     });
   }
 
   return {
+    invocables,
+    overlayTarget,
     // 원본 폴더와 레코드와 저장소를 다시 읽어 캐시를 바꾼다. 새 검토 항목은 다음 층이 만든다. 지금은 빈 목록이다
     scan: async () => {
       const next = await rebuild();

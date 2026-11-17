@@ -483,9 +483,23 @@ export interface PluginSetView {
    * 검토본에서 실리지 않은 플러그인(내장, 시험 후보)은 없다
    */
   readonly pluginHashes?: readonly { readonly plugin: string; readonly contentHash: string }[];
+  /**
+   * 이 대화에 얹힌 덧씌우기(M5c §4.3). `plugins`의 뒤쪽에 든다. 턴 덧씌우기는 그 턴이 정착할 때 빠진다.
+   * 프로필·공통 묶음과 따로 기록되어 `profile.applied`의 `overlay`로 남는다
+   */
+  readonly overlay?: readonly {
+    readonly plugin: string;
+    readonly contentHash: string;
+    readonly until: "turn" | "release";
+  }[];
 }
 export interface PluginSetPort {
   resolve(threadId: ThreadId): PluginSetView;
+  /**
+   * 대화의 턴이 정착했다고 X가 알린다(정산 커밋 뒤, `turn_settled`). 호스트는 턴 덧씌우기를 풀고 집합을 다시 맞춘다.
+   * 없으면 아무것도 하지 않는다
+   */
+  turnSettled?(threadId: ThreadId): void;
 }
 /** 대화별 켜짐 집합(E(T))을 주는 포트. 구현은 호스트이고, X는 이 키로 읽는다(M5c §3.5) */
 export const PluginSetPortKey: PortKey<PluginSetPort> = {

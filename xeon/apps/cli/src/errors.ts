@@ -539,6 +539,66 @@ function wireFailureOf(error: WireError): Failure {
         fix: t("cli.errors.wire.compactFailed.fix"),
         code: EXIT.error,
       };
+    case "profile.notFound":
+      return {
+        message: t("cli.errors.wire.profileNotFound.message", {
+          id: detailText(error, "id") ?? "",
+        }),
+        fix: t("cli.errors.wire.profileNotFound.fix"),
+        code: EXIT.error,
+      };
+    case "profile.conflict":
+      return {
+        message: t("cli.errors.wire.profileConflict.message"),
+        fix: t("cli.errors.wire.profileConflict.fix"),
+        code: EXIT.error,
+      };
+    case "profile.pluginNotInProfile":
+      return {
+        message: t("cli.errors.wire.profilePluginNotInProfile.message", {
+          plugin: detailText(error, "name") ?? "",
+        }),
+        fix: t("cli.errors.wire.profilePluginNotInProfile.fix"),
+        code: EXIT.error,
+      };
+    case "profile.commonPlugin":
+      return {
+        message: t("cli.errors.wire.profileCommonPlugin.message", {
+          plugin: detailText(error, "name") ?? "",
+        }),
+        fix: t("cli.errors.wire.profileCommonPlugin.fix"),
+        code: EXIT.error,
+      };
+    case "overlay.notReviewed":
+      return {
+        message: t("cli.errors.wire.overlayNotReviewed.message", {
+          plugin: detailText(error, "name") ?? "",
+        }),
+        fix: t("cli.errors.wire.overlayNotReviewed.fix"),
+        code: EXIT.error,
+      };
+    case "overlay.notFound":
+      return {
+        message: t("cli.errors.wire.overlayNotFound.message", {
+          plugin: detailText(error, "name") ?? "",
+        }),
+        fix: t("cli.errors.wire.overlayNotFound.fix"),
+        code: EXIT.error,
+      };
+    case "overlay.noEntry":
+      return {
+        message: t("cli.errors.wire.overlayNoEntry.message", {
+          name: detailText(error, "name") ?? "",
+        }),
+        fix: t("cli.errors.wire.overlayNoEntry.fix"),
+        code: EXIT.error,
+      };
+    case "overlay.limit":
+      return {
+        message: t("cli.errors.wire.overlayLimit.message"),
+        fix: t("cli.errors.wire.overlayLimit.fix"),
+        code: EXIT.error,
+      };
     case "request.cancelled":
       return {
         message: t("cli.errors.wire.requestCancelled.message"),

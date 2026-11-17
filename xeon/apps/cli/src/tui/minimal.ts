@@ -1,6 +1,6 @@
 import { t } from "@fresnel/client/i18n";
 import { attemptAsync } from "@fresnel/contracts";
-import type { HostConnection } from "@fresnel/contracts/wire";
+import type { HostConnection, OverlayRef } from "@fresnel/contracts/wire";
 import { HostClientError } from "../host-client.ts";
 import type { ChatSession } from "../commands/chat-session.ts";
 import { failureOfCaught, renderFailure } from "../errors.ts";
@@ -14,6 +14,7 @@ import {
   completionsOf,
   loadEngineCommands,
   parseSlash,
+  planSlashLine,
   runSlash,
   type EngineCommand,
   type SlashContext,
@@ -165,15 +166,21 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
   /** 입력을 기다리는 사이 바뀌는 값이다. 함수로 다시 읽어 앞선 검사의 좁힘이 이어지지 않게 한다 */
   const exitRequested = (): boolean => exit.isRequested;
 
-  /** 입력 하나를 turn으로 보내 끝날 때까지 기다린다. 입력을 이어 받을 수 없으면 종료 코드, 이어 받으면 undefined다 */
-  const sendInput = async (text: string): Promise<ExitCode | undefined> => {
+  /**
+   * 입력 하나를 turn으로 보내 끝날 때까지 기다린다. `overlay`는 이 턴에만 얹는 플러그인 항목이다(§4.12).
+   * 입력을 이어 받을 수 없으면 종료 코드, 이어 받으면 undefined다
+   */
+  const sendInput = async (
+    text: string,
+    overlay: readonly OverlayRef[] = [],
+  ): Promise<ExitCode | undefined> => {
     const session = current();
     if (session.readOnly) {
       await io.stderr(t("cli.tui.minimal.readOnlyInput"));
       return undefined;
     }
     try {
-      const sent = await session.sendTurn(text);
+      const sent = await session.sendTurn(text, overlay);
       const outcome = await Promise.race([sent.done, exit.requested]);
       if ("code" in outcome) return outcome.code;
     } catch (caught) {
@@ -214,6 +221,25 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
     const text = line.trim();
     if (text.length === 0) return step();
     if (text.startsWith("/")) {
+      // 엔진 명령도 내장 명령도 아니면 플러그인 이름으로 푼다. 풀린 항목은 이 턴에 얹어 보낸다(§4.12)
+      const planned = await planSlashLine(text, engineCommands, {
+        connection: args.slash.connection,
+        supports: args.slash.supports,
+        threadId: args.slash.threadId,
+      });
+      if (!planned.ok) {
+        await io.stderr(renderFailure(planned.error));
+        return step();
+      }
+      const plan = planned.value;
+      if (plan.kind === "stop") {
+        await sequentially(plan.lines, (shown) => io.stderr(`${shown}\n`));
+        return step();
+      }
+      if (plan.kind === "send") {
+        if (plan.notice !== null) await io.stderr(`${plan.notice}\n`);
+        return (await sendInput(plan.input, plan.overlay)) ?? step();
+      }
       const outcome = await runSlash(parseSlash(text), {
         ...args.slash,
         io,

@@ -30,6 +30,13 @@ export {
 } from "./turn-failure/classify.ts";
 // 실패 문장의 서버 사유를 시크릿 모양을 가린 채 준다(화면의 정보 아이콘과 CLI의 원문 줄이 쓴다). 순수 함수다.
 export { failureReasonOf } from "./turn-failure/reason.ts";
+// 슬래시 이름 풀이(`/이름`을 plugin.invocables 항목으로, review/m5 §4.3.9). 입력창과 CLI가 같이 쓴다. 순수 함수다.
+export {
+  resolveSlashName,
+  type ResolvedOverlay,
+  type SlashCandidate,
+  type SlashResolution,
+} from "./slash/resolve.ts";
 // 웹 검색 view-model(P-01 첫 실행, P-12 도구와 웹). 셸은 `.` 진입으로만 client를 쓰므로 여기서 다시 낸다(DR-10/desktop-client).
 export {
   moveInOrder,

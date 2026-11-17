@@ -20,6 +20,13 @@ interface ProfileCopy {
   readonly common: CommonSet;
 }
 
+/** 대화에 얹힌 턴 덧씌우기 하나(M5c §4.3). 턴이 정착하면 `turnSettled`가 뺀다. 메모리에만 둔다(재시작 복원은 §4.3.5의 뒤 단계) */
+export interface OverlayMark {
+  readonly plugin: string;
+  readonly contentHash: string;
+  readonly until: "turn";
+}
+
 export interface PluginSetDeps {
   readonly profiles: Pick<ProfileTestRunPort, "list" | "onProfilesWritten">;
   /** 대화가 저장한 프로필 id. 저장하지 않았거나 대화가 없으면 null이다 */
@@ -49,6 +56,13 @@ export interface PluginSetHandle {
   /** 저장된 프로필 목록을 다시 읽는다. 대화를 열기 전에 부른다. 열린 대화마다 적용을 예약한다 */
   refresh(): Promise<void>;
   /**
+   * 턴 덧씌우기를 얹고 입력 처리 앞에 적용을 기다린다(M5c §4.3.3). 같은 이름은 한 번만 얹는다.
+   * 입력을 받지 못했으면 `cancelOverlay`로 되돌린다
+   */
+  attachOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
+  /** 얹은 턴 덧씌우기를 뺀다(입력이 접수되지 않았을 때). 집합을 다시 맞춘다 */
+  cancelOverlay(threadId: ThreadId): Promise<void>;
+  /**
    * 한 대화의 E(T)가 바뀌었을 수 있음을 알리고 적용을 예약한다. 켜짐 요청은 X가 마지막으로 맞춘 값과의 차이만 낸다,
    * 그래서 엔진이 끈 등록은 E(T)가 바뀌기 전까지 다시 켜지지 않는다(M5c §4.1.5)
    */
@@ -60,6 +74,8 @@ export interface PluginSetHandle {
 
 export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   let copy: ProfileCopy | undefined;
+  /** 대화별 턴 덧씌우기. 정착할 때 `turnSettled`가 지운다 */
+  const overlays = new Map<ThreadId, readonly OverlayMark[]>();
 
   /** 관리 잠금이 없는 플러그인 이름 */
   function allowed(names: readonly string[]): string[] {
@@ -67,7 +83,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   }
 
   /** 저장한 프로필 id(없으면 null)의 집합. 저장한 프로필이 없으면 기본을 쓰고 `missingProfileId`로 알린다 */
-  function viewFor(stored: string | null): PluginSetView {
+  function viewFor(stored: string | null, marks: readonly OverlayMark[]): PluginSetView {
     const current = copy;
     const known = stored === null ? undefined : current?.profiles.find((p) => p.id === stored);
     // 저장한 프로필이 없으면 기본을 쓴다(§4.1.1). 복사가 있는데 프로필이 없을 때만 missing으로 본다
@@ -84,13 +100,18 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       current === undefined
         ? deps.registrations().map((info) => info.extension)
         : [...current.common.plugins.map((ref) => ref.name), ...profileNames];
+    // 덧씌우기는 프로필 목록 뒤에 든다(M5c §4.1.3). 같은 이름은 처음 것을 남긴다
     const plugins = allowed(
-      [...new Set([...deps.forcedPlugins(), ...base])].filter((name) => !isHookUnitName(name)),
+      [...new Set([...deps.forcedPlugins(), ...base, ...marks.map((mark) => mark.plugin)])].filter(
+        (name) => !isHookUnitName(name),
+      ),
     );
     const pluginHashes = plugins.flatMap((name) => {
       const contentHash = deps.loadedHash(name);
       return contentHash === undefined ? [] : [{ plugin: name, contentHash }];
     });
+    // 관리 잠금으로 빠진 덧씌우기는 표지에도 싣지 않는다(집합에 없는 것을 적용됐다고 보이지 않게)
+    const live = marks.filter((mark) => plugins.includes(mark.plugin));
     return {
       plugins,
       profileId: usedId,
@@ -100,11 +121,25 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
         ? { missingProfileId: stored }
         : {}),
       pluginHashes,
+      ...(live.length === 0
+        ? {}
+        : {
+            overlay: live.map((mark) => ({
+              plugin: mark.plugin,
+              contentHash: mark.contentHash,
+              until: mark.until,
+            })),
+          }),
     };
   }
 
+  /** 대화의 턴 덧씌우기 표지. 없으면 빈 목록이다 */
+  function marksOf(threadId: ThreadId): readonly OverlayMark[] {
+    return overlays.get(threadId) ?? [];
+  }
+
   function viewOf(threadId: ThreadId): PluginSetView {
-    return viewFor(deps.threadProfileId(threadId));
+    return viewFor(deps.threadProfileId(threadId), marksOf(threadId));
   }
 
   function recomputeOpen(): void {
@@ -127,6 +162,11 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     deps.toggles.requestApply(threadId);
   }
 
+  function setOverlays(threadId: ThreadId, marks: readonly OverlayMark[]): void {
+    if (marks.length === 0) overlays.delete(threadId);
+    else overlays.set(threadId, marks);
+  }
+
   // 저장이 끝난 순간의 내용으로 복사를 바꾸고 열린 대화의 적용을 예약한다. 쓰기 응답 전에 끝나므로 쓰고 바로 읽어도 새 집합이다
   const unsubscribe = deps.profiles.onProfilesWritten((written) => {
     copy = { profiles: written.profiles, common: written.common };
@@ -134,10 +174,33 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   });
 
   return {
-    port: { resolve: viewOf },
+    port: {
+      resolve: viewOf,
+      // 턴이 정착하면 그 턴의 덧씌우기를 뺀다. 집합은 다음 유휴 적용에서 맞춘다(overlay_off)
+      turnSettled: (threadId) => {
+        if (!overlays.has(threadId)) return;
+        overlays.delete(threadId);
+        recompute(threadId);
+      },
+    },
     refresh,
     recompute,
-    defaultView: () => viewFor(null),
+    attachOverlay: async (threadId, marks) => {
+      const merged = [...marksOf(threadId)];
+      for (const mark of marks) {
+        if (!merged.some((item) => item.plugin === mark.plugin)) merged.push(mark);
+      }
+      setOverlays(threadId, merged);
+      if (copy === undefined) return;
+      await deps.toggles.applyNow(threadId);
+    },
+    cancelOverlay: async (threadId) => {
+      if (!overlays.has(threadId)) return;
+      overlays.delete(threadId);
+      if (copy === undefined) return;
+      await deps.toggles.applyNow(threadId);
+    },
+    defaultView: () => viewFor(null, []),
     dispose: unsubscribe,
   };
 }

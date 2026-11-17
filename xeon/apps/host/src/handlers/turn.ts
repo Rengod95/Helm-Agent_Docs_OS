@@ -8,9 +8,11 @@ import {
   type WireHandler,
 } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
+import type { OverlayRefusal } from "../assembly/plugins/overlay.ts";
 import type { Engine, WithdrawFailure } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import { titleFromInput } from "../title.ts";
+import { wireErrorOfPluginFailure } from "./m5/plugins.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 import { requireOwned } from "./thread.ts";
 
@@ -41,6 +43,30 @@ function loopRejection(error: LoopError, where: string): WireError {
   }
 }
 
+/**
+ * 턴 덧씌우기의 거절을 와이어 오류로 옮긴다(M5c §3.4). 플러그인 쪽 실패는 플러그인 처리기의 표를 그대로 쓴다.
+ * 이름이 없는 거절(`limit`, `draft_unavailable`)은 `details`가 없다
+ */
+function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
+  switch (refusal.kind) {
+    case "limit":
+      return wireError("overlay.limit");
+    case "not_found":
+      return wireError("overlay.notFound", { details: { name: refusal.name } });
+    case "not_reviewed":
+      return wireError("overlay.notReviewed", { details: { name: refusal.name } });
+    case "no_entry":
+      // 시작 Drive 항목도 여기로 거절한다. 일회 Drive는 M5c-2의 일이라 이 단계에서는 항목이 없는 것과 같다(§4.3.2)
+      return wireError("overlay.noEntry", { details: { name: refusal.name } });
+    case "draft_unavailable":
+      return wireError("overlay.draftUnavailable");
+    case "plugin":
+      return wireErrorOfPluginFailure(refusal.failure);
+    default:
+      return assertNever(refusal, "OverlayRefusal");
+  }
+}
+
 export function createTurnStartHandler(
   engine: Engine,
   hub: () => ConnectionHub,
@@ -52,21 +78,37 @@ export function createTurnStartHandler(
     if (!exists.ok) throw wireErrorOfStore(exists.error, "turn.start thread lookup");
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     await claimWrite(engine, hub(), context.connectionId, threadId);
+    // 덧씌우기는 입력 처리 앞에 얹고 적용을 기다린다(M5c §4.3.3). 실행 중인 대화에는 얹지 않는다:
+    // 턴 덧씌우기는 그 턴이 정착할 때 빠지므로 큐에 든 입력이 그 덧씌우기를 볼 수 없다 [제안]
+    const overlay = params.overlay ?? [];
+    let cacheImpact: "none" | "tool_change_append" | null = null;
+    if (overlay.length > 0) {
+      if (ports.turns.isLive(threadId)) throw wireError("turn.busy");
+      const attached = await ports.overlay.attach(threadId, overlay);
+      if (!attached.ok) throw wireErrorOfOverlay(attached.error);
+      cacheImpact = attached.value.cacheImpact;
+    }
     const outcome = await ports.turns.submit(
       threadId,
       params.input,
       params.requestId,
       params.whenBusy,
     );
+    // 입력이 접수되지 않았거나 턴이 되지 않았으면 얹은 덧씌우기를 되돌린다
+    if (overlay.length > 0 && (!outcome.ok || "delivered" in outcome)) {
+      await ports.overlay.cancel(threadId);
+    }
     if (!outcome.ok) {
       if (outcome.reason === "rejected") throw loopRejection(outcome.error, "turn.start");
       throw wireError("turn.busy", { details: { turnId: outcome.turnId } });
     }
     nameThreadFromFirstInput(engine, threadId, params.input);
     if ("delivered" in outcome) return { delivered: true };
-    return outcome.queued === true
-      ? { turnId: outcome.turnId, queued: true }
-      : { turnId: outcome.turnId };
+    const started =
+      outcome.queued === true
+        ? { turnId: outcome.turnId, queued: true as const }
+        : { turnId: outcome.turnId };
+    return cacheImpact === null ? started : { ...started, cacheImpact };
   };
 }
 

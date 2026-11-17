@@ -9,6 +9,7 @@ import {
   CommonInputSchema,
   CommonSetSchema,
   OVERLAY_LIMIT,
+  OVERLAY_WIRE_MAX,
   OverlayListSchema,
   OverlayRefSchema,
   PROFILE_ID_PATTERN,
@@ -292,10 +293,13 @@ describe("profile.* params and results (M5c §3.4)", () => {
 });
 
 describe("overlay and the thread profile view (M5c §3.1, §4.3.9)", () => {
-  test("OVERLAY_LIMIT is four, and turn.start's overlay list stops there", () => {
+  test("OVERLAY_LIMIT is four; turn.start's wire list takes up to OVERLAY_WIRE_MAX so the handler answers overlay.limit", () => {
     expect(OVERLAY_LIMIT).toBe(4);
-    expect(parse(OverlayListSchema, list(4, overlayRefOf)).ok).toBe(true);
-    expect(parse(OverlayListSchema, list(5, overlayRefOf)).ok).toBe(false);
+    expect(OVERLAY_WIRE_MAX).toBe(16);
+    // 다섯 개째부터의 한도는 처리기가 `overlay.limit`으로 답한다(스키마가 invalidParams로 먼저 거절하지 않는다)
+    expect(parse(OverlayListSchema, list(5, overlayRefOf)).ok).toBe(true);
+    expect(parse(OverlayListSchema, list(16, overlayRefOf)).ok).toBe(true);
+    expect(parse(OverlayListSchema, list(17, overlayRefOf)).ok).toBe(false);
   });
 
   test("an overlay ref names a plugin, optionally a draft and an entry, and nothing else", () => {

@@ -1,6 +1,7 @@
 import { t } from "@fresnel/client/i18n";
-import { assertNever, attemptAsync, parse, type Result } from "@fresnel/contracts";
+import { assertNever, attemptAsync, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import { ExtensionNameSchema } from "@fresnel/contracts/extensions";
 import { SETTING_KEY_PATTERN, type EffectiveSetting } from "@fresnel/contracts/settings";
 import type {
   CommandListResult,
@@ -11,6 +12,13 @@ import type {
 } from "@fresnel/contracts/wire";
 import { failureOfCaught, renderFailure, type Failure } from "./errors.ts";
 import type { CliIo } from "./io.ts";
+import {
+  failureResult,
+  planOverlaySlash,
+  profileIdOf,
+  type OverlayContext,
+  type OverlayPlan,
+} from "./overlay-slash.ts";
 import { interpretRaw, showValue } from "./settings-input.ts";
 import { titleProblem } from "./threads.ts";
 
@@ -36,6 +44,8 @@ export type SlashCommand =
   | { readonly kind: "rename"; readonly title: string }
   /** 지금 대화를 요약한다(thread.compact). `instructions`는 `/compact` 뒤에 적은 요약 지침이다 */
   | { readonly kind: "compact"; readonly instructions: string | null }
+  /** `/profile remove <플러그인>`: 이 대화의 프로필에서 플러그인 하나를 뺀다(profile.removePlugin). [제안] 문법 */
+  | { readonly kind: "profileRemove"; readonly plugin: string }
   | { readonly kind: "usage"; readonly message: string }
   /** 내장도 별칭도 아닌 이름. 엔진에 등록한 명령일 수 있어 줄 전체를 command.run에 넘긴다(§4.12) */
   | { readonly kind: "engine"; readonly name: string; readonly text: string };
@@ -54,6 +64,7 @@ const BUILTIN_NAMES: ReadonlySet<string> = new Set([
   "resume",
   "rename",
   "compact",
+  "profile",
 ]);
 /** Tab 완성에 보이는 내장 이름. exit는 quit의 별칭이라 뺀다 */
 const COMPLETED_BUILTINS: readonly string[] = [
@@ -63,7 +74,11 @@ const COMPLETED_BUILTINS: readonly string[] = [
   "resume",
   "rename",
   "compact",
+  "profile",
 ];
+
+/** `/profile`의 하위 명령. 지금은 `remove`뿐이다 */
+const PROFILE_REMOVE = /^remove\s+(\S+)$/;
 
 /** 슬래시로 시작하는 한 줄을 명령으로 읽는다. 순수 함수 */
 export function parseSlash(line: string): SlashCommand {
@@ -100,6 +115,14 @@ export function parseSlash(line: string): SlashCommand {
     case "compact":
       // 요약 지침은 thread.compact가 1자 이상 2만 자 이하만 받는다. 길이를 넘으면 호스트가 invalidParams로 거부한다
       return { kind: "compact", instructions: rest.length === 0 ? null : rest };
+    case "profile": {
+      const matched = PROFILE_REMOVE.exec(rest);
+      const plugin = matched?.[1];
+      if (plugin === undefined || !parse(ExtensionNameSchema, plugin).ok) {
+        return { kind: "usage", message: t("cli.usage.slash.profile") };
+      }
+      return { kind: "profileRemove", plugin };
+    }
     // fresnel-disable-next-line fresnel/switch-default-never -- 슬래시 이름은 닫히지 않은 문자열이다. 별칭이 아니면 모르는 명령 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: {
       const alias = SLASH_ALIASES.find((candidate) => candidate.name === name);
@@ -123,6 +146,7 @@ function slashHelp(engine: readonly EngineCommand[] = []): string {
     t("cli.slash.help.resume"),
     t("cli.slash.help.rename"),
     t("cli.slash.help.compact"),
+    t("cli.slash.help.profile"),
     ...engineHelpLines(engine),
     "",
   ].join("\n");
@@ -368,6 +392,70 @@ async function compactSession(
   }
 }
 
+/** 실패 하나를 두 줄 오류로 알리고 입력을 이어 받는다 */
+async function reportFailure(
+  ctx: Pick<SlashContext, "io">,
+  failure: Pick<Failure, "message" | "fix" | "kind">,
+): Promise<SlashOutcome> {
+  await ctx.io.stderr(renderFailure(failure));
+  return "continue";
+}
+
+/**
+ * `/profile remove <플러그인>`: 이 대화의 프로필에서 플러그인 하나를 뺀다. 프로필의 개정을 읽어 `baseRev`로 보낸다(profile.removePlugin).
+ * 공통 묶음에서 온 플러그인과 프로필에 없는 플러그인은 호스트가 거절하고, 그 문구를 옮겨 보인다.
+ */
+async function removeFromProfile(ctx: SlashContext, plugin: string): Promise<SlashOutcome> {
+  if (!ctx.supports("profile.removePlugin")) {
+    return reportFailure(ctx, {
+      message: t("cli.errors.slash.profileUnsupported.message"),
+      fix: t("cli.errors.wire.jsonrpcMethodNotFound.fix"),
+    });
+  }
+  const profile = await profileIdOf(ctx.connection, ctx.threadId());
+  if (!profile.ok) return reportFailure(ctx, profile.error);
+  const id = profile.value;
+  if (id === null) {
+    return reportFailure(ctx, {
+      message: t("cli.errors.slash.noProfile.message"),
+      fix: t("cli.errors.slash.noProfile.fix"),
+    });
+  }
+  const current = await failureResult(() => ctx.connection.request("profile.get", { id }));
+  if (!current.ok) return reportFailure(ctx, current.error);
+  const removed = await failureResult(() =>
+    ctx.connection.request("profile.removePlugin", {
+      id,
+      plugin,
+      baseRev: current.value.profile.rev,
+    }),
+  );
+  if (!removed.ok) return reportFailure(ctx, removed.error);
+  await ctx.io.stdout(t("cli.slash.profile.removed", { plugin, profile: id }));
+  if (removed.value.preview.dropsDrive !== null) {
+    await ctx.io.stdout(t("cli.slash.profile.dropsDrive"));
+  }
+  return "continue";
+}
+
+/**
+ * 입력 한 줄이 엔진 명령도 내장 명령도 아니면 플러그인 이름으로 푼다(overlay-slash.ts). 줄이 `/`로 시작하지 않거나, 내장·별칭이거나,
+ * `engine`(command.list)에 있는 이름이면 아무 요청도 보내지 않고 `none`이다. 호출자가 `none`이면 이전처럼 명령으로 보낸다
+ */
+export async function planSlashLine(
+  line: string,
+  engine: readonly EngineCommand[],
+  ctx: OverlayContext,
+): Promise<Result<OverlayPlan, Failure>> {
+  const text = line.trim();
+  if (!text.startsWith("/")) return ok({ kind: "none" });
+  const command = parseSlash(text);
+  if (command.kind !== "engine" || engine.some((candidate) => candidate.name === command.name)) {
+    return ok({ kind: "none" });
+  }
+  return planOverlaySlash(text, ctx);
+}
+
 /** 동작 명령의 처리 결과를 보인다. 메시지가 있으면 메시지, 없고 구조 값이 있으면 JSON이다 */
 function doneText(result: Extract<CommandRunResult, { status: "done" }>): string {
   if (result.message !== null) return `${result.message}\n`;
@@ -459,6 +547,8 @@ export async function runSlash(command: SlashCommand, ctx: SlashContext): Promis
       return renameSession(ctx, command.title);
     case "compact":
       return compactSession(ctx, command.instructions);
+    case "profileRemove":
+      return removeFromProfile(ctx, command.plugin);
     case "usage":
       await ctx.io.stderr(`${command.message}\n`);
       return "continue";
@@ -476,7 +566,9 @@ export type PrintSlashOutcome =
   /** 명령이 펼친 텍스트를 대화 입력으로 보낸다 */
   | { readonly kind: "send"; readonly text: string }
   /** 명령을 실행했다. 실패는 stderr에 알렸다 */
-  | { readonly kind: "ran"; readonly failed: boolean };
+  | { readonly kind: "ran"; readonly failed: boolean }
+  /** 엔진 명령이 아닌 이름을 플러그인 이름으로 푼 결과다. `none`이면 줄을 대화 입력으로 보낸다 */
+  | { readonly kind: "planned"; readonly planned: Result<OverlayPlan, Failure> };
 
 /**
  * print 모드의 입력이 엔진에 등록된 명령(`command.list`에 있는 이름)이면 대화형처럼 `command.run`으로 실행한다(§4.12).
@@ -491,7 +583,10 @@ export async function runPrintSlash(
   const command = parseSlash(line);
   if (command.kind !== "engine") return { kind: "chat" };
   const engine = await loadEngineCommands(ctx.connection, ctx.supports, ctx.threadId());
-  if (!engine.some((candidate) => candidate.name === command.name)) return { kind: "chat" };
+  // 엔진 명령 목록에 없는 이름은 플러그인 이름일 수 있다(§4.12). 풀지 못하면 줄을 그대로 대화 입력으로 보낸다
+  if (!engine.some((candidate) => candidate.name === command.name)) {
+    return { kind: "planned", planned: await planOverlaySlash(line, ctx) };
+  }
   let failed = false;
   const outcome = await runEngineCommand(
     {

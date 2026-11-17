@@ -105,6 +105,7 @@ import { createM4Ports } from "./m4/index.ts";
 import {
   approvalHooksOf,
   createPluginReview,
+  createOverlayPort,
   createPluginService,
   type PluginStore,
 } from "./plugins/index.ts";
@@ -335,6 +336,9 @@ async function canonicalFolder(path: string): Promise<string | undefined> {
   const canonical = await canonicalWorkspace(path);
   return canonical.ok ? canonical.value : undefined;
 }
+
+/** 덧씌우기 적재를 기다리는 상한(ms). 넘으면 그 플러그인 없이 턴을 시작하고 기록을 남긴다 */
+const OVERLAY_LOAD_TIMEOUT_MS = 10_000;
 
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
@@ -1030,6 +1034,33 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       });
     },
   );
+  // 턴 덧씌우기(M5c §4.3). 검사는 플러그인 서비스가 주는 대상으로, 집합은 호스트의 E(T)로 본다. 적재되지 않은 플러그인은 검토본 로더로 적재한다
+  const overlay = createOverlayPort({
+    targetOf: (name) => pluginService.overlayTarget(name),
+    inSet: (threadId) => ports.m4.pluginSet.port.resolve(threadId).plugins,
+    ensureLoaded: async (names) => {
+      const loader = deps.extRead.loader();
+      if (loader === undefined) return;
+      // 적재는 이름마다 서로 독립이라 함께 기다린다. 각 적재는 상한 시간을 가진다
+      await Promise.all(
+        names
+          .filter((name) => !loader.list().some((info) => info.name === name))
+          .map(async (name) => {
+            const installed = await loader.loadInstalled(
+              name,
+              AbortSignal.timeout(OVERLAY_LOAD_TIMEOUT_MS),
+            );
+            if (!installed.ok) {
+              log.error("plugin.overlay.load_failed", { name, kind: installed.error.kind });
+            }
+          }),
+      );
+    },
+    pluginSet: {
+      attachOverlay: (threadId, marks) => ports.m4.pluginSet.attachOverlay(threadId, marks),
+      cancelOverlay: (threadId) => ports.m4.pluginSet.cancelOverlay(threadId),
+    },
+  });
   const ports: EnginePorts = {
     threads,
     turns,
@@ -1075,7 +1106,15 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       draftCreate: (dir, originThreadId) => pluginReview.draftCreate(dir, originThreadId),
       draftList: (name) => pluginReview.draftList(name),
       draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
+      invocables: async (threadId) => {
+        if (!isId("thr", threadId)) return err({ kind: "thread_not_found", threadId });
+        const exists = threads.exists(threadId);
+        if (!exists.ok) return err({ kind: "store", code: exists.error.kind });
+        if (!exists.value) return err({ kind: "thread_not_found", threadId });
+        return pluginService.invocables();
+      },
     },
+    overlay,
     pluginReview,
     m4: createM4Ports(
       deps.ext,
@@ -1100,6 +1139,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           requestApply: (threadId) => {
             registrationToggleSourceOf(deps.ext).requestApply(threadId);
           },
+          applyNow: (threadId) => registrationToggleSourceOf(deps.ext).applyNow(threadId),
         },
         registrations: () => deps.ext.registrations(),
         configDir: deps.configDir,

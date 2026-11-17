@@ -46,6 +46,11 @@ export interface BoundaryHooks {
 export interface BoundaryService extends BoundaryHooks {
   /** 토글 요청 뒤 유휴 thread에서 적용을 예약한다 */
   requestApply(threadId?: ThreadId): void;
+  /**
+   * turn.start의 덧씌우기를 입력 처리 앞에 적용한다(M5c §4.3.3). 유휴면 E(T) 차이를 커밋하고 끝날 때까지 기다린다.
+   * 실행 중이거나 다른 적용이 진행 중이면 기다리지 않고 다음 경계에 맡긴다
+   */
+  applyNow(threadId: ThreadId): Promise<void>;
   openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
 }
@@ -154,6 +159,13 @@ function hashesOf(view: PluginSetView): string {
     .join("\n");
 }
 
+function overlayKeyOf(view: PluginSetView): string {
+  return (view.overlay ?? [])
+    .map((item) => `${item.plugin}\0${item.contentHash}\0${item.until}`)
+    .toSorted()
+    .join("\n");
+}
+
 function sameApplied(a: PluginSetView, b: PluginSetView): boolean {
   return (
     a.profileId === b.profileId &&
@@ -161,7 +173,8 @@ function sameApplied(a: PluginSetView, b: PluginSetView): boolean {
     a.commonRev === b.commonRev &&
     a.missingProfileId === b.missingProfileId &&
     a.plugins.toSorted().join("\n") === b.plugins.toSorted().join("\n") &&
-    hashesOf(a) === hashesOf(b)
+    hashesOf(a) === hashesOf(b) &&
+    overlayKeyOf(a) === overlayKeyOf(b)
   );
 }
 
@@ -210,22 +223,39 @@ function applyPluginSet(
   const added = view.plugins.filter((name) => !before.has(name)).toSorted();
   const removed = (previous?.plugins ?? []).filter((name) => !wanted.has(name)).toSorted();
   const updated = previous === null ? [] : updatedOf(previous, view);
+  const liveOverlay = view.overlay ?? [];
+  const previousOverlay = previous?.overlay ?? [];
+  const overlayOn = liveOverlay.filter(
+    (item) => !previousOverlay.some((old) => old.plugin === item.plugin),
+  );
+  const overlayOff = previousOverlay.filter(
+    (item) => !liveOverlay.some((now) => now.plugin === item.plugin),
+  );
   const reason =
     previous === null
-      ? view.missingProfileId === undefined
-        ? "open"
-        : "profile_missing"
+      ? overlayOn.length > 0
+        ? "overlay_on"
+        : view.missingProfileId === undefined
+          ? "open"
+          : "profile_missing"
       : previous.profileId !== view.profileId
         ? "switched"
         : previous.profileRev !== view.profileRev
           ? "profile_edited"
           : previous.commonRev !== view.commonRev
             ? "common_edited"
-            : removed.length > 0
-              ? "plugin_stopped"
-              : updated.length > 0
-                ? "plugin_updated"
-                : "profile_edited";
+            : overlayOn.length > 0
+              ? "overlay_on"
+              : overlayOff.length > 0
+                ? "overlay_off"
+                : removed.length > 0
+                  ? "plugin_stopped"
+                  : updated.length > 0
+                    ? "plugin_updated"
+                    : "profile_edited";
+  // 덧씌우기 항목은 켜거나 끈 것만 싣는다. 다른 이유에서는 이 경계에서 살아 있는 덧씌우기를 싣는다(M5c §3.2)
+  const overlay =
+    reason === "overlay_on" ? overlayOn : reason === "overlay_off" ? overlayOff : liveOverlay;
   txn.drafts.push(
     makeDraft(core.deps.ids, {
       threadId: thread.threadId,
@@ -237,7 +267,11 @@ function applyPluginSet(
         commonRev: view.commonRev,
         added,
         removed,
-        overlay: [],
+        overlay: overlay.map((item) => ({
+          plugin: item.plugin,
+          contentHash: item.contentHash,
+          until: item.until,
+        })),
         ...(updated.length === 0 ? {} : { updated }),
       },
       turnId: txn.signal.turnId,
@@ -393,6 +427,10 @@ export function createBoundary(
       lease.onBoundary(thread, signal);
       // 이 경계 커밋에 실린 이벤트의 수명주기 지점은 커밋 뒤에만 발화한다(M3-REQ-108)
       await lifecycle.afterCommit(thread.threadId, txn.drafts);
+      // 턴이 정착했으면 호스트가 턴 덧씌우기를 풀고 집합을 다시 맞춘다(M5c §4.3.4). 맞추기는 다음 유휴 적용으로 간다
+      if (signal.kind === "turn_settled") {
+        core.ports.get(PluginSetPortKey)?.turnSettled?.(thread.threadId);
+      }
     } else {
       lease.revertWait(thread, txn);
       txn.grant?.abort.abort();
@@ -474,6 +512,23 @@ export function createBoundary(
     }
   }
 
+  /**
+   * 덧씌우기 적용(M5c §4.3.3). 대화가 유휴이고 다른 적용이 없으면 지금 커밋하고 끝날 때까지 기다린다.
+   * 실행 중이면 다음 단계 경계가 맞춘다(`requestApply`와 같다). 열려 있지 않은 대화는 무시한다
+   */
+  async function applyNow(threadId: ThreadId): Promise<void> {
+    const thread = core.threads.get(threadId);
+    if (thread === undefined) return;
+    const loop = core.ports.get(LoopPortKey);
+    if (loop !== undefined && loop.status(threadId) !== "idle") {
+      requestApply(threadId);
+      return;
+    }
+    // 진행 중인 유휴 적용이 끝난 뒤에 이 적용을 한다(같은 차이를 두 번 쓰지 않도록 `prepare`와 같은 순서)
+    if (thread.idleApply !== null) await thread.idleApply;
+    await applyIdleOnce(thread);
+  }
+
   function requestApply(threadId?: ThreadId): void {
     const targets = threadId === undefined ? [...core.threads.values()] : [threadOf(threadId)];
     for (const thread of targets) {
@@ -494,6 +549,7 @@ export function createBoundary(
     prepare,
     settle,
     requestApply,
+    applyNow,
     async openThread(threadId, options) {
       if (core.threads.has(threadId)) await this.closeThread(threadId);
       const port = core.ports.get(RecordCommitPortKey);

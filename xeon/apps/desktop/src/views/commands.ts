@@ -37,6 +37,7 @@ import type {
   HookEntry,
   HostClientView,
   NotifyDeliveredParams,
+  OverlayRef,
   HostConnection,
   ExtBindingsResult,
   ExtScaffoldParams,
@@ -1008,12 +1009,14 @@ export interface Commands {
   /** requestId는 같은 입력의 재시도가 같은 값을 쓰도록 호출자가 만든다(spec 4.13) */
   /** `attachments`는 `addAttachment`가 돌려준 입력 파트다. 있으면 슬래시 명령으로 풀지 않고 글과 함께 대화 입력으로 보낸다 */
   /** `whenBusy`는 실행 중일 때 입력이 들어갈 자리다. 생략하면 `followUp`(끝난 뒤)이다 */
+  /** `overlay`는 이 턴에만 얹을 플러그인 항목이다(`turn.start`의 overlay). 호출자가 이미 이름을 풀었다. 있으면 슬래시 명령으로 풀지 않는다 */
   sendTurn(
     threadId: ThreadId,
     text: string,
     requestId: string,
     attachments?: AttachmentParts,
     whenBusy?: BusyInputMode,
+    overlay?: readonly OverlayRef[],
   ): Promise<Result<null, CommandError>>;
   /** `attachments.add`: 첨부 하나를 엔진에 올리고 입력 파트를 받는다. 쓰기 소유를 얻지 않는다 */
   addAttachment(

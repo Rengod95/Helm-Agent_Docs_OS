@@ -15,6 +15,7 @@ import {
   type Scheduler,
 } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
+import type { OverlayRef } from "@fresnel/contracts/wire";
 import {
   buildDiagnostics,
   type AppVersions,
@@ -194,11 +195,19 @@ export function createCommands(
     requestId: string,
     attachments: AttachmentParts = [],
     whenBusy: BusyInputMode = "followUp",
+    overlay: readonly OverlayRef[] = [],
   ): Promise<Result<null, CommandError>> => {
     const input = attachments.length === 0 ? text : turnInputOf(text, attachments);
     const started = await withWriteConnection((c) =>
       // 실행 중이면 입력은 whenBusy 자리의 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a). 기본은 followUp(끝난 뒤)이다. 이미 도는 turn이 없으면 whenBusy는 무시된다
-      c.request("turn.start", { threadId, input, requestId, whenBusy }),
+      c.request("turn.start", {
+        threadId,
+        input,
+        requestId,
+        whenBusy,
+        // 덧씌우기는 이 턴에만 얹는다. 없으면 실어 보내지 않는다(기존 호출과 같은 모양)
+        ...(overlay.length === 0 ? {} : { overlay: [...overlay] }),
+      }),
     );
     if (!started.ok) {
       showLockedIfLocked(threadId, started.error);
@@ -300,7 +309,10 @@ export function createCommands(
       session.link()?.openThread(created.value.threadId);
       return ok(null);
     },
-    async sendTurn(threadId, text, requestId, attachments, whenBusy = "followUp") {
+    async sendTurn(threadId, text, requestId, attachments, whenBusy = "followUp", overlay = []) {
+      // 덧씌우기가 있으면 호출자가 이름을 이미 풀었다. 줄을 슬래시 명령으로 다시 풀지 않고 대화 입력으로 보낸다
+      if (overlay.length > 0)
+        return startTurn(threadId, text, requestId, attachments, whenBusy, overlay);
       // 첨부가 있으면 슬래시 명령으로 풀지 않는다(첨부 파트가 명령 인자로 흘러가지 않게)
       if (attachments !== undefined && attachments.length > 0)
         return startTurn(threadId, text, requestId, attachments, whenBusy);

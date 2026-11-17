@@ -19,6 +19,7 @@ import {
   type EventsSubscribeResult,
   type EventWire,
   type JsonRpcMessage,
+  type OverlayRef,
   type StreamPosition,
   type TurnResumeResult,
 } from "@fresnel/contracts/wire";
@@ -179,7 +180,8 @@ export interface ChatSession {
   interrupt(): Promise<boolean>;
   /** 구독을 닫고 알림 처리를 멈춘다. 연결은 닫지 않는다(/resume이 다른 세션으로 바꿀 때) */
   close(): Promise<void>;
-  sendTurn(input: string): Promise<SentTurn>;
+  /** `overlay`는 이 턴에만 얹는 플러그인 항목이다(L4.cli.spec §4.12). 비어 있으면 turn.start에 싣지 않는다 */
+  sendTurn(input: string, overlay?: readonly OverlayRef[]): Promise<SentTurn>;
   /** 끊긴 turn을 이어 실행한다(turn.resume, G1-02). 사용자가 확인한 뒤에만 부른다. 호스트는 자동 재개를 하지 않는다 */
   resumeTurn(): Promise<ResumedTurn>;
   /** 지금까지 도착한 알림의 처리가 끝나기를 기다린다 */
@@ -752,11 +754,16 @@ export async function openChatSession(
       // 구독 해제 실패는 닫는 쪽에 알릴 일이 아니다: 연결을 닫으면 구독도 끝난다
       await attemptAsync(() => connection.request("events.unsubscribe", { sub }));
     },
-    async sendTurn(input) {
+    async sendTurn(input, overlay) {
       live.turnActive = true;
       try {
         const requestId = handle.newRequestId();
-        const started = await connection.request("turn.start", { threadId, input, requestId });
+        const started = await connection.request("turn.start", {
+          threadId,
+          input,
+          requestId,
+          ...(overlay === undefined || overlay.length === 0 ? {} : { overlay: [...overlay] }),
+        });
         if ("delivered" in started) {
           // 기다릴 turn이 없다. 플러그인이 이어 시작하는 turn이나 코어 루프로 돌아온 입력의 turn은 알림으로 그려진다
           live.turnActive = false;

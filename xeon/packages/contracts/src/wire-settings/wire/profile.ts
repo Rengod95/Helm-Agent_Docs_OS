@@ -33,8 +33,10 @@ const ToolName = Type.String({ minLength: 1, maxLength: 128 });
 export const PROFILE_ID_PATTERN: string = "^[a-z][a-z0-9-]{0,47}$";
 /** 저장 상한. 플러그인 목록, 설정 값, 프로필 개수 */
 export const PROFILE_LIMITS = { plugins: 128, settings: 128, profiles: 200 } as const;
-/** 한 턴에 얹을 수 있는 덧씌우기 상한(`turn.start.overlay`) */
+/** 한 턴에 얹을 수 있는 덧씌우기 상한(`turn.start.overlay`). 넘으면 호스트가 `overlay.limit`으로 거절한다 */
 export const OVERLAY_LIMIT: number = 4;
+/** `turn.start.overlay`의 와이어 상한. 상한 초과를 스키마가 아니라 `overlay.limit`으로 답하도록 `OVERLAY_LIMIT`보다 넉넉히 둔다 */
+export const OVERLAY_WIRE_MAX: number = 16;
 
 // ── 저장 모양 ─────────────────────────────────────────────────────────────
 
@@ -325,8 +327,8 @@ const OverlayRefShape = closed({
 export const OverlayRefSchema: TUnsafe<OverlayRef> = Type.Unsafe<OverlayRef>(
   OverlayRefShape satisfies SchemaProof<OverlayRef, typeof OverlayRefShape>,
 );
-/** `turn.start`의 `overlay` 필드 모양. 최대 `OVERLAY_LIMIT`개다. 호스트 `turn.start` 스키마가 이 값을 쓴다 */
-const OverlayListShape = Type.Array(OverlayRefShape, { maxItems: OVERLAY_LIMIT });
+/** `turn.start`의 `overlay` 필드 모양. 와이어 상한은 `OVERLAY_WIRE_MAX`, 턴당 한도 `OVERLAY_LIMIT`은 처리기가 본다 */
+const OverlayListShape = Type.Array(OverlayRefShape, { maxItems: OVERLAY_WIRE_MAX });
 export const OverlayListSchema: TUnsafe<OverlayRef[]> = Type.Unsafe<OverlayRef[]>(
   OverlayListShape satisfies SchemaSound<OverlayRef[], typeof OverlayListShape>,
 );

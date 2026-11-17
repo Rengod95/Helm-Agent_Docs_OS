@@ -361,6 +361,8 @@ export interface ExtHostInternals {
   ): void;
   /** thread의 적용을 예약한다(`RegistrationToggleSourceOf.requestApply`의 바탕). 열려 있지 않으면 무시한다 */
   requestApply(threadId: ThreadId): void;
+  /** thread의 적용을 지금 하고 끝날 때까지 기다린다(`RegistrationToggleSourceOf.applyNow`의 바탕) */
+  applyNow(threadId: ThreadId): Promise<void>;
   /** thread가 Test run 대화인가(`openThread`에 `testRun` 참으로 열었다). testRunControlOf가 읽는다 */
   readonly isTestRun: (threadId: ThreadId) => boolean;
   /** Test run 단계 경계 멈춤 상태(X-19). dispatch가 `boundary.step.after` 뒤에 기다리고 testRunControlOf가 요청을 바꾼다 */
@@ -387,6 +389,11 @@ export interface RegistrationToggleSourceOf {
    * 열려 있지 않은 thread는 무시한다
    */
   requestApply(threadId: ThreadId): void;
+  /**
+   * 이 thread의 E(T) 차이를 지금 적용하고 끝날 때까지 기다린다(유휴일 때). 실행 중이면 다음 단계 경계가 맞춘다.
+   * `turn.start`의 덧씌우기가 입력 처리 앞에 쓴다(M5c §4.3.3). 열려 있지 않은 thread는 무시한다
+   */
+  applyNow(threadId: ThreadId): Promise<void>;
 }
 
 const internalsByHost = new WeakMap<ExtHost, ExtHostInternals>();
@@ -414,6 +421,7 @@ export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSou
     requestApply: (threadId) => {
       internals.requestApply(threadId);
     },
+    applyNow: (threadId) => internals.applyNow(threadId),
   };
 }
 
@@ -1184,6 +1192,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     requestApply(threadId) {
       if (core.threads.has(threadId)) boundary.requestApply(threadId);
+    },
+    async applyNow(threadId) {
+      if (core.threads.has(threadId)) await boundary.applyNow(threadId);
     },
     isTestRun: (threadId) => testRunThreads.has(threadId),
     stepPause,

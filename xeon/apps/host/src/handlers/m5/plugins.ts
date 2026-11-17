@@ -3,6 +3,7 @@ import type { PluginCard } from "@fresnel/contracts/extensions";
 import {
   wireError,
   type DraftInfo,
+  type InvocableEntry,
   type PluginGetResult,
   type PluginListFilter,
   type PluginListResult,
@@ -15,7 +16,7 @@ import type { PluginEditIssue } from "../../assembly/m4/plugin-edit.ts";
 
 // 플러그인 wire(M5c §3.4). `plugin.list`, `plugin.get`, `plugin.scan`(읽기)과 `plugin.requestRemove`, `plugin.revert`,
 // `plugin.draft.create`, `plugin.draft.list`, `plugin.draft.discard`(검토 흐름)다. 처리기는 포트가 돌려준 값을 그대로 옮기고 오류만 wire 오류로 바꾼다.
-// 계산은 `assembly/plugins/`가 한다. `plugin.invocables`와 `plugin.draft.fromInstruction`은 아직 `notImplemented`다.
+// 계산은 `assembly/plugins/`가 한다. `plugin.draft.fromInstruction`은 아직 `notImplemented`다.
 // 검토함(`pluginReview.*`)은 `handlers/m5/plugin-review.ts`가 맡는다. 두 파일이 쓰는 실패 종류는 이 파일에 함께 둔다.
 
 /** 초안 검사 이슈 하나. 와이어에는 `code`와 `severity`만 간다 */
@@ -30,6 +31,8 @@ interface DraftIssue {
 export type PluginPortFailure =
   /** 그 이름의 플러그인이 없다(`extension.notFound`, 기존 오류를 쓴다 §3.4) */
   | { readonly kind: "unknown_plugin"; readonly name: string }
+  /** 그 대화가 없다(`thread.notFound`, `plugin.invocables`) */
+  | { readonly kind: "thread_not_found"; readonly threadId: string }
   /** 되돌릴 현재 검토본이 없다(`plugin.noReviewedCopy`) */
   | { readonly kind: "no_reviewed_copy"; readonly name: string }
   /** 프로필 목록을 읽지 못해 사용처를 계산할 수 없다. 프로필 오류를 그대로 옮긴다 */
@@ -61,6 +64,10 @@ export interface PluginPort {
   requestRemove(name: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   /** 원본 폴더를 현재 검토본 내용으로 되돌린다(`plugin.revert`) */
   revert(name: string): Promise<Result<{ readonly restored: true }, PluginPortFailure>>;
+  /** 대화가 부를 수 있는 항목(`plugin.invocables`). 대화가 없으면 `thread_not_found`다 */
+  invocables(
+    threadId: string,
+  ): Promise<Result<{ readonly entries: readonly InvocableEntry[] }, PluginPortFailure>>;
   draftCreate(
     dir: string,
     originThreadId: string | undefined,
@@ -84,6 +91,7 @@ export interface PluginPort {
 export type PluginMethods =
   | "plugin.list"
   | "plugin.get"
+  | "plugin.invocables"
   | "plugin.scan"
   | "plugin.requestRemove"
   | "plugin.revert"
@@ -96,6 +104,8 @@ export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError 
   switch (failure.kind) {
     case "unknown_plugin":
       return wireError("extension.notFound", { details: { name: failure.name } });
+    case "thread_not_found":
+      return wireError("thread.notFound", { details: { threadId: failure.threadId } });
     case "no_reviewed_copy":
       return wireError("plugin.noReviewedCopy", { details: { name: failure.name } });
     case "profiles":
@@ -151,6 +161,7 @@ export function createPluginHandlers(port: PluginPort): Pick<WireHandlers, Plugi
   return {
     "plugin.list": (params) => unwrap(port.list(params.filter ?? {})),
     "plugin.get": (params) => unwrap(port.get(params.name)),
+    "plugin.invocables": (params) => unwrap(port.invocables(params.threadId)),
     "plugin.scan": () => unwrap(port.scan()),
     "plugin.requestRemove": (params) => unwrap(port.requestRemove(params.name)),
     "plugin.revert": (params) => unwrap(port.revert(params.name)),

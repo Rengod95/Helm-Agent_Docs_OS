@@ -9,6 +9,7 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { OverlayRef } from "@fresnel/contracts/wire";
 import type { ChatCommand, ChatTarget } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";
@@ -34,6 +35,7 @@ import { resolvePrintInput } from "./chat-input.ts";
 import { printUsageLine } from "./usage.ts";
 import { applyOverrides } from "./overrides.ts";
 import { PRINT_WAIT_NOTICE_MS, startWaitNotice } from "../render/wait-notice.ts";
+import { sequentially } from "../util.ts";
 import { offerTurnResume } from "./resume-turn.ts";
 import { noteUndecidedTrust, offerTrust } from "./trust.ts";
 import {
@@ -100,6 +102,25 @@ async function runPrint(
   // 엔진에 등록된 명령(`/helm status`, `/goal …`)은 대화형처럼 명령으로 실행한다. 모델을 부르지 않는다
   const ran = await runPrintSlash(input, slash);
   if (ran.kind === "ran") return ran.failed ? EXIT.error : EXIT.ok;
+  // 엔진 명령이 아닌 `/이름`은 플러그인 이름일 수 있다. 풀린 항목은 이 턴에만 얹고, 모호하거나 입력이 없으면 보내지 않는다(§4.12)
+  let turnText = ran.kind === "send" ? ran.text : input;
+  let overlay: readonly OverlayRef[] = [];
+  if (ran.kind === "planned") {
+    if (!ran.planned.ok) {
+      await ctx.io.stderr(renderFailure(ran.planned.error));
+      return EXIT.error;
+    }
+    const plan = ran.planned.value;
+    if (plan.kind === "stop") {
+      await sequentially(plan.lines, (shown) => ctx.io.stderr(`${shown}\n`));
+      return EXIT.usage;
+    }
+    if (plan.kind === "send") {
+      if (plan.notice !== null) await ctx.io.stderr(`${plan.notice}\n`);
+      turnText = plan.input;
+      overlay = plan.overlay;
+    }
+  }
   // 긴 대화를 이어 가면 첫 출력까지 오래 걸린다. 침묵이 길면 stderr에 한 줄 알린다(JSON 모드 제외)
   const waiting = jsonMode
     ? null
@@ -112,7 +133,7 @@ async function runPrint(
       });
   let end: TurnEnd;
   try {
-    const sent = await session.sendTurn(ran.kind === "send" ? ran.text : input);
+    const sent = await session.sendTurn(turnText, overlay);
     end = await sent.done;
   } finally {
     // 보내지 못했거나 오류로 끝나도 안내를 거둔다. 거두지 않으면 오류 뒤에 기다림 안내가 뒤늦게 나온다
