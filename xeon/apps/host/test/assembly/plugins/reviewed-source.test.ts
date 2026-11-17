@@ -56,6 +56,9 @@ async function approvedStore() {
     bundleDir,
     bundledNames: ["helm"],
     installedDir: join(root, "config", "extensions"),
+    userPluginsDir: join(root, "config", "plugins"),
+    looseSkillsDir: join(root, "data", "skills"),
+    migrationLogPath: join(root, "state", "migration.log"),
     logger: silent,
     now: () => "2026-11-18T01:00:00.000Z",
   });

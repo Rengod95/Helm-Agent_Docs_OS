@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Logger } from "@fresnel/contracts";
 import {
   createPluginStore,
+  createReviewedSource,
   reviewStartupPlugins,
   type PluginStore,
 } from "../../../src/assembly/plugins/index.ts";
@@ -58,6 +59,9 @@ function startup(rig: Rig, bundledNames: readonly string[]) {
     bundleDir: rig.bundleDir,
     bundledNames,
     installedDir: rig.installedDir,
+    userPluginsDir: join(rig.root, "config", "plugins"),
+    looseSkillsDir: join(rig.root, "data", "skills"),
+    migrationLogPath: join(rig.root, "state", "migration.log"),
     logger: SILENT,
     now: () => NOW,
   });
@@ -130,4 +134,27 @@ test("a symbolic link under the installed folder is refused with a diagnostic an
   ]);
   const current = await rig.store.current("linked");
   expect(current.ok && current.value).toBe(null);
+});
+
+test("a bundled code plugin is released with an isolated card, and the reviewed listing names its source as bundled", async () => {
+  const rig = rigOf();
+  writeFiles(join(rig.bundleDir, "coder"), {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "coder",
+      version: "1.0.0",
+      purpose: "Codes",
+      entry: "./plugin.ts",
+      plugins: [{ layer: "plugin", hooks: [] }],
+    }),
+    "plugin.ts": "export {};",
+  });
+  await startup(rig, ["coder"]);
+  const current = await rig.store.current("coder");
+  expect(current.ok && current.value?.meta.origin).toBe("bundled");
+  expect(current.ok && current.value?.meta.card.runs).toEqual({ code: true, isolated: true });
+  const listing = await createReviewedSource(rig.store, SILENT).list();
+  expect(listing.entries.map((entry) => [entry.name, entry.source])).toEqual([
+    ["coder", "bundled"],
+  ]);
 });

@@ -63,6 +63,9 @@ async function releasedRig(): Promise<Rig> {
     bundleDir,
     bundledNames: ["kit"],
     installedDir: join(root, "config", "extensions"),
+    userPluginsDir: join(root, "config", "plugins"),
+    looseSkillsDir: join(root, "data", "skills"),
+    migrationLogPath: join(root, "state", "migration.log"),
     logger: SILENT,
     now: () => "2026-11-18T01:00:00.000Z",
   });

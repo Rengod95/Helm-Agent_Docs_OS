@@ -22,7 +22,8 @@ export interface RootsInput {
   readonly extension: readonly { readonly dir: string; readonly extension: string }[];
 }
 
-function userSkillsDir(dataDir: string): string {
+/** 사용자 스킬 루트(`<OsDirs.data>/skills`). 호스트의 느슨한 스킬 옮김이 같은 위치를 읽도록 내보낸다 */
+export function userSkillsDir(dataDir: string): string {
   return join(dataDir, "skills");
 }
 

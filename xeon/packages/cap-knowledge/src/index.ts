@@ -9,6 +9,7 @@ export {
   withTrustedEvidence,
 } from "./settings.ts";
 export type { KnowledgeSettings, KnowledgeSettingsSource } from "./settings.ts";
+export { userSkillsDir } from "./skills/roots.ts";
 export {
   createKnowledgeProposalWire,
   type KnowledgeProposalListInput,

@@ -1,6 +1,7 @@
 import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createChunkNumbering } from "@fresnel/cap-dialog";
+import { userSkillsDir } from "@fresnel/cap-knowledge";
 import {
   assertNever,
   attempt,
@@ -1060,7 +1061,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       );
     }
     if (defaultsEnabled) {
-      // 저장소를 정리하고(끊긴 승인의 흔적 제거), 번들을 넣고, 설치된 사용자 플러그인을 옮긴다(M5c §4.6, §7.4~7.5)
+      // 저장소를 정리하고(끊긴 승인의 흔적 제거), 번들을 넣고, 설치된 사용자 플러그인과 그 이전 버전, 느슨한 스킬 폴더를 옮긴다(M5c §4.6, §7.4~7.5)
       const recovered = await pluginStore.recover();
       if (!recovered.ok) {
         os.logger("plugin-store").error("plugin.store.recover_failed", {
@@ -1072,6 +1073,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         bundleDir: bundleRoot,
         bundledNames: defaultPluginNames,
         installedDir: userExtensionsDir,
+        userPluginsDir: join(os.dirs.config, "plugins"),
+        looseSkillsDir: userSkillsDir(os.dirs.data),
+        migrationLogPath: join(os.dirs.state, "migration.log"),
         logger: os.logger("plugin-store"),
         now: () => new Date(clock.now()).toISOString(),
       });

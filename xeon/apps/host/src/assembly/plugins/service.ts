@@ -234,6 +234,14 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
     .filter((candidate) => candidate.origin !== "bundled")
     .map((candidate) => basename(candidate.dir));
   for (const candidate of found.candidates) {
+    // 옛 위치(`<config>/extensions`)는 한 릴리스 동안 읽는다(M5c §7.4). 카드의 `origin`은 닫힌 값이라 진단과 로그로만 남긴다
+    if (candidate.legacy) {
+      diagnostics.push({
+        code: "legacy_location",
+        dir: candidate.dir,
+        message: "read from the legacy location; the startup move copies it to the reviewed store",
+      });
+    }
     const read = readPluginFolder(candidate.dir, { origin: candidate.origin });
     if (!read.ok) {
       for (const item of read.error.diagnostics) {

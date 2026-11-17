@@ -3,18 +3,24 @@ import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { attemptAsync, type Logger } from "@fresnel/contracts";
 import { sequentially } from "../../util.ts";
-import { buildPluginCard } from "./card.ts";
 import { compareUtf8 } from "./content-hash.ts";
-import { readPluginFolder, type PluginFolder } from "./folder-reader.ts";
-import type { PluginStore, ReviewActor, ReviewDecision, ReviewOrigin } from "./store.ts";
+import { readPluginFolder } from "./folder-reader.ts";
+import {
+  appendMigrationLog,
+  migrateHistory,
+  migrateLooseSkills,
+  type MigrationRecord,
+} from "./migrate.ts";
+import { promoteFolder, type PromotePlan } from "./promote.ts";
+import type { PluginStore } from "./store.ts";
 
-// 시작 때 검토본 저장소에 넣는 두 가지(M5c §7.4, §7.5). 둘 다 검토 항목을 거치지 않는다.
+// 시작 때 검토본 저장소에 넣는 것(M5c §7.4, §7.5). 검토 항목을 거치지 않는다.
 // - 번들(`bundled`): 릴리스가 든 기본 플러그인 폴더를 `actor: "release"`로 넣는다. 앱 업데이트가 신뢰 근거다.
 // - 설치된 사용자 플러그인(`<configDir>/extensions/<name>`): 현재 내용을 `actor: "migration"`으로 넣는다. 원본 폴더는 지우지 않는다.
-// 둘 다 멱등이다. 같은 해시가 이미 current면 아무것도 하지 않는다.
+//   `current`가 없는 이름만 맡는다. 설치 폴더의 `.history`와 느슨한 스킬 폴더는 `migrate.ts`가 맡는다.
+// 모두 멱등이다. 같은 해시가 이미 current면 아무것도 하지 않는다. 결과는 `migration.log`에 남는다(옮김 결과만).
 
 const MANIFEST_PATH = join(".fresnel-plugin", "plugin.json");
-const HASH_PREFIX_LENGTH = "sha256:".length;
 
 export interface StartupPluginInput {
   readonly store: PluginStore;
@@ -22,8 +28,14 @@ export interface StartupPluginInput {
   readonly bundleDir: string;
   /** 번들로 넣을 이름(`defaultPluginNamesFor`) */
   readonly bundledNames: readonly string[];
-  /** `<configDir>/extensions`. 설치된 사용자 플러그인이 있는 곳 */
+  /** `<configDir>/extensions`. 설치된 사용자 플러그인과 그 `.history`가 있는 곳 */
   readonly installedDir: string;
+  /** `<configDir>/plugins`. 느슨한 스킬 폴더와 같은 이름이면 옮기지 않는다 */
+  readonly userPluginsDir: string;
+  /** 느슨한 사용자 스킬 루트(`<OsDirs.data>/skills`). 스킬 폴더 하나가 플러그인 하나다 */
+  readonly looseSkillsDir: string;
+  /** `migration.log`(호스트 상태 폴더). 옮김 결과를 한 줄씩 덧붙인다 */
+  readonly migrationLogPath: string;
   readonly logger: Logger;
   /** 승인 시각(ISO). 호출자가 시계를 준다 */
   readonly now: () => string;
@@ -36,9 +48,9 @@ interface StartupPluginDiagnostic {
 }
 
 export interface StartupPluginReport {
-  /** 번들을 새로 넣은 이름 */
+  /** 번들을 새로 넣은 이름(처음이나 번들 갱신) */
   readonly released: readonly string[];
-  /** 설치된 사용자 플러그인을 옮긴 이름 */
+  /** 설치된 사용자 플러그인이나 느슨한 스킬 폴더를 옮긴 이름 */
   readonly migrated: readonly string[];
   /** 이미 검토본이 있어 건드리지 않은 이름 */
   readonly kept: readonly string[];
@@ -46,100 +58,19 @@ export interface StartupPluginReport {
   readonly diagnostics: readonly StartupPluginDiagnostic[];
 }
 
-/** 폴더 하나를 넣는 방식. 번들과 옮김이 다른 값만 다르다 */
-interface Plan {
-  readonly name: string;
-  readonly origin: ReviewOrigin;
-  readonly actor: ReviewActor;
-  readonly decision: ReviewDecision;
-  readonly kind: "bundled" | "migrated";
-}
-
-type PromoteOutcome =
-  | { readonly ok: true; readonly contentHash: string; readonly logged: boolean }
-  | { readonly ok: false; readonly code: string; readonly message: string };
-
 /** 코드가 있는 폴더(매니페스트가 있다)인가. 없으면 검토본 대상이 아니다 */
 async function hasManifest(dir: string): Promise<boolean> {
   const found = await attemptAsync(() => lstat(join(dir, MANIFEST_PATH)));
   return found.ok && found.value.isFile();
 }
 
-/**
- * 폴더 하나를 검토본으로 넣는다: 스냅샷, 승격, current, 기록. 실패하면 이유를 돌려준다(후보 복사본만 남을 수 있다. `recover`가 치운다).
- * 읽은 폴더가 스냅샷과 같은 해시인지 확인한다(복사 중 바뀐 것은 넣지 않는다)
- */
-async function promoteFolder(
-  store: PluginStore,
-  dir: string,
-  folder: PluginFolder,
-  plan: Plan,
-  now: string,
-): Promise<PromoteOutcome> {
-  const snapshot = await store.snapshotCandidate(dir);
-  if (!snapshot.ok) {
-    return {
-      ok: false,
-      code: snapshot.error.kind,
-      message: `${plan.name} could not be copied: ${snapshot.error.kind}`,
-    };
-  }
-  const contentHash = folder.contentHash;
-  if (snapshot.value.contentHash !== contentHash) {
-    await store.discardCandidate(snapshot.value.contentHash);
-    return {
-      ok: false,
-      code: "source_unstable",
-      message: `${plan.name} changed while it was copied`,
-    };
-  }
-  const decisionId = `${plan.actor}:${contentHash.slice(HASH_PREFIX_LENGTH, HASH_PREFIX_LENGTH + 8)}`;
-  const promoted = await store.promote(contentHash, {
-    name: plan.name,
-    version: folder.manifest.version,
-    contentHash,
-    approvedAt: now,
-    decisionId,
-    origin: plan.origin,
-    inferredManifest: folder.inferred,
-    card: buildPluginCard({
-      folder,
-      origin: { kind: plan.origin },
-      review: { state: "approved", currentHash: contentHash, pendingItemId: null, approvedAt: now },
-      usedBy: [],
-      health: { state: "idle", lastActiveAt: null, lastError: null },
-    }),
-  });
-  if (!promoted.ok) {
-    return {
-      ok: false,
-      code: promoted.error.kind,
-      message: `${plan.name} could not be promoted: ${promoted.error.kind}`,
-    };
-  }
-  const switched = await store.setCurrent(plan.name, contentHash);
-  if (!switched.ok) {
-    return {
-      ok: false,
-      code: switched.error.kind,
-      message: `${plan.name} could not be made current: ${switched.error.kind}`,
-    };
-  }
-  // 검토본은 이미 current다. 기록이 빠지면 알리기만 하고 성공으로 둔다(다음 시작에 같은 해시라 다시 넣지 않는다)
-  const logged = await store.appendLog({
-    at: now,
-    itemId: decisionId,
-    name: plan.name,
-    kind: plan.kind,
-    candidateHash: contentHash,
-    baseHash: null,
-    decision: plan.decision,
-    profileIds: [],
-    actor: plan.actor,
-    provenance: null,
-    originThreadId: null,
-  });
-  return { ok: true, contentHash, logged: logged.ok };
+/** 결과를 쌓는 가변 묶음. 돌려줄 때 읽기 전용 타입으로 준다 */
+interface Build {
+  readonly released: string[];
+  readonly migrated: string[];
+  readonly kept: string[];
+  readonly diagnostics: StartupPluginDiagnostic[];
+  readonly records: MigrationRecord[];
 }
 
 /** 번들 폴더 하나. 같은 해시가 current면 건너뛴다. 사용자 쪽 검토본이 이름을 쥐고 있으면 번들은 진단과 함께 물러난다 */
@@ -178,24 +109,34 @@ async function releaseOne(input: StartupPluginInput, name: string, into: Build):
     });
     return;
   }
+  const plan: PromotePlan = {
+    name,
+    origin: "bundled",
+    actor: "release",
+    decision: "bundled",
+    kind: "bundled",
+  };
+  const now = input.now();
   const result = await promoteFolder(
     input.store,
     dir,
     bundled.value,
-    { name, origin: "bundled", actor: "release", decision: "bundled", kind: "bundled" },
-    input.now(),
+    plan,
+    { approvedAt: now, logAt: now },
+    { current: true },
   );
   if (!result.ok) {
-    into.diagnostics.push({ name, code: result.code, message: result.message });
+    into.diagnostics.push({ name, code: result.error.code, message: result.error.message });
     return;
   }
   into.released.push(name);
-  if (!result.logged)
+  if (!result.value.logged) {
     into.diagnostics.push({
       name,
       code: "log_failed",
       message: `${name}: the release was not logged`,
     });
+  }
 }
 
 /**
@@ -219,6 +160,13 @@ async function migrateOne(input: StartupPluginInput, entry: Dirent, into: Build)
       code: "symlink_refused",
       message: `${entry.name}: a symbolic link is not migrated`,
     });
+    into.records.push({
+      step: "installed",
+      name: entry.name,
+      outcome: "rejected",
+      contentHash: null,
+      reason: "symlink_refused",
+    });
     return;
   }
   if (!entry.isDirectory() || !(await hasManifest(dir))) return;
@@ -228,6 +176,13 @@ async function migrateOne(input: StartupPluginInput, entry: Dirent, into: Build)
       name: entry.name,
       code: folder.error.kind,
       message: `${entry.name}: not migrated (${folder.error.kind})`,
+    });
+    into.records.push({
+      step: "installed",
+      name: entry.name,
+      outcome: "rejected",
+      contentHash: null,
+      reason: folder.error.kind,
     });
     return;
   }
@@ -241,23 +196,40 @@ async function migrateOne(input: StartupPluginInput, entry: Dirent, into: Build)
     });
     return;
   }
+  // 검토본이 있으면 이미 옮긴 것이다(정상 상태라 기록하지 않는다)
   if (current.value !== null) {
     into.kept.push(name);
     return;
   }
+  const now = input.now();
   const result = await promoteFolder(
     input.store,
     dir,
     folder.value,
     { name, origin: "user", actor: "migration", decision: "migrated", kind: "migrated" },
-    input.now(),
+    { approvedAt: now, logAt: now },
+    { current: true },
   );
   if (!result.ok) {
-    into.diagnostics.push({ name, code: result.code, message: result.message });
+    into.diagnostics.push({ name, code: result.error.code, message: result.error.message });
+    into.records.push({
+      step: "installed",
+      name,
+      outcome: "rejected",
+      contentHash: folder.value.contentHash,
+      reason: result.error.code,
+    });
     return;
   }
   into.migrated.push(name);
-  if (!result.logged) {
+  into.records.push({
+    step: "installed",
+    name,
+    outcome: "migrated",
+    contentHash: folder.value.contentHash,
+    reason: null,
+  });
+  if (!result.value.logged) {
     into.diagnostics.push({
       name,
       code: "log_failed",
@@ -266,24 +238,33 @@ async function migrateOne(input: StartupPluginInput, entry: Dirent, into: Build)
   }
 }
 
-/** 결과를 쌓는 가변 묶음. 돌려줄 때 읽기 전용 타입으로 준다 */
-interface Build {
-  readonly released: string[];
-  readonly migrated: string[];
-  readonly kept: string[];
-  readonly diagnostics: StartupPluginDiagnostic[];
-}
-
 /**
- * 시작 때 한 번: 번들을 넣고(릴리스), 설치된 사용자 플러그인을 옮긴다(옮김). 번들을 먼저 넣으므로 같은 이름의 설치본이
- * 번들과 같은 해시면 옮김이 건너뛴다. 건너뛴 이유는 돌려주고 로그에도 남긴다
+ * 시작 때 한 번: 번들을 넣고(릴리스), 설치된 사용자 플러그인을 옮기고(옮김), 이전 버전과 느슨한 스킬 폴더를 옮긴다.
+ * 번들을 먼저 넣으므로 같은 이름의 설치본이 번들과 같은 해시면 옮김이 건너뛴다. 건너뛴 이유는 돌려주고 로그에도 남긴다.
+ * 옮김 결과는 `migration.log`에 한 줄씩 적는다. 같은 줄이 이미 있으면 다시 적지 않는다
  */
 export async function reviewStartupPlugins(
   input: StartupPluginInput,
 ): Promise<StartupPluginReport> {
-  const into: Build = { released: [], migrated: [], kept: [], diagnostics: [] };
+  const into: Build = { released: [], migrated: [], kept: [], diagnostics: [], records: [] };
   await sequentially(input.bundledNames, (name) => releaseOne(input, name, into));
   await migrateInstalled(input, into);
+  const tally = { migrated: into.migrated, diagnostics: into.diagnostics, records: into.records };
+  await migrateHistory(
+    { store: input.store, installedDir: input.installedDir, logger: input.logger, now: input.now },
+    tally,
+  );
+  await migrateLooseSkills(
+    {
+      store: input.store,
+      looseDir: input.looseSkillsDir,
+      installedDir: input.installedDir,
+      userPluginsDir: input.userPluginsDir,
+      logger: input.logger,
+      now: input.now,
+    },
+    tally,
+  );
   for (const item of into.diagnostics) {
     input.logger.warn("plugin.startup.skipped", {
       name: item.name,
@@ -291,6 +272,7 @@ export async function reviewStartupPlugins(
       message: item.message,
     });
   }
+  await appendMigrationLog(input.migrationLogPath, into.records, input.now(), input.logger);
   // 한 이름이 번들과 설치본 양쪽에서 물러날 수 있다. 보고는 이름당 한 번이다
   return {
     released: into.released,
