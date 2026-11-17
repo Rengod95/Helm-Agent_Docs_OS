@@ -13,7 +13,7 @@
 //   DR-15 a plugin (P) imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources or runtime dependencies,
 //         except allowlist entries DR-15/<name>; test files and devDependencies are exempt (6.3 P.2)
 //   WEB-R16 no network calls, `Bun.` access or socket construction in packages/cap-web/src/fetch/convert (L2.web.spec 4.9.3)
-// Rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5). plugins/* count as L1, cap-*, group-* and plugin-builder as P (6.3),
+// Rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5). plugins/* count as L1, cap-*, group-*, plugin-builder and plugin-migration as P (6.3),
 // apps/* and packages/client as L4, vendor/* is excluded. A P package may still declare "fresnel": {"layer": "L2"} or "L3" (transition aliases).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
@@ -125,7 +125,14 @@ export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   if (name === CLIENT_DIR_NAME) return "L4";
   if (name.startsWith("platform-")) return "L0";
   if (name.startsWith("core-")) return "L1";
-  if (name.startsWith("cap-") || name.startsWith("group-") || name === "plugin-builder") return "P";
+  if (
+    name.startsWith("cap-") ||
+    name.startsWith("group-") ||
+    name === "plugin-builder" ||
+    name === "plugin-migration"
+  ) {
+    return "P";
+  }
   return undefined;
 }
 

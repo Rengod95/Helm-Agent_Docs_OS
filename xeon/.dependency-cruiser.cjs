@@ -1,11 +1,11 @@
 /**
  * Layer rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5).
  * A package imports only lower ranks. Same-layer packages never import each other.
- * P is the plugin rank (6.3 DR-15): packages/cap-*, packages/group-*, packages/plugin-builder. plugins/* rank as L1,
+ * P is the plugin rank (6.3 DR-15): packages/cap-*, packages/group-*, packages/plugin-builder, packages/plugin-migration. plugins/* rank as L1,
  * apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
  * Keep in sync with scripts/check-layers.ts (it reads package.json fresnel.layer; this reads paths).
  */
-const P_RE = "^(packages/cap-|packages/group-|packages/plugin-builder/)";
+const P_RE = "^(packages/cap-|packages/group-|packages/plugin-builder/|packages/plugin-migration/)";
 const LAYERS = [
   { name: "F", re: "^packages/contracts/" },
   { name: "X", re: "^packages/ext-host/" },
@@ -47,7 +47,7 @@ const sameLayerGroups = [
   {
     name: "P-cap",
     from: "^packages/(cap-[^/]+)/",
-    to: "^packages/(cap-|group-|plugin-builder/)",
+    to: "^packages/(cap-|group-|plugin-builder/|plugin-migration/)",
     own: "^packages/$1/",
   },
   // DR-02/group-sdk and DR-02/plugin-builder-group-sdk (scripts/dependency-allowlist.json): every group and the Plugin Builder may import
@@ -55,7 +55,7 @@ const sameLayerGroups = [
   {
     name: "P-group",
     from: "^packages/(group-[^/]+|plugin-builder)/",
-    to: "^packages/(cap-|group-|plugin-builder/)",
+    to: "^packages/(cap-|group-|plugin-builder/|plugin-migration/)",
     own: ["^packages/$1/", "^packages/group-sdk/src/(index|testing/index)\\.ts$"],
   },
   // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries ".", "./client" and "./plugin-host" only.

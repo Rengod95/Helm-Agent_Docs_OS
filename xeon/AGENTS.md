@@ -29,7 +29,7 @@ Fresnel(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이�
 | X    | `packages/ext-host` (Cordis는 여기서만 import)                                          |
 | L0   | `packages/platform-*`                                                                   |
 | L1   | `packages/core-*`, `plugins/*`                                                          |
-| P    | `packages/cap-*`, `packages/group-*`, `packages/plugin-builder` (선언 `"layer": "L2"`, `"L3"`은 전환 별칭) |
+| P    | `packages/cap-*`, `packages/group-*`, `packages/plugin-builder`, `packages/plugin-migration` (선언 `"layer": "L2"`, `"L3"`은 전환 별칭) |
 | L4   | `apps/*`                                                                                |
 | 제외 | `vendor/*` (층 검사, lint, 포맷 대상 아님)                                              |
 

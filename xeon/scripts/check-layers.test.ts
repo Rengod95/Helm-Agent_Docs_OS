@@ -98,6 +98,7 @@ test("expectedLayer maps directories to layers", () => {
   expect(expectedLayer("packages/group-helm")).toBe("P");
   expect(expectedLayer("packages/group-sdk")).toBe("P");
   expect(expectedLayer("packages/plugin-builder")).toBe("P");
+  expect(expectedLayer("packages/plugin-migration")).toBe("P");
   expect(expectedLayer("plugins/provider-anthropic-oauth")).toBe("L1");
   expect(expectedLayer("apps/cli")).toBe("L4");
   expect(expectedLayer("packages/client")).toBe("L4");
