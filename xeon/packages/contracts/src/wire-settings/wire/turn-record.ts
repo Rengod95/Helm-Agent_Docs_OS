@@ -1,7 +1,12 @@
 import { Type, type TLiteral, type TUnion, type TUnsafe } from "typebox";
 import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import { StepCompositionSchema, type StepComposition } from "../../conversation/index.ts";
-import { TRACE_HANDLER_RESULTS, type TraceHandlerResult } from "../../extensions/index.ts";
+import {
+  TRACE_FAILURE_REASONS,
+  TRACE_HANDLER_RESULTS,
+  type TraceFailureReason,
+  type TraceHandlerResult,
+} from "../../extensions/index.ts";
 import { SubIdSchema, type SubId } from "./cursor.ts";
 import { EmptyParamsSchema, type EmptyParams } from "./notifications.ts";
 import { closed, request, type Req } from "./schema-kit.ts";
@@ -164,18 +169,9 @@ export const BacktestClassSchema: TUnion<TLiteral<BacktestClass>[]> =
 const TraceHandlerResultSchema: TUnion<TLiteral<TraceHandlerResult>[]> =
   literalUnion(TRACE_HANDLER_RESULTS);
 
-/** `HookRun.reason`의 값(§3.2). 라이브 `TraceFailureReason` 네 값에 격리 프로세스 종료 둘을 더한 기록 전용 목록이다. 라이브 trace 쪽(`trace-types.ts`)은 바꾸지 않는다: apps/desktop의 표가 그 네 값을 전부 나열하기 때문이다 */
-export const HOOK_FAILURE_REASONS = [
-  "threw",
-  "timeout",
-  "result_invalid",
-  "merge_rejected",
-  "process_exit",
-  "process_killed",
-] as const;
-export type HookFailureReason = (typeof HOOK_FAILURE_REASONS)[number];
-const HookFailureReasonSchema: TUnion<TLiteral<HookFailureReason>[]> =
-  literalUnion(HOOK_FAILURE_REASONS);
+/** `HookRun.reason`의 값(§3.2). 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(격리 프로세스 종료 둘 포함)를 그대로 쓴다 */
+const HookFailureReasonSchema: TUnion<TLiteral<TraceFailureReason>[]> =
+  literalUnion(TRACE_FAILURE_REASONS);
 
 /** 묶인 대상. 도구 호출 훅은 toolCallId, 물음 훅은 approvalId, 서브에이전트 훅은 spawnRequestId와 childThreadId */
 export interface HookSubject {
@@ -232,7 +228,7 @@ export interface HookRun {
   readonly toolCallId: string | null;
   readonly result: TraceHandlerResult;
   /** `failed`의 이유. 다른 결과에서는 null. `process_exit`·`process_killed`는 격리 프로세스의 종료다(엔진 설계 §3.3) */
-  readonly reason: HookFailureReason | null;
+  readonly reason: TraceFailureReason | null;
   readonly decision: HookDecision;
   readonly ask: HookAsk | null;
   /** 활성 시간(사람 응답 대기 제외) */

@@ -13,6 +13,7 @@ import { makeManifest, snapshotOf } from "../primitives/fixtures/support.ts";
 import {
   EQUIVALENCE_HOOKS,
   EQUIVALENCE_RECORD_KIND,
+  EQUIVALENCE_SUBSCRIBE_KIND,
   extension,
 } from "./fixtures/equivalence-plugin.ts";
 import {
@@ -36,6 +37,12 @@ const MANIFEST = {
         kind: EQUIVALENCE_RECORD_KIND,
         version: 1,
         description: "a tool call seen by the equivalence fixture",
+        payload: {},
+      },
+      {
+        kind: EQUIVALENCE_SUBSCRIBE_KIND,
+        version: 1,
+        description: "an event envelope received by the equivalence fixture subscription",
         payload: {},
       },
     ],
@@ -96,6 +103,10 @@ async function hostWithTools(): Promise<{
 function commandNamed(t: TestHost, name: string): CommandResourceDef | undefined {
   const def = t.host.resources.list("command").find((record) => record.name === name)?.def;
   return isCommandDef(def) ? def : undefined;
+}
+
+function isRecordBody(value: unknown): value is { readonly payload: unknown } {
+  return typeof value === "object" && value !== null && "payload" in value;
 }
 
 function callOf(toolName: string, toolCallId: string) {
@@ -175,7 +186,8 @@ async function runScenario(
   const state = snapshot.states.find((entry) => entry.scopeId === "eq")?.doc;
   const records = t.records
     .events(thread)
-    .map((event) => ({ kind: event.kind, payload: event.payload }));
+    .map((event) => ({ kind: event.kind, payload: event.payload }))
+    .toSorted((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   return { steps, state, records };
 }
 
@@ -230,6 +242,20 @@ test("the same fixture gives the same results, committed state and records in-en
   expect(
     expected.records.some((record) => JSON.stringify(record).includes('"tool":"eq-tool"')),
   ).toBe(true);
+  // 구독 한 건: 이벤트 이름, 디스패치 키, payload가 엔진 안과 격리에서 같다
+  expect(
+    expected.records
+      .filter((record) => record.kind === EQUIVALENCE_SUBSCRIBE_KIND)
+      .map((record) => (isRecordBody(record.payload) ? record.payload.payload : null)),
+  ).toEqual([
+    {
+      event: "tool.execution.before",
+      eventKey: "k-tap",
+      hasThread: true,
+      payload: '{"toolCallId":"call-1","toolName":"eq-tool","args":{"text":"hi"}}',
+      dropped: null,
+    },
+  ]);
 });
 
 test("a plugin process that dies mid-call fails the hook with process_exit and works again after relaunch", async () => {

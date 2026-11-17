@@ -119,6 +119,8 @@ const RESULT_REASON: Record<TraceFailureReason, MessageId> = {
   timeout: "desktop.craft.detail.reason.overBudget",
   result_invalid: "desktop.craft.detail.reason.error",
   merge_rejected: "desktop.craft.detail.reason.error",
+  process_exit: "desktop.craft.detail.reason.processExit",
+  process_killed: "desktop.craft.detail.reason.processKilled",
 };
 
 const railOf = (grouped: boolean): string => (grouped ? "9.5rem" : "13rem");

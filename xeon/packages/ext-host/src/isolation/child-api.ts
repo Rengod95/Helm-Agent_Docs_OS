@@ -7,11 +7,12 @@
 // `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { err, ok, parse, type ParseError, type Result } from "@fresnel/contracts";
+import { Bug, detach, err, ok, parse, type ParseError, type Result } from "@fresnel/contracts";
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   HOOKS,
+  isHighFrequency,
   type EngineCallParams,
   type GroupRecord,
   type Handler,
@@ -51,6 +52,7 @@ import type {
   RendererResourceDef,
 } from "../primitives/resources.ts";
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
+import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
 import { parseGroupRecords, parsePostReceipt } from "./params.ts";
 
 /** 엔진이 실패로 답한 `engine.call`. 엔진의 kind와 메시지를 싣는다. 바깥에서 온 오류를 감싸므로 Error 하위다(TY-16) */
@@ -77,6 +79,8 @@ export interface CallScope {
   readonly settings: Readonly<Record<string, JsonValue>>;
   /** 요청 시작 시점의 상태 스냅샷. 커밋 응답이 오면 이 자리를 바꾼다 */
   readonly snapshot: { doc: JsonValue };
+  /** 훅이나 알림이면 엔진 디스패치 키. 구독 봉투의 `eventKey`가 된다 */
+  readonly dispatchKey?: string;
 }
 
 export interface ChildEnv {
@@ -85,6 +89,10 @@ export interface ChildEnv {
   readonly initSettings: Readonly<Record<string, JsonValue>>;
   readonly scopes: AsyncLocalStorage<CallScope>;
   readonly engineCall: (params: EngineCallParams) => Promise<JsonValue>;
+  /** 플러그인마다 매니페스트 `hooks`(등록 id 기준). `g.subscribe("all")`과 선언 검사가 읽는다 */
+  readonly declaredHooks: ReadonlyMap<RegistrationId, readonly HookName[]>;
+  /** 기다리지 않는 작업의 실패를 진단으로 남긴다 */
+  readonly report: (text: string) => void;
 }
 
 /** 훅 핸들러 하나. `handlerIndex`는 같은 등록·지점 안의 등록 순서이고 해제해도 바뀌지 않는다 */
@@ -273,8 +281,20 @@ function capabilityProxy<Api>(state: RegState, env: ChildEnv, key: ServiceKey<Ap
   );
 }
 
-function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
+/** 구독이 핸들러 안에서 읽는 디스패치 맥락. 요청 문맥(scopes)에 실린 키를 쓰고, 뒤에서 돌 때도 같은 문맥을 다시 싣는다 */
+function childDispatch(env: ChildEnv): DispatchContext {
+  const scope = env.scopes.getStore();
+  if (scope === undefined || scope.dispatchKey === undefined) {
+    throw new Bug("subscribe.no_dispatch_context: an event handler runs inside a dispatch");
+  }
   return {
+    eventKey: scope.dispatchKey,
+    rerun: (work) => Promise.resolve(env.scopes.run(scope, work)),
+  };
+}
+
+function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
+  const api: RegistrationApi<AnyState> = {
     id: state.id,
     on<N extends HookName>(point: N, handler: Handler<N, AnyState>): Unsubscribe {
       requireSetup(state, "on");
@@ -290,6 +310,27 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
       return () => {
         slot.active = false;
       };
+    },
+    subscribe(events, handler, options) {
+      requireSetup(state, "subscribe");
+      const sample = options?.sample ?? "every";
+      const names = subscribedNames(
+        events,
+        env.declaredHooks.get(state.id) ?? [],
+        state.id,
+        sample,
+      );
+      return subscribeWith({
+        names,
+        handler,
+        sampleOf: (name) => (sample === "coalesce" && isHighFrequency(name) ? "coalesce" : "every"),
+        register: (name, fn) => api.on(name, fn),
+        track: (task) =>
+          detach(task, (cause) =>
+            env.report(`subscribe task of ${state.id} failed: ${messageOf(cause)}`),
+          ),
+        dispatchOf: () => childDispatch(env),
+      });
     },
     async post(item: PostItem, options: PostOptions): Promise<PostReceipt> {
       const reply = await callEngine(env, state, "post", jsonOf({ item, options }, "the post"));
@@ -323,6 +364,7 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
       state.disposers.push(fn);
     },
   };
+  return api;
 }
 
 function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState> {

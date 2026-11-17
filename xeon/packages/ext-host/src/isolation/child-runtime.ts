@@ -22,6 +22,7 @@ import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts
 import {
   HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
+  pluginsOf,
   PLUGIN_HOST_REQUESTS,
   PLUGIN_HOST_STDERR_LINE_MAX,
   validateManifest,
@@ -29,6 +30,7 @@ import {
   type ExtensionEntry,
   type HookName,
   type PluginHostError,
+  type ToolChangeReport,
   type PluginHostRequestName,
   type PluginRegistrationDecl,
   type RawPluginHostFrame,
@@ -395,6 +397,7 @@ function createRuntime(deps: PluginHostDeps) {
       point: slot.point,
       settings: input.settings,
       snapshot: { doc: input.state },
+      ...(input.dispatchKey === undefined ? {} : { dispatchKey: input.dispatchKey }),
     };
     const ctx = {
       scopeId: state.id,
@@ -426,14 +429,52 @@ function createRuntime(deps: PluginHostDeps) {
       settings: input.settings,
       snapshot: { doc: input.state },
     };
-    return runIn(scope, () =>
+    // `ctx.changes.report`는 기다리지 않는 호출이다. 엔진이 도구 요청을 끝내기 전에 닿도록 응답 앞에 모두 기다린다
+    const reports: Promise<boolean>[] = [];
+    const changes: ToolChangeReport = {
+      report(entries) {
+        const json = toJsonValue(entries);
+        if (json === undefined) {
+          diag(`ctx.changes.report of ${state.id} ignored entries that are not JSON`);
+          return;
+        }
+        reports.push(
+          sendReport(state.id, id, json).then((sent) => {
+            if (sent.ok) return true;
+            diag(`ctx.changes.report of ${state.id} failed: ${messageOf(sent.error)}`);
+            return false;
+          }),
+        );
+      },
+    };
+    const outcome = await runIn(scope, () =>
       tool.execute(input.args, {
         threadId: input.threadId,
         signal,
         toolCallId: input.toolCallId,
         caller: input.callerInfo,
+        changes,
       }),
     );
+    await Promise.all(reports);
+    return outcome;
+  }
+
+  async function sendReport(
+    registration: string,
+    requestId: number,
+    entries: JsonValue,
+  ): Promise<Result<null, Error>> {
+    const sent = await attemptAsync(() =>
+      engineCall({ method: "reportChanges", registration, requestId, params: { entries } }),
+    );
+    return sent.ok
+      ? ok(null)
+      : err(
+          sent.error.cause instanceof Error
+            ? sent.error.cause
+            : new Error(String(sent.error.cause)),
+        );
   }
 
   async function runCommand(
@@ -584,6 +625,7 @@ function createRuntime(deps: PluginHostDeps) {
       point: slot.point,
       settings: event.settings,
       snapshot: { doc: event.state },
+      dispatchKey: event.dispatchKey ?? event.eventKey,
     };
     const ctx = {
       scopeId: state.id,
@@ -713,6 +755,10 @@ function createRuntime(deps: PluginHostDeps) {
       initSettings: input.settings,
       scopes,
       engineCall,
+      declaredHooks: new Map(
+        pluginsOf(manifest).map((entry) => [entry.registrationId, entry.decl.hooks]),
+      ),
+      report: diag,
     };
     let registering = true;
     const register: RegistrationFn = (id, def, setup) => {

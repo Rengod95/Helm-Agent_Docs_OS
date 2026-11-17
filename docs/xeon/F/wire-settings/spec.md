@@ -1410,7 +1410,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 
 재사용과 바뀐 곳:
 
-- `HookRun.reason`은 기록 전용 목록 `HOOK_FAILURE_REASONS`를 쓴다. 라이브 `TraceFailureReason` 네 값에 `process_exit`, `process_killed`를 더했다. 라이브 `trace.turn`(§3.3.1)과 `X.operations` §4.8.2는 네 값 그대로다. 라이브 목록에 더하면 apps/desktop의 `RESULT_REASON` 표(네 값 전부를 나열한 `Record`)가 깨져서 나눴다. 두 목록을 하나로 합칠지는 [미결] [근거: apps/desktop/src/views/craft/detail-flow.tsx].
+- `HookRun.reason`은 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(`threw`, `timeout`, `result_invalid`, `merge_rejected`, `process_exit`, `process_killed`)를 쓴다. 격리 프로세스 종료 둘은 enP1이 라이브 목록에 더했고, 기록 전용 목록(`HOOK_FAILURE_REASONS`)은 없앴다. apps/desktop의 `RESULT_REASON` 표에 새 두 값의 글을 더했다.
 - `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안].
 - 오류 3501, 3511, 3512, 3531은 §3.5.2 표에 있다. 백테스트 3521~3525는 M5d-2에서 더한다.
 - 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].

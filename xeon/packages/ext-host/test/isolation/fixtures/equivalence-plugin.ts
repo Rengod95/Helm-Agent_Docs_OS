@@ -16,6 +16,9 @@ const EQUIVALENCE_INITIAL: { count: number; seen: string[] } = { count: 0, seen:
 /** 기록 종류. 매니페스트 `recordKinds`에 있어야 `g.record`가 받는다 */
 export const EQUIVALENCE_RECORD_KIND = "x.eq.log.seen";
 
+/** 구독이 받은 봉투를 적는 기록 종류 */
+export const EQUIVALENCE_SUBSCRIBE_KIND = "x.eq.log.subscribed";
+
 /**
  * 이 픽스처의 매니페스트 입력(makeManifest 인자). 엔트리 파일은 `equivalence-plugin.ts`다.
  * 엔트리 경로는 호출자가 `entry`로 덮는다
@@ -64,6 +67,21 @@ export const extension: ExtensionEntry = ({ register }) => {
           EQUIVALENCE_RECORD_KIND,
           { type: "item", id: payload.toolCallId },
           { tool: payload.toolName, count: state.count + 1 },
+        );
+      });
+
+      // g.subscribe(every): 이벤트 봉투를 기록한다. 이름, 대화, 디스패치 키, payload가 엔진 안과 같아야 한다
+      g.subscribe(["tool.execution.before"], async (event) => {
+        await g.record(
+          EQUIVALENCE_SUBSCRIBE_KIND,
+          { type: "item", id: `sub-${event.eventKey}` },
+          {
+            event: event.event,
+            eventKey: event.eventKey,
+            hasThread: event.threadId.length > 0,
+            payload: JSON.stringify(event.payload),
+            dropped: event.dropped ?? null,
+          },
         );
       });
 

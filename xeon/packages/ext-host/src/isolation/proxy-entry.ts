@@ -36,6 +36,7 @@ import {
   type RegistrationApi,
   type RegistrationDef,
   type RegistrationSetup,
+  type ToolChangeReport,
   type ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import { handlerOfHook, stateAs } from "../erase.ts";
@@ -204,6 +205,8 @@ interface PreparedDecl {
 interface Session {
   readonly supervisor: PluginHostSupervisor;
   readonly ambients: Map<number, Ambient>;
+  /** 도구 실행 요청 id에서 그 호출의 `ctx.changes`로 가는 표 */
+  readonly changes: Map<number, ToolChangeReport>;
 }
 
 /** 훅 디스패처가 넘기는 문맥(`{scopeId, state, threadId, signal}`). 모양을 확인한 뒤 읽는다 */
@@ -435,10 +438,12 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
 
   function openSession(): Session {
     const ambients = new Map<number, Ambient>();
+    const changes = new Map<number, ToolChangeReport>();
     const router = createEngineCallRouter({
       gOf: (registration) => registrations.get(registration),
       replayOf: () => false,
       ambientOf: (requestId) => (requestId === null ? undefined : ambients.get(requestId)),
+      changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
     });
     const supervisor = createPluginHostSupervisor({
       process: deps.port,
@@ -457,7 +462,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
     });
-    return { supervisor, ambients };
+    return { supervisor, ambients, changes };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -481,6 +486,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     params: JsonValue,
     signal: AbortSignal | undefined,
     amb: Ambient | undefined,
+    changes?: ToolChangeReport,
   ): Promise<Result<JsonValue, CallError>> {
     const session = sessionNow();
     let requestId: number | undefined;
@@ -489,10 +495,14 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       onRequestId: (id) => {
         requestId = id;
         if (amb !== undefined) session.ambients.set(id, amb);
+        if (changes !== undefined) session.changes.set(id, changes);
       },
     });
     return call.finally(() => {
-      if (requestId !== undefined) session.ambients.delete(requestId);
+      if (requestId !== undefined) {
+        session.ambients.delete(requestId);
+        session.changes.delete(requestId);
+      }
     });
   }
 
@@ -533,6 +543,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         handlerIndex,
         payload,
         current: currentValue,
+        ...(amb === undefined || amb.dispatchKey === null ? {} : { dispatchKey: amb.dispatchKey }),
       };
       if (notify) {
         // 관찰 알림은 기다리지 않는다. 발화 순서대로 하나씩 전달하도록 eventKey를 늘린다(멱등 키)
@@ -576,7 +587,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
           },
           "the tool call",
         );
-        return settledOf(await invoke("tool.execute", body, ctx.signal, amb));
+        return settledOf(await invoke("tool.execute", body, ctx.signal, amb, ctx.changes));
       },
     };
   }

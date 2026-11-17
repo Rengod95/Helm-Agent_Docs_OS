@@ -68,7 +68,7 @@ import type {
   ShortcutResourceDef,
 } from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
-import { subscribedNames, subscribeWith } from "./subscribe.ts";
+import { ambientDispatch, subscribedNames, subscribeWith } from "./subscribe.ts";
 import { awaitUser } from "./user-wait.ts";
 import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
@@ -316,6 +316,7 @@ export function createRegistrationApi(
         sampleOf: (name) => (sample === "coalesce" && isHighFrequency(name) ? "coalesce" : "every"),
         register: (name, fn) => api.on(name, fn),
         track: (task) => core.track(task),
+        dispatchOf: ambientDispatch,
       });
     },
     post(item: PostItem, options: PostOptions) {

@@ -48,6 +48,7 @@ export const PLUGIN_ENGINE_CALLS = [
   "post",
   "capability",
   "requestEffect",
+  "reportChanges",
 ] as const;
 export type PluginEngineCallName = (typeof PLUGIN_ENGINE_CALLS)[number];
 
@@ -222,6 +223,8 @@ export interface HookInvokeParams extends PluginCallContext {
   readonly payload: JsonValue;
   /** chain 훅의 현재 값. 다른 fold에서는 null */
   readonly current: JsonValue;
+  /** 엔진 디스패치 키. 격리된 `g.subscribe`가 봉투의 `eventKey`로 쓴다. 없으면 호출 id를 쓴다 */
+  readonly dispatchKey?: string;
 }
 
 export interface ToolExecuteParams extends PluginCallContext {
@@ -255,6 +258,8 @@ export interface EventNotifyParams extends PluginCallContext {
   readonly handlerIndex: number;
   readonly eventKey: string;
   readonly payload: JsonValue;
+  /** 엔진 디스패치 키. 격리된 `g.subscribe`가 봉투의 `eventKey`로 쓴다 */
+  readonly dispatchKey?: string;
 }
 
 export interface RequestCancelParams {
