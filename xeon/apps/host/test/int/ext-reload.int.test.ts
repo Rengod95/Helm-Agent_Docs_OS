@@ -190,8 +190,8 @@ realTest(
   60_000,
 );
 
-// 되돌리기(`ext.rollback`)와 버전 목록(`ext.versions`)은 아직 설치 폴더의 `.history`를 본다. 실행본은 검토본 저장소에서 온다.
-// 되돌리기를 저장소의 current 전환으로 옮기는 일(M5c §4.6.8, §7.8)은 이 변경의 범위 밖이다. 여기서는 실행본이 바뀌지 않는 것만 본다.
+// 버전 목록(`ext.versions`)과 되돌리기(`ext.rollback`)는 검토본 저장소가 한다(M5c §4.6.8). 검토 항목을 승인하지 않은 확장은 검토본이 없어
+// 되돌릴 판도 없다. 여기서는 설치 폴더의 `.history`에 둔 판이 되돌릴 대상이 되지 않고 실행본이 그대로인 것만 본다.
 realTest(
   "ext.rollback does not change the running copy: the reviewed store owns the running version",
   async () => {
@@ -214,18 +214,24 @@ realTest(
 );
 
 realTest(
-  "ext.rollback to a stored version that does not load leaves the running version alone",
+  "ext.rollback to a version with no reviewed copy is refused, and ext.versions lists only the reviewed copy",
   async () => {
     const { home, host, connection } = await startReal({ tag: "new", version: "1.0.0" });
     try {
       writeStored(home, { tag: "old", version: "0.9.0", syntaxError: true });
       const created = await connection.request("thread.create", {});
-      await connection.request("ext.rollback", { name: NAME, version: "0.9.0" }).then(
-        () => undefined,
-        () => undefined,
-      );
+      const outcome = await connection
+        .request("ext.rollback", { name: NAME, version: "0.9.0" })
+        .then(
+          () => "accepted",
+          () => "refused",
+        );
+      expect(outcome).toBe("refused");
       const versions = await connection.request("ext.versions", { name: NAME });
-      expect(versions.versions.find((entry) => entry.version === "1.0.0")?.current).toBe(true);
+      // 옮김이 넣은 검토본 하나만 있고 current다. 되돌릴 다른 판은 없다
+      expect(
+        versions.versions.map((entry) => [entry.version.split("+")[0], entry.current]),
+      ).toEqual([["1.0.0", true]]);
       expect(await lastErrorAfterTurn(connection, created.threadId)).toContain("new failed");
     } finally {
       await connection.close();

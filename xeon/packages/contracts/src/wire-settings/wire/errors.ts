@@ -209,6 +209,8 @@ const IssuesDetails = Type.Object(
         {
           code: Type.String({ maxLength: 64 }),
           severity: Type.Optional(Type.String({ maxLength: 16 })),
+          /** 승인의 프로필 반영(`pluginReview.profileInvalid`)에서 이슈가 속한 프로필 id 또는 `common`이다 */
+          profile: Type.Optional(Type.String({ maxLength: 128 })),
           plugin: Type.Optional(Type.String({ maxLength: 128 })),
           key: Type.Optional(Type.String({ maxLength: 160 })),
           other: Type.Optional(Type.String({ maxLength: 128 })),

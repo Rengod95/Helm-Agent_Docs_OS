@@ -1,38 +1,38 @@
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { err, ok, parse } from "@fresnel/contracts";
-import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import { err, ok, type Logger } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   createVersionHistory,
   type ExtensionLoader,
+  type LoadDiagnostic,
   type LoadedExtensionInfo,
   type ReloadApplied,
   type RegistrationInfo,
   type UiEntryReport,
   type VersionHistory,
   type VersionHistoryFs,
-  type VersionSource,
 } from "@fresnel/ext-host";
 import type { BundledPluginVersion } from "../../src/assembly/default-plugins.ts";
 import { createExtUiVersionPort } from "../../src/assembly/m4/ext-ui-version-port.ts";
-import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
+import type {
+  ExtUiVersionSource,
+  ReviewedVersions,
+} from "../../src/assembly/m4/ext-ui-version-source.ts";
+import type {
+  PluginStore,
+  PluginVersionInfo,
+  ReviewLogEntry,
+} from "../../src/assembly/plugins/store.ts";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
+import { partial } from "../fixtures/unsafe.ts";
 
 // T-XV 포트(HS-108). 로더와 등록은 가짜, 버전 기록은 메모리 파일 시스템 위의 실제 보관 모듈이다. 되돌리기 순서는 끄기, 기록, 교체,
 // 상태 비우기, 켜기다(X.loading-trust §4.4.8). 시험 본문에 단언이 없고 값을 그대로 비교한다.
 
 const EXT_DIR = "/cfg/extensions";
-const BUNDLE_DIR = "/bundle";
 const BASE_MS = Date.UTC(2026, 10, 1);
-const THREAD = parseThread("thr_01ARZ3NDEKTSV4RRFFQ69G5FAV");
-const OTHER_THREAD = parseThread("thr_01ARZ3NDEKTSV4RRFFQ69G5FAW");
-
-function parseThread(raw: string): ThreadId {
-  const parsed = parse(ThreadIdSchema, raw);
-  if (!parsed.ok) throw new Error(`not a thread id: ${raw}`);
-  return parsed.value;
-}
 
 type Node = { readonly kind: "dir" } | { readonly kind: "file"; readonly text: string };
 
@@ -112,26 +112,12 @@ function memoryFs(faults: Faults): {
   return { fs, nodes };
 }
 
-function manifestOf(name: string, version: string): string {
-  return JSON.stringify({ name, version });
-}
-
 /** 매니페스트 해시. 호스트가 버전 기록에 쓰는 것과 같은 sha256 16진수다 */
 function hashOf(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
 /** 확장 설치본 하나: 매니페스트와 엔트리 파일 */
-async function writeInstall(
-  fs: VersionHistoryFs,
-  dir: string,
-  name: string,
-  version: string,
-): Promise<void> {
-  await fs.writeText(join(dir, ".fresnel-plugin", "plugin.json"), manifestOf(name, version));
-  await fs.writeText(join(dir, "dist", "index.js"), `export const version = "${version}";\n`);
-}
-
 function loaded(
   name: string,
   state: LoadedExtensionInfo["state"],
@@ -253,10 +239,11 @@ function rigOf(options: RigOptions): Rig {
   };
   const loader: Pick<
     ExtensionLoader,
-    "list" | "uiEntries" | "reload" | "loadInstalled" | "unload"
+    "list" | "uiEntries" | "reload" | "reloadFromReviewed" | "loadInstalled" | "unload"
   > = {
     // 이 시험은 설치와 지우기를 부르지 않는다
     loadInstalled: () => Promise.resolve(err({ kind: "not_found", diagnostics: [] })),
+    reloadFromReviewed: () => Promise.resolve(err({ kind: "unknown_extension" })),
     unload: () => Promise.resolve(false),
     list: () => options.infos ?? [],
     uiEntries: () => options.entries ?? [],
@@ -269,6 +256,7 @@ function rigOf(options: RigOptions): Rig {
   const source: ExtUiVersionSource = {
     host,
     loader: () => loader,
+    reviewed: partial<ReviewedVersions>({}),
     history,
     extensionsDir: EXT_DIR,
     heldThreads: () => options.threads ?? [],
@@ -278,27 +266,6 @@ function rigOf(options: RigOptions): Rig {
     hash: hashOf,
   };
   return { port: createExtUiVersionPort({ extUi: source }), history, nodes, fs, faults, calls };
-}
-
-/** 보관 항목 하나를 기록한다. 내용은 `bundle/<이름>`에서 복사한다 */
-async function record(
-  rig: Rig,
-  name: string,
-  version: string,
-  source: VersionSource,
-  stateSchemaVersion: number | null,
-): Promise<void> {
-  const bundle = join(BUNDLE_DIR, `${name}-${version}`);
-  await writeInstall(rig.fs, bundle, name, version);
-  const recorded = await rig.history.record({
-    name,
-    version,
-    source,
-    extensionDir: bundle,
-    manifestText: manifestOf(name, version),
-    stateSchemaVersion,
-  });
-  expect(recorded.ok).toBe(true);
 }
 
 function entryOfUi(
@@ -321,316 +288,6 @@ function entryOfUi(
     trust: "user",
   };
 }
-
-describe("ext-ui-version port: versions", () => {
-  test("lists the recorded versions newest first and marks the installed one as current", async () => {
-    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
-    await record(rig, "helm", "0.1.0", "bundled", null);
-    await record(rig, "helm", "0.2.0", "user", null);
-    expect(await rig.port.versions("helm")).toEqual(
-      ok({
-        versions: [
-          {
-            version: "0.2.0",
-            installedAt: new Date(BASE_MS + 2000).toISOString(),
-            source: "user",
-            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
-            stateSchemaVersion: null,
-            current: true,
-          },
-          {
-            version: "0.1.0",
-            installedAt: new Date(BASE_MS + 1000).toISOString(),
-            source: "bundled",
-            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
-            stateSchemaVersion: null,
-            current: false,
-          },
-        ],
-      }),
-    );
-  });
-
-  test("an extension from the bundled or project location has no history and an empty list", async () => {
-    const rig = rigOf({ infos: [loaded("core-tools", "active", "builtin", "1.0.0")] });
-    expect(await rig.port.versions("core-tools")).toEqual(ok({ versions: [] }));
-  });
-
-  test("a name that no extension has is unknown_extension", async () => {
-    const rig = rigOf({});
-    expect(await rig.port.versions("ghost")).toEqual(
-      err({ kind: "unknown_extension", name: "ghost" }),
-    );
-  });
-
-  test("a metadata read that fails is reported as io with the OS code", async () => {
-    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
-    await record(rig, "helm", "0.1.0", "bundled", null);
-    rig.faults.metaReadFails = true;
-    expect(await rig.port.versions("helm")).toEqual(err({ kind: "io", code: "EACCES" }));
-  });
-});
-
-describe("ext-ui-version port: rollback", () => {
-  test("an extension the loader did not load swaps the files, records the installed version and reports restart", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", null);
-
-    const rolled = await rig.port.rollback({ name: "helm", version: "0.1.0" });
-
-    expect(rolled).toEqual(ok({ appliesAt: "restart", stateCleared: false }));
-    expect(rig.calls).toEqual(["disable helm/main", "enable helm/main"]);
-    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
-      kind: "file",
-      text: 'export const version = "0.1.0";\n',
-    });
-    // 되돌리기 전 설치본이 `user` 출처로 기록되어 다시 앞으로 갈 수 있다
-    const listing = await rig.history.list("helm", "0.1.0");
-    expect(listing.ok).toBe(true);
-    if (listing.ok) {
-      expect(listing.value.versions.map((entry) => [entry.version, entry.source])).toEqual([
-        ["0.2.0", "user"],
-        ["0.1.0", "bundled"],
-      ]);
-    }
-  });
-
-  test("a schema mismatch stops before any file changes, then clearState resets the refused state", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      threads: [THREAD],
-      schema: 2,
-      reset: () => Promise.resolve(err({ kind: "not_refused" })),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", 1);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({ kind: "state_schema_mismatch", targetSchemaVersion: 1, currentSchemaVersion: 2 }),
-    );
-    expect(rig.calls).toEqual([]);
-    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
-      kind: "file",
-      text: 'export const version = "0.2.0";\n',
-    });
-  });
-
-  test("a not-loaded extension: clearState reports stateCleared when a refused state was reset, between disable and enable", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      threads: [THREAD],
-      schema: 2,
-      reset: () => Promise.resolve(ok({ rev: 1 })),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", 1);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
-      ok({ appliesAt: "restart", stateCleared: true }),
-    );
-    expect(rig.calls).toEqual([
-      "disable helm/main",
-      `reset ${THREAD} helm/main`,
-      "enable helm/main",
-    ]);
-  });
-
-  test("a not-loaded extension: clearState with nothing refused reports stateCleared false", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      threads: [THREAD, OTHER_THREAD],
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", null);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
-      ok({ appliesAt: "restart", stateCleared: false }),
-    );
-    expect(rig.calls).toEqual([
-      "disable helm/main",
-      `reset ${THREAD} helm/main`,
-      `reset ${OTHER_THREAD} helm/main`,
-      "enable helm/main",
-    ]);
-  });
-
-  test("a failed state reset stops the rollback as rollback_failed after the swap, with the extension left off", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      threads: [THREAD],
-      reset: () => Promise.resolve(err({ kind: "port_unavailable" })),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", null);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
-      err({ kind: "rollback_failed", reason: "clear_state_failed" }),
-    );
-    expect(rig.calls).toEqual(["disable helm/main", `reset ${THREAD} helm/main`]);
-  });
-
-  test("a disable that throws changes nothing and reports disable_failed", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      disableFails: true,
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await record(rig, "helm", "0.1.0", "bundled", null);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({ kind: "rollback_failed", reason: "disable_failed" }),
-    );
-    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
-      kind: "file",
-      text: 'export const version = "0.2.0";\n',
-    });
-  });
-
-  test("a version that is not recorded is unknown_version", async () => {
-    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    expect(await rig.port.rollback({ name: "helm", version: "0.9.0" })).toEqual(
-      err({ kind: "unknown_version", version: "0.9.0" }),
-    );
-  });
-
-  test("an extension that no one installed is unknown_extension, and a builtin one has no history", async () => {
-    const rig = rigOf({ infos: [loaded("core-tools", "active", "builtin", "1.0.0")] });
-    expect(await rig.port.rollback({ name: "ghost", version: "0.1.0" })).toEqual(
-      err({ kind: "unknown_extension", name: "ghost" }),
-    );
-    expect(await rig.port.rollback({ name: "core-tools", version: "0.1.0" })).toEqual(
-      err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
-    );
-  });
-});
-
-async function hotRig(options: Partial<RigOptions> = {}): Promise<Rig> {
-  const rig = rigOf({
-    infos: [loaded("helm", "active", "user", "0.2.0")],
-    scopes: [scope("helm/main", "helm", "enabled")],
-    threads: [THREAD],
-    ...options,
-  });
-  await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-  await record(rig, "helm", "0.1.0", "bundled", null);
-  return rig;
-}
-
-const installedText = (rig: Rig): unknown =>
-  rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"));
-
-describe("ext-ui-version port: hot rollback", () => {
-  test("a loaded extension is reloaded instead of disabled and re-enabled", async () => {
-    const rig = await hotRig();
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
-    );
-    expect(rig.calls).toEqual(["reload helm clearState=false"]);
-    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.1.0";\n' });
-  });
-
-  test("clearState goes to the reload and its cleared count decides stateCleared", async () => {
-    const rig = await hotRig({
-      schema: 2,
-      reload: (name) => Promise.resolve(reloadedNow(name, 1)),
-    });
-    await record(rig, "helm", "0.0.5", "bundled", 1);
-    expect(await rig.port.rollback({ name: "helm", version: "0.0.5", clearState: true })).toEqual(
-      ok({ appliesAt: "nextStepBoundary", stateCleared: true }),
-    );
-    expect(rig.calls).toEqual(["reload helm clearState=true"]);
-  });
-
-  test("a reload that is waiting for a step boundary does not hold the call and reports the state as not cleared yet", async () => {
-    const waiting = Promise.withResolvers<ReloadApplied>();
-    const rig = await hotRig({
-      reload: () =>
-        Promise.resolve(ok({ appliesAt: "nextStepBoundary", applied: waiting.promise })),
-    });
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
-      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
-    );
-    waiting.resolve({ status: "superseded" });
-  });
-
-  test("a new version that cannot be loaded puts the installed files back and reports rollback_failed", async () => {
-    const rig = await hotRig({
-      reload: () =>
-        Promise.resolve(
-          err({
-            kind: "rejected",
-            diagnostics: [
-              {
-                extension: "helm",
-                source: "user",
-                stage: "entry",
-                severity: "error",
-                code: "entry_import_failed",
-                message: "entry ./src/index.ts failed to import",
-                generation: 1,
-              },
-            ],
-          }),
-        ),
-    });
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({
-        kind: "rollback_failed",
-        reason: "reload_failed (files restored true): entry ./src/index.ts failed to import",
-      }),
-    );
-    // 도는 코드와 디스크가 모두 0.2.0이고 보관본 0.1.0도 남아 있다
-    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.2.0";\n' });
-    const listing = await rig.history.list("helm", "0.2.0");
-    expect(listing.ok ? listing.value.versions.map((entry) => entry.version) : null).toContain(
-      "0.1.0",
-    );
-  });
-
-  test("a reload that applies and then fails at the boundary is reported while the call is open", async () => {
-    const rig = await hotRig({
-      reload: () =>
-        Promise.resolve(
-          ok({
-            appliesAt: "now",
-            applied: Promise.resolve({
-              status: "failed",
-              restored: true,
-              diagnostics: [
-                {
-                  extension: "helm",
-                  source: "user",
-                  stage: "activate",
-                  severity: "error",
-                  code: "reload_failed",
-                  message: "reload of helm failed at helm (registration_setup_failed)",
-                  generation: 1,
-                },
-              ],
-            }),
-          }),
-        ),
-    });
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({
-        kind: "rollback_failed",
-        reason:
-          "reload_failed (files restored true): reload of helm failed at helm (registration_setup_failed)",
-      }),
-    );
-    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.2.0";\n' });
-  });
-});
 
 describe("ext-ui-version port: ui list", () => {
   test("carries version, install tier and the app root of an app entry", () => {
@@ -913,199 +570,194 @@ test("uiRequestApproval returns the approval id and rejects a malformed thread i
   expect(rig.calls).toEqual(["approve thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/panel/apply"]);
 });
 
-describe("ext-ui-version port: bundled version", () => {
-  const BUNDLED_DIR = join(BUNDLE_DIR, "helm");
-  const bundledHelm = (version: string): BundledPluginVersion => ({
-    version,
-    manifestText: manifestOf("helm", version),
-    dir: BUNDLED_DIR,
-  });
+// 검토본 저장소가 버전 목록과 되돌리기의 원천이다(M5c §4.6.8). 되돌리기는 `current`만 바꾸고, 검토 항목 없이 기록에 `rollback`을 남긴다.
 
-  test("versions carries the bundled version of a default plugin and no field for other extensions", async () => {
-    const rig = rigOf({
-      infos: [
-        loaded("helm", "active", "user", "0.2.0"),
-        loaded("notes", "active", "user", "0.1.0"),
-      ],
-      bundled: bundledHelm("0.1.0"),
-    });
-    await record(rig, "helm", "0.2.0", "user", null);
+const COPY_OLD = `sha256:${"a".repeat(64)}`;
+const COPY_NEW = `sha256:${"b".repeat(64)}`;
+const COPY_TIME = "2026-11-01T00:00:00.000Z";
+const NOW = "2026-11-18T00:00:00.000Z";
+
+interface StoreState {
+  current: string | null;
+  readonly copies: readonly { readonly version: string; readonly contentHash: string }[];
+  readonly setCalls: string[];
+  readonly logs: ReviewLogEntry[];
+}
+
+function copiesOf(state: StoreState): PluginVersionInfo[] {
+  return state.copies.map((copy) => ({
+    contentHash: copy.contentHash,
+    approvedAt: COPY_TIME,
+    current: copy.contentHash === state.current,
+    version: copy.version,
+    origin: "user",
+  }));
+}
+
+/** 검토본 저장소와 로더를 가진 되돌리기 포트. 저장소 목록은 최근 승인이 앞이다(`versions`의 약속) */
+function reviewedRigOf(options: {
+  readonly current: string | null;
+  readonly loaded: LoadedExtensionInfo | undefined;
+  readonly reload?: () => ReturnType<ExtensionLoader["reloadFromReviewed"]>;
+  readonly copies?: StoreState["copies"];
+}): {
+  readonly port: ExtUiVersionPort;
+  readonly state: StoreState;
+  readonly reloads: string[];
+  readonly refreshes: { count: number };
+} {
+  const state: StoreState = {
+    current: options.current,
+    copies: options.copies ?? [
+      { version: "0.2.0", contentHash: COPY_NEW },
+      { version: "0.1.0", contentHash: COPY_OLD },
+    ],
+    setCalls: [],
+    logs: [],
+  };
+  const reloads: string[] = [];
+  const refreshes = { count: 0 };
+  const store = partial<PluginStore>({
+    versions: () => Promise.resolve(ok(copiesOf(state))),
+    setCurrent: (_name, contentHash) => {
+      state.setCalls.push(contentHash);
+      state.current = contentHash;
+      return Promise.resolve(ok(undefined));
+    },
+    clearCurrent: () => {
+      state.current = null;
+      return Promise.resolve(ok(undefined));
+    },
+    appendLog: (entry) => {
+      state.logs.push(entry);
+      return Promise.resolve(ok(undefined));
+    },
+  });
+  const loader = partial<ExtensionLoader>({
+    list: () => (options.loaded === undefined ? [] : [options.loaded]),
+    reloadFromReviewed: (name) => {
+      reloads.push(name);
+      return options.reload === undefined
+        ? Promise.resolve(reloadedNow(name, 0))
+        : options.reload();
+    },
+  });
+  const source = partial<ExtUiVersionSource>({
+    loader: () => loader,
+    reviewed: partial<ReviewedVersions>({
+      store,
+      now: () => NOW,
+      log: partial<Logger>({}),
+      refreshPluginSet: () => {
+        refreshes.count += 1;
+        return Promise.resolve();
+      },
+    }),
+    bundle: () => Promise.resolve(null),
+  });
+  return { port: createExtUiVersionPort({ extUi: source }), state, reloads, refreshes };
+}
+
+const ACTIVE_HELM = loaded("helm", "active", "user", "0.2.0");
+
+describe("ext-ui-version port: reviewed copies", () => {
+  test("versions lists the reviewed copies newest first with a version text and the current flag", async () => {
+    const rig = reviewedRigOf({ current: COPY_NEW, loaded: ACTIVE_HELM });
     expect(await rig.port.versions("helm")).toEqual(
       ok({
         versions: [
           {
-            version: "0.2.0",
-            installedAt: new Date(BASE_MS + 1000).toISOString(),
+            version: "0.2.0+bbbbbbbb",
+            installedAt: COPY_TIME,
             source: "user",
-            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
+            manifestHash: COPY_NEW,
             stateSchemaVersion: null,
             current: true,
           },
-        ],
-        bundledVersion: "0.1.0",
-      }),
-    );
-    expect(await rig.port.versions("notes")).toEqual(ok({ versions: [] }));
-  });
-
-  test("rolling back to the bundled version records it as bundled, then swaps the files", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      bundled: bundledHelm("0.1.0"),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      ok({ appliesAt: "restart", stateCleared: false }),
-    );
-    expect(rig.calls).toEqual(["disable helm/main", "enable helm/main"]);
-    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
-      kind: "file",
-      text: 'export const version = "0.1.0";\n',
-    });
-    const listing = await rig.history.list("helm", "0.1.0");
-    expect(listing).toEqual(
-      ok({
-        versions: [
           {
-            version: "0.2.0",
-            installedAt: new Date(BASE_MS + 2000).toISOString(),
+            version: "0.1.0+aaaaaaaa",
+            installedAt: COPY_TIME,
             source: "user",
-            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
+            manifestHash: COPY_OLD,
             stateSchemaVersion: null,
             current: false,
           },
-          {
-            version: "0.1.0",
-            installedAt: new Date(BASE_MS + 1000).toISOString(),
-            source: "bundled",
-            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
-            stateSchemaVersion: null,
-            current: true,
-          },
         ],
-        skipped: [],
       }),
     );
   });
 
-  test("a bundled version already in the history is not recorded again", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      bundled: bundledHelm("0.1.0"),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
-    await record(rig, "helm", "0.1.0", "bundled", null);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      ok({ appliesAt: "restart", stateCleared: false }),
+  test("a name with no reviewed copy and no load is an unknown extension", async () => {
+    const rig = reviewedRigOf({ current: null, loaded: undefined, copies: [] });
+    expect(await rig.port.versions("ghost")).toEqual(
+      err({ kind: "unknown_extension", name: "ghost" }),
     );
-    // 0.1.0의 기록 시각은 처음 기록 때(BASE+1000) 그대로다. 다시 기록했다면 BASE+2000이 된다
-    const listing = await rig.history.list("helm", "0.1.0");
-    expect(
-      listing.ok ? listing.value.versions.map((entry) => [entry.version, entry.installedAt]) : null,
-    ).toEqual([
-      ["0.2.0", new Date(BASE_MS + 2000).toISOString()],
-      ["0.1.0", new Date(BASE_MS + 1000).toISOString()],
+  });
+
+  test("rollback to an older copy moves current, reloads the reviewed copy, and records the rollback without a review item", async () => {
+    const rig = reviewedRigOf({ current: COPY_NEW, loaded: ACTIVE_HELM });
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0+aaaaaaaa" })).toEqual(
+      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
+    );
+    expect(rig.state.current).toBe(COPY_OLD);
+    expect(rig.reloads).toEqual(["helm"]);
+    expect(rig.refreshes.count).toBe(1);
+    expect(rig.state.logs).toEqual([
+      {
+        at: NOW,
+        itemId: null,
+        name: "helm",
+        kind: null,
+        candidateHash: COPY_OLD,
+        baseHash: COPY_NEW,
+        decision: "rollback",
+        profileIds: [],
+        actor: "user",
+        provenance: null,
+        originThreadId: null,
+      },
     ]);
   });
 
-  test("a same-version entry whose manifest hash differs from the bundle is replaced by the bundle", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      bundled: bundledHelm("0.1.0"),
+  test("a rejected reload puts the previous copy back as current and records nothing", async () => {
+    const rig = reviewedRigOf({
+      current: COPY_NEW,
+      loaded: ACTIVE_HELM,
+      reload: () =>
+        Promise.resolve(
+          err({
+            kind: "rejected",
+            diagnostics: [partial<LoadDiagnostic>({ message: "the manifest is invalid" })],
+          }),
+        ),
     });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
-    // 판 글자는 같지만 매니페스트가 다른 보관 항목이다(번들과 다른 내용을 같은 판으로 적어 둔 것)
-    const edited = join(BUNDLE_DIR, "edited-helm-0.1.0");
-    await writeInstall(rig.fs, edited, "helm", "0.1.0");
-    const recorded = await rig.history.record({
-      name: "helm",
-      version: "0.1.0",
-      source: "user",
-      extensionDir: edited,
-      manifestText: '{"name":"helm","version":"0.1.0","edited":true}',
-      stateSchemaVersion: null,
-    });
-    expect(recorded.ok).toBe(true);
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      ok({ appliesAt: "restart", stateCleared: false }),
-    );
-    expect(await rig.history.list("helm", "0.1.0")).toEqual(
-      ok({
-        versions: [
-          {
-            version: "0.2.0",
-            installedAt: new Date(BASE_MS + 3000).toISOString(),
-            source: "user",
-            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
-            stateSchemaVersion: null,
-            current: false,
-          },
-          {
-            version: "0.1.0",
-            installedAt: new Date(BASE_MS + 2000).toISOString(),
-            source: "bundled",
-            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
-            stateSchemaVersion: null,
-            current: true,
-          },
-        ],
-        skipped: [],
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0+aaaaaaaa" })).toEqual(
+      err({
+        kind: "rollback_failed",
+        reason: "the manifest is invalid (current restored true)",
       }),
     );
+    expect(rig.state.current).toBe(COPY_NEW);
+    expect(rig.state.logs).toEqual([]);
+    expect(rig.refreshes.count).toBe(0);
   });
 
-  test("rolling back to the bundled version that is already installed is unknown_version and changes nothing", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.1.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      bundled: bundledHelm("0.1.0"),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.1.0");
-    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({ kind: "unknown_version", version: "0.1.0" }),
+  test("an unknown version answers unknown_version and changes nothing", async () => {
+    const rig = reviewedRigOf({ current: COPY_NEW, loaded: ACTIVE_HELM });
+    expect(await rig.port.rollback({ name: "helm", version: "9.9.9+ffffffff" })).toEqual(
+      err({ kind: "unknown_version", version: "9.9.9+ffffffff" }),
     );
-    expect(rig.calls).toEqual([]);
-    const listing = await rig.history.list("helm", "0.1.0");
-    expect(listing.ok ? listing.value.versions : null).toEqual([]);
+    expect(rig.state.setCalls).toEqual([]);
+    expect(rig.reloads).toEqual([]);
   });
 
-  test("a builtin extension is still refused even when a bundled version is named", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "active", "builtin", "0.2.0")],
-      bundled: bundledHelm("0.1.0"),
-    });
-    expect(await rig.port.versions("helm")).toEqual(ok({ versions: [] }));
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
+  test("a copy of an extension that is not loaded only moves current and records the rollback", async () => {
+    const rig = reviewedRigOf({ current: COPY_NEW, loaded: undefined });
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0+aaaaaaaa" })).toEqual(
+      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
     );
-  });
-
-  test("a bundle that cannot be copied fails the record as io and leaves the install alone", async () => {
-    const rig = rigOf({
-      infos: [loaded("helm", "error", "user", "0.2.0")],
-      scopes: [scope("helm/main", "helm", "enabled")],
-      bundled: bundledHelm("0.1.0"),
-    });
-    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
-
-    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
-      err({ kind: "io", code: "io" }),
-    );
-    expect(rig.calls).toEqual([]);
-    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
-      kind: "file",
-      text: 'export const version = "0.2.0";\n',
-    });
+    expect(rig.state.current).toBe(COPY_OLD);
+    expect(rig.reloads).toEqual([]);
+    expect(rig.state.logs.map((entry) => entry.decision)).toEqual(["rollback"]);
   });
 });

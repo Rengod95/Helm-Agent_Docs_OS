@@ -1031,11 +1031,12 @@ export interface TrustPrompter {
 
 #### 3.2.2 플러그인 로더 포트 [결정: 2026-11-17, M5c-1, `review/m5/profile-project-loader.md` §3.5]
 
-인터페이스만 둔다. PortKey 이름은 스펙이 정하지 않아 두지 않는다. 구현은 호스트(`PluginSetPort`, `PluginSubmitPort`)와 X(`MaterialPort`)다.
+인터페이스만 둔다. `PluginSubmitPort`의 키 `fresnel.pluginSubmit`은 [제안]이다(스펙이 이름을 정하지 않았다). 나머지는 PortKey 이름을 두지 않는다. 구현은 호스트(`PluginSetPort`, `PluginSubmitPort`)와 X(`MaterialPort`)다.
 
 ```ts
 export interface PluginSetPort {                                  // 호스트가 구현해 X에 주입. X는 프로필 저장소를 import하지 않는다(DR-14)
-  resolve(threadId: ThreadId): { readonly plugins: readonly string[]; readonly profileId: string; readonly profileRev: number; readonly commonRev: number };
+  resolve(threadId: ThreadId): { readonly plugins: readonly string[]; readonly profileId: string; readonly profileRev: number; readonly commonRev: number; readonly pluginHashes?: Readonly<Record<string, string>> };
+  // pluginHashes: 로더가 실은 검토본 판의 내용 해시(이름별). 해시만 바뀌면 X가 profile.applied { reason: "plugin_updated" }를 남긴다(M5c §4.6.7)
 }
 export interface MaterialPort {                                   // X가 구현. 문맥 조립이 instructions를 sections로 쓴다(§4.5.10)
   instructions(threadId: ThreadId): readonly MaterialText[];      // MaterialText = { key, text }

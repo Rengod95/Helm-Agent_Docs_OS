@@ -478,6 +478,11 @@ export interface PluginSetView {
   readonly commonRev: number;
   /** 대화가 저장한 프로필 id가 가리키는 프로필이 없어 `default`로 읽었으면 그 id. 있으면 `profile.applied { reason: "profile_missing" }` */
   readonly missingProfileId?: string;
+  /**
+   * E(T)의 플러그인 가운데 지금 실행 중인 검토본의 내용 해시(M5c §4.6.7). 해시가 바뀌면 경계가 `profile.applied { reason: "plugin_updated" }`를 남긴다.
+   * 검토본에서 실리지 않은 플러그인(내장, 시험 후보)은 없다
+   */
+  readonly pluginHashes?: readonly { readonly plugin: string; readonly contentHash: string }[];
 }
 export interface PluginSetPort {
   resolve(threadId: ThreadId): PluginSetView;

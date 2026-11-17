@@ -1,5 +1,5 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { Clock } from "@fresnel/contracts";
+import type { Clock, Logger } from "@fresnel/contracts";
 import type {
   ExtHost,
   ExtStorageManager,
@@ -7,6 +7,7 @@ import type {
   VersionHistory,
 } from "@fresnel/ext-host";
 import type { BundledPluginVersion } from "../default-plugins.ts";
+import type { PluginStore } from "../plugins/store.ts";
 import { createExtUiVersionHistory, sha256Hex } from "./ext-ui-version-fs.ts";
 
 // 확장 버전과 화면 목록(T-XV, HS-108)이 읽는 원천. 조립 루트(assemble.ts)가 만들어 엔진 포트에 넘긴다.
@@ -18,14 +19,33 @@ export interface InstallGate {
   readonly managedLocked: (name: string) => boolean;
 }
 
+/**
+ * 검토본 저장소의 면(M5c §4.6). 버전 목록은 `versions`를 읽고, 되돌리기는 `current`를 바꾸고 `review-log.jsonl`에 `rollback`을 남긴다.
+ * `refreshPluginSet`은 되돌리기가 판을 바꾼 뒤 열린 대화의 집합을 다시 맞춘다(`plugin_updated`가 남는다)
+ */
+export interface ReviewedVersions {
+  readonly store: Pick<
+    PluginStore,
+    "versions" | "current" | "setCurrent" | "clearCurrent" | "appendLog"
+  >;
+  readonly now: () => string;
+  readonly log: Logger;
+  readonly refreshPluginSet: () => Promise<void>;
+}
+
 export interface ExtUiVersionSource {
   /** 확장 등록(scope) 목록과 켜기·끄기, 상태 비우기에 쓴다 */
   readonly host: Pick<ExtHost, "registrations" | "registration" | "resetRegistrationState" | "ui">;
   /** 외부 확장 로더. 로더가 없으면 undefined다 */
   readonly loader: () =>
-    | Pick<ExtensionLoader, "list" | "uiEntries" | "reload" | "loadInstalled" | "unload">
+    | Pick<
+        ExtensionLoader,
+        "list" | "uiEntries" | "reload" | "reloadFromReviewed" | "loadInstalled" | "unload"
+      >
     | undefined;
-  /** 버전 기록. 되돌리기와 기본 플러그인 교체가 같은 보관을 쓴다 */
+  /** 검토본 저장소. 버전 목록과 되돌리기의 원천이다(§4.6.7~8) */
+  readonly reviewed: ReviewedVersions;
+  /** 버전 기록(설치 폴더의 `.history`). 기본 플러그인 교체가 남긴다. 버전 목록과 되돌리기는 더 이상 읽지 않는다 */
   readonly history: VersionHistory;
   /** 사용자 확장 위치(`<config>/extensions`). 확장 하나의 설치본은 `<위치>/<이름>`이다 */
   readonly extensionsDir: string;
@@ -51,6 +71,7 @@ export function createExtUiVersionSource(input: {
   readonly host: ExtUiVersionSource["host"];
   readonly extensionsDir: string;
   readonly clock: Clock;
+  readonly reviewed: ReviewedVersions;
   readonly loader: ExtUiVersionSource["loader"];
   readonly heldThreads: ExtUiVersionSource["heldThreads"];
   readonly bundle: ExtUiVersionSource["bundle"];
@@ -60,6 +81,7 @@ export function createExtUiVersionSource(input: {
   return {
     host: input.host,
     loader: input.loader,
+    reviewed: input.reviewed,
     history: createExtUiVersionHistory({ extensionsDir: input.extensionsDir, clock: input.clock }),
     extensionsDir: input.extensionsDir,
     heldThreads: input.heldThreads,

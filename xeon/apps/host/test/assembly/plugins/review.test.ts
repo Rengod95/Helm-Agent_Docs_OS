@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import { err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
@@ -9,10 +9,14 @@ import {
   createPluginReview,
   createPluginService,
   createPluginStore,
+  type ApprovalHooks,
   type PluginReview,
   type PluginService,
   type PluginStore,
 } from "../../../src/assembly/plugins/index.ts";
+import type { PluginFact } from "../../../src/assembly/m4/plugin-fact.ts";
+import type { PluginEditIssue } from "../../../src/assembly/m4/plugin-edit.ts";
+import type { PluginPortFailure } from "../../../src/handlers/m5/plugins.ts";
 import type { PluginChange } from "../../../src/handlers/m5/plugin-review.ts";
 import { passThroughFileLock, removeTree, tempRoot, writeFiles } from "./support.ts";
 
@@ -56,7 +60,7 @@ interface Rig {
 }
 
 /** 같은 루트를 여는 검토 서비스 묶음. 재시작 시험은 같은 루트로 다시 연다 */
-function openRig(root: string): Rig {
+function openRig(root: string, hooks?: ApprovalHooks): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
     fileLock: passThroughFileLock,
@@ -83,6 +87,7 @@ function openRig(root: string): Rig {
       origins.push(input);
       return true;
     },
+    ...(hooks === undefined ? {} : { approvalHooks: hooks }),
   });
   const notified: PluginChange[] = [];
   review.onChanged((change) => notified.push(change));
@@ -458,4 +463,86 @@ test("approving the same plugin again and again keeps the five newest reviewed v
   const versions = valueOf(await rig.store.versions("kit"));
   expect(versions.length).toBe(5);
   expect(versions.filter((version) => version.current).length).toBe(1);
+});
+
+// 승인의 프로필 반영 훅(M5c §4.7.3): 커밋 전 검사, 커밋 뒤 프로필 쓰기, 실행 중인 판 맞추기가 검토 서비스의 순서대로 돈다.
+
+function hookedRigOf(hooks: ApprovalHooks): Rig {
+  const root = tempRoot("plugin-review-hooks-");
+  roots.push(root);
+  return openRig(root, hooks);
+}
+
+/** 사용자 폴더에 `kit`을 만들고 scan으로 새 항목 하나를 받는다. 항목 id를 돌려준다 */
+async function queuedKit(rig: Rig): Promise<string> {
+  writeFiles(join(rig.pluginsDir, "kit"), {
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    "instructions.md": "Use kit.",
+  });
+  return firstOf(valueOf(await rig.review.scan()).queued);
+}
+
+test("a profile check that fails before the commit leaves current, the log, and the item as they were", async () => {
+  const issues: PluginEditIssue[] = [
+    { profile: "p1", code: "plugin_not_reviewed", severity: "error", plugin: "kit" },
+  ];
+  const failure: PluginPortFailure = { kind: "profile_invalid", issues };
+  const rig = hookedRigOf({
+    beforeCommit: () => Promise.resolve(err(failure)),
+  });
+  const itemId = await queuedKit(rig);
+  expect(errorOf(await rig.review.decide(itemId, APPROVE))).toEqual(failure);
+  expect(valueOf(await rig.store.current("kit"))).toBeNull();
+  expect(valueOf(await rig.store.readLog())).toEqual([]);
+  expect(valueOf(await rig.review.get(itemId)).item.state).toBe("pending");
+});
+
+test("a failing profile write after the swap puts the previous current back and records nothing", async () => {
+  const failure: PluginPortFailure = {
+    kind: "profiles",
+    failure: { kind: "io", path: "profiles.json", code: "EIO" },
+  };
+  const rig = hookedRigOf({
+    afterCommit: () => Promise.resolve(err(failure)),
+  });
+  const itemId = await queuedKit(rig);
+  expect(errorOf(await rig.review.decide(itemId, APPROVE))).toEqual(failure);
+  expect(valueOf(await rig.store.current("kit"))).toBeNull();
+  expect(valueOf(await rig.store.readLog())).toEqual([]);
+  expect(valueOf(await rig.review.get(itemId)).item.state).toBe("pending");
+});
+
+test("the hooks see the candidate facts, the log names the applied profiles, and reflect runs after the commit", async () => {
+  const seen: string[] = [];
+  const facts: PluginFact[] = [];
+  const rig = hookedRigOf({
+    beforeCommit: (context) => {
+      seen.push(`before:${context.item.name}`);
+      if (context.facts !== null) facts.push(context.facts);
+      return Promise.resolve(ok(undefined));
+    },
+    afterCommit: (context) => {
+      seen.push(`after:${context.item.name}`);
+      return Promise.resolve(ok(["p1"]));
+    },
+    reflect: (context) => {
+      seen.push(`reflect:${context.item.name}`);
+      return Promise.resolve();
+    },
+  });
+  const itemId = await queuedKit(rig);
+  const outcome = valueOf(
+    await rig.review.decide(itemId, {
+      kind: "approve",
+      profileIds: [],
+      libraryOnly: false,
+      purpose: "Keeps the kit",
+    }),
+  );
+  expect(outcome.appliedTo).toEqual(["p1"]);
+  expect(seen).toEqual(["before:kit", "after:kit", "reflect:kit"]);
+  expect(facts).toEqual([{ name: "kit", replaces: [], drives: false, requiredKeys: [] }]);
+  expect(
+    valueOf(await rig.store.readLog()).map((entry) => [entry.decision, entry.profileIds]),
+  ).toEqual([["approved", ["p1"]]]);
 });

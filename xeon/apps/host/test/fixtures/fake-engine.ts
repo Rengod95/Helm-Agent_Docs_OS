@@ -28,10 +28,8 @@ import { matchesFilter } from "../../src/handlers/events.ts";
 import { threadLocked } from "../../src/handlers/owner.ts";
 import { wireErrorOfStore } from "../../src/store-error.ts";
 import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
-import {
-  createProfileTestRunPort,
-  type PluginFact,
-} from "../../src/assembly/m4/profile-test-run-port.ts";
+import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
+import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import type { ExtMethodPort } from "../../src/handlers/m4/ext-method.ts";
@@ -606,8 +604,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,
         testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,
         pluginFacts: options.profiles?.pluginFacts ?? (() => []),
+        pendingNames: () => Promise.resolve([]),
         env: {
           catalog: built.catalog,
+          pendingPluginNames: () => Promise.resolve([]),
+          loadedHash: () => undefined,
           // 포트가 호출할 때마다 읽는다: `ports`는 이 객체가 만들어진 뒤에 채워진다
           get settings() {
             return ports.settings;

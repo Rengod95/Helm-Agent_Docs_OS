@@ -169,5 +169,7 @@ export interface LoadedExtensionInfo {
   readonly manifest?: ExtensionManifest;
   /** 확장 루트 디렉터리(절대 경로). 내장 확장은 없다 */
   readonly root?: string;
+  /** 실행 중인 판의 내용 해시(`sha256:<hex>`). 검토본에서 실었을 때만 있다 */
+  readonly contentHash?: string;
   readonly diagnostics: readonly LoadDiagnostic[];
 }

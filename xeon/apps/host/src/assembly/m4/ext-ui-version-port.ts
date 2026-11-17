@@ -1,5 +1,4 @@
-import { join } from "node:path";
-import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import { detach, err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ExtDiagnostic,
@@ -11,25 +10,24 @@ import type {
   ExtUiListResult,
   ExtUiPostParams,
   ExtUiPostResult,
+  ExtVersionEntry,
   ExtVersionsResult,
 } from "@fresnel/contracts/wire";
 import type {
   ExtUiRefusal,
   LoadedExtensionInfo,
-  RollbackHooks,
-  RollbackReloadOutcome,
+  ReloadApplied,
   UiEntryReport,
   UiIssue,
-  VersionHistoryError,
 } from "@fresnel/ext-host";
 import type { ExtUiVersionFailure, ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
-import { sequentially } from "../../util.ts";
 import type { M4PortDeps } from "./deps.ts";
-import type { BundledPluginVersion } from "../default-plugins.ts";
+import type { PluginStoreError, PluginVersionInfo } from "../plugins/store.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 
-// ExtUiVersion 포트 구현(T-XV, L4.host-service.spec §3.3.3, HS-108). 확장 목록과 화면 목록은 로더가, 버전 기록은 `history`가,
-// 끄기·켜기와 상태 비우기는 ExtHost의 등록 토글과 상태 재설정이 한다. 로더가 없으면(기본 그룹이 꺼짐) 확장이 없는 것으로 본다.
+// ExtUiVersion 포트 구현(T-XV, L4.host-service.spec §3.3.3, HS-108). 확장 목록과 화면 목록은 로더가 낸다.
+// 버전 목록과 되돌리기는 검토본 저장소가 한다(M5c §4.6, `reviewed`): 되돌리기는 `current`를 바꾸고 로더가 검토본을 다시 읽는다.
+// 로더가 없으면(기본 그룹이 꺼짐) 실린 확장이 없는 것으로 본다.
 
 /** 화면 목록의 상한. 와이어 `ext.ui.list`의 items 상한과 같다 */
 const UI_LIST_LIMIT = 500;
@@ -39,13 +37,9 @@ const TITLE_LIMIT = 256;
 const MESSAGE_LIMIT = 2000;
 /** `store.io`의 details.code 상한 */
 const CODE_LIMIT = 64;
-/** 상태 재설정이 이런 값을 주면 비울 상태가 없다는 뜻이라 실패가 아니다 */
-const NOTHING_TO_CLEAR: ReadonlySet<string> = new Set([
-  "not_refused",
-  "nothing_stored",
-  "no_state",
-  "unknown_registration",
-]);
+/** 검토본 해시의 접두사와 와이어 판 글자에 붙이는 해시 자릿수 */
+const HASH_PREFIX = "sha256:";
+const SHORT_HASH = 8;
 
 export function createExtUiVersionPort(deps: Pick<M4PortDeps, "extUi">): ExtUiVersionPort {
   const source = deps.extUi;
@@ -102,220 +96,187 @@ function threadOf(raw: string): ThreadId | undefined {
   return parsed.ok ? parsed.value : undefined;
 }
 
+/** 검토본 판 하나의 와이어 글자. `<매니페스트 버전>+<해시 앞 8자>`라서 같은 버전이 여럿이어도 구분된다 */
+function versionTextOf(item: PluginVersionInfo): string {
+  return `${item.version}+${item.contentHash.slice(HASH_PREFIX.length, HASH_PREFIX.length + SHORT_HASH)}`;
+}
+
+function versionEntryOf(item: PluginVersionInfo): ExtVersionEntry {
+  return {
+    version: versionTextOf(item),
+    installedAt: item.approvedAt,
+    source: item.origin === "bundled" ? "bundled" : "user",
+    manifestHash: item.contentHash,
+    // 상태 스키마 버전은 검토본에 없다(X는 밝히지 않는다). 되돌리기가 스키마를 검사하지 않는 것과 같다
+    stateSchemaVersion: null,
+    current: item.current,
+  };
+}
+
+/** 저장소 실패를 버전 포트의 실패로 옮긴다. 이름이 잘못된 것은 확장이 없는 것이다 */
+function storeFailureOf(error: PluginStoreError): ExtUiVersionFailure {
+  if (error.kind === "invalid_name") return { kind: "unknown_extension", name: error.name };
+  if (error.kind === "io") return { kind: "io", code: codeOf(error.cause) };
+  return { kind: "io", code: error.kind.slice(0, CODE_LIMIT) };
+}
+
 async function versionsOf(
   source: ExtUiVersionSource | undefined,
   name: string,
 ): Promise<Result<ExtVersionsResult, ExtUiVersionFailure>> {
-  const info = installedOf(source, name);
-  if (source === undefined || info === undefined) return err({ kind: "unknown_extension", name });
-  // 번들과 프로젝트 위치의 확장은 버전 기록이 없다. 목록은 빈 목록이다
-  if (info.source !== "user") return ok({ versions: [] });
-  const listing = await source.history.list(name, info.version);
-  if (!listing.ok) return err(failureOf(listing.error));
+  if (source === undefined) return err({ kind: "unknown_extension", name });
+  const listed = await source.reviewed.store.versions(name);
+  if (!listed.ok) return err(storeFailureOf(listed.error));
+  // 검토본도 없고 실린 확장도 없으면 이름이 없는 것이다
+  if (listed.value.length === 0 && installedOf(source, name) === undefined) {
+    return err({ kind: "unknown_extension", name });
+  }
   const bundled = await source.bundle(name);
   return ok({
-    versions: listing.value.versions,
+    versions: listed.value.map(versionEntryOf),
     ...(bundled === null ? {} : { bundledVersion: bundled.version }),
   });
 }
 
-/**
- * 되돌릴 판이 앱에 든 기본 플러그인 번들의 판이고 보관에 없으면 먼저 기록한다(HS-108, X.loading-trust §4.4.8). 기록의 출처는
- * `bundled`다. 설치본이 이미 그 판이면 되돌릴 곳이 없으므로 `unknown_version`이다. 보관에 같은 판 글자가 있어도 매니페스트
- * 해시가 번들과 다르면 번들 원본으로 다시 쓴다(판 글자만 믿지 않는다). 기록은 같은 판의 자리를 원자적으로 바꾼다
- */
-async function recordBundledFirst(
+/** `current`을 이전 검토본으로 되돌린다(없었으면 비운다). 되돌렸는지 돌려준다 */
+async function restoreCurrent(
   source: ExtUiVersionSource,
   name: string,
-  installed: string,
-  bundled: BundledPluginVersion,
-): Promise<Result<void, ExtUiVersionFailure>> {
-  if (bundled.version === installed) return err({ kind: "unknown_version", version: installed });
-  const listing = await source.history.list(name, installed);
-  if (!listing.ok) return err(failureOf(listing.error));
-  const stored = listing.value.versions.find((entry) => entry.version === bundled.version);
-  if (stored !== undefined && stored.manifestHash === source.hash(bundled.manifestText))
-    return ok(undefined);
-  const recorded = await source.history.record({
-    name,
-    version: bundled.version,
-    source: "bundled",
-    extensionDir: bundled.dir,
-    manifestText: bundled.manifestText,
-    stateSchemaVersion: null,
-  });
-  return recorded.ok ? ok(undefined) : err(failureOf(recorded.error));
+  previous: PluginVersionInfo | null,
+): Promise<boolean> {
+  const back =
+    previous === null
+      ? await source.reviewed.store.clearCurrent(name)
+      : await source.reviewed.store.setCurrent(name, previous.contentHash);
+  return back.ok;
 }
 
+/** 되돌리기 기록 한 줄. 검토 항목이 없으므로 `itemId`는 null이고 결정은 `rollback`이다(M5c §4.6.8) */
+async function recordRollback(
+  source: ExtUiVersionSource,
+  name: string,
+  target: PluginVersionInfo,
+  previous: PluginVersionInfo | null,
+): Promise<Result<void, ExtUiVersionFailure>> {
+  const appended = await source.reviewed.store.appendLog({
+    at: source.reviewed.now(),
+    itemId: null,
+    name,
+    kind: null,
+    candidateHash: target.contentHash,
+    baseHash: previous?.contentHash ?? null,
+    decision: "rollback",
+    profileIds: [],
+    actor: "user",
+    provenance: null,
+    originThreadId: null,
+  });
+  return appended.ok ? ok(undefined) : err(storeFailureOf(appended.error));
+}
+
+/** 적용이 끝난 뒤의 되돌리기 한 가지 결과를 처리한다. 성공이면 기록하고 열린 대화를 맞추고, 실패면 현재 검토본을 되돌린다 */
+async function settleRollback(
+  source: ExtUiVersionSource,
+  name: string,
+  target: PluginVersionInfo,
+  previous: PluginVersionInfo | null,
+  outcome: ReloadApplied,
+): Promise<Result<{ readonly stateCleared: boolean }, ExtUiVersionFailure>> {
+  if (outcome.status === "applied") {
+    const logged = await recordRollback(source, name, target, previous);
+    if (!logged.ok) {
+      const restored = await restoreCurrent(source, name, previous);
+      return err({
+        kind: "rollback_failed",
+        reason: `log_failed (current restored ${String(restored)})`,
+      });
+    }
+    await source.reviewed.refreshPluginSet();
+    return ok({ stateCleared: outcome.statesCleared > 0 });
+  }
+  const restored = await restoreCurrent(source, name, previous);
+  const reason =
+    outcome.status === "failed"
+      ? outcome.diagnostics.map((item) => item.message).join("; ")
+      : outcome.status;
+  return err({
+    kind: "rollback_failed",
+    reason: `${reason.slice(0, MESSAGE_LIMIT)} (current restored ${String(restored)})`,
+  });
+}
+
+/**
+ * 검토본 저장소의 `current`를 지정한 판으로 바꾼다(M5c §4.6.8). 새 검토 항목은 만들지 않고 기록에 `rollback`을 남긴다.
+ * 실리지 않았거나 꺼진 확장은 다음 적재 때 새 판을 싣는다. 실린 확장은 로더가 검토본을 다시 읽는다. 실패하면 `current`는 옛 것이다.
+ */
 async function rollbackOf(
   source: ExtUiVersionSource | undefined,
   params: ExtRollbackParams,
 ): Promise<Result<ExtRollbackResult, ExtUiVersionFailure>> {
+  if (source === undefined) return err({ kind: "unknown_extension", name: params.name });
+  const listed = await source.reviewed.store.versions(params.name);
+  if (!listed.ok) return err(storeFailureOf(listed.error));
   const info = installedOf(source, params.name);
-  if (source === undefined || info === undefined) {
+  if (listed.value.length === 0 && info === undefined) {
     return err({ kind: "unknown_extension", name: params.name });
   }
-  if (info.source !== "user") {
-    return err({
-      kind: "history_unavailable",
-      reason: `${info.source} extension has no version history`,
-    });
-  }
-  const bundled = await source.bundle(params.name);
-  if (bundled !== null && bundled.version === params.version) {
-    const recordedFirst = await recordBundledFirst(source, params.name, info.version, bundled);
-    if (!recordedFirst.ok) return err(recordedFirst.error);
-  }
-  const tally = { cleared: 0 };
-  const rolled = await source.history.rollback({
-    name: params.name,
-    version: params.version,
-    ...(params.clearState === undefined ? {} : { clearState: params.clearState }),
-    extensionDir: join(source.extensionsDir, params.name),
-    currentVersion: info.version,
-    currentStateSchemaVersion: source.stateSchemaVersion(params.name),
-    // 로더가 싣고 있는(`active`) 외부 확장은 끄지 않고 새 버전으로 바꾼다(X.loading-trust §4.4.4, §4.4.8). 열린 대화가 있어도 단계 경계에서 적용된다.
-    // 실리지 않은 확장(`error`, `disabled`)은 바꿀 코드가 호스트에 없으므로 재시작 뒤에 적용한다
-    hotReload: info.state === "active",
-    hooks: hooksOf(source, tally),
-  });
-  if (!rolled.ok) return err(failureOf(rolled.error));
-  return ok({
-    appliesAt: rolled.value.appliesAt,
-    // 끄고 켜는 길은 실제로 비운 scope가 있을 때만, 다시 읽는 길은 다시 읽기가 알려 준 값이다
-    stateCleared: info.state === "active" ? rolled.value.stateCleared : tally.cleared > 0,
-  });
-}
+  const target = listed.value.find((item) => versionTextOf(item) === params.version);
+  if (target === undefined) return err({ kind: "unknown_version", version: params.version });
+  if (target.current) return ok({ appliesAt: "nextStepBoundary", stateCleared: false });
 
-/**
- * 되돌리기 훅. 끄기와 켜기는 확장의 모든 scope에 요청을 건다(적용은 다음 단계 경계다). 상태 비우기는 열린 thread마다 거부된 상태를 비운다.
- * 훅의 실패는 거부로 알린다. 버전 기록 모듈이 `attemptAsync`로 받아 `disable_failed`·`clear_state_failed`·`enable_failed`로 옮긴다.
- */
-function hooksOf(source: ExtUiVersionSource, tally: { cleared: number }): RollbackHooks {
-  return {
-    disable: (target) => {
-      toggleScopes(source, target, false);
-      return Promise.resolve();
-    },
-    enable: (target) => {
-      toggleScopes(source, target, true);
-      return Promise.resolve();
-    },
-    clearState: async (target) => {
-      tally.cleared += await clearStates(source, target);
-    },
-    reload: (target, options) => reloadOf(source, target, options.clearState),
-  };
-}
+  const previous = listed.value.find((item) => item.current) ?? null;
+  const switched = await source.reviewed.store.setCurrent(params.name, target.contentHash);
+  if (!switched.ok) return err(storeFailureOf(switched.error));
 
-/**
- * 되돌리기가 교체한 파일을 새 버전으로 바꾼다(`ExtensionLoader.reload`). 새 버전이 열리지 못하면 던져 되돌리기가 파일을 되돌리게 한다.
- * 실행 중인 turn 때문에 경계를 기다리면(`nextStepBoundary`) 그 경계의 적용 결과는 기다리지 않는다: 그 실패는 로더 진단(`reload_failed`)에만 남고 옛 버전이 계속 돈다.
- * 상태는 적용이 끝난 호출(`now`)에서만 비웠다고 알린다
- */
-async function reloadOf(
-  source: ExtUiVersionSource,
-  name: string,
-  clearState: boolean,
-): Promise<RollbackReloadOutcome> {
   const loader = source.loader();
-  if (loader === undefined) throw new Error("the extension loader is not running");
-  const started = await loader.reload(name, new AbortController().signal, {
-    resetRefusedState: clearState,
+  if (info === undefined || info.state !== "active" || loader === undefined) {
+    const logged = await recordRollback(source, params.name, target, previous);
+    if (!logged.ok) {
+      await restoreCurrent(source, params.name, previous);
+      return logged;
+    }
+    return ok({ appliesAt: "nextStepBoundary", stateCleared: false });
+  }
+
+  // 실린 확장은 검토본을 다시 읽는다. 적용은 단계 경계에서 일어나고, 실패하면 옛 판이 계속 돈다
+  const started = await loader.reloadFromReviewed(params.name, new AbortController().signal, {
+    resetRefusedState: params.clearState === true,
   });
   if (!started.ok) {
+    const restored = await restoreCurrent(source, params.name, previous);
     const failure = started.error;
-    throw new Error(
+    const reason =
       failure.kind === "rejected"
-        ? failure.diagnostics.map((entry) => entry.message).join("; ")
-        : `${name} cannot be reloaded (${failure.kind})`,
-    );
-  }
-  if (started.value.appliesAt === "nextStepBoundary") return { stateCleared: false };
-  const applied = await started.value.applied;
-  if (applied.status === "failed") {
-    throw new Error(applied.diagnostics.map((entry) => entry.message).join("; "));
-  }
-  return { stateCleared: applied.status === "applied" && applied.statesCleared > 0 };
-}
-
-/** 이름이 같은 scope마다 켜기나 끄기를 요청한다. 요청만 기록하고 적용은 단계 경계에서 한다 */
-function toggleScopes(source: ExtUiVersionSource, name: string, enabled: boolean): void {
-  for (const scope of source.host.registrations().filter((item) => item.extension === name)) {
-    const handle = source.host.registration(scope.id);
-    if (enabled) {
-      handle?.enable();
-    } else {
-      handle?.disable();
-    }
-  }
-}
-
-/**
- * 열린 thread마다 이 확장의 scope 상태를 비운다. ExtHost의 상태 재설정은 저장 상태 오류로 거부된 scope만 받는다(§4.4.8 상태 비우기).
- * 비운 개수를 돌려준다. 비울 수 없는 다른 실패는 던져서 되돌리기가 `clear_state_failed`로 멈추게 한다
- */
-async function clearStates(source: ExtUiVersionSource, name: string): Promise<number> {
-  const scopeIds = source.host
-    .registrations()
-    .filter((scope) => scope.extension === name)
-    .map((scope) => scope.id);
-  const pairs = source
-    .heldThreads()
-    .flatMap((threadId) => scopeIds.map((scopeId) => ({ threadId, scopeId })));
-  let cleared = 0;
-  await sequentially(pairs, async ({ threadId, scopeId }) => {
-    const reset = await source.host.resetRegistrationState(threadId, scopeId);
-    if (reset.ok) {
-      cleared += 1;
-      return;
-    }
-    if (NOTHING_TO_CLEAR.has(reset.error.kind)) return;
-    throw new Error(`the state of ${scopeId} could not be cleared (${reset.error.kind})`, {
-      cause: reset.error,
+        ? failure.diagnostics.map((item) => item.message).join("; ")
+        : failure.kind;
+    return err({
+      kind: "rollback_failed",
+      reason: `${reason.slice(0, MESSAGE_LIMIT)} (current restored ${String(restored)})`,
     });
-  });
-  return cleared;
-}
-
-function failureOf(error: VersionHistoryError): ExtUiVersionFailure {
-  switch (error.kind) {
-    case "invalid_name":
-      return { kind: "unknown_extension", name: error.name };
-    case "invalid_version":
-    case "not_found":
-      return { kind: "unknown_version", version: error.version };
-    case "io":
-      return { kind: "io", code: codeOf(error.cause) };
-    case "state_schema_mismatch":
-      return {
-        kind: "state_schema_mismatch",
-        targetSchemaVersion: error.targetSchemaVersion,
-        currentSchemaVersion: error.currentSchemaVersion,
-      };
-    case "disable_failed":
-      return { kind: "rollback_failed", reason: "disable_failed" };
-    case "swap_failed":
-      return {
-        kind: "rollback_failed",
-        reason: `swap_failed at ${error.step} (restored ${String(error.restored)}, reenabled ${String(error.reenabled)})`,
-      };
-    case "clear_state_failed":
-      return { kind: "rollback_failed", reason: "clear_state_failed" };
-    case "enable_failed":
-      return { kind: "rollback_failed", reason: "enable_failed" };
-    case "reload_failed":
-      return {
-        kind: "rollback_failed",
-        reason: `reload_failed (files restored ${String(error.restored)}): ${causeMessage(error.cause)}`,
-      };
-    default:
-      return assertNever(error, "VersionHistoryError");
   }
-}
-
-function causeMessage(cause: unknown): string {
-  return (cause instanceof Error ? cause.message : String(cause)).slice(0, MESSAGE_LIMIT);
+  if (started.value.appliesAt === "nextStepBoundary") {
+    detach(
+      started.value.applied.then((outcome) =>
+        settleRollback(source, params.name, target, previous, outcome),
+      ),
+      (cause) =>
+        source.reviewed.log.error("plugin.rollback.settle_failed", {
+          name: params.name,
+          cause: String(cause),
+        }),
+    );
+    return ok({ appliesAt: "nextStepBoundary", stateCleared: false });
+  }
+  const settled = await settleRollback(
+    source,
+    params.name,
+    target,
+    previous,
+    await started.value.applied,
+  );
+  if (!settled.ok) return settled;
+  // 적용이 바로 끝났다. 와이어 `appliesAt`에는 `now`가 없어 `nextStepBoundary`로 알린다(보고 참고)
+  return ok({ appliesAt: "nextStepBoundary", stateCleared: settled.value.stateCleared });
 }
 
 /** 저장 매체 오류의 OS 코드(`ENOENT` 같은 값). 없으면 `io`다 */

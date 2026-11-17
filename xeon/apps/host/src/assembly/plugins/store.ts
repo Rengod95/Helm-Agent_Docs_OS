@@ -143,10 +143,14 @@ export interface ReviewedVersion {
 }
 
 /** 보관 중인 검토본 한 줄. `versions`가 준다 */
-interface PluginVersionInfo {
+export interface PluginVersionInfo {
   readonly contentHash: string;
   readonly approvedAt: string;
   readonly current: boolean;
+  /** 매니페스트의 `version`(검토본 메타에서 읽는다) */
+  readonly version: string;
+  /** 검토본의 출처(사용자, 프로젝트, 번들) */
+  readonly origin: ReviewOrigin;
 }
 
 export type PluginStoreError =
@@ -548,6 +552,8 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
         contentHash: `sha256:${item.hex}`,
         approvedAt: item.meta.value.approvedAt,
         current: currentValue.value === item.hex,
+        version: item.meta.value.version,
+        origin: item.meta.value.origin,
       });
     }
     return ok(rows);
@@ -723,6 +729,8 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
           contentHash: row.contentHash,
           approvedAt: row.approvedAt,
           current: row.current,
+          version: row.version,
+          origin: row.origin,
         }))
         .toSorted(newestFirst),
     );

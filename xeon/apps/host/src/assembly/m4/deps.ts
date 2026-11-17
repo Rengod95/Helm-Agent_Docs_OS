@@ -67,6 +67,10 @@ export interface M4HostEnv {
   readonly stateDir: string;
   /** 시크릿 이름 목록. 읽지 못하면 null이고, 그때 검증은 `secret_missing` 경고를 내지 않는다 */
   readonly secretNames: () => Promise<ReadonlySet<string> | null>;
+  /** 검토 대기 항목의 플러그인 이름(검토본이 없는 것 포함). 프로필 검증이 `plugin_not_reviewed`를 낼 때 쓴다(M5c §4.2.7) */
+  readonly pendingPluginNames: () => Promise<readonly string[]>;
+  /** 지금 실행 중인 검토본의 내용 해시(없으면 undefined). 대화별 E(T)의 `pluginHashes`가 쓴다(M5c §4.6.7) */
+  readonly loadedHash: (name: string) => string | undefined;
   /**
    * 닫히지 않은 대화마다 저장한 프로필 id(없으면 null = 기본). 프로필을 참조하는 열린 대화를 셀 때 쓴다(M5c §4.1.14)
    */

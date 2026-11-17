@@ -68,7 +68,15 @@ test("a profile check that fails on approval answers pluginReview.profileInvalid
         Promise.resolve(
           err({
             kind: "profile_invalid",
-            issues: [{ code: "replace_conflict", severity: "error", plugin: "a", other: "b" }],
+            issues: [
+              {
+                profile: "p1",
+                code: "replace_conflict",
+                severity: "error",
+                plugin: "a",
+                other: "b",
+              },
+            ],
           }),
         ),
     }),
@@ -84,7 +92,9 @@ test("a profile check that fails on approval answers pluginReview.profileInvalid
   );
   expect(error.code).toBe(3656);
   expect(error.data.details).toEqual({
-    issues: [{ code: "replace_conflict", severity: "error", plugin: "a", other: "b" }],
+    issues: [
+      { profile: "p1", code: "replace_conflict", severity: "error", plugin: "a", other: "b" },
+    ],
   });
 });
 

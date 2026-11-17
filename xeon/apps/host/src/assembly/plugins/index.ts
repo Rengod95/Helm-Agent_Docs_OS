@@ -9,3 +9,4 @@ export * from "./review.ts";
 export * from "./reviewed-source.ts";
 export * from "./service.ts";
 export * from "./store.ts";
+export * from "./approval.ts";

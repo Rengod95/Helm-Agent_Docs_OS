@@ -8,7 +8,10 @@ import type { RegistrationHandle } from "@fresnel/contracts/extensions";
 import type { RecordVersionInput, RegistrationInfo } from "@fresnel/ext-host";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
-import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
+import type {
+  ExtUiVersionSource,
+  ReviewedVersions,
+} from "../../src/assembly/m4/ext-ui-version-source.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
 // 제작 포트(`assembly/m4/devkit-port.ts`)를 실제 파일 위에서 본다. 확장 위치, 버전 기록, 등록은 가짜다.
@@ -49,6 +52,7 @@ function fakes(name: string, running: readonly string[] = [], gate: Gate = {}): 
         rollback: () => Promise.reject(new Error("not used")),
       },
       stateSchemaVersion: () => null,
+      reviewed: partial<ReviewedVersions>({}),
       installGate: {
         safeMode: () => gate.safeMode === true,
         managedLocked: (extension) => gate.locked?.includes(extension) === true,

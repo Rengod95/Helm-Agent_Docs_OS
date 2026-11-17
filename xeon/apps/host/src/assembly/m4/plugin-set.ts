@@ -32,6 +32,8 @@ export interface PluginSetDeps {
    */
   readonly managedOff: (name: string) => boolean;
   readonly registrations: () => readonly RegistrationInfo[];
+  /** 지금 실행 중인 검토본의 내용 해시(없으면 undefined). E(T)의 `pluginHashes`가 된다(M5c §4.6.7) */
+  readonly loadedHash: (name: string) => string | undefined;
   /** 모든 대화에 항상 켜는 플러그인(코어와 개발 모드의 가이드 그룹). 관리 잠금은 여기서도 이긴다 */
   readonly forcedPlugins: () => readonly string[];
   /** 공장 기본 프로필의 플러그인. 확장을 찾은 뒤에 바뀌므로 복사하지 않고 읽을 때마다 묻는다 */
@@ -85,6 +87,10 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     const plugins = allowed(
       [...new Set([...deps.forcedPlugins(), ...base])].filter((name) => !isHookUnitName(name)),
     );
+    const pluginHashes = plugins.flatMap((name) => {
+      const contentHash = deps.loadedHash(name);
+      return contentHash === undefined ? [] : [{ plugin: name, contentHash }];
+    });
     return {
       plugins,
       profileId: usedId,
@@ -93,6 +99,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       ...(stored !== null && current !== undefined && known === undefined
         ? { missingProfileId: stored }
         : {}),
+      pluginHashes,
     };
   }
 

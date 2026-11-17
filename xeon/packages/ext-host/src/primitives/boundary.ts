@@ -147,14 +147,39 @@ function seedPluginSet(core: HostCore, thread: ThreadRuntime): void {
   }
 }
 
+function hashesOf(view: PluginSetView): string {
+  return (view.pluginHashes ?? [])
+    .map((item) => `${item.plugin}\0${item.contentHash}`)
+    .toSorted()
+    .join("\n");
+}
+
 function sameApplied(a: PluginSetView, b: PluginSetView): boolean {
   return (
     a.profileId === b.profileId &&
     a.profileRev === b.profileRev &&
     a.commonRev === b.commonRev &&
     a.missingProfileId === b.missingProfileId &&
-    a.plugins.toSorted().join("\n") === b.plugins.toSorted().join("\n")
+    a.plugins.toSorted().join("\n") === b.plugins.toSorted().join("\n") &&
+    hashesOf(a) === hashesOf(b)
   );
+}
+
+/** 지난번에 맞춘 값과 검토본 해시가 다른 플러그인(둘 다 해시가 있고 다른 것만). M5c §4.6.7 */
+function updatedOf(
+  previous: PluginSetView,
+  view: PluginSetView,
+): { readonly plugin: string; readonly fromHash: string; readonly toHash: string }[] {
+  const before = new Map(
+    (previous.pluginHashes ?? []).map((item) => [item.plugin, item.contentHash]),
+  );
+  return (view.pluginHashes ?? [])
+    .flatMap((item) => {
+      const fromHash = before.get(item.plugin);
+      if (fromHash === undefined || fromHash === item.contentHash) return [];
+      return [{ plugin: item.plugin, fromHash, toHash: item.contentHash }];
+    })
+    .toSorted((a, b) => (a.plugin < b.plugin ? -1 : a.plugin > b.plugin ? 1 : 0));
 }
 
 /**
@@ -184,6 +209,7 @@ function applyPluginSet(
   const before = new Set(previous?.plugins ?? []);
   const added = view.plugins.filter((name) => !before.has(name)).toSorted();
   const removed = (previous?.plugins ?? []).filter((name) => !wanted.has(name)).toSorted();
+  const updated = previous === null ? [] : updatedOf(previous, view);
   const reason =
     previous === null
       ? view.missingProfileId === undefined
@@ -197,7 +223,9 @@ function applyPluginSet(
             ? "common_edited"
             : removed.length > 0
               ? "plugin_stopped"
-              : "profile_edited";
+              : updated.length > 0
+                ? "plugin_updated"
+                : "profile_edited";
   txn.drafts.push(
     makeDraft(core.deps.ids, {
       threadId: thread.threadId,
@@ -210,6 +238,7 @@ function applyPluginSet(
         added,
         removed,
         overlay: [],
+        ...(updated.length === 0 ? {} : { updated }),
       },
       turnId: txn.signal.turnId,
       stepId: txn.signal.stepId,

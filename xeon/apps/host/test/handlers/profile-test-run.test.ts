@@ -8,7 +8,8 @@ import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/exten
 import { WIRE_METHODS, WireError } from "@fresnel/contracts/wire";
 import type { ProfileInput } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
-import { isDevMode, type PluginFact } from "../../src/assembly/m4/profile-test-run-port.ts";
+import { isDevMode } from "../../src/assembly/m4/profile-test-run-port.ts";
+import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 

@@ -38,6 +38,7 @@ import type {
   ProfilesChange,
   ProfilesWritten,
 } from "../../assembly/m4/profile-store.ts";
+import type { PluginEditIssue, PluginEditRequest } from "../../assembly/m4/plugin-edit.ts";
 import { settingsFileInvalidDetails } from "../../settings-file-details.ts";
 
 // 프로필·Test run·Trace wire(M5c §3.4, §3.6). 처리기는 값 검사와 오류 옮기기만 하고, 저장·검증·계산은 포트 구현
@@ -59,6 +60,11 @@ export type ProfilePortFailure =
   | { readonly kind: "invalid"; readonly issues: readonly ProfileIssue[] }
   | { readonly kind: "plugin_not_in_profile"; readonly plugin: string }
   | { readonly kind: "common_plugin"; readonly plugin: string };
+
+/** 승인의 프로필 반영이 낼 수 있는 실패. `plugin_invalid`는 대상 프로필 가운데 검사에 실패한 것이 있다는 뜻이다(M5c §4.7.3) */
+export type PluginEditFailure =
+  | ProfilePortFailure
+  | { readonly kind: "plugin_invalid"; readonly issues: readonly PluginEditIssue[] };
 
 /** `profile.preview`의 대상. 저장된 프로필이거나 아직 저장하지 않은 입력이다 */
 type PreviewSource =
@@ -95,6 +101,12 @@ export interface ProfileTestRunPort {
   defaultReset(
     params: ProfileDefaultResetParams,
   ): Promise<Result<ProfileDefaultResetResult, ProfilePortFailure>>;
+  /** 승인의 프로필 검사(쓰지 않는다). 대상 프로필 하나라도 오류면 `plugin_invalid`다(M5c §4.7.3) */
+  checkPluginEdit(request: PluginEditRequest): Promise<Result<void, PluginEditFailure>>;
+  /** 승인의 프로필 쓰기. 검사와 쓰기가 한 잠금 안에서 돈다. 돌려주는 값은 바뀐 프로필 id(공통 묶음은 `common`)다 */
+  applyPluginEdit(
+    request: PluginEditRequest,
+  ): Promise<Result<readonly string[], PluginEditFailure>>;
   /** 이 호스트가 프로필 파일을 바꿀 때마다 부른다(연결 허브가 `profile.changed`로 전한다) */
   onProfilesChanged(listener: (change: ProfilesChange) => void): Unsubscribe;
   /** 같은 순간에 쓴 내용 전체를 준다. 대화별 켜짐 집합의 복사가 응답 전에 맞는다(M5c §4.1.4) */

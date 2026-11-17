@@ -30,11 +30,13 @@ import type {
   Unsubscribe,
 } from "@fresnel/contracts/wire";
 import type {
+  PluginEditFailure,
   ProfilePortFailure,
   ProfilePreviewRequest,
   ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
-import type { ProfilesChange, ProfilesWritten } from "./profile-store.ts";
+import { COMMON_ID, planPluginEdit, type PluginEditRequest } from "./plugin-edit.ts";
+import type { ProfileStoreSnapshot, ProfilesChange, ProfilesWritten } from "./profile-store.ts";
 import { createProfileStore } from "./profile-store.ts";
 import {
   factoryDefaultProfile,
@@ -50,21 +52,11 @@ import {
   type ProfileLibraryEntry,
 } from "./profile-validate.ts";
 import type { M4HostEnv, M4PortDeps } from "./deps.ts";
+import type { PluginFact } from "./plugin-fact.ts";
 import type { LegacyInputs } from "./profile-migrate.ts";
 
 // ProfileTestRun 포트 구현(M5c §3.4, §4.2). 프로필 저장은 `profile-store.ts`, 검증은 `profile-validate.ts`가 한다.
 // 이 파일은 저장된 내용을 읽고, 검증을 거쳐 쓰고, 미리 보기 값을 계산한다. 대화에 켜짐을 적용하지 않는다(E(T)는 나중 작업이다).
-
-/** 플러그인 하나의 매니페스트 사실. 라이브러리가 검증에 쓴다 */
-export interface PluginFact {
-  readonly name: string;
-  /** 대체하는 내장 도구(`PluginDecl.replaces`를 모두 모은 것) */
-  readonly replaces: readonly string[];
-  /** 시작 Drive를 등록할 수 있는가(`PluginDecl.drives`) */
-  readonly drives: boolean;
-  /** 필수 설정 키(`userConfig`의 `required` 항목) */
-  readonly requiredKeys: readonly string[];
-}
 
 export interface ProfileTestRunPortDeps extends Pick<
   M4PortDeps,
@@ -72,6 +64,11 @@ export interface ProfileTestRunPortDeps extends Pick<
 > {
   /** 설치된 플러그인의 매니페스트 사실. 확장 읽기 원천에서 온다 */
   readonly pluginFacts: () => readonly PluginFact[];
+  /**
+   * 검토 대기 항목이 가리키는 플러그인 이름(검토본이 없는 것 포함). 프로필 검증은 이 이름을 `plugin_not_reviewed`로 본다
+   * (M5c §4.2.7). 읽지 못하면 빈 목록이다(호출 쪽이 기록한다)
+   */
+  readonly pendingNames: () => Promise<readonly string[]>;
 }
 
 /** 비용을 셀 수 없을 때의 값. 정적 추정이 아직 없다(카드 비용은 나중 작업) */
@@ -116,17 +113,38 @@ function isoNow(clockMs: number): string {
   return new Date(clockMs).toISOString();
 }
 
-function libraryOf(env: M4HostEnv, facts: readonly PluginFact[]): ProfileLibrary {
+/**
+ * 검증 라이브러리. 설치된 플러그인은 검토본이 있는 것으로 본다. 검토 대기뿐인 이름(`pending`)은 `plugin_not_reviewed`다(M5c §4.2.7).
+ * `overlay`는 지금 승인하는 후보다. 승인 전이라도 검토본이 있는 것으로 보고 그 사실을 쓴다(§4.7.3, 승격 전 검사)
+ */
+function libraryOf(
+  env: M4HostEnv,
+  facts: readonly PluginFact[],
+  pending: ReadonlySet<string>,
+  overlay: PluginFact | null,
+): ProfileLibrary {
   return {
     lookup(name): ProfileLibraryEntry | undefined {
-      const fact = facts.find((item) => item.name === name);
-      if (fact === undefined) return undefined;
+      const fact =
+        overlay !== null && overlay.name === name
+          ? overlay
+          : facts.find((item) => item.name === name);
+      if (fact === undefined) {
+        if (!pending.has(name)) return undefined;
+        return {
+          name,
+          reviewed: false,
+          replaces: [],
+          drives: false,
+          unmet: false,
+          requiredKeys: [],
+        };
+      }
       const infos: readonly RegistrationInfo[] = env
         .registrations()
         .filter((info) => info.extension === name);
       return {
         name,
-        // 검토함이 들어오기 전까지 설치된 확장은 검토된 것으로 본다(설치 승인 경로가 검토를 대신했다)
         reviewed: true,
         replaces: fact.replaces,
         drives: fact.drives,
@@ -248,13 +266,36 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
    * 검증기를 만든다. 시크릿 이름과 플러그인 사실은 쓰기 잠금 밖에서 한 번 읽는다(검증 함수는 동기다).
    * 저장된 목록을 바꾸는 계산은 이 함수가 돌려준 검증기를 잠금 안에서 쓴다.
    */
-  async function checksOf(): Promise<
-    (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[]
-  > {
+  async function checksOf(
+    overlay: PluginFact | null = null,
+  ): Promise<(body: ProfileBody, common: CommonSet) => readonly ProfileIssue[]> {
     const names = await env.secretNames();
-    const lib = libraryOf(env, deps.pluginFacts());
+    const pending = new Set(await deps.pendingNames());
+    const lib = libraryOf(env, deps.pluginFacts(), pending, overlay);
     const catalog = catalogOf(env, names);
     return (body, common) => validateProfile(body, common, lib, catalog);
+  }
+
+  /**
+   * 승인 계산에 쓸 값: 검사 함수와 바뀔 프로필의 계산. 계산은 저장된 것을 읽은 스냅샷에서 한다(잠금 안에서도 같은 함수를 쓴다)
+   */
+  function planEdit(
+    request: PluginEditRequest,
+    snapshot: ProfileStoreSnapshot,
+    validate: (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[],
+  ): Result<
+    { readonly changed: readonly Profile[]; readonly common: CommonSet | null },
+    PluginEditFailure
+  > {
+    const planned = planPluginEdit({
+      profiles: effectiveProfiles(snapshot.profiles, factory()),
+      common: snapshot.common,
+      request,
+      validate,
+      updatedAt: isoNow(env.clock.now()),
+    });
+    if (!planned.ok) return err({ kind: "plugin_invalid", issues: planned.error.issues });
+    return ok(planned.value);
   }
 
   /**
@@ -361,6 +402,45 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       });
       if (!done.ok) return done;
       return ok({ rev: done.value.rev, reassignedThreads: threadsUsing(id, beforeIds) });
+    },
+    async checkPluginEdit(request: PluginEditRequest): Promise<Result<void, PluginEditFailure>> {
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      const validate = await checksOf(request.kind === "remove" ? null : request.plugin);
+      const planned = planEdit(request, snapshot.value, validate);
+      return planned.ok ? ok(undefined) : planned;
+    },
+    async applyPluginEdit(
+      request: PluginEditRequest,
+    ): Promise<Result<readonly string[], PluginEditFailure>> {
+      const validate = await checksOf(request.kind === "remove" ? null : request.plugin);
+      const snapshot = await store.read();
+      if (!snapshot.ok) return snapshot;
+      const first = planEdit(request, snapshot.value, validate);
+      if (!first.ok) return first;
+      if (first.value.changed.length === 0 && first.value.common === null) return ok([]);
+      // 잠금 안에서 다시 계산한다. 그사이 저장이 바뀌었으면 검사가 다시 돈다
+      const done = await store.transact<readonly string[], PluginEditFailure>((locked) => {
+        const planned = planEdit(request, locked, validate);
+        if (!planned.ok) return err(planned.error);
+        const changed = planned.value.changed;
+        const byId = new Map(changed.map((profile) => [profile.id, profile] as const));
+        const replaced = locked.profiles.map((profile) => byId.get(profile.id) ?? profile);
+        const added = changed.filter(
+          (profile) => !locked.profiles.some((item) => item.id === profile.id),
+        );
+        const ids = [
+          ...changed.map((profile) => profile.id),
+          ...(planned.value.common === null ? [] : [COMMON_ID]),
+        ];
+        return ok({
+          profiles: [...replaced, ...added],
+          common: planned.value.common ?? locked.common,
+          value: ids,
+        });
+      });
+      if (!done.ok) return done;
+      return ok(done.value.value);
     },
     async clone(
       params: ProfileCloneParams,

@@ -7,14 +7,21 @@ import { makeUnit } from "./fixtures/support.ts";
 // E(T)(M5c §4.1.5, X.primitives.spec §4.5.8)는 호스트가 `PluginSetPortKey`로 주는 집합이다. 시험은 그 값을 바꿔 가며 쓴다.
 // 엔진 안의 끄기(`RegistrationHandle.disable`, 자동 끄기·안전 모드)는 E(T)가 바뀌기 전까지 이겨야 한다.
 
-/** 대화 집합을 시험이 바꾸는 포트. 집합 말고 값은 고정이다 */
-async function providePluginSet(t: TestHost, state: { plugins: readonly string[] }): Promise<void> {
+/** 대화 집합을 시험이 바꾸는 포트. 집합과 검토본 해시 말고 값은 고정이다 */
+interface PluginSetState {
+  plugins: readonly string[];
+  /** 실행 중인 검토본의 해시. 없으면 E(T)에 `pluginHashes`를 싣지 않는다 */
+  hashes?: readonly { readonly plugin: string; readonly contentHash: string }[];
+}
+
+async function providePluginSet(t: TestHost, state: PluginSetState): Promise<void> {
   const port: PluginSetPort = {
     resolve: () => ({
       plugins: [...state.plugins],
       profileId: "default",
       profileRev: 0,
       commonRev: 0,
+      ...(state.hashes === undefined ? {} : { pluginHashes: [...state.hashes] }),
     }),
   };
   const registered = await t.host.registerPlatform({
@@ -104,4 +111,47 @@ test("an E(T) change requests only the plugins whose membership changed, and app
   ]);
   const applied = t.records.events(thread).filter((event) => event.kind === "scope.changed");
   expect(applied.at(-1)?.payload).toEqual({ scopeId: "pset-c", status: "enabled" });
+});
+
+test("a changed reviewed copy of a plugin in E(T) records profile.applied with plugin_updated at the next boundary", async () => {
+  const t = await createTestHost();
+  const state: PluginSetState = {
+    plugins: ["pset-a"],
+    hashes: [{ plugin: "pset-a", contentHash: "sha256:aa" }],
+  };
+  await providePluginSet(t, state);
+  await t.host.install(makeUnit({ name: "pset-a", hooks: ["tool.call.before"] }, () => {}));
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+
+  // 검토본이 바뀌었다. 집합은 그대로이고 해시만 다르다. 유휴 대화는 다음 매크로태스크에 맞춘다
+  state.hashes = [{ plugin: "pset-a", contentHash: "sha256:bb" }];
+  registrationToggleSourceOf(t.host).requestApply(thread);
+  await t.settled();
+  const recorded = t.records
+    .events(thread)
+    .filter((event) => event.kind === "profile.applied")
+    .map((event) => event.payload);
+  expect(recorded).toEqual([
+    {
+      reason: "open",
+      profileId: "default",
+      profileRev: 0,
+      commonRev: 0,
+      added: ["pset-a"],
+      removed: [],
+      overlay: [],
+    },
+    {
+      reason: "plugin_updated",
+      profileId: "default",
+      profileRev: 0,
+      commonRev: 0,
+      added: [],
+      removed: [],
+      overlay: [],
+      updated: [{ plugin: "pset-a", fromHash: "sha256:aa", toHash: "sha256:bb" }],
+    },
+  ]);
 });

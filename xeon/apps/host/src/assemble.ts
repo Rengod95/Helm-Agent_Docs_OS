@@ -1018,6 +1018,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       host: ext,
       extensionsDir: userExtensionsDir,
       clock,
+      // 버전 목록과 되돌리기는 검토본 저장소를 읽는다(M5c §4.6.8). 플러그인 집합은 포트가 올라온 뒤에 맞춘다
+      reviewed: {
+        store: pluginStore,
+        now: () => new Date(clock.now()).toISOString(),
+        log: os.logger("plugin-store"),
+        refreshPluginSet: async () => {
+          await portsHandle?.ports.m4.pluginSet.refresh();
+        },
+      },
       loader: () => external.loader,
       heldThreads: () => portsHandle?.heldThreads() ?? [],
       installGate: {

@@ -69,7 +69,7 @@ export interface ProfilesWritten {
 }
 
 /** 저장된 내용 전체(내장 `default`는 저장되어 있을 때만 `profiles`에 있다) */
-interface ProfileStoreSnapshot {
+export interface ProfileStoreSnapshot {
   readonly profiles: readonly Profile[];
   readonly common: CommonSet;
   /** 목록 개정. 파일 내용이 바뀌는 것을 이 프로세스가 본 읽기와 이 프로세스의 쓰기마다 하나 오른다 */

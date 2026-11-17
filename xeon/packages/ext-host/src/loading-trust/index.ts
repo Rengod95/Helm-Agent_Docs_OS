@@ -501,6 +501,15 @@ export interface ExtensionLoader {
     options?: ReloadOptions,
   ): Promise<Result<ReloadStarted, ReloadFailure>>;
   /**
+   * `reload`와 같되 검토본 목록(`reviewedSource`)의 현재 검토본을 새 판으로 읽는다(M5c §4.6.7). 승인이나 되돌리기로 `current`가
+   * 바뀐 뒤 부른다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름의 검토본이 없으면 `rejected`다
+   */
+  reloadFromReviewed(
+    name: ExtensionName,
+    signal: AbortSignal,
+    options?: ReloadOptions,
+  ): Promise<Result<ReloadStarted, ReloadFailure>>;
+  /**
    * 설치 뒤에 시작 때와 같은 파이프라인(검증, 집합 검사, 신뢰 상한, 켜짐 확인, `assignTier`, 엔트리 import, `ExtHost.install`)으로
    * 사용자 위치(`<userDir>/extensions/<name>`)의 새 이름 하나를 싣는다(§4.4.4). 우회하는 길은 없다. 실행 중인 turn이 있으면 켜기는
    * `ExtHost`의 시작 적용 규칙대로 다음 단계 경계에서 일어난다(`nextStepBoundary`). 실패하면 기록을 남기지 않아 같은 이름을 다시 설치해 싣을 수 있다
@@ -527,7 +536,8 @@ export interface ExtensionLoader {
 
 interface ExtRecord {
   name: ExtensionName;
-  readonly candidate: ExtensionCandidate;
+  /** 실행 중인 판의 후보. 검토본 다시 읽기가 성공하면 새 검토본 후보로 바뀐다 */
+  candidate: ExtensionCandidate;
   manifest: ExtensionManifest | undefined;
   readonly source: InstallSource;
   trust: TrustLevel;
@@ -727,6 +737,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       generation: record.generation,
       ...(record.manifest === undefined ? {} : { manifest: record.manifest }),
       ...(record.candidate.root === null ? {} : { root: record.candidate.root }),
+      ...(record.candidate.contentHash === null || record.candidate.contentHash === undefined
+        ? {}
+        : { contentHash: record.candidate.contentHash }),
       diagnostics: [...record.diagnostics],
     };
   }
@@ -1504,6 +1517,53 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
     const root = record.candidate.root;
     if (root === null) return err({ kind: "not_reloadable", reason: "no_root" });
+    return reloadFrom(record, record.candidate, root, signal, options);
+  }
+
+  async function reloadFromReviewed(
+    name: ExtensionName,
+    signal: AbortSignal,
+    options?: ReloadOptions,
+  ): Promise<Result<ReloadStarted, ReloadFailure>> {
+    if (deps.reviewedSource === undefined) return reload(name, signal, options);
+    const record = records.get(name);
+    if (record === undefined) return err({ kind: "unknown_extension" });
+    if (record.candidate.builtin !== null) {
+      return err({ kind: "not_reloadable", reason: "builtin" });
+    }
+    const listing = await deps.reviewedSource.list();
+    const entry = listing.entries.find(
+      (item) => item.name === name && installSourceOf(item.source) === record.candidate.source,
+    );
+    const pick = entry === undefined ? undefined : await reviewedPickOf(entry);
+    if (pick === undefined || pick.candidate.root === null) {
+      return err({
+        kind: "rejected",
+        diagnostics: [
+          {
+            extension: name,
+            source: record.candidate.source,
+            stage: "discover",
+            severity: "error",
+            code: "manifest_missing",
+            message: `reload of ${name}: no reviewed copy to read`,
+            generation: record.generation,
+          },
+        ],
+      });
+    }
+    return reloadFrom(record, pick.candidate, pick.candidate.root, signal, options);
+  }
+
+  /** 다시 읽기의 본체. `candidate`의 `root`에서 매니페스트와 엔트리를 읽어 새 판으로 바꾼다. 성공하면 기록의 후보도 바뀐다 */
+  async function reloadFrom(
+    record: ExtRecord,
+    candidate: ExtensionCandidate,
+    root: string,
+    signal: AbortSignal,
+    options: ReloadOptions | undefined,
+  ): Promise<Result<ReloadStarted, ReloadFailure>> {
+    const name = record.name;
     if (record.state !== "active" || record.manifest === undefined || record.loadIndex === null) {
       return err({ kind: "not_reloadable", reason: "not_active" });
     }
@@ -1511,7 +1571,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     const rejected = (): Result<never, ReloadFailure> =>
       err({ kind: "rejected", diagnostics: found });
     // 1. 매니페스트를 다시 읽는다
-    const raw = await readManifestInput(record.candidate);
+    const raw = await readManifestInput(candidate);
     if (!raw.ok) {
       reloadDiag(record, found, "manifest", "reload_rejected", `reload of ${name}: ${raw.message}`);
       return rejected();
@@ -1595,7 +1655,16 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       return rejected();
     }
     if (decision.kind === "process") {
-      return reloadIsolated(record, manifest, root, record.loadIndex, signal, found, options);
+      return reloadIsolated(
+        record,
+        candidate,
+        manifest,
+        root,
+        record.loadIndex,
+        signal,
+        found,
+        options,
+      );
     }
     // 4. 엔트리를 새 세대로 import한다
     const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
@@ -1657,6 +1726,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         );
         return { status: "failed", diagnostics: issued, restored: outcome.restored };
       }
+      record.candidate = candidate;
       record.manifest = manifest;
       record.generation = generation;
       record.ui = [];
@@ -1672,6 +1742,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    */
   async function reloadIsolated(
     record: ExtRecord,
+    candidate: ExtensionCandidate,
     manifest: ExtensionManifest,
     root: string,
     loadIndex: number,
@@ -1733,6 +1804,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const previous = record.handle;
       record.handle = handle;
       retireHandle(previous, "reload");
+      record.candidate = candidate;
       record.manifest = manifest;
       record.generation = generation;
       record.ui = [];
@@ -2116,6 +2188,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     loadProject,
     ensureLoaded,
     reload,
+    reloadFromReviewed,
     loadInstalled,
     unload,
     async settingChanged(name, signal) {

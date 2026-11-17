@@ -33,6 +33,7 @@ import type {
 } from "@fresnel/contracts/wire";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
+import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import { buildPluginCard } from "./card.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
@@ -65,10 +66,12 @@ const IDLE_HEALTH: PluginCard["health"] = { state: "idle", lastActiveAt: null, l
 type ApproveDecision = Extract<ReviewDecision, { readonly kind: "approve" }>;
 
 /** 승인 한 번의 맥락. 훅이 같은 값을 받는다 */
-interface ApprovalContext {
+export interface ApprovalContext {
   readonly item: ReviewItem;
   readonly decision: ApproveDecision;
   readonly approvedAt: string;
+  /** 승인하는 플러그인의 매니페스트 사실(검증에 쓴다). 제거는 없다 */
+  readonly facts: PluginFact | null;
 }
 
 /** 결정 하나의 결과. `appliedTo`는 승인이 프로필에 넣은 프로필 id다(3a는 항상 빈 목록) */
@@ -78,12 +81,14 @@ interface DecisionOutcome {
 }
 
 /**
- * 승인 훅(M5c §4.7.3, §3.5). 3a는 비워 둔다. 3b가 `beforeCommit`에 대상 프로필 검증을, `afterCommit`에 프로필 갱신과
- * 열린 대화 반영을 넣는다. `beforeCommit`이 실패하면 아무것도 바뀌지 않는다. `afterCommit`은 적용한 프로필 id를 돌려준다
+ * 승인 훅(M5c §4.7.3, §3.5). `beforeCommit`은 대상 프로필 검증만 한다(쓰지 않는다). 실패하면 아무것도 바뀌지 않는다.
+ * `afterCommit`은 `current`를 바꾼 뒤 프로필을 갱신하고 적용한 프로필 id를 돌려준다. 실패하면 `current`를 옛 검토본으로 되돌린다.
+ * `reflect`는 승인이 끝난 뒤 실행 중인 판을 맞춘다(다시 읽기, 열린 대화 반영). 실패는 호출자에게 주지 않는다(호스트가 기록한다)
  */
-interface ApprovalHooks {
+export interface ApprovalHooks {
   beforeCommit?(context: ApprovalContext): Promise<Result<void, PluginPortFailure>>;
-  afterCommit?(context: ApprovalContext): Promise<readonly string[]>;
+  afterCommit?(context: ApprovalContext): Promise<Result<readonly string[], PluginPortFailure>>;
+  reflect?(context: ApprovalContext): Promise<void>;
 }
 
 /** 검토 서비스가 읽는 플러그인 서비스의 면 */
@@ -150,6 +155,8 @@ export interface PluginReview {
     decision: ApproveDecision,
     hooks: ApprovalHooks,
   ): Promise<Result<DecisionOutcome, PluginPortFailure>>;
+  /** 대기 중인 검토 항목의 플러그인 이름(검토본이 없는 것 포함). 프로필 검증이 `plugin_not_reviewed`를 낼 때 쓴다 */
+  pendingNames(): Promise<Result<readonly string[], PluginPortFailure>>;
   /** 담당 AI(플러그인 빌더)의 제출 포트. wire 메서드가 아니다(§3.5) */
   readonly submitPort: PluginSubmitPort;
   /** 항목과 검토본이 바뀔 때 알림을 받는다. 연결 허브가 `pluginReview.changed`와 `plugin.changed`로 보낸다 */
@@ -723,7 +730,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   }
 
   /**
-   * 승인 한 번을 커밋한다. 순서는 검사, 훅 앞 검사, 승격, current 교체, 보관 정리, 기록, 훅 뒤 갱신, 항목 상태다.
+   * 승인 한 번을 커밋한다. 순서는 검사, `beforeCommit`(검증만), 승격과 `current` 교체, `afterCommit`(프로필 갱신), 보관 정리,
+   * 기록, 항목 상태, 목록 갱신, `reflect`(실행 중인 판 맞추기)다. `afterCommit`이 실패하면 `current`를 옛 검토본으로 되돌린다.
    * 중간에 끊기면 current는 옛 검토본이고, 기록에 없는 검토본은 다음 시작의 `recover`가 치운다(M5c §4.7.11)
    */
   async function applyApproval(
@@ -746,31 +754,48 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return err({ kind: "purpose_required", itemId: item.itemId });
     }
     const approvedAt = deps.now();
-    const context: ApprovalContext = { item, decision, approvedAt };
+    // 후보는 한 번만 읽는다. 검증(사실)과 승격(매니페스트 버전)이 같은 읽기를 쓴다. 원본은 다시 읽지 않는다
+    let read: PluginFolder | null = null;
+    let origin: ReviewOrigin | null = null;
+    if (!removing) {
+      if (item.candidateHash === null) return err({ kind: "store", code: "candidate_missing" });
+      origin = reviewOriginOf(item.card.origin.kind);
+      if (origin === null) return err({ kind: "store", code: "origin_unsupported" });
+      const located = store.candidateTree(item.candidateHash);
+      if (!located.ok) return err(storeFailure(located.error));
+      const folder = readPluginFolder(located.value, { origin: item.card.origin.kind });
+      if (!folder.ok) return err({ kind: "store", code: "candidate_invalid" });
+      read = folder.value;
+    }
+    const context: ApprovalContext = {
+      item,
+      decision,
+      approvedAt,
+      facts: read === null ? null : pluginFactOf(read.manifest),
+    };
     if (hooks.beforeCommit !== undefined) {
       const checked = await hooks.beforeCommit(context);
       if (!checked.ok) return checked;
     }
 
+    const previous = await store.current(item.name);
+    if (!previous.ok) return err(storeFailure(previous.error));
     if (removing) {
       const cleared = await store.clearCurrent(item.name);
       if (!cleared.ok) return err(storeFailure(cleared.error));
     } else {
-      if (item.candidateHash === null) return err({ kind: "store", code: "candidate_missing" });
-      const origin = reviewOriginOf(item.card.origin.kind);
-      if (origin === null) return err({ kind: "store", code: "origin_unsupported" });
-      const tree = store.candidateTree(item.candidateHash);
-      if (!tree.ok) return err(storeFailure(tree.error));
-      const read = readPluginFolder(tree.value, { origin: item.card.origin.kind });
-      if (!read.ok) return err({ kind: "store", code: "candidate_invalid" });
+      // 위에서 후보를 읽었으므로 아래 값들은 있다. 없으면 스냅샷이 그사이 사라진 것이다
+      if (item.candidateHash === null || origin === null || read === null) {
+        return err({ kind: "store", code: "candidate_missing" });
+      }
       const meta: PluginReviewMeta = {
         name: item.name,
-        version: read.value.manifest.version,
+        version: read.manifest.version,
         contentHash: item.candidateHash,
         approvedAt,
         decisionId: item.itemId,
         origin,
-        inferredManifest: read.value.inferred,
+        inferredManifest: read.inferred,
         card: {
           ...item.card,
           purpose,
@@ -789,6 +814,21 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       if (!switched.ok) return err(storeFailure(switched.error));
     }
 
+    // 프로필 갱신이 실패하면 `current`를 옛 검토본으로 되돌린다. 되돌리기도 실패하면 로그에만 남긴다
+    let appliedTo: readonly string[] = [];
+    if (hooks.afterCommit !== undefined) {
+      const done = await hooks.afterCommit(context);
+      if (!done.ok) {
+        const back =
+          previous.value === null
+            ? await store.clearCurrent(item.name)
+            : await store.setCurrent(item.name, previous.value.contentHash);
+        if (!back.ok) log.error("plugin.review.restore_failed", { name: item.name });
+        return done;
+      }
+      appliedTo = done.value;
+    }
+
     // 보관 정리가 실패해도 승인은 되돌리지 않는다(검토본은 이미 current다). 실패는 로그에 남긴다
     const pruned = await store.prune(item.name, { keep: KEEP_VERSIONS, inUse: new Set<string>() });
     if (!pruned.ok) {
@@ -803,14 +843,13 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       candidateHash: item.candidateHash,
       baseHash: item.baseHash,
       decision: "approved",
-      profileIds: [...decision.profileIds],
+      profileIds: [...appliedTo],
       actor: "user",
       provenance: item.provenance,
       originThreadId: item.originThreadId,
     });
     if (!appended.ok) return err(storeFailure(appended.error));
 
-    const appliedTo = hooks.afterCommit !== undefined ? await hooks.afterCommit(context) : [];
     const saved = await save({
       ...item,
       state: "approved",
@@ -821,6 +860,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     // 읽기 쪽 캐시가 새 검토본을 보게 한다. 실패해도 승인은 끝났다(다음 `plugin.scan`이 맞춘다)
     const refreshed = await plugins.scan();
     if (!refreshed.ok) log.error("plugin.review.refresh_failed", { name: item.name });
+    if (hooks.reflect !== undefined) await hooks.reflect(context);
     emit({ kind: "plugin", name: item.name });
     return ok({ item: saved.value, appliedTo: [...appliedTo] });
   }
@@ -1076,6 +1116,15 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         if (!removed.ok) return err(storeFailure(removed.error));
         return ok(undefined);
       }),
+
+    pendingNames: async () => {
+      const listed = await allItems();
+      if (!listed.ok) return listed;
+      const names = new Set(
+        listed.value.filter((item) => item.state === "pending").map((item) => item.name),
+      );
+      return ok([...names].toSorted(compareUtf8));
+    },
 
     list: async (filter) => {
       const listed = await allItems();

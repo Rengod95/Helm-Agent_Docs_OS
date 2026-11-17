@@ -200,3 +200,39 @@ test("the isolated process key is the content hash of the reviewed copy, not the
   expect(launches).toEqual([HASH_A]);
   await harness.loader.dispose();
 });
+
+test("reloadFromReviewed reads the copy the list names now, and the loaded record takes its version and content hash", async () => {
+  const oldRoot = await reviewedTree("kit", HASH_A);
+  const state: { entries: ReviewedSourceEntry[] } = {
+    entries: [{ name: "kit", source: "user", root: oldRoot, contentHash: HASH_A }],
+  };
+  const harness = await harnessOf(portOf(state));
+  await harness.loader.loadAll(harness.options([], { cwd: project }));
+  // 승인으로 검토본이 새 판이 되었다. 목록이 새 `tree/`를 가리키고 다시 읽기가 그것을 싣는다
+  const newRoot = join(reviewedRoot, "kit", HASH_B.slice("sha256:".length), "tree");
+  await putFile(
+    join(newRoot, ".fresnel-plugin", "plugin.json"),
+    JSON.stringify({ schemaVersion: 2, name: "kit", version: "1.1.0" }),
+  );
+  state.entries = [{ name: "kit", source: "user", root: newRoot, contentHash: HASH_B }];
+  const started = await harness.loader.reloadFromReviewed("kit", new AbortController().signal);
+  expect(started.ok).toBe(true);
+  if (!started.ok) return;
+  expect((await started.value.applied).status).toBe("applied");
+  const loaded = harness.loader.list().find((info) => info.name === "kit");
+  expect([loaded?.version, loaded?.contentHash, loaded?.root]).toEqual(["1.1.0", HASH_B, newRoot]);
+});
+
+test("reloadFromReviewed of a name the reviewed list no longer names is rejected and the running copy keeps running", async () => {
+  const oldRoot = await reviewedTree("kit", HASH_A);
+  const state: { entries: ReviewedSourceEntry[] } = {
+    entries: [{ name: "kit", source: "user", root: oldRoot, contentHash: HASH_A }],
+  };
+  const harness = await harnessOf(portOf(state));
+  await harness.loader.loadAll(harness.options([], { cwd: project }));
+  state.entries = [];
+  const started = await harness.loader.reloadFromReviewed("kit", new AbortController().signal);
+  expect(started.ok ? "accepted" : started.error.kind).toBe("rejected");
+  const loaded = harness.loader.list().find((info) => info.name === "kit");
+  expect([loaded?.contentHash, loaded?.root]).toEqual([HASH_A, oldRoot]);
+});

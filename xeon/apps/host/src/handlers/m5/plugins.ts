@@ -7,11 +7,11 @@ import {
   type PluginListFilter,
   type PluginListResult,
   type PluginScanResult,
-  type ProfileIssue,
   type WireError,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
 import { wireErrorOfProfile, type ProfilePortFailure } from "../m4/profile-test-run.ts";
+import type { PluginEditIssue } from "../../assembly/m4/plugin-edit.ts";
 
 // 플러그인 wire(M5c §3.4). `plugin.list`, `plugin.get`, `plugin.scan`(읽기)과 `plugin.requestRemove`, `plugin.revert`,
 // `plugin.draft.create`, `plugin.draft.list`, `plugin.draft.discard`(검토 흐름)다. 처리기는 포트가 돌려준 값을 그대로 옮기고 오류만 wire 오류로 바꾼다.
@@ -48,8 +48,8 @@ export type PluginPortFailure =
   /** 손으로 고친 변경은 승인할 수 없다 */
   | { readonly kind: "hand_edit"; readonly itemId: string }
   | { readonly kind: "purpose_required"; readonly itemId: string }
-  /** 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다. 이슈는 프로필 검증 결과다 */
-  | { readonly kind: "profile_invalid"; readonly issues: readonly ProfileIssue[] };
+  /** 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다. 이슈는 프로필마다의 검증 결과다(§4.7.3, §5) */
+  | { readonly kind: "profile_invalid"; readonly issues: readonly PluginEditIssue[] };
 
 /** 처리기가 쓰는 포트. 메서드 하나가 wire 메서드 하나다 */
 export interface PluginPort {

@@ -102,7 +102,12 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
-import { createPluginReview, createPluginService, type PluginStore } from "./plugins/index.ts";
+import {
+  approvalHooksOf,
+  createPluginReview,
+  createPluginService,
+  type PluginStore,
+} from "./plugins/index.ts";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -975,6 +980,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.localIds,
     now: () => new Date(deps.clock.now()).toISOString(),
     log: deps.logger,
+    // 승인의 프로필 반영과 커밋 뒤 실행 중인 판 맞추기(M5c §4.7.3, §4.6.7). 프로필과 플러그인 집합은 엔진 포트가 올라온 뒤에 읽는다
+    approvalHooks: approvalHooksOf({
+      profiles: {
+        checkPluginEdit: (request) => ports.m4.profileTestRun.checkPluginEdit(request),
+        applyPluginEdit: (request) => ports.m4.profileTestRun.applyPluginEdit(request),
+      },
+      loader: () => deps.extRead.loader(),
+      refreshPluginSet: () => ports.m4.pluginSet.refresh(),
+      log: deps.logger,
+    }),
     // 돌려보내기 사유를 만든 대화의 다음 입력으로 넣는다(입력 큐, 사용자가 보낸 것으로 기록한다 [제안])
     notifyOrigin: async ({ threadId, reason, itemId }) => {
       if (!isId("thr", threadId)) return false;
@@ -1108,6 +1123,21 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         fileLock: deps.fileLock,
         clock: deps.clock,
         signal: deps.signal,
+        // 지금 실행 중인 판의 해시. 바뀌면 열린 대화가 `profile.applied { reason: "plugin_updated" }`를 남긴다
+        loadedHash: (name) =>
+          deps.extRead
+            .loader()
+            ?.list()
+            .find((info) => info.name === name)?.contentHash,
+        // 검토 대기 이름. 읽지 못하면 빈 목록으로 두고 실패를 기록한다(프로필 검증은 그 이름을 `plugin_not_reviewed`로 보지 못한다)
+        pendingPluginNames: async () => {
+          const pending = await pluginReview.pendingNames();
+          if (!pending.ok) {
+            deps.logger.error("plugin.review.pending_unreadable", { kind: pending.error.kind });
+            return [];
+          }
+          return [...pending.value];
+        },
         testRunMarks: testMarks,
       },
       createExtReadSources(deps.extRead, {

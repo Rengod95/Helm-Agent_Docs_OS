@@ -16,7 +16,8 @@ import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
-import { createProfileTestRunPort, type PluginFact } from "./profile-test-run-port.ts";
+import { pluginFactOf } from "./plugin-fact.ts";
+import { createProfileTestRunPort } from "./profile-test-run-port.ts";
 import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
@@ -90,11 +91,13 @@ export function createM4Ports(
   const profileTestRun = createProfileTestRunPort({
     ...deps,
     env: scopedEnv,
-    pluginFacts: () => extReadSources.extensions().map(pluginFactOf),
+    pluginFacts: () => extReadSources.extensions().map((record) => pluginFactOf(record.manifest)),
+    pendingNames: () => env.pendingPluginNames(),
   });
   const pluginSet = createPluginSet({
     profiles: profileTestRun,
     threadProfileId: env.threadProfileId,
+    loadedHash: env.loadedHash,
     forcedPlugins: scopedEnv.forcedPlugins,
     defaultPlugins: scopedEnv.defaultPlugins,
     openThreadIds: env.openThreadIds,
@@ -167,15 +170,3 @@ function managedOffOf(env: M4HostEnv, name: string): boolean {
 }
 
 /** 매니페스트에서 프로필 검증이 쓰는 사실을 뽑는다. 대체 도구, Drive 등록 가능, 필수 설정 키 */
-function pluginFactOf(record: ExtensionRecord): PluginFact {
-  const manifest = record.manifest;
-  const plugins = manifest.plugins ?? [];
-  return {
-    name: manifest.name,
-    replaces: plugins.flatMap((plugin) => plugin.replaces ?? []),
-    drives: plugins.some((plugin) => plugin.drives === true),
-    requiredKeys: Object.values(manifest.userConfig ?? {})
-      .filter((entry) => entry.required === true)
-      .map((entry) => entry.setting),
-  };
-}
