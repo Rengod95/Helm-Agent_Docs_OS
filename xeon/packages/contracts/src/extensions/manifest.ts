@@ -19,7 +19,7 @@ import {
 } from "../capabilities/index.ts";
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { HookNameSchema } from "./hooks.ts";
+import { DecisionKindSchema, HookNameSchema } from "./hooks.ts";
 import { PluginIdSchema } from "./registration-id.ts";
 import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
@@ -140,6 +140,9 @@ export const PluginDeclSchema: TObject<{
   title: TOptional<TString>;
   defaultEnabled: TOptional<TBoolean>;
   hooks: TArray<typeof HookNameSchema>;
+  hookDecides: TOptional<
+    TArray<TObject<{ hook: typeof HookNameSchema; decides: TArray<typeof DecisionKindSchema> }>>
+  >;
   usesPost: TOptional<TBoolean>;
   drives: TOptional<TBoolean>;
   requires: TOptional<TArray<typeof CapabilityRequirementSchema>>;
@@ -158,6 +161,22 @@ export const PluginDeclSchema: TObject<{
     defaultEnabled: Type.Optional(Type.Boolean()),
     /** 이 플러그인이 on을 거는 Hook 목록. 정적 선언. 빈 배열 허용 */
     hooks: Type.Array(HookNameSchema, { maxItems: 64 }),
+    /**
+     * 이 플러그인의 훅이 낼 수 있는 결정 종류를 미리 적는 선언(M5e 스펙 §4.1.1). `hooks`는 이름 문자열 목록이라
+     * 결정 선언은 훅 이름과 짝을 이룬 별도 목록이다. 선언이 없는 훅은 정적으로 알 수 없다고 표시한다. 강제하지 않는다.
+     */
+    hookDecides: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            hook: HookNameSchema,
+            decides: Type.Array(DecisionKindSchema, { minItems: 1, maxItems: 3 }),
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 64 },
+      ),
+    ),
     usesPost: Type.Optional(Type.Boolean()),
     /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다 */
     drives: Type.Optional(Type.Boolean()),

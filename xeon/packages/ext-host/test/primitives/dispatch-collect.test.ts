@@ -86,10 +86,20 @@ test("collect is fail-open: a throwing handler loses only its contribution", asy
     {
       threadId: thread,
       dispatchKey: "k",
-      initial: { skillPaths: ["/base"], promptPaths: [], themePaths: [] },
+      initial: {
+        skillPaths: ["/base"],
+        promptPaths: [],
+        themePaths: [],
+        workspaceCandidates: [],
+      },
     },
   );
-  expect(outcome.value).toEqual({ skillPaths: ["/base", "/s"], promptPaths: [], themePaths: [] });
+  expect(outcome.value).toEqual({
+    skillPaths: ["/base", "/s"],
+    promptPaths: [],
+    themePaths: [],
+    workspaceCandidates: [],
+  });
   expect(outcome.contributed.map((ref) => ref.extension)).toEqual(["col-ok"]);
   expect(outcome.failures.map((failure) => failure.reason)).toEqual(["threw"]);
 });

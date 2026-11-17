@@ -82,6 +82,7 @@ export const ThreadUpdatedPayloadSchema: TObject<{
   title: TAddOptional<TUnion<[TString, TNull]>>;
   titleSource: TAddOptional<typeof ThreadTitleSourceSchema>;
   model: TAddOptional<TUnion<[TString, TNull]>>;
+  workspace: TAddOptional<TString>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
 }> = Type.Object(
@@ -91,6 +92,8 @@ export const ThreadUpdatedPayloadSchema: TObject<{
     titleSource: Type.Optional(ThreadTitleSourceSchema),
     /** 이 대화가 다음 turn부터 쓸 모델 참조(`provider/id`). null이면 지정을 거둬 기본 모델로 돌아간다. 필드가 없으면 바꾸지 않는다 */
     model: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 200 }))),
+    /** 대화 폴더(절대 경로, 정규 경로). 첫 턴 전에 열기 훅(`thread.resources`)의 결과로만 커밋한다(H-7). 없으면 바꾸지 않는다 */
+    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
   },

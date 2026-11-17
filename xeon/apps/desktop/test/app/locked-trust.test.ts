@@ -433,7 +433,9 @@ describe("settings screen wire", () => {
 });
 
 describe("new thread workspace (G2-02)", () => {
-  const CREATED = { "thread.create": { threadId: thr(2), position: { storeId: STORE, seq: 6 } } };
+  const CREATED = {
+    "thread.create": { threadId: thr(2), position: { storeId: STORE, seq: 6 }, sameFolder: [] },
+  };
 
   test("the chosen folder is sent as thread.create workspace and the new thread is selected", async () => {
     const { app, params } = await liveApp({ results: CREATED });

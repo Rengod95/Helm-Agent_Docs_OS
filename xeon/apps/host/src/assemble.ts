@@ -394,6 +394,19 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
  * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `input.bash.before`의 cwd가 왜 비었는지 알 수 없다.
  * 설정 층(project·local 파일)과 `input.bash.before`의 cwd가 같은 값을 쓴다
  */
+/**
+ * 열기 훅(`thread.resources`)이 대화에 낸 스킬 경로(H-7). 열기 결과는 열기 단계가 끝나야 나온다(`openSettled`).
+ * 세션이 아직 없으면 빈 목록이다
+ */
+function openedSkillPathsOf(ext: ExtHost): (threadId: ThreadId) => Promise<readonly string[]> {
+  return async (threadId) => {
+    const session = ext.ports.get(SESSION_KEY);
+    if (session === undefined) return [];
+    const opened = await session.threads.openSettled(threadId);
+    return opened?.skillPaths ?? [];
+  };
+}
+
 export function threadWorkspaceOf(
   ext: ExtHost,
   logger: Logger,
@@ -1070,6 +1083,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         settings,
         workspaceOf,
+        openedSkillPaths: openedSkillPathsOf(ext),
         db: store.value.root,
         faults: store.value.faults,
         holder,

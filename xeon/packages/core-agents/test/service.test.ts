@@ -15,6 +15,17 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return Promise.withResolvers<T>();
 }
 
+/** 조건이 참이 될 때까지 기다린다(앞 훅처럼 자식 생성 전에 기다림이 끼는 경로가 있다) */
+function waitUntil(done: () => boolean): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const tick = (): void => {
+      if (done()) resolve();
+      else setTimeout(tick, 1);
+    };
+    tick();
+  });
+}
+
 describe("spawn", () => {
   test("the child inherits the parent's workspace", async () => {
     const h = openHarness({ parentWorkspace: "/work/parent" });
@@ -380,9 +391,8 @@ describe("idempotency and resume", () => {
       { agent: "explorer", task: "t", requestId: "tool:tc-1:spawn:0" },
       origin,
     );
-    // 첫 호출이 live 표에 오를 때까지 한 번 기다린다
-    await Promise.resolve();
-    await Promise.resolve();
+    // 첫 호출이 live 표에 오를 때까지 기다린다
+    await waitUntil(() => h.service.liveCount() === 1);
     const second = h.service.spawn(
       { agent: "explorer", task: "t", requestId: "tool:tc-1:spawn:0" },
       origin,
@@ -402,8 +412,7 @@ describe("idempotency and resume", () => {
       { agent: "explorer", task: "t", requestId: "tool:tc-1:spawn:0" },
       origin,
     );
-    await Promise.resolve();
-    await Promise.resolve();
+    await waitUntil(() => kinds(before).includes("agent.spawned"));
     expect(kinds(before).filter((kind) => kind === "agent.spawned")).toHaveLength(1);
     const childId = before.session.created.at(-1);
     if (childId === undefined) throw new Error("no child was created");

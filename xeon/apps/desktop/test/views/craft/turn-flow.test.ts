@@ -26,7 +26,7 @@ function brief(parts: ReturnType<typeof momentsFor>): unknown[] {
 }
 
 describe("생명선 순간", () => {
-  test("14개이고 훅 13개 순서에 도구 실행이 tool.call.before 뒤에 끼어 있다", () => {
+  test("18개이고 훅 17개 순서에 도구 실행이 tool.call.before 뒤에 끼어 있다", () => {
     expect(MOMENTS.map((m) => m.id)).toEqual([
       "thread.start",
       "input.user.before",
@@ -39,6 +39,10 @@ describe("생명선 순간", () => {
       "tool.run",
       "tool.result",
       "tool.execution.after",
+      "ask.human.before",
+      "ask.human.after",
+      "agent.spawn.before",
+      "agent.spawn.after",
       "boundary.step.after",
       "boundary.settle.after",
       "thread.shutdown",

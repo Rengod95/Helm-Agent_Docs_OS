@@ -81,7 +81,8 @@ export const ToolCallPayloadSchema: TObject<{
 );
 export type ToolCallPayload = Static<typeof ToolCallPayloadSchema>;
 
-export const ToolCallDecisionSchema: TObject<{
+/** 막기: 실행하지 않고 거부 결과를 돌려준다 */
+export const ToolCallBlockSchema: TObject<{
   block: TLiteral<true>;
   reason: TString;
   terminate: TOptional<TBoolean>;
@@ -94,6 +95,40 @@ export const ToolCallDecisionSchema: TObject<{
   },
   { additionalProperties: false },
 );
+
+/** 묻기: 코어의 사람에게 묻기 블록이 카드를 띄운다(M5e 스펙 §4.2). 허용이면 정책이 이어진다 */
+export const ToolCallAskSchema: TObject<{ ask: TLiteral<true>; reason: TString }> = Type.Object(
+  { ask: Type.Literal(true), reason: Type.String({ maxLength: 500 }) },
+  { additionalProperties: false },
+);
+
+/** 결과 대신 주기: 실행 없이 이 결과를 기록한다(M5e 스펙 §4.2) */
+export const ToolCallReplaceSchema: TObject<{
+  replace: TObject<{
+    content: typeof ContentSchema;
+    details: TOptional<typeof JsonValueSchema>;
+    isError: TOptional<TBoolean>;
+  }>;
+  reason: TString;
+}> = Type.Object(
+  {
+    replace: Type.Object(
+      {
+        content: ContentSchema,
+        details: Type.Optional(JsonValueSchema),
+        isError: Type.Optional(Type.Boolean()),
+      },
+      { additionalProperties: false },
+    ),
+    reason: Type.String({ maxLength: 500 }),
+  },
+  { additionalProperties: false },
+);
+
+/** `tool.call.before`의 결정(M5e 스펙 §4.2). 허용은 값으로 내지 않는다(undefined가 허용이다) */
+export const ToolCallDecisionSchema: TUnion<
+  [typeof ToolCallBlockSchema, typeof ToolCallAskSchema, typeof ToolCallReplaceSchema]
+> = Type.Union([ToolCallBlockSchema, ToolCallAskSchema, ToolCallReplaceSchema]);
 export type ToolCallDecision = Static<typeof ToolCallDecisionSchema>;
 
 // ── #14 tool_result (chain) ──────────────────────────────────────────────

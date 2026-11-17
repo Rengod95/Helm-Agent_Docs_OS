@@ -135,7 +135,9 @@ describe("M1 method schemas", () => {
     expect(parse(params, {}).ok).toBe(true);
     expect(parse(params, { workspace: "/work", title: "t" }).ok).toBe(true);
     expect(parse(params, { title: "" }).ok).toBe(false);
-    expect(parse(result, { threadId: THREAD, position: { storeId: STORE, seq: 1 } }).ok).toBe(true);
+    expect(
+      parse(result, { threadId: THREAD, position: { storeId: STORE, seq: 1 }, sameFolder: [] }).ok,
+    ).toBe(true);
   });
 
   test("turn.start", () => {

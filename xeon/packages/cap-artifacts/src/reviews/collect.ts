@@ -1,5 +1,5 @@
 import { err, ok, parse, type Result } from "@fresnel/contracts";
-import { FileChangeSchema } from "@fresnel/contracts/capabilities";
+import { fileChangesOf } from "@fresnel/contracts/capabilities";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
@@ -8,7 +8,8 @@ import {
   type ReadFailure,
 } from "@fresnel/contracts/records";
 
-// L2.artifacts.spec §4.2.1. 도구 결과(`item.recorded`의 toolResult)에서 workspace 쓰기 도구의 변경 기록(`FileChange`)을 모은다.
+// L2.artifacts.spec §4.2.1. 도구 결과(`item.recorded`의 toolResult)의 `details`에서 파일 변경 기록을 모은다.
+// 읽는 방법은 `fileChangesOf`(M5e §4.7 F-5)이고 도구 이름은 보지 않는다. 옛 `FileChange` 한 건도 그대로 읽는다.
 // 이벤트를 읽는다. `p_tool_calls` 같은 다른 컨텍스트 테이블은 읽지 않는다(CM-02).
 
 export interface CollectedDiff {
@@ -48,7 +49,7 @@ export function readEvents(
 
 /**
  * `turn`이면 그 turn의 도구 결과를, `toolCalls`면 지정한 호출의 결과를 호출 순서로 돌려준다.
- * 오류 결과, 변경 기록이 없는 결과, 바뀐 줄이 없는 결과(diff가 빔)는 건너뛴다.
+ * 한 결과가 여러 파일을 바꿨으면 파일마다 한 항목이다. 오류 결과, 변경 기록이 없는 결과, 바뀐 줄이 없는 항목(diff가 빔)은 건너뛴다.
  */
 export function collectDiffs(
   feed: Pick<EventFeed, "headSeq" | "read">,
@@ -68,9 +69,10 @@ export function collectDiffs(
     const message = payload.value.item.message;
     if (message.isError) continue;
     if (wanted !== undefined && !wanted.has(message.toolCallId)) continue;
-    const change = parse(FileChangeSchema, message.details);
-    if (!change.ok || change.value.diff === "") continue;
-    out.push({ toolCallId: message.toolCallId, diff: change.value.diff });
+    for (const change of fileChangesOf(message.details ?? null)) {
+      if (change.diff === undefined || change.diff === "") continue;
+      out.push({ toolCallId: message.toolCallId, diff: change.diff });
+    }
   }
   return ok(out);
 }

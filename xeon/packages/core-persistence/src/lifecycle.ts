@@ -1,6 +1,6 @@
 // 수명주기 API(L1.persistence.spec §3.8, PS-9·PS-10). create는 여기, 조회·종결·삭제·제목은 lifecycle-admin.ts,
 // 분기(moveLeaf, revert, fork, prepareSwitch)는 lifecycle-branch.ts다.
-import { assertNever, Bug, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import { assertNever, Bug, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   CommitPlan,
@@ -19,6 +19,7 @@ import { sessionResource } from "./ids.ts";
 import { createAdminOps } from "./lifecycle-admin.ts";
 import { createBranchOps } from "./lifecycle-branch.ts";
 import type { GuardState, OpenSessions } from "./ownership.ts";
+import type { OpenChain } from "./open-chain.ts";
 import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { readResult } from "./rows.ts";
@@ -36,6 +37,8 @@ export interface LifecycleDeps {
   readonly onLeaseLost: ((threadId: ThreadId) => void) | undefined;
   readonly guard: GuardState;
   readonly points: ThreadHooks;
+  /** 열기 한 번(thread.resources → thread.start). 새 대화와 포크가 쓴다 */
+  readonly opening: OpenChain;
   readonly logger: Logger | undefined;
   /** thread 행을 지울 투영 테이블 이름(등록된 모든 투영기) */
   readonly projectorTables: () => readonly string[];
@@ -207,19 +210,14 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       });
     }
     if (forkedFrom === undefined && !result.replayed) {
-      detach(
-        deps.points.start(
-          { reason: "new", threadId },
-          `${threadId}:session.start:${String(result.lastSeq)}`,
-        ),
-        (cause) => {
-          deps.logger?.warn("session.point_failed", {
-            point: "thread.start",
-            threadId,
-            reason: String(cause),
-          });
-        },
-      );
+      deps.opening.open({
+        threadId,
+        resourcesReason: "startup",
+        cwd: input.workspace ?? "",
+        start: { reason: "new", threadId },
+        resourcesKey: `${threadId}:session.resources:${String(result.lastSeq)}`,
+        startKey: `${threadId}:session.start:${String(result.lastSeq)}`,
+      });
     }
     return ok({ threadId, headSeq: result.lastSeq, replayed: result.replayed, token });
   };
@@ -235,10 +233,12 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       guard: deps.guard,
       ids,
       points: deps.points,
+      opening: deps.opening,
       logger: deps.logger,
       projectorTables: deps.projectorTables,
       onRemoved: deps.onRemoved,
     }),
+    openSettled: (threadId) => deps.opening.resources(threadId),
     ...createBranchOps({
       db,
       writer,
@@ -246,6 +246,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       sessions,
       ids,
       points: deps.points,
+      opening: deps.opening,
       logger: deps.logger,
       createForked: (input, forkedFrom) => createThread(input, forkedFrom),
     }),

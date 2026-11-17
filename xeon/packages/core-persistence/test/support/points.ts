@@ -1,6 +1,7 @@
 // 훅 발화를 기록하는 ThreadHooks 대역(L1.persistence.spec §7.1). first 훅은 설정한 대로 취소하거나 요약을 준다.
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ThreadHooks } from "../../src/index.ts";
+import type { ResourcesValue } from "@fresnel/contracts/extensions";
+import { emptyResources, type ThreadHooks } from "../../src/index.ts";
 
 export interface PointCall {
   readonly point: string;
@@ -15,6 +16,8 @@ export interface RecordingHooksOptions {
   >;
   /** session_before_tree가 계속하면서 주는 요약 */
   readonly treeSummary?: { readonly summary: string };
+  /** thread.resources가 돌려줄 병합 결과. 없으면 아무도 기여하지 않은 값이다 */
+  readonly resources?: ResourcesValue;
 }
 
 export function recordingHooks(options: RecordingHooksOptions = {}): {
@@ -26,6 +29,10 @@ export function recordingHooks(options: RecordingHooksOptions = {}): {
     calls.push({ point, threadId, payload });
   };
   const points: ThreadHooks = {
+    resources(threadId, payload) {
+      record("thread.resources", threadId, payload);
+      return Promise.resolve(options.resources ?? emptyResources());
+    },
     start(payload) {
       record("thread.start", payload.threadId, payload);
       return Promise.resolve();

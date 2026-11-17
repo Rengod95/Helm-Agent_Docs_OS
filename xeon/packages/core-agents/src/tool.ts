@@ -153,6 +153,18 @@ function createAgentTool(
           },
         );
         if (!receipt.ok) return failed(`${receipt.error.kind}: ${receipt.error.message}`);
+        // 훅이 자식 없이 보고를 돌려줬다(replace). 완료 보고가 나중에 올 일이 없으므로 보고를 바로 돌려준다
+        if (receipt.receipt.status === "replaced") {
+          return toResult({
+            childThreadId: receipt.receipt.childThreadId,
+            status: "completed",
+            answer: receipt.receipt.report,
+            requestId: receipt.receipt.requestId,
+            report: null,
+            usage: null,
+            reused: false,
+          });
+        }
         const details: JsonValue = {
           childThreadId: receipt.receipt.childThreadId,
           status: receipt.receipt.status,

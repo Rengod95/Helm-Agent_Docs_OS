@@ -17,6 +17,7 @@ import { createExtPort } from "./ext-port.ts";
 import { createItemPages, registerItemPages } from "./item-pages.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
+import { createOpenChain } from "./open-chain.ts";
 import { NO_THREAD_HOOKS } from "./points.ts";
 import { createRetention } from "./retention.ts";
 import { createProducerRegistry } from "./producers.ts";
@@ -71,6 +72,8 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
   };
 
   const points = deps.points ?? NO_THREAD_HOOKS;
+  // 열기 한 번의 훅 순서(thread.resources → thread.start). 새 대화, 다시 열기, 포크가 같은 길을 쓴다(H-7)
+  const opening = createOpenChain({ points, logger: deps.logger });
   const feedController = createFeed({ db: deps.db, catalog, guard, logger: deps.logger });
   const settings = (): PersistenceSettings => deps.settings?.() ?? DEFAULT_PERSISTENCE_SETTINGS;
   const writer = createSessionWriter({
@@ -122,6 +125,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     takeStartupRebuilt,
     logger: deps.logger,
     points,
+    opening,
   });
   /** 대화가 지워졌을 때: 설정 값의 대화 몫을 버리고, 호스트가 건 콜백(측정 저장소의 대화 행 지우기)을 부른다 */
   const removed = (threadId: ThreadId): void => {
@@ -139,10 +143,12 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     onLeaseLost: deps.onLeaseLost,
     guard,
     points,
+    opening,
     logger: deps.logger,
     projectorTables,
     onRemoved: (threadId) => {
       removed(threadId);
+      opening.forget(threadId);
     },
   });
 

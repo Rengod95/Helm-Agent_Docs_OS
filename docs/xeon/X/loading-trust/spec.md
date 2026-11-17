@@ -38,7 +38,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 다루지 않는 것:
 
-- 매니페스트 스키마, 훅 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
+- 매니페스트 스키마, 훅 50행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
 - 4연산 실행, 디스패처, post 큐, drive 락 중재, Registration 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
 - tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(접두 테이블 API), 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜(M4로 옮김 [결정: 2026-10-28 사용자]), 설정 키 `x.operations.*`: X.operations.spec. tier와 시간 예산은 operations 소유로 본다 [제안]. F.extensions.spec §1·§4.2의 primitives 표기는 정합성 단계에서 고친다.
 - 설정 파일 경로와 읽기, 유효 값 계산: F.wire-settings.spec과 L1.persistence.spec. 이 문서는 키 정의와 신뢰 전 적용 제외 규칙만 둔다.

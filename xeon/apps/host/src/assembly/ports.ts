@@ -265,6 +265,12 @@ function backgroundCallsOf(source: MeasureReadSource): BackgroundCallReader {
   };
 }
 
+/** 열기 훅이 낸 경로를 정규 경로로 바꾼다. 없거나 폴더가 아니면 undefined다(H-7 `workspace_missing`) */
+async function canonicalFolder(path: string): Promise<string | undefined> {
+  const canonical = await canonicalWorkspace(path);
+  return canonical.ok ? canonical.value : undefined;
+}
+
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
@@ -390,6 +396,29 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const head = session.feed.headSeq();
       if (!head.ok) return head;
       return ok({ threadId: forked.value.threadId, position: { storeId, seq: head.value } });
+    },
+    async applyOpenWorkspace(threadId) {
+      // 열기마다 새 키다. 같은 키로 다른 폴더를 쓰면 key_reused라서 호출 한 번이 커밋 한 번이다
+      const applied = await session.threads.applyOpenWorkspace(
+        threadId,
+        canonicalFolder,
+        deps.ids.next("evt"),
+      );
+      if (!applied.ok) {
+        logger.warn("host.open_workspace_failed", { threadId, reason: applied.error.kind });
+        return;
+      }
+      for (const diagnostic of applied.value.diagnostics) {
+        logger.warn(`hook.${diagnostic.code}`, { threadId, candidate: diagnostic.candidate });
+      }
+    },
+    sameFolder(threadId) {
+      const found = session.threads.sameFolder(threadId);
+      if (!found.ok) {
+        logger.warn("host.same_folder_unreadable", { threadId, reason: found.error.kind });
+        return [];
+      }
+      return found.value.map((thread) => ({ threadId: thread.threadId, status: thread.status }));
     },
     async revert(threadId, to) {
       // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다

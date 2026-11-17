@@ -207,11 +207,22 @@ export interface SpawnResult extends SpawnOutcome {
   readonly reused: boolean;
 }
 
-export interface DelegateReceipt {
-  readonly requestId: string;
-  readonly childThreadId: ThreadId;
-  readonly status: "accepted" | "duplicate";
-}
+/**
+ * 접수 결과. `replaced`는 `agent.spawn.before`가 자식을 만들지 않고 보고를 돌려준 것이다(M5e 스펙 §4.3.3). 자식 thread는 없고
+ * `childThreadId`는 만들지 않은 자리 id다. 그때만 `report`가 있다.
+ */
+export type DelegateReceipt =
+  | {
+      readonly requestId: string;
+      readonly childThreadId: ThreadId;
+      readonly status: "accepted" | "duplicate";
+    }
+  | {
+      readonly requestId: string;
+      readonly childThreadId: ThreadId;
+      readonly status: "replaced";
+      readonly report: string;
+    };
 
 export type ChildStatus =
   | { readonly state: "queued" | "running"; readonly childThreadId: ThreadId }

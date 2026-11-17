@@ -1,5 +1,11 @@
 import type { TSchema } from "typebox";
-import type { CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
+import type {
+  CallerInfo,
+  FileChangeEntry,
+  ToolHints,
+  ToolName,
+  ToolRisk,
+} from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
@@ -290,8 +296,16 @@ export interface ToolResourceDef {
       readonly toolCallId: string;
       /** 호출 주체. 이번 turn에 untrusted 도구 결과를 읽었으면 `afterUntrusted`가 참이다(M3-REQ-100) */
       readonly caller: CallerInfo;
+      /** 이 호출이 바꾼 파일을 알린다(M5e §4.7 `reported`). 코어가 `source`를 정하고 검증해 결과의 `fileChanges`에 합친다 */
+      readonly changes?: ToolChangeReport;
     },
   ): Promise<unknown>;
+}
+/** 플러그인 도구가 알리는 파일 변경 한 건. `source`는 코어가 `reported`로 정하므로 적지 않는다 */
+export type ReportedFileChange = Omit<FileChangeEntry, "source">;
+/** `ctx.changes`. 알린 항목은 검증되지 않은 값으로 받아 코어가 모양을 확인한다(F.capabilities.spec §3.13) */
+export interface ToolChangeReport {
+  report(entries: readonly ReportedFileChange[]): void;
 }
 /** 모양은 L1.models.spec이 정한다 */
 export type ProviderResourceDef = JsonValue;

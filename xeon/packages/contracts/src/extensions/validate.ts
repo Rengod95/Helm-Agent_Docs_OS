@@ -21,7 +21,8 @@ import {
   type PluginDecl,
   type PluginEntry,
 } from "./manifest.ts";
-import type { HookName } from "./hooks.ts";
+import { FIRST_RANK, type DecisionKind, type HookName } from "./hooks.ts";
+import { HOOK_POSITIONS } from "./hook-positions.ts";
 import type { CompositionDecl } from "./composition.ts";
 import type { ExtMethodDecl } from "./ext-method.ts";
 import { PLACEMENT_LIMITS, PLACEMENT_MODES, type Placement, type UiDecl } from "./ui.ts";
@@ -52,6 +53,12 @@ export type ManifestIssueCode =
   | "group_member_duplicate"
   | "hook_unknown"
   | "hook_duplicate"
+  /** 내부 훅(H-4)을 내장이 아닌 등급이 선언했다. 거부다 */
+  | "hook_internal"
+  /** 지금 빌드가 발화하지 않는 훅을 선언했다(H-4). 경고다 */
+  | "hook_not_fired"
+  /** `hookDecides`가 그 훅이 낼 수 없는 결정 종류를 선언했다(M5e 스펙 §4.1.1). 거부다 */
+  | "hook_decision_not_allowed"
   | "capability_invalid"
   | "range_invalid"
   | "capability_duplicate"
@@ -760,6 +767,9 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   }
 
   issues.push(...checkPluginList(manifest));
+  manifest.plugins.forEach((plugin, pluginIndex) => {
+    issues.push(...checkPluginHooks(manifest, plugin, `/plugins/${pluginIndex}`));
+  });
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
   if (manifest.group?.composition !== undefined) {
@@ -920,6 +930,86 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
 }
 
 /** 플러그인 id, 루트, 층 섞임, 그룹 구성원 검사 */
+/** 결정을 낼 수 있다고 선언할 수 있는 종류(M5e 스펙 §4.1.1). 합치기 지점(H-2)만 낸다. 그 밖의 훅은 빈 목록이다 */
+function declarableDecisionsOf(hook: HookName): readonly DecisionKind[] {
+  if (hook === "tool.call.before" || hook === "agent.spawn.before") return FIRST_RANK[hook];
+  return [];
+}
+
+/**
+ * 플러그인의 훅 선언 검사. 내부 훅(H-4)은 내장 등급만 선언할 수 있고, 지금 발화하지 않는 훅은 경고다.
+ * 결정 선언(`hookDecides`)은 같은 플러그인의 훅이고 그 훅이 낼 수 있는 종류의 부분집합이어야 한다. 순수 함수
+ */
+function checkPluginHooks(
+  manifest: ExtensionManifest,
+  plugin: PluginDecl,
+  base: string,
+): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const builtin = manifest.trust?.level === "builtin";
+  plugin.hooks.forEach((hook, index) => {
+    const row = HOOK_POSITIONS[hook];
+    if (!builtin && row.positions.some((position) => position.kind === "internal")) {
+      issues.push(
+        issue(
+          "error",
+          "hook_internal",
+          `${base}/hooks/${index}`,
+          `hook "${hook}" is internal; only a builtin extension may declare it`,
+        ),
+      );
+    }
+    if (!row.fired) {
+      issues.push(
+        issue(
+          "warning",
+          "hook_not_fired",
+          `${base}/hooks/${index}`,
+          `hook "${hook}" is declared, but this build does not fire it`,
+        ),
+      );
+    }
+  });
+  const decides = plugin.hookDecides ?? [];
+  for (const { index, id } of duplicatesIn(decides.map((entry) => entry.hook))) {
+    issues.push(
+      issue(
+        "error",
+        "hook_duplicate",
+        `${base}/hookDecides/${index}`,
+        `hook "${id}" is listed twice in hookDecides`,
+      ),
+    );
+  }
+  decides.forEach((entry, index) => {
+    const at = `${base}/hookDecides/${index}`;
+    if (!plugin.hooks.includes(entry.hook)) {
+      issues.push(
+        issue(
+          "error",
+          "hook_decision_not_allowed",
+          at,
+          `hook "${entry.hook}" is not listed in the hooks of this plugin`,
+        ),
+      );
+      return;
+    }
+    const allowed = declarableDecisionsOf(entry.hook);
+    entry.decides.forEach((kind, kindIndex) => {
+      if (allowed.includes(kind)) return;
+      issues.push(
+        issue(
+          "error",
+          "hook_decision_not_allowed",
+          `${at}/decides/${kindIndex}`,
+          `hook "${entry.hook}" cannot decide "${kind}"`,
+        ),
+      );
+    });
+  });
+  return issues;
+}
+
 function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
   const named: string[] = [];

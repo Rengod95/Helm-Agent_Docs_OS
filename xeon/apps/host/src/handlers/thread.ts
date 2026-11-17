@@ -49,6 +49,8 @@ export function createThreadCreateHandler(
       ...(params.testRun === true ? { testRun: true } : {}),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
+    // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7)
+    await ports.threads.applyOpenWorkspace(created.threadId);
     if (params.testRun === true) {
       // 프로필 적용과 표지 달기는 `ext.test.run`(testRun)과 같은 함수다(`markTestRun`)
       const marked = await markTestRun(
@@ -62,7 +64,9 @@ export function createThreadCreateHandler(
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(created.threadId);
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.create position");
-    return { threadId: created.threadId, position: position.value };
+    // 같은 폴더의 다른 열린 대화는 알리기만 한다(U6). 막지 않고 복사하지 않는다
+    const sameFolder = ports.threads.sameFolder(created.threadId);
+    return { threadId: created.threadId, position: position.value, sameFolder };
   };
 }
 
@@ -84,6 +88,7 @@ export function createThreadOpenHandler(
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     if (params.mode === "write") {
       await claimWrite(engine, hub(), context.connectionId, threadId);
+      await ports.threads.applyOpenWorkspace(threadId);
     } else {
       const conn = hub().state(context.connectionId);
       if (conn === undefined || conn.phase === "closed") throw wireError("request.cancelled");
@@ -266,6 +271,7 @@ export function createThreadForkHandler(
     const forked = await ports.threads.fork(params.threadId, params.at);
     if (!forked.ok) throw wireErrorOfLifecycle(forked.error, "thread.fork");
     await claimWrite(engine, hub(), context.connectionId, forked.value.threadId);
+    await ports.threads.applyOpenWorkspace(forked.value.threadId);
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(forked.value.threadId);
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.fork position");

@@ -325,6 +325,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         return Promise.resolve({ threadId, position: position() });
       },
       exists: (threadId) => ok(threads.has(threadId)),
+      // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
+      applyOpenWorkspace: () => Promise.resolve(),
+      sameFolder: () => [],
       list: () =>
         Promise.resolve({
           threads: [...threads].map(summaryOf),

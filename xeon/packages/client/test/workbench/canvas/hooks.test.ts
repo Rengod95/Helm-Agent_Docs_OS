@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOOKS as CONTRACT_HOOKS, HOOK_NAMES } from "@fresnel/contracts/extensions";
+import { HOOKS as CONTRACT_HOOKS, HOOK_NAMES, HOOK_POSITIONS } from "@fresnel/contracts/extensions";
 import { FIXTURE_ORDER, buildFixture } from "../../../src/workbench/canvas/fixture.ts";
 import {
   CORE_STEPS,
@@ -14,12 +14,22 @@ import {
 import { MOCK, plugin } from "./support.ts";
 
 describe("hook table", () => {
-  test("13 visible moments and 33 others cover the 46 contract hooks once each", () => {
-    expect(HOOKS.length).toEqual(13);
+  test("17 visible moments and 33 others cover the 50 contract hooks once each", () => {
+    expect(HOOKS.length).toEqual(17);
     expect(OTHER_HOOKS.length).toEqual(33);
     const ids = [...HOOKS, ...OTHER_HOOKS].map((h) => h.id);
-    expect(new Set(ids).size).toEqual(46);
+    expect(new Set(ids).size).toEqual(50);
     expect(ids.toSorted()).toEqual([...HOOK_NAMES].toSorted());
+  });
+
+  test("the table ids are exactly the HOOK_POSITIONS rows, and the tap rows are the observe-only ones", () => {
+    const all = [...HOOKS, ...OTHER_HOOKS];
+    expect(all.map((h) => h.id).toSorted()).toEqual(Object.keys(HOOK_POSITIONS).toSorted());
+    const tap = all.filter((h) => h.fold === "tap").map((h) => h.id);
+    const observeOnly = Object.values(HOOK_POSITIONS)
+      .filter((row) => row.powers.length === 1 && row.powers[0] === "observe")
+      .map((row): string => row.hook);
+    expect(observeOnly.toSorted()).toEqual(tap.toSorted());
   });
 
   test("every hook id and fold matches contracts HOOKS", () => {
@@ -43,6 +53,10 @@ describe("hook table", () => {
       "think",
       "think",
       "think",
+      "act",
+      "act",
+      "act",
+      "act",
       "act",
       "act",
       "act",
@@ -73,13 +87,15 @@ describe("hook table", () => {
     expect(hookFold("no.such.hook")).toEqual(undefined);
   });
 
-  test("orderMatters is true for exactly these 15 hooks, over all 46", () => {
+  test("orderMatters is true for exactly these 17 hooks, over all 50", () => {
     const matters = [...HOOKS, ...OTHER_HOOKS].filter((h) => h.orderMatters).map((h) => h.id);
     expect(matters).toEqual([
       "input.user.before",
       "thread.compact.before",
       "request.provider.before",
       "tool.result",
+      "ask.human.before",
+      "agent.spawn.after",
       "boundary.step.after",
       "input.bash.before",
       "request.context.before",
@@ -97,19 +113,20 @@ describe("hook table", () => {
   test("every chain hook matters, and no tap or collect hook does", () => {
     const all = [...HOOKS, ...OTHER_HOOKS];
     const chain = all.filter((h) => h.fold === "chain");
-    expect(chain.length).toEqual(10);
+    expect(chain.length).toEqual(11);
     expect(chain.filter((h) => !h.orderMatters).map((h) => h.id)).toEqual([]);
     const passive = all.filter((h) => h.fold === "tap" || h.fold === "collect");
     expect(passive.filter((h) => h.orderMatters).map((h) => h.id)).toEqual([]);
   });
 
-  test("among first hooks, only those with a value answer matter; block-only ones do not", () => {
+  test("among first hooks, only those with a value answer matter; block-only and merged ones do not", () => {
     const first = [...HOOKS, ...OTHER_HOOKS].filter((h) => h.fold === "first");
-    expect(first.length).toEqual(10);
-    // 막음만 담는 지점: ToolCallDecision, GuardDecision, SessionCancelDecision
+    expect(first.length).toEqual(12);
+    // 막음만 담는 지점: GuardDecision, SessionCancelDecision. 합치기 지점: tool.call.before, agent.spawn.before(H-2)
     expect(first.filter((h) => !h.orderMatters).map((h) => h.id)).toEqual([
       "guard.model.before",
       "tool.call.before",
+      "agent.spawn.before",
       "thread.switch.before",
       "guard.tool.before",
       "guard.output.before",

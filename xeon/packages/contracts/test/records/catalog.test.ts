@@ -363,6 +363,20 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     }
   });
 
+  test("approval.resolved accepts the extension resolver with its extension name", () => {
+    const base = PAYLOAD_FIXTURES["approval.resolved"];
+    const byExtension = {
+      ...base,
+      decision: "deny",
+      resolvedBy: "extension",
+      resolvedByExtension: "helm",
+    };
+    expect(parse(ApprovalResolvedPayloadSchema, byExtension).ok).toBe(true);
+    expect(
+      parse(ApprovalResolvedPayloadSchema, { ...byExtension, resolvedByExtension: "" }).ok,
+    ).toBe(false);
+  });
+
   test("input.queued accepts context items and every source", () => {
     const entry = catalogEntry("input.queued");
     const context = {
