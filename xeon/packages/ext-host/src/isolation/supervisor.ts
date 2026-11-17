@@ -221,6 +221,7 @@ const DeclSchema = Type.Object({
     Type.Object({ customType: Type.String(), module: Type.String(), export: Type.String() }),
   ),
   hasDisposers: Type.Boolean(),
+  hasMigration: Type.Boolean(),
 });
 
 const HostInitResultSchema = Type.Object({

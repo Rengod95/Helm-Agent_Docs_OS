@@ -72,6 +72,7 @@ import {
   parseMethodCall,
   parseRequestCancel,
   parseScopeDispose,
+  parseStateMigrate,
   parseToolExecute,
   type CommandRunInput,
   type EventNotifyInput,
@@ -115,7 +116,13 @@ export interface PluginHostDeps {
 
 type Outcome = Result<JsonValue, PluginHostError>;
 /** 응답을 만드는 엔진 요청. host.init과 host.dispose는 따로 다룬다 */
-type ServedName = "hook.invoke" | "tool.execute" | "command.run" | "method.call" | "scope.dispose";
+type ServedName =
+  | "hook.invoke"
+  | "tool.execute"
+  | "command.run"
+  | "method.call"
+  | "scope.dispose"
+  | "state.migrate";
 type UnknownCallable = (...args: readonly unknown[]) => unknown;
 
 /** 프로토콜 FrameShape의 error.message 상한(isolation-protocol.ts)과 같다 */
@@ -146,6 +153,11 @@ function deferred<T>(): Deferred<T> {
 
 function threw(message: string): PluginHostError {
   return { kind: "handler_threw", message };
+}
+
+/** 던진 값을 사람이 읽는 문장으로. 엔진 쪽 `PrimitiveError`처럼 검사 코드를 앞에 붙인다(엔진 안의 같은 오류와 맞춘다) */
+function causeTextOf(cause: unknown): string {
+  return cause instanceof PrimitiveError ? `${cause.code}: ${cause.message}` : messageOf(cause);
 }
 
 function unknownTarget(what: string): Outcome {
@@ -546,6 +558,27 @@ function createRuntime(deps: PluginHostDeps) {
     });
   }
 
+  /**
+   * 저장된 상태 문서를 `migrateState` 함수로 옮긴다. 결과는 JSON 문서여야 한다(`null`도 문서다). 던지거나 JSON이 아니면 `handler_threw`다
+   */
+  async function runMigration(input: {
+    registration: string;
+    doc: JsonValue;
+    fromVersion: number;
+  }): Promise<Outcome> {
+    const state = registrations.get(input.registration)?.state;
+    const migrate = state?.migration;
+    if (state === undefined || migrate === undefined) {
+      return unknownTarget(`state migration of ${input.registration}`);
+    }
+    const called = await attemptAsync(() => Promise.resolve(migrate(input.doc, input.fromVersion)));
+    if (!called.ok) return err(threw(messageOf(called.error.cause)));
+    const json = toJsonValue(called.value);
+    return json === undefined
+      ? err(threw(`the migrated state of ${state.id} is not JSON`))
+      : ok(json);
+  }
+
   async function disposeRegistration(registration: string): Promise<Outcome> {
     const reg = registrations.get(registration);
     if (reg === undefined) return unknownTarget(`registration ${registration}`);
@@ -581,6 +614,10 @@ function createRuntime(deps: PluginHostDeps) {
         return input.ok
           ? await disposeRegistration(input.value.registration)
           : invalidParams(input.error);
+      }
+      case "state.migrate": {
+        const input = parseStateMigrate(params);
+        return input.ok ? await runMigration(input.value) : invalidParams(input.error);
       }
       default:
         return assertNever(name, "dispatch");
@@ -668,6 +705,7 @@ function createRuntime(deps: PluginHostDeps) {
       case "command.run":
       case "method.call":
       case "scope.dispose":
+      case "state.migrate":
         // host.init이 먼저 와야 한다. 그 전의 요청은 준비를 기다리지 않고 바로 오류로 답한다
         if (!started) {
           respond(
@@ -754,6 +792,7 @@ function createRuntime(deps: PluginHostDeps) {
       extension: input.extension,
       initSettings: input.settings,
       scopes,
+      lifetime: lifetime.signal,
       engineCall,
       declaredHooks: new Map(
         pluginsOf(manifest).map((entry) => [entry.registrationId, entry.decl.hooks]),
@@ -797,7 +836,7 @@ function createRuntime(deps: PluginHostDeps) {
       const outcome = await attemptAsync(() => Promise.resolve(reg.setup(reg.api)));
       if (!outcome.ok) {
         return {
-          value: threw(`setup of ${reg.state.id} threw: ${messageOf(outcome.error.cause)}`),
+          value: threw(`setup of ${reg.state.id} threw: ${causeTextOf(outcome.error.cause)}`),
         };
       }
       const refusal = refusalOf(outcome.value);

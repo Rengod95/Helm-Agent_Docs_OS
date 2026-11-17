@@ -203,21 +203,338 @@ export default function extension({ register }) {
     expect(await host.exit).toBe("init_failed");
   });
 
-  test("a migrateState call fails init with unsupported_api naming migrateState", async () => {
+  test("a startDrive call fails init with unsupported_api naming startDrive", async () => {
     const root = await writePluginRoot(`
-import { Type } from "typebox";
 import { hostOf } from "@fresnel/ext-host";
 export default function extension({ register }) {
-  register("demo", { state: { schema: Type.Object({}), initial: {}, version: 2 } }, (g) => {
-    hostOf(g).migrateState((doc) => doc);
+  register("demo", {}, (g) => {
+    hostOf(g).startDrive();
   });
 }
 `);
     const host = startHost();
     const reply = await initialize(host, root);
     expect(reply).toMatchObject({ id: 1, error: { kind: "unsupported_api" } });
-    expect(reply).toMatchObject({ error: { message: expect.stringContaining("migrateState") } });
+    expect(reply).toMatchObject({ error: { message: expect.stringContaining("startDrive") } });
     expect(await host.exit).toBe("init_failed");
+  });
+});
+
+/** 상태 버전 2이고 `migrateState`로 `{n}`을 `{count}`로 옮기는 등록 */
+const STATE_V2_ENTRY = `
+import { Type } from "typebox";
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", { state: { schema: Type.Object({ count: Type.Number() }), initial: { count: 0 }, version: 2 } }, (g) => {
+    hostOf(g).migrateState(async (doc, fromVersion) => ({ count: doc.n * 10 + fromVersion }));
+  });
+}
+`;
+
+/** 훅 하나가 `updateState`로 1을 더한 결과를 돌려주는 등록 */
+const UPDATE_ENTRY = `
+import { Type } from "typebox";
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", { state: { schema: Type.Object({ count: Type.Number() }), initial: { count: 0 }, version: 1 } }, (g) => {
+    g.on("tool.call.before", () => hostOf(g).updateState((prev) => ({ count: prev.count + 1 })));
+  });
+}
+`;
+
+/** 훅 하나가 사용자 대기를 감싸 기다리고 대기의 값을 돌려주는 등록. 대기가 던지면 그 오류를 던진다 */
+const WAIT_ENTRY = `
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    g.on("tool.call.before", (payload) => {
+      if (payload.toolName === "reject") return hostOf(g).awaitUser(() => Promise.reject(new Error("nope")));
+      return hostOf(g).awaitUser(() => Promise.resolve("yes"));
+    });
+  });
+}
+`;
+
+/** 호출 문맥으로 `tool.call.before` 훅 하나를 부른다. 상태 스냅샷은 `state`다 */
+function hookCall(id: number, state: object, toolName = "echo"): object {
+  return {
+    id,
+    method: "hook.invoke",
+    params: {
+      ...context(state),
+      registration: "demo",
+      point: "tool.call.before",
+      handlerIndex: 0,
+      payload: { toolName },
+      current: null,
+    },
+  };
+}
+
+describe("state migration in an isolated host", () => {
+  test("migrateState is declared as hasMigration and host.init succeeds", async () => {
+    const root = await writePluginRoot(STATE_V2_ENTRY);
+    const host = startHost();
+    const reply = await initialize(host, root);
+    expect(reply).toMatchObject({
+      id: 1,
+      result: {
+        registrations: [{ id: "demo", state: { version: 2 }, hasMigration: true }],
+      },
+    });
+    host.input.end();
+    expect(await host.exit).toBe("stdin_closed");
+  });
+
+  test("state.migrate runs the migration with the stored document and answers the migrated document", async () => {
+    const root = await writePluginRoot(STATE_V2_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send({
+      id: 2,
+      method: "state.migrate",
+      params: { registration: "demo", doc: { n: 4 }, fromVersion: 1 },
+    });
+    expect(await host.out.waitFor((frame) => frame.id === 2)).toEqual({
+      id: 2,
+      result: { count: 41 },
+    });
+  });
+
+  test("a migration that throws or answers no document fails the request with handler_threw", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", { state: { schema: { type: "object" }, initial: {}, version: 2 } }, (g) => {
+    hostOf(g).migrateState((doc) => {
+      if (doc.bad === true) throw new Error("cannot move");
+      return undefined;
+    });
+  });
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    host.send({
+      id: 2,
+      method: "state.migrate",
+      params: { registration: "demo", doc: { bad: true }, fromVersion: 1 },
+    });
+    expect((await host.out.waitFor((frame) => frame.id === 2)).error).toEqual({
+      kind: "handler_threw",
+      message: "cannot move",
+    });
+    host.send({
+      id: 3,
+      method: "state.migrate",
+      params: { registration: "demo", doc: {}, fromVersion: 1 },
+    });
+    expect((await host.out.waitFor((frame) => frame.id === 3)).error).toEqual({
+      kind: "handler_threw",
+      message: "the migrated state of demo is not JSON",
+    });
+  });
+
+  test("a second migrateState fails the setup with state_migration_duplicate", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", { state: { schema: { type: "object" }, initial: {}, version: 2 } }, (g) => {
+    hostOf(g).migrateState((doc) => doc);
+    hostOf(g).migrateState((doc) => doc);
+  });
+}
+`);
+    const host = startHost();
+    const reply = await initialize(host, root);
+    expect(reply).toMatchObject({ id: 1, error: { kind: "handler_threw" } });
+    expect(reply).toMatchObject({
+      error: { message: expect.stringContaining("state_migration_duplicate") },
+    });
+    expect(await host.exit).toBe("init_failed");
+  });
+
+  test("a migrateState for a scope without state fails the setup with state_undeclared", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    hostOf(g).migrateState((doc) => doc);
+  });
+}
+`);
+    const host = startHost();
+    const reply = await initialize(host, root);
+    expect(reply).toMatchObject({ error: { kind: "handler_threw" } });
+    expect(reply).toMatchObject({
+      error: { message: expect.stringContaining("state_undeclared") },
+    });
+  });
+
+  test("a migrateState call after setup is refused with the outside-setup message", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  let api;
+  register("demo", { state: { schema: { type: "object" }, initial: {}, version: 2 } }, (g) => {
+    api = g;
+    g.on("tool.call.before", () => {
+      hostOf(api).migrateState((doc) => doc);
+      return undefined;
+    });
+  });
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, {}));
+    expect((await host.out.waitFor((frame) => frame.id === 2)).error).toEqual({
+      kind: "handler_threw",
+      message: "migrateState can only be registered inside setup",
+    });
+  });
+});
+
+describe("updateState in an isolated host", () => {
+  test("updateState sends prev and next to the engine and answers the committed state", async () => {
+    const root = await writePluginRoot(UPDATE_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, { count: 7 }));
+    const call = await host.out.waitFor((frame) => frame.method === "engine.call");
+    expect(call.params).toEqual({
+      method: "updateState",
+      registration: "demo",
+      requestId: 2,
+      params: { prev: { count: 7 }, next: { count: 8 }, records: [] },
+    });
+    host.send({ id: call.id, result: { kind: "committed", state: { count: 8 } } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
+      ok: true,
+      value: { count: 8 },
+    });
+    host.input.end();
+    expect(await host.exit).toBe("stdin_closed");
+  });
+
+  test("a conflict is retried once from the engine's current document and then commits", async () => {
+    const root = await writePluginRoot(UPDATE_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, { count: 7 }));
+    const first = await host.out.waitFor((frame) => frame.method === "engine.call");
+    host.send({ id: first.id, result: { kind: "conflict", current: { count: 9 } } });
+    const second = await host.out.waitFor(
+      (frame) => frame.method === "engine.call" && frame.id === 2,
+    );
+    expect(second.params).toEqual({
+      method: "updateState",
+      registration: "demo",
+      requestId: 2,
+      params: { prev: { count: 9 }, next: { count: 10 }, records: [] },
+    });
+    host.send({ id: 2, result: { kind: "committed", state: { count: 10 } } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
+      ok: true,
+      value: { count: 10 },
+    });
+  });
+
+  test("a second conflict answers state_conflict as a value and does not throw", async () => {
+    const root = await writePluginRoot(UPDATE_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, { count: 7 }));
+    const first = await host.out.waitFor((frame) => frame.method === "engine.call");
+    host.send({ id: first.id, result: { kind: "conflict", current: { count: 9 } } });
+    await host.out.waitFor((frame) => frame.method === "engine.call" && frame.id === 2);
+    host.send({ id: 2, result: { kind: "conflict", current: { count: 11 } } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
+      ok: false,
+      error: { kind: "state_conflict" },
+    });
+  });
+
+  test("a failed reply answers the failure kind as a value", async () => {
+    const root = await writePluginRoot(UPDATE_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, { count: 7 }));
+    const call = await host.out.waitFor((frame) => frame.method === "engine.call");
+    host.send({ id: call.id, result: { kind: "failed", failure: "state_schema" } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
+      ok: false,
+      error: { kind: "state_schema" },
+    });
+  });
+});
+
+describe("awaitUser in an isolated host", () => {
+  test("begin is sent before the wait and end after it, and the wait's value is the hook's", async () => {
+    const root = await writePluginRoot(WAIT_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, {}));
+    const begin = await host.out.waitFor((frame) => frame.method === "engine.call");
+    expect(begin.params).toEqual({
+      method: "awaitUser",
+      registration: "demo",
+      requestId: 2,
+      params: { phase: "begin" },
+    });
+    host.send({ id: begin.id, result: null });
+    const end = await host.out.waitFor((frame) => frame.method === "engine.call" && frame.id === 2);
+    expect(end.params).toEqual({
+      method: "awaitUser",
+      registration: "demo",
+      requestId: 2,
+      params: { phase: "end" },
+    });
+    host.send({ id: end.id, result: null });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toBe("yes");
+  });
+
+  test("end is sent even when the wait rejects, and the rejection is the hook's error", async () => {
+    const root = await writePluginRoot(WAIT_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, {}, "reject"));
+    const begin = await host.out.waitFor((frame) => frame.method === "engine.call");
+    host.send({ id: begin.id, result: null });
+    const end = await host.out.waitFor((frame) => frame.method === "engine.call" && frame.id === 2);
+    expect(end.params).toMatchObject({ params: { phase: "end" } });
+    host.send({ id: end.id, result: null });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).error,
+    ).toEqual({
+      kind: "handler_threw",
+      message: "nope",
+    });
+  });
+
+  test("a failed end is a diagnostic and does not replace the wait's value", async () => {
+    const root = await writePluginRoot(WAIT_ENTRY);
+    const host = startHost();
+    await initialize(host, root);
+    host.send(hookCall(2, {}));
+    const begin = await host.out.waitFor((frame) => frame.method === "engine.call");
+    host.send({ id: begin.id, result: null });
+    const end = await host.out.waitFor((frame) => frame.method === "engine.call" && frame.id === 2);
+    host.send({ id: end.id, error: { kind: "engine_call_failed", message: "gone" } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toBe("yes");
+    expect(await host.diagnostics.waitForText("awaitUser end of demo failed")).toContain("gone");
   });
 });
 
@@ -239,7 +556,9 @@ describe("hook.invoke", () => {
         current: null,
       },
     });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toBe("second");
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toBe("second");
 
     host.send({
       id: 3,
@@ -333,7 +652,7 @@ export default function extension({ register }) {
         current: null,
       },
     });
-    const failed = await host.out.waitFor((frame) => frame.id === 2);
+    const failed = await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined);
     expect(failed.error).toEqual({ kind: "handler_threw", message: "boom" });
 
     host.send({
@@ -385,7 +704,9 @@ export default function extension({ register }) {
     // 핸들러가 신호를 붙이고 나서 엔진 호출을 낸 뒤에 취소한다. 그래야 취소가 요청에 닿는다
     await host.out.waitFor((frame) => frame.method === "engine.call");
     host.send({ method: "request.cancel", params: { id: 2 } });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toBe("aborted");
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toBe("aborted");
   });
 
   test("an unknown registration or handler answers unknown_target and a malformed one invalid_params", async () => {
@@ -404,7 +725,9 @@ export default function extension({ register }) {
         current: null,
       },
     });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).error).toMatchObject({
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).error,
+    ).toMatchObject({
       kind: "unknown_target",
     });
     host.send({ id: 3, method: "hook.invoke", params: { registration: "demo" } });
@@ -439,7 +762,7 @@ export default function extension({ register }) {
         current: null,
       },
     });
-    const reply = await host.out.waitFor((frame) => frame.id === 2);
+    const reply = await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined);
     expect(reply.error).toMatchObject({ kind: "frame_too_large" });
   });
 });
@@ -462,7 +785,9 @@ describe("tool, command and method calls", () => {
         callerInfo: { kind: "model", agent: "subagent", afterUntrusted: true },
       },
     });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toEqual({
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
       echoed: "hi",
       call: "call-1",
       caller: { kind: "model", agent: "subagent", afterUntrusted: true },
@@ -515,7 +840,9 @@ export default function extension({ register }) {
     await initialize(host, root);
 
     host.send({ id: 2, method: "scope.dispose", params: { registration: "demo" } });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toBeNull();
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toBeNull();
     expect(await readFile(join(root, "marker.txt"), "utf8")).toBe("disposed");
 
     host.send({ id: 3, method: "host.dispose", params: { reason: "shutdown" } });
@@ -564,7 +891,7 @@ describe("notifications", () => {
         current: null,
       },
     });
-    await host.out.waitFor((frame) => frame.id === 2);
+    await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined);
     const replyIds = host.out.lines.map(frameOf).map((frame) => frame.id);
     expect(replyIds).toEqual([1, 2]);
   });
@@ -607,7 +934,9 @@ export default function extension({ register }) {
       },
     });
     host.send({ id: call.id, result: { pong: true } });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toEqual({ pong: true });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({ pong: true });
   });
 
   test("g.post sends the item and options and returns the engine's receipt", async () => {
@@ -640,7 +969,9 @@ export default function extension({ register }) {
       params: { item: { kind: "user", content: "hi" }, options: { when: "next", requestId: "r1" } },
     });
     host.send({ id: call.id, result: { requestId: "r1", duplicate: false } });
-    expect((await host.out.waitFor((frame) => frame.id === 2)).result).toEqual({
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result,
+    ).toEqual({
       requestId: "r1",
       duplicate: false,
     });

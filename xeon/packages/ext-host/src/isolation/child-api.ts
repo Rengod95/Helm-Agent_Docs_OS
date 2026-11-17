@@ -2,12 +2,23 @@
 // 엔진이 가진 것(상태 쓰기, 기록, 기능 호출)은 env.engineCall로 보낸다. 요청 문맥(어느 엔진 요청인지, 상태 스냅샷,
 // 설정, 취소 신호)은 env.scopes에 싣는다. 여기 있는 함수는 엔진 쪽 등록(`createRegistrationApi`)과 같은 표면을 준다.
 //
-// 막힌 API(`drive`, `migrateState`, `provide`, `providePort`, `registerWebProvider`, `updateState`, `awaitUser`,
-// `registerShortcut`, `hostOf().updateState`)는 이름을 상태에 남기고 던진다. setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
+// `migrateState`, `updateState`(`hostOf`), `awaitUser`는 프로토콜로 넘긴다. 함수는 자식에서 돌리고 엔진은 저장과 비교만 한다
+// (`state.migrate` 요청, `engine.call` `updateState`와 `awaitUser`, isolation-protocol.ts).
+// 막힌 API(`drive`, `startDrive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
+// setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
 // `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { Bug, detach, err, ok, parse, type ParseError, type Result } from "@fresnel/contracts";
+import {
+  attemptAsync,
+  Bug,
+  detach,
+  err,
+  ok,
+  parse,
+  type ParseError,
+  type Result,
+} from "@fresnel/contracts";
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
@@ -34,6 +45,7 @@ import {
   type RegistrationId,
   type RegistrationSetup,
   type ToolResourceDef,
+  type UpdateStateReply,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
 import { eraseHandler, serviceAs, stateAs } from "../erase.ts";
@@ -43,9 +55,10 @@ import {
   bindHostApiForIsolation,
   type RegistrationCallContext,
   type RegistrationHostApi,
+  type StateMigration,
 } from "../primitives/host-api.ts";
 import type { EffectRequest } from "../primitives/effect-worker.ts";
-import type { RecordInput } from "../primitives/state.ts";
+import type { RecordInput, StateUpdateError } from "../primitives/state.ts";
 import type {
   CommandResourceDef,
   FlagResourceDef,
@@ -53,7 +66,7 @@ import type {
 } from "../primitives/resources.ts";
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
-import { parseGroupRecords, parsePostReceipt } from "./params.ts";
+import { parseGroupRecords, parsePostReceipt, parseUpdateStateReply } from "./params.ts";
 
 /** 엔진이 실패로 답한 `engine.call`. 엔진의 kind와 메시지를 싣는다. 바깥에서 온 오류를 감싸므로 Error 하위다(TY-16) */
 export class PluginEngineCallError extends Error {
@@ -88,6 +101,8 @@ export interface ChildEnv {
   /** host.init의 설정. 요청 밖에서 `settingValue`가 읽는다 */
   readonly initSettings: Readonly<Record<string, JsonValue>>;
   readonly scopes: AsyncLocalStorage<CallScope>;
+  /** 호스트 프로세스의 수명 신호. 요청 밖의 `awaitUser`가 종료 때 대기를 끊는 데 쓴다(엔진 안의 scope 세대 신호와 같다) */
+  readonly lifetime: AbortSignal;
   readonly engineCall: (params: EngineCallParams) => Promise<JsonValue>;
   /** 플러그인마다 매니페스트 `hooks`(등록 id 기준). `g.subscribe("all")`과 선언 검사가 읽는다 */
   readonly declaredHooks: ReadonlyMap<RegistrationId, readonly HookName[]>;
@@ -125,6 +140,10 @@ export interface RegState {
   readonly disposers: (() => void | Promise<void>)[];
   /** 막힌 API 이름. setup이 쓰면 등록이 `unsupported_api`로 떨어진다 */
   readonly unsupported: string[];
+  /** `migrateState`로 등록한 함수. setup 안에서 한 번 정해진다 */
+  migration: StateMigration | undefined;
+  /** (thread)별 `updateState` 줄의 꼬리. 같은 줄의 호출은 호출 순서대로 하나씩 돈다 */
+  readonly updateTails: Map<string, Promise<void>>;
 }
 
 export interface ChildRegistration {
@@ -251,6 +270,71 @@ function acceptState(state: RegState, env: ChildEnv, doc: JsonValue): AnyState {
   checked(parse(decl.schema, doc), "the committed state");
   setCommitted(state, env, doc);
   return stateAs(doc);
+}
+
+/** 같은 줄(thread별)의 `updateState`를 호출 순서대로 하나씩 돌린다. 앞 작업이 실패해도 뒤 작업은 이어 간다 */
+function serializeUpdate<T>(state: RegState, key: string, task: () => Promise<T>): Promise<T> {
+  const previous = state.updateTails.get(key) ?? Promise.resolve();
+  const result = previous.then(task);
+  const settled: Promise<void> = Promise.allSettled([result]).then(() => {
+    if (state.updateTails.get(key) === settled) state.updateTails.delete(key);
+    return undefined;
+  });
+  state.updateTails.set(key, settled);
+  return result;
+}
+
+/**
+ * 한 번의 시도: 호스트가 `fn`을 부르고 엔진에 비교 후 커밋을 청한다. 엔진이 가진 문서가 `prev`와 다르면 conflict다.
+ * 엔진의 답은 값이고 던지지 않는다(엔진의 응답 모양이 틀린 것만 던진다)
+ */
+async function updateAttempt(
+  state: RegState,
+  env: ChildEnv,
+  prev: JsonValue,
+  fn: (prev: Readonly<AnyState>) => AnyState,
+  records: ((next: AnyState) => readonly RecordInput[]) | undefined,
+): Promise<UpdateStateReply> {
+  const next = fn(stateAs(prev));
+  const body = jsonOf(
+    {
+      prev,
+      next: jsonOf(next, "the state"),
+      records: jsonOf(records?.(next) ?? [], "the records"),
+    },
+    "the update",
+  );
+  const reply = await callEngine(env, state, "updateState", body);
+  return checked(parseUpdateStateReply(reply), "the update reply");
+}
+
+/**
+ * `updateState`의 호스트 쪽. 줄 안에서 현재 스냅샷으로 `fn`을 부르고, 엔진에서 conflict면 엔진이 준 현재 문서로 한 번 더 한다.
+ * 두 번째도 conflict면 `state_conflict` 값이다. 저장 실패(스키마, 크기, 저장소)도 값으로 돌려준다
+ */
+async function updateStateOf(
+  state: RegState,
+  env: ChildEnv,
+  fn: (prev: Readonly<AnyState>) => AnyState,
+  records: ((next: AnyState) => readonly RecordInput[]) | undefined,
+): Promise<Result<Readonly<AnyState>, StateUpdateError>> {
+  requireStateDecl(state);
+  const threadKey = env.scopes.getStore()?.threadId ?? "";
+  return serializeUpdate(
+    state,
+    threadKey,
+    async (): Promise<Result<Readonly<AnyState>, StateUpdateError>> => {
+      const snapshot = jsonOf(currentState(state, env), "the state");
+      const first = await updateAttempt(state, env, snapshot, fn, records);
+      const reply =
+        first.kind === "conflict"
+          ? await updateAttempt(state, env, first.current, fn, records)
+          : first;
+      if (reply.kind === "committed") return ok(acceptState(state, env, reply.state));
+      if (reply.kind === "failed") return err({ kind: reply.failure });
+      return err({ kind: "state_conflict" });
+    },
+  );
 }
 
 function withoutSignal(options: unknown): unknown {
@@ -389,8 +473,28 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
       const scope = env.scopes.getStore();
       return (scope?.settings ?? env.initSettings)[key];
     },
-    migrateState() {
-      unsupported(state, "migrateState");
+    migrateState(fn: StateMigration): void {
+      if (!state.inSetup) {
+        throw new PrimitiveError(
+          "state_migration_outside_setup",
+          "migrateState can only be registered inside setup",
+          { scopeId: state.id },
+        );
+      }
+      // 엔진 안(`host-api.ts`)과 같은 순서와 코드로 검사한다
+      if (state.stateDecl === undefined) {
+        throw new PrimitiveError("state_undeclared", `scope ${state.id} has no state`, {
+          scopeId: state.id,
+        });
+      }
+      if (state.migration !== undefined) {
+        throw new PrimitiveError(
+          "state_migration_duplicate",
+          "migrateState can be registered once per scope",
+          { scopeId: state.id },
+        );
+      }
+      state.migration = fn;
     },
     async requestEffect(request: EffectRequest): Promise<void> {
       await callEngine(env, state, "requestEffect", jsonOf(request, "the effect request"));
@@ -415,8 +519,8 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
       );
       return acceptState(state, env, reply);
     },
-    updateState(): never {
-      unsupported(state, "updateState");
+    updateState(fn, records) {
+      return updateStateOf(state, env, fn, records);
     },
     registerTool(def: ToolResourceDef): void {
       requireSetup(state, "registerTool");
@@ -455,8 +559,26 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
       requireSetup(state, "registerMethod");
       addUnique(state, state.methods, "method", verb, def);
     },
-    awaitUser(): never {
-      unsupported(state, "awaitUser");
+    async awaitUser<T>(
+      wait: (signal: AbortSignal) => Promise<T>,
+      options?: { readonly signal?: AbortSignal },
+    ): Promise<T> {
+      // 요청 문맥의 취소 신호(요청 취소, 시간 초과, 종료)와 호출자의 신호를 합친다. 문맥이 없으면 수명 신호다
+      const base = env.scopes.getStore()?.signal ?? env.lifetime;
+      const extra = options?.signal;
+      const signal = extra === undefined ? base : AbortSignal.any([base, extra]);
+      // 엔진은 `begin`에 요청의 시간 예산 시계를 멈추고, `end`에 다시 돌린다. 끝 신호가 실패해도 결과를 가리지 않는다
+      await callEngine(env, state, "awaitUser", { phase: "begin" });
+      try {
+        return await wait(signal);
+      } finally {
+        const ended = await attemptAsync(() =>
+          callEngine(env, state, "awaitUser", { phase: "end" }),
+        );
+        if (!ended.ok) {
+          env.report(`awaitUser end of ${state.id} failed: ${messageOf(ended.error.cause)}`);
+        }
+      }
     },
   };
 }
@@ -484,6 +606,8 @@ export function createChildRegistration(
     renderers: new Map<string, RendererResourceDef>(),
     disposers: [],
     unsupported: [],
+    migration: undefined,
+    updateTails: new Map<string, Promise<void>>(),
   };
   const api = makeApi(state, env);
   bindHostApiForIsolation(api, makeHost(state, env));
@@ -564,5 +688,6 @@ export function declOf(state: RegState): Result<PluginRegistrationDecl, PluginHo
     mcpServers: [...state.mcpServers].map(([name, config]) => ({ name, config })),
     renderers,
     hasDisposers: state.disposers.length > 0,
+    hasMigration: state.migration !== undefined,
   });
 }

@@ -221,11 +221,11 @@ test("a setting none runs an extension in the engine even with a port", async ()
   await rig.harness.loader.dispose();
 });
 
-test("an isolated extension that uses migrateState fails to load with isolation_protocol naming the API", async () => {
+test("an isolated extension that uses registerShortcut fails to load with isolation_protocol naming the API", async () => {
   const rig = await rigOf();
   await writePlugin(userExtensions, "iso", {
     name: "iso",
-    entry: unsupportedEntry("migrateState"),
+    entry: unsupportedEntry("registerShortcut"),
   });
   const report = await rig.harness.loader.loadAll(loadOptions(rig.harness));
   const info = report.extensions.find((entry) => entry.name === "iso");
@@ -233,7 +233,7 @@ test("an isolated extension that uses migrateState fails to load with isolation_
   expect(info?.isolation).toBe("none");
   const diagnostic = report.diagnostics.find((entry) => entry.code === "isolation_protocol");
   expect(diagnostic?.extension).toBe("iso");
-  expect(diagnostic?.message).toContain("migrateState");
+  expect(diagnostic?.message).toContain("registerShortcut");
   await rig.harness.loader.dispose();
 });
 

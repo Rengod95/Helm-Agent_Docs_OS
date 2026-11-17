@@ -17,7 +17,9 @@ import {
   type PostReceipt,
   type RequestCancelParams,
   type ScopeDisposeParams,
+  type StateMigrateParams,
   type ToolExecuteParams,
+  type UpdateStateReply,
 } from "@fresnel/contracts/extensions";
 
 const callContextShape = {
@@ -110,6 +112,26 @@ const eventNotifySchema = Type.Object({
 
 const requestCancelSchema = Type.Object({ id: Type.Integer({ minimum: 0 }) });
 
+const stateMigrateSchema = Type.Object({
+  registration: Type.String(),
+  doc: JsonValueSchema,
+  fromVersion: Type.Integer(),
+});
+
+const updateStateReplySchema = Type.Union([
+  Type.Object({ kind: Type.Literal("committed"), state: JsonValueSchema }),
+  Type.Object({ kind: Type.Literal("conflict"), current: JsonValueSchema }),
+  Type.Object({
+    kind: Type.Literal("failed"),
+    failure: Type.Union([
+      Type.Literal("state_schema"),
+      Type.Literal("state_too_large"),
+      Type.Literal("storage_unavailable"),
+      Type.Literal("lease_revoked"),
+    ]),
+  }),
+]);
+
 const postReceiptSchema = Type.Object({
   requestId: Type.String(),
   duplicate: Type.Boolean(),
@@ -136,6 +158,7 @@ export type EventNotifyInput = Omit<EventNotifyParams, "threadId"> & {
   readonly threadId: ThreadId;
 };
 export type RequestCancelInput = RequestCancelParams;
+export type StateMigrateInput = StateMigrateParams;
 
 export function parseHostInit(value: unknown): Result<HostInitInput, ParseError> {
   return parse(hostInitSchema, value);
@@ -171,6 +194,15 @@ export function parseEventNotify(value: unknown): Result<EventNotifyInput, Parse
 
 export function parseRequestCancel(value: unknown): Result<RequestCancelInput, ParseError> {
   return parse(requestCancelSchema, value);
+}
+
+export function parseStateMigrate(value: unknown): Result<StateMigrateInput, ParseError> {
+  return parse(stateMigrateSchema, value);
+}
+
+/** 엔진이 답한 `updateState` 결과. 값이라서 모양이 맞지 않으면 호출하는 쪽이 오류로 본다 */
+export function parseUpdateStateReply(value: unknown): Result<UpdateStateReply, ParseError> {
+  return parse(updateStateReplySchema, value);
 }
 
 /** 엔진이 답한 `engine.call`의 `post` 결과 */

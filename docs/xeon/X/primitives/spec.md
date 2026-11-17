@@ -634,7 +634,7 @@ F의 `RegistrationApi<S>`에는 서비스 제공, 포트 조회, 리소스 등�
 
 ```ts
 // primitives/host-api.ts
-export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue;
+export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue | Promise<JsonValue>;
 
 /** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 drive 락의 취소 신호다 */
 export interface RegistrationCallContext {
@@ -703,7 +703,7 @@ export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 - [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
 
-격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `drive`, `migrateState`, `provide`, `providePort`, `updateState`, `awaitUser`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5).
+격리 호스트용 추가 공개(M5b-1, 코드 `isolation/`와 `primitives/host-api.ts`): `bindHostApiForIsolation(g, api)`는 호스트 프로세스 안의 실행기가 자기 `g`에 `RegistrationHostApi`를 묶는 함수이고(그 밖의 곳에서 쓰지 않는다), `PluginProcessError`(`reason`: `process_exit`|`process_killed`)를 던진 핸들러는 디스패치가 그 이유로 실패를 기록한다. 호스트 프로세스에서 `port`는 `service_reserved`로 답하고 `drive`, `startDrive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`은 `unsupported_api`다(`X.loading-trust.spec` §4.9.5). `migrateState`, `hostOf(g).updateState`, `awaitUser`는 넘긴다(F.extensions 부록 `state.migrate`, `engine.call` `updateState`·`awaitUser`). 함수는 자식이 돌리고 엔진은 저장과 비교만 한다. `updateState`의 줄 세우기와 충돌 재시도는 자식이 (등록, thread)별로 한다. 엔진의 `updateState` 답은 커밋, 현재 문서(충돌), 저장 실패 값 가운데 하나이고, 엔진은 줄 안에서 현재 문서가 호스트가 읽은 문서와 같을 때만 커밋한다. `awaitUser`의 시계 멈춤은 `begin`과 `end` 호출로 엔진에 알리고, 요청이 `end` 없이 끝나면 엔진이 남은 대기를 푼다. 요청 밖에서 부른 `awaitUser`의 신호는 호스트 수명 신호다(엔진 안의 scope 세대 신호와 같은 자리).
 
 ### 3.9 scope 정보, 리소스 표, 리소스 포트
 
@@ -1453,7 +1453,7 @@ M5에서 정할 것 [제안]: 호스트 저장소에 프로젝트 레코드(`pro
 
 1. 상태 문서는 (thread, scope)마다 하나다. `RegistrationDef.state`가 없는 scope는 상태가 없다. 그런 scope에서 `state()`·`commit()`을 부르면 `state_undeclared`다.
 2. 처음 읽을 때 저장된 문서가 없으면 `StateDecl.initial`을 판 0으로 쓴다. 판 0은 저장하지 않는다.
-3. 상태 문서는 thread에서 scope를 켤 때 준비한다(thread를 열 때 이미 세대가 열린 scope, 경계 적용의 켜기, 시작 적용 때 이미 열린 thread). 저장된 판이 없으면 할 일이 없다. 저장된 `version`이 같으면 `StateDecl.schema`로 검사해 어기면 `state_schema`다. 작으면 setup이 `hostOf(g).migrateState`로 등록한 함수를 `(doc, fromVersion)`으로 부른다. 결과를 `StateDecl.schema`로 검사하고 크기를 확인한 뒤 새 판(`rev + 1`, `prevEventId`는 저장된 판의 이벤트 id, `version`은 선언 버전)으로 커밋한다. 이 커밋은 `RecordCommitPort.commit`으로 경계 기여와 따로 하고(`expectStateRev`로 충돌 검사) 키는 `mig:<scope 해시>:<저장 버전>-<선언 버전>:<저장 판>`이라 같은 이동을 다시 하면 `replayed`다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 크기를 넘으면 `state_too_large`로 그 thread의 켜기를 실패시킨다. 저장된 `version`이 더 크면 `state_future_version`으로 그 scope를 그 thread에서 켜지 않는다(F.records.spec §3.7 규칙 3의 `future_version`과 같은 취지). `migrateState`는 setup 안에서(`state_migration_outside_setup`) 상태를 선언한 scope(`state_undeclared`)가 한 번만(`state_migration_duplicate`) 부를 수 있다.
+3. 상태 문서는 thread에서 scope를 켤 때 준비한다(thread를 열 때 이미 세대가 열린 scope, 경계 적용의 켜기, 시작 적용 때 이미 열린 thread). 저장된 판이 없으면 할 일이 없다. 저장된 `version`이 같으면 `StateDecl.schema`로 검사해 어기면 `state_schema`다. 작으면 setup이 `hostOf(g).migrateState`로 등록한 함수를 `(doc, fromVersion)`으로 부른다. 함수는 동기 값이나 약속을 돌려줄 수 있고 약속이면 기다린다(격리 호스트에서는 자식이 부르고 엔진이 `state.migrate` 요청으로 기다린다). 결과를 `StateDecl.schema`로 검사하고 크기를 확인한 뒤 새 판(`rev + 1`, `prevEventId`는 저장된 판의 이벤트 id, `version`은 선언 버전)으로 커밋한다. 이 커밋은 `RecordCommitPort.commit`으로 경계 기여와 따로 하고(`expectStateRev`로 충돌 검사) 키는 `mig:<scope 해시>:<저장 버전>-<선언 버전>:<저장 판>`이라 같은 이동을 다시 하면 `replayed`다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 크기를 넘으면 `state_too_large`로 그 thread의 켜기를 실패시킨다. 저장된 `version`이 더 크면 `state_future_version`으로 그 scope를 그 thread에서 켜지 않는다(F.records.spec §3.7 규칙 3의 `future_version`과 같은 취지). `migrateState`는 setup 안에서(`state_migration_outside_setup`) 상태를 선언한 scope(`state_undeclared`)가 한 번만(`state_migration_duplicate`) 부를 수 있다.
 4. `commit(next)`:
 
 ```text

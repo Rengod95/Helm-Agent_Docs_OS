@@ -3,6 +3,7 @@ import { err, ok, type Result } from "../base/index.ts";
 import type { SchemaProof } from "../base/schema-proof.ts";
 import type { CallerInfo } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
+import type { RecordKind, RecordSubject } from "./group-record.ts";
 
 // review.m5-drive-isolation §3.2 P1 프로토콜 한 표. 엔진과 플러그인 호스트 프로세스는 줄 단위 JSON으로 말한다.
 // 줄 하나가 프레임 하나다. 요청은 `id`가 있고 응답은 같은 `id`를 가지며 알림은 `id`가 없다.
@@ -31,6 +32,7 @@ export const PLUGIN_HOST_REQUESTS = [
   "method.call",
   "scope.dispose",
   "host.dispose",
+  "state.migrate",
 ] as const;
 export type PluginHostRequestName = (typeof PLUGIN_HOST_REQUESTS)[number];
 
@@ -49,6 +51,8 @@ export const PLUGIN_ENGINE_CALLS = [
   "capability",
   "requestEffect",
   "reportChanges",
+  "updateState",
+  "awaitUser",
 ] as const;
 export type PluginEngineCallName = (typeof PLUGIN_ENGINE_CALLS)[number];
 
@@ -61,6 +65,17 @@ export const PLUGIN_HOST_NOTIFY_HOOKS: readonly string[] = [
   "boundary.message.update",
   "tool.execution.update",
 ];
+
+/**
+ * `updateState` 호출이 값으로 돌려주는 상태 실패(`StateUpdateError`의 conflict를 뺀 것). 엔진이 저장소 상태를 쓰지 못한 이유다
+ */
+export const UPDATE_STATE_FAILURE_KINDS = [
+  "state_schema",
+  "state_too_large",
+  "storage_unavailable",
+  "lease_revoked",
+] as const;
+export type UpdateStateFailureKind = (typeof UPDATE_STATE_FAILURE_KINDS)[number];
 
 /** 프로토콜이 쓰는 오류 이름. 응답의 `error.kind`다 */
 export const PLUGIN_HOST_ERROR_KINDS = [
@@ -203,6 +218,11 @@ export interface PluginRegistrationDecl {
   }[];
   /** `onDispose`를 등록했는가 */
   readonly hasDisposers: boolean;
+  /**
+   * `migrateState`를 등록했는가. 참이면 엔진이 `state.migrate` 요청으로 저장된 문서의 이전을 호스트에 맡긴다.
+   * 상태 선언이 없으면 거짓이다
+   */
+  readonly hasMigration: boolean;
 }
 
 /** 도구 선언. `execute`를 뺀 `ToolResourceDef`다. 모양은 JSON이다 */
@@ -273,6 +293,50 @@ export interface ScopeDisposeParams {
 
 export interface HostDisposeParams {
   readonly reason: "idle" | "shutdown" | "reload" | "disabled";
+}
+
+/**
+ * 엔진 → 호스트 요청 `state.migrate`. 저장된 상태 문서를 현재 판의 모양으로 옮긴다. 응답의 `result`는 옮긴 문서(JSON)다.
+ * 호스트가 `migrateState`로 등록한 함수를 부르고, 함수가 던지거나 JSON이 아닌 값을 내면 `handler_threw`다
+ */
+export interface StateMigrateParams {
+  readonly registration: string;
+  readonly doc: JsonValue;
+  readonly fromVersion: number;
+}
+
+/**
+ * `engine.call` `updateState`의 params. 함수는 호스트가 돌린다. 엔진은 줄 안에서 현재 상태가 `prev`와 같을 때만
+ * `next`를 `records`와 함께 커밋한다. 응답은 `UpdateStateReply`다
+ */
+export interface UpdateStateParams {
+  /** 호스트가 `fn`을 부른 문서 */
+  readonly prev: JsonValue;
+  /** `fn`이 낸 새 문서 */
+  readonly next: JsonValue;
+  /** `records` 함수가 `next`로 낸 그룹 레코드(`commitWith`와 같은 모양) */
+  readonly records: readonly {
+    readonly kind: RecordKind;
+    readonly subject: RecordSubject;
+    readonly payload: JsonValue;
+  }[];
+}
+
+/**
+ * `updateState`의 응답. `committed`는 커밋한 문서, `conflict`는 엔진이 가진 현재 문서(호스트가 한 번 더 시도한다),
+ * `failed`는 저장할 수 없었던 이유다. 값이지 오류가 아니다
+ */
+export type UpdateStateReply =
+  | { readonly kind: "committed"; readonly state: JsonValue }
+  | { readonly kind: "conflict"; readonly current: JsonValue }
+  | { readonly kind: "failed"; readonly failure: UpdateStateFailureKind };
+
+/**
+ * `engine.call` `awaitUser`의 params. `begin`은 호출을 낳은 요청의 시간 예산 시계를 멈추고, `end`는 다시 돌린다.
+ * 요청이 `end` 없이 끝나면 엔진이 그 대기를 푼다. 응답은 null이다
+ */
+export interface AwaitUserParams {
+  readonly phase: "begin" | "end";
 }
 
 /** 플러그인 → 엔진. `requestId`는 호출을 낳은 엔진 → 플러그인 요청의 `id`다(없으면 null) */

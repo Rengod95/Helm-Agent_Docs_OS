@@ -320,3 +320,46 @@ test("parseEngineCallParams accepts a known method and refuses an unknown one", 
   });
   expect(unknown.ok).toBe(false);
 });
+
+test("updateState commits when the engine's state is the one the handler read", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: 1 }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "committed", state: { count: 1 } } });
+  expect(await stateNow()).toEqual({ count: 1 });
+});
+
+test("updateState answers conflict with the engine's current state and commits nothing", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 5 }, next: { count: 6 }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "conflict", current: { count: 0 } } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("updateState answers a state the schema refuses as a failed value with its kind", async () => {
+  const { call, stateNow } = await rig();
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: "x" }, records: [] }),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "failed", failure: "state_schema" } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("updateState in a replay answers the input state and leaves the state unchanged", async () => {
+  const { call, stateNow } = await rig(7);
+  const reply = await call(
+    callOf("updateState", { prev: { count: 0 }, next: { count: 9 }, records: [] }, 7),
+  );
+  expect(reply).toEqual({ ok: true, value: { kind: "committed", state: { count: 9 } } });
+  expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("awaitUser without a request context answers null and changes nothing", async () => {
+  const { call, stateNow } = await rig();
+  expect(await call(callOf("awaitUser", { phase: "begin" }))).toEqual({ ok: true, value: null });
+  expect(await call(callOf("awaitUser", { phase: "end" }))).toEqual({ ok: true, value: null });
+  expect(await stateNow()).toEqual({ count: 0 });
+});

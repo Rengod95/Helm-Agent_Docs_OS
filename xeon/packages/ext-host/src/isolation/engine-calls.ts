@@ -1,6 +1,7 @@
 // 플러그인 호스트가 엔진에 거는 호출(`engine.call`, isolation-protocol.ts)을 엔진의 실제 등록 API로 옮긴다.
 // 호출자 신원 `plugin:<이름>`은 연결을 연 쪽이 붙였고, 여기서는 params를 검증한 뒤 `g`의 메서드를 부른다.
 // 던진 오류는 `engine_call_failed` 값으로 바꾼다. 돌려주는 값은 모두 JSON이다. 돌려 보기 문맥에서는 쓰기를 버린다.
+import { isDeepStrictEqual } from "node:util";
 import { Type } from "typebox";
 import {
   assertNever,
@@ -71,6 +72,8 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("capability"),
     Type.Literal("requestEffect"),
     Type.Literal("reportChanges"),
+    Type.Literal("updateState"),
+    Type.Literal("awaitUser"),
   ]),
   registration: Type.String({ minLength: 1 }),
   requestId: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
@@ -86,6 +89,16 @@ const RecordSchema = Type.Object({
 const CommitWithSchema = Type.Object({
   next: JsonValueSchema,
   records: Type.Array(RecordSchema),
+});
+
+const UpdateStateSchema = Type.Object({
+  prev: JsonValueSchema,
+  next: JsonValueSchema,
+  records: Type.Array(RecordSchema),
+});
+
+const AwaitUserSchema = Type.Object({
+  phase: Type.Union([Type.Literal("begin"), Type.Literal("end")]),
 });
 
 const RecordPrivateSchema = Type.Object({
@@ -158,6 +171,24 @@ export interface EngineCallRouterDeps {
   readonly ambientOf?: (requestId: number | null) => Ambient | undefined;
   /** 호출을 낳은 도구 실행의 `ctx.changes`. 도구 실행 밖이거나 코어가 주지 않았으면 undefined다 */
   readonly changesOf?: (requestId: number | null) => ToolChangeReport | undefined;
+  /**
+   * 호출을 낳은 요청의 열린 사용자 대기 수. `awaitUser`의 `begin`마다 하나 늘고 `end`마다 하나 준다.
+   * 대리 등록이 요청이 끝날 때 남은 만큼 시간 예산 시계를 푼다(끝 신호 없이 죽은 자식의 대기가 시계를 영원히 멈추지 않게)
+   */
+  readonly waitsOf?: (requestId: number | null) => OpenWaits | undefined;
+}
+
+/** 요청 하나의 열린 사용자 대기 수. 라우터가 셈하고 대리 등록이 읽는다 */
+export interface OpenWaits {
+  count: number;
+}
+
+/** 한 `engine.call`이 쓰는 호출 문맥. 요청에서 온 것이고 없으면 undefined다 */
+interface RouteContext {
+  readonly replay: boolean;
+  readonly changes: ToolChangeReport | undefined;
+  readonly ambient: Ambient | undefined;
+  readonly waits: OpenWaits | undefined;
 }
 
 /** `engine.call` 하나를 처리한다. 값은 응답의 `result`이고 오류는 응답의 `error`다 */
@@ -227,9 +258,9 @@ async function route(
   g: RegistrationApi<AnyState>,
   method: PluginEngineCallName,
   params: JsonValue,
-  replay: boolean,
-  changes: ToolChangeReport | undefined,
+  context: RouteContext,
 ): Promise<Result<JsonValue, PluginHostError>> {
+  const { replay, changes, ambient, waits } = context;
   switch (method) {
     case "commit": {
       // 돌려 보기에서는 쓰지 않고, 보낸 상태를 그대로 성공으로 돌려준다(호출하는 쪽이 스키마를 검사한다)
@@ -329,6 +360,53 @@ async function route(
       if (!replay) changes.report(reportedOf(parsed.value.entries));
       return ok(null);
     }
+    case "updateState": {
+      const parsed = parse(UpdateStateSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      const { prev, next, records } = parsed.value;
+      // 돌려 보기에서는 쓰지 않고, 보낸 문서를 커밋한 것으로 답한다(호스트는 함수를 다시 돌리지 않는다)
+      if (replay) return ok({ kind: "committed", state: next });
+      // 함수는 호스트가 돌렸다. 엔진은 줄 안에서 현재 문서가 `prev`와 같을 때만 커밋한다. 줄은 `updateState`가 세운다
+      const done = await hostOf(g).updateState(
+        (current) => {
+          if (!isDeepStrictEqual(toJsonValue(current), prev)) {
+            throw new PrimitiveError(
+              "state_conflict",
+              `state of ${g.id} changed before the update`,
+              { scopeId: g.id },
+            );
+          }
+          return stateAs(next);
+        },
+        () => records,
+      );
+      if (done.ok) {
+        const committed = jsonReply(done.value, "the committed state");
+        return committed.ok ? ok({ kind: "committed", state: committed.value }) : committed;
+      }
+      const failure = done.error.kind;
+      if (failure === "state_conflict") {
+        // 줄 안에서 본 현재 문서를 돌려준다. 호스트가 이것으로 한 번 더 한다
+        const current = jsonReply(g.state(), "the current state");
+        return current.ok ? ok({ kind: "conflict", current: current.value }) : current;
+      }
+      return ok({ kind: "failed", failure });
+    }
+    case "awaitUser": {
+      const parsed = parse(AwaitUserSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      // 핸들러 밖이거나 시계가 없는 요청(도구, 명령, 대기 없는 문맥)에는 멈출 시계가 없다
+      const gate = ambient?.handler?.gate;
+      if (gate === undefined || waits === undefined) return ok(null);
+      if (parsed.value.phase === "begin") {
+        gate.pause();
+        waits.count += 1;
+      } else if (waits.count > 0) {
+        gate.resume();
+        waits.count -= 1;
+      }
+      return ok(null);
+    }
     default:
       return assertNever(method, "PluginEngineCallName");
   }
@@ -343,11 +421,16 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
     }
     const replay = deps.replayOf(params.requestId);
     const amb = deps.ambientOf?.(params.requestId);
-    const changes = deps.changesOf?.(params.requestId);
+    const context: RouteContext = {
+      replay,
+      changes: deps.changesOf?.(params.requestId),
+      ambient: amb,
+      waits: deps.waitsOf?.(params.requestId),
+    };
     const routed = await attemptAsync(() =>
       amb === undefined
-        ? route(g, params.method, params.params, replay, changes)
-        : withAmbient(amb, () => route(g, params.method, params.params, replay, changes)),
+        ? route(g, params.method, params.params, context)
+        : withAmbient(amb, () => route(g, params.method, params.params, context)),
     );
     if (!routed.ok) return err(failureOf(routed.error.cause));
     return routed.value;

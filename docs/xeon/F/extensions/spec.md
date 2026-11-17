@@ -1869,15 +1869,18 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 | 메시지 | 방향 | 종류 | 비고 |
 |---|---|---|---|
-| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
+| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러, `hasMigration`). 버전이 다르면 `protocol_version` |
 | `hook.invoke` | 엔진 → 호스트 | 요청 | 훅 이름, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
 | `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥. `tool.execute`는 `callerInfo`(`CallerInfo` JSON)를 더 싣는다 |
 | `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. |
 | `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
 | `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
-| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `reportChanges`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다 |
+| `state.migrate` | 엔진 → 호스트 | 요청 | `registration`, `doc`(저장된 상태 문서), `fromVersion`. 등록의 `hasMigration`이 참일 때만 보낸다(상태 버전이 낮은 thread를 켤 때). 응답의 `result`는 옮긴 문서(JSON이다. `null`도 문서다). 함수가 던지거나 JSON이 아닌 값을 내면 `handler_threw` |
+| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `reportChanges`, `updateState`, `awaitUser`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다. `updateState`(`prev`, `next`, `records`)는 엔진이 줄 안에서 현재 상태 문서가 `prev`와 같을 때만 `next`와 `records`를 커밋하고, 응답은 값 `{kind: committed | conflict | failed}`다(`conflict`는 엔진의 현재 문서를 싣는다). 함수는 호스트가 돌린다. `awaitUser`(`phase`: `begin` | `end`)는 호출을 낳은 요청의 시간 예산 시계를 멈추고 다시 돌린다. 요청이 `end` 없이 끝나면(호스트가 죽음, 시간 초과) 엔진이 남은 대기만큼 푼다 |
 | 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
 
-넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다. group-sdk는 상태 버전 2 이상에서 부른다), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `startDrive`(P2), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `registerShortcut`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+
+넘기는 셋: `migrateState`는 함수가 함수 값이라 경계를 못 넘으므로 자식이 가지고, 엔진이 상태 버전이 낮은 thread를 켤 때 `state.migrate` 요청으로 부른다(`hasMigration`). 엔진이 함수를 기다리고, 결과를 선언 스키마로 검사한 뒤 커밋한다. `updateState`(`hostOf`)는 자식이 함수를 돌리고, 엔진은 `engine.call` `updateState`의 비교 후 커밋만 한다. 자식은 같은 (등록, thread)의 호출을 줄 세우고, conflict면 엔진의 현재 문서로 한 번 더 한 뒤, 또 conflict면 `state_conflict` 값을 낸다. `awaitUser`는 `begin`과 `end` 호출로 시계 멈춤을 엔진에 알린다. 셋 모두 실패는 값으로 돌아오고 던지지 않는다(엔진 안과 같다).
 
 훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.

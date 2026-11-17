@@ -276,7 +276,7 @@ realTest(
 
 // ── defineGroup 플러그인 ────────────────────────────────────────────────
 // 사용자 그룹(`defineGroup`)도 같은 자식 프로세스에서 돈다. 도구와 명령은 자식의 `hostOf(g)`로 등록되고 엔진이 그 선언을 받아 부른다.
-// 상태 버전은 1이다: 버전 2 이상은 `migrateState`가 자식에서 막힌 API라서 적재가 `isolation_protocol` 진단으로 실패한다(§4.9).
+// 상태 버전은 1이다: 이 시험은 상태 이전이 없는 경우를 본다. 버전 2 이상의 이전은 자식이 `state.migrate` 요청으로 맡는다(F.extensions 부록).
 
 const GROUP_NAME = "pluginhostgroup";
 const GROUP_TOOL = "pluginhostgroup_count";

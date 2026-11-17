@@ -50,7 +50,7 @@ import type {
   RendererResourceDef,
 } from "../primitives/resources.ts";
 import { isHookName } from "./child-api.ts";
-import { createEngineCallRouter } from "./engine-calls.ts";
+import { createEngineCallRouter, type OpenWaits } from "./engine-calls.ts";
 import { PluginProcessError } from "./errors.ts";
 import {
   createPluginHostSupervisor,
@@ -207,6 +207,8 @@ interface Session {
   readonly ambients: Map<number, Ambient>;
   /** 도구 실행 요청 id에서 그 호출의 `ctx.changes`로 가는 표 */
   readonly changes: Map<number, ToolChangeReport>;
+  /** 요청 id에서 그 요청의 열린 사용자 대기 수로 가는 표. 요청이 끝나면 남은 만큼 푼다 */
+  readonly waits: Map<number, OpenWaits>;
 }
 
 /** 훅 디스패처가 넘기는 문맥(`{scopeId, state, threadId, signal}`). 모양을 확인한 뒤 읽는다 */
@@ -297,6 +299,9 @@ function jsonOf(value: unknown, what: string): JsonValue {
 
 /** 선언 하나를 검증한다. 등록에 쓸 정의와 리소스 정의를 만든다. 실패는 사람이 읽는 사유 문장이다 */
 function prepareDecl(decl: PluginRegistrationDecl): Result<PreparedDecl, string> {
+  if (decl.hasMigration && decl.state === null) {
+    return err(`migrateState of ${decl.id} needs a state declaration`);
+  }
   const hooks: { point: HookName; handlerIndex: number }[] = [];
   for (const hook of decl.hooks) {
     if (!isHookName(hook.point)) return err(`hook point ${hook.point} of ${decl.id} is unknown`);
@@ -446,11 +451,13 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   function openSession(): Session {
     const ambients = new Map<number, Ambient>();
     const changes = new Map<number, ToolChangeReport>();
+    const waits = new Map<number, OpenWaits>();
     const router = createEngineCallRouter({
       gOf: (registration) => registrations.get(registration),
       replayOf: () => false,
       ambientOf: (requestId) => (requestId === null ? undefined : ambients.get(requestId)),
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
+      waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
     });
     const supervisor = createPluginHostSupervisor({
       process: deps.port,
@@ -469,7 +476,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
     });
-    return { supervisor, ambients, changes };
+    return { supervisor, ambients, changes, waits };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -501,14 +508,23 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(signal === undefined ? {} : { signal }),
       onRequestId: (id) => {
         requestId = id;
-        if (amb !== undefined) session.ambients.set(id, amb);
+        if (amb !== undefined) {
+          session.ambients.set(id, amb);
+          session.waits.set(id, { count: 0 });
+        }
         if (changes !== undefined) session.changes.set(id, changes);
       },
     });
     return call.finally(() => {
-      if (requestId !== undefined) {
-        session.ambients.delete(requestId);
-        session.changes.delete(requestId);
+      if (requestId === undefined) return;
+      const open = session.waits.get(requestId)?.count ?? 0;
+      session.ambients.delete(requestId);
+      session.changes.delete(requestId);
+      session.waits.delete(requestId);
+      // 요청이 끝났는데 자식이 `end`를 보내지 못했다(죽음, 시간 초과): 남은 사용자 대기만큼 예산 시계를 푼다
+      const gate = amb?.handler?.gate;
+      if (gate !== undefined) {
+        for (let left = open; left > 0; left -= 1) gate.resume();
       }
     });
   }
@@ -677,6 +693,20 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         if (live === 0) retire(endReason());
       });
       const host = hostOf(g);
+      // 저장된 문서를 옮기는 함수는 자식이 가진다. 엔진은 `state.migrate` 요청으로 부르고 실패는 던진다
+      if (p.decl.hasMigration) {
+        host.migrateState(async (doc, fromVersion) => {
+          const reply = await invoke(
+            "state.migrate",
+            { registration: p.decl.id, doc, fromVersion },
+            undefined,
+            undefined,
+          );
+          if (!reply.ok) throw failureOf(reply.error);
+          // 문서 `null`도 옮긴 결과일 수 있으므로 `settledOf`를 쓰지 않는다
+          return reply.value;
+        });
+      }
       for (const hook of p.hooks) {
         g.on(
           hook.point,
