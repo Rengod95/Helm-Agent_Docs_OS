@@ -24,7 +24,9 @@ env:
 jobs:
   layer:
     name: layer ${{ matrix.layer }}
-    runs-on: ubuntu-latest
+    # ubuntu-latest가 26.04로 넘어가면서(2026-11) 샌드박스 시험이 "nested userns is capability-restricted"로 실패한다.
+    # 26.04에서 샌드박스가 돌게 고칠 때까지 모든 job을 24.04에 고정한다.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -62,7 +64,7 @@ jobs:
 
   hygiene:
     name: format, layers, boundaries, unused code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         id: checkout
@@ -86,7 +88,7 @@ jobs:
 
   secrets:
     name: secret scan (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -102,7 +104,7 @@ jobs:
 
   docs:
     name: docs routing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         id: checkout
@@ -120,7 +122,7 @@ jobs:
 
   exit-tests:
     name: exit-condition tests (no skips)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         id: checkout
