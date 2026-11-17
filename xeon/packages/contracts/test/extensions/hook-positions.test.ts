@@ -83,25 +83,25 @@ describe("hook positions table", () => {
       hook: "ask.human.before",
       positions: [{ kind: "block", block: "ask", side: "before" }],
       powers: ["decide"],
-      fired: false,
+      fired: true,
     });
     expect(HOOK_POSITIONS["ask.human.after"]).toEqual({
       hook: "ask.human.after",
       positions: [{ kind: "event", anchor: { block: "ask", side: "after" } }],
       powers: ["observe"],
-      fired: false,
+      fired: true,
     });
     expect(HOOK_POSITIONS["agent.spawn.before"]).toEqual({
       hook: "agent.spawn.before",
       positions: [{ kind: "block", block: "agents", side: "before" }],
       powers: ["decide"],
-      fired: false,
+      fired: true,
     });
     expect(HOOK_POSITIONS["agent.spawn.after"]).toEqual({
       hook: "agent.spawn.after",
       positions: [{ kind: "block", block: "agents", side: "after" }],
       powers: ["modify"],
-      fired: false,
+      fired: true,
     });
   });
 
@@ -195,13 +195,12 @@ describe("hook positions table", () => {
     expect(blockOrBoundary.length + events.length + internal.length).toBe(50);
   });
 
-  test("the eight hooks that this build does not fire are marked not fired", () => {
+  test("the four hooks that this build does not fire are marked not fired", () => {
     expect(hooksWhere((row) => !row.fired)).toEqual([
       "request.cache.before",
       "thread.trust.before",
       "thread.resources",
       "thread.mcp.after",
-      ...NEW_4,
     ]);
   });
 

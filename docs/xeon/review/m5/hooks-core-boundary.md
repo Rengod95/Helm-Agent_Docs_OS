@@ -15,7 +15,7 @@ binds: []
 >
 > **이 문서가 바꿀 층 스펙:** `docs/xeon/F/extensions/spec.md`, `docs/xeon/F/capabilities/spec.md`, `docs/xeon/X/primitives/spec.md`, `docs/xeon/X/operations/spec.md`, `docs/xeon/L1/tools/spec.md`, `docs/xeon/L1/loop/spec.md`, `docs/xeon/L1/agents/spec.md`, `docs/xeon/L1/context/spec.md`, `docs/xeon/L2/workspace/spec.md`, `docs/xeon/L2/dialog/spec.md`, `docs/xeon/architecture/layers/spec.md`, `docs/xeon/engineering/dependency-rules/spec.md`.
 >
-> **원천:** `_notes/design/lc/spec/m5e-hooks-core-boundary.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow" = 화면 스펙 제1부(흐름 n), "개념 문서"·"개념 §9"·"개념 §10" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`, `craft-plan.md` §7 = ADR §3.2.3. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
+> **원천:** `_notes/design/lc/spec/m5e-hooks-core-boundary.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow" = 화면 스펙 제1부(흐름 n), "개념 문서"·"개념 §9"·"개념 §10" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`, `craft-plan.md` §7 = ADR §3.2.3. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다. [정정 2026-11-18, 2b층: `m4/enH1` HEAD `7857ec7f6` 기준으로 4.2·4.3.1·8절의 줄 번호 다섯을 고쳤다(gate 978, decide 583, ToolApprovalBody 81-97, userApprovalId 657, ApprovalResolution 234-256)]
 
 작성 기준: 2026-11-17, 워크트리 `cyP 워크트리`(브랜치 `m4/cyP`, HEAD `1c866ab00`). 코드 사실은 모두 이 시점의 정적 읽기이고 실행으로 확인하지 않았다. 표기: [결정] 사용자가 정한 것(출처 문서 명시), [제안] 이 스펙의 선택, [미확인] 코드로 확인하지 못한 것, [권고: 메인 세션, 확인 대기] 메인 세션이 권하고 사용자가 아직 정하지 않은 것(작업 기본값). 경로는 따로 적지 않으면 `xeon/packages/` 아래다.
 
@@ -212,7 +212,7 @@ export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow };
 
 ### 4.2 도구 실행 앞의 결정 어휘
 
-지금: `tool.call.before`(first, closed)는 `{ block: true, reason, terminate? }`를 낸다. 이어서 정책 평가, 승인, 시크릿 사용 승인, `guard.tool.before`가 순서대로 온다(`core-tools/src/pipeline.ts:976-995` `gate`). 훅 결정이 정책보다 먼저 나가고 승인 카드를 띄울 방법이 없다.
+지금: `tool.call.before`(first, closed)는 `{ block: true, reason, terminate? }`를 낸다. 이어서 정책 평가, 승인, 시크릿 사용 승인, `guard.tool.before`가 순서대로 온다(`core-tools/src/pipeline.ts:978-995` `gate`). 훅 결정이 정책보다 먼저 나가고 승인 카드를 띄울 방법이 없다.
 
 새 결정 [제안]:
 
@@ -237,12 +237,12 @@ export type ToolCallDecision =
 
 묻기의 동작:
 
-- 훅 결정은 `decide()`(`core-tools/src/pipeline.ts:581`)의 입력이 된다. 정책 결과가 `deny`면 거부다(훅이 deny를 ask로 느슨하게 만들지 못한다). `allow`거나 `ask`면 한 장의 카드를 띄운다. 카드 하나에 훅의 사유와 정책의 사유를 함께 싣는다(승인이 두 번 뜨지 않는다).
+- 훅 결정은 `decide()`(`core-tools/src/pipeline.ts:583`)의 입력이 된다. 정책 결과가 `deny`면 거부다(훅이 deny를 ask로 느슨하게 만들지 못한다). `allow`거나 `ask`면 한 장의 카드를 띄운다. 카드 하나에 훅의 사유와 정책의 사유를 함께 싣는다(승인이 두 번 뜨지 않는다).
 - 권한 모드가 `bypass`여도 훅의 묻기는 카드를 띄운다. `bypass`는 "코어가 스스로 묻지 않는다"는 뜻이고 훅이 요청한 질문은 코어의 질문이 아니다. 단 저장소가 고른 bypass의 평가 규칙(`bypassAllowed`)은 바뀌지 않는다.
 - 카드의 기억 범위는 `once`뿐이다(`remember: ["once"]`, `pipeline.ts:652`와 같다). 훅의 묻기가 영구 허용 규칙이나 "이 대화에서 계속 허용"을 만들지 못한다 [제안, 12절 O-2].
-- 카드 본문: `ToolApprovalBody`(`contracts/src/services/approvals.ts:81-92`, 2a층에서 `askedBy`를 더했다)에 `askedBy?: { extension: string; reason: string }`를 더한다. 값이 있으면 `ruleId`는 `hook:<확장 이름>`이다. 화면은 이 필드로 "어느 플러그인이 물었나"를 보인다.
+- 카드 본문: `ToolApprovalBody`(`contracts/src/services/approvals.ts:81-97`, 2a층에서 `askedBy`를 더했다)에 `askedBy?: { extension: string; reason: string }`를 더한다. 값이 있으면 `ruleId`는 `hook:<확장 이름>`이다. 화면은 이 필드로 "어느 플러그인이 물었나"를 보인다.
 - 사람이 없는 실행(`interactive: false`): 기존 무인 정책을 그대로 탄다(`approvals/unattended.ts:15-35`). 서브에이전트, 깊이가 있는 호출, 표면 대화가 다른 호출은 묻지 않고 거부한다(`resolvedBy: "noninteractive"`). 주 대화의 비대화형 턴은 설정 `l1.tools.unattended.approval`(`deny`, `wait`, `expire`)을 따른다. 거부될 때 모델에 보이는 사유는 `[fresnel:denied_by_extension] <reason> (confirmation unavailable)` 한 줄이다. 턴 기록의 훅 결과는 `asked`로 적고 답은 `noninteractive`로 이어 적는다.
-- 응답 기록: 카드의 답(`approval.resolved`)이 기존 방식대로 기록된다. 결과가 "허용"이면 도구가 실행되고 `effect.intent`에 훅 묻기를 거쳤다는 사실을 `approvalId`로 잇는다(지금도 `state.userApprovalId`가 있다, `pipeline.ts:661`). "거부"면 `[fresnel:denied_by_user]` 계열의 기존 거부 결과다.
+- 응답 기록: 카드의 답(`approval.resolved`)이 기존 방식대로 기록된다. 결과가 "허용"이면 도구가 실행되고 `effect.intent`에 훅 묻기를 거쳤다는 사실을 `approvalId`로 잇는다(지금도 `state.userApprovalId`가 있다, `pipeline.ts:657`). "거부"면 `[fresnel:denied_by_user]` 계열의 기존 거부 결과다.
 - 어느 핸들러도 허용을 값으로 낼 수 없으므로 훅이 정책 거부나 승인 요구를 건너뛰게 만드는 길이 없다. 규칙 H-1 (5.1).
 
 `replace`의 동작 [제안]: 실행하지 않고 `effect.intent`를 쓰지 않으며 도구 결과 항목(`effectId: null`)을 기록한다. 차단된 호출의 기록과 같은 모양이다(`L1.tools.spec` §4.2 부속 규칙). `tool.result` 훅은 `replace`가 낸 결과에도 돌지 않는다(이미 훅이 정한 값이다). `details`에는 `{ hook: "replaced", extension }`을 병합한다.
@@ -264,7 +264,7 @@ export type ToolCallDecision =
 | fold, 합치기 | first. 처음 결정으로 멈춘다 |
 | 실패 정책 | open. 핸들러 예외, 시간 초과, 스키마 위반은 "결정 없음"으로 보고 사람에게 묻는다. `thread.compact.before`와 같은 예외 사유를 달아 `FailOpenFirstHookName`에 올린다. 근거: 훅 오류가 승인을 조용히 허용하지 않고, 대화도 멈추지 않는다 |
 | 시간 | 예산 `first`(30초)이고 사람 응답을 기다리는 동안 시계가 멈추는 기존 장치(`HandlerGate`)를 쓴다 |
-| 해결 기록 | 새 `resolvedBy` 값 `extension`(`ApprovalResolution.resolvedBy`, `contracts/src/services/approvals.ts:229-247`에 값 하나 추가)과 `resolvedByExtension: string`. 기존 값 문자열은 그대로다 |
+| 해결 기록 | 새 `resolvedBy` 값 `extension`(`ApprovalResolution.resolvedBy`, `contracts/src/services/approvals.ts:234-256`에 값 하나 추가)과 `resolvedByExtension: string`. 기존 값 문자열은 그대로다 |
 
 허용 방향 제한이 핵심이다. `tool` 종류와 `review` 종류에서 이 훅은 `cancel`만 낼 수 있다. 자동 허용을 낼 수 없다. `question` 종류는 답을 대신 내줄 수 있다(예: 이미 알고 있는 확인 질문). 이유: 승인은 권한이고, 플러그인 코드가 사용자 대신 권한을 줄 수 있으면 훅이 정책을 우회한다. 규칙 H-1.
 
@@ -283,13 +283,17 @@ export type ToolCallDecision =
 
 | 항목 | 값 |
 |---|---|
-| 발화 | 코어의 서브에이전트 서비스가 자식 대화를 만들기 전. `spawn`은 `core-agents/src/service.ts:1117`, `delegate`는 `service.ts:1160`의 입구에서 `agent.spawned` 커밋(`service.ts:442-471`) 전 |
-| 진입 경로 | 세 경로 모두 같은 서비스로 모인다: 모델이 부르는 `agent` 도구(`core-agents/src/tool.ts`), 주도 함수의 `loop.spawn`(`core-loop/src/service.ts:747-803`), 그룹의 `g.delegate`(`group-sdk/src/wrap.ts:287-319`) |
-| payload | `{ threadId, requestId, agent, task(앞 4,000자), caller, depth, entry: "tool" \| "drive" \| "delegate", toolCallId?, background, model?, limits? }` |
-| 결정 | `{ block: true, reason }`, `{ ask: true, reason }`, `{ replace: { report: string }, reason }`(자식을 만들지 않고 보고만 돌려준다) |
-| 합치기 | 도구 실행 앞과 같다: `block` > `replace` > `ask` |
-| 실패 정책 | closed. 예외는 거부값이다(`FIRST_DENY["agent.spawn.before"] = { block: true, reason: "extension handler failed" }`) |
-| 묻기 | 카드는 `tool` 종류로 띄우되 `toolName`을 `agent`, `args`를 `{ agent, task }`로 채운다. 승인 서비스에 새 카드 종류를 만들지 않는다 |
+| 발화 | 코어의 서브에이전트 서비스가 자식 thread를 만들기 전 한 번. 세 입구가 모두 지나는 자리는 `provision`(`core-agents/src/service.ts:1269`)이다. 부모 쓰기 토큰을 확인한 뒤, 같은 requestId의 기존 연결을 본 뒤(`service.ts:1285`), `agent.spawned` 커밋과 자식 생성(`commitSpawned`, `service.ts:645`) 전에 건다. 입구는 `spawn`(`service.ts:1376`)과 `delegate`(`service.ts:1421`)다. 입력 검사(`prepare`)에 걸린 호출과 기존 자식으로 이어 받는 호출은 발화하지 않는다 |
+| 진입 경로 | 세 입구 모두 같은 서비스로 모인다. 입구는 자식을 만든 쪽의 소유 종류(`owner.kind`)로 정한다: 모델이 부르는 `agent` 도구(`core-agents/src/tool.ts`)는 `tool`, 주도 함수의 `loop.spawn`(`core-loop/src/service.ts:757-836`)은 `drive`, 그룹의 `g.delegate`(`group-sdk/src/wrap.ts:287-319`)는 `scope`라서 `delegate`다. 따로 표시를 싣지 않는다 |
+| payload | `{ threadId(부모), requestId(자식 requestId), agent, task(앞 4,000자), caller(호출자), depth(호출자 깊이), entry, toolCallId?(`tool`일 때만), background, model(자식이 쓸 역할: `request.model ?? 정의 model ?? "subagent"`), limits? }` |
+| 결정 | `{ block: true, reason }`, `{ ask: true, reason }`, `{ replace: { report: string }, reason }`(자식을 만들지 않고 보고만 돌려준다, 아래 replace 결과) |
+| 합치기 | 도구 실행 앞과 같다: `block` > `replace` > `ask`. 확장 쪽 합치기는 ext-host가 하고 core-agents는 합쳐진 결정만 받는다 |
+| 실패 정책 | closed. 디스패치 예외는 거부값이다(`FIRST_DENY["agent.spawn.before"] = { block: true, reason: "extension handler failed" }`) |
+| 묻기 | 카드는 `tool` 종류로 띄운다. `toolName`은 `agent`, `args`는 `{ agent, task }`, `ruleId`는 `hook:<확장 이름>`, `askedBy`는 `{ extension, reason }`, `remember`는 `["once"]`다. `origin.toolCallId`는 null로 둔다(승인 서비스가 도구 호출의 대기 체크포인트를 쓰지 않게 한다). 승인 서비스에 새 카드 종류를 만들지 않는다. 깊이가 있거나 사람이 없는 호출은 카드를 열지 않고 거부한다(§7 E-4). 승인 서비스는 `fresnel.approvals` port(core-tools 제공)로 얻는다 |
+
+**replace 결과 [구현 결정: 2026-11-18, 2c층].** 자식을 만들지 않고 아무 기록도 남기지 않는다. thread 생성, `agent.spawned`, `agent.settled`, 보고 입력(`input.queued`), `agent.spawn.after`가 모두 없다 [근거: core-agents/src/service.ts `provision`의 `replaced` 분기]. 결과 모양은 입구마다 이미 있는 모양을 쓴다. 포그라운드(`spawn`: 모델 도구, drive)는 `SpawnResult { status: "completed", answer: 보고, report: null, usage: null, reused: false }`이고, `childThreadId`는 `failure`와 같이 만들지 않은 자리 id다. 백그라운드(`delegate`: `g.delegate`, 백그라운드 도구)는 `DelegateReceipt`에 `status: "replaced"`와 `report`를 더한 변형이다. 이 변형은 계약을 바꾼다(`contracts/src/services/agents.ts`의 `DelegateReceipt`, group-sdk의 같은 타입). 보고는 훅이 준 본문 그대로이고 격리 블록을 씌우지 않는다. 같은 requestId로 다시 부르면 기록이 없으므로 훅이 다시 묻는다.
+
+**발화 횟수.** 새 요청은 한 번 발화한다. 같은 requestId의 순차 재호출은 기존 연결을 이어 받으므로 발화하지 않는다. 같은 requestId의 동시 호출은 앞 훅을 각각 받을 수 있다. 자식은 하나뿐이다. 경쟁은 자식을 만들기 직전의 연결 다시 보기(`provision`, `service.ts:1285`)가 막는다. 정확히 한 번을 동시 호출까지 보장하는 것은 [미결] [근거: core-agents/src/service.ts `provision`의 연결 다시 보기]다.
 
 `agent` 도구 경로에서는 `tool.call.before`(도구 이름 `agent`)와 이 훅이 둘 다 발화한다. 한 행동에 훅이 둘 도는 셈이라서 payload에 `toolCallId`와 `entry: "tool"`을 실어 플러그인이 중복을 가릴 수 있게 한다. 도구 블록이 서브에이전트 블록을 감싸는 구조를 그대로 두는 것이다.
 
@@ -297,16 +301,16 @@ export type ToolCallDecision =
 
 | 항목 | 값 |
 |---|---|
-| 발화 | 자식이 정착하고 결과 검사(`core-agents/src/result-guard.ts`)를 거친 뒤, 부모 대화에 `agent.settled`를 커밋하기 전(`service.ts:842-868`) |
-| payload | `{ threadId, requestId, agent, status, usage, childThreadId }` |
-| 값과 패치 | 값 `{ report: { text: string; truncated: boolean } }`, 패치 `{ reportText?: string }` |
-| 제한 | 보고 본문 상한(`core-agents/src/service.ts:52-53`의 `STORED_REPORT_MAX`, 60,000자. 기록 상한 65,536자에서 격리 블록 여유를 뺀 값)을 병합 규칙이 다시 적용한다. 계약의 `AGENT_REPORT_TEXT_MAX`가 같은 값을 가진다. `status`와 `usage`는 고치지 못한다 |
+| 발화 | 자식이 정착하고 결과 검사(`guardReport`, `core-agents/src/result-guard.ts`를 부르는 `recordSettled` 안, `service.ts:1095`)를 거친 뒤, 부모 대화에 `agent.settled`를 커밋하기 전(`reportAfterSettled`, `service.ts:1104`; 커밋은 `service.ts:1105`). `recordSettled`를 지나는 모든 정착(정상, 중단, 오류)에 발화한다. 재시작 뒤 끊긴 자식을 닫는 `settleStoredOwnedBy`(`service.ts:953`)는 자식이 돌지 않았으므로 발화하지 않는다 |
+| payload | `{ threadId(부모), requestId, agent, status, usage, childThreadId }`. `status`와 `usage`는 자식 정착의 값이다 |
+| 값과 패치 | 값 `{ report: { text: string; truncated: boolean } }`(text는 격리 블록을 씌운 본문), 패치 `{ reportText?: string }`. 디스패치가 실패하면 보고를 그대로 두고 정착한다(실패 skip) |
+| 제한 | 병합 규칙(`CHAIN_RULES["agent.spawn.after"]`)이 상한을 한 번 적용하고, core-agents가 `STORED_REPORT_MAX`(`core-agents/src/service.ts:64`, 값은 계약의 `AGENT_REPORT_TEXT_MAX`, 60,000자)로 한 번 더 자른다. 잘리면 `truncated`를 참으로 한다. 고친 본문은 `agent.settled` 기록, 부모가 받는 결과와 보고 입력에 같이 들어간다. `status`와 `usage`는 고치지 못한다 |
 
-`lifecycle.agent.settled`(45번)는 그대로 이벤트로 남는다(커밋 뒤 관찰).
+`lifecycle.agent.settled`(45번)는 그대로 이벤트로 남는다(커밋 뒤 관찰). 디스패치는 `ext-host`의 수명주기 지점이 기록 피드에서 발화한다.
 
 #### 4.3.5 결과: 훅 50개
 
-`HookSignatures`는 46에서 50행이 된다. `HOOK_NAMES`에 네 이름이 더해지고 `HOOKS`, `CHAIN_RULES`(`agent.spawn.after`), `FIRST_DENY`(`agent.spawn.before`), `HOOK_POSITIONS`, F 스펙 §3.4 표, 화면 표가 같이 바뀐다. 이름 길이 상한 48자(`HookNameSchema`) 안이다. 발화를 잇는 층(D-7, D-8)이 들어가기 전까지 `HOOK_POSITIONS`의 네 행은 `fired: false`다. 그 전에 이 훅을 선언한 매니페스트는 `hook_not_fired` 경고를 받는다(H-4).
+`HookSignatures`는 46에서 50행이 된다. `HOOK_NAMES`에 네 이름이 더해지고 `HOOKS`, `CHAIN_RULES`(`agent.spawn.after`), `FIRST_DENY`(`agent.spawn.before`), `HOOK_POSITIONS`, F 스펙 §3.4 표, 화면 표가 같이 바뀐다. 이름 길이 상한 48자(`HookNameSchema`) 안이다. 발화를 잇는 층(D-7, D-8)이 들어가기 전까지 `HOOK_POSITIONS`의 네 행은 `fired: false`다. 그 전에 이 훅을 선언한 매니페스트는 `hook_not_fired` 경고를 받는다(H-4). [2c 구현 반영] 서브에이전트 두 행(`agent.spawn.before|after`)은 D-8 구현으로 `fired: true`다.
 
 ### 4.4 이벤트 구독
 
@@ -665,7 +669,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | E-1 | 훅이 `ask`를 냈지만 사람이 없는 실행(`interactive: false`)이고 `l1.tools.unattended.approval = "deny"` | 카드 없이 거부(`resolvedBy: "noninteractive"`). 훅 결과 `asked`, 사유에 "확인 불가" |
 | E-2 | `bypass` 모드에서 훅의 `ask` | 카드를 띄운다. 정책 deny는 deny다 |
 | E-3 | `ask.human.before` 핸들러가 예외 | 결정 없음으로 보고 사람에게 묻는다(open). 훅 결과 `error` |
-| E-4 | `agent.spawn.before`가 `ask`를 낸 호출이 서브에이전트 안(`depth > 0`) | 사람 화면이 없는 호출이라 묻지 않고 거부(`unattendedPlan`의 `silent`). 부모는 거부 결과를 받는다 |
+| E-4 | `agent.spawn.before`가 `ask`를 낸 호출이 서브에이전트 안(`depth > 0`)이거나 사람이 없는 실행 | 사람 화면이 없는 호출이라 core-agents가 승인 서비스를 부르기 전에 카드 없이 거부한다(`[fresnel:denied_by_extension] <사유> (confirmation unavailable)`). 부모는 거부 결과를 받는다. 승인 서비스의 `unattendedPlan`은 이 자리에 적용되지 않는다(그 정책은 승인 서비스 안에서 도는 것이라 서브에이전트 훅의 묻기가 거치지 않는다). 서브에이전트 대화의 `interactive`는 부모와 같아서 실제로는 `depth > 0`만 이 경우를 만든다 |
 | E-5 | 훅이 낸 호출이 `tool.call.before`의 `ask`를 만나 사람 응답을 기다림 | 대기 동안 훅의 시간 예산 시계는 멈춘다(`awaitUser`, `ext-host/src/primitives/host-api.ts:631-644`). 바깥 핸들러의 `first` 예산(30초)은 같은 `HandlerGate`로 멈춘다 |
 | E-6 | 플러그인 호출이 순환(P→Q→P) | `[fresnel:hook_cycle]` 거부 (5.3 U-8) |
 | E-7 | 재시작 중에 묻기 카드가 열려 있음 | 승인 서비스가 기록에서 요청을 복원한다(`scanApprovals`, `approvals/service.ts` open의 replay 분기). `ask.human.before`는 복원된 요청에는 다시 발화하지 않는다 |
@@ -687,10 +691,10 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-2 | `contracts/src/extensions/hook-positions.ts` (신규) | `HOOK_POSITIONS` 50행, 위치 종류별 검사 | M |
 | D-3 | `contracts/src/extensions/hooks/tool.ts:84-98` | `ToolCallDecision`을 3종 union으로. `ask`, `replace` 스키마 | S |
 | D-4 | `ext-host/src/primitives/fold/` 및 `dispatch.ts` | `tool.call.before`, `agent.spawn.before`의 합치기 규칙(H-2) | M |
-| D-5 | `core-tools/src/pipeline.ts:503-540, 581-660, 972-995` | `dispatchToolCall`이 `ask`, `replace`를 해석하고 `decide`가 훅 ask를 정책 결과와 합치며 카드를 한 장으로 | M |
-| D-6 | `contracts/src/services/approvals.ts:81-92, 229-247` | `ToolApprovalBody.askedBy`, `resolvedBy`에 `"extension"`, `resolvedByExtension` | S |
+| D-5 | `core-tools/src/pipeline.ts:503-545, 583-660, 978-995` | `dispatchToolCall`이 `ask`, `replace`를 해석하고 `decide`가 훅 ask를 정책 결과와 합치며 카드를 한 장으로 | M |
+| D-6 | `contracts/src/services/approvals.ts:81-97, 234-256` | `ToolApprovalBody.askedBy`, `resolvedBy`에 `"extension"`, `resolvedByExtension` | S |
 | D-7 | `core-tools/src/approvals/service.ts:394-405, 385` | `ask.human.before|after` 발화 | M |
-| D-8 | `core-agents/src/service.ts:1117, 1160, 842-868` | `agent.spawn.before|after` 발화, `loop.spawn`과 `g.delegate`와 `agent` 도구가 같은 입구를 지남을 확인 | M |
+| D-8 | `core-agents/src/service.ts:1269(provision), 1376(spawn), 1421(delegate), 1088(recordSettled)` | `agent.spawn.before|after` 발화, `loop.spawn`과 `g.delegate`와 `agent` 도구가 같은 입구(`provision`)를 지남을 확인. 디스패치는 플러그인이 ext-host에서 잇는다(`plugin.ts`) | M |
 | D-9 | `ext-host` 매니페스트 검증(`contracts/src/extensions/validate.ts`) | 내부 훅 거부 `hook_internal`, `hook_not_fired` 경고 | S |
 | D-10 | `group-sdk/src/` 와 `ext-host/src/primitives/host-api.ts:273-296` | `g.subscribe`, `EventEnvelope`, 샘플 옵션 | M |
 | D-11 | `apps/host/src/assembly/cap-mcp.ts:170` | `onServersChange` 연결(H-8) | S |

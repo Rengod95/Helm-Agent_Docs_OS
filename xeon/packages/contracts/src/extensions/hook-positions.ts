@@ -3,7 +3,7 @@ import { HOOKS, HOOK_NAMES, type HookName } from "./hooks.ts";
 // 훅 위치 데이터(M5e 스펙 §4.1). 위치는 HOOKS 선언의 필드가 아니라 이 별도 표다. 이름과 HookSignatures는 그대로 두고,
 // 각 훅이 블록 앞·뒤, 경계, 이벤트, 내부 가운데 어디에 서는지와 할 수 있는 일을 적는다.
 // 블록 모델(`contracts/src/blocks`)의 훅 목록은 이 표에서 파생한다. 행은 50개다. 47~50번(사람에게 묻기, 서브에이전트)은
-// 발화를 연결하는 층(M5e 2b·2c)이 켜기 전까지 `fired: false`다.
+// M5e 2b·2c가 발화를 연결해 `fired: true`다.
 
 /** 블록 여섯. `record`는 앞뒤 훅이 없고 이벤트 구독만 있다 */
 export type BlockId = "context" | "model" | "tools" | "ask" | "agents" | "record";
@@ -339,25 +339,25 @@ export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow } = {
     hook: "ask.human.before",
     positions: [at("ask", "before")],
     powers: ["decide"],
-    fired: false,
+    fired: true,
   },
   "ask.human.after": {
     hook: "ask.human.after",
     positions: [onEvent("ask", "after")],
     powers: ["observe"],
-    fired: false,
+    fired: true,
   },
   "agent.spawn.before": {
     hook: "agent.spawn.before",
     positions: [at("agents", "before")],
     powers: ["decide"],
-    fired: false,
+    fired: true,
   },
   "agent.spawn.after": {
     hook: "agent.spawn.after",
     positions: [at("agents", "after")],
     powers: ["modify"],
-    fired: false,
+    fired: true,
   },
 };
 

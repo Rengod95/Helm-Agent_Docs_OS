@@ -16,6 +16,8 @@ import {
   type StaticAgentsSettings,
 } from "../../src/index.ts";
 import { fakeChildLoop, type FakeChildLoop, type FakeChildTurn } from "../../src/testing/index.ts";
+import { fakeApprovals, type FakeApprovals } from "./fake-approvals.ts";
+import { fakeHooks, type FakeHooks, type Observed } from "./fake-hooks.ts";
 import type { FakeModels } from "./fake-models.ts";
 import { fakeSession, type FakeSession } from "./fake-session.ts";
 import { fakeTasks, type FakeTasks } from "./fake-tasks.ts";
@@ -52,6 +54,10 @@ export interface Harness {
   readonly tools: FakeTools;
   readonly loop: FakeChildLoop;
   readonly service: AgentServiceImpl;
+  /** 서브에이전트 앞뒤 훅 대역 */
+  readonly hooks: FakeHooks;
+  /** 승인 서비스 대역. `withApprovals: false`면 port가 없어 카드를 열 수 없다 */
+  readonly approvals: FakeApprovals;
   readonly parentThreadId: ThreadId;
   readonly parentScope: TaskScope;
   /** 주 대화에서 도구 호출 하나를 열고(turn 노드 아래 tool 노드) 그 호출의 spawn 입력을 돌려준다 */
@@ -75,6 +81,8 @@ export interface HarnessOptions extends StaticAgentsSettings {
   readonly agentsSettings?: AgentsSettingsSource;
   /** 부모 대화의 작업 폴더 */
   readonly parentWorkspace?: string;
+  /** 승인 서비스 port를 줄지. 기본은 준다(카드는 `approvals`에 쌓인다). `false`면 port가 없다 */
+  readonly withApprovals?: boolean;
 }
 
 export function openHarness(options: HarnessOptions = {}): Harness {
@@ -92,6 +100,13 @@ export function openHarness(options: HarnessOptions = {}): Harness {
           }
         : (request) => options.run?.(request, session) ?? Promise.reject(new Error("no run")),
   });
+  const observe = (): Observed => ({
+    threads: session.created.length,
+    spawned: session.events.filter((event) => event.kind === "agent.spawned").length,
+    settled: session.events.filter((event) => event.kind === "agent.settled").length,
+  });
+  const hooks = fakeHooks(observe);
+  const approvals = fakeApprovals();
   const service = createAgentService({
     session,
     loop: () => loop,
@@ -109,6 +124,8 @@ export function openHarness(options: HarnessOptions = {}): Harness {
     },
     log: NOOP_LOG,
     now: () => 1_767_571_200_000,
+    hooks,
+    ...(options.withApprovals === false ? {} : { approvals: () => approvals }),
     ...(options.models === undefined ? {} : { models: () => options.models }),
   });
   service.syncRules();
@@ -129,6 +146,8 @@ export function openHarness(options: HarnessOptions = {}): Harness {
     tools,
     loop,
     service,
+    hooks,
+    approvals,
     parentThreadId,
     parentScope,
     openToolCall(toolCallId) {

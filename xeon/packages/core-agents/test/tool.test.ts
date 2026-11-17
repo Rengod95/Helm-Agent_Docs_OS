@@ -163,6 +163,41 @@ describe("the agent tool", () => {
     });
   });
 
+  test("a before hook that replaces gives the model the report as the foreground tool result and starts no child", async () => {
+    const h = openHarness();
+    h.hooks.decideBefore({ replace: { report: "from the hook" }, reason: "cached" }, "cache-ext");
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
+    h.openToolCall("tc-rep");
+    const result = await registration.tool.execute(
+      "tc-rep",
+      { agent: "explorer", task: "look" },
+      new AbortController().signal,
+      () => {},
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toEqual([{ type: "text", text: "from the hook" }]);
+    expect(result.details).toMatchObject({ status: "completed", truncated: false, reused: false });
+    expect(h.session.created).toEqual([h.parentThreadId]);
+  });
+
+  test("a before hook that replaces a background call returns the report now, not a later arrival", async () => {
+    const h = openHarness();
+    h.hooks.decideBefore({ replace: { report: "from the hook" }, reason: "cached" }, "cache-ext");
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
+    h.openToolCall("tc-rep-bg");
+    const result = await registration.tool.execute(
+      "tc-rep-bg",
+      { agent: "explorer", task: "dig", background: true },
+      new AbortController().signal,
+      () => {},
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toEqual([{ type: "text", text: "from the hook" }]);
+    expect(result.details).toMatchObject({ status: "completed" });
+    expect(h.session.created).toEqual([h.parentThreadId]);
+    expect(h.session.events.map((event) => event.kind)).not.toContain("input.queued");
+  });
+
   test("the parameter schema requires agent and task", () => {
     const h = openHarness();
     const registration = agentToolRegistration(h.service, h.tasks, h.tools);
