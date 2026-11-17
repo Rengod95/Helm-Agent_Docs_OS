@@ -10,9 +10,14 @@ import type {
   StateDecl,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { Upcaster } from "@fresnel/contracts/records";
 import type { SettingDef, SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
-import type { CommandResourceDef, ExtMethodResourceDef } from "@fresnel/ext-host";
+import type {
+  CommandResourceDef,
+  ExtMethodResourceDef,
+  RegistrationHostApi,
+} from "@fresnel/ext-host";
 import type { Static } from "typebox";
 import type {
   CancelDelegatesResult,
@@ -65,8 +70,16 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
   readonly setup: (g: GroupApi<S, D>) => void | Promise<void>;
 }
 
+/** 주도 시작 요청의 결과. X `RegistrationHostApi.startDrive`의 반환형이다. 거부는 값으로 돌아온다 */
+export type GroupStartDriveResult = ReturnType<RegistrationHostApi["startDrive"]>;
+
 /** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
 export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends RegistrationApi<S> {
+  /**
+   * 이 scope를 주도 시작 요청으로 낸다(drive-isolation.md 2.2, 사용자 명령과 같은 trigger). thread는 호출하는 도구·명령·메서드 문맥의 것이다.
+   * 요청은 큐에 들어가고 다음 경계에서 부여된다. 스택이 차 있으면 전환 정책이 정한다. 문맥이 없으면(setup, 화면 등) `no_context`다.
+   */
+  startDrive(input?: JsonValue): GroupStartDriveResult;
   /**
    * 주도 단계 함수 등록(F `ExtensionOps.drive`, 계약은 `DriveStep`). 엔진이 단계마다 입력을 주면 명령 하나를 돌려받는다.
    * wrap이 돌려준 명령을 검사하고 계측한 뒤 그대로 엔진에 넘긴다(`spawn`은 spawns, `commit`은 g.commit과 같은 검사와 commits). setup 안에서만

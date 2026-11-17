@@ -4,12 +4,13 @@ import {
   commandErrorText,
   parseHelmCommand,
   runHelmCommand,
+  startFailureText,
   statusText,
 } from "./commands.ts";
 import type { SignalTermsStore, TallyStore } from "./signals.ts";
 import type { HelmState } from "./state.ts";
 
-type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit">;
+type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit" | "startDrive">;
 
 /**
  * g.registerCommand에 넘기는 정의. 처리기는 X의 명령 문맥(thread 있음) 안에서 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려준다.
@@ -32,9 +33,12 @@ export function helmCommand(
       const current = tallies.get(ctx.threadId)?.promptTerms ?? [];
       const terms = current.length > 0 ? current : (signalTerms.get(ctx.threadId) ?? []);
       const result = await runHelmCommand(g, parsed.value, { nonce: ctx.invocationId, terms });
-      return result.ok
-        ? statusText(result.value, [...missingMeta])
-        : commandErrorText(result.error);
+      if (!result.ok) return commandErrorText(result.error);
+      const text = statusText(result.value, [...missingMeta]);
+      if (parsed.value.name !== "start") return text;
+      // 탐구 시작은 상태를 커밋한 뒤 주도 시작 요청을 낸다(drive-isolation.md 2.2). 거부되면 이유를 결과 글에 붙인다
+      const started = g.startDrive();
+      return started.ok ? text : `${text}\n${startFailureText(started.error)}`;
     },
   };
 }

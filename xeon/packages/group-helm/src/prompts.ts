@@ -185,10 +185,3 @@ export function phaseNotice(from: HelmPhase, to: HelmPhase): PostItem {
     `탐구 단계: ${PHASE_TEXT[from]} → ${PHASE_TEXT[to]}${reason === undefined ? "" : ` (${reason})`}`,
   );
 }
-
-export function rejectedNotice(): PostItem {
-  return notice(
-    "status",
-    "[helm] 시작을 기다리는 시간이 너무 길어져 탐구 요청을 거두었어요. 다시 시작하려면 /helm start 를 쓰세요.",
-  );
-}

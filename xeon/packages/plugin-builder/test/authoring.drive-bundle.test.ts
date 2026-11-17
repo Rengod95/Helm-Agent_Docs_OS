@@ -126,7 +126,8 @@ test("authoring.drive-bundle: a drive group packed as one file loads from the us
 
   // 3. drive가 한 번 돈다: 단계마다 turn을 내고 상태를 커밋한다
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  // 중재가 없어 그룹은 시작 요청으로만 주도한다. 프로필의 시작 설정으로 연다(drive-isolation.md 2.2)
+  await t.host.openThread(thread, { startDrive: NAME });
   await t.settled();
   await drain(t, thread, 4);
   expect(t.loop.turns.length).toBeGreaterThan(0);

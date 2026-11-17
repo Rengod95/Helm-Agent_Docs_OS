@@ -10,7 +10,7 @@ import {
   type GroupModule,
 } from "../src/index.ts";
 import { memoryDriveHolderSettings, groupCatalogOf } from "../src/testing/index.ts";
-import { serviceRig } from "./support/host.ts";
+import { serviceRig, startDriveOf } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 import { turnFinished } from "./support/steps.ts";
 
@@ -121,7 +121,7 @@ test("command.group-on-while-idle-says-it-applied", async () => {
 });
 
 test("command.drive-unknown-no-drive-locked-and-auto", async () => {
-  const { holder, command } = await rig();
+  const { t, thread, holder, command } = await rig();
   expect(await command.run("drive xyz")).toEqual({
     ok: false,
     text: "알 수 없는 그룹: xyz. 설치된 그룹: helm, learning, review",
@@ -134,7 +134,8 @@ test("command.drive-unknown-no-drive-locked-and-auto", async () => {
   });
   expect(holder.writes).toEqual([]);
 
-  // helm이 임대를 갖고 있다. review는 후보라 X가 다음 경계에 임대를 옮긴다
+  // helm이 스택 맨 위에 있다. review는 켜진 drive 그룹이라 다음 경계에 적용한다
+  await startDriveOf(t, thread, "helm");
   const named = await command.run("drive review");
   expect(named).toEqual({
     ok: true,
@@ -205,24 +206,25 @@ test("command.drive-reports-each-unwritable-reason", async () => {
   );
 });
 
-test("command.status-prints-setting-and-one-line-per-group", async () => {
-  const { holder, command, service } = await rig();
+test("command.status-prints-one-line-per-group-from-the-frame-stack", async () => {
+  const { t, thread, command, service } = await rig();
+  const idle = await command.run("status");
+  expect(idle.text.split("\n")).toEqual([
+    "helm  켜짐  drive=없음",
+    "learning  켜짐  drive=없음",
+    "review  켜짐  drive=없음",
+  ]);
+  await startDriveOf(t, thread, "helm");
   const all = await command.run("status");
   expect(all.ok).toBe(true);
   expect(all.pending).toBe(false);
   const lines = all.text.split("\n");
-  expect(lines[0]).toBe("구동 그룹 설정: auto");
-  expect(lines).toHaveLength(4);
-  expect(lines[1]).toBe("helm  켜짐  drive=구동");
-  expect(lines[2]).toBe("learning  켜짐  drive=없음");
-  expect(lines[3]).toBe("review  켜짐  drive=대기");
-
-  holder.set("missing");
-  const stale = await runGroupCommand(service, { op: "status", id: "review" });
-  expect(stale.text.split("\n")).toEqual([
-    "구동 그룹 설정: missing(설치되지 않음)",
-    "review  켜짐  drive=대기",
-  ]);
+  expect(lines).toHaveLength(3);
+  expect(lines[0]).toBe("helm  켜짐  drive=구동");
+  expect(lines[1]).toBe("learning  켜짐  drive=없음");
+  expect(lines[2]).toBe("review  켜짐  drive=없음");
+  const one = await runGroupCommand(service, { op: "status", id: "review" });
+  expect(one.text).toBe("review  켜짐  drive=없음");
   expect(await command.run("status nobody")).toMatchObject({ ok: false });
 });
 

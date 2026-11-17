@@ -28,7 +28,6 @@ export const helmManifest: GroupManifest = defineManifest({
         "tool.execution.after",
         "boundary.settle.after",
         "thread.start",
-        "lifecycle.lease.rejected",
       ],
       optional: [
         { id: "web.search", range: "^1.0.0" },

@@ -45,7 +45,6 @@ test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks
       "tool.execution.after",
       "boundary.settle.after",
       "thread.start",
-      "lifecycle.lease.rejected",
     ],
   ]);
   for (const legacy of [
@@ -72,7 +71,7 @@ test("manifest.valid-and-usage-matches", async () => {
   ).toEqual([]);
   const root = pluginsOf(helmManifest).find((plugin) => plugin.root);
   if (root === undefined) throw new Error("helm has no root plugin");
-  expect(root.decl.hooks).toHaveLength(6);
+  expect(root.decl.hooks).toHaveLength(5);
   expect(root.decl.drives).toBe(true);
   expect(root.decl.usesPost).toBe(true);
   const rig = await createRig();
@@ -94,14 +93,13 @@ test("manifest.valid-and-usage-matches", async () => {
 
 test("commands.start-stop-status", async () => {
   const rig = await createRig();
+  // 시작 요청은 다음 경계에서 부여된다. 경계를 돌리기 전까지는 대기 요청만 커밋된 상태다
   await rig.command("start 캐시 무효화");
-  await rig.settle("k1");
   expect(statesOf(rig).at(-1)?.pending).toMatchObject({ topic: "캐시 무효화", source: "command" });
   const commits = statesOf(rig).length;
-  // 탐구 중(대기 포함) start는 오류이고 상태를 바꾸지 않는다
+  // 시작을 기다리는 탐구가 있으면 다른 주제의 start는 오류이고 상태를 바꾸지 않는다(같은 주제는 시작이다)
   const again = await rig.command("start 다른 주제");
   const status = await rig.command("status");
-  await rig.settle("k2");
   expect(statesOf(rig)).toHaveLength(commits);
   expect(again).toBe("이미 탐구 중이거나 시작을 기다리는 탐구가 있습니다.");
   expect(status?.split("\n")[0]).toBe(
@@ -167,7 +165,13 @@ test("effects.no-capability-in-on-handlers", async () => {
   const dispatched = [
     await rig.t.host.dispatch(
       "input.agent.before",
-      { prompt: "`LRU` 캐시", systemPrompt: "s", systemPromptOptions: {} },
+      {
+        prompt: "`LRU` 캐시",
+        systemPrompt: "s",
+        systemPromptOptions: {},
+        driver: null,
+        stack: [],
+      },
       {
         threadId: rig.thread,
         dispatchKey: "a",
@@ -294,7 +298,8 @@ test("failures.missing-inquiry-finishes-failed: the drive of an explore state wi
     ],
   });
   await rig.t.host.closeThread(rig.thread);
-  await rig.t.host.openThread(rig.thread);
+  // 재개는 프로필의 시작 설정으로 한다. 열린 임대가 없는 탐구를 시작 요청으로 다시 주도한다
+  await rig.t.host.openThread(rig.thread, { startDrive: "helm" });
   await rig.t.settled();
   await rig.drain(4);
   expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "failed" });

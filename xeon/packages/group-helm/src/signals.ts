@@ -309,7 +309,10 @@ export interface SignalSeed {
   readonly terms: readonly string[];
 }
 
-/** 순수 함수. 신호와 autoStart로 할 일을 정한다(L3.helm.spec §4.3 표) */
+/**
+ * 순수 함수. 신호와 autoStart로 할 일을 정한다(L3.helm.spec §4.3 표). `auto`는 대기 요청(pending)만 만든다.
+ * 주도는 사용자가 `/helm start`로 시작 요청을 낼 때만 시작한다. 신호가 주도를 바로 시작하지 않는다(drive-isolation.md 2.2)
+ */
 export function decideAction(
   state: Readonly<HelmState>,
   crossed: readonly HelmSignalKind[],

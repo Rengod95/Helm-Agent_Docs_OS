@@ -1,7 +1,6 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
-  DriveHolderSetting,
   GroupCommandError,
   GroupService,
   GroupSettingUnwritableReason,
@@ -62,12 +61,6 @@ export interface CommandOutput {
   readonly pending: boolean;
 }
 
-/** `/group status` 첫 줄이 읽는 구동 그룹 설정 값을 더 낸 서비스 */
-export interface GroupServiceWithSetting extends GroupService {
-  /** 설정 x.primitives.activeDriver의 현재 유효 값 */
-  driveHolderSetting(): DriveHolderSetting;
-}
-
 /**
  * `/group reset`과 `resetState`의 오류(L3.group-sdk.spec §3.9). F 계약(`GroupError`)이 아니라 group-sdk이 정한다.
  * `group.resetFailed`의 `message`는 X `resetRegistrationState`가 돌려준 오류 kind다.
@@ -79,7 +72,7 @@ export type GroupResetError =
   | { readonly kind: "group.resetFailed"; readonly id: string; readonly message: string };
 
 /** createGroupService가 돌려주는 서비스. 상태를 보일 thread를 알려 주고 그 thread의 이벤트 집계를 갱신한다 */
-export interface GroupServiceWithUsage extends GroupServiceWithSetting {
+export interface GroupServiceWithUsage extends GroupService {
   /** 상태를 보이는 thread. 없으면 null */
   currentThread(): ThreadId | null;
   /** thread의 `lease.*`·`turn.*` 이벤트로 임대 시간과 비용 캐시를 다시 셈한다. 조회가 실패하면 캐시를 그대로 둔다 */
@@ -91,10 +84,6 @@ export interface GroupServiceWithUsage extends GroupServiceWithSetting {
    * 그룹을 켜지 않는다. 성공하면 새 판 번호를 돌려준다.
    */
   resetState(id: string): Promise<Result<{ readonly rev: number }, GroupResetError>>;
-}
-
-function hasSetting(service: GroupService): service is GroupServiceWithSetting {
-  return "driveHolderSetting" in service;
 }
 
 function hasUsage(service: GroupService): service is GroupServiceWithUsage {
@@ -214,11 +203,6 @@ async function runStatus(service: GroupService, id: string | undefined): Promise
   await refreshCurrent(service);
   const groups = service.list();
   const lines: string[] = [];
-  if (hasSetting(service)) {
-    const setting = service.driveHolderSetting();
-    const installed = setting === null || groups.some((group) => group.id === setting);
-    lines.push(`구동 그룹 설정: ${setting ?? "auto"}${installed ? "" : "(설치되지 않음)"}`);
-  }
   if (id !== undefined) {
     const found = service.status(id);
     if (!found.ok) return failure(errorText(found.error));

@@ -82,7 +82,6 @@ test("composition.blocks: one drive block, hooks are the root plugin's hooks, pr
     ["tool-observe", "on"],
     ["signal-settle", "on"],
     ["restore", "on"],
-    ["lease-rejected", "on"],
     ["command", "register"],
     ["methods", "register"],
     ["drive", "drive"],

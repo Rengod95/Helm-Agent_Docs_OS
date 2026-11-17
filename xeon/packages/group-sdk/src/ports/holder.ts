@@ -19,6 +19,7 @@ export type HolderWriteError =
 
 /**
  * 설정 `x.primitives.activeDriver`의 읽기와 쓰기(L3.group-sdk.spec §3.8, §3.13 마지막 문단).
+ * E3 이후 엔진은 이 설정을 읽지 않는다. 서비스는 읽지 않고 `write`만 부른다(계약 정리 단계에서 키와 함께 걷는다).
  * 설정 서비스(F.wire-settings `EffectiveSetting`, `WriteCheck`)에 연결하는 일은 HOST 조립이 한다.
  * 그 전까지 시험은 `memoryDriveHolderSettings`(`@fresnel/group-sdk/testing`)를 쓴다.
  */

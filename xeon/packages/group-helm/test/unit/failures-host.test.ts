@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { DriveLockArbiterPortKey } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, fakeUsage } from "@fresnel/ext-host/testing";
 import { createGroupService } from "@fresnel/group-sdk";
@@ -13,7 +12,7 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriver: () => holder.read(null),
+      driveMaxDepth: () => 8,
       capabilityProviders: () => ({}),
       driveRequiresGroup: () => true,
     },
@@ -35,12 +34,6 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
     holder,
     currentThread: () => thread,
     report: () => {},
-  });
-  await t.host.registerPlatform({
-    name: "fresnel-groups",
-    setup(ctx) {
-      ctx.providePort(DriveLockArbiterPortKey, service);
-    },
   });
   await t.host.install({
     manifest: helmGroup.manifest,
