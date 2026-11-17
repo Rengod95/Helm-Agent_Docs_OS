@@ -4,6 +4,8 @@
 // 이 시험은 제품을 고치지 않는다. 다르면 어느 필드가 왜 다른지 보고한다.
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
+import { ok } from "@fresnel/contracts";
+import type { PluginModelValue, ToolResultView } from "@fresnel/contracts/capabilities";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DriveFrameView,
@@ -21,13 +23,21 @@ import {
   provideApprovals,
   releasedOf,
 } from "../primitives/fixtures/fake-approvals.ts";
+import {
+  fakeModels,
+  fakeTools,
+  provideModelsPort,
+  provideToolsPort,
+} from "../primitives/fixtures/fake-plugin-calls.ts";
 import { makeManifest, snapshotOf } from "../primitives/fixtures/support.ts";
+import { MAX_DRIVE_TOOL_COMMANDS } from "../../src/primitives/lease.ts";
 import {
   setFailure,
   setObserver,
   type FailureMode,
   type StepView,
 } from "./fixtures/drive-probe.ts";
+import { extension as callsExtension } from "./fixtures/drive-calls-plugin.ts";
 import { extension as parityExtension } from "./fixtures/drive-parity-plugin.ts";
 import { extension as handoffA } from "./fixtures/handoff-a-plugin.ts";
 import { extension as handoffB } from "./fixtures/handoff-b-plugin.ts";
@@ -68,6 +78,7 @@ function manifestOf(name: string, file: string): ExtensionManifest {
 }
 
 const PARITY = manifestOf("dp", "./drive-parity-plugin.ts");
+const CALLS = manifestOf("dc", "./drive-calls-plugin.ts");
 const HA = manifestOf("ha", "./handoff-a-plugin.ts");
 const HB = manifestOf("hb", "./handoff-b-plugin.ts");
 
@@ -506,4 +517,130 @@ test("B's process dying mid-step gives A an aborted handoff, the same as B's ste
   expect(deathFromIsolated.registration).toBe("registered");
   expect(deathFromEngine.errorCodes).toContain("process_exit");
   expect(deathFromIsolated.errorCodes).toContain("process_exit");
+});
+
+const TOOL_VIEW: ToolResultView = {
+  content: "file text",
+  structuredContent: { lines: 3 },
+  isError: false,
+  details: null,
+};
+
+interface CallsRun {
+  readonly recorded: Recorded;
+  readonly port: FakeProcessPort | null;
+  /** 엔진이 도구 포트에 건 요청 가운데 값으로 비교할 필드 */
+  readonly toolRequests: readonly unknown[];
+  /** 엔진이 모델 포트에 건 요청 가운데 값으로 비교할 필드 */
+  readonly modelRequests: readonly unknown[];
+}
+
+/** `model`·`tool` 명령을 내는 주도를 돌린다. 모델은 같은 요청 id의 두 번째 호출을 재생으로 답한다 */
+async function runCalls(placement: Placement, mode: string): Promise<CallsRun> {
+  const t = await createTestHost();
+  const tools = fakeTools(() => ok(TOOL_VIEW));
+  const seenModelRequests = new Set<string>();
+  const models = fakeModels((request) => {
+    const replayed = seenModelRequests.has(request.requestId);
+    seenModelRequests.add(request.requestId);
+    return ok({
+      text: "yes",
+      usage: { input: 30, output: 10, total: 40 },
+      stopReason: "stop",
+      replayed,
+    });
+  });
+  await provideToolsPort(t, tools.port);
+  await provideModelsPort(t, models.port);
+  const port = await installPlugin(t, CALLS, placement, callsExtension, 0);
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const trace: TraceRow[] = [];
+  observeInto(t, thread, trace);
+  try {
+    expect(t.host.startDrive(thread, "dc", { input: { mode } }).ok).toBe(true);
+    await t.settled();
+  } finally {
+    setObserver(null);
+  }
+  return {
+    recorded: await collect(t, thread, trace),
+    port,
+    toolRequests: tools.requests.map((request) => ({
+      plugin: request.plugin,
+      via: request.via,
+      target: request.target,
+      input: request.input,
+      requestId: request.requestId,
+    })),
+    modelRequests: models.requests.map((request) => ({
+      plugin: request.plugin,
+      requestId: request.requestId,
+      messages: request.messages,
+      label: request.label,
+    })),
+  };
+}
+
+test("model and tool commands run the same in-engine and isolated: order, settled records, result values, token charge and request id replay", async () => {
+  const expected = await runCalls("engine", "calls");
+  const actual = await runCalls("isolated", "calls");
+
+  // 기준: model(m1) → tool(t1) → model(m1 재생) → done
+  expect(expected.recorded.trace.map((row) => row.last?.kind ?? null)).toEqual([
+    null,
+    "ok",
+    "ok",
+    "ok",
+  ]);
+  expect(
+    expected.recorded.trace.map((row) => (row.last?.kind === "ok" ? row.last.of : null)),
+  ).toEqual([null, "model", "tool", "model"]);
+  const modelResult: PluginModelValue = {
+    text: "yes",
+    usage: { input: 30, output: 10, total: 40 },
+    stopReason: "stop",
+  };
+  expect(expected.recorded.trace[1]?.last).toEqual({ kind: "ok", of: "model", value: modelResult });
+  expect(expected.recorded.trace[2]?.last).toEqual({ kind: "ok", of: "tool", value: TOOL_VIEW });
+  expect(expected.recorded.trace[3]?.last).toEqual({ kind: "ok", of: "model", value: modelResult });
+  // 토큰 차감: 첫 모델 호출이 40을 쓰고, 같은 요청 id의 재생은 다시 차감하지 않는다
+  expect(expected.recorded.trace.map((row) => row.budget.tokens)).toEqual([100, 60, 60, 60]);
+  expect(expected.recorded.commands).toMatchObject([
+    { scopeId: "dc", requestId: "m1", command: "model", outcome: "completed" },
+    { scopeId: "dc", requestId: "t1", command: "tool", outcome: "completed" },
+  ]);
+  expect(expected.toolRequests).toEqual([
+    {
+      plugin: { name: "dc", scopeId: "dc" },
+      via: "drive",
+      target: { kind: "tool", name: "read" },
+      input: { path: "a.txt" },
+      requestId: "t1",
+    },
+  ]);
+  expect(expected.modelRequests).toHaveLength(2);
+
+  expectPlacement("isolated", actual.port);
+  expect(actual.recorded.trace).toEqual(expected.recorded.trace);
+  expect(actual.recorded.commands).toEqual(expected.recorded.commands);
+  expect(actual.recorded.acquired).toEqual(expected.recorded.acquired);
+  expect(actual.recorded.released).toEqual(expected.recorded.released);
+  expect(actual.recorded.states).toEqual(expected.recorded.states);
+  expect(actual.toolRequests).toEqual(expected.toolRequests);
+  expect(actual.modelRequests).toEqual(expected.modelRequests);
+});
+
+test("a tool-only drive is ended by the tool command limit as budget, the same in-engine and isolated", async () => {
+  const expected = await runCalls("engine", "forever");
+  const actual = await runCalls("isolated", "forever");
+
+  expect(expected.toolRequests).toHaveLength(MAX_DRIVE_TOOL_COMMANDS);
+  expect(expected.recorded.released.map((released) => released.reason)).toEqual(["budget"]);
+  expectPlacement("isolated", actual.port);
+  expect(actual.toolRequests).toEqual(expected.toolRequests);
+  expect(actual.recorded.trace).toEqual(expected.recorded.trace);
+  expect(actual.recorded.commands).toEqual(expected.recorded.commands);
+  expect(actual.recorded.released).toEqual(expected.recorded.released);
+  expect(actual.recorded.states).toEqual(expected.recorded.states);
 });
