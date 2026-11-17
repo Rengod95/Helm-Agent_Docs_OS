@@ -15,11 +15,11 @@ binds: []
 >
 > **이 문서가 바꿀 층 스펙:** `docs/xeon/F/extensions/spec.md`, `docs/xeon/F/wire-settings/spec.md`, `docs/xeon/F/records/spec.md`, `docs/xeon/F/conversation/spec.md`, `docs/xeon/X/primitives/spec.md`, `docs/xeon/X/loading-trust/spec.md`, `docs/xeon/X/operations/spec.md`, `docs/xeon/L1/context/spec.md`, `docs/xeon/L1/agents/spec.md`, `docs/xeon/L1/tools/spec.md`, `docs/xeon/L2/workspace/spec.md`, `docs/xeon/L2/knowledge/spec.md`, `docs/xeon/L2/mcp/spec.md`, `docs/xeon/L3/authoring/spec.md`, `docs/xeon/L4/host-service/spec.md`.
 >
-> **원천:** `_notes/design/lc/spec/m5c-profile-project-loader.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
+> **원천:** `_notes/design/lc/spec/m5c-profile-project-loader.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow"·"flow R<n>" = 화면 스펙 제1부(흐름 n), "개념 문서"·"개념 §9" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
 
-초안 1, 2026-11-17. 결정의 정본은 `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`(§9, §10), `docs/xeon/review/m6/craft-flows.md`(§2, §8), `docs/xeon/review/m5-plan.md`, `docs/xeon/review/m5/drive-isolation.md`(2026-11-17 통합본), `_notes/m4-decisions.md` "2026-11-16~17"이다. 이 문서는 그 결정을 코드와 맞춘 스펙 초안이고, 결정이 없는 곳은 [제안]과 기본값을 적었다. 코드 사실은 `cyP 워크트리`(작업 트리, 읽기 전용으로 확인)의 `path:line`으로 인용한다. 번호는 읽은 시점 값이다.
+초안 1, 2026-11-17. 결정의 정본은 `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`(§3), `docs/xeon/review/m6/craft-flows.md`(제1부 흐름), `docs/xeon/review/m5-plan.md`, `docs/xeon/review/m5/drive-isolation.md`(2026-11-17 통합본), `_notes/m4-decisions.md` "2026-11-16~17"이다. 이 문서는 그 결정을 코드와 맞춘 스펙 초안이고, 결정이 없는 곳은 [제안]과 기본값을 적었다. 코드 사실은 `cyP 워크트리`(작업 트리, 읽기 전용으로 확인)의 `path:line`으로 인용한다. 번호는 읽은 시점 값이다.
 
-**통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 이름과 저장 문자열이 겹치는 곳은 엔진 설계 통합본의 "공통 어휘"가 정본이다: 플러그인 정체는 이름(`pluginId`), 버전 정체(`versionId`)는 검토본의 내용 해시와 초안의 `draft:<draftId>:<해시 앞 8자>`다. 훅 위치·결정값·기록된 결과값은 F(`m5e`)와 E(`m5d`)가 정의하고 이 문서는 인용만 한다. Craft 화면이 맡을 것은 `docs/xeon/review/m6/craft-flows.md`를 가리킨다. 사용자 결정이 필요한 것은 [열림 U<n>]과 [권고]로 적었고, 아래 규칙은 그 답을 조용히 가정하지 않는다(§10).
+**통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 이름과 저장 문자열이 겹치는 곳은 엔진 설계 통합본의 "공통 어휘"가 정본이다: 플러그인 정체는 이름(`pluginId`), 버전 정체(`versionId`)는 검토본의 내용 해시와 초안의 `draft:<draftId>:<해시 앞 8자>`다. 훅 위치·결정값·기록된 결과값은 F(`m5e`)와 E(`m5d`)가 정의하고 이 문서는 인용만 한다. Craft 화면이 맡을 것은 `docs/xeon/review/m6/craft-flows.md`를 가리킨다. U1~U6은 2026-11-17에 사용자가 정해 본문에 반영했다. 아직 정해지지 않은 것은 [제안]·[권고: 메인 세션, 확인 대기]·[확인 대기]로 적었고 §10에 모았으며, 아래 규칙은 그 답을 조용히 가정하지 않는다.
 
 `terms.json`의 thread 항목에 금지 별칭이 있어 이 문서는 "대화"를 쓰고, 대화가 시작하는 폴더는 "대화 폴더"로 부른다. 화면 용어는 플러그인, 프로필, Inject / Hook / Drive만 쓴다(확장, 플러그인 그룹은 화면에서 쓰지 않는다). 코드 식별자(`ExtensionManifest`, `ext.*`)는 그대로 인용한다.
 
@@ -44,10 +44,10 @@ binds: []
 | 단계 함수, 프레임 스택, 플러그인 프로세스, 샌드박스, `handoff`, 한도 | 엔진 설계 스펙(`docs/xeon/review/m5/drive-isolation.md`를 스펙으로 옮긴 것). 이 문서는 그 결과를 전제하고 §9.1에 요구를 적는다 |
 | 턴 기록 저장, 지표, 시험 기록 분리의 집계 | 기록과 지표 스펙(R12, R16, R18, R19). 이 문서는 `profile.applied` 레코드와 `draft` 표지만 준다 |
 | Hook 정리, 같은 Hook 안의 호출 순서 바꾸기 UI | Hook 정리 스펙(R21) |
-| Craft 화면, 프로필 칩, 검토함 화면, Craft 대화창의 창, 테스트 화면 | Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`, R16, R17, R23). 테스트 대화의 **엔진 쪽**은 이 문서(§4.8)가 유일한 소유자다 |
-| 마켓, 외부 배포, 다른 하네스 형식 읽기 호환 | 하지 않는다(PRD §3 [결정], 2026-11-17 재확인). 지금 읽는 `.mcp.json`·`.agents/skills`도 제거한다(§4.4.10) |
+| Craft 화면, 프로필 칩, 검토함 화면, 테스트 대화 창, 테스트 화면 | Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`, R16, R17, R23). 테스트 대화의 **엔진 쪽**은 이 문서(§4.8)가 유일한 소유자다 |
+| 마켓, 외부 배포, 다른 하네스 형식 읽기 호환 | 하지 않는다(`m5-plan.md` §3 [결정: 2026-11-17 사용자]. 지금 읽는 `.mcp.json`·`.agents/skills`도 제거한다(§4.4.10) |
 | 다른 하네스 형식의 변환(마이그레이션 기능) | 별도 항목으로 설계하고 만든다(§7.9, 로드맵 M5g). 이 문서는 그 입구(제거 시점)만 정한다 |
-| 플러그인별 네트워크 허용 목록, Windows 샌드박스 | 격리 3단계(PRD §5 P2) |
+| 플러그인별 네트워크 허용 목록, Windows 샌드박스 | 격리 3단계(`m5-plan.md` §5 P2) |
 
 ## 2. 용어
 
@@ -58,7 +58,7 @@ binds: []
 | 공통 묶음 | 사용자가 두는 "모든 프로필 공통" 플러그인과 설정 값. 모든 프로필에 항상 더해진다 [결정: 2026-11-16 개념 §6] |
 | 시작 Drive | 프로필이 가진 "대화를 시작할 때 누가 주도하나"(없음 또는 플러그인 하나). 저장 필드 이름은 `driver` |
 | 코어 설정 값 | 코어 블록이 읽는 설정 키(권한 모드, 기본 모델 등)의 프로필별 값. 별도 "블록 설정" 개념은 없다. 화면이 블록별로 나눠 보일 뿐이다 [결정: 2026-11-16] |
-| 덧씌우기 (overlay) | 프로필 기록은 그대로 두고 이번 턴(Drive는 반납까지)의 켜짐 집합에만 플러그인을 더하는 것 [결정: craft-flow §8] |
+| 덧씌우기 (overlay) | 프로필 기록은 그대로 두고 이번 턴(Drive는 반납까지)의 켜짐 집합에만 플러그인을 더하는 것 [결정: 2026-11-17 사용자] |
 | 프로젝트 | 루트 작업 폴더 하나에 대화가 묶이는 최소 공통 맥락. 공통 지침, 파일, 플러그인 설정을 공유하지 않는다 [결정: 2026-11-17] |
 | 프로젝트 루트 | 프로젝트의 작업 폴더. 쓰기 허용 범위 |
 | 대화 폴더 | 대화가 시작하는 폴더. 프로젝트 루트 안의 아무 하위 폴더이고 구성 제약이 없다 [결정: 2026-11-17]. 저장 필드는 `workspace` |
@@ -69,7 +69,7 @@ binds: []
 | 후보 | 아직 승인하지 않은 폴더 내용. 검토 항목이 가리킨다 |
 | 초안 (draft) | 사용자 또는 담당 AI가 만든, 승인 전 플러그인 폴더의 스냅샷. 테스트 실행과 명시적 덧씌우기에서만 돈다 |
 | 플러그인 정체, 버전 정체 | `pluginId` = 플러그인 이름. `versionId` = 검토본은 `contentHash`(`sha256:<hex>`), 초안은 `draft:<draftId>:<해시 앞 8자>`. 기록(E)과 프레임(C)이 같은 문자열을 쓴다 |
-| 테스트 대화, 테스트 실행 | 테스트 대화 = Craft 전용 AI 대화 [결정: craft-flow §8]. 테스트 실행 = 초안을 얹은 임시 구성으로 에이전트를 돌리는 일 [결정: 2026-11-17 사용자]. 화면의 장소 이름은 "테스트"다 [권고, 사용자의 다른 안은 "실험실", 확인 대기] |
+| 테스트 대화, 테스트 실행 | 테스트 대화 = Craft 전용 AI 대화 [결정: 2026-11-17 사용자]. 테스트 실행 = 초안을 얹은 임시 구성으로 에이전트를 돌리는 일 [결정: 2026-11-17 사용자]. 화면의 장소 이름은 "테스트"다 [결정: 2026-11-17 사용자] |
 | 카드 | 모든 플러그인이 같은 자리에 보이는 공통 스키마 값(§3.1 `PluginCard`) |
 | 검토 항목 | 검토함의 한 줄. 종류는 `new`, `update`, `remove` |
 
@@ -257,7 +257,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `profile.common.get` / `profile.common.put` | 같음 | `{}` / `{ common; baseRev }` | `{ common; issues }` | `profile.conflict`, `profile.invalid` |
 | `profile.preview` | 같음 (지금 `ProfilePreviewResult` 대체) | `{ id?: string; draft?: ProfileInput; threadId?: string }`(둘 중 하나) | `{ resolved: PluginRef[]; issues; cost: { total: CostFigures; byPlugin: PluginCost[] }; missingRequired: { plugin; key }[]; threadsUsing: number; permission?: { from; to }; toolsChanged?: { added; removed }; cacheImpact?: "none" \| "tool_change_append" \| "readvertise" }` | `profile.notFound` |
 | `profile.defaultFor` | 같음 | `{ workspace?: string }` | `{ profileId }` | -. 계산 규칙은 §4.4.8 [결정: 2026-11-17 사용자, U5] |
-| `profile.removePlugin` | 같음 | `{ id; plugin; baseRev: number }` | `{ profile; preview: { threadsUsing; permission?; toolsChanged?; driveFrameAffected: boolean } }` | `profile.notFound`, `profile.conflict`, `profile.pluginNotInProfile`(공통 묶음에서 온 것이면 `profile.commonPlugin`) |
+| `profile.removePlugin` | 같음 | `{ id; plugin; baseRev: number }` | `{ profile; preview: { threadsUsing; permission?; toolsChanged?; dropsDrive: { threadCount: number } | null } }` | `profile.notFound`, `profile.conflict`, `profile.pluginNotInProfile`(공통 묶음에서 온 것이면 `profile.commonPlugin`) |
 | `thread.setProfile` | 호스트 `handlers/thread.ts` | `{ threadId; profileId }` | `{ position; preview: { permission?; toolsChanged?; cacheImpact? } }` | `profile.notFound`, `thread.notFound`, `thread.notOwner` |
 | `thread.create` (변경) | 같음 | `profileId`를 `testRun` 없이도 받는다(지금 `thread.ts:35-40`은 `testRun: true`일 때만). `workspace`는 프로젝트 안 폴더 | `ThreadCreateResult`에 `project`, `profileId`, `sameFolder: { threadId; status }[]`(같은 폴더의 다른 열린 대화) 추가 | `project.rootInvalid`, `profile.notFound` |
 | `turn.start` (변경) | 호스트 | `overlay?: OverlayRef[]`(최대 4) | `TurnStartResult`에 `cacheImpact?` 추가 | `overlay.notReviewed`, `overlay.notFound`, `overlay.limit`, `overlay.noEntry` |
@@ -266,7 +266,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `plugin.invocables` | 같음 | `{ threadId }` | `{ entries: InvocableEntry[] }`(프로필 밖 검토된 플러그인의 명령, 스킬, Drive 시작. 모든 검토된 플러그인은 이름으로 얹는 `kind: "plugin"` 항목을 하나 가진다) | `thread.notFound` |
 | `plugin.scan` | 같음 | `{ projectId? }` | `{ queued: string[] }`(새 검토 항목 id) | `project.notFound` |
 | `plugin.revert` | 같음 | `{ name }` | `{ restored: true }`(원본 폴더를 현재 검토본 내용으로 되돌림) | `extension.notFound`, `plugin.noReviewedCopy` |
-| `plugin.requestRemove` | 같음 (`ext.remove`·`ext.removePreview` 대체) | `{ name }` | `{ itemId }` | `extension.notFound`, `plugin.coreBlock` |
+| `plugin.requestRemove` | 같음 (`ext.remove`·`ext.removePreview` 대체) | `{ name }` | `{ itemId }` | `extension.notFound`, `plugin.requiredByCore`(E2의 L1 분할이 끝나기 전까지만: §4.1.17. 분할 뒤에는 이 오류가 없고 모든 플러그인을 뺄 수 있다) |
 | `plugin.draft.create` | 같음 | `{ dir; originThreadId? }` | `{ draftId; contentHash; card }` | `plugin.invalid`(`details.issues`), `plugin.tooLarge`, `plugin.symlinkRefused` |
 | `plugin.draft.discard` | 같음 | `{ draftId }` | `{}` | `draft.notFound` |
 | `pluginReview.list` | F 검토 wire(새 파일), 호스트 | `{ state?: ReviewState; name?: string }` | `{ items: ReviewItem[] }`(`files`와 `card`는 요약) | - |
@@ -284,7 +284,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 
 이름 공간과 오류 코드 배정(교차 점검 §5-C). 검토함 메서드와 알림은 이미 있는 변경 검토 `review.get`(`wire/dialog-area.ts:497`)과 겹치지 않도록 `pluginReview.*`로 쓴다(오류 이름도 같은 접두). `plugin.*`는 지금의 `ext.*` 곁에 두는 새 접두이고, 없는 플러그인은 새 오류를 만들지 않고 기존 `extension.notFound`(3401)를 쓴다. 오류 코드는 프로필 계열이 3300~3399의 남은 자리, 프로젝트·플러그인·덧씌우기·초안이 3600~3649, 검토함(`pluginReview.*`)이 3650~3669이고 3670~3699는 예약이다. 기록·지표(E)는 3500~3599, 블록(F `blocks.*`)은 3700~3719다. `WIRE_PROTOCOL_VERSION`은 M5 트랙이 각자 올리지 않고 통합 담당이 한 번에 올린다.
 
-제거: `profile.apply`, `ProfileApplyParams`, `ProfileLayer`, `PROFILE_LAYERS`(`profile-test-run.ts:151`), `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`(`devkit.ts:451-454`). 유지: `ext.list`, `ext.get`, `ext.health`, `ext.timings`, `ext.reload`, `ext.versions`, `ext.rollback`, `ext.reenable`, `ext.disableConfirm`(오류 정지 상태를 풀거나 확정하는 일에만 쓴다. 켜기·끄기 스위치가 아니다), `ext.scaffold`, `ext.validate`, `ext.package`, `ext.test.*`, `ext.ui.*`. `ext.list`의 `enabledSource`(`ext-read.ts:48`, 지금 `managed, thread, project, user, default`)를 `core | common | profile | overlay | managed | none`으로 바꾼다.
+제거: `profile.apply`, `ProfileApplyParams`, `ProfileLayer`, `PROFILE_LAYERS`(`xeon/packages/contracts/src/wire-settings/wire/profile-test-run.ts:151`), `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`(`devkit.ts:451-454`). 유지: `ext.list`, `ext.get`, `ext.health`, `ext.timings`, `ext.reload`, `ext.versions`, `ext.rollback`, `ext.reenable`, `ext.disableConfirm`(오류 정지 상태를 풀거나 확정하는 일에만 쓴다. 켜기·끄기 스위치가 아니다), `ext.scaffold`, `ext.validate`, `ext.package`, `ext.test.*`, `ext.ui.*`. `ext.list`의 `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:48`, 지금 `managed, thread, project, user, default`)를 `core | common | profile | overlay | managed | none`으로 바꾼다.
 
 `InvocableEntry`: `{ plugin: string; entry: string; kind: "skill" | "command" | "drive" | "plugin"; title: string; reviewedHash: string }`. `kind: "plugin"`은 이름으로 플러그인 전체를 얹는 입구이고 Hook 전용·도구 전용 플러그인처럼 사용자가 직접 부를 스킬·명령·Drive 시작이 없는 플러그인도 일회 사용으로 얹을 수 있게 한다(§4.3.2).
 
@@ -387,11 +387,11 @@ export type ContextRef =
 14. 프로필 삭제는 참조하는 대화를 `default`로 다시 읽게 한다(1번). 삭제 결과의 `reassignedThreads`는 호스트가 아는 열린 대화 수다.
 15. 서브에이전트: 자식 대화의 `thread.started.profileId`는 생성 시점의 부모 값이다. 이후 그 프로필의 편집은 자식에게도 적용된다. 부모의 이후 전환은 이미 도는 자식을 바꾸지 않는다 [제안]. 대화 폴더는 부모 것을 물려받고(`core-agents/src/service.ts:1033-1043`이 이미 한다. fork 경로 제외) 권한은 부모 천장을 넘지 못한다(`core-agents/src/permission-ceiling.ts`). 덧씌우기는 물려주지 않는다 [제안].
 16. 프로필 변경의 감사 가능성: 한 대화에서 어느 프로필 개정(`profileRev`, `commonRev`)과 어느 검토본 해시로 돌았는지는 `profile.applied`의 `profileRev`, `commonRev`, `updated`로 복원된다.
-17. **내장 플러그인을 프로필에서 빼는 일의 순서.** `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
+17. **내장 플러그인을 프로필에서 빼는 일의 순서.** `cap-workspace`와 `cap-dialog`의 코어 부분(F D-27·D-28, 엔진 설계 E2의 L1 분할)이 L1로 내려가기 전에는 이 둘을 프로필에서 뺄 수 없는 필수로 표시한다(빼면 도구 파이프라인의 파일 서비스와 사람에게 묻기가 사라진다). 분할 뒤에는 코어가 아니라 플러그인으로 남는 부분만 뺄 수 있다. 코어는 프로필에 적지 않고 항상 켜져 있다(3번). "뺄 수 없는 플러그인"은 없다 [엔진 설계 §8, 결정: 2026-11-17 사용자, U4 확정]. 이 표시와 오류 `plugin.requiredByCore`는 L1 분할 전의 일시 조치이고 분할 뒤 삭제한다(코어는 코어이고 모든 플러그인은 프로필에서 뺄 수 있다). 쓰기 범위(§4.4.4)가 고치는 `cap-workspace/src/roots.ts`, `shell/run.ts`는 F가 새 코어 서비스로 옮기는 파일이므로 §4.4.4의 구현은 그 이동(F 9절 6단계) 뒤의 경로에서 한다.
 
 ### 4.2 프로필 내용과 검증
 
-1. 플러그인 목록은 순서가 있다. 같은 자리(같은 Hook)에 여럿이 걸릴 때 기본 호출 순서는 `E(T)`의 순서(공통 묶음, 프로필, 덧씌우기 순. 중복은 처음 것)다. tier가 먼저이고 같은 tier 안에서 `loadIndex`를 `E(T)` 위치로 정한다 [제안]. tier 체계는 F §5.2 O-2가 정한다: [결정: 2026-11-17 사용자, U3] `guard`(맨 앞) / `plugin`(번들·사용자·프로젝트 전부 한 등급) / `core`(맨 뒤)의 셋으로 줄이고 "guard 맨 앞" 기본은 유지한다. 줄이면 번들·사용자·프로젝트의 구분이 정렬에서 빠지고 프로필 목록 순서가 그 일을 한다. U3이 정해질 때까지 `tier.ts:orderKeyOf`는 지금 규칙을 쓴다. 블록 상세에서 순서를 바꾸는 방법은 Hook 정리 스펙(F §5.2)이 정한다.
+1. 플러그인 목록은 순서가 있다. 같은 자리(같은 Hook)에 여럿이 걸릴 때 기본 호출 순서는 `E(T)`의 순서(공통 묶음, 프로필, 덧씌우기 순. 중복은 처음 것)다. tier가 먼저이고 같은 tier 안에서 `loadIndex`를 `E(T)` 위치로 정한다 [제안]. tier 체계는 F §5.2 O-2가 정한다: [결정: 2026-11-17 사용자, U3] 등급을 셋으로 줄이고 guard를 맨 앞에 둔다. 등급 이름 `guard` / `plugin`(번들·사용자·프로젝트 전부 한 등급) / `core`(맨 뒤)와 그 순서는 [제안]이다. 줄이면 번들·사용자·프로젝트의 구분이 정렬에서 빠지고 프로필 목록 순서가 그 일을 한다. 구현(M5e-2) 전에는 `tier.ts:orderKeyOf`가 지금 규칙을 쓴다. 블록 상세에서 순서를 바꾸는 방법은 Hook 정리 스펙(F §5.2)이 정한다.
 2. 플러그인 설정 값은 `settings`에 `ext.<name>.<key>`로 두고, 소유 플러그인이 정해진 `l2.*`/`l3.*` 키(§3.3 표)도 같다. 정하지 않은 키는 플러그인 기본값을 쓴다(유효 값 계산이 `profile` 층에서 값을 못 찾으면 아래 층으로 내려간다). 키 정의의 소유 플러그인이 `E`(공통 묶음, 프로필)에 없으면 저장할 수 없다(`setting_unknown_key`).
 3. 시크릿 값: 정의가 `secret: true`(`SecretRef` 타입)인 키는 `secret://<이름>` 형태만 저장한다. 리터럴이면 `secret_literal` 오류이고 값은 이벤트, 로그, 오류에 싣지 않는다. 시크릿 저장소에 이름이 없으면 `secret_missing` 경고다. 프로필은 참조만 가지고, 값은 사용 때 `fresnel.secrets`가 연다(`L0.secrets.spec` §4.2, §4.3).
 4. 코어 설정 값: 키 정의의 `allowedScopes`에 `profile`이 있는 키만 둔다. 검사는 지금의 `checkSettingWrite`(`profile-test-run-port.ts:125`)를 `profile` 범위로 호출한다. 프로필이 권한 모드를 두지 않으면(미설정) 아래 층의 값(사용자 파일, 기본값 `bypass`)이 쓰인다. 새 프로필은 만들 때 `default`의 코어 설정 값을 복사해 시작한다 [제안].
@@ -410,13 +410,13 @@ export type ContextRef =
 ### 4.3 덧씌우기
 
 1. 대상은 검토된 플러그인(현재 검토본이 있는 것)과 초안이다. 검토본이 없는 후보를 이름으로 지정하면 `overlay.notReviewed`다. `draftId`는 `plugin.draft.create`가 만든 스냅샷만 가리킨다.
-2. 사용자가 프로필 밖 플러그인의 스킬, 명령, Drive 시작을 직접 부르면 클라이언트가 `plugin.invocables`로 목록을 얻고 `turn.start { overlay: [...] }`로 보낸다. 모든 플러그인 유형(Inject, Hook, Drive, 도구)을 허용한다 [결정: craft-flow §8]. 스킬·명령·Drive 시작이 없는 Hook 전용·도구 전용 플러그인은 `kind: "plugin"` 항목(이름으로 얹기)으로 부른다(`OverlayRef.entry`를 생략하면 이름으로 얹는다). 사용자가 직접 부른 스킬·명령은 턴 입력(`turn.started`의 선택 필드 `invoked: { plugin; entry; kind }[]` [제안])에 남겨 기록(E)이 `via: "user"`로 읽는다.
+2. 사용자가 프로필 밖 플러그인의 스킬, 명령, Drive 시작을 직접 부르면 클라이언트가 `plugin.invocables`로 목록을 얻고 `turn.start { overlay: [...] }`로 보낸다. 모든 플러그인 유형(Inject, Hook, Drive, 도구)을 허용한다 [결정: 2026-11-17 사용자]. 스킬·명령·Drive 시작이 없는 Hook 전용·도구 전용 플러그인은 `kind: "plugin"` 항목(이름으로 얹기)으로 부른다(`OverlayRef.entry`를 생략하면 이름으로 얹는다). 사용자가 직접 부른 스킬·명령은 턴 입력(`turn.started`의 선택 필드 `invoked: { plugin; entry; kind }[]` [제안])에 남겨 기록(E)이 `via: "user"`로 읽는다.
 3. 적용 시점은 그 턴의 입력 처리 앞이다. `E(T)`에 대화의 덧씌우기가 더해지고 `profile.applied { reason: "overlay_on", overlay }`가 한 번 남는다. 이미 `E(T)`에 있는 플러그인을 지정하면 아무것도 하지 않고 `alreadyInProfile`로 본다.
 4. 해제: Inject와 Hook과 도구는 그 턴이 정착할 때, Drive 항목은 그 플러그인 프레임이 어떤 이유로든 해제될 때(`lease.released`, 사용자 중지, 오류)다. 프로필 전환은 해제 사유가 아니다. 해제 때 `profile.applied { reason: "overlay_off" }`를 남긴다. 중지는 스택 전체를 내리므로 모든 덧씌우기가 해제된다(엔진 설계 §2.4).
 5. 재시작 복원: 턴 덧씌우기는 활성 가지의 `overlay_on`에 짝 `overlay_off`가 없고 그 턴이 정착하지 않았으면 이어서 쓴다. Drive 덧씌우기는 복원된 프레임 스택에서 프로필 밖 플러그인을 덧씌우기로 되살린다(프레임이 `lease.acquired.contentHash`를 가진다).
 6. 덧씌우기는 프로필, 공통 묶음, `usedBy`를 바꾸지 않는다. 검토본의 프로필 설정 값은 프로필 쪽에 있으므로 덧씌우기 플러그인은 플러그인 기본값으로 돈다 [제안]. 덧씌우기 플러그인이 필수 설정을 가졌고 값이 없으면 `waiting`이 되고 흔적에 표시한다.
 7. 도구를 더하는 덧씌우기는 그 턴의 도구 목록을 바꾼다. 프롬프트 캐시 처리는 `L1.context.spec` §4.3을 따른다: 모델 캐시 정책의 `midConversationToolChanges`가 참이면 `tool_change` 항목을 덧붙이고(접두는 그대로, 캐시가 깨지는 곳은 덧붙인 위치부터), 거짓이면 명시 재광고(`readvertise(explicit)`)로 그 턴에 한 번 접두 캐시를 다시 쓴다. 해제 때는 제거를 덧붙일 수 있으면 덧붙이고 못 하면 광고 목록을 두며(호출은 디스패치가 거부한다) 두 번째 재광고를 강제하지 않는다. 결과는 `turn.start`의 `cacheImpact`로 알린다. Hook과 지침만 더하는 덧씌우기는 도구 목록을 바꾸지 않는다. 지침을 더하면 `sections`가 바뀌므로 `midConversationSections`가 거짓이면 다음 컴팩션까지 모델에 보이지 않는다. 덧씌우기가 지침을 싣는 경우 이 제약을 흔적에 표시한다 [제안].
-8. 초안 덧씌우기: 초안은 스냅샷 폴더에서 격리된 플러그인 프로세스로 돈다(엔진 설계 §3). 격리 프로세스는 격리 1단계(P1)가 있어야 하므로 **P1 전에는 초안 덧씌우기를 켜지 않고 `overlay.draftUnavailable`로 거부한다**. 같은 이름의 검토본이 있으면 이 대화에서는 초안이 그 자리를 대신한다(그래서 같은 이름의 두 `versionId`가 한 대화에서 번갈아 쓰일 수 있고 프로세스 키는 `(이름, draftId)`다). `profile.applied.overlay[].draftId`가 초안 표지의 원천이고, 호스트 기록기가 이로부터 그 턴에 `scope_kind = overlay_draft`를 쓴다(표지의 정본은 E §4.6 규칙 31이다). 지표 집계는 `scope_kind`로 초안 활동을 뺀다(§9.2). 초안은 자동 끄기 장부의 실패 횟수에 넣지 않는다 [제안]. 초안 덧씌우기는 프로젝트 동반 플러그인에는 쓸 수 없다(초안은 사용자 자신의 폴더에서만 만든다).
+8. 초안 덧씌우기: 초안은 스냅샷 폴더에서 격리된 플러그인 프로세스로 돈다(엔진 설계 §3). 격리 프로세스는 격리 1단계(P1)가 있어야 하므로 **P1 전에는 초안 덧씌우기를 켜지 않고 `overlay.draftUnavailable`로 거부한다**(이 규칙은 [권고: 메인 세션, 확인 대기]이고 §10-12가 대안을 적는다). 같은 이름의 검토본이 있으면 이 대화에서는 초안이 그 자리를 대신한다(그래서 같은 이름의 두 `versionId`가 한 대화에서 번갈아 쓰일 수 있고 프로세스 키는 `(이름, draftId)`다). `profile.applied.overlay[].draftId`가 초안 표지의 원천이고, 호스트 기록기가 이로부터 그 턴에 `scope_kind = overlay_draft`를 쓴다(표지의 정본은 E §4.6 규칙 31이다). 지표 집계는 `scope_kind`로 초안 활동을 뺀다(§9.2). 초안은 자동 끄기 장부의 실패 횟수에 넣지 않는다 [제안]. 초안 덧씌우기는 프로젝트 동반 플러그인에는 쓸 수 없다(초안은 사용자 자신의 폴더에서만 만든다).
    - **[결정: 2026-11-17 사용자, U2] 초안이 `bypass` 대화에서 실제 작업에 이를 때.** 프로필 `default`의 권한 모드는 `bypass`이고 플러그인 호출도 대화의 권한 모드로 평가한다(F §5.3 U-6). 그러면 검토 전 코드(초안)가 승인 없이 파일을 쓸 수 있다. 사용자가 정했다: 초안 출신 호출은 모드와 무관하게 항상 승인 카드를 띄우고 "초안" 표시를 단다. 같은 결정이 craft-flow §2 R2의 "[확인 대기]"를 닫는다.
 9. 덧씌우기 한도: 한 턴에 4개. 넘으면 `overlay.limit`.
 10. **일회 사용의 입구는 입력창의 `/`다** [결정: 2026-11-17 사용자]. 스킬, 명령, Drive 플러그인, Hook 전용·도구 전용 플러그인 모두 `/`로 부른다. 명령이 없는 플러그인(Hook 전용, 도구 전용)은 `/<플러그인 이름>`이 그 플러그인 전체를 그 턴에 덧씌운다(Drive는 프레임이 해제될 때까지, 시작 항목이 있으면 `/<이름>`은 그 시작이다). 대상은 검토된 플러그인뿐이다. 초안은 `/`의 이름 해석에 나오지 않고 사용자가 명시로 고를 때만 얹힌다(T6 카드의 "이 대화에서 써 보기", 또는 정확한 `/draft:<이름>`. 초안 출신 호출은 U2대로 항상 카드).
@@ -427,18 +427,18 @@ export type ContextRef =
 1. 프로젝트는 `projects.json`의 `Project`다. `root`는 존재하는 절대 폴더이고 심볼릭 링크를 푼 정규 경로로 저장한다. 같은 정규 경로가 이미 있으면 `project.exists`, 폴더가 없거나 절대 경로가 아니면 `project.rootInvalid`. 루트가 다른 루트 안에 있는 중첩은 허용한다.
 2. 소속은 저장하지 않고 계산한다: 대화 폴더(`thread.started.workspace`)를 포함하는 루트 가운데 가장 깊은 것이 그 대화의 프로젝트다. 프로젝트를 새로 만들면 그 안의 기존 대화가 따라 들어온다. 프로젝트를 지워도 대화는 남고 같은 계산으로 바깥 루트에 속하거나 4번 규칙의 "프로젝트 없음"이 된다. 루트 폴더를 옮기거나 이름을 바꾼 경우는 다루지 않는다(미결 6).
 3. 대화 폴더는 루트 안의 아무 하위 폴더다. 구성 제약이 없다 [결정: 2026-11-17]. `thread.create { workspace }`가 어느 루트에도 속하지 않는 폴더를 주면 호스트가 그 폴더를 루트로 하는 프로젝트를 만든다(`result.project`에 알린다) [제안: 미결 2]. 이렇게 하면 `fresnel` CLI의 cwd 시작과 예약 실행(`handlers/schedule.ts:59`)이 그대로 동작한다.
-4. 쓰기 허용 범위는 프로젝트 루트 전체다 [결정: 2026-11-17]. 지금 읽기·쓰기 허용 root는 대화 폴더 하나다(`cap-workspace/src/roots.ts` `defaultRoots`, `scope.ts:21-24`). 바꿀 곳: `scopedDeps`가 `workspaceOf` 대신 프로젝트 루트를 만들고, `env.cwd`는 대화 폴더로 두며, `roots.write = [프로젝트 루트]`, `roots.read = [프로젝트 루트, 출력 사본 폴더]`로 한다 [제안: 읽기도 루트까지]. 샌드박스의 쓰기 root(`shell/run.ts:179` `workspaceRoots`)가 같은 값을 받는다. 보호 경로(`.git/hooks` 등)는 그대로다.
+4. 쓰기 허용 범위는 프로젝트 루트 전체다 [결정: 2026-11-17 사용자]. 지금 읽기·쓰기 허용 root는 대화 폴더 하나다(`cap-workspace/src/roots.ts` `defaultRoots`, `scope.ts:21-24`). 바꿀 곳: `scopedDeps`가 `workspaceOf` 대신 프로젝트 루트를 만들고, `env.cwd`는 대화 폴더로 두며, `roots.write = [프로젝트 루트]`, `roots.read = [프로젝트 루트, 출력 사본 폴더]`로 한다 [제안: 읽기도 루트까지]. 샌드박스의 쓰기 root(`shell/run.ts:179` `workspaceRoots`)가 같은 값을 받는다. 보호 경로(`.git/hooks` 등)는 그대로다.
 5. 프로젝트가 없는 대화(`workspace` 없이 생성): 기본 폴더 아래에 대화 폴더를 만든다. 경로는 `<기본 폴더>/<threadId>`이고 생성 때 만든다. 기본 폴더는 `l4.host.defaultFolder`(빈 값이면 `<OsDirs.data>/default-project`)다. 지금은 호스트 프로세스의 cwd로 떨어진다(`ThreadStartedPayload.workspace` 주석 `lifecycle.ts:57-60`, `scopedDeps`가 `workspace === null`이면 그대로 둠). 이 대화들의 "프로젝트"는 id `prj_default`의 암묵 프로젝트이고 `projects.json`에 없다. 쓰기 범위는 대화 폴더(`<기본 폴더>/<threadId>`)다(기본 폴더 전체는 아니다) [제안: 서로 무관한 대화가 파일을 섞지 않게. 미결 1].
 6. 이미 `workspace`가 null인 기존 대화는 읽기 전용으로 열지 않고 지금처럼 호스트 cwd를 쓴다(저장된 대화의 동작을 바꾸지 않는다) [제안]. 마이그레이션 §7.6.
-7. 지침 파일: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모은다. 모델 문맥에 넣는 방법은 `sections`다: 키 `project:<R 기준 상대 경로>`, 값은 파일 내용 그대로(머리말이나 설명 문장을 더하지 않는다. 최소 하네스 [결정: 사용자 메모리]). 지금 `core-loop/src/loop/prepare-request.ts:95`가 `sections: {}`로 고정이고 `AGENTS.md`를 읽는 코드는 코어에 없다(`grep` 결과 없음). 문서(`data-privacy.md:121,136`, `loading-trust/spec.md:1246`)는 읽힌다고 적었으므로 이 항목이 그 문서 내용을 실제로 만드는 일이다.
+7. 지침 파일: 대화를 시작한 폴더 F와 프로젝트 루트 R에 대해 R에서 F까지 각 폴더의 `AGENTS.md`를 R이 먼저, F가 마지막인 순서로 모은다. 모델 문맥에 넣는 방법은 `sections`다: 키 `project:<R 기준 상대 경로>`, 값은 파일 내용 그대로(머리말이나 설명 문장을 더하지 않는다. 최소 하네스 [결정: 2026-11-12 사용자, 메모리]). 지금 `core-loop/src/loop/prepare-request.ts:95`가 `sections: {}`로 고정이고 `AGENTS.md`를 읽는 코드는 코어에 없다(`grep` 결과 없음). 문서(`data-privacy.md:121,136`, `loading-trust/spec.md:1246`)는 읽힌다고 적었으므로 이 항목이 그 문서 내용을 실제로 만드는 일이다.
    - 파일 하나가 `l1.context.instructionFiles.maxBytes`를 넘으면 그 파일을 싣지 않고 진단(`instruction_too_large`)만 남긴다.
    - R 밖으로 나가는 심볼릭 링크는 읽지 않는다. 읽기 실패는 건너뛰고 진단을 남긴다.
    - 읽는 시점은 대화를 열 때와 각 턴 시작이다(수정 시각 비교). 바뀌면 `sections` 변경 규칙(`L1.context.spec` §4.2)을 따른다.
    - `CLAUDE.md`는 읽지 않는다 [제안: 사용자 결정은 `AGENTS.md`만 말한다. 미결 5].
 8. 프로필은 사용자 수준이고 프로젝트와 독립이다. 프로젝트 레코드에 프로필 필드가 없다("프로젝트 기본 프로필"은 없다 [결정: 2026-11-17 "플러그인과 프로필은 프로젝트가 아니라 대화 단위"]). **[결정: 2026-11-17 사용자, U5]** 선택기의 기본값은 같은 대화 폴더에서 마지막으로 쓴 프로필(저장 없이 계산). 세부 계산 규칙은 [제안]이다: `profile.defaultFor { workspace }`는 `thread.list { workspace }`가 주는 가장 최근 대화의 현재 프로필(전환 반영)을 돌려주고, 없으면 같은 프로젝트의 가장 최근 대화, 그것도 없으면 `default`다 [제안: 계산 규칙. 저장 없음]. `thread.create`에 `profileId`가 없으면 같은 값을 쓴다.
 9. 같은 폴더 동시 대화: 코어는 정책이 없고 알리기만 한다. `thread.create`는 같은 정규 대화 폴더에서 `running` 또는 열린 다른 대화를 `sameFolder`에 담아 돌려준다. 막지 않는다. worktree 분리는 플러그인이 하고, 코어는 "대화 시작" 훅이 대화 폴더를 정할 수 있게만 연다. **[결정: 2026-11-17 사용자, U6]** 코어는 알리기만 하고(막지 않고 자동 복사도 없다) 폴더는 대화 시작 훅이 경로 하나로 정하며 worktree는 플러그인이 한다. 훅 결과의 `workspace`가 있으면 호스트가 `thread.updated { workspace }`를 커밋한다. 조건은 첫 턴 전이고, 새 폴더가 같은 프로젝트 루트 안이어야 하며, 아니면 무시하고 진단을 남긴다(`workspace_outside_project`). 받을 훅과 결과 모양은 F §5.1 H-7이 정한다(`thread.start`는 관찰만 하는 tap이라 값을 돌려주지 못한다). 수용 22의 후반은 F H-7이 구현된 뒤 켜진다.
-10. 프로젝트 동반 플러그인(R24): `project.create`, 프로젝트 안 대화 생성, `plugin.scan {projectId}`, 원본 감시가 `<루트>/.fresnel/plugins/*`와 기존 `<루트>/.fresnel/extensions/*`, 느슨한 자원(`.fresnel/skills`, `.agents/skills`, `.fresnel/commands`, `.fresnel/agents`, `.fresnel/prompts`, `.mcp.json`, `.fresnel/mcp.json`, `.fresnel/hooks`)을 후보로 만든다. 후보는 `origin: project`로 검토 항목이 된다. 승인 전에는 적재도, 문맥 재료로 쓰는 것도 하지 않는다(§4.7.9).
-    - **[결정: 2026-11-17 사용자] 다른 하네스 형식은 인식하지 않는다.** Fresnel은 `.mcp.json`, `.agents/skills`, 그 밖의 다른 하네스 형식을 인식하지 않고 플러그인 폴더는 Fresnel 자체 배치(`.fresnel-plugin/plugin.json`, `skills/`, `instructions.md`, `agents/`, `commands/`, `mcp.json`)만 쓴다. 위 목록의 `.agents/skills`, 루트 `.mcp.json`, `.fresnel/hooks`는 후보로 만들지 않는다. **지금 엔진이 읽는 부분은 제거한다**: MCP 로더의 루트 `.mcp.json` 읽기(`cap-mcp/src/servers/loader.ts:12`)와 폴더 신뢰의 자원 판정이 보는 `.agents/skills`(`ext-host/src/loading-trust/trust/resources.ts:35`)를 없앤다. 제거는 되돌릴 수 없는 동작 변화라서 이 항목은 마이그레이션 기능(§7.9)이 같이 나가거나 그 전에 사용자에게 알리는 릴리스 노트를 먼저 낸다. 아래 §4.5.3의 `.mcp.json` 행과 §7의 느슨한 자원도 같은 결정을 따른다.
+10. 프로젝트 동반 플러그인(R24): `project.create`, 프로젝트 안 대화 생성, `plugin.scan {projectId}`, 원본 감시가 `<루트>/.fresnel/plugins/*`와 기존 `<루트>/.fresnel/extensions/*`, Fresnel 자체 배치의 느슨한 자원(`.fresnel/skills`, `.fresnel/commands`, `.fresnel/agents`, `.fresnel/prompts`, `.fresnel/mcp.json`)을 후보로 만든다. 후보는 `origin: project`로 검토 항목이 된다. 승인 전에는 적재도, 문맥 재료로 쓰는 것도 하지 않는다(§4.7.9).
+    - **[결정: 2026-11-17 사용자] 다른 하네스 형식은 인식하지 않는다.** Fresnel은 `.mcp.json`, `.agents/skills`, 그 밖의 다른 하네스 형식을 인식하지 않고 플러그인 폴더는 Fresnel 자체 배치(`.fresnel-plugin/plugin.json`, `skills/`, `instructions.md`, `agents/`, `commands/`, `mcp.json`)만 쓴다. 사용자가 든 예는 `.mcp.json`, `.agents/skills` 등이다: 이 둘은 [결정]이고 "그 밖의 형식"으로 범위를 넓히는 것과 `.fresnel/hooks` 같은 배치 이름을 후보로 만들지 않는 것은 [제안]이다. 이 둘과 루트 `.mcp.json`은 후보로 만들지 않는다. **지금 엔진이 읽는 부분은 제거한다**: MCP 로더의 루트 `.mcp.json` 읽기(`cap-mcp/src/servers/loader.ts:12`)와 폴더 신뢰의 자원 판정이 보는 `.agents/skills`(`ext-host/src/loading-trust/trust/resources.ts:35`)를 없앤다. 제거는 되돌릴 수 없는 동작 변화라서 이 항목은 마이그레이션 기능(§7.9)이 같이 나가거나 그 전에 사용자에게 알리는 릴리스 노트를 먼저 낸다. 아래 §4.5.3의 `.mcp.json` 행과 §7의 느슨한 자원도 같은 결정을 따른다.
 
 ### 4.5 플러그인 원본과 로더
 
@@ -509,7 +509,7 @@ plugin-store/
 6. 보관: 플러그인마다 최근 5개 검토본(지금 `version-history.ts:23` `DEFAULT_KEEP`)과 현재가 가리키는 것, 돌고 있는 대화가 쓰는 세대를 남기고 지운다.
 7. 새 검토본이 승인되면 열린 대화는 다음 단계 경계에서 새 세대로 바뀐다(`X.primitives.spec` §4.4.10 `replaceUnit`, 단위 교체). `profile.applied { reason: "plugin_updated", updated }`를 남긴다. 상태 문서의 `stateSchemaVersion`과 `migrateState`가 이전을 맡는다(지금 규칙 그대로).
 8. 이전 검토본으로 되돌리기(`ext.rollback`)는 이미 승인된 내용이므로 새 검토 항목을 만들지 않고 `review-log.jsonl`에 `decision: "rollback"`을 남긴다 [제안: 미결 7].
-9. 신뢰 등급과 tier의 자리: 지금 4등급(`levels.ts:5-6` `builtin, user, project, untrusted`)과 tier(`tier.ts:5` `guard, user, project, builtin, core`)는 코드의 판정 기준으로 유지한다. 대응: 검토본이 있는 사용자 출처는 `user`, 프로젝트 동반 승인본은 `project`, **번들(`bundled`, 지금은 Helm)은 `user` 등급이고 격리 대상이며**(`entry-loader.ts:266`이 이미 `builtin: false`로 적재하고 Helm은 공개 API만 쓴다), 저장소 패키지(`core-*`, `cap-*`, `group-*`)만 `builtin`, 검토본이 없는 후보는 `untrusted`다. `TRUST_MATRIX.untrusted`(`levels.ts:90`)는 이미 `load: false`이므로 "검토 전 실행 금지"는 이 등급이 이미 하는 일을 쓰는 것이다. 폴더 신뢰 카드(`trust.get/decide`)는 플러그인 코드와 플러그인류 자원(`.fresnel/extensions`, 스킬, 명령, 에이전트, `.mcp.json`, 훅)의 판정에서 물러나고 검토함이 그 일을 한다. 설정 파일(`.fresnel/settings.json`, `settings.local.json`)에 대한 폴더 신뢰는 그대로다(`resources.ts:20-33`). `ext.list.requestedGrade`, `effectiveGrade`, `origin`은 유지한다.
+9. 신뢰 등급과 tier의 자리: 지금 4등급(`levels.ts:5-6` `builtin, user, project, untrusted`)은 코드의 판정 기준으로 유지한다. 훅 tier는 F §5.2 O-2의 셋(`guard`, `plugin`, `core`)을 따르고 코드의 다섯 값(`tier.ts:5` `guard, user, project, builtin, core`)은 M5e-2에서 줄인다. 출처 구분은 `assignTier`의 `source`로 유지한다. 대응: 검토본이 있는 사용자 출처는 `user`, 프로젝트 동반 승인본은 `project`, **번들(`bundled`, 지금은 Helm)은 `user` 등급이고 격리 대상이며**(`entry-loader.ts:266`이 이미 `builtin: false`로 적재하고 Helm은 공개 API만 쓴다), 저장소 패키지(`core-*`, `cap-*`, `group-*`)만 `builtin`, 검토본이 없는 후보는 `untrusted`다. `TRUST_MATRIX.untrusted`(`levels.ts:90`)는 이미 `load: false`이므로 "검토 전 실행 금지"는 이 등급이 이미 하는 일을 쓰는 것이다. 폴더 신뢰 카드(`trust.get/decide`)는 플러그인 코드와 플러그인류 자원(`.fresnel/extensions`, 스킬, 명령, 에이전트, `.fresnel/mcp.json`)의 판정에서 물러나고 검토함이 그 일을 한다. 설정 파일(`.fresnel/settings.json`, `settings.local.json`)에 대한 폴더 신뢰는 그대로다(`resources.ts:20-33`). `ext.list.requestedGrade`, `effectiveGrade`, `origin`은 유지한다.
 
 ### 4.7 검토
 
@@ -530,7 +530,7 @@ plugin-store/
 
 ### 4.8 테스트 대화 (엔진 쪽의 유일한 소유자) [M6 요청 반영, 로드맵 M5f]
 
-테스트 대화는 플러그인을 만들고 고치는 AI와 하는 Craft 전용 대화다. 창과 흐름은 `docs/xeon/review/m6/craft-flows.md`가 정하고 이 절이 엔진 쪽 전부를 정한다. 다른 스펙은 이 절을 인용만 한다(엔진 설계 §1.4는 빌더의 재구현만 맡는다).
+소유: §4.8·§4.9는 M5f(`m5-plan.md`)가 만들고 M5c-1의 범위가 아니다. 단 §4.8.1의 `testRun.start`가 쓰는 덧씌우기(§4.3)와 `plugin.draft.create`·`PluginSubmitPort`는 M5c-1·M5c-2가 먼저 낸다. 테스트 대화는 플러그인을 만들고 고치는 AI와 하는 Craft 전용 대화다. 창과 흐름은 `docs/xeon/review/m6/craft-flows.md`가 정하고 이 절이 엔진 쪽 전부를 정한다. 다른 스펙은 이 절을 인용만 한다(엔진 설계 §1.4는 빌더의 재구현만 맡는다).
 
 1. **표지.** 대화를 만들 때 `thread.started.craftChat { plugin, contexts }`를 한 번 쓴다(선택 필드 추가, `profileId`와 같은 방식). `ThreadSummary.craftChat`로 읽는다. 기존 `testRun` 표지와 별개다.
 2. **묶임.** `plugin`은 플러그인 이름이다. 새 플러그인을 만드는 동안은 `null`이고 첫 초안이 생기는 순간 `thread.updated.craftChat { plugin }`으로 한 번 묶는다(이후 바꾸지 않는다). 한 플러그인에 테스트 대화가 여럿일 수 있다. 플러그인이 지워져도 대화는 남고 `plugin`은 그 이름 그대로다(이름으로 이어지는 검토 이력을 위해).
@@ -634,7 +634,7 @@ plugin-store/
 | 신뢰 등급 | 4등급과 tier, 폴더 신뢰 카드가 플러그인류 자원도 판정(`trust/resources.ts:20-33`) | 등급은 유지, 검토본 없음 = `untrusted`, 플러그인류는 검토함이 판정(§4.6.9) | M |
 | 프로젝트 동반 플러그인 | 폴더 신뢰 뒤 `.fresnel/extensions`를 적재(`discover.ts:62`) | 열 때 항목 생성, 승인 전 미적재 | M |
 | 덧씌우기 | 없음 | `turn.start.overlay`, `plugin.invocables`, `plugin.draft.*`, `profile.applied` | L |
-| `ext.list` 필드 | `enabledSource`(`ext-read.ts:48`) | 새 값 집합, 카드 필드 | S |
+| `ext.list` 필드 | `enabledSource`(`xeon/packages/contracts/src/wire-settings/wire/ext-read.ts:48`) | 새 값 집합, 카드 필드 | S |
 | 기본 프로필 | 없음(`profile-store.ts`가 시드하지 않음) | `default` 항상 존재, 삭제 불가 | S |
 | 권한 칩 | `tools.setMode`가 대화 범위 설정을 쓴다(`contracts/services/tools.ts:681-686`) | UI는 프로필 칩에 흡수(Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`)). 엔진은 `setMode`를 `launch` 범위 덮어쓰기로 남긴다(CLI 플래그용) [제안] | S |
 
@@ -683,7 +683,7 @@ plugin-store/
 19. 프로젝트 안 아무 하위 폴더에서 대화를 시작할 수 있고, 도구의 쓰기가 프로젝트 루트 전체에서 허용되며 루트 밖은 거절된다. 샌드박스 쓰기 root도 같다(R14).
 20. 루트에서 대화 폴더까지 경로의 `AGENTS.md`가 루트 먼저 순서로 `sections`에 실리고, 다른 문장이 더해지지 않는다. 상한을 넘는 파일은 실리지 않고 진단이 남는다(R14).
 21. `workspace` 없이 만든 대화는 기본 폴더 아래 대화별 폴더에서 돌고 호스트 cwd를 쓰지 않는다(R14).
-22. 같은 정규 폴더에서 다른 대화가 돌고 있으면 `thread.create.sameFolder`가 알리고 생성은 막지 않는다. [결정: 2026-11-17 사용자, U6] "대화 시작" 훅이 같은 프로젝트 안 폴더를 정하면 `thread.updated.workspace`로 반영된다(R14, flow §8).
+22. 같은 정규 폴더에서 다른 대화가 돌고 있으면 `thread.create.sameFolder`가 알리고 생성은 막지 않는다. [결정: 2026-11-17 사용자, U6] "대화 시작" 훅이 같은 프로젝트 안 폴더를 정하면 `thread.updated.workspace`로 반영된다(R14, 흐름 8).
 23. [결정: 2026-11-17 사용자, U5]: 새 대화 선택기 기본값은 같은 대화 폴더에서 마지막으로 쓴 프로필이다(저장 없이 계산, "프로젝트 기본 프로필"은 없다)(R14).
 24. 스킬 파일만 든 폴더가 매니페스트 없이 플러그인으로 인식되고, 프로필에 넣으면 스킬 색인에 실린다. 프로필에서 빼면 사라진다(R4).
 25. MCP 설정만 든 폴더, 서브에이전트 정의만 든 폴더, 지침만 든 폴더도 같은 방식으로 인식되어 해당 재료가 대화에 전달된다(R4).
@@ -700,7 +700,7 @@ plugin-store/
 36. 승인된 새 검토본이 다음 단계 경계에서 열린 대화에 적용되고 `profile.applied { reason: "plugin_updated" }`가 남는다(R5).
 37. 옮김: v1 `profiles.json`과 `ext.<name>.enabled` 사용자 값이 옮겨져 같은 켜짐 집합을 만든다. 옮김은 멱등이다. `profile.apply` 등 제거된 메서드가 `-32601`이다(R1, R2, R20).
 38. 사용자 설치 플러그인이 옮김 뒤에도 같은 내용으로 돌고(검토본 = 설치본), 이후 원본 변경은 검토 항목이 된다(R5).
-39. 프로필에서 빼기 명령: `profile.removePlugin`이 프로필에서 그 플러그인을 빼고, 그 프로필을 쓰는 대화의 다음 단계에서 도구와 Hook이 사라진다. Drive 중인 플러그인이면 `preview.driveFrameAffected`가 참이고 프레임이 내려간다(R1, R29, flow R5).
+39. 프로필에서 빼기 명령: 대화 안의 명령 `/profile remove <플러그인 이름>`(이름과 문법은 [제안]이고 C0에서 확정)이 `profile.removePlugin`을 불러 프로필에서 그 플러그인을 빼고, 그 프로필을 쓰는 대화의 다음 단계에서 도구와 Hook이 사라진다. Drive 중인 플러그인이면 `preview.dropsDrive`가 비어 있지 않고 프레임이 내려간다(R1, R29, flow R5).
 40. 일회 사용의 이름으로 얹기: Hook 전용 플러그인과 도구 전용 플러그인이 `plugin.invocables`에 `kind: "plugin"` 항목으로 보이고 `turn.start.overlay`로 얹을 수 있다(R15).
 41. 번들(`bundled`) 플러그인의 카드에서 `runs.isolated`가 참이고 신뢰 등급이 `user`다. 저장소 패키지만 `builtin`이다(R11, 엔진 설계 §3.1).
 42. 프로필 설정 키 검사: 소유 플러그인이 프로필에 든 `l2.*`/`l3.*` 키는 저장되고, 소유 플러그인이 없는 키는 `setting_unknown_key`다. `x.primitives.driveDefaultLimits`는 프로필에 둘 수 있고 천장 `driveLimits`는 `setting_scope_not_allowed`다(R20).
@@ -711,9 +711,10 @@ plugin-store/
 46. 테스트 대화의 턴은 `scope: craft`로 기록되어 지표 기본 필터에서 빠진다(R16, E 규칙 36).
 47. `testRun.start`가 기준 프로필 + 초안의 구성으로 대화를 만들고, 같은 `runGroupId`로 새 초안을 다시 돌릴 수 있다. P1 전에는 `testRun.draftUnavailable`이다. 초안 출신 호출은 `bypass`에서도 카드를 띄운다(R16, U2).
 48. 빌더는 직접 설치하지 못하고 초안 → `pluginReview.submitDraft`로만 간다. 기존 플러그인을 `name`만으로 열어 고칠 수 있고, 종류 `plugin-group`이 없다(R26).
-49. `plugin.draft.list`, `DraftInfo`, `ReviewDecision.approve.purpose`, `ReviewItemRemoval`, `SettingDef`, `UiDecl`, `profile.default.reset`, `profile.preview.dropsDrive`, `project.list`의 대화 수가 §3.6대로 있다(R6, R3, R14).
+49. `plugin.draft.list`, `DraftInfo`, `ReviewDecision.approve.purpose`, `ReviewItemRemoval`, `SettingDef`, `UiDecl`, `profile.default.reset`, `profile.preview.dropsDrive`, `project.list`의 대화 수가 §3.6대로 있다(R6, R3, R14). 소유: `plugin.draft.list`·`DraftInfo`는 M5f(`m5-plan.md` Z13), 나머지는 M5c-1(Z7).
 50. 다른 하네스 형식: `.mcp.json`과 `.agents/skills`를 엔진이 읽지 않고 후보로도 만들지 않는다(R4).
 51. "지침 추가": 한 줄을 쓰면 `plugin.draft.fromInstruction`이 지침만 든 초안과 `provenance: "user_instruction"` 검토 항목을 만들고, 한 번의 승인으로 프로필에 들어간다. 승인 전에는 모델에 안 보인다(R33).
+52. 대화 칩의 프로필 복제: `profile.clone`으로 복제한 뒤 `thread.setProfile`로 그 대화만 복제본으로 전환되고 원래 프로필을 쓰는 다른 대화는 그대로다("이 대화만 다르게", R28 g).
 
 ## 9. 다른 스펙과 접하는 곳
 
@@ -763,17 +764,13 @@ plugin-store/
 10. **공통 묶음에서 한 프로필만 빼기.** 기본값: 지원하지 않는다. 대안: 프로필의 `excludeCommon` 목록.
 11. **덧씌우기 플러그인의 설정 값.** 기본값: 프로필 값 없이 플러그인 기본값. 대안: 직전에 쓴 프로필 또는 `default`의 값을 빌려 쓴다.
 
-사용자 결정이 필요한 것(교차 점검 §5-A). 아래는 [권고]이고 사용자가 정하면 고친다:
+아래 12~15는 사용자가 아직 정하지 않았다. 기본값으로 진행하고 사용자가 정하면 고친다. (U2, U3, U4, U5, U6과 다른 하네스 형식은 2026-11-17에 사용자가 정해 닫혔고 본문 §4.1.17, §4.2.1, §4.3.8, §4.4.8~4.4.10에 있다.)
 
-12. **[결정: 2026-11-17 사용자, U2] 초안 덧씌우기가 `bypass` 대화에서 실제 작업에 이를 때.** [권고] 초안 출신 호출은 모드와 무관하게 카드를 띄우고 "초안" 표시를 단다. 대안: 대화의 권한 모드를 그대로 따른다(§4.3.8, F §5.3 U-6).
-13. **[결정: 2026-11-17 사용자, U5] 선택기 기본값.** 닫음: 같은 대화 폴더에서 마지막에 쓴 프로필(저장 없이 계산). "프로젝트 기본 프로필"은 두지 않는다(§4.4.8).
-14. **[결정: 2026-11-17 사용자, U6] 같은 폴더 동시 대화.** 코어는 알리기만 하고 폴더는 대화 시작 훅이 정하며 worktree는 플러그인이 한다. 결과 모양은 F H-7(§4.4.9). 닫음.
-15. **[결정: 2026-11-17 사용자] 다른 하네스 형식 인식 안 함**(`.agents/skills`, 루트 `.mcp.json`, `.fresnel/hooks`). 지금 엔진이 읽는 부분은 제거하고 변환은 별도 마이그레이션 기능으로 설계한다(§4.4.10, §7.9).
-16. **[결정: 2026-11-17 사용자, U3] 같은 위치 호출 순서의 tier 축소**(§4.2.1). 닫음: F §5.2 O-2의 셋, guard 맨 앞 유지.
-17. **[결정: 2026-11-17 사용자, U4] 층 재편의 최종 확인**(§4.1.17, 엔진 설계 §8). 닫음: 확정.
-18. **[확인 대기] 테스트 대화의 시작 Drive 재쌓기**(§4.8.6)와 숨은 프로필이 공통 묶음을 받지 않는 것. 기본값은 본문대로.
-19. **[확인 대기] 초안 보관 20개**(§4.9.2).
-20. (U6은 14번에서 닫혔다.)
+12. **[권고: 메인 세션, 확인 대기] 격리 1단계 전에는 초안을 돌리지 않는다.** 기본값: P1 전에 초안 덧씌우기는 `overlay.draftUnavailable`로 거부한다(§4.3.8). 대안: P1 전에도 엔진 안에서 허용.
+13. **[제안] U3의 세부.** 합치기를 `tool.call.before`·`agent.spawn.before`에만 쓰는 것, 등급 이름(`guard`, `plugin`, `core`)과 순서. 사용자가 정한 것은 `block` > `replace` > `ask`와 등급 셋, guard 맨 앞이다(§4.2.1).
+14. **[제안] 배치 이름.** `.fresnel/hooks`와 그 밖의 비인식 형식 범위, `.fresnel/mcp.json` 등 느슨한 자원의 이름(§4.4.10).
+15. **[확인 대기] 테스트 대화의 시작 Drive 재쌓기**(§4.8.6)와 숨은 프로필이 공통 묶음을 받지 않는 것. 기본값은 본문대로.
+16. **[확인 대기] 초안 보관 20개**(§4.9.2).
 
 ## 11. 요구 추적표
 
@@ -784,7 +781,7 @@ plugin-store/
 | PRD R3 (엔진 쪽) | §3.4(`thread.create`, `thread.setProfile`, `profile.defaultFor`), §4.1.8, §4.4.8, §8 수용 5·6·7. 칩 화면은 §9.4의 Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`) |
 | PRD R4 | §4.5.1~4.5.4, §4.5.10, §8 수용 24·25 |
 | PRD R5 | §4.5.7~4.5.8, §4.6, §4.7.4~4.7.5, §4.7.11, §8 수용 27·28·29·35·36·38 |
-| PRD R6 | §4.7, §3.1(`ReviewItem`), §3.4(`review.*`), §8 수용 26·30~33 |
+| PRD R6 | §4.7, §3.1(`ReviewItem`), §3.4(`pluginReview.*`), §8 수용 26·30~33 |
 | PRD R13 (프로필 상속) | §4.1.15, §8 수용 9 |
 | PRD R14 | §4.4, §3.4(`project.*`, `thread.create`), §3.3, §8 수용 19~23 |
 | PRD R15 (모든 유형, 이름으로 얹기 포함) | §4.3, §3.4(`turn.start.overlay`, `plugin.invocables`, `plugin.draft.*`), §8 수용 15~18, 40 |

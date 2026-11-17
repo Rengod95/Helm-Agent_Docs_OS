@@ -15,13 +15,13 @@ binds: []
 >
 > **이 문서가 바꿀 층 스펙:** `docs/xeon/F/records/spec.md`, `docs/xeon/F/wire-settings/spec.md`, `docs/xeon/F/conversation/spec.md`, `docs/xeon/X/operations/spec.md`, `docs/xeon/X/primitives/spec.md`, `docs/xeon/L1/tools/spec.md`, `docs/xeon/L1/agents/spec.md`, `docs/xeon/L1/context/spec.md`, `docs/xeon/L4/host-service/spec.md`.
 >
-> **원천:** `_notes/design/lc/spec/m5d-turn-record-metrics.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
+> **원천:** `_notes/design/lc/spec/m5d-turn-record-metrics.md`(저장소 밖 메모, 2026-11-17 마지막 맞춤본). 문서 이름 대응: M5c = `docs/xeon/review/m5/profile-project-loader.md`, M5d = `turn-record-metrics.md`, M5e = `hooks-core-boundary.md`, 엔진 설계 = `drive-isolation.md`(모두 같은 폴더), 화면 스펙 = `docs/xeon/review/m6/craft-flows.md`, 요구 = `docs/xeon/review/m5-plan.md`, 일정 = `m5-plan.md`와 `m6-plan.md`, 개념과 결정 = `docs/xeon/decisions/ADR-0023-plugin-profile-core.md`. 옛 이름 대응: "PRD" = `m5-plan.md`(R번호 그대로, "PRD §7"은 §14), "craft-flow"·"flow" = 화면 스펙 제1부(흐름 n), "개념 문서" = ADR-0023(대체한 절은 ADR §6), "로드맵" = `m5-plan.md` §7과 `m6-plan.md`. 코드 경로의 `path:line`은 `m4/cyP` 워크트리 읽기 시점의 값이다.
 
-코드 위치는 한 곳이 아니다. 기록 수집은 `ext-host`, `core-tools`, `core-context`, `core-loop`에, 저장과 집계는 `apps/host/src/assembly/measure/`에, wire 계약은 `contracts/src/wire-settings/wire/`에 둔다. 이 문서는 개념 문서(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §2·§9·§10), 흐름 문서(`docs/xeon/review/m6/craft-flows.md` §3.2·§3.5·§3.6·§8), 요구 문서(`docs/xeon/review/m5-plan.md` R12, R16, R18, R19, R23), 엔진 설계(`docs/xeon/review/m5/drive-isolation.md`)를 근거로 한다. 사용자 결정은 [결정]으로, 이 문서의 선택은 [제안]으로 표시한다.
+코드 위치는 한 곳이 아니다. 기록 수집은 `ext-host`, `core-tools`, `core-context`, `core-loop`에, 저장과 집계는 `apps/host/src/assembly/measure/`에, wire 계약은 `contracts/src/wire-settings/wire/`에 둔다. 이 문서는 개념 문서(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §2, §3.13), 흐름 문서(`docs/xeon/review/m6/craft-flows.md` 제1부 흐름 3.2·3.5·3.6·8), 요구 문서(`docs/xeon/review/m5-plan.md` R12, R16, R18, R19, R23), 엔진 설계(`docs/xeon/review/m5/drive-isolation.md`)를 근거로 한다. 사용자 결정은 [결정]으로, 이 문서의 선택은 [제안]으로 표시한다.
 
-이 문서가 의존하지만 아직 쓰이지 않은 것: 프로필·프로젝트·로더 스펙(M5c), Drive 단계 함수와 프레임 스택(E1~E3), 격리 1·2단계(P1·P2), Hook 정리(R21). 이 문서는 그쪽이 낼 값(프로필 id와 개정, 플러그인 버전 id, 프레임 스택, 플러그인 프로세스)을 [가정]으로 받아 쓴다. 각 가정은 §10에 모아 둔다.
+이 문서가 의존하지만 아직 구현되지 않은 것: 프로필·프로젝트·로더(M5c, 스펙은 `profile-project-loader.md`에 있다), Drive 단계 함수와 프레임 스택(E1~E3), 격리 1·2단계(P1·P2), Hook 정리(R21). 이 문서는 그쪽이 낼 값(프로필 id와 개정, 플러그인 버전 id, 프레임 스택, 플러그인 프로세스)을 [가정]으로 받아 쓴다. 각 가정은 §10에 모아 둔다.
 
-**통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 같은 말은 엔진 설계 통합본의 "공통 어휘"를 따른다: 플러그인 정체는 이름(`pluginId`), 버전 정체(`versionId`)는 검토본의 내용 해시와 초안의 `draft:<draftId>:<해시 앞 8자>`이고 기록 필드는 `versionId` 하나다. 훅 결정값(`block`, `ask`, `replace`)은 F §4.2가, 기록된 결과값은 이 문서의 §3.2가 정의하고 둘의 대응표는 F §4.5에 있다. 프레임 종료 사유는 저장된 `lease.released.reason` 값 그대로다. 사용자 결정이 필요한 것(U1: 주도 명령 결과의 내구 기록, U3: 같은 위치 합치기)은 [열림]으로 적었고 이 문서의 스키마는 어느 답도 담을 수 있게 했다. 화면은 `docs/xeon/review/m6/craft-flows.md`가 맡는다.
+**통합 정리(2026-11-17, `_notes/design/lc/spec/consolidation-log.md`).** 교차 점검 둘의 결과를 반영했다. 같은 말은 엔진 설계 통합본의 "공통 어휘"를 따른다: 플러그인 정체는 이름(`pluginId`), 버전 정체(`versionId`)는 검토본의 내용 해시와 초안의 `draft:<draftId>:<해시 앞 8자>`이고 기록 필드는 `versionId` 하나다. 훅 결정값(`block`, `ask`, `replace`)은 F §4.2가, 기록된 결과값은 이 문서의 §3.2가 정의하고 둘의 대응표는 F §4.5에 있다. 프레임 종료 사유는 저장된 `lease.released.reason` 값 그대로다. U1(주도 명령 결과의 내구 기록)과 U3(같은 위치 합치기)은 2026-11-17에 사용자가 정해 본문에 반영했다. 화면은 `docs/xeon/review/m6/craft-flows.md`가 맡는다.
 
 ## 1. 목적과 범위
 
@@ -44,7 +44,7 @@ binds: []
 | 프로필, 프로젝트, 로더, 일회 덧씌우기의 의미와 저장 | M5c 프로필·프로젝트·로더 스펙. 이 문서는 값을 기록만 한다 |
 | 단계 함수, 프레임 스택, 플러그인 프로세스의 동작 | Drive·격리 스펙(E1~E3, P1~P2) |
 | Hook 이름 정리 | Hook 정리 스펙(R21). 이 문서는 기록된 훅 이름 문자열을 바꾸지 않는다 |
-| Craft 대화창이 증거를 받아 자기 프롬프트에 넣는 방식 | R17 테스트 대화: Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`) |
+| 테스트 대화 창이 증거를 받아 자기 프롬프트에 넣는 방식 | R17 테스트 대화: Craft 화면 스펙(`docs/xeon/review/m6/craft-flows.md`) |
 | 지침을 "따랐나" 판정 | 불가능(§5.2, §11) |
 | 관찰 값(훅 시간·결과, 재료, 광고)을 대화 로그(`events`)에 새 종류로 더하는 일 | 하지 않는다(§3.1 결정). 상태 사건(`profile.applied`)은 M5c가 더한다. 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1](엔진 설계 §1.1) |
 
@@ -52,7 +52,7 @@ binds: []
 
 - 기록은 모델에게 보이지 않는다. 시스템 프롬프트, 환경 블록, 도구 설명, 메시지 어느 것도 기록 때문에 바뀌지 않는다(§4.1 규칙 7, AC-1).
 - 수집은 읽기 전용이다. 수집기는 훅 결과, 도구 결과, 조립 결과를 바꾸지 못한다.
-- 이 기기의 데이터는 밖으로 보내지 않는다(`craft-plan.md` §8의 원칙을 따른다).
+- 이 기기의 데이터는 밖으로 보내지 않는다(옛 `craft-plan.md` §8의 원칙이고 이 문서가 정본이다).
 
 ## 2. 용어
 
@@ -65,8 +65,8 @@ binds: []
 | 판정 (verdict) | 도구 호출 하나의 결말. 막음(뜻을 가진 거부)과 고장(실패로 인한 거부)을 다른 값으로 둔다. 훅이 결과를 대신 줌, 서브에이전트 막음, 무인 거부, 취소된 물음도 값이 있다(§3.2) |
 | 범위 (scope kind) | 기록이 어떤 대화에서 나왔나: `live`, `overlay_reviewed`, `overlay_draft`, `test` |
 | 지난 턴에 돌려 보기 (backtest) | 기록된 도구 호출에 후보 Hook을 다시 적용해 "걸렸을 것"을 보는 일. 모델도 도구도 실행하지 않는다 |
-| 테스트 실행 | 초안 플러그인을 기준 프로필에 얹은 임시 구성으로 에이전트를 돌리는 일 [결정: 2026-11-17 사용자]. 기존 `testRun`(Test run) 통로를 쓴다. 이 일을 보이는 화면은 "테스트 화면"[제안]이고 Craft 전용 AI 대화는 "테스트 대화"다 |
-| 플러그인 정체, 버전 정체 | `pluginId` = 플러그인 이름. `versionId` = 검토본은 내용 해시 `sha256:<hex>`, 초안은 `draft:<draftId>:<해시 앞 8자>`(엔진 설계 공통 어휘, M5c §4.6.1). 이 문서의 `pluginVersion` 열은 모두 `versionId`다 |
+| 테스트 실행 | 초안 플러그인을 기준 프로필에 얹은 임시 구성으로 에이전트를 돌리는 일 [결정: 2026-11-17 사용자]. 기존 `testRun`(Test run) 통로를 쓴다. 이 일을 보이는 화면의 장소 이름은 "테스트"다 [결정: 2026-11-17 사용자]. Craft 전용 AI 대화는 "테스트 대화"다 |
+| 플러그인 정체, 버전 정체 | `pluginId` = 플러그인 이름. `versionId` = 검토본은 내용 해시 `sha256:<hex>`, 초안은 `draft:<draftId>:<해시 앞 8자>`(엔진 설계 공통 어휘, M5c §4.6.1). 저장 열과 기록 필드는 모두 `versionId`다. wire 차원(`Dim`)과 `compare.by`의 이름은 `pluginVersion`이고 그 값은 `versionId`다(wire 이름이 정본이다) |
 | 근거 참조 (evidence ref) | 살펴볼 것이 가리키는 턴·호출·훅 실행의 id 묶음. 내용을 담지 않는다 |
 | 어림 토큰 | 글자 수 / 4 올림. `core-context`가 이미 쓰는 규칙이다(`packages/core-context/src/assemble.ts:225`) |
 
@@ -156,7 +156,7 @@ export interface OverlayMark {
   readonly kind: "once" | "draft";
   readonly plugins: { id: string; versionId: string; draftId?: string }[];   // draftId가 있으면 초안
   readonly until: "turn" | "release";
-  /** 덧씌운 도구 때문에 이 턴의 도구 목록이 바뀌어 캐시가 깨졌나(craft-flow §8) */
+  /** 덧씌운 도구 때문에 이 턴의 도구 목록이 바뀌어 캐시가 깨졌나(화면 스펙 흐름 8) */
   readonly toolsetChanged: boolean;
 }
 
@@ -549,7 +549,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 12. 훅 실행 한 번이 `HookRun` 하나다. 결과 `result`와 `reason`은 기존 정의(`X.operations.spec` §4.8.2)를 그대로 쓰고 `reason`에 `process_exit`, `process_killed`를 더한다(저장 문자열 추가). 새로 더하는 것은 `toolCallId`, `subject`(`approvalId`, `spawnRequestId`, `childThreadId`), `decision`, `ask`(`via` 포함), `plugin`, `versionId`, `sourceKind`, `decisionText`, 그리고 같은 디스패치 안의 순서 `seq`다. 새 훅 넷(`ask.human.*`, `agent.spawn.*`)도 같은 모양으로 받는다.
 13. `toolCallId`는 디스패치 키 접미(`<stepId>:tool.call.before:<toolCallId>` 등, `pipeline.ts:511`, `:550`, `:1150`)에서 얻는다. 접미가 없는 디스패치는 `null`이다.
 14. 물음 기록. 길이 둘이다. (a) 핸들러가 `awaitUser`(`packages/ext-host/src/primitives/user-wait.ts:7`)로 직접 사람을 기다린 횟수와 기다린 시간 합을 `ask.waits`, `ask.waitMs`에 세고 `ask.via: "awaitUser"`로 둔다. (b) 핸들러가 결정값 `{ ask: true }`를 돌려줘 코어가 카드를 띄운 경우는 `decision: "ask"`, `ask.via: "decision"`이고 `waitMs`는 카드의 `requested`와 `resolved` 차이다. 승인 요청 id를 알면 `ask.approvalId`에 둔다. `ask.answer`는 그 승인의 `approval.resolved`(`decision`, `resolvedBy`)에서 온다. `ms`는 기존대로 활성 시간이다(사람 대기 제외). 물음이 없으면 `ask`는 `null`이다.
-15. 막음과 고장의 구분. 호출의 `verdict`는 합치기의 결과와 `FirstOutcome.substituted`(`packages/ext-host/src/primitives/dispatch-types.ts:80`)로 정한다. `substituted`가 거짓이고 결정이 거부면 `blocked_hook` 또는 `blocked_guard`, 참이거나 디스패처 예외면 `*_fault`다. 결과 대신 주기는 `replaced_hook`이다. `tool.call.before`·`agent.spawn.before`의 합치기는 [결정: 2026-11-17 사용자, U3]으로 F §5.1 H-2(모든 핸들러가 돈 뒤 `block > replace > ask`)다: `CallRecord.blockedBy`는 이긴 핸들러이고 진 핸들러의 행은 `passed`/`modified`로 두되 `decision`에 낸 값을 그대로 적는다. `skipped`+`skippedBy`는 `guard.*`와 다른 first 훅에서만 생긴다. 이 구분은 저장 열 `verdict`로 남고 §6의 모든 규칙이 막음과 고장을 섞지 않는다.
+15. 막음과 고장의 구분. 호출의 `verdict`는 합치기의 결과와 `FirstOutcome.substituted`(`packages/ext-host/src/primitives/dispatch-types.ts:80`)로 정한다. `substituted`가 거짓이고 결정이 거부면 `blocked_hook` 또는 `blocked_guard`, 참이거나 디스패처 예외면 `*_fault`다. 결과 대신 주기는 `replaced_hook`이다. `tool.call.before`·`agent.spawn.before`의 합치기는 [결정: 2026-11-17 사용자, U3]으로 F §5.1 H-2(`block > replace > ask`. 모든 핸들러가 돈 뒤 정하는 것과 두 위치에만 쓰는 것은 [제안])다: `CallRecord.blockedBy`는 이긴 핸들러이고 진 핸들러의 행은 `passed`/`modified`로 두되 `decision`에 낸 값을 그대로 적는다. `skipped`+`skippedBy`는 `guard.*`와 다른 first 훅에서만 생긴다. 이 구분은 저장 열 `verdict`로 남고 §6의 모든 규칙이 막음과 고장을 섞지 않는다.
 16. 외부 훅 단위(`fresnel-hooks-<훅 id>`)는 지금처럼 자기 행을 숨기고 훅마다 `hook:<id>` 행을 낸다(`X.operations.spec` §4.8.2). `plugin`은 그 훅 설정을 둔 플러그인(또는 프로젝트)이고, 로더가 모르면 `external-hook:<id>`다 [제안]. `sourceKind: "external_hook"`.
 17. 같은 디스패치에서 앞 핸들러가 멈춰 뒤 핸들러가 `skipped`인 행은 `skippedBy`를 그대로 기록한다. H-2([결정: 2026-11-17 사용자, U3])에서는 이런 행이 `guard.*`와 다른 first 훅에서만 생긴다. 이 값이 "후보 훅이 앞 훅 때문에 이르지 못함"의 근거다(§4.8 규칙 49).
 
@@ -589,7 +589,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 31. 범위는 턴마다 정해 `tr_turn.scope_kind`에 쓴다.
     - `live`: 일반 대화에서 프로필이 정한 플러그인만 돈 턴.
     - `overlay_reviewed`: 일회 덧씌우기로 검토된 플러그인이 얹힌 턴(R15).
-    - `overlay_draft`: 실제 대화에 초안을 얹은 턴(craft-flow §8). 초안 버전 id(`draft:<draftId>:<해시 앞 8자>`)가 `overlay.plugins[].versionId`에 있고 `draftId`가 채워진다. 이 표지의 정본은 여기이고, 호스트 기록기가 M5c의 `profile.applied.overlay[].draftId`로부터 만든다.
+    - `overlay_draft`: 실제 대화에 초안을 얹은 턴(화면 스펙 흐름 8). 초안 버전 id(`draft:<draftId>:<해시 앞 8자>`)가 `overlay.plugins[].versionId`에 있고 `draftId`가 채워진다. 이 표지의 정본은 여기이고, 호스트 기록기가 M5c의 `profile.applied.overlay[].draftId`로부터 만든다.
     - `test`: 테스트 실행 대화의 모든 턴.
     - `craft`: 테스트 대화(Craft 전용 AI 대화, M5c §4.8)의 모든 턴. 표지는 `thread.started.craftChat`에서 호스트 기록기가 만든다.
 32. 테스트 실행 표지는 대화를 만들 때(`thread.create { testRun }`, `ports.ts:304`) `tr_thread`에 내구로 쓴다. `ext-host`의 `openThread(…, { testRun: true })`(`ports.ts:668`)는 재시작 뒤에도 `tr_thread`를 읽어 표지를 되살린다. 지금은 메모리 `Set`뿐이라 재시작하면 Test run이 일반 대화가 되고 그 기록이 지표에 섞인다. 표지 기록은 계측 꺼짐과 무관하게 쓴다.
@@ -607,7 +607,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 40. 비교(`compare`)는 `pluginVersion`, `model`, `profileRev`로 그룹을 나누어 같은 지표를 두 줄로 낸다. 두 그룹 사이에 다른 차원이 함께 바뀌었으면 `notes`에 `confounders`로 적는다(예: 플러그인 버전은 바뀌었는데 모델도 바뀜). 인과를 말하지 않는다.
 41. 살펴볼 것은 `findings.list`가 읽을 때 계산하고 `(profileId, period, dataRevision)`로 캐시한다. `dataRevision`은 `tr_turn`의 가장 큰 rowid다. 증거는 대표 50개(최근 것 우선, 같은 대화가 한 번에 5개를 넘지 않게)와 총수를 낸다. 총 목록은 `findings.evidence`로 쪽 단위로 읽는다.
 42. 사용자가 치운 발견(`dismiss`)은 근거 지문(`fingerprint` = 규칙 id + 대상 + 지표 값을 10% 단위로 줄인 값)이 크게 바뀌면(두 배 이상) 다시 열린다 [제안].
-43. 증거를 테스트 대화로 넘기는 방식. 발견의 `next[].target: "craft_chat"`은 `{ ruleId, subject, window, metrics, evidence: EvidenceRef[](≤50), suggested }` 묶음을 만든다. 묶음은 16 KiB 이하이고 id, 해시, 숫자만 담는다. Craft 대화창(R17 스펙)이 이것을 맥락으로 받고 내용이 필요하면 `turnRecord.get`과 대화 로그 읽기로 푼다. 사용자는 문제를 다시 설명하지 않는다(`docs/xeon/review/m6/craft-flows.md` §3.6). 고친 초안을 같은 증거로 시험하려면 `backtest.run`의 `scope.turns`에 증거의 `(threadId, turnId)`를 넘긴다.
+43. 증거를 테스트 대화로 넘기는 방식. 발견의 `next[].target: "craft_chat"`은 `{ ruleId, subject, window, metrics, evidence: EvidenceRef[](≤50), suggested }` 묶음을 만든다. 묶음은 16 KiB 이하이고 id, 해시, 숫자만 담는다. 테스트 대화 창(R17 스펙)이 이것을 맥락으로 받고 내용이 필요하면 `turnRecord.get`과 대화 로그 읽기로 푼다. 사용자는 문제를 다시 설명하지 않는다(`docs/xeon/review/m6/craft-flows.md` §3.6). 고친 초안을 같은 증거로 시험하려면 `backtest.run`의 `scope.turns`에 증거의 `(threadId, turnId)`를 넘긴다.
 
 ### 4.8 지난 턴에 돌려 보기 (R16 엔진 쪽)
 
@@ -731,7 +731,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 
 ## 6. 살펴볼 것 규칙 표
 
-각 규칙은 `ruleId`, 버전, 대상, 조건, 임계 [제안], 보이는 근거, 다음 걸음이다. 임계는 `x.operations.findings.overrides`로 덮어쓴다. 모든 규칙은 `scopes = [live, overlay_reviewed]`의 기록만 보고 `minSample`(기본 20) 미만이면 발동하지 않는다. 모든 발견은 다음 걸음을 하나 이상 가진다(`docs/xeon/review/m6/craft-flows.md` R7). "고치기"는 근거를 들고 Craft 대화창을 연다(§4.7 규칙 43). "올리기"는 권고를 강제(Hook, 막기)로 올리는 초안 요청이다. "빼기"는 프로필 편집으로 간다.
+각 규칙은 `ruleId`, 버전, 대상, 조건, 임계 [제안], 보이는 근거, 다음 걸음이다. 임계는 `x.operations.findings.overrides`로 덮어쓴다. 모든 규칙은 `scopes = [live, overlay_reviewed]`의 기록만 보고 `minSample`(기본 20) 미만이면 발동하지 않는다. 모든 발견은 다음 걸음을 하나 이상 가진다(`docs/xeon/review/m6/craft-flows.md` R7). "고치기"는 근거를 들고 테스트 대화 창을 연다(§4.7 규칙 43). "올리기"는 권고를 강제(Hook, 막기)로 올리는 초안 요청이다. "빼기"는 프로필 편집으로 간다.
 
 | ruleId | 대상 | 조건 | 임계 [제안] | 보이는 근거 | 다음 걸음 |
 |---|---|---|---|---|---|
@@ -781,7 +781,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `packages/core-tools/src/pipeline.ts:511`, `:550`, `:1150`, `:149~188` | 호출마다 `CallRecord` 싱크에 판정, 훅 묶음, 정책·승인, 소요·결과 크기를 보낸다. `hookDenialDetails`에 시간 초과와 던짐을 가를 선택 필드 `fault`를 더한다 | M |
 | `packages/core-context/src/assemble.ts:230`, `:264~430`, `packages/contracts/src/services/`의 `AssembledContext` | `materials`, 광고 요약, 캐시 원인(도구·절 귀속 포함)을 낸다. `toolset-diff.ts`가 추가·제거 도구의 소유 플러그인을 알린다 | M |
 | `packages/core-loop/src/loop/prepare-request.ts:95`, `:111`, `step-end.ts:266`, `provider-retry.ts:8` | 단계 끝에서 `StepRecord`를 수집기에 넘긴다. 재시도 알림 수와 대기 시간을 센다. `sections: {}`는 Inject가 들어오는 M5c에서 채운다 | M |
-| `packages/cap-knowledge/src/skills/prompt-block.ts:57`, `turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S |
+| `xeon/packages/cap-knowledge/src/skills/prompt-block.ts:57`, `xeon/packages/cap-knowledge/src/turn-context.ts:86` | 색인의 `included`, `omitted`, 토큰을 수집기에 알린다(모델 입력은 그대로). 플러그인은 수집기를 직접 import하지 않으므로 `contracts`에 읽기 전용 싱크 포트(`TurnRecordSink`)를 정의하고 수집기(`ext-host`, `apps/host`)가 구현한다 | S |
 | `apps/host/src/assembly/measure/store.ts:73`, `:172` | `user_version` 마이그레이션, `tr_*` 테이블, 접기를 `tr_daily`까지 넓힘, `forgetThread` | L |
 | `apps/host/src/assembly/measure/recorder.ts:293~470` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L |
 | `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S |
@@ -843,7 +843,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 |---|---|---|
 | Drive·격리(E1~E3, P1~P2) | 프레임 스택(`lease.acquired`의 `parent`, `depth`, `contentHash`)과 반납 사유 값(저장된 `lease.released.reason`). `tool`·`model` 명령이 호출·모델 호출 기록에 들어오는 길(`model`은 role `drive`). 후보를 돌릴 플러그인 프로세스와 요청 플래그 `replay: true`(기능 호출 거부, 쓰기 버림: 엔진 설계 §3.2). 플러그인 프로세스의 표준오류와 종료 실패 이유(`docs/xeon/review/m5/drive-isolation.md` §3.2·§3.6). 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1] | `backtest.*`가 후보 실행을 요청하는 계약. 프레임을 턴 기록에 옮기는 모양 `FrameMark` |
 | 프로필·프로젝트·로더(M5c) | 프로필 id·개정, 대화의 프로필 출처(`thread`, `builtin`), 버전 정체 `versionId`, Inject 재료의 `when`과 소유 선언(M5c §4.5.10), `mcp.<서버>`의 소유 플러그인, `profile.applied.overlay`(덧씌우기 표지), 사용자가 부른 스킬·명령 표지(`turn.started.invoked`) | `profileCost.get`, 프로필 단위 지표, 프로필 변경이 비용에 주는 영향(R19) |
-| Hook 정리(R21) | 새 훅 이름, 블록 앞뒤 훅, 사람에게 묻기·서브에이전트의 앞뒤 새 훅(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §9), 결정값 `block`/`ask`/`replace`, 합치기 규칙 H-2([결정: 2026-11-17 사용자, U3]), 변환표 F §4.5, 호출 주체 `plugin:<이름>`과 호출의 `via` | 저장된 훅 이름 문자열 불변 원칙, 별칭표를 읽는 쪽 규칙, 기록된 결과값의 정의(§3.2). 새 훅이 생기면 `HookRun`이 같은 모양으로 받는다 |
+| Hook 정리(R21) | 새 훅 이름, 블록 앞뒤 훅, 사람에게 묻기·서브에이전트의 앞뒤 새 훅(`docs/xeon/decisions/ADR-0023-plugin-profile-core.md` §3.4), 결정값 `block`/`ask`/`replace`, 합치기 규칙 H-2([결정: 2026-11-17 사용자, U3]), 변환표 F §4.5, 호출 주체 `plugin:<이름>`과 호출의 `via` | 저장된 훅 이름 문자열 불변 원칙, 별칭표를 읽는 쪽 규칙, 기록된 결과값의 정의(§3.2). 새 훅이 생기면 `HookRun`이 같은 모양으로 받는다 |
 | Craft 화면(M6d, M6e: `docs/xeon/review/m6/craft-flows.md`) | 화면 요구(턴 기록, 지표, 살펴볼 것, 테스트 화면의 그 자리 관찰) | 이 문서의 wire 전부. `findings.list`의 `next`, `EvidenceRef`, 근거 묶음(§4.7 규칙 43) |
 | 테스트 대화(R17, `docs/xeon/review/m6/craft-flows.md`) | 근거 묶음을 맥락으로 받는 쪽의 규칙 | 근거 참조와 `turnRecord.get`/`backtest.run(scope.turns)` |
 | `L4.host-service` | `measure.db` 소유와 `measure.*` wire | §3.1의 확장과 마이그레이션 |
@@ -858,16 +858,12 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | 3 | 막은 뒤 행동 분류의 앞으로 보기 길이와 `rewrite_text` 겹침 임계 | 2단계, 0.8 |
 | 4 | `tool.result`와 `input.*` 훅을 지난 턴에 돌려 보기에 넣을지 | `tool.result`는 근사로 넣고 `input.*`는 뺀다. 사용자 원문 저장 시점 확인 뒤 재검토 |
 | 5 | 훅이 고친 전후를 옵트인으로 저장할지(`storeRequestBody` 같은 설정) | 저장하지 않는다. 크기만 |
-| 6 | 지침이 안 지켜졌다는 사용자 표시를 턴 기록에서 받을지(훅이 없는 지침 플러그인용) | 닫음: `turnRecord.mark`(§3.8). Inject만 하는 플러그인에만 받는다 |
-| 7 | 지침과 훅에 같은 `ruleId`를 선언하게 할지(지표 ①을 정확하게) | 매니페스트 스펙(M5c)에서 정한다. 그 전까지 플러그인 단위 근사 |
+| 7 | 지침과 훅에 같은 `ruleId`를 선언하게 할지(지표 ①을 정확하게) | Later. M5c의 매니페스트에 `ruleId` 필드가 없으므로 지금은 만들지 않고 플러그인 단위 근사를 쓴다 |
 | 8 | `overlay_reviewed` 턴을 플러그인 지표에 넣을지 | 넣고 프로필 비용에서는 뺀다 |
 | 9 | 발견 임계값(§6) 확정 | 표의 값. 사용자 데이터를 한 달 쌓은 뒤 조정 |
-| 10 | 후보 훅의 네트워크 부작용을 막을 수 없다는 고지(격리 3단계 전) | 처음 한 번 알림 |
+| 10 | 후보 훅의 네트워크 부작용을 막을 수 없다는 고지(격리 3단계 전) | 처음 한 번 알림 대신 검토함 카드의 고정 안내(`m5-plan.md` R27 [권고: 메인 세션, 확인 대기])로 일원화한다 |
 | 11 | `hook` 행 병행 기록을 언제 끝낼지 | 데스크톱이 `turnRecord.*`로 옮긴 뒤 |
 | 12 | 쓰는 때 `step.completed` 뒤의 비원자성(한 단계 손실)을 받아들일지 | 받아들인다. 로그에 사실이 남아 있으므로 `log_only`로 복원 가능 |
-| 13 | 플러그인 id와 확장 이름이 같다는 가정 | 닫음: `pluginId` = 이름, `versionId` = 내용 해시(초안은 `draft:<draftId>:<해시 앞 8자>`)(엔진 설계 공통 어휘, M5c §4.6.1) |
-| 15 | [결정: 2026-11-17 사용자, U1] 주도 명령(`model` 등) 결과의 내구 기록 | 닫음: 대화 로그에 상태 사건 하나(예: `drive.command.settled`)(§3.4) |
-| 16 | [결정: 2026-11-17 사용자, U3] 같은 위치 합치기(F H-2)와 tier 축소가 2026-11-03 동작을 바꿈 | 닫음: H-2는 `tool.call.before`·`agent.spawn.before`만. 규칙 15·17·49는 이에 맞췄다 |
 | 14 | `measure.db` 마이그레이션 방식(`user_version`) | 위 제안대로 |
 
 가정(이 문서가 다른 스펙이 낼 값이라고 가정한 것): 프로필 id·개정·출처, `versionId`, Inject 재료의 `when`·소유 선언(M5c §4.5.10이 낸다), `mcp.<서버>` 소유 플러그인, 사용자가 부른 스킬·명령 표지, `lease.acquired`의 `parent`·`depth`·`contentHash`, 플러그인 프로세스와 `replay` 플래그. 전부 이 문서의 외부 의존이고 없는 동안 해당 필드는 `null`로 기록된다.
