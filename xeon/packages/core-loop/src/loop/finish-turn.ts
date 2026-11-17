@@ -79,7 +79,7 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
   }
 
   const turnScope = { threadId, turnId, stepId: null } as const;
-  const signal = boundarySignal(run, "turn_settled", undefined);
+  const signal = boundarySignal(run, "turn_settled", undefined, abortCode === "user");
   const open = (): TurnRunResult => ({
     status: "open",
     usage: totals.usage,
