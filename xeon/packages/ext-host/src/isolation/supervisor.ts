@@ -556,7 +556,12 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       ? { id, result: outcome.value }
       : {
           id,
-          error: { kind: outcome.error.kind, message: clipTo(outcome.error.message, MESSAGE_MAX) },
+          error: {
+            kind: outcome.error.kind,
+            message: clipTo(outcome.error.message, MESSAGE_MAX),
+            // 엔진 호출 실패의 원래 종류는 자식이 엔진 안과 같은 오류로 되던지는 데 쓴다(isolation-protocol.ts)
+            ...(outcome.error.origin === undefined ? {} : { origin: outcome.error.origin }),
+          },
         };
     const sent = writeFrame(proc, frame);
     if (sent.ok) return;

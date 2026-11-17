@@ -1,6 +1,6 @@
 import { tapeBuildModels, tapeProvider } from "@fresnel/core-models/testing";
 import { startStdioHost } from "../../src/command-run.ts";
-import { helmDivergeTape, helmWebPorts, holdingPlayer } from "./helm-tape.ts";
+import { helmDivergeTape, holdingPlayer } from "./helm-tape.ts";
 import { isolatedPluginHost } from "./isolated-plugin-host.ts";
 
 // SIGKILL 시험의 자식 호스트. 운영 진입(startStdioHost)에 실제 Helm 묶음(FRESNEL_TEST_HELM_BUNDLE)과 모델 테이프를 넣는다.
@@ -26,7 +26,6 @@ async function main(): Promise<number> {
         tapeProvider(holdingPlayer(helmDivergeTape("helm-sigkill-child"), HELD_CALL)),
       ),
       pluginHost: isolatedPluginHost(),
-      webPorts: helmWebPorts(),
     },
     handleSignals: false,
   });

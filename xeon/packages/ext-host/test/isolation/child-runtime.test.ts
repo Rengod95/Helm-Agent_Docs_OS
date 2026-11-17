@@ -1217,3 +1217,117 @@ export default function extension({ register }) {
     expect(reply.error).toEqual({ kind: "handler_threw", message: "conflict" });
   });
 });
+
+/** 훅이 엔진 호출을 하고, 그 실패를 잡아 종류와 값을 돌려준다. 시험 입력이 `commit`이면 상태 커밋, 그 밖이면 기능 호출이다 */
+const ORIGIN_ENTRY = `
+import { Type } from "typebox";
+
+export default function extension({ register }) {
+  register("demo", { state: { schema: Type.Object({ count: Type.Number() }), initial: { count: 0 }, version: 1 } }, (g) => {
+    g.on("tool.call.before", async (payload) => {
+      const failing = payload.toolName === "commit"
+        ? () => g.commit({ count: 9 })
+        : () => g.capability({ capability: "demo.echo", version: "1.0.0" }).echo({ text: "hi" });
+      try {
+        await failing();
+        return "no error";
+      } catch (cause) {
+        return {
+          name: cause.name,
+          message: cause.message,
+          code: cause.code ?? null,
+          kind: cause.kind ?? null,
+          data: cause.data ?? null,
+          scopeId: cause.scopeId ?? null,
+        };
+      }
+    });
+  });
+}
+`;
+
+/** 엔진 호출 하나를 주어진 실패로 답하고, 훅이 받은 값을 돌려준다 */
+async function failingEngineCall(toolName: string, error: object): Promise<unknown> {
+  const root = await writePluginRoot(ORIGIN_ENTRY);
+  const host = startHost();
+  await initialize(host, root);
+  host.send(hookCall(2, {}, toolName));
+  const call = await host.out.waitFor((frame) => frame.method === "engine.call");
+  host.send({ id: call.id, error });
+  return (await host.out.waitFor((frame) => frame.id === 2 && frame.method === undefined)).result;
+}
+
+describe("engine call failures keep their origin in an isolated host", () => {
+  const CAPABILITY_DATA = {
+    capability: "demo.echo",
+    method: "echo",
+    code: "unavailable",
+    message: "every provider failed",
+    retryable: true,
+    detail: { tried: 2 },
+  };
+
+  test("a capability failure with its origin is thrown as a CapabilityError carrying the engine's data", async () => {
+    expect(
+      await failingEngineCall("capability", {
+        kind: "engine_call_failed",
+        message: "unavailable: every provider failed",
+        origin: { kind: "capability", data: CAPABILITY_DATA },
+      }),
+    ).toEqual({
+      name: "CapabilityError",
+      message: "every provider failed",
+      code: null,
+      kind: null,
+      data: CAPABILITY_DATA,
+      scopeId: null,
+    });
+  });
+
+  test("a primitive failure with its origin is thrown as a PrimitiveError with the code and the scope, without the code prefix twice", async () => {
+    expect(
+      await failingEngineCall("commit", {
+        kind: "engine_call_failed",
+        message: "state_conflict: the state changed",
+        origin: { kind: "primitive", code: "state_conflict", scopeId: "demo" },
+      }),
+    ).toEqual({
+      name: "PrimitiveError",
+      message: "the state changed",
+      code: "state_conflict",
+      kind: null,
+      data: null,
+      scopeId: "demo",
+    });
+  });
+
+  test("a primitive origin whose code is not a primitive error code stays a PluginEngineCallError", async () => {
+    expect(
+      await failingEngineCall("commit", {
+        kind: "engine_call_failed",
+        message: "made_up_code: x",
+        origin: { kind: "primitive", code: "made_up_code" },
+      }),
+    ).toEqual({
+      name: "PluginEngineCallError",
+      message: "made_up_code: x",
+      code: null,
+      kind: "engine_call_failed",
+      data: null,
+      scopeId: null,
+    });
+  });
+
+  test("a failure without an origin stays a PluginEngineCallError with the engine's kind", async () => {
+    expect(
+      await failingEngineCall("commit", { kind: "engine_call_failed", message: "plain" }),
+    ).toEqual({
+      name: "PluginEngineCallError",
+      message: "plain",
+      code: null,
+      kind: "engine_call_failed",
+      data: null,
+      scopeId: null,
+    });
+  });
+});

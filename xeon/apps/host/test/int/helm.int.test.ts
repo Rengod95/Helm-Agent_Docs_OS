@@ -13,8 +13,7 @@ import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { helmWebPorts } from "../fixtures/helm-tape.ts";
+import { collectEvents, HELLO_PARAMS, startInputWhenIdle } from "../fixtures/wire-client.ts";
 
 // M3a E1(UC-2), 실제 엔진: 기본 플러그인 Helm이 첫 실행에 설치되고 외부 로더로 실리며, /helm 명령이 wire로 닿고,
 // 확산 단계의 쓰기(exec) 도구가 실행 전에 거부되어 거부 사유가 모델에 돌아간다. 모델은 테이프다.
@@ -90,7 +89,6 @@ realTest(
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
       pluginHost: isolatedPluginHost(),
-      webPorts: helmWebPorts(),
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -111,8 +109,13 @@ realTest(
       text: "/helm start 캐시 무효화",
     });
     expect(started).toMatchObject({ status: "done", name: "helm" });
-    // 명령은 다음 on 지점에서 상태에 반영된다. 사용자 turn이 끝나면 Helm이 임대를 받고 발산 turn을 연다
-    await connection.request("turn.start", { threadId: created.threadId, input: "hello" });
+    // 명령이 상태를 커밋하면 Helm은 바로 임대를 받아 발산 turn을 열 수 있다. 격리에서는 그 순서가 사용자 turn.start보다 앞설 수 있다:
+    // 그러면 사용자 입력은 주도 중인 Helm에 전달되어(`delivered`) 사용자 turn이 따로 열리지 않는다. 어느 순서든 같은 결과를 본다
+    const userInput = await startInputWhenIdle(connection, {
+      threadId: created.threadId,
+      input: "hello",
+    });
+    const userTurnRan = "turnId" in userInput;
     const denied = await collector.waitFor(
       (event) => JSON.stringify(event.payload).includes("denied_by_extension"),
       20_000,
@@ -145,11 +148,11 @@ realTest(
         ),
       ),
     ).toHaveProperty("size", 3);
-    // 부모 thread의 turn은 사용자, 발산, 적용 셋이고 적용 turn은 정확히 한 번이다
+    // 부모 thread의 turn은 (사용자 turn이 열렸다면 그것과) 발산, 적용이고 적용 turn은 정확히 한 번이다
     const parentTurns = collector.events.filter(
       (event) => event.kind === "turn.started" && event.threadId === created.threadId,
     );
-    expect(parentTurns).toHaveLength(3);
+    expect(parentTurns).toHaveLength(userTurnRan ? 3 : 2);
     expect(
       parentTurns.filter((event) => JSON.stringify(event.payload).includes(":turn:apply:")),
     ).toHaveLength(1);
@@ -172,7 +175,6 @@ realTest(
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
       pluginHost: isolatedPluginHost(),
-      webPorts: helmWebPorts(),
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);

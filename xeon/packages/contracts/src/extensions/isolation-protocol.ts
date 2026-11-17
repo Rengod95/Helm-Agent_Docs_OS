@@ -1,7 +1,11 @@
 import { Type, type TUnsafe } from "typebox";
 import { err, ok, type Result } from "../base/index.ts";
 import type { SchemaProof } from "../base/schema-proof.ts";
-import type { CallerInfo } from "../capabilities/index.ts";
+import {
+  CapabilityErrorDataSchema,
+  type CallerInfo,
+  type CapabilityErrorData,
+} from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
 import type { DriveFrameInfo, DriveLimits, DriveLockBudget } from "./drive.ts";
 import type { RecordKind, RecordSubject } from "./group-record.ts";
@@ -98,9 +102,34 @@ export type PluginHostErrorKind = (typeof PLUGIN_HOST_ERROR_KINDS)[number];
 export const PLUGIN_PROCESS_FAILURE_REASONS = ["process_exit", "process_killed"] as const;
 export type PluginProcessFailureReason = (typeof PLUGIN_PROCESS_FAILURE_REASONS)[number];
 
+/**
+ * `detail`의 상한(JSON 바이트). 엔진은 이보다 큰 detail을 빼고 보내고, 받는 쪽은 넘는 프레임을 `invalid_frame`으로 버린다.
+ * JSON Schema는 바이트 크기를 셀 수 없어 `classifyFrame`이 본다
+ */
+export const PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES: number = 8192;
+
+/** `detail`이 상한 안인가. 타입이 JsonValue라 JSON으로 직렬화할 수 있다 */
+export function isErrorDetailWithinLimit(detail: JsonValue): boolean {
+  return (
+    new TextEncoder().encode(JSON.stringify(detail)).byteLength <=
+    PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES
+  );
+}
+
+/**
+ * 엔진 호출 실패(`engine_call_failed`)가 원래 어떤 오류였는지. 자식은 이것으로 엔진 안과 같은 종류의 오류를 되던진다
+ * (Helm의 실패 분류가 `CapabilityError`와 `PrimitiveError`의 종류와 코드를 본다). `capability`는 기능 오류의 데이터,
+ * `primitive`는 확장 오류의 코드와 등록 id다. 다른 종류의 오류는 싣지 않는다
+ */
+export type PluginHostErrorOrigin =
+  | { readonly kind: "capability"; readonly data: CapabilityErrorData }
+  | { readonly kind: "primitive"; readonly code: string; readonly scopeId?: string };
+
 export interface PluginHostError {
   readonly kind: PluginHostErrorKind;
   readonly message: string;
+  /** 엔진 호출 실패에만 붙는다. 원래 오류가 기능 오류도 확장 오류도 아니면 없다 */
+  readonly origin?: PluginHostErrorOrigin;
 }
 
 /** 줄 하나. 셋 중 하나의 모양이다 */
@@ -110,6 +139,21 @@ export type PluginHostFrame =
   | { readonly id: number; readonly error: PluginHostError }
   | { readonly method: string; readonly params: JsonValue };
 
+const ErrorOriginShape = Type.Union([
+  Type.Object(
+    { kind: Type.Literal("capability"), data: CapabilityErrorDataSchema },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("primitive"),
+      code: Type.String({ pattern: "^[a-z][a-z0-9_]{0,63}$" }),
+      scopeId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
 const FrameShape = Type.Object(
   {
     id: Type.Optional(Type.Integer({ minimum: 0 })),
@@ -118,7 +162,11 @@ const FrameShape = Type.Object(
     result: Type.Optional(Type.Unknown()),
     error: Type.Optional(
       Type.Object(
-        { kind: Type.String({ maxLength: 64 }), message: Type.String({ maxLength: 4000 }) },
+        {
+          kind: Type.String({ maxLength: 64 }),
+          message: Type.String({ maxLength: 4000 }),
+          origin: Type.Optional(ErrorOriginShape),
+        },
         { additionalProperties: false },
       ),
     ),
@@ -132,7 +180,11 @@ export interface RawPluginHostFrame {
   readonly method?: string;
   readonly params?: unknown;
   readonly result?: unknown;
-  readonly error?: { readonly kind: string; readonly message: string };
+  readonly error?: {
+    readonly kind: string;
+    readonly message: string;
+    readonly origin?: PluginHostErrorOrigin;
+  };
 }
 export const RawPluginHostFrameSchema: TUnsafe<RawPluginHostFrame> =
   Type.Unsafe<RawPluginHostFrame>(
@@ -159,7 +211,13 @@ export function classifyFrame(
     if (id === undefined) return ok({ kind: "notification", method, params });
     return ok({ kind: "request", id, method, params });
   }
-  if (id !== undefined && error !== undefined) return ok({ kind: "failure", id, error });
+  if (id !== undefined && error !== undefined) {
+    const detail = error.origin?.kind === "capability" ? error.origin.data.detail : undefined;
+    if (detail !== undefined && !isErrorDetailWithinLimit(detail)) {
+      return err({ kind: "invalid_frame" });
+    }
+    return ok({ kind: "failure", id, error });
+  }
   if (id !== undefined && "result" in frame) return ok({ kind: "response", id, result });
   return err({ kind: "invalid_frame" });
 }

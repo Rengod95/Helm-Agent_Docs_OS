@@ -14,7 +14,7 @@ import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { helmResumeTape, helmWebPorts } from "../fixtures/helm-tape.ts";
+import { helmResumeTape } from "../fixtures/helm-tape.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -134,7 +134,6 @@ realTest(
         defaultPluginsDir: bundleRoot,
         buildModels: tapeBuildModels(tapeProvider(helmResumeTape("helm-sigkill-resume"))),
         pluginHost: isolatedPluginHost(),
-        webPorts: helmWebPorts(),
       });
       const connection = createHostConnection(host.client);
       const hello = await connection.request("host.hello", HELLO_PARAMS);

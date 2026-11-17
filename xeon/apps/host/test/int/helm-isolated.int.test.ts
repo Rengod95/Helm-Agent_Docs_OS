@@ -15,7 +15,7 @@ import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { helmDivergeTape, helmWebPorts } from "../fixtures/helm-tape.ts";
+import { helmDivergeTape } from "../fixtures/helm-tape.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -95,7 +95,6 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(helmDivergeTape("helm-isolated-start"))),
-      webPorts: helmWebPorts(),
       pluginHost: {
         ...isolatedPluginHost(),
         onLoadReport: (report) => {

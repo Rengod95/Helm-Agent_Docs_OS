@@ -18,6 +18,7 @@ import {
   type ParseError,
   type Result,
 } from "@fresnel/contracts";
+import { CapabilityError, CapabilityErrorDataSchema } from "@fresnel/contracts/capabilities";
 import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import {
   DriveLimitsSchema,
@@ -32,6 +33,7 @@ import {
   type ExtensionEntry,
   type HookName,
   type PluginHostError,
+  type PluginHostErrorOrigin,
   type ToolChangeReport,
   type PluginHostRequestName,
   type PluginRegistrationDecl,
@@ -40,7 +42,7 @@ import {
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { eraseRegistration, stateAs } from "../erase.ts";
-import { PrimitiveError } from "../primitives/errors.ts";
+import { isPrimitiveErrorCode, PrimitiveError } from "../primitives/errors.ts";
 import {
   registerSdkModules,
   X_SDK_MODULES,
@@ -216,12 +218,34 @@ function replyOf(value: unknown): Result<JsonValue, Error> {
     : err(new PluginEngineCallError("invalid_reply", "the engine reply is not JSON"));
 }
 
+/**
+ * 엔진의 실패 응답을 자식의 오류로 바꾼다. `origin`이 있으면 엔진 안과 같은 종류(`CapabilityError`, `PrimitiveError`)로 되던진다.
+ * 알 수 없거나 맞지 않는 origin은 싣지 않은 것과 같다
+ */
 function failureOf(error: RawPluginHostFrame["error"]): Result<JsonValue, Error> {
-  return err(
-    new PluginEngineCallError(
-      error?.kind ?? "invalid_reply",
-      error?.message ?? "the engine sent a failure without an error",
-    ),
+  const kind = error?.kind ?? "invalid_reply";
+  const message = error?.message ?? "the engine sent a failure without an error";
+  return err(originErrorOf(error?.origin, message) ?? new PluginEngineCallError(kind, message));
+}
+
+/** 원래 오류의 종류로 되던질 오류. origin이 없거나 알 수 없는 종류·코드·모양이면 undefined다 */
+function originErrorOf(
+  origin: PluginHostErrorOrigin | undefined,
+  message: string,
+): Error | undefined {
+  if (origin === undefined) return undefined;
+  if (origin.kind === "capability") {
+    const checked = parse(CapabilityErrorDataSchema, origin.data);
+    return checked.ok ? new CapabilityError(checked.value) : undefined;
+  }
+  if (!isPrimitiveErrorCode(origin.code)) return undefined;
+  // 엔진은 메시지 앞에 코드를 붙여 보낸다. 되던지는 오류는 코드를 따로 가지므로 앞의 코드는 떼어 낸다
+  const prefix = `${origin.code}: `;
+  const text = message.startsWith(prefix) ? message.slice(prefix.length) : message;
+  return new PrimitiveError(
+    origin.code,
+    text,
+    origin.scopeId === undefined ? undefined : { scopeId: origin.scopeId },
   );
 }
 

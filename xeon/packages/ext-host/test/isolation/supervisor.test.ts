@@ -1,7 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
-import { ok, type Result } from "@fresnel/contracts";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import { PLUGIN_HOST_MAX_FRAME_BYTES, type EngineCallParams } from "@fresnel/contracts/extensions";
+import {
+  PLUGIN_HOST_MAX_FRAME_BYTES,
+  type EngineCallParams,
+  type PluginHostError,
+} from "@fresnel/contracts/extensions";
 import {
   createPluginHostSupervisor,
   type PluginHostSupervisor,
@@ -45,6 +49,8 @@ interface RigOptions {
   readonly maskSecrets?: (line: string) => string;
   readonly initTimeoutMs?: number;
   readonly protocolVersion?: number;
+  /** 있으면 엔진 호출마다 이 실패로 답한다 */
+  readonly engineFailure?: PluginHostError;
 }
 
 function rigOf(root: string, options: RigOptions = {}): Rig {
@@ -73,7 +79,7 @@ function rigOf(root: string, options: RigOptions = {}): Rig {
     maxRestarts: 1,
     onEngineCall: async (params) => {
       engineCalls.push(params);
-      return ok(params.params);
+      return options.engineFailure === undefined ? ok(params.params) : err(options.engineFailure);
     },
     onRestartLimit: (info) => {
       restarts.push(info);
@@ -373,6 +379,30 @@ test("a plugin's engine call reaches the engine and its answer returns to the pl
   const reply = await rig.supervisor.call("method.call", methodParams("bump", {}));
   expect(okValue(reply)).toEqual({ count: 1 });
   expect(rig.engineCalls).toMatchObject([{ method: "commit", registration: "demo" }]);
+});
+
+test("an engine call failure reaches the plugin with its origin", async () => {
+  const rig = rigOf(await fixtureRoot(), {
+    engineFailure: {
+      kind: "engine_call_failed",
+      message: "state_schema: bad",
+      origin: { kind: "primitive", code: "state_schema", scopeId: "demo" },
+    },
+  });
+  await rig.supervisor.call("method.call", methodParams("bump", {}));
+  // 엔진이 자식에게 쓴 줄 가운데 오류 응답 하나(엔진 호출의 답)
+  const answer = rig.port.children[0]
+    ?.received()
+    .split("\n")
+    .find((line) => line.includes('"error"'));
+  const parsed = answer === undefined ? undefined : parseJson(answer);
+  expect(parsed?.ok ? parsed.value : undefined).toMatchObject({
+    error: {
+      kind: "engine_call_failed",
+      message: "state_schema: bad",
+      origin: { kind: "primitive", code: "state_schema", scopeId: "demo" },
+    },
+  });
 });
 
 test("a notification is sent without an answer and the process keeps serving calls", async () => {

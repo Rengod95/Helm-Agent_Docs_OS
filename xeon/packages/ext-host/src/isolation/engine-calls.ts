@@ -13,6 +13,8 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import {
+  CapabilityErrorDataSchema,
+  type CapabilityErrorData,
   FileChangeEntrySchema,
   isCapabilityId,
   isCapabilityError,
@@ -32,8 +34,10 @@ import {
   RecordKindSchema,
   RecordSubjectSchema,
   type EngineCallParams,
+  isErrorDetailWithinLimit,
   type PluginEngineCallName,
   type PluginHostError,
+  type PluginHostErrorOrigin,
   type RecordQuery,
   type RegistrationApi,
   type ReportedFileChange,
@@ -239,7 +243,29 @@ function invalidParams(error: ParseError): Result<never, PluginHostError> {
   return err({ kind: "invalid_params", message: describeParse(error) });
 }
 
-/** 던진 값을 `engine_call_failed`로 옮긴다. 엔진의 오류 코드와 메시지를 싣는다 */
+/** 기능 오류의 데이터를 프로토콜 모양으로 옮긴다. 메시지는 상한으로 자르고 detail이 상한을 넘으면 뺀다. JSON이 아니면 undefined */
+function capabilityOriginOf(data: CapabilityErrorData): PluginHostErrorOrigin | undefined {
+  const { detail, ...rest } = data;
+  const fitted = detail === undefined || isErrorDetailWithinLimit(detail) ? data : rest;
+  const json = toJsonValue({ ...fitted, message: data.message.slice(0, MESSAGE_MAX) });
+  if (json === undefined) return undefined;
+  const checked = parse(CapabilityErrorDataSchema, json);
+  return checked.ok ? { kind: "capability", data: checked.value } : undefined;
+}
+
+/** 던진 값의 원래 종류. 기능 오류는 데이터를, 확장 오류는 코드와 등록 id를 싣는다. 다른 오류는 싣지 않는다 */
+function originOf(cause: unknown): PluginHostErrorOrigin | undefined {
+  if (cause instanceof PrimitiveError) {
+    return {
+      kind: "primitive",
+      code: cause.code,
+      ...(cause.scopeId === undefined ? {} : { scopeId: cause.scopeId }),
+    };
+  }
+  return isCapabilityError(cause) ? capabilityOriginOf(cause.data) : undefined;
+}
+
+/** 던진 값을 `engine_call_failed`로 옮긴다. 엔진의 오류 코드와 메시지를 싣고, 원래 종류가 있으면 `origin`도 싣는다 */
 function failureOf(cause: unknown): PluginHostError {
   const text =
     cause instanceof PrimitiveError
@@ -247,7 +273,12 @@ function failureOf(cause: unknown): PluginHostError {
       : isCapabilityError(cause)
         ? `${cause.data.code}: ${cause.message}`
         : messageOf(cause);
-  return { kind: "engine_call_failed", message: text.slice(0, MESSAGE_MAX) };
+  const origin = originOf(cause);
+  return {
+    kind: "engine_call_failed",
+    message: text.slice(0, MESSAGE_MAX),
+    ...(origin === undefined ? {} : { origin }),
+  };
 }
 
 /** 엔진의 돌려줄 값을 JSON으로 바꾼다. 없으면(undefined) null이고, JSON이 아니면 실패다 */

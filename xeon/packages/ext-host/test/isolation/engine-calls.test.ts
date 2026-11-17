@@ -1,35 +1,67 @@
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
 import type { Result } from "@fresnel/contracts";
+import {
+  CapabilityError,
+  type CapabilityErrorData,
+  type ServiceKey,
+} from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import type {
-  DriveCommand,
-  EngineCallParams,
-  PluginHostError,
-  RegistrationApi,
+import {
+  PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES,
+  type DriveCommand,
+  type EngineCallParams,
+  type PluginHostError,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import { createEngineCallRouter, parseEngineCallParams } from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
+import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
+import { echoDefs, makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
 
 const REGISTRATION = "ext-state";
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
+const ECHO_KEY: ServiceKey<{ echo(input: unknown): Promise<unknown> }> = {
+  capability: "demo.echo",
+  version: "1.0.0",
+};
+/** 공급자가 던지는 기능 오류의 데이터. 시험마다 `echo.thrown`으로 바꿀 수 있다 */
+const ECHO_ERROR: CapabilityErrorData = {
+  capability: "demo.echo",
+  method: "echo",
+  code: "unavailable",
+  message: "every provider failed",
+  retryable: true,
+  detail: { tried: 2 },
+};
 
 /**
  * 실제 확장 호스트에 등록 하나를 올리고, 그 `g`로 라우터를 만든다. 라우터는 디스패치 안에서 불린다.
- * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다
+ * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다.
+ * `withEcho`이면 `demo.echo` 공급자를 올리고 등록이 그 기능을 요구한다. 공급자가 던질 값은 `echo.thrown`이다
  */
-async function rig(replayId: number | null = null) {
-  const t = await createTestHost();
+async function rig(replayId: number | null = null, withEcho = false) {
+  // 공급자의 메서드 정의(멱등 `echo`)가 있어야 가드가 재실행 문맥에서도 기능 호출을 통과시킨다
+  const t = await createTestHost(withEcho ? { capabilityDefs: echoDefs } : {});
   const thread = t.newThread();
   await t.host.openThread(thread);
+  const echo: { thrown: Error } = { thrown: new CapabilityError(ECHO_ERROR) };
+  if (withEcho) {
+    await t.host.install(
+      makeUnit({ name: "ext-echo", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+        hostOf(g).provide(ECHO_KEY, { echo: () => Promise.reject(echo.thrown) });
+      }),
+    );
+  }
   const slot: { g?: RegistrationApi<AnyState> } = {};
   await t.host.install(
     makeUnit<AnyState>(
       {
         name: REGISTRATION,
         usesPost: true,
+        loadIndex: withEcho ? 1 : 0,
+        ...(withEcho ? { requires: [{ id: "demo.echo", range: "^1.0.0" }] } : {}),
         def: {
           state: {
             schema: Type.Object({ count: Type.Number() }),
@@ -82,7 +114,17 @@ async function rig(replayId: number | null = null) {
       return slot.g.state();
     });
   }
-  return { call, stateNow };
+  return { call, stateNow, echo };
+}
+
+/** 공급자의 `echo`를 부르는 기능 호출 params */
+function capabilityCall(): EngineCallParams {
+  return callOf("capability", {
+    key: { capability: "demo.echo", version: "1.0.0" },
+    member: "echo",
+    input: { text: "hi" },
+    options: { requestId: "cap:1" },
+  });
 }
 
 function callOf(
@@ -246,6 +288,51 @@ test("a capability call outside a replay goes through the guarded service and re
   );
   expect(refused.kind).toBe("engine_call_failed");
   expect(refused.message).toMatch(/^capability_undeclared: /);
+});
+
+test("a capability error from a provider answers engine_call_failed with its code and data as origin", async () => {
+  const { call } = await rig(null, true);
+  expect(errorOf(await call(capabilityCall()))).toEqual({
+    kind: "engine_call_failed",
+    message: "unavailable: every provider failed",
+    origin: { kind: "capability", data: ECHO_ERROR },
+  });
+});
+
+test("a capability error whose detail is over the protocol limit answers without the detail and keeps the rest", async () => {
+  const { call, echo } = await rig(null, true);
+  echo.thrown = new CapabilityError({
+    ...ECHO_ERROR,
+    detail: "x".repeat(PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES),
+  });
+  expect(errorOf(await call(capabilityCall())).origin).toEqual({
+    kind: "capability",
+    data: {
+      capability: "demo.echo",
+      method: "echo",
+      code: "unavailable",
+      message: "every provider failed",
+      retryable: true,
+    },
+  });
+});
+
+test("a primitive error answers engine_call_failed with its code and the registration as origin", async () => {
+  const { call } = await rig();
+  expect(errorOf(await call(callOf("commit", { count: "not a number" }))).origin).toEqual({
+    kind: "primitive",
+    code: "state_schema",
+    scopeId: REGISTRATION,
+  });
+});
+
+test("an error that is neither a capability nor a primitive error answers without an origin", async () => {
+  const { call, echo } = await rig(null, true);
+  echo.thrown = new Error("boom");
+  expect(errorOf(await call(capabilityCall()))).toEqual({
+    kind: "engine_call_failed",
+    message: "boom",
+  });
 });
 
 test("a malformed capability key is invalid_params", async () => {

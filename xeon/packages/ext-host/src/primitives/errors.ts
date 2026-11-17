@@ -5,51 +5,58 @@ import type {
   RegistrationId,
 } from "@fresnel/contracts/extensions";
 
-/** X.primitives.spec §3.10. ManifestIssue 코드와 겹치는 항목은 같은 문자열을 쓴다 */
-export type PrimitiveErrorCode =
-  | "port_unavailable"
-  | "no_context"
-  | "no_thread"
-  | "post_undeclared"
-  | "drive_requires_group"
-  | "drive_undeclared"
-  | "drive_duplicate"
-  | "drive_outside_setup"
-  | "lease_inactive"
-  | "lease_revoked"
-  | "lease_budget"
-  | "handler_aborted"
-  | "registration_inactive"
-  | "registration_foreign_id"
-  | "registration_duplicate"
-  | "registration_setup_failed"
-  | "hook_undeclared"
-  | "subscribe_not_event"
-  | "subscribe_not_high_frequency"
-  | "registration_unknown_plugin"
-  | "state_undeclared"
-  | "state_schema"
-  | "state_conflict"
-  | "state_too_large"
-  | "state_migration_missing"
-  | "state_migration_failed"
-  | "state_migration_duplicate"
-  | "state_migration_outside_setup"
-  | "state_future_version"
-  | "storage_unavailable"
-  | "record_kind_undeclared"
-  | "record_invalid"
-  | "read_kind_undeclared"
-  | "record_private_invalid"
-  | "capability_undeclared"
-  | "capability_unavailable"
-  | "capability_ambiguous"
-  | "service_reserved"
-  | "tool_risk_reserved"
-  | "resource_conflict"
-  | "resource_name_invalid"
-  | "method_schema_invalid"
-  | "read_only_method";
+/** X.primitives.spec §3.10. ManifestIssue 코드와 겹치는 항목은 같은 문자열을 쓴다. 격리 자식이 엔진 코드를 되살릴 때도 이 목록을 쓴다 */
+const PRIMITIVE_ERROR_CODES = [
+  "port_unavailable",
+  "no_context",
+  "no_thread",
+  "post_undeclared",
+  "drive_requires_group",
+  "drive_undeclared",
+  "drive_duplicate",
+  "drive_outside_setup",
+  "lease_inactive",
+  "lease_revoked",
+  "lease_budget",
+  "handler_aborted",
+  "registration_inactive",
+  "registration_foreign_id",
+  "registration_duplicate",
+  "registration_setup_failed",
+  "hook_undeclared",
+  "subscribe_not_event",
+  "subscribe_not_high_frequency",
+  "registration_unknown_plugin",
+  "state_undeclared",
+  "state_schema",
+  "state_conflict",
+  "state_too_large",
+  "state_migration_missing",
+  "state_migration_failed",
+  "state_migration_duplicate",
+  "state_migration_outside_setup",
+  "state_future_version",
+  "storage_unavailable",
+  "record_kind_undeclared",
+  "record_invalid",
+  "read_kind_undeclared",
+  "record_private_invalid",
+  "capability_undeclared",
+  "capability_unavailable",
+  "capability_ambiguous",
+  "service_reserved",
+  "tool_risk_reserved",
+  "resource_conflict",
+  "resource_name_invalid",
+  "method_schema_invalid",
+  "read_only_method",
+] as const;
+export type PrimitiveErrorCode = (typeof PRIMITIVE_ERROR_CODES)[number];
+
+/** 문자열이 확장 오류 코드인가. 격리 자식이 엔진 응답의 코드를 검사할 때 쓴다 */
+export function isPrimitiveErrorCode(value: string): value is PrimitiveErrorCode {
+  return PRIMITIVE_ERROR_CODES.some((known) => known === value);
+}
 
 export interface PrimitiveErrorOptions {
   readonly scopeId?: RegistrationId;
