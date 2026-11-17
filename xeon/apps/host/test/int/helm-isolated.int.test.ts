@@ -159,6 +159,56 @@ realTest(
   90_000,
 );
 
+realTest(
+  "a profile whose start drive is Helm starts the isolated Helm: the lease is granted to helm and drive.step requests reach the child",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const requests: string[] = [];
+    let isolation: string | undefined;
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      buildModels: answeringModels("helm-profile-start", "done."),
+      pluginHost: {
+        ...isolatedPluginHost(),
+        onLoadReport: (report) => {
+          isolation = report.extensions.find((entry) => entry.name === HELM)?.isolation;
+        },
+        onSupervisor: (name, supervisor) => {
+          if (name === HELM) recordRequests(supervisor, requests);
+        },
+      },
+    });
+    const connection = createHostConnection(host.client);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      expect(isolation).toBe("process");
+      const collector = collectEvents(connection);
+      await connection.request("events.subscribe", { from: "head" });
+      await connection.request("profile.put", {
+        profile: {
+          id: "helm-start",
+          title: "helm-start",
+          plugins: [{ name: HELM }],
+          settings: [],
+          startDrive: HELM,
+        },
+        baseRev: null,
+      });
+      await connection.request("thread.create", { profileId: "helm-start" });
+      const granted = await collector.waitFor((event) => event.kind === "lease.acquired", 30_000);
+      expect(leaseAcquiredOf(granted)).toMatchObject({ scopeId: HELM, depth: 0 });
+      expect(requests.filter((method) => method === "drive.step").length).toBeGreaterThan(0);
+    } finally {
+      await connection.close();
+      await host.close();
+      home.dispose();
+    }
+  },
+  90_000,
+);
+
 /** 맡기기 한 번을 돌려 기록을 값으로 돌려준다. 격리면 Helm이 자식에서 돈다, 아니면 엔진 안에서 돈다 */
 async function handoffRecord(isolated: boolean) {
   const home = useEngineHome();
