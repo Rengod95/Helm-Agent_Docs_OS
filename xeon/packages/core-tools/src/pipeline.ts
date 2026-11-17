@@ -67,6 +67,7 @@ import type { CallTable } from "./calls.ts";
 import { commitWithRetry, describeFailure } from "./commit.ts";
 import type { ToolsDeps } from "./deps.ts";
 import { errorOutcome, syntheticEntryOf } from "./entries.ts";
+import { pathInCard, samePathAsOuter } from "./inherit-target.ts";
 import type { InputBridge } from "./mcp-input.ts";
 import {
   isPluginRequestId,
@@ -2004,10 +2005,15 @@ export function createPipeline(
         // 도구 승인은 허용만 물려준다
         if (resolution.decision !== "allow") continue;
         if (asked.origin.toolCallId !== request.parentToolCallId) continue;
+        // 안쪽 호출이 바깥 호출의 승인 카드가 보여 준 대상(카드 인자의 경로)과 같은 경로일 때만 물려준다.
+        // 경로가 없거나(셸 등) 인자가 blob으로 빠져 엔진이 읽을 수 없으면 아니다
+        if (!samePathAsOuter(input, asked.body.tool.args)) continue;
         risk = asked.body.tool.risk;
       } else if (asked.body.kind === "review") {
         // 검토 카드의 답(hunk 결정 `answer`, 전체 거부 `deny`)은 모두 사람의 결정이고, 되돌림은 그 결정의 결과다
         if (asked.body.review.writes?.includes(digest) !== true) continue;
+        // 해시는 카드를 연 플러그인이 정한다. 사용자가 카드에서 본 파일 목록 안의 경로인지 엔진이 따로 본다
+        if (!pathInCard(input, asked.body.review.files)) continue;
         risk = "write";
       } else {
         continue;

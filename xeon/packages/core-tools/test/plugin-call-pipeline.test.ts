@@ -184,29 +184,43 @@ test("an intent without a recorded result is unknown_outcome and is never run ag
   expect(probe.calls).toHaveLength(1);
 });
 
-test("an approval inherited from the parent call skips the card; an unknown approval id does not (U-11)", async () => {
-  const h = await createHarness();
-  const probe = registerWorkspace(h);
-  // 바깥 도구 호출(bash)이 사용자 승인을 받는다
+/** 바깥 호출(edit a.txt)이 사람의 허용을 받고 끝난 뒤의 승인 id */
+async function approvedOuterEdit(h: Harness): Promise<string> {
   const parent = callTool(h.runtime.tools, h.run(), {
     id: "parent-1",
-    name: "bash",
-    args: { command: "echo parent" },
+    name: "edit",
+    args: { path: "a.txt", edits: [{ oldText: "hello", newText: "bye" }] },
   });
   await until(() => h.runtime.approvals.pending(h.thread).length === 1);
   const [parentRequest] = h.runtime.approvals.pending(h.thread);
   const approvalId = parentRequest?.approvalId ?? "";
   await h.runtime.approvals.respond(approvalId, { decision: "allow" });
   expect(await parent).toMatchObject({ isError: false });
+  return approvalId;
+}
 
-  // 같은 대화, 같은 바깥 호출, 위험 등급이 같은 자식 호출은 카드를 다시 띄우지 않는다
+/** 안쪽 호출이 새 카드를 띄우는지 본다: 카드가 하나 뜨면 허용해서 호출을 끝낸다 */
+async function expectsInnerCard(h: Harness, pending: Promise<unknown>): Promise<void> {
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [card] = h.runtime.approvals.pending(h.thread);
+  expect(card?.origin.caller).toBe("plugin:p1");
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
+  expect(await pending).toMatchObject({ ok: true });
+}
+
+test("an approval inherited from the parent call skips the card for the same path once the claim is checked against the record (U-11)", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const approvalId = await approvedOuterEdit(h);
+
+  // 같은 대화, 같은 바깥 호출, 바깥 인자와 같은 경로면 카드를 다시 띄우지 않는다
   const inherited = await h.runtime.tools.executeForPlugin(
     callOf(h, {
-      target: { kind: "tool", name: "bash" },
-      input: { command: "echo child" },
+      target: { kind: "tool", name: "edit" },
+      input: { path: "./a.txt", edits: [{ oldText: "hello", newText: "bye" }] },
       requestId: "inherit-ok",
       parentToolCallId: "parent-1",
-      inheritApproval: { approvalId, risk: "exec" },
+      inheritApproval: { approvalId },
     }),
   );
   expect(inherited).toMatchObject({ ok: true, value: { isError: false } });
@@ -216,19 +230,80 @@ test("an approval inherited from the parent call skips the card; an unknown appr
   // 기록에 없는 승인 id는 물려받지 못한다: 보통의 카드가 뜬다
   const forged = h.runtime.tools.executeForPlugin(
     callOf(h, {
-      target: { kind: "tool", name: "bash" },
-      input: { command: "echo forged" },
+      target: { kind: "tool", name: "edit" },
+      input: { path: "a.txt", edits: [{ oldText: "x", newText: "y" }] },
       requestId: "inherit-forged",
       parentToolCallId: "parent-1",
-      inheritApproval: { approvalId: "evt_forged", risk: "exec" },
+      inheritApproval: { approvalId: "evt_forged" },
     }),
   );
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const [card] = h.runtime.approvals.pending(h.thread);
-  expect(card?.origin.caller).toBe("plugin:p1");
-  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
-  expect(await forged).toMatchObject({ ok: true });
+  await expectsInnerCard(h, forged);
   expect(probe.calls).toHaveLength(3);
+});
+
+test("an inner write to a different path than the outer call's card opens a new card", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const approvalId = await approvedOuterEdit(h);
+  const other = h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "tool", name: "edit" },
+      input: { path: "b.txt", edits: [{ oldText: "hello", newText: "bye" }] },
+      requestId: "inherit-other-path",
+      parentToolCallId: "parent-1",
+      inheritApproval: { approvalId },
+    }),
+  );
+  await expectsInnerCard(h, other);
+  expect(probe.calls).toHaveLength(2);
+  // 경로가 같아 보여도 상위 이동이 든 경로는 같은 대상이라고 확신할 수 없다
+  const dotdot = h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "tool", name: "edit" },
+      input: { path: "x/../a.txt", edits: [{ oldText: "hello", newText: "bye" }] },
+      requestId: "inherit-dotdot",
+      parentToolCallId: "parent-1",
+      inheritApproval: { approvalId },
+    }),
+  );
+  await expectsInnerCard(h, dotdot);
+});
+
+test("a shell outer call has no path, so nothing is inherited from it", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const parent = callTool(h.runtime.tools, h.run(), {
+    id: "parent-sh",
+    name: "bash",
+    args: { command: "echo parent" },
+  });
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [parentRequest] = h.runtime.approvals.pending(h.thread);
+  const approvalId = parentRequest?.approvalId ?? "";
+  await h.runtime.approvals.respond(approvalId, { decision: "allow" });
+  expect(await parent).toMatchObject({ isError: false });
+  const child = h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "tool", name: "bash" },
+      input: { command: "echo child" },
+      requestId: "inherit-shell",
+      parentToolCallId: "parent-sh",
+      inheritApproval: { approvalId },
+    }),
+  );
+  await expectsInnerCard(h, child);
+  // 안쪽 호출에 경로가 없어도 같다(바깥이 경로 호출이어도)
+  const outerEditId = await approvedOuterEdit(h);
+  const noPath = h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "tool", name: "bash" },
+      input: { command: "echo child" },
+      requestId: "inherit-no-path",
+      parentToolCallId: "parent-1",
+      inheritApproval: { approvalId: outerEditId },
+    }),
+  );
+  await expectsInnerCard(h, noPath);
 });
 
 test("a plugin's pending approval is read back after a restart with caller plugin:p1", async () => {
