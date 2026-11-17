@@ -88,11 +88,9 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
           { when: "next", requestId: `authoring:restore:${state.name ?? ""}`.slice(0, 64) },
         );
       });
-      // 제작 대화가 열려 있거나 사람 확인 요청이 남아 있을 때만 drive 락 후보가 된다. 기본 켜짐인 유휴 빌더가 락을 쥐어 다른 drive 그룹을
-      // 기다리게 하지 않는다(`authoring_start` 전과 `authoring_stop`·완료 뒤에는 참여하지 않는다)
-      g.drive(authoringDrive(g, deps.devkit), {
-        wants: (state) => sessionOpen(state) || state.pending !== null,
-      });
+      // 주도 단계 함수. 제작 대화가 열려 있으면 상주하고(`yield`), 닫혀 있고 확인도 없으면 `done`으로 물러난다. 그 상태가 바뀌기 전까지
+      // 후보가 아니다(`wants`는 없다, drive-isolation.md §1.1). 기본 켜짐인 빌더는 첫 경계에 한 번 임대를 받고 물러난다
+      g.drive(authoringDrive(g, deps.devkit));
     },
   });
 }

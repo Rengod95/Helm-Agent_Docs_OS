@@ -140,6 +140,32 @@ test("authoring.AU-010: a spawn step needs a human confirmation", async () => {
   expect(await issuesOf(dir, "AU-010")).toEqual([]);
 });
 
+test("authoring.AU-010/011: the command form of a spawn, an ask, and a state commit counts like the call form", async () => {
+  const dir = await scaffolded("au-command");
+  // 주도 단계 함수는 `{ do: "spawn" }`을 낸다. 확인이 없으면 AU-010 경고다
+  writeFileSync(
+    join(dir, "src", "fan-out.ts"),
+    "export const fan = () => ({ do: 'spawn', agent: 'x', task: 'y' });\n",
+  );
+  expect((await issuesOf(dir, "AU-010")).map((entry) => [entry.severity, entry.file])).toEqual([
+    ["warning", "src/fan-out.ts"],
+  ]);
+  // `{ do: "ask" }`는 사람 확인이다
+  writeFileSync(
+    join(dir, "src", "confirm.ts"),
+    "export const confirm = () => ({ do: 'ask', card: {} });\n",
+  );
+  expect(await issuesOf(dir, "AU-010")).toEqual([]);
+  // `{ do: "commit" }`은 상태를 쓰는 것이다. 선언이 없으면 AU-011 경고다
+  writeFileSync(
+    join(dir, "src", "index.ts"),
+    "export const touch = () => ({ do: 'commit', state: {}, next: { do: 'yield' } });\n",
+  );
+  expect((await issuesOf(dir, "AU-011")).map((entry) => [entry.severity, entry.message])).toEqual([
+    ["warning", "the state document is used but no state declaration with a version was found"],
+  ]);
+});
+
 test("authoring.AU-011: state without a version, and a version 2 without migrations", async () => {
   const dir = await scaffolded("au11");
   expect(await issuesOf(dir, "AU-011")).toEqual([]);

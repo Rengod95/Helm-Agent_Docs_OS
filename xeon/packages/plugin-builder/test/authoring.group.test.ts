@@ -360,23 +360,41 @@ test("authoring.guide: without an injected guide the tool says so and opens no s
   expect(rig.state().sessionId).toBeNull();
 });
 
-test("authoring.lease: with no authoring session the builder never takes a drive lock, and an open session does", async () => {
+test("authoring.lease: with no authoring session the builder takes the drive lock once and hands it back with done; an open session keeps it", async () => {
   const rig = await createGroupRig();
   const acquired = () =>
     rig.t.records
       .events(rig.thread)
       .filter((event) => event.kind === "lease.acquired")
       .map((event) => event.payload);
-  // 기본 켜짐이어도 제작 세션이 없으면 drive 락 후보가 아니다
+  const released = () =>
+    rig.t.records
+      .events(rig.thread)
+      .filter((event) => event.kind === "lease.released")
+      .map((event) => event.payload);
+  // 세션이 없을 때 빌더는 주도 후보로 한 번 들어와 `done`으로 물러난다. 상태가 바뀌기 전까지 다시 들어오지 않는다
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
   await rig.t.boundary(rig.thread).idle();
   await rig.t.settled();
-  expect(acquired()).toEqual([]);
+  const once = acquired().length;
+  expect(once).toBe(1);
+  expect(released().at(-1)).toMatchObject({ scopeId: "authoring", reason: "done" });
   expect(rig.t.host.leaseOf(rig.thread)).toBeNull();
+  await rig.t.boundary(rig.thread).idle();
+  await rig.t.settled();
+  expect(acquired()).toHaveLength(once);
+  // 세션이 열리면 다시 후보가 되고, 답을 기다리는 동안 락을 반납한 뒤 답 뒤에 다시 받는다(X-17)
   await confirmedSession(rig);
-  // 확인을 기다리는 동안 락을 반납하고 답 뒤에 다시 받으므로(X-17) 두 번 이상이다. 받는 쪽은 언제나 빌더다
-  const taken = acquired();
-  expect(taken.length).toBeGreaterThan(0);
-  for (const payload of taken) expect(payload).toMatchObject({ scopeId: "authoring" });
+  expect(acquired().length).toBeGreaterThan(once);
+  for (const payload of acquired()) expect(payload).toMatchObject({ scopeId: "authoring" });
+  // 열린 세션 동안에는 `done`으로 물러나지 않았다(상주)
+  const doneCount = released().filter(
+    (payload) =>
+      typeof payload === "object" &&
+      payload !== null &&
+      "reason" in payload &&
+      payload.reason === "done",
+  );
+  expect(doneCount).toHaveLength(1);
 });
