@@ -164,7 +164,7 @@ R1~R24의 번호는 바꾸지 않았다. 우선순위 열은 이 표 안에서�
 | 설계: Hook 정리 | "블록마다 앞과 뒤 + 루프 경계 셋"으로 46개를 정리. 공개와 내부 구분, 새 위치 둘(사람에게 묻기, 서브에이전트). L2 → L1 경계 조사 포함 | **Draft** (`docs/xeon/review/m5/hooks-core-boundary.md`. U3·U4·U6은 2026-11-17 사용자가 확정) | |
 | 계약 동결 C0 | 구현 전에 한 번에 정할 것(저장 문자열이 되는 [제안] 이름의 확정을 포함한다: (6)): (1) F의 결정값·표시값·합치기 규칙(U3, 결정됨), (2) wire 이름 공간과 오류 코드 범위, 프로토콜 버전을 한 번에 올릴 책임자, (3) 주도 명령 결과의 내구 기록(U1, 새 상태 사건으로 결정됨), (4) P1 프로토콜 입력(이벤트 전달 규약, `replay` 플래그, 호출자 신원, 표준오류 수집, 프로세스 종료 실패 이유, `StepResult`), (5) `versionId`·`pluginId` 같은 공통 어휘(wire 차원 이름 `pluginVersion`과의 관계 포함), (6) [제안] 이름 목록 확정: `drive.command.settled`, `drive.frames`, `plugin.draft.fromInstruction`, `testRun.start`, `authoring_submit`, `provenance:"user_instruction"`, `decides`, 빼기 명령 `/profile remove`, 설정 키 `x.primitives.driveMaxDepth`, 오류 3700~3719(블록). 확정하면 C0 표가 정본이고 바꾸려면 표를 고친다, (7) P1 프로토콜 한 표(메시지 종류, 방향, 필드, 동결 전에 정할 것. 초안은 `drive-isolation.md` §3.2) | Not Started. 문서 정리는 끝남. 사용자 결정 U1~U6은 모두 끝남 | 없음(바로 시작 가능) |
 | M5a-1 (E1) | 주도 단계 함수와 명령(`StepResult` 포함). Helm과 빌더를 새 모양으로 다시 구현(어댑터 없음. 빌더는 Inject·Hook·Drive 셋을 모두 만든다). 중지 시 백그라운드 서브에이전트도 멈춤. 빌더의 산출 경로는 기존 `link`를 그대로 둔다(M5c-1이 `PluginSubmitPort`로 바꿀 때까지. 빌더의 초안·제출 경로 변경과 기존 플러그인 고치기, `plugin-group` 폐기는 M5f) | Not Started | 설계 확정(됨), U1 결정됨. 빌더 재구현의 내용은 엔진 설계 §1.4 |
-| M5b-1 (P1) | 격리 1단계. 첫 일은 프로세스 메모리와 5MB 입력 측정. 프로토콜 동결 전에 C0의 (4)를 입력으로 받는다. `ext.<이름>.isolation` 설정(F5)의 뜻을 바꾼다 | Not Started | C0 (4) |
+| M5b-1 (P1) | 격리 1단계. 첫 일은 프로세스 메모리와 5MB 입력 측정. 프로토콜 동결 전에 C0의 (4)를 입력으로 받는다. `ext.<이름>.isolation` 설정(F5)의 뜻을 바꾼다 | Done (m4/enP1, 2026-11-18: 측정, 프로토콜, 호스트, 수명, 샌드박스, 동등성 시험. 남은 것은 drive-isolation §6의 사용자 결정) | C0 (4) |
 
 ### Next: M5 본체
 
