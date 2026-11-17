@@ -434,7 +434,7 @@ export type DelegateResult =
 
 규칙:
 
-1. group-sdk은 주도 정책을 갖지 않는다. `GroupApi.startDrive(input?)`는 `hostOf(g).startDrive`를 그대로 부른다. thread는 호출하는 도구·명령·메서드 문맥의 것이다. 문맥이 없으면(setup, 화면 등) 결과 값으로 `no_context`를 돌려준다.
+1. group-sdk은 주도 정책을 갖지 않는다. `GroupApi.startDrive(input?)`는 `hostOf(g).startDrive`를 그대로 부른다. 약속(`Promise<GroupStartDriveResult>`)이다. 결과 값 `GroupStartDriveResult`는 `Result<void, …>`이고, 격리 자식에서도 같은 값을 준다(엔진 왕복, X.primitives.spec §3.8). thread는 호출하는 도구·명령·메서드 문맥의 것이다. 문맥이 없으면(setup, 화면 등) 결과 값으로 `no_context`를 돌려준다.
 2. 그룹의 drive 역할(`DriveRole`)은 thread의 주도권 스택(`ExtHost.driveFrames(thread)`, drive-isolation.md 2.6)에서 계산한다. 그룹의 프레임은 `DriveFrameView.plugin`이 그룹의 확장 이름과 같은 프레임이다. 계산 규칙은 다음 표다.
 
 | 스택 상태 | `DriveRole` | 판정 |

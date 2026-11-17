@@ -74,6 +74,7 @@ export {
   hostOf,
   type RegistrationCallContext,
   type RegistrationHostApi,
+  type RegistrationStartDriveError,
   type StateMigration,
 } from "./host-api.ts";
 export {

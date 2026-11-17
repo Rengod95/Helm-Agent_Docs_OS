@@ -72,6 +72,7 @@ export {
   bindHostApiForIsolation,
   type RegistrationHostApi,
   type RegistrationCallContext,
+  type RegistrationStartDriveError,
   type StateMigration,
   // primitives §3.9 (리소스 레지스트리와 리소스 포트, F 이름 다시 export)
   McpPortKey,

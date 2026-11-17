@@ -144,8 +144,8 @@ function optStr(input: Record<string, unknown>, key: string): string | undefined
  * 사람 확인 질문을 drive가 열 수 있게 주도 시작을 다시 요청한다. 엔진은 두 번 연속 효과 없이 `yield`한 프레임을 `idle`로 내리므로
  * 확인이 필요해질 때마다 깨운다. 이미 맨 위에 있으면 엔진이 같은 scope의 요청을 버린다. 거부되면 상태를 바꾸지 않도록 오류 값을 돌려준다
  */
-function wakeDrive(env: ToolsEnv): JsonValue | undefined {
-  const started = env.g.startDrive();
+async function wakeDrive(env: ToolsEnv): Promise<JsonValue | undefined> {
+  const started = await env.g.startDrive();
   if (started.ok) return undefined;
   return refusal(
     "drive_unavailable",
@@ -169,7 +169,7 @@ async function request(
     return { ok: false, status: "denied", action, hint: "call again to ask the user again" };
   }
   if (done !== undefined) return { ok: true, status: "done", action, result: done };
-  const woke = wakeDrive(env);
+  const woke = await wakeDrive(env);
   if (woke !== undefined) return woke;
   await patch(env, { pending: action, askRound: state.askRound + 1, ...extra });
   return { ok: true, status: "awaiting_confirmation", action };
@@ -284,7 +284,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const kind = entry.id;
       const sessionId = `auth-${name}`;
       // 시작 요청은 다음 경계에서 부여되므로 먼저 낸다. 거부되면 세션을 열지 않아 상태가 어긋나지 않는다
-      const refusedStart = wakeDrive(env);
+      const refusedStart = await wakeDrive(env);
       if (refusedStart !== undefined) return refusedStart;
       await env.g.commit({
         ...env.g.state(),
@@ -401,7 +401,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       }
       const runs = key === state.lastErrorKey ? state.sameErrorRuns + 1 : 1;
       const limit = runs >= env.fixLoopLimit();
-      const woke = limit ? wakeDrive(env) : undefined;
+      const woke = limit ? await wakeDrive(env) : undefined;
       if (woke !== undefined) return woke;
       await patch(env, {
         ...base,

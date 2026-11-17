@@ -71,6 +71,7 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("post"),
     Type.Literal("capability"),
     Type.Literal("requestEffect"),
+    Type.Literal("startDrive"),
     Type.Literal("reportChanges"),
     Type.Literal("updateState"),
     Type.Literal("awaitUser"),
@@ -99,6 +100,10 @@ const UpdateStateSchema = Type.Object({
 
 const AwaitUserSchema = Type.Object({
   phase: Type.Union([Type.Literal("begin"), Type.Literal("end")]),
+});
+
+const StartDriveSchema = Type.Object({
+  input: Type.Union([JsonValueSchema, Type.Null()]),
 });
 
 const RecordPrivateSchema = Type.Object({
@@ -391,6 +396,15 @@ async function route(
         return current.ok ? ok({ kind: "conflict", current: current.value }) : current;
       }
       return ok({ kind: "failed", failure });
+    }
+    case "startDrive": {
+      const parsed = parse(StartDriveSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      // 돌려 보기에서는 시작 요청을 내지 않고 성공으로 답한다(호스트가 다시 큐에 넣지 않게)
+      if (replay) return ok({ ok: true });
+      // 문맥(thread)은 `withAmbient`가 낸 호출 요청의 것이다. 문맥이 없으면 `no_context` 값이 돌아온다
+      const started = await hostOf(g).startDrive(parsed.value.input ?? undefined);
+      return ok(started.ok ? { ok: true } : { ok: false, error: { kind: started.error.kind } });
     }
     case "awaitUser": {
       const parsed = parse(AwaitUserSchema, params);

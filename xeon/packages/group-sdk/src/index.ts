@@ -15,6 +15,7 @@ export {
   type GroupManifest,
   type GroupModule,
   type GroupModuleSettings,
+  type GroupStartDriveResult,
   type GroupSettingDefs,
   type GroupSettingNamespace,
   type GroupSettingValues,

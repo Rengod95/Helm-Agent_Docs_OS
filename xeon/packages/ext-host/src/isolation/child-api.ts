@@ -2,9 +2,9 @@
 // 엔진이 가진 것(상태 쓰기, 기록, 기능 호출)은 env.engineCall로 보낸다. 요청 문맥(어느 엔진 요청인지, 상태 스냅샷,
 // 설정, 취소 신호)은 env.scopes에 싣는다. 여기 있는 함수는 엔진 쪽 등록(`createRegistrationApi`)과 같은 표면을 준다.
 //
-// `migrateState`, `updateState`(`hostOf`), `awaitUser`는 프로토콜로 넘긴다. 함수는 자식에서 돌리고 엔진은 저장과 비교만 한다
-// (`state.migrate` 요청, `engine.call` `updateState`와 `awaitUser`, isolation-protocol.ts).
-// 막힌 API(`drive`, `startDrive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
+// `migrateState`, `updateState`(`hostOf`), `awaitUser`, `startDrive`(`hostOf`)는 프로토콜로 넘긴다. 함수는 자식에서 돌리고 엔진은 저장과 비교만 한다
+// (`state.migrate` 요청, `engine.call` `updateState`, `awaitUser`, `startDrive`, isolation-protocol.ts).
+// 막힌 API(`drive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
 // setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
 // `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
@@ -55,6 +55,7 @@ import {
   bindHostApiForIsolation,
   type RegistrationCallContext,
   type RegistrationHostApi,
+  type RegistrationStartDriveError,
   type StateMigration,
 } from "../primitives/host-api.ts";
 import type { EffectRequest } from "../primitives/effect-worker.ts";
@@ -66,7 +67,12 @@ import type {
 } from "../primitives/resources.ts";
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
-import { parseGroupRecords, parsePostReceipt, parseUpdateStateReply } from "./params.ts";
+import {
+  parseGroupRecords,
+  parsePostReceipt,
+  parseStartDriveReply,
+  parseUpdateStateReply,
+} from "./params.ts";
 
 /** 엔진이 실패로 답한 `engine.call`. 엔진의 kind와 메시지를 싣는다. 바깥에서 온 오류를 감싸므로 Error 하위다(TY-16) */
 export class PluginEngineCallError extends Error {
@@ -499,8 +505,15 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
     async requestEffect(request: EffectRequest): Promise<void> {
       await callEngine(env, state, "requestEffect", jsonOf(request, "the effect request"));
     },
-    startDrive() {
-      unsupported(state, "startDrive");
+    async startDrive(input?: JsonValue): Promise<Result<void, RegistrationStartDriveError>> {
+      // 문맥(thread)은 호출을 낳은 엔진 요청이다. 요청 밖(설치, 알림)은 엔진도 문맥을 주지 못해 `no_context`로 답하므로
+      // 왕복하지 않는다. 설치 중에는 엔진이 이 등록의 g를 아직 모르므로 왕복하면 설치가 실패한다
+      if ((env.scopes.getStore()?.requestId ?? null) === null) return err({ kind: "no_context" });
+      const reply = await callEngine(env, state, "startDrive", {
+        input: optionalJson(input, "the start input"),
+      });
+      const checkedReply = checked(parseStartDriveReply(reply), "the start reply");
+      return checkedReply.ok ? ok(undefined) : err(checkedReply.error);
     },
     callContext(): RegistrationCallContext | undefined {
       const scope = env.scopes.getStore();

@@ -37,6 +37,7 @@ export type {
   GroupSettingDefs,
   GroupSettingNamespace,
   GroupSettingValues,
+  GroupStartDriveResult,
   NoSettings,
 } from "./types.ts";
 export type { StateMigrations } from "./state.ts";

@@ -17,6 +17,7 @@ import {
   type PostReceipt,
   type RequestCancelParams,
   type ScopeDisposeParams,
+  type StartDriveReply,
   type StateMigrateParams,
   type ToolExecuteParams,
   type UpdateStateReply,
@@ -132,6 +133,23 @@ const updateStateReplySchema = Type.Union([
   }),
 ]);
 
+const startDriveReplySchema = Type.Union([
+  Type.Object({ ok: Type.Literal(true) }),
+  Type.Object({
+    ok: Type.Literal(false),
+    error: Type.Object({
+      kind: Type.Union([
+        Type.Literal("unknown_thread"),
+        Type.Literal("unknown_scope"),
+        Type.Literal("child_thread"),
+        Type.Literal("not_drive"),
+        Type.Literal("drive_error"),
+        Type.Literal("no_context"),
+      ]),
+    }),
+  }),
+]);
+
 const postReceiptSchema = Type.Object({
   requestId: Type.String(),
   duplicate: Type.Boolean(),
@@ -203,6 +221,11 @@ export function parseStateMigrate(value: unknown): Result<StateMigrateInput, Par
 /** 엔진이 답한 `updateState` 결과. 값이라서 모양이 맞지 않으면 호출하는 쪽이 오류로 본다 */
 export function parseUpdateStateReply(value: unknown): Result<UpdateStateReply, ParseError> {
   return parse(updateStateReplySchema, value);
+}
+
+/** 엔진이 답한 `engine.call` `startDrive` 결과. 거부는 값이라서 모양이 맞지 않는 것만 오류다 */
+export function parseStartDriveReply(value: unknown): Result<StartDriveReply, ParseError> {
+  return parse(startDriveReplySchema, value);
 }
 
 /** 엔진이 답한 `engine.call`의 `post` 결과 */

@@ -1286,7 +1286,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.5 drive
 
-호스트 프로세스에서 `drive`를 등록하면 `host.init`이 `unsupported_api`로 실패하고 로더는 `isolation_drive_unsupported`로 거부한다. 넘기지 않는 API는 `drive`, `startDrive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`이다(`port`는 `service_reserved`로 답한다). `migrateState`, `hostOf(g).updateState`, `awaitUser`는 프로토콜로 넘긴다(F.extensions 부록). 이름은 진단 메시지에 실린다. 사용자는 `ext.<name>.isolation = none`으로 엔진 안에서 돌린다.
+호스트 프로세스에서 `drive`를 등록하면 `host.init`이 `unsupported_api`로 실패하고 로더는 `isolation_drive_unsupported`로 거부한다. 넘기지 않는 API는 `drive`, `provide`, `providePort`, `registerWebProvider`, `registerShortcut`이다(`startDrive`는 엔진 왕복으로 넘긴다, X.primitives.spec §3.8)(`port`는 `service_reserved`로 답한다). `migrateState`, `hostOf(g).updateState`, `awaitUser`는 프로토콜로 넘긴다(F.extensions 부록). 이름은 진단 메시지에 실린다. 사용자는 `ext.<name>.isolation = none`으로 엔진 안에서 돌린다.
 
 #### 4.9.6 기록 경로와 접근 경계
 

@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import type { Result } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type {
+  DriveCommand,
   EngineCallParams,
   PluginHostError,
   RegistrationApi,
@@ -10,7 +11,7 @@ import type {
 import { createEngineCallRouter, parseEngineCallParams } from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeUnit } from "../primitives/fixtures/support.ts";
+import { makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
 
 const REGISTRATION = "ext-state";
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
@@ -362,4 +363,98 @@ test("awaitUser without a request context answers null and changes nothing", asy
   expect(await call(callOf("awaitUser", { phase: "begin" }))).toEqual({ ok: true, value: null });
   expect(await call(callOf("awaitUser", { phase: "end" }))).toEqual({ ok: true, value: null });
   expect(await stateNow()).toEqual({ count: 0 });
+});
+
+/** 드라이브가 있는 등록 `drv-q`와 라우터 하나. `inDispatch`는 디스패치 안에서(thread 문맥이 있는) 라우터를 부르고, 밖에서는 `router`를 직접 부른다 */
+async function driveRig() {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const slot: { g?: RegistrationApi<AnyState> } = {};
+  /** 드라이브 단계가 본 시작 요청. 단계가 열린 thread의 임대 등록도 함께 본다 */
+  const seen: { input: JsonValue | null; calledBy: string | null; scope: string | undefined }[] =
+    [];
+  await t.host.install(
+    makeGroupUnit<AnyState>({ name: "drv-q" }, (g) => {
+      slot.g = g;
+      g.drive(({ frame }) => {
+        seen.push({
+          input: frame.input,
+          calledBy: frame.calledBy,
+          scope: t.host.leaseOf(thread)?.scopeId,
+        });
+        const stop: DriveCommand<AnyState> = { do: "yield" };
+        return Promise.resolve(stop);
+      });
+    }),
+  );
+  const probe: { run: () => Promise<void> } = { run: async () => {} };
+  await t.host.install(
+    makeUnit({ name: "ext-probe-q", hooks: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", async () => {
+        await probe.run();
+        return undefined;
+      });
+    }),
+  );
+  let replay = false;
+  const router = createEngineCallRouter({
+    gOf: (registration) => (registration === "drv-q" ? slot.g : undefined),
+    replayOf: () => replay,
+  });
+  let seq = 0;
+  async function inDispatch(params: EngineCallParams): Promise<Result<JsonValue, PluginHostError>> {
+    const slotReply: { value?: Result<JsonValue, PluginHostError> } = {};
+    probe.run = async () => {
+      slotReply.value = await router(params);
+    };
+    seq += 1;
+    await t.host.dispatch("tool.call.before", toolCall, {
+      threadId: thread,
+      dispatchKey: `probe-drv-q:${seq}`,
+    });
+    if (slotReply.value === undefined) throw new Error("the probe handler did not run");
+    return slotReply.value;
+  }
+  return {
+    t,
+    seen,
+    router,
+    inDispatch,
+    setReplay: (value: boolean): void => {
+      replay = value;
+    },
+  };
+}
+
+function startDriveOf(input: JsonValue | null, requestId: number | null = null): EngineCallParams {
+  return { method: "startDrive", registration: "drv-q", requestId, params: { input } };
+}
+
+test("startDrive in a dispatch queues the start request on that thread, and the drive step sees its input as a user request", async () => {
+  const { t, seen, inDispatch } = await driveRig();
+  expect(await inDispatch(startDriveOf({ topic: "t" }))).toEqual({
+    ok: true,
+    value: { ok: true },
+  });
+  await t.settled();
+  expect(seen).toEqual([{ input: { topic: "t" }, calledBy: null, scope: "drv-q" }]);
+});
+
+test("startDrive outside any request context answers no_context as a value and queues nothing", async () => {
+  const { t, seen, router } = await driveRig();
+  expect(await router(startDriveOf(null))).toEqual({
+    ok: true,
+    value: { ok: false, error: { kind: "no_context" } },
+  });
+  await t.settled();
+  expect(seen).toEqual([]);
+});
+
+test("a replayed startDrive answers ok without queueing a start request", async () => {
+  const { t, seen, inDispatch, setReplay } = await driveRig();
+  setReplay(true);
+  expect(await inDispatch(startDriveOf(null, 7))).toEqual({ ok: true, value: { ok: true } });
+  await t.settled();
+  expect(seen).toEqual([]);
 });

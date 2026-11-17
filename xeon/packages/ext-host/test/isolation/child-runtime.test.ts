@@ -188,6 +188,25 @@ export default function extension({ register }) {
     expect(await host.exit).toBe("init_failed");
   });
 
+  test.each(["providePort", "registerWebProvider"])(
+    "a %s call in setup fails init with unsupported_api naming it",
+    async (api) => {
+      const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    hostOf(g).${api}();
+  });
+}
+`);
+      const host = startHost();
+      const reply = await initialize(host, root);
+      expect(reply).toMatchObject({ id: 1, error: { kind: "unsupported_api" } });
+      expect(reply).toMatchObject({ error: { message: expect.stringContaining(api) } });
+      expect(await host.exit).toBe("init_failed");
+    },
+  );
+
   test("a drive registration fails init with unsupported_api naming drive", async () => {
     const root = await writePluginRoot(`
 export default function extension({ register }) {
@@ -203,20 +222,100 @@ export default function extension({ register }) {
     expect(await host.exit).toBe("init_failed");
   });
 
-  test("a startDrive call fails init with unsupported_api naming startDrive", async () => {
+  test("a startDrive call in setup answers no_context at once without asking the engine, and init goes on", async () => {
     const root = await writePluginRoot(`
 import { hostOf } from "@fresnel/ext-host";
 export default function extension({ register }) {
-  register("demo", {}, (g) => {
-    hostOf(g).startDrive();
+  register("demo", {}, async (g) => {
+    const started = await hostOf(g).startDrive();
+    if (started.ok || started.error.kind !== "no_context") throw new Error("setup must see no_context");
   });
 }
 `);
     const host = startHost();
     const reply = await initialize(host, root);
-    expect(reply).toMatchObject({ id: 1, error: { kind: "unsupported_api" } });
-    expect(reply).toMatchObject({ error: { message: expect.stringContaining("startDrive") } });
-    expect(await host.exit).toBe("init_failed");
+    expect(reply).toMatchObject({ id: 1, result: { protocolVersion: 1 } });
+    expect(host.out.lines.filter((line) => line.includes('"engine.call"'))).toEqual([]);
+    host.input.end();
+    expect(await host.exit).toBe("stdin_closed");
+  });
+});
+
+describe("startDrive in an isolated host", () => {
+  test("startDrive sends its input as engine.call with the request id and returns the engine's refusal as a value", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    hostOf(g).registerMethod("start", { handler: (params) => hostOf(g).startDrive(params) });
+  });
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    host.send({
+      id: 3,
+      method: "method.call",
+      params: {
+        ...context(),
+        registration: "demo",
+        verb: "start",
+        params: { topic: "t" },
+        callId: "s-1",
+        callerKind: "wire",
+      },
+    });
+    const call = await host.out.waitFor((frame) => frame.method === "engine.call");
+    expect(call.params).toEqual({
+      method: "startDrive",
+      registration: "demo",
+      requestId: 3,
+      params: { input: { topic: "t" } },
+    });
+    host.send({ id: call.id, result: { ok: false, error: { kind: "not_drive" } } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 3 && frame.method === undefined)).result,
+    ).toEqual({ ok: false, error: { kind: "not_drive" } });
+    host.input.end();
+    expect(await host.exit).toBe("stdin_closed");
+  });
+
+  test("a call without an input sends a null input and a success answers ok", async () => {
+    const root = await writePluginRoot(`
+import { hostOf } from "@fresnel/ext-host";
+export default function extension({ register }) {
+  register("demo", {}, (g) => {
+    hostOf(g).registerMethod("start", { handler: async () => (await hostOf(g).startDrive()).ok });
+  });
+}
+`);
+    const host = startHost();
+    await initialize(host, root);
+    host.send({
+      id: 4,
+      method: "method.call",
+      params: {
+        ...context(),
+        registration: "demo",
+        verb: "start",
+        params: null,
+        callId: "s-2",
+        callerKind: "wire",
+      },
+    });
+    const call = await host.out.waitFor((frame) => frame.method === "engine.call");
+    expect(call.params).toEqual({
+      method: "startDrive",
+      registration: "demo",
+      requestId: 4,
+      params: { input: null },
+    });
+    host.send({ id: call.id, result: { ok: true } });
+    expect(
+      (await host.out.waitFor((frame) => frame.id === 4 && frame.method === undefined)).result,
+    ).toBe(true);
+    host.input.end();
+    expect(await host.exit).toBe("stdin_closed");
   });
 });
 

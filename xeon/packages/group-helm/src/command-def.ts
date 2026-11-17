@@ -38,14 +38,14 @@ export function helmCommand(
       const command = parsed.value;
       // 맡기기 요청도 상태를 커밋한 뒤 주도 시작 요청을 낸다(drive-isolation.md 2.2). 탐구 시작과 같은 계기다
       if (command.name === "plugin") {
-        const requested = g.startDrive();
+        const requested = await g.startDrive();
         const line = pluginRequestText(command.purpose);
         return requested.ok ? line : `${line}\n${startFailureText(requested.error)}`;
       }
       const text = statusText(result.value, [...missingMeta]);
       if (command.name !== "start") return text;
       // 탐구 시작은 상태를 커밋한 뒤 주도 시작 요청을 낸다(drive-isolation.md 2.2). 거부되면 이유를 결과 글에 붙인다
-      const started = g.startDrive();
+      const started = await g.startDrive();
       return started.ok ? text : `${text}\n${startFailureText(started.error)}`;
     },
   };

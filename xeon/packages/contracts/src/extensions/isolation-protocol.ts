@@ -50,6 +50,7 @@ export const PLUGIN_ENGINE_CALLS = [
   "post",
   "capability",
   "requestEffect",
+  "startDrive",
   "reportChanges",
   "updateState",
   "awaitUser",
@@ -338,6 +339,33 @@ export type UpdateStateReply =
 export interface AwaitUserParams {
   readonly phase: "begin" | "end";
 }
+
+/**
+ * `engine.call` `startDrive`의 params. 호출을 낳은 엔진 요청의 thread에 이 등록을 주도 시작 요청으로 넣는다(`hostOf(g).startDrive`).
+ * 입력이 없으면 null이다
+ */
+export interface StartDriveParams {
+  readonly input: JsonValue | null;
+}
+
+/**
+ * `startDrive`의 응답. 성공은 `{ ok: true }`다. 거부는 `ok: false`와 이유 `error.kind`다(`StartDriveError`의 kind, 또는 문맥이 없는
+ * `no_context`). 값이지 오류가 아니다
+ */
+export type StartDriveReply =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly error: {
+        readonly kind:
+          | "unknown_thread"
+          | "unknown_scope"
+          | "child_thread"
+          | "not_drive"
+          | "drive_error"
+          | "no_context";
+      };
+    };
 
 /** 플러그인 → 엔진. `requestId`는 호출을 낳은 엔진 → 플러그인 요청의 `id`다(없으면 null) */
 export interface EngineCallParams {
