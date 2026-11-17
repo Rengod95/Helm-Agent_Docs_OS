@@ -21,7 +21,12 @@ import type {
   JsonValue,
   ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, HookName, RegistrationSetup } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionManifest,
+  HookName,
+  RegistrationSetup,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import type {
   CallerId,
@@ -83,6 +88,8 @@ export interface HarnessOptions {
   readonly workdir?: string;
   /** 승인 상속의 경로 풀이 수단을 주지 않는다(조립에서 비어 있는 경우). 경로로 대조하는 상속은 모두 닫힌다 */
   readonly noPathEnv?: true;
+  /** 도구 호출 추적 싱크. 생략하면 추적하지 않는다 */
+  readonly callTrace?: ToolCallTraceSink;
 }
 
 /** 승인 상속 시험의 기본 작업 폴더. 프로세스가 끝나면 지운다 */
@@ -185,6 +192,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
     logger: options.logger,
+    ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
   };
   const runtime = createToolRuntime(deps);
   return {

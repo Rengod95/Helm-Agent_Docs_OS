@@ -115,7 +115,7 @@ export function createWireHandlers(
     "usage.get": createUsageGetHandler(engine),
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
-    ...createM5Handlers(engine),
+    ...createM5Handlers(engine, hub),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),

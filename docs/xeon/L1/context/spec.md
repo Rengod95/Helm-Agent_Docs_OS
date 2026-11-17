@@ -118,6 +118,8 @@ export interface AssembledContext {
   readonly estimate: ContextUsageEstimate;
   /** 요청 구성 토큰(소유자별). 절 이름이 소유자이고 합치기 훅이 더한 몫은 `injected`로 따로 센다. loop가 `step.completed.composition`으로 내구 기록한다 [T-MEAS-CTX] */
   readonly composition?: ContextComposition;
+  /** 이번 요청에 실린 재료(지침, 절, 덧씌운 지침, 합치기 훅 몫)의 측정 속성. 요청 메시지·도구·절을 바꾸지 않고 요청 빌더는 쓰지 않는다 [제안: M5d-1, turn-record-metrics §4.5 규칙 26·27] */
+  readonly materials?: readonly ContextMaterialFact[];
   readonly compactionHead: { readonly eventId: EventId; readonly firstKeptEventId: EventId } | null;
   /** 이번 조립에서 새로 커밋해야 할 system item 초안(접두 고정, 도구 변경, 절 갱신). loop가 단계 커밋에 넣는다 */
   readonly pendingItems: readonly PendingSystemItem[];
@@ -283,6 +285,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 이미지 자리표시 풀기 [구현: M4, scB-S6]: 이미지 파트의 `data`가 `blob:sha256:<hex>`이면(`cap.dialog` 첨부, L2.dialog §4.5. 64 KiB 미만이면 records가 분리하지 않아 `detached`에 없고 `hydrate`가 풀지 않는다) 가림 다음에 `fresnel.store`의 `readBlobByHash`로 읽어 base64로 바꿔 요청에 싣는다. 대상은 user 메시지와 도구 결과의 이미지 파트다. 기록과 접두 판정은 자리표시 그대로다. 읽을 수 없는 blob(`blob_missing`, `blob_corrupt`, 모양이 틀린 자리표시)은 그 파트를 `[이미지를 읽지 못함]` text 파트로 바꾸고 `context.image_blob_unreadable`을 경고로 남긴다. 기록은 고치지 않으므로 이미 깨진 대화도 같은 규칙으로 다시 동작하고, 나쁜 이미지 하나가 대화를 막지 않는다. `fresnel.store` 포트가 없으면 풀지 않는다.
 - 모델 입력 사후 가림 [구현: M4, L0.secrets.spec §3.5.1, M3-REQ-59]: `fresnel.secrets`가 있으면 volatile을 붙인 뒤 `messages`를 `Redactor`로 가려 돌려준다. 기록된 행은 바꾸지 않고(새 메시지), 나중에 등록된 값이 옛 도구 결과에 남아 있어도 요청에는 실리지 않는다. 대상은 user·assistant의 text, assistant 도구 호출의 `arguments`, 도구 결과의 text다. system 메시지(런타임이 쓴 접두), 이미지 바이트, thinking 블록(provider가 서명으로 검증한다), 서명과 id는 건드리지 않는다. 접두 판정(`cache_prefix_reset`, `prefixHash`)과 캐시 표식은 가리기 전 값으로 정하고, 가림은 문자열마다 등록부와 고정 표지만으로 정해지므로 등록부가 같으면 요청마다 같은 바이트다(캐시 접두가 깨지지 않는다). 등록부가 바뀌면 값이 든 자리에서만 바이트가 바뀌어 접두가 한 번 깨진다. 컴팩션·떠난 가지 요약이 요약 모델에 보내는 대화 원문(`prompt`)도 같은 `Redactor.mask`를 거친다. 시크릿 서비스가 없으면 가리지 않는다.
 - 접두 뒤 변경 처리 [구현: M2]: 도구 변경·절 갱신은 접두 뒤 system item을 모두 적용한 "현재 광고 상태"(`replaySystemMessages`)와 이번 `AssembleOptions`를 비교한다. 새 변경 item은 `pendingItems`로 내면서 같은 메시지를 이번 `messages` 끝(volatile 앞)에도 붙이므로, 단계 커밋 뒤 다시 조립해도 같은 순서가 된다. 변경이 없으면 아무것도 내지 않는다.
+- 측정 재료 [제안: M5d-1, turn-record-metrics §4.5 규칙 26·27]: 조립은 이번 요청의 재료를 `materials`로 함께 돌려준다. 기본 프롬프트(`base-prompt`), 절(키가 `plugin:<이름>:<경로>`이면 그 이름이 소유자, 아니면 `none`), 덧씌운 지침(`volatile.instructions`, `prompt-addition`), 합치기 훅이 더한 몫(`request-hooks`, 적용한 첫 핸들러의 플러그인, `shared`)을 한 덩어리씩 낸다. 토큰은 글자 수 / 4 올림이고 `composition`과 같은 어림이다. 이름과 경로만 싣고 내용은 싣지 않는다. 스킬 색인과 기억은 사용자 정의 메시지로 들어와 이 목록에는 싣지 않는다(소유자는 `MaterialPort`가 낸 뒤, `skill_index`·`memory`는 cap-knowledge가 싱크로 알린 뒤 채운다). 이 값은 측정 싱크가 받을 때만 루프가 쓴다.
 - context 계층 절의 변경: 접두 고정 뒤 `sections` 값이 바뀌면 `midConversationSystem`이 참일 때만 `purpose: "sections"` system item으로 바뀐 절만 덧붙인다. 거짓이면 다음 컴팩션까지 미룬다.
 
 ### 4.2 접두 고정

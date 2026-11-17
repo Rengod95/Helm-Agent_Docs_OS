@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@fresnel/contracts";
+import { Bug, ok } from "@fresnel/contracts";
 import { createMeasurePort } from "../../../src/assembly/measure/read.ts";
 import { openMeasureStore, type MeasureRecord } from "../../../src/assembly/measure/store.ts";
 
@@ -28,6 +28,8 @@ function openStore() {
 /** 턴 기록 원천의 나머지 칸(이 시험은 측정 행만 본다) */
 const CLOCK = {
   retentionDays: () => 30,
+  logTurnStartedAt: () => ok(undefined),
+  events: { subscribe: () => () => undefined },
   now: () => 0,
   metrics: () => ({
     minSample: 20,

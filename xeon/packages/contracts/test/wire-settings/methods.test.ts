@@ -36,7 +36,7 @@ describe("WIRE_METHODS", () => {
     expect(names.filter((n) => stageOfName(n) !== "M4" && stageOfName(n) !== "M5")).toHaveLength(
       48,
     );
-    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(12);
+    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(14);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
@@ -81,6 +81,7 @@ describe("WIRE_METHODS", () => {
       "project.changed",
       "plugin.changed",
       "pluginReview.changed",
+      "turnRecord.delta",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

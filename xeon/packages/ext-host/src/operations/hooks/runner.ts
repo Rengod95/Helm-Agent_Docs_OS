@@ -3,6 +3,7 @@ import {
   HOOKS,
   type ExtensionManifest,
   type HookProcessPort,
+  type HookRunDecision,
   type HookSignatures,
   type TraceFailureReason,
   type TraceHandlerResult,
@@ -10,7 +11,8 @@ import {
 import { assertNever, attempt } from "@fresnel/contracts";
 import { Value } from "typebox/value";
 import { ambient } from "../../primitives/ambient.ts";
-import { isBlocking } from "../../primitives/fold/first.ts";
+import { askOf } from "../../primitives/fold/env.ts";
+import { hookDecisionOf, isBlocking } from "../../primitives/fold/first.ts";
 import type { ExtensionUnit } from "../../primitives/host.ts";
 import type { HandlerOutcomeRecord } from "../failure.ts";
 import type { HookHookName, LoadedHook } from "./config.ts";
@@ -204,11 +206,14 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
       });
     };
     // 계측 행: 이 훅의 활성 시간과 결과를 디스패치 항목에 `hook:<id>`로 넣는다. 단위의 행은 숨겨진다(X.operations §4.8.2)
+    // 외부 훅 행의 출처는 `external-hook:<id>`다(턴 기록 §4.2 규칙 16). 훅 실행기는 사람을 기다리지 않으므로 대기 계측은 비었다
     const traced = (
       result: TraceHandlerResult,
       reason: TraceFailureReason | null,
       size: number,
+      decision: HookRunDecision = "none",
     ) => {
+      const ask = askOf(decision, { count: 0, ms: 0 });
       ambient()?.trace?.record({
         registrationId: hookRegistrationId(hook.def.id),
         durationMs: deps.now() - startedAt,
@@ -217,6 +222,11 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
         size,
         skippedBy: null,
         reason,
+        plugin: `external-hook:${hook.def.id}`,
+        versionId: null,
+        sourceKind: "external_hook",
+        decision,
+        ...(ask === undefined ? {} : { ask }),
       });
     };
     switch (verdict.kind) {
@@ -226,7 +236,12 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
         return { kind: "none" };
       case "decision":
         record("ok");
-        traced(isBlocking(verdict.decision) ? "blocked" : "passed", null, 0);
+        traced(
+          isBlocking(verdict.decision) ? "blocked" : "passed",
+          null,
+          0,
+          hookDecisionOf(verdict.decision),
+        );
         return { kind: "decision", value: verdict.decision };
       case "patch":
         record("ok");
@@ -234,7 +249,7 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
         return { kind: "patch", value: verdict.patch };
       case "deny":
         record("ok");
-        traced("blocked", null, 0);
+        traced("blocked", null, 0, "block");
         return { kind: "deny", reason: verdict.reason };
       case "failure":
         record(verdict.failure === "timeout" ? "timeout" : verdict.failure, verdict.detail);

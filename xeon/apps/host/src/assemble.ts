@@ -12,7 +12,14 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
+import type {
+  ContextTraceEvent,
+  ContextTraceSink,
+  ExtensionManifest,
+  PortKey,
+  ToolCallTraceEvent,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -126,6 +133,9 @@ import {
   type RequestBodyInput,
 } from "./assembly/measure/recorder.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
+import { DEFAULT_MAX_TURN_BYTES } from "./assembly/measure/turn-fit.ts";
+import { createTurnRecordEvents, type TurnRecordEvents } from "./assembly/measure/turn-events.ts";
+import { turnStartedAtInLog } from "./assembly/measure/turn-log.ts";
 import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
@@ -262,6 +272,22 @@ function retentionDaysOf(catalog: SettingCatalog, settings: SettingsEngine): num
   return typeof value === "number" && Number.isInteger(value) && value >= 1
     ? value
     : DEFAULT_RETENTION_DAYS;
+}
+
+/** `x.operations.trace.maxTurnBytes`. 카탈로그에 없거나 범위를 벗어나면 기본값이다 */
+function maxTurnBytesOf(catalog: SettingCatalog, settings: SettingsEngine): number {
+  const key = "x.operations.trace.maxTurnBytes";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 16384 && value <= 4194304
+    ? value
+    : DEFAULT_MAX_TURN_BYTES;
+}
+
+/** `x.operations.trace.testRunsAlwaysOn`. 카탈로그에 없으면 켜진 값(기본 참)이다 */
+function testRunsAlwaysOnOf(catalog: SettingCatalog, settings: SettingsEngine): boolean {
+  const key = "x.operations.trace.testRunsAlwaysOn";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "boolean" ? value : true;
 }
 
 /** 지표와 발견 설정의 유효 값(M5d §3.6). 카탈로그에 없거나 모양이 틀리면 문서의 기본값이다 */
@@ -671,13 +697,38 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  /** 턴 기록 사건의 버스. 측정 저장소를 열 때 채운다(대화 삭제는 저장소가 없어도 알려야 한다) */
+  const turnRecordEventsSlot: { current: TurnRecordEvents | undefined } = { current: undefined };
   const measureSlot: {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
     recordBody: ((input: RequestBodyInput) => void) | undefined;
+    /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
+    /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordContext: ((input: ContextTraceEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined, recordBody: undefined, forgetThread: undefined };
+  } = {
+    stop: undefined,
+    recordFailure: undefined,
+    recordBody: undefined,
+    recordCall: undefined,
+    recordContext: undefined,
+    forgetThread: undefined,
+  };
+  // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
+  const callTraceSink: ToolCallTraceSink = {
+    record: (event) => {
+      measureSlot.recordCall?.(event);
+    },
+  };
+  // 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 모델 요청 조립과 같은 슬롯을 거친다(§4.1 규칙 2)
+  const contextTraceSink: ContextTraceSink = {
+    record: (event) => {
+      measureSlot.recordContext?.(event);
+    },
+  };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
   const bodySteps = new Map<string, number>();
   const offerRequestBody = (offer: RequestBodyOffer): void => {
@@ -1171,10 +1222,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 대화를 지우면 측정 저장소의 턴 기록도 지운다(규칙 9). 저장소가 아직 없으면 지울 것도 없다
         onThreadRemoved: (threadId) => {
           measureSlot.forgetThread?.(threadId);
+          // 구독은 대화가 지워지면 끝난다(§3.5). 측정 저장소가 없어도 알린다
+          turnRecordEventsSlot.current?.emit({ kind: "thread_removed", threadId });
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         offerBody: offerRequestBody,
+        callTrace: callTraceSink,
+        contextTrace: contextTraceSink,
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
@@ -1362,6 +1417,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
     // 측정 저장소(T-MEAS-STORE): 대화 DB와 분리한 파일. 켜고 끄는 값은 x.operations.trace.enabled다
+    // 턴 기록이 쓰인 사건의 버스(구독 알림 `turnRecord.delta`의 원천, M5d §3.5)
+    const turnRecordEvents = createTurnRecordEvents(logger);
+    turnRecordEventsSlot.current = turnRecordEvents;
     const measurement = startMeasurement({
       dir: dbDir,
       session,
@@ -1377,10 +1435,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         built.catalog.has("x.operations.trace.storeRequestBody") &&
         settings.value("x.operations.trace.storeRequestBody") === true,
       mask: (text) => secrets.service.redactor.mask(text).text,
+      events: turnRecordEvents,
+      maxTurnBytes: () => maxTurnBytesOf(built.catalog, settings),
+      testRunsAlwaysOn: () => testRunsAlwaysOnOf(built.catalog, settings),
     });
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
+    measureSlot.recordCall = measurement.offerCall;
+    measureSlot.recordContext = measurement.offerContext;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
@@ -1409,6 +1472,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         retentionDays: () => retentionDaysOf(built.catalog, settings),
         now: () => clock.now(),
         metrics: () => metricsSettingsOf(built.catalog, settings),
+        logTurnStartedAt: (threadId, turnId) => turnStartedAtInLog(session.feed, threadId, turnId),
+        events: turnRecordEvents,
       },
       mode: options.mode,
       toolOutputs,

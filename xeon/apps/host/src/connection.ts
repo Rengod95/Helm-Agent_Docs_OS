@@ -26,6 +26,7 @@ import {
 } from "@fresnel/contracts/wire";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { startEventFanout } from "./handlers/events.ts";
+import { startTurnWatchFanout } from "./handlers/m5/watch.ts";
 import { parseExtMethodName, runExtMethod } from "./handlers/m4/ext-method.ts";
 import { isNotImplemented } from "./handlers/not-implemented.ts";
 import type {
@@ -334,6 +335,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       experimental: [],
       client: undefined,
       subs: new Map(),
+      turnWatches: new Map(),
       openThreads: new Set(),
       writeThreads: new Set(),
       observedThreads: new Set(),
@@ -369,6 +371,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       afterResponse.clear();
       for (const sub of state.subs.values()) sub.open = false;
       state.subs.clear();
+      state.turnWatches.clear();
       state.openThreads.clear();
       state.observedThreads.clear();
       const written = Array.from(state.writeThreads);
@@ -571,6 +574,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       afterResponse.clear();
       for (const sub of state.subs.values()) sub.open = false;
       state.subs.clear();
+      state.turnWatches.clear();
       state.openThreads.clear();
       state.observedThreads.clear();
       state.experimental = [];
@@ -679,9 +683,15 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     dispose() {
       for (const off of disposers) off();
       fanout.stop();
+      turnWatch.stop();
     },
   };
   const fanout = startEventFanout(engine, hub);
+  const turnWatch = startTurnWatchFanout({
+    turnRecord: engine.ports.measure.turnRecord,
+    scheduler: engine.ports.scheduler,
+    connections: () => hub.connections(),
+  });
   const offActivity = engine.ports.activity.onChange(() => {
     if (deferredRelease.size > 0) detach(releaseUnused(Array.from(deferredRelease)), () => {});
   });

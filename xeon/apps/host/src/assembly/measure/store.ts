@@ -43,6 +43,7 @@ import {
   TR_TOOLUSE,
   TR_TURN,
   TURN_CHILD_TABLES,
+  TURN_CHILD_TABLES_KEPT_BY_PRUNE,
   TURN_RECORD_DDL,
   TURN_RECORD_VERSION,
   TURN_SUMMARY_COLUMNS,
@@ -54,8 +55,10 @@ import {
   type TrDailyRow,
   type TrFindingStateRow,
   type TrCallRow,
+  type TrCacheRow,
   type TrFrameRow,
   type TrHookRow,
+  type TrStepRow,
   type TrMarkRow,
   type TrMaterialRow,
   type TrSkillRow,
@@ -70,6 +73,7 @@ import {
 // 원본 행(`measure_raw`)은 보존 기간(기본 30일)이 지나면 일별 집계(`measure_daily`)로 접고 지운다. 일별 집계는 계속 둔다.
 // 턴 기록 테이블(`tr_*`, 문서 `review/m5/turn-record-metrics.md` §3.4)은 같은 파일에 `PRAGMA user_version` 2로 더한다.
 // 턴 기록의 보존은 턴 시작 시각 기준이고, 지난 턴의 하위 행은 `tr_daily`로 접은 뒤 지운다(같은 트랜잭션, `prune`).
+// 예외는 표시(`tr_mark`)다. 사용자 입력이라 보존 기간을 따르지 않고, 대화를 지울 때(`forgetThread`)만 지운다.
 // 백분위는 SQLite에 함수가 없어 원본 행을 정렬해서 계산한다(`percentile`). 보존 기간을 넘긴 날의 백분위는 집계(개수, 합, 최소, 최대)만 남는다.
 // 쓰기는 호출자가 모아서 `writeBatch`(측정 행)나 `writeStep`(턴 기록의 한 단계)으로 한 번에 한다(Turn 경계). 이 파일은 읽기와 쓰기만 하고 켬·끔 판단은 `recorder.ts`가 한다.
 
@@ -137,7 +141,7 @@ export interface MeasureStore {
   writeBatch(records: readonly MeasureRecord[]): Result<number, MeasureStoreError>;
   /**
    * `now` 기준 `retentionDays`보다 오래된 원본을 일별 집계로 접고 지운다. 접기와 지우기는 한 트랜잭션이다. 지운 원본(`measure_raw`) 수를 돌려준다.
-   * 턴 기록이 쓸 수 있으면 같은 트랜잭션에서 턴 시작이 `retentionDays`보다 오래된 `tr_*` 턴을 `tr_daily`로 접고 그 턴의 하위 행을 지운다.
+   * 턴 기록이 쓸 수 있으면 같은 트랜잭션에서 턴 시작이 `retentionDays`보다 오래된 `tr_*` 턴을 `tr_daily`로 접고 그 턴의 하위 행을 지운다. 표시(`tr_mark`)는 지우지 않는다.
    * 일수가 0 이하면 아무것도 지우지 않는다(보관 끔이 아니라 잘못된 값으로 본다)
    */
   prune(now: number, retentionDays: number): Result<number, MeasureStoreError>;
@@ -167,6 +171,13 @@ export interface MeasureStore {
   turnRecordAvailable(): boolean;
   /** 설치별 소금(HMAC 키). 첫 열기에 무작위로 만들고 그 뒤로 바꾸지 않는다 */
   installSalt(): Result<string, MeasureStoreError>;
+  /**
+   * 턴 기록을 쓸 수 있게 된 시각(`tr_meta.recording_since`)을 처음 한 번 적는다. 이미 있으면 그대로 둔다. 보관 정리가 행을 지워도 값은 남는다.
+   * 이 시각 전에 시작한 턴은 행이 없어도 `purged`가 아니라 `never_recorded`다(§3.5 absent)
+   */
+  markRecordingSince(at: number): Result<number, MeasureStoreError>;
+  /** `recording_since`. 턴 기록을 아직 쓴 적이 없으면 undefined */
+  recordingSince(): Result<number | undefined, MeasureStoreError>;
   upsertThread(row: TrThreadRow): Result<number, MeasureStoreError>;
   getThread(threadId: string): Result<TrThreadRow | undefined, MeasureStoreError>;
   /** 테스트 실행 대화(`scope_kind = test`)의 표지. 재시작 뒤 표지를 되살린다 */
@@ -176,6 +187,8 @@ export interface MeasureStore {
    * 턴 행(`tr_turn`)은 `upsertTurn`이 먼저 있어야 한다(호출자가 지킨다).
    */
   writeStep(batch: TrStepBatch): Result<number, MeasureStoreError>;
+  /** 늦은 훅 행만 쓴다(턴을 닫을 때). 이미 쓴 단계의 행은 건드리지 않는다(턴 기록 §7 분리 실행) */
+  writeHooks(rows: readonly TrHookRow[]): Result<number, MeasureStoreError>;
   /** 턴 행을 쓴다. 턴 시작 때 `status: "open"`으로, 턴 끝에 최종 값으로 다시 쓴다 */
   upsertTurn(row: TrTurnRow): Result<number, MeasureStoreError>;
   writeFrames(rows: readonly TrFrameRow[]): Result<number, MeasureStoreError>;
@@ -235,6 +248,9 @@ export interface TurnBundleRow {
   readonly materials: readonly TrMaterialRow[];
   readonly tooluse: readonly TrToolUseRow[];
   readonly skills: readonly TrSkillRow[];
+  readonly steps: readonly TrStepRow[];
+  readonly cache: readonly TrCacheRow[];
+  readonly frames: readonly TrFrameRow[];
 }
 
 /** 훅 검색 질의. `plugin`과 창은 필수, `hook`은 선택이다 */
@@ -551,6 +567,24 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         return out;
       }),
     turnRecordAvailable: () => turnRecord,
+    markRecordingSince: (at) =>
+      turnGuarded(() =>
+        ok(
+          db
+            .query("INSERT OR IGNORE INTO tr_meta (key, value) VALUES ('recording_since', ?)")
+            .run(String(at)).changes,
+        ),
+      ),
+    recordingSince: () =>
+      turnGuarded<number | undefined>(() => {
+        const raw = colTextOrNull(
+          colsOf(db.query("SELECT value FROM tr_meta WHERE key = 'recording_since'").get()),
+          "value",
+        );
+        if (raw === null) return ok(undefined);
+        const at = Number(raw);
+        return Number.isFinite(at) ? ok(at) : err({ kind: "corrupt" });
+      }),
     installSalt: () =>
       turnGuarded<string>(() => {
         const salt = colTextOrNull(
@@ -591,6 +625,8 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
           )(),
         ),
       ),
+    writeHooks: (rows) =>
+      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_HOOK, rows))())),
     upsertTurn: (row) => turnGuarded(() => ok(upsertAll(db, TR_TURN, [row]))),
     writeFrames: (rows) =>
       turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_FRAME, rows))())),
@@ -859,6 +895,9 @@ function planTurnFolds(
       materials: turnChildren(db, "tr_material", turn.threadId, turn.turnId, "rowid", materialOf),
       tooluse: turnChildren(db, "tr_tooluse", turn.threadId, turn.turnId, "rowid", toolUseOf),
       skills: turnChildren(db, "tr_skill", turn.threadId, turn.turnId, "rowid", skillOf),
+      steps: turnChildren(db, "tr_step", turn.threadId, turn.turnId, "step_index", stepOf),
+      cache: turnChildren(db, "tr_cache", turn.threadId, turn.turnId, "step_index, n", cacheOf),
+      frames: turnChildren(db, "tr_frame", turn.threadId, turn.turnId, "rowid", frameOf),
     });
     for (const cell of folded) {
       const id = dailyId(cell.key);
@@ -881,8 +920,10 @@ function planTurnFolds(
   return ok(out);
 }
 
+/** 보관 정리가 접은 턴을 지운다. `tr_mark`처럼 `TURN_CHILD_TABLES_KEPT_BY_PRUNE`에 든 표는 남긴다 */
 function deleteTurn(db: Database, threadId: string, turnId: string): void {
   for (const table of TURN_CHILD_TABLES) {
+    if (TURN_CHILD_TABLES_KEPT_BY_PRUNE.includes(table)) continue;
     db.query(`DELETE FROM ${table} WHERE thread_id = ? AND turn_id = ?`).run(threadId, turnId);
   }
   db.query("DELETE FROM tr_turn WHERE thread_id = ? AND turn_id = ?").run(threadId, turnId);
@@ -1016,6 +1057,15 @@ function windowBundlesOf(
   const skills = groupByTurn(
     selectAll(db, `SELECT * FROM tr_skill WHERE ${inTurns}`, params, skillOf),
   );
+  const steps = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_step WHERE ${inTurns}`, params, stepOf),
+  );
+  const cache = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_cache WHERE ${inTurns}`, params, cacheOf),
+  );
+  const frames = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_frame WHERE ${inTurns}`, params, frameOf),
+  );
   return ok(
     turns.map((turn) => {
       const key = turnKeyOf(turn.threadId, turn.turnId);
@@ -1026,6 +1076,9 @@ function windowBundlesOf(
         materials: materials.get(key) ?? [],
         tooluse: tooluse.get(key) ?? [],
         skills: skills.get(key) ?? [],
+        steps: steps.get(key) ?? [],
+        cache: cache.get(key) ?? [],
+        frames: frames.get(key) ?? [],
       };
     }),
   );

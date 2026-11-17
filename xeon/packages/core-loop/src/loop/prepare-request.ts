@@ -7,6 +7,7 @@ import type {
 } from "@fresnel/contracts/conversation";
 import type { ContextWarning, ModelBinding, ResolvedModel } from "@fresnel/contracts/services";
 import { activatedTools } from "./activation.ts";
+import { advertisedFactOf, emitContextTrace } from "./context-trace.ts";
 import { compactBeforeRequest } from "./compaction.ts";
 import { environmentText } from "./environment.ts";
 import { currentLeaf, currentStep, resolveModel, type TurnRun } from "./turn-run.ts";
@@ -109,6 +110,17 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
   // 같은 단계의 재시도(오버플로우 압축)는 마지막 조립의 경고만 남긴다
   state.contextWarnings = assembled.value.warnings.map(warningRecordOf);
   state.composition = assembled.value.composition;
+  // 재료와 광고는 측정 싱크가 있을 때만 값으로 만든다. 요청 본문은 이 값을 쓰지 않는다(§4.1 규칙 7)
+  if (ctx.contextTrace !== undefined) {
+    emitContextTrace(ctx, {
+      kind: "step_context",
+      threadId,
+      turnId,
+      stepId: step.stepId,
+      materials: [...(assembled.value.materials ?? [])],
+      advertised: advertisedFactOf({ toolset, activated: activated.value }),
+    });
+  }
   for (const warning of assembled.value.warnings) {
     ctx.logger.debug("loop.context_warning", { threadId, turnId, code: warning.code });
   }

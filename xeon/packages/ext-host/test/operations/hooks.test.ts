@@ -329,6 +329,10 @@ test("trace: a matched external hook is listed as hook:<id> with its duration an
       handlers: [
         {
           registrationId: "hook:wrap",
+          plugin: "external-hook:wrap",
+          versionId: null,
+          sourceKind: "external_hook",
+          decision: "none",
           ms: 7,
           result: "modified",
           atMs: 0,
@@ -338,6 +342,10 @@ test("trace: a matched external hook is listed as hook:<id> with its duration an
         },
         {
           registrationId: "hook:later",
+          plugin: "external-hook:later",
+          versionId: null,
+          sourceKind: "external_hook",
+          decision: "none",
           ms: 7,
           result: "passed",
           atMs: 7,

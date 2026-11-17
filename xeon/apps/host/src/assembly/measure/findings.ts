@@ -6,7 +6,13 @@ import type {
   SubjectKind,
 } from "@fresnel/contracts/wire";
 import { postBlockCallsOf } from "./turn-fold.ts";
-import { isBlockingVerdict, postBlockClassOf } from "./classify.ts";
+import {
+  BLOCK_REFS,
+  blockOfCause,
+  isBlockingVerdict,
+  postBlockClassOf,
+  type BlockRef,
+} from "./classify.ts";
 import type { TurnBundleRow } from "./store.ts";
 import type { DailyCell } from "./turn-fold.ts";
 import { queryMetrics } from "./metrics.ts";
@@ -422,7 +428,58 @@ export function evaluateRules(input: FindingsInput): Candidate[] {
     }
   }
 
-  // 8. 캐시 깨짐 귀속(block.cache_breaks_by_plugin): tr_cache가 접히지 않아 아직 낼 수 없다. 규칙은 발동하지 않는다
+  // 8. 한 플러그인에 귀속된 관찰 캐시 깨짐(§5.1-⑤, §6). 표본은 그 플러그인이 낀 턴 수이고 영향은 턴당 캐시 쓰기 토큰이다
+  {
+    const rule = t("cache_break_by_plugin");
+    const turns = pluginTurnsOf(input.cells);
+    for (const row of rowsOf(
+      input,
+      ["plugin"],
+      [
+        "block.cache_breaks_by_plugin",
+        "block.cache_breaks_by_plugin.tokens",
+        "block.cache_breaks_by_plugin.inferred",
+      ],
+    )) {
+      const plugin = row.key.plugin ?? "";
+      const breaks = row.values["block.cache_breaks_by_plugin"];
+      const tokens = row.values["block.cache_breaks_by_plugin.tokens"];
+      const pluginTurns = turns.get(plugin) ?? 0;
+      if (breaks === undefined || breaks.value === null || breaks.value === 0) continue;
+      if (tokens === undefined || tokens.value === null) continue;
+      if (pluginTurns < input.minSample) continue;
+      const share = breaks.value / pluginTurns;
+      if (breaks.value < (rule.minBreaks ?? 0) && share < (rule.turnShare ?? 1)) continue;
+      out.push(
+        candidateOf(
+          "cache_break_by_plugin",
+          { kind: "block", plugin, ref: dominantBlockOf(input.bundles, plugin) },
+          { unit: "tokens_per_turn", value: tokens.value },
+          {
+            "block.cache_breaks_by_plugin": breaks,
+            "block.cache_breaks_by_plugin.tokens": tokens,
+            "block.cache_breaks_by_plugin.inferred":
+              row.values["block.cache_breaks_by_plugin.inferred"] ?? tokens,
+          },
+          [FIX],
+          evidenceOf(input.bundles, (b) =>
+            b.cache
+              .filter((c) => c.plugin === plugin && c.observed)
+              .map((c) => ({
+                kind: "turn" as const,
+                threadId: b.turn.threadId,
+                turnId: b.turn.turnId,
+                stepIndex: c.stepIndex,
+              }))
+              .filter(
+                (ref, index, all) =>
+                  all.findIndex((other) => other.stepIndex === ref.stepIndex) === index,
+              ),
+          ),
+        ),
+      );
+    }
+  }
 
   // 9. 지침이 있는데 같은 플러그인 훅이 막거나 물은 턴 비율(§5.1-①)
   {
@@ -531,9 +588,74 @@ export function evaluateRules(input: FindingsInput): Candidate[] {
     }
   }
 
-  // 12. 주도 예산 소진(drive): 프레임 스택이 접히지 않아 아직 낼 수 없다. 규칙은 발동하지 않는다
+  // 12. 주도 예산 소진: 반납 사유 `budget`의 비율(§6). 표본은 반납된 주도 프레임 수다. 영향은 소진 횟수다
+  {
+    const rule = t("drive_budget_exhausted");
+    for (const row of rowsOf(
+      input,
+      ["plugin"],
+      ["drive.exit_reasons", "drive.exit_reasons.budget"],
+    )) {
+      const exits = row.values["drive.exit_reasons"];
+      const share = numberOf(row.values["drive.exit_reasons.budget"]);
+      if (exits === undefined || exits.value === null || exits.value < (rule.minDrive ?? 0)) {
+        continue;
+      }
+      if (share === null || share < (rule.budgetShare ?? 1)) continue;
+      const plugin = row.key.plugin ?? "";
+      out.push(
+        candidateOf(
+          "drive_budget_exhausted",
+          { kind: "drive", plugin, ref: null },
+          { unit: "hits", value: Math.round(share * exits.value) },
+          {
+            "drive.exit_reasons": exits,
+            "drive.exit_reasons.budget": row.values["drive.exit_reasons.budget"] ?? exits,
+          },
+          [FIX],
+          evidenceOf(input.bundles, (b) =>
+            b.frames.some((f) => f.plugin === plugin && f.exitReason === "budget")
+              ? [turnRef(b)]
+              : [],
+          ),
+        ),
+      );
+    }
+  }
 
   return out;
+}
+
+/** 플러그인이 낀 턴 수(`plugin_turns` 칸). 캐시 깨짐의 표본이다 */
+function pluginTurnsOf(cells: readonly DailyCell[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const cell of cells) {
+    if (cell.key.subject !== "cache" || cell.key.counter !== "plugin_turns") continue;
+    out.set(cell.key.plugin, (out.get(cell.key.plugin) ?? 0) + cell.agg.n);
+  }
+  return out;
+}
+
+/** 플러그인의 관찰 깨짐이 가장 많이 난 블록(`finding.subject.ref`). 동점이면 `BLOCK_REFS` 순서가 이긴다 */
+function dominantBlockOf(bundles: readonly TurnBundleRow[], plugin: string): BlockRef {
+  const counts = new Map<BlockRef, number>();
+  for (const bundle of bundles) {
+    for (const row of bundle.cache) {
+      if (row.plugin !== plugin || !row.observed) continue;
+      const block = blockOfCause(row.kind);
+      counts.set(block, (counts.get(block) ?? 0) + 1);
+    }
+  }
+  let best: BlockRef = "model";
+  let bestCount = 0;
+  for (const block of BLOCK_REFS) {
+    const count = counts.get(block) ?? 0;
+    if (count > bestCount) {
+      best = block;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /** 이 턴에서 플러그인의 지침이 실렸고 그 플러그인 훅이 막거나 물은 호출이 있나(§5.1-① 정의) */

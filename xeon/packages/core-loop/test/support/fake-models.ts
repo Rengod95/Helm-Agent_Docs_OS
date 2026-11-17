@@ -48,6 +48,8 @@ export type ScriptedResponse =
 interface ModelRequest {
   readonly stepId: StepId | null;
   readonly messages: readonly Message[];
+  /** 요청에 실린 도구 정의(pi-ai `Context.tools`). 바이트 비교 시험이 본다 */
+  readonly tools: readonly unknown[];
   readonly signal: AbortSignal | undefined;
   /** 요청에 실린 추론 수준과 레벨별 토큰 예산 */
   readonly reasoning: SimpleStreamOptions["reasoning"];
@@ -245,6 +247,7 @@ export function createFakeModels(options: {
       requests.push({
         stepId: ctx.stepId,
         messages: structuredClone(transcript.messages),
+        tools: structuredClone(transcript.tools ?? []),
         signal: streamOptions?.signal,
         reasoning: streamOptions?.reasoning,
         thinkingBudgets: streamOptions?.thinkingBudgets,

@@ -415,6 +415,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | turnRecord | `turnRecord.get` | `{ threadId, turnId, detail? }` | `{ enabled, level, record: TurnRecord \| null, absent: "never_recorded" \| "purged" \| "off" \| null }` | M5 (M5d, 턴 기록) |
 | turnRecord | `turnRecord.search` | `{ plugin, hook?, outcome?, period, scopes?, cursor?, limit? }` | `{ items: { threadId, turnId, hookSeq, plugin, outcome, at }[], next }` | M5 (M5d, 턴 기록) |
 | turnRecord | `turnRecord.mark` | `{ threadId, turnId, plugin, mark: "followed" \| "not_followed" }` | `{}` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.watch` | `{ threadId }` | `{ sub, level }`. 이 대화의 턴 기록 행을 알림 `turnRecord.delta`로 받는다. 구독은 연결이 닫히거나 `unwatch`하거나 대화가 지워지면 사라진다. 없는 대화는 3001 | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.unwatch` | `{ sub }` | `{}`. 모르는 `sub`도 `{}`다 | M5 (M5d, 턴 기록) |
 | metrics | `metrics.catalog` | `{}` | `{ metrics: MetricDef[] }` | M5 (M5d, 지표) |
 | metrics | `metrics.query` | `{ metrics: string[](최대 16), filter: MetricFilter, groupBy?, compare? }` | `{ window, rows, notes }` | M5 (M5d, 지표) |
 | findings | `findings.list` | `{ profileId?, period?, state? }` | `{ asOf, dataRevision, findings: Finding[] }` | M5 (M5d, 살펴볼 것) |
@@ -639,6 +641,7 @@ M5c-1 [제안]: 프로필·프로젝트 메서드의 params·result 스키마는
 | 서버 → 클라이언트 | `project.changed` | `{ rev: integer, ids: string[](최대 200) }`. 프로젝트 목록이 바뀌었다. `project.list`를 다시 읽는다(M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `plugin.changed` | `{ name: string }`. 플러그인의 카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다(M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `pluginReview.changed` | `{ itemId: string, state: ReviewState }`. 검토 항목의 상태가 바뀌었다. `pluginReview.get`으로 항목을 다시 읽는다(M5c-1 §3.4) | M4 |
+| 서버 → 클라이언트 | `turnRecord.delta` | `{ sub, threadId, turnId, stepIndex: number 또는 null, rows: DeltaRow[], final: boolean }`. 구독한 대화의 턴 기록 행이 쓰였다. 한 알림에 행은 최대 100개이고 100 ms 안의 행은 묶는다 [제안]. `final`은 턴 행을 실은 알림이 참이다(§3.5 표, `turn-record-metrics.md`) | M5 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -1501,6 +1504,8 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - 기록 타입과 TypeBox 스키마: `TurnRecord`와 하위 타입(`StepRecord`, `CallRecord`, `HookRun`, `FrameMark`, `OverlayMark`, `PluginCost`, `TurnFlags` 등). `HookRun.result`는 `TraceHandlerResult`를, `StepRecord.composition`은 `StepComposition`을 그대로 쓴다.
 - 지표와 발견, 지난 턴에 돌려 보기의 타입: `MetricFilter`, `MetricValue`, `MetricDef`, `EvidenceRef`, `Finding`, `BacktestItem`, `BacktestSummary`(`backtest.*` 메서드 스키마는 M5d-2다).
 - 메서드 params·result 스키마: `turnRecord.list·get·watch·unwatch·search·mark`, `metrics.query`, `findings.list·evidence·dismiss·bundle`, `profileCost.get`, `testRun.compare`와 알림 `turnRecord.delta`. `metrics.catalog`의 params는 `NoParamsSchema`, 결과 `{}`는 `EmptyParamsSchema`(`notifications.ts`)를 쓴다.
+- `turnRecord.get`의 `absent`(행이 없을 때만): 계측이 꺼졌으면 `off`. 로그에 턴이 없으면 3501이다. 로그에 있으면 턴의 시작 시각이 `recording_since`(턴 기록을 처음 쓸 수 있게 된 시각, 보관 정리가 지우지 않는다) 뒤이고 보관 기간(`x.operations.trace.retentionDays`)보다 오래되었을 때 `purged`, 그 밖은 `never_recorded`다 [제안].
+- 알림 `turnRecord.delta`: 한 알림에 행은 100개까지이고 같은 턴과 단계의 행은 100 ms 묶는다 [제안]. `final`은 턴 행을 실은 마지막 조각에만 참이다. `turnRecord.unwatch`는 연결의 구독을 끊고 대기 중인 행을 버린다. 알 수 없는 `sub`도 `{}`다. 구독은 연결이 닫히면 사라지고, 대화를 지우면 조용히 끝난다(끝을 알리는 알림은 없다).
 
 재사용과 바뀐 곳:
 

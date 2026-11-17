@@ -68,6 +68,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
   expect(entry?.handlers).toEqual([
     {
       registrationId: "ext-a",
+      plugin: "ext-a",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "modified",
       atMs: 40,
@@ -77,6 +81,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
     },
     {
       registrationId: "ext-b",
+      plugin: "ext-b",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "passed",
       atMs: 40,
@@ -86,6 +94,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
     },
     {
       registrationId: "ext-c",
+      plugin: "ext-c",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "failed",
       atMs: 40,
@@ -95,6 +107,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
     },
     {
       registrationId: "ext-d",
+      plugin: "ext-d",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "modified",
       atMs: 40,
@@ -104,6 +120,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
     },
     {
       registrationId: "ext-e",
+      plugin: "ext-e",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "skipped",
       atMs: 40,
@@ -113,6 +133,10 @@ test("trace results: chain records modified, passed, failed and the handlers ski
     },
     {
       registrationId: "ext-f",
+      plugin: "ext-f",
+      versionId: null,
+      sourceKind: "builtin",
+      decision: "none",
       ms: 0,
       result: "skipped",
       atMs: 40,
