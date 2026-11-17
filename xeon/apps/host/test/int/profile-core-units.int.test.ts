@@ -58,7 +58,7 @@ async function runWith(plugins: readonly string[]): Promise<{
         title: "bare",
         plugins: plugins.map((name) => ({ name })),
         settings: [],
-        driver: null,
+        startDrive: null,
       },
       baseRev: null,
     });

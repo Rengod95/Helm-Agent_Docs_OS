@@ -18,8 +18,8 @@ import type { TurnStartPlanned } from "./turn-start.ts";
 import type { LoopSettingsSource } from "./settings.ts";
 import type { ThreadGate } from "./thread-gate.ts";
 
-/** 루프가 `fresnel.ext`에서 쓰는 부분: 훅 발화와 단계 경계 훅 */
-export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary" | "claimUserInput">;
+/** 루프가 `fresnel.ext`에서 쓰는 부분: 훅 발화, 단계 경계 훅, 주도권 스택 읽기(턴 시작 훅 payload의 `driver`·`stack`) */
+export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary" | "claimUserInput" | "driveFrames">;
 
 /** `RecoverDeps.hostMode`와 같은 값 */
 export type HostMode = "in-process" | "stdio" | "service";

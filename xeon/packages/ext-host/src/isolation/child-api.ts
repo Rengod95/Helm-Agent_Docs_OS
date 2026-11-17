@@ -395,6 +395,9 @@ function makeHost(state: RegState, env: ChildEnv): RegistrationHostApi<AnyState>
     async requestEffect(request: EffectRequest): Promise<void> {
       await callEngine(env, state, "requestEffect", jsonOf(request, "the effect request"));
     },
+    startDrive() {
+      unsupported(state, "startDrive");
+    },
     callContext(): RegistrationCallContext | undefined {
       const scope = env.scopes.getStore();
       if (scope === undefined || scope.registration !== state.id) return undefined;

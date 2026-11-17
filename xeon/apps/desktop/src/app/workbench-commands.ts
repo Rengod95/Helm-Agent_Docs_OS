@@ -60,6 +60,19 @@ export function subscribeExtChanges(
   };
 }
 
+/**
+ * 주도권 스택이 바뀐 알림(`drive.framesChanged`)이 이 대화의 것이면 `listener`를 부른다. 반환값은 구독 해제
+ */
+export function subscribeDriveFrames(
+  connection: Pick<HostConnection, "onNotification">,
+  threadId: string,
+  listener: () => void,
+): () => void {
+  return connection.onNotification("drive.framesChanged", (params) => {
+    if (params.threadId === threadId) listener();
+  });
+}
+
 /** M5c-1에서 wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
 function unavailable(command: NotAvailableCommand): CommandError {
   return { kind: "not_available", command };
@@ -68,6 +81,7 @@ function unavailable(command: NotAvailableCommand): CommandError {
 export function createWorkbenchCommands(
   withConnection: WithConnection,
   subscribeChanges: (listener: (settled: boolean) => void) => () => void,
+  subscribeDrive: (threadId: string, listener: () => void) => () => void,
 ): WorkbenchCommands {
   return {
     async list(threadId) {
@@ -98,7 +112,11 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("group.list", { threadId }));
       return got.ok ? ok(got.value.groups) : err(got.error);
     },
-    driveLock: (threadId) => withConnection((c) => c.request("group.driveLock", { threadId })),
+    async driveFrames(threadId) {
+      const got = await withConnection((c) => c.request("drive.frames", { threadId }));
+      return got.ok ? ok(got.value.frames) : err(got.error);
+    },
+    onDriveFramesChanged: subscribeDrive,
     timings: (name, threadId) =>
       withConnection((c) =>
         c.request("ext.timings", threadId === undefined ? { name } : { name, threadId }),

@@ -75,7 +75,7 @@ const PROFILE: Profile = {
   builtin: false,
   plugins: [{ name: "helm" }, { name: "notes" }],
   settings: [{ key: "ext.helm.maxLenses", value: 3 }],
-  driver: "helm",
+  startDrive: "helm",
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 4,
 };
@@ -211,7 +211,7 @@ describe("프로필 편집: 플러그인 목록 편집", () => {
       title: "조용히",
       plugins: [{ name: "helm" }, { name: "notes" }, { name: "zeta" }, { name: "alpha" }],
       settings: [{ key: "ext.helm.maxLenses", value: 3 }],
-      driver: "helm",
+      startDrive: "helm",
     });
   });
   test("새 프로필은 id 규칙을, 모든 프로필은 이름 입력을 본다", () => {
@@ -430,7 +430,7 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
       withDriver({ ...profileDraftOf(null), id: "p1", title: "t" }, "helm"),
       "helm",
     );
-    expect(profileInputOf(draft).driver).toBe("helm");
+    expect(profileInputOf(draft).startDrive).toBe("helm");
     expect(profileInputOf(draft).plugins).toEqual([{ name: "helm" }]);
   });
 

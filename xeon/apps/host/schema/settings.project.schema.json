@@ -24,7 +24,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -3996,7 +3996,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Shows the enabled groups and the active driver group in the status line.",
+          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
           "helpKey": "settings.l3.groupSdk.statusLine.help",
           "label": "Show groups in status line",
           "labelKey": "settings.l3.groupSdk.statusLine.label",
@@ -4305,39 +4305,6 @@
         }
       }
     },
-    "x.primitives.activeDriver": {
-      "anyOf": [
-        {
-          "maxLength": 65,
-          "pattern": "^[a-z][a-z0-9-]{1,31}(/[a-z][a-z0-9-]{1,31})?$",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "launch"
-        ],
-        "layer": "X",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Registration id that receives the drive lock when two or more Registrations use drive.",
-          "helpKey": "settings.x.primitives.activeDriver.help",
-          "label": "Driving plugin",
-          "labelKey": "settings.x.primitives.activeDriver.label",
-          "order": 110,
-          "tab": "plugins",
-          "widget": "text"
-        }
-      }
-    },
     "x.primitives.capabilityProviders": {
       "default": {},
       "patternProperties": {
@@ -4451,26 +4418,28 @@
         }
       }
     },
-    "x.primitives.leaseWaitLimit": {
+    "x.primitives.driveMaxDepth": {
       "default": 8,
       "minimum": 1,
       "type": "integer",
       "x-fresnel": {
         "allowedScopes": [
+          "managed",
           "user",
           "project",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Number of turn-settled or idle boundaries a group waits after failing to get a drive lease. When exceeded, the request is rejected and lease.rejected is recorded.",
-          "helpKey": "settings.x.primitives.leaseWaitLimit.help",
-          "label": "Lease wait limit",
-          "labelKey": "settings.x.primitives.leaseWaitLimit.label",
-          "order": 111,
+          "help": "How many plugins may lead one conversation at once, one on top of another. A handoff past this depth is refused.",
+          "helpKey": "settings.x.primitives.driveMaxDepth.help",
+          "label": "Drive stack depth limit",
+          "labelKey": "settings.x.primitives.driveMaxDepth.label",
+          "order": 102,
           "tab": "plugins",
           "widget": "number"
         }

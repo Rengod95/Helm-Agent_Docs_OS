@@ -1,24 +1,15 @@
-import type { ThreadId } from "../conversation/index.ts";
 import type {
   GroupId,
-  DriveLockArbiterPort,
   DriveLockId,
   RecordKind,
-  RegistrationId,
   RegistrationStatus,
   Unsubscribe,
 } from "../extensions/index.ts";
 
-// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. GroupService는 X 포트 DriveLockArbiterPort(F.extensions.spec §3.2.1)를 확장하고
-// X가 그 포트로 주입받는다. settings를 import하지 않으므로 설정 범위는 SettingScope와 같은 모양의 리터럴 유니언으로 적는다.
+// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. 엔진은 주도권 스택(drive-isolation.md 2.1)을 `ExtHost.driveFrames`로 읽고,
+// 그룹 서비스는 그 스택에서 drive 역할을 계산한다. 후보 중재와 구동 그룹 설정(`x.primitives.activeDriver`)은 없다(2.2).
 
 export const GroupServiceName = "fresnel.groups" as const;
-
-/** 설정 x.primitives.activeDriver의 유효 값. null은 auto(요청 순서)다 */
-export type DriveHolderSetting = RegistrationId | null;
-
-/** F.wire-settings의 SettingWriteScope와 서로 대입 가능해야 한다(profile은 읽기 전용 범위라 빠진다, M5c §3.3) */
-type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
 
 /** GroupStatus.metrics. group-sdk GroupMetrics(L3.group-sdk.spec §3.12)의 부분 필드와 같은 모양이다 */
 export interface GroupMetricsSummary {
@@ -30,7 +21,7 @@ export interface GroupMetricsSummary {
   readonly leaseMs: number;
 }
 
-export type DriveRole = "holder" | "waiting" | "none" | "error" | "rejected";
+export type DriveRole = "holder" | "waiting" | "none" | "error";
 
 export interface GroupError {
   readonly kind:
@@ -60,29 +51,12 @@ export interface GroupStatus {
   readonly metrics: GroupMetricsSummary | null;
 }
 
-/** `group.settingUnwritable`의 이유 집합. 뜻은 `GroupCommandError`에 적는다 */
-export type GroupSettingUnwritableReason =
-  | "no_thread"
-  | "ambiguous_thread"
-  | "not_owner"
-  | "project_unavailable"
-  | "invalid_value"
-  | "storage";
-
-export type GroupCommandError =
-  | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] }
-  | { readonly kind: "group.noDrive"; readonly id: GroupId }
-  | { readonly kind: "group.settingLocked"; readonly key: string }
-  /**
-   * 설정을 쓸 수 없었다. 잠금과 달리 요청이나 환경의 문제다. `reason`: 쓸 thread가 없다(`no_thread`), 쓰기 소유를 쥔 thread가 여럿이라 정할 수 없다
-   * (`ambiguous_thread`), 그 thread를 이 프로세스가 쥐지 않았다(`not_owner`), project·local 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않음,
-   * `project_unavailable`), 값이 설정 정의에 맞지 않는다(`invalid_value`), 저장소나 파일 쓰기 실패(`storage`)
-   */
-  | {
-      readonly kind: "group.settingUnwritable";
-      readonly key: string;
-      readonly reason: GroupSettingUnwritableReason;
-    };
+/** 그룹 명령이 값으로 돌려주는 오류. 설정 쓰기 오류는 `setDriveHolder`와 함께 없앴다(drive-isolation.md 2.2) */
+export type GroupCommandError = {
+  readonly kind: "group.unknown";
+  readonly id: string;
+  readonly known: readonly GroupId[];
+};
 
 export type GroupResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -95,38 +69,14 @@ export interface ToggleReceipt {
   readonly appliesAt: "nextStepBoundary" | "now";
 }
 
-export interface HolderReceipt {
-  readonly holder: DriveHolderSetting;
-  readonly scope: HolderSettingScope;
-  /**
-   * auto, 또는 지정한 그룹이 이미 holder면 now(현재 holder 유지). 임대가 없으면 nextStepBoundary.
-   * 다른 그룹이 임대를 가졌고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 nextStepBoundary,
-   * 후보가 아니면 현재 임대를 유지하므로 afterLeaseRelease(L3.group-sdk.spec §3.8, X.primitives.spec P-22)
-   */
-  readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
-}
-
-/** fresnel.groups 서비스. X DriveLockArbiterPort(choose)를 확장한다 */
-export interface GroupService extends DriveLockArbiterPort {
-  /** 설치된 모든 그룹. 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
+/** fresnel.groups 서비스. 그룹 목록, 켜기 끄기, 상태 읽기만 낸다 */
+export interface GroupService {
+  /** 설치된 모든 그룹. 정렬: 맨 위 프레임(holder), 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
   list(): readonly GroupStatus[];
   status(id: string): GroupResult<GroupStatus>;
   /** RegistrationHandle.enable() 요청만 기록. 이미 켜져 있으면 그대로 ok */
   enable(id: string): GroupResult<ToggleReceipt>;
   disable(id: string): GroupResult<ToggleReceipt>;
-  /**
-   * 설정 x.primitives.activeDriver을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "launch".
-   * 이름을 지정하면 X가 다음 경계에서 현재 임대를 회수한다. 지정한 그룹이 후보가 아니면 현재 임대를 유지한다.
-   * "auto"(null)로 바꿔도 회수하지 않는다(L3.group-sdk.spec §3.8, X.primitives.spec P-22). 진행 중인 loop.turn은 끊지 않는다
-   */
-  setDriveHolder(
-    holder: string,
-    options?: {
-      readonly scope?: HolderSettingScope;
-      /** 설정을 쓰고 `appliesAt`를 재는 thread. 생략하면 서비스가 상태를 보이는 thread, `session`·`project`·`local` 범위는 쓰기 소유를 쥔 thread가 하나일 때 그 thread다. 정할 수 없으면 `group.settingUnwritable`(`no_thread`·`ambiguous_thread`) */
-      readonly threadId?: ThreadId;
-    },
-  ): Promise<GroupResult<HolderReceipt>>;
   /** 상태가 바뀔 때 전체 목록을 넘긴다. 단계 경계마다 최대 한 번 */
   onChange(listener: (groups: readonly GroupStatus[]) => void): Unsubscribe;
 }

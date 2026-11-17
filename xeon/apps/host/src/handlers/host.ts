@@ -52,6 +52,7 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "settings.invalidated",
   "profile.changed",
   "project.changed",
+  "drive.framesChanged",
   "notify.delivered",
   "$/cancelRequest",
   "$/connectionReset",

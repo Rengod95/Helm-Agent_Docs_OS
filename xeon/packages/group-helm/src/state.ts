@@ -148,6 +148,21 @@ const HelmWatchSchema: TUnsafe<HelmWatch> = Type.Unsafe<HelmWatch>(
   watchShape satisfies SchemaProof<HelmWatch, typeof watchShape>,
 );
 
+/** 플러그인 맡기기 요청(`/helm plugin`). 단계 함수가 `handoff`로 authoring에 낸다. `id`는 명령 호출에서 만든 결정적 값이다 */
+export interface HelmPluginNeed {
+  readonly purpose: string;
+  readonly id: string;
+}
+/** `id`는 `needIdFrom`이 만든 값(`n` + base32 13자)이라 requestId에 넣어도 64자 안에 든다 */
+const NEED_ID_PATTERN = "^n[a-z2-7]{13}$";
+const pluginNeedShape = Type.Object({
+  purpose: Type.String({ minLength: 1, maxLength: 500 }),
+  id: Type.String({ pattern: NEED_ID_PATTERN }),
+});
+const HelmPluginNeedSchema: TUnsafe<HelmPluginNeed> = Type.Unsafe<HelmPluginNeed>(
+  pluginNeedShape satisfies SchemaProof<HelmPluginNeed, typeof pluginNeedShape>,
+);
+
 export interface HelmState {
   phase: HelmPhase;
   inquiryId: string | null;
@@ -168,6 +183,11 @@ export interface HelmState {
    * 끼어들면 `last`가 메시지가 되므로, 이 표지로 턴 결과와 사용자 메시지의 턴을 구분한다(L3.helm.spec §4.5)
    */
   awaitingTurn: boolean;
+  /**
+   * 플러그인 맡기기 요청이 대기 중이면 값이 있다. 없는 옛 문서는 필드가 없으므로 `pluginNeedOf`로 읽는다.
+   * version을 올리지 않는다: 필드를 더한 것뿐이라 옛 문서도 스키마를 통과한다
+   */
+  pluginNeed?: HelmPluginNeed | null;
 }
 const stateShape = Type.Object({
   phase: HelmPhaseSchema,
@@ -182,6 +202,7 @@ const stateShape = Type.Object({
   stopRequested: Type.Boolean(),
   context: Type.Array(HelmSourceSchema, { maxItems: 8 }),
   awaitingTurn: Type.Boolean(),
+  pluginNeed: Type.Optional(Type.Union([HelmPluginNeedSchema, Type.Null()])),
 });
 export const HelmStateSchema: TUnsafe<HelmState> = Type.Unsafe<HelmState>(
   stateShape satisfies SchemaProof<HelmState, typeof stateShape>,
@@ -200,7 +221,13 @@ export const INITIAL_HELM_STATE: HelmState = {
   stopRequested: false,
   context: [],
   awaitingTurn: false,
+  pluginNeed: null,
 };
+
+/** 옛 문서(필드 없음)와 새 문서를 같게 읽는다 */
+export function pluginNeedOf(state: Readonly<HelmState>): HelmPluginNeed | null {
+  return state.pluginNeed ?? null;
+}
 
 /** F.extensions.spec §3.2 StateDecl에 넘기는 값 */
 export const helmStateDecl: {

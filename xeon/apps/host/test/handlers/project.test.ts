@@ -41,7 +41,7 @@ function kindOf(call: Promise<unknown>): Promise<string | undefined> {
 }
 
 function profileOf(id: string): ProfileInput {
-  return { id, title: id, plugins: [], settings: [], driver: null };
+  return { id, title: id, plugins: [], settings: [], startDrive: null };
 }
 
 // ── project.* ───────────────────────────────────────────────────────────

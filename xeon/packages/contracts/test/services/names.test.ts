@@ -35,7 +35,6 @@ import {
 import {
   LoopPortKey,
   InputQueuePortKey,
-  DriveLockArbiterPortKey,
   McpPortKey,
   ModelsPortKey,
   ProcessPortKey,
@@ -89,7 +88,6 @@ describe("SERVICE_NAMES", () => {
     expect(ModelsPortKey.name).toBe(SERVICE_NAMES.models);
     expect(McpPortKey.name).toBe(SERVICE_NAMES.mcp);
     expect(ProcessPortKey.name).toBe(SERVICE_NAMES.process);
-    expect(DriveLockArbiterPortKey.name).toBe(SERVICE_NAMES.groups);
   });
 
   test("full-shape service port keys carry their service name and no member", () => {

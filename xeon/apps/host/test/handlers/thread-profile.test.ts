@@ -6,7 +6,7 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 // M5c §3.4, §4.1.1: 대화는 프로필 id를 저장한다(thread.create, thread.setProfile). 목록은 저장한 값을 보이고, 프로필을 지우면
 // 그 프로필을 참조하는 열린 대화 수를 알린다. 가짜 엔진 위의 실제 처리기다.
 
-const REVIEW = { id: "review", title: "Review", plugins: [], settings: [], driver: null };
+const REVIEW = { id: "review", title: "Review", plugins: [], settings: [], startDrive: null };
 
 async function open(host: FakeHost) {
   const { connection } = host.connect();

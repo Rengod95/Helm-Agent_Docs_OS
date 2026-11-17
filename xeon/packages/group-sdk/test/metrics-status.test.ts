@@ -10,7 +10,7 @@ import {
   type GroupApi,
   type GroupHostView,
 } from "../src/index.ts";
-import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
+import { groupCatalogOf } from "../src/testing/index.ts";
 import { serviceRig } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -130,7 +130,6 @@ test("metrics.status-merges-counters-with-thread-usage-after-the-status-command"
   const service = createGroupService({
     host: view,
     catalog: groupCatalogOf([rig.helm]),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => rig.thread,
     report: () => {},
   });
@@ -164,7 +163,6 @@ test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
   const service = createGroupService({
     host: view,
     catalog: groupCatalogOf([rig.helm]),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => rig.thread,
     report: () => {},
   });
@@ -187,7 +185,6 @@ test("metrics.status-real-host-has-no-turn-usage", async () => {
   const service = createGroupService({
     host: rig.t.host,
     catalog: groupCatalogOf([rig.helm]),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => rig.thread,
     report: () => {},
   });

@@ -44,6 +44,21 @@ test("authoring.intent: tools wait for the user to confirm the kind and the name
   expect(rig.state()).toMatchObject({ phase: "compose", intentConfirmed: true, name: "demo" });
 });
 
+test("authoring.start-drive: a child conversation cannot start the builder, so the tool refuses and opens no session", async () => {
+  const rig = await createGroupRig();
+  const child = rig.t.newThread();
+  await rig.t.host.openThread(child, { child: true });
+  await rig.t.settled();
+  const refused = await rig.call(
+    "authoring_start",
+    { kind: "plugin-group", name: "demo", dir: DIR },
+    child,
+  );
+  expect(refused).toMatchObject({ ok: false, error: { kind: "drive_unavailable" } });
+  expect(rig.state().sessionId).toBeNull();
+  expect(rig.probe.calls).toEqual([]);
+});
+
 test("authoring.A-3: with a session open, a write outside the target folder is blocked, inside it passes", async () => {
   const rig = await createGroupRig();
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
@@ -79,7 +94,7 @@ test("authoring.A-3: the guard lifts when the session ends", async () => {
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
 });
 
-test("authoring.A-4: package writes nothing before a yes, and the drive lock is handed back while waiting", async () => {
+test("authoring.A-4: package writes nothing before a yes, and the frame stays on the stack asking while the question is open", async () => {
   const rig = await createGroupRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
@@ -89,15 +104,19 @@ test("authoring.A-4: package writes nothing before a yes, and the drive lock is 
   expect(asked).toMatchObject({ ok: true, status: "awaiting_confirmation", action: "package" });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
-  // 질문이 열렸고 파일은 쓰지 않았고 drive 락은 반납된 상태다
+  // 질문이 열렸고 파일은 쓰지 않았다. 질문 대기는 반납이 아니라 프레임 상태 `asking`이라 drive 락은 그대로 쥐고 있다(drive-isolation.md 2.1)
   expect(rig.approvals.created).toHaveLength(2);
   expect(rig.probe.calls.filter((call) => call.startsWith("pack:"))).toEqual([]);
-  expect(rig.t.host.leaseOf(rig.thread)).toBeNull();
+  expect(rig.t.host.leaseOf(rig.thread)).toMatchObject({ scopeId: "authoring" });
+  expect(rig.t.host.driveFrames(rig.thread).at(-1)).toMatchObject({
+    plugin: "authoring",
+    state: "asking",
+  });
   const released = rig.t.records
     .events(rig.thread)
     .filter((event) => event.kind === "lease.released")
     .map((event) => event.payload);
-  expect(released.at(-1)).toMatchObject({ reason: "waiting" });
+  expect(released.some((payload) => JSON.stringify(payload).includes('"waiting"'))).toBe(false);
   await rig.answer("yes");
   expect(rig.probe.calls.filter((call) => call.startsWith("pack:"))).toEqual([`pack:${DIR}`]);
   expect(rig.state()).toMatchObject({
@@ -360,7 +379,7 @@ test("authoring.guide: without an injected guide the tool says so and opens no s
   expect(rig.state().sessionId).toBeNull();
 });
 
-test("authoring.lease: with no authoring session the builder takes the drive lock once and hands it back with done; an open session keeps it", async () => {
+test("authoring.lease: the builder takes the stack only when authoring_start asks for it; with no session it never takes it by itself", async () => {
   const rig = await createGroupRig();
   const acquired = () =>
     rig.t.records
@@ -372,23 +391,18 @@ test("authoring.lease: with no authoring session the builder takes the drive loc
       .events(rig.thread)
       .filter((event) => event.kind === "lease.released")
       .map((event) => event.payload);
-  // 세션이 없을 때 빌더는 주도 후보로 한 번 들어와 `done`으로 물러난다. 상태가 바뀌기 전까지 다시 들어오지 않는다
+  // 중재가 없고 시작 요청도 없으면 기본 켜짐인 빌더는 경계를 돌려도 스택에 오르지 않는다
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
   await rig.t.boundary(rig.thread).idle();
   await rig.t.settled();
-  const once = acquired().length;
-  expect(once).toBe(1);
-  expect(released().at(-1)).toMatchObject({ scopeId: "authoring", reason: "done" });
+  expect(acquired()).toHaveLength(0);
   expect(rig.t.host.leaseOf(rig.thread)).toBeNull();
-  await rig.t.boundary(rig.thread).idle();
-  await rig.t.settled();
-  expect(acquired()).toHaveLength(once);
-  // 세션이 열리면 다시 후보가 되고, 답을 기다리는 동안 락을 반납한 뒤 답 뒤에 다시 받는다(X-17)
+  // `authoring_start`가 시작 요청을 낸다. 다음 경계에서 스택에 오르고 확인 질문을 연다
   await confirmedSession(rig);
-  expect(acquired().length).toBeGreaterThan(once);
+  expect(acquired().length).toBeGreaterThan(0);
   for (const payload of acquired()) expect(payload).toMatchObject({ scopeId: "authoring" });
-  // 열린 세션 동안에는 `done`으로 물러나지 않았다(상주)
+  // 열린 세션 동안에는 `done`으로 물러나지 않는다(yield로 머문다)
   const doneCount = released().filter(
     (payload) =>
       typeof payload === "object" &&
@@ -396,5 +410,5 @@ test("authoring.lease: with no authoring session the builder takes the drive loc
       "reason" in payload &&
       payload.reason === "done",
   );
-  expect(doneCount).toHaveLength(1);
+  expect(doneCount).toHaveLength(0);
 });

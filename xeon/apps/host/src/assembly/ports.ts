@@ -98,6 +98,8 @@ import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
+import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
+import type { RegistrationId } from "@fresnel/contracts/extensions";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
 import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
@@ -347,6 +349,22 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     clock: deps.clock,
     logger,
   });
+  /**
+   * 대화가 참조하는 프로필의 시작 Drive(`startDrive`)를 Registration id로 푼다(drive-isolation.md 2.2).
+   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음)
+   */
+  async function startDriveOf(threadId: ThreadId): Promise<RegistrationId | undefined> {
+    const stored = session.query.thread(threadId);
+    const profileId = stored.ok
+      ? (stored.value?.profileId ?? DEFAULT_PROFILE_ID)
+      : DEFAULT_PROFILE_ID;
+    const profile = await ports.m4.profileTestRun.get(profileId);
+    if (!profile.ok || profile.value.startDrive === null) return undefined;
+    const named = profile.value.startDrive;
+    return deps.ext
+      .registrations()
+      .find((info) => info.extension === named && info.drive !== "none")?.id;
+  }
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
   function isTestRunThread(threadId: ThreadId): boolean {
     if (testRunThreads.has(threadId)) return true;
@@ -823,7 +841,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
-      await ext.openThread(threadId, isTestRunThread(threadId) ? { testRun: true } : undefined);
+      const testRun = isTestRunThread(threadId);
+      const startDrive = await startDriveOf(threadId);
+      await ext.openThread(
+        threadId,
+        testRun || startDrive !== undefined
+          ? {
+              ...(testRun ? { testRun: true } : {}),
+              ...(startDrive === undefined ? {} : { startDrive }),
+            }
+          : undefined,
+      );
     } catch (caught) {
       await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다

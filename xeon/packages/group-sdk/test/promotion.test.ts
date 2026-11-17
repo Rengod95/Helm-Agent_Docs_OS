@@ -13,7 +13,7 @@ import {
   runGroupCommand,
   type PromotionHostView,
 } from "../src/index.ts";
-import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
+import { groupCatalogOf } from "../src/testing/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -363,15 +363,12 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([owner]),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => thread,
     report: () => undefined,
   });
 
   // 호출이 없으면 후보 줄이 없다
-  expect((await runGroupCommand(service, { op: "status" })).text).toBe(
-    "구동 그룹 설정: auto\ngroup-a  켜짐  drive=없음",
-  );
+  expect((await runGroupCommand(service, { op: "status" })).text).toBe("group-a  켜짐  drive=없음");
   // 그룹 B의 drive turn이 a_tool을 부르면 후보 줄이 group 줄 뒤에 붙는다
   const bTurn = t.ids.next("trn");
   await t.records.commit({
@@ -383,6 +380,6 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
     ],
   });
   expect((await runGroupCommand(service, { op: "status" })).text).toBe(
-    "구동 그룹 설정: auto\ngroup-a  켜짐  drive=없음\n승격 후보: a_tool (group-a -> group-b)",
+    "group-a  켜짐  drive=없음\n승격 후보: a_tool (group-a -> group-b)",
   );
 });

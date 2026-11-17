@@ -68,12 +68,12 @@ function catalogOf(
   };
 }
 
-const EMPTY = { plugins: [], settings: [], driver: null };
+const EMPTY = { plugins: [], settings: [], startDrive: null };
 const NO_COMMON = { plugins: [], settings: [] };
 
 test("a clean profile has no issues", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "demo" }], settings: [], driver: null },
+    { plugins: [{ name: "demo" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([entry("demo")]),
     catalogOf([]),
@@ -83,7 +83,7 @@ test("a clean profile has no issues", () => {
 
 test("plugin_unknown: a plugin the library does not have is an error", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "ghost" }], settings: [], driver: null },
+    { plugins: [{ name: "ghost" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([]),
     catalogOf([]),
@@ -93,7 +93,7 @@ test("plugin_unknown: a plugin the library does not have is an error", () => {
 
 test("plugin_not_reviewed: an installed plugin without a reviewed copy is an error", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "draft" }], settings: [], driver: null },
+    { plugins: [{ name: "draft" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([entry("draft", { reviewed: false })]),
     catalogOf([]),
@@ -103,7 +103,7 @@ test("plugin_not_reviewed: an installed plugin without a reviewed copy is an err
 
 test("replace_conflict: two plugins in the resolved list that replace the same built-in tool name both", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "b" }], settings: [], driver: null },
+    { plugins: [{ name: "b" }], settings: [], startDrive: null },
     { plugins: [{ name: "a" }], settings: [] },
     libraryOf([entry("a", { replaces: ["web.fetch"] }), entry("b", { replaces: ["web.fetch"] })]),
     catalogOf([]),
@@ -113,11 +113,11 @@ test("replace_conflict: two plugins in the resolved list that replace the same b
   ]);
 });
 
-test("driver_not_in_list and driver_cannot_drive: the start driver must be in the resolved list and must be able to drive", () => {
+test("driver_not_in_list and driver_cannot_drive: the start startDrive must be in the resolved list and must be able to drive", () => {
   const library = libraryOf([entry("steady"), entry("runner", { drives: true })]);
   expect(
     validateProfile(
-      { plugins: [{ name: "steady" }], settings: [], driver: "runner" },
+      { plugins: [{ name: "steady" }], settings: [], startDrive: "runner" },
       NO_COMMON,
       library,
       catalogOf([]),
@@ -125,7 +125,7 @@ test("driver_not_in_list and driver_cannot_drive: the start driver must be in th
   ).toEqual([{ code: "driver_not_in_list", severity: "error", plugin: "runner" }]);
   expect(
     validateProfile(
-      { plugins: [{ name: "steady" }], settings: [], driver: "steady" },
+      { plugins: [{ name: "steady" }], settings: [], startDrive: "steady" },
       NO_COMMON,
       library,
       catalogOf([]),
@@ -133,7 +133,7 @@ test("driver_not_in_list and driver_cannot_drive: the start driver must be in th
   ).toEqual([{ code: "driver_cannot_drive", severity: "error", plugin: "steady" }]);
   expect(
     validateProfile(
-      { plugins: [{ name: "runner" }], settings: [], driver: "runner" },
+      { plugins: [{ name: "runner" }], settings: [], startDrive: "runner" },
       NO_COMMON,
       library,
       catalogOf([]),
@@ -145,7 +145,7 @@ test("setting_unknown_key: a key the catalog does not have, or whose owner is no
   const catalog = catalogOf([settingOf({ key: "ext.demo.token", owner: "demo" })]);
   expect(
     validateProfile(
-      { plugins: [], settings: [{ key: "nope.key", value: 1 }], driver: null },
+      { plugins: [], settings: [{ key: "nope.key", value: 1 }], startDrive: null },
       NO_COMMON,
       libraryOf([]),
       catalog,
@@ -153,7 +153,7 @@ test("setting_unknown_key: a key the catalog does not have, or whose owner is no
   ).toEqual([{ code: "setting_unknown_key", severity: "error", key: "nope.key" }]);
   expect(
     validateProfile(
-      { plugins: [], settings: [{ key: "ext.demo.token", value: null }], driver: null },
+      { plugins: [], settings: [{ key: "ext.demo.token", value: null }], startDrive: null },
       NO_COMMON,
       libraryOf([]),
       catalog,
@@ -165,7 +165,7 @@ test("setting_scope_not_allowed: a key whose catalog scopes do not include profi
   const catalog = catalogOf([settingOf({ key: "ext.x.enabled", scopes: ["managed"] })]);
   expect(
     validateProfile(
-      { plugins: [], settings: [{ key: "ext.x.enabled", value: true }], driver: null },
+      { plugins: [], settings: [{ key: "ext.x.enabled", value: true }], startDrive: null },
       NO_COMMON,
       libraryOf([]),
       catalog,
@@ -182,7 +182,7 @@ test("setting_invalid_value: a value the key's schema refuses", () => {
   ]);
   expect(
     validateProfile(
-      { plugins: [], settings: [{ key: "l1.loop.maxSteps", value: "many" }], driver: null },
+      { plugins: [], settings: [{ key: "l1.loop.maxSteps", value: "many" }], startDrive: null },
       NO_COMMON,
       libraryOf([]),
       catalog,
@@ -210,7 +210,7 @@ test("secret_literal is an error and secret_missing a warning; the literal value
     {
       plugins: [{ name: "demo" }],
       settings: [{ key: "ext.demo.token", value: "sk-123" }],
-      driver: null,
+      startDrive: null,
     },
     NO_COMMON,
     library,
@@ -222,7 +222,7 @@ test("secret_literal is an error and secret_missing a warning; the literal value
     {
       plugins: [{ name: "demo" }],
       settings: [{ key: "ext.demo.token", value: "secret://gone" }],
-      driver: null,
+      startDrive: null,
     },
     NO_COMMON,
     library,
@@ -233,7 +233,7 @@ test("secret_literal is an error and secret_missing a warning; the literal value
     {
       plugins: [{ name: "demo" }],
       settings: [{ key: "ext.demo.token", value: "secret://here" }],
-      driver: null,
+      startDrive: null,
     },
     NO_COMMON,
     library,
@@ -247,7 +247,7 @@ test("secret_literal is an error and secret_missing a warning; the literal value
 
 test("required_unset is a warning for a required key that no layer sets", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "demo" }], settings: [], driver: null },
+    { plugins: [{ name: "demo" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([entry("demo", { requiredKeys: ["ext.demo.token"] })]),
     catalogOf([]),
@@ -259,7 +259,7 @@ test("required_unset is a warning for a required key that no layer sets", () => 
 
 test("requirement_unmet is a warning for a plugin whose required capability is missing", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "demo" }], settings: [], driver: null },
+    { plugins: [{ name: "demo" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([entry("demo", { unmet: true })]),
     catalogOf([]),
@@ -269,7 +269,7 @@ test("requirement_unmet is a warning for a plugin whose required capability is m
 
 test("managed_forbidden is a warning for a plugin the managed scope turns off", () => {
   const issues = validateProfile(
-    { plugins: [{ name: "demo" }], settings: [], driver: null },
+    { plugins: [{ name: "demo" }], settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([entry("demo")]),
     catalogOf([], { managedOff: ["demo"] }),
@@ -280,7 +280,7 @@ test("managed_forbidden is a warning for a plugin the managed scope turns off", 
 test("limit: more plugins than the profile may hold is an error", () => {
   const many = Array.from({ length: 129 }, (_, at) => ({ name: `p${String(at)}` }));
   const issues = validateProfile(
-    { plugins: many, settings: [], driver: null },
+    { plugins: many, settings: [], startDrive: null },
     NO_COMMON,
     libraryOf([]),
     catalogOf([]),

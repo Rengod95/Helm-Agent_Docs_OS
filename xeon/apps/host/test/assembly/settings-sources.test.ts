@@ -56,14 +56,14 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
     maxTokens: 400000,
   });
   expect(defaults.driveLimits(THREAD)).toEqual({});
-  expect(defaults.activeDriver(THREAD)).toBeNull();
+  expect(defaults.driveMaxDepth(THREAD)).toBe(8);
   expect(defaults.capabilityProviders()).toEqual({});
 
   const set = primitivesSource(
     await engineWith({
       "x.primitives.driveDefaultLimits": { maxTurns: 6 },
       "x.primitives.driveLimits": { maxTurns: 3, maxSpawns: 0 },
-      "x.primitives.activeDriver": "smoke-group",
+      "x.primitives.driveMaxDepth": 3,
       "x.primitives.capabilityProviders": { "web.search": "web-exa" },
     }),
   );
@@ -74,7 +74,7 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
     maxTokens: 400000,
   });
   expect(set.driveLimits(THREAD)).toEqual({ maxTurns: 3, maxSpawns: 0 });
-  expect(set.activeDriver(THREAD)).toBe("smoke-group");
+  expect(set.driveMaxDepth(THREAD)).toBe(3);
   expect(set.capabilityProviders()).toEqual({ "web.search": "web-exa" });
 });
 

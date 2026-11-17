@@ -1,3 +1,4 @@
+import { parse } from "@fresnel/contracts";
 import type {
   AskCard,
   DriveCommand,
@@ -6,8 +7,15 @@ import type {
   StepResult,
 } from "@fresnel/contracts/extensions";
 import type { DevkitService } from "@fresnel/contracts/services";
+import { Type } from "typebox";
 import { INITIAL_AUTHORING_STATE, sessionOpen, type AuthoringState } from "./group-state.ts";
 import { confirmCard, confirmedYes, installConfirmation, packConfirmation } from "./release.ts";
+
+// 맡기기 입력(drive-isolation.md 2.2, 2.6). 다른 플러그인(Helm)이 `handoff`로 `{ purpose, id }`를 싣는다. `id`는 맡긴 쪽의 요청 id다.
+const HandoffInputSchema = Type.Object({
+  purpose: Type.String({ minLength: 1, maxLength: 500 }),
+  id: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+});
 
 // L3.authoring.spec §4.1 drive, drive-isolation.md §1.1·§1.4(B-5, B-8). 단계 함수다: 커밋된 상태와 직전 결과(`last`)만 보고
 // 명령 하나를 고른다. 클로저에 진행 상태를 두지 않으므로 같은 단계가 재시작 뒤 다시 돌아도 같은 명령이 나온다.
@@ -252,7 +260,37 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     return commitThen({ ...state, pending: null });
   };
 
-  return async ({ state, last }): Promise<DriveCommand<AuthoringState>> => {
+  /**
+   * 맡겨진 호출(`frame.calledBy`)은 상주하지 않는다. 제작 대화가 닫혀 있고 목적이 있으면 알리고 `accepted`로 돌려준다.
+   * 제작 흐름 자체는 사용자의 `authoring_start`가 시작한다(이 단계는 목적을 받아 알리는 데까지다).
+   * 열린 대화나 읽을 수 없는 입력은 받지 않고 사유와 함께 물러난다(맡긴 쪽이 기다리지 않게)
+   */
+  const handoffStep = async (
+    state: Readonly<AuthoringState>,
+    calledBy: string,
+    input: unknown,
+  ): Promise<DriveCommand<AuthoringState>> => {
+    if (sessionOpen(state))
+      return { do: "done", result: { accepted: false, reason: "session_open" } };
+    const read = parse(HandoffInputSchema, input);
+    if (!read.ok) return { do: "done", result: { accepted: false, reason: "bad_input" } };
+    const { purpose, id } = read.value;
+    await g.post(
+      {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content: `[authoring] ${calledBy}가 플러그인 제작을 맡겼다: ${purpose}`,
+        display: true,
+      },
+      { when: "next", requestId: `authoring:handoff:${id ?? purpose}`.slice(0, 64) },
+    );
+    return { do: "done", result: { accepted: true, purpose } };
+  };
+
+  return async ({ state, last, frame }): Promise<DriveCommand<AuthoringState>> => {
+    // 맡겨진 첫 단계: 사용자 메시지와 달리 이 호출은 턴을 열지 않고 답하고 물러난다
+    if (frame.calledBy !== null && last === null)
+      return handoffStep(state, frame.calledBy, frame.input);
     // B-5: 사용자 메시지는 이 단계에서 턴으로 처리한다. 세션이 닫혀 있어도 메시지를 버리지 않는다
     if (last?.kind === "user") return { do: "turn", input: last.message };
     const answer = answerOf(last);

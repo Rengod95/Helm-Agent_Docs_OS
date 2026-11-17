@@ -166,7 +166,7 @@ test("one invoke runs a turn and then a commit, and each step gets the previous 
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "step-chain" });
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([null, TURN_RESULT]);
@@ -187,7 +187,7 @@ test("the default request id is lineage:rev.index and a restart re-runs the step
     stepOf(calls, ({ last }) => (last === null ? { do: "turn", input: GO } : { do: "yield" }));
   const firstCalls: Call[] = [];
   await install(first, "rerun-default-key", step(firstCalls));
-  await first.host.openThread(thread);
+  await first.host.openThread(thread, { startDrive: "rerun-default-key" });
   await first.settled();
 
   // 상태 판 0에서 첫 단계의 첫 명령이므로 순번은 0이다
@@ -195,7 +195,8 @@ test("the default request id is lineage:rev.index and a restart re-runs the step
   expect(first.loop.turns.map((turn) => turn.requestId)).toEqual([`${lineage}:0.0`]);
   expect(firstCalls.map((call) => call.last)).toEqual([null, TURN_RESULT]);
 
-  await first.host.closeThread(thread);
+  // 프로세스 재시작: 옛 호스트를 닫고 같은 기록으로 새 호스트를 연다
+  await first.host.dispose();
   const second = await first.restart();
   const secondCalls: Call[] = [];
   await install(second, "rerun-default-key", step(secondCalls));
@@ -228,14 +229,14 @@ test("an explicit requestId is the one the loop receives for a turn and for a sp
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "explicit-key" });
   await t.settled();
 
   expect(t.loop.turns.map((turn) => turn.requestId)).toEqual(["turn-explicit"]);
   expect(t.loop.spawns.map((spawn) => spawn.requestId)).toEqual(["spawn-explicit"]);
 });
 
-test("done releases the lease and keeps the scope out until a commit changes its state", async () => {
+test("done releases the lease with reason done, and the same scope is not granted again until a new start request", async () => {
   const t = await createTestHost({ loop: SCRIPTED });
   const calls: Call[] = [];
   await install(
@@ -251,7 +252,7 @@ test("done releases the lease and keeps the scope out until a commit changes its
     },
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "done-scope" });
   await t.settled();
   expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
   expect(t.host.leaseOf(thread)).toBeNull();
@@ -264,8 +265,17 @@ test("done releases the lease and keeps the scope out until a commit changes its
   expect(acquiredOf(t, thread)).toHaveLength(1);
   expect(calls.map((call) => call.state)).toEqual([{ count: 0 }]);
 
-  // 상태를 커밋하면 다음 경계에서 다시 후보가 되어 새 임대를 받는다
+  // 상태를 커밋해도 done으로 내린 scope는 새 시작 요청이 없으면 다시 부여되지 않는다. 스택이 비어 아무도 주도하지 않는다
   await runCommand(t, thread, "bump-1");
+  await t.settled();
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(acquiredOf(t, thread)).toHaveLength(1);
+  expect(calls.map((call) => call.state)).toEqual([{ count: 0 }]);
+  expect(t.host.leaseOf(thread)).toBeNull();
+
+  // 새 시작 요청이 있으면 다시 부여되고, 단계 함수는 커밋된 상태 1을 본다
+  expect(t.host.startDrive(thread, "done-scope").ok).toBe(true);
   await t.settled();
   expect(acquiredOf(t, thread)).toHaveLength(2);
   expect(calls.map((call) => call.state)).toEqual([{ count: 0 }, { count: 1 }]);
@@ -282,7 +292,7 @@ test("two yields in a row at the same state rev give the lease back as idle", as
     stepOf(calls, () => ({ do: "yield" })),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "yield-idle" });
   await t.settled();
   expect(calls).toHaveLength(1);
   expect(t.host.leaseOf(thread)).not.toBeNull();
@@ -296,10 +306,10 @@ test("two yields in a row at the same state rev give the lease back as idle", as
   expect(t.loop.turns).toHaveLength(0);
 });
 
+// `handoff`는 3b에서 구현됐다(handoff-stack.test.ts). 아직 없는 명령만 거부 결과를 받는다
 const unavailable: readonly [string, DriveCommand<Counter>][] = [
   ["model", MODEL],
   ["tool", { do: "tool", name: "read", args: { path: "a" } }],
-  ["handoff", { do: "handoff", to: "other", input: "x" }],
 ];
 
 for (const [label, command] of unavailable) {
@@ -312,7 +322,7 @@ for (const [label, command] of unavailable) {
       stepOf(calls, ({ last }) => (last === null ? command : { do: "done" })),
     );
     const thread = t.newThread();
-    await t.host.openThread(thread);
+    await t.host.openThread(thread, { startDrive: `refuse-${label}` });
     await t.settled();
 
     expect(calls.map((call) => call.last)).toEqual([null, REFUSED]);
@@ -348,14 +358,17 @@ test("each command settles once with its lease, scope, request id, command, outc
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "settle-events" });
   await t.settled();
-  // 질문은 아직 답이 없어 임대를 `waiting`으로 반납한다
-  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["waiting"]);
+  // 시작 요청으로 받은 임대 하나가 턴·맡기기·질문까지 이어진다. 질문은 임대를 반납하지 않고 프레임을 asking으로 둔다
+  expect(acquiredOf(t, thread)).toHaveLength(1);
+  expect(releasedOf(t, thread)).toEqual([]);
+  expect(t.host.driveFrames(thread).map((frame) => frame.state)).toEqual(["driving", "asking"]);
 
   await answerFirst(approvals, t);
-  const [firstGrant, secondGrant] = acquiredOf(t, thread);
-  if (firstGrant === undefined || secondGrant === undefined) throw new Error("two grants expected");
+  // 답이 같은 호출 안에서 돌아와 done으로 끝나므로 임대는 done 사유로 한 번 내려간다
+  expect(acquiredOf(t, thread)).toHaveLength(1);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
   expect(settledOf(t, thread)).toEqual([
     {
       scopeId: "settle-events",
@@ -388,12 +401,13 @@ test("a restart that replays a turn records no second drive.command_settled for 
     "settle-replay",
     stepOf([], ({ last }) => (last === null ? { do: "turn", input: GO } : { do: "yield" })),
   );
-  await first.host.openThread(thread);
+  await first.host.openThread(thread, { startDrive: "settle-replay" });
   await first.settled();
   const before = settledOf(first, thread);
   expect(before).toHaveLength(1);
 
-  await first.host.closeThread(thread);
+  // 프로세스 재시작: 옛 호스트를 닫고 새 호스트를 연다. 열린 임대가 있으므로 시작 요청 없이 이어 간다
+  await first.host.dispose();
   const second = await first.restart();
   await install(
     second,
@@ -421,7 +435,7 @@ test("a user message claimed while the drive is held becomes the next last, and 
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "user-turn" });
   await t.settled();
 
   const message: PostItem = { kind: "user", content: "stop the lens" };
@@ -462,7 +476,7 @@ test("three steps after a user message without a turn or done give the lease bac
     stepOf(calls, ({ last }) => (last === null ? { do: "yield" } : MODEL)),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "user-hand-back" });
   await t.settled();
 
   const message: PostItem = { kind: "user", content: "wait, stop" };
@@ -502,7 +516,7 @@ test("eight effect-less commands in a row end the invoke with a scope notice, no
     stepOf(calls, () => MODEL),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "chain-limit" });
   await t.settled();
 
   expect(calls).toHaveLength(8);
@@ -528,7 +542,7 @@ test("a commit the store rejects as state_conflict arrives as a refused last", a
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "state-conflict" });
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([

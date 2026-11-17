@@ -54,7 +54,7 @@ export interface ProfileCatalog {
 export interface ProfileBody {
   readonly plugins: readonly { readonly name: string }[];
   readonly settings: readonly { readonly key: string; readonly value: unknown }[];
-  readonly driver: string | null;
+  readonly startDrive: string | null;
 }
 
 /** 공통 묶음의 모양. 시작 Drive가 없다 */
@@ -142,13 +142,13 @@ export function validateProfile(
     }
   }
 
-  if (profile.driver !== null) {
-    if (!resolved.has(profile.driver)) {
-      issues.push({ code: "driver_not_in_list", severity: "error", plugin: profile.driver });
+  if (profile.startDrive !== null) {
+    if (!resolved.has(profile.startDrive)) {
+      issues.push({ code: "driver_not_in_list", severity: "error", plugin: profile.startDrive });
     } else {
-      const entry = entries.get(profile.driver);
+      const entry = entries.get(profile.startDrive);
       if (entry !== undefined && !entry.drives) {
-        issues.push({ code: "driver_cannot_drive", severity: "error", plugin: profile.driver });
+        issues.push({ code: "driver_cannot_drive", severity: "error", plugin: profile.startDrive });
       }
     }
   }

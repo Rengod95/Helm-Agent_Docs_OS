@@ -65,7 +65,7 @@ test("real-host.delegate-in-on-takes-the-thread-and-signal-from-the-context", as
 
 test("real-host.delegate-in-drive-takes-the-thread-from-the-context", async () => {
   const { t, thread, agents, seen } = await rig("rh-drive", "drive");
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "rh-drive" });
   await t.settled();
   expect(agents.delegated[0]?.origin.parentThreadId).toBe(thread);
   expect(seen.results[0]).toMatchObject({ ok: true, receipt: { status: "accepted" } });

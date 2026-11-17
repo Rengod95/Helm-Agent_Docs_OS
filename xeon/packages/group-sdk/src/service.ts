@@ -1,38 +1,27 @@
-import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
+  type DriveFrameView,
   type GroupId,
-  type DriveLockArbiterPort,
   type RegistrationId,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
-import { SessionFeedPortKey, type ExtHost, type RegistrationInfo } from "@fresnel/ext-host";
+import type { ExtHost, RegistrationInfo } from "@fresnel/ext-host";
 import {
   GroupServiceName,
-  type DriveHolderSetting,
   type DriveRole,
-  type GroupCommandError,
   type GroupError,
   type GroupMetricsSummary,
   type GroupResult,
   type GroupStatus,
-  type HolderReceipt,
   type ToggleReceipt,
 } from "@fresnel/contracts/services";
-import { defaultDriveArbiter, driveLockArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
 import { gatherPromotionInput } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
-import { createLeaseRejections } from "./lease-rejections.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-import type {
-  DriveHolderSettingsPort,
-  HolderSettingScope,
-  HolderWriteError,
-} from "./ports/holder.ts";
 import { orchestrationOf } from "./util.ts";
 
 export { GroupServiceName };
@@ -43,6 +32,7 @@ export type GroupHostView = Pick<
   | "registrations"
   | "registration"
   | "leaseOf"
+  | "driveFrames"
   | "onChange"
   | "ports"
   | "queryEvents"
@@ -53,7 +43,6 @@ export type GroupHostView = Pick<
 export interface GroupServiceDeps {
   readonly host: GroupHostView;
   readonly catalog: GroupCatalogPort;
-  readonly holder: DriveHolderSettingsPort;
   /**
    * 서비스가 상태를 보여 줄 thread. 서비스 한 인스턴스는 활성 thread 하나의 그룹 상태를 보인다
    * (L3.group-sdk.spec §3.8 [가정]). 없으면 null
@@ -61,7 +50,6 @@ export interface GroupServiceDeps {
   readonly currentThread: () => ThreadId | null;
   /** onChange 구독자가 던진 값을 받는다. 기록하거나 알리는 일을 해야 한다(TY-25) */
   readonly report: (cause: unknown) => void;
-  readonly arbiter?: DriveArbiter;
   /** l3.group-sdk.instrumentation 값. 기본 true */
   readonly instrumentation?: () => boolean;
   /**
@@ -103,52 +91,32 @@ function errorOf(info: RegistrationInfo): GroupError | null {
   return { kind: "group.setupFailed", message, atSeq: null };
 }
 
+/**
+ * 그룹의 drive 역할을 thread의 주도권 스택(`driveFrames`, drive-isolation.md 2.1·2.6)에서 읽는다. `at`은 그룹 프레임의 스택 인덱스(없으면 -1)다.
+ * 맨 위 프레임(주도 중이거나 질문 대기 중)은 `holder`, 그 아래 프레임(맡기고 기다리는 중)은 `waiting`이다.
+ * 스택에 없으면 `none`이다. drive 오류는 `error`다.
+ */
 function driveRoleOf(
   entry: GroupCatalogEntry,
   info: RegistrationInfo | undefined,
-  rejected: boolean,
+  frames: readonly DriveFrameView[],
+  at: number,
 ): DriveRole {
   if (orchestrationOf(entry.manifest)?.drives !== true || info === undefined) return "none";
   if (info.status !== "enabled" && info.status !== "disabling") return "none";
-  switch (info.drive) {
-    case "holding":
-      return "holder";
-    case "error":
-      return "error";
-    case "registered":
-      return rejected ? "rejected" : "waiting";
-    case "none":
-      return "none";
-    default:
-      return assertNever(info.drive, "RegistrationInfo.drive");
-  }
+  if (info.drive === "error") return "error";
+  if (at < 0) return "none";
+  return at === frames.length - 1 ? "holder" : "waiting";
 }
 
 /**
- * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). X `DriveLockArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
- * 상태는 `ExtHost.scopes()`·`leaseOf()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
+ * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록·켜기 끄기·구동 그룹 지정을 한 객체로 낸다.
+ * 상태는 `ExtHost.registrations()`·`driveFrames()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
-/** 설정 쓰기 실패를 서비스 오류로 옮긴다. 관리 범위의 잠금만 `group.settingLocked`고 나머지는 이유를 그대로 싣는다 */
-function groupErrorOf(error: HolderWriteError): GroupCommandError {
-  switch (error.kind) {
-    case "locked":
-      return { kind: "group.settingLocked", key: error.key };
-    case "unwritable":
-      return { kind: "group.settingUnwritable", key: error.key, reason: error.reason };
-    default:
-      return assertNever(error, "HolderWriteError");
-  }
-}
-
 export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
-  const arbiter = deps.arbiter ?? defaultDriveArbiter;
-  const port: DriveLockArbiterPort = driveLockArbiterPort(arbiter, {
-    holderSetting: (threadId) => deps.holder.read(threadId),
-  });
   const listeners = new Set<(groups: readonly GroupStatus[]) => void>();
   let hostSubscription: Unsubscribe | undefined;
   let scheduled = false;
-  const rejections = createLeaseRejections();
   let usage: UsageCache | undefined;
 
   /**
@@ -172,18 +140,20 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     };
   }
 
-  /** 커밋 피드 포트가 올라와 있으면 구독한다. 포트가 늦게 올라올 수 있어 읽을 때마다 확인한다 */
-  function attachFeed(): void {
-    const feed = deps.host.ports.get(SessionFeedPortKey);
-    if (feed !== undefined) rejections.attach(feed, schedule);
+  /** 현재 thread의 주도권 스택. thread가 없으면 빈 스택이다 */
+  function framesOf(thread: ThreadId | null): readonly DriveFrameView[] {
+    return thread === null ? [] : deps.host.driveFrames(thread);
   }
 
   function statusOf(entry: GroupCatalogEntry): GroupStatus {
-    attachFeed();
     const id = entry.manifest.name;
     const info = deps.host.registrations().find((scope) => scope.id === id);
     const thread = deps.currentThread();
-    const lease = thread === null ? null : deps.host.leaseOf(thread);
+    const frames = framesOf(thread);
+    // 그룹의 프레임은 플러그인 이름으로 찾는다(DriveFrameView.plugin = scope의 확장 이름)
+    const at =
+      info === undefined ? -1 : frames.findIndex((frame) => frame.plugin === info.extension);
+    const frame = at < 0 ? undefined : frames[at];
     const scope = info?.status ?? "disabled";
     const instrumented = deps.instrumentation?.() ?? true;
     return {
@@ -192,8 +162,8 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
       scope,
       pendingToggle: scope === "enabling" ? "enable" : scope === "disabling" ? "disable" : null,
       usesDrive: orchestrationOf(entry.manifest)?.drives === true,
-      drive: driveRoleOf(entry, info, thread !== null && rejections.has(thread, id)),
-      leaseId: lease !== null && lease.scopeId === id ? lease.leaseId : null,
+      drive: driveRoleOf(entry, info, frames, at),
+      leaseId: frame?.leaseId ?? null,
       lastError: info === undefined ? null : errorOf(info),
       recordKinds: (orchestrationOf(entry.manifest)?.recordKinds ?? []).map((decl) => decl.kind),
       metrics: instrumented ? summaryOf(id, thread) : null,
@@ -272,25 +242,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     };
   }
 
-  /** 지정한 그룹이 X의 임대 후보인가: 켜져 있고 drive를 등록했고 오류 상태가 아니다 */
-  function isCandidate(scopeId: RegistrationId): boolean {
-    const info = deps.host.registrations().find((scope) => scope.id === scopeId);
-    return info !== undefined && info.status === "enabled" && info.drive === "registered";
-  }
-
-  function appliesAtOf(
-    next: DriveHolderSetting,
-    target: ThreadId | null,
-  ): HolderReceipt["appliesAt"] {
-    const thread = target ?? deps.currentThread();
-    const lease = thread === null ? null : deps.host.leaseOf(thread);
-    if (next === null) return "now";
-    if (lease === null) return "nextStepBoundary";
-    if (lease.scopeId === next) return "now";
-    // X는 이름을 지정한 그룹이 후보이면 다음 경계에서 현재 임대를 revoked로 반납한다(X.primitives.spec §4.4.1 5번)
-    return isCandidate(next) ? "nextStepBoundary" : "afterLeaseRelease";
-  }
-
   /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
   async function defaultPromotion(): Promise<PromotionReport> {
     const thread = deps.currentThread();
@@ -299,7 +250,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   }
 
   return {
-    choose: (threadId, candidates) => port.choose(threadId, candidates),
     list,
     currentThread: () => deps.currentThread(),
     promotionReport: () => (deps.promotion ?? defaultPromotion)(),
@@ -340,27 +290,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     },
     enable: (id) => toggle(id, true),
     disable: (id) => toggle(id, false),
-    async setDriveHolder(holder, options) {
-      const scope: HolderSettingScope = options?.scope ?? "launch";
-      const next: DriveHolderSetting = holder === "auto" ? null : holder;
-      if (next !== null) {
-        const entry = find(next);
-        if (entry === undefined) {
-          return { ok: false, error: { kind: "group.unknown", id: next, known: knownIds() } };
-        }
-        if (orchestrationOf(entry.manifest)?.drives !== true) {
-          return { ok: false, error: { kind: "group.noDrive", id: entry.manifest.name } };
-        }
-      }
-      const target = options?.threadId ?? null;
-      const appliesAt = appliesAtOf(next, target);
-      const written = await deps.holder.write(next, scope, target);
-      if (!written.ok) {
-        return { ok: false, error: groupErrorOf(written.error) };
-      }
-      schedule();
-      return { ok: true, value: { holder: next, scope, appliesAt } };
-    },
     onChange(listener) {
       listeners.add(listener);
       hostSubscription ??= deps.host.onChange(schedule);
@@ -372,6 +301,5 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
         }
       };
     },
-    driveHolderSetting: () => deps.holder.read(deps.currentThread()),
   };
 }

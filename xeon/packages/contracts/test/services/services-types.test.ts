@@ -1,7 +1,6 @@
 import { test } from "bun:test";
 import type {
   InputQueuePort,
-  DriveLockArbiterPort,
   LoopPort,
   McpPort,
   ModelsPort,
@@ -19,13 +18,10 @@ import type {
   StoreService,
 } from "../../src/records/index.ts";
 import type { Result } from "../../src/base/index.ts";
-import type { ModelThinkingLevel, ThreadId } from "../../src/conversation/index.ts";
+import type { ModelThinkingLevel } from "../../src/conversation/index.ts";
 import type {
   ApprovalRequest,
   ApprovalResolution,
-  GroupCommandError,
-  GroupService,
-  GroupSettingUnwritableReason,
   LoopService,
   McpService,
   ModelBinding,
@@ -37,7 +33,6 @@ import type {
   TaskService,
   ToolService,
 } from "../../src/services/index.ts";
-import type { SettingWriteScope } from "../../src/wire-settings/settings/index.ts";
 import type { Assignable, DeepMutable, Equal, Expect } from "../types/expect.ts";
 
 // 이 파일의 단언은 tsc -b가 판정한다(컴파일 시점). 아래 테스트는 파일이 bun test와 knip 진입점에 들게 한다.
@@ -49,7 +44,6 @@ export type ProcessServiceIsProcessPort = Expect<Assignable<ProcessService, Proc
 export type ToolServiceIsToolsPort = Expect<Assignable<ToolService, ToolsPort>>;
 export type ModelServiceIsModelsPort = Expect<Assignable<ModelService, ModelsPort>>;
 export type McpServiceIsMcpPort = Expect<Assignable<McpService, McpPort>>;
-export type GroupServiceIsLeaseArbiter = Expect<Assignable<GroupService, DriveLockArbiterPort>>;
 
 /** records의 서비스는 포트를 그대로 만족한다 */
 export type StoreServiceIsScopedStore = Expect<Assignable<StoreService, ScopedStorePort>>;
@@ -82,39 +76,6 @@ export type ResolutionIsPayload = Expect<
   Assignable<
     ApprovalResolution,
     Omit<ApprovalResolvedPayload, "approvalId"> & { approvalId: string }
-  >
->;
-
-/** GroupService의 설정 범위는 쓰기 범위(SettingWriteScope)와 같다. 프로필 범위는 읽기 전용이라 그룹이 쓰지 않는다(L3.group-sdk.spec §9 20, M5c §3.3) */
-type HolderScope = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>["scope"];
-export type HolderScopeIsSettingScope = Expect<Equal<NonNullable<HolderScope>, SettingWriteScope>>;
-
-/** setDriveHolder는 쓸 thread를 옵션으로 받는다(L3.group-sdk.spec §3.8, 통합 검토 L8) */
-type HolderOptions = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>;
-export type HolderOptionTargetsThread = Expect<
-  Equal<HolderOptions["threadId"], ThreadId | undefined>
->;
-
-/** 쓸 수 없었던 이유 여섯 가지가 group.settingUnwritable 오류의 reason이다 */
-export type UnwritableReasons = Expect<
-  Equal<
-    GroupSettingUnwritableReason,
-    | "no_thread"
-    | "ambiguous_thread"
-    | "not_owner"
-    | "project_unavailable"
-    | "invalid_value"
-    | "storage"
-  >
->;
-export type UnwritableErrorCarriesReason = Expect<
-  Equal<
-    Extract<GroupCommandError, { readonly kind: "group.settingUnwritable" }>,
-    {
-      readonly kind: "group.settingUnwritable";
-      readonly key: string;
-      readonly reason: GroupSettingUnwritableReason;
-    }
   >
 >;
 

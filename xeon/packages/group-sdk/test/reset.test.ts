@@ -3,7 +3,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { createGroupService, defineGroup, groupCommand, type GroupModule } from "../src/index.ts";
-import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
+import { groupCatalogOf } from "../src/testing/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -42,7 +42,6 @@ function serviceOf(t: TestHost, modules: readonly GroupModule[], thread: ThreadI
   return createGroupService({
     host: t.host,
     catalog: groupCatalogOf(modules),
-    holder: memoryDriveHolderSettings(),
     currentThread: () => thread,
     report: () => undefined,
   });
@@ -185,7 +184,7 @@ test("reset.error-kinds", async () => {
   });
   expect(await command.run("reset")).toEqual({
     ok: false,
-    text: "사용법: /group status [이름] | on <이름> | off <이름> | drive <이름|auto> | reset <이름>",
+    text: "사용법: /group status [이름] | on <이름> | off <이름> | reset <이름>",
     pending: false,
   });
   // 실패한 재설정은 저장 상태를 건드리지 않는다

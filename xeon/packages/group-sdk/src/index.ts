@@ -22,16 +22,6 @@ export {
   type StateMigrations,
 } from "./define-group.ts";
 export {
-  defaultDriveArbiter,
-  driveLockArbiterPort,
-  type ArbiterDecision,
-  type ArbiterInput,
-  type ArbiterReason,
-  type DriveArbiter,
-  type DriveCandidate,
-  type LeaseArbiterPortDeps,
-} from "./arbiter.ts";
-export {
   checkDelegateSpec,
   DELEGATE_REQUEST_ID_MAX,
   type CancelDelegatesResult,
@@ -100,7 +90,6 @@ export {
   type GroupCommandParse,
   type GroupCommandRegistration,
   type GroupResetError,
-  type GroupServiceWithSetting,
   type GroupServiceWithUsage,
 } from "./commands.ts";
 export { displayWidth, formatGroupStatusLine, type StatusLineOptions } from "./status-line.ts";
@@ -112,19 +101,11 @@ export {
 } from "./service.ts";
 export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
 export type {
-  DriveHolderSettingsPort,
-  HolderSettingScope,
-  HolderUnwritableReason,
-  HolderWriteError,
-} from "./ports/holder.ts";
-export type {
-  DriveHolderSetting,
   DriveRole,
   GroupCommandError,
   GroupError,
   GroupResult,
   GroupService,
   GroupStatus,
-  HolderReceipt,
   ToggleReceipt,
 } from "@fresnel/contracts/services";

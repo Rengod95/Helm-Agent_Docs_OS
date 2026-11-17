@@ -22,6 +22,7 @@ import {
   type ExtCommitResult,
   type ExtRecordQuery,
   type ExtRecordRow,
+  type OpenLease,
   type ReadFailure,
   type ExtThreadSnapshot,
   type ExtensionEventKind,
@@ -102,8 +103,7 @@ function fakePort(committer: string): RecordCommitPort {
           scopeTransitions: {},
           enabledAtSeq: {},
           states: [],
-          openLease: null,
-          waitingLineage: null,
+          openLeases: [],
           leaseEpochs: {},
         }),
       );
@@ -309,8 +309,7 @@ describe("ExtThreadSnapshot scope history", () => {
       scopeTransitions: { alpha: 1, beta: 2 },
       enabledAtSeq: { alpha: 7 },
       states: [],
-      openLease: null,
-      waitingLineage: null,
+      openLeases: [],
       leaseEpochs: {},
     };
     const port: Pick<RecordCommitPort, "loadThread"> = {
@@ -324,5 +323,42 @@ describe("ExtThreadSnapshot scope history", () => {
     expect(loaded.scopeTransitions["beta"]).toBe(2);
     // 켜진 scope만 enabledAtSeq 키를 갖는다
     expect(Object.keys(loaded.enabledAtSeq)).toEqual([...loaded.enabled]);
+  });
+});
+
+describe("ExtThreadSnapshot open lease stack", () => {
+  test("openLeases lists the stack oldest first and each frame carries parent, depth and contentHash", () => {
+    const core: OpenLease = {
+      leaseId: "lease-1",
+      lineageId: "lease-1",
+      scopeId: "helm",
+      leaseEpoch: 1,
+      limits: { maxTurns: 4 },
+      used: { turns: 1, spawns: 0, tokens: 10 },
+      parent: null,
+      depth: 0,
+      contentHash: "sha256:aa",
+    };
+    const handed: OpenLease = {
+      ...core,
+      leaseId: "lease-2",
+      lineageId: "lease-2",
+      scopeId: "authoring",
+      parent: "lease-1",
+      depth: 1,
+      contentHash: null,
+    };
+    const snapshot: ExtThreadSnapshot = {
+      enabled: [],
+      disabled: [],
+      scopeTransitions: {},
+      enabledAtSeq: {},
+      states: [],
+      openLeases: [core, handed],
+      leaseEpochs: {},
+    };
+    expect(snapshot.openLeases.map((lease) => lease.leaseId)).toEqual(["lease-1", "lease-2"]);
+    expect(snapshot.openLeases.at(-1)?.parent).toBe("lease-1");
+    expect(snapshot.openLeases.at(-1)?.depth).toBe(1);
   });
 });

@@ -128,7 +128,8 @@ function replayHarness(): ReplayHarness {
         loadIndex: 0,
         builtin: true,
       });
-      await t.host.openThread(thread);
+      // 프로필의 시작 설정으로 이 그룹을 연다. 중재가 없으므로 시작 요청 없이는 주도하지 않는다(drive-isolation.md 2.2)
+      await t.host.openThread(thread, { startDrive: target.manifest.name });
       await t.settled();
       await drain(t, thread, DRAIN_ROUNDS);
       const events = t.records.events(thread).map((draft) => {

@@ -163,7 +163,7 @@ function migrateProfile(
       builtin: false,
       plugins: base.map((name) => ({ name })),
       settings,
-      driver: profile.driver,
+      startDrive: profile.driver,
       updatedAt: now,
       rev: profile.rev,
     },
@@ -192,7 +192,7 @@ export function defaultProfileOf(legacy: LegacyInputs, now: string): Profile {
     settings: legacy.profileAllows(PERMISSION_MODE_KEY)
       ? [{ key: PERMISSION_MODE_KEY, value: legacy.permissionMode ?? FACTORY_PERMISSION_MODE }]
       : [],
-    driver: null,
+    startDrive: null,
     updatedAt: now,
     rev: 1,
   };

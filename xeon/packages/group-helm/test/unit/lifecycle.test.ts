@@ -1,14 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { defineManifest, DriveLockArbiterPortKey } from "@fresnel/contracts/extensions";
-import { withDriveDefaults } from "@fresnel/ext-host";
-import { createTestHost } from "@fresnel/ext-host/testing";
-import { createGroupService, defineGroup, type GroupModule } from "@fresnel/group-sdk";
-import { groupCatalogOf, memoryDriveHolderSettings } from "@fresnel/group-sdk/testing";
-import { Type } from "typebox";
-import { helmGroup } from "../../src/index.ts";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import { defineGroup } from "@fresnel/group-sdk";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";
-import { callCommand, createRig, drainRounds, settleOnce, type Rig } from "../support/rig.ts";
+import { callCommand, createRig, type Rig } from "../support/rig.ts";
 
 function statesOf(
   records: readonly { readonly kind: string; readonly payload: unknown }[],
@@ -58,7 +53,11 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
   expect(rig.t.loop.spawns).toHaveLength(0);
   const inquiryId = stopped?.inquiryId;
   expect(inquiryId).not.toBeNull();
+  // 다시 켜는 것은 scope만 켠다. 탐구는 같은 주제의 `/helm start`로 이어 간다(drive-isolation.md 2.2)
   rig.t.host.registration("helm")?.enable();
+  // 켜기는 유휴 경계에서 적용된다. 그 뒤에야 /helm 명령이 다시 등록된다
+  await rig.drain(1, "idle");
+  await rig.command("start 캐시 무효화");
   await rig.drain(12);
   const finished = rig.records("grp.helm.inquiry.finished");
   expect(finished).toHaveLength(1);
@@ -120,127 +119,19 @@ test("coexist.learning-on-while-helm-holds-lease: another group's on handler and
   expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "applied" });
 });
 
-const COUNTER = {
-  schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
-  initial: { n: 0 },
-  version: 1,
-} as const;
-
-/** 호출마다 상태를 올려 효과를 내므로 idle로 반납되지 않는 drive 그룹. 임대를 계속 쥔다 */
-function holderGroup(): GroupModule {
-  return defineGroup<{ readonly n: number }>({
-    manifest: defineManifest({
-      schemaVersion: 2,
-      name: "other-drive",
-      version: "0.1.0",
-      entry: "./src/index.ts",
-      trust: { level: "builtin" },
-      plugins: [{ layer: "L3", hooks: [], drives: true }],
-      group: {},
-    }),
-    state: COUNTER,
-    setup(g) {
-      // 임대를 쥐고 있는 구동 그룹: 매 단계 카운터를 올리고 다음 경계까지 기다린다
-      g.drive(({ state }) =>
-        Promise.resolve({ do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } }),
-      );
-    },
+test("start.refused-start-keeps-the-request-and-says-why: a start from a child conversation leaves the inquiry waiting; stop clears it", async () => {
+  const rig = await createRig();
+  const child = rig.t.newThread();
+  await rig.t.host.openThread(child, { child: true });
+  await rig.t.settled();
+  const text = await callCommand(rig.t, child, "start 캐시 무효화");
+  expect(text).toContain("하위 대화에서는 탐구를 시작할 수 없습니다");
+  expect(statesOf(rig.t.records.events(child)).at(-1)?.pending).toMatchObject({
+    topic: "캐시 무효화",
   });
-}
-
-async function waitingRig() {
-  const holder = memoryDriveHolderSettings();
-  const t = await createTestHost({
-    settingsSource: {
-      driveDefaultLimits: () => withDriveDefaults({}),
-      driveLimits: () => ({}),
-      activeDriver: () => holder.read(null),
-      capabilityProviders: () => ({}),
-      leaseWaitLimit: () => 2,
-      driveRequiresGroup: () => true,
-    },
-  });
-  const thread = t.newThread();
-  const other = holderGroup();
-  const service = createGroupService({
-    host: t.host,
-    catalog: groupCatalogOf([other, helmGroup]),
-    holder,
-    currentThread: () => thread,
-    report: () => {},
-  });
-  await t.host.registerPlatform({
-    name: "fresnel-groups",
-    setup(ctx) {
-      ctx.providePort(DriveLockArbiterPortKey, service);
-    },
-  });
-  await t.host.install({
-    manifest: other.manifest,
-    entry: other.entry,
-    loadIndex: 0,
-    builtin: true,
-  });
-  await t.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
-    loadIndex: 1,
-    builtin: true,
-  });
-  await t.host.openThread(thread);
-  await t.settled();
-  return { t, thread, service };
-}
-
-test("coexist.waiting-lease-keeps-signals: with another group holding the lease Helm stays idle with its pending request", async () => {
-  const { t, thread } = await waitingRig();
-  await callCommand(t, thread, "start 캐시 무효화");
-  await settleOnce(t, thread, "w1");
-  await drainRounds(t, thread, 1);
-  const states = statesOf(t.records.events(thread));
-  expect(states.at(-1)?.phase).toBe("idle");
-  expect(states.at(-1)?.pending).toMatchObject({ topic: "캐시 무효화" });
-  expect(t.host.leaseOf(thread)?.scopeId).toBe("other-drive");
-  // 쓰기 거부는 걸리지 않는다
-  const bash = await t.host.dispatch(
-    "tool.call.before",
-    { toolCallId: "c1", toolName: "bash", input: {}, risk: "exec" },
-    { threadId: thread, dispatchKey: "g1" },
-  );
-  expect(bash.decision).toBeUndefined();
-  // 신호 기록은 계속된다
-  const failing = (n: number) =>
-    t.host.dispatch(
-      "tool.execution.after",
-      {
-        toolCallId: `e${String(n)}`,
-        toolName: "bash",
-        input: { n },
-        result: { content: [{ type: "text", text: "boom" }] },
-        isError: true,
-      },
-      { threadId: thread, dispatchKey: `e${String(n)}` },
-    );
-  await failing(1);
-  await failing(2);
-  await failing(3);
-  await settleOnce(t, thread, "w2");
-  expect(t.records.events(thread).some((event) => event.kind === "grp.helm.signal.detected")).toBe(
-    true,
-  );
-});
-
-test("lease.wait-rejected-clears-pending: after the wait limit the pending request is cleared and one notice is posted", async () => {
-  const { t, thread } = await waitingRig();
-  await callCommand(t, thread, "start 캐시 무효화");
-  await settleOnce(t, thread, "w1");
-  await drainRounds(t, thread, 6);
-  const states = statesOf(t.records.events(thread));
-  expect(states.some((state) => state.pending !== null)).toBe(true);
-  expect(states.at(-1)?.pending).toBeNull();
-  const notices = t.queue.items.filter((item) => item.requestId.endsWith(":rejected"));
-  expect(notices).toHaveLength(1);
-  expect(notices[0]?.requestId).toMatch(/^helm:h[a-z2-7]{13}:idle:0:rejected$/);
+  // 기다리는 요청은 `/helm stop`으로 지운다
+  await callCommand(rig.t, child, "stop");
+  expect(statesOf(rig.t.records.events(child)).at(-1)?.pending).toBeNull();
 });
 
 test("disable.while-explorer-waits: turning Helm off aborts the waiting spawn and the scope reaches disabled", async () => {

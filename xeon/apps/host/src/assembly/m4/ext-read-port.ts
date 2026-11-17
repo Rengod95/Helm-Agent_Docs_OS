@@ -32,7 +32,7 @@ import type {
   ExtHealthEntry,
   ExtListEntry,
   ExtListPlugin,
-  GroupDriveLockResult,
+  DriveFramesResult,
   GroupMetricsFull,
   GroupPromotionResult,
   GroupStatusWire,
@@ -193,7 +193,10 @@ export interface ExtReadSources {
   ): Promise<GroupMetricsFull | null | undefined>;
   /** 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
   promotion(threadIds: readonly string[] | undefined): Promise<GroupPromotionResult>;
-  driveLock(threadId: string): Promise<GroupDriveLockResult>;
+  /** 주도권 스택의 프레임(`drive.frames`, 맨 아래가 코어 루프). thread가 없으면 빈 목록 */
+  driveFrames(threadId: string): Promise<DriveFramesResult>;
+  /** 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
+  driveFramesChanged(listener: (threadId: string) => void): () => void;
   /** 호스트 핸들러 레지스트리의 실제 등록. 지점 이름 오름차순, 안에서는 디스패치 순서(`ExtReadView.handlers`) */
   hookHandlers(): readonly {
     readonly point: HookName;
@@ -254,16 +257,8 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
-  driveLock: () =>
-    Promise.resolve({
-      holder: null,
-      leaseEpoch: 0,
-      activeDriver: null,
-      limits: { turns: 0, spawns: 0, tokens: null },
-      used: { turns: 0, spawns: 0, tokens: 0 },
-      candidates: [],
-      lastRejected: null,
-    }),
+  driveFrames: () => Promise.resolve({ frames: [] }),
+  driveFramesChanged: () => () => {},
   hookHandlers: () => [],
   hookOrder: () => ({ saved: () => new Map(), applied: () => new Map(), pending: () => false }),
   boundCapabilities: () => [],
@@ -943,11 +938,13 @@ export function createExtReadPort(
       return ok(await sources.promotion(params.threadIds));
     },
 
-    async groupDriveLock(params, signal) {
+    async driveFrames(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      return ok(await sources.driveLock(params.threadId));
+      return ok(await sources.driveFrames(params.threadId));
     },
+
+    onDriveFramesChanged: (listener) => sources.driveFramesChanged(listener),
 
     async hooks(params, signal) {
       const thread = await checkThread(params.threadId, signal);

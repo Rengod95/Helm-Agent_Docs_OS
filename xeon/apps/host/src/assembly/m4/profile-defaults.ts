@@ -30,7 +30,7 @@ export function factoryDefaultProfile(plugins: readonly string[]): Profile {
     builtin: true,
     plugins: plugins.map((name) => ({ name })),
     settings: [{ key: PERMISSION_MODE_KEY, value: FACTORY_PERMISSION_MODE }],
-    driver: null,
+    startDrive: null,
     updatedAt: NEVER_EDITED_ISO,
     rev: 0,
   };

@@ -118,7 +118,7 @@ function inputOf(over: Partial<ProfileInput> = {}): ProfileInput {
     title: "Review",
     plugins: [{ name: "demo" }],
     settings: [],
-    driver: null,
+    startDrive: null,
     ...over,
   };
 }
@@ -154,7 +154,7 @@ test("profile.list starts with the factory default at rev 0 and an empty common 
       builtin: true,
       plugins: [{ name: "helm" }],
       settings: [{ key: PERMISSION, value: "bypass" }],
-      driver: null,
+      startDrive: null,
       updatedAt: "1970-01-01T00:00:00.000Z",
       rev: 0,
     },
@@ -186,7 +186,7 @@ test("profile.put creates at rev 1, updates with the matching baseRev and reject
   const rig = rigOf();
   const connection = await connect(rig);
   const created = await connection.request("profile.put", { profile: inputOf(), baseRev: null });
-  expect(created.profile).toMatchObject({ id: "review", builtin: false, rev: 1, driver: null });
+  expect(created.profile).toMatchObject({ id: "review", builtin: false, rev: 1, startDrive: null });
   const updated = await connection.request("profile.put", {
     profile: inputOf({ title: "Review 2" }),
     baseRev: 1,
@@ -219,7 +219,7 @@ test("profile.put refuses a profile with an error and stores nothing; the detail
     connection.request("profile.put", {
       profile: inputOf({
         plugins: [{ name: "ghost" }],
-        driver: "helm",
+        startDrive: "helm",
         settings: [{ key: "ext.demo.missing", value: 1 }],
       }),
       baseRev: null,
@@ -381,7 +381,7 @@ test("a profile that never listed a core-required unit may edit freely, and the 
   });
   expect(
     await connection.request("profile.put", {
-      profile: inputOf({ plugins: [{ name: "demo" }], driver: null }),
+      profile: inputOf({ plugins: [{ name: "demo" }], startDrive: null }),
       baseRev: 1,
     }),
   ).toMatchObject({ profile: { rev: 2, plugins: [{ name: "demo" }] } });
@@ -826,11 +826,11 @@ test("profile.removePlugin reports the tools the removed plugin took away from t
 
 // ── 플러그인 빼기와 기본 값 되돌리기 ─────────────────────────────────────
 
-test("profile.removePlugin drops the plugin and clears it as the driver; a plugin not in the profile is refused and a stale baseRev is conflict", async () => {
+test("profile.removePlugin drops the plugin and clears it as the startDrive; a plugin not in the profile is refused and a stale baseRev is conflict", async () => {
   const rig = rigOf();
   const connection = await connect(rig);
   await connection.request("profile.put", {
-    profile: inputOf({ plugins: [{ name: "helm" }, { name: "demo" }], driver: "demo" }),
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "demo" }], startDrive: "demo" }),
     baseRev: null,
   });
   const removed = await connection.request("profile.removePlugin", {
@@ -838,7 +838,7 @@ test("profile.removePlugin drops the plugin and clears it as the driver; a plugi
     plugin: "demo",
     baseRev: 1,
   });
-  expect(removed.profile).toMatchObject({ plugins: [{ name: "helm" }], driver: null, rev: 2 });
+  expect(removed.profile).toMatchObject({ plugins: [{ name: "helm" }], startDrive: null, rev: 2 });
   expect(removed.preview).toEqual({ threadsUsing: 0, dropsDrive: null });
   expect(
     await failureOf(

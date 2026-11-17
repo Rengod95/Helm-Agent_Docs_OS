@@ -287,7 +287,7 @@ test("a v1 profile and the user's values give the expected plugin sets: default 
   expect(JSON.parse(readText(layout.profilesPath))).toMatchObject({
     profiles: [
       { id: "default", plugins: [{ name: "lint" }, { name: "notes" }] },
-      { id: "review", plugins: [{ name: "notes" }, { name: "extra" }], driver: null },
+      { id: "review", plugins: [{ name: "notes" }, { name: "extra" }], startDrive: null },
     ],
   });
   // v1 원문은 백업으로 남는다. 옮김 기록에 버린 ext 키 한 개가 적힌다

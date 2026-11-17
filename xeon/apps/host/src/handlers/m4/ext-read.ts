@@ -53,7 +53,9 @@ export interface ExtReadPort {
   readonly groupList: PortCall<"group.list">;
   readonly groupMetrics: PortCall<"group.metrics">;
   readonly groupPromotion: PortCall<"group.promotion">;
-  readonly groupDriveLock: PortCall<"group.driveLock">;
+  readonly driveFrames: PortCall<"drive.frames">;
+  /** 주도권 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
+  readonly onDriveFramesChanged: (listener: (threadId: string) => void) => () => void;
   readonly hooks: PortCall<"hooks.list">;
   readonly settingExplain: PortCall<"settings.explain">;
   readonly hookDisableConfirm: PortCall<"hooks.disableConfirm">;
@@ -80,7 +82,7 @@ export type ExtReadMethods =
   | "group.list"
   | "group.metrics"
   | "group.promotion"
-  | "group.driveLock"
+  | "drive.frames"
   | "hooks.list"
   | "settings.explain"
   | "hooks.disableConfirm"
@@ -153,8 +155,8 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
       settle("group.metrics", port.groupMetrics(params, context.signal)),
     "group.promotion": (params, context) =>
       settle("group.promotion", port.groupPromotion(params, context.signal)),
-    "group.driveLock": (params, context) =>
-      settle("group.driveLock", port.groupDriveLock(params, context.signal)),
+    "drive.frames": (params, context) =>
+      settle("drive.frames", port.driveFrames(params, context.signal)),
     "hooks.list": (params, context) => settle("hooks.list", port.hooks(params, context.signal)),
     "settings.explain": (params, context) =>
       settle("settings.explain", port.settingExplain(params, context.signal)),

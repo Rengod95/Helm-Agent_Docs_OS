@@ -88,8 +88,10 @@ export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
           { when: "next", requestId: `authoring:restore:${state.name ?? ""}`.slice(0, 64) },
         );
       });
-      // 주도 단계 함수. 제작 대화가 열려 있으면 상주하고(`yield`), 닫혀 있고 확인도 없으면 `done`으로 물러난다. 그 상태가 바뀌기 전까지
-      // 후보가 아니다(`wants`는 없다, drive-isolation.md §1.1). 기본 켜짐인 빌더는 첫 경계에 한 번 임대를 받고 물러난다
+      // 주도 단계 함수. 기본 켜짐이어도 주도 스택에 오르는 길은 시작 요청이나 맡기기뿐이다. 모델이 `authoring_start` 도구를 부르면 그 도구가
+      // `startDrive`를 낸다(drive-isolation.md 2.2). 다른 플러그인(Helm의 `/helm plugin`)은 `handoff`로 맡긴다(2.1, group-drive.ts `handoffStep`).
+      // 중재가 없으므로 켜지는 것만으로는 첫 경계에 스택에 오르지 않는다(`wants`도 없다, §1.1).
+      // 제작 대화가 열려 있으면 상주하고(`yield`), 닫혀 있고 확인도 없으면 `done`으로 물러난다. 맡겨졌으면 답하고 물러난다.
       g.drive(authoringDrive(g, deps.devkit));
     },
   });

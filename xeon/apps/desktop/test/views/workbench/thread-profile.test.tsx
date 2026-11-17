@@ -16,7 +16,7 @@ const QUIET: Profile = {
   builtin: false,
   plugins: [],
   settings: [],
-  driver: null,
+  startDrive: null,
   updatedAt: "2026-11-04T10:00:00Z",
   rev: 1,
 };

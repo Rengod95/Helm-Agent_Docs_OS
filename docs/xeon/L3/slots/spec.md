@@ -92,7 +92,7 @@ binds: []
 #### 3.1.3 공존 규칙
 
 - [결정] drive lock은 한 thread에 Registration 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
-- [제안] drive 그룹이 둘 이상 켜지면 drive lock은 `DriveArbiter`(`L3.group-sdk.spec`)의 정책과 `x.primitives.activeDriver` 설정에 따라 한 그룹에 간다. drive lock을 받지 못한 그룹은 대기하고, 그동안 on 핸들러와 post는 동작한다. 대기와 거부 가운데 기본 동작의 확정은 `L3.group-sdk.spec`의 [미결]을 따른다.
+- [제안] drive 그룹이 둘 이상 켜지면 drive lock은 주도권 스택의 맨 위 플러그인 프레임이 쥔다(`L3.group-sdk.spec` §3.5). 맡겨서 기다리는 그룹은 `waiting`으로 대기하고, 그동안 on 핸들러와 post는 동작한다. 후보 중재와 대기 상한은 없다(E3). [근거: drive-isolation.md 2.2]
 - [결정] 그룹 사이 통신은 F4 스키마가 있는 레코드로만 한다(`F.extensions.spec` §4.8). 다른 그룹의 비공개 상태와 기록(`x_<id>_*` 테이블, `grp.<id>.state.committed`, `recordPrivate`로 쓴 `grp.<id>.*`)은 읽지 않는다.
 - 핸들러 실행 순서(tier)는 `X.primitives.spec`이 정한다. 새 그룹은 순서에 기대는 동작을 만들지 않는다 [제안]. 예: first 훅에서 다른 그룹보다 먼저 결정해야 동작하는 정책.
 
@@ -616,7 +616,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - 새 그룹은 3.1.2 체크리스트 C1~C9를 모두 통과해야 기본 그룹과 같은 경로로 로드된다.
 - [결정] 켜기·끄기는 단계 경계에서 적용되고 정리는 Cordis dispose로 실행된다(`F.extensions.spec` §4.5). 새 그룹도 예외가 없다.
-- 새 그룹의 drive 등록만으로 drive lock이 생기지 않는다(`F.extensions.spec` §4.6). drive lock은 `DriveArbiter`와 `x.primitives.activeDriver`으로 정해진다.
+- 새 그룹의 drive 등록만으로 drive lock이 생기지 않는다(`F.extensions.spec` §4.6). drive lock은 주도권 스택이 정한다(E3).
 - 새 그룹을 제거하면 그 그룹의 `x_<id>_*` 테이블은 DROP되고 `grp.<id>.*` 이벤트(상태 이벤트, 비공개 기록, 공개 레코드)는 이벤트 로그에 남는다(`eng.context-map.design` §5.2). 다른 그룹의 `readRecords`는 기존 레코드를 계속 읽는다(`F.extensions.spec` §5 8).
 
 ### 4.2 정책 플러그인

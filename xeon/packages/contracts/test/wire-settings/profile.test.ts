@@ -36,7 +36,7 @@ const profile = {
   builtin: false,
   plugins: [plugin, { name: "web-exa" }],
   settings: [setting],
-  driver: "helm",
+  startDrive: "helm",
   updatedAt: "2026-11-17T00:00:00.000Z",
   rev: 2,
 };
@@ -63,9 +63,9 @@ function overlayRefOf(index: number): unknown {
 }
 
 describe("profile storage (M5c-1 §3.1)", () => {
-  test("Profile round trips by value, with ordered plugins, settings, driver and builtin", () => {
+  test("Profile round trips by value, with ordered plugins, settings, startDrive and builtin", () => {
     roundTrip(ProfileSchema, profile);
-    roundTrip(ProfileSchema, { ...profile, driver: null, hidden: true });
+    roundTrip(ProfileSchema, { ...profile, startDrive: null, hidden: true });
     expect(parse(ProfileSchema, { ...profile, hidden: "yes" }).ok).toBe(false);
   });
 

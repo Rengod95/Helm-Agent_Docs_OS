@@ -72,7 +72,7 @@ export const helmSettings: SettingGroup<
       order: 200,
       label: "Helm auto start",
       labelKey: "settings.ext.helm.autoStart.label",
-      help: "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+      help: "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
       helpKey: "settings.ext.helm.autoStart.help",
     },
     since: "0.1.0",

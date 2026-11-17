@@ -327,7 +327,7 @@ realTest(
             { name: FIRST_B },
           ],
           settings: [],
-          driver: null,
+          startDrive: null,
         },
         baseRev: null,
       });

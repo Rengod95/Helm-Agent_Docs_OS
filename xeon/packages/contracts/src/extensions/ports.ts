@@ -26,7 +26,6 @@ import type {
 } from "./trace-types.ts";
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
 import type { HookName } from "./hooks.ts";
-import type { ExtensionName } from "./name.ts";
 import type { PostItem, PostWhen } from "./post.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
 import type { EvidenceRef } from "./plugin-card.ts";
@@ -259,23 +258,6 @@ export interface HookProcessPort {
 
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort> = { name: "fresnel.process" };
-
-// ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────────
-
-export interface DriveLockCandidate {
-  readonly scopeId: RegistrationId;
-  readonly extension: ExtensionName;
-  readonly loadIndex: number;
-  readonly defaultEnabled: boolean;
-  /** 그 thread 활성 가지의 마지막 `scope.changed{status:"enabled"}` seq. 기록이 없으면 null */
-  readonly enabledAtSeq: number | null;
-}
-
-export interface DriveLockArbiterPort {
-  /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
-  choose(threadId: ThreadId, candidates: readonly DriveLockCandidate[]): RegistrationId | null;
-}
-export const DriveLockArbiterPortKey: PortKey<DriveLockArbiterPort> = { name: "fresnel.groups" };
 
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────────
 

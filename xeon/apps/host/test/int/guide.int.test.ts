@@ -106,7 +106,7 @@ async function run(options: {
           title: options.profile.id,
           plugins: names.map((name) => ({ name })),
           settings: [],
-          driver: null,
+          startDrive: null,
         },
         baseRev: null,
       });

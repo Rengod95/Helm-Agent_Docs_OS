@@ -58,7 +58,7 @@ binds: []
 | 프로필 | 플러그인 목록과 설정 값에 이름을 붙인 것. 대화는 프로필 하나를 참조한다 [결정: 2026-11-16] |
 | 내장 기본 프로필 | id `default`. 지울 수 없다. 권한 모드 "모두 허용"(`bypass`)을 가진다 [결정: 2026-11-16] |
 | 공통 묶음 | 사용자가 두는 "모든 프로필 공통" 플러그인과 설정 값. 모든 프로필에 항상 더해진다 [결정: 2026-11-16 개념 §6] |
-| 시작 Drive | 프로필이 가진 "대화를 시작할 때 누가 주도하나"(없음 또는 플러그인 하나). 저장 필드 이름은 `driver` |
+| 시작 Drive | 프로필이 가진 "대화를 시작할 때 누가 주도하나"(없음 또는 플러그인 하나). 저장 필드 이름은 `startDrive`(v1 파일의 `driver`는 옮길 때 이 이름으로 바꾼다) |
 | 코어 설정 값 | 코어 블록이 읽는 설정 키(권한 모드, 기본 모델 등)의 프로필별 값. 별도 "블록 설정" 개념은 없다. 화면이 블록별로 나눠 보일 뿐이다 [결정: 2026-11-16] |
 | 덧씌우기 (overlay) | 프로필 기록은 그대로 두고 이번 턴(Drive는 반납까지)의 켜짐 집합에만 플러그인을 더하는 것 [결정: 2026-11-17 사용자] |
 | 프로젝트 | 루트 작업 폴더 하나에 대화가 묶이는 최소 공통 맥락. 공통 지침, 파일, 플러그인 설정을 공유하지 않는다 [결정: 2026-11-17] |
@@ -92,7 +92,7 @@ export interface Profile {
   readonly builtin: boolean;                 // 추가. 참이면 삭제 불가
   readonly plugins: readonly PluginRef[];    // 순서 있음. enable/disable 목록을 대체한다
   readonly settings: readonly ProfileSetting[]; // 코어 키와 `ext.<name>.<key>`. 미설정은 기본값을 따른다
-  readonly driver: string | null;            // 시작 Drive. 저장 이름 유지. 값은 plugins 안의 이름
+  readonly startDrive: string | null;        // 시작 Drive(v1 파일의 `driver`). 값은 plugins 안의 이름
   readonly updatedAt: string;
   readonly rev: number;
 }
@@ -241,7 +241,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `x.loading-trust.sourceWatch` | 추가 | boolean, 기본 `true`, `runtimeChange: "live"`, `managed,user` | 원본 폴더 감시(§4.5.7) |
 | `l1.context.instructionFiles.maxBytes` | 추가 | integer, 기본 65536, 파일 하나당. `managed,user` | 지침 파일 상한(§4.4.7) |
 | `l4.host.defaultFolder` | 추가 | string, 기본 빈 값 = `<OsDirs.data>/default-project`. `managed,user` | 프로젝트 없는 대화의 기본 폴더 [제안 이름] |
-| `x.primitives.activeDriver` | 엔진 스펙이 제거 | - | 프로필 `driver`는 더 이상 이 키를 쓰지 않는다(§4.2.6) |
+| `x.primitives.activeDriver` | 엔진 스펙이 제거 | - | 프로필 `startDrive`는 더 이상 이 키를 쓰지 않는다(§4.2.6) |
 
 설정 정의에 `ui.block?: "context" | "model" | "tools" | "ask" | "agents" | "record"`를 더한다 [제안]. 화면이 코어 설정을 블록별로 나눠 보이는 근거이고 엔진 동작에는 쓰지 않는다.
 
@@ -398,7 +398,7 @@ export type ContextRef =
 3. 시크릿 값: 정의가 `secret: true`(`SecretRef` 타입)인 키는 `secret://<이름>` 형태만 저장한다. 리터럴이면 `secret_literal` 오류이고 값은 이벤트, 로그, 오류에 싣지 않는다. 시크릿 저장소에 이름이 없으면 `secret_missing` 경고다. 프로필은 참조만 가지고, 값은 사용 때 `fresnel.secrets`가 연다(`L0.secrets.spec` §4.2, §4.3).
 4. 코어 설정 값: 키 정의의 `allowedScopes`에 `profile`이 있는 키만 둔다. 검사는 지금의 `checkSettingWrite`(`profile-test-run-port.ts:125`)를 `profile` 범위로 호출한다. 프로필이 권한 모드를 두지 않으면(미설정) 아래 층의 값(사용자 파일, 기본값 `bypass`)이 쓰인다. 새 프로필은 만들 때 `default`의 코어 설정 값을 복사해 시작한다 [제안].
 5. 공통 묶음은 같은 검증을 받는다. 시작 Drive는 없다. 공통 묶음에 든 플러그인을 프로필에서 뺄 수 없다 [제안].
-6. 시작 Drive는 `driver` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 도중 전환(`thread.setProfile`)은 시작 Drive를 시작하지 않는다 [제안: 미결 3].
+6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 도중 전환(`thread.setProfile`)은 시작 Drive를 시작하지 않는다 [제안: 미결 3].
 7. 검증은 저장과 `profile.preview`에서 같은 함수(`validateProfile(profile, common, library, catalog)`)가 한다. 오류(`error`)가 하나라도 있으면 `profile.put`을 `profile.invalid`로 거절하고 저장하지 않는다. 오류:
    - `plugin_unknown`(라이브러리에 없음), `plugin_not_reviewed`(검토본이 없고 승인 대기뿐)
    - `replace_conflict`: 해소된 목록 안에서 두 플러그인이 `replaces`로 같은 내장 도구를 대체(`PluginDecl.replaces`, `manifest.ts:147`). 플러그인 둘의 이름과 도구 이름을 싣는다
@@ -620,7 +620,7 @@ plugin-store/
 | 주제 | 지금 | 바꿀 것 | 크기 |
 |---|---|---|---|
 | 프로필 적용 방식 | `profile.apply`가 `ext.<name>.enabled`와 설정 키를 층에 쓴다(`profile-test-run-port.ts:97-123` `planOf`, `:146-190` `apply`; 적용 경로는 이 변경으로 제거되었다). thread 층은 대화별 켜짐 요청(`:113-118`, `:178`) | 쓰지 않고 참조한다. `apply` 제거, `PluginSetPort`가 `E(T)`를 계산(§4.1) | L |
-| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `driver`, `builtin`, 공통 묶음, 파일 v2 | M |
+| 프로필 형식 | `enable`, `disable`, `settings`, `driver`(계약 이전 `packages/contracts/src/wire-settings/wire/profile-test-run.ts:45-62`), 한도 64/64/128(같은 파일 `:34`), 파일 v1(`apps/host/src/assembly/m4/profile-store.ts:156`) | `plugins`, `settings`, `startDrive`, `builtin`, 공통 묶음, 파일 v2 | M |
 | 프로필 검증 | 설정 키 검사만(`:125` `checkSettingWrite`), 충돌 검사 없음 | `validateProfile`(§4.2.7), 비용·충돌 미리 보기 [구현 2026-11-18: 충돌, 정적 비용(§4.2.8), 도구 변화와 캐시 영향(§4.3.7)은 있다. `dropsDrive`는 null(E3), 재시작 키 경고는 코드 결정 대기(§4.1.7)] | M |
 | 프로필 층 | 층 이름 `ProfileLayer = user/project/thread`와 범위 `scopeOf`(`apps/host/src/assembly/m4/profile-test-run-port.ts:31-41`, 2026-11-18 확인: 이 줄 번호에 그 함수가 없다) | 새 설정 범위 `profile`(`layers.ts:9`, 이미 있음), `packages/core-tools/src/settings.ts:270` `pickMode`가 `profile`을 순회한다(이미 있음). 구현(2026-11-18): 엔진 `layers(threadId)`에 프로필 층을 더하고(`settings-engine.ts` `bindProfiles`), 도구 설정은 `ToolsSettingsSource.profileLayer`로 받는다 | M |
 | 스레드 켜짐 | `thread.want`/`record.desired`(`registration.ts:225`, `:835-871`)가 전역 기본값과 대화별 요청 | 대화별 값이 유일한 원천(`E(T)`), 전역 `desired`는 오류 정지만 | M |
@@ -660,7 +660,7 @@ plugin-store/
    - 카탈로그에서 키 정의가 사라지므로 위 파일에 남은 키는 알 수 없는 키 경고만 낸다.
    - [구현 2026-11-18] 사용자 설정 파일의 키는 옮김이 성공한 뒤에만 지운다(`moveUserEnabledKeys`). 원문은 `settings.json.pre-profile`로 백업하고, 이미 있으면 덮지 않는다. 쓰기는 설정 쓰기와 같은 형식(들여쓰기 2칸, 끝 줄바꿈, 키 순서 유지)이고, 지운 뒤 메모리 층을 다시 읽힌다. `launch`와 `managed`는 건드리지 않는다. `project`·`local`은 파일마다 `legacy_enabled_key_ignored`를 한 번 적는다(이미 적힌 파일 경로는 다시 적지 않는다). [구현 결정 2026-11-18] 카탈로그의 `ext.<이름>.enabled` 정의는 관리 범위 잠금(§4.1.10) 때문에 설치된 확장에 대해 남는다. 위 "사라진다"는 설치되지 않은 이름에만 맞다. 설치된 확장의 옛 사용자 값은 설정 해석에서 "사용자 범위에서 허용하지 않음"으로 무시되고 시작을 막지 않는다. 설치되지 않은 이름은 `settings.readFile`의 `unknownKeys`에 보인다(시험 `first-start-migration.test.ts`).
 2. **기본 프로필 `default`**: 공장 값은 §4.1.2다. 옮김은 `default.plugins`를 "비코어 플러그인 가운데 user 범위 유효 켜짐이 참인 것(값이 없으면 `defaultEnabled`)"으로 채운다. 권한 모드는 `bypass`로 쓰고, 사용자 파일에 이미 `l1.tools.permissionMode`가 있으면 그 값을 쓴다. [구현 2026-11-18] 옮김 입력은 `legacyInputsFromUser`(`profile-migrate.ts`)가 사용자 파일의 값에서 만든다. 공장 기본 목록은 `factoryPluginsOf`(`m4/index.ts`)가 낸 것에서 코어를 뺀다. [구현 결정 2026-11-18] 저장된 `default` 행이 없는데 옮길 사용자 값이 있으면 옮긴 행을 더한다(파일이 없는 경우 포함). 행이 이미 있으면 건드리지 않는다(`profile-store.ts`의 `migrateFirstStart`).
-3. **기존 프로필**(`profiles.json` v1): `plugins = 옮긴 default.plugins ∪ enable − disable`. `settings`는 `ext.*.enabled` 키를 뺀 나머지 가운데 `profile` 범위가 허용하는 키만 남기고, 허용하지 않는 키는 `migration.log`의 `rejected`에 적고 버린다. `driver`는 같은 이름으로 유지하고 `plugins`에 없으면 더한다. `id`, `title`, `rev`는 유지하고 `updatedAt`을 새로 쓴다. 공통 묶음은 빈 값으로 만든다. v1 파일은 `profiles.json.v1.bak`로 보존한다. v1 의미("그대로 둠")를 v2("목록에 없으면 꺼짐")로 옮기는 것이라 기존 프로필이 켜는 집합이 달라질 수 있고, `default`를 바탕으로 계산하는 이유가 그것이다. [구현 2026-11-18] `migrateV1`은 그대로 두고, 첫 시작 옮김이 사용자 값을 읽은 뒤 `migrateFirstStart`로 부른다. 권한 모드는 프로필 범위가 허용할 때만 `default`에 든다. 기존 프로필의 플러그인이 옮긴 `default.plugins ∪ enable − disable`과 같은지는 `first-start-migration.test.ts`가 값으로 확인한다(수용 37).
+3. **기존 프로필**(`profiles.json` v1): `plugins = 옮긴 default.plugins ∪ enable − disable`. `settings`는 `ext.*.enabled` 키를 뺀 나머지 가운데 `profile` 범위가 허용하는 키만 남기고, 허용하지 않는 키는 `migration.log`의 `rejected`에 적고 버린다. `driver`는 `startDrive`로 옮기고 `plugins`에 없으면 더한다. `id`, `title`, `rev`는 유지하고 `updatedAt`을 새로 쓴다. 공통 묶음은 빈 값으로 만든다. v1 파일은 `profiles.json.v1.bak`로 보존한다. v1 의미("그대로 둠")를 v2("목록에 없으면 꺼짐")로 옮기는 것이라 기존 프로필이 켜는 집합이 달라질 수 있고, `default`를 바탕으로 계산하는 이유가 그것이다. [구현 2026-11-18] `migrateV1`은 그대로 두고, 첫 시작 옮김이 사용자 값을 읽은 뒤 `migrateFirstStart`로 부른다. 권한 모드는 프로필 범위가 허용할 때만 `default`에 든다. 기존 프로필의 플러그인이 옮긴 `default.plugins ∪ enable − disable`과 같은지는 `first-start-migration.test.ts`가 값으로 확인한다(수용 37).
 4. **설치된 사용자 플러그인**(`<config>/extensions/<name>`, `.history`): 각각 현재 내용을 `reviewed/<name>/<해시>/`에 복사하고 `review-log.jsonl`에 `actor: "migration"`, `decision: "migrated"`로 남긴다(사용자가 직접 설치한 것이라 재검토를 강제하지 않는다 [제안]). `.history`의 이전 버전은 해시를 다시 계산해 같은 구조로 옮긴다(최근 5개). 원본 폴더는 제자리에 두고 한 릴리스 동안 `legacy` 표시로 읽는다. 매니페스트가 없는 옛 폴더는 `.fresnel-plugin/plugin.json`이 있어야 설치된 것이므로 해당 없다. [구현 상태 2026-11-18: 아직 아님. enC3 트랙이 맡는다.]
 5. **기본 제공 번들(Helm)과 느슨한 자원**: 번들은 `bundled` 출처이고 릴리스가 `reviewed/`에 직접 넣는다(`actor: "release"`). 번들 갱신(`installDefaultPlugin`의 교체, `default-plugins.ts`)은 검토 항목 없이 새 검토본이 된다 [제안: 앱 업데이트와 같은 신뢰. 미결 8]. 사용자 수준의 느슨한 스킬 폴더(`<OsDirs.data>` 아래 스킬 루트, `resolveSkillRoots({dataDir})`)는 스킬 폴더 하나당 플러그인 하나로 보고 4번처럼 `migrated`로 승인한다. 프로젝트의 느슨한 자원은 옮기지 않고 프로젝트를 열 때 검토 항목이 된다. 옮긴 뒤 `cap-knowledge`는 느슨한 루트를 읽지 않고 `MaterialPort`만 쓴다. [구현 상태 2026-11-18: 아직 아님. enC3 트랙이 맡는다.]
 6. **기존 대화**: `thread.started.profileId`가 없는 대화는 `default`를 참조한다(1번 규칙). 이벤트를 다시 쓰지 않는다. 대화별로 꺼 두었던 상태(`scope.changed` 이력)는 새 대화 열기에서 쓰지 않고 `default`로 다시 계산한다(켜짐 집합이 달라질 수 있다) [제안: 미결 9]. `workspace`가 있는 기존 대화는 4.4.3 규칙으로 암묵 프로젝트를 만든다. 서로 포함하는 폴더가 있으면 중첩으로 둔다. 쓰기 범위는 가장 깊은 루트이므로 기존보다 넓어지지 않는다. `workspace`가 null인 기존 대화는 지금처럼 호스트 cwd를 쓴다(4.4.6). [구현 2026-11-18] 대화 기록은 쓰지 않는다. 옮김은 대화 목록을 읽기만 한다(`threadRowsOf`). `thread.started.profileId`가 없는 대화가 `default`로 읽힘은 `plugin-set.test.ts`의 옛 대화 항목이 확인한다(`pickProfile`). 닫히지 않은 대화 가운데 Test run이 아니고 작업 폴더가 있으며 그 폴더가 있고 어느 루트에도 속하지 않는 폴더마다 프로젝트 하나를 만든다(`implicit-project-migrate.ts`). 서로 포함하는 폴더는 모두 프로젝트로 두고 소속은 가장 깊은 루트가 정한다. 없는 폴더는 `implicit_project_skipped`(`reason: missing`)로 남긴다. 기본 폴더 대화는 암묵 프로젝트에 속하므로 건너뛴다.

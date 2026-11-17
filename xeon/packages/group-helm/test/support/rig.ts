@@ -305,6 +305,8 @@ export interface RigOptions extends WorldOptions {
   /** 설정 `ext.helm.*` 값. 주면 내장 신뢰판 그룹으로 올려 g.settings()가 이 값을 읽는다 */
   readonly settings?: Readonly<Record<string, unknown>>;
   readonly module?: GroupModule;
+  /** Helm과 같은 호스트에 함께 올릴 그룹(예: 플러그인 빌더 대역). 스레드를 열기 전에 설치한다 */
+  readonly companions?: readonly GroupModule[];
   /** 시험이 turn·spawn 하나를 가로챈다 */
   readonly onTurn?: (request: LoopTurnRequest) => void | Promise<void>;
   readonly onSpawn?: (request: LoopSpawnRequest) => void | Promise<void>;
@@ -414,6 +416,17 @@ export async function createRig(options: RigOptions = {}): Promise<Rig> {
     loadIndex,
     builtin: true,
   });
+  const companions = options.companions ?? [];
+  await Promise.all(
+    companions.map((companion, index) =>
+      t.host.install({
+        manifest: companion.manifest,
+        entry: companion.entry,
+        loadIndex: loadIndex + 1 + index,
+        builtin: true,
+      }),
+    ),
+  );
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.settled();

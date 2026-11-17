@@ -438,7 +438,7 @@ describe("plugin", () => {
     await t.host.openThread(thread);
     const out = await t.host.dispatch(
       "input.agent.before",
-      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
+      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {}, driver: null, stack: [] },
       {
         threadId: thread,
         dispatchKey: "k",

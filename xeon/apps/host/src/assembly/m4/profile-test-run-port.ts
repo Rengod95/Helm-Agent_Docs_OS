@@ -88,7 +88,7 @@ export interface ProfileTestRunPortDeps extends Pick<
   readonly readText: ReadText;
 }
 
-const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], driver: null };
+const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], startDrive: null };
 const NO_LAYERS: ScopeStack = [];
 const EXT_KEY = /^ext\.([^.]+)\./u;
 
@@ -424,7 +424,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           builtin: input.id === DEFAULT_PROFILE_ID,
           plugins: input.plugins,
           settings: input.settings,
-          driver: input.driver,
+          startDrive: input.startDrive,
           updatedAt: isoNow(env.clock.now()),
           rev: (storedRev ?? 0) + 1,
         };
@@ -486,7 +486,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           builtin: false,
           plugins: source.plugins,
           settings: source.settings,
-          driver: source.driver,
+          startDrive: source.startDrive,
           updatedAt: isoNow(env.clock.now()),
           rev: 1,
         };
@@ -643,7 +643,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           ...current,
           plugins: current.plugins.filter((ref) => ref.name !== params.plugin),
           settings: current.settings.filter((setting) => ownerOf(setting.key) !== params.plugin),
-          driver: current.driver === params.plugin ? null : current.driver,
+          startDrive: current.startDrive === params.plugin ? null : current.startDrive,
           updatedAt: isoNow(env.clock.now()),
           rev: current.rev + 1,
         };

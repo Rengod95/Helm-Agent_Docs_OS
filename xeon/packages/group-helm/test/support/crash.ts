@@ -88,7 +88,8 @@ export async function crashAndResume(crash: {
     loadIndex: 4,
     builtin: true,
   });
-  await second.host.openThread(thread);
+  // 재시작은 프로필의 시작 설정으로 이어 준다(열린 임대가 있으면 복원된 스택을 잇는다)
+  await second.host.openThread(thread, { startDrive: "helm" });
   await second.settled();
   await drainRounds(second, thread, 8);
   return {

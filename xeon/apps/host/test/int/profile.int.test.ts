@@ -55,7 +55,7 @@ realTest(
         title: "Review",
         plugins: [],
         settings: [],
-        driver: null,
+        startDrive: null,
       };
       const before = await second.request("profile.list", {});
       expect(before.profiles.map((item) => item.id)).toEqual(["default"]);

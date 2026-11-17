@@ -78,7 +78,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 도구 | 입력 | 결과 | 위험 |
 |---|---|---|---|
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
-| `authoring_start` | `{ kind, name, dir, displayName? }` | 제작 대화 id, 이름 검사 결과 | 읽기 |
+| `authoring_start` | `{ kind, name, dir, displayName? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다 | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
 | `authoring_scaffold` | `{ sessionId, views?: { slot, mode }[] }` | 만든 파일 목록과 패치 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
@@ -224,10 +224,15 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | replay | 개발 모드면 `replayDrive`. 배포 앱은 건너뛰고 "개발 모드에서 확인 필요" 표시 | 없음 |
 | package | 묶음 만들기, 사용자 위치 연결 | 묶기 전, 연결 전(`ask` 명령) |
 
-- 사람 확인을 기다리는 동안 엔진이 drive 락을 `waiting`으로 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 단계 함수가 `last=null`로 다시 불리고, 같은 `ask`(같은 requestId)가 기록된 답을 돌려주므로 같은 단계에서 이어 갑니다.
-- 단계 함수의 규칙(drive-isolation.md §1.1, §2.4): 사용자 메시지(`last.kind === "user"`)는 `turn`으로 그 메시지를 입력으로 처리합니다. 열린 제작 대화에서 할 일이 없으면 `yield`로 상주하고, 제작 대화가 닫혀 있고 확인도 없으면 `done`으로 물러납니다(그 상태가 바뀌기 전까지 후보가 아닙니다). 명령은 `state`와 `last`만 보고 정하므로 같은 입력에는 같은 명령이 나옵니다(재시작 안전, 시험 `authoring.drive-steps`).
+- 사람 확인을 기다리는 동안 drive 프레임은 질문 대기(`asking`)로 스택에 남습니다. 반납이 아니라 프레임 상태만 바뀝니다(drive-isolation.md 2.1, X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 단계 함수가 `last=null`로 다시 불리고, 같은 `ask`(같은 requestId)가 기록된 답을 돌려주므로 같은 단계에서 이어 갑니다.
+- 단계 함수의 규칙(drive-isolation.md §1.1, §2.4): 사용자 메시지(`last.kind === "user"`)는 `turn`으로 그 메시지를 입력으로 처리합니다. 열린 제작 대화에서 할 일이 없으면 `yield`로 상주하고, 제작 대화가 닫혀 있고 확인도 없으면 `done`으로 물러납니다(스택에 다시 오르려면 시작 요청이 필요합니다. 중재가 없어 상태가 바뀌어도 저절로 오르지 않습니다). 명령은 `state`와 `last`만 보고 정하므로 같은 입력에는 같은 명령이 나옵니다(재시작 안전, 시험 `authoring.drive-steps`).
 - 확인의 답이 `yes`가 아니면(거절, 취소, 만료, 무인 실행) `pack`, `link`, `testRun`을 부르지 않습니다. 답을 기다리는 동안에는 같은 `ask`를 다시 냅니다.
 - [미결] [근거: packages/ext-host/src/primitives/lease.ts, packages/core-loop/src/service.ts] 열린 제작 대화에서 사용자 메시지를 두 번째로 받으면 턴의 요청 id가 첫 턴과 같아져, 코어 루프가 기록된 결과로 재생하고 그 메시지를 처리하지 않습니다. 엔진의 기본 요청 id가 호출마다 0부터 세기 때문입니다(`lease.ts`의 `invocation.i`). 빌더 쪽 우회(상태 문서에 턴 수를 더하고 버전을 올림)는 하지 않았습니다. 엔진을 고친 뒤 다시 봅니다.
+- 맡겨졌을 때(drive-isolation.md 2.2, 2.6; `packages/plugin-builder/src/group-drive.ts`의 `handoffStep`). 다른 플러그인이 `handoff`로 부르면 프레임의 `calledBy`가 맡긴 쪽 이름이고, 첫 단계(`last`가 없음)에서 상주하지 않고 답한다. 입력은 `{ purpose, id? }`로 읽는다(`id`는 맡긴 쪽의 요청 id).
+  - 제작 대화가 열려 있으면 받지 않는다: `done({ accepted: false, reason: "session_open" })`, 알림은 내지 않는다.
+  - 입력을 읽지 못하면(목적 문자열이 빠짐, 재시작 뒤 입력이 비어 있음) `done({ accepted: false, reason: "bad_input" })`.
+  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
+  - 이 단계는 목적을 알리고 돌려주는 데까지다. 제작 대화를 열지 않는다. 제작은 사용자가 `authoring_start`로 이어 간다. [미결] 맡겨진 목적으로 제작 대화를 자동으로 여는 일은 정하지 않았다. [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
@@ -239,7 +244,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - [결정: M4 T-AUTH] 가드 판정은 함수 `authoringWriteGuard`(`guard.ts`)다. `write` 위험 등급 도구는 입력의 `path`·`file_path`·`filePath`가 대상 폴더 안이어야 하고, `exec`(셸)는 `cwd`·`workdir`가 안쪽이어야 한다. 경로를 읽을 수 없는 `write`와 작업 폴더가 없는 `exec`는 막는다. 한계 [미결]: 셸 명령 문자열 속 절대 경로는 보지 않는다.
 - [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인의 카드와 요청 id는 `packConfirmation`, `installConfirmation`(`release.ts`)이 만들고, drive가 `ask` 명령으로 냅니다. 답이 `yes`인지는 `confirmedYes`가 읽는다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
 - [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, guide?, devMode?, fixLoopLimit?, workspaceOf? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: true`([결정: 2026-11-13 사용자])·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 1)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·설치 결과를 가진다.
-- [결정: M4 T-AUTH] 도구 열(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `ask` 명령으로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive lock이 `waiting`으로 반납된다). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`ask` 명령) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르고, 호스트는 그 포트로 Test run 대화를 연다(HS-112). 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
+- [결정: M4 T-AUTH] 도구 열(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `ask` 명령으로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive 프레임은 질문 대기(`asking`)로 스택에 남는다. 확인 질문을 여는 도구는 `startDrive`로 주도를 다시 요청한다(엔진이 두 번 연속 효과 없이 `yield`한 프레임을 `idle`로 내리기 때문, E3)). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`ask` 명령) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르고, 호스트는 그 포트로 Test run 대화를 연다(HS-112). 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
 - [결정: 오케스트레이터 기본값, scI] `authoring_start`의 `dir`은 절대 경로로 정한다(`target-dir.ts`의 `resolveTargetDir`). 절대 경로는 그대로 쓰고, 상대 경로는 그 대화의 작업 폴더(`thread.started.workspace`) 안으로만 푼다(밖으로 나가면 `outside_workspace`). 작업 폴더가 없는 대화가 상대 경로를 주면 제작 대화를 열지 않고 `needs_folder`를 돌려주며, 모델은 사용자에게 폴더를 묻는다(앱은 크래프트 "새로 만들기"가 폴더 고르기 창 `pickFolder` 길로 작업 폴더를 정한 대화를 열고, CLI는 경로를 묻는다). 숨은 기본 출력 위치는 두지 않는다. 사용자 결정 목록에 "제작물 기본 출력 위치"로 올린다. 호스트는 `AuthoringWiring.workspaceOf`로 작업 폴더를 준다.
 - [결정: 오케스트레이터 기본값, scI] 열린 제작 대화는 도구 `authoring_stop`으로 닫는다(상태를 `idle`로 되돌리고 가드를 풀며 만든 파일은 지우지 않는다). 다른 폴더로 다시 열려면 닫은 뒤 `authoring_start`를 다시 부른다. 열린 대화가 있을 때 `authoring_start`는 `session_open`으로 거절하고 `authoring_stop`을 먼저 부르라고 알린다. `sessionId`를 주면 열린 대화와 같아야 한다(`unknown_session`). 앱의 닫기 단추는 화면 기여(T-VIEW) 때 더한다 [미결].
 - [결정: 오케스트레이터 기본값, scI] 사람이 확인에 답하면(종류·이름, 고치기 한도, 시험, 묶기, 설치의 yes와 no 모두) drive는 답의 결과를 알리는 `followUp` post를 하나 더한다(`display: false`, `requestId` 끝 `:r`). `g.post`는 상태를 커밋하는 `commit` 명령보다 먼저 나간다. `next`는 유휴 대화에서 턴을 열지 않으므로(`L1.tasks` §4.9) 이것이 없으면 답 뒤에 턴이 끊겨 사용자가 "계속"을 쳐야 했다. 같은 단계 흐름이 사용자 입력 없이 이어진다. 도구 승인(쓰기 위험도)은 그대로 따로 뜬다.
@@ -304,7 +309,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 문서 | 관계 |
 |---|---|
 | `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `fresnel.devkit` 계약 |
-| `X.primitives.spec` | 요구: `ask` 명령과 반납 사유 `waiting`(X-17), Test run 단계 경계 멈춤(X-19) |
+| `X.primitives.spec` | 요구: `ask` 명령과 질문 대기 프레임 상태 `asking`(X-17. 반납 사유 `waiting`은 쓰지 않는다, E3), Test run 단계 경계 멈춤(X-19) |
 | `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
@@ -317,7 +322,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
 - A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `fresnel group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
-- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive 락이 반납된 상태입니다.
+- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive 프레임은 `asking`으로 스택에 남습니다(drive 락을 반납하지 않는다, E3).
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.
 - A-6. 화면 기여가 있는 시험 플러그인 하나(선언형 `well` + 프레임 `page`)를 만들면 AU-005가 통과하고, 프레임 금지 설정에서 `fallback`이 그려집니다.
 - A-7. F 훅 하나의 이름을 바꾸는 가짜 변경에서 카탈로그 적합성 시험이 실패합니다.
@@ -326,7 +331,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 1. (결정) `L3/README.md` 도메인 표에 `authoring`을 더했다 [결정: 2026-11-04 사용자 B20].
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
-3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 기본 켜짐인 빌더가 유휴 상태로 drive 락을 쥐어 다른 drive 그룹을 기다리게 하지 않도록, 빌더는 제작 대화가 열려 있는 동안 상주하고(`yield`), 닫혀 있고 확인도 없으면 `done`으로 물러납니다. `wants`는 없어졌습니다(drive-isolation.md §1.1). 그래서 기본 켜짐인 빌더도 thread마다 첫 경계에 한 번 drive 락을 받고 `done`으로 물러나며(`lease.acquired`와 `lease.released`가 한 쌍 남는다), 그 상태가 바뀌기 전까지 다시 들어오지 않습니다 [미결: 기록의 잡음과 다른 drive 그룹과의 순서, `X.primitives.spec` §4.4]. `authoring_start` 전과 `authoring_stop`·완료 뒤에는 상주하지 않습니다(물러나 있습니다) [결정: 2026-11-13 사용자 지시]. 쓰기 가드(`tool.call.before`)는 제작 대화가 없으면 아무 일도 하지 않지만 핸들러는 등록된 채라 `hooks.order.preview`의 가림·자동 끄기 목록에 tier 5 항목으로 보입니다(핸들러 등록은 세대 단위로 고정이고 미리보기는 대화와 무관한 전역 순서라 끌 수 없습니다) [미결] [근거: 2026-11-13 사용자 지시 2번, apps/host/test/int/hook-order-real.int.test.ts].
+3. [결정: 2026-11-13 사용자] Plugin Builder는 기본 켜짐이고 도구는 모두 지연 노출입니다(2026-11-01 결정 "기본 꺼짐"을 대체). 중재가 없으므로 켜져 있어도 스택에 오르는 것은 시작 요청뿐입니다(drive-isolation.md 2.2, E3). 모델이 `authoring_start`를 부르면 도구가 `g.startDrive()`를 내고, 다음 경계에 스택에 올라 확인 질문을 엽니다. 제작 대화가 열려 있는 동안은 `yield`로 머물고, 닫혀 있고 확인도 없으면 `done`으로 물러납니다. `wants`는 없습니다(drive-isolation.md §1.1). 엔진이 두 번 연속 효과 없이 `yield`한 프레임은 `idle`로 내려가므로, 확인 질문이 필요해질 때마다 도구(`authoring_package`, `authoring_install`, `authoring_trial`, `authoring_validate`의 고치기 한도)가 `startDrive`를 다시 냅니다. 같은 scope의 요청은 엔진이 버리므로 살아 있는 주도에는 무해합니다. 시작 요청이 거부되면(`drive_unavailable`, 예: 하위 대화) `authoring_start`는 대화를 열지 않습니다. [미결] 도구의 시작 요청은 사용자 명령 계기와 같은 trigger라서 다른 그룹(예: Helm)의 주도를 전환시킬 수 있습니다. drive-isolation.md 2.2는 모델이 부르는 시작을 맨 위 프레임의 맡기기로 본다. 어느 쪽으로 할지 정해야 합니다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [결정: 2026-11-04 사용자, 결정 목록 R16] 로컬 카탈로그 공유와 묶음 서명은 M4 밖입니다(`review.m4-plan` §1.2). 로컬 카탈로그 경로는 구현 세부로 남깁니다.
 6. [결정: 2026-11-04 사용자, 결정 목록 R16] replay·benchmark·코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4, m4-decisions Desktop UX 4). 배포 앱에서 개발 모드를 켜는 조건은 M4 밖입니다. 켬/끔 비교(Test run 묶음 실행)는 배포 앱에도 엽니다(2026-11-03 결정).

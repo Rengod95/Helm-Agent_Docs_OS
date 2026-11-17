@@ -302,7 +302,21 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       protocolVersion: WIRE_PROTOCOL_VERSION,
       client: { name: "fresnel-cli-scenario", version: "0.0.0", kind: "other" },
     });
-    const created = await connection.request("thread.create", { workspace: home.work });
+    // 대화를 열 때 프로필의 시작 Drive가 주도 시작 요청을 낸다(drive-isolation.md 2.2)
+    await connection.request("profile.put", {
+      profile: {
+        id: "drive-start",
+        title: "Drive start",
+        plugins: [{ name: groupId }],
+        settings: [],
+        startDrive: groupId,
+      },
+      baseRev: null,
+    });
+    const created = await connection.request("thread.create", {
+      workspace: home.work,
+      profileId: "drive-start",
+    });
     await connection.request("events.subscribe", {
       from: created.position,
       filter: { threadIds: [created.threadId] },
@@ -313,7 +327,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       title: "with smoke group",
       plugins: [{ name: groupId }],
       settings: [],
-      driver: null,
+      startDrive: null,
     };
     await connection.request("profile.put", { profile: groupProfile, baseRev: null });
     // turn.completed가 커밋된 직후에는 루프가 아직 정착 중일 수 있어 turn.busy(retryable)가 온다.

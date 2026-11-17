@@ -54,6 +54,32 @@ function firstDraftId(request: ExtCommitRequest): EventId {
   return draft.id;
 }
 
+/** lease.acquired 또는 lease.released를 커밋한다 */
+function leaseCommit(
+  h: Harness,
+  threadId: ThreadId,
+  requestId: string,
+  kind: "lease.acquired" | "lease.released",
+  payload: Record<string, unknown>,
+) {
+  return h.service.ext.commit({
+    threadId,
+    requestId,
+    drafts: [draftOf(h, threadId, kind, payload)],
+  });
+}
+
+/** `ext.loadThread`의 열린 임대 목록에서 주도권 스택 필드만 뽑는다(오래된 것부터) */
+async function stackOf(h: Harness, threadId: ThreadId) {
+  return expectOk(await h.service.ext.loadThread(threadId)).openLeases.map((lease) => ({
+    leaseId: lease.leaseId,
+    scopeId: lease.scopeId,
+    parent: lease.parent,
+    depth: lease.depth,
+    contentHash: lease.contentHash,
+  }));
+}
+
 function stateRequest(
   h: Harness,
   threadId: ThreadId,
@@ -235,14 +261,19 @@ describe("ext.loadThread", () => {
     expect(Object.keys(snapshot.enabledAtSeq)).toEqual(["alpha"]);
     expect(snapshot.enabledAtSeq["alpha"]).toBe(2);
     expect(snapshot.leaseEpochs).toEqual({ alpha: 1 });
-    expect(snapshot.openLease).toEqual({
-      leaseId: "lease-1",
-      lineageId: "lease-1",
-      scopeId: "alpha",
-      leaseEpoch: 1,
-      limits: { maxTurns: 4 },
-      used: { turns: 0, spawns: 0, tokens: 0 },
-    });
+    expect(snapshot.openLeases).toEqual([
+      {
+        leaseId: "lease-1",
+        lineageId: "lease-1",
+        scopeId: "alpha",
+        leaseEpoch: 1,
+        limits: { maxTurns: 4 },
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        parent: null,
+        depth: 0,
+        contentHash: null,
+      },
+    ]);
     expect(snapshot.states).toHaveLength(1);
 
     const released = draftOf(h, threadId, "lease.released", {
@@ -251,46 +282,230 @@ describe("ext.loadThread", () => {
       reason: "idle",
     });
     await h.service.ext.commit({ threadId, requestId: "ls2", drafts: [released] });
-    expect(expectOk(await h.service.ext.loadThread(threadId)).openLease).toBeNull();
+    expect(expectOk(await h.service.ext.loadThread(threadId)).openLeases).toEqual([]);
     expect(h.service.ext.loadThread(h.ids.next("thr"))).resolves.toMatchObject({
       ok: true,
       value: { enabled: [] },
     });
   });
 
-  test("waitingLineage is the lineage of a waiting release that is the last lease event", async () => {
+  test("a waiting release is an ordinary release; the next acquire keeps the lineage", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
-    const commit = async (
-      requestId: string,
-      kind: "lease.acquired" | "lease.released",
-      payload: Record<string, unknown>,
-    ) =>
-      h.service.ext.commit({ threadId, requestId, drafts: [draftOf(h, threadId, kind, payload)] });
-    const lineageOf = async () => expectOk(await h.service.ext.loadThread(threadId)).waitingLineage;
+    const open = async () =>
+      expectOk(await h.service.ext.loadThread(threadId)).openLeases.map((lease) => ({
+        leaseId: lease.leaseId,
+        lineageId: lease.lineageId,
+      }));
 
-    await commit("a1", "lease.acquired", {
+    await leaseCommit(h, threadId, "a1", "lease.acquired", {
       leaseId: "l1",
       lineageId: "l1",
       scopeId: "alpha",
       limits: {},
     });
-    expect(await lineageOf()).toBeNull();
-    await commit("r1", "lease.released", { leaseId: "l1", scopeId: "alpha", reason: "waiting" });
-    expect(await lineageOf()).toEqual({ scopeId: "alpha", lineageId: "l1" });
-    // 이어받은 부여: 새 leaseId, 같은 계통. 열려 있는 동안 waitingLineage는 없다
-    await commit("a2", "lease.acquired", {
+    expect(await open()).toEqual([{ leaseId: "l1", lineageId: "l1" }]);
+    await leaseCommit(h, threadId, "r1", "lease.released", {
+      leaseId: "l1",
+      scopeId: "alpha",
+      reason: "waiting",
+    });
+    expect(await open()).toEqual([]);
+    // 이어받은 부여: 새 leaseId, 같은 계통
+    await leaseCommit(h, threadId, "a2", "lease.acquired", {
       leaseId: "l2",
       lineageId: "l1",
       scopeId: "alpha",
       limits: {},
     });
-    const open = expectOk(await h.service.ext.loadThread(threadId));
-    expect(open.waitingLineage).toBeNull();
-    expect(open.openLease).toMatchObject({ leaseId: "l2", lineageId: "l1" });
-    // 다른 사유의 반납은 계통을 잇지 않는다
-    await commit("r2", "lease.released", { leaseId: "l2", scopeId: "alpha", reason: "budget" });
-    expect(await lineageOf()).toBeNull();
+    expect(await open()).toEqual([{ leaseId: "l2", lineageId: "l1" }]);
+    await leaseCommit(h, threadId, "r2", "lease.released", {
+      leaseId: "l2",
+      scopeId: "alpha",
+      reason: "budget",
+    });
+    expect(await open()).toEqual([]);
+  });
+
+  test("a handed-off stack reads oldest first, each frame with its parent, depth and contentHash", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const acquire = (requestId: string, payload: Record<string, unknown>) =>
+      leaseCommit(h, threadId, requestId, "lease.acquired", { limits: {}, ...payload });
+
+    expect(
+      (
+        await acquire("a", {
+          leaseId: "A",
+          lineageId: "A",
+          scopeId: "alpha",
+          depth: 0,
+          contentHash: "sha256:aa",
+        })
+      ).status,
+    ).toBe("committed");
+    expect(
+      (
+        await acquire("b", {
+          leaseId: "B",
+          lineageId: "B",
+          scopeId: "beta",
+          parent: "A",
+          depth: 1,
+          contentHash: "sha256:bb",
+        })
+      ).status,
+    ).toBe("committed");
+    expect(
+      (
+        await acquire("c", {
+          leaseId: "C",
+          lineageId: "C",
+          scopeId: "gamma",
+          parent: "B",
+          depth: 2,
+          contentHash: "sha256:cc",
+        })
+      ).status,
+    ).toBe("committed");
+    expect(await stackOf(h, threadId)).toEqual([
+      { leaseId: "A", scopeId: "alpha", parent: null, depth: 0, contentHash: "sha256:aa" },
+      { leaseId: "B", scopeId: "beta", parent: "A", depth: 1, contentHash: "sha256:bb" },
+      { leaseId: "C", scopeId: "gamma", parent: "B", depth: 2, contentHash: "sha256:cc" },
+    ]);
+  });
+
+  test("releasing the top frame leaves the frames below it, one by one", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const frameA = {
+      leaseId: "A",
+      scopeId: "alpha",
+      parent: null,
+      depth: 0,
+      contentHash: "sha256:aa",
+    };
+    const frameB = {
+      leaseId: "B",
+      scopeId: "beta",
+      parent: "A",
+      depth: 1,
+      contentHash: "sha256:bb",
+    };
+    await leaseCommit(h, threadId, "a", "lease.acquired", {
+      leaseId: "A",
+      lineageId: "A",
+      scopeId: "alpha",
+      limits: {},
+      depth: 0,
+      contentHash: "sha256:aa",
+    });
+    await leaseCommit(h, threadId, "b", "lease.acquired", {
+      leaseId: "B",
+      lineageId: "B",
+      scopeId: "beta",
+      limits: {},
+      parent: "A",
+      depth: 1,
+      contentHash: "sha256:bb",
+    });
+    await leaseCommit(h, threadId, "c", "lease.acquired", {
+      leaseId: "C",
+      lineageId: "C",
+      scopeId: "gamma",
+      limits: {},
+      parent: "B",
+      depth: 2,
+      contentHash: "sha256:cc",
+    });
+    await leaseCommit(h, threadId, "rc", "lease.released", {
+      leaseId: "C",
+      scopeId: "gamma",
+      reason: "done",
+    });
+    expect(await stackOf(h, threadId)).toEqual([frameA, frameB]);
+    await leaseCommit(h, threadId, "rb", "lease.released", {
+      leaseId: "B",
+      scopeId: "beta",
+      reason: "done",
+    });
+    expect(await stackOf(h, threadId)).toEqual([frameA]);
+  });
+
+  test("a lease.acquired written before parent, depth and contentHash existed reads as a root frame", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    await leaseCommit(h, threadId, "old", "lease.acquired", {
+      leaseId: "old-1",
+      lineageId: "old-1",
+      scopeId: "alpha",
+      limits: { maxTurns: 2 },
+    });
+    expect(await stackOf(h, threadId)).toEqual([
+      { leaseId: "old-1", scopeId: "alpha", parent: null, depth: 0, contentHash: null },
+    ]);
+  });
+
+  test("a release of a frame below the top removes only that frame", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const frameB = { leaseId: "B", scopeId: "beta", parent: "A", depth: 1, contentHash: null };
+    const frameC = { leaseId: "C", scopeId: "gamma", parent: "B", depth: 2, contentHash: null };
+    await leaseCommit(h, threadId, "a", "lease.acquired", {
+      leaseId: "A",
+      lineageId: "A",
+      scopeId: "alpha",
+      limits: {},
+    });
+    await leaseCommit(h, threadId, "b", "lease.acquired", {
+      leaseId: "B",
+      lineageId: "B",
+      scopeId: "beta",
+      limits: {},
+      parent: "A",
+      depth: 1,
+    });
+    await leaseCommit(h, threadId, "c", "lease.acquired", {
+      leaseId: "C",
+      lineageId: "C",
+      scopeId: "gamma",
+      limits: {},
+      parent: "B",
+      depth: 2,
+    });
+    await leaseCommit(h, threadId, "ra", "lease.released", {
+      leaseId: "A",
+      scopeId: "alpha",
+      reason: "disabled",
+    });
+    expect(await stackOf(h, threadId)).toEqual([frameB, frameC]);
+  });
+
+  test("each open frame counts the turns of its own scope only", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    await leaseCommit(h, threadId, "a", "lease.acquired", {
+      leaseId: "A",
+      lineageId: "A",
+      scopeId: "alpha",
+      limits: {},
+    });
+    await leaseCommit(h, threadId, "b", "lease.acquired", {
+      leaseId: "B",
+      lineageId: "B",
+      scopeId: "beta",
+      limits: {},
+      parent: "A",
+      depth: 1,
+    });
+    endTurn(h, startTurn(h, threadId, { requestId: "t1", scopeId: "alpha" }));
+    endTurn(h, startTurn(h, threadId, { requestId: "t2", scopeId: "beta" }));
+    endTurn(h, startTurn(h, threadId, { requestId: "t3", scopeId: "beta" }));
+    const snapshot = expectOk(await h.service.ext.loadThread(threadId));
+    expect(snapshot.openLeases.map((lease) => [lease.leaseId, lease.used.turns])).toEqual([
+      ["A", 1],
+      ["B", 2],
+    ]);
   });
 
   test("open lease usage counts turns of the lease scope and its drive spawns", async () => {
@@ -314,7 +529,9 @@ describe("ext.loadThread", () => {
     endTurn(h, theirs);
     startTurn(h, threadId);
     const snapshot = expectOk(await h.service.ext.loadThread(threadId));
-    expect(snapshot.openLease?.used).toEqual({ turns: 1, spawns: 0, tokens: 0 });
+    expect(snapshot.openLeases.map((lease) => lease.used)).toEqual([
+      { turns: 1, spawns: 0, tokens: 0 },
+    ]);
   });
 
   test("a rewound branch is not seen: states and rev follow the active branch", async () => {

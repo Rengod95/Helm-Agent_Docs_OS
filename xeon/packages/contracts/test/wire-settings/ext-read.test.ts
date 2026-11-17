@@ -5,6 +5,7 @@ import {
   HostStatusResultSchema,
   WIRE_ERRORS,
   WIRE_METHODS,
+  WIRE_NOTIFICATIONS,
   classifyMethodName,
   extMethodName,
 } from "../../src/wire-settings/wire/index.ts";
@@ -111,17 +112,69 @@ describe("M4 ext read methods", () => {
     expect(parse(WIRE_METHODS["hooks.list"].params, {}).ok).toBe(true);
   });
 
-  test("group.driveLock, metrics, timings and version history round trip", () => {
-    const lock = {
-      holder: "helm",
-      leaseEpoch: 3,
-      activeDriver: null,
-      limits: { turns: 10, spawns: 2, tokens: null },
-      used: { turns: 1, spawns: 0, tokens: 40 },
-      candidates: [{ registrationId: "other", waits: 2, waitLimit: 5 }],
-      lastRejected: { groupId: "other", reason: "wait_limit", requestSeq: 9 },
+  test("drive.frames lists the stack from the core loop up and drive.framesChanged names the thread", () => {
+    const frames = [
+      {
+        depth: 0,
+        plugin: null,
+        versionId: null,
+        leaseId: null,
+        state: "waiting",
+        used: { turns: 2, spawns: 0, tokens: 900 },
+        limits: {},
+      },
+      {
+        depth: 1,
+        plugin: "helm",
+        versionId: "sha256:ab12",
+        leaseId: "lease-1",
+        state: "waiting",
+        used: { turns: 1, spawns: 1, tokens: 400 },
+        limits: { turns: 4, spawns: 8 },
+      },
+      {
+        depth: 2,
+        plugin: "authoring",
+        versionId: "draft:d1:0a1b2c3d",
+        leaseId: "lease-2",
+        state: "asking",
+        used: { turns: 0, spawns: 0, tokens: 0 },
+        limits: { tokens: 400000 },
+      },
+    ];
+    roundTrip(WIRE_METHODS["drive.frames"].result, { frames });
+    roundTrip(WIRE_METHODS["drive.frames"].result, { frames: [] });
+    expect(parse(WIRE_METHODS["drive.frames"].params, { threadId: "thr_1", _meta: {} }).ok).toBe(
+      true,
+    );
+    expect(parse(WIRE_METHODS["drive.frames"].params, {}).ok).toBe(false);
+    expect(WIRE_METHODS["drive.frames"].stage).toBe("M4");
+    expect(WIRE_NOTIFICATIONS["drive.framesChanged"].stage).toBe("M4");
+    roundTrip(WIRE_NOTIFICATIONS["drive.framesChanged"].params, { threadId: "thr_1" });
+    expect(parse(WIRE_NOTIFICATIONS["drive.framesChanged"].params, { threadId: "" }).ok).toBe(
+      false,
+    );
+  });
+
+  test("drive.frames rejects an unknown state, a negative depth, a negative limit and a bad plugin name", () => {
+    const frame = {
+      depth: 1,
+      plugin: "helm",
+      versionId: null,
+      leaseId: "lease-1",
+      state: "driving",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
     };
-    roundTrip(WIRE_METHODS["group.driveLock"].result, lock);
+    const result = WIRE_METHODS["drive.frames"].result;
+    expect(parse(result, { frames: [{ ...frame, state: "paused" }] }).ok).toBe(false);
+    expect(parse(result, { frames: [{ ...frame, depth: -1 }] }).ok).toBe(false);
+    expect(parse(result, { frames: [{ ...frame, limits: { turns: -1 } }] }).ok).toBe(false);
+    expect(parse(result, { frames: [{ ...frame, plugin: "Bad Name" }] }).ok).toBe(false);
+    expect(parse(result, { frames: [{ ...frame, extra: 1 }] }).ok).toBe(false);
+  });
+
+  test("metrics, timings and version history round trip", () => {
     const timings = {
       traceEnabled: true,
       timings: [

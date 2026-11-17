@@ -97,7 +97,6 @@ const REQUIRED_VALUES: readonly string[] = [
   "ProjectorRegistryPortKey",
   "ScopedStorePortKey",
   "ProcessPortKey",
-  "DriveLockArbiterPortKey",
   "ExtHostPortKey",
   "capabilityServiceName",
   "providerServiceName",

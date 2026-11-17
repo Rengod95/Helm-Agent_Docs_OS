@@ -19,6 +19,7 @@ import { eraseRegistration } from "../erase.ts";
 import { withoutAmbient } from "./ambient.ts";
 import {
   newUsage,
+  topFrame,
   type BoundaryTxn,
   type RegistrationDefinition,
   type Generation,
@@ -536,8 +537,9 @@ export function createRegistrationRuntime(
     if (scopeIds.some((id) => core.scopes.get(id)?.busy === true)) return true;
     const loop = core.ports.get(LoopPortKey);
     for (const thread of core.threads.values()) {
-      const held = thread.lease;
-      if (held !== null && held.running && scopeIds.includes(held.scopeId)) return true;
+      if (thread.frames.some((frame) => frame.running && scopeIds.includes(frame.scopeId))) {
+        return true;
+      }
       if (thread === current) continue;
       if (thread.txn !== null || thread.idleApply !== null) return true;
       if (loop?.status(thread.threadId) === "running") return true;
@@ -622,10 +624,10 @@ export function createRegistrationRuntime(
     return { ok: true };
   }
 
-  /** 임대를 쥔 scope의 drive 함수는 새 세대의 것으로 다음 경계에서 다시 부른다. 임대는 반납하지 않는다 */
+  /** 맨 위 프레임을 쥔 scope의 drive 함수는 새 세대의 것으로 다음 경계에서 다시 부른다. 프레임은 반납하지 않는다 */
   function keepDriving(records: readonly RegistrationRecord[]): void {
     for (const thread of core.threads.values()) {
-      const held = thread.lease;
+      const held = topFrame(thread);
       if (held === null || held.status !== "active") continue;
       if (!records.some((record) => record.id === held.scopeId)) continue;
       held.wantInvoke = true;
@@ -1085,8 +1087,8 @@ export function createRegistrationRuntime(
     },
     teardown,
     info(record) {
-      const holding = [...core.threads.values()].some(
-        (thread) => thread.lease?.scopeId === record.id && thread.lease.status === "active",
+      const holding = [...core.threads.values()].some((thread) =>
+        thread.frames.some((frame) => frame.scopeId === record.id && frame.status === "active"),
       );
       const drive: RegistrationInfo["drive"] = record.driveError
         ? "error"

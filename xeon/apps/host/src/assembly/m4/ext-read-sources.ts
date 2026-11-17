@@ -1,12 +1,8 @@
 import { join } from "node:path";
-import { parse, type Result } from "@fresnel/contracts";
+import type { Result } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import { HOOKS, type RegistrationStatus } from "@fresnel/contracts/extensions";
-import {
-  LeaseRejectedPayloadSchema,
-  type DurableEventEnvelope,
-  type ReadFailure,
-} from "@fresnel/contracts/records";
+import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
 import type { GroupStatus } from "@fresnel/contracts/services";
 import { resolveSetting, type ScopeStack, type SettingCatalog } from "@fresnel/contracts/settings";
 import type {
@@ -35,7 +31,7 @@ import {
 } from "@fresnel/group-sdk";
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
-import { operationsSource, primitivesSource } from "../settings-sources.ts";
+import { operationsSource } from "../settings-sources.ts";
 import type {
   ExtensionRecord,
   ExternalHookView,
@@ -551,39 +547,14 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
           })),
       };
     },
-    async driveLock(threadId) {
+    driveFrames(threadId) {
       const id = threadIdOf(threadId);
-      const lock = id === undefined ? undefined : view.driveLock(id);
-      const defaults =
-        id === undefined ? {} : primitivesSource(env.settings).driveDefaultLimits(id);
-      const activeDriver = env.settings.value("x.primitives.activeDriver", id);
-      const rejections =
-        id === undefined
-          ? undefined
-          : await env.ext.queryEvents(id, { kindPrefix: "lease.rejected" });
-      const last = rejections?.ok === true ? rejections.value.at(-1) : undefined;
-      const checked =
-        last === undefined ? undefined : parse(LeaseRejectedPayloadSchema, last.payload);
-      return {
-        holder: lock?.holder ?? null,
-        leaseEpoch: lock?.leaseEpoch ?? 0,
-        activeDriver: typeof activeDriver === "string" ? activeDriver : null,
-        limits: {
-          turns: lock?.limits.turns ?? defaults.maxTurns ?? 0,
-          spawns: lock?.limits.spawns ?? defaults.maxSpawns ?? 0,
-          tokens: lock?.limits.tokens ?? defaults.maxTokens ?? null,
-        },
-        used: lock?.used ?? { turns: 0, spawns: 0, tokens: 0 },
-        candidates: lock?.candidates ?? [],
-        lastRejected:
-          last === undefined || checked === undefined || !checked.ok
-            ? null
-            : {
-                groupId: checked.value.groupId,
-                reason: checked.value.reason,
-                requestSeq: checked.value.requestSeq,
-              },
-      };
+      return Promise.resolve({ frames: id === undefined ? [] : env.ext.driveFrames(id) });
+    },
+    driveFramesChanged(listener) {
+      return env.ext.onChange((change) => {
+        if (change.kind === "lease" && change.threadId !== null) listener(change.threadId);
+      });
     },
     settings: {
       catalog,

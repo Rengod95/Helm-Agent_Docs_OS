@@ -68,14 +68,22 @@ function drive(): {
 function stepInput(
   state: AuthoringState,
   last: StepResult | null = null,
+  frame: DriveStepInput<AuthoringState>["frame"] = { frameDepth: 1, calledBy: null, input: null },
 ): DriveStepInput<AuthoringState> {
   return {
     state,
     last,
     budget: { turns: null, spawns: null, tokens: null },
-    frame: { frameDepth: 1, calledBy: null, input: null },
+    frame,
   };
 }
+
+/** 맡겨진 첫 단계의 문맥: `helm`이 `handoff`로 목적과 요청 id를 실었다 */
+const HANDED = {
+  frameDepth: 2,
+  calledBy: "helm",
+  input: { purpose: "로그 정리 도구", id: "nabcdefghijklm" },
+} as const;
 
 const SESSION: AuthoringState = {
   ...INITIAL_AUTHORING_STATE,
@@ -275,4 +283,63 @@ test("authoring.drive.g: a trial starts only after a yes and the fix limit keeps
     state: { ...limited, pending: null, phase: "done" },
     next: { do: "done" },
   });
+});
+
+test("authoring.drive.handoff-a: a closed session handed a purpose notices it once and answers accepted", async () => {
+  const run = drive();
+  expect(await run.step(stepInput(INITIAL_AUTHORING_STATE, null, HANDED))).toEqual({
+    do: "done",
+    result: { accepted: true, purpose: "로그 정리 도구" },
+  });
+  expect(run.posts).toEqual([
+    {
+      item: {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content: "[authoring] helm가 플러그인 제작을 맡겼다: 로그 정리 도구",
+        display: true,
+      },
+      when: "next",
+      requestId: "authoring:handoff:nabcdefghijklm",
+    },
+  ]);
+  // 같은 단계가 재시작 뒤 다시 와도 같은 알림 id가 나온다(중복 없음은 요청 id가 정한다)
+  const again = drive();
+  await again.step(stepInput(INITIAL_AUTHORING_STATE, null, HANDED));
+  expect(again.posts.map((post) => post.requestId)).toEqual(
+    run.posts.map((post) => post.requestId),
+  );
+});
+
+test("authoring.drive.handoff-b: an open session declines the handoff without a notice and without residing", async () => {
+  const run = drive();
+  expect(await run.step(stepInput(SESSION, null, HANDED))).toEqual({
+    do: "done",
+    result: { accepted: false, reason: "session_open" },
+  });
+  expect(run.posts).toEqual([]);
+});
+
+test("authoring.drive.handoff-c: a handoff without a readable purpose is declined as bad_input", async () => {
+  const run = drive();
+  const frame = { frameDepth: 2, calledBy: "helm", input: { purpose: 3 } } as const;
+  expect(await run.step(stepInput(INITIAL_AUTHORING_STATE, null, frame))).toEqual({
+    do: "done",
+    result: { accepted: false, reason: "bad_input" },
+  });
+  // 재시작 뒤 맡은 프레임은 입력이 없다(기록에 없다): 같은 사유로 물러난다
+  expect(
+    await run.step(stepInput(INITIAL_AUTHORING_STATE, null, { ...HANDED, input: null })),
+  ).toEqual({
+    do: "done",
+    result: { accepted: false, reason: "bad_input" },
+  });
+  expect(run.posts).toEqual([]);
+});
+
+test("authoring.drive.handoff-d: a user-started frame (no calledBy) keeps the existing rules", async () => {
+  const { step, posts } = drive();
+  expect(await step(stepInput(SESSION))).toEqual({ do: "yield" });
+  expect(await step(stepInput(INITIAL_AUTHORING_STATE))).toEqual({ do: "done" });
+  expect(posts).toEqual([]);
 });

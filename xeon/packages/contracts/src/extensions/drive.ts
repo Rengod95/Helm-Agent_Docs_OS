@@ -8,6 +8,7 @@ import {
   type QuestionApprovalDetail,
 } from "../records/index.ts";
 import type { PostItem } from "./post.ts";
+import { ExtensionNameSchema } from "./name.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
 
 export interface DriveLimits {
@@ -96,15 +97,67 @@ export const AskRequestSchema: TUnsafe<AskRequest> = Type.Unsafe<AskRequest>(
   AskRequestShape satisfies SchemaProof<AskRequest, typeof AskRequestShape>,
 );
 
-/** 엔진이 단계 함수에 주는 프레임 정보. 프레임 스택(E3) 전에는 `frameDepth`가 1, `calledBy`와 `input`이 null이다 */
+/** 엔진이 단계 함수에 주는 프레임 정보. `frameDepth`는 코어 0, 첫 플러그인 프레임 1이다 */
 export interface DriveFrameInfo {
-  /** 코어 루프가 0이다 */
+  /** frameDepth는 코어 0, 첫 플러그인 프레임 1 */
   readonly frameDepth: number;
   /** 맡긴 쪽 플러그인 이름(`handoff`, E3). 사용자 명령이나 프로필 시작이면 null */
   readonly calledBy: string | null;
   /** 맡길 때 넘긴 입력(E3). 없으면 null */
   readonly input: JsonValue | null;
 }
+
+/**
+ * 주도권 스택의 프레임 하나를 읽는 모양(`drive.frames`, drive-isolation.md 2.6). 스택 전체를 아래에서 위 순서로 준다.
+ * 맨 아래 프레임이 코어 루프(depth 0)이고 plugin·versionId·leaseId가 null이다. 플러그인 프레임의 depth는
+ * 스택 인덱스(`lease.acquired.depth`)에 1을 더한 값이다.
+ */
+export interface DriveFrameView {
+  /** 코어 루프 0, 첫 플러그인 프레임 1 */
+  readonly depth: number;
+  /** 플러그인 이름. 코어 루프면 null */
+  readonly plugin: string | null;
+  /** 그 플러그인의 versionId. 코어 루프이거나 기록에 없으면 null */
+  readonly versionId: string | null;
+  /** 임대 id(`lease.acquired.leaseId`). 코어 루프면 null */
+  readonly leaseId: string | null;
+  /** driving: 주도 중. waiting: 맡겨서 위 프레임을 기다림. asking: 사람의 답을 기다림(임대는 반납하지 않는다) */
+  readonly state: "driving" | "waiting" | "asking";
+  /** 이 프레임이 쓴 양. 스택 아래 프레임의 사용량에도 더해진다 */
+  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  /** 이 프레임의 상한. 없는 필드는 그 항목에 상한이 없다 */
+  readonly limits: { readonly turns?: number; readonly spawns?: number; readonly tokens?: number };
+}
+
+const DriveFrameViewShape = Type.Object(
+  {
+    depth: Type.Integer({ minimum: 0 }),
+    plugin: Type.Union([ExtensionNameSchema, Type.Null()]),
+    versionId: Type.Union([Type.String({ minLength: 1, maxLength: 128 }), Type.Null()]),
+    leaseId: Type.Union([Type.String({ minLength: 1, maxLength: 128 }), Type.Null()]),
+    state: Type.Union([Type.Literal("driving"), Type.Literal("waiting"), Type.Literal("asking")]),
+    used: Type.Object(
+      {
+        turns: Type.Integer({ minimum: 0 }),
+        spawns: Type.Integer({ minimum: 0 }),
+        tokens: Type.Integer({ minimum: 0 }),
+      },
+      { additionalProperties: false },
+    ),
+    limits: Type.Object(
+      {
+        turns: Type.Optional(Type.Integer({ minimum: 0 })),
+        spawns: Type.Optional(Type.Integer({ minimum: 0 })),
+        tokens: Type.Optional(Type.Integer({ minimum: 0 })),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
+export const DriveFrameViewSchema: TUnsafe<DriveFrameView> = Type.Unsafe<DriveFrameView>(
+  DriveFrameViewShape satisfies SchemaProof<DriveFrameView, typeof DriveFrameViewShape>,
+);
 
 /** 단계 함수의 입력. 엔진이 한 단계마다 새로 만들어 준다 */
 export interface DriveStepInput<S> {

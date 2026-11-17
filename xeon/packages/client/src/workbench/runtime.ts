@@ -1,8 +1,9 @@
 // 런타임 탭(spec L4.desktop-ux §4.9.8)의 순수 모델. 대화 영역 오른쪽 "런타임" 탭이 그리는 값을 만든다.
-// drive 구역의 보유·대기열·거절은 `group.list`의 `GroupStatus.drive`가 정하고, `group.driveLock`은 차수·상한·사용량과 후보별 대기 횟수를 더한다.
-// Helm만 다루지 않는다: `drive`를 쓰는 그룹(review, work 등)은 같은 모양으로 나온다.
+// drive 구역의 보유자와 대기열은 주도권 스택(`drive.frames`)이 정한다: 맨 위 플러그인 프레임이 보유자, `waiting` 프레임이 대기다.
+// 그룹의 표시 이름과 오류는 `group.list`의 `GroupStatus`에서 온다. Helm만 다루지 않는다: `drive`를 쓰는 그룹(review, work 등)은 같은 모양으로 나온다.
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
-import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
 import {
   failureRowsOfOwner,
   rowOf,
@@ -19,80 +20,63 @@ export type DriveRole = GroupStatusWire["drive"];
 export interface DriveMemberVM {
   readonly id: string;
   readonly displayName: string;
-  /** 거절·양보로 기다린 횟수(`driveLock.candidates`). 후보가 아니면 null */
-  readonly waits: number | null;
-  /** 넘으면 거부되는 대기 상한(`driveLock.candidates`). 후보가 아니면 null */
-  readonly waitLimit: number | null;
 }
 
-/** 런타임 탭 drive 구역. 보유·대기열·거절·오류는 `GroupStatus.drive`에서, 차수·상한·사용량은 `driveLock`에서 온다 */
+/** 런타임 탭 drive 구역. 보유자와 대기열은 `drive.frames`에서, 오류는 `GroupStatus.drive`에서 온다 */
 export interface RuntimeDriveView {
-  /** `GroupStatus.drive`가 `holder`인 그룹. 없으면 null */
+  /** 맨 위 플러그인 프레임의 그룹. 플러그인 프레임이 없으면 null */
   readonly holder: DriveMemberVM | null;
-  /** 보유자(`holder`)가 `driveLock.holder`와 같은가. 둘 다 없으면 참 */
+  /** 보유자가 `GroupStatus.drive`의 `holder` 그룹과 같은가. 둘 다 없으면 참 */
   readonly holderAgrees: boolean;
-  /** 대기 그룹. 순서는 `driveLock.candidates`의 순서이고, 후보 목록에 없는 대기 그룹은 뒤에 목록 순서대로 붙는다 */
+  /** 맡겨서 기다리는 프레임(`state: "waiting"`)의 그룹. 프레임 목록의 순서(아래에서 위)다 */
   readonly queue: readonly DriveMemberVM[];
-  /** 대기 상한을 넘어 거부된 그룹 */
-  readonly rejected: readonly DriveMemberVM[];
   /** drive 오류인 그룹 */
   readonly errored: readonly DriveMemberVM[];
-  readonly leaseEpoch: number;
-  /** 설정 `x.primitives.activeDriver`의 값. 없으면 null(자동 중재) */
-  readonly activeDriver: string | null;
+  /** 주도권 스택 전체(`drive.frames`), 아래에서 위 순서. 맨 아래는 코어 루프(depth 0)다. 화면 설계(M6a)가 쓴다 */
+  readonly frames: readonly DriveFrameView[];
+  /** 맨 위 플러그인 프레임이 쓴 양. 프레임이 없으면 0 */
+  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  /** 맨 위 플러그인 프레임의 상한. 없는 항목은 null(상한 없음). 프레임이 없으면 모두 null */
   readonly limits: {
-    readonly turns: number;
-    readonly spawns: number;
-    /** 토큰 상한이 없으면 null */
+    readonly turns: number | null;
+    readonly spawns: number | null;
     readonly tokens: number | null;
   };
-  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
-  /** 가장 최근에 거부된 기록(`lease.rejected`). 없으면 null */
-  readonly lastRejected: GroupDriveLockResult["lastRejected"];
 }
 
-function memberOf(
-  group: GroupStatusWire,
-  wait: GroupDriveLockResult["candidates"][number] | undefined,
-): DriveMemberVM {
-  return {
-    id: group.id,
-    displayName: group.displayName,
-    waits: wait?.waits ?? null,
-    waitLimit: wait?.waitLimit ?? null,
-  };
+/** 그룹 id의 표시 이름을 `group.list`에서 찾는다. 목록에 없으면 id를 그대로 쓴다 */
+function memberOf(groupList: readonly GroupStatusWire[], id: string): DriveMemberVM {
+  return { id, displayName: groupList.find((group) => group.id === id)?.displayName ?? id };
 }
 
 /**
- * drive 구역 값. `groupList`는 `group.list`의 결과, `driveLock`은 같은 대화의 `group.driveLock` 결과다.
+ * drive 구역 값. `groupList`는 `group.list`의 결과, `frames`는 같은 대화의 `drive.frames` 결과(아래에서 위 순서)다.
  * drive를 쓰지 않는 그룹(`drive: "none"`)은 어느 목록에도 들지 않는다.
  */
 export function runtimeViewOf(
   groupList: readonly GroupStatusWire[],
-  driveLock: GroupDriveLockResult,
+  frames: readonly DriveFrameView[],
 ): RuntimeDriveView {
+  const top = frames.findLast((frame) => frame.plugin !== null);
+  const topPlugin = top?.plugin ?? null;
   const holderGroup = groupList.find((group) => group.drive === "holder");
-  const waitOf = (id: string): GroupDriveLockResult["candidates"][number] | undefined =>
-    driveLock.candidates.find((candidate) => candidate.registrationId === id);
-  const waiting = groupList.filter((group) => group.drive === "waiting");
-  const queueOrdered = driveLock.candidates.flatMap((candidate) => {
-    const group = waiting.find((g) => g.id === candidate.registrationId);
-    return group === undefined ? [] : [memberOf(group, candidate)];
-  });
-  const queueRest = waiting
-    .filter((group) => waitOf(group.id) === undefined)
-    .map((group) => memberOf(group, undefined));
+  const queue = frames.flatMap((frame) =>
+    frame.state === "waiting" && frame.plugin !== null ? [memberOf(groupList, frame.plugin)] : [],
+  );
   return {
-    holder: holderGroup === undefined ? null : memberOf(holderGroup, undefined),
-    holderAgrees: (holderGroup?.id ?? null) === driveLock.holder,
-    queue: [...queueOrdered, ...queueRest],
-    rejected: groupList.filter((g) => g.drive === "rejected").map((g) => memberOf(g, undefined)),
-    errored: groupList.filter((g) => g.drive === "error").map((g) => memberOf(g, undefined)),
-    leaseEpoch: driveLock.leaseEpoch,
-    activeDriver: driveLock.activeDriver,
-    limits: driveLock.limits,
-    used: driveLock.used,
-    lastRejected: driveLock.lastRejected,
+    holder: topPlugin === null ? null : memberOf(groupList, topPlugin),
+    holderAgrees: (holderGroup?.id ?? null) === topPlugin,
+    queue,
+    errored: groupList
+      .filter((group) => group.drive === "error")
+      .map((group) => memberOf(groupList, group.id)),
+    frames,
+    used: top?.used ?? { turns: 0, spawns: 0, tokens: 0 },
+    limits: {
+      turns: top?.limits.turns ?? null,
+      spawns: top?.limits.spawns ?? null,
+      tokens: top?.limits.tokens ?? null,
+    },
   };
 }
 

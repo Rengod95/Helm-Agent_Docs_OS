@@ -7,7 +7,7 @@ test("coexist.helm-lease-held-fork-still-runs: the review starts while another g
   const rig = await createRig({ settings: { "l3.learning.trigger.userTurns": 1 } });
   const drive = driveStandIn("fake-drive");
   await rig.t.host.install(drive.unit);
-  await rig.t.host.openThread(rig.thread);
+  await rig.t.host.openThread(rig.thread, { startDrive: "fake-drive" });
   // 임대를 쥔 drive 함수가 끝나지 않으므로 host.settled()는 기다리지 않는다
   await Bun.sleep(20);
   rig.control.waitSettled = false;

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  DriveLockArbiterPortKey,
   LoopPortKey,
   InputQueuePortKey,
   McpPortKey,
@@ -11,15 +10,8 @@ import {
   ExtensionTablesPortKey,
   ScopedStorePortKey,
   ToolsPortKey,
-  type DriveLockArbiterPort,
-  type DriveLockCandidate,
   type PortKey,
 } from "../../src/extensions/index.ts";
-import { ThreadIdSchema } from "../../src/conversation/index.ts";
-import { must, rawId } from "../helpers/ids.ts";
-
-const THREAD = must(ThreadIdSchema, rawId("thr", 1));
-
 // F.extensions.spec §3.2.1 표: 서비스 이름과 member
 const KEYS: ReadonlyArray<
   readonly [string, PortKey<unknown>, `fresnel.${string}`, string | undefined]
@@ -31,7 +23,6 @@ const KEYS: ReadonlyArray<
   ["ScopedStorePortKey", ScopedStorePortKey, "fresnel.store", undefined],
   ["ExtensionTablesPortKey", ExtensionTablesPortKey, "fresnel.store", "extensions"],
   ["ProcessPortKey", ProcessPortKey, "fresnel.process", undefined],
-  ["DriveLockArbiterPortKey", DriveLockArbiterPortKey, "fresnel.groups", undefined],
   ["ToolsPortKey", ToolsPortKey, "fresnel.tools", undefined],
   ["ModelsPortKey", ModelsPortKey, "fresnel.models", undefined],
   ["McpPortKey", McpPortKey, "fresnel.mcp", undefined],
@@ -66,32 +57,5 @@ describe("port keys", () => {
     };
     expect(lookup.get(LoopPortKey)).toBeDefined();
     expect(lookup.get(McpPortKey)).toBeUndefined();
-  });
-});
-
-const candidate = (scopeId: string, enabledAtSeq: number | null): DriveLockCandidate => ({
-  scopeId,
-  extension: scopeId,
-  loadIndex: 0,
-  defaultEnabled: true,
-  enabledAtSeq,
-});
-
-describe("DriveLockCandidate", () => {
-  test("enabledAtSeq is a seq or null and an arbiter can order by it", () => {
-    const arbiter: DriveLockArbiterPort = {
-      choose: (_threadId, candidates) =>
-        candidates.toSorted(
-          (a, b) =>
-            (a.enabledAtSeq ?? Number.MAX_SAFE_INTEGER) -
-            (b.enabledAtSeq ?? Number.MAX_SAFE_INTEGER),
-        )[0]?.scopeId ?? null,
-    };
-    const picked = arbiter.choose(THREAD, [
-      candidate("late", 9),
-      candidate("none", null),
-      candidate("early", 3),
-    ]);
-    expect(picked).toBe("early");
   });
 });
