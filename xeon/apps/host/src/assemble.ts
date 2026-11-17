@@ -1195,6 +1195,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         maskSecrets: (line) => secrets.service.redactor.mask(line).text,
         autoDisabler: operations.autoDisabler,
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
+        ...(options.pluginHost?.onSupervisor === undefined
+          ? {}
+          : { onSupervisor: options.pluginHost.onSupervisor }),
       });
       const loaded = await loadExternalExtensions({
         ext,

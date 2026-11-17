@@ -46,6 +46,8 @@ export interface PluginHostAssemblyDeps {
   readonly autoDisabler: Pick<OperationsPolicy["autoDisabler"], "disableNow">;
   /** 자기 실행 값. 시험이 넣고, 운영은 생략해 이 실행 파일을 쓴다 */
   readonly self?: SelfRunTarget;
+  /** 세션을 열 때마다 부른다. 시험이 감독의 상태를 읽는다. 운영은 생략한다 */
+  readonly onSupervisor?: (name: string, supervisor: PluginHostSupervisor) => void;
 }
 
 export interface PluginHostAssembly {
@@ -77,6 +79,7 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       },
       onSupervisor: (name, supervisor) => {
         supervisors.set(name, supervisor);
+        deps.onSupervisor?.(name, supervisor);
       },
     },
     stderrTail: (name) => supervisors.get(name)?.stderrTail() ?? [],

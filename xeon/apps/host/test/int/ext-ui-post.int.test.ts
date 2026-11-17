@@ -11,6 +11,7 @@ import { isRecord, rawClient, type RawClient } from "../fixtures/raw-client.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 
 // T-UIPOST(HS-108): 조립된 호스트에서 설치된 Helm 확장의 화면(`helm-panel`)이 실제 wire로 `ext.ui.post`와 `ext.ui.requestApproval`을 부른다.
 // post는 입력 큐에 닿고, 승인은 `ext:helm` 출처의 카드로 떠서 `approval.respond`로 풀리며, 거절은 정해진 오류로 돌아온다.
@@ -86,7 +87,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(spare())),
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
     });
     const raw = rawClient(host.client);
     await call(raw, "host.hello", { ...HELLO_PARAMS });

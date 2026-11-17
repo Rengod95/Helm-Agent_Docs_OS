@@ -9,13 +9,16 @@ import { startInProcessHost } from "../../src/command-run.ts";
 import { SDK_MODULE_SPECIFIERS } from "@fresnel/ext-host";
 import { DEFAULT_PLUGINS_MARKER_FILE } from "../../src/assembly/default-plugins.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
+import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { helmWebPorts } from "../fixtures/helm-tape.ts";
 
 // M3a E1(UC-2), 실제 엔진: 기본 플러그인 Helm이 첫 실행에 설치되고 외부 로더로 실리며, /helm 명령이 wire로 닿고,
 // 확산 단계의 쓰기(exec) 도구가 실행 전에 거부되어 거부 사유가 모델에 돌아간다. 모델은 테이프다.
+// 기본 설정에서 Helm은 격리 자식(플러그인 호스트 프로세스)에서 돈다(`isolatedPluginHost`).
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -86,7 +89,8 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
+      webPorts: helmWebPorts(),
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -167,7 +171,8 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       buildModels: tapeBuildModels(tapeProvider(player)),
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
+      webPorts: helmWebPorts(),
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -211,7 +216,7 @@ realTest(
     const first = await startInProcessHost({
       devChecks: true,
       defaultPluginsDir: bundleRoot,
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
     });
     await first.close();
     const installed = join(home.root, "config", "extensions", "helm");
@@ -220,7 +225,7 @@ realTest(
     const second = await startInProcessHost({
       devChecks: true,
       defaultPluginsDir: bundleRoot,
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
     });
     await second.close();
     expect(existsSync(installed)).toBe(false);
@@ -230,7 +235,7 @@ realTest(
       devChecks: true,
       defaultPluginsDir: bundleRoot,
       safeMode: true,
-      pluginHost: { disabled: true },
+      pluginHost: isolatedPluginHost(),
     });
     const connection = createHostConnection(safe.client);
     await connection.request("host.hello", HELLO_PARAMS);

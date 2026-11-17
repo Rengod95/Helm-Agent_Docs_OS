@@ -1102,6 +1102,8 @@ export type HelmReaction =
 
 [결정] drive 함수는 단계 경계마다 마지막 커밋 상태로 다시 호출된다. 상태 변경은 `commit`으로만 한다(F.extensions.spec §4.6, ADR-0007). 효과 목록은 ADR-0015 §3.2 표를 따른다. Helm drive의 효과는 `loop.turn`, `loop.spawn`, `post`, `record`, 읽기 기능 호출, 멱등 쓰기 기능 호출이다. 효과마다의 키와 보장 주체는 §4.11이다.
 
+[결정, 2026-11-18] Helm의 주도 단계 함수는 기본 설정에서 격리 자식(플러그인 호스트 프로세스)에서 돈다. 엔진은 단계마다 `drive.step` 요청을 보내고, 자식은 단계 함수 하나를 돌려 명령 하나를 낸다. 명령의 실행(`turn`, `spawn`, `commit`, `post` 등)은 엔진에 남는다. `ext.helm.isolation`을 `none`으로 명시하면 엔진 안에서 돈다(X.loading-trust §4.9.0). 맡기기의 빌더 `plugin-builder`는 `builtin`이라 엔진 안에서 돈다. [근거: packages/ext-host/src/isolation/proxy-entry.ts `drivingOf`, packages/ext-host/src/isolation/child-runtime.ts `runDriveStep`, apps/host/src/assembly/catalog.ts, packages/plugin-builder/src/group.ts]
+
 의사코드. 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")를 상태 기반 재호출 함수로 다시 쓴 것이다. 한 번 호출은 현재 단계 하나만 처리하고 커밋한 뒤 돌아간다. 다음 단계는 X가 다시 호출할 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다).
 
 ```ts
