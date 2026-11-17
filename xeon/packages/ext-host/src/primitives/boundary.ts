@@ -206,6 +206,7 @@ export function createBoundary(
       releasing: [],
       grant: null,
       startRequest: null,
+      abandoning: null,
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") await scope.applyToggles(thread, txn);

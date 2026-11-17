@@ -57,6 +57,7 @@ import {
 } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
+import { shouldSwitchNow } from "./switch-policy.ts";
 import type { StateService } from "./state.ts";
 
 /** 효과 없는 명령(`commit`만, 거부 결과)이 이어지는 단계 수 상한. 넘으면 이번 호출을 `yield`로 끝낸다(X.primitives.spec §4.4.3) [제안] */
@@ -96,8 +97,9 @@ export interface LeaseBroker {
    */
   claimUserInput(thread: ThreadRuntime, item: PostItem): boolean;
   /**
-   * 주도 시작 요청을 큐에 넣는다(사용자 명령, drive-isolation.md 2.2). 사용자 요청은 멈춤을 푼다. 대상이 맞지 않는 것은
-   * 부여 경계에서 버리므로 여기서는 scope와 drive 자격의 명백한 실패만 거부한다
+   * 주도 시작 요청을 큐에 넣는다(사용자 명령, drive-isolation.md 2.2). 사용자 요청은 멈춤을 푼다. 스택이 차 있으면 전환 정책
+   * (switch-policy.ts)에 따라 스택 전체를 내리고 새 주도를 부여한다. 대상이 맞지 않는 것은 부여 경계에서 버리므로 여기서는
+   * scope와 drive 자격의 명백한 실패만 거부한다
    */
   startDrive(
     threadId: ThreadId,
@@ -148,6 +150,27 @@ function release(lease: LeaseRuntime, reason: ReleaseReason): void {
   lease.abort.abort(new DOMException(`lease released: ${reason}`, "AbortError"));
 }
 
+/**
+ * 임대가 아직 활성인가. 단계 함수와 명령이 기다린 뒤의 상태를 다시 읽는다(호출 앞의 검사로 좁혀진 타입을 그대로 믿지 않는다)
+ */
+function isActive(lease: LeaseRuntime): boolean {
+  return lease.status === "active";
+}
+
+/** 명령이 거부 결과가 되는 `StepOutcome`. 예외가 아니다 */
+function refusal(code: string): StepOutcome {
+  return { kind: "result", result: { kind: "refused", code } };
+}
+
+/**
+ * 맡긴 프레임을 다시 주도하게 한다. 위 프레임의 결과(`done`)나 끊김(`aborted`)이 이 프레임의 첫 `last`다. 커밋 뒤에만 부른다
+ */
+function resumeWaiting(frame: LeaseRuntime, last: StepResult): void {
+  frame.pendingLast = last;
+  frame.state = "driving";
+  frame.wantInvoke = true;
+}
+
 /** 스택의 `index`번 프레임과 그 위 프레임 전부를 반납한다. 그 프레임은 `reason`, 위 프레임은 `revoked`다 */
 function releaseFrom(thread: ThreadRuntime, index: number, reason: ReleaseReason): void {
   thread.frames
@@ -189,18 +212,44 @@ function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
 }
 
 /**
- * 쓴 양을 스택의 모든 프레임에 더한다. 맨 위가 쓴 양은 자기와 아래 프레임의 사용량에 들어간다(drive-isolation.md 2.3).
- * 스택 안의 프레임은 모두 맨 위보다 아래거나 맨 위다
+ * 맨 위 프레임 `lease`가 쓴 양을 자기와 스택 아래 모든 프레임의 사용량에 더한다(drive-isolation.md 2.3). 맡긴 쪽의 남은 한도는
+ * 이 값으로 줄어든다. `lease`가 이미 스택에서 내려갔으면(반납이 커밋된 뒤의 끝난 호출) 남은 프레임이 모두 아래 프레임이다
  */
 function charge(
   thread: ThreadRuntime,
+  lease: LeaseRuntime,
   delta: { readonly turns: number; readonly spawns: number; readonly tokens: number },
 ): void {
-  for (const frame of thread.frames) {
+  const at = thread.frames.indexOf(lease);
+  const below = at < 0 ? thread.frames : thread.frames.slice(0, at + 1);
+  for (const frame of below) {
     frame.used.turns += delta.turns;
     frame.used.spawns += delta.spawns;
     frame.used.tokens += delta.tokens;
   }
+}
+
+/** 맡은 프레임 한도 한 항목: 실효 값을 맡긴 쪽의 남은 양으로 한 번 더 min한다. 맡긴 쪽에 상한이 없으면 실효 값 그대로다 */
+function capInherited(
+  own: number | undefined,
+  parentLimit: number | undefined,
+  parentUsed: number,
+): number | undefined {
+  const left = remaining(parentLimit, parentUsed);
+  if (left === null) return own;
+  return own === undefined ? left : Math.min(own, left);
+}
+
+/** 맡은 프레임의 한도(drive-isolation.md 2.3). 맡긴 프레임이 아직 쓰지 않은 양을 넘지 못한다 */
+function inheritedLimits(own: DriveLimits, parent: LeaseRuntime): DriveLimits {
+  const maxTurns = capInherited(own.maxTurns, parent.limits.maxTurns, parent.used.turns);
+  const maxSpawns = capInherited(own.maxSpawns, parent.limits.maxSpawns, parent.used.spawns);
+  const maxTokens = capInherited(own.maxTokens, parent.limits.maxTokens, parent.used.tokens);
+  return {
+    ...(maxTurns === undefined ? {} : { maxTurns }),
+    ...(maxSpawns === undefined ? {} : { maxSpawns }),
+    ...(maxTokens === undefined ? {} : { maxTokens }),
+  };
 }
 
 /** 승인 요청 키의 해시(F `requestKeyFor`가 받는 동기 해시). boundary.ts의 커밋 키 해시와 같은 방식이다 */
@@ -274,11 +323,15 @@ interface StepProgress {
   result: JsonValue | null;
 }
 
-/** 한 단계의 실행이 끝난 모양. `result`면 다음 단계로 이어지고 나머지는 이번 호출이 끝난다 */
+/**
+ * 한 단계의 실행이 끝난 모양. `result`면 다음 단계로 이어지고 나머지는 이번 호출이 끝난다. `handoff`는 맡겼다는 뜻이다:
+ * 이 프레임은 기다리고 이번 호출이 끝난다(drive-isolation.md 2.1)
+ */
 type StepOutcome =
   | { readonly kind: "result"; readonly result: StepResult }
   | { readonly kind: "yield" }
   | { readonly kind: "done"; readonly result: JsonValue | null }
+  | { readonly kind: "handoff" }
   | { readonly kind: "inactive" };
 
 const INACTIVE: StepOutcome = { kind: "inactive" };
@@ -572,7 +625,7 @@ export function createLeaseBroker(
           }),
         );
         if (!result.replayed) {
-          charge(thread, { turns: 1, spawns: 0, tokens: tokensOf(result.usage) });
+          charge(thread, lease, { turns: 1, spawns: 0, tokens: tokensOf(result.usage) });
           invocation.effects += 1;
         }
         return result.outcome;
@@ -596,7 +649,7 @@ export function createLeaseBroker(
           }),
         );
         if (!result.replayed) {
-          charge(thread, { turns: 0, spawns: 1, tokens: tokensOf(result.usage) });
+          charge(thread, lease, { turns: 0, spawns: 1, tokens: tokensOf(result.usage) });
           invocation.effects += 1;
         }
         return result.outcome;
@@ -644,7 +697,57 @@ export function createLeaseBroker(
     }
   }
 
-  /** 명령 하나를 블록으로 실행한다. `model`, `tool`, `handoff`는 E2·E3 전이라 거부 결과를 돌려준다 */
+  /**
+   * 맡을 플러그인(확장 이름)의 scope. 한 확장이 플러그인 여럿을 등록하면 scope가 여럿이므로, 이름과 id가 같은 루트를 고르고
+   * 그것도 없으면 하나뿐일 때만 고른다. 고를 수 없으면 `null`이다
+   */
+  function handoffTargetOf(name: string): RegistrationRecord | null {
+    const same = [...core.scopes.values()].filter((record) => record.extension === name);
+    const root = same.find((record) => record.id === name);
+    if (root !== undefined) return root;
+    return same.length === 1 ? (same[0] ?? null) : null;
+  }
+
+  /** 맡긴 프레임의 플러그인 이름. 기록의 `parent`로 맡긴 프레임을 찾아 그 scope의 확장 이름을 낸다. 맡긴 것이 아니면 null */
+  function callerNameOf(open: readonly OpenLease[], parent: string | null): string | null {
+    if (parent === null) return null;
+    const scopeId = open.find((item) => item.leaseId === parent)?.scopeId;
+    return scopeId === undefined ? null : (core.scopes.get(scopeId)?.extension ?? null);
+  }
+
+  /**
+   * `handoff` 명령(drive-isolation.md 2.1). 거부할 것이면 `refused` 결과로 돌려준다(예외가 아니다). 맞으면 맡을 요청을 큐 맨 앞에 넣고
+   * 맡긴 프레임을 `waiting`으로 둔 뒤 이번 호출을 끝낸다. 부여는 다음 경계에서 한다(`decideHandoff`)
+   */
+  function handoffOf(
+    ctx: StepContext,
+    command: { readonly to: string; readonly input: JsonValue },
+  ): StepOutcome {
+    const { thread, lease, record } = ctx;
+    if (lease.status !== "active") return INACTIVE;
+    if (command.to === record.extension) return refusal("self_handoff");
+    if (thread.frames.some((frame) => core.scopes.get(frame.scopeId)?.extension === command.to)) {
+      return refusal("already_in_stack");
+    }
+    const target = handoffTargetOf(command.to);
+    if (target === null || drivableOf(thread, target.id, null) === null) {
+      return refusal("target_unavailable");
+    }
+    // 새 프레임이 스택에 들어간 뒤의 길이(코어 루프 위 프레임 수)가 상한을 넘으면 거부한다
+    if (thread.frames.length + 1 > core.deps.settings.driveMaxDepth(thread.threadId)) {
+      return refusal("depth_limit");
+    }
+    thread.startQueue.unshift({
+      scopeId: target.id,
+      trigger: "handoff",
+      input: command.input,
+      parentLeaseId: lease.leaseId,
+    });
+    lease.state = "waiting";
+    return { kind: "handoff" };
+  }
+
+  /** 명령 하나를 블록으로 실행한다. `model`과 `tool`은 E2 전이라 거부 결과를 돌려준다. `handoff`는 `handoffOf`가 맡는다 */
   async function executeCommand(
     ctx: StepContext,
     command: DriveCommand<AnyState>,
@@ -709,9 +812,10 @@ export function createLeaseBroker(
         return { kind: "yield" };
       case "done":
         return { kind: "done", result: command.result ?? null };
+      case "handoff":
+        return handoffOf(ctx, command);
       case "model":
       case "tool":
-      case "handoff":
         return { kind: "result", result: { kind: "refused", code: "command_unavailable" } };
       default:
         return assertNever(command, "executeCommand");
@@ -779,7 +883,8 @@ export function createLeaseBroker(
         returnUserMessage(thread, lease, lease.deliveredUser);
         lease.deliveredUser = null;
         lease.userSteps = null;
-        release(lease, "revoked");
+        // 사용자 말이 묻히지 않게 스택 전체를 내린다(drive-isolation.md 2.4). 아래 프레임의 메시지는 그 프레임의 반납 때 돌려보낸다
+        releaseFrom(thread, 0, "revoked");
         return { last, handedBack: true };
       }
     }
@@ -802,7 +907,7 @@ export function createLeaseBroker(
     generation: NonNullable<RegistrationRecord["generation"]>,
     drive: NonNullable<NonNullable<RegistrationRecord["generation"]>["drive"]>,
     progress: StepProgress,
-  ): Promise<"yield" | "done" | "inactive"> {
+  ): Promise<"yield" | "done" | "inactive" | "handoff"> {
     if (lease.status !== "active") return "inactive";
     const next = nextLast(thread, lease, progress.last);
     if (next.handedBack) return "inactive";
@@ -860,8 +965,19 @@ export function createLeaseBroker(
     progress.nextIndex = Math.max(invocation.i, progress.nextIndex + 1);
     progress.totalEffects += invocation.effects;
     progress.quiet = invocation.effects > 0 ? 0 : progress.quiet + 1;
-    if (outcome.kind === "result" || outcome.kind === "yield") lease.engaged = true;
+    if (outcome.kind === "result" || outcome.kind === "yield" || outcome.kind === "handoff") {
+      lease.engaged = true;
+    }
     if (outcome.kind === "done") progress.result = outcome.result;
+    // 단계 하나가 끝난 경계다. 사용자 명령이 기다리고 정책이 허락하면 스택 전체를 내린다(drive-isolation.md 2.2).
+    // `done`으로 끝난 맨 위는 invoke가 따로 맡는다(맨 위는 done으로 내려가고 아래만 revoked가 된다)
+    if (isActive(lease) && outcome.kind !== "done") {
+      const takeover = userTakeover(thread);
+      if (takeover !== null && shouldSwitchNow({ running: true, asking: false, stepEnded: true })) {
+        switchForUser(thread, takeover);
+        return "inactive";
+      }
+    }
     if (outcome.kind !== "result") return outcome.kind;
     progress.last = outcome.result;
     if (progress.quiet >= MAX_CHAINED_REINVOKES) {
@@ -909,7 +1025,7 @@ export function createLeaseBroker(
       quiet: 0,
       result: null,
     };
-    let end: "yield" | "done" | "inactive" = "yield";
+    let end: "yield" | "done" | "inactive" | "handoff" = "yield";
     try {
       end = await runSteps(thread, lease, record, generation, drive, progress);
     } catch (error) {
@@ -939,15 +1055,33 @@ export function createLeaseBroker(
     lease.running = false;
     const endRev = stateService.revOf(thread.threadId, lease.scopeId);
     lease.lastBaseRev = endRev;
-    if (lease.status !== "active" || end === "done") flushUserMessages(thread, lease);
+    // 맡긴 프레임은 사용자 메시지를 맨 위에게 넘기지 않으므로 여기서 코어 루프로 돌려보낸다
+    if (lease.status !== "active" || end === "done" || end === "handoff") {
+      flushUserMessages(thread, lease);
+    }
     if (end === "done" && lease.status === "active") {
       lease.result = progress.result;
       release(lease, "done");
+      // 맨 위가 끝났고 아래 프레임이 있으며 사용자 명령이 기다리면, 아래 프레임은 맡긴 결과를 받지 않고 revoked로 내린다
+      if (thread.frames.length > 1) {
+        const takeover = userTakeover(thread);
+        if (
+          takeover !== null &&
+          shouldSwitchNow({ running: true, asking: false, stepEnded: true })
+        ) {
+          switchForUser(thread, takeover);
+        }
+      }
       hooks.requestApply(thread.threadId);
       return;
     }
     if (lease.status !== "active") {
       if (lease.status === "releasing") hooks.requestApply(thread.threadId);
+      return;
+    }
+    // 맡겼다: 이 프레임은 기다리고 부여는 다음 경계에서 한다. 같은 호출을 다시 부르지 않는다
+    if (end === "handoff") {
+      hooks.requestApply(thread.threadId);
       return;
     }
     // 같은 상태 판으로 효과 없이 두 번 연속 `yield`로 끝나면 idle 반납(X.primitives.spec §4.4.3)
@@ -971,6 +1105,8 @@ export function createLeaseBroker(
   }
 
   function start(thread: ThreadRuntime, lease: LeaseRuntime): void {
+    // 맡기고 기다리는 프레임은 위 프레임이 끝나 `pendingLast`를 받을 때까지 단계 함수를 부르지 않는다
+    if (lease.state !== "driving") return;
     lease.running = true;
     lease.wantInvoke = false;
     lease.missed = false;
@@ -992,11 +1128,14 @@ export function createLeaseBroker(
     );
   }
 
-  /** 부여 대상이 지금 주도할 수 있는가: 열린 세대에 drive가 있고 오류가 없으며 이 thread가 켜 둔 scope다 */
+  /**
+   * 부여 대상이 지금 주도할 수 있는가: 열린 세대에 drive가 있고 오류가 없으며 이 thread가 켜 둔 scope다.
+   * `txn`은 이 경계에서 열거나 켜질 scope를 보려고 넘긴다. 경계 밖(명령의 `handoff`, 사용자 명령의 전환)에서는 `null`이다
+   */
   function drivableOf(
     thread: ThreadRuntime,
-    txn: BoundaryTxn,
     scopeId: RegistrationId,
+    txn: BoundaryTxn | null,
   ): {
     readonly record: RegistrationRecord;
     readonly generation: Generation;
@@ -1006,10 +1145,10 @@ export function createLeaseBroker(
     if (record === undefined || record.driveError) return null;
     const generation = record.generation;
     if (generation === null || generation.stale) return null;
-    if (!generation.open && !txn.opening.includes(record)) return null;
+    if (!generation.open && txn?.opening.includes(record) !== true) return null;
     const drive = generation.drive;
     if (drive === null) return null;
-    const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
+    const activeHere = thread.active.has(record.id) || txn?.activating.includes(record) === true;
     if (!activeHere) return null;
     return { record, generation, drive };
   }
@@ -1027,48 +1166,37 @@ export function createLeaseBroker(
   }
 
   /**
-   * 시작 요청 큐 맨 앞으로 부여를 판단한다. 스택이 비어 있어야 부여한다(사용자 명령의 전환은 맡기기 단계 3b가 맡는다).
-   * 대상이 맞지 않으면 요청을 버린다. 부여하면 `lease.acquired` 초안과 `txn.grant`를 만든다. 큐에서 지우는 일은 커밋 뒤다
+   * 시작 요청 하나로 프레임을 부여한다: `lease.acquired` 초안과 `txn.grant`를 만든다. `parent`가 있으면 맡기기다. 실효 한도는
+   * 설정으로 정하고, 맡기기면 맡긴 쪽의 남은 양으로 한 번 더 줄인다(drive-isolation.md 2.3). 큐에서 지우는 일은 커밋 뒤다
    */
-  function decide(thread: ThreadRuntime, txn: BoundaryTxn): void {
-    if (thread.child) return;
-    if (txn.grant !== null || txn.releasing.length > 0) return;
-    const request = thread.startQueue[0];
-    if (request === undefined) return;
-    if (topFrame(thread) !== null) {
-      // 스택이 차 있으면 사용자 명령은 큐에 둔 채 기다린다. 프로필 시작은 버린다
-      if (request.trigger === "profile") dropRequest(thread, request, "the drive stack is busy");
-      return;
-    }
-    // 사용자가 멈춘 뒤에는 사용자 명령만 주도를 시작한다
-    if (thread.userStopped && request.trigger !== "user") return;
-    const loop = core.ports.get(LoopPortKey);
-    const records = core.ports.get(RecordCommitPortKey);
-    if (loop === undefined || records === undefined) {
-      warnPortOnce(thread, loop === undefined ? "fresnel.loop" : "fresnel.session");
-      return;
-    }
-    const target = drivableOf(thread, txn, request.scopeId);
-    if (target === null) {
-      dropRequest(thread, request, "the scope cannot lead this conversation now");
-      return;
-    }
+  function grantOf(
+    thread: ThreadRuntime,
+    txn: BoundaryTxn,
+    request: StartRequest,
+    target: {
+      readonly record: RegistrationRecord;
+      readonly drive: NonNullable<Generation["drive"]>;
+    },
+    parent: LeaseRuntime | null,
+  ): void {
     const { record, drive } = target;
-    const { limits, clamped } = effectiveLimits(
+    const requested = effectiveLimits(
       core.deps.settings.driveDefaultLimits(thread.threadId),
       core.deps.settings.driveLimits(thread.threadId),
       drive.options.limits(),
     );
-    if (clamped.length > 0) {
+    if (requested.clamped.length > 0) {
       core.deps.report({
         level: "info",
         code: "drive_limits_clamped",
         scopeId: record.id,
         extension: record.extension,
-        message: `drive limits ${clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
+        message: `drive limits ${requested.clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
       });
     }
+    const limits = parent === null ? requested.limits : inheritedLimits(requested.limits, parent);
     const leaseEpoch = (thread.leaseEpochs.get(record.id) ?? 0) + 1;
+    // 스택 인덱스다. 맡기기는 맨 위 바로 위에 올리므로 맡긴 프레임의 깊이 + 1과 같다
     const depth = thread.frames.length;
     const draft = makeDraft(core.deps.ids, {
       threadId: thread.threadId,
@@ -1077,7 +1205,7 @@ export function createLeaseBroker(
       turnId: txn.signal.turnId,
       stepId: txn.signal.stepId,
     });
-    // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하). 3a에서는 계통이 임대와 같다
+    // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하). 계통은 새로 연다(lineageId = leaseId)
     const leaseId = draft.id;
     // 선택 필드는 값이 있을 때만 싣는다(exactOptionalPropertyTypes). versionId 값이 없어 contentHash는 싣지 않는다
     txn.drafts.push({
@@ -1089,7 +1217,7 @@ export function createLeaseBroker(
         limits,
         leaseEpoch,
         depth,
-        ...(request.parentLeaseId === null ? {} : { parent: request.parentLeaseId }),
+        ...(parent === null ? {} : { parent: parent.leaseId }),
       },
     });
     txn.grant = frameOf({
@@ -1100,16 +1228,106 @@ export function createLeaseBroker(
       leaseEpoch,
       limits,
       used: { turns: 0, spawns: 0, tokens: 0 },
-      parent: request.parentLeaseId,
+      parent: parent?.leaseId ?? null,
       depth,
       contentHash: null,
-      calledBy: null,
+      calledBy: parent === null ? null : (core.scopes.get(parent.scopeId)?.extension ?? null),
       input: request.input,
       state: "driving",
       wantInvoke: true,
       committed: false,
     });
     txn.startRequest = request;
+  }
+
+  /**
+   * 맡기기 요청의 부여 판단(drive-isolation.md 2.1). 맡긴 프레임이 맨 위이고 `waiting`일 때만 맡은 프레임을 올린다. 대상을 쓸 수
+   * 없으면 요청을 버리고 맡긴 프레임을 `aborted`로 이어 준다. 그 이어 줌은 커밋 뒤에 한다(`abandoning`)
+   */
+  function decideHandoff(thread: ThreadRuntime, txn: BoundaryTxn, request: StartRequest): void {
+    const parent = topFrame(thread);
+    // 맡긴 프레임이 내려가면 그 프레임이 낸 요청도 같은 경계에서 지운다(collectReleases). 남은 맡기기 요청은 맨 위가 낸 것이다
+    if (parent === null || parent.leaseId !== request.parentLeaseId) {
+      throw new Bug("lease.handoff_parent_missing");
+    }
+    if (parent.state !== "waiting") throw new Bug("lease.handoff_parent_not_waiting");
+    const target = drivableOf(thread, request.scopeId, txn);
+    if (target === null) {
+      txn.abandoning = request;
+      return;
+    }
+    grantOf(thread, txn, request, target, parent);
+  }
+
+  /**
+   * 시작 요청 큐 맨 앞으로 부여를 판단한다. 맡기기는 맨 위의 대기가 풀릴 때 부여하고, 사용자와 프로필 시작은 스택이 비어 있을 때 부여한다.
+   * 대상이 맞지 않으면 요청을 버린다. 사용자 명령이 스택을 바꾸는 일은 `startDrive`와 단계 경계(`runSteps`)가 맡는다
+   */
+  function decide(thread: ThreadRuntime, txn: BoundaryTxn): void {
+    if (thread.child) return;
+    if (txn.grant !== null || txn.releasing.length > 0) return;
+    const request = thread.startQueue[0];
+    if (request === undefined) return;
+    if (request.trigger === "handoff") {
+      decideHandoff(thread, txn, request);
+      return;
+    }
+    if (topFrame(thread) !== null) {
+      // 스택이 차 있으면 프로필 시작은 버린다. 사용자 명령은 큐에 둔 채 전환(switch-policy)을 기다린다
+      if (request.trigger === "profile") dropRequest(thread, request, "the drive stack is busy");
+      return;
+    }
+    // 사용자가 멈춘 뒤에는 사용자 명령만 주도를 시작한다
+    if (thread.userStopped && request.trigger !== "user") return;
+    const loop = core.ports.get(LoopPortKey);
+    const records = core.ports.get(RecordCommitPortKey);
+    if (loop === undefined || records === undefined) {
+      warnPortOnce(thread, loop === undefined ? "fresnel.loop" : "fresnel.session");
+      return;
+    }
+    const target = drivableOf(thread, request.scopeId, txn);
+    if (target === null) {
+      dropRequest(thread, request, "the scope cannot lead this conversation now");
+      return;
+    }
+    grantOf(thread, txn, request, target, null);
+  }
+
+  /**
+   * 사용자 명령 가운데 전환을 기다리는 첫 요청. 맨 위와 같은 scope이거나 지금 주도할 수 없으면 버리고 `null`이다(스택은 그대로)
+   */
+  function userTakeover(thread: ThreadRuntime): StartRequest | null {
+    const request = thread.startQueue.find((item) => item.trigger === "user");
+    if (request === undefined) return null;
+    const top = topFrame(thread);
+    if (top !== null && top.scopeId === request.scopeId) {
+      dropRequest(thread, request, "the scope already leads this conversation");
+      return null;
+    }
+    if (drivableOf(thread, request.scopeId, null) === null) {
+      dropRequest(thread, request, "the scope cannot lead this conversation now");
+      return null;
+    }
+    return request;
+  }
+
+  /**
+   * 사용자 명령이 주도를 가져간다: 스택 전체를 `revoked`로 내리고 한 줄로 알린다(묻지 않는다, drive-isolation.md 2.2). 내려간 쪽의
+   * 상태는 이미 커밋돼 있다. 반납은 다음 경계에서 커밋하고, 그 뒤 사용자 명령이 부여된다
+   */
+  function switchForUser(thread: ThreadRuntime, request: StartRequest): void {
+    const top = topFrame(thread);
+    if (top === null) return;
+    const from = core.scopes.get(top.scopeId)?.extension ?? top.scopeId;
+    const to = core.scopes.get(request.scopeId)?.extension ?? request.scopeId;
+    releaseFrom(thread, 0, "revoked");
+    core.deps.report({
+      level: "info",
+      code: "scope_notice",
+      scopeId: top.scopeId,
+      message: `${from} 주도를 ${to}으로 바꿨다(사용자 명령)`,
+    });
+    hooks.requestApply(thread.threadId);
   }
 
   return {
@@ -1133,7 +1351,8 @@ export function createLeaseBroker(
             parent: item.parent,
             depth: item.depth,
             contentHash: item.contentHash,
-            calledBy: null,
+            // 맡긴 쪽 이름은 기록의 `parent`로 찾는다. 맡길 때 넘긴 입력은 기록에 없어 null이다
+            calledBy: callerNameOf(open, item.parent),
             input: null,
             state: "waiting",
             wantInvoke: false,
@@ -1195,6 +1414,14 @@ export function createLeaseBroker(
         );
         txn.releasing.push(frame);
       }
+      // 내려가는 프레임이 낸 맡기기 요청은 그 프레임과 함께 버린다. 맡긴 쪽이 없는 요청은 부여되지 않는다
+      const gone = new Set(txn.releasing.map((frame) => frame.leaseId));
+      if (gone.size > 0) {
+        const kept = thread.startQueue.filter(
+          (request) => request.parentLeaseId === null || !gone.has(request.parentLeaseId),
+        );
+        thread.startQueue.splice(0, thread.startQueue.length, ...kept);
+      }
     },
     grant(thread, txn) {
       decide(thread, txn);
@@ -1209,18 +1436,35 @@ export function createLeaseBroker(
         thread.frames = before.filter((frame) => !released.has(frame));
         for (const frame of txn.releasing) {
           frame.status = "released";
+          // 내려간 프레임에 남은 사용자 메시지는 코어 루프로 돌려보낸다(묻히지 않게). 실행 중인 호출은 끝날 때 돌려보낸다
+          if (!frame.running) flushUserMessages(thread, frame);
           core.notify({ kind: "lease", scopeId: frame.scopeId, threadId: thread.threadId });
         }
         const top = topFrame(thread);
         if (top !== null && top.state === "waiting" && finished !== undefined) {
-          top.pendingLast =
+          // 맡긴 프레임: `done`이면 결과를, 그 밖의 사유(error, disabled, budget, idle, restart, revoked)면 끊김을 준다
+          resumeWaiting(
+            top,
             finished.reason === "done"
               ? { kind: "handoff", status: "done", result: finished.result }
-              : { kind: "handoff", status: "aborted", result: null };
-          top.state = "driving";
-          top.wantInvoke = true;
+              : { kind: "handoff", status: "aborted", result: null },
+          );
         }
         // 새 임대 판단이 시작된다. 같은 경계에서 못 한 다음 요청의 부여를 이어서 판단한다
+        hooks.requestApply(thread.threadId);
+      }
+      if (txn.abandoning !== null) {
+        // 대상을 쓸 수 없는 맡기기: 요청을 버리고 맡긴 프레임을 끊김으로 이어 준다(drive-isolation.md 2.1)
+        const request = txn.abandoning;
+        dropRequest(thread, request, "the scope cannot lead this conversation now");
+        const parent = topFrame(thread);
+        if (
+          parent !== null &&
+          parent.leaseId === request.parentLeaseId &&
+          parent.state === "waiting"
+        ) {
+          resumeWaiting(parent, { kind: "handoff", status: "aborted", result: null });
+        }
         hooks.requestApply(thread.threadId);
       }
       const grant = txn.grant;
@@ -1239,7 +1483,14 @@ export function createLeaseBroker(
     claimUserInput(thread, item) {
       if (thread.child) return false;
       const lease = topFrame(thread);
-      if (lease === null || lease.status !== "active" || !lease.committed || !lease.engaged) {
+      // 맡기고 기다리는 맨 위는 메시지를 받지 않는다. 루프가 평소대로 처리한다
+      if (
+        lease === null ||
+        lease.status !== "active" ||
+        lease.state !== "driving" ||
+        !lease.committed ||
+        !lease.engaged
+      ) {
         return false;
       }
       const record = core.scopes.get(lease.scopeId);
@@ -1262,6 +1513,13 @@ export function createLeaseBroker(
       // 사용자가 다시 명령하면 멈춤을 푼다
       if (trigger === "user") thread.userStopped = false;
       thread.startQueue.push({ scopeId, trigger, input, parentLeaseId: null });
+      // 주도 중에 온 사용자 명령: 질문 대기나 실행 밖이면 지금 스택을 바꾸고, 실행 중이면 단계 경계에서 바꾼다(switch-policy.ts)
+      const top = topFrame(thread);
+      if (trigger === "user" && top !== null && top.status === "active") {
+        const takeover = userTakeover(thread);
+        const situation = { running: top.running, asking: top.asking, stepEnded: false };
+        if (takeover !== null && shouldSwitchNow(situation)) switchForUser(thread, takeover);
+      }
       hooks.requestApply(threadId);
       return ok(undefined);
     },

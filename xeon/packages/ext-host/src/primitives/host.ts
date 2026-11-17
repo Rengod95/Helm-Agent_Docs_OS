@@ -305,7 +305,8 @@ export interface ExtHost {
   leaseOf(threadId: ThreadId): LeaseInfo | null;
   /**
    * 주도 시작 요청을 큐에 넣는다(drive-isolation.md 2.2). 사용자 명령이 `trigger` `user`(기본)로 부른다. scope를 모르거나 thread가 없거나
-   * 자식 대화이거나 drive가 없거나 drive 오류면 거부한다. 요청은 다음 경계에서 스택이 비어 있을 때 부여된다
+   * 자식 대화이거나 drive가 없거나 drive 오류면 거부한다. 스택이 비어 있으면 다음 경계에서 부여되고, 주도 중이면 전환 정책
+   * (X.primitives.spec §4.4.1a)에 따라 스택 전체를 내리고 새 주도를 부여한다
    */
   startDrive(
     threadId: ThreadId,

@@ -148,10 +148,13 @@ test("a drive that returns done is released as done and is not granted again wit
   expect(kinds(t, thread, "lease.released")).toHaveLength(2);
 });
 
-test("a queued start request takes the stack as soon as the drive ahead returns done", async () => {
+test("a start request made while the drive ahead is running waits and takes the stack when that drive returns done", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   const calls: string[] = [];
+  // 앞 단계 함수가 도는 동안 요청한다(실행 중이면 사용자 명령은 단계 경계까지 기다린다). 시작과 풀기 신호로 그 순간을 고정한다
+  const started = Promise.withResolvers<void>();
+  const unblock = Promise.withResolvers<void>();
   await t.host.install(
     makeGroupUnit(
       {
@@ -159,7 +162,11 @@ test("a queued start request takes the stack as soon as the drive ahead returns 
         def: { state: { schema: OpenSchema, initial: { open: false }, version: 1 } },
       },
       (g) => {
-        g.drive(({ state }) => Promise.resolve(state.open ? yieldOf() : doneOf()));
+        g.drive(async ({ state }) => {
+          started.resolve();
+          await unblock.promise;
+          return state.open ? yieldOf() : doneOf();
+        });
       },
     ),
   );
@@ -172,8 +179,11 @@ test("a queued start request takes the stack as soon as the drive ahead returns 
     }),
   );
   await t.host.openThread(thread, { startDrive: "ls-lazy" });
-  // 앞 요청이 주도하는 동안 뒤 요청은 큐에 남고, 스택이 비면 부여된다
+  await started.promise;
+  // 앞 단계가 도는 동안 뒤 요청은 큐에 남고 스택을 바꾸지 않는다. 앞 단계가 done으로 물러나 스택이 비면 부여된다
   requestDrive(t, thread, "ls-busy");
+  expect(calls).toEqual([]);
+  unblock.resolve();
   await t.settled();
   expect(calls).toEqual(["ls-busy"]);
   expect(kinds(t, thread, "lease.released")).toMatchObject([

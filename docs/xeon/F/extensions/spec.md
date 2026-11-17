@@ -496,7 +496,7 @@ export interface DriveStepInput<S> {
 
 /**
  * 단계 함수가 돌려주는 명령 하나. 엔진이 블록으로 실행하고 결과를 다음 단계의 `last`로 준다.
- * `model`, `tool`(E2), `handoff`(E3)는 타입 자리만 있고 E1 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
+ * `handoff`(E3)는 엔진이 맡기기로 구현한다(X.primitives.spec §4.4.1b). `model`, `tool`(E2)은 타입 자리만 있고 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
  * `commit`의 이어 실행 이름은 `next`다(스펙 초안의 `then`은 lint 규칙 unicorn/no-thenable이 막는다)
  */
 export type DriveCommand<S> =

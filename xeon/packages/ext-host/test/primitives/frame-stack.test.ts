@@ -1,6 +1,6 @@
 // 주도권 스택과 시작 요청 큐(drive-isolation.md 2.1, 2.2)의 구조 시험. 부여는 사용자 시작과 프로필 시작 요청으로만 생기고,
 // 스택은 맨 위만 주도하며, 질문 대기는 임대를 반납하지 않고, 재시작은 열린 임대 목록으로 스택을 다시 세운다.
-// 승인 서비스와 기록 저장소는 대역이다. 맡기기(`handoff`)와 깊이 상한의 소비는 이 단계에 없다.
+// 승인 서비스와 기록 저장소는 대역이다. 맡기기(`handoff`)와 사용자 명령 전환의 시험은 handoff-stack·user-command-priority에 있다.
 import { expect, test } from "bun:test";
 import type { AskCard, DriveCommand, StepResult } from "@fresnel/contracts/extensions";
 import { makeDraft } from "../../src/primitives/drafts.ts";
@@ -66,14 +66,19 @@ test("a user start grants the frame at depth 0 with no parent", async () => {
   ]);
 });
 
-test("a second user start waits in the queue while the stack is busy, and is granted when the stack empties", async () => {
+test("a user start that arrives while the first step runs waits for the step to end, then takes the stack", async () => {
   const t = await createTestHost();
   const calls: string[] = [];
+  // 첫 단계가 도는 동안(실행 중) 두 번째 사용자 명령을 넣는다. 시작과 풀기 신호로 그 순간을 고정한다
+  const started = Promise.withResolvers<void>();
+  const unblock = Promise.withResolvers<void>();
   await t.host.install(
     makeGroupUnit({ name: "frame-a" }, (g) => {
-      g.drive(() => {
+      g.drive(async () => {
         calls.push("a");
-        return Promise.resolve(yieldCommand());
+        started.resolve();
+        await unblock.promise;
+        return yieldCommand();
       });
     }),
   );
@@ -88,21 +93,19 @@ test("a second user start waits in the queue while the stack is busy, and is gra
   const thread = t.newThread();
   await t.host.openThread(thread);
   expect(t.host.startDrive(thread, "frame-a").ok).toBe(true);
-  await t.settled();
-  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a"]);
+  await started.promise;
 
-  // 스택이 차 있으므로 두 번째 사용자 요청은 큐에 남고 부여되지 않는다
+  // 실행 중에는 스택을 바꾸지 않는다. 두 번째 사용자 요청은 큐에 남는다
   expect(t.host.startDrive(thread, "frame-b").ok).toBe(true);
-  await t.settled();
   expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a"]);
-  expect(calls).not.toContain("b");
+  expect(calls).toEqual(["a"]);
 
-  // frame-a가 같은 상태 판에서 두 번 정착하면 idle로 내려가고, 큐의 요청이 그다음 경계에서 부여된다
-  await t.boundary(thread).turnSettled();
+  // 단계가 끝나는 경계에서 스택 전체를 revoked로 내리고 새 주도를 부여한다
+  unblock.resolve();
   await t.settled();
-  expect(releasedOf(t, thread)).toMatchObject([{ scopeId: "frame-a", reason: "idle" }]);
+  expect(releasedOf(t, thread)).toMatchObject([{ scopeId: "frame-a", reason: "revoked" }]);
   expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
-  expect(calls).toContain("b");
+  expect(calls).toEqual(["a", "b"]);
 });
 
 test("an enabled drive with no start request takes no frame", async () => {
@@ -280,35 +283,63 @@ test("after a restart the same question waits on its pending approval and opens 
 
 test("a user stop revokes every frame and empties the start queue, and a later user start works again", async () => {
   const t = await createTestHost();
+  // frame-a가 frame-b에게 맡기고, frame-b가 도는 동안(실행 중) 사용자 명령 frame-c를 큐에 넣은 뒤 중지한다
+  const started = Promise.withResolvers<void>();
+  const unblock = Promise.withResolvers<void>();
   await t.host.install(
     makeGroupUnit({ name: "frame-a" }, (g) => {
-      g.drive(() => Promise.resolve(yieldCommand()));
+      g.drive(({ last }) =>
+        Promise.resolve(
+          last === null ? { do: "handoff", to: "frame-b", input: "go" } : yieldCommand(),
+        ),
+      );
     }),
   );
   await t.host.install(
     makeGroupUnit({ name: "frame-b" }, (g) => {
+      g.drive(async () => {
+        started.resolve();
+        await unblock.promise;
+        return yieldCommand();
+      });
+    }),
+  );
+  await t.host.install(
+    makeGroupUnit({ name: "frame-c" }, (g) => {
       g.drive(() => Promise.resolve(yieldCommand()));
     }),
   );
   const thread = t.newThread();
   await t.host.openThread(thread);
   expect(t.host.startDrive(thread, "frame-a").ok).toBe(true);
-  await t.settled();
-  // 보유 중에 다음 요청을 큐에 넣는다
-  expect(t.host.startDrive(thread, "frame-b").ok).toBe(true);
-  await t.settled();
+  await started.promise;
+  expect(t.host.driveFrames(thread).map((frame) => frame.state)).toEqual([
+    "driving",
+    "waiting",
+    "driving",
+  ]);
+  // 보유 중에 다음 사용자 명령을 큐에 넣는다
+  expect(t.host.startDrive(thread, "frame-c").ok).toBe(true);
 
   await t.boundary(thread).turnSettled({ userInterrupted: true });
+  unblock.resolve();
   await t.settled();
-  expect(releasedOf(t, thread)).toMatchObject([{ scopeId: "frame-a", reason: "revoked" }]);
-  // 큐가 비어 있으므로 frame-b는 부여되지 않는다
-  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a"]);
+  // 스택의 모든 프레임이 맨 위부터 revoked로 내려간다. 큐가 비어 있으므로 frame-c는 부여되지 않는다
+  expect(releasedOf(t, thread)).toMatchObject([
+    { scopeId: "frame-b", reason: "revoked" },
+    { scopeId: "frame-a", reason: "revoked" },
+  ]);
+  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
   expect(t.host.driveFrames(thread)).toHaveLength(1);
 
   // 사용자의 다음 명령은 다시 주도를 시작한다
-  expect(t.host.startDrive(thread, "frame-b").ok).toBe(true);
+  expect(t.host.startDrive(thread, "frame-c").ok).toBe(true);
   await t.settled();
-  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
+  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual([
+    "frame-a",
+    "frame-b",
+    "frame-c",
+  ]);
 });
 
 test("a profile start on a new conversation grants once, and reopening with the lease open grants nothing more", async () => {

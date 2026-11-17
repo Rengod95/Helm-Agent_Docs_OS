@@ -306,10 +306,10 @@ test("two yields in a row at the same state rev give the lease back as idle", as
   expect(t.loop.turns).toHaveLength(0);
 });
 
+// `handoff`는 3b에서 구현됐다(handoff-stack.test.ts). 아직 없는 명령만 거부 결과를 받는다
 const unavailable: readonly [string, DriveCommand<Counter>][] = [
   ["model", MODEL],
   ["tool", { do: "tool", name: "read", args: { path: "a" } }],
-  ["handoff", { do: "handoff", to: "other", input: "x" }],
 ];
 
 for (const [label, command] of unavailable) {

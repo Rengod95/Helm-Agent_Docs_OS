@@ -57,7 +57,7 @@ export interface PrimitivesSettingsSource {
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
   /**
    * x.primitives.driveMaxDepth [결정: 2026-11-17 사용자]. 주도권 스택의 깊이 상한(코어 위 프레임 수). 넘는 맡기기는 `depth_limit`으로 거부한다.
-   * 3a에서는 값을 정의만 하고 소비는 맡기기(3b)가 한다. 없으면 `DEFAULT_DRIVE_MAX_DEPTH`
+   * 맡기기(`handoff`)가 새 프레임 깊이의 상한으로 쓴다. 없으면 `DEFAULT_DRIVE_MAX_DEPTH`
    */
   driveMaxDepth(threadId: ThreadId): number;
 }
@@ -181,7 +181,7 @@ export type ReleaseReason = LeaseReleasedPayload["reason"];
 export interface LeaseRuntime {
   /** 부여마다 새로 발급한다. 펜싱(`lease_revoked`)과 `lease:<leaseId>:released` 커밋 키의 재료라 재사용하지 않는다 */
   readonly leaseId: string;
-  /** 기본 키 계통. 3a에서는 `leaseId`와 같다. 맡기기(3b)가 같은 계통을 이어받을 때 쓴다 */
+  /** 기본 키 계통. 부여마다 `leaseId`와 같은 값으로 새로 연다. 재시작 뒤에는 기록의 값을 그대로 쓴다 */
   readonly lineageId: string;
   readonly scopeId: RegistrationId;
   readonly threadId: ThreadId;
@@ -199,7 +199,7 @@ export interface LeaseRuntime {
   readonly depth: number;
   /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
   readonly contentHash: string | null;
-  /** driving: 주도 중(맨 위). waiting: 위 프레임을 기다리는 중(맡기기, 3b) */
+  /** driving: 주도 중(맨 위). waiting: 맡긴 위 프레임을 기다리는 중이다. 기다리는 프레임은 단계 함수를 부르지 않는다 */
   state: "driving" | "waiting";
   /** 질문 대기 중이다. 임대는 반납하지 않으므로 상태만 바뀐다(drive-isolation.md 2.1) */
   asking: boolean;
@@ -282,6 +282,11 @@ export interface BoundaryTxn {
   grant: LeaseRuntime | null;
   /** `grant`를 만든 시작 요청. 커밋이 성공하면 큐에서 지운다 */
   startRequest: StartRequest | null;
+  /**
+   * 대상을 쓸 수 없어 버릴 맡기기 요청. 커밋이 성공하면 큐에서 지우고 맡긴 프레임을 `aborted`로 이어 준다.
+   * 커밋이 실패하면 아무것도 바뀌지 않아 다음 경계가 다시 판단한다
+   */
+  abandoning: StartRequest | null;
 }
 
 /** `ExtHost.openThread`의 선택 인자 */
