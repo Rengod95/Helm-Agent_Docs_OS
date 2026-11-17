@@ -73,7 +73,7 @@ import type {
 } from "@fresnel/cap-schedule";
 import type { ModelsExtensionOptions } from "@fresnel/core-models";
 import type { SecretKeys, SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secrets";
-import type { BuiltinExtensionModule, LoadReport } from "@fresnel/ext-host";
+import type { BuiltinExtensionModule, LoadReport, PluginHostSupervisor } from "@fresnel/ext-host";
 import type { IsolationSandboxSource } from "@fresnel/platform-process";
 import type { BinaryCheckReport, NotifierProvider } from "@fresnel/platform-os";
 import type { SelfRunTarget } from "./self-command.ts";
@@ -141,6 +141,8 @@ export interface AssembleOptions {
     readonly self?: SelfRunTarget;
     readonly sandbox?: () => IsolationSandboxSource | undefined;
     readonly onLoadReport?: (report: LoadReport) => void;
+    /** 세션(감독)을 열 때마다 부른다. 시험이 격리 프로세스의 상태(프로세스 번호)와 요청을 읽는다 */
+    readonly onSupervisor?: (name: string, supervisor: PluginHostSupervisor) => void;
     /**
      * true면 격리 포트와 격리 설정을 로더에 넘기지 않는다. 사용자·프로젝트 확장은 포트가 없으므로 엔진 안에서 돈다(X.loading-trust §4.9.0).
      * 격리를 보지 않는 시험이 엔진 안의 동작을 그대로 보게 하는 용도다. 운영은 생략한다
@@ -387,7 +389,14 @@ export interface ThreadPort {
     readonly testRun?: boolean;
     /** 대화가 참조할 프로필 id(`thread.started.profileId`). 없으면 `default`다 */
     readonly profileId?: string;
+    /**
+     * 작업 폴더가 없을 때 기본 폴더 아래 `<threadId>` 폴더를 만들어 쓴다(review m5 §4.4.5). `thread.create`만 켠다.
+     * 다른 생성 경로(예약, 제작)는 작업 폴더 없이 두는 지금 동작을 그대로 쓴다
+     */
+    readonly defaultFolder?: boolean;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
+  /** 대화의 정규 작업 폴더(없으면 null). 모르는 대화는 `thread_not_found`가 아니라 읽기 실패로 준다 */
+  workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   /**

@@ -42,7 +42,13 @@ const toolCall = {
 export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
   "input.user.before": { text: "hi", source: "interactive" },
   "input.bash.before": { command: "ls", excludeFromContext: false, cwd: "/work" },
-  "input.agent.before": { prompt: "hi", systemPrompt: "sys", systemPromptOptions: {} },
+  "input.agent.before": {
+    prompt: "hi",
+    systemPrompt: "sys",
+    systemPromptOptions: {},
+    driver: "helm",
+    stack: ["helm"],
+  },
   "request.context.before": { messages: [userText] },
   "request.system.before": { messages: [userText] },
   "request.cache.before": {

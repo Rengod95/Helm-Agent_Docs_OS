@@ -1356,6 +1356,7 @@ export const KnowledgeSkills: CapabilityDef<
         readOnly: true,
       },
       create: {
+        risk: "write",
         description: "Creates a new skill.",
         input: SkillCreateInputSchema,
         output: WriteOutcomeSchema,
@@ -1364,6 +1365,7 @@ export const KnowledgeSkills: CapabilityDef<
         errors: SKILL_WRITE_ERRORS,
       },
       edit: {
+        risk: "write",
         description: "Replaces the description or the whole body.",
         input: SkillEditInputSchema,
         output: WriteOutcomeSchema,
@@ -1372,6 +1374,7 @@ export const KnowledgeSkills: CapabilityDef<
         errors: SKILL_WRITE_ERRORS,
       },
       patch: {
+        risk: "write",
         description: "Applies an exact-match replacement to the body or a supporting file.",
         input: SkillPatchInputSchema,
         output: WriteOutcomeSchema,
@@ -1380,6 +1383,7 @@ export const KnowledgeSkills: CapabilityDef<
         errors: SKILL_WRITE_ERRORS,
       },
       writeFile: {
+        risk: "write",
         description: "Writes one supporting file.",
         input: SkillWriteFileInputSchema,
         output: WriteOutcomeSchema,
@@ -1388,6 +1392,7 @@ export const KnowledgeSkills: CapabilityDef<
         errors: SKILL_WRITE_ERRORS,
       },
       remove: {
+        risk: "write",
         description: "Moves a skill or supporting file to the archive, or deletes it.",
         input: SkillRemoveInputSchema,
         output: WriteOutcomeSchema,
@@ -1405,6 +1410,7 @@ export const KnowledgeSkills: CapabilityDef<
         errors: SKILL_WRITE_ERRORS,
       },
       reindex: {
+        risk: "write",
         description:
           "Rescans the skill root and reconciles the index with the files. External edits are recorded in the ledger as external.",
         input: SkillReindexInputSchema,
@@ -1470,6 +1476,7 @@ export const KnowledgeMemory: CapabilityDef<
         readOnly: true,
       },
       add: {
+        risk: "write",
         description: "Adds one entry.",
         input: MemoryAddInputSchema,
         output: MemoryWriteOutputSchema,
@@ -1478,6 +1485,7 @@ export const KnowledgeMemory: CapabilityDef<
         errors: MEMORY_WRITE_ERRORS,
       },
       replace: {
+        risk: "write",
         description: "Replaces one entry.",
         input: MemoryReplaceInputSchema,
         output: MemoryWriteOutputSchema,
@@ -1486,6 +1494,7 @@ export const KnowledgeMemory: CapabilityDef<
         errors: MEMORY_WRITE_ERRORS,
       },
       remove: {
+        risk: "write",
         description: "Removes one entry.",
         input: MemoryRemoveInputSchema,
         output: MemoryWriteOutputSchema,
@@ -1647,6 +1656,7 @@ export const KnowledgeLedger: CapabilityDef<LedgerMethods, readonly []> = define
         readOnly: true,
       },
       rollback: {
+        risk: "write",
         description: "Reverts one ledger entry. The revert is also recorded in the ledger.",
         input: LedgerRollbackInputSchema,
         output: WriteOutcomeSchema,
@@ -1683,6 +1693,7 @@ export const KnowledgeLedger: CapabilityDef<LedgerMethods, readonly []> = define
         readOnly: true,
       },
       decide: {
+        risk: "write",
         description:
           "Approves or rejects one proposal. On approval, it is applied through the write path.",
         input: DecideInputSchema,

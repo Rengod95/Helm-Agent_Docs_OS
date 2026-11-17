@@ -37,7 +37,8 @@ import { BlobRefSchema } from "../blob.ts";
  * `origin.caller`가 따라야 하는 형식. 값을 만드는 함수는 `approvalCallerOf`(`services/approvals.ts`)이고 타입은 `ApprovalCaller`다.
  * records는 services보다 낮아 그 타입을 import하지 못하므로 형식만 여기에 두고 services가 이 상수를 쓴다.
  */
-export const APPROVAL_CALLER_PATTERN: string = "^(main|background|host|subagent:.+|ext:.+)$";
+export const APPROVAL_CALLER_PATTERN: string =
+  "^(main|background|host|subagent:.+|ext:.+|plugin:[a-z][a-z0-9-]{1,31})$";
 
 export const ApprovalOriginJsonSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
@@ -52,7 +53,7 @@ export const ApprovalOriginJsonSchema: TObject<{
     turnId: Nullable(TurnIdSchema),
     stepId: Nullable(StepIdSchema),
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
-    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름> */
+    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름>, 플러그인 기능 호출은 plugin:<이름> */
     caller: Type.String({ minLength: 1, maxLength: 128, pattern: APPROVAL_CALLER_PATTERN }),
     /** 하위 대화를 띄운 그룹의 출처(`RunSource`). 선택이라 옛 기록에는 없다 */
     source: Type.Optional(
@@ -217,6 +218,7 @@ const ReviewApprovalDetail: TObject<{
   title: TString;
   round: TInteger;
   files: TArray<typeof ReviewFileSummary>;
+  writes: TOptional<TArray<TString>>;
 }> = Type.Object(
   {
     reviewId: Type.String({ pattern: REVIEW_ID_PATTERN }),
@@ -226,6 +228,13 @@ const ReviewApprovalDetail: TObject<{
     /** 이 요청이 묻는 라운드. 열 때 1 */
     round: Type.Integer({ minimum: 1 }),
     files: Type.Array(ReviewFileSummary, { maxItems: 256 }),
+    /**
+     * 사용자가 hunk를 거절하면 검토가 작업 공간에 하는 되돌림 쓰기의 해시 목록 [제안: U-11].
+     * 해시는 쓰기 호출 입력(`{ path, edits }`)의 정규 JSON sha256 hex다. 이 카드에 사람이 답하면 엔진이 이 목록에 든 쓰기에만 새 승인 카드를 건너뛴다
+     */
+    writes: Type.Optional(
+      Type.Array(Type.String({ pattern: "^[0-9a-f]{64}$" }), { maxItems: 4096 }),
+    ),
   },
   { additionalProperties: false },
 );

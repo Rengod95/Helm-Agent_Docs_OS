@@ -7,8 +7,8 @@ import { Type } from "typebox";
 
 /**
  * l3.group-sdk.* 설정 키(L3.group-sdk.spec §6). 키는 둘뿐이다.
- * 구동 그룹 선택은 X 키 `x.primitives.activeDriver`을 읽고(review.decisions-2 S-15), 그룹 켜기는 X 예약 키
- * `ext.<이름>.enabled`라서 여기에 정의하지 않는다.
+ * 그룹 켜기는 X 예약 키 `ext.<이름>.enabled`라서 여기에 정의하지 않는다. 구동 그룹 선택 키 `x.primitives.activeDriver`는
+ * E3에서 없앴다(drive-isolation.md 2.2). 주도 시작은 명령과 프로필이 한다.
  */
 export const groupSdkSettings: SettingGroup<
   "l3.group-sdk",
@@ -38,7 +38,7 @@ export const groupSdkSettings: SettingGroup<
       widget: "toggle",
       order: 201,
       label: "Show groups in status line",
-      help: "Shows the enabled groups and the active driver group in the status line.",
+      help: "Shows the enabled groups and the group that holds the drive in the status line.",
     },
     since: "0.1.0",
   },

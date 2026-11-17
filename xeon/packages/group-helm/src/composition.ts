@@ -50,7 +50,8 @@ export const helmComposition: CompositionDecl = {
       stage: "signal",
       op: "on",
       title: "신호 판정",
-      summary: "turn이 정착할 때 신호를 기록하고 제안 알림이나 탐구 요청을 만든다",
+      summary:
+        "turn이 정착할 때 신호를 기록하고 제안 알림이나 대기 요청을 만든다. 시작은 /helm start가 한다",
       hooks: ["boundary.settle.after"],
       produces: [
         { kind: "record", recordKind: "grp.helm.signal.detected" },
@@ -68,20 +69,12 @@ export const helmComposition: CompositionDecl = {
       produces: [{ kind: "record", recordKind: "grp.helm.inquiry.finished" }, { kind: "state" }],
     },
     {
-      id: "lease-rejected",
-      stage: "lease",
-      op: "on",
-      title: "임대 거부",
-      summary: "이 그룹의 임대 요청이 거부되면 대기 요청을 지우고 알린다",
-      hooks: ["lifecycle.lease.rejected"],
-      produces: [{ kind: "post" }, { kind: "state" }],
-    },
-    {
       id: "command",
       stage: "command",
       op: "register",
       title: "/helm 명령",
-      summary: "start, stop, status 하위 명령. 결과는 알림으로 남긴다",
+      summary:
+        "start, stop, status 하위 명령. start는 대기 요청을 쓰고 주도 시작 요청을 낸다. 결과는 명령 결과 글이다",
       produces: [{ kind: "post" }, { kind: "state" }],
     },
     {

@@ -40,8 +40,6 @@ function mark(group: GroupStatus): string {
       return "[대기]";
     case "error":
       return "[오류]";
-    case "rejected":
-      return "[거부]";
     case "none":
       return "";
     default:

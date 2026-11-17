@@ -1,6 +1,7 @@
 // 플러그인 호스트가 엔진에 거는 호출(`engine.call`, isolation-protocol.ts)을 엔진의 실제 등록 API로 옮긴다.
 // 호출자 신원 `plugin:<이름>`은 연결을 연 쪽이 붙였고, 여기서는 params를 검증한 뒤 `g`의 메서드를 부른다.
 // 던진 오류는 `engine_call_failed` 값으로 바꾼다. 돌려주는 값은 모두 JSON이다. 돌려 보기 문맥에서는 쓰기를 버린다.
+import { isDeepStrictEqual } from "node:util";
 import { Type } from "typebox";
 import {
   assertNever,
@@ -12,6 +13,8 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import {
+  CapabilityErrorDataSchema,
+  type CapabilityErrorData,
   FileChangeEntrySchema,
   isCapabilityId,
   isCapabilityError,
@@ -31,8 +34,10 @@ import {
   RecordKindSchema,
   RecordSubjectSchema,
   type EngineCallParams,
+  isErrorDetailWithinLimit,
   type PluginEngineCallName,
   type PluginHostError,
+  type PluginHostErrorOrigin,
   type RecordQuery,
   type RegistrationApi,
   type ReportedFileChange,
@@ -70,7 +75,10 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("post"),
     Type.Literal("capability"),
     Type.Literal("requestEffect"),
+    Type.Literal("startDrive"),
     Type.Literal("reportChanges"),
+    Type.Literal("updateState"),
+    Type.Literal("awaitUser"),
   ]),
   registration: Type.String({ minLength: 1 }),
   requestId: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
@@ -86,6 +94,20 @@ const RecordSchema = Type.Object({
 const CommitWithSchema = Type.Object({
   next: JsonValueSchema,
   records: Type.Array(RecordSchema),
+});
+
+const UpdateStateSchema = Type.Object({
+  prev: JsonValueSchema,
+  next: JsonValueSchema,
+  records: Type.Array(RecordSchema),
+});
+
+const AwaitUserSchema = Type.Object({
+  phase: Type.Union([Type.Literal("begin"), Type.Literal("end")]),
+});
+
+const StartDriveSchema = Type.Object({
+  input: Type.Union([JsonValueSchema, Type.Null()]),
 });
 
 const RecordPrivateSchema = Type.Object({
@@ -158,6 +180,26 @@ export interface EngineCallRouterDeps {
   readonly ambientOf?: (requestId: number | null) => Ambient | undefined;
   /** 호출을 낳은 도구 실행의 `ctx.changes`. 도구 실행 밖이거나 코어가 주지 않았으면 undefined다 */
   readonly changesOf?: (requestId: number | null) => ToolChangeReport | undefined;
+  /**
+   * 호출을 낳은 요청의 열린 사용자 대기 수. `awaitUser`의 `begin`마다 하나 늘고 `end`마다 하나 준다.
+   * 대리 등록이 요청이 끝날 때 남은 만큼 시간 예산 시계를 푼다(끝 신호 없이 죽은 자식의 대기가 시계를 영원히 멈추지 않게)
+   */
+  readonly waitsOf?: (requestId: number | null) => OpenWaits | undefined;
+}
+
+/** 요청 하나의 열린 사용자 대기 수. 라우터가 셈하고 대리 등록이 읽는다 */
+export interface OpenWaits {
+  count: number;
+  /** 요청의 시간 한도 시계(단계 함수 등). 있으면 사용자 대기 동안 멈춘다. 대리 등록이 요청을 보낼 때 채운다 */
+  clock?: { pause(): void; resume(): void };
+}
+
+/** 한 `engine.call`이 쓰는 호출 문맥. 요청에서 온 것이고 없으면 undefined다 */
+interface RouteContext {
+  readonly replay: boolean;
+  readonly changes: ToolChangeReport | undefined;
+  readonly ambient: Ambient | undefined;
+  readonly waits: OpenWaits | undefined;
 }
 
 /** `engine.call` 하나를 처리한다. 값은 응답의 `result`이고 오류는 응답의 `error`다 */
@@ -203,7 +245,29 @@ function invalidParams(error: ParseError): Result<never, PluginHostError> {
   return err({ kind: "invalid_params", message: describeParse(error) });
 }
 
-/** 던진 값을 `engine_call_failed`로 옮긴다. 엔진의 오류 코드와 메시지를 싣는다 */
+/** 기능 오류의 데이터를 프로토콜 모양으로 옮긴다. 메시지는 상한으로 자르고 detail이 상한을 넘으면 뺀다. JSON이 아니면 undefined */
+function capabilityOriginOf(data: CapabilityErrorData): PluginHostErrorOrigin | undefined {
+  const { detail, ...rest } = data;
+  const fitted = detail === undefined || isErrorDetailWithinLimit(detail) ? data : rest;
+  const json = toJsonValue({ ...fitted, message: data.message.slice(0, MESSAGE_MAX) });
+  if (json === undefined) return undefined;
+  const checked = parse(CapabilityErrorDataSchema, json);
+  return checked.ok ? { kind: "capability", data: checked.value } : undefined;
+}
+
+/** 던진 값의 원래 종류. 기능 오류는 데이터를, 확장 오류는 코드와 등록 id를 싣는다. 다른 오류는 싣지 않는다 */
+function originOf(cause: unknown): PluginHostErrorOrigin | undefined {
+  if (cause instanceof PrimitiveError) {
+    return {
+      kind: "primitive",
+      code: cause.code,
+      ...(cause.scopeId === undefined ? {} : { scopeId: cause.scopeId }),
+    };
+  }
+  return isCapabilityError(cause) ? capabilityOriginOf(cause.data) : undefined;
+}
+
+/** 던진 값을 `engine_call_failed`로 옮긴다. 엔진의 오류 코드와 메시지를 싣고, 원래 종류가 있으면 `origin`도 싣는다 */
 function failureOf(cause: unknown): PluginHostError {
   const text =
     cause instanceof PrimitiveError
@@ -211,7 +275,12 @@ function failureOf(cause: unknown): PluginHostError {
       : isCapabilityError(cause)
         ? `${cause.data.code}: ${cause.message}`
         : messageOf(cause);
-  return { kind: "engine_call_failed", message: text.slice(0, MESSAGE_MAX) };
+  const origin = originOf(cause);
+  return {
+    kind: "engine_call_failed",
+    message: text.slice(0, MESSAGE_MAX),
+    ...(origin === undefined ? {} : { origin }),
+  };
 }
 
 /** 엔진의 돌려줄 값을 JSON으로 바꾼다. 없으면(undefined) null이고, JSON이 아니면 실패다 */
@@ -227,9 +296,9 @@ async function route(
   g: RegistrationApi<AnyState>,
   method: PluginEngineCallName,
   params: JsonValue,
-  replay: boolean,
-  changes: ToolChangeReport | undefined,
+  context: RouteContext,
 ): Promise<Result<JsonValue, PluginHostError>> {
+  const { replay, changes, ambient, waits } = context;
   switch (method) {
     case "commit": {
       // 돌려 보기에서는 쓰지 않고, 보낸 상태를 그대로 성공으로 돌려준다(호출하는 쪽이 스키마를 검사한다)
@@ -329,6 +398,65 @@ async function route(
       if (!replay) changes.report(reportedOf(parsed.value.entries));
       return ok(null);
     }
+    case "updateState": {
+      const parsed = parse(UpdateStateSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      const { prev, next, records } = parsed.value;
+      // 돌려 보기에서는 쓰지 않고, 보낸 문서를 커밋한 것으로 답한다(호스트는 함수를 다시 돌리지 않는다)
+      if (replay) return ok({ kind: "committed", state: next });
+      // 함수는 호스트가 돌렸다. 엔진은 줄 안에서 현재 문서가 `prev`와 같을 때만 커밋한다. 줄은 `updateState`가 세운다
+      const done = await hostOf(g).updateState(
+        (current) => {
+          if (!isDeepStrictEqual(toJsonValue(current), prev)) {
+            throw new PrimitiveError(
+              "state_conflict",
+              `state of ${g.id} changed before the update`,
+              { scopeId: g.id },
+            );
+          }
+          return stateAs(next);
+        },
+        () => records,
+      );
+      if (done.ok) {
+        const committed = jsonReply(done.value, "the committed state");
+        return committed.ok ? ok({ kind: "committed", state: committed.value }) : committed;
+      }
+      const failure = done.error.kind;
+      if (failure === "state_conflict") {
+        // 줄 안에서 본 현재 문서를 돌려준다. 호스트가 이것으로 한 번 더 한다
+        const current = jsonReply(g.state(), "the current state");
+        return current.ok ? ok({ kind: "conflict", current: current.value }) : current;
+      }
+      return ok({ kind: "failed", failure });
+    }
+    case "startDrive": {
+      const parsed = parse(StartDriveSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      // 돌려 보기에서는 시작 요청을 내지 않고 성공으로 답한다(호스트가 다시 큐에 넣지 않게)
+      if (replay) return ok({ ok: true });
+      // 문맥(thread)은 `withAmbient`가 낸 호출 요청의 것이다. 문맥이 없으면 `no_context` 값이 돌아온다
+      const started = await hostOf(g).startDrive(parsed.value.input ?? undefined);
+      return ok(started.ok ? { ok: true } : { ok: false, error: { kind: started.error.kind } });
+    }
+    case "awaitUser": {
+      const parsed = parse(AwaitUserSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      // 핸들러의 예산 시계와 요청의 시간 한도 시계(단계 함수)를 멈춘다. 둘 다 없으면(도구, 명령) 멈출 시계가 없다
+      const gate = ambient?.handler?.gate;
+      const clock = waits?.clock;
+      if (waits === undefined || (gate === undefined && clock === undefined)) return ok(null);
+      if (parsed.value.phase === "begin") {
+        gate?.pause();
+        clock?.pause();
+        waits.count += 1;
+      } else if (waits.count > 0) {
+        gate?.resume();
+        clock?.resume();
+        waits.count -= 1;
+      }
+      return ok(null);
+    }
     default:
       return assertNever(method, "PluginEngineCallName");
   }
@@ -343,11 +471,16 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
     }
     const replay = deps.replayOf(params.requestId);
     const amb = deps.ambientOf?.(params.requestId);
-    const changes = deps.changesOf?.(params.requestId);
+    const context: RouteContext = {
+      replay,
+      changes: deps.changesOf?.(params.requestId),
+      ambient: amb,
+      waits: deps.waitsOf?.(params.requestId),
+    };
     const routed = await attemptAsync(() =>
       amb === undefined
-        ? route(g, params.method, params.params, replay, changes)
-        : withAmbient(amb, () => route(g, params.method, params.params, replay, changes)),
+        ? route(g, params.method, params.params, context)
+        : withAmbient(amb, () => route(g, params.method, params.params, context)),
     );
     if (!routed.ok) return err(failureOf(routed.error.cause));
     return routed.value;

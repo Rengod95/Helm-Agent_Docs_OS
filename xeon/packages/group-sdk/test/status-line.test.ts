@@ -43,7 +43,7 @@ test("status-line.examples", () => {
   expect(formatGroupStatusLine([helm({ drive: "error" }), group("learning")])).toBe(
     "그룹 helm[오류] learning",
   );
-  // 5. activeDriver=review인데 review가 꺼짐
+  // 5. 맡긴 그룹(waiting)과 꺼진 drive 그룹이 함께 있다
   expect(
     formatGroupStatusLine([
       helm({ drive: "waiting" }),
@@ -51,12 +51,6 @@ test("status-line.examples", () => {
       group("review", { scope: "disabled", usesDrive: true }),
     ]),
   ).toBe("그룹 helm[대기] learning");
-});
-
-test("status-line.rejected-lease-request", () => {
-  expect(
-    formatGroupStatusLine([helm(), group("review", { usesDrive: true, drive: "rejected" })]),
-  ).toBe("그룹 helm[구동] review[거부]");
 });
 
 test("status-line.pending-enable-and-empty-and-switch", () => {

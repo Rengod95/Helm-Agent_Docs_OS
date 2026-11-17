@@ -6,7 +6,7 @@ import type {
   DialogStatus,
   NoticeFeed,
 } from "@fresnel/contracts/capabilities";
-import { createAskService } from "./ask/service.ts";
+import { createAskService } from "@fresnel/core-tools";
 import { createAttachmentsApi } from "./attachments/service.ts";
 import {
   createCommandsService,

@@ -3,27 +3,6 @@ import type { HookName, RegistrationId, RegistrationStatus } from "@fresnel/cont
 import { sortEntries } from "./dispatch.ts";
 import { hostInternalsOf, type ExtHost } from "./host.ts";
 import type { HandlerEntry } from "./registry.ts";
-import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
-
-/** 임대를 받지 못하고 기다리는 후보 하나(`group.driveLock`의 candidates) */
-export interface DriveLockCandidate {
-  readonly registrationId: RegistrationId;
-  /** 넘긴 `turn_settled`·`idle` 경계 수 */
-  readonly waits: number;
-  /** `x.primitives.leaseWaitLimit`. 넘으면 거부된다 */
-  readonly waitLimit: number;
-}
-
-/** thread 하나의 drive lock 읽기. 열린 thread만 있다 */
-export interface DriveLockView {
-  /** 임대를 가진 Registration id. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니라서 null */
-  readonly holder: RegistrationId | null;
-  readonly leaseEpoch: number;
-  /** 임대가 정한 상한. 없는 필드는 상한 없음 */
-  readonly limits: { readonly turns?: number; readonly spawns?: number; readonly tokens?: number };
-  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
-  readonly candidates: readonly DriveLockCandidate[];
-}
 
 /** 호스트 핸들러 레지스트리의 행 하나. 같은 훅 안의 순서는 디스패치 순서다(기본 정렬 뒤 순서 덮어쓰기를 적용한다) */
 export interface HookHandlerView {
@@ -43,15 +22,13 @@ export interface BoundCapabilityView {
   readonly version: string;
 }
 
-/** 조립 루트가 wire 확장 읽기(`ext.list`, `group.driveLock`)에 쓰는 읽기 전용 조회 */
+/** 조립 루트가 wire 확장 읽기(`ext.list`)에 쓰는 읽기 전용 조회. 주도권 스택 읽기는 `ExtHost.driveFrames`다 */
 export interface ExtReadView {
   /**
    * 그 thread에서의 Registration 상태. thread가 열려 있지 않거나 모르는 Registration이면 undefined.
    * 켜져 있고 요청도 켜짐이면 enabled, 꺼져 있고 요청도 꺼짐이면 disabled, 둘이 다르면 enabling·disabling이다
    */
   threadStatus(threadId: ThreadId, scopeId: RegistrationId): RegistrationStatus | undefined;
-  /** thread의 drive lock. thread가 열려 있지 않으면 undefined */
-  driveLock(threadId: ThreadId): DriveLockView | undefined;
   /**
    * 레지스트리에 실제로 등록된 핸들러 전부를, 훅별로 모아 디스패치 순서로 돌려준다.
    * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다.
@@ -104,29 +81,6 @@ export function extReadViewOf(host: ExtHost): ExtReadView {
       const wanted = thread.want.get(scopeId)?.enabled ?? record.desired;
       if (running) return wanted ? "enabled" : "disabling";
       return wanted ? "enabling" : "disabled";
-    },
-    driveLock(threadId) {
-      const { core } = hostInternalsOf(host);
-      const thread = core.threads.get(threadId);
-      if (thread === undefined) return undefined;
-      const lease = thread.lease;
-      const held = lease !== null && lease.status !== "released" && lease.committed ? lease : null;
-      const limit = core.deps.settings.leaseWaitLimit?.(threadId) ?? DEFAULT_LEASE_WAIT_LIMIT;
-      return {
-        holder: held === null ? null : held.scopeId,
-        leaseEpoch: held === null ? 0 : held.leaseEpoch,
-        limits: {
-          ...(held?.limits.maxTurns === undefined ? {} : { turns: held.limits.maxTurns }),
-          ...(held?.limits.maxSpawns === undefined ? {} : { spawns: held.limits.maxSpawns }),
-          ...(held?.limits.maxTokens === undefined ? {} : { tokens: held.limits.maxTokens }),
-        },
-        used: held === null ? { turns: 0, spawns: 0, tokens: 0 } : { ...held.used },
-        candidates: [...thread.leaseWait.entries()].map(([registrationId, wait]) => ({
-          registrationId,
-          waits: wait.waited,
-          waitLimit: limit,
-        })),
-      };
     },
   };
 }

@@ -61,6 +61,10 @@ interface ActiveCall {
   readonly run: ToolRunContext;
   /** 커밋된 effect.intent. 도구 실행 안에서 일어난 요청(질문, 계획)이면 있고, 정책 승인(실행 전)이면 없다 */
   readonly effectId: EffectId | null;
+  /**
+   * 턴 없이 도는 호출(사용자 셸, 플러그인 기능 호출)이면 참이다. 턴이 없으므로 대기 체크포인트를 만들지 않는다(재개할 단계가 없다)
+   */
+  readonly turnless?: true;
 }
 
 export interface ApprovalDeps {
@@ -679,6 +683,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     // 자식 대화는 재개 때 마지막 단계 체크포인트에서 도구 단계로 들어가 같은 requestKey로 요청하면 기록된 요청을 이어 받는다
     if (
       call !== undefined &&
+      call.turnless !== true &&
       input.origin.toolCallId !== null &&
       immediate === undefined &&
       sameThread

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { repeatAsync } from "@fresnel/contracts";
-import { PLUGIN_HOST_MAX_FRAME_BYTES } from "@fresnel/contracts/extensions";
+import {
+  PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES,
+  PLUGIN_HOST_MAX_FRAME_BYTES,
+} from "@fresnel/contracts/extensions";
 import {
   createFrameReader,
   createFrameWriter,
@@ -75,6 +78,106 @@ describe("createFrameReader", () => {
     input.end();
     expect(await readAllFrom(reader)).toEqual([
       { kind: "request", id: 4, method: "scope.dispose" },
+    ]);
+  });
+});
+
+/** 읽기 결과의 값을 그대로 모은다. 값 오류는 종류만 남긴다 */
+async function valuesFrom(reader: FrameReader): Promise<unknown[]> {
+  const seen: unknown[] = [];
+  await repeatAsync<void>(async () => {
+    const item = await reader.next();
+    if (item === null) return { value: undefined };
+    seen.push(item.ok ? item.value : { error: item.error.kind });
+    return undefined;
+  });
+  return seen;
+}
+
+/** 오류 응답 한 줄. origin만 다르게 해 시험한다 */
+function errorFrame(id: number, origin: object): string {
+  return `${JSON.stringify({ id, error: { kind: "engine_call_failed", message: "m", origin } })}\n`;
+}
+
+describe("error origin in a frame", () => {
+  const capabilityData = {
+    capability: "demo.echo",
+    method: "echo",
+    code: "unavailable",
+    message: "every provider failed",
+    retryable: true,
+  };
+
+  test("an error frame with a primitive or a capability origin is read with that origin", async () => {
+    const input = memoryInput();
+    const reader = createFrameReader(input);
+    input.push(
+      `${JSON.stringify({
+        id: 3,
+        error: {
+          kind: "engine_call_failed",
+          message: "state_conflict: x",
+          origin: { kind: "primitive", code: "state_conflict", scopeId: "demo" },
+        },
+      })}\n`,
+    );
+    input.push(
+      `${JSON.stringify({
+        id: 4,
+        error: {
+          kind: "engine_call_failed",
+          message: "unavailable: y",
+          origin: { kind: "capability", data: capabilityData },
+        },
+      })}\n`,
+    );
+    input.end();
+    expect(await valuesFrom(reader)).toEqual([
+      {
+        kind: "failure",
+        id: 3,
+        error: {
+          kind: "engine_call_failed",
+          message: "state_conflict: x",
+          origin: { kind: "primitive", code: "state_conflict", scopeId: "demo" },
+        },
+      },
+      {
+        kind: "failure",
+        id: 4,
+        error: {
+          kind: "engine_call_failed",
+          message: "unavailable: y",
+          origin: { kind: "capability", data: capabilityData },
+        },
+      },
+    ]);
+  });
+
+  test("an origin of the wrong shape, or a detail over the limit, makes the frame invalid_frame and reading continues", async () => {
+    const input = memoryInput();
+    const reader = createFrameReader(input);
+    input.push(errorFrame(5, { kind: "primitive", code: "Not A Code" }));
+    input.push(errorFrame(6, { kind: "other", code: "state_conflict" }));
+    input.push(errorFrame(7, { kind: "primitive", code: "state_conflict", extra: true }));
+    input.push(errorFrame(8, { kind: "capability", data: { capability: "demo.echo" } }));
+    input.push(
+      errorFrame(9, {
+        kind: "capability",
+        data: { ...capabilityData, detail: "x".repeat(PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES) },
+      }),
+    );
+    input.push(
+      errorFrame(10, { kind: "capability", data: { ...capabilityData, detail: { tried: 2 } } }),
+    );
+    input.end();
+    expect(await readAllFrom(reader)).toEqual([
+      { error: "invalid_frame" },
+      { error: "invalid_frame" },
+      { error: "invalid_frame" },
+      { error: "invalid_frame" },
+      { error: "invalid_frame" },
+      { kind: "failure", id: 10 },
     ]);
   });
 });

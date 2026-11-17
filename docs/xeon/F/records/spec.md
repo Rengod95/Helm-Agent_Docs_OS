@@ -360,6 +360,12 @@ export interface LeaseAcquiredPayload {
    * 선택이라 version을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
    */
   leaseEpoch?: number;
+  /** 맡긴 쪽 프레임의 leaseId(`handoff`). 사용자 명령이나 프로필 시작으로 쌓인 프레임에는 싣지 않는다. 선택(drive-isolation.md 2.6) */
+  parent?: string;
+  /** 스택 인덱스. 코어 위 첫 프레임이 0이고 옛 기록은 0으로 읽는다. 읽기의 frameDepth는 depth + 1이다. 선택 */
+  depth?: number;
+  /** 그 프레임을 낸 플러그인의 versionId. 값이 없는 경로는 싣지 않는다. 선택 */
+  contentHash?: string;
 }
 export interface LeaseReleasedPayload {
   leaseId: string;
@@ -367,7 +373,7 @@ export interface LeaseReleasedPayload {
   /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
    *  done: 단계 함수가 `done` 명령으로 주도권을 내려놓음(M5a E1, `review.m5-drive-isolation` 2.6),
-   *  waiting: drive가 `ask` 명령으로 사람 확인을 기다리며 반납(X-17, F.extensions.spec §3.2). 번호는 F.extensions.spec 절 */
+   *  waiting: 옛 기록 읽기용. 더 쓰지 않는다. 질문 대기는 반납이 아니라 프레임 상태 `asking`이다(drive-isolation.md 2.1, 2.6). 맡기기로 아래 프레임이 기다리는 상태도 반납이 아니다. 번호는 F.extensions.spec 절 */
   reason: "done" | "disabled" | "budget" | "error" | "idle" | "revoked" | "restart" | "waiting";
 }
 /** 주도 명령 하나의 결과 [제안: 이름은 C0에서 확정] [결정: 2026-11-17 사용자, U1]. 재시작 뒤 같은 명령을 다시 실행하지 않는 근거다 */
@@ -378,7 +384,7 @@ export interface DriveCommandSettledPayload {
   outcome: string;                // 결과 요약(`completed`, `answered`, `committed` 등, 1~48자)
   ref?: string;                   // 결과 참조(turn id, 자식 thread id 등)
 }
-/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-sdk이 `GroupStatus.drive: "rejected"`를 채운다 */
+/** drive 락 요청이 대기 상한 뒤 거부됐다(옛 기록). E3부터 엔진은 발행하지 않고 읽기 전용으로 남긴다(drive-isolation.md 2.6). 스키마는 옛 기록을 읽으려고 둔다 [결정: adr.0017, M3-REQ-99] */
 export interface LeaseRejectedPayload {
   groupId: string;                // 요청한 그룹(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
@@ -1101,6 +1107,9 @@ export interface OpenLease {
   readonly leaseEpoch: number;
   readonly limits: { readonly maxTurns?: number; readonly maxSpawns?: number; readonly maxTokens?: number };
   readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  readonly parent: string | null;   // lease.acquired.parent
+  readonly depth: number;           // lease.acquired.depth(스택 인덱스). 옛 기록은 0
+  readonly contentHash: string | null;   // lease.acquired.contentHash. 기록에 없으면 null
 }
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
 export interface ExtThreadSnapshot {
@@ -1112,10 +1121,8 @@ export interface ExtThreadSnapshot {
   /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
   readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
-  /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
-  readonly openLease: OpenLease | null;
-  /** 활성 가지 위 마지막 lease.* 이벤트가 사유 waiting의 lease.released이면 그 scope와 반납한 drive 락의 계통 id. 아니면 null */
-  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
+  /** lease.acquired 뒤 lease.released가 없는 임대의 목록. 오래된 것부터이고 맨 위 프레임이 마지막이다(drive-isolation.md 2.1). 재시작 복원이 이 목록으로 주도권 스택을 다시 세운다 */
+  readonly openLeases: readonly OpenLease[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

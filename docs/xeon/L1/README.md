@@ -12,7 +12,7 @@ binds: [xeon/packages/core-*/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ## 1. 목적
 
-L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 그룹 같은 플러그인 그룹(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
+L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 그룹 같은 플러그인 그룹(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
 
 - 각 도메인은 Cordis 서비스 하나 이상을 제공하는 패키지 하나다. 같은 층끼리는 import하지 않고 서비스로 협력한다(§4).
 - 바퀴를 다시 만들지 않는다. pi-ai는 npm 정확 고정 버전으로 쓰고 부족분만 포크한다(`_research/layer-plan-v2.json` L1 intro, `_research/layer-plan-v2-notes.md` 층 사이 규칙 7). 루프는 pi-agent-core 1.3.0 루프를 core-loop로 포크해 다시 설계한 자체 루프이고 pi-agent-core에는 의존하지 않는다(adr.0009).
@@ -20,7 +20,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 ## 2. 도메인
 
-계획 v2 하위 층 7개(L1-a~g)가 layout 도메인 7개에 1:1로 대응한다(`eng.context-map.design` §4.5).
+계획 v2 하위 층 7개(L1-a~g)가 layout 도메인 7개에 1:1로 대응한다(`eng.context-map.design` §4.5). `workspace`는 계획 v2 하위 층이 아니다. `hooks-core-boundary` §6.1(2026-11-17 결정 B)이 L2 `cap-workspace`에서 떼어 낸 서비스 부분이다.
 
 | 도메인 | 하위 층 | 한 줄 요약 | 패키지 | 컨텍스트 | Cordis 서비스 | 문서 |
 |---|---|---|---|---|---|---|
@@ -31,6 +31,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | context | L1-e 컨텍스트와 컴팩션 | 접두 고정 조립, 도구 변경 메시지, 캐시 표식, 롤링 요약 컴팩션, 오버플로우 복구 | `xeon/packages/core-context` | `run-engine` | `fresnel.context` | `L1.context.spec`, `L1.context.plan` |
 | persistence | L1-f 영속성과 복구 | 이벤트 저장과 투영, 원자 커밋, 결과 불명 처리, 재개, 분기 | `xeon/packages/core-persistence` | `session-core` | `fresnel.session` | `L1.persistence.spec`, `L1.persistence.plan` |
 | agents | L1-g 서브에이전트 | 인프로세스 자식 대화, 권한 상한, 결과 반환, 백그라운드 위임, 목표 판정 호출 | `xeon/packages/core-agents` | `run-engine` | `fresnel.agents` | `L1.agents.spec`, `L1.agents.plan` |
+| workspace | (계획 v2 밖) 작업 폴더 서비스 | 샌드박스를 거치는 파일·셸 서비스의 경로 검사, 쓰기 허용 승인, 셸 실행 본문, 원자 쓰기 | `xeon/packages/core-workspace` [제안] | `tool-runtime` [제안] | 기능 id는 L2가 낸다(`workspace.files`, `workspace.shell`) | `L1.workspace.spec`, `L1.workspace.plan` |
 
 - 서비스 이름은 `eng.context-map.design` §5.3 표와 같다. 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `SessionService`는 `F.records.spec` §3.9에 있다. `ApprovalService`, `AgentService`도 같은 서브패스(`services/approvals.ts`, `services/agents.ts`)에 있다(`F.capabilities.spec` §3.12 규칙 7). X 포트가 같은 서비스 이름을 쓰면 서비스가 포트를 확장한다: `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`(같은 문서 규칙 2).
 - `run-engine` 컨텍스트 하나가 패키지 넷(tasks, loop, context, agents)에 걸친다. 컨텍스트 안에서도 import하지 않고 서비스로 협력한다(`eng.context-map.design` §4.4 1행).
@@ -39,7 +40,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 ### 3.1 안
 
-- 패키지 7개: `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence`, `core-agents`.
+- 패키지 8개: `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence`, `core-agents`, `core-workspace` [제안].
 - 플러그인 1개: `plugins/provider-anthropic-oauth`. `check-layers.ts`의 층 판정은 L1이다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다 [결정: review.decisions-2 U-16]. 배포판에 넣지 않고 기본 꺼짐이다(`L1.models.spec` §4.11, `eng.dependency-rules.guide` DR-09).
 - 각 패키지의 `package.json`은 `"fresnel": { "layer": "L1", "domain": "<도메인>" }`을 둔다(`_research/foundation-plan.md` §3).
 

@@ -2,13 +2,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { attempt, ok, type Result } from "@fresnel/contracts";
+import { attempt } from "@fresnel/contracts";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { buildHelmPlugin } from "@fresnel/group-helm/build";
-import type { IsolationSandboxSource } from "@fresnel/platform-process";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
+import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels, realTapeClock } from "../fixtures/tape-host.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
@@ -26,7 +26,6 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 
 // 기록 종류 정규식이 하이픈을 받지 않으므로(`x.<이름>.<영역>`) 이름에 하이픈을 넣지 않는다
 const NAME = "pluginhost";
-const MAIN_ENTRY = new URL("../../src/main.ts", import.meta.url).pathname;
 const TIMEOUT_MS = 30_000;
 
 /** 플러그인 엔트리. 보고 파일 경로를 넣어 만든다. `typebox`는 X가 가상 모듈로 등록한다 */
@@ -60,38 +59,6 @@ function installPlugin(home: EngineHome, reportPath: string): void {
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, ".fresnel-plugin", "plugin.json"), MANIFEST);
   writeFileSync(join(root, "src", "index.ts"), entryText(reportPath));
-}
-
-/**
- * 샌드박스 대역. 명령줄을 그대로 돌려주고 격리되지 않았다고 알린다(사용자가 샌드박스를 끈 것과 같은 표지).
- * 실제 정책은 이 시험의 대상이 아니다(L0.sandbox.spec 시험이 본다)
- */
-const passthroughSandbox: IsolationSandboxSource = {
-  defaultPolicy: () => ({
-    writeRoots: [],
-    readDeny: [],
-    writeDeny: [],
-    network: { allowedDomains: [], deniedDomains: [] },
-    allowEscape: false,
-  }),
-  wrapArgv: (_policy, plan): Promise<Result<PassthroughArgv, never>> =>
-    Promise.resolve(
-      ok({
-        argv: [plan.command, ...plan.args],
-        env: {},
-        cleanup: (): void => {},
-        sandboxed: false,
-        unsandboxedBy: "disabled",
-      }),
-    ),
-};
-
-interface PassthroughArgv {
-  readonly argv: readonly string[];
-  readonly env: Readonly<Record<string, string>>;
-  readonly cleanup: () => void;
-  readonly sandboxed: boolean;
-  readonly unsandboxedBy: "disabled";
 }
 
 /** 값이 조건을 만족할 때까지 다시 읽는다. 마감을 넘으면 마지막 값을 돌려준다 */
@@ -141,8 +108,7 @@ async function startWith(home: EngineHome, settings: Readonly<Record<string, unk
     extraPlugins: [],
     buildModels: answeringModels("plugin-host-e2e", "done."),
     pluginHost: {
-      self: { execPath: process.execPath, entry: MAIN_ENTRY },
-      sandbox: () => passthroughSandbox,
+      ...isolatedPluginHost(),
       onLoadReport: (report) => {
         isolationOfPlugin = report.extensions.find((entry) => entry.name === NAME)?.isolation;
       },
@@ -240,7 +206,7 @@ realTest(
 );
 
 realTest(
-  "the bundled Helm plugin stays inside the engine: it drives, so the default isolation leaves it in-process",
+  "the bundled Helm plugin runs in its own process: it drives, and drives no longer keep a plugin in the engine",
   async () => {
     const home = useEngineHome();
     const bundles = mkdtempSync(join(tmpdir(), "plugin-host-helm-"));
@@ -254,15 +220,14 @@ realTest(
         defaultPluginsDir: bundles,
         buildModels: answeringModels("plugin-host-helm", "done."),
         pluginHost: {
-          self: { execPath: process.execPath, entry: MAIN_ENTRY },
-          sandbox: () => passthroughSandbox,
+          ...isolatedPluginHost(),
           onLoadReport: (report) => {
             helmIsolation = report.extensions.find((entry) => entry.name === "helm")?.isolation;
           },
         },
       });
       try {
-        expect(helmIsolation).toBe("none");
+        expect(helmIsolation).toBe("process");
       } finally {
         await host.close();
       }
@@ -276,7 +241,7 @@ realTest(
 
 // ── defineGroup 플러그인 ────────────────────────────────────────────────
 // 사용자 그룹(`defineGroup`)도 같은 자식 프로세스에서 돈다. 도구와 명령은 자식의 `hostOf(g)`로 등록되고 엔진이 그 선언을 받아 부른다.
-// 상태 버전은 1이다: 버전 2 이상은 `migrateState`가 자식에서 막힌 API라서 적재가 `isolation_protocol` 진단으로 실패한다(§4.9).
+// 상태 버전은 1이다: 이 시험은 상태 이전이 없는 경우를 본다. 버전 2 이상의 이전은 자식이 `state.migrate` 요청으로 맡는다(F.extensions 부록).
 
 const GROUP_NAME = "pluginhostgroup";
 const GROUP_TOOL = "pluginhostgroup_count";
@@ -375,8 +340,7 @@ realTest(
       extraPlugins: [],
       buildModels: groupModels(),
       pluginHost: {
-        self: { execPath: process.execPath, entry: MAIN_ENTRY },
-        sandbox: () => passthroughSandbox,
+        ...isolatedPluginHost(),
         onLoadReport: (report) => {
           isolationOfGroup = report.extensions.find(
             (entry) => entry.name === GROUP_NAME,

@@ -26,7 +26,7 @@ Fresnel은 대화형 에이전트 런타임이다. 층(F~L3)으로 나눈 런타
 | L3 | 플러그인 그룹: Helm, 학습 그룹, 추가 그룹 | `L3/` | `xeon/packages/group-*` |
 | L4 | 배포 런타임: CLI, 데스크톱, 서비스, 설정 화면 | `L4/` | `xeon/apps/*` |
 
-층 순위(의존 방향)는 F → X → L0 → L1 → L2 → L3 → L4다. 자세한 규칙은 `engineering/dependency-rules/guide.md`에 있다.
+층 순위(의존 방향)는 F → X → L0 → L1 → P → L4다. P는 플러그인 등급(`packages/cap-*`, `packages/group-*`, `packages/plugin-builder`)이다. 자세한 규칙은 `engineering/dependency-rules/guide.md`에 있다.
 
 ## 디렉터리 규칙
 

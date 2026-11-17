@@ -6,14 +6,10 @@ import { RecordCommitPortKey, type RegistrationDef } from "@fresnel/contracts/ex
 import { SessionFeedPortKey } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { Type } from "typebox";
-import {
-  createStaticPrimitivesSettings,
-  type PrimitivesSettingsSource,
-} from "../../src/primitives/settings.ts";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
 import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
 
-// M3-REQ-28(대기 상한 뒤 거부), M3-REQ-102·108(수명주기 지점은 커밋 뒤에 발화)
+// M3-REQ-102·108(수명주기 지점은 커밋 뒤에 발화). lease.rejected는 새로 발행되지 않고 옛 기록을 읽을 때만 있다
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -37,8 +33,8 @@ function rejectedIn(t: Host, thread: ThreadId): unknown[] {
     .map((event) => event.payload);
 }
 
-test("a drive request that waits past the limit is refused with lease.rejected, and the lifecycle point fires after the commit", async () => {
-  const t = await createTestHost({ settings: { activeDriver: "lr-a", leaseWaitLimit: 1 } });
+test("a failed boundary commit does not fire the lifecycle point", async () => {
+  const t = await createTestHost();
   const thread = t.newThread();
   const heard: unknown[] = [];
   await t.host.install(
@@ -48,52 +44,19 @@ test("a drive request that waits past the limit is refused with lease.rejected, 
       });
     }),
   );
-  await installDriveGroups(t, ["lr-a", "lr-b"]);
-  await t.host.openThread(thread);
+  await installDriveGroups(t, ["lr-a"]);
+  await t.host.openThread(thread, { startDrive: "lr-a" });
   await t.settled();
   expect(t.host.leaseOf(thread)?.scopeId).toBe("lr-a");
-  expect(rejectedIn(t, thread)).toEqual([]);
-
-  // 한 경계를 손으로 돌려 prepare, 커밋, settle 사이의 발화 시점을 본다
-  const signal = { threadId: thread, kind: "turn_settled" as const };
-  const contribution = await t.host.boundary.prepare(signal);
-  const rejection = contribution.drafts.find((draft) => draft.kind === "lease.rejected");
-  expect(rejection?.payload).toEqual({ groupId: "lr-b", reason: "wait_limit", requestSeq: 0 });
-  expect(heard).toEqual([]);
-  const committed = await t.records.commit({
-    threadId: thread,
-    requestId: "test:lease-rejected",
-    drafts: contribution.drafts,
-  });
-  expect(committed.status).toBe("committed");
-  expect(heard).toEqual([]);
-  await t.host.boundary.settle(signal, "committed");
-  expect(heard).toEqual([{ groupId: "lr-b", reason: "wait_limit", requestSeq: 0 }]);
-
-  expect(rejectedIn(t, thread)).toHaveLength(1);
-});
-
-test("a failed boundary commit does not fire the lifecycle point", async () => {
-  const t = await createTestHost({ settings: { activeDriver: "lr-a", leaseWaitLimit: 1 } });
-  const thread = t.newThread();
-  const heard: unknown[] = [];
-  await t.host.install(
-    makeUnit({ name: "lr-listener", hooks: ["lifecycle.lease.rejected"], loadIndex: 5 }, (g) => {
-      g.on("lifecycle.lease.rejected", (payload) => {
-        heard.push(payload);
-      });
-    }),
-  );
-  await installDriveGroups(t, ["lr-a", "lr-b"]);
-  await t.host.openThread(thread);
-  await t.settled();
   await t.boundary(thread).turnSettled({ fail: true });
   await t.settled();
   expect(heard).toEqual([]);
   expect(rejectedIn(t, thread)).toEqual([]);
-  // 다음 경계가 다시 거부를 시도해 이번에는 커밋된다
+  // lease.rejected는 더 이상 새로 발행되지 않으므로 다음 경계가 커밋되어도 지점은 발화하지 않는다
   await t.boundary(thread).turnSettled();
-  expect(heard).toEqual([{ groupId: "lr-b", reason: "wait_limit", requestSeq: 0 }]);
+  await t.settled();
+  expect(heard).toEqual([]);
+  expect(rejectedIn(t, thread)).toEqual([]);
 });
 
 // ── 커밋 피드로 오는 위임 정착(core-agents가 쓰는 agent.settled) ──
@@ -195,90 +158,6 @@ const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 const counterDef: RegistrationDef<{ n: number }> = {
   state: { schema: CounterSchema, initial: { n: 0 }, version: 1 },
 };
-
-/** 호출마다 상태를 올려 효과를 내므로 idle로 반납되지 않는 drive 그룹 */
-function installStableGroups(t: Host, names: readonly string[]): Promise<void> {
-  return eachInOrder(names.entries(), async ([loadIndex, name]) => {
-    await t.host.install(
-      makeGroupUnit({ name, loadIndex, def: counterDef }, (g) => {
-        g.drive(async ({ state }) => ({
-          do: "commit",
-          state: { n: state.n + 1 },
-          next: { do: "yield" },
-        }));
-      }),
-    );
-    return "continue";
-  });
-}
-
-function mutableSettings(
-  initial: string,
-  leaseWaitLimit: number,
-): { source: PrimitivesSettingsSource; set(next: string): void } {
-  const base = createStaticPrimitivesSettings({ leaseWaitLimit });
-  const state = { active: initial };
-  return {
-    source: { ...base, activeDriver: () => state.active },
-    set(next) {
-      state.active = next;
-    },
-  };
-}
-
-test("a rejection after the thread is reopened under a new holder is a new record, not a replay of the old key", async () => {
-  const settings = mutableSettings("lr-a", 1);
-  const t = await createTestHost({ settingsSource: settings.source });
-  const thread = t.newThread();
-  await installStableGroups(t, ["lr-a", "lr-b", "lr-c"]);
-  await t.host.openThread(thread);
-  await t.settled();
-  await t.boundary(thread).turnSettled();
-  await t.settled();
-  const first = rejectedIn(t, thread);
-  expect(first).toEqual([
-    { groupId: "lr-b", reason: "wait_limit", requestSeq: 0 },
-    { groupId: "lr-c", reason: "wait_limit", requestSeq: 1 },
-  ]);
-  // 사용자가 구동 그룹을 lr-c로 바꾸면 lr-a의 임대가 회수되고 lr-c가 받는다
-  settings.set("lr-c");
-  await t.boundary(thread).turnSettled();
-  await t.settled();
-  expect(t.host.leaseOf(thread)?.scopeId).toBe("lr-c");
-  // 프로세스 안의 순번(requestSeq)이 0부터 다시 시작하는 재열기
-  await t.host.closeThread(thread);
-  await t.host.openThread(thread);
-  await t.settled();
-  expect(t.host.leaseOf(thread)?.scopeId).toBe("lr-c");
-  await t.boundary(thread).turnSettled();
-  await t.settled();
-  const forB = rejectedIn(t, thread).filter(
-    (payload) =>
-      typeof payload === "object" &&
-      payload !== null &&
-      "groupId" in payload &&
-      payload.groupId === "lr-b",
-  );
-  // lr-b는 lr-a 아래에서 한 번, 재열기 뒤 lr-c 아래에서 한 번 거부되었다. 두 번째 기록이 첫 키와 겹쳐 사라지지 않는다
-  expect(forB).toHaveLength(2);
-});
-
-test("a failed boundary commit gives the waited boundary back, so the limit counts committed boundaries only", async () => {
-  const settings = mutableSettings("lr-a", 2);
-  const t = await createTestHost({ settingsSource: settings.source });
-  const thread = t.newThread();
-  await installStableGroups(t, ["lr-a", "lr-b"]);
-  await t.host.openThread(thread);
-  await t.settled();
-  // 열 때의 유휴 경계 하나가 세어졌다(1). 실패한 경계는 세지 않는다
-  await t.boundary(thread).turnSettled({ fail: true });
-  await t.boundary(thread).turnSettled();
-  await t.settled();
-  expect(rejectedIn(t, thread)).toEqual([]);
-  await t.boundary(thread).turnSettled();
-  await t.settled();
-  expect(rejectedIn(t, thread)).toHaveLength(1);
-});
 
 test("a lifecycle handler reads the post-commit state, not the state before the commit path finished", async () => {
   const t = await createTestHost({ without: ["records"] });

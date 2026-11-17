@@ -57,7 +57,7 @@ const WORK: Profile = {
   builtin: false,
   plugins: [],
   settings: [],
-  driver: null,
+  startDrive: null,
   updatedAt: "2026-11-18T00:00:00.000Z",
   rev: 1,
 };

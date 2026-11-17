@@ -1,5 +1,5 @@
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
-import { Bug, ok, type Result } from "@fresnel/contracts";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { extensionPrefix, isHighFrequency, LoopPortKey } from "@fresnel/contracts/extensions";
 import type {
@@ -37,8 +37,13 @@ import {
   type EffectRequest,
   type EffectWorkerPort,
 } from "./effect-worker.ts";
-import { guardCapabilityService, type CapabilityDefLookup } from "./capability-guard.ts";
-import type { Generation, HostCore, RegistrationRecord } from "./core.ts";
+import {
+  guardCapabilityService,
+  pluginCallWiringOf,
+  SETTINGS_READ_PORT,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
+import type { Generation, HostCore, RegistrationRecord, StartDriveError } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
 import { createPortProvider } from "./port-provider.ts";
@@ -86,6 +91,12 @@ export interface RegistrationCallContext {
   readonly point?: HookName;
 }
 
+/**
+ * `RegistrationHostApi.startDrive`의 거부. `StartDriveError`(큐에 넣지 못한 이유)와 문맥이 없는 호출의 `no_context`다.
+ * 둘 다 값으로 돌아온다
+ */
+export type RegistrationStartDriveError = StartDriveError | { readonly kind: "no_context" };
+
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
 export interface RegistrationHostApi<S = unknown> {
   readonly scopeId: RegistrationId;
@@ -116,6 +127,12 @@ export interface RegistrationHostApi<S = unknown> {
    * 기능은 매니페스트 requires나 optional에 있어야 한다
    */
   requestEffect(request: EffectRequest): Promise<void>;
+  /**
+   * 이 scope를 주도 시작 요청으로 큐에 넣는다(drive-isolation.md 2.2, 사용자 명령과 같은 trigger). thread는 도구·명령·메서드 문맥의 것이다.
+   * 문맥이 없는 호출(대화가 없는 화면, setup)은 `no_context`다. 스택이 차 있으면 큐에 둔다(전환은 맡기기 단계가 한다).
+   * 격리 자식의 호출은 엔진과 주고받는 호출이라 약속이다. 엔진 안의 구현은 같은 값을 감싼 약속을 돌려준다
+   */
+  startDrive(input?: JsonValue): Promise<Result<void, RegistrationStartDriveError>>;
   /**
    * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥(thread, 취소 신호, on이면 지점). setup, 명령 처리기, 도구 `execute`,
    * 기능 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
@@ -190,11 +207,9 @@ function directAmbient(
     drive: null,
     handler: null,
     invocation,
+    callId: id,
   };
 }
-
-/** 조립 루트가 `fresnel.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
-const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "fresnel.settings" };
 
 export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S> {
   const found = hostApis.get(g);
@@ -236,6 +251,13 @@ export interface RegistrationApiDeps {
   readonly resources: ResourceStore;
   readonly capabilityDefs: CapabilityDefLookup;
   readonly effects: EffectWorkerPort;
+  /** 주도 시작 요청을 큐에 넣는다(`RegistrationHostApi.startDrive`가 쓴다). 조립은 임대 브로커의 것을 넘긴다 */
+  readonly startDrive: (
+    threadId: ThreadId,
+    scopeId: RegistrationId,
+    trigger: "user" | "profile",
+    input: JsonValue | null,
+  ) => Result<void, StartDriveError>;
 }
 
 /** `readOnly: true` 확장 메서드 처리기 안에서는 상태 커밋, 레코드, post, 효과 요청을 하지 못한다(ADR-0021 §3.4.2, X.primitives.spec §4.12) */
@@ -414,6 +436,7 @@ export function createRegistrationApi(
           scopeId: record.id,
           conditionsOf: (threadId) => core.ports.get(LoopPortKey)?.callConditions?.(threadId),
           contextTrusted: record.builtin,
+          pluginCalls: pluginCallWiringOf(core.ports),
         }),
       );
     },
@@ -524,6 +547,12 @@ export function createRegistrationApi(
           prefix: extensionPrefix(manifest),
         });
       }
+    },
+    startDrive(input) {
+      // 문맥이 없으면 쓸 thread가 없다. 도구·명령·메서드 문맥의 thread에 이 scope를 시작 요청으로 넣는다
+      const amb = ambient();
+      if (amb === undefined) return Promise.resolve(err({ kind: "no_context" }));
+      return Promise.resolve(deps.startDrive(amb.threadId, record.id, "user", input ?? null));
     },
     callContext() {
       const amb = ambient();

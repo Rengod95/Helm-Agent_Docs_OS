@@ -7,7 +7,6 @@ import {
   assertNever,
   attempt,
   Bug,
-  detach,
   err,
   ok,
   parse,
@@ -16,12 +15,21 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import { ToolHintsSchema, ToolNameSchema, ToolRiskSchema } from "@fresnel/contracts/capabilities";
-import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import {
+  JsonValueSchema,
+  toJsonValue,
+  type JsonObject,
+  type JsonValue,
+} from "@fresnel/contracts/conversation";
+import {
+  DriveCommandSchema,
   HOOKS,
   PLUGIN_HOST_NOTIFY_HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   RecordKindSchema,
+  type DriveLimits,
+  type DriveOptions,
+  type DriveStep,
   type ExtensionEntry,
   type ExtensionManifest,
   type ExtensionName,
@@ -50,11 +58,14 @@ import type {
   RendererResourceDef,
 } from "../primitives/resources.ts";
 import { isHookName } from "./child-api.ts";
-import { createEngineCallRouter } from "./engine-calls.ts";
-import { PluginProcessError } from "./errors.ts";
+import { createEngineCallRouter, type OpenWaits } from "./engine-calls.ts";
+import { DriveCommandError, PluginProcessError } from "./errors.ts";
+import { createNotifyGate, notifyKeyOf, type NotifyGate } from "./notify-gate.ts";
+import { parseDriveStepReply } from "./params.ts";
 import {
   createPluginHostSupervisor,
   type CallError,
+  type DeadlineClock,
   type PluginHostSupervisor,
   type RestartLimitInfo,
   type SupervisorError,
@@ -62,6 +73,13 @@ import {
 
 /** 시작 응답 시간 기본 한도(ms). 자식이 엔트리를 싣고 등록을 만드는 시간이다 */
 const DEFAULT_INIT_TIMEOUT_MS = 10_000;
+
+/**
+ * 단계 함수 하나(`drive.step` 요청)의 시간 한도(ms). 넘으면 감독이 프로세스를 멈추고(`process_killed`) 프레임을 내린다
+ * (drive-isolation.md 3.3). 질문 대기(`ask`)는 엔진이 명령으로 실행하므로 이 시간에 들지 않는다. 설정 키는 아직 없어
+ * 이 값을 기본으로 쓴다(`IsolatedEntryDeps.driveStepDeadlineMs`로 바꾼다)
+ */
+const DRIVE_STEP_DEADLINE_MS = 120_000;
 
 /** 이 종류의 오류는 프로세스가 없어서 생긴 것이다. 호출은 `process_exit`로 센다 */
 const SUPERVISOR_FAILURE_KINDS: ReadonlySet<string> = new Set([
@@ -84,11 +102,7 @@ const SILENT: Logger = {
 };
 
 /** 격리 확장 시작 실패. `code`는 로더 진단 코드와 같은 이름이다(X.loading-trust.spec §4.9, 격리 실패 표) */
-export type IsolatedEntryCode =
-  | "isolation_unavailable"
-  | "isolation_drive_unsupported"
-  | "isolation_protocol"
-  | "entry_threw";
+export type IsolatedEntryCode = "isolation_unavailable" | "isolation_protocol" | "entry_threw";
 
 export class IsolatedEntryError extends Error {
   override readonly name: string = "IsolatedEntryError";
@@ -135,9 +149,14 @@ export interface IsolatedEntryDeps {
   /** 설정 키의 유효 값. host.init의 설정에 쓴다(`hostOf(g).settingValue`와 같은 값) */
   readonly settingValue?: (key: string) => unknown;
   readonly initTimeoutMs?: number;
+  /** 단계 함수 하나의 시간 한도(ms). 생략하면 `DRIVE_STEP_DEADLINE_MS` */
+  readonly driveStepDeadlineMs?: number;
   readonly idleMs?: number;
   readonly killGraceMs?: number;
-  readonly maxRestarts?: number;
+  /** 죽음을 셀 때마다 읽는 재시작 한도(설정 `x.loading-trust.isolation.maxRestarts`). 없으면 감독 기본 */
+  readonly maxRestarts?: () => number;
+  /** 죽음을 세는 창(초, 설정 `restartWindowSec`). 없으면 감독 기본 */
+  readonly restartWindowSec?: () => number;
   readonly maskSecrets?: (line: string) => string;
   /** 등록이 모두 꺼져 세션을 닫을 때의 사유. 다시 읽기 중이면 `reload`다 */
   readonly endReason?: () => "reload" | "disabled";
@@ -192,7 +211,11 @@ interface PreparedDecl {
   readonly hasState: boolean;
   /** 상태의 초기 문서(JSON). 상태가 없으면 null */
   readonly initial: JsonValue;
-  readonly hooks: readonly { readonly point: HookName; readonly handlerIndex: number }[];
+  readonly hooks: readonly {
+    readonly point: HookName;
+    readonly handlerIndex: number;
+    readonly coalesce: boolean;
+  }[];
   readonly tools: readonly ToolDef[];
   readonly flags: readonly { readonly name: string; readonly def: FlagResourceDef }[];
   readonly renderers: readonly {
@@ -201,12 +224,16 @@ interface PreparedDecl {
   }[];
 }
 
-/** 세션 하나: 감독과, 요청 id에서 디스패치 문맥으로 가는 표 */
+/** 세션 하나: 감독과, 요청 id에서 디스패치 문맥으로 가는 표, 알림 흐름 제어 */
 interface Session {
   readonly supervisor: PluginHostSupervisor;
+  /** 스트림 알림의 보내기와 합치기. 자식의 `event.done`으로 미확인 수를 줄인다 */
+  readonly gate: NotifyGate;
   readonly ambients: Map<number, Ambient>;
   /** 도구 실행 요청 id에서 그 호출의 `ctx.changes`로 가는 표 */
   readonly changes: Map<number, ToolChangeReport>;
+  /** 요청 id에서 그 요청의 열린 사용자 대기 수로 가는 표. 요청이 끝나면 남은 만큼 푼다 */
+  readonly waits: Map<number, OpenWaits>;
 }
 
 /** 훅 디스패처가 넘기는 문맥(`{scopeId, state, threadId, signal}`). 모양을 확인한 뒤 읽는다 */
@@ -237,27 +264,12 @@ export function schemaOfJson(json: JsonValue): TSchema | undefined {
   return json;
 }
 
-/** `drive` 또는 다른 막힌 API 이름 목록을 메시지에서 읽는다(child-api의 `unsupported`가 낸 문장) */
-function unsupportedNamesOf(message: string): readonly string[] {
-  const marker = " uses ";
-  const start = message.indexOf(marker);
-  if (start < 0) return [];
-  const from = start + marker.length;
-  const end = message.indexOf(", which", from);
-  return (end < 0 ? message.slice(from) : message.slice(from, end)).split(", ");
-}
-
 function startErrorOf(error: SupervisorError): IsolatedEntryError {
   switch (error.kind) {
     case "spawn_failed":
     case "sandbox_unavailable":
       return new IsolatedEntryError("isolation_unavailable", error.message);
     case "init_failed":
-      if (error.hostKind === "unsupported_api") {
-        return unsupportedNamesOf(error.message).includes("drive")
-          ? new IsolatedEntryError("isolation_drive_unsupported", error.message)
-          : new IsolatedEntryError("isolation_protocol", error.message);
-      }
       return error.hostKind === "handler_threw"
         ? new IsolatedEntryError("entry_threw", error.message)
         : new IsolatedEntryError("isolation_protocol", error.message);
@@ -295,12 +307,26 @@ function jsonOf(value: unknown, what: string): JsonValue {
   return json;
 }
 
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** JSON 객체로 바꾼다. 알림 본문은 이 파일이 만드는 객체라 항상 객체다 */
+function jsonObjectOf(value: unknown, what: string): JsonObject {
+  const json = jsonOf(value, what);
+  if (!isJsonObject(json)) throw new Bug("isolation.event_not_object");
+  return json;
+}
+
 /** 선언 하나를 검증한다. 등록에 쓸 정의와 리소스 정의를 만든다. 실패는 사람이 읽는 사유 문장이다 */
 function prepareDecl(decl: PluginRegistrationDecl): Result<PreparedDecl, string> {
-  const hooks: { point: HookName; handlerIndex: number }[] = [];
+  if (decl.hasMigration && decl.state === null) {
+    return err(`migrateState of ${decl.id} needs a state declaration`);
+  }
+  const hooks: { point: HookName; handlerIndex: number; coalesce: boolean }[] = [];
   for (const hook of decl.hooks) {
     if (!isHookName(hook.point)) return err(`hook point ${hook.point} of ${decl.id} is unknown`);
-    hooks.push({ point: hook.point, handlerIndex: hook.handlerIndex });
+    hooks.push({ point: hook.point, handlerIndex: hook.handlerIndex, coalesce: hook.coalesce });
   }
   let stateDef: RegistrationDef<AnyState>["state"];
   if (decl.state !== null) {
@@ -405,6 +431,9 @@ function requireEntry(entry: string | undefined): string {
  */
 export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   const logger = deps.logger ?? SILENT;
+  const driveStepDeadlineMs = deps.driveStepDeadlineMs ?? DRIVE_STEP_DEADLINE_MS;
+  /** 초기화와 상태 이전의 시간 한도(ms). 같은 값이다 */
+  const initTimeoutMs = deps.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS;
   // 코드 없는 확장(`entry` 없음)은 로더가 엔진 안으로 정한다(`no_entry`). 여기에 오면 로더의 불변 조건 위반이다
   const entryPath = requireEntry(deps.manifest.entry);
   const settingKeys = Object.values(deps.manifest.userConfig ?? {}).map((entry) => entry.setting);
@@ -446,12 +475,15 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   function openSession(): Session {
     const ambients = new Map<number, Ambient>();
     const changes = new Map<number, ToolChangeReport>();
+    const waits = new Map<number, OpenWaits>();
     const router = createEngineCallRouter({
       gOf: (registration) => registrations.get(registration),
       replayOf: () => false,
       ambientOf: (requestId) => (requestId === null ? undefined : ambients.get(requestId)),
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
+      waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
     });
+    // 흐름 제어는 감독이 보내는 알림을 쓰고, 감독의 확인과 종료를 받는다. 두 값이 서로를 가리키므로 흐름 제어는 감독 뒤에 만든다
     const supervisor = createPluginHostSupervisor({
       process: deps.port,
       specOf: spawnSpecOf,
@@ -459,17 +491,30 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       now: deps.now,
       logger,
       initParams: initParamsOf,
-      initTimeoutMs: deps.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS,
+      initTimeoutMs,
       onEngineCall: router,
       onRestartLimit: (info) => {
         deps.onRestartLimit?.(info);
       },
+      onEventDone: (eventKey) => {
+        gate.acknowledge(eventKey);
+      },
+      onProcessEnd: () => {
+        gate.reset();
+      },
       ...(deps.idleMs === undefined ? {} : { idleMs: deps.idleMs }),
       ...(deps.killGraceMs === undefined ? {} : { killGraceMs: deps.killGraceMs }),
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
+      ...(deps.restartWindowSec === undefined ? {} : { restartWindowSec: deps.restartWindowSec }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
     });
-    return { supervisor, ambients, changes };
+    const gate = createNotifyGate({
+      send: (params) => supervisor.notify("event.notify", params).then((reply) => reply.ok),
+      setTimer: deps.setTimer,
+      now: deps.now,
+      logger,
+    });
+    return { supervisor, gate, ambients, changes, waits };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -484,6 +529,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   function retire(reason: HostDisposeParams["reason"]): void {
     const closing = current;
     current = undefined;
+    closing?.gate.reset();
     closing?.supervisor.dispose(reason);
   }
 
@@ -494,21 +540,39 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     signal: AbortSignal | undefined,
     amb: Ambient | undefined,
     changes?: ToolChangeReport,
+    deadlineMs?: number,
   ): Promise<Result<JsonValue, CallError>> {
     const session = sessionNow();
     let requestId: number | undefined;
+    let deadlineClock: DeadlineClock | undefined;
     const call = session.supervisor.call(method, params, {
       ...(signal === undefined ? {} : { signal }),
+      ...(deadlineMs === undefined ? {} : { deadlineMs }),
+      onDeadlineClock: (clock) => {
+        deadlineClock = clock;
+      },
       onRequestId: (id) => {
         requestId = id;
-        if (amb !== undefined) session.ambients.set(id, amb);
+        if (amb !== undefined) {
+          session.ambients.set(id, amb);
+          session.waits.set(id, {
+            count: 0,
+            ...(deadlineClock === undefined ? {} : { clock: deadlineClock }),
+          });
+        }
         if (changes !== undefined) session.changes.set(id, changes);
       },
     });
     return call.finally(() => {
-      if (requestId !== undefined) {
-        session.ambients.delete(requestId);
-        session.changes.delete(requestId);
+      if (requestId === undefined) return;
+      const open = session.waits.get(requestId)?.count ?? 0;
+      session.ambients.delete(requestId);
+      session.changes.delete(requestId);
+      session.waits.delete(requestId);
+      // 요청이 끝났는데 자식이 `end`를 보내지 못했다(죽음, 시간 초과): 남은 사용자 대기만큼 예산 시계를 푼다
+      const gate = amb?.handler?.gate;
+      if (gate !== undefined) {
+        for (let left = open; left > 0; left -= 1) gate.resume();
       }
     });
   }
@@ -530,6 +594,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     p: PreparedDecl,
     point: HookName,
     handlerIndex: number,
+    coalesce: boolean,
   ): (...args: readonly unknown[]) => unknown {
     const notify = PLUGIN_HOST_NOTIFY_HOOKS.some((name) => name === point);
     const chain = HOOKS[point].fold === "chain";
@@ -553,21 +618,18 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         ...(amb === undefined || amb.dispatchKey === null ? {} : { dispatchKey: amb.dispatchKey }),
       };
       if (notify) {
-        // 관찰 알림은 기다리지 않는다. 발화 순서대로 하나씩 전달하도록 eventKey를 늘린다(멱등 키)
+        // 관찰 알림은 기다리지 않는다. 발화 순서대로 eventKey를 늘린다(멱등 키). 보내기와 합치기는 흐름 제어가 맡는다
         const next = (eventCounters.get(eventBase) ?? 0) + 1;
         eventCounters.set(eventBase, next);
-        const sent = sessionNow().supervisor.notify(
-          "event.notify",
-          jsonOf({ ...body, eventKey: `${eventBase}#${next}` }, "the event"),
-        );
-        detach(
-          sent.then((reply) => {
-            if (!reply.ok) logger.warn("plugin_host.notify_failed", { point });
-            return reply.ok;
-          }),
-          () => {
-            logger.error("plugin_host.notify_unhandled", { point });
+        sessionNow().gate.offer(
+          {
+            key: notifyKeyOf(p.decl.id, point, handlerIndex, threadId),
+            handler: eventBase,
+            point,
+            coalesce,
           },
+          `${eventBase}#${next}`,
+          jsonObjectOf(body, "the event"),
         );
         return undefined;
       }
@@ -654,6 +716,55 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     };
   }
 
+  /**
+   * 주도 단계 함수 하나. `drive.step` 요청을 보내고, 돌아온 명령의 모양을 검사해 엔진에 준다(엔진이 그 명령을 실행한다).
+   * 응답의 한도 값은 `limits`에 옮겨 두고, 다음 임대를 받을 때 읽힌다. 요청 실패는 프로세스가 끝났거나 시간 초과면
+   * `PluginProcessError`, 그 밖이면 일반 오류다. 명령 모양이 틀리면 `DriveCommandError`다
+   */
+  function drivingOf(
+    g: RegistrationApi<AnyState>,
+    p: PreparedDecl,
+    limits: { current: DriveLimits },
+  ): DriveStep<AnyState> {
+    return async (input) => {
+      const amb = ambient();
+      if (amb === undefined || amb.drive === null) throw new Bug("isolation.drive_context_missing");
+      const driveCall = amb.drive;
+      const body = jsonOf(
+        {
+          ...frameOf(g, amb.threadId, jsonOf(input.state, `the state of ${p.decl.id}`)),
+          deadlineMs: driveStepDeadlineMs,
+          registration: p.decl.id,
+          last: input.last,
+          budget: input.budget,
+          frame: input.frame,
+        },
+        "the drive step",
+      );
+      const reply = await invoke(
+        "drive.step",
+        body,
+        driveCall.signal,
+        amb,
+        undefined,
+        driveStepDeadlineMs,
+      );
+      if (!reply.ok) throw failureOf(reply.error);
+      const checked = parseDriveStepReply(reply.value);
+      if (!checked.ok) {
+        throw new Error(`the drive.step reply of ${p.decl.id} does not match its shape`);
+      }
+      limits.current = checked.value.limits ?? {};
+      const command = parse(DriveCommandSchema, checked.value.command);
+      if (!command.ok) {
+        throw new DriveCommandError(
+          `the step of ${p.decl.id} returned a command that is not a DriveCommand`,
+        );
+      }
+      return command.value;
+    };
+  }
+
   /** 등록 하나의 setup. 실제 `g`를 받아 대리 훅과 리소스를 붙이고, 정리 때 자식의 정리 동작과 세션 닫기를 맡는다 */
   function setupOf(p: PreparedDecl): RegistrationSetup<AnyState> {
     return (g) => {
@@ -677,10 +788,39 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         if (live === 0) retire(endReason());
       });
       const host = hostOf(g);
+      // 저장된 문서를 옮기는 함수는 자식이 가진다. 엔진은 `state.migrate` 요청으로 부르고 실패는 던진다
+      if (p.decl.hasMigration) {
+        host.migrateState(async (doc, fromVersion) => {
+          const reply = await invoke(
+            "state.migrate",
+            { registration: p.decl.id, doc, fromVersion },
+            undefined,
+            undefined,
+            undefined,
+            initTimeoutMs,
+          );
+          if (!reply.ok) throw failureOf(reply.error);
+          // 문서 `null`도 옮긴 결과일 수 있으므로 `settledOf`를 쓰지 않는다
+          return reply.value;
+        });
+      }
+      // 주도 단계 함수는 자식이 가진다. 한도 옵션은 선언의 값으로 시작하고 단계 응답으로 바뀐다(다음 임대부터 읽힌다)
+      if (p.decl.drive !== null) {
+        const limits: { current: DriveLimits } = { current: p.decl.drive.limits ?? {} };
+        const options: DriveOptions = {
+          get limits() {
+            return limits.current;
+          },
+        };
+        g.drive(drivingOf(g, p, limits), options);
+      }
       for (const hook of p.hooks) {
         g.on(
           hook.point,
-          handlerOfHook(hook.point, hookHandler(g, p, hook.point, hook.handlerIndex)),
+          handlerOfHook(
+            hook.point,
+            hookHandler(g, p, hook.point, hook.handlerIndex, hook.coalesce),
+          ),
         );
       }
       for (const tool of p.tools) host.registerTool(toolOf(g, p, tool));

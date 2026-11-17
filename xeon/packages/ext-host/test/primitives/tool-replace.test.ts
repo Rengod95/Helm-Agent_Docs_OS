@@ -20,6 +20,11 @@ type Host = Awaited<ReturnType<typeof createTestHost>>;
 async function withToolsPort(t: Host): Promise<Map<string, ToolResourceDef[]>> {
   const registered = new Map<string, ToolResourceDef[]>();
   const port: ToolsPort = {
+    toolMappedFor: () => false,
+    executeForPlugin: () =>
+      Promise.resolve(
+        err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+      ),
     register(_owner, def) {
       const list = registered.get(def.name) ?? [];
       if (def.replaces === undefined && list.length > 0) {

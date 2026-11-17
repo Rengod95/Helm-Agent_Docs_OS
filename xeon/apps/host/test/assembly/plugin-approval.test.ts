@@ -16,7 +16,13 @@ import { partial } from "../fixtures/unsafe.ts";
 // M5c §4.7.3 승인 훅: 승인 한 번이 프로필에 하는 일과, 커밋 뒤 실행 중인 판을 맞추는 일. 프로필 쪽과 로더는 가짜다.
 
 const NOW = "2026-11-18T00:00:00.000Z";
-const FACT: PluginFact = { name: "kit", replaces: [], drives: false, requiredKeys: [] };
+const FACT: PluginFact = {
+  name: "kit",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+};
 const APPROVE = { kind: "approve", profileIds: [], libraryOnly: false } as const;
 
 function contextOf(

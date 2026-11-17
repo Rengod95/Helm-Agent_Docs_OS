@@ -2,7 +2,12 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildEngineCatalog } from "../src/assembly/catalog.ts";
-import { hostSettings, renderSettingsSchema, type SettingsFileScope } from "../src/settings.ts";
+import {
+  hostProjectSettings,
+  hostSettings,
+  renderSettingsSchema,
+  type SettingsFileScope,
+} from "../src/settings.ts";
 
 const SCOPES: readonly SettingsFileScope[] = ["managed", "user", "project", "local"];
 const SCHEMA_DIR = join(import.meta.dir, "..", "schema");
@@ -118,6 +123,28 @@ test("hostSettings declares the two l4.host-service keys with the documented def
   expect(maxSubscriptionsPerConnection.default).toBe(16);
   expect(maxSubscriptionsPerConnection.range).toEqual({ min: 1, max: 256 });
   expect(maxSubscriptionsPerConnection.ui?.tab).toBe("execution");
+});
+
+test("l4.host.defaultFolder is a user-or-managed string with an empty default, live changes, and the sessions tab", () => {
+  const { defaultFolder } = hostProjectSettings.defs;
+  expect(defaultFolder.key).toBe("l4.host.defaultFolder");
+  expect(defaultFolder.layer).toBe("L4");
+  expect(defaultFolder.default).toBe("");
+  expect(defaultFolder.runtimeChange).toBe("live");
+  expect(defaultFolder.allowedScopes).toEqual(["managed", "user"]);
+  expect(defaultFolder.ui?.tab).toBe("sessions");
+  expect(defaultFolder.ui?.labelKey).toBe("settings.l4.host.defaultFolder.label");
+  const catalog = coreCatalog();
+  for (const scope of ["managed", "user"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).toContain(
+      "l4.host.defaultFolder",
+    );
+  }
+  for (const scope of ["project", "local"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).not.toContain(
+      "l4.host.defaultFolder",
+    );
+  }
 });
 
 /** 클라이언트 카탈로그 원문. 호스트 테스트는 `@fresnel/client`를 import하지 않으므로(DR-10) JSON 파일을 직접 읽는다 */

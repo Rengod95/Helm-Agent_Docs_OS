@@ -3,7 +3,7 @@ import { PluginSetPortKey, type PluginSetPort } from "@fresnel/contracts/extensi
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { registrationToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost, type TestHost } from "../../src/testing/index.ts";
-import { makeUnit } from "./fixtures/support.ts";
+import { makeManifest, makeUnit } from "./fixtures/support.ts";
 
 // E(T)(M5c §4.1.5, X.primitives.spec §4.5.8)는 호스트가 `PluginSetPortKey`로 주는 집합이다. 시험은 그 값을 바꿔 가며 쓴다.
 // 엔진 안의 끄기(`RegistrationHandle.disable`, 자동 끄기·안전 모드)는 E(T)가 바뀌기 전까지 이겨야 한다.
@@ -245,5 +245,43 @@ test("a turn overlay records profile.applied overlay_on when it joins E(T) and o
       removed: ["pset-extra"],
       overlay: [{ plugin: "pset-extra", contentHash: "sha256:cc", until: "turn" }],
     },
+  ]);
+});
+
+test("a non-root declaration with defaultEnabled false starts disabled and runs once its extension is in E(T)", async () => {
+  // M5c §4.1.9: E(T)는 확장 단위로 정해지고 같은 확장의 모든 선언(비루트 포함)을 함께 켠다. `defaultEnabled`는 켜짐에 쓰지 않는다
+  const t = await createTestHost();
+  const state: { plugins: readonly string[] } = { plugins: [] };
+  await providePluginSet(t, state);
+  const outcome = await t.host.install({
+    manifest: makeManifest({
+      name: "pset-multi",
+      hooks: [],
+      extraPlugins: [
+        { id: "idle", layer: "plugin", hooks: ["tool.call.before"], defaultEnabled: false },
+      ],
+    }),
+    loadIndex: 0,
+    builtin: true,
+    entry: ({ register }) => {
+      register("pset-multi", {}, () => {});
+      register("pset-multi/idle", {}, () => {});
+    },
+  });
+  expect(outcome.unregistered).toEqual([]);
+  // 루트는 매니페스트 기본(켜짐)으로 시작하고, 비루트는 자기 `defaultEnabled: false`로 꺼져 시작한다
+  expect(t.host.registrations().map((info) => [info.id, info.status])).toEqual([
+    ["pset-multi", "enabled"],
+    ["pset-multi/idle", "disabled"],
+  ]);
+
+  // 확장이 E(T)에 든 대화가 열리면 두 선언이 함께 켜진다
+  state.plugins = ["pset-multi"];
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(t.host.registrations().map((info) => [info.id, info.status])).toEqual([
+    ["pset-multi", "enabled"],
+    ["pset-multi/idle", "enabled"],
   ]);
 });

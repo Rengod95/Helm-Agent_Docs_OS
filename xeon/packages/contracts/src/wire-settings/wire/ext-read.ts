@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type {
   AppDecl,
   CompositionDecl,
+  DriveFrameView,
   ManifestIssue,
   Placement,
   PluginDecl,
@@ -12,6 +13,7 @@ import type {
 import {
   AppDeclSchema,
   CompositionDeclSchema,
+  DriveFrameViewSchema,
   HookNameSchema,
   PluginDeclSchema,
   UiNodeSchema,
@@ -381,7 +383,7 @@ export interface GroupStatusWire {
   readonly scope: RegistrationStatus;
   readonly pendingToggle: "enable" | "disable" | null;
   readonly usesDrive: boolean;
-  readonly drive: "holder" | "waiting" | "none" | "error" | "rejected";
+  readonly drive: "holder" | "waiting" | "none" | "error";
   readonly lastError: { readonly kind: string; readonly message: string } | null;
   readonly metrics: GroupMetricsSummaryWire | null;
 }
@@ -396,7 +398,6 @@ const GroupStatusShape = closed({
     Type.Literal("waiting"),
     Type.Literal("none"),
     Type.Literal("error"),
-    Type.Literal("rejected"),
   ]),
   lastError: Type.Union([closed({ kind: Name, message: Line }), Type.Null()]),
   metrics: Type.Union([MetricsSummaryShape, Type.Null()]),
@@ -533,64 +534,43 @@ export const GroupPromotionResultSchema: TUnsafe<GroupPromotionResult> =
     >,
   );
 
-/** `group.driveLock`(W-42). 옛 이름 `group.lease`(저장 이름 `lease.*`는 그대로) */
-export interface GroupDriveLockParams {
+/**
+ * `drive.frames`(drive-isolation.md 2.6). 주도권 스택의 프레임 목록을 아래에서 위 순서로 준다. 맨 아래가 코어 루프(depth 0)다.
+ */
+export interface DriveFramesParams {
   readonly threadId: string;
 }
-const GroupDriveLockParamsShape2 = request({ threadId: ThreadRef });
-export const GroupDriveLockParamsSchema: TUnsafe<Req<GroupDriveLockParams>> = Type.Unsafe<
-  Req<GroupDriveLockParams>
+const DriveFramesParamsShape = request({ threadId: ThreadRef });
+export const DriveFramesParamsSchema: TUnsafe<Req<DriveFramesParams>> = Type.Unsafe<
+  Req<DriveFramesParams>
 >(
-  GroupDriveLockParamsShape2 satisfies SchemaProof<
-    Req<GroupDriveLockParams>,
-    typeof GroupDriveLockParamsShape2
+  DriveFramesParamsShape satisfies SchemaProof<
+    Req<DriveFramesParams>,
+    typeof DriveFramesParamsShape
   >,
 );
-export interface DriveLockWait {
-  /** 기다리는 Registration id */
-  readonly registrationId: string;
-  /** 거절·양보로 기다린 횟수. 사유 `waiting`(loop.ask) 반납 중에는 세지 않는다 */
-  readonly waits: number;
-  /** `leaseWaitLimit`. 넘으면 거부된다 */
-  readonly waitLimit: number;
+/** 코어 루프 1 + 스택 최대 64. `drive.frames`의 `frames` 상한이다 */
+const DRIVE_FRAMES_MAX = 65;
+export interface DriveFramesResult {
+  readonly frames: readonly DriveFrameView[];
 }
-const DriveLockWaitShape = closed({ registrationId: Name, waits: Count, waitLimit: Count });
-/** drive lock 요청이 대기 상한 뒤 거부된 가장 최근 기록(`lease.rejected`) */
-export interface DriveLockRejection {
-  readonly groupId: string;
-  readonly reason: string;
-  readonly requestSeq: number;
-}
-const DriveLockRejectionShape = closed({ groupId: Name, reason: Line, requestSeq: Count });
-export interface GroupDriveLockResult {
-  /** drive lock을 가진 Registration id. 없으면 null */
-  readonly holder: string | null;
-  readonly leaseEpoch: number;
-  /** 설정 `x.primitives.activeDriver`의 값. 없으면 null(자동 중재) */
-  readonly activeDriver: string | null;
-  readonly limits: {
-    readonly turns: number;
-    readonly spawns: number;
-    readonly tokens: number | null;
-  };
-  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
-  readonly candidates: readonly DriveLockWait[];
-  readonly lastRejected: DriveLockRejection | null;
-}
-const GroupDriveLockResultShape2 = closed({
-  holder: Type.Union([Name, Type.Null()]),
-  leaseEpoch: Count,
-  activeDriver: Type.Union([Name, Type.Null()]),
-  limits: closed({ turns: Count, spawns: Count, tokens: Type.Union([Count, Type.Null()]) }),
-  used: closed({ turns: Count, spawns: Count, tokens: Count }),
-  candidates: Type.Array(DriveLockWaitShape, { maxItems: 64 }),
-  lastRejected: Type.Union([DriveLockRejectionShape, Type.Null()]),
+const DriveFramesResultShape = closed({
+  frames: Type.Array(DriveFrameViewSchema, { maxItems: DRIVE_FRAMES_MAX }),
 });
-export const GroupDriveLockResultSchema: TUnsafe<GroupDriveLockResult> =
-  Type.Unsafe<GroupDriveLockResult>(
-    GroupDriveLockResultShape2 satisfies SchemaProof<
-      GroupDriveLockResult,
-      typeof GroupDriveLockResultShape2
+export const DriveFramesResultSchema: TUnsafe<DriveFramesResult> = Type.Unsafe<DriveFramesResult>(
+  DriveFramesResultShape satisfies SchemaProof<DriveFramesResult, typeof DriveFramesResultShape>,
+);
+
+/** 알림 `drive.framesChanged { threadId }`. 주도권 스택이 바뀌었으니 `drive.frames`를 다시 읽는다 */
+export interface DriveFramesChangedParams {
+  readonly threadId: string;
+}
+const DriveFramesChangedParamsShape = closed({ threadId: ThreadRef });
+export const DriveFramesChangedParamsSchema: TUnsafe<DriveFramesChangedParams> =
+  Type.Unsafe<DriveFramesChangedParams>(
+    DriveFramesChangedParamsShape satisfies SchemaProof<
+      DriveFramesChangedParams,
+      typeof DriveFramesChangedParamsShape
     >,
   );
 

@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { BeforeAgentStartPayload } from "@fresnel/contracts/extensions";
+import type { BeforeAgentStartPayload, DriveFrameView } from "@fresnel/contracts/extensions";
 import { commitWithRetry } from "../commit.ts";
 import { customItemOf } from "../commits.ts";
 import { prestartRequest } from "../turn-start.ts";
@@ -8,6 +8,17 @@ import { commitFailure, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure, TurnEntry } from "./types.ts";
 
 // L1.loop.spec §4.2 규칙 1. T1 뒤에 `input.agent.before`를 발화하고, 추가된 메시지를 custom item으로 기록한다(prestart 커밋).
+
+/**
+ * 주도권 스택(아래에서 위 순서)에서 플러그인 이름만 모은다. 맨 아래 코어 루프 프레임(plugin null)은 뺀다.
+ * `driver`는 맨 위 플러그인 프레임이고 주도 중이 아니면 null, `stack`은 주도 중이 아니면 빈 배열이다(drive-isolation.md 2.5)
+ */
+function driveFieldsOf(
+  frames: readonly DriveFrameView[],
+): Pick<BeforeAgentStartPayload, "driver" | "stack"> {
+  const stack = frames.flatMap((frame): string[] => (frame.plugin === null ? [] : [frame.plugin]));
+  return { driver: stack.at(-1) ?? null, stack };
+}
 
 export async function beforeAgentStart(
   run: TurnRun,
@@ -19,6 +30,7 @@ export async function beforeAgentStart(
     ...(entry.images.length === 0 ? {} : { images: [...entry.images] }),
     systemPrompt: state.basePrompt,
     systemPromptOptions: {},
+    ...driveFieldsOf(ctx.ext.driveFrames(threadId)),
   };
   const outcome = await ctx.ext.dispatch("input.agent.before", payload, {
     threadId,

@@ -35,3 +35,25 @@ export const LIMIT_TEXT: Readonly<Record<"turns" | "spawns" | "tokens", string>>
   spawns: "하위 에이전트 수",
   tokens: "토큰",
 };
+
+/** 맡기기 거부 코드(drive-isolation.md 2.1, L3.primitives 4.4.1b)의 사람 말. 모르는 코드는 코드 그대로 보인다 */
+const HANDOFF_REFUSAL_TEXT: Readonly<Record<string, string>> = {
+  self_handoff: "자기 자신에게 맡길 수 없어요",
+  already_in_stack: "이미 주도 중인 플러그인이라 맡길 수 없어요",
+  target_unavailable: "맡을 플러그인을 쓸 수 없어요(꺼져 있거나 구동 기능이 없어요)",
+  depth_limit: "맡기기 깊이 상한에 닿았어요",
+};
+
+export function handoffRefusalText(code: string): string {
+  return HANDOFF_REFUSAL_TEXT[code] ?? `거부 코드 ${code}`;
+}
+
+/** authoring이 맡기기를 받지 않은 사유(plugin-builder가 `done({accepted: false, reason})`로 준다) */
+const BUILDER_DECLINE_TEXT: Readonly<Record<string, string>> = {
+  session_open: "제작 대화가 이미 열려 있어요",
+  bad_input: "요청 내용을 읽지 못했어요",
+};
+
+export function builderDeclineText(reason: string): string {
+  return BUILDER_DECLINE_TEXT[reason] ?? reason;
+}

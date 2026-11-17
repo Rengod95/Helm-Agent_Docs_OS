@@ -1,56 +1,13 @@
 import { expect, test } from "bun:test";
-import { Bug, err, ok, type Result } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { DriveHolderSettingsPort } from "@fresnel/group-sdk";
-import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
-import { holderSettings, type HostGroupsOptions } from "../../src/assembly/groups.ts";
-import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
-import type { SettingsStorePort, SettingsWriteFailure } from "../../src/types.ts";
+import { hostGroupsPlugin, type HostGroupsOptions } from "../../src/assembly/groups.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
-// 구동 그룹 설정 쓰기 실패가 그룹 오류로 어떻게 옮겨지는지(통합 검토 L5 후속 N-1, N-4).
+// 그룹 서비스 단위(`host-groups`)의 모양. 서비스는 `onService`로 넘기고 중재 포트와 구동 그룹 설정은 없다(E3, drive-isolation.md 2.2).
+// 서비스 동작은 `test/int/groups.int.test.ts`가 실제 조립으로 본다.
 
-const THREAD: ThreadId = fixedIdFactory(700).next("thr");
-
-function portOver(written: Result<void, SettingsWriteFailure>): DriveHolderSettingsPort {
-  const built = buildEngineCatalog();
-  if (!built.ok) throw new Error("the core catalog must build");
-  const store: SettingsStorePort = partial<SettingsStorePort>({
-    layers: () => [],
-    write: () => Promise.resolve(written),
-  });
-  return holderSettings(
-    partial<HostGroupsOptions>({
-      catalog: built.catalog,
-      settings: createSettingsEngine(built.catalog),
-      store: () => store,
-      heldThreads: () => [THREAD],
-    }),
-  );
-}
-
-test("a store that reports key_reused is a Bug carrying the failure, not an unwritable storage reason", async () => {
-  const port = portOver(err({ kind: "key_reused", requestKey: "k1" }));
-  const outcome = port.write("grp", "launch", THREAD).then(
-    () => undefined,
-    (thrown: unknown) => thrown,
-  );
-  const thrown = await outcome;
-  expect(thrown).toBeInstanceOf(Bug);
-  expect(thrown instanceof Bug && thrown.message).toBe(
-    "groups.holder.write: the host builds a fresh request key per call",
-  );
-});
-
-test("a scope the setting does not allow is an invalid_value request error; only the managed scope is locked", async () => {
-  const port = portOver(ok(undefined));
-  expect(await port.write("grp", "local", THREAD)).toEqual({
-    ok: false,
-    error: { kind: "unwritable", key: "x.primitives.activeDriver", reason: "invalid_value" },
-  });
-  expect(await port.write("grp", "managed", null)).toEqual({
-    ok: false,
-    error: { kind: "locked", key: "x.primitives.activeDriver" },
-  });
+test("the group service unit is a built-in host unit named host-groups, loading at the given index", () => {
+  const unit = hostGroupsPlugin(partial<HostGroupsOptions>({ loadIndex: 3 }));
+  expect(unit.manifest.name).toBe("host-groups");
+  expect(unit.builtin).toBe(true);
+  expect(unit.loadIndex).toBe(3);
 });

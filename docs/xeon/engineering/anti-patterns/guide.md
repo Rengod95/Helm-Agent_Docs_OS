@@ -102,7 +102,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
 - 증상: L0 `platform-store`가 L1 `core-persistence`의 타입을 import하거나, `contracts`(F)가 `ext-host`(X)를 import한다. 순환 import로 드러나기도 한다.
 - 왜 문제인가:
-  - [결정] 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고, 패키지는 자기보다 낮은 순위만 import한다(`_research/foundation-plan.md §3`).
+  - [결정] 층 순위는 F → X → L0 → L1 → P → L4이고(P: 플러그인 등급, 옛 L2·L3), 패키지는 자기보다 낮은 순위만 import한다(`_research/foundation-plan.md §3`).
   - 위층 타입을 아래층이 알면 아래층을 단독으로 테스트하거나 교체할 수 없다. OS별 구현만 바꾼다는 설계 규칙(`_research/decisions-log.md` 2026-10-19 "설계 규칙")도 L0가 위층에 묶이면 지킬 수 없다.
 - 나쁜 예:
 

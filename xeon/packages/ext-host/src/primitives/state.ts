@@ -278,7 +278,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     }
     let migrated: JsonValue;
     try {
-      migrated = migrate(storedDoc, stored.version);
+      migrated = await migrate(storedDoc, stored.version);
     } catch (cause) {
       return new PrimitiveError(
         "state_migration_failed",

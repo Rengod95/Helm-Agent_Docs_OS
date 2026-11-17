@@ -167,6 +167,8 @@ function devkitErrorOfProfile(failure: ProfilePortFailure): DevkitError {
     case "plugin_not_in_profile":
     case "common_plugin":
       return { kind: "invalid_input", message: `${failure.plugin} is not removable here` };
+    case "required_by_core":
+      return { kind: "invalid_input", message: `${failure.plugin} is required by the core` };
     case "corrupt":
       return { kind: "io", message: "the profiles file is damaged; it is kept as it is" };
     case "io":
@@ -175,6 +177,12 @@ function devkitErrorOfProfile(failure: ProfilePortFailure): DevkitError {
       return { kind: "io", message: `the profile ${failure.id} changed while it was read` };
     case "limit":
       return { kind: "io", message: `the profiles file is full (at most ${String(failure.max)})` };
+    // 프로젝트 쪽 실패(기본 프로필을 고를 때 대화 소속을 읽었다). 프로필 입력 문제가 아니라 읽기 문제다
+    case "project":
+      return {
+        kind: "io",
+        message: `the project list could not be read (${failure.failure.kind})`,
+      };
     default:
       return assertNever(failure, "ProfilePortFailure");
   }

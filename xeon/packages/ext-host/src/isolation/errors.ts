@@ -17,3 +17,12 @@ export class PluginProcessError extends Error {
 export function isPluginProcessError(value: unknown): value is PluginProcessError {
   return value instanceof PluginProcessError;
 }
+
+/**
+ * 단계 함수가 돌려준 명령이 `DriveCommand` 모양이 아니다. 프로세스는 살아 있다. 일반 단계 오류로 본다: 엔진은 그 프레임을 내리고
+ * 주도 등록을 오류로 표시한다(drive-isolation.md 2.4). `kind`는 `invalid_command`다
+ */
+export class DriveCommandError extends Error {
+  override readonly name: string = "DriveCommandError";
+  readonly kind = "invalid_command";
+}

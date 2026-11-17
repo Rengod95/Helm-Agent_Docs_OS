@@ -183,33 +183,45 @@ describe("검사 탭 주도 락 구역: 역할은 런타임 탭과 같은 값에
       scope: "enabled",
       pendingToggle: null,
       usesDrive: true,
-      drive: "rejected",
+      drive: "error",
       lastError: null,
       metrics: null,
     },
   ];
-  const view = runtimeViewOf(groups, {
-    holder: "helm",
-    leaseEpoch: 1,
-    activeDriver: null,
-    limits: { turns: 4, spawns: 4, tokens: null },
-    used: { turns: 1, spawns: 0, tokens: 0 },
-    candidates: [{ registrationId: "review", waits: 1, waitLimit: 3 }],
-    lastRejected: null,
-  });
+  const view = runtimeViewOf(groups, [
+    {
+      depth: 0,
+      plugin: null,
+      versionId: null,
+      leaseId: null,
+      state: "waiting",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: {},
+    },
+    {
+      depth: 1,
+      plugin: "review",
+      versionId: "1.0.0",
+      leaseId: "lease-review",
+      state: "waiting",
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      limits: { turns: 4 },
+    },
+    {
+      depth: 2,
+      plugin: "helm",
+      versionId: "1.0.0",
+      leaseId: "lease-helm",
+      state: "driving",
+      used: { turns: 1, spawns: 0, tokens: 0 },
+      limits: { turns: 4, spawns: 4 },
+    },
+  ]);
 
-  test("보유, 대기, 거절, 후보 아님을 가린다", () => {
-    expect(inspectDriveOf(view, "helm")).toEqual({ role: "holder", waits: null, waitLimit: null });
-    expect(inspectDriveOf(view, "review")).toEqual({ role: "waiting", waits: 1, waitLimit: 3 });
-    expect(inspectDriveOf(view, "work")).toEqual({
-      role: "rejected",
-      waits: null,
-      waitLimit: null,
-    });
-    expect(inspectDriveOf(view, "plugin-x")).toEqual({
-      role: "none",
-      waits: null,
-      waitLimit: null,
-    });
+  test("보유, 대기, 오류, 후보 아님을 가린다", () => {
+    expect(inspectDriveOf(view, "helm")).toBe("holder");
+    expect(inspectDriveOf(view, "review")).toBe("waiting");
+    expect(inspectDriveOf(view, "work")).toBe("error");
+    expect(inspectDriveOf(view, "plugin-x")).toBe("none");
   });
 });

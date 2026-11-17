@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { HandlerFailureEntry, TransitionEntry } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
+import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { thr, trn } from "../../state/helpers.ts";
 import {
@@ -75,18 +76,29 @@ function group(
   };
 }
 
-function lockOf(over: Partial<GroupDriveLockResult> = {}): GroupDriveLockResult {
+/** 주도권 스택의 프레임. `depth`는 코어 0, 플러그인 프레임 1부터다 */
+function frame(plugin: string, state: DriveFrameView["state"], depth: number): DriveFrameView {
   return {
-    holder: null,
-    leaseEpoch: 0,
-    activeDriver: null,
-    limits: { turns: 4, spawns: 4, tokens: null },
+    depth,
+    plugin,
+    versionId: "1.0.0",
+    leaseId: `lease-${plugin}`,
+    state,
     used: { turns: 0, spawns: 0, tokens: 0 },
-    candidates: [],
-    lastRejected: null,
-    ...over,
+    limits: {},
   };
 }
+
+/** 코어 루프 프레임(맨 아래) */
+const CORE: DriveFrameView = {
+  depth: 0,
+  plugin: null,
+  versionId: null,
+  leaseId: null,
+  state: "waiting",
+  used: { turns: 0, spawns: 0, tokens: 0 },
+  limits: {},
+};
 
 function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
   return {
@@ -133,57 +145,55 @@ function body(
 }
 
 const HELM_HOLDER: RuntimeData = {
-  entries: ready([entry("helm"), entry("review"), entry("work")]),
+  entries: ready([entry("helm"), entry("review")]),
   drive: ready({
-    groups: [group("helm", "holder"), group("review", "waiting"), group("work", "rejected")],
-    lock: lockOf({
-      holder: "helm",
-      leaseEpoch: 2,
-      used: { turns: 1, spawns: 0, tokens: 120 },
-      candidates: [{ registrationId: "review", waits: 1, waitLimit: 3 }],
-    }),
+    groups: [group("helm", "holder"), group("review", "waiting")],
+    frames: [CORE, frame("review", "waiting", 1), frame("helm", "driving", 2)],
   }),
 };
 
 describe("runtime-tab.drive-queue-matches-group-status", () => {
-  test("runtime-tab.drive-queue-matches-group-status: helm 보유, review 대기, work 거절을 그대로 그린다", () => {
+  test("runtime-tab.drive-queue-matches-group-status: [코어, review waiting, helm driving]은 보유 helm, 대기 review로 그린다", () => {
     const html = body(HELM_HOLDER);
     const lock = sectionOf(html, t("desktop.runtime.section.lock"));
     expect(textOf(holderLineOf(lock))).toContain("helm");
     expect(itemsUnder(lock, t("desktop.runtime.queue.title"))).toHaveLength(1);
     expect(itemsUnder(lock, t("desktop.runtime.queue.title"))[0]).toContain("review");
-    expect(itemsUnder(lock, t("desktop.runtime.rejected.title"))).toHaveLength(1);
-    expect(itemsUnder(lock, t("desktop.runtime.rejected.title"))[0]).toContain("work");
     expect(lock).not.toContain(t("desktop.runtime.lock.mismatch"));
   });
 
-  test("runtime-tab.drive-queue-matches-group-status: 보유자가 helm이 아닌 review여도 같은 모양이다", () => {
+  test("runtime-tab.drive-queue-matches-group-status: 맨 위 프레임이 review면 보유는 review, 대기는 helm이다", () => {
     const html = body({
-      entries: ready([entry("review"), entry("helm"), entry("work")]),
+      entries: ready([entry("review"), entry("helm")]),
       drive: ready({
-        groups: [group("review", "holder"), group("helm", "waiting"), group("work", "rejected")],
-        lock: lockOf({
-          holder: "review",
-          candidates: [{ registrationId: "helm", waits: 0, waitLimit: 2 }],
-        }),
+        groups: [group("review", "holder"), group("helm", "waiting")],
+        frames: [CORE, frame("helm", "waiting", 1), frame("review", "driving", 2)],
       }),
     });
     const lock = sectionOf(html, t("desktop.runtime.section.lock"));
     expect(textOf(holderLineOf(lock))).toContain("review");
     expect(textOf(holderLineOf(lock))).not.toContain("helm");
     expect(itemsUnder(lock, t("desktop.runtime.queue.title"))[0]).toContain("helm");
-    expect(itemsUnder(lock, t("desktop.runtime.rejected.title"))[0]).toContain("work");
   });
 
-  test("runtime-tab.drive-queue-matches-group-status: 보유 그룹과 락 기록이 다르면 경고를 보인다", () => {
+  test("runtime-tab.drive-queue-matches-group-status: group.list의 보유 그룹과 맨 위 프레임이 다르면 경고를 보인다", () => {
     const html = body({
       entries: ready([]),
       drive: ready({
         groups: [group("helm", "holder")],
-        lock: lockOf({ holder: "review" }),
+        frames: [CORE, frame("review", "driving", 1)],
       }),
     });
     expect(html).toContain(t("desktop.runtime.lock.mismatch"));
+  });
+
+  test("runtime-tab.drive-queue-matches-group-status: drive 오류인 그룹은 오류 구역에 든다", () => {
+    const html = body({
+      entries: ready([]),
+      drive: ready({ groups: [group("work", "error")], frames: [CORE] }),
+    });
+    const lock = sectionOf(html, t("desktop.runtime.section.lock"));
+    expect(itemsUnder(lock, t("desktop.runtime.errored.title"))[0]).toContain("work");
   });
 });
 
@@ -221,7 +231,7 @@ describe("runtime-tab 상태: 읽는 중, 구역별 오류, 끊김, 빈 상태",
   });
 
   test("켜진 그룹과 확장이 없으면 빈 글을 보인다", () => {
-    const html = body({ entries: ready([]), drive: ready({ groups: [], lock: lockOf() }) });
+    const html = body({ entries: ready([]), drive: ready({ groups: [], frames: [CORE] }) });
     expect(sectionOf(html, t("desktop.runtime.section.exts"))).toContain(
       t("desktop.runtime.exts.empty"),
     );

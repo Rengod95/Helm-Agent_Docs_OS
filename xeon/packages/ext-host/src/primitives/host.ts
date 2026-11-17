@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
-import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { IdFactory, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { portAs } from "../erase.ts";
 import { pluginsOf } from "@fresnel/contracts/extensions";
 import type {
@@ -22,6 +22,7 @@ import type {
   TrustRequest,
   Unsubscribe,
   PostItem,
+  DriveFrameView,
 } from "@fresnel/contracts/extensions";
 import { isHookUnitName } from "../operations/hooks/names.ts";
 import {
@@ -42,15 +43,17 @@ import {
 import { createLifecycle, type CommittedEvent } from "./lifecycle.ts";
 import { createEffectWorker, type EffectWorkerPort } from "./effect-worker.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
-import type {
-  ExtChange,
-  HostCore,
-  InstalledUnit,
-  RegistrationRecord,
-  ThreadOpenOptions,
-  ThreadRuntime,
-  PrimitivesSettingsSource,
-  ResolvedDeps,
+import {
+  topFrame,
+  type ExtChange,
+  type HostCore,
+  type InstalledUnit,
+  type RegistrationRecord,
+  type StartDriveError,
+  type ThreadOpenOptions,
+  type ThreadRuntime,
+  type PrimitivesSettingsSource,
+  type ResolvedDeps,
 } from "./core.ts";
 import { createCordisBridge } from "./cordis-bridge.ts";
 import {
@@ -300,6 +303,26 @@ export interface ExtHost {
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-sdk.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
+  /**
+   * 주도 시작 요청을 큐에 넣는다(drive-isolation.md 2.2). 사용자 명령이 `trigger` `user`(기본)로 부른다. scope를 모르거나 thread가 없거나
+   * 자식 대화이거나 drive가 없거나 drive 오류면 거부한다. 스택이 비어 있으면 다음 경계에서 부여되고, 주도 중이면 전환 정책
+   * (X.primitives.spec §4.4.1a)에 따라 스택 전체를 내리고 새 주도를 부여한다
+   */
+  startDrive(
+    threadId: ThreadId,
+    scopeId: RegistrationId,
+    options?: { readonly input?: JsonValue; readonly trigger?: "user" | "profile" },
+  ): Result<void, StartDriveError>;
+  /**
+   * thread의 주도권 스택을 아래에서 위로 읽는다(`drive.frames`, drive-isolation.md 2.6). 맨 아래는 코어 루프(깊이 0)다.
+   * thread가 열려 있지 않으면 빈 목록이다
+   */
+  driveFrames(threadId: ThreadId): readonly DriveFrameView[];
+  /**
+   * 플러그인 호출(훅 안의 `agents.judge`, `models.complete`)이 새로 쓴 토큰을 thread의 맨 위 주도 프레임과 스택 아래 모든 프레임의 한도 사용량에
+   * 더한다(drive-isolation.md 2.3). 재생된 호출은 부르지 않는다. 주도 프레임이 없으면 아무 일도 하지 않는다
+   */
+  chargeDriveTokens(threadId: ThreadId, tokens: number): void;
   /**
    * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
    * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
@@ -758,6 +781,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
           resources,
           capabilityDefs: deps.capabilityDefs ?? EMPTY_CAPABILITY_DEFS,
           effects,
+          startDrive: (threadId, scopeId, trigger, input) =>
+            lease.startDrive(threadId, scopeId, trigger, input),
         },
         record,
         generation,
@@ -1129,8 +1154,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       await boundary.closeThread(threadId);
     },
     leaseOf(threadId) {
-      const held = core.threads.get(threadId)?.lease;
-      if (held === null || held === undefined || held.status === "released") return null;
+      const thread = core.threads.get(threadId);
+      const held = thread === undefined ? null : topFrame(thread);
+      if (held === null || held.status === "released") return null;
       if (!held.committed) return null;
       return {
         leaseId: held.leaseId,
@@ -1138,6 +1164,22 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         leaseEpoch: held.leaseEpoch,
         status: held.status,
       };
+    },
+    startDrive(threadId, scopeId, options) {
+      return lease.startDrive(
+        threadId,
+        scopeId,
+        options?.trigger ?? "user",
+        options?.input ?? null,
+      );
+    },
+    driveFrames(threadId) {
+      const thread = core.threads.get(threadId);
+      return thread === undefined ? [] : lease.framesOf(thread);
+    },
+    chargeDriveTokens(threadId, tokens) {
+      const thread = core.threads.get(threadId);
+      if (thread !== undefined) lease.chargeTokens(thread, tokens);
     },
     onChange(listener) {
       listeners.add(listener);

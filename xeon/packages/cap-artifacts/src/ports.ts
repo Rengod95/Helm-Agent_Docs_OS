@@ -22,6 +22,8 @@ export interface ReviewFilesPort {
     readonly oldText: string;
     readonly newText: string;
     readonly requestId: string;
+    /** 이 쓰기를 가리킨 검토 카드의 승인 id. 사람이 답한 카드면 엔진이 새 승인 카드를 건너뛴다(U-11) */
+    readonly approvalId?: string;
     readonly signal?: AbortSignal;
   }): Promise<Result<void, ReplaceFailure>>;
 }

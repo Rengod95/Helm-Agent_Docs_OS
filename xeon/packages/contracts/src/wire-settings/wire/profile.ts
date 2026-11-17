@@ -68,7 +68,7 @@ export interface Profile {
   readonly plugins: readonly PluginRef[];
   readonly settings: readonly ProfileSetting[];
   /** 시작 Drive 플러그인 이름. 값은 `plugins` 안에 있어야 한다. 없으면 null */
-  readonly driver: string | null;
+  readonly startDrive: string | null;
   readonly hidden?: boolean;
   /** 저장이 정한 값 */
   readonly updatedAt: string;
@@ -81,7 +81,7 @@ const ProfileShape = closed({
   builtin: Type.Boolean(),
   plugins: Type.Array(PluginRefShape, { maxItems: PROFILE_LIMITS.plugins }),
   settings: Type.Array(ProfileSettingShape, { maxItems: PROFILE_LIMITS.settings }),
-  driver: Nullable(ExtensionNameSchema),
+  startDrive: Nullable(ExtensionNameSchema),
   hidden: Type.Optional(Type.Boolean()),
   updatedAt: Iso,
   rev: Count,
@@ -141,14 +141,14 @@ export interface ProfileInput {
   readonly title: string;
   readonly plugins: readonly PluginRef[];
   readonly settings: readonly ProfileSetting[];
-  readonly driver: string | null;
+  readonly startDrive: string | null;
 }
 const ProfileInputShape = closed({
   id: ProfileShape.properties.id,
   title: ProfileShape.properties.title,
   plugins: ProfileShape.properties.plugins,
   settings: ProfileShape.properties.settings,
-  driver: ProfileShape.properties.driver,
+  startDrive: ProfileShape.properties.startDrive,
 });
 export const ProfileInputSchema: TUnsafe<ProfileInput> = Type.Unsafe<ProfileInput>(
   ProfileInputShape satisfies SchemaProof<ProfileInput, typeof ProfileInputShape>,
@@ -163,6 +163,7 @@ export const PROFILE_ISSUE_CODES = [
   "replace_conflict",
   "driver_not_in_list",
   "driver_cannot_drive",
+  "driver_unavailable",
   "setting_unknown_key",
   "setting_scope_not_allowed",
   "setting_invalid_value",

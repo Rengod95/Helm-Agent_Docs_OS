@@ -1,6 +1,5 @@
 import type { ImageLimits, WorkspaceImage } from "@fresnel/contracts/capabilities";
-import { WorkspaceFailure } from "../errors.ts";
-import type { BlobSink } from "../ports/blobs.ts";
+import { WorkspaceFailure, type BlobSink } from "@fresnel/core-workspace";
 import { detectSupportedImageMimeType, imageDimensions } from "./upstream/image.ts";
 import { base64Length, INLINE_IMAGE_TYPES } from "./upstream/image-processor.ts";
 

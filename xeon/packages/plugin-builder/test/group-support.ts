@@ -208,8 +208,8 @@ export interface GroupRig {
   exposures(): (string | undefined)[];
   readonly approvals: FakeApprovals;
   readonly probe: DevkitProbe;
-  /** 도구 호출. 결과는 JSON 값이다 */
-  call(name: string, args: JsonValue): Promise<JsonValue>;
+  /** 도구 호출. 결과는 JSON 값이다. `from`을 주면 그 thread의 문맥에서 부른다(기본은 시험 대화) */
+  call(name: string, args: JsonValue, from?: ThreadId): Promise<JsonValue>;
   /** 커밋된 마지막 상태 */
   state(): AuthoringState;
   /** 대기 중인 승인에 yes 또는 no로 답한다 */
@@ -238,6 +238,11 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
     name: "test-tools",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {
@@ -284,12 +289,12 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
       [...tools.entries()]
         .toSorted(([a], [b]) => a.localeCompare(b))
         .map(([, def]) => def.exposure),
-    async call(name, args) {
+    async call(name, args, from) {
       const def = tools.get(name);
       if (def === undefined) throw new Error(`tool ${name} is not registered`);
       calls += 1;
       const result = await def.execute(args, {
-        threadId: thread,
+        threadId: from ?? thread,
         signal: new AbortController().signal,
         toolCallId: `call_${String(calls)}`,
         caller: { kind: "model", agent: "main" },

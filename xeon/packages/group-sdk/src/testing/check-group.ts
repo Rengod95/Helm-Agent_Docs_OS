@@ -45,7 +45,7 @@ export async function checkGroup(
     settings: {
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
-      activeDriver: () => null,
+      driveMaxDepth: () => 8,
       driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },

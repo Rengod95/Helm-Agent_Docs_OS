@@ -40,6 +40,7 @@ import type {
 } from "../../assembly/m4/profile-store.ts";
 import type { PluginEditIssue, PluginEditRequest } from "../../assembly/m4/plugin-edit.ts";
 import { settingsFileInvalidDetails } from "../../settings-file-details.ts";
+import { wireErrorOfProject, type ProjectPortFailure } from "./project.ts";
 
 // 프로필·Test run·Trace wire(M5c §3.4, §3.6). 처리기는 값 검사와 오류 옮기기만 하고, 저장·검증·계산은 포트 구현
 // (`assembly/m4/profile-test-run-port.ts`)이 한다. 알림 `profile.changed`는 포트의 `onProfilesChanged`를 연결 허브(`handlers/events.ts`)가 듣고 전체 연결에 보낸다.
@@ -59,7 +60,11 @@ export type ProfilePortFailure =
   | { readonly kind: "builtin_protected"; readonly id: string }
   | { readonly kind: "invalid"; readonly issues: readonly ProfileIssue[] }
   | { readonly kind: "plugin_not_in_profile"; readonly plugin: string }
-  | { readonly kind: "common_plugin"; readonly plugin: string };
+  | { readonly kind: "common_plugin"; readonly plugin: string }
+  /** 코어 필수 단위를 프로필(또는 공통 묶음)에서 빼려 한다(M5c §4.1.17) */
+  | { readonly kind: "required_by_core"; readonly plugin: string }
+  /** 프로젝트 쪽 실패(`profile.defaultFor`가 대화의 소속을 읽을 때) */
+  | { readonly kind: "project"; readonly failure: ProjectPortFailure };
 
 /** 승인의 프로필 반영이 낼 수 있는 실패. `plugin_invalid`는 대상 프로필 가운데 검사에 실패한 것이 있다는 뜻이다(M5c §4.7.3) */
 export type PluginEditFailure =
@@ -193,6 +198,10 @@ export function wireErrorOfProfile(failure: ProfilePortFailure): WireError {
       return wireError("profile.pluginNotInProfile", { details: { name: failure.plugin } });
     case "common_plugin":
       return wireError("profile.commonPlugin", { details: { name: failure.plugin } });
+    case "required_by_core":
+      return wireError("plugin.requiredByCore", { details: { plugin: failure.plugin } });
+    case "project":
+      return wireErrorOfProject(failure.failure);
     default:
       return assertNever(failure, "ProfilePortFailure");
   }

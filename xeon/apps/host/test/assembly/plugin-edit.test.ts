@@ -9,13 +9,19 @@ import type { ProfileBody } from "../../src/assembly/m4/profile-validate.ts";
 // 검사 함수는 가짜다. 드라이버가 목록에 없으면 오류라는 한 가지 규칙만 둔다.
 
 const NOW = "2026-11-18T00:00:00.000Z";
-const FACT: PluginFact = { name: "kit", replaces: [], drives: false, requiredKeys: [] };
+const FACT: PluginFact = {
+  name: "kit",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+};
 
 function profileOf(
   id: string,
   plugins: readonly string[],
   options: {
-    readonly driver?: string | null;
+    readonly startDrive?: string | null;
     readonly settings?: readonly { readonly key: string; readonly value: unknown }[];
     readonly rev?: number;
   } = {},
@@ -26,7 +32,7 @@ function profileOf(
     builtin: false,
     plugins: plugins.map((name) => ({ name })),
     settings: [...(options.settings ?? [])],
-    driver: options.driver ?? null,
+    startDrive: options.startDrive ?? null,
     updatedAt: "2026-11-01T00:00:00.000Z",
     rev: options.rev ?? 1,
   };
@@ -41,8 +47,9 @@ const COMMON: CommonSet = {
 
 /** 드라이버가 목록에 없으면 오류다. 다른 검사는 없다 */
 function driverCheck(body: ProfileBody): readonly ProfileIssue[] {
-  if (body.driver === null || body.plugins.some((ref) => ref.name === body.driver)) return [];
-  return [{ code: "driver_not_in_list", severity: "error", plugin: body.driver }];
+  if (body.startDrive === null || body.plugins.some((ref) => ref.name === body.startDrive))
+    return [];
+  return [{ code: "driver_not_in_list", severity: "error", plugin: body.startDrive }];
 }
 
 function planOf(
@@ -82,7 +89,7 @@ test("add to a profile that was deleted in the meantime answers profile_not_foun
 });
 
 test("a failing check in any target fails the whole edit and names that profile", () => {
-  const profiles = [profileOf("p1", ["helm"]), profileOf("p2", ["helm"], { driver: "other" })];
+  const profiles = [profileOf("p1", ["helm"]), profileOf("p2", ["helm"], { startDrive: "other" })];
   expect(planOf({ kind: "add", plugin: FACT, profileIds: ["p1", "p2"] }, profiles)).toEqual(
     err({
       kind: "plugin_invalid",
@@ -117,7 +124,7 @@ test("keep changes no list and checks only the profiles that list the plugin", (
 test("remove takes the plugin, its settings, and its driver role out of every profile and the common set", () => {
   const profiles = [
     profileOf("p1", ["helm", "kit"], {
-      driver: "kit",
+      startDrive: "kit",
       settings: [
         { key: "ext.kit.token", value: "x" },
         { key: "l2.keep.value", value: 1 },

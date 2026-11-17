@@ -93,8 +93,8 @@ flowchart TD
 | L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 기능은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
 | L3 → X `ext-host` | `group-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
-| L3 → L0 `platform-*` | 순위상 허용이나 DR-14로 구현 import 금지. 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-14 나쁜 예 |
-| L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
+| L3 → L0 `platform-*` | DR-15로 소스 import 금지(시험 파일 예외). 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-15, DR-14 나쁜 예 |
+| L3 → L1 `core-*` | DR-15로 소스 import 금지(시험 파일 예외). `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-15, DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
 | 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
 각 패키지 `package.json`의 `fresnel` 필드(현재 값):
@@ -121,7 +121,7 @@ flowchart TD
 | 설정 키(기본 그룹·group-sdk) | `l3.<도메인>.<이름>` | `F.wire-settings.spec` §3.8.1, §3.8.3 규칙 3 |
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-sdk), `/<그룹 이름> …`(각 그룹) | `L3.group-sdk.spec`, 각 그룹 spec |
-| 서비스 이름 | `fresnel.groups`(`GroupService`, group-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 두고 X `DriveLockArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
+| 서비스 이름 | `fresnel.groups`(`GroupService`, group-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다. 중재 포트 `DriveLockArbiterPort`는 E3에서 걷었다(drive-isolation.md 2.2) [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
 | 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
@@ -133,7 +133,7 @@ flowchart TD
 | helm 레코드(작성) | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` |
 | learning 레코드(작성) | `grp.learning.skill.proposed`, `grp.learning.skill.approved`, `grp.learning.skill.rejected`, `grp.learning.skill.applied`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished`, (2차) `grp.learning.script.proposed` |
 | 레코드 읽기 | helm과 learning은 서로의 레코드를 읽지 않는다. 두 매니페스트의 `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10] |
-| group-sdk 설정 | `l3.group-sdk.instrumentation`, `l3.group-sdk.statusLine`. 주도 플러그인 선택은 X 키 `x.primitives.activeDriver`(`null`은 auto) 하나다 [결정: review.decisions-2 S-15] |
+| group-sdk 설정 | `l3.group-sdk.instrumentation`, `l3.group-sdk.statusLine`. 구동 그룹을 고르는 키는 없다. 주도는 주도 시작 명령, 프로필의 시작 설정(`startDrive`), 맨 위 프레임의 맡기기로 받는다 [근거: drive-isolation.md 2.2] |
 | helm 설정 | `l3.helm.autoStart`, `l3.helm.driveLimits`, `l3.helm.maxLenses`, `l3.helm.writeGuard` |
 | learning 설정 | `l3.learning.trigger.userTurns`, `l3.learning.trigger.toolIterations`, `l3.learning.review.maxIterations`, `l3.learning.review.tokenBudget`, `l3.learning.review.model`, `l3.learning.approval.required`, `l3.learning.scan.enabled`, `l3.learning.queue.expiryDays`, `l3.learning.curator.enabled`, `l3.learning.curator.intervalHours`, `l3.learning.curator.minIdleHours`, `l3.learning.curator.llmConsolidate` |
 | 명령 | `/group status`, `/group on <id>`, `/group off <id>`, `/group drive <id\|auto>`; `/helm start`, `/helm stop`, `/helm status`; `/learning queue`, `/learning review`, `/learning history` |
@@ -218,7 +218,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 | 핸들러 순서 | tier, 확장 로드 순서, 등록 순서의 사전식 순서. tier 정의는 L3가 정하지 않는다 | `X.operations.spec`으로 위임, `F.extensions.spec` §4.2 |
 | delegate 동시 실행 | Helm의 `loop.spawn`(drive 락 안)과 학습 그룹의 `delegate`(drive 락 밖 백그라운드 위임)가 함께 돈다. 학습 쪽 상한은 `l3.learning.review.*` 설정이 건다 | [결정] 층 사이 규칙 4 "백그라운드 위임은 여러 그룹이 함께 쓴다", 상한 귀속은 [미결](`_research/notes/L3-2.md` §6 8) |
 | 레코드 읽기 | 서로의 레코드를 선택적으로 읽는다(5절). 한쪽이 꺼져 있어도 다른 쪽은 빈 결과로 동작한다 | [제안] |
-| 제3의 drive 그룹 | `x.primitives.activeDriver`이 `null`(auto)이면 `DriveArbiter`가 요청 순서로 정한다. 기본은 대기이고 대기 상한을 넘으면 거부한다(D-M3-05, 2026-10-26 사용자 결정) | `L3.group-sdk.spec`, `product.vision.spec` §5 |
+| 제3의 drive 그룹 | 주도권 스택이 정한다. 맨 위 프레임이 주도하고 맡긴 프레임은 `waiting`으로 기다린다. 맡기기 깊이가 `x.primitives.driveMaxDepth`(기본 8)를 넘으면 거절한다. 사용자 명령은 단계 경계에서 맨 위 프레임을 바꾼다 [결정: 2026-11-17 사용자] | `L3.group-sdk.spec`, `product.vision.spec` §5 |
 
 기본 켬 상태 요약:
 
@@ -232,7 +232,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 | 노출 | 내용 | 소유 문서 |
 |---|---|---|
-| 설정 화면 `plugins` 탭 | 그룹 목록과 토글, 그룹별 설정(4절 키), 주도 플러그인 선택(`x.primitives.activeDriver`, 라벨 "주도 플러그인"), drive 등록 정책 토글(`x.primitives.driveRequiresGroup`. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다), drive 락 상한(`x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`, `l3.helm.driveLimits`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
+| 설정 화면 `plugins` 탭 | 그룹 목록과 토글, 그룹별 설정(4절 키), drive 등록 정책 토글(`x.primitives.driveRequiresGroup`. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다), drive 락 상한(`x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`, `l3.helm.driveLimits`), drive 스택 깊이 상한(`x.primitives.driveMaxDepth`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
 | `/group` 명령 | `status`, `on <id>`, `off <id>`, `drive <id\|auto>` | `L3.group-sdk.spec`(동작), `L4.cli.spec`(해석) |
 | `/helm` 명령 | `start`, `stop`, `status` | `L3.helm.spec`, `L4.cli.spec` |
 | `/learning` 명령 | `queue`, `review`, `history`(`history`는 2차) | `L3.learning.spec`, `L4.cli.spec` |

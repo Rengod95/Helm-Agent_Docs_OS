@@ -1,4 +1,4 @@
-import { WorkspaceFailure } from "../errors.ts";
+import { WorkspaceFailure } from "@fresnel/core-workspace";
 
 const BASE64_BODY = /^[A-Za-z0-9+/]*={0,2}$/;
 

@@ -80,7 +80,7 @@ function driveLimitsOf(value: unknown): DriveLimits {
 /** x.primitives.* */
 export function primitivesSource(settings: SettingsEngine): ExtHostDeps["settings"] {
   return {
-    // 두 상한 키는 session 범위도 받으므로 임대를 받는 thread로 읽는다(review.decisions-2 U-12).
+    // 두 상한 키는 session 범위도 받으므로 drive를 받는 thread로 읽는다(review.decisions-2 U-12).
     // 일부 필드만 적은 값은 빠진 필드를 내장 기본 상한으로 채운다(X.primitives.spec §4.4.2)
     driveDefaultLimits(threadId): DriveLimits {
       return withDriveDefaults(
@@ -90,9 +90,9 @@ export function primitivesSource(settings: SettingsEngine): ExtHostDeps["setting
     driveLimits(threadId): DriveLimits {
       return driveLimitsOf(settings.value("x.primitives.driveLimits", threadId));
     },
-    activeDriver(threadId) {
-      const value = settings.value("x.primitives.activeDriver", threadId);
-      return typeof value === "string" ? value : null;
+    // 주도권 스택의 깊이 상한(drive-isolation.md 2.3). 기본 8은 설정 정의의 기본값과 같다
+    driveMaxDepth(threadId): number {
+      return intOr(settings.value("x.primitives.driveMaxDepth", threadId), 8);
     },
     // 기본값은 true(그룹만). 값이 불리언이 아니면 가장 안전한 쪽(true)으로 둔다
     driveRequiresGroup() {
@@ -187,7 +187,12 @@ export function layersSource(settings: SettingsEngine): {
 }
 
 export function toolsSource(settings: SettingsEngine): ToolsSettingsSource {
-  return { layers: () => settings.layers(undefined) };
+  return {
+    layers: () => settings.layers(undefined),
+    // 권한 모드 같은 도구 설정이 대화의 프로필 값을 따른다(M5c §4.1.7). 세션 층은 `configReader`가 더한다
+    profileLayer: (threadId) =>
+      settings.layers(threadId).find((layer) => layer.scope === "profile"),
+  };
 }
 
 export function workspaceSource(settings: SettingsEngine): WorkspaceSettingsSource {

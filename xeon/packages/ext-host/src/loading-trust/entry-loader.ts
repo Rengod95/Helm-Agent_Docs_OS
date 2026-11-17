@@ -51,7 +51,7 @@ function issuesOf(code: ManifestIssue["code"], message: string): readonly Manife
 export function verdictOfInstall(result: InstallResult): InstallVerdict {
   const diagnostics: InstallDiagnostic[] = [];
   if (result.entryError !== undefined) {
-    // 격리 확장의 시작 실패는 격리 진단 코드로 남긴다(isolation_unavailable, isolation_drive_unsupported, isolation_protocol, entry_threw)
+    // 격리 확장의 시작 실패는 격리 진단 코드로 남긴다(isolation_unavailable, isolation_protocol, entry_threw)
     if (result.entryError instanceof IsolatedEntryError) {
       diagnostics.push({
         severity: "error",

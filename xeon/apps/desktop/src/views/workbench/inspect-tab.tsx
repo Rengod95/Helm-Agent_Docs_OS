@@ -3,7 +3,7 @@
 // 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패.
 // 이 대화의 플러그인 구역(`views/plugin/thread-switches.tsx`, 읽기만)과 이 대화의 프로필(`thread-profile.tsx`)은 대화 영역 "플러그인" 탭에 있다.
 // 값은 `packages/client/src/workbench/inspect.ts`가 만든다.
-// 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`(대화가 열렸을 때), 엔진 거울의 실패 기록과 장부(`health`).
+// 데이터: `ext.get`, `ext.timings`, `group.list`·`drive.frames`(대화가 열렸을 때, 주도권 스택이 바뀌면 다시 읽는다), 엔진 거울의 실패 기록과 장부(`health`).
 import { InspectArt } from "../illustrations/index.tsx";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
@@ -28,12 +28,11 @@ import {
 } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtTimingsResult } from "@fresnel/contracts/extensions";
+import type { DriveFrameView, ExtTimingsResult } from "@fresnel/contracts/extensions";
 import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
-  GroupDriveLockResult,
   GroupStatusWire,
 } from "@fresnel/contracts/wire";
 import {
@@ -76,7 +75,7 @@ const IDLE: { readonly kind: "idle" } = { kind: "idle" };
 
 interface DriveData {
   readonly groups: readonly GroupStatusWire[];
-  readonly lock: GroupDriveLockResult;
+  readonly frames: readonly DriveFrameView[];
 }
 
 /** 검사 탭이 읽는 값 전부 */
@@ -100,12 +99,12 @@ async function loadDrive(
   threadId: ThreadId | null,
 ): Promise<Load<DriveData>> {
   if (threadId === null) return IDLE;
-  const [groups, lock] = await Promise.all([
+  const [groups, frames] = await Promise.all([
     workbench.groups(threadId),
-    workbench.driveLock(threadId),
+    workbench.driveFrames(threadId),
   ]);
-  return groups.ok && lock.ok
-    ? { kind: "ready", value: { groups: groups.value, lock: lock.value } }
+  return groups.ok && frames.ok
+    ? { kind: "ready", value: { groups: groups.value, frames: frames.value } }
     : ERROR;
 }
 
@@ -155,7 +154,7 @@ async function loadInspect(
 }
 
 /**
- * 고른 확장의 검사 값을 읽는다. 확장을 바꾸거나 대화를 바꾸면 다시 읽고, 확장 목록 알림마다 다시 읽는다.
+ * 고른 확장의 검사 값을 읽는다. 확장을 바꾸거나 대화를 바꾸면 다시 읽고, 확장 목록 알림과 주도권 스택 알림마다 다시 읽는다.
  * 읽은 값은 확장과 대화의 키와 함께 둔다. 키가 다르면 읽는 중으로 본다. 연결이 없으면 읽지 않는다.
  */
 function useInspectData(name: string, threadId: ThreadId | null, live: boolean): InspectData {
@@ -175,8 +174,18 @@ function useInspectData(name: string, threadId: ThreadId | null, live: boolean):
   useEffect(() => {
     if (!live) return undefined;
     detach(load(), rethrow);
-    return reloadOnExtChanges(commands.workbench, load);
-  }, [commands, live, load]);
+    const offChanged = reloadOnExtChanges(commands.workbench, load);
+    const offDrive =
+      threadId === null
+        ? () => {}
+        : commands.workbench.onDriveFramesChanged(threadId, () => {
+            detach(load(), rethrow);
+          });
+    return () => {
+      offChanged();
+      offDrive();
+    };
+  }, [commands, live, load, threadId]);
   return loaded !== null && loaded.key === key ? loaded.data : INSPECT_LOADING;
 }
 
@@ -325,7 +334,7 @@ function Gauge(props: {
   );
 }
 
-/** 주도 구역: 이 그룹의 역할과 대기 횟수, 주도의 턴·spawn·토큰 사용량. 끝 글은 차수다 */
+/** 주도 구역: 이 그룹의 역할, 주도의 턴·spawn·토큰 사용량(맨 위 플러그인 프레임의 값) */
 function DriveSection(props: {
   readonly name: string;
   readonly drive: Load<DriveData>;
@@ -356,18 +365,13 @@ function DriveSection(props: {
   }
   const own = drive.value.groups.find((group) => group.id === props.name);
   if (own === undefined || !own.usesDrive) return null;
-  const view: RuntimeDriveView = runtimeViewOf(drive.value.groups, drive.value.lock);
+  const view: RuntimeDriveView = runtimeViewOf(drive.value.groups, drive.value.frames);
   const role = inspectDriveOf(view, props.name);
   return (
-    <Section title={title} end={t("desktop.runtime.lock.epoch", { epoch: view.leaseEpoch })}>
+    <Section title={title}>
       <div className="grid gap-2">
         <p className="m-0 flex flex-wrap items-baseline gap-2 text-ui-dense">
-          <span className="text-text-primary">{t(RoleText[role.role])}</span>
-          {role.waits !== null && role.waitLimit !== null && (
-            <span className="text-ui text-text-tertiary">
-              {t("desktop.inspect.drive.waits", { waits: role.waits, waitLimit: role.waitLimit })}
-            </span>
-          )}
+          <span className="text-text-primary">{t(RoleText[role])}</span>
         </p>
         <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui">
           <Gauge

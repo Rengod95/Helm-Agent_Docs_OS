@@ -33,7 +33,7 @@ import {
   type PortKey,
   pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
-import { fakeRedactor } from "@fresnel/core-tools/testing";
+import { fakeRedactor, manualTimers, realApprovals } from "@fresnel/core-tools/testing";
 import type {
   CommitBatch,
   DurableEventEnvelope,
@@ -47,7 +47,6 @@ import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import { DIALOG_EXTENSION_NAME, dialogManifest } from "../src/manifest.ts";
 import { dialogPlugin } from "../src/plugin.ts";
 import { DIALOG_SETTING_DEFS } from "../src/settings.ts";
-import { realApprovals } from "./support/real-approvals.ts";
 import {
   callOptions,
   fakeShell,
@@ -58,7 +57,6 @@ import {
 } from "./support/harness.ts";
 import { fakeImages, memoryBlobs, pngBytes, type MemoryBlobs } from "./support/images.ts";
 import { memoryCommandFiles, type MemoryCommandFiles } from "./support/memory-command-files.ts";
-import { manualTimers } from "./support/timers.ts";
 import { turnCompleted } from "./support/notices.ts";
 
 // 플러그인 조립: L0·L1 포트를 가짜로 제공하고 실제 ExtHost에 올려 기능, 지점 핸들러, 피드 구독을 확인한다.
@@ -438,7 +436,7 @@ describe("plugin", () => {
     await t.host.openThread(thread);
     const out = await t.host.dispatch(
       "input.agent.before",
-      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
+      { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {}, driver: null, stack: [] },
       {
         threadId: thread,
         dispatchKey: "k",

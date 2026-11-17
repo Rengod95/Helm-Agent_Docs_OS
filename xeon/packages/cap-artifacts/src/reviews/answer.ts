@@ -155,6 +155,7 @@ export function createAnswerHandler(
         by: "user",
         turnId: null,
         signal: undefined,
+        approvalId,
       });
       if (!submitted.ok) {
         deps.logger.warn("artifacts.review_submit_failed", {
@@ -181,6 +182,7 @@ export function createAnswerHandler(
       by: "user",
       turnId: null,
       signal: undefined,
+      approvalId,
     });
     if (!submitted.ok) {
       deps.logger.warn("artifacts.review_submit_failed", {

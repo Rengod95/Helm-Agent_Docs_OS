@@ -316,14 +316,20 @@ realTest(
     const running = await openHost(ANSWERS);
     try {
       // 내장 `authoring`의 쓰기 가드(`tool.call.before`)는 기본 프로필에 기본으로 든다(매니페스트 기본 켜짐)이라 이 hook의 순서에 끼어든다.
-      // 이 시험은 사용자 확장 둘의 순서만 보므로 기본 프로필에서 뺀다: 기본 프로필은 두 확장만 든다(M5c §4.1). 미리 보기는 기본 프로필의 집합만 본다
+      // 이 시험은 사용자 확장 둘의 순서만 보므로 기본 프로필에서 뺀다. 코어가 기대는 `cap-workspace`·`cap-dialog`는 뺄 수 없어(M5c §4.1.17)
+      // 남기는데, 둘 다 `tool.call.before` 훅이 없어 이 순서에 끼지 않는다. 미리 보기는 기본 프로필의 집합만 본다
       await running.connection.request("profile.put", {
         profile: {
           id: "default",
           title: "default",
-          plugins: [{ name: FIRST_A }, { name: FIRST_B }],
+          plugins: [
+            { name: "cap-workspace" },
+            { name: "cap-dialog" },
+            { name: FIRST_A },
+            { name: FIRST_B },
+          ],
           settings: [],
-          driver: null,
+          startDrive: null,
         },
         baseRev: null,
       });

@@ -377,7 +377,7 @@ async function agentStart(
 ) {
   const out = await t.host.dispatch(
     "input.agent.before",
-    { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
+    { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {}, driver: null, stack: [] },
     { threadId: thread, dispatchKey: key, initial: { messages: [], systemPrompt: "BASE" } },
   );
   return out.value.messages;

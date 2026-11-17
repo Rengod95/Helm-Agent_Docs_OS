@@ -7,12 +7,7 @@ export {
   type FakeCancel,
   type FakeDelegation,
 } from "./fake-agents.ts";
-export {
-  groupCatalogOf,
-  memoryDriveHolderSettings,
-  type MemoryDriveHolderSettings,
-  type MemoryDriveHolderSettingsOptions,
-} from "./fakes.ts";
+export { groupCatalogOf } from "./fakes.ts";
 export {
   diffEffects,
   effectKindsOf,

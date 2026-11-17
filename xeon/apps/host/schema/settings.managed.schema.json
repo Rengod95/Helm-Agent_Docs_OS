@@ -488,7 +488,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -3652,6 +3652,58 @@
         }
       }
     },
+    "l1.tools.pluginCallDepth": {
+      "default": 3,
+      "maximum": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "How many hook frames deep a plugin's own tool call may nest before it is refused",
+          "helpKey": "settings.l1.tools.pluginCallDepth.help",
+          "label": "Plugin call nesting limit",
+          "labelKey": "settings.l1.tools.pluginCallDepth.label",
+          "order": 40,
+          "tab": "tools",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tools.pluginCalls": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "When on, a plugin's capability calls pass the same hooks, policy, approvals and effect records as model tool calls",
+          "helpKey": "settings.l1.tools.pluginCalls.help",
+          "label": "Route plugin calls through the tool pipeline",
+          "labelKey": "settings.l1.tools.pluginCalls.label",
+          "order": 50,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
     "l1.tools.rules": {
       "default": [],
       "items": {
@@ -6566,6 +6618,30 @@
         }
       }
     },
+    "l4.host.defaultFolder": {
+      "default": "",
+      "maxLength": 4096,
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L4",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Folder that holds one working folder per conversation when none is given. Empty uses the data folder's default-project. Must be an absolute path",
+          "helpKey": "settings.l4.host.defaultFolder.help",
+          "label": "Default folder for conversations without a project",
+          "labelKey": "settings.l4.host.defaultFolder.label",
+          "order": 300,
+          "tab": "sessions",
+          "widget": "text"
+        }
+      }
+    },
     "l4.remote.web.enabled": {
       "default": false,
       "type": "boolean",
@@ -7656,6 +7732,33 @@
           "order": 101,
           "tab": "plugins",
           "widget": "table"
+        }
+      }
+    },
+    "x.primitives.driveMaxDepth": {
+      "default": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "launch",
+          "profile"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "How many plugins may lead one conversation at once, one on top of another. A handoff past this depth is refused.",
+          "helpKey": "settings.x.primitives.driveMaxDepth.help",
+          "label": "Drive stack depth limit",
+          "labelKey": "settings.x.primitives.driveMaxDepth.label",
+          "order": 102,
+          "tab": "plugins",
+          "widget": "number"
         }
       }
     },

@@ -86,7 +86,7 @@ function profileOf(id: string, plugins: readonly string[]): Profile {
     builtin: false,
     plugins: plugins.map((name) => ({ name })),
     settings: [],
-    driver: null,
+    startDrive: null,
     updatedAt: "2026-11-18T00:00:00.000Z",
     rev: 1,
   };

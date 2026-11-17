@@ -96,10 +96,14 @@ export interface SubscribeInput<S> {
   readonly dispatchOf: () => DispatchContext;
 }
 
-/** 지금 도는 디스패치의 맥락. `rerun`은 그 맥락을 다시 싣고 뒤에서 일을 돌린다 */
+/**
+ * 지금 도는 디스패치의 맥락. `rerun`은 그 맥락을 다시 싣고 뒤에서 일을 돌린다. `dropped`는 격리 알림에서 엔진이 이 전달 앞에서
+ * 합친 수다(엔진 안에서는 없다)
+ */
 export interface DispatchContext {
   readonly eventKey: string;
   readonly rerun: (work: () => Promise<void>) => Promise<void>;
+  readonly dropped?: number;
 }
 
 /** 대화 하나의 줄. every는 `tail`로 차례를 잇고, coalesce는 `busy`와 `pending`으로 마지막 하나만 남긴다 */
@@ -176,7 +180,8 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
   const unsubscribes = input.names.map((name) =>
     input.register(name, (payload, ctx) => {
       if (closed) return undefined;
-      const { rerun, eventKey } = input.dispatchOf();
+      const dispatch = input.dispatchOf();
+      const { rerun, eventKey } = dispatch;
       const lane = laneOf(ctx.threadId);
       if (input.sampleOf(name) === "every") {
         const envelope = envelopeOf({
@@ -184,7 +189,7 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
           threadId: ctx.threadId,
           eventKey,
           payload,
-          dropped: undefined,
+          dropped: dispatch.dropped,
         });
         const run = lane.tail.then(() => handler(envelope, ctx));
         lane.tail = run.then(
@@ -193,14 +198,15 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
         );
         return run;
       }
-      // coalesce: 바쁜 동안 들어온 것은 대기 칸을 덮고, 덮인 수만큼 dropped가 는다
+      // coalesce: 바쁜 동안 들어온 것은 대기 칸을 덮고, 덮인 수만큼 dropped가 는다. 엔진이 앞에서 합친 수도 더한다
       const item: Pending<S> = {
         name,
         payload,
         eventKey,
         ctx,
         rerun,
-        dropped: lane.pending === undefined ? 0 : lane.pending.dropped + 1,
+        dropped:
+          (dispatch.dropped ?? 0) + (lane.pending === undefined ? 0 : lane.pending.dropped + 1),
       };
       if (lane.busy) {
         lane.pending = item;

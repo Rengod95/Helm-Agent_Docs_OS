@@ -258,7 +258,7 @@ describe("commands through the plugin", () => {
 async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>) {
   return await t.host.dispatch(
     "input.agent.before",
-    { prompt: "go on", systemPrompt: "", systemPromptOptions: {} },
+    { prompt: "go on", systemPrompt: "", systemPromptOptions: {}, driver: null, stack: [] },
     {
       threadId,
       dispatchKey: `bas:${Math.random()}`,

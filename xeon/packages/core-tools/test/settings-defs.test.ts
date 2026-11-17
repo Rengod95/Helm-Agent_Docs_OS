@@ -19,6 +19,8 @@ describe("l1.tools settings", () => {
       "l1.tools.exposure.deferThreshold",
       "l1.tools.unattended.approval",
       "l1.tools.unattended.timeoutSeconds",
+      "l1.tools.pluginCallDepth",
+      "l1.tools.pluginCalls",
     ]);
   });
 
@@ -45,6 +47,8 @@ describe("l1.tools settings", () => {
       "l1.tools.exposure.deferThreshold": 64,
       "l1.tools.unattended.approval": "expire",
       "l1.tools.unattended.timeoutSeconds": 3600,
+      "l1.tools.pluginCallDepth": 3,
+      "l1.tools.pluginCalls": true,
     });
   });
 

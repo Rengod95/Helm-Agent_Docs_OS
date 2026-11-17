@@ -61,8 +61,7 @@ const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   scopeTransitions: {},
   enabledAtSeq: {},
   states: [],
-  openLease: null,
-  waitingLineage: null,
+  openLeases: [],
   leaseEpochs: {},
 };
 
@@ -98,10 +97,6 @@ function commitPlanOf(
       (id) => `scope:${keyScopeId(id)}:${generationOf(id)}${flipOf(id)}:disabled`,
     ),
     ...txn.releasing.map((lease) => `lease:${keyPart(lease.leaseId)}:released`),
-    ...txn.rejected.map(
-      (rejection) =>
-        `lease:${keyScopeId(rejection.scopeId)}:rejected:${keyScopeId(rejection.holder ?? "none")}.${rejection.holderEpoch}`,
-    ),
     ...(txn.grant === null
       ? []
       : [`lease:${keyScopeId(txn.grant.scopeId)}:${txn.grant.leaseEpoch}`]),
@@ -352,7 +347,6 @@ export function createBoundary(
       const stale = thread.txn;
       thread.txn = null;
       await scope.settle(thread, stale, "failed");
-      lease.revertWait(thread, stale);
       stale.grant?.abort.abort();
     }
     const txn: BoundaryTxn = {
@@ -366,8 +360,8 @@ export function createBoundary(
       recordDisabled: [],
       releasing: [],
       grant: null,
-      rejected: [],
-      waited: [],
+      startRequest: null,
+      abandoning: null,
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") {
@@ -432,7 +426,6 @@ export function createBoundary(
         core.ports.get(PluginSetPortKey)?.turnSettled?.(thread.threadId);
       }
     } else {
-      lease.revertWait(thread, txn);
       txn.grant?.abort.abort();
     }
   }
@@ -583,20 +576,9 @@ export function createBoundary(
         flips: new Map(Object.entries(snapshot.scopeTransitions)),
         enabledAtSeq: new Map(Object.entries(snapshot.enabledAtSeq)),
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
-        lease: null,
-        waitingLineage:
-          snapshot.waitingLineage === null
-            ? null
-            : {
-                scopeId: snapshot.waitingLineage.scopeId,
-                lineageId: snapshot.waitingLineage.lineageId,
-              },
-        cooldown: new Map(),
-        withdrawn: new Map(),
+        frames: [],
+        startQueue: [],
         userStopped: false,
-        leaseWait: new Map(),
-        leaseRejected: new Set(),
-        nextRequestSeq: 0,
         txn: null,
         warnedPorts: new Set(),
         appliedPlugins: null,
@@ -611,7 +593,16 @@ export function createBoundary(
       seedPluginSet(core, thread);
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
       await scope.seedThread(thread);
-      lease.restore(thread, snapshot.openLease);
+      lease.restore(thread, snapshot.openLeases);
+      // 프로필의 시작 설정(drive-isolation.md 2.2): 열린 임대가 없는 대화에서만 이 scope의 시작 요청을 둔다
+      if (snapshot.openLeases.length === 0 && options?.startDrive !== undefined) {
+        thread.startQueue.push({
+          scopeId: options.startDrive,
+          trigger: "profile",
+          input: null,
+          parentLeaseId: null,
+        });
+      }
       // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)
       for (const scopeId of thread.active) {
         const record = core.scopes.get(scopeId);
@@ -630,7 +621,7 @@ export function createBoundary(
       if (thread === undefined) return;
       core.threads.delete(threadId);
       thread.abort.abort(new DOMException("thread closed", "AbortError"));
-      if (thread.lease !== null) thread.lease.abort.abort();
+      for (const frame of thread.frames) frame.abort.abort();
       if (thread.txn !== null) {
         const txn = thread.txn;
         thread.txn = null;

@@ -1,12 +1,14 @@
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import type { Clock, Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { CachePolicy } from "@fresnel/contracts/services";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { ReadFailure } from "@fresnel/contracts/records";
 import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contracts/settings";
 import type { RegistrationInfo, RegistrationToggleSourceOf } from "@fresnel/ext-host";
 import type { FileLock } from "@fresnel/platform-os";
 import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
+import type { ProjectPort } from "../../handlers/m4/project.ts";
 import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
@@ -30,6 +32,8 @@ export interface M4EngineDeps {
   };
   /** T-WC: 목표·작업 기능 API 자리(조립 확장이 채운다) */
   readonly dialogArea: DialogAreaHolder;
+  /** 프로젝트 포트(review m5 §4.4). 프로필 기본값(`profile.defaultFor`)이 같은 프로젝트의 대화를 고를 때 쓴다 */
+  readonly projects: ProjectPort;
   /** 호스트 로그. Test run 대화를 지우지 못했을 때 남긴다. 구조 타입이다(`types.ts`의 `HostLogPort`가 대입된다) */
   readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
 }
@@ -61,6 +65,14 @@ export interface M4HostEnv {
   /** 확장(Registration)의 켜짐 요청과 적용 예약 통로. 대화별 켜짐 집합(E(T))의 적용이 쓴다 */
   readonly toggles: RegistrationToggleSourceOf;
   readonly registrations: () => readonly RegistrationInfo[];
+  /** 오류로 멈춘 확장인가(`autoDisabler.disabled()`의 `ext:<이름>`). 멈춘 확장은 대화의 E(T)에서 빠진다(M5c §4.1.12) */
+  readonly stopped: (name: string) => boolean;
+  /** 대화의 `profile` 범위 설정 값이 바뀌었음을 설정 구독자에게 전한다(M5c §4.1.7). 바뀐 키만 싣는다 */
+  readonly settingsChanged: (change: {
+    readonly keys: readonly string[];
+    readonly scopes: readonly ["profile"];
+    readonly threadId: ThreadId;
+  }) => void;
   /** 사용자 설정 폴더(L0.os의 `dirs.config`). `profiles.json`이 여기에 놓인다 */
   readonly configDir: string;
   /** 호스트 상태 폴더(`OsDirs.state`). 옮김 기록 `migration.log`가 여기에 놓인다 */
@@ -75,8 +87,15 @@ export interface M4HostEnv {
    * 닫히지 않은 대화마다 저장한 프로필 id(없으면 null = 기본). 프로필을 참조하는 열린 대화를 셀 때 쓴다(M5c §4.1.14)
    */
   readonly openThreadProfiles: () => readonly (string | null)[];
+  /** 대화의 주도권 스택에 든 플러그인(확장) 이름. 코어 루프는 빼고 아래에서 위 순서다. 열려 있지 않으면 빈 목록(`dropsDrive`의 원천) */
+  readonly driveFramePlugins: (threadId: ThreadId) => readonly string[];
   /** 닫히지 않은 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
+  /**
+   * 대화의 프롬프트 캐시 정책(모델 호환 플래그). 도구 변화의 캐시 영향을 정한다(M5c §4.3.7). 값이 없으면
+   * (생략했거나 읽지 못했으면) `profile.preview`는 도구가 바뀌는 경우 `cacheImpact`를 싣지 않는다
+   */
+  readonly cachePolicyOf?: (threadId: ThreadId) => CachePolicy | undefined;
   /** 대화가 저장한 프로필 id(없거나 대화가 없으면 null). 대화별 켜짐 집합(E(T))이 읽는다 */
   readonly threadProfileId: (threadId: ThreadId) => string | null;
   /** 모든 대화에 항상 켜는 플러그인(개발 모드의 가이드 그룹) */

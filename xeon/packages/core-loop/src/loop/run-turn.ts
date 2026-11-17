@@ -170,11 +170,31 @@ async function runEntry(run: TurnRun): Promise<Result<void, LoopFailure>> {
   }
 }
 
+/**
+ * 턴 시작에 지침 파일 절을 한 번 읽어 `state`에 둔다(L1.context §4.2, M5c §4.4.7). 건너뛴 파일은 경고로 남기고 턴은 그대로 간다.
+ * 읽기 자체는 값으로 실패하므로 여기서 던지지 않는다. 원천이 던지면 그것은 버그이고 턴이 실패로 닫힌다
+ */
+async function readInstructionSections(run: TurnRun): Promise<void> {
+  const { ctx, threadId, turnId, state } = run;
+  if (ctx.instructionSectionsOf === undefined) return;
+  const read = await ctx.instructionSectionsOf(threadId);
+  state.instructionSections = read.sections;
+  for (const diagnostic of read.diagnostics) {
+    ctx.logger.warn("loop.instruction_skipped", {
+      threadId,
+      turnId,
+      code: diagnostic.code,
+      path: diagnostic.path,
+    });
+  }
+}
+
 /** turn 하나를 끝까지 실행한다. T1은 호출자가 이미 커밋했다. 마지막에 T6(또는 열어 둔 채 반환)까지 한다 */
 export async function runTurn(ctx: LoopContext, spec: TurnRunSpec): Promise<TurnRunResult> {
   const run = createTurnRun(ctx, spec);
   let rejection: RunRejection = null;
   try {
+    await readInstructionSections(run);
     // 열린 turn을 닫는 재진입(`turn_end`)은 먼저 turn 노드를 취소하고, 소유 작업이 없던 노드는 그 자리에서 정착한다.
     // 정착한 노드에는 작업을 등록할 수 없으므로 이 경우만 등록 없이 닫는 작업을 직접 기다린다(open-issues N-03)
     const finished =

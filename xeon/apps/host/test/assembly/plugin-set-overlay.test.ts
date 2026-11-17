@@ -65,6 +65,8 @@ function fixtureOf(): Fixture {
     loadedHash: (name) => (name === "tools" ? HASH_TOOLS : undefined),
     forcedPlugins: () => ["core-thing"],
     defaultPlugins: () => [],
+    stopped: () => false,
+    settingsChanged: () => undefined,
     toggles,
     report: () => undefined,
   });

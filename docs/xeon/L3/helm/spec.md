@@ -60,7 +60,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 
 다루지 않는 것(다른 문서 소유):
 
-- drive 락 중재 메커니즘과 상한 집행: `X.primitives.spec`. drive 락 정책, 그룹 전환 명령 `/group …`: `L3.group-sdk.spec`
+- drive 락 주도 시작과 상한 집행: `X.primitives.spec`(주도 시작 계기 셋, drive-isolation.md 2.2). 그룹 전환 명령 `/group …`: `L3.group-sdk.spec`
 - 서브에이전트 실행: `L1.agents.spec`. 웹·지식·작업 기능의 구현: `L2.web.spec`, `L2.knowledge.spec`, `L2.work.spec`
 - 학습 그룹의 정책: `L3.learning.spec`
 
@@ -116,7 +116,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | 렌즈(lens) | 탐색 관점 하나. 예: "생물학의 면역 기억으로 캐시 무효화를 본다". 서브에이전트 하나가 렌즈 하나를 맡는다 |
 | 발견(finding) | 렌즈 하나에서 나온 주장과 출처. 수렴 단계가 만든다 |
 | 탐구 신호 | 탐구가 필요할 수 있다는 관찰. `stuck`, `repeat`, `newDomain` 셋 |
-| 대기 요청(pending) | 시작이 요청됐지만 아직 drive 락을 받지 못한 탐구. 상태 필드 `pending`에 둔다 |
+| 대기 요청(pending) | 시작이 요청되지 않아 아직 주도하지 않는 탐구. 신호가 만들면 `/helm start`가 시작할 때까지 머문다. 상태 필드 `pending`에 둔다 |
 | 단계 경계 | F.conversation.spec §2의 정의. step이 끝나고 다음 step이 시작되기 전. 그룹 켜기·끄기와 drive 락 교체 시점이다 |
 | turn, step | F.conversation.spec §2. 훅 `boundary.step.after`는 Fresnel step 끝, `boundary.settle.after`는 Fresnel turn 끝에서 발화한다(F.extensions.spec §2) |
 | 효과 등급 | ADR-0015 §3.2의 분류. 코어 멱등(`loop.turn`, `loop.spawn`), 멱등 쓰기(`MethodDef.idempotent`), 읽기(`MethodDef.readOnly`), 선언 없음 |
@@ -164,7 +164,6 @@ export const helmManifest = defineManifest({
       "tool.execution.after",                  // tap: 신호 입력 갱신(§4.3)
       "boundary.settle.after",                 // tap: 신호 판정, 정착 처리(§4.3)
       "thread.start",                          // tap: 상태 복원 확인(§4.9)
-      "lifecycle.lease.rejected",              // tap: 대기 거부 처리(§4.13). 훅 이름은 ADR-0017
     ],
     requires: [],                              // §4.7 저하 동작으로 모든 기능이 없어도 켜진다
     optional: [
@@ -322,8 +321,17 @@ export const HelmStateSchema = Type.Object({
   context: Type.Array(HelmSourceSchema, { maxItems: 8 }),
   /** 발산·적용 턴을 냈고 결과를 아직 단계가 받지 않았다. 턴을 내기 전에 커밋한다(§4.5). version 2에서 더했다 */
   awaitingTurn: Type.Boolean(),
+  /** `/helm plugin`의 맡기기 요청. 선택 필드다(옛 문서는 이 필드를 싣지 않는다). 단계 함수가 `handoff`로 맡기고 결과가 오면 비운다(§4.5) */
+  pluginNeed: Type.Optional(Type.Union([HelmPluginNeedSchema, Type.Null()])),
 });
 export type HelmState = Static<typeof HelmStateSchema>;
+
+/** 플러그인 맡기기 요청. `id`는 `/helm plugin` 호출 id에서 정한 결정적 값(`n` + base32 13자)이다 */
+export const HelmPluginNeedSchema = Type.Object({
+  purpose: Type.String({ minLength: 1, maxLength: 500 }),
+  id: Type.String({ pattern: "^n[a-z2-7]{13}$" }),
+});
+export type HelmPluginNeed = Static<typeof HelmPluginNeedSchema>;
 
 export const INITIAL_HELM_STATE: HelmState = {
   phase: "idle", inquiryId: null, topic: null, lenses: [], findings: [], round: 0, appliedTurnId: null,
@@ -332,6 +340,7 @@ export const INITIAL_HELM_STATE: HelmState = {
   stopRequested: false,
   context: [],
   awaitingTurn: false,
+  pluginNeed: null,
 };
 
 /** F.extensions.spec §3.2 StateDecl에 넘기는 값 */
@@ -360,6 +369,7 @@ export function updateState(
 ```
 
 - [결정] 단계 순서는 발산, 다른 분야 탐색, 수렴, 현재 작업 적용이다(계획 v2 `_research/layer-plan-v2.json` L3-b "탐구 구동", `_research/decisions-log.md` 2026-10-21 계획 v2).
+- [E3 맡기기] `pluginNeed`는 선택 필드라 version을 올리지 않았다. 옛 문서에는 필드가 없고 `pluginNeedOf`가 `null`로 읽는다(시험 `plugin.old-document`). `id`는 `purpose`만 두면 같은 목적을 한 스레드에서 두 번 맡길 때 알림 requestId가 겹치기 때문에 더했다. 엔진의 `post` requestId는 스레드 안에서 멱등이라 겹치면 두 번째 알림이 중복으로 버려진다(`packages/core-tasks/src/input-queue.ts`).
 - [이 판] `awaitingTurn`을 더해 version을 2로 올렸다. v1 문서는 `helmStateMigrations`(§3.2 아래 코드)가 `awaitingTurn: false`로 옮긴다. 로그에 남은 v1 상태 이벤트는 같은 업캐스터가 읽는다.
 - [제안] 단계 식별자 `diverge`, `explore`, `converge`, `apply`와 `idle`은 이 문서의 설계다. `diverge`는 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")의 이름을 따랐다. M3 판에서 이 식별자와 §4.2 전이표를 고정한다(H-IN-02). 식별자는 상태 문서, 레코드 payload, requestId에 들어가므로 바꾸려면 상태 `version`을 올리고 마이그레이션을 둔다.
 - 상태 저장: Registration 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정: review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정: review.decisions-2 §3 T-20](L3.group-sdk.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 그룹은 읽지 않는다(F.extensions.spec §3.6).
@@ -405,8 +415,8 @@ export const TRANSITIONS: readonly {
 }[];
 ```
 
-- drive 락 필요 판정 훅은 두지 않는다 [제안]. X는 drive를 등록한 켜진 그룹을 후보로 삼고, drive 함수가 같은 상태 판으로 두 번 효과 없이 반환하면 drive 락을 `idle`로 반납하며, 그 그룹은 다음 `turn_settled`나 상태 판이 바뀐 뒤에 다시 후보가 된다(X.primitives.spec §4.4.3). Helm의 drive는 `idle`이고 `pending`이 없으면 효과 없이 반환하므로(§4.5) drive 락이 곧 반납된다. `pending`을 커밋하면 상태 판이 바뀌어 다시 후보가 된다. 이 규칙으로 L3.group-sdk.spec에 없는 `needsDrive` 필드 없이 같은 동작을 낸다.
-- 비용 [가정]: Helm이 켜져 있고 탐구가 없으면 `turn_settled`마다 drive 락 부여, drive 호출 두 번, `idle` 반납이 생긴다. 그동안 다른 drive 그룹은 대기한다. 부여·반납 이벤트가 turn마다 쌓이는 것이 문제가 되면 X에 후보 제외 조건을 요청한다(§10 미결 10).
+- drive 락 필요 판정 훅은 두지 않는다 [제안]. 주도는 시작 요청으로만 받는다(사용자 `/helm start`, drive-isolation.md 2.2). `pending`을 커밋하는 것만으로는 주도하지 않는다. Helm은 주도 중이 아니면 `done`으로 물러나고(§4.5), 다음 `/helm start`의 시작 요청이 다시 스택에 올린다. 중재가 없으므로 X가 후보를 고르지 않는다(L3.group-sdk.spec §3.5).
+- 비용: 시작 요청이 없으면 Helm은 주도 스택에 오르지 않으므로 경계마다 드는 부여·반납이 없다(E3, 중재 제거 뒤). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 
 ### 3.4 레코드 (`src/records.ts`)
 
@@ -430,7 +440,7 @@ export const SignalDetectedPayloadSchema = Type.Object({
   action: Type.Union([
     Type.Literal("recorded"),    // autoStart off, 또는 탐구 중
     Type.Literal("suggested"),   // autoStart suggest: 제안 메시지 post
-    Type.Literal("requested"),   // autoStart auto: pending 커밋(drive lock 요청)
+    Type.Literal("requested"),   // autoStart auto: pending만 커밋한다. 주도는 /helm start가 시작한다(E3)
   ]),
   inquiryId: Type.Union([Type.String({ pattern: INQUIRY_ID_PATTERN }), Type.Null()]),
 });
@@ -714,7 +724,8 @@ export function degradeOf(failure: Extract<HelmFailure, { kind: "capability" }>)
 export type HelmCommand =
   | { readonly name: "start"; readonly topic?: string }
   | { readonly name: "stop" }
-  | { readonly name: "status" };
+  | { readonly name: "status" }
+  | { readonly name: "plugin"; readonly purpose: string };
 
 export interface HelmStatusView {
   readonly enabled: boolean;
@@ -734,6 +745,7 @@ export type HelmCommandError =
   | { readonly kind: "usage"; readonly message: string }          // 하위 명령·인자 형식 오류
   | { readonly kind: "already_running"; readonly inquiryId: InquiryId | null }   // 탐구 중이거나 pending 있음
   | { readonly kind: "no_topic" }                                    // 주제 생략, 신호·입력 용어도 없음
+  | { readonly kind: "plugin_pending" }                              // E3: 플러그인 맡기기 요청이 이미 대기 중
   | { readonly kind: "disabled" }                                    // 그룹이 꺼져 있음(registration_inactive)
   | { readonly kind: "state_write"; readonly failure: Extract<HelmFailure, { kind: "state_conflict" | "state_too_large" | "storage" }> };
 
@@ -749,8 +761,9 @@ export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "p
 
 - 명령 처리기는 X의 명령 문맥(X.primitives §4.6.6) 안에서 실행된다. `threadId`가 있으면 `state()`·`commit`·`post`가 되고 문맥에 호출 id `invocationId`가 있다(같은 호출을 다시 실행하면 같은 값). `helmCommand`의 처리기는 `runHelmCommand`로 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려주므로 `/helm start`·`/helm stop`은 즉시 반영되고, 결과 글은 모델 입력 대기열(`post`)에 쌓이지 않는다. 탐구 끝·거절·제안 알림만 `post`의 `when: next`로 남는다. `threadId`가 없는 호출은 아무것도 하지 않는다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `GroupService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`). 결과 글은 저장 값을 그대로 쓰지 않고 `src/texts.ts`의 표로 사람 말을 쓴다: `held`는 "탐구하는 중이에요", `waiting`은 "시작을 기다리는 중이에요", `none`은 "쉬는 중이에요", 렌즈 상태 `pending·running·done·failed·skipped`는 "대기·진행 중·끝남·실패·건너뜀", 결과 `applied·empty·stopped·limit·failed`는 "적용됨·발견 없음·멈춤·상한에 걸림·실패". 상태 줄은 `[helm] 쉬는 중이에요, 단계: 대기, 주제: …` 모양이다. 저장 값과 `HelmStatusView`는 그대로다. 단계 이름(`PHASE_TEXT`)은 사용자 결정 대기라 바꾸지 않는다.
 - 명령 등록은 group-sdk `g.registerCommand("helm", …)`로 한다(L3.group-sdk.spec §3.2). group-sdk은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
-- `/helm start [주제]`: `idle`이고 `pending`이 없을 때만 `pending`(`source: "command"`)을 커밋한다. 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
-- `/helm stop`: §5 4번.
+- `/helm start [주제]`: `idle`이고 `pending`이 없을 때 `pending`(`source: "command"`)을 커밋한 뒤 주도 시작 요청(`g.startDrive()`)을 낸다(E3). 탐구가 있으면(도는 중이거나 `pending`) 같은 주제나 주제 생략은 이어 가기다. 상태를 바꾸지 않고 시작 요청만 낸다(엔진이 살아 있는 주도를 버린다). 다른 주제는 `already_running`이다. 시작 요청이 거부되면 상태는 커밋된 채 남고 결과 글에 이유를 붙인다(`startFailureText`). 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
+- `/helm stop`: §5 4번. E3 맡기기 요청이 대기 중이면 그것도 취소한다(`pluginNeed`를 비운다). 이미 맡겨졌다면 돌아온 결과는 요청이 없어 알림 없이 지나간다.
+- `/helm plugin <설명>` [E3 맡기기, drive-isolation.md 2.2]: `idle`이고 `pending`이 없을 때 `pluginNeed`(`{ purpose, id }`, `id`는 호출 id에서 `needIdFrom`으로 만든다)를 커밋한 뒤 주도 시작 요청(`g.startDrive()`)을 낸다. 탐구가 있으면 `already_running`이고, 맡기기 요청이 이미 대기 중이면 `plugin_pending`이다. 설명을 생략하면 사용법 오류다. 결과 글은 `pluginRequestText`다. 실제 맡기기는 단계 함수가 한다(§4.5).
 - `/helm status`: `HelmStatusView`를 돌려준다. 상태를 바꾸지 않는다.
 - 오류 표시: `helmCommand`는 `HelmCommandError`를 kind별 한 줄 문장으로 바꿔 명령 결과로 돌려준다. `switch`가 모든 kind를 다루는지 `assertNever`로 확인한다(TY-13).
 
@@ -826,7 +839,6 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | `tool-observe` | `observe` | `on` | `tool.execution.after` | | |
 | `signal-settle` | `signal` | `on` | `boundary.settle.after` | 기록 `grp.helm.signal.detected`, post, state | |
 | `restore` | `restore` | `on` | `thread.start` | 기록 `grp.helm.inquiry.finished`, state | |
-| `lease-rejected` | `lease` | `on` | `lifecycle.lease.rejected` | post, state | |
 | `command` | `command` | `register` | | post, state | |
 | `methods` | `method` | `register` | | | |
 | `drive` | `drive` | `drive` | | 기록 `grp.helm.discovery.recorded`, 기록 `grp.helm.inquiry.finished`, post, state | `knowledge.search`, `knowledge.memory`, `web.search`, `work.tasks` |
@@ -921,7 +933,7 @@ group-sdk이 주는 것과 Helm이 쓰는 방식:
 |---|---|
 | `defineGroup`, `GroupApi`(§3.2) | `helmGroup` 정의, `g.settings()`, `g.registerCommand("helm", …)` |
 | `commit` 래퍼의 `checkStateCommit`(§3.2) | `updateState`가 그 앞에서 `fitState`로 예산을 맞춘다(§3.2) |
-| `DriveArbiter`, `GroupStatus.drive`(§3.5, §3.8) | `/helm status`의 `lease`, 대기 거부 판정(§4.13) |
+| `GroupStatus.drive`(§3.5, §3.8) | `/helm status`의 `lease`(탐구 중과 시작 대기는 Helm 상태로 판정한다) |
 | `replayDrive`(§3.10)와 G-20 효과 계수 | 재생 2회, 효과 1회 시험(§4.11) |
 | `scanDriveSource`(§3.11) | `drive.ts` 정적 결정성 검사(plan H-18) |
 | `g.delegate`(§3.4) | 쓰지 않는다. explorer는 drive 락 안의 `loop.spawn`으로 띄운다. 백그라운드 위임은 drive 락 상한 밖이라 탐구 비용을 묶지 못한다 |
@@ -1001,7 +1013,7 @@ export type HelmReaction =
 
 | 단계 | 진입 조건 | 효과(그 단계에서 하는 일) | 다음 단계 | 중단 조건과 결과 |
 |---|---|---|---|---|
-| `idle` | 초기값, 또는 탐구 종료 | 신호 감지만 한다. 쓰기 거부 없음. `pending`을 커밋하면 상태 판이 바뀌어 X가 Helm을 다시 drive 락 후보로 삼는다(§3.3) | `diverge`: drive 락을 받아 drive가 호출되고 `pending`이 있음(`leaseGranted`) | `stopRequested`: `pending`을 지운다. 기록 없음 |
+| `idle` | 초기값, 또는 탐구 종료 | 신호 감지만 한다. 쓰기 거부 없음. `pending`을 커밋해도 주도하지 않는다. `/helm start`의 주도 시작 요청을 받아야 `diverge`로 간다(§3.3) | `diverge`: 주도 시작 요청이 부여되어 drive가 호출되고 `pending`이 있음(`leaseGranted`) | `stopRequested`: `pending`을 지운다. 기록 없음 |
 | `diverge` | `leaseGranted`. `inquiryId`, `topic`을 `pending`에서 옮기고 `round = 1`, `selectLenses`로 `lenses`(모두 `pending`)를 정한다 | 쓰기 거부 켜짐. 턴 표지를 커밋(`turnIssued`)한 뒤 발산 프롬프트로 `turn` 명령 1회(`turnRequestId(…, "diverge", round)`). 시스템 프롬프트에 단계 블록 추가 | `explore`: 턴이 `completed`(`diverged`, 표지 해제) | turn `aborted` → `idle`(`stopped`). turn `error` → `idle`(`failed`). `budget.turns === 0` → `idle`(`limit`, `turns`) |
 | `explore` | `diverged` | 쓰기 거부 켜짐. 렌즈를 `running`으로 커밋(`lensesStarted`). 실행 중인 렌즈는 순서상 첫 `running`이고 그 렌즈마다 `spawn` 명령 하나(`explorer`, `spawnRequestId(…)`)를 낸다. 결과를 받으면 그 렌즈만 `lensFinished`로 커밋하고 다음 렌즈로 간다. 한 번에 하나다 | `converge`: 실행 중인 렌즈가 없음(`explored`). 남은 렌즈는 `skipped` | 모든 렌즈 실패 → `idle`(`failed`) [제안: 부분 결과 허용, 하나라도 `done`이면 진행]. spawn 예산이 0이 되면 끝난 렌즈가 있을 때 남은 렌즈를 `skipped`로 두고 수렴한다(옛 동작). 끝난 렌즈가 없으면 `budget.spawns === 0` → `idle`(`limit`, `spawns`) |
 | `converge` | `explored` | 모델 turn 없음. `parseExplorerAnswer`로 발견 정리, `gatherContext`로 지식 요약, 한 번에 커밋(`converged`) | `apply`: 발견 1개 이상 | 발견 0개 → `idle`(`empty`) |
@@ -1052,7 +1064,7 @@ export type HelmReaction =
 |---|---|---|
 | `off` | 기록만(`recorded`) | 기록만(`recorded`) |
 | `suggest`(기본) | 기록만 | 제안 메시지를 `post`한다(`kind: "context"`, `customType: "grp.helm.notice.suggested"`, `display: true`, `when: "next"`, `requestId: postRequestId(inquiryIdFrom(turnId), "idle", 0)`). 사용자가 `/helm start`를 실행하면 시작한다(`suggested`) |
-| `auto` | 기록만 | `pending`(`source: "signal"`)을 커밋한다. 상태 판이 바뀌어 Helm이 다시 drive 락 후보가 되고, 다음 판단 시점에 DriveArbiter가 drive 락을 정한다(§3.3, `requested`) |
+| `auto` | 기록만 | `pending`(`source: "signal"`)을 커밋한다(`requested`). 주도는 시작하지 않는다. 사용자가 `/helm start`를 치면 그 탐구가 시작한다(§3.3, §4.9) |
 
 - `topic`은 신호 근거에서 만든다: `newDomain`이면 용어 후보, `stuck`·`repeat`이면 도구 이름과 사용자 입력 용어 후보. 형식은 `"<도구 이름 또는 첫 용어>: <용어 후보 앞 3개를 쉼표로 이은 값>"`이고 500자에서 자른다 [제안].
 - `inquiryId`는 `inquiryIdFrom(turnId)`로 만든다. 같은 turn의 재실행은 같은 id를 낸다.
@@ -1090,6 +1102,8 @@ export type HelmReaction =
 
 [결정] drive 함수는 단계 경계마다 마지막 커밋 상태로 다시 호출된다. 상태 변경은 `commit`으로만 한다(F.extensions.spec §4.6, ADR-0007). 효과 목록은 ADR-0015 §3.2 표를 따른다. Helm drive의 효과는 `loop.turn`, `loop.spawn`, `post`, `record`, 읽기 기능 호출, 멱등 쓰기 기능 호출이다. 효과마다의 키와 보장 주체는 §4.11이다.
 
+[결정, 2026-11-18] Helm의 주도 단계 함수는 기본 설정에서 격리 자식(플러그인 호스트 프로세스)에서 돈다. 엔진은 단계마다 `drive.step` 요청을 보내고, 자식은 단계 함수 하나를 돌려 명령 하나를 낸다. 명령의 실행(`turn`, `spawn`, `commit`, `post` 등)은 엔진에 남는다. `ext.helm.isolation`을 `none`으로 명시하면 엔진 안에서 돈다(X.loading-trust §4.9.0). 맡기기의 빌더 `plugin-builder`는 `builtin`이라 엔진 안에서 돈다. [근거: packages/ext-host/src/isolation/proxy-entry.ts `drivingOf`, packages/ext-host/src/isolation/child-runtime.ts `runDriveStep`, apps/host/src/assembly/catalog.ts, packages/plugin-builder/src/group.ts]
+
 의사코드. 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")를 상태 기반 재호출 함수로 다시 쓴 것이다. 한 번 호출은 현재 단계 하나만 처리하고 커밋한 뒤 돌아간다. 다음 단계는 X가 다시 호출할 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다).
 
 ```ts
@@ -1105,6 +1119,7 @@ export function helmDrive(g: DriveApi, settings: () => HelmSettings, marker: Exp
 }
 // advance(st, last, budget): 아직 안 한 일을 상태와 last로 정한다. 한 호출은 효과 명령 하나만 낸다(뒤에 commit이 붙을 수 있다).
 //   refused(code)           → settle(failureOfRefusal(code)). state_conflict·storage·disabled는 yield, 나머지는 finish(failed)
+//   idle, pluginNeed        → { do: "handoff", to: "authoring", input: { purpose, id } }  (E3, 아래 맡기기 규칙)
 //   idle, pending === null  → { do: "done" }
 //   idle, pending           → step(leaseGranted) → diverge
 //   diverge, last aborted   → settle(turn aborted) → finish(stopped)      사용자 중지로 끊긴 턴
@@ -1127,6 +1142,11 @@ export function helmDrive(g: DriveApi, settings: () => HelmSettings, marker: Exp
 - 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다. `parseExplorerAnswer`는 하위 에이전트 보고 표지(`<subagent_report …>`)를 뗀 글에서 JSON 코드 블록을 뒤에서부터 찾아 발견마다 `claim`(주장), `sources`(근거와 출처), `confidence`(신뢰도)로 나눈다. 글이 상한을 넘으면(출처 `title` 80자 등) 그 발견을 거절하지 않고 상한에서 자르고, 모양이 틀린 출처(`origin`을 모르는 것, 빈 `ref`)와 `claim`이 빈 발견만 버리며, 모르는 `confidence`는 `low`다. 모양이 맞는 발견이 하나도 없을 때만 표지를 뗀 답 전체를 `low` 신뢰 발견 1건의 `claim`으로 둔다 [근거: `packages/group-helm/src/findings.ts`, `packages/group-helm/test/unit/pure.test.ts`의 실제 보고 모양 시험].
 - 엔진이 명령을 실행하고 그 결과를 다음 호출의 `last`로 준 뒤 단계 함수를 되풀이해 부른다. 한 호출은 효과 명령을 하나만 낸다. 그 앞뒤의 상태 커밋은 `commit` 명령으로 묶는다(엔진이 실행한다). 사용자 의사코드의 `while` 반복은 엔진의 되풀이 호출이 대신한다.
 - 할 일이 없을 때 `yield`를 쓰지 않는다. Helm의 단계는 모두 효과나 `done`으로 이어진다. `yield`는 판 충돌과 저장소 거부(`refused`)와 drive 락 중단 뒤의 반환에만 쓴다(§4.12).
+- 플러그인 맡기기(E3, drive-isolation.md 2.2·2.6, `src/drive.ts`의 `handoffOf`·`pluginSettle`): `pluginNeed`가 있고 `idle`이면 단계 함수가 `{ do: "handoff", to: "authoring", input: { purpose, id } }`를 낸다. 이 명령은 `pending`보다 먼저 본다(맡기기가 끝난 뒤에야 대기 중인 탐구가 시작된다). 맡은 쪽이 끝나면 `last`가 `handoff`로 온다. 결과마다 알림 한 줄과 함께 요청을 비운다(`pluginSettle`: 알림 `post` → `pluginNeed: null` 커밋 → 이어 할 일, 없으면 `done`).
+  - `handoff` `done`, 결과 `accepted: true` → "받았어요". `accepted: false`(`reason`) → "받지 않았어요"(사유 표). 결과 모양을 읽지 못하면 "답을 읽지 못했어요".
+  - `handoff` `aborted`, 또는 bare `aborted` → "멈췄어요". `refused`(`code`) → "거부당했어요"(`depth_limit`은 깊이 상한, `target_unavailable`은 쓸 수 없음, `self_handoff`, `already_in_stack`). 모두 탐구를 끝내지 않는다(`failed`가 아니다). 예외가 아니다.
+  - 알림 requestId는 `helm:plugin:<id>:result`다. 상태 문서에는 결과를 남기지 않는다(결과 기록 종류를 더하지 않았다). 결과는 알림 한 줄이 남긴다.
+  - 맡기기 명령 자체는 상태를 바꾸지 않는다. 재시작 뒤 같은 단계가 다시 와도 같은 `handoff`를 낸다. 맡은 쪽이 이미 프레임으로 떠 있었다면 기록에서 이어진다. 큐에만 있던 맡기기 요청은 재시작에서 사라지지만 `pluginNeed`는 상태에 남아, 다음 주도 시작(`/helm start` 등)에서 다시 맡긴다(§10 미결 23).
 - 사용자 메시지(drive-isolation 2.4): `last`가 `user`이면 그 메시지를 맨 위 `turn` 명령으로 낸다. 턴이 끝나면 같은 단계로 이어 간다. 이 턴은 `turns`에서 차감된다.
 - 렌즈는 한 번에 하나씩 spawn한다. 옛 판의 `Promise.all` 병렬 spawn을 대신한다(단계 함수 전환). 실행 중인 렌즈는 순서상 첫 `running`이다(`lensesStarted`가 시작 표시를 한꺼번에 하고 결과는 순서대로 받는다). 결과를 받으면 그 렌즈만 `lensFinished`로 커밋하고 다음 렌즈를 낸다. 렌즈 하나의 실패가 다른 렌즈의 결과를 지우지 않는다. `Promise.allSettled`로 알 수 없는 예외를 삼키지 않는 규칙은 그대로다.
 - 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, ext.helm.driveLimits)`를 넘지 않는다. Helm은 `ext.helm.driveLimits`를 넘겨 X 일반 기본값 `x.primitives.driveDefaultLimits`를 덮어쓰고, X가 천장 `x.primitives.driveLimits`로 다시 자른다(review.decisions-2 U-12)(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-sdk은 drive 락을 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
@@ -1233,14 +1253,14 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 ### 4.9 대화 시작과 재개
 
 - `thread.start`(tap)는 상태 복원을 확인만 한다. 스키마를 어기는 저장 상태는 X가 Registration을 켜지 못하게 하므로(`state_schema`) 이 핸들러까지 오지 않는다 [미결 → X: 복구 경로]. 이 핸들러는 스키마는 맞지만 탐구 단계에 `inquiryId`·`topic`이 없는 상태를 본다.
-  - 통과하면 아무것도 하지 않는다. 열린 drive 락이 있으면 X가 drive를 재호출하고, 없으면 X가 Helm을 후보로 삼아 drive 락을 다시 정한다(X.primitives.spec §4.4.3). 탐구가 없으면 drive는 효과 없이 반환해 drive 락이 `idle`로 반납된다.
+  - 통과하면 아무것도 하지 않는다. 열린 drive 락이 있으면 X가 drive를 재호출하고, 없으면 프로필의 시작 설정(`openThread`의 `startDrive`)이 시작 요청을 넣어 다시 주도한다(E3, drive-isolation.md 2.2) [미결: 호스트가 Helm에 프로필 시작 설정을 넣는지는 조립 트랙이 정한다]. 탐구가 없으면 drive는 효과 없이 반환해 drive 락이 `idle`로 반납된다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
   - 일관되지 않으면 초기 상태로 커밋하고 `inquiry.finished`(`failed`, `reason: "state inconsistent: …"`)를 쓴다.
 - 상태 `version`이 다르면 X가 마이그레이션 훅을 요구한다(F.extensions.spec §3.2 `StateDecl`). 1차는 버전 1뿐이다.
 - `reason: "fork"`로 시작한 대화는 원 대화의 상태를 이어받는다 [가정: 분기 시 Registration 상태 복사는 X.primitives.spec].
 
 ### 4.10 다른 그룹과의 공존
 
-- 다른 그룹이 drive 락을 가진 동안 Helm은 대기 상태로 남는다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. drive 락이 풀리면 DriveArbiter가 Helm에 drive 락을 준다. 대기·거부 정책은 `x.primitives.activeDriver`과 L3.group-sdk.spec §3.5가 정한다. 기본 동작은 대기이고 대기 상한을 넘으면 거부한다 [결정: review.m3-design-inputs D-M3-05]. Helm의 처리는 §4.13이다.
+- 다른 그룹이 주도하는 동안 Helm의 시작 요청은 큐에서 기다린다. 사용자 명령은 전환 정책(X.primitives.spec §4.4.1a)에 따라 돌고 있는 단계가 끝난 뒤 주도를 가져온다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 대기 상한과 `lease.rejected` 거부는 없다(E3). Helm의 처리는 §4.13이다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - 학습 그룹은 drive를 쓰지 않으므로 Helm drive 락 중에도 on, post, 백그라운드 위임으로 동작한다(F.extensions.spec §4.6 [결정]). Helm은 학습 그룹이 꺼져 있어도 같은 동작을 한다(§4.7 저하 동작).
 - 두 그룹의 chain 패치는 X의 디스패치 순서대로 합성되고, first 결정은 먼저 거부한 쪽이 정한다(F.extensions.spec §4.2).
 
@@ -1258,7 +1278,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 읽기 기능 호출 4종 | drive `converge`(`gatherContext`) | 읽기(`readOnly`) | 없음 | 필요 없음 | 다시 호출한다. 결과는 `converged` 커밋으로 고정한다 |
 | `work.tasks.create` | drive `apply`(`linkWork`) | 멱등 쓰기(`idempotent`) | `helm:<inquiryId>:cap:task:<findingId>` | L2.work(`work:tasks:<requestId>` 내구 기록) | 처음 결과를 돌려받는다 |
 
-- on 핸들러와 `lease.rejected` 구독 핸들러의 효과는 `commit`, `record`, `post` 세 가지다(구독 핸들러는 `commit`과 `post`만 쓴다). on 핸들러에서 기능 메서드(읽기 포함)와 `g.delegate`를 부르지 않는다. 신호 판정에 필요한 입력은 훅 페이로드에서만 얻는다(§4.3).
+- on 핸들러의 효과는 `commit`, `record`, `post` 세 가지다(E3에서 `lease.rejected` 구독 핸들러를 걷었다). on 핸들러에서 기능 메서드(읽기 포함)와 `g.delegate`를 부르지 않는다. 신호 판정에 필요한 입력은 훅 페이로드에서만 얻는다(§4.3).
 - 명령 처리기(`runHelmCommand`)는 재실행되는 코드가 아니므로 ADR-0015 대상이 아니다(ADR-0015 §3.1). 그래도 효과는 `updateState`와 `post`뿐이다.
 - 이전 판의 미결 C2는 이 표로 닫는다. Helm은 F 문장에 새 예외를 요구하지 않는다. 필요한 것은 ADR-0015 §4.3의 F·X·L1·L2 반영이다(§8 요구 표).
 
@@ -1299,19 +1319,20 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 - `CapabilityError`의 `retryable`(`rate_limited`, `timeout`)도 Helm은 다시 부르지 않는다 [제안]. 다시 부르면 재생 경로와 비용이 늘고, 읽기 출처 하나가 빠져도 탐구는 끝난다. 재시도는 L2 provider 안에서 한다.
 - `budget`과 `turn`은 탐구를 끝내지만 drive 함수는 정상 반환한다. drive 예외(F.extensions.spec §5 6번)는 `failureOf`가 모르는 예외에만 생긴다.
 - 실패를 버리는 경로는 없다. 모든 kind는 전이, 기록, 상태 표시 가운데 하나 이상으로 이어진다.
+- [E3] 플러그인 맡기기(`handoff`)의 `refused`와 `aborted`는 이 표를 거치지 않는다. 탐구를 끝내지 않고 맡기기 요청만 비우며 한 줄 알림으로 남긴다(§4.5). 그래서 `refused` 행의 `finish`는 탐구가 있을 때만 해당한다.
 
 ### 4.13 사용자 결정에 따른 동작
 
 | 결정 | 동작 |
 |---|---|
 | D-M3-01 c 형태와 기본 켬 | 기본 플러그인 그룹. 설치되어 있으면 켜고(`defaultEnabled: true`), 외부 확장 로더가 `user` 등급으로 싣는다(§3.1) |
-| D-M3-05 a drive 락 충돌 | 대기. 다른 그룹이 drive 락을 가진 동안 `pending`을 유지한다(§4.10). 대기 상한을 넘어 X·group-sdk이 요청을 거부하면 내구 이벤트 `lease.rejected`가 커밋된다. Helm은 이 이벤트의 구독 핸들러(페이로드만 입력, §7)에서 `pending`을 지우고 "drive 락 대기 상한" 알림을 `post`한다(`requestId: helm:<inquiryId>:idle:0:rejected`) [제안] |
+| D-M3-05 a drive 락 충돌 | 대기 요청으로 남는다. 중재가 없어(E3) 거부와 `lease.rejected` 구독은 없다. 다른 그룹이 주도 중이면 Helm의 시작 요청은 전환 정책을 기다린다. 시작 요청이 거부된 탐구는 `pending`을 남긴 채 결과 글에 이유를 붙인다. `/helm stop`으로 지운다 [결정: drive-isolation.md 2.2] | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 | D-M3-06 a 유휴 자율 turn | 허용. 사용자 turn 뒤에도 탐구가 drive 락 상한 안에서 이어진다(§4.5) |
 | D-M3-07 a 안전 모드 | Helm을 적재하지 않는다(§3.1). 상태는 남는다 |
 | D-M3-04 b 그룹 끄기 때 진행 중 위임 | Helm은 `g.delegate`를 쓰지 않으므로 취소할 위임이 없다. drive 락 안의 `loop.turn`·`loop.spawn`은 UC-2 대안 흐름대로 정착까지 진행한다 |
 | D-M3-17 알림 | 탐구 종료·상한 알림은 `post`(`display: true`)로 대화에 남긴다. 연결된 클라이언트 알림과 OS 알림은 L4 알림 경로가 `grp.helm.inquiry.finished` 기록을 보고 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고 설정으로 끈다. 웹·모바일 푸시는 후순위이고 들어와도 Helm 코드는 같다 |
 
-- 대기 거부를 알리는 값 [제안]: 핸들러는 `GroupStatus.drive`처럼 커밋되지 않은 런타임 값을 읽지 않는다. on 핸들러의 입력은 훅 페이로드뿐이라는 규칙(§4.11, ADR-0015 §3.2)을 지키기 위해서다. 거부는 내구 이벤트 `lease.rejected`(페이로드 `groupId`, `reason`, 거부된 요청의 `requestSeq`)로 커밋되고, Helm은 이 이벤트의 구독 핸들러만으로 처리한다. 구독 수단은 학습 그룹의 `agent.settled` 구독과 같은 것을 쓴다(L3.learning.spec §8.1 REQ-LN-02). `GroupStatus.drive`의 `"rejected"`(와 거부 사유)는 `/group status` 같은 화면용이고 group-sdk이 더한다(§8, G-IN-04, REQ-X-08). 두 요구는 `lease.rejected` 이벤트와 `GroupStatus.drive` 값을 F·X·group-sdk에 더하는 하위 층 작업이다.
+- [닫힘, E3] 대기 거부 알림(`lease.rejected` 구독 핸들러, `requestId ...:rejected`)은 없어졌다. 거부 값과 구독 수단은 엔진과 group-sdk에서 함께 걷혔다(L3.group-sdk.spec §3.5). 계약의 `lease.rejected` 이벤트 종류는 옛 기록 읽기용으로 스키마에만 남는다(계약 정리 단계 [미결]). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 
 ## 5. 실패와 경계 사례
 
@@ -1321,8 +1342,8 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 2 | 모든 렌즈 실패 | `idle`(`failed`). 적용 turn 없음 |
 | 3 | drive 락 상한 도달 | §4.5. `inquiry.finished`(`limit`)와 알림 `post`(`requestId: helm:<inquiryId>:<phase>:<round>:limit`). 상한 이름과 남은 단계를 표시한다 |
 | 4 | 사용자 `/helm stop` | `stopRequested`를 커밋한다. 실행 중인 턴·spawn은 끊지 않는다. 다음 단계가 `stopRequested`를 읽어 `idle`(`stopped`)로 간다. 남은 렌즈는 돌지 않는다. drive 락이 없으면(대기 중) `pending`을 지운다 |
-| 5 | 단계 경계에서 disable(`/group off helm`, `ext.helm.enabled` 거짓) | X 순서: on 핸들러 제외 → drive 락 반납 → 정리(F.extensions.spec §4.5). 상태는 그대로 남는다. 다시 켜면 Helm이 다시 후보가 되고 drive 락을 받으면 drive가 커밋된 단계에서 이어 간다. 꺼진 동안 쓰기 거부는 걸리지 않는다 |
-| 6 | 다른 그룹이 drive 락을 가짐 | §4.10. 대기. on 핸들러만 동작. `/helm status`가 `lease: "waiting"`과 보유 그룹을 보여 준다 |
+| 5 | 단계 경계에서 disable(`/group off helm`, `ext.helm.enabled` 거짓) | X 순서: on 핸들러 제외 → drive 락 반납 → 정리(F.extensions.spec §4.5). 상태는 그대로 남는다. 다시 켜도 주도는 자동으로 돌아오지 않는다. 같은 주제의 `/helm start`가 커밋된 단계에서 이어 간다(E3, §4.9). 꺼진 동안 쓰기 거부는 걸리지 않는다 |
+| 6 | 다른 그룹이 주도 중 | §4.10. 시작 요청은 전환 정책을 기다린다. on 핸들러는 계속 동작한다. `/helm status`가 `lease: "waiting"`을 보여 준다 |
 | 7 | 프로세스 강제 종료 뒤 재개 | §4.5 재개. drive는 마지막 커밋 상태로 재호출된다. 커밋 전 spawn 결과는 같은 requestId로 다시 수집한다. 적용 turn은 같은 requestId라 다시 실행되지 않는다. 재실행된 명령의 결과 기록이 drive 락마다 다른 계통 id를 담으면 재개가 `error`로 끝난다(§10 미결 19) |
 | 8 | drive 함수 예외 | X가 drive 락을 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번). 상태는 남는다. `/helm status`가 오류를 보여 준다. 재시도는 X.primitives.spec |
 | 9 | `tool.call.before` 핸들러 예외 | 거부로 환산(F.extensions.spec §4.1). 단계와 상관없이 그 호출은 실행되지 않는다 |
@@ -1330,8 +1351,9 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 11 | chain 핸들러 예외 | 그 패치만 버린다. 해당 turn에 렌즈 블록이 빠진다 |
 | 12 | explorer 답이 형식 위반 | `parseExplorerAnswer`가 답 전체를 `low` 신뢰 발견 1건으로 바꾼다. 답이 없으면 렌즈 `failed` |
 | 13 | `maxLenses` > 남은 spawn 예산 | §4.2 explore 행. 앞 렌즈만 실행하고 나머지 `skipped` |
-| 14 | 탐구 중 `/helm start` | 오류 응답("이미 탐구 중"). 상태를 바꾸지 않는다 |
-| 15 | `idle`이고 `pending`이 없음 | `{ do: "done" }`으로 주도권을 내려놓는다. 다음 상태 판 변경(예: `/helm start`가 `pending`을 커밋) 뒤 다시 후보가 된다. drive 락 필요 판정 훅은 두지 않는다(§3.3) |
+| 14 | [E3] `/helm plugin`의 맡기기가 거부(`refused`, 예: 쓸 수 없는 대상, 깊이 상한)되거나 멈춤(`aborted`), 또는 맡은 쪽이 받지 않음 | 맡기기 요청을 비우고 알림 한 줄을 남긴다(§4.5). 탐구와 상태는 그대로다. 다시 하려면 `/helm plugin`을 다시 친다 |
+| 14 | 탐구 중 `/helm start` | 같은 주제(또는 주제 생략)면 이어 가기 요청이다. 상태를 바꾸지 않고 시작 요청만 낸다. 다른 주제면 오류 응답("이미 탐구 중")이고 상태를 바꾸지 않는다 |
+| 15 | `idle`이고 `pending`이 없음 | `{ do: "done" }`으로 주도권을 내려놓는다. 다음 `/helm start`의 시작 요청으로 다시 주도한다(§3.3). drive 락 필요 판정 훅은 두지 않는다(§3.3) |
 | 16 | 상태 검증 실패 | §4.9. `state_inconsistent`(§4.12) |
 | 17 | X 기능 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(L2 정의에 `readOnly` 선언이 아직 없음) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
 | 18 | `work.tasks.create`에 `idempotent` 선언이 없음 | X가 `effect_not_allowed`로 거부한다. 작업 연결만 빠지고 발견 기록은 남는다 |
@@ -1339,7 +1361,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 23 | 주도 중 사용자 메시지 | `last`가 `user`이면 맨 위 `turn` 명령으로 처리하고 같은 단계로 이어 간다. 턴 한도가 없으면 단계를 그대로 진행한다(§4.5). 메시지를 3단계 안에 처리하지 못하면 엔진이 코어 루프로 돌려보낸다(drive-isolation 2.4) |
 | 24 | 사용자 메시지가 턴 결과 자리에 끼어듦 | 엔진은 그 턴 결과를 `last`로 주지 않는다. 표지가 켜진 단계는 그 턴을 완료로 본다(§10 미결 20) |
 | 25 | 턴 한도 소진과 사용자 메시지가 겹침 | 단계가 `done`으로 끝나 메시지가 버려진다(§10 미결 21) |
-| 20 | drive 락 대기 상한 초과로 요청 거부 [결정: review.m3-design-inputs D-M3-05] | `pending`을 지우고 알림을 `post`한다(§4.13) |
+| 20 | (E3에서 없어짐) 대기 상한 초과 거부 | 중재가 없어 생기지 않는다. 대기 요청은 `/helm stop`으로 지운다(§4.13) |
 | 21 | 도구 메타(`risk`)가 페이로드에 없음 | 쓰기로 본다. 확산 단계에서 읽기 도구도 거부되고 `/helm status`가 경고한다(§4.6) |
 | 22 | 안전 모드로 시작 [결정: review.m3-design-inputs D-M3-07] | Helm이 적재되지 않는다. 상태는 그대로 남고 일반 모드로 다시 시작하면 커밋된 단계에서 이어 간다 |
 
@@ -1390,7 +1412,6 @@ export interface HelmSettings {
 | `on` | `tool.execution.after` | tap | `stuck`, `repeat` 입력 메모리 집계(§4.3) | 없음 |
 | `on` | `boundary.settle.after` | tap | 신호 판정과 기록, `autoStart` 처리, turn당 1회 커밋 | commit, record, post(suggest) |
 | `on` | `thread.start` | tap | 상태 복원 확인 | commit, record(검증 실패 때만) |
-| 구독 | 내구 이벤트 `lease.rejected` [제안] | | 대기 거부 처리(§4.13). 입력은 이벤트 페이로드뿐 | commit, post |
 | `post` | 입력 큐 | | 제안, 알림 | requestId 멱등 |
 | `drive` | drive 락 | | 단계 머신(§4.5) | `loop.turn`, `loop.spawn`, `post`, `commit`, `record`, 읽기 기능 호출, 멱등 쓰기 기능 호출(§4.11) |
 | `register` | `helm` | | 상태 문서 `HelmState`, 켜기·끄기 | |
@@ -1424,11 +1445,11 @@ export interface HelmSettings {
 | `RegistrationApi.commit`의 같은 프로세스 직렬화(`expectStateRev` CAS와 `state_conflict`는 이미 있다) | X.primitives.spec §4.6.1 | 요구. 정해지면 `updateState` 큐를 지운다(§4.1) | REQ-X-02 |
 | `record`와 `commit` 원자 묶음 | X.primitives.spec, F.extensions.spec | 요구. 없는 동안 `findingId` 중복 제거(§4.8) | REQ-X-03 |
 | 재시작 뒤 `leaseId` 유지 | X.primitives.spec | Helm은 명시 키로 기대지 않는다(§4.5) | REQ-X-04 |
-| 대기 기본, 대기 상한, 거부 통지, 유휴 자율 turn, 안전 모드의 L3 그룹(D-M3-05·06·07 결정 반영) | X.primitives.spec §4.5.5, X.operations.spec, L3.group-sdk.spec §3.5, §3.8 | 요구. 내구 이벤트 `lease.rejected`와 화면용 `GroupStatus.drive` `"rejected"`를 더한다(§4.13) | REQ-X-08, G-IN-04 |
+| 유휴 자율 turn, 안전 모드의 L3 그룹(D-M3-06·07 결정 반영). 대기 상한과 거부 통지는 E3에서 없어졌다 | X.primitives.spec §4.5.5, X.operations.spec, L3.group-sdk.spec §3.5 | 요구. 주도 시작 계기(사용자 명령, 프로필 시작, 맡기기)만 쓴다(drive-isolation.md 2.2) | REQ-X-08(E3에서 닫힘), G-IN-04 |
 | 서비스 키 A안 래퍼 | X.primitives.spec, F.extensions.spec | 요구. Helm은 `g.capability(key)`만 쓴다 | REQ-X-09 |
 | `tool.call.before` 훅과 정책·승인·샌드박스의 처리 순서 | X.operations.spec, L1.tools.spec | 요구. §4.6 처리 순서 [가정] | REQ-X-11 |
 | 외부 확장 로더(자체 API), 기본 플러그인 그룹의 첫 실행 설치, `@fresnel/contracts`·`@fresnel/group-sdk`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
-| `defineGroup`, `GroupApi.settings()`·`registerCommand`, `DriveArbiter`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `GroupStatus` | L3.group-sdk.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
+| `defineGroup`, `GroupApi.settings()`·`registerCommand`·`startDrive`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `GroupStatus` | L3.group-sdk.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
 | `loop.spawn`의 (thread, `requestId`) 멱등을 대화 DB에 남겨 재시작 뒤에도 유지 | L1.agents.spec, L1.loop.spec §4.8 | 요구. 지금은 프로세스 메모리 64개 | REQ-L1-01 |
 | 자식 대화의 훅 발화와 그룹 핸들러 적용 범위 | L1.agents.spec | 요구. Helm은 `caller`로 대상을 고르고 explorer 도구 상한으로 보강한다(§4.6) | REQ-L1-04 |
 | `explorer` 정의 형식과 확장 경로 적재, 권한 상한 | L1.agents.spec §4.3, §4.9 | 문서 있음 | — |
@@ -1458,7 +1479,7 @@ export interface HelmSettings {
 16. (ADR-0015) UC-2 기준 실행의 모든 커밋 시점에서 끊고 drive와 on 핸들러를 두 번 실행한 뒤 재개해도 효과 계수가 §4.11 표의 기대값과 같다(새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1).
 17. 쓰기 판정은 §4.6 표를 따른다. `risk: read`는 허용, `write`·`exec`·없음은 거부, `hints.readOnly: true`이고 `risk: exec`이면 거부, `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용이다.
 18. 탐구 단계의 `input.agent.before` 패치는 `payload.systemPrompt`(collect라 핸들러는 원본을 본다) 뒤에 Helm 블록 하나를 붙이고, 렌즈 본문을 둘 이상 넣지 않는다.
-19. [결정: review.m3-design-inputs D-M3-05] drive 락 대기가 거부되어 `lease.rejected`가 커밋되면 구독 핸들러가 `pending`을 지우고 거부 알림을 한 번 `post`한다. 같은 이벤트로 핸들러를 다시 실행해도 알림은 `duplicate`다. 핸들러는 `GroupStatus`를 읽지 않는다.
+19. [E3, 2026-11-18] 대기 상한 거부가 없어 `lease.rejected`는 발행되지 않고 구독 핸들러도 없다. 시작 요청이 없는 신호 대기 요청은 `/helm start`가 시작할 때까지 머문다(§4.3). `/helm start`가 같은 주제로 두 번 와도 상태는 한 번만 커밋된다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 20. `reactionOf`는 모든 `HelmFailure` kind와 단계 쌍에서 §4.12 표의 처리를 돌려준다. `failureOf`가 모르는 예외는 다시 던져지고 drive 등록이 `group.driveThrew`로 표시된다. 예상 가능한 실패로 drive가 예외를 내는 경로는 없다.
 21. on 핸들러 실행 중 기능 호출 수는 0이다. drive의 기능 호출은 `readOnly` 또는 `idempotent` 선언 메서드뿐이고, 선언 없는 메서드를 가진 가짜 provider로 바꾸면 X 래퍼가 `effect_not_allowed`로 거부하며 탐구는 저하 동작으로 끝난다.
 22. 탐구 단계인데 `inquiryId`가 `null`인 상태로 drive를 부르면 예외 없이 `inquiry.finished`(`failed`)가 기록되고 상태가 초기값이 된다.
@@ -1500,7 +1521,7 @@ M3 판에서 닫은 항목:
 7. [미결] 다회 라운드와 종료 판정 모델. M3는 적용 1회(§4.2). 2차.
 8. [미결] 신호 임계의 설정 노출. M3는 고정값(§3.5). 계측(M3-new-09) 뒤 정한다.
 9. [미결] 단계별 프롬프트 문구 본문과 explorer 정의 본문. 구현 작업 H-07에서 쓴다.
-10. [미결] 탐구가 없을 때 turn마다 생기는 drive 락 부여·`idle` 반납 비용(§3.3, H-IN-15). M3 구현 뒤 turn당 `lease.*` 이벤트 수를 재고, 문제가 되면 X에 후보 제외 조건을 요청한다.
+10. [닫힘, E3] 탐구가 없을 때 turn마다 생기던 drive 락 부여·`idle` 반납은 사라졌다. 주도는 시작 요청으로만 받는다(§3.3).
 11. [가정] `tool.call.before` 훅이 정책·승인보다 먼저 디스패치된다(§4.6, REQ-X-11).
 12. [가정] 지식 검색 도구 결과의 빈 결과 판정 형식(§3.5). L2.knowledge.spec과 맞춘다.
 13. (닫힘) 플러그인이 된 Helm의 설정 네임스페이스는 `ext.helm.*`다(C5). 호스트 카탈로그가 `helmSettings`를 싣고 `ext.helm.enabled`는 `reservedExtensionSettings`가 만든다.
@@ -1512,6 +1533,8 @@ M3 판에서 닫은 항목:
 19. [미결, X 엔진] [근거: packages/ext-host/src/primitives/lease.ts:511-546 recordSettled, packages/ext-host/src/primitives/testing/ports.ts:305-309 fingerprintOf, 재현: test/unit/lifecycle.test.ts의 disable 시험] 재개와 재실행된 명령의 결과 기록이 거부된다. 엔진은 명령 결과(`drive.command_settled`, `ext-host` `lease.ts`의 `recordSettled`)를 요청 id 키로 쓰지만, 기록 내용에 drive 락 계통 id(`lineageId`)가 들어가 새 drive 락이 같은 명령을 다시 내면 지문이 달라 거부되고 드라이브가 `error`로 끝난다. 재개 시험 여섯 개(`replay.*`, `disable.at-step-boundary-releases-lease`)가 이 때문에 실패한다. 계통 id를 지문에서 빼거나 기록에서 뺀 뒤 확인한다. Helm 쪽에서는 막을 수 없다(결과를 얻으려면 같은 턴을 다시 내야 한다).
 20. [미결, X 엔진] [근거: packages/ext-host/src/primitives/lease.ts:652-672 nextLast] 사용자 메시지가 단계 턴의 결과를 밀어낸다. `nextLast`(`ext-host` `lease.ts`)가 받은 메시지를 `last`로 주면서 직전 명령의 결과를 버린다. 표지가 켜진 단계는 그 턴을 완료로 본다. 턴이 실패였다면 발견 기록과 작업 연결이 실패한 턴을 적용으로 셀 수 있다. 결과를 메시지와 함께 주거나 메시지를 다음 단계로 미루도록 X에 요청한다.
 21. [미결, 엔진 규칙] [근거: packages/ext-host/src/primitives/lease.ts:727-730 deliveredUser 해제 규칙] 턴 한도 소진과 사용자 메시지가 겹치면 단계가 `done`으로 끝나고 메시지가 버려진다. X가 전달 중인 메시지를 코어 루프로 돌려주도록 요청하거나, Helm이 `yield`로 기다리게 한다.
-22. [미결, X 엔진] [근거: packages/contracts/src/extensions/hooks.ts:246 lifecycle.lease.rejected만 있음] 탐색 표지는 drive 락이 명령 중에 회수되면 탐구 단계로 남을 수 있다. 회수를 알리는 훅이 없다(`lifecycle.lease.rejected`만 있다). 쓰기 판정 대상이 `subagent:explorer`뿐이라 해는 없지만, drive 락 반납 훅이 생기면 표지를 idle로 되돌린다.
+22. [미결, X 엔진] 탐색 표지는 drive 락이 명령 중에 회수되면 탐구 단계로 남을 수 있다. 회수를 알리는 훅이 없다. 쓰기 판정 대상이 `subagent:explorer`뿐이라 해는 없지만, drive 락 반납 훅이 생기면 표지를 idle로 되돌린다. E3 이후 남은 탐구는 같은 주제의 `/helm start`로 이어 간다(§4.9). [근거: packages/contracts/src/extensions/hooks.ts:246, 계약의 `lifecycle.lease.rejected` 한 가지만 있음]
 
-하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-08, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02, `lease.rejected` 이벤트, `GroupStatus.drive`의 `"rejected"`.
+23. [미결, X 엔진] 맡기기 요청이 시작 요청 큐에만 있고 아직 부여되지 않았으면 재시작에서 사라진다. 맡긴 프레임이 기록되지 않아서다. `pluginNeed`는 상태에 남으므로 Helm은 다음 주도 시작에서 다시 맡긴다. 맡기기 요청을 기록에 싣는 방식은 정하지 않았다(drive-isolation.md §10). [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts]
+
+하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02. `lease.rejected` 이벤트와 `GroupStatus.drive`의 `"rejected"`는 E3에서 더 쓰지 않는다(계약 정리 단계에서 지운다).

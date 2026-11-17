@@ -773,18 +773,21 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       connect: {
+        risk: "exec",
         description: "Turns on and connects a disabled server in this session.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         errors: MCP_ERRORS,
       },
       reconnect: {
+        risk: "exec",
         description: "Closes the connection and reconnects. Rereads the tool list.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         errors: MCP_ERRORS,
       },
       disable: {
+        risk: "read",
         description:
           "Disables the server in this session. Its tools drop out at the next step boundary.",
         input: McpServerRefSchema,
@@ -800,6 +803,7 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       callTool: {
+        risk: "exec",
         description:
           "Calls a server tool. If the result is input_required, returns continuation info.",
         input: CallToolInput,

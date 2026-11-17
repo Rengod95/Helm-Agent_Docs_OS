@@ -16,3 +16,6 @@ export { fakeSecretChecker, type FakeSecretChecker } from "./fake-secret-check.t
 export { fakeApprovals, type FakeApprovals, type FakeApprovalsOptions } from "./fake-approvals.ts";
 export { realTools, type RealTools, type RealToolsOptions } from "./real-runtime.ts";
 export { type RunContextSession } from "./run-context.ts";
+// 질문(dialog.ask) 시험 대역: 실제 승인 서비스 위의 질문 어댑터와 수동 타이머(층 D1에서 cap-dialog 시험과 함께 쓴다)
+export { realApprovals, type RealApprovals } from "./real-approvals.ts";
+export { manualTimers, type ManualTimers } from "./manual-timers.ts";

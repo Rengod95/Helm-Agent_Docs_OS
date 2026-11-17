@@ -1,16 +1,11 @@
 import { join } from "node:path";
-import { parse, type Result } from "@fresnel/contracts";
+import type { Result } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import { HOOKS, type RegistrationStatus } from "@fresnel/contracts/extensions";
-import {
-  LeaseRejectedPayloadSchema,
-  type DurableEventEnvelope,
-  type ReadFailure,
-} from "@fresnel/contracts/records";
+import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
 import type { GroupStatus } from "@fresnel/contracts/services";
 import { resolveSetting, type ScopeStack, type SettingCatalog } from "@fresnel/contracts/settings";
 import type {
-  EnabledSource,
   ExtDiagnostic,
   GroupMetricsFull,
   GroupPromotionResult,
@@ -35,7 +30,7 @@ import {
 } from "@fresnel/group-sdk";
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
-import { operationsSource, primitivesSource } from "../settings-sources.ts";
+import { operationsSource } from "../settings-sources.ts";
 import type {
   ExtensionRecord,
   ExternalHookView,
@@ -89,21 +84,6 @@ function threadIdOf(value: string | undefined): ThreadId | undefined {
 
 function layersOf(settings: SettingsEngine, threadId: string | undefined): ScopeStack {
   return settings.layers(threadIdOf(threadId));
-}
-
-/**
- * 켜짐의 출처(`ext.list`의 `enabledSource`). E(T)가 아직 없어 프로필·공통 묶음·덧씌우기의 출처는 아직 계산하지 않는다(M5c §4.1).
- * 그래서 관리 잠금(관리 범위의 `ext.<name>.enabled`가 거짓)만 `managed`로 보고, 나머지는 `none`이다.
- */
-function enabledSourceOf(
-  catalog: SettingCatalog,
-  layers: ScopeStack,
-  extension: string,
-): EnabledSource {
-  const key = `ext.${extension}.enabled`;
-  if (!catalog.has(key)) return "none";
-  const managed = layers.find((layer) => layer.scope === "managed");
-  return managed?.values.get(key) === false ? "managed" : "none";
 }
 
 /** 대화 범위(launch)에 저장된 켜짐 값이 이 대화의 상태다. 그 범위에 값이 없으면 undefined(전역 값을 따른다) */
@@ -350,11 +330,8 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         ? undefined
         : launchStatusOf(catalog, layersOf(env.settings, threadId), extension);
     },
-    enabledSource(registrationId, threadId) {
-      const extension = extensionOf(registrationId);
-      if (extension === undefined) return "none";
-      return enabledSourceOf(catalog, layersOf(env.settings, threadId), extension);
-    },
+    // E(T) 출처는 조립이 `withEnabledSources`로 덮는다(플러그인 집합은 이 원천을 만든 뒤에 생긴다). 덮지 않은 원천은 꺼짐으로 본다
+    enabledSource: () => "none",
     forcedOn: (name) => assembly.forcedOn(name),
     managedLocked(name) {
       const def = catalog.get(`ext.${name}.enabled`);
@@ -519,39 +496,14 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
           })),
       };
     },
-    async driveLock(threadId) {
+    driveFrames(threadId) {
       const id = threadIdOf(threadId);
-      const lock = id === undefined ? undefined : view.driveLock(id);
-      const defaults =
-        id === undefined ? {} : primitivesSource(env.settings).driveDefaultLimits(id);
-      const activeDriver = env.settings.value("x.primitives.activeDriver", id);
-      const rejections =
-        id === undefined
-          ? undefined
-          : await env.ext.queryEvents(id, { kindPrefix: "lease.rejected" });
-      const last = rejections?.ok === true ? rejections.value.at(-1) : undefined;
-      const checked =
-        last === undefined ? undefined : parse(LeaseRejectedPayloadSchema, last.payload);
-      return {
-        holder: lock?.holder ?? null,
-        leaseEpoch: lock?.leaseEpoch ?? 0,
-        activeDriver: typeof activeDriver === "string" ? activeDriver : null,
-        limits: {
-          turns: lock?.limits.turns ?? defaults.maxTurns ?? 0,
-          spawns: lock?.limits.spawns ?? defaults.maxSpawns ?? 0,
-          tokens: lock?.limits.tokens ?? defaults.maxTokens ?? null,
-        },
-        used: lock?.used ?? { turns: 0, spawns: 0, tokens: 0 },
-        candidates: lock?.candidates ?? [],
-        lastRejected:
-          last === undefined || checked === undefined || !checked.ok
-            ? null
-            : {
-                groupId: checked.value.groupId,
-                reason: checked.value.reason,
-                requestSeq: checked.value.requestSeq,
-              },
-      };
+      return Promise.resolve({ frames: id === undefined ? [] : env.ext.driveFrames(id) });
+    },
+    driveFramesChanged(listener) {
+      return env.ext.onChange((change) => {
+        if (change.kind === "lease" && change.threadId !== null) listener(change.threadId);
+      });
     },
     settings: {
       catalog,

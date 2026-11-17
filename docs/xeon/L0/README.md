@@ -15,7 +15,7 @@ binds: [xeon/packages/platform-*/**]
 L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터페이스 뒤에 두고, OS·환경마다 구현만 바꾸는 층이다. 소비자 코드(X, L1~L4)에는 OS 분기를 두지 않는다 [결정: `_research/decisions-log.md` 2026-10-19 설계 규칙, `_research/layer-plan-v2.json` L0 intro "L0는 OS와 실행 환경 차이를 공통 인터페이스 뒤에 둡니다"].
 
 - 범위: 셸·파일 연산의 실행 위치(exec), OS 샌드박스(sandbox), 시크릿 해석(secrets), 엔진 프로세스와 전송·자식 수명(process), 단일 SQLite DB와 잠금·블롭(store), 경로·시각·바이너리·알림·감시·텔레메트리(os). 하위 층 6개(`_research/layer-plan-v2.json` L0-a~L0-f)가 패키지 6개에 1:1로 대응한다.
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4다(`_research/foundation-plan.md` §3). L0 패키지는 F(`@fresnel/contracts`)와 X(`@fresnel/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@fresnel/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
+- 층 순위는 F → X → L0 → L1 → P → L4다(`_research/foundation-plan.md` §3, P는 옛 L2·L3). L0 패키지는 F(`@fresnel/contracts`)와 X(`@fresnel/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@fresnel/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
 - L0는 훅을 구독하지 않는다 [제안: `architecture.layers.spec` 4.2절 "L0는 `on`을 쓰지 않는다"]. X에서 쓰는 것은 `PlatformModule.setup`, `PlatformContext.providePort`·`port`, `onDispose`(잠금 해제, 감시 종료, 스팬 내보내기 마무리)뿐이다(`X.primitives.spec` §3.2).
 - 예상 가능한 실패는 F `Result`와 `kind` 판별 오류 유니온으로 돌려준다. `throw`는 `Bug`에 한정한다(`eng.typescript.guide` TY-11, TY-12).
 
@@ -235,7 +235,7 @@ L0가 정하지 않는 것:
 |---|---|
 | [결정] OS·환경마다 달라지는 부분은 공통 인터페이스 뒤에 두고 구현만 바꾼다. 소비자 코드에 OS 분기를 두지 않는다 | `_research/decisions-log.md` 2026-10-19 설계 규칙, `eng.dependency-rules.guide` DR-13 |
 | [결정] 첫 지원 OS는 macOS, Linux(WSL 포함). Windows 네이티브는 나중 | `_research/decisions-log.md` 2026-10-19 |
-| [결정] 층 순위 F → X → L0 → L1 → L2 → L3 → L4, 같은 층 import 금지 | `_research/foundation-plan.md` §3 |
+| [결정] 층 순위 F → X → L0 → L1 → P → L4, 같은 층 import 금지 | `_research/foundation-plan.md` §3 |
 | [결정] pi durable은 env·tools·images·truncate만 Chord 제거 포크하고, `CancelScope`로 치환한다 | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0003 |
 | [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<확장 id의 하이픈을 밑줄로>_`). 대화 쓰기 소유는 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱 [결정: review.decisions-2 U-09, U-18] | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 |
 | [결정] DB는 `bun:sqlite`(WAL, 단계 경계 FULL). macOS는 FTS5 포함 SQLite를 지정한다 | `_research/foundation-plan.md` §2 DB 행 |

@@ -544,11 +544,24 @@ export interface SpawnOutcome {
   readonly answer?: string;
 }
 
-/** 단계 함수가 쓰는 프레임 정보. 프레임 스택(E3) 전에는 `frameDepth` 1, `calledBy`·`input` null [M5a-1, review.m5-drive-isolation 1.1] */
+/** 단계 함수가 쓰는 프레임 정보. `frameDepth`는 코어 0, 첫 플러그인 프레임 1이다 [M5a-1, review.m5-drive-isolation 1.1] */
 export interface DriveFrameInfo {
-  readonly frameDepth: number;
+  readonly frameDepth: number;     // 코어 0, 첫 플러그인 프레임 1
   readonly calledBy: string | null;
   readonly input: JsonValue | null;
+}
+/**
+ * 주도권 스택 프레임 하나를 읽는 모양(`drive.frames`, F.wire-settings.spec §3.3.1, 정의 `extensions/drive.ts`의 `DriveFrameViewSchema`).
+ * 스택 전체를 아래에서 위 순서로 준다. 맨 아래는 코어 루프(depth 0, plugin·versionId·leaseId가 null)다. 플러그인 프레임의 depth는 스택 인덱스(`lease.acquired.depth`) + 1이다.
+ */
+export interface DriveFrameView {
+  readonly depth: number;                       // 코어 0, 첫 플러그인 프레임 1
+  readonly plugin: string | null;
+  readonly versionId: string | null;
+  readonly leaseId: string | null;
+  readonly state: "driving" | "waiting" | "asking";   // asking은 임대를 반납하지 않은 질문 대기다
+  readonly used: { readonly turns: number; readonly spawns: number; readonly tokens: number };
+  readonly limits: { readonly turns?: number; readonly spawns?: number; readonly tokens?: number };
 }
 
 /** 엔진이 단계마다 새로 주는 입력 */
@@ -561,13 +574,13 @@ export interface DriveStepInput<S> {
 
 /**
  * 단계 함수가 돌려주는 명령 하나. 엔진이 블록으로 실행하고 결과를 다음 단계의 `last`로 준다.
- * `model`, `tool`(E2), `handoff`(E3)는 타입 자리만 있고 E1 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
+ * `handoff`(E3)는 엔진이 맡기기로 구현한다(X.primitives.spec §4.4.1b). `model`, `tool`은 E2 엔진이 `ModelsPort.completeForPlugin`, `ToolsPort.executeForPlugin`으로 실행한다.
  * `commit`의 이어 실행 이름은 `next`다(스펙 초안의 `then`은 lint 규칙 unicorn/no-thenable이 막는다)
  */
 export type DriveCommand<S> =
   | { readonly do: "turn"; readonly input: PostItem; readonly note?: string; readonly requestId?: string }
-  | { readonly do: "model"; readonly messages: readonly DriveModelMessage[]; readonly label?: string }
-  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue }
+  | { readonly do: "model"; readonly messages: readonly DriveModelMessage[]; readonly label?: string; readonly requestId?: string }
+  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue; readonly requestId?: string }
   | { readonly do: "ask"; readonly card: AskCard; readonly title?: string; readonly requestId?: string }
   | { readonly do: "spawn"; readonly agent: string; readonly task: string; readonly background?: boolean; readonly label?: string; readonly requestId?: string }
   | { readonly do: "handoff"; readonly to: string; readonly input: JsonValue }
@@ -579,7 +592,8 @@ export type DriveCommand<S> =
 export type StepResult =
   | { readonly kind: "ok"; readonly of: "turn"; readonly value: TurnOutcome }
   | { readonly kind: "ok"; readonly of: "spawn"; readonly value: SpawnOutcome }
-  | { readonly kind: "ok"; readonly of: "model" | "tool"; readonly value: JsonValue | null }
+  | { readonly kind: "ok"; readonly of: "model"; readonly value: PluginModelValue }   // { text, usage, stopReason }
+  | { readonly kind: "ok"; readonly of: "tool"; readonly value: ToolResultView }
   | { readonly kind: "ask"; readonly answer: "answered" | "cancelled" | "expired" | "noninteractive"; readonly value: JsonValue | null }
   | { readonly kind: "blocked"; readonly by: { plugin: string | null; hook: string | null }; readonly reason: string }
   | { readonly kind: "denied"; readonly by: "policy" | "human" | "noninteractive"; readonly reason: string | null }
@@ -871,21 +885,6 @@ export interface HookProcessPort {
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort>;                 // { name: "fresnel.process" }
 
-// ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────
-export interface DriveLockCandidate {
-  readonly scopeId: RegistrationId;
-  readonly extension: ExtensionName;
-  readonly loadIndex: number;
-  readonly defaultEnabled: boolean;
-  /** 그 thread 활성 가지의 마지막 `scope.changed{status:"enabled"}` seq. 기록이 없으면 null */
-  readonly enabledAtSeq: number | null;
-}
-export interface DriveLockArbiterPort {
-  /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
-  choose(threadId: ThreadId, candidates: readonly DriveLockCandidate[]): RegistrationId | null;
-}
-export const DriveLockArbiterPortKey: PortKey<DriveLockArbiterPort>;       // { name: "fresnel.groups" }
-
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────
 export interface ToolResourceDef {
   readonly name: ToolName;
@@ -924,7 +923,11 @@ export interface ToolReplaceClaim { readonly extension: string; readonly trust: 
 /** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
 export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
-export interface ModelsPort { registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe }
+export interface ModelsPort {
+  registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
+  /** 주도 단계의 `model` 명령. 역할 `judge`, `guard.model.before`와 `request.provider.before`를 지난다. 같은 대화의 같은 (scopeId, requestId)의 성공은 프로세스 안에서 같은 결과를 돌려준다 */
+  completeForPlugin(request: PluginModelRequest): Promise<Result<PluginModelResult, PluginModelError>>;
+}
 /** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort { registerServer(owner: RegistrationId, name: string, config: McpServerResourceDef): Unsubscribe }
 export const ToolsPortKey: PortKey<ToolsPort>;                     // { name: "fresnel.tools" }
@@ -996,7 +999,7 @@ export interface TrustPrompter {
 | `ScopedStorePort` | `fresnel.store` | platform-store | `StoreService`(`F.records.spec` §3.9) | `X.primitives.spec` §3.6 |
 | `ExtensionTablesPort` | `fresnel.store`(member `extensions`) | platform-store | `ExtensionTables`(`F.records.spec` §3.9) | `X.operations.spec` §4.4.7 |
 | `ProcessPort` | `fresnel.process` | platform-process | `ProcessService extends ProcessPort` | `X.primitives.spec` §3.6, `X.loading-trust.spec` §3.8, `X.operations.spec` §3.7 |
-| `DriveLockArbiterPort` | `fresnel.groups` | group-sdk | `GroupService extends DriveLockArbiterPort`(`F.capabilities.spec` §3.12 `services/groups.ts`) | `X.primitives.spec` §3.6 |
+| `DriveLockArbiterPort` | 없음(E3에서 걷음) | — | 중재가 없다. 주도권은 주도권 스택과 세 계기로만 받는다(drive-isolation.md 2.2) | `X.primitives.spec` §4.4.1a |
 | `ToolsPort` | `fresnel.tools` | core-tools | `ToolService extends ToolsPort` | `X.primitives.spec` §3.9 |
 | `ModelsPort` | `fresnel.models` | core-models | `ModelService extends ModelsPort` | `X.primitives.spec` §3.9 |
 | `McpPort` | `fresnel.mcp` | cap-mcp | `McpService extends McpPort`(`F.capabilities.spec` §3.12 `services/mcp.ts`) | `X.primitives.spec` §3.9 |
@@ -1171,7 +1174,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
 | 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
-| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 원본 뒤에 덧붙인 값이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음 |
+| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 원본 뒤에 덧붙인 값이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음. 페이로드에 `driver`(맨 위 주도 프레임의 플러그인 이름, 주도 중이 아니면 null)와 `stack`(아래에서 위 순서의 플러그인 이름, 주도 중이 아니면 빈 배열)을 더했다(review.m5-drive-isolation 2.5) |
 | 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext stage 1 | 제자리 수정 대신 패치 반환만 |
 | 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext stage 2 | 같음 |
 | 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
@@ -1766,7 +1769,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 2. first 핸들러가 `undefined`도 결정 타입도 아닌 값을 돌려줌: 결정 스키마(`HookDecl.result`) 위반은 예외와 같게 거부값으로 처리한다.
 3. chain 핸들러가 패치 스키마를 위반함: 그 핸들러의 패치를 버린다(skip).
 4. detached tap 핸들러가 끝나기 전에 대화가 종료됨: 결과를 기다리지 않는다. 핸들러 예외는 기록만 한다.
-5. 두 Registration이 동시에 drive lock을 요청함: X가 하나에만 준다. 다른 쪽의 drive 함수는 호출되지 않는다. 사용자는 L4 설정에서 어느 Registration이 주도할지 고른다. 설정 키는 `x.primitives.activeDriver` 하나다(소유 X.primitives.spec). 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresGroup`(기본 참)이 `drive_requires_group`으로 거부한다.
+5. 주도권은 후보 가운데 고르지 않는다(E3, drive-isolation.md 2.2). 주도를 받는 계기는 사용자의 주도 시작 명령(`startDrive`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`) 셋뿐이다. 설정 키 `x.primitives.activeDriver`와 대기 상한 `leaseWaitLimit`은 없다. 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresGroup`(기본 참)이 `drive_requires_group`으로 거부한다.
 5-1. 매니페스트에 선언한 플러그인을 엔트리가 `register`하지 않음: 로더 진단 `plugin_not_registered`(warning)를 낸다 [제안].
 6. drive 함수가 예외를 던짐: drive lock을 반납하고 그룹의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
 7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 drive lock을 반납한다 [제안].
@@ -1783,7 +1786,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
 | 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
-| 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 옛 키 `x.primitives.activeDriveGroup`은 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
+| 시작 설정 | 프로필의 `startDrive`(처음 열 때 그 Registration이 주도를 시작한다). 설정 키 `x.primitives.activeDriver`는 없다(drive-isolation.md 2.2) | 프로필 화면의 "시작 설정" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
 | 격리 | 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec, 범위 `managed`·`user`). 사용자·프로젝트 등급 플러그인은 기본이 `process`(플러그인 호스트 프로세스)다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"이고 매니페스트 `isolation`은 값이 없을 때의 요청이다(`none`이면 엔진 안, `process`면 격리). 우선순위는 설정, 매니페스트, 기본 `process`. 저장소 패키지(`builtin`)와 `bundled` 출처(Helm, 주도를 쓰므로 P2 전까지)는 엔진 안이다 [결정: 2026-11-17 사용자, M5b-1] | 같은 탭 |
 
@@ -1815,9 +1818,9 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 |---|---|
 | `ExtensionManifest`, `ExtensionManifestSchema`, `defineManifest`, `validateManifest`, `validateUsage`, `validateManifestSet` | X.loading-trust.spec, 모든 확장 패키지 |
 | `HookName`, `HookSignatures`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_HOOKS`, `LIFECYCLE_HOOKS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
-| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
+| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `DriveFrameView`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind` | X.loading-trust.spec, L0.os.spec(구현), L4.cli.spec·L4.desktop.spec(프롬프트 구현) |
 
 요구:
@@ -1872,15 +1875,28 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 | 메시지 | 방향 | 종류 | 비고 |
 |---|---|---|---|
-| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
+| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러, `hasMigration`, `drive`(한도 옵션 `limits`, 없으면 null)). 버전이 다르면 `protocol_version` |
 | `hook.invoke` | 엔진 → 호스트 | 요청 | 훅 이름, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
 | `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥. `tool.execute`는 `callerInfo`(`CallerInfo` JSON)를 더 싣는다 |
-| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. |
+| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. 선택 칸 `dropped`(엔진이 이 알림 앞에서 합친 수)는 합치기가 있었을 때만 싣고, 격리된 `g.subscribe`가 봉투의 `dropped`에 더한다. |
+| `event.done` | 호스트 → 엔진 | 알림 | `event.notify` 처리가 끝났다(대리 핸들러의 `await`가 끝난 뒤, 성공과 실패 모두). params `{eventKey}`. 엔진은 키마다 미확인 수를 줄인다. 확인되지 않은 `eventKey`는 무시한다. 이름 목록은 `PLUGIN_HOST_NOTIFICATIONS_TO_ENGINE`이다 |
 | `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
+
+**알림 흐름 제어(합치기와 대기열) [제안].** 엔진(`isolation/notify-gate.ts`)은 `event.notify`를 흐름 키(등록 id, 훅, handlerIndex, 대화 id)마다 센다. `event.done`을 받지 못한 알림이 `NOTIFY_INFLIGHT_MAX`(8)개에 닿으면 다음 알림의 처리는 핸들러의 `coalesce` 표지(`PluginRegistrationDecl.hooks`의 항목)에 따른다. `sample: "coalesce"` 구독의 핸들러만 합친다: 다음 알림을 대기 칸 하나에 덮어쓰고 덮인 수를 센다. 확인이 오면 대기 칸의 알림을 `dropped`(덮인 수)와 함께 보내고 칸을 비운다. `every` 구독과 원시 `g.on`은 모두 전달이므로(§4.4.1) 합치지 않고 흐름 키마다 대기열에 발화 순서대로 쌓았다가 확인이 올 때마다 하나씩 보낸다. 대기열이 `NOTIFY_QUEUE_MAX`(1024)를 넘으면 그 핸들러(등록, 훅, handlerIndex)의 구독을 오류로 끊는다: 쌓인 알림을 버리고 프로세스가 끝날 때까지 그 핸들러의 알림을 보내지 않으며, `plugin_host.notify_overflow` 오류 진단을 남긴다(조용히 잃지 않는다). 보내기는 기다리지 않고 던지지 않는다(이벤트 처리의 지연이 턴의 결과를 바꾸지 못한다). 확인이 `NOTIFY_STALL_MS`(30초) 동안 상한에 닿은 채 풀리지 않으면 미확인 수를 0으로 되돌리고 `plugin_host.notify_stalled` 진단을 남긴다. 프로세스가 끝나면 미확인 수, 대기 칸, 대기열, 끊김을 버리고 다음 프로세스는 0에서 시작한다. 이 규칙은 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋 모두에 같다. 이 셋은 `PLUGIN_HOST_NOTIFY_HOOKS`이고, 계약 시험이 `isHighFrequency`가 고빈도로 정한 셋과 같음을 고정한다.
+
 | `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
-| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `reportChanges`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다 |
+| `state.migrate` | 엔진 → 호스트 | 요청 | `registration`, `doc`(저장된 상태 문서), `fromVersion`. 등록의 `hasMigration`이 참일 때만 보낸다(상태 버전이 낮은 thread를 켤 때). 응답의 `result`는 옮긴 문서(JSON이다. `null`도 문서다). 함수가 던지거나 JSON이 아닌 값을 내면 `handler_threw`. 요청은 초기화 한도(`initTimeoutMs`)와 같은 시간 한도를 가진다. 넘으면 감독이 프로세스를 멈춘다(`process_killed`) |
+| `drive.step` | 엔진 → 호스트 | 요청 | 주도 단계 함수 한 번(drive-isolation.md 1.1). params는 `registration`, `last`(직전 `StepResult`, 첫 단계면 null), `budget`(남은 턴·서브에이전트·토큰, null은 상한 없음), `frame`(`frameDepth`, `calledBy`, `input`)과 호출 문맥(`deadlineMs`는 단계 시간 한도 `DRIVE_STEP_DEADLINE_MS`, 기본 120000 ms). 응답은 `{command, limits}`다. `command`는 `DriveCommand` JSON이고 엔진이 `DriveCommandSchema`로 검사한다. 모양이 맞지 않으면 `invalid_command` 단계 오류다(프로세스는 산다). `limits`는 응답을 낼 때 읽은 한도 옵션이다. 명령의 실행은 엔진에 남는다(`lease.ts`의 `executeCommand`) |
+| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`, `startDrive`, `reportChanges`, `updateState`, `awaitUser`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied`. `reportChanges`는 도구 실행 중에만 받고(도구의 `ctx.changes.report`가 낳는다. 자식은 응답 전에 모두 기다린다) 모양이 맞는 항목만 엔진의 `ctx.changes`에 넘긴다. `updateState`(`prev`, `next`, `records`)는 엔진이 줄 안에서 현재 상태 문서가 `prev`와 같을 때만 `next`와 `records`를 커밋하고, 응답은 값 `{kind: committed | conflict | failed}`다(`conflict`는 엔진의 현재 문서를 싣는다). 함수는 호스트가 돌린다. `awaitUser`(`phase`: `begin` | `end`)는 호출을 낳은 요청의 시간 예산 시계를 멈추고 다시 돌린다. 요청이 `end` 없이 끝나면(호스트가 죽음, 시간 초과) 엔진이 남은 대기만큼 푼다 |
+| `engine.call` `startDrive` | 호스트 → 엔진 | 요청 | params `{input}`(JSON 또는 null). 엔진은 호출을 낳은 요청의 thread에 이 등록을 사용자 trigger의 주도 시작 요청으로 넣고(`lease.startDrive`), 응답은 값이다: 성공 `{ok: true}`, 거부 `{ok: false, error: {kind}}`(`kind`는 `StartDriveError`의 kind와 `no_context`). 요청 밖의 호출(설치, 알림)은 자식이 엔진을 부르지 않고 `no_context`로 답한다. 드라이브를 등록하지 않은 격리 등록은 엔진이 `not_drive`로 답하고, 드라이브를 등록한 등록은 시작 요청을 큐에 넣는다(`{ok: true}`). `replay`면 큐에 넣지 않고 `{ok: true}`다 |
 | 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
 
-넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다. group-sdk는 상태 버전 2 이상에서 부른다), `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+엔진 호출의 실패 응답은 `error: {kind: "engine_call_failed", message, origin?}`다. `message`는 엔진 안과 같이 `<코드>: <문장>`이고 상한은 4000자다. `origin`은 원래 오류의 종류다: 기능 오류(`CapabilityError`)면 `{kind: "capability", data}`(`CapabilityErrorData`, JSON)이고, 확장 오류(`PrimitiveError`)면 `{kind: "primitive", code, scopeId?}`다. 다른 오류는 `origin`을 싣지 않는다. `data.detail`의 JSON 바이트가 `PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES`(8192)를 넘으면 엔진은 `detail`을 빼고 보낸다. 받는 쪽은 `detail`이 상한을 넘거나 모양이 틀린 `origin`이 든 프레임을 `invalid_frame`으로 버린다. 자식은 `origin`이 있으면 엔진 안과 같은 종류로 되던진다: 기능 오류는 `CapabilityError`(`data` 그대로), 확장 오류는 `PrimitiveError`(같은 코드와 등록 id, 메시지 앞의 코드는 뗀다). 확장 오류 코드 목록에 없는 코드나 `origin`이 없는 실패는 `PluginEngineCallError`(엔진의 `kind`)다. 그래서 격리 자식에서도 기능 오류가 Helm의 저하 처리(출처 실패)로 가고 단계 오류가 되지 않는다. 이 값은 `PLUGIN_HOST_PROTOCOL_VERSION`을 올리지 않는다(외부에 나간 적이 없다).
+
+넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `provide`·`providePort`, `port`는 격리 호스트에서 `service_reserved`(내장이 아닌 호스트와 같다)로 답한다, `registerWebProvider`, `registerShortcut`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+
+넘기는 넷: `migrateState`는 함수가 함수 값이라 경계를 못 넘으므로 자식이 가지고, 엔진이 상태 버전이 낮은 thread를 켤 때 `state.migrate` 요청으로 부른다(`hasMigration`). 엔진이 함수를 기다리고, 결과를 선언 스키마로 검사한 뒤 커밋한다. `updateState`(`hostOf`)는 자식이 함수를 돌리고, 엔진은 `engine.call` `updateState`의 비교 후 커밋만 한다. 자식은 같은 (등록, thread)의 호출을 줄 세우고, conflict면 엔진의 현재 문서로 한 번 더 한 뒤, 또 conflict면 `state_conflict` 값을 낸다. `awaitUser`는 `begin`과 `end` 호출로 시계 멈춤을 엔진에 알린다(훅 핸들러의 예산 시계와 단계 함수의 시간 한도 시계 둘 다 멈춘다). `startDrive`(`hostOf`)는 자식이 `engine.call` `startDrive`로 넘기고 엔진이 값으로 답한다(위 행). 요청 밖의 호출은 자식이 `no_context`로 답하므로 설치 중에도 엔진을 기다리지 않는다. 넷 모두 실패는 값으로 돌아오고 던지지 않는다(엔진 안과 같다).
+
+주도 단계 함수(`drive`)는 setup에서 `g.drive(step, options)`를 한 번 받아 두고, 엔진이 주도 단계마다 `drive.step` 요청으로 부른다. 명령(`turn`, `ask`, `spawn`, `commit`, `handoff`, `yield`, `done`)은 엔진이 실행한다. 한도 옵션은 선언의 `drive.limits`로 시작하고 단계 응답의 `limits`로 바뀌지만, 바뀐 값은 **다음 주도권를 받을 때** 읽힌다(실행 중인 주도권의 한도는 바뀌지 않는다). 단계 시간 한도 `DRIVE_STEP_DEADLINE_MS`(120000 ms)는 제안값이고 설정 키 항목은 정해지지 않아 상수로 둔다(엔진 시험은 `driveStepDeadlineMs`로 주입한다). 단계 함수 안의 `awaitUser` 대기는 이 한도에서 뺀다(`begin`에서 시계를 멈추고 `end`에서 남은 시간으로 이어 간다. 사람을 기다리는 시간으로 플러그인이 죽지 않는다). 그 밖의 시간이 한도를 넘으면 감독이 프로세스를 멈추고(`process_killed`), 프로세스가 스스로 끝나면 `process_exit`이다. 두 경우 모두 프레임과 그 위 프레임을 `error`로 내리고, 주도 등록을 오류로 표시하지 않으므로 다음 시작 요청이 새 프로세스에서 새 프레임을 맡는다. 단계 함수가 던지면 그 단계는 오류이고 주도 등록을 오류로 표시한다.
 
 훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.

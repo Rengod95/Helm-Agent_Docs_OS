@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
+import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
 import {
   clockTextOf,
   failureClockOf,
@@ -28,18 +29,27 @@ function group(
   };
 }
 
-function lock(over: Partial<GroupDriveLockResult> = {}): GroupDriveLockResult {
+/** 주도권 스택의 프레임. `depth`는 코어 0, 플러그인 프레임 1부터다 */
+function frame(
+  plugin: string | null,
+  state: DriveFrameView["state"],
+  depth: number,
+  over: Partial<DriveFrameView> = {},
+): DriveFrameView {
   return {
-    holder: null,
-    leaseEpoch: 0,
-    activeDriver: null,
-    limits: { turns: 4, spawns: 4, tokens: null },
+    depth,
+    plugin,
+    versionId: plugin === null ? null : "1.0.0",
+    leaseId: plugin === null ? null : `lease-${plugin}`,
+    state,
     used: { turns: 0, spawns: 0, tokens: 0 },
-    candidates: [],
-    lastRejected: null,
+    limits: {},
     ...over,
   };
 }
+
+/** 코어 루프 프레임(맨 아래) */
+const CORE: DriveFrameView = frame(null, "waiting", 0);
 
 function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
   return {
@@ -64,65 +74,74 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
 }
 
 describe("runtime-tab.drive-queue-matches-group-status", () => {
-  test("helm 보유, review 대기, work 거절: 보유·대기열·거절이 GroupStatus.drive와 driveLock에서 같다", () => {
-    const view = runtimeViewOf(
-      [group("helm", "holder"), group("review", "waiting"), group("work", "rejected")],
-      lock({
-        holder: "helm",
-        leaseEpoch: 3,
-        used: { turns: 2, spawns: 1, tokens: 900 },
-        candidates: [{ registrationId: "review", waits: 1, waitLimit: 3 }],
-        lastRejected: { groupId: "work", reason: "waitLimit", requestSeq: 7 },
-      }),
-    );
-    expect(view.holder?.id).toBe("helm");
+  test("[코어, A waiting, B driving]: 보유는 B, 대기는 [A]이고 프레임 전체를 싣는다", () => {
+    const frames = [CORE, frame("A", "waiting", 1), frame("B", "driving", 2)];
+    const view = runtimeViewOf([group("B", "holder"), group("A", "waiting")], frames);
+    expect(view.holder).toEqual({ id: "B", displayName: "B" });
     expect(view.holderAgrees).toBe(true);
-    expect(view.queue.map((m) => m.id)).toEqual(["review"]);
-    expect(view.queue[0]).toEqual({ id: "review", displayName: "review", waits: 1, waitLimit: 3 });
-    expect(view.rejected.map((m) => m.id)).toEqual(["work"]);
-    expect(view.leaseEpoch).toBe(3);
-    expect(view.used).toEqual({ turns: 2, spawns: 1, tokens: 900 });
-    expect(view.lastRejected).toEqual({ groupId: "work", reason: "waitLimit", requestSeq: 7 });
+    expect(view.queue).toEqual([{ id: "A", displayName: "A" }]);
+    expect(view.frames).toEqual(frames);
   });
 
-  test("보유자가 helm이 아닌 review여도 같은 모양이다: helm이 대기, work가 거절", () => {
+  test("대기는 waiting 프레임만 든다. 보유자 아래라도 driving이나 asking 프레임은 대기가 아니다", () => {
     const view = runtimeViewOf(
-      [group("review", "holder"), group("helm", "waiting"), group("work", "rejected")],
-      lock({
-        holder: "review",
-        candidates: [{ registrationId: "helm", waits: 0, waitLimit: 2 }],
-      }),
+      [group("C", "holder"), group("A", "waiting")],
+      [CORE, frame("A", "waiting", 1), frame("B", "asking", 2), frame("C", "driving", 3)],
     );
-    expect(view.holder?.id).toBe("review");
-    expect(view.holderAgrees).toBe(true);
-    expect(view.queue.map((m) => m.id)).toEqual(["helm"]);
-    expect(view.rejected.map((m) => m.id)).toEqual(["work"]);
+    expect(view.holder?.id).toBe("C");
+    expect(view.queue.map((m) => m.id)).toEqual(["A"]);
   });
 
-  test("대기열 순서는 driveLock.candidates 순서이고, 후보에 없는 대기 그룹은 뒤에 붙는다", () => {
+  test("대기 순서는 프레임 순서(아래에서 위)이고, 목록에 없는 그룹도 id를 이름으로 싣는다", () => {
     const view = runtimeViewOf(
-      [group("a", "holder"), group("b", "waiting"), group("c", "waiting"), group("d", "waiting")],
-      lock({
-        holder: "a",
-        candidates: [
-          { registrationId: "c", waits: 2, waitLimit: 4 },
-          { registrationId: "b", waits: 0, waitLimit: 4 },
-        ],
-      }),
+      [group("a", "waiting")],
+      [CORE, frame("a", "waiting", 1), frame("b", "waiting", 2), frame("c", "driving", 3)],
     );
-    expect(view.queue.map((m) => m.id)).toEqual(["c", "b", "d"]);
-    expect(view.queue[2]).toEqual({ id: "d", displayName: "d", waits: null, waitLimit: null });
+    expect(view.queue).toEqual([
+      { id: "a", displayName: "a" },
+      { id: "b", displayName: "b" },
+    ]);
+    expect(view.holder).toEqual({ id: "c", displayName: "c" });
   });
 
-  test("drive가 none인 그룹과 목록에 없는 보유자는 구역에 들지 않는다", () => {
-    const view = runtimeViewOf(
-      [group("plain", "none", { usesDrive: false })],
-      lock({ holder: "ghost" }),
-    );
+  test("플러그인 프레임이 없으면 보유자도 대기도 없다", () => {
+    const view = runtimeViewOf([group("plain", "none", { usesDrive: false })], [CORE]);
     expect(view.holder).toBeNull();
-    expect(view.holderAgrees).toBe(false);
+    expect(view.holderAgrees).toBe(true);
     expect(view.queue).toEqual([]);
-    expect(view.rejected).toEqual([]);
+    expect(view.used).toEqual({ turns: 0, spawns: 0, tokens: 0 });
+    expect(view.limits).toEqual({ turns: null, spawns: null, tokens: null });
+  });
+
+  test("group.list의 보유 그룹과 맨 위 프레임이 다르면 어긋난다", () => {
+    const view = runtimeViewOf([group("X", "holder")], [CORE, frame("B", "driving", 1)]);
+    expect(view.holder?.id).toBe("B");
+    expect(view.holderAgrees).toBe(false);
+  });
+
+  test("맨 위 플러그인 프레임의 사용량과 상한을 싣고, 상한이 없는 항목은 null이다", () => {
+    const view = runtimeViewOf(
+      [group("B", "holder")],
+      [
+        CORE,
+        frame("B", "driving", 1, {
+          used: { turns: 2, spawns: 1, tokens: 900 },
+          limits: { turns: 4, spawns: 4 },
+        }),
+      ],
+    );
+    expect(view.used).toEqual({ turns: 2, spawns: 1, tokens: 900 });
+    expect(view.limits).toEqual({ turns: 4, spawns: 4, tokens: null });
+  });
+
+  test("drive 오류인 그룹은 오류 구역에 들고, drive를 안 쓰는 그룹은 어느 목록에도 없다", () => {
+    const view = runtimeViewOf(
+      [group("plain", "none", { usesDrive: false }), group("bad", "error")],
+      [CORE],
+    );
+    expect(view.errored.map((m) => m.id)).toEqual(["bad"]);
+    expect(view.holder).toBeNull();
+    expect(view.queue).toEqual([]);
   });
 });
 

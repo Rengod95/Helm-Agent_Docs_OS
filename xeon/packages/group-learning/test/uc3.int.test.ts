@@ -11,7 +11,7 @@ test("uc3.threshold-review-queue-and-helm-coexist", async () => {
   const rig = await createRig({ settings: { "l3.learning.trigger.userTurns": 3 } });
   const helm = driveStandIn("helm-stand-in");
   await rig.t.host.install(helm.unit);
-  await rig.t.host.openThread(rig.thread);
+  await rig.t.host.openThread(rig.thread, { startDrive: "helm-stand-in" });
   await Bun.sleep(20);
   rig.control.waitSettled = false;
   expect(rig.t.host.leaseOf(rig.thread)?.scopeId).toBe("helm-stand-in");

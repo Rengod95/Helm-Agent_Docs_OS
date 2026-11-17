@@ -21,20 +21,20 @@ Fresnel(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이�
 
 ## 층 규칙
 
-순위: F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6).
+순위: F(0) → X(1) → L0(2) → L1(3) → P(4) → L4(5).
 
-| 층   | 패키지                                         |
-| ---- | ---------------------------------------------- |
-| F    | `packages/contracts`                           |
-| X    | `packages/ext-host` (Cordis는 여기서만 import) |
-| L0   | `packages/platform-*`                          |
-| L1   | `packages/core-*`, `plugins/*`                 |
-| L2   | `packages/cap-*`                               |
-| L3   | `packages/group-*`                             |
-| L4   | `apps/*`                                       |
-| 제외 | `vendor/*` (층 검사, lint, 포맷 대상 아님)     |
+| 층   | 패키지                                                                                  |
+| ---- | --------------------------------------------------------------------------------------- |
+| F    | `packages/contracts`                                                                    |
+| X    | `packages/ext-host` (Cordis는 여기서만 import)                                          |
+| L0   | `packages/platform-*`                                                                   |
+| L1   | `packages/core-*`, `plugins/*`                                                          |
+| P    | `packages/cap-*`, `packages/group-*`, `packages/plugin-builder`, `packages/plugin-migration` (선언 `"layer": "L2"`, `"L3"`은 전환 별칭) |
+| L4   | `apps/*`                                                                                |
+| 제외 | `vendor/*` (층 검사, lint, 포맷 대상 아님)                                              |
 
 - 패키지는 자기보다 낮은 순위만 import한다. 같은 층 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다.
+- 플러그인(P)은 소스에서 `@fresnel/contracts`, `@fresnel/ext-host`, `@fresnel/group-sdk`와 외부 패키지만 import한다. 시험 파일과 devDependencies는 `core-*`, `platform-*`를 쓸 수 있다(DR-15, `review/m5/hooks-core-boundary.md` 6.3).
 - 각 `package.json`의 `"fresnel": {"layer", "domain"}`이 기준이다. 디렉터리 이름과 층이 맞아야 한다.
 - 의존을 더하면 `package.json`에 `"@fresnel/<이름>": "workspace:*"`를 적고, 그 패키지 `tsconfig.json`의 `references`에 대상 패키지를 더한다.
 - 다른 패키지는 `@fresnel/<이름>`의 exports로만 import한다. `src`, `dist`, 상대 경로로 들어가지 않는다.

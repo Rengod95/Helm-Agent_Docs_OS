@@ -346,9 +346,11 @@ test("a drive lock held by the old generation continues with the new drive funct
       return { do: "turn", input: { kind: "user", content: "go" } };
     });
   });
-  const { t, threads } = await openWith(v1);
-  const [thread] = threads;
-  if (thread === undefined) throw new Error("no thread");
+  // 시작 요청은 scope가 설치된 뒤에 대화를 열어야 부여된다
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(v1);
+  await t.host.openThread(thread, { startDrive: NAME });
   await t.settled();
   const held = t.host.leaseOf(thread);
   expect(held?.status).toBe("active");

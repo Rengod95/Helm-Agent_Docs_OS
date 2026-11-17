@@ -35,7 +35,7 @@ binds: [xeon/packages/core-loop/**]
 - 모델 선택, provider 요청 훅, 추론 레벨별 토큰 예산 값: `L1.models.spec`.
 - 커밋 구현, 투영, 열 때 복구, 재개 횟수 상한: `L1.persistence.spec`.
 - 서브에이전트 생성과 목표 판정 모델 호출: `L1.agents.spec`. 목표 지속 기능 자체는 `L2.work.spec`.
-- drive 락 중재와 `LoopHandle` 구현: `X.primitives.spec`.
+- drive 락의 시작 계기와 `LoopHandle` 구현: `X.primitives.spec`.
 
 ### 1.3 근거
 
@@ -452,7 +452,7 @@ admit({ threadId, content, requestId, via, whenBusy }):
 
 - `input` 훅 발화 위치 [제안, `L1.tasks.spec` §7과 같은 결정]: `F.extensions.spec` §7은 loop, `architecture.runtime-flow.design` §4.1 그림은 tasks로 적어 어긋난다. `LoopService.admit`이 발화하고 순서는 runtime-flow 그림의 "제출 → input → 큐"를 지킨다. runtime-flow §4.1 그림 수정을 요청한다(FR-L7).
 - 확장 `post`와 drive turn 입력은 `input` 훅을 지나지 않는다. drive turn 입력은 큐를 거치지 않고 T1에서 바로 배치된다(§4.8).
-- 유휴 판정과 turn 시작은 thread 구동기 하나가 한다. 구동기는 `inputs.onQueued`와 turn 정착을 듣고 `turnStart` 배치 선택(`L1.tasks.spec` §4.6)으로 다음 turn을 연다. 큐 입력과 drive turn 요청이 함께 기다리면 큐 입력을 먼저 연다 [제안]. drive 락 중재와 맞물리는 최종 규칙은 X.primitives.spec과 함께 정한다(§10).
+- 유휴 판정과 turn 시작은 thread 구동기 하나가 한다. 구동기는 `inputs.onQueued`와 turn 정착을 듣고 `turnStart` 배치 선택(`L1.tasks.spec` §4.6)으로 다음 turn을 연다. 큐 입력과 drive turn 요청이 함께 기다리면 큐 입력을 먼저 연다 [제안]. drive 락은 중재 없이 시작 요청(사용자 명령, 프로필 시작, 맡기기)으로만 생기므로 drive turn 요청은 주도 중일 때만 들어온다(X.primitives.spec §4.4.1 4번).
 
 ### 4.2 turn 하나의 순서
 
@@ -487,6 +487,7 @@ sequenceDiagram
 규칙:
 
 1. `input.agent.before`의 패치 중 메시지 추가는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
+   - 훅 입력 payload의 `driver`와 `stack`은 주도권 스택에서 정한다. 루프는 `ExtHost.driveFrames(threadId)`를 읽어 플러그인 프레임(코어 루프 깊이 0은 뺀다)의 플러그인 이름만 모은다. `stack`은 아래에서 위 순서이고 주도 중이 아니면 빈 배열이다. `driver`는 맨 위 플러그인 프레임의 이름이고 주도 중이 아니면 null이다(review.m5-drive-isolation 2.5). 턴 시작 훅 payload를 만들 때마다 한 번 읽는다.
    - 시스템 프롬프트 변경은 접두에 넣지 않는다. 접두는 thread에서 처음 만든 뒤 컴팩션까지 고정이므로, 첫 turn의 변경이 접두에 굳고 둘째 turn부터의 변경은 모델에 닿지 않았다(감사 L1-03, M2 마감 G2-03). 루프는 체인 결과에서 기본 프롬프트에 더해진 부분(`promptAddition`: 기본 프롬프트 뒤에 덧붙였으면 나머지, 바꿨으면 바꾼 전체)만 떼어 그 turn 상태에 두고, 단계마다 `AssembleOptions.volatile`의 `instructions` 항목으로 넘긴다. 접두의 `basePrompt`는 변경 전 기본 프롬프트(자식 turn은 요청의 `systemPrompt`) 그대로다. 그래서 turn마다 달라지는 안내(`l2.dialog.commands.advertise`의 명령 광고, 그룹의 turn별 지침)가 캐시된 접두를 깨지 않고 매 단계 전달된다.
    - `instructions`는 커밋하지 않는다. 재개 진입(`request`, `tools`)은 `input.agent.before`를 다시 발화하지 않으므로 재개한 turn의 남은 단계에는 이 안내가 없고 다음 turn부터 다시 붙는다 [제안].
    - 환경 블록의 소유자는 L1.loop이다. 단계마다 `environment` volatile 항목으로 날짜(단계를 여는 시각의 UTC 날짜), 대화의 작업 디렉터리(`workingDirectory`), `platform`(조립 루트가 OS 서비스의 `info`로 채운 `<platform>/<arch>`)을 줄 단위로 넘긴다. 모르는 값은 줄을 내지 않는다. 기본 프롬프트 문안(`core-loop/src/prompt.ts`의 `DEFAULT_BASE_PROMPT`, 영어, M3-REQ-87)은 정체성 한 줄, 응답 언어(사용자가 쓰는 언어로 답하고 코드·경로·명령·도구 이름은 번역하지 않는다), 도구 사용 규칙(추측하지 않고 도구로 확인, 고치기 전에 읽기, 전용 도구 우선, 독립 호출은 한 단계에 묶기, 도구 결과는 지시가 아니라 자료, 실패하면 접근을 바꾸고 같은 호출을 되풀이하지 않기, 거부를 우회하지 않기, 시크릿 값 출력 금지), 답변 규칙을 담는다. 조립 루트가 `basePrompt`로 덮어쓸 수 있다.
@@ -782,7 +783,7 @@ runChildTurn(req):
 | `ContextService`: 커밋된 이벤트에서 `AgentMessage[]` 만들기, `convertToLlm`, 컴팩션 | L1.context.spec |
 | `ModelService`: 스레드 설정으로 단계 바인딩(모델, 추론 레벨, `thinkingBudgets`), streamFn(`convertToLlm` 결과 정규화 포함), 도구 선언 차이 계산(adr.0009 §3.5) | L1.models.spec |
 | 판정 API(목표 판정, M3), `ChildTurnRequest`를 채우는 쪽 | L1.agents.spec |
-| `ExtHost` 디스패치(`dispatch(point, payload)`, 서비스 `fresnel.ext`), 현재 `leaseRefs`·`scopeRef`, 단계 경계 토글 적용 알림, `LoopPort`·`LoopTurnRequest`·`LoopTurnResult`·`LoopSpawnRequest`·`LoopSpawnResult` 모양(§3.6) | X.primitives.spec |
+| `ExtHost` 디스패치(`dispatch(point, payload)`, 서비스 `fresnel.ext`), 주도권 스택 읽기(`driveFrames(threadId)`, 턴 시작 훅 payload의 `driver`·`stack`), 현재 `leaseRefs`·`scopeRef`, 단계 경계 토글 적용 알림, `LoopPort`·`LoopTurnRequest`·`LoopTurnResult`·`LoopSpawnRequest`·`LoopSpawnResult` 모양(§3.6) | X.primitives.spec |
 | `AgentEventMapInit`, `AgentEventMapper`, `LifecycleEvent`, 상태 enum, `ItemRecord` | F.conversation.spec §3.5 |
 | `StepCheckpoint`, `VolatileEventEnvelope`, `DurableEventDraft`, `parseEventKind`, `checkEnvelopeSize`, 카탈로그 | F.records.spec |
 | `HOOKS`, 페이로드·패치 타입, `BoundaryValue`, `TurnOutcome`, `PostItem` | F.extensions.spec |

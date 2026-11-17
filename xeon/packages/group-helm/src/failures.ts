@@ -43,6 +43,8 @@ export type HelmCommandError =
   | { readonly kind: "usage"; readonly message: string }
   | { readonly kind: "already_running"; readonly inquiryId: string | null }
   | { readonly kind: "no_topic" }
+  /** 플러그인 맡기기 요청이 이미 대기 중이다 */
+  | { readonly kind: "plugin_pending" }
   | { readonly kind: "disabled" }
   | {
       readonly kind: "state_write";

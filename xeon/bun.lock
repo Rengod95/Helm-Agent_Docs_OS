@@ -103,6 +103,7 @@
         "@fresnel/core-persistence": "workspace:*",
         "@fresnel/core-tasks": "workspace:*",
         "@fresnel/core-tools": "workspace:*",
+        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "@fresnel/group-account-rotation": "workspace:*",
         "@fresnel/group-guide": "workspace:*",
@@ -178,11 +179,11 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
+        "@fresnel/core-tools": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@fresnel/core-tools": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -251,7 +252,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-agents": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
@@ -266,6 +266,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
+        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
@@ -383,6 +384,18 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
+    "packages/core-workspace": {
+      "name": "@fresnel/core-workspace",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fresnel/contracts": "workspace:*",
+      },
+      "devDependencies": {
+        "@fresnel/ext-host": "workspace:*",
+        "@fresnel/platform-exec": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -762,6 +775,8 @@
     "@fresnel/core-tasks": ["@fresnel/core-tasks@workspace:packages/core-tasks"],
 
     "@fresnel/core-tools": ["@fresnel/core-tools@workspace:packages/core-tools"],
+
+    "@fresnel/core-workspace": ["@fresnel/core-workspace@workspace:packages/core-workspace"],
 
     "@fresnel/desktop": ["@fresnel/desktop@workspace:apps/desktop"],
 

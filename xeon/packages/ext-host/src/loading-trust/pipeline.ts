@@ -90,7 +90,6 @@ export type LoadDiagnosticCode =
   | "disabled_flag"
   | "isolation_unavailable"
   | "isolation_point_unsupported"
-  | "isolation_drive_unsupported"
   | "isolation_restart_limit"
   | "isolation_protocol"
   /** 검토본의 내용 해시가 저장된 값과 다르다. 그 플러그인은 적재하지 않는다(M5c §4.6.5) */

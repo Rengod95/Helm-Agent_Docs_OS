@@ -15,8 +15,20 @@ afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-const KIT: PluginFact = { name: "kit", replaces: [], drives: false, requiredKeys: [] };
-const HELM: PluginFact = { name: "helm", replaces: [], drives: false, requiredKeys: [] };
+const KIT: PluginFact = {
+  name: "kit",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+};
+const HELM: PluginFact = {
+  name: "helm",
+  replaces: [],
+  drives: false,
+  requiredKeys: [],
+  declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+};
 
 function rigOf(): {
   readonly port: ReturnType<

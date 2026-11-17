@@ -43,7 +43,7 @@ export interface PluginEditOutcome {
 /** 공통 묶음의 이슈에 붙이는 프로필 자리 값 */
 export const COMMON_ID = "common";
 
-const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], driver: null };
+const EMPTY_BODY: ProfileBody = { plugins: [], settings: [], startDrive: null };
 
 function ownsKey(plugin: string, key: string): boolean {
   return key.startsWith(`ext.${plugin}.`);
@@ -122,7 +122,7 @@ export function planPluginEdit(input: {
         bump(profile, {
           plugins: profile.plugins.filter((ref) => ref.name !== name),
           settings: profile.settings.filter((setting) => !ownsKey(name, setting.key)),
-          driver: profile.driver === name ? null : profile.driver,
+          startDrive: profile.startDrive === name ? null : profile.startDrive,
         }),
       );
     }
@@ -144,7 +144,7 @@ export function planPluginEdit(input: {
       const body: ProfileBody = {
         plugins: profile.plugins,
         settings: profile.settings,
-        driver: profile.driver,
+        startDrive: profile.startDrive,
       };
       issues.push(...errorsOf(profile.id, input.validate(body, common)));
     }

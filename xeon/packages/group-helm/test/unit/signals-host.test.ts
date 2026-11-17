@@ -72,16 +72,24 @@ test("signals.autostart-modes: suggest posts one next-turn notice and never open
   expect(rig.t.queue.items).toHaveLength(notices);
 });
 
-test("signals.autostart-modes: auto commits pending and the next boundary starts the inquiry", async () => {
+test("signals.autostart-modes: auto commits pending and waits for /helm start; the signal alone starts nothing", async () => {
   const rig = await createRig({ settings: { "ext.helm.autoStart": "auto" } });
   await stuckTurn(rig, "a");
   expect(rig.records("grp.helm.signal.detected")).toEqual([
     expect.objectContaining({ signal: "stuck", action: "requested" }),
   ]);
   expect(statesOf(rig).at(-1)?.pending).toMatchObject({ source: "signal", signal: "stuck" });
+  // 경계를 아무리 돌려도 주도는 시작하지 않는다(중재가 없고 시작 요청이 없다)
   await rig.drain();
-  expect(rig.t.loop.turns).toHaveLength(2);
+  expect(rig.t.loop.turns).toHaveLength(0);
+  expect(rig.t.host.leaseOf(rig.thread)).toBeNull();
+  expect(statesOf(rig).at(-1)?.phase).toBe("idle");
+  expect(rig.records("grp.helm.inquiry.finished")).toHaveLength(0);
+  // 사용자가 `/helm start`를 치면 기다리던 탐구가 시작한다
+  await rig.command("start");
+  await rig.drain();
   expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "applied" });
+  expect(rig.t.loop.turns).toHaveLength(2);
 });
 
 test("signals.pure-query-no-side-effect: the same dispatch keys again leave state and records as they were", async () => {
@@ -102,7 +110,7 @@ test("signals.commit-once-per-turn: five tool calls and one settle commit the st
   // 한 turn의 순서: 입력 지점이 집계표를 열고, 도구 결과가 쌓이고, 정착에서 한 번 커밋한다
   await rig.t.host.dispatch(
     "input.agent.before",
-    { prompt: "작업", systemPrompt: "s", systemPromptOptions: {} },
+    { prompt: "작업", systemPrompt: "s", systemPromptOptions: {}, driver: null, stack: [] },
     { threadId: rig.thread, dispatchKey: "p", initial: { messages: [], systemPrompt: "s" } },
   );
   await readCalls(rig, ["t1", "t2", "t3", "t4", "t5"], before);
@@ -130,6 +138,8 @@ test("signals.start-without-topic: after the signal turn settles, /helm start wi
       prompt: "why does `cacheKey` keep failing the build",
       systemPrompt: "base",
       systemPromptOptions: {},
+      driver: null,
+      stack: [],
     },
     {
       threadId: rig.thread,

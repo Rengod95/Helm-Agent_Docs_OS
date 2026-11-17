@@ -757,6 +757,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     // 후보는 한 번만 읽는다. 검증(사실)과 승격(매니페스트 버전)이 같은 읽기를 쓴다. 원본은 다시 읽지 않는다
     let read: PluginFolder | null = null;
     let origin: ReviewOrigin | null = null;
+    let candidateRoot = "";
     if (!removing) {
       if (item.candidateHash === null) return err({ kind: "store", code: "candidate_missing" });
       origin = reviewOriginOf(item.card.origin.kind);
@@ -766,12 +767,13 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       const folder = readPluginFolder(located.value, { origin: item.card.origin.kind });
       if (!folder.ok) return err({ kind: "store", code: "candidate_invalid" });
       read = folder.value;
+      candidateRoot = located.value;
     }
     const context: ApprovalContext = {
       item,
       decision,
       approvedAt,
-      facts: read === null ? null : pluginFactOf(read.manifest),
+      facts: read === null ? null : pluginFactOf(read.manifest, candidateRoot),
     };
     if (hooks.beforeCommit !== undefined) {
       const checked = await hooks.beforeCommit(context);

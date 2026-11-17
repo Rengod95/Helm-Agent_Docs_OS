@@ -18,11 +18,17 @@ import type { TurnStartPlanned } from "./turn-start.ts";
 import type { LoopSettingsSource } from "./settings.ts";
 import type { ThreadGate } from "./thread-gate.ts";
 
-/** 루프가 `fresnel.ext`에서 쓰는 부분: 훅 발화와 단계 경계 훅 */
-export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary" | "claimUserInput">;
+/** 루프가 `fresnel.ext`에서 쓰는 부분: 훅 발화, 단계 경계 훅, 주도권 스택 읽기(턴 시작 훅 payload의 `driver`·`stack`) */
+export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary" | "claimUserInput" | "driveFrames">;
 
 /** `RecoverDeps.hostMode`와 같은 값 */
 export type HostMode = "in-process" | "stdio" | "service";
+
+/** 턴 시작의 지침 절 읽기 결과. 루프가 쓰는 부분만 담는다(`LoopDeps.instructionSectionsOf`) */
+export interface InstructionSectionsRead {
+  readonly sections: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly { readonly code: string; readonly path: string }[];
+}
 
 /** 서비스 주입과 설정. 조립은 plugin.ts(운영) 또는 테스트가 한다 */
 export interface LoopDeps {
@@ -50,6 +56,12 @@ export interface LoopDeps {
    * 생략하거나 `undefined`를 돌려주면 빈 문자열이다
    */
   readonly workingDirectory?: (threadId: ThreadId) => string | undefined;
+  /**
+   * 턴 시작마다 한 번 부르는 지침 파일 절(L1.context §4.2, M5c §4.4.7). 절은 이 turn의 모든 요청에 `sections`로 든다.
+   * 건너뛴 파일의 진단은 `loop.instruction_skipped` 경고로 남긴다. 생략하면 절이 비어 있다.
+   * core-context의 `createInstructionSections`가 이 모양을 맞춘다(같은 층이라 import하지 않는다)
+   */
+  readonly instructionSectionsOf?: (threadId: ThreadId) => Promise<InstructionSectionsRead>;
   /** 있으면 `await_input` 재진입 전에 미해결 승인 요청을 메모리 대기로 되살린다 */
   readonly approvals?: Pick<ApprovalService, "restore" | "cancel">;
   /**

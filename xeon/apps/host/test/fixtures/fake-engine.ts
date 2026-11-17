@@ -15,6 +15,7 @@ import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/exten
 import type { LoopError, ModelInfo } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { StoreId, StreamPosition, ThreadSummary } from "@fresnel/contracts/wire";
+import type { FileLock } from "@fresnel/platform-os";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
@@ -32,7 +33,10 @@ import { wireErrorOfStore } from "../../src/store-error.ts";
 import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
 import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
+import type { ReadText } from "../../src/assembly/m4/profile-cost.ts";
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
+import { createProjectPort } from "../../src/assembly/m4/project-port.ts";
+import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import type { ExtMethodPort } from "../../src/handlers/m4/ext-method.ts";
 import { createFakeSecrets, NO_DISPLAY, type FakeSecrets } from "./fake-secrets.ts";
@@ -123,6 +127,8 @@ export interface FakeEngineOptions {
     readonly testRunControl?: TestRunControlPort;
     /** 설치된 플러그인의 매니페스트 사실. 생략하면 설치된 플러그인이 없다 */
     readonly pluginFacts?: () => readonly PluginFact[];
+    /** 선언된 재료 파일 읽기(비용 추정). 생략하면 어떤 파일도 없다 */
+    readonly readText?: ReadText;
     readonly env?: Partial<M4HostEnv>;
   };
   /** 확장 버전과 화면 목록 포트를 바꿔 끼운다(`ext.versions`·`ext.rollback`·`ext.ui.list`). 생략하면 확장이 없는 포트다 */
@@ -221,6 +227,18 @@ export interface FakeEngine {
   readonly chosenModels: ReadonlyMap<ThreadId, string>;
   /** `thread.create`와 `thread.setProfile`이 정한 프로필 id */
   readonly chosenProfiles: ReadonlyMap<ThreadId, string>;
+  /** `thread.create`가 `threads.create`에 넘긴 입력(받은 순서). 기본 폴더 여부와 프로필을 본다 */
+  readonly threadCreates: readonly FakeThreadCreate[];
+  /** 대화의 작업 폴더(`threads.create`가 받은 값). 없으면 null로 읽는다 */
+  readonly workspaces: ReadonlyMap<ThreadId, string>;
+}
+
+/** `threads.create`가 받은 입력의 기록 */
+interface FakeThreadCreate {
+  readonly workspace?: string;
+  readonly profileId?: string;
+  readonly defaultFolder?: boolean;
+  readonly testRun?: boolean;
 }
 
 const RECORDED_AT = 1_767_571_200_000;
@@ -266,6 +284,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const titles = new Map<ThreadId, string>();
   const models = new Map<ThreadId, string>();
   const chosenProfiles = new Map<ThreadId, string>();
+  const workspaces = new Map<ThreadId, string>();
+  const threadCreates: FakeThreadCreate[] = [];
+  // 마지막 활동 순서(만들기와 프로필 전환이 올린다). 대화 목록 원천의 `updatedAt`이다
+  const activity = new Map<ThreadId, number>();
+  let activitySeq = 0;
+  const testRuns = new Set<ThreadId>();
   const summaryOf = (threadId: ThreadId): ThreadSummary => {
     const model = models.get(threadId);
     const profileId = chosenProfiles.get(threadId);
@@ -273,7 +297,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       threadId,
       title: titles.get(threadId) ?? null,
       status: "idle",
-      workspace: null,
+      workspace: workspaces.get(threadId) ?? null,
       createdAt: new Date(RECORDED_AT).toISOString(),
       updatedAt: new Date(RECORDED_AT).toISOString(),
       headSeq: 0,
@@ -334,16 +358,64 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     return result;
   }
 
+  // 프로필과 프로젝트 파일이 놓이는 임시 폴더. 기본 폴더도 그 아래 둔다(실제 사용자 폴더를 쓰지 않는다)
+  const fakeConfigDir =
+    options.profiles?.configDir ??
+    join(tmpdir(), `fresnel-fake-profiles-${String(process.pid)}-${String((profileDirs += 1))}`);
+  const fakeFileLock: FileLock = {
+    scope: "process",
+    withLock: async (_path, fn) => ok(await fn()),
+    updateText: () => Promise.reject(new Error("updateText is not part of the fake")),
+  };
+  const fakeClock = { now: () => RECORDED_AT };
+  // 프로젝트 포트는 실제 구현을 임시 폴더에 붙인다. 대화 목록은 가짜 대화 집합에서 읽는다
+  const projects = createProjectPort({
+    configDir: fakeConfigDir,
+    dataDir: join(fakeConfigDir, "data"),
+    fileLock: fakeFileLock,
+    clock: fakeClock,
+    signal: new AbortController().signal,
+    ids: createLocalIdFactory(fakeClock, systemRandom()),
+    settingValue: () => undefined,
+    // 배경 갱신의 실패는 가짜 로그에 남긴다(실제 조립은 호스트 로그로 보낸다)
+    report: (message, fields) => {
+      log.errors.push({ message, fields });
+    },
+    threadRows: () =>
+      [...threads]
+        .map((threadId) => ({
+          threadId,
+          workspace: workspaces.get(threadId) ?? null,
+          status: "idle" as const,
+          profileId: chosenProfiles.get(threadId) ?? null,
+          updatedAt: activity.get(threadId) ?? 0,
+          testRun: testRuns.has(threadId),
+        }))
+        // 최근순(마지막 활동이 큰 것이 먼저)이다. 대화 목록의 정렬과 같다
+        .toSorted((left, right) => right.updatedAt - left.updatedAt),
+  });
+
   const ports: EnginePorts = {
     threads: {
       create(input) {
         const threadId = ids.next("thr");
         threads.add(threadId);
+        threadCreates.push({
+          ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+          ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+          ...(input.defaultFolder === undefined ? {} : { defaultFolder: input.defaultFolder }),
+          ...(input.testRun === undefined ? {} : { testRun: input.testRun }),
+        });
+        if (input.workspace !== undefined) workspaces.set(threadId, input.workspace);
         if (input.profileId !== undefined) chosenProfiles.set(threadId, input.profileId);
+        if (input.testRun === true) testRuns.add(threadId);
+        activitySeq += 1;
+        activity.set(threadId, activitySeq);
         commit([{ kind: "thread.started", threadId }]);
         return Promise.resolve({ threadId, position: position() });
       },
       exists: (threadId) => ok(threads.has(threadId)),
+      workspaceOf: (threadId) => ok(workspaces.get(threadId) ?? null),
       // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
       applyOpenWorkspace: () => Promise.resolve(),
       sameFolder: () => [],
@@ -373,6 +445,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       setProfile(threadId, profileId) {
         if (!held.has(threadId)) return err({ kind: "not_owner", threadId });
         chosenProfiles.set(threadId, profileId);
+        activitySeq += 1;
+        activity.set(threadId, activitySeq);
         commit([{ kind: "thread.updated", threadId, payload: { profileId } }]);
         return ok({ position: position() });
       },
@@ -605,14 +679,21 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
         cancelOverlay: () => Promise.resolve(),
+        recomputeAll: () => undefined,
+        forget: () => undefined,
         defaultView: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        settingsOf: () => new Map(),
+        sourceOf: () => "none",
         dispose: () => undefined,
       },
+      project: projects,
       profileTestRun: createProfileTestRunPort({
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,
         testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,
         pluginFacts: options.profiles?.pluginFacts ?? (() => []),
         pendingNames: () => Promise.resolve([]),
+        readText: options.profiles?.readText ?? (() => Promise.resolve(undefined)),
+        projects,
         env: {
           catalog: built.catalog,
           pendingPluginNames: () => Promise.resolve([]),
@@ -631,28 +712,22 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
             applyNow: () => Promise.resolve(),
           },
           registrations: () => [],
+          stopped: () => false,
+          settingsChanged: () => undefined,
           // 시크릿과 대화 수는 빈 저장소의 값이다. 시험이 `env`로 바꿔 끼운다
           secretNames: () => Promise.resolve(new Set<string>()),
           // 닫히지 않은 대화가 저장한 프로필 id. 가짜 대화 목록의 값이다
           openThreadProfiles: () =>
             [...threads].map((threadId) => chosenProfiles.get(threadId) ?? null),
           openThreadIds: () => [...threads],
+          driveFramePlugins: () => [],
           threadProfileId: (threadId) => chosenProfiles.get(threadId) ?? null,
           forcedPlugins: () => [],
           defaultPlugins: () => ["helm"],
           stateDir: join(tmpdir(), "fresnel-fake-profiles-state"),
-          configDir:
-            options.profiles?.configDir ??
-            join(
-              tmpdir(),
-              `fresnel-fake-profiles-${String(process.pid)}-${String((profileDirs += 1))}`,
-            ),
-          fileLock: {
-            scope: "process",
-            withLock: async (_path, fn) => ok(await fn()),
-            updateText: () => Promise.reject(new Error("updateText is not part of the fake")),
-          },
-          clock: { now: () => RECORDED_AT },
+          configDir: fakeConfigDir,
+          fileLock: fakeFileLock,
+          clock: fakeClock,
           signal: new AbortController().signal,
           ...options.profiles?.env,
         },
@@ -733,6 +808,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     titles,
     chosenModels: models,
     chosenProfiles,
+    threadCreates,
+    workspaces,
     submitted,
     held,
     acquisitions,

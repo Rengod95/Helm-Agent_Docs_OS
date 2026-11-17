@@ -141,6 +141,11 @@ export interface ReviewBody {
   /** 이 요청이 묻는 라운드. 열 때 1 */
   readonly round: number;
   readonly files: readonly ReviewFileSummary[];
+  /**
+   * hunk 거절 때 검토가 작업 공간에 하는 되돌림 쓰기의 해시(쓰기 호출 입력의 정규 JSON sha256 hex) [제안: U-11].
+   * 이 카드에 사람이 답하면 엔진이 이 목록에 든 쓰기에만 새 승인 카드를 건너뛴다
+   */
+  readonly writes?: readonly string[];
 }
 
 export type ApprovalBody =

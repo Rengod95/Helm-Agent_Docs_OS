@@ -138,7 +138,7 @@ export function miniLoop(player: TapePlayer, answers: LensAnswers): MiniLoop {
     if (left <= 0) return;
     const injected = await host.host.dispatch(
       "input.agent.before",
-      { prompt: "작업", systemPrompt: "base", systemPromptOptions: {} },
+      { prompt: "작업", systemPrompt: "base", systemPromptOptions: {}, driver: null, stack: [] },
       {
         threadId: thread,
         dispatchKey: `${turnKey}:before:${String(left)}`,

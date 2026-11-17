@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { AskCard, DriveCommand, StepResult } from "@fresnel/contracts/extensions";
 import { MAX_CHAINED_REINVOKES } from "../../src/primitives/lease.ts";
 import { PrimitiveError } from "../../src/primitives/index.ts";
@@ -18,9 +19,9 @@ function turnOf(content: string): Command {
   return { do: "turn", input: { kind: "user", content } };
 }
 
-function toolOf(): Command {
-  // E1 엔진은 tool을 `command_unavailable`로 거부한다. 효과가 없는 명령의 본보기로 쓴다
-  return { do: "tool", name: "noop", args: null };
+function handoffOf(): Command {
+  // E2 엔진도 handoff는 `command_unavailable`로 거부한다(E3). 효과가 없는 명령의 본보기로 쓴다
+  return { do: "handoff", to: "other", input: null };
 }
 
 const questionCard: AskCard = {
@@ -59,6 +60,15 @@ function kindsOf(
   return t.records.events(thread).map((event) => event.kind);
 }
 
+/** 사용자 명령으로 주도 시작을 요청하고 거부가 없었는지 확인한다 */
+function requestDrive(
+  t: Awaited<ReturnType<typeof createTestHost>>,
+  thread: ThreadId,
+  scopeId: string,
+): void {
+  expect(t.host.startDrive(thread, scopeId)).toEqual({ ok: true, value: undefined });
+}
+
 test("lease is granted once the thread is open and the drive function runs", async () => {
   const { t, thread } = await setup();
   const calls: number[] = [];
@@ -71,7 +81,7 @@ test("lease is granted once the thread is open and the drive function runs", asy
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-basic" });
   await t.settled();
   expect(calls).toEqual([1]);
   expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired", "drive.command_settled"]);
@@ -91,7 +101,7 @@ test("reinvoke replays committed turn", async () => {
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-replay" });
   await t.settled();
   expect(t.loop.turns.length).toBe(1);
   const firstKey = t.loop.turns[0]?.requestId;
@@ -115,7 +125,7 @@ test("idle twice releases", async () => {
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-idle" });
   await t.settled();
   expect(calls).toBe(1);
   await t.boundary(thread).turnSettled();
@@ -127,7 +137,7 @@ test("idle twice releases", async () => {
     .map((event) => event.payload);
   expect(released).toHaveLength(1);
   expect(released[0]).toMatchObject({ reason: "idle", scopeId: "drv-idle" });
-  // 반납된 뒤에는 같은 판에서 다시 부여하지 않는다(쿨다운)
+  // 반납된 뒤에는 시작 요청 없이 같은 판에서 다시 부여하지 않는다
   await t.boundary(thread).idle();
   await t.settled();
   expect(calls).toBe(2);
@@ -149,7 +159,7 @@ test("throw releases and keeps handlers", async () => {
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-throw" });
   await t.settled();
   expect(driveCalls).toBe(1);
   const released = t.records.events(thread).find((event) => event.kind === "lease.released");
@@ -182,7 +192,7 @@ test("third turn rejected at turns 2", async () => {
       );
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-budget" });
   await t.settled();
   expect(t.loop.turns.length).toBe(2);
   expect(issued).toBe(3);
@@ -204,7 +214,7 @@ test("turn is rejected once maxTokens is spent (default usage 10 tokens per turn
       );
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-tokens" });
   await t.settled();
   expect(t.loop.turns.length).toBe(2);
   expect(issued).toBe(3);
@@ -219,7 +229,7 @@ test("limits clamp to settings", async () => {
       g.drive(() => Promise.resolve(yieldOf()), { limits: { maxTurns: 10, maxTokens: 100 } });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-clamp" });
   await t.settled();
   const acquired = t.records.events(thread).find((event) => event.kind === "lease.acquired");
   expect(acquired?.payload).toMatchObject({ limits: { maxTurns: 5, maxTokens: 100 } });
@@ -239,7 +249,7 @@ async function acquiredLimits(
       );
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-limits" });
   await t.settled();
   return t.records.events(thread).find((event) => event.kind === "lease.acquired")?.payload;
 }
@@ -279,7 +289,7 @@ test("the defaults and the ceiling are read for the thread that receives the lea
         return threadId === state.quiet ? { maxTurns: 1 } : {};
       },
       driveRequiresGroup: () => true,
-      activeDriver: () => null,
+      driveMaxDepth: () => 8,
       capabilityProviders: () => ({}),
     },
   });
@@ -291,8 +301,8 @@ test("the defaults and the ceiling are read for the thread that receives the lea
   const other = t.newThread();
   const quiet = t.newThread();
   state.quiet = quiet;
-  await t.host.openThread(other);
-  await t.host.openThread(quiet);
+  await t.host.openThread(other, { startDrive: "drv-session-scope" });
+  await t.host.openThread(quiet, { startDrive: "drv-session-scope" });
   await t.settled();
   const payloadOf = (threadId: typeof quiet): unknown =>
     t.records.events(threadId).find((event) => event.kind === "lease.acquired")?.payload;
@@ -311,35 +321,7 @@ test("the ceiling cuts the default too, and it also caps a field that has no def
   ).toMatchObject({ limits: { maxTokens: 1000 } });
 });
 
-test("single lease among two groups", async () => {
-  const { t, thread } = await setup({ settings: { activeDriver: "drv-two" } });
-  const calls: string[] = [];
-  await eachInOrder(
-    [
-      ["drv-one", 0],
-      ["drv-two", 1],
-    ] as const,
-    async ([name, loadIndex]) => {
-      await t.host.install(
-        makeGroupUnit({ name, loadIndex }, (g) => {
-          g.drive(() => {
-            calls.push(name);
-            return Promise.resolve(yieldOf());
-          });
-        }),
-      );
-      return "continue";
-    },
-  );
-  await t.host.openThread(thread);
-  await t.settled();
-  expect(calls).toEqual(["drv-two"]);
-  const acquired = t.records.events(thread).filter((event) => event.kind === "lease.acquired");
-  expect(acquired).toHaveLength(1);
-  expect(acquired[0]?.payload).toMatchObject({ scopeId: "drv-two" });
-});
-
-test("two drive groups without a selection get no lease", async () => {
+test("with two drive groups enabled, only the group a start request names gets the lease", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await eachInOrder(
@@ -359,10 +341,18 @@ test("two drive groups without a selection get no lease", async () => {
       return "continue";
     },
   );
+  // 시작 요청이 없으면 두 그룹이 켜져 있어도 임대가 없다
   await t.host.openThread(thread);
   await t.settled();
   expect(calls).toEqual([]);
-  expect(t.diagnostics.some((diagnostic) => diagnostic.code === "drive_conflict")).toBe(true);
+  expect(t.host.leaseOf(thread)).toBeNull();
+  // 이름을 댄 그룹만 임대를 받는다
+  requestDrive(t, thread, "drv-b");
+  await t.settled();
+  expect(calls).toEqual(["drv-b"]);
+  const acquired = t.records.events(thread).filter((event) => event.kind === "lease.acquired");
+  expect(acquired).toHaveLength(1);
+  expect(acquired[0]?.payload).toMatchObject({ scopeId: "drv-b" });
 });
 
 test("drive registration rules", async () => {
@@ -403,7 +393,7 @@ test("a drive that only commits state is called again with the new state at each
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-commit-only" });
   await t.settled();
   // 커밋의 next가 yield라 이 호출은 여기서 끝난다. 상태는 새 판이고, 다음 경계에 새 판으로 다시 묻는다
   expect(seen).toEqual([0]);
@@ -426,11 +416,11 @@ test("a drive whose commands have no effect is called again at most the chain li
     makeGroupUnit({ name: "drv-noop-forever", def: counterDef }, (g) => {
       g.drive(({ state }) => {
         seen.push(state.n);
-        return Promise.resolve(toolOf());
+        return Promise.resolve(handoffOf());
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-noop-forever" });
   await t.settled();
   // 효과 없는 명령이 상한만큼 이어지면 엔진이 yield로 끝낸다. 첫 호출을 포함해 상한 번 부른다
   expect(seen).toEqual(Array.from({ length: MAX_CHAINED_REINVOKES }, () => 0));
@@ -455,9 +445,10 @@ test("loop.ask without the approval port is refused as port_unavailable and the 
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "drv-ask" });
   await t.settled();
   // 거부는 예외가 아니라 `refused` 결과로 다음 단계에 온다. 승인 포트가 없으므로 임대와 기록은 그대로다
   expect(results).toEqual([{ kind: "refused", code: "port_unavailable" }]);
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-ask", status: "active" });
   expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired"]);
 });

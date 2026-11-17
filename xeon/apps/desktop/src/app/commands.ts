@@ -61,7 +61,11 @@ import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
 import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
-import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
+import {
+  createWorkbenchCommands,
+  subscribeDriveFrames,
+  subscribeExtChanges,
+} from "./workbench-commands.ts";
 import { createMessageCommands, type MessageCommands } from "./message-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
@@ -569,10 +573,19 @@ export function createCommands(
       lastSelfTest: () => withConnection((c) => c.request("sandbox.lastSelfTest", {})),
       selfTest: () => withConnection((c) => c.request("sandbox.selfTest", {})),
     },
-    workbench: createWorkbenchCommands(withConnection, (listener) => {
-      const connection = session.connection();
-      return connection === null ? () => {} : subscribeExtChanges(connection, listener);
-    }),
+    workbench: createWorkbenchCommands(
+      withConnection,
+      (listener) => {
+        const connection = session.connection();
+        return connection === null ? () => {} : subscribeExtChanges(connection, listener);
+      },
+      (threadId, listener) => {
+        const connection = session.connection();
+        return connection === null
+          ? () => {}
+          : subscribeDriveFrames(connection, threadId, listener);
+      },
+    ),
     setup: createSetupCommands(
       withConnection,
       (listener) => {

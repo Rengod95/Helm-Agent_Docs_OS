@@ -5,6 +5,7 @@ import {
   type TBoolean,
   type TInteger,
   type TLiteral,
+  type TNull,
   type TObject,
   type TOptional,
   type TString,
@@ -16,6 +17,7 @@ import {
   JsonValueSchema,
   TextContentSchema,
 } from "../../conversation/index.ts";
+import { ExtensionNameSchema } from "../name.ts";
 
 /** 큰 본문(사용자 입력, 프롬프트)용 상한. 더 큰 내용은 blob이다(DT-15) */
 const TEXT_MAX = 4_000_000;
@@ -144,6 +146,8 @@ export const BeforeAgentStartPayloadSchema: TObject<{
   images: TOptional<typeof ImagesSchema>;
   systemPrompt: TString;
   systemPromptOptions: typeof DeepJsonObjectSchema;
+  driver: TUnion<[typeof ExtensionNameSchema, TNull]>;
+  stack: TArray<typeof ExtensionNameSchema>;
 }> = Type.Object(
   {
     /** 확장을 거친 사용자 프롬프트 텍스트 */
@@ -153,6 +157,10 @@ export const BeforeAgentStartPayloadSchema: TObject<{
     systemPrompt: Type.String({ maxLength: TEXT_MAX }),
     /** pi NormalizedBuildSystemPromptOptions를 JSON 객체로 직렬화한 값. 읽기 전용이다 */
     systemPromptOptions: DeepJsonObjectSchema,
+    /** 맨 위 주도 프레임의 플러그인 이름. 주도 중이 아니면 null. 플러그인은 자기 이름과 같을 때만 지침을 넣는다(drive-isolation.md 2.5) */
+    driver: Type.Union([ExtensionNameSchema, Type.Null()]),
+    /** 주도 스택의 플러그인 이름을 아래에서 위 순서로 준다. 주도 중이 아니면 빈 배열(drive-isolation.md 2.5). 프레임 수는 64를 넘지 않는다 */
+    stack: Type.Array(ExtensionNameSchema, { maxItems: 64 }),
   },
   { additionalProperties: false },
 );

@@ -59,7 +59,19 @@ realTest(
       await connection.request("host.hello", HELLO_PARAMS);
       const collector = collectEvents(connection);
       await connection.request("events.subscribe", { from: "head" });
-      const created = await connection.request("thread.create", {});
+      // 대화를 열 때 프로필의 시작 Drive가 주도 시작 요청을 낸다(drive-isolation.md 2.2)
+      const name = group.manifest.name;
+      await connection.request("profile.put", {
+        profile: {
+          id: "drive-start",
+          title: "Drive start",
+          plugins: [{ name }],
+          settings: [],
+          startDrive: name,
+        },
+        baseRev: null,
+      });
+      const created = await connection.request("thread.create", { profileId: "drive-start" });
       await collector.waitFor((event) => event.kind === "turn.completed", 20_000);
 
       const first = await startInputWhenIdle(connection, {

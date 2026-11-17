@@ -1,6 +1,7 @@
 // ext-host 내장 플러그인: fresnel.agents 제공, 내장 도구 agent와 차단 규칙 등록(L1.agents.plan AG-10).
 // Cordis는 import하지 않는다. 서비스 등록은 hostOf(g).providePort로 한다.
 import { attempt, type Logger } from "@fresnel/contracts";
+import { AgentsJudge, AgentsJudgeKey } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
@@ -55,7 +56,13 @@ export function agentsManifest(): ExtensionManifest {
     description: "Child conversations, permission ceilings and result guarding (fresnel.agents).",
     defaultEnabled: true,
     entry: "./src/index.ts",
-    plugins: [{ layer: "L1", hooks: [] }],
+    plugins: [
+      {
+        layer: "L1",
+        hooks: [],
+        provides: [{ id: AgentsJudge.id, version: AgentsJudge.version }],
+      },
+    ],
     trust: { level: "builtin" },
   });
 }
@@ -139,6 +146,17 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
         registerTool();
       });
       host.providePort(AgentServicePortKey, service);
+      // 공개 기능 `agents.judge`(hooks-core-boundary §6.2). 서비스 메서드를 그대로 넘긴다. 실패는 값(`capped`, `failed`)으로 온다
+      // 새로 판정한 호출의 토큰은 주도 한도에서 뺀다(drive-isolation.md 2.3). 기록된 판정을 따른 호출은 쓴 것이 없다
+      host.provide(AgentsJudgeKey, {
+        judge: async (input) => {
+          const outcome = await service.judge(input);
+          if (outcome.kind === "judged") {
+            ext.chargeDriveTokens(input.threadId, outcome.record.usage?.totalTokens ?? 0);
+          }
+          return outcome;
+        },
+      });
       g.onDispose(() => {
         stopWatching();
         unregisterTool?.();

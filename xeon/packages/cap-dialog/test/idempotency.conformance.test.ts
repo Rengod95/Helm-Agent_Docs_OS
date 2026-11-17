@@ -10,9 +10,9 @@ import {
   type AskQuestion,
   type AnyCapabilityDef,
 } from "@fresnel/contracts/capabilities";
-import { createAskService } from "../src/ask/service.ts";
+import { createAskService } from "@fresnel/core-tools";
+import { realApprovals } from "@fresnel/core-tools/testing";
 import { callOptions, harness, newThread } from "./support/harness.ts";
-import { realApprovals } from "./support/real-approvals.ts";
 
 // M3-REQ-88·89, ADR-0015 §3.6: 멱등 쓰기(`dialog.ask.ask`)는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
 // 승인 서비스는 core-tools의 실제 구현이다. 사이에 새 서비스를 세워 재시작을 흉내 낸다.

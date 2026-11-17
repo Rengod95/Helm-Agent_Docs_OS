@@ -51,7 +51,9 @@ const patcherEntry: ExtensionEntry = ({ manifest: own, register }) => {
 describe("core-models builtin extension", () => {
   test("the default export is a valid manifest and entry", () => {
     expect(manifest.name).toBe("core-models");
-    expect(manifest.plugins).toEqual([{ layer: "L1", hooks: [] }]);
+    expect(manifest.plugins).toEqual([
+      { layer: "L1", hooks: [], provides: [{ id: "models.complete", version: "1.0.0" }] },
+    ]);
     expect(typeof extension).toBe("function");
   });
 

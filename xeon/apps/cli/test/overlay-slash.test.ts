@@ -74,7 +74,7 @@ function profile(id: string, plugins: readonly string[], rev: number): Record<st
     builtin: false,
     plugins: plugins.map((name) => ({ name })),
     settings: [],
-    driver: null,
+    startDrive: null,
     updatedAt: AT,
     rev,
   };

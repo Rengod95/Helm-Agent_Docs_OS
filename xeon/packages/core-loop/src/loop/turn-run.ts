@@ -83,6 +83,8 @@ interface RunState {
   readonly basePrompt: string;
   /** `input.agent.before`(collect)가 기본 프롬프트에 더한 부분. 이 turn의 모든 요청에 volatile로 붙는다(재개 진입은 비어 있다) */
   promptAddition: string;
+  /** 턴 시작에 읽은 지침 파일 절(M5c §4.4.7). 이 turn의 모든 요청에 `sections`로 넘긴다(`run-turn.ts`가 채운다) */
+  instructionSections: Readonly<Record<string, string>>;
   /** 이 turn에서 임계 컴팩션이 실패하거나 하지 않았다. 단계마다 같은 요약 호출을 반복하지 않으려고 다시 시도하지 않는다 */
   compactionBlocked: boolean;
   /** 단계 안에서 같은 지점이 여러 번 불릴 때 dispatchKey를 구별하는 순번 */
@@ -178,6 +180,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     childMaxInputTokens: spec.child?.limits?.maxInputTokens ?? null,
     basePrompt: spec.child?.systemPrompt ?? ctx.basePrompt,
     promptAddition: "",
+    instructionSections: {},
     compactionBlocked: false,
     pointSeq: 0,
     agentStarted: false,

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
+import { goalGateDecision } from "@fresnel/contracts/capabilities";
 import { AgentJudgedPayloadSchema, type AgentJudgedPayload } from "@fresnel/contracts/records";
 import type { JudgeInput } from "@fresnel/contracts/services";
-import { completeStructured, goalGateDecision, JudgeAnswerSchema } from "../src/index.ts";
+import { completeStructured, JudgeAnswerSchema } from "../src/index.ts";
 import { fakeModels, type FakeReply } from "./support/fake-models.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
 

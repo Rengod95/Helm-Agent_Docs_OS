@@ -29,6 +29,14 @@ const ENGINE_ENTRY = `export const extension = ({ register }) => {
 };
 `;
 
+/** 주도 단계 함수를 setup에서 등록하는 외부 확장 엔트리. 격리에서도 `drive.step`으로 돈다(drive-isolation.md 3.2) */
+const DRIVE_ENTRY = `export const extension = ({ register }) => {
+  register("iso", {}, (g) => {
+    g.drive(async () => ({ do: "yield" }));
+  });
+};
+`;
+
 /** `hostOf(g)`로 격리에서 쓸 수 없는 API를 setup에서 부른다. 자식은 `unsupported_api`로 답한다 */
 function unsupportedEntry(api: string): string {
   return `import { hostOf } from "@fresnel/ext-host";
@@ -168,40 +176,42 @@ test("an explicit manifest process without the port is refused as isolation_unav
   await rig.harness.loader.dispose();
 });
 
-test("an explicit process setting with drives is refused as isolation_drive_unsupported", async () => {
+test("an explicit process setting with drives loads isolated, and the drive is registered in the child", async () => {
   const rig = await rigOf();
   rig.harness.settings.isolation.set("iso", "process");
   await writePlugin(userExtensions, "iso", {
     name: "iso",
-    entry: ENGINE_ENTRY,
+    entry: DRIVE_ENTRY,
     group: true,
     layer: "L3",
     drives: true,
-  });
-  const report = await rig.harness.loader.loadAll(loadOptions(rig.harness));
-  const info = report.extensions.find((entry) => entry.name === "iso");
-  expect(info?.state).toBe("error");
-  expect(info?.isolation).toBe("none");
-  expect(codesOf(report.diagnostics, "iso")).toContain("isolation_drive_unsupported");
-  expect(rig.port.children.length).toBe(0);
-  await rig.harness.loader.dispose();
-});
-
-test("a default extension with drives runs in the engine even with a port", async () => {
-  const rig = await rigOf();
-  await writePlugin(userExtensions, "iso", {
-    name: "iso",
-    entry: ENGINE_ENTRY,
-    group: true,
-    layer: "L3",
-    drives: true,
+    hooks: [],
   });
   const report = await rig.harness.loader.loadAll(loadOptions(rig.harness));
   const info = report.extensions.find((entry) => entry.name === "iso");
   expect(info?.state).toBe("active");
-  expect(info?.isolation).toBe("none");
-  expect(codesOf(report.diagnostics, "iso")).not.toContain("isolation_drive_unsupported");
-  expect(rig.port.children.length).toBe(0);
+  expect(info?.isolation).toBe("process");
+  expect(codesOf(report.diagnostics, "iso")).toEqual([]);
+  expect(rig.port.children.length).toBe(1);
+  await rig.harness.loader.dispose();
+});
+
+test("a default extension with drives is isolated too: drives does not exclude isolation", async () => {
+  const rig = await rigOf();
+  await writePlugin(userExtensions, "iso", {
+    name: "iso",
+    entry: DRIVE_ENTRY,
+    group: true,
+    layer: "L3",
+    drives: true,
+    hooks: [],
+  });
+  const report = await rig.harness.loader.loadAll(loadOptions(rig.harness));
+  const info = report.extensions.find((entry) => entry.name === "iso");
+  expect(info?.state).toBe("active");
+  expect(info?.isolation).toBe("process");
+  expect(codesOf(report.diagnostics, "iso")).toEqual([]);
+  expect(rig.port.children.length).toBe(1);
   await rig.harness.loader.dispose();
 });
 
@@ -221,11 +231,11 @@ test("a setting none runs an extension in the engine even with a port", async ()
   await rig.harness.loader.dispose();
 });
 
-test("an isolated extension that uses migrateState fails to load with isolation_protocol naming the API", async () => {
+test("an isolated extension that uses registerShortcut fails to load with isolation_protocol naming the API", async () => {
   const rig = await rigOf();
   await writePlugin(userExtensions, "iso", {
     name: "iso",
-    entry: unsupportedEntry("migrateState"),
+    entry: unsupportedEntry("registerShortcut"),
   });
   const report = await rig.harness.loader.loadAll(loadOptions(rig.harness));
   const info = report.extensions.find((entry) => entry.name === "iso");
@@ -233,7 +243,7 @@ test("an isolated extension that uses migrateState fails to load with isolation_
   expect(info?.isolation).toBe("none");
   const diagnostic = report.diagnostics.find((entry) => entry.code === "isolation_protocol");
   expect(diagnostic?.extension).toBe("iso");
-  expect(diagnostic?.message).toContain("migrateState");
+  expect(diagnostic?.message).toContain("registerShortcut");
   await rig.harness.loader.dispose();
 });
 

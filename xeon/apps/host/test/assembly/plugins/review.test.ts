@@ -542,7 +542,9 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
   );
   expect(outcome.appliedTo).toEqual(["p1"]);
   expect(seen).toEqual(["before:kit", "after:kit", "reflect:kit"]);
-  expect(facts).toEqual([{ name: "kit", replaces: [], drives: false, requiredKeys: [] }]);
+  expect(facts.map((fact) => [fact.name, fact.replaces, fact.drives, fact.requiredKeys])).toEqual([
+    ["kit", [], false, []],
+  ]);
   expect(
     valueOf(await rig.store.readLog()).map((entry) => [entry.decision, entry.profileIds]),
   ).toEqual([["approved", ["p1"]]]);

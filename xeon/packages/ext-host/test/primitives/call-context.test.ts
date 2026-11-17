@@ -95,7 +95,7 @@ test("callContext is the drive context with the lease signal, and cut inside tur
       });
     }),
   );
-  await t.host.openThread(thread);
+  await t.host.openThread(thread, { startDrive: "cc-drive" });
   await t.settled();
   expect(driveSeen.context?.kind).toBe("drive");
   expect(driveSeen.context?.threadId).toBe(thread);

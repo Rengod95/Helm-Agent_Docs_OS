@@ -143,6 +143,8 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
   readonly idempotent?: true;
   /** 대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다(ADR-0015 §3.3). replay "safe"여야 한다 */
   readonly readOnly?: true;
+  /** 도구 매핑이 없는 쓰기 메서드를 플러그인이 부를 때 정책이 보는 위험 등급. 생략하면 가장 엄한 "exec". readOnly와 함께 쓸 수 없다. 모델이 부르는 같은 효과의 도구와 같은 등급이어야 한다(파일 쓰기 "write", 셸·네트워크 "exec", 대화 안 상태만 바꾸면 "read") [제안: enE2m] */
+  readonly risk?: ToolRisk;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -533,12 +535,12 @@ export function diffToolsets(prev: readonly OrderedTool[], next: readonly Ordere
 
 [제안] 이 예시는 정의 형식을 설명하려고 줄인 것이다. `web.search`의 정본은 정의 파일 `xeon/packages/contracts/src/capabilities/defs/web.ts`이고 내용은 `L2.web.spec` §3.2가 정한다. 이 예시는 L2 정의와의 일치 검사 대상이 아니다. 줄인 점: 정본은 provider 정보를 최상위 `provider` 대신 `meta: WebCallMeta`(§3.11 `ProviderSelectionMeta` 포함)에 싣고, 출력에 `sources`·`answer`를, 결과에 `sourceId`와 발췌 위치·점수를, 입력에 `objective`·`freshness`·`provider`를 더하며(도구 파라미터는 `provider`를 빼고 `toInput`을 쓴다), 렌더링 표지를 `[${sourceId}]`로 쓰고, 고유 오류 `session_limit`와 `hints.idempotent`를 더한다(`L2.web.spec` §3.2 차이 표). 입력 필드는 `_research/web-tools.md` §4.2의 부분 집합이다.
 
-[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(기능 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 모두 `capabilities/index.ts`가 재노출하고 `@fresnel/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
+[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(기능 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 층 E에서 `defs/agents.ts`(기능 `agents.judge` 1.0.0)와 `defs/models.ts`(기능 `models.complete` 1.0.0)가 더해졌다. 둘 다 `idempotent`이고 `readOnly`가 아니며 모델 도구가 없다 [근거: `xeon/packages/contracts/src/capabilities/defs/agents.ts`]. 모두 `capabilities/index.ts`가 재노출하고 `@fresnel/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
 
 - 객체·유니온 스키마는 `isolatedDeclarations` 때문에 export마다 타입이 필요하다. 읽기 전용 정적 타입을 손으로 적고 `Type.Unsafe<T>(shape satisfies SchemaProof<T, typeof shape>)`로 내보낸다(`eng.typescript.guide` TY-26 U5). 모양이 어긋나면 컴파일 오류다. 스키마를 이루는 하위 객체는 export하지 않는 `const`로 둔다. 정적 타입은 `type` 별칭이다. `interface`는 `ToolContent.structuredContent`(`JsonValue`)에 대입할 수 없기 때문이다.
 - 모델에 가는 텍스트를 만드는 렌더러(`renderSearch`, `renderFetch`, `renderBrowse`, `renderTaskList`, `renderAsk` 등)와 경계 감싸기(`wrapUntrusted`, `wrapUntrustedMcp`, `wrapUntrustedSession`)는 순수 함수로 정의 파일에 둔다. 경계 표지를 닫는 문자열은 본문 안에서 `<`를 `&lt;`로 바꿔 무력화한다. 도메인별 표지 이름은 `<untrusted_web_content>`, `<untrusted_mcp_content>`, `<untrusted_session_content>`다.
 - 정의 파일은 `records/`를 import하지 않는다(같은 순서, `F.readme` §3). BlobRef가 필요하면 `defs/workspace.ts`의 `ImageBlobRefSchema`(같은 모양)를 쓴다. 이 모양은 `records/blob.ts`와 일치하는지 시험이 확인한다.
-- 도구가 없는 기능(`knowledge.ledger`, `work.goals`, `work.reports`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`)은 `tools: []`로 `validateCapability` 이슈 0건을 통과한다. §3.4가 도구 없는 기능을 허용한다.
+- 도구가 없는 기능(`knowledge.ledger`, `work.goals`, `work.reports`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`, `agents.judge`, `models.complete`)은 `tools: []`로 `validateCapability` 이슈 0건을 통과한다. §3.4가 도구 없는 기능을 허용한다.
 - 경로를 다루는 스키마: `SkillFilePathSchema`(`defs/knowledge.ts`)의 패턴 `SKILL_FILE_PATH_PATTERN`은 마디가 영숫자·`_`·`-`로 시작하고 끝나게 해서 `.`·`..` 마디와 점으로 시작하는 마디(`references/.hidden`)를 거른다 [결정: m2 F.8, KN.1 요청]. 트리 해시와 안전 캡처가 점 항목을 건너뛰어, 해시가 덮지 못하는 파일을 가리키는 경로를 받지 않으려는 것이다. `isSkillFilePath`는 같은 규칙이다. 서비스는 파일 시스템에 닿기 전에 한 번 더 부른다.
 - MCP 서버 주도 요청의 질문 옮기기(`defs/mcp-questions.ts`) [결정: m2 F.8]: `McpQuestion[]`을 승인 본문 `QuestionBody`와 같은 모양(`McpQuestionBody`)으로 옮기는 `planMcpQuestionBody`, 사용자 답 `QuestionAnswer`(`McpQuestionAnswer`)를 입력 요청 키별 `inputResponses`로 되돌리는 `decodeMcpAnswer`, 승인이 거부·취소됐을 때 모든 질문에 같은 동작으로 답하는 `uniformMcpAnswer`, 키별 응답을 `requestedSchema`로 검증하는 `buildMcpInputResponses`·`checkMcpFormContent`가 있다. 폼 필드가 4개 이하이면 필드마다 질문 하나, 넘으면 폼마다 JSON 한 칸이다. sampling 질문은 응답 키를 보내지 않는다(승인돼도 거부). 질문 본문이 L1.tools와 cap-mcp 양쪽에서 필요하고 L1은 L2를 import할 수 없어 F에 둔다. `capabilities`는 `services`를 import할 수 없으므로 `QuestionBody`·`QuestionAnswer` 모양을 같은 구조로 따로 적고, `contracts/test/capabilities/mcp-questions.test.ts`가 서로 대입되는지 확인한다. `McpInputRequiredSchema`는 `input_required` 변형(승인 id 없음)을 알아보는 스키마다.
 
@@ -836,7 +838,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `SecretService` | `SecretServiceName` | `fresnel.secrets` | `services/secrets.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.3~§3.6, §3.10 |
 | `SecretAdminService` | `SecretAdminServiceName` | `fresnel.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
 | `McpService` | `McpServiceName` | `fresnel.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
-| `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | `DriveLockArbiterPort` | `L3.group-sdk.spec` §3.8 |
+| `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | 없음(서비스만 낸다. X 포트 아님) | `L3.group-sdk.spec` §3.8 |
 | `DevkitService` | `DevkitServiceName` | `fresnel.devkit` | `services/devkit.ts` | `apps/host`(L4) | 없음 | `L3.authoring.spec` §3.3 [결정: M4 T-F, X-22] |
 
 파일별 이름. 위 표의 인터페이스와 이름 상수 외에 각 파일에 두는 이름이다. 필드는 오른쪽 열 블록을 옮겨 확정한다(규칙 1).
@@ -857,7 +859,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `services/approvals.ts` | `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`과 비차단 `open`·`wait`·`get`, `OpenedApproval`, `ApprovalWaitFailure`, `respond`의 결과 `ApprovalApplyOutcome`과 이유 `ApprovalNotAppliedReason`·`APPROVAL_NOT_APPLIED_REASONS` [결정: m2c G1-09]). 만료: `ApprovalRequestInput.expiresAt`·`onExpire`(`ApprovalOnExpire`), `ApprovalResolvedBy`의 `expired`와 `extension`(`ApprovalResolution.resolvedByExtension`), 도구 승인 본문 `ToolApprovalBody.askedBy`(확장 이름과 사유) [결정: M5e §4.2, D-6], `L2ApprovalRequest`의 같은 이름 필드, `L2ApprovalSnapshot.resolution.resolvedBy` [결정: m2c G1-11], `L2ApprovalRequest.remember`(선택, 기본 `["once"]`)·`L2ApprovalSnapshot.resolution.remember`·`ApprovalService.remembered`·`L2ApprovalsPort.remembered`(선택)·`WRITE_ACCESS_RULE_ID` [결정: 2026-11-13 사용자, L2.workspace.spec §4.3.1]·`WEB_ACCESS_RULE_ID` [결정: 2026-11-15 사용자, L2.web.spec §4.5.5], `ApprovalServiceName`, 호출자 `ApprovalCaller`와 변환 함수 `approvalCallerOf` [결정: m2c G1-09], 승인 값 타입(`ApprovalKind`은 `tool`, `question`, `review`(`plan`은 은퇴 [결정: 2026-11-13 사용자]), `ApprovalBody`의 `review` 변형과 `ReviewBody`, `ReviewFileSummary` [결정: adr.0018, M3-REQ-09], `ApprovalRequest`, `ApprovalResolution`, `ApprovalRequestError`, `QuestionAnswer`, `PlanAnswer`, `DenyAnswer` 등. 질문 항목에 선택 필드 `header`, 선택지에 `recommended`) [결정: m2 F.8]. L2 공통 승인 포트 `L2ApprovalsPort`와 `L2ApprovalKind`, `L2ApprovalSnapshot`, `L2ApprovalRequest`, `L2ApprovalRespondInput`(`respond`의 결과도 `ApprovalApplyOutcome`), `L2_APPROVAL_REQUEST_ID_MAX`(48. services는 records를 값으로 import하지 않아 `records/commit.ts`의 `APPROVAL_REQUEST_KEY_MAX`와 같은 값을 거울로 두고 시험이 지킨다. 키 변환은 `requestKeyFor` 하나다 [결정: 통합 검토 L6]). 실패는 `Result` 오류 값이다. cap-*가 `ApprovalService`를 이 모양으로 감싼다 [결정: m2-plan F.4, L2.readme §5.7] | `L1.tools.spec` §3.6, `L2.readme` §5.7 |
 | `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다. M3a 추가 [결정: M3-REQ-10, 11]: `SpawnOrigin.parentToken?`(부모 쓰기 프로세스 락 토큰), `DelegateRequest.report?`(선택. 없으면 보고 입력 없이 `agent.settled`만 남고 D-M3-03 a), `CancelTarget`의 `{ ownerScopeId }` 변형(그룹 끄기 때 주체 단위 취소, D-M3-04 b [제안]). 완료 통지 수단은 새로 두지 않고 기존 `agent.settled` 레코드, `lifecycle.agent.settled` 훅, `AgentService.status`로 한다. 취소는 `AgentService.cancel(target)`이고 (부모, requestId) 변형이 `cancel(requestId)`에 해당한다. `services/loop.ts`: `ChildTurnRequest.tools.deny?`·`denyHint?` | `L1.agents.spec` §3.3 |
 | `services/mcp.ts` | `McpService`, `McpServiceName`. `McpClient` 기능 정의는 `capabilities/defs/mcp.ts`(§3.9)에 두고 이 파일이 import한다 | `L2.mcp.spec` §3.2 |
-| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.settingUnwritable`과 이유 집합 `GroupSettingUnwritableReason` 포함), `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`. `GroupId`·`RegistrationId`·`RegistrationStatus`·`DriveLockId`·`RecordKind`·`Unsubscribe`·`DriveLockArbiterPort`는 `../extensions`에서 가져온다. settings를 import하지 않으므로 `setDriveHolder`의 `scope` 옵션과 `HolderReceipt.scope`는 `SettingScope`와 같은 모양(`"managed" \| "user" \| "project" \| "local" \| "launch"`)으로 적는다 | `L3.group-sdk.spec` §3.8 |
+| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.unknown`만), `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`. `GroupId`·`RegistrationStatus`·`DriveLockId`·`RecordKind`·`Unsubscribe`는 `../extensions`에서 가져온다. 중재 포트 `DriveLockArbiterPort`, `setDriveHolder`, `HolderReceipt`, `DriveHolderSetting`과 설정 쓰기 오류(`group.settingLocked`, `group.settingUnwritable`, `group.noDrive`)는 E3에서 걷었다(drive-isolation.md 2.2) | `L3.group-sdk.spec`
 
 ```ts
 // src/services/names.ts
@@ -886,7 +888,7 @@ export interface McpService extends McpPort {
   /** 기능 API. 같은 객체를 cap:mcp.client 바인딩(g.capability(McpClientKey))으로도 얻는다 */
   readonly client: CapabilityApi<typeof McpClient>;
 }
-export interface GroupService extends DriveLockArbiterPort { /* L3.group-sdk.spec §3.8 */ }
+export interface GroupService { /* list, status, enable, disable, onChange. L3.group-sdk.spec §3.8 */ }
 
 // src/services/exec.ts (발췌)
 export interface ExecService extends ExecutionEnv {
@@ -1048,7 +1050,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 | `replay_widened` | error | 도구 `replay`가 `"safe"`인데 메서드 `replay`가 `"unsafe"`(생략 포함) |
 | `idempotent_replay_unsafe` | error | 메서드가 `idempotent: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
 | `read_only_replay_unsafe` | error | 메서드가 `readOnly: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
-| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언함 |
+| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언하거나 `risk`와 `readOnly`를 함께 선언함 |
 | `effect_class_missing` | warning | `replay: "safe"`인데 `idempotent`와 `readOnly`가 모두 없음. L2 정의 분류(M3-REQ-88)가 끝나면 error로 올릴지 다시 본다 |
 | `parameters_not_object` | error | `parameters` 루트가 객체가 아님 |
 | `schema_ref_external` | error | §4.3 `$ref` 규칙 위반 |

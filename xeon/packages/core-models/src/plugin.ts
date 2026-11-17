@@ -1,5 +1,6 @@
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { Clock, Scheduler } from "@fresnel/contracts";
+import { ModelsComplete, ModelsCompleteKey } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
@@ -22,6 +23,7 @@ import {
   type PortKey,
 } from "@fresnel/ext-host";
 import type { HookInput, ProviderDispatcher } from "./request-points.ts";
+import { modelsCompleteOf } from "./complete-capability.ts";
 import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
 import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
 
@@ -43,7 +45,13 @@ export const manifest: ExtensionManifest = defineManifest({
   description: "fresnel.models: pi-ai provider calls, role resolution, usage metering.",
   defaultEnabled: true,
   entry: "./src/index.ts",
-  plugins: [{ layer: "L1", hooks: [] }],
+  plugins: [
+    {
+      layer: "L1",
+      hooks: [],
+      provides: [{ id: ModelsComplete.id, version: ModelsComplete.version }],
+    },
+  ],
   trust: { level: "builtin" },
 });
 
@@ -185,25 +193,30 @@ export function createModelsExtension(
           (options.clock === undefined ? host.port(OsServicePortKey).time.scheduler : undefined);
         return scheduler === undefined ? {} : { scheduler };
       };
-      host.providePort(
-        ModelServicePortKey,
-        createModelService({
-          buildModels: options.buildModels ?? ((credentials) => builtinModels({ credentials })),
-          secrets,
-          clock,
-          settings: options.settings ?? (() => DEFAULT_MODELS_SETTINGS),
-          // 시계를 따로 넘긴 조립(시험)은 타이머도 따로 넘겨야 하고, 없으면 회전은 기다리지 않는다
-          ...schedulerOf(),
-          // 계정 회전은 account-rotation 플러그인이 켜져 있을 때만 쓴다(기본 꺼짐, L1.models.spec §4.8)
-          rotationEnabled: () =>
-            ext
-              .registrations()
-              .some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
-          dispatcher: dispatcherOf(ext),
-          ...(options.offerBody === undefined ? {} : { offerBody: options.offerBody }),
-          // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
-          scopeEnabled: (scopeId) =>
-            ext.registrations().some((info) => info.id === scopeId && info.status === "enabled"),
+      const service = createModelService({
+        buildModels: options.buildModels ?? ((credentials) => builtinModels({ credentials })),
+        secrets,
+        clock,
+        settings: options.settings ?? (() => DEFAULT_MODELS_SETTINGS),
+        // 시계를 따로 넘긴 조립(시험)은 타이머도 따로 넘겨야 하고, 없으면 회전은 기다리지 않는다
+        ...schedulerOf(),
+        // 계정 회전은 account-rotation 플러그인이 켜져 있을 때만 쓴다(기본 꺼짐, L1.models.spec §4.8)
+        rotationEnabled: () =>
+          ext
+            .registrations()
+            .some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
+        dispatcher: dispatcherOf(ext),
+        ...(options.offerBody === undefined ? {} : { offerBody: options.offerBody }),
+        // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
+        scopeEnabled: (scopeId) =>
+          ext.registrations().some((info) => info.id === scopeId && info.status === "enabled"),
+      });
+      host.providePort(ModelServicePortKey, service);
+      // 공개 기능 `models.complete`(hooks-core-boundary §6.2). 같은 서비스의 `completeForPlugin`을 감싼다
+      host.provide(
+        ModelsCompleteKey,
+        modelsCompleteOf(service, (threadId, tokens) => {
+          ext.chargeDriveTokens(threadId, tokens);
         }),
       );
     });

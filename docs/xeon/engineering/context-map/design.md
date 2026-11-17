@@ -182,7 +182,7 @@ flowchart TD
   L4 -.->|"조립 루트만: 모든 패키지 import"| L0
 ```
 
-- 순위는 F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md §3`). 그림의 실선 하나는 "바로 아래 층까지"를 뜻하지만 순위상 더 아래 층 import도 허용된다(DR-01).
+- 순위는 F(0) → X(1) → L0(2) → L1(3) → P(4) → L4(5)이다(`_research/foundation-plan.md §3`, P는 옛 L2·L3). 그림의 실선 하나는 "바로 아래 층까지"를 뜻하지만 순위상 더 아래 층 import도 허용된다(DR-01).
 - DR-14(3절 협력 규칙 2)에 따라, 컨텍스트가 다른 하위 패키지는 import하는 대신 F 서비스 타입으로 주입받는다. 실제 워크스페이스 import는 F, 조립 루트(`apps/cli` → `apps/host` 포함), 같은 컨텍스트 안의 import, `@fresnel/ext-host`의 서비스 등록·주입 API, 테스트 파일의 `testing` 서브패스만 남는다.
 
 ### 4.4 층 순위와 컨텍스트 경계가 어긋나는 곳
@@ -190,7 +190,7 @@ flowchart TD
 | # | 위치 | 어긋남 | 처리 |
 |---|---|---|---|
 | 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `fresnel.tasks`·`fresnel.loop`·`fresnel.context`·`fresnel.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
-| 2 | `extension-host`(X, 순위 1) | L3 그룹(순위 5)을 호스트하고, 대화 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 훅 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
+| 2 | `extension-host`(X, 순위 1) | 플러그인 그룹(P, 순위 4)을 호스트하고, 대화 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 훅 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
 | 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)의 기능은 L2에 있으나 이벤트는 L1이 소유한다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `fresnel.approvals`로 요청하고 결과를 이벤트로 받는다 |
 | 4 | 대화 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `fresnel.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
