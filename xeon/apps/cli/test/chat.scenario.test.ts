@@ -343,9 +343,8 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     expect(enabled.seq).toBeLessThan(acquired.seq);
     expect(acquired.seq).toBeLessThan(driveStarted.seq);
     expect(payloadField(acquired, "scopeId")).toBe(groupId);
-    expect(String(payloadField(driveStarted, "requestId"))).toStartWith(
-      String(payloadField(acquired, "leaseId")),
-    );
+    // 단계 함수의 turn 명령이 준 요청 id가 그대로 실린다(enE1: 임대 id를 앞에 붙이지 않는다)
+    expect(String(payloadField(driveStarted, "requestId"))).toStartWith("smoke:turn:");
     expect(payloadField(driveEnded, "status")).toBe("completed");
     const driveAnswer = log.all(isKind("item.recorded")).map((event) => event.payload);
     expect(JSON.stringify(driveAnswer)).toContain("drive turn answered.");

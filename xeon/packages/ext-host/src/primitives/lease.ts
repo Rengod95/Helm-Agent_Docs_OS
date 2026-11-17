@@ -277,6 +277,8 @@ function askStepResult(outcome: AskOutcome): StepResult {
       return { kind: "ask", answer: "expired", value: null };
     case "cancelled":
     case "superseded":
+    // 플러그인의 `ask.human.before`가 질문을 취소한 경우다. 주도 쪽에는 취소로 보인다
+    case "extension":
       return { kind: "ask", answer: "cancelled", value: null };
     default:
       return assertNever(outcome.resolvedBy, "askStepResult");
