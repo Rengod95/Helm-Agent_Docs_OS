@@ -1,4 +1,5 @@
 // @fresnel/cap-workspace 공개 진입점(L2.workspace). 조립 루트가 쓰는 이름만 내보낸다.
+// 서비스 부분(경로 검사, 샌드박스 셸, 쓰기 허용 승인)은 @fresnel/core-workspace가 낸다. writeAccessTitle도 그쪽이다.
 export { workspacePlugin } from "./plugin.ts";
 export type { WorkspacePluginOptions } from "./plugin.ts";
 export { workspaceManifest, WORKSPACE_EXTENSION_NAME } from "./manifest.ts";
@@ -8,10 +9,3 @@ export {
   readWorkspaceSettings,
 } from "./settings.ts";
 export type { WorkspaceSettings, WorkspaceSettingsSource } from "./settings.ts";
-export { createWriteAccessAdapter, writeAccessTitle } from "./write-access-adapter.ts";
-export type {
-  WriteAccessError,
-  WriteAccessPort,
-  WriteAccessRequest,
-  WriteAccessVia,
-} from "./ports/write-access.ts";

@@ -1,9 +1,8 @@
 import { assertNever } from "@fresnel/contracts";
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure } from "../errors.ts";
+import { WorkspaceFailure, resolveWorkspacePath } from "@fresnel/core-workspace";
 import { loadImageAt, probeImageType } from "../images/service.ts";
-import { resolveWorkspacePath } from "../roots.ts";
 import { pageRead } from "../truncate/paging.ts";
 import { readFileText } from "./upstream/read.ts";
 import type { FilesApi } from "./api.ts";

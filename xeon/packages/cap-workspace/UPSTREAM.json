@@ -9,9 +9,6 @@
   "copiedFrom": "packages/durable",
   "copiedPaths": [
     "packages/durable/src/tools/read.ts -> src/files/upstream/read.ts",
-    "packages/durable/src/tools/path-utils.ts -> src/files/upstream/path-utils.ts",
-    "packages/durable/src/tools/bash.ts -> src/shell/upstream/bash.ts",
-    "packages/durable/src/harness/output.ts -> src/upstream/output.ts",
     "packages/durable/src/env/decode.ts -> src/files/upstream/decode.ts",
     "packages/durable/src/tools/image.ts -> src/images/upstream/image.ts",
     "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts",
@@ -20,9 +17,6 @@
   ],
   "originalSha256": {
     "packages/durable/src/tools/read.ts": "db9ed7872f2699066e668b59e4ee8244a887441d70e7c6a135a92ee364aad399",
-    "packages/durable/src/tools/path-utils.ts": "3e689aa44a02cc2c89e4b84eca59ac6737ef9dbf0d1b31a13633a38293165a14",
-    "packages/durable/src/tools/bash.ts": "abf2c18f21e93a2a25d271dff28a83c199196b7095cf6671fa65e1f0419728cc",
-    "packages/durable/src/harness/output.ts": "ca3f76d5a880448283fed145e2559a5ceccdfa6601f84f8a9cb23bff486f5bcb",
     "packages/durable/src/env/decode.ts": "3db30eae71f612b015b95e83b28d64b5330498a517119b5a01e210666cb5b032",
     "LICENSE": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
     "packages/durable/src/tools/image.ts": "b7f7eff7af7a36ea6633e5323ee7184d2de6814743e0a54ce0040d576be38f98",
@@ -30,7 +24,6 @@
     "packages/durable/src/tools/edit-diff.ts": "70f486d5d5e54a76913d96597e792fc3e2c0938813b01595824a63b2300800db"
   },
   "partialCopies": [
-    "packages/durable/src/harness/output.ts -> src/upstream/output.ts (Progress와 PROGRESS_BYTES_PER_SECOND 외 나머지를 뺐다. 상수만 남겼다)",
     "packages/durable/src/env/decode.ts -> src/files/upstream/decode.ts (rangeDecoder, startsWithBom만. StreamDecoder를 뺐다)",
     "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts (ImageProcessor, PreparedImage, toBase64를 뺐다. 처리기는 2차. 상수 INLINE_IMAGE_TYPES와 base64Length만 남겼다)",
     "packages/durable/src/tools/edit-diff.ts -> src/files/upstream/edit-diff.ts (diff 패키지 import와 generateUnifiedPatch, generateDiffString을 뺐다. diff 생성은 src/files/diff.ts(새 원본)가 한다)"
@@ -47,12 +40,7 @@
   "modifications": [
     "P1",
     "P2",
-    "P3",
-    "P4",
     "P5",
-    "P6",
-    "P8",
-    "P9",
     "P10",
     "P11",
     "P12",
@@ -63,5 +51,5 @@
     "P17",
     "P18"
   ],
-  "usedBy": "xeon/packages/cap-workspace only (adr.0003, L2.workspace.plan §2)"
+  "usedBy": "xeon/packages/cap-workspace (read, edit-diff, image 복사본. adr.0003, L2.workspace.plan §2). 셸·경로·출력 복사본은 xeon/packages/core-workspace"
 }

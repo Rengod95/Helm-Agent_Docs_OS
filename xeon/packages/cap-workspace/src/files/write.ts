@@ -1,13 +1,17 @@
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure } from "../errors.ts";
-import { relativeToRoots, resolveWorkspacePath } from "../roots.ts";
-import { askOutsideWrite } from "../write-access.ts";
-import { getOrThrow } from "../upstream/get-or-throw.ts";
-import { atomicWrite } from "./atomic.ts";
+import {
+  WorkspaceFailure,
+  getOrThrow,
+  mutationKey,
+  queueInCallOrder,
+  atomicWrite,
+  askOutsideWrite,
+  relativeToRoots,
+  resolveWorkspacePath,
+} from "@fresnel/core-workspace";
 import { buildFileChange } from "./diff.ts";
 import { decodeStrictText } from "./text-bytes.ts";
-import { mutationKey, queueInCallOrder } from "./queue.ts";
 import type { FilesApi } from "./api.ts";
 
 // L2.workspace.spec §3.2 write, §4.3 쓰기 root 검사, §4.4 원자적 쓰기와 경로별 줄 세우기.

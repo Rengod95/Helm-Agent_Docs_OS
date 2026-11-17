@@ -6,18 +6,17 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { SandboxRunReport } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
+import type { WorkspaceShellSettings } from "../src/deps.ts";
 import { createShellApi } from "../src/shell/run.ts";
 import { rejection } from "./support/assertions.ts";
 import { callTool } from "./support/adapter.ts";
-import { depsFor, fakeSandbox } from "./support/fakes.ts";
+import { depsFor, fakeSandbox, SHELL_DEFAULTS } from "./support/fakes.ts";
 import { memoryEnv } from "./support/memory-env.ts";
 
-function shellSettings(shell: Partial<WorkspaceSettings["shell"]>): () => WorkspaceSettings {
-  return () => ({
-    ...DEFAULT_WORKSPACE_SETTINGS,
-    shell: { ...DEFAULT_WORKSPACE_SETTINGS.shell, ...shell },
-  });
+function shellSettings(
+  shell: Partial<WorkspaceShellSettings["shell"]>,
+): () => WorkspaceShellSettings {
+  return () => ({ shell: { ...SHELL_DEFAULTS, ...shell } });
 }
 
 /** 호출 문맥만 있는 옵션. interactive가 false면 무인 호출(예약, 루프)이다 */

@@ -1,0 +1,27 @@
+{
+  "name": "@fresnel/core-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "typecheck": "tsc -b",
+    "test": "bash ../../scripts/test-pkg.sh",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@fresnel/ext-host": "workspace:*",
+    "@fresnel/platform-exec": "workspace:*",
+    "@types/bun": "catalog:"
+  },
+  "fresnel": {
+    "layer": "L1",
+    "domain": "workspace"
+  }
+}

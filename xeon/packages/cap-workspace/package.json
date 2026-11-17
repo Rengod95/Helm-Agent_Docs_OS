@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
+    "@fresnel/core-workspace": "workspace:*",
     "@fresnel/ext-host": "workspace:*",
     "typebox": "catalog:"
   },

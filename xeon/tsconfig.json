@@ -41,6 +41,9 @@
       "path": "./packages/core-context"
     },
     {
+      "path": "./packages/core-workspace"
+    },
+    {
       "path": "./packages/core-persistence"
     },
     {

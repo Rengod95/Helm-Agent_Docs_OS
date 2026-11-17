@@ -100,6 +100,15 @@
     "scope": "test"
   },
   {
+    "id": "DR-07/core-workspace-test-spawn",
+    "rule": "DR-07",
+    "from": "packages/core-workspace",
+    "to": "Bun.spawn",
+    "reason": "The fork record check of core-workspace (test/fork-records.test.ts, the same check as cap-workspace) reads its fork sources for process use patterns (review.decisions-2 B-06, L1.workspace.plan §2).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  },
+  {
     "id": "DR-07/desktop-test-spawn",
     "rule": "DR-07",
     "from": "apps/desktop",

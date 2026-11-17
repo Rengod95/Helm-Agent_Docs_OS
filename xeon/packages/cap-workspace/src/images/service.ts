@@ -6,12 +6,15 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { guarded, WorkspaceFailure } from "../errors.ts";
-import type { BlobSink } from "../ports/blobs.ts";
-import { resolveWorkspacePath } from "../roots.ts";
-import { scopedDeps } from "../scope.ts";
+import {
+  guarded,
+  getOrThrow,
+  resolveWorkspacePath,
+  scopedDeps,
+  WorkspaceFailure,
+  type BlobSink,
+} from "@fresnel/core-workspace";
 import type { WorkspaceSettings } from "../settings.ts";
-import { getOrThrow } from "../upstream/get-or-throw.ts";
 import { decodeBase64 } from "./decode.ts";
 import { prepareImage } from "./prepare.ts";
 import { detectSupportedImageMimeTypeOf } from "./upstream/image.ts";

@@ -8,11 +8,14 @@ import {
   type ToolOutputFiles,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
-import type { RgResolver, WorkspaceDeps } from "../../src/deps.ts";
-import type { BlobSink } from "../../src/ports/blobs.ts";
-import type { ThreadWorkspaces } from "../../src/ports/threads.ts";
-import type { WriteAccessPort } from "../../src/ports/write-access.ts";
-import { defaultRoots } from "../../src/roots.ts";
+import {
+  defaultRoots,
+  type BlobSink,
+  type RgResolver,
+  type ThreadWorkspaces,
+  type WriteAccessPort,
+} from "@fresnel/core-workspace";
+import type { WorkspaceDeps } from "../../src/deps.ts";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
   readWorkspaceSettings,
