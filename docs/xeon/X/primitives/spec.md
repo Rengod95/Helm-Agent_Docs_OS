@@ -1157,7 +1157,7 @@ lifecycle [결정: adr.0017]:
 4. 사용량: `turns`는 새로 실행된(재생이 아닌) `loop.turn` 수, `spawns`는 새로 실행된 `loop.spawn` 수, `tokens`는 그 결과 `usage.totalTokens`의 합이다 [가정: pi-ai `Usage`의 필드 이름]. 복원 때는 프레임마다 자기 `own` 합으로 다시 센다(프레임의 `used`는 자기와 위 프레임이 쓴 양이다). 쓴 양은 스택의 모든 프레임(자기와 아래)에 더한다.
 5. 검사 시점은 `loop.turn`·`loop.spawn` 호출 직전이다. 남은 양이 0 이하면 `PrimitiveError("lease_budget")`로 거부하고 프레임을 `releasing`으로 바꾼다. 검사는 실행 중인 맨 위 프레임에서만 한다. 맡은 프레임의 한도는 부여 때 맡긴 쪽의 남은 양으로 줄어들고(§4.4.2 8번), 맡은 쪽이 쓴 양은 맡긴 쪽의 사용량에 더해진다. 실행 중인 turn이 토큰 상한을 넘겨도 그 turn을 끊지 않는다.
 6. `loop.budget`은 호출 시점의 남은 양을 돌려주는 getter다.
-7. [결정: 2026-11-17 사용자, 3a] 깊이 상한 `x.primitives.driveMaxDepth`(정수 1 이상, 기본 8)는 코어 루프 위 프레임 수의 상한이다. 맡기기(`handoff`)는 새 프레임 깊이(스택 길이 + 1)가 상한을 넘으면 `{ kind: "refused", code: "depth_limit" }`를 돌려준다(§4.4.1b). 설정 범위는 managed, user, project, launch다. `profile` 범위는 아직 `SettingScope`에 없으므로 넣지 않았다. profile 범위는 M5c에서 더한다.
+7. [결정: 2026-11-17 사용자, 3a] 깊이 상한 `x.primitives.driveMaxDepth`(정수 1 이상, 기본 8)는 코어 루프 위 프레임 수의 상한이다. 맡기기(`handoff`)는 새 프레임 깊이(스택 길이 + 1)가 상한을 넘으면 `{ kind: "refused", code: "depth_limit" }`를 돌려준다(§4.4.1b). 설정 범위는 managed, user, project, launch, profile이다(프로필이 바꿀 수 있는 주도 한도, M5c §4.2.6).
 8. [결정: 2026-11-18, 3b] 맡은 프레임의 한도는 실효 한도(설정과 `DriveOptions.limits`)를 맡긴 프레임의 남은 양(`limit - used`)으로 한 번 더 `min`한 값이다. 맡긴 쪽에 그 항목의 상한이 없으면 실효 값 그대로다. 쓴 양(`turns`, `spawns`, `tokens`)은 쓴 프레임과 스택 아래 모든 프레임의 `used`에 더한다(`charge`). 그래서 맡긴 쪽의 `budget`(단계 함수에 주는 남은 양)도 줄어든다. 이 규칙은 drive-isolation.md 2.3의 [권고]를 작업 기본값으로 구현한 것이다.
 
 #### 4.4.3 호출과 재호출
@@ -1749,7 +1749,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|---|---|---|---|
 | `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
 | `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
-| `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자] | 정수≥1 | `8` | managed, user, project, launch. `profile` 범위는 M5c에서 더한다 | `nextTurn`. 맡기기가 소비한다(§4.4.1b, §4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
+| `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자] | 정수≥1 | `8` | managed, user, project, launch, profile | `nextTurn`. 맡기기가 소비한다(§4.4.1b, §4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
 | `x.primitives.driveRequiresGroup` [제안] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인 그룹만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "기능 공급자" 표 |
 

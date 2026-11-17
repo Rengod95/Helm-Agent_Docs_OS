@@ -75,7 +75,7 @@ export const primitivesSettings: SettingGroup<
     type: Type.Integer({ minimum: 1 }),
     default: DEFAULT_DRIVE_MAX_DEPTH,
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "launch"],
+    allowedScopes: ["managed", "user", "project", "launch", "profile"],
     ui: {
       tab: "plugins",
       widget: "number",

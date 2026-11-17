@@ -7668,7 +7668,8 @@
           "managed",
           "user",
           "project",
-          "launch"
+          "launch",
+          "profile"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",

@@ -48,6 +48,15 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
   }
   expect(primitivesSettings.defs.driveMaxDepth.default).toBe(8);
   expect(primitivesSettings.defs.driveMaxDepth.runtimeChange).toBe("nextTurn");
+  // 프로필이 바꿀 수 있는 주도 한도다(M5c §4.2.6). 천장 driveLimits는 profile 범위를 열지 않는다
+  expect(primitivesSettings.defs.driveMaxDepth.allowedScopes).toEqual([
+    "managed",
+    "user",
+    "project",
+    "launch",
+    "profile",
+  ]);
+  expect(primitivesSettings.defs.driveLimits.allowedScopes).not.toContain("profile");
   // 깊이 상한은 정수 1 이상만 받는다
   expect(parse(primitivesSettings.defs.driveMaxDepth.type, 1).ok).toBe(true);
   expect(parse(primitivesSettings.defs.driveMaxDepth.type, 0).ok).toBe(false);
