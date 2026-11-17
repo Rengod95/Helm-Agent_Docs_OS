@@ -176,6 +176,8 @@ export interface MeasureStore {
    * 턴 행(`tr_turn`)은 `upsertTurn`이 먼저 있어야 한다(호출자가 지킨다).
    */
   writeStep(batch: TrStepBatch): Result<number, MeasureStoreError>;
+  /** 늦은 훅 행만 쓴다(턴을 닫을 때). 이미 쓴 단계의 행은 건드리지 않는다(턴 기록 §7 분리 실행) */
+  writeHooks(rows: readonly TrHookRow[]): Result<number, MeasureStoreError>;
   /** 턴 행을 쓴다. 턴 시작 때 `status: "open"`으로, 턴 끝에 최종 값으로 다시 쓴다 */
   upsertTurn(row: TrTurnRow): Result<number, MeasureStoreError>;
   writeFrames(rows: readonly TrFrameRow[]): Result<number, MeasureStoreError>;
@@ -591,6 +593,8 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
           )(),
         ),
       ),
+    writeHooks: (rows) =>
+      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_HOOK, rows))())),
     upsertTurn: (row) => turnGuarded(() => ok(upsertAll(db, TR_TURN, [row]))),
     writeFrames: (rows) =>
       turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_FRAME, rows))())),

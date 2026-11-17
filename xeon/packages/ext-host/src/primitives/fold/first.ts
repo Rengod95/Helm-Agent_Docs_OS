@@ -5,6 +5,7 @@ import {
   HOOKS,
   decisionKindOf,
   type DecisionKind,
+  type HookRunDecision,
   type FailOpenFirstHookName,
   type FirstHookName,
   type MergedFirstHookName,
@@ -42,6 +43,20 @@ export function isBlocking(decision: unknown): boolean {
     ("type" in decision && decision.type === "deny") ||
     ("trusted" in decision && decision.trusted === "no")
   );
+}
+
+/**
+ * 값을 낸 핸들러의 결정값(턴 기록 §4.2 규칙 12). 막음이 아니어도 뜻이 있는 모양을 가려낸다: `block`, `cancel`, `replace`, `ask`, `answer`.
+ * 그 밖에 막음 기준(`isBlocking`)에 걸리면 `block`이고, 아무것도 아니면 `none`이다. 결과(`blocked`·`passed`)는 이 값과 상관없이 정한다
+ */
+export function hookDecisionOf(value: unknown): HookRunDecision {
+  if (typeof value !== "object" || value === null) return "none";
+  if ("block" in value && value.block === true) return "block";
+  if ("cancel" in value && value.cancel === true) return "cancel";
+  if ("replace" in value) return "replace";
+  if ("ask" in value && value.ask === true) return "ask";
+  if ("answer" in value) return "answer";
+  return isBlocking(value) ? "block" : "none";
 }
 
 /** 합치기 지점에서 지금까지 가장 강한 결정. 같은 순위면 먼저 온 핸들러가 남는다 */
@@ -150,7 +165,10 @@ export async function foldFirst(
       }
       return "continue";
     }
-    env.noteOk(entry, result, { result: isBlocking(result.value) ? "blocked" : "passed" });
+    env.noteOk(entry, result, {
+      result: isBlocking(result.value) ? "blocked" : "passed",
+      decision: hookDecisionOf(result.value),
+    });
     env.settled(entry, result.activeMs);
     outcome = {
       fold: "first",

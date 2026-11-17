@@ -96,6 +96,12 @@ export interface TurnDraft {
   readonly contexts: Map<string, StepContextEvent>;
   /** 단계 id별 스킬 본문 읽기(측정 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
   readonly skillReads: Map<string, { readonly toolCallId: string; readonly name: string }[]>;
+  /**
+   * 훅 실행 가운데 이미 본 것의 키(`hookKeyOf`). 단계가 끝날 때 그 단계의 실행을 넣는다. 턴을 닫을 때 키에 없는 실행이 늦은 행이다
+   */
+  readonly seenHooks: Set<string>;
+  /** 호출 id → 승인 해결(호출 줄의 `approval`). 훅 행의 물음 답을 채울 때 읽는다 */
+  readonly approvals: Map<string, ApprovalOf>;
   /** 턴의 도구 줄(이름 → 줄). 첫 광고 토큰은 고정이고 상태와 호출 수를 갱신한다 */
   readonly tools: Map<string, TurnToolRow>;
   /** 턴에서 처음 읽은 스킬(이름 → 읽기) */
@@ -145,6 +151,8 @@ export function newDraft(input: {
     toolCalls: new Map(),
     contexts: new Map(),
     skillReads: new Map(),
+    seenHooks: new Set(),
+    approvals: new Map(),
     tools: new Map(),
     skills: new Map(),
     materialKeys: new Set(),
@@ -164,37 +172,71 @@ export function newDraft(input: {
 export interface FlatHook {
   readonly entry: TraceTurnEntry;
   readonly handler: TraceHandlerEntry;
+  /** 항목 안의 처리기 번호(0부터). `hookKeyOf`의 한 자리다 */
+  readonly handlerIndex: number;
   readonly seqGlobal: number;
 }
 
 export function flatHooksOf(entries: readonly TraceTurnEntry[]): FlatHook[] {
   const out: FlatHook[] = [];
   for (const entry of entries) {
-    for (const handler of entry.handlers) {
-      out.push({ entry, handler, seqGlobal: out.length });
-    }
+    entry.handlers.forEach((handler, handlerIndex) => {
+      out.push({ entry, handler, handlerIndex, seqGlobal: out.length });
+    });
   }
   return out;
 }
 
-/** 훅 실행 한 번의 모양(§3.2 `HookRun`). 아직 채우지 않는 필드는 정본이 정한 자리 값이다 */
+/** 훅 실행 하나의 키. 항목의 `seq`와 항목 안의 처리기 번호다. 턴 안에서 항목은 추가만 되므로 키는 바뀌지 않는다 */
+export function hookKeyOf(flat: FlatHook): string {
+  return `${flat.entry.seq}:${flat.handlerIndex}`;
+}
+
+/** 승인 해결 한 건(호출 줄의 `approval`) */
+export type ApprovalOf = NonNullable<ToolCallTraceEvent["approval"]>;
+
+/**
+ * 결정이 `ask`이고 핸들러가 `{ask:true}`를 낸 행에 승인의 대기 시간, 승인 id, 답을 채운다(턴 기록 §4.2 규칙 14 (b)).
+ * 호출 줄이 없거나 승인이 없으면 행을 그대로 둔다. `ask.answer`는 승인의 결정(allow, deny, answer)이고, 무인 실행이면 `noninteractive`다
+ */
+function joinApproval(run: HookRun, approval: ApprovalOf | undefined): HookRun {
+  if (run.ask === null || run.ask.via !== "decision" || approval === undefined) return run;
+  return {
+    ...run,
+    subject: { ...run.subject, approvalId: approval.approvalId },
+    ask: {
+      via: "decision",
+      waits: run.ask.waits,
+      waitMs: approval.waitMs,
+      approvalId: approval.approvalId,
+      answer: approval.resolvedBy === "noninteractive" ? "noninteractive" : approval.decision,
+    },
+  };
+}
+
+/** 훅 행에 그 호출의 승인을 잇는다(도구 호출 지점이 아니면 그대로다) */
+function withApproval(run: HookRun, approvals: ReadonlyMap<string, ApprovalOf>): HookRun {
+  return joinApproval(run, run.toolCallId === null ? undefined : approvals.get(run.toolCallId));
+}
+
+/** 훅 실행 한 번의 모양(§3.2 `HookRun`). 플러그인, 버전, 출처, 결정, 물음은 기록하는 쪽이 준 값이고, 모르면 자리 값이다 */
 function hookRunOf(flat: FlatHook): HookRun {
   const { entry, handler } = flat;
   const toolCallId = handler.toolCallId ?? null;
   return {
     hook: entry.hook,
     registrationId: handler.registrationId,
-    // 플러그인과 버전은 다른 트랙이 로더에서 채운다. 지금은 자리 값이다
-    plugin: "none",
-    versionId: null,
-    sourceKind: "plugin",
+    // 등록 항목이 없던 옛 기록은 자리 값이다
+    plugin: handler.plugin ?? UNKNOWN_PLUGIN,
+    versionId: handler.versionId ?? null,
+    sourceKind: handler.sourceKind ?? "plugin",
     seq: entry.seq,
     subject: toolCallId === null ? {} : { toolCallId },
     toolCallId,
     result: handler.result,
     reason: handler.reason,
-    decision: "none",
-    ask: null,
+    decision: handler.decision ?? "none",
+    ask: handler.ask ?? null,
     ms: handler.ms,
     atMs: handler.atMs,
     size: handler.size,
@@ -205,12 +247,13 @@ function hookRunOf(flat: FlatHook): HookRun {
 
 /**
  * 한 단계(`step`)의 훅 실행을 고른다. 상한 `room`을 넘는 행은 버리고 개수를 `elided`에 센다.
- * 단계 밖 훅(step 0)도 같은 함수로 고른다
+ * 단계 밖 훅(step 0)도 같은 함수로 고른다. `approvals`가 있으면 물음 행에 승인을 잇는다
  */
 export function hooksOfStep(
   flats: readonly FlatHook[],
   step: number,
   room: number,
+  approvals?: ReadonlyMap<string, ApprovalOf>,
 ): {
   readonly rows: readonly { readonly run: HookRun; readonly seqGlobal: number }[];
   readonly elided: number;
@@ -223,12 +266,54 @@ export function hooksOfStep(
       elided += 1;
       continue;
     }
-    rows.push({ run: hookRunOf(flat), seqGlobal: flat.seqGlobal });
+    const run = hookRunOf(flat);
+    rows.push({
+      run: approvals === undefined ? run : withApproval(run, approvals),
+      seqGlobal: flat.seqGlobal,
+    });
   }
   return { rows, elided };
 }
 
-/** 훅 행 하나의 저장 모양(`tr_hook`). 열 이름이 정본 §3.4와 같다 */
+/**
+ * 턴을 닫을 때 아직 행으로 쓰지 않은 훅 실행(턴 기록 §7 "분리 실행"). 단계 밖 훅(step 0)은 턴 훅이라 여기 없다.
+ * 행은 실행이 시작된 단계에 `late: true`로 쓴다. `seqGlobal`은 턴의 모든 실행 수 뒤에서 이어 세므로 이미 쓴 행과 키가 겹치지 않는다.
+ * `room`을 넘는 행은 버리고 `elided`에 센다
+ */
+export function lateHooksOf(
+  flats: readonly FlatHook[],
+  input: {
+    readonly seen: ReadonlySet<string>;
+    readonly approvals: ReadonlyMap<string, ApprovalOf>;
+    readonly room: number;
+  },
+): {
+  readonly rows: readonly {
+    readonly run: HookRun;
+    readonly seqGlobal: number;
+    readonly stepIndex: number;
+  }[];
+  readonly elided: number;
+} {
+  const rows: { run: HookRun; seqGlobal: number; stepIndex: number }[] = [];
+  let elided = 0;
+  for (const flat of flats) {
+    if (flat.entry.step === 0 || input.seen.has(hookKeyOf(flat))) continue;
+    if (rows.length >= input.room) {
+      elided += 1;
+      continue;
+    }
+    const run = withApproval(hookRunOf(flat), input.approvals);
+    rows.push({
+      run: { ...run, late: true },
+      seqGlobal: flats.length + rows.length,
+      stepIndex: flat.entry.step,
+    });
+  }
+  return { rows, elided };
+}
+
+/** 훅 행 하나의 저장 모양(`tr_hook`). 열 이름이 정본 §3.4와 같다. 늦은 행의 표지는 열이 없어 `subject_json`에 싣는다 */
 export function trHookRowOf(
   row: { readonly run: HookRun; readonly seqGlobal: number },
   base: { readonly threadId: string; readonly turnId: string; readonly stepIndex: number },
@@ -244,14 +329,14 @@ export function trHookRowOf(
     plugin: run.plugin,
     versionId: run.versionId,
     toolCallId: run.toolCallId,
-    subjectJson: JSON.stringify(run.subject),
+    subjectJson: JSON.stringify(run.late === true ? { ...run.subject, late: true } : run.subject),
     decision: run.decision,
     result: run.result,
     reason: run.reason,
-    askVia: null,
-    askWaits: null,
-    askMs: null,
-    askAnswer: null,
+    askVia: run.ask?.via ?? null,
+    askWaits: run.ask?.waits ?? null,
+    askMs: run.ask?.waitMs ?? null,
+    askAnswer: run.ask?.answer ?? null,
     ms: run.ms,
     atMs: run.atMs,
     size: run.size,

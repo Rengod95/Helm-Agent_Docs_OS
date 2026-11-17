@@ -38,7 +38,9 @@ import type { TrSkillRow, TrStepBatch, TrToolUseRow } from "./turn-tables.ts";
 import {
   callRecordOf,
   flatHooksOf,
+  hookKeyOf,
   hooksOfStep,
+  lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
   newDraft,
@@ -197,10 +199,16 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     const stepId = record.stepId ?? `step:${String(stepIndex)}`;
     // 단계 끝의 훅(`boundary.step.after`, `boundary.settle.before`)은 이 커밋 전에 실행되어 이미 버퍼에 있다
     const entries = deps.trace?.turn(record.threadId, turnId)?.entries ?? [];
+    const flats = flatHooksOf(entries);
+    // 이 단계의 실행은 모두 본 것으로 친다(쓰거나 상한으로 버린 것). 아직 끝나지 않은 실행은 턴을 닫을 때 늦은 행이 된다
+    for (const flat of flats) {
+      if (flat.entry.step === stepIndex) draft.seenHooks.add(hookKeyOf(flat));
+    }
     const hooks = hooksOfStep(
-      flatHooksOf(entries),
+      flats,
       stepIndex,
       MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
+      draft.approvals,
     );
     draft.hookRows += hooks.rows.length;
     draft.elidedHooks += hooks.elided;
@@ -364,16 +372,50 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     const draft = draftOf(record, turnId);
     drafts.delete(turnId);
     const full = draft.level === "full";
-    // 단계 밖 훅(턴 경계)은 `record_json`의 `turnHooks`에만 든다. 행으로는 쓰지 않는다(§4.1 규칙 15의 남은 일)
-    const turnHooks = full
-      ? hooksOfStep(
-          flatHooksOf(deps.trace?.turn(record.threadId, turnId)?.entries ?? []),
-          0,
-          MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
-        ).rows.map((row) => row.run)
-      : [];
+    const flats = flatHooksOf(deps.trace?.turn(record.threadId, turnId)?.entries ?? []);
+    // 단계 밖 훅(턴 경계: step 0)은 `record_json`의 `turnHooks`에만 든다. 행으로는 쓰지 않는다(§3.2)
+    const turnRows = full
+      ? hooksOfStep(flats, 0, MAX_HOOK_ROWS_PER_TURN - draft.hookRows, draft.approvals)
+      : { rows: [], elided: 0 };
+    const turnHooks = turnRows.rows.map((row) => row.run);
+    // 아직 행으로 쓰지 않은 훅 실행은 늦은 행이다(§7 분리 실행). 실행이 시작된 단계에 한 번만 쓰고, 상한은 턴 훅 다음이다
+    const late = full
+      ? lateHooksOf(flats, {
+          seen: draft.seenHooks,
+          approvals: draft.approvals,
+          room: MAX_HOOK_ROWS_PER_TURN - draft.hookRows - turnRows.rows.length,
+        })
+      : { rows: [], elided: 0 };
+    draft.hookRows += turnRows.rows.length + late.rows.length;
+    draft.elidedHooks += turnRows.elided + late.elided;
+    // 늦은 행은 그 단계의 기록에도 더한다(`record_json`의 steps.hooks). 단계 기록이 없으면 행으로만 남는다
+    for (let at = 0; at < draft.steps.length; at += 1) {
+      const step = draft.steps[at];
+      if (step === undefined) continue;
+      const extra = late.rows
+        .filter((row) => row.stepIndex === step.stepIndex)
+        .map((row) => row.run);
+      if (extra.length > 0) draft.steps[at] = { ...step, hooks: [...step.hooks, ...extra] };
+    }
+    const lateBatch = late.rows.map((row) =>
+      trHookRowOf(
+        { run: row.run, seqGlobal: row.seqGlobal },
+        { threadId: draft.threadId, turnId: draft.turnId, stepIndex: row.stepIndex },
+      ),
+    );
     const endedAt = record.recordedAt;
     deps.queue((store) => {
+      // 늦은 행을 먼저 쓴다. 쓰기가 실패하면 턴은 불완전하다
+      if (lateBatch.length > 0) {
+        const written = store.writeHooks(lateBatch);
+        if (!written.ok) {
+          draft.writeFailures += 1;
+          deps.logger.warn("measure.hook_write_failed", {
+            reason: written.error.kind,
+            turnId,
+          });
+        }
+      }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
       const complete = full && draft.writeFailures === 0;
       writeTurnRow(store, draft, { status, endedAt, complete, turnHooks }, "closed");
@@ -408,6 +450,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         return;
       }
       draft.callRows += 1;
+      // 승인 해결은 훅 행의 물음 답을 채울 때 쓴다(턴을 닫을 때 늦은 행에도 맞도록 턴 단위로 쥔다)
+      if (event.approval !== null) draft.approvals.set(event.toolCallId, event.approval);
       const bucket = draft.toolCalls.get(event.stepId) ?? [];
       bucket.push(event);
       draft.toolCalls.set(event.stepId, bucket);

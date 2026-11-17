@@ -1430,7 +1430,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.8.2 핸들러 결과 다섯과 기록 칸 [제안: 2026-11-04 T-MEAS-HOOK 기본값, 결과 다섯 이름은 기획서]
 
-핸들러 기록(`TraceHandlerEntry`)은 `{registrationId, ms, result, atMs, size, skippedBy, reason}`이다. `result`는 다섯 가지다. 결과는 핸들러가 값을 내고 끝난 뒤 fold가 그 값을 어떻게 받아들였는지로 정한다(실행 결과만 보던 이전 대응은 없다. 옛 이름 읽기 없음).
+핸들러 기록(`TraceHandlerEntry`)은 `{registrationId, ms, result, atMs, size, skippedBy, reason}`이다. 선택 칸 `toolCallId`, `plugin`, `versionId`, `sourceKind`, `decision`, `ask`가 더 있다(아래 항목). `result`는 다섯 가지다. 결과는 핸들러가 값을 내고 끝난 뒤 fold가 그 값을 어떻게 받아들였는지로 정한다(실행 결과만 보던 이전 대응은 없다. 옛 이름 읽기 없음).
 
 | `result` | 뜻 | 만나는 곳 |
 |---|---|---|
@@ -1445,6 +1445,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - `size`: 바뀐 크기다. `modified`일 때 낸 값의 JSON 문자 수이고 직렬화할 수 없으면 0이다. 그 밖의 결과는 0이다. 계측이 꺼져 있으면 세지 않는다.
 - `skippedBy`: chain의 `stop` 규칙이나 first의 결정(거부 대체 포함)이 뒤 핸들러를 멈췄을 때, 실행하지 못한 핸들러마다 멈춘 핸들러의 RegistrationId를 적는다. 이 기록의 수가 "앞 핸들러 때문에 건너뛴 횟수"다(측정 저장소는 Turn 요약 행의 `hookSkippedByEarlier`로 둔다). 훅별 순서에서 빠진(꺼진) 핸들러는 세지 않는다.
 - 도구 호출 id(`toolCallId`, 선택) [제안: M5d 턴 기록 정본 `review/m5/turn-record-metrics.md` §4.2 규칙 13]: 디스패치 키가 `<stepId>:<훅>:<toolCallId>[:<n>]` 모양인 도구 호출 훅(`tool.call.before`, `guard.tool.before`, `tool.result`, `tool.execution.before`, `tool.execution.update`, `tool.execution.after`)의 핸들러 기록에는 셋째 자리를 `toolCallId`로 남긴다. 다른 훅의 키(예: 승인 `approval:<id>:…`)나 접미가 없는 키의 기록에는 이 칸을 두지 않는다(생략한다, 옛 기록과 같은 모양) [근거: packages/ext-host/src/operations/trace-buffer.ts `toolCallIdOf`]. 와이어 `TraceHandlerEntry`(`trace.turn`)에 선택 필드로 더했다. 다섯 결과 이름과 나머지 칸은 그대로다.
+- 출처와 결정(선택 칸, 턴 기록 정본 `review/m5/turn-record-metrics.md` §4.2 규칙 12·16) [제안: M5d-1]: 디스패처는 등록 항목에서 `plugin`(확장 이름)과 `sourceKind`(내장 등록이면 `builtin`, 그 밖은 `plugin`)을 싣고, `versionId`는 로더가 버전을 알려주기 전까지 `null`이다. 외부 훅 행은 실행기가 `plugin: "external-hook:<id>"`, `sourceKind: "external_hook"`을 싣는다. `decision`은 핸들러가 낸 값의 결정(`none`, `block`, `ask`, `replace`, `cancel`, `answer`)이다. 합치기 훅(`tool.call.before`, `agent.spawn.before`)은 종류를 그대로 쓰고, 그 밖의 first 훅은 값에서 가려낸다(`hookDecisionOf`, 막음 기준에 걸리면 `block`). 결과(`blocked`, `passed`)는 결정과 상관없이 정한다.
+- 물음 메타데이터 `ask`(선택, 규칙 14) [제안: M5d-1]: 결정이 `ask`면 `{via: "decision"}`, 핸들러가 `awaitUser`로 기다렸으면 `{via: "awaitUser"}`다. `waits`는 기다린 횟수, `waitMs`는 기다린 시간 합이고 디스패처 시계로 잰다(`user-wait.ts`의 `WaitTally`). 대기 시간은 예산 게이트(`runWithBudget`)가 `ms`에서 이미 뺀다. 게이트가 없는 `ownRun` 경로는 빈 게이트라 대기 시간이 `ms`에 남는다. `approvalId`와 `answer`는 디스패처가 모르므로 `null`이고, 호스트 기록기가 같은 호출의 승인 해결(`approval`)에서 채운다. 승인이 없는 `awaitUser`의 답은 `null`로 남는다.
 - 값을 낸 뒤 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`)는 `failed`다. tap이 값을 반환한 `value_from_tap`은 동작에 영향이 없어 `passed`다.
 - collect는 병합이 끝난 뒤에 기록을 남기고(병합 거부가 기여 하나를 `failed`로 바꿀 수 있다), 순서는 실행 순서를 유지한다.
 - 외부 훅(§4.7) 행 [제안: 2026-11-04 hookrun 기본값]: 외부 훅 단위(`fresnel-hooks-<훅 id>`)는 자기 행을 기록하지 않는다(`hidden`). 실행기가 맞은 훅마다 `registrationId`가 `hook:<id>`인 행을 같은 항목에 넣는다. `ms`는 그 훅의 활성 시간, `atMs`는 그 훅이 시작한 시점이다. 결과는 패치가 합쳐지면 `modified`(`size`는 패치의 JSON 문자 수), `block`·`cancel`·`type: deny` 결정이나 종료 코드 2의 거부면 `blocked`, 빈 출력·패치 없는 출력이면 `passed`, 시간 초과는 `failed`(`timeout`), 출력 검사 실패는 `failed`(`result_invalid`), 그 밖의 비정상 종료와 시작 실패는 `failed`(`threw`)다. 훅이 하나도 맞지 않은 호출에는 단위 행도 항목도 없다 [근거: packages/ext-host/test/operations/hooks.test.ts, "trace: a call no external hook matches"]. 앞선 핸들러(다른 확장이나 같은 훅 이름의 앞 훅)가 디스패치를 멈춰 단위가 실행되지 않으면 그 훅은 행이 없다. 디스패처가 남기는 단위의 `skipped` 행은 숨겨진다(알려진 한계: 이 thread에 적용되지 않는 훅의 건너뜀과 구별할 수 없다) [근거: 미구현, 알려진 한계].

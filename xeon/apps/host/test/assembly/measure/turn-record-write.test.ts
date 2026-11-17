@@ -647,3 +647,175 @@ test("a turn keeps at most 500 call rows and counts the rest in elided.calls", a
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a hook that finishes after its step's step.completed is written once, with its own step and the late marker", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    trace.entries.push(
+      {
+        seq: 0,
+        hook: "tool.call.before",
+        step: 1,
+        handlers: [handler("ext:a", "passed", "call_1")],
+      },
+      { seq: 1, hook: "boundary.step.after", step: 1, handlers: [handler("ext:b", "passed")] },
+    );
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    await settle();
+    // 단계 끝 뒤에 끝난 처리기는 같은 항목에 더해진다. 이미 쓴 두 행은 그대로다
+    trace.entries.splice(1, 1, {
+      seq: 1,
+      hook: "boundary.step.after",
+      step: 1,
+      handlers: [handler("ext:b", "passed"), handler("ext:late", "modified")],
+    });
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    // 늦은 행은 실행이 시작된 단계(1)에 한 번 쓴다. 번호는 턴의 실행 수(3) 뒤에서 잇는다
+    expect(
+      bundle.value.hooks.map((row) => [
+        row.stepIndex,
+        row.registrationId,
+        row.seqGlobal,
+        row.subjectJson,
+      ]),
+    ).toEqual([
+      [1, "ext:a", 0, '{"toolCallId":"call_1"}'],
+      [1, "ext:b", 1, "{}"],
+      [1, "ext:late", 3, '{"late":true}'],
+    ]);
+    // 기록에서도 같은 단계에 늦은 행이 한 번 더해진다
+    const checked = parse(TurnRecordSchema, JSON.parse(bundle.value.turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    expect(checked.value.steps[0]?.hooks.map((hook) => [hook.registrationId, hook.late])).toEqual([
+      ["ext:a", undefined],
+      ["ext:b", undefined],
+      ["ext:late", true],
+    ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("hooks outside any step land in turnHooks and get no tr_hook row, and step hooks stay with their step", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    // 턴 시작 훅과 컨텍스트 조립 앞의 첫 훅은 step 0이다. 단계의 도구 호출 훅은 step 1이다
+    trace.entries.push(
+      {
+        seq: 0,
+        hook: "boundary.turn.before",
+        step: 0,
+        handlers: [handler("ext:open", "passed")],
+      },
+      { seq: 1, hook: "input.agent.before", step: 0, handlers: [handler("ext:ctx", "modified")] },
+      {
+        seq: 2,
+        hook: "tool.call.before",
+        step: 1,
+        handlers: [handler("ext:a", "passed", "call_1")],
+      },
+    );
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(bundle.value.hooks.map((row) => [row.stepIndex, row.registrationId])).toEqual([
+      [1, "ext:a"],
+    ]);
+    const checked = parse(TurnRecordSchema, JSON.parse(bundle.value.turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    expect(
+      checked.value.turnHooks.map((hook) => [hook.hook, hook.registrationId, hook.seq]),
+    ).toEqual([
+      ["boundary.turn.before", "ext:open", 0],
+      ["input.agent.before", "ext:ctx", 1],
+    ]);
+    expect(checked.value.steps[0]?.hooks.map((hook) => hook.registrationId)).toEqual(["ext:a"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a decision ask takes its wait, approval id and answer from the call's approval; an awaitUser ask keeps its own waits", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    trace.entries.push({
+      seq: 0,
+      hook: "tool.call.before",
+      step: 1,
+      handlers: [
+        {
+          ...handler("ext:asker", "passed", "call_2"),
+          decision: "ask",
+          ask: { via: "decision", waits: 0, waitMs: 0, approvalId: null, answer: null },
+        },
+        {
+          ...handler("ext:waiter", "passed", "call_2"),
+          ask: { via: "awaitUser", waits: 2, waitMs: 90, approvalId: null, answer: null },
+        },
+      ],
+    });
+    harness.call(
+      callEvent("call_2", {
+        approval: {
+          approvalId: "apr_1",
+          decision: "allow",
+          resolvedBy: "user",
+          waitMs: 420,
+          inheritedFrom: null,
+        },
+      }),
+    );
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(
+      bundle.value.hooks.map((row) => [
+        row.registrationId,
+        row.decision,
+        row.askVia,
+        row.askWaits,
+        row.askMs,
+        row.askAnswer,
+        row.subjectJson,
+      ]),
+    ).toEqual([
+      [
+        "ext:asker",
+        "ask",
+        "decision",
+        0,
+        420,
+        "allow",
+        '{"toolCallId":"call_2","approvalId":"apr_1"}',
+      ],
+      ["ext:waiter", "none", "awaitUser", 2, 90, null, '{"toolCallId":"call_2"}'],
+    ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

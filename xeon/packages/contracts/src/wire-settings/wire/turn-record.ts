@@ -226,6 +226,11 @@ export interface HookRun {
   readonly skippedBy: string | null;
   /** blocked의 사유. 시크릿을 가리고 200자까지 */
   readonly decisionText: string | null;
+  /**
+   * 이 실행이 이미 쓴 단계 뒤에 끝났다(분리 실행, 턴 끝 전 늦은 도착). 있으면 `true`, 없으면 생략한다.
+   * 행은 실행이 시작된 단계에 쓰고, 이 표지는 기록이 늦었다는 뜻일 뿐 결과를 바꾸지 않는다(§7 분리 실행 행)
+   */
+  readonly late?: true;
 }
 const HookRunShape = closed({
   hook: Name,
@@ -245,6 +250,7 @@ const HookRunShape = closed({
   size: Count,
   skippedBy: Nullable(Id),
   decisionText: Nullable(Type.String({ maxLength: 200 })),
+  late: Type.Optional(Type.Literal(true)),
 });
 export const HookRunSchema: TUnsafe<HookRun> = Type.Unsafe<HookRun>(
   HookRunShape satisfies SchemaProof<HookRun, typeof HookRunShape>,
