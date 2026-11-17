@@ -1,0 +1,348 @@
+// 마이그레이션 라이브러리의 공용 타입. review.m5-migration §4.1, §5.2, §7.2의 모양을 첫 조각(조각 1)의 범위로 줄인 것이다.
+// 이 파일은 타입만 갖는다. wire(`migration.*`)로 옮길 때는 같은 모양을 TypeBox 스키마로 옮긴다(enC1의 계약이 병합된 뒤).
+
+/** 원본 하네스. 첫 조각은 셋이다: Claude Code 형식, 공통 AGENTS.md, 공통 Agent Skills */
+export type HarnessId = "claude-code" | "agents-md" | "agent-skills";
+
+/** 중간 표현의 종류(§4.1). 첫 조각이 만드는 것은 instruction, skill, command, agent, mcp, field, blocked다 */
+export type IrKind = "instruction" | "skill" | "command" | "agent" | "mcp" | "field" | "blocked";
+
+export type ItemScope = "user" | "project" | "local" | "managed" | "plugin";
+
+// ── 읽기 전용 파일 접근 ────────────────────────────────────────────────────
+
+export type ScanStat = {
+  readonly kind: "file" | "dir" | "symlink" | "other";
+  readonly size: number;
+};
+
+export type ScanRead =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "binary"; readonly bytes: Uint8Array }
+  | { readonly kind: "too_large" }
+  | { readonly kind: "unreadable" };
+
+/** 읽기 전용이다. 쓰기, 삭제, 이름 바꾸기 메서드가 없다(수용 기준 4) */
+export interface ScanFs {
+  /** 없으면 null. 심볼릭 링크는 따라가지 않고 `symlink`로 돌려준다 */
+  lstat(path: string): Promise<ScanStat | null>;
+  /** 항목 이름만 돌려준다(경로 아님). 정렬은 호출자가 한다 */
+  listDir(path: string): Promise<readonly string[]>;
+  readBounded(path: string, maxBytes: number): Promise<ScanRead>;
+  realpath(path: string): Promise<string>;
+}
+
+export interface ScanRoot {
+  /** 절대 경로. 홈은 `~`로 줄여 쓰지 않는다(어댑터가 항목 경로를 쓸 때 `homeDir`로 줄인다) */
+  readonly path: string;
+  readonly scope: "user" | "project";
+  readonly label: string;
+}
+
+export interface ScanLimits {
+  /** 파일 하나의 상한(바이트). 기본 1 MiB */
+  readonly maxFileBytes: number;
+  /** 스킬 폴더 하나의 파일 수 상한. 기본 2000 */
+  readonly maxSkillFiles: number;
+  /** 스킬 폴더 하나의 합계 바이트 상한. 기본 32 MiB */
+  readonly maxSkillBytes: number;
+  /** 폴더 깊이 상한. 기본 16 */
+  readonly maxDepth: number;
+  /** `~/.claude.json` 읽기 상한. 기본 16 MiB */
+  readonly maxClaudeJsonBytes: number;
+}
+
+export const DEFAULT_SCAN_LIMITS: ScanLimits = {
+  maxFileBytes: 1024 * 1024,
+  maxSkillFiles: 2000,
+  maxSkillBytes: 32 * 1024 * 1024,
+  maxDepth: 16,
+  maxClaudeJsonBytes: 16 * 1024 * 1024,
+};
+
+export interface ScanContext {
+  /** 사용자 홈의 절대 경로. 항목 경로를 `~/…`로 줄이는 데만 쓴다 */
+  readonly homeDir: string;
+}
+
+// ── 중간 표현(IR) ─────────────────────────────────────────────────────────
+
+export interface IrFile {
+  /** 스킬 폴더 기준 상대 경로(`/` 구분) */
+  readonly path: string;
+  readonly bytes: Uint8Array;
+}
+
+export interface IrInstruction {
+  readonly kind: "instruction";
+  /** 파일 이름에서 확장자를 뺀 값. 초안의 `instructions/<name>.md`가 된다 */
+  readonly name: string;
+  /** 가져오기(`@경로`)를 푼 뒤의 원문. 머리글이나 설명을 더하지 않는다 */
+  readonly text: string;
+  /** 첫 조각은 `always`만 옮긴다. `globs`가 있는 규칙은 `activation: "globs"`로 잡혀 보고만 된다 */
+  readonly activation: "always" | "globs";
+  readonly globs: readonly string[];
+  /** 지침의 출처 종류. `project_file`은 프로젝트의 CLAUDE.md 계열이라 옮기지 않는다(§6.2) */
+  readonly role: "user_global" | "rule" | "project_file" | "agents_md";
+  /** `role: "project_file"`일 때만. 본문이 `@AGENTS.md` 한 줄뿐이다 */
+  readonly onlyAgentsMdImport: boolean;
+  /** 가져오기를 푼 순서대로의 조각. 연결하면 `text`와 같다. 가져온 파일 경로(루트 기준)가 `source`다 */
+  readonly parts: readonly { readonly source: string; readonly text: string }[];
+}
+
+export interface IrSkill {
+  readonly kind: "skill";
+  /** 폴더 이름 */
+  readonly dirName: string;
+  /** 머리말 `name`. 없으면 undefined */
+  readonly name: string | undefined;
+  readonly description: string | undefined;
+  /** 폴더 안의 모든 파일(SKILL.md 포함), 경로 순 */
+  readonly files: readonly IrFile[];
+}
+
+export interface IrCommand {
+  readonly kind: "command";
+  /** 이름 공간(`a/b.md` → `a-b`)을 평탄화한 이름 */
+  readonly name: string;
+  /** 원래 상대 경로(`.claude/commands/` 기준, `a/b.md`) */
+  readonly relPath: string;
+  /** 파일 전체 원문(머리말 포함) */
+  readonly text: string;
+  readonly description: string | undefined;
+  /** 본문에 `$ARGUMENTS`, `$1`, `$이름`, `` !`cmd` `` 같은 치환이 있다 */
+  readonly hasSubstitutions: boolean;
+}
+
+export interface IrAgent {
+  readonly kind: "agent";
+  /** 파일 이름에서 확장자를 뺀 값 */
+  readonly fileName: string;
+  readonly name: string | undefined;
+  readonly description: string | undefined;
+  /** 머리말 뒤의 본문 */
+  readonly prompt: string;
+  /** Claude `tools`를 쉼표로 나눈 이름들. 없으면 undefined */
+  readonly tools: readonly string[] | undefined;
+  readonly disallowedTools: readonly string[] | undefined;
+  readonly model: string | undefined;
+  readonly permissionMode: string | undefined;
+}
+
+export interface IrMcp {
+  readonly kind: "mcp";
+  /** 원본 서버 이름 */
+  readonly serverName: string;
+  /** 정규화한 서버 id. 정규화가 불가능하면 undefined */
+  readonly id: string | undefined;
+  readonly transport: "stdio" | "http" | "sse" | "ws" | "unknown";
+  /** 가린 뒤의 정의(시크릿 값은 `secret://` 참조나 빠짐). 변환 불가면 undefined */
+  readonly def: McpDefDraft | undefined;
+  /** 시크릿 참조로 바뀐 자리(환경 변수 참조 또는 리터럴 시크릿). 값은 없다. `def`의 해당 값은 `secret://<secretName>`이다 */
+  readonly secretRefs: readonly {
+    /** `env.API_KEY`, `headers.Authorization` 같은 자리 */
+    readonly place: string;
+    /** 원본 환경 변수 이름, 리터럴이면 env·header 이름 */
+    readonly varName: string;
+    /** `secret://` 뒤의 이름. `^[a-z][a-z0-9-]{1,63}$` */
+    readonly secretName: string;
+    readonly origin: "env_ref" | "literal";
+  }[];
+  /** 프로젝트 범위 서버가 프로젝트 경로를 참조(`${CLAUDE_PROJECT_DIR}`, 상대 cwd)했다 */
+  readonly projectBound: boolean;
+}
+
+/** `McpServerDef`와 같은 모양의 초안. 검증은 `McpServerDefSchema`와 `checkDefinitionValues`와 같은 규칙으로 한다 */
+export interface McpDefDraft {
+  readonly transport:
+    | {
+        readonly type: "stdio";
+        readonly command: string;
+        readonly args?: readonly string[];
+        readonly cwd?: string;
+        readonly env?: Readonly<Record<string, string>>;
+      }
+    | {
+        readonly type: "http" | "sse";
+        readonly url: string;
+        readonly headers?: Readonly<Record<string, string>>;
+        readonly oauth?: boolean;
+      };
+  readonly timeouts?: { readonly connectMs?: number; readonly callMs?: number };
+}
+
+/** 알려진 컨테이너(스킬 머리말, 서브에이전트 머리말, 명령 머리말, MCP 항목)의 키 하나. 규칙이 처리를 정한다 */
+export interface IrField {
+  readonly kind: "field";
+  /** 키를 가진 컨테이너: `skill`, `command`, `agent`, `mcp`, `skill-body` */
+  readonly container: string;
+  readonly key: string;
+  /** 사람이 읽는 값 요약(시크릿이 아닐 때만. 가린 뒤). 없으면 undefined */
+  readonly summary: string | undefined;
+}
+
+/** 어댑터가 알아본, 옮길 수 없다고 이미 정해진 것(범위 밖 가져오기, 알 수 없는 위치의 파일 등) */
+export interface IrBlocked {
+  readonly kind: "blocked";
+  readonly of: IrKind;
+  /** 규칙 데이터가 `match.code`로 고르는 값 */
+  readonly code: string;
+  readonly text: string;
+}
+
+export type IrNode = IrInstruction | IrSkill | IrCommand | IrAgent | IrMcp | IrField | IrBlocked;
+
+// ── 훑기 결과 ─────────────────────────────────────────────────────────────
+
+export type ItemSecret = {
+  readonly keyPath: string;
+  readonly kind: "env_ref" | "literal";
+  readonly name?: string;
+};
+
+export interface SourceItem {
+  /** hash(harness, kind, scope, keyPath 또는 path)의 앞 16자리 16진수. 내용이 바뀌어도 같다 */
+  readonly itemId: string;
+  readonly harness: HarnessId;
+  readonly kind: IrKind;
+  readonly scope: ItemScope;
+  /** 이 항목을 훑은 `ScanRoot.label`. 프로젝트 이름 프로필 제안에 쓴다 */
+  readonly rootLabel: string;
+  /** 홈은 `~`로 줄인 경로 */
+  readonly path: string;
+  readonly keyPath?: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  /** 가린 뒤의 중간 표현. 시크릿 값은 없다 */
+  readonly ir: IrNode;
+  /** 값 없이 자리와 이름만 */
+  readonly secrets: readonly ItemSecret[];
+  readonly warnings: readonly string[];
+}
+
+export interface ScanDiagnostic {
+  readonly code: "unreadable" | "too_large" | "invalid_json" | "limit" | "invalid_frontmatter";
+  readonly path: string;
+  readonly message: string;
+}
+
+export interface MigrationScan {
+  readonly roots: readonly ScanRoot[];
+  /** 훑은 위치(보고서 머리에 밝힌다). 홈은 `~`로 줄인다 */
+  readonly scanned: readonly string[];
+  readonly items: readonly SourceItem[];
+  readonly diagnostics: readonly ScanDiagnostic[];
+  readonly limits: ScanLimits;
+}
+
+export interface SourceAdapter {
+  readonly harness: HarnessId;
+  readonly rulesVersion: string;
+  scan(
+    root: ScanRoot,
+    fs: ScanFs,
+    limits: ScanLimits,
+    ctx: ScanContext,
+  ): Promise<{
+    readonly items: readonly SourceItem[];
+    readonly diagnostics: readonly ScanDiagnostic[];
+    readonly scanned: readonly string[];
+  }>;
+}
+
+// ── 규칙, 제안, 보고서 ────────────────────────────────────────────────────
+
+export type ReportStatus = "exact" | "differs" | "not_ported" | "not_needed";
+
+export type DifferenceKind =
+  | "semantic_loss"
+  | "scope_change"
+  | "time_limit"
+  | "cost"
+  | "enforcement_change"
+  | "approval_flow"
+  | "renamed"
+  | "user_choice";
+
+export interface ReportLine {
+  readonly itemId: string;
+  readonly harness: HarnessId;
+  readonly kind: IrKind;
+  /** 사람이 읽는 이름: "스킬 deploy", "MCP 서버 github" */
+  readonly label: string;
+  readonly source: { readonly scope: ItemScope; readonly path: string; readonly key?: string };
+  readonly status: ReportStatus;
+  readonly differences: readonly { readonly kind: DifferenceKind; readonly text: string }[];
+  readonly reason?: { readonly code: string; readonly text: string };
+  readonly alternative?: string;
+  /** 어느 플러그인 초안의 어느 파일로 갔나 */
+  readonly output?: { readonly plugin: string; readonly path: string };
+}
+
+export interface Question {
+  readonly id: string;
+  readonly itemId: string;
+  readonly text: string;
+  /** 고를 수 있는 값. 첫째가 기본 제안이다 */
+  readonly options: readonly string[];
+}
+
+/** 사용자의 답. 키는 `Question.id` */
+export interface Choices {
+  readonly answers: Readonly<Record<string, string>>;
+  /** 플러그인 이름에 붙일 이름 충돌 회피용 이미 있는 플러그인 이름 */
+  readonly existingPlugins?: readonly string[];
+}
+
+export interface UserConfigDraft {
+  /** `ext.<플러그인>.<키>` 형식의 설정 키는 enC1의 매니페스트 계약이 정한다. 여기서는 키 이름과 안내만 */
+  readonly key: string;
+  readonly title: string;
+  readonly sensitive: boolean;
+  readonly required: boolean;
+  /** 값이 들어갈 `secret://` 참조 이름(`secret://` 뒤) */
+  readonly secretName: string;
+}
+
+export interface PlannedPlugin {
+  readonly name: string;
+  /** 한 문장. 없으면 검토에서 승인할 수 없다(M5c §4.7.6) */
+  readonly purpose: string;
+  /** 이 플러그인이 나온 원본 항목들 */
+  readonly derivedFrom: readonly string[];
+  /** 폴더 트리. 경로는 플러그인 폴더 기준 상대 경로(`/` 구분)이고 값은 바이트다 */
+  readonly tree: ReadonlyMap<string, Uint8Array>;
+  /** 결정적으로 못 만들어 빌더에게 넘길 itemId. 첫 조각은 항상 빈 목록이다 */
+  readonly pendingBuilder: readonly string[];
+  readonly userConfig: readonly UserConfigDraft[];
+}
+
+export interface ProfileProposal {
+  readonly profileName: string;
+  /** 이 프로필에 넣자고 제안하는 플러그인 이름. 프로젝트 범위 항목만 모은다 */
+  readonly plugins: readonly string[];
+  readonly reason: string;
+}
+
+export interface MigrationProposal {
+  readonly rulesVersions: Readonly<Record<string, string>>;
+  readonly scanned: readonly string[];
+  readonly plugins: readonly PlannedPlugin[];
+  readonly profileProposals: readonly ProfileProposal[];
+  readonly questions: readonly Question[];
+  /** 항목 하나에 한 줄. 질문이 열려 있으면 해당 줄은 "예상"이다 */
+  readonly report: readonly ReportLine[];
+}
+
+// ── 감지(M5g-0) ───────────────────────────────────────────────────────────
+
+/** 감지 표지 하나. 존재만 확인한 결과이고 내용은 읽지 않는다 */
+export interface ForeignFormatMarker {
+  /** 프로젝트 루트 기준 상대 경로. 상위 폴더의 `.agents/skills`는 `../.agents/skills`처럼 적는다 */
+  readonly marker: string;
+  readonly harness: HarnessId | "other";
+  /** 지금 엔진이 이 자리를 읽는가(제거 예정). 거짓이면 엔진은 읽지 않고 가져오기로만 옮길 수 있다 */
+  readonly engineReads: boolean;
+  /** 이 라이브러리의 첫 조각이 가져올 수 있는가 */
+  readonly importable: boolean;
+}
