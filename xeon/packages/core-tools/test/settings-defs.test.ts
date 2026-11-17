@@ -48,7 +48,7 @@ describe("l1.tools settings", () => {
       "l1.tools.unattended.approval": "expire",
       "l1.tools.unattended.timeoutSeconds": 3600,
       "l1.tools.pluginCallDepth": 3,
-      "l1.tools.pluginCalls": false,
+      "l1.tools.pluginCalls": true,
     });
   });
 

@@ -356,3 +356,77 @@ test("toolMappedFor is true only for a method that a model tool maps, never for 
   expect(h.runtime.tools.toolMappedFor("workspace.files", "read")).toBe(true);
   expect(h.runtime.tools.toolMappedFor("test.synth", "write")).toBe(false);
 });
+
+// F.capabilities `MethodDef.risk`: 합성 항목의 위험 등급은 메서드가 선언한다. 선언이 없으면 가장 엄한 exec다.
+
+const Graded = defineCapability({
+  id: "test.graded",
+  version: "1.0.0",
+  description: "write methods with and without a declared risk",
+  service: {
+    methods: {
+      note: {
+        description: "changes only conversation state",
+        input: SynthInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+        risk: "read",
+      },
+      save: {
+        description: "writes into the workspace",
+        input: SynthInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+        risk: "write",
+      },
+      undeclared: {
+        description: "declares no risk",
+        input: SynthInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+      },
+    },
+  },
+  tools: [],
+});
+
+async function gradedHarness(): Promise<Harness> {
+  const h = await createHarness({
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+    capabilityDefs: [Graded],
+  });
+  h.apis.set(Graded.id, {
+    note: () => Promise.resolve({ ok: true }),
+    save: () => Promise.resolve({ ok: true }),
+    undeclared: () => Promise.resolve({ ok: true }),
+  });
+  h.runtime.tools.register({ kind: "capability", def: Graded, key: serviceKey(Graded) });
+  return h;
+}
+
+function gradedCall(h: Harness, method: string): Promise<unknown> {
+  return h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "capability", capability: "test.graded", method },
+      input: { value: "x" },
+      requestId: `graded-${method}`,
+    }),
+  );
+}
+
+test("in default mode a method declared risk read runs without a card, while write and undeclared methods ask", async () => {
+  const h = await gradedHarness();
+  expect(await gradedCall(h, "note")).toMatchObject({ ok: true, value: { isError: false } });
+  expect(h.runtime.approvals.pending(h.thread)).toEqual([]);
+
+  const save = gradedCall(h, "save");
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [saveCard] = h.runtime.approvals.pending(h.thread);
+  expect(saveCard?.body).toMatchObject({ kind: "tool", tool: { risk: "write" } });
+  await h.runtime.approvals.respond(saveCard?.approvalId ?? "", { decision: "allow" });
+  expect(await save).toMatchObject({ ok: true });
+
+  const undeclared = gradedCall(h, "undeclared");
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [card] = h.runtime.approvals.pending(h.thread);
+  expect(card?.body).toMatchObject({ kind: "tool", tool: { risk: "exec" } });
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
+  expect(await undeclared).toMatchObject({ ok: true });
+});

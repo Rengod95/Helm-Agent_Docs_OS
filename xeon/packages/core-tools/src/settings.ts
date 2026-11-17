@@ -69,7 +69,7 @@ export const TOOLS_SETTING_DEFAULTS: {
   // [제안] 플러그인 기능 호출이 훅 안에서 중첩될 수 있는 깊이(hooks-core-boundary §5.3 U-8 (다), 범위 1~8)
   pluginCallDepth: 3,
   // [제안] 플러그인의 기능 호출을 도구 파이프라인(훅, 정책, 승인, 효과 기록)으로 보낼지. 끄면 옛 직접 호출 경로를 쓴다(hooks-core-boundary §9 7단계)
-  pluginCalls: false,
+  pluginCalls: true,
 };
 
 /** 설정이 없을 때의 무인 승인 정책 */

@@ -290,7 +290,7 @@ function syntheticToolNameOf(capability: string, method: string): string {
 
 /**
  * 도구 매핑이 없고 `readOnly`가 아닌 기능 메서드의 합성 항목(U-1 (다)). 레지스트리에 넣지 않고 플러그인 기능 호출이 부를 때 정의에서 만든다.
- * 모델에는 광고되지 않는다. 위험 등급은 메서드 선언에 없으므로 보수적 기본값 `exec`다(호출자는 고를 수 없다).
+ * 모델에는 광고되지 않는다. 위험 등급은 메서드 정의의 `risk`다. 선언이 없으면 가장 엄한 `exec`다(호출자는 고를 수 없다).
  * 입력·출력 스키마와 재생 정책은 메서드 선언을 쓴다. 메서드가 없거나 매핑이 있거나 `readOnly`면 undefined다
  */
 export function syntheticEntryOf(
@@ -326,7 +326,7 @@ export function syntheticEntryOf(
     ref: { capability: def.id, name },
     capability: { id: def.id, method: methodName },
     mcpServer: undefined,
-    risk: "exec",
+    risk: method.risk ?? "exec",
     classes: [],
     hints: {},
     replay: method.replay ?? "unsafe",

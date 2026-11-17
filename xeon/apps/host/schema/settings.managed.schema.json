@@ -3680,7 +3680,7 @@
       }
     },
     "l1.tools.pluginCalls": {
-      "default": false,
+      "default": true,
       "type": "boolean",
       "x-fresnel": {
         "allowedScopes": [
