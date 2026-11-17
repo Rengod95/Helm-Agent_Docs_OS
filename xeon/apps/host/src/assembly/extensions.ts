@@ -138,6 +138,8 @@ export interface ExtensionDeps {
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 엔진 포트가 만들어진 뒤에 채워진다(core-agents가 자식 thread의 소유를 부모에게서 이어받는다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
+  /** 대화가 지워졌을 때 부른다(측정 저장소의 그 대화 행 지우기). 조립 루트가 넘긴다 */
+  readonly onThreadRemoved: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
   /** 그룹 서비스(`fresnel.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
   readonly groups: {
@@ -265,6 +267,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: persistenceSource(settings, deps.reportSetting),
           holder: deps.holder,
           onLeaseLost: deps.onLeaseLost,
+          onThreadRemoved: deps.onThreadRemoved,
           loadIndex,
         }),
     ],

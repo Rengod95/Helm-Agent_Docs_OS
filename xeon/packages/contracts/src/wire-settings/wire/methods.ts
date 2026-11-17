@@ -75,6 +75,7 @@ import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
+import { TURN_RECORD_WIRE_METHODS, type TurnRecordWireSchemas } from "./turn-record-methods.ts";
 import {
   PROFILE_TEST_RUN_METHODS,
   ProfileChangedParamsSchema,
@@ -1922,7 +1923,8 @@ interface WireSchemas
     DialogAreaSchemas,
     ProfileTestRunSchemas,
     DevkitWireSchemas,
-    MeasureWireSchemas {
+    MeasureWireSchemas,
+    TurnRecordWireSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -2250,13 +2252,13 @@ export interface WireMethodSpec {
   readonly since: SemVer;
   readonly status: FeatureStatus;
   /** 처음 구현하는 마일스톤 */
-  readonly stage: "M1" | "M2" | "M3" | "M4";
+  readonly stage: "M1" | "M2" | "M3" | "M4" | "M5";
 }
 
 function spec<P extends TSchema, R extends TSchema>(
   params: P,
   result: R,
-  stage: "M1" | "M2" | "M3" | "M4",
+  stage: "M1" | "M2" | "M3" | "M4" | "M5",
 ): WireMethodSpec & { readonly params: P; readonly result: R } {
   return { params, result, since: "0.1.0", status: "active", stage };
 }
@@ -2408,6 +2410,7 @@ export const WIRE_METHODS: {
   ...PROFILE_TEST_RUN_METHODS,
   ...DEVKIT_WIRE_METHODS,
   ...MEASURE_WIRE_METHODS,
+  ...TURN_RECORD_WIRE_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 

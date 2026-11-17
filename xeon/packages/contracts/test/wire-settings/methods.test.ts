@@ -33,7 +33,10 @@ function stageOfName(name: string): string | undefined {
 
 describe("WIRE_METHODS", () => {
   test("has the 48 M1~M3 methods of the spec table with their stages", () => {
-    expect(names.filter((n) => stageOfName(n) !== "M4")).toHaveLength(48);
+    expect(names.filter((n) => stageOfName(n) !== "M4" && stageOfName(n) !== "M5")).toHaveLength(
+      48,
+    );
+    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(12);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(

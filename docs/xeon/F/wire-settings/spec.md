@@ -416,6 +416,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trace | `trace.turn` | `{ threadId: string, turnId: string }` | `{ traceEnabled: boolean, retained: boolean, entries: { seq, hook, step, handlers: { registrationId, ms, result, atMs, size, skippedBy, reason }[] }[] }`. `result`는 `modified`·`passed`·`blocked`·`failed`·`skipped`, `atMs`는 Turn 시작 후 시점(ms), `size`는 바뀐 크기, `skippedBy`는 앞 핸들러 때문에 건너뛴 경우 그 RegistrationId(아니면 null), `reason`은 `failed`의 이유(`threw`·`timeout`·`result_invalid`·`merge_rejected`, 아니면 null). 정본은 X.operations §4.8.2다 | M4 (W-43) |
 | measure | `measure.turn` | `{ threadId: string, turnId: string }` | `{ enabled: boolean, rows: { at: number, kind: string, metrics: Record<string, number>, tags: Record<string, string> }[] }` | M4 (T-MEAS-READ) |
 | measure | `measure.daily` | `{ kind: string, metric: string }` | `{ enabled: boolean, days: { day: string, count: integer, sum: number, min: number, max: number }[] }` | M4 (T-MEAS-READ) |
+| turnRecord | `turnRecord.list` | `{ threadId, cursor?, limit?(기본 50, 최대 200), scope?, flags? }` | `{ enabled, level, items: TurnSummary[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.get` | `{ threadId, turnId, detail? }` | `{ enabled, level, record: TurnRecord \| null, absent: "never_recorded" \| "purged" \| "off" \| null }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.search` | `{ plugin, hook?, outcome?, period, scopes?, cursor?, limit? }` | `{ items: { threadId, turnId, hookSeq, plugin, outcome, at }[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.mark` | `{ threadId, turnId, plugin, mark: "followed" \| "not_followed" }` | `{}` | M5 (M5d, 턴 기록) |
+| metrics | `metrics.catalog` | `{}` | `{ metrics: MetricDef[] }` | M5 (M5d, 지표) |
+| metrics | `metrics.query` | `{ metrics: string[](최대 16), filter: MetricFilter, groupBy?, compare? }` | `{ window, rows, notes }` | M5 (M5d, 지표) |
+| findings | `findings.list` | `{ profileId?, period?, state? }` | `{ asOf, dataRevision, findings: Finding[] }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.evidence` | `{ findingId, cursor? }` | `{ items: EvidenceRef[], next }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.dismiss` | `{ findingId, until? }` | `{}` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.bundle` | `{ findingId }` | `{ bundle: FindingBundle, bytes }`(16 KiB 이하) | M5 (M5d, 살펴볼 것) |
+| profileCost | `profileCost.get` | `{ profileId, basis? }` | `{ profileId, rev, basis, nTurns, plugins: ProfileCostRow[], total: ProfileCostRow }` | M5 (M5d, 비용) |
+| testRun | `testRun.compare` | `{ threadIds: string[](2~8) }` | `{ sameInput, columns, rows: CompareRow[] }` | M5 (M5d, 테스트 실행) |
 | testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
@@ -1046,6 +1058,10 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3403 | `extension.safeModeActive` | false | 안전 모드라 `ext.reenable`·`ext.reload`를 받지 않는다. 안전 모드를 끄고 다시 시작해야 한다 | - |
 | 3405 | `hooks.notFound` | false | 그런 이름의 훅이 없다(`hooks.order.set`, `hooks.order.reset`, `hooks.order.preview`, `hooks.disableConfirm`, `hooks.reenable`). [결정: 2026-11-03 사용자] 3404는 옛 `hooks.guardPinned`(guard 고정 거절)가 쓰던 번호라 지금은 비어 있다. guard 이동은 거절하지 않는다 [근거: `apps/host/src/assembly/m4/ext-read-port.ts`의 `hookKnown`] | `hook` |
 | 3406 | `mcp.serverNotFound` | false | 그 id의 MCP 서버가 정의되어 있지 않다(`mcp.serverAction`) | `server` |
+| 3501 | `turnRecord.turnNotFound` | false | 로그에도 없는 턴이다(`turnRecord.get`, `turnRecord.mark`). 기록이 꺼졌거나 지워진 턴은 오류가 아니라 `absent`로 준다 [제안] | - |
+| 3511 | `metrics.unknownMetric` | false | `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) [제안] | - |
+| 3512 | `metrics.filterInvalid` | false | 필터가 잘못되었다(`metrics.query`, `turnRecord.search`). 두 메서드의 필터 검사는 같다 [제안] | - |
+| 3531 | `findings.notFound` | false | 그 id의 발견이 저장되어 있지 않다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) [제안] | - |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -1062,7 +1078,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32768 ~ -32000 | JSON-RPC 예약 | 표준 다섯 개만 쓴다 |
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
-| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 나머지 L1 예비 |
+| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 턴 기록·지표(3500~3599) [제안], 나머지 L1 예비 |
 | 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
@@ -1380,6 +1396,24 @@ export declare function checkSettingWrite(
 export declare function validateSettingValue(def: SettingDef, value: unknown):
   { readonly ok: true } | { readonly ok: false; readonly issues: readonly { readonly path: string; readonly message: string }[] };
 ```
+
+### 3.10 턴 기록 스키마 (`wire/turn-record.ts`) [제안]
+
+턴 기록(M5d)의 저장 문자열 정본은 `review/m5/turn-record-metrics.md`의 §3.2(기록), §3.5(메서드), §3.7(지난 턴에 돌려 보기), §3.8(화면용 읽기)이다. 이 파일은 다음을 export한다. 메서드는 처리기가 생기기 전까지 레지스트리(§3.3.1)에 넣지 않는다.
+
+- 값 목록과 타입: `RecordLevel`, `ScopeKind`(`live|overlay_reviewed|overlay_draft|test|craft`), `CallerKind`, `Verdict`(열네 가지), `HookOutcome`(표시값 여섯), `Dim`, 지표 상태와 이유, 턴 플래그 키.
+- 기록 타입과 TypeBox 스키마: `TurnRecord`와 하위 타입(`StepRecord`, `CallRecord`, `HookRun`, `FrameMark`, `OverlayMark`, `PluginCost`, `TurnFlags` 등). `HookRun.result`는 `TraceHandlerResult`를, `StepRecord.composition`은 `StepComposition`을 그대로 쓴다.
+- 지표와 발견, 지난 턴에 돌려 보기의 타입: `MetricFilter`, `MetricValue`, `MetricDef`, `EvidenceRef`, `Finding`, `BacktestItem`, `BacktestSummary`(`backtest.*` 메서드 스키마는 M5d-2다).
+- 메서드 params·result 스키마: `turnRecord.list·get·watch·unwatch·search·mark`, `metrics.query`, `findings.list·evidence·dismiss·bundle`, `profileCost.get`, `testRun.compare`와 알림 `turnRecord.delta`. `metrics.catalog`의 params는 `NoParamsSchema`, 결과 `{}`는 `EmptyParamsSchema`(`notifications.ts`)를 쓴다.
+
+재사용과 바뀐 곳:
+
+- `HookRun.reason`은 기록 전용 목록 `HOOK_FAILURE_REASONS`를 쓴다. 라이브 `TraceFailureReason` 네 값에 `process_exit`, `process_killed`를 더했다. 라이브 `trace.turn`(§3.3.1)과 `X.operations` §4.8.2는 네 값 그대로다. 라이브 목록에 더하면 apps/desktop의 `RESULT_REASON` 표(네 값 전부를 나열한 `Record`)가 깨져서 나눴다. 두 목록을 하나로 합칠지는 [미결] [근거: apps/desktop/src/views/craft/detail-flow.tsx].
+- `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안].
+- 오류 3501, 3511, 3512, 3531은 §3.5.2 표에 있다. 백테스트 3521~3525는 M5d-2에서 더한다.
+- 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
+- `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
+- 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].
 
 ## 4. 동작 규칙
 

@@ -125,6 +125,7 @@ import {
   type RequestBodyInput,
 } from "./assembly/measure/recorder.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
+import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -255,6 +256,28 @@ function retentionDaysOf(catalog: SettingCatalog, settings: SettingsEngine): num
   return typeof value === "number" && Number.isInteger(value) && value >= 1
     ? value
     : DEFAULT_RETENTION_DAYS;
+}
+
+/** 지표와 발견 설정의 유효 값(M5d §3.6). 카탈로그에 없거나 모양이 틀리면 문서의 기본값이다 */
+function metricsSettingsOf(
+  catalog: SettingCatalog,
+  settings: SettingsEngine,
+): MetricsSettingsValues {
+  const read = (key: string): unknown => (catalog.has(key) ? settings.value(key) : undefined);
+  const minSample = read("x.operations.metrics.minSample");
+  const windowDays = read("x.operations.metrics.defaultWindowDays");
+  return {
+    minSample:
+      typeof minSample === "number" && Number.isInteger(minSample) && minSample >= 1
+        ? minSample
+        : 20,
+    defaultWindowDays:
+      typeof windowDays === "number" && Number.isInteger(windowDays) && windowDays >= 1
+        ? windowDays
+        : 30,
+    findingsEnabled: read("x.operations.findings.enabled") !== false,
+    findingOverrides: read("x.operations.findings.overrides") ?? {},
+  };
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -619,7 +642,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
     recordBody: ((input: RequestBodyInput) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined, recordBody: undefined };
+    /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
+    forgetThread: ((threadId: string) => void) | undefined;
+  } = { stop: undefined, recordFailure: undefined, recordBody: undefined, forgetThread: undefined };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
   const bodySteps = new Map<string, number>();
   const offerRequestBody = (offer: RequestBodyOffer): void => {
@@ -1085,6 +1110,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         onLeaseLost: (threadId) => {
           logger.error("persistence.lease_lost", { threadId });
         },
+        // 대화를 지우면 측정 저장소의 턴 기록도 지운다(규칙 9). 저장소가 아직 없으면 지울 것도 없다
+        onThreadRemoved: (threadId) => {
+          measureSlot.forgetThread?.(threadId);
+        },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         offerBody: offerRequestBody,
@@ -1320,6 +1349,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
+    measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,
@@ -1342,6 +1372,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       measure: {
         store: () => measurement.store,
         enabled: () => operations.trace().enabled,
+        retentionDays: () => retentionDaysOf(built.catalog, settings),
+        now: () => clock.now(),
+        metrics: () => metricsSettingsOf(built.catalog, settings),
       },
       mode: options.mode,
       toolOutputs,

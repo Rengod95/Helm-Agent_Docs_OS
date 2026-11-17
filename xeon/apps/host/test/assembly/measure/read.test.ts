@@ -25,6 +25,18 @@ function openStore() {
   return opened.value;
 }
 
+/** 턴 기록 원천의 나머지 칸(이 시험은 측정 행만 본다) */
+const CLOCK = {
+  retentionDays: () => 30,
+  now: () => 0,
+  metrics: () => ({
+    minSample: 20,
+    defaultWindowDays: 30,
+    findingsEnabled: true,
+    findingOverrides: {},
+  }),
+};
+
 test("turn gives that turn's rows without the ids, and daily sums the days in date order", () => {
   const store = openStore();
   store.writeBatch([
@@ -32,7 +44,7 @@ test("turn gives that turn's rows without the ids, and daily sums the days in da
     call(T0 + 5, 60, "trn_1"),
     call(T0 + DAY, 40, "trn_2"),
   ]);
-  const port = createMeasurePort({ store: () => store, enabled: () => true });
+  const port = createMeasurePort({ ...CLOCK, store: () => store, enabled: () => true });
   expect(port.turn("thr_a", "trn_1")).toEqual({
     ok: true,
     value: {
@@ -58,15 +70,15 @@ test("turn gives that turn's rows without the ids, and daily sums the days in da
 test("off or without a store the answers are empty and enabled says why, a closed store is an error value", () => {
   const store = openStore();
   store.writeBatch([call(T0, 100, "trn_1")]);
-  const off = createMeasurePort({ store: () => store, enabled: () => false });
+  const off = createMeasurePort({ ...CLOCK, store: () => store, enabled: () => false });
   expect(off.turn("thr_a", "trn_1")).toEqual({ ok: true, value: { enabled: false, rows: [] } });
   expect(off.daily("call", "firstTokenMs")).toEqual({
     ok: true,
     value: { enabled: false, days: [] },
   });
-  const none = createMeasurePort({ store: () => undefined, enabled: () => true });
+  const none = createMeasurePort({ ...CLOCK, store: () => undefined, enabled: () => true });
   expect(none.turn("thr_a", "trn_1")).toEqual({ ok: true, value: { enabled: true, rows: [] } });
   store.close();
-  const closed = createMeasurePort({ store: () => store, enabled: () => true });
+  const closed = createMeasurePort({ ...CLOCK, store: () => store, enabled: () => true });
   expect(closed.turn("thr_a", "trn_1")).toEqual({ ok: false, error: { kind: "closed" } });
 });

@@ -1,5 +1,6 @@
 // Cordis 서비스 fresnel.session(SessionService)의 조립(L1.persistence.spec §3.3). 조립 루트가 deps를 넘긴다.
 import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   MigrationError,
   ProducerHandle,
@@ -122,6 +123,11 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     logger: deps.logger,
     points,
   });
+  /** 대화가 지워졌을 때: 설정 값의 대화 몫을 버리고, 호스트가 건 콜백(측정 저장소의 대화 행 지우기)을 부른다 */
+  const removed = (threadId: ThreadId): void => {
+    sessionSettings.forget(threadId);
+    deps.onThreadRemoved?.(threadId);
+  };
   const threads = createLifecycle({
     db: deps.db,
     leases: deps.leases,
@@ -136,7 +142,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     logger: deps.logger,
     projectorTables,
     onRemoved: (threadId) => {
-      sessionSettings.forget(threadId);
+      removed(threadId);
     },
   });
 
@@ -149,7 +155,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     settings,
     projectorTables,
     onRemoved: (threadId) => {
-      sessionSettings.forget(threadId);
+      removed(threadId);
     },
     logger: deps.logger,
   });

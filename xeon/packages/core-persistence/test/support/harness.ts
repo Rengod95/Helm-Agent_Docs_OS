@@ -85,6 +85,7 @@ export interface HarnessOptions {
   readonly ids?: IdFactory;
   readonly store?: TestStore;
   readonly onLeaseLost?: (threadId: ThreadId) => void;
+  readonly onThreadRemoved?: (threadId: ThreadId) => void;
   /** false면 엔진 LeaseHolder를 넘기지 않는다 */
   readonly withHolder?: boolean;
   readonly readBlob?: SessionDeps["readBlob"];
@@ -127,6 +128,7 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     ...(options.guardProjectors === undefined ? {} : { guardProjectors: options.guardProjectors }),
     ...(options.points === undefined ? {} : { points: options.points }),
     ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
+    ...(options.onThreadRemoved === undefined ? {} : { onThreadRemoved: options.onThreadRemoved }),
   });
   if (!created.ok)
     throw new Bug("harness could not create the session service", { cause: created.error });

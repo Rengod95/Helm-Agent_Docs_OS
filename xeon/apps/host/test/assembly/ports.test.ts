@@ -404,6 +404,8 @@ function harness(): Harness {
       holder: { holderId: "h", kind: "app" as const, pid: 1, startedAt: 1, host: "m" },
       settings: createSettingsEngine(built.catalog),
       configDir: "/nonexistent-config",
+      // 측정 저장소를 열지 못한 호스트와 같다. 테스트 표지는 메모리에만 남는다
+      measure: { store: () => undefined, enabled: () => false },
       trust: {
         resolve: () => Promise.reject(new Error("trust is not used by these tests")),
         isTrusted: () => Promise.resolve(false),
