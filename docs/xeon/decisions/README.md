@@ -95,6 +95,7 @@ binds: []
 | 0020 | L4 공유 클라이언트 패키지 | [ADR-0020-client-package.md](ADR-0020-client-package.md) | accepted | `packages/client`(`@fresnel/client`, L4, F에만 의존)에 연결 코드·설정 view-model·공유 표시 로직. F는 순수 계약. 예외 `DR-10/cli-client`, `DR-10/desktop-client` | 사용자 결정 2026-10-26(D-M3-26) | F(wire-settings), L4(cli, desktop, settings-ui) |
 | 0021 | 플러그인 화면 기여 | [ADR-0021-plugin-ui.md](ADR-0021-plugin-ui.md) | accepted | 선언형 모드와 격리 프레임 모드 |
 | 0022 | 플러그인 그룹 모델과 도메인 용어 | [ADR-0022-plugin-group-and-terms.md](ADR-0022-plugin-group-and-terms.md) | draft(proposed) | 이름 두 단계(id·표시 이름)와 선택적 통일. Thread → Run → Step → Item, 지점 → Hook(fold 이름 유지), Driver·drive lock, Process lock, Scheduler leader, Capability·Provider, Test run, Trace, Plugin UI·Placement, Native UI·Plugin App, Plugin Builder, Group SDK·Stages, 작업대 → Bench. Plugin Group·Registration·drive 넓히기는 사용자 확인 대기 | 사용자 결정 2026-11-01((2)·(3)·(4)), `_notes/domain-terms-review-2.md` §13 | F, X, L0~L4, 문서 전체 |
+| 0023 | 플러그인과 프로필: 고정 코어, 세 가지 일, 주도권 스택, 검토, 프로젝트 재정의 | [ADR-0023-plugin-profile-core.md](ADR-0023-plugin-profile-core.md) | draft | 단위는 플러그인과 프로필. 코어는 블록 여섯과 잠긴 보장, 하는 일은 Inject / Hook / Drive. 주도권은 프레임 스택과 단계 함수, 프로필은 대화 단위(스위치 없음), 검토된 사본만 실행. 프로젝트 재정의로 ADR-0022 §3.3과 2026-11-04 결정을 대체. 격리 1·2단계, 읽기 호환 없음 |
 
 - 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에, 0011~0014는 2026-10-25에, 0015~0020은 2026-10-26에 더했다. 0011~0014는 plan 표에만 있던 결정을 옮긴 것이다(마일스톤 재점검 G3-03, `review.m2-plan` §9).
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
