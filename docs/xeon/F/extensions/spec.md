@@ -713,15 +713,15 @@ export type StoreMigrationsPort = Pick<MigrationRunner, "apply">;
 export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort>; // { name: "fresnel.store", member: "migrations" }
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ────────
-/** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
+/** 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1, M5b-1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다 */
 export interface IsolationSpawnSpec {
-  /** 자식 런타임 진입점. ext-host의 isolation/child-main.ts 절대 경로 */
-  readonly main: string;
-  readonly args: readonly string[];
-  readonly cwd: string;
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다(X.loading-trust.spec §4.9.6) */
+  readonly command: string;          // process.execPath
+  readonly args: readonly string[];  // 하위 명령 `plugin-host --stdio`
+  /** 플러그인 패키지 폴더. 읽기 전용으로 열리고 작업 폴더다. 쓰기 없음, 네트워크 전체 허용 */
+  readonly readRoot: string;
+  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
-  readonly label: string;   // "ext:<name>:<generation>"
+  readonly label: string;            // "ext:<name>:<versionId>"
 }
 export interface IsolatedChild {
   readonly pid: number;
@@ -729,10 +729,13 @@ export interface IsolatedChild {
   readonly stdout: NodeJS.ReadableStream;
   readonly stderr: NodeJS.ReadableStream;
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
-  kill(signal: "SIGTERM" | "SIGKILL"): void;
+  kill(signal: "SIGTERM" | "SIGKILL"): void;  // 프로세스 트리 전체
 }
+export type IsolationSpawnError =
+  | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };  // 격리 없이 띄우지 않는다
 export interface IsolationProcessPort {
-  spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>;
+  spawn(spec: IsolationSpawnSpec): Promise<Result<IsolatedChild, IsolationSpawnError>>;
 }
 /** 외부 훅 실행. 사용처: X.operations.spec §3.7 */
 export interface HookRunSpec {
@@ -1606,7 +1609,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
 | 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 옛 키 `x.primitives.activeDriveGroup`은 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
-| 격리 | [제안] 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec). 매니페스트 `isolation`은 요청이고 실제 값은 사용자 설정이 정한다(2차) | 같은 탭 |
+| 격리 | 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec, 범위 `managed`·`user`). 사용자·프로젝트 등급 플러그인은 기본이 `process`(플러그인 호스트 프로세스)다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"이고 매니페스트 `isolation`은 값이 없을 때의 요청이다(`none`이면 엔진 안, `process`면 격리). 우선순위는 설정, 매니페스트, 기본 `process`. 저장소 패키지(`builtin`)와 `bundled` 출처(Helm, 주도를 쓰므로 P2 전까지)는 엔진 안이다 [결정: 2026-11-17 사용자, M5b-1] | 같은 탭 |
 
 ## 7. 훅
 
@@ -1682,3 +1685,22 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 - [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, Registration만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
 - [결정: review.decisions-2 U-01] 켜기·끄기와 drive lock 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).
+
+## 부록. 플러그인 호스트 프로토콜 (M5b-1, `isolation-protocol.ts`)
+
+엔진과 플러그인 호스트 프로세스는 줄 단위 JSON(프레임 상한 `PLUGIN_HOST_MAX_FRAME_BYTES` = 16 MiB, 측정: 5 MB 왕복 약 14 ms)으로 말한다. 요청은 `id`를 싣고 응답은 같은 `id`, 알림은 `id`를 싣지 않는다. 정본 표는 `review.m5-drive-isolation` §3.2이고 이름과 필드의 코드 정본은 `packages/contracts/src/extensions/isolation-protocol.ts`다.
+
+| 메시지 | 방향 | 종류 | 비고 |
+|---|---|---|---|
+| `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
+| `hook.invoke` | 엔진 → 호스트 | 요청 | 지점, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
+| `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥 |
+| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번) |
+| `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
+| `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
+| `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied` |
+| 표준오류 | 호스트 → 엔진 | 스트림 | 줄 상한 `PLUGIN_HOST_STDERR_LINE_MAX`, 보관 줄 수 `PLUGIN_HOST_STDERR_LINES_MAX` |
+
+넘기지 않는 API(`unsupported_api`로 등록이 거부된다): `drive`(P2), `migrateState`(동기 호출이라 경계를 못 넘는다), `provide`·`providePort`·`port`, `registerWebProvider`, `updateState`(함수를 엔진 줄 안에서 돌린다), `awaitUser`. 그 플러그인은 `ext.<이름>.isolation = none`으로 엔진 안에서 돈다.
+
+훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.

@@ -14,3 +14,4 @@ export * from "./trace-types.ts";
 export * from "./ports.ts";
 export * from "./validate.ts";
 export * from "./effects.ts";
+export * from "./isolation-protocol.ts";

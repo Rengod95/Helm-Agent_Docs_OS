@@ -51,7 +51,7 @@ describe("process service", () => {
   test("spawn rejects in the first release instead of starting anything", async () => {
     const { handle } = build();
     const spawnRejection = await rejectionOf(
-      handle.service.spawn({ main: "/x.ts", args: [], cwd: "/", env: {}, label: "ext:a:1" }),
+      handle.service.spawn({ command: "/x", args: [], readRoot: "/", env: {}, label: "ext:a:1" }),
     );
     expect(spawnRejection).toBeInstanceOf(Bug);
     if (spawnRejection instanceof Error) {

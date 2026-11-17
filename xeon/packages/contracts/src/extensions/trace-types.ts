@@ -59,6 +59,8 @@ export const TRACE_FAILURE_REASONS = [
   "timeout",
   "result_invalid",
   "merge_rejected",
+  "process_exit",
+  "process_killed",
 ] as const;
 export type TraceFailureReason = (typeof TRACE_FAILURE_REASONS)[number];
 export interface TraceHandlerEntry {

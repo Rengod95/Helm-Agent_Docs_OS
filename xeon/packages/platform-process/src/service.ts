@@ -4,7 +4,6 @@ import {
   ProcessPortKey,
   type HookRawRun,
   type HookRunSpec,
-  type IsolatedChild,
   type IsolationSpawnSpec,
   type PortKey,
   type ProcessPort,
@@ -89,7 +88,7 @@ export function createProcessService(deps: ProcessServiceDeps): ProcessServiceHa
     run(spec: HookRunSpec): Promise<HookRawRun> {
       return hooks.run(spec);
     },
-    spawn(_spec: IsolationSpawnSpec): Promise<IsolatedChild> {
+    spawn(_spec: IsolationSpawnSpec): ReturnType<ProcessService["spawn"]> {
       return Promise.reject(
         new Bug("ProcessPort.spawn is not available in the first release (isolation_unavailable)"),
       );
