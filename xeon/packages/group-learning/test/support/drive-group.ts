@@ -25,10 +25,14 @@ export function driveStandIn(name: string): DriveStandIn {
       group: {},
     }),
     setup(g) {
-      g.drive(async (loop) => {
-        started += 1;
-        await loop.turn({ input: { kind: "user", content: "explore the repository" } });
+      // 첫 단계에서 turn을 시작하고, 그 결과가 오면 게이트가 열릴 때까지 단계를 잡고 있다(임대를 쥔다)
+      g.drive(async ({ last }) => {
+        if (last === null) {
+          started += 1;
+          return { do: "turn", input: { kind: "user", content: "explore the repository" } };
+        }
         await gate.promise;
+        return { do: "yield" };
       });
     },
   });

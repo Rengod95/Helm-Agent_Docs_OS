@@ -23,11 +23,11 @@ export {
 export { catalogConformance } from "./conformance.ts";
 export { authoringWriteGuard } from "./guard.ts";
 export {
-  installWithConfirmation,
-  packWithConfirmation,
+  confirmCard,
+  confirmedYes,
+  installConfirmation,
+  packConfirmation,
   replayInDevMode,
-  type Ask,
-  type ReleaseDevkit,
   type ReplayRunner,
 } from "./release.ts";
 export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";

@@ -136,6 +136,7 @@ test("drive function: reads and keyed idempotent writes pass, undeclared and key
           codes.undeclared = await codeOf(() => svc.poke({}));
           codes.noKey = await codeOf(() => svc.echo({}));
           codes.keyed = await codeOf(() => svc.echo({}, { requestId: "re-drv:1" }));
+          return { do: "yield" };
         });
       },
     ),
@@ -161,10 +162,12 @@ test("replaying a drive twice produces the effect once", async () => {
     makeGroupUnit(
       { name: "re-twice", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
       (g) => {
-        g.drive(async (loop) => {
+        g.drive(async ({ last }) => {
+          // 단계는 한 호출의 시작(last가 null)에서만 효과를 낸다. 호출 수는 시작 횟수다
+          if (last !== null) return { do: "yield" };
           invocations += 1;
           await g.capability(svcKey).echo({ text: "once" }, { requestId: "re-twice:1" });
-          await loop.turn({ input: { kind: "user", content: "go" } });
+          return { do: "turn", input: { kind: "user", content: "go" } };
         });
       },
     ),
@@ -367,8 +370,9 @@ test("a turn started by a drive is not a replayed context for the tools inside i
       { name: "re-turn", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
       (g) => {
         holder.svc = g.capability(svcKey);
-        g.drive(async (loop) => {
-          await loop.turn({ input: { kind: "user", content: "go" } });
+        g.drive(async ({ last }) => {
+          if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+          return { do: "turn", input: { kind: "user", content: "go" } };
         });
       },
     ),

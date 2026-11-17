@@ -13,18 +13,21 @@ import {
   type HelmState,
 } from "./state.ts";
 
-export interface LensResult {
-  readonly lensId: string;
-  /** spawn 결과. 예외는 guarded가 HelmFailure로 바꾼 값이다. completed가 아닌 SpawnOutcome은 failed로 센다 */
-  readonly outcome: Result<SpawnOutcome, HelmFailure>;
-}
-
 export type HelmEvent =
   | { readonly type: "requested"; readonly pending: HelmPending }
   | { readonly type: "leaseGranted"; readonly lenses: readonly HelmLens[] }
+  /** 발산이나 적용 턴을 냈다. 결과를 받기 전에 커밋한다(`awaitingTurn`을 켠다) */
+  | { readonly type: "turnIssued" }
   | { readonly type: "diverged"; readonly outcome: TurnOutcome }
   | { readonly type: "lensesStarted" }
-  | { readonly type: "explored"; readonly results: readonly LensResult[] }
+  /** 렌즈 하나의 spawn이 끝났다. 완료된 답은 발견이 되고, 그 밖의 결과는 이 렌즈의 실패다. 단계는 바뀌지 않는다 */
+  | {
+      readonly type: "lensFinished";
+      readonly lensId: string;
+      readonly outcome: Result<SpawnOutcome, HelmFailure>;
+    }
+  /** 렌즈 실행을 마친다. 아직 끝나지 않은 렌즈는 건너뛴다 */
+  | { readonly type: "explored" }
   | {
       readonly type: "converged";
       readonly findings: readonly HelmFinding[];
@@ -50,11 +53,13 @@ export const TRANSITIONS: readonly {
   { from: "idle", on: "requested", to: "idle" },
   { from: "idle", on: "leaseGranted", to: "diverge" },
   { from: "idle", on: "stopRequested", to: "idle" },
+  { from: "diverge", on: "turnIssued", to: "diverge" },
   { from: "diverge", on: "diverged", to: "explore" },
   { from: "diverge", on: "stopRequested", to: "idle" },
   { from: "diverge", on: "limitReached", to: "idle" },
   { from: "diverge", on: "failed", to: "idle" },
   { from: "explore", on: "lensesStarted", to: "explore" },
+  { from: "explore", on: "lensFinished", to: "explore" },
   { from: "explore", on: "explored", to: "converge" },
   { from: "explore", on: "stopRequested", to: "idle" },
   { from: "explore", on: "limitReached", to: "idle" },
@@ -63,6 +68,7 @@ export const TRANSITIONS: readonly {
   { from: "converge", on: "stopRequested", to: "idle" },
   { from: "converge", on: "limitReached", to: "idle" },
   { from: "converge", on: "failed", to: "idle" },
+  { from: "apply", on: "turnIssued", to: "apply" },
   { from: "apply", on: "applied", to: "idle" },
   { from: "apply", on: "stopRequested", to: "idle" },
   { from: "apply", on: "limitReached", to: "idle" },
@@ -110,6 +116,8 @@ function reasonOf(failure: HelmFailure): string {
       return `state inconsistent: ${failure.detail}`.slice(0, 500);
     case "turn":
       return `${failure.phase} turn ${failure.status}`;
+    case "refused":
+      return `refused ${failure.code}`.slice(0, 500);
     case "lease_lost":
     case "budget":
     case "state_conflict":
@@ -123,14 +131,32 @@ function reasonOf(failure: HelmFailure): string {
   }
 }
 
-function explored(state: HelmState, results: readonly LensResult[]): TransitionResult {
-  const byLens = new Map(results.map((result) => [result.lensId, result.outcome]));
+/** 렌즈 실행을 마친다. 아직 끝나지 않은 렌즈는 건너뛰고, 하나도 끝나지 않았으면 탐구가 실패로 끝난다 */
+function explored(state: HelmState): TransitionResult {
+  const lenses = state.lenses.map((lens): HelmLens => {
+    if (lens.status === "pending" || lens.status === "running")
+      return { ...lens, status: "skipped" };
+    return lens;
+  });
+  const next: HelmState = { ...state, lenses };
+  if (lenses.every((lens) => lens.status !== "done")) {
+    return toIdle(next, finishedOf(next, "failed", { reason: "all lenses failed" }));
+  }
+  return { state: { ...next, phase: "converge" } };
+}
+
+/**
+ * 렌즈 하나의 결과를 반영한다. 완료된 답은 `parseExplorerAnswer`로 발견이 되고 발견 목록은 `dedupeFindings`로 합친다.
+ * 실행 중이던 렌즈가 아니면 그대로 둔다
+ */
+function lensFinished(
+  state: HelmState,
+  lensId: string,
+  outcome: Result<SpawnOutcome, HelmFailure>,
+): TransitionResult {
   const found: HelmFinding[] = [];
   const lenses = state.lenses.map((lens): HelmLens => {
-    if (lens.status === "done" || lens.status === "failed" || lens.status === "skipped")
-      return lens;
-    const outcome = byLens.get(lens.id);
-    if (outcome === undefined) return { ...lens, status: "skipped" };
+    if (lens.id !== lensId || lens.status !== "running") return lens;
     if (!outcome.ok || outcome.value.status !== "completed") return { ...lens, status: "failed" };
     const answer = outcome.value.answer;
     if (answer === undefined || answer.trim() === "") return { ...lens, status: "failed" };
@@ -138,11 +164,7 @@ function explored(state: HelmState, results: readonly LensResult[]): TransitionR
     return { ...lens, status: "done" };
   });
   const findings = [...dedupeFindings([...state.findings, ...found])];
-  const next: HelmState = { ...state, lenses, findings };
-  if (lenses.every((lens) => lens.status !== "done")) {
-    return toIdle(next, finishedOf(next, "failed", { reason: "all lenses failed" }));
-  }
-  return { state: { ...next, phase: "converge" } };
+  return { state: { ...state, lenses, findings } };
 }
 
 /**
@@ -183,6 +205,7 @@ function fromIdle(state: HelmState, event: HelmEvent): TransitionResult {
       appliedTurnId: null,
       pending: null,
       stopRequested: false,
+      awaitingTurn: false,
     },
   };
 }
@@ -192,8 +215,15 @@ function fromInquiry(
   phase: Exclude<HelmPhase, "idle">,
   event: HelmEvent,
 ): TransitionResult {
+  if (event.type === "turnIssued") {
+    return phase === "diverge" || phase === "apply"
+      ? { state: { ...state, awaitingTurn: true } }
+      : { state };
+  }
   if (phase === "diverge" && event.type === "diverged") {
-    if (event.outcome.status === "completed") return { state: { ...state, phase: "explore" } };
+    if (event.outcome.status === "completed") {
+      return { state: { ...state, phase: "explore", awaitingTurn: false } };
+    }
     return event.outcome.status === "aborted"
       ? toIdle(state, finishedOf(state, "stopped"))
       : toIdle(state, finishedOf(state, "failed", { reason: "diverge turn error" }));
@@ -208,7 +238,10 @@ function fromInquiry(
       },
     };
   }
-  if (phase === "explore" && event.type === "explored") return explored(state, event.results);
+  if (phase === "explore" && event.type === "lensFinished") {
+    return lensFinished(state, event.lensId, event.outcome);
+  }
+  if (phase === "explore" && event.type === "explored") return explored(state);
   if (phase === "converge" && event.type === "converged") {
     if (event.findings.length === 0) {
       return toIdle(

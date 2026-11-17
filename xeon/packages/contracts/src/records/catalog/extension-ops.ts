@@ -130,13 +130,15 @@ export type LeaseAcquiredPayload = Static<typeof LeaseAcquiredPayloadSchema>;
 /**
  * disabled: 그룹 끄기, budget: 상한 도달, error: drive 함수 예외, idle: 효과 없는 반환 반복,
  * revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
- * waiting: drive가 `loop.ask`로 사람 확인을 기다리며 반납(X-17). 답이 오면 그 Registration이 다시 후보가 된다.
+ * done: 단계 함수가 `done` 명령으로 주도권을 내려놓음(M5a E1),
+ * waiting: drive가 `ask` 명령으로 사람 확인을 기다리며 반납(X-17). 답이 오면 그 Registration이 다시 후보가 된다.
  */
 export const LeaseReleasedPayloadSchema: TObject<{
   leaseId: TString;
   scopeId: TString;
   reason: TUnion<
     [
+      TLiteral<"done">,
       TLiteral<"disabled">,
       TLiteral<"budget">,
       TLiteral<"error">,
@@ -151,6 +153,7 @@ export const LeaseReleasedPayloadSchema: TObject<{
     leaseId: leaseId(),
     scopeId: scopeId(),
     reason: Type.Union([
+      Type.Literal("done"),
       Type.Literal("disabled"),
       Type.Literal("budget"),
       Type.Literal("error"),
@@ -182,6 +185,37 @@ export const LeaseRejectedPayloadSchema: TObject<{
   { additionalProperties: false },
 );
 export type LeaseRejectedPayload = Static<typeof LeaseRejectedPayloadSchema>;
+
+/**
+ * 주도 명령 하나의 결과를 남기는 상태 사건 [제안: 이름 `drive.command_settled`, C0에서 확정] [결정: 2026-11-17 사용자, U1].
+ * 재시작 뒤 같은 명령을 두 번 실행하지 않는 근거다. `turn`, `ask`, `spawn`은 기존 사건과 함께, `model`·`tool`(E2)은 이 사건만으로 남는다. `commit`은 상태 커밋 사건이 그 기록이라 쓰지 않는다(두 번 쓰기 사이에서 죽으면 재시작이 명령을 다시 내지 않아 사건이 빠진다).
+ * 임대 id는 싣지 않는다(재시작이나 재부여로 다른 임대가 같은 (scope, requestId)를 다시 기록해도 내용이 같아야 멱등이다). `requestId`는 엔진이 붙인 명령 요청 id, `outcome`은 결과 요약(`completed`, `answered`, `denied` 등), `ref`는 결과 참조(turn id, 자식 thread id 등)이다
+ */
+export const DriveCommandSettledPayloadSchema: TObject<{
+  scopeId: TString;
+  requestId: TString;
+  command: TUnion<
+    [TLiteral<"turn">, TLiteral<"model">, TLiteral<"tool">, TLiteral<"ask">, TLiteral<"spawn">]
+  >;
+  outcome: TString;
+  ref: TOptional<TString>;
+}> = Type.Object(
+  {
+    scopeId: scopeId(),
+    requestId: Type.String({ minLength: 1, maxLength: 96 }),
+    command: Type.Union([
+      Type.Literal("turn"),
+      Type.Literal("model"),
+      Type.Literal("tool"),
+      Type.Literal("ask"),
+      Type.Literal("spawn"),
+    ]),
+    outcome: Type.String({ minLength: 1, maxLength: 48 }),
+    ref: Type.Optional(Type.String({ minLength: 1, maxLength: 96 })),
+  },
+  { additionalProperties: false },
+);
+export type DriveCommandSettledPayload = Static<typeof DriveCommandSettledPayloadSchema>;
 
 /** RegistrationApi.post 호출의 영수증. 큐 항목 사실은 같은 커밋의 input.queued가 적는다 */
 export const PostAcceptedPayloadSchema: TObject<{

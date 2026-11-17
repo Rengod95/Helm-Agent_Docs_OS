@@ -68,15 +68,14 @@ function sourceOf(
 type Gathered = { readonly sources: readonly HelmSource[]; readonly aborted: boolean };
 
 /**
- * drive 안에서만 부른다. 각 호출은 읽기 메서드라 requestId를 넘기지 않는다. 실패는 출처별로 저하 동작으로 바꾸고
- * 이 함수는 실패하지 않는다. 순서: 스킬 검색, 메모리, 과거 대화, 웹(L3.helm.spec §4.7)
+ * drive 안에서만 부른다. 각 호출은 읽기 메서드라 requestId를 넘기지 않는다. 중단 신호는 명령이 도는 drive 문맥이
+ * 따라 준다(임대 반납이 호출을 끊는다). 실패는 출처별로 저하 동작으로 바꾸고 이 함수는 실패하지 않는다.
+ * 순서: 스킬 검색, 메모리, 과거 대화, 웹(L3.helm.spec §4.7)
  */
 export async function gatherContext(
   g: KnowledgeApi,
   inquiry: ActiveInquiryView,
-  opts: { readonly signal: AbortSignal },
 ): Promise<KnowledgeDigest> {
-  const { signal } = opts;
   const query = inquiry.topic.slice(0, QUERY_MAX);
   const degraded: ("web" | "knowledge" | "session")[] = [];
   const sources: HelmSource[] = [];
@@ -100,12 +99,12 @@ export async function gatherContext(
       run("knowledge.search", "knowledge", async () => {
         const out = await g
           .capability(KnowledgeSearchKey)
-          .query({ query, kinds: ["skill"], limit: 3 }, { signal });
+          .query({ query, kinds: ["skill"], limit: 3 });
         return out.hits.map((hit) => sourceOf("knowledge", `skill:${hit.ref}`, hit.title));
       }),
     () =>
       run("knowledge.memory", "knowledge", async () => {
-        const out = await g.capability(KnowledgeMemoryKey).read({}, { signal });
+        const out = await g.capability(KnowledgeMemoryKey).read({});
         return out.stores
           .filter((store) => store.entries.length > 0)
           .map((store) =>
@@ -120,17 +119,14 @@ export async function gatherContext(
       run("knowledge.search", "session", async () => {
         const out = await g
           .capability(KnowledgeSearchKey)
-          .query({ query, kinds: ["session"], limit: 3 }, { signal });
+          .query({ query, kinds: ["session"], limit: 3 });
         return out.hits.map((hit) => sourceOf("session", `session:${hit.ref}`, hit.title));
       }),
     () =>
       run("web.search", "web", async () => {
         const out = await g
           .capability(WebSearchKey)
-          .search(
-            { query: inquiry.topic.slice(0, 512), limit: 5, content: "highlights" },
-            { signal },
-          );
+          .search({ query: inquiry.topic.slice(0, 512), limit: 5, content: "highlights" });
         return out.results.map((result) => sourceOf("web", result.url, result.title));
       }),
   ];

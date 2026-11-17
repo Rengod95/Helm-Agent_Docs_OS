@@ -383,7 +383,7 @@ export interface TurnFlags {
 | `tr_finding_state` | `finding_id` | `state`, `dismissed_at`, `snooze_until`, `fingerprint` | |
 | `tr_backtest_run`, `tr_backtest_item` | `run_id`, `(run_id, tool_call_id)` | 요청, 상태, 항목 결과(§3.7) | 보존은 원본과 같다 |
 
-대화 로그(`events`, `p_*`)에는 관찰 값을 더하지 않는다(훅 시간·결과, 재료, 광고처럼 매번 달라지고 재생 같음 검사를 흔드는 값). 대화 로그에 더하는 상태 사건(`profile.applied`, `lease.acquired`의 선택 필드)은 M5c와 엔진 설계가 정하고 이 문서는 읽기만 한다. 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1]로 대화 로그에 상태 사건 하나(예: `drive.command.settled`)를 더한다(이름은 [제안]). 이 문서의 방안 A 거부는 "관찰 값"에 대한 것이고 이 상태 사건은 관찰이 아니라 재시작 복원용 상태라 충돌하지 않는다. 기록되지 않는 턴 밖 명령(`model`, `tool`, `commit`, `yield`)은 `StepRecord`가 아니라 `FrameMark`의 명령 수, `pluginCalls`, `CallRecord`(caller `plugin`)로 잡힌다.
+대화 로그(`events`, `p_*`)에는 관찰 값을 더하지 않는다(훅 시간·결과, 재료, 광고처럼 매번 달라지고 재생 같음 검사를 흔드는 값). 대화 로그에 더하는 상태 사건(`profile.applied`, `lease.acquired`의 선택 필드)은 M5c와 엔진 설계가 정하고 이 문서는 읽기만 한다. 주도 명령 결과의 내구 기록은 [결정: 2026-11-17 사용자, U1]로 대화 로그에 상태 사건 하나(예: `drive.command_settled`)를 더한다(이름은 [제안]). 이 문서의 방안 A 거부는 "관찰 값"에 대한 것이고 이 상태 사건은 관찰이 아니라 재시작 복원용 상태라 충돌하지 않는다. 기록되지 않는 턴 밖 명령(`model`, `tool`, `commit`, `yield`)은 `StepRecord`가 아니라 `FrameMark`의 명령 수, `pluginCalls`, `CallRecord`(caller `plugin`)로 잡힌다.
 
 ### 3.5 wire 메서드와 알림
 

@@ -8,7 +8,7 @@ import { validateGroupDef } from "@fresnel/group-sdk";
 import { helmComposition } from "../../src/composition.ts";
 import { helmGroup, helmManifest } from "../../src/index.ts";
 import { HELM_RECORD_KINDS } from "../../src/records.ts";
-import { helmStateDecl } from "../../src/state.ts";
+import { helmStateDecl, helmStateMigrations } from "../../src/state.ts";
 import { helmSettings } from "../../src/settings.ts";
 
 // 구성 선언(X-16)과 단계 머신 선언. 전이는 phase.ts TRANSITIONS에서 만들므로 시험은 표의 정본 값을 따로 적는다.
@@ -29,6 +29,7 @@ test("composition.defined: the group module carries the composition and both man
         manifest: helmManifest,
         composition: helmComposition,
         state: helmStateDecl,
+        migrations: helmStateMigrations,
         settings: helmSettings,
       }),
     ),
@@ -50,11 +51,13 @@ test("composition.phases: the declared phase transitions are the TRANSITIONS tab
     ["idle", "idle", "requested"],
     ["idle", "diverge", "leaseGranted"],
     ["idle", "idle", "stopRequested"],
+    ["diverge", "diverge", "turnIssued"],
     ["diverge", "explore", "diverged"],
     ["diverge", "idle", "stopRequested"],
     ["diverge", "idle", "limitReached"],
     ["diverge", "idle", "failed"],
     ["explore", "explore", "lensesStarted"],
+    ["explore", "explore", "lensFinished"],
     ["explore", "converge", "explored"],
     ["explore", "idle", "stopRequested"],
     ["explore", "idle", "limitReached"],
@@ -63,6 +66,7 @@ test("composition.phases: the declared phase transitions are the TRANSITIONS tab
     ["converge", "idle", "stopRequested"],
     ["converge", "idle", "limitReached"],
     ["converge", "idle", "failed"],
+    ["apply", "apply", "turnIssued"],
     ["apply", "idle", "applied"],
     ["apply", "idle", "stopRequested"],
     ["apply", "idle", "limitReached"],

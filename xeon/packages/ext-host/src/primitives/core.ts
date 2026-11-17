@@ -7,6 +7,7 @@ import type {
   ExtensionName,
   HookName,
   PluginEntry,
+  PostItem,
   PortLookup,
   RecordKind,
   RegistrationApi,
@@ -190,8 +191,16 @@ export interface LeaseRuntime {
   wantInvoke: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
-  /** 경계 없이 상태 커밋만 하고 반환해 바로 다시 부른 연속 횟수. 경계가 오면 0으로 돌아간다 */
-  chained: number;
+  /** 단계 함수가 `done`이 아닌 명령이나 `yield`를 낸 적이 있다(주도를 이어 가겠다는 뜻). 아니면 막 받은 임대라 사용자 메시지를 가로채지 않는다 */
+  engaged: boolean;
+  /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
+  userSeq: number;
+  /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */
+  readonly inbox: PostItem[];
+  /** 전달한 사용자 메시지 하나를 단계 함수가 처리했는지 센다. 전달한 뒤 처리 없이 지난 단계 수. 전달 중이 아니면 null */
+  userSteps: number | null;
+  /** 전달 중인 사용자 메시지. 단계 함수가 3단계 안에 처리하지 않으면 코어 루프로 돌려보낸다 */
+  deliveredUser: PostItem | null;
   /** lease.acquired가 커밋되었는가 */
   committed: boolean;
 }
@@ -277,6 +286,8 @@ export interface ThreadRuntime {
   nextRequestSeq: number;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
   cooldown: Map<RegistrationId, number>;
+  /** 단계 함수가 `done`으로 주도권을 내려놓은 scope와 그때의 상태 판. 그 scope의 상태가 바뀌기 전까지 후보가 아니다(`turn_settled`로 지우지 않는다) */
+  withdrawn: Map<RegistrationId, number>;
   /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 drive 후보가 없다 */
   userStopped: boolean;
   txn: BoundaryTxn | null;

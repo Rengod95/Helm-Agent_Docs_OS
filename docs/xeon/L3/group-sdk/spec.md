@@ -94,7 +94,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 import type { Static } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
-  CompositionDecl, ExtensionEntry, ExtensionManifest, GroupDecl, GroupId, ProviderResourceDef, RegistrationApi, StateDecl,
+  CompositionDecl, DriveOptions, DriveStep, ExtensionEntry, ExtensionManifest, GroupDecl, GroupId, ProviderResourceDef, RegistrationApi, StateDecl,
 } from "@fresnel/contracts/extensions";
 import type { Upcaster } from "@fresnel/contracts/records";
 import type { SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
@@ -161,6 +161,8 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = Record<never, 
 
 /** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
 export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> extends RegistrationApi<S> {
+  /** 주도 단계 함수 등록(F ExtensionOps.drive, 계약 `DriveStep`). wrap이 돌려준 명령을 검사하고 계측한 뒤 엔진에 넘긴다(아래 drive 항목). setup 안에서만 */
+  drive(step: DriveStep<S>, options?: DriveOptions): void;
   /** 마지막 단계 경계에서 읽은 이 그룹 설정의 유효 값. 동기, 순수 조회 */
   settings(): GroupSettingValues<D>;
   /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 Registration, requestId 멱등. `options`는 thread와 취소 신호를 정한다 [제안] */
@@ -203,14 +205,15 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 ): GroupModule;
 ```
 
-- `entry`가 하는 일 [제안]: `pluginsOf(manifest)`에서 id 없는 L3 루트 플러그인(`root`)을 찾아, 그 Registration을 `host.register(manifest.name, { state: def.state, defaultEnabled: pluginDefaultEnabled(manifest, root) }, (api) => def.setup(wrap(api)))`로 한 번 만든다. `def.state`가 없으면 `state` 키를 넘기지 않는다. `wrap`은 F `RegistrationApi`를 `GroupApi`로 감싼다. 감싼 `on`, `post`, `drive`, `commit`, `record`는 원래 연산을 그대로 부르고 계측 집계(§4.9)만 더한다. 루트 플러그인의 Registration id는 매니페스트 `name`이다(F.extensions.spec §3.1 Registration id 규칙). 그룹 이름은 매니페스트에서만 온다. `GroupDef`에 별도 `id` 필드는 없다.
+- `entry`가 하는 일 [제안]: `pluginsOf(manifest)`에서 id 없는 L3 루트 플러그인(`root`)을 찾아, 그 Registration을 `host.register(manifest.name, { state: def.state, defaultEnabled: pluginDefaultEnabled(manifest, root) }, (api) => def.setup(wrap(api)))`로 한 번 만든다. `def.state`가 없으면 `state` 키를 넘기지 않는다. `wrap`은 F `RegistrationApi`를 `GroupApi`로 감싼다. 감싼 `on`, `post`, `commit`, `record`는 원래 연산을 그대로 부르고 계측 집계(§4.9)만 더한다. `drive`는 단계 함수가 돌려준 명령을 검사·계측한 뒤 엔진에 넘긴다(아래 drive 항목). 루트 플러그인의 Registration id는 매니페스트 `name`이다(F.extensions.spec §3.1 Registration id 규칙). 그룹 이름은 매니페스트에서만 온다. `GroupDef`에 별도 `id` 필드는 없다.
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.fresnel-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
 - 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8, §4.12)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 네 연산을 `GroupApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
 - `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 포트 `GroupSettingsSourceKey`(서비스 이름 `fresnel.settings`, 조립 루트가 설정 서비스에 연결하는 자리)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 시크릿 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).
 - 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `RegistrationApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `RegistrationApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
-- `drive` 함수에는 상태를 인자로만 넘긴다. 반환값이나 이전 호출의 값을 다음 호출에 넘기지 않는다(`architecture.runtime-flow.design` §4.3 완화책).
+- `drive` 단계 함수는 `DriveStepInput`(커밋된 `state`, 직전 명령의 결과 `last`, `budget`, `frame`)만 받는다. 돌려준 명령은 엔진이 실행하고, 그 결과는 같은 호출 안의 다음 단계에서 `last`로만 돌아온다. 호출 사이에 클로저 값을 넘기지 않는다(`architecture.runtime-flow.design` §4.3 완화책).
+- `drive`의 명령 검사와 계측 [결정: 계약 커밋 121f2d5b8, drive-isolation.md §1.1]: `spawn` 명령은 `spawns`를 올린다. `commit` 명령(`next` 사슬 안의 것 포함)은 `commit`과 같은 `checkStateCommit`과 같은 `PrimitiveError`(`state_schema`, `state_too_large`)로 검사하고, 직전 커밋 값(사슬의 첫 값은 단계 함수가 받은 `state`)과 값이 다른 것만 `commits`로 센다. 같은 값이면 상태 사건을 쓰지 않고 `next`만 실행한다(§4.5 3번). 검사에 실패하면 단계 함수가 던진 것이 되어 drive lock이 `error`로 반납된다(§5 9번). `turn`, `ask`, `yield`, `done`과 자리표시자(`model`, `tool`, `handoff`)는 그대로 넘긴다. 명령과 결과의 정의는 F.extensions.spec §4.6이다.
 - `GroupDef<S>`의 두 번째 타입 인자 `D`는 기본값이 있으므로 설정이 없는 그룹은 `GroupDef<S>`로 쓴다.
 - 예(설명용, 그룹 내부 설계 아님):
 
@@ -229,10 +232,14 @@ export default defineGroup<DemoState>({
       }
       return undefined;
     });
-    g.drive(async (loop, st) => {
-      if (st.phase === "done") return;
-      const r = await loop.turn({ input: { kind: "user", content: "다음 단계" } });
-      await g.commit(r.status === "completed" ? { phase: "done" } : st);
+    g.drive(async ({ state, last }) => {
+      // 턴의 결과가 돌아오면 그 결과로 커밋하고 다음 경계를 기다린다. 끝난 상태는 주도권을 내려놓는다
+      if (last?.kind === "ok" && last.of === "turn") {
+        return { do: "commit", state: last.value.status === "completed" ? { phase: "done" } : state, next: { do: "yield" } };
+      }
+      if (state.phase === "done") return { do: "done" };
+      // 턴의 요청 id는 커밋된 상태에서 정한다(엔진의 기본 id는 턴과 뒤의 커밋이 겹칠 수 있다, §10)
+      return { do: "turn", input: { kind: "user", content: "다음 단계" }, requestId: `demo:${state.phase}` };
     });
   },
 });
@@ -514,7 +521,7 @@ export function driveLockArbiterPort(
 - [결정] drive lock은 한 thread에 Registration 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4, F.extensions.spec §4.6).
 - `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 위 규칙 3(대기, 상한 뒤 거부)으로 답한다 [결정: review.m3-design-inputs D-M3-05].
 - 설정 키 [결정: review.decisions-2 S-15]: drive 주도 플러그인 설정은 X 키 `x.primitives.activeDriver` 하나다. group-sdk은 별도 키를 두지 않고 이 키의 유효 값을 정책 입력으로 읽는다. 포트가 없을 때(group-sdk 없이 X만 올린 테스트 호스트 등) X는 같은 키로 기본 규칙을 쓴다(X.primitives.spec §4.4.1 4번). 값이 `null`이고 후보가 둘 이상일 때 X 기본 규칙은 아무에게도 주지 않고, group-sdk 정책은 요청 순서로 정한다(규칙 2). `/group drive`와 설정 화면의 "주도 플러그인" 선택은 이 키를 쓴다.
-- 회수 경로 [결정: X.primitives.spec §4.4.1 5번, P-22]: 정책(`DriveArbiter`)은 drive lock을 회수하지 않는다. 회수는 X가 설정 `x.primitives.activeDriver`을 직접 읽고 다음 경계에서 한다. 사용자가 이름을 지정하면(`/group drive <이름>`) 현재 drive lock은 그 경계까지 유지되고 진행 중인 `loop.turn`은 끊기지 않는다. 현재 holder를 끄는 방법(`/group off <이름>`, `lease.released{reason:"disabled"}`)과 holder의 drive가 `idle`로 반납하기를 기다리는 방법도 그대로 쓸 수 있다.
+- 회수 경로 [결정: X.primitives.spec §4.4.1 5번, P-22]: 정책(`DriveArbiter`)은 drive lock을 회수하지 않는다. 회수는 X가 설정 `x.primitives.activeDriver`을 직접 읽고 다음 경계에서 한다. 사용자가 이름을 지정하면(`/group drive <이름>`) 현재 drive lock은 그 경계까지 유지되고 진행 중인 turn 명령은 끊기지 않는다. 현재 holder를 끄는 방법(`/group off <이름>`, `lease.released{reason:"disabled"}`)과 holder의 drive가 `idle`로 반납하기를 기다리는 방법도 그대로 쓸 수 있다.
 - `DriveLock.status`에 대기 상태는 넣지 않는다 [제안]. 대기는 정책 결과다. drive lock 상태 기계에 넣지 않고 group-sdk의 `GroupStatus.drive`로만 나타낸다.
 
 ### 3.6 그룹 상태 레코드
@@ -866,6 +873,8 @@ export interface ReplayCut {
   /** 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
   readonly firstDiff: number | null;
   readonly digest: string;
+  /** [M4] 이 절단 실행이 쓴 thread id. 하니스가 알려 준 경우만 */
+  readonly threadId?: string;
 }
 
 export interface ReplayDriveReport {
@@ -886,8 +895,8 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 
 동작:
 
-0. 하니스를 만드는 쪽의 규약 [M2]: 커밋 시점은 그룹 상태 커밋(`grp.<이름>.state.committed`) 바로 뒤로 잡고, 비교하는 이벤트열은 마지막 커밋까지로 자른다. 마지막 커밋 뒤의 drive lock 반납·재부여는 경계를 몇 번 돌렸는지에 따라 길이가 달라지는 X의 꼬리라서 그룹이 정하는 부분이 아니다. 복원은 앞 k개 커밋까지의 이벤트를 새 저장소에 넣고 `TestHost.restart()`로 호스트를 다시 만든 뒤 thread를 여는 것이다. 이벤트의 ID는 호스트마다 범위가 달라 처음 나온 순서의 자리표시자로 바꿔 비교한다. 예는 `test/support/replay-harness.ts`다.
-1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 시점 목록을 얻는다. 커밋 시점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
+0. 하니스를 만드는 쪽의 규약 [M2]: 커밋 시점은 그룹 상태 커밋(`grp.<이름>.state.committed`) 바로 뒤로 잡는다. 단계 함수의 `commit` 명령이면 그 결과 사건 `drive.command_settled`(command가 `commit`)가 바로 따르므로 그것까지 커밋 시점에 든다. 복원 뒤 재실행이 그 자리에 같은 사건을 쓰게 하려고다. 비교하는 이벤트열은 마지막 커밋 시점까지로 자른다. 마지막 커밋 뒤의 drive lock 반납·재부여는 경계를 몇 번 돌렸는지에 따라 길이가 달라지는 X의 꼬리라서 그룹이 정하는 부분이 아니다. 복원은 앞 k개 커밋까지의 이벤트를 새 저장소에 넣고 `TestHost.restart()`로 호스트를 다시 만든 뒤 thread를 여는 것이다. 이벤트의 ID는 호스트마다 범위가 달라 처음 나온 순서의 자리표시자로 바꿔 비교한다. 예는 `test/support/replay-harness.ts`다.
+1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 시점 목록을 얻는다. 커밋 시점은 0번의 규약대로 그룹 상태 커밋 시점이다(`g.commit`과 drive 단계 함수의 `commit` 명령). `turn`·`spawn` 명령의 결과와 `post` 수락, `record` 쓰기는 커밋 시점이 아니다.
 2. 시점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
 3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 시점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 drive lock을 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
 4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 시점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/group-sdk/testing`)다.
@@ -928,7 +937,7 @@ export interface DriveScanFinding {
 }
 
 /** 소스 문자열에서 drive 함수 본문을 찾아 검사한다. 순수 함수 */
-export function scanDriveSource(source: string, options?: { readonly fileName?: string }): readonly DriveScanFinding[];
+export function scanDriveSource(source: string, options?: DriveScanOptions): readonly DriveScanFinding[];
 ```
 
 - 대상: `<식>.drive(` 호출의 첫 인자로 넘긴 함수 식, 또는 같은 파일 안에서 그 이름으로 선언한 함수의 본문이다. 첫 인자가 같은 파일 함수의 호출(`g.drive(helmDrive(g, settings))`)이면 그 팩토리 함수의 본문을 본다. `.drive(` 호출은 `defineGroup({ setup(g) { ... } })`처럼 호출 인자·객체·배열 안 어디에 있어도 찾고, drive 본문 안의 호출 인자·배열 원소에 있는 금지 호출도 찾는다. 본문 안에 정의한 중첩 함수도 포함한다. 같은 파일의 다른 함수를 drive 본문이 직접 부르면 그 함수 본문도 한 단계만 검사한다 [제안]. 다른 모듈은 검사하지 않는다.
@@ -969,13 +978,13 @@ export interface GroupMetrics extends GroupMetricsSummary {
   readonly handlerErrors: number;
   /** duplicate 제외 */
   readonly posts: number;
-  /** drive 안 loop.spawn */
+  /** drive 단계 함수가 낸 spawn 명령 */
   readonly spawns: number;
   /** accepted delegate */
   readonly delegates: number;
   readonly commits: number;
   readonly records: number;
-  /** 그룹의 loop.turn과 위임·spawn 자식 thread의 사용량 합 */
+  /** 그룹의 turn 명령과 위임·spawn 자식 thread의 사용량 합 */
   readonly tokens: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number };
   readonly costUsd: number;
   /** lease.acquired ~ lease.released의 recordedAt 차이 합 */
@@ -983,7 +992,7 @@ export interface GroupMetrics extends GroupMetricsSummary {
   readonly leases: number;
 }
 
-// 카운터 필드: posts(duplicate 제외), spawns(drive 안 loop.spawn), delegates, commits, records는 wrap이 올린다.
+// 카운터 필드: posts(duplicate 제외), spawns(drive의 spawn 명령), delegates, commits, records는 wrap이 올린다.
 // denies·chainPatches·handlerErrors는 on 래퍼가 올리고(§4.9), tokens·costUsd는 addUsage가 더한다 (M3b, G-17).
 // leases·leaseMs와 turn.completed 사용량은 snapshot에서 0이다. 서비스가 lease.*·turn.* 이벤트로 따로 셈해 GroupStatus.metrics에 합친다.
 /** GroupMetricsSummary는 F services/groups.ts(§3.8)의 정의를 다시 내보낸다. GroupMetrics는 그 필드를 모두 가진다 */
@@ -1059,7 +1068,7 @@ export function buildPromotionReport(input: PromotionInput): PromotionReport;
 
 소비자 집계 [결정: 오케스트레이터 기본값, B4-GRP]:
 
-- 소비자는 그룹 전용 도구를 호출한 turn을 시작한 scope다. drive lock 안 `loop.turn`이 시작한 turn은 holder scope다. 위임·spawn 자식 thread의 turn은 그 자식을 만든 scope여야 하지만, 자식 turn의 `turn.started`에는 그 scope가 없어 집계에서 뺀다(§10). 사용자 입력 turn은 `"user"`로 따로 센다.
+- 소비자는 그룹 전용 도구를 호출한 turn을 시작한 scope다. drive lock 안 turn 명령이 시작한 turn은 holder scope다. 위임·spawn 자식 thread의 turn은 그 자식을 만든 scope여야 하지만, 자식 turn의 `turn.started`에는 그 scope가 없어 집계에서 뺀다(§10). 사용자 입력 turn은 `"user"`로 따로 센다.
 - 소유 그룹 밖의 scope가 하나라도 있으면 승격 후보다(L3-a "두 번째 소비자를 얻으면 L2로 승격").
 - 소유 그룹 자신의 호출(`origin`이 소유 그룹)은 소비자가 아니다. `throughSeq`와 `threads`에는 든다.
 - 소유 그룹이 없는 도구의 호출은 `throughSeq`, `threads`, 후보 어디에도 세지 않는다.
@@ -1121,7 +1130,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 | 그룹끼리 직접 참조하지 않는다. 통신은 이벤트와 레코드만 쓴다 | [결정] 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06 |
 | 켜기·끄기는 단계 경계에 적용하고 정리는 Cordis dispose로 실행한다 | [결정] 층 사이 규칙 5, F.extensions.spec §4.5. 적용 시점을 단계 경계로 읽는 해석은 [결정: review.decisions-2 U-01] |
 | Helm과 학습 그룹은 L3 기본 그룹이고 학습 그룹은 drive를 쓰지 않는다 | [결정] `_research/decisions-log.md` 2026-10-21 계획 v2, `eng.context-map.design` 3절 규칙 4 |
-| drive 함수는 마지막 커밋 상태로 다시 호출되고 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다 | [결정] F.extensions.spec §4.6 |
+| drive 단계 함수는 마지막 커밋 상태로 다시 호출되고 효과는 `turn`·`spawn` 명령과 `post`, `delegate`로만 낸다 | [결정] F.extensions.spec §4.6 |
 | 예산은 drive lock 상한에만 건다. drive lock 상한 기본값은 pi 방식(기본 상한 없음)의 예외로 둔다 | [결정] F.extensions.spec §4.6, `_research/decisions-log.md` 계획 v2. 예외는 [결정: review.decisions-2 U-12] |
 
 ### 4.2 로드와 setup 순서
@@ -1154,7 +1163,7 @@ X는 drive lock이 없을 때 경계 훅(`step_end`, `turn_settled`, `idle`)과 
 1. `g.commit(next)`는 상태 문서 전체를 교체한다. 부분 패치는 없다(F `RegistrationApi.commit`).
 2. 커밋 전 `checkStateCommit`이 `StateDecl.schema` 검사와 크기 검사(직렬화 UTF-8 64 KiB 이하)를 한다. 실패하면 `commit`은 거부되고 상태는 그대로다. 오류는 `GroupError{kind:"group.stateInvalid"}`로 남는다.
 3. 직전 커밋 값과 깊이 같으면 이벤트를 쓰지 않고 현재 값을 돌려준다.
-4. 빈도 [제안]: drive 함수는 `loop.turn`·`loop.spawn` 결과 하나에 커밋 한 번을 권장한다. `on` 핸들러는 한 디스패치에서 같은 scope에 커밋 한 번까지다. 넘으면 계측에 경고를 남긴다(2차). 토큰 단위 진행이나 카운터 틱은 상태 문서에 커밋하지 않는다(`eng.events.design` EV-02 취지).
+4. 빈도 [제안]: drive 단계 함수는 `turn`·`spawn` 명령 결과 하나에 `commit` 명령 한 번을 권장한다. `on` 핸들러는 한 디스패치에서 같은 scope에 커밋 한 번까지다. 넘으면 계측에 경고를 남긴다(2차). 토큰 단위 진행이나 카운터 틱은 상태 문서에 커밋하지 않는다(`eng.events.design` EV-02 취지).
 5. 큰 본문(탐구 결과, 스킬 본문)은 상태 문서에 넣지 않는다. L2 저장소에 쓰고 id만 둔다.
 6. 멱등 reducer [결정: review.decisions-2 §3 T-20]: 확장 상태 투영은 X.primitives.spec 정의를 따르므로 재실행 규칙도 X 규칙을 따른다. `on` 핸들러는 소비 커밋 전 크래시 뒤 다시 실행될 수 있다. 다시 실행된 핸들러의 `ctx.state`는 이미 커밋된 판(k+1)이다(X.primitives.spec §4.6.1 재실행 규칙). 그래서 상태 갱신은 이미 반영된 입력을 다시 적용해도 결과가 같은 함수로 쓴다. 처리한 입력의 id를 doc에 두고, 같은 id이면 현재 값을 그대로 돌려준다. 그러면 재실행의 `commit`은 3번 규칙에 따라 이벤트를 쓰지 않는다.
 
@@ -1182,7 +1191,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: review.decisions-2 §3 T-20] 그룹 상태 = leaf의 조상 경로(활성 가지)에서 가장 가까운 `grp.<그룹>.state.committed` 이벤트의 `doc`(업캐스트 뒤). 없으면 `StateDecl.initial`이다. 활성 가지 규칙은 X.primitives.spec §4.6.1이 정한다.
 - 투영 `x_<그룹>_state`의 `prev_event_id` 연결로 조상 경로의 상태를 찾는다. 투영은 X가 소유하고 재생으로 다시 만들 수 있다(X.primitives.spec §4.6.1).
 - drive lock 복원: 마지막 `checkpoint.step`의 `leaseRefs`(F.records.spec §3.6)가 가리키는 `lease.acquired`가 있으면 X가 그 그룹의 drive 함수를 복원한 상태로 다시 부른다. 분기로 leaf가 drive lock 전 시점으로 가면 `leaseRefs`가 비고, `decide`가 처음부터 다시 정한다.
-- 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `loop.turn`의 기본 `requestId`(`${lineageId}:${순번}`)는 가지가 다르면 계통 id가 달라 충돌하지 않는다. 계통은 `waiting` 반납 바로 뒤 같은 thread의 재부여만 잇기 때문이다 [가정: X.primitives.spec §4.4.1 11번].
+- 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `turn` 명령의 기본 `requestId`(`${lineageId}:${상태 판}.${단계 번호}`)는 가지가 다르면 계통 id가 달라 충돌하지 않는다. 계통은 `waiting` 반납 바로 뒤 같은 thread의 재부여만 잇기 때문이다 [가정: X.primitives.spec §4.4.1 11번]. 같은 가지 안에서는 단계 번호가 단계마다 0부터 다시 세므로, 턴 명령의 기본 id와 뒤 단계 `commit` 명령의 id가 겹칠 수 있다. 그룹은 턴 명령에 `requestId`를 명시해 피하고, 엔진 쪽 결함은 §10에 적었다.
 
 ### 4.7 상태 스키마 버전과 마이그레이션 훅
 
@@ -1233,7 +1242,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 2 | 존재하지 않는 holder 지정 | 명령·서비스 경로는 `group.unknown`으로 거부하고 설정을 바꾸지 않는다. 설정 파일에 이미 없는 이름이 있으면 `named-unavailable`로 아무도 drive lock을 받지 않고, 상태줄은 drive 그룹을 `[대기]`로 보이며 `/group status` 첫 줄에 `주도 플러그인 설정: review(설치되지 않음)`을 낸다 |
 | 3 | drive 함수 예외 | X가 drive lock을 반납한다(`lease.released{reason:"error"}`, F.extensions.spec §5 6번). `GroupStatus.drive = "error"`, `lastError = group.driveThrew`. `on` 핸들러와 `post`, `delegate`는 계속 동작한다. 오류 표시는 그룹을 끄고 다시 켜면 지워진다(X.primitives.spec §4.4.3 예외 규칙). 그동안 X는 그 그룹을 후보(`DriveLockCandidate`)에 넣지 않는다 |
 | 4 | 대기 중인 그룹이 비활성화됨 | 단계 경계에서 `waiting`에서 빠진다. drive lock 이벤트는 없다. `scope.changed{disabled}`만 커밋된다 |
-| 5 | holder가 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 `loop.turn`은 정착까지 돈다(X.primitives.spec §4.5.3). 그 뒤 판단 시점에 `choose`가 다음 후보를 고르고 `lease.acquired`가 기록된다 [가정: 같은 경계 커밋 여부는 §3.13] |
+| 5 | holder가 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 turn 명령은 정착까지 돈다(X.primitives.spec §4.5.3). 그 뒤 판단 시점에 `choose`가 다음 후보를 고르고 `lease.acquired`가 기록된다 [가정: 같은 경계 커밋 여부는 §3.13] |
 | 6 | drive lock 교체 중 프로세스 종료 | 반납 커밋 전 종료면 이전 holder가 그대로이고 재개 뒤 X가 열린 drive lock(`openLease`)로 drive를 다시 부른다. 반납 커밋 뒤 부여 전 종료면 재개 뒤 `openThread`에서 `choose`가 다시 정한다. 부여 커밋 뒤 종료면 새 holder의 drive 함수가 마지막 커밋 상태로 다시 불린다 |
 | 7 | 홀더 설정 변경이 진행 중 turn이나 다른 그룹의 drive lock과 겹침 | 설정은 즉시 저장된다. drive lock이 없으면 다음 판단 시점(단계 경계)에 `decide`의 입력이 된다. 다른 그룹이 drive lock을 가지고 있고 지정한 그룹이 후보이면 X가 다음 경계에서 그 drive lock을 `revoked`로 반납하고 지정한 그룹에 부여한다. 지정한 그룹이 후보가 아니면 현재 drive lock을 유지하고, 지정한 그룹이 후보가 되는 경계나 drive lock이 반납되는 경계에 적용된다(§3.5 규칙 4). 진행 중 `loop.turn`은 끝까지 돈다. 그 사이 `GroupStatus`와 상태줄은 적용 대기 문구를 보인다 |
 | 8 | 같은 단계에서 켜기와 끄기 요청이 겹침 | 마지막 요청만 적용한다(X `RegistrationHandle` 규칙 [가정]). 상태줄은 마지막 요청을 보인다 |
@@ -1289,7 +1298,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 | 이름 | 출처 |
 |---|---|
-| `ExtensionManifest`, `RegistrationApi`, `StateDecl`, `DriveFn`, `DriveLock`, `DriveLockId`, `RegistrationId`, `RegistrationStatus`, `RegistrationHandle`, `ExtensionEntry`, `GroupRecord`, `RecordKind`, `GroupId`, `validateManifest`, `validateUsage`, `validateManifestSet` | F.extensions.spec |
+| `ExtensionManifest`, `RegistrationApi`, `StateDecl`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveOptions`, `DriveLock`, `DriveLockId`, `RegistrationId`, `RegistrationStatus`, `RegistrationHandle`, `ExtensionEntry`, `GroupRecord`, `RecordKind`, `GroupId`, `validateManifest`, `validateUsage`, `validateManifestSet` | F.extensions.spec |
 | `Upcaster`, `DurableEventEnvelope`, `scope.changed`, `lease.acquired`, `lease.released`, `checkpoint.step`의 `leaseRefs`, 분기 규칙 | F.records.spec |
 | `ServiceKey`, `ToolName`. `@fresnel/contracts/services`의 `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`(§3.12 `services/groups.ts`) | F.capabilities.spec |
 | `SettingDefInput`, `SettingGroup`, `defineSettings`, `SettingScope`, `EffectiveSetting`, `WriteCheck` | F.wire-settings.spec |
@@ -1307,7 +1316,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 1. `x.primitives.activeDriver`이 `null`(auto)일 때 drive 그룹 A(요청 순번 10)와 B(요청 순번 12)가 켜지면 A의 drive 함수만 호출되고 B의 drive 함수 호출 수는 0이다. B의 `GroupStatus.drive`는 `"waiting"`이다.
 2. 1번 상태에서 B의 `tool.call.before` 핸들러와 `post`는 계속 호출·수락되고, B가 `delegate`를 부르면 `accepted` 영수증을 받는다.
 3. `x.primitives.activeDriver`이 `null`(auto)이고 holder A가 있을 때 C를 새로 켜도 단계 경계 뒤 holder는 A다(선점 없음).
-4. A가 drive lock을 가진 동안 `x.primitives.activeDriver`을 B로 바꾸면 A의 진행 중 `loop.turn`은 `completed`로 끝나고, 다음 경계에 `lease.released{reason:"revoked"}`(A)와 `lease.acquired`(B)가 차례로 기록된다. 중단된 step은 0개다. B가 후보가 아니면(예: 꺼짐) A의 drive lock은 유지된다. A를 끄면 끄기가 적용된 경계에 `lease.released{reason:"disabled"}`(A)가 기록되고, 그 뒤 판단 시점에 `choose`가 B를 고른다.
+4. A가 drive lock을 가진 동안 `x.primitives.activeDriver`을 B로 바꾸면 A의 진행 중 turn 명령은 `completed`로 끝나고, 다음 경계에 `lease.released{reason:"revoked"}`(A)와 `lease.acquired`(B)가 차례로 기록된다. 중단된 step은 0개다. B가 후보가 아니면(예: 꺼짐) A의 drive lock은 유지된다. A를 끄면 끄기가 적용된 경계에 `lease.released{reason:"disabled"}`(A)가 기록되고, 그 뒤 판단 시점에 `choose`가 B를 고른다.
 5. `x.primitives.activeDriver`이 켜지지 않은 그룹 이름이면 `decide`는 `holder: null`, `reason: "named-unavailable"`을 돌려주고 drive 함수는 하나도 호출되지 않는다.
 6. `setDriveHolder("learning")`(drive 미사용)은 `group.noDrive`를 돌려주고 설정 값은 바뀌지 않는다. `/group drive xyz`는 `알 수 없는 그룹: xyz. 설치된 그룹: …`을 출력한다.
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
@@ -1341,7 +1350,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 ## 10. 미결 사항
 
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
-- (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `loop.spawn`, 선언된 기능 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
+- (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `spawn` 명령, 선언된 기능 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 - 맞춤(M3-35, 2026-10-29) 공통 모순 3: `xeon/packages/group-sdk/package.json`의 `fresnel.domain`은 `kit`이었고 routes layout 도메인은 `group-sdk`이었다. 이제 `group-sdk`이다. DR-03은 `group-sdk`을 접두 규칙의 예외로 적는다(`eng.dependency-rules.guide` DR-03, `scripts/check-layers.ts`의 `expectedDomain`). 작업 항목은 L3.group-sdk.plan G-02다.
 - (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
@@ -1377,3 +1386,4 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 drive lock 시간과 비용을 한 줄로 보일지는 정하지 않았다.
 - (닫힘) [B4-GRP] 학습 그룹의 `addUsage` 연결(LR-17)은 학습 스펙 §10 17에 따라 검토 종료 때 연결했다.
 - [결정: review.decisions-2 U-17] `group-sdk`의 `@fresnel/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않는다(L3.readme §3).
+- [미결] [근거: packages/ext-host/src/primitives/lease.ts] [엔진, X.primitives.spec §4.4.1 소관] 단계 함수의 기본 `requestId`는 `${lineageId}:${상태 판}.${단계 번호}`인데, 단계 번호(`DriveInvocation.i`)가 단계마다 0부터 다시 센다(`packages/ext-host/src/primitives/lease.ts`의 `runSteps`와 `executeCommand`의 `nextId`). 같은 상태 판에서 기본 id를 받은 턴 명령과 뒤 단계의 `commit` 명령이 같은 id를 받으면, 두 번째 결과 사건이 같은 키에 다른 내용으로 쓰여 `invalid`로 거부되고 단계가 `storage_unavailable`로 끝나 drive lock이 `error`로 반납된다. 그룹 쪽은 턴 명령에 `requestId`를 명시해 피한다(§3.2 예, §4.6). 계약의 `DriveCommandBase.requestId` 주석(`단계 번호`의 뜻)과 맞추려면 엔진이 단계 번호를 drive lock 안에서 이어 세야 한다.

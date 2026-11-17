@@ -120,13 +120,15 @@ test("the request applies only at the boundary: handlers and loop.turn proceed u
         counts.step += 1;
         return { continue: true };
       });
-      g.drive(async (loop) => {
+      g.drive(async ({ last }) => {
+        if (last !== null) return { do: "yield" };
         counts.drive += 1;
         // 같은 상태 판의 같은 기본 키는 재생되므로 호출마다 요청 키를 바꾼다
-        await loop.turn({
+        return {
+          do: "turn",
           input: { kind: "user", content: "go" },
           requestId: `pause-b:${counts.drive}`,
-        });
+        };
       });
     }),
   );
@@ -162,7 +164,6 @@ test("the request applies only at the boundary: handlers and loop.turn proceed u
 test("a held boundary keeps the drive lock: no second drive call, no release, no second turn", async () => {
   const gate = Promise.withResolvers<void>();
   const counts = { drive: 0 };
-  const driveSignals: AbortSignal[] = [];
   const seen: { outcome: StepOutcome | null } = { outcome: null };
   const t = await createTestHost({
     loop: {
@@ -178,10 +179,10 @@ test("a held boundary keeps the drive lock: no second drive call, no release, no
   await t.host.install(
     makeGroupUnit({ name: "pause-c", hooks: ["boundary.step.after"] }, (g) => {
       g.on("boundary.step.after", () => ({ continue: true }));
-      g.drive(async (loop) => {
+      g.drive(async ({ last }) => {
+        if (last !== null) return { do: "yield" };
         counts.drive += 1;
-        driveSignals.push(loop.signal);
-        await loop.turn({ input: { kind: "user", content: "go" } });
+        return { do: "turn", input: { kind: "user", content: "go" } };
       });
     }),
   );
@@ -201,7 +202,6 @@ test("a held boundary keeps the drive lock: no second drive call, no release, no
   expect(seen.outcome).toBeNull();
   expect(counts.drive).toBe(1);
   expect(t.host.leaseOf(thread)).toEqual(lease);
-  expect(driveSignals[0]?.aborted).toBe(false);
   expect(t.records.events(thread).map((event) => event.kind)).not.toContain("lease.released");
   expect(t.loop.turns).toHaveLength(1);
   expect(t.loop.status(thread)).toBe("running");
@@ -408,8 +408,9 @@ function phaseGroupUnit(name: string, phases: PhasesDecl | undefined, next: stri
       def: { state: { schema: PhaseStateSchema, initial: { phase: "plan" }, version: 1 } },
     },
     (g) => {
-      g.drive(async (_loop, state) => {
-        if (state.phase !== next) await g.commit({ phase: next });
+      g.drive(async ({ state }) => {
+        if (state.phase === next) return { do: "yield" };
+        return { do: "commit", state: { phase: next }, next: { do: "yield" } };
       });
     },
   );

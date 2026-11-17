@@ -128,6 +128,7 @@ realTest(
               );
             }
             outcome.resolve(results);
+            return { do: "yield" };
           });
         });
       },

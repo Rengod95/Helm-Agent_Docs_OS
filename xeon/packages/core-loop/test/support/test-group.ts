@@ -7,7 +7,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 
-// M1 걸어 다니는 골격의 테스트용 그룹: on(turn_end), post(followUp 한 번), drive(loop.turn 몇 번), scope(켜기·끄기).
+// M1 걸어 다니는 골격의 테스트용 그룹: on(turn_end), post(followUp 한 번), drive(turn 명령 몇 번), scope(켜기·끄기).
 
 export const TEST_GROUP_ID = "test-group";
 export const TEST_NOTE_KIND = "grp.test-group.note.recorded";
@@ -46,7 +46,7 @@ const TEST_GROUP_MANIFEST: ExtensionManifest = defineManifest({
 export interface TestGroupProbe {
   /** turn_end 핸들러가 본 단계 */
   readonly turnEnds: StepId[];
-  /** drive 함수가 부른 loop.turn 수 */
+  /** drive 단계가 돌려준 turn 명령 수 */
   driveCalls: number;
 }
 
@@ -99,11 +99,17 @@ export function createTestGroup(options: TestGroupOptions): {
           };
         });
         if (driveTurns > 0) {
-          g.drive(async (loop, state) => {
-            if (state.count >= driveTurns) return;
+          g.drive(async ({ state, last }) => {
+            // 한 호출은 turn 하나다. turn이 끝나면 상태를 올리고 다음 경계까지 쉰다
+            if (last?.kind === "ok" && last.of === "turn") {
+              return { do: "commit", state: { count: state.count + 1 }, next: { do: "yield" } };
+            }
+            if (state.count >= driveTurns) return { do: "yield" };
             probe.driveCalls += 1;
-            await loop.turn({ input: { kind: "user", content: `drive turn ${state.count}` } });
-            await g.commit({ count: state.count + 1 });
+            return {
+              do: "turn",
+              input: { kind: "user", content: `drive turn ${state.count}` },
+            };
           });
         }
       },

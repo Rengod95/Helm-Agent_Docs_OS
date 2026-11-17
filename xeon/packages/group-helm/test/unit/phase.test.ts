@@ -52,11 +52,13 @@ function eventOf(type: HelmEvent["type"]): HelmEvent {
     case "diverged":
     case "applied":
       return { type, outcome: COMPLETED };
+    case "turnIssued":
     case "lensesStarted":
+    case "explored":
     case "stopRequested":
       return { type };
-    case "explored":
-      return { type, results: [{ lensId: "analogy", outcome: { ok: true, value: LENS_OK } }] };
+    case "lensFinished":
+      return { type, lensId: "analogy", outcome: { ok: true, value: LENS_OK } };
     case "converged":
       return { type, findings: at("converge").findings, context: [] };
     case "limitReached":
@@ -72,8 +74,10 @@ const PHASES: readonly HelmPhase[] = ["idle", "diverge", "explore", "converge", 
 const EVENT_TYPES: readonly HelmEvent["type"][] = [
   "requested",
   "leaseGranted",
+  "turnIssued",
   "diverged",
   "lensesStarted",
+  "lensFinished",
   "explored",
   "converged",
   "applied",
@@ -82,10 +86,20 @@ const EVENT_TYPES: readonly HelmEvent["type"][] = [
   "failed",
 ];
 
+/** explored는 끝난 렌즈가 하나 있는 상태에서 본다(모두 실패면 실패로 끝나서 표의 정상 경로가 아니다) */
+function withOneLensDone(state: HelmState): HelmState {
+  return {
+    ...state,
+    lenses: state.lenses.map((lens, index) =>
+      index === 0 ? { ...lens, status: "done" as const } : lens,
+    ),
+  };
+}
+
 test("transitions.table-covers-all-phase-pairs", () => {
   for (const from of PHASES) {
     for (const on of EVENT_TYPES) {
-      const state = at(from);
+      const state = on === "explored" ? withOneLensDone(at(from)) : at(from);
       const row = TRANSITIONS.find((entry) => entry.from === from && entry.on === on);
       const result = transition(state, eventOf(on));
       if (row === undefined) {
@@ -161,56 +175,51 @@ test("explored keeps partial results and fails only when no lens is done", () =>
   const state = at("explore");
   const report =
     '```json\n{"findings":[{"claim":"x","sources":[],"confidence":"high","followUp":"do x"}]}\n```';
-  const partial = transition(state, {
-    type: "explored",
-    results: [
-      {
-        lensId: "analogy",
-        outcome: {
-          ok: true,
-          value: { childThreadId: THREAD, status: "completed", answer: report },
-        },
-      },
-      {
-        lensId: "prior-art",
-        outcome: { ok: false, error: { kind: "spawn", lensId: "prior-art", status: "error" } },
-      },
-    ],
+  // 렌즈는 하나씩 끝난다. 결과마다 그 렌즈만 상태에 들어간다
+  const first = transition(state, {
+    type: "lensFinished",
+    lensId: "analogy",
+    outcome: {
+      ok: true,
+      value: { childThreadId: THREAD, status: "completed", answer: report },
+    },
   });
+  expect(first.state.phase).toBe("explore");
+  expect(first.state.lenses.map((lens) => lens.status)).toEqual(["done", "running"]);
+  const second = transition(first.state, {
+    type: "lensFinished",
+    lensId: "prior-art",
+    outcome: { ok: false, error: { kind: "spawn", lensId: "prior-art", status: "error" } },
+  });
+  const partial = transition(second.state, { type: "explored" });
   expect(partial.state.phase).toBe("converge");
   expect(partial.state.lenses.map((lens) => lens.status)).toEqual(["done", "failed"]);
   expect(partial.state.findings.map((found) => found.id)).toEqual(["analogy-1", "analogy-1"]);
-  const allFailed = transition(state, {
-    type: "explored",
-    results: [
-      {
-        lensId: "analogy",
-        outcome: { ok: true, value: { childThreadId: THREAD, status: "error" } },
-      },
-    ],
+  const lone = transition(state, {
+    type: "lensFinished",
+    lensId: "analogy",
+    outcome: { ok: true, value: { childThreadId: THREAD, status: "error" } },
   });
+  const allFailed = transition(lone.state, { type: "explored" });
   expect(allFailed.finished).toMatchObject({ outcome: "failed", failedLenses: 1, lensCount: 2 });
   expect(allFailed.state.phase).toBe("idle");
 });
 
 test("a lens that never ran is counted as skipped and named in the finished notice", () => {
   const state = at("explore");
-  const done = transition(state, {
-    type: "explored",
-    results: [
-      {
-        lensId: "analogy",
-        outcome: {
-          ok: true,
-          value: {
-            childThreadId: THREAD,
-            status: "completed",
-            answer: '```json\n{"findings":[{"claim":"x","sources":[],"confidence":"high"}]}\n```',
-          },
-        },
+  const one = transition(state, {
+    type: "lensFinished",
+    lensId: "analogy",
+    outcome: {
+      ok: true,
+      value: {
+        childThreadId: THREAD,
+        status: "completed",
+        answer: '```json\n{"findings":[{"claim":"x","sources":[],"confidence":"high"}]}\n```',
       },
-    ],
+    },
   });
+  const done = transition(one.state, { type: "explored" });
   expect(done.state.lenses.map((lens) => lens.status)).toEqual(["done", "skipped"]);
   const finished = transition(done.state, {
     type: "converged",
@@ -240,6 +249,7 @@ test("failures.reaction-covers-all-kinds", () => {
     { kind: "turn", phase: "diverge", status: "error" },
     { kind: "spawn", lensId: "analogy", status: "error" },
     { kind: "state_inconsistent", detail: "inquiryId is null" },
+    { kind: "refused", code: "state_schema" },
   ];
   const expected: HelmReaction[] = [
     { type: "yield" },
@@ -262,6 +272,10 @@ test("failures.reaction-covers-all-kinds", () => {
         failure: { kind: "state_inconsistent", detail: "inquiryId is null" },
       },
     },
+    {
+      type: "finish",
+      event: { type: "failed", failure: { kind: "refused", code: "state_schema" } },
+    },
   ];
   for (const phase of PHASES) {
     expect(failures.map((failure) => reactionOf(failure, phase))).toEqual(expected);
@@ -276,4 +290,24 @@ test("failures.reaction-covers-all-kinds", () => {
   expect(
     reactionOf({ kind: "capability", capability: "work.tasks", code: "denied" }, "apply"),
   ).toEqual({ type: "degrade", source: "work" });
+});
+
+test("turnIssued marks the phase turn as awaited and a completed diverge turn clears it", () => {
+  const issued = transition(at("diverge"), { type: "turnIssued" });
+  expect(issued.state).toEqual({ ...at("diverge"), awaitingTurn: true });
+  const done = transition(issued.state, {
+    type: "diverged",
+    outcome: { turnId: TURN, status: "completed" },
+  });
+  expect(done.state.phase).toBe("explore");
+  expect(done.state.awaitingTurn).toBe(false);
+  expect(transition(at("explore"), { type: "turnIssued" }).state).toEqual(at("explore"));
+});
+
+test("a refused command ends the inquiry as failed with its code in the reason", () => {
+  const result = transition(at("apply"), {
+    type: "failed",
+    failure: { kind: "refused", code: "state_schema" },
+  });
+  expect(result.finished).toMatchObject({ outcome: "failed", reason: "refused state_schema" });
 });

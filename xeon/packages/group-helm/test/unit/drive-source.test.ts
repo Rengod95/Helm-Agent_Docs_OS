@@ -6,7 +6,17 @@ import { scanDriveSource } from "@fresnel/group-sdk/testing";
 
 const DRIVE_SOURCE = await Bun.file(join(import.meta.dir, "../../src/drive.ts")).text();
 /** 스캐너는 `<식>.drive(함수)` 호출을 찾는다. 등록 줄은 index.ts에 있어 같은 모양의 줄을 덧붙인다 */
-const ENTRIES = ["branch", "diverge", "explore", "converge", "apply"] as const;
+const ENTRIES = [
+  "nextCommand",
+  "advance",
+  "step",
+  "settle",
+  "commitThen",
+  "diverge",
+  "explore",
+  "converge",
+  "apply",
+] as const;
 const REGISTERED = `${DRIVE_SOURCE}\n${ENTRIES.map((name) => `g.drive(${name});`).join("\n")}\n`;
 
 test("drive.source-is-deterministic", () => {
@@ -15,8 +25,8 @@ test("drive.source-is-deterministic", () => {
 
 test("the scan sees a clock, a random source and direct I/O hidden in a one-level helper", () => {
   const tainted = REGISTERED.replace(
-    "if (loop.budget.turns === 0) {",
-    "if (Date.now() > 0 && Math.random() > 2) await fetch('https://example.test');\n  if (loop.budget.turns === 0) {",
+    "const digest = await gatherContext(ctx.g, inquiry);",
+    "if (Date.now() > 0 && Math.random() > 2) await fetch('https://example.test');\n  const digest = await gatherContext(ctx.g, inquiry);",
   );
   const found = scanDriveSource(tainted, { fileName: "drive.ts" }).map((finding) => finding.code);
   expect(found).toContain("SD-01");

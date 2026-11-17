@@ -1,7 +1,15 @@
 import { expect, test } from "bun:test";
 import { CapabilityError } from "@fresnel/contracts/capabilities";
 import { PrimitiveError, type PrimitiveErrorCode } from "@fresnel/ext-host";
-import { failureOf, type HelmFailure } from "../../src/failures.ts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import {
+  failureOf,
+  failureOfRefusal,
+  failureOfTurn,
+  type HelmFailure,
+} from "../../src/failures.ts";
+
+const TURN = fixedIdFactory(0).next("trn");
 
 const capability = (code: string): CapabilityError =>
   new CapabilityError({
@@ -60,4 +68,26 @@ test("failureOf maps capability errors and aborts, and leaves unknown errors alo
   expect(failureOf(new TypeError("boom"), {})).toBeUndefined();
   expect(failureOf("text", {})).toBeUndefined();
   expect(failureOf(undefined, {})).toBeUndefined();
+});
+
+test("failureOfRefusal keeps the engine codes that Helm knows and names the rest", () => {
+  expect(failureOfRefusal("state_conflict")).toEqual({ kind: "state_conflict" });
+  expect(failureOfRefusal("state_too_large")).toEqual({ kind: "state_too_large" });
+  expect(failureOfRefusal("storage_unavailable")).toEqual({ kind: "storage" });
+  expect(failureOfRefusal("registration_inactive")).toEqual({ kind: "disabled" });
+  expect(failureOfRefusal("depth_limit")).toEqual({ kind: "refused", code: "depth_limit" });
+});
+
+test("failureOfTurn makes a turn that did not complete a turn failure and lets a completed one pass", () => {
+  expect(failureOfTurn({ turnId: TURN, status: "completed" }, "diverge")).toBeUndefined();
+  expect(failureOfTurn({ turnId: TURN, status: "aborted" }, "apply")).toEqual({
+    kind: "turn",
+    phase: "apply",
+    status: "aborted",
+  });
+  expect(failureOfTurn({ turnId: TURN, status: "error" }, "diverge")).toEqual({
+    kind: "turn",
+    phase: "diverge",
+    status: "error",
+  });
 });

@@ -255,6 +255,7 @@ export const TYPE_PREFIX_OWNERS: Readonly<Record<string, string>> = {
   "tool.": "core.tools",
   "scope.": "xh",
   "lease.": "xh",
+  "drive.": "xh",
   "model.": "core.models",
   "workspace.": "cap.workspace",
   "mcp.": "cap.mcp",

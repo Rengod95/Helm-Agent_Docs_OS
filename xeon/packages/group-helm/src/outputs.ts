@@ -72,12 +72,11 @@ export async function linkWork(
   g: Pick<OutputApi, "capability">,
   state: Readonly<HelmState>,
   inquiryId: InquiryId,
-  opts: { readonly signal: AbortSignal },
 ): Promise<LinkWorkResult> {
   const tasks = new Map<string, string>();
   let skipped = 0;
   const todo = state.findings.filter((finding) => finding.followUp !== undefined);
-  const outcome = await linkFrom(g, todo, 0, inquiryId, opts, tasks);
+  const outcome = await linkFrom(g, todo, 0, inquiryId, tasks);
   skipped = outcome.skipped;
   return { tasks, leaseLost: outcome.leaseLost, skipped };
 }
@@ -87,7 +86,6 @@ async function linkFrom(
   todo: HelmState["findings"],
   index: number,
   inquiryId: InquiryId,
-  opts: { readonly signal: AbortSignal },
   tasks: Map<string, string>,
 ): Promise<{ readonly leaseLost: boolean; readonly skipped: number }> {
   const finding = todo[index];
@@ -96,14 +94,11 @@ async function linkFrom(
   const created = await callSource("work.tasks", () =>
     g
       .capability(WorkTasksKey)
-      .create(
-        { content },
-        { requestId: taskRequestId(inquiryId, finding.id), signal: opts.signal },
-      ),
+      .create({ content }, { requestId: taskRequestId(inquiryId, finding.id) }),
   );
-  if (!created.ok) return linkFailure(g, todo, index, inquiryId, opts, tasks, created.error);
+  if (!created.ok) return linkFailure(g, todo, index, inquiryId, tasks, created.error);
   tasks.set(finding.id, created.value.task.id);
-  return linkFrom(g, todo, index + 1, inquiryId, opts, tasks);
+  return linkFrom(g, todo, index + 1, inquiryId, tasks);
 }
 
 async function linkFailure(
@@ -111,11 +106,10 @@ async function linkFailure(
   todo: HelmState["findings"],
   index: number,
   inquiryId: InquiryId,
-  opts: { readonly signal: AbortSignal },
   tasks: Map<string, string>,
   failure: Extract<HelmFailure, { kind: "capability" | "lease_lost" }>,
 ): Promise<{ readonly leaseLost: boolean; readonly skipped: number }> {
   if (failure.kind === "lease_lost") return { leaseLost: true, skipped: 0 };
-  const rest = await linkFrom(g, todo, index + 1, inquiryId, opts, tasks);
+  const rest = await linkFrom(g, todo, index + 1, inquiryId, tasks);
   return { leaseLost: rest.leaseLost, skipped: rest.skipped + 1 };
 }

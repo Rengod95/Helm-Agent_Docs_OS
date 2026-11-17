@@ -8,6 +8,7 @@ export type CoreArea =
   | "checkpoint"
   | "scope"
   | "lease"
+  | "drive"
   | "post"
   | "settings"
   | "approval"
@@ -16,7 +17,7 @@ export type CoreArea =
   | "secret"
   | "tool";
 
-/** 코어 kind 43종. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다). */
+/** 코어 kind 44종. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다). */
 export const CORE_EVENT_KINDS: readonly [
   "thread.started",
   "thread.updated",
@@ -45,6 +46,7 @@ export const CORE_EVENT_KINDS: readonly [
   "lease.acquired",
   "lease.released",
   "lease.rejected",
+  "drive.command_settled",
   "post.accepted",
   "settings.changed",
   "approval.requested",
@@ -89,6 +91,7 @@ export const CORE_EVENT_KINDS: readonly [
   "lease.acquired",
   "lease.released",
   "lease.rejected",
+  "drive.command_settled",
   "post.accepted",
   "settings.changed",
   "approval.requested",
@@ -119,6 +122,7 @@ export const CORE_AREAS: readonly CoreArea[] = [
   "checkpoint",
   "scope",
   "lease",
+  "drive",
   "post",
   "settings",
   "approval",

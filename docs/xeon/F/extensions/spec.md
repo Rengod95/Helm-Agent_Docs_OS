@@ -29,7 +29,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 정하는 것:
 
 - `ExtensionManifest` TypeBox 스키마와 정적 검사 `validateManifest`, `validateUsage`, `validateManifestSet`
-- 4연산의 타입: `on`, `post`, `drive`, `register`(이전 이름 `scope`), 그리고 `LoopHandle`, `DriveLock`, `RegistrationDef`, `RegistrationApi`
+- 4연산의 타입: `on`, `post`, `drive`, `register`(이전 이름 `scope`), 그리고 `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `RegistrationDef`, `RegistrationApi`
 - 훅 선언 표 전체(pi 이벤트 41종과 guard·lifecycle 5종)와 `HOOKS` 상수, `HookDecl` 타입
 - fold별 실패 규칙과 재생 계약
 - 그룹 간 레코드 `GroupRecord`, 확장 레코드 종류 등록 `RecordKindDecl`, 접두 규칙
@@ -331,7 +331,7 @@ export interface CompositionContext {
 export function validateComposition(composition: CompositionDecl, context?: CompositionContext): readonly ManifestIssue[];
 ```
 
-- `phases`는 drive 블록의 단계 머신입니다. `human` 노드는 drive 원시 `loop.ask`(§3.2 `LoopHandle`)로 풀리고, `when`과 `event`는 설명용이라 평가하지 않습니다.
+- `phases`는 drive 블록의 단계 머신입니다. `human` 노드는 drive 명령 `ask`(§3.2 `DriveCommand`)로 풀리고, `when`과 `event`는 설명용이라 평가하지 않습니다.
 - `validateComposition`은 순수 함수입니다. 경로는 `composition` 루트 기준 JSON Pointer이고, 매니페스트 안에서 검사하면(`validateManifest`) `/group/composition` 접두가 붙습니다. W-47 `ext.validateComposition`과 플러그인 빌더 AU-003·AU-004가 같은 함수를 씁니다. 블록은 `plugin`이 가리키는 플러그인(없으면 루트 플러그인)의 선언과 대조합니다.
 
   | 코드 | 수준 | 조건 |
@@ -410,7 +410,7 @@ export interface ExtensionOps<S> {
   on<N extends HookName>(point: N, handler: Handler<N, S>): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
   /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
-  drive(fn: DriveFn<S>, options?: DriveOptions): void;
+  drive(step: DriveStep<S>, options?: DriveOptions): void;
 }
 ```
 
@@ -466,19 +466,53 @@ export interface SpawnOutcome {
   readonly answer?: string;
 }
 
-/**
- * drive 함수가 루프에 효과를 내는 통로. 루프에 대한 효과는 turn과 spawn뿐이다(post와 Registration commit 제외).
- * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 기능 호출 포함)은 REPLAY_EFFECT_TABLE이다(§4.3)
- */
-export interface LoopHandle {
-  turn(input: TurnInput): Promise<TurnOutcome>;
-  spawn(spec: SpawnSpec): Promise<SpawnOutcome>;
-  /** 사람 확인 원시(X-17, 아래 설명). 첫 호출은 drive lock을 사유 "waiting"으로 반납한다 */
-  ask(request: AskRequest): Promise<AskOutcome>;
-  readonly budget: DriveLockBudget;
-  /** drive lock이 회수되면 중단 신호가 켜진다 */
-  readonly signal: AbortSignal;
+/** 단계 함수가 쓰는 프레임 정보. 프레임 스택(E3) 전에는 `frameDepth` 1, `calledBy`·`input` null [M5a-1, review.m5-drive-isolation 1.1] */
+export interface DriveFrameInfo {
+  readonly frameDepth: number;
+  readonly calledBy: string | null;
+  readonly input: JsonValue | null;
 }
+
+/** 엔진이 단계마다 새로 주는 입력 */
+export interface DriveStepInput<S> {
+  readonly state: Readonly<S>;      // 커밋된 상태 문서
+  readonly last: StepResult | null; // 직전 명령의 결과. 이 호출의 첫 단계면 null
+  readonly budget: DriveLockBudget; // 남은 한도를 값으로 준다
+  readonly frame: DriveFrameInfo;
+}
+
+/**
+ * 단계 함수가 돌려주는 명령 하나. 엔진이 블록으로 실행하고 결과를 다음 단계의 `last`로 준다.
+ * `model`, `tool`(E2), `handoff`(E3)는 타입 자리만 있고 E1 엔진은 `{ kind: "refused", code: "command_unavailable" }`를 돌려준다.
+ * `commit`의 이어 실행 이름은 `next`다(스펙 초안의 `then`은 lint 규칙 unicorn/no-thenable이 막는다)
+ */
+export type DriveCommand<S> =
+  | { readonly do: "turn"; readonly input: PostItem; readonly note?: string; readonly requestId?: string }
+  | { readonly do: "model"; readonly messages: readonly DriveModelMessage[]; readonly label?: string }
+  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue }
+  | { readonly do: "ask"; readonly card: AskCard; readonly title?: string; readonly requestId?: string }
+  | { readonly do: "spawn"; readonly agent: string; readonly task: string; readonly background?: boolean; readonly label?: string; readonly requestId?: string }
+  | { readonly do: "handoff"; readonly to: string; readonly input: JsonValue }
+  | { readonly do: "commit"; readonly state: S; readonly next: DriveCommand<S> }
+  | { readonly do: "yield" }                                  // 지금은 할 일 없음. 주도권은 유지하고 다음 경계에 다시 묻는다
+  | { readonly do: "done"; readonly result?: JsonValue };     // 끝. 주도권을 내려놓는다(반납 사유 `done`)
+
+/** 엔진이 다음 단계의 `last`로 주는 값 */
+export type StepResult =
+  | { readonly kind: "ok"; readonly of: "turn"; readonly value: TurnOutcome }
+  | { readonly kind: "ok"; readonly of: "spawn"; readonly value: SpawnOutcome }
+  | { readonly kind: "ok"; readonly of: "model" | "tool"; readonly value: JsonValue | null }
+  | { readonly kind: "ask"; readonly answer: "answered" | "cancelled" | "expired" | "noninteractive"; readonly value: JsonValue | null }
+  | { readonly kind: "blocked"; readonly by: { plugin: string | null; hook: string | null }; readonly reason: string }
+  | { readonly kind: "denied"; readonly by: "policy" | "human" | "noninteractive"; readonly reason: string | null }
+  | { readonly kind: "replaced"; readonly by: { plugin: string | null; hook: string | null }; readonly value: JsonValue | null }
+  | { readonly kind: "refused"; readonly code: string }       // 예외가 아니다. 거부 사유 코드(`command_unavailable`, 엔진 오류 코드 등)
+  | { readonly kind: "aborted" }
+  | { readonly kind: "user"; readonly message: PostItem }     // 주도 중에 온 사용자 메시지
+  | { readonly kind: "handoff"; readonly status: "done" | "aborted"; readonly result: JsonValue | null };
+
+/** 주도 단계 함수. 클로저 지역 변수에 진행 상태를 두지 않는다: 같은 단계가 재시작 뒤 다시 돌 수 있다 */
+export type DriveStep<S> = (input: DriveStepInput<S>) => Promise<DriveCommand<S>>;
 
 /** 질문 카드는 ADR-0018 question kind 본문과 같다(질문 1~4개, records `QuestionApprovalDetailSchema`) */
 export type AskCard = QuestionApprovalDetail;
@@ -492,9 +526,6 @@ export type AskOutcome =
   | { readonly status: "denied"; readonly resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired"; readonly feedback?: string };
 export const AskRequestSchema: TUnsafe<AskRequest>;
 
-/** 경계마다 마지막 커밋 상태로 다시 호출된다(§4.6) */
-export type DriveFn<S> = (loop: LoopHandle, state: Readonly<S>) => Promise<void>;
-
 export type DriveLockId = string;
 
 export interface DriveLock {
@@ -505,7 +536,7 @@ export interface DriveLock {
 }
 ```
 
-- `loop.ask` [결정: 2026-10-31 사용자, X-17]: 첫 호출은 question kind 승인(`origin.caller`는 `ext:<그룹>`이고 화면은 `grp:<그룹>`으로 보입니다 [결정: 오케스트레이터 기본값, `APPROVAL_CALLER_PATTERN`을 바꾸지 않기 위해])을 만들고 drive lock을 `lease.released` 사유 `waiting`으로 반납합니다(저장 이름 `lease.*`는 그대로입니다). 반납과 함께 `signal`이 켜지고 이 호출의 약속은 이행되지 않습니다. `approval.resolved`가 오면 X가 그 Registration을 다시 후보로 올리고, drive lock을 다시 받으면 drive 함수가 마지막 커밋 상태로 다시 호출됩니다(§4.6). 같은 `requestId`의 재호출은 새 승인을 만들지 않고 기록된 `AskOutcome`을 바로 돌려줍니다. 기다리는 동안 turn·spawn 예산을 쓰지 않습니다. 효과 표(§4.3)에서 on 핸들러에는 없고(`n/a`), drive에서 허용하며 `requestId`가 필수입니다. 보장 주체는 X입니다. 화면 문구에서는 이 승인을 Question이라 부릅니다(ADR-0022 §3.5).
+- `ask` 명령 [결정: 2026-10-31 사용자, X-17. M5a E1에서 `loop.ask`를 명령으로 바꿨다]: 첫 실행은 question kind 승인(`origin.caller`는 `ext:<그룹>`이고 화면은 `grp:<그룹>`으로 보입니다 [결정: 오케스트레이터 기본값, `APPROVAL_CALLER_PATTERN`을 바꾸지 않기 위해])을 만들고 drive lock을 `lease.released` 사유 `waiting`으로 반납합니다(저장 이름 `lease.*`는 그대로입니다). 반납과 함께 `signal`이 켜지고 이 호출의 약속은 이행되지 않습니다. `approval.resolved`가 오면 X가 그 Registration을 다시 후보로 올리고, drive lock을 다시 받으면 drive 함수가 마지막 커밋 상태로 다시 호출됩니다(§4.6). 같은 `requestId`의 재호출은 새 승인을 만들지 않고 기록된 `AskOutcome`을 바로 돌려줍니다. 기다리는 동안 turn·spawn 예산을 쓰지 않습니다. 효과 표(§4.3)에서 on 핸들러에는 없고(`n/a`), drive에서 허용하며 `requestId`가 필수입니다. 보장 주체는 X입니다. 화면 문구에서는 이 승인을 Question이라 부릅니다(ADR-0022 §3.5).
 
 ```ts
 // registration-id.ts, registration.ts
@@ -1500,6 +1531,7 @@ chain의 보충 규칙 [제안]:
 - [결정] Helm과 학습은 L3 기본 플러그인 그룹이다. 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다. 그래서 Helm이 구동 중이어도 학습 그룹을 함께 켤 수 있다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `_research/decisions-log.md` 20행).
 - `drive`는 매니페스트 `plugins[].drives: true`로 선언한 플러그인만 쓴다(없으면 `drive_undeclared`). 등록만으로 drive lock이 생기지 않는다. 중재(누가 언제 받는지)는 X.primitives.spec이 정한다.
 - drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름과 범위는 [제안]]: 설정 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`)이 참이면 플러그인 그룹의 구성원이 아닌 플러그인(`inGroup`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_group`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
+- [M5a-1 E1] 단계 함수: 엔진이 `DriveStepInput`(상태, 직전 결과 `last`, 남은 한도, 프레임 정보)을 주면 플러그인이 명령 하나를 돌려주고 엔진이 실행한다(§3.2 `DriveStep`). 아래 재생 규율의 "drive 함수"는 이 단계 함수이고 "다시 호출"은 "단계를 다시 부름"이다. 명령의 기본 `requestId`는 `${lineageId}:${그 단계 시작 때의 상태 판}.${단계 안 순번}`이라 같은 단계가 재시작 뒤 다시 돌아도 이미 실행한 명령은 기록된 결과를 돌려준다. 결과는 대화 로그의 상태 사건 `drive.command_settled`로도 남는다(F.records §3.3). `wants`는 없다: 할 일이 없으면 `yield`(주도권 유지, 두 번 연속 효과 없이 `yield`하면 `idle` 반납), 물러나려면 `done`(반납 사유 `done`, 그 상태 판이 바뀌기 전까지 후보가 아님)이다. 주도 중이거나 명령을 기다리는 중에 온 사용자 메시지는 다음 단계의 `last: { kind: "user" }`로 가고, 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 코어 루프로 돌려보낸다.
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `loop.ask`, `post`. ADR-0015가 위임과 기능 호출을 더했다). 상태 변경은 `commit`으로만 한다.
   - 다시 호출되는 시점: drive lock을 받을 때(`loop.ask`의 답이 와서 다시 받는 경우 포함), 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
   - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${lineageId}:${순번}`이다. `leaseId`는 부여마다 새로 발급해 펜싱에 쓰고, `lineageId`는 `lease.acquired` 페이로드에 실려 사유 `waiting` 반납 바로 뒤 같은 Registration의 부여가 이어받는다. 그 밖의 부여는 자기 `leaseId`와 같은 값으로 새 계통을 연다(REQ-X-04, X.primitives.spec §4.4.1 11번). 기능 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
@@ -1636,7 +1668,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 |---|---|
 | `ExtensionManifest`, `ExtensionManifestSchema`, `defineManifest`, `validateManifest`, `validateUsage`, `validateManifestSet` | X.loading-trust.spec, 모든 확장 패키지 |
 | `HookName`, `HookSignatures`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_HOOKS`, `LIFECYCLE_HOOKS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
-| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLock`, `DriveLimits`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
+| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `DriveLimits`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind` | X.loading-trust.spec, L0.os.spec(구현), L4.cli.spec·L4.desktop.spec(프롬프트 구현) |

@@ -163,3 +163,31 @@ test("a thread without inquiry state, such as a subagent child, gets no effect f
     .map((event) => event.kind);
   expect(kinds.filter((kind) => kind.startsWith("grp.helm."))).toEqual([]);
 });
+
+test("drive.lenses-run-one-at-a-time: each lens starts after the previous lens result is committed", async () => {
+  const inFlight = { now: 0, max: 0 };
+  const rig = await createRig({
+    onSpawn: async () => {
+      inFlight.now += 1;
+      inFlight.max = Math.max(inFlight.max, inFlight.now);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      inFlight.now -= 1;
+    },
+  });
+  await rig.runInquiry("캐시 무효화");
+  expect(inFlight.max).toBe(1);
+  expect(
+    rig.t.loop.spawns.map((request) => request.requestId.split(":").slice(2).join(":")),
+  ).toEqual(["spawn:1:analogy", "spawn:1:prior-art", "spawn:1:first-principles"]);
+  // 발산 뒤 전이(diverged), 시작 표시(lensesStarted), 렌즈마다 하나씩 결과가 상태에 쌓인다
+  const explore = statesOf(rig).filter((state) => state.phase === "explore");
+  expect(
+    explore.map((state) => state.lenses.filter((lens) => lens.status === "done").length),
+  ).toEqual([0, 0, 1, 2, 3]);
+  // 누적된 결과가 explored 전이로 수렴 단계에 넘어간다
+  const converge = statesOf(rig).find((state) => state.phase === "converge");
+  expect(converge?.lenses.map((lens) => lens.status)).toEqual(["done", "done", "done"]);
+  expect(converge?.findings).toHaveLength(3);
+});

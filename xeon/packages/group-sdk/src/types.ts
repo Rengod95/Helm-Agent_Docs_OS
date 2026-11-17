@@ -1,5 +1,7 @@
 import type {
   CompositionDecl,
+  DriveOptions,
+  DriveStep,
   ExtensionEntry,
   ExtensionManifest,
   ProviderResourceDef,
@@ -65,6 +67,11 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
 
 /** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
 export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends RegistrationApi<S> {
+  /**
+   * 주도 단계 함수 등록(F `ExtensionOps.drive`, 계약은 `DriveStep`). 엔진이 단계마다 입력을 주면 명령 하나를 돌려받는다.
+   * wrap이 돌려준 명령을 검사하고 계측한 뒤 그대로 엔진에 넘긴다(`spawn`은 spawns, `commit`은 g.commit과 같은 검사와 commits). setup 안에서만
+   */
+  drive(step: DriveStep<S>, options?: DriveOptions): void;
   /** 마지막으로 읽은 이 그룹 설정의 유효 값. 동기, 순수 조회 */
   settings(): GroupSettingValues<D>;
   /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 scope, requestId 멱등. on 핸들러와 drive 함수에서 부를 수 있다 */

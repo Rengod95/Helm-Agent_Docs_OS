@@ -27,9 +27,9 @@ function expectAt(
 
 test("scan.clean-drive-has-no-findings", () => {
   const source = `export function setup(g) {
-  g.drive(async (loop, state) => {
-    await loop.turn({ input: { kind: "user", content: "x" } });
-    await g.commit({ n: state.n + 1 });
+  g.drive(async ({ state, last }) => {
+    if (last === null) return { do: "turn", input: { kind: "user", content: "x" } };
+    return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
   });
 }`;
   expect(scanDriveSource(source)).toEqual([]);
@@ -114,7 +114,7 @@ test("scan.new-date-with-an-argument-is-allowed", () => {
 test("scan.finds-fs-bindings-in-a-named-drive-function", () => {
   const source = `import { readFileSync } from "node:fs";
 import * as promises from "fs/promises";
-async function run(loop) {
+async function run() {
   readFileSync("a");
   await promises.readFile("b");
 }
@@ -138,7 +138,7 @@ g.drive(run);`;
 test("scan.ignores-code-outside-drive-and-property-names", () => {
   const source = `const at = Date.now();
 g.on("boundary.step.after", () => { return Math.random(); });
-g.drive(async (loop) => { const o = { fetch: 1 }; return o.fetch; });`;
+g.drive(async () => { const o = { fetch: 1 }; return o.fetch; });`;
   expect(scanDriveSource(source)).toEqual([]);
 });
 
@@ -159,11 +159,11 @@ g.drive(async () => { stamp(); outer(); });`;
 });
 
 test("scan.reports-a-violation-on-a-later-line-of-a-multi-line-drive", () => {
-  const source = `g.drive(async (loop, state) => {
+  const source = `g.drive(async ({ state, last }) => {
   const started = performance.now();
-  await loop.turn({ input: { kind: "user", content: "x" } });
+  const next = last === null ? { do: "turn", input: { kind: "user", content: "x" } } : { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
   const at = new Date();
-  await g.commit({ n: state.n + 1 });
+  return next;
 });`;
   expect(scanDriveSource(source)).toEqual([
     expectAt(source, "performance.now", {
@@ -204,7 +204,7 @@ g.drive(async () => { stamp(); await fetch("x"); Math.random(); });`;
 
 test("scan.warns-when-drive-reassigns-an-outer-variable", () => {
   const source = `let calls = 0;
-g.drive(async (loop) => {
+g.drive(async () => {
   let local = 0;
   local += 1;
   calls += 1;

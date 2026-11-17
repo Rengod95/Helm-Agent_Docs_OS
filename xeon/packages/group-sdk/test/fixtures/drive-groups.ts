@@ -4,38 +4,54 @@ import { defineGroup, type GroupModule } from "../../src/index.ts";
 import { realHostAccess, wrap } from "../../src/wrap.ts";
 import { groupManifestOf } from "../support/manifests.ts";
 import type { CountingReplayHarness } from "../support/replay-harness.ts";
+import { turnFinished } from "../support/steps.ts";
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 const COUNTER = { schema: CounterSchema, initial: { n: 0 }, version: 1 } as const;
 const STEPS = 3;
 
-/** EV-09 좋은 예: drive가 상태 문서만 읽고 쓴다. 호출마다 마지막 커밋 상태에서 이어 간다 */
+/**
+ * EV-09 좋은 예: 단계 함수는 커밋된 상태와 직전 결과만 보고 명령을 고른다. 재호출하면 마지막 커밋 상태에서 이어 간다.
+ * 턴의 요청 id는 커밋된 상태에서 정한다(엔진이 만든 기본 id는 단계마다 겹칠 수 있다)
+ */
 export function goodDriveGroup(): GroupModule {
   return defineGroup<{ readonly n: number }>({
     manifest: groupManifestOf({ name: "good-drive", drives: true }),
     state: COUNTER,
     setup(g) {
-      g.drive(async (loop, state) => {
-        if (state.n >= STEPS) return;
-        await loop.turn({ input: { kind: "user", content: `step ${state.n}` } });
-        await g.commit({ n: state.n + 1 });
+      g.drive(async ({ state, last }) => {
+        if (turnFinished(last)) {
+          return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
+        }
+        if (state.n >= STEPS) return { do: "yield" };
+        return {
+          do: "turn",
+          input: { kind: "user", content: `step ${state.n}` },
+          requestId: `good:${state.n}`,
+        };
       });
     },
   });
 }
 
-/** EV-09 나쁜 예: drive 밖 클로저 카운터가 진행을 정한다. 재호출하면 처음과 다르게 움직인다 */
+/** EV-09 나쁜 예: 단계 함수 밖 클로저 카운터가 진행을 정한다. 재호출하면 처음과 다르게 움직인다 */
 export function badDriveGroup(): GroupModule {
   let calls = 0;
   return defineGroup<{ readonly n: number }>({
     manifest: groupManifestOf({ name: "bad-drive", drives: true }),
     state: COUNTER,
     setup(g) {
-      g.drive(async (loop) => {
+      g.drive(async ({ last }) => {
+        if (turnFinished(last)) {
+          return { do: "commit", state: { n: calls }, next: { do: "yield" } };
+        }
         calls += 1;
-        if (calls > STEPS) return;
-        await loop.turn({ input: { kind: "user", content: `step ${calls}` } });
-        await g.commit({ n: calls });
+        if (calls > STEPS) return { do: "yield" };
+        return {
+          do: "turn",
+          input: { kind: "user", content: `step ${calls}` },
+          requestId: `bad:${calls}`,
+        };
       });
     },
   });
@@ -46,8 +62,9 @@ export function silentDriveGroup(): GroupModule {
   return defineGroup({
     manifest: groupManifestOf({ name: "silent-drive", drives: true }),
     setup(g) {
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: "quiet" } });
+      g.drive(async ({ last }) => {
+        if (turnFinished(last)) return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: "quiet" } };
       });
     },
   });
@@ -57,8 +74,9 @@ const EFFECT_STEPS = 3;
 const EFFECT_STATE = { schema: CounterSchema, initial: { n: 0 }, version: 1 } as const;
 
 /**
- * 효과를 내는 drive 그룹. 단계마다 turn, spawn, post, delegate를 한 번씩 내고 상태를 커밋한다.
- * `keys`가 요청 키를 정한다: 좋은 예는 커밋된 상태에서, 나쁜 예는 drive 밖 클로저 카운터에서 만든다.
+ * 효과를 내는 drive 그룹. 단계마다 post, delegate(단계 함수 안에서 직접 부른다), turn, spawn 명령을 한 번씩 내고 커밋한다.
+ * `keys`가 post와 delegate의 요청 키를 정한다. 두 효과는 이벤트 열에 남지 않으므로(가짜 큐와 위임 서비스) 키가 바뀌어도
+ * 이벤트열은 같고 효과만 두 번 난다. turn과 spawn의 요청 키는 커밋된 상태에서 정한다(이벤트 열에 남는다).
  * delegate는 harness가 가진 가짜 위임 서비스와 thread를 호출 문맥으로 넣어 부른다
  */
 function effectGroup(
@@ -79,14 +97,22 @@ function effectGroup(
             : { kind: "drive", threadId, signal: new AbortController().signal };
         },
       }));
-      g.drive(async (loop, state) => {
-        if (state.n >= EFFECT_STEPS) return;
+      g.drive(async ({ state, last }) => {
+        if (state.n >= EFFECT_STEPS) return { do: "yield" };
+        if (last?.kind === "ok" && last.of === "turn") {
+          return { do: "spawn", agent: "helper", task: "t", requestId: `fx:${state.n}:spawn` };
+        }
+        if (last?.kind === "ok" && last.of === "spawn") {
+          return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
+        }
         const key = keys(state.n);
-        await loop.turn({ input: { kind: "user", content: key }, requestId: `${key}:turn` });
-        await loop.spawn({ agent: "helper", task: "t", requestId: `${key}:spawn` });
         await g.post({ kind: "user", content: key }, { requestId: `${key}:post`, when: "next" });
         await g.delegate({ agent: "helper", task: "t", requestId: `${key}:delegate` });
-        await g.commit({ n: state.n + 1 });
+        return {
+          do: "turn",
+          input: { kind: "user", content: key },
+          requestId: `fx:${state.n}:turn`,
+        };
       });
     });
   };
@@ -98,7 +124,10 @@ export function onceEffectGroup(harness: CountingReplayHarness): GroupModule {
   return effectGroup("once-effects", harness, (n) => `fx:${n}`);
 }
 
-/** 요청 키가 클로저 카운터에서 나온다. 끊고 다시 불리면 새 키라 효과가 두 번 난다. 이벤트열은 같다 */
+/**
+ * post와 delegate의 요청 키가 클로저 카운터에서 나온다. 끊고 다시 불리면 새 키라 효과가 두 번 난다.
+ * 이벤트열은 같다(두 효과는 이벤트를 남기지 않는다)
+ */
 export function doubledEffectGroup(harness: CountingReplayHarness): GroupModule {
   let calls = 0;
   return effectGroup("doubled-effects", harness, () => {

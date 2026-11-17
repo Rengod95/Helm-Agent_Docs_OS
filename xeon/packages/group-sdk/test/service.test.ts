@@ -4,14 +4,16 @@ import { createGroupService, defineGroup, type GroupModule } from "../src/index.
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
 import { serviceRig } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
+import { turnFinished } from "./support/steps.ts";
 
 function driver(name: string, options: { readonly throws?: boolean } = {}): GroupModule {
   return defineGroup({
     manifest: groupManifestOf({ name, drives: true }),
     setup(g) {
-      g.drive(async (loop) => {
+      g.drive(async ({ last }) => {
         if (options.throws === true) throw new TypeError(`${name} drive failed`);
-        await loop.turn({ input: { kind: "user", content: name } });
+        if (turnFinished(last)) return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: name } };
       });
     },
   });

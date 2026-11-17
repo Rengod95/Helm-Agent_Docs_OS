@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   DriveLockArbiterPortKey,
+  type DriveCommand,
   type DriveLockCandidate,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
@@ -17,13 +18,29 @@ import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
+/** 상태가 없는 그룹의 명령(S가 never). 상태가 있는 그룹의 단계 함수에도 그대로 들어간다 */
+type Command = DriveCommand<never>;
+
+function turnOf(content: string): Command {
+  return { do: "turn", input: { kind: "user", content } };
+}
+
+function yieldOf(): Command {
+  return { do: "yield" };
+}
+
+function doneOf(): Command {
+  return { do: "done" };
+}
+
+/** 한 호출의 첫 단계에서 `name`을 기록하고 turn을 하나 낸다. turn 결과를 받은 단계는 끝낸다 */
 function installDriveGroups(t: Host, names: readonly string[], calls: string[]): Promise<void> {
   return eachInOrder(names.entries(), async ([loadIndex, name]) => {
     await t.host.install(
       makeGroupUnit({ name, loadIndex }, (g) => {
-        g.drive(async (loop) => {
-          calls.push(name);
-          await loop.turn({ input: { kind: "user", content: name } });
+        g.drive(({ last }) => {
+          if (last === null) calls.push(name);
+          return Promise.resolve(last === null ? turnOf(name) : yieldOf());
         });
       }),
     );
@@ -150,7 +167,7 @@ test("a group released as idle is a candidate again only after a turn settles", 
     makeGroupUnit({ name: "ls-idle" }, (g) => {
       g.drive(() => {
         invocations += 1;
-        return Promise.resolve();
+        return Promise.resolve(yieldOf());
       });
     }),
   );
@@ -244,11 +261,15 @@ test("a child conversation gets no drive lease and its drive function never runs
 
 const OpenSchema = Type.Object({ open: Type.Boolean() }, { additionalProperties: false });
 
-test("a drive that does not want the lock is no candidate: another drive group gets it at once, and it joins when its state wants it", async () => {
-  const t = await createTestHost();
+test("a drive that returns done gives the lock to the next group at once, and is no candidate until its state changes", async () => {
+  // 앞 그룹을 활성으로 골라 두면 처음 부여는 앞 그룹이 받고, 그 그룹이 `done`으로 물러나면 뒤 그룹이 바로 받는다
+  const source: PrimitivesSettingsSource = {
+    ...createStaticPrimitivesSettings(),
+    activeDriver: () => "ls-lazy",
+  };
+  const t = await createTestHost({ settingsSource: source });
   const thread = t.newThread();
   const calls: string[] = [];
-  // 로드 순서가 앞서는 그룹이 원하지 않는 동안에는 뒤 그룹이 락을 받는다
   await t.host.install(
     makeGroupUnit(
       {
@@ -257,56 +278,54 @@ test("a drive that does not want the lock is no candidate: another drive group g
         def: { state: { schema: OpenSchema, initial: { open: false }, version: 1 } },
       },
       (g) => {
-        g.drive(
-          () => {
-            calls.push("ls-lazy");
-            return Promise.resolve();
-          },
-          { wants: (state) => state.open },
-        );
+        g.drive(({ state }) => Promise.resolve(state.open ? yieldOf() : doneOf()));
       },
     ),
   );
   await t.host.install(
     makeGroupUnit({ name: "ls-busy", loadIndex: 1 }, (g) => {
-      g.drive(async (loop) => {
-        calls.push("ls-busy");
-        await loop.turn({ input: { kind: "user", content: "busy" } });
+      g.drive(({ last }) => {
+        if (last === null) calls.push("ls-busy");
+        return Promise.resolve(last === null ? turnOf("busy") : yieldOf());
       });
     }),
   );
   await t.host.openThread(thread);
   await t.settled();
   expect(calls).toEqual(["ls-busy"]);
-  expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-busy" }]);
-  expect(calls).not.toContain("ls-lazy");
+  expect(kinds(t, thread, "lease.released")).toMatchObject([
+    { scopeId: "ls-lazy", reason: "done" },
+  ]);
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([
+    { scopeId: "ls-lazy" },
+    { scopeId: "ls-busy" },
+  ]);
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "ls-busy", status: "active" });
 });
 
-test("a drive whose state wants the lock is a candidate again and runs", async () => {
+test("a drive whose state is open runs and takes the lock", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
     makeGroupUnit(
       {
-        name: "ls-lazy2",
+        name: "ls-open",
         def: { state: { schema: OpenSchema, initial: { open: true }, version: 1 } },
       },
       (g) => {
-        g.drive(
-          () => {
-            calls.push("ls-lazy2");
-            return Promise.resolve();
-          },
-          { wants: (state) => state.open },
-        );
+        g.drive(({ state, last }) => {
+          if (!state.open) return Promise.resolve(doneOf());
+          if (last === null) calls.push("ls-open");
+          return Promise.resolve(yieldOf());
+        });
       },
     ),
   );
   await t.host.openThread(thread);
   await t.settled();
-  expect(calls).toEqual(["ls-lazy2"]);
-  expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-lazy2" }]);
+  expect(calls).toEqual(["ls-open"]);
+  expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-open" }]);
 });
 
 test("drive limits are read from the options getter when a lease is taken, so a change applies to the next lease", async () => {
@@ -315,7 +334,7 @@ test("drive limits are read from the options getter when a lease is taken, so a 
   let maxTurns = 2;
   await t.host.install(
     makeGroupUnit({ name: "ls-limits" }, (g) => {
-      g.drive(() => Promise.resolve(), {
+      g.drive(() => Promise.resolve(yieldOf()), {
         get limits() {
           return { maxTurns };
         },

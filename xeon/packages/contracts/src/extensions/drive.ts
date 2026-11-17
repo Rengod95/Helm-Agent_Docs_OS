@@ -1,6 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../base/schema-proof.ts";
-import type { ItemId, ThreadId, TurnId } from "../conversation/index.ts";
+import type { ItemId, JsonValue, ThreadId, TurnId } from "../conversation/index.ts";
 import {
   QuestionApprovalDetailSchema,
   type ApprovalResolvedPayload,
@@ -16,15 +16,9 @@ export interface DriveLimits {
   readonly maxTokens?: number;
 }
 
-export interface DriveOptions<S = never> {
+export interface DriveOptions {
   /** 그룹이 요청하는 상한. 없는 필드는 X 기본값 `x.primitives.driveDefaultLimits`를 쓰고, 천장 `x.primitives.driveLimits`보다 클 수 없다 */
   readonly limits?: DriveLimits;
-  /**
-   * 이 상태 문서에서 drive 락을 받고 싶은가. 거짓이면 그 thread에서 이 Registration은 drive 락 후보가 아니다(다른 drive 그룹이 지연 없이 락을 받고
-   * 대기 계수에도 들지 않는다). 생략은 항상 후보다. 이미 락을 쥔 drive는 이 값으로 회수하지 않고 기존 유휴 반납 규칙(효과 없는 반환 둘)을 따른다.
-   * 순수 함수여야 한다(경계마다 불린다)
-   */
-  readonly wants?: (state: S) => boolean;
 }
 
 /** 남은 예산. null은 상한 없음 */
@@ -102,27 +96,113 @@ export const AskRequestSchema: TUnsafe<AskRequest> = Type.Unsafe<AskRequest>(
   AskRequestShape satisfies SchemaProof<AskRequest, typeof AskRequestShape>,
 );
 
-/**
- * drive 함수가 루프에 효과를 내는 통로. 루프에 대한 효과는 `turn`과 `spawn`뿐이다(post와 scope commit 제외).
- * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 기능 호출 포함)은 `REPLAY_EFFECT_TABLE`(ADR-0015 §3.2)이다
- */
-export interface LoopHandle {
-  turn(input: TurnInput): Promise<TurnOutcome>;
-  spawn(spec: SpawnSpec): Promise<SpawnOutcome>;
-  /**
-   * 사람 확인 원시(X-17, ADR-0018). 첫 호출은 question kind 승인(`origin.caller`는 `ext:<그룹>`, 화면은 `grp:<그룹>`으로 보임)을 만들고
-   * drive lock을 사유 `waiting`으로 반납한다. 반납과 함께 `signal`이 켜지고 이 약속은 이행되지 않는다. `approval.resolved`가 오면 X가 그 Registration을
-   * 다시 후보로 올리고, drive lock을 다시 받으면 drive 함수가 마지막 커밋 상태로 다시 호출된다. 같은 `requestId`로 `ask`를 다시 부르면
-   * 기록된 결과를 바로 돌려준다. 기다리는 동안 turn·spawn 예산은 쓰지 않는다
-   */
-  ask(request: AskRequest): Promise<AskOutcome>;
-  readonly budget: DriveLockBudget;
-  /** 임대가 회수되면 중단 신호가 켜진다 */
-  readonly signal: AbortSignal;
+/** 엔진이 단계 함수에 주는 프레임 정보. 프레임 스택(E3) 전에는 `frameDepth`가 1, `calledBy`와 `input`이 null이다 */
+export interface DriveFrameInfo {
+  /** 코어 루프가 0이다 */
+  readonly frameDepth: number;
+  /** 맡긴 쪽 플러그인 이름(`handoff`, E3). 사용자 명령이나 프로필 시작이면 null */
+  readonly calledBy: string | null;
+  /** 맡길 때 넘긴 입력(E3). 없으면 null */
+  readonly input: JsonValue | null;
 }
 
-/** 경계마다 마지막 커밋 상태로 다시 호출된다(F.extensions.spec §4.6) */
-export type DriveFn<S> = (loop: LoopHandle, state: Readonly<S>) => Promise<void>;
+/** 단계 함수의 입력. 엔진이 한 단계마다 새로 만들어 준다 */
+export interface DriveStepInput<S> {
+  /** 플러그인의 커밋된 상태 문서 */
+  readonly state: Readonly<S>;
+  /** 직전 명령의 결과. 이 호출의 첫 단계이면 null */
+  readonly last: StepResult | null;
+  /** 남은 한도를 값으로 준다 */
+  readonly budget: DriveLockBudget;
+  readonly frame: DriveFrameInfo;
+}
+
+/** `turn`, `spawn`의 명령 공통: 생략하면 엔진이 `${lineageId}:${상태 판}.${단계 번호}`로 결정적으로 만든다(ADR-0015 §3.4 1) */
+export interface DriveCommandBase {
+  readonly requestId?: string;
+}
+
+/** 모델 호출 한 번(E2). 타입 자리만 있고 E1은 `refused` 결과로 거부한다 */
+export interface DriveModelMessage {
+  readonly role: "system" | "user" | "assistant";
+  readonly content: string;
+}
+
+/**
+ * 단계 함수가 돌려주는 명령 하나(drive-isolation.md §1.1). `model`, `tool`, `handoff`는 자리만 있고 E1 엔진은
+ * `{ kind: "refused", code: "command_unavailable" }`를 `last`로 돌려준다(예외 아님)
+ */
+export type DriveCommand<S> =
+  | (DriveCommandBase & { readonly do: "turn"; readonly input: PostItem; readonly note?: string })
+  | {
+      readonly do: "model";
+      readonly messages: readonly DriveModelMessage[];
+      readonly label?: string;
+    }
+  | { readonly do: "tool"; readonly name: string; readonly args: JsonValue }
+  | {
+      readonly do: "ask";
+      readonly card: AskCard;
+      /** 필수 아님: 생략하면 엔진이 만든 요청 id를 쓴다. 승인 카드 제목 1~120자 */
+      readonly title?: string;
+      readonly requestId?: string;
+    }
+  | (DriveCommandBase & {
+      readonly do: "spawn";
+      readonly agent: string;
+      readonly task: string;
+      readonly background?: boolean;
+      readonly label?: string;
+    })
+  | { readonly do: "handoff"; readonly to: string; readonly input: JsonValue }
+  /** 상태를 남기고 `next`를 이어서 실행한다. `next`가 또 `commit`이어도 된다. (스펙 초안의 `then`은 unicorn/no-thenable이 막아 `next`로 했다) */
+  | { readonly do: "commit"; readonly state: S; readonly next: DriveCommand<S> }
+  /** 지금은 할 일 없음. 주도권은 유지하고 다음 경계에 다시 묻는다 */
+  | { readonly do: "yield" }
+  /** 끝. 주도권을 내려놓는다(반납 사유 `done`) */
+  | { readonly do: "done"; readonly result?: JsonValue };
+
+/** 훅이나 정책이 명령을 만든 쪽 */
+export interface StepHookSource {
+  readonly plugin: string | null;
+  readonly hook: string | null;
+}
+
+/**
+ * 엔진이 다음 단계의 `last`로 주는 값(drive-isolation.md §1.1). 명령 결과, 훅의 결정, 사용자 메시지, 맡기기 복귀의 합집합이다.
+ * `turn`과 `spawn`의 `value`는 정본 결과 모양이고(둘 다 JSON), `model`, `tool`은 E2가 정한다
+ */
+export type StepResult =
+  | { readonly kind: "ok"; readonly of: "turn"; readonly value: TurnOutcome }
+  | { readonly kind: "ok"; readonly of: "spawn"; readonly value: SpawnOutcome }
+  | { readonly kind: "ok"; readonly of: "model" | "tool"; readonly value: JsonValue | null }
+  | {
+      readonly kind: "ask";
+      readonly answer: "answered" | "cancelled" | "expired" | "noninteractive";
+      readonly value: JsonValue | null;
+    }
+  | { readonly kind: "blocked"; readonly by: StepHookSource; readonly reason: string }
+  | {
+      readonly kind: "denied";
+      readonly by: "policy" | "human" | "noninteractive";
+      readonly reason: string | null;
+    }
+  | { readonly kind: "replaced"; readonly by: StepHookSource; readonly value: JsonValue | null }
+  /** 깊이 상한, 아직 없는 명령(`command_unavailable`) 같은 거부. 예외가 아니다 */
+  | { readonly kind: "refused"; readonly code: string }
+  | { readonly kind: "aborted" }
+  | { readonly kind: "user"; readonly message: PostItem }
+  | {
+      readonly kind: "handoff";
+      readonly status: "done" | "aborted";
+      readonly result: JsonValue | null;
+    };
+
+/**
+ * 주도 단계 함수. 엔진이 입력을 주면 명령 하나를 돌려준다. 클로저 지역 변수에 진행 상태를 두지 않는다:
+ * 같은 단계가 재시작 뒤 다시 돌 수 있으므로 상태 문서와 `last`만 보고 정한다(F.extensions.spec §4.6)
+ */
+export type DriveStep<S> = (input: DriveStepInput<S>) => Promise<DriveCommand<S>>;
 
 export interface DriveLock {
   readonly leaseId: DriveLockId;

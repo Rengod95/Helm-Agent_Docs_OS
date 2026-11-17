@@ -66,7 +66,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 import type {
   HookName, HookSignatures, HookDecl, TapSig, FirstSig, ChainSig, FirstHookName, ChainHookName,
   Handler, HandlerContext, ExtensionOps, PostItem, PostOptions, PostReceipt, PostWhen,
-  DriveFn, DriveOptions, DriveLimits, DriveLockBudget, LoopHandle, AskCard, AskRequest, AskOutcome, DriveLock, DriveLockId, TurnInput, TurnOutcome,
+  DriveStep, DriveCommand, StepResult, DriveStepInput, DriveOptions, DriveLimits, DriveLockBudget, AskCard, AskRequest, AskOutcome, DriveLock, DriveLockId, TurnInput, TurnOutcome,
   SpawnSpec, SpawnOutcome, RegistrationId, RegistrationDef, RegistrationApi, RegistrationSetup, RegistrationStatus, RegistrationHandle, RegistrationFn,
   ExtensionEntry, ExtensionManifest, ExtensionName, GroupRecord, RecordKind, RecordQuery, RecordSubject,
   ManifestIssue, Unsubscribe, SetupRefusal,
@@ -1153,11 +1153,20 @@ invoke(lease):
 - `idle`로 반납된 scope는 다음 `turn_settled`나 그 scope의 상태 판이 바뀐 뒤에만 다시 후보가 된다 [제안]. 같은 경계에서 부여와 반납이 되풀이되는 것을 막는다.
 - 예외 [제안]: drive 락을 `error` 사유로 반납하고 drive 등록을 오류 상태로 표시한다. on 핸들러와 post는 계속 동작한다. 그 scope는 사용자가 끄고 다시 켤 때까지 후보에서 빠진다(자동 재시도 없음). 끄고 켜면 새 세대에서 등록이 새로 생기므로 오류 표시가 지워진다.
 - 동시 실행 금지: 한 drive 락의 drive 함수는 한 번에 한 호출만 돈다. 앞 호출이 끝나지 않았으면 다음 호출을 예약하지 않는다.
-- [결정] 상태만 커밋하고 반환한 호출 뒤의 재호출. 한 호출이 `loop.turn`·`loop.spawn` 없이 상태(`commit`)만 바꾸고 반환하면 그 호출 안에서는 경계가 생기지 않아 위 표의 셋째 행이 일어날 시점이 오지 않는다. X는 drive 락이 `active`이고 thread가 유휴이고 상태 판이 호출 시작 때와 달라졌으면 새 판으로 drive 함수를 바로 다시 부른다. 그래서 drive 함수는 한 호출에서 분기를 여러 개 이어 갈 필요가 없다(한 호출에 한 분기만 진행해도 된다). 경계 없이 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`(8) [제안]로 막고, 넘으면 `scope_notice` 정보 진단을 남기고 멈춘다. 다음 경계(`turn_settled`·`idle`)가 오면 횟수는 0으로 돌아가고 상태가 바뀌었으면 다시 부른다. 상태가 그대로인 반환(효과 없음)은 이 재호출을 일으키지 않고 idle 반납 규칙을 따른다.
-- [결정: 2026-11-13 사용자 지시] 락을 원할 때만 후보가 된다. `drive(fn, options?)`의 `options.wants(state): boolean`이 있으면 X는 후보를 모을 때마다 그 thread의 상태 문서로 `wants`를 부르고 거짓이면 그 Registration을 후보에서 뺀다. 다른 drive 그룹이 지연 없이 락을 받고, 빠진 Registration은 락 대기 계수(`x.primitives.leaseWaitLimit`)에도 들지 않는다. `wants`는 순수 함수여야 하고 생략은 항상 후보다. 이미 락을 쥔 drive는 `wants`로 회수하지 않고 위 idle 반납 규칙(효과 없는 반환 둘)을 따른다. 기본 켜짐인 내장 그룹이 유휴 상태로 락을 쥐어 다른 그룹을 기다리게 하는 일을 막기 위한 것이다(`L3.authoring.spec`, 제작 대화가 열려 있을 때만 후보).
+- [결정: M5a-1 E1] 상태만 커밋하는 호출 뒤의 재호출은 없다. 한 번의 호출(`invoke`) 안에서 엔진이 단계 함수를 되풀이해 부르므로(`runSteps`) 명령을 실행하고 결과를 `last`로 주는 것이 곧 이어 가기다. 효과(`effects`)가 없는 단계가 `MAX_CHAINED_REINVOKES`(8) [제안] 번 이어지면 `scope_notice` 정보 진단을 남기고 그 호출을 `yield`로 끝낸다. 단계 사이에 사용자 메시지가 있으면(`claimUserInput`) 그것이 다음 단계의 `last`다.
+- [결정: M5a-1 E1, 2026-11-17] `wants`는 없다(`DriveOptions`에서 삭제, 어댑터 없음). 후보 판단은 상태를 읽지 않는다. 대신 단계 함수가 `yield`(주도권 유지, 같은 상태 판에서 효과 없이 두 번 연속 `yield`로 끝나면 `idle` 반납)나 `done`(반납 사유 `done`)을 돌려준다. `done`으로 물러난 Registration은 그 상태 판(`ThreadRuntime.withdrawn`)이 바뀌기 전까지 후보가 아니고 `turn_settled`로 풀리지 않는다(다른 drive 그룹이 지연 없이 락을 받는다). 주도 중재(`DriveArbiter`, `activeDriver`)는 E3가 없앤다.
 - [결정] drive 호출 밖의 상태 커밋 뒤 호출. 명령 처리기나 도구 `execute`(§4.6.6)가 상태 판을 올리면 그 호출은 drive 호출이 아니라서 위 재호출 경로가 닿지 않는다. 그래서 `StateService`가 직접 호출 ambient(`invocation`이 있고 `drive`가 없다)의 커밋을 `LeaseBroker.onDirectCommit`에 알린다. 이 함수는 lifecycle 디스패치처럼 `setImmediate`로 한 번 넘겨 명령이 반환한 뒤에 판단한다. 그 scope가 `active`이고 커밋된 drive 락을 들고 있고 thread가 유휴이고 상태 판이 마지막 호출 때와 다르거나 아직 한 번도 부르지 않았으면 drive를 한 번 부른다. drive 락이 없으면 후보 판단을 요청해 부여 경계가 돌게 한다. drive가 실행 중이면 `missed`로 표시해 반환 뒤에 이어 부르고, thread에서 turn이 돌고 있으면 부르지 않는다. 그 turn이 끝나는 `turn_settled` 경계가 위 표의 셋째 행으로 부른다. 같은 판은 `lastBaseRev`로 걸러 두 번 부르지 않는다. 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`를 그대로 따른다.
 
-#### 4.4.4 LoopHandle과 기본 requestId
+#### 4.4.4 단계 실행과 기본 requestId [M5a-1 E1]
+
+[결정: 2026-11-17 사용자, review.m5-drive-isolation 1.1] 이 절과 이 문서의 나머지에서 "drive 함수"는 단계 함수(`DriveStep`)이고 `loop.turn`·`loop.spawn`·`loop.ask`는 `turn`·`spawn`·`ask` 명령이다. `LoopHandle`은 공개 계약에서 없어졌고 `lease.ts` 안의 `StepLoop`(엔진 안쪽 통로)가 같은 일을 한다. 엔진의 한 호출은 `runSteps`다: (1) `nextLast`로 `last`를 정한다(전달할 사용자 메시지가 있으면 그것, 없으면 직전 명령 결과) (2) 단계 함수를 `DriveStepInput`(상태 문서, `last`, 남은 한도, 프레임 정보 `{ frameDepth: 1, calledBy: null, input: null }`)으로 부른다 (3) 돌려받은 명령을 `executeCommand`로 실행한다. `commit`은 상태를 커밋하고 `next`를 이어 실행한다. `model`·`tool`·`handoff`는 `{ kind: "refused", code: "command_unavailable" }`로 거부한다(E2, E3). 거부 가능한 오류(`PrimitiveError`의 코드, 루프 거부의 `kind`)는 예외가 아니라 `refused` 결과다. 주도권이 활성이 아니거나 한도 소진(`lease_budget`)이면 호출을 끝내고 반납은 다음 경계에서 커밋한다. 그 밖의 예외는 `error` 반납이다.
+
+- 기본 `requestId`: `${lineageId}:${그 단계 시작 때의 상태 판}.${순번}`. 순번은 같은 상태 판에서 이어서 세고(`StepProgress.nextIndex`) 상태 판이 바뀌면 0부터 다시 센다. 그래서 재시작 뒤 같은 상태에서 단계를 다시 돌리면 같은 명령이 같은 id를 만들고 이미 실행한 명령은 기록된 결과를 돌려준다.
+- 결과 기록: `turn`, `ask`, `spawn`이 정착하면 `drive.command_settled`(F.records §3.3)를 커밋 키 (scope, 명령 요청 id)로 남긴다. 내용은 scope, 요청 id, 명령, 결과 요약, 결과 참조뿐이고 주도권 id는 싣지 않는다. 그래서 재시작이나 `waiting` 뒤 재부여로 다른 주도권이 같은 명령을 다시 기록해도 내용이 같아 멱등이다.
+- 사용자 메시지: L1 루프가 `input.user.before` 뒤 `ExtHost.claimUserInput(threadId, item)`을 부른다. 단계 함수가 주도 중이면(주도권 활성·커밋) 메시지를 `inbox`에 넣고 참을 돌려주며, 루프는 그 입력을 처리하지 않는다. 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 입력 큐에 `when: "next"`로 돌려보낸다(코어 루프가 받는다) [안: 프레임 스택 전의 구현. 스택 전체 내림과 `userMessages` 표지는 E3].
+- 아래 옛 `LoopHandle` 설명은 명령으로 읽는다.
+
+#### 4.4.4a LoopHandle(옛 설명)
 
 ```text
 makeLoopHandle(lease, inv):

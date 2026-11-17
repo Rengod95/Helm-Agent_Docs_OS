@@ -13,7 +13,7 @@ import type { RegistrationApi } from "@fresnel/contracts/extensions";
 import { Type, type TUnsafe } from "typebox";
 import { failureOf, type HelmFailure } from "./failures.ts";
 
-const HELM_STATE_VERSION = 1 as const;
+const HELM_STATE_VERSION = 2 as const;
 
 export type HelmPhase = "idle" | "diverge" | "explore" | "converge" | "apply";
 const phaseShape = Type.Union([
@@ -163,6 +163,11 @@ export interface HelmState {
   stopRequested: boolean;
   /** 수렴 직전에 모은 지식 요약 참조. 적용 프롬프트가 쓴다 */
   context: HelmSource[];
+  /**
+   * 발산·적용 턴을 냈고 그 결과를 아직 단계에서 받지 않았다. 턴을 내기 전에 커밋한다. 사용자 메시지가 턴 결과 자리에
+   * 끼어들면 `last`가 메시지가 되므로, 이 표지로 턴 결과와 사용자 메시지의 턴을 구분한다(L3.helm.spec §4.5)
+   */
+  awaitingTurn: boolean;
 }
 const stateShape = Type.Object({
   phase: HelmPhaseSchema,
@@ -176,6 +181,7 @@ const stateShape = Type.Object({
   watch: HelmWatchSchema,
   stopRequested: Type.Boolean(),
   context: Type.Array(HelmSourceSchema, { maxItems: 8 }),
+  awaitingTurn: Type.Boolean(),
 });
 export const HelmStateSchema: TUnsafe<HelmState> = Type.Unsafe<HelmState>(
   stateShape satisfies SchemaProof<HelmState, typeof stateShape>,
@@ -193,17 +199,30 @@ export const INITIAL_HELM_STATE: HelmState = {
   watch: { errorKey: null, errorRun: 0, callKey: null, callRun: 0 },
   stopRequested: false,
   context: [],
+  awaitingTurn: false,
 };
 
 /** F.extensions.spec §3.2 StateDecl에 넘기는 값 */
 export const helmStateDecl: {
   readonly schema: typeof HelmStateSchema;
   readonly initial: HelmState;
-  readonly version: 1;
+  readonly version: 2;
 } = {
   schema: HelmStateSchema,
   initial: INITIAL_HELM_STATE,
   version: HELM_STATE_VERSION,
+};
+
+/** v1 → v2: 턴 표지를 더한다. 옛 문서는 턴을 내기 전 상태이므로 false다 */
+function withAwaitingTurn(previous: unknown): unknown {
+  return typeof previous === "object" && previous !== null
+    ? { ...previous, awaitingTurn: false }
+    : previous;
+}
+
+/** GroupDef.migrations. 키는 출발 버전(L3.group-sdk.spec §4.7) */
+export const helmStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
+  1: withAwaitingTurn,
 };
 
 /** 상태 문서 직렬화 예산. group-sdk STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */

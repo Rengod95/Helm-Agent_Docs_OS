@@ -166,6 +166,21 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     });
   });
 
+  /** thread 범위 바로 아래의 정착하지 않은 백그라운드 서브에이전트를 사용자 중지로 취소한다. 하나라도 멈췄으면 참 */
+  async function stopBackgroundSubagents(threadId: ThreadId): Promise<boolean> {
+    const scope = threads.get(threadId)?.scope;
+    if (scope === undefined) return false;
+    const targets = scope
+      .children()
+      .filter(
+        (child) => child.kind === "subagent" && child.background && child.state !== "settled",
+      );
+    const tickets = await Promise.all(
+      targets.map((child) => deps.tasks.abort(child, { code: "user", message: null })),
+    );
+    return tickets.some((ticket) => ticket.ok && ticket.value.status !== "already_settled");
+  }
+
   function runtimeOf(threadId: ThreadId): ThreadRuntime {
     const known = threads.get(threadId);
     if (known !== undefined) return known;
@@ -647,6 +662,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           ? chain.value.text
           : [{ type: "text", text: chain.value.text }, ...images],
     };
+    // 단계 함수가 주도 중이면 사용자 메시지는 그쪽 다음 단계로 간다. 기다리는 명령(turn, spawn)이 있어도 입력은 쌓이지 않는다
+    if (deps.ext.claimUserInput(request.threadId, item)) return ok({ status: "handled" });
     const enqueued = await deps.tasks.inputs.enqueue({
       threadId: request.threadId,
       mode,
@@ -985,16 +1002,24 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       if (running === null || running === undefined) {
         // 이전 프로세스가 남긴 열린 turn이면 실행 중인 것이 없어도 중단은 그것을 interrupted로 닫는다(L1.loop.spec §4.4)
         const open = deps.session.query.openTurn(threadId);
-        if (!open.ok || open.value === undefined) return false;
+        // 도는 turn이 없어도 사용자 중지는 이 대화의 백그라운드 서브에이전트를 멈춘다(drive의 spawn은 turn 밖에서 돈다)
+        if (!open.ok || open.value === undefined) {
+          return turnId === undefined ? await stopBackgroundSubagents(threadId) : false;
+        }
         if (turnId !== undefined && open.value.turnId !== turnId) return false;
         const stale = runtimeOf(threadId);
         heldQueues.add(threadId);
         const closed = await stale.gate.run(0, () => closeStaleOpenTurn(stale));
-        return closed.ok;
+        // 닫은 turn이 없어도 사용자 중지는 이 대화의 백그라운드 서브에이전트를 멈춘다(2026-11-17 사용자 결정)
+        const backgroundStopped = await stopBackgroundSubagents(threadId);
+        return closed.ok || backgroundStopped;
       }
       if (turnId !== undefined && running.turnId !== turnId) return false;
       const ticket = await deps.tasks.abort(running.scope, { code: "user", message: null });
-      const aborted = ticket.ok && ticket.value.status !== "already_settled";
+      const turnAborted = ticket.ok && ticket.value.status !== "already_settled";
+      // 사용자 중지는 백그라운드 경계를 넘는다: 이 대화의 백그라운드 서브에이전트도 멈춘다(2026-11-17 사용자 결정)
+      const backgroundStopped = await stopBackgroundSubagents(threadId);
+      const aborted = turnAborted || backgroundStopped;
       // 중단은 멈추려는 뜻이다. 큐에 남은 입력은 사용자가 보내거나 이어서 실행할 때까지 시작하지 않는다
       if (aborted) heldQueues.add(threadId);
       return aborted;

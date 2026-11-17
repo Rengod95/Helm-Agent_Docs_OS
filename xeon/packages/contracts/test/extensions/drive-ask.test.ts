@@ -6,7 +6,6 @@ import {
   isEffectAllowed,
   type AskOutcome,
   type AskRequest,
-  type LoopHandle,
 } from "../../src/extensions/index.ts";
 import { LeaseReleasedPayloadSchema } from "../../src/records/index.ts";
 
@@ -26,7 +25,7 @@ const card = {
   ],
 };
 
-describe("LoopHandle.ask (X-17)", () => {
+describe("ask command (X-17)", () => {
   test("AskRequest round trips by value, title optional", () => {
     const withTitle = { requestId: "helm:gate:1", card, title: "Confirm" };
     const parsed = parse(AskRequestSchema, withTitle);
@@ -45,14 +44,14 @@ describe("LoopHandle.ask (X-17)", () => {
     expect(parse(AskRequestSchema, { requestId: "r", card, extra: 1 }).ok).toBe(false);
   });
 
-  test("a drive function can type the whole call; outcomes are a closed union", async () => {
+  test("an ask call can be typed whole; outcomes are a closed union", async () => {
     const outcomes: AskOutcome[] = [
       { status: "answered", answer: { approve: { selected: ["yes"] } } },
       { status: "denied", resolvedBy: "expired" },
       { status: "denied", resolvedBy: "user", feedback: "not now" },
     ];
     const seen: AskRequest[] = [];
-    const ask: LoopHandle["ask"] = async (request) => {
+    const ask = async (request: AskRequest): Promise<AskOutcome> => {
       seen.push(request);
       const next = outcomes[seen.length - 1];
       if (next === undefined) throw new Error("no outcome");
