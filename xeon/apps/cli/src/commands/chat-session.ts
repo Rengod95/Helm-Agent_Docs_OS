@@ -128,7 +128,8 @@ export interface TurnEnd {
 }
 
 interface SentTurn {
-  readonly turnId: string;
+  /** 주도 중인 플러그인이 입력을 받았으면 아직 turn이 없어 null이다(이어지는 turn은 알림으로 그려진다) */
+  readonly turnId: string | null;
   /** turn.completed가 오고 그때까지의 그리기가 끝나면 이행한다 */
   readonly done: Promise<TurnEnd>;
 }
@@ -756,6 +757,11 @@ export async function openChatSession(
       try {
         const requestId = handle.newRequestId();
         const started = await connection.request("turn.start", { threadId, input, requestId });
+        if ("delivered" in started) {
+          // 기다릴 turn이 없다. 플러그인이 이어 시작하는 turn이나 코어 루프로 돌아온 입력의 turn은 알림으로 그려진다
+          live.turnActive = false;
+          return { turnId: null, done: Promise.resolve({ status: "completed", error: null }) };
+        }
         return { turnId: started.turnId, done: awaitTurnEnd(started.turnId) };
       } catch (caught) {
         live.turnActive = false;

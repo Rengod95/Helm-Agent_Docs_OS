@@ -790,12 +790,18 @@ describe("turns", () => {
     const bad: AdmitResult[] = [
       { status: "duplicate", inputId, turnId: null },
       { status: "queued", inputId, mode: "followUp", runningTurnId: null },
-      { status: "handled" },
     ];
     await sequentially(bad, async (status) => {
       h.state.admit = ok(status);
       expect(await rejectionOf(ports.turns.submit(THREAD, "hi", "r"))).toBeInstanceOf(Bug);
     });
+  });
+
+  test("an input a driving plugin or the input hook handled is accepted as delivered without a turn", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.admit = ok({ status: "handled" });
+    expect(await ports.turns.submit(THREAD, "hi", "r")).toEqual({ ok: true, delivered: true });
   });
 
   test("a refused admit is an expected rejection carrying the loop error, not a Bug", async () => {

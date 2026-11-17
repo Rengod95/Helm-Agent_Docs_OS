@@ -691,7 +691,7 @@ M1:
 |---|---|---|---|
 | `host.hello` | 접속 인증, `isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)` 검사, opt-in 실험 기능 기록, 연결을 ready로 바꾼다. 인증은 연결이 `ServeOptions.auth.requiresToken`(TCP 연결)일 때만 하고 `params.auth.token`을 상수 시간으로 비교한다. 결과의 `features`는 구현한 메서드·알림의 `WIRE_METHODS` 항목(status, since)이다 | 엔진 `storeId`, 연결 허브 | 1002 `host.helloDuplicate`, 1003 `protocol.unsupported`, 1004 `host.authFailed`(`details.reason`은 `missing`·`invalid`, 응답이 나간 뒤 연결을 닫는다) |
 | `thread.create` | thread를 만들고 쓰기 소유를 함께 얻는다(F wire §3.3.1 제안: M1에서는 create가 소유를 얻는다). `workspace`는 절대 경로이고 있는 폴더여야 하며 정규 경로로 저장한다(HS-76). 아니면 -32602(`path: "workspace"`) | `ThreadPort.create`(L1.persistence), `SessionLockPort.tryAcquire`(L0.process) | 3002 `thread.locked`(새 thread라 정상 경로에서는 없다. 잠금 서비스 실패 시) |
-| `turn.start` | 쓰기 소유를 확인하고 없으면 암묵 획득(HS-28)한 뒤 입력을 제출한다. `requestId`가 같으면 처음 `turnId` | `SessionLockPort.holds`·`tryAcquire`, `TurnPort.submit`(L1.tasks) | 3001 `thread.notFound`, 3002 `thread.locked`, 3003 `turn.busy` |
+| `turn.start` | 쓰기 소유를 확인하고 없으면 암묵 획득(HS-28)한 뒤 입력을 제출한다. `requestId`가 같으면 처음 `turnId`. 주도 중인 플러그인이 입력을 받았으면(`loop.admit`의 `handled`) 오류 없이 `{ delivered: true }`(F wire §3.3.1 0b) | `SessionLockPort.holds`·`tryAcquire`, `TurnPort.submit`(L1.tasks) | 3001 `thread.notFound`, 3002 `thread.locked`, 3003 `turn.busy` |
 | `events.subscribe` | §4.4 재전송 알고리즘 | `EventFeedPort`(L1.persistence, L0.store) | 2001 `replay.outOfRange`, 2003 `events.subscriptionLimit`, 2004 `events.filterInvalid` |
 | `settings.get` | `keys`가 없으면 카탈로그 전체. 키마다 `resolveSetting(def, layers(threadId))`, 기본 모델 문제는 `problem`으로 싣는다(HS-80) | 카탈로그, `SettingsStorePort.layers`(L1.persistence) | 3101 `settings.unknownKey`, 3001 `thread.notFound`(`threadId`가 있을 때) |
 

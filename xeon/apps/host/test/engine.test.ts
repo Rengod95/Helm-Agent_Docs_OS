@@ -14,7 +14,7 @@ import { realEngineGate } from "./fixtures/real-engine.ts";
 import { stdioStreams } from "./fixtures/stdio-pair.ts";
 import { testGroup } from "./fixtures/test-group.ts";
 import { writeUserSettings } from "./fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS } from "./fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, requestTurn } from "./fixtures/wire-client.ts";
 import { createStdioTransport } from "../src/transport/stdio.ts";
 
 // 모든 하위 패키지를 실제로 올린 엔진 위의 시험. 엔진이 서지 못하는 동안은 건너뛴다(fixtures/real-engine.ts).
@@ -79,7 +79,7 @@ describe("real engine", () => {
       const collector = collectEvents(connection);
       await connection.request("events.subscribe", { from: "head" });
       const created = await connection.request("thread.create", {});
-      const started = await connection.request("turn.start", {
+      const started = await requestTurn(connection, {
         threadId: created.threadId,
         input: "hello",
         requestId: "first",
@@ -88,7 +88,7 @@ describe("real engine", () => {
       expect(event.turnId).toBe(started.turnId);
       expect(collector.events.map((candidate) => candidate.kind)).toContain("input.queued");
       // 같은 requestId의 재제출은 처음 turnId를 돌려준다
-      const again = await connection.request("turn.start", {
+      const again = await requestTurn(connection, {
         threadId: created.threadId,
         input: "hello",
         requestId: "first",

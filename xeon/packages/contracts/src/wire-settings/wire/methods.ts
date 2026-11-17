@@ -985,15 +985,22 @@ export type TurnStartParams = Static<typeof TurnStartParamsSchema>;
 
 /**
  * turn 접수만 뜻한다. 접수된 turn을 멈추려면 turn.interrupt를 쓴다. `queued`가 참이면 입력은 새 turn이 아니라 큐에 들어갔고
- * `turnId`는 실행 중인 turn이다(입력은 `input.queued` 이벤트로 보이고 `turn.withdraw { requestId }`로 거둔다)
+ * `turnId`는 실행 중인 turn이다(입력은 `input.queued` 이벤트로 보이고 `turn.withdraw { requestId }`로 거둔다).
+ * `delivered`가 참이면 주도 중인 플러그인이 입력을 받았다: 아직 turn이 없으므로 `turnId`가 없다. 플러그인이 `turn` 명령으로
+ * 처리하면 그 turn은 평소의 `turn.started` 이벤트로 보이고, 3단계 안에 처리하지 않으면 코어 루프가 같은 입력으로 turn을 시작한다
  */
-export const TurnStartResultSchema: TObject<{
-  turnId: typeof TurnIdSchema;
-  queued: TOptional<TLiteral<true>>;
-}> = Type.Object(
-  { turnId: TurnIdSchema, queued: Type.Optional(Type.Literal(true)) },
-  { additionalProperties: false },
-);
+export const TurnStartResultSchema: TUnion<
+  [
+    TObject<{ turnId: typeof TurnIdSchema; queued: TOptional<TLiteral<true>> }>,
+    TObject<{ delivered: TLiteral<true> }>,
+  ]
+> = Type.Union([
+  Type.Object(
+    { turnId: TurnIdSchema, queued: Type.Optional(Type.Literal(true)) },
+    { additionalProperties: false },
+  ),
+  Type.Object({ delivered: Type.Literal(true) }, { additionalProperties: false }),
+]);
 export type TurnStartResult = Static<typeof TurnStartResultSchema>;
 
 export const TurnInterruptParamsSchema: TObject<{

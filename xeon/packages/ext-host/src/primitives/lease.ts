@@ -642,7 +642,8 @@ export function createLeaseBroker(
           threadId: thread.threadId,
           scopeId: lease.scopeId,
           requestId: `user-return:${lease.leaseId}:${String(index)}`.slice(0, 64),
-          when: "next",
+          // `next`는 도는 turn에 붙기만 하고 유휴 thread에서 turn을 시작하지 않는다. 돌려받은 사용자 말은 끝난 뒤에라도 turn이 되어야 한다
+          when: "followUp",
           item,
         })
         .then(() => undefined),
@@ -863,13 +864,18 @@ export function createLeaseBroker(
       lease.idleRev = startRev;
       lease.idleStreak = 1;
     }
-    if (lease.idleStreak >= 2 && lease.inbox.length === 0) {
+    // 전달한 사용자 메시지를 아직 처리하지 않았으면 idle로 내리지 않는다: 아래에서 다시 불러 단계 한도 안에 돌려보내게 한다
+    if (lease.idleStreak >= 2 && lease.inbox.length === 0 && lease.deliveredUser === null) {
       release(lease, "idle");
       hooks.requestApply(thread.threadId);
       return;
     }
     // 실행 중에 호출 조건이 지나갔거나 사용자 메시지가 와 있고 thread가 유휴면 바로 다시 부른다
-    if ((lease.missed || lease.inbox.length > 0) && loopStatusIdle(thread.threadId)) {
+    // 전달한 메시지를 `yield`로 넘겼으면 다음 경계를 기다리지 않고 다시 불러 단계를 센다(2.4: 3단계 안에 처리하지 않으면 코어 루프로 돌아간다)
+    if (
+      (lease.missed || lease.inbox.length > 0 || lease.deliveredUser !== null) &&
+      loopStatusIdle(thread.threadId)
+    ) {
       start(thread, lease);
     }
   }

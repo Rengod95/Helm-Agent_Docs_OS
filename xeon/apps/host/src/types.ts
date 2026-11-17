@@ -421,6 +421,8 @@ export interface ThreadPort {
 export type SubmitOutcome =
   /** 같은 requestId 재제출이면 처음 turnId. `queued`가 참이면 입력은 실행 중인 turn 뒤의 큐에 들어갔고 `turnId`는 그 실행 중인 turn이다 */
   | { readonly ok: true; readonly turnId: TurnId; readonly queued?: true }
+  /** 주도 중인 플러그인이 입력을 받았다. 아직 turn이 없다(플러그인이 `turn`으로 처리하거나 코어 루프로 돌아와 시작한다) */
+  | { readonly ok: true; readonly delivered: true }
   | { readonly ok: false; readonly reason: "busy"; readonly turnId: TurnId }
   /** 루프가 입력을 받지 않았다(저장소 부족·읽기 전용, 소유 상실, 잘못된 입력 등 예상 가능한 실패). 와이어 오류로 옮기는 것은 처리기 몫이다 */
   | { readonly ok: false; readonly reason: "rejected"; readonly error: LoopError };
