@@ -1454,7 +1454,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 읽기(`timings`, `turn`, `enabled`)는 현재 `enabled` 값을 따른다. 꺼져 있으면 `timings`는 `{traceEnabled: false, timings: []}`, `turn`은 `undefined`다. 기록은 남아 있어서 다시 켜면 보인다.
 - thread는 `MAX_THREADS`(32)개까지 가진다 [제안]. 넘으면 가장 오래 쓰이지 않은 thread를 뺀다.
 - 닫기(`closeThread`)와 호스트 정리(`dispose`)는 `forgetThread`로 그 thread의 기록을 메모리에서 푼다. Turn 수 상한이 없으므로 닫기가 메모리를 푸는 경로다 [제안]. 닫은 대화의 원본은 측정 저장소에 `trace.retentionDays`(기본 30일) 동안 남고 거기서 읽는다. 앱 종료는 프로세스와 함께 메모리가 사라진다.
-- 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다.
+- 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다. 다만 턴이 끝나면 같은 훅 실행이 측정 저장소 `measure.db`에 `hook` 행으로 사본이 남는다(`assembly/measure/recorder.ts`, L4 host-service §4.20). 재시작 뒤 최근 실행의 원천은 그 사본이다. 버퍼 자체는 여전히 메모리에만 있고, 사본을 턴 기록 테이블 `tr_hook`에도 쓰는 연결은 턴 기록 스펙(`review/m5/turn-record-metrics.md` §8)의 기록기 작업이다.
 
 #### 4.8.4 시간 분포 (`ExtHookTiming`)
 
