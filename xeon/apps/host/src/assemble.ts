@@ -1188,17 +1188,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }
       // 화면 앱 정책도 재시작할 때 읽는다. 바뀐 값은 다음 시작에 적용한다(X.loading-trust.spec §4.3.4)
       // 격리 확장: 띄우기 포트(fresnel.process)와 띄우기 설정이 둘 다 있어야 격리가 켜진다(L4.host-service.spec §4.9)
-      const processPort = processPortOf(ext);
       const pluginHosts = createPluginHostAssembly({
         scheduler: os.time.scheduler,
         logger: os.logger("plugin-host"),
         maskSecrets: (line) => secrets.service.redactor.mask(line).text,
         autoDisabler: operations.autoDisabler,
+        processPort: processPortOf(ext),
+        stateDir: os.dirs.state,
+        settingValue: (key) => settings.value(key),
+        now: () => clock.now(),
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
       });
+      // 엔진이 죽고 남은 플러그인 호스트 자식을 먼저 정리한다(L4.host-service §4.9, drive-isolation.md §3.6). 던지지 않는다
+      if (options.pluginHost?.disabled !== true) await pluginHosts.sweepOrphans();
       const loaded = await loadExternalExtensions({
         ext,
         operations,
@@ -1213,9 +1218,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그래서 키가 카탈로그에 없으면 사용자 파일의 값을 읽는다(ext-settings.ts)
         settings: extSettingsOf(built.catalog, settings),
         // 시험이 끄면 포트와 설정을 둘 다 넘기지 않는다(그러면 사용자 확장은 엔진 안에서 돈다)
-        ...(processPort === undefined || options.pluginHost?.disabled === true
+        ...(pluginHosts.process === undefined || options.pluginHost?.disabled === true
           ? {}
-          : { process: processPort }),
+          : { process: pluginHosts.process }),
         ...(options.pluginHost?.disabled === true ? {} : { isolation: pluginHosts.isolation }),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",

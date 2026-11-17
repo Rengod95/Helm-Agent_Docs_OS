@@ -57,9 +57,14 @@ import { parseEngineCallParams } from "./engine-calls.ts";
 
 const DEFAULT_IDLE_MS = 60_000;
 const DEFAULT_KILL_GRACE_MS = 2_000;
-const DEFAULT_MAX_RESTARTS = 1;
 const MESSAGE_MAX = 4000;
 const ENCODER = new TextEncoder();
+
+/**
+ * 재시작 한도의 기본. 설정 정의(`x.loading-trust.isolation.maxRestarts`, `restartWindowSec`)의 기본과 같다.
+ * 설정 정의가 이 값을 쓰고, 감독자는 설정 함수가 없을 때 이 값을 쓴다
+ */
+export const PLUGIN_HOST_RESTART_DEFAULTS = { maxRestarts: 3, restartWindowSec: 600 } as const;
 
 /** 감독이 보는 프로세스 상태. `starting`은 띄우고 `host.init`을 기다리는 동안이다 */
 export type PluginHostStatusState = "idle" | "starting" | "running" | "stopped" | "restart_limit";
@@ -67,7 +72,7 @@ export type PluginHostStatusState = "idle" | "starting" | "running" | "stopped" 
 export interface PluginHostStatus {
   readonly state: PluginHostStatusState;
   readonly pid: number | null;
-  /** 연속으로 죽은 횟수. 성공한 호출 응답이 0으로 되돌린다 */
+  /** 창(`restartWindowSec`) 안에서 죽은 횟수. 창 밖으로 나간 죽음은 세지 않는다 */
   readonly deaths: number;
   /** 지금 상태가 된 시각(deps.now) */
   readonly since: number;
@@ -132,8 +137,13 @@ export interface PluginHostSupervisorDeps {
   readonly initTimeoutMs: number;
   /** 멈춤 요청 뒤 강제 종료까지 기다리는 시간. 기본 2초 */
   readonly killGraceMs?: number;
-  /** 죽은 뒤 다시 띄우는 횟수. 기본 1 */
-  readonly maxRestarts?: number;
+  /**
+   * 창(`restartWindowSec`초) 안에서 `maxRestarts + 1`번째 종료가 나면 `restart_limit`이다. 죽음을 셀 때마다 부른다
+   * (설정 `x.loading-trust.isolation.maxRestarts`는 live다). 없으면 `PLUGIN_HOST_RESTART_DEFAULTS`
+   */
+  readonly maxRestarts?: () => number;
+  /** 죽음을 세는 창의 길이(초). 죽음을 셀 때마다 부른다. 없으면 `PLUGIN_HOST_RESTART_DEFAULTS` */
+  readonly restartWindowSec?: () => number;
   /** 자식이 보낸 `engine.call`을 처리한다. 등록 라우터(`createEngineCallRouter`)가 맡는다 */
   readonly onEngineCall: (params: EngineCallParams) => Promise<Result<JsonValue, PluginHostError>>;
   readonly onRestartLimit: (info: RestartLimitInfo) => void;
@@ -379,11 +389,15 @@ function writeFrameError(error: FrameWriteError): CallError {
 export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): PluginHostSupervisor {
   const idleMs = deps.idleMs ?? DEFAULT_IDLE_MS;
   const killGraceMs = deps.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
-  const maxRestarts = deps.maxRestarts ?? DEFAULT_MAX_RESTARTS;
+  const maxRestartsOf =
+    deps.maxRestarts ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.maxRestarts);
+  const restartWindowSecOf =
+    deps.restartWindowSec ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.restartWindowSec);
 
   let state: PluginHostStatusState = "idle";
   let since = deps.now();
-  let deaths = 0;
+  /** 죽은 시각(deps.now)들. 창 밖으로 나간 것은 세기 전에 뺀다 */
+  let deathTimes: number[] = [];
   let nextId = 1;
   let current: Proc | undefined;
   let starting: Promise<Result<Ready, SupervisorError>> | undefined;
@@ -418,11 +432,20 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     proc.timers.add(cancel);
   }
 
+  /** 창 안에서 죽은 시각들. `now` 시점의 창이다(창 밖 죽음은 빠진다, gateway.ts `recordDeath`와 같은 규칙) */
+  function deathsInWindow(now: number): number[] {
+    const windowMs = restartWindowSecOf() * 1000;
+    return deathTimes.filter((at) => at > now - windowMs);
+  }
+
+  /** 죽음 하나를 센다. 창 안의 죽음이 `maxRestarts`를 넘으면 `restart_limit`이다 */
   function recordDeath(reason: PluginProcessFailureReason): void {
-    deaths += 1;
-    if (deaths <= maxRestarts || state === "restart_limit") return;
+    const now = deps.now();
+    deathTimes = [...deathsInWindow(now), now];
+    const count = deathTimes.length;
+    if (count <= maxRestartsOf() || state === "restart_limit") return;
     setState("restart_limit");
-    const notified = attempt(() => deps.onRestartLimit({ deaths, reason, label }));
+    const notified = attempt(() => deps.onRestartLimit({ deaths: count, reason, label }));
     if (!notified.ok) deps.logger.error("plugin_host.restart_limit_handler_failed", {});
   }
 
@@ -528,8 +551,6 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         settled = true;
         proc.pending.delete(id);
         for (const cleanup of cleanups) cleanup();
-        // 성공한 호출 응답은 죽음 셈을 0으로 되돌린다. 시작 응답은 되돌리지 않는다(죽는 시작이 한도를 피하지 못하게)
-        if (outcome.ok && method !== "host.init") deaths = 0;
         resolve(outcome);
         if (proc.pending.size === 0) armIdle();
       };
@@ -878,7 +899,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       return Promise.resolve(
         err({
           kind: "restart_limit",
-          message: `the plugin host died ${deaths} times; it is not restarted`,
+          message: `the plugin host died ${deathTimes.length} times in the restart window; it is not restarted`,
         }),
       );
     }
@@ -929,7 +950,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       return {
         state,
         pid: proc !== undefined && !proc.exited ? proc.child.pid : null,
-        deaths,
+        deaths: deathsInWindow(deps.now()).length,
         since,
       };
     },

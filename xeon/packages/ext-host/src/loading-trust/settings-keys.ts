@@ -10,6 +10,7 @@ import {
   type SettingNamespace,
 } from "@fresnel/contracts/settings";
 import { Type } from "typebox";
+import { PLUGIN_HOST_RESTART_DEFAULTS } from "../isolation/supervisor.ts";
 import type { InstallSource } from "./trust/levels.ts";
 
 /** 예약 키 이름. 확장 userConfig는 이 이름을 쓸 수 없다(X.loading-trust.spec §4.5.1) */
@@ -155,7 +156,7 @@ export const loadingTrustSettings: SettingGroup<
   },
   "isolation.maxRestarts": {
     type: Type.Integer(),
-    default: 3,
+    default: PLUGIN_HOST_RESTART_DEFAULTS.maxRestarts,
     range: { min: 0, max: 20 },
     runtimeChange: "live",
     allowedScopes: ["managed", "user"],
@@ -169,7 +170,7 @@ export const loadingTrustSettings: SettingGroup<
   },
   "isolation.restartWindowSec": {
     type: Type.Integer(),
-    default: 600,
+    default: PLUGIN_HOST_RESTART_DEFAULTS.restartWindowSec,
     range: { min: 10, max: 86_400 },
     runtimeChange: "live",
     allowedScopes: ["managed", "user"],

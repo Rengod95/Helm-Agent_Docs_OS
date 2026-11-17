@@ -554,7 +554,7 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 ```ts
 // 자식 프로세스 기동 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1). 구현은 platform-process(서비스 fresnel.process)다
 export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, IsolationSpawnError } from "@fresnel/contracts/extensions";
-// 로더 의존: LoaderDeps.process와 LoaderDeps.isolation(launch, setTimer, idleMs, maxRestarts, maskSecrets, onRestartLimit, onSupervisor)가 모두 있어야 격리가 켜진다
+// 로더 의존: LoaderDeps.process와 LoaderDeps.isolation(launch, setTimer, idleMs, maxRestarts(함수), restartWindowSec(함수), maskSecrets, onRestartLimit, onSupervisor)가 모두 있어야 격리가 켜진다
 ```
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
@@ -1294,7 +1294,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.7 비정상 종료와 재시작
 
-호스트가 스스로 끝나면(`process_exit`) 진행 중 요청은 그 훅의 실패 규칙으로 처리되고(막는 훅은 막고 고치는 훅은 건너뛴다) 다음 호출 때 한 번 다시 띄운다(`maxRestarts` 기본 1). 한도를 넘으면 `restart_limit`이고 `onRestartLimit`이 자동 끄기 질문을 부른다. 성공한 응답이 죽은 횟수를 0으로 되돌린다. 설정 키 `x.loading-trust.isolation.maxRestarts`(기본 3)와 `restartWindowSec`는 이 감독자가 읽지 않는다 (키의 정리는 사용자 확인 대기) [근거: m5-plan.md M5b-1]. 엔진이 죽으면 호스트는 표준 입력이 닫힌 것을 보고 스스로 끝난다. 표준오류는 엔진이 모아(줄 상한, 시크릿 마스킹) 진단에 잇는다.
+호스트가 스스로 끝나면(`process_exit`) 진행 중 요청은 그 훅의 실패 규칙으로 처리되고(막는 훅은 막고 고치는 훅은 건너뛴다) 다음 호출 때 다시 띄운다. 죽은 시각을 기록하고, 창(`restartWindowSec`초) 안의 죽음 수가 `maxRestarts`를 넘으면 `restart_limit`이다. 창 안에서 `maxRestarts + 1`번째 종료가 그 경우다. 한도 초과는 `onRestartLimit`이 자동 끄기 질문을 부른다. 창 밖으로 나간 죽음은 세지 않는다. 성공한 응답은 죽은 횟수를 지우지 않는다(창이 지나야 빠진다). 설정 `x.loading-trust.isolation.maxRestarts`(정수, 기본 3, 0~20)와 `restartWindowSec`(정수, 기본 600, 10~86400)는 `live`라서 감독자가 죽음을 셀 때마다 읽는다(조립 루트가 읽기 함수로 넘긴다, L4.host-service §4.9). 값이 없으면 기본을 쓴다. 엔진이 죽으면 호스트는 표준 입력이 닫힌 것을 보고 스스로 끝난다. 그래도 남은 자식은 다음 엔진 시작 때 정리한다(L4.host-service §4.9 "고아 정리"). 표준오류는 엔진이 모아(줄 상한, 시크릿 마스킹) 진단에 잇는다.
 
 ### 4.10 pi 확장 호환 (두지 않음)
 

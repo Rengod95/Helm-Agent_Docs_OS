@@ -266,3 +266,4 @@ xeon/packages/ext-host/
 | 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// FRESNEL-PATCH` 표지가 일치한다(`fork-records.test.ts`) |
 | L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `thread.resources`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@fresnel/ext-host` 공개 이름) |
 | `project-trust.int.test.ts` | 보류 | 통합 시험은 L-18과 함께 한다 |
+| L-25 (재시작 창) | 부분 완료(P2) | `isolation/supervisor.ts`: 창(`restartWindowSec`) 안의 죽음 수가 `maxRestarts`를 넘으면 `restart_limit`, 창 밖 죽음은 세지 않는다, 성공 응답은 죽음을 지우지 않는다. 한도와 창은 `x.loading-trust.isolation.*` 설정에서 죽음마다 읽는다(`apps/host/src/assembly/plugin-host.ts`). `supervisor.test.ts`. 지수 대기와 서비스 모드 유휴 종료는 아직 구현하지 않았다 |

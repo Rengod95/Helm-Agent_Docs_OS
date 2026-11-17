@@ -152,7 +152,10 @@ export interface IsolatedEntryDeps {
   readonly driveStepDeadlineMs?: number;
   readonly idleMs?: number;
   readonly killGraceMs?: number;
-  readonly maxRestarts?: number;
+  /** 죽음을 셀 때마다 읽는 재시작 한도(설정 `x.loading-trust.isolation.maxRestarts`). 없으면 감독 기본 */
+  readonly maxRestarts?: () => number;
+  /** 죽음을 세는 창(초, 설정 `restartWindowSec`). 없으면 감독 기본 */
+  readonly restartWindowSec?: () => number;
   readonly maskSecrets?: (line: string) => string;
   /** 등록이 모두 꺼져 세션을 닫을 때의 사유. 다시 읽기 중이면 `reload`다 */
   readonly endReason?: () => "reload" | "disabled";
@@ -495,6 +498,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(deps.idleMs === undefined ? {} : { idleMs: deps.idleMs }),
       ...(deps.killGraceMs === undefined ? {} : { killGraceMs: deps.killGraceMs }),
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
+      ...(deps.restartWindowSec === undefined ? {} : { restartWindowSec: deps.restartWindowSec }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
     });
     const gate = createNotifyGate({

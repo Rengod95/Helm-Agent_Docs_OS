@@ -298,8 +298,10 @@ export interface LoaderIsolation {
   readonly idleMs?: number;
   /** 멈춤 요청 뒤 강제 종료까지(ms). 기본은 감독 기본값 */
   readonly killGraceMs?: number;
-  /** 죽은 뒤 다시 띄우는 횟수. 기본은 감독 기본값 */
-  readonly maxRestarts?: number;
+  /** 죽은 뒤 다시 띄우는 한도. 죽음을 셀 때마다 읽는다(설정 `x.loading-trust.isolation.maxRestarts`, live). 없으면 감독 기본 */
+  readonly maxRestarts?: () => number;
+  /** 죽음을 세는 창(초). 죽음을 셀 때마다 읽는다(설정 `x.loading-trust.isolation.restartWindowSec`, live). 없으면 감독 기본 */
+  readonly restartWindowSec?: () => number;
   /** 표준오류 한 줄을 저장하기 전에 가린다. 던지면 그 줄을 버린다 */
   readonly maskSecrets?: (line: string) => string;
   /** 재시작 한도를 넘으면 한 번 알린다. 앱은 이 알림으로 확장을 끌지 묻는다 */
@@ -1092,6 +1094,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       ...(isolation.idleMs === undefined ? {} : { idleMs: isolation.idleMs }),
       ...(isolation.killGraceMs === undefined ? {} : { killGraceMs: isolation.killGraceMs }),
       ...(isolation.maxRestarts === undefined ? {} : { maxRestarts: isolation.maxRestarts }),
+      ...(isolation.restartWindowSec === undefined
+        ? {}
+        : { restartWindowSec: isolation.restartWindowSec }),
       ...(isolation.maskSecrets === undefined ? {} : { maskSecrets: isolation.maskSecrets }),
     });
   }
