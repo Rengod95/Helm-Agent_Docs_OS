@@ -20,7 +20,6 @@ import type {
   InstallPreview,
   KindEntry,
   PackResult,
-  ScaffoldInput,
   ScaffoldResult,
   SelfTestReport,
 } from "@fresnel/contracts/services";
@@ -39,9 +38,8 @@ import type {
   HostClientView,
   NotifyDeliveredParams,
   HostConnection,
-  ExtInstallResult,
-  ExtRemoveResult,
   ExtBindingsResult,
+  ExtScaffoldParams,
   HooksOrderGetResult,
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -49,9 +47,10 @@ import type {
   McpServerAction,
   McpServerRow,
   Profile,
-  ProfileApplyResult,
-  ProfileGetResult,
+  PluginRequestRemoveResult,
   ProfileInput,
+  ProfilePutResult,
+  ThreadSetProfileResult,
   ProfilePreviewResult,
   ExtValidateDirResult,
   ExtValidateResult,
@@ -91,7 +90,7 @@ import type {
   SetupSnapshot,
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
-import type { ThreadToggleRequest, ToggleRequest } from "@fresnel/client/workbench";
+import type { ToggleRequest } from "@fresnel/client/workbench";
 import type {
   LockedOption,
   RestartReason,
@@ -144,6 +143,13 @@ export type BusyInputMode = "steer" | "followUp";
  */
 export type SwitchMode = "default" | "acceptEdits" | "bypass";
 
+/** `not_available`로 막는 명령 이름. `ext.remove.dropData`는 `ext.remove`의 저장 데이터 지우기 칸이다 */
+export type NotAvailableCommand =
+  | "ext.installPreview"
+  | "ext.install"
+  | "ext.removePreview"
+  | "ext.remove.dropData";
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -154,6 +160,11 @@ export type CommandError =
       readonly ownerKind: string;
       readonly options: readonly LockedOption[];
     }
+  /**
+   * 이 앱이 보내지 않는 명령. M5c-1에서 wire가 빠졌고 정확한 대체가 없다(설치, 저장 데이터 목록, 저장 데이터 지우기).
+   * 보내지 않았으므로 호스트 상태는 그대로다. 화면은 실패 갈래로 보인다(조용한 무시가 아니다)
+   */
+  | { readonly kind: "not_available"; readonly command: NotAvailableCommand }
   | {
       readonly kind: "rejected";
       readonly code: number | null;
@@ -815,6 +826,17 @@ export interface MeasureCommands {
   promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
 }
 
+/** 확장이 소유한 저장 테이블 한 줄 */
+export interface StorageTableRow {
+  readonly name: string;
+  readonly rows: number;
+}
+
+/** `removePreview`의 값. M5c-1 뒤로 만들어지지 않는다(항상 `not_available`) */
+export interface StorageTablesPreview {
+  readonly tables: readonly StorageTableRow[];
+}
+
 export interface WorkbenchCommands {
   /**
    * `ext.list`. `threadId`가 없으면 전역 값이다. 있으면 그 대화에서의 Registration 상태(`registration`, `plugins[].thread`)를 더한다
@@ -826,20 +848,27 @@ export interface WorkbenchCommands {
    * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). `settled`는 확장 설정 적용이 끝났다는 뜻이다(키 목록이 빈 알림). 반환값은 구독 해제
    */
   onChanged(listener: (settled: boolean) => void): () => void;
-  /** `ext.installPreview`: 폴더의 이름, 버전, 요청 권한을 디스크에 쓰지 않고 읽는다(Q9) */
-  installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
-  /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */
-  install(source: string, sha256: string): Promise<Result<ExtInstallResult, CommandError>>;
   /**
-   * `ext.remove { name, dropData? }`: 설치본 폴더를 지우고 로더에서 내린다. `now`이면 목록에서 바로 빠진다.
-   * `dropData`는 참일 때만 싣는다(그 확장의 저장 테이블도 지운다)
+   * 폴더의 설치 미리 보기. M5c-1에서 `ext.installPreview`가 빠졌다. 설치는 검토함을 거치며 이 앱은 아직 그 길을 쓰지 않으므로
+   * 항상 `not_available`이다
+   */
+  installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
+  /**
+   * 설치. M5c-1에서 `ext.install`이 빠졌다. 항상 `not_available`이다. 성공하면 `null`이다(호출하는 쪽이 목록을 다시 읽는다)
+   */
+  install(source: string, sha256: string): Promise<Result<null, CommandError>>;
+  /**
+   * 지우기 요청: `plugin.requestRemove { name }`(검토 항목을 만든다). `dropData`를 참으로 주면 저장 데이터 지우기는
+   * 대체가 없어 `not_available`이다(보내지 않는다)
    */
   remove(
     name: string,
     options?: { readonly dropData?: boolean },
-  ): Promise<Result<ExtRemoveResult, CommandError>>;
-  /** `ext.removePreview { name }`: 지우기 확인에 보일 저장 테이블과 행 수. 아무것도 바꾸지 않는다 */
-  removePreview(name: string): Promise<Result<WireResult<"ext.removePreview">, CommandError>>;
+  ): Promise<Result<PluginRequestRemoveResult, CommandError>>;
+  /**
+   * 지우기 확인에 보일 저장 테이블과 행 수. M5c-1에서 `ext.removePreview`가 빠졌고 대체가 없어 항상 `not_available`이다
+   */
+  removePreview(name: string): Promise<Result<StorageTablesPreview, CommandError>>;
   /** `ext.bindings { threadId? }`: 기능 id마다 지금 바인딩된 공급자, 받는 확장, 미충족 */
   bindings(threadId?: ThreadId): Promise<Result<ExtBindingsResult, CommandError>>;
   /** `ext.reload { name }`: 설치한 판으로 실행 중인 확장을 다음 단계 경계에서 바꾼다. 거절이면 옛 판이 그대로 돈다 */
@@ -860,17 +889,18 @@ export interface WorkbenchCommands {
   reenable(name: string): Promise<Result<null, CommandError>>;
   /** "끄기" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` 뒤 `ext.disableConfirm { name }`. 설정 쓰기가 실패하면 끄기를 보내지 않는다 */
   keepOff(name: string): Promise<Result<null, CommandError>>;
-  /** 이 대화에서 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }`. 적용은 다음 단계 경계다 */
-  toggleForThread(request: ThreadToggleRequest): Promise<Result<null, CommandError>>;
   /** `profile.list`: 저장된 프로필 목록 */
   profiles(): Promise<Result<readonly Profile[], CommandError>>;
-  /** `profile.apply { id, threadId, layer: "thread" }`: 프로필을 이 대화에 쓴다. 결과는 쓴 키와 적용 시점이다 */
-  applyProfile(id: string, threadId: ThreadId): Promise<Result<ProfileApplyResult, CommandError>>;
+  /** `thread.setProfile { threadId, profileId }`: 대화가 참조하는 프로필을 바꾼다(저장은 하지 않는다). 결과는 바뀜의 미리 보기다 */
+  applyProfile(
+    id: string,
+    threadId: ThreadId,
+  ): Promise<Result<ThreadSetProfileResult, CommandError>>;
   /** `profile.put { profile, baseRev }`: 프로필 저장. 처음 만들면 `baseRev`는 null이고, 저장된 `rev`와 다르면 `settings.conflict`로 거절된다 */
   putProfile(
     profile: ProfileInput,
     baseRev: number | null,
-  ): Promise<Result<ProfileGetResult, CommandError>>;
+  ): Promise<Result<ProfilePutResult, CommandError>>;
   /** `profile.delete { id }`: 프로필 삭제. 결과는 목록 개정이다 */
   deleteProfile(id: string): Promise<Result<number, CommandError>>;
   /** `profile.preview { id, threadId? }`(W-44): 적용했다면 어떻게 되는지 계산한다. 쓰지 않는다 */
@@ -885,7 +915,7 @@ export interface WorkbenchCommands {
   /** `ext.kinds`: 새 그룹의 시작점이 되는 종류 카탈로그 */
   kinds(): Promise<Result<readonly KindEntry[], CommandError>>;
   /** `ext.scaffold`: 대상 폴더에 뼈대를 만든다. 이름·폴더 거절은 `rejected`다 */
-  scaffold(input: ScaffoldInput): Promise<Result<ScaffoldResult, CommandError>>;
+  scaffold(input: ExtScaffoldParams): Promise<Result<ScaffoldResult, CommandError>>;
   /** `ext.validate { dir }`: 폴더의 매니페스트와 AU 규칙 검사. 오류가 없으면 `ok`가 참이다 */
   validateDir(dir: string): Promise<Result<ExtValidateDirResult, CommandError>>;
   /** `ext.package { dir, out? }`: 설치 묶음을 만든다. `out`이 있으면 그 폴더(없거나 비어 있어야 한다)에 만든다(확장 상세의 "내보내기") */

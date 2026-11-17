@@ -132,6 +132,7 @@ export function testFailureOf(error: CommandError): TestFailure {
   switch (error.kind) {
     case "offline":
       return "offline";
+    case "not_available":
     case "unsupported":
       return "unsupported";
     case "rejected":

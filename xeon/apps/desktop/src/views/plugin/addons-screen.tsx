@@ -698,15 +698,8 @@ function ThreadRow(props: { readonly name: string }): ReactNode {
           {note ?? t("desktop.addons.thread.body")}
         </span>
       </span>
-      <Switch
-        size="sm"
-        aria-label={label}
-        checked={one.kind === "switch" ? one.on : true}
-        disabled={one.kind !== "switch" || one.disabled}
-        onCheckedChange={(target) => {
-          if (one.kind === "switch") one.toggle(target);
-        }}
-      />
+      {/* 읽기만 한다. 이 대화의 켜짐은 이 대화의 프로필이 정하므로 여기서 바꾸지 않는다 */}
+      <Switch size="sm" aria-label={label} checked={one.kind === "state" && one.on} disabled />
     </li>
   );
 }

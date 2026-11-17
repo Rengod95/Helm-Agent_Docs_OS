@@ -6,14 +6,13 @@ import {
   newGroupDraftOf,
   newGroupProblemOf,
   scaffoldInputOf,
-  scaffoldInputWithComposition,
   startPointsOf,
   type NewGroupDraft,
   type TabLink,
 } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
-import type { ExtensionKind, ScaffoldInput } from "@fresnel/contracts/services";
+import type { ExtScaffoldParams } from "@fresnel/contracts/wire";
 import { Button } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
@@ -34,19 +33,17 @@ import {
 /** 새 그룹을 열 때 미리 채우는 값. 코드 보기의 "플러그인 빌더로 만들기"가 그룹 이름과 종류를 넘기고, 흐름 초안의 "새 그룹 만들기"는 구성 선언을 함께 넘긴다 */
 export interface NewGroupPrefill {
   readonly name: string;
-  readonly kind: ExtensionKind;
-  /** 있으면 만들 때 `group.composition`으로 싣는다(플러그인 그룹일 때만) */
+  readonly kind: ExtScaffoldParams["kind"];
+  /** 흐름 초안의 구성 선언. M5c-1 뒤 `ext.scaffold`는 플러그인 묶음을 받지 않으므로 이 값이 있으면 만들 수 없다 */
   readonly composition?: CompositionDecl;
 }
 
-/** 만들기 입력. 구성 선언이 있으면 그것을 싣고, 없으면 시작점만 본 입력이다 */
+/** 만들기 입력. 구성 선언이 함께 왔으면 만들 수 없어 null이다(새 플러그인에 흐름을 싣는 길이 없다) */
 function createInputOf(
   draft: NewGroupDraft,
   composition: CompositionDecl | undefined,
-): ScaffoldInput | null {
-  return composition === undefined
-    ? scaffoldInputOf(draft)
-    : scaffoldInputWithComposition(draft, composition);
+): ExtScaffoldParams | null {
+  return composition === undefined ? scaffoldInputOf(draft) : null;
 }
 
 function run(work: Promise<void>): void {
@@ -80,7 +77,10 @@ export function NewGroupScreen(props: {
       ? startPointsOf(kinds.value).find((point) => point.id === draft.kind)
       : undefined;
   const ready =
-    props.link === "live" && newGroupProblemOf(draft) === null && chosen?.selectable === true;
+    props.link === "live" &&
+    newGroupProblemOf(draft) === null &&
+    chosen?.selectable === true &&
+    props.prefill?.composition === undefined;
 
   // 입력이 바뀌면 지난 결과(만든 곳과 검사)는 더 이상 맞지 않으니 치운다
   const edit = (patch: Partial<NewGroupDraft>): void => {
@@ -186,7 +186,8 @@ export function NewGroupScreen(props: {
         <StartPicker
           read={kinds}
           selected={draft.kind}
-          onPick={(kind) => edit({ kind })}
+          // 플러그인 묶음은 고를 수 없다(`startPointsOf`가 막는다). 고를 수 있는 것은 단일 플러그인뿐이다
+          onPick={(kind) => edit({ kind: kind === "single-plugin" ? kind : null })}
           onRetry={() => {
             setVersion((current) => current + 1);
           }}

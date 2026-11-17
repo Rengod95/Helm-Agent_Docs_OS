@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { TabRead, ThreadToggleRequest } from "@fresnel/client/workbench";
+import type { TabRead } from "@fresnel/client/workbench";
 import type { TestRunPhaseResult } from "@fresnel/contracts/extensions";
 import { err, ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ReplayReport } from "@fresnel/contracts/services";
-import type { ExtTestRecord } from "@fresnel/contracts/wire";
+import type { ExtListEntry, ExtTestRecord } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import type { SettingsJump } from "../../../src/state/ui/index.ts";
 import { CommandsContext } from "../../../src/views/commands.ts";
@@ -538,8 +538,30 @@ describe("테스트 결과 목록", () => {
   });
 });
 
+/** 대화 목록의 한 줄(시험용 최소 값). `registration`은 그 대화에서의 상태다 */
+function listRowOf(name: string, registration: ExtListEntry["registration"]): ExtListEntry {
+  return {
+    name,
+    displayName: name,
+    layer: "L3",
+    isGroup: true,
+    version: "1.0.0",
+    location: "/x",
+    requestedGrade: "user",
+    effectiveGrade: "user",
+    tier: null,
+    status: "enabled",
+    ...(registration === undefined ? {} : { registration }),
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    diagnostics: [],
+    autoDisabled: false,
+    safeModeExcluded: null,
+    hookCount: 0,
+  };
+}
+
 describe("명령 순서(시작)", () => {
-  test("프로필을 싣고 대화를 만든 뒤, 그 대화에서 그룹을 켠다", async () => {
+  test("프로필을 싣고 대화를 만든 뒤, 그 대화가 그룹을 켜 둔 상태인지 ext.list로 확인한다", async () => {
     const calls: string[] = [];
     const base = fakeCommands();
     const commands = fakeCommands({
@@ -552,15 +574,28 @@ describe("명령 순서(시작)", () => {
       },
       workbench: {
         ...base.workbench,
-        toggleForThread: (request: ThreadToggleRequest) => {
-          calls.push(`toggle:${request.key}:${request.value}:${request.scope}:${request.threadId}`);
-          return Promise.resolve(ok(null));
+        list: (threadId?: ThreadId) => {
+          calls.push(`list:${threadId ?? "-"}`);
+          return Promise.resolve(ok([listRowOf("helm", "enabled")]));
         },
       },
     });
     const outcome = await startTrialRun(commands, { group: "helm", profileId: "quiet" });
-    expect(calls).toEqual(["create:quiet", `toggle:ext.helm.enabled:true:launch:${RUN_ID}`]);
+    expect(calls).toEqual(["create:quiet", `list:${RUN_ID}`]);
     expect(outcome).toEqual({ ok: true, threadId: threadOf(RUN_ID) });
+  });
+
+  test("대화가 그룹을 켜 두지 않았으면 targetNotLoaded이고 만든 대화 id를 함께 돌려준다", async () => {
+    const base = fakeCommands();
+    const commands = fakeCommands({
+      tests: { ...base.tests, createTestRun: () => Promise.resolve(ok(RUN_ID)) },
+      workbench: {
+        ...base.workbench,
+        list: () => Promise.resolve(ok([listRowOf("helm", "disabled")])),
+      },
+    });
+    const outcome = await startTrialRun(commands, { group: "helm", profileId: "quiet" });
+    expect(outcome).toEqual({ ok: false, failure: "targetNotLoaded", threadId: threadOf(RUN_ID) });
   });
 
   test("프로필이 없으면 프로필 인자 없이 대화를 만든다", async () => {
@@ -579,7 +614,7 @@ describe("명령 순서(시작)", () => {
     expect(calls).toEqual(["create:-"]);
   });
 
-  test("대화 만들기가 거절되면 그룹을 켜지 않고 실패 종류만 돌려준다", async () => {
+  test("대화 만들기가 거절되면 목록을 읽지 않고 실패 종류만 돌려준다", async () => {
     const calls: string[] = [];
     const base = fakeCommands();
     const commands = fakeCommands({
@@ -592,9 +627,9 @@ describe("명령 순서(시작)", () => {
       },
       workbench: {
         ...base.workbench,
-        toggleForThread: () => {
-          calls.push("toggle");
-          return Promise.resolve(ok(null));
+        list: () => {
+          calls.push("list");
+          return Promise.resolve(ok([]));
         },
       },
     });
@@ -603,29 +638,29 @@ describe("명령 순서(시작)", () => {
     expect(outcome).toEqual({ ok: false, failure: "rejected", threadId: null });
   });
 
-  test("대화는 만들었지만 켜지 못하면 그 대화 id를 함께 돌려준다", async () => {
+  test("대화는 만들었지만 목록을 읽지 못하면 그 대화 id를 함께 돌려준다", async () => {
     const base = fakeCommands();
     const commands = fakeCommands({
       tests: { ...base.tests, createTestRun: () => Promise.resolve(ok(RUN_ID)) },
       workbench: {
         ...base.workbench,
-        toggleForThread: () => Promise.resolve(err({ kind: "unsupported" })),
+        list: () => Promise.resolve(err({ kind: "unsupported" })),
       },
     });
     const outcome = await startTrialRun(commands, { group: "helm", profileId: undefined });
     expect(outcome).toEqual({ ok: false, failure: "unsupported", threadId: threadOf(RUN_ID) });
   });
 
-  test("호스트가 대화 id가 아닌 값을 주면 켜기를 보내지 않고 실패로 본다", async () => {
+  test("호스트가 대화 id가 아닌 값을 주면 목록을 읽지 않고 실패로 본다", async () => {
     const calls: string[] = [];
     const base = fakeCommands();
     const commands = fakeCommands({
       tests: { ...base.tests, createTestRun: () => Promise.resolve(ok("not-a-thread")) },
       workbench: {
         ...base.workbench,
-        toggleForThread: () => {
-          calls.push("toggle");
-          return Promise.resolve(ok(null));
+        list: () => {
+          calls.push("list");
+          return Promise.resolve(ok([]));
         },
       },
     });

@@ -1,4 +1,4 @@
-import { extSettingPrefixes, profileApplyRequestOf } from "@fresnel/client/workbench";
+import { extSettingPrefixes, threadSetProfileRequestOf } from "@fresnel/client/workbench";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ScopeHandlerFailedPayloadSchema } from "@fresnel/contracts/records";
 import type { SettingDefWire } from "@fresnel/contracts/settings";
@@ -8,7 +8,7 @@ import type {
   SettingsInvalidatedParams,
   StreamChunkParams,
 } from "@fresnel/contracts/wire";
-import type { CommandError, WorkbenchCommands } from "../views/commands.ts";
+import type { CommandError, NotAvailableCommand, WorkbenchCommands } from "../views/commands.ts";
 
 // 크래프트 명령. 결과는 요청의 반환값이다(거울에 넣지 않는다). 상태 반영은 `views/workbench`의 컨트롤러가 스토어에 한다.
 
@@ -60,6 +60,11 @@ export function subscribeExtChanges(
   };
 }
 
+/** M5c-1에서 wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
+function unavailable(command: NotAvailableCommand): CommandError {
+  return { kind: "not_available", command };
+}
+
 export function createWorkbenchCommands(
   withConnection: WithConnection,
   subscribeChanges: (listener: (settled: boolean) => void) => () => void,
@@ -72,15 +77,16 @@ export function createWorkbenchCommands(
       return listed.ok ? ok(listed.value.extensions) : err(listed.error);
     },
     onChanged: subscribeChanges,
-    installPreview: (source) => withConnection((c) => c.request("ext.installPreview", { source })),
-    install: (source, sha256) =>
-      withConnection((c) => c.request("ext.install", { source, sha256 })),
-    // `dropData`는 참일 때만 싣는다. 생략하면 호스트가 저장 테이블을 남긴다
+    // 설치는 검토함을 거친다(`plugin.draft.create`, `pluginReview.submitDraft`). 이 앱은 아직 그 길을 쓰지 않으므로 보내지 않는다
+    installPreview: () => Promise.resolve(err(unavailable("ext.installPreview"))),
+    install: () => Promise.resolve(err(unavailable("ext.install"))),
+    // 지우기는 `plugin.requestRemove`가 검토 항목을 만든다. 저장 데이터 지우기(`dropData`)는 대체가 없어 보내지 않는다
     remove: (name, options) =>
-      withConnection((c) =>
-        c.request("ext.remove", options?.dropData === true ? { name, dropData: true } : { name }),
-      ),
-    removePreview: (name) => withConnection((c) => c.request("ext.removePreview", { name })),
+      options?.dropData === true
+        ? Promise.resolve(err(unavailable("ext.remove.dropData")))
+        : withConnection((c) => c.request("plugin.requestRemove", { name })),
+    // 저장 테이블 목록을 읽는 wire(`ext.removePreview`)가 빠졌다. 대체가 없다
+    removePreview: () => Promise.resolve(err(unavailable("ext.removePreview"))),
     bindings: (threadId) =>
       withConnection((c) => c.request("ext.bindings", threadId === undefined ? {} : { threadId })),
     async reload(name) {
@@ -133,23 +139,14 @@ export function createWorkbenchCommands(
       await withConnection((c) => c.request("settings.set", { key, value: true, scope: "user" }));
       return err(done.error);
     },
-    async toggleForThread(request) {
-      const done = await withConnection((c) =>
-        c.request("settings.set", {
-          key: request.key,
-          value: request.value,
-          scope: request.scope,
-          threadId: request.threadId,
-        }),
-      );
-      return done.ok ? ok(null) : err(done.error);
-    },
     async profiles() {
       const got = await withConnection((c) => c.request("profile.list", {}));
       return got.ok ? ok(got.value.profiles) : err(got.error);
     },
     applyProfile: (id, threadId) =>
-      withConnection((c) => c.request("profile.apply", profileApplyRequestOf(id, threadId))),
+      withConnection((c) =>
+        c.request("thread.setProfile", threadSetProfileRequestOf(id, threadId)),
+      ),
     putProfile: (profile, baseRev) =>
       withConnection((c) => c.request("profile.put", { profile, baseRev })),
     async deleteProfile(id) {

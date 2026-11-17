@@ -8,11 +8,7 @@ import { useCommands } from "../commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "../folder-pick.ts";
 import { useFolderPick } from "../folder-pick-context.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
-import { RestartNowButton } from "../restart-confirm-dialog.tsx";
 import {
-  applyInstalled,
-  installDoneOf,
-  type InstallDone,
   INITIAL_INSTALL_FLOW,
   installFailureOf,
   installReasonsOf,
@@ -45,6 +41,7 @@ const FAILURE_TEXT: Readonly<Record<InstallFailureHead, MessageId>> = {
   denied: "desktop.install.fail.denied",
   offline: "desktop.install.fail.offline",
   unsupported: "desktop.install.fail.unsupported",
+  not_available: "desktop.install.fail.notAvailable",
   other: "desktop.install.fail.other",
 };
 
@@ -200,16 +197,9 @@ export function InstallDialog(props: {
     dispatch({ type: "installStart" });
     const got = await commands.workbench.install(source, sha256);
     if (got.ok) {
-      // 새 이름은 다시 시작한 뒤에 목록에 나타난다. 상태 표시줄의 다시 시작 줄에 모은다(U-02)
-      if (got.value.appliesAt === "restart") {
-        commands.noteRestartNeeded({ kind: "install", name: got.value.name });
-      }
-      const reloadFailure = await applyInstalled(
-        (name) => commands.workbench.reload(name),
-        got.value,
-      );
-      dispatch({ type: "installed", result: got.value, reloadFailure });
+      // 설치가 됐으면 목록을 다시 읽고 상자를 닫는다. 결과 화면은 두지 않는다(결과 값이 wire에서 빠졌다)
       props.onInstalled();
+      props.onClose();
     } else {
       dispatch({
         type: "installFailed",
@@ -243,49 +233,39 @@ export function InstallDialog(props: {
           ? t("desktop.install.confirm.body", {
               name: flow.preview.displayName ?? flow.preview.name,
             })
-          : flow.step === "source" || flow.step === "previewing"
-            ? t("desktop.install.subtitle")
-            : undefined
+          : t("desktop.install.subtitle")
       }
       footer={
         <>
-          {flow.step === "done" ? (
-            <Button size="sm" onClick={props.onClose}>
-              {t("desktop.install.close")}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={flow.step === "confirm" ? () => dispatch({ type: "back" }) : props.onClose}
+          >
+            {t("desktop.workbench.cancel")}
+          </Button>
+          {flow.step === "confirm" && (
+            <Button
+              size="sm"
+              variant="solid"
+              onClick={() => run(install(flow.preview.source, flow.preview.sha256))}
+            >
+              {t("desktop.install.allow")}
             </Button>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={flow.step === "confirm" ? () => dispatch({ type: "back" }) : props.onClose}
-              >
-                {t("desktop.workbench.cancel")}
-              </Button>
-              {flow.step === "confirm" && (
-                <Button
-                  size="sm"
-                  variant="solid"
-                  onClick={() => run(install(flow.preview.source, flow.preview.sha256))}
-                >
-                  {t("desktop.install.allow")}
-                </Button>
-              )}
-              {(flow.step === "source" || flow.step === "previewing") && (
-                <Button
-                  size="sm"
-                  variant="solid"
-                  loading={flow.step === "previewing"}
-                  disabled={flow.step === "source" && flow.source.trim() === ""}
-                  onClick={() => {
-                    if (flow.step === "source") run(preview(flow.source.trim()));
-                  }}
-                >
-                  {t("desktop.install.preview")}
-                </Button>
-              )}
-            </>
+          )}
+          {(flow.step === "source" || flow.step === "previewing") && (
+            <Button
+              size="sm"
+              variant="solid"
+              loading={flow.step === "previewing"}
+              disabled={flow.step === "source" && flow.source.trim() === ""}
+              onClick={() => {
+                if (flow.step === "source") run(preview(flow.source.trim()));
+              }}
+            >
+              {t("desktop.install.preview")}
+            </Button>
           )}
         </>
       }
@@ -399,15 +379,6 @@ export function InstallDialog(props: {
             </div>
           </>
         )}
-        {flow.step === "done" && flow.reloadFailure === null && (
-          <InstallDoneNote done={installDoneOf(flow.result)} />
-        )}
-        {flow.step === "done" && flow.result.appliesAt === "restart" && (
-          <RestartNowButton size="sm" info={t("desktop.restart.info")} />
-        )}
-        {flow.step === "done" && flow.reloadFailure !== null && (
-          <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>
-        )}
         {flow.step === "installing" && (
           <span className="text-ui text-text-secondary">{t("desktop.install.installing")}</span>
         )}
@@ -458,36 +429,6 @@ export function InstallReasonList(props: {
         );
       })}
     </ul>
-  );
-}
-
-const DONE_TEXT: Readonly<Record<"listed" | "boundary" | "restart", MessageId>> = {
-  listed: "desktop.install.done.listed",
-  boundary: "desktop.install.done.boundary",
-  restart: "desktop.install.done.restart",
-};
-
-const NOT_LOADED_TEXT: Readonly<Record<"safe_mode" | "disabled" | "error", MessageId>> = {
-  safe_mode: "desktop.install.done.notLoaded.safeMode",
-  disabled: "desktop.install.done.notLoaded.disabled",
-  error: "desktop.install.done.notLoaded.error",
-};
-
-/** 설치 결과 한 줄. 싣지 못했으면 경고로 복사된 상태와 첫 진단 문장을 함께 보인다 */
-function InstallDoneNote(props: { readonly done: InstallDone }): ReactNode {
-  const done = props.done;
-  if (done.kind !== "notLoaded") {
-    return (
-      <p role="status" className="m-0 text-ui-dense text-text-secondary">
-        {t(DONE_TEXT[done.kind])}
-      </p>
-    );
-  }
-  return (
-    <Alert tone="warning">
-      {t(NOT_LOADED_TEXT[done.reason])}
-      {done.detail === null ? "" : ` ${done.detail}`}
-    </Alert>
   );
 }
 

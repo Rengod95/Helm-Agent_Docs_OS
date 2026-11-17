@@ -15,8 +15,8 @@ import { toggleReasonOf, unmetToggleOf } from "./toggle-outcome.ts";
 import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
-import { profileAppliesText, profileFailureText } from "./profile-text.ts";
-import { removeDoneCopyOf, removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
+import { profileFailureText } from "./profile-text.ts";
+import { REMOVE_REQUESTED_TEXT, removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
 
 /** `ext.get`을 동시에 보내는 상한. 확장이 많아도 엔진에 한꺼번에 몰리지 않는다 */
 const DETAIL_IN_FLIGHT = 8;
@@ -49,7 +49,7 @@ export interface WorkbenchController {
   /** "끄기" 답(설정에 끄고 `ext.disableConfirm`). 실패하면 토스트를 띄우고, 성공하면 목록을 다시 읽는다. "켜 두기"는 `reenable`이다 */
   keepOff(name: string): Promise<void>;
   /**
-   * 설치본을 지운다(`ext.remove`). `dropData`가 참이면 저장 테이블도 지운다. 성공하면 토스트로 적용 시점을 알리고 목록을 다시 읽는다.
+   * 지우기를 요청한다(`plugin.requestRemove`, 검토 항목을 만든다). `dropData`는 대체가 없어 `not_available`이다. 요청이 되면 토스트를 띄우고 목록을 다시 읽는다.
    * 지웠으면 true. 실패하면 토스트를 띄우고 false이며, 저장 데이터를 지우다 실패했을 때도 목록을 다시 읽는다(호스트가 확장을 먼저 내린다)
    */
   remove(name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome>;
@@ -190,14 +190,8 @@ export function useWorkbenchController(): WorkbenchController {
         if (notFound || options?.dropData === true) await reload();
         return outcome;
       }
-      const copy = removeDoneCopyOf(done.value.appliesAt, done.value.dataDropped);
-      toast({
-        tone: "success",
-        title: t(copy.title),
-        ...(copy.data === null
-          ? {}
-          : { description: t("desktop.workbench.remove.done.withData", { count: copy.data }) }),
-      });
+      // 지우기는 검토 항목으로 올라간다. 지워지는 시점은 검토가 정한다
+      toast({ tone: "success", title: t(REMOVE_REQUESTED_TEXT) });
       actions.closeDetail();
       actions.clearPick();
       await reload();
@@ -242,11 +236,7 @@ export function useWorkbenchController(): WorkbenchController {
         toast({ tone: "danger", title: t(profileFailureText(profileFailureOf(code))) });
         return false;
       }
-      toast({
-        tone: "success",
-        title: t("desktop.inspect.profile.applied", { count: done.value.written.length }),
-        description: t(profileAppliesText(done.value.appliesAt)),
-      });
+      toast({ tone: "success", title: t("desktop.inspect.profile.set") });
       return true;
     },
     [commands],

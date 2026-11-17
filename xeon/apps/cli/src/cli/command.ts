@@ -110,7 +110,8 @@ export type AuthorCommand =
       readonly kind: "author.scaffold";
       readonly name: string;
       readonly dir: string;
-      readonly extensionKind: "single-plugin" | "plugin-group";
+      /** 만드는 종류. 플러그인 하나다(묶음 `plugin-group`은 M5c-1에서 wire가 받지 않는다) */
+      readonly extensionKind: "single-plugin";
       readonly output: OutputMode;
     }
   | { readonly kind: "author.validate"; readonly dir: string; readonly output: OutputMode }
@@ -2226,7 +2227,6 @@ function parseAuthor(acc: GlobalAcc, rest: readonly string[]): Result<AuthorComm
     case "scaffold": {
       const scanned = scanArgs(acc, tail, {
         "--dir": { value: "required" },
-        "--group": { value: "none" },
         "--json": { value: "none" },
       });
       if (!scanned.ok) return scanned;
@@ -2249,7 +2249,7 @@ function parseAuthor(acc: GlobalAcc, rest: readonly string[]): Result<AuthorComm
         kind: "author.scaffold",
         name: checked.value,
         dir,
-        extensionKind: has(scanned.value, "--group") ? "plugin-group" : "single-plugin",
+        extensionKind: "single-plugin",
         output: outputOf(scanned.value),
       });
     }

@@ -184,6 +184,7 @@ function orderErrorOf(error: CommandError): OrderPortError {
   switch (error.kind) {
     case "offline":
       return { kind: "offline" };
+    case "not_available":
     case "unsupported":
       return { kind: "unsupported" };
     case "locked":
@@ -214,6 +215,7 @@ export function commandErrorText(error: CommandError): string {
     case "locked":
       return `locked:${error.ownerKind}`;
     case "offline":
+    case "not_available":
     case "unsupported":
     case "failed":
     case "switching":

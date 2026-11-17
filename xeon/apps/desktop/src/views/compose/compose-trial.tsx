@@ -10,6 +10,7 @@ import {
   type RunControl,
   type TabLink,
   type TestFailure,
+  threadOnOf,
 } from "@fresnel/client/workbench";
 import { assertNever, detach, parse, rethrow } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
@@ -56,8 +57,9 @@ export type TrialStart =
   | { readonly ok: false; readonly failure: TestFailure; readonly threadId: ThreadId | null };
 
 /**
- * 시험 대화 만들기와 그룹 켜기. 만들기가 실패하면 대화가 없고, 켜기가 실패하면 만든 대화 id를 함께 돌려준다.
- * 대화는 `thread.create`가 고른 프로필을 싣고, 그룹 켜기는 그 대화 범위(`launch`)에 쓴다.
+ * 시험 대화 만들기와 그룹 확인. 만들기가 실패하면 대화가 없고, 확인이 실패하면 만든 대화 id를 함께 돌려준다.
+ * 대화는 `thread.create`가 고른 프로필을 싣는다. M5c-1부터 대화별 켜기는 없다(켜짐은 프로필에서 계산한다), 그래서 그룹을
+ * 켜 주지 않고 대화가 그 그룹을 켜 둔 상태인지 `ext.list`로 확인한다. 켜 두지 않았으면 `targetNotLoaded`다.
  */
 export async function startTrialRun(
   commands: Pick<Commands, "tests" | "workbench">,
@@ -67,14 +69,13 @@ export async function startTrialRun(
   if (!made.ok) return { ok: false, failure: made.failure, threadId: null };
   const threadId = parse(ThreadIdSchema, made.value);
   if (!threadId.ok) return { ok: false, failure: "failed", threadId: null };
-  const enabled = await commands.workbench.toggleForThread({
-    key: `ext.${input.group}.enabled`,
-    value: true,
-    scope: "launch",
-    threadId: threadId.value,
-  });
-  if (!enabled.ok) {
-    return { ok: false, failure: testFailureOf(enabled.error), threadId: threadId.value };
+  const listed = await commands.workbench.list(threadId.value);
+  if (!listed.ok) {
+    return { ok: false, failure: testFailureOf(listed.error), threadId: threadId.value };
+  }
+  const row = listed.value.find((entry) => entry.name === input.group);
+  if (row === undefined || !threadOnOf(row)) {
+    return { ok: false, failure: "targetNotLoaded", threadId: threadId.value };
   }
   return { ok: true, threadId: threadId.value };
 }

@@ -138,6 +138,7 @@ export function listFailureOf(error: CommandError): ListFailure {
   switch (error.kind) {
     case "offline":
       return "offline";
+    case "not_available":
     case "unsupported":
       return "unsupported";
     case "failed":

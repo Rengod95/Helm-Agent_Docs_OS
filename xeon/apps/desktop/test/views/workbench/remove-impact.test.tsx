@@ -12,12 +12,11 @@ import {
 
 const PROFILES: readonly {
   readonly title: string;
-  readonly enable: readonly string[];
-  readonly disable?: readonly string[];
+  readonly plugins: readonly { readonly name: string }[];
 }[] = [
-  { title: "조사용", enable: ["taskflow", "exa"] },
-  { title: "기본", enable: ["exa"] },
-  { title: "끄기만", enable: [], disable: ["taskflow"] },
+  { title: "조사용", plugins: [{ name: "taskflow" }, { name: "exa" }] },
+  { title: "기본", plugins: [{ name: "exa" }] },
+  { title: "비움", plugins: [] },
 ];
 
 const ENTRIES: readonly {
@@ -33,7 +32,7 @@ const ENTRIES: readonly {
 ];
 
 describe("지우기 영향 판단", () => {
-  test("쓰는 프로필은 enable에 이름이 있는 것만이고, disable에만 있으면 세지 않는다", () => {
+  test("쓰는 프로필은 plugins 목록에 이름이 있는 것만이다(목록에 없는 프로필은 세지 않는다)", () => {
     expect(profilesUsingOf(PROFILES, "taskflow")).toEqual(["조사용"]);
     expect(profilesUsingOf(PROFILES, "exa")).toEqual(["조사용", "기본"]);
     expect(profilesUsingOf(PROFILES, "none")).toEqual([]);
