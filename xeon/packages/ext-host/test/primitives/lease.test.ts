@@ -343,3 +343,31 @@ test("drive limits are read from the options getter when a lease is taken, so a 
     { scopeId: "ls-limits", limits: { maxTurns: 5 } },
   ]);
 });
+
+test("a user interrupt releases the lease as revoked and the drive is not called again until the next command", async () => {
+  const t = await createTestHost();
+  const calls: string[] = [];
+  await installDriveGroups(t, ["ls-stop"], calls);
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(calls).toEqual(["ls-stop"]);
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "ls-stop", status: "active" });
+
+  await t.boundary(thread).turnSettled({ userInterrupted: true });
+  await t.settled();
+  expect(kinds(t, thread, "lease.released")).toMatchObject([
+    { scopeId: "ls-stop", reason: "revoked" },
+  ]);
+  expect(t.host.leaseOf(thread)).toBeNull();
+  // 같은 경계와 이어지는 유휴 경계에서도 다시 부여되지 않는다
+  await t.boundary(thread).idle();
+  await t.settled();
+  expect(calls).toEqual(["ls-stop"]);
+  expect(kinds(t, thread, "lease.acquired")).toHaveLength(1);
+
+  // 사용자의 다음 명령이 정착하면 다시 후보가 된다
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(kinds(t, thread, "lease.acquired")).toHaveLength(2);
+});

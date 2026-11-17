@@ -412,6 +412,7 @@ export function createBoundary(
                 lineageId: snapshot.waitingLineage.lineageId,
               },
         cooldown: new Map(),
+        userStopped: false,
         leaseWait: new Map(),
         leaseRejected: new Set(),
         nextRequestSeq: 0,

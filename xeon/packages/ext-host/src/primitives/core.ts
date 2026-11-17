@@ -77,6 +77,8 @@ export interface BoundarySignal {
   readonly stepId?: StepId;
   /** 이 경계를 만든 turn이 drive 임대의 loop.turn으로 시작됐으면 그 임대 id */
   readonly drivenBy?: string;
+  /** turn_settled만: 이 turn이 사용자 중단(abort 코드 `user`)으로 끝났다 */
+  readonly userInterrupted?: true;
 }
 
 // ── scope와 세대 ───────────────────────────────────────────────────────────
@@ -275,6 +277,8 @@ export interface ThreadRuntime {
   nextRequestSeq: number;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
   cooldown: Map<RegistrationId, number>;
+  /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 drive 후보가 없다 */
+  userStopped: boolean;
   txn: BoundaryTxn | null;
   /** 같은 thread에서 포트 부재 경고를 한 번만 내는 표시 */
   warnedPorts: Set<string>;
