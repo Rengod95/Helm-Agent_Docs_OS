@@ -37,7 +37,12 @@ import {
   type EffectRequest,
   type EffectWorkerPort,
 } from "./effect-worker.ts";
-import { guardCapabilityService, type CapabilityDefLookup } from "./capability-guard.ts";
+import {
+  guardCapabilityService,
+  pluginCallWiringOf,
+  SETTINGS_READ_PORT,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
 import type { Generation, HostCore, RegistrationRecord, StartDriveError } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
@@ -195,11 +200,9 @@ function directAmbient(
     drive: null,
     handler: null,
     invocation,
+    callId: id,
   };
 }
-
-/** 조립 루트가 `fresnel.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
-const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "fresnel.settings" };
 
 export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S> {
   const found = hostApis.get(g);
@@ -426,6 +429,7 @@ export function createRegistrationApi(
           scopeId: record.id,
           conditionsOf: (threadId) => core.ports.get(LoopPortKey)?.callConditions?.(threadId),
           contextTrusted: record.builtin,
+          pluginCalls: pluginCallWiringOf(core.ports),
         }),
       );
     },

@@ -19,7 +19,7 @@ binds: []
 
 | # | 경로 | id | 종류 | 한 줄 요약 | implement | data | review |
 |---|---|---|---|---|---|---|---|
-| 1 | `dependency-rules/guide.md` | `eng.dependency-rules.guide` | guide | 층 순위(F → X → L0 → L1 → L2 → L3 → L4), import 규칙, 강제 수단 | 필수 | | 필수 |
+| 1 | `dependency-rules/guide.md` | `eng.dependency-rules.guide` | guide | 층 순위(F → X → L0 → L1 → P → L4), import 규칙, 강제 수단 | 필수 | | 필수 |
 | 2 | `typescript/guide.md` | `eng.typescript.guide` | guide | 타입 규칙: 브랜드 ID, `Result`, 금지 구문, 컴파일 옵션 | 필수 | | |
 | 3 | `domain-types/guide.md` | `eng.domain-types.guide` | guide | DTO·스키마·도메인 타입 설계, 버전, 확장 규칙 | 필수 | | |
 | 4 | `toolchain/guide.md` | `eng.toolchain.guide` | guide | Bun, tsgo, oxlint·oxfmt, turbo, CI와 버전 고정 | 필수 | | |

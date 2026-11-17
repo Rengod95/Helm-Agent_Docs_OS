@@ -28,6 +28,8 @@ interface ReplaceCall {
   readonly oldText: string;
   readonly newText: string;
   readonly requestId: string;
+  /** 호출이 가리킨 검토 카드의 승인 id(U-11). 없으면 undefined */
+  readonly approvalId: string | undefined;
 }
 
 export interface FakeFiles extends ReviewFilesPort {
@@ -50,6 +52,7 @@ export function fakeFiles(initial: Readonly<Record<string, string>>): FakeFiles 
         oldText: input.oldText,
         newText: input.newText,
         requestId: input.requestId,
+        approvalId: input.approvalId,
       });
       const current = contents.get(input.path);
       if (current === undefined) {

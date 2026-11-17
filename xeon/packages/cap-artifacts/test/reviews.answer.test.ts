@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { Bug } from "@fresnel/contracts";
+import { createHash } from "node:crypto";
+import { Bug, canonicalJson } from "@fresnel/contracts";
 import type { ApprovalId, TurnId } from "@fresnel/contracts/conversation";
 import { createAnswerHandler } from "../src/reviews/answer.ts";
 import { hunkStates } from "./support/assert.ts";
 import { A_AFTER_EDIT, ONE_FILE_THREE_HUNKS } from "./support/fixtures.ts";
 import { openReviews, type ReviewsHarness } from "./support/harness.ts";
+
+/** 되돌림 쓰기 입력 `{ path, edits }`의 해시(검토 카드의 `writes`와 같은 값) */
+function hashOf(oldText: string, newText: string): string {
+  return createHash("sha256")
+    .update(canonicalJson({ path: "src/a.ts", edits: [{ oldText, newText }] }))
+    .digest("hex");
+}
 
 // 저장소를 여는 시험은 첫 실행에서 기본 5초를 넘긴 적이 있어 시간 상한을 넓힌다.
 setDefaultTimeout(20_000);
@@ -83,6 +91,31 @@ describe("answer to the review approval", () => {
     expect((await h.events("artifact.review_submitted")).map((event) => event.payload)).toEqual([
       { reviewId, round: 1, delivery: null },
     ]);
+  });
+
+  test("the card lists the hash of every revert write, and each revert call names that card (U-11)", async () => {
+    const h = await harness({ "src/a.ts": A_AFTER_EDIT });
+    const answers = createAnswerHandler(h.runtime, undefined);
+    const { approvalId } = await openForAnswer(h);
+    const subject = h.approvals.requests[0]?.subject;
+    const expected = [
+      hashOf("const x = 10;\n", "const x = 1;\n"),
+      hashOf("const y = 20;\n", "const y = 2;\n"),
+      hashOf("const z = 30;\n", "const z = 3;\n"),
+    ];
+    expect(subject).toMatchObject({ writes: expected });
+
+    await answers.onApprovalResolved(h.resolvedEvent(approvalId, "answer", rejectAll));
+
+    expect(h.files.calls).toHaveLength(3);
+    expect(h.files.calls.map((call) => call.approvalId)).toEqual([
+      approvalId,
+      approvalId,
+      approvalId,
+    ]);
+    for (const call of h.files.calls) {
+      expect(expected).toContain(hashOf(call.oldText, call.newText));
+    }
   });
 
   test("all rejected and submit: every hunk is reverted newest first and the delivery lists them", async () => {

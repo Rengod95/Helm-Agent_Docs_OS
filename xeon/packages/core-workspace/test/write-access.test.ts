@@ -5,7 +5,6 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ProtectedPathEntry, SandboxRunReport } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { WriteAccessPort, WriteAccessRequest } from "../src/ports/write-access.ts";
-import { createFilesApi } from "../src/service.ts";
 import { createShellApi } from "../src/shell/run.ts";
 import { grantRootFor, pathsFromDenialOutput, planWriteAccess } from "../src/write-access.ts";
 import { rejection } from "./support/assertions.ts";
@@ -236,56 +235,6 @@ describe("bash write access", () => {
   });
 });
 
-function filesSetup(answer: Answer) {
-  const env = memoryEnv({ cwd: "/work" });
-  env.mkdir("/work");
-  env.mkdir(`${HOME}/notes`);
-  const { port, requests, grantedThreads } = asker(answer);
-  const files = createFilesApi(
-    depsFor(env, { protectedPaths: PROTECTED, writeAccess: port, homeDir: HOME }),
-  );
-  return { env, files, requests, grantedThreads };
-}
-
-describe("file tools outside the workspace", () => {
-  test("write outside the workspace is asked, and written once allowed", async () => {
-    const { env, files, requests } = filesSetup("allow");
-    await files.write({ path: `${HOME}/notes/a.txt`, content: "hi" }, human());
-    expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ via: "write", roots: [`${HOME}/notes/a.txt`] });
-    const read = await env.readTextFile(`${HOME}/notes/a.txt`, { abortSignal: undefined });
-    expect(read.ok && read.value).toBe("hi");
-  });
-
-  test("a denied write is refused as outside_root and nothing is written", async () => {
-    const { env, files } = filesSetup("deny");
-    const error = await rejection(
-      files.write({ path: `${HOME}/notes/a.txt`, content: "hi" }, human()),
-    );
-    expect(error.data.code).toBe("denied");
-    expect(error.data.detail).toMatchObject({ reason: "outside_root" });
-    expect((await env.exists(`${HOME}/notes/a.txt`, { abortSignal: undefined })).ok).toBe(true);
-  });
-
-  test("a protected path outside the workspace is refused without asking", async () => {
-    const { files, requests } = filesSetup("allow");
-    const error = await rejection(
-      files.write({ path: `${HOME}/.ssh/authorized_keys`, content: "x" }, human()),
-    );
-    expect(error.data.detail).toMatchObject({ reason: "outside_root" });
-    expect(requests).toHaveLength(0);
-  });
-
-  test("an unattended write outside the workspace is refused without asking", async () => {
-    const { files, requests } = filesSetup("allow");
-    const error = await rejection(
-      files.write({ path: `${HOME}/notes/a.txt`, content: "hi" }, human(false)),
-    );
-    expect(error.data.detail).toMatchObject({ reason: "outside_root" });
-    expect(requests).toHaveLength(0);
-  });
-});
-
 describe("three choices", () => {
   test("allow once: asks, reruns, and asks again for the next blocked write", async () => {
     const { env, shell, requests, grantedThreads } = shellSetup("allow");
@@ -329,16 +278,6 @@ describe("three choices", () => {
     expect(out.exitCode).toBe(1);
     expect(requests).toHaveLength(1);
     expect(env.calls).toHaveLength(3);
-  });
-
-  test("allow all covers file tools too", async () => {
-    const { env, files, requests } = filesSetup("allow_all");
-    env.mkdir(`${HOME}/other`);
-    await files.write({ path: `${HOME}/notes/a.txt`, content: "1" }, human());
-    await files.write({ path: `${HOME}/other/b.txt`, content: "2" }, human());
-    expect(requests).toHaveLength(1);
-    const read = await env.readTextFile(`${HOME}/other/b.txt`, { abortSignal: undefined });
-    expect(read.ok && read.value).toBe("2");
   });
 
   test("a new conversation asks again", async () => {

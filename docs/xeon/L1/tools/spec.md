@@ -20,6 +20,7 @@ binds: [xeon/packages/core-tools/**]
 
 - 층 구성 계획 v2 L1-d 구성요소 8개(`_research/layer-plan-v2.json` L1-d): 도구 노출 분리, 실행 파이프라인, 검증 오류 반환, 선언형 정책 엔진, 권한 모드, 승인과 질문 프로토콜, 결과 경계화, 항상 허용 캐시와 셸 규칙(2차).
 - 패키지 판정(`_research/packages.md` §4.3 L1-d 행): 노출 분리·파이프라인·검증 오류 반환은 agent-core 1.3.0 그대로, 정책 엔진·모드·승인 프로토콜은 설계, 결과 경계화는 포크. adr.0009 이후 파이프라인은 core-tools `prepare`·`execute`가, 인자 검증은 core-tools `validate.ts`가 옮겨 맡는다.
+- [이동: review.m5 6.1·D-28, 2026-11-18] 질문 서비스(`dialog.ask`의 구현: 요청 키, 대기, 응답 옮기기, 시간 제한의 임시 타이머, 승인 포트 팩토리 `questionApprovalsOver`)는 이 패키지의 `src/ask/`에 둔다(옛 `cap-dialog/src/ask/`). 기능 등록과 `ask_user` 도구 등록은 cap-dialog와 apps/host에 남는다. 질문 도구의 모델 노출과 문장은 L2.dialog.spec이 정한다.
 - [결정] 질문 도구와 계획 승인은 L1-d 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 결정 5, `_research/decisions-log.md` 2026-10-21 3차). 계획 승인은 2026-11-13에 폐지했고 프로토콜은 질문과 도구·검토 승인만 쓴다 [결정: 2026-11-13 사용자].
 - [결정] pi durable에서 truncate를 Chord 제거 포크로 가져온다(adr.0003, `_research/foundation-plan.md` §1 결정 1).
 

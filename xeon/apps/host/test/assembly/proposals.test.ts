@@ -18,6 +18,7 @@ import {
   type ProposalFilter,
   type ProposalView,
 } from "@fresnel/group-learning";
+import type { HumanDecisionGrant } from "@fresnel/contracts/services";
 import type { LearningRunner } from "../../src/assembly/learning.ts";
 import { createProposalPort } from "../../src/assembly/proposals.ts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
@@ -131,6 +132,8 @@ function rig(options: {
   /** 열린 대화가 없다 */
   readonly noThread?: boolean;
   readonly knowledgeDecide?: KnowledgeProposalWire["decide"];
+  /** 사람의 결정을 실행하는 동안 켠 허용을 받는다. 없으면 허용 경로가 없는 구성이다 */
+  readonly humanDecision?: <T>(grant: HumanDecisionGrant, work: () => Promise<T>) => Promise<T>;
 }) {
   const calls: Calls = {
     runs: [],
@@ -251,6 +254,7 @@ function rig(options: {
     learningStore: () => (options.store === undefined ? undefined : reader),
     runner,
     knowledge: () => (options.knowledge === "down" ? undefined : wire),
+    ...(options.humanDecision === undefined ? {} : { humanDecision: options.humanDecision }),
     report: (message) => {
       calls.reports.push(message);
     },
@@ -704,4 +708,53 @@ test("proposal.list reports learning evidence it cannot put on the wire instead 
   const listed = await port.list({}, SIGNAL);
   expect(listed.proposals[0]?.evidence).toEqual([]);
   expect(calls.reports).toContain("proposal.evidence_dropped");
+});
+
+// U-11: 사람이 학습 제안을 승인·수정하는 동안만, 그 제안의 승인 증거를 단 지식 쓰기가 새 승인 카드 없이 지난다.
+
+const GRANT_CALL: Parameters<HumanDecisionGrant["covers"]>[0] = {
+  capability: "knowledge.skills",
+  method: "create",
+  input: { name: "n", approval: { source: "learning.queue", ref: "prop_1:3", decidedAt: 1 } },
+};
+
+test("proposal.decide opens a human-decision grant for approve and edit only, and the grant covers only that proposal's learning.queue evidence", async () => {
+  const grants: HumanDecisionGrant[] = [];
+  const { port } = rig({
+    learning: [],
+    humanDecision: (grant, work) => {
+      grants.push(grant);
+      return work();
+    },
+  });
+  await port.decide({ source: "learning", id: "prop_1", decision: "approve", revision: 3 }, SIGNAL);
+  await port.decide(
+    { source: "learning", id: "prop_1", decision: "edit", revision: 3, body: "b" },
+    SIGNAL,
+  );
+  await port.decide({ source: "learning", id: "prop_1", decision: "reject" }, SIGNAL);
+  await port.decide({ source: "learning", id: "prop_1", decision: "revert" }, SIGNAL);
+  expect(grants.map((grant) => grant.id)).toEqual([
+    "decision:learning:prop_1",
+    "decision:learning:prop_1",
+  ]);
+  const grant = grants[0];
+  if (grant === undefined) throw new Error("no grant was opened");
+  expect(grant.risk).toBe("write");
+  expect(grant.covers(GRANT_CALL)).toBe(true);
+  // 다른 제안의 증거, 다른 출처의 증거, 증거 없음, 다른 기능은 맞지 않는다
+  expect(
+    grant.covers({
+      ...GRANT_CALL,
+      input: { approval: { source: "learning.queue", ref: "prop_2:3" } },
+    }),
+  ).toBe(false);
+  expect(
+    grant.covers({
+      ...GRANT_CALL,
+      input: { approval: { source: "other.queue", ref: "prop_1:3" } },
+    }),
+  ).toBe(false);
+  expect(grant.covers({ ...GRANT_CALL, input: { name: "n" } })).toBe(false);
+  expect(grant.covers({ ...GRANT_CALL, capability: "workspace.files" })).toBe(false);
 });

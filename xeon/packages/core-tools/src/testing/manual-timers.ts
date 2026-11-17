@@ -1,5 +1,5 @@
 import { fakeTimers } from "@fresnel/ext-host/testing";
-import type { Timers } from "../../src/ports/timers.ts";
+import type { Timers } from "../ask/deps.ts";
 
 export interface ManualTimers extends Timers {
   /** ms만큼 시계를 진행하며 만기 타이머를 실행한다 */

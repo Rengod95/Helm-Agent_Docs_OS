@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { AskQuestion } from "@fresnel/contracts/capabilities";
-import { createAskService } from "../src/ask/service.ts";
-import { realApprovals } from "./support/real-approvals.ts";
+import { createAskService } from "../../src/ask/service.ts";
+import { realApprovals } from "../../src/testing/index.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 
 // 재시작은 같은 이벤트 로그 위에 새 ApprovalService(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 흉내 낸다.

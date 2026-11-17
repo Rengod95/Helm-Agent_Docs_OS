@@ -62,6 +62,10 @@ describe("ToolCallPayload risk, hints, caller (M3-REQ-04)", () => {
       true,
     ]);
     expect(accepts(CallerIdSchema, "subagent:review")).toBe(true);
+    expect(accepts(CallerIdSchema, "plugin:notes")).toBe(true);
+    expect(["plugin:", "plugin:Notes", "plugin:1x"].map((v) => accepts(CallerIdSchema, v))).toEqual(
+      [false, false, false],
+    );
     expect(accepts(ToolHintsSchema, {})).toBe(true);
   });
 });

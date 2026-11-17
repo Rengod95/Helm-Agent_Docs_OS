@@ -571,6 +571,14 @@ export function validateCapability(def: AnyCapabilityDef): readonly CapabilityIs
         `method "${name}" declares both idempotent and readOnly`,
       );
     }
+    if (method.risk !== undefined && method.readOnly === true) {
+      push(
+        "error",
+        "effect_class_conflict",
+        base,
+        `method "${name}" declares both risk and readOnly`,
+      );
+    }
     if (method.replay === "safe" && method.idempotent !== true && method.readOnly !== true) {
       push(
         "warning",

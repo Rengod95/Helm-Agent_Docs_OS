@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../base/index.ts";
-import type { EventId, ItemId, StepId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
+import type { JudgeInput, JudgeOutcome } from "../capabilities/index.ts";
+import type { EventId, ItemId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { LeaseToken } from "../records/index.ts";
 import type {
   DriveLockId,
@@ -252,54 +253,15 @@ export type DelegateResult =
       readonly error: { readonly kind: AgentsErrorCode; readonly message: string };
     };
 
-// ── 목표 판정 ────────────────────────────────────────────────────────────
-
-export interface JudgeEvidence {
-  readonly kind: "assistant_text" | "tool_result" | "work_item" | "note";
-  readonly text: string;
-  /** 증거 원본 위치. item, effect, L2.work 레코드 */
-  readonly ref?: {
-    readonly itemId?: ItemId;
-    readonly effectId?: string;
-    readonly workRef?: string;
-  };
-}
-
-export interface JudgeInput {
-  readonly threadId: ThreadId;
-  readonly turnId: TurnId;
-  /**
-   * 판정을 요청한 단계. 있으면 같은 단계의 재호출(재개)을 알아보고 기록된 판정을 `recorded`로 돌려준다.
-   * 한 turn 안에서 게이트가 여러 번 판정할 수 있어 `turnId`만으로는 구분하지 못한다
-   */
-  readonly stepId?: StepId | null;
-  /** L2.work의 목표 참조. 상한 집계 단위 */
-  readonly goalRef: string;
-  readonly goal: { readonly text: string; readonly criteria: readonly string[] };
-  readonly evidence: readonly JudgeEvidence[];
-}
-
-export type JudgeVerdict = "met" | "not_met" | "undecidable";
-
-export interface JudgeRecord {
-  readonly goalRef: string;
-  /** 1부터 */
-  readonly run: number;
-  readonly verdict: JudgeVerdict;
-  readonly rationale: string;
-  /** 충족되지 않은 기준 */
-  readonly missing: readonly string[];
-  readonly usage: Usage | null;
-  readonly model: { readonly provider: string; readonly modelId: string };
-}
-
-export type JudgeOutcome =
-  /** 이번 호출이 판정하고 agent.judged를 커밋했다 */
-  | { readonly kind: "judged"; readonly record: JudgeRecord }
-  /** 이미 기록된 판정(재개) */
-  | { readonly kind: "recorded"; readonly record: JudgeRecord }
-  | { readonly kind: "capped"; readonly runs: number; readonly maxRuns: number }
-  | { readonly kind: "failed"; readonly message: string };
+// ── 목표 판정 값 ──────────────────────────────────────────────────────────
+// 판정 값은 capabilities/judge.ts가 정의한다(공개 기능 agents.judge와 같은 모양). 여기서 다시 내보낸다
+export type {
+  JudgeEvidence,
+  JudgeInput,
+  JudgeOutcome,
+  JudgeRecord,
+  JudgeVerdict,
+} from "../capabilities/index.ts";
 
 // ── AgentService ─────────────────────────────────────────────────────────
 

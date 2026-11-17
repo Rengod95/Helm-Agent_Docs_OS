@@ -14,6 +14,7 @@ import {
   loadRouteDomains,
   matchesFrom,
   patternLines,
+  RANK,
 } from "./check-layers.ts";
 
 let root = "";
@@ -39,6 +40,8 @@ interface PkgOptions {
   /** tsconfig references; defaults to every workspace dependency. */
   references?: string[];
   tsconfig?: boolean;
+  /** Put the dependencies in devDependencies instead of dependencies. */
+  dev?: boolean;
 }
 
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
@@ -52,7 +55,13 @@ function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOption
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
     join(root, dir, "package.json"),
-    JSON.stringify({ name, fresnel: { layer, domain }, dependencies }, null, 2),
+    JSON.stringify(
+      options.dev
+        ? { name, fresnel: { layer, domain }, devDependencies: dependencies }
+        : { name, fresnel: { layer, domain }, dependencies },
+      null,
+      2,
+    ),
   );
   if (options.tsconfig !== false) {
     const references = options.references ?? deps.map((d) => posix.relative(dir, dirOfName(d)));
@@ -85,8 +94,11 @@ test("expectedLayer maps directories to layers", () => {
   expect(expectedLayer("packages/ext-host")).toBe("X");
   expect(expectedLayer("packages/platform-store")).toBe("L0");
   expect(expectedLayer("packages/core-loop")).toBe("L1");
-  expect(expectedLayer("packages/cap-web")).toBe("L2");
-  expect(expectedLayer("packages/group-helm")).toBe("L3");
+  expect(expectedLayer("packages/cap-web")).toBe("P");
+  expect(expectedLayer("packages/group-helm")).toBe("P");
+  expect(expectedLayer("packages/group-sdk")).toBe("P");
+  expect(expectedLayer("packages/plugin-builder")).toBe("P");
+  expect(expectedLayer("packages/plugin-migration")).toBe("P");
   expect(expectedLayer("plugins/provider-anthropic-oauth")).toBe("L1");
   expect(expectedLayer("apps/cli")).toBe("L4");
   expect(expectedLayer("packages/client")).toBe("L4");
@@ -174,7 +186,7 @@ test("DR-01: upward source import is reported as file:line with the guide format
   });
   pkg("packages/cap-web", "L2");
   expect(lines()).toEqual([
-    "packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer L2 (@fresnel/cap-web)",
+    "packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer P (@fresnel/cap-web)",
   ]);
 });
 
@@ -314,8 +326,8 @@ test("allowlist: the group-sdk family entry covers each group, its two entries a
     .violations.filter((v) => v.file === "packages/group-helm/src/a.ts")
     .map(formatViolation);
   expect(sources).toEqual([
-    "packages/group-helm/src/a.ts:3 DR-02 L3 package @fresnel/group-helm imports same-layer package @fresnel/group-sdk; share through F contracts or Cordis services",
-    "packages/group-helm/src/a.ts:4 DR-02 L3 package @fresnel/group-helm imports same-layer package @fresnel/group-learning; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:3 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/group-sdk; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:4 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/group-learning; share through F contracts or Cordis services",
   ]);
 });
 
@@ -356,7 +368,7 @@ test("DR-03: layer must match directory", () => {
   pkg("packages/cap-web", "L1");
   expect(lines()).toHaveLength(1);
   expect(lines()[0]).toMatch(
-    /^packages\/cap-web\/package\.json:\d+ DR-03 packages\/cap-web must declare layer L2/,
+    /^packages\/cap-web\/package\.json:\d+ DR-03 packages\/cap-web must declare layer P but declares L1/,
   );
 });
 
@@ -670,4 +682,225 @@ test("patternLines reports each matching line once", () => {
   expect(
     patternLines("a\nfetch(x); fetch(y)\n/* fetch(z) */\nrefetch(q)", /\bfetch\s*\(/g),
   ).toEqual([2]);
+});
+
+// DR-15 plugin rank P (6.3): P sits between L1 and L4; cap-*, group-* and plugin-builder are P; L2 and L3 are aliases of P
+const P_REASON = "; a plugin imports only contracts, ext-host, group-sdk and external packages";
+
+test("the rank order is F X L0 L1 P L4 and P is above L1 and below L4", () => {
+  expect(Object.keys(RANK)).toEqual(["F", "X", "L0", "L1", "P", "L4"]);
+  expect(RANK.P).toBeGreaterThan(RANK.L1);
+  expect(RANK.L4).toBeGreaterThan(RANK.P);
+});
+
+test("L2 and L3 are accepted as P only where the directory is a plugin", () => {
+  pkg("packages/contracts", "F", [], { domain: "contracts" });
+  pkg("packages/cap-web", "L2", ["@fresnel/contracts"], {
+    files: { "src/a.ts": 'import "@fresnel/contracts";' },
+  });
+  pkg("packages/group-helm", "L3", ["@fresnel/contracts"], {
+    files: { "src/a.ts": 'import "@fresnel/contracts";' },
+  });
+  pkg("packages/plugin-builder", "P", ["@fresnel/contracts"], {
+    files: { "src/a.ts": 'import "@fresnel/contracts";' },
+  });
+  expect(lines()).toEqual([]);
+});
+
+test("L2 and L3 are refused outside the plugin directories", () => {
+  pkg("packages/core-loop", "L2");
+  pkg("plugins/provider-x", "L3", [], { domain: "provider-x" });
+  expect(checkLayers(root).violations.map((v) => `${v.file} ${v.rule}`)).toEqual([
+    "packages/core-loop/package.json DR-03",
+    "plugins/provider-x/package.json DR-03",
+  ]);
+});
+
+test("DR-03: a cap-* domain must be in routes.yaml layout.L2, group domains are not listed there", () => {
+  const routes = join(root, "routes.yaml");
+  writeFileSync(
+    routes,
+    [
+      "layout:",
+      "  L0:",
+      "    domains: [store]",
+      "  L1:",
+      "    domains: [loop]",
+      "  L2:",
+      "    domains: [web]",
+    ].join("\n"),
+  );
+  pkg("packages/cap-web", "P");
+  pkg("packages/cap-newthing", "L2");
+  pkg("packages/group-newthing", "L3");
+  const { violations } = checkLayers(root, { routesFile: routes });
+  expect(violations.map((v) => `${v.file} ${v.rule}`)).toEqual([
+    "packages/cap-newthing/package.json DR-03",
+  ]);
+  expect(violations[0]?.message).toContain("routes.yaml layout.L2.domains");
+});
+
+test("DR-01: a plugin imports no L4 package", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/host"], {
+    files: { "src/a.ts": 'import "@fresnel/host";' },
+  });
+  pkg("apps/host", "L4");
+  expect(lines()).toEqual([
+    "packages/cap-web/src/a.ts:1 DR-01 P package @fresnel/cap-web imports higher layer L4 (@fresnel/host)",
+  ]);
+});
+
+test("DR-02: plugins never import each other, cap-* or group-*", () => {
+  pkg("packages/cap-web", "L2", ["@fresnel/cap-mcp"], {
+    files: { "src/a.ts": 'import "@fresnel/cap-mcp";' },
+  });
+  pkg("packages/cap-mcp", "L2");
+  pkg("packages/group-helm", "L3", ["@fresnel/cap-web"], {
+    files: { "src/a.ts": 'import "@fresnel/cap-web";' },
+  });
+  expect(lines()).toEqual([
+    "packages/cap-web/src/a.ts:1 DR-02 P package @fresnel/cap-web imports same-layer package @fresnel/cap-mcp; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:1 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/cap-web; share through F contracts or Cordis services",
+  ]);
+});
+
+test("DR-02/group-sdk: the family entry covers the groups and the Plugin Builder, not cap-*", () => {
+  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  });
+  pkg("packages/plugin-builder", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  });
+  pkg("packages/cap-web", "L2", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  });
+  pkg("packages/group-sdk", "L3");
+  allowlist([
+    {
+      id: "DR-02/group-sdk",
+      rule: "DR-02",
+      from: "packages/group-*",
+      to: "@fresnel/group-sdk",
+      entries: [".", "./testing"],
+    },
+    {
+      id: "DR-02/plugin-builder-group-sdk",
+      rule: "DR-02",
+      from: "packages/plugin-builder",
+      to: "@fresnel/group-sdk",
+      entries: [".", "./testing"],
+    },
+  ]);
+  expect(checkLayers(root).violations.map((v) => `${v.file}:${v.line} ${v.rule}`)).toEqual([
+    "packages/cap-web/src/a.ts:1 DR-02",
+  ]);
+});
+
+test("DR-15: a plugin imports no L1 or L0 package in its sources", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/core-loop", "@fresnel/platform-store"], {
+    dev: true,
+    files: { "src/a.ts": 'import "@fresnel/core-loop";\nimport "@fresnel/platform-store";' },
+  });
+  pkg("packages/core-loop", "L1");
+  pkg("packages/platform-store", "L0");
+  expect(lines()).toEqual([
+    `packages/cap-web/src/a.ts:1 DR-15 P package @fresnel/cap-web imports L1 package @fresnel/core-loop${P_REASON}`,
+    `packages/cap-web/src/a.ts:2 DR-15 P package @fresnel/cap-web imports L0 package @fresnel/platform-store${P_REASON}`,
+  ]);
+});
+
+test("DR-15: a plugin imports no plugins/* package either (they rank as L1)", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/provider-x"], {
+    dev: true,
+    files: { "src/a.ts": 'import "@fresnel/provider-x";' },
+  });
+  pkg("plugins/provider-x", "L1", [], { domain: "provider-x" });
+  expect(lines()).toEqual([
+    `packages/cap-web/src/a.ts:1 DR-15 P package @fresnel/cap-web imports L1 package @fresnel/provider-x${P_REASON}`,
+  ]);
+});
+
+test("DR-15: test files may import core-* and platform-*", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/core-loop", "@fresnel/platform-store"], {
+    dev: true,
+    files: {
+      "test/a.test.ts": 'import "@fresnel/core-loop";\nimport "@fresnel/platform-store";',
+    },
+  });
+  pkg("packages/core-loop", "L1");
+  pkg("packages/platform-store", "L0");
+  expect(lines()).toEqual([]);
+});
+
+test("DR-15: a devDependency on core-* is exempt, but its src import is not", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/core-loop"], {
+    dev: true,
+    files: { "src/a.ts": 'import "@fresnel/core-loop";' },
+  });
+  pkg("packages/core-loop", "L1");
+  expect(lines()).toEqual([
+    `packages/cap-web/src/a.ts:1 DR-15 P package @fresnel/cap-web imports L1 package @fresnel/core-loop${P_REASON}`,
+  ]);
+});
+
+test("DR-15: a runtime dependency on core-* fails at its package.json line, with no import", () => {
+  pkg("packages/cap-web", "P", ["@fresnel/platform-store"]);
+  pkg("packages/platform-store", "L0");
+  expect(lines()).toHaveLength(1);
+  expect(lines()[0]).toMatch(
+    /^packages\/cap-web\/package\.json:\d+ DR-15 P package @fresnel\/cap-web declares a runtime dependency on L0 package @fresnel\/platform-store;/,
+  );
+});
+
+test("DR-15 allowlist: an edge passes for its entry point only, other targets and packages stay violations", () => {
+  pkg("packages/cap-dialog", "P", ["@fresnel/core-tools", "@fresnel/platform-store"], {
+    files: {
+      "src/a.ts": [
+        'import "@fresnel/core-tools";',
+        'import "@fresnel/platform-store";',
+        'import "@fresnel/core-tools/testing";',
+      ].join("\n"),
+    },
+  });
+  pkg("packages/cap-web", "P", ["@fresnel/core-tools"], {
+    files: { "src/a.ts": 'import "@fresnel/core-tools";' },
+  });
+  pkg("packages/core-tools", "L1");
+  pkg("packages/platform-store", "L0");
+  allowlist([
+    {
+      id: "DR-15/cap-dialog-core-tools",
+      rule: "DR-15",
+      from: "packages/cap-dialog",
+      to: "@fresnel/core-tools",
+    },
+  ]);
+  // package.json lines carry a line number from the fixture text; they are listed by file only
+  const found = checkLayers(root).violations.map((v) =>
+    v.file.endsWith("package.json") ? `${v.file} ${v.rule}` : `${v.file}:${v.line} ${v.rule}`,
+  );
+  expect(found).toEqual([
+    "packages/cap-dialog/package.json DR-15",
+    "packages/cap-dialog/src/a.ts:2 DR-15",
+    "packages/cap-dialog/src/a.ts:3 DR-15",
+    "packages/cap-web/package.json DR-15",
+    "packages/cap-web/src/a.ts:1 DR-15",
+  ]);
+});
+
+test("DR-15 allowlist: a listed edge also covers the package.json dependency line", () => {
+  pkg("packages/cap-dialog", "P", ["@fresnel/core-tools"], {
+    files: { "src/a.ts": 'import "@fresnel/core-tools";' },
+  });
+  pkg("packages/core-tools", "L1");
+  expect(lines()).toHaveLength(2);
+  allowlist([
+    {
+      id: "DR-15/cap-dialog-core-tools",
+      rule: "DR-15",
+      from: "packages/cap-dialog",
+      to: "@fresnel/core-tools",
+    },
+  ]);
+  expect(lines()).toEqual([]);
 });

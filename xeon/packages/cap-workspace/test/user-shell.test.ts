@@ -5,7 +5,7 @@ import {
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
 import { fakeRunContext, fakeSession, realTools, sequentialIds } from "@fresnel/core-tools/testing";
-import { createShellApi } from "../src/shell/run.ts";
+import { createShellApi } from "@fresnel/core-workspace";
 import { depsFor, fakeSandbox } from "./support/fakes.ts";
 import { memoryEnv } from "./support/memory-env.ts";
 

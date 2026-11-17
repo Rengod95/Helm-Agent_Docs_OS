@@ -1,6 +1,6 @@
 import { err, ok } from "@fresnel/contracts";
 import type { BlobError, BlobRef } from "@fresnel/contracts/records";
-import type { BlobSink } from "../../src/ports/blobs.ts";
+import type { BlobSink } from "@fresnel/core-workspace";
 
 // 이미지 시험용 최소 바이트열과 blob 저장소 대역. 형식 판별은 헤더만 보므로 디코드 가능한 이미지일 필요는 없다.
 

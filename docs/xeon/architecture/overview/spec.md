@@ -23,7 +23,7 @@ Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 �
 2. 엔진은 프로세스 정책(데몬 여부, 전송, 유휴 종료)을 포함하지 않는 라이브러리다. 데몬을 띄울지, 자식 프로세스로 띄울지는 L4 호스트(`xeon/apps/host`)가 정한다 [결정: ADR-0006].
 3. UI는 엔진 객체를 직접 다루지 않고 Runtime API 하나만 쓴다. 계약 스키마는 F5(`xeon/packages/contracts`)에 둔다 [결정: ADR-0006].
 4. 전송은 세 가지다. CLI 기본은 in-process, 데스크톱은 자식 프로세스 stdio JSON-RPC, 공유 서비스는 `fresnel service`다. 전송을 바꿔도 Runtime API와 DB 스키마는 바뀌지 않는다 [결정: ADR-0006, ADR-0008].
-5. 코드는 층 F → X → L0 → L1 → L2 → L3 → L4 순서로 쌓인다. 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
+5. 코드는 층 F → X → L0 → L1 → P → L4 순서로 쌓인다(P는 플러그인 등급: 기능과 그룹). 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
 6. 확장은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 drive 락), `scope` 네 연산으로 루프에 붙는다. Helm과 학습 그룹은 이 연산을 쓰는 L3 기본 그룹이다 [결정: ADR-0007].
 7. 대화 기록은 SQLite 파일 하나에 저장한다. 불변 이벤트와 조회용 투영, 확장별 접두사 테이블을 단계 경계마다 한 트랜잭션으로 커밋한다 [결정: ADR-0004]. 도구 효과는 호출마다 의도·실행 시작·결과를 따로 커밋한다 [결정: review.decisions-2 U-10].
 8. 스택은 Bun 1.4, TypeScript 7, Cordis 단일 DI다 [결정: ADR-0001, ADR-0002].

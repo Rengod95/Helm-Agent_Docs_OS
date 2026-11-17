@@ -12,7 +12,7 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 ## 1. 목적
 
-L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용자에게 배포하는 최상위 층이다(층 순위 6, `architecture.layers.spec` §4.1).
+L4는 층 F~P를 하나의 실행 가능한 런타임으로 조립하고 사용자에게 배포하는 최상위 층이다(층 순위 5, `architecture.layers.spec` §4.1).
 
 - 제공: `fresnel` CLI, 데스크톱 앱, `fresnel service`, 설정 화면(`architecture.layers.spec` §4.4 L4 항목).
 - 요구: Runtime API와 설정 스키마(F5, `F.wire-settings.spec`), 모든 층의 플러그인(조립).

@@ -35,6 +35,8 @@ M3 이후(2차·보류) 표:
 
 ## 2. 패키지와 파일 배치
 
+층 D 이동(2026-11-18, `hooks-core-boundary` §9 6단계): 아래 트리의 `roots.ts`, `errors.ts`, `env.ts`, `deps.ts`(서비스 의존 부분), `scope.ts`, `write-access.ts`, `write-access-adapter.ts`, `ports/blobs.ts`, `ports/threads.ts`, `ports/write-access.ts`, `shell/run.ts`, `shell/unattended.ts`, `shell/upstream/bash.ts`, `files/atomic.ts`, `files/queue.ts`, `files/upstream/path-utils.ts`, `upstream/get-or-throw.ts`, `upstream/output.ts`는 `xeon/packages/core-workspace`로 옮겼다. 트리는 이동 전 계획이다. 현재 배치는 `L1.workspace.plan` §2에 있다. `cap-workspace`에 남는 것은 모델 도구와 이미지, 등록, 설정이다.
+
 ```
 xeon/packages/cap-workspace/
   package.json            # "name": "@fresnel/cap-workspace", "fresnel": { "layer": "L2", "domain": "workspace" }
@@ -77,8 +79,8 @@ xeon/packages/cap-workspace/
 | 원본 | 줄 | 포크 위치 | 마일스톤 | 고친 점 |
 |---|---|---|---|---|
 | `D/tools/read.ts` | 312 | `src/files/upstream/read.ts` | M1 | `Context` import type → `CancelScope`. `defineTool`·`ToolRegistration`·`ToolExecutionApi` → `src/upstream/tool-types.ts`. `requireEnv(api)` → 주입받은 `ExecutionEnv`. 결과를 `ReadOutput`으로 바꾸는 감싸기는 `src/files/read.ts`에 둔다 |
-| `D/tools/path-utils.ts` | 30 | `src/files/upstream/path-utils.ts` | M1 | `Context` 치환. 탈출 검사는 넣지 않고 `src/roots.ts`가 결과 경로를 검사한다 |
-| `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts` | M1 | `Context` 치환. `prepareExecution` 앞에 `fresnel.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
+| `D/tools/path-utils.ts` | 30 | `src/files/upstream/path-utils.ts`(층 D에서 L1 `core-workspace`로 옮김) | M1 | `Context` 치환. 탈출 검사는 넣지 않고 `src/roots.ts`가 결과 경로를 검사한다 |
+| `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts`(층 D에서 L1 `core-workspace`로 옮김) | M1 | `Context` 치환. `prepareExecution` 앞에 `fresnel.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
 | `D/tools/env.ts` | 8 | 복사하지 않음 | — | `requireEnv`는 서비스 주입으로 대체 |
 | `D/tools/index.ts` | 39 | 복사하지 않음 | — | Harness 확장 객체(`createCodingTools`)라 쓰지 않는다 |
 | `CA/ls.ts` | 175 | (삭제됨) | M1 | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 설명: fs 직접 호출 → `ExecutionEnv.listDir`, 코드 단위 바이트 순 정렬 |
@@ -228,7 +230,7 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 
 - 이미지 포크는 `image.ts`(형식 판별과 크기 읽기, 패치 P11)와 `image-processor.ts`(`INLINE_IMAGE_TYPES`, `base64Length`만, 패치 P12)다. 처리기 타입과 `toBase64`는 쓰는 곳이 없어 2차로 미뤘다. 한도 기본값은 `DEFAULT_IMAGE_LIMITS` 대신 설정 키 `l2.workspace.images.*`가 갖는다.
 - 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `edit.fuzzy`)는 M3다. `find.*`는 `find` 삭제 뒤 읽는 곳이 사라졌고, `find.*`와 `list.*`는 2026-11-15 정리로 지웠다(L2.workspace.spec §10 미결 15, [결정: 2026-11-15 사용자]).
-- 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`), `src/images/{service,prepare,decode}.ts`. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
+- 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`)는 층 D에서 L1 `core-workspace`로 옮겼다(`L1.workspace.plan` §2). `src/images/{service,prepare,decode}.ts`는 L2에 남는다. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
 - 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `fresnel.session`의 `query.thread(threadId).workspace`와 `fresnel.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `fresnel.session`, `fresnel.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
 - 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(대화·저장소 포트 연결).
 - 통합 단계에서 확인할 것: (1) HOST 조립이 `fresnel.session`과 `fresnel.store`를 이 플러그인보다 먼저 제공하는지(포트는 설치 때 한 번 읽는다), (2) `thread.create`가 `workspace`를 `thread.started` payload에 싣는지(L1B, open-issues M-06의 남은 부분), (3) 샌드박스 쓰기 root가 대화의 작업 폴더와 같은 값을 쓰는지(L1.tools의 허용 root API가 정해지기 전까지 이 패키지가 정한다).

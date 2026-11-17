@@ -1,7 +1,6 @@
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure } from "../errors.ts";
-import { resolveWorkspacePath } from "../roots.ts";
+import { WorkspaceFailure, resolveWorkspacePath } from "@fresnel/core-workspace";
 import { capEntries, pageEntries } from "../truncate/paging.ts";
 import type { FilesApi } from "./api.ts";
 import {

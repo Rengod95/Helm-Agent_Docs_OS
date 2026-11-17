@@ -8,11 +8,11 @@ import {
   type CallContext,
 } from "@fresnel/contracts/capabilities";
 import { ApprovalBodyJsonSchema, ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
-import { createAskService } from "../src/ask/service.ts";
+import { createAskService } from "../../src/ask/service.ts";
+import type { AskDeps } from "../../src/ask/deps.ts";
+import { realApprovals } from "../../src/testing/index.ts";
 import { callTool } from "./support/adapter.ts";
-import { realApprovals } from "./support/real-approvals.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
-import type { DialogDeps } from "../src/deps.ts";
 
 const SCOPE: AskQuestion = {
   id: "scope",
@@ -32,7 +32,7 @@ const DAY_MS = 86_400_000;
 
 async function setup(
   options: {
-    readonly interactive?: DialogDeps["interactive"];
+    readonly interactive?: AskDeps["interactive"];
     /** null이면 승인 서비스 없이 조립한다 */
     readonly approvals?: null;
   } = {},

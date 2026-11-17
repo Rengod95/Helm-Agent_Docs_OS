@@ -1,3 +1,4 @@
+import { WorkspaceFiles } from "@fresnel/contracts/capabilities";
 import {
   PERMISSION_MODE_STRICTNESS,
   type PermissionMode,
@@ -27,8 +28,8 @@ export function withoutRetiredModes(rule: PolicyRule): PolicyRule | undefined {
   return { ...rule, resource: { ...rule.resource, mode: kept } };
 }
 
-/** read를 내는 내장 능력. 이름만으로 허용하면 같은 이름을 등록한 다른 출처의 도구가 승인을 건너뛴다 */
-const WORKSPACE_FILES = "workspace.files";
+/** read를 내는 내장 능력(F 정의의 id). 이름만으로 허용하면 같은 이름을 등록한 다른 출처의 도구가 승인을 건너뛴다 */
+const WORKSPACE_FILES = WorkspaceFiles.id;
 
 /** M1 내장 규칙: read는 allow, bash는 ask. 나머지는 모드 기본값을 따른다 */
 export function builtinRules(): readonly PolicyRule[] {

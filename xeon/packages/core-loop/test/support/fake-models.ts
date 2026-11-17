@@ -234,6 +234,13 @@ export function createFakeModels(options: {
     checkProviderAuth: () => notImplemented("checkProviderAuth"),
     stream: () => notImplemented("stream"),
     complete: () => notImplemented("complete"),
+    completeForPlugin: () =>
+      Promise.resolve(
+        err({
+          kind: "provider_unavailable",
+          message: "test double: plugin model calls are not used here",
+        }),
+      ),
     streamFn: (ctx) => (_model, transcript, streamOptions) => {
       requests.push({
         stepId: ctx.stepId,

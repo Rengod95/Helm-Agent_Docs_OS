@@ -19,6 +19,17 @@ export interface DriveInvocation {
   effects: number;
 }
 
+/**
+ * 훅 스택의 한 칸(hooks-core-boundary §5.3 U-8 (나)). 핸들러가 도는 칸은 `tool`이 빈 문자열이다.
+ * 핸들러 안에서 시작한 플러그인 기능 호출의 칸은 호출한 확장, 대상(`기능.메서드`), 인자 해시를 적는다
+ */
+export interface HookFrame {
+  readonly plugin: string;
+  readonly point: HookName;
+  readonly tool: string;
+  readonly argsHash: string;
+}
+
 /** 핸들러와 drive 함수의 비동기 흐름에 싣는 맥락(X.primitives.spec §4.2 withAmbient) */
 export interface Ambient {
   readonly threadId: ThreadId;
@@ -37,6 +48,13 @@ export interface Ambient {
    * 기능 래퍼의 재실행 검사를 받지 않는다. on 핸들러와 drive 함수에서는 없다(X.primitives.spec §4.6.6, §4.12)
    */
   readonly invocation?: "tool" | "command" | "method";
+  /** `invocation`이 있으면 그 호출 id(도구 호출 id, 명령 호출 id, 메서드 호출 id). 플러그인 도구 안의 호출이 `parentToolCallId`로 쓴다 */
+  readonly callId?: string;
+  /**
+   * 이 흐름이 훅 핸들러 안에서 시작한 플러그인 기능 호출들의 스택(U-8 (나)). 핸들러가 돌 때마다 칸이 쌓이고, 칸은 호출 안에서만 보인다.
+   * 없으면 빈 스택이다. 리스 쪽 맥락은 이 값을 두지 않는다
+   */
+  readonly hookStack?: readonly HookFrame[];
   /**
    * 핸들러가 도는 디스패치의 계측 기록기. 외부 훅 실행기가 훅마다 자기 기록(`hook:<id>`)을 같은 항목에 넣을 때 쓴다(X.operations §4.8.2).
    * 계측이 꺼졌거나 Turn을 정할 수 없으면 없다
@@ -48,6 +66,11 @@ const storage = new AsyncLocalStorage<Ambient>();
 
 export function withAmbient<T>(value: Ambient, fn: () => T): T {
   return storage.run(value, fn);
+}
+
+/** 흐름의 훅 스택. 맥락이 없거나 스택을 싣지 않았으면 빈 배열 */
+export function hookStackOf(amb: Ambient | undefined): readonly HookFrame[] {
+  return amb?.hookStack ?? [];
 }
 
 /** 맥락 없이 실행한다. scope setup은 thread 밖에서 돈다 */

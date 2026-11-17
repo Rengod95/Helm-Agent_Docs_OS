@@ -61,13 +61,15 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     callOf: (origin) => {
       if (origin.toolCallId === null) return undefined;
       const state = calls.get(origin.threadId, origin.toolCallId);
-      return state === undefined
-        ? undefined
-        : { run: state.run, effectId: state.intent?.effectId ?? null };
+      if (state === undefined) return undefined;
+      return {
+        run: state.run,
+        effectId: state.intent?.effectId ?? null,
+        ...(state.silent ? { turnless: true } : {}),
+      };
     },
     requesterOf: (threadId) => calls.requesterOf(threadId),
   });
-  const pipeline = createPipeline(deps, registry, calls, approvals);
   // 내장 도구 `tool_search`(순서 키 core.tools). 같은 파이프라인을 지난다
   registry.seed([
     toolSearchEntry({ session: deps.session, config: deps.config, entries: () => registry.all() }),
@@ -93,6 +95,8 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     open: (input) => approvals.open(input),
     get: (approvalId) => approvals.get(approvalId),
   };
+
+  const pipeline = createPipeline(deps, registry, calls, approvals, bridge);
 
   function register(
     first: ToolRegistration | RegistrationId,
@@ -145,6 +149,14 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     rerun: (intent, run) => pipeline.rerun(intent, run),
     registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell: (request, run) => pipeline.runUserShell(request, run),
+    executeForPlugin: (request) => pipeline.executeForPlugin(request),
+    withHumanDecision: (grant, work) => pipeline.withHumanDecision(grant, work),
+    toolMappedFor(capability, method) {
+      // 합성 항목은 레지스트리에 들어가지 않으므로 매핑은 등록된 도구 항목만 본다
+      return registry
+        .all()
+        .some((entry) => entry.capability?.id === capability && entry.capability.method === method);
+    },
     suspendWhile: (threadId, toolCallId, wait) => pipeline.suspendWhile(threadId, toolCallId, wait),
     checkSpawn(input) {
       const config = deps.config(input.threadId);

@@ -33,6 +33,7 @@
     "@fresnel/core-persistence": "workspace:*",
     "@fresnel/core-tasks": "workspace:*",
     "@fresnel/core-tools": "workspace:*",
+    "@fresnel/core-workspace": "workspace:*",
     "@fresnel/ext-host": "workspace:*",
     "@fresnel/group-account-rotation": "workspace:*",
     "@fresnel/group-guide": "workspace:*",

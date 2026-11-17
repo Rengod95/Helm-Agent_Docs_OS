@@ -15,14 +15,10 @@ import type {
   L2ApprovalRequest,
   L2ApprovalSnapshot,
 } from "@fresnel/contracts/services";
-import {
-  fakeSession,
-  realTools,
-  sequentialIds,
-  type FakeSession,
-  type RealTools,
-} from "@fresnel/core-tools/testing";
-import { questionApprovalsOver, type ApprovalsPortFactory } from "../../src/ports/approvals.ts";
+import { questionApprovalsOver, type ApprovalsPortFactory } from "../ask/approvals.ts";
+import { fakeSession, type FakeSession } from "./fake-session.ts";
+import { sequentialIds } from "./ids.ts";
+import { realTools, type RealTools } from "./real-runtime.ts";
 
 const NOW = 1_767_571_200_000;
 const REQUEST_COMMIT_KEY = /^approval:.+:request$/;

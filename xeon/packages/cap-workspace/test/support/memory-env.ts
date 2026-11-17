@@ -10,7 +10,7 @@ import {
   type ShellExecResult,
 } from "@fresnel/contracts/services";
 import { fakeExec } from "@fresnel/platform-exec/testing";
-import type { WorkspaceEnv } from "../../src/env.ts";
+import type { WorkspaceEnv } from "@fresnel/core-workspace";
 
 // 시험용 ExecutionEnv 대역. 이 패키지가 쓰는 메서드(WorkspaceEnv)만 구현한다.
 // 출력 절단(truncateHeadOf)은 운영과 같은 구현을 @fresnel/platform-exec/testing의 fakeExec로 받는다(테스트 파일의 testing 서브패스 import, DR-08).

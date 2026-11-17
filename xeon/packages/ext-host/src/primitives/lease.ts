@@ -12,7 +12,9 @@ import {
 import {
   AskRequestSchema,
   LoopPortKey,
+  ModelsPortKey,
   RecordCommitPortKey,
+  ToolsPortKey,
   type AskCard,
   type AskOutcome,
   type AskRequest,
@@ -22,6 +24,7 @@ import {
   InputQueuePortKey,
   type DriveLockBudget,
   type OpenLease,
+  type PortKey,
   type PostItem,
   type StepResult,
   type RegistrationId,
@@ -30,6 +33,7 @@ import {
   type TurnInput,
   type TurnOutcome,
 } from "@fresnel/contracts/extensions";
+import type { ToolError, ToolResultView } from "@fresnel/contracts/capabilities";
 import type { JsonValue, ThreadId, Usage } from "@fresnel/contracts/conversation";
 import { DenyAnswerSchema, QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
 import {
@@ -62,6 +66,16 @@ import type { StateService } from "./state.ts";
 
 /** 효과 없는 명령(`commit`만, 거부 결과)이 이어지는 단계 수 상한. 넘으면 이번 호출을 `yield`로 끝낸다(X.primitives.spec §4.4.3) [제안] */
 export const MAX_CHAINED_REINVOKES = 8;
+
+/**
+ * 한 프레임이 낼 수 있는 `tool` 명령 수 상한. 도구 호출은 토큰을 쓰지 않고 성공하면 효과로 세므로 토큰 한도와 효과 없는 명령의
+ * 연속 상한이 막지 못한다. 넘으면 `budget`으로 반납한다. 프레임의 한도 키(`DriveLimits`)가 아니라 엔진 상수다(기록·설정 스키마를
+ * 건드리지 않는 가장 작은 추가) [제안]
+ */
+export const MAX_DRIVE_TOOL_COMMANDS = 64;
+
+/** 프레임별 `tool` 명령 수. 프로세스 안에서만 센다(재시작 뒤에는 다시 0에서 시작한다) */
+const toolCommandCounts = new WeakMap<LeaseRuntime, number>();
 
 /** 사용자 메시지를 전달한 뒤 단계 함수가 `turn`이나 `done`으로 처리하지 않고 지나갈 수 있는 단계 수(drive-isolation.md 2.4) */
 const USER_MESSAGE_STEP_LIMIT = 3;
@@ -109,6 +123,11 @@ export interface LeaseBroker {
   ): Result<void, StartDriveError>;
   /** 읽기: thread의 스택을 아래에서 위로 주는 `drive.frames` 모양. 코어 루프가 맨 아래 깊이 0이다 */
   framesOf(thread: ThreadRuntime): readonly DriveFrameView[];
+  /**
+   * 훅 안에서 부른 `agents.judge`, `models.complete`가 쓴 토큰을 맨 위 프레임과 스택 아래 모든 프레임의 사용량에 더한다(`model` 명령과 같다).
+   * 주도 프레임이 없으면(코어 루프의 보통 턴) 더할 곳이 없다
+   */
+  chargeTokens(thread: ThreadRuntime, tokens: number): void;
 }
 
 /**
@@ -200,15 +219,39 @@ function tokensOf(usage: Usage | null): number {
   return usage?.totalTokens ?? 0;
 }
 
-function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
-  const limit = kind === "turns" ? lease.limits.maxTurns : lease.limits.maxSpawns;
-  const left = remaining(limit, lease.used[kind]);
-  // 토큰 상한도 turn·spawn 호출 직전에 검사한다(spec §4.4.2 5번). 소진이면 lease_budget으로 거부한다
+/**
+ * 명령 호출 직전 한도 검사. 횟수 축은 `turns`와 `spawns`만 있고 `tokens`는 횟수 검사를 건너뛰고 토큰 소진만 본다.
+ * 토큰 상한은 모든 명령의 호출 직전에 검사한다(spec §4.4.2 5번). 소진이면 `budget`으로 반납하고 `lease_budget`을 던진다
+ */
+function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns" | "tokens"): void {
+  const countLeft =
+    kind === "tokens"
+      ? null
+      : remaining(
+          kind === "turns" ? lease.limits.maxTurns : lease.limits.maxSpawns,
+          lease.used[kind],
+        );
   const tokensLeft = remaining(lease.limits.maxTokens, lease.used.tokens);
-  if ((left !== null && left <= 0) || (tokensLeft !== null && tokensLeft <= 0)) {
+  if ((countLeft !== null && countLeft <= 0) || (tokensLeft !== null && tokensLeft <= 0)) {
     release(lease, "budget");
     throw leaseError(lease);
   }
+}
+
+/** `tool` 명령 직전 검사: 이 프레임이 낸 `tool` 명령 수가 상한에 닿았으면 `budget`으로 반납한다 */
+function assertToolCommandAllowed(lease: LeaseRuntime): void {
+  const used = toolCommandCounts.get(lease) ?? 0;
+  if (used >= MAX_DRIVE_TOOL_COMMANDS) {
+    release(lease, "budget");
+    throw leaseError(lease);
+  }
+  toolCommandCounts.set(lease, used + 1);
+}
+
+/** `tool`, `model` 명령을 부르기 직전 검사: 임대가 활성이고 토큰 상한이 남았는가 */
+function assertCallAllowed(lease: LeaseRuntime): void {
+  if (lease.status !== "active") throw leaseError(lease);
+  assertBudget(lease, "tokens");
 }
 
 /**
@@ -339,6 +382,58 @@ const INACTIVE: StepOutcome = { kind: "inactive" };
 /** `commit`으로 감싼 명령의 맨 안쪽(실제로 실행되는 마지막) 명령 */
 function finalCommandOf(command: DriveCommand<AnyState>): DriveCommand<AnyState> {
   return command.do === "commit" ? finalCommandOf(command.next) : command;
+}
+
+/** 명령 결과 하나를 단계 결과, 기록할 결과 요약, 효과 여부로 옮긴다. 효과는 실제로 실행이 끝난 호출만 센다 */
+interface Settlement {
+  readonly step: StepResult;
+  readonly outcome: string;
+  readonly effect: boolean;
+}
+
+function refusedSettlement(code: string): Settlement {
+  return { step: { kind: "refused", code }, outcome: "refused", effect: false };
+}
+
+/**
+ * 플러그인 기능 호출의 결과를 옮긴다(hooks-core-boundary §4.6). `denied`는 거부한 쪽이 있을 때만 `denied`이고(없으면 취소·만료라
+ * `refused`), `blocked`의 출처는 ToolError가 싣지 못해 `{ plugin: null, hook: null }`이다
+ */
+function toolSettlementOf(result: Result<ToolResultView, ToolError>): Settlement {
+  if (result.ok) {
+    return {
+      step: { kind: "ok", of: "tool", value: result.value },
+      outcome: result.value.isError ? "error" : "completed",
+      effect: true,
+    };
+  }
+  const error = result.error;
+  switch (error.kind) {
+    case "denied":
+      if (error.resolvedBy === undefined) return refusedSettlement("denied");
+      return {
+        step: { kind: "denied", by: error.resolvedBy, reason: error.message },
+        outcome: "denied",
+        effect: false,
+      };
+    case "blocked":
+      return {
+        step: { kind: "blocked", by: { plugin: null, hook: null }, reason: error.message },
+        outcome: "blocked",
+        effect: false,
+      };
+    case "aborted":
+      return { step: { kind: "aborted" }, outcome: "aborted", effect: false };
+    case "unavailable":
+    case "invalid_args":
+    case "hook_cycle":
+    case "hook_depth":
+    case "storage":
+    case "unknown_outcome":
+      return refusedSettlement(error.kind);
+    default:
+      return assertNever(error.kind, "toolSettlementOf");
+  }
 }
 
 /** 명령 하나를 실행하는 문맥 */
@@ -666,7 +761,7 @@ export function createLeaseBroker(
   async function recordSettled(
     ctx: StepContext,
     requestId: string,
-    command: "turn" | "ask" | "spawn",
+    command: "turn" | "ask" | "spawn" | "model" | "tool",
     outcome: string,
     ref?: string,
   ): Promise<void> {
@@ -697,6 +792,17 @@ export function createLeaseBroker(
         { scopeId: lease.scopeId },
       );
     }
+  }
+
+  /** 필요한 포트를 얻는다. 없으면 `port_unavailable`로 던지고 `runGuarded`가 거부 결과로 바꾼다(`requireLoop`와 같은 방식) */
+  function requirePortOf<T>(key: PortKey<T>, label: string, lease: LeaseRuntime): T {
+    const port = core.ports.get(key);
+    if (port === undefined) {
+      throw new PrimitiveError("port_unavailable", `${label} is not provided`, {
+        scopeId: lease.scopeId,
+      });
+    }
+    return port;
   }
 
   /**
@@ -749,7 +855,7 @@ export function createLeaseBroker(
     return { kind: "handoff" };
   }
 
-  /** 명령 하나를 블록으로 실행한다. `model`과 `tool`은 E2 전이라 거부 결과를 돌려준다. `handoff`는 `handoffOf`가 맡는다 */
+  /** 명령 하나를 블록으로 실행한다. `handoff`는 `handoffOf`가 맡는다 */
   async function executeCommand(
     ctx: StepContext,
     command: DriveCommand<AnyState>,
@@ -803,6 +909,70 @@ export function createLeaseBroker(
         );
         return { kind: "result", result: askStepResult(ran.value) };
       }
+      case "tool": {
+        const requestId = command.requestId ?? nextId();
+        // 도구 실행은 관문 전체를 지난다(플러그인 판정 훅, 권한, 승인, 샌드박스, 실행 기록). 턴 안의 도구와 같은 ambient 분리를 쓴다
+        const ran = await runGuarded(ctx, () => {
+          assertCallAllowed(lease);
+          assertToolCommandAllowed(lease);
+          const tools = requirePortOf(ToolsPortKey, "fresnel.tools (ToolsPort)", lease);
+          return withoutAmbient(() =>
+            tools.executeForPlugin({
+              threadId: lease.threadId,
+              plugin: { name: record.extension, scopeId: lease.scopeId },
+              via: "drive",
+              target: { kind: "tool", name: command.name },
+              input: command.args,
+              requestId,
+              signal: lease.abort.signal,
+            }),
+          );
+        });
+        if (!ran.ok) return ran.out;
+        const settled = toolSettlementOf(ran.value);
+        if (settled.effect) invocation.effects += 1;
+        await recordSettled(ctx, requestId, "tool", settled.outcome);
+        return { kind: "result", result: settled.step };
+      }
+      case "model": {
+        const requestId = command.requestId ?? nextId();
+        // 메시지가 없거나 시스템 메시지뿐이면 제공자에게 보낼 대화가 없다. 호출하지 않고 거부한다
+        if (command.messages.every((message) => message.role === "system")) {
+          return { kind: "result", result: { kind: "refused", code: "input_invalid" } };
+        }
+        const ran = await runGuarded(ctx, () => {
+          assertCallAllowed(lease);
+          const models = requirePortOf(ModelsPortKey, "fresnel.models (ModelsPort)", lease);
+          return withoutAmbient(() =>
+            models.completeForPlugin({
+              threadId: lease.threadId,
+              plugin: { name: record.extension, scopeId: lease.scopeId },
+              requestId,
+              messages: command.messages,
+              ...(command.label === undefined ? {} : { label: command.label }),
+              signal: lease.abort.signal,
+            }),
+          );
+        });
+        if (!ran.ok) return ran.out;
+        const called = ran.value;
+        if (!called.ok) {
+          if (called.error.kind === "aborted") {
+            await recordSettled(ctx, requestId, "model", "aborted");
+            return { kind: "result", result: { kind: "aborted" } };
+          }
+          // 가드 차단과 제공자 오류는 효과로 세지 않는다. 같은 단계가 계속 실패하면 연속 상한(MAX_CHAINED_REINVOKES)에서 끝난다
+          await recordSettled(ctx, requestId, "model", "refused");
+          return { kind: "result", result: { kind: "refused", code: called.error.kind } };
+        }
+        const { replayed, ...value } = called.value;
+        // 같은 프로세스 안의 재생은 처음 호출에서 이미 차감했다(drive-isolation.md §2.3)
+        if (!replayed)
+          charge(thread, lease, { turns: 0, spawns: 0, tokens: value.usage?.total ?? 0 });
+        invocation.effects += 1;
+        await recordSettled(ctx, requestId, "model", "completed");
+        return { kind: "result", result: { kind: "ok", of: "model", value } };
+      }
       case "commit": {
         const committed = await runGuarded(ctx, () =>
           stateService.commit(record, generation, command.state),
@@ -816,9 +986,6 @@ export function createLeaseBroker(
         return { kind: "done", result: command.result ?? null };
       case "handoff":
         return handoffOf(ctx, command);
-      case "model":
-      case "tool":
-        return { kind: "result", result: { kind: "refused", code: "command_unavailable" } };
       default:
         return assertNever(command, "executeCommand");
     }
@@ -1530,6 +1697,11 @@ export function createLeaseBroker(
       }
       hooks.requestApply(threadId);
       return ok(undefined);
+    },
+    chargeTokens(thread, tokens) {
+      const top = thread.frames.at(-1);
+      if (top === undefined || tokens <= 0) return;
+      charge(thread, top, { turns: 0, spawns: 0, tokens });
     },
     framesOf(thread) {
       // 맨 아래는 코어 루프(깊이 0)다. 플러그인 프레임의 깊이는 스택 인덱스에 1을 더한 값이다

@@ -1373,6 +1373,7 @@ export const WebResearch: CapabilityDef<
   service: {
     methods: {
       start: {
+        risk: "exec",
         description: "Starts a research run and returns its runId.",
         input: WebResearchInputSchema,
         output: ResearchHandleSchema,
@@ -1386,6 +1387,7 @@ export const WebResearch: CapabilityDef<
         readOnly: true,
       },
       cancel: {
+        risk: "write",
         description:
           "Cancels the research run. If it has already finished, returns its current status.",
         input: ResearchRunRefSchema,

@@ -1,8 +1,8 @@
 import { DialogStatus, type CapabilityApi, type StatusItem } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
-import { DialogFailure, guarded } from "../errors.ts";
 import {
   coreItems,
   initialCoreState,

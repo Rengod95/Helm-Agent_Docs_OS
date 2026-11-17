@@ -37,6 +37,11 @@ async function withPorts(t: Host): Promise<Fakes> {
   const servers = new Map<string, unknown>();
   const log: string[] = [];
   const toolsPort: ToolsPort = {
+    toolMappedFor: () => false,
+    executeForPlugin: () =>
+      Promise.resolve(
+        err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+      ),
     register(owner, def) {
       if (tools.has(def.name)) return err({ kind: "name_conflict", toolName: def.name });
       tools.set(def.name, def);
@@ -54,6 +59,13 @@ async function withPorts(t: Host): Promise<Fakes> {
         providers.delete(name);
       };
     },
+    completeForPlugin: () =>
+      Promise.resolve(
+        err({
+          kind: "provider_unavailable",
+          message: "test double: plugin model calls are not used here",
+        }),
+      ),
   };
   const mcpPort: McpPort = {
     registerServer(_owner, name, config) {

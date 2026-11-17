@@ -9,10 +9,13 @@ import type {
   FileInfo,
 } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
-import { getOrThrow } from "../../upstream/get-or-throw.ts";
+import {
+  WorkspaceFailure,
+  characterEnd,
+  getOrThrow,
+  utf8ByteLength,
+} from "@fresnel/core-workspace";
 // FRESNEL-PATCH: P2
-import { characterEnd, utf8ByteLength } from "../../upstream/output.ts";
-import { WorkspaceFailure } from "../../errors.ts";
 import { rangeDecoder, startsWithBom } from "./decode.ts";
 
 // FRESNEL-PATCH: P5

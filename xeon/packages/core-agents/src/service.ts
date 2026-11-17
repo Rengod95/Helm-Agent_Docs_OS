@@ -54,7 +54,8 @@ import { createConcurrencyGate, type ConcurrencyGate } from "./gate.ts";
 import { sha256Hex } from "./hash.ts";
 import { readFinalText } from "./report-reader.ts";
 import { childRequestId, createSpawnCounter, derivedRequestId } from "./request-id.ts";
-import { createJudge, JUDGE_MAX_RUNS_DEFAULT } from "./judge.ts";
+import { JUDGE_MAX_RUNS_DEFAULT } from "@fresnel/contracts/settings";
+import { createJudge } from "./judge.ts";
 import { guardReport } from "./result-guard.ts";
 
 /**

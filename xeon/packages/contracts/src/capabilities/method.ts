@@ -1,6 +1,7 @@
 import type { Static, TSchema } from "typebox";
 import type { JsonObject, ReplayPolicy, ThreadId, TurnId } from "../conversation/index.ts";
 import type { SecretApprovalEvidence } from "./secrets.ts";
+import type { ToolRisk } from "./tool-meta.ts";
 
 /** 메서드 고유 오류 선언. 공통 오류 코드(errors.ts)는 선언하지 않아도 된다 */
 export interface ErrorDecl {
@@ -29,6 +30,13 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
    * 이름은 `ToolHints.readOnly`와 같다 [제안: M3-REQ-01]
    */
   readonly readOnly?: true;
+  /**
+   * 도구 매핑이 없는 쓰기 메서드를 플러그인이 부를 때 정책이 보는 위험 등급(`ToolRisk`). 생략하면 가장 엄한 `exec`다(승인 카드가 뜬다).
+   * 모델이 부르는 같은 효과의 도구와 같은 등급이어야 한다: 파일 쓰기는 `write`, 셸·네트워크는 `exec`, 대화 안 상태만 바꾸면 `read`
+   * (`task_write`, `artifact_create`와 같다). 도구 매핑이 있는 메서드는 매핑의 `policy.risk`를 쓰므로 이 값은 쓰이지 않는다.
+   * `readOnly`와 함께 쓸 수 없다 [제안: enE2m]
+   */
+  readonly risk?: ToolRisk;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -96,6 +104,11 @@ export interface CallOptions {
   readonly context?: CallContext;
   /** `input_required` 뒤의 재호출(2라운드부터). L1.tools 어댑터가 채운다. `CallContinuation` 참고 */
   readonly continuation?: CallContinuation;
+  /**
+   * 사람이 이미 답한 승인(검토 카드 등)이 가리킨 쓰기를 새 카드 없이 통과시켜 달라는 주장(U-11). 내장 확장(`contextTrusted`)이 넘긴 것만 싣는다.
+   * 엔진이 승인 기록과 대조해 맞을 때만 쓰고(사람의 허용, 같은 대화, 카드가 가리킨 대상, 한 번), 틀리면 무시하고 보통의 승인 카드를 띄운다
+   */
+  readonly inheritApproval?: { readonly approvalId: string };
 }
 
 /** `idempotent` 메서드를 부를 때의 옵션. `requestId`가 필수다(ADR-0015 §3.3 5) */

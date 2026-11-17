@@ -114,6 +114,9 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
               { path: input.path, edits: [{ oldText: input.oldText, newText: input.newText }] },
               {
                 requestId: input.requestId.slice(0, 64),
+                ...(input.approvalId === undefined
+                  ? {}
+                  : { inheritApproval: { approvalId: input.approvalId } }),
                 // 대화의 작업 폴더를 알려 상대 경로를 그 폴더 기준으로 푼다
                 context: {
                   threadId: input.threadId,

@@ -39,6 +39,7 @@ import { classifyMessage } from "./classify.ts";
 import { createHostedSearch } from "./hosted-search.ts";
 import { createFailureLog } from "./failure-log.ts";
 import { createPipeline, type CallSpec, type RequestBodyOffer } from "./pipeline.ts";
+import { createPluginModelCall } from "./plugin-model.ts";
 import { probeProviderAuth } from "./provider-auth.ts";
 import type { ProviderDispatcher } from "./request-points.ts";
 import {
@@ -282,6 +283,13 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     );
   }
 
+  // 플러그인의 `model` 명령(주도 단계). 역할 `judge`로 해석하고 `complete`를 거친다(plugin-model.ts)
+  const completeForPlugin = createPluginModelCall({
+    resolve: (role, overrides) => resolveWith(role, overrides),
+    complete,
+    now: () => deps.clock.now(),
+  });
+
   function streamFn(ctx: ModelCallContext): StreamFn {
     return (model, context, options) => {
       const settings = deps.settings();
@@ -386,6 +394,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
 
   return {
     resolve: (role, overrides = {}) => resolveWith(role, overrides),
+    completeForPlugin,
     providerTarget: targetOf,
     checkProviderAuth,
     rebind(binding: ModelBinding): Result<ResolvedModel, ModelError> {

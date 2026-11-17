@@ -90,13 +90,13 @@ X가 정하지 않는 것:
 
 ## 6. 층 경계
 
-- [결정] 순위는 F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md` §3). X는 F만 import한다.
+- [결정] 순위는 F(0) → X(1) → L0(2) → L1(3) → P(4) → L4(5)이다(P는 옛 L2·L3)(`_research/foundation-plan.md` §3). X는 F만 import한다.
 - [결정: review.decisions-2 U-14] X는 순위 1(L0 아래)을 유지한다. 조건은 `architecture.layers.spec` §4.3.3 결론의 세 가지다. (1) X 소스와 테스트에서 L0·L1 import가 0건이다. (2) X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다(F.extensions.spec §3.2.1 `ports.ts`, F.records.spec §3.9, `@fresnel/contracts/services`, [결정: review.decisions-2 D-04]). (3) L0는 `ExtHost.registerPlatform`으로 등록한다.
 - L0·L1 기능은 Cordis 서비스 주입으로 받는다(`architecture.layers.spec` §4.3.3). 대상은 대화 커밋과 투영기 등록(`fresnel.session`), 접두 테이블 읽기(`fresnel.store`의 `scoped`), 프로세스 실행(`fresnel.process`: 격리 확장, 외부 훅), 루프 구동(`fresnel.loop`)이다. 포트와 키의 정의는 `F.extensions.spec` §3.2.1 `ports.ts`에 있고, X가 다시 export하는 목록과 사용 규칙은 `X.primitives.spec` §3.6에 있다. 탐색과 신뢰 판정용 파일 접근은 F 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`)로 받는다. 구현은 L0.os가 하고 조립 루트가 `LoaderDeps`로 주입하며, 없으면 시작 실패다(`X.loading-trust.spec` §3.2, §3.5, §4.3.2).
 - 시작 순서 요약:
   1. 조립 루트가 operations 정책과 `ExtHost`를 만들고 L0 플랫폼 패키지를 `ExtHost.registerPlatform`으로 등록한다.
   2. 로더가 쓰는 주입 서비스(파일, 경로, 신뢰 저장소)가 있는지 확인한다. 없으면 시작 실패다.
-  3. 내장 확장(L1 → L2 → L3)을 싣는다. 필수(`essential`) 내장이 실패하면 시작을 거부한다.
+  3. 내장 확장(L1 → P)을 싣는다. 필수(`essential`) 내장이 실패하면 시작을 거부한다.
   4. 관리·사용자 확장을 싣고 작업 폴더 신뢰를 판정한다. 안전 모드면 외부 확장, 외부 훅, L3 내장 그룹([제안], `X.operations.spec` §4.6.2)을 건너뛴다.
   5. 신뢰된 작업 폴더 확장과 외부 훅을 싣는다.
   세부는 `X.loading-trust.spec` §4.3과 `L4.host-service.spec`이다.

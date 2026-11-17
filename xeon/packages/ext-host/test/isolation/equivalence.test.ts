@@ -2,7 +2,7 @@
 // 설치하고, 같은 호출 순서가 같은 결과, 같은 상태, 같은 기록을 내는지 본다. 프로세스 종료 시험은 실패 이유와 다시 띄우기를 본다.
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
-import { ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { FIRST_DENY, ToolsPortKey, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import { createIsolatedEntry } from "../../src/index.ts";
@@ -88,6 +88,11 @@ async function hostWithTools(): Promise<{
     name: "equivalence-tools-port",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
         register(_owner, def) {
           tools.set(def.name, def);
           return ok(() => {

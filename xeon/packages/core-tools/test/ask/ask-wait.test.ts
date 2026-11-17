@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { CapabilityError, type AskQuestion } from "@fresnel/contracts/capabilities";
-import { createAskService } from "../src/ask/service.ts";
+import { createAskService } from "../../src/ask/service.ts";
+import { realApprovals } from "../../src/testing/index.ts";
 import { callOptions, flushTicks, harness, newThread } from "./support/harness.ts";
-import { realApprovals } from "./support/real-approvals.ts";
 
 const SCOPE: AskQuestion = {
   id: "scope",

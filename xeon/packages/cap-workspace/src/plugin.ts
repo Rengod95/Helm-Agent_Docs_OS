@@ -31,12 +31,16 @@ import {
   type ExtensionUnit,
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
-import type { RgResolver, WorkspaceDeps } from "./deps.ts";
-import { envAtCwd } from "./env.ts";
+import {
+  createWriteAccessAdapter,
+  defaultRoots,
+  envAtCwd,
+  type RgResolver,
+  type RootsDeps,
+  type ThreadWorkspaces,
+} from "@fresnel/core-workspace";
+import type { WorkspaceDeps } from "./deps.ts";
 import { workspaceManifest } from "./manifest.ts";
-import { createWriteAccessAdapter } from "./write-access-adapter.ts";
-import type { ThreadWorkspaces } from "./ports/threads.ts";
-import { defaultRoots, type RootsDeps } from "./roots.ts";
 import { createWorkspaceService } from "./service.ts";
 import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.ts";
 

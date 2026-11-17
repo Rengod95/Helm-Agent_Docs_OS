@@ -26,6 +26,7 @@ import {
   textOf,
   until,
   type Harness,
+  UNUSED_BRIDGE,
 } from "./support/harness.ts";
 
 // L1A.4: 시크릿을 쓰는 호출(secretEnv)의 `needs_approval`이 승인 요청으로 이어지고, 받은 증거가 호출에 실린다(TL-18, L1.tools.spec §4.12, U-19)
@@ -82,7 +83,13 @@ function pipelineFor(h: Harness): {
   };
   const registry = createRegistry();
   registry.add([entry]);
-  const pipeline = createPipeline(h.deps, registry, createCallTable(), h.runtime.approvals);
+  const pipeline = createPipeline(
+    h.deps,
+    registry,
+    createCallTable(),
+    h.runtime.approvals,
+    UNUSED_BRIDGE,
+  );
   return {
     probe,
     call: async (run, id, args) => {

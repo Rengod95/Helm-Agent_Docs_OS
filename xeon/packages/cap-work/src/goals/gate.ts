@@ -1,5 +1,11 @@
 import { assertNever, attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
-import { CapabilityError } from "@fresnel/contracts/capabilities";
+import {
+  CapabilityError,
+  goalGateDecision,
+  type AgentsJudge,
+  type CapabilityApi,
+  type GoalGateDecision,
+} from "@fresnel/contracts/capabilities";
 import type { IdFactory, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   AgentBeforeSettlePayload,
@@ -8,8 +14,7 @@ import type {
   HandlerContext,
 } from "@fresnel/contracts/extensions";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
-import type { AgentService, JudgeInput, JudgeOutcome } from "@fresnel/contracts/services";
-import { goalGateDecision, type GoalGateDecision } from "@fresnel/core-agents";
+import type { JudgeInput, JudgeOutcome } from "@fresnel/contracts/services";
 import { readTasks, type GoalRow } from "../projection/read.ts";
 import type { WorkReader } from "../ports/session.ts";
 import { criteriaOf, evidenceOf } from "./evidence.ts";
@@ -39,8 +44,11 @@ function progressNotice(n: number, max: number): string {
 export interface SettleGateDeps {
   readonly goals: GoalsRuntime;
   readonly reader: WorkReader;
-  /** 호출 때마다 얻는다. fresnel.agents가 아직 없으면 undefined이고 판정은 실패로 본다 */
-  readonly agents: () => Pick<AgentService, "judge"> | undefined;
+  /**
+   * 호출 때마다 얻는다. 공개 기능 `agents.judge`의 공급자가 없으면 undefined이고 판정은 실패로 본다.
+   * 호출은 `requestId`를 넘긴다(멱등 기능)
+   */
+  readonly judge: () => Pick<CapabilityApi<typeof AgentsJudge>, "judge"> | undefined;
   readonly ids: IdFactory;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -125,8 +133,8 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
     payload: AgentBeforeSettlePayload,
     signal: AbortSignal,
   ): Promise<JudgeOutcome> {
-    const agents = deps.agents();
-    if (agents === undefined) return { kind: "failed", message: "fresnel.agents is not available" };
+    const judge = deps.judge();
+    if (judge === undefined) return { kind: "failed", message: "fresnel.agents is not available" };
     const tasks = readTasks(deps.reader, threadId);
     const previous = deps.goals.judgments(threadId, row.goal.goalId);
     if (!tasks.ok || !previous.ok) {
@@ -145,7 +153,9 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
       }),
     };
     if (signal.aborted) return { kind: "failed", message: "the turn was aborted" };
-    const judged = await attemptAsync(() => agents.judge(input));
+    // 같은 단계의 재호출은 같은 requestId다. 공급자가 기록된 판정을 돌려준다(judge.ts의 재개 규칙과 같다)
+    const requestId = `judge:${String(payload.stepId ?? payload.turnId)}:${String(row.goal.goalId)}`;
+    const judged = await attemptAsync(() => judge.judge(input, { requestId }));
     if (judged.ok) return judged.value;
     const cause = judged.error.cause;
     return {

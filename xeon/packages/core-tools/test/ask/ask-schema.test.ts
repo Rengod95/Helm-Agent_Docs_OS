@@ -16,7 +16,7 @@ import {
   QuestionAnswerSchema,
 } from "@fresnel/contracts/records";
 import { Value } from "typebox/value";
-import { fromQuestionAnswer, toQuestionAnswer, toQuestionBody } from "../src/ask/mapping.ts";
+import { fromQuestionAnswer, toQuestionAnswer, toQuestionBody } from "../../src/ask/mapping.ts";
 
 const SCOPE: AskQuestion = {
   id: "scope",

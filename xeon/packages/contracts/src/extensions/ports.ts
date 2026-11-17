@@ -1,9 +1,16 @@
 import type { TSchema } from "typebox";
 import type {
   CallerInfo,
+  CapabilityId,
   FileChangeEntry,
+  PluginCallRequest,
+  PluginModelError,
+  PluginModelRequest,
+  PluginModelResult,
+  ToolError,
   ToolHints,
   ToolName,
+  ToolResultView,
   ToolRisk,
 } from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
@@ -334,13 +341,29 @@ export interface ToolReplaceClaim {
   readonly trust: "builtin" | "user" | "project" | "untrusted";
 }
 
-/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
+/**
+ * ToolService(fresnel.tools)가 포함하는 부분형. 등록은 이름이 겹치면 통째로 실패하고 표는 그대로다.
+ * `executeForPlugin`은 플러그인 기능 호출을 도구 실행 블록에 태운다(hooks-core-boundary §4.6). X(ext-host)가 `ToolsPortKey`로 받는다
+ */
 export interface ToolsPort {
   register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
+  executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
+  /**
+   * 기능 메서드에 도구 매핑(`ToolSpec.method`)이 있는가(hooks-core-boundary §5.3 U-1 (가)). 기능 래퍼가 파이프라인 경로를 고를 때 쓴다.
+   * 합성 `cap:` 항목은 매핑이 아니다
+   */
+  toolMappedFor(capability: CapabilityId, method: string): boolean;
 }
-/** ModelService(fresnel.models)가 포함하는 등록 부분형 */
+/**
+ * ModelService(fresnel.models)가 포함하는 부분형. `completeForPlugin`은 주도 단계의 `model` 명령이 쓴다(drive-isolation.md §1.2).
+ * 역할 `judge`로 해석하고 `guard.model.before`와 `request.provider.before`를 지난다. `request.context.before`와
+ * `request.system.before`는 지나지 않는다(턴 조립 전용). 같은 대화의 같은 (scopeId, requestId)는 프로세스 안에서 한 번만 호출한다
+ */
 export interface ModelsPort {
   registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
+  completeForPlugin(
+    request: PluginModelRequest,
+  ): Promise<Result<PluginModelResult, PluginModelError>>;
 }
 /** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort {

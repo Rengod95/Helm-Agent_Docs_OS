@@ -48,7 +48,7 @@ xeon/packages/cap-dialog/
       files.ts                                    # 첨부·명령 파일 읽기 ← fresnel.exec(FileSystem)
       images.ts                                   # workspace.images
       session.ts                                  # 피드 구독, 이벤트 읽기 ← fresnel.session
-    ask/
+    ask/                                          # 층 D1에서 core-tools/src/ask/로 옮겼다(아래는 옮기기 전 목록)
       validate.ts                                 # 정의 쪽 순수 함수의 cap 쪽 사용(검사 호출, 오류 변환)
       service.ts                                  # ask, wait 처리, 출력 대응표
     commands/
@@ -193,7 +193,7 @@ M3:
 
 | 위험 | 대응 |
 |---|---|
-| 승인 프로토콜 인터페이스가 L1.tools 작성 중이라 바뀜 | `src/ports/approvals.ts` 한 곳에 격리한다. 테스트는 가짜 서비스로만 돌린다. 요청 멱등과 재시도 규칙은 D2 시작 전에 L1.tools 작성자와 합의한다(`L2.work.plan` §7과 같은 합의) |
+| 승인 프로토콜 인터페이스가 L1.tools 작성 중이라 바뀜 | `src/ports/approvals.ts`(층 D1에서 `core-tools/src/ask/approvals.ts`로 옮김) 한 곳에 격리한다. 테스트는 가짜 서비스로만 돌린다. 요청 멱등과 재시도 규칙은 D2 시작 전에 L1.tools 작성자와 합의한다(`L2.work.plan` §7과 같은 합의) |
 | 클라이언트 명령 선언 형식이 F.wire-settings와 어긋남 | 닫음(m2c G1-01). `CommandInfoSchema`가 wire 메서드 `command.list`의 결과 원소로 그대로 쓰인다(D-2). 첨부·상태줄·알림의 wire 메서드는 아직 없다 |
 | 알림 소유 경계 미결(`L2.readme` §10 미결 15, 제안은 `dialog.notify`가 OS 알림과 푸시를 모두 소유) | M2에는 알림을 넣지 않는다. D11은 `classifyNotice`와 당겨 읽기만 먼저 만들고, 전달 경로는 D-6 결정 뒤 붙인다 |
 | 셸 주입이 사용자 모르게 실행됨 | `run`의 확인 게이트를 기본으로 두고 `input.user.before` 훅 경로는 셸 템플릿을 치환하지 않는다. 실행은 L1.tools의 일반 권한·샌드박스를 거친다 |
@@ -221,7 +221,7 @@ M3:
 - 테스트 대역은 `src/testing/` 대신 `test/support/`에 둔다(`real-approvals.ts`, `user-bash.ts`, `memory-command-files.ts`, `harness.ts`, `images.ts`, `timers.ts`). 승인은 대역이 없다: `real-approvals.ts`가 core-tools `testing`의 `realTools`로 실제 `ApprovalService`를 세우고 관찰 창과 장애 주입만 더한다. 다른 패키지가 쓰는 대역은 core-tools가 `testing` 서브패스로 내보낸다.
 - `ports/`는 `approvals.ts`(`ApprovalsPortFactory`), `shell.ts`, `files.ts`(첨부 원천), `command-files.ts`(명령 파일과 `CommandRoots`), `images.ts`, `blobs.ts`, `session.ts`(피드 구독과 상태 발행), `timers.ts`로 나눈다. M3 알림은 `os.ts`를 두지 않는다. OS 전달(`notify/os-delivery.ts`)은 `Pick<OsService, "notify">`와 `Redactor`를 직접 받고, 플러그인이 `fresnel.os`와 `fresnel.secrets`를 포트로 받는다.
 - `session-adapter.ts`가 `fresnel.session`을 `session.ts`의 두 포트로 감싼다. `plugin.ts`가 포트를 모아 `DialogDeps`를 만든다.
-- `ask/`에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
+- `ask/`(층 D1에서 `core-tools/src/ask/`로 옮김)에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
 - 훅 핸들러는 `input.user.before`, `tool.execution.before`, `tool.execution.after`, `input.agent.before`이다. 알림용 훅은 없다.
 - M3 `notify/`는 `classify.ts`, `service.ts`, `os-delivery.ts`를 둔다. 길이 자르기 `clip`은 `util.ts`에 두고 분류와 OS 전달이 같이 쓴다. 구독 묶음과 `NoticeFeed`는 `service.ts`에 있고 `feed.ts`는 만들지 않았다. 알림 포트는 `ports/notices.ts`다(`session.ts`는 바꾸지 않았다). `sessionNoticePort`가 `session-adapter.ts`에서 `fresnel.session`의 `commit`과 `feed`를 감싼다. `read`는 `{events, scannedTo}`를 돌려준다. 훑은 마지막 seq가 `nextSeq`의 근거라서 §3과 다르다.
 
@@ -236,5 +236,5 @@ M3:
 | `interactive(context)` | 옵션. 기본은 항상 대화형 | `CallContext.interactive`(F.8에서 들어왔다)를 읽는 판정 함수. 조립이 넘긴다 |
 | `DialogFeed`·`StatusPublisher` | `fresnel.session`이 있으면 `session-adapter.ts`가 만든다 | 그대로. 구독 따라잡기 정책만 정한다 |
 | `ImagesPort` | `g.capability(WorkspaceImagesKey)`, 없으면 원본 직접 등록 | 그대로 |
-| 시간 제한 | `ask/expiry.ts`의 프로세스 안 타이머 | F의 만료 필드와 L1.tools의 내구 만료. 오르면 `expiry.ts`를 지운다 |
+| 시간 제한 | `core-tools/src/ask/expiry.ts`(옛 `ask/expiry.ts`)의 프로세스 안 타이머 | F의 만료 필드와 L1.tools의 내구 만료. 오르면 `expiry.ts`를 지운다 |
 

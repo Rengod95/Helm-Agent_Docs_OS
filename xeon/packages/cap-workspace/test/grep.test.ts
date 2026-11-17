@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
 import type { ProtectedPathEntry } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import type { ThreadWorkspaces } from "../src/ports/threads.ts";
+import type { ThreadWorkspaces } from "@fresnel/core-workspace";
 import { createFilesApi } from "../src/service.ts";
 import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
 import { rejection } from "./support/assertions.ts";

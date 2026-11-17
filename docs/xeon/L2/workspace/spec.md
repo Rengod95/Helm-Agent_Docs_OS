@@ -21,7 +21,7 @@ binds: [xeon/packages/cap-workspace/**]
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
 - 이미지와 첨부 처리: 이미지 읽기, 크기 맞춤, blob 등록, 모델에 참조로 전달.
 - 출력 절단: 한도, 이어 읽기 정보, 절단 코드의 위치.
-- 경로 해석과 탈출 검사, 실행 기반(`fresnel.exec`, `fresnel.sandbox`)과의 경계.
+- 경로 해석과 탈출 검사, 실행 기반(`fresnel.exec`, `fresnel.sandbox`)과의 경계. 이 가운데 서비스 본체(경로 검사, 쓰기 허용 승인, 셸 실행 본문, 원자 쓰기)는 L1 `@fresnel/core-workspace`로 옮겼다(`L1.workspace.spec`, `hooks-core-boundary` §6.1, D-27). 이 문서의 모델 도구 절은 그대로 이 패키지가 맡는다.
 - 설정 키 `l2.workspace.*`.
 
 ### 1.2 다루지 않는 것
@@ -553,7 +553,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 ### 4.3.1 작업 폴더 밖 쓰기는 막지 않고 묻는다 [결정: 2026-11-13 사용자]
 
-작업 폴더 밖 쓰기와 캐시 쓰기(`~/.npm`, `~/Library/Caches/<앱>`, `$TMPDIR` 등)는 무조건 막지 않고, 보호 경로가 아니면 사람에게 물은 뒤 허용한다. 승인을 올리는 곳은 `src/write-access.ts`의 `requestWriteAccess` 한 함수이고, 포트 `WriteAccessPort`(`src/ports/write-access.ts`)를 거친다. 조립 루트는 `fresnel.approvals`를 감싼 L2 승인 포트로 이 포트를 만든다(`write-access-adapter.ts`). 요청은 기존 도구 승인(kind `tool`)이고 새 화면 부품이 없다. `toolName`은 `bash`, `write`, `edit`이고 `args`는 `{ writePaths, allowRoots }`다. 명령 원문은 싣지 않는다.
+작업 폴더 밖 쓰기와 캐시 쓰기(`~/.npm`, `~/Library/Caches/<앱>`, `$TMPDIR` 등)는 무조건 막지 않고, 보호 경로가 아니면 사람에게 물은 뒤 허용한다. 승인을 올리는 곳은 `@fresnel/core-workspace`의 `src/write-access.ts`에 있는 `requestWriteAccess` 한 함수이고, 포트 `WriteAccessPort`(같은 패키지 `src/ports/write-access.ts`)를 거친다. 조립 루트는 `fresnel.approvals`를 감싼 L2 승인 포트로 이 포트를 만든다(같은 패키지 `write-access-adapter.ts`). 요청은 기존 도구 승인(kind `tool`)이고 새 화면 부품은 두지 않는다. `toolName`은 `bash`, `write`, `edit`이고 `args`는 `{ writePaths, allowRoots }`다. 명령 원문은 싣지 않는다.
 
 - `bash`: 샌드박스 안에서 실행한 결과가 0이 아닌 종료 코드이고 `sandboxBlocks`에 `sandbox.write_blocked` 경로가 있으면, 그 경로를 쓰기 루트 후보로 바꿔 한 번 묻고(경로는 `grantRootFor`: `$TMPDIR` 꼴은 그 폴더, `Library/Caches/<앱>`·`.cache/<앱>`은 앱 폴더, `~/.<이름>`은 그 폴더, 홈 바로 아래 파일은 이미 있으면 그 파일 경로만, 아직 없으면 홈(없는 파일 하나만 허용하는 루트는 Seatbelt에서 쓰기를 열지 못한다, 실측. 이때 요청의 `homeWide`가 참이라 카드가 "홈 폴더 전체"임을 드러낸다), 그 밖은 부모 폴더, 부모가 `/etc`·`/usr` 같은 최상위 시스템 폴더면 묻지 않고 막는다) 허용이면 후보를 이 호출의 쓰기 루트에 더해 **같은 명령을 다시 실행한다**. 한 호출에서 최대 3번 묻는다. 거부이면 첫 결과를 그대로 돌려준다. 종료 코드가 0이면 다시 실행하지 않는다. 막힌 경로는 L0.sandbox의 위반 보고(`SandboxBlock`, L0.sandbox.spec §4.2 11번)에서 읽는다. 한계: macOS는 위반을 로그 스트림으로 받아 일부 거부가 보고되지 않는다(실측: 쓰기 거부 20번 중 4~6번만 보고). 그래서 보고가 비면 마지막 수단으로 출력에서 `Operation not permitted`(EPERM)·`Read-only file system`이 든 줄의 절대 경로를 후보로 쓴다(`pathsFromDenialOutput`). 일반 권한 오류(`Permission denied`)는 샌드박스 때문이 아니므로 쓰지 않는다. 후보는 같은 보호 경로 검사를 거치고 사람이 보고 정하므로 잘못 뽑아도 묻는 경로가 틀릴 뿐이다. 출력에도 거부 문구가 없으면 묻지 않고 실패로 끝난다. Linux 위반 보고(seccomp 관찰자)는 쓰기 의도 syscall만 알린다. 다시 실행하는 명령은 앞선 시도의 부작용을 되돌리지 않는다.
 - `write`, `edit`: 쓰기 root 밖이고 보호 경로가 아닌 경로(§4.3 5번 위반)는 묻고, 허용이면 **이 호출의 그 경로만** 쓴다. 거부이거나 물을 수 없으면 지금처럼 `denied`/`outside_root`다.
@@ -590,9 +590,9 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
-- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.fresnel-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
+- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `@fresnel/core-workspace`의 `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.fresnel-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
 - 동시 변경 감지: `edit`는 읽은 내용을 보관하고, 이름을 바꾸기 직전에 대상을 다시 읽어 같은지 비교한다. 다르거나 파일이 없어졌으면 `edit_conflict`(`detail.reason: "changed" | "removed"`)로 거부하고 아무것도 쓰지 않는다. 다른 프로세스나 `bash`의 쓰기가 대상이다. 확인과 이름 바꾸기 사이의 짧은 틈은 남으므로 이 검사는 잠금이 아니라 감지다. `write`는 파일 전체를 바꾸는 도구라 감지하지 않는다 [결정: 오케스트레이터 기본값].
-- 같은 프로세스 안의 같은 경로 변경은 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로). 경로 해석이 비동기라 해석을 마친 순서로 줄에 서면 호출 순서가 바뀔 수 있으므로, 같은 파일 시스템의 `write`·`edit`은 해석을 호출 순서로 한 번에 하나씩 하고 줄에 자리를 잡은 뒤에 다음 호출의 해석을 시작한다(`queueInCallOrder`).
+- 같은 프로세스 안의 같은 경로 변경은 `@fresnel/core-workspace`의 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로). 경로 해석이 비동기라 해석을 마친 순서로 줄에 서면 호출 순서가 바뀔 수 있으므로, 같은 파일 시스템의 `write`·`edit`은 해석을 호출 순서로 한 번에 하나씩 하고 줄에 자리를 잡은 뒤에 다음 호출의 해석을 시작한다(`queueInCallOrder`).
 - 알려진 제약: 이름 바꾸기로 파일을 바꾸므로 기존 파일의 실행 권한 등 모드 비트와 하드 링크는 유지되지 않는다. `ExecutionEnv`에 모드를 다루는 메서드가 없다 [미결 14].
 - `FileChange.diff`는 외부 라이브러리 없이 `files/diff.ts`가 만든다(통합 diff, 문맥 3줄); pi의 `diff` 패키지는 쓰지 않는다 [결정: 오케스트레이터 기본값].
 

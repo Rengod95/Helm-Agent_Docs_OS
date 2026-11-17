@@ -64,6 +64,22 @@
     "approvedBy": "L3.authoring.spec"
   },
   {
+    "id": "DR-15/cap-dialog-core-tools",
+    "rule": "DR-15",
+    "from": "packages/cap-dialog",
+    "to": "@fresnel/core-tools",
+    "reason": "L1 분할(D-27, D-28)이 서비스를 코어로 옮겼고 플러그인이 그 서비스를 주입받는 구조는 후속이다",
+    "approvedBy": "pending-user-approval"
+  },
+  {
+    "id": "DR-15/cap-workspace-core-workspace",
+    "rule": "DR-15",
+    "from": "packages/cap-workspace",
+    "to": "@fresnel/core-workspace",
+    "reason": "L1 분할(D-27, D-28)이 서비스를 코어로 옮겼고 플러그인이 그 서비스를 주입받는 구조는 후속이다",
+    "approvedBy": "pending-user-approval"
+  },
+  {
     "id": "DR-07/group-sdk-test-spawn",
     "rule": "DR-07",
     "from": "packages/group-sdk",
@@ -96,6 +112,15 @@
     "from": "packages/cap-workspace",
     "to": "Bun.spawn",
     "reason": "Fork record checks read the fork sources for process use patterns in test/fork-records.test.ts (review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  },
+  {
+    "id": "DR-07/core-workspace-test-spawn",
+    "rule": "DR-07",
+    "from": "packages/core-workspace",
+    "to": "Bun.spawn",
+    "reason": "The fork record check of core-workspace (test/fork-records.test.ts, the same check as cap-workspace) reads its fork sources for process use patterns (review.decisions-2 B-06, L1.workspace.plan §2).",
     "approvedBy": "review.decisions-2",
     "scope": "test"
   },
