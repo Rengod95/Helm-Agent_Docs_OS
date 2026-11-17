@@ -74,7 +74,7 @@ async function snapshotAfterDrive(records: MemoryRecordStore): Promise<unknown> 
     transitions: snapshot.scopeTransitions,
     states: snapshot.states.map((state) => [state.scopeId, state.rev, state.doc]),
     epochs: snapshot.leaseEpochs,
-    open: snapshot.openLease?.scopeId ?? null,
+    open: snapshot.openLeases.map((lease) => lease.scopeId),
   };
 }
 
@@ -113,7 +113,7 @@ describe("M-01 group drive on the real session store", () => {
     // 재시작: 활성 가지의 상태와 켜짐을 되살려 같은 임대를 새로 받지 않는다
     const snapshot = expectOk(await h.service.ext.loadThread(thread));
     expect(snapshot.states[0]).toMatchObject({ scopeId: "smoke-group", rev: 1 });
-    expect(snapshot.openLease).toBeNull();
+    expect(snapshot.openLeases).toEqual([]);
     expectProjectionsRebuildable(h.store.db);
   });
 

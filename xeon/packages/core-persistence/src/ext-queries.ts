@@ -142,7 +142,23 @@ function usedSince(
   return ok({ turns, spawns, tokens });
 }
 
-/** `ext.loadThread`: 활성 가지 위 scope.changed, lease.*, 상태 이벤트로 계산한 스냅샷 */
+/** 열린 임대 하나를 읽는 중의 모양. `used`는 목록을 다 읽은 뒤 `usedSince`로 채운다 */
+interface LeaseDraft {
+  readonly leaseId: string;
+  readonly lineageId: string;
+  readonly scopeId: string;
+  readonly leaseEpoch: number;
+  readonly limits: OpenLease["limits"];
+  readonly parent: string | null;
+  readonly depth: number;
+  readonly contentHash: string | null;
+  readonly acquiredSeq: number;
+}
+
+/**
+ * `ext.loadThread`: 활성 가지 위 scope.changed, lease.*, 상태 이벤트로 계산한 스냅샷.
+ * 열린 임대는 목록이다(오래된 것부터, 맨 위 프레임이 마지막). 스택 위 프레임의 사용량을 아래에 더하는 일은 엔진이 한다
+ */
 export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSnapshot, RowFault> {
   const scopeEvents = kindIn(["scope.changed", "lease.acquired", "lease.released"]);
   const events = branchEvents(tx, threadId, {
@@ -157,15 +173,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   const enabledAtSeq = new Map<string, number>();
   const leaseEpochs = new Map<string, number>();
   const states = new Map<string, StoredScopeState>();
-  let waitingLineage: ExtThreadSnapshot["waitingLineage"] = null;
-  let open: {
-    readonly leaseId: string;
-    readonly lineageId: string;
-    readonly scopeId: string;
-    readonly leaseEpoch: number;
-    readonly limits: OpenLease["limits"];
-    readonly acquiredSeq: number;
-  } | null = null;
+  const open: LeaseDraft[] = [];
 
   for (const event of events.value) {
     if (event.kind === "scope.changed") {
@@ -185,11 +193,11 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     } else if (event.kind === "lease.acquired") {
       const payload = parse(LeaseAcquiredPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope lease.acquired payload"));
-      const { scopeId, leaseId, lineageId, limits } = payload.value;
-      waitingLineage = null;
+      const { scopeId, leaseId, lineageId, limits, parent, depth, contentHash } = payload.value;
       const epoch = (leaseEpochs.get(scopeId) ?? 0) + 1;
       leaseEpochs.set(scopeId, epoch);
-      open = {
+      // 옛 기록(선택 필드 없음)은 코어 위 첫 프레임(depth 0), 맡긴 프레임이 아님(parent null), 출처 없음(contentHash null)으로 읽는다
+      open.push({
         leaseId,
         lineageId,
         scopeId,
@@ -199,16 +207,17 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
           ...(limits.maxSpawns === undefined ? {} : { maxSpawns: limits.maxSpawns }),
           ...(limits.maxTokens === undefined ? {} : { maxTokens: limits.maxTokens }),
         },
+        parent: parent ?? null,
+        depth: depth ?? 0,
+        contentHash: contentHash ?? null,
         acquiredSeq: event.seq,
-      };
+      });
     } else if (event.kind === "lease.released") {
       const payload = parse(LeaseReleasedPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope lease.released payload"));
-      waitingLineage =
-        open?.leaseId === payload.value.leaseId && payload.value.reason === "waiting"
-          ? { scopeId: open.scopeId, lineageId: open.lineageId }
-          : null;
-      if (open?.leaseId === payload.value.leaseId) open = null;
+      // 맨 위가 아니어도 같은 leaseId의 임대만 뺀다(leaseId는 부여마다 새로 나온다). 사유 waiting도 그냥 반납이다
+      const index = open.findIndex((lease) => lease.leaseId === payload.value.leaseId);
+      if (index !== -1) open.splice(index, 1);
     } else {
       const state = storedStateOf(event);
       if (!state.ok) return state;
@@ -216,18 +225,21 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     }
   }
 
-  let openLease: OpenLease | null = null;
-  if (open !== null) {
-    const used = usedSince(tx, threadId, open);
+  const openLeases: OpenLease[] = [];
+  for (const lease of open) {
+    const used = usedSince(tx, threadId, lease);
     if (!used.ok) return used;
-    openLease = {
-      leaseId: open.leaseId,
-      lineageId: open.lineageId,
-      scopeId: open.scopeId,
-      leaseEpoch: open.leaseEpoch,
-      limits: open.limits,
+    openLeases.push({
+      leaseId: lease.leaseId,
+      lineageId: lease.lineageId,
+      scopeId: lease.scopeId,
+      leaseEpoch: lease.leaseEpoch,
+      limits: lease.limits,
       used: used.value,
-    };
+      parent: lease.parent,
+      depth: lease.depth,
+      contentHash: lease.contentHash,
+    });
   }
   return ok({
     enabled: [...enabled],
@@ -235,8 +247,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     scopeTransitions: Object.fromEntries(transitions),
     enabledAtSeq: Object.fromEntries(enabledAtSeq),
     states: [...states.values()],
-    openLease,
-    waitingLineage,
+    openLeases,
     leaseEpochs: Object.fromEntries(leaseEpochs),
   });
 }
