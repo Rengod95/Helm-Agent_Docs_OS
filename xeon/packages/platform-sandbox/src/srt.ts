@@ -6,7 +6,7 @@ import {
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { attempt } from "@fresnel/contracts";
 import { createLogMonitorGuard } from "./log-monitor.ts";
 
@@ -115,7 +115,9 @@ async function probeNestedUsernsWith(
 
 /** srt 패키지의 `vendor/seccomp` 폴더(srt가 apply-seccomp를 찾는 자리, 구조별 하위 폴더를 모두 품는다). 없으면 빈 목록 */
 function seccompHelperDirs(): readonly string[] {
-  const entry = attempt(() => fileURLToPath(import.meta.resolve("@anthropic-ai/sandbox-runtime")));
+  const entry = attempt(() =>
+    createRequire(import.meta.url).resolve("@anthropic-ai/sandbox-runtime"),
+  );
   if (!entry.ok) return [];
   // 진입 파일은 `<패키지>/dist/index.js`다
   const dir = join(dirname(dirname(entry.value)), "vendor", "seccomp");
