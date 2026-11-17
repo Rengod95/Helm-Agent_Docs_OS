@@ -50,6 +50,7 @@ export const NO_LICENSE_FILE: ReadonlySet<string> = new Set([
   "data-uri-to-buffer",
   "lazy-val",
   "proxy-agent-negotiate",
+  "react-remove-scroll-bar",
   "standardwebhooks",
   "tr46",
   "undici-types",
@@ -205,6 +206,8 @@ export function collectNotices(
     readonly choice?: Readonly<Record<string, string>>;
     /** Packages that are listed but whose dependencies are not walked (their dependencies are build-time only and do not ship). */
     readonly leaves?: readonly string[];
+    /** False lists only the entries themselves and walks no dependencies (the entries are the exact set that ships, e.g. from a bundler's module list). */
+    readonly walk?: boolean;
   } = {},
 ): Result<NoticeItem[], string[]> {
   const choice = options.choice ?? LICENSE_CHOICE;
@@ -264,7 +267,7 @@ export function collectNotices(
             : [],
       });
     }
-    if (leaves.has(pkg.value.name)) return;
+    if (options.walk === false || leaves.has(pkg.value.name)) return;
     for (const [names, isOptional] of [
       [pkg.value.dependencies, false],
       [pkg.value.optionalDependencies, true],
