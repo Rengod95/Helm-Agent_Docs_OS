@@ -14,7 +14,11 @@ import {
   type PluginHostError,
   type RegistrationApi,
 } from "@fresnel/contracts/extensions";
-import { createEngineCallRouter, parseEngineCallParams } from "../../src/isolation/engine-calls.ts";
+import {
+  createEngineCallRouter,
+  parseEngineCallParams,
+  type OpenWaits,
+} from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
@@ -41,7 +45,7 @@ const ECHO_ERROR: CapabilityErrorData = {
  * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다.
  * `withEcho`이면 `demo.echo` 공급자를 올리고 등록이 그 기능을 요구한다. 공급자가 던질 값은 `echo.thrown`이다
  */
-async function rig(replayId: number | null = null, withEcho = false) {
+async function rig(replayId: number | null = null, withEcho = false, waits?: OpenWaits) {
   // 공급자의 메서드 정의(멱등 `echo`)가 있어야 가드가 재실행 문맥에서도 기능 호출을 통과시킨다
   const t = await createTestHost(withEcho ? { capabilityDefs: echoDefs } : {});
   const thread = t.newThread();
@@ -87,6 +91,7 @@ async function rig(replayId: number | null = null, withEcho = false) {
   const router = createEngineCallRouter({
     gOf: (registration) => (registration === REGISTRATION ? slot.g : undefined),
     replayOf: (requestId) => requestId !== null && requestId === replayId,
+    ...(waits === undefined ? {} : { waitsOf: () => waits }),
   });
   let seq = 0;
   /** `work`를 디스패치 안에서 한 번 실행하고 그 값을 돌려준다. 스레드와 등록의 ambient 문맥이 있는 자리다 */
@@ -450,6 +455,27 @@ test("awaitUser without a request context answers null and changes nothing", asy
   expect(await call(callOf("awaitUser", { phase: "begin" }))).toEqual({ ok: true, value: null });
   expect(await call(callOf("awaitUser", { phase: "end" }))).toEqual({ ok: true, value: null });
   expect(await stateNow()).toEqual({ count: 0 });
+});
+
+test("awaitUser pauses the request's deadline clock from begin to end, as many times as it began", async () => {
+  const log: string[] = [];
+  const waits: OpenWaits = {
+    count: 0,
+    clock: {
+      pause: () => log.push("pause"),
+      resume: () => log.push("resume"),
+    },
+  };
+  const { call } = await rig(null, false, waits);
+  await call(callOf("awaitUser", { phase: "begin" }));
+  await call(callOf("awaitUser", { phase: "begin" }));
+  expect(waits.count).toBe(2);
+  await call(callOf("awaitUser", { phase: "end" }));
+  await call(callOf("awaitUser", { phase: "end" }));
+  // 끝 신호가 더 와도 풀 것이 없다
+  await call(callOf("awaitUser", { phase: "end" }));
+  expect(waits.count).toBe(0);
+  expect(log).toEqual(["pause", "pause", "resume", "resume"]);
 });
 
 /** 드라이브가 있는 등록 `drv-q`와 라우터 하나. `inDispatch`는 디스패치 안에서(thread 문맥이 있는) 라우터를 부르고, 밖에서는 `router`를 직접 부른다 */

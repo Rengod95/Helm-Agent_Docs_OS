@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { CommandResourceDef } from "../../src/primitives/resources.ts";
-import { createIsolatedEntry } from "../../src/index.ts";
+import { createIsolatedEntry, type PluginHostSupervisor } from "../../src/index.ts";
 import {
   DEFAULT_DISPATCH_POLICY,
   type DispatchPolicy,
@@ -39,8 +39,14 @@ const WAIT_MANIFEST = {
   entry: "./await-user-plugin.ts",
 };
 
-function isolatedEntry(manifest: typeof STATE_MANIFEST, port: FakeProcessPort, clock: ManualClock) {
+function isolatedEntry(
+  manifest: typeof STATE_MANIFEST,
+  port: FakeProcessPort,
+  clock: ManualClock,
+  onSupervisor?: (supervisor: PluginHostSupervisor) => void,
+) {
   return createIsolatedEntry({
+    ...(onSupervisor === undefined ? {} : { onSupervisor }),
     manifest,
     root: FIXTURE_ROOT,
     versionId: `${manifest.name}-1`,
@@ -75,10 +81,11 @@ async function installIsolated(
   manifest: typeof STATE_MANIFEST,
   port: FakeProcessPort,
   clock: ManualClock,
+  onSupervisor?: (supervisor: PluginHostSupervisor) => void,
 ): Promise<void> {
   const outcome = await t.host.install({
     manifest,
-    entry: isolatedEntry(manifest, port, clock),
+    entry: isolatedEntry(manifest, port, clock, onSupervisor),
     loadIndex: 0,
     builtin: false,
     trust: "user",
@@ -162,6 +169,54 @@ test("a stored version 1 document is migrated by the isolated child and committe
   expect(snapshot.states).toMatchObject([
     { version: 2, rev: 2, doc: { count: 4, label: "from 1" } },
   ]);
+});
+
+test("the state.migrate request carries a time limit equal to the init time limit", async () => {
+  const first = await createTestHost();
+  const thread = first.newThread();
+  await first.host.openThread(thread);
+  await first.host.install(
+    makeUnit(
+      {
+        name: "sv",
+        hooks: ["boundary.settle.after"],
+        def: { state: { schema: V1, initial: { n: 0 }, version: 1 } },
+      },
+      (g) => {
+        g.on("boundary.settle.after", async () => {
+          await g.commit({ n: 4 });
+        });
+      },
+    ),
+  );
+  await first.host.dispatch(
+    "boundary.settle.after",
+    { turnId: first.ids.next("trn"), aborted: false },
+    { threadId: thread, dispatchKey: "seed" },
+  );
+
+  const second = await createTestHost({
+    shared: { records: first.records, loop: first.loop, queue: first.queue },
+  });
+  const limits = new Map<string, number | undefined>();
+  await installIsolated(
+    second,
+    STATE_MANIFEST,
+    createFakeProcessPort(),
+    createManualClock(),
+    (supervisor) => {
+      const call = supervisor.call.bind(supervisor);
+      supervisor.call = (method, params, options) => {
+        limits.set(method, options?.deadlineMs);
+        return call(method, params, options);
+      };
+    },
+  );
+  await second.host.openThread(thread);
+  await second.settled();
+
+  // 초기화 한도(`initTimeoutMs: 1000`)와 같은 값이다
+  expect(limits.get("state.migrate")).toBe(1000);
 });
 
 test("updateState twice at once applies both changes in order and the state is their sum", async () => {

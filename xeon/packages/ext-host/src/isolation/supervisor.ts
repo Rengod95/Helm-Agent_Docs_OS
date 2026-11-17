@@ -111,6 +111,17 @@ export interface PluginCallOptions {
    * 대리 등록이 호출 때의 디스패치 문맥을 그 호출에 잇는 데 쓴다(isolation/proxy-entry.ts)
    */
   readonly onRequestId?: (id: number) => void;
+  /**
+   * 시간 한도(`deadlineMs`)가 있는 호출의 시계를 넘겨 준다(쓰기 직전, 동기). 시계를 멈추는 동안은 한도에서 빠진다:
+   * 사람을 기다리는 시간(`awaitUser`)으로 플러그인이 죽지 않게 한다. 멈춤은 겹칠 수 있고 마지막 풂에서 이어 간다
+   */
+  readonly onDeadlineClock?: (clock: DeadlineClock) => void;
+}
+
+/** 시간 한도의 시계. `pause`한 만큼 `resume`하면 남은 시간으로 이어 간다 */
+export interface DeadlineClock {
+  pause(): void;
+  resume(): void;
 }
 
 /** 재시작 한도를 넘었을 때 한 번 알린다. 앱은 이 알림으로 플러그인을 끌지 묻는다 */
@@ -223,7 +234,11 @@ const DeclSchema = Type.Object({
     }),
   ]),
   hooks: Type.Array(
-    Type.Object({ point: Type.String(), handlerIndex: Type.Integer({ minimum: 0 }) }),
+    Type.Object({
+      point: Type.String(),
+      handlerIndex: Type.Integer({ minimum: 0 }),
+      coalesce: Type.Boolean(),
+    }),
   ),
   tools: Type.Array(Type.Object({ name: Type.String(), def: JsonValueSchema })),
   commands: Type.Array(
@@ -571,11 +586,32 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       }
       const deadlineMs = options?.deadlineMs;
       if (deadlineMs !== undefined) {
-        cleanups.push(
-          deps.setTimer(deadlineMs, () => {
+        let remaining = deadlineMs;
+        let startedAt = deps.now();
+        let paused = 0;
+        let cancel: (() => void) | undefined;
+        const arm = (): void => {
+          startedAt = deps.now();
+          cancel = deps.setTimer(remaining, () => {
             timeoutKill(proc, id, "the call passed its deadline");
-          }),
-        );
+          });
+        };
+        arm();
+        cleanups.push(() => cancel?.());
+        options?.onDeadlineClock?.({
+          pause: () => {
+            paused += 1;
+            if (paused !== 1 || cancel === undefined) return;
+            cancel();
+            cancel = undefined;
+            remaining = Math.max(0, remaining - (deps.now() - startedAt));
+          },
+          resume: () => {
+            if (paused === 0) return;
+            paused -= 1;
+            if (paused === 0 && !settled) arm();
+          },
+        });
       }
     });
   }

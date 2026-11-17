@@ -1,11 +1,16 @@
 // 격리 알림의 흐름 제어 시험(isolation/notify-gate.ts). 엔진은 확인(`event.done`)이 오기 전에 보낸 알림을 키마다 상한까지만
-// 보내고, 나머지는 대기 칸 하나에 덮어쓰며 덮인 수를 `dropped`로 싣는다. 보내기는 기다리지 않는다.
+// 보내고, 원시 `g.on`(모두 전달)의 나머지는 대기열에 순서대로 쌓는다. 대기열이 넘치면 그 핸들러의 구독을 오류로 끊는다.
+// 합치기(`coalesce` 구독의 대기 칸과 `dropped`)는 notify-gate.test.ts가 값으로 본다. 보내기는 기다리지 않는다.
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { createIsolatedEntry } from "../../src/index.ts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createTestHost, type TestHost } from "../../src/testing/index.ts";
-import { NOTIFY_INFLIGHT_MAX, NOTIFY_STALL_MS } from "../../src/isolation/notify-gate.ts";
+import {
+  NOTIFY_INFLIGHT_MAX,
+  NOTIFY_QUEUE_MAX,
+  NOTIFY_STALL_MS,
+} from "../../src/isolation/notify-gate.ts";
 import { makeManifest } from "../primitives/fixtures/support.ts";
 import { extension, releaseOne, startFlowCase } from "./fixtures/notify-flow-plugin.ts";
 import {
@@ -106,7 +111,7 @@ test("below the inflight limit every notification is sent in order with no dropp
   expect(sent).not.toContain('"dropped"');
 });
 
-test("a slow child gets at most the inflight limit, the rest coalesce into one slot, and the dispatch never waits", async () => {
+test("a slow child gets at most the inflight limit, the rest wait in the queue, and the dispatch never waits", async () => {
   const h = await harness();
   // 엔진이 보내는 동안 디스패치가 돌아와야 한다. 자식은 처리를 끝내지 않으므로 확인이 오지 않는다
   await streamRange(h, 1, INFLIGHT);
@@ -116,22 +121,36 @@ test("a slow child gets at most the inflight limit, the rest coalesce into one s
   expect(notifyCount(h.port.children[0])).toBe(INFLIGHT);
 });
 
-test("one event.done sends the latest coalesced notification once, with dropped set to the number it covers", async () => {
+test("one event.done sends the next queued notification, in firing order and with no dropped count", async () => {
   const h = await harness();
-  const LAST = INFLIGHT + 100;
-  await streamRange(h, 1, LAST);
+  await streamRange(h, 1, INFLIGHT + 100);
   await settleWrites();
   const child = h.port.children[0];
   expect(notifyCount(child)).toBe(INFLIGHT);
-  // 자식이 첫 알림의 처리를 끝내 확인을 보낸다
+  // 자식이 첫 알림의 처리를 끝내 확인을 보낸다. 대기열의 맨 앞(9번)이 나가고 덮이는 알림은 없다
   expect(releaseOne()).toBe(true);
-  await until(() => notifyCount(child) === INFLIGHT + 1, "the coalesced notification");
+  await until(() => notifyCount(child) === INFLIGHT + 1, "the queued notification");
   const sent = child?.received() ?? "";
-  // 9번부터 108번까지 100개 가운데 108번만 나가고, 앞의 99개가 덮였다. 본문은 가장 최신 것이다
-  expect(sent).toContain(`"eventKey":"ng:request.stream:0#${LAST}"`);
-  expect(sent).toContain(`"delta":"n${LAST}"`);
-  expect(sent).toContain(`"dropped":${LAST - INFLIGHT - 1}`);
-  expect(notifyCount(child)).toBe(INFLIGHT + 1);
+  expect(sent).toContain(`"eventKey":"ng:request.stream:0#${INFLIGHT + 1}"`);
+  expect(sent).toContain(`"delta":"n${INFLIGHT + 1}"`);
+  expect(sent).not.toContain('"dropped"');
+});
+
+test("a queue past its limit cuts the handler's subscription with an error record, and later notifications are not sent", async () => {
+  const h = await harness();
+  await streamRange(h, 1, INFLIGHT + NOTIFY_QUEUE_MAX);
+  await settleWrites();
+  expect(h.events).not.toContain("plugin_host.notify_overflow");
+  // 대기열 상한을 하나 넘는다
+  await stream(h, INFLIGHT + NOTIFY_QUEUE_MAX + 1);
+  await until(() => h.events.includes("plugin_host.notify_overflow"), "the overflow record");
+  const child = h.port.children[0];
+  expect(notifyCount(child)).toBe(INFLIGHT);
+  // 끊긴 구독은 확인이 와도 더 받지 않는다
+  expect(releaseOne()).toBe(true);
+  await stream(h, INFLIGHT + NOTIFY_QUEUE_MAX + 2);
+  await settleWrites();
+  expect(notifyCount(child)).toBe(INFLIGHT);
 });
 
 test("the limit is kept per route: another thread is sent at once while this one is full", async () => {
@@ -164,7 +183,7 @@ test("a child that never acknowledges is unstuck after the stall time, with a di
   const child = h.port.children[0];
   expect(notifyCount(child)).toBe(INFLIGHT);
   h.clock.advance(STALL);
-  await until(() => notifyCount(child) === INFLIGHT + 1, "the slot after the stall");
+  await until(() => notifyCount(child) === INFLIGHT + 1, "the queued notification after the stall");
   expect(h.events).toContain("plugin_host.notify_stalled");
   expect(child?.received()).toContain(`"eventKey":"ng:request.stream:0#${INFLIGHT + 1}"`);
 });
@@ -185,7 +204,8 @@ test("the child acknowledges a notification only after its handler has finished"
   );
 });
 
-test("the spec values are an inflight limit of 8 and a stall time of 30 seconds", () => {
+test("the spec values are an inflight limit of 8, a queue limit of 1024 and a stall time of 30 seconds", () => {
   expect(NOTIFY_INFLIGHT_MAX).toBe(INFLIGHT);
+  expect(NOTIFY_QUEUE_MAX).toBe(1024);
   expect(NOTIFY_STALL_MS).toBe(STALL);
 });

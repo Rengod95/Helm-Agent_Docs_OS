@@ -65,6 +65,7 @@ import { parseDriveStepReply } from "./params.ts";
 import {
   createPluginHostSupervisor,
   type CallError,
+  type DeadlineClock,
   type PluginHostSupervisor,
   type RestartLimitInfo,
   type SupervisorError,
@@ -210,7 +211,11 @@ interface PreparedDecl {
   readonly hasState: boolean;
   /** 상태의 초기 문서(JSON). 상태가 없으면 null */
   readonly initial: JsonValue;
-  readonly hooks: readonly { readonly point: HookName; readonly handlerIndex: number }[];
+  readonly hooks: readonly {
+    readonly point: HookName;
+    readonly handlerIndex: number;
+    readonly coalesce: boolean;
+  }[];
   readonly tools: readonly ToolDef[];
   readonly flags: readonly { readonly name: string; readonly def: FlagResourceDef }[];
   readonly renderers: readonly {
@@ -318,10 +323,10 @@ function prepareDecl(decl: PluginRegistrationDecl): Result<PreparedDecl, string>
   if (decl.hasMigration && decl.state === null) {
     return err(`migrateState of ${decl.id} needs a state declaration`);
   }
-  const hooks: { point: HookName; handlerIndex: number }[] = [];
+  const hooks: { point: HookName; handlerIndex: number; coalesce: boolean }[] = [];
   for (const hook of decl.hooks) {
     if (!isHookName(hook.point)) return err(`hook point ${hook.point} of ${decl.id} is unknown`);
-    hooks.push({ point: hook.point, handlerIndex: hook.handlerIndex });
+    hooks.push({ point: hook.point, handlerIndex: hook.handlerIndex, coalesce: hook.coalesce });
   }
   let stateDef: RegistrationDef<AnyState>["state"];
   if (decl.state !== null) {
@@ -427,6 +432,8 @@ function requireEntry(entry: string | undefined): string {
 export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   const logger = deps.logger ?? SILENT;
   const driveStepDeadlineMs = deps.driveStepDeadlineMs ?? DRIVE_STEP_DEADLINE_MS;
+  /** 초기화와 상태 이전의 시간 한도(ms). 같은 값이다 */
+  const initTimeoutMs = deps.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS;
   // 코드 없는 확장(`entry` 없음)은 로더가 엔진 안으로 정한다(`no_entry`). 여기에 오면 로더의 불변 조건 위반이다
   const entryPath = requireEntry(deps.manifest.entry);
   const settingKeys = Object.values(deps.manifest.userConfig ?? {}).map((entry) => entry.setting);
@@ -484,7 +491,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       now: deps.now,
       logger,
       initParams: initParamsOf,
-      initTimeoutMs: deps.initTimeoutMs ?? DEFAULT_INIT_TIMEOUT_MS,
+      initTimeoutMs,
       onEngineCall: router,
       onRestartLimit: (info) => {
         deps.onRestartLimit?.(info);
@@ -537,14 +544,21 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
   ): Promise<Result<JsonValue, CallError>> {
     const session = sessionNow();
     let requestId: number | undefined;
+    let deadlineClock: DeadlineClock | undefined;
     const call = session.supervisor.call(method, params, {
       ...(signal === undefined ? {} : { signal }),
       ...(deadlineMs === undefined ? {} : { deadlineMs }),
+      onDeadlineClock: (clock) => {
+        deadlineClock = clock;
+      },
       onRequestId: (id) => {
         requestId = id;
         if (amb !== undefined) {
           session.ambients.set(id, amb);
-          session.waits.set(id, { count: 0 });
+          session.waits.set(id, {
+            count: 0,
+            ...(deadlineClock === undefined ? {} : { clock: deadlineClock }),
+          });
         }
         if (changes !== undefined) session.changes.set(id, changes);
       },
@@ -580,6 +594,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     p: PreparedDecl,
     point: HookName,
     handlerIndex: number,
+    coalesce: boolean,
   ): (...args: readonly unknown[]) => unknown {
     const notify = PLUGIN_HOST_NOTIFY_HOOKS.some((name) => name === point);
     const chain = HOOKS[point].fold === "chain";
@@ -607,7 +622,12 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         const next = (eventCounters.get(eventBase) ?? 0) + 1;
         eventCounters.set(eventBase, next);
         sessionNow().gate.offer(
-          { key: notifyKeyOf(p.decl.id, point, handlerIndex, threadId), point },
+          {
+            key: notifyKeyOf(p.decl.id, point, handlerIndex, threadId),
+            handler: eventBase,
+            point,
+            coalesce,
+          },
           `${eventBase}#${next}`,
           jsonObjectOf(body, "the event"),
         );
@@ -776,6 +796,8 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
             { registration: p.decl.id, doc, fromVersion },
             undefined,
             undefined,
+            undefined,
+            initTimeoutMs,
           );
           if (!reply.ok) throw failureOf(reply.error);
           // 문서 `null`도 옮긴 결과일 수 있으므로 `settledOf`를 쓰지 않는다
@@ -795,7 +817,10 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       for (const hook of p.hooks) {
         g.on(
           hook.point,
-          handlerOfHook(hook.point, hookHandler(g, p, hook.point, hook.handlerIndex)),
+          handlerOfHook(
+            hook.point,
+            hookHandler(g, p, hook.point, hook.handlerIndex, hook.coalesce),
+          ),
         );
       }
       for (const tool of p.tools) host.registerTool(toolOf(g, p, tool));

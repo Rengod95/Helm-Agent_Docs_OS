@@ -125,6 +125,8 @@ export interface ChildEnv {
 export interface HandlerSlot {
   readonly point: HookName;
   readonly handlerIndex: number;
+  /** `sample: "coalesce"` 구독이 건 핸들러인가. 엔진이 이 핸들러의 알림에만 합치기를 건다 */
+  readonly coalesce: boolean;
   readonly fn: (...args: readonly unknown[]) => unknown;
   active: boolean;
   /** 알림을 같은 구독자에게 발화 순서대로 하나씩 전달하는 줄 */
@@ -397,23 +399,34 @@ function childDispatch(env: ChildEnv): DispatchContext {
   };
 }
 
+/** 핸들러 칸 하나를 등록한다. 해제하면 칸은 남고 비활성이 된다(`handlerIndex`가 바뀌지 않는다) */
+function addSlot<N extends HookName>(
+  state: RegState,
+  point: N,
+  handler: Handler<N, AnyState>,
+  coalesce: boolean,
+): Unsubscribe {
+  const list = slotsOf(state, point);
+  const slot: HandlerSlot = {
+    point,
+    handlerIndex: list.length,
+    coalesce,
+    fn: eraseHandler(handler),
+    active: true,
+    tail: Promise.resolve(),
+  };
+  list.push(slot);
+  return () => {
+    slot.active = false;
+  };
+}
+
 function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
   const api: RegistrationApi<AnyState> = {
     id: state.id,
     on<N extends HookName>(point: N, handler: Handler<N, AnyState>): Unsubscribe {
       requireSetup(state, "on");
-      const list = slotsOf(state, point);
-      const slot: HandlerSlot = {
-        point,
-        handlerIndex: list.length,
-        fn: eraseHandler(handler),
-        active: true,
-        tail: Promise.resolve(),
-      };
-      list.push(slot);
-      return () => {
-        slot.active = false;
-      };
+      return addSlot(state, point, handler, false);
     },
     subscribe(events, handler, options) {
       requireSetup(state, "subscribe");
@@ -428,7 +441,8 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
         names,
         handler,
         sampleOf: (name) => (sample === "coalesce" && isHighFrequency(name) ? "coalesce" : "every"),
-        register: (name, fn) => api.on(name, fn),
+        register: (name, fn) =>
+          addSlot(state, name, fn, sample === "coalesce" && isHighFrequency(name)),
         track: (task) =>
           detach(task, (cause) =>
             env.report(`subscribe task of ${state.id} failed: ${messageOf(cause)}`),
@@ -696,10 +710,11 @@ export function declOf(state: RegState): Result<PluginRegistrationDecl, PluginHo
     if (schema === undefined || initial === undefined) return err(notJson("state"));
     stateDecl = { schema, initial, version: state.stateDecl.version };
   }
-  const hooks: { point: string; handlerIndex: number }[] = [];
+  const hooks: { point: string; handlerIndex: number; coalesce: boolean }[] = [];
   for (const [point, list] of state.slots) {
     for (const slot of list) {
-      if (slot.active) hooks.push({ point, handlerIndex: slot.handlerIndex });
+      if (slot.active)
+        hooks.push({ point, handlerIndex: slot.handlerIndex, coalesce: slot.coalesce });
     }
   }
   const tools: PluginToolDecl[] = [];

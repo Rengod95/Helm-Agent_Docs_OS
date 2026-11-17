@@ -190,6 +190,8 @@ export interface EngineCallRouterDeps {
 /** 요청 하나의 열린 사용자 대기 수. 라우터가 셈하고 대리 등록이 읽는다 */
 export interface OpenWaits {
   count: number;
+  /** 요청의 시간 한도 시계(단계 함수 등). 있으면 사용자 대기 동안 멈춘다. 대리 등록이 요청을 보낼 때 채운다 */
+  clock?: { pause(): void; resume(): void };
 }
 
 /** 한 `engine.call`이 쓰는 호출 문맥. 요청에서 온 것이고 없으면 undefined다 */
@@ -440,14 +442,17 @@ async function route(
     case "awaitUser": {
       const parsed = parse(AwaitUserSchema, params);
       if (!parsed.ok) return invalidParams(parsed.error);
-      // 핸들러 밖이거나 시계가 없는 요청(도구, 명령, 대기 없는 문맥)에는 멈출 시계가 없다
+      // 핸들러의 예산 시계와 요청의 시간 한도 시계(단계 함수)를 멈춘다. 둘 다 없으면(도구, 명령) 멈출 시계가 없다
       const gate = ambient?.handler?.gate;
-      if (gate === undefined || waits === undefined) return ok(null);
+      const clock = waits?.clock;
+      if (waits === undefined || (gate === undefined && clock === undefined)) return ok(null);
       if (parsed.value.phase === "begin") {
-        gate.pause();
+        gate?.pause();
+        clock?.pause();
         waits.count += 1;
       } else if (waits.count > 0) {
-        gate.resume();
+        gate?.resume();
+        clock?.resume();
         waits.count -= 1;
       }
       return ok(null);

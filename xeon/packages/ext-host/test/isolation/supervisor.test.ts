@@ -11,6 +11,7 @@ import {
   type PluginHostSupervisor,
   type RestartLimitInfo,
 } from "../../src/index.ts";
+import type { DeadlineClock } from "../../src/isolation/supervisor.ts";
 import {
   createFakeProcessPort,
   createManualClock,
@@ -193,6 +194,31 @@ test("a deadline that elapses kills the process as well", async () => {
   });
   await until(sentWith(rig.port.children[0], "call_d"), "sent");
   rig.clock.advance(500);
+  expect(errorOf(await pending).kind).toBe("process_killed");
+  expect(rig.port.children[0]?.signals).toEqual(["SIGTERM"]);
+});
+
+test("time spent with the deadline clock paused does not count against the deadline", async () => {
+  const rig = rigOf(await fixtureRoot());
+  okValue(await rig.supervisor.start());
+  const clocks: DeadlineClock[] = [];
+  const pending = rig.supervisor.call("method.call", methodParams("hang", {}, "call_p"), {
+    deadlineMs: 500,
+    onDeadlineClock: (clock) => clocks.push(clock),
+  });
+  await until(sentWith(rig.port.children[0], "call_p"), "sent");
+  const [clock] = clocks;
+  expect(clocks).toHaveLength(1);
+  rig.clock.advance(300);
+  clock?.pause();
+  // 멈춘 동안은 얼마가 지나도 죽이지 않는다
+  rig.clock.advance(10_000);
+  expect(rig.port.children[0]?.signals).toEqual([]);
+  clock?.resume();
+  // 남은 시간은 200ms다
+  rig.clock.advance(199);
+  expect(rig.port.children[0]?.signals).toEqual([]);
+  rig.clock.advance(1);
   expect(errorOf(await pending).kind).toBe("process_killed");
   expect(rig.port.children[0]?.signals).toEqual(["SIGTERM"]);
 });

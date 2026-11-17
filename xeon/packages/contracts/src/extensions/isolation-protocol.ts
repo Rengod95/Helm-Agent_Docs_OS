@@ -275,8 +275,15 @@ export interface PluginRegistrationDecl {
     readonly initial: JsonValue;
     readonly version: number;
   } | null;
-  /** 훅 핸들러. 같은 지점에 여럿이면 `handlerIndex`가 등록 순서다 */
-  readonly hooks: readonly { readonly point: string; readonly handlerIndex: number }[];
+  /**
+   * 훅 핸들러. 같은 지점에 여럿이면 `handlerIndex`가 등록 순서다. `coalesce`는 이 핸들러가 `sample: "coalesce"` 구독이 건 것인가:
+   * 알림 훅에서 엔진은 이 핸들러에만 합치기를 걸고, 나머지(`every` 구독, 원시 `g.on`)는 모두 전달한다
+   */
+  readonly hooks: readonly {
+    readonly point: string;
+    readonly handlerIndex: number;
+    readonly coalesce: boolean;
+  }[];
   readonly tools: readonly PluginToolDecl[];
   readonly commands: readonly { readonly name: string; readonly description: string | null }[];
   readonly methods: readonly { readonly verb: string }[];
