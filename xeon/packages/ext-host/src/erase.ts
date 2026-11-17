@@ -1,7 +1,7 @@
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import type {
-  DriveFn,
   DriveOptions,
+  DriveStep,
   Handler,
   HookName,
   PortKey,
@@ -51,28 +51,19 @@ export function eraseHandler<N extends HookName>(handler: Handler<N>): HandlerEn
   return handler as unknown as HandlerEntry["fn"];
 }
 
-/** 상태 타입 S를 지운 drive 함수. 호출은 StateDecl.schema로 검증된 문서만 넘긴다(X.primitives.spec §4.4.3) */
-export function eraseDrive<S>(fn: DriveFn<S>): DriveCall {
+/** 상태 타입 S를 지운 단계 함수. 호출은 StateDecl.schema로 검증된 문서만 넘긴다(X.primitives.spec §4.4.3) */
+export function eraseDrive<S>(step: DriveStep<S>): DriveCall {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 상태 타입 S를 지운다 (eng.typescript.guide TY-06)
-  return fn as unknown as DriveCall;
-}
-
-function eraseWants(wants: (state: never) => boolean): (state: unknown) => boolean {
-  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 상태 타입 S를 지운다 (eng.typescript.guide TY-06)
-  return wants as unknown as (state: unknown) => boolean;
+  return step as unknown as DriveCall;
 }
 
 /**
  * 상태 타입 S를 지운 drive 옵션. `limits`는 등록 때 복사하지 않고, 임대를 받을 때마다 호출자 옵션에서 읽는다
- * (getter로 넘긴 값이 임대마다 반영된다). `wants`는 StateDecl.schema로 검증된 문서만 받는다
+ * (getter로 넘긴 값이 임대마다 반영된다)
  */
-export function eraseDriveOptions<S>(options: DriveOptions<S> | undefined): ErasedDriveOptions {
+export function eraseDriveOptions(options: DriveOptions | undefined): ErasedDriveOptions {
   if (options === undefined) return { limits: () => undefined };
-  const { wants } = options;
-  return {
-    limits: () => options.limits,
-    ...(wants === undefined ? {} : { wants: eraseWants(wants) }),
-  };
+  return { limits: () => options.limits };
 }
 
 /** 상태 타입 S를 지운 scope 정의와 setup. 같은 정의에서 만든 g만 setup에 넘긴다 */

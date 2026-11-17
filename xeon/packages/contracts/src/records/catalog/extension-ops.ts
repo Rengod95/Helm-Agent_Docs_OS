@@ -189,10 +189,10 @@ export type LeaseRejectedPayload = Static<typeof LeaseRejectedPayloadSchema>;
 /**
  * 주도 명령 하나의 결과를 남기는 상태 사건 [제안: 이름 `drive.command_settled`, C0에서 확정] [결정: 2026-11-17 사용자, U1].
  * 재시작 뒤 같은 명령을 두 번 실행하지 않는 근거다. `turn`, `ask`, `spawn`, `commit`은 기존 사건과 함께, `model`·`tool`(E2)은 이 사건만으로 남는다.
- * `requestId`는 엔진이 붙인 명령 요청 id, `outcome`은 결과 요약(`completed`, `answered`, `denied` 등), `ref`는 결과 참조(turn id, 자식 thread id 등)이다
+ * `lineageId`는 임대 계통(`waiting` 뒤 재부여에도 같다. 같은 (scope, requestId)를 다시 기록해도 내용이 같아야 멱등이다), `requestId`는 엔진이 붙인 명령 요청 id, `outcome`은 결과 요약(`completed`, `answered`, `denied` 등), `ref`는 결과 참조(turn id, 자식 thread id 등)이다
  */
 export const DriveCommandSettledPayloadSchema: TObject<{
-  leaseId: TString;
+  lineageId: TString;
   scopeId: TString;
   requestId: TString;
   command: TUnion<
@@ -209,7 +209,7 @@ export const DriveCommandSettledPayloadSchema: TObject<{
   ref: TOptional<TString>;
 }> = Type.Object(
   {
-    leaseId: leaseId(),
+    lineageId: leaseId(),
     scopeId: scopeId(),
     requestId: Type.String({ minLength: 1, maxLength: 96 }),
     command: Type.Union([

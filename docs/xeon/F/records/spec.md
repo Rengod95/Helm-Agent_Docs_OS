@@ -289,7 +289,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득 |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제 |
 | `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
-| `drive.command_settled` | 예 | `DriveCommandSettledPayloadSchema` | 주도 명령 하나의 결과(`{ leaseId, scopeId, requestId, command, outcome, ref? }`). 단계 함수(`review.m5-drive-isolation` 1.1)의 명령이 정착할 때 남는다. 커밋 키 (scopeId, requestId)라 재시작 뒤 같은 단계가 다시 돌아도 하나만 남는다 [제안: 이름 C0에서 확정, 결정: 2026-11-17 사용자 U1] |
+| `drive.command_settled` | 예 | `DriveCommandSettledPayloadSchema` | 주도 명령 하나의 결과(`{ lineageId, scopeId, requestId, command, outcome, ref? }`). 단계 함수(`review.m5-drive-isolation` 1.1)의 명령이 정착할 때 남는다. 커밋 키 (scopeId, requestId)라 재시작 뒤 같은 단계가 다시 돌아도 하나만 남는다 [제안: 이름 C0에서 확정, 결정: 2026-11-17 사용자 U1] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 대화 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `review`다. 옛 `plan`은 은퇴했고 옛 행을 읽기만 한다 [결정: 2026-11-13 사용자], [결정: 2026-11-15 사용자]. 승인 id = 이 이벤트 id |
@@ -370,7 +370,7 @@ export interface LeaseReleasedPayload {
 }
 /** 주도 명령 하나의 결과 [제안: 이름은 C0에서 확정] [결정: 2026-11-17 사용자, U1]. 재시작 뒤 같은 명령을 다시 실행하지 않는 근거다 */
 export interface DriveCommandSettledPayload {
-  leaseId: string;
+  lineageId: string;           // 임대 계통(waiting 뒤 재부여에도 같다)
   scopeId: string;
   requestId: string;              // 엔진이 붙인 명령 요청 id(1~96자). 커밋 키는 (scopeId, requestId)
   command: "turn" | "model" | "tool" | "ask" | "spawn" | "commit";   // E1은 turn, ask, spawn, commit. model·tool은 E2

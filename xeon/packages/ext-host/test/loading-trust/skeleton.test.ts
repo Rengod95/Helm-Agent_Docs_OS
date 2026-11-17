@@ -26,7 +26,9 @@ test("skeleton: the loader loads the smoke group and its operations run", async 
   expect(t.records.events(thread).map((event) => event.kind)).toEqual([
     "scope.changed",
     "lease.acquired",
+    "drive.command_settled",
     "grp.smoke-group.state.committed",
+    "drive.command_settled",
   ]);
 
   // on: tool_call 거부

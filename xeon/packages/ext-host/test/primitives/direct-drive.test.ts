@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DriveCommand } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
@@ -9,6 +10,9 @@ import { makeGroupUnit } from "./fixtures/support.ts";
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 type Host = Awaited<ReturnType<typeof createTestHost>>;
+
+/** 상태가 없는 명령(S가 never). 카운터 상태의 단계 함수에도 그대로 들어간다 */
+type Command = DriveCommand<never>;
 
 function runCommand(t: Host, threadId: ThreadId, invocationId: string): Promise<void> {
   const def = t.host.resources.list("command")[0]?.def;
@@ -45,11 +49,14 @@ async function boot(
         def: { state: { schema: CounterSchema, initial: { n: 0 }, version: 1 } },
       },
       (g) => {
-        g.drive(async (loop, state) => {
-          seen.push(state.n);
-          if (turnOnFirst && state.n === 0) {
-            await loop.turn({ input: { kind: "user", content: "go" } });
-          }
+        g.drive(({ state, last }) => {
+          // 첫 단계에서만 센다. turn 결과를 받은 단계는 같은 호출의 뒤 단계다
+          if (last === null) seen.push(state.n);
+          const command: Command =
+            turnOnFirst && last === null && state.n === 0
+              ? { do: "turn", input: { kind: "user", content: "go" } }
+              : { do: "yield" };
+          return Promise.resolve(command);
         });
         hostOf(g).registerCommand("bump", {
           handler: async () => {

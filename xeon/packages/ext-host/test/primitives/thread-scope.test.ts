@@ -134,8 +134,9 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
   const b = t.newThread();
   await t.host.install(
     makeGroupUnit({ name: "ts-group" }, (g) => {
-      g.drive(async (loop) => {
-        await loop.turn({ input: { kind: "user", content: "go" } });
+      g.drive(async ({ last }) => {
+        if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
+        return { do: "turn", input: { kind: "user", content: "go" } };
       });
     }),
   );
@@ -252,7 +253,7 @@ test("onChange reports toggle requests, their application and lease changes; a t
   const thread = t.newThread();
   await t.host.install(
     makeGroupUnit({ name: "ts-notify" }, (g) => {
-      g.drive(() => Promise.resolve());
+      g.drive(() => Promise.resolve({ do: "yield" }));
     }),
   );
   await t.host.openThread(thread);

@@ -17,7 +17,13 @@ test("the smoke group denies a tool, adds an entry at boundary.step.after, posts
   // drive: 임대를 받아 loop.turn을 한 번 부르고 상태를 커밋한다
   expect(t.loop.turns).toHaveLength(1);
   const kinds = t.records.events(thread).map((event) => event.kind);
-  expect(kinds).toEqual(["scope.changed", "lease.acquired", "grp.smoke-group.state.committed"]);
+  expect(kinds).toEqual([
+    "scope.changed",
+    "lease.acquired",
+    "drive.command_settled",
+    "grp.smoke-group.state.committed",
+    "drive.command_settled",
+  ]);
 
   // tool.call.before: 특정 도구만 거부한다
   const denied = await t.host.dispatch(

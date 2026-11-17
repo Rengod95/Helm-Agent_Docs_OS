@@ -260,22 +260,24 @@ test("budget: drive has no time budget", async () => {
   const harness = await createOperationsHarness();
   const { t } = harness;
   const thread = t.newThread();
-  const abortions: string[] = [];
   const gate = deferred<void>();
   await t.host.install(
     makeUnit({ name: "bud-drive", group: {}, drives: true }, (g) => {
-      g.drive(async (loop) => {
-        loop.signal.addEventListener("abort", () => abortions.push("aborted"));
+      // 단계 함수는 신호를 받지 않는다. 시간 예산이 있었다면 임대가 이 사이에 회수됐을 것이다
+      g.drive(async () => {
         await gate.promise;
+        return { do: "done" };
       });
     }),
   );
   await t.host.openThread(thread);
   await flushMicrotasks(100);
   await t.timers.advance(600_000);
-  expect(abortions).toEqual([]);
+  expect(t.host.registrations()[0]?.drive).toBe("holding");
+  expect(t.host.leaseOf(thread)?.status).toBe("active");
   gate.resolve();
   await t.settled();
+  expect(t.host.leaseOf(thread)).toBeNull();
 });
 
 test("budget: outer abort is aborted not failure", async () => {

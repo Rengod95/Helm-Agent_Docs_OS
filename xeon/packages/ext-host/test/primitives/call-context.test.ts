@@ -77,20 +77,21 @@ test("callContext is the drive context with the lease signal, and cut inside tur
     },
   });
   const thread = t.newThread();
-  const driveSeen: {
-    context: RegistrationCallContext | undefined;
-    loopSignal: AbortSignal | undefined;
-  } = { context: undefined, loopSignal: undefined };
+  const driveSeen: { context: RegistrationCallContext | undefined; aborted: boolean | undefined } =
+    { context: undefined, aborted: undefined };
   await t.host.install(
     makeGroupUnit({ name: "cc-drive" }, (g) => {
       const host = hostOf(g);
       inTurn.host = host;
-      g.drive(async (loop) => {
+      g.drive(async ({ last }) => {
         driveSeen.context = host.callContext();
-        driveSeen.loopSignal = loop.signal;
-        await loop.turn({ input: { kind: "user", content: "go" } });
-        await loop.spawn({ agent: "worker", task: "child" });
+        driveSeen.aborted = driveSeen.context?.signal.aborted;
+        if (last === null) return { do: "turn", input: { kind: "user", content: "go" } };
+        if (last.kind === "ok" && last.of === "turn") {
+          return { do: "spawn", agent: "worker", task: "child" };
+        }
         inTurn.seen.push(host.callContext());
+        return { do: "yield" };
       });
     }),
   );
@@ -99,7 +100,9 @@ test("callContext is the drive context with the lease signal, and cut inside tur
   expect(driveSeen.context?.kind).toBe("drive");
   expect(driveSeen.context?.threadId).toBe(thread);
   expect(driveSeen.context?.point).toBeUndefined();
-  expect(driveSeen.context?.signal).toBe(driveSeen.loopSignal);
+  // 단계 함수는 `loop.signal`을 받지 않는다. 문맥의 신호는 임대 신호이고, 단계가 도는 동안은 켜지지 않았다
+  // (끝난 뒤에는 유휴 반납이 신호를 켜므로 단계 안에서 본 값으로 확인한다)
+  expect(driveSeen.aborted).toBe(false);
   // turn과 spawn 안은 문맥이 끊기고(처음 둘), drive 함수로 돌아오면 다시 drive 문맥이다
   expect(inTurn.seen.map((c) => c?.kind)).toEqual([undefined, undefined, "drive"]);
 });

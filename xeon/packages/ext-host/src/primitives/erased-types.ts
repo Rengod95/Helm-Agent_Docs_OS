@@ -1,4 +1,4 @@
-import type { DriveLimits, LoopHandle } from "@fresnel/contracts/extensions";
+import type { DriveCommand, DriveLimits, DriveStepInput } from "@fresnel/contracts/extensions";
 
 // 타입 지움 자리의 이름. core.ts와 erase.ts가 함께 쓰므로 어느 쪽도 import하지 않는 잎 파일에 둔다(순환 방지).
 
@@ -11,8 +11,7 @@ export type AnyState = Readonly<Record<string, unknown>>;
  */
 export interface ErasedDriveOptions {
   readonly limits: () => DriveLimits | undefined;
-  readonly wants?: (state: unknown) => boolean;
 }
 
-/** 등록된 drive 함수. 상태 타입을 지운 모양 */
-export type DriveCall = (loop: LoopHandle, state: unknown) => Promise<void>;
+/** 등록된 단계 함수. 상태 타입을 지운 모양 */
+export type DriveCall = (input: DriveStepInput<AnyState>) => Promise<DriveCommand<AnyState>>;
