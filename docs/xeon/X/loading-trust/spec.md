@@ -1281,7 +1281,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.4 격리 가능 훅
 
-모든 훅이 격리 가능하다. 토큰마다 불리는 스트림 지켜보기 훅(`request.stream`, `boundary.message.update`, `tool.execution.update`)은 응답을 기다리지 않는 알림(`event.notify`)으로 보낸다. 알림은 같은 대화 안에서 발화 순서로 하나씩 가고 적어도 한 번 전달된다(핸들러는 `eventKey`로 멱등이어야 한다). 옛 `isolation_point_unsupported`는 내지 않는다.
+모든 훅이 격리 가능하다. 토큰마다 불리는 스트림 지켜보기 훅(`request.stream`, `boundary.message.update`, `tool.execution.update`)은 응답을 기다리지 않는 알림(`event.notify`)으로 보낸다. 알림은 같은 대화 안에서 발화 순서로 하나씩 가고 적어도 한 번 전달된다(핸들러는 `eventKey`로 멱등이어야 한다). 옛 `isolation_point_unsupported`는 내지 않는다. `g.subscribe`는 자식 안에서 `g.on` 등록 위에 돈다(엔진 안과 같은 `every`·`coalesce`, 선언된 이벤트만, 봉투의 `eventKey`는 엔진 디스패치 키). 선언 목록은 `host.init`의 매니페스트에서 읽는다.
 
 #### 4.9.5 drive
 

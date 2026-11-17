@@ -12,7 +12,7 @@ import {
   type SubscribeOptions,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
-import { ambient, withAmbient, type Ambient } from "./ambient.ts";
+import { ambient, withAmbient } from "./ambient.ts";
 import { PrimitiveError } from "./errors.ts";
 
 // M5e 스펙 §4.4.1 `g.subscribe`. `g.on`의 tap 형태 위의 얇은 도우미다. 이벤트 하나마다 `g.on` 등록을 하나 한다.
@@ -89,6 +89,17 @@ export interface SubscribeInput<S> {
   ) => Unsubscribe;
   /** 기다리지 않는 작업을 추적한다. 거부는 진단으로 보고된다(core.track) */
   readonly track: (task: Promise<unknown>) => void;
+  /**
+   * 지금 도는 디스패치의 키와, 그 맥락을 다시 싣고 뒤에서 도는 실행기. 핸들러 안에서만 부른다.
+   * 엔진 안은 ambient에서, 격리 자식은 요청 문맥(scopes)에서 읽는다
+   */
+  readonly dispatchOf: () => DispatchContext;
+}
+
+/** 지금 도는 디스패치의 맥락. `rerun`은 그 맥락을 다시 싣고 뒤에서 일을 돌린다 */
+export interface DispatchContext {
+  readonly eventKey: string;
+  readonly rerun: (work: () => Promise<void>) => Promise<void>;
 }
 
 /** 대화 하나의 줄. every는 `tail`로 차례를 잇고, coalesce는 `busy`와 `pending`으로 마지막 하나만 남긴다 */
@@ -104,17 +115,20 @@ interface Pending<S> {
   readonly payload: EventEnvelope["payload"];
   readonly eventKey: string;
   readonly ctx: HandlerContext<S>;
-  readonly snapshot: Ambient;
+  readonly rerun: DispatchContext["rerun"];
   readonly dropped: number;
 }
 
-/** 핸들러 안에서 실행 중인 디스패치 맥락과 키. 밖에서 부르면 구독이 잘못 쓰인 것이라 버그다 */
-function dispatchContextOf(): { readonly snapshot: Ambient; readonly eventKey: string } {
+/** 엔진 안의 디스패치 맥락. 핸들러 안에서 실행 중인 ambient와 키다. 밖에서 부르면 구독이 잘못 쓰인 것이라 버그다 */
+export function ambientDispatch(): DispatchContext {
   const current = ambient();
   if (current === undefined || current.dispatchKey === null) {
     throw new Bug("subscribe.no_dispatch_context: an event handler runs inside a dispatch");
   }
-  return { snapshot: current, eventKey: current.dispatchKey };
+  return {
+    eventKey: current.dispatchKey,
+    rerun: (work) => withAmbient({ ...current, handler: null, drive: null }, work),
+  };
 }
 
 export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
@@ -143,9 +157,9 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
         payload: item.payload,
         dropped: item.dropped,
       });
-      await withAmbient({ ...item.snapshot, handler: null, drive: null }, () =>
-        handler(envelope, item.ctx),
-      );
+      await item.rerun(async () => {
+        await handler(envelope, item.ctx);
+      });
     });
     const next = lane.pending;
     lane.pending = undefined;
@@ -162,7 +176,7 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
   const unsubscribes = input.names.map((name) =>
     input.register(name, (payload, ctx) => {
       if (closed) return undefined;
-      const { snapshot, eventKey } = dispatchContextOf();
+      const { rerun, eventKey } = input.dispatchOf();
       const lane = laneOf(ctx.threadId);
       if (input.sampleOf(name) === "every") {
         const envelope = envelopeOf({
@@ -185,7 +199,7 @@ export function subscribeWith<S>(input: SubscribeInput<S>): Unsubscribe {
         payload,
         eventKey,
         ctx,
-        snapshot,
+        rerun,
         dropped: lane.pending === undefined ? 0 : lane.pending.dropped + 1,
       };
       if (lane.busy) {

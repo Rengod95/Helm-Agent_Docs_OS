@@ -22,6 +22,7 @@ import { JsonValueSchema, toJsonValue, type JsonValue } from "@fresnel/contracts
 import {
   HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
+  pluginsOf,
   PLUGIN_HOST_REQUESTS,
   PLUGIN_HOST_STDERR_LINE_MAX,
   validateManifest,
@@ -395,6 +396,7 @@ function createRuntime(deps: PluginHostDeps) {
       point: slot.point,
       settings: input.settings,
       snapshot: { doc: input.state },
+      ...(input.dispatchKey === undefined ? {} : { dispatchKey: input.dispatchKey }),
     };
     const ctx = {
       scopeId: state.id,
@@ -584,6 +586,7 @@ function createRuntime(deps: PluginHostDeps) {
       point: slot.point,
       settings: event.settings,
       snapshot: { doc: event.state },
+      dispatchKey: event.dispatchKey ?? event.eventKey,
     };
     const ctx = {
       scopeId: state.id,
@@ -713,6 +716,10 @@ function createRuntime(deps: PluginHostDeps) {
       initSettings: input.settings,
       scopes,
       engineCall,
+      declaredHooks: new Map(
+        pluginsOf(manifest).map((entry) => [entry.registrationId, entry.decl.hooks]),
+      ),
+      report: diag,
     };
     let registering = true;
     const register: RegistrationFn = (id, def, setup) => {

@@ -1765,7 +1765,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | `host.init` | 엔진 → 호스트 | 요청 | `protocolVersion`, 확장 이름, `versionId`, 매니페스트, 루트와 엔트리, 설정. 응답: 버전과 등록 선언(`PluginRegistrationDecl[]`: 훅, 도구, 명령, 메서드, 플래그, 제공자, 렌더러). 버전이 다르면 `protocol_version` |
 | `hook.invoke` | 엔진 → 호스트 | 요청 | 훅 이름, `handlerIndex`, 입력, chain의 `current`, 호출 문맥(`threadId`, `deadlineMs`, `replay`, `caller`, 상태·설정 스냅샷) |
 | `tool.execute`, `command.run`, `method.call` | 엔진 → 호스트 | 요청 | 같은 호출 문맥. `tool.execute`는 `callerInfo`(`CallerInfo` JSON)를 더 싣는다 |
-| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번) |
+| `event.notify` | 엔진 → 호스트 | 알림 | 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`). `eventKey`로 멱등(적어도 한 번). `hook.invoke`와 `event.notify`는 엔진 디스패치 키를 선택 칸 `dispatchKey`로 싣는다. 격리된 `g.subscribe`가 봉투의 `eventKey`(엔진 안과 같은 값)로 쓴다. |
 | `request.cancel` | 엔진 → 호스트 | 알림 | 취소 뒤 늦게 온 응답은 버린다 |
 | `scope.dispose`, `host.dispose` | 엔진 → 호스트 | 요청 | 등록 하나의 정리 / 프로세스 종료(`idle`, `shutdown`, `reload`, `disabled`) |
 | `engine.call` | 호스트 → 엔진 | 요청 | `commit`, `commitWith`, `record`, `recordPrivate`, `readRecords`, `post`, `capability`, `requestEffect`. 신원 `plugin:<이름>`은 엔진이 연결에서 붙인다. `replay`면 쓰기는 성공으로 받아 버리고 `capability`는 `replay_mode_denied` |

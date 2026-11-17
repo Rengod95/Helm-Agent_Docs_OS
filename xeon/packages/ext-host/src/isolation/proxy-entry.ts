@@ -533,6 +533,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
         handlerIndex,
         payload,
         current: currentValue,
+        ...(amb === undefined || amb.dispatchKey === null ? {} : { dispatchKey: amb.dispatchKey }),
       };
       if (notify) {
         // 관찰 알림은 기다리지 않는다. 발화 순서대로 하나씩 전달하도록 eventKey를 늘린다(멱등 키)

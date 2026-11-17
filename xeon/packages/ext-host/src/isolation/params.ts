@@ -47,6 +47,7 @@ const hookInvokeSchema = Type.Object({
   handlerIndex: Type.Integer({ minimum: 0 }),
   payload: JsonValueSchema,
   current: JsonValueSchema,
+  dispatchKey: Type.Optional(Type.String()),
 });
 
 const toolExecuteSchema = Type.Object({
@@ -104,6 +105,7 @@ const eventNotifySchema = Type.Object({
   handlerIndex: Type.Integer({ minimum: 0 }),
   eventKey: Type.String(),
   payload: JsonValueSchema,
+  dispatchKey: Type.Optional(Type.String()),
 });
 
 const requestCancelSchema = Type.Object({ id: Type.Integer({ minimum: 0 }) });
