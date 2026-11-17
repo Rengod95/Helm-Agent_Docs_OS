@@ -53,10 +53,15 @@ import {
   type TableSpec,
   type TrDailyRow,
   type TrFindingStateRow,
+  type TrCallRow,
   type TrFrameRow,
+  type TrHookRow,
   type TrMarkRow,
+  type TrMaterialRow,
+  type TrSkillRow,
   type TrStepBatch,
   type TrThreadRow,
+  type TrToolUseRow,
   type TrTurnBundle,
   type TrTurnRow,
 } from "./turn-tables.ts";
@@ -191,7 +196,71 @@ export interface MeasureStore {
   getFindingState(findingId: string): Result<TrFindingStateRow | undefined, MeasureStoreError>;
   /** `tr_daily`의 한 주체(`subject`) 행 전부 */
   dailyCounters(subject: string): Result<readonly TrDailyRow[], MeasureStoreError>;
+  /**
+   * 창 안에서 시작한 원본 턴의 묶음(시작 시각 순). 지표는 이것을 접기 함수로 접고, 근거 참조는 턴 id를 쓴다.
+   * 창의 경계는 `[from, to)`다. 보관 기간을 넘은 턴은 없다(접혀서 지워졌다).
+   */
+  windowBundles(query: WindowQuery): Result<readonly TurnBundleRow[], MeasureStoreError>;
+  /**
+   * 접힌 날(`tr_daily`)의 카운터. `fromDay`와 `toDay`는 UTC 날짜 `YYYY-MM-DD`이고 양 끝을 포함한다.
+   * 원본은 같은 날짜 범위의 원본 턴이 없을 때만 이 값과 겹치지 않는다(호출자가 경계를 나눈다).
+   */
+  dailyWindow(query: DailyWindowQuery): Result<readonly DailyCell[], MeasureStoreError>;
+  /** `tr_turn`의 가장 큰 rowid. 발견 캐시의 `dataRevision`이다. 빈 표면 0 */
+  maxTurnRowid(): Result<number, MeasureStoreError>;
+  /** 훅 실행 행 검색(`turnRecord.search`). 최신 행부터 `beforeRowid` 아래에서 `limit`개까지 낸다 */
+  searchHooks(query: HookSearchQuery): Result<readonly HookSearchRow[], MeasureStoreError>;
   close(): void;
+}
+
+/** 원본 턴 창 질의. 시작 시각이 `[from, to)`이고 범위 종류가 `scopes`에 드는 턴 */
+interface WindowQuery {
+  readonly from: number;
+  readonly to: number;
+  readonly scopes: readonly string[];
+}
+
+/** 접힌 날 질의 */
+interface DailyWindowQuery {
+  readonly fromDay: string;
+  readonly toDay: string;
+  readonly scopes: readonly string[];
+}
+
+/** 원본 턴 하나와 그 하위 행(창 질의 결과). 하위 행은 모두 이 턴의 것이다 */
+export interface TurnBundleRow {
+  readonly turn: Omit<TrTurnRow, "recordJson">;
+  readonly calls: readonly TrCallRow[];
+  readonly hooks: readonly TrHookRow[];
+  readonly materials: readonly TrMaterialRow[];
+  readonly tooluse: readonly TrToolUseRow[];
+  readonly skills: readonly TrSkillRow[];
+}
+
+/** 훅 검색 질의. `plugin`과 창은 필수, `hook`은 선택이다 */
+interface HookSearchQuery {
+  readonly plugin: string;
+  readonly hook: string | null;
+  readonly from: number;
+  readonly to: number;
+  readonly scopes: readonly string[];
+  readonly beforeRowid: number | null;
+  readonly limit: number;
+}
+
+/** 훅 검색 한 줄. `rowid`는 커서다 */
+interface HookSearchRow {
+  readonly rowid: number;
+  readonly threadId: string;
+  readonly turnId: string;
+  readonly seqGlobal: number;
+  readonly plugin: string;
+  readonly hook: string;
+  readonly result: string;
+  readonly reason: string | null;
+  readonly decision: string;
+  /** 턴 시작 시각 + 훅 시점(ms) */
+  readonly at: number;
 }
 
 /** 버전 1 DDL(기존 스키마). 버전 0 파일이 이미 가진 표와 같아서 `IF NOT EXISTS`로 다시 실행해도 안전하다 */
@@ -566,6 +635,10 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
           ),
         ),
       ),
+    windowBundles: (query) => turnGuarded(() => windowBundlesOf(db, query)),
+    dailyWindow: (query) => turnGuarded(() => dailyWindowOf(db, query)),
+    maxTurnRowid: () => turnGuarded(() => ok(maxTurnRowidOf(db))),
+    searchHooks: (query) => turnGuarded(() => searchHooksOf(db, query)),
     close() {
       if (closed) return;
       closed = true;
@@ -852,4 +925,177 @@ function pruneInTransaction(
   upsertAll(db, TR_DAILY, planned.value.map(dailyRowOf));
   for (const turn of oldTurns) deleteTurn(db, turn.threadId, turn.turnId);
   return ok(old.length);
+}
+
+// ---- 지표 창 읽기 -----------------------------------------------------------
+
+function marksOf(count: number): string {
+  return Array.from({ length: count }, () => "?").join(", ");
+}
+
+/** 턴 하나의 키. 같은 턴의 하위 행을 묶을 때 쓴다 */
+function turnKeyOf(threadId: string, turnId: string): string {
+  return JSON.stringify([threadId, turnId]);
+}
+
+function groupByTurn<T extends { readonly threadId: string; readonly turnId: string }>(
+  rows: readonly T[],
+): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = turnKeyOf(row.threadId, row.turnId);
+    const list = out.get(key);
+    if (list === undefined) out.set(key, [row]);
+    else list.push(row);
+  }
+  return out;
+}
+
+/** 히스토그램 열 한 칸을 읽는다. 칸 수가 다르거나 모양이 깨졌으면 corrupt다 */
+function histOf(json: string | null): Result<readonly number[] | null, MeasureStoreError> {
+  if (json === null) return ok(null);
+  const parsed = parseJson(json);
+  const value: unknown = parsed.ok ? parsed.value : undefined;
+  if (!Array.isArray(value)) return err({ kind: "corrupt" });
+  const cells: number[] = [];
+  for (const cell of value) {
+    if (typeof cell !== "number") return err({ kind: "corrupt" });
+    cells.push(cell);
+  }
+  if (cells.length !== HIST_CELLS) return err({ kind: "corrupt" });
+  return ok(cells);
+}
+
+/** `tr_daily` 한 줄을 카운터 묶음으로 바꾼다 */
+function cellOfDaily(row: TrDailyRow): Result<DailyCell, MeasureStoreError> {
+  const hist = histOf(row.histJson);
+  if (!hist.ok) return err(hist.error);
+  return ok({
+    key: {
+      day: row.day,
+      subject: row.subject,
+      plugin: row.plugin,
+      ref: row.ref,
+      model: row.model,
+      profile: row.profile,
+      scopeKind: row.scopeKind,
+      caller: row.caller,
+      counter: row.counter,
+    },
+    agg: { n: row.n, sum: row.sum, min: row.min, max: row.max, hist: hist.value },
+  });
+}
+
+/** 창 안에서 시작한 원본 턴과 하위 행. 시작 시각 순이다 */
+function windowBundlesOf(
+  db: Database,
+  query: WindowQuery,
+): Result<readonly TurnBundleRow[], MeasureStoreError> {
+  if (query.scopes.length === 0 || query.to <= query.from) return ok([]);
+  const where = `started_at >= ? AND started_at < ? AND scope_kind IN (${marksOf(query.scopes.length)})`;
+  const params: SqlValue[] = [query.from, query.to, ...query.scopes];
+  const turns = selectAll(
+    db,
+    `SELECT ${TURN_SUMMARY_COLUMNS} FROM tr_turn WHERE ${where} ORDER BY started_at, rowid`,
+    params,
+    turnSummaryOf,
+  );
+  const inTurns = `(thread_id, turn_id) IN (SELECT thread_id, turn_id FROM tr_turn WHERE ${where})`;
+  const calls = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_call WHERE ${inTurns}`, params, callOf),
+  );
+  const hooks = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_hook WHERE ${inTurns}`, params, hookOf),
+  );
+  const materials = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_material WHERE ${inTurns}`, params, materialOf),
+  );
+  const tooluse = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_tooluse WHERE ${inTurns}`, params, toolUseOf),
+  );
+  const skills = groupByTurn(
+    selectAll(db, `SELECT * FROM tr_skill WHERE ${inTurns}`, params, skillOf),
+  );
+  return ok(
+    turns.map((turn) => {
+      const key = turnKeyOf(turn.threadId, turn.turnId);
+      return {
+        turn,
+        calls: calls.get(key) ?? [],
+        hooks: hooks.get(key) ?? [],
+        materials: materials.get(key) ?? [],
+        tooluse: tooluse.get(key) ?? [],
+        skills: skills.get(key) ?? [],
+      };
+    }),
+  );
+}
+
+/** 접힌 날의 카운터. 날짜 범위의 `tr_daily` 행을 묶음으로 바꾼다 */
+function dailyWindowOf(
+  db: Database,
+  query: DailyWindowQuery,
+): Result<readonly DailyCell[], MeasureStoreError> {
+  if (query.scopes.length === 0 || query.toDay < query.fromDay) return ok([]);
+  const rows = selectAll(
+    db,
+    `SELECT * FROM tr_daily WHERE day >= ? AND day <= ? AND scope_kind IN (${marksOf(query.scopes.length)})`,
+    [query.fromDay, query.toDay, ...query.scopes],
+    dailyOf,
+  );
+  const cells: DailyCell[] = [];
+  for (const row of rows) {
+    const cell = cellOfDaily(row);
+    if (!cell.ok) return err(cell.error);
+    cells.push(cell.value);
+  }
+  return ok(cells);
+}
+
+function maxTurnRowidOf(db: Database): number {
+  return colNum(colsOf(db.query("SELECT COALESCE(MAX(rowid), 0) AS m FROM tr_turn").get()), "m");
+}
+
+/** 훅 검색. 턴 시작 시각을 기준으로 창을 거르고 행 id 내림차순으로 쪽을 나눈다 */
+function searchHooksOf(
+  db: Database,
+  query: HookSearchQuery,
+): Result<readonly HookSearchRow[], MeasureStoreError> {
+  if (query.scopes.length === 0) return ok([]);
+  const where = [
+    "h.plugin = ?",
+    "t.started_at >= ?",
+    "t.started_at < ?",
+    `t.scope_kind IN (${marksOf(query.scopes.length)})`,
+  ];
+  const params: SqlValue[] = [query.plugin, query.from, query.to, ...query.scopes];
+  if (query.hook !== null) {
+    where.push("h.hook = ?");
+    params.push(query.hook);
+  }
+  if (query.beforeRowid !== null) {
+    where.push("h.rowid < ?");
+    params.push(query.beforeRowid);
+  }
+  params.push(query.limit);
+  const rows = selectAll(
+    db,
+    `SELECT h.rowid AS row_id, h.thread_id, h.turn_id, h.seq_global, h.plugin, h.hook, h.result, h.reason, h.decision, h.at_ms, t.started_at
+       FROM tr_hook h JOIN tr_turn t ON t.thread_id = h.thread_id AND t.turn_id = h.turn_id
+       WHERE ${where.join(" AND ")} ORDER BY h.rowid DESC LIMIT ?`,
+    params,
+    (cols): HookSearchRow => ({
+      rowid: colNum(cols, "row_id"),
+      threadId: colText(cols, "thread_id"),
+      turnId: colText(cols, "turn_id"),
+      seqGlobal: colNum(cols, "seq_global"),
+      plugin: colText(cols, "plugin"),
+      hook: colText(cols, "hook"),
+      result: colText(cols, "result"),
+      reason: colTextOrNull(cols, "reason"),
+      decision: colText(cols, "decision"),
+      at: colNum(cols, "started_at") + colNum(cols, "at_ms"),
+    }),
+  );
+  return ok(rows);
 }

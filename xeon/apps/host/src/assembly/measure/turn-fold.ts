@@ -1,3 +1,10 @@
+import { parseJson } from "@fresnel/contracts";
+import {
+  hookOutcomeOf,
+  isBlockingVerdict,
+  postBlockClassOf,
+  type PostBlockCall,
+} from "./classify.ts";
 import type {
   DailyKey,
   TrCallRow,
@@ -33,7 +40,8 @@ export interface DailyCell {
 export interface TurnFoldInput {
   /** 턴 시작 시각의 UTC 날짜 `YYYY-MM-DD` */
   readonly day: string;
-  readonly turn: TrTurnRow;
+  /** 키에 쓰는 열만 본다(모델, 프로필, 범위, 수준) */
+  readonly turn: Pick<TrTurnRow, "model" | "profileId" | "scopeKind" | "level">;
   readonly calls: readonly TrCallRow[];
   readonly hooks: readonly TrHookRow[];
   readonly materials: readonly TrMaterialRow[];
@@ -214,5 +222,135 @@ export function foldTurn(input: TurnFoldInput): readonly DailyCell[] {
     for (const [counter, tokens] of per) put("cost", plugin, "", "", counter, tokens, true);
   }
 
+  // ---- 아래는 지표 전용 카운터다. 기존 주체(turn, hook, call, tool, skill, cost)의 칸은 건드리지 않는다 ----
+
+  put("turn_level", "", "", "", turn.level, null, false);
+
+  // 훅 표시값 일곱 갈래(§4.5)와 건너뜀 뒤의 가림. 주체 `hook`과 나누어 기존 집계 시험의 칸을 그대로 둔다
+  for (const hook of input.hooks) {
+    const caller = hook.toolCallId === null ? "" : (callerOf.get(hook.toolCallId) ?? "");
+    const outcome = hookOutcomeOf({
+      result: hook.result,
+      reason: hook.reason,
+      decision: hook.decision,
+    });
+    put("hook_outcome", hook.plugin, hook.hook, caller, `outcome:${outcome}`, null, false);
+    // 앞 훅 때문에 이르지 못한 실행(§5 hook.shadowed): 건너뛰었고 막은 훅 이름이 있다
+    if (hook.result === "skipped" && hook.skippedBy !== null) {
+      put("hook_outcome", hook.plugin, hook.hook, caller, "shadowed", null, false);
+    }
+  }
+
+  // 막힌 호출 뒤의 행동(§5.1-②). 키의 플러그인과 훅은 막은 쪽이다. 막은 쪽이 없으면(사람 거부) 빈 문자열이다
+  const postCalls = postBlockCallsOf(input.calls);
+  for (const call of input.calls) {
+    if (!isBlockingVerdict(call.verdict)) continue;
+    const self = postCalls.find((c) => c.toolCallId === call.toolCallId);
+    if (self === undefined) continue;
+    const cls = postBlockClassOf(self, postCalls);
+    put(
+      "postblock",
+      call.blockedPlugin ?? "",
+      call.blockedHook ?? "",
+      "",
+      `post:${cls}`,
+      null,
+      false,
+    );
+  }
+
+  // 실행 결과: 실행 칸과 오류 칸, 결과 토큰 분포(§5의 tool.error_rate, tool.result_tokens)
+  for (const call of input.calls) {
+    if (call.execStatus !== null) {
+      put("call_exec", call.plugin, call.tool, call.caller, "executed", null, false);
+    }
+    if (call.execStatus === "error") {
+      put("call_exec", call.plugin, call.tool, call.caller, "error", null, false);
+    }
+    if (call.resultTokens !== null) {
+      put(
+        "call_exec",
+        call.plugin,
+        call.tool,
+        call.caller,
+        "result_tokens",
+        call.resultTokens,
+        true,
+      );
+    }
+  }
+
+  // 지연 도구가 이 턴에서 활성화됐나(§5 tool.deferred_activation)
+  for (const tool of input.tooluse) {
+    if (tool.state === "activated")
+      put("tool_state", tool.plugin, tool.tool, "", "activated_turns", null, false);
+  }
+
+  // 스킬을 읽은 출처(§5 skill.read_origin)
+  for (const skill of input.skills) {
+    if (skill.read && skill.via !== null) {
+      put("skill_via", skill.plugin, skill.skill, "", `via:${skill.via}`, null, false);
+    }
+  }
+
+  // 지침(always 재료)과 그 재료를 둔 플러그인의 훅 막음(§5.1-①). 지침이 실렸는데 같은 플러그인 훅이 막거나 물은 호출
+  const loaded = new Map<string, { tokens: number; truncated: boolean }>();
+  for (const material of latest.values()) {
+    if (material.kind !== "always") continue;
+    const prev = loaded.get(material.plugin) ?? { tokens: 0, truncated: false };
+    loaded.set(material.plugin, {
+      tokens: prev.tokens + material.tokens,
+      truncated: prev.truncated,
+    });
+  }
+  for (const material of input.materials) {
+    if (material.kind !== "always" || !material.truncated) continue;
+    const prev = loaded.get(material.plugin);
+    if (prev !== undefined) loaded.set(material.plugin, { ...prev, truncated: true });
+  }
+  const defiedCalls = new Map<string, Set<string>>();
+  for (const hook of input.hooks) {
+    if (hook.toolCallId === null) continue;
+    if (hook.result !== "blocked" && hook.askVia === null) continue;
+    const call = input.calls.find((c) => c.toolCallId === hook.toolCallId);
+    if (call === undefined || !isBlockingVerdict(call.verdict)) continue;
+    const set = defiedCalls.get(hook.plugin) ?? new Set<string>();
+    set.add(call.toolCallId);
+    defiedCalls.set(hook.plugin, set);
+  }
+  for (const [plugin, info] of loaded) {
+    put("instruction", plugin, "", "", "loaded_turns", null, false);
+    put("instruction", plugin, "", "", "always_tokens", info.tokens, true);
+    if (info.truncated) put("instruction", plugin, "", "", "truncated_turns", null, false);
+    const calls = defiedCalls.get(plugin);
+    if (calls !== undefined && calls.size > 0) {
+      put("instruction", plugin, "", "", "defied_turns", null, false);
+      for (let i = 0; i < calls.size; i += 1) {
+        put("instruction", plugin, "", "", "defied_calls", null, false);
+      }
+    }
+  }
+
   return [...cells.values()];
+}
+
+/** 같은 턴의 호출을 분류 입력으로 바꾼다. `meta_json.argTokens`가 없으면 빈 목록이다 */
+export function postBlockCallsOf(calls: readonly TrCallRow[]): PostBlockCall[] {
+  return calls.map((call) => ({
+    toolCallId: call.toolCallId,
+    stepIndex: call.stepIndex ?? -1,
+    tool: call.tool,
+    callKey: call.callKey,
+    targetKey: call.targetKey,
+    argTokens: argTokensOf(call.metaJson),
+  }));
+}
+
+function argTokensOf(metaJson: string): readonly string[] {
+  const read = parseJson(metaJson);
+  const value: unknown = read.ok ? read.value : undefined;
+  if (typeof value !== "object" || value === null || !("argTokens" in value)) return [];
+  const tokens = value.argTokens;
+  if (!Array.isArray(tokens)) return [];
+  return tokens.filter((token): token is string => typeof token === "string");
 }

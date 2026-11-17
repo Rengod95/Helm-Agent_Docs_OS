@@ -416,6 +416,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | trace | `trace.turn` | `{ threadId: string, turnId: string }` | `{ traceEnabled: boolean, retained: boolean, entries: { seq, hook, step, handlers: { registrationId, ms, result, atMs, size, skippedBy, reason }[] }[] }`. `result`는 `modified`·`passed`·`blocked`·`failed`·`skipped`, `atMs`는 Turn 시작 후 시점(ms), `size`는 바뀐 크기, `skippedBy`는 앞 핸들러 때문에 건너뛴 경우 그 RegistrationId(아니면 null), `reason`은 `failed`의 이유(`threw`·`timeout`·`result_invalid`·`merge_rejected`, 아니면 null). 정본은 X.operations §4.8.2다 | M4 (W-43) |
 | measure | `measure.turn` | `{ threadId: string, turnId: string }` | `{ enabled: boolean, rows: { at: number, kind: string, metrics: Record<string, number>, tags: Record<string, string> }[] }` | M4 (T-MEAS-READ) |
 | measure | `measure.daily` | `{ kind: string, metric: string }` | `{ enabled: boolean, days: { day: string, count: integer, sum: number, min: number, max: number }[] }` | M4 (T-MEAS-READ) |
+| turnRecord | `turnRecord.list` | `{ threadId, cursor?, limit?(기본 50, 최대 200), scope?, flags? }` | `{ enabled, level, items: TurnSummary[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.get` | `{ threadId, turnId, detail? }` | `{ enabled, level, record: TurnRecord \| null, absent: "never_recorded" \| "purged" \| "off" \| null }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.search` | `{ plugin, hook?, outcome?, period, scopes?, cursor?, limit? }` | `{ items: { threadId, turnId, hookSeq, plugin, outcome, at }[], next }` | M5 (M5d, 턴 기록) |
+| turnRecord | `turnRecord.mark` | `{ threadId, turnId, plugin, mark: "followed" \| "not_followed" }` | `{}` | M5 (M5d, 턴 기록) |
+| metrics | `metrics.catalog` | `{}` | `{ metrics: MetricDef[] }` | M5 (M5d, 지표) |
+| metrics | `metrics.query` | `{ metrics: string[](최대 16), filter: MetricFilter, groupBy?, compare? }` | `{ window, rows, notes }` | M5 (M5d, 지표) |
+| findings | `findings.list` | `{ profileId?, period?, state? }` | `{ asOf, dataRevision, findings: Finding[] }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.evidence` | `{ findingId, cursor? }` | `{ items: EvidenceRef[], next }` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.dismiss` | `{ findingId, until? }` | `{}` | M5 (M5d, 살펴볼 것) |
+| findings | `findings.bundle` | `{ findingId }` | `{ bundle: FindingBundle, bytes }`(16 KiB 이하) | M5 (M5d, 살펴볼 것) |
+| profileCost | `profileCost.get` | `{ profileId, basis? }` | `{ profileId, rev, basis, nTurns, plugins: ProfileCostRow[], total: ProfileCostRow }` | M5 (M5d, 비용) |
+| testRun | `testRun.compare` | `{ threadIds: string[](2~8) }` | `{ sameInput, columns, rows: CompareRow[] }` | M5 (M5d, 테스트 실행) |
 | testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |

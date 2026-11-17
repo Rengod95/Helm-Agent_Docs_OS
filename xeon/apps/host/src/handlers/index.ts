@@ -22,6 +22,7 @@ import {
 } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
+import { createM5Handlers } from "./m5/index.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -110,6 +111,7 @@ export function createWireHandlers(
     "usage.get": createUsageGetHandler(engine),
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
+    ...createM5Handlers(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),

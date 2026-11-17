@@ -97,6 +97,7 @@ describe("profile storage and Test run marker", () => {
       "testRun.resume",
       "testRun.step",
       "testRun.phase",
+      "testRun.compare",
     ]);
     roundTrip(WIRE_METHODS["testRun.pause"].result, { paused: true });
     roundTrip(WIRE_METHODS["testRun.phase"].result, {

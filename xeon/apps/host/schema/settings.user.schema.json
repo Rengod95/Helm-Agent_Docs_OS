@@ -7759,6 +7759,60 @@
         }
       }
     },
+    "x.operations.findings.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Compute findings",
+          "labelKey": "settings.x.operations.findings.enabled.label",
+          "order": 550,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.operations.findings.overrides": {
+      "default": {},
+      "patternProperties": {
+        "^.*$": {
+          "patternProperties": {
+            "^.*$": {
+              "type": "number"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Rule id to numeric thresholds. Unknown keys are ignored.",
+          "helpKey": "settings.x.operations.findings.overrides.help",
+          "label": "Finding thresholds",
+          "labelKey": "settings.x.operations.findings.overrides.label",
+          "order": 551,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.operations.hookDefs": {
       "default": [],
       "items": {
@@ -7960,6 +8014,56 @@
           "order": 600,
           "tab": "plugins",
           "widget": "table"
+        }
+      }
+    },
+    "x.operations.metrics.defaultWindowDays": {
+      "default": 30,
+      "maximum": 365,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Default metrics window",
+          "labelKey": "settings.x.operations.metrics.defaultWindowDays.label",
+          "order": 541,
+          "tab": "plugins",
+          "unit": "days",
+          "unitKey": "settings.x.operations.metrics.defaultWindowDays.unit",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.metrics.minSample": {
+      "default": 20,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "A rate or distribution is shown as insufficient below this many turns or calls",
+          "helpKey": "settings.x.operations.metrics.minSample.help",
+          "label": "Minimum sample for a metric",
+          "labelKey": "settings.x.operations.metrics.minSample.label",
+          "order": 540,
+          "tab": "plugins",
+          "widget": "number"
         }
       }
     },

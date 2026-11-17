@@ -1101,13 +1101,19 @@ export const MetricValueSchema: TUnsafe<MetricValue> = Type.Unsafe<MetricValue>(
   MetricValueShape satisfies SchemaProof<MetricValue, typeof MetricValueShape>,
 );
 
-/** 지표 정의 한 줄(`metrics.catalog`, §5의 행) */
+/** 가능 열(§5). `exact` 예, `approx` 근사, `partial` 부분, `no` 아니오. 저장 문자열이 아니라 카탈로그 값이다 */
+export const FEASIBLE_KINDS = ["exact", "approx", "partial", "no"] as const;
+export type Feasible = (typeof FEASIBLE_KINDS)[number];
+export const FeasibleSchema: TUnion<TLiteral<Feasible>[]> = literalUnion(FEASIBLE_KINDS);
+
+/** 지표 정의 한 줄(`metrics.catalog`, §5의 행). `feasible`은 §5의 "기록만으로 가능한가" 열이다 */
 export interface MetricDef {
   readonly id: string;
   readonly label: { readonly ko: string; readonly en: string };
   readonly unit: string;
   readonly kind: "count" | "ratio" | "tokens" | "ms";
   readonly appliesTo: SubjectKind[];
+  readonly feasible: Feasible;
   readonly definitionNote: string | null;
 }
 const MetricDefShape = closed({
@@ -1116,6 +1122,7 @@ const MetricDefShape = closed({
   unit: Type.String({ maxLength: 32 }),
   kind: literalUnion(["count", "ratio", "tokens", "ms"]),
   appliesTo: Type.Array(SubjectKindSchema),
+  feasible: FeasibleSchema,
   definitionNote: Nullable(Type.String({ maxLength: 512 })),
 });
 export const MetricDefSchema: TUnsafe<MetricDef> = Type.Unsafe<MetricDef>(
