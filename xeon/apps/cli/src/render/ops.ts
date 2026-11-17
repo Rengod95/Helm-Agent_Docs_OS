@@ -88,7 +88,13 @@ export type RenderOp =
       /** 실제로 적용한 기억 범위. 요청한 범위와 다르면 낮춰 적용한 것이다(L1.tools.spec §4.7) */
       readonly remember: RememberChoice;
       readonly requestedRemember: RememberChoice | null;
-      readonly resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";
+      readonly resolvedBy:
+        | "user"
+        | "noninteractive"
+        | "cancelled"
+        | "superseded"
+        | "expired"
+        | "extension";
     }
   | {
       readonly kind: "turnEnd";

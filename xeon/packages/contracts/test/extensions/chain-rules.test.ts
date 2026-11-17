@@ -192,13 +192,37 @@ describe("COLLECT_RULES", () => {
 
   test("session.resources appends paths in registration order", () => {
     const merged = COLLECT_RULES["thread.resources"].merge(
-      { skillPaths: ["/a"], promptPaths: [], themePaths: [] },
+      { skillPaths: ["/a"], promptPaths: [], themePaths: [], workspaceCandidates: [] },
       [{ skillPaths: ["/b"] }, { promptPaths: ["/p"], themePaths: ["/t"] }, { skillPaths: ["/c"] }],
     );
     expect(merged).toEqual({
       skillPaths: ["/a", "/b", "/c"],
       promptPaths: ["/p"],
       themePaths: ["/t"],
+      workspaceCandidates: [],
+    });
+  });
+
+  test("session.resources: the first workspace wins and every candidate is kept in order", () => {
+    const initial = { skillPaths: [], promptPaths: [], themePaths: [], workspaceCandidates: [] };
+    const none = COLLECT_RULES["thread.resources"].merge(initial, [{ skillPaths: ["/x"] }]);
+    expect(none).toEqual({
+      skillPaths: ["/x"],
+      promptPaths: [],
+      themePaths: [],
+      workspaceCandidates: [],
+    });
+    const merged = COLLECT_RULES["thread.resources"].merge(initial, [
+      { workspace: "/proj/a" },
+      { skillPaths: ["/s"] },
+      { workspace: "/proj/b" },
+    ]);
+    expect(merged).toEqual({
+      skillPaths: ["/s"],
+      promptPaths: [],
+      themePaths: [],
+      workspace: "/proj/a",
+      workspaceCandidates: ["/proj/a", "/proj/b"],
     });
   });
 });

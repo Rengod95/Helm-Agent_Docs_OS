@@ -1,7 +1,7 @@
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
-import { extensionPrefix, LoopPortKey } from "@fresnel/contracts/extensions";
+import { extensionPrefix, isHighFrequency, LoopPortKey } from "@fresnel/contracts/extensions";
 import type {
   DriveOptions,
   ExtensionName,
@@ -68,6 +68,7 @@ import type {
   ShortcutResourceDef,
 } from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
+import { subscribedNames, subscribeWith } from "./subscribe.ts";
 import { awaitUser } from "./user-wait.ts";
 import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
@@ -293,6 +294,18 @@ export function createRegistrationApi(
         signal: generation.abort.signal,
       };
       return fiberOf(generation).effect(() => core.registry.add(entry), `on(${point})`);
+    },
+    subscribe(events, handler, options) {
+      assertOpen(record, generation);
+      const sample = options?.sample ?? "every";
+      const names = subscribedNames(events, plugin.decl.hooks, record.id, sample);
+      return subscribeWith({
+        names,
+        handler,
+        sampleOf: (name) => (sample === "coalesce" && isHighFrequency(name) ? "coalesce" : "every"),
+        register: (name, fn) => api.on(name, fn),
+        track: (task) => core.track(task),
+      });
     },
     post(item: PostItem, options: PostOptions) {
       assertWritable(record);

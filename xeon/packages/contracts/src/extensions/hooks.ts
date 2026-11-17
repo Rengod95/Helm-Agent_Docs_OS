@@ -1218,12 +1218,25 @@ function mergeSystemPrompts(original: string, prompts: readonly string[]): strin
   return base === "" ? additions.join("\n\n") : `${base}\n\n${additions.join("\n\n")}`;
 }
 
+/**
+ * 대화 폴더 후보는 등록 순서대로 모은다. 첫 후보가 `workspace`가 되고 나머지는 호스트가 `workspace_conflict`로 알린다(H-7).
+ * 후보가 없으면 `workspace` 필드를 싣지 않는다
+ */
 const resourcesRule: CollectRule<ResourcesValue, ResourcesPatch> = {
-  merge: (initial, contributions) => ({
-    skillPaths: [...initial.skillPaths, ...contributions.flatMap((p) => p.skillPaths ?? [])],
-    promptPaths: [...initial.promptPaths, ...contributions.flatMap((p) => p.promptPaths ?? [])],
-    themePaths: [...initial.themePaths, ...contributions.flatMap((p) => p.themePaths ?? [])],
-  }),
+  merge: (initial, contributions) => {
+    const workspaceCandidates = [
+      ...initial.workspaceCandidates,
+      ...contributions.flatMap((p) => (p.workspace === undefined ? [] : [p.workspace])),
+    ];
+    const first = workspaceCandidates[0];
+    return {
+      skillPaths: [...initial.skillPaths, ...contributions.flatMap((p) => p.skillPaths ?? [])],
+      promptPaths: [...initial.promptPaths, ...contributions.flatMap((p) => p.promptPaths ?? [])],
+      themePaths: [...initial.themePaths, ...contributions.flatMap((p) => p.themePaths ?? [])],
+      ...(first === undefined ? {} : { workspace: first }),
+      workspaceCandidates,
+    };
+  },
 };
 
 export const COLLECT_RULES: {

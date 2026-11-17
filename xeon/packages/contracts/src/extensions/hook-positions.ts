@@ -224,13 +224,13 @@ export const HOOK_POSITIONS: { readonly [N in HookName]: HookPositionRow } = {
     hook: "thread.resources",
     positions: [boundary("conversation-start")],
     powers: ["contribute"],
-    fired: false,
+    fired: true,
   },
   "thread.mcp.after": {
     hook: "thread.mcp.after",
     positions: [freeEvent],
     powers: ["observe"],
-    fired: false,
+    fired: true,
   },
   "thread.start": {
     hook: "thread.start",
@@ -413,4 +413,56 @@ export function checkHookPositions(
     }
   }
   return issues;
+}
+
+/** 위치가 `event`인 24개 훅(M5e 스펙 §4.4.1). `g.subscribe`가 받는 이름이고, 시험이 `HOOK_POSITIONS`에서 파생한 목록과 같은지 본다 */
+export const SUBSCRIBABLE_EVENTS = [
+  "request.provider.after",
+  "request.stream",
+  "request.model.after",
+  "request.thinking.after",
+  "tool.execution.before",
+  "tool.execution.update",
+  "tool.execution.after",
+  "boundary.turn.before",
+  "boundary.step.before",
+  "boundary.message.before",
+  "boundary.message.update",
+  "boundary.turn.after",
+  "boundary.settle.after",
+  "thread.mcp.after",
+  "thread.info.after",
+  "thread.compact.after",
+  "thread.compact.failed",
+  "thread.tree.after",
+  "thread.shutdown",
+  "thread.prompt.before",
+  "thread.prompt.after",
+  "lifecycle.agent.settled",
+  "lifecycle.lease.rejected",
+  "ask.human.after",
+] as const;
+
+export type SubscribableEvent = (typeof SUBSCRIBABLE_EVENTS)[number];
+
+export type EventAnchor = NonNullable<Extract<HookPosition, { kind: "event" }>["anchor"]>;
+
+const SUBSCRIBABLE_SET: ReadonlySet<string> = new Set<string>(SUBSCRIBABLE_EVENTS);
+
+/** 이 이름이 이벤트 위치의 훅인가. 매니페스트의 `"all"` 구독과 `g.subscribe`의 검사가 쓴다 */
+export function isSubscribableEvent(name: HookName): name is SubscribableEvent {
+  return SUBSCRIBABLE_SET.has(name);
+}
+
+/** 이벤트 훅의 흐름 그림 자리(화면용). 없으면 undefined다 */
+export function anchorOfEvent(name: SubscribableEvent): EventAnchor | undefined {
+  for (const position of HOOK_POSITIONS[name].positions) {
+    if (position.kind === "event") return position.anchor;
+  }
+  return undefined;
+}
+
+/** 고빈도 이벤트다. `sample: "coalesce"`를 받는 유일한 이벤트다 */
+export function isHighFrequency(name: SubscribableEvent): boolean {
+  return HOOK_POSITIONS[name].highFrequency === true;
 }

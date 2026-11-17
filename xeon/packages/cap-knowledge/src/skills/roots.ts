@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { KnowledgeFs } from "../fs/port.ts";
 import type { SkillDiagnostic, SkillRoots } from "../upstream/skills.ts";
 
 // L2.knowledge.spec §4.1 경로, §4.2.1 루트 순서. 경로는 `fresnel.os`가 준 디렉터리와 설정에서만 만든다(DR-13).
@@ -45,4 +46,26 @@ export function resolveSkillRoots(input: RootsInput): SkillRoots {
 export interface RootsResult {
   readonly roots: SkillRoots;
   readonly diagnostics: readonly SkillDiagnostic[];
+}
+
+/** 열기 훅이 낸 스킬 경로 가운데 읽을 수 있는 것만 남긴다. 나머지는 버리고 진단한다(E-13 `skill_path_missing`) [제안] */
+export async function existingContributedPaths(
+  fs: KnowledgeFs,
+  paths: readonly string[],
+): Promise<{
+  readonly paths: readonly string[];
+  readonly diagnostics: readonly SkillDiagnostic[];
+}> {
+  const checked = await Promise.all(
+    paths.map(async (path) => ({ path, found: (await fs.stat(path)).ok })),
+  );
+  const kept = checked.filter((item) => item.found).map((item) => item.path);
+  const diagnostics: SkillDiagnostic[] = checked
+    .filter((item) => !item.found)
+    .map((item) => ({
+      type: "warning",
+      message: "skill_path_missing: a skill path from thread.resources cannot be read",
+      path: item.path,
+    }));
+  return { paths: kept, diagnostics };
 }

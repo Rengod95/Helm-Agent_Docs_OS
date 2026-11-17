@@ -66,6 +66,9 @@ function resolutionNotice(op: Extract<RenderOp, { kind: "approvalResolved" }>): 
     case "superseded":
       lines.push(t("cli.render.textSink.resolved.superseded"));
       break;
+    case "extension":
+      lines.push(t("cli.render.textSink.resolved.extension"));
+      break;
     default:
       return assertNever(op.resolvedBy, "ApprovalResolvedBy");
   }

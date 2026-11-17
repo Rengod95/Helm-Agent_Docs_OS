@@ -19,6 +19,8 @@ export type PrimitiveErrorCode =
   | "registration_duplicate"
   | "registration_setup_failed"
   | "hook_undeclared"
+  | "subscribe_not_event"
+  | "subscribe_not_high_frequency"
   | "registration_unknown_plugin"
   | "state_undeclared"
   | "state_schema"

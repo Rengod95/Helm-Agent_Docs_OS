@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+  anchorOfEvent,
   HOOKS,
   HOOK_NAMES,
   HOOK_POSITIONS,
+  isHighFrequency,
+  isSubscribableEvent,
+  SUBSCRIBABLE_EVENTS,
   checkHookPositions,
   type HookPositionRow,
 } from "../../src/extensions/index.ts";
@@ -195,12 +199,10 @@ describe("hook positions table", () => {
     expect(blockOrBoundary.length + events.length + internal.length).toBe(50);
   });
 
-  test("the four hooks that this build does not fire are marked not fired", () => {
+  test("the two internal hooks that nothing fires are the only ones marked not fired", () => {
     expect(hooksWhere((row) => !row.fired)).toEqual([
       "request.cache.before",
       "thread.trust.before",
-      "thread.resources",
-      "thread.mcp.after",
     ]);
   });
 
@@ -238,5 +240,36 @@ describe("hook positions table", () => {
       { kind: "boundary", boundary: "conversation-start" },
     ]);
     expect(HOOK_POSITIONS["thread.resources"].powers).toEqual(["contribute"]);
+  });
+});
+
+describe("subscribable events", () => {
+  test("the 24 subscribable names are the rows whose position is an event, in table order", () => {
+    const derived = HOOK_NAMES.filter((name) =>
+      HOOK_POSITIONS[name].positions.some((position) => position.kind === "event"),
+    );
+    expect(derived).toHaveLength(24);
+    const listed: readonly string[] = SUBSCRIBABLE_EVENTS;
+    expect(listed).toEqual(derived);
+  });
+
+  test("thread.start is not subscribable, and ask.human.after is", () => {
+    expect(isSubscribableEvent("thread.start")).toBe(false);
+    expect(isSubscribableEvent("ask.human.after")).toBe(true);
+    expect(isSubscribableEvent("boundary.message.after")).toBe(false);
+  });
+
+  test("the anchor comes from the table, and an event without one has none", () => {
+    expect(anchorOfEvent("ask.human.after")).toEqual({ block: "ask", side: "after" });
+    expect(anchorOfEvent("tool.execution.update")).toEqual({ block: "tools", side: "after" });
+    expect(anchorOfEvent("thread.shutdown")).toBeUndefined();
+  });
+
+  test("only the three high-frequency events accept sample coalesce", () => {
+    expect(SUBSCRIBABLE_EVENTS.filter((name) => isHighFrequency(name))).toEqual([
+      "request.stream",
+      "tool.execution.update",
+      "boundary.message.update",
+    ]);
   });
 });

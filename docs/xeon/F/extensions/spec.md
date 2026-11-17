@@ -410,6 +410,12 @@ export interface PostReceipt {
 
 export interface ExtensionOps<S> {
   on<N extends HookName>(point: N, handler: Handler<N, S>): Unsubscribe;
+  /** 이벤트 구독([제안], M5e §4.4.1). `on`의 tap 형태 위의 도우미다. 규칙은 X.primitives.spec §4.2 항목 5 */
+  subscribe(
+    events: readonly SubscribableEvent[] | "all",
+    handler: (event: EventEnvelope, ctx: EventContext<S>) => void | Promise<void>,
+    options?: SubscribeOptions,
+  ): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
   /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
   drive(fn: DriveFn<S>, options?: DriveOptions): void;
@@ -791,7 +797,13 @@ export interface ToolResourceDef {
     readonly signal: AbortSignal;
     readonly toolCallId: string;     // 호출 id. X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102)
     readonly caller: CallerInfo;     // 호출 주체. caller.afterUntrusted는 이번 turn이 untrusted 도구 결과를 읽었는지(M3-REQ-100)
+    readonly changes?: ToolChangeReport;  // 이 호출이 바꾼 파일을 알린다(M5e §4.7 reported). 코어가 source를 정하고 검증해 결과 fileChanges에 합친다
   }): Promise<unknown>;
+}
+/** 알린 파일 변경 한 건. source는 코어가 "reported"로 정하므로 적지 않는다(F.capabilities.spec §3.13) */
+export type ReportedFileChange = Omit<FileChangeEntry, "source">;
+export interface ToolChangeReport {
+  report(entries: readonly ReportedFileChange[]): void;   // 검증되지 않은 값이다. 모양이 틀린 항목은 코어가 버린다
 }
 /** 모양은 L1.models.spec이 정한다 */
 export type ProviderResourceDef = JsonValue;
@@ -1045,7 +1057,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 25 | `boundary.turn.after` | boundary | tap | AgentEndPayload | void | open |  | `agent_end` | types.ts:937 | runner.ts:1089 emit | 같음 |
 | 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Fresnel turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
 | 27 | `thread.trust.before` | thread | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Fresnel은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
-| 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
+| 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가. H-7: 결과 `workspace`(대화 폴더 후보, 등록 순서. 첫 후보가 이기고 나머지는 호스트가 `workspace_conflict`로 알린다) |
 | 29 | `thread.mcp.after` | thread | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (not awaited) | `dispatch: detached` |
 | 30 | `thread.start` | thread | tap | SessionStartPayload | void | open | ● | `session_start` | types.ts:741 | runner.ts:1089 emit | 같음 |
 | 31 | `thread.info.after` | thread | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (not awaited) | `dispatch: detached` |
@@ -1082,7 +1094,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 - 위치 종류는 블록 앞·뒤(`block`), 경계(`boundary`), 이벤트(`event`), 내부(`internal`) 넷이다. 이벤트의 닻(`anchor`)은 블록과 앞·뒤 쪽이고, 닻이 없는 이벤트는 기록 블록의 구독이다.
 - `powers`는 `observe`(관찰), `modify`(고치기), `decide`(막기·묻기·대체·취소·가로채기), `contribute`(보태기) 넷이다. tap 훅은 `observe`뿐이고, tap이 아닌 fold는 `observe`를 가지지 않는다.
 - `checkHookPositions`(순수 함수)가 검사한다. 키 집합이 `HOOK_NAMES`와 같은지, 이벤트 위치는 tap에만 있는지, 블록·경계 위치는 tap이 아닌 fold와 `thread.start`에만 있는지, `powers`가 위 규칙을 따르는지다.
-- 50행에서 블록 또는 경계 위치가 21개, 이벤트가 24개, 내부가 5개다(21 + 24 + 5 = 50). 이 빌드가 발화하지 않는 훅은 `request.cache.before`, `thread.trust.before`, `thread.resources`, `thread.mcp.after`와 M5e의 새 네 행(`ask.human.before`, `ask.human.after`, `agent.spawn.before`, `agent.spawn.after`)이라 여덟이다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
+- 50행에서 블록 또는 경계 위치가 21개, 이벤트가 24개, 내부가 5개다(21 + 24 + 5 = 50). 이 빌드가 발화하지 않는 훅은 `request.cache.before`와 `thread.trust.before` 둘이다. 둘 다 `internal`이고 아무도 부르지 않는다(M5e §4.4.2). `thread.resources`와 `thread.mcp.after`는 M5e 3단계에서 배선되어 발화하고, M5e의 새 네 행(`ask.human.before`, `ask.human.after`, `agent.spawn.before`, `agent.spawn.after`)도 발화한다. 고빈도 이벤트는 `request.stream`, `boundary.message.update`, `tool.execution.update` 셋이다.
 - 블록 모델(`BLOCK_MODEL`, 서브패스 `@fresnel/contracts/blocks`)의 훅 목록은 이 표에서 파생한다. 손으로 두 번 적지 않는다.
 - [미결] `tool.execution.update`의 닻 쪽. 스펙 §3.1은 쪽을 적지 않았고 §3.2는 도구 실행 뒤 묶음에 두었다. 지금은 뒤로 둔다 [근거: `docs/xeon/review/m5/hooks-core-boundary.md` §3.1, §3.2].
 

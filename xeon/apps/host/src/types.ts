@@ -6,7 +6,13 @@ import type {
   SecretMeta,
   SecretName,
 } from "@fresnel/contracts/capabilities";
-import type { IdFactory, ItemId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  IdFactory,
+  ItemId,
+  ThreadId,
+  ThreadStatus,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   LeaseToken,
@@ -353,6 +359,13 @@ export interface ThreadPort {
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /**
+   * 열기 훅(`thread.resources`)이 정한 대화 폴더를 첫 턴 전에 커밋한다(H-7). 쓰기 소유를 얻은 뒤에 부른다.
+   * 거부한 후보는 진단으로 남기고 열기를 막지 않는다
+   */
+  applyOpenWorkspace(threadId: ThreadId): Promise<void>;
+  /** 같은 작업 폴더의 닫히지 않은 다른 대화(U6). 알림뿐이라 읽지 못하면 빈 목록이다 */
+  sameFolder(threadId: ThreadId): { readonly threadId: ThreadId; readonly status: ThreadStatus }[];
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
   /** 새 thread를 만든다. 쓰기 소유는 얻지 않는다(처리기가 `SessionLockPort`로 얻는다). 실패는 수명 주기 오류 값이다 */
   fork(

@@ -109,7 +109,7 @@ binds: []
 | 25 | `boundary.turn.after` | tap | `core-loop/src/loop/finish-turn.ts:128` | 이벤트(턴 끝) | 관찰 | open | 없음 |
 | 26 | `boundary.settle.after` | tap | `core-loop/src/loop/finish-turn.ts:141` | 이벤트(턴 정착) | 관찰 | open | group-helm `index.ts:51`, group-learning `handlers.ts:328`, plugin-builder 템플릿 |
 | 27 | `thread.trust.before` | first, threadless | 발화 없음. `emitProjectTrust`를 넘기는 곳이 없다(`ext-host/src/loading-trust/index.ts:280,1507`) | 내부 | 없음(미배선) | closed | 없음 |
-| 28 | `thread.resources` | collect | 발화하는 코드 없음 | 경계 대화 시작 | 보태기(스킬, 프롬프트, 테마 경로). [결정: 2026-11-17 사용자, U6] 대화 폴더 `workspace`를 정하는 결과 필드(H-7) | open | 없음 |
+| 28 | `thread.resources` | collect | `core-persistence/src/open-chain.ts`가 대화 열기마다 `thread.start` 앞에서 발화한다(H-7, 구현됨) | 경계 대화 시작 | 보태기(스킬, 프롬프트, 테마 경로). [결정: 2026-11-17 사용자, U6] 대화 폴더 `workspace`를 정하는 결과 필드(H-7) | open | 없음 |
 | 29 | `thread.mcp.after` | tap, detached | 발화 없음. `onServersChange`가 `undefined`다(`apps/host/src/assembly/cap-mcp.ts:170`) | 이벤트(미배선) | 관찰 | open | 없음 |
 | 30 | `thread.start` | tap | `core-persistence/src/points.ts:63` | 경계 대화 시작 | 관찰, `post`, 상태 복원 | open | cap-knowledge `plugin.ts:242`, group-helm `index.ts:54`, plugin-builder `src/group.ts:78` |
 | 31 | `thread.info.after` | tap, detached | `core-persistence/src/points.ts:66` | 이벤트 | 관찰 | open | 없음 |
@@ -133,7 +133,7 @@ binds: []
 
 - fold 수: tap 24, first 10(2, 13, 27, 32, 33, 34, 37, 42, 43, 44), chain 10(1, 4, 5, 6, 7, 8, 14, 22, 23, 24), collect 2(3, 28). 합계 46.
 - 위치 종류별 개수: 블록 앞·뒤 또는 경계에서 고치거나 정하는 훅 18개(1, 2, 3, 4, 5, 7, 8, 13, 14, 22, 23, 24, 28, 30, 34, 42, 43, 44), 이벤트 23개(30번을 뺀 tap 23개), 내부 5개(6, 27, 32, 33, 37). 18+23+5=46.
-- 지금 발화하지 않는 훅 4개: `request.cache.before`(6), `thread.trust.before`(27), `thread.resources`(28), `thread.mcp.after`(29). 선언, 스키마, 문서, 화면 표만 있다. `HookSignatures`는 46행이라고 주석하지만 발화는 42개다.
+- 지금 발화하지 않는 훅 2개: `request.cache.before`(6), `thread.trust.before`(27). 둘 다 내부이고 아무도 부르지 않는다(4.4.2). `thread.resources`(28)와 `thread.mcp.after`(29)는 M5e 3단계에서 배선되어 발화한다(H-7, H-8). `HookSignatures`는 46행이라고 주석하지만 발화는 42개다(이 표가 쓰인 시점 기준이다. 배선 뒤에는 원래 46행 가운데 44개가, 50행 전체로는 48개가 발화한다).
 - 훅을 고치거나 막는 데 쓰는 번들 플러그인은 5개 위치뿐이다: 입력 받기(cap-dialog), 턴 시작(cap-knowledge, cap-work, cap-dialog, helm), 도구 실행 앞(helm), 단계 끝과 턴 종료 직전(cap-work, learning). 이 문서 3절의 표가 근거다.
 - 외부 훅 정의(설정 파일에 적는 셸 훅)가 붙을 수 있는 훅은 8개다: `input.user.before`, `input.bash.before`, `tool.call.before`, `tool.result`, `thread.start`, `thread.compact.before`, `boundary.settle.after`, `thread.shutdown`(`ext-host/src/operations/hooks/config.ts:12-21`). 이 8개는 새 위치에서도 모두 공개 위치다. 새 위치 때문에 외부 훅이 떨어져 나가는 일은 없다.
 - 기존 화면 표가 따로 있다. `client/src/workbench/canvas/hooks.ts`가 훅별 phase(`start/think/act/wrap`), fold, failure, orderMatters를 중복해서 들고 있고 `hooks.test.ts`가 46개를 대조한다. 이 스펙의 위치 데이터(4.1)가 정본이 되면 이 표는 파생값으로 바꾼다(8절).
@@ -436,7 +436,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 
 기록 방식:
 
-1. 관찰(`observed`): 파일 변경은 코어가 보는 파일 서비스에서 일어난다. `workspace.files.write/edit`가 이미 `change: FileChange`를 반환한다(`contracts/src/capabilities/defs/workspace.ts:211-216`, `renderChange` `:350-361`). 통합 호출 경로(4.6)는 서비스 반환의 `change`를 `FileChangeEntry`(`source: "observed"`)로 모아 부모 도구 호출(`parentToolCallId`)의 결과 `details.fileChanges`에 합친다. 모델이 부른 `edit`은 지금처럼 `details`가 `FileChange`이고 `fileChangesOf`가 한 건으로 읽는다.
+1. 관찰(`observed`): 파일 변경은 코어가 보는 파일 서비스에서 일어난다. `workspace.files.write/edit`가 이미 `change: FileChange`를 반환한다(`contracts/src/capabilities/defs/workspace.ts:211-216`, `renderChange` `:350-361`). 통합 호출 경로(4.6)는 서비스 반환의 `change`를 `FileChangeEntry`(`source: "observed"`)로 모아 부모 도구 호출(`parentToolCallId`)의 결과 `details.fileChanges`에 합친다. 모델이 부른 `edit`은 지금처럼 `details`가 `FileChange`이고 `fileChangesOf`가 한 건으로 읽는다. [구현 상태: 내장 기능 도구의 결과에 든 `FileChange`는 체인 전에 `observed`로 떼어 두었다가 체인 뒤에 다시 합친다(`core-tools/src/file-changes.ts`, F-3). 플러그인 코드가 `g.capability`로 부른 서비스 호출의 `change`를 부모 호출에 모으는 것(위 통합 경로)은 E2가 만든다. 이 트랙에서는 만들지 않는다.]
 2. 보고(`reported`): 코어 서비스를 거치지 않는 도구는 실행 맥락의 `ctx.changes.report(entries)`로 알린다. 코어는 이를 `source: "reported"`로 표시해 합친다. 이 값은 검증되지 않았다.
 3. 코어가 쓰는 키: `fileChanges`는 코어의 예약 키다. 병합은 `tool.result` 체인이 끝난 뒤에 한다. 훅이 `details`를 통째로 바꿔도 코어가 관찰한 변경은 마지막에 다시 들어간다. 훅이 변경 기록을 지우지 못한다. `replace` 결과(4.2)에는 관찰한 변경이 없다.
 4. 되감기 입력: 되감기는 `before`/`after`의 해시와 `op`를 읽고 `observed`만 자동 복원 대상으로 삼는다. `reported`는 사용자 확인을 거친다. 구현은 범위 밖(1.2)이고 입력 형식만 이 스펙이 정한다.
@@ -445,7 +445,7 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 
 | 읽는 쪽 | 지금 | 바꾼 뒤 |
 |---|---|---|
-| 데스크톱 변경 탭 | 도구 이름과 인자 모양(`approval-form.ts:424-443`) | 완료된 도구 결과의 `fileChangesOf(details)`. 결과가 아직 없는 호출은 `pending`으로 두고, 인자 기반 그림은 승인 카드 미리보기에만 남긴다 |
+| 데스크톱 변경 탭 | 도구 이름과 인자 모양(`approval-form.ts:424-443`) | 완료된 도구 결과의 `fileChangesOf(details)`. 결과가 아직 오지 않은 호출은 파일로 세지 않는다(경로와 diff가 결과에서만 오므로 진행 표시는 턴의 실행 중 표시가 맡는다). 인자 기반 그림(`fileChangeViewOfArgs`)은 승인 카드 미리보기에만 남긴다. 추적 밖 목록(명령·하위 에이전트)은 이름 기반 그대로다(P-4 계측 전) |
 | 서버 리뷰 `collectDiffs` | `parse(FileChangeSchema, details)` | `fileChangesOf(details)`의 `diff`가 있는 항목 |
 | 파일 되감기(보류) | 없음 | `before`/`after` |
 
@@ -531,8 +531,8 @@ export const BLOCK_MODEL: BlockModel;
 - **H-4 내부 훅은 공개하지 않는다.** 비내장 플러그인 매니페스트가 내부 훅(`request.cache.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`)을 선언하면 로딩이 `hook_internal`로 거부한다. 내장은 허용한다. 지금 발화하지 않는 훅을 선언하면 진단 경고 `hook_not_fired`를 남긴다. 시험: 사용자 등급 매니페스트로 `thread.fork.before` 선언 시 거부.
 - **H-5 위치표 완전성.** `HOOK_POSITIONS`는 `HOOK_NAMES`(50개)와 키가 같고 위치 종류별 개수는 블록·경계 21, 이벤트 24, 내부 5다. 훅 이름 문자열은 46개 모두 이전 빌드와 같다(스냅샷 시험).
 - **H-6 이벤트는 막지 못한다.** 구독 핸들러의 반환값과 예외는 턴의 결과를 바꾸지 못한다. 시험: 모든 이벤트 구독에서 예외를 던져도 턴의 기록은 구독 없을 때와 같다.
-- **H-7 `thread.resources` 배선** [결정: 2026-11-17 사용자, U6]의 구현이다. 결과 필드 `workspace`는 사용자가 정한 것이고 배선 세부는 [제안]이다. 대화를 열 때 `thread.start` 앞에서 한 번 발화하고 반환한 경로를 스킬 탐색(`cap-knowledge`의 `skills.paths`와 같은 경로 처리)에 합친다. 실패는 open이다. **[결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과로 대화 폴더를 정하는 길.** `thread.start`는 관찰·`post`만 하는 tap이라 값을 돌려주지 못한다. `thread.resources`(collect)의 결과에 선택 필드 `workspace`를 더한다. 여럿이 내면 순서가 앞선 핸들러의 값만 쓰고 나머지는 진단(`workspace_conflict`)이다. 호스트는 첫 턴 전에 같은 프로젝트 루트 안의 폴더일 때만 `thread.updated { workspace }`를 커밋하고 아니면 무시한다(M5c §4.4.9). 같은 폴더 동시 대화의 정책(코어는 알리기만, 폴더는 이 훅이 정함, worktree는 플러그인)도 같은 결정 U6이다(코어는 알리기만, 막지 않고 자동 복사 없음, 훅은 경로 하나를 돌려준다). 이 필드는 결과 모양 그대로 구현한다. M5c 로더가 같은 일을 하면 이 훅은 "코드 플러그인이 동적으로 경로를 낼 때"만 쓴다.
-- **H-8 `thread.mcp.after` 배선** [제안]. `apps/host/src/assembly/cap-mcp.ts:170`의 `onServersChange`를 연결하고, 발화는 `applyBoundary`를 부른 대화(`boundary.step.before` 핸들러, `cap-mcp.ts:185`)의 것으로 한다. 서버 변화가 대화에 속하지 않는다는 주석(`cap-mcp.ts:47`)의 문제를 "변화를 처음 본 대화에서 발화"로 푼다.
+- **H-7 `thread.resources` 배선** [결정: 2026-11-17 사용자, U6]의 구현이다. 결과 필드 `workspace`는 사용자가 정한 것이고 배선 세부는 [제안]이다. 대화를 열 때 `thread.start` 앞에서 한 번 발화하고 반환한 경로를 스킬 탐색(`cap-knowledge`의 `skills.paths`와 같은 경로 처리)에 합친다. 실패는 open이다. **[결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과로 대화 폴더를 정하는 길.** `thread.start`는 관찰·`post`만 하는 tap이라 값을 돌려주지 못한다. `thread.resources`(collect)의 결과에 선택 필드 `workspace`를 더한다. 여럿이 내면 순서가 앞선 핸들러의 값만 쓰고 나머지는 진단(`workspace_conflict`)이다. 쓰기 소유를 얻은 호스트가 첫 턴 전에 코어의 `applyOpenWorkspace`를 부르고, 코어는 같은 프로젝트 루트 안의 폴더일 때만 `thread.updated { workspace }`를 커밋한다. 아니면 무시하고 진단한다(`workspace_outside_project`, 턴이 있으면 `workspace_late`). 프로젝트 루트는 지금 대화의 현재 폴더다(M5c §4.4.9). 같은 폴더 동시 대화의 정책(코어는 알리기만, 폴더는 이 훅이 정함, worktree는 플러그인)도 같은 결정 U6이다(코어는 알리기만, 막지 않고 자동 복사 없음, 훅은 경로 하나를 돌려준다). 이 필드는 결과 모양 그대로 구현한다. M5c 로더가 같은 일을 하면 이 훅은 "코드 플러그인이 동적으로 경로를 낼 때"만 쓴다.
+- **H-8 `thread.mcp.after` 배선** [제안]. 발화는 `applyBoundary`를 부른 대화(`boundary.step.before` 핸들러, `apps/host/src/assembly/cap-mcp.ts`)의 것으로 한다. 서버 변화가 대화에 속하지 않는다는 주석의 문제를 "변화를 처음 본 대화에서 발화"로 푼다. 구현은 `createMcp`의 `onServersChange` 콜백을 쓰지 않는다. 그 콜백은 대화를 받지 않고 `applyBoundary`는 직렬로 돌기 때문에, 변화를 낸 호출이 돌려주는 보고서(`changed`, `servers`, `toolsAdded`, `toolsRemoved`, 모양이 `McpServersChangePayload`와 같다)를 그 단계의 핸들러가 받아 `thread.mcp.after`로 보낸다. 키는 `<대화>:mcp.after:<단계>`라서 재발화해도 같은 값이다 [정정: 처음 적은 "`onServersChange`를 연결"은 대화 정보가 없어 쓸 수 없었다].
 - **H-9 훅 결과 값.** 핸들러 호출마다 기록된 결과값(`result`, `reason`, `decision`, `ask`)이 남고 4.5의 변환표로 표시값 여섯이 파생된다.
 - **H-10 `lifecycle.lease.rejected`.** E3가 중재를 없애면 발화가 멈춘다. 이름과 위치표 행은 남기고 `fired: false`로 바꾼다. 매니페스트 경고(H-4)가 따른다.
 
@@ -578,12 +578,12 @@ export const BLOCK_MODEL: BlockModel;
 
 ### 5.4 변경 기록
 
-- **F-1** 파이프라인 경로로 부른 `workspace.files.write|edit`의 반환 `change`는 부모 도구 결과의 `details.fileChanges`에 `source: "observed"`로 합쳐진다. 부모가 없는 호출(훅, 명령)은 그 호출 자신의 결과 항목에 싣는다.
+- **F-1** 파이프라인 경로로 부른 `workspace.files.write|edit`의 반환 `change`는 부모 도구 결과의 `details.fileChanges`에 `source: "observed"`로 합쳐진다. 부모가 없는 호출(훅, 명령)은 그 호출 자신의 결과 항목에 싣는다. [E2 소유: 플러그인 코드의 서비스 호출을 파이프라인이 보는 길이 E2다. 이 트랙이 낸 관찰 항목은 내장 기능 도구(`capability`가 있는 항목)의 결과 `FileChange`뿐이다. 그 경우 F-2처럼 `details`의 모양은 바꾸지 않는다.]
 - **F-2** 모델이 부른 내장 `write|edit`의 결과 `details`는 지금처럼 `FileChange`이고 `fileChangesOf`가 한 건으로 읽는다(옛 기록 호환).
-- **F-3** 코어가 쓰는 `fileChanges`는 `tool.result` 체인이 끝난 뒤 합쳐진다. 체인 안의 훅이 `details`를 지워도 최종 결과에는 남는다. 시험: `tool.result` 핸들러가 `details: null` 패치를 내도 결과의 `fileChanges`는 보존된다.
-- **F-4** 플러그인 도구의 `ctx.changes.report(entries)` 호출은 `source: "reported"`로 합쳐지고, 같은 `path`에 `observed`가 이미 있으면 `observed`가 이긴다.
-- **F-5** 변경 탭, 서버 리뷰 `collectDiffs`, 되감기는 `fileChangesOf`만 읽는다. 도구 이름과 인자 모양을 보는 코드는 승인 카드 미리보기로만 남는다.
-- **F-6** 완료된 호출만 변경으로 센다. 오류 결과(`isError`)는 `observed` 항목이 있어도 "실패"로 표시하되 이미 디스크에 쓴 변경은 `observed`로 남긴다(쓴 뒤 오류가 난 경우를 숨기지 않는다) [제안].
+- **F-3** 코어가 쓰는 `fileChanges`는 `tool.result` 체인이 끝난 뒤 합쳐진다. 체인 안의 훅이 `details`를 지워도 최종 결과에는 남는다. 시험: 내장 `edit`의 관찰 변경에 `tool.result` 핸들러가 `details: null` 패치를 내도 결과의 `fileChanges`는 보존된다. 플러그인 도구의 보고 항목은 체인이 `fileChanges`를 보지 않으므로(합치기가 뒤에 있다) `details: null`은 빈 패치다. 그 항목에 대해서는 체인이 예약 키를 흉내 낸 목록을 내도 보고 항목이 이긴다는 것을 시험한다(`core-tools/test/file-changes.test.ts`).
+- **F-4** 플러그인 도구의 `ctx.changes.report(entries)` 호출은 `source: "reported"`로 합쳐지고, 같은 `path`에 `observed`가 이미 있으면 `observed`가 이긴다. 입력은 `Omit<FileChangeEntry, "source">`다(`source`는 코어가 정한다). 모양이 틀린 항목은 버린다.
+- **F-5** 변경 탭, 서버 리뷰 `collectDiffs`, 되감기는 `fileChangesOf`만 읽는다. 도구 이름과 인자 모양을 보는 코드는 승인 카드 미리보기로만 남는다. [예외: 변경 탭의 "추적 밖" 목록(명령 `bash`, 하위 에이전트 `agent`)은 이름으로 가른다. 그 호출들이 바꾼 파일을 알 원천이 P-4 계측(`observedCoreCalls`) 전에는 갖춰지지 않았다.]
+- **F-6** 완료된 호출만 변경으로 센다. 오류 결과(`isError`)는 `observed` 항목이 있어도 "실패"로 표시하되 이미 디스크에 쓴 변경은 `observed`로 남긴다(쓴 뒤 오류가 난 경우를 숨기지 않는다) [제안]. [구현 상태: 코어는 오류 결과에서도 관찰·보고 항목을 `details`에 남긴다. 변경 탭은 오류 결과를 세지 않는다(기존 동작). "실패로 표시하면서 보이기"는 변경 탭의 파일 항목 모양(`FileEdit.state`가 `failed`를 받지 않는다)을 넓혀야 하므로 미결이다.]
 
 ### 5.5 대체 도구
 
@@ -697,8 +697,8 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-8 | `core-agents/src/service.ts:1269(provision), 1376(spawn), 1421(delegate), 1088(recordSettled)` | `agent.spawn.before|after` 발화, `loop.spawn`과 `g.delegate`와 `agent` 도구가 같은 입구(`provision`)를 지남을 확인. 디스패치는 플러그인이 ext-host에서 잇는다(`plugin.ts`) | M |
 | D-9 | `ext-host` 매니페스트 검증(`contracts/src/extensions/validate.ts`) | 내부 훅 거부 `hook_internal`, `hook_not_fired` 경고 | S |
 | D-10 | `group-sdk/src/` 와 `ext-host/src/primitives/host-api.ts:273-296` | `g.subscribe`, `EventEnvelope`, 샘플 옵션 | M |
-| D-11 | `apps/host/src/assembly/cap-mcp.ts:170` | `onServersChange` 연결(H-8) | S |
-| D-12 | 대화 시작 경로(`core-persistence/src/points.ts:63`, `lifecycle.ts:217`) | `thread.resources` 발화와 스킬 탐색 합류(H-7) | M |
+| D-11 | `apps/host/src/assembly/cap-mcp.ts:170` | `thread.mcp.after` 발화를 `applyBoundary` 보고서로 연결(H-8, `onServersChange` 콜백은 쓰지 않는다) | S |
+| D-12 | 대화 열기 경로(`core-persistence/src/open-chain.ts`(새 파일), `points.ts`, `lifecycle.ts`(새 대화), `resume.ts`(열기), `lifecycle-branch.ts`(포크)) | `thread.resources` 발화와 스킬 탐색 합류(H-7) | M |
 | D-13 | `ext-host/src/primitives/capability-guard.ts:111-180` | 분류(U-1), `executeForPlugin` 호출, 효과 표 검사 완화(U-5) | L |
 | D-14 | `contracts/src/services/tools.ts` `ToolService` | `executeForPlugin`, `PluginCallRequest` | S |
 | D-15 | `core-tools/src/pipeline.ts`(+ `entries.ts`) | 플러그인 호출을 위한 `prepare`/`execute` 진입점, 합성 도구 이름, `caller: plugin:*`, 승인 상속(U-11) | L |
@@ -706,8 +706,8 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-17 | `ext-host/src/primitives/effect-worker.ts:116-122` | 서비스 직접 호출을 `executeForPlugin`으로 | S |
 | D-18 | `contracts/src/capabilities/tool-meta.ts:22-27` | `CallerId`에 `plugin:<이름>` | S |
 | D-19 | `contracts/src/capabilities/file-change.ts` (신규) | `FileChangeEntry`, `fileChangesOf`, 예약 키 | S |
-| D-20 | `core-tools/src/entries.ts:424-428` | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합 | M |
-| D-21 | `apps/desktop/src/views/panels/changes/changes-model.ts`, `apps/desktop/src/views/approval-form.ts:424-443` | 결과 기반 읽기로 교체 | M |
+| D-20 | `core-tools/src/entries.ts:424-428`(`resourceResult`), `core-tools/src/pipeline.ts`(`finishCall`), `core-tools/src/file-changes.ts`(신규) | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합. 입력 타입은 `Omit<FileChangeEntry, "source">`(`contracts/src/extensions/ports.ts`) | M |
+| D-21 | `apps/desktop/src/views/panels/changes/changes-model.ts`. `apps/desktop/src/views/approval-form.ts`는 `DIFF_HEAD_ROWS`를 내보내기만 한다(인자 기반 그림 `fileChangeViewOfArgs`는 승인 카드 미리보기에 남는다) | 변경 탭 원천을 완료 결과의 `fileChangesOf`로 교체. 출력 모양(`ChangesView`)은 그대로 | M |
 | D-22 | `cap-artifacts/src/reviews/collect.ts:53-75` | `fileChangesOf` 사용 | S |
 | D-23 | `contracts/src/blocks/` (신규)와 `contracts/src/wire-settings/wire/*` | `BLOCK_MODEL`, `blocks.describe`, `blocks.applied`, 호스트 처리기 | M |
 | D-24 | `client/src/workbench/canvas/hooks.ts` | 중복 표를 `HOOK_POSITIONS`에서 파생 | S |
@@ -748,7 +748,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | A-9 | 주도 플러그인이 코드로 `write`를 부르면 턴 기록과 변경 탭에 남고, 다른 플러그인의 `tool.call.before`가 그 호출을 막을 수 있고, `bypass`가 아닌 모드에서는 카드가 뜬다 | R10, 5.3 |
 | A-10 | 플러그인이 자기 `tool.result` 안에서 부른 호출에는 자기 핸들러가 돌지 않고, P→Q→P 순환은 `hook_cycle`로 거부된다 | U-8 |
 | A-11 | 재생 안전: 같은 호출 키로 다시 불러도 파일이 한 번만 바뀐다 | U-5 |
-| A-12 | 대체 `edit` 도구가 코어 파일 서비스로 쓴 변경이 변경 탭과 리뷰 diff에 나온다(도구 이름이 `edit`이 아니어도) | R22, 4.7, F-1 |
+| A-12 | 대체 도구가 낸 변경이 변경 탭과 리뷰 diff에 나온다. 이름이 `edit`이 아니어도 된다(읽기는 이름을 보지 않는다). 보고 경로(`ctx.changes.report`)와 내장 `edit`의 관찰 경로는 이 트랙이 시험한다(`core-tools/test/file-changes.test.ts`, 변경 탭 `changes-model.test.ts`, 리뷰 `collect-diffs.test.ts`). 플러그인 코드가 코어 서비스를 부른 변경의 관찰(F-1)은 E2 뒤에 시험한다 | R22, 4.7, F-1, F-5 |
 | A-13 | `tool.result` 훅이 `details`를 지워도 `fileChanges`가 남는다 | F-3 |
 | A-14 | 위험 등급 `write` 이상인 대체 도구가 코어 서비스를 부르지 않고 성공하면 `untracked_write`가 기록된다 | P-4 |
 | A-15 | `check-layers.ts`와 `dependency-cruiser`가 `cap-*`↔`group-*` import를 같은 등급 위반으로 거부하고, `cap-work`가 `core-agents`를 import하면 위반이다 | 6.3 |
@@ -757,6 +757,8 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | A-18 | `SettingRef.scope`에 `thread`가 없고 `profile`이 있다. 부록 A의 우선순위가 `managed > launch > profile > local > project > user`다 | 4.8, 부록 A |
 | A-19 | `CallerId` 패턴이 `plugin:<이름>`을 받고 이름 스키마 최대 길이(32자)가 72자 상한 안이다 | 4.6 |
 | A-20 | [결정: 2026-11-17 사용자, U6] 대화 시작 경계의 결과 `workspace`가 첫 턴 전에 같은 프로젝트 루트 안일 때만 반영된다 | H-7 |
+
+[정정 2026-11-18, 이 트랙] A-12의 "도구 이름이 `edit`이 아니어도"는 `replaces` 대체 경로에서는 성립하지 않는다. 대체 등록은 원본 내장 도구와 같은 이름으로 묶인다(`core-tools/src/registry.ts`의 `addReplacement`가 이름으로 원본을 찾는다). 그래서 대체 `edit`의 이름은 `edit`이다. 이름과 무관하다는 말은 읽는 쪽(변경 탭, 리뷰)의 규칙이고, 그 시험은 이름이 `patch_file`인 결과로 한다.
 
 ## 11. 다른 스펙과 맞이르는 곳
 

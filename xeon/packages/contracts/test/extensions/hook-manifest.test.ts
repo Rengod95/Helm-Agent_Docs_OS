@@ -49,7 +49,7 @@ describe("internal hooks (H-4)", () => {
 describe("hook_not_fired (H-4)", () => {
   test("a declared hook that this build does not fire is a warning, and the manifest is accepted", () => {
     const result = validateManifest(
-      pluginJson({ name: "web", trust: { level: "builtin" } }, { hooks: ["thread.resources"] }),
+      pluginJson({ name: "web", trust: { level: "builtin" } }, { hooks: ["request.cache.before"] }),
     );
     expect(result.manifest).toBeDefined();
     expect(result.issues.map((i) => [i.code, i.severity, i.path])).toEqual([

@@ -65,26 +65,44 @@ export const ResourcesDiscoverPayloadSchema: TObject<{
 );
 export type ResourcesDiscoverPayload = Static<typeof ResourcesDiscoverPayloadSchema>;
 
+/** 대화 폴더 후보 하나(절대 경로 문자열). 존재와 정규 경로 검사는 호스트가 한다 */
+const WorkspacePathSchema: TString = Type.String({ minLength: 1, maxLength: 4096 });
+const WorkspaceCandidatesSchema: TArray<TString> = Type.Array(WorkspacePathSchema, {
+  maxItems: 64,
+});
+
 export const ResourcesValueSchema: TObject<{
   skillPaths: typeof PathsSchema;
   promptPaths: typeof PathsSchema;
   themePaths: typeof PathsSchema;
+  workspace: TOptional<TString>;
+  workspaceCandidates: typeof WorkspaceCandidatesSchema;
 }> = Type.Object(
-  { skillPaths: PathsSchema, promptPaths: PathsSchema, themePaths: PathsSchema },
+  {
+    skillPaths: PathsSchema,
+    promptPaths: PathsSchema,
+    themePaths: PathsSchema,
+    /** 대화 폴더로 쓸 경로. 후보가 여럿이면 등록 순서가 앞선 것이다(`workspaceCandidates[0]`) */
+    workspace: Type.Optional(WorkspacePathSchema),
+    /** 기여한 대화 폴더 후보 전부, 등록 순서 */
+    workspaceCandidates: WorkspaceCandidatesSchema,
+  },
   { additionalProperties: false },
 );
 export type ResourcesValue = Static<typeof ResourcesValueSchema>;
 
-/** 경로를 추가한다(merge). 확장 이름 표시는 디스패처(X)가 붙인다 */
+/** 경로를 추가한다(merge). 확장 이름 표시는 디스패처(X)가 붙인다. `workspace`는 대화 폴더 후보 하나다(H-7) */
 export const ResourcesPatchSchema: TObject<{
   skillPaths: TOptional<typeof PathsSchema>;
   promptPaths: TOptional<typeof PathsSchema>;
   themePaths: TOptional<typeof PathsSchema>;
+  workspace: TOptional<TString>;
 }> = Type.Object(
   {
     skillPaths: Type.Optional(PathsSchema),
     promptPaths: Type.Optional(PathsSchema),
     themePaths: Type.Optional(PathsSchema),
+    workspace: Type.Optional(WorkspacePathSchema),
   },
   { additionalProperties: false },
 );

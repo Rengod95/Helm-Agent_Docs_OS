@@ -243,6 +243,8 @@ export function wrap<S, D extends GroupSettingDefs>(
           point === "boundary.settle.after" ? afterSettle : undefined,
         ),
       ),
+    // 이벤트 구독은 `g.on`의 도우미라 X의 subscribe를 그대로 부른다(M5e §4.4.1). 호출 계측은 `on`과 같은 카운터를 쓰지 않는다
+    subscribe: (events, handler, options) => api.subscribe(events, handler, options),
     post: async (item, options) => {
       ensure(checkPostItem(def.manifest, item), api.id);
       const receipt = await api.post(item, options);

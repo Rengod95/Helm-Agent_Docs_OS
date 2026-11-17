@@ -6,7 +6,10 @@ import {
   type CommitPlan,
   type LeaseService,
   type LifecycleError,
+  type OpenWorkspaceDiagnostic,
+  type OpenWorkspaceOutcome,
   type ReadFailure,
+  type SameFolderThread,
   type SqlTx,
   type StoreDb,
   type StoreError,
@@ -16,6 +19,7 @@ import {
   type ThreadSummaryRow,
 } from "@fresnel/contracts/records";
 import { sha256Hex } from "./hash.ts";
+import type { OpenChain } from "./open-chain.ts";
 import { releaseOpenSession, type GuardState, type OpenSessions } from "./ownership.ts";
 import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
@@ -34,6 +38,8 @@ export interface AdminDeps {
   readonly guard: GuardState;
   readonly ids: IdFactory;
   readonly points: ThreadHooks;
+  /** 열기 훅의 결과(openSettled)를 읽어 대화 폴더를 정한다 */
+  readonly opening: OpenChain;
   readonly logger: Logger | undefined;
   /** 삭제 때 thread 행을 지울 투영 테이블(등록된 모든 투영기). 호출 때마다 읽는다 */
   readonly projectorTables: () => readonly string[];
@@ -116,10 +122,20 @@ export function deleteThreadRows(
   return ok(undefined);
 }
 
+/** `/`로 나뉜 경로에서 `folder`가 `root` 안이나 `root` 자신이면 참이다. 경로 조각 단위라 `/a/b`는 `/a/bc` 안이 아니다 */
+function isInsideFolder(root: string, folder: string): boolean {
+  if (folder === root) return true;
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  return folder.startsWith(prefix);
+}
+
 export function createAdminOps(
   deps: AdminDeps,
-): Pick<ThreadLifecycle, "list" | "close" | "remove" | "setTitle" | "setModel"> {
-  const { db, writer, producers, sessions, ids, points, logger } = deps;
+): Pick<
+  ThreadLifecycle,
+  "list" | "close" | "remove" | "setTitle" | "setModel" | "applyOpenWorkspace" | "sameFolder"
+> {
+  const { db, writer, producers, sessions, ids, points, opening, logger } = deps;
   const handle = producers.internal(PERSISTENCE_PRODUCER);
 
   const listPage = (query: ThreadListQuery): Result<ThreadPage, ReadFailure> => {
@@ -336,6 +352,99 @@ export function createAdminOps(
       if (result.status === "key_reused") return err({ kind: "key_reused", requestKey });
       if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
       return ok(undefined);
+    },
+
+    async applyOpenWorkspace(threadId, resolveFolder, requestKey) {
+      const denied = ownerError(sessions, threadId);
+      if (denied !== null) return err(denied);
+      // 열기 훅이 낸 후보. 훅이 없었거나 실패했으면 바꿀 것이 없다
+      const resources = await opening.resources(threadId);
+      const [chosen, ...rejected] = resources?.workspaceCandidates ?? [];
+      const diagnostics: OpenWorkspaceDiagnostic[] = rejected.map((candidate) => ({
+        code: "workspace_conflict",
+        candidate,
+      }));
+      if (chosen === undefined) return ok({ workspace: null, diagnostics });
+      // 첫 턴 전에만 정한다. 턴 기록이 하나라도 있으면 늦은 것이다(H-7)
+      const read = readResult(db, (tx) => {
+        const thread = readThread(tx, threadId);
+        if (!thread.ok) return thread;
+        const turn = tx.get("SELECT turn_id FROM p_turns WHERE thread_id = ? LIMIT 1", [threadId]);
+        return ok({ thread: thread.value, hasTurn: turn !== undefined });
+      });
+      if (!read.ok) return err(read.error);
+      const { thread, hasTurn } = read.value;
+      if (thread === undefined) return err({ kind: "thread_not_found", threadId });
+      const outside: OpenWorkspaceDiagnostic = {
+        code: "workspace_outside_project",
+        candidate: chosen,
+      };
+      if (hasTurn) {
+        return ok({
+          workspace: null,
+          diagnostics: [...diagnostics, { code: "workspace_late", candidate: chosen }],
+        });
+      }
+      // 프로젝트 루트는 지금 대화 폴더다. 프로젝트 접근자가 코드에 아직 없어서 그렇다
+      const root = thread.workspace;
+      if (root === null) return ok({ workspace: null, diagnostics: [...diagnostics, outside] });
+      const folder = await resolveFolder(chosen);
+      if (folder === undefined) {
+        return ok({
+          workspace: null,
+          diagnostics: [...diagnostics, { code: "workspace_missing", candidate: chosen }],
+        });
+      }
+      if (!isInsideFolder(root, folder)) {
+        return ok({ workspace: null, diagnostics: [...diagnostics, outside] });
+      }
+      if (folder === root) return ok({ workspace: null, diagnostics });
+      const committed = writer.commit({
+        threadId,
+        requestId: `workspace:${commitKeyPart(requestKey, sha256Hex)}`,
+        fingerprintSource: { workspace: folder },
+        build(view): CommitPlan {
+          if (view.threadStatus === "closed") {
+            return { kind: "reject", code: "thread_closed", detail: null };
+          }
+          return {
+            kind: "append",
+            drafts: [
+              handle.draft({
+                id: ids.next("evt"),
+                kind: "thread.updated",
+                threadId,
+                turnId: null,
+                stepId: null,
+                causationId: null,
+                correlationId: null,
+                payload: { workspace: folder },
+              }),
+            ],
+            checkpoint: null,
+          };
+        },
+      });
+      if (!committed.ok) return err(committed.error);
+      const result = committed.value;
+      if (result.status === "key_reused") return err({ kind: "key_reused", requestKey });
+      if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
+      const outcome: OpenWorkspaceOutcome = { workspace: folder, diagnostics };
+      return ok(outcome);
+    },
+
+    sameFolder(threadId) {
+      const found = readResult(db, (tx) => readThread(tx, threadId));
+      if (!found.ok) return err(found.error);
+      if (found.value === undefined) return err({ kind: "thread_not_found", threadId });
+      const folder = found.value.workspace;
+      if (folder === null) return ok([]);
+      const page = listPage({ workspace: folder, limit: MAX_PAGE });
+      if (!page.ok) return err(page.error);
+      const others: SameFolderThread[] = page.value.threads
+        .filter((thread) => thread.threadId !== threadId && thread.status !== "closed")
+        .map((thread) => ({ threadId: thread.threadId, status: thread.status }));
+      return ok(others);
     },
   };
 }

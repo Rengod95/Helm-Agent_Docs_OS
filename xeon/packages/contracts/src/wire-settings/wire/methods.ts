@@ -602,8 +602,25 @@ export type ThreadCreateParams = Static<typeof ThreadCreateParamsSchema>;
 export const ThreadCreateResultSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   position: typeof StreamPositionSchema;
+  sameFolder: TArray<
+    TObject<{ threadId: typeof ThreadIdSchema; status: typeof ThreadStatusSchema }>
+  >;
 }> = Type.Object(
-  { threadId: ThreadIdSchema, position: StreamPositionSchema },
+  {
+    threadId: ThreadIdSchema,
+    position: StreamPositionSchema,
+    /**
+     * 같은 작업 폴더에서 닫히지 않은 다른 대화(U6). 알림일 뿐이라 생성을 막지 않고 복사도 하지 않는다. 없으면 빈 배열이다
+     * [제안: 이름은 프로필·프로젝트 문서의 `sameFolder`를 따랐다]
+     */
+    sameFolder: Type.Array(
+      Type.Object(
+        { threadId: ThreadIdSchema, status: ThreadStatusSchema },
+        { additionalProperties: false },
+      ),
+      { maxItems: 200 },
+    ),
+  },
   { additionalProperties: false },
 );
 export type ThreadCreateResult = Static<typeof ThreadCreateResultSchema>;

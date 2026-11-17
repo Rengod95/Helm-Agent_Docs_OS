@@ -927,6 +927,13 @@ Cordis는 두 가지에만 쓴다.
 2. 등록 순번 `seq`는 ExtHost 전체에서 단조 증가하는 정수다.
 3. 디스패치 시작 때 `registry.snapshot(point, threadId)`가 항목 배열을 복사한다. 이 배열에는 스냅샷 시점에 세대가 열려 있고 그 thread에서 켜진 scope의 항목만 들어간다. 디스패치 도중의 `add`·`remove`·토글은 진행 중인 디스패치에 반영되지 않는다(pi `runner.ts:269-271` `snapshotEventHandlers`와 같다).
 4. 스냅샷에 들어간 항목의 scope가 디스패치 도중 꺼져도 그 디스패치에서는 실행된다. 끄기 적용은 단계 경계에서만 일어나고 디스패치는 step 안에서 일어나므로 실제로는 겹치지 않는다. detached tap만 경계를 넘어 실행될 수 있다.
+5. `g.subscribe(events, handler, options)` [제안, M5e §4.4.1]. 이벤트마다 `g.on`(tap) 등록을 하나씩 한다. 규칙:
+   - `events`가 배열이면 각 이름은 매니페스트 `hooks`에 선언되어야 한다. 아니면 `hook_undeclared`로 거부한다(`g.on`과 같다). 위치가 `event`가 아닌 이름은 `subscribe_not_event`로 거부한다. `"all"`은 선언된 이벤트 이름 전부다(선언된 비이벤트 훅은 뺀다).
+   - `sample: "coalesce"`는 고빈도 이벤트(`request.stream`, `boundary.message.update`, `tool.execution.update`)에만 준다. 배열 안에 다른 이름이 있으면 `subscribe_not_high_frequency`로 거부한다. `"all"`에서는 고빈도 이벤트만 합치고 나머지는 `every`다.
+   - `every`: 같은 대화 안에서 한 구독(한 `subscribe` 호출)에게 발화 순서대로 하나씩 전달한다. 핸들러 결과는 무시되고 tap 디스패치가 기다리며, 예외는 tap 실패로 기록된다(턴 결과를 바꾸지 않는다, M5e H-6).
+   - `coalesce`: 디스패치를 기다리지 않는다. 구독 핸들러가 바쁜 동안 들어온 이벤트는 대기 칸 하나를 덮고, 돌릴 때 `dropped`(덮인 수)를 싣는다. 실행은 `core.track`으로 뒤에서 하고, 실패는 추적기가 진단으로 보고한다. 뒤 실행은 그 이벤트의 디스패치 맥락을 다시 싣는다(처리 상태 칸은 비운다).
+   - 봉투 `EventEnvelope`는 `event`, `threadId`, `eventKey`(디스패치 키), `payload`(동결), 위치 표의 `anchor`(있을 때), `coalesce`에서만 `dropped`를 싣는다. 같은 `eventKey`는 재발화에서 같은 값이다(시험 있음).
+   - 반환하는 `Unsubscribe`를 부르면 그 뒤의 전달은 없고 대기 칸은 버린다.
 
 ### 4.2 디스패처
 
