@@ -425,6 +425,22 @@ executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, Too
 - 턴 없는 기록: 턴이 없으므로 효과 기록에 합성 `trn`·`stp` id를 쓴다. 대화 항목(toolResult)은 남기지 않는다(`silent`). 턴이 없는 승인 요청은 대기 체크포인트를 만들지 않는다(`turnless`, 승인 서비스). 효과 기록 스키마의 `turnId: null` 허용 여부는 O-7로 남는다.
 - 다음 층이 할 것: 훅 스택과 순환 검사(U-8 (나)), 가벼운 경로 분류(U-1), 기능 래퍼와 효과 작업자의 연결(D-13, D-17), 합성 도구 등록(D-16 중 스택 부분).
 
+**구현 기록(층 C, 2026-11-18).** 위 "다음 층이 할 것"은 다음과 같이 구현했다.
+
+- 경로 분류 [제안 → 구현]: [제안]이던 `pluginCallRoute(...)` 대신 가장 작은 질의 `ToolsPort.toolMappedFor(capability, method): boolean`을 더했다(`contracts/src/extensions/ports.ts`). 분류는 `ext-host/src/primitives/capability-guard.ts`의 `routeOf`가 한다. 정의가 없거나 포트가 없거나 설정이 꺼져 있으면 `direct`, 도구 매핑이 있으면 `pipeline`, `readOnly`면 `light`, 나머지는 `pipeline`이다. `direct`와 `light`는 옛 직접 경로다. 가벼운 경로의 턴 기록 줄(U-2)은 턴 기록 포트가 아직 없어 남기지 않는다(M5d에서 더한다).
+- 설정 [제안]: `l1.tools.pluginCalls`(boolean, 기본 거짓, 파일 네 범위, 반영 `live`)를 core-tools 설정에 더했다. 이름과 기본값은 [제안]이다. ext-host는 `fresnel.settings` 포트로 호출마다 읽고, 값이 `false`가 아니면 켜진 것으로 본다. 끄면(기본) 옛 직접 경로다. 파생 파일(`client` i18n en·ko, `apps/host/schema/settings.*.schema.json`)은 `config schema --core-only`로 다시 만들었다.
+- 합성 항목(D-16, U-1 (다)): `cap:<기능>.<메서드>`는 레지스트리에 등록하지 않는다. 기능 정의에서 호출 때 만든다(`core-tools/src/entries.ts`의 `syntheticEntryOf`). 정의 목록은 `ToolsDeps.capabilityDefs`(내장 기능 정의, 매니페스트 기능, 조립이 넘긴 `pluginCapabilities`)다. 등록하지 않으므로 광고, 도구 검색, 도구 목록에 들어갈 길이 없다. 위험 등급은 메서드 선언에 위험 필드가 없으므로 보수적 기본값 `exec`다. 호출자는 고를 수 없다. 등록 방식을 쓰지 않은 까닭: 도구 등록이 없는 기능(예: `knowledge.ledger`)도 플러그인이 불러야 하는데, 도구 목록(`L2_TOOL_CAPABILITIES`)에서만 만들면 그 호출이 `unavailable`이 된다. 조립은 `pluginCapabilities`로 내장 기능 정의 전체를 넘기고, 같은 목록을 core-tools의 매니페스트 optional에도 더한다(`g.capability`의 선언 검사 때문이다). 매니페스트의 필수 목록은 바뀌지 않는다.
+- 합성 이름과 훅 payload [결정 필요 없음, 구현 중 발견]: 합성 이름 `cap:…`은 provider 와이어 패턴 `^[a-zA-Z0-9_-]{1,64}$`를 지나지 못한다. 훅 payload의 `ToolNameSchema`가 이 패턴만 받아서 `tool.call.before`가 검사 실패로 거부했다. 그래서 `ToolNameSchema`가 와이어 이름이나 합성 이름(`SYNTHETIC_TOOL_NAME_PATTERN`)을 받게 넓혔다(`contracts/src/capabilities/ids.ts`). 모델 광고 이름의 검사(`TOOL_NAME_WIRE_PATTERN`, `validate.ts`)는 그대로다.
+- 멱등 키(U-5): 명시 `requestId`가 있으면 그것을 쓴다. 없으면 `call:` 뒤에 SHA-256(범위, 계통, 기준 판 번호, 기능.메서드, 순번) 앞 40자를 쓴다. 계통은 `DriveInvocation.lineageId`다. 핸들러 안의 호출은 디스패치 키와 순번을 쓴다(`state.ts`의 `nextIdentity`와 같은 순번 카운터). 상태 쓰기 id의 `leaseId`와 다른 까닭은 재개 뒤에도 같은 호출이 같은 키를 받게 하려는 것이다. 식별할 것이 없으면(대화 없음, 디스패치 키 없음) 옛 경로다.
+- 되돌이(U-8 (나)): 핸들러가 도는 칸은 `Ambient.hookStack`에 쌓는다(`dispatch.ts`). 파이프라인 호출은 `{플러그인, 기능.메서드, 인자 해시}` 칸을 더해 그 호출이 낸 훅에 보이게 한다. 같은 (플러그인, 대상, 인자 해시)가 스택에 이미 있으면 `plugin_call_hook_cycle`(메시지 `[fresnel:hook_cycle]`)로 거부하고 실행하지 않는다. 깊이는 스택 길이를 `hookDepth`로 넘기고, core-tools가 `l1.tools.pluginCallDepth`와 비교한다. `hookStack`은 선택 필드다. 리스 쪽 맥락(`lease.ts`)을 바꾸지 않으려고 `undefined`를 빈 스택으로 읽는다.
+- 도구 안의 호출: 플러그인 도구 execute의 맥락은 `Ambient.callId`(도구 호출 id)를 가지며 `parentToolCallId`로 싣는다. 승인 상속 주장(`inheritApproval`)은 아직 싣지 않는다. 기능 래퍼가 바깥 승인 id를 알지 못하므로 U-11의 상속은 이 층에서 빠진다([미결]).
+- 내장 어댑터의 되돌이 방지: 신뢰한 확장(L1 도구 어댑터)이 도구 호출 id를 싣고 부른 호출은 이미 파이프라인 안에서 도는 것이다. 경로를 다시 고르면 `resolveCapability`의 `g.capability` 호출이 파이프라인으로 되돌아가므로 검사 없이 옛 경로로 부른다.
+- 결과 오류: 공급자가 낸 오류 코드(도구 결과 `details.code`)는 그대로 `CapabilityError` 코드로 싣는다. 호출자(예: cap-artifacts)가 코드로 나눠 처리하기 때문이다. 코드가 없으면 `plugin_call_failed`, 파이프라인의 Err는 `plugin_call_<종류>`다.
+- 조건: 파이프라인 호출은 대화 조건(`conditions`, interactive와 샌드박스 천장)을 싣는다. 효과 작업자는 요청 때 기록한 값을 싣는다(U-10, U-12). 샌드박스 천장은 같은 모드의 정책 천장으로 옮기므로 더 엄격한 쪽만 남는다.
+- 효과 작업자(D-17): `effect-worker.ts`의 `viaPipeline`이 `executeForPlugin(via: "effect")`를 부른다. 요청 키는 기존 `key`다. `effect.requested|started|settled` 기록은 그대로다. 설정이 꺼졌거나 포트가 없거나 정의가 없으면 옛 경로다.
+- [미결] 승인 카드: 도구 매핑이 없는 쓰기 메서드는 합성 항목이라 위험 등급이 보수적 기본값 `exec`다(메서드 선언에 위험 필드가 없다). 그래서 기본 권한 모드(`default`)에서 `work.tasks.create`, `dialog.commands.run` 같은 호출이 승인 카드를 띄우고, 사람이 답하지 않는 apps/host 통합 시험 8개가 대기한다(`helm-sigkill`, `ext-method`의 Helm 시험, `dialog-area`의 goal 시험, `proposals`의 UC-3, `goal-judge`, `review-approval`의 hunk 시험, `uc2` 두 시험). U-6대로 묻는 것이 맞는지, 메서드 선언이나 등록에 위험 등급을 주는 길을 열지는 결정이 필요하다. 시험 쪽 수정은 하지 않았다.
+- 시험: `ext-host/test/primitives/plugin-call-route.test.ts`(경로, 멱등 키, 되돌이, 결과 오류, 효과 작업자), `core-tools/test/plugin-call-pipeline.test.ts`(합성 항목 셋: 실행, 광고 제외, readOnly는 항목이 없음). `apps/host/test/int/capability-guard.int.test.ts`는 설정이 꺼진 기본값으로 옛 기대 값을 그대로 둔다(켠 상태의 효과 표 완화는 ext-host `plugin-call-route.test.ts`가 시험한다). 학습 시험 대역(`group-learning/test/support`)은 `l1.tools.pluginCalls`를 꺼서 옛 경로로 돈다. 그 대역은 파이프라인을 흉내 내지 않는다.
+
 ### 4.7 변경 기록 공통 결과 형식 (R22)
 
 지금:
@@ -722,11 +738,11 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-10 | `group-sdk/src/` 와 `ext-host/src/primitives/host-api.ts:273-296` | `g.subscribe`, `EventEnvelope`, 샘플 옵션 | M |
 | D-11 | `apps/host/src/assembly/cap-mcp.ts:170` | `onServersChange` 연결(H-8) | S |
 | D-12 | 대화 시작 경로(`core-persistence/src/points.ts:63`, `lifecycle.ts:217`) | `thread.resources` 발화와 스킬 탐색 합류(H-7) | M |
-| D-13 | `ext-host/src/primitives/capability-guard.ts:122-208` | 분류(U-1), `executeForPlugin` 호출, 효과 표 검사 완화(U-5) | L |
+| D-13 | `ext-host/src/primitives/capability-guard.ts:80-120, 187-` | 분류(U-1), `executeForPlugin` 호출, 효과 표 검사 완화(U-5). **완료(층 C)**: 분류 `routeOf`, 파이프라인 `callThroughPipeline`, 멱등 키 `identityOf`. 가벼운 경로의 턴 기록 줄은 M5d 대기(U-2) | L |
 | D-14 | `contracts/src/services/tools.ts` `ToolService` | `executeForPlugin`, `PluginCallRequest`. **완료(층 A)**: 값은 `capabilities/plugin-call.ts`에 두고 `ToolsPort`·`ToolService`가 `executeForPlugin`을 가진다(4.6 구현 기록) | S |
-| D-15 | `core-tools/src/pipeline.ts`(+ `entries.ts`) | 플러그인 호출을 위한 `prepare`/`execute` 진입점, 합성 도구 이름, `caller: plugin:*`, 승인 상속(U-11). **완료(층 A)**: `executeForPlugin`(pipeline.ts)과 `plugin-call.ts`. 호출 주체 `plugin:*`, 합성 효과 id, 재생 검사, 승인 상속(증거 검증). 합성 `cap:` 등록과 가벼운 경로는 다음 층 | L |
-| D-16 | `ext-host/src/primitives/ambient.ts:23-45` | `hookStack`, 순환·깊이 검사(U-8), 설정 `l1.tools.pluginCallDepth` | M |
-| D-17 | `ext-host/src/primitives/effect-worker.ts:118-124` | 서비스 직접 호출을 `executeForPlugin`으로 | S |
+| D-15 | `core-tools/src/pipeline.ts`(+ `entries.ts`) | 플러그인 호출을 위한 `prepare`/`execute` 진입점, 합성 도구 이름, `caller: plugin:*`, 승인 상속(U-11). **완료(층 A)**: `executeForPlugin`(pipeline.ts)과 `plugin-call.ts`. 호출 주체 `plugin:*`, 합성 효과 id, 재생 검사, 승인 상속(증거 검증). 합성 `cap:` 항목은 **층 C**가 정의에서 호출 때 만든다(등록하지 않는다, 4.6 구현 기록). 가벼운 경로는 옛 직접 경로다(D-13) | L |
+| D-16 | `ext-host/src/primitives/ambient.ts:26-57`, `dispatch.ts`, `capability-guard.ts` | `hookStack`, 순환·깊이 검사(U-8), 설정 `l1.tools.pluginCallDepth`. **완료(층 C)**: 스택 칸은 `dispatch.ts`가 쌓고 `callThroughPipeline`이 호출 칸을 더한다. 순환은 `plugin_call_hook_cycle`, 깊이는 core-tools가 `hook_depth`로 거부 | M |
+| D-17 | `ext-host/src/primitives/effect-worker.ts:115-157` | 서비스 직접 호출을 `executeForPlugin`으로. **완료(층 C)**: `viaPipeline`(via `effect`, 요청 키 `key`). 기록은 그대로 | S |
 | D-18 | `contracts/src/capabilities/tool-meta.ts:22-27` | `CallerId`에 `plugin:<이름>`. **완료(층 A)**: 패턴 고정, 승인 기록 패턴(`records/catalog/approval.ts`)도 넓힘 | S |
 | D-19 | `contracts/src/capabilities/file-change.ts` (신규) | `FileChangeEntry`, `fileChangesOf`, 예약 키 | S |
 | D-20 | `core-tools/src/entries.ts:424-428` | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합 | M |
@@ -754,6 +770,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 5. **층 이름과 규칙.** D-26을 `P` 별칭으로 먼저 넣고(`L2`, `L3` 선언이 계속 통과), `cap-work`의 `core-agents` import(D-30)를 없앤 뒤 규칙을 켠다.
 6. **재수출 이동.** D-28(`ask/`)을 새 위치에 복사하고 `cap-dialog`가 재수출한다. 호스트 import를 새 경로로 바꾼 뒤 옛 파일을 지운다. D-27도 같은 방식(코어 서비스 파일 이동, 기능 id 유지, `cap-workspace`가 재수출). 가져다 쓰는 곳이 호스트뿐이라 한 번에 한 파일씩 옮겨도 녹색이다.
 7. **통합 호출 경로.** D-13~D-18. 먼저 읽기 전용 가벼운 경로만 적용하고(동작 변화 없음), 다음에 파이프라인 경로를 "설정 `l1.tools.pluginCalls` = off"로 숨겨서 넣는다. 번들(Helm의 `work.tasks.create`, 학습의 지식 쓰기)을 그 뒤에 켜서 확인한 뒤 기본값을 켠다. 마지막으로 재생 검사 완화(U-5)를 켠다. 이 단계는 주도 스펙의 `tool` 명령(E2)과 같은 진입점을 쓰므로 E2와 함께 병합하고, 로드맵에서는 M5a-2(E2) 한 곳이 소유한다(M5e에 중복 항목을 두지 않는다). 5·6단계(L1 분할)는 M5c가 내장 플러그인(`cap-workspace`, `cap-dialog`)을 프로필에서 뺄 수 있게 하는 일과 쓰기 범위 변경(M5c §4.1.17, §4.4.4)보다 먼저다.
+   층 C 기록(2026-11-18): 설정 `l1.tools.pluginCalls`의 기본값은 거짓으로 둔다(이 단계 스펙대로 "숨겨서 넣는다"). 켜 보니 apps/host 통합 시험 8개(helm-sigkill, ext-method, dialog-area, proposals UC-3, goal-judge, review-approval, uc2.real-engine, uc2.command-only)가 실패했다: 도구 매핑이 없는 쓰기 기능 메서드(`dialog.commands.run`, `work.tasks.create` 등)가 위험 등급 `exec`(MethodDef에 등급 필드가 없어 보수적 기본값)를 받아 기본 권한 모드에서 승인 카드를 띄우고 시험에는 답하는 쪽이 없다. [미결] 메서드 정의에 위험 등급을 선언할지, 카드를 받아들이고 시험이 답하게 할지 정해야 기본값을 켤 수 있다. 학습의 단위 시험 대역은 설정을 꺼 옛 경로로 돈다(4.6 구현 기록).
 8. **조립 이동과 정리.** D-29, D-25(tier 셋 [결정: 2026-11-17 사용자, U3]. 프로필 순서(M5c)가 준비된 뒤), D-31, D-32. 같은 파일 `core-tools/src/pipeline.ts`, `ext-host/src/primitives/dispatch-types.ts`를 기록 스펙(M5d §8)도 고치므로 D-3~D-5·D-15를 먼저 병합하고 M5d의 판정 싱크는 그 위에 얹는다. 매니페스트 검증 수정(`hook_internal`, `hook_not_fired`)은 M5c의 매니페스트 변경(`contracts/src/extensions/validate.ts`, `manifest.ts`)과 한 트랙이 한 번에 한다.
 
 ## 10. 수용 기준

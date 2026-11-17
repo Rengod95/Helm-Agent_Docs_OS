@@ -37,6 +37,7 @@ async function withPorts(t: Host): Promise<Fakes> {
   const servers = new Map<string, unknown>();
   const log: string[] = [];
   const toolsPort: ToolsPort = {
+    toolMappedFor: () => false,
     executeForPlugin: () =>
       Promise.resolve(
         err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

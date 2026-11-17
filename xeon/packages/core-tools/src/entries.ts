@@ -1,14 +1,16 @@
 import { Bug, canonicalJson, parse } from "@fresnel/contracts";
-import { isCapabilityError } from "@fresnel/contracts/capabilities";
-import type {
-  CallContext,
-  CallContinuation,
-  CallOptions,
-  CapabilityErrorData,
-  MethodDef,
-  ServiceKey,
-  ToolContent,
-  ToolSpec,
+import {
+  isCapabilityError,
+  serviceKey,
+  type AnyCapabilityDef,
+  type CallContext,
+  type CallContinuation,
+  type CallOptions,
+  type CapabilityErrorData,
+  type MethodDef,
+  type ServiceKey,
+  type ToolContent,
+  type ToolSpec,
 } from "@fresnel/contracts/capabilities";
 import { toReplayPolicy } from "@fresnel/contracts/conversation";
 import type {
@@ -122,6 +124,8 @@ function callContext(call: RawCall): CallContext {
 
 /** 기본 렌더링: content는 출력의 키 정렬 JSON 텍스트 하나, structuredContent는 출력 그대로 */
 function defaultRender(output: unknown): ToolContent | undefined {
+  // 값을 돌려주지 않는 메서드(void)는 내용 없는 결과다. 플러그인 호출은 이것을 undefined 반환으로 받는다
+  if (output === undefined) return { content: [] };
   if (!isJsonValue(output)) return undefined;
   return { content: [textBlock(canonicalJson(output))], structuredContent: output };
 }
@@ -279,43 +283,107 @@ function lockDeclarerOf(spec: ToolSpec): ToolEntry["locks"] {
     }));
 }
 
+/** 도구 매핑이 없는 기능 메서드의 합성 항목 이름(hooks-core-boundary §5.3 U-1 (다)). 플러그인 기능 호출만 이 이름을 본다 */
+function syntheticToolNameOf(capability: string, method: string): string {
+  return `cap:${capability}.${method}`;
+}
+
+/**
+ * 도구 매핑이 없고 `readOnly`가 아닌 기능 메서드의 합성 항목(U-1 (다)). 레지스트리에 넣지 않고 플러그인 기능 호출이 부를 때 정의에서 만든다.
+ * 모델에는 광고되지 않는다. 위험 등급은 메서드 선언에 없으므로 보수적 기본값 `exec`다(호출자는 고를 수 없다).
+ * 입력·출력 스키마와 재생 정책은 메서드 선언을 쓴다. 메서드가 없거나 매핑이 있거나 `readOnly`면 undefined다
+ */
+export function syntheticEntryOf(
+  def: AnyCapabilityDef,
+  methodName: string,
+  resolve: CapabilityResolver,
+  bridge: InputBridge,
+): ToolEntry | undefined {
+  const method = def.service.methods[methodName];
+  if (method === undefined || method.readOnly === true) return undefined;
+  if (def.tools.some((spec) => spec.method === methodName)) return undefined;
+  const name = syntheticToolNameOf(def.id, methodName);
+  const registration: CapabilityToolsRegistration = {
+    kind: "capability",
+    def,
+    key: serviceKey(def),
+  };
+  const spec: ToolSpec = {
+    name,
+    label: methodName,
+    description: method.description,
+    parameters: method.input,
+    method: methodName,
+    ...(method.replay === undefined ? {} : { replay: method.replay }),
+  };
+  return {
+    name,
+    label: methodName,
+    description: method.description,
+    parameters: method.input,
+    outputSchema: undefined,
+    executionMode: undefined,
+    ref: { capability: def.id, name },
+    capability: { id: def.id, method: methodName },
+    mcpServer: undefined,
+    risk: "exec",
+    classes: [],
+    hints: {},
+    replay: method.replay ?? "unsafe",
+    exposure: "deferred",
+    outputLimits: {},
+    raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
+    locks: undefined,
+  };
+}
+
 function capabilityEntries(
   registration: CapabilityToolsRegistration,
   resolve: CapabilityResolver,
   bridge: InputBridge,
 ): readonly ToolEntry[] {
   const { def } = registration;
-  return def.tools.map((spec): ToolEntry => {
-    const method = def.service.methods[spec.method];
-    if (method === undefined) {
-      throw new Bug(
-        `tools.invalid_registration: ${def.id}/${spec.name} names unknown method ${spec.method}`,
-      );
-    }
-    const policy = registration.policy?.[spec.name];
-    return {
-      name: spec.name,
-      label: spec.label,
-      description: spec.description,
-      parameters: spec.parameters,
-      outputSchema: spec.outputSchema,
-      executionMode: spec.executionMode,
-      ref: { capability: def.id, name: spec.name },
-      capability: { id: def.id, method: spec.method },
-      mcpServer: policy?.mcpServer,
-      mcpDeclared: policy?.mcpDeclared,
-      risk: deriveRisk(policy?.risk, spec.hints),
-      riskUnderReadOnlySandbox: policy?.riskUnderReadOnlySandbox,
-      classes: policy?.classes ?? [],
-      hints: spec.hints ?? {},
-      replay: spec.replay ?? "unsafe",
-      exposure: registration.exposure?.[spec.name] ?? "always",
-      activeWhen: registration.activeWhen?.[spec.name],
-      outputLimits: registration.outputLimits?.[spec.name] ?? {},
-      raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
-      locks: lockDeclarerOf(spec),
-    };
-  });
+  return def.tools.map((spec): ToolEntry =>
+    capabilityToolEntry(registration, spec, resolve, bridge),
+  );
+}
+
+function capabilityToolEntry(
+  registration: CapabilityToolsRegistration,
+  spec: ToolSpec,
+  resolve: CapabilityResolver,
+  bridge: InputBridge,
+): ToolEntry {
+  const { def } = registration;
+  const method = def.service.methods[spec.method];
+  if (method === undefined) {
+    throw new Bug(
+      `tools.invalid_registration: ${def.id}/${spec.name} names unknown method ${spec.method}`,
+    );
+  }
+  const policy = registration.policy?.[spec.name];
+  return {
+    name: spec.name,
+    label: spec.label,
+    description: spec.description,
+    parameters: spec.parameters,
+    outputSchema: spec.outputSchema,
+    executionMode: spec.executionMode,
+    ref: { capability: def.id, name: spec.name },
+    capability: { id: def.id, method: spec.method },
+    mcpServer: policy?.mcpServer,
+    mcpDeclared: policy?.mcpDeclared,
+    risk: deriveRisk(policy?.risk, spec.hints),
+    riskUnderReadOnlySandbox: policy?.riskUnderReadOnlySandbox,
+    classes: policy?.classes ?? [],
+    hints: spec.hints ?? {},
+    replay: spec.replay ?? "unsafe",
+    exposure: registration.exposure?.[spec.name] ?? "always",
+    activeWhen: registration.activeWhen?.[spec.name],
+    outputLimits: registration.outputLimits?.[spec.name] ?? {},
+    raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
+    locks: lockDeclarerOf(spec),
+  };
 }
 
 type DirectStep =

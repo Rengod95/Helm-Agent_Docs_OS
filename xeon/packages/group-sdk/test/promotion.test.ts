@@ -41,6 +41,7 @@ async function ownedToolHost(): Promise<{ t: TestHost; thread: ThreadId }> {
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
         register: () => ok(() => undefined),
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
@@ -361,6 +362,7 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
         register: () => ok(() => undefined),
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

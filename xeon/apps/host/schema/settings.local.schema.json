@@ -1845,6 +1845,31 @@
         }
       }
     },
+    "l1.tools.pluginCalls": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "When on, a plugin's capability calls pass the same hooks, policy, approvals and effect records as model tool calls",
+          "helpKey": "settings.l1.tools.pluginCalls.help",
+          "label": "Route plugin calls through the tool pipeline",
+          "labelKey": "settings.l1.tools.pluginCalls.label",
+          "order": 50,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
     "l1.tools.rules": {
       "default": [],
       "items": {

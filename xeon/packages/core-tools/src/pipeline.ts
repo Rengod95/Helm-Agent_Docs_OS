@@ -64,7 +64,8 @@ import { boundResult, selfBlobRef } from "./bound.ts";
 import type { CallTable } from "./calls.ts";
 import { commitWithRetry, describeFailure } from "./commit.ts";
 import type { ToolsDeps } from "./deps.ts";
-import { errorOutcome } from "./entries.ts";
+import { errorOutcome, syntheticEntryOf } from "./entries.ts";
+import type { InputBridge } from "./mcp-input.ts";
 import {
   isPluginRequestId,
   pluginCallerOf,
@@ -406,6 +407,7 @@ export function createPipeline(
   registry: ToolRegistry,
   calls: CallTable,
   approvals: ApprovalsInternal,
+  bridge: InputBridge,
 ): Pipeline {
   const kit: EffectKit = { producer: deps.producer, ids: deps.ids, clock: deps.clock };
   const closed = new Map<string, ToolCallOutcome>();
@@ -1702,7 +1704,10 @@ export function createPipeline(
     }
   }
 
-  /** 대상 도구 항목. 기능 메서드는 도구 매핑(`ToolSpec.method`)으로 찾고, 없으면 합성 이름 `cap:<기능>.<메서드>`를 본다 */
+  /**
+   * 대상 도구 항목. 기능 메서드는 도구 매핑(`ToolSpec.method`)으로 찾고, 없으면 정의에서 합성 항목 `cap:<기능>.<메서드>`를 만든다
+   * (readOnly 메서드와 정의에 없는 메서드는 합성하지 않는다)
+   */
   function pluginEntryOf(target: PluginCallTarget): ToolEntry | undefined {
     if (target.kind === "tool") return registry.get(target.name);
     const mapped = registry
@@ -1711,7 +1716,11 @@ export function createPipeline(
         (entry) =>
           entry.capability?.id === target.capability && entry.capability.method === target.method,
       );
-    return mapped ?? registry.get(`cap:${target.capability}.${target.method}`);
+    if (mapped !== undefined) return mapped;
+    const def = (deps.capabilityDefs ?? []).find((candidate) => candidate.id === target.capability);
+    return def === undefined
+      ? undefined
+      : syntheticEntryOf(def, target.method, deps.resolveCapability, bridge);
   }
 
   /** 같은 호출의 기록을 durable 저장소에서 찾는다. 의도가 없으면 none, 의도만 있으면 open, 결과가 있으면 done */
@@ -1788,13 +1797,20 @@ export function createPipeline(
    * 깊이는 올리지 않는다(무인 판정이 깊이 0만 본다)
    */
   function pluginRunOf(request: PluginCallRequest, caller: CallerId): ToolRunContext {
+    // 효과 작업자는 요청 때 기록한 조건을 싣는다. 샌드박스 천장은 정책 천장으로 옮긴다(같은 모드라 더 엄격한 쪽만 남는다)
+    const sandbox = request.conditions?.sandbox;
+    const mode = sandbox === undefined ? undefined : deps.config(request.threadId).mode;
     return {
       threadId: request.threadId,
       turnId: deps.ids.next("trn"),
       stepId: deps.ids.next("stp"),
       caller,
       depth: 0,
-      interactive: calls.requesterOf(request.threadId)?.interactive ?? true,
+      interactive:
+        request.conditions?.interactive ?? calls.requesterOf(request.threadId)?.interactive ?? true,
+      ...(sandbox === undefined || mode === undefined
+        ? {}
+        : { ceiling: { caller, depth: 0, mode, sandbox } }),
       surfaceThreadId: request.threadId,
       signal: request.signal ?? new AbortController().signal,
       drafts: {

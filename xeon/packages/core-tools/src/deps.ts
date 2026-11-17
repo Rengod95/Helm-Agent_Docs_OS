@@ -1,4 +1,5 @@
 import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
+import type { AnyCapabilityDef } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ProducerHandle, SessionService, StoreService } from "@fresnel/contracts/records";
 import type { Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
@@ -38,6 +39,11 @@ export interface ToolsDeps {
   readonly secrets: SecretChecker | undefined;
   readonly ext: Pick<ExtHost, "dispatch">;
   readonly resolveCapability: CapabilityResolver;
+  /**
+   * 플러그인 기능 호출이 찾을 기능 정의. 도구 매핑이 없는 메서드의 합성 항목(`cap:<기능>.<메서드>`)을 정의에서 만든다(U-1 (다)).
+   * 모델 도구 광고에는 쓰지 않는다
+   */
+  readonly capabilityDefs?: readonly AnyCapabilityDef[];
   /** 대화의 현재 설정을 읽는다. threadId가 null이면 세션 범위 층 없이 읽는다 */
   readonly config: (threadId: ThreadId | null) => ToolsConfig;
   readonly clock: Clock;

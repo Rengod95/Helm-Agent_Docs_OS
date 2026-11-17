@@ -7,6 +7,7 @@ import {
   type ThreadId,
 } from "@fresnel/contracts/conversation";
 import type { ExtensionName } from "@fresnel/contracts/extensions";
+import { BUILTIN_CAPABILITY_DEFS } from "./capability-defs.ts";
 import {
   EVENT_CATALOG,
   EXTENSION_KIND_PATTERN,
@@ -102,6 +103,8 @@ import {
 
 export interface ExtensionDeps {
   readonly mode: HostMode;
+  /** 조립이 더한 추가 기능 정의(시험용). 플러그인 기능 호출이 찾는 정의에 더한다(core-tools `pluginCapabilities`) */
+  readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /** 잘린 도구 출력의 파일 사본. core-tools가 쓰고 cap-workspace가 읽기 루트에 더한다 */
   readonly toolOutputs: ToolOutputFiles;
   readonly clock: Clock;
@@ -318,6 +321,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           outputFiles: deps.toolOutputs,
           // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(RegistrationHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
+          // 플러그인 기능 호출은 도구 매핑이 없는 메서드도 부른다(U-1 (다)). 그 정의는 내장 기능 전체다. 매니페스트에는 더하지 않는다
+          pluginCapabilities: [...BUILTIN_CAPABILITY_DEFS, ...(deps.extraCapabilityDefs ?? [])],
           loadIndex,
         }),
     ],

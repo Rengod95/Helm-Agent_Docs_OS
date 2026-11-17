@@ -128,6 +128,7 @@ async function harnessWithTools() {
   const tools = new Map<string, ToolResourceDef>();
   const log: string[] = [];
   const port: ToolsPort = {
+    toolMappedFor: () => false,
     executeForPlugin: () =>
       Promise.resolve(
         err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

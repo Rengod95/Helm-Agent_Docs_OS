@@ -1027,6 +1027,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         dialogArea,
         web,
         mode: options.mode,
+        ...(options.extraCapabilityDefs === undefined
+          ? {}
+          : { extraCapabilityDefs: options.extraCapabilityDefs }),
         toolOutputs,
         clock,
         scheduler: runtime.scheduler,

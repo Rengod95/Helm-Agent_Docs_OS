@@ -204,7 +204,12 @@ export async function rigOn(
     listProposals: (filter) =>
       control.readerDown ? Promise.resolve(err(queueDown)) : folded.listProposals(filter),
   };
-  const values = new Map<string, unknown>(Object.entries(options.settings ?? {}));
+  // 이 시험 대역의 ToolsPort는 도구 파이프라인을 흉내 내지 않는다. 지식 쓰기는 옛 직접 경로로 돌려 학습 판정만 본다.
+  // 플러그인 기능 호출의 파이프라인 경로는 core-tools·ext-host 시험과 apps/host 통합 시험이 본다
+  const values = new Map<string, unknown>([
+    ["l1.tools.pluginCalls", false],
+    ...Object.entries(options.settings ?? {}),
+  ]);
   const tools = new Map<string, ToolResourceDef>();
   const module = createLearningGroup({
     clock,
@@ -227,6 +232,7 @@ export async function rigOn(
       });
       // L1.tools의 등록 면 대역: 등록한 도구 정의를 모아 시험이 execute를 직접 부른다
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

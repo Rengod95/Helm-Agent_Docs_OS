@@ -17,6 +17,7 @@ import {
   textOf,
   until,
   type Harness,
+  UNUSED_BRIDGE,
 } from "./support/harness.ts";
 
 const ALLOW_BASH = layer("user", {
@@ -245,7 +246,7 @@ function lockedHarness(h: Harness) {
     logger: undefined,
     callOf: () => undefined,
   });
-  const pipeline = createPipeline(deps, registry, calls, approvals);
+  const pipeline = createPipeline(deps, registry, calls, approvals, UNUSED_BRIDGE);
   const toolEntry = entry("write");
   registry.add([toolEntry]);
 

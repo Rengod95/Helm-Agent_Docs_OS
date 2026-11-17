@@ -19,7 +19,7 @@ test("defaults match the l1.tools settings table", () => {
     pluginCallDepth: 3,
   });
   expect(TOOLS_SETTING_DEFAULTS.outputMaxBytes).toBe(51_200);
-  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(9);
+  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(10);
   for (const key of Object.values(TOOLS_SETTING_KEYS))
     expect(key.startsWith("l1.tools.")).toBe(true);
 });

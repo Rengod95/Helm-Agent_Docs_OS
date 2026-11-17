@@ -66,6 +66,7 @@ test("toolOwner names the scope that registered the tool, by exposed or requeste
     name: "test-tools-port",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

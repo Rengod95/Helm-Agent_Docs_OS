@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
+import { defineCapability, serviceKey } from "@fresnel/contracts/capabilities";
 import type { PluginCallRequest } from "@fresnel/contracts/services";
+import { Type } from "typebox";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
   callTool,
@@ -250,4 +252,107 @@ test("a plugin's pending approval is read back after a restart with caller plugi
     ok: false,
     error: { kind: "denied", resolvedBy: "human" },
   });
+});
+
+// hooks-core-boundary §5.3 U-1 (다): 도구 매핑이 없고 readOnly가 아닌 기능 메서드는 합성 항목 `cap:<기능>.<메서드>`로 부른다.
+// 합성 항목은 모델에 광고하지 않는다. readOnly 메서드는 합성 항목을 받지 않는다(가벼운 경로).
+
+const SynthInput = Type.Object({ value: Type.String() });
+const Synth = defineCapability({
+  id: "test.synth",
+  version: "1.0.0",
+  description: "a capability whose write method has no tool mapping",
+  service: {
+    methods: {
+      write: {
+        description: "writes a value",
+        input: SynthInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+      },
+      peek: {
+        description: "reads a value",
+        input: SynthInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+        replay: "safe",
+        readOnly: true,
+      },
+    },
+  },
+  tools: [],
+});
+
+test("a non-readOnly capability method without a tool mapping runs through its cap: synthetic entry", async () => {
+  // 합성 항목은 exec 위험이라 기본 모드에서는 승인을 기다린다. 시험은 허용 규칙으로 승인 없이 지나게 한다
+  const h = await createHarness({
+    layers: [
+      layer("user", {
+        "l1.tools.rules": [
+          {
+            id: "u.synth",
+            action: "tool.call",
+            resource: { tool: "cap:test.synth.write" },
+            effect: "allow",
+          },
+        ],
+      }),
+    ],
+    capabilityDefs: [Synth],
+  });
+  const written: unknown[] = [];
+  h.apis.set(Synth.id, {
+    write: (input: unknown) => {
+      written.push(input);
+      return Promise.resolve({ ok: true });
+    },
+  });
+  expect(
+    h.runtime.tools.register({ kind: "capability", def: Synth, key: serviceKey(Synth) }).ok,
+  ).toBe(true);
+  const result = await h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "capability", capability: "test.synth", method: "write" },
+      input: { value: "x" },
+      requestId: "synth-1",
+    }),
+  );
+  expect(result).toMatchObject({
+    ok: true,
+    value: { isError: false, structuredContent: { ok: true } },
+  });
+  expect(written).toEqual([{ value: "x" }]);
+});
+
+test("the cap: synthetic entry is never advertised to the model", async () => {
+  const h = await createHarness({ capabilityDefs: [Synth] });
+  h.apis.set(Synth.id, { write: () => Promise.resolve({ ok: true }) });
+  h.runtime.tools.register({ kind: "capability", def: Synth, key: serviceKey(Synth) });
+  const advertised = await h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+  expect(advertised.ok).toBe(true);
+  if (!advertised.ok) return;
+  const names = advertised.value.tools.map((tool) => tool.wire.name);
+  expect(names.some((name) => name.startsWith("cap:"))).toBe(false);
+  expect(advertised.value.deferred.some((tool) => tool.name.startsWith("cap:"))).toBe(false);
+});
+
+test("a readOnly capability method without a tool mapping has no plugin entry and is unavailable here", async () => {
+  const h = await createHarness({ capabilityDefs: [Synth] });
+  h.apis.set(Synth.id, { peek: () => Promise.resolve({ ok: true }) });
+  h.runtime.tools.register({ kind: "capability", def: Synth, key: serviceKey(Synth) });
+  const result = await h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "capability", capability: "test.synth", method: "peek" },
+      input: { value: "x" },
+      requestId: "synth-2",
+    }),
+  );
+  expect(result).toMatchObject({ ok: false, error: { kind: "unavailable" } });
+});
+
+test("toolMappedFor is true only for a method that a model tool maps, never for a cap: synthetic entry", async () => {
+  const h = await createHarness({ capabilityDefs: [Synth] });
+  registerWorkspace(h);
+  h.apis.set(Synth.id, { write: () => Promise.resolve({ ok: true }) });
+  h.runtime.tools.register({ kind: "capability", def: Synth, key: serviceKey(Synth) });
+  expect(h.runtime.tools.toolMappedFor("workspace.files", "read")).toBe(true);
+  expect(h.runtime.tools.toolMappedFor("test.synth", "write")).toBe(false);
 });

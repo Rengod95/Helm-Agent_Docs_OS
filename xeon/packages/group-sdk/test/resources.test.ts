@@ -20,6 +20,7 @@ test("resources.tool-and-command-released-on-disable", async () => {
     name: "fake-tools",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
@@ -200,6 +201,7 @@ test("an external group from plugin.json replaces a built-in tool through g.regi
     name: "claim-recorder",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

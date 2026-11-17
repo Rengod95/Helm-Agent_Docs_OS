@@ -1,4 +1,6 @@
+import type { InputBridge } from "../../src/mcp-input.ts";
 import {
+  type AnyCapabilityDef,
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceShell,
@@ -67,6 +69,8 @@ export interface HarnessOptions {
   readonly scheduler?: Scheduler;
   /** 시계. 생략하면 고정 시각이다 */
   readonly clock?: Clock;
+  /** 플러그인 기능 호출이 찾을 기능 정의(합성 항목). 생략하면 없다 */
+  readonly capabilityDefs?: readonly AnyCapabilityDef[];
 }
 
 export interface Harness {
@@ -146,6 +150,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     secrets: options.secretChecker,
     ext: host.host,
     resolveCapability: (key: ServiceKey<unknown>) => apis.get(key.capability),
+    capabilityDefs: options.capabilityDefs ?? [],
     config: (threadId) => {
       const config = configReader(source, session)(threadId);
       return options.unattended === null
@@ -402,3 +407,10 @@ export function directTool(
     ...extra,
   };
 }
+
+/** 승인 다리가 필요 없는 시험에서 `createPipeline`에 넘기는 다리. 부르면 시험이 실패하도록 빈 결과를 돌려준다 */
+export const UNUSED_BRIDGE: InputBridge = {
+  wait: () => Promise.resolve("unknown"),
+  open: () => Promise.reject(new Error("this test does not open input approvals")),
+  get: () => undefined,
+};

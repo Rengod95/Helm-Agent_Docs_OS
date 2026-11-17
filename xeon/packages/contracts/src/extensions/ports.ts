@@ -1,6 +1,7 @@
 import type { TSchema } from "typebox";
 import type {
   CallerInfo,
+  CapabilityId,
   PluginCallRequest,
   PluginModelError,
   PluginModelRequest,
@@ -344,6 +345,11 @@ export interface ToolReplaceClaim {
 export interface ToolsPort {
   register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
   executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
+  /**
+   * 기능 메서드에 도구 매핑(`ToolSpec.method`)이 있는가(hooks-core-boundary §5.3 U-1 (가)). 기능 래퍼가 파이프라인 경로를 고를 때 쓴다.
+   * 합성 `cap:` 항목은 매핑이 아니다
+   */
+  toolMappedFor(capability: CapabilityId, method: string): boolean;
 }
 /**
  * ModelService(fresnel.models)가 포함하는 부분형. `completeForPlugin`은 주도 단계의 `model` 명령이 쓴다(drive-isolation.md §1.2).

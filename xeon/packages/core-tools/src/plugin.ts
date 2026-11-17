@@ -61,6 +61,11 @@ export interface ToolsPluginOptions {
   readonly outputFiles?: ToolOutputFiles;
   /** 매니페스트 optional에 더할 기능(워크스페이스 기능 밖의 L2 기능 도구를 쓸 때) */
   readonly capabilities?: readonly AnyCapabilityDef[];
+  /**
+   * 플러그인 기능 호출이 찾을 기능 정의(매니페스트에는 더하지 않는다). 도구 매핑이 없는 메서드의 합성 항목을 만든다(U-1 (다)).
+   * 조립 루트가 내장 기능 정의 전체를 넘긴다
+   */
+  readonly pluginCapabilities?: readonly AnyCapabilityDef[];
   readonly loadIndex?: number;
 }
 
@@ -101,7 +106,11 @@ export function configReader(
 
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
-  const manifest = toolsManifest(options.capabilities);
+  // 플러그인 기능 호출이 부르는 기능도 매니페스트 optional에 있어야 core-tools가 공급자를 찾는다(`g.capability`는 선언 밖을 거부한다)
+  const manifest = toolsManifest([
+    ...(options.capabilities ?? []),
+    ...(options.pluginCapabilities ?? []),
+  ]);
   const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
     register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
@@ -135,6 +144,11 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         ...(scheduler === undefined ? {} : { scheduler }),
         ids: options.ids,
         logger: options.logger,
+        capabilityDefs: [
+          ...BUILTIN_CAPABILITIES,
+          ...(options.capabilities ?? []),
+          ...(options.pluginCapabilities ?? []),
+        ],
       };
       const runtime = createToolRuntime(deps);
       host.providePort(ToolServicePortKey, runtime.tools);

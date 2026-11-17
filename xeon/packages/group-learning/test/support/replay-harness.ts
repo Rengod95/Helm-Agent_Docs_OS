@@ -189,9 +189,13 @@ export function createLearningReplayHarness(
         name: "replay-ports",
         setup(ctx) {
           ctx.providePort(AgentServicePortKey, ports.agents);
-          ctx.providePort(GroupSettingsSourceKey, { value: (key) => settings[key] });
+          // 시험 대역의 ToolsPort는 파이프라인을 흉내 내지 않으므로 옛 직접 경로를 쓴다(rig.ts와 같은 이유)
+          ctx.providePort(GroupSettingsSourceKey, {
+            value: (key) => (key === "l1.tools.pluginCalls" ? false : settings[key]),
+          });
           ctx.providePort(ToolsPortKey, {
             register: () => ok(() => {}),
+            toolMappedFor: () => false,
             executeForPlugin: () =>
               Promise.resolve(
                 err({

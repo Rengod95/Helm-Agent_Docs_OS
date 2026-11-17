@@ -277,6 +277,7 @@ async function claimsOf(harness: LoaderHarness): Promise<ToolReplaceClaim[]> {
     name: "claim-recorder",
     setup(ctx) {
       ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
         executeForPlugin: () =>
           Promise.resolve(
             err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

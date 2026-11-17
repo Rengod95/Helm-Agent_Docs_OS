@@ -4841,6 +4841,8 @@
   "settings.l1.tools.unattended.timeoutSeconds.unit": "s",
   "settings.l1.tools.pluginCallDepth.label": "Plugin call nesting limit",
   "settings.l1.tools.pluginCallDepth.help": "How many hook frames deep a plugin's own tool call may nest before it is refused",
+  "settings.l1.tools.pluginCalls.label": "Route plugin calls through the tool pipeline",
+  "settings.l1.tools.pluginCalls.help": "When on, a plugin's capability calls pass the same hooks, policy, approvals and effect records as model tool calls",
   "settings.l1.context.autoCompact.label": "Auto compaction",
   "settings.l1.context.reserveTokens.label": "Tokens reserved for response",
   "settings.l1.context.reserveTokens.unit": "tokens",

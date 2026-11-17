@@ -81,6 +81,7 @@ describe("tool registrars", () => {
     const { world, tool } = await oneTool();
     const defs: ToolResourceDef[] = [];
     const port: ToolsPort = {
+      toolMappedFor: () => false,
       executeForPlugin: () =>
         Promise.resolve(
           err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),

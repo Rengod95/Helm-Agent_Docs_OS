@@ -11,7 +11,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
 import type { TraceBuffer, TraceDispatch } from "../operations/trace-buffer.ts";
-import { withAmbient } from "./ambient.ts";
+import { ambient, hookStackOf, withAmbient } from "./ambient.ts";
 import type {
   AnyDispatchOptions,
   AnyDispatchOutcome,
@@ -261,6 +261,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       const info = infoOf(entry);
       const outer = combineSignals(options.signal, entry.signal);
       const state = deps.stateOf(options.threadId, entry.scopeId);
+      // 핸들러가 도는 칸을 훅 스택에 쌓는다(hooks-core-boundary §5.3 U-8 (나)). 바깥 흐름의 스택에 이 핸들러 칸을 더한다
+      const stack = hookStackOf(ambient());
       const work = (signal: AbortSignal, gate: HandlerGate): Promise<unknown> =>
         Promise.resolve().then(() =>
           withAmbient(
@@ -272,6 +274,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               counter: 0,
               drive: null,
               handler: { signal, gate },
+              hookStack: [...stack, { plugin: entry.extension, point, tool: "", argsHash: "" }],
               ...(trace === undefined ? {} : { trace }),
             },
             () =>

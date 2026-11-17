@@ -35,6 +35,11 @@ export interface PluginCallRequest {
    * 승인 기록이 같은 대화의 `parentToolCallId`가 받은 허용이고 위험 등급이 `risk` 이상일 때만 쓴다. 아니면 무시한다
    */
   readonly inheritApproval?: { readonly approvalId: string; readonly risk: ToolRisk };
+  /**
+   * 호출 조건(U-12). 효과 작업자는 요청 때 기록한 `interactive`와 샌드박스 천장을 싣는다(나중에 돌아도 같은 조건이다).
+   * 없으면 이 대화에서 진행 중인 호출의 값을 따르고, 그것도 없으면 대화형이다
+   */
+  readonly conditions?: { readonly interactive: boolean; readonly sandbox?: "read-only" };
   readonly signal?: AbortSignal;
 }
 

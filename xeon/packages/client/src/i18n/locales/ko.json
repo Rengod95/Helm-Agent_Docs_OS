@@ -4841,6 +4841,8 @@
   "settings.l1.tools.unattended.timeoutSeconds.unit": "초",
   "settings.l1.tools.pluginCallDepth.label": "플러그인 호출의 중첩 한도",
   "settings.l1.tools.pluginCallDepth.help": "플러그인이 훅 안에서 자기 도구를 부를 때 몇 단계까지 중첩할 수 있는지 정해요. 넘으면 거부해요",
+  "settings.l1.tools.pluginCalls.label": "플러그인 기능 호출의 도구 파이프라인 경유",
+  "settings.l1.tools.pluginCalls.help": "켜면 플러그인의 기능 호출이 모델 도구 호출과 같은 훅, 정책, 승인, 효과 기록을 거쳐요",
   "settings.l1.context.autoCompact.label": "자동 컴팩션",
   "settings.l1.context.reserveTokens.label": "응답용 예약 토큰",
   "settings.l1.context.reserveTokens.unit": "토큰",
