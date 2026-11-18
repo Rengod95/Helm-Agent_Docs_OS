@@ -582,6 +582,7 @@ realTest(
       [
         { text: "답", inputTokens: 1000 },
         { text: "답", inputTokens: 1000 },
+        { text: "답", inputTokens: 1000 },
       ],
       { contextWindow: 100_000 },
     );
@@ -615,8 +616,14 @@ realTest(
         drafts: [],
         runGroupId: "grp-b",
       });
+      const runC = await connection.request("testRun.start", {
+        baseProfileId: "work",
+        drafts: [],
+        runGroupId: "grp-c",
+      });
       const [turnA] = await runTurns(connection, collector, runA.threadId, ["같은 질문"]);
       const [turnB] = await runTurns(connection, collector, runB.threadId, ["같은 질문"]);
+      await runTurns(connection, collector, runC.threadId, ["다른 질문"]);
       if (turnA === undefined || turnB === undefined) throw new Bug("each run must have a turn");
 
       // 테스트 실행 턴은 `test` 범위로 남는다(표지의 구성 값은 `record.testRun` 결함 때문에 여기서 보지 않는다)
@@ -626,10 +633,30 @@ realTest(
       });
       expect(recordA.record?.scope).toBe("test");
 
-      // `sameInput`은 시험하지 않는다: 같은 입력인데도 거짓이 나와 결함으로 보고한다(tr_thread.input_hash를 쓰는 곳이 없다)
+      // 첫 사용자 입력의 HMAC이 `tr_thread.input_hash`에 남고, 입력 원문은 남지 않는다
+      const opened = openMeasureStore(join(home.dataDir, "measure.db"));
+      if (!opened.ok) throw new Bug("the measure database must exist after the turns");
+      const hashOf = (threadId: ThreadId): string | null => {
+        const row = opened.value.getThread(threadId);
+        if (!row.ok) throw new Bug("the measure database must be readable");
+        return row.value?.inputHash ?? null;
+      };
+      const hashA = hashOf(runA.threadId);
+      expect(hashA).toMatch(/^[0-9a-f]{16}$/);
+      expect(hashOf(runB.threadId)).toBe(hashA);
+      expect(hashOf(runC.threadId)).toMatch(/^[0-9a-f]{16}$/);
+      expect(hashOf(runC.threadId)).not.toBe(hashA);
+      opened.value.close();
+
+      // 같은 입력의 두 실행은 `sameInput`이 참이고, 입력이 다른 실행이 끼면 거짓이다
+      const different = await connection.request("testRun.compare", {
+        threadIds: [runA.threadId, runC.threadId],
+      });
+      expect(different.sameInput).toBe(false);
       const compared = await connection.request("testRun.compare", {
         threadIds: [runA.threadId, runB.threadId],
       });
+      expect(compared.sameInput).toBe(true);
       expect(compared.columns).toEqual([
         { threadId: runA.threadId, label: "#1", versionIds: [] },
         { threadId: runB.threadId, label: "#2", versionIds: [] },

@@ -449,7 +449,7 @@ function modelCallOf(call: UsageRecord, turnStartedAt: number): ModelCall {
 }
 
 /** 설치별 소금으로 HMAC한 앞 16 hex(§4.3 규칙 20·21). 소금 없이는 인자 값을 사전 대입으로 되짚을 수 없다 */
-function keyedHex(salt: string, text: string): string {
+export function keyedHex(salt: string, text: string): string {
   return createHmac("sha256", salt).update(text).digest("hex").slice(0, 16);
 }
 

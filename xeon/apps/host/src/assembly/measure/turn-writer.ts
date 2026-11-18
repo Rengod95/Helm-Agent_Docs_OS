@@ -63,6 +63,7 @@ import {
   hookKeyOf,
   hooksOfStep,
   isTurnLevelHook,
+  keyedHex,
   lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
@@ -413,6 +414,37 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       ...frame,
       userMessages: frame.userMessages + 1,
     }));
+  }
+
+  /**
+   * 테스트 실행 대화의 첫 사용자 입력을 설치별 소금으로 HMAC해 `tr_thread.input_hash`에 쓴다(§4.8 규칙 34, `callKey`와 같은 방식).
+   * 입력 원문은 저장하지 않는다. 이미 해시가 있으면(첫 입력이 아니면) 그대로 둔다. `testRun.compare`가 이 값으로 `sameInput`을 정한다
+   */
+  function inputHashOfQueued(record: DurableEventEnvelope): void {
+    const parsed = parse(InputQueuedPayloadSchema, record.payload);
+    if (!parsed.ok || parsed.value.source.type !== "user") return;
+    const item = parsed.value.item;
+    if (item.kind !== "user") return;
+    const text =
+      typeof item.content === "string"
+        ? item.content
+        : item.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+    const threadId = record.threadId;
+    deps.queue((store) => {
+      const found = store.getThread(threadId);
+      if (!found.ok) {
+        deps.logger.warn("measure.test_marker_read_failed", { reason: found.error.kind });
+        return;
+      }
+      const row = found.value;
+      if (row === undefined || row.scopeKind !== "test" || row.inputHash !== null) return;
+      const sealed = installSaltOf();
+      if (sealed === undefined) return;
+      const written = store.upsertThread({ ...row, inputHash: keyedHex(sealed, text) });
+      if (!written.ok) {
+        deps.logger.warn("measure.test_marker_write_failed", { reason: written.error.kind });
+      }
+    });
   }
 
   /** 주도 함수가 낸 하위 대화(`agent.spawned`의 owner가 drive). 엔진은 그 임대와 아래 프레임에 spawns를 더한다 */
@@ -864,7 +896,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         spawnCharge(record);
       } else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
         frameEvent(record);
-      } else if (record.kind === "input.queued") queuedUserMessage(record);
+      } else if (record.kind === "input.queued") {
+        queuedUserMessage(record);
+        inputHashOfQueued(record);
+      }
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
