@@ -718,7 +718,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | `agents.judge` | `judge`: read |
 | `models.complete` | `complete`: read |
 | `artifacts.registry` | `archive`: read |
-| `artifacts.reviews` | `approve`, `reject`, `comment`, `close`: read / `submit`: write(작업 폴더를 되돌린다) |
+| `artifacts.reviews` | `comment`, `close`: read / `approve`, `reject`, `submit`: write(`approve`·`reject`는 플러그인이 에이전트의 파일 변경 검토를 스스로 판정하는 길이라 올렸다. 사용자 확정 2026-11-18, AGE-10. `submit`은 작업 폴더를 되돌린다) |
 | `dialog.aside` | `ask`: read |
 | `dialog.attachments` | `add`: read |
 | `dialog.commands` | `register`, `run`: read |
@@ -728,7 +728,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | `knowledge.ledger` | `decide`, `rollback`: write |
 | `knowledge.memory` | `add`, `remove`, `replace`: write |
 | `knowledge.skills` | `create`, `edit`, `patch`, `reindex`, `remove`, `writeFile`: write |
-| `mcp.client` | `callTool`, `connect`, `reconnect`: exec / `disable`: read |
+| `mcp.client` | `callTool`, `connect`, `reconnect`: exec / `disable`: write(사용자 확정 2026-11-18, AGE-10) |
 | `schedule.entries` | `cancel`: write / `fire`: exec |
 | `web.research` | `cancel`: write / `start`: exec |
 | `work.goals` | `set`, `clear`, `judge`: read |
