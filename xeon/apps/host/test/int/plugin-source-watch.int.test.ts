@@ -81,7 +81,8 @@ realTest(
         draftId: draft.draftId,
       });
       const pendingItem = after.find((item) => item.state === "pending");
-      expect(submitted.itemId).toBe(pendingItem?.itemId);
+      if (pendingItem === undefined) throw new Error("the pending update item is missing");
+      expect(submitted.itemId).toBe(pendingItem.itemId);
       expect((await itemsOf()).length).toBe(2);
 
       // 같은 내용으로 다시 써도 항목이 늘지 않는다
