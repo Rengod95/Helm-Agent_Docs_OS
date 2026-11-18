@@ -347,9 +347,46 @@ test("a title model that cannot be resolved reports no_model, with the role's er
     }),
     clock,
     THREAD,
+    (text) => text,
   );
   expect(resolved).toEqual({
     ok: false,
     error: { kind: "no_model", detail: "no_model_for_role" },
   });
+});
+
+type TitleModels = Parameters<typeof titleModelFor>[0];
+
+test("the text sent to the title model passes through the mask", async () => {
+  const sent: string[] = [];
+  const resolved = titleModelFor(
+    partial<TitleModels>({
+      resolve: () =>
+        ok(
+          partial<Extract<ReturnType<TitleModels["resolve"]>, { readonly ok: true }>["value"]>({
+            binding: partial<
+              Extract<ReturnType<TitleModels["resolve"]>, { readonly ok: true }>["value"]["binding"]
+            >({ provider: "tape", modelId: "tape-1" }),
+          }),
+        ),
+      list: () => [partial<ReturnType<TitleModels["list"]>[number]>({ ref: "tape/tape-1" })],
+      complete: (request: Parameters<TitleModels["complete"]>[0]) => {
+        sent.push(JSON.stringify(request.context.messages));
+        return Promise.resolve(
+          partial<Awaited<ReturnType<TitleModels["complete"]>>>({
+            stopReason: "stop",
+            content: [{ type: "text", text: "제목" }],
+          }),
+        );
+      },
+    }),
+    clock,
+    THREAD,
+    (text) => text.replaceAll("hunter2hunter2", "[MASKED]"),
+  );
+  if (!resolved.ok) throw new Error("the title model should resolve");
+  await resolved.value.complete({ system: "s", user: "password is hunter2hunter2" });
+  expect(sent).toHaveLength(1);
+  expect(sent[0]?.includes("hunter2hunter2")).toBe(false);
+  expect(sent[0]?.includes("password is [MASKED]")).toBe(true);
 });

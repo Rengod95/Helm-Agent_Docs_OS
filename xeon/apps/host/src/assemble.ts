@@ -1788,7 +1788,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       feed: portsHandle.ports.feed,
       locks: portsHandle.ports.locks,
       session,
-      modelFor: (threadId) => titleModelFor(models, clock, threadId),
+      modelFor: (threadId) =>
+        titleModelFor(models, clock, threadId, (text) => secrets.service.redactor.mask(text).text),
       logger,
       signal: lifetime.signal,
     });

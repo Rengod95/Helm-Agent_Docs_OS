@@ -57,6 +57,11 @@ export function titleModelFor(
   models: Pick<ModelService, "resolve" | "list" | "complete">,
   clock: Clock,
   threadId: ThreadId,
+  /**
+   * 모델로 나가는 입력의 가림. 첫 사용자 입력(분리된 큰 값은 되돌린 원문의 앞부분)이 그대로 나가지 않게 한다
+   * (L0.secrets.spec §3.5 큰 내용: 크기와 분리 여부가 가림을 바꾸지 않는다)
+   */
+  mask: (text: string) => string,
 ): Result<TitleModelPort, TitleModelSkip> {
   const resolved = models.resolve(TITLE_ROLE, {});
   if (!resolved.ok) return err({ kind: "no_model", detail: resolved.error.kind });
@@ -85,7 +90,7 @@ export function titleModelFor(
             messages: [
               {
                 role: "user",
-                content: [{ type: "text", text: input.user }],
+                content: [{ type: "text", text: mask(input.user) }],
                 timestamp: clock.now(),
               },
             ],
