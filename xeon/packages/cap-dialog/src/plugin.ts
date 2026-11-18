@@ -19,6 +19,8 @@ import {
   SecretServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
+  type ApprovalsPortFactory,
+  type DialogCore,
 } from "@fresnel/contracts/services";
 import {
   hostOf,
@@ -26,7 +28,6 @@ import {
   type ExtensionUnit,
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
-import { questionApprovalsOver, type ApprovalsPortFactory } from "@fresnel/core-tools";
 import type { ChunkNumbering } from "./chunk-numbering.ts";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
@@ -49,7 +50,12 @@ export interface DialogPluginOptions {
   readonly settings: DialogSettingsSource;
   /** 휘발 이벤트 id를 만든다 */
   readonly ids: IdFactory;
-  /** 질문 승인 포트 팩토리. 생략하면 `fresnel.approvals`를 `questionApprovalsOver`로 감싼다. 둘 다 없으면 `ask`는 unavailable이다 */
+  /**
+   * 질문 기능 묶음(`DialogCore`). 질문 서비스를 만들고, 승인 포트를 생략했을 때 `fresnel.approvals`를 감싼다.
+   * 플러그인은 구현 패키지를 import하지 않으므로 조립 루트가 필수로 넘긴다
+   */
+  readonly core: DialogCore;
+  /** 질문 승인 포트 팩토리. 생략하면 `fresnel.approvals`를 `core.questionApprovalsOver`로 감싼다. 둘 다 없으면 `ask`는 unavailable이다 */
   readonly approvals?: ApprovalsPortFactory;
   /** 사용자 개시 셸 실행. 생략하면 `fresnel.loop`를 `shellPortOver`로 감싼다. 둘 다 없으면 셸 주입 명령은 unavailable이다 */
   readonly shell?: ShellPort;
@@ -113,7 +119,9 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
       const secrets = optionalPort(host, SecretServicePortKey);
       const approvals =
         options.approvals ??
-        (approvalService === undefined ? undefined : questionApprovalsOver(approvalService));
+        (approvalService === undefined
+          ? undefined
+          : options.core.questionApprovalsOver(approvalService));
       const shell = options.shell ?? (loop === undefined ? undefined : shellPortOver(loop));
       const logger = os.logger("dialog");
       const images = optionalImages(() => g.capability(WorkspaceImagesKey));
@@ -122,6 +130,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         logger,
         timers: os.time,
         settings: (threadId) => readDialogSettings(options.settings.layers(threadId)),
+        core: options.core,
         approvals,
         interactive: options.interactive ?? (() => true),
         shell,

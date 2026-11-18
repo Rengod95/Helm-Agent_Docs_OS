@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure, resolveWorkspacePath } from "@fresnel/core-workspace";
 import { loadImageAt, probeImageType } from "../images/service.ts";
 import { pageRead } from "../truncate/paging.ts";
 import { readFileText } from "./upstream/read.ts";
@@ -15,7 +15,7 @@ export function createRead(deps: WorkspaceDeps): ReadMethod {
   return async (input, options) => {
     const context: CancelScope = { abortSignal: options?.signal };
     const settings = deps.settings(options?.context?.threadId);
-    const resolved = await resolveWorkspacePath(deps.roots, input.path, "read", context, {
+    const resolved = await deps.core.resolveWorkspacePath(deps.roots, input.path, "read", context, {
       variants: true,
     });
     if (!resolved.exists) {
@@ -46,6 +46,7 @@ export function createRead(deps: WorkspaceDeps): ReadMethod {
       }
     }
     const outcome = await readFileText(
+      deps.core,
       deps.env,
       resolved.canonical,
       input.offset,
