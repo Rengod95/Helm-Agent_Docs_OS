@@ -79,8 +79,14 @@ import { DriveFramesChangedParamsSchema } from "./ext-read.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
-import { TURN_RECORD_WIRE_METHODS, type TurnRecordWireSchemas } from "./turn-record-methods.ts";
+import {
+  BACKTEST_WIRE_METHODS,
+  TURN_RECORD_WIRE_METHODS,
+  type BacktestWireSchemas,
+  type TurnRecordWireSchemas,
+} from "./turn-record-methods.ts";
 import { TurnRecordDeltaParamsSchema } from "./turn-record.ts";
+import { BacktestProgressParamsSchema } from "./backtest.ts";
 import {
   CacheImpactSchema,
   OverlayListSchema,
@@ -2081,7 +2087,8 @@ interface WireSchemas
     MigrationWireSchemas,
     DevkitWireSchemas,
     MeasureWireSchemas,
-    TurnRecordWireSchemas {
+    TurnRecordWireSchemas,
+    BacktestWireSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -2404,6 +2411,8 @@ interface ServerNotificationSchemas {
   "migration.changed": typeof MigrationChangedParamsSchema;
   /** M5 (턴 기록 구독, `turn-record-metrics.md` §3.5). 구독은 `turnRecord.watch`로 연다 */
   "turnRecord.delta": typeof TurnRecordDeltaParamsSchema;
+  /** M5 (지난 턴에 돌려 보기 진행, `turn-record-metrics.md` §3.5). 실행은 `backtest.run`으로 연다 */
+  "backtest.progress": typeof BacktestProgressParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -2599,6 +2608,7 @@ export const WIRE_METHODS: {
   ...DEVKIT_WIRE_METHODS,
   ...MEASURE_WIRE_METHODS,
   ...TURN_RECORD_WIRE_METHODS,
+  ...BACKTEST_WIRE_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
@@ -2626,6 +2636,7 @@ export const WIRE_NOTIFICATIONS: {
   "migration.progress": { params: MigrationProgressParamsSchema, since: "0.1.0", stage: "M4" },
   "migration.changed": { params: MigrationChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "turnRecord.delta": { params: TurnRecordDeltaParamsSchema, since: "0.1.0", stage: "M5" },
+  "backtest.progress": { params: BacktestProgressParamsSchema, since: "0.1.0", stage: "M5" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

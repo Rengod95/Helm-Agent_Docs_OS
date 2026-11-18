@@ -83,6 +83,7 @@ export type ServerNotificationNames = Expect<
     | "migration.progress"
     | "migration.changed"
     | "turnRecord.delta"
+    | "backtest.progress"
   >
 >;
 

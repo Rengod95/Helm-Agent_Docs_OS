@@ -427,6 +427,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | findings | `findings.dismiss` | `{ findingId, until? }` | `{}` | M5 (M5d, 살펴볼 것) |
 | findings | `findings.bundle` | `{ findingId }` | `{ bundle: FindingBundle, bytes }`(16 KiB 이하) | M5 (M5d, 살펴볼 것) |
 | profileCost | `profileCost.get` | `{ profileId, basis? }` | `{ profileId, rev, basis, nTurns, plugins: ProfileCostRow[], total: ProfileCostRow }` | M5 (M5d, 비용) |
+| backtest | `backtest.run` | `{ candidate: { pluginId, versionId }, hook: "tool.call.before" \| "guard.tool.before" \| "tool.result", scope: { profileId?, threadIds?(50개 이하), turns?: { threadId, turnId }[](50개 이하), lastTurns?(1~50, 기본 20), sinceMs?, include?: ScopeKind[](기본 ["live"]) } }` | `{ runId }` | M5 (M5d-2, 지난 턴에 돌려 보기) |
+| backtest | `backtest.status` | `{ runId }` | `{ state: "queued" \| "running" \| "done" \| "cancelled" \| "failed", done, total }` | M5 (M5d-2, 지난 턴에 돌려 보기) |
+| backtest | `backtest.result` | `{ runId, cursor? }` | `{ summary: BacktestSummary, items: BacktestItem[](200개 이하), notReproducible: string[](6개 이하), next }` | M5 (M5d-2, 지난 턴에 돌려 보기) |
+| backtest | `backtest.cancel` | `{ runId }` | `{}` | M5 (M5d-2, 지난 턴에 돌려 보기) |
 | testRun | `testRun.compare` | `{ threadIds: string[](2~8) }` | `{ sameInput, columns, rows: CompareRow[] }` | M5 (M5d, 테스트 실행) |
 | testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
@@ -660,6 +664,7 @@ M5c-1 [제안]: 프로필·프로젝트 메서드의 params·result 스키마는
 | 서버 → 클라이언트 | `migration.progress` | `{ scanId: string, done: integer, total: integer }`. 훑기가 `done`개를 마쳤다(전체 `total`개). `migration.scan` 진행을 알린다(§3.3.4b) [제안] | M4 |
 | 서버 → 클라이언트 | `migration.changed` | `{ kind: "scan" / "proposal" / "apply" / "dismiss" }`. 가져오기 상태가 바뀌었다. 종류에 따라 `migration.report.get`이나 목록을 다시 읽는다(§3.3.4b) [제안] | M4 |
 | 서버 → 클라이언트 | `turnRecord.delta` | `{ sub, threadId, turnId, stepIndex: number 또는 null, rows: DeltaRow[], final: boolean }`. 구독한 대화의 턴 기록 행이 쓰였다. 한 알림에 행은 최대 100개이고 100 ms 안의 행은 묶는다 [제안]. `final`은 턴 행을 실은 알림이 참이다(§3.5 표, `turn-record-metrics.md`) | M5 |
+| 서버 → 클라이언트 | `backtest.progress` | `{ runId, done, total }`. 지난 턴에 돌려 보기가 호출 `done`개를 마쳤다(전체 `total`개). 상태는 `backtest.status`로 읽는다(§3.10) [제안] | M5 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -1192,6 +1197,11 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3511 | `metrics.unknownMetric` | false | `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) [제안] | - |
 | 3512 | `metrics.filterInvalid` | false | 필터가 잘못되었다(`metrics.query`, `turnRecord.search`). 두 메서드의 필터 검사는 같다 [제안] | - |
 | 3531 | `findings.notFound` | false | 그 id의 발견이 저장되어 있지 않다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) [제안] | - |
+| 3521 | `backtest.candidateNotFound` | false | 그 버전의 후보를 찾지 못했다(`backtest.run`) [제안] | - |
+| 3522 | `backtest.hookNotReplayable` | false | 돌려 볼 수 없는 훅이다(`backtest.run`). 돌려 볼 수 있는 훅은 `tool.call.before`, `guard.tool.before`, `tool.result`다(`turn-record-metrics.md` §4.8 규칙 44) [제안] | - |
+| 3523 | `backtest.runNotFound` | false | 그 id의 돌려 보기 실행이 없다(`backtest.status`, `backtest.result`, `backtest.cancel`) [제안] | - |
+| 3524 | `backtest.isolationUnavailable` | false | 후보를 격리 프로세스에서 돌릴 수 없다(격리 1단계 전, §4.8 규칙 54) [제안] | - |
+| 3525 | `backtest.busy` | true | 다른 돌려 보기가 이미 돈다(한 번에 하나, §4.8 규칙 52). 같은 요청을 다시 보내도 된다 [제안] | - |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -1208,7 +1218,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32768 ~ -32000 | JSON-RPC 예약 | 표준 다섯 개만 쓴다 |
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
-| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 턴 기록·지표(3500~3599) [제안], 나머지 L1 예비 |
+| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 턴 기록·지표·지난 턴에 돌려 보기(3500~3599) [제안], 나머지 L1 예비 |
 | 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
@@ -1548,7 +1558,8 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 
 - `HookRun.reason`은 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(`threw`, `timeout`, `result_invalid`, `merge_rejected`, `process_exit`, `process_killed`)를 쓴다. 격리 프로세스 종료 둘은 enP1이 라이브 목록에 더했고, 기록 전용 목록(`HOOK_FAILURE_REASONS`)은 없앴다. apps/desktop의 `RESULT_REASON` 표에 새 두 값의 글을 더했다.
 - `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안].
-- 오류 3501, 3511, 3512, 3531은 §3.5.2 표에 있다. 백테스트 3521~3525는 M5d-2에서 더한다.
+- 오류 3501, 3511, 3512, 3531과 백테스트 3521~3525는 §3.5.2 표에 있다. 백테스트의 처리기와 실행기는 M5d-2 뒤에 온다.
+- 지난 턴에 돌려 보기(`backtest.run·status·result·cancel`)의 params·result 스키마와 알림 `backtest.progress`는 `wire/backtest.ts`에 있다. 등록은 `turn-record-methods.ts`의 `BACKTEST_WIRE_METHODS`와 `methods.ts`가 한다(§3.3.1, §3.3.2 행, 단계 M5). 항목 타입 `BacktestItem`·`BacktestSummary`는 `turn-record.ts`에 있고 `BacktestItem`에 선택 필드 `skippedBy`, `nondeterministic`을 더했다 [제안]. 처리기는 `apps/host`에 아직 없다.
 - 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
 - `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
 - 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].

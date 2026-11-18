@@ -1522,6 +1522,10 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.metrics.defaultWindowDays` | integer | 30 | 1~365 | live | managed, user | plugins | 1차 |
 | `x.operations.findings.enabled` | boolean | true | | live | managed, user | plugins | 1차 |
 | `x.operations.findings.overrides` | `Record<규칙 id, Record<이름, number>>` | {} | | live | managed, user | plugins | 1차 |
+| `x.operations.backtest.maxTurns` | integer | 50 | 1~1000 | live | managed, user | plugins | 1차 |
+| `x.operations.backtest.maxCalls` | integer | 2000 | 1~100000 | live | managed, user | plugins | 1차 |
+| `x.operations.backtest.callTimeoutMs` | integer | 5000 | 100~60000 | live | managed, user | plugins | 1차 |
+| `x.operations.backtest.totalTimeoutMs` | integer | 120000 | 1000~3600000 | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.hookDisabled` | string[] (꺼진 외부 훅 id) | [] | | live | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |

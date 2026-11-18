@@ -92,6 +92,10 @@ export const operationsSettings: SettingGroup<
     readonly "metrics.defaultWindowDays": SettingDefInput;
     readonly "findings.enabled": SettingDefInput;
     readonly "findings.overrides": SettingDefInput;
+    readonly "backtest.maxTurns": SettingDefInput;
+    readonly "backtest.maxCalls": SettingDefInput;
+    readonly "backtest.callTimeoutMs": SettingDefInput;
+    readonly "backtest.totalTimeoutMs": SettingDefInput;
     readonly hookOrder: SettingDefInput;
     readonly hookDisabled: SettingDefInput;
     readonly "budget.hookMs": SettingDefInput;
@@ -339,6 +343,65 @@ export const operationsSettings: SettingGroup<
       order: 551,
       label: "Finding thresholds",
       help: "Rule id to numeric thresholds. Unknown keys are ignored.",
+    },
+    since: "0.1.0",
+  },
+  // 지난 턴에 돌려 보기의 한도(M5d §3.6, §4.8 규칙 47, 52). 키 이름과 범위는 [제안]이다. 읽는 곳은 실행기(P1 뒤)다
+  "backtest.maxTurns": {
+    type: Type.Integer(),
+    default: 50,
+    range: { min: 1, max: 1000 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 560,
+      label: "Maximum turns per backtest",
+    },
+    since: "0.1.0",
+  },
+  "backtest.maxCalls": {
+    type: Type.Integer(),
+    default: 2000,
+    range: { min: 1, max: 100000 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 561,
+      label: "Maximum tool calls per backtest",
+    },
+    since: "0.1.0",
+  },
+  "backtest.callTimeoutMs": {
+    type: Type.Integer(),
+    default: 5000,
+    range: { min: 100, max: 60000 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 562,
+      label: "Time limit for one candidate hook call",
+      unit: "ms",
+    },
+    since: "0.1.0",
+  },
+  "backtest.totalTimeoutMs": {
+    type: Type.Integer(),
+    default: 120000,
+    range: { min: 1000, max: 3600000 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 563,
+      label: "Time limit for one backtest",
+      unit: "ms",
     },
     since: "0.1.0",
   },

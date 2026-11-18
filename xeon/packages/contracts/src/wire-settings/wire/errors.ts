@@ -195,6 +195,11 @@ export type WireErrorKind =
   | "metrics.unknownMetric"
   | "metrics.filterInvalid"
   | "findings.notFound"
+  | "backtest.candidateNotFound"
+  | "backtest.hookNotReplayable"
+  | "backtest.runNotFound"
+  | "backtest.isolationUnavailable"
+  | "backtest.busy"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -954,7 +959,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  // 3500~3599: 턴 기록과 지표(`turnRecord.*`, `metrics.*`, `findings.*`). 백테스트 3521~3525는 M5d-2에서 더한다
+  // 3500~3599: 턴 기록과 지표(`turnRecord.*`, `metrics.*`, `findings.*`)와 지난 턴에 돌려 보기(`backtest.*`, 3521~3525)
   /** 로그에도 없는 턴이다(`turnRecord.get`, `turnRecord.mark`). 기록이 꺼졌거나 지워진 턴은 오류가 아니라 `absent`로 준다 */
   "turnRecord.turnNotFound": { code: 3501, kind: "turnRecord.turnNotFound", retryable: false },
   /** `metrics.catalog`에 없는 지표 이름이다(`metrics.query`) */
@@ -963,6 +968,28 @@ export const WIRE_ERRORS: {
   "metrics.filterInvalid": { code: 3512, kind: "metrics.filterInvalid", retryable: false },
   /** 그 id의 발견이 없다(`findings.evidence`, `findings.dismiss`, `findings.bundle`) */
   "findings.notFound": { code: 3531, kind: "findings.notFound", retryable: false },
+  /** 후보 버전을 찾지 못했다(`backtest.run`) */
+  "backtest.candidateNotFound": {
+    code: 3521,
+    kind: "backtest.candidateNotFound",
+    retryable: false,
+  },
+  /** 돌려 볼 수 없는 훅이다(`backtest.run`). 돌려 볼 수 있는 훅은 `tool.call.before`, `guard.tool.before`, `tool.result` 셋이다(§4.8 규칙 44) */
+  "backtest.hookNotReplayable": {
+    code: 3522,
+    kind: "backtest.hookNotReplayable",
+    retryable: false,
+  },
+  /** 그 id의 실행이 없다(`backtest.status`, `backtest.result`, `backtest.cancel`) */
+  "backtest.runNotFound": { code: 3523, kind: "backtest.runNotFound", retryable: false },
+  /** 후보를 격리 프로세스에서 돌릴 수 없다(격리 1단계 전, §4.8 규칙 54) */
+  "backtest.isolationUnavailable": {
+    code: 3524,
+    kind: "backtest.isolationUnavailable",
+    retryable: false,
+  },
+  /** 다른 돌려 보기가 이미 돌고 있다(한 번에 하나, §4.8 규칙 52). 같은 요청을 다시 보내도 된다 */
+  "backtest.busy": { code: 3525, kind: "backtest.busy", retryable: true },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {
     code: 5002,

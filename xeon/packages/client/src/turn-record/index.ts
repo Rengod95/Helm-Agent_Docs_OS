@@ -31,6 +31,11 @@ export type {
   TurnStatus,
   TurnSummary,
   Verdict,
+  BacktestClass,
+  BacktestItem,
+  BacktestRunState,
+  BacktestSummary,
+  ReplayableHook,
 } from "@fresnel/contracts/wire";
 export {
   turnRecordFailureOf,
@@ -59,4 +64,5 @@ export {
   type TurnRecordRead,
 } from "./read.ts";
 export { watchTurnRecord, type TurnRecordWatch } from "./watch.ts";
+export { backtestResult, backtestStatus, cancelBacktest, runBacktest } from "./backtest.ts";
 export { applyDeltaRow, applyDeltaRows, hookDisplayOutcomeOf, type DeltaApplied } from "./delta.ts";

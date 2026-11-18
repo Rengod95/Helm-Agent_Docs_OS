@@ -490,6 +490,8 @@ interface BacktestItem {
     | "passes_same"
     | "candidate_fault"                 // 후보가 던지거나 시간 초과(막음이 아니다)
     | "unreplayable";
+  skippedBy?: string;                   // class가 already_stopped일 때 먼저 멈춘 훅의 이름(§4.8 규칙 49). 그 밖에는 없다 [제안]
+  nondeterministic?: true;              // 같은 입력을 두 번 돌려 결과가 달랐다(§4.8 규칙 48) [제안]
   unreplayableReason?: "tool_unknown" | "args_missing" | "blob_expired" | "thread_deleted" | "result_not_stored";
 }
 interface BacktestSummary {
@@ -499,6 +501,8 @@ interface BacktestSummary {
   candidateFaults: { threw: number; timeout: number };
 }
 ```
+
+결과는 프로세스 메모리에 둔다. 재시작하면 사라지고, 같은 실행의 결과는 그 프로세스 안에서만 읽을 수 있다 [제안]. 저장 표 `tr_backtest_run`과 `tr_backtest_item`(§3.4)은 wire 등록과 타입을 넣은 이 단계에서 만들지 않는다. 처리기와 실행기가 생기는 단계에서 정한다 [제안].
 
 ### 3.8 화면용 보조 읽기와 타입 [M6 요청 M5d-3~7 반영]
 
@@ -809,10 +813,10 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `apps/host/src/assembly/measure/recorder.ts:298~530` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L. [구현: 턴 행 `open`·최종, 단계 행과 `tr_hook`, `log_only`, 열 때 `markLostTurns`, 범위 `test`. 쓰기 로직은 `turn-writer.ts`와 `turn-rows.ts`. 늦은 행: 단계 끝 뒤에 끝난 실행을 턴을 닫을 때 `late: true`로 한 번 쓰고(`lateHooksOf`, `writeHooks`), 턴 훅(step 0)은 `turnHooks`에 든다. 승인 답은 호출 줄의 `approval`에서 잇는다. 요청 id 키의 입력 훅(`input.user.before`, `input.bash.before`)과 대화 시작 훅(`thread.start`)은 턴이 열릴 때 단계 0으로 붙는다(§4.2 규칙 17의 2, 2026-11-18). 남음: 턴 완료 커밋 뒤에 끝나는 실행(`boundary.turn.after`, `boundary.settle.after`)은 턴 행이 이미 정착한 뒤라 쓰지 않는다. 열린 턴 도중 들어와 다음 턴으로 가는 `followUp` 입력의 훅은 실행 중인 턴에 붙는다(§11 17). 프로필 표지와 덧씌우기는 남음. 프레임의 `used`와 `userMessages`는 `turn-writer.ts`의 `chargeFrames`·`queuedUserMessage`·`spawnCharge`가 센다(§4.4 규칙 23, 2026-11-18). 턴 플래그는 `turnFlagsOf`·`turnFlagBitsOf`(`turn-rows.ts`)가 닫을 때 세고 `tr_turn.flags` 비트로도 쓴다. `subagents`는 `agent.spawned`를 `turn-writer.ts`의 `rememberChild`가 턴에 붙여 센다. `untrackedWrite`는 계측이 없어 거짓, `draftActive`는 범위가 `overlay_draft`일 때 참이지만 그 범위를 아직 아무도 쓰지 않는다] |
 | `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S. [구현: `service.ts:127`의 `removed`가 두 경로를 잇고 `SessionDeps.onThreadRemoved`(`deps.ts`)로 조립 루트가 `forgetThread`를 건다] |
 | `apps/host/src/assembly/ports.ts:285`, `:319`, `:430`, `:686`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M. [구현: `measure/test-run-marks.ts`가 `tr_thread`에 쓰고 되살린다. `host.ts:584`의 Set은 그대로다] |
-| `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
+| `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. [구현: 지난 턴에 돌려 보기 `backtest.*` 네 메서드, 알림 `backtest.progress`, 오류 3521~3525를 `wire/backtest.ts`와 `turn-record-methods.ts`에 등록했다. 처리기는 없다] `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
 | `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 [구현: M5d-1 층 4. `block.*`(시간 나눔, 캐시), `drive.*`(프레임)를 `metrics.ts`에 더하고 행이 없으면 `not_recorded`다. 비교는 `pluginVersion`·`profileRev`를 원본 턴으로 나눈다(`compareByGroups`). 발견 규칙 8과 12를 더했다. `profileCost.get`의 정적 줄은 프로필 플러그인 이름만 낸다. 미구현: 지침·도구 정의 어림(로더 대기), 모델 대기(단계 시간이 행에 없음), 컴팩션 횟수(행에 없음, `not_recorded`)] | L | 층 5 [구현: `turnRecord.watch·unwatch`와 알림 `turnRecord.delta`(`handlers/m5/watch.ts`, 사건 버스 `turn-events.ts`), `absent`의 `purged`(`turn-read.ts`, 기록 시각 `tr_meta.recording_since`, `turn-log.ts`로 로그 확인), 크기 상한(`turn-fit.ts`), `testRunsAlwaysOn`(`turn-writer.ts` `levelOf`). 훅 행의 추적 버퍼는 계측 꺼짐에서 아직 비므로 테스트 실행의 훅 행은 `trace.enabled`가 꺼지면 빈다]
 | 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 | L |
-| `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 | S |
+| `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 [구현: `x.operations.backtest.*` 네 키를 정의했다. 범위 값은 [제안]이고 이 키를 읽는 실행기는 아직 없다] | S |
 | `apps/desktop/src/views/workbench/craft-source.ts:119`, `apps/desktop/src/views/craft/turn-flow.ts:229`, `apps/desktop/src/views/panels/context/context-model.ts:125` | M6의 일. 읽기를 `turnRecord.get`으로 옮기고 구성 표를 플러그인별로 낸다. 이 문서는 데이터만 | M(M6) |
 | 문서 | `docs/xeon/X/operations/spec.md` §4.8.3 마지막 줄("메모리에만 둔다"에 `measure.db` 사본 사실 추가), `L4/host-service/spec.md` §4.20, `F/wire-settings/spec.md` §3.3 표 | S |
 
