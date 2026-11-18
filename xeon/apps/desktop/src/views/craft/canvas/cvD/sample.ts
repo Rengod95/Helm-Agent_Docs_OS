@@ -1,6 +1,16 @@
-// cvD 표본(트랙 브리프의 표본 그대로). 다섯 시안이 같은 프로필 "개발"을 그린다.
-// 플러그인 이름과 스킬·도구 이름은 코드 이름이라 그대로 두고, 사람이 읽는 말은 message id로 적는다.
+// cvD 표본. 값은 시안 다섯이 함께 보는 `../shared-sample.ts`에서 오고, 여기서는 cvD 모양(자리 키·구성 요소)으로만 바꾼다.
+// 플러그인 이름과 스킬·도구·지침 파일 이름은 코드 이름이라 그대로 두고, 사람이 읽는 말은 message id로 적는다.
 import type { MessageId } from "@fresnel/client/i18n";
+import {
+  ALL_SHARED_PLUGINS,
+  SHARED_PLUGINS,
+  SHARED_PROFILES,
+  type SharedPlugin,
+  type SharedPoint,
+  type SharedProfile,
+  type SharedRisk,
+  type SharedStepId,
+} from "../shared-sample.ts";
 
 /** 플러그인이 코어 턴에 붙는 방식. 도구는 Inject의 한 갈래지만 캔버스에서는 따로 읽힌다 */
 export type Kind = "inject" | "hook" | "drive" | "tool";
@@ -32,7 +42,8 @@ export type Part =
   | {
       readonly kind: "instruction";
       readonly id: string;
-      readonly title: MessageId;
+      /** 지침 파일 이름(식별자라 옮기지 않는다) */
+      readonly title: string;
       readonly lines: number;
     }
   | { readonly kind: "skill"; readonly id: string; readonly name: string }
@@ -85,8 +96,8 @@ export interface SamplePlugin {
   readonly draft?: boolean;
   /** Drive가 핸드오프하는 상대 */
   readonly handoff?: readonly string[];
-  /** 노드를 펼치면 보이는 한 줄 */
-  readonly recent: MessageId;
+  /** 노드를 펼치면 보이는 최근 사용(분 전). 쓴 적 없으면 null */
+  readonly recent: number | null;
   readonly parts: readonly Part[];
 }
 
@@ -113,257 +124,132 @@ export interface SampleProfile {
 
 const M = "desktop.craft.canvas.cvD.sample";
 
-export const SAMPLE_PLUGINS: readonly SamplePlugin[] = [
+const POINT: Readonly<Record<SharedPoint, PointKey>> = {
+  "model.before": "before:model",
+  "tools.before": "before:tools",
+  "tools.after": "after:tools",
+  "before-turn-end": "boundary:before-turn-end",
+};
+
+const STAGE: Readonly<Record<SharedStepId, MessageId>> = {
+  diverge: `${M}.stage.diverge`,
+  explore: `${M}.stage.explore`,
+  apply: `${M}.stage.apply`,
+  check: `${M}.stage.check`,
+  judge: `${M}.stage.judge`,
+  search: `${M}.stage.search`,
+  read: `${M}.stage.read`,
+  summarize: `${M}.stage.summarize`,
+};
+
+const OUTCOME: Readonly<Record<Decision, MessageId>> = {
+  block: `${M}.outcome.block`,
+  replace: `${M}.outcome.replace`,
+  ask: `${M}.outcome.ask`,
+};
+
+function pointsOf(p: SharedPlugin): readonly PointKey[] {
+  if (p.kind === "drive") return ["drive"];
+  if (p.kind === "tool") return ["feed:tools"];
+  if (p.point !== undefined) return [POINT[p.point]];
+  return ["feed:context"];
+}
+
+const PERMISSION: Readonly<Record<SharedRisk, { readonly risk: Risk; readonly scope: MessageId }>> =
   {
-    id: "helm",
-    kind: "drive",
-    points: ["drive"],
-    handoff: ["verifier"],
-    recent: `${M}.recent.helm`,
-    parts: [
-      { kind: "stage", id: "diverge", label: `${M}.stage.diverge`, parallel: 1 },
-      { kind: "stage", id: "explore", label: `${M}.stage.explore`, parallel: 3 },
-      { kind: "stage", id: "apply", label: `${M}.stage.apply`, parallel: 1 },
-      { kind: "handoff", id: "to-verifier", to: "verifier" },
-      { kind: "instruction", id: "stage-rules", title: `${M}.doc.stageRules`, lines: 64 },
-      { kind: "setting", id: "explorers", key: "explorers", value: "3" },
-      { kind: "setting", id: "rounds", key: "maxRounds", value: "4" },
-      { kind: "permission", id: "perm", risk: "medium", scope: `${M}.perm.writeFiles` },
-    ],
-  },
-  {
-    id: "verifier",
-    kind: "drive",
-    points: ["drive"],
-    recent: `${M}.recent.verifier`,
-    parts: [
-      { kind: "stage", id: "check", label: `${M}.stage.check`, parallel: 1 },
-      { kind: "stage", id: "judge", label: `${M}.stage.judge`, parallel: 1 },
-      { kind: "setting", id: "strict", key: "strict", value: "true" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.readOnly` },
-    ],
-  },
-  {
-    id: "house-style",
-    kind: "inject",
-    points: ["feed:context"],
-    recent: `${M}.recent.always`,
-    parts: [
-      { kind: "instruction", id: "style", title: `${M}.doc.houseStyle`, lines: 42 },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.none` },
-    ],
-  },
-  {
-    id: "repo-skills",
-    kind: "inject",
-    points: ["feed:context"],
-    recent: `${M}.recent.repoSkills`,
-    parts: [
-      { kind: "skill", id: "write-tests", name: "write-tests" },
-      { kind: "skill", id: "migrate-db", name: "migrate-db" },
-      { kind: "skill", id: "review-pr", name: "review-pr" },
-      { kind: "skill", id: "release-notes", name: "release-notes" },
-      { kind: "skill", id: "bisect", name: "bisect" },
-      { kind: "skill", id: "profile-perf", name: "profile-perf" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.none` },
-    ],
-  },
-  {
-    id: "memory",
-    kind: "inject",
-    points: ["feed:context"],
-    recent: `${M}.recent.always`,
-    parts: [
-      { kind: "memory", id: "user", scope: `${M}.memory.user` },
-      { kind: "memory", id: "project", scope: `${M}.memory.project` },
-      { kind: "setting", id: "limit", key: "userLimitChars", value: "4000" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.memory` },
-    ],
-  },
-  {
-    id: "secret-guard",
-    kind: "hook",
-    points: ["before:tools"],
-    decision: "block",
-    guard: true,
-    recent: `${M}.recent.secretGuard`,
-    parts: [
-      {
-        kind: "handler",
-        id: "scan",
-        point: "before:tools",
-        decision: "block",
-        guard: true,
-        outcomes: [`${M}.outcome.pass`, `${M}.outcome.block`],
-      },
-      { kind: "setting", id: "patterns", key: "patterns", value: "14" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.readOnly` },
-    ],
-  },
-  {
-    id: "lint-on-edit",
-    kind: "hook",
-    points: ["after:tools"],
-    decision: "replace",
-    recent: `${M}.recent.lintOnEdit`,
-    parts: [
-      {
-        kind: "handler",
-        id: "lint",
-        point: "after:tools",
-        decision: "replace",
-        guard: false,
-        outcomes: [`${M}.outcome.pass`, `${M}.outcome.replace`],
-      },
-      { kind: "setting", id: "linter", key: "linter", value: "oxlint" },
-      { kind: "permission", id: "perm", risk: "medium", scope: `${M}.perm.writeFiles` },
-    ],
-  },
-  {
-    id: "cost-cap",
-    kind: "hook",
-    points: ["before:model"],
-    decision: "ask",
-    recent: `${M}.recent.costCap`,
-    parts: [
-      {
-        kind: "handler",
-        id: "cap",
-        point: "before:model",
-        decision: "ask",
-        guard: false,
-        outcomes: [`${M}.outcome.pass`, `${M}.outcome.ask`],
-      },
-      { kind: "setting", id: "limit", key: "turnLimitUsd", value: "2.00" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.none` },
-    ],
-  },
-  {
-    id: "github-mcp",
-    kind: "tool",
-    points: ["feed:tools"],
-    recent: `${M}.recent.github`,
-    parts: [
-      {
-        kind: "mcp",
-        id: "server",
-        name: "github",
-        tools: [
-          { name: "issues.list", writes: false },
-          { name: "issues.get", writes: false },
-          { name: "issues.comment", writes: true },
-          { name: "pr.list", writes: false },
-          { name: "pr.get", writes: false },
-          { name: "pr.diff", writes: false },
-          { name: "pr.create", writes: true },
-          { name: "pr.merge", writes: true },
-          { name: "repo.search", writes: false },
-          { name: "repo.read", writes: false },
-          { name: "actions.list", writes: false },
-          { name: "actions.rerun", writes: true },
-        ],
-      },
-      { kind: "setting", id: "transport", key: "transport", value: "stdio" },
-      { kind: "permission", id: "perm", risk: "high", scope: `${M}.perm.network` },
-    ],
-  },
-  {
-    id: "commit-msg",
-    kind: "hook",
-    points: ["before:tools"],
-    decision: "block",
-    draft: true,
-    recent: `${M}.recent.never`,
-    parts: [
-      {
-        kind: "handler",
-        id: "check",
-        point: "before:tools",
-        decision: "block",
-        guard: false,
-        outcomes: [`${M}.outcome.pass`, `${M}.outcome.block`],
-      },
-      { kind: "setting", id: "style", key: "style", value: "conventional" },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.readOnly` },
-    ],
-  },
-  {
-    id: "web-research",
-    kind: "drive",
-    points: ["drive"],
-    recent: `${M}.recent.never`,
-    parts: [
-      { kind: "stage", id: "search", label: `${M}.stage.search`, parallel: 1 },
-      { kind: "stage", id: "read", label: `${M}.stage.read`, parallel: 4 },
-      { kind: "stage", id: "summarize", label: `${M}.stage.summarize`, parallel: 1 },
-      { kind: "permission", id: "perm", risk: "medium", scope: `${M}.perm.network` },
-    ],
-  },
-  {
-    id: "changelog",
-    kind: "inject",
-    points: ["feed:context"],
-    recent: `${M}.recent.never`,
-    parts: [
-      { kind: "instruction", id: "format", title: `${M}.doc.changelog`, lines: 18 },
-      { kind: "permission", id: "perm", risk: "low", scope: `${M}.perm.none` },
-    ],
-  },
-  {
-    id: "test-runner",
-    kind: "hook",
-    points: ["boundary:before-turn-end"],
-    decision: "ask",
-    recent: `${M}.recent.never`,
-    parts: [
-      {
-        kind: "handler",
-        id: "run",
-        point: "boundary:before-turn-end",
-        decision: "ask",
-        guard: false,
-        outcomes: [`${M}.outcome.pass`, `${M}.outcome.ask`],
-      },
-      { kind: "setting", id: "command", key: "command", value: "bun test" },
-      { kind: "permission", id: "perm", risk: "medium", scope: `${M}.perm.runCommands` },
-    ],
-  },
-];
+    none: { risk: "low", scope: `${M}.perm.none` },
+    read: { risk: "low", scope: `${M}.perm.readOnly` },
+    write: { risk: "medium", scope: `${M}.perm.writeFiles` },
+    exec: { risk: "medium", scope: `${M}.perm.runCommands` },
+  };
+
+function permissionOf(p: SharedPlugin): Part {
+  if (p.mcp !== undefined)
+    return { kind: "permission", id: "perm", risk: "high", scope: `${M}.perm.network` };
+  if (p.risk === "write" && p.memory.length > 0)
+    return { kind: "permission", id: "perm", risk: "medium", scope: `${M}.perm.memory` };
+  return { kind: "permission", id: "perm", ...PERMISSION[p.risk] };
+}
+
+function partsOf(p: SharedPlugin, points: readonly PointKey[]): readonly Part[] {
+  const point = points[0];
+  return [
+    ...(p.steps ?? []).map((s): Part => ({
+      kind: "stage",
+      id: s.id,
+      label: STAGE[s.id],
+      parallel: s.parallel,
+    })),
+    ...(p.handoffTo ?? []).map((to): Part => ({ kind: "handoff", id: `to-${to}`, to })),
+    ...(p.kind === "hook" && p.decision !== undefined && point !== undefined
+      ? [
+          {
+            kind: "handler" as const,
+            id: "handler",
+            point,
+            decision: p.decision,
+            guard: p.guard === true,
+            outcomes: [`${M}.outcome.pass`, OUTCOME[p.decision]] satisfies MessageId[],
+          },
+        ]
+      : []),
+    ...p.instructions.map((file): Part => ({
+      kind: "instruction",
+      id: file,
+      title: file,
+      lines: 40,
+    })),
+    ...p.skills.map((name): Part => ({ kind: "skill", id: name, name })),
+    ...p.memory.map((m): Part => ({ kind: "memory", id: m, scope: `${M}.memory.project` })),
+    ...(p.mcp === undefined
+      ? []
+      : [{ kind: "mcp" as const, id: "server", name: p.mcp.server, tools: p.mcp.tools }]),
+    ...p.settings.map((s): Part => ({ kind: "setting", id: s.key, key: s.key, value: s.value })),
+    permissionOf(p),
+  ];
+}
+
+function pluginFrom(p: SharedPlugin): SamplePlugin {
+  const points = pointsOf(p);
+  return {
+    id: p.name,
+    kind: p.kind,
+    points,
+    ...(p.decision === undefined ? {} : { decision: p.decision }),
+    ...(p.guard === true ? { guard: true } : {}),
+    ...(p.draft === true ? { draft: true } : {}),
+    ...(p.handoffTo === undefined || p.handoffTo.length === 0 ? {} : { handoff: p.handoffTo }),
+    recent: p.lastUsedMin,
+    parts: partsOf(p, points),
+  };
+}
+
+/** 왼쪽 목록의 설치된 플러그인(노드 30개 장면의 스물은 그 프로필 안에만 보인다) */
+export const SAMPLE_PLUGINS: readonly SamplePlugin[] = SHARED_PLUGINS.map(pluginFrom);
+const EVERY: readonly SamplePlugin[] = ALL_SHARED_PLUGINS.map(pluginFrom);
 
 /** 베이스 묶음: 모든 프로필에 든다(`profile.common.get`) */
-export const SAMPLE_BASE: readonly string[] = ["memory", "secret-guard"];
+export const SAMPLE_BASE: readonly string[] = SHARED_PROFILES.dev.base;
+
+function profileFrom(p: SharedProfile, id: string, name: MessageId): SampleProfile {
+  return {
+    id,
+    name,
+    startDrive: p.startDrive,
+    entries: [
+      ...p.base.map((plugin): ProfileEntry => ({ plugin, origin: "base" })),
+      ...p.plugins.map((plugin): ProfileEntry => ({ plugin, origin: "profile" })),
+    ],
+    groups: p.groups.map((g) => ({ id: g.id, name: `${M}.group.quality`, members: g.members })),
+  };
+}
 
 export const SAMPLE_PROFILES: readonly SampleProfile[] = [
-  {
-    id: "dev",
-    name: `${M}.profile.dev`,
-    startDrive: "helm",
-    entries: [
-      { plugin: "memory", origin: "base" },
-      { plugin: "secret-guard", origin: "base" },
-      { plugin: "helm", origin: "profile" },
-      { plugin: "verifier", origin: "profile" },
-      { plugin: "house-style", origin: "profile" },
-      { plugin: "repo-skills", origin: "profile" },
-      { plugin: "cost-cap", origin: "profile" },
-      { plugin: "commit-msg", origin: "profile" },
-      { plugin: "github-mcp", origin: "profile" },
-      { plugin: "lint-on-edit", origin: "profile" },
-    ],
-    groups: [{ id: "quality", name: `${M}.group.quality`, members: ["lint-on-edit", "verifier"] }],
-  },
-  {
-    id: "blank",
-    name: `${M}.profile.blank`,
-    startDrive: null,
-    entries: [
-      { plugin: "memory", origin: "base" },
-      { plugin: "secret-guard", origin: "base" },
-    ],
-    groups: [],
-  },
+  profileFrom(SHARED_PROFILES.dev, "dev", `${M}.profile.dev`),
+  profileFrom(SHARED_PROFILES.empty, "blank", `${M}.profile.blank`),
+  profileFrom(SHARED_PROFILES.scale, "scale", "desktop.craft.canvas.sample.scale"),
 ];
 
 export function pluginById(id: string): SamplePlugin | undefined {
-  return SAMPLE_PLUGINS.find((p) => p.id === id);
+  return EVERY.find((p) => p.id === id);
 }

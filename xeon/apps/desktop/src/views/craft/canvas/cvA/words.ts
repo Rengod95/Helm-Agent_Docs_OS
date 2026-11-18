@@ -65,6 +65,7 @@ export const STEP_KEY: Readonly<Record<StepKind, MessageId>> = {
   explore: "desktop.craft.canvas.cvA.step.explore",
   apply: "desktop.craft.canvas.cvA.step.apply",
   check: "desktop.craft.canvas.cvA.step.check",
+  judge: "desktop.craft.canvas.cvA.step.judge",
   report: "desktop.craft.canvas.cvA.step.report",
   search: "desktop.craft.canvas.cvA.step.search",
   read: "desktop.craft.canvas.cvA.step.read",

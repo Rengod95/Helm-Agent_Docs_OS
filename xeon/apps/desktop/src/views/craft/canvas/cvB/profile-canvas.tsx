@@ -41,7 +41,14 @@ import {
   type LinesFlowNode,
   type LinesLayer,
 } from "./nodes.tsx";
-import { EMPTY_PROFILE, SAMPLE_CATALOG, SAMPLE_PLUGINS, SAMPLE_PROFILE } from "./sample.ts";
+import {
+  EMPTY_PROFILE,
+  SAMPLE_CATALOG,
+  SAMPLE_PLUGINS,
+  SAMPLE_PROFILE,
+  SCALE_PLUGINS,
+  SCALE_PROFILE,
+} from "./sample.ts";
 import { Shelf } from "./shelf.tsx";
 import { memory, type Source } from "./memory.ts";
 
@@ -314,6 +321,7 @@ function CanvasScreen(props: ProfileCanvasProps): ReactNode {
     let next: ProfileState = SAMPLE_PROFILE;
     let missing = 0;
     if (value === "empty") next = EMPTY_PROFILE;
+    else if (value === "scale") next = SCALE_PROFILE;
     else if (value.startsWith("real:")) {
       const profile = real.value.find((p) => `real:${p.id}` === value);
       if (profile !== undefined) {
@@ -394,6 +402,7 @@ function CanvasScreen(props: ProfileCanvasProps): ReactNode {
             })}
           </SelectOption>
           <SelectOption value="empty">{t("desktop.craft.canvas.cvB.profile.empty")}</SelectOption>
+          <SelectOption value="scale">{t("desktop.craft.canvas.sample.scale")}</SelectOption>
           {real.value.map((p) => (
             <SelectOption key={p.id} value={`real:${p.id}`}>
               {p.title}
@@ -403,7 +412,7 @@ function CanvasScreen(props: ProfileCanvasProps): ReactNode {
       </header>
       <div className="cvb-body">
         <Shelf
-          plugins={SAMPLE_PLUGINS}
+          plugins={source === "scale" ? SCALE_PLUGINS : SAMPLE_PLUGINS}
           state={state}
           placing={dragging}
           collapsed={collapsed}

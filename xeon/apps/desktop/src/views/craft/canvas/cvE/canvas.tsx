@@ -175,6 +175,7 @@ function useProfile(): {
     const options = [
       { id: "dev", label: `${nameText("dev")} · ${t("desktop.craft.canvas.cvE.sampleTag")}` },
       { id: "empty", label: `${nameText("empty")} · ${t("desktop.craft.canvas.cvE.sampleTag")}` },
+      { id: "scale", label: nameText("scale") },
       ...real.map((p) => ({ id: `real:${p.id}`, label: p.title })),
     ];
     const sample = state.samples[state.profileId];

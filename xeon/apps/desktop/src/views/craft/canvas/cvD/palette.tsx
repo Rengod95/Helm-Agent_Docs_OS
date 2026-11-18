@@ -165,7 +165,9 @@ export function Palette(props: {
           </li>
         ))}
       </ul>
-      <div className="border-t border-border-subtle px-3 py-2.5">{props.picker}</div>
+      {props.picker === null ? null : (
+        <div className="border-t border-border-subtle px-3 py-2.5">{props.picker}</div>
+      )}
     </aside>
   );
 }

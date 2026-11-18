@@ -1,4 +1,4 @@
-// cvA(HUD) 시안의 진입 부품 둘. 모양(cvA.css)은 styles.css가 불러온다. `ProfileCanvas`는 프로필 캔버스이고 노드를 열면 같은 자리에서 `PluginInside`로 들어간다.
+// cvA(HUD) 시안의 진입 부품. 모양(cvA.css)은 styles.css가 불러온다. `ProfileCanvas`는 프로필 캔버스이고 노드를 열면 같은 자리에서 플러그인 내부로 들어간다.
 // 프로필 편집은 이 시안 안의 상태에만 남는다(저장하지 않는다). 표본 프로필 둘(개발, 빈 새 프로필)을 고를 수 있다.
 // 실제 프로필 연결은 통합 자리에서 한다: 이 폴더 깊이에서는 `views/commands.ts`를 상대 경로로 부를 수 없다(no-restricted-imports).
 import { t } from "@fresnel/client/i18n";
@@ -7,13 +7,21 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Board, type ProfileChoice } from "./board.tsx";
 import { InsideBoard } from "./inside.tsx";
 import { catalogOf, handoffsOf, type ProfileModel } from "./model.ts";
-import { EMPTY_PROFILE, SAMPLE_PLUGINS, SAMPLE_PROFILE } from "./sample.ts";
+import { initialScene } from "../shared-sample.ts";
+import {
+  EMPTY_PROFILE,
+  SAMPLE_PLUGINS,
+  SAMPLE_PROFILE,
+  SCALE_PLUGINS,
+  SCALE_PROFILE,
+} from "./sample.ts";
 
-const SAMPLE_CATALOG = catalogOf(SAMPLE_PLUGINS);
+const SAMPLE_CATALOG = catalogOf(SCALE_PLUGINS);
+const PROFILES = [SAMPLE_PROFILE, EMPTY_PROFILE, SCALE_PROFILE];
 
 export function ProfileCanvas(): ReactNode {
   const [edits, setEdits] = useState<ReadonlyMap<string, ProfileModel>>(new Map());
-  const [current, setCurrent] = useState(SAMPLE_PROFILE.id);
+  const [current, setCurrent] = useState(() => `sample/${initialScene()}`);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
   const [inside, setInside] = useState<string | null>(null);
 
@@ -21,12 +29,13 @@ export function ProfileCanvas(): ReactNode {
     (): readonly ProfileChoice[] => [
       { id: SAMPLE_PROFILE.id, title: t("desktop.craft.canvas.cvA.profile.sample") },
       { id: EMPTY_PROFILE.id, title: t("desktop.craft.canvas.cvA.profile.empty") },
+      { id: SCALE_PROFILE.id, title: t("desktop.craft.canvas.sample.scale") },
     ],
     [],
   );
-  const base = current === EMPTY_PROFILE.id ? EMPTY_PROFILE : SAMPLE_PROFILE;
+  const base = PROFILES.find((p) => p.id === current) ?? SAMPLE_PROFILE;
   const profile = edits.get(base.id) ?? base;
-  const specs = SAMPLE_PLUGINS;
+  const specs = base.id === SCALE_PROFILE.id ? SCALE_PLUGINS : SAMPLE_PLUGINS;
   const catalog = SAMPLE_CATALOG;
   const title = choices.find((c) => c.id === profile.id)?.title ?? "";
 
@@ -69,29 +78,6 @@ export function ProfileCanvas(): ReactNode {
           });
         }}
         onOpen={setInside}
-      />
-    </ReactFlowProvider>
-  );
-}
-
-/** 플러그인 하나의 내부(표본). 통합에서 따로 띄울 때 쓴다 */
-export function PluginInside(props: {
-  readonly plugin: string;
-  readonly onBack: () => void;
-}): ReactNode {
-  const spec = SAMPLE_CATALOG.get(props.plugin);
-  if (spec === undefined) return null;
-  const from =
-    handoffsOf(SAMPLE_PROFILE, SAMPLE_CATALOG).find((h) => h.to === spec.name)?.from ?? null;
-  return (
-    <ReactFlowProvider>
-      <InsideBoard
-        spec={spec}
-        catalog={SAMPLE_CATALOG}
-        profileTitle={t("desktop.craft.canvas.cvA.profile.sample")}
-        start={SAMPLE_PROFILE.startDrive === spec.name}
-        receivesFrom={from}
-        onBack={props.onBack}
       />
     </ReactFlowProvider>
   );

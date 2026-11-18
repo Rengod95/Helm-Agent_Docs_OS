@@ -686,7 +686,7 @@ function handlerBody(props: { readonly plugin: SamplePlugin; readonly entry: Pt 
 function DocNode(props: {
   readonly x: number;
   readonly y: number;
-  readonly title: MessageId;
+  readonly title: string;
   readonly lines: number;
 }): ReactElement {
   return (
@@ -716,7 +716,7 @@ function DocNode(props: {
           </svg>
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] text-text-primary">{t(props.title)}</div>
+          <div className="truncate text-[12px] text-text-primary">{props.title}</div>
           <div className="font-mono text-[10px] text-text-tertiary">
             {t("desktop.craft.canvas.cvD.inside.lines", { count: props.lines })}
           </div>

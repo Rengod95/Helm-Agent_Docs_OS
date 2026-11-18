@@ -4,6 +4,7 @@ import { t } from "@fresnel/client/i18n";
 import type { ReactElement, ReactNode } from "react";
 import { DecisionGlyph, Icon, KIND_COLOR, KindBadge } from "./glyphs.tsx";
 import { entriesAt, type CanvasProfile, type Layout } from "./model.ts";
+import { agoText } from "../shared-sample.ts";
 import { pluginById, type BlockId } from "./sample.ts";
 import { BLOCK_WORD, DECISION_WORD, KIND_WORD, pointWord } from "./words.ts";
 
@@ -174,7 +175,7 @@ function PluginDetail(props: {
           {group !== undefined && <span className="text-text-tertiary">· {t(group.name)}</span>}
         </Row>
         <Row label={t("desktop.craft.canvas.cvD.inspector.recent")}>
-          <span className="text-text-secondary">{t(p.recent)}</span>
+          <span className="text-text-secondary">{agoText(p.recent)}</span>
         </Row>
       </dl>
       <div className="mt-3 flex items-center gap-1.5 border-t border-border-subtle pt-3">

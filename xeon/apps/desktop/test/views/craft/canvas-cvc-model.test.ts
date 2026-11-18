@@ -59,7 +59,7 @@ describe("placeOf", () => {
 
 describe("실행 순서", () => {
   test("베이스가 프로필 순서 앞에 온다", () => {
-    expect(effectiveNames(dev()).slice(0, 3)).toEqual(["memory", "secret-guard", "helm"]);
+    expect(effectiveNames(dev()).slice(0, 3)).toEqual(["memory", "secret-guard", "house-style"]);
   });
 
   test("고정(베이스·가드)이 자리의 앞이고 그 뒤로 프로필 순서", () => {

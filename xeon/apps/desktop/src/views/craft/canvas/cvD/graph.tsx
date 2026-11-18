@@ -23,6 +23,7 @@ import {
   type Slot,
   type Wire,
 } from "./model.ts";
+import { agoText } from "../shared-sample.ts";
 import { pluginById, type Kind } from "./sample.ts";
 import { BLOCK_WORD, BOUNDARY_WORD, DECISION_WORD, KIND_WORD, pointWord } from "./words.ts";
 
@@ -666,7 +667,7 @@ export function HoverCard(props: { readonly chip: Chip }): ReactElement {
       </div>
       {p !== undefined && (
         <div className="mt-1 text-[11px] text-text-tertiary">
-          {t("desktop.craft.canvas.cvD.recent", { when: t(p.recent) })}
+          {t("desktop.craft.canvas.cvD.recent", { when: agoText(p.recent) })}
         </div>
       )}
     </div>

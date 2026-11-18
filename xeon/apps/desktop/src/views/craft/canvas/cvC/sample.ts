@@ -1,7 +1,16 @@
-// cvC 시안(고요한 카드)의 표본. 다섯 시안이 같은 것을 그린다(AGE-6 브리프의 표본 그대로).
-// 프로필 "개발"과 빈 프로필 하나, 프로필 밖의 설치된 플러그인 셋, 베이스 둘, 묶음 "품질", 드래프트 `commit-msg`.
+// cvC 시안(고요한 카드)의 표본. 값은 시안 다섯이 함께 보는 `../shared-sample.ts`에서 오고, 여기서는 cvC 모양으로만 바꾼다.
+// 프로필 "개발", 빈 프로필(베이스만), 노드 30개, 프로필 밖의 설치된 플러그인 셋, 베이스 둘, 묶음 "품질", 드래프트 `commit-msg`.
 // Hook의 자리는 엔진 훅 이름으로 적고 화면이 `BLOCK_MODEL`(contracts)에서 블록과 앞·뒤를 찾는다. 문구는 두지 않는다(화면이 id로 글 키를 찾는다).
 import { t } from "@fresnel/client/i18n";
+import {
+  ALL_SHARED_PLUGINS,
+  SHARED_PLUGINS,
+  SHARED_PROFILES,
+  type SharedPlugin,
+  type SharedPoint,
+  type SharedProfile,
+  type SharedRisk,
+} from "../shared-sample.ts";
 
 /** 플러그인이 루프에 붙는 방식 셋과 도구 제공 */
 export type PluginKind = "inject" | "hook" | "drive" | "tool";
@@ -98,193 +107,112 @@ export interface SampleProfile {
   readonly groups: readonly SampleGroup[];
 }
 
-/** 설치된 플러그인 전부(프로필 안팎) */
-export const CATALOG: readonly SamplePlugin[] = [
-  {
-    name: "house-style",
-    kind: "inject",
-    gives: [{ what: "instructions", count: 1 }],
-    lastUsedMin: 4,
-    inside: { instructions: ["STYLE.md"], risk: "none", permissions: ["none"] },
-  },
-  {
-    name: "repo-skills",
-    kind: "inject",
-    gives: [{ what: "skill", count: 6 }],
-    lastUsedMin: 18,
-    inside: {
-      skills: ["build", "test", "release", "migrate", "review", "deploy-check"],
-      risk: "none",
-      permissions: ["none"],
-    },
-  },
-  {
-    name: "memory",
-    kind: "inject",
-    gives: [{ what: "memory", count: 1 }],
-    lastUsedMin: 4,
-    inside: {
-      memory: ["project.md"],
-      settings: [{ key: "scope", value: "project" }],
-      risk: "low",
-      permissions: ["read", "write"],
-    },
-  },
-  {
-    name: "secret-guard",
-    kind: "hook",
-    hook: "guard.tool.before",
-    decision: "block",
-    guard: true,
-    lastUsedMin: 9,
-    inside: {
-      settings: [
-        { key: "patterns", value: "12" },
-        { key: "mask", value: "on" },
-      ],
-      risk: "low",
-      permissions: ["read"],
-    },
-  },
-  {
-    name: "lint-on-edit",
-    kind: "hook",
-    hook: "tool.result",
-    decision: "replace",
-    lastUsedMin: 9,
-    inside: {
-      tools: ["oxlint"],
-      settings: [{ key: "fix", value: "safe" }],
-      risk: "mid",
-      permissions: ["read", "shell"],
-    },
-  },
-  {
-    name: "cost-cap",
-    kind: "hook",
-    hook: "request.provider.before",
-    decision: "ask",
-    lastUsedMin: 52,
-    inside: {
-      settings: [
-        { key: "limit", value: "$5 / day" },
-        { key: "warnAt", value: "80%" },
-      ],
-      risk: "none",
-      permissions: ["none"],
-    },
-  },
-  {
-    name: "helm",
-    kind: "drive",
-    handoffTo: ["verifier"],
-    lastUsedMin: 4,
-    inside: {
-      instructions: ["helm.md"],
-      skills: ["plan", "explore"],
-      tools: ["read", "edit", "bash"],
-      steps: [
-        { id: "diverge" },
-        { id: "explore", parallel: ["code", "docs", "tests"] },
-        { id: "apply" },
-      ],
-      settings: [
-        { key: "explorers", value: "3" },
-        { key: "maxRounds", value: "4" },
-      ],
-      risk: "high",
-      permissions: ["read", "write", "shell"],
-    },
-  },
-  {
-    name: "verifier",
-    kind: "drive",
-    lastUsedMin: 31,
-    inside: {
-      instructions: ["verify.md"],
-      tools: ["read", "bash"],
-      steps: [{ id: "check" }, { id: "judge" }],
-      settings: [{ key: "retries", value: "2" }],
-      risk: "mid",
-      permissions: ["read", "shell"],
-    },
-  },
-  {
-    name: "github-mcp",
-    kind: "tool",
-    gives: [
+/** Hook 자리를 엔진 훅 이름으로(도구 실행 앞의 가드는 가드 훅에 선다) */
+const HOOK: Readonly<Record<SharedPoint, string>> = {
+  "model.before": "request.provider.before",
+  "tools.before": "tool.call.before",
+  "tools.after": "tool.result",
+  "before-turn-end": "boundary.settle.before",
+};
+
+function hookOf(p: SharedPlugin): string | undefined {
+  if (p.point === undefined) return undefined;
+  return p.guard === true && p.point === "tools.before" ? "guard.tool.before" : HOOK[p.point];
+}
+
+const RISK: Readonly<Record<SharedRisk, Risk>> = {
+  none: "none",
+  read: "low",
+  write: "mid",
+  exec: "high",
+};
+
+const PERMISSIONS: Readonly<Record<SharedRisk, readonly PermissionKey[]>> = {
+  none: ["none"],
+  read: ["read"],
+  write: ["read", "write"],
+  exec: ["read", "shell"],
+};
+
+function permissionsOf(p: SharedPlugin): readonly PermissionKey[] {
+  return p.mcp === undefined ? PERMISSIONS[p.risk] : ["network", "write"];
+}
+
+function givesOf(p: SharedPlugin): readonly Give[] | undefined {
+  if (p.mcp !== undefined)
+    return [
       { what: "mcp", count: 1 },
-      { what: "tool", count: 12 },
-    ],
-    lastUsedMin: 26,
+      { what: "tool", count: p.mcp.tools.length },
+    ];
+  if (p.kind !== "inject") return undefined;
+  if (p.skills.length > 0) return [{ what: "skill", count: p.skills.length }];
+  if (p.memory.length > 0) return [{ what: "memory", count: p.memory.length }];
+  return [{ what: "instructions", count: p.instructions.length }];
+}
+
+function stepsOf(p: SharedPlugin): readonly DriveStep[] | undefined {
+  return p.steps?.map((s): DriveStep => {
+    if (s.parallel < 2) return { id: s.id };
+    return { id: s.id, parallel: s.lanes ?? Array.from({ length: s.parallel }, () => s.id) };
+  });
+}
+
+function pluginFrom(p: SharedPlugin): SamplePlugin {
+  const hook = hookOf(p);
+  const gives = givesOf(p);
+  const steps = stepsOf(p);
+  return {
+    name: p.name,
+    kind: p.kind,
+    ...(hook === undefined ? {} : { hook }),
+    ...(p.decision === undefined ? {} : { decision: p.decision }),
+    ...(p.guard === true ? { guard: true } : {}),
+    ...(gives === undefined ? {} : { gives }),
+    ...(p.handoffTo === undefined || p.handoffTo.length === 0 ? {} : { handoffTo: p.handoffTo }),
+    ...(p.lastUsedMin === null ? {} : { lastUsedMin: p.lastUsedMin }),
     inside: {
-      mcp: {
-        server: "github",
-        tools: [
-          "issues.list",
-          "issues.get",
-          "issues.create",
-          "pulls.list",
-          "pulls.get",
-          "pulls.create",
-          "pulls.review",
-          "repos.get",
-          "repos.search",
-          "files.get",
-          "commits.list",
-          "actions.runs",
-        ],
-      },
-      risk: "mid",
-      permissions: ["network", "write"],
+      ...(p.instructions.length > 0 ? { instructions: p.instructions } : {}),
+      ...(p.skills.length > 0 ? { skills: p.skills } : {}),
+      ...(p.memory.length > 0 ? { memory: p.memory } : {}),
+      ...(p.mcp === undefined
+        ? {}
+        : { mcp: { server: p.mcp.server, tools: p.mcp.tools.map((tool) => tool.name) } }),
+      ...(steps === undefined ? {} : { steps }),
+      ...(p.settings.length > 0 ? { settings: p.settings } : {}),
+      risk: RISK[p.risk],
+      permissions: permissionsOf(p),
     },
-  },
-  {
-    name: "commit-msg",
-    kind: "hook",
-    hook: "tool.call.before",
-    decision: "ask",
-    inside: {
-      settings: [{ key: "style", value: "conventional" }],
-      risk: "low",
-      permissions: ["read"],
-    },
-  },
-  {
-    name: "web-research",
-    kind: "drive",
-    inside: {
-      instructions: ["research.md"],
-      tools: ["web.search", "web.fetch"],
-      steps: [{ id: "search" }, { id: "read" }, { id: "summarize" }],
-      risk: "mid",
-      permissions: ["network"],
-    },
-  },
-  {
-    name: "changelog",
-    kind: "inject",
-    gives: [{ what: "instructions", count: 1 }],
-    inside: { instructions: ["CHANGELOG.md"], risk: "none", permissions: ["none"] },
-  },
-  {
-    name: "test-runner",
-    kind: "hook",
-    hook: "boundary.settle.before",
-    decision: "ask",
-    inside: {
-      tools: ["bun test"],
-      settings: [{ key: "scope", value: "changed" }],
-      risk: "mid",
-      permissions: ["read", "shell"],
-    },
-  },
-];
+  };
+}
+
+/** 설치된 플러그인 전부(프로필 안팎. 노드 30개 장면의 스물은 그 장면의 프로필에만 든다) */
+export const CATALOG: readonly SamplePlugin[] = SHARED_PLUGINS.map(pluginFrom);
+const EVERY: readonly SamplePlugin[] = ALL_SHARED_PLUGINS.map(pluginFrom);
 
 /** 모든 프로필에 드는 묶음 */
-export const BASE: readonly string[] = ["memory", "secret-guard"];
+export const BASE: readonly string[] = SHARED_PROFILES.dev.base;
 
-/** 표본 프로필: "개발"과 빈 프로필. 이름은 화면 언어를 따르므로 부를 때 만든다 */
+function profileFrom(
+  p: SharedProfile,
+  id: string,
+  title: string,
+  quality: SampleGroup,
+): SampleProfile {
+  return {
+    id,
+    title,
+    plugins: p.plugins,
+    startDrive: p.startDrive,
+    drafts: p.plugins.filter(isDraft),
+    groups: p.groups.map((g) => ({ ...quality, id: g.id, members: g.members })),
+  };
+}
+
+function isDraft(name: string): boolean {
+  return ALL_SHARED_PLUGINS.find((p) => p.name === name)?.draft === true;
+}
+
+/** 표본 프로필: "개발", 빈 프로필, 노드 30개. 이름은 화면 언어를 따르므로 부를 때 만든다 */
 export function sampleProfiles(): readonly SampleProfile[] {
   const quality: SampleGroup = {
     id: "quality",
@@ -292,34 +220,17 @@ export function sampleProfiles(): readonly SampleProfile[] {
     members: ["lint-on-edit", "verifier"],
   };
   return [
-    {
-      id: "dev",
-      title: t("desktop.craft.canvas.cvC.sample.dev"),
-      plugins: [
-        "helm",
-        "verifier",
-        "house-style",
-        "repo-skills",
-        "cost-cap",
-        "commit-msg",
-        "github-mcp",
-        "lint-on-edit",
-      ],
-      startDrive: "helm",
-      drafts: ["commit-msg"],
-      groups: [quality],
-    },
-    {
-      id: "blank",
-      title: t("desktop.craft.canvas.cvC.sample.blank"),
-      plugins: [],
-      startDrive: null,
-      drafts: [],
-      groups: [],
-    },
+    profileFrom(SHARED_PROFILES.dev, "dev", t("desktop.craft.canvas.cvC.sample.dev"), quality),
+    profileFrom(
+      SHARED_PROFILES.empty,
+      "blank",
+      t("desktop.craft.canvas.cvC.sample.blank"),
+      quality,
+    ),
+    profileFrom(SHARED_PROFILES.scale, "scale", t("desktop.craft.canvas.sample.scale"), quality),
   ];
 }
 
 export function pluginOf(name: string): SamplePlugin | undefined {
-  return CATALOG.find((p) => p.name === name);
+  return EVERY.find((p) => p.name === name);
 }

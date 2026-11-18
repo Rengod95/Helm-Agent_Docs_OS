@@ -1,4 +1,4 @@
-// 시안 전환기(AGE-31, 개발 빌드만). 화면 오른쪽 위 귀퉁이의 작은 칸 여섯: 지금 화면(–)과 시안 A~E. 키보드 1~5는 시안, 0은 지금 화면.
+// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸 여섯: 지금 화면(–)과 시안 A~E. 키보드 1~5는 시안, 0은 지금 화면.
 // 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 글자 입력 중에는 숫자 키를 가로채지 않는다.
 import { t } from "@fresnel/client/i18n";
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
@@ -52,9 +52,10 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {design === undefined ? props.current : <design.Screen key={design.id} />}
+      {/* 캔버스 네 귀퉁이는 시안마다 판(자세히 보기, 확대 막대)이 쓰므로 왼쪽 판 바닥에 둔다 */}
       <div
         data-canvas-switcher=""
-        className="absolute top-2 right-3 z-40 opacity-55 transition-opacity hover:opacity-100 focus-within:opacity-100"
+        className="fixed bottom-2 left-24 z-40 opacity-55 transition-opacity hover:opacity-100 focus-within:opacity-100"
       >
         <SegmentedControl
           size="xs"

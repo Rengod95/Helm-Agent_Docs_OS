@@ -17,7 +17,11 @@ import {
   setStart,
   stackAt,
 } from "../../../src/views/craft/canvas/cvE/model.ts";
-import { SAMPLE_DEFS, SAMPLE_PROFILE } from "../../../src/views/craft/canvas/cvE/sample.ts";
+import {
+  SAMPLE_DEFS,
+  SAMPLE_PROFILE,
+  SCALE_PROFILE,
+} from "../../../src/views/craft/canvas/cvE/sample.ts";
 
 const defs = SAMPLE_DEFS;
 const dev = SAMPLE_PROFILE;
@@ -36,7 +40,7 @@ describe("같은 자리의 순서", () => {
     expect(stackAt(dev, defs, "tools.before")).toEqual(["secret-guard", "commit-msg"]);
   });
   test("고리 안(Inject)은 프로필 순서다", () => {
-    expect(stackAt(dev, defs, "inside")).toEqual(["house-style", "repo-skills", "memory"]);
+    expect(stackAt(dev, defs, "inside")).toEqual(["memory", "house-style", "repo-skills"]);
   });
   test("Drive 줄과 핸드오프", () => {
     expect(stackAt(dev, defs, "drive")).toEqual(["helm", "verifier"]);
@@ -46,9 +50,9 @@ describe("같은 자리의 순서", () => {
     expect(readingOrder(dev, defs)).toEqual([
       "helm",
       "verifier",
+      "memory",
       "house-style",
       "repo-skills",
-      "memory",
       "cost-cap",
       "secret-guard",
       "commit-msg",
@@ -59,30 +63,36 @@ describe("같은 자리의 순서", () => {
 });
 
 describe("고치기", () => {
-  test("test-runner를 도구 결과 뒤 0번에 넣으면 lint-on-edit 앞이다", () => {
+  test("test-runner는 턴 종료 직전의 빈 자리에 들어간다", () => {
     const next = insertAt(dev, defs, "test-runner", 0);
-    expect(stackAt(next, defs, "tools.after")).toEqual(["test-runner", "lint-on-edit"]);
+    expect(stackAt(next, defs, "turnEnd")).toEqual(["test-runner"]);
     expect(next.entries.find((e) => e.id === "test-runner")).toEqual({
       id: "test-runner",
       base: false,
     });
   });
-  test("맨 끝에 넣기", () => {
-    const next = insertAt(dev, defs, "test-runner", 1);
-    expect(stackAt(next, defs, "tools.after")).toEqual(["lint-on-edit", "test-runner"]);
+  test("맨 끝에 넣기(노드 30개 장면: 턴 종료 직전에 deploy-gate가 있다)", () => {
+    expect(stackAt(insertAt(SCALE_PROFILE, defs, "test-runner", 1), defs, "turnEnd")).toEqual([
+      "deploy-gate",
+      "test-runner",
+    ]);
+    expect(stackAt(insertAt(SCALE_PROFILE, defs, "test-runner", 0), defs, "turnEnd")).toEqual([
+      "test-runner",
+      "deploy-gate",
+    ]);
   });
   test("가드 아닌 것을 가드 앞으로 옮기지 않는다", () => {
     expect(move(dev, defs, "commit-msg", -1)).toEqual({ kind: "guard" });
     expect(move(dev, defs, "commit-msg", 1)).toEqual({ kind: "edge" });
   });
   test("Inject 순서 바꾸기", () => {
-    const got = move(dev, defs, "memory", -1);
+    const got = move(dev, defs, "repo-skills", -1);
     expect(got.kind).toBe("moved");
     if (got.kind === "moved") {
       expect(stackAt(got.profile, defs, "inside")).toEqual([
-        "house-style",
         "memory",
         "repo-skills",
+        "house-style",
       ]);
     }
   });
@@ -109,10 +119,15 @@ describe("고치기", () => {
 });
 
 describe("놓을 수 있는 자리", () => {
-  test("test-runner는 도구 결과 뒤의 두 자리(lint-on-edit 앞의 바, 맨 끝 상자)", () => {
+  test("test-runner는 턴 종료 직전 한 자리, 이미 Hook이 있으면 앞의 바와 맨 끝 상자 둘", () => {
     expect(dropTargets(dev, defs, "test-runner").map((t) => [t.slot, t.index, t.shape])).toEqual([
-      ["tools.after", 0, "bar"],
-      ["tools.after", 1, "box"],
+      ["turnEnd", 0, "box"],
+    ]);
+    expect(
+      dropTargets(SCALE_PROFILE, defs, "test-runner").map((t) => [t.slot, t.index, t.shape]),
+    ).toEqual([
+      ["turnEnd", 0, "bar"],
+      ["turnEnd", 1, "box"],
     ]);
   });
   test("가드 아닌 Hook은 가드 뒤만 받는다", () => {
@@ -183,7 +198,7 @@ describe("플러그인 내부", () => {
     expect(inside.exits.map((x) => x.to)).toEqual(["verifier"]);
     expect(inside.parts.map((p) => [p.part.kind, p.to === undefined])).toEqual([
       ["instruction", false],
-      ["tool", false],
+      ["setting", true],
       ["setting", true],
       ["permission", true],
     ]);

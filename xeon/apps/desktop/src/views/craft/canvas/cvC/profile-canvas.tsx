@@ -54,6 +54,7 @@ import {
 import { GroupCard, PluginCard, Slot, Station, type CardHandlers } from "./nodes.tsx";
 import { Palette } from "./palette.tsx";
 import { useRealProfiles } from "./real.ts";
+import { initialScene } from "../shared-sample.ts";
 import { CATALOG, pluginOf, sampleProfiles, type SampleProfile } from "./sample.ts";
 import { fitView, useSurface, zoomAround } from "./surface.ts";
 
@@ -115,7 +116,10 @@ export function nearestSlot(idle: Layout, wx: number, wy: number): number {
 export function ProfileCanvas(): ReactNode {
   const real = useRealProfiles();
   const [edits, setEdits] = useState<Readonly<Record<string, SampleProfile>>>({});
-  const [profileId, setProfileId] = useState<string>("dev");
+  const [profileId, setProfileId] = useState<string>(() => {
+    const scene = initialScene();
+    return scene === "empty" ? "blank" : scene;
+  });
   const profiles = useMemo(
     () => [...sampleProfiles(), ...real].map((p) => edits[p.id] ?? p),
     [real, edits],

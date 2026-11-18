@@ -2,6 +2,7 @@
 // 캔버스와 내부 화면을 오가도 남도록 모듈 하나에 둔다(시안이라 저장하지 않는다. 실제 저장은 `profile.put`의 일이다).
 import { useSyncExternalStore } from "react";
 import type { CanvasProfile } from "./model.ts";
+import { initialScene } from "../shared-sample.ts";
 import { SAMPLE_PROFILES } from "./sample.ts";
 
 export interface CanvasStore {
@@ -15,7 +16,8 @@ function initial(): CanvasStore {
   for (const p of SAMPLE_PROFILES) {
     profiles[p.id] = { id: p.id, startDrive: p.startDrive, entries: p.entries, groups: p.groups };
   }
-  return { current: "dev", profiles, folded: new Set() };
+  const scene = initialScene();
+  return { current: scene === "empty" ? "blank" : scene, profiles, folded: new Set() };
 }
 
 let state: CanvasStore = initial();

@@ -69,6 +69,7 @@ export type StepKind =
   | "explore"
   | "apply"
   | "check"
+  | "judge"
   | "report"
   | "search"
   | "read"

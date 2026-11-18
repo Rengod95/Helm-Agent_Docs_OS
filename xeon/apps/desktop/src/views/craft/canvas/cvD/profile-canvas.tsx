@@ -428,7 +428,7 @@ export function CvdProfileCanvas(props: ProfileCanvasProps): ReactElement {
         open={paletteOpen}
         onToggle={() => setPaletteOpen((v) => !v)}
       />
-      {!paletteOpen && (
+      {!paletteOpen && props.picker !== null && (
         <div className="absolute bottom-3 z-20 w-44" style={{ left: RAIL_W + 12 }}>
           {props.picker}
         </div>

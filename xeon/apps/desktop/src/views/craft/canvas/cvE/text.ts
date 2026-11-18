@@ -73,6 +73,7 @@ function riskText(risk: number): string {
 const NAME_TEXT: Readonly<Record<string, MessageId>> = {
   dev: "desktop.craft.canvas.cvE.profile.dev",
   empty: "desktop.craft.canvas.cvE.profile.empty",
+  scale: "desktop.craft.canvas.sample.scale",
   quality: "desktop.craft.canvas.cvE.group.quality",
   diverge: "desktop.craft.canvas.cvE.stage.diverge",
   explore: "desktop.craft.canvas.cvE.stage.explore",

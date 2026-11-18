@@ -2,10 +2,11 @@
 // 표본만 고친다(저장하지 않는다). 실제 프로필은 읽기만 한다(`real.ts`).
 import { useSyncExternalStore } from "react";
 import type { ProfileModel } from "./model.ts";
-import { EMPTY_PROFILE, SAMPLE_PROFILE } from "./sample.ts";
+import { initialScene } from "../shared-sample.ts";
+import { EMPTY_PROFILE, SAMPLE_PROFILE, SCALE_PROFILE } from "./sample.ts";
 
 export interface CanvasState {
-  /** 고른 프로필 id: 표본 둘("dev", "empty")이나 실제 프로필 id */
+  /** 고른 프로필 id: 표본 셋("dev", "empty", "scale")이나 실제 프로필 id */
   readonly profileId: string;
   /** 표본 프로필의 지금 값(고친 결과) */
   readonly samples: Readonly<Record<string, ProfileModel>>;
@@ -14,8 +15,8 @@ export interface CanvasState {
 }
 
 const INITIAL: CanvasState = {
-  profileId: "dev",
-  samples: { dev: SAMPLE_PROFILE, empty: EMPTY_PROFILE },
+  profileId: initialScene(),
+  samples: { dev: SAMPLE_PROFILE, empty: EMPTY_PROFILE, scale: SCALE_PROFILE },
   closed: new Set(),
   selected: null,
 };

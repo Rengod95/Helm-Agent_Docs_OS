@@ -196,7 +196,7 @@ describe("canvas layout", () => {
     expect(targets).toEqual(["gate:before-turn-end"]);
   });
 
-  test("an empty profile keeps the six blocks and three boundaries and marks the Drive place empty", () => {
+  test("an empty profile keeps the six blocks and three boundaries, the two bases, and marks the Drive place empty", () => {
     const layout = layoutProfile({
       state: EMPTY_PROFILE,
       catalog: SAMPLE_CATALOG,
@@ -207,7 +207,7 @@ describe("canvas layout", () => {
     expect(layout.nodes.filter((n) => n.type === "station").length).toBe(6);
     expect(layout.nodes.filter((n) => n.type === "gate").length).toBe(3);
     expect(layout.nodes.some((n) => n.type === "zone" && n.empty)).toBe(true);
-    expect(crystals(layout)).toEqual([]);
+    expect(crystals(layout).map((c) => c.id)).toEqual(["memory", "secret-guard"]);
   });
 });
 
