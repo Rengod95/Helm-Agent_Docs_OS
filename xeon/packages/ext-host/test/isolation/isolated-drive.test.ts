@@ -212,11 +212,13 @@ test("a process that dies in the middle of a step releases the frame with error 
   expect(await startOf(t, thread, "steps")).toBe("started");
   await t.settled();
   expect(t.host.leaseOf(thread)).not.toBeNull();
-  expect(t.host.claimUserInput(thread, { kind: "user", content: "wait" })).toBe(true);
+  expect(await t.host.claimUserInput(thread, { kind: "user", content: "wait" }, "msg-1")).toBe(
+    true,
+  );
   await until(() => stepsSent(port) >= 3, "the step that waits for the user");
   // 사용자 메시지는 다음 단계의 `last`로 실제 값이 간다
   expect(port.children[0]?.received()).toContain(
-    '"last":{"kind":"user","message":{"kind":"user","content":"wait"}}',
+    '"last":{"kind":"user","message":{"kind":"user","content":"wait"},"requestId":"msg-1"}',
   );
 
   // 자식이 단계 중에 끝났다(프로세스 종료)

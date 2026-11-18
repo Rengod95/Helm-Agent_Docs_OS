@@ -291,7 +291,7 @@ test("a user message held by a driver that is revoked goes back to the input que
   await t.boundary(thread).turnSettled();
   await gate.started.promise;
 
-  expect(t.host.claimUserInput(thread, MESSAGE)).toBe(true);
+  expect(await t.host.claimUserInput(thread, MESSAGE, "msg-1")).toBe(true);
   expect(t.host.startDrive(thread, "frame-b").ok).toBe(true);
   gate.unblock.resolve();
   await t.settled();
@@ -326,11 +326,11 @@ test("a user message the top frame does not answer in three steps revokes the wh
   expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
 
   // 맨 위(B)가 유휴인 동안 온 사용자 메시지는 B에게 전달된다. 세 단계 안에 처리하지 못하면 스택 전체를 내린다
-  expect(t.host.claimUserInput(thread, MESSAGE)).toBe(true);
+  expect(await t.host.claimUserInput(thread, MESSAGE, "msg-1")).toBe(true);
   await t.settled();
   expect(bCalls.slice(0, 5)).toEqual([
     null,
-    { kind: "user", message: MESSAGE },
+    { kind: "user", message: MESSAGE, requestId: "msg-1" },
     REFUSED,
     REFUSED,
     REFUSED,

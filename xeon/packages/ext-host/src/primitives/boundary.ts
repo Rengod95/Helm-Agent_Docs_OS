@@ -63,6 +63,7 @@ const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   states: [],
   openLeases: [],
   pendingRequests: [],
+  pendingUserInputs: [],
   leaseEpochs: {},
 };
 
@@ -640,6 +641,8 @@ export function createBoundary(
           recorded: true,
         });
       }
+      // 시작 요청까지 세운 뒤에 가로챘으나 처리되지 않은 사용자 메시지를 되살린다(AGE-26)
+      lease.restoreUserInputs(thread, snapshot.pendingUserInputs);
       // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)
       for (const scopeId of thread.active) {
         const record = core.scopes.get(scopeId);

@@ -316,6 +316,7 @@ test("after a restart with a stack of A and B, only B calls its step and B's don
           limits,
           leaseEpoch: 1,
           depth: 0,
+          requestId: "rq-a",
         },
       }),
       makeDraft(t.ids, {

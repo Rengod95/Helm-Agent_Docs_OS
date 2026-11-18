@@ -212,7 +212,9 @@ async function runSingle(placement: Placement): Promise<SingleRun> {
     ).toEqual({ applied: true });
     await t.settled();
     // 여기서 `yield`로 멈춘다. 사용자 메시지가 와야 다음 단계가 돈다
-    expect(t.host.claimUserInput(thread, { kind: "user", content: "again" })).toBe(true);
+    expect(await t.host.claimUserInput(thread, { kind: "user", content: "again" }, "msg-1")).toBe(
+      true,
+    );
     // 사용자 메시지는 큐를 거쳐 다음 단계로 간다. 단계가 done을 내고 임대가 반납될 때까지 기다린다
     await until(() => t.host.leaseOf(thread) === null, "the drive to end after the user message");
     await t.settled();
@@ -252,6 +254,7 @@ test("one plugin's command sequence, records and committed state are the same in
   expect(expected.recorded.trace.at(-1)?.last).toEqual({
     kind: "user",
     message: { kind: "user", content: "again" },
+    requestId: "msg-1",
   });
   expect(expected.recorded.commands).toHaveLength(3);
   expect(expected.recorded.released.map((released) => released.reason)).toEqual(["done"]);

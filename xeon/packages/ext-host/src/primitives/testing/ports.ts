@@ -37,7 +37,9 @@ import {
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
   LeaseRequestedPayloadSchema,
+  LeaseUserInputPayloadSchema,
   type PendingStartRequest,
+  type PendingUserInput,
   type DurableEventDraft,
   type DurableEventEnvelope,
   type ExtensionEventKind,
@@ -355,6 +357,10 @@ export function memoryRecordStore(): MemoryRecordStore {
     const open: { -readonly [K in keyof OpenLease]: OpenLease[K] }[] = [];
     const pending = new Map<string, PendingStartRequest>();
     const closed = new Set<string>();
+    const heldInputs = new Map<string, PendingUserInput>();
+    const settledInputs = new Set<string>();
+    const settledScopes = new Set<string>();
+    const profileStarts = new Set<string>();
     for (const event of branch) {
       const payload = event.draft.payload;
       if (!isRecord(payload)) continue;
@@ -379,6 +385,14 @@ export function memoryRecordStore(): MemoryRecordStore {
         const parent = payload["parent"];
         const contentHash = payload["contentHash"];
         const acquired = parse(LeaseAcquiredPayloadSchema, payload);
+        settledScopes.delete(id);
+        if (
+          acquired.ok &&
+          acquired.value.requestId === undefined &&
+          acquired.value.parent === undefined
+        ) {
+          profileStarts.add(leaseId);
+        }
         if (acquired.ok && acquired.value.requestId !== undefined) {
           pending.delete(acquired.value.requestId);
           closed.add(acquired.value.requestId);
@@ -403,6 +417,7 @@ export function memoryRecordStore(): MemoryRecordStore {
           contentHash: typeof contentHash === "string" ? contentHash : null,
           input: acquired.ok ? (acquired.value.input ?? null) : null,
           handoffEnd: null,
+          awaitsUser: false,
         });
       } else if (event.draft.kind === "lease.released") {
         const released = payload["leaseId"];
@@ -435,6 +450,24 @@ export function memoryRecordStore(): MemoryRecordStore {
             });
           }
         }
+      } else if (event.draft.kind === "lease.user_input") {
+        const message = parse(LeaseUserInputPayloadSchema, payload);
+        if (message.ok) {
+          if (message.value.status === "settled") {
+            heldInputs.delete(message.value.requestId);
+            settledInputs.add(message.value.requestId);
+            settledScopes.add(message.value.scopeId);
+          } else if (
+            !settledInputs.has(message.value.requestId) &&
+            message.value.input !== undefined
+          ) {
+            heldInputs.set(message.value.requestId, {
+              requestId: message.value.requestId,
+              scopeId: message.value.scopeId,
+              input: message.value.input,
+            });
+          }
+        }
       } else if (event.draft.kind === "drive.command_settled") {
         const settled = parse(DriveCommandSettledPayloadSchema, payload);
         if (settled.ok) {
@@ -456,7 +489,11 @@ export function memoryRecordStore(): MemoryRecordStore {
       scopeTransitions: Object.fromEntries(transitions),
       enabledAtSeq: Object.fromEntries(enabledAtSeq),
       states,
-      openLeases: open,
+      openLeases: open.map((lease) => ({
+        ...lease,
+        awaitsUser: profileStarts.has(lease.leaseId) && !settledScopes.has(lease.scopeId),
+      })),
+      pendingUserInputs: [...heldInputs.values()],
       pendingRequests: [...pending.values()].filter(
         (request) =>
           request.trigger !== "handoff" ||

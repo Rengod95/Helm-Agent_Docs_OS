@@ -22,9 +22,11 @@ import {
   type DriveFrameView,
   type DriveLimits,
   InputQueuePortKey,
+  PostItemSchema,
   type DriveLockBudget,
   type OpenLease,
   type PendingStartRequest,
+  type PendingUserInput,
   type PortKey,
   type PostItem,
   type StepResult,
@@ -35,7 +37,12 @@ import {
   type TurnOutcome,
 } from "@fresnel/contracts/extensions";
 import type { ToolError, ToolResultView } from "@fresnel/contracts/capabilities";
-import type { JsonValue, ThreadId, Usage } from "@fresnel/contracts/conversation";
+import {
+  toJsonValue,
+  type JsonValue,
+  type ThreadId,
+  type Usage,
+} from "@fresnel/contracts/conversation";
 import { DenyAnswerSchema, QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
@@ -57,6 +64,7 @@ import {
   type ReleaseReason,
   type RegistrationRecord,
   type StartDriveError,
+  type UserEntry,
   type StartRequest,
   type ThreadRuntime,
 } from "./core.ts";
@@ -115,7 +123,12 @@ export interface LeaseBroker {
    * 사용자가 보낸 메시지를 주도 중인 단계 함수에 전달한다(drive-isolation.md 2.4). 주도 중이면 메시지를 받아 참을 돌려주고
    * 다음 단계의 `last: { kind: "user" }`로 준다. 주도 중이 아니면 거짓이고 코어 루프가 평소대로 받는다
    */
-  claimUserInput(thread: ThreadRuntime, item: PostItem): boolean;
+  claimUserInput(thread: ThreadRuntime, item: PostItem, requestId?: string): Promise<boolean>;
+  /**
+   * openThread: 재시작 전에 가로챘으나 처리되지 않은 사용자 메시지를 되살린다(`lease.user_input`). 그 scope의 프레임이 있으면 그 프레임의 `inbox`로,
+   * 프레임이 아직 없고 시작 요청이 있으면 보류로 두고, 둘 다 없으면 코어 루프로 돌려보낸다. 시작 요청까지 되살린 뒤에 부른다
+   */
+  restoreUserInputs(thread: ThreadRuntime, inputs: readonly PendingUserInput[]): void;
   /**
    * 주도 시작 요청을 큐에 넣는다(사용자 명령, drive-isolation.md 2.2). 사용자 요청은 멈춤을 푼다. 스택이 차 있으면 전환 정책
    * (switch-policy.ts)에 따라 스택 전체를 내리고 새 주도를 부여한다. 대상이 맞지 않는 것은 부여 경계에서 버리므로 여기서는
@@ -1043,36 +1056,88 @@ export function createLeaseBroker(
     }
   }
 
-  /** 전달 중이던 사용자 메시지를 코어 루프로 돌려보낸다. 입력 큐에 다음 입력으로 넣어 평소처럼 처리되게 한다 */
-  function returnUserMessage(
+  /**
+   * 가로챈 사용자 메시지의 기록을 남긴다(`lease.user_input`). 커밋 키가 (상태, 메시지 id)라 같은 기록을 두 번 남기지 않는다.
+   * 기록하지 못하면 false다
+   */
+  async function recordUserInput(
     thread: ThreadRuntime,
-    lease: LeaseRuntime,
-    item: PostItem,
-    index = 0,
-  ): void {
+    scopeId: RegistrationId,
+    requestId: string,
+    status: "held" | "settled",
+    input?: JsonValue,
+  ): Promise<"committed" | "replayed" | "failed"> {
+    const records = core.ports.get(RecordCommitPortKey);
+    if (records === undefined) return "failed";
+    const result = await records.commit({
+      threadId: thread.threadId,
+      requestId: `lui:${status}:${requestId}`.slice(0, 96),
+      drafts: [
+        makeDraft(core.deps.ids, {
+          threadId: thread.threadId,
+          kind: "lease.user_input",
+          payload: {
+            requestId,
+            scopeId,
+            status,
+            ...(input === undefined ? {} : { input }),
+          },
+        }),
+      ],
+    });
+    return result.status === "rejected" ? "failed" : result.status;
+  }
+
+  /**
+   * 사용자 메시지를 코어 루프의 입력 큐에 다음 입력으로 넣어 평소처럼 처리되게 하고, 넣은 뒤 `settled`를 남긴다.
+   * 요청 id가 메시지 id에서 나와 재시작 뒤 다시 돌려보내도 큐에 한 번만 들어간다
+   */
+  function returnToLoop(thread: ThreadRuntime, scopeId: RegistrationId, entry: UserEntry): void {
     const queue = core.ports.get(InputQueuePortKey);
     if (queue === undefined) return;
     detach(
-      queue
-        .enqueue({
+      (async () => {
+        const queued = await queue.enqueue({
           threadId: thread.threadId,
-          scopeId: lease.scopeId,
-          requestId: `user-return:${lease.leaseId}:${String(index)}`.slice(0, 64),
+          scopeId,
+          requestId: `user-return:${entry.requestId}`.slice(0, 64),
           // `next`는 도는 turn에 붙기만 하고 유휴 thread에서 turn을 시작하지 않는다. 돌려받은 사용자 말은 끝난 뒤에라도 turn이 되어야 한다
           when: "followUp",
-          item,
-        })
-        .then(() => undefined),
+          item: entry.item,
+        });
+        if (!queued.ok) {
+          core.deps.report({
+            level: "error",
+            code: "handler_failed",
+            scopeId,
+            message: `a user message could not be handed back to the loop: ${queued.error.kind}`,
+          });
+          return;
+        }
+        if ((await recordUserInput(thread, scopeId, entry.requestId, "settled")) === "failed") {
+          core.deps.report({
+            level: "warning",
+            code: "scope_notice",
+            scopeId,
+            message: "the settled user message could not be recorded",
+          });
+        }
+      })(),
       (cause) => {
         core.deps.report({
           level: "error",
           code: "handler_failed",
-          scopeId: lease.scopeId,
+          scopeId,
           message: "a user message could not be handed back to the loop",
           cause,
         });
       },
     );
+  }
+
+  /** 전달 중이던 사용자 메시지를 코어 루프로 돌려보낸다 */
+  function returnUserMessage(thread: ThreadRuntime, lease: LeaseRuntime, entry: UserEntry): void {
+    returnToLoop(thread, lease.scopeId, entry);
   }
 
   /** 부여를 기다리던 사용자 메시지를 코어 루프로 돌려보낸다. 프레임도 시작 요청도 없을 때만 부른다(요청이 남았으면 그 요청이 받는다) */
@@ -1083,28 +1148,7 @@ export function createLeaseBroker(
     const queue = core.ports.get(InputQueuePortKey);
     const held = thread.heldUser.splice(0);
     if (queue === undefined) return;
-    for (const message of held) {
-      detach(
-        queue
-          .enqueue({
-            threadId: thread.threadId,
-            scopeId: message.scopeId,
-            requestId: `user-return:${message.requestId}`.slice(0, 64),
-            when: "followUp",
-            item: message.item,
-          })
-          .then(() => undefined),
-        (cause) => {
-          core.deps.report({
-            level: "error",
-            code: "handler_failed",
-            scopeId: message.scopeId,
-            message: "a held user message could not be handed back to the loop",
-            cause,
-          });
-        },
-      );
-    }
+    for (const message of held) returnToLoop(thread, message.scopeId, message);
   }
 
   /** 임대가 내려가면 전달하지 못한 사용자 메시지를 코어 루프로 돌려보낸다(메시지가 묻히지 않게) */
@@ -1116,9 +1160,7 @@ export function createLeaseBroker(
     lease.deliveredUser = null;
     lease.userSteps = null;
     lease.inbox.length = 0;
-    pending.forEach((item, index) => {
-      returnUserMessage(thread, lease, item, index);
-    });
+    for (const entry of pending) returnUserMessage(thread, lease, entry);
   }
 
   /**
@@ -1149,7 +1191,10 @@ export function createLeaseBroker(
     lease.deliveredUser = message;
     lease.userSteps = 0;
     lease.userSeq += 1;
-    return { last: { kind: "user", message }, handedBack: false };
+    return {
+      last: { kind: "user", message: message.item, requestId: message.requestId },
+      handedBack: false,
+    };
   }
 
   /**
@@ -1189,6 +1234,7 @@ export function createLeaseBroker(
       invocation,
       userSeq: next.last?.kind === "user" ? lease.userSeq : null,
     };
+    let consumed: UserEntry | null = null;
     const outcome = await withAmbient(
       {
         threadId: thread.threadId,
@@ -1211,11 +1257,27 @@ export function createLeaseBroker(
           const final = finalCommandOf(command);
           if (final.do === "turn" || final.do === "done") {
             if (final.do === "done") returnUserMessage(thread, lease, lease.deliveredUser);
+            else consumed = lease.deliveredUser;
             lease.deliveredUser = null;
             lease.userSteps = null;
           }
         }
-        return executeCommand(ctx, command);
+        const executed = await executeCommand(ctx, command);
+        // `turn`이 메시지를 받아 정착했다. 이 기록이 서기 전에 죽으면 재시작 뒤 같은 메시지가 다시 전달된다(최소 한 번 전달)
+        if (consumed !== null) {
+          if (
+            (await recordUserInput(thread, lease.scopeId, consumed.requestId, "settled")) ===
+            "failed"
+          ) {
+            core.deps.report({
+              level: "warning",
+              code: "scope_notice",
+              scopeId: lease.scopeId,
+              message: "the settled user message could not be recorded",
+            });
+          }
+        }
+        return executed;
       },
     );
     lease.firstStepDone = true;
@@ -1690,6 +1752,28 @@ export function createLeaseBroker(
     hooks.requestApply(thread.threadId);
   }
 
+  /** 사용자 메시지를 받을 곳. 프레임이 없고 시작 요청이 있으면 보류, 맨 위가 주도 중이면 그 프레임의 `inbox`, 아니면 null(코어 루프가 받는다) */
+  function claimTargetOf(
+    thread: ThreadRuntime,
+  ):
+    | { readonly kind: "held"; readonly scopeId: RegistrationId }
+    | { readonly kind: "frame"; readonly scopeId: RegistrationId; readonly lease: LeaseRuntime }
+    | null {
+    const lease = topFrame(thread);
+    if (lease === null) {
+      // 시작 요청이 이미 큐에 있으면 프레임이 잡힐 때까지 메시지를 쥐고 있다가 그 프레임의 첫 단계 뒤에 전달한다(2.4).
+      // 부여가 먼저인지 메시지가 먼저인지에 따라 행선지가 갈리지 않는다. 요청이 프레임 없이 사라지면 코어 루프로 돌려보낸다
+      const request = thread.startQueue.find((entry) => entry.trigger !== "handoff");
+      if (request === undefined || thread.userStopped) return null;
+      return { kind: "held", scopeId: request.scopeId };
+    }
+    // 맡기고 기다리는 맨 위는 메시지를 받지 않는다. 루프가 평소대로 처리한다
+    if (lease.status !== "active" || lease.state !== "driving" || !lease.committed) return null;
+    const record = core.scopes.get(lease.scopeId);
+    if (record === undefined || record.generation?.open !== true) return null;
+    return { kind: "frame", scopeId: lease.scopeId, lease };
+  }
+
   return {
     restore(thread, open, pending) {
       // 위에서 아래로 더해 각 프레임이 쓴 양(위 프레임의 own 포함)을 다시 센다. 저장된 `used`는 각 프레임의 own이다
@@ -1718,7 +1802,7 @@ export function createLeaseBroker(
             wantInvoke: false,
             committed: true,
             restoring: true,
-            awaitUser: false,
+            awaitUser: item.awaitsUser,
           }),
         );
         thread.leaseEpochs.set(
@@ -1871,7 +1955,7 @@ export function createLeaseBroker(
         thread.frames.push(grant);
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
         // 부여를 기다리며 쥐고 있던 사용자 메시지는 새 프레임의 몫이다
-        grant.inbox.push(...thread.heldUser.splice(0).map((held) => held.item));
+        grant.inbox.push(...thread.heldUser.splice(0));
         // 커밋이 성공해야 요청을 뺀다. 실패하면 다음 경계가 같은 요청을 다시 판단한다
         if (txn.startRequest !== null) {
           const at = thread.startQueue.indexOf(txn.startRequest);
@@ -1880,30 +1964,58 @@ export function createLeaseBroker(
         core.notify({ kind: "lease", scopeId: grant.scopeId, threadId: thread.threadId });
       }
     },
-    claimUserInput(thread, item) {
+    async claimUserInput(thread, item, requestId = core.deps.ids.next("evt")) {
       if (thread.child) return false;
-      const lease = topFrame(thread);
-      if (lease === null) {
-        // 시작 요청이 이미 큐에 있으면 프레임이 잡힐 때까지 메시지를 쥐고 있다가 그 프레임의 첫 단계 뒤에 전달한다(2.4).
-        // 부여가 먼저인지 메시지가 먼저인지에 따라 행선지가 갈리지 않는다. 요청이 프레임 없이 사라지면 코어 루프로 돌려보낸다
-        const request = thread.startQueue.find((entry) => entry.trigger !== "handoff");
-        if (request === undefined || thread.userStopped) return false;
-        thread.heldUser.push({
-          item,
-          scopeId: request.scopeId,
-          requestId: core.deps.ids.next("evt"),
-        });
-        return true;
-      }
-      // 맡기고 기다리는 맨 위는 메시지를 받지 않는다. 루프가 평소대로 처리한다
-      if (lease.status !== "active" || lease.state !== "driving" || !lease.committed) {
+      const claimable = claimTargetOf(thread);
+      if (claimable === null) return false;
+      // 메시지를 받았다고 답하기 전에 기록한다. 코어 루프는 가로챈 메시지를 입력 큐에 넣지 않으므로 이 기록이 재시작 뒤 되살리는 유일한 근거다.
+      // 기록하지 못하거나 너무 크면 가로채지 않고 코어 루프가 평소대로(입력 큐로) 받게 한다
+      const input = toJsonValue(item);
+      if (input === undefined || !withinInputLimit(input)) return false;
+      const held = await recordUserInput(thread, claimable.scopeId, requestId, "held", input);
+      if (held === "failed") return false;
+      // 같은 요청 id의 재제출이다(클라이언트의 재시도). 이미 받은 메시지이므로 다시 쌓지 않는다
+      if (held === "replayed") return true;
+      // 기록하는 사이에 상태가 바뀌었을 수 있다. 다시 판단하고, 가로챌 수 없게 됐으면 기록을 닫고 코어 루프에 맡긴다
+      const target = claimTargetOf(thread);
+      if (target === null) {
+        await recordUserInput(thread, claimable.scopeId, requestId, "settled");
         return false;
       }
-      const record = core.scopes.get(lease.scopeId);
-      if (record === undefined || record.generation?.open !== true) return false;
-      lease.inbox.push(item);
-      if (!lease.running && loopStatusIdle(thread.threadId)) start(thread, lease);
+      const entry: UserEntry = { item, requestId };
+      if (target.kind === "held") {
+        thread.heldUser.push({ ...entry, scopeId: target.scopeId });
+        return true;
+      }
+      target.lease.inbox.push(entry);
+      if (!target.lease.running && loopStatusIdle(thread.threadId)) start(thread, target.lease);
       return true;
+    },
+    restoreUserInputs(thread, inputs) {
+      for (const stored of inputs) {
+        const parsed = parse(PostItemSchema, stored.input);
+        const entry: UserEntry | null = parsed.ok
+          ? { item: parsed.value, requestId: stored.requestId }
+          : null;
+        if (entry === null) {
+          core.deps.report({
+            level: "warning",
+            code: "scope_notice",
+            scopeId: stored.scopeId,
+            message: "a recorded user message could not be read and was left in the log",
+          });
+          continue;
+        }
+        const frame = thread.frames.findLast((candidate) => candidate.scopeId === stored.scopeId);
+        const request = thread.startQueue.find((candidate) => candidate.trigger !== "handoff");
+        if (frame !== undefined) {
+          frame.inbox.push(entry);
+        } else if (request !== undefined && !thread.userStopped) {
+          thread.heldUser.push({ ...entry, scopeId: request.scopeId });
+        } else {
+          returnToLoop(thread, stored.scopeId, entry);
+        }
+      }
     },
     startDrive(threadId, scopeId, trigger, input) {
       const thread = core.threads.get(threadId);

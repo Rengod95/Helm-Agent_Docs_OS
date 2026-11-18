@@ -288,9 +288,9 @@ export interface ExtHost {
   ): Promise<DispatchOutcome<N>>;
   /**
    * L1 루프가 사용자 입력을 받았을 때 `input.user.before` 뒤에 부른다. 이 대화에서 단계 함수가 주도 중이면 메시지를 그쪽 다음 단계의
-   * `last: { kind: "user" }`로 넘기고 참을 돌려준다(drive-isolation.md 2.4). 그러면 루프는 그 입력을 처리하지 않는다. 거짓이면 평소대로 처리한다
+   * `last: { kind: "user" }`로 넘기고 참을 돌려준다(메시지를 `lease.user_input`으로 기록한 뒤)(drive-isolation.md 2.4). 그러면 루프는 그 입력을 처리하지 않는다. 거짓이면 평소대로 처리한다
    */
-  claimUserInput(threadId: ThreadId, item: PostItem): boolean;
+  claimUserInput(threadId: ThreadId, item: PostItem, requestId?: string): Promise<boolean>;
   /** L1 루프가 단계 경계와 유휴 진입 때 부른다 */
   readonly boundary: BoundaryHooks;
   /**
@@ -1138,9 +1138,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     dispatch(point, payload, options) {
       return typedDispatch(core.dispatcher, point, payload, options);
     },
-    claimUserInput: (threadId, item) => {
+    claimUserInput: async (threadId, item, requestId) => {
       const thread = core.threads.get(threadId);
-      return thread === undefined ? false : lease.claimUserInput(thread, item);
+      return thread === undefined ? false : lease.claimUserInput(thread, item, requestId);
     },
     boundary: {
       prepare: (signal) => boundary.prepare(signal),

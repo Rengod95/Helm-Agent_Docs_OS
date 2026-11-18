@@ -233,11 +233,11 @@ export interface LeaseRuntime {
   /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
   userSeq: number;
   /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */
-  readonly inbox: PostItem[];
+  readonly inbox: UserEntry[];
   /** 전달한 사용자 메시지 하나를 단계 함수가 처리했는지 센다. 전달한 뒤 처리 없이 지난 단계 수. 전달 중이 아니면 null */
   userSteps: number | null;
   /** 전달 중인 사용자 메시지. 단계 함수가 3단계 안에 처리하지 않으면 코어 루프로 돌려보낸다 */
-  deliveredUser: PostItem | null;
+  deliveredUser: UserEntry | null;
   /** lease.acquired가 커밋되었는가 */
   committed: boolean;
 }
@@ -246,10 +246,13 @@ export interface LeaseRuntime {
  * 주도 시작 요청 하나(drive-isolation.md 2.2). 큐 맨 앞부터 부여를 본다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다
  * (커밋이 실패하면 다음 경계가 다시 시도한다)
  */
-interface HeldUserMessage {
+export interface UserEntry {
   readonly item: PostItem;
-  /** 코어 루프로 돌려보낼 때의 요청 id. 보류한 때 정해 재시도와 겹치지 않는다 */
+  /** 메시지의 식별자(`lease.user_input`의 requestId). 받은 때 정해 재시작을 넘어 같고, 코어 루프로 돌려보낼 때의 요청 id 재료이며 단계 입력 `last.requestId`다 */
   readonly requestId: string;
+}
+
+interface HeldUserMessage extends UserEntry {
   readonly scopeId: RegistrationId;
 }
 

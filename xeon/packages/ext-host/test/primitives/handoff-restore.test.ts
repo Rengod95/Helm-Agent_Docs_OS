@@ -151,6 +151,7 @@ test("when the handed-off frame had just finished before a restart, its caller r
         limits: LIMITS,
         leaseEpoch: 1,
         depth: 0,
+        requestId: "rq-a",
       },
     },
     {
@@ -197,6 +198,7 @@ test("a handed-off frame that ended with an error before a restart gives its cal
         limits: LIMITS,
         leaseEpoch: 1,
         depth: 0,
+        requestId: "rq-a",
       },
     },
     {
@@ -233,6 +235,7 @@ test("a result the caller already consumed (a command settled after it) is not g
         limits: LIMITS,
         leaseEpoch: 1,
         depth: 0,
+        requestId: "rq-a",
       },
     },
     {
@@ -277,6 +280,7 @@ test("a handoff request that was queued but not granted before a restart is gran
         limits: LIMITS,
         leaseEpoch: 1,
         depth: 0,
+        requestId: "rq-a",
       },
     },
     {
@@ -395,4 +399,57 @@ test("a user start input over the limit is refused as input_too_large and a done
     { kind: "refused", code: "result_too_large" },
   ]);
   expect(releasedOf(t, thread).map((released) => released.result)).toEqual([undefined]);
+});
+
+test("a death right after a handoff request and before the receiver's frame (the grant commit did not land) lets the handoff continue after a restart", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const seen: Seen[] = [];
+  await install(t, seen, "rs-a", (last) =>
+    last === null ? { do: "handoff", to: "rs-b", input: { need: "y" } } : { do: "done" },
+  );
+  await install(t, seen, "rs-b", () => ({ do: "done", result: 9 }));
+  // 맡기기 요청 기록(`lease.requested`)이 닿은 직후의 커밋(받는 쪽의 부여)이 닿기 전에 프로세스가 죽는 것을 흉내 낸다:
+  // 요청 기록이 성공하면 그 다음 커밋 하나를 거부시킨다
+  const commit = t.records.commit.bind(t.records);
+  let armed = true;
+  Object.defineProperty(t.records, "commit", {
+    value: async (request: Parameters<typeof commit>[0]) => {
+      const result = await commit(request);
+      const handoffRecorded = request.drafts.some(
+        (draft) =>
+          draft.kind === "lease.requested" && parseRequested(draft.payload).trigger === "handoff",
+      );
+      if (armed && handoffRecorded) {
+        armed = false;
+        t.records.failNext("busy");
+      }
+      return result;
+    },
+  });
+  await t.host.openThread(thread);
+  expect(t.host.startDrive(thread, "rs-a").ok).toBe(true);
+  await t.settled();
+  // 요청은 기록됐지만 받는 쪽의 프레임은 없다
+  expect(requestedOf(t, thread).map((request) => [request.scopeId, request.trigger])).toEqual([
+    ["rs-a", "user"],
+    ["rs-b", "handoff"],
+  ]);
+  expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["rs-a"]);
+  expect(seen.filter((call) => call.plugin === "rs-b")).toEqual([]);
+
+  await t.host.closeThread(thread);
+  await t.host.openThread(thread);
+  await t.settled();
+
+  // 재시작 뒤 이어진다: 받는 쪽이 기록된 입력으로 돌고, 끝나면 맡긴 쪽이 결과를 받는다
+  expect(seen.filter((call) => call.plugin === "rs-b")).toEqual([
+    { plugin: "rs-b", last: null, calledBy: "rs-a", input: { need: "y" } },
+  ]);
+  expect(seen.findLast((call) => call.plugin === "rs-a")?.last).toEqual({
+    kind: "handoff",
+    status: "done",
+    result: 9,
+  });
+  expect(acquiredOf(t, thread).at(-1)?.requestId).toBe(requestedOf(t, thread)[1]?.requestId);
 });
