@@ -869,6 +869,8 @@ export interface TurnRecord {
       readonly draftId: string;
       readonly versionId: string;
     }[];
+    /** 드래프트 승인이 `auto`인 테스트 실행이면 `"auto"`다. `ask`(생략)이면 적지 않는다 [제안, 결정: 2026-11-18 사용자, AGE-56] */
+    readonly draftApproval?: "auto";
   } | null;
   /** 이 턴에서 시작한 자식 대화의 목록(규칙 24) */
   readonly children: TurnChild[];
@@ -942,6 +944,7 @@ const TurnRecordShape = closed({
       runGroupId: Nullable(Id),
       baseProfileId: Id,
       drafts: Type.Array(closed({ plugin: Name, draftId: Id, versionId: Id })),
+      draftApproval: Type.Optional(Type.Literal("auto")),
     }),
   ),
   children: Type.Array(TurnChildSchema),

@@ -137,7 +137,7 @@ export interface TurnRecord {
   readonly profileRevChanges: { stepIndex: number; rev: number }[];
   readonly overlay: OverlayMark | null;
   /** 테스트 실행 대화의 구성(M5c §4.8.1). 테스트 실행이 아니면 null. 초안 버전 id가 여기 있다(덧씌우기가 아니라 대화 전체의 구성이라 `overlay`는 null이다) */
-  readonly testRun: { runGroupId: string | null; baseProfileId: string; drafts: { plugin: string; draftId: string; versionId: string }[] } | null;
+  readonly testRun: { runGroupId: string | null; baseProfileId: string; drafts: { plugin: string; draftId: string; versionId: string }[]; draftApproval?: "auto" } | null;
   /** 이 턴에서 시작한 자식 대화의 목록(규칙 24). 부모 턴 기록이 자식 대화를 찾는 길 */
   readonly children: { childThreadId: string; agent: string; status: "running" | "completed" | "failed" | "interrupted"; used: { turns: number; tokens: number } | null }[];
   readonly frames: FrameMark[];           // Drive 프레임 스택: 턴 시작 때의 스택과 턴 안의 변화
@@ -453,6 +453,8 @@ interface Finding {
 F의 `blocks.applied.handlers[].outcome24h`는 `metrics.query`를 `period: { from, to }`(24시간)로 불러 지표 `hook.outcomes`를 인용한다(일 단위 `{ days }`가 아니다).
 
 `ThreadSummary.testRun`(`packages/contracts/src/wire-settings/wire/methods.ts:526`)의 `TestRunMarker`는 선택 필드 `kind`, `draft`, `runGroupId`를 더한다 [제안]. 기존 `profileId`, `target`, `paused`는 그대로다.
+
+테스트 실행의 드래프트 승인 방식 [결정: 2026-11-18, 사용자, AGE-56]: `testRun.start`의 `draftApproval`이 `auto`면 표지 `TestRunMarker`와 턴 기록 `TurnRecord.testRun`에 `draftApproval: "auto"`를 싣는다. `ask`(생략)는 적지 않는다 [제안]. 턴 기록에 남아 나중에 "그 런은 자동 허용이었다"를 알 수 있게 한다. 저장은 `tr_thread.draft_json`의 최상위 선택 필드 `approval`이다.
 
 기존 `trace.turn`은 유지한다. 메모리 버퍼에 없고 `tr_hook`에 있으면 그 행으로 채워 `retained: true`를 돌려주고 항목에 `source: "store"`를 더한다 [제안]. 그래야 재시작 뒤에도 Y4의 "최근 실행" 줄이 비지 않는다.
 

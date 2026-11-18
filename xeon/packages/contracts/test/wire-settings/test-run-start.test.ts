@@ -46,6 +46,17 @@ describe("testRun.start wire method", () => {
     expect(accepts(TestRunStartParamsSchema, { baseProfileId: "", drafts: [] })).not.toBe("ok");
   });
 
+  test("draftApproval is optional and takes ask or auto; the value is kept and any other value is refused", () => {
+    expect(accepts(TestRunStartParamsSchema, { drafts: [] })).toBe("ok");
+    for (const draftApproval of ["ask", "auto"] as const) {
+      const parsed = parse(TestRunStartParamsSchema, { drafts: [], draftApproval });
+      expect(parsed.ok ? parsed.value.draftApproval : parsed.error.kind).toBe(draftApproval);
+    }
+    for (const draftApproval of ["AUTO", "always", "", "allow", null, true]) {
+      expect(accepts(TestRunStartParamsSchema, { drafts: [], draftApproval })).not.toBe("ok");
+    }
+  });
+
   test("each draft names a plugin and a draft id, and nothing else", () => {
     expect(
       accepts(TestRunStartParamsSchema, { drafts: [{ plugin: "notes", draftId: "d1" }] }),
