@@ -239,7 +239,7 @@ export interface LeaseRuntime {
  * 주도 시작 요청 하나(drive-isolation.md 2.2). 큐 맨 앞부터 부여를 본다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다
  * (커밋이 실패하면 다음 경계가 다시 시도한다)
  */
-export interface HeldUserMessage {
+interface HeldUserMessage {
   readonly item: PostItem;
   /** 코어 루프로 돌려보낼 때의 요청 id. 보류한 때 정해 재시도와 겹치지 않는다 */
   readonly requestId: string;
