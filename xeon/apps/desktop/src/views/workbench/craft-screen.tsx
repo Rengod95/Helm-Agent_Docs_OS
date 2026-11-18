@@ -3,7 +3,10 @@
 // 자동 꺼짐 알림은 위 띠에 두지 않고 고른 플러그인의 카드에 있다(`craft-parts.tsx`의 `ExtNotice`). 그 카드의 답은 여기서 준다.
 import { t } from "@fresnel/client/i18n";
 import { useWorkbench } from "../../state/workbench/index.ts";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Select, SelectOption } from "@caustic/react";
+import { BUILD_CHECKS } from "../../app/build.ts";
+import { CANVAS_ALTS } from "../craft/canvas/registry.ts";
 import { CraftProvider } from "../craft/craft-context.tsx";
 import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -13,7 +16,49 @@ import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 import { ScreenHeader } from "../shell/screen-header.tsx";
 
+const ALT_KEY = "fresnel.craft.canvasAlt";
+
+// 개발 빌드: 지금 캔버스와 프로필 캔버스 시안(`craft/canvas/registry.ts`) 사이를 바꾼다. 고른 시안은 localStorage에 남는다
 export function CraftScreen(): ReactNode {
+  const [alt, setAlt] = useState(() => (BUILD_CHECKS ? (localStorage.getItem(ALT_KEY) ?? "") : ""));
+  const [inside, setInside] = useState<string | null>(null);
+  const choice = BUILD_CHECKS ? CANVAS_ALTS.find((a) => a.id === alt) : undefined;
+  const picker = BUILD_CHECKS ? (
+    <Select
+      size="xs"
+      aria-label={t("desktop.craft.canvas.pick")}
+      value={choice?.id ?? ""}
+      onValueChange={(id) => {
+        localStorage.setItem(ALT_KEY, id);
+        setAlt(id);
+        setInside(null);
+      }}
+      className="w-32"
+    >
+      <SelectOption value="">{t("desktop.craft.canvas.current")}</SelectOption>
+      {CANVAS_ALTS.map((a) => (
+        <SelectOption key={a.id} value={a.id}>
+          {t(a.name)}
+        </SelectOption>
+      ))}
+    </Select>
+  ) : null;
+  if (choice === undefined) return <CurrentCraft picker={picker} />;
+  if (inside === null)
+    return <choice.ProfileCanvas key={choice.id} picker={picker} onOpen={setInside} />;
+  return (
+    <choice.PluginInside
+      key={choice.id}
+      picker={picker}
+      pluginId={inside}
+      onBack={() => {
+        setInside(null);
+      }}
+    />
+  );
+}
+
+function CurrentCraft(props: { readonly picker: ReactNode }): ReactNode {
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
   const source = useCraftSource(controller, toggle.request);
@@ -38,7 +83,7 @@ export function CraftScreen(): ReactNode {
     [controller],
   );
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {/* 캔버스가 그려지면 도구 막대가 펼치기 단추를 가진다. 목록을 못 읽는 동안은 캔버스가 없어 머리를 둔다 */}
       <ScreenHeader hidden={ready} title={t("desktop.shell.nav.overview")} />
       <ListStatusBand controller={controller} />
@@ -50,6 +95,9 @@ export function CraftScreen(): ReactNode {
             </CraftProvider>
           </HookAnswersContext>
         </AutoOffActionsContext>
+      )}
+      {props.picker === null ? null : (
+        <div className="absolute bottom-3 left-3 z-20">{props.picker}</div>
       )}
       {toggle.dialog}
       <BuilderEntry controller={controller} />
