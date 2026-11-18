@@ -69,8 +69,16 @@ function textBlocksOf(
     .join("\n");
 }
 
+/** 앞 `limit` 코드 포인트. 글 전체를 배열로 펼치지 않는다(분리된 큰 값을 되돌린 글은 수십 MiB일 수 있다) */
 function cutCodePoints(text: string, limit: number): string {
-  return Array.from(text).slice(0, limit).join("");
+  let count = 0;
+  let end = 0;
+  for (const point of text) {
+    if (count === limit) break;
+    count += 1;
+    end += point.length;
+  }
+  return text.slice(0, end);
 }
 
 /** item의 텍스트. 사용자 입력과 어시스턴트 응답만 본다. 텍스트가 없으면 빈 문자열이다 */
