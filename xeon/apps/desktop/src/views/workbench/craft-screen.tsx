@@ -3,7 +3,7 @@
 // 자동 꺼짐 알림은 위 띠에 두지 않고 고른 플러그인의 카드에 있다(`craft-parts.tsx`의 `ExtNotice`). 그 카드의 답은 여기서 준다.
 import { t } from "@fresnel/client/i18n";
 import { useWorkbench } from "../../state/workbench/index.ts";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CraftProvider } from "../craft/craft-context.tsx";
 import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -12,8 +12,40 @@ import { AutoOffActionsContext, ListStatusBand, useToggleRequest } from "./craft
 import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 import { ScreenHeader } from "../shell/screen-header.tsx";
+import { BUILD_CHECKS } from "../../app/build.ts";
+import { Select, SelectOption } from "@caustic/react";
+import { CANVAS_ALTS } from "../craft/canvas/registry.ts";
 
+/** 개발 빌드: 지금 화면과 프로필 캔버스 시안(registry) 사이를 바꾼다 */
 export function CraftScreen(): ReactNode {
+  const [alt, setAlt] = useState("now");
+  const chosen = BUILD_CHECKS ? CANVAS_ALTS.find((a) => a.id === alt) : undefined;
+  const picker = BUILD_CHECKS ? (
+    <div className="absolute right-3 bottom-4 z-30">
+      <Select
+        size="sm"
+        aria-label={t("desktop.craft.canvas.cvC.pick")}
+        value={alt}
+        onValueChange={setAlt}
+      >
+        <SelectOption value="now">{t("desktop.craft.canvas.cvC.now")}</SelectOption>
+        {CANVAS_ALTS.map((a) => (
+          <SelectOption key={a.id} value={a.id}>
+            {t(a.name)}
+          </SelectOption>
+        ))}
+      </Select>
+    </div>
+  ) : null;
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {chosen === undefined ? <OverviewScreen /> : <chosen.ProfileCanvas key={chosen.id} />}
+      {picker}
+    </div>
+  );
+}
+
+function OverviewScreen(): ReactNode {
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
   const source = useCraftSource(controller, toggle.request);
