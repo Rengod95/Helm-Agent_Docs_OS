@@ -24,7 +24,10 @@ import {
   type TurnRecordEvents,
 } from "../../../src/assembly/measure/turn-events.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "../../../src/assembly/measure/turn-fit.ts";
-import { createTestRunMarks } from "../../../src/assembly/measure/test-run-marks.ts";
+import {
+  createTestRunMarks,
+  encodeTestRunDrafts,
+} from "../../../src/assembly/measure/test-run-marks.ts";
 import { createTurnRecordPort } from "../../../src/assembly/measure/turn-read.ts";
 
 // T-MEAS-TURN: 턴 기록의 쓰는 쪽. 단계 끝에 단계 행과 훅 행을 쓰고(턴 도중에도 읽힌다), 턴 행은 열 때 `open`, 끝날 때 최종 상태다.
@@ -402,6 +405,68 @@ test("a test run thread keeps its test scope after a restart and while the trace
       value: { turn: { scopeKind: "test", level: "full" } },
     });
     second.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// M5c §4.8.1, §4.6 규칙 37: 초안을 쓰는 테스트 실행의 턴은 `test` 범위이고 `TurnRecord.testRun`에 기준 프로필, 묶음 id, 초안 버전을 싣는다.
+// 재시작 뒤에도 `tr_thread.draft_json`에서 같은 값을 읽는다. 초안 버전 id는 `draft:<초안 id>:<내용 해시 앞 8자>`다.
+test("a draft test run turn is test scope and carries its testRun record: base profile, run group, and the draft version", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-test-run-record-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const marks = createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    });
+    const contentHash = `sha256:${"0a1b2c3d".repeat(8)}`;
+    expect(
+      marks.remember(
+        THREAD,
+        "profile-a",
+        "test",
+        "trg-7",
+        encodeTestRunDrafts([{ plugin: "widget", draftId: "drf-1", contentHash }]),
+      ),
+    ).toBe(true);
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(turnBundle(harness).turn.scopeKind).toBe("test");
+    expect(recordOf(turnBundle(harness).turn.recordJson)).toMatchObject({
+      scope: "test",
+      overlay: null,
+      testRun: {
+        runGroupId: "trg-7",
+        baseProfileId: "profile-a",
+        drafts: [{ plugin: "widget", draftId: "drf-1", versionId: "draft:drf-1:0a1b2c3d" }],
+      },
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a test run without drafts records an empty drafts list, and a live turn records no testRun", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-test-run-nodraft-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const marks = createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    });
+    expect(marks.remember(THREAD, "profile-a", "test", "trg-8")).toBe(true);
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(recordOf(turnBundle(harness).turn.recordJson)).toMatchObject({
+      testRun: { runGroupId: "trg-8", baseProfileId: "profile-a", drafts: [] },
+    });
+    harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

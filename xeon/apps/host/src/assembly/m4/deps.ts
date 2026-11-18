@@ -25,6 +25,8 @@ export interface M4EngineDeps {
   /** T-WC: thread 존재 확인(`goal.status`, `work.tasks.list`). `ext.test.run`의 testRun이 Test run 대화를 만들고 지우는 데도 쓴다 */
   readonly threads: {
     exists(threadId: ThreadId): Result<boolean, ReadFailure>;
+    /** 테스트 대화(`craftChat` 표지)인가. 빌더의 상주 판정이 쓴다(M5c §4.8.6) */
+    isCraftChat(threadId: ThreadId): Result<boolean, ReadFailure>;
     create(input: {
       readonly workspace?: string;
       readonly title?: string;
@@ -124,6 +126,8 @@ export interface M4HostEnv {
   readonly cachePolicyOf?: (threadId: ThreadId) => CachePolicy | undefined;
   /** 대화가 저장한 프로필 id(없거나 대화가 없으면 null). 대화별 켜짐 집합(E(T))이 읽는다 */
   readonly threadProfileId: (threadId: ThreadId) => string | null;
+  /** 하위 대화의 부모 대화(없으면 undefined). 테스트 실행의 고정 구성을 하위 대화가 물려받을 때 읽는다(§4.8.1 9) */
+  readonly parentOf?: (threadId: ThreadId) => ThreadId | undefined;
   /** 모든 대화에 항상 켜는 플러그인(개발 모드의 가이드 그룹) */
   readonly forcedPlugins: () => readonly string[];
   /** 공장 기본 프로필의 플러그인(코어가 아닌 내장 가운데 기본 켜짐과 번들) */

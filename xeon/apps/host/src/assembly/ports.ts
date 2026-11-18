@@ -85,7 +85,11 @@ import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { userSkillsDir, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
-import { createTestRunMarks } from "./measure/test-run-marks.ts";
+import {
+  createTestRunMarks,
+  decodeTestRunDrafts,
+  encodeTestRunDrafts,
+} from "./measure/test-run-marks.ts";
 import {
   createUsageSource,
   EMPTY_TALLY,
@@ -113,6 +117,8 @@ import {
   createUserSkillSink,
   createDraftLoader,
   createOverlayPort,
+  createTestRunDrafts,
+  type PreparedTestRunDrafts,
   createPluginService,
   type PluginStore,
 } from "./plugins/index.ts";
@@ -445,6 +451,61 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const marks = verified.flat();
     if (marks.length === 0) return;
     await ports.m4.pluginSet.restoreOverlay(threadId, marks);
+  }
+
+  /**
+   * 재시작 뒤 테스트 실행의 고정 초안을 되살린다(M5c §4.8.1 3). 저장된 `draft_json`의 초안을 하나씩 싣고, 싣지 못한 것(폴더가 없다,
+   * 내용 해시가 다르다, 싣기 실패)은 뺀 채 연다(`testrun.draft_restore_failed`로 남긴다). 대화가 열기 전에 묶인 것은 그대로 둔다.
+   */
+  async function restoreTestRunDrafts(threadId: ThreadId): Promise<void> {
+    // 만들 때 묶은 구성이 이미 있으면(같은 프로세스에서 만든 대화를 처음 여는 것) 다시 싣지 않는다
+    if (ports.m4.pluginSet.testRunDraftsOf(threadId) !== undefined) return;
+    const stored = testMarks.recall(threadId);
+    // 테스트 실행이 아니면 할 일이 없다
+    if (stored === undefined) return;
+    const listed = decodeTestRunDrafts(stored.draftJson);
+    if (!listed.ok) {
+      log.error("testrun.draft_restore_failed", { threadId, kind: listed.error.kind });
+    }
+    const wanted = listed.ok ? listed.value : [];
+    const restored: PreparedTestRunDrafts[] = [];
+    for (const draft of wanted) {
+      // 초안 하나씩 싣는다. 하나가 실패해도 나머지와 대화는 연다
+      // oxlint-disable-next-line no-await-in-loop -- 되살리는 초안은 차례로 싣는다(싣기 큐와 같은 순서)
+      const prepared = await testRunDrafts.prepare([
+        { plugin: draft.plugin, draftId: draft.draftId },
+      ]);
+      const current = prepared.ok ? prepared.value.marks[0] : undefined;
+      if (!prepared.ok || current === undefined || current.contentHash !== draft.contentHash) {
+        if (prepared.ok) prepared.value.unhold();
+        log.error("testrun.draft_restore_failed", {
+          threadId,
+          plugin: draft.plugin,
+          draftId: draft.draftId,
+          kind: prepared.ok ? "content_changed" : prepared.error.kind,
+        });
+        continue;
+      }
+      restored.push(prepared.value);
+    }
+    await testRunDrafts.bind(threadId, restored);
+    // 못 되살린 초안이 있으면 기록도 맞춘다: 턴 기록과 표지는 실제로 돈 구성을 싣는다
+    const marks = restored.flatMap((part) => part.marks);
+    if (marks.length !== wanted.length) {
+      testMarks.remember(
+        threadId,
+        stored.testBaseProfile,
+        "test",
+        stored.runGroupId ?? undefined,
+        encodeTestRunDrafts(
+          marks.map((mark) => ({
+            plugin: mark.replaces,
+            draftId: mark.draftId,
+            contentHash: mark.contentHash,
+          })),
+        ),
+      );
+    }
   }
 
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
@@ -1007,6 +1068,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
+      // 테스트 실행의 고정 초안을 되살린다(열 때 실린 초안이 있어야 대화의 집합이 맞는다)
+      await restoreTestRunDrafts(threadId);
       // 재시작 뒤 Drive 덧씌우기를 되살린다. 프레임이 열 때 scope를 찾도록 `ext.openThread`보다 먼저 한다
       await restoreDriveOverlays(threadId);
       const testRun = isTestRunThread(threadId);
@@ -1330,6 +1393,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     pluginSet: {
       attachOverlay: (threadId, marks) => ports.m4.pluginSet.attachOverlay(threadId, marks),
       cancelOverlay: (threadId, keepDrive) => ports.m4.pluginSet.cancelOverlay(threadId, keepDrive),
+      hold: (names) => ports.m4.pluginSet.hold(names),
     },
     // 시작 Drive 덧씌우기(§4.3.2): 사용자 명령으로 주도를 요청한다. 실패는 기록하고 거절 값으로 돌려준다
     startDrive: (threadId, plugin) => {
@@ -1342,6 +1406,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (started.ok) return ok(undefined);
       log.error("plugin.overlay.drive_failed", { plugin, kind: started.error.kind });
       return err({ kind: "not_started", reason: started.error.kind });
+    },
+  });
+  // Test run 초안 구성(M5c §4.8.1). 덧씌우기와 같은 검사와 싣기를 쓰고, 싣은 초안은 대화에 묶는다
+  const testRunDrafts = createTestRunDrafts({
+    targetOf: (name) => pluginService.overlayTarget(name),
+    draftOf: (draftId) => pluginReview.draftOf(draftId),
+    loadDrafts,
+    pluginSet: {
+      hold: (names) => ports.m4.pluginSet.hold(names),
+      setTestRunDrafts: (threadId, marks) => ports.m4.pluginSet.setTestRunDrafts(threadId, marks),
     },
   });
   // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)
@@ -1432,6 +1506,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
     },
     overlay,
+    testRunDrafts,
     pluginReview,
     scanOpenedRoots: () => pluginReview.scanOpened(),
     pluginMigration,
@@ -1518,6 +1593,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         forcedPlugins: () => deps.pluginsForced?.() ?? [],
         // 번들 기본 플러그인(`DEFAULT_PLUGIN_NAMES`)은 기본 프로필에 항상 든다. 나머지는 m4가 등급으로 더한다(§4.1.2)
         defaultPlugins: () => [...DEFAULT_PLUGIN_NAMES],
+        // 하위 대화의 부모(테스트 실행의 고정 구성을 물려받는다, §4.8.1 9)
+        parentOf: (threadId: ThreadId) => {
+          const link = session.query.agentOfChild(threadId);
+          return link.ok ? link.value?.parentThreadId : undefined;
+        },
         threadProfileId: (threadId) => {
           const found = session.query.thread(threadId);
           return found.ok ? (found.value?.profileId ?? null) : null;

@@ -126,7 +126,12 @@ export interface ProfileTestRunPort {
    * Test run 대화를 표지한다. `profileId`는 표지에 적을 값이고 대화에 적용하지 않는다.
    * `runGroupId`는 `testRun.start`의 묶음 id다(없으면 표지에 싣지 않는다)
    */
-  registerTestRun(threadId: ThreadId, profileId: string | null, runGroupId?: string): void;
+  registerTestRun(
+    threadId: ThreadId,
+    profileId: string | null,
+    runGroupId?: string,
+    draftsJson?: string,
+  ): void;
   controlTestRun(
     threadId: ThreadId,
     op: "pause" | "resume" | "step",
@@ -232,8 +237,9 @@ export function markTestRun(
   threadId: ThreadId,
   profileId: string | undefined,
   runGroupId?: string,
+  draftsJson?: string,
 ): void {
-  profiles.registerTestRun(threadId, profileId ?? null, runGroupId);
+  profiles.registerTestRun(threadId, profileId ?? null, runGroupId, draftsJson);
 }
 
 /** 설정 쓰기 실패를 와이어 오류로 옮긴다. `where`는 메시지 머리말이다(설정 쓰기 호출자가 정한다) */

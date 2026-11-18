@@ -272,6 +272,7 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
         attached.push(marks);
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: (threadId) => {
         cancelled.push(threadId);
         return Promise.resolve();
@@ -309,6 +310,7 @@ test("덧씌우기 포트는 이미 든 플러그인만 얹으면 아무것도 �
         touched = true;
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => Promise.resolve(),
     },
     startDrive: () => ok(undefined),

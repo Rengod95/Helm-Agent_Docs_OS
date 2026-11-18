@@ -37,6 +37,7 @@ import type {
   ProfilePreviewRequest,
   ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
+import { decodeTestRunDrafts } from "../measure/test-run-marks.ts";
 import { COMMON_ID, planPluginEdit, type PluginEditRequest } from "./plugin-edit.ts";
 import type { ProfileStoreSnapshot, ProfilesChange, ProfilesWritten } from "./profile-store.ts";
 import { createProfileStore } from "./profile-store.ts";
@@ -283,6 +284,12 @@ function findProfile(
   return effectiveProfiles(stored, factory).find((profile) => profile.id === id);
 }
 
+/** 고정 초안이 하나라도 든 기록인가. 표지의 `kind = draft`를 정한다(M5c §4.8.1). 읽지 못한 기록은 초안이 없는 것으로 본다 */
+function draftedOf(json: string | null | undefined): boolean {
+  const read = decodeTestRunDrafts(json ?? null);
+  return read.ok && read.value.length > 0;
+}
+
 export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileTestRunPort {
   const { env } = deps;
   /** 기본 공장 값. 플러그인 목록은 조립이 준 기본 설치 플러그인이다(코어가 아닌 내장 가운데 기본 켜짐과 번들, §4.1.2) */
@@ -307,6 +314,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       profileId: stored.testBaseProfile,
       target: stored.testTarget,
       paused: false,
+      ...(draftedOf(stored.draftJson) ? { kind: "draft", draft: true } : {}),
       ...(stored.runGroupId === null ? {} : { runGroupId: stored.runGroupId }),
     };
     markers.set(threadId, restored);
@@ -850,14 +858,15 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
     testRunMarker: (threadId) => markerOf(threadId),
-    registerTestRun(threadId, profileId, runGroupId) {
+    registerTestRun(threadId, profileId, runGroupId, draftsJson) {
       markers.set(threadId, {
         profileId,
         target: null,
         paused: false,
+        ...(draftedOf(draftsJson ?? null) ? { kind: "draft", draft: true } : {}),
         ...(runGroupId === undefined ? {} : { runGroupId }),
       });
-      deps.env.testRunMarks?.remember(threadId, profileId, "test", runGroupId);
+      deps.env.testRunMarks?.remember(threadId, profileId, "test", runGroupId, draftsJson);
     },
     controlTestRun(threadId, op) {
       const marker = markerOf(threadId);

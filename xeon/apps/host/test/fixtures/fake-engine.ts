@@ -23,6 +23,7 @@ import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import { refsOfEvents } from "../../src/assembly/m4/craft-chat.ts";
 import type { PluginPort } from "../../src/handlers/m5/plugins.ts";
 import type { OverlayPort } from "../../src/assembly/plugins/overlay.ts";
+import type { TestRunDraftsPort } from "../../src/assembly/plugins/test-run-drafts.ts";
 import type { MigrationSubmitPort } from "../../src/assembly/plugins/migration-submit.ts";
 import type { MigrationPort } from "../../src/handlers/m5/migration.ts";
 import type { PluginReviewPort } from "../../src/handlers/m5/plugin-review.ts";
@@ -167,6 +168,8 @@ export interface FakeEngineOptions {
     readonly migration?: Partial<MigrationPort>;
     /** 턴 덧씌우기 포트(`turn.start.overlay`). 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly overlay?: Partial<OverlayPort>;
+    /** Test run 초안 구성 포트(`testRun.start`의 초안). 쓰지 않는 멤버는 부르면 바로 실패한다 */
+    readonly testRunDrafts?: Partial<TestRunDraftsPort>;
   };
 }
 
@@ -682,6 +685,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.pluginReview,
     }),
     overlay: partial<OverlayPort>({ ...options.overrides?.overlay }),
+    testRunDrafts: partial<TestRunDraftsPort>({ ...options.overrides?.testRunDrafts }),
     // 프로젝트를 여는 훑기는 검토 포트를 쓰지 않는 시험에서 아무 일도 하지 않는다
     scanOpenedRoots: () => Promise.resolve(),
     pluginMigration: partial<MigrationSubmitPort>({}),
@@ -732,6 +736,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
         restoreOverlay: () => Promise.resolve(),
+        hold: () => Promise.resolve(() => undefined),
+        setTestRunDrafts: () => Promise.resolve(),
+        testRunDraftsOf: () => undefined,
         cancelOverlay: () => Promise.resolve(),
         recomputeAll: () => undefined,
         opened: () => Promise.resolve(),

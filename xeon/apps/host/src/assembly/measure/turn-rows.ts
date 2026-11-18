@@ -48,6 +48,9 @@ import type {
 
 /** 턴 기록의 프로필 표지(§3.2 `TurnRecord.profile`). 턴 시작 값이다 */
 export type TurnProfileMark = NonNullable<TurnRecord["profile"]>;
+
+/** 테스트 실행 대화의 구성(§3.2 `TurnRecord.testRun`, §4.6 규칙 37). 범위가 `test`인 턴에만 실린다 */
+export type TurnTestRunMark = TurnRecord["testRun"];
 /** 턴 안에서 프로필 개정이 바뀐 단계 경계(§3.2 `profileRevChanges`의 한 줄) */
 type ProfileRevChange = TurnRecord["profileRevChanges"][number];
 
@@ -100,6 +103,8 @@ export interface TurnDraft {
   lastStepIndex: number | null;
   /** 범위 표지. 턴을 열 때 대화의 `tr_thread`에서 정한다(§4.6) */
   scope: ScopeKind;
+  /** 테스트 실행 대화의 구성(기준 프로필, 묶음 id, 초안 버전). 범위가 `test`일 때만 싣는다 */
+  testRun: TurnTestRunMark;
   /**
    * 이 턴의 `profile.applied`가 초안 덧씌우기(`draftId`)를 실었는가. 참이면 범위는 `overlay_draft`다(§4.6 규칙 31, §4.3.8).
    * 대화 범위가 `test`나 `craft`면 그것이 이긴다
@@ -177,6 +182,7 @@ export function newDraft(input: {
     profileRevChanges: [],
     lastStepIndex: null,
     scope: "live",
+    testRun: null,
     draftOverlay: false,
     steps: [],
     frames: [],
@@ -725,7 +731,7 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     profile: draft.profile,
     profileRevChanges: [...draft.profileRevChanges],
     overlay: null,
-    testRun: null,
+    testRun: draft.testRun,
     children: [],
     frames: draft.frames.map((frame) => ({ ...frame })),
     steps: [...draft.steps],

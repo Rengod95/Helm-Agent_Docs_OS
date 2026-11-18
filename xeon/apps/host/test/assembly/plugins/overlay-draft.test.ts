@@ -225,6 +225,7 @@ test("초안 덧씌우기 포트: 싣지 못한 초안이면 draft_unavailable�
         attached.push(marks);
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => Promise.resolve(),
     },
     startDrive: () => err({ kind: "no_drive" }),
@@ -252,6 +253,7 @@ test("초안 덧씌우기 포트: 싣기에 성공하면 표지는 초안 내부
         attached.push(marks);
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => Promise.resolve(),
     },
     startDrive: () => err({ kind: "no_drive" }),

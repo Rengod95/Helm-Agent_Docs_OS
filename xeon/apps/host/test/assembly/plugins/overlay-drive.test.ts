@@ -78,6 +78,7 @@ test("덧씌우기 포트는 시작 Drive를 release 표지로 집합에 올린 
         marks.push(attached);
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => {
         order.push("cancel");
         return Promise.resolve();
@@ -109,6 +110,7 @@ test("덧씌우기 포트는 시작 요청이 거절되면 얹은 표지를 되�
     ensureLoaded: () => Promise.resolve(),
     pluginSet: {
       attachOverlay: () => Promise.resolve(),
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: (id) => {
         cancelled.push(id);
         return Promise.resolve();
@@ -132,6 +134,7 @@ test("덧씌우기 포트는 등록이 없는 시작 Drive도 drive_unavailable�
     ensureLoaded: () => Promise.resolve(),
     pluginSet: {
       attachOverlay: () => Promise.resolve(),
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => Promise.resolve(),
     },
     startDrive: () => err({ kind: "no_drive" }),
@@ -159,6 +162,7 @@ test("덧씌우기 포트는 이미 집합에 든 플러그인의 시작 Drive�
         attached.push(marks);
         return Promise.resolve();
       },
+      hold: () => Promise.resolve(() => undefined),
       cancelOverlay: () => Promise.resolve(),
     },
     startDrive: (_threadId, plugin) => {

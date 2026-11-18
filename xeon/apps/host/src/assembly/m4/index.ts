@@ -116,6 +116,7 @@ export function createM4Ports(
   const pluginSet = createPluginSet({
     profiles: profileTestRun,
     threadProfileId: env.threadProfileId,
+    ...(env.parentOf === undefined ? {} : { parentOf: env.parentOf }),
     loadedHash: env.loadedHash,
     forcedPlugins: scopedEnv.forcedPlugins,
     defaultPlugins: scopedEnv.defaultPlugins,

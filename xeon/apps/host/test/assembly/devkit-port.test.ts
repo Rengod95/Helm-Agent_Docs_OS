@@ -297,6 +297,28 @@ test("devkit port: draftList gives the drafts newest first with their parent, an
   );
 });
 
+test("devkit port: isCraftChat says whether the conversation is a test chat, read from the conversation's own marker", async () => {
+  const state = fakes("craft-chat");
+  const craftThread: ThreadId = fixedIdFactory(704).next("thr");
+  const plainThread: ThreadId = fixedIdFactory(705).next("thr");
+  const port = createDevkitPort(
+    partial<M4PortDeps>({
+      ...state.deps,
+      threads: {
+        ...state.deps.threads,
+        isCraftChat: (threadId: ThreadId) => ok(threadId === craftThread),
+      },
+    }),
+    { templates },
+  );
+  // 상주 판정은 모델이 넘긴 값과 무관하게 이 답을 쓴다(M5c §4.8.6)
+  expect(await port.isCraftChat(craftThread)).toEqual(ok(true));
+  expect(await port.isCraftChat(plainThread)).toEqual(ok(false));
+  expect(await port.isCraftChat("not-a-thread")).toEqual(
+    err({ kind: "not_found", message: "not-a-thread is not a conversation" }),
+  );
+});
+
 test("devkit port: craftContext gives each reference of the conversation, with the evidence bundle only for a finding", async () => {
   const state = fakes("craft-context");
   const refs: ContextRef[] = [

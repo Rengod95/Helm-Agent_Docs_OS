@@ -44,6 +44,17 @@ export interface OverlayMark {
 }
 
 /**
+ * 테스트 실행의 고정 초안 하나(M5c §4.8.1). 대화의 수명 동안 고정이라 `until`이 없고 `PluginSetView.overlay`에 싣지 않는다.
+ * `plugin`은 내부 확장 이름(`internalDraftName`)이고 `replaces`는 같은 이름의 검토본이다. 검토본이 E(T)에 있으면 그 자리에 놓인다
+ */
+export interface FixedDraftMark {
+  readonly plugin: string;
+  readonly draftId: string;
+  readonly contentHash: string;
+  readonly replaces: string;
+}
+
+/**
  * 얹힌 덧씌우기 하나의 내부 상태. `granted`는 `release` 표지의 주도 프레임이 실제로 부여되어 스택에 든 적이 있는지다.
  * 시작 요청이 버려지면 끝까지 `false`이고, 정착할 때 뺀다. 기록에는 싣지 않는다
  */
@@ -84,6 +95,11 @@ export interface PluginSetDeps {
   readonly profiles: Pick<ProfileTestRunPort, "list" | "onProfilesWritten">;
   /** 대화가 저장한 프로필 id. 저장하지 않았거나 대화가 없으면 null이다 */
   readonly threadProfileId: (threadId: ThreadId) => string | null;
+  /**
+   * 하위 대화의 부모 대화(`agentOfChild`). 부모가 테스트 실행이면 하위 대화는 부모의 기준 프로필과 고정 초안을 물려받는다(§4.8.1 9).
+   * 없으면 하위 대화도 일반 대화처럼 본다
+   */
+  readonly parentOf?: (threadId: ThreadId) => ThreadId | undefined;
   /** 엔진이 열어 쥔 대화 목록(E(T)를 계산할 대화). 프로필이 바뀌었을 때 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
   /**
@@ -145,6 +161,18 @@ export interface PluginSetHandle {
    * 입력을 받지 못했으면 `cancelOverlay`로 되돌린다
    */
   attachOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
+  /**
+   * 초안을 내리지 못하게 잡는다(§4.3.8). 같은 이름에 이미 큐에 든 적재와 내리기가 끝날 때까지 기다린 뒤 돌려준 함수로 푼다.
+   * 잡힌 동안 참조가 0이 되어도 내리기는 미룬다. 푸는 때 참조가 없으면 그때 내린다. 싣기 앞뒤를 이것으로 감싸야 얹기와 내리기가 겹치지 않는다
+   */
+  hold(names: readonly string[]): Promise<() => void>;
+  /**
+   * 테스트 실행의 고정 구성을 대화에 묶는다(M5c §4.8.1). 초안의 참조를 세어 쓰는 동안 싣고, 대화를 여는 때 다시 맞춘다.
+   * 묶기 전에 `hold`로 잡아 두면 그 사이에 같은 초안이 내려가지 않는다. 묶은 대화는 `forget`에서 푼다
+   */
+  setTestRunDrafts(threadId: ThreadId, drafts: readonly FixedDraftMark[]): Promise<void>;
+  /** 대화에 묶인 고정 초안. 테스트 실행이 아니면 undefined다(하위 대화의 물려받은 것은 뺀다) */
+  testRunDraftsOf(threadId: ThreadId): readonly FixedDraftMark[] | undefined;
   /**
    * 재시작 뒤 열린 임대에서 되살린 Drive 덧씌우기를 얹고, 이 대화가 쓰는 플러그인의 적재가 끝날 때까지 기다린다(M5c §4.3.5).
    * `ext.openThread` 앞에 부른다: 열 때 scope가 살아 있어야 프레임이 죽은 scope로 반납되지 않는다. `release` 표지만 받는다.
@@ -282,6 +310,35 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
    * `opened`가 그 대화가 쓰는 이름의 호출을 기다린다. 호출은 실패해도 거절하지 않는다(보고만 한다)
    */
   const loading = new Map<string, Promise<void>>();
+  /** 테스트 실행 대화의 고정 초안(§4.8.1). 열린 대화에 묶여 있고 `forget`이 뺀다 */
+  const testRuns = new Map<ThreadId, readonly FixedDraftMark[]>();
+  /** 붙잡힌 이름과 붙잡은 수(`hold`). 붙잡힌 동안 참조가 0이 되어도 내리기를 큐에 넣지 않는다 */
+  const pins = new Map<string, number>();
+
+  /** 테스트 실행의 부모 대화. 부모가 고정 구성을 묶은 테스트 실행이면 그 id다 */
+  function testRunParentOf(threadId: ThreadId): ThreadId | undefined {
+    // 테스트 실행이 하나도 묶이지 않았으면 부모를 물을 까닭이 없다(일반 대화의 집합 계산은 그대로 둔다)
+    if (testRuns.size === 0) return undefined;
+    const parent = deps.parentOf?.(threadId);
+    return parent !== undefined && testRuns.has(parent) ? parent : undefined;
+  }
+
+  /** 대화가 저장한 프로필 id. 하위 대화는 테스트 실행의 부모가 저장한 기준 프로필을 물려받는다(§4.8.1 9) */
+  function storedProfileOf(threadId: ThreadId): string | null {
+    const own = deps.threadProfileId(threadId);
+    if (own !== null) return own;
+    const parent = testRunParentOf(threadId);
+    return parent === undefined ? null : deps.threadProfileId(parent);
+  }
+
+  /** 대화의 고정 초안. 하위 대화는 테스트 실행 부모의 것을 물려받는다. 없으면 빈 목록이다 */
+  function fixedOf(threadId: ThreadId | undefined): readonly FixedDraftMark[] {
+    if (threadId === undefined) return [];
+    const own = testRuns.get(threadId);
+    if (own !== undefined) return own;
+    const parent = testRunParentOf(threadId);
+    return parent === undefined ? [] : (testRuns.get(parent) ?? []);
+  }
 
   /** 저장한 프로필 id를 쓰는 대화 하나의 해소 결과(복사가 없으면 undefined) */
   function resolvedOf(threadId: ThreadId | undefined, profileId?: string): Resolved | undefined {
@@ -292,7 +349,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
         ? profileId
         : threadId === undefined
           ? null
-          : deps.threadProfileId(threadId);
+          : storedProfileOf(threadId);
     return resolveIn(current, stored, deps.defaultPlugins);
   }
 
@@ -310,6 +367,8 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       for (const name of resolved.common) put(name, "common");
       for (const name of resolved.profile) put(name, "profile");
     }
+    // 테스트 실행의 고정 초안은 같은 이름의 검토본 자리에 놓고, 없으면 뒤에 든다(§4.8.1 2)
+    placeFixed(sources, fixedOf(threadId));
     // 덧씌우기는 프로필 목록 뒤에 든다(M5c §4.1.3). 같은 이름은 처음 것을 남긴다
     for (const mark of marksOf(threadId)) put(mark.plugin, "overlay");
     // 초안은 같은 이름의 실제 플러그인을 뺀다(프로필, 공통 묶음, 다른 덧씌우기 어디서 왔든)
@@ -317,6 +376,21 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       if (mark.replaces !== undefined) sources.delete(mark.replaces);
     }
     return { sources, resolved };
+  }
+
+  /** 고정 초안을 E(T)에 놓는다. 같은 이름의 검토본이 있던 자리에 초안을 두고, 없는 이름은 뒤에 붙인다 */
+  function placeFixed(
+    sources: Map<string, EnabledSource>,
+    drafts: readonly FixedDraftMark[],
+  ): void {
+    if (drafts.length === 0) return;
+    const replacing = new Map(drafts.map((draft) => [draft.replaces, draft.plugin]));
+    const placed = new Map<string, EnabledSource>();
+    for (const [name, source] of sources) placed.set(replacing.get(name) ?? name, source);
+    // 초안의 출처는 자리를 물려준 검토본의 출처다. 새 이름은 기준 구성의 한 칸으로 본다 [제안]
+    for (const draft of drafts) if (!placed.has(draft.plugin)) placed.set(draft.plugin, "profile");
+    sources.clear();
+    for (const [name, source] of placed) sources.set(name, source);
   }
 
   /** 대화의 덧씌우기 표지. 없으면 빈 목록이다 */
@@ -413,10 +487,28 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       return;
     }
     refs.delete(name);
+    // 붙잡힌 이름은 붙잡음이 풀릴 때 내린다(`unpin`)
+    if (pins.has(name)) return;
+    scheduleUnload(name);
+  }
+
+  /** 참조가 없는 이름의 내리기를 큐에 넣는다. 기본 프로필의 플러그인은 내리지 않는다 */
+  function scheduleUnload(name: string): void {
     const lifecycle = deps.lifecycle;
     // 기본 프로필의 플러그인은 시작 때 실려 있다. 대화가 모두 닫혀도 내리지 않는다(다음 대화가 바로 쓰게 둔다) [제안]
     if (lifecycle === undefined || deps.defaultPlugins().includes(name)) return;
     queue(name, () => lifecycle.unload(name), "plugin_set.unload_failed");
+  }
+
+  /** 붙잡음을 하나 푼다. 마지막 붙잡음이 풀리고 참조가 없으면 그때 내린다 */
+  function unpin(name: string): void {
+    const count = (pins.get(name) ?? 0) - 1;
+    if (count > 0) {
+      pins.set(name, count);
+      return;
+    }
+    pins.delete(name);
+    if ((refs.get(name) ?? 0) === 0) scheduleUnload(name);
   }
 
   /** 대화의 E(T)에 든 외부 플러그인 참조를 맞춘다(0→1 적재, 1→0 내리기). 적용 요청은 하지 않는다 */
@@ -462,7 +554,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     const previous = copy;
     copy = next;
     for (const threadId of deps.openThreadIds()) {
-      const stored = deps.threadProfileId(threadId);
+      const stored = storedProfileOf(threadId);
       const before =
         previous === undefined
           ? new Map<string, unknown>()
@@ -555,6 +647,24 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       recompute(threadId);
       await deps.toggles.applyNow(threadId);
     },
+    hold: async (names) => {
+      for (const name of names) pins.set(name, (pins.get(name) ?? 0) + 1);
+      // 붙잡기 전에 큐에 든 같은 이름의 호출(내리기 포함)이 끝나기를 기다린다. 그 뒤의 싣기는 실린 것을 바로 본다
+      await Promise.all(names.map((name) => loading.get(name) ?? Promise.resolve()));
+      let held = true;
+      return () => {
+        if (!held) return;
+        held = false;
+        for (const name of names) unpin(name);
+      };
+    },
+    setTestRunDrafts: async (threadId, drafts) => {
+      // 참조를 세려면 프로필 복사가 있어야 한다. 아직 없으면 읽는다
+      if (copy === undefined) await refresh();
+      testRuns.set(threadId, drafts);
+      track(threadId);
+    },
+    testRunDraftsOf: (threadId) => testRuns.get(threadId),
     restoreOverlay: async (threadId, marks) => {
       // 복사를 아직 못 읽었으면 읽는다. 그래도 없으면 E(T)를 셀 수 없으므로 얹지 않는다(열 때 그 프레임은 restart로 반납된다)
       if (copy === undefined) await refresh();
@@ -603,6 +713,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     },
     forget(threadId) {
       overlays.delete(threadId);
+      testRuns.delete(threadId);
       trackUsage(threadId, new Set());
     },
     defaultView: () => viewOf(undefined),
@@ -617,7 +728,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     settingsOf: (threadId) => {
       const current = copy;
       if (current === undefined) return new Map<string, unknown>();
-      const stored = deps.threadProfileId(threadId);
+      const stored = storedProfileOf(threadId);
       return settingsIn(current, pickProfile(current, stored));
     },
     sourceOf(threadId, name) {

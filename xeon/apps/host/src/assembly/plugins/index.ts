@@ -15,6 +15,7 @@ export * from "./approval.ts";
 export * from "./invocables.ts";
 export * from "./overlay.ts";
 export * from "./draft-load.ts";
+export * from "./test-run-drafts.ts";
 export * from "./intake.ts";
 export * from "./migration-submit.ts";
 export * from "./user-skill-sink.ts";

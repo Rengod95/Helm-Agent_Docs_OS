@@ -35,7 +35,9 @@ import {
   type ScopeKind,
   type TurnStatus,
 } from "@fresnel/contracts/wire";
+import { draftVersionIdOf } from "@fresnel/ext-host";
 import type { MeasureStore } from "./store.ts";
+import { decodeTestRunDrafts } from "./test-run-marks.ts";
 import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import {
   advertisedRecordOf,
@@ -78,6 +80,7 @@ import {
   type TurnDraft,
   type TurnProfileMark,
   type TurnState,
+  type TurnTestRunMark,
 } from "./turn-rows.ts";
 
 // 턴 기록의 쓰는 쪽(정본 `docs/xeon/review/m5/turn-record-metrics.md` §4.1, §4.6). 커밋된 사건을 보고 턴 하나의 상태를 메모리에 모은다.
@@ -162,6 +165,28 @@ export interface TurnWriter {
   turnRecord(event: TurnBlockEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
   forget(threadId: string): void;
+}
+
+/**
+ * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`이고 기준 프로필이 있을 때만 싣는다.
+ * 고정 초안 기록이 깨졌으면 초안 없이 싣고 기록한다. 초안의 판 식별자는 내용 해시에서 정한다(§4.8.1 3)
+ */
+function testRunOf(store: MeasureStore, threadId: string, logger: Logger): TurnTestRunMark {
+  const found = store.getThread(threadId);
+  if (!found.ok) return null;
+  const row = found.value;
+  if (row === undefined || row.scopeKind !== "test" || row.testBaseProfile === null) return null;
+  const drafts = decodeTestRunDrafts(row.draftJson);
+  if (!drafts.ok) logger.warn("measure.test_run_drafts_unreadable", { threadId });
+  return {
+    runGroupId: row.runGroupId,
+    baseProfileId: row.testBaseProfile,
+    drafts: (drafts.ok ? drafts.value : []).map((draft) => ({
+      plugin: draft.plugin,
+      draftId: draft.draftId,
+      versionId: draftVersionIdOf(draft),
+    })),
+  };
 }
 
 /** 범위 표지를 대화의 `tr_thread`에서 읽는다. 표지가 없거나 읽지 못하면 `live`다(§4.6 규칙 31) */
@@ -464,6 +489,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   ): TrTurnRow {
     draft.scope = scopeOf(store, draft.threadId, deps.logger);
     if (draft.scope === "live" && draft.draftOverlay) draft.scope = "overlay_draft";
+    draft.testRun = draft.scope === "test" ? testRunOf(store, draft.threadId, deps.logger) : null;
     const row = turnRowOf(draft, state);
     const written = store.upsertTurn(row);
     if (!written.ok) {

@@ -5,16 +5,19 @@ import {
   type TestRunStartResult,
   type WireHandler,
 } from "@fresnel/contracts/wire";
+import { draftVersionIdOf } from "@fresnel/ext-host";
 import type { ConnectionHub } from "../../connection-types.ts";
 import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "../../assembly/m4/profile-defaults.ts";
+import { encodeTestRunDrafts } from "../../assembly/measure/test-run-marks.ts";
 import type { Engine } from "../../types.ts";
 import { claimWrite } from "../owner.ts";
 import { markTestRun, wireErrorOfProfile } from "../m4/profile-test-run.ts";
 import { wireErrorOfPluginFailure } from "./plugins.ts";
+import { wireErrorOfOverlay } from "../turn.ts";
 
-// M5c §4.8.1 `testRun.start`: 기준 프로필로 Test run 대화를 하나 만든다. 대화는 `thread.create { testRun }`과 같은 길로 만들고,
-// 표지의 묶음 id(`runGroupId`)를 더한다. 초안을 얹는 일은 격리 1단계(P1) 전에는 없으므로 초안이 하나라도 있으면
-// `overlay.draftUnavailable`로 거절한다(덧씌우기와 같은 게이트, §4.3.8). 모든 검사는 대화를 만들기 전에 끝낸다.
+// M5c §4.8.1 `testRun.start`: 기준 프로필과 초안으로 Test run 대화를 하나 만든다. 대화는 `thread.create { testRun }`과 같은 길로 만들고,
+// 표지의 묶음 id(`runGroupId`)를 더한다. 초안은 대화를 만들기 전에 검사하고 싣는다(덧씌우기와 같은 검사와 싣기, §4.3.8). 싣지 못하면
+// `overlay.draftUnavailable`로 거절하고 대화를 만들지 않는다. 싣은 초안은 만든 대화에 묶고, 대화를 만들지 못하면 붙잡음을 풀어 내린다.
 
 export function createTestRunHandlers(
   engine: Engine,
@@ -22,7 +25,7 @@ export function createTestRunHandlers(
 ): {
   readonly "testRun.start": WireHandler<"testRun.start">;
 } {
-  const { threads, plugins } = engine.ports;
+  const { threads, plugins, testRunDrafts } = engine.ports;
   const profiles = engine.ports.m4.profileTestRun;
   return {
     "testRun.start": async (params, context): Promise<TestRunStartResult> => {
@@ -55,25 +58,54 @@ export function createTestRunHandlers(
           throw wireError("draft.notFound", { details: { id: draft.draftId } });
         }
       }
-      if (params.drafts.length > 0) throw wireError("overlay.draftUnavailable");
+      // 초안은 대화를 만들기 전에 싣는다. 못 싣으면 아무것도 만들지 않는다(§4.8.1 1, 5)
+      const prepared = await testRunDrafts.prepare(params.drafts);
+      if (!prepared.ok) throw wireErrorOfOverlay(prepared.error);
+      const { marks, unhold } = prepared.value;
 
       const runGroupId = params.runGroupId ?? `trg-${randomUUID()}`;
-      // 작업 폴더를 주지 않으면 `thread.create`와 같이 기본 폴더 아래 대화별 폴더를 쓴다(§4.4.5)
-      const created = await threads.create({
-        ...(params.workspace === undefined
-          ? { defaultFolder: true }
-          : { workspace: params.workspace }),
-        testRun: true,
-        profileId: baseProfileId,
-      });
+      let created: Awaited<ReturnType<typeof threads.create>>;
+      try {
+        // 작업 폴더를 주지 않으면 `thread.create`와 같이 기본 폴더 아래 대화별 폴더를 쓴다(§4.4.5)
+        created = await threads.create({
+          ...(params.workspace === undefined
+            ? { defaultFolder: true }
+            : { workspace: params.workspace }),
+          testRun: true,
+          profileId: baseProfileId,
+        });
+      } catch (caught) {
+        // 대화를 만들지 못했다. 싣은 초안은 아무도 쓰지 않으므로 붙잡음을 풀어 내린다
+        unhold();
+        throw caught;
+      }
+      // 싣은 초안을 대화에 묶는다. 묶은 뒤 대화가 참조로 쥔다(§4.8.1 2)
+      await testRunDrafts.bind(created.threadId, [prepared.value]);
       await claimWrite(engine, hub(), context.connectionId, created.threadId);
       // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7). `thread.create`와 같은 순서다
       await threads.applyOpenWorkspace(created.threadId);
-      markTestRun(profiles, created.threadId, baseProfileId, runGroupId);
+      // 기록에는 검토본의 이름과 초안 id, 내용 해시를 남긴다(되살릴 때 같은 판인지 본다)
+      markTestRun(
+        profiles,
+        created.threadId,
+        baseProfileId,
+        runGroupId,
+        encodeTestRunDrafts(
+          marks.map((mark) => ({
+            plugin: mark.replaces,
+            draftId: mark.draftId,
+            contentHash: mark.contentHash,
+          })),
+        ),
+      );
       return {
         threadId: created.threadId,
         profileId: baseProfileId,
-        drafts: [],
+        drafts: marks.map((mark) => ({
+          plugin: mark.replaces,
+          draftId: mark.draftId,
+          versionId: draftVersionIdOf(mark),
+        })),
         runGroupId,
       };
     },

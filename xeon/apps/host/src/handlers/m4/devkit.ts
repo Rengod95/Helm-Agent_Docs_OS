@@ -54,6 +54,8 @@ export interface DevkitPort {
   ): Promise<Result<{ readonly drafts: readonly DraftSummary[] }, DevkitError>>;
   /** 테스트 대화의 맥락 참조와 발견의 근거 묶음(M5c §4.8.8). 빌더 서비스가 부른다. wire 메서드가 아니다 */
   craftContext(threadId: string): Promise<Result<CraftContextView, DevkitError>>;
+  /** 테스트 대화인가(M5c §4.8.6). 빌더 서비스의 `isCraftChat`이 부른다. wire 메서드가 아니다 */
+  isCraftChat(threadId: string): Promise<Result<boolean, DevkitError>>;
 }
 
 export type DevkitMethods =

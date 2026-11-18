@@ -53,6 +53,7 @@ test("turn.start의 덧씌우기가 다섯 개면 overlay.limit이고 입력을 
         ensureLoaded: () => Promise.resolve(),
         pluginSet: {
           attachOverlay: () => Promise.resolve(),
+          hold: () => Promise.resolve(() => undefined),
           cancelOverlay: () => Promise.resolve(),
         },
         startDrive: () => ok(undefined),
@@ -92,6 +93,7 @@ test("turn.start의 덧씌우기는 없는 이름과 검토본이 없는 후보�
         ensureLoaded: () => Promise.resolve(),
         pluginSet: {
           attachOverlay: () => Promise.resolve(),
+          hold: () => Promise.resolve(() => undefined),
           cancelOverlay: () => Promise.resolve(),
         },
         startDrive: () => ok(undefined),
@@ -128,6 +130,7 @@ test("turn.start가 검토된 도구 플러그인을 얹으면 턴을 시작하�
             attached.push({ threadId, marks });
             return Promise.resolve();
           },
+          hold: () => Promise.resolve(() => undefined),
           cancelOverlay: () => Promise.resolve(),
         },
         startDrive: () => ok(undefined),

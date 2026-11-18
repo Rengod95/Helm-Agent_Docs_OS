@@ -85,6 +85,7 @@ import type { M4Ports } from "./assembly/m4/index.ts";
 import type { PluginPort } from "./handlers/m5/plugins.ts";
 import type { PluginReviewPort } from "./handlers/m5/plugin-review.ts";
 import type { OverlayPort } from "./assembly/plugins/overlay.ts";
+import type { TestRunDraftsPort } from "./assembly/plugins/test-run-drafts.ts";
 import type { MigrationSubmitPort } from "./assembly/plugins/migration-submit.ts";
 import type { MigrationPort } from "./handlers/m5/migration.ts";
 
@@ -357,6 +358,8 @@ export interface EnginePorts {
   readonly scanOpenedRoots: () => Promise<void>;
   /** 턴 덧씌우기(`turn.start.overlay`, M5c §4.3). `turn.start` 처리기가 입력 처리 앞에 쓴다 */
   readonly overlay: OverlayPort;
+  /** Test run 초안 구성(`testRun.start`의 초안, M5c §4.8.1). 검사와 싣기는 덧씌우기와 같고, 대화에 묶는다 */
+  readonly testRunDrafts: TestRunDraftsPort;
   /** 마이그레이션 제출(migration.md §7.5 [제안]). wire 메서드가 아니다. M5g의 `migration.apply`가 부른다 */
   readonly pluginMigration: MigrationSubmitPort;
   /** 테스트 대화의 플러그인 원본 폴더와 초안 묶기(M5c §4.8). `craftChat.*` 처리기와 초안 만들기가 쓴다 */

@@ -125,6 +125,7 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
   const deps = partial<M4PortDeps>({
     extUi: partial<ExtUiVersionSource>({ extensionsDir }),
     threads: {
+      isCraftChat: () => ok(false),
       exists: () => ok(true),
       create: (input) => {
         created.push(input);

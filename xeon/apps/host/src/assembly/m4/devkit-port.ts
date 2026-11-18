@@ -502,6 +502,23 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       return ok(found);
     },
     // 맥락 참조는 대화의 `craft.context` 사건에서 읽는다(포트). 발견 참조는 근거 묶음을 싣는다
+    // 상주 판정(M5c §4.8.6). 대화를 읽는 것만 하므로 포트가 없어도 답한다
+    isCraftChat: (threadId): Promise<Result<boolean, DevkitError>> => {
+      if (!isId("thr", threadId)) {
+        return Promise.resolve(
+          err({ kind: "not_found", message: `${threadId} is not a conversation` }),
+        );
+      }
+      const found = deps.threads.isCraftChat(threadId);
+      return Promise.resolve(
+        found.ok
+          ? ok(found.value)
+          : err({
+              kind: "io",
+              message: `the conversation could not be read (${found.error.kind})`,
+            }),
+      );
+    },
     craftContext: async (threadId) => {
       const port = options.craftContext?.();
       if (port === undefined) return err(CRAFT_CONTEXT_MISSING);

@@ -2,12 +2,18 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ok } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { DraftInfo } from "@fresnel/contracts/wire";
+import type { LoadInstalledStarted } from "@fresnel/ext-host";
+import type { FixedDraftMark } from "../../src/assembly/m4/plugin-set.ts";
+import { createDraftLoader, type DraftLoaderPort } from "../../src/assembly/plugins/draft-load.ts";
+import type { DraftRef, OverlayTarget } from "../../src/assembly/plugins/overlay.ts";
+import { createTestRunDrafts } from "../../src/assembly/plugins/test-run-drafts.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import type { DeclaredInventory } from "../../src/assembly/m4/profile-cost.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { partial } from "../fixtures/unsafe.ts";
 
 // M5c §4.8.1 `testRun.start`(처리기 값 시험). 프로필 저장은 실제 프로필 포트가, 엔진과 초안 목록은 가짜가 한다.
 // 시험하는 것: 기준 프로필로 대화를 만들고 표지를 다는 것, 검사가 대화를 만들기 전에 거절하는 것, 초안이 있으면 P1 전 게이트다.
@@ -25,11 +31,24 @@ const NONE: DeclaredInventory = {
   skills: [],
 };
 
+/** 초안 싣기 대역이 기록하는 것: 싣기 요청, 묶인 구성. 시험이 싣기를 실패시키거나 프로젝트 동반 플러그인으로 바꾼다 */
+interface DraftFakes {
+  /** 싣기 요청(`플러그인:초안 id`) */
+  readonly loads: string[];
+  /** 대화에 묶인 고정 초안(대화 id마다) */
+  readonly bound: { readonly threadId: string; readonly marks: readonly FixedDraftMark[] }[];
+  /** 참이면 싣기가 격리 포트 없음으로 실패한다 */
+  failLoad: boolean;
+  /** 참이면 초안 플러그인이 프로젝트 동반 플러그인이다 */
+  project: boolean;
+}
+
 /** 플러그인 사실을 시험 중에 바꿀 수 있게 가변 목록을 든다. 처음에는 공장 기본의 `helm`과 `demo`다 */
 function rigOf(): {
   readonly host: FakeHost;
   readonly facts: PluginFact[];
   readonly drafts: DraftInfo[];
+  readonly fakes: DraftFakes;
 } {
   const dir = mkdtempSync(join(tmpdir(), "xh-test-run-start-"));
   roots.push(dir);
@@ -38,6 +57,26 @@ function rigOf(): {
     { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
   ];
   const drafts: DraftInfo[] = [];
+  const fakes: DraftFakes = { loads: [], bound: [], failLoad: false, project: false };
+  // 초안 포트는 실제 구현을 가짜 로더 위에 세운다. 검사, 싣기, 묶기의 값이 실제 경로를 탄다
+  const loader: DraftLoaderPort = {
+    loadDraft: (input) => {
+      fakes.loads.push(`${input.plugin}:${input.draftId}`);
+      return Promise.resolve(ok(partial<LoadInstalledStarted>({ appliesAt: "now" })));
+    },
+    unloadDraft: () => Promise.resolve(true),
+    draftOf: () => undefined,
+  };
+  const failing: DraftLoaderPort = {
+    loadDraft: () => Promise.resolve(err({ kind: "isolation_unavailable" })),
+    unloadDraft: () => Promise.resolve(false),
+    draftOf: () => undefined,
+  };
+  const loadDrafts = createDraftLoader({
+    loader: () => (fakes.failLoad ? failing : loader),
+    report: () => undefined,
+    timeoutMs: 1_000,
+  });
   const host = createFakeHost({
     profiles: {
       configDir: dir,
@@ -48,9 +87,42 @@ function rigOf(): {
         draftList: (name) =>
           Promise.resolve(ok({ drafts: drafts.filter((draft) => draft.name === name) })),
       },
+      testRunDrafts: createTestRunDrafts({
+        targetOf: (name) =>
+          Promise.resolve(
+            ok<OverlayTarget | undefined>(
+              fakes.project
+                ? { name, reviewedHash: null, entries: [], addsTools: false, origin: "project" }
+                : undefined,
+            ),
+          ),
+        draftOf: (draftId) => {
+          const found = drafts.find((draft) => draft.draftId === draftId);
+          return Promise.resolve(
+            ok<DraftRef | undefined>(
+              found === undefined
+                ? undefined
+                : {
+                    name: found.name,
+                    draftId: found.draftId,
+                    contentHash: found.contentHash,
+                    tree: `/drafts/${found.draftId}/tree`,
+                  },
+            ),
+          );
+        },
+        loadDrafts,
+        pluginSet: {
+          hold: () => Promise.resolve(() => undefined),
+          setTestRunDrafts: (threadId, marks) => {
+            fakes.bound.push({ threadId, marks });
+            return Promise.resolve();
+          },
+        },
+      }),
     },
   });
-  return { host, facts, drafts };
+  return { host, facts, drafts, fakes };
 }
 
 async function connect(host: FakeHost) {
@@ -199,9 +271,90 @@ test("a draft the plugin does not list is draft.notFound and creates no thread",
   await connection.close();
 });
 
-test("a draft that exists is refused with overlay.draftUnavailable until the isolation step exists, and creates no thread", async () => {
-  const { host, drafts } = rigOf();
+test("a draft is loaded before the thread exists, the thread is bound to it, and the result names its version", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf({ contentHash: "sha256:0123456789abcdef" }));
+  const connection = await connect(host);
+  const started = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1" }],
+    runGroupId: "grp-d",
+  });
+  // 결과의 초안 줄은 이름, 초안 id, 판 식별자(해시 앞 8자)다(§4.8.1 3)
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "default",
+    drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
+    runGroupId: "grp-d",
+  });
+  // 싣기는 대화를 만들기 전에 한 번 했고, 묶은 구성은 내부 이름과 검토본 이름을 함께 싣는다
+  expect(fakes.loads).toEqual(["demo:draft-1"]);
+  expect(fakes.bound).toEqual([
+    {
+      threadId: started.threadId,
+      marks: [
+        {
+          plugin: "ddraft1-demo",
+          draftId: "draft-1",
+          contentHash: "sha256:0123456789abcdef",
+          replaces: "demo",
+        },
+      ],
+    },
+  ]);
+  // 표지는 초안을 쓰는 테스트 실행임을 싣는다
+  expect(
+    (await connection.request("thread.list", {})).threads.map((thread) => thread.testRun),
+  ).toEqual([
+    {
+      profileId: "default",
+      target: null,
+      paused: false,
+      runGroupId: "grp-d",
+      kind: "draft",
+      draft: true,
+    },
+  ]);
+  await connection.close();
+});
+
+test("a draft that cannot be loaded is overlay.draftUnavailable: nothing is bound and no thread is created", async () => {
+  const { host, drafts, fakes } = rigOf();
   drafts.push(draftOf());
+  fakes.failLoad = true;
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", { drafts: [{ plugin: "demo", draftId: "draft-1" }] }),
+    ),
+  ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect(fakes.bound).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("two drafts of the same plugin cannot both replace its reviewed version: overlay.draftUnavailable, no thread", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf({ draftId: "draft-1" }), draftOf({ draftId: "draft-2" }));
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [
+          { plugin: "demo", draftId: "draft-1" },
+          { plugin: "demo", draftId: "draft-2" },
+        ],
+      }),
+    ),
+  ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect(fakes.bound).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("a draft of a project companion plugin is overlay.draftUnavailable, as for an overlay", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  fakes.project = true;
   const connection = await connect(host);
   expect(
     await failureOf(

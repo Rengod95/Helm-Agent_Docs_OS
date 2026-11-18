@@ -269,6 +269,8 @@ export interface OverlayPortDeps {
       }[],
     ): Promise<void>;
     cancelOverlay(threadId: ThreadId, keepDrive: boolean): Promise<void>;
+    /** 초안을 싣는 동안 내리기를 붙잡는다. 돌려준 함수로 푼다(M5c §4.3.8, `PluginSetHandle.hold`) */
+    hold(names: readonly string[]): Promise<() => void>;
   };
   /**
    * 사용자 명령으로 그 플러그인의 주도를 요청한다(drive-isolation.md 2.2). 호출자는 대상이 E(T)에 든 뒤에 부른다.
@@ -287,58 +289,75 @@ export function createOverlayPort(deps: OverlayPortDeps): OverlayPort {
         deps.draftOf,
       );
       if (!planned.ok) return err(planned.error);
-      // 초안은 먼저 싣는다. 하나라도 못 싣으면 아무것도 얹지 않고 거절한다(검토본도 적재하지 않는다)
-      const drafts = planned.value.flatMap((item) =>
-        item.draft === undefined
-          ? []
-          : [
-              {
-                name: item.plugin,
-                draftId: item.draft.draftId,
-                contentHash: item.contentHash,
-                tree: item.draft.tree,
-              },
-            ],
+      // 초안을 싣고 집합에 붙이는 동안 그 내리기를 붙잡는다. 다른 대화가 내리는 중인 초안을 "이미 실림"으로 건너뛰어 뒤의 내리기에 지워지는 일을 막는다
+      const unhold = await deps.pluginSet.hold(
+        planned.value.flatMap((item) =>
+          item.draft === undefined ? [] : [item.draft.internalName],
+        ),
       );
-      if (drafts.length > 0) {
-        const loaded = await deps.loadDrafts(drafts);
-        if (!loaded.ok) return err({ kind: "draft_unavailable", name: loaded.error.name });
+      try {
+        return await attachPlanned(deps, threadId, planned.value);
+      } finally {
+        unhold();
       }
-      // 이미 집합에 든 플러그인은 덧씌우지 않는다(§4.3.3). 초안은 검토본 자리를 대신하므로 집합에 들어 있어도 얹는다
-      const fresh = planned.value.filter((item) => !item.alreadyInProfile);
-      const reviewed = fresh.filter((item) => item.draft === undefined).map((item) => item.plugin);
-      if (reviewed.length > 0) await deps.ensureLoaded(reviewed);
-      if (fresh.length > 0) {
-        await deps.pluginSet.attachOverlay(
-          threadId,
-          fresh.map((item) => ({
-            plugin: item.draft?.internalName ?? item.plugin,
-            contentHash: item.contentHash,
-            until: item.invoked.some(startsDrive) ? "release" : "turn",
-            ...(item.draft === undefined
-              ? {}
-              : { draftId: item.draft.draftId, replaces: item.plugin }),
-          })),
-        );
-      }
-      // 시작 요청은 표지를 얹고 적용한 뒤에 한다: 주도는 E(T)에 든 대상에만 준다(drive-isolation.md 2.2)
-      let refused: string | undefined;
-      for (const item of planned.value) {
-        if (!item.invoked.some(startsDrive)) continue;
-        if (!deps.startDrive(threadId, item.plugin).ok) {
-          refused = item.plugin;
-          break;
-        }
-      }
-      if (refused !== undefined) {
-        await deps.pluginSet.cancelOverlay(threadId, false);
-        return err({ kind: "drive_unavailable", name: refused });
-      }
-      return ok({
-        cacheImpact: fresh.some((item) => item.addsTools) ? "tool_change_append" : "none",
-        invoked: fresh.flatMap((item) => item.invoked),
-      });
     },
     cancel: (threadId, keepDrive) => deps.pluginSet.cancelOverlay(threadId, keepDrive),
   };
+}
+
+/** 검사를 통과한 계획을 싣고 얹는다. 붙잡음은 호출자가 잡고 푼다(`createOverlayPort`의 `attach`) */
+async function attachPlanned(
+  deps: OverlayPortDeps,
+  threadId: ThreadId,
+  planned: readonly PlannedOverlay[],
+): Promise<Result<OverlayAttachResult, OverlayRefusal>> {
+  // 초안은 먼저 싣는다. 하나라도 못 싣으면 아무것도 얹지 않고 거절한다(검토본도 적재하지 않는다)
+  const drafts = planned.flatMap((item) =>
+    item.draft === undefined
+      ? []
+      : [
+          {
+            name: item.plugin,
+            draftId: item.draft.draftId,
+            contentHash: item.contentHash,
+            tree: item.draft.tree,
+          },
+        ],
+  );
+  if (drafts.length > 0) {
+    const loaded = await deps.loadDrafts(drafts);
+    if (!loaded.ok) return err({ kind: "draft_unavailable", name: loaded.error.name });
+  }
+  // 이미 집합에 든 플러그인은 덧씌우지 않는다(§4.3.3). 초안은 검토본 자리를 대신하므로 집합에 들어 있어도 얹는다
+  const fresh = planned.filter((item) => !item.alreadyInProfile);
+  const reviewed = fresh.filter((item) => item.draft === undefined).map((item) => item.plugin);
+  if (reviewed.length > 0) await deps.ensureLoaded(reviewed);
+  if (fresh.length > 0) {
+    await deps.pluginSet.attachOverlay(
+      threadId,
+      fresh.map((item) => ({
+        plugin: item.draft?.internalName ?? item.plugin,
+        contentHash: item.contentHash,
+        until: item.invoked.some(startsDrive) ? "release" : "turn",
+        ...(item.draft === undefined ? {} : { draftId: item.draft.draftId, replaces: item.plugin }),
+      })),
+    );
+  }
+  // 시작 요청은 표지를 얹고 적용한 뒤에 한다: 주도는 E(T)에 든 대상에만 준다(drive-isolation.md 2.2)
+  let refused: string | undefined;
+  for (const item of planned) {
+    if (!item.invoked.some(startsDrive)) continue;
+    if (!deps.startDrive(threadId, item.plugin).ok) {
+      refused = item.plugin;
+      break;
+    }
+  }
+  if (refused !== undefined) {
+    await deps.pluginSet.cancelOverlay(threadId, false);
+    return err({ kind: "drive_unavailable", name: refused });
+  }
+  return ok({
+    cacheImpact: fresh.some((item) => item.addsTools) ? "tool_change_append" : "none",
+    invoked: fresh.flatMap((item) => item.invoked),
+  });
 }

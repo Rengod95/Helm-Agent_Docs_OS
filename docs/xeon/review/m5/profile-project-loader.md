@@ -343,7 +343,7 @@ export interface TestRunStart {
 | 메서드 | params | result | 주요 오류 |
 |---|---|---|---|
 | `plugin.draft.list` | `{ name: string }` | `{ drafts: DraftInfo[] }`(최신 먼저, 보관 상한 §4.9.2) | `extension.notFound` |
-| `testRun.start` | `TestRunStart` | `{ threadId; runGroupId; profileId: string }` | `profile.notFound`, `draft.notFound`, `testRun.draftUnavailable`(P1 전), `profile.invalid`(합성 검증 실패, `details.issues`), `overlay.limit` |
+| `testRun.start` | `TestRunStart` | `{ threadId; runGroupId; profileId: string; drafts: { plugin; draftId; versionId }[] }` | `profile.notFound`, `draft.notFound`, `overlay.draftUnavailable`(격리 포트가 없거나 같은 플러그인의 다른 초안이 섞였거나 프로젝트 동반 플러그인이다, [구현 2026-11-18]: 초안 거절은 `testRun.draftUnavailable`이 아니라 덧씌우기와 같은 `overlay.draftUnavailable`다), `profile.invalid`(합성 검증 실패, `details.issues`), `overlay.limit` |
 | `profile.default.reset` | `{ preview?: boolean }` | `{ profile; changed: { plugins: boolean; settings: boolean }; threadsUsing: number }` (`preview: true`면 바꾸지 않고 변화만 돌려준다) | `profile.conflict` |
 | `craftChat.open` | `{ plugin?: string; contexts?: ContextRef[]; intent?: string; reuse?: "last" \| "new" }` | `{ threadId; plugin: string \| null; created: boolean }` | `extension.notFound`, `craftChat.contextInvalid` |
 | `craftChat.list` | `{ plugin?: string }` | `{ items: { threadId; plugin: string \| null; title: string \| null; lastActivityAt: string; status: string; draftCount: number; lastDraftId: string \| null; pendingItemId: string \| null }[] }` | - |
@@ -576,7 +576,7 @@ plugin-store/
 3. **목록과 프로젝트에서 제외.** `thread.list`는 기본으로 `craftChat`이 있는 대화를 뺀다. `include: "craft"`를 받으면 낸다. 프로젝트 소속 계산(§4.4.2), `project.list`의 대화 수, `sameFolder` 알림, 선택기 기본값의 "같은 폴더에서 마지막에 쓴 프로필"([결정: 2026-11-17 사용자, U5], §4.4.8)에서 모두 뺀다. 테스트 대화의 대화 폴더는 프로젝트 루트가 아니라 플러그인 원본 폴더다.
 4. **보관(ledger D-070).** 일반 대화와 같은 저장소와 같은 대화 로그에 둔다(별도 저장소를 두지 않는다). 표지만 다르다. 보존 기간과 삭제는 일반 대화와 같고 사용자가 다른 대화처럼 지울 수 있다. `craftChat.list`와 `thread.list { include: "craft" }`가 읽는 길이다. 이유: 로그 복원, 재시작, 턴 기록(E)이 같은 길을 쓰므로 새 저장소가 둘째 정본을 만든다.
 5. **숨은 시스템 프로필 `craft`.** 사용자가 고르지 않는다. `Profile.hidden: true`, `builtin: true`, 플러그인은 빌더 하나(내장 이름 `authoring`, 화면 이름 "Plugin Builder"), 시작 Drive는 빌더, 권한 모드 `default`(묻는 모드, `bypass`가 아니다)다. `profile.list`에 나오지 않고 `profile.put`·`delete`는 `profile.builtinProtected`다. 이 대화의 `thread.setProfile`은 `profile.builtinProtected`로 거절한다. 이 대화에는 프로필 칩이 없다. 이 프로필은 공통 묶음을 받지 않는다 [제안: 사용자 공통 플러그인이 빌더를 방해하지 않게].
-6. **시작 Drive의 상주.** 첫 턴 앞에서 시작 Drive 규칙(§4.2.6)으로 빌더 프레임이 쌓인다. 테스트 대화는 사용자 입력 사이에 빌더가 `yield`로 기다리고 `done`으로 프레임을 내리지 않는 "상주"다(엔진 설계 §1.4). 사용자 중지나 오류로 스택이 비면 다음 사용자 입력 앞에서 시작 Drive를 다시 쌓는다: `craftChat` 표지가 있는 대화에 한해 §4.2.6의 "첫 턴 앞에서만"을 "스택이 비어 있는 매 턴 앞"으로 넓힌다 [제안]. [구현 2026-11-18] 계기는 `trigger: "user"`다. 계기 `profile`은 사용자 중지 뒤 `userStopped`가 풀리는 다음 턴 정착까지 큐에서 기다리고(X `lease.ts` `decide`), 그동안 입력은 주도 프레임이 아니라 코어 루프가 받는다(`claimUserInput`). 사용자가 방금 보낸 입력이 곧 사용자의 명령이므로 `user`로 요청한다. 요청은 입력 접수 앞에 큐에 두고, 프레임이 이미 있거나 같은 scope·계기·입력의 요청이 큐에 있으면 하지 않는다(X가 중복을 하나로 본다). 일반 대화는 바뀌지 않는다. 구현은 `apps/host/src/assembly/m4/resident-drive.ts`(`ensureResidentDrive`)이고 `ports.ts`의 `submitInput`이 입력 접수 앞에 부른다. 시험은 `apps/host/test/assembly/resident-drive.test.ts`가 값으로 본다. 실제 엔진 시험은 없다(테스트 대화의 빌더를 엔진 시험에서 띄우는 틀이 없다).
+6. **시작 Drive의 상주.** [구현 2026-11-18, 상주 판정] 빌더가 상주인지는 모델이 넘기는 `resident`가 아니라 호스트가 정한다. 테스트 대화(`craftChat` 표지)이면 상주다(`devkit.isCraftChat`, `docs/xeon/L3/authoring/spec.md`의 상주 모드 구현 상태 [제안]). 첫 턴 앞에서 시작 Drive 규칙(§4.2.6)으로 빌더 프레임이 쌓인다. 테스트 대화는 사용자 입력 사이에 빌더가 `yield`로 기다리고 `done`으로 프레임을 내리지 않는 "상주"다(엔진 설계 §1.4). 사용자 중지나 오류로 스택이 비면 다음 사용자 입력 앞에서 시작 Drive를 다시 쌓는다: `craftChat` 표지가 있는 대화에 한해 §4.2.6의 "첫 턴 앞에서만"을 "스택이 비어 있는 매 턴 앞"으로 넓힌다 [제안]. [구현 2026-11-18] 계기는 `trigger: "user"`다. 계기 `profile`은 사용자 중지 뒤 `userStopped`가 풀리는 다음 턴 정착까지 큐에서 기다리고(X `lease.ts` `decide`), 그동안 입력은 주도 프레임이 아니라 코어 루프가 받는다(`claimUserInput`). 사용자가 방금 보낸 입력이 곧 사용자의 명령이므로 `user`로 요청한다. 요청은 입력 접수 앞에 큐에 두고, 프레임이 이미 있거나 같은 scope·계기·입력의 요청이 큐에 있으면 하지 않는다(X가 중복을 하나로 본다). 일반 대화는 바뀌지 않는다. 구현은 `apps/host/src/assembly/m4/resident-drive.ts`(`ensureResidentDrive`)이고 `ports.ts`의 `submitInput`이 입력 접수 앞에 부른다. 시험은 `apps/host/test/assembly/resident-drive.test.ts`가 값으로 본다. 실제 엔진 시험은 없다(테스트 대화의 빌더를 엔진 시험에서 띄우는 틀이 없다).
 7. **쓰기 범위.** 이 대화의 쓰기 허용 root는 그 플러그인의 원본 폴더(`<OsDirs.config>/plugins/<name>`) 하나다(§4.4.4의 프로젝트 루트 규칙을 대체한다). 읽기 root는 원본 폴더와 출력 사본 폴더다. 묶이지 않은 동안(`plugin: null`)은 쓰기 root가 없다. 새 플러그인의 이름이 정해지면 빌더가 폴더를 만들고 호스트가 그 폴더를 쓰기 root에 더한다. 빌더의 쓰기 범위 가드(`guard.ts`)는 둘째 방어이고 엔진 root가 첫째다.
 8. **맥락은 참조로만 전달한다.** 모델 컨텍스트에 줄을 더하지 않는다. "고치기", "올리기"는 `craftChat.open`에 `ContextRef`와 한 줄 의도를 준다. 호스트가 새 기록 `craft.context`로 참조를 남기고, 빌더의 지연 도구 `authoring_context`가 필요한 만큼 읽는다. 발견(`finding`)이면 E의 `findings.bundle`(근거 묶음, 16 KiB 이하, id·해시·숫자만)을 돌려주고 내용이 필요하면 빌더가 `turnRecord.get`과 대화 읽기로 푼다. 첫 사용자 입력은 사용자에게 보이는 한 줄이다(숨은 모델 전용 문장이 아니다). 도구가 지연 도구라 목록 비용이 0이다. 호스트 내부 포트 `CraftContextPort.read(threadId): ContextRef[]`가 도구에 값을 준다. `craft.context`는 관찰이 아니라 사용자가 연 사실이라 상태 사건이다.
 9. **기록 표지.** 이 대화의 턴은 E의 `ScopeKind` 새 값 `craft`로 적어 지표 기본 필터에서 뺀다(E §4.6 규칙 36). 빌더 플러그인과 `craft` 프로필의 지표가 오염되지 않게 한다. 사용자가 C9 필터에서 명시로 켜면 나온다.
@@ -589,14 +589,15 @@ plugin-store/
 `testRun.start`는 "기준 프로필 + 초안"의 임시 구성으로 대화 하나를 만든다. 규칙:
 
 1. 호스트가 새 대화를 만들고 `thread.started`에 `profileId = baseProfileId`와 표지 `testRun { kind: "draft", baseProfileId, drafts: [{ plugin, draftId }], runGroupId }`를 쓴다(선택 필드 추가. E §3.5의 `TestRunMarker`와 같은 필드). 이 대화는 프로필을 참조하지만 프로필 레코드는 바꾸지 않는다.
-2. 켜짐 집합은 `E(T) = 코어 ∪ (공통.plugins ∪ 기준.plugins) − 관리 잠금 − 오류 정지`에서 초안과 같은 이름의 검토본을 빼고 초안을 더한 것이다. 초안은 `E(T)`의 뒤쪽에 놓인다(같은 이름의 검토본이 있었으면 그 자리에 놓는다). 초안은 4개까지다(`overlay.limit`과 같은 한도).
-3. 구성은 대화의 수명 동안 고정이다. 덧씌우기가 아니라서 `profile.applied`의 `overlay`에 `until` 값을 새로 만들지 않는다. 새 초안 버전을 써 보려면 새 테스트 실행을 만들고 같은 `runGroupId`를 준다. `profile.applied { reason: "open", added }`에 초안 이름이 들어가고 초안 버전 id(`draft:<draftId>:<해시 앞 8자>`)는 E의 `TurnRecord.testRun`이 싣는다.
+2. 켜짐 집합은 `E(T) = 코어 ∪ (공통.plugins ∪ 기준.plugins) − 관리 잠금 − 오류 정지`에서 초안과 같은 이름의 검토본을 빼고 초안을 더한 것이다. 초안은 `E(T)`의 뒤쪽에 놓인다(같은 이름의 검토본이 있었으면 그 자리에 놓는다). 초안은 4개까지다(`overlay.limit`과 같은 한도). [구현 2026-11-18] 자리는 `plugin-set.ts`의 `placeFixed`가 정한다. 새 이름의 출처는 `profile`로 싣는다 [제안].
+3. 구성은 대화의 수명 동안 고정이다. 덧씌우기가 아니라서 `profile.applied`의 `overlay`에 `until` 값을 새로 만들지 않는다. 새 초안 버전을 써 보려면 새 테스트 실행을 만들고 같은 `runGroupId`를 준다. `profile.applied { reason: "open", added }`에 초안 이름이 들어가고 초안 버전 id(`draft:<draftId>:<해시 앞 8자>`)는 E의 `TurnRecord.testRun`이 싣는다. [구현 2026-11-18] `added`에는 초안의 내부 이름(`internalDraftName`)이 든다 [제안, 덧씌우기와 같다]. 기록은 `tr_thread.draft_json`(`{drafts:[{plugin,draftId,contentHash}]}`)에 적고 재시작 뒤 이 값으로 되살린다(`measure/test-run-marks.ts`의 `encodeTestRunDrafts`·`decodeTestRunDrafts`). 표지는 초안이 있으면 `kind: "draft"`, `draft: true`를 싣는다(`TestRunMarker`의 선택 필드). 기록 `TurnRecord.testRun`은 `draft: true`라는 별도 칸이 없다. 초안이 있는지는 `testRun.drafts`가 비었는지로 본다 [제안: 칸을 더하지 않는다].
 4. 검증: 합성한 구성을 `validateProfile`로 검사한다(`replace_conflict` 등). 오류가 있으면 `profile.invalid`로 만들지 않는다. 초안 플러그인의 설정 값은 기준 프로필 값 없이 플러그인 기본값이다(덧씌우기와 같은 규칙, §4.3.6). 필수 값이 없으면 `waiting`.
-5. 초안은 격리 프로세스에서 돌므로 P1 전에는 `testRun.draftUnavailable`로 거부한다(§4.3.8). 초안이 없는 테스트 실행(`drafts: []`)은 P1 전에도 만들 수 있다.
+5. 초안은 격리 프로세스에서만 돈다. 격리 포트가 없으면(`pluginHost.disabled`) 초안을 싣지 못하므로 `overlay.draftUnavailable`로 거부하고 대화를 만들지 않는다(§4.3.8). [구현 2026-11-18] 이 거절은 격리가 없을 때만 남는다. 같은 플러그인의 초안 둘, 프로젝트 동반 플러그인의 초안도 같은 거절이다. 초안이 없는 테스트 실행(`drafts: []`)은 격리 없이도 만든다.
+   [구현 2026-11-18, §4.8.1 구현 상태] 처리기는 `handlers/m5/test-run.ts`다. 검사(한도, 기준 프로필, 초안 목록)와 싣기(`TestRunDraftsPort.prepare`, 덧씌우기와 같은 `planOverlay`와 `createDraftLoader`)를 대화를 만들기 전에 한다. 싣기 중에는 `PluginSetHandle.hold`로 내리기를 붙잡아, 다른 대화가 내리는 중인 초안을 "이미 실림"으로 건너뛰지 않게 한다. 대화를 만들지 못하면 싣은 초안을 붙잡음을 풀어 내린다. 만든 뒤 `TestRunDraftsPort.bind`가 고정 구성을 대화에 묶는다(`PluginSetHandle.setTestRunDrafts`, 메모리 `testRuns`). 묶은 구성은 `forget`(대화를 닫음)에서 뺀다. 집합 계산은 `placeFixed`가 한다(항목 2). 하위 대화는 `parentOf`로 부모의 구성을 얻는다(항목 9). 되살리기는 `acquireFresh`의 `restoreTestRunDrafts`가 `tr_thread.draft_json`을 읽어 초안을 하나씩 싣고, 못 싣는 초안(폴더가 없다, 내용 해시가 다르다, 싣기 실패)은 뺀 채 연다. 그때 `testrun.draft_restore_failed {threadId, plugin, draftId, kind}`를 기록하고 `draft_json`을 실제 구성으로 고친다. 시험: `apps/host/test/handlers/test-run-start.test.ts`(값), `apps/host/test/assembly/plugin-set-test-run.test.ts`(자리, 고정, 하위 대화, 내리기), `apps/host/test/assembly/plugins/draft-attach-race.test.ts`(내리기 경쟁), `apps/host/test/assembly/measure/turn-record-write.test.ts`(`testRun` 기록), `apps/host/test/int/test-run-draft.int.test.ts`(실제 격리에서 승인 카드, `test` 기록과 초안 버전, 재시작 뒤 되살리기, 되살리지 못하면 연다, 격리 없음은 거절).
 6. 초안 출신 호출은 권한 모드와 무관하게 항상 승인 카드와 "초안" 표시를 띄운다([결정: 2026-11-17 사용자, U2], F §5.3 U-6).
 7. 기록: E의 `scope: test`, `runGroupId`, `draft: true`. 지표 기본에서 뺀다(E §4.6).
 8. 일반 대화에서 초안을 바로 써 보는 것(덧씌우기, §4.3.8)과 이 구성은 다르다: 앞은 실제 대화에 턴 단위로 얹고 `overlay_draft`로 기록되며, 이쪽은 새 대화 전체가 시험이고 `test`로 기록된다.
-9. 서브에이전트: 자식은 부모의 같은 구성(기준 프로필과 초안)을 물려받는다 [제안: §4.1.15의 덧씌우기는 안 물려주는 규칙과 달리, 테스트 대화는 전체가 한 구성이라서].
+9. 서브에이전트: 자식은 부모의 같은 구성(기준 프로필과 초안)을 물려받는다 [제안: §4.1.15의 덧씌우기는 안 물려주는 규칙과 달리, 테스트 대화는 전체가 한 구성이라서]. [구현 2026-11-18] 집합은 `parentOf`(`agentOfChild`)로 부모를 찾아 부모의 고정 초안과 기준 프로필을 쓴다(`plugin-set-test-run.test.ts`가 값으로 본다). 하위 대화의 `tr_thread` 범위는 자기 표지를 따르므로 부모가 테스트 실행이어도 하위 대화의 턴은 `live`로 적힌다. 이 간격은 [미결](아래 §10)이다.
 
 ### 4.9 초안과 제출 경로, 빌더가 해야 하는 것 [M6 요청 B-1·B-3·B-6 반영]
 
@@ -766,7 +767,7 @@ plugin-store/
 44. 숨은 `craft` 프로필: `profile.list`에 없고, 고치기·지우기·`thread.setProfile`이 `profile.builtinProtected`다. 시작 Drive가 빌더이고 사용자 중지 뒤 다음 입력에서 다시 쌓인다(R17).
 45. 맥락은 모델 컨텍스트에 줄을 더하지 않는다: `craft.context` 기록과 지연 도구 `authoring_context`로만 읽힌다. 시스템 프롬프트와 요청 본문에 새 문장이 없다(R17, R7).
 46. 테스트 대화의 턴은 `scope: craft`로 기록되어 지표 기본 필터에서 빠진다(R16, E 규칙 36).
-47. `testRun.start`가 기준 프로필 + 초안의 구성으로 대화를 만들고, 같은 `runGroupId`로 새 초안을 다시 돌릴 수 있다. P1 전에는 `testRun.draftUnavailable`이다. 초안 출신 호출은 `bypass`에서도 카드를 띄운다(R16, U2).
+47. `testRun.start`가 기준 프로필 + 초안의 구성으로 대화를 만들고, 같은 `runGroupId`로 새 초안을 다시 돌릴 수 있다. 격리 포트가 없으면 `overlay.draftUnavailable`이다(구현 2026-11-18: 초안이 실제로 실린다, `test-run-draft.int.test.ts`). 초안 출신 호출은 `bypass`에서도 카드를 띄운다(R16, U2).
 48. 빌더는 직접 설치하지 못하고 초안 → `pluginReview.submitDraft`로만 간다. 기존 플러그인을 `name`만으로 열어 고칠 수 있고, 종류 `plugin-group`이 없다(R26).
 49. `plugin.draft.list`, `DraftInfo`, `ReviewDecision.approve.purpose`, `ReviewItemRemoval`, `SettingDef`, `UiDecl`, `profile.default.reset`, `profile.preview.dropsDrive`, `project.list`의 대화 수가 §3.6대로 있다(R6, R3, R14). 소유: `plugin.draft.list`·`DraftInfo`는 M5f(`m5-plan.md` Z13), 나머지는 M5c-1(Z7).
 50. 다른 하네스 형식: `.mcp.json`과 `.agents/skills`를 엔진이 읽지 않고 후보로도 만들지 않는다(R4).
@@ -823,7 +824,7 @@ plugin-store/
 
 아래 12~15는 사용자가 아직 정하지 않았다. 기본값으로 진행하고 사용자가 정하면 고친다. (U2, U3, U4, U5, U6과 다른 하네스 형식은 2026-11-17에 사용자가 정해 닫혔고 본문 §4.1.17, §4.2.1, §4.3.8, §4.4.8~4.4.10에 있다.)
 
-12. **[권고: 메인 세션, 확인 대기] 격리 1단계 전에는 초안을 돌리지 않는다.** [구현 2026-11-18: 기본값을 따른다. 격리 포트가 있으면 초안을 싣고, 없으면 `overlay.draftUnavailable`이다. 대안은 쓰지 않는다.] 기본값: P1 전에 초안 덧씌우기는 `overlay.draftUnavailable`로 거부한다(§4.3.8). 대안: P1 전에도 엔진 안에서 허용.
+12. **[권고: 메인 세션, 확인 대기] 격리 1단계 전에는 초안을 돌리지 않는다.** [구현 2026-11-18: 기본값을 따른다. 격리 포트가 있으면 초안을 싣고, 없으면 `overlay.draftUnavailable`이다. 대안은 쓰지 않는다. 테스트 실행의 초안(§4.8.1)도 같은 기본값이다.] 기본값: P1 전에 초안 덧씌우기는 `overlay.draftUnavailable`로 거부한다(§4.3.8). 대안: P1 전에도 엔진 안에서 허용.
 13. **[제안] U3의 세부.** 합치기를 `tool.call.before`·`agent.spawn.before`에만 쓰는 것, 등급 이름(`guard`, `plugin`, `core`)과 순서. 사용자가 정한 것은 `block` > `replace` > `ask`와 등급 셋, guard 맨 앞이다(§4.2.1).
 14. **[제안] 배치 이름.** `.fresnel/hooks`와 그 밖의 비인식 형식 범위, `.fresnel/mcp.json` 등 느슨한 자원의 이름(§4.4.10).
 15. **[확인 대기] 테스트 대화의 시작 Drive 재쌓기**(§4.8.6)와 숨은 프로필이 공통 묶음을 받지 않는 것. 기본값은 본문대로. [구현 2026-11-18: 재쌓기는 기본값(본문대로, 계기 `user`)으로 구현했다. 사용자 확인은 아직 받지 않았다.]
@@ -840,6 +841,7 @@ plugin-store/
 26. **[제안] 되돌리기의 와이어 값.** `ExtRollbackResult.appliesAt`에는 `now`가 없어 바로 적용된 되돌리기도 `nextStepBoundary`로 알린다. `clearState`는 로더의 `resetRefusedState`(거부된 상태 비우기)만 뜻한다. 상태 스키마 검사는 없다.
 27. **[제안] 판 글자와 출처 칸.** 판 글자 `<매니페스트 버전>+<해시 앞 8자>`는 같은 버전이 여럿이어도 구분된다. 와이어 `source`는 `bundled`면 `bundled`, 그 밖은 `user`다(프로젝트 출처도 `user`로 보인다).
 28. **[미결] 열린 대화의 `plugin_updated`는 E(T)의 해시 차이로 낸다.** [근거: `packages/ext-host/src/primitives/boundary.ts`(`updatedOf`), 2026-11-18 3b] `PluginSetView`에 `pluginHashes`(E(T) 플러그인 가운데 로더가 실은 판의 내용 해시)를 더했다(`packages/contracts/src/extensions/ports.ts`, 선택 필드). 경계가 지난번에 맞춘 값과 비교해 다른 것만 `updated`로 낸다. 실행 중인 대화는 다음 단계 경계에서 기록된다. F 쪽 `PluginSetView`의 정본 문서에는 이 필드를 아직 적지 않았다.
+29. **[미결] 테스트 실행 부모의 하위 대화 범위.** 하위 대화(`agent` 도구로 만든 자식)는 부모의 고정 구성(기준 프로필과 초안)을 물려받는다(§4.8.1 9, `plugin-set.ts`의 `parentOf`). 그러나 하위 대화의 `tr_thread` 범위는 자기 표지를 따르므로 `live`로 기록되어, 테스트 실행의 자식 턴이 지표 기본 필터에 섞인다. 기본값은 하위 대화의 턴도 부모의 `test` 범위와 구성으로 적는 것이다. 이 값은 하위 대화의 표지를 쓰는 길(`testMarks.remember`)이 필요하고 `thread.list`의 `testRun` 표지를 바꾸므로 이번에는 하지 않았다. [구현 2026-11-18: 하위 대화 범위 표기는 아직 없다.]
 
 ## 11. 요구 추적표
 

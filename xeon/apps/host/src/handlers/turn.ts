@@ -47,7 +47,8 @@ function loopRejection(error: LoopError, where: string): WireError {
  * 턴 덧씌우기의 거절을 와이어 오류로 옮긴다(M5c §3.4). 플러그인 쪽 실패는 플러그인 처리기의 표를 그대로 쓴다.
  * 이름이 없는 거절(`limit`, `draft_unavailable`)은 `details`가 없다
  */
-function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
+/** 덧씌우기 거절을 와이어 오류로 옮긴다. `testRun.start`의 초안 구성도 같은 거절을 쓴다(§4.8.1 1) */
+export function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
   switch (refusal.kind) {
     case "limit":
       return wireError("overlay.limit");
