@@ -1,3 +1,4 @@
+import { isIsolatedStep } from "../isolation/mark.ts";
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
@@ -375,7 +376,11 @@ export function createRegistrationApi(
         });
       }
       generation.usage.drive = true;
-      const registration = { fn: eraseDrive(step), options: eraseDriveOptions(options) };
+      const registration = {
+        fn: eraseDrive(step),
+        options: eraseDriveOptions(options),
+        isolated: isIsolatedStep(step),
+      };
       generation.drive = registration;
       fiberOf(generation).effect(
         () => () => {

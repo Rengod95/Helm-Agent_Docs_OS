@@ -116,7 +116,12 @@ export interface Generation {
   opened: OpenedFiber | null;
   fiber: FiberHandle | null;
   readonly usage: UsageRecorder;
-  drive: { readonly fn: DriveCall; readonly options: ErasedDriveOptions } | null;
+  drive: {
+    readonly fn: DriveCall;
+    readonly options: ErasedDriveOptions;
+    /** 단계 함수가 격리 프로세스에 있다(`isolation/mark.ts`) */
+    readonly isolated: boolean;
+  } | null;
   readonly disposers: (() => void | Promise<void>)[];
   api: RegistrationApi<AnyState> | null;
   /** 상태 마이그레이션 훅(`hostOf(g).migrateState`). setup 안에서 한 번만 등록한다 */

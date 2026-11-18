@@ -22,6 +22,7 @@ import {
   type DriveFrameView,
   type DriveLimits,
   InputQueuePortKey,
+  PLUGIN_HOST_MAX_FRAME_BYTES,
   PostItemSchema,
   type DriveLockBudget,
   type OpenLease,
@@ -199,9 +200,16 @@ function isActive(lease: LeaseRuntime): boolean {
  * 프레임을 여는 입력(맡기기의 `input`, 사용자 명령의 `input`, 가로챈 사용자 메시지)과 `done` 결과가 기록에 실릴 수 있는 직렬화 크기 상한(바이트).
  * 큰 내용은 블롭으로 분리되므로(L1 `encoding: "json"`) 상한은 블롭 상한(`l0.store.maxBlobBytes`, 기본 512 MiB)과 같은 값이다.
  * 넘으면 잘라 저장하지 않고 거절한다. 조립 루트는 `ExtHostDeps.driveInputMaxBytes`로 다른 값을 넘길 수 있다.
- * 격리 플러그인에는 프레임 상한(16 MiB)을 넘는 입력이 닿지 않는다(X.loading-trust §4.9.3)
+ * 격리 플러그인에는 프레임 상한(16 MiB)을 넘는 입력이 닿지 않는다. 받는 쪽이 격리 플러그인이면 `ISOLATED_DRIVE_INPUT_MAX_BYTES`로 기록하기 전에 거절한다(X.loading-trust §4.9.3)
  */
 export const DRIVE_INPUT_MAX_BYTES = 536_870_912;
+
+/**
+ * 격리 플러그인(프로세스)이 받는 입력과 결과의 직렬화 크기 상한. 한 줄 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`)에서 요청 뼈대
+ * (`drive.step`의 다른 칸) 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫]. 넘는 값을 받아 기록하면 단계 요청이 `frame_too_large`로 실패해
+ * 등록이 `driveError`가 되므로, 기록하기 전에 `input_too_large`로 거절한다
+ */
+const ISOLATED_DRIVE_INPUT_MAX_BYTES: number = PLUGIN_HOST_MAX_FRAME_BYTES - 64 * 1024;
 
 /**
  * JSON 값의 UTF-8 직렬화 크기가 `limit` 안인가. 직렬화는 한 번만 한다. UTF-16 단위 하나는 UTF-8로 1바이트 이상 3바이트 이하라
@@ -213,6 +221,12 @@ function withinInputLimit(value: JsonValue | null, limit: number): boolean {
   if (json.length > limit) return false;
   if (json.length * 3 <= limit) return true;
   return new TextEncoder().encode(json).length <= limit;
+}
+
+/** 이 프레임을 맡긴 프레임의 scope id. 맡긴 것이 아니면 null */
+function parentScopeOf(thread: ThreadRuntime, lease: LeaseRuntime): RegistrationId | null {
+  if (lease.parent === null) return null;
+  return thread.frames.find((frame) => frame.leaseId === lease.parent)?.scopeId ?? null;
 }
 
 /** 명령이 거부 결과가 되는 `StepOutcome`. 예외가 아니다 */
@@ -867,6 +881,14 @@ export function createLeaseBroker(
     return port;
   }
 
+  /** 입력을 받을 등록이 격리 플러그인이면 한 줄 상한 안으로 줄인 상한. 아니면 설정의 상한이다 */
+  function inputLimitFor(receiver: RegistrationRecord | undefined | null): number {
+    const configured = core.deps.driveInputMaxBytes();
+    const isolated =
+      receiver?.generation?.drive?.isolated === true || receiver?.manifest.isolation === "process";
+    return isolated ? Math.min(configured, ISOLATED_DRIVE_INPUT_MAX_BYTES) : configured;
+  }
+
   /**
    * 맡을 플러그인(확장 이름)의 scope. 한 확장이 플러그인 여럿을 등록하면 scope가 여럿이므로, 이름과 id가 같은 루트를 고르고
    * 그것도 없으면 하나뿐일 때만 고른다. 고를 수 없으면 `null`이다
@@ -896,7 +918,7 @@ export function createLeaseBroker(
     const { thread, lease, record } = ctx;
     if (lease.status !== "active") return INACTIVE;
     // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다. 이유는 결과 코드로 돌려준다
-    if (!withinInputLimit(command.input, core.deps.driveInputMaxBytes())) {
+    if (!withinInputLimit(command.input, inputLimitFor(handoffTargetOf(command.to)))) {
       return refusal("input_too_large");
     }
     if (command.to === record.extension) return refusal("self_handoff");
@@ -1056,8 +1078,13 @@ export function createLeaseBroker(
       case "yield":
         return { kind: "yield" };
       case "done":
-        if (!withinInputLimit(command.result ?? null, core.deps.driveInputMaxBytes())) {
-          return refusal("result_too_large");
+        // 결과는 맡긴 쪽(위 프레임)의 다음 단계 `last`로 간다. 맡긴 쪽이 격리 플러그인이면 한 줄 상한 안이어야 한다
+        {
+          const callerScope = parentScopeOf(ctx.thread, ctx.lease);
+          const caller = callerScope === null ? undefined : core.scopes.get(callerScope);
+          if (!withinInputLimit(command.result ?? null, inputLimitFor(caller))) {
+            return refusal("result_too_large");
+          }
         }
         return { kind: "done", result: command.result ?? null };
       case "handoff":
@@ -1982,7 +2009,10 @@ export function createLeaseBroker(
       // 메시지를 받았다고 답하기 전에 기록한다. 코어 루프는 가로챈 메시지를 입력 큐에 넣지 않으므로 이 기록이 재시작 뒤 되살리는 유일한 근거다.
       // 기록하지 못하거나 너무 크면 가로채지 않고 코어 루프가 평소대로(입력 큐로) 받게 한다
       const input = toJsonValue(item);
-      if (input === undefined || !withinInputLimit(input, core.deps.driveInputMaxBytes())) {
+      if (
+        input === undefined ||
+        !withinInputLimit(input, inputLimitFor(core.scopes.get(claimable.scopeId)))
+      ) {
         return false;
       }
       const held = await recordUserInput(thread, claimable.scopeId, requestId, "held", input);
@@ -2042,7 +2072,7 @@ export function createLeaseBroker(
         return err({ kind: "not_drive" });
       }
       // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다
-      if (!withinInputLimit(input, core.deps.driveInputMaxBytes())) {
+      if (!withinInputLimit(input, inputLimitFor(record))) {
         return err({ kind: "input_too_large" });
       }
       const request: StartRequest = {

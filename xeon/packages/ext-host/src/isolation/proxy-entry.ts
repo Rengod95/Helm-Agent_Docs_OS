@@ -2,6 +2,7 @@
 // 훅, 도구, 명령, 메서드 호출은 감독(supervisor)으로 보내고, 자식이 `engine.call`로 부르는 상태 쓰기와 기록은 등록 라우터가
 // 실제 `g`로 옮긴다. 감독 하나는 세션이다. 엔트리가 처음 연고, 등록이 모두 꺼지면 닫고, 다시 켜지면 새로 연다.
 // 이 파일은 던진다. 호출자(디스패처)는 던진 `PluginProcessError`로 실패 이유를 알고, 그 밖의 값은 `threw`로 센다.
+import { markIsolatedStep } from "./mark.ts";
 import { Type, type Static, type TSchema } from "typebox";
 import {
   assertNever,
@@ -821,7 +822,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
             return limits.current;
           },
         };
-        g.drive(drivingOf(g, p, limits), options);
+        g.drive(markIsolatedStep(drivingOf(g, p, limits)), options);
       }
       for (const hook of p.hooks) {
         g.on(

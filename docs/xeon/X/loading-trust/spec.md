@@ -1324,7 +1324,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다).
 
-**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 그래서 16 MiB를 넘는 맡긴 입력이나 사용자 메시지는 엔진이 받아 기록할 수 있고, 그 값이 자식으로 가는 프레임에 실리는 순간 `frame_too_large`가 된다. 그 단계는 프로세스를 죽이지 않고 보내지도 않으며, 주도 프레임은 오류로 내려가고 등록은 `driveError`(이후 시작은 `drive_error`)가 된다(`test/isolation/isolated-drive.test.ts`). 실리는 길은 다음과 같다.
+**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 한 줄 상한에서 뼈대 몫 64 KiB를 뺀 값(`ISOLATED_DRIVE_INPUT_MAX_BYTES`, 16 MiB - 64 KiB) 안인지 **기록하기 전에** 본다 [제안: 뼈대 몫 64 KiB]. 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 
 | 길 | 싣는 값 | 16 MiB를 넘으면 |
 |---|---|---|
@@ -1335,7 +1335,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
 
-[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않는다. [제안] 엔진이 격리 등록에 대해 16 MiB를 넘는 입력을 받는 시점에 미리 `input_too_large`로 거절하는 쪽이 `driveError`로 떨어뜨리는 것보다 낫다. 이 규칙은 적용하지 않았다.
+[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않고, 위 규칙대로 받는 시점에 거절한다(`test/isolation/isolated-drive.test.ts`).
 
 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
 

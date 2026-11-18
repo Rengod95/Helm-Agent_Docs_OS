@@ -100,11 +100,6 @@ function stepsSent(port: FakeProcessPort): number {
   return text.split('"method":"drive.step"').length - 1;
 }
 
-/** 진단의 원인이 오류면 그 글을, 아니면 빈 글을 준다 */
-function causeMessageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "";
-}
-
 /** 격리 주도 픽스처를 올린 호스트. 스레드는 열려 있고 주도는 아직 시작하지 않았다 */
 async function isolatedHost(): Promise<{
   readonly t: TestHost;
@@ -312,40 +307,48 @@ test("a host restart while the isolated step waits after a recorded turn restore
   expect(acquiredOf(second, first.thread)).toHaveLength(1);
 });
 
-// 프레임 상한(16 MiB) 시험. 엔진의 입력 상한(512 MiB) 안의 입력은 받아 기록되지만, 그 입력이 `drive.step` 프레임에 실리면
-// 한 줄이 16 MiB를 넘어 자식에게 보내지 않고 `frame_too_large`로 떨어진다(X.loading-trust §4.9.3). 자식은 살아 있고 멈추지 않는다.
+// 프레임 상한(16 MiB) 시험. 받는 쪽이 격리 플러그인이면 한 줄 상한(16 MiB에서 뼈대 몫 64 KiB를 뺀 값)을 넘는 입력은 기록하기 전에
+// 거절한다(X.loading-trust §4.9.3). 받아 기록한 뒤 단계가 `frame_too_large`로 실패해 등록이 `driveError`가 되는 길은 닫혔다.
+// 엔진 안의 등록은 같은 입력을 512 MiB까지 받는다(isolated가 아닌 시험: `lease.test.ts`).
 
-test("a start input over the frame limit is recorded but never sent: the drive step fails with the frame error and the child stays alive", async () => {
+/** 상한 바로 안쪽(받아진다)과 바로 바깥(거절된다) 글 길이. JSON 글자 따옴표 두 개가 더해진다 */
+const ISOLATED_LIMIT = PLUGIN_HOST_MAX_FRAME_BYTES - 64 * 1024;
+
+test("a start input over the isolated limit is refused before anything is recorded, and the drive stays usable", async () => {
   const { t, port, thread } = await isolatedHost();
-  // `frame.input`으로 실려 가는 입력이다
-  const huge = "x".repeat(PLUGIN_HOST_MAX_FRAME_BYTES);
-  expect(t.host.startDrive(thread, "dr", { input: huge }).ok).toBe(true);
+  const over = "x".repeat(ISOLATED_LIMIT);
+  const refused = t.host.startDrive(thread, "dr", { input: over });
+  expect(refused).toEqual({ ok: false, error: { kind: "input_too_large" } });
   await t.settled();
 
   expect(stepsSent(port)).toBe(0);
-  expect(port.children).toHaveLength(1);
-  expect(port.children[0]?.isAlive()).toBe(true);
-  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["error"]);
-  const failed = t.diagnostics.filter((diagnostic) => diagnostic.code === "handler_failed");
-  expect(failed.map((diagnostic) => causeMessageOf(diagnostic.cause))).toEqual([
-    `the frame is larger than ${PLUGIN_HOST_MAX_FRAME_BYTES} bytes; nothing was sent`,
-  ]);
-  expect(t.host.registrations()[0]?.drive).toBe("error");
+  expect(eventsOf(t, thread, "lease.requested")).toEqual([]);
+  expect(acquiredOf(t, thread)).toEqual([]);
+  expect(t.diagnostics.filter((diagnostic) => diagnostic.code === "handler_failed")).toEqual([]);
+  expect(t.host.registrations()[0]?.drive).not.toBe("error");
+
+  // 상한 안의 입력(따옴표 두 개를 더해도 안)은 받아진다
+  const within = "x".repeat(ISOLATED_LIMIT - 1024);
+  expect(t.host.startDrive(thread, "dr", { input: within }).ok).toBe(true);
 });
 
-test("a user message over the frame limit is claimed and recorded, but the step that would carry it fails with the frame error", async () => {
+test("a user message over the isolated limit is not claimed or recorded: the core loop takes it and the frame is untouched", async () => {
   const { t, port, thread } = await isolatedHost();
   expect(await startOf(t, thread, "steps")).toBe("started");
   await t.settled();
   const sentBefore = stepsSent(port);
 
-  // 사용자 메시지는 `last`(`kind: "user"`)로 실려 가는 값이다. 받는 쪽 상한은 엔진이 정하므로 기록까지 간다
-  const huge: PostItem = { kind: "user", content: "x".repeat(PLUGIN_HOST_MAX_FRAME_BYTES) };
-  expect(await t.host.claimUserInput(thread, huge, "msg-big")).toBe(true);
+  const huge: PostItem = { kind: "user", content: "x".repeat(ISOLATED_LIMIT) };
+  expect(await t.host.claimUserInput(thread, huge, "msg-big")).toBe(false);
   await t.settled();
 
+  expect(eventsOf(t, thread, "lease.user_input")).toEqual([]);
   expect(stepsSent(port)).toBe(sentBefore);
   expect(port.children[0]?.isAlive()).toBe(true);
-  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["error"]);
-  expect(t.host.registrations()[0]?.drive).toBe("error");
+  expect(releasedOf(t, thread)).toEqual([]);
+  expect(t.host.registrations()[0]?.drive).not.toBe("error");
+
+  // 상한 안의 메시지는 가로챈다
+  const small: PostItem = { kind: "user", content: "hello" };
+  expect(await t.host.claimUserInput(thread, small, "msg-small")).toBe(true);
 });
