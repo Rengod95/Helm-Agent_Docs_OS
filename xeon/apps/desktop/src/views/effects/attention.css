@@ -34,8 +34,9 @@
   flex: none;
 }
 
-/* 대화 목록 줄 끝의 진행 구슬(thread-list.tsx): 꼬리 글과 구슬 칸을 줄 가운데에 세운다(글 줄높이 위에 서면 구슬이 2px 위로 뜬다) */
-[data-slot="list-navigation-meta"]:has(> [data-slot="row-progress"]) {
+/* 대화 목록 줄 끝 칸(thread-list.tsx): 크리스탈·꼬리 글·진행 구슬을 줄 가운데에 세운다(글 줄높이 위에 서면 구슬이 2px 위로 뜬다).
+   내비 줄 끝의 크리스탈(desktop-registry.tsx)도 같다 */
+[data-slot="list-navigation-meta"]:has(> [data-slot="row-meta"], > [data-slot="crystal-mark"]) {
   display: inline-flex;
   align-items: center;
   align-self: stretch;
@@ -144,4 +145,16 @@
   -webkit-mask: none;
   mask: none;
   animation: none;
+}
+
+/* ---------- 크리스탈 표시(crystal-mark.tsx, DP-223) ---------- */
+
+/* 칸 크기 그대로 서고 줄의 글자 가운데에 맞는다. 크기는 부품이 style로 준다(12·14·16·20) */
+.fx-crystal {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+}
+.fx-crystal > canvas {
+  display: block;
 }
