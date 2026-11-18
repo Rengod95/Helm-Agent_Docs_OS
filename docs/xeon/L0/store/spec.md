@@ -594,7 +594,7 @@ macOS `fullfsync` [제안]:
 - `-wal`, `-shm`이 있으면 같은 접미사(`-wal`, `-shm`)를 붙여 먼저 옮기고, 그다음 본 파일을 옮긴다. WAL에 남은 데이터가 새 DB에 섞이지 않게 하려는 순서다.
 - 옮긴 뒤 열기 경고 `empty_replaced { path(옮기기 전 자리), movedTo }`를 더한다. 값은 경로뿐이다. 이 경고가 호스트의 `host.status.startupNotices`(F wire §3.3.1)와 `store.empty_replaced` 로그가 된다.
 - 옮기지 못하면(권한, 디스크 등) 열기 오류 `io`(`code`는 OS 코드)다. 새 DB를 만들지 않는다. 옮길 자리에 이미 파일이 있으면 덮어쓰지 않고 `io`(`EEXIST`)다. 다른 프로세스가 먼저 옮긴 것(원본이 없음)은 오류가 아니다.
-- 옮긴 자리와 원본 사이의 검사(크기 확인)와 이름 바꾸기 사이에는 짧은 틈이 남는다. 같은 DB를 여러 프로세스가 동시에 처음 여는 드문 경우에만 닿으며, 그 틈 안에서 다른 프로세스가 만든 새 DB를 옮길 수 있다 [미결 S-15] [근거: `packages/platform-store/src/open.ts`의 `moveAsideEmptyDb`].
+- 옮긴 자리와 원본 사이의 틈은 열기 잠금이 막는다 [해소 S-15] [결정: 트랙 enDb1, 원인 실측 2026-11-18]. 쓰기 열기는 `locks/` 폴더의 키 `store-open`을 §4.7.2의 OS 잠금으로 쥔 채 2번(빈 파일 옮기기, 새 파일 만들기)부터 6번(`sys_meta` 기록)까지 한다. 열기 잠금이 없으면 한 프로세스가 막 만든 0바이트 파일을 다른 프로세스가 빈 파일로 보고 옮겨, 만든 쪽 연결이 `SQLITE_IOERR_VNODE`/`SQLITE_IOERR_FSTAT`(WAL 전환 중)로 열기에 실패했다(macOS, 새 경로 동시 첫 열기 4개 프로세스에서 20번 중 9번). 같은 연결에서 다시 시도해도 풀리지 않으므로 다시 시도로 덮지 않는다. 잠금은 `busyTimeoutMs` 안에 얻지 못하면 `busy`로 실패하고, 프로세스가 죽으면 OS가 풀며 잠금 파일은 남아도 다음 열기를 막지 않는다. 잠금 제공자가 `none`이면(Windows, FFI 로드 실패) 잠금 없이 계속한다. 읽기 전용 열기는 잠그지 않는다. [근거: `packages/platform-store/src/open.ts`의 `acquireOpenGuard`]
 - 파일이 없던 경우와 크기가 0이 아닌 경우는 이 절이 바꾸지 않는다. `readOnly` 열기는 옮기지 않고, 0바이트 파일을 `foreign_database`(`applicationId: 0`)로 거절하던 대로 둔다.
 
 종료(`close`):

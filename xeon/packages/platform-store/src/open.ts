@@ -14,6 +14,7 @@ import { NO_STORE_FAULTS } from "./fault-points.ts";
 import { ensurePrivateDir, ensurePrivateFile } from "./fs-private.ts";
 import { createLeaseService } from "./lease.ts";
 import { createNoneLockProvider } from "./lock/none.ts";
+import type { LockProvider } from "./lock/provider.ts";
 import { createMigrationRunner } from "./migrations.ts";
 import { syncCoreOwners } from "./owner-table.ts";
 import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readIdentity } from "./pragmas.ts";
@@ -174,6 +175,35 @@ function readSysSnapshot(db: SqliteConnection): Result<SysSnapshot, StoreOpenErr
   return ok({ storeId: found.storeId, dbVersion: found.dbVersion });
 }
 
+/** 열기 잠금의 키. 임대 키(`thread:`·`session:` 같은 자원 이름)와 겹치지 않는다 */
+const OPEN_GUARD_KEY = "store-open";
+const OPEN_GUARD_RETRY_MS = 10;
+
+interface OpenGuard {
+  release(): void;
+}
+
+/**
+ * 열기 잠금을 얻는다. 같은 새 저장소를 여러 프로세스가 동시에 처음 열 때 한 프로세스가 만든 0바이트 파일을 다른
+ * 프로세스가 빈 파일로 보고 옮기면(`moveAsideEmptyDb`) 만든 쪽 연결의 파일이 사라져 `SQLITE_IOERR_VNODE`, `SQLITE_IOERR_FSTAT`로
+ * 열기가 실패한다(macOS 실측 2026-11-18). 파일 만들기, 초기 설정, 첫 마이그레이션을 이 잠금 아래에서 한다.
+ * OS 잠금이라 프로세스가 죽으면 풀린다. `busyTimeoutMs` 안에 못 얻으면 `busy`다
+ */
+function acquireOpenGuard(
+  locks: LockProvider,
+  busyTimeoutMs: number,
+): Result<OpenGuard, StoreOpenError> {
+  const deadline = Date.now() + busyTimeoutMs;
+  for (;;) {
+    const taken = locks.tryAcquire(OPEN_GUARD_KEY);
+    if (taken.ok) return ok(taken.value);
+    if (taken.error.kind === "io") return err({ kind: "io", code: taken.error.code });
+    if (taken.error.kind === "unsupported") return ok({ release: (): void => {} });
+    if (Date.now() >= deadline) return err({ kind: "busy" });
+    Bun.sleepSync(OPEN_GUARD_RETRY_MS);
+  }
+}
+
 /** 열기 절차(L0.store.spec §4.4). 쓰기 연결 PRAGMA 뒤 바로 읽기 연결을 연다(WAL이 이미 만들어져 있다) */
 function openStoreSync(options: OpenStoreOptions): OpenResult {
   const warnings: StoreWarning[] = [];
@@ -213,6 +243,38 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
   const dirReady = ensurePrivateDir(dir, policy.posixPermissions, warnings);
   if (!dirReady.ok) return dirReady;
   const realDir = realpathSync(dir);
+  // 쓰기 열기는 새 파일 만들기부터 초기화 끝까지를 프로세스 사이에서 한 번에 한 쪽만 한다(S-15 해소).
+  // 잠글 수 없으면(none 제공자) 잠금 없이 계속한다. 읽기 전용은 파일을 만들지 않아 잠그지 않는다
+  let guard: OpenGuard | undefined;
+  if (!readOnly) {
+    const locksDir = join(realDir, "locks");
+    const locksReady = ensurePrivateDir(locksDir, policy.posixPermissions, warnings);
+    if (!locksReady.ok) return locksReady;
+    const taken = acquireOpenGuard(
+      createLockProvider(policy.lock, locksDir),
+      options.settings.busyTimeoutMs,
+    );
+    if (!taken.ok) return taken;
+    guard = taken.value;
+  }
+  try {
+    return openStoreGuarded(options, { policy, warnings, realDir, readOnly, probe });
+  } finally {
+    guard?.release();
+  }
+}
+
+interface OpenContext {
+  readonly policy: ReturnType<typeof selectPlatformPolicy>;
+  readonly warnings: StoreWarning[];
+  readonly realDir: string;
+  readonly readOnly: boolean;
+  readonly probe: ReturnType<typeof probeSqlite>;
+}
+
+/** 열기 절차의 나머지(L0.store.spec §4.4 2번의 빈 파일 처리부터). 쓰기 열기는 열기 잠금을 쥔 채 부른다 */
+function openStoreGuarded(options: OpenStoreOptions, context: OpenContext): OpenResult {
+  const { policy, warnings, realDir, readOnly, probe } = context;
   // 0바이트 DB 파일은 옮긴 뒤 빈 새 DB를 만든다(L0.store.spec §4.4 2번). 읽기 전용은 파일을 건드리지 않아 뒤의 빈 파일 오류가 그대로 난다
   if (!readOnly) {
     const moved = moveAsideEmptyDb(options.dbPath, realDir, options.clock.now());

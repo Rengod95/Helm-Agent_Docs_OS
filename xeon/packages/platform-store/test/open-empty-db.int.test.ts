@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -9,10 +10,12 @@ import {
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { openStore } from "../src/index.ts";
+import { createLockProvider, selectPlatformPolicy } from "../src/select.ts";
+import { DEFAULT_STORE_SETTINGS } from "../src/settings.ts";
 import { compactTimestamp } from "../src/snapshot.ts";
 import { manualClock } from "./support/clock.ts";
 import { own, releaseOwned } from "./support/own.ts";
-import { directOptions } from "./support/store.ts";
+import { currentPlatform, directOptions } from "./support/store.ts";
 import { tempDir } from "./support/tmp.ts";
 
 afterEach(releaseOwned);
@@ -110,5 +113,31 @@ describe("opening a zero-byte database file (L0.store.spec §4.4)", () => {
     expect(opened).toEqual({ ok: false, error: { kind: "foreign_database", applicationId: 0 } });
     expect(statSync(path).size).toBe(0);
     expect(readdirSync(realDir).filter((name) => name.includes(".broken-"))).toEqual([]);
+  });
+});
+
+describe("open guard for concurrent first opens (L0.store.spec §4.4)", () => {
+  test("a write open waits for the open guard and gives busy when it is not released in time", async () => {
+    const dir = own(tempDir());
+    const realDir = realpathSync(dir.path);
+    const path = join(realDir, "fresnel.db");
+    mkdirSync(join(realDir, "locks"), { mode: 0o700 });
+    const policy = selectPlatformPolicy(currentPlatform());
+    const holder = createLockProvider(policy.lock, join(realDir, "locks"));
+    if (holder.kind !== "flock") return;
+    const held = holder.tryAcquire("store-open");
+    if (!held.ok) throw new Error("could not take the guard");
+    try {
+      const opened = await openStore(
+        directOptions(path, { settings: { ...DEFAULT_STORE_SETTINGS, busyTimeoutMs: 50 } }).options,
+      );
+      expect(opened).toEqual({ ok: false, error: { kind: "busy" } });
+      expect(existsSync(path)).toBe(false);
+    } finally {
+      held.value.release();
+    }
+    const after = await openStore(directOptions(path).options);
+    if (!after.ok) throw new Error(`open failed: ${after.error.kind}`);
+    own(after.value);
   });
 });
