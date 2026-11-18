@@ -7,6 +7,7 @@ import * as cvA from "./cvA/index.tsx";
 import * as cvB from "./cvB/index.tsx";
 import * as cvC from "./cvC/index.tsx";
 import * as cvD from "./cvD/index.tsx";
+import * as cvE from "./cvE/index.tsx";
 
 export interface CanvasDesign {
   readonly id: string;
@@ -50,9 +51,26 @@ function CvDScreen(): ReactNode {
   );
 }
 
+/** E는 원래 시안 고르기를 머리 오른쪽에 받았다. 고르기는 귀퉁이 전환기로 옮겼다 */
+function CvEScreen(): ReactNode {
+  const [inside, setInside] = useState<string | null>(null);
+  if (inside === null) return <cvE.ProfileCanvas onOpen={setInside} picker={null} />;
+  return (
+    <cvE.PluginInside
+      key={inside}
+      pluginId={inside}
+      picker={null}
+      onBack={() => {
+        setInside(null);
+      }}
+    />
+  );
+}
+
 export const CANVAS_DESIGNS: readonly CanvasDesign[] = [
   { id: "cvA", letter: "A", name: "desktop.craft.canvas.cvA.name", Screen: cvA.ProfileCanvas },
   { id: "cvB", letter: "B", name: "desktop.craft.canvas.cvB.name", Screen: CvBScreen },
   { id: "cvC", letter: "C", name: "desktop.craft.canvas.cvC.name", Screen: cvC.ProfileCanvas },
   { id: "cvD", letter: "D", name: "desktop.craft.canvas.cvD.name", Screen: CvDScreen },
+  { id: "cvE", letter: "E", name: "desktop.craft.canvas.cvE.name", Screen: CvEScreen },
 ];
