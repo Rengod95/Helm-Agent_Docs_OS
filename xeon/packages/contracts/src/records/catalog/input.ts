@@ -17,6 +17,7 @@ import {
   JsonValueSchema,
   TextContentSchema,
   ThreadIdSchema,
+  TurnInvokedSchema,
   TurnOriginSchema,
   type EventId,
   type ImageContent,
@@ -88,6 +89,7 @@ export const InputQueuedPayloadSchema: TObject<{
     [typeof UserSource, typeof ExtensionSource, typeof DelegationSource, typeof ScheduleSource]
   >;
   origin: TAddOptional<typeof TurnOriginSchema>;
+  invoked: TAddOptional<TArray<typeof TurnInvokedSchema>>;
 }> = Type.Object(
   {
     /** "aside"는 F.extensions.spec PostWhen 결정(§10 미결)에 따른다 */
@@ -105,6 +107,11 @@ export const InputQueuedPayloadSchema: TObject<{
      * 없으면 `source`에서 정한다: user → user, delegation → delegation, schedule → scheduled, extension → other [제안: M3-REQ-06]
      */
     origin: Type.Optional(TurnOriginSchema),
+    /**
+     * 이 입력이 시작하는 turn에 얹힌 한 턴 덧씌우기 항목(M5c §4.3.2 [제안]). 덧씌우기로 온 입력에만 있다. 선택이라 `version`을 올리지 않는다.
+     * `turn.started.invoked`가 이 값의 합집합을 싣는다
+     */
+    invoked: Type.Optional(Type.Array(TurnInvokedSchema, { maxItems: 16 })),
   },
   { additionalProperties: false },
 );

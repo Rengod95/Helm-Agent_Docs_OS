@@ -4,7 +4,7 @@ import { err, ok } from "@fresnel/contracts";
 import type { MeasurePort } from "../../src/assembly/measure/read.ts";
 import { createTurnRecordPort } from "../../src/assembly/measure/turn-read.ts";
 import type { Notice } from "@fresnel/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { IdFactory, ThreadId, TurnId, TurnInvoked } from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   EventKind,
@@ -213,7 +213,11 @@ export interface FakeEngine {
   setRejection(error: LoopError | undefined): void;
   /** 시크릿 관리 서비스 대역과 맡긴 수단 저장소 */
   readonly secrets: FakeSecrets;
-  readonly submitted: { readonly threadId: ThreadId; readonly requestId: string | undefined }[];
+  readonly submitted: {
+    readonly threadId: ThreadId;
+    readonly requestId: string | undefined;
+    readonly invoked: readonly TurnInvoked[] | undefined;
+  }[];
   readonly held: ReadonlySet<ThreadId>;
   /** release가 불린 thread */
   readonly released: readonly ThreadId[];
@@ -309,7 +313,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...(profileId === undefined ? {} : { profileId }),
     };
   };
-  const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
+  const submitted: {
+    threadId: ThreadId;
+    requestId: string | undefined;
+    invoked: readonly TurnInvoked[] | undefined;
+  }[] = [];
   const acquisitions: { threadId: ThreadId; kind: OwnerKind }[] = [];
   const released: ThreadId[] = [];
   const log: FakeLog = { errors: [], infos: [] };
@@ -457,8 +465,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.threads,
     },
     turns: {
-      submit(threadId, _input, requestId, whenBusy): Promise<SubmitOutcome> {
-        submitted.push({ threadId, requestId });
+      submit(threadId, _input, requestId, whenBusy, invoked): Promise<SubmitOutcome> {
+        submitted.push({ threadId, requestId, invoked });
         if (state.rejection !== undefined) {
           return Promise.resolve({ ok: false, reason: "rejected", error: state.rejection });
         }

@@ -689,6 +689,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       requestId,
       source: { type: "user", via: request.via },
       origin: originOfSource({ type: "user", via: request.via }),
+      ...(request.invoked === undefined ? {} : { invoked: request.invoked }),
     });
     if (!enqueued.ok) {
       const error = enqueued.error;

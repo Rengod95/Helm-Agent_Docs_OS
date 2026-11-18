@@ -12,6 +12,7 @@ import type {
   ThreadId,
   ThreadStatus,
   TurnId,
+  TurnInvoked,
 } from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -487,6 +488,8 @@ export interface TurnPort {
     requestId: string | undefined,
     /** 실행 중인 turn이 있을 때 입력이 들어갈 자리. 없으면 `busy`로 거절한다 */
     whenBusy?: WhenBusy,
+    /** 이 입력이 시작하는 turn에 얹힌 턴 덧씌우기 항목(`turn.started.invoked`, M5c §4.3.2). 덧씌우기가 없으면 생략한다 */
+    invoked?: readonly TurnInvoked[],
   ): Promise<SubmitOutcome>;
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
   /**

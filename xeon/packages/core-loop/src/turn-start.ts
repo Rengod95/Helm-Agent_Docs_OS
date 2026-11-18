@@ -1,6 +1,7 @@
 import { assertNever, type Clock } from "@fresnel/contracts";
 import type {
   AgentMessage,
+  TurnInvoked,
   TurnOrigin,
   EventId,
   IdFactory,
@@ -40,6 +41,23 @@ export function originOfSource(source: InputSource): TurnOrigin {
     default:
       return assertNever(source, "originOfSource");
   }
+}
+
+/**
+ * 턴을 여는 입력들이 얹은 한 턴 덧씌우기 항목의 합집합(첫 등장 순서, 같은 항목은 한 번). 덧씌우기가 없으면 빈 목록이다
+ */
+function invokedOf(inputs: readonly Pick<QueuedInput, "invoked">[]): TurnInvoked[] {
+  const seen = new Set<string>();
+  const out: TurnInvoked[] = [];
+  for (const input of inputs) {
+    for (const item of input.invoked ?? []) {
+      const key = `${item.plugin}\u0000${item.entry}\u0000${item.kind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ plugin: item.plugin, entry: item.entry, kind: item.kind });
+    }
+  }
+  return out;
 }
 
 export type TurnStartSource =
@@ -153,6 +171,8 @@ export function turnStartRequest(
           drafts.push(deps.drafter.make("item.recorded", { item: placed.record }, scope));
         }
         drafts.push(...selection.drafts(placements));
+        // 한 턴 덧씌우기 항목(M5c §4.3.2 [제안]). 턴 입력에 든 항목의 합집합이고, 없으면 필드를 싣지 않는다
+        const invoked = invokedOf(selection.inputs);
         drafts.push(
           deps.drafter.make(
             "turn.started",
@@ -161,6 +181,7 @@ export function turnStartRequest(
               requestId: first.requestId,
               scopeId: null,
               origin: first.origin ?? originOfSource(first.source),
+              ...(invoked.length === 0 ? {} : { invoked }),
             },
             scope,
           ),

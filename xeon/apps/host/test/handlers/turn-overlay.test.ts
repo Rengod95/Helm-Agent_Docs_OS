@@ -134,6 +134,13 @@ test("turn.start가 검토된 도구 플러그인을 얹으면 턴을 시작하�
   expect(attached).toEqual([
     { threadId, marks: [{ plugin: "tools", contentHash: HASH, until: "turn" }] },
   ]);
-  expect(host.fake.submitted).toEqual([{ threadId, requestId: undefined }]);
+  // 턴 입력에는 얹은 항목만 실린다. 집합에 이미 든 `core-thing`은 얹은 것이 없어 빠진다
+  expect(host.fake.submitted).toEqual([
+    {
+      threadId,
+      requestId: undefined,
+      invoked: [{ plugin: "tools", entry: "tools", kind: "plugin" }],
+    },
+  ]);
   await connection.close();
 });

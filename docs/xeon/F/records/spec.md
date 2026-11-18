@@ -270,7 +270,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `thread.compacted` | 예 | `CompactedPayloadSchema` | 비파괴 컴팩션 요약(§4.6) |
 | `thread.branch_summarized` | 예 | `BranchSummarizedPayloadSchema` | 떠난 가지 요약 `{ fromEventId, summary, details }` |
 | `thread.resumed` | 예 | `ThreadResumedPayloadSchema` | 이어서 실행 시도(`turnId`, `attempt`, `mode`). 복구 표식 `resume_attempts`의 원천(`L1.persistence.spec` §3.9) |
-| `turn.started` | 예 | `TurnStartedPayloadSchema` | 입력 item id들, `requestId`, `scopeId`(drive turn만, 그 밖은 null) |
+| `turn.started` | 예 | `TurnStartedPayloadSchema` | 입력 item id들, `requestId`, `scopeId`(drive turn만, 그 밖은 null), `invoked`(선택: 이 턴에 얹힌 한 턴 덧씌우기 항목 `{plugin, entry, kind}[]`, M5c §4.3.2 [제안]) |
 | `turn.updated` | 아니오 | `TurnUpdatedPayloadSchema` | 상태 |
 | `turn.completed` | 예 | `TurnCompletedPayloadSchema` | 종결 상태, step 수, 사용량, 오류 |
 | `turn.abort_requested` | 예 | `TurnAbortRequestedPayloadSchema` | 취소 의도. `turn.updated`가 휘발이라 따로 둔다(`L1.tasks.spec` §3.8) |

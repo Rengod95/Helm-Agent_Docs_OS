@@ -1,5 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
-import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import { isId, type ThreadId, type TurnInvoked } from "@fresnel/contracts/conversation";
 import type { LoopError } from "@fresnel/contracts/services";
 import {
   wireError,
@@ -82,17 +82,20 @@ export function createTurnStartHandler(
     // 턴 덧씌우기는 그 턴이 정착할 때 빠지므로 큐에 든 입력이 그 덧씌우기를 볼 수 없다 [제안]
     const overlay = params.overlay ?? [];
     let cacheImpact: "none" | "tool_change_append" | null = null;
+    let invoked: readonly TurnInvoked[] | undefined;
     if (overlay.length > 0) {
       if (ports.turns.isLive(threadId)) throw wireError("turn.busy");
       const attached = await ports.overlay.attach(threadId, overlay);
       if (!attached.ok) throw wireErrorOfOverlay(attached.error);
       cacheImpact = attached.value.cacheImpact;
+      invoked = attached.value.invoked;
     }
     const outcome = await ports.turns.submit(
       threadId,
       params.input,
       params.requestId,
       params.whenBusy,
+      invoked,
     );
     // 입력이 접수되지 않았거나 턴이 되지 않았으면 얹은 덧씌우기를 되돌린다
     if (overlay.length > 0 && (!outcome.ok || "delivered" in outcome)) {

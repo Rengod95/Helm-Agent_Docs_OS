@@ -19,6 +19,7 @@ import {
   type IdFactory,
   type LocalIdFactory,
   type ThreadId,
+  type TurnInvoked,
 } from "@fresnel/contracts/conversation";
 import type {
   LeaseHolder,
@@ -667,6 +668,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     input: TurnStartInput,
     requestId: string | undefined,
     whenBusy: WhenBusy | undefined,
+    invoked: readonly TurnInvoked[] | undefined,
   ): Promise<SubmitOutcome> {
     // 같은 requestId의 재제출은 처음 turnId를 돌려준다(HS-22, F wire turn.start)
     if (requestId !== undefined) {
@@ -685,6 +687,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       ...(requestId === undefined ? {} : { requestId }),
       via: "interactive",
       ...(whenBusy === undefined ? {} : { whenBusy }),
+      ...(invoked === undefined || invoked.length === 0 ? {} : { invoked }),
     });
     // 저장소 부족·소유 상실 같은 실패는 예상 가능하다. 결함(Bug)으로 올리지 않고 처리기가 와이어 오류로 옮기게 돌려준다
     if (!admitted.ok) return { ok: false, reason: "rejected", error: admitted.error };
@@ -734,8 +737,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   const turns: TurnPort = {
     // 같은 thread의 수동 컴팩션이 도는 동안은 기다렸다가 제출한다(HS-77, §10 미결 31)
-    submit: (threadId, input, requestId, whenBusy) =>
-      gate.run(threadId, () => submitInput(threadId, input, requestId, whenBusy)),
+    submit: (threadId, input, requestId, whenBusy, invoked) =>
+      gate.run(threadId, () => submitInput(threadId, input, requestId, whenBusy, invoked)),
     interrupt: (threadId, turnId) => loop.interrupt(threadId, turnId),
     resume: (threadId) => gate.run(threadId, () => loop.resume(threadId)),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),

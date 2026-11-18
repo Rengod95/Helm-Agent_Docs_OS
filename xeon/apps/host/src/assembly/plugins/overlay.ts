@@ -1,5 +1,5 @@
 import { Bug, err, ok, type Result } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadId, TurnInvoked } from "@fresnel/contracts/conversation";
 import { OVERLAY_LIMIT, type InvocableKind, type OverlayRef } from "@fresnel/contracts/wire";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 
@@ -32,7 +32,7 @@ export type OverlayRefusal =
   /** 대상을 읽는 저장소나 프로필의 실패. 처리기가 그 실패의 와이어 오류로 옮긴다 */
   | { readonly kind: "plugin"; readonly failure: PluginPortFailure };
 
-/** 검사를 통과한 덧씌우기 하나 */
+/** 검사를 통과한 덧씌우기 하나. 같은 플러그인의 여러 항목은 한 덩어리로 모은다 */
 export interface PlannedOverlay {
   readonly plugin: string;
   /** 요청 시점의 현재 검토본 해시(§5 "요청 시점의 검토본") */
@@ -40,6 +40,8 @@ export interface PlannedOverlay {
   /** 이미 대화의 집합에 든 플러그인이면 참이다. 적용하지 않는다 */
   readonly alreadyInProfile: boolean;
   readonly addsTools: boolean;
+  /** 이 플러그인을 부른 항목들(요청 순서, 같은 항목은 한 번). 적용된 것만 `turn.started.invoked`가 된다 */
+  readonly invoked: readonly TurnInvoked[];
 }
 
 /**
@@ -54,7 +56,7 @@ export async function planOverlay(
   if (refs.length > OVERLAY_LIMIT) return err({ kind: "limit" });
   // 대상 조회는 서로 독립이라 함께 읽고, 검사는 요청 순서대로 본다(첫 거절이 이긴다)
   const found = await Promise.all(refs.map((ref) => targetOf(ref.plugin)));
-  const planned: PlannedOverlay[] = [];
+  const byPlugin = new Map<string, Gathered>();
   for (const [index, ref] of refs.entries()) {
     const lookup = found[index];
     if (lookup === undefined) throw new Bug("overlay.lookup_missing");
@@ -62,31 +64,59 @@ export async function planOverlay(
     const target = lookup.value;
     if (target === undefined) return err({ kind: "not_found", name: ref.plugin });
     if (target.reviewedHash === null) return err({ kind: "not_reviewed", name: ref.plugin });
-    if (ref.entry !== undefined && !entryOpens(target, ref.entry)) {
-      return err({ kind: "no_entry", name: ref.plugin });
+    // 이름만 준 것은 플러그인 항목으로 얹는다(Hook 전용, 도구 전용 플러그인, §4.3.2)
+    let kind: InvocableKind = "plugin";
+    if (ref.entry !== undefined) {
+      const opened = kindOfEntry(target, ref.entry);
+      if (opened === undefined) return err({ kind: "no_entry", name: ref.plugin });
+      kind = opened;
     }
     if (ref.draftId !== undefined) return err({ kind: "draft_unavailable", name: ref.plugin });
-    if (planned.some((item) => item.plugin === ref.plugin)) continue;
-    planned.push({
-      plugin: ref.plugin,
-      contentHash: target.reviewedHash,
-      alreadyInProfile: inSet.has(ref.plugin),
-      addsTools: target.addsTools,
-    });
+    const invoked: TurnInvoked = { plugin: ref.plugin, entry: ref.entry ?? ref.plugin, kind };
+    const existing = byPlugin.get(ref.plugin);
+    if (existing === undefined) {
+      byPlugin.set(ref.plugin, {
+        plugin: ref.plugin,
+        contentHash: target.reviewedHash,
+        alreadyInProfile: inSet.has(ref.plugin),
+        addsTools: target.addsTools,
+        invoked: [invoked],
+      });
+    } else if (!existing.invoked.some((item) => sameInvoked(item, invoked))) {
+      existing.invoked.push(invoked);
+    }
   }
-  return ok(planned);
+  return ok([...byPlugin.values()]);
+}
+
+/** `planOverlay`가 한 플러그인의 항목을 모을 때 쓰는 값(정리 전의 모양) */
+interface Gathered {
+  plugin: string;
+  contentHash: string;
+  alreadyInProfile: boolean;
+  addsTools: boolean;
+  invoked: TurnInvoked[];
 }
 
 /**
- * 이름으로 지정한 항목을 얹을 수 있는가. 시작 Drive 항목은 얹지 않는다(M5c-2의 일이다). 스킬, 명령, 플러그인 항목만 연다.
+ * 이름으로 지정한 항목의 종류. 시작 Drive 항목은 얹지 않는다(M5c-2의 일이다), 그래서 undefined다. 스킬, 명령, 플러그인 항목만 연다.
  */
-function entryOpens(target: OverlayTarget, entry: string): boolean {
-  return target.entries.some((item) => item.entry === entry && item.kind !== "drive");
+function kindOfEntry(target: OverlayTarget, entry: string): InvocableKind | undefined {
+  const found = target.entries.find((item) => item.entry === entry && item.kind !== "drive");
+  return found?.kind;
 }
 
-/** 얹은 결과. 도구를 더하면 `tool_change_append`다. 실제 캐시 처리는 하지 않는다(범위 밖, [제안]) */
+function sameInvoked(a: TurnInvoked, b: TurnInvoked): boolean {
+  return a.plugin === b.plugin && a.entry === b.entry && a.kind === b.kind;
+}
+
+/**
+ * 얹은 결과. 도구를 더하면 `tool_change_append`다. 실제 캐시 처리는 하지 않는다(범위 밖, [제안]). `invoked`는 이 턴에 실제로 얹은 항목이다
+ * (집합에 이미 든 플러그인의 항목은 얹은 것이 없으므로 뺀다). 처리기가 턴 입력에 실어 `turn.started.invoked`가 된다
+ */
 interface OverlayAttachResult {
   readonly cacheImpact: "none" | "tool_change_append";
+  readonly invoked: readonly TurnInvoked[];
 }
 
 /** 턴 덧씌우기를 얹고 되돌리는 통로. 처리기가 `turn.start`에서 부른다 */
@@ -142,6 +172,7 @@ export function createOverlayPort(deps: OverlayPortDeps): OverlayPort {
       }
       return ok({
         cacheImpact: fresh.some((item) => item.addsTools) ? "tool_change_append" : "none",
+        invoked: fresh.flatMap((item) => item.invoked),
       });
     },
     cancel: (threadId) => deps.pluginSet.cancelOverlay(threadId),

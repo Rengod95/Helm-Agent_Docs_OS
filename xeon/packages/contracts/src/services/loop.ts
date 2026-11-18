@@ -4,6 +4,7 @@ import type {
   ImageContent,
   TextContent,
   ThreadId,
+  TurnInvoked,
   TurnId,
 } from "../conversation/index.ts";
 import type {
@@ -34,6 +35,8 @@ export interface AdmitRequest {
   readonly via: "interactive" | "rpc";
   /** turn 실행 중일 때 들어갈 모드. 생략하면 "followUp" */
   readonly whenBusy?: "steer" | "followUp" | "aside";
+  /** 이 입력이 시작하는 turn에 얹을 한 턴 덧씌우기 항목(M5c §4.3.2 [제안]). `input.queued.invoked`로 가고 `turn.started.invoked`가 된다 */
+  readonly invoked?: readonly TurnInvoked[];
 }
 
 export type AdmitResult =

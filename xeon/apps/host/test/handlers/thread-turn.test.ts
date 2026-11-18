@@ -75,7 +75,7 @@ test("turn.start takes the ownership implicitly once (HS-28), submits with the r
   });
   expect(first.turnId.startsWith("trn_")).toBe(true);
   expect(host.fake.acquisitions).toHaveLength(1);
-  expect(host.fake.submitted).toEqual([{ threadId, requestId: "req-1" }]);
+  expect(host.fake.submitted).toEqual([{ threadId, requestId: "req-1", invoked: undefined }]);
   expect(host.hub.state(served.id)?.openThreads.has(threadId)).toBe(true);
   // 쥔 뒤에는 다시 얻지 않는다
   await requestTurn(connection, { threadId, input: "again" });

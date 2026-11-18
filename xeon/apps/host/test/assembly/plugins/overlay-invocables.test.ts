@@ -176,8 +176,57 @@ test("planOverlay는 초안 표지를 draft_unavailable로 거절하고, 이미 
     ),
   ).toEqual(
     ok([
-      { plugin: "inside", contentHash: HASH_A, alreadyInProfile: true, addsTools: true },
-      { plugin: "outside", contentHash: HASH_A, alreadyInProfile: false, addsTools: true },
+      {
+        plugin: "inside",
+        contentHash: HASH_A,
+        alreadyInProfile: true,
+        addsTools: true,
+        invoked: [{ plugin: "inside", entry: "inside", kind: "plugin" }],
+      },
+      {
+        plugin: "outside",
+        contentHash: HASH_A,
+        alreadyInProfile: false,
+        addsTools: true,
+        invoked: [{ plugin: "outside", entry: "outside", kind: "plugin" }],
+      },
+    ]),
+  );
+});
+
+test("planOverlay는 이름으로 준 항목의 종류를 싣고, 같은 플러그인의 여러 항목을 한 덩어리에 모두 적는다", async () => {
+  const targetOf = (name: string): Promise<Result<OverlayTarget | undefined, PluginPortFailure>> =>
+    Promise.resolve(
+      ok(
+        target(name, HASH_A, [
+          { entry: "greet", kind: "skill" },
+          { entry: "report", kind: "command" },
+          { entry: name, kind: "plugin" },
+        ]),
+      ),
+    );
+  expect(
+    await planOverlay(
+      [
+        { plugin: "notes", entry: "greet" },
+        { plugin: "notes", entry: "report" },
+        { plugin: "notes", entry: "greet" },
+      ],
+      targetOf,
+      new Set(),
+    ),
+  ).toEqual(
+    ok([
+      {
+        plugin: "notes",
+        contentHash: HASH_A,
+        alreadyInProfile: false,
+        addsTools: false,
+        invoked: [
+          { plugin: "notes", entry: "greet", kind: "skill" },
+          { plugin: "notes", entry: "report", kind: "command" },
+        ],
+      },
     ]),
   );
 });
@@ -218,7 +267,12 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
   });
   const id = threadId();
   const result = await port.attach(id, refsOf("core-thing", "tools"));
-  expect(result).toEqual(ok({ cacheImpact: "tool_change_append" }));
+  expect(result).toEqual(
+    ok({
+      cacheImpact: "tool_change_append",
+      invoked: [{ plugin: "tools", entry: "tools", kind: "plugin" }],
+    }),
+  );
   expect(loaded).toEqual([["tools"]]);
   expect(attached).toEqual([[{ plugin: "tools", contentHash: HASH_B, until: "turn" }]]);
   await port.cancel(id);
@@ -242,7 +296,9 @@ test("덧씌우기 포트는 이미 든 플러그인만 얹으면 아무것도 �
       cancelOverlay: () => Promise.resolve(),
     },
   });
-  expect(await port.attach(threadId(), refsOf("already"))).toEqual(ok({ cacheImpact: "none" }));
+  expect(await port.attach(threadId(), refsOf("already"))).toEqual(
+    ok({ cacheImpact: "none", invoked: [] }),
+  );
   expect(touched).toBe(false);
 });
 

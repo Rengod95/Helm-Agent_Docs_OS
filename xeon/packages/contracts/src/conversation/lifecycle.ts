@@ -157,11 +157,35 @@ export const TurnOriginSchema: TUnion<
   Type.Literal("other"),
 ]);
 
+/**
+ * 한 턴 덧씌우기로 그 턴에 얹힌 항목 하나(M5c §4.3.2 `invoked` [제안]). 이름은 플러그인, 항목은 `InvocableEntry.entry`(플러그인 전체는 플러그인 이름),
+ * 종류는 `InvocableEntry.kind`다. 덧씌우기는 정착하면 빠지지만 이 기록은 남는다. 선택 필드라 `version`을 올리지 않는다
+ */
+export const TurnInvokedSchema: TObject<{
+  plugin: TString;
+  entry: TString;
+  kind: TUnion<[TLiteral<"skill">, TLiteral<"command">, TLiteral<"drive">, TLiteral<"plugin">]>;
+}> = Type.Object(
+  {
+    plugin: Type.String({ minLength: 1, maxLength: 96 }),
+    entry: Type.String({ minLength: 1, maxLength: 96 }),
+    kind: Type.Union([
+      Type.Literal("skill"),
+      Type.Literal("command"),
+      Type.Literal("drive"),
+      Type.Literal("plugin"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+export type TurnInvoked = Static<typeof TurnInvokedSchema>;
+
 export const TurnStartedPayloadSchema: TObject<{
   inputItemIds: TArray<TUnsafe<ItemId>>;
   requestId: TUnion<[TString, TNull]>;
   scopeId: TUnion<[TString, TNull]>;
   origin: TAddOptional<typeof TurnOriginSchema>;
+  invoked: TAddOptional<TArray<typeof TurnInvokedSchema>>;
 }> = Type.Object(
   {
     inputItemIds: Type.Array(ItemIdSchema, { maxItems: 1024 }),
@@ -170,6 +194,11 @@ export const TurnStartedPayloadSchema: TObject<{
     scopeId: Nullable(Type.String({ minLength: 1, maxLength: 96 })),
     /** 입력 출처. 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) "user"로 읽는다 [제안: M3-REQ-06] */
     origin: Type.Optional(TurnOriginSchema),
+    /**
+     * 이 턴에 얹힌 한 턴 덧씌우기 항목(M5c §4.3.2 [제안]). 덧씌우기가 없던 턴과 옛 기록에는 없다. 턴 입력에 든 항목들의 합집합이다.
+     * 상한은 와이어 덧씌우기 상한(16)과 같다
+     */
+    invoked: Type.Optional(Type.Array(TurnInvokedSchema, { maxItems: 16 })),
   },
   { additionalProperties: false },
 );
