@@ -32,14 +32,19 @@ import {
   type StoredScopeState,
   type TurnOutcome,
 } from "@fresnel/contracts/extensions";
-import type {
-  DurableEventDraft,
-  DurableEventEnvelope,
-  ExtensionEventKind,
-  Projector,
-  ProjectorFailure,
-  ReadFailure,
-  StoreDb,
+import {
+  DriveCommandSettledPayloadSchema,
+  LeaseAcquiredPayloadSchema,
+  LeaseReleasedPayloadSchema,
+  LeaseRequestedPayloadSchema,
+  type PendingStartRequest,
+  type DurableEventDraft,
+  type DurableEventEnvelope,
+  type ExtensionEventKind,
+  type Projector,
+  type ProjectorFailure,
+  type ReadFailure,
+  type StoreDb,
 } from "@fresnel/contracts/records";
 
 // ── LoopPort ──────────────────────────────────────────────────────────────
@@ -346,7 +351,10 @@ export function memoryRecordStore(): MemoryRecordStore {
     const scopeIds = new Set<string>();
     const epochs: Record<string, number> = {};
     // 열린 임대 목록(오래된 것부터). 반납된 임대는 leaseId로 뺀다
-    const open: OpenLease[] = [];
+    // 같은 모양의 가변 목록(handoffEnd를 채우려고)
+    const open: { -readonly [K in keyof OpenLease]: OpenLease[K] }[] = [];
+    const pending = new Map<string, PendingStartRequest>();
+    const closed = new Set<string>();
     for (const event of branch) {
       const payload = event.draft.payload;
       if (!isRecord(payload)) continue;
@@ -370,6 +378,15 @@ export function memoryRecordStore(): MemoryRecordStore {
         const depth = payload["depth"];
         const parent = payload["parent"];
         const contentHash = payload["contentHash"];
+        const acquired = parse(LeaseAcquiredPayloadSchema, payload);
+        if (acquired.ok && acquired.value.requestId !== undefined) {
+          pending.delete(acquired.value.requestId);
+          closed.add(acquired.value.requestId);
+        }
+        if (typeof parent === "string") {
+          const caller = open.find((lease) => lease.leaseId === parent);
+          if (caller !== undefined) caller.handoffEnd = null;
+        }
         open.push({
           leaseId,
           lineageId: String(payload["lineageId"]),
@@ -384,11 +401,47 @@ export function memoryRecordStore(): MemoryRecordStore {
           parent: typeof parent === "string" ? parent : null,
           depth: typeof depth === "number" ? depth : 0,
           contentHash: typeof contentHash === "string" ? contentHash : null,
+          input: acquired.ok ? (acquired.value.input ?? null) : null,
+          handoffEnd: null,
         });
       } else if (event.draft.kind === "lease.released") {
         const released = payload["leaseId"];
         const at = open.findIndex((lease) => lease.leaseId === released);
+        const gone = at >= 0 ? open[at] : undefined;
         if (at >= 0) open.splice(at, 1);
+        const done = parse(LeaseReleasedPayloadSchema, payload);
+        if (gone?.parent !== null && gone?.parent !== undefined && done.ok) {
+          const caller = open.find((lease) => lease.leaseId === gone.parent);
+          if (caller !== undefined) {
+            caller.handoffEnd =
+              done.value.reason === "done"
+                ? { status: "done", result: done.value.result ?? null }
+                : { status: "aborted", result: null };
+          }
+        }
+      } else if (event.draft.kind === "lease.requested") {
+        const request = parse(LeaseRequestedPayloadSchema, payload);
+        if (request.ok) {
+          if (request.value.status === "dropped") {
+            pending.delete(request.value.requestId);
+            closed.add(request.value.requestId);
+          } else if (!closed.has(request.value.requestId)) {
+            pending.set(request.value.requestId, {
+              requestId: request.value.requestId,
+              scopeId: request.value.scopeId,
+              trigger: request.value.trigger,
+              parent: request.value.parent ?? null,
+              input: request.value.input ?? null,
+            });
+          }
+        }
+      } else if (event.draft.kind === "drive.command_settled") {
+        const settled = parse(DriveCommandSettledPayloadSchema, payload);
+        if (settled.ok) {
+          for (const lease of open) {
+            if (lease.scopeId === settled.value.scopeId) lease.handoffEnd = null;
+          }
+        }
       } else if (STATE_KIND.test(event.draft.kind)) {
         scopeIds.add(String(payload["scopeId"]));
       }
@@ -404,6 +457,11 @@ export function memoryRecordStore(): MemoryRecordStore {
       enabledAtSeq: Object.fromEntries(enabledAtSeq),
       states,
       openLeases: open,
+      pendingRequests: [...pending.values()].filter(
+        (request) =>
+          request.trigger !== "handoff" ||
+          (request.parent !== null && open.some((lease) => lease.leaseId === request.parent)),
+      ),
       leaseEpochs: epochs,
     };
   }

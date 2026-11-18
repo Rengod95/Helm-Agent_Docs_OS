@@ -247,10 +247,14 @@ interface HeldUserMessage {
 }
 
 export interface StartRequest {
+  /** 기록(`lease.requested`)의 요청 id. 프로필 시작은 열 때 다시 만들어 기록하지 않으므로 null */
+  readonly requestId: string | null;
   readonly scopeId: RegistrationId;
   readonly trigger: "user" | "profile" | "handoff";
   readonly input: JsonValue | null;
   readonly parentLeaseId: string | null;
+  /** 기록(`lease.requested`)이 끝났다. 끝나기 전에는 부여하지 않는다. 기록하지 않는 요청은 처음부터 참 */
+  recorded: boolean;
 }
 
 /** `ExtHost.startDrive`의 거부. 예상 가능한 실패라 값으로 돌려준다 */
@@ -259,7 +263,9 @@ export type StartDriveError =
   | { readonly kind: "unknown_scope" }
   | { readonly kind: "child_thread" }
   | { readonly kind: "not_drive" }
-  | { readonly kind: "drive_error" };
+  | { readonly kind: "drive_error" }
+  /** 입력이 기록에 실릴 수 있는 크기(`DRIVE_INPUT_MAX_BYTES`)를 넘는다 */
+  | { readonly kind: "input_too_large" };
 
 // ── thread별 런타임 ────────────────────────────────────────────────────────
 
@@ -295,6 +301,8 @@ export interface BoundaryTxn {
    * 커밋이 실패하면 아무것도 바뀌지 않아 다음 경계가 다시 판단한다
    */
   abandoning: StartRequest | null;
+  /** 이 커밋에 `lease.requested`(queued) 초안을 함께 싣는 요청. 커밋이 성공하면 `recorded`를 참으로 한다 */
+  readonly recording: StartRequest[];
 }
 
 /** `ExtHost.openThread`의 선택 인자 */
