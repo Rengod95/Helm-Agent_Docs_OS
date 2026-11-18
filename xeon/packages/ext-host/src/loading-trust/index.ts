@@ -493,7 +493,7 @@ export type LoadInstalledFailure =
  * `loadInstalled`의 선택 값. `deferStart`면 검토본을 검증해 기록만 꺼진 채(`disabled`, `lazy_deferred`) 남기고 코드는 싣지 않는다.
  * 승인은 적재가 아니다(M5c §4.1.11): 승인한 새 이름을 목록과 프로필 검사가 알도록 기록만 두고, 대화의 집합에 처음 들 때 `ensureLoaded`가 싣는다
  */
-export interface LoadInstalledOptions {
+interface LoadInstalledOptions {
   readonly deferStart?: boolean;
 }
 
