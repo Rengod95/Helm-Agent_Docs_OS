@@ -145,6 +145,15 @@ function optStr(input: Record<string, unknown>, key: string): string | undefined
 }
 
 /**
+ * 이 대화가 테스트 대화인가(호스트의 `isCraftChat`). 구현이 없거나 읽지 못하면 거짓이다. 거짓이면 호출자가 모델의 값을 쓴다
+ */
+async function craftChatOf(env: ToolsEnv, threadId: ThreadId): Promise<boolean> {
+  if (env.devkit.isCraftChat === undefined) return false;
+  const found = await env.devkit.isCraftChat(threadId);
+  return found.ok && found.value;
+}
+
+/**
  * 사람 확인 질문을 drive가 열 수 있게 주도 시작을 다시 요청한다. 엔진은 두 번 연속 효과 없이 `yield`한 프레임을 `idle`로 내리므로
  * 확인이 필요해질 때마다 깨운다. 이미 맨 위에 있으면 엔진이 같은 scope의 요청을 버린다. 거부되면 상태를 바꾸지 않도록 오류 값을 돌려준다
  */
@@ -294,7 +303,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin authoring: open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words; resident keeps the builder waiting for the next user message after a submit (a craft chat).",
+    "Plugin authoring: open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words. In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -319,7 +328,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (!checked.ok)
         return refusal("invalid_name", `name ${name} is not allowed (${checked.error.reason})`);
       const purpose = optStr(input, "purpose");
-      const resident = input["resident"] === true;
+      // 상주는 호스트가 정한다(M5c §4.8.6). 테스트 대화이면 모델이 뭘 넘겼든 상주다. 일반 대화는 넘긴 값을 그대로 쓴다
+      const resident = (await craftChatOf(env, threadId)) || input["resident"] === true;
       // dir이 없으면 기존 플러그인이다: 이름만으로 원본 폴더를 연다
       if (optStr(input, "dir") === undefined) return startFromSource(env, name, purpose, resident);
       const kindId = optStr(input, "kind") ?? "single-plugin";

@@ -78,7 +78,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 도구 | 입력 | 결과 | 위험 |
 |---|---|---|---|
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
-| `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다 | 읽기 |
+| `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다. `resident`는 일반 대화에서만 모델이 넘긴 값을 쓴다. 테스트 대화(craft 표지)에서는 호스트가 상주로 정한다(아래, [제안]) | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
 | `authoring_scaffold` | `{ sessionId, mode? }`(`mode`: `hook`, `inject`, `drive`) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
@@ -239,7 +239,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
   - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 목적을 상태에 실어 제작 대화을 연 뒤 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
   - [구현 상태, 2026-11-18] 제작 대화은 `phase: intent`, `sessionId: auth-handoff-<id>`, `purpose`만 가진다(이름과 폴더는 없다). `accepted: true`는 "제작 대화을 열었다"는 뜻이다. 상주하지 않고 곧 `done`으로 돌려주는 까닭은 맡긴 쪽(Helm)이 이 결과를 기다리기 때문이다. 상주하면 `/helm plugin`이 제작이 끝날 때까지 멈춘다(drive-isolation.md §2.1, §2.6). 맡긴 쪽의 기록 시험(`apps/host/test/int/helm-isolated.int.test.ts`)은 빌더가 `done`으로 물러난다고 본다.
   - 제작은 사용자가 이름과 폴더를 정한 뒤 `authoring_start`로 이어 간다(목적은 제작 대화에 남아 시작 때 쓴다). [미결] 일반 대화에서 맡긴 제작 대화을 상주로 이어 가는 길은 정하지 않았다. 상주는 제작 대화의 시작 Drive가 맡는다(M5c §4.8.6). [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
-- [구현 상태, 2026-11-18] 상주 모드. `authoring_start`에 `resident: true`를 주면(제작 대화, M5c §4.8.6) 검토함으로 보낸 뒤에도 물러나지 않고 `yield`로 기다린다. 그 뒤 사용자 메시지는 같은 플러그인의 새 판이다: 단계를 `compose`로 되돌리고 이름, 폴더, 파일은 그대로 두며 시험과 제출 기록은 지운다. `done`은 `authoring_stop`이 제작 대화을 닫을 때만이다(고치기를 그만두면 `fix`에 머문다). 상주가 아닌 제작 대화은 검토함으로 보낸 뒤 `done`으로 물러난다. 제작 대화은 열린 채 남고 `authoring_*` 도구가 계속 받는다.
+- [구현 상태, 2026-11-18] 상주 모드. 상주는 모델이 넘기는 값에 기대지 않고 호스트가 정한다(M5c §4.8.6 [제안]). 빌더는 `devkit.isCraftChat(threadId)`(`fresnel.devkit` 선택 메서드, 호스트는 대화의 `craftChat` 표지로 답한다)로 이 대화가 테스트 대화인지 묻고, 테스트 대화이면 `authoring_start`의 `resident`를 빼거나 거짓으로 넘겨도 상주로 연다. 판정을 얻지 못하면(메서드가 없거나 읽지 못함) 모델이 넘긴 `resident`를 그대로 쓴다. 일반 대화는 넘긴 값을 그대로 쓴다. 시험은 `packages/plugin-builder/test/authoring.resident-host.test.ts`(판정 있음과 없음, 상주 대화가 검토함 뒤 `yield`)와 `apps/host/test/assembly/devkit-port.test.ts`(`isCraftChat`)다. 상주 모드는 검토함으로 보낸 뒤에도 물러나지 않고 `yield`로 기다린다. 그 뒤 사용자 메시지는 같은 플러그인의 새 판이다: 단계를 `compose`로 되돌리고 이름, 폴더, 파일은 그대로 두며 시험과 제출 기록은 지운다. `done`은 `authoring_stop`이 제작 대화을 닫을 때만이다(고치기를 그만두면 `fix`에 머문다). 상주가 아닌 제작 대화은 검토함으로 보낸 뒤 `done`으로 물러난다. 제작 대화은 열린 채 남고 `authoring_*` 도구가 계속 받는다.
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
