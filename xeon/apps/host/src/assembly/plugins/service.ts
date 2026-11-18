@@ -30,7 +30,7 @@ import type { PluginStore, PluginStoreError, PluginVersionInfo, ReviewedVersion 
 
 // 플러그인 읽기 서비스(M5c §3.4 `plugin.list`, `plugin.get`, `plugin.scan`, §4.5). 원본 폴더와 로드된 레코드와 검토본 저장소에서 카드를 만든다.
 // 카드의 검토 칸과 무결성은 저장소에서 온다. 원본 폴더는 카드의 내용(후보 기준)이고, 원본 해시가 검토본과 다르면 `matchesReviewed`가 거짓이다.
-// 목록과 상세는 캐시를 읽는다. 캐시는 `scan()`이 바꾼다(감시가 없으므로 `plugin.scan`만 훑는다, §4.5.7).
+// 목록과 상세는 캐시를 읽는다. 캐시는 `scan()`이 바꾼다(원본 감시와 `plugin.scan`이 훑는다, §4.5.7).
 // 사용처(`usedBy`)는 캐시하지 않고 읽을 때 프로필에서 계산한다.
 
 /** 로드된 확장 한 줄에서 카드에 필요한 것(내장 포함). `ExtReadAssembly.extensions()`가 준다 */
