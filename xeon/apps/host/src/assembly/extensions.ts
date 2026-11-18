@@ -53,7 +53,7 @@ import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
-import { writeAccessTitle } from "@fresnel/core-workspace";
+import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type {
   AgentDefinition,
@@ -74,7 +74,7 @@ import { loopExtensionUnit } from "@fresnel/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
-import { toolsPlugin } from "@fresnel/core-tools";
+import { dialogCore, toolsPlugin } from "@fresnel/core-tools";
 import type {
   BuiltinExtensionModule,
   ExtHost,
@@ -494,6 +494,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       "cap-workspace",
       (loadIndex) =>
         workspacePlugin({
+          // 경로 검사, 샌드박스 셸, 쓰기 허용 승인의 구현 묶음(core-workspace가 낸다)
+          core: workspaceCore,
           settings: workspaceSource(settings),
           // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
@@ -509,6 +511,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         dialogPlugin({
           settings: layersSource(settings),
           ids: deps.ids,
+          core: dialogCore,
           // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
           interactive: (context) => context.interactive !== false,
           // 프로젝트 명령(.fresnel/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)

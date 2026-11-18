@@ -1,4 +1,4 @@
-import { WorkspaceFailure } from "@fresnel/core-workspace";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 
 const BASE64_BODY = /^[A-Za-z0-9+/]*={0,2}$/;
 

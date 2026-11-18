@@ -1,6 +1,6 @@
 import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure, resolveWorkspacePath } from "@fresnel/core-workspace";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import { capEntries, pageEntries } from "../truncate/paging.ts";
 import type { FilesApi } from "./api.ts";
 import {
@@ -64,7 +64,7 @@ export function createGrep(deps: WorkspaceDeps): GrepMethod {
     const context: CancelScope = { abortSignal: options?.signal };
     const settings = deps.settings(options?.context?.threadId);
     const requested = input.path ?? ".";
-    const resolved = await resolveWorkspacePath(deps.roots, requested, "read", context);
+    const resolved = await deps.core.resolveWorkspacePath(deps.roots, requested, "read", context);
     if (!resolved.exists) {
       throw new WorkspaceFailure("not_found", `Path not found: ${requested}`);
     }

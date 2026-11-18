@@ -22,6 +22,7 @@ import type { ToolRegistration, Unregister } from "@fresnel/contracts/services";
 import type { ScopeLayer } from "@fresnel/contracts/settings";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
+import { workspaceCore } from "@fresnel/core-workspace";
 import { workspacePlugin } from "../src/plugin.ts";
 import { WORKSPACE_EXTENSION_NAME, workspaceManifest } from "../src/manifest.ts";
 import { rejection } from "./support/assertions.ts";
@@ -134,7 +135,7 @@ async function boot(
     },
   });
   const installed = await t.host.install(
-    workspacePlugin({ settings: { layers: () => options.layers ?? [] } }),
+    workspacePlugin({ core: workspaceCore, settings: { layers: () => options.layers ?? [] } }),
   );
   return { t, env, installed, registered, unregistered, lines, resolved };
 }
@@ -189,7 +190,7 @@ describe("manifest", () => {
       { id: "workspace.shell", version: "1.0.0" },
       { id: "workspace.images", version: "1.0.0" },
     ]);
-    const unit = workspacePlugin({ settings: { layers: () => [] } });
+    const unit = workspacePlugin({ core: workspaceCore, settings: { layers: () => [] } });
     expect(unit.builtin).toBe(true);
     expect(pluginDeclsOf(unit.manifest)[0]?.hooks).toEqual([]);
     expect(pluginDeclsOf(unit.manifest)[0]?.drives).toBeUndefined();
