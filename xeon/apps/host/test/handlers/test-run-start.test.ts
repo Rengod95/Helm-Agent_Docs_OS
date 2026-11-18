@@ -417,6 +417,7 @@ test("a draft that names the start entry runs its start Drive: the bound mark sa
     profileId: "default",
     drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
     runGroupId: "grp-s",
+    skippedPlugins: [],
   });
   expect(fakes.bound).toEqual([
     {
