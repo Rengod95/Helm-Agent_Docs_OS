@@ -361,6 +361,11 @@ export interface ToolsPort {
    * 합성 `cap:` 항목은 매핑이 아니다
    */
   toolMappedFor(capability: CapabilityId, method: string): boolean;
+  /**
+   * 이 등록 스코프가 검토되지 않은 초안인가(L1.tools §4.6.1). 기능 래퍼가 읽기 전용 호출의 가벼운 길을 초안에는 열지 않으려고 묻는다:
+   * 초안 출신 호출은 위험 등급과 무관하게 파이프라인의 승인 카드를 지나야 한다. 없으면 초안이 없다
+   */
+  isDraftScope?(scopeId: RegistrationId): boolean;
 }
 /**
  * ModelService(fresnel.models)가 포함하는 부분형. `completeForPlugin`은 주도 단계의 `model` 명령이 쓴다(drive-isolation.md §1.2).
