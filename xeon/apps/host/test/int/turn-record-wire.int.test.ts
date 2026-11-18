@@ -422,6 +422,8 @@ realTest(
         [created.threadId, first, "cap-dialog", "modified"],
       ]);
       expect(modified.items.every((item) => typeof item.hookSeq === "number")).toBe(true);
+      // hookSeq는 턴 안에서 세는 순번이다(대화 전체 카운터가 아니다): 첫 턴은 대화 시작 훅 넷과 입력 훅 둘이 앞서 6이고, 뒤 턴은 2다
+      expect(modified.items.map((item) => item.hookSeq)).toEqual([2, 2, 6]);
 
       // cap-web은 턴마다 한 번 통과한다. 두 쪽으로 나눠 받으면 같은 턴이 중복 없이 모인다
       const pass1 = await connection.request("turnRecord.search", {
