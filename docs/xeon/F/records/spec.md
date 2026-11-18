@@ -182,9 +182,9 @@ export type CoreEventKind =
   | "profile.applied";
 
 /** 내장 L2 도메인이 소유하는 영역(§3.3.2). 카탈로그 파일이 있는 영역만 */
-export type DomainArea = "work" | "dialog" | "artifact" | "schedule";
+export type DomainArea = "work" | "dialog" | "artifact" | "schedule" | "workspace";
 /** 예약만 한 L2 영역. 그 도메인이 kind를 처음 더할 때 DomainArea로 옮긴다 */
-export type ReservedDomainArea = "workspace" | "mcp" | "web" | "knowledge";
+export type ReservedDomainArea = "mcp" | "web" | "knowledge";
 export type DomainEventKind = `${DomainArea}.${string}`;
 
 export type ExtensionEventKind = `x.${string}.${string}.${string}` | `grp.${string}.${string}.${string}`;
@@ -621,7 +621,8 @@ export interface ToolUntrustedReadPayload {
 | `dialog` | 사용 | `src/records/catalog/dialog.ts` | `DIALOG_EVENT_CATALOG` | `cap.dialog` |
 | `artifact` | 사용 | `src/records/catalog/artifact.ts` | `ARTIFACT_EVENT_CATALOG` | `cap.artifacts` |
 | `schedule` | 사용 | `src/records/catalog/schedule.ts` | `SCHEDULE_EVENT_CATALOG` | `cap.schedule` |
-| `workspace`, `mcp`, `web`, `knowledge` | 예약(`ReservedDomainArea`) | kind를 처음 더할 때 같은 형식으로 만든다 | `<DOMAIN>_EVENT_CATALOG` | `cap.<도메인>` |
+| `workspace` | 사용(§3.3.3) | `src/records/catalog/workspace.ts` | `WORKSPACE_EVENT_CATALOG` | `cap.workspace` |
+| `mcp`, `web`, `knowledge` | 예약(`ReservedDomainArea`) | kind를 처음 더할 때 같은 형식으로 만든다 | `<DOMAIN>_EVENT_CATALOG` | `cap.<도메인>` |
 
 규칙:
 
@@ -631,7 +632,75 @@ export interface ToolUntrustedReadPayload {
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
-7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구. 그중 `work.plan_submitted`·`work.plan_withdrawn` 두 종은 은퇴해 `retired: true`이고 payload는 `Type.Unknown()`이다 [결정: 2026-11-15 사용자])와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
+7. [제안] `workspace` 영역(§3.3.3)은 `WORKSPACE_EVENT_CATALOG`(다섯 종, 모두 내구, 버전 1)로 `EVENT_CATALOG`에 병합된다. 파일 되감기의 사실 기록이고 생산자는 `cap.workspace`다.
+8. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구. 그중 `work.plan_submitted`·`work.plan_withdrawn` 두 종은 은퇴해 `retired: true`이고 payload는 `Type.Unknown()`이다 [결정: 2026-11-15 사용자])와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
+
+#### 3.3.3 파일 되감기 영역 `workspace`
+
+[결정: 2026-11-18 저녁, 사용자, Linear AGE-15] 파일 되감기는 권고대로 한다. 편집 도구가 고치기 전에 원본을 저장하는 일을 먼저 하고, 기본 선택은 대화와 파일을 둘 다 되감는 것이다. 되감기 뒤 밖에서 바뀐 파일은 건드리지 않고 알리며 파일마다 덮어쓰기를 고를 수 있다. 되감기 자체를 취소할 수 있다. 원본은 대화와 함께 보존되고, 다른 대화가 고친 파일도 건드리지 않고 알린다.
+
+| kind | 내구 | 버전 | 생산자 | 기록하는 것 |
+|---|---|---|---|---|
+| `workspace.files_captured` | 내구 | 1 | `cap.workspace` | 도구 호출이 경로를 쓰기 전의 옛 상태와 쓸 내용의 해시 |
+| `workspace.rewind_started` | 내구 | 1 | `cap.workspace` | 되감기 계획(파일마다 할 일). 파일에 손대기 전에 커밋한다 |
+| `workspace.rewind_applied` | 내구 | 1 | `cap.workspace` | 되감기 파일 쓰기의 결과 |
+| `workspace.rewind_undone` | 내구 | 1 | `cap.workspace` | 되돌리기의 파일 결과와 대화 쪽 상태 |
+| `workspace.rewind_overwritten` | 내구 | 1 | `cap.workspace` | 밖에서 바뀐 파일을 덮어쓰기로 고른 뒤의 결과 |
+
+```ts
+// src/records/catalog/workspace.ts
+export type FileBefore =
+  | { state: "absent" }                                            // 그 시점에 파일이 없었다
+  | { state: "saved"; blob: BlobRef; mode: number | null }         // mode는 권한 비트(0~4095), 없으면 null
+  | { state: "unrestorable"; reason: "too_large" | "quota" | "unreadable"; size: number | null };
+export type RewindScope = "both" | "files" | "conversation";
+export type RewindFileAction = "restore" | "delete";              // 옛 내용 쓰기, 없던 파일 지우기
+export interface RewindFileResult {
+  path: string;
+  outcome: "restored" | "deleted" | "already_original" | "kept_changed" | "skipped" | "failed";
+  reason: string | null;
+}
+export type RewindUndoState = "restored" | "not_included" | "moved_on";
+
+export interface WorkspaceFilesCapturedPayload {
+  toolCallId: string | null;                                      // 도구 경로 밖이면 null
+  entries: (                                                      // 1~1024개, 한 항목은 한 경로
+    | { path: string; first: true; before: FileBefore; afterSha256: string }
+    | { path: string; first: false; before: null; afterSha256: string }
+  )[];
+}
+export interface WorkspaceRewindStartedPayload {
+  rewindId: string;                                               // "rwd_" + 소문자 영숫자 8~64자
+  scope: RewindScope;
+  targetItemId: ItemId;
+  targetEventId: EventId;
+  oldLeafEventId: EventId | null;
+  entries: {                                                      // 최대 4096개
+    path: string;
+    action: RewindFileAction;
+    expectedSha256: string | null;                                // 에이전트가 마지막으로 쓴 내용. null이면 파일이 없어야 한다
+    targetBefore: FileBefore;                                     // 돌아갈 상태
+    undoBefore: FileBefore;                                       // 되감기 직전 현재 상태
+    outcome: "planned" | "kept_changed" | "skipped" | "unrestorable";
+    reason: string | null;
+  }[];
+}
+export interface WorkspaceRewindAppliedPayload { rewindId: string; results: RewindFileResult[] }     // 최대 4096개
+export interface WorkspaceRewindUndonePayload {
+  rewindId: string;
+  results: RewindFileResult[];
+  conversation: RewindUndoState;
+}
+export interface WorkspaceRewindOverwrittenPayload { rewindId: string; results: RewindFileResult[] }
+```
+
+- [제안] 모든 payload는 `additionalProperties: false`다. 파일 내용은 어떤 필드에도 싣지 않는다. 원본은 `blob`(`BlobRef`)으로 `StoreService.putBlob`에 두고, 이벤트는 blob 참조만 가진다. 그래서 대화를 지우면 이벤트와 함께 blob도 사라진다(`liveBlobRefs`가 이 참조를 뿌리로 본다).
+- [제안] `path`는 정규 절대 경로(1~4096자)다. 해시는 소문자 16진 64자다. `afterSha256`은 쓸 내용의 해시이고 쓰기 전에 알 수 있다. 쓰기가 실패하면 현재 내용은 `before` 그대로이므로 되감기 계획에서 이미 원본으로 처리된다.
+- [제안] `files_captured` 항목은 `first` 값으로 모양이 정해진다. 그 턴에서 그 경로의 첫 쓰기면 `first: true`이고 `before`가 있다. 이후 쓰기는 `first: false`이고 `before`가 `null`이며 `afterSha256`만 갱신한다.
+- [제안] 되감기의 기록 순서는 시작(`rewind_started`, 파일에 손대기 전), 파일 쓰기, 적용(`rewind_applied`, 쓰기가 다 끝난 뒤)이다. 시작만 있고 적용이 없는 되감기는 "반만 되돌린 상태"다. 되돌리기는 `rewind_undone`, 밖에서 바뀐 파일의 덮어쓰기는 `rewind_overwritten`으로 적는다.
+- [제안] 되감기 계획의 `outcome`은 파일마다 하나다. `planned`는 쓰거나 지울 파일, `kept_changed`는 밖에서 바뀌어 건드리지 않은 파일, `skipped`는 범위 밖이나 루트 밖 경로, `unrestorable`은 옛 상태를 저장하지 못한 파일이다.
+- [제안] 이 영역의 kind는 `F.wire-settings.spec` §3.3.1의 파일 되감기 메서드와 같은 결과 모양(`RewindFileResult`)을 쓴다. 경로는 통신에 실어도 되지만 파일 내용은 어느 스키마에도 싣지 않는다.
+- [제안] 상한(파일당 16 MiB, 대화당 512 MiB)은 이 스키마에 들어가지 않고 cap-workspace의 기본값으로 둔다. 값과 그 이유는 `L1.persistence.spec` §4.13.2에 있다.
 
 ### 3.4 내구/휘발과 큰 값 분리
 

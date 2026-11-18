@@ -26,6 +26,7 @@ import { DIALOG_EVENT_CATALOG } from "./dialog.ts";
 import type { CatalogEntry } from "./entry.ts";
 import { SCHEDULE_EVENT_CATALOG } from "./schedule.ts";
 import { WORK_EVENT_CATALOG } from "./work.ts";
+import { WORKSPACE_EVENT_CATALOG } from "./workspace.ts";
 import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from "./approval.ts";
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
 import { CraftContextPayloadSchema } from "./craft.ts";
@@ -144,7 +145,7 @@ export function mergeCatalogs(
 
 /**
  * 코어 카탈로그와 내장 L2 도메인 카탈로그를 이은 병합 카탈로그.
- * 도메인 카탈로그는 work, dialog, artifact, schedule이 채워져 있다.
+ * 도메인 카탈로그는 work, dialog, artifact, schedule, workspace가 채워져 있다.
  */
 export const EVENT_CATALOG: readonly CatalogEntry[] = mergeCatalogs(
   CORE_EVENT_CATALOG,
@@ -152,6 +153,7 @@ export const EVENT_CATALOG: readonly CatalogEntry[] = mergeCatalogs(
   DIALOG_EVENT_CATALOG,
   ARTIFACT_EVENT_CATALOG,
   SCHEDULE_EVENT_CATALOG,
+  WORKSPACE_EVENT_CATALOG,
 );
 
 const CORE_BY_KIND: ReadonlyMap<string, CatalogEntry> = new Map(
@@ -181,3 +183,4 @@ export * from "./thread.ts";
 export * from "./tool.ts";
 export * from "./turn.ts";
 export * from "./work.ts";
+export * from "./workspace.ts";

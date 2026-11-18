@@ -31,7 +31,7 @@ binds: [xeon/packages/cap-workspace/**]
 | `ExecutionEnv` 인터페이스와 구현(pi durable env 포크), 출력 spill, 프로세스 그룹 종료 | `L0.exec.spec` |
 | OS 샌드박스 정책, 쓰기 허용 경로의 커널 수준 강제, 보호 경로 목록 | `L0.sandbox.spec` |
 | 권한 모드, 권한 규칙, 승인 프로토콜, 도구 실행 파이프라인, 결과 경계화 | `L1.tools.spec` |
-| 되감기와 파일 복원, 체크포인트 | `L1.persistence.spec` |
+| 대화의 되감기(leaf 이동)와 분기, 단계 체크포인트 | `L1.persistence.spec`. 파일 되감기는 이 도메인이 한다(§4.8) |
 | 시크릿 주입과 출력 마스킹 | `L0.secrets.spec`, `L1.tools.spec` |
 | blob 저장 구현(`sys_blobs`, 파일 배치) | `L0.store.spec` |
 | 첨부 입력 경로(붙여넣기, URL 첨부, 사용자 입력과의 결합) | `L2.dialog.spec` |
@@ -471,7 +471,7 @@ export interface WorkspaceService {
 
 ### 3.6 이벤트와 레코드
 
-- 이벤트 접두사 `workspace.`는 예약만 한다. 이 문서는 이벤트 type을 정의하지 않는다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
+- 이벤트 접두사 `workspace.`는 파일 되감기 이벤트 다섯 종(`workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten`)이 쓴다. 정의는 `F.records.spec` §3.3.3이다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
 - 테이블 접두사 `cap_workspace_`도 예약만 한다. 테이블을 만들지 않는다.
 - 파일 변경 기록은 도구 결과에 싣는다. `write`, `edit`의 `toContent`는 `details`에 `FileChange`를 넣고, `structuredContent`에도 같은 값이 있다. `L2.artifacts.spec`의 리뷰는 이 `details`를 근거로 한다.
 
@@ -654,8 +654,8 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ### 4.8 파일 복원과의 경계
 
-- 파일 복원(되감기, 체크포인트로 돌아가기)은 `L1.persistence`가 소유한다. 이 도메인은 복원 API를 두지 않는다.
-- `write`, `edit` 결과의 `FileChange.diff`는 사람이 보는 기록이고 복원 원본이 아니다. 복원에 쓸 이전 내용의 스냅샷을 어떻게 남길지(blob, git 객체 등)는 `L1.persistence.spec`이 정한다.
+- 파일 되감기(미리보기, 적용, 덮어쓰기, 되돌리기, 턴별 파일 보기)는 이 도메인이 소유한다. 포트 `FileRewindPortKey`(`fresnel.file-rewind`, F `services/file-rewind.ts`)를 `host.provide`로 내놓고, 호스트가 `thread.rewind*`·`thread.turnFiles` 처리기에서 받아 쓴다. 대화의 되감기(leaf 이동)는 `L1.persistence`가 한다(`L1.persistence.spec` §4.13.2).
+- `write`, `edit` 결과의 `FileChange.diff`는 사람이 보는 기록이고 복원 원본이 아니다. 복원에 쓸 이전 내용은 편집 전에 blob으로 저장하고 `workspace.files_captured` 이벤트가 그 참조를 가진다(`F.records.spec` §3.3.3).
 
 ## 5. 실패와 경계 사례
 

@@ -62,7 +62,7 @@ Fresnel 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유
 | `run-engine` | L1 | tasks, loop, context, agents | `core-tasks`, `core-loop`, `core-context`, `core-agents` | 없음(상태는 이벤트와 `p_*`) | `input.`, `turn.`, `step.`, `item.`, `part.`, `post.`, `agent.`, kind 단위 `thread.compacted` | `fresnel.tasks`, `fresnel.loop`, `fresnel.context`, `fresnel.agents` | `fresnel.session`, `fresnel.models`, `fresnel.tools`, `fresnel.ext` |
 | `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정: review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `fresnel.models` | `fresnel.secrets` |
 | `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.`, `tool.` | `fresnel.tools`, `fresnel.approvals` | `fresnel.session`, `fresnel.exec`, `fresnel.sandbox`, `fresnel.secrets`, `fresnel.ext` |
-| `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.`(예약) | `fresnel.workspace` | `fresnel.exec`, `fresnel.os`, `fresnel.tools` |
+| `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.` | `fresnel.workspace`, `fresnel.file-rewind` | `fresnel.exec`, `fresnel.os`, `fresnel.tools`, `fresnel.session`, `fresnel.store` |
 | `mcp` | L2 | mcp | `cap-mcp` | `cap_mcp_*`(서버 상태) | `mcp.`(휘발, 예약) | `fresnel.mcp` | `fresnel.process`, `fresnel.secrets`, `fresnel.tools`, `fresnel.store` |
 | `web` | L2 | web | `cap-web` | `cap_web_*`(fetch 캐시) | `web.`(휘발, 예약) | `fresnel.web` | `fresnel.models`(내장 검색 래퍼), `fresnel.secrets`, `fresnel.tools`, `fresnel.store` |
 | `knowledge` | L2 | knowledge | `cap-knowledge` | `cap_knowledge_*`(스킬 색인, 메모리, 변경 원장, 제안 대기열, 대화 검색 FTS) | `knowledge.`(예약) | `fresnel.knowledge` | `fresnel.session`(피드, 소비자 커서), `fresnel.store`, `fresnel.tools`, `fresnel.approvals` |
@@ -272,7 +272,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `scope.` | extension-host | `xh` | `changed` | `handler_failed` |
 | `lease.` | extension-host | `xh` | `acquired`, `released` | 없음 |
 | `model.` | model-gateway | `core.models` | 없음(예약) | 예약 |
-| `workspace.` | workspace | `cap.workspace` | 예약 | 예약 |
+| `workspace.` | workspace | `cap.workspace` | `files_captured`, `rewind_started`, `rewind_applied`, `rewind_undone`, `rewind_overwritten`(`F.records.spec` §3.3.3) | 없음 |
 | `mcp.` | mcp | `cap.mcp` | 예약 | 예약 |
 | `web.` | web | `cap.web` | 예약 | 예약 |
 | `knowledge.` | knowledge | `cap.knowledge` | 예약 | 예약 |
@@ -341,6 +341,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `fresnel.approvals` | `ApprovalService`(services) | `core-tools` | 예 | dialog, work, knowledge, host |
 | `fresnel.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-sdk, helm, learning, host |
 | `fresnel.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 그룹 |
+| `fresnel.file-rewind` | `FileRewindService`(services. 포트 키 `FileRewindPortKey`. [미결] [근거: packages/contracts/test/services/names.test.ts의 열여섯 이름 시험. 아래 문장과 어긋나므로 `F.capabilities.spec` §3.12를 고칠지 정한다]) | `cap-workspace` | 예(`host.provide`) | host |
 | `fresnel.mcp` | `McpService`(services. `McpPort`를 확장한다. 기능 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 그룹, host |
 | `fresnel.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 그룹 |
 | `fresnel.knowledge` | `KnowledgeService`(capabilities) | `cap-knowledge` | 아니오(묶음 이름) | helm, learning |

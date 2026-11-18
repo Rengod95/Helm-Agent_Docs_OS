@@ -33,13 +33,29 @@ import {
   SemVerSchema,
   type SemVer,
 } from "../../capabilities/index.ts";
-import { ApprovalAnswerSchema, ApprovalRequestedPayloadSchema } from "../../records/index.ts";
+import {
+  ApprovalAnswerSchema,
+  ApprovalRequestedPayloadSchema,
+  RewindFileResultSchema,
+  RewindIdSchema,
+  RewindScopeSchema,
+  RewindUndoStateSchema,
+  UnrestorableReasonSchema,
+  type RewindFileResult,
+  type RewindId,
+  type RewindUndoState,
+} from "../../records/index.ts";
 import { ExtensionNameSchema } from "../../extensions/index.ts";
 import {
   SelfTestReportSchema,
   type BinaryName,
   type BinarySource,
+  type IncompleteRewind,
+  type KeptFile,
   type OsPlatform,
+  type RewindPreview,
+  type TurnFiles,
+  type UntrackedEffect,
 } from "../../services/index.ts";
 import {
   CraftContextsSchema,
@@ -873,6 +889,235 @@ export type ThreadRevertParams = Static<typeof ThreadRevertParamsSchema>;
 export const ThreadRevertResultSchema: TObject<{ position: typeof StreamPositionSchema }> =
   Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
 export type ThreadRevertResult = Static<typeof ThreadRevertResultSchema>;
+
+// ── 파일 되감기(M4, F.wire-settings.spec §3.3.1, design.md "wire"). 파일 내용은 어떤 필드에도 싣지 않는다(경로와 해시만) ──
+
+/** thread.rewind 결과. leaf와 headSeq는 대화를 옮겼을 때만 있다(scope가 files면 없다) */
+export interface ThreadRewindResult {
+  rewindId: RewindId;
+  leaf?: EventId;
+  headSeq?: number;
+  files: RewindFileResult[];
+  kept: KeptFile[];
+  untracked: UntrackedEffect[];
+}
+
+/** thread.rewindOverwrite 결과. 덮어쓰기 뒤 남은 밖에서 바뀐 파일을 돌려준다 */
+export interface ThreadRewindOverwriteResult {
+  files: RewindFileResult[];
+  kept: KeptFile[];
+}
+
+/** thread.rewindUndo 결과. conversation은 호스트가 leaf를 보고 붙인다 */
+export interface ThreadRewindUndoResult {
+  files: RewindFileResult[];
+  conversation: RewindUndoState;
+}
+
+/** thread.turnFiles 결과. incomplete는 시작만 있고 적용이 없는 되감기다 */
+export interface ThreadTurnFilesResult {
+  turns: TurnFiles[];
+  incomplete: IncompleteRewind[];
+}
+
+const rewindPathShape = Type.String({ minLength: 1, maxLength: 4096 });
+const rewindKeptShape = Type.Object(
+  {
+    path: rewindPathShape,
+    reason: Type.Union([Type.Literal("changed_outside"), Type.Literal("deleted_outside")]),
+  },
+  { additionalProperties: false },
+);
+const rewindUntrackedShape = Type.Object(
+  {
+    turnId: TurnIdSchema,
+    kind: Type.Union([Type.Literal("shell"), Type.Literal("agent")]),
+    toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
+  },
+  { additionalProperties: false },
+);
+const rewindIncompleteShape = Type.Object(
+  {
+    rewindId: RewindIdSchema,
+    scope: RewindScopeSchema,
+    targetItemId: ItemIdSchema,
+    targetEventId: EventIdSchema,
+  },
+  { additionalProperties: false },
+);
+const rewindPreviewShape = Type.Object(
+  {
+    toEventId: EventIdSchema,
+    files: Type.Array(
+      Type.Object(
+        {
+          path: rewindPathShape,
+          action: Type.Union([
+            Type.Literal("restore"),
+            Type.Literal("delete"),
+            Type.Literal("keep"),
+            Type.Literal("skip"),
+          ]),
+          reason: Nullable(
+            Type.Union([
+              Type.Literal("changed_outside"),
+              Type.Literal("deleted_outside"),
+              Type.Literal("too_large"),
+              Type.Literal("quota"),
+              Type.Literal("unreadable"),
+              Type.Literal("already_original"),
+            ]),
+          ),
+          turnId: TurnIdSchema,
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 4096 },
+    ),
+    untracked: Type.Array(rewindUntrackedShape, { maxItems: 1024 }),
+    incomplete: Type.Array(rewindIncompleteShape, { maxItems: 256 }),
+  },
+  { additionalProperties: false },
+);
+export const ThreadRewindPreviewResultSchema: TUnsafe<RewindPreview> = Type.Unsafe<RewindPreview>(
+  rewindPreviewShape satisfies SchemaProof<RewindPreview, typeof rewindPreviewShape>,
+);
+export type ThreadRewindPreviewResult = Static<typeof ThreadRewindPreviewResultSchema>;
+
+export const ThreadRewindPreviewParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  to: typeof ItemIdSchema;
+}> = Type.Object({ threadId: ThreadIdSchema, to: ItemIdSchema }, { additionalProperties: false });
+export type ThreadRewindPreviewParams = Static<typeof ThreadRewindPreviewParamsSchema>;
+
+export const ThreadRewindParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  to: typeof ItemIdSchema;
+  scope: TOptional<typeof RewindScopeSchema>;
+  overwrite: TOptional<TArray<TString>>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    to: ItemIdSchema,
+    /** 없으면 `both`(대화와 파일 둘 다) */
+    scope: Type.Optional(RewindScopeSchema),
+    /** 밖에서 바뀌어 건드리지 않은 파일 가운데 덮어쓰기로 고른 경로 */
+    overwrite: Type.Optional(Type.Array(rewindPathShape, { maxItems: 4096 })),
+  },
+  { additionalProperties: false },
+);
+export type ThreadRewindParams = Static<typeof ThreadRewindParamsSchema>;
+
+const rewindResultShape = Type.Object(
+  {
+    rewindId: RewindIdSchema,
+    leaf: Type.Optional(EventIdSchema),
+    headSeq: Type.Optional(SeqSchema),
+    files: Type.Array(RewindFileResultSchema, { maxItems: 4096 }),
+    kept: Type.Array(rewindKeptShape, { maxItems: 4096 }),
+    untracked: Type.Array(rewindUntrackedShape, { maxItems: 1024 }),
+  },
+  { additionalProperties: false },
+);
+export const ThreadRewindResultSchema: TUnsafe<ThreadRewindResult> =
+  Type.Unsafe<ThreadRewindResult>(
+    rewindResultShape satisfies SchemaProof<ThreadRewindResult, typeof rewindResultShape>,
+  );
+
+export const ThreadRewindOverwriteParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  rewindId: TString;
+  paths: TArray<TString>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    rewindId: RewindIdSchema,
+    paths: Type.Array(rewindPathShape, { minItems: 1, maxItems: 4096 }),
+  },
+  { additionalProperties: false },
+);
+export type ThreadRewindOverwriteParams = Static<typeof ThreadRewindOverwriteParamsSchema>;
+
+const rewindOverwriteResultShape = Type.Object(
+  {
+    files: Type.Array(RewindFileResultSchema, { maxItems: 4096 }),
+    kept: Type.Array(rewindKeptShape, { maxItems: 4096 }),
+  },
+  { additionalProperties: false },
+);
+export const ThreadRewindOverwriteResultSchema: TUnsafe<ThreadRewindOverwriteResult> =
+  Type.Unsafe<ThreadRewindOverwriteResult>(
+    rewindOverwriteResultShape satisfies SchemaProof<
+      ThreadRewindOverwriteResult,
+      typeof rewindOverwriteResultShape
+    >,
+  );
+
+export const ThreadRewindUndoParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  rewindId: TString;
+}> = Type.Object(
+  { threadId: ThreadIdSchema, rewindId: RewindIdSchema },
+  { additionalProperties: false },
+);
+export type ThreadRewindUndoParams = Static<typeof ThreadRewindUndoParamsSchema>;
+
+const rewindUndoResultShape = Type.Object(
+  {
+    files: Type.Array(RewindFileResultSchema, { maxItems: 4096 }),
+    conversation: RewindUndoStateSchema,
+  },
+  { additionalProperties: false },
+);
+export const ThreadRewindUndoResultSchema: TUnsafe<ThreadRewindUndoResult> =
+  Type.Unsafe<ThreadRewindUndoResult>(
+    rewindUndoResultShape satisfies SchemaProof<
+      ThreadRewindUndoResult,
+      typeof rewindUndoResultShape
+    >,
+  );
+
+export const ThreadTurnFilesParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  turnId: TOptional<typeof TurnIdSchema>;
+}> = Type.Object(
+  { threadId: ThreadIdSchema, turnId: Type.Optional(TurnIdSchema) },
+  { additionalProperties: false },
+);
+export type ThreadTurnFilesParams = Static<typeof ThreadTurnFilesParamsSchema>;
+
+const turnFilesResultShape = Type.Object(
+  {
+    turns: Type.Array(
+      Type.Object(
+        {
+          turnId: TurnIdSchema,
+          files: Type.Array(
+            Type.Object(
+              {
+                path: rewindPathShape,
+                existedBefore: Nullable(Type.Boolean()),
+                restorable: Type.Boolean(),
+                unrestorableReason: Nullable(UnrestorableReasonSchema),
+                touches: Type.Integer({ minimum: 1 }),
+              },
+              { additionalProperties: false },
+            ),
+            { maxItems: 4096 },
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 4096 },
+    ),
+    incomplete: Type.Array(rewindIncompleteShape, { maxItems: 256 }),
+  },
+  { additionalProperties: false },
+);
+export const ThreadTurnFilesResultSchema: TUnsafe<ThreadTurnFilesResult> =
+  Type.Unsafe<ThreadTurnFilesResult>(
+    turnFilesResultShape satisfies SchemaProof<ThreadTurnFilesResult, typeof turnFilesResultShape>,
+  );
 
 /** models.list의 한 줄. 대화가 고를 수 있는 모델이다(M4 T-MODEL) */
 export const ModelEntrySchema: TObject<{
@@ -2141,6 +2386,26 @@ interface WireSchemas
     params: WithMeta<typeof ThreadRevertParamsSchema>;
     result: typeof ThreadRevertResultSchema;
   };
+  "thread.rewindPreview": {
+    params: WithMeta<typeof ThreadRewindPreviewParamsSchema>;
+    result: typeof ThreadRewindPreviewResultSchema;
+  };
+  "thread.rewind": {
+    params: WithMeta<typeof ThreadRewindParamsSchema>;
+    result: typeof ThreadRewindResultSchema;
+  };
+  "thread.rewindOverwrite": {
+    params: WithMeta<typeof ThreadRewindOverwriteParamsSchema>;
+    result: typeof ThreadRewindOverwriteResultSchema;
+  };
+  "thread.rewindUndo": {
+    params: WithMeta<typeof ThreadRewindUndoParamsSchema>;
+    result: typeof ThreadRewindUndoResultSchema;
+  };
+  "thread.turnFiles": {
+    params: WithMeta<typeof ThreadTurnFilesParamsSchema>;
+    result: typeof ThreadTurnFilesResultSchema;
+  };
   "thread.rename": {
     params: WithMeta<typeof ThreadRenameParamsSchema>;
     result: typeof ThreadRenameResultSchema;
@@ -2471,6 +2736,27 @@ export const WIRE_METHODS: {
   "thread.delete": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
+  "thread.rewindPreview": spec(
+    withMeta(ThreadRewindPreviewParamsSchema),
+    ThreadRewindPreviewResultSchema,
+    "M4",
+  ),
+  "thread.rewind": spec(withMeta(ThreadRewindParamsSchema), ThreadRewindResultSchema, "M4"),
+  "thread.rewindOverwrite": spec(
+    withMeta(ThreadRewindOverwriteParamsSchema),
+    ThreadRewindOverwriteResultSchema,
+    "M4",
+  ),
+  "thread.rewindUndo": spec(
+    withMeta(ThreadRewindUndoParamsSchema),
+    ThreadRewindUndoResultSchema,
+    "M4",
+  ),
+  "thread.turnFiles": spec(
+    withMeta(ThreadTurnFilesParamsSchema),
+    ThreadTurnFilesResultSchema,
+    "M4",
+  ),
   "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
   "models.list": spec(withMeta(ModelsListParamsSchema), ModelsListResultSchema, "M4"),
   "thread.setModel": spec(withMeta(ThreadSetModelParamsSchema), ThreadSetModelResultSchema, "M4"),

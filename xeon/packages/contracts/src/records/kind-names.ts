@@ -145,16 +145,17 @@ export const CORE_AREAS: readonly CoreArea[] = [
 ];
 
 /** 내장 L2 도메인이 소유하는 영역(§3.3.2). 카탈로그 파일이 있는 영역만 */
-export type DomainArea = "work" | "dialog" | "artifact" | "schedule";
-export const DOMAIN_AREAS: readonly DomainArea[] = ["work", "dialog", "artifact", "schedule"];
-/** 예약만 한 L2 영역. 그 도메인이 kind를 처음 더할 때 DomainArea로 옮긴다 */
-export type ReservedDomainArea = "workspace" | "mcp" | "web" | "knowledge";
-export const RESERVED_DOMAIN_AREAS: readonly ReservedDomainArea[] = [
+export type DomainArea = "work" | "dialog" | "artifact" | "schedule" | "workspace";
+export const DOMAIN_AREAS: readonly DomainArea[] = [
+  "work",
+  "dialog",
+  "artifact",
+  "schedule",
   "workspace",
-  "mcp",
-  "web",
-  "knowledge",
 ];
+/** 예약만 한 L2 영역. 그 도메인이 kind를 처음 더할 때 DomainArea로 옮긴다 */
+export type ReservedDomainArea = "mcp" | "web" | "knowledge";
+export const RESERVED_DOMAIN_AREAS: readonly ReservedDomainArea[] = ["mcp", "web", "knowledge"];
 export type DomainEventKind = `${DomainArea}.${string}`;
 
 export type ExtensionEventKind =

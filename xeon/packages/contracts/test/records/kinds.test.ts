@@ -45,12 +45,14 @@ describe("domain areas", () => {
     }
   });
 
-  test("work and dialog kinds registered by their domain catalogs parse as domain kinds", () => {
+  test("work, dialog and workspace kinds registered by their domain catalogs parse as domain kinds", () => {
     for (const [kind, area, name] of [
       ["work.task_created", "work", "task_created"],
       ["work.report_built", "work", "report_built"],
       ["dialog.status", "dialog", "status"],
       ["dialog.notified", "dialog", "notified"],
+      ["workspace.files_captured", "workspace", "files_captured"],
+      ["workspace.rewind_started", "workspace", "rewind_started"],
     ] as const) {
       const result = parseEventKind(kind);
       expect(result.ok).toBe(true);
@@ -58,8 +60,8 @@ describe("domain areas", () => {
     }
   });
 
-  test("reserved L2 areas are reserved", () => {
-    for (const kind of ["workspace.read", "mcp.connected", "web.searched", "knowledge.updated"]) {
+  test("reserved L2 areas are reserved, and an unregistered name in a domain area is reserved too", () => {
+    for (const kind of ["mcp.connected", "web.searched", "knowledge.updated", "workspace.read"]) {
       const result = parseEventKind(kind);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.kind).toBe("reserved_area");

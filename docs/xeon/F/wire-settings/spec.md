@@ -318,6 +318,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.delete` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
+| thread | `thread.rewindPreview` | `{ threadId: ThreadId, to: ItemId }` | `RewindPreview`: `{ toEventId: EventId, files: { path: string, action: "restore"\|"delete"\|"keep"\|"skip", reason: string \| null, turnId: TurnId }[], untracked: UntrackedEffect[], incomplete: IncompleteRewind[] }`. 파일 되감기 메서드의 글머리 참고 | M4 [제안] |
+| thread | `thread.rewind` | `{ threadId: ThreadId, to: ItemId, scope?: "both"\|"files"\|"conversation", overwrite?: string[](최대 4096) }`. `scope`를 빼면 `both`다 | `{ rewindId: string, leaf?: EventId, headSeq?: integer, files: RewindFileResult[], kept: KeptFile[], untracked: UntrackedEffect[] }`. `leaf`와 `headSeq`는 대화를 옮겼을 때만 있다 | M4 [제안] |
+| thread | `thread.rewindOverwrite` | `{ threadId: ThreadId, rewindId: string, paths: string[](1~4096) }` | `{ files: RewindFileResult[], kept: KeptFile[] }` | M4 [제안] |
+| thread | `thread.rewindUndo` | `{ threadId: ThreadId, rewindId: string }` | `{ files: RewindFileResult[], conversation: "restored"\|"not_included"\|"moved_on" }` | M4 [제안] |
+| thread | `thread.turnFiles` | `{ threadId: ThreadId, turnId?: TurnId }`. 빼면 활성 가지 전체다 | `{ turns: { turnId: TurnId, files: { path: string, existedBefore: boolean \| null, restorable: boolean, unrestorableReason: "too_large"\|"quota"\|"unreadable"\|null, touches: integer(1..) }[] }[], incomplete: IncompleteRewind[] }` | M4 [제안] |
 | thread | `thread.rename` | `{ threadId: ThreadId, title: string(1..200) }` | `{ position: StreamPosition }` | M2 |
 | model | `models.list` | `{}` | `{ models: { ref: string, name: string, contextWindow: integer, reasoning: boolean, inputPrice: number \| null, outputPrice: number \| null }[] }`(최대 1000) | M4 |
 | thread | `thread.setModel` | `{ threadId: ThreadId, model: string(1..200) \| null }` | `{ position: StreamPosition }` | M4 |
@@ -645,6 +650,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     `reason`이 없는 `applied: false`는 이유를 알리지 않는 구현이다. 클라이언트는 `answer_invalid`가 아닌 모든 값을 "다시 보내도 같다"로 다룬다. `applied: true`에는 `reason`이 없다. 요청이 속한 thread의 쓰기 소유가 없으면 결과 대신 3002 오류가 난다(§4.6).
   - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 기능 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
 
+파일 되감기 메서드(M4 [제안], `thread.rewindPreview`·`thread.rewind`·`thread.rewindOverwrite`·`thread.rewindUndo`·`thread.turnFiles`)의 글머리:
+
+- 대화의 되감기는 `thread.revert`가 그대로 한다(대화만). `thread.rewind`는 같은 대상으로 대화와 파일을 함께 되감는다. `scope`가 `both`(기본)면 둘 다, `files`면 파일만(`leaf`와 `headSeq`가 빠진다), `conversation`이면 대화만(`files`가 빈 배열이다)이다.
+- `RewindFileResult` = `{ path: string, outcome: "restored" | "deleted" | "already_original" | "kept_changed" | "skipped" | "failed", reason: string | null }`. 값의 뜻은 `F.records.spec` §3.3.3이다.
+- `KeptFile` = `{ path: string, reason: "changed_outside" | "deleted_outside" }`. 되감기 뒤 밖에서 바뀌어 건드리지 않은 파일이다. `thread.rewindOverwrite`의 `paths`로 덮어쓸 수 있다.
+- `UntrackedEffect` = `{ turnId: TurnId, kind: "shell" | "agent", toolCallId: string | null }`. 범위 안 턴에서 파일을 바꿨을 수 있으나 추적하지 않는 효과다(셸 명령, 서브에이전트 생성). 되감기 전에 사용자에게 알린다.
+- `IncompleteRewind` = `{ rewindId: string, scope: "both" | "files" | "conversation", targetItemId: ItemId, targetEventId: EventId }`. 시작만 있고 적용이 없는 되감기다("반만 되돌린 상태"). `thread.turnFiles`와 `thread.rewindPreview`가 낸다.
+- `RewindPreview.files[].action`: `keep`은 밖에서 바뀌어 건드리지 않는 파일, `skip`은 복원할 원본이 없어 건드리지 않는 파일(`reason`이 `too_large`·`quota`·`unreadable`이거나 이미 원본인 `already_original`)이다. `restore`와 `delete`는 쓰거나 지울 파일이다.
+- 범위는 활성 가지에서 `to` 항목 뒤의 `workspace.files_captured`다. `to`가 없거나 현재 가지에 없으면 3005(`item_not_found`, `not_on_branch`)다. 진행 중 turn이 있으면 쓰는 메서드(`thread.rewind`, `thread.rewindOverwrite`, `thread.rewindUndo`)는 3003이다. 쓰기 소유가 없으면 3002다. 닫힌 thread는 3007이다. `thread.rewindPreview`와 `thread.turnFiles`는 읽기라 소유를 요구하지 않는다.
+- [미결] `thread.rewindOverwrite`·`thread.rewindUndo`의 알 수 없는 `rewindId`(`rewind_not_found`)와 저장소 실패(`store_failed`)를 어느 오류 코드로 낼지 정하지 않았다. 호스트 단계에서 정한다. 새 오류 코드는 이 절에서 먼저 정한다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절의 `FileRewindError`]
+- 파일 경로는 통신에 싣고, 파일 내용은 어떤 필드에도 싣지 않는다. 해시와 크기, 상태 사유만 싣는다.
+
 M5c-1 [제안]: 프로필·프로젝트 메서드의 params·result 스키마는 `wire/profile.ts`(`PROFILE_WIRE_METHODS`)와 `wire/project.ts`(`PROJECT_WIRE_METHODS`)에 있다. `profile.list`, `profile.get`, `profile.put`, `profile.delete`, `profile.apply`, `profile.preview` 행은 옛 모양이라 이 표에서 뺐다. `profile.apply`와 `ProfileApplyParams`, `PROFILE_LAYERS`는 제거했다(review.m5-profile-project-loader §3.4). 새 메서드(`profile.clone`, `profile.common.*`, `profile.defaultFor`, `profile.removePlugin`, `profile.default.reset`, `thread.setProfile`, `project.*`)는 `WIRE_METHODS`에 등록할 때 이 표에 행을 더한다. 등록은 통합 단계가 한다. 같은 단계에서 `ThreadSummary`에 `profileId`, `project`, `overlay`를, `thread.create` 결과에 `project`, `profileId`, `sameFolder`를, `turn.start` 입력에 `overlay`(최대 4)를, 결과에 `cacheImpact`를 더한다(조각은 `wire/profile.ts`의 `ThreadProfileViewSchema`, `OverlayListSchema`, `CacheImpactSchema`).
 
 #### 3.3.2 알림 표
@@ -685,6 +702,11 @@ export interface WireMethodMap {
   "thread.delete":     { params: ThreadRefParams;        result: EmptyResult };
   "thread.fork":       { params: ThreadForkParams;       result: ThreadForkResult };
   "thread.revert":     { params: ThreadRevertParams;     result: ThreadRevertResult };
+  "thread.rewindPreview":   { params: ThreadRewindPreviewParams;   result: RewindPreview };
+  "thread.rewind":          { params: ThreadRewindParams;          result: ThreadRewindResult };
+  "thread.rewindOverwrite": { params: ThreadRewindOverwriteParams; result: ThreadRewindOverwriteResult };
+  "thread.rewindUndo":      { params: ThreadRewindUndoParams;      result: ThreadRewindUndoResult };
+  "thread.turnFiles":       { params: ThreadTurnFilesParams;       result: ThreadTurnFilesResult };
   "thread.rename":     { params: ThreadRenameParams;     result: ThreadRenameResult };
   "models.list":       { params: ModelsListParams;       result: ModelsListResult };
   "thread.setModel":   { params: ThreadSetModelParams;   result: ThreadSetModelResult };
@@ -1050,7 +1072,7 @@ export declare function toVolatileEventWire(event: VolatileEventEnvelope): Volat
    - 이어 붙이기 기준(`position`)은 이 thread의 이벤트에만 적용한다. 원본 thread에 fork 뒤 쓰기가 있어도 fork 위치까지의 사슬은 바뀌지 않으므로 원본 이벤트는 이 thread의 구독이나 `position`과 무관하다.
    - 원본 사슬 쪽 item은 이 thread에서 되감기나 fork의 대상이 아니다. `thread.revert`·`thread.fork`의 `to`·`at`이 원본 사슬 item이면 `thread.invalidTarget`(`reason: "not_on_branch"`)이다 [제안].
    - 구현은 M3에 해도 된다. 그때까지 호스트가 fork thread의 자기 가지만 돌려주고 `hasMore: false`로 끝나는 것은 이 규칙과 다른 알려진 한계다(`L4.host-service.spec` §10 22번).
-4. 스냅샷의 범위: `items`는 커밋된 `ItemRecord`만 담는다. 스트리밍 중인 item(`item.started` 이후 아직 `item.recorded`가 없는 것)은 휘발 사실이라 스냅샷에 없다. 그 item의 조각은 §3.4.4대로 다시 보내지 않고, 완성본은 `item.recorded`로 온다. 되감기(`thread.revert`)로 현재 가지가 바뀌면 클라이언트는 `thread.read`를 처음부터 다시 읽는다.
+4. 스냅샷의 범위: `items`는 커밋된 `ItemRecord`만 담는다. 스트리밍 중인 item(`item.started` 이후 아직 `item.recorded`가 없는 것)은 휘발 사실이라 스냅샷에 없다. 그 item의 조각은 §3.4.4대로 다시 보내지 않고, 완성본은 `item.recorded`로 온다. 되감기(`thread.revert`, `thread.rewind`의 대화 범위)로 현재 가지가 바뀌면 클라이언트는 `thread.read`를 처음부터 다시 읽는다.
 5. 대기 승인: `approval.list`는 재설정이나 재동기화 뒤 승인 대기열을 다시 만드는 데 쓴다. 이어 붙이기는 `thread.read`와 같다. 목록에 반영된 `approval.requested`가 재전송으로 다시 와도 `seq <= position.seq`라 적용하지 않으므로, 이미 해결된 요청이 대기열에 되살아나지 않는다. 승인이 대기 중인 thread는 `ThreadSummary.pendingApprovals`가 0보다 큰 thread이므로 클라이언트는 그 thread에만 요청한다.
 6. "비어 있음"과 "읽는 중"의 구분: F는 `events.subscribe` 응답이나 `ThreadSummary`에 별도 신호를 더하지 않는다(L4.desktop 상태 설계 §14 12번). `thread.list`, `thread.read`, `approval.list`는 모두 요청과 응답이고, 응답이 곧 "읽기를 마쳤다"는 신호이기 때문이다. 클라이언트는 요청을 보낼 때 `loading`, 성공 응답을 적용할 때 `ready`(빈 목록이어도), 오류 응답을 받을 때 `failed`로 둔다. 목록 읽기는 JSON-RPC 오류로 실패하므로 실패와 빈 결과도 구분된다. `events.subscribe` 응답에 "비어 있음" 표시를 두지 않는 이유는, 구독은 이벤트만 책임지고 thread 목록과 스냅샷은 필터와 페이지가 있는 별도 읽기라서 호스트가 응답 시점에 비어 있음을 판정할 수 없기 때문이다. `thread.list` 목록은 모든 페이지(`nextCursor`가 `null`일 때까지)를 받은 뒤 `ready`다.
 7. [제안] `thread.list`에는 `position`을 더하지 않는다. 목록 원소의 `ThreadSummary.headSeq`가 그 thread의 마지막 seq이므로, 클라이언트는 같은 thread의 이벤트 중 `seq <= headSeq`인 것을 목록에 다시 적용하지 않는 것으로 이어 붙인다.
@@ -1121,9 +1143,9 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3002 | `thread.locked` | true | 다른 프로세스가 쓰기 소유 중이다. `thread.open(mode write)`와 `turn.start`의 암묵 획득(§3.3.1)에서 난다 | `ownerKind`, `options: ("observe"\|"fork"\|"delegate")[]` |
 | 3003 | `turn.busy` | true | 진행 중 turn이 있어 새 turn을 받을 수 없다 | `turnId` |
 | 3004 | `thread.hasForks` | false | 이 thread를 `forkedFrom`으로 가리키는 thread가 있어 `thread.delete`를 거절했다 | `forks: ThreadId[]` |
-| 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다. `thread.read`의 `before`가 이 thread에 없거나(`item_not_found`) 현재 가지에 없을 때(`not_on_branch`)도 이 오류다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
+| 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다. `thread.read`의 `before`가 이 thread에 없거나(`item_not_found`) 현재 가지에 없을 때(`not_on_branch`)도 이 오류다. `thread.rewindPreview`·`thread.rewind`의 `to`도 같다(M4) | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
 | 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기·컴팩션을 막았다 | `point: "thread.fork.before"\|"thread.tree.before"\|"thread.switch.before"\|"thread.compact.before"`, `reason: string \| null` |
-| 3007 | `thread.closed` | false | 이미 닫힌 thread에 쓰기나 수명 주기 호출(`turn.start`, `turn.resume`, `thread.open(write)`, `thread.fork`, `thread.revert`)을 했다. `thread.read`, `thread.list`, `thread.delete`는 닫힌 thread에도 된다 | `threadId` |
+| 3007 | `thread.closed` | false | 이미 닫힌 thread에 쓰기나 수명 주기 호출(`turn.start`, `turn.resume`, `thread.open(write)`, `thread.fork`, `thread.revert`, `thread.rewind`, `thread.rewindOverwrite`, `thread.rewindUndo`)을 했다. `thread.read`, `thread.list`, `thread.delete`는 닫힌 thread에도 된다 | `threadId` |
 | 3008 | `thread.compactFailed` | false | `thread.compact`가 요약을 만들거나 커밋하지 못했다. 요청 취소는 5001이고 확장이 막은 것은 3006이다 | `reason: "read_failed"\|"projection_failed"\|"summary_failed"\|"summary_has_tool_call"\|"summary_truncated"\|"commit_failed"` |
 | 3009 | `approval.remoteNotAllowed` | false | 다른 기기(게이트웨이를 거쳐 `host.hello`에 `client.origin: "remote"`가 실린 연결)가 `approval.respond`를 보냈는데 설정 `l0.process.service.allowRemoteRespond`가 꺼져 있다. 질문·계획·검토 응답도 같다. 승인 요청은 볼 수 있고 답은 이 컴퓨터에서만 한다 [결정: 2026-11-12 사용자] | - |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |

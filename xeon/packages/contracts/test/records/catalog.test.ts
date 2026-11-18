@@ -8,6 +8,7 @@ import {
   DIALOG_EVENT_CATALOG,
   EVENT_CATALOG,
   WORK_EVENT_CATALOG,
+  WORKSPACE_EVENT_CATALOG,
   ItemRecordedPayloadSchema,
   PostAcceptedPayloadSchema,
   ScopeChangedPayloadSchema,
@@ -43,13 +44,14 @@ describe("core catalog", () => {
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
     expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(48);
-    // 코어 48종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
+    // 코어 48종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종, workspace 5종)가 이어 붙는다
     expect(EVENT_CATALOG.length).toBe(
       48 +
         WORK_EVENT_CATALOG.length +
         DIALOG_EVENT_CATALOG.length +
         ARTIFACT_EVENT_CATALOG.length +
-        SCHEDULE_EVENT_CATALOG.length,
+        SCHEDULE_EVENT_CATALOG.length +
+        WORKSPACE_EVENT_CATALOG.length,
     );
     expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
     expect(EVENT_CATALOG.slice(0, 48)).toEqual([...CORE_EVENT_CATALOG]);
