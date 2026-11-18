@@ -439,6 +439,56 @@ test("a user message claimed while the drive is held becomes the next last, and 
   expect(t.host.leaseOf(thread)).not.toBeNull();
 });
 
+test("a user message that arrives while the start request is queued waits for the first step and then becomes the next last", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "user-held",
+    stepOf(calls, ({ last }) => {
+      if (last === null) return { do: "turn", input: GO };
+      if (last.kind === "user") return { do: "turn", input: last.message };
+      if (last.kind === "ok" && last.of === "turn") return { do: "yield" };
+      return { do: "done" };
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "user-held" });
+  // 부여 전: 시작 요청만 큐에 있다. 메시지는 코어 루프가 아니라 프레임의 몫이다
+  const message: PostItem = { kind: "user", content: "first words" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
+  await t.settled();
+
+  // 시작 주도의 첫 단계(last null)가 먼저 돌고 메시지는 그 뒤 단계의 last다
+  expect(calls[0]?.last).toBeNull();
+  expect(calls.filter((call) => call.last?.kind === "user").map((call) => call.last)).toEqual([
+    { kind: "user", message },
+  ]);
+  expect(t.loop.turns.map((turn) => turn.input)).toEqual([GO, message]);
+  expect(t.queue.items).toEqual([]);
+});
+
+test("a user message held for a queued start request goes back to the input queue when the drive steps back with done", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await install(
+    t,
+    "user-held-gone",
+    stepOf([], () => ({ do: "done" })),
+  );
+  const request = t.host.startDrive(thread, "user-held-gone");
+  expect(request.ok).toBe(true);
+  const message: PostItem = { kind: "user", content: "nobody leads" };
+  const claimed = t.host.claimUserInput(thread, message);
+  await t.settled();
+
+  // 쥐고 있던 메시지는 프레임의 몫이 되고, 단계 함수가 `done`으로 물러나면 코어 루프로 돌아간다. 잃지 않는다
+  const returned = t.queue.items.filter((item) => item.item === message);
+  expect(claimed).toBe(true);
+  expect(returned).toHaveLength(1);
+});
+
 test("claimUserInput is false when no drive lease is held", async () => {
   const t = await createTestHost({ loop: SCRIPTED });
   const message: PostItem = { kind: "user", content: "hello" };

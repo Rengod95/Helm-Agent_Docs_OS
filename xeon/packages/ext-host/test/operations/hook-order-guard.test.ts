@@ -9,7 +9,7 @@ import {
   hookOrderOf,
   hookOrderValue,
   previewOrder,
-  TIERS,
+  tierRankOf,
   type HookOrderMap,
   type OperationsPolicy,
   type OrderRow,
@@ -26,10 +26,10 @@ const TAP = "boundary.settle.after";
 /** 건너뜀과 거부 시험에 쓰는 first·closed 훅 */
 const FIRST = "tool.call.before";
 
-const GUARD = TIERS.indexOf("guard");
-const USER = TIERS.indexOf("user");
-const BUILTIN = TIERS.indexOf("builtin");
-const CORE = TIERS.indexOf("core");
+const GUARD = tierRankOf("guard");
+const USER = tierRankOf("user");
+const BUILTIN = tierRankOf("builtin");
+const CORE = tierRankOf("core");
 
 /** 덮어쓰기가 없을 때의 실행 순서: guard가 먼저, 그다음 tier(사용자 → 내장), loadIndex 순 */
 const DEFAULT_ORDER = ["core-tools", "user-a", "user-b", "plugin-c"];

@@ -10,6 +10,7 @@ import {
   type KnowledgeRuntime,
 } from "../../src/service.ts";
 import type { WriteApprovals } from "../../src/ports/approvals.ts";
+import type { UserSkillSink } from "../../src/skills/user-skill-sink.ts";
 import { readKnowledgeSettings, withTrustedEvidence } from "../../src/settings.ts";
 import { resolveSkillRoots } from "../../src/skills/roots.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock, type ManualClock } from "./clock.ts";
@@ -92,6 +93,10 @@ export interface WorldOptions {
   readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
   /** blob 유예 기간(ms). GC 시험이 시계를 조금 넘겨 지운다 */
   readonly blobGraceMs?: number;
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보내는 싱크(`KnowledgeDeps.userSkillSink`) */
+  readonly userSkillSink?: UserSkillSink;
+  /** true면 사용자 스킬 루트를 주지 않는다(느슨한 사용자 스킬 폴더가 없는 조립과 같다) */
+  readonly noUserRoot?: boolean;
 }
 
 /** 메모리 파일 시스템 + 실제 SQLite 임시 저장소 + 마이그레이션 적용을 한 번에 만든다 */
@@ -156,7 +161,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
       const settings = readKnowledgeSettings(layers);
       return Promise.resolve({
         roots: resolveSkillRoots({
-          userDir: USER_SKILLS,
+          ...(options.noUserRoot === true ? {} : { userDir: USER_SKILLS }),
           projectDir: PROJECT_DIR,
           projectSkills: settings.skills.projectSkills,
           projectTrusted: true,
@@ -171,6 +176,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     memoryDir: MEMORY_DIR,
     session: kit?.session,
     searchAvailability: search.availability,
+    userSkillSink: options.userSkillSink,
   };
   const runtime = createKnowledgeRuntime(deps);
   if (kit !== undefined) {

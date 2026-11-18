@@ -19,6 +19,7 @@ import { createDocsIndex, type DocsIndex } from "./search/docs-index.ts";
 import { startIndexer, type Indexer } from "./search/indexer.ts";
 import { createSearch, type SearchAvailability, type SearchRuntime } from "./search/service.ts";
 import { createSkills, type SkillsDeps, type SkillsRuntime } from "./skills/service.ts";
+import type { UserSkillSink } from "./skills/user-skill-sink.ts";
 import { createSkillWrites } from "./skills/write.ts";
 import { createWriter, type Writer } from "./write/pipeline.ts";
 import type { ReindexResult } from "./skills/reindex.ts";
@@ -37,6 +38,8 @@ export interface KnowledgeDeps extends SkillsDeps {
   readonly session: SessionService | undefined;
   /** 검색 표를 쓸 수 있는지(`search/setup.ts`). `docsFts`와 함께 조립 쪽이 같은 값으로 채운다 */
   readonly searchAvailability: SearchAvailability;
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보내는 싱크. 없으면 사용자 범위 만들기는 `unavailable`이다 */
+  readonly userSkillSink?: UserSkillSink | undefined;
 }
 
 export interface KnowledgeRuntime {

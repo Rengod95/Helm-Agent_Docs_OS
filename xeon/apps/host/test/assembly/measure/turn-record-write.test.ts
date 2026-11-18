@@ -3,9 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { Bug, parse, parseJson, type Logger } from "@fresnel/contracts";
+import { Bug, ok, parse, parseJson, type Logger, type LogFields } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
+  PluginCallTraceEvent,
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
@@ -13,9 +14,10 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
-import { TurnRecordSchema } from "@fresnel/contracts/wire";
+import { TurnRecordSchema, type FrameMark } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { startMeasurement, type MeasurementDeps } from "../../../src/assembly/measure/recorder.ts";
+import type { MeasureStore } from "../../../src/assembly/measure/store.ts";
 import {
   createTurnRecordEvents,
   type TurnRecordEvent,
@@ -23,6 +25,7 @@ import {
 } from "../../../src/assembly/measure/turn-events.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "../../../src/assembly/measure/turn-fit.ts";
 import { createTestRunMarks } from "../../../src/assembly/measure/test-run-marks.ts";
+import { createTurnRecordPort } from "../../../src/assembly/measure/turn-read.ts";
 
 // T-MEAS-TURN: 턴 기록의 쓰는 쪽. 단계 끝에 단계 행과 훅 행을 쓰고(턴 도중에도 읽힌다), 턴 행은 열 때 `open`, 끝날 때 최종 상태다.
 // 계측이 꺼진 턴은 턴 행만 쓴다(log_only). 여는 때 `open`으로 남은 턴은 `lost`가 된다. 테스트 대화의 범위는 재열기 뒤에도 남고,
@@ -140,6 +143,8 @@ interface Harness {
   readonly meter: (record: UsageRecord) => void;
   /** 도구 호출 추적 줄(싱크가 넘기는 값)을 턴 기록에 넘긴다 */
   readonly call: (event: ToolCallTraceEvent) => void;
+  /** 가벼운 길의 플러그인 호출 줄(싱크가 넘기는 값)을 턴 기록에 넘긴다 */
+  readonly pluginCall: (event: PluginCallTraceEvent) => void;
   readonly stop: () => void;
 }
 
@@ -153,6 +158,7 @@ function openHarness(
     readonly testRunsAlwaysOn?: boolean;
     readonly maxTurnBytes?: number;
     readonly pluginSet?: Pick<PluginSetPort, "resolve">;
+    readonly logger?: Logger;
   },
 ): Harness {
   const listeners = new Set<CommitListener>();
@@ -181,7 +187,7 @@ function openHarness(
     },
     ...(options.trace === undefined ? {} : { trace: options.trace }),
     enabled: () => options.enabled,
-    logger,
+    logger: options.logger ?? logger,
     now: () => AT,
     ...(options.events === undefined ? {} : { events: options.events }),
     testRunsAlwaysOn: () => options.testRunsAlwaysOn ?? true,
@@ -200,6 +206,9 @@ function openHarness(
     },
     call: (event) => {
       measurement.offerCall(event);
+    },
+    pluginCall: (event) => {
+      measurement.offerPluginCall(event);
     },
     stop: () => measurement.stop(),
   };
@@ -528,7 +537,8 @@ function callEvent(
     risk: "read",
     capability: { id: "workspace.files", method: "read" },
     argsHash: createHmac("sha256", "args").update(toolCallId).digest("hex"),
-    argTokens: 6,
+    argTokenCount: 6,
+    argTokens: [],
     targetHash: null,
     afterUntrusted: false,
     verdict: "allowed",
@@ -641,7 +651,8 @@ test("a closed step writes its tool call rows with keyed hashes and links each c
         capability: { id: "workspace.shell", method: "run" },
         afterUntrusted: false,
         parentToolCallId: null,
-        argTokens: 6,
+        argTokenCount: 6,
+        argTokens: [],
         registrationId: "ext:a",
       }),
     });
@@ -1333,6 +1344,766 @@ test("the drive stack opened before a turn and the frames it changes are recorde
       ["lse_b", 2, "lse_a", "done"],
     ]);
     harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 가벼운 길의 호출 줄이 넘기는 인자 해시(정규화 JSON의 SHA-256 앞 40 hex). 두 값 모두 형식만 맞춘 값이다 */
+const PLUGIN_ARGS_A = "1667c7df215d7d48f1ce00ef7fd4aa270f4e3ad6";
+const PLUGIN_ARGS_B = "ab".repeat(20);
+
+/** 요청 키는 인자 해시를 설치별 소금으로 HMAC한 앞 16 hex다(§4.1 규칙 11). 시험은 같은 식으로 기대값을 낸다 */
+function requestKeyOf(salt: string, argsHash: string): string {
+  return createHmac("sha256", salt).update(argsHash).digest("hex").slice(0, 16);
+}
+
+test("a light-path plugin call of an open turn is written when the turn closes, in call order, and reads back the same after a reopen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.pluginCall({
+      threadId: THREAD,
+      plugin: "pc-reader",
+      capability: "demo.reader",
+      method: "peek",
+      argsHash: PLUGIN_ARGS_A,
+      ok: true,
+      ms: 4,
+      via: "method",
+      toolCallId: null,
+    });
+    harness.pluginCall({
+      threadId: THREAD,
+      plugin: "pc-reader",
+      capability: "demo.reader",
+      method: "list",
+      argsHash: PLUGIN_ARGS_B,
+      ok: false,
+      ms: 1,
+      via: "method",
+      toolCallId: "call_9",
+    });
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const store = storeOf(harness.measurement);
+    const saltRead = store.installSalt();
+    if (!saltRead.ok) throw new Bug("the install salt must be readable");
+    const salt = saltRead.value;
+    const expectedRows = [
+      [
+        0,
+        "pc-reader",
+        "demo.reader",
+        "peek",
+        requestKeyOf(salt, PLUGIN_ARGS_A),
+        true,
+        4,
+        "method",
+        null,
+      ],
+      [
+        1,
+        "pc-reader",
+        "demo.reader",
+        "list",
+        requestKeyOf(salt, PLUGIN_ARGS_B),
+        false,
+        1,
+        "method",
+        "call_9",
+      ],
+    ];
+    const expectedLines = expectedRows.map((row) => row.slice(1));
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(
+      bundle.value.plugincalls.map((row) => [
+        row.seq,
+        row.plugin,
+        row.capability,
+        row.method,
+        row.requestKey,
+        row.ok,
+        row.ms,
+        row.via,
+        row.toolCallId,
+      ]),
+    ).toEqual(expectedRows);
+    // record_json의 pluginCalls에도 같은 줄이 들어간다(턴 기록 읽기는 이 값을 쓴다)
+    const checked = parse(TurnRecordSchema, JSON.parse(bundle.value.turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    expect(
+      checked.value.pluginCalls.map((line) => [
+        line.plugin,
+        line.capability,
+        line.method,
+        line.requestKey,
+        line.ok,
+        line.ms,
+        line.via,
+        line.toolCallId,
+      ]),
+    ).toEqual(expectedLines);
+    harness.stop();
+
+    const reopened = openHarness(dir, { enabled: true, trace: trace.port });
+    const again = storeOf(reopened.measurement).readTurn(THREAD, TURN);
+    if (!again.ok || again.value === undefined) throw new Bug("the turn must survive a reopen");
+    expect(
+      again.value.plugincalls.map((row) => [
+        row.seq,
+        row.plugin,
+        row.capability,
+        row.method,
+        row.requestKey,
+        row.ok,
+        row.ms,
+        row.via,
+        row.toolCallId,
+      ]),
+    ).toEqual(expectedRows);
+    reopened.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a light-path plugin call with no open turn, or in a turn with the trace off, is not written", async () => {
+  const trace = traceStub();
+  const call = {
+    threadId: THREAD,
+    plugin: "pc-reader",
+    capability: "demo.reader",
+    method: "peek",
+    argsHash: PLUGIN_ARGS_A,
+    ok: true,
+    ms: 2,
+    via: "method",
+    toolCallId: null,
+  } as const;
+  const dirOpen = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const dirOff = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    // 열린 턴이 없을 때(턴 시작 전, 턴이 닫힌 뒤)의 호출은 버린다
+    const open = openHarness(dirOpen, { enabled: true, trace: trace.port });
+    open.pluginCall(call);
+    open.commit([event(1, "turn.started", TURN_STARTED)]);
+    open.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    open.pluginCall(call);
+    await settle();
+    const closed = storeOf(open.measurement).readTurn(THREAD, TURN);
+    if (!closed.ok || closed.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(closed.value.plugincalls).toEqual([]);
+    open.stop();
+
+    // 계측이 꺼진 턴(log_only)은 턴 행만 쓰므로 호출 줄도 쓰지 않는다
+    const off = openHarness(dirOff, { enabled: false, trace: trace.port });
+    off.commit([event(1, "turn.started", TURN_STARTED)]);
+    off.pluginCall(call);
+    off.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    const logOnly = storeOf(off.measurement).readTurn(THREAD, TURN);
+    if (!logOnly.ok || logOnly.value === undefined)
+      throw new Bug("the log-only turn must be readable");
+    expect(logOnly.value.turn.level).toBe("log_only");
+    expect(logOnly.value.plugincalls).toEqual([]);
+    off.stop();
+  } finally {
+    rmSync(dirOpen, { recursive: true, force: true });
+    rmSync(dirOff, { recursive: true, force: true });
+  }
+});
+
+// ---- 인자 토큰(§5.1-②)과 턴 플래그(§3.2) --------------------------------------
+
+/** 셸 호출 한 줄. 인자 토큰 목록을 싣고, 시험마다 단계와 턴을 덮어쓴다 */
+function shellCall(toolCallId: string, overrides: Partial<ToolCallTraceEvent>): ToolCallTraceEvent {
+  return callEvent(toolCallId, {
+    tool: "bash",
+    plugin: "core",
+    risk: "exec",
+    capability: null,
+    argTokenCount: 30,
+    argTokens: [],
+    ...overrides,
+  });
+}
+
+const SHELL_BLOCKED_BY = { plugin: "guard", hook: "tool.call.before", registrationId: "guard:a" };
+const CHILD_THREAD: ThreadId = ids.next("thr");
+
+test("a retry with overlapping argument tokens after a blocked call is rewrite_text in the metric, and the rewrite is no longer not_recorded", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const STEP_B1: StepId = ids.next("stp");
+    const STEP_B2: StepId = ids.next("stp");
+    const TURN_B: TurnId = ids.next("trn");
+    // 턴 1: 막힌 명령의 토큰 다섯(cat, secret, txt, grep, token)에 재시도의 토큰 여섯이 다섯을 겹친다(5/6 = 0.833 ≥ 0.8)
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(
+      shellCall("blk_a", {
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        argTokens: ["cat", "secret", "txt", "grep", "token"],
+      }),
+    );
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.call(
+      shellCall("retry_a", {
+        stepId: STEP_B2,
+        argTokens: ["cat", "secret", "txt", "grep", "token", "wc"],
+      }),
+    );
+    harness.commit([event(3, "step.completed", STEP_COMPLETED(2), { stepId: STEP_B2 })]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    // 턴 2: 같은 막힘 뒤의 재시도는 토큰이 하나도 겹치지 않는다(different_path)
+    harness.commit([event(5, "turn.started", TURN_STARTED, { turnId: TURN_B })]);
+    harness.call(
+      shellCall("blk_b", {
+        turnId: TURN_B,
+        stepId: STEP_B1,
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        argTokens: ["cat", "secret", "txt", "grep", "token"],
+      }),
+    );
+    harness.commit([
+      event(6, "step.completed", STEP_COMPLETED(1), { stepId: STEP_B1, turnId: TURN_B }),
+    ]);
+    harness.call(
+      shellCall("retry_b", {
+        turnId: TURN_B,
+        stepId: STEP_B2,
+        argTokens: ["paper", "scissors", "rock"],
+      }),
+    );
+    harness.commit([
+      event(7, "step.completed", STEP_COMPLETED(2), { stepId: STEP_B2, turnId: TURN_B }),
+    ]);
+    harness.commit([event(8, "turn.completed", TURN_COMPLETED, { turnId: TURN_B })]);
+    await settle();
+
+    const store = storeOf(harness.measurement);
+    const port = createTurnRecordPort({
+      store: () => store,
+      enabled: () => true,
+      retentionDays: () => 30,
+      logTurnStartedAt: () => ok(undefined),
+      events: { subscribe: () => () => undefined },
+      now: () => AT + 1000,
+      metrics: () => ({
+        minSample: 1,
+        defaultWindowDays: 30,
+        findingsEnabled: true,
+        findingOverrides: {},
+      }),
+    });
+    const out = port.metrics({
+      metrics: [
+        "hook.post_block",
+        "hook.post_block.rewrite_text",
+        "hook.post_block.different_path",
+      ],
+      filter: { period: { from: AT - 1000, to: AT + 1000 } },
+      groupBy: [],
+      compare: null,
+    });
+    if (!out.ok) throw new Bug("the metrics must answer in this test");
+    const values = out.value.rows[0]?.values ?? {};
+    expect(values["hook.post_block"]).toMatchObject({ value: 2 });
+    expect(values["hook.post_block.rewrite_text"]).toMatchObject({ value: 0.5, denom: 2 });
+    expect(values["hook.post_block.different_path"]).toMatchObject({ value: 0.5, denom: 2 });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the argument tokens are stored as install-salted keys: the same word gives the same key, and no raw word reaches a stored row", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(shellCall("mask_1", { argTokenCount: 9, argTokens: ["ledger", "marigold"] }));
+    harness.call(shellCall("mask_2", { argTokenCount: 4, argTokens: ["ledger"] }));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const salt = saltOf(harness.measurement);
+    const bundle = turnBundle(harness);
+    const metaOf = (toolCallId: string): unknown =>
+      JSON.parse(bundle.calls.find((row) => row.toolCallId === toolCallId)?.metaJson ?? "null");
+    expect(metaOf("mask_1")).toEqual({
+      risk: "exec",
+      riskKnown: true,
+      capability: null,
+      afterUntrusted: false,
+      parentToolCallId: null,
+      argTokenCount: 9,
+      argTokens: [keyedOf(salt, "ledger"), keyedOf(salt, "marigold")],
+      registrationId: null,
+    });
+    expect(metaOf("mask_2")).toMatchObject({
+      argTokenCount: 4,
+      argTokens: [keyedOf(salt, "ledger")],
+    });
+    // 가린 값은 원본 단어와 다르고, 원본 단어는 이 턴의 저장된 어느 행에도 없다
+    expect(keyedOf(salt, "ledger")).not.toBe("ledger");
+    const stored = JSON.stringify(bundle);
+    expect(stored).not.toContain("ledger");
+    expect(stored).not.toContain("marigold");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the turn row's flags column holds the bits of the flags in record_json, and a child spawned in the turn counts as a subagent", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(
+      shellCall("blk_flags", {
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        exec: null,
+        result: null,
+      }),
+    );
+    harness.commit([event(2, "agent.spawned", agentSpawned(CHILD_THREAD))]);
+    harness.commit([event(3, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect(recordOf(turn.recordJson).flags).toMatchObject({ blockedIntent: 1, subagents: 1 });
+    // blockedIntent은 비트 0, subagents는 비트 13이다
+    expect(turn.flags).toBe(1 + 8192);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("hooks that ran before the turn are its step 0 hooks: turnHooks carries them flagged preTurn, and no tr_hook row is written for them", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    // 턴이 열리기 전의 훅(대화 시작, 입력 받기)은 다음 턴의 단계 0 항목으로 버퍼에 붙는다
+    trace.entries.push(
+      {
+        seq: 0,
+        hook: "thread.start",
+        step: 0,
+        pre: true,
+        handlers: [handler("ext:open", "passed")],
+      },
+      {
+        seq: 1,
+        hook: "input.user.before",
+        step: 0,
+        pre: true,
+        handlers: [handler("ext:ctx", "modified")],
+      },
+      { seq: 2, hook: "boundary.turn.before", step: 0, handlers: [handler("ext:turn", "passed")] },
+      {
+        seq: 3,
+        hook: "tool.call.before",
+        step: 1,
+        handlers: [handler("ext:a", "passed", "call_1")],
+      },
+    );
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = turnBundle(harness);
+    expect(bundle.hooks.map((row) => [row.stepIndex, row.registrationId])).toEqual([[1, "ext:a"]]);
+    const record = recordOf(bundle.turn.recordJson);
+    expect(
+      record.turnHooks.map((hook) => [
+        hook.hook,
+        hook.registrationId,
+        hook.seq,
+        hook.preTurn === true,
+      ]),
+    ).toEqual([
+      ["thread.start", "ext:open", 0, true],
+      ["input.user.before", "ext:ctx", 1, true],
+      ["boundary.turn.before", "ext:turn", 2, false],
+    ]);
+    harness.stop();
+
+    // 다시 열어도 같은 턴 훅이 읽힌다
+    const reopened = openHarness(dir, { enabled: true, trace: trace.port });
+    expect(
+      recordOf(turnBundle(reopened).turn.recordJson).turnHooks.map((hook) => hook.hook),
+    ).toEqual(["thread.start", "input.user.before", "boundary.turn.before"]);
+    reopened.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the frame's used counts and user messages follow the durable events, and survive a reopen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-frame-used-"));
+  const child = ids.next("thr");
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    // 1: 주도 프레임(lse_a)이 턴 전에 열린다
+    harness.commit([
+      event(
+        1,
+        "lease.acquired",
+        {
+          leaseId: "lse_a",
+          scopeId: "helm",
+          lineageId: "lse_a",
+          limits: { maxTurns: 3, maxTokens: 1000 },
+        },
+        { turnId: null },
+      ),
+    ]);
+    // 2: 주도 함수가 연 턴은 턴 수를 한 번 올린다
+    harness.commit([
+      event(2, "turn.started", {
+        inputItemIds: [],
+        requestId: "req_d1",
+        scopeId: "helm",
+        origin: "drive",
+      }),
+    ]);
+    // 3: 모델 호출 총 토큰 135는 맨 위 프레임에 든다
+    harness.meter(usage(STEP));
+    // 4: 맨 위 프레임이 받은 사용자 메시지 한 건
+    harness.commit([
+      event(
+        4,
+        "input.queued",
+        {
+          mode: "followUp",
+          item: { kind: "user", content: "보충" },
+          requestId: "req_u1",
+          source: { type: "user", via: "interactive" },
+        },
+        { turnId: null },
+      ),
+    ]);
+    // 5: 주도 함수가 낸 하위 대화 하나(owner가 drive)는 spawns를 올린다
+    harness.commit([
+      event(5, "agent.spawned", {
+        ...agentSpawned(child),
+        owner: { kind: "drive", turnId: TURN, scopeId: "helm", leaseId: "lse_a" },
+      }),
+    ]);
+    // 6: 맡기기로 위에 lse_b가 쌓인다. 이후 소비는 lse_b와 그 아래 lse_a에 함께 든다
+    harness.commit([
+      event(6, "lease.acquired", {
+        leaseId: "lse_b",
+        scopeId: "verify",
+        lineageId: "lse_b",
+        limits: {},
+        parent: "lse_a",
+        depth: 1,
+        contentHash: "sha256:abc",
+      }),
+    ]);
+    harness.meter(usage(STEP));
+    harness.commit([
+      event(
+        8,
+        "input.queued",
+        {
+          mode: "followUp",
+          item: { kind: "user", content: "검증 중" },
+          requestId: "req_u2",
+          source: { type: "user", via: "interactive" },
+        },
+        { turnId: null },
+      ),
+    ]);
+    harness.commit([
+      event(9, "lease.released", { leaseId: "lse_b", scopeId: "verify", reason: "done" }),
+    ]);
+    // 10: lse_b가 내려간 뒤의 소비는 lse_a에만 든다. 이어서 맨 위(lse_a)가 받은 메시지
+    harness.meter(usage(STEP));
+    harness.commit([
+      event(
+        11,
+        "input.queued",
+        {
+          mode: "followUp",
+          item: { kind: "user", content: "마무리" },
+          requestId: "req_u3",
+          source: { type: "user", via: "interactive" },
+        },
+        { turnId: null },
+      ),
+    ]);
+    harness.commit([event(12, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const expected: FrameMark[] = [
+      {
+        depth: 1,
+        plugin: "helm",
+        versionId: null,
+        leaseId: "lse_a",
+        parentLeaseId: null,
+        enteredAtMs: 0,
+        exitedAtMs: null,
+        exitReason: null,
+        lowerResumedWith: null,
+        limits: { maxTurns: 3, maxTokens: 1000 },
+        used: { turns: 1, spawns: 1, tokens: 405 },
+        userMessages: 2,
+      },
+      {
+        depth: 2,
+        plugin: "verify",
+        versionId: "sha256:abc",
+        leaseId: "lse_b",
+        parentLeaseId: "lse_a",
+        enteredAtMs: 40,
+        exitedAtMs: 70,
+        exitReason: "done",
+        lowerResumedWith: null,
+        limits: {},
+        used: { turns: 0, spawns: 0, tokens: 135 },
+        userMessages: 1,
+      },
+    ];
+    expect(recordOf(turnBundle(harness).turn.recordJson).frames).toEqual(expected);
+    // 행의 used_json은 기록의 used를 그대로 적은 값이다(키 순서 turns, spawns, tokens)
+    expect(
+      turnBundle(harness).frames.map((row) => [row.leaseId, row.usedJson, row.userMessages]),
+    ).toEqual([
+      ["lse_a", JSON.stringify({ turns: 1, spawns: 1, tokens: 405 }), 2],
+      ["lse_b", JSON.stringify({ turns: 0, spawns: 0, tokens: 135 }), 1],
+    ]);
+    harness.stop();
+
+    // 다시 열어도 저장된 값이 그대로 읽힌다
+    const reopened = openHarness(dir, { enabled: true });
+    expect(recordOf(turnBundle(reopened).turn.recordJson).frames).toEqual(expected);
+    reopened.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a frame entered before a turn keeps its used counts across turns: the second turn starts from the first turn's totals", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-frame-across-"));
+  const firstTurn = ids.next("trn");
+  const secondTurn = ids.next("trn");
+  const secondStep = ids.next("stp");
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([
+      event(
+        1,
+        "lease.acquired",
+        { leaseId: "lse_a", scopeId: "helm", lineageId: "lse_a", limits: { maxTurns: 3 } },
+        { turnId: null },
+      ),
+    ]);
+    harness.commit([
+      event(
+        2,
+        "turn.started",
+        { inputItemIds: [], requestId: "req_1", scopeId: "helm", origin: "drive" },
+        { turnId: firstTurn },
+      ),
+    ]);
+    harness.meter({ ...usage(STEP), turnId: firstTurn });
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED, { turnId: firstTurn })]);
+    harness.commit([
+      event(
+        4,
+        "turn.started",
+        { inputItemIds: [], requestId: "req_2", scopeId: "helm", origin: "drive" },
+        { turnId: secondTurn },
+      ),
+    ]);
+    harness.meter({ ...usage(secondStep), turnId: secondTurn });
+    harness.commit([event(5, "turn.completed", TURN_COMPLETED, { turnId: secondTurn })]);
+    await settle();
+
+    const first = recordOf(turnBundle(harness, firstTurn).turn.recordJson);
+    const second = recordOf(turnBundle(harness, secondTurn).turn.recordJson);
+    expect(first.frames.map((frame) => [frame.leaseId, frame.used])).toEqual([
+      ["lse_a", { turns: 1, spawns: 0, tokens: 135 }],
+    ]);
+    expect(second.frames.map((frame) => [frame.leaseId, frame.used])).toEqual([
+      ["lse_a", { turns: 2, spawns: 0, tokens: 270 }],
+    ]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 저장소의 `batch` 호출 수. 기록기는 이 저장소 객체의 메서드를 부르므로 같은 객체의 메서드를 바꾸면 보인다 */
+function countBatches(store: MeasureStore): { count: number } {
+  const counted = { count: 0 };
+  const original = store.batch.bind(store);
+  store.batch = (work) => {
+    counted.count += 1;
+    return original(work);
+  };
+  return counted;
+}
+
+/** 경고를 `[사건, 필드]` 짝으로 모으는 로거 */
+function warningsOf(sink: [string, LogFields | undefined][]): Logger {
+  const self: Logger = {
+    debug: () => undefined,
+    info: () => undefined,
+    warn: (event, fields) => {
+      sink.push([event, fields]);
+    },
+    error: () => undefined,
+    child: () => self,
+  };
+  return self;
+}
+
+/**
+ * 한 Turn을 끝까지 흘린다. 시작 뒤 모델 호출 하나, 그다음 단계 끝과 끝을 같은 동기 구간에 커밋한다.
+ * 쓰기는 이 구간 전체에 쌓여 마이크로태스크 한 번에 나간다
+ */
+function commitWholeTurn(harness: Harness): void {
+  harness.commit([event(1, "turn.started", TURN_STARTED)]);
+  harness.meter(usage(STEP));
+  harness.commit([
+    event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP }),
+    event(3, "turn.completed", TURN_COMPLETED),
+  ]);
+}
+
+test("the writes one tick queues are one batch: a turn's start, step and end commit once", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    const store = storeOf(harness.measurement);
+    const counted = countBatches(store);
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(counted.count).toBe(1);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect([bundle.value.turn.status, bundle.value.turn.complete]).toEqual(["completed", true]);
+    expect(
+      bundle.value.steps.map((step) => [step.stepIndex, step.model, step.input, step.output]),
+    ).toEqual([[1, "tape-1", 10, 5]]);
+    const measured = store.turn(THREAD, TURN);
+    if (!measured.ok) throw new Bug("the measure rows must be readable");
+    expect(measured.value.map((row) => row.kind)).toEqual(["call", "turn"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a queued write that throws is logged once, and the writes queued with it still commit", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  const warnings: [string, LogFields | undefined][] = [];
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      trace: trace.port,
+      logger: warningsOf(warnings),
+    });
+    const store = storeOf(harness.measurement);
+    // 턴을 여는 쓰기가 읽는 대화 표지만 처음 한 번 던진다. 나머지 쓰기는 그대로 간다
+    const readThread = store.getThread.bind(store);
+    let failedOnce = false;
+    store.getThread = (threadId) => {
+      if (!failedOnce) {
+        failedOnce = true;
+        throw new Error("thread read broke");
+      }
+      return readThread(threadId);
+    };
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(warnings).toEqual([
+      ["measure.op_failed", { reason: "threw", message: "thread read broke" }],
+    ]);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect([bundle.value.turn.status, bundle.value.turn.complete]).toEqual(["completed", true]);
+    expect(
+      bundle.value.steps.map((step) => [step.stepIndex, step.model, step.input, step.output]),
+    ).toEqual([[1, "tape-1", 10, 5]]);
+    const measured = store.turn(THREAD, TURN);
+    if (!measured.ok) throw new Bug("the measure rows must be readable");
+    expect(measured.value.map((row) => row.kind)).toEqual(["call", "turn"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a batch that cannot commit writes nothing, tells no subscriber, and logs the rows it dropped", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  const warnings: [string, LogFields | undefined][] = [];
+  const events = createTurnRecordEvents(logger);
+  const heard: TurnRecordEvent[] = [];
+  events.subscribe((event) => {
+    heard.push(event);
+  });
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      trace: trace.port,
+      events,
+      logger: warningsOf(warnings),
+    });
+    const store = storeOf(harness.measurement);
+    // 묶음의 작업은 모두 돌고 나서 커밋이 실패한다(롤백)
+    const original = store.batch.bind(store);
+    store.batch = (work) =>
+      original(() => {
+        work();
+        throw new Error("the commit failed");
+      });
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(warnings).toEqual([["measure.write_failed", { reason: "io", dropped: 2 }]]);
+    expect(heard).toEqual([]);
+    expect(store.readTurn(THREAD, TURN)).toEqual({ ok: true, value: undefined });
+    expect(store.rawCount()).toEqual({ ok: true, value: 0 });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("stopping with nothing queued opens no batch", () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    const counted = countBatches(storeOf(harness.measurement));
+    harness.stop();
+    expect(counted.count).toBe(0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

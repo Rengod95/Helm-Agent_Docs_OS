@@ -39,10 +39,19 @@ import {
 } from "@fresnel/contracts/wire";
 import { sequentially } from "../../util.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
+import {
+  folderNameOf,
+  keyOfFolder,
+  parseReviewKey,
+  reviewKeyOf,
+  type ReviewKeyError,
+} from "./review-key.ts";
 
-// 검토본 저장소(M5c §4.6.2). 앱이 실행하고 읽는 것은 `reviewed/<name>/<current>/tree/`뿐이다.
-// 배치: reviewed/<name>/<hex>/{tree/, meta.json}, reviewed/<name>/current, candidates/<hex>/tree/,
+// 검토본 저장소(M5c §4.6.2). 앱이 실행하고 읽는 것은 `reviewed/<key 폴더>/<current>/tree/`뿐이다.
+// 배치: reviewed/<폴더>/<hex>/{tree/, meta.json}, reviewed/<폴더>/current, candidates/<hex>/tree/,
 // drafts/<draftId>/{tree/, meta.json}, queue/<itemId>.json, review-log.jsonl.
+// 키(`review-key.ts`): 사용자·번들은 이름, 프로젝트는 `<projectId>/<이름>`이다. 폴더는 키에서 `/`를 `~`로 바꾼 이름이다.
+// 저장소 메서드의 `key` 인자와 `names()`의 값은 키다. 사용자·번들 키는 이름과 같다.
 // 쓰기는 모두 `fileLock`으로 한 줄씩 직렬화한다. 공개 해시는 `sha256:<hex>`이고 경로에는 hex만 쓴다.
 // 승인 순서는 promote → setCurrent → appendLog다. 중간에 끊기면 current는 옛 검토본이고, log에 없는 검토본은 recover가 치운다.
 
@@ -104,7 +113,10 @@ export interface ReviewLogEntry {
   readonly at: string;
   /** 검토 항목 id. 릴리스와 옮김은 `decisionId`와 같은 값을 넣는다(meta.json의 `decisionId`와 대조한다) */
   readonly itemId: string | null;
+  /** 이름(검토본 키의 이름 부분). 키의 프로젝트 부분은 `projectId`에 적는다 */
   readonly name: string;
+  /** 프로젝트 출처 검토본의 프로젝트 id. 사용자·번들 줄에는 없다(옛 줄도 없다) */
+  readonly projectId?: string;
   readonly kind: "new" | "update" | "remove" | "bundled" | "migrated" | null;
   readonly candidateHash: string | null;
   readonly baseHash: string | null;
@@ -119,6 +131,7 @@ const LogEntryShape = Type.Object({
   at: Type.String(),
   itemId: Type.Union([Type.String(), Type.Null()]),
   name: Type.String(),
+  projectId: Type.Optional(Type.String()),
   kind: Type.Union([
     Type.Literal("new"),
     Type.Literal("update"),
@@ -180,42 +193,59 @@ export interface PluginStoreDeps {
   readonly fileLock: FileLock;
 }
 
+/** 프로젝트 출처 검토본의 옮김 한 줄(`project_review_key`). `name`은 옮긴 뒤 키이고, 건너뛰었으면 옛 이름 키다 */
+interface ProjectKeyMove {
+  readonly name: string;
+  readonly outcome: "migrated" | "skipped";
+  readonly contentHash: string;
+  readonly reason: string | null;
+}
+
 export interface PluginStore {
   /** 원본 폴더를 후보 스냅샷으로 복사하고 복사본의 해시를 돌려준다. 원본이 복사 중 바뀌면 다시 복사한다(M5c §5) */
   snapshotCandidate(
     srcDir: string,
   ): Promise<Result<{ readonly contentHash: string }, PluginStoreError>>;
-  /** 후보 스냅샷을 `reviewed/<name>/<hex>/`로 옮기고 `meta.json`을 쓴다. 원본은 다시 읽지 않는다. current는 바꾸지 않는다 */
+  /**
+   * 후보 스냅샷을 키 폴더의 `<hex>/`로 옮기고 `meta.json`을 쓴다. 키는 메타에서 정한다(`reviewKeyOf`).
+   * 원본은 다시 읽지 않는다. current는 바꾸지 않는다
+   */
   promote(contentHash: string, meta: PluginReviewMeta): Promise<Result<void, PluginStoreError>>;
   discardCandidate(contentHash: string): Promise<Result<void, PluginStoreError>>;
-  setCurrent(name: string, contentHash: string): Promise<Result<void, PluginStoreError>>;
+  /** 검토본 키(`key`)의 current를 바꾼다. 키의 형식이 틀리면 `invalid_name`이다 */
+  setCurrent(key: string, contentHash: string): Promise<Result<void, PluginStoreError>>;
   /** 현재 검토본. 없으면 null */
-  current(name: string): Promise<Result<ReviewedVersion | null, PluginStoreError>>;
+  current(key: string): Promise<Result<ReviewedVersion | null, PluginStoreError>>;
   /** 검토본 `tree/` 경로. 해시를 주지 않으면 현재 검토본이다 */
-  treePath(name: string, contentHash?: string): Promise<Result<string, PluginStoreError>>;
+  treePath(key: string, contentHash?: string): Promise<Result<string, PluginStoreError>>;
   /** 보관 중인 검토본(최신 승인이 앞). 메타가 없는 폴더(승인 도중 중단)는 세지 않는다 */
-  versions(name: string): Promise<Result<readonly PluginVersionInfo[], PluginStoreError>>;
-  /** 검토본이 있는 이름들 */
+  versions(key: string): Promise<Result<readonly PluginVersionInfo[], PluginStoreError>>;
+  /** 검토본이 있는 키들(사용자·번들은 이름, 프로젝트는 `<projectId>/<이름>`) */
   names(): Promise<Result<readonly string[], PluginStoreError>>;
   /** `tree/`의 해시를 다시 계산해 meta.json과 비교한다. 다르면 `pinned_corrupt` */
-  verifyIntegrity(name: string, contentHash: string): Promise<Result<void, PluginStoreError>>;
+  verifyIntegrity(key: string, contentHash: string): Promise<Result<void, PluginStoreError>>;
   /** 최근 `keep`개와 current와 `inUse`를 남기고 나머지를 지운다. 지운 해시를 돌려준다 */
   prune(
-    name: string,
+    key: string,
     options: { readonly keep: number; readonly inUse: ReadonlySet<string> },
   ): Promise<Result<readonly string[], PluginStoreError>>;
   appendLog(entry: ReviewLogEntry): Promise<Result<void, PluginStoreError>>;
   readLog(): Promise<Result<readonly ReviewLogEntry[], PluginStoreError>>;
   /**
    * 시작 때 정리. 복사 도중 끊긴 임시 폴더를 지우고, log에 없는 검토본(승인 도중 중단)을 지운다.
-   * current는 절대 지우지 않는다. 지운 검토본(`<이름>/<hex>`)을 돌려준다
+   * current는 절대 지우지 않는다. 지운 검토본(`<키>/<hex>`)을 돌려준다
    */
   recover(): Promise<Result<{ readonly removed: readonly string[] }, PluginStoreError>>;
+  /**
+   * 옮김 `project_review_key`(멱등). 이름 키 폴더에 든 프로젝트 출처 검토본을 `<projectId>~<이름>` 폴더로 옮긴다(해시 폴더 이름 그대로).
+   * current가 가리키던 것이면 current 파일도 함께 옮긴다. 이미 옮겼으면 아무것도 하지 않는다. `projectId`가 없는 것은 옮기지 않고 `skipped`를 돌려준다
+   */
+  moveProjectReviews(): Promise<Result<readonly ProjectKeyMove[], PluginStoreError>>;
   /** 경로 계산만: 초안 폴더(`drafts/<draftId>`)와 검토 항목 파일(`queue/<itemId>.json`) */
   draftDir(draftId: string): string;
   queueFile(itemId: string): string;
   /** 제거를 승인할 때 현재 검토본을 치운다. 보관 사본은 그대로 둔다. 검토본이 없어도 성공이다 */
-  clearCurrent(name: string): Promise<Result<void, PluginStoreError>>;
+  clearCurrent(key: string): Promise<Result<void, PluginStoreError>>;
   /** 후보 스냅샷의 `tree/` 경로(해시 기준). 경로 계산만 한다 */
   candidateTree(contentHash: string): Result<string, PluginStoreError>;
   /** 후보 스냅샷 안 파일의 바이트. 경로는 호출자가 후보의 파일 목록에서 고른다 */
@@ -259,11 +289,34 @@ function escapesFolder(path: string): boolean {
   return path.split("/").some((part) => part === ".." || part === "");
 }
 
-/** 이름이 폴더 이름으로 안전한지 본다(검토본 이름은 확장 이름과 같다) */
-function validName(name: string): Result<string, PluginStoreError> {
-  const parsed = parse(ExtensionNameSchema, name);
-  if (!parsed.ok) return err({ kind: "invalid_name", name });
-  return ok(name);
+/**
+ * 키가 폴더 이름으로 안전한지 본다. 사용자·번들은 확장 이름이고, 프로젝트는 `<projectId>/<이름>`이다(`review-key.ts`).
+ * 형식이 틀리면 `invalid_name`이고, 그 키로는 폴더를 만들거나 읽지 않는다
+ */
+function validKey(key: string): Result<string, PluginStoreError> {
+  const parts = parseReviewKey(key);
+  if (!parts.ok) return err(parts.error);
+  return ok(key);
+}
+
+/** 키 형식 오류를 저장소 오류로 옮긴다 */
+function keyErrorOf(error: ReviewKeyError): PluginStoreError {
+  return { kind: "invalid_name", name: error.name };
+}
+
+/** 메타 파일을 동기로 읽는다. 없거나 못 읽으면 `not_found`나 `corrupt`다 */
+function readMetaSync(path: string): Result<PluginReviewMeta, PluginStoreError> {
+  const text = attempt(() => readFileSync(path, "utf8"));
+  if (!text.ok) {
+    return codeOf(text.error.cause) === "ENOENT"
+      ? err({ kind: "not_found", what: path })
+      : err(ioOf(path, text.error.cause));
+  }
+  const json = parseJson(text.value);
+  if (!json.ok) return err({ kind: "corrupt", path });
+  const meta = parse(MetaSchema, json.value);
+  if (!meta.ok) return err({ kind: "corrupt", path });
+  return ok(meta.value);
 }
 
 function hexOf(contentHash: string): Result<string, PluginStoreError> {
@@ -285,23 +338,31 @@ function ioOf(path: string, cause: unknown): PluginStoreError {
 }
 
 /**
- * 검토본 `current`가 가리키는 `tree/` 경로를 동기로 읽는다. 재료 포트(`MaterialPort`)가 동기 인터페이스라서 쓴다(§4.5.10).
+ * 키의 `current`가 가리키는 `tree/` 경로를 동기로 읽는다. 재료 포트(`MaterialPort`)가 동기 인터페이스라서 쓴다(§4.5.10).
  * 검토본이 없으면 `ok(null)`이다. 읽기 오류와 형식이 틀린 `current`는 `err`다(호출자가 기록한다).
+ * 키의 종류와 검토본의 출처가 다르면(프로젝트 키에 사용자 검토본, 이름 키에 프로젝트 검토본) 그 키의 검토본이 아니므로 `ok(null)`이다.
+ * 로더는 프로젝트 검토본을 프로젝트 id가 맞을 때만 싣는데, 재료도 같은 규칙을 따르게 한다.
  */
 export function currentTreePathSync(
   root: string,
-  name: string,
+  key: string,
 ): Result<string | null, PluginStoreError> {
-  const valid = validName(name);
+  const valid = validKey(key);
   if (!valid.ok) return err(valid.error);
-  const path = join(root, REVIEWED_DIR, name, "current");
+  const folder = join(root, REVIEWED_DIR, folderNameOf(key));
+  const path = join(folder, "current");
   const text = attempt(() => readFileSync(path, "utf8"));
   if (!text.ok) {
     return codeOf(text.error.cause) === "ENOENT" ? ok(null) : err(ioOf(path, text.error.cause));
   }
   const hex = text.value.trim();
   if (!HEX_PATTERN.test(hex)) return err({ kind: "corrupt", path });
-  return ok(join(root, REVIEWED_DIR, name, hex, "tree"));
+  const meta = readMetaSync(join(folder, hex, "meta.json"));
+  if (!meta.ok)
+    return err(meta.error.kind === "not_found" ? { kind: "corrupt", path } : meta.error);
+  const projectKey = key.includes("/");
+  if (projectKey !== (meta.value.origin === "project")) return ok(null);
+  return ok(join(folder, hex, "tree"));
 }
 
 let sequence = 0;
@@ -533,13 +594,14 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     return result.value;
   }
 
-  function versionDirOf(name: string, hex: string): string {
-    return join(reviewedDir, name, hex);
+  /** 키 폴더 안의 해시 폴더. 키는 `validKey`를 거친 값이어야 한다 */
+  function versionDirOf(key: string, hex: string): string {
+    return join(reviewedDir, folderNameOf(key), hex);
   }
 
-  /** 현재 검토본의 hex. 없으면 null, 형식이 틀리면 손상이다 */
-  async function currentHex(name: string): Promise<Result<string | null, PluginStoreError>> {
-    const path = join(reviewedDir, name, "current");
+  /** 현재 검토본의 hex. 없으면 null, 형식이 틀리면 손상이다. 키는 `validKey`를 거친 값이어야 한다 */
+  async function currentHex(key: string): Promise<Result<string | null, PluginStoreError>> {
+    const path = join(reviewedDir, folderNameOf(key), "current");
     const text = await attemptAsync(() => readFile(path, "utf8"));
     if (!text.ok) {
       return codeOf(text.error.cause) === "ENOENT" ? ok(null) : err(ioOf(path, text.error.cause));
@@ -549,19 +611,19 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     return ok(hex);
   }
 
-  /** 보관 목록 전체(메타가 있는 것만). 이름이 안전하지 않으면 거절한다 */
-  async function listVersions(name: string): Promise<Result<VersionRow[], PluginStoreError>> {
-    const valid = validName(name);
+  /** 보관 목록 전체(메타가 있는 것만). 키가 안전하지 않으면 거절한다 */
+  async function listVersions(key: string): Promise<Result<VersionRow[], PluginStoreError>> {
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
-    const listed = await namesIn(join(reviewedDir, name));
+    const listed = await namesIn(join(reviewedDir, folderNameOf(key)));
     if (!listed.ok) return err(listed.error);
-    const currentValue = await currentHex(name);
+    const currentValue = await currentHex(key);
     if (!currentValue.ok) return err(currentValue.error);
     const hexes = listed.value.filter((entry) => HEX_PATTERN.test(entry)).toSorted(compareUtf8);
     const loaded = await Promise.all(
       hexes.map(async (hex) => ({
         hex,
-        meta: await readMeta(join(versionDirOf(name, hex), "meta.json")),
+        meta: await readMeta(join(versionDirOf(key, hex), "meta.json")),
       })),
     );
     const rows: VersionRow[] = [];
@@ -653,14 +715,19 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     }
     const hex = hexOf(contentHash);
     if (!hex.ok) return err(hex.error);
-    const name = validName(meta.name);
-    if (!name.ok) return err(name.error);
+    // 키는 메타에서 정한다. 프로젝트 출처 메타는 카드의 프로젝트 id가 있어야 한다
+    const key = reviewKeyOf({
+      origin: meta.origin,
+      name: meta.name,
+      projectId: meta.card.origin.projectId,
+    });
+    if (!key.ok) return err(keyErrorOf(key.error));
     return locked(async () => {
       const candidateTree = join(candidatesDir, hex.value, "tree");
       if (!(await isDirectory(candidateTree))) {
         return err({ kind: "not_found", what: `candidate ${contentHash}` });
       }
-      const versionDir = versionDirOf(meta.name, hex.value);
+      const versionDir = versionDirOf(key.value, hex.value);
       const tree = join(versionDir, "tree");
       const existing = (await pathExists(tree)) ? hashPluginTree(tree) : undefined;
       if (existing !== undefined && existing.ok && existing.value.contentHash === contentHash) {
@@ -691,28 +758,28 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
   }
 
   async function setCurrent(
-    name: string,
+    key: string,
     contentHash: string,
   ): Promise<Result<void, PluginStoreError>> {
-    const valid = validName(name);
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
     const hex = hexOf(contentHash);
     if (!hex.ok) return err(hex.error);
     return locked(async () => {
-      if (!(await pathExists(join(versionDirOf(name, hex.value), "meta.json")))) {
-        return err({ kind: "not_found", what: `reviewed ${name} ${contentHash}` });
+      if (!(await pathExists(join(versionDirOf(key, hex.value), "meta.json")))) {
+        return err({ kind: "not_found", what: `reviewed ${key} ${contentHash}` });
       }
-      return writeAtomic(join(reviewedDir, name, "current"), `${hex.value}\n`);
+      return writeAtomic(join(reviewedDir, folderNameOf(key), "current"), `${hex.value}\n`);
     });
   }
 
-  async function current(name: string): Promise<Result<ReviewedVersion | null, PluginStoreError>> {
-    const valid = validName(name);
+  async function current(key: string): Promise<Result<ReviewedVersion | null, PluginStoreError>> {
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
-    const hex = await currentHex(name);
+    const hex = await currentHex(key);
     if (!hex.ok) return err(hex.error);
     if (hex.value === null) return ok(null);
-    const dir = versionDirOf(name, hex.value);
+    const dir = versionDirOf(key, hex.value);
     const meta = await readMeta(join(dir, "meta.json"));
     if (!meta.ok) {
       // current가 가리키는 검토본의 메타가 없거나 깨졌다. 손상이다
@@ -726,26 +793,26 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
   }
 
   async function treePath(
-    name: string,
+    key: string,
     contentHash?: string,
   ): Promise<Result<string, PluginStoreError>> {
-    const valid = validName(name);
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
     if (contentHash !== undefined) {
       const hex = hexOf(contentHash);
       if (!hex.ok) return err(hex.error);
-      return ok(join(versionDirOf(name, hex.value), "tree"));
+      return ok(join(versionDirOf(key, hex.value), "tree"));
     }
-    const version = await current(name);
+    const version = await current(key);
     if (!version.ok) return err(version.error);
-    if (version.value === null) return err({ kind: "not_found", what: `current ${name}` });
+    if (version.value === null) return err({ kind: "not_found", what: `current ${key}` });
     return ok(version.value.treePath);
   }
 
   async function versions(
-    name: string,
+    key: string,
   ): Promise<Result<readonly PluginVersionInfo[], PluginStoreError>> {
-    const rows = await listVersions(name);
+    const rows = await listVersions(key);
     if (!rows.ok) return err(rows.error);
     return ok(
       rows.value
@@ -760,46 +827,55 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     );
   }
 
-  async function names(): Promise<Result<readonly string[], PluginStoreError>> {
+  /** 폴더 이름들을 키로 바꾼다. 검토본 저장소의 것이 아닌 폴더는 뺀다 */
+  async function keysOfFolders(): Promise<Result<string[], PluginStoreError>> {
     const listed = await namesIn(reviewedDir);
     if (!listed.ok) return err(listed.error);
-    const candidates = listed.value
-      .filter((entry) => parse(ExtensionNameSchema, entry).ok)
-      .toSorted(compareUtf8);
+    const keys: string[] = [];
+    for (const folder of listed.value) {
+      const key = keyOfFolder(folder);
+      if (key.ok) keys.push(key.value);
+    }
+    return ok(keys.toSorted(compareUtf8));
+  }
+
+  async function names(): Promise<Result<readonly string[], PluginStoreError>> {
+    const keys = await keysOfFolders();
+    if (!keys.ok) return err(keys.error);
     const checked = await Promise.all(
-      candidates.map(async (entry) => ({
-        entry,
-        dir: await isDirectory(join(reviewedDir, entry)),
+      keys.value.map(async (key) => ({
+        key,
+        dir: await isDirectory(join(reviewedDir, folderNameOf(key))),
       })),
     );
-    return ok(checked.filter((item) => item.dir).map((item) => item.entry));
+    return ok(checked.filter((item) => item.dir).map((item) => item.key));
   }
 
   async function verifyIntegrity(
-    name: string,
+    key: string,
     contentHash: string,
   ): Promise<Result<void, PluginStoreError>> {
-    const valid = validName(name);
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
     const hex = hexOf(contentHash);
     if (!hex.ok) return err(hex.error);
-    const dir = versionDirOf(name, hex.value);
+    const dir = versionDirOf(key, hex.value);
     const meta = await readMeta(join(dir, "meta.json"));
     if (!meta.ok) return err(meta.error);
     const actual = hashPluginTree(join(dir, "tree"));
     const actualHash = actual.ok ? actual.value.contentHash : null;
     if (actualHash !== contentHash || meta.value.contentHash !== contentHash) {
-      return err({ kind: "pinned_corrupt", name, contentHash, actual: actualHash });
+      return err({ kind: "pinned_corrupt", name: key, contentHash, actual: actualHash });
     }
     return ok(undefined);
   }
 
   async function prune(
-    name: string,
+    key: string,
     options: { readonly keep: number; readonly inUse: ReadonlySet<string> },
   ): Promise<Result<readonly string[], PluginStoreError>> {
     return locked(async () => {
-      const listed = await listVersions(name);
+      const listed = await listVersions(key);
       if (!listed.ok) return err(listed.error);
       // 최근 승인 순서로 `keep`개까지 남기고, 현재 것과 쓰이는 것은 순서와 무관하게 남긴다
       const kept = new Set(
@@ -813,7 +889,7 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
       }
       const doomed = listed.value.filter((row) => !kept.has(row.contentHash));
       const dropped = await sequenceResults(doomed, (row) =>
-        removeTree(versionDirOf(name, row.hex)),
+        removeTree(versionDirOf(key, row.hex)),
       );
       if (!dropped.ok) return err(dropped.error);
       return ok(doomed.map((row) => row.contentHash));
@@ -850,45 +926,106 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
       const log = await readLogFile(logPath);
       if (!log.ok) return err(log.error);
       const decided: ReadonlySet<string | null> = new Set(log.value.map((entry) => entry.itemId));
-      const owners = await namesIn(reviewedDir);
+      const owners = await keysOfFolders();
       if (!owners.ok) return err(owners.error);
-      const removed = await collectInOrder(
-        owners.value.filter((name) => parse(ExtensionNameSchema, name).ok).toSorted(compareUtf8),
-        async (name) => {
-          const currentValue = await currentHex(name);
-          if (!currentValue.ok) return err(currentValue.error);
-          const listed = await namesIn(join(reviewedDir, name));
-          if (!listed.ok) return err(listed.error);
-          const hexes = listed.value
-            .filter((hex) => HEX_PATTERN.test(hex) && hex !== currentValue.value)
-            .toSorted(compareUtf8);
-          const flagged = await Promise.all(
-            hexes.map(async (hex) => ({
-              hex,
-              interrupted: interruptedOf(
-                await readMeta(join(versionDirOf(name, hex), "meta.json")),
-                decided,
-              ),
-            })),
-          );
-          const doomed = flagged.filter((item) => item.interrupted).map((item) => item.hex);
-          const cleared = await sequenceResults(doomed, (hex) =>
-            removeTree(versionDirOf(name, hex)),
-          );
-          if (!cleared.ok) return err(cleared.error);
-          return ok(doomed.map((hex) => `${name}/${hex}`));
-        },
-      );
+      const removed = await collectInOrder(owners.value, async (key) => {
+        const currentValue = await currentHex(key);
+        if (!currentValue.ok) return err(currentValue.error);
+        const listed = await namesIn(join(reviewedDir, folderNameOf(key)));
+        if (!listed.ok) return err(listed.error);
+        const hexes = listed.value
+          .filter((hex) => HEX_PATTERN.test(hex) && hex !== currentValue.value)
+          .toSorted(compareUtf8);
+        const flagged = await Promise.all(
+          hexes.map(async (hex) => ({
+            hex,
+            interrupted: interruptedOf(
+              await readMeta(join(versionDirOf(key, hex), "meta.json")),
+              decided,
+            ),
+          })),
+        );
+        const doomed = flagged.filter((item) => item.interrupted).map((item) => item.hex);
+        const cleared = await sequenceResults(doomed, (hex) => removeTree(versionDirOf(key, hex)));
+        if (!cleared.ok) return err(cleared.error);
+        return ok(doomed.map((hex) => `${key}/${hex}`));
+      });
       if (!removed.ok) return err(removed.error);
       return ok({ removed: removed.value });
     });
   }
 
-  async function clearCurrent(name: string): Promise<Result<void, PluginStoreError>> {
-    const valid = validName(name);
+  /**
+   * 프로젝트 출처 검토본을 키 폴더에서 `<projectId>~<이름>` 폴더로 옮긴다(`project_review_key`, 시작 때 한 번).
+   * 이름 키 폴더의 해시 폴더마다 메타를 읽는다. 출처가 프로젝트이고 프로젝트 id가 있으면 옮긴다(current 파일이 가리키면 함께 옮긴다).
+   * 대상 폴더에 같은 해시 폴더가 이미 있으면 옮긴 것이므로 건너뛴다(줄도 적지 않는다). 프로젝트 id가 없으면 옮기지 않고 `skipped`다.
+   * 메타를 읽지 못하면 출처를 알 수 없으니 건드리지 않는다. 옮김 중 파일 오류는 `io`로 돌려준다(그 앞까지 옮긴 것은 남는다)
+   */
+  async function moveProjectReviews(): Promise<
+    Result<readonly ProjectKeyMove[], PluginStoreError>
+  > {
+    return locked(async () => {
+      const owners = await namesIn(reviewedDir);
+      if (!owners.ok) return err(owners.error);
+      const plainNames = owners.value
+        .filter((folder) => parse(ExtensionNameSchema, folder).ok)
+        .toSorted(compareUtf8);
+      return collectInOrder(plainNames, moveNameFolder);
+    });
+  }
+
+  /** 이름 키 폴더 하나의 해시 폴더를 차례로 본다 */
+  async function moveNameFolder(
+    name: string,
+  ): Promise<Result<readonly ProjectKeyMove[], PluginStoreError>> {
+    const currentValue = await currentHex(name);
+    if (!currentValue.ok) return err(currentValue.error);
+    const listed = await namesIn(join(reviewedDir, name));
+    if (!listed.ok) return err(listed.error);
+    const hexes = listed.value.filter((hex) => HEX_PATTERN.test(hex)).toSorted(compareUtf8);
+    return collectInOrder(hexes, (hex) => moveVersion(name, hex, currentValue.value === hex));
+  }
+
+  /** 해시 폴더 하나를 옮긴다. 옮길 것이 없으면 빈 목록이다 */
+  async function moveVersion(
+    name: string,
+    hex: string,
+    isCurrent: boolean,
+  ): Promise<Result<readonly ProjectKeyMove[], PluginStoreError>> {
+    const meta = await readMeta(join(versionDirOf(name, hex), "meta.json"));
+    // 메타를 못 읽으면 출처를 알 수 없다. 건드리지 않는다(승인 도중 중단의 흔적이면 recover가 맡는다)
+    if (!meta.ok || meta.value.origin !== "project") return ok([]);
+    const contentHash = `sha256:${hex}`;
+    const projectId = meta.value.card.origin.projectId;
+    if (projectId === undefined) {
+      return ok([{ name, outcome: "skipped", contentHash, reason: "no_project_id" }]);
+    }
+    const target = reviewKeyOf({ origin: "project", name, projectId });
+    if (!target.ok) {
+      return ok([{ name, outcome: "skipped", contentHash, reason: "invalid_project_id" }]);
+    }
+    const targetFolder = join(reviewedDir, folderNameOf(target.value));
+    const targetDir = join(targetFolder, hex);
+    // 대상에 같은 해시 폴더가 있으면 이미 옮긴 것이다
+    if (await pathExists(targetDir)) return ok([]);
+    const made = await attemptAsync(() => mkdir(targetFolder, { recursive: true }));
+    if (!made.ok) return err(ioOf(targetFolder, made.error.cause));
+    const renamed = await attemptAsync(() => rename(versionDirOf(name, hex), targetDir));
+    if (!renamed.ok) return err(ioOf(targetDir, renamed.error.cause));
+    if (isCurrent) {
+      const pointer = await attemptAsync(() =>
+        rename(join(reviewedDir, name, "current"), join(targetFolder, "current")),
+      );
+      if (!pointer.ok) return err(ioOf(targetFolder, pointer.error.cause));
+    }
+    return ok([{ name: target.value, outcome: "migrated", contentHash, reason: null }]);
+  }
+
+  async function clearCurrent(key: string): Promise<Result<void, PluginStoreError>> {
+    const valid = validKey(key);
     if (!valid.ok) return err(valid.error);
     return locked(async () => {
-      const path = join(reviewedDir, name, "current");
+      const path = join(reviewedDir, folderNameOf(key), "current");
       const removed = await attemptAsync(() => rm(path, { force: true }));
       if (!removed.ok) return err(ioOf(path, removed.error.cause));
       return ok(undefined);
@@ -1038,6 +1175,7 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     appendLog,
     readLog,
     recover,
+    moveProjectReviews,
     draftDir: (draftId) => join(draftsDir, draftId),
     queueFile: (itemId) => join(queueDir, `${itemId}.json`),
     clearCurrent,

@@ -39,6 +39,7 @@ import {
 } from "./effect-worker.ts";
 import {
   guardCapabilityService,
+  pluginCallTraceOf,
   pluginCallWiringOf,
   SETTINGS_READ_PORT,
   type CapabilityDefLookup,
@@ -437,6 +438,7 @@ export function createRegistrationApi(
           conditionsOf: (threadId) => core.ports.get(LoopPortKey)?.callConditions?.(threadId),
           contextTrusted: record.builtin,
           pluginCalls: pluginCallWiringOf(core.ports),
+          pluginCallTrace: pluginCallTraceOf(core.ports, core.deps),
         }),
       );
     },

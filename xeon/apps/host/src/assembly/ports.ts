@@ -83,7 +83,7 @@ import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
-import { userSkillsDir } from "@fresnel/cap-knowledge";
+import { userSkillsDir, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
 import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
@@ -107,14 +107,18 @@ import { createM4Ports } from "./m4/index.ts";
 import { pluginLifecycleOf } from "./m4/plugin-lifecycle.ts";
 import {
   approvalHooksOf,
+  createMigrationService,
   createMigrationSubmitter,
   createPluginReview,
+  createUserSkillSink,
   createOverlayPort,
   createPluginService,
   type PluginStore,
 } from "./plugins/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
+import { projectIdOf } from "./m4/project-scope.ts";
+import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import {
   PluginSubmitPortKey,
@@ -172,6 +176,8 @@ export interface PortsDeps {
   readonly configDir: string;
   /** 호스트 상태 디렉터리(L0.os의 `dirs.state`). 프로필 옮김 기록 `migration.log`가 여기에 놓인다 */
   readonly stateDir: string;
+  /** 홈 폴더(`OsDirs.home`). 가져오기가 항목 경로를 `~/…`로 줄이고 감지가 홈의 공유 스킬 폴더를 세지 않게 쓴다 */
+  readonly homeDir: string;
   /** `OsDirs.data`. 프로젝트 없는 대화의 기본 폴더(`default-project`)가 여기에 놓인다(review m5 §4.4.5) */
   readonly dataDir: string;
   /** 지역 접두 id 발급(`prj_`, `rvw_`, `drf_`). 프로젝트, 검토 항목, 초안의 id다 */
@@ -206,6 +212,8 @@ export interface PortsDeps {
 
 export interface PortsHandle {
   readonly ports: EnginePorts;
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보내는 싱크(L2.knowledge §7.5 [제안]). cap-knowledge가 부른다 */
+  readonly userSkillSink: UserSkillSink;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 쥐지 않았으면 undefined */
   tokenOf(threadId: ThreadId): LeaseToken | undefined;
   /** 이 엔진이 지금 쓰기 소유를 쥔 thread 전부(쥔 순서) */
@@ -445,17 +453,26 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
    * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run과 테스트 대화는 뺀다). 같은 폴더는 한 번만 준다.
    * 읽지 못한 등록 목록은 빈 목록으로 두고 로그에 남긴다(등록된 루트가 훑이지 않을 뿐 다른 훑기는 계속된다)
    */
-  async function scanRootsOfProjects(): Promise<readonly string[]> {
+  async function scanRootsOfProjects(): Promise<readonly DiscoverProjectRoot[]> {
     const registered = await projects.roots();
     if (!registered.ok) log.error("plugin.scan.roots_failed", { kind: registered.error.kind });
-    const explicit = registered.ok ? registered.value.map((root) => root.root) : [];
+    const scope = registered.ok ? registered.value : [];
+    const explicit: DiscoverProjectRoot[] = scope.map((root) => ({
+      root: root.root,
+      projectId: root.projectId,
+    }));
     // 테스트 대화(Craft)의 작업 폴더는 플러그인 원본 폴더다. 프로젝트 루트가 아니므로 훑지 않는다(§4.8.3)
-    const opened = allThreadRows().flatMap((row) =>
+    // 닫히지 않은 대화의 작업 폴더는 가장 깊은 루트의 프로젝트에 속한다(없으면 id가 없다)
+    const opened: DiscoverProjectRoot[] = allThreadRows().flatMap((row) =>
       row.testRun || row.craftChat || row.status === "closed" || row.workspace === null
         ? []
-        : [row.workspace],
+        : [{ root: row.workspace, projectId: projectIdOf(row.workspace, scope) }],
     );
-    return [...new Set([...explicit, ...opened])];
+    const byRoot = new Map<string, DiscoverProjectRoot>();
+    for (const item of [...explicit, ...opened]) {
+      if (!byRoot.has(item.root)) byRoot.set(item.root, item);
+    }
+    return [...byRoot.values()];
   }
 
   // 테스트 대화의 원본 폴더와 초안 묶기(M5c §4.8.2, §4.8.7). 저장은 세션 원천을 거친다
@@ -1233,11 +1250,30 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       cancelOverlay: (threadId) => ports.m4.pluginSet.cancelOverlay(threadId),
     },
   });
+  // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)
+  const userSkillSink = createUserSkillSink({
+    intake: pluginReview.intake,
+    decide: (itemId, decision) => pluginReview.decide(itemId, decision),
+    log: deps.logger,
+  });
   // 마이그레이션 제출(M5g 전 조각, migration.md §7.5 [제안]). wire로 열지 않고 `engine.ports`로만 낸다. `migration.apply`가 부른다
   const pluginMigration = createMigrationSubmitter({
     userDir: userPluginsDir,
     intake: pluginReview.intake,
     review: pluginReview,
+    log: deps.logger,
+  });
+  // 가져오기 서비스(migration.md §6, §7.7 [제안]): 감지, 훑기, 제안, 적용, 보고서, 표지 숨기기. wire 처리기는 `handlers/m5/migration.ts`다.
+  // 프로필 저장소는 `profile.list`, `profile.put`이 쓰는 포트를 그대로 부른다(wire를 거치지 않는다). 포트 객체는 호출 때 읽는다
+  const migration = createMigrationService({
+    homeDir: deps.homeDir,
+    stateDir: deps.stateDir,
+    submitter: pluginMigration,
+    profiles: {
+      list: () => ports.m4.profileTestRun.list(),
+      put: (input, baseRev) => ports.m4.profileTestRun.put(input, baseRev),
+    },
+    clock: deps.clock,
     log: deps.logger,
   });
   const ports: EnginePorts = {
@@ -1306,6 +1342,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     scanOpenedRoots: () => pluginReview.scanOpened(),
     pluginMigration,
     craftChat,
+    migration,
     m4: createM4Ports(
       deps.ext,
       {
@@ -1425,6 +1462,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   return {
     ports,
+    userSkillSink,
     tokenOf: (threadId) => held.get(threadId)?.token,
     heldThreads: () => Array.from(held.keys()),
     activeThread: () => Array.from(held.keys()).at(-1) ?? null,

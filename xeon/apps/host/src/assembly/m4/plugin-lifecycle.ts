@@ -1,8 +1,8 @@
 import type { ExtensionLoader } from "@fresnel/ext-host";
 import type { PluginLifecycle } from "./plugin-set.ts";
 
-// M5c §4.1.11: 대화의 참조가 0→1이면 로더의 `ensureLoaded`, 1→0이면 `unload`를 부른다. 로더가 모르는 이름(내장 단위, 아직 설치하지 않은 이름,
-// 검토본만 있고 코드가 없는 이름)은 건너뛴다. `ensureLoaded`는 모르는 이름에 `Bug`를 던지기 때문이다.
+// M5c §4.1.11: 대화의 참조가 0→1이면 로더의 `ensureLoaded`, 1→0이면 `unload`를 부른다. 로더가 기록을 모르는 이름은 `loadInstalled`로 검토본에서 처음 싣는다(승인은 적재가 아니다).
+// 검토본이 없는 이름(내장 단위, 설치하지 않은 이름)은 건너뛴다. `ensureLoaded`는 모르는 이름에 `Bug`를 던지기 때문이다.
 
 export interface PluginLifecycleDeps {
   /** 로더. 조립이 외부 확장을 싣기 전이면 undefined다 */
@@ -20,10 +20,14 @@ export function pluginLifecycleOf(deps: PluginLifecycleDeps): PluginLifecycle {
   return {
     async ensureLoaded(name) {
       const loader = deps.loader();
-      if (loader === undefined || !loader.list().some((info) => info.name === name)) {
-        return undefined;
+      if (loader === undefined) return undefined;
+      if (loader.list().some((info) => info.name === name)) {
+        return await loader.ensureLoaded(name, deps.signal);
       }
-      return await loader.ensureLoaded(name, deps.signal);
+      // 기록이 없는 이름: 승인만 하고 아직 어느 대화도 쓰지 않은 검토본이다. 처음 들어올 때 검토본에서 싣는다(§4.1.11).
+      // 검토본이 없는 이름(내장 단위, 설치하지 않은 이름)은 `not_found`로 건너뛴다
+      const installed = await loader.loadInstalled(name, deps.signal);
+      return installed.ok ? installed.value.info : undefined;
     },
     async unload(name) {
       const loader = deps.loader();

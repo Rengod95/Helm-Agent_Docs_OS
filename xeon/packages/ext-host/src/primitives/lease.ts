@@ -553,7 +553,7 @@ function frameOf(init: FrameInit): LeaseRuntime {
     lastBaseRev: null,
     running: false,
     missed: false,
-    engaged: false,
+    firstStepDone: false,
     userSeq: 0,
     inbox: [],
     userSteps: null,
@@ -1024,6 +1024,38 @@ export function createLeaseBroker(
     );
   }
 
+  /** 부여를 기다리던 사용자 메시지를 코어 루프로 돌려보낸다. 프레임도 시작 요청도 없을 때만 부른다(요청이 남았으면 그 요청이 받는다) */
+  function returnHeldIfUnclaimed(thread: ThreadRuntime): void {
+    if (thread.heldUser.length === 0) return;
+    if (thread.frames.length > 0) return;
+    if (thread.startQueue.some((entry) => entry.trigger !== "handoff")) return;
+    const queue = core.ports.get(InputQueuePortKey);
+    const held = thread.heldUser.splice(0);
+    if (queue === undefined) return;
+    for (const message of held) {
+      detach(
+        queue
+          .enqueue({
+            threadId: thread.threadId,
+            scopeId: message.scopeId,
+            requestId: `user-return:${message.requestId}`.slice(0, 64),
+            when: "followUp",
+            item: message.item,
+          })
+          .then(() => undefined),
+        (cause) => {
+          core.deps.report({
+            level: "error",
+            code: "handler_failed",
+            scopeId: message.scopeId,
+            message: "a held user message could not be handed back to the loop",
+            cause,
+          });
+        },
+      );
+    }
+  }
+
   /** 임대가 내려가면 전달하지 못한 사용자 메시지를 코어 루프로 돌려보낸다(메시지가 묻히지 않게) */
   function flushUserMessages(thread: ThreadRuntime, lease: LeaseRuntime): void {
     const pending = [
@@ -1059,6 +1091,8 @@ export function createLeaseBroker(
         return { last, handedBack: true };
       }
     }
+    // 첫 단계가 끝나기 전에는 메시지를 전달하지 않는다(시작 주도가 항상 먼저)
+    if (!lease.firstStepDone) return { last, handedBack: false };
     const message = lease.inbox.shift();
     if (message === undefined) return { last, handedBack: false };
     lease.deliveredUser = message;
@@ -1133,12 +1167,10 @@ export function createLeaseBroker(
         return executeCommand(ctx, command);
       },
     );
+    lease.firstStepDone = true;
     progress.nextIndex = Math.max(invocation.i, progress.nextIndex + 1);
     progress.totalEffects += invocation.effects;
     progress.quiet = invocation.effects > 0 ? 0 : progress.quiet + 1;
-    if (outcome.kind === "result" || outcome.kind === "yield" || outcome.kind === "handoff") {
-      lease.engaged = true;
-    }
     if (outcome.kind === "done") progress.result = outcome.result;
     // 단계 하나가 끝난 경계다. 사용자 명령이 기다리고 정책이 허락하면 스택 전체를 내린다(drive-isolation.md 2.2).
     // `done`으로 끝난 맨 위는 invoke가 따로 맡는다(맨 위는 done으로 내려가고 아래만 revoked가 된다)
@@ -1346,6 +1378,7 @@ export function createLeaseBroker(
   function dropRequest(thread: ThreadRuntime, request: StartRequest, why: string): void {
     const at = thread.startQueue.indexOf(request);
     if (at >= 0) thread.startQueue.splice(at, 1);
+    returnHeldIfUnclaimed(thread);
     core.deps.report({
       level: "info",
       code: "scope_notice",
@@ -1585,6 +1618,7 @@ export function createLeaseBroker(
         thread.userStopped = txn.signal.userInterrupted === true;
         if (thread.userStopped) {
           thread.startQueue.splice(0);
+          returnHeldIfUnclaimed(thread);
           releaseFrom(thread, 0, "revoked");
         }
       }
@@ -1661,6 +1695,8 @@ export function createLeaseBroker(
         grant.committed = true;
         thread.frames.push(grant);
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
+        // 부여를 기다리며 쥐고 있던 사용자 메시지는 새 프레임의 몫이다
+        grant.inbox.push(...thread.heldUser.splice(0).map((held) => held.item));
         // 커밋이 성공해야 요청을 뺀다. 실패하면 다음 경계가 같은 요청을 다시 판단한다
         if (txn.startRequest !== null) {
           const at = thread.startQueue.indexOf(txn.startRequest);
@@ -1672,14 +1708,20 @@ export function createLeaseBroker(
     claimUserInput(thread, item) {
       if (thread.child) return false;
       const lease = topFrame(thread);
+      if (lease === null) {
+        // 시작 요청이 이미 큐에 있으면 프레임이 잡힐 때까지 메시지를 쥐고 있다가 그 프레임의 첫 단계 뒤에 전달한다(2.4).
+        // 부여가 먼저인지 메시지가 먼저인지에 따라 행선지가 갈리지 않는다. 요청이 프레임 없이 사라지면 코어 루프로 돌려보낸다
+        const request = thread.startQueue.find((entry) => entry.trigger !== "handoff");
+        if (request === undefined || thread.userStopped) return false;
+        thread.heldUser.push({
+          item,
+          scopeId: request.scopeId,
+          requestId: core.deps.ids.next("evt"),
+        });
+        return true;
+      }
       // 맡기고 기다리는 맨 위는 메시지를 받지 않는다. 루프가 평소대로 처리한다
-      if (
-        lease === null ||
-        lease.status !== "active" ||
-        lease.state !== "driving" ||
-        !lease.committed ||
-        !lease.engaged
-      ) {
+      if (lease.status !== "active" || lease.state !== "driving" || !lease.committed) {
         return false;
       }
       const record = core.scopes.get(lease.scopeId);

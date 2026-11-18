@@ -10,13 +10,16 @@ import {
 } from "@fresnel/contracts/conversation";
 import type {
   ContextTraceEvent,
+  PluginCallTraceEvent,
   PluginSetPort,
   PluginSetView,
   ToolCallTraceEvent,
   TraceReadPort,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
+  InputQueuedPayloadSchema,
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
   ProfileAppliedPayloadSchema,
@@ -24,6 +27,7 @@ import {
 } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
+  PluginCallLineSchema,
   SCOPE_KINDS,
   type DeltaRow,
   type FrameMark,
@@ -35,6 +39,7 @@ import type { MeasureStore } from "./store.ts";
 import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import {
   advertisedRecordOf,
+  blockMaterialsOf,
   cacheBreakOf,
   MAX_MATERIAL_ROWS_PER_TURN,
   MAX_SKILL_ROWS_PER_TURN,
@@ -46,6 +51,7 @@ import {
   trCacheRowsOf,
   trMaterialRowOf,
   trToolUseRowOf,
+  withBlockFact,
   type CacheUsage,
 } from "./turn-context.ts";
 import type { TrSkillRow, TrStepBatch, TrToolUseRow, TrTurnRow } from "./turn-tables.ts";
@@ -57,13 +63,17 @@ import {
   lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
+  MAX_PLUGIN_CALL_ROWS_PER_TURN,
+  maskedArgTokensOf,
   newDraft,
+  pluginCallLineOf,
   stepAfterBoundary,
   stepRecordOf,
   stepRowOf,
   trCallRowOf,
   trFrameRowOf,
   trHookRowOf,
+  trPluginCallRowOf,
   turnRowOf,
   type TurnDraft,
   type TurnProfileMark,
@@ -138,8 +148,18 @@ export interface TurnWriter {
   usage(call: UsageRecord): void;
   /** 도구 호출 하나가 닫힌 줄(추적 싱크). 계측이 켜진 턴의 단계에 모은다. 반환값은 호출 경로로 돌아가지 않는다 */
   call(event: ToolCallTraceEvent): void;
+  /**
+   * 가벼운 길의 플러그인 호출 한 줄(추적 싱크). 가드는 턴을 모르므로 이 대화의 열린 턴에 붙인다.
+   * 열린 턴이 없거나 계측이 꺼진 턴이면 버린다. 줄은 턴을 닫을 때 한 묶음으로 쓴다
+   */
+  pluginCall(event: PluginCallTraceEvent): void;
   /** 조립 재료·광고(`step_context`)와 스킬 본문 읽기(`skill_read`)의 읽기 전용 사건. 단계가 끝날 때 행으로 바뀐다 */
   context(event: ContextTraceEvent): void;
+  /**
+   * 색인·기억 블록의 사실(턴 기록 싱크). 이 대화의 열린 턴에 붙이고, 턴이 끝날 때까지 그 턴의 모든 단계에 재료로 싣는다.
+   * 열린 턴이 없거나 계측이 꺼진 턴이면 버린다
+   */
+  turnRecord(event: TurnBlockEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
   forget(threadId: string): void;
 }
@@ -273,10 +293,16 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     });
   }
 
-  /** 하위 대화를 기억한다. `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다 */
+  /**
+   * 하위 대화를 기억한다. `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다. 부모 턴에서 만든 것이면 그 턴의 자식 목록에도 넣는다(`flags.subagents`)
+   */
   function rememberChild(record: DurableEventEnvelope): void {
     const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
-    if (parsed.ok) addBounded(childThreads, parsed.value.childThreadId);
+    if (!parsed.ok) return;
+    addBounded(childThreads, parsed.value.childThreadId);
+    if (record.turnId !== null) {
+      drafts.get(record.turnId)?.spawnedChildren.add(parsed.value.childThreadId);
+    }
   }
 
   /** 이 대화에서 지금 열려 있는 턴(있으면 하나) */
@@ -285,10 +311,96 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     return undefined;
   }
 
+  /** 한도 소비량의 증분(§4.4 규칙 23). 엔진의 `charge`(ext-host `lease.ts`)가 더하는 세 칸이다 */
+  interface FrameCharge {
+    readonly turns: number;
+    readonly spawns: number;
+    readonly tokens: number;
+  }
+
+  /**
+   * 열린 프레임 가운데 `leaseIds`에 든 것을 바꾼다. 대화의 열린 스택과, 이 대화의 열린 턴이 든 복사본을 함께 바꾼다.
+   * 턴이 닫힐 때 복사본을 쓰므로, 여러 턴에 걸친 프레임의 값은 턴 사이에도 이어서 쌓인다
+   */
+  function patchFrames(
+    threadId: string,
+    leaseIds: ReadonlySet<string>,
+    change: (frame: FrameMark) => FrameMark,
+  ): void {
+    const stack = openFrames.get(threadId);
+    if (stack !== undefined) {
+      openFrames.set(
+        threadId,
+        stack.map((frame) =>
+          frame.leaseId !== null && leaseIds.has(frame.leaseId) ? change(frame) : frame,
+        ),
+      );
+    }
+    for (const draft of drafts.values()) {
+      if (draft.threadId !== threadId) continue;
+      draft.frames.forEach((frame, index) => {
+        if (frame.leaseId !== null && leaseIds.has(frame.leaseId)) {
+          draft.frames[index] = change(frame);
+        }
+      });
+    }
+  }
+
+  /**
+   * 맨 위 프레임부터 `leaseId`까지(`leaseId`가 없으면 맨 위 전부)에 증분을 더한다. 엔진은 맨 위 임대와 그 아래 프레임에 더하므로
+   * 아래 프레임의 소비량에는 위 프레임의 소비도 든다(`charge`). 열린 프레임이 없으면 아무것도 하지 않는다
+   */
+  function chargeFrames(threadId: string, leaseId: string | null, charge: FrameCharge): void {
+    if (charge.turns === 0 && charge.spawns === 0 && charge.tokens === 0) return;
+    const stack = openFrames.get(threadId) ?? [];
+    const at =
+      leaseId === null ? stack.length - 1 : stack.findIndex((frame) => frame.leaseId === leaseId);
+    if (at < 0) return;
+    const covered = new Set<string>();
+    for (const frame of stack.slice(0, at + 1)) {
+      if (frame.leaseId !== null) covered.add(frame.leaseId);
+    }
+    patchFrames(threadId, covered, (frame) => ({
+      ...frame,
+      used: {
+        turns: frame.used.turns + charge.turns,
+        spawns: frame.used.spawns + charge.spawns,
+        tokens: frame.used.tokens + charge.tokens,
+      },
+    }));
+  }
+
+  /**
+   * 사용자 메시지 한 건(`input.queued`, 출처 사용자). 맨 위 임대의 받은 편지함으로 가므로 맨 위 프레임이 받은 것으로 센다.
+   * 임대가 받은 메시지는 사건이 없어 이 길로 세지 않는다(§11 미결)
+   */
+  function queuedUserMessage(record: DurableEventEnvelope): void {
+    const parsed = parse(InputQueuedPayloadSchema, record.payload);
+    if (!parsed.ok || parsed.value.source.type !== "user" || parsed.value.item.kind !== "user") {
+      return;
+    }
+    const top = openFrames.get(record.threadId)?.at(-1);
+    if (top === undefined || top.leaseId === null) return;
+    patchFrames(record.threadId, new Set([top.leaseId]), (frame) => ({
+      ...frame,
+      userMessages: frame.userMessages + 1,
+    }));
+  }
+
+  /** 주도 함수가 낸 하위 대화(`agent.spawned`의 owner가 drive). 엔진은 그 임대와 아래 프레임에 spawns를 더한다 */
+  function spawnCharge(record: DurableEventEnvelope): void {
+    const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
+    if (!parsed.ok) return;
+    const owner = parsed.value.owner;
+    if (owner.kind !== "drive") return;
+    chargeFrames(record.threadId, owner.leaseId, { turns: 0, spawns: 1, tokens: 0 });
+  }
+
   /**
    * 프레임 사건을 따른다(drive-isolation.md 2.6, 턴 기록 §4.9 규칙 23). `lease.acquired`는 프레임을 쌓고, `lease.released`는 내린다.
    * 깊이는 코어를 0으로 센다(`lease.acquired.depth`는 코어 위 첫 프레임이 0이라 1을 더한다).
-   * 한도 소비량, 사용자 메시지 수, `lowerResumedWith`는 사건에 실리지 않아 0과 null이다
+   * 한도 소비량과 사용자 메시지 수는 이 사건으로 세지 않고 `chargeFrames`·`queuedUserMessage`가 센다.
+   * `lowerResumedWith`는 실리는 사건이 없어 null이다
    */
   function frameEvent(record: DurableEventEnvelope): void {
     const draft = openDraftOf(record.threadId);
@@ -362,6 +474,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     const origin = parsed.ok && parsed.value.origin !== undefined ? parsed.value.origin : "user";
     // 같은 턴을 두 번 열지 않는다(방어)
     if (drafts.has(turnId)) return;
+    // 주도 함수가 연 턴은 한도의 턴 수를 올린다. 이 턴의 복사본은 올린 값을 싣도록 복사하기 전에 센다
+    if (origin === "drive") chargeFrames(record.threadId, null, { turns: 1, spawns: 0, tokens: 0 });
     const draft = newDraft({
       threadId: record.threadId,
       turnId,
@@ -447,6 +561,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
               turnStartedAt: draft.startedAt,
               hooks: hookRuns.filter((run) => run.toolCallId === event.toolCallId),
             }),
+            // 원본 토큰은 이 줄에서 가려 저장하고, 행과 기록에는 가린 값만 간다
+            maskedArgTokens: maskedArgTokensOf(sealed, event.argTokens),
           }));
     const base = { threadId: draft.threadId, turnId: draft.turnId, stepIndex };
     const usage = draft.calls.get(stepId) ?? [];
@@ -466,7 +582,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     });
     draft.elidedTools += noted.elided;
     const materialPlan = materialPlanOf({
-      materials: context?.materials ?? [],
+      materials: [...(context?.materials ?? []), ...blockMaterialsOf(draft.blocks)],
       budget: MAX_MATERIAL_ROWS_PER_TURN - draft.materialCount,
       seen: draft.materialKeys,
     });
@@ -567,11 +683,12 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
               },
             }),
       }),
-      calls: pairs.map((pair) => trCallRowOf(pair.event, pair.record, base)),
+      calls: pairs.map((pair) => trCallRowOf(pair.event, pair.record, base, pair.maskedArgTokens)),
       hooks: hooks.rows.map((row) => trHookRowOf(row, base)),
       materials: materialPlan.fresh.map((material) => trMaterialRowOf(material, base)),
       tooluse: toolRows,
       skills: freshSkills,
+      // 가벼운 길의 줄은 턴을 닫을 때 쓴다(`turnCompleted`). 단계 묶음에는 싣지 않는다
       plugincalls: [],
       cache: cache === null ? [] : trCacheRowsOf(cache, base),
     };
@@ -643,6 +760,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const row = trFrameRowOf({ threadId: draft.threadId, turnId: draft.turnId }, frame);
       return row === null ? [] : [row];
     });
+    // 가벼운 길의 줄은 들어온 순서대로 `seq`를 받는다. 계측이 꺼진 턴은 줄을 모으지 않았다
+    const pluginCallRows = (full ? draft.pluginCalls : []).map((line, seq) =>
+      trPluginCallRowOf(line, { threadId: draft.threadId, turnId: draft.turnId }, seq),
+    );
     deps.queue((store) => {
       // 늦은 행을 먼저 쓴다. 쓰기가 실패하면 턴은 불완전하다
       if (lateBatch.length > 0) {
@@ -660,6 +781,16 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         if (!written.ok) {
           draft.writeFailures += 1;
           deps.logger.warn("measure.frame_write_failed", { reason: written.error.kind });
+        }
+      }
+      if (pluginCallRows.length > 0) {
+        const written = store.writePluginCalls(pluginCallRows);
+        if (!written.ok) {
+          draft.writeFailures += 1;
+          deps.logger.warn("measure.plugincall_write_failed", {
+            reason: written.error.kind,
+            turnId,
+          });
         }
       }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
@@ -695,10 +826,12 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       if (record.kind === "profile.applied") profileApplied(record);
       else if (record.kind === "thread.started" || record.kind === "thread.updated") {
         rememberStored(record);
-      } else if (record.kind === "agent.spawned") rememberChild(record);
-      else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
+      } else if (record.kind === "agent.spawned") {
+        rememberChild(record);
+        spawnCharge(record);
+      } else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
         frameEvent(record);
-      }
+      } else if (record.kind === "input.queued") queuedUserMessage(record);
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
@@ -706,6 +839,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       else if (record.kind === "turn.completed") turnCompleted(record, turnId);
     },
     usage(call) {
+      // 한도 토큰은 엔진이 맨 위 프레임과 그 아래 프레임에 더하는 총 토큰이다(`chargeTokens`, `tokensOf`)
+      chargeFrames(call.threadId, null, { turns: 0, spawns: 0, tokens: call.usage.totalTokens });
       if (call.turnId === null || call.stepId === null) return;
       const draft = drafts.get(call.turnId);
       if (draft === undefined || draft.level !== "full") return;
@@ -730,6 +865,17 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       bucket.push(event);
       draft.toolCalls.set(event.stepId, bucket);
     },
+    pluginCall(event) {
+      const draft = openDraftOf(event.threadId);
+      if (draft === undefined || draft.level !== "full") return;
+      if (draft.pluginCalls.length >= MAX_PLUGIN_CALL_ROWS_PER_TURN) return;
+      const sealed = installSaltOf();
+      if (sealed === undefined) return;
+      const line = pluginCallLineOf(event, sealed);
+      // 저장 모양에 맞지 않는 줄은 넣지 않는다. 그러지 않으면 이 턴의 기록 전체를 읽을 수 없게 된다
+      if (!parse(PluginCallLineSchema, line).ok) return;
+      draft.pluginCalls.push(line);
+    },
     context(event) {
       const draft = drafts.get(event.turnId);
       if (draft === undefined || draft.level !== "full" || draft.threadId !== event.threadId) {
@@ -742,6 +888,11 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const reads = draft.skillReads.get(event.stepId) ?? [];
       reads.push({ toolCallId: event.toolCallId, name: event.name });
       draft.skillReads.set(event.stepId, reads);
+    },
+    turnRecord(event) {
+      const draft = openDraftOf(event.threadId);
+      if (draft === undefined || draft.level !== "full") return;
+      draft.blocks = withBlockFact(draft.blocks, event);
     },
     forget(threadId) {
       for (const [turnId, draft] of drafts) {

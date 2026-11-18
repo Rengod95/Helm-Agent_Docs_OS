@@ -9,6 +9,7 @@ import {
   SkillWriteFileInputSchema,
   type CallContext,
   type CallOptions,
+  type ApprovedBy,
   type KnowledgeActor,
   type LedgerOp,
   type SkillCreateInput,
@@ -33,6 +34,7 @@ import { idemOf } from "../write/idempotency.ts";
 import type { DecidedProposal, WritePlan, Writer } from "../write/pipeline.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import { isAddressableSkillFile } from "./paths.ts";
+import type { UserSkillSink } from "./user-skill-sink.ts";
 import type { SkillsDeps } from "./service.ts";
 import { allSkills, type SkillRow } from "./store.ts";
 import { treeOf, type Tree } from "./tree.ts";
@@ -56,6 +58,10 @@ const MAIN_FILE = "SKILL.md";
 export interface SkillWriteDeps extends SkillsDeps {
   readonly writer: Writer;
   readonly containsKnown: ((text: string) => boolean) | undefined;
+  /**
+   * 사용자 범위 만들기를 플러그인 검토함으로 보내는 싱크(`user-skill-sink.ts`). 없으면 사용자 범위 만들기는 `unavailable`이다
+   */
+  readonly userSkillSink?: UserSkillSink | undefined;
   /** 쓰기 전에 색인이 호출한 대화의 작업 폴더를 따르게 한다(`SkillsRuntime.syncFor`). 없으면 맞추지 않는다 */
   readonly syncFor?:
     | ((threadId: string | undefined) => Promise<Result<void, KnowledgeFailure>>)
@@ -179,6 +185,22 @@ function checkLimits(next: Tree): KnowledgeFailure | undefined {
 function storable(input: Extras, scope: WritableSkillScope): unknown {
   const { approval: _approval, overrideScan: _override, ...rest } = input;
   return { ...rest, scope };
+}
+
+/** 만들기 입력의 이름·설명·본문 검사. 로컬 경로와 검토 싱크 경로가 같은 규칙을 쓴다 */
+function createFieldsOf(
+  input: SkillCreateInput,
+): Result<{ readonly name: string; readonly description: string }, KnowledgeFailure> {
+  const name = parse(SkillNameSchema, input.name);
+  if (!name.ok) return err(writeFailure("name is not a valid skill name"));
+  const description = input.description.trim();
+  if (description === "" || description.length > MAX_DESCRIPTION_CHARS) {
+    return err(failure("limit_exceeded", "description must be 1 to 1,024 characters"));
+  }
+  if (input.body.trim() === "" || input.body.length > MAX_BODY_CHARS) {
+    return err(failure("limit_exceeded", "body must be 1 to 100,000 characters"));
+  }
+  return ok({ name: name.value, description });
 }
 
 function callerOf(options: CallOptions | undefined): Result<Caller, KnowledgeFailure> {
@@ -336,15 +358,10 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     input: SkillCreateInput,
     caller: Caller,
   ): Promise<Result<Built, KnowledgeFailure>> {
-    const name = parse(SkillNameSchema, input.name);
-    if (!name.ok) return err(writeFailure("name is not a valid skill name"));
-    const description = input.description.trim();
-    if (description === "" || description.length > MAX_DESCRIPTION_CHARS) {
-      return err(failure("limit_exceeded", "description must be 1 to 1,024 characters"));
-    }
-    if (input.body.trim() === "" || input.body.length > MAX_BODY_CHARS) {
-      return err(failure("limit_exceeded", "body must be 1 to 100,000 characters"));
-    }
+    const fields = createFieldsOf(input);
+    if (!fields.ok) return fields;
+    const name = fields.value.name;
+    const description = fields.value.description;
     const scope = input.scope ?? "user";
     const denied = scopeAllowed(scope, caller, input.approval);
     if (denied !== undefined) return err(denied);
@@ -352,9 +369,9 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     if (!root.ok) return root;
     const target: ChangeTarget = {
       kind: "skill",
-      name: name.value,
+      name,
       scope,
-      path: join(root.value, name.value),
+      path: join(root.value, name),
     };
     const indexed = deps.db.read((tx) => allSkills(tx));
     if (!indexed.ok) return err(fromStoreError(indexed.error, "skill index"));
@@ -362,15 +379,15 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     if (!existing.ok) return existing;
     if (
       existing.value !== null ||
-      indexed.value.some((row) => row.scope === scope && row.name === name.value)
+      indexed.value.some((row) => row.scope === scope && row.name === name)
     ) {
       return err(
-        failure("name_conflict", `a ${scope} skill named ${name.value} already exists`, {
-          detail: { name: name.value, scope },
+        failure("name_conflict", `a ${scope} skill named ${name} already exists`, {
+          detail: { name, scope },
         }),
       );
     }
-    const md = utf8Encode(composeSkillMd(name.value, description, input.body));
+    const md = utf8Encode(composeSkillMd(name, description, input.body));
     const next = treeOf([{ path: MAIN_FILE, bytes: md }]);
     const unreadable = checkIndexable(next, description);
     if (unreadable !== undefined) return err(unreadable);
@@ -643,8 +660,80 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     });
   }
 
-  const runCreate = (input: SkillCreateInput, caller: Caller) =>
-    run("skills.create", input, caller, () => buildCreate(input, caller));
+  /**
+   * 사용자 범위 만들기를 플러그인 검토함으로 보낸다(§7.5 [제안]). 원장, 승인 게이트, 제안 대기열은 타지 않는다: 검토함이 승인 게이트다.
+   * 검사는 `run`과 같다(검사 옵션, 위협 검사, 색인 가능성, 같은 이름의 사용자 스킬). 사람이 이미 승인한 만들기(제안 재실행, 사용자 행위자,
+   * 신뢰된 승인 증거)는 검토 항목을 곧바로 승인한다. 승인본은 적재가 아니다: 처음 대화의 집합에 들 때 읽힌다.
+   */
+  async function submitUserDraft(
+    input: SkillCreateInput,
+    caller: Caller,
+    sink: UserSkillSink,
+  ): Promise<Result<WriteOutcome, KnowledgeFailure>> {
+    const fields = createFieldsOf(input);
+    if (!fields.ok) return fields;
+    const { name, description } = fields.value;
+    const checked = checkWriteExtras(caller.context, input);
+    if (!checked.ok) return checked;
+    const settings = deps.settings(caller.context?.threadId);
+    if (!settings.skills.enabled) {
+      return err(failure("unavailable", "skills are turned off (l2.knowledge.skills.enabled)"));
+    }
+    const indexed = deps.db.read((tx) => allSkills(tx));
+    if (!indexed.ok) return err(fromStoreError(indexed.error, "skill index"));
+    if (indexed.value.some((row) => row.scope === "user" && row.name === name)) {
+      return err(
+        failure("name_conflict", `a user skill named ${name} already exists`, {
+          detail: { name, scope: "user" },
+        }),
+      );
+    }
+    const md = utf8Encode(composeSkillMd(name, description, input.body));
+    const next = treeOf([{ path: MAIN_FILE, bytes: md }]);
+    const unreadable = checkIndexable(next, description);
+    if (unreadable !== undefined) return err(unreadable);
+    const scan = scanForWrite("skill", scanTargetOf(MAIN_FILE, md), {
+      enabled: settings.write.scan,
+      overrideScan: checked.value.overrideScan,
+      containsKnown: deps.containsKnown,
+    });
+    if (!scan.ok) return scan;
+    const byUser = caller.decided !== undefined || caller.actor.kind === "user";
+    const byEvidence = isEvidenceValid(
+      checked.value.evidence,
+      caller.actor,
+      settings.write.trustedEvidenceSources,
+    );
+    const submitted = await sink.submit({
+      name,
+      description,
+      files: [{ path: MAIN_FILE, bytes: md }],
+      actor: caller.actor,
+      threadId: caller.context?.threadId,
+      turnId: caller.context?.turnId,
+      approvedByUser: byUser || byEvidence,
+      reason: caller.note ?? input.reason,
+    });
+    if (!submitted.ok) return submitted;
+    const approved = submitted.value.approved;
+    const afterHash = hashOfTarget("skill", next);
+    const approvedBy: ApprovedBy = byUser ? "user" : "evidence";
+    return ok({
+      status: approved ? "applied" : "queued",
+      ...(approved && afterHash !== null ? { afterHash, approvedBy } : {}),
+      reviewItemId: submitted.value.itemId,
+      scan: scan.value,
+      indexChanged: false,
+    });
+  }
+
+  const runCreate = (input: SkillCreateInput, caller: Caller): WriteResult => {
+    const sink = deps.userSkillSink;
+    if ((input.scope ?? "user") === "user" && sink !== undefined) {
+      return submitUserDraft(input, caller, sink);
+    }
+    return run("skills.create", input, caller, () => buildCreate(input, caller));
+  };
   const runEdit = (input: SkillEditInput, caller: Caller) =>
     run("skills.edit", input, caller, () => buildEdit(input, caller));
   const runPatch = (input: SkillPatchInput, caller: Caller) =>

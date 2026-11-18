@@ -14,8 +14,11 @@ import type { FolderRejection, PluginFolder } from "./folder-reader.ts";
 export interface MaterialPortDeps {
   /** 대화의 켜짐 집합(E(T))에 든 플러그인 이름 */
   readonly pluginSet: (threadId: ThreadId) => readonly string[];
-  /** 이름의 폴더. 없으면 null이고 그 플러그인은 재료가 없다 */
-  readonly treeOf: (name: string) => string | null;
+  /**
+   * 대화에서 이름이 가리키는 검토본의 폴더. 없으면 null이고 그 플러그인은 재료가 없다.
+   * 대화의 프로젝트가 있으면 프로젝트 검토본도 찾는다(같은 이름이면 사용자·번들 검토본이 이긴다, 로더와 같다)
+   */
+  readonly treeOf: (name: string, threadId: ThreadId) => string | null;
   /** 폴더 읽기. 동기 함수다(재료 포트가 동기다) */
   readonly read: (dir: string) => Result<PluginFolder, FolderRejection>;
   /**
@@ -38,8 +41,8 @@ interface Loaded {
 export function createMaterialPort(deps: MaterialPortDeps): MaterialPort {
   const cache = new Map<string, Result<PluginFolder, FolderRejection>>();
 
-  function load(name: string): Loaded | undefined {
-    const dir = deps.treeOf(name);
+  function load(name: string, threadId: ThreadId): Loaded | undefined {
+    const dir = deps.treeOf(name, threadId);
     if (dir === null) return undefined;
     let outcome = cache.get(dir);
     if (outcome === undefined) {
@@ -53,7 +56,7 @@ export function createMaterialPort(deps: MaterialPortDeps): MaterialPort {
   function loadedFor(threadId: ThreadId): Loaded[] {
     const loaded: Loaded[] = [];
     for (const name of deps.pluginSet(threadId)) {
-      const item = load(name);
+      const item = load(name, threadId);
       if (item !== undefined) loaded.push(item);
     }
     return loaded;

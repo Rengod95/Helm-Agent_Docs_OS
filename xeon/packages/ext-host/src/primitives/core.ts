@@ -221,8 +221,8 @@ export interface LeaseRuntime {
   running: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
-  /** 단계 함수가 `done`이 아닌 명령이나 `yield`를 낸 적이 있다(주도를 이어 가겠다는 뜻). 아니면 막 받은 임대라 사용자 메시지를 가로채지 않는다 */
-  engaged: boolean;
+  /** 첫 단계가 끝났다. 그 전에 온 사용자 메시지는 `inbox`에서 기다렸다가 첫 단계 뒤에 전달한다: 시작 주도의 첫 단계가 항상 먼저다(drive-isolation.md 2.4) */
+  firstStepDone: boolean;
   /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
   userSeq: number;
   /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */
@@ -239,6 +239,13 @@ export interface LeaseRuntime {
  * 주도 시작 요청 하나(drive-isolation.md 2.2). 큐 맨 앞부터 부여를 본다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다
  * (커밋이 실패하면 다음 경계가 다시 시도한다)
  */
+interface HeldUserMessage {
+  readonly item: PostItem;
+  /** 코어 루프로 돌려보낼 때의 요청 id. 보류한 때 정해 재시도와 겹치지 않는다 */
+  readonly requestId: string;
+  readonly scopeId: RegistrationId;
+}
+
 export interface StartRequest {
   readonly scopeId: RegistrationId;
   readonly trigger: "user" | "profile" | "handoff";
@@ -327,6 +334,11 @@ export interface ThreadRuntime {
   frames: LeaseRuntime[];
   /** 주도 시작 요청 큐(사용자 명령, 프로필 시작, 맡기기). 맨 앞부터 부여를 본다 */
   startQueue: StartRequest[];
+  /**
+   * 시작 요청이 큐에 있고 스택이 비어 있는 동안 온 사용자 메시지. 요청이 프레임이 되면 그 프레임의 `inbox`로 넘어가고(첫 단계 뒤에 `last`로 간다),
+   * 요청이 프레임 없이 사라지면 코어 루프로 돌려보낸다(drive-isolation.md 2.4). 메시지의 행선지가 부여 시각에 갈리지 않게 한다
+   */
+  heldUser: HeldUserMessage[];
   /** 사용자가 턴을 중지했다. 사용자의 다음 명령이 정착(turn_settled)할 때까지 프로필·맡기기 시작을 막는다 */
   userStopped: boolean;
   txn: BoundaryTxn | null;

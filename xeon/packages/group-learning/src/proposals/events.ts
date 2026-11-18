@@ -53,7 +53,8 @@ export type LearningEvent =
   | {
       readonly kind: "proposal.applied";
       readonly id: string;
-      readonly ledgerId: string;
+      /** null이면 원장 행이 없는 적용이다(플러그인 검토함의 승인본) */
+      readonly ledgerId: string | null;
       readonly afterHash: string;
       readonly at: number;
     }
@@ -241,9 +242,9 @@ export function decodeEvent(kind: string, payload: unknown): LearningEvent | und
     };
   }
   if (name === "proposal.applied") {
-    const ledgerId = str(fields, "ledgerId");
+    const ledgerId = str(fields, "ledgerId") ?? null;
     const afterHash = str(fields, "afterHash");
-    return ledgerId === undefined || afterHash === undefined
+    return afterHash === undefined
       ? undefined
       : { kind: "proposal.applied", id, ledgerId, afterHash, at };
   }

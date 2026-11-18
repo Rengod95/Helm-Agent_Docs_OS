@@ -38,6 +38,11 @@ export interface AssembleOptions {
   readonly tools: readonly OrderedTool[];
   /** 기본 시스템 프롬프트 */
   readonly basePrompt: string;
+  /**
+   * `basePrompt`에 더한 안내(`volatile.instructions`)의 소유 이름. 입력이 정할 수 있을 때만 준다(§4.5 규칙 27).
+   * 없으면 소유는 `core`이고 귀속은 `shared`다
+   */
+  readonly promptAdditionOwner?: string;
   /** context 계층 절. before_agent_start 결과(L1.loop). 키는 절 이름 */
   readonly sections: Readonly<Record<string, string>>;
   /** volatile 계층. 단계마다 바뀐다 */

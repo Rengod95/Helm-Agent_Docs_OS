@@ -10,6 +10,7 @@ import {
   createPluginService,
   createPluginStore,
   type ApprovalHooks,
+  type DiscoverProjectRoot,
   type PluginReview,
   type PluginService,
   type PluginStore,
@@ -63,7 +64,7 @@ interface Rig {
 function openRig(
   root: string,
   hooks?: ApprovalHooks,
-  projectRoots: () => Promise<readonly string[]> = () => Promise.resolve([]),
+  projectRoots: () => Promise<readonly DiscoverProjectRoot[]> = () => Promise.resolve([]),
 ): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
@@ -172,15 +173,93 @@ test("a plugin carried by a registered project root is a project review item, wi
     ".fresnel-plugin/plugin.json": manifestOf("carried", "Carried by the project"),
     "instructions.md": "Project rule.",
   });
-  const rig = openRig(root, undefined, () => Promise.resolve([project]));
+  const rig = openRig(root, undefined, () =>
+    Promise.resolve([{ root: project, projectId: "prj_alpha" }]),
+  );
   const queued = valueOf(await rig.review.scan()).queued;
   expect(queued.length).toBe(1);
   const item = valueOf(await rig.review.get(firstOf(queued))).item;
   expect(item).toMatchObject({ name: "carried", provenance: "project", state: "pending" });
-  expect(valueOf(await rig.store.current("carried"))).toBeNull();
+  expect(valueOf(await rig.store.current("prj_alpha/carried"))).toBeNull();
 
   valueOf(await rig.review.decide(item.itemId, APPROVE));
-  expect(valueOf(await rig.store.current("carried"))).not.toBeNull();
+  // 프로젝트 출처 검토본은 `<projectId>/<이름>` 키로 남는다(AGE-41)
+  expect(valueOf(await rig.store.current("prj_alpha/carried"))).not.toBeNull();
+  expect(valueOf(await rig.store.current("carried"))).toBeNull();
+});
+
+// AGE-41: 같은 이름을 다른 프로젝트가 승인해도 섞이지 않는다. B의 `foo`는 A의 `foo`와 비교하지 않는다.
+test("a same-named plugin of another project is a new item with no base, and approving it leaves the first project's copy alone", async () => {
+  const root = tempRoot("plugin-review-two-projects-");
+  roots.push(root);
+  const projectA = join(root, "project-a");
+  const projectB = join(root, "project-b");
+  writeFiles(join(projectA, ".fresnel", "plugins", "foo"), {
+    ".fresnel-plugin/plugin.json": manifestOf("foo", "Project A's foo"),
+    "instructions.md": "Rule of A.",
+  });
+  // 발견은 이름당 한 폴더만 준다. 그래서 A를 승인한 뒤에는 A를 루트에서 빼고 B를 넣는다
+  let visible: readonly DiscoverProjectRoot[] = [{ root: projectA, projectId: "prj_a" }];
+  const rig = openRig(root, undefined, () => Promise.resolve(visible));
+  const firstItem = valueOf(
+    await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued)),
+  ).item;
+  valueOf(await rig.review.decide(firstItem.itemId, APPROVE));
+  const aCopy = valueOf(await rig.store.current("prj_a/foo"));
+  expect(aCopy?.contentHash ?? null).toBe(firstItem.candidateHash);
+
+  visible = [{ root: projectB, projectId: "prj_b" }];
+  writeFiles(join(projectB, ".fresnel", "plugins", "foo"), {
+    ".fresnel-plugin/plugin.json": manifestOf("foo", "Project B's foo"),
+    "instructions.md": "Rule of B.",
+  });
+  const bItem = valueOf(
+    await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued)),
+  ).item;
+  expect(bItem).toMatchObject({ kind: "new", baseHash: null, name: "foo", state: "pending" });
+  expect(bItem.card.origin).toEqual({ kind: "project", projectId: "prj_b" });
+
+  valueOf(await rig.review.decide(bItem.itemId, APPROVE));
+  expect(valueOf(await rig.store.current("prj_b/foo"))?.contentHash ?? null).toBe(
+    bItem.candidateHash,
+  );
+  // A의 검토본은 그대로다(해시도, 현재 검토본 자리도)
+  expect(valueOf(await rig.store.current("prj_a/foo"))?.contentHash ?? null).toBe(
+    firstItem.candidateHash,
+  );
+  const logged = valueOf(await rig.store.readLog()).filter(
+    (entry) => entry.itemId === bItem.itemId,
+  );
+  expect(logged.map((entry) => [entry.decision, entry.projectId])).toEqual([["approved", "prj_b"]]);
+});
+
+// 사용자 결정 2026-11-18(AGE-41): 승인하면 실행될 stdio 명령이 프로젝트 출처 검토 항목의 카드에 실린다. env 값은 실리지 않는다.
+test("a project plugin's stdio server shows the command it will run on approval, with env names and no values", async () => {
+  const root = tempRoot("plugin-review-project-mcp-");
+  roots.push(root);
+  const project = join(root, "project");
+  writeFiles(join(project, ".fresnel", "plugins", "wired"), {
+    ".fresnel-plugin/plugin.json": manifestOf("wired", "Wired to a server"),
+    "mcp.json": JSON.stringify({
+      mcpServers: {
+        notes: { command: "node", args: ["notes.js"], env: { TOKEN: "s3cr3t-value" } },
+      },
+    }),
+  });
+  const rig = openRig(root, undefined, () =>
+    Promise.resolve([{ root: project, projectId: "prj_alpha" }]),
+  );
+  const queued = valueOf(await rig.review.scan()).queued;
+  const item = valueOf(await rig.review.get(firstOf(queued))).item;
+  expect(item).toMatchObject({ provenance: "project", state: "pending" });
+  expect(item.card.does.inject?.mcpServers).toEqual([
+    {
+      name: "notes",
+      transport: "stdio",
+      launch: { command: "node", args: ["notes.js"], envNames: ["TOKEN"], cwd: null },
+    },
+  ]);
+  expect(JSON.stringify(item)).not.toContain("s3cr3t-value");
 });
 
 test("a project folder that is not a registered root is not scanned", async () => {

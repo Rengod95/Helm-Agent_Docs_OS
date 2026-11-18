@@ -102,3 +102,42 @@ test("the outer tool call's path decides the inner write the same way, and a lin
   expect(await samePathAsOuter(env(), at("real.ts"), {})).toBe(false);
   expect(await samePathAsOuter(env(), {}, at("real.ts"))).toBe(false);
 });
+
+test("an outer call that shows a list of paths lets an inner write to any listed file pass, and a path outside the list does not (AGE-27)", async () => {
+  const patch: JsonObject = { paths: ["real.ts", "sub/nested.ts"] };
+  expect(await samePathAsOuter(env(), at("real.ts"), patch)).toBe(true);
+  expect(await samePathAsOuter(env(), at("./sub/nested.ts"), patch)).toBe(true);
+  expect(await samePathAsOuter(env(), at("other.ts"), patch)).toBe(false);
+  expect(await samePathAsOuter(env(), at("new-file.ts"), patch)).toBe(false);
+  // `files: [{ path }]` 모양과 `path`·`paths` 혼합도 같은 목록이다
+  const files: JsonObject = { files: [{ path: "real.ts" }, { path: "other.ts", op: "update" }] };
+  expect(await samePathAsOuter(env(), at("other.ts"), files)).toBe(true);
+  expect(await samePathAsOuter(env(), at("plain.txt"), files)).toBe(false);
+  const mixed: JsonObject = { path: "real.ts", paths: ["other.ts"] };
+  expect(await samePathAsOuter(env(), at("other.ts"), mixed)).toBe(true);
+});
+
+test("a path set is normalized like a single path: links, dot-dot, and the work folder boundary behave the same", async () => {
+  // 목록에 링크 이름만 있으면 실제 파일은 통과하지 않고, 링크 이름은 실제 파일을 가리켜 통과한다
+  expect(await samePathAsOuter(env(), at("real.ts"), { paths: ["alias.ts", "other.ts"] })).toBe(
+    false,
+  );
+  expect(await samePathAsOuter(env(), at("alias.ts"), { paths: ["real.ts", "other.ts"] })).toBe(
+    true,
+  );
+  // 목록 밖 파일을 가리키는 링크, 끊긴 링크, 작업 폴더 밖, 안전하지 않은 `..`는 통과하지 않는다
+  expect(await samePathAsOuter(env(), at("to-other.ts"), { paths: ["real.ts"] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("dangling.ts"), { paths: ["dangling.ts"] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("escape.ts"), { paths: ["escape.ts"] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("x/../real.ts"), { paths: ["real.ts"] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("sub/../real.ts"), { paths: ["real.ts"] })).toBe(true);
+});
+
+test("an outer call with no path, an empty list, or a malformed list shows nothing to inherit from (shell wrappers included)", async () => {
+  expect(await samePathAsOuter(env(), at("real.ts"), { command: "echo real.ts" })).toBe(false);
+  expect(await samePathAsOuter(env(), at("real.ts"), { paths: [] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("real.ts"), { paths: "real.ts" })).toBe(false);
+  expect(await samePathAsOuter(env(), at("real.ts"), { paths: ["real.ts", 3] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("real.ts"), { files: [{ file: "real.ts" }] })).toBe(false);
+  expect(await samePathAsOuter(env(), at("real.ts"), { files: "real.ts" })).toBe(false);
+});

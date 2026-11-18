@@ -77,6 +77,8 @@ export function fakeConnection(table: ConnectionTable): FakeConnection {
     "project.changed": new Set(),
     "plugin.changed": new Set(),
     "pluginReview.changed": new Set(),
+    "migration.progress": new Set(),
+    "migration.changed": new Set(),
     "turnRecord.delta": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];

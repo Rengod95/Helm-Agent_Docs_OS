@@ -107,6 +107,36 @@ async function canonicalOrResolved(path: string): Promise<string> {
   return real.ok ? real.value : resolve(path);
 }
 
+/**
+ * 기본 폴더의 절대 경로(설정 값을 받는 순수 계산). 빈 설정이면 `<dataDir>/default-project`다. 절대 경로가 아니면 `null`이다
+ */
+export function defaultFolderOf(configuredValue: unknown, dataDir: string): string | null {
+  const configured = typeof configuredValue === "string" ? configuredValue : "";
+  const folder = configured === "" ? join(dataDir, DEFAULT_PROJECT_FOLDER_NAME) : configured;
+  return isAbsolute(folder) ? folder : null;
+}
+
+/**
+ * 루트 목록(`roots()`와 같은 계산). 명시 프로젝트를 먼저 두고 암묵 기본 폴더 루트(`prj_default`)를 뒤에 둔다.
+ * 기본 폴더는 정규 경로로 준다. 조립이 포트보다 먼저 cwd의 프로젝트를 정할 때도 이 계산을 쓴다
+ */
+export async function scopeRootsOf(
+  projects: readonly Project[],
+  defaultFolder: string,
+): Promise<readonly ScopeRoot[]> {
+  const explicit: ScopeRoot[] = projects.map((project) => ({
+    projectId: project.projectId,
+    root: project.root,
+    name: project.name,
+  }));
+  const implicit: ScopeRoot = {
+    projectId: DEFAULT_PROJECT_ID,
+    root: await canonicalOrResolved(defaultFolder),
+    name: null,
+  };
+  return [...explicit, implicit];
+}
+
 /** `project.instructions` 목록의 한 항목 */
 type InstructionFile = ProjectInstructionsResult["files"][number];
 
@@ -183,10 +213,8 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
 
   /** 기본 폴더의 절대 경로. 빈 설정이면 `<dataDir>/default-project`다. 절대 경로가 아니면 루트가 잘못된 것이다 */
   function defaultFolder(): Result<string, ProjectPortFailure> {
-    const value = deps.settingValue(DEFAULT_FOLDER_KEY);
-    const configured = typeof value === "string" ? value : "";
-    const folder = configured === "" ? join(deps.dataDir, DEFAULT_PROJECT_FOLDER_NAME) : configured;
-    return isAbsolute(folder) ? ok(folder) : err({ kind: "root_invalid" });
+    const folder = defaultFolderOf(deps.settingValue(DEFAULT_FOLDER_KEY), deps.dataDir);
+    return folder === null ? err({ kind: "root_invalid" }) : ok(folder);
   }
 
   function maxInstructionBytes(): number {
@@ -200,17 +228,7 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
   ): Promise<Result<readonly ScopeRoot[], ProjectPortFailure>> {
     const folder = defaultFolder();
     if (!folder.ok) return folder;
-    const explicit: ScopeRoot[] = projects.map((project) => ({
-      projectId: project.projectId,
-      root: project.root,
-      name: project.name,
-    }));
-    const implicit: ScopeRoot = {
-      projectId: DEFAULT_PROJECT_ID,
-      root: await canonicalOrResolved(folder.value),
-      name: null,
-    };
-    return ok([...explicit, implicit]);
+    return ok(await scopeRootsOf(projects, folder.value));
   }
 
   async function roots(): Promise<Result<readonly ScopeRoot[], ProjectPortFailure>> {
@@ -354,6 +372,11 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
     rootOfWorkspace(workspace: string): string | undefined {
       refreshKnown();
       return deepestRoot(workspace, known)?.root;
+    },
+
+    projectIdOfWorkspace(workspace: string): string | undefined {
+      refreshKnown();
+      return deepestRoot(workspace, known)?.projectId;
     },
 
     async attach(workspace): Promise<Result<ThreadProjectRef | null, ProjectPortFailure>> {

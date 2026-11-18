@@ -48,7 +48,7 @@ function failureOf(failure: PluginEditFailure): PluginPortFailure {
   return { kind: "profiles", failure };
 }
 
-/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣고, 수정은 검토본을 다시 읽고, 제거는 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
+/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣지 않고(처음 대화에 들 때 싣는다), 수정은 검토본을 다시 읽고, 제거는 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
 async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Promise<void> {
   const name = context.item.name;
   if (context.item.kind === "remove") {
@@ -71,9 +71,15 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
         );
       }
     } else if (record === undefined) {
-      const installed = await loader.loadInstalled(name, new AbortController().signal);
-      if (!installed.ok) {
-        deps.log.warn("plugin.review.load_skipped", { name, kind: installed.error.kind });
+      // 기록이 없는 새 이름은 코드를 싣지 않는다. 승인은 적재가 아니다(§4.1.11): 검토본을 검증해 꺼진 기록만 남기고(`deferStart`),
+      // 처음 어느 대화의 프로필이나 덧씌우기에 들 때 `ensureLoaded`가 싣는다. 기록이 있어야 목록과 프로필 검사가 이 이름을 안다
+      const recorded = await loader.loadInstalled(name, new AbortController().signal, {
+        deferStart: true,
+      });
+      const deferred =
+        !recorded.ok && recorded.error.kind === "not_active" && recorded.error.state === "disabled";
+      if (!recorded.ok && !deferred) {
+        deps.log.warn("plugin.review.load_skipped", { name, kind: recorded.error.kind });
       }
     }
   }

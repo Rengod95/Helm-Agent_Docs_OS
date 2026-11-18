@@ -52,6 +52,11 @@ export interface ProjectPort {
    */
   rootOfWorkspace(workspace: string): string | undefined;
   /**
+   * 작업 폴더가 속한 가장 깊은 루트의 프로젝트 id(기본 폴더 대화는 `prj_default`). 동기 호출이다. 프로젝트 출처 검토본을 고를 때 쓴다(AGE-41).
+   * 값은 마지막으로 읽은 루트 목록이다
+   */
+  projectIdOfWorkspace(workspace: string): string | undefined;
+  /**
    * 대화 폴더가 속한 프로젝트(§4.4.2). 어느 루트에도 없는 폴더면 그 폴더를 루트로 프로젝트를 만든다(§4.4.3).
    * 기본 폴더 대화는 null이다(암묵 프로젝트는 wire에 싣지 않는다)
    */

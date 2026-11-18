@@ -60,6 +60,7 @@ import {
   type PluginDraftIntake,
 } from "./intake.ts";
 import type { PluginService, PluginSourceEntry, PluginSources } from "./service.ts";
+import { reviewKeyOf } from "./review-key.ts";
 import type {
   PluginReviewMeta,
   PluginStore,
@@ -71,6 +72,7 @@ import type {
 // 검토 서비스(M5c §4.6~4.7, §4.9). 원본 훑기로 검토 항목을 만들고, 결정(승인·돌려보내기·버리기)을 기록하고, 초안과 제출을 다룬다.
 // 쓰기 요청은 `serial`로 한 줄씩 처리한다. 승인은 승격 → current 교체 → 보관 정리 → 기록 → 훅 순서로 커밋한다.
 // 프로필 쪽(검증, 갱신, 열린 대화 반영)은 `approvalHooks`가 맡는다(3b). 항목 파일 `queue/<itemId>.json`이 상태의 원천이다.
+// 검토본 키(`review-key.ts`): 같은 이름이라도 프로젝트가 다르면 다른 검토본이다. 비교와 저장은 모두 키로 한다.
 
 /** 검토본 보관 개수(M5c §4.6.6). current와 쓰이는 것은 이 수와 무관하게 남긴다 */
 const KEEP_VERSIONS = 5;
@@ -232,6 +234,43 @@ function reviewOriginOf(kind: PluginOriginKind): ReviewOrigin | null {
   }
 }
 
+/**
+ * 카드 출처의 검토본 키. 사용자·번들은 이름이고 프로젝트는 `<projectId>/<이름>`이다. 내장·관리는 검토본이 없어 null이다.
+ * 키가 형식에 맞지 않으면(프로젝트 출처인데 프로젝트 id가 없음 등) 저장소 실패다
+ */
+function keyOfOrigin(
+  origin: PluginCard["origin"],
+  name: string,
+): Result<string | null, PluginPortFailure> {
+  const kind = origin.kind;
+  if (kind !== "user" && kind !== "project" && kind !== "bundled") return ok(null);
+  const key = reviewKeyOf({ origin: kind, name, projectId: origin.projectId });
+  return key.ok ? ok(key.value) : err(storeFailure(key.error));
+}
+
+/** 항목이 가리키는 검토본 키. 비교에만 쓴다. 형식이 틀린 키는 어떤 키와도 같지 않다(null) */
+function itemKeyOf(item: ReviewItem): string | null {
+  const key = keyOfOrigin(item.card.origin, item.name);
+  return key.ok ? key.value : null;
+}
+
+/** 같은 검토본 키의 항목인가 */
+function sameKey(item: ReviewItem, key: string): boolean {
+  return itemKeyOf(item) === key;
+}
+
+/** 로그 줄의 프로젝트 칸. 프로젝트 출처 항목에만 있다 */
+function projectFieldOf(origin: PluginCard["origin"]): { readonly projectId?: string } {
+  return origin.kind === "project" && origin.projectId !== undefined
+    ? { projectId: origin.projectId }
+    : {};
+}
+
+/** 카드의 출처. 프로젝트 id가 있으면 함께 적는다 */
+function originOf(kind: PluginOriginKind, projectId: string | null): PluginCard["origin"] {
+  return projectId === null ? { kind } : { kind, projectId };
+}
+
 /** 항목을 만드는 재료. 제거는 후보가 없다 */
 interface ItemFields {
   readonly kind: ReviewKind;
@@ -283,9 +322,9 @@ function oldestFirst<T extends { readonly createdAt: string; readonly itemId: st
   );
 }
 
-/** 같은 이름의 가장 최근 항목이 `discarded`이고 같은 해시인가(원본이 바뀔 때까지 다시 만들지 않는다, §4.7.3) */
-function discardedAgain(items: readonly ReviewItem[], name: string, hash: string): boolean {
-  const latest = oldestFirst(items.filter((item) => item.name === name)).at(-1);
+/** 같은 검토본 키의 가장 최근 항목이 `discarded`이고 같은 해시인가(원본이 바뀔 때까지 다시 만들지 않는다, §4.7.3) */
+function discardedAgain(items: readonly ReviewItem[], key: string, hash: string): boolean {
+  const latest = oldestFirst(items.filter((item) => sameKey(item, key))).at(-1);
   return latest !== undefined && latest.state === "discarded" && latest.candidateHash === hash;
 }
 
@@ -348,16 +387,17 @@ function removalOf(
   return { affectedProfiles: affected, removes: { state: false, records: null }, baseCard };
 }
 
-/** 후보 폴더의 카드. 검토 칸은 대기 상태로 적는다 */
+/** 후보 폴더의 카드. 검토 칸은 대기 상태로 적는다. 프로젝트 출처는 프로젝트 id를 싣는다 */
 function candidateCard(
   folder: PluginFolder,
   origin: PluginOriginKind,
+  projectId: string | null,
   itemId: string,
   reviewed: ReviewedVersion | null,
 ): PluginCard {
   return buildPluginCard({
     folder,
-    origin: { kind: origin },
+    origin: originOf(origin, projectId),
     review: {
       state: "pending",
       currentHash: reviewed?.contentHash ?? null,
@@ -478,6 +518,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       at: deps.now(),
       itemId: item.itemId,
       name: item.name,
+      ...projectFieldOf(item.card.origin),
       kind: item.kind,
       candidateHash: item.candidateHash,
       baseHash: item.baseHash,
@@ -526,6 +567,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   async function proposeItem(input: {
     readonly candidateHash: string;
     readonly origin: PluginOriginKind;
+    /** 프로젝트 출처의 프로젝트 id. 다른 출처는 null이다 */
+    readonly projectId: string | null;
     readonly provenance: Provenance;
     readonly originThreadId: string | null;
     readonly originProfileId: string | null;
@@ -537,18 +580,23 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const read = readPluginFolder(tree.value, { origin: input.origin });
     if (!read.ok) return err(rejectionFailure(read.error));
     const folder = read.value;
+    // 비교 대상은 자기 프로젝트의 키다. 같은 이름이 다른 프로젝트에 승인되어 있어도 섞지 않는다
+    const keyed = keyOfOrigin(originOf(input.origin, input.projectId), folder.name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
+    if (key === null) return err({ kind: "store", code: "origin_unsupported" });
     const listed = await allItems();
     if (!listed.ok) return listed;
-    const pending = oldestFirst(listed.value.filter((item) => item.name === folder.name)).filter(
+    const pending = oldestFirst(listed.value.filter((item) => sameKey(item, key))).filter(
       (item) => item.state === "pending",
     );
     const same = pending.find((item) => item.candidateHash === input.candidateHash);
     if (same !== undefined) return ok({ item: same, created: false });
 
-    const reviewed = await store.current(folder.name);
+    const reviewed = await store.current(key);
     if (!reviewed.ok) return err(storeFailure(reviewed.error));
     const itemId = deps.ids.next("rvw");
-    const card = candidateCard(folder, input.origin, itemId, reviewed.value);
+    const card = candidateCard(folder, input.origin, input.projectId, itemId, reviewed.value);
     const withPurpose: PluginCard = { ...card, purpose: card.purpose ?? input.purpose ?? null };
     const item = pendingItemOf(
       itemId,
@@ -577,18 +625,18 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     return ok({ item: saved.value, created: true });
   }
 
-  /** 검토본 기준을 모은다. 읽지 못한 검토본의 이름은 이번 훑기에서 건드리지 않는다 */
-  async function baselineOf(names: readonly string[]): Promise<Baseline> {
+  /** 검토본 기준을 모은다(키마다). 읽지 못한 검토본의 키는 이번 훑기에서 건드리지 않는다 */
+  async function baselineOf(keys: readonly string[]): Promise<Baseline> {
     const reviewed = new Map<string, ReviewedVersion | null>();
     const unreadable = new Set<string>();
-    await sequentially(names, async (name) => {
-      const current = await store.current(name);
+    await sequentially(keys, async (key) => {
+      const current = await store.current(key);
       if (!current.ok) {
-        log.error("plugin.review.current_failed", { name, kind: current.error.kind });
-        unreadable.add(name);
+        log.error("plugin.review.current_failed", { key, kind: current.error.kind });
+        unreadable.add(key);
         return;
       }
-      reviewed.set(name, current.value);
+      reviewed.set(key, current.value);
     });
     return { reviewed, unreadable };
   }
@@ -598,15 +646,17 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     entry: PluginSourceEntry,
     base: Baseline,
   ): Promise<Result<readonly string[], PluginPortFailure>> {
-    // 번들은 릴리스가 시작 때 넣는다(§4.7.1). 내장과 관리는 검토하지 않는다
+    // 번들은 릴리스가 시작 때 넣는다(§4.7.1). 내장과 관리는 검토하지 않는다. 프로젝트 id가 없는 프로젝트 원본은 키가 없어 건너뛴다
     if (entry.origin !== "user" && entry.origin !== "project") return ok([]);
-    if (base.unreadable.has(entry.name)) return ok([]);
-    const current = base.reviewed.get(entry.name) ?? null;
+    const key = entry.reviewKey;
+    if (key === null) return ok([]);
+    if (base.unreadable.has(key)) return ok([]);
+    const current = base.reviewed.get(key) ?? null;
     if (current !== null && entry.sourceHash === current.contentHash) return ok([]);
     const items = await reloadItems();
-    const pending = items.filter((item) => item.name === entry.name && item.state === "pending");
+    const pending = items.filter((item) => sameKey(item, key) && item.state === "pending");
     if (pending.some((item) => item.candidateHash === entry.sourceHash)) return ok([]);
-    if (discardedAgain(items, entry.name, entry.sourceHash)) return ok([]);
+    if (discardedAgain(items, key, entry.sourceHash)) return ok([]);
 
     const snapshot = await store.snapshotCandidate(entry.dir);
     if (!snapshot.ok) {
@@ -616,6 +666,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const made = await proposeItem({
       candidateHash: snapshot.value.contentHash,
       origin: entry.origin,
+      projectId: entry.projectId,
       provenance: entry.origin === "user" ? "unknown" : "project",
       originThreadId: null,
       originProfileId: null,
@@ -634,12 +685,18 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   /** 원본이 검토본 내용으로 되돌아왔으면 그 대기 항목은 철회다(§4.7.7). 제거 항목은 사용자가 정하므로 여기서 닫지 않는다 */
   async function withdrawMatching(sources: PluginSources, base: Baseline): Promise<void> {
     const items = await reloadItems();
-    const bySource = new Map(sources.entries.map((entry) => [entry.name, entry] as const));
+    const bySource = new Map(
+      sources.entries.flatMap((entry) =>
+        entry.reviewKey === null ? [] : [[entry.reviewKey, entry] as const],
+      ),
+    );
     await sequentially(
       items.filter((item) => item.state === "pending" && item.kind === "update"),
       async (item) => {
-        const source = bySource.get(item.name);
-        const current = base.reviewed.get(item.name) ?? null;
+        const key = itemKeyOf(item);
+        if (key === null) return;
+        const source = bySource.get(key);
+        const current = base.reviewed.get(key) ?? null;
         if (source === undefined || current === null || source.sourceHash !== current.contentHash)
           return;
         await closeItem(item, "withdrawn", items);
@@ -652,15 +709,16 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
    * 같은 이름의 제거 항목이 대기 중이거나 방금 버려졌으면 새로 만들지 않는다
    */
   async function scanGone(
-    name: string,
+    key: string,
     current: ReviewedVersion,
     sources: PluginSources,
   ): Promise<Result<readonly string[], PluginPortFailure>> {
     if (current.meta.origin !== "user") return ok([]);
-    if (sources.entries.some((entry) => entry.name === name)) return ok([]);
+    const name = current.meta.name;
+    if (sources.entries.some((entry) => entry.reviewKey === key)) return ok([]);
     if (sources.discoveredNames.includes(name)) return ok([]);
     const items = await reloadItems();
-    const named = oldestFirst(items.filter((item) => item.name === name));
+    const named = oldestFirst(items.filter((item) => sameKey(item, key)));
     const removePending = named.some((item) => item.kind === "remove" && item.state === "pending");
     const latest = named.at(-1);
     const removeDiscarded =
@@ -713,16 +771,16 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   async function scanSources(): Promise<Result<{ readonly queued: string[] }, PluginPortFailure>> {
     const sources = await plugins.sources();
     if (!sources.ok) return err(sources.error);
-    const names = await store.names();
-    if (!names.ok) return err(storeFailure(names.error));
-    const base = await baselineOf(names.value);
+    const keys = await store.names();
+    if (!keys.ok) return err(storeFailure(keys.error));
+    const base = await baselineOf(keys.value);
     const created = await collectInOrder(sources.value.entries, (entry) => scanEntry(entry, base));
     if (!created.ok) return created;
     await withdrawMatching(sources.value, base);
     const removed = await collectInOrder(
       [...base.reviewed],
-      async ([name, current]): Promise<Result<readonly string[], PluginPortFailure>> =>
-        current === null ? ok([]) : scanGone(name, current, sources.value),
+      async ([key, current]): Promise<Result<readonly string[], PluginPortFailure>> =>
+        current === null ? ok([]) : scanGone(key, current, sources.value),
     );
     if (!removed.ok) return removed;
     return ok({ queued: [...created.value, ...removed.value] });
@@ -758,6 +816,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return err({ kind: "purpose_required", itemId: item.itemId });
     }
     const approvedAt = deps.now();
+    // 검토본 키: 사용자·번들은 이름, 프로젝트는 `<projectId>/<이름>`. 내장·관리는 검토본이 없어 null이다
+    const keyed = keyOfOrigin(item.card.origin, item.name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
     // 후보는 한 번만 읽는다. 검증(사실)과 승격(매니페스트 버전)이 같은 읽기를 쓴다. 원본은 다시 읽지 않는다
     let read: PluginFolder | null = null;
     let origin: ReviewOrigin | null = null;
@@ -784,14 +846,21 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       if (!checked.ok) return checked;
     }
 
-    const previous = await store.current(item.name);
-    if (!previous.ok) return err(storeFailure(previous.error));
+    // 옛 검토본(되돌리기용). 키가 없는 출처(내장·관리)의 제거는 저장소를 건드리지 않는다
+    let previous: ReviewedVersion | null = null;
+    if (key !== null) {
+      const found = await store.current(key);
+      if (!found.ok) return err(storeFailure(found.error));
+      previous = found.value;
+    }
     if (removing) {
-      const cleared = await store.clearCurrent(item.name);
-      if (!cleared.ok) return err(storeFailure(cleared.error));
+      if (key !== null) {
+        const cleared = await store.clearCurrent(key);
+        if (!cleared.ok) return err(storeFailure(cleared.error));
+      }
     } else {
       // 위에서 후보를 읽었으므로 아래 값들은 있다. 없으면 스냅샷이 그사이 사라진 것이다
-      if (item.candidateHash === null || origin === null || read === null) {
+      if (item.candidateHash === null || origin === null || read === null || key === null) {
         return err({ kind: "store", code: "candidate_missing" });
       }
       const meta: PluginReviewMeta = {
@@ -816,7 +885,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       };
       const promoted = await store.promote(item.candidateHash, meta);
       if (!promoted.ok) return err(storeFailure(promoted.error));
-      const switched = await store.setCurrent(item.name, item.candidateHash);
+      const switched = await store.setCurrent(key, item.candidateHash);
       if (!switched.ok) return err(storeFailure(switched.error));
     }
 
@@ -825,26 +894,31 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (hooks.afterCommit !== undefined) {
       const done = await hooks.afterCommit(context);
       if (!done.ok) {
-        const back =
-          previous.value === null
-            ? await store.clearCurrent(item.name)
-            : await store.setCurrent(item.name, previous.value.contentHash);
-        if (!back.ok) log.error("plugin.review.restore_failed", { name: item.name });
+        if (key !== null) {
+          const back =
+            previous === null
+              ? await store.clearCurrent(key)
+              : await store.setCurrent(key, previous.contentHash);
+          if (!back.ok) log.error("plugin.review.restore_failed", { name: item.name });
+        }
         return done;
       }
       appliedTo = done.value;
     }
 
     // 보관 정리가 실패해도 승인은 되돌리지 않는다(검토본은 이미 current다). 실패는 로그에 남긴다
-    const pruned = await store.prune(item.name, { keep: KEEP_VERSIONS, inUse: new Set<string>() });
-    if (!pruned.ok) {
-      log.error("plugin.review.prune_failed", { name: item.name, kind: pruned.error.kind });
+    if (key !== null) {
+      const pruned = await store.prune(key, { keep: KEEP_VERSIONS, inUse: new Set<string>() });
+      if (!pruned.ok) {
+        log.error("plugin.review.prune_failed", { name: item.name, kind: pruned.error.kind });
+      }
     }
 
     const appended = await store.appendLog({
       at: approvedAt,
       itemId: item.itemId,
       name: item.name,
+      ...projectFieldOf(item.card.origin),
       kind: item.kind,
       candidateHash: item.candidateHash,
       baseHash: item.baseHash,
@@ -985,6 +1059,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const made = await proposeItem({
       candidateHash: candidate.value.contentHash,
       origin: "user",
+      projectId: null,
       provenance: options.provenance,
       originThreadId: info.value.originThreadId,
       originProfileId: options.originProfileId,
@@ -1121,15 +1196,23 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       serial(async () => {
         const got = await plugins.get(name);
         if (!got.ok) return err(got.error);
+        const keyed = keyOfOrigin(got.value.card.origin, name);
+        if (!keyed.ok) return err(keyed.error);
+        const key = keyed.value;
         const listed = await allItems();
         if (!listed.ok) return err(listed.error);
         const pendingRemove = listed.value.find(
-          (item) => item.name === name && item.kind === "remove" && item.state === "pending",
+          (item) =>
+            key !== null &&
+            itemKeyOf(item) === key &&
+            item.kind === "remove" &&
+            item.state === "pending",
         );
         if (pendingRemove !== undefined) return ok({ itemId: pendingRemove.itemId });
         const profiles = await deps.profiles.list();
         if (!profiles.ok) return err({ kind: "profiles", failure: profiles.error });
-        const reviewed = await store.current(name);
+        const reviewed: Result<ReviewedVersion | null, PluginStoreError> =
+          key === null ? ok(null) : await store.current(key);
         if (!reviewed.ok) return err(storeFailure(reviewed.error));
         const itemId = deps.ids.next("rvw");
         const card: PluginCard = {

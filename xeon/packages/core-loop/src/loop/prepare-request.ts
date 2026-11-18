@@ -102,6 +102,9 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
       }),
       ...(state.promptAddition === "" ? {} : { instructions: state.promptAddition }),
     },
+    ...(state.promptAddition === "" || state.promptAdditionOwner === null
+      ? {}
+      : { promptAdditionOwner: state.promptAdditionOwner }),
     turnId,
     stepId: step.stepId,
     signal: scope.signal,

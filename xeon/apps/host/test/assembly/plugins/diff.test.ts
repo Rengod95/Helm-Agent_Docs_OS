@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
   validateManifest,
+  type CardMcpLaunch,
   type ExtensionManifest,
+  type InjectInventory,
   type PluginCard,
 } from "@fresnel/contracts/extensions";
 import { buildPluginCard, type CardSubject } from "../../../src/assembly/plugins/card.ts";
@@ -116,4 +118,61 @@ test("a changed isolation fact is a changed entry that shows the old and the new
   const diff = diffCards(prev, next);
   expect(diff.changed.map((entry) => entry.what)).toEqual(["runs:isolated"]);
   expect(diff.changed[0]?.detail).toBe("isolated=null → isolated=true");
+});
+
+const DOCS_LAUNCH: CardMcpLaunch = {
+  command: "npx",
+  args: ["-y", "docs-server"],
+  envNames: ["API_KEY"],
+  cwd: null,
+};
+
+function docsServer(launch: CardMcpLaunch): InjectInventory["mcpServers"][number] {
+  return { name: "docs", transport: "stdio", launch };
+}
+
+/** 같은 카드에 MCP 서버 목록만 바꾼 복사본. 차이는 카드의 값만 보므로 칸만 바꾼다 */
+function withMcpServers(card: PluginCard, mcpServers: InjectInventory["mcpServers"]): PluginCard {
+  const inject = card.does.inject;
+  if (inject === null) throw new Error("the test card has no inject row");
+  return { ...card, does: { ...card.does, inject: { ...inject, mcpServers } } };
+}
+
+test("an MCP server whose command, arguments, env names or folder changed is a changed entry, and the same launch line is not", () => {
+  const base = cardOf(WITH_TOOL);
+  const prev = withMcpServers(base, [docsServer(DOCS_LAUNCH)]);
+
+  expect(diffCards(prev, withMcpServers(base, [docsServer({ ...DOCS_LAUNCH })])).changed).toEqual(
+    [],
+  );
+
+  const commandChanged = diffCards(
+    prev,
+    withMcpServers(base, [docsServer({ ...DOCS_LAUNCH, command: "bash" })]),
+  );
+  expect(commandChanged.changed.map((entry) => entry.what)).toEqual(["mcp:docs"]);
+  expect(commandChanged.changed[0]?.detail).toBe(
+    'stdio: npx ["-y","docs-server"] [env: API_KEY] → stdio: bash ["-y","docs-server"] [env: API_KEY]',
+  );
+  expect(commandChanged.added).toEqual([]);
+  expect(commandChanged.removed).toEqual([]);
+
+  const envChanged = diffCards(
+    prev,
+    withMcpServers(base, [docsServer({ ...DOCS_LAUNCH, envNames: ["API_KEY", "HOME_DIR"] })]),
+  );
+  expect(envChanged.changed.map((entry) => entry.what)).toEqual(["mcp:docs"]);
+
+  // 공백이 든 인자 하나와 인자 둘은 글로 쓰면 같아 보인다. JSON으로 적어 바뀐 것으로 본다
+  const splitArgs = diffCards(
+    prev,
+    withMcpServers(base, [docsServer({ ...DOCS_LAUNCH, args: ["-y docs-server"] })]),
+  );
+  expect(splitArgs.changed.map((entry) => entry.what)).toEqual(["mcp:docs"]);
+
+  const folderChanged = diffCards(
+    prev,
+    withMcpServers(base, [docsServer({ ...DOCS_LAUNCH, cwd: "tools/docs" })]),
+  );
+  expect(folderChanged.changed.map((entry) => entry.what)).toEqual(["mcp:docs"]);
 });

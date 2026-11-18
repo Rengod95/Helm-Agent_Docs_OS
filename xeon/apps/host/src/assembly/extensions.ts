@@ -48,7 +48,7 @@ import {
   type ScheduleSettingsSource,
 } from "@fresnel/cap-schedule";
 import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
-import { knowledgePlugin } from "@fresnel/cap-knowledge";
+import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
@@ -110,6 +110,7 @@ import {
   tasksSource,
   toolsSource,
   workspaceSource,
+  shutdownTimeoutMs,
 } from "./settings-sources.ts";
 
 // L4.host-service.spec §4.1 3단계. 기본 플러그인을 의존 순서로 싣는다: session → tasks → models → context → tools → loop → agents → workspace.
@@ -188,6 +189,10 @@ export interface ExtensionDeps {
    * 채우기 전에는 재료가 없다
    */
   readonly materials: () => MaterialPort | undefined;
+  /**
+   * 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 조립이 검토 서비스가 뜬 뒤에 채운다. 지식 기능은 호출 때 얻는다
+   */
+  readonly userSkillSink?: () => UserSkillSink | undefined;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -498,6 +503,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           localIds: deps.localIds,
           approvals: (service) => createBareL2ApprovalsPort(service),
           settings: layersSource(settings),
+          drainTimeoutMs: () => shutdownTimeoutMs(settings),
           // 리뷰 본문 읽기(`review.get`, W-02)의 자리. 확장이 내려가면 undefined가 와서 포트는 unavailable을 낸다
           onReviews: (reader) => {
             deps.dialogArea.reviews = reader;
@@ -579,6 +585,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           contributedSkillPaths: openedSkillPathsOfId,
           // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
           trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
+          // 사용자 범위 스킬 만들기는 검토함으로 간다(플러그인 초안). 싱크는 검토 서비스가 뜬 뒤에 채워진다
+          ...(deps.userSkillSink === undefined ? {} : { userSkillSink: deps.userSkillSink }),
           // 이 대화의 켜짐 집합에 가이드가 있거나 개발 모드일 때만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
           extensionSkillRoots: (threadId) => [
             ...(guide ? guideSkillRoots(deps.guide, threadId) : []),

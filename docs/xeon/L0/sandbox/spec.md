@@ -482,7 +482,7 @@ export function selectSandboxProvider(input: {
 
 [결정: review.m3-design-inputs D-M3-19 행 1, M3-REQ-57·56]
 
-- `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:project`, `mcpjson:fresnel`, `ext:<이름>`, 알 수 없는 출처는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
+- `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:fresnel`, `ext:<이름>`, 알 수 없는 출처(M5g-2 뒤 나오지 않는 `mcpjson:project` 포함)는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
 - `shellForMcpStdio(service, shell, policy, decision)`은 켬이면 `service.wrapShell(shell, policy)`, 끔이면 받은 `shell`을 돌려준다. 격리를 쓸 수 없는 상태의 처리는 §4.5가 그대로 정한다. 서버별 설정 키와 호출은 `L2.mcp.spec`이 가진다(B3-SEC). `platform-process`의 MCP stdio 띄우기는 이 함수 대신 `wrapArgv`(4.9절)를 쓴다.
 - 브라우저 provider는 샌드박스 셸 안에서 자체 샌드박스를 띄우려고 중첩 사용자 네임스페이스가 필요하다. 설정 `l0.sandbox.nestedNamespaces`를 켜면 srt `enableWeakerNestedSandbox`가 참이 된다. 기본은 거짓이고 `restart` 반영이다. 켠 상태는 시작 로그에 경고로 남긴다 [제안]. 중첩 허용 때문에 쓰기 거부가 약해질 수 있어(`_research/notes/L0-1.md` §3.6) 브라우저를 쓰지 않는 사용자는 켜지 않는다.
 - `tool.sandbox_bypassed`(샌드박스 밖 실행 감사 이벤트)의 소유자는 L1 tools(`tool.` 접두)이다 [결정: 오케스트레이터 기본값, 10절 2번의 후보 채택]. `platform-sandbox`는 `ShellExecResult.sandbox.unsandboxedBy`만 돌려주고 이벤트를 내지 않는다.

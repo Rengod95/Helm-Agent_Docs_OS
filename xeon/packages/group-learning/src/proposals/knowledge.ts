@@ -194,12 +194,9 @@ export function createKnowledgePort(apis: KnowledgeApis, extension: string): Kno
           detail: "the proposal body does not fit its operation",
         };
       }
-      if (
-        outcome.status === "applied" &&
-        outcome.ledgerId !== undefined &&
-        outcome.afterHash !== undefined
-      ) {
-        return { ok: true, ledgerId: outcome.ledgerId, afterHash: outcome.afterHash };
+      // 원장 행이 없는 적용(사용자 범위 스킬의 플러그인 승인본)은 ledgerId가 null이다. 되돌리기는 원장이 없어 거부된다
+      if (outcome.status === "applied" && outcome.afterHash !== undefined) {
+        return { ok: true, ledgerId: outcome.ledgerId ?? null, afterHash: outcome.afterHash };
       }
       // queued: L2가 이 증거를 믿지 않아 자기 대기열로 보냈다(trustedEvidenceSources에 learning.queue가 없음). 승인이 두 번 생기므로 적용하지 않은 것으로 본다
       return {

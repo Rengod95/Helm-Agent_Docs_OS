@@ -11,8 +11,15 @@ import { memoryFs } from "./support.ts";
 const HOME = "/home/test";
 const ROOT = "/work/proj";
 
+/** M5g-2 뒤의 `.agents/skills` 표지: 엔진은 읽지 않고, 예전에 읽던 자리라 "더는 읽지 않는" 자리다 */
 function shared(marker: string): ForeignFormatMarker {
-  return { marker, harness: "agent-skills", engineReads: true, importable: true };
+  return {
+    marker,
+    harness: "agent-skills",
+    engineReads: false,
+    stoppedReading: true,
+    importable: true,
+  };
 }
 
 /** 호출 수를 세는 래퍼. 감지는 `lstat`만 불러야 한다 */
@@ -39,16 +46,23 @@ function countingFs(base: ScanFs) {
   return { fs, calls };
 }
 
-test("a project .mcp.json is an engine-read marker, and the notice says reading will stop", async () => {
+test("a project .mcp.json is a marker the engine stopped reading: it is in willStopReading and importable", async () => {
+  // M5g-2: 엔진은 `.mcp.json`을 읽지 않는다. 신호(표지)는 계속 나가고, 알림은 "더는 읽지 않는 자리"로 이 파일을 든다
   const fs = memoryFs({ "/work/proj/.mcp.json": "{}" });
   const markers = await detectForeignFormats({ fs, projectRoot: ROOT, homeDir: HOME });
   expect(markers).toEqual([
-    { marker: ".mcp.json", harness: "claude-code", engineReads: true, importable: true },
+    {
+      marker: ".mcp.json",
+      harness: "claude-code",
+      engineReads: false,
+      stoppedReading: true,
+      importable: true,
+    },
   ]);
   expect(foreignFormatNotice(markers)).toEqual({
     code: "foreign_format_found",
     willStopReading: [".mcp.json"],
-    importable: [],
+    importable: [".mcp.json"],
     importAvailable: true,
   });
 });
@@ -59,10 +73,16 @@ test("shared skills are checked from the project up to /, nearest first, as rela
     "/work/.agents/skills/review/SKILL.md": "x",
     "/.agents/skills/lint/SKILL.md": "x",
   });
-  expect(await detectForeignFormats({ fs, projectRoot: ROOT, homeDir: HOME })).toEqual([
+  const markers = await detectForeignFormats({ fs, projectRoot: ROOT, homeDir: HOME });
+  expect(markers).toEqual([
     shared(".agents/skills"),
     shared("../.agents/skills"),
     shared("../../.agents/skills"),
+  ]);
+  expect(foreignFormatNotice(markers)?.willStopReading).toEqual([
+    ".agents/skills",
+    "../.agents/skills",
+    "../../.agents/skills",
   ]);
 });
 
@@ -106,10 +126,34 @@ test("claude, instruction, and other-harness markers: engineReads is false and t
   });
   const markers = await detectForeignFormats({ fs, projectRoot: ROOT, homeDir: HOME });
   expect(markers).toEqual([
-    { marker: ".claude/", harness: "claude-code", engineReads: false, importable: true },
-    { marker: "CLAUDE.md", harness: "claude-code", engineReads: false, importable: true },
-    { marker: ".cursor/", harness: "other", engineReads: false, importable: false },
-    { marker: ".roomodes", harness: "other", engineReads: false, importable: false },
+    {
+      marker: ".claude/",
+      harness: "claude-code",
+      engineReads: false,
+      stoppedReading: false,
+      importable: true,
+    },
+    {
+      marker: "CLAUDE.md",
+      harness: "claude-code",
+      engineReads: false,
+      stoppedReading: false,
+      importable: true,
+    },
+    {
+      marker: ".cursor/",
+      harness: "other",
+      engineReads: false,
+      stoppedReading: false,
+      importable: false,
+    },
+    {
+      marker: ".roomodes",
+      harness: "other",
+      engineReads: false,
+      stoppedReading: false,
+      importable: false,
+    },
   ]);
   expect(foreignFormatNotice(markers)).toEqual({
     code: "foreign_format_found",
@@ -210,7 +254,7 @@ test("the walk up to the filesystem root ends, at / and from a deep project", as
   ).toEqual([]);
 });
 
-test("the marker table lists the section 6.1 markers in order, and only two are engine-read", () => {
+test("the marker table lists the section 6.1 markers in order; no marker is engine-read after M5g-2, two stopped reading", () => {
   expect(FOREIGN_FORMAT_MARKERS.map((marker) => marker.marker)).toEqual([
     ".mcp.json",
     ".agents/skills",
@@ -232,6 +276,9 @@ test("the marker table lists the section 6.1 markers in order, and only two are 
   ]);
   expect(
     FOREIGN_FORMAT_MARKERS.filter((marker) => marker.engineReads).map((marker) => marker.marker),
+  ).toEqual([]);
+  expect(
+    FOREIGN_FORMAT_MARKERS.filter((marker) => marker.stoppedReading).map((marker) => marker.marker),
   ).toEqual([".mcp.json", ".agents/skills"]);
 });
 

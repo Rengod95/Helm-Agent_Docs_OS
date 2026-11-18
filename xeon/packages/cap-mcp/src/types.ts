@@ -2,7 +2,7 @@ import type { McpBlockedReason, McpServerDef } from "@fresnel/contracts/capabili
 
 // 패키지 내부 공용 타입. SDK 타입을 담지 않는다(adapter.ts 경계).
 
-/** 서버 정의 출처 표기(McpServerStatus.source). 예: "settings:user", "mcpjson:project", "ext:helm" */
+/** 서버 정의 출처 표기(McpServerStatus.source). 예: "settings:user", "mcpjson:fresnel", "ext:helm" */
 type ServerSource = string;
 
 /** 서버가 막히는 이유(McpServerStatus.blockedReason). `approval_required`는 시크릿 env 서버가 기동 승인을 기다리는 상태다 */
@@ -15,7 +15,7 @@ export interface ServerDefinition {
   readonly source: ServerSource;
   /** 관리 범위에서 정의됐는가(managedOnly 판정) */
   readonly managed: boolean;
-  /** 프로젝트 신뢰가 있어야 켜지는 출처(project 범위 설정, .mcp.json) */
+  /** 프로젝트 신뢰가 있어야 켜지는 출처(project 범위 설정, .fresnel/mcp.json) */
   readonly requiresTrust: boolean;
 }
 

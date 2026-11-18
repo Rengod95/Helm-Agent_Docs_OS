@@ -368,7 +368,7 @@ describe("mcp renderers", () => {
           },
           {
             server: "web",
-            source: "mcpjson:project",
+            source: "mcpjson:fresnel",
             state: "blocked",
             transport: "http",
             toolCount: 0,

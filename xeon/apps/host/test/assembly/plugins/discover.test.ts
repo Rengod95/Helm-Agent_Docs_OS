@@ -43,7 +43,7 @@ test("위치 순서대로 후보를 모으고 숨은 폴더와 파일은 건너�
   const result = discoverPluginFolders({
     configDir: join(root, "config"),
     extraPaths: [join(root, "extra")],
-    projectRoots: [join(root, "project")],
+    projectRoots: [{ root: join(root, "project"), projectId: "prj_one" }],
     managedDir: join(root, "managed"),
     bundleDir: join(root, "bundle"),
   });
@@ -56,6 +56,17 @@ test("위치 순서대로 후보를 모으고 숨은 폴더와 파일은 건너�
     "project/proj-legacy (legacy)",
     "managed/managed-one",
     "bundled/bundled-one",
+  ]);
+  // 프로젝트 위치의 후보는 루트의 프로젝트 id를 가진다(AGE-41). 다른 위치는 id가 없다
+  expect(result.candidates.map((candidate) => [candidate.origin, candidate.projectId])).toEqual([
+    ["user", null],
+    ["user", null],
+    ["user", null],
+    ["user", null],
+    ["project", "prj_one"],
+    ["project", "prj_one"],
+    ["managed", null],
+    ["bundled", null],
   ]);
   expect(result.diagnostics).toEqual([]);
 });
@@ -135,7 +146,7 @@ test("프로젝트 위치 밖을 가리키는 심볼릭 링크는 outside_root�
   const result = discoverPluginFolders({
     configDir: join(root, "nothing-here"),
     extraPaths: [],
-    projectRoots: [join(root, "project")],
+    projectRoots: [{ root: join(root, "project"), projectId: "prj_one" }],
     managedDir: null,
     bundleDir: null,
   });

@@ -206,7 +206,7 @@ realTest(
         {
           registrationId: "learning",
           extension: "learning",
-          tier: 5,
+          tier: 3,
           status: "enabled",
           error: null,
         },

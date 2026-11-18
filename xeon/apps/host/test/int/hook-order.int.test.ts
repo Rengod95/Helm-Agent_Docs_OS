@@ -18,14 +18,14 @@ const KEY = "x.operations.hookOrder";
 
 type HandlerRow = ReturnType<ExtReadSources["hookHandlers"]>[number];
 
-// tool.call.before: first, closed. guard(tier 0) policy와 audit, user alpha, project gamma.
+// tool.call.before: first, closed. guard(순위 0) policy와 audit, 플러그인 순위(1)의 user alpha와 project gamma(O-2: user·project는 같은 순위).
 // request.context.before: chain, 멈춤 규칙 없음. alpha, gamma. 배열 순서는 일부러 뒤섞었다: 기본 순서는 (tier, loadIndex, seq)다.
 const HANDLERS: readonly HandlerRow[] = [
   {
     point: "tool.call.before",
     registrationId: "gamma",
     extension: "gamma",
-    tier: 2,
+    tier: 1,
     loadIndex: 3,
     seq: 0,
   },
@@ -57,7 +57,7 @@ const HANDLERS: readonly HandlerRow[] = [
     point: "request.context.before",
     registrationId: "gamma",
     extension: "gamma",
-    tier: 2,
+    tier: 1,
     loadIndex: 3,
     seq: 1,
   },
@@ -111,7 +111,7 @@ async function failureOf(call: Promise<unknown>): Promise<unknown> {
 const POLICY = { registrationId: "policy", extension: "policy", tier: 0 };
 const AUDIT = { registrationId: "audit", extension: "audit", tier: 0 };
 const ALPHA = { registrationId: "alpha", extension: "alpha", tier: 1 };
-const GAMMA = { registrationId: "gamma", extension: "gamma", tier: 2 };
+const GAMMA = { registrationId: "gamma", extension: "gamma", tier: 1 };
 
 test("hooks.order.get: nothing saved and nothing applied gives an empty list", async () => {
   const env = recordingEnv();

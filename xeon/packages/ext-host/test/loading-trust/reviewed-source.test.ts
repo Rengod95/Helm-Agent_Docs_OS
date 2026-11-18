@@ -177,7 +177,15 @@ test("project entries load only after the project is trusted, and the project fo
   const projectRoot = await reviewedTree("pj", HASH_B);
   const harness = await harnessOf(
     portOf({
-      entries: [{ name: "pj", source: "project", root: projectRoot, contentHash: HASH_B }],
+      entries: [
+        {
+          name: "pj",
+          source: "project",
+          projectId: "prj_a",
+          root: projectRoot,
+          contentHash: HASH_B,
+        },
+      ],
     }),
   );
   // 신뢰 판정 전에는 프로젝트 확장을 싣지 않는다
@@ -186,6 +194,7 @@ test("project entries load only after the project is trusted, and the project fo
 
   const loaded = await harness.loader.loadProject({
     projectRoot: project,
+    projectId: "prj_a",
     mode: "headless",
     trustOverride: true,
     signal: new AbortController().signal,
@@ -193,6 +202,103 @@ test("project entries load only after the project is trusted, and the project fo
   expect(loaded.extensions.map((info) => [info.name, info.source, info.state])).toEqual([
     ["pj", "project", "active"],
   ]);
+});
+
+// AGE-41: 프로젝트 출처 검토본은 그 프로젝트를 열 때만 싣는다. 다른 프로젝트가 같은 이름을 승인했어도 섞이지 않는다.
+test("a project copy loads only when its own project is opened; another project's copy of the same name is not loaded", async () => {
+  const projectRoot = await reviewedTree("foo", HASH_A);
+  const harness = await harnessOf(
+    portOf({
+      entries: [
+        {
+          name: "foo",
+          source: "project",
+          projectId: "prj_a",
+          root: projectRoot,
+          contentHash: HASH_A,
+        },
+      ],
+    }),
+  );
+  const signal = new AbortController().signal;
+  const other = await harness.loader.loadProject({
+    projectRoot: project,
+    projectId: "prj_b",
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  expect(other.extensions).toEqual([]);
+  expect(harness.loader.list().map((info) => info.name)).toEqual([]);
+
+  const own = await harness.loader.loadProject({
+    projectRoot: project,
+    projectId: "prj_a",
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  expect(own.extensions.map((info) => [info.name, info.source, info.state])).toEqual([
+    ["foo", "project", "active"],
+  ]);
+});
+
+// AGE-41: 프로젝트 id가 없는 프로젝트 검토본은 어느 프로젝트에서도 싣지 않고 진단을 남긴다.
+test("a project copy with no project id loads in no project and leaves a project_no_id warning", async () => {
+  const projectRoot = await reviewedTree("bare", HASH_A);
+  const harness = await harnessOf(
+    portOf({
+      entries: [{ name: "bare", source: "project", root: projectRoot, contentHash: HASH_A }],
+    }),
+  );
+  const report = await harness.loader.loadProject({
+    projectRoot: project,
+    projectId: "prj_a",
+    mode: "headless",
+    trustOverride: true,
+    signal: new AbortController().signal,
+  });
+  expect(report.extensions).toEqual([]);
+  expect(report.diagnostics.map((item) => [item.code, item.severity])).toEqual([
+    ["project_no_id", "warning"],
+  ]);
+});
+
+// AGE-41: 시작 때 cwd의 프로젝트(`projects: "cwd"`)도 같은 규칙이다. `projectIdOf`가 준 id가 맞는 검토본만 싣는다.
+test("at startup the cwd project's copies load only when the cwd project id matches", async () => {
+  const projectRoot = await reviewedTree("cwd-kit", HASH_A);
+  const harness = await harnessOf(
+    portOf({
+      entries: [
+        {
+          name: "cwd-kit",
+          source: "project",
+          projectId: "prj_a",
+          root: projectRoot,
+          contentHash: HASH_A,
+        },
+      ],
+    }),
+  );
+  const mine = await harness.loader.loadAll(
+    harness.options([], {
+      cwd: project,
+      trustOverride: true,
+      projectIdOf: () => Promise.resolve("prj_a"),
+    }),
+  );
+  expect(mine.extensions.map((info) => [info.name, info.source, info.state])).toEqual([
+    ["cwd-kit", "project", "active"],
+  ]);
+
+  const theirs = await harness.loader.loadAll(
+    harness.options([], {
+      cwd: project,
+      trustOverride: true,
+      projectIdOf: () => Promise.resolve("prj_b"),
+    }),
+  );
+  expect(theirs.extensions).toEqual([]);
 });
 
 test("the isolated process key is the content hash of the reviewed copy, not the manifest version", async () => {

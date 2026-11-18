@@ -283,6 +283,11 @@ export interface LoadOptions {
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
+  /**
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다.
+   * 없으면 시작 때 프로젝트 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다(호스트의 `projectIdOf`)
+   */
+  readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
   /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 작업 폴더 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   /**
@@ -303,6 +308,11 @@ export interface LoadProjectOptions {
   readonly prompter?: TrustPrompter;
   /** 호출자가 이미 정한 판정(저장하지 않는다) */
   readonly trustOverride?: boolean;
+  /**
+   * 이 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 없으면 프로젝트 검토본을 하나도 싣지 않는다
+   */
+  readonly projectId?: string;
   readonly signal: AbortSignal;
 }
 
@@ -370,7 +380,7 @@ export interface ExtensionLoader {
   /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
   reload(name: ExtensionName, signal: AbortSignal, options?: ReloadOptions): Promise<Result<ReloadStarted, ReloadFailure>>;
   /** 설치한 새 이름 하나를 사용자 위치에서 시작 때와 같은 파이프라인으로 싣는다. 켜기는 단계 경계 규칙을 따른다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
-  loadInstalled(name: ExtensionName, signal: AbortSignal): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
+  loadInstalled(name: ExtensionName, signal: AbortSignal, options?: { readonly deferStart?: boolean }): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
   /**
    * 외부 확장을 호스트에서 내리고 로더 기록은 `disabled`로 남긴다(세대 +1) [제안, M5c §4.1.11]. 같은 이름의 `ensureLoaded`가
    * 다시 싣는다. 내장이거나 모르는 이름이면 false다. 기록을 지우는 제거는 이 함수가 하지 않는다
@@ -826,7 +836,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.fresnel-plugin/plugin.json` | `user` |
 | `project` | `<projectRoot>/.fresnel/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `project` |
 
-- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트 파일이 없는 항목은 `ReviewedSourceEntry.manifest`(호스트가 폴더에서 추론해 준 매니페스트)가 있으면 그것으로 싣는다. 엔트리가 없으므로 코드는 돌지 않고 선언한 플러그인마다 등록 하나만 생긴다(§4.4.2). 추론도 없으면 싣지 않는다 [구현: enC3 2026-11-18, `discover.ts`의 `inferredManifest`, `apps/host/src/assembly/plugins/reviewed-source.ts`]. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
+- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트 파일이 없는 항목은 `ReviewedSourceEntry.manifest`(호스트가 폴더에서 추론해 준 매니페스트)가 있으면 그것으로 싣는다. 엔트리가 없으므로 코드는 돌지 않고 선언한 플러그인마다 등록 하나만 생긴다(§4.4.2). 추론도 없으면 싣지 않는다 [구현: enC3 2026-11-18, `discover.ts`의 `inferredManifest`, `apps/host/src/assembly/plugins/reviewed-source.ts`]. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: AGE-41 2026-11-18] 프로젝트 출처 항목은 `ReviewedSourceEntry.projectId`를 싣는다. 로더는 `loadProject`의 `projectId`(또는 `projects: "cwd"`의 `projectIdOf`)와 같은 항목만 싣고, id가 없는 프로젝트 항목은 어느 프로젝트에서도 싣지 않으며 진단 `project_no_id`(경고)를 남긴다. 사용자·번들 항목은 `projectId`가 없고 지금처럼 싣는다. 시험은 `packages/ext-host/test/loading-trust/reviewed-source.test.ts`다. [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
 - 외부 확장의 매니페스트는 확장 루트의 `.fresnel-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
@@ -1182,13 +1192,13 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 |---|---|
 | `.fresnel/extensions/` | 작업 폴더 확장 |
 | `.fresnel/settings.json`, `.fresnel/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 작업 폴더·로컬 설정 |
-| `.fresnel/mcp.json`, `.mcp.json` | 작업 폴더 MCP 서버(`.mcp.json`은 작업 폴더 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
+| `.fresnel/mcp.json` | 작업 폴더 MCP 서버(Fresnel 자체 배치, L2.mcp.spec §4.2). 루트 `.mcp.json`은 M5g-2 뒤 엔진이 읽지 않는다(아래) |
 | `.fresnel/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
 | `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/` | 작업 폴더 자원. `.fresnel/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
 | `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
-| `.agents/skills/`(작업 폴더 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 
 - 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
+- [결정: 2026-11-17 사용자, M5g-2] 루트 `.mcp.json`과 `.agents/skills`(작업 폴더와 상위 디렉터리)는 신뢰 자원이 아니다. 엔진이 읽지 않으므로 이 자리만 있는 폴더는 판정 없이 `trusted: true`(`via: "notRequired"`)이고, 두 자리는 `resources` 목록에도 들지 않는다. 다른 하네스 형식은 가져오기(`review/m5/migration.md`)로 플러그인 초안이 될 뿐이다. 스킬 로딩(`cap-knowledge`의 `resolveSkillRoots`)도 `.agents/skills`를 읽지 않는다.
 - [결정: 오케스트레이터 기본값, fxPT] 이 목록의 파일을 "판정 전에 읽지 않는다"는 로드를 가리킨다. 신뢰 카드가 결정 전에 이름을 보이려고 하는 미리 보기는 §4.7.4의 이름 읽기만 한다.
 - `AGENTS.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다(턴 시작에 `L1.context.spec` §4.2a가 읽는다). `CLAUDE.md`는 읽지 않는다(M5c 미결 5 결정). 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
 
@@ -1237,13 +1247,13 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 작업 폴더 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
 | 작업 폴더 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
 | 작업 폴더·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 작업 폴더 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않고 로드하지 않는다. 카드 미리 보기는 두 파일을 읽어 서버 이름과 `command`·`args`만 본다(아래) | L2.mcp.spec |
+| 작업 폴더 MCP 서버(`.fresnel/mcp.json`) | 기동하지 않고 로드하지 않는다. 카드 미리 보기는 이 파일을 읽어 서버 이름과 `command`·`args`만 본다(아래) | L2.mcp.spec |
 | 작업 폴더 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 작업 폴더 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
 - 작업 폴더 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 작업 폴더 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
-- [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.mcp.json`과 `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 두 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
-- [결정: 오케스트레이터 기본값, fxPT] 미리 보기의 상한: 정의 파일 하나는 256 KiB까지만 읽고(넘으면 파싱하지 않고 `too_large`), 파일당 MCP 서버 50개(두 파일 합쳐 100개), 디렉터리당 이름 100개, `command`와 인자 문자열 512자(말줄임표 포함), 인자 64개까지 싣는다. 잘리거나 빠진 자리가 있으면 `details.truncated`가 참이다. 프로젝트 밖을 가리키는 심볼릭 링크 정의 파일은 따르지 않고 `unreadable`이다.
+- [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
+- [결정: 오케스트레이터 기본값, fxPT] 미리 보기의 상한: 정의 파일 하나는 256 KiB까지만 읽고(넘으면 파싱하지 않고 `too_large`), MCP 정의 파일당 서버 50개, 디렉터리당 이름 100개, `command`와 인자 문자열 512자(말줄임표 포함), 인자 64개까지 싣는다. 잘리거나 빠진 자리가 있으면 `details.truncated`가 참이다. 프로젝트 밖을 가리키는 심볼릭 링크 정의 파일은 따르지 않고 `unreadable`이다.
 
 #### 4.7.5 저장 파일 손상
 
@@ -1486,4 +1496,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
 25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 값 스키마는 §6 표에 있고(`x.ui.apps` 기본 `true`), 로더는 `LoadOptions.uiPolicy`로 받는다 [근거: `xeon/packages/ext-host/src/loading-trust/index.ts:181`]. §3.6 `loadingTrustSettings` 키 집합에 들어갔는지는 이 감사에서 확인하지 않았다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.
-26. [미결] 승인이 기록 없는 새 이름을 `loadInstalled`로 바로 싣는다(`apps/host/src/assembly/plugins/approval.ts`의 `reflectOf`). 보관만 한 플러그인의 코드가 승인 때 돈다. §4.1.11(M5c)은 E(T)에 처음 들어올 때 싣는다고 한다. 바꾸려면 승인과 덧씌우기(`overlay.ensureLoaded`)가 기록을 만든 뒤 `ensureLoaded`만 부르게 한다 [제안]. 덧씌우기는 얹기 전에 적재를 기다리므로 같이 바꾼다.
+26. 승인이 새 이름의 코드를 싣지 않는다 [결정: 2026-11-18 사용자, AGE-41 "승인은 적재가 아니다"]. `loadInstalled(name, signal, { deferStart: true })`는 같은 파이프라인으로 검토본을 검증하고 기록만 꺼진 채(`disabled`, 진단 `lazy_deferred`) 남기며 엔트리를 import하지도 `ExtHost.install`을 부르지도 않는다(결과는 `not_active`의 `disabled`). 호스트의 승인 `reflect`(`apps/host/src/assembly/plugins/approval.ts`)가 이것으로 기록을 만들어 목록과 프로필 검사가 이름을 알게 하고, 처음 대화의 E(T)에 들 때(참조 0→1)와 덧씌우기가 `ensureLoaded`로 싣는다. 기록 없는 이름이 대화에 먼저 들면 `plugin-lifecycle.ts`가 `loadInstalled`로 싣는다 [근거: 2026-11-18 사용자 결정].

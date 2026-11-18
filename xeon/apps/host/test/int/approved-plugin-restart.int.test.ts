@@ -125,10 +125,11 @@ realTest(
       const firstConnection = createHostConnection(first.client);
       await firstConnection.request("host.hello", HELLO_PARAMS);
       await approveByName(firstConnection, CODE);
+      // 승인은 적재가 아니다(§4.1.11): 어느 프로필에도 넣지 않은 승인만으로는 코드가 돌지 않는다
+      expect(existsSync(marker)).toBe(false);
       await firstConnection.close();
       await first.close();
-      // 승인 때 코드가 한 번 돌 수 있다(승인은 지금 싣는다, 보고한다). 아래는 재시작 뒤 대화가 쓸 때 싣는 것을 보려고 표지를 지운다
-      rmSync(marker, { force: true });
+      expect(existsSync(marker)).toBe(false);
 
       const host = await startHost(model);
       const connection = createHostConnection(host.client);

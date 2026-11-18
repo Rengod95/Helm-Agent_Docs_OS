@@ -32,6 +32,8 @@ import type {
   TraceTurnResult,
 } from "./trace-types.ts";
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
+import type { PluginCallTraceSink } from "./plugin-call-trace.ts";
+import type { TurnRecordSink } from "./turn-record-sink.ts";
 import type { HookName } from "./hooks.ts";
 import type { PostItem, PostWhen } from "./post.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
@@ -375,6 +377,12 @@ export interface McpPort {
   registerServer(owner: RegistrationId, name: string, config: McpServerResourceDef): Unsubscribe;
 }
 export const ToolsPortKey: PortKey<ToolsPort> = { name: "fresnel.tools" };
+/** 가벼운 길의 플러그인 호출 추적 싱크(턴 기록이 받는다). 없으면 가벼운 길의 줄을 남기지 않는다 */
+export const PluginCallTracePortKey: PortKey<PluginCallTraceSink> = {
+  name: "fresnel.pluginCallTrace",
+};
+/** 턴 기록 싱크(읽기 전용). 블록을 실은 사실을 알린다. 없으면 아무것도 알리지 않는다 */
+export const TurnRecordPortKey: PortKey<TurnRecordSink> = { name: "fresnel.turnRecord" };
 export const ModelsPortKey: PortKey<ModelsPort> = { name: "fresnel.models" };
 export const McpPortKey: PortKey<McpPort> = { name: "fresnel.mcp" };
 

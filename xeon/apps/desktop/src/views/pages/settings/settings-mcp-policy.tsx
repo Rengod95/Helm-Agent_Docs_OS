@@ -6,14 +6,13 @@ import { FieldRow } from "./settings-field.tsx";
 import { fieldOf, type PermissionPanelProps } from "./settings-rules-panel.tsx";
 
 // 도구와 MCP의 "MCP 정책"(DP-111 [결정: 2026-11-11 사용자]). 서버 카드 아래에 접어 둔다. 자주 바꾸지 않는 승인 방식·허용/거부 목록·
-// 관리 전용·.mcp.json 가져오기·샌드박스 출처 일곱 줄이다. 바뀐 값이 있으면 펼쳐서 시작한다(공용 접기 구역 `FoldedFields`).
+// 관리 전용·샌드박스 출처 여섯 줄이다. 바뀐 값이 있으면 펼쳐서 시작한다(공용 접기 구역 `FoldedFields`).
 
 const MCP_POLICY_KEYS: readonly SettingKey[] = [
   "l2.mcp.approvalMode",
   "l2.mcp.allowedServers",
   "l2.mcp.deniedServers",
   "l2.mcp.managedOnly",
-  "l2.mcp.importMcpJson",
   "l2.mcp.sandbox.userSource",
   "l2.mcp.sandbox.projectSource",
 ];

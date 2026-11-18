@@ -86,6 +86,7 @@ import type { PluginPort } from "./handlers/m5/plugins.ts";
 import type { PluginReviewPort } from "./handlers/m5/plugin-review.ts";
 import type { OverlayPort } from "./assembly/plugins/overlay.ts";
 import type { MigrationSubmitPort } from "./assembly/plugins/migration-submit.ts";
+import type { MigrationPort } from "./handlers/m5/migration.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
 // (L4.host-service.plan §2). 포트 구현(어댑터)은 assemble.ts와 src/assembly/ 에 있다.
@@ -360,6 +361,8 @@ export interface EnginePorts {
   readonly pluginMigration: MigrationSubmitPort;
   /** 테스트 대화의 플러그인 원본 폴더와 초안 묶기(M5c §4.8). `craftChat.*` 처리기와 초안 만들기가 쓴다 */
   readonly craftChat: CraftChatPort;
+  /** 가져오기 서비스(`migration.*`, migration.md §7.7 [제안]). 처리기와 알림 허브가 쓰고, `trust.get`의 `foreignFormats`를 채운다 */
+  readonly migration: MigrationPort;
   /** M4 wire 처리기 43개의 포트 묶음. 소유 트랙이 채울 때까지 빈 구현이다(`spec-deltas/t-f.md` §5) */
   readonly m4: M4Ports;
 }

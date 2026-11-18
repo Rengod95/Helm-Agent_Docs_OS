@@ -535,8 +535,8 @@ export function postBlockCallsOf(calls: readonly TrCallRow[]): PostBlockCall[] {
 }
 
 /**
- * `meta_json.argTokens`의 토큰 목록. 목록이 없거나 모양이 다르면 null이다.
- * 수집기는 지금 인자 토큰 수(숫자)만 쓰므로 목록이 없는 호출이 많다(§5.1-② rewrite_text는 목록이 필요하다)
+ * `meta_json.argTokens`의 가린 토큰 목록. 목록이 없거나 모양이 다르면 null이다. 숫자(예전 `argTokens` 모양)는 목록이 아니라 null이다.
+ * 목록이 있는 호출은 설치 소금으로 가린 값이고, 같은 소금의 같은 토큰끼리만 겹친다(§5.1-②)
  */
 function argTokenListOf(metaJson: string): readonly string[] | null {
   const read = parseJson(metaJson);

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { attemptAsync, err, ok, type Logger } from "@fresnel/contracts";
+import { failure } from "./errors.ts";
 import {
   KnowledgeLedgerKey,
   KnowledgeMemory,
@@ -11,7 +12,11 @@ import {
   type AnyCapabilityDef,
 } from "@fresnel/contracts/capabilities";
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
-import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
+import {
+  TurnRecordPortKey,
+  type ExtensionEntry,
+  type PortKey,
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
@@ -37,6 +42,7 @@ import { createWriteApprovals } from "./ports/approvals.ts";
 import { setupSearch } from "./search/setup.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
+import type { UserSkillSink } from "./skills/user-skill-sink.ts";
 import { createTurnContext } from "./turn-context.ts";
 import {
   readKnowledgeSettings,
@@ -99,7 +105,28 @@ export interface KnowledgePluginOptions {
    * 없는 경로는 버리고 진단한다(E-13). 훅 실패가 아니다. 없거나 비어 있으면 탐색 입력은 설정만 쓴 것과 같다
    */
   readonly contributedSkillPaths?: (threadId: string) => Promise<readonly string[]>;
+  /**
+   * 사용자 범위 스킬 만들기를 플러그인 검토함으로 보내는 싱크(L2.knowledge §7.5 [제안]). 조립 루트가 검토 서비스가 뜬 뒤의 싱크를
+   * 돌려준다. 싱크를 부를 때 얻으므로 조립 순서와 무관하다. 없거나 undefined를 주면 싱크가 아직 없는 것이고 `unavailable`이다
+   */
+  readonly userSkillSink?: () => UserSkillSink | undefined;
   readonly loadIndex?: number;
+}
+
+/** 싱크를 부를 때마다 얻는다. 아직 없으면 `unavailable`이다(쓰지 않고 이유를 말한다) */
+function lateSinkOf(current: () => UserSkillSink | undefined): UserSkillSink {
+  return {
+    submit: (input) => {
+      const sink = current();
+      return sink === undefined
+        ? Promise.resolve(
+            err(
+              failure("unavailable", "the plugin review is not ready; the skill was not written"),
+            ),
+          )
+        : sink.submit(input);
+    },
+  };
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
@@ -234,6 +261,9 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         approvals:
           approvalService === undefined ? undefined : createWriteApprovals(approvalService),
         memoryDir: join(os.dirs.data, "memory"),
+        ...(options.userSkillSink === undefined
+          ? {}
+          : { userSkillSink: lateSinkOf(options.userSkillSink) }),
       };
       const runtime = createKnowledgeRuntime(deps);
       host.provide(KnowledgeSkillsKey, runtime.skillsApi);
@@ -254,10 +284,13 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       }
 
       // 세션 맥락: 첫 turn 블록(스킬 인덱스, 메모리 스냅샷)과 인덱스 변경 델타(spec §4.2.5, §4.2.6, §7)
+      // 턴 기록 싱크는 조립 루트가 포트로 준다. 없으면 블록을 알리지 않는다
+      const turnRecord = optionalPort(host, TurnRecordPortKey);
       const turnContext = createTurnContext({
         skills: runtime.skills,
         memory: runtime.memory,
         logger,
+        ...(turnRecord === undefined ? {} : { turnRecord }),
       });
       g.on("thread.start", async (payload) => {
         await turnContext.start(payload.threadId, payload.reason);

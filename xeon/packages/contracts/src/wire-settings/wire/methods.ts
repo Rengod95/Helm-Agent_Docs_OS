@@ -106,6 +106,13 @@ import {
   type PluginReviewWireSchemas,
 } from "./plugin-review.ts";
 import {
+  ForeignFormatNoticeSchema,
+  MIGRATION_WIRE_METHODS,
+  MigrationChangedParamsSchema,
+  MigrationProgressParamsSchema,
+  type MigrationWireSchemas,
+} from "./migration.ts";
+import {
   PROFILE_TEST_RUN_METHODS,
   ProfileChangedParamsSchema,
   TestRunMarkerSchema,
@@ -1911,6 +1918,7 @@ export const TrustStatusSchema: TObject<{
   resources: TArray<TString>;
   details: TOptional<typeof TrustDetailsSchema>;
   options: TArray<typeof TrustOptionSchema>;
+  foreignFormats: TOptional<typeof ForeignFormatNoticeSchema>;
 }> = Type.Object(
   {
     /** 정규화한 폴더 경로(심볼릭 링크를 푼 값) */
@@ -1925,6 +1933,8 @@ export const TrustStatusSchema: TObject<{
     /** 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 있다. 신뢰 카드가 이름으로 보일 자원이다(X.loading-trust.spec §4.7.4). 없으면 파일 목록 `resources`만 보인다 */
     details: Type.Optional(TrustDetailsSchema),
     options: Type.Array(TrustOptionSchema, { maxItems: 8 }),
+    /** 가져오기를 제안하는 신호(`review/m5/migration.md` §6.1 [제안]). 프로젝트에 다른 하네스의 표지가 있을 때만 싣고 없으면 생략한다. 신뢰 판정에는 쓰지 않는다 */
+    foreignFormats: Type.Optional(ForeignFormatNoticeSchema),
   },
   { additionalProperties: false },
 );
@@ -2068,6 +2078,7 @@ interface WireSchemas
     ProjectWireSchemas,
     PluginWireSchemas,
     PluginReviewWireSchemas,
+    MigrationWireSchemas,
     DevkitWireSchemas,
     MeasureWireSchemas,
     TurnRecordWireSchemas {
@@ -2387,6 +2398,10 @@ interface ServerNotificationSchemas {
   "project.changed": typeof ProjectChangedParamsSchema;
   "plugin.changed": typeof PluginChangedParamsSchema;
   "pluginReview.changed": typeof PluginReviewChangedParamsSchema;
+  /** 가져오기(`review/m5/migration.md` §7.7 [제안]). 훑기 진행 */
+  "migration.progress": typeof MigrationProgressParamsSchema;
+  /** 가져오기 상태가 바뀌었다(`migration.md` §7.7 [제안]) */
+  "migration.changed": typeof MigrationChangedParamsSchema;
   /** M5 (턴 기록 구독, `turn-record-metrics.md` §3.5). 구독은 `turnRecord.watch`로 연다 */
   "turnRecord.delta": typeof TurnRecordDeltaParamsSchema;
 }
@@ -2580,6 +2595,7 @@ export const WIRE_METHODS: {
   ...PROJECT_WIRE_METHODS,
   ...PLUGIN_WIRE_METHODS,
   ...PLUGIN_REVIEW_WIRE_METHODS,
+  ...MIGRATION_WIRE_METHODS,
   ...DEVKIT_WIRE_METHODS,
   ...MEASURE_WIRE_METHODS,
   ...TURN_RECORD_WIRE_METHODS,
@@ -2607,6 +2623,8 @@ export const WIRE_NOTIFICATIONS: {
   "project.changed": { params: ProjectChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "plugin.changed": { params: PluginChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "pluginReview.changed": { params: PluginReviewChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "migration.progress": { params: MigrationProgressParamsSchema, since: "0.1.0", stage: "M4" },
+  "migration.changed": { params: MigrationChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "turnRecord.delta": { params: TurnRecordDeltaParamsSchema, since: "0.1.0", stage: "M5" },
 };
 

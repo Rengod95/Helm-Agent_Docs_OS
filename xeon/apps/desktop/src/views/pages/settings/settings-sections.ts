@@ -210,7 +210,6 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
         "l2.mcp.allowedServers",
         "l2.mcp.deniedServers",
         "l2.mcp.managedOnly",
-        "l2.mcp.importMcpJson",
         "l2.mcp.sandbox.userSource",
         "l2.mcp.sandbox.projectSource",
       ]),

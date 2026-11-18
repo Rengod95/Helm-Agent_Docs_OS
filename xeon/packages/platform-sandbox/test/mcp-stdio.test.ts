@@ -14,7 +14,8 @@ import { createSandboxService } from "../src/service.ts";
 describe("MCP stdio sandbox decision", () => {
   test.each([
     ["settings:project", undefined, true, "origin_default"],
-    ["mcpjson:project", undefined, true, "origin_default"],
+    // M5g-2: `mcpjson:project`는 더 나오지 않는다. 알 수 없는 출처는 격리하는 쪽이다
+    ["mcpjson:root", undefined, true, "origin_default"],
     ["mcpjson:fresnel", undefined, true, "origin_default"],
     ["ext:some-ext", undefined, true, "origin_default"],
     ["something:new", undefined, true, "origin_default"],
@@ -45,7 +46,7 @@ describe("MCP stdio sandbox decision", () => {
       service,
       inner,
       policy,
-      decideMcpStdioSandbox("mcpjson:project", undefined),
+      decideMcpStdioSandbox("mcpjson:fresnel", undefined),
     );
     const projectRun = await wrapped.exec(
       ["server", "--stdio"],

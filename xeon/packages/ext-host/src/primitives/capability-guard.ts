@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canonicalJson, type Result } from "@fresnel/contracts";
+import { attempt, canonicalJson, detach, type Result } from "@fresnel/contracts";
 import {
   CapabilityError,
   type AnyCapabilityDef,
@@ -22,6 +22,9 @@ import {
   capabilityEffectOf,
   isEffectAllowed,
   type LoopCallConditions,
+  PluginCallTracePortKey,
+  type PluginCallTraceEvent,
+  type PluginCallTraceSink,
   REPLAY_EFFECT_TABLE,
   type ExtensionName,
   type PortKey,
@@ -41,6 +44,29 @@ import {
   type Ambient,
   type HookFrame,
 } from "./ambient.ts";
+import type { ExtDiagnostic } from "./errors.ts";
+
+/** 가벼운 길의 호출 줄을 싱크로 넘기는 연결(턴 기록 §4.3). 싱크 포트는 호출마다 읽는다. 싱크 포트가 없으면 줄을 남기지 않는다 */
+export interface PluginCallTraceWiring {
+  /** `fresnel.pluginCallTrace` 포트. 조립에 없으면 undefined */
+  readonly sink: () => PluginCallTraceSink | undefined;
+  /** 호출 시간을 재는 시계(ms) */
+  readonly now: () => number;
+  /** 싱크가 줄을 받지 못했을 때의 진단 */
+  readonly report: (diagnostic: ExtDiagnostic) => void;
+}
+
+/** 조립 재료(포트 조회, 시계, 진단)로 가벼운 길의 추적 연결을 만든다 */
+export function pluginCallTraceOf(
+  ports: PortLookup,
+  clock: { readonly now: () => number; readonly report: (diagnostic: ExtDiagnostic) => void },
+): PluginCallTraceWiring {
+  return {
+    sink: () => ports.get(PluginCallTracePortKey),
+    now: () => clock.now(),
+    report: (diagnostic) => clock.report(diagnostic),
+  };
+}
 
 /**
  * 기능 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
@@ -124,6 +150,8 @@ export interface GuardTarget {
   readonly contextTrusted: boolean;
   /** 플러그인 기능 호출의 파이프라인 경로 설정(U-1). 없으면 모든 호출이 옛 직접 경로다 */
   readonly pluginCalls: PluginCallWiring;
+  /** 가벼운 길의 호출 추적 연결(턴 기록 §4.3). 싱크 포트가 없으면 줄을 남기지 않는다 */
+  readonly pluginCallTrace: PluginCallTraceWiring;
 }
 
 type AnyMethod = (...args: readonly unknown[]) => unknown;
@@ -277,6 +305,11 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
           ) {
             return refuse(id, name, "invalid_input", `requestId must be 1-${REQUEST_ID_MAX} chars`);
           }
+        }
+        if (route === "light") {
+          return traceLightCall(target, name, input, given, amb, () =>
+            callService(target, method, service, input, given, amb, requestId),
+          );
         }
         return callService(target, method, service, input, given, amb, requestId);
       },
@@ -463,6 +496,90 @@ async function callThroughPipeline(call: PipelineCall): Promise<unknown> {
     );
   }
   return view.structuredContent ?? undefined;
+}
+
+/**
+ * 가벼운 길의 호출 한 줄(턴 기록 §4.3). 호출은 그대로 부르고, 결과가 정해진 뒤 싱크에 한 줄을 넘긴다. 반환값과 거부는 바꾸지 않는다
+ * (공급자의 약속을 그대로 돌려주고, 결과 쪽에 붙인 관찰만 더한다). 맥락이 없는 호출이거나 싱크 포트가 없으면 줄을 만들지 않는다.
+ * 싱크가 던지면 진단으로 남기고 호출 결과는 그대로 둔다
+ */
+function traceLightCall(
+  target: GuardTarget,
+  name: string,
+  input: unknown,
+  given: CallOptions | undefined,
+  amb: Ambient | undefined,
+  invoke: () => unknown,
+): unknown {
+  const threadId = amb?.threadId ?? given?.context?.threadId;
+  const wiring = target.pluginCallTrace;
+  const sink = wiring.sink();
+  if (threadId === undefined || sink === undefined) return invoke();
+  const started = wiring.now();
+  const json = toJsonValue(input ?? {});
+  const tool = `${target.id}.${name}`;
+  const emit = (ok: boolean): void => {
+    const event: PluginCallTraceEvent = {
+      threadId,
+      plugin: target.extension,
+      capability: target.id,
+      method: name,
+      argsHash: json === undefined ? null : hashOf(canonicalJson(json)),
+      ok,
+      ms: Math.max(0, wiring.now() - started),
+      via: viaOf(amb),
+      toolCallId: amb?.invocation === "tool" ? (amb.callId ?? null) : null,
+    };
+    const recorded = attempt(() => sink.record(event));
+    if (!recorded.ok) {
+      wiring.report({
+        level: "warning",
+        code: "plugin_call_trace_failed",
+        extension: target.extension,
+        scopeId: target.scopeId,
+        message: `${tool} trace line was not recorded`,
+        cause: recorded.error,
+      });
+    }
+  };
+  let outcome: unknown;
+  try {
+    outcome = invoke();
+  } catch (caught) {
+    emit(false);
+    throw caught;
+  }
+  if (!isPromiseLike(outcome)) {
+    emit(true);
+    return outcome;
+  }
+  // 호출자에게는 공급자의 약속을 그대로 돌려준다. 옆 가지가 결과를 기다려 줄을 넘기고, 거부도 옆 가지에서 받아 처리되지 않은 거부가 되지 않게 한다
+  detach(
+    outcome.then(
+      () => emit(true),
+      () => emit(false),
+    ),
+    (cause) => {
+      wiring.report({
+        level: "warning",
+        code: "plugin_call_trace_failed",
+        extension: target.extension,
+        scopeId: target.scopeId,
+        message: `${tool} trace line was not recorded`,
+        cause,
+      });
+    },
+  );
+  return outcome;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
 }
 
 /** 도구 결과 details의 `code`(공급자 오류 코드). 없으면 undefined */

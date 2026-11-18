@@ -19,10 +19,15 @@ import type {
   ContextTraceSink,
   ExtensionManifest,
   MaterialPort,
+  PluginCallTraceEvent,
+  PluginCallTraceSink,
   PortKey,
   ToolCallTraceEvent,
   ToolCallTraceSink,
+  TurnBlockEvent,
+  TurnRecordSink,
 } from "@fresnel/contracts/extensions";
+import { PluginCallTracePortKey, TurnRecordPortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -58,7 +63,7 @@ import {
   createVolatileNotifier,
   hookUnitName,
   registrationToggleSourceOf,
-  TIERS,
+  tierRankOf,
   traceReadOf,
   type ExtHost,
   type ExtensionLoader,
@@ -162,12 +167,13 @@ import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
-  addMigratedSkillsToDefault,
+  addMigratedSkillsToCommon,
   createMaterialPort,
   createPluginStore,
   createReviewedSource,
   currentTreePathSync,
   readPluginFolder,
+  reviewKeyOf,
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import {
@@ -179,9 +185,10 @@ import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts
 import { runFirstStartMigration, threadRowsOf } from "./assembly/m4/first-start-migration.ts";
 import { coreNamesOf, factoryPluginsOf } from "./assembly/m4/index.ts";
 import { pluginFactOf } from "./assembly/m4/plugin-fact.ts";
-import { DEFAULT_PROFILE_ID } from "./assembly/m4/profile-defaults.ts";
+import { COMMON_ID } from "./assembly/m4/plugin-edit.ts";
 import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
+import { createStartupProjectIdOf } from "./assembly/m4/startup-project-id.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
 import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
@@ -721,8 +728,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordBody: ((input: RequestBodyInput) => void) | undefined;
     /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
     recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
+    /** 가벼운 길의 플러그인 호출 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordPluginCall: ((input: PluginCallTraceEvent) => void) | undefined;
     /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
     recordContext: ((input: ContextTraceEvent) => void) | undefined;
+    /** 색인·기억 블록의 사실을 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordTurnBlock: ((input: TurnBlockEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
   } = {
@@ -730,7 +741,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordFailure: undefined,
     recordBody: undefined,
     recordCall: undefined,
+    recordPluginCall: undefined,
     recordContext: undefined,
+    recordTurnBlock: undefined,
     forgetThread: undefined,
   };
   // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
@@ -739,10 +752,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       measureSlot.recordCall?.(event);
     },
   };
+  // 가벼운 길의 플러그인 호출 추적 싱크(읽기 전용). 확장의 기능 호출이 `fresnel.pluginCallTrace` 포트로 받는다(§4.3)
+  const pluginCallTraceSink: PluginCallTraceSink = {
+    record: (event) => {
+      measureSlot.recordPluginCall?.(event);
+    },
+  };
   // 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 모델 요청 조립과 같은 슬롯을 거친다(§4.1 규칙 2)
   const contextTraceSink: ContextTraceSink = {
     record: (event) => {
       measureSlot.recordContext?.(event);
+    },
+  };
+  // 색인·기억 블록의 턴 기록 싱크(읽기 전용). 내장 지식 플러그인이 `fresnel.turnRecord` 포트로 블록이 실린 사실을 알린다
+  const turnRecordSink: TurnRecordSink = {
+    record: (event) => {
+      measureSlot.recordTurnBlock?.(event);
     },
   };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
@@ -1021,6 +1046,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
     );
     await register("platform-sandbox", sandboxPlatform(sandboxSource(settings), lifetime.signal));
+    // 가벼운 길의 호출 추적 포트(턴 기록이 받는다). 측정 저장소를 열기 전에는 줄을 버린다
+    await register("platform-plugin-call-trace", {
+      name: "platform-plugin-call-trace",
+      setup(ctx) {
+        ctx.providePort(PluginCallTracePortKey, pluginCallTraceSink);
+      },
+    });
+    // 색인·기억 블록의 턴 기록 포트. 플러그인은 이 포트로만 알리므로 수집기를 import하지 않는다
+    await register("platform-turn-record", {
+      name: "platform-turn-record",
+      setup(ctx) {
+        ctx.providePort(TurnRecordPortKey, turnRecordSink);
+      },
+    });
 
     // 3. 플러그인: 기본 확장(의존 순서), 이어서 extraPlugins
     const fingerprint = os.processStartFingerprint(process.pid);
@@ -1053,6 +1092,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       return workspace === undefined
         ? undefined
         : portsHandle?.ports.m4.project.rootOfWorkspace(workspace);
+    };
+    // 대화의 프로젝트 id(AGE-41). 프로젝트 출처 검토본을 고를 때 쓴다. 작업 폴더가 없거나 포트가 아직 없으면 없다
+    const projectIdOfThread = (threadId: ThreadId): string | undefined => {
+      const workspace = workspaceOf(threadId);
+      return workspace === undefined
+        ? undefined
+        : portsHandle?.ports.m4.project.projectIdOfWorkspace(workspace);
     };
     const commands: CommandRegistryHolder = {
       current: undefined,
@@ -1202,6 +1248,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         dialogArea,
         web,
         mode: options.mode,
+        // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
+        userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
           ? {}
           : { extraCapabilityDefs: options.extraCapabilityDefs }),
@@ -1369,6 +1417,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reviewedSource: createReviewedSource(pluginStore, os.logger("plugin-store")),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
+        // 시작 때 cwd 프로젝트의 id. 포트가 아직 없어서 `projects.json`과 기본 폴더 설정에서 계산한다(AGE-41)
+        projectIdOf: createStartupProjectIdOf({
+          configDir: os.dirs.config,
+          dataDir: os.dirs.data,
+          fileLock: osHandle.fileLock,
+          clock,
+          signal: lifetime.signal,
+          settingValue: (key) => settings.value(key),
+          logger: os.logger("project-ext"),
+        }),
         // 시작 때 싣는 기본 집합: 공장 기본 프로필의 번들 이름. 그 밖의 `defaultEnabled: false` 외부 확장은 대화가 쓸 때 싣는다
         defaultNames: defaultPluginNames,
         signal: lifetime.signal,
@@ -1499,7 +1557,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
     measureSlot.recordCall = measurement.offerCall;
+    measureSlot.recordPluginCall = measurement.offerPluginCall;
     measureSlot.recordContext = measurement.offerContext;
+    measureSlot.recordTurnBlock = measurement.offerTurnRecord;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
@@ -1524,6 +1584,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       defaultPluginsDir: bundleRoot,
       pluginStore,
       localIds,
+      homeDir: os.dirs.home,
       startupNotices,
       measure: {
         store: () => measurement.store,
@@ -1577,7 +1638,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
                 id: hook.def.id,
                 point: hook.def.point,
                 source: hook.source,
-                tierRank: TIERS.indexOf(hook.tier),
+                tierRank: tierRankOf(hook.tier),
                 unit: hookUnitName(hook.def.id),
               })),
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
@@ -1614,6 +1675,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         trust: projectTrust,
         logger: os.logger("project-ext"),
         signal: lifetime.signal,
+        projectIdOf: (workspace) => portsHandle?.ports.m4.project.projectIdOfWorkspace(workspace),
       }),
       workspaceOf,
       schedule,
@@ -1629,10 +1691,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const materialLog = os.logger("plugin-store");
     materialSlot.port = createMaterialPort({
       pluginSet: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
-      treeOf: (name) => {
-        const tree = currentTreePathSync(pluginStoreRoot, name);
-        if (tree.ok) return tree.value;
-        materialLog.warn("plugin.material.tree_failed", { plugin: name, kind: tree.error.kind });
+      // 사용자·번들 검토본(이름 키)이 먼저다(같은 이름이면 로더가 사용자 것을 싣는다). 없고 대화의 프로젝트가 있으면 그 프로젝트의 검토본이다
+      treeOf: (name, threadId) => {
+        const projectId = projectIdOfThread(threadId);
+        const projectKey =
+          projectId === undefined ? null : reviewKeyOf({ origin: "project", name, projectId });
+        const keys = projectKey !== null && projectKey.ok ? [name, projectKey.value] : [name];
+        for (const key of keys) {
+          const tree = currentTreePathSync(pluginStoreRoot, key);
+          if (!tree.ok) {
+            materialLog.warn("plugin.material.tree_failed", {
+              plugin: name,
+              kind: tree.error.kind,
+            });
+            return null;
+          }
+          if (tree.value !== null) return tree.value;
+        }
         return null;
       },
       // 재료 읽기는 출처를 쓰지 않는다(지침·스킬·에이전트·명령·MCP 정의의 모양은 같다)
@@ -1662,25 +1737,25 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       refreshUserSettings: () => enginePorts.settings.refreshUserFile(),
     });
     for (const failure of firstStart.failures) logger.warn("migration.failed", { failure });
-    // 느슨한 스킬 폴더에서 옮긴 플러그인을 기본 프로필에 넣는다(M5c §7.5 [제안]). 로더가 실은 뒤에 한 번만 한다
-    await addMigratedSkillsToDefault({
+    // 느슨한 스킬 폴더에서 옮긴 플러그인을 공통 묶음에 넣는다(M5c §7.5, 사용자 결정 2026-11-18 AGE-41). 저장된 기본 프로필은 바꾸지 않는다. 로더가 실은 뒤에 한 번만 한다
+    await addMigratedSkillsToCommon({
       logPath: join(os.dirs.state, "migration.log"),
       logger: os.logger("plugin-store"),
       now: () => new Date(clock.now()).toISOString(),
-      defaultNames: async () => {
-        const found = await enginePorts.m4.profileTestRun.get(DEFAULT_PROFILE_ID);
+      commonNames: async () => {
+        const found = await enginePorts.m4.profileTestRun.commonGet();
         if (!found.ok) return err(found.error);
-        return ok(found.value.plugins.map((ref) => ref.name));
+        return ok(found.value.common.plugins.map((ref) => ref.name));
       },
       factOf: (name) => {
         const record = extensionRecords().find((item) => item.manifest.name === name);
         return record === undefined ? undefined : pluginFactOf(record.manifest, record.location);
       },
-      addToDefault: (fact) =>
+      addToCommon: (fact) =>
         enginePorts.m4.profileTestRun.applyPluginEdit({
           kind: "add",
           plugin: fact,
-          profileIds: [DEFAULT_PROFILE_ID],
+          profileIds: [COMMON_ID],
         }),
     });
     // 시작 때 원본 폴더를 한 번 훑는다. 바뀐 원본은 검토 항목이 된다(M5c §4.5.7). 실패는 로그에만 남긴다

@@ -54,6 +54,8 @@ export interface FakeContext {
     readonly basePrompt: string;
     readonly sections: Readonly<Record<string, string>>;
     readonly volatile: Readonly<Record<string, string>>;
+    /** 안내(`volatile.instructions`)의 소유자. 입력이 정하지 못했으면 없다 */
+    readonly promptAdditionOwner: string | undefined;
   }[];
 }
 
@@ -141,6 +143,7 @@ export function createFakeContext(options: {
     basePrompt: string;
     sections: Readonly<Record<string, string>>;
     volatile: Readonly<Record<string, string>>;
+    promptAdditionOwner: string | undefined;
   }[] = [];
 
   async function assemble(
@@ -190,6 +193,7 @@ export function createFakeContext(options: {
       basePrompt: opts.basePrompt,
       sections: opts.sections,
       volatile: opts.volatile,
+      promptAdditionOwner: opts.promptAdditionOwner,
     });
     return ok({
       messages: all,

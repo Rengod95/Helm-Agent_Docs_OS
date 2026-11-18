@@ -1,6 +1,13 @@
 // @fresnel/cap-knowledge 공개 진입점(L2.knowledge). 조립 루트가 쓰는 이름만 내보낸다.
 export { knowledgePlugin, advertisedSkillsDef, IMPLEMENTED_SKILL_TOOLS } from "./plugin.ts";
 export type { KnowledgePluginOptions } from "./plugin.ts";
+export { failure } from "./errors.ts";
+export type { KnowledgeFailure, KnowledgeFailureKind } from "./errors.ts";
+export type {
+  UserSkillSink,
+  UserSkillSubmission,
+  UserSkillSubmitted,
+} from "./skills/user-skill-sink.ts";
 export { knowledgeManifest, KNOWLEDGE_EXTENSION_NAME } from "./manifest.ts";
 export {
   DEFAULT_KNOWLEDGE_SETTINGS,

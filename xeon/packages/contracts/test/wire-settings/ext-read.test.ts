@@ -685,7 +685,7 @@ describe("M4 MCP server methods", () => {
   };
   const approval = {
     server: "remote",
-    source: "mcpjson:project",
+    source: "mcpjson:fresnel",
     origin: "mcpjson",
     state: "blocked",
     blockedReason: "approval_required",

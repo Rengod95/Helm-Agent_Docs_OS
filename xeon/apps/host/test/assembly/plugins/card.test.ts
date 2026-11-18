@@ -2,7 +2,11 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { HOOKS, PluginCardSchema, type PluginCard } from "@fresnel/contracts/extensions";
-import { buildPluginCard, type BuildCardInput } from "../../../src/assembly/plugins/card.ts";
+import {
+  buildPluginCard,
+  launchOf,
+  type BuildCardInput,
+} from "../../../src/assembly/plugins/card.ts";
 import {
   readPluginFolder,
   type PluginFolder,
@@ -183,4 +187,130 @@ test("출처, 검토, 사용처, 건강 상태는 입력을 그대로 싣는다.
 
   const userCard = cardOf(folder);
   expect("projectId" in userCard.origin).toBe(false);
+});
+
+// 사용자 결정 2026-11-18(AGE-41): 승인하면 실행될 명령을 카드가 빠뜨리지 않고 싣는다. 값(env 값)은 싣지 않는다.
+const SECRET = "s3cr3t-value";
+
+test("a stdio server's card carries its command, args, sorted env names and cwd, and never an env value or a header", () => {
+  const card = cardOf(
+    folderOf("mcp-kit", {
+      "mcp.json": JSON.stringify({
+        mcpServers: {
+          docs: {
+            command: "npx",
+            args: ["-y", "docs-server"],
+            env: { HOME_DIR: SECRET, API_KEY: SECRET },
+            cwd: "tools/docs",
+          },
+          local: { command: "./bin/local" },
+          remote: {
+            type: "http",
+            url: "https://example.test/mcp",
+            headers: { Authorization: SECRET },
+          },
+        },
+      }),
+    }),
+  );
+  expect(card.does.inject?.mcpServers).toEqual([
+    {
+      name: "docs",
+      transport: "stdio",
+      launch: {
+        command: "npx",
+        args: ["-y", "docs-server"],
+        envNames: ["API_KEY", "HOME_DIR"],
+        cwd: "tools/docs",
+      },
+    },
+    {
+      name: "local",
+      transport: "stdio",
+      launch: { command: "./bin/local", args: [], envNames: [], cwd: null },
+    },
+    { name: "remote", transport: "http", launch: null },
+  ]);
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+  expect(JSON.stringify(card)).not.toContain(SECRET);
+});
+
+test("a manifest that declares its MCP file gives the same launch line as the convention file", () => {
+  const card = cardOf(
+    folderOf("declared-mcp", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "declared-mcp",
+        version: "1.0.0",
+        components: { mcpServers: "config/servers.json" },
+      }),
+      "config/servers.json": JSON.stringify({
+        mcpServers: { notes: { command: "node", args: ["notes.js"], env: { TOKEN: SECRET } } },
+      }),
+    }),
+  );
+  expect(card.does.inject?.mcpServers).toEqual([
+    {
+      name: "notes",
+      transport: "stdio",
+      launch: { command: "node", args: ["notes.js"], envNames: ["TOKEN"], cwd: null },
+    },
+  ]);
+  expect(JSON.stringify(card)).not.toContain(SECRET);
+});
+
+test("launchOf keeps what is visible of a malformed server instead of dropping it", () => {
+  expect(
+    launchOf({ command: "node", args: ["a", 7, null, { k: "v" }], env: ["A=1"], cwd: 5 }),
+  ).toEqual({ command: "node", args: ["a", "7", "null", '{"k":"v"}'], envNames: [], cwd: "5" });
+  expect(launchOf({ command: "node", args: "--stdio", env: { B: "x", A: "y" } })).toEqual({
+    command: "node",
+    args: ['"--stdio"'],
+    envNames: ["A", "B"],
+    cwd: null,
+  });
+  expect(launchOf({ command: "" })).toBeNull();
+  expect(launchOf({ url: "https://example.test/mcp" })).toBeNull();
+});
+
+test("a long command or argument is cut with an ellipsis, and a long argument list keeps a count, so the card stays valid", () => {
+  const long = "x".repeat(2000);
+  const many = Array.from({ length: 130 }, (_, index) => `a${index}`);
+  const card = cardOf(
+    folderOf("long-mcp", {
+      "mcp.json": JSON.stringify({
+        mcpServers: { big: { command: long, args: [long, ...many.slice(1)] } },
+      }),
+    }),
+  );
+  const launch = card.does.inject?.mcpServers[0]?.launch;
+  expect(launch?.command).toBe(`${"x".repeat(1023)}…`);
+  expect(launch?.args[0]).toBe(`${"x".repeat(1023)}…`);
+  expect(launch?.args.length).toBe(128);
+  expect(launch?.args.at(-1)).toBe("…(+3)");
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+});
+
+test("a card stored before the launch field still parses against the schema", () => {
+  const card = cardOf(
+    folderOf("old-mcp", {
+      "mcp.json": JSON.stringify({ mcpServers: { docs: { command: "npx" } } }),
+    }),
+  );
+  const inject = card.does.inject;
+  if (inject === null) throw new Error("the test card has no inject row");
+  const legacy = {
+    ...card,
+    does: {
+      ...card.does,
+      inject: {
+        ...inject,
+        mcpServers: inject.mcpServers.map((server) => ({
+          name: server.name,
+          transport: server.transport,
+        })),
+      },
+    },
+  };
+  expect(parse(PluginCardSchema, legacy).ok).toBe(true);
 });

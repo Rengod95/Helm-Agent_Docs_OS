@@ -18,6 +18,7 @@ import type { PluginStore } from "./store.ts";
 // - 번들(`bundled`): 릴리스가 든 기본 플러그인 폴더를 `actor: "release"`로 넣는다. 앱 업데이트가 신뢰 근거다.
 // - 설치된 사용자 플러그인(`<configDir>/extensions/<name>`): 현재 내용을 `actor: "migration"`으로 넣는다. 원본 폴더는 지우지 않는다.
 //   `current`가 없는 이름만 맡는다. 설치 폴더의 `.history`와 느슨한 스킬 폴더는 `migrate.ts`가 맡는다.
+// - 프로젝트 출처 검토본(`project_review_key`): 이름 키 폴더에 든 프로젝트 검토본을 `<projectId>/<이름>` 키로 옮긴다(§4.6.2, AGE-41). 가장 먼저 돈다.
 // 모두 멱등이다. 같은 해시가 이미 current면 아무것도 하지 않는다. 결과는 `migration.log`에 남는다(옮김 결과만).
 
 const MANIFEST_PATH = join(".fresnel-plugin", "plugin.json");
@@ -56,6 +57,38 @@ export interface StartupPluginReport {
   readonly kept: readonly string[];
   /** 건너뛴 플러그인과 이유. 로그에도 남는다 */
   readonly diagnostics: readonly StartupPluginDiagnostic[];
+}
+
+/**
+ * 프로젝트 출처 검토본을 프로젝트 키로 옮긴다(`project_review_key`). 옮김 결과는 기록에 한 줄씩 남고, 건너뛴 것은 진단이다.
+ * 옮길 것이 없거나 이미 옮겼으면 아무것도 적지 않는다. 저장소 오류는 진단 하나로 남기고 시작은 계속한다
+ */
+async function moveProjectKeys(input: StartupPluginInput, into: Build): Promise<void> {
+  const moved = await input.store.moveProjectReviews();
+  if (!moved.ok) {
+    into.diagnostics.push({
+      name: "project_review_key",
+      code: moved.error.kind,
+      message: "project reviews could not be moved to their project keys",
+    });
+    return;
+  }
+  for (const move of moved.value) {
+    into.records.push({
+      step: "project_review_key",
+      name: move.name,
+      outcome: move.outcome,
+      contentHash: move.contentHash,
+      reason: move.reason,
+    });
+    if (move.outcome === "skipped") {
+      into.diagnostics.push({
+        name: move.name,
+        code: move.reason ?? "skipped",
+        message: `${move.name}: the project review was not moved to its project key (${move.reason ?? "skipped"})`,
+      });
+    }
+  }
 }
 
 /** 코드가 있는 폴더(매니페스트가 있다)인가. 없으면 검토본 대상이 아니다 */
@@ -247,6 +280,7 @@ export async function reviewStartupPlugins(
   input: StartupPluginInput,
 ): Promise<StartupPluginReport> {
   const into: Build = { released: [], migrated: [], kept: [], diagnostics: [], records: [] };
+  await moveProjectKeys(input, into);
   await sequentially(input.bundledNames, (name) => releaseOne(input, name, into));
   await migrateInstalled(input, into);
   const tally = { migrated: into.migrated, diagnostics: into.diagnostics, records: into.records };
