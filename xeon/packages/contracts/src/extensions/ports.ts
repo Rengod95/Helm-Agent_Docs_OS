@@ -509,6 +509,8 @@ export interface PluginSetView {
     readonly plugin: string;
     readonly contentHash: string;
     readonly until: "turn" | "release";
+    /** 초안 덧씌우기면 그 식별자다. `plugin`은 자리를 대신하는 실제 이름이다(§4.3.8) */
+    readonly draftId?: string;
   }[];
 }
 export interface PluginSetPort {

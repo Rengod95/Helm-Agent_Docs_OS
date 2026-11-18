@@ -167,9 +167,25 @@ function hashesOf(view: PluginSetView): string {
 
 function overlayKeyOf(view: PluginSetView): string {
   return (view.overlay ?? [])
-    .map((item) => `${item.plugin}\0${item.contentHash}\0${item.until}`)
+    .map((item) => `${overlayIdOf(item)}\0${item.contentHash}\0${item.until}`)
     .toSorted()
     .join("\n");
+}
+
+/** 덧씌우기 항목 하나의 식별. 초안은 같은 이름의 검토본과 다른 항목이다(§4.3.8) */
+function overlayIdOf(item: { readonly plugin: string; readonly draftId?: string }): string {
+  return `${item.draftId ?? ""}\0${item.plugin}`;
+}
+
+/** `profile.applied`의 덧씌우기 항목 하나. 초안이면 식별자를 싣는다 */
+function overlayEntryOf(item: NonNullable<PluginSetView["overlay"]>[number]): {
+  readonly plugin: string;
+  readonly contentHash: string;
+  readonly until: "turn" | "release";
+  readonly draftId?: string;
+} {
+  const entry = { plugin: item.plugin, contentHash: item.contentHash, until: item.until };
+  return item.draftId === undefined ? entry : { ...entry, draftId: item.draftId };
 }
 
 function sameApplied(a: PluginSetView, b: PluginSetView): boolean {
@@ -240,11 +256,11 @@ function applyPluginSet(
   );
   const overlayOn = liveOverlay.filter(
     (item) =>
-      !previousOverlay.some((old) => old.plugin === item.plugin) &&
+      !previousOverlay.some((old) => overlayIdOf(old) === overlayIdOf(item)) &&
       (previous !== null || !restoredFrames.has(item.plugin)),
   );
   const overlayOff = previousOverlay.filter(
-    (item) => !liveOverlay.some((now) => now.plugin === item.plugin),
+    (item) => !liveOverlay.some((now) => overlayIdOf(now) === overlayIdOf(item)),
   );
   const reason =
     previous === null
@@ -282,11 +298,7 @@ function applyPluginSet(
         commonRev: view.commonRev,
         added,
         removed,
-        overlay: overlay.map((item) => ({
-          plugin: item.plugin,
-          contentHash: item.contentHash,
-          until: item.until,
-        })),
+        overlay: overlay.map(overlayEntryOf),
         ...(updated.length === 0 ? {} : { updated }),
       },
       turnId: txn.signal.turnId,
