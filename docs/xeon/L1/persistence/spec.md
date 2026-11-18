@@ -1250,7 +1250,8 @@ export interface RewindPlan {
 | 대화별 블롭 사용량 | core-persistence `persistenceQueryOf(session).blobUsageByThread()` |
 
 - 분리 후보는 두 가지다. (a) 문자열 잎 가운데 UTF-8 64 KiB(`DETACH_MIN_BYTES`) 이상, (b) 객체·배열 가운데 JSON 직렬화 바이트가 64 KiB 이상인 것. 루트(빈 포인터)는 객체·배열 후보가 아니다. 루트 문자열은 후보다.
-- 후보는 큰 것부터 고른다. 이미 고른 값 안에 든 후보는 고르지 않는다. 조상은 자기 안의 후보보다 커서 먼저 고르게 된다. 한 자리를 옮길 때마다 envelope 크기를 옮긴 만큼만 고쳐 재고, 목표(`ENVELOPE_MAX_BYTES - 1024`) 이하가 되면 멈춘다. `detached`는 256개를 넘지 않는다. 큰 값은 직렬화를 한 번만 한다(문자열은 UTF-8 바이트를 한 번 만들어 그대로 쓴다).
+- 후보는 큰 것부터 고른다. 이미 고른 값 안에 든 후보는 고르지 않는다. 조상은 자기 안의 후보보다 커서 먼저 고르게 된다. 한 자리를 옮길 때마다 envelope 크기를 옮긴 만큼만 고쳐 재고, 목표(`ENVELOPE_MAX_BYTES - 1024`) 이하가 되면 멈춘다. `detached`는 256개를 넘지 않는다. 큰 값은 직렬화를 한 번만 한다.
+- [결정: AGE-59] 쓰는 쪽 메모리: 크기는 직렬화 글을 만들지 않고 센다(`jsonUtf8Length`, `stringUtf8Sizes`, F.records.spec §3.1). 분리 판정에 envelope 전체를 `JSON.stringify`하지 않는다. 문자열 후보의 UTF-8 바이트는 옮길 때 한 번만 만든다(후보로 고르기만 한 값은 만들지 않는다). 객체·배열 후보는 크기를 미리 잰 버퍼 하나에 잎 하나씩 인코딩해 넣는다(전체 직렬화 글과 인코딩 사본을 만들지 않는다). 모양이 예상과 다르면 `JSON.stringify` 뒤 인코딩으로 쓴다. 실측(100 MiB 문자열 하나, 이 층의 커밋): 최고 RSS 1.14 GB에서 0.31 GB(기준 0.07 GB 포함), 512 MiB 문자열 1.17 GB. 남은 복사는 JS 문자열 원본과 UTF-8 바이트 사본 둘이다.
 - 객체·배열을 옮긴 자리는 `encoding: "json"`을 적고, blob은 `JSON.stringify` 바이트(`application/json`)다. 문자열 잎은 `encoding`을 적지 않고 blob은 UTF-8 바이트다. 저장 형식은 옛 기록과 같다.
 - 객체·배열 후보는 자리표시로 바꾼 payload가 kind 스키마(`catalog.entryOf(kind).payload`)를 지킬 때만 고른다(`fits`). 지키지 않으면 건너뛰고 그 안의 문자열 잎을 본다. 문자열 잎은 문자열 자리에 문자열이 들어가므로 이 검사를 하지 않는다.
 - 같은 내용은 같은 해시다. `putBlob`은 같은 해시의 완전한 파일이 있으면 파일을 다시 쓰지 않고 `sys_blobs` 행의 시각만 갱신한다. 두 번 쓴 같은 내용은 파일 하나와 행 하나다.

@@ -4,6 +4,9 @@ import { Bug, err, ok, parseJson, type Logger, type Result } from "@fresnel/cont
 import {
   BLOB_PLACEHOLDER_PREFIX,
   ENVELOPE_MAX_BYTES,
+  isPlainJsonText,
+  jsonUtf8Length,
+  stringUtf8Sizes,
   type BlobError,
   type BlobRef,
   type DetachedField,
@@ -35,19 +38,21 @@ function byteLength(text: string): number {
   return encoder.encode(text).length;
 }
 
-/** envelope의 JSON 바이트를 어림한다. 채워질 필드는 가장 긴 모양으로 대신하고, `detached`는 주어진 배열 그대로 넣는다 */
+/** envelope의 JSON 바이트를 어림한다. 채워질 필드는 가장 긴 모양으로 대신하고, `detached`는 주어진 배열 그대로 넣는다. payload는 글로 만들지 않고 센다 */
 function envelopeBytes(
   draft: DurableEventDraft,
   detached: readonly DetachedField[] | undefined,
 ): number {
   const padded = {
     ...draft,
+    payload: undefined,
     detached,
     seq: 9_999_999_999_999,
     recordedAt: 9_999_999_999_999,
     parentId: draft.parentId ?? "evt_00000000000000000000000000",
   };
-  return byteLength(JSON.stringify(padded));
+  // `,"payload":` 열한 바이트
+  return byteLength(JSON.stringify(padded)) + 11 + jsonUtf8Length(draft.payload);
 }
 
 export function needsDetach(draft: DurableEventDraft): boolean {
@@ -84,9 +89,9 @@ interface Candidate {
   readonly size: number;
   /** envelope 안에서 이 값이 차지하는 JSON 바이트(따옴표와 이스케이프 포함). 자리표시로 바꿀 때 줄어드는 양이다 */
   readonly jsonBytes: number;
-  /** 문자열은 UTF-8 바이트를 한 번만 만든 것을 든다. 하위 값은 옮길 때 직렬화한다(그 전에는 다시 만들지 않는다) */
+  /** 문자열과 하위 값 모두 옮길 때 한 번만 UTF-8 바이트로 만든다(그 전에는 만들지 않는다) */
   readonly source:
-    | { readonly kind: "string"; readonly bytes: Uint8Array }
+    | { readonly kind: "string"; readonly text: string }
     | { readonly kind: "json"; readonly value: object };
 }
 
@@ -96,21 +101,18 @@ interface Candidate {
  */
 function measure(node: unknown, tokens: readonly string[], out: Candidate[]): number {
   if (typeof node === "string") {
-    const jsonBytes = byteLength(JSON.stringify(node));
-    // UTF-16 코드 유닛 하나는 UTF-8로 최대 3바이트다. 이보다 짧으면 문턱에 닿을 수 없다
-    if (node.length * 3 >= DETACH_MIN_BYTES) {
-      const bytes = encoder.encode(node);
-      if (bytes.length >= DETACH_MIN_BYTES) {
-        out.push({
-          pointer: pointerOf(tokens),
-          tokens,
-          size: bytes.length,
-          jsonBytes,
-          source: { kind: "string", bytes },
-        });
-      }
+    const sizes = stringUtf8Sizes(node);
+    // 문턱을 넘는 문자열은 UTF-8 바이트를 지금 만들지 않는다. 옮길 때 한 번만 만든다
+    if (sizes.utf8 >= DETACH_MIN_BYTES) {
+      out.push({
+        pointer: pointerOf(tokens),
+        tokens,
+        size: sizes.utf8,
+        jsonBytes: sizes.json,
+        source: { kind: "string", text: node },
+      });
     }
-    return jsonBytes;
+    return sizes.json;
   }
   if (Array.isArray(node)) {
     const items: readonly unknown[] = node;
@@ -129,13 +131,61 @@ function measure(node: unknown, tokens: readonly string[], out: Candidate[]): nu
       if (member === undefined) continue;
       if (!first) total += 1;
       first = false;
-      total += byteLength(JSON.stringify(key)) + 1 + measure(member, [...tokens, key], out);
+      total += stringUtf8Sizes(key).json + 1 + measure(member, [...tokens, key], out);
     }
     return finishContainer(node, total, tokens, out);
   }
   // 배열 안의 undefined는 JSON에서 null이다
   if (node === undefined) return byteLength("null");
   return byteLength(JSON.stringify(node));
+}
+
+/**
+ * JSON 값을 UTF-8 바이트로 쓴다. 미리 잰 크기(`size`)의 버퍼 하나에 조각(잎 하나씩)을 바로 인코딩해 넣어, 전체 직렬화 글과 그 인코딩 사본을
+ * 따로 만들지 않는다(100 MiB 값을 글로 만들고 다시 인코딩하면 입력의 두 배가 더 든다). 값의 모양이 예상과 다르거나 쓴 바이트 수가
+ * `size`와 다르면 undefined다. 호출자는 옛 방식(`JSON.stringify` 뒤 인코딩)으로 쓴다
+ */
+function encodeJsonValue(value: unknown, size: number): Uint8Array | undefined {
+  const out = new Uint8Array(size);
+  let at = 0;
+  const put = (text: string): boolean => {
+    const { read, written } = encoder.encodeInto(text, out.subarray(at));
+    if (read !== text.length) return false;
+    at += written;
+    return true;
+  };
+  const walk = (node: unknown): boolean => {
+    if (typeof node === "string") {
+      // 출력 가능한 ASCII뿐이면 `JSON.stringify`는 따옴표만 더한다. 글을 다시 만들지 않고 바로 쓴다
+      if (isPlainJsonText(node)) return put('"') && put(node) && put('"');
+      return put(JSON.stringify(node));
+    }
+    if (Array.isArray(node)) {
+      const items: readonly unknown[] = node;
+      if (!put("[")) return false;
+      for (const [index, item] of items.entries()) {
+        if (index > 0 && !put(",")) return false;
+        if (!walk(item)) return false;
+      }
+      return put("]");
+    }
+    if (typeof node === "object" && node !== null) {
+      if (!put("{")) return false;
+      let first = true;
+      for (const [key, member] of Object.entries(node)) {
+        if (member === undefined) continue;
+        if (!first && !put(",")) return false;
+        first = false;
+        if (!put(JSON.stringify(key)) || !put(":") || !walk(member)) return false;
+      }
+      return put("}");
+    }
+    if (node === undefined) return put("null");
+    // 함수와 심볼은 `JSON.stringify`가 글을 만들지 않는다. 옛 방식에 맡긴다
+    if (typeof node === "function" || typeof node === "symbol") return false;
+    return put(JSON.stringify(node));
+  };
+  return walk(value) && at === size ? out : undefined;
 }
 
 /** 루트 객체·배열은 후보가 아니다: 루트를 자리표시로 바꾸면 payload 전체가 문자열이 되어 투영기와 스키마가 읽지 못한다 */
@@ -236,8 +286,9 @@ export function detachLarge(
     if (json && !fits(withValueAt(current.payload, candidate.tokens, PLACEHOLDER_SHAPE))) continue;
     const data =
       candidate.source.kind === "string"
-        ? candidate.source.bytes
-        : encoder.encode(JSON.stringify(candidate.source.value));
+        ? encoder.encode(candidate.source.text)
+        : (encodeJsonValue(candidate.source.value, candidate.size) ??
+          encoder.encode(JSON.stringify(candidate.source.value)));
     const stored = putBlob(data, json ? JSON_MEDIA_TYPE : null);
     if (!stored.ok) return err(stored.error);
     const ref: BlobRef = stored.value;

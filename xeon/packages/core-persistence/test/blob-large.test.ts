@@ -257,3 +257,40 @@ describe("a fault while the blob is written (platform-store fault points)", () =
     });
   }
 });
+
+describe("detachLarge with escapes and non-ASCII text", () => {
+  test("an object of escape-heavy and non-ASCII strings detaches as a JSON blob and hydrates deep-equal", async () => {
+    const { h } = await openRealHarness({});
+    const { threadId } = newThread(h);
+    const rows = Array.from({ length: 2048 }, (_, index) => ({
+      n: index,
+      plain: "plain ascii only".repeat(4),
+      quoted: `quote " and backslash \\ ${String(index)} \n tab \t`,
+      korean: "한글 😀 émoji ".repeat(4),
+      lone: "lone \ud800 surrogate",
+    }));
+    const input = { rows, tail: [null, 1.5, true] };
+    const payload = {
+      leaseId: "lease-escapes",
+      lineageId: "lease-escapes",
+      scopeId: "alpha",
+      limits: {},
+      input,
+    };
+    expect(
+      await h.service.ext.commit({
+        threadId,
+        requestId: "escapes-1",
+        drafts: [leaseDraft(h, threadId, "lease.acquired", payload)],
+      }),
+    ).toEqual({ status: "committed" });
+
+    const events = await replayed(h, threadId);
+    const acquired = events.find((event) => event.kind === "lease.acquired");
+    if (acquired === undefined) throw new Error("the lease.acquired event is missing");
+    expect(acquired.detached?.[0]?.encoding).toBe("json");
+    expect((await h.service.hydrate(acquired)).payload).toEqual(
+      JSON.parse(JSON.stringify(payload)),
+    );
+  });
+});
