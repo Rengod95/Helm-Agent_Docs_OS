@@ -1,5 +1,11 @@
 import { expect, test } from "bun:test";
-import { defineCapability, serviceKey } from "@fresnel/contracts/capabilities";
+import {
+  ArtifactsReviews,
+  defineCapability,
+  McpClient,
+  serviceKey,
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import type { PluginCallRequest } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { createToolRuntime } from "../src/runtime.ts";
@@ -504,4 +510,75 @@ test("in default mode a method declared risk read runs without a card, while wri
   expect(card?.body).toMatchObject({ kind: "tool", tool: { risk: "exec" } });
   await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
   expect(await undeclared).toMatchObject({ ok: true });
+});
+
+// AGE-10: 변경 검토의 승인·거절과 MCP 서버 끄기는 쓰기 등급이다. 기본 권한 모드에서 플러그인이 부르면 승인 카드가 뜬다.
+
+const REVIEW_ID = "rvw_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+
+interface RiskCase {
+  readonly capability: `${string}.${string}`;
+  readonly method: string;
+  readonly input: JsonObject;
+  readonly def: typeof ArtifactsReviews | typeof McpClient;
+}
+
+async function expectsWriteCard(item: RiskCase): Promise<void> {
+  const h = await createHarness({ capabilityDefs: [item.def] });
+  const ran: string[] = [];
+  h.apis.set(item.capability, {
+    [item.method]: () => {
+      ran.push(item.method);
+      return Promise.resolve({});
+    },
+  });
+  expect(
+    h.runtime.tools.register({ kind: "capability", def: item.def, key: serviceKey(item.def) }).ok,
+  ).toBe(true);
+  const pending = h.runtime.tools.executeForPlugin(
+    callOf(h, {
+      target: { kind: "capability", capability: item.capability, method: item.method },
+      input: item.input,
+      requestId: `risk-${item.method}`,
+    }),
+  );
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [card] = h.runtime.approvals.pending(h.thread);
+  expect(card?.origin.caller).toBe("plugin:p1");
+  expect(card?.body).toMatchObject({
+    kind: "tool",
+    tool: { toolName: `cap:${item.capability}.${item.method}`, risk: "write" },
+  });
+  // 답하기 전에는 실행하지 않는다
+  expect(ran).toEqual([]);
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "deny" });
+  expect(await pending).toMatchObject({ ok: false, error: { kind: "denied" } });
+  expect(ran).toEqual([]);
+}
+
+test("a plugin's artifacts.reviews approve opens a write-risk approval card in the default mode", async () => {
+  await expectsWriteCard({
+    capability: "artifacts.reviews",
+    method: "approve",
+    input: { reviewId: REVIEW_ID, hunks: "all" },
+    def: ArtifactsReviews,
+  });
+});
+
+test("a plugin's artifacts.reviews reject opens a write-risk approval card in the default mode", async () => {
+  await expectsWriteCard({
+    capability: "artifacts.reviews",
+    method: "reject",
+    input: { reviewId: REVIEW_ID, hunks: "all" },
+    def: ArtifactsReviews,
+  });
+});
+
+test("a plugin's mcp.client disable opens a write-risk approval card in the default mode", async () => {
+  await expectsWriteCard({
+    capability: "mcp.client",
+    method: "disable",
+    input: { server: "github" },
+    def: McpClient,
+  });
 });
