@@ -3,7 +3,7 @@
 // 자동 꺼짐 알림은 위 띠에 두지 않고 고른 플러그인의 카드에 있다(`craft-parts.tsx`의 `ExtNotice`). 그 카드의 답은 여기서 준다.
 import { t } from "@fresnel/client/i18n";
 import { useWorkbench } from "../../state/workbench/index.ts";
-import { useMemo, type ReactNode } from "react";
+import { lazy, Suspense, useMemo, type ReactNode } from "react";
 import { CraftProvider } from "../craft/craft-context.tsx";
 import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -13,11 +13,20 @@ import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 import { ScreenHeader } from "../shell/screen-header.tsx";
 import { BUILD_CHECKS } from "../../app/build.ts";
-import { CanvasDesigns } from "../craft/canvas/switcher.tsx";
 
-/** 개발 빌드: 지금 화면과 프로필 캔버스 시안 다섯(`craft/canvas/registry.tsx`)을 귀퉁이 전환기로 바꾼다 */
+// 시안 다섯(과 @xyflow)은 개발 빌드에서만 불러온다. 출시 빌드에서는 BUILD_CHECKS가 false로 접혀 import 자체가 빠진다
+const CanvasDesigns = BUILD_CHECKS
+  ? lazy(() => import("../craft/canvas/switcher.tsx").then((m) => ({ default: m.CanvasDesigns })))
+  : null;
+
+/** 개발 빌드: 지금 화면과 프로필 캔버스 시안 다섯(`craft/canvas/registry.tsx`)을 전환기로 바꾼다 */
 export function CraftScreen(): ReactNode {
-  return BUILD_CHECKS ? <CanvasDesigns current={<CurrentCraftScreen />} /> : <CurrentCraftScreen />;
+  if (CanvasDesigns === null) return <CurrentCraftScreen />;
+  return (
+    <Suspense fallback={null}>
+      <CanvasDesigns current={<CurrentCraftScreen />} />
+    </Suspense>
+  );
 }
 
 function CurrentCraftScreen(): ReactNode {
