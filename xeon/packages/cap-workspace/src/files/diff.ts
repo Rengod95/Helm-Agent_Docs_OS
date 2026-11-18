@@ -14,12 +14,12 @@ const MAX_LCS_CELLS = 4_000_000;
  * 이 크기를 넘는 입력은 diff를 계산하지 않는다 [제안: AGE-61, 측정으로 정함]. 이전·새 내용의 글자 수 합 상한.
  * 줄 수가 적어도 글자가 많으면 diff 글도 커서 이벤트 한 칸의 상한(core-tools `EVENT_FIELD_MAX_BYTES`)을 넘어 어차피 버려진다.
  */
-export const MAX_DIFF_CHARS = 16 * 1024 * 1024;
+export const MAX_DIFF_CHARS: number = 16 * 1024 * 1024;
 /**
  * 이전·새 내용의 줄 수 합 상한. 줄마다 토큰과 편집 항목 객체가 생겨 메모리가 줄 수에 비례해 크게 늘어서(짧은 줄 100 MiB에서 약 10 GB, 9초)
  * 글자 수와 따로 막는다. 17 MiB 짧은 줄은 1.4초였다.
  */
-export const MAX_DIFF_LINES = 200_000;
+export const MAX_DIFF_LINES: number = 200_000;
 
 type OpKind = "equal" | "remove" | "add";
 
