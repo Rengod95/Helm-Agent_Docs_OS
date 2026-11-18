@@ -99,6 +99,7 @@ describe("M-01 group drive on the real session store", () => {
       "thread.started",
       "scope.changed",
       "lease.acquired",
+      "lease.requested",
       // 단계 함수의 명령 결과는 대화 로그에 남는다(enE1)
       "drive.command_settled",
       "grp.smoke-group.state.committed",

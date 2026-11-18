@@ -79,6 +79,7 @@ test("an open policy lets the same plain extension register drive and take the l
   expect(eventKinds(t, thread)).toEqual([
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "drive.command_settled",
   ]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-open", status: "active" });

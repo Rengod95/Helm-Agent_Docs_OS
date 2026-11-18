@@ -81,7 +81,9 @@ function smokeStep(
   last: StepResult | null,
   driveTurns: number,
 ): DriveCommand<SmokeGroupState> {
-  if (last !== null) {
+  // 사용자의 첫 메시지는 시작 주도의 첫 단계 입력이다(AGE-47). 아직 낼 턴이 남았으면 그 메시지가 첫 턴을 시작하게 한다(메시지 내용은 쓰지 않는다)
+  const starting = last === null || (last.kind === "user" && state.count < driveTurns);
+  if (!starting) {
     return { do: "commit", state: { count: state.count + 1 }, next: { do: "yield" } };
   }
   // 더 할 일이 없으면 주도권을 유지하고 다음 경계에 다시 묻는다

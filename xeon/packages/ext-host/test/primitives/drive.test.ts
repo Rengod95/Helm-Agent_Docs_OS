@@ -87,7 +87,12 @@ test("lease is granted once the thread is open and the drive function runs", asy
   t.host.startDrive(thread, "drv-basic");
   await t.settled();
   expect(calls).toEqual([1]);
-  expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired", "drive.command_settled"]);
+  expect(kindsOf(t, thread)).toEqual([
+    "scope.changed",
+    "lease.acquired",
+    "lease.requested",
+    "drive.command_settled",
+  ]);
   expect(t.loop.turns[0]?.requestId).toMatch(/^evt_[0-9A-Z]{26}:0\.0$/);
   expect(t.loop.turns[0]?.leaseEpoch).toBe(1);
 });
@@ -469,5 +474,5 @@ test("loop.ask without the approval port is refused as port_unavailable and the 
   // 거부는 예외가 아니라 `refused` 결과로 다음 단계에 온다. 승인 포트가 없으므로 임대와 기록은 그대로다
   expect(results).toEqual([{ kind: "refused", code: "port_unavailable" }]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-ask", status: "active" });
-  expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired"]);
+  expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired", "lease.requested"]);
 });

@@ -21,6 +21,7 @@ test("the smoke group denies a tool, adds an entry at boundary.step.after, posts
   expect(kinds).toEqual([
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
   ]);

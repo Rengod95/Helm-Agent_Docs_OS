@@ -81,6 +81,7 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   expect(events.map((event) => event.kind)).toEqual([
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
   ]);
