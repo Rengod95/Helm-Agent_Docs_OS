@@ -1,5 +1,7 @@
 import type { Result } from "../base/index.ts";
 import type {
+  CraftChatStarted,
+  CraftChatSummary,
   EffectId,
   EventId,
   ItemId,
@@ -106,6 +108,10 @@ export interface ThreadSummaryRow {
    * 이미지와 그 밖의 첨부 내용은 넣지 않는다(L1.persistence.spec §4.10.7). 저장 행을 바꾸지 않는 읽기 값이다
    */
   readonly preview?: string;
+  /**
+   * 테스트 대화 표지(M5c §4.8.1). 표지가 없는 대화에는 없다. `plugin`은 묶이기 전이면 null이다. 맥락 참조는 싣지 않는다
+   */
+  readonly craftChat?: CraftChatSummary;
 }
 
 export interface ItemRow {
@@ -274,6 +280,8 @@ export interface ThreadCreateInput {
   readonly workspace?: string;
   /** 만들 때 고른 프로필 id(`thread.started.profileId`). 없으면 `default`로 읽는다 (M5c §4.1.1) */
   readonly profileId?: string;
+  /** 테스트 대화 표지(`thread.started.craftChat`, M5c §4.8.1). 있으면 기본 목록에서 빠진다 */
+  readonly craftChat?: CraftChatStarted;
   /** 전역 생성 멱등 키 1~200자. 같은 키의 두 번째 호출은 새 thread를 만들지 않는다 */
   readonly creationKey?: string;
   /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */
@@ -289,6 +297,8 @@ export interface ThreadListQuery {
   readonly workspace?: string;
   /** 기본 false */
   readonly includeClosed?: boolean;
+  /** 테스트 대화(표지가 있는 대화)를 낸다. 기본 false라 빠진다 (M5c §4.8.3) */
+  readonly includeCraft?: boolean;
   /** 불투명. (updatedAt, threadId) 내림차순 위치 */
   readonly cursor?: string;
   /** 1~200, 기본 50 */
@@ -308,6 +318,20 @@ export interface BranchSummaryInput {
 
 /** F.extensions.spec §3.5 */
 export type SessionShutdownReason = "quit" | "reload" | "new" | "resume" | "fork";
+
+/**
+ * 테스트 대화 묶기(`setCraftPlugin`)의 오류. 수명 주기 오류에 두 가지를 더한다. `not_craft_chat`은 표지가 없는 대화다.
+ * `craft_plugin_bound`는 이미 다른 플러그인에 묶인 대화를 다른 이름으로 다시 묶으려 한 것이다(M5c §4.8.2)
+ */
+export type CraftPluginError =
+  | LifecycleError
+  | { readonly kind: "not_craft_chat"; readonly threadId: ThreadId }
+  | {
+      readonly kind: "craft_plugin_bound";
+      readonly threadId: ThreadId;
+      readonly bound: string;
+      readonly requested: string;
+    };
 
 export type LifecycleError =
   | StoreError
@@ -434,6 +458,15 @@ export interface ThreadLifecycle {
     profileId: string,
     requestKey: string,
   ): Result<void, LifecycleError>;
+  /**
+   * 테스트 대화를 플러그인에 한 번 묶는다(`thread.updated { craftChat: { plugin } }` 커밋, M5c §4.8.2). 표지가 없으면 `not_craft_chat`,
+   * 이미 같은 플러그인이면 아무것도 쓰지 않고 성공이다, 다른 플러그인이면 `craft_plugin_bound`다. 쓰기 소유자만 부른다
+   */
+  setCraftPlugin(
+    threadId: ThreadId,
+    plugin: string,
+    requestKey: string,
+  ): Result<void, CraftPluginError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
   prepareSwitch(from: ThreadId, to: ThreadId | null): Promise<Result<void, LifecycleError>>;
 }

@@ -263,8 +263,8 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
 |---|---|---|---|
-| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event), 생성 때 고른 프로필 id(`profileId`, 선택. 없으면 `default`) |
-| `thread.updated` | 예 | `ThreadUpdatedPayloadSchema` | 제목·상태 변경 |
+| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event), 생성 때 고른 프로필 id(`profileId`, 선택. 없으면 `default`), 테스트 대화 표지(`craftChat`, 선택: `{ plugin: string \| null, contexts: ContextRef[] }`. 표지가 있으면 `thread.list` 기본 목록에서 빠진다. [구현 상태, 2026-11-18] M5c §4.8.1, `ContextRef`의 정의는 `review/m5/profile-project-loader.md` §4.8.8 아래 F 블록이고 구현은 `contracts/src/conversation/craft-chat.ts`다) |
+| `thread.updated` | 예 | `ThreadUpdatedPayloadSchema` | 제목·상태 변경, 테스트 대화의 플러그인 묶기(`craftChat`, 선택: `{ plugin }`, 표지의 plugin이 null인 대화에 한 번. [구현 상태, 2026-11-18] M5c §4.8.2) |
 | `thread.closed` | 예 | `ThreadClosedPayloadSchema` | 종료 사유 |
 | `thread.leaf_moved` | 예 | `LeafMovedPayloadSchema` | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` |
 | `thread.compacted` | 예 | `CompactedPayloadSchema` | 비파괴 컴팩션 요약(§4.6) |

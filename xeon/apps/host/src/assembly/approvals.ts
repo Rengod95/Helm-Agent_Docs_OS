@@ -51,6 +51,8 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
     for (;;) {
       const page = session.threads.list({
         includeClosed: true,
+        // 테스트 대화의 승인도 찾아야 한다
+        includeCraft: true,
         limit: LIST_PAGE,
         ...(cursor === undefined ? {} : { cursor }),
       });
@@ -152,6 +154,7 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
     for (;;) {
       const page = session.threads.list({
         includeClosed: false,
+        includeCraft: true,
         limit: LIST_PAGE,
         ...(cursor === undefined ? {} : { cursor }),
       });

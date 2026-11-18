@@ -4,6 +4,7 @@ import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type CommitPlan,
+  type CraftPluginError,
   type LeaseService,
   type LifecycleError,
   type OpenWorkspaceDiagnostic,
@@ -139,6 +140,7 @@ export function createAdminOps(
   | "setTitle"
   | "setModel"
   | "setProfile"
+  | "setCraftPlugin"
   | "applyOpenWorkspace"
   | "sameFolder"
 > {
@@ -159,6 +161,8 @@ export function createAdminOps(
         params.push(query.workspace);
       }
       if (query.includeClosed !== true) where.push("status != 'closed'");
+      // 테스트 대화는 기본 목록에서 뺀다(M5c §4.8.3). includeCraft가 참이면 모두 낸다
+      if (query.includeCraft !== true) where.push("craft_chat = 0");
       if (cursor !== undefined) {
         where.push("(updated_at < ? OR (updated_at = ? AND thread_id < ?))");
         params.push(cursor.updatedAt, cursor.updatedAt, cursor.threadId);
@@ -384,6 +388,59 @@ export function createAdminOps(
                 causationId: null,
                 correlationId: null,
                 payload: { profileId },
+              }),
+            ],
+            checkpoint: null,
+          };
+        },
+      });
+      if (!committed.ok) return err(committed.error);
+      const result = committed.value;
+      if (result.status === "key_reused") return err({ kind: "key_reused", requestKey });
+      if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
+      return ok(undefined);
+    },
+
+    setCraftPlugin(threadId, plugin, requestKey): Result<void, CraftPluginError> {
+      const denied = ownerError(sessions, threadId);
+      if (denied !== null) return err(denied);
+      // 묶인 값을 보려고 먼저 읽는다. 이 호출은 쓰기 소유자만 하므로 읽은 뒤 커밋 사이에 다른 쓰기가 끼지 않는다
+      const read = readResult(db, (tx) => readThread(tx, threadId));
+      if (!read.ok) return err(read.error);
+      if (read.value === undefined) return err({ kind: "thread_not_found", threadId });
+      const { craftChat, status } = read.value;
+      if (craftChat === null) return err({ kind: "not_craft_chat", threadId });
+      if (status === "closed") return err({ kind: "thread_closed", threadId });
+      // 이미 묶였으면 같은 이름은 아무것도 쓰지 않고, 다른 이름은 거절한다(M5c §4.8.2)
+      if (craftChat.plugin !== null) {
+        if (craftChat.plugin === plugin) return ok(undefined);
+        return err({
+          kind: "craft_plugin_bound",
+          threadId,
+          bound: craftChat.plugin,
+          requested: plugin,
+        });
+      }
+      const committed = writer.commit({
+        threadId,
+        requestId: `craft:${commitKeyPart(requestKey, sha256Hex)}`,
+        fingerprintSource: { plugin },
+        build(view): CommitPlan {
+          if (view.threadStatus === "closed") {
+            return { kind: "reject", code: "thread_closed", detail: null };
+          }
+          return {
+            kind: "append",
+            drafts: [
+              handle.draft({
+                id: ids.next("evt"),
+                kind: "thread.updated",
+                threadId,
+                turnId: null,
+                stepId: null,
+                causationId: null,
+                correlationId: null,
+                payload: { craftChat: { plugin } },
               }),
             ],
             checkpoint: null,

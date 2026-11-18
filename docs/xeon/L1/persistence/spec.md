@@ -478,6 +478,7 @@ export interface ThreadSummaryRow {
   readonly pendingApprovals: number;
   readonly lastTurnId: TurnId | null;      // 가장 나중 seq 이벤트의 turn id(events.turn_id). turn이 없으면 null
   readonly preview?: string;               // 첫 사용자 입력의 글 앞부분. threads.list만 채운다(§4.10.7). 글이 없으면 없다
+  readonly craftChat?: { readonly plugin: string | null };  // 테스트 대화 표지(M5c §4.8.1). 표지가 없으면 생략한다. 맥락 참조는 싣지 않는다 [구현 상태, 2026-11-18]
 }
 
 export interface ProjectionQuery {
@@ -705,11 +706,13 @@ export interface ThreadCreateInput {
   readonly creationKey?: string;
   /** 자식 thread 생성(L1.agents.spec §4.1). 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */
   readonly inheritOwnerFrom?: LeaseToken;
+  readonly craftChat?: CraftChatStarted; // thread.started.craftChat(M5c §4.8.1) [구현 상태, 2026-11-18]
 }
 
 export interface ThreadListQuery {
   readonly workspace?: string;
   readonly includeClosed?: boolean;      // 기본 false
+  readonly includeCraft?: boolean;       // 기본 false. 테스트 대화(표지가 있는 대화)를 낸다(M5c §4.8.3) [구현 상태, 2026-11-18]
   readonly cursor?: string;              // 불투명. (updatedAt, threadId) 내림차순 위치
   readonly limit?: number;               // 1~200, 기본 50
 }
@@ -755,6 +758,8 @@ export interface ThreadLifecycle {
   setTitle(threadId: ThreadId, title: string | null, requestKey: string, source?: ThreadTitleSource): Result<void, LifecycleError>;
   /** thread.updated{model} 커밋. null이면 지정을 거둔다. 다음 turn부터 적용(M4 T-MODEL) */
   setModel(threadId: ThreadId, model: string | null, requestKey: string): Result<void, LifecycleError>;
+  /** thread.updated{craftChat:{plugin}} 커밋(M5c §4.8.2). 표지가 없으면 not_craft_chat, 같은 플러그인이면 쓰지 않고 성공, 다른 플러그인이면 craft_plugin_bound. 쓰기 소유자만 [구현 상태, 2026-11-18] */
+  setCraftPlugin(threadId: ThreadId, plugin: string, requestKey: string): Result<void, CraftPluginError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
   prepareSwitch(from: ThreadId, to: ThreadId | null): Promise<Result<void, LifecycleError>>;
 }
@@ -869,7 +874,7 @@ CREATE TABLE thread_creation_keys (
 
 | 테이블 | 기본 키 | 주요 열 | 갱신 kind |
 |---|---|---|---|
-| `p_threads` | `thread_id` | `title`, `title_source`, `model`, `profile_id`, `status`, `workspace`, `created_at`, `updated_at`, `first_seq`, `head_seq`, `leaf_event_id`, `forked_from_thread`, `forked_from_event`, `closed_reason`, `open_turn_id`, `running_since`, `resume_attempts` | `thread.*`, `turn.started`, `turn.completed`, `thread.resumed`, 모든 내구 이벤트(head·leaf·updated_at) |
+| `p_threads` | `thread_id` | `title`, `title_source`, `model`, `profile_id`, `status`, `workspace`, `created_at`, `updated_at`, `first_seq`, `head_seq`, `leaf_event_id`, `forked_from_thread`, `forked_from_event`, `closed_reason`, `open_turn_id`, `running_since`, `resume_attempts`, `craft_chat`, `craft_plugin`, `craft_contexts` [구현 상태, 2026-11-18: 투영 규칙 버전 10] | `thread.*`, `turn.started`, `turn.completed`, `thread.resumed`, 모든 내구 이벤트(head·leaf·updated_at) |
 | `p_items` | `item_id` | `thread_id`, `event_id`, `parent_event_id`, `seq`, `turn_id`, `step_id`, `kind`, `status`, `stop_reason`, `effect_id` | `item.recorded` |
 | `p_parts` | `part_id` | `item_id`, `idx`, `type`, `text`, `blob_sha256` | `part.recorded` |
 | `p_effects` | `effect_id` | `thread_id`, `tool_call_id`, `item_id`, `tool_name`, `replay`, `intent_seq`, `exec_count`, `last_exec_seq`, `result_seq`, `result_status`, `synthesized` | `effect.intent`, `effect.exec`, `effect.result` |
@@ -1192,6 +1197,7 @@ export interface RewindPlan {
 - `close`: `thread.closed { reason }`을 커밋한다. 커밋 키는 `thread:<id>:close`, 지문은 이유와 무관해 두 번째 호출은 처음 결과를 돌려준다(이벤트 1개). 쓰기 소유자만 부르고(`not_owner`), 열린 turn이 있으면 `turn_running`이다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 대화 프로세스 락 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
 - 제목 출처(M4 T-RT2): `thread.updated`의 선택 필드 `titleSource`(`user`, `auto`, `model`)를 `setTitle`의 넷째 인자로 받아 싣는다. 투영 `p_threads.title_source`(투영 규칙 버전 6, 다음 열기 때 core 투영을 다시 만든다)로 옮기고 `ThreadSummaryRow.titleSource`로 읽는다. 출처 없는 옛 이벤트와 출처를 안 주는 호출은 출처를 모른다(열은 null, 필드 없음). 출처가 있으면 멱등 지문에 넣는다. 호출자: 사람의 이름 바꾸기 `user`(host), 자동 제목 `auto`(`autoTitleThread`), 모델 도구 `model`(cap-artifacts).
+- 테스트 대화 표지(M5c §4.8.1~2, 투영 규칙 버전 10) [구현 상태, 2026-11-18]: `thread.started.craftChat`은 `p_threads.craft_chat`(0 또는 1), `craft_plugin`(묶인 이름이나 null), `craft_contexts`(맥락 참조의 정규 JSON, 표지가 있을 때만)로 옮긴다. `thread.updated.craftChat { plugin }`은 `craft_chat = 1`이고 `craft_plugin`이 null인 행에만 쓴다(투영도 두 번째 묶기를 무시한다). `setCraftPlugin(threadId, plugin, requestKey)`의 커밋 키는 `craft:<commitKeyPart(requestKey)>`, 지문은 `{ plugin }`이다. 표지가 없으면 `not_craft_chat`, 닫혔으면 `thread_closed`, 같은 플러그인이면 아무것도 쓰지 않고 성공, 다른 플러그인이면 값 `craft_plugin_bound { bound, requested }`다. 읽기는 `ThreadRow.craftChat`(views.ts)이고, 표지가 있는데 `craft_contexts`가 스키마와 다르면 `row_invalid`다. `ThreadSummaryRow.craftChat { plugin }`은 표지가 있을 때만 싣는다. 분기(`fork`)는 표지(플러그인과 맥락)를 이어받는다.
 - 대화별 프로필(M5c §4.1, 투영 규칙 버전 9): `thread.started`의 선택 필드 `profileId`(생성 때)와 `thread.updated`의 `profileId`(전환)를 투영 `p_threads.profile_id`로 옮기고 `ThreadRow.profileId`(views.ts)로 읽는다. 값이 없으면 `null`이고 저장소 요약에는 필드를 싣지 않는다. 호스트 wire(`thread.list`)는 `default`로 채운다(M5c §4.1.1). `setProfile(threadId, profileId, requestKey)`는 커밋 키 `profile:<commitKeyPart(requestKey)>`, 지문 `{ profileId }`로 `thread.updated { profileId }`를 쓴다. 같은 키에 다른 프로필이면 `key_reused`, 닫힌 thread는 `thread_closed`다. 프로필이 있는지는 부르는 호스트가 본다. 열린 turn 중에도 커밋할 수 있고 다음 단계 경계에서 적용된다(호스트의 E(T), X §4.5). 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 9로 올렸고 다음 열기에서 core 투영을 다시 만든다.
 - 대화별 모델(M4 T-MODEL): `thread.updated`의 선택 필드 `model`(`provider/id` 문자열, null은 지정 거둠)을 `setModel(threadId, model, requestKey)`로 싣는다. 커밋 키는 `model:<commitKeyPart(requestKey)>`, 지문은 `{ model }`이고 같은 키에 다른 모델이면 `key_reused`다. 쓰기 소유자만 부르고(`not_owner`), 닫힌 thread는 `thread_closed`다. 투영 `p_threads.model`(투영 규칙 버전 8)로 옮기고 `ThreadSummaryRow.model`로 읽는다(없으면 필드 없음 = 기본 모델). 모델 참조가 카탈로그에 있는지는 부르는 호스트가 본다. 제목 이벤트는 모델을 건드리지 않는다. 열린 turn 중에도 커밋할 수 있고 그 turn은 이미 묶인 바인딩을 쓴다.
 - `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `fresnel.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `thread.info.after`(tap, detached)를 발화한다.
@@ -1222,6 +1228,7 @@ export interface RewindPlan {
 | `thread.fork` | M2 | 새 id, 잠금 | `threads.fork` | `cancelled_by_extension`·`invalid_target` → [미결] FR-P6, 3001 |
 | `thread.revert` | M2 | 소유 확인 | `threads.revert` | `turn_running` → 3003, `not_owner` → 3002, `invalid_target` → [미결] FR-P6 |
 
+- 테스트 대화 제외 [구현 상태, 2026-11-18]: `threads.list`는 `craft_chat = 0`인 행만 낸다. `includeCraft: true`면 표지가 있는 대화도 낸다(M5c §4.8.3). 호스트 내부의 전체 읽기(프로젝트 계산 입력, 승인 찾기, 마이그레이션 훑기, 프로필 집계)는 `includeCraft: true`로 옛 동작을 유지하고, 이어서 실행 후보 훑기는 wire `include: "craft"`로 같은 범위를 쓴다. 프로젝트 소속, `sameFolder`, 선택기 기본값에서 빼는 일은 다음 층이 한다.
 - 첫 입력 미리보기 [결정: 2026-11-11 사용자]: `threads.list`는 행마다 `readFirstUserPreview`(`views.ts`)로 `preview`를 붙인다. 원천은 기존 기록뿐이다. 활성 가지 아래에서 가장 먼저 든 사용자 item(`p_items.kind = 'user'`, seq 가장 작은 것)의 `item.recorded` 글을 읽는다. 새 열이나 투영 규칙 버전 변경(`CORE_PROJECTOR_VERSION`)과 마이그레이션이 없고, 옛 기록도 같은 자리에서 읽는다. 가지가 갈린 것은 따지지 않는다(`lastTurnId`와 같다). fork한 thread는 출처에서 fork 이벤트(`forkedFrom.eventId`)의 seq 이하로 가장 먼저 든 사용자 item을 먼저 보고, 없으면 자기 것을 본다(활성 가지가 출처 기록을 앞에 잇으므로, `F.wire-settings.spec` §3.4.6 3.1). 글은 사람이 쓴 글만 본다: F 계약 `userWrittenText`(`@fresnel/contracts/conversation`)가 텍스트 블록을 잇고 첨부 태그(`<attachment …>…</attachment>`, `<attachment …/>`)를 지우고 이미지 블록 수만큼 끝쪽의 이미지 이름 줄을 뗀다(L4.desktop-ux DP-142). 글자·숫자·이모지가 하나도 없는 글(`,`)은 미리보기로 쓰지 않는다(`hasWordCharacter`). 그 뒤 공백(줄바꿈 포함)을 한 칸으로 줄여 앞뒤를 다듬고 `previewOfContent`(`src/preview.ts`)가 80 코드 포인트로 자른다. 잘리면 앞 79 코드 포인트를 두고 "…"를 붙인다(결과도 80 코드 포인트 이하). 코드 포인트 단위라 이모지를 가르지 않는다. 글이 없거나 보관된 큰 값(`detached`)이 붙은 기록이거나 payload가 현재 모양과 다르면 필드를 싣지 않는다. 미리보기 때문에 목록 읽기가 실패하지 않는다. `query.thread`와 `ProjectionQuery.thread`는 채우지 않는다(이 행은 turn 실행 경로가 매번 읽지 않는다). [미결: 보관된 큰 값이 첫 입력이면 미리보기가 없다. 되돌리려면 목록 한 줄마다 blob 읽기가 생기고, 이 질의는 트랜잭션 안의 동기 읽기라 그 자리에서 되돌리지 않았다.]
 - `ThreadSummary`(`thread.list` 원소)는 F `threadSummaryOf(row)`가 `ThreadSummaryRow`(§3.4)에서 만든다(`F.wire-settings.spec` §3.3.1, m2-plan F.6). 호스트는 `threads.list`와 `query.thread`의 행을 이 함수로만 wire로 옮기고, 시각(ms)이 Date 범위 밖이면 함수가 돌려주는 오류 값을 처리한다. 후보 표시(`marker`)가 있으면 호스트가 "이어서 실행" 후보를 알릴 수 있다(`L4.host-service.spec` HS-30).
 - 소유 잠금 오류는 `thread.locked`(3002)다. L1은 이 오류를 만들지 않는다. L1의 `ownership_lost`·`not_owner`를 호스트가 3002로 바꾼다.

@@ -9,7 +9,8 @@ import { messageOf, sequentially } from "../util.ts";
 const PAGE_LIMIT = 200;
 
 export async function autoResumeThreads(engine: Engine, logger: HostLogPort): Promise<void> {
-  const page = await engine.ports.threads.list({ limit: PAGE_LIMIT });
+  // 테스트 대화도 끊긴 turn이 있으면 이어 실행한다(`include: "craft"`)
+  const page = await engine.ports.threads.list({ limit: PAGE_LIMIT, include: "craft" });
   const candidates = page.threads.filter((thread) => thread.resumable !== null);
   await sequentially(candidates, async (thread) => {
     const { threadId } = thread;

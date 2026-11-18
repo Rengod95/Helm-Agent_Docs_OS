@@ -80,6 +80,7 @@ function threadOf(
     profileId: null,
     updatedAt: 1,
     testRun: false,
+    craftChat: false,
     ...overrides,
   };
 }

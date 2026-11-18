@@ -315,6 +315,8 @@ function openThreadProfilesOf(session: PortsDeps["session"]): readonly (string |
     const page = session.threads.list({
       ...(cursor === undefined ? {} : { cursor }),
       limit: 200,
+      // 프로필을 쓰는 대화를 셀 때는 테스트 대화도 든다(이 층은 계산을 바꾸지 않는다)
+      includeCraft: true,
     });
     for (const row of page.threads) {
       if (row.status !== "closed") profiles.push(row.profileId ?? null);
@@ -399,8 +401,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const rows: ProjectThreadRow[] = [];
     let cursor: string | undefined;
     do {
+      // 테스트 대화도 본다(includeCraft). 프로젝트 계산에서 빼는 일은 다음 층이 한다
       const page = session.threads.list({
         includeClosed: true,
+        includeCraft: true,
         limit: 200,
         ...(cursor === undefined ? {} : { cursor }),
       });
@@ -412,6 +416,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           profileId: row.profileId ?? null,
           updatedAt: row.updatedAt,
           testRun: isTestRunThread(row.threadId),
+          craftChat: row.craftChat !== undefined,
         });
       }
       cursor = page.nextCursor ?? undefined;
@@ -502,6 +507,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(workspace === undefined ? {} : { workspace }),
         ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
         ...(params.limit === undefined ? {} : { limit: params.limit }),
+        // 테스트 대화는 `include: "craft"`일 때만 낸다(M5c §4.8.3)
+        ...(params.include === "craft" ? { includeCraft: true } : {}),
       });
       const summaries: ThreadSummary[] = [];
       // 기록은 읽은 뒤에만 보인다. 읽지 못하면(저장소 실패) 출처를 모르는 것이라 싣지 않는다

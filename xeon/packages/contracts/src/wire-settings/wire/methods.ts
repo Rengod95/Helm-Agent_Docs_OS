@@ -41,6 +41,7 @@ import {
   type OsPlatform,
 } from "../../services/index.ts";
 import {
+  CraftChatSummarySchema,
   EventIdSchema,
   ImageContentSchema,
   ItemIdSchema,
@@ -473,11 +474,14 @@ export const ThreadListParamsSchema: TObject<{
   cursor: TOptional<TString>;
   limit: TOptional<TInteger>;
   workspace: TOptional<TString>;
+  include: TOptional<TLiteral<"craft">>;
 }> = Type.Object(
   {
     cursor: Type.Optional(Type.String({ minLength: 1, maxLength: SHORT })),
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
     workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    /** `"craft"`면 테스트 대화(표지가 있는 대화)도 낸다. 생략하면 뺀다(M5c §4.8.3) */
+    include: Type.Optional(Type.Literal("craft")),
   },
   { additionalProperties: false },
 );
@@ -557,6 +561,7 @@ export const ThreadSummarySchema: TObject<{
   profileId: TOptional<TString>;
   project: TOptional<TUnion<[typeof ThreadProjectRefSchema, TNull]>>;
   overlay: TOptional<TArray<typeof ThreadOverlayMarkSchema>>;
+  craftChat: TOptional<typeof CraftChatSummarySchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -600,6 +605,8 @@ export const ThreadSummarySchema: TObject<{
     project: Type.Optional(Nullable(ThreadProjectRefSchema)),
     /** 이 대화의 덧씌우기 표지 */
     overlay: Type.Optional(Type.Array(ThreadOverlayMarkSchema, { maxItems: OVERLAY_LIMIT })),
+    /** 테스트 대화 표지(M5c §4.8.1). 표지가 없는 대화이면 생략한다. `plugin`은 묶이기 전이면 null */
+    craftChat: Type.Optional(CraftChatSummarySchema),
   },
   { additionalProperties: false },
 );

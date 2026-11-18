@@ -14,6 +14,7 @@ import {
   type TUnsafe,
 } from "typebox";
 import { Nullable } from "../base/index.ts";
+import { CraftChatBindSchema, CraftChatStartedSchema } from "./craft-chat.ts";
 import {
   EventIdSchema,
   ItemIdSchema,
@@ -54,6 +55,7 @@ export const ThreadStartedPayloadSchema: TObject<{
   forkedFrom: TUnion<[TObject<{ threadId: TUnsafe<ThreadId>; eventId: TUnsafe<EventId> }>, TNull]>;
   workspace: TAddOptional<TUnion<[TString, TNull]>>;
   profileId: TAddOptional<TString>;
+  craftChat: TAddOptional<typeof CraftChatStartedSchema>;
 }> = Type.Object(
   {
     title: Nullable(Type.String({ maxLength: 200 })),
@@ -73,6 +75,11 @@ export const ThreadStartedPayloadSchema: TObject<{
      * 이 값은 시작 시점의 값이고, 이후 전환은 `thread.updated.profileId`가 쓴다.
      */
     profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /**
+     * 테스트 대화(Craft) 표지(M5c §4.8.1). 있으면 그 대화는 `thread.list`의 기본 목록에서 빠진다. 선택 필드라 `version`을 올리지 않는다.
+     * 맥락 참조(`contexts`)는 이 이벤트와 투영 행의 `craft_contexts` JSON 열에 남는다
+     */
+    craftChat: Type.Optional(CraftChatStartedSchema),
   },
   { additionalProperties: false },
 );
@@ -92,6 +99,7 @@ export const ThreadUpdatedPayloadSchema: TObject<{
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
   profileId: TAddOptional<TString>;
+  craftChat: TAddOptional<typeof CraftChatBindSchema>;
 }> = Type.Object(
   {
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
@@ -107,6 +115,10 @@ export const ThreadUpdatedPayloadSchema: TObject<{
      * 프로필 전환(`thread.setProfile`). `model`과 같은 규칙이다: 활성 가지의 마지막 값이 현재 값이다. 필드가 없으면 바꾸지 않는다 [M5c §3.2]
      */
     profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /**
+     * 테스트 대화를 플러그인에 묶는다(M5c §4.8.2). 표지의 plugin이 null인 대화에만 한 번 쓴다. 이미 묶인 대화는 같은 이름이면 그대로 두고 다른 이름이면 거절한다(투영도 덮지 않는다)
+     */
+    craftChat: Type.Optional(CraftChatBindSchema),
   },
   { additionalProperties: false },
 );

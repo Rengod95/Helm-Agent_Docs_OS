@@ -293,3 +293,83 @@ describe("item records", () => {
     expect(parse(ToolCallItemSchema, { ...item, status: "done" }).ok).toBe(false);
   });
 });
+
+/** thread.started 입력 하나. craftChat만 바꾼다 */
+function startedWith(craftChat: unknown): unknown {
+  return { title: null, forkedFrom: null, craftChat };
+}
+
+describe("craft chat marker (M5c §4.8.1~2)", () => {
+  const contextsAll = [
+    { kind: "plugin", name: "helm" },
+    { kind: "finding", findingId: "fnd_1" },
+    { kind: "turn", threadId: "thr_1", turnId: "trn_1" },
+    { kind: "call", threadId: "thr_1", turnId: "trn_1", toolCallId: "call_1" },
+    { kind: "replay", runId: "run_1" },
+    { kind: "review", itemId: "item_1" },
+    { kind: "draft", draftId: "drf_1" },
+  ];
+
+  test("thread.started takes a craftChat with a nullable plugin and every context kind", () => {
+    expect(
+      parse(ThreadStartedPayloadSchema, {
+        title: null,
+        forkedFrom: null,
+        craftChat: { plugin: null, contexts: [] },
+      }).ok,
+    ).toBe(true);
+    expect(
+      parse(ThreadStartedPayloadSchema, {
+        title: "t",
+        forkedFrom: null,
+        craftChat: { plugin: "helm", contexts: contextsAll },
+      }).ok,
+    ).toBe(true);
+  });
+
+  test("thread.started refuses a craftChat of the wrong shape", () => {
+    expect(parse(ThreadStartedPayloadSchema, startedWith({ plugin: null })).ok).toBe(false);
+    expect(parse(ThreadStartedPayloadSchema, startedWith({ contexts: [] })).ok).toBe(false);
+    expect(parse(ThreadStartedPayloadSchema, startedWith({ plugin: "", contexts: [] })).ok).toBe(
+      false,
+    );
+    expect(
+      parse(ThreadStartedPayloadSchema, startedWith({ plugin: null, contexts: [], extra: 1 })).ok,
+    ).toBe(false);
+    // 닫힌 판별 유니온이다: 모르는 종류와 추가 필드를 거절한다
+    expect(
+      parse(
+        ThreadStartedPayloadSchema,
+        startedWith({ plugin: null, contexts: [{ kind: "migration" }] }),
+      ).ok,
+    ).toBe(false);
+    expect(
+      parse(
+        ThreadStartedPayloadSchema,
+        startedWith({ plugin: null, contexts: [{ kind: "plugin", name: "helm", extra: 1 }] }),
+      ).ok,
+    ).toBe(false);
+    expect(
+      parse(
+        ThreadStartedPayloadSchema,
+        startedWith({ plugin: null, contexts: Array.from({ length: 17 }, () => contextsAll[0]) }),
+      ).ok,
+    ).toBe(false);
+    expect(
+      parse(
+        ThreadStartedPayloadSchema,
+        startedWith({ plugin: null, contexts: Array.from({ length: 16 }, () => contextsAll[0]) }),
+      ).ok,
+    ).toBe(true);
+  });
+
+  test("thread.updated binds a craftChat to a non-empty plugin name and nothing else", () => {
+    expect(parse(ThreadUpdatedPayloadSchema, { craftChat: { plugin: "helm" } }).ok).toBe(true);
+    // 묶기는 이름을 준다. null로 되돌리는 쓰기는 없다
+    expect(parse(ThreadUpdatedPayloadSchema, { craftChat: { plugin: null } }).ok).toBe(false);
+    expect(parse(ThreadUpdatedPayloadSchema, { craftChat: { plugin: "" } }).ok).toBe(false);
+    expect(
+      parse(ThreadUpdatedPayloadSchema, { craftChat: { plugin: "helm", contexts: [] } }).ok,
+    ).toBe(false);
+  });
+});

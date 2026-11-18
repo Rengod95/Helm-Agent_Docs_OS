@@ -226,6 +226,7 @@ export function threadRowsOf(
   do {
     const page = session.threads.list({
       includeClosed: true,
+      includeCraft: true,
       limit: 200,
       ...(cursor === undefined ? {} : { cursor }),
     });

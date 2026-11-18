@@ -8,6 +8,7 @@ export * from "./parts.ts";
 export * from "./display-mask.ts";
 export * from "./display-mask-apply.ts";
 export * from "./hierarchy.ts";
+export * from "./craft-chat.ts";
 export * from "./lifecycle.ts";
 export * from "./tool-result.ts";
 export { toJsonValue } from "./json-value.ts";

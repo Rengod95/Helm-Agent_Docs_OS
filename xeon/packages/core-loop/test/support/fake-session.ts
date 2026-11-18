@@ -770,6 +770,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       setTitle: () => notImplemented("threads.setTitle"),
       setModel: () => notImplemented("threads.setModel"),
       setProfile: () => notImplemented("threads.setProfile"),
+      setCraftPlugin: () => notImplemented("threads.setCraftPlugin"),
       prepareSwitch: () => notImplemented("threads.prepareSwitch"),
       openSettled: () => Promise.resolve(undefined),
       applyOpenWorkspace: () => notImplemented("threads.applyOpenWorkspace"),

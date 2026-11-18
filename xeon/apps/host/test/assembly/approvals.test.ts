@@ -202,7 +202,8 @@ test("listAll returns the open threads' unresolved approvals by seq, reads the h
   expect(listed.position).toEqual({ storeId: FAKE_STORE_ID, seq: 20 });
   expect(calls.headReads).toBe(1);
   // 닫힌 thread(C)는 목록 질의에서 빠지고, 승인이 없는 thread(D)는 투영을 읽지 않는다
-  expect(calls.lists).toEqual([{ includeClosed: false, limit: 200 }]);
+  // 승인 목록은 테스트 대화의 승인도 찾는다(includeCraft)
+  expect(calls.lists).toEqual([{ includeClosed: false, includeCraft: true, limit: 200 }]);
   expect(calls.pendingFor).toEqual([A, B]);
 });
 
@@ -221,8 +222,8 @@ test("listAll walks every page of the open thread list", async () => {
   const listed = valueOf(await port.listAll());
   expect(listed.approvals.map((approval) => approval.approvalId)).toEqual([requested]);
   expect(calls.lists).toEqual([
-    { includeClosed: false, limit: 200 },
-    { includeClosed: false, limit: 200, cursor: "200" },
+    { includeClosed: false, includeCraft: true, limit: 200 },
+    { includeClosed: false, includeCraft: true, limit: 200, cursor: "200" },
   ]);
 });
 

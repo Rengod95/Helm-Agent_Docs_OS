@@ -1,9 +1,11 @@
-import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
+  CraftContextsSchema,
   ReplayPolicySchema,
   ThreadStatusSchema,
   ThreadTitleSourceSchema,
   TurnStatusSchema,
+  type ContextRef,
   type EventId,
   type ThreadId,
   type ThreadStatus,
@@ -243,12 +245,18 @@ export interface ThreadRow {
   readonly openTurnId: TurnId | null;
   readonly runningSince: number | null;
   readonly resumeAttempts: number;
+  /** 테스트 대화 표지(M5c §4.8.1). 표지가 없으면 null. plugin은 묶이기 전이면 null */
+  readonly craftChat: {
+    readonly plugin: string | null;
+    readonly contexts: readonly ContextRef[];
+  } | null;
 }
 
 export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | undefined, RowFault> {
   const row = tx.get(
     `SELECT thread_id, title, title_source, model, profile_id, status, workspace, created_at, updated_at, head_seq, leaf_event_id,
-       forked_from_thread, forked_from_event, open_turn_id, running_since, resume_attempts
+       forked_from_thread, forked_from_event, open_turn_id, running_since, resume_attempts,
+       craft_chat, craft_plugin, craft_contexts
      FROM p_threads WHERE thread_id = ?`,
     [threadId],
   );
@@ -296,6 +304,14 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
   if (!runningSince.ok) return runningSince;
   const resumeAttempts = c.int("resume_attempts");
   if (!resumeAttempts.ok) return resumeAttempts;
+  const craftFlag = c.bool("craft_chat");
+  if (!craftFlag.ok) return craftFlag;
+  const craftPlugin = c.nullableString("craft_plugin");
+  if (!craftPlugin.ok) return craftPlugin;
+  const craftContexts = c.nullableString("craft_contexts");
+  if (!craftContexts.ok) return craftContexts;
+  const craftChat = craftChatOf(craftFlag.value, craftPlugin.value, craftContexts.value);
+  if (!craftChat.ok) return craftChat;
   return ok({
     threadId: id.value,
     title: title.value,
@@ -315,7 +331,25 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
     openTurnId: openTurn.value,
     runningSince: runningSince.value,
     resumeAttempts: resumeAttempts.value,
+    craftChat: craftChat.value,
   });
+}
+
+/**
+ * 표지 열 세 개를 한 값으로 읽는다. 표지가 없으면 null이다. 표지가 있는데 맥락 JSON이 없거나 모양이 다르면 행이 깨진 것이다
+ */
+function craftChatOf(
+  flag: boolean,
+  plugin: string | null,
+  contextsText: string | null,
+): Result<ThreadRow["craftChat"], RowFault> {
+  if (!flag) return ok(null);
+  if (contextsText === null) return err(rowInvalid("p_threads.craft_contexts"));
+  const json = parseJson(contextsText);
+  if (!json.ok) return err(rowInvalid("p_threads.craft_contexts"));
+  const contexts = parse(CraftContextsSchema, json.value);
+  if (!contexts.ok) return err(rowInvalid("p_threads.craft_contexts"));
+  return ok({ plugin, contexts: contexts.value });
 }
 
 /** 복구 표식: 열린 turn의 시작 시각과 재개 시도 수. 열린 turn이 없으면 null(adr.0006 §3.6 5번) */
@@ -400,6 +434,7 @@ export function readThreadSummary(
     ...(thread.titleSource === null ? {} : { titleSource: thread.titleSource }),
     ...(thread.model === null ? {} : { model: thread.model }),
     ...(thread.profileId === null ? {} : { profileId: thread.profileId }),
+    ...(thread.craftChat === null ? {} : { craftChat: { plugin: thread.craftChat.plugin } }),
     status: thread.status,
     workspace: thread.workspace,
     createdAt: thread.createdAt,

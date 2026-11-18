@@ -4,6 +4,7 @@ import { EventIdSchema, ThreadIdSchema, TurnIdSchema } from "../../src/conversat
 import type { ThreadSummaryRow } from "../../src/records/index.ts";
 import {
   WIRE_METHODS,
+  ThreadListParamsSchema,
   ThreadSummarySchema,
   threadSummaryOf,
 } from "../../src/wire-settings/wire/index.ts";
@@ -165,5 +166,37 @@ describe("threadSummaryOf", () => {
       ok: false,
       error: { kind: "invalid_time", field: "resumable.runningSince" },
     });
+  });
+});
+
+describe("craftChat on the wire (M5c §4.8.1, §4.8.3)", () => {
+  test("threadSummaryOf carries the marker, also before the chat is bound, and omits it otherwise", () => {
+    const unbound = threadSummaryOf(row({ craftChat: { plugin: null } }));
+    expect(unbound.ok).toBe(true);
+    if (!unbound.ok) return;
+    expect(unbound.value.craftChat).toEqual({ plugin: null });
+    expect(parse(ThreadSummarySchema, unbound.value).ok).toBe(true);
+
+    const bound = threadSummaryOf(row({ craftChat: { plugin: "helm" } }));
+    expect(bound.ok && bound.value.craftChat).toEqual({ plugin: "helm" });
+
+    const plain = threadSummaryOf(row());
+    expect(plain.ok && Object.hasOwn(plain.value, "craftChat")).toBe(false);
+  });
+
+  test("the wire summary refuses a marker with extra keys", () => {
+    const base = threadSummaryOf(row({ craftChat: { plugin: "helm" } }));
+    expect(base.ok).toBe(true);
+    if (!base.ok) return;
+    expect(
+      parse(ThreadSummarySchema, { ...base.value, craftChat: { plugin: "helm", contexts: [] } }).ok,
+    ).toBe(false);
+  });
+
+  test("thread.list takes include: craft and nothing else", () => {
+    expect(parse(ThreadListParamsSchema, {}).ok).toBe(true);
+    expect(parse(ThreadListParamsSchema, { include: "craft" }).ok).toBe(true);
+    expect(parse(ThreadListParamsSchema, { include: "all" }).ok).toBe(false);
+    expect(parse(ThreadListParamsSchema, { include: "craft", extra: 1 }).ok).toBe(false);
   });
 });

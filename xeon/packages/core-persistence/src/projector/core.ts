@@ -41,7 +41,7 @@ import {
 } from "@fresnel/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 9;
+export const CORE_PROJECTOR_VERSION = 10;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -74,7 +74,10 @@ const CORE_PROJECTOR_DDL: readonly string[] = [
   closed_reason      TEXT,
   open_turn_id       TEXT,
   running_since      INTEGER,
-  resume_attempts    INTEGER NOT NULL DEFAULT 0
+  resume_attempts    INTEGER NOT NULL DEFAULT 0,
+  craft_chat         INTEGER NOT NULL DEFAULT 0 CHECK (craft_chat IN (0, 1)),
+  craft_plugin       TEXT,
+  craft_contexts     TEXT
 ) STRICT`,
   `CREATE TABLE p_items (
   item_id         TEXT PRIMARY KEY,
@@ -222,10 +225,13 @@ function sourceKeyOf(source: InputQueuedPayload["source"]): string {
 
 function reduceThreadStarted(tx: ProjectionTx, event: DurableEventEnvelope): void {
   const payload = expectPayload(parse(ThreadStartedPayloadSchema, event.payload), event);
+  // 테스트 대화 표지(M5c §4.8.1): 표지가 있으면 craft_chat = 1, 묶인 플러그인과 맥락 참조(JSON)를 싣는다
+  const craft = payload.craftChat;
   tx.run(
     `INSERT INTO p_threads (thread_id, title, status, workspace, profile_id, created_at, updated_at, first_seq, head_seq,
-       leaf_event_id, forked_from_thread, forked_from_event, closed_reason, open_turn_id, running_since, resume_attempts)
-     VALUES (?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)`,
+       leaf_event_id, forked_from_thread, forked_from_event, closed_reason, open_turn_id, running_since, resume_attempts,
+       craft_chat, craft_plugin, craft_contexts)
+     VALUES (?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?, ?, ?)`,
     [
       event.threadId,
       payload.title,
@@ -238,6 +244,9 @@ function reduceThreadStarted(tx: ProjectionTx, event: DurableEventEnvelope): voi
       event.id,
       payload.forkedFrom?.threadId ?? null,
       payload.forkedFrom?.eventId ?? null,
+      craft === undefined ? 0 : 1,
+      craft?.plugin ?? null,
+      craft === undefined ? null : canonicalJson(craft.contexts),
     ],
   );
 }
@@ -293,6 +302,13 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
           payload.workspace,
           event.threadId,
         ]);
+      }
+      // 테스트 대화의 플러그인 묶기(M5c §4.8.2). 표지가 있고 아직 묶이지 않은 대화에만 쓴다: 두 번째 묶기는 투영에서도 무시된다
+      if (payload.craftChat !== undefined) {
+        tx.run(
+          "UPDATE p_threads SET craft_plugin = ? WHERE thread_id = ? AND craft_chat = 1 AND craft_plugin IS NULL",
+          [payload.craftChat.plugin, event.threadId],
+        );
       }
     },
   ],

@@ -64,6 +64,8 @@ export interface ProjectThreadRow {
   readonly profileId: string | null;
   readonly updatedAt: number;
   readonly testRun: boolean;
+  /** 테스트 대화 표지가 있는가(M5c §4.8.1). 이 층은 이 값으로 계산을 바꾸지 않는다 */
+  readonly craftChat: boolean;
 }
 
 export interface ProjectPortDeps {

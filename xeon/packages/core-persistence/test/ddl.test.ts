@@ -30,6 +30,9 @@ const PROJECTION_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "open_turn_id",
     "running_since",
     "resume_attempts",
+    "craft_chat",
+    "craft_plugin",
+    "craft_contexts",
   ],
   p_items: [
     "item_id",

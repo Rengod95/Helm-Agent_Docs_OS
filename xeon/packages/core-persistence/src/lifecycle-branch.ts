@@ -450,6 +450,15 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
           ...(thread.workspace === null ? {} : { workspace: thread.workspace }),
           // 분기한 대화는 출처가 참조하던 프로필을 이어받는다(workspace와 같다). 없으면 default로 읽는다
           ...(thread.profileId === null ? {} : { profileId: thread.profileId }),
+          // 테스트 대화의 분기도 표지를 이어받는다(M5c §4.8.1). 묶이지 않은 표지는 plugin null로 이어진다
+          ...(thread.craftChat === null
+            ? {}
+            : {
+                craftChat: {
+                  plugin: thread.craftChat.plugin,
+                  contexts: [...thread.craftChat.contexts],
+                },
+              }),
         },
         { threadId, eventId },
       );

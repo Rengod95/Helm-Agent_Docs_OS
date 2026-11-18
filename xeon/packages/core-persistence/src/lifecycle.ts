@@ -142,6 +142,8 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
             creationKey: creationKey ?? null,
             ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
             ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+            // 테스트 대화 표지도 있을 때만 지문에 넣는다(M5c §4.8.1). 표지가 없던 같은 키 재시도가 key_reused가 되지 않게 한다
+            ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
             ...(forkedFrom === undefined ? {} : { forkedFrom: forkedFrom.eventId }),
           },
           build(view): CommitPlan {
@@ -167,6 +169,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
                     forkedFrom: forkedFrom ?? null,
                     ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
                     ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+                    ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
                   },
                 }),
               ],

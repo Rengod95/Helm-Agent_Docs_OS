@@ -50,5 +50,6 @@ export function threadSummaryOf(row: ThreadSummaryRow): Result<ThreadSummary, Th
     ...(row.model === undefined ? {} : { model: row.model }),
     ...(row.profileId === undefined ? {} : { profileId: row.profileId }),
     ...(row.preview === undefined ? {} : { preview: row.preview }),
+    ...(row.craftChat === undefined ? {} : { craftChat: { plugin: row.craftChat.plugin } }),
   });
 }

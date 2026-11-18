@@ -398,6 +398,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           profileId: chosenProfiles.get(threadId) ?? null,
           updatedAt: activity.get(threadId) ?? 0,
           testRun: testRuns.has(threadId),
+          craftChat: false,
         }))
         // 최근순(마지막 활동이 큰 것이 먼저)이다. 대화 목록의 정렬과 같다
         .toSorted((left, right) => right.updatedAt - left.updatedAt),
