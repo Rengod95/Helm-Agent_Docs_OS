@@ -4,15 +4,15 @@ import { join } from "node:path";
 import { err, ok, parseJson, type Logger, type Result } from "@fresnel/contracts";
 import { pluginFactOf, type PluginFact } from "../../../src/assembly/m4/plugin-fact.ts";
 import {
-  addMigratedSkillsToDefault,
+  addMigratedSkillsToCommon,
   createPluginStore,
   reviewStartupPlugins,
   type PluginStore,
 } from "../../../src/assembly/plugins/index.ts";
 import { passThroughFileLock, removeTree, tempRoot, writeFiles } from "./support.ts";
 
-// M5c §7.5 [제안]: 느슨한 스킬 폴더에서 옮긴 플러그인은 기본 프로필에 한 번 들어간다. 옮김 기록(`migration.log`)의 `loose_skill_profile` 줄이
-// 그 한 번을 지킨다. 사용자가 기본 프로필에서 뺀 뒤 다음 시작에는 다시 넣지 않는다.
+// M5c §7.5, 사용자 결정 2026-11-18(AGE-41): 느슨한 스킬 폴더에서 옮긴 플러그인은 공통 묶음(모든 프로필에 드는 묶음)에 한 번 들어간다.
+// 옮김 기록(`migration.log`)의 `loose_skill_profile` 줄이 그 한 번을 지킨다. 사용자가 공통 묶음에서 뺀 뒤 다음 시작에는 다시 넣지 않는다.
 
 const roots: string[] = [];
 afterEach(() => {
@@ -77,8 +77,8 @@ function factOf(name: string): PluginFact {
   );
 }
 
-/** 기본 프로필을 흉내 낸다: 저장된 플러그인 목록과 넣기 호출 기록 */
-function defaultProfile(initial: readonly string[]) {
+/** 공통 묶음을 흉내 낸다: 플러그인 이름 목록과 넣기 호출 기록 */
+function commonSet(initial: readonly string[]) {
   const state: { names: string[]; added: string[]; failNext: boolean } = {
     names: [...initial],
     added: [],
@@ -86,12 +86,12 @@ function defaultProfile(initial: readonly string[]) {
   };
   return {
     state,
-    defaultNames: (): Promise<Result<readonly string[], { readonly kind: string }>> =>
+    commonNames: (): Promise<Result<readonly string[], { readonly kind: string }>> =>
       Promise.resolve(ok([...state.names])),
-    addToDefault: (fact: PluginFact): Promise<Result<unknown, { readonly kind: string }>> => {
+    addToCommon: (fact: PluginFact): Promise<Result<unknown, { readonly kind: string }>> => {
       if (state.failNext) {
         state.failNext = false;
-        return Promise.resolve(err({ kind: "profile_invalid" }));
+        return Promise.resolve(err({ kind: "plugin_invalid" }));
       }
       state.added.push(fact.name);
       state.names.push(fact.name);
@@ -130,23 +130,23 @@ function migratedHashOf(path: string): unknown {
     : null;
 }
 
-test("a migrated loose skill joins the stored default profile once, and a second start adds nothing", async () => {
+test("a migrated loose skill joins the common set once, and a second start adds nothing", async () => {
   const rig = rigOf();
   writeSkill(rig);
   await migrateSkill(rig);
-  const profile = defaultProfile(["helm"]);
+  const common = commonSet(["helm"]);
   const deps = {
     logPath: rig.logPath,
     logger: SILENT,
     now: () => NOW,
-    defaultNames: profile.defaultNames,
+    commonNames: common.commonNames,
     factOf,
-    addToDefault: profile.addToDefault,
+    addToCommon: common.addToCommon,
   };
 
-  expect(await addMigratedSkillsToDefault(deps)).toEqual([SKILL]);
-  expect(profile.state.added).toEqual([SKILL]);
-  expect(profile.state.names).toEqual(["helm", SKILL]);
+  expect(await addMigratedSkillsToCommon(deps)).toEqual([SKILL]);
+  expect(common.state.added).toEqual([SKILL]);
+  expect(common.state.names).toEqual(["helm", SKILL]);
   // 이 단계의 줄은 옮김 기록의 내용 해시를 그대로 싣는다
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill", "loose_skill_profile"]);
   expect(logLinesOf(rig.logPath)[1]).toEqual({
@@ -158,50 +158,50 @@ test("a migrated loose skill joins the stored default profile once, and a second
     reason: null,
   });
 
-  expect(await addMigratedSkillsToDefault(deps)).toEqual([]);
-  expect(profile.state.added).toEqual([SKILL]);
+  expect(await addMigratedSkillsToCommon(deps)).toEqual([]);
+  expect(common.state.added).toEqual([SKILL]);
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill", "loose_skill_profile"]);
 });
 
-test("a skill the user removed from the default profile after the first add is not added again", async () => {
+test("a skill the user removed from the common set after the first add is not added again", async () => {
   const rig = rigOf();
   writeSkill(rig);
   await migrateSkill(rig);
-  const profile = defaultProfile(["helm"]);
+  const common = commonSet(["helm"]);
   const deps = {
     logPath: rig.logPath,
     logger: SILENT,
     now: () => NOW,
-    defaultNames: profile.defaultNames,
+    commonNames: common.commonNames,
     factOf,
-    addToDefault: profile.addToDefault,
+    addToCommon: common.addToCommon,
   };
-  await addMigratedSkillsToDefault(deps);
-  profile.state.names = profile.state.names.filter((name) => name !== SKILL);
+  await addMigratedSkillsToCommon(deps);
+  common.state.names = common.state.names.filter((name) => name !== SKILL);
 
-  expect(await addMigratedSkillsToDefault(deps)).toEqual([]);
-  expect(profile.state.added).toEqual([SKILL]);
-  expect(profile.state.names).toEqual(["helm"]);
+  expect(await addMigratedSkillsToCommon(deps)).toEqual([]);
+  expect(common.state.added).toEqual([SKILL]);
+  expect(common.state.names).toEqual(["helm"]);
 });
 
-test("a skill the default profile already has is recorded without a write", async () => {
+test("a skill the common set already has is recorded without a write", async () => {
   const rig = rigOf();
   writeSkill(rig);
   await migrateSkill(rig);
-  // 저장하지 않은 기본 프로필은 공장 값이라 매니페스트 기본이 켜진 이 플러그인을 이미 든다
-  const profile = defaultProfile(["helm", SKILL]);
+  // 공통 묶음에 이미 든 이름이다. 넣지 않고 줄만 적는다
+  const common = commonSet(["helm", SKILL]);
 
   expect(
-    await addMigratedSkillsToDefault({
+    await addMigratedSkillsToCommon({
       logPath: rig.logPath,
       logger: SILENT,
       now: () => NOW,
-      defaultNames: profile.defaultNames,
+      commonNames: common.commonNames,
       factOf,
-      addToDefault: profile.addToDefault,
+      addToCommon: common.addToCommon,
     }),
   ).toEqual([SKILL]);
-  expect(profile.state.added).toEqual([]);
+  expect(common.state.added).toEqual([]);
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill", "loose_skill_profile"]);
 });
 
@@ -209,41 +209,41 @@ test("a failed write and a plugin the loader has not loaded yet are not recorded
   const rig = rigOf();
   writeSkill(rig);
   await migrateSkill(rig);
-  const profile = defaultProfile(["helm"]);
-  profile.state.failNext = true;
+  const common = commonSet(["helm"]);
+  common.state.failNext = true;
   const deps = {
     logPath: rig.logPath,
     logger: SILENT,
     now: () => NOW,
-    defaultNames: profile.defaultNames,
+    commonNames: common.commonNames,
     factOf,
-    addToDefault: profile.addToDefault,
+    addToCommon: common.addToCommon,
   };
 
-  expect(await addMigratedSkillsToDefault(deps)).toEqual([]);
+  expect(await addMigratedSkillsToCommon(deps)).toEqual([]);
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill"]);
-  expect(await addMigratedSkillsToDefault({ ...deps, factOf: () => undefined })).toEqual([]);
+  expect(await addMigratedSkillsToCommon({ ...deps, factOf: () => undefined })).toEqual([]);
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill"]);
 
-  expect(await addMigratedSkillsToDefault(deps)).toEqual([SKILL]);
-  expect(profile.state.names).toEqual(["helm", SKILL]);
+  expect(await addMigratedSkillsToCommon(deps)).toEqual([SKILL]);
+  expect(common.state.names).toEqual(["helm", SKILL]);
   expect(stepsOf(rig.logPath)).toEqual(["loose_skill", "loose_skill_profile"]);
 });
 
 test("with no migration log nothing is added and no line is written", async () => {
   const rig = rigOf();
-  const profile = defaultProfile(["helm"]);
+  const common = commonSet(["helm"]);
 
   expect(
-    await addMigratedSkillsToDefault({
+    await addMigratedSkillsToCommon({
       logPath: rig.logPath,
       logger: SILENT,
       now: () => NOW,
-      defaultNames: profile.defaultNames,
+      commonNames: common.commonNames,
       factOf,
-      addToDefault: profile.addToDefault,
+      addToCommon: common.addToCommon,
     }),
   ).toEqual([]);
-  expect(profile.state.added).toEqual([]);
+  expect(common.state.added).toEqual([]);
   expect(existsSync(rig.logPath)).toBe(false);
 });

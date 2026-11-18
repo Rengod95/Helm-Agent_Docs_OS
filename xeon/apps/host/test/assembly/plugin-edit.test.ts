@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { CommonSet, Profile, ProfileIssue } from "@fresnel/contracts/wire";
-import { planPluginEdit, type PluginEditRequest } from "../../src/assembly/m4/plugin-edit.ts";
+import {
+  COMMON_ID,
+  planPluginEdit,
+  type PluginEditRequest,
+} from "../../src/assembly/m4/plugin-edit.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import type { ProfileBody } from "../../src/assembly/m4/profile-validate.ts";
 
@@ -173,6 +177,54 @@ test("a factory default profile that is not stored yet is returned as a changed 
     ok({
       changed: [{ ...profileOf("default", ["helm", "kit"], { rev: 1 }), updatedAt: NOW }],
       common: null,
+    }),
+  );
+});
+
+test("add to the common id appends the plugin to the common set, bumps its revision, and changes no profile", () => {
+  const profiles = [profileOf("p1", ["helm"])];
+  expect(planOf({ kind: "add", plugin: FACT, profileIds: [COMMON_ID] }, profiles)).toEqual(
+    ok({
+      changed: [],
+      common: {
+        plugins: [{ name: "helm" }, { name: "kit" }],
+        settings: [],
+        updatedAt: NOW,
+        rev: 2,
+      },
+    }),
+  );
+});
+
+test("add to the common id when the common set already lists the plugin changes nothing", () => {
+  const common: CommonSet = { ...COMMON, plugins: [{ name: "kit" }] };
+  expect(
+    planOf({ kind: "add", plugin: FACT, profileIds: [COMMON_ID] }, [], driverCheck, common),
+  ).toEqual(ok({ changed: [], common: null }));
+});
+
+test("add to a profile and the common id at once changes both", () => {
+  const profiles = [profileOf("p1", ["helm"])];
+  expect(planOf({ kind: "add", plugin: FACT, profileIds: ["p1", COMMON_ID] }, profiles)).toEqual(
+    ok({
+      changed: [{ ...profileOf("p1", ["helm", "kit"], { rev: 2 }), updatedAt: NOW }],
+      common: {
+        plugins: [{ name: "helm" }, { name: "kit" }],
+        settings: [],
+        updatedAt: NOW,
+        rev: 2,
+      },
+    }),
+  );
+});
+
+test("an add to the common id that fails the common check is refused and names the common set, writing nothing", () => {
+  expect(planOf({ kind: "add", plugin: FACT, profileIds: [COMMON_ID] }, [], alwaysFails)).toEqual(
+    err({
+      kind: "plugin_invalid",
+      issues: [
+        { profile: "common", code: "plugin_not_reviewed", severity: "error", plugin: "kit" },
+      ],
     }),
   );
 });

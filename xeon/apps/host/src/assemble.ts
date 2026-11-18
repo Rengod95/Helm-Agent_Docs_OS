@@ -162,7 +162,7 @@ import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
-  addMigratedSkillsToDefault,
+  addMigratedSkillsToCommon,
   createMaterialPort,
   createPluginStore,
   createReviewedSource,
@@ -179,7 +179,7 @@ import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts
 import { runFirstStartMigration, threadRowsOf } from "./assembly/m4/first-start-migration.ts";
 import { coreNamesOf, factoryPluginsOf } from "./assembly/m4/index.ts";
 import { pluginFactOf } from "./assembly/m4/plugin-fact.ts";
-import { DEFAULT_PROFILE_ID } from "./assembly/m4/profile-defaults.ts";
+import { COMMON_ID } from "./assembly/m4/plugin-edit.ts";
 import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
@@ -1662,25 +1662,25 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       refreshUserSettings: () => enginePorts.settings.refreshUserFile(),
     });
     for (const failure of firstStart.failures) logger.warn("migration.failed", { failure });
-    // 느슨한 스킬 폴더에서 옮긴 플러그인을 기본 프로필에 넣는다(M5c §7.5 [제안]). 로더가 실은 뒤에 한 번만 한다
-    await addMigratedSkillsToDefault({
+    // 느슨한 스킬 폴더에서 옮긴 플러그인을 공통 묶음에 넣는다(M5c §7.5, 사용자 결정 2026-11-18 AGE-41). 저장된 기본 프로필은 바꾸지 않는다. 로더가 실은 뒤에 한 번만 한다
+    await addMigratedSkillsToCommon({
       logPath: join(os.dirs.state, "migration.log"),
       logger: os.logger("plugin-store"),
       now: () => new Date(clock.now()).toISOString(),
-      defaultNames: async () => {
-        const found = await enginePorts.m4.profileTestRun.get(DEFAULT_PROFILE_ID);
+      commonNames: async () => {
+        const found = await enginePorts.m4.profileTestRun.commonGet();
         if (!found.ok) return err(found.error);
-        return ok(found.value.plugins.map((ref) => ref.name));
+        return ok(found.value.common.plugins.map((ref) => ref.name));
       },
       factOf: (name) => {
         const record = extensionRecords().find((item) => item.manifest.name === name);
         return record === undefined ? undefined : pluginFactOf(record.manifest, record.location);
       },
-      addToDefault: (fact) =>
+      addToCommon: (fact) =>
         enginePorts.m4.profileTestRun.applyPluginEdit({
           kind: "add",
           plugin: fact,
-          profileIds: [DEFAULT_PROFILE_ID],
+          profileIds: [COMMON_ID],
         }),
     });
     // 시작 때 원본 폴더를 한 번 훑는다. 바뀐 원본은 검토 항목이 된다(M5c §4.5.7). 실패는 로그에만 남긴다

@@ -4,7 +4,8 @@ import type { PluginFact } from "./plugin-fact.ts";
 import type { ProfileBody } from "./profile-validate.ts";
 
 // 승인의 프로필 반영 계산(M5c §4.7.3). 순수 함수다: 저장 상태를 받아 바뀔 프로필과 오류만 돌려준다. 쓰기는 호출자가 한다.
-// `add`는 대상 프로필 맨 뒤에 넣는다(이미 있으면 그대로). `remove`는 이름이 든 모든 프로필과 공통 묶음에서 그 이름과 그 플러그인의
+// `add`는 대상 프로필 맨 뒤에 넣는다(이미 있으면 그대로). `profileIds`에 `COMMON_ID`가 있으면 공통 묶음 맨 뒤에 넣는다(이미 있으면 그대로).
+// `remove`는 이름이 든 모든 프로필과 공통 묶음에서 그 이름과 그 플러그인의
 // 설정, 시작 Drive를 뺀다(`profile.removePlugin`과 같은 규칙). `keep`(수정 승인)은 목록을 고치지 않고, 이름이 든 프로필을 새 사실로 검사만 한다.
 // 검사는 바뀌거나 이름이 든 모든 대상 프로필과 공통 묶음에 `validateProfile`을 거친다. 오류가 하나라도 있으면 호출자는 아무것도 쓰지 않는다.
 
@@ -14,7 +15,7 @@ export type PluginEditRequest =
       readonly kind: "add";
       /** 승인하는 플러그인의 사실(검토본이 있는 것으로 본다) */
       readonly plugin: PluginFact;
-      /** 넣을 프로필 id. 비었으면 넣지 않는다(보관만) */
+      /** 넣을 프로필 id. 비었으면 넣지 않는다(보관만). `COMMON_ID`면 공통 묶음에 넣는다 */
       readonly profileIds: readonly string[];
     }
   | { readonly kind: "keep"; readonly plugin: PluginFact }
@@ -102,6 +103,19 @@ export function planPluginEdit(input: {
 
   if (request.kind === "add") {
     for (const id of new Set(request.profileIds)) {
+      // 공통 묶음에 넣기: 모든 대화에 얹힌다. 이미 든 이름이면 아무것도 바꾸지 않는다
+      if (id === COMMON_ID) {
+        if (!inCommon) {
+          common = {
+            ...input.common,
+            plugins: [...input.common.plugins, { name }],
+            updatedAt: input.updatedAt,
+            rev: input.common.rev + 1,
+          };
+          commonChanged = true;
+        }
+        continue;
+      }
       const profile = input.profiles.find((item) => item.id === id);
       if (profile === undefined) {
         issues.push({ profile: id, code: "profile_not_found", severity: "error" });
