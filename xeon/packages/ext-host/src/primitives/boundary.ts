@@ -121,10 +121,21 @@ function commitIdleTxn(
   drafts: readonly DurableEventDraft[],
 ): Promise<ExtCommitResult> {
   const plan = commitPlanOf(core, txn);
+  // 장부 변화가 없는 유휴 경계(예: 덧씌우기 표지만 바뀐 `profile.applied`)는 키 부품이 비어 모든 그런 경계가 같은 키를 받는다.
+  // 두 번째부터는 재생으로 응답돼 기록이 버려진다. 그때는 경계마다 새로 만든 초안 id로 키를 정한다. 같은 경계를 다시 쓰면 같은 id다
+  if (plan.fingerprintSource.length > 0) {
+    return port.commit({
+      threadId: thread.threadId,
+      requestId: plan.requestId,
+      fingerprintSource: plan.fingerprintSource,
+      drafts,
+    });
+  }
+  const ids = drafts.map((draft) => draft.id);
   return port.commit({
     threadId: thread.threadId,
-    requestId: plan.requestId,
-    fingerprintSource: plan.fingerprintSource,
+    requestId: `xb:draft:${createHash("sha256").update(ids.join(",")).digest("hex").slice(0, 24)}`,
+    fingerprintSource: ids,
     drafts,
   });
 }

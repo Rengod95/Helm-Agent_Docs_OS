@@ -14,11 +14,13 @@ interface PluginSetState {
   /** 실행 중인 검토본의 해시. 없으면 E(T)에 `pluginHashes`를 싣지 않는다 */
   hashes?: readonly { readonly plugin: string; readonly contentHash: string }[];
   /** 대화의 턴 덧씌우기(M5c §4.3). 없으면 E(T)에 `overlay`를 싣지 않는다 */
-  overlay?: readonly {
-    readonly plugin: string;
-    readonly contentHash: string;
-    readonly until: "turn";
-  }[];
+  overlay?:
+    | readonly {
+        readonly plugin: string;
+        readonly contentHash: string;
+        readonly until: "turn" | "release";
+      }[]
+    | undefined;
 }
 
 async function providePluginSet(t: TestHost, state: PluginSetState): Promise<void> {
@@ -284,4 +286,31 @@ test("a non-root declaration with defaultEnabled false starts disabled and runs 
     ["pset-multi", "enabled"],
     ["pset-multi/idle", "enabled"],
   ]);
+});
+
+const OVERLAY_HASH = "sha256:" + "f".repeat(64);
+
+test("두 번째 유휴 적용이 장부 변화 없이 덧씌우기 표지만 바꿔도 기록이 재생으로 버려지지 않는다", async () => {
+  // 장부 변화가 없는 `profile.applied`는 키 부품이 비어 같은 키가 된다. 그러면 둘째 기록이 재생으로 응답돼 사라진다
+  const t = await createTestHost();
+  const state: PluginSetState = { plugins: [] };
+  await providePluginSet(t, state);
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  const applied = (): readonly { readonly kind: string; readonly payload: unknown }[] =>
+    t.records.events(thread).filter((draft) => draft.kind === "profile.applied");
+  const before = applied().length;
+
+  const toggles = registrationToggleSourceOf(t.host);
+  state.overlay = [{ plugin: "helper", contentHash: OVERLAY_HASH, until: "turn" }];
+  await toggles.applyNow(thread);
+  state.overlay = undefined;
+  await toggles.applyNow(thread);
+
+  expect(applied()).toHaveLength(before + 2);
+  expect(applied().at(-1)?.payload).toMatchObject({
+    reason: "overlay_off",
+    overlay: [{ plugin: "helper", contentHash: OVERLAY_HASH, until: "turn" }],
+  });
 });
