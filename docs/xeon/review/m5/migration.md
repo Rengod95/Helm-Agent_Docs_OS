@@ -820,6 +820,16 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 
 감지 값의 자리: 신뢰 상태 읽기(`trust.get`의 `TrustStatus`)가 이미 `resources`에 `.mcp.json`과 `.agents/skills`(상위 폴더는 `../.agents/skills`)를 싣는다. 감지 값은 이 읽기에 선택 필드로 실을 수 있게 만들었고(`detectForeignFormats`, `foreignFormatNotice`) 호스트 연결은 wire 계약을 소유한 트랙이 한다. 지금의 읽기 동작은 바꾸지 않는다(제거는 M5g-2).
 
+> **구현 상태(M5g 층 B, 호스트 서비스, 2026-11-18).** 호스트 서비스와 wire 처리기를 구현했다. 상세는 `docs/xeon/L4/host-service/spec.md` §4.25다. 구현한 것: 감지(`migration.detect`, `trust.get`의 `foreignFormats`, 숨긴 표지 빼기), 읽기 전용 훑기(루트 검사, 정규 경로 기준 루트 밖 링크와 `..` 거절, 항목 상한, 루트마다 `migration.progress`), 제안(`propose`, 프로젝트 묶음과 사용자 공통 후보), 적용(질문 닫힘 확인, 프로필 이름 확인, 제출 포트 호출, 빈 프로필 생성), 보고서(메모리), 숨김(`migration-state.json`), 알림 `migration.changed`와 `migration.progress`. 시험은 `apps/host/test/assembly/plugins/migration*.test.ts`와 `test/handlers/migration.test.ts`다. 수용 기준 4(읽기 포트에 쓰기 호출 없음, 금지 모듈 검사), 5(원본 트리의 바이트와 mtime 불변), 6(`!`cmd`와 headersHelper가 돌지 않음), 7(값 검색 시험, `secret://` 참조), 12·13·14(승인 전 재료 불포함, 같은 원본 재적용 0개), 19(루트 밖 읽기 거절)를 호스트 층에서 확인했다. 수용 기준 15~17(원본 변경과 삭제 흐름)과 18(화면 알림), 20~33(라이브러리와 엔진, 조각 2·3·4)은 이 층 밖이다.
+>
+> **[제안]로 정한 기본값.** (가) 샌드박스 자식 프로세스는 보류한다(§7.4). 훑기는 같은 프로세스에서 읽기 전용 포트로 돈다. 프로세스를 띄우지 않으므로 `` !`cmd` ``와 headersHelper는 실행되지 않는다는 것을 시험이 확인한다. 자식 프로세스는 OS 샌드박스 설계(엔진 §3.1, §3.4)가 정해진 뒤 넣는다. (나) 프로필에는 승인된 플러그인만 담는다. 제출 시점에는 빈 프로필을 만들고, 승인할 때 고른 프로필에 넣는다(`validateProfile`이 대기 이름을 `plugin_not_reviewed`로 막기 때문이다). 승인 경로 자체는 이 층 밖이다. (다) 사용자 수준 지침의 공통 후보 이름은 `user-common`이다. (라) 항목 상한 20,000개, 제안 기억 32개, 보고서는 메모리에만 둔다(재시작하면 `migration.notFound`). (마) `migration.changed`는 상태가 바뀐 네 호출(`scan`, `proposal`, `apply`, `dismiss`)에만 보낸다. (바) 식별자는 시작 시각과 순번이다(난수를 쓰지 않는다). (사) 감지는 상위 폴더의 `.agents/skills`를 존재만 확인한다(라이브러리 표지 규칙).
+>
+> **라이브러리에서 바꾼 것.** `propose`의 반환 타입이 플러그인마다 이식 기록(`migration`)을 싣는다고 드러냈다(`PlannedPluginWithMigration`). 값은 같고 타입만 맞춘다. 제출 포트가 `migration.json`을 쓰는 데 필요하다.
+>
+> **아직 하지 않은 것.** Hook 스크립트 변환(조각 2)은 착수하지 않았다. 번들 스크립트 실행 기능(E2/P1)과 M5e-1의 위치 데이터, P1 격리, M5f 테스트 실행이 먼저 있어야 하고(§9.3), 이 층에는 그 입력이 아직 들어오지 않았다 [근거: §9.3 의존 요약]. 원본 폴더를 손으로 고친 뒤 다시 가져오는 정책(§6.5), 재시작 뒤의 보고서 보관, 화면과 승인 경로의 프로필 배치, `unsupportedHarness` 오류(지금 wire에는 하네스를 고르는 필드가 없어 이 층에서 낼 자리가 없다 [근거: `packages/contracts/src/wire-settings/wire/migration.ts`의 `migration.scan` 매개변수])는 남는다.
+>
+> **CLI 통로.** `docs/xeon`에서 가져오기의 CLI 명령을 찾지 못했다 [근거: `grep -n "가져오기\|migrat" docs/xeon/L4/cli/spec.md`의 결과에 명령이 없다]. CLI는 만들지 않았다.
+
 ## 10. 수용 기준
 
 번호는 시험 가능한 문장이다. 괄호는 시험 종류다.

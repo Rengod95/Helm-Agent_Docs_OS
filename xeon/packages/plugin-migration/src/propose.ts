@@ -981,12 +981,15 @@ function buildPlugins(groups: Iterable<Group>, existing: readonly string[]): Bui
 /**
  * 훑기 결과를 제안으로 바꾼다. 항목마다 보고 줄이 정확히 하나 나온다. 열린 질문이 있는 항목은 초안을 만들지 않는다.
  * 같은 입력과 같은 답이면 같은 결과다(시각, 난수, 환경을 쓰지 않는다).
+ * 플러그인은 이식 기록(`migration`)을 함께 싣는다. 제출 포트가 그것을 `migration.json`으로 쓰므로 반환 타입에 드러낸다.
  */
 export function propose(
   scan: MigrationScan,
   rulesets: readonly Ruleset[],
   choices: Choices,
-): MigrationProposal {
+): Omit<MigrationProposal, "plugins"> & {
+  readonly plugins: readonly PlannedPluginWithMigration[];
+} {
   const byHarness = new Map<HarnessId, Ruleset>(
     rulesets.map((ruleset): [HarnessId, Ruleset] => [ruleset.harness, ruleset]),
   );

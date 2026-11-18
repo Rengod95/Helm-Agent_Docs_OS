@@ -53,6 +53,8 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "profile.changed",
   "plugin.changed",
   "pluginReview.changed",
+  "migration.changed",
+  "migration.progress",
   "project.changed",
   "drive.framesChanged",
   "notify.delivered",

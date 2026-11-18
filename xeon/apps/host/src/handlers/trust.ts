@@ -56,12 +56,14 @@ function createTrustRemoveHandler(engine: Engine): WireHandler<"trust.remove"> {
   };
 }
 
+// `foreignFormats`(migration.md §6.1 [제안])는 존재만 본 표지다. 신뢰 판정에는 쓰지 않고, 없으면 필드를 싣지 않는다
 function createTrustGetHandler(engine: Engine): WireHandler<"trust.get"> {
-  const { trust } = engine.ports;
+  const { trust, migration } = engine.ports;
   return async (params, context) => {
     const status = await trust.get(params.workspace, context.signal);
     if (!status.ok) throw trustFailure(status.error);
-    return status.value;
+    const foreignFormats = await migration.foreignFormatsOf(status.value.projectRoot);
+    return foreignFormats === undefined ? status.value : { ...status.value, foreignFormats };
   };
 }
 

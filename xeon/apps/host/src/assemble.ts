@@ -1524,6 +1524,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       defaultPluginsDir: bundleRoot,
       pluginStore,
       localIds,
+      homeDir: os.dirs.home,
       startupNotices,
       measure: {
         store: () => measurement.store,

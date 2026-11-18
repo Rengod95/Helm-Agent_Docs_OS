@@ -1298,6 +1298,24 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **시험.** `test/assembly/first-start-migration.test.ts`(사용자 값의 옮김과 백업, 두 번째 시작의 바이트 동일성, 백업 덮지 않기, v1과 사용자 값의 조합, 저장소 파일 진단, 손상된 프로필과 읽지 못한 설정의 항목 격리, 옛 키가 남은 뒤의 설정 읽기), `test/assembly/implicit-project-migrate.test.ts`(중첩 프로젝트, 건너뛰기 규칙, 두 번째 실행이 아무것도 만들지 않음), `test/assembly/profile-store.test.ts`와 `plugin-set.test.ts`(옛 대화의 `default` 참조).
 
+### 4.25 가져오기 서비스 [제안: M5g 층 B, 2026-11-18, migration.md §6·§7·§9.4]
+
+**자리.** 서비스는 `assembly/plugins/migration.ts`(`createMigrationService`)다. 읽기 전용 파일 포트는 `migration-fs.ts`, 상태 파일은 `migration-state.ts`, wire 처리기와 `MigrationPort`는 `handlers/m5/migration.ts`다. 제출은 `engine.ports.pluginMigration`(`migration-submit.ts`)을 그대로 부르고, 프로필은 `profile.list`와 `profile.put`이 쓰는 포트(`engine.ports.m4.profileTestRun`)를 호스트 안에서 부른다. 포트는 `engine.ports.migration`이다.
+
+**감지.** `migration.detect`와 `trust.get`의 `foreignFormats`는 같은 감지를 쓴다. 라이브러리의 `detectForeignFormats`를 존재만 보는 포트(`createExistenceFs`, `lstat`만, 상위 폴더 포함)로 부른다. 목록과 내용을 읽지 않는다. 사용자가 `migration.dismiss`로 숨긴 (정규 루트, 표지)는 알림과 `found`에서 뺀다. `trust.get`은 표지가 없거나 감지를 읽지 못하면 필드를 싣지 않고 신뢰 판정은 바뀌지 않는다.
+
+**훑기.** `migration.scan`은 사용자가 고른 루트만 읽는다(수용 기준 19). 루트는 절대 경로이고 실재하는 폴더여야 하며, 아니면 `migration.rootInvalid`다. 읽기 포트(`createScanFs`)는 정규 경로 기준으로 루트 밖을 가리키는 심볼릭 링크와 `..`를 따라가지 않는다. 쓰기, 삭제, 이름 바꾸기, 프로세스, 네트워크 호출은 쓰지 않는다(`migration-fs.test.ts`의 쓰기 호출 검사와 금지 모듈 검사로 확인한다). 항목 상한은 `DEFAULT_SCAN_LIMITS`와 건드린 항목 `SCAN_ENTRY_LIMIT`(20,000 [제안])이고, 넘으면 `migration.scanLimit`이며 일부만 낸 결과를 내지 않는다. 루트마다 따로 훑고 같은 `itemId`는 처음 것만 둔다. 루트 하나가 끝날 때마다 `migration.progress`를 보낸다. 결과는 서비스 메모리에 `scanId`로 두고 wire에는 `secretCount`만 싣는다. 샌드박스 자식 프로세스는 이 층에서 보류한다(§7.4 [제안]): 훑기는 같은 프로세스에서 읽기 전용 포트로 돈다.
+
+**제안과 적용.** `migration.proposal`은 `propose`를 `bundledRulesets()`로 돌리고 결과를 `proposalId`로 둔다. 프로젝트 범위 묶음은 프로젝트 루트 이름의 `scope: "project"` 프로필 제안이고, 사용자 수준 지침이 든 플러그인은 `scope: "user-common"` 후보다(이름 `user-common` [제안]). `migration.apply`는 답을 받아 `propose`를 다시 돌린다. 질문이 남으면 `migration.questionsOpen`이고 아무것도 쓰지 않는다. 그다음 `createProfiles`의 이름을 확인한다. 제안되지 않은 이름은 `jsonrpc.invalidParams`, 이미 있는 프로필 id는 `migration.nameConflict`다. 확인이 끝나면 계획을 `submitPlanned`로 제출한다(초안과 `provenance: "migration"` 대기 항목, 승인 전에는 아무것도 돌지 않는다). 같은 이름의 손으로 만든 폴더는 `nameConflict`다. 프로필은 제출이 끝난 뒤 빈 프로필로 만든다. 승인 전 플러그인은 프로필 검증이 `plugin_not_reviewed`로 막기 때문이다(§4.2.7). 승인할 때 고른 프로필에 넣는다 [제안: 승인 경로는 이 층 밖이다]. 프로젝트 범위 항목도 사용자 플러그인 폴더(`<config>/plugins`)로 간다. 프로젝트 안에는 쓰지 않는다.
+
+**보고서와 숨김.** `migration.report.get`은 적용의 `reportId`로 보고 줄과 규칙 버전을 돌려준다. 메모리에만 두므로 재시작하면 `migration.notFound`다. `migration.dismiss`는 정규 루트와 표지와 시각을 `<stateDir>/migration-state.json`에 쓴다(임시 파일 뒤 이름 바꾸기, 쓰기는 한 줄). 손상된 파일은 빈 기록으로 읽고 경고를 남긴다.
+
+**알림.** `migration.changed`는 `scan`, `proposal`, `apply`, `dismiss`에서 성공했을 때 보낸다. `detect`와 `report.get`은 상태를 바꾸지 않으므로 보내지 않는다(알림 종류가 네 가지다). `migration.progress`는 `{scanId, done, total}`로 루트마다 보낸다. 둘 다 연결 허브가 모든 준비된 연결에 보낸다.
+
+**로그.** 주입된 Logger로 사건 이름과 경로 종류, 상태 코드만 남긴다. 훑기 결과 본문과 가린 전 값은 쓰지 않는다.
+
+**시험.** `test/assembly/plugins/migration.test.ts`(감지와 숨김, 루트 검사, 승인 전 불포함, 원본 트리의 바이트와 mtime 불변, 프로필 확인, 대기 이름 충돌, 명령과 headersHelper가 돌지 않음, 값 검색, 보고서와 알림), `migration-fs.test.ts`(루트 안팎, `..`와 심볼릭 링크, 상한, 감지 포트), `test/handlers/migration.test.ts`(오류 번호와 세부 값, `trust.get`의 `foreignFormats`, 알림 전달).
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
