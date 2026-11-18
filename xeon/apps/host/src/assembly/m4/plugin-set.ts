@@ -9,7 +9,7 @@ import {
   type RegistrationToggleSourceOf,
 } from "@fresnel/ext-host";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
-import { CRAFT_PROFILE_ID, craftProfile } from "./profile-defaults.ts";
+import { CRAFT_BUILDER_PLUGIN, CRAFT_PROFILE_ID, craftProfile } from "./profile-defaults.ts";
 
 // M5c §3.5, §4.1: 대화별 켜짐 집합 E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins, 처음 것을 남김) − 관리 잠금 − 오류 정지.
 // 호스트가 구현해 X에 `PluginSetPortKey`로 준다. 읽기는 동기여야 하므로 프로필 목록은 메모리에 둔 복사를 쓴다.
@@ -80,6 +80,8 @@ interface Resolved {
 interface Membership {
   readonly sources: ReadonlyMap<string, EnabledSource>;
   readonly resolved: Resolved | undefined;
+  /** 늘 E(T)에 드는 이름: 테스트 챗의 빌더(AGE-60). 관리 잠금, 오류 정지, 드래프트·덧씌우기가 빼지 못한다 */
+  readonly pinned: ReadonlySet<string>;
 }
 
 /**
@@ -297,6 +299,11 @@ function changedKeys(
   return [...keys].filter((key) => before.get(key) !== after.get(key));
 }
 
+/** 드래프트·덧씌우기 표지가 빌더 이름을 쓰거나 대신하는가(테스트 챗은 이런 표지를 들이지 않는다) */
+function touchesBuilder(mark: { readonly plugin: string; readonly replaces?: string }): boolean {
+  return mark.plugin === CRAFT_BUILDER_PLUGIN || mark.replaces === CRAFT_BUILDER_PLUGIN;
+}
+
 export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   let copy: ProfileCopy | undefined;
   /** 대화별로 E(T)에 든 플러그인 이름(코어 제외). 참조 수를 바꾸는 근거다 */
@@ -360,6 +367,14 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     const put = (name: string, source: EnabledSource): void => {
       if (!sources.has(name)) sources.set(name, source);
     };
+    // 테스트 챗(숨은 `craft` 프로필)의 빌더는 빌트인이다. 같은 이름을 대신하거나 가리는 드래프트·덧씌우기는 이 대화에서 들이지 않는다
+    const craft = resolved?.profileId === CRAFT_PROFILE_ID;
+    const fixed = craft
+      ? fixedOf(threadId).filter((draft) => !touchesBuilder(draft))
+      : fixedOf(threadId);
+    const marks = craft
+      ? marksOf(threadId).filter((mark) => !touchesBuilder(mark))
+      : marksOf(threadId);
     for (const name of deps.forcedPlugins()) put(name, "core");
     if (resolved === undefined) {
       for (const info of deps.registrations()) put(info.extension, "profile");
@@ -368,14 +383,15 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       for (const name of resolved.profile) put(name, "profile");
     }
     // 테스트 실행의 고정 초안은 같은 이름의 검토본 자리에 놓고, 없으면 뒤에 든다(§4.8.1 2)
-    placeFixed(sources, fixedOf(threadId));
+    placeFixed(sources, fixed);
     // 덧씌우기는 프로필 목록 뒤에 든다(M5c §4.1.3). 같은 이름은 처음 것을 남긴다
-    for (const mark of marksOf(threadId)) put(mark.plugin, "overlay");
+    for (const mark of marks) put(mark.plugin, "overlay");
     // 초안은 같은 이름의 실제 플러그인을 뺀다(프로필, 공통 묶음, 다른 덧씌우기 어디서 왔든)
-    for (const mark of marksOf(threadId)) {
+    for (const mark of marks) {
       if (mark.replaces !== undefined) sources.delete(mark.replaces);
     }
-    return { sources, resolved };
+    if (craft) put(CRAFT_BUILDER_PLUGIN, "profile");
+    return { sources, resolved, pinned: new Set(craft ? [CRAFT_BUILDER_PLUGIN] : []) };
   }
 
   /** 고정 초안을 E(T)에 놓는다. 같은 이름의 검토본이 있던 자리에 초안을 두고, 없는 이름은 뒤에 붙인다 */
@@ -404,15 +420,20 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   }
 
   /** E(T)에 실제로 들어가는 이름. 관리 잠금, 오류 정지, 훅 단위는 뺀다 */
-  function admitted(sources: ReadonlyMap<string, EnabledSource>): string[] {
+  function admitted(
+    sources: ReadonlyMap<string, EnabledSource>,
+    pinned: ReadonlySet<string> = new Set(),
+  ): string[] {
     return [...sources.keys()].filter(
-      (name) => !deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name),
+      (name) =>
+        pinned.has(name) ||
+        (!deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name)),
     );
   }
 
   function viewOf(threadId: ThreadId | undefined, profileId?: string): PluginSetView {
-    const { sources, resolved } = membershipOf(threadId, profileId);
-    const plugins = admitted(sources);
+    const { sources, resolved, pinned } = membershipOf(threadId, profileId);
+    const plugins = admitted(sources, pinned);
     const pluginHashes = plugins.flatMap((name) => {
       const contentHash = deps.loadedHash(name);
       return contentHash === undefined ? [] : [{ plugin: name, contentHash }];
@@ -515,9 +536,9 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   function track(threadId: ThreadId): void {
     // 복사를 아직 못 읽었으면 E(T)가 바뀐 것이 없다. 읽으면 그때 다시 맞춘다
     if (copy === undefined) return;
-    const { sources } = membershipOf(threadId);
+    const { sources, pinned } = membershipOf(threadId);
     // 코어(출처 core)는 로더가 시작 때부터 싣는 단위라 참조를 세지 않는다
-    const external = admitted(sources).filter((name) => sources.get(name) !== "core");
+    const external = admitted(sources, pinned).filter((name) => sources.get(name) !== "core");
     trackUsage(threadId, new Set(external));
   }
 

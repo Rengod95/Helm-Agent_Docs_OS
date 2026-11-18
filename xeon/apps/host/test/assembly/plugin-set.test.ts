@@ -585,3 +585,55 @@ test("a stored profile named craft is never read: the craft profile stays the bu
   expect(h.set.sourceOf(THREAD, "alpha")).toBe("none");
   expect(h.set.sourceOf(THREAD, "authoring")).toBe("profile");
 });
+
+// AGE-60: 일반 대화에서는 빌더 플러그인도 프로필이 정한다. 프로필에서 빼면 그 대화에 빌더가 없다.
+test("a profile without the builder gives a regular conversation no builder, and a profile with it gives one", async () => {
+  const h = harness({
+    profiles: [profileOf("work", ["beta"]), profileOf("maker", ["authoring", "beta"])],
+    common: commonOf([]),
+  });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "work");
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["beta"]);
+  expect(h.set.sourceOf(THREAD, "authoring")).toBe("none");
+  h.threadProfile.set(OTHER, "maker");
+  h.open.push(OTHER);
+  expect(h.set.port.resolve(OTHER).plugins).toEqual(["authoring", "beta"]);
+});
+
+// AGE-60: 테스트 챗의 빌더는 빌트인이다. 관리 잠금, 오류 정지, 같은 이름을 대신하는 드래프트·고정 초안이 빼지 못한다.
+test("the builder stays in a test chat despite a managed lock, an error stop and a draft that replaces its name", async () => {
+  const h = harness({ profiles: [profileOf("work", ["beta"])], common: commonOf(["alpha"]) });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "craft");
+  h.managed.add("authoring");
+  h.stopped.add("authoring");
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+  await h.set.setTestRunDrafts(THREAD, [
+    {
+      plugin: "ddrf1-authoring",
+      draftId: "drf-1",
+      contentHash: `sha256:${"a".repeat(64)}`,
+      replaces: "authoring",
+    },
+    {
+      plugin: "authoring",
+      draftId: "drf-2",
+      contentHash: `sha256:${"b".repeat(64)}`,
+      replaces: "authoring",
+    },
+  ]);
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+  expect(h.set.sourceOf(THREAD, "ddrf1-authoring")).toBe("none");
+});
+
+test("a managed lock still removes the builder from a regular conversation", async () => {
+  const h = harness({
+    profiles: [profileOf("maker", ["authoring", "beta"])],
+    common: commonOf([]),
+  });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "maker");
+  h.managed.add("authoring");
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["beta"]);
+});
