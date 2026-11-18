@@ -195,6 +195,71 @@ test("a readOnly method with no tool mapping stays on the direct path and makes 
   expect(fake.requests).toEqual([]);
 });
 
+test("a readOnly method called by a draft plugin does not take the direct path: it goes to the pipeline so the draft approval rule applies (L1.tools §4.6.1)", async () => {
+  const fake = fakeTools(() => okView({ saved: "from-pipeline" }));
+  const t = await createTestHost({ capabilityDefs: writerDefs });
+  await provideToolsPort(t, { ...fake.port, isDraftScope: () => true });
+  const peeks: string[] = [];
+  await t.host.install(
+    providerUnit({
+      save: () => Promise.resolve({ saved: "" }),
+      peek: (input) => {
+        peeks.push(input.text);
+        return Promise.resolve({ saved: input.text });
+      },
+    }),
+  );
+  let seen: unknown;
+  await t.host.install(
+    consumerUnit((g) => {
+      g.on(POINT, async () => {
+        seen = await g.capability(writerKey).peek({ text: "p" });
+      });
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await fire(t, thread, "draft-peek");
+  expect(fake.requests).toHaveLength(1);
+  expect(fake.requests[0]).toMatchObject({
+    via: "hook",
+    plugin: { name: "pc-consumer" },
+    target: { kind: "capability", capability: "demo.writer", method: "peek" },
+    input: { text: "p" },
+  });
+  expect(seen).toEqual({ saved: "from-pipeline" });
+  expect(peeks).toEqual([]);
+});
+
+test("a draft plugin's readOnly call with no thread to ask in is refused, never run directly", async () => {
+  const fake = fakeTools(() => okView({ saved: "never" }));
+  const t = await createTestHost({ capabilityDefs: writerDefs });
+  await provideToolsPort(t, { ...fake.port, isDraftScope: () => true });
+  const peeks: string[] = [];
+  await t.host.install(
+    providerUnit({
+      save: () => Promise.resolve({ saved: "" }),
+      peek: (input) => {
+        peeks.push(input.text);
+        return Promise.resolve({ saved: input.text });
+      },
+    }),
+  );
+  let pending: Promise<{ saved: string }> | undefined;
+  await t.host.install(
+    consumerUnit((g) => {
+      // setup은 대화 맥락이 없다
+      pending = g.capability(writerKey).peek({ text: "p" });
+    }),
+  );
+  const started = pending;
+  if (started === undefined) throw new Error("the consumer did not call");
+  const outcome = await attemptAsync(() => started);
+  expect(outcome.ok).toBe(false);
+  expect(peeks).toEqual([]);
+  expect(fake.requests).toEqual([]);
+});
+
 async function runWith(enabled: boolean) {
   const fake = fakeTools(() => okView({ saved: "x" }));
   const t = await createTestHost({ capabilityDefs: writerDefs });

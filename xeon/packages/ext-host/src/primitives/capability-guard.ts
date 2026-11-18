@@ -121,11 +121,14 @@ export function routeOf(
   id: CapabilityId,
   method: string,
   decl: MethodDef | undefined,
+  scopeId?: RegistrationId,
 ): CallRoute {
   const port = wiring.tools();
   if (decl === undefined || port === undefined || !wiring.enabled()) return "direct";
   if (port.toolMappedFor(id, method)) return "pipeline";
-  return capabilityEffectOf(decl) === "capability.readOnly" ? "light" : "pipeline";
+  if (capabilityEffectOf(decl) !== "capability.readOnly") return "pipeline";
+  // 초안 출신 호출은 읽기 수준이어도 가벼운 길을 타지 못한다: 카드를 지나야 한다(L1.tools §4.6.1)
+  return scopeId !== undefined && port.isDraftScope?.(scopeId) === true ? "pipeline" : "light";
 }
 
 export interface GuardTarget {
@@ -260,7 +263,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
             `${id}.${name} is ${effectLabel(effect)}; a readOnly extension method may only call readOnly capability methods`,
           );
         }
-        const route = routeOf(target.pluginCalls, id, name, decl);
+        const route = routeOf(target.pluginCalls, id, name, decl, target.scopeId);
         const threadId = amb?.threadId ?? given?.context?.threadId;
         const port = target.pluginCalls.tools();
         if (route === "pipeline" && threadId !== undefined && port !== undefined) {
@@ -278,6 +281,15 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
               requestId: identity,
             });
           }
+        }
+        // 초안은 파이프라인 밖으로 나가는 길이 없다: 물을 대화나 호출 식별이 없으면 직접 부르지 않고 거부한다(L1.tools §4.6.1)
+        if (port?.isDraftScope?.(target.scopeId) === true && route === "pipeline") {
+          return refuse(
+            id,
+            name,
+            "effect_not_allowed",
+            `${id}.${name} was called by a draft plugin outside a conversation call, where no approval card can be shown`,
+          );
         }
         const context = replayContextOf(amb);
         const requestId = given?.requestId;
