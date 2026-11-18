@@ -645,10 +645,11 @@ export interface BlobRef {
 }
 export const BlobRefSchema: Schema<BlobRef>;
 
-/** envelope payload 안에서 blob으로 옮긴 문자열 필드. 그 위치의 값은 "blob:sha256:<hex>" 자리표시 문자열이다. */
+/** envelope payload 안에서 blob으로 옮긴 값. 그 위치의 값은 "blob:sha256:<hex>" 자리표시 문자열이다. */
 export interface DetachedField {
   pointer: string;                // RFC 6901 JSON Pointer, payload 기준
   ref: BlobRef;
+  encoding?: "json";              // [제안] 없으면 blob은 UTF-8 문자열. "json"이면 blob은 JSON 값의 UTF-8 텍스트다
 }
 export const DetachedFieldSchema: Schema<DetachedField>;
 export const BLOB_PLACEHOLDER_PREFIX: string = "blob:sha256:";
@@ -662,6 +663,7 @@ export const BLOB_PLACEHOLDER_PREFIX: string = "blob:sha256:";
 4. 256 KiB를 넘는 값은 쓰기 전에 blob으로 옮긴다(oh-my-pi 방식, `_research/session-storage.md` 권장안). 옮기는 방법은 둘이다.
    - 명시 필드: `effect.intent.args`, `effect.result.blobRef`처럼 스키마가 `BlobRef`를 허용하는 필드.
    - 문자열 분리: 이미지 `data` 같은 큰 문자열은 그 자리를 `blob:sha256:<hex>` 자리표시로 바꾸고 `detached`에 위치를 적는다. 자리표시도 문자열이라 payload 스키마 검증 결과가 바뀌지 않는다. `detached`에 적힌 위치만 blob으로 해석한다.
+   - [제안] JSON 하위 값 분리: 객체·배열 같은 하위 값도 같은 방식으로 옮길 수 있다. 그 자리는 같은 자리표시 문자열이고, `detached` 항목에 `encoding: "json"`을 적는다. blob에는 그 값의 JSON 텍스트(UTF-8)를 쓴다. `encoding`이 없는 항목(옛 기록 포함)의 blob은 UTF-8 문자열 그대로다.
 5. payload 스키마 검증은 분리 전 값으로 한다. 읽는 쪽은 `detached`를 되돌린 뒤 소비한다. 되돌리는 구현(blob 읽기)은 L0-e·L1-f 몫이다.
 6. blob 저장 위치, 쓰기 순서(blob 먼저 fsync, 이벤트 나중), 정리 규칙은 `L0.store.spec`이 정한다.
 
@@ -926,8 +928,14 @@ export interface StoreCapabilities {
 export type BlobError =
   | { readonly kind: "blob_missing"; readonly sha256: string }
   | { readonly kind: "blob_corrupt"; readonly sha256: string; readonly reason: "size" | "hash" }
+  | { readonly kind: "blob_too_large"; readonly size: number; readonly limit: number }   // [제안] putBlob이 l0.store.maxBlobBytes를 넘는 바이트를 거절한다. 자르지 않는다
   | { readonly kind: "disk_full" }
   | { readonly kind: "io"; readonly code: string };
+export interface BlobUsageByThread { readonly threadId: string; readonly blobs: number; readonly bytes: number }
+export interface BlobUsage {
+  readonly total: { readonly blobs: number; readonly bytes: number };
+  readonly byThread: readonly BlobUsageByThread[];                  // [제안] owner = 'thread' 참조를 ref_key(대화 id)별로 센다
+}
 export interface StoreService {
   readonly storeId: string;                   // "sto_<ULID>"(F.conversation.spec §3.2.1 ①)
   readonly capabilities: StoreCapabilities;
@@ -939,6 +947,10 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04) */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** [제안] `[offset, offset + length)`만 읽는다. 범위가 ref.size를 넘거나 음수면 Bug(store.blob_range_out_of_bounds). 해시는 대조하지 않는다 */
+  readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
+  /** [제안] 블롭 사용량. 전체는 sys_blobs, 대화별은 sys_blob_refs 조인 */
+  blobUsage(): Result<BlobUsage, BlobError>;
 }
 
 // src/records/commit.ts

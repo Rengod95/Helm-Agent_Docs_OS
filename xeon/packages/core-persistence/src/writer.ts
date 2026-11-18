@@ -142,6 +142,9 @@ function mapBlobError(error: BlobError): StoreError {
   switch (error.kind) {
     case "disk_full":
       return { kind: "disk_full" };
+    case "blob_too_large":
+      // F StoreError에는 크기 한도 전용 kind가 없어 가장 가까운 disk_full로 낸다 [제안: 사용자 확인 필요]
+      return { kind: "disk_full" };
     case "io":
       return { kind: "io", code: error.code };
     case "blob_missing":

@@ -5,6 +5,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
 } from "typebox";
@@ -31,11 +32,14 @@ export type BlobRef = Static<typeof BlobRefSchema>;
 export const DetachedFieldSchema: TObject<{
   pointer: TString;
   ref: typeof BlobRefSchema;
+  encoding: TOptional<TLiteral<"json">>;
 }> = Type.Object(
   {
     /** RFC 6901 JSON Pointer, payload 기준. 빈 문자열이거나 "/"로 시작한다 */
     pointer: Type.String({ pattern: "^(?:|/.*)$", maxLength: 1024 }),
     ref: BlobRefSchema,
+    /** 없으면 blob은 UTF-8 문자열이다. "json"이면 blob은 원래 JSON 값의 UTF-8 텍스트이고 되돌릴 때 JSON으로 읽는다 */
+    encoding: Type.Optional(Type.Literal("json")),
   },
   { additionalProperties: false },
 );
