@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { ModelsError, type CredentialInfo, type CredentialStore } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "@fresnel/contracts";
 import { parseSecretRef } from "@fresnel/contracts/capabilities";
@@ -6,6 +7,18 @@ import type { SecretRefString, SecretService, UseCtx } from "@fresnel/contracts/
 // L1.models.spec §3.9, §4.7, L1.models.plan M-6. core-models 내부이고 공개하지 않는다.
 // 값은 read() 안에서만 얻어 반환 객체에만 둔다. 캐시하지 않고, 요청 직전(Models.getAuth가 부를 때)마다 해석한다.
 // 오류와 로그에는 시크릿 이름이나 오류 종류만 싣고 값은 싣지 않는다.
+
+/**
+ * 지금 모델을 부르는 대화. 자격 증명 저장소(pi-ai의 `read`)와 헤더·회전 해석은 호출한 대화를 인자로 받지 못하므로,
+ * 파이프라인이 호출을 이 범위 안에서 시작하고 `resolve`가 읽어 `UseCtx.threadId`에 싣는다(`secret.audit`의 대화 id).
+ * 대화가 없는 호출(provider 인증 확인 등)은 범위 밖이라 null이다
+ */
+const callThread = new AsyncLocalStorage<string>();
+
+/** `run`과 그 안에서 시작한 비동기 작업의 시크릿 사용을 `threadId` 대화의 것으로 적는다 */
+export function withCallThread<T>(threadId: string, run: () => T): T {
+  return callThread.run(threadId, run);
+}
 
 export interface ProviderCredentialRefs {
   /** providerId → 시크릿 참조. l1.models.providers 설정에서 만든다 */
@@ -87,7 +100,7 @@ export function createSecretResolver(
         purpose,
         target: { kind: "host", host: target?.host ?? "", port: target?.port ?? null },
         actor: "runtime",
-        threadId: null,
+        threadId: callThread.getStore() ?? null,
         toolCallId: null,
         projectId: null,
         approval: null,

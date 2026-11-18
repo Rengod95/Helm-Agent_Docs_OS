@@ -248,8 +248,7 @@ realTest(
 );
 
 // ── secret.audit와 secret.references ──────────────────────────────────────────────────────
-// 주의: 모델 호출의 감사 기록과 참조는 thread id를 싣지 않는다(결함 발견, 보고 참조). 그래서 이 시험은 thread id와
-// 참조의 sessions를 세지 않는다. 나머지 필드(decision, mode, reason, host, toolCallId, 순서, limit)는 값으로 센다.
+// 모델 호출의 감사 기록은 호출한 대화의 id를 싣는다(`core-models`의 `withCallThread`). 참조의 sessions도 그 대화들이다.
 
 realTest(
   "secret.audit lists the denied model call and then the allowed one, newest first, with the mode, reason, decision and host",
@@ -277,6 +276,7 @@ realTest(
       at: isoOf(deniedAt),
       decision: "deny",
       mode: "runtime-http",
+      threadId: denied.threadId,
       toolCallId: null,
       host: null,
       reason: "mode_not_allowed",
@@ -303,6 +303,7 @@ realTest(
       at: isoOf(usedAt),
       decision: "allow",
       mode: "runtime-http",
+      threadId: allowed.threadId,
       toolCallId: null,
       host: new URL(s.server.url).hostname,
       reason: null,
@@ -311,10 +312,15 @@ realTest(
       at: isoOf(deniedAt),
       decision: "deny",
       mode: "runtime-http",
+      threadId: denied.threadId,
       toolCallId: null,
       host: null,
       reason: "mode_not_allowed",
     });
+    // 참조의 sessions는 시크릿을 쓴 대화다(거절된 호출의 대화는 쓰지 않았으므로 없다)
+    expect((await s.connection.request("secret.references", { name: KEY_NAME })).sessions).toEqual([
+      allowed.threadId,
+    ]);
     // limit은 앞에서부터 자른다
     expect(await s.connection.request("secret.audit", { name: KEY_NAME, limit: 1 })).toEqual({
       entries: audit.entries.slice(0, 1),
