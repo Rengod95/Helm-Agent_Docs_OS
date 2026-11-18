@@ -55,6 +55,11 @@ export interface ArtifactsPluginOptions {
   /** `fresnel.approvals`를 검토 승인(kind review)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 열 때 승인 요청을 내지 않는다 */
   readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   readonly loadIndex?: number;
+  /**
+   * 종료 때 진행 중인 검토 답(되돌림 쓰기 포함)을 기다리는 시한(ms). 조립 루트가 `l0.process.shutdown.timeoutMs`를 준다.
+   * 없으면 3000이다. 시한을 넘기면 기다리지 않고 닫는다
+   */
+  readonly drainTimeoutMs?: () => number;
   /** 설정 층. 없으면 기본값(`DEFAULT_ARTIFACTS_SETTINGS`)으로 돈다 */
   readonly settings?: ArtifactsSettingsSource;
   /**
@@ -72,6 +77,8 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
     throw caught;
   }
 }
+
+const DEFAULT_DRAIN_TIMEOUT_MS = 3000;
 
 /** 커밋 리스너 안에서는 새 커밋을 낼 수 없다(`store.nested_write`). 리스너가 돌아간 뒤로 미룬다 */
 async function deferred(work: () => Promise<void>): Promise<void> {
@@ -193,14 +200,20 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       const answers = createAnswerHandler(reviews, approvalService);
       const head = session.feed.headSeq();
       let unsubscribe: Unsubscribe | undefined;
+      // 진행 중인 검토 답 처리. 종료 때 끝나기를 기다려 거절한 변경의 되돌림이 종료에 먹히지 않게 한다
+      const inflight = new Set<Promise<void>>();
       if (head.ok) {
         const subscribed = session.subscribe(
           head.value,
           (batch) => {
             for (const event of batch.events) {
               if (event.kind !== "approval.resolved") continue;
+              const work = deferred(() => answers.onApprovalResolved(event));
+              inflight.add(work);
               detach(
-                deferred(() => answers.onApprovalResolved(event)),
+                work.finally(() => {
+                  inflight.delete(work);
+                }),
                 (cause) => {
                   logger.error("artifacts.review_answer_failed", {
                     event: event.id,
@@ -217,8 +230,23 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       if (unsubscribe === undefined) {
         logger.warn("artifacts.listener_unavailable", { effect: "review answers are not applied" });
       }
-      g.onDispose(() => {
+      g.onDispose(async () => {
         unsubscribe?.();
+        // 새 답은 더 받지 않고, 이미 받은 답의 되돌림은 시한 안에서 끝낸다(AGE-18)
+        if (inflight.size === 0) return;
+        const timeoutMs = options.drainTimeoutMs?.() ?? DEFAULT_DRAIN_TIMEOUT_MS;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expired = new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), timeoutMs);
+        });
+        const outcome = await Promise.race([
+          Promise.allSettled(inflight).then(() => "drained" as const),
+          expired,
+        ]);
+        clearTimeout(timer);
+        if (outcome === "timeout") {
+          logger.warn("artifacts.drain_timeout", { pending: inflight.size, timeoutMs });
+        }
       });
 
       if (tools === undefined) {

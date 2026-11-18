@@ -7,6 +7,11 @@ import { readDoc } from "../support/docs.ts";
 
 /** 문서 표에 없지만 조립 루트가 필요해 더한 이름 [제안]. 문서 반영을 요청한다 */
 const ADDITIONS: ReadonlySet<string> = new Set([
+  // 정렬 순위(F.operations §5.2 O-2): 호스트의 ext 읽기 포트가 면제 판정에 쓴다 [제안: 표 반영 요청]
+  "tierRankOf",
+  "TIER_RANK_CORE",
+  "TIER_RANK_GUARD",
+  "TIER_RANK_PLUGIN",
   "registrationToggleSourceOf",
   "RegistrationToggleSourceOf",
   "createRegistrationControl",

@@ -418,8 +418,15 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
     // 외부 훅은 훅마다 단위라서 다른 핸들러처럼 순서 화면에 나오고 옮길 수 있다(X.operations §4.7.4)
-    hookHandlers: () =>
-      view.handlers().map((handler) => ({
+    // `blocksContext`는 E(T)를 쥔 쪽이 주므로 `withEnabledSources`가 덮는다. 덮지 않은 원천은 프로필이 없는 호스트처럼 읽힌다
+    blocksContext: () => ({
+      kind: "found",
+      profileId: "default",
+      plugins: [],
+      profileSettings: undefined,
+    }),
+    hookHandlers: (pluginOrder) =>
+      view.handlers(pluginOrder === undefined ? undefined : { pluginOrder }).map((handler) => ({
         point: handler.point,
         registrationId: handler.scopeId,
         extension: handler.extension,

@@ -11,7 +11,7 @@ export const MCP_START_PURPOSE_PREFIX = "mcp.start:";
 
 export interface McpStartDefinition {
   readonly serverId: string;
-  /** 정의 출처(`settings:user`, `mcpjson:project`, `ext:<이름>` 등) */
+  /** 정의 출처(`settings:user`, `mcpjson:fresnel`, `ext:<이름>` 등) */
   readonly source: string;
   readonly command: string;
   readonly args: readonly string[];

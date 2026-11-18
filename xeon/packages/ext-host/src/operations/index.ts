@@ -66,6 +66,10 @@ export {
   GUARD_EXTENSIONS,
   orderKeyOf,
   ownerKey,
+  TIER_RANK_CORE,
+  TIER_RANK_GUARD,
+  TIER_RANK_PLUGIN,
+  tierRankOf,
   TIERS,
   type Tier,
 } from "./tier.ts";

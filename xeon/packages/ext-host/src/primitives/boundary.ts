@@ -578,6 +578,7 @@ export function createBoundary(
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         frames: [],
         startQueue: [],
+        heldUser: [],
         userStopped: false,
         txn: null,
         warnedPorts: new Set(),

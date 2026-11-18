@@ -10,12 +10,12 @@ import { asJsonObject } from "../json.ts";
 import { checkDefinitionValues } from "./values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
 
-// L2.mcp.spec §4.2. 설정 `l2.mcp.servers`와 프로젝트 `.mcp.json`(루트)·`.fresnel/mcp.json`을 합친다.
+// L2.mcp.spec §4.2. 설정 `l2.mcp.servers`와 프로젝트 `.fresnel/mcp.json`을 합친다.
 // 파일은 프로젝트 신뢰가 확인된 뒤에만 읽는다(결정 D6). 이 파일은 읽기를 하지 않고 이미 읽은 텍스트를 받는다.
 
 const ID_REGEX = new RegExp(MCP_SERVER_ID_PATTERN);
 
-/** `.mcp.json` 이름 변환: 소문자로 바꾸고 [a-z0-9-] 밖 문자를 `-`로 바꾸고 32자로 자른다 */
+/** 서버 이름 변환: 소문자로 바꾸고 [a-z0-9-] 밖 문자를 `-`로 바꾸고 32자로 자른다 */
 export function normalizeServerName(raw: string): string {
   return raw
     .toLowerCase()
@@ -33,7 +33,8 @@ const McpJsonEntrySchema = Type.Object({
   headers: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
-export type McpJsonOrigin = "root" | "fresnel";
+/** `.fresnel/mcp.json`(Fresnel 자체 배치)만 있다. 다른 하네스의 `.mcp.json`은 엔진이 읽지 않는다(M5g-2) */
+export type McpJsonOrigin = "fresnel";
 
 export interface McpJsonResult {
   readonly servers: readonly ServerDefinition[];
@@ -96,7 +97,7 @@ const McpJsonFileSchema = Type.Object({ mcpServers: Type.Record(Type.String(), T
 export type McpJsonParseError = { readonly kind: "invalid_json" } | { readonly kind: "no_servers" };
 
 /**
- * `.mcp.json` 텍스트를 서버 정의로 바꾼다. 이름 형식이 어긋나거나 먼저 있는 id와 겹치거나 평문 시크릿이 든 항목은
+ * `.fresnel/mcp.json` 텍스트를 서버 정의로 바꾼다. 이름 형식이 어긋나거나 먼저 있는 id와 겹치거나 평문 시크릿이 든 항목은
  * 그 서버만 건너뛰고 진단을 남긴다. `taken`은 이미 정해진 id다(설정 정의가 이긴다).
  */
 export function parseMcpJson(
@@ -104,7 +105,7 @@ export function parseMcpJson(
   origin: McpJsonOrigin,
   taken: ReadonlySet<string>,
 ): Result<McpJsonResult, McpJsonParseError> {
-  const source = origin === "root" ? "mcpjson:project" : "mcpjson:fresnel";
+  const source = `mcpjson:${origin}`;
   const json = parseJson(text);
   if (!json.ok) return err({ kind: "invalid_json" });
   const file = parse(McpJsonFileSchema, json.value);
@@ -154,7 +155,7 @@ export function parseMcpJson(
 
 /**
  * 대화의 켜짐 플러그인이 낸 MCP 서버 항목 하나(`MaterialPort.mcpServers`, M5c §4.5.10). `plugin`은 소유 플러그인 이름이고
- * `config`는 검토본 `mcp.json`의 항목 모양(`.mcp.json` 항목과 같다)이다. 정의로 바꾸는 검사는 `.mcp.json`과 같다.
+ * `config`는 검토본 `mcp.json`의 항목 모양(`.fresnel/mcp.json`과 같은 모양)이다. 정의로 바꾸는 검사는 `.fresnel/mcp.json`과 같다.
  */
 export interface ContributedServer {
   readonly plugin: string;
@@ -169,7 +170,7 @@ export function contributedSourceOf(plugin: string): string {
 
 /**
  * 플러그인이 낸 서버 항목을 서버 정의로 바꾼다. 서버 id는 [제안] `<플러그인>-<서버 이름>`(소문자, `[a-z0-9-]` 밖은 `-`)이다.
- * 설정과 `.mcp.json`이 먼저 `taken`에 든다. 같은 id가 이미 있으면 그 항목만 건너뛰고 `duplicate_name` 진단을 남긴다(설정이 이긴다).
+ * 설정과 `.fresnel/mcp.json`이 먼저 `taken`에 든다. 같은 id가 이미 있으면 그 항목만 건너뛰고 `duplicate_name` 진단을 남긴다(설정이 이긴다).
  * 형식이 맞지 않거나 정의 검사(시크릿 평문 등)를 못 넘으면 그 서버만 건너뛴다.
  * 신뢰는 요구하지 않는다(`requiresTrust: false`): 검토본은 내용 해시로 고정되어 있고 검토 승인이 신뢰 자리를 맡는다(M5c §4.6.9).
  * 정책(거부 목록, 허용 목록, 승인 모드, 샌드박스)은 설정 서버와 같이 이 패키지의 정책 함수가 판정한다.

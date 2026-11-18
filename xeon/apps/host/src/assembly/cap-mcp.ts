@@ -53,14 +53,14 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 export interface HostMcpOptions {
   readonly layers: (threadId: string | undefined) => ScopeStack;
   readonly trust: ProjectTrust;
-  /** 엔진 수명 신호. `load`의 `.mcp.json` 읽기와 신뢰 판정을 중단한다 */
+  /** 엔진 수명 신호. `load`의 `.fresnel/mcp.json` 읽기와 신뢰 판정을 중단한다 */
   readonly signal: AbortSignal;
   /** 서버에 알리는 클라이언트 버전 */
   readonly version: string;
   /** 서버 도구가 쓰면 안 되는 기계 이름(내장 도구 이름) */
   readonly reservedToolNames: () => ReadonlySet<string>;
   /**
-   * 대화의 작업 폴더(`threadWorkspaceOf`, HS-66). 프로젝트 출처 정의(`.mcp.json`)와 그 신뢰 판정이 이 폴더를 따른다(HS-76).
+   * 대화의 작업 폴더(`threadWorkspaceOf`, HS-66). 프로젝트 출처 정의(`.fresnel/mcp.json`)와 그 신뢰 판정이 이 폴더를 따른다(HS-76).
    * 작업 폴더가 없는 대화에는 프로젝트 서버가 없다
    */
   readonly workspaceOf: (threadId: string) => string | undefined;

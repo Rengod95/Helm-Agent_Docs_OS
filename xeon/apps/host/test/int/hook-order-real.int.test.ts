@@ -29,7 +29,7 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 const KEY = "x.operations.hookOrder";
 /** tier 1(사용자 위치의 확장) 핸들러가 걸리는 tap 훅 */
 const SETTLE = "boundary.settle.after";
-/** tier 1 확장과 tier 5(내장 학습 그룹)가 같은 tap 훅에 걸린다 */
+/** tier 1 확장과 tier 3(내장 학습 그룹)가 같은 tap 훅에 걸린다 */
 const PROBE = "ext-probe";
 const LEARNING = "learning";
 /** 저장한 뒤 폴더를 지워 다음 시작에서 실리지 않는 확장 */
@@ -153,9 +153,9 @@ function userRef(name: string) {
   return { registrationId: name, extension: name, tier: 1 };
 }
 
-/** 내장 단위의 참조. 이 호스트에서 내장 핸들러는 tier 5로 나온다 */
+/** 내장 단위의 참조. 이 호스트에서 내장 핸들러는 tier 3로 나온다 */
 function builtinRef(name: string) {
-  return { registrationId: name, extension: name, tier: 5 };
+  return { registrationId: name, extension: name, tier: 3 };
 }
 
 realTest(
@@ -168,11 +168,11 @@ realTest(
     const { connection } = running;
     try {
       const created = await connection.request("thread.create", {});
-      // 저장 값이 없으면 기본 순서다: 사용자 확장(tier 1)이 내장 학습(tier 5)보다 먼저 돈다
+      // 저장 값이 없으면 기본 순서다: 사용자 확장(tier 1)이 내장 학습(tier 3)보다 먼저 돈다
       expect(await turnOrder(connection, created.threadId, "첫 질문")).toEqual([PROBE, LEARNING]);
       expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
 
-      // tier 5를 tier 1 앞으로 옮긴다. 저장만 하고 적용은 다음 단계 경계다
+      // tier 3를 tier 1 앞으로 옮긴다. 저장만 하고 적용은 다음 단계 경계다
       expect(
         await connection.request("hooks.order.set", { hook: SETTLE, order: [LEARNING, PROBE] }),
       ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });

@@ -15,3 +15,4 @@ export * from "./invocables.ts";
 export * from "./overlay.ts";
 export * from "./intake.ts";
 export * from "./migration-submit.ts";
+export * from "./migration.ts";

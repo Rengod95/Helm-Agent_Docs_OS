@@ -886,7 +886,7 @@ export const ArtifactsReviews: CapabilityDef<
         readOnly: true,
       },
       approve: {
-        risk: "read",
+        risk: "write",
         description: "Marks a hunk as approved.",
         input: HunksInput,
         output: ReviewViewSchema,
@@ -898,7 +898,7 @@ export const ArtifactsReviews: CapabilityDef<
         },
       },
       reject: {
-        risk: "read",
+        risk: "write",
         description: "Marks a hunk as rejected. The revert is applied on submit.",
         input: HunksInput,
         output: ReviewViewSchema,

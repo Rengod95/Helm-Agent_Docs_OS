@@ -315,6 +315,19 @@ describe("convertMcpEntry", () => {
     });
     expect(parse(McpServerDefSchema, sse.item.def).ok).toBe(true);
   });
+
+  test("streamable-http is the http transport, the alias the Fresnel definition reader also accepts", () => {
+    // M5g-2에서 엔진의 `.mcp.json` 읽기를 뺐다. 이 변환 사례는 가져오기 어댑터가 맡는다
+    const stream = convertMcpEntry(
+      "stream",
+      { type: "streamable-http", url: "https://s.example.com/mcp" },
+      inProject,
+    );
+    expect(stream.item.def).toMatchObject({
+      transport: { type: "http", url: "https://s.example.com/mcp" },
+    });
+    expect(parse(McpServerDefSchema, stream.item.def).ok).toBe(true);
+  });
 });
 
 describe("scan", () => {

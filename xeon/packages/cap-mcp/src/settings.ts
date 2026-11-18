@@ -18,7 +18,8 @@ import { asJsonObject } from "./json.ts";
 import { checkDefinitionValues } from "./servers/values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "./types.ts";
 
-// L2.mcp.spec §6. 키 문법은 `l2.mcp.<이름>`이고 열다섯 개다(sampling은 지원하지 않아 없다, M3-REQ-97).
+// L2.mcp.spec §6. 키 문법은 `l2.mcp.<이름>`이고 열네 개다(sampling은 지원하지 않아 없다, M3-REQ-97).
+// `l2.mcp.importMcpJson`은 M5g-2에서 뺐다. 파일에 남은 그 키는 카탈로그에 없어 `settings.readFile`의 `unknownKeys`가 경고만 낸다.
 // 서버 정의 안의 시크릿은 secret:// 참조만 저장하므로 secret 열은 모두 거짓이다.
 
 const ALL = ["managed", "user", "project", "local", "launch"] as const;
@@ -33,14 +34,6 @@ const mcpSettings = defineSettings("l2.mcp", {
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
     ui: { tab: "tools", widget: "table", order: 300, label: "MCP servers" },
-    since: "0.1.0",
-  },
-  importMcpJson: {
-    type: Type.Boolean(),
-    default: true,
-    runtimeChange: "nextTurn",
-    allowedScopes: MANAGED_USER_PROJECT,
-    ui: { tab: "tools", widget: "toggle", order: 301, label: "Import .mcp.json" },
     since: "0.1.0",
   },
   connectTimeoutMs: {
@@ -177,7 +170,6 @@ const mcpSettings = defineSettings("l2.mcp", {
 export const MCP_SETTING_DEFS: readonly SettingDef[] = Object.values(mcpSettings.defs);
 
 export interface McpSettings {
-  readonly importMcpJson: boolean;
   readonly connectTimeoutMs: number;
   readonly callTimeoutMs: number;
   readonly approvalMode: McpApprovalMode;
@@ -188,7 +180,7 @@ export interface McpSettings {
   readonly managedOnly: boolean;
   /** 사용자 설정(`settings:user`) 출처 stdio 서버를 샌드박스에 넣는가. 기본 끔 */
   readonly sandboxUserSource: boolean;
-  /** 그 밖의 출처(프로젝트 설정, `.mcp.json`, 확장 등록) stdio 서버를 샌드박스에 넣는가. 기본 켬 */
+  /** 그 밖의 출처(프로젝트 설정, `.fresnel/mcp.json`, 확장 등록) stdio 서버를 샌드박스에 넣는가. 기본 켬 */
   readonly sandboxProjectSource: boolean;
   readonly maxInputRounds: number;
   readonly resultMaxBytes: number;
@@ -197,7 +189,6 @@ export interface McpSettings {
 }
 
 export const DEFAULT_MCP_SETTINGS: McpSettings = {
-  importMcpJson: true,
   connectTimeoutMs: 30000,
   callTimeoutMs: 120000,
   approvalMode: "prompt",
@@ -268,7 +259,6 @@ export function readMcpSettings(layers: ScopeStack): McpSettings {
   const fallback = DEFAULT_MCP_SETTINGS;
   const managedAllowed = layerList("allowedServers", layers, "managed");
   return {
-    importMcpJson: booleanOr(effective("importMcpJson", layers), fallback.importMcpJson),
     connectTimeoutMs: integerOr(effective("connectTimeoutMs", layers), fallback.connectTimeoutMs),
     callTimeoutMs: integerOr(effective("callTimeoutMs", layers), fallback.callTimeoutMs),
     approvalMode: choice(

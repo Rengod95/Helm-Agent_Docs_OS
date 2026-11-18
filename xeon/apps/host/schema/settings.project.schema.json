@@ -2537,28 +2537,6 @@
         }
       }
     },
-    "l2.mcp.importMcpJson": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Import .mcp.json",
-          "labelKey": "settings.l2.mcp.importMcpJson.label",
-          "order": 301,
-          "tab": "tools",
-          "widget": "toggle"
-        }
-      }
-    },
     "l2.mcp.inputRequired.maxRounds": {
       "default": 10,
       "maximum": 50,

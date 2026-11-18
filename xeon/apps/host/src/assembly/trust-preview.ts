@@ -55,10 +55,9 @@ export interface TrustPreviewReader {
 /** 미리 보기가 쓰는 파일 접근. 존재 확인, 실제 경로, 목록은 `LoaderFs`에서 오고, 정의 파일 읽기만 상한이 있다 */
 export type TrustPreviewFs = Pick<LoaderFs, "exists" | "realpath" | "listDir"> & TrustPreviewReader;
 
-/** 프로젝트 설정 디렉터리 이름(`.fresnel`)과 Claude Code 형식 MCP 정의 파일 이름. `resources.ts`와 같다 */
+/** 프로젝트 설정 디렉터리 이름(`.fresnel`)과 Fresnel 자체 MCP 정의 파일. `resources.ts`와 같다. 다른 하네스의 `.mcp.json`은 읽지 않는다(M5g-2) */
 const FRESNEL_DIR = ".fresnel";
-const PROJECT_MCP_JSON = ".mcp.json";
-const MCP_FILES: readonly string[] = [PROJECT_MCP_JSON, `${FRESNEL_DIR}/mcp.json`];
+const MCP_FILES: readonly string[] = [`${FRESNEL_DIR}/mcp.json`];
 
 const BOM = "﻿";
 const ELLIPSIS = "…";

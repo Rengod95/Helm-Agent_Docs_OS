@@ -2,7 +2,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { IdFactory, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { portAs } from "../erase.ts";
-import { pluginsOf } from "@fresnel/contracts/extensions";
+import { PluginSetPortKey, pluginsOf } from "@fresnel/contracts/extensions";
 import type {
   SetupRefusal,
   ExtensionEntry,
@@ -690,6 +690,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       trace: traceBuffer,
       stepPause,
       onBoundary: noteBoundary,
+      pluginOrder: (threadId) => ports.get(PluginSetPortKey)?.resolve(threadId).plugins,
     }),
     ports,
     scopes: new Map(),

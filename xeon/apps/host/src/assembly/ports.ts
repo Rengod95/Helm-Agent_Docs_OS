@@ -107,6 +107,7 @@ import { createM4Ports } from "./m4/index.ts";
 import { pluginLifecycleOf } from "./m4/plugin-lifecycle.ts";
 import {
   approvalHooksOf,
+  createMigrationService,
   createMigrationSubmitter,
   createPluginReview,
   createOverlayPort,
@@ -170,6 +171,8 @@ export interface PortsDeps {
   readonly configDir: string;
   /** 호스트 상태 디렉터리(L0.os의 `dirs.state`). 프로필 옮김 기록 `migration.log`가 여기에 놓인다 */
   readonly stateDir: string;
+  /** 홈 폴더(`OsDirs.home`). 가져오기가 항목 경로를 `~/…`로 줄이고 감지가 홈의 공유 스킬 폴더를 세지 않게 쓴다 */
+  readonly homeDir: string;
   /** `OsDirs.data`. 프로젝트 없는 대화의 기본 폴더(`default-project`)가 여기에 놓인다(review m5 §4.4.5) */
   readonly dataDir: string;
   /** 지역 접두 id 발급(`prj_`, `rvw_`, `drf_`). 프로젝트, 검토 항목, 초안의 id다 */
@@ -1183,6 +1186,19 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     review: pluginReview,
     log: deps.logger,
   });
+  // 가져오기 서비스(migration.md §6, §7.7 [제안]): 감지, 훑기, 제안, 적용, 보고서, 표지 숨기기. wire 처리기는 `handlers/m5/migration.ts`다.
+  // 프로필 저장소는 `profile.list`, `profile.put`이 쓰는 포트를 그대로 부른다(wire를 거치지 않는다). 포트 객체는 호출 때 읽는다
+  const migration = createMigrationService({
+    homeDir: deps.homeDir,
+    stateDir: deps.stateDir,
+    submitter: pluginMigration,
+    profiles: {
+      list: () => ports.m4.profileTestRun.list(),
+      put: (input, baseRev) => ports.m4.profileTestRun.put(input, baseRev),
+    },
+    clock: deps.clock,
+    log: deps.logger,
+  });
   const ports: EnginePorts = {
     threads,
     turns,
@@ -1241,6 +1257,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     pluginReview,
     scanOpenedRoots: () => pluginReview.scanOpened(),
     pluginMigration,
+    migration,
     m4: createM4Ports(
       deps.ext,
       {

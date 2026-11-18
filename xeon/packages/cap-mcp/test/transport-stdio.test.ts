@@ -112,7 +112,7 @@ describe("process stdio transport", () => {
 
   test("a sandbox the port cannot provide is an open failure, and the sandbox flag follows the source", async () => {
     const { factory, process } = setup();
-    const project: ServerDefinition = { ...definition, source: "mcpjson:project" };
+    const project: ServerDefinition = { ...definition, source: "mcpjson:fresnel" };
     process.failNext({ kind: "sandbox_unavailable", reason: "missing_dependency" });
     const refused = await factory.open(project, signal, {
       sandbox: sandboxOf(project, DEFAULT_MCP_SETTINGS),

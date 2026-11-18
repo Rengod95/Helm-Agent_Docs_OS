@@ -20,8 +20,8 @@ import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
-// G2-02 (int), HS-76: 데스크톱 사이드카의 작업 디렉터리는 홈이다. 사용자가 고른 폴더(대화의 작업 폴더)의 `.mcp.json`이 읽히고, 신뢰 판정도
-// 그 폴더로 한다. 엔진의 작업 디렉터리에 `.mcp.json`이 있어도 대화의 폴더가 아니면 읽지 않는다.
+// G2-02 (int), HS-76: 데스크톱 사이드카의 작업 디렉터리는 홈이다. 사용자가 고른 폴더(대화의 작업 폴더)의 `.fresnel/mcp.json`이 읽히고, 신뢰 판정도
+// 그 폴더로 한다. 엔진의 작업 디렉터리에 `.fresnel/mcp.json`이 있어도 대화의 폴더가 아니면 읽지 않는다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -42,8 +42,9 @@ async function until(condition: () => boolean, timeoutMs: number): Promise<boole
 }
 
 function writeMcpJson(dir: string, name: string, pidFile: string, listedFile: string): void {
+  mkdirSync(join(dir, ".fresnel"), { recursive: true });
   writeFileSync(
-    join(dir, ".mcp.json"),
+    join(dir, ".fresnel", "mcp.json"),
     JSON.stringify({
       mcpServers: { [name]: { command: process.execPath, args: [SERVER, pidFile, listedFile] } },
     }),
@@ -51,7 +52,7 @@ function writeMcpJson(dir: string, name: string, pidFile: string, listedFile: st
 }
 
 realTest(
-  "the .mcp.json of the thread's own folder is read after the folder is trusted, not the one in the engine's working directory",
+  "the .fresnel/mcp.json of the thread's own folder is read after the folder is trusted, not the one in the engine's working directory",
   async () => {
     const base = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-mcp-ws-")));
     const engineCwd = join(base, "engine-cwd");
@@ -105,7 +106,7 @@ realTest(
         choice: { kind: "folder", verdict: "allow" },
       });
       await turnDone("after trust");
-      // 신뢰한 폴더라도 새 `.mcp.json` 명령은 사용자가 시작을 승인하기 전에는 뜨지 않는다(결정 2026-11-04 A3)
+      // 신뢰한 폴더라도 새 `.fresnel/mcp.json` 명령은 사용자가 시작을 승인하기 전에는 뜨지 않는다(결정 2026-11-04 A3)
       const asked = await collector.waitFor((event) => event.kind === "approval.requested");
       expect(existsSync(projectPid)).toBe(false);
       expect(

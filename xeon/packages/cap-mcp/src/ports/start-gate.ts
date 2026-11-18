@@ -3,7 +3,7 @@
 
 export interface McpStartDefinition {
   readonly server: string;
-  /** 정의 출처(`settings:user`, `mcpjson:project`, `ext:<이름>` 등) */
+  /** 정의 출처(`settings:user`, `mcpjson:fresnel`, `ext:<이름>` 등) */
   readonly source: string;
   readonly command: string;
   readonly args: readonly string[];

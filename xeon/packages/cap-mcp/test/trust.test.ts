@@ -54,9 +54,19 @@ describe("project trust (decision D6)", () => {
     expect(await trustFor({ files: [] }).isTrusted(ROOT, signal)).toBe(true);
   });
 
-  test("a project with .mcp.json and no decision is not trusted", async () => {
-    const trust = trustFor({ files: [`${ROOT}/.mcp.json`] });
+  test("a project with .fresnel/mcp.json and no decision is not trusted", async () => {
+    const trust = trustFor({ files: [`${ROOT}/.fresnel/mcp.json`] });
     expect(await trust.isTrusted(ROOT, signal)).toBe(false);
+  });
+
+  test("a project with only a root .mcp.json needs no decision (the file is not read, M5g-2)", async () => {
+    // 부정 시험: 루트 `.mcp.json`은 신뢰 자원이 아니므로 결정 없이 신뢰 판정이 끝난다(notRequired)
+    expect(await trustFor({ files: [`${ROOT}/.mcp.json`] }).isTrusted(ROOT, signal)).toBe(true);
+  });
+
+  test("a project with only .agents/skills at the project or above needs no decision", async () => {
+    const files = [`${ROOT}/.agents/skills`, "/work/.agents/skills"];
+    expect(await trustFor({ files }).isTrusted(ROOT, signal)).toBe(true);
   });
 
   test("the session.trust.before point can allow it", async () => {
@@ -66,7 +76,7 @@ describe("project trust (decision D6)", () => {
     });
     expect(await trust.isTrusted(ROOT, signal)).toBe(true);
     const denied = trustFor({
-      files: [`${ROOT}/.mcp.json`],
+      files: [`${ROOT}/.fresnel/mcp.json`],
       emit: () => Promise.resolve({ trusted: "no" }),
     });
     expect(await denied.isTrusted(ROOT, signal)).toBe(false);
@@ -78,13 +88,13 @@ describe("project trust (decision D6)", () => {
       now: () => 1_700_000_000_000,
     });
     await store.setMany([{ path: ROOT, verdict: "allow", via: "command" }]);
-    expect(await trustFor({ files: [`${ROOT}/.mcp.json`], backend }).isTrusted(ROOT, signal)).toBe(
-      true,
-    );
+    expect(
+      await trustFor({ files: [`${ROOT}/.fresnel/mcp.json`], backend }).isTrusted(ROOT, signal),
+    ).toBe(true);
   });
 
   test("a one-shot override wins", async () => {
-    const trust = trustFor({ files: [`${ROOT}/.mcp.json`], override: true });
+    const trust = trustFor({ files: [`${ROOT}/.fresnel/mcp.json`], override: true });
     expect(await trust.isTrusted(ROOT, signal)).toBe(true);
   });
 });

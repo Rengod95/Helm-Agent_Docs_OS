@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
+import { buildCatalog, checkSettingDef, checkSettingWrite } from "@fresnel/contracts/settings";
 import {
   DEFAULT_MCP_SETTINGS,
   MCP_SETTING_DEFS,
@@ -10,7 +10,6 @@ import { layer } from "./support/layers.ts";
 
 const SPEC_KEYS = [
   "servers",
-  "importMcpJson",
   "connectTimeoutMs",
   "callTimeoutMs",
   "approvalMode",
@@ -29,7 +28,7 @@ const SPEC_KEYS = [
 const stdio = (command: string) => ({ transport: { type: "stdio", command } });
 
 describe("mcp settings", () => {
-  test("fifteen keys pass checkSettingDef", () => {
+  test("fourteen keys pass checkSettingDef", () => {
     expect(MCP_SETTING_DEFS.map((def) => def.key).toSorted()).toEqual(SPEC_KEYS.toSorted());
     for (const def of MCP_SETTING_DEFS) {
       expect(checkSettingDef(def)).toEqual([]);
@@ -57,10 +56,23 @@ describe("mcp settings", () => {
     expect(byKey.get("l2.mcp.servers")?.ui?.widget).toBe("table");
   });
 
+  test("l2.mcp.importMcpJson is gone from the catalog: a stored value is an unknown key and does nothing (M5g-2)", () => {
+    expect(MCP_SETTING_DEFS.map((def) => def.key)).not.toContain("l2.mcp.importMcpJson");
+    const built = buildCatalog([{ owner: "cap-mcp", namespace: "l2.mcp", defs: MCP_SETTING_DEFS }]);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.mcp.importMcpJson", "user", false),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
+    // 파일에 남은 값은 읽는 쪽이 무시한다. 기본값과 다르지 않다
+    const stored = readMcpSettings([layer("user", { "l2.mcp.importMcpJson": false })]);
+    expect(stored).toEqual(DEFAULT_MCP_SETTINGS);
+    expect("importMcpJson" in stored).toBe(false);
+  });
+
   test("defaults match the spec table", () => {
     expect(readMcpSettings([])).toEqual(DEFAULT_MCP_SETTINGS);
     expect(DEFAULT_MCP_SETTINGS).toMatchObject({
-      importMcpJson: true,
       connectTimeoutMs: 30000,
       callTimeoutMs: 120000,
       approvalMode: "prompt",

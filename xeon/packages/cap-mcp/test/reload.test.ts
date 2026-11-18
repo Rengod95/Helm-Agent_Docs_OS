@@ -49,7 +49,9 @@ describe("reload", () => {
 
   test("a trust decision made later is picked up by the next reload", async () => {
     const files = fakeFiles({
-      "/proj/.mcp.json": JSON.stringify({ mcpServers: { proj: { command: "proj-server" } } }),
+      "/proj/.fresnel/mcp.json": JSON.stringify({
+        mcpServers: { proj: { command: "proj-server" } },
+      }),
     });
     let trusted = false;
     const world = buildWorld({
@@ -88,9 +90,15 @@ describe("reload", () => {
 
 const mcpFiles = (): ReturnType<typeof fakeFiles> =>
   fakeFiles({
-    "/proj-a/.mcp.json": JSON.stringify({ mcpServers: { alpha: { command: "alpha-server" } } }),
-    "/proj-b/.mcp.json": JSON.stringify({ mcpServers: { beta: { command: "beta-server" } } }),
-    "/engine-cwd/.mcp.json": JSON.stringify({ mcpServers: { home: { command: "home-server" } } }),
+    "/proj-a/.fresnel/mcp.json": JSON.stringify({
+      mcpServers: { alpha: { command: "alpha-server" } },
+    }),
+    "/proj-b/.fresnel/mcp.json": JSON.stringify({
+      mcpServers: { beta: { command: "beta-server" } },
+    }),
+    "/engine-cwd/.fresnel/mcp.json": JSON.stringify({
+      mcpServers: { home: { command: "home-server" } },
+    }),
   });
 
 // G2-02: 프로젝트 자원의 기준 폴더는 대화의 작업 폴더다. 엔진 cwd(deps.projectRoot)는 대화를 지정하지 않는 읽기에만 쓴다.
@@ -116,7 +124,7 @@ describe("the thread workspace is the project root", () => {
     return all.servers.map((server) => server.server);
   }
 
-  test("a reload for a thread reads the .mcp.json of that thread's workspace, not the engine cwd", async () => {
+  test("a reload for a thread reads the .fresnel/mcp.json of that thread's workspace, not the engine cwd", async () => {
     const world = worldWith();
     // 엔진을 열 때는 대화가 없으므로 기본 루트를 읽는다
     await startWorld(world);
@@ -142,8 +150,8 @@ describe("the thread workspace is the project root", () => {
     );
     await world.runtime.settled();
     expect(await listed(world)).toEqual([]);
-    // 기본 루트는 엔진을 열 때 한 번만 읽었다. 이 대화의 읽기는 어느 .mcp.json도 읽지 않았다
-    expect(files.reads.filter((path) => path === "/engine-cwd/.mcp.json")).toHaveLength(1);
+    // 기본 루트는 엔진을 열 때 한 번만 읽었다. 이 대화의 읽기는 어느 .fresnel/mcp.json도 읽지 않았다
+    expect(files.reads.filter((path) => path === "/engine-cwd/.fresnel/mcp.json")).toHaveLength(1);
     await world.runtime.shutdown();
   });
 

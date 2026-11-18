@@ -129,6 +129,15 @@ export interface PluginSetHandle {
   forget(threadId: ThreadId): void;
   /** 대화가 저장한 프로필이 없을 때 쓰는 기본 프로필의 집합. 대화가 없는 조회(순서 미리 보기)가 쓴다 */
   defaultView(): PluginSetView;
+  /** 대화의 E(T). 대화가 없으면 기본 프로필의 집합이다(`defaultView`와 같다) */
+  viewOf(threadId: ThreadId | undefined): PluginSetView;
+  /**
+   * 프로필 하나가 만드는 집합과 그 `profile` 범위 설정 값(`blocks.applied`의 `profileId` 읽기, M5e-2). 공통 묶음을 포함하고 덧씌우기는 없다.
+   * 저장한 프로필에 없는 id(`default`는 공장 기본이 있어 항상 있다)나 복사를 아직 못 읽었으면 undefined다
+   */
+  viewOfProfile(
+    profileId: string,
+  ): { readonly view: PluginSetView; readonly settings: ReadonlyMap<string, unknown> } | undefined;
   /** 대화의 `profile` 범위 층 값(공통 묶음 + 프로필, 프로필이 이긴다). 복사가 없으면 빈 값이다 */
   settingsOf(threadId: ThreadId): ReadonlyMap<string, unknown>;
   /** `ext.list`의 `enabledSource`(M5c §3.4). 대화가 없으면(undefined) 기본 프로필의 출처를 본다 */
@@ -208,16 +217,21 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   const loading = new Map<string, Promise<void>>();
 
   /** 저장한 프로필 id를 쓰는 대화 하나의 해소 결과(복사가 없으면 undefined) */
-  function resolvedOf(threadId: ThreadId | undefined): Resolved | undefined {
+  function resolvedOf(threadId: ThreadId | undefined, profileId?: string): Resolved | undefined {
     const current = copy;
     if (current === undefined) return undefined;
-    const stored = threadId === undefined ? null : deps.threadProfileId(threadId);
+    const stored =
+      profileId !== undefined
+        ? profileId
+        : threadId === undefined
+          ? null
+          : deps.threadProfileId(threadId);
     return resolveIn(current, stored, deps.defaultPlugins);
   }
 
   /** E(T)의 구성원과 출처. 복사를 아직 못 읽었으면 등록된 모든 확장을 본다(읽지 못해 전부 끄지 않는다) */
-  function membershipOf(threadId: ThreadId | undefined): Membership {
-    const resolved = resolvedOf(threadId);
+  function membershipOf(threadId: ThreadId | undefined, profileId?: string): Membership {
+    const resolved = resolvedOf(threadId, profileId);
     const sources = new Map<string, EnabledSource>();
     const put = (name: string, source: EnabledSource): void => {
       if (!sources.has(name)) sources.set(name, source);
@@ -251,8 +265,8 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     );
   }
 
-  function viewOf(threadId: ThreadId | undefined): PluginSetView {
-    const { sources, resolved } = membershipOf(threadId);
+  function viewOf(threadId: ThreadId | undefined, profileId?: string): PluginSetView {
+    const { sources, resolved } = membershipOf(threadId, profileId);
     const plugins = admitted(sources);
     const pluginHashes = plugins.flatMap((name) => {
       const contentHash = deps.loadedHash(name);
@@ -437,6 +451,14 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       trackUsage(threadId, new Set());
     },
     defaultView: () => viewOf(undefined),
+    viewOf: (threadId) => viewOf(threadId),
+    viewOfProfile(profileId) {
+      const current = copy;
+      if (current === undefined) return undefined;
+      const picked = pickProfile(current, profileId);
+      if (picked.missing && profileId !== DEFAULT_PROFILE_ID) return undefined;
+      return { view: viewOf(undefined, profileId), settings: settingsIn(current, picked) };
+    },
     settingsOf: (threadId) => {
       const current = copy;
       if (current === undefined) return new Map<string, unknown>();
