@@ -479,6 +479,7 @@ export type StartDriveReply =
           | "child_thread"
           | "not_drive"
           | "drive_error"
+          | "input_too_large"
           | "no_context";
       };
     };
