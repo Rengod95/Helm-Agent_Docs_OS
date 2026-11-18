@@ -84,6 +84,8 @@ export interface ProfilePreviewRequest {
 /** 처리기가 쓰는 포트 */
 export interface ProfileTestRunPort {
   readonly errors: HostErrorMappers;
+  /** 기본 프로필이 처음 주는 플러그인의 이름(번들과 코어가 아닌 내장). 사용자가 지워 설치돼 있지 않을 수 있다 */
+  firstGivenPlugins(): readonly string[];
   list(): Promise<Result<ProfileListResult, ProfilePortFailure>>;
   get(id: string): Promise<Result<Profile, ProfilePortFailure>>;
   put(

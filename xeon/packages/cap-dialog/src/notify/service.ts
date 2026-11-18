@@ -1,5 +1,6 @@
 import { assertNever, attempt, parse } from "@fresnel/contracts";
 import {
+  DialogFailure,
   DialogNotify,
   NotifyEmitInput,
   NotifyListInput,
@@ -10,7 +11,6 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope, StoreError } from "@fresnel/contracts/records";
-import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
 import type { NoticeEmitFailure, NoticePort, NoticeReadFilter } from "../ports/notices.ts";
 import { classifyNotice } from "./classify.ts";
@@ -140,7 +140,7 @@ export function createNotifyService(deps: DialogDeps): NotifyService {
 
   const api: NotifyApi = {
     emit: (input, options) =>
-      guarded(CAPABILITY, "emit", () => {
+      deps.core.guardedDialog(CAPABILITY, "emit", () => {
         const threadId = options?.context?.threadId;
         if (threadId === undefined) {
           throw new DialogFailure(
@@ -168,7 +168,7 @@ export function createNotifyService(deps: DialogDeps): NotifyService {
         return Promise.resolve({ notice });
       }),
     list: (input, options) =>
-      guarded(CAPABILITY, "list", () => {
+      deps.core.guardedDialog(CAPABILITY, "list", () => {
         const parsed = parse(NotifyListInput, input);
         if (!parsed.ok) {
           throw new DialogFailure("invalid_input", "The list input does not match the schema.");

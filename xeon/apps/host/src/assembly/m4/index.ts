@@ -48,14 +48,21 @@ export function coreNamesOf(records: readonly ExtensionRecord[]): readonly strin
     .map((record) => record.manifest.name);
 }
 
-/** 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 것의 이름(§4.1.2). 공장 기본 프로필의 플러그인 가운데 이 부분이다 */
+/**
+ * 코어가 아닌 확장 가운데 매니페스트 기본이 켜진 내장(저장소 패키지) 확장의 이름(§4.1.2). 매니페스트의 "기본으로 켜짐"은 번들에만 효력이 있다:
+ * 사용자·프로젝트·관리 출처는 `defaultEnabled`가 참이어도 사용자가 프로필(또는 베이스)에 넣어야 실린다(2026-11-18 AGE-49).
+ * 릴리스 번들(Helm 등)은 `base`(`DEFAULT_PLUGIN_NAMES`)로 들어온다
+ */
 function defaultNamesOf(records: readonly ExtensionRecord[]): readonly string[] {
   return records
-    .filter((record) => !isCore(record) && record.manifest.defaultEnabled !== false)
+    .filter(
+      (record) =>
+        !isCore(record) && record.origin === "builtin" && record.manifest.defaultEnabled !== false,
+    )
     .map((record) => record.manifest.name);
 }
 
-/** 공장 기본 프로필의 플러그인 이름: 기본 번들 `base`와 `defaultNamesOf`의 합집합(중복 없음). 옮김과 기본 프로필이 같은 목록을 쓴다 */
+/** 기본 프로필이 처음 주는 플러그인 이름: 기본 번들 `base`와 `defaultNamesOf`의 합집합(중복 없음). 옮김과 기본 프로필이 같은 목록을 쓴다 */
 export function factoryPluginsOf(
   base: readonly string[],
   records: readonly ExtensionRecord[],
