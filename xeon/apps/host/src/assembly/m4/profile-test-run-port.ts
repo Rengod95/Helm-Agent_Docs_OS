@@ -307,6 +307,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       profileId: stored.testBaseProfile,
       target: stored.testTarget,
       paused: false,
+      ...(stored.runGroupId === null ? {} : { runGroupId: stored.runGroupId }),
     };
     markers.set(threadId, restored);
     return restored;
@@ -849,9 +850,14 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
     testRunMarker: (threadId) => markerOf(threadId),
-    registerTestRun(threadId, profileId) {
-      markers.set(threadId, { profileId, target: null, paused: false });
-      deps.env.testRunMarks?.remember(threadId, profileId);
+    registerTestRun(threadId, profileId, runGroupId) {
+      markers.set(threadId, {
+        profileId,
+        target: null,
+        paused: false,
+        ...(runGroupId === undefined ? {} : { runGroupId }),
+      });
+      deps.env.testRunMarks?.remember(threadId, profileId, "test", runGroupId);
     },
     controlTestRun(threadId, op) {
       const marker = markerOf(threadId);

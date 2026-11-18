@@ -1,5 +1,14 @@
-import { Type, type TUnsafe } from "typebox";
+import {
+  Type,
+  type Static,
+  type TArray,
+  type TObject,
+  type TOptional,
+  type TString,
+  type TUnsafe,
+} from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
+import { ThreadIdSchema, type ThreadId } from "../../conversation/index.ts";
 import {
   TestRunControlResultSchema,
   TestRunPhaseResultSchema,
@@ -8,6 +17,7 @@ import {
   type TestRunPhaseResult,
   type TraceTurnResult,
 } from "../../extensions/index.ts";
+import { OVERLAY_WIRE_MAX } from "./profile.ts";
 import { closed, m4, request, type Io, type M4Spec, type Req } from "./schema-kit.ts";
 
 // F.wire-settings.spec §3.3.6(M4 Test run·계측·설정 설명). L4.desktop-ux.spec §10.1 W-34, W-43, W-45, W-48, W-50.
@@ -132,6 +142,57 @@ export const SettingsExplainResultSchema: TUnsafe<SettingsExplainResult> =
       typeof SettingsExplainResultShape
     >,
   );
+
+/** `testRun.start`의 초안 한 줄(M5c §4.8.1). 플러그인 이름과 초안 id로 가리킨다 */
+const TestRunDraftRefSchema: TObject<{ plugin: TString; draftId: TString }> = Type.Object(
+  { plugin: Name, draftId: Id },
+  { additionalProperties: false },
+);
+
+/**
+ * `testRun.start` params(M5c §4.8.1). `drafts`는 와이어에서 `OVERLAY_WIRE_MAX`까지 받고, 넘치면 처리기가 `overlay.limit`으로 답한다
+ * (덧씌우기와 같은 규칙, §4.3 [제안] (1)). `baseProfileId`를 생략하면 `default`다. `runGroupId`를 생략하면 호스트가 정한다.
+ */
+export const TestRunStartParamsSchema: TObject<{
+  baseProfileId: TOptional<TString>;
+  drafts: TArray<typeof TestRunDraftRefSchema>;
+  runGroupId: TOptional<TString>;
+  workspace: TOptional<TString>;
+}> = Type.Object(
+  {
+    baseProfileId: Type.Optional(Id),
+    drafts: Type.Array(TestRunDraftRefSchema, { maxItems: OVERLAY_WIRE_MAX }),
+    runGroupId: Type.Optional(Id),
+    workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+  },
+  { additionalProperties: false },
+);
+export type TestRunStartParams = Static<typeof TestRunStartParamsSchema>;
+
+/**
+ * `testRun.start` 결과. `versionId`는 `draft:<draftId>:<내용 해시 앞 8자>`다. 구성(기준 프로필과 초안)은 대화의 수명 동안 고정이다.
+ * 초안을 얹는 일은 아직 열려 있지 않아(P1 전) 지금의 처리기는 `drafts`를 항상 빈 목록으로 돌려준다.
+ */
+export const TestRunStartResultSchema: TObject<{
+  threadId: TUnsafe<ThreadId>;
+  profileId: TString;
+  drafts: TArray<TObject<{ plugin: TString; draftId: TString; versionId: TString }>>;
+  runGroupId: TString;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    profileId: Id,
+    drafts: Type.Array(
+      Type.Object(
+        { plugin: Name, draftId: Id, versionId: Type.String({ minLength: 1, maxLength: 200 }) },
+        { additionalProperties: false },
+      ),
+    ),
+    runGroupId: Id,
+  },
+  { additionalProperties: false },
+);
+export type TestRunStartResult = Static<typeof TestRunStartResultSchema>;
 
 type U<T> = TUnsafe<T>;
 export interface ProfileTestRunSchemas {

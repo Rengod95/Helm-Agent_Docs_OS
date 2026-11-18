@@ -108,6 +108,8 @@ import {
   PROFILE_TEST_RUN_METHODS,
   ProfileChangedParamsSchema,
   TestRunMarkerSchema,
+  TestRunStartParamsSchema,
+  TestRunStartResultSchema,
   type ProfileTestRunSchemas,
 } from "./profile-test-run.ts";
 import {
@@ -2089,6 +2091,10 @@ interface WireSchemas
     params: WithMeta<typeof CraftChatListParamsSchema>;
     result: typeof CraftChatListResultSchema;
   };
+  "testRun.start": {
+    params: WithMeta<typeof TestRunStartParamsSchema>;
+    result: typeof TestRunStartResultSchema;
+  };
   "thread.open": {
     params: WithMeta<typeof ThreadOpenParamsSchema>;
     result: typeof ThreadOpenResultSchema;
@@ -2430,6 +2436,7 @@ export const WIRE_METHODS: {
   "thread.create": spec(withMeta(ThreadCreateParamsSchema), ThreadCreateResultSchema, "M1"),
   "craftChat.open": spec(withMeta(CraftChatOpenParamsSchema), CraftChatOpenResultSchema, "M5"),
   "craftChat.list": spec(withMeta(CraftChatListParamsSchema), CraftChatListResultSchema, "M5"),
+  "testRun.start": spec(withMeta(TestRunStartParamsSchema), TestRunStartResultSchema, "M5"),
   "thread.open": spec(withMeta(ThreadOpenParamsSchema), ThreadOpenResultSchema, "M2"),
   "thread.read": spec(withMeta(ThreadReadParamsSchema), ThreadReadResultSchema, "M2"),
   "thread.close": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),

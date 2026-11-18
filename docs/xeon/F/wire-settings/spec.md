@@ -431,6 +431,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.phase` | `{ threadId: string }` | `{ phase: string \| null, group: string \| null, seq: integer \| null, paused: boolean, lock: { holder: string \| null, status: "active"\|"releasing"\|"none", epoch: integer \| null }, guardHits: integer, traceEnabled: boolean, boundaries: { seq: integer, phase: string \| null, paused: boolean }[] }`. 모든 칸은 필수다. `boundaries`는 최대 200개이고 오래된 것부터다(마지막이 가장 최근). 정본은 `TestRunPhaseResultSchema`(`extensions/trace-types.ts`)다 | M4 (W-50) |
+| testRun | `testRun.start` | `{ baseProfileId?: string(1..128, 생략하면 `default`), drafts: { plugin: string, draftId: string }[](와이어 상한 16, 처리기 한도 4), runGroupId?: string, workspace?: string }` | `{ threadId: string, profileId: string, drafts: { plugin, draftId, versionId }[], runGroupId: string }`. 기준 프로필로 Test run 대화를 만든다. 초안은 아직 얹지 않아 `drafts`는 빈 목록이다(`overlay.draftUnavailable`). 정본은 M5c §4.8.1 | M5 (M5c §4.8.1) |
 | ext | `ext.kinds` | `{}` | `{ kinds: KindEntry[] }`. `KindEntry.id`는 `single-plugin` 하나이고 `layers`는 그 종류가 쓸 수 있는 층이다 [결정: review/m5/profile-project-loader.md §4.9.5] | M4 (W-27) |
 | ext | `ext.scaffold` | `{ kind: "single-plugin", name: string, dir: string, layer?: ExtensionLayer, group?: { members?: string[], composition?: CompositionDecl }, ui?: UiDecl }`. 종류는 플러그인 하나뿐이다(§4.9.5). `group`은 매니페스트의 `group` 선언 초안이다 | `{ dir: string, files: string[] }` | M4 (W-27) |
 | ext | `ext.validate` | `{ dir: string }` | `{ ok: boolean, issues: DevkitIssue[] }`(`schemaVersion: 2` 매니페스트 검사 결과) | M4 (W-28) |
@@ -595,6 +596,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 
 - [구현 상태, 2026-11-18] `thread.list`의 `include: "craft"`(M5c §4.8.3)는 테스트 대화(표지가 있는 대화)도 낸다. 생략하면 뺀다. 목록 원소의 `craftChat`은 표지가 있는 대화에만 있고(`plugin`은 묶이기 전이면 null), 맥락 참조는 싣지 않는다(`L1.persistence.spec` §3.4).
 - [구현 상태, 2026-11-18] `craftChat.open`(`{ plugin, reuse?, intent? }` → `{ threadId, plugin, reused }`)와 `craftChat.list`(`{ plugin }` → `{ threads }`)를 등록했다(M5c §3.6, §4.8.10). `craftChat.open`의 결과 이름은 M5c §3.6의 `created`가 아니라 `reused`다([제안], 결정 요청). `contexts`는 이 메서드에 아직 없다(표지는 빈 목록으로 만든다). 새 오류 코드는 없다. 처리기는 `handlers/m5/craft-chat.ts`, 계약은 `wire/methods.ts`다. `profile.*`·`thread.create`·`thread.setProfile`의 숨은 `craft` 프로필 거절은 기존 오류(`profile.builtinProtected`, `profile.notFound`)를 쓴다.
+- [구현 상태, 2026-11-18] `testRun.start`(M5c §4.8.1)를 M5 단계로 등록했다. 계약은 `wire/profile-test-run.ts`(params·result), 처리기는 `handlers/m5/test-run.ts`다. 검사 순서는 한도(`overlay.limit`, 와이어는 16까지 받는다), 기준 프로필(`craft`와 없는 id는 `profile.notFound`), 기준 프로필의 검증 오류(`profile.invalid`), 초안 목록(`draft.notFound`), 초안이 있으면 `overlay.draftUnavailable`(P1 전)이다. 모든 검사는 대화를 만들기 전에 끝난다. 통과하면 `profileId`가 기준인 Test run 대화를 만들고 표지에 `runGroupId`를 더한다(생략하면 `trg-<uuid>`). 표지의 `kind`와 `draft`는 초안을 쓸 때만 싣는다([제안]). 결과 `drafts`는 지금 빈 목록이다. 새 오류 코드는 없다. 정본과 나머지 미구현은 `L4/host-service/spec.md` §4.26이다.
 - [결정: m2-plan F.6] `thread.list`의 `workspace` 필터는 `thread.started.workspace`(`F.conversation.spec` §3.5.3)에 저장한 값과 정확히 같은 문자열을 찾는다. 호스트가 `thread.create`의 `workspace`를 정규 절대 경로로 바꿔 저장하는 규칙은 `L4.host-service.spec`이 정한다.
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.
 
@@ -1122,7 +1124,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3304 | `profile.trustRequired` | false | 신뢰하지 않은 작업 폴더의 `project` 층에는 적용하지 않는다 | `workspace` |
 | 3305 | `profile.applyPartial` | false | 적용이 중간에 실패했고 되돌리기도 실패했다. 쓰인 채 남은 키를 알린다(M5c-1 뒤로 `profile.apply`가 없어 쓰이지 않는다. 제거 여부는 통합 단계가 정한다 [미결: review.m5-profile-project-loader §3.4]) | `written`(256개까지), `failed` |
 | 3306 | `profile.limit` | false | 프로필 개수가 상한을 넘는다 | `max` |
-| 3307 | `profile.invalid` | false | 프로필 검증에서 오류가 났다(`profile.put`·`profile.common.put`에서 난다. `testRun.start`는 레지스트리에 아직 등록되지 않았다). 저장하지 않았다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
+| 3307 | `profile.invalid` | false | 프로필 검증에서 오류가 났다(`profile.put`·`profile.common.put`에서 난다. `testRun.start`도 낸다(기준 프로필의 검증 오류, 대화를 만들지 않는다)). 저장하지 않았다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
 | 3308 | `profile.builtinProtected` | false | 내장·숨은 프로필의 삭제나 `id`·`builtin` 변경, 숨은 `craft` 프로필의 전환은 할 수 없다 | `id` |
 | 3309 | `profile.pluginNotInProfile` | false | `profile.removePlugin`의 플러그인이 그 프로필에 들어 있지 않다 | `name` |
 | 3310 | `profile.commonPlugin` | false | `profile.removePlugin`의 플러그인이 공통 묶음에서 온 것이다 | `name` |

@@ -40,6 +40,7 @@ describe("Test run marker, trace and explain", () => {
 
   test("testRun controls, phase, trace and explain round trip", () => {
     expect(Object.keys(WIRE_METHODS).filter((name) => name.startsWith("testRun."))).toEqual([
+      "testRun.start",
       "testRun.pause",
       "testRun.resume",
       "testRun.step",

@@ -1316,6 +1316,18 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **시험.** `test/handlers/craft-chat.test.ts`(열기, 다시 열기, 목록, 프로필 보호, 원본 폴더 유무), `test/assembly/craft-chat.test.ts`(초안 묶기의 조건), `test/assembly/plugin-set.test.ts`(숨은 프로필의 해소와 공통 묶음 제외), `test/assembly/project-scope.test.ts`·`project-port.test.ts`(목록과 기본값 제외), `packages/core-workspace/test/roots.test.ts`(쓰기 범위 값).
 
+### 4.26 테스트 실행 `testRun.start` [구현 상태, 2026-11-18, review m5 §4.8.1]
+
+**처리 순서.** 처리기는 `handlers/m5/test-run.ts`다. 검사는 모두 대화를 만들기 전에 끝낸다. (1) 초안이 4개를 넘으면 `overlay.limit`(와이어는 16개까지 받는다, 덧씌우기와 같은 규칙). (2) 기준 프로필(`baseProfileId`, 생략하면 `default`)이 `craft`이거나 저장되어 있지 않으면 `profile.notFound`. (3) 기준 프로필을 `profileTestRun.preview`로 검증해 오류(`severity: "error"`) 이슈가 있으면 `profile.invalid`(`details.issues`)로 거절한다. 저장된 레코드는 바꾸지 않는다. (4) 초안은 그 플러그인의 `draftList`에 같은 `draftId`가 있어야 하며 없으면 `draft.notFound`다. (5) 초안이 하나라도 있으면 `overlay.draftUnavailable`다(격리 1단계 전, §4.3.8).
+
+**만들기.** 통과하면 `thread.create { testRun: true }`와 같은 경로(`ports.threads.create`)로 `profileId`가 기준인 대화를 만들고, 쓰기 소유를 얻은 뒤 열기 훅의 대화 폴더를 정한다. 표지는 `markTestRun(profiles, threadId, base, runGroupId)`로 단다. `runGroupId`는 입력값이거나 `trg-<uuid>`다. 측정 저장소의 `tr_thread`에 `scope_kind = test`, `test_base_profile`, `run_group_id`가 적힌다(`assembly/measure/test-run-marks.ts`의 `remember`가 묶음 id를 받는다). 재시작 뒤 `markerOf`가 저장된 묶음 id를 되살린다. 결과는 `{ threadId, profileId, drafts: [], runGroupId }`다. 프로필 레코드와 E(T)는 기준 프로필의 것 그대로다(초안이 없으므로 덧씌우기가 없다).
+
+**아직 없는 것(M5c §4.8.1 2·3·6·9번).** (a) 초안을 얹은 E(T)(같은 이름의 검토본을 빼고 초안을 뒤에 놓기)와 `ThreadSummary.testRun`의 `kind: "draft"`·`draft`·초안 목록. 덧씌우기의 표지는 `until: "turn"`만 있어 대화 수명 동안 고정인 구성을 표현할 수 없고, 격리 1단계(P1)도 없다. 이 단계는 만들지 않았다. (b) 초안 출신 호출의 "초안" 승인 카드(U2). 승인 경로(`assembly/approvals.ts`)에 초안 표시가 없다. (c) 자식 대화의 구성 상속(§4.8.1 9번). 자식 대화는 `packages/core-agents/src/service.ts`가 `session.threads.create`로 만들며 작업 폴더만 물려받고 프로필과 덧씌우기는 물려받지 않는다. (d) 턴 기록(E §3.5)의 `testRun` 블록은 여전히 `null`이다(기존 `ext.test.run`과 같다). 턴 기록의 `scope`는 `test`다.
+
+**알려진 주의.** 기준이 공장 기본 프로필이고 그 프로필이 든 기본 플러그인이 설치되지 않았으면(예: 시험 집의 `helm`) `profile.invalid`다. 저장 때의 검증과 같은 규칙을 쓰기 때문이다. 일반 대화는 같은 프로필로 열린다.
+
+**시험.** `test/handlers/test-run-start.test.ts`(시작과 표지, 묶음 id 생성, 없는 프로필과 `craft` 기준, 한도, 검증 오류, 없는 초안, 초안 게이트, 모두 대화를 만들지 않음), `test/int/test-run-start.int.test.ts`(실제 엔진: 턴 기록의 `scope: "test"`, 기준 프로필과 묶음 id가 든 목록), `test/assembly/measure/test-run-marks.test.ts`(묶음 id의 저장과 지킴), `test/assembly/measure/turn-read.test.ts`(`test` 범위의 턴이 기본 지표에서 빠진다), `packages/contracts/test/wire-settings/test-run-start.test.ts`(모양).
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |

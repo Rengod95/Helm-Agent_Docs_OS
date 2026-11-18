@@ -1266,6 +1266,34 @@ test("craft-scope turns are left out of the default metrics and come back only w
   store.close();
 });
 
+// M5c §4.8.1, E §4.6 규칙 36: 테스트 실행 대화(scope test)의 턴도 지표 기본 필터에서 빠지고 `scopes`로 켜야 나온다
+test("test-scope turns of a test run are left out of the default metrics too and come back only when asked for", () => {
+  const store = memory();
+  writeSteps(store, "thr_plain", "trn_plain", NOW - HOUR, [
+    { index: 0, input: 100, cacheRead: 300 },
+  ]);
+  writeSteps(store, "thr_run", "trn_run", NOW - HOUR, [{ index: 0, input: 900, cacheRead: 0 }], {
+    scopeKind: "test",
+  });
+  const port = portOf(store, 1);
+  const period = { from: NOW - 60 * DAY, to: NOW };
+  const rateWith = (scopes: readonly ("live" | "test")[] | null): number | null | undefined => {
+    const filter = scopes === null ? { period } : { period, scopes: [...scopes] };
+    const out = port.metrics({
+      metrics: ["block.cache_hit_rate"],
+      filter,
+      groupBy: [],
+      compare: null,
+    });
+    if (!out.ok) throw new Bug("metrics must answer in this test");
+    return out.value.rows[0]?.values["block.cache_hit_rate"]?.value;
+  };
+  expect(rateWith(null)).toBeCloseTo(300 / 400, 10);
+  expect(rateWith(["test"])).toBe(0);
+  expect(rateWith(["live", "test"])).toBeCloseTo(300 / 1300, 10);
+  store.close();
+});
+
 test("drive metrics read the frame rows: entries, exits by reason, usage against limits and asks inside the frame", () => {
   const store = memory();
   const T = "thr_drive";

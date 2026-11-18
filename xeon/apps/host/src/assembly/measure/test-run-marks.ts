@@ -13,12 +13,14 @@ type ThreadScopeMark = "test" | "craft";
 export interface TestRunMarks {
   /**
    * 표지를 쓴다. 이미 있는 행의 생성 시각과 대상 확장은 지킨다. 쓰지 못했으면 거짓이다.
-   * `scopeKind`를 생략하면 `test`다. `craft`는 테스트 대화의 턴을 `scope_kind = craft`로 적게 한다
+   * `scopeKind`를 생략하면 `test`다. `craft`는 테스트 대화의 턴을 `scope_kind = craft`로 적게 한다.
+   * `runGroupId`를 생략하면 이미 있는 행의 값을 지킨다(테스트 실행의 묶음 id, M5c §4.8.1)
    */
   remember(
     threadId: ThreadId,
     testBaseProfile: string | null,
     scopeKind?: ThreadScopeMark,
+    runGroupId?: string,
   ): boolean;
   /** 저장된 표지. Test run 대화가 아니거나 저장소가 없으면 undefined */
   recall(threadId: ThreadId): TrThreadRow | undefined;
@@ -33,7 +35,7 @@ export interface TestRunMarksDeps {
 
 export function createTestRunMarks(deps: TestRunMarksDeps): TestRunMarks {
   return {
-    remember(threadId, testBaseProfile, scopeKind = "test") {
+    remember(threadId, testBaseProfile, scopeKind = "test", runGroupId) {
       const store = deps.store();
       if (store === undefined) return false;
       const existing = store.getThread(threadId);
@@ -47,7 +49,7 @@ export function createTestRunMarks(deps: TestRunMarksDeps): TestRunMarks {
         scopeKind,
         testBaseProfile,
         testTarget: row?.testTarget ?? null,
-        runGroupId: row?.runGroupId ?? null,
+        runGroupId: runGroupId ?? row?.runGroupId ?? null,
         inputHash: row?.inputHash ?? null,
         createdAt: row?.createdAt ?? deps.clock.now(),
         draftJson: row?.draftJson ?? null,

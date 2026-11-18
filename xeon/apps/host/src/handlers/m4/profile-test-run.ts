@@ -122,8 +122,11 @@ export interface ProfileTestRunPort {
   traceTurn(threadId: ThreadId, rawTurnId: string): TraceTurnResult;
   /** Test run 대화의 표지. Test run이 아니면 undefined */
   testRunMarker(threadId: ThreadId): TestRunMarker | undefined;
-  /** Test run 대화를 표지한다. `profileId`는 표지에 적을 값이고 대화에 적용하지 않는다 */
-  registerTestRun(threadId: ThreadId, profileId: string | null): void;
+  /**
+   * Test run 대화를 표지한다. `profileId`는 표지에 적을 값이고 대화에 적용하지 않는다.
+   * `runGroupId`는 `testRun.start`의 묶음 id다(없으면 표지에 싣지 않는다)
+   */
+  registerTestRun(threadId: ThreadId, profileId: string | null, runGroupId?: string): void;
   controlTestRun(
     threadId: ThreadId,
     op: "pause" | "resume" | "step",
@@ -228,8 +231,9 @@ export function markTestRun(
   profiles: Pick<ProfileTestRunPort, "registerTestRun">,
   threadId: ThreadId,
   profileId: string | undefined,
+  runGroupId?: string,
 ): void {
-  profiles.registerTestRun(threadId, profileId ?? null);
+  profiles.registerTestRun(threadId, profileId ?? null, runGroupId);
 }
 
 /** 설정 쓰기 실패를 와이어 오류로 옮긴다. `where`는 메시지 머리말이다(설정 쓰기 호출자가 정한다) */
