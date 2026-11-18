@@ -10,7 +10,15 @@
 //   release-smoke <archive>
 // This file imports no workspace package. Exit codes: 0 every check passed, 1 a check failed, 2 environment (tar missing).
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -224,6 +232,8 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
     );
     return failures;
   } finally {
+    // 검토본 사본(`plugin-store/reviewed/<이름>/<해시>/tree`)은 읽기 전용 폴더다. 쓰기 권한을 돌려준 뒤에 지운다
+    makeWritable(work);
     rmSync(work, { recursive: true, force: true });
   }
 }
@@ -246,4 +256,12 @@ if (import.meta.main) {
       : `release-smoke: ${String(failures.length)} check(s) failed\n`,
   );
   process.exit(failures.length === 0 ? 0 : 1);
+}
+
+/** 폴더와 그 아래 폴더에 소유자 쓰기 권한을 돌려준다(링크는 따라가지 않는다). 지우기 전의 정리용이다 */
+function makeWritable(dir: string): void {
+  chmodSync(dir, 0o700);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) makeWritable(join(dir, entry.name));
+  }
 }
