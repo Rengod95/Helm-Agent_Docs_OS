@@ -27,7 +27,7 @@ import { createProposalHandlers } from "./proposal.ts";
 import { createM5Handlers } from "./m5/index.ts";
 import { createCraftChatHandlers } from "./m5/craft-chat.ts";
 import { createTestRunHandlers } from "./m5/test-run.ts";
-import { createPluginHandlers } from "./m5/plugins.ts";
+import { createPluginHandlers, wireErrorOfPluginFailure } from "./m5/plugins.ts";
 import { createPluginReviewHandlers } from "./m5/plugin-review.ts";
 import { createMigrationHandlers } from "./m5/migration.ts";
 import { createBacktestHandlers } from "./m5/backtest.ts";
@@ -137,7 +137,14 @@ export function createWireHandlers(
     ...createBlocksHandlers(),
     ...createExtUiVersionHandlers(engine.ports.m4.extUi),
     ...createProfileTestRunHandlers(engine.ports.m4.profileTestRun),
-    ...createProjectHandlers(engine.ports.m4.project),
+    ...createProjectHandlers(engine.ports.m4.project, async (projectId) => {
+      // 카드 출처가 이 프로젝트인 대기 항목 수(F wire §3.3.1 `project.get`)
+      const listed = await engine.ports.pluginReview.list({ state: "pending" });
+      if (!listed.ok) throw wireErrorOfPluginFailure(listed.error);
+      return listed.value.items.filter(
+        (item) => item.card.origin.kind === "project" && item.card.origin.projectId === projectId,
+      ).length;
+    }),
     ...createDialogAreaHandlers(engine.ports.m4.dialogArea),
     ...createDevkitHandlers(engine.ports.m4.devkit),
     ...createSandboxSelfTestHandlers(engine.ports.m4.sandboxSelfTest),

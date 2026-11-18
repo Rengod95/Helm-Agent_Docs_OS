@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import { canonicalJson, parse } from "@fresnel/contracts";
-import { WorkspaceFiles, WorkspaceFilesKey } from "@fresnel/contracts/capabilities";
+import {
+  defineCapability,
+  serviceKey,
+  WorkspaceFiles,
+  WorkspaceFilesKey,
+} from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import { ApprovalRequestedPayloadSchema, EffectIntentSchema } from "@fresnel/contracts/records";
 import type { DraftMark, PluginCallRequest } from "@fresnel/contracts/services";
@@ -388,4 +393,93 @@ test("the card and the recorded approval.requested carry the draft mark as one v
     throw new Error("the draft card was not recorded as a tool approval with a draft mark");
   }
   expect(drafted.value.body.tool.draft).toEqual({ plugin: "draft-ext", draftId: "d-7" });
+});
+
+// 초안 출신 호출은 읽기 수준이어도 카드를 지난다: 도구 매핑이 없는 readOnly 기능 메서드는 검토된 플러그인에는 파이프라인 항목이 없지만
+// (가벼운 길로 간다) 초안에는 합성 항목을 주어 카드를 띄운다. 어떤 길로도 카드 없이 실행되지 않는다.
+
+const PeekInput = Type.Object({ value: Type.String() });
+const Peeker = defineCapability({
+  id: "test.peeker",
+  version: "1.0.0",
+  description: "a capability with one readOnly method and no tool mapping",
+  service: {
+    methods: {
+      peek: {
+        description: "reads a value",
+        input: PeekInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+        replay: "safe",
+        readOnly: true,
+      },
+    },
+  },
+  tools: [],
+});
+
+function peekFrom(h: Harness, scopeId: string, requestId: string): PluginCallRequest {
+  return {
+    threadId: h.thread,
+    plugin: { name: scopeId, scopeId },
+    via: "hook",
+    target: { kind: "capability", capability: "test.peeker", method: "peek" },
+    input: { value: "x" },
+    requestId,
+  };
+}
+
+test("a readOnly capability call from a draft plugin asks under bypass and runs only after the card is allowed", async () => {
+  const h = await createHarness({ draftOf, layers: [BYPASS], capabilityDefs: [Peeker] });
+  const peeks: string[] = [];
+  h.apis.set(Peeker.id, {
+    peek: (input: { value: string }) => {
+      peeks.push(input.value);
+      return Promise.resolve({ ok: true });
+    },
+  });
+  h.runtime.tools.register({ kind: "capability", def: Peeker, key: serviceKey(Peeker) });
+  const pending = h.runtime.tools.executeForPlugin(peekFrom(h, "draft-plug", "draft-peek-1"));
+  await until(() => toolCards(h).length === 1);
+  const [card] = toolCards(h);
+  expect(card?.origin.caller).toBe("plugin:draft-plug");
+  expect(card?.body.kind === "tool" ? card.body.tool.draft : undefined).toEqual({
+    plugin: "draft-plug",
+    draftId: "d-8",
+  });
+  expect(peeks).toEqual([]);
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
+  expect(await pending).toMatchObject({ ok: true, value: { isError: false } });
+  expect(peeks).toEqual(["x"]);
+});
+
+test("a readOnly capability call from a draft plugin is denied when the card is denied, and the capability is not called", async () => {
+  const h = await createHarness({ draftOf, layers: [BYPASS], capabilityDefs: [Peeker] });
+  const peeks: string[] = [];
+  h.apis.set(Peeker.id, {
+    peek: (input: { value: string }) => {
+      peeks.push(input.value);
+      return Promise.resolve({ ok: true });
+    },
+  });
+  h.runtime.tools.register({ kind: "capability", def: Peeker, key: serviceKey(Peeker) });
+  const pending = h.runtime.tools.executeForPlugin(peekFrom(h, "draft-plug", "draft-peek-2"));
+  await until(() => toolCards(h).length === 1);
+  await h.runtime.approvals.respond(toolCards(h)[0]?.approvalId ?? "", { decision: "deny" });
+  expect(await pending).toMatchObject({ ok: false, error: { kind: "denied" } });
+  expect(peeks).toEqual([]);
+});
+
+test("the same readOnly capability call from a reviewed plugin has no pipeline entry (it takes the light path) and opens no card", async () => {
+  const h = await createHarness({ draftOf, layers: [BYPASS], capabilityDefs: [Peeker] });
+  h.apis.set(Peeker.id, { peek: () => Promise.resolve({ ok: true }) });
+  h.runtime.tools.register({ kind: "capability", def: Peeker, key: serviceKey(Peeker) });
+  const result = await h.runtime.tools.executeForPlugin(peekFrom(h, "ok-plug", "reviewed-peek"));
+  expect(result).toMatchObject({ ok: false, error: { kind: "unavailable" } });
+  expect(toolCards(h)).toEqual([]);
+});
+
+test("isDraftScope is true for a registration scope the draft lookup knows and false for any other", async () => {
+  const h = await createHarness({ draftOf });
+  expect(h.runtime.tools.isDraftScope?.("draft-plug")).toBe(true);
+  expect(h.runtime.tools.isDraftScope?.("ok-plug")).toBe(false);
 });

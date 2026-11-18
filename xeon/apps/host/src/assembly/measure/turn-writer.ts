@@ -62,6 +62,8 @@ import {
   flatHooksOf,
   hookKeyOf,
   hooksOfStep,
+  isTurnLevelHook,
+  keyedHex,
   lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
@@ -168,19 +170,25 @@ export interface TurnWriter {
 }
 
 /**
- * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`이고 기준 프로필이 있을 때만 싣는다.
+ * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`일 때 싣는다.
+ * 기준 프로필이 표지에 없으면(`thread.create { testRun: true }`로 만든 대화) 턴이 돈 프로필(`fallbackProfileId`)이 기준이다 [제안]
  * 고정 초안 기록이 깨졌으면 초안 없이 싣고 기록한다. 초안의 판 식별자는 내용 해시에서 정한다(§4.8.1 3)
  */
-function testRunOf(store: MeasureStore, threadId: string, logger: Logger): TurnTestRunMark {
+function testRunOf(
+  store: MeasureStore,
+  threadId: string,
+  logger: Logger,
+  fallbackProfileId: string,
+): TurnTestRunMark {
   const found = store.getThread(threadId);
   if (!found.ok) return null;
   const row = found.value;
-  if (row === undefined || row.scopeKind !== "test" || row.testBaseProfile === null) return null;
+  if (row === undefined || row.scopeKind !== "test") return null;
   const drafts = decodeTestRunDrafts(row.draftJson);
   if (!drafts.ok) logger.warn("measure.test_run_drafts_unreadable", { threadId });
   return {
     runGroupId: row.runGroupId,
-    baseProfileId: row.testBaseProfile,
+    baseProfileId: row.testBaseProfile ?? fallbackProfileId,
     drafts: (drafts.ok ? drafts.value : []).map((draft) => ({
       plugin: draft.plugin,
       draftId: draft.draftId,
@@ -414,6 +422,37 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     }));
   }
 
+  /**
+   * 테스트 실행 대화의 첫 사용자 입력을 설치별 소금으로 HMAC해 `tr_thread.input_hash`에 쓴다(§4.8 규칙 34, `callKey`와 같은 방식).
+   * 입력 원문은 저장하지 않는다. 이미 해시가 있으면(첫 입력이 아니면) 그대로 둔다. `testRun.compare`가 이 값으로 `sameInput`을 정한다
+   */
+  function inputHashOfQueued(record: DurableEventEnvelope): void {
+    const parsed = parse(InputQueuedPayloadSchema, record.payload);
+    if (!parsed.ok || parsed.value.source.type !== "user") return;
+    const item = parsed.value.item;
+    if (item.kind !== "user") return;
+    const text =
+      typeof item.content === "string"
+        ? item.content
+        : item.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+    const threadId = record.threadId;
+    deps.queue((store) => {
+      const found = store.getThread(threadId);
+      if (!found.ok) {
+        deps.logger.warn("measure.test_marker_read_failed", { reason: found.error.kind });
+        return;
+      }
+      const row = found.value;
+      if (row === undefined || row.scopeKind !== "test" || row.inputHash !== null) return;
+      const sealed = installSaltOf();
+      if (sealed === undefined) return;
+      const written = store.upsertThread({ ...row, inputHash: keyedHex(sealed, text) });
+      if (!written.ok) {
+        deps.logger.warn("measure.test_marker_write_failed", { reason: written.error.kind });
+      }
+    });
+  }
+
   /** 주도 함수가 낸 하위 대화(`agent.spawned`의 owner가 drive). 엔진은 그 임대와 아래 프레임에 spawns를 더한다 */
   function spawnCharge(record: DurableEventEnvelope): void {
     const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
@@ -489,7 +528,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   ): TrTurnRow {
     draft.scope = scopeOf(store, draft.threadId, deps.logger);
     if (draft.scope === "live" && draft.draftOverlay) draft.scope = "overlay_draft";
-    draft.testRun = draft.scope === "test" ? testRunOf(store, draft.threadId, deps.logger) : null;
+    draft.testRun =
+      draft.scope === "test"
+        ? testRunOf(store, draft.threadId, deps.logger, draft.profile.id)
+        : null;
     const row = turnRowOf(draft, state);
     const written = store.upsertTurn(row);
     if (!written.ok) {
@@ -685,7 +727,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       calls: draft.calls.get(stepId) ?? [],
       toolCalls: pairs.map((pair) => pair.record),
       composition: composition ?? null,
-      hooks: hookRuns,
+      // 턴 수준 훅은 `turnHooks`에만 든다. 단계 0에서도 단계 기록에는 넣지 않는다(두 번 세지 않게)
+      hooks: hookRuns.filter((run) => !isTurnLevelHook(run)),
       materials: materialPlan.kept,
       ...(advertised === undefined ? {} : { advertised }),
       cache,
@@ -732,7 +775,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
           stepIndex,
           rows: [
             { kind: "step", stepIndex, step },
-            ...step.hooks.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
+            ...hookRuns.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
             ...step.calls.map((call): DeltaRow => ({ kind: "call", stepIndex, call })),
           ],
           final: false,
@@ -754,21 +797,23 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     drafts.delete(turnId);
     const full = draft.level === "full";
     const flats = flatHooksOf(deps.trace?.turn(record.threadId, turnId)?.entries ?? []);
-    // 단계 밖 훅(턴 경계: step 0)은 `record_json`의 `turnHooks`에만 든다. 행으로는 쓰지 않는다(§3.2)
-    const turnRows = full
-      ? hooksOfStep(flats, 0, MAX_HOOK_ROWS_PER_TURN - draft.hookRows, draft.approvals)
-      : { rows: [], elided: 0 };
-    const turnHooks = turnRows.rows.map((row) => row.run);
+    // 턴 수준 훅(턴 경계와 조립 앞의 첫 훅, 턴 전 훅)은 `record_json`의 `turnHooks`에만 든다. 단계 기록에는 없다.
+    // 행은 단계 0을 쓸 때 이미 썼으므로 상한을 더 쓰지 않는다(§3.2)
+    const turnHooks = full
+      ? hooksOfStep(flats, 0, Number.POSITIVE_INFINITY, draft.approvals)
+          .rows.map((row) => row.run)
+          .filter(isTurnLevelHook)
+      : [];
     // 아직 행으로 쓰지 않은 훅 실행은 늦은 행이다(§7 분리 실행). 실행이 시작된 단계에 한 번만 쓰고, 상한은 턴 훅 다음이다
     const late = full
       ? lateHooksOf(flats, {
           seen: draft.seenHooks,
           approvals: draft.approvals,
-          room: MAX_HOOK_ROWS_PER_TURN - draft.hookRows - turnRows.rows.length,
+          room: MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
         })
       : { rows: [], elided: 0 };
-    draft.hookRows += turnRows.rows.length + late.rows.length;
-    draft.elidedHooks += turnRows.elided + late.elided;
+    draft.hookRows += late.rows.length;
+    draft.elidedHooks += late.elided;
     // 늦은 행은 그 단계의 기록에도 더한다(`record_json`의 steps.hooks). 단계 기록이 없으면 행으로만 남는다
     for (let at = 0; at < draft.steps.length; at += 1) {
       const step = draft.steps[at];
@@ -860,7 +905,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         spawnCharge(record);
       } else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
         frameEvent(record);
-      } else if (record.kind === "input.queued") queuedUserMessage(record);
+      } else if (record.kind === "input.queued") {
+        queuedUserMessage(record);
+        inputHashOfQueued(record);
+      }
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);

@@ -162,6 +162,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
         .all()
         .some((entry) => entry.capability?.id === capability && entry.capability.method === method);
     },
+    isDraftScope: (scopeId) => deps.draftOf?.(scopeId) !== undefined,
     suspendWhile: (threadId, toolCallId, wait) => pipeline.suspendWhile(threadId, toolCallId, wait),
     checkSpawn(input) {
       const config = deps.config(input.threadId);

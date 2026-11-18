@@ -385,7 +385,7 @@ export const HostRemoteProxyExampleResultSchema: TObject<{
       {
         listen: Type.String({ maxLength: 64 }),
         listenTls: Type.String({ maxLength: 64 }),
-        hosts: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), { maxItems: 1 }),
+        hosts: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), { maxItems: 64 }),
       },
       { additionalProperties: false },
     ),

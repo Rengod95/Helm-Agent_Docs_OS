@@ -291,16 +291,19 @@ function syntheticToolNameOf(capability: string, method: string): string {
 /**
  * 도구 매핑이 없고 `readOnly`가 아닌 기능 메서드의 합성 항목(U-1 (다)). 레지스트리에 넣지 않고 플러그인 기능 호출이 부를 때 정의에서 만든다.
  * 모델에는 광고되지 않는다. 위험 등급은 메서드 정의의 `risk`다. 선언이 없으면 가장 엄한 `exec`다(호출자는 고를 수 없다).
- * 입력·출력 스키마와 재생 정책은 메서드 선언을 쓴다. 메서드가 없거나 매핑이 있거나 `readOnly`면 undefined다
+ * 입력·출력 스키마와 재생 정책은 메서드 선언을 쓴다. 메서드가 없거나 매핑이 있으면 undefined다.
+ * `readOnly`는 검토된 플러그인에는 합성 항목이 없다(가벼운 길). 초안 출신 호출만 `draftCaller`로 받는다: 초안은 가벼운 길을 타지 못하고
+ * 카드를 지나야 하므로(L1.tools.spec §4.6.1) 읽기 등급(`read`)의 항목을 만든다
  */
 export function syntheticEntryOf(
   def: AnyCapabilityDef,
   methodName: string,
   resolve: CapabilityResolver,
   bridge: InputBridge,
+  draftCaller = false,
 ): ToolEntry | undefined {
   const method = def.service.methods[methodName];
-  if (method === undefined || method.readOnly === true) return undefined;
+  if (method === undefined || (method.readOnly === true && !draftCaller)) return undefined;
   if (def.tools.some((spec) => spec.method === methodName)) return undefined;
   const name = syntheticToolNameOf(def.id, methodName);
   const registration: CapabilityToolsRegistration = {
@@ -326,7 +329,7 @@ export function syntheticEntryOf(
     ref: { capability: def.id, name },
     capability: { id: def.id, method: methodName },
     mcpServer: undefined,
-    risk: method.risk ?? "exec",
+    risk: method.risk ?? (method.readOnly === true ? "read" : "exec"),
     classes: [],
     hints: {},
     replay: method.replay ?? "unsafe",

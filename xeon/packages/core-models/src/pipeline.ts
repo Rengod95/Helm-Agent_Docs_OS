@@ -40,6 +40,7 @@ import {
 import {
   isOauthTokenOnDefaultProvider,
   oauthGuardFailure,
+  withCallThread,
   type SecretResolver,
 } from "./secrets-bridge.ts";
 import type { ProviderSetting, RetrySettings, ThinkingBudgetSettings } from "./settings.ts";
@@ -515,7 +516,9 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         // 요청을 보내기 직전에만 바인딩 변경 지점을 발화한다. 지점 핸들러를 기다리는 동안에도 스트림은 먼저 돌려준다
         source = lazyStream(requestModel, async () => {
           await fireSelectHooks(spec, keyOf);
-          return deps.models.streamSimple(requestModel, spec.context, options);
+          return withCallThread(spec.ctx.threadId, () =>
+            deps.models.streamSimple(requestModel, spec.context, options),
+          );
         });
       } catch (error) {
         // pi-ai는 던지지 않는 계약이지만 컨텍스트 정규화 같은 동기 단계가 던질 수 있다
@@ -593,6 +596,11 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
   const rotationEnabled = deps.rotation?.enabled;
 
   function start(spec: CallSpec): AssistantMessageEventStream {
+    // 시크릿 사용 기록이 호출한 대화를 싣도록 호출을 대화 범위 안에서 시작한다(회전의 재시도도 이 범위를 잇는다)
+    return withCallThread(spec.ctx.threadId, () => startRouted(spec));
+  }
+
+  function startRouted(spec: CallSpec): AssistantMessageEventStream {
     // 회전은 호출자가 키를 정해 넘긴 호출(apiKey)과 hosted 검색 같은 내부 호출에는 쓰지 않는다
     if (
       rotation !== null &&

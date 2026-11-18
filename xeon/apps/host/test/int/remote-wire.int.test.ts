@@ -481,6 +481,43 @@ realTest(
 );
 
 realTest(
+  "host.remote.proxyExample adds the domain to the allowed hosts already set, keeps them in order, and does not repeat a domain that is already there",
+  async () => {
+    writeUserSettings(home, { "l4.remote.web.hosts": ["old.example.com", "fresnel.example.com"] });
+    await withService({ gateway: fakeGateway(OFF_VIEW).supervisor }, async (client) => {
+      const added = await client.request("host.remote.proxyExample", {
+        kind: "caddy",
+        domain: "new.example.com",
+        tlsPort: PORT,
+      });
+      expect(added.plan).toEqual({
+        listen: "127.0.0.1:8480",
+        listenTls: "127.0.0.1:8443",
+        hosts: ["old.example.com", "fresnel.example.com", "new.example.com"],
+      });
+      const repeated = await client.request("host.remote.proxyExample", {
+        kind: "caddy",
+        domain: "fresnel.example.com",
+        tlsPort: PORT,
+      });
+      expect(repeated.plan.hosts).toEqual(["old.example.com", "fresnel.example.com"]);
+      expect(await client.request("settings.get", { keys: ["l4.remote.web.hosts"] })).toMatchObject(
+        {
+          settings: [
+            {
+              key: "l4.remote.web.hosts",
+              value: ["old.example.com", "fresnel.example.com"],
+              source: { scope: "user" },
+            },
+          ],
+        },
+      );
+    });
+  },
+  60_000,
+);
+
+realTest(
   "host.remote.proxyExample fills the nginx example with the given TLS port",
   async () => {
     writeUserSettings(home, {});

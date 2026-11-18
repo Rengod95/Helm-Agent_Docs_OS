@@ -122,14 +122,19 @@ function okOrThrow<T>(result: Result<T, ProjectPortFailure>): T {
 
 // ── 처리기 ──────────────────────────────────────────────────────────────
 
-export function createProjectHandlers(port: ProjectPort): Pick<WireHandlers, ProjectMethods> {
+/** 이 프로젝트 출처의 검토 대기 항목 수(`project.get`의 `pendingReview`). 검토함 처리기 쪽 조립이 센다 */
+export type PendingReviewOf = (projectId: string) => Promise<number>;
+
+export function createProjectHandlers(
+  port: ProjectPort,
+  pendingReviewOf: PendingReviewOf,
+): Pick<WireHandlers, ProjectMethods> {
   return {
     "project.list": async () => okOrThrow(await port.list()),
-    "project.get": async (params) => ({
-      project: okOrThrow(await port.get(params.projectId)),
-      // 검토 대기 수는 검토함 트랙(enC3)이 채운다. 그 전에는 0이다
-      pendingReview: 0,
-    }),
+    "project.get": async (params) => {
+      const project = okOrThrow(await port.get(params.projectId));
+      return { project, pendingReview: await pendingReviewOf(params.projectId) };
+    },
     "project.create": async (params) => ({ project: okOrThrow(await port.create(params)) }),
     "project.rename": async (params) => ({
       project: okOrThrow(await port.rename(params)),

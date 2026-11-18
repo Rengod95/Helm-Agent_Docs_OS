@@ -232,3 +232,100 @@ realTest(
   },
   120_000,
 );
+
+const READER = "draft-reader";
+
+/** 초안 폴더. 턴 끝 훅에서 읽기 전용 기능(`artifacts.registry.list`)을 부르고 결과를 표지 파일에 적는다 */
+function writeReaderFolder(root: string, marker: string): void {
+  mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(
+    join(root, ".fresnel-plugin", "plugin.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      name: READER,
+      version: "1.0.0",
+      purpose: "Draft hook that reads through a readOnly capability method",
+      defaultEnabled: false,
+      entry: "./src/index.ts",
+      plugins: [
+        {
+          layer: "plugin",
+          hooks: ["input.agent.before"],
+          requires: [{ id: "artifacts.registry", range: "^1.0.0" }],
+        },
+      ],
+    }),
+  );
+  writeFileSync(
+    join(root, "src", "index.ts"),
+    `import { writeFileSync } from "node:fs";
+export const extension = ({ register, manifest }) => {
+  register(manifest.name, {}, (g) => {
+    g.on("input.agent.before", async () => {
+      let outcome;
+      try {
+        const listed = await g.capability({ capability: "artifacts.registry", version: "1.0.0" }).list({});
+        outcome = { ok: true, keys: Object.keys(listed).sort() };
+      } catch (caught) {
+        outcome = { ok: false, code: caught && caught.code, message: String(caught && caught.message).slice(0, 300) };
+      }
+      writeFileSync(${JSON.stringify(marker)}, JSON.stringify(outcome));
+    });
+  });
+};
+`,
+  );
+}
+
+realTest(
+  "a draft hook's readOnly capability call does not run on the light path: it asks for approval with a draft mark in bypass, and reads only after the card is allowed",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, { ...TAPE_SETTINGS, "l1.tools.permissionMode": "bypass" });
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-overlay-draft-c-")));
+    const marker = join(workspace, "read.marker");
+    const folder = join(workspace, "draft-folder");
+    writeReaderFolder(folder, marker);
+    const previousCwd = process.cwd();
+    process.chdir(workspace);
+    const host = await startInProcessHost({
+      devChecks: true,
+      pluginHost: isolatedPluginHost(),
+      buildModels: callingModels("overlay-draft-c", [], "done."),
+    });
+    const connection = createHostConnection(host.client);
+    const collector = collectEvents(connection);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      const draftId = await createDraft(connection, folder);
+      const created = await connection.request("thread.create", { workspace });
+      await startTurnWhenIdle(connection, {
+        threadId: created.threadId,
+        input: "read",
+        overlay: [{ plugin: READER, draftId }],
+      });
+
+      const asked = await collector.waitFor((event) => event.kind === "approval.requested", 60_000);
+      expect(asked.payload).toMatchObject({
+        body: { kind: "tool", tool: { draft: { plugin: READER, draftId } } },
+      });
+      // 카드가 떠 있는 동안 기능은 불리지 않았다
+      expect(existsSync(marker)).toBe(false);
+
+      await connection.request("approval.respond", { approvalId: asked.id, decision: "allow" });
+      await collector.waitFor((event) => event.kind === "turn.completed", 60_000);
+      expect(existsSync(marker) ? readFileSync(marker, "utf8") : null).toBe(
+        JSON.stringify({ ok: true, keys: ["items", "nextCursor"] }),
+      );
+    } finally {
+      await connection.close();
+      await host.close();
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  120_000,
+);

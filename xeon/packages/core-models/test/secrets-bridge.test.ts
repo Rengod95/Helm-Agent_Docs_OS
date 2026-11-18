@@ -82,6 +82,19 @@ describe("secret_ref_resolved_at_request_time_only", () => {
     });
   });
 
+  test("the lease records the thread of the model call, and a resolution outside a call has no thread", async () => {
+    const h = createHarness({ tape: ONE_TURN });
+    await h.service.stream(h.request("hi")).result();
+    const first = h.secrets.lastCtx();
+    expect(first?.threadId).toBe(h.ctx().threadId);
+    expect(first?.threadId).not.toBeNull();
+    const resolver = createSecretResolver(h.secrets.service, {});
+    const ref = parseSecretRef("secret://tape-key");
+    if (!ref.ok) throw new Error("the reference must parse");
+    await resolver.resolve("secret://tape-key", "tape", "model.provider:tape");
+    expect(h.secrets.lastCtx()?.threadId).toBeNull();
+  });
+
   test("an unresolvable reference ends with secret_unresolved, sends no request and leaks no value", async () => {
     const h = createHarness({ tape: ONE_TURN, secretValues: {} });
     const message = await h.service.stream(h.request("hi")).result();

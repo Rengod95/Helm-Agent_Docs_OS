@@ -117,3 +117,58 @@ realTest(
   },
   60_000,
 );
+
+realTest(
+  "project.get counts the pending review items of that project only: the project with a carried plugin says 1 until it is approved, a project without one says 0",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const base = realpathSync(mkdtempSync(join(tmpdir(), "xh-project-pending-")));
+    const carrying = join(base, "carrying");
+    const plain = join(base, "plain");
+    mkdirSync(carrying, { recursive: true });
+    mkdirSync(plain, { recursive: true });
+    projectExtension(carrying, join(base, "carried.marker"));
+    const model = recordingModels("project-pending", ["one."], { contextWindow: 200_000 });
+    const previousCwd = process.cwd();
+    process.chdir(base);
+    const host = await startInProcessHost({
+      devChecks: true,
+      buildModels: model.buildModels,
+      pluginHost: { disabled: true },
+    });
+    const connection = createHostConnection(host.client);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      const withPlugin = await connection.request("project.create", { root: carrying });
+      const without = await connection.request("project.create", { root: plain });
+      expect(
+        (await connection.request("project.get", { projectId: withPlugin.project.projectId }))
+          .pendingReview,
+      ).toBe(1);
+      expect(
+        (await connection.request("project.get", { projectId: without.project.projectId }))
+          .pendingReview,
+      ).toBe(0);
+
+      const listed = await connection.request("pluginReview.list", { state: "pending" });
+      const itemId = listed.items.find((item) => item.name === CARRIED)?.itemId;
+      if (itemId === undefined) throw new Error("the project plugin has no review item");
+      await connection.request("pluginReview.decide", {
+        itemId,
+        decision: { kind: "approve", profileIds: [], libraryOnly: true },
+      });
+      expect(
+        (await connection.request("project.get", { projectId: withPlugin.project.projectId }))
+          .pendingReview,
+      ).toBe(0);
+    } finally {
+      await connection.close();
+      await host.close();
+      process.chdir(previousCwd);
+      rmSync(base, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  60_000,
+);

@@ -1129,7 +1129,7 @@ test("profileCost.get lists the profile's plugins with null figures and no inven
   if (!out.ok) throw new Bug("profile cost must answer in this test");
   expect(out.value).toMatchObject({ profileId: "prof-none", basis: "estimated", nTurns: 0 });
   expect(out.value.plugins).toEqual([unknownCostLine("core"), unknownCostLine("guard")]);
-  expect(out.value.total).toEqual(unknownCostLine(""));
+  expect(out.value.total).toEqual(unknownCostLine("*"));
   store.close();
 });
 

@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ok } from "@fresnel/contracts";
 import { WireError, type ProfileInput, type ThreadSummary } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -21,7 +22,10 @@ afterAll(() => {
 
 function rig(): { readonly host: FakeHost; readonly configDir: string } {
   const configDir = tempDir();
-  const host = createFakeHost({ profiles: { configDir, pluginFacts: () => [] } });
+  const host = createFakeHost({
+    profiles: { configDir, pluginFacts: () => [] },
+    overrides: { pluginReview: { list: () => Promise.resolve(ok({ items: [] })) } },
+  });
   return { host, configDir };
 }
 
@@ -73,7 +77,7 @@ test("project.create refuses a relative or missing root with project.rootInvalid
   );
 });
 
-test("project.get reports pendingReview 0 for now and project.notFound for an unknown id", async () => {
+test("project.get reports pendingReview 0 when the review box holds nothing for it (the count with items is the int test) and project.notFound for an unknown id", async () => {
   const { host } = rig();
   const connection = await connect(host);
   const created = await connection.request("project.create", { root: tempDir(), name: "one" });

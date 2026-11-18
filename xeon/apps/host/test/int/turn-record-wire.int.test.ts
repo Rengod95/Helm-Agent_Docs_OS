@@ -422,6 +422,8 @@ realTest(
         [created.threadId, first, "cap-dialog", "modified"],
       ]);
       expect(modified.items.every((item) => typeof item.hookSeq === "number")).toBe(true);
+      // hookSeq는 턴 안에서 세는 순번이다(대화 전체 카운터가 아니다): 첫 턴은 대화 시작 훅 넷과 입력 훅 둘이 앞서 6이고, 뒤 턴은 2다
+      expect(modified.items.map((item) => item.hookSeq)).toEqual([2, 2, 6]);
 
       // cap-web은 턴마다 한 번 통과한다. 두 쪽으로 나눠 받으면 같은 턴이 중복 없이 모인다
       const pass1 = await connection.request("turnRecord.search", {
@@ -582,6 +584,7 @@ realTest(
       [
         { text: "답", inputTokens: 1000 },
         { text: "답", inputTokens: 1000 },
+        { text: "답", inputTokens: 1000 },
       ],
       { contextWindow: 100_000 },
     );
@@ -615,21 +618,52 @@ realTest(
         drafts: [],
         runGroupId: "grp-b",
       });
+      const runC = await connection.request("testRun.start", {
+        baseProfileId: "work",
+        drafts: [],
+        runGroupId: "grp-c",
+      });
       const [turnA] = await runTurns(connection, collector, runA.threadId, ["같은 질문"]);
       const [turnB] = await runTurns(connection, collector, runB.threadId, ["같은 질문"]);
+      await runTurns(connection, collector, runC.threadId, ["다른 질문"]);
       if (turnA === undefined || turnB === undefined) throw new Bug("each run must have a turn");
 
-      // 테스트 실행 턴은 `test` 범위로 남는다(표지의 구성 값은 `record.testRun` 결함 때문에 여기서 보지 않는다)
+      // 테스트 실행 턴은 `test` 범위로 남는다(구성은 기준 프로필과 묶음 id, 초안 없음이다)
       const recordA = await connection.request("turnRecord.get", {
         threadId: runA.threadId,
         turnId: turnA,
       });
       expect(recordA.record?.scope).toBe("test");
+      expect(recordA.record?.testRun).toEqual({
+        runGroupId: "grp-a",
+        baseProfileId: "work",
+        drafts: [],
+      });
 
-      // `sameInput`은 시험하지 않는다: 같은 입력인데도 거짓이 나와 결함으로 보고한다(tr_thread.input_hash를 쓰는 곳이 없다)
+      // 첫 사용자 입력의 HMAC이 `tr_thread.input_hash`에 남고, 입력 원문은 남지 않는다
+      const opened = openMeasureStore(join(home.dataDir, "measure.db"));
+      if (!opened.ok) throw new Bug("the measure database must exist after the turns");
+      const hashOf = (threadId: ThreadId): string | null => {
+        const row = opened.value.getThread(threadId);
+        if (!row.ok) throw new Bug("the measure database must be readable");
+        return row.value?.inputHash ?? null;
+      };
+      const hashA = hashOf(runA.threadId);
+      expect(hashA).toMatch(/^[0-9a-f]{16}$/);
+      expect(hashOf(runB.threadId)).toBe(hashA);
+      expect(hashOf(runC.threadId)).toMatch(/^[0-9a-f]{16}$/);
+      expect(hashOf(runC.threadId)).not.toBe(hashA);
+      opened.value.close();
+
+      // 같은 입력의 두 실행은 `sameInput`이 참이고, 입력이 다른 실행이 끼면 거짓이다
+      const different = await connection.request("testRun.compare", {
+        threadIds: [runA.threadId, runC.threadId],
+      });
+      expect(different.sameInput).toBe(false);
       const compared = await connection.request("testRun.compare", {
         threadIds: [runA.threadId, runB.threadId],
       });
+      expect(compared.sameInput).toBe(true);
       expect(compared.columns).toEqual([
         { threadId: runA.threadId, label: "#1", versionIds: [] },
         { threadId: runB.threadId, label: "#2", versionIds: [] },
@@ -658,6 +692,47 @@ realTest(
         }),
       );
       expect([notTest.code, notTest.data.kind]).toEqual([3312, "testRun.notATestRun"]);
+    } finally {
+      await host.close();
+      home.dispose();
+    }
+  },
+  60_000,
+);
+
+realTest(
+  "turnRecord.get fills record.testRun for a test run made by thread.create too: the profile the turn ran under is the base and there are no drafts",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const models = recordingModels(
+      "turn-record-plain-test-run",
+      [{ text: "답", inputTokens: 1000 }],
+      { contextWindow: 100_000 },
+    );
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultGroups: false,
+      buildModels: models.buildModels,
+    });
+    const connection = createHostConnection(host.client);
+    const collector = collectEvents(connection);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      const created = await connection.request("thread.create", { testRun: true });
+      const [turnId] = await runTurns(connection, collector, created.threadId, ["질문"]);
+      if (turnId === undefined) throw new Bug("the run must have a turn");
+      const read = await connection.request("turnRecord.get", {
+        threadId: created.threadId,
+        turnId,
+      });
+      expect(read.record?.scope).toBe("test");
+      expect(read.record?.testRun).toEqual({
+        runGroupId: null,
+        baseProfileId: "default",
+        drafts: [],
+      });
     } finally {
       await host.close();
       home.dispose();
