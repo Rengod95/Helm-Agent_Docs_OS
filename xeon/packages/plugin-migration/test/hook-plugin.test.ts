@@ -1,5 +1,6 @@
 // 생성된 Hook 플러그인의 값 시험(수용 기준 2, 7, 28, 29, 30). `plugin.js`를 임시 폴더에서 실제로 불러 가짜 `g`로 부른다.
 import { describe, expect, test } from "bun:test";
+import { parseJson } from "@fresnel/contracts";
 import { emit, type PlannedPluginWithMigration } from "../src/index.ts";
 import {
   FAKE_TOKEN,
@@ -559,5 +560,105 @@ describe("Hook 플러그인: 시크릿 값 부재(수용 기준 7)", () => {
     for (const plugin of proposal.plugins) {
       for (const bytes of emit(plugin).values()) expect(decode(bytes)).not.toContain(FAKE_TOKEN);
     }
+  });
+});
+
+/** 엔진이 표준 입력 상한 초과를 `invalid_params`로 거절한 호출. 엔진 쪽 오류와 같이 `kind`를 가진다 */
+function refusal(kind = "invalid_params"): Error {
+  return Object.assign(new Error(`engine refused: ${kind}`), { kind });
+}
+
+describe("Hook 플러그인: 큰 입력은 막는 지점에서 묻는다(수용 기준 29, 표준 입력 상한)", () => {
+  const UNRUNNABLE = "입력이 너무 커서 훅 스크립트를 돌리지 못했다. 사람이 확인한다";
+  const SETTINGS = {
+    hooks: {
+      PreToolUse: [{ matcher: "Write", hooks: [{ type: "command", command: HOOK("guard.sh") }] }],
+      PostToolUse: [{ hooks: [{ type: "command", command: HOOK("post.sh") }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: HOOK("prompt.sh") }] }],
+      Stop: [{ hooks: [{ type: "command", command: HOOK("stop.sh") }] }],
+    },
+  };
+  const SCRIPTS = {
+    ".claude/hooks/guard.sh": HOOK_SCRIPT,
+    ".claude/hooks/post.sh": HOOK_SCRIPT,
+    ".claude/hooks/prompt.sh": HOOK_SCRIPT,
+    ".claude/hooks/stop.sh": HOOK_SCRIPT,
+  };
+
+  test("tool.call.before는 거절된 호출을 묻기로 준다. 입력은 엔진에 한 번 넘어갔다", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, () => Promise.reject(refusal()));
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    expect(
+      await handler(
+        { toolCallId: "call_big", toolName: "write", input: { path: "a.txt", content: "x" } },
+        { threadId: "thr_1" },
+      ),
+    ).toEqual({ ask: true, reason: UNRUNNABLE });
+    expect(loaded.calls.map((call) => call.name)).toEqual(["guard"]);
+    expect(stdinOf(loaded.calls[0]?.stdin ?? "{}").tool_name).toBe("Write");
+  });
+
+  test("같은 호출의 다른 훅이 막으면 막기가 이긴다", async () => {
+    const settings = preToolSettings(undefined, [HOOK("big.sh"), HOOK("stop.sh")]);
+    const { tree } = await loadFrom(settings, {
+      ".claude/hooks/big.sh": HOOK_SCRIPT,
+      ".claude/hooks/stop.sh": HOOK_SCRIPT,
+    });
+    const loaded = await loadHookPlugin(tree, (name) =>
+      name === "big" ? Promise.reject(refusal()) : ran({ exitCode: 2, stderr: "no" }),
+    );
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    expect(
+      await handler(
+        { toolCallId: "c", toolName: "bash", input: { command: "ls" } },
+        { threadId: "t" },
+      ),
+    ).toEqual({ block: true, reason: "no" });
+  });
+
+  test("나머지 지점은 거절을 통과로 본다(값을 더하지 않는다)", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, () => Promise.reject(refusal()));
+    const result = loaded.handlers.get("tool.result");
+    const prompt = loaded.handlers.get("input.user.before");
+    const stop = loaded.handlers.get("boundary.settle.before");
+    if (result === undefined || prompt === undefined || stop === undefined) {
+      throw new Error("a position is not registered");
+    }
+    const content = [{ type: "text", text: "out" }];
+    expect(
+      await result(
+        { toolCallId: "c", toolName: "bash", input: { command: "ls" } },
+        { content, isError: false },
+        { threadId: "t" },
+      ),
+    ).toBeUndefined();
+    expect(await prompt({ text: "hi" }, {}, { threadId: "t" })).toBeUndefined();
+    expect(await stop({ turnId: "turn_1" }, {}, { threadId: "t" })).toBeUndefined();
+    expect(loaded.calls.map((call) => call.name)).toEqual(["post", "prompt", "stop"]);
+  });
+
+  test("거절이 아닌 다른 던짐은 그대로 다시 던진다(엔진의 닫힌 실패 정책)", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, () => Promise.reject(refusal("engine_call_failed")));
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    let thrown: unknown;
+    try {
+      await handler({ toolCallId: "c", toolName: "write", input: {} }, { threadId: "t" });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(String(thrown)).toContain("engine refused: engine_call_failed");
+  });
+
+  test("hooks.data.json은 템플릿 버전 adapter-hooks@2를 적는다", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const data = parseJson(decode(tree.get("hooks.data.json")));
+    if (!data.ok) throw new Error("hooks.data.json is not JSON");
+    expect(data.value).toMatchObject({ schemaVersion: 1, adapter: "adapter-hooks@2" });
   });
 });

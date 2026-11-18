@@ -5,7 +5,7 @@
 import type { HookRunner } from "../types.ts";
 
 /** 템플릿 버전. 생성물 첫 줄과 `ADAPTER` 상수에 적는다. 본문을 바꾸면 올린다 */
-export const HOOK_ADAPTER = "adapter-hooks@1";
+export const HOOK_ADAPTER = "adapter-hooks@2";
 
 /** `plugin.js`가 가진 Hook 항목 하나. `script`는 매니페스트 `scripts`의 이름이다 */
 export interface HookEntryData {
@@ -34,6 +34,7 @@ const BODY = String.raw`
 const REASON_MAX = 500;
 const DEFAULT_REASON = "훅이 막았다";
 const UNSUPPORTED_INPUT = "입력을 바꾸려 했으나 지원하지 않는다";
+const UNRUNNABLE_INPUT = "입력이 너무 커서 훅 스크립트를 돌리지 못했다. 사람이 확인한다";
 const EXACT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_- ,|";
 
 function isPlainObject(value) {
@@ -139,12 +140,25 @@ function entriesFor(eventName, matchName) {
   );
 }
 
+// 엔진은 표준 입력이 상한을 넘은 호출을 invalid_params로 거절하고, 거절은 값이 아니라 던져진다. 그 던짐만 여기서 받는다.
+// 스크립트를 돌리지 못한 것이라 "unrunnable"이다: 막는 지점은 묻기로 바꾸고, 나머지 지점은 통과로 둔다. 다른 던짐은 그대로 다시 던진다.
+async function runOne(g, script, stdin) {
+  let result;
+  try {
+    result = await g.runScript(script, { stdin });
+  } catch (error) {
+    if (isPlainObject(error) && error.kind === "invalid_params") {
+      return { verdict: "unrunnable", reason: UNRUNNABLE_INPUT, context: "" };
+    }
+    throw error;
+  }
+  return outcomeOf(result);
+}
+
 // 같은 이벤트에 걸린 훅은 원본처럼 함께 돈다. 결과는 등록 순서를 지킨다.
 async function runAll(g, eventName, matchName, input) {
   const stdin = JSON.stringify(input);
-  return Promise.all(
-    entriesFor(eventName, matchName).map(async (entry) => outcomeOf(await g.runScript(entry.script, { stdin }))),
-  );
+  return Promise.all(entriesFor(eventName, matchName).map((entry) => runOne(g, entry.script, stdin)));
 }
 
 function firstOf(outcomes, verdict) {
@@ -171,7 +185,7 @@ function handlersOf(g, continued) {
       });
       const blocked = firstOf(outcomes, "block");
       if (blocked !== undefined) return { block: true, reason: blocked.reason };
-      const asked = firstOf(outcomes, "ask");
+      const asked = firstOf(outcomes, "ask") ?? firstOf(outcomes, "unrunnable");
       if (asked !== undefined) return { ask: true, reason: asked.reason };
       return undefined;
     },
@@ -187,7 +201,7 @@ function handlersOf(g, continued) {
       });
       const notes = [];
       for (const outcome of outcomes) {
-        if (outcome.verdict !== "pass") notes.push(outcome.reason);
+        if (outcome.verdict === "block" || outcome.verdict === "ask") notes.push(outcome.reason);
         if (outcome.context !== "") notes.push(outcome.context);
       }
       if (notes.length === 0) return undefined;
