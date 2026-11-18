@@ -86,7 +86,7 @@ test("step.user-message-becomes-a-turn-and_the-phase-goes-on", async () => {
   const run = stepper(freshEffects());
   const diverge = inquiryAt({ phase: "diverge" });
   // 사용자 메시지는 그 자체가 턴 명령이다. 턴 명령은 맨 위에 와야 엔진이 메시지를 처리한 것으로 본다
-  expect(await run(diverge, { kind: "user", message: MESSAGE })).toEqual({
+  expect(await run(diverge, { kind: "user", message: MESSAGE, requestId: "msg-1" })).toEqual({
     do: "turn",
     input: MESSAGE,
   });

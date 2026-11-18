@@ -136,6 +136,8 @@ realTest(
     const held = await one.collector.waitFor((event) => event.kind === "lease.user_input", 30_000);
     const [heldPayload] = userInputsOf([held]);
     expect(heldPayload?.status).toBe("held");
+    const heldId = heldPayload?.requestId;
+    if (heldId === undefined) throw new Error("the held record has no request id");
     expect(heldPayload?.input).toEqual({ kind: "user", content: "hello after restart" });
     await one.connection.close();
     await one.host.close();
@@ -157,12 +159,12 @@ realTest(
       {
         kind: "user",
         message: { kind: "user", content: "hello after restart" },
-        requestId: heldPayload?.requestId,
+        requestId: heldId,
       },
     ]);
     expect(two.collector.events.filter((event) => event.kind === "turn.started")).toHaveLength(1);
     expect(userInputsOf(two.collector.events)).toEqual([
-      { requestId: heldPayload?.requestId, scopeId: "ui-restart", status: "settled" },
+      { requestId: heldId, scopeId: "ui-restart", status: "settled" },
     ]);
     await two.connection.close();
     await two.host.close();
@@ -202,12 +204,13 @@ realTest(
       (event) => userInputsOf([event]).some((entry) => entry.status === "settled"),
       30_000,
     );
-    expect(first?.requestId).toBeDefined();
+    const firstId = first?.requestId;
+    if (firstId === undefined) throw new Error("the first delivery has no request id");
     expect(userCalls(second)).toEqual([
       {
         kind: "user",
         message: { kind: "user", content: "taken but unfinished" },
-        requestId: first?.requestId,
+        requestId: firstId,
       },
     ]);
     expect(two.collector.events.filter((event) => event.kind === "turn.started")).toHaveLength(1);

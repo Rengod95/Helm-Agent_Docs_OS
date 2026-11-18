@@ -125,7 +125,7 @@ test("authoring.drive.b: an open session with nothing to do yields and stays res
 
 test("authoring.drive.c: a user message is a turn with that message as input, open session or not", async () => {
   const { step } = drive();
-  const message: StepResult = { kind: "user", message: USER };
+  const message: StepResult = { kind: "user", message: USER, requestId: "msg-1" };
   expect(await step(stepInput(SESSION, message))).toEqual({ do: "turn", input: USER });
   expect(await step(stepInput(INITIAL_AUTHORING_STATE, message))).toEqual({
     do: "turn",
@@ -368,7 +368,7 @@ test("authoring.drive.resident-b: a user message after a submit in a resident se
     submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
     lastErrorKey: null,
   };
-  const message: StepResult = { kind: "user", message: USER };
+  const message: StepResult = { kind: "user", message: USER, requestId: "msg-1" };
   expect(await step(stepInput(submitted, message))).toEqual({
     do: "commit",
     state: {
@@ -390,7 +390,7 @@ test("authoring.drive.resident-c: a non-resident session that submitted steps as
     submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
   };
   expect(await step(stepInput(submitted))).toEqual({ do: "done" });
-  const message: StepResult = { kind: "user", message: USER };
+  const message: StepResult = { kind: "user", message: USER, requestId: "msg-1" };
   expect(await step(stepInput(submitted, message))).toEqual({ do: "turn", input: USER });
 });
 
