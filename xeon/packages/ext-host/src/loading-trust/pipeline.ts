@@ -94,6 +94,8 @@ export type LoadDiagnosticCode =
   | "isolation_point_unsupported"
   | "isolation_restart_limit"
   | "isolation_protocol"
+  /** 초안은 매니페스트 엔트리가 없으면 싣지 않는다(엔진 안에서 돌릴 코드가 없고 격리할 코드도 없다) [제안, X.loading-trust.spec §4.9.8] */
+  | "draft_entry_missing"
   /** 검토본의 내용 해시가 저장된 값과 다르다. 그 플러그인은 적재하지 않는다(M5c §4.6.5) */
   | "pinned_corrupt"
   /** 프로젝트 출처 검토본에 프로젝트 id가 없다. 어느 프로젝트에서도 싣지 않는다(M5c §4.7.9, AGE-41) [제안] */
@@ -174,5 +176,7 @@ export interface LoadedExtensionInfo {
   readonly root?: string;
   /** 실행 중인 판의 내용 해시(`sha256:<hex>`). 검토본에서 실었을 때만 있다 */
   readonly contentHash?: string;
+  /** 초안이면 그 출처(플러그인 이름과 초안 식별자). `name`은 내부 이름이다 [제안, X.loading-trust.spec §4.9.8] */
+  readonly draft?: { readonly plugin: string; readonly draftId: string };
   readonly diagnostics: readonly LoadDiagnostic[];
 }

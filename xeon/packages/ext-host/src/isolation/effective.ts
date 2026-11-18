@@ -14,8 +14,10 @@ export type InEngineReason =
   | "default_no_port"
   | "no_entry";
 
-/** 거부 코드. 로더가 이 값을 진단 코드로 쓴다(LoadDiagnosticCode) */
-export type IsolationRefusal = "isolation_unavailable";
+/**
+ * 거부 코드. 로더가 이 값을 진단 코드로 쓴다(LoadDiagnosticCode). `draft_entry_missing`은 초안에만 쓴다 [제안, X.loading-trust.spec §4.9.8]
+ */
+export type IsolationRefusal = "isolation_unavailable" | "draft_entry_missing";
 
 export type IsolationDecision =
   | { readonly kind: "in_engine"; readonly reason: InEngineReason }
@@ -33,10 +35,16 @@ export interface IsolationInput {
   readonly hasEntry?: boolean;
   /** 격리 포트와 띄우기 설정이 모두 주입되었는가 */
   readonly portAvailable: boolean;
+  /**
+   * 초안이면 참. 설정과 매니페스트의 값을 보지 않고 언제나 격리한다(엔진 안 실행이 없다) [제안, X.loading-trust.spec §4.9.8].
+   * 엔트리가 없으면 띄울 코드가 없으므로 `draft_entry_missing`으로 거부한다
+   */
+  readonly draft?: boolean;
 }
 
 /**
- * 실효 격리를 정한다. 표(위에서 아래 순서로 처음 맞는 행):
+ * 실효 격리를 정한다. 초안(`draft`)이면 아래 표를 보지 않고 엔트리가 없으면 거부, 포트가 없으면 거부, 그 밖은 격리다.
+ * 표(위에서 아래 순서로 처음 맞는 행):
  * - builtin → 엔진 안
  * - `entry` 없음(코드 없는 확장) → 엔진 안(`no_entry`)
  * - 요청(설정이 있으면 설정, 없으면 매니페스트)이 none → 엔진 안
@@ -44,6 +52,12 @@ export interface IsolationInput {
  * - 그 밖 → process
  */
 export function effectiveIsolationOf(input: IsolationInput): IsolationDecision {
+  if (input.draft === true) {
+    if (input.hasEntry === false) return { kind: "refused", code: "draft_entry_missing" };
+    return input.portAvailable
+      ? { kind: "process" }
+      : { kind: "refused", code: "isolation_unavailable" };
+  }
   if (input.source === "builtin") return { kind: "in_engine", reason: "builtin" };
   if (input.hasEntry === false) return { kind: "in_engine", reason: "no_entry" };
   const requested = input.setting ?? input.manifest;

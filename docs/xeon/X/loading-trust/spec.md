@@ -1292,6 +1292,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `process`, 포트(`process`·`isolation` 의존) 없음 | 명시면 `error`(`isolation_unavailable`), 기본이면 엔진 안 |
 | `process`, `plugins[].drives: true` | 격리한다. `drives`는 격리를 막지 않는다(M5 P2). 주도 단계 함수는 `drive.step` 요청으로 자식에서 돈다(F.extensions 부록) |
 | 그 밖의 `process` | 호스트 프로세스. `LoadedExtensionInfo.isolation = "process"` |
+| 초안(`loadDraft`로 싣는 플러그인 초안) | 설정·매니페스트·기본을 보지 않고 언제나 격리한다. 포트가 없으면 싣지 않는다(§4.9.8) [제안] |
 
 `LoadedExtensionInfo.isolation`은 실제로 도는 곳이다. `bundled` 출처(Helm)는 이 로더의 `InstallSource`가 아니라(내장·관리·사용자·프로젝트 넷뿐) 조립 루트가 `builtin: false`로 싣는 기본 플러그인이고, 사용자 등급이므로 기본 격리의 대상이다. `drives`는 격리를 막지 않는다(위 표의 `drives` 줄, review.m5-drive-isolation §3.1).
 
@@ -1322,6 +1323,21 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 #### 4.9.7 비정상 종료와 재시작
 
 호스트가 스스로 끝나면(`process_exit`) 진행 중 요청은 그 훅의 실패 규칙으로 처리되고(막는 훅은 막고 고치는 훅은 건너뛴다) 다음 호출 때 다시 띄운다. 죽은 시각을 기록하고, 창(`restartWindowSec`초) 안의 죽음 수가 `maxRestarts`를 넘으면 `restart_limit`이다. 창 안에서 `maxRestarts + 1`번째 종료가 그 경우다. 한도 초과는 `onRestartLimit`이 자동 끄기 질문을 부른다. 창 밖으로 나간 죽음은 세지 않는다. 성공한 응답은 죽은 횟수를 지우지 않는다(창이 지나야 빠진다). 설정 `x.loading-trust.isolation.maxRestarts`(정수, 기본 3, 0~20)와 `restartWindowSec`(정수, 기본 600, 10~86400)는 `live`라서 감독자가 죽음을 셀 때마다 읽는다(조립 루트가 읽기 함수로 넘긴다, L4.host-service §4.9). 값이 없으면 기본을 쓴다. 엔진이 죽으면 호스트는 표준 입력이 닫힌 것을 보고 스스로 끝난다. 그래도 남은 자식은 다음 엔진 시작 때 정리한다(L4.host-service §4.9 "고아 정리"). 표준오류는 엔진이 모아(줄 상한, 시크릿 마스킹) 진단에 잇는다.
+
+#### 4.9.8 초안 적재 [제안, AGE-19 A2]
+
+초안(저장소의 `drafts/<draftId>/tree`)은 `ExtensionLoader.loadDraft`로만 싣는다. 설치 뒤 새 이름 싣기(§4.4.4)와 같은 파이프라인(검증, 집합 검사, 신뢰 상한, 설치)을 쓰고 다음만 다르다.
+
+- 격리는 강제다. 설정 `ext.<이름>.isolation`, 매니페스트 `isolation`, 기본 규칙을 보지 않고 언제나 `process`다. 띄우기 포트와 띄우기 설정이 없으면 `isolation_unavailable`로 싣지 않는다. 엔진 안에서 도는 경로가 없다. 매니페스트에 `entry`가 없으면 띄울 코드가 없으므로 `draft_entry_missing`(단계 `isolation`)으로 거부한다.
+- 출처는 사용자 등급(`source: "user"`)이고 신뢰 상한은 §4.6을 따른다.
+- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
+- 판 식별자(`versionId`)는 `draft:<draftId>:<내용 해시 앞 8자>`다. 격리 라벨은 `ext:<내부 이름>:<versionId>`다.
+- `LoadedExtensionInfo`는 `isolation: "process"`이고 `name`은 내부 이름이며 `draft: { plugin, draftId }`를 더한다.
+- 로더는 싣기에 성공한 초안을 내부 이름 표로 든다(`loadDraftsOf()`, `draftOf(내부 이름)`). 초안은 이 표로만 구분하고 이름 모양으로 판단하지 않는다.
+- `loadAll`과 `reload`는 초안을 다루지 않는다. 초안에 `reload`와 `reloadFromReviewed`를 부르면 `not_reloadable`(`reason: "draft"`)이다. 내리기는 `unloadDraft`(또는 `unload`)이고, 재시작하면 초안은 실리지 않아 호출자가 다시 싣는다.
+- 실패하면 호스트에 설치도 기록도 남지 않는다. 꺼진 기록도 남기지 않는다.
+
+싣지 못한 이유(`LoadDraftFailure.kind`) [제안]: `isolation_unavailable`(포트나 띄우기 설정이 없다), `already_loaded`(같은 플러그인과 초안 식별자가 실려 있다), `name_taken`(내부 이름을 다른 확장이나 다른 초안이 쓴다), `safe_mode`, `not_found`(매니페스트가 없다), `not_active`(`state`는 `rejected`, `error`, `disabled` 가운데 하나이고 진단을 싣는다).
 
 ### 4.10 pi 확장 호환 (두지 않음)
 

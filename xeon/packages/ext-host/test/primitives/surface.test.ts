@@ -23,6 +23,11 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "ReviewedSourceDiagnostic",
   "ReviewedSourceEntry",
   "ReviewedSourceListing",
+  // 초안 적재(ExtensionLoader.loadDraft, X.loading-trust.spec §4.9.8 [제안]): 호스트가 초안을 싣고 내부 이름으로 찾는다 [제안: X 표 반영 요청]
+  "internalDraftName",
+  "DraftInfo",
+  "DraftLoadInput",
+  "LoadDraftFailure",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
   "createExtStorageManager", // 실제 저장소 위의 통합 시험(core-persistence)이 만든다
   "ExtStorageManager", // 조립 루트가 확장 제거의 미리 보기와 저장 테이블 지우기(extUi.storage)의 타입으로 쓴다

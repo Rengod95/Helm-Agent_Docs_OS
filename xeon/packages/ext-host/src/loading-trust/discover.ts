@@ -9,6 +9,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { BUILTIN_LAYER_ORDER, type OrderKey } from "./load-order.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
+import type { DraftOrigin } from "./drafts.ts";
 import type { LoadDiagnostic } from "./pipeline.ts";
 import type { InstallSource } from "./trust/levels.ts";
 
@@ -40,6 +41,8 @@ export interface ExtensionCandidate {
    * 코드가 없는 검토본(스킬이나 지침만 든 폴더)이 이 값으로 실린다. `manifestPath`는 그때 null이다
    */
   readonly inferredManifest?: ExtensionManifest;
+  /** 초안 후보(`loadDraft`)면 그 출처. 내부 이름과 판 식별자를 정하고, 이름은 매니페스트 이름 대신 이것을 쓴다 [제안] */
+  readonly draft?: DraftOrigin;
 }
 
 /** 내장 모듈 목록 → 후보(X.loading-trust.spec §4.2.1). 외부 위치 탐색은 `discoverExternal`이다 */

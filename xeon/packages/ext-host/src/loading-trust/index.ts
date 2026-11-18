@@ -80,13 +80,25 @@ import {
 import { resolveProjectTrust, type ProjectTrustResult } from "./trust/resolve.ts";
 import { createProjectTrustStore } from "./trust/store.ts";
 import { registerSdkModules, X_SDK_MODULES, type SdkModules } from "./virtual-modules.ts";
-import { effectiveIsolationOf, type IsolationDecision } from "../isolation/effective.ts";
+import {
+  effectiveIsolationOf,
+  type IsolationDecision,
+  type IsolationRefusal,
+} from "../isolation/effective.ts";
 import {
   createIsolatedEntry,
   type IsolationLaunch,
   type IsolationLaunchInfo,
 } from "../isolation/proxy-entry.ts";
 import type { PluginHostSupervisor, RestartLimitInfo } from "../isolation/supervisor.ts";
+import {
+  draftVersionIdOf,
+  internalDraftName,
+  type DraftInfo,
+  type DraftLoadInput,
+  type DraftOrigin,
+  type LoadDraftFailure,
+} from "./drafts.ts";
 
 export {
   BUILTIN_LAYER_ORDER,
@@ -186,6 +198,12 @@ export {
   type TrustVerdict,
 } from "./trust/store.ts";
 export { verdictOfInstall } from "./entry-loader.ts";
+export {
+  internalDraftName,
+  type DraftInfo,
+  type DraftLoadInput,
+  type LoadDraftFailure,
+} from "./drafts.ts";
 
 export type { LoaderMode } from "./trust/levels.ts";
 
@@ -402,6 +420,7 @@ function versionIdOf(
   manifest: ExtensionManifest,
   generation: number,
 ): string {
+  if (candidate.draft !== undefined) return draftVersionIdOf(candidate.draft);
   return candidate.contentHash ?? `${manifest.version}.${generation}`;
 }
 
@@ -451,8 +470,13 @@ export interface ReloadOptions {
 /** 다시 읽기를 시작하지 못한 이유. 이때 옛 버전이 그대로 돌고 로더 기록은 바뀌지 않는다 */
 export type ReloadFailure =
   | { readonly kind: "unknown_extension" }
-  /** 내장 확장이거나, 활성이 아닌 확장이다(재시작이나 `ensureLoaded`로 싣는다) */
-  | { readonly kind: "not_reloadable"; readonly reason: "builtin" | "not_active" | "no_root" }
+  /**
+   * 내장 확장이거나, 활성이 아닌 확장이다(재시작이나 `ensureLoaded`로 싣는다). 초안은 다시 읽지 않는다(`loadDraft`로 새로 싣는다) [제안]
+   */
+  | {
+      readonly kind: "not_reloadable";
+      readonly reason: "builtin" | "not_active" | "no_root" | "draft";
+    }
   | { readonly kind: "rejected"; readonly diagnostics: readonly LoadDiagnostic[] };
 
 /** 단계 경계에서 적용이 끝난 다시 읽기 */
@@ -556,9 +580,25 @@ export interface ExtensionLoader {
   /**
    * 외부 확장을 호스트에서 내리고 로더 기록은 `disabled`로 남긴다 [제안, M5c §4.1.11]. 세대는 올라가고, 같은 이름의
    * `ensureLoaded`가 검토본 사본에서 다시 싣는다(기록이 없어 생기는 `unknown_extension`이 없다). 목록에는 꺼진 채 보인다.
-   * 내장 확장이거나 로더가 모르는 이름이면 false다
+   * 내장 확장이거나 로더가 모르는 이름이면 false다. 초안이면 `unloadDraft`와 같다
    */
   unload(name: ExtensionName): Promise<boolean>;
+  /**
+   * 초안을 싣는다 [제안, X.loading-trust.spec §4.9.8]. 초안은 격리 프로세스에서만 돈다: 설정과 매니페스트의 `none`과 기본을 무시하고,
+   * 띄우기 포트나 띄우기 설정이 없으면 `isolation_unavailable`로 거부한다. 등록과 설치 이름은 `internalDraftName`이라 검토본과 겹치지 않는다.
+   * 나머지 단계(검증, 집합 검사, 신뢰 상한, 설치)는 `loadInstalled`와 같다. 실패하면 기록과 설치를 남기지 않는다.
+   * `loadAll`과 `reload`는 초안을 다루지 않는다
+   */
+  loadDraft(
+    input: DraftLoadInput,
+    signal: AbortSignal,
+  ): Promise<Result<LoadInstalledStarted, LoadDraftFailure>>;
+  /** 실린 초안을 내리고 격리 세션을 닫는다. 기록과 `draftOf` 항목도 지운다. 초안이 아니면 false다 [제안] */
+  unloadDraft(internalName: ExtensionName): Promise<boolean>;
+  /** 실린 초안의 목록(싣은 순서) [제안] */
+  loadDraftsOf(): readonly DraftInfo[];
+  /** 내부 이름의 초안 정보. 실리지 않았으면 undefined [제안] */
+  draftOf(internalName: ExtensionName): DraftInfo | undefined;
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
   /**
@@ -631,6 +671,39 @@ function projectDiagnostic(
 
 function refusalMessage(name: ExtensionName): string {
   return `${name} requires process isolation, but no fresnel.process service is available; set ext.${name}.isolation to none to run it inside the engine`;
+}
+
+/** 매니페스트 원본을 읽은 결과. 실패하면 진단 코드와 문장을 준다 */
+type ManifestInputRead =
+  | { readonly ok: true; readonly input: unknown }
+  | { readonly ok: false; readonly code: LoadDiagnosticCode; readonly message: string };
+
+/**
+ * 초안 매니페스트의 이름을 내부 이름으로 바꾼다. 다른 플러그인 이름을 적었으면 검증 전에 거부한다 [제안].
+ * 이름을 바꾼 뒤의 검증은 내부 이름으로 돈다(등록 id, 테이블과 도구 접두가 내부 이름을 따른다)
+ */
+function namedAsDraft(input: unknown, origin: DraftOrigin): ManifestInputRead {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    !("name" in input) ||
+    input.name !== origin.plugin
+  ) {
+    return {
+      ok: false,
+      code: "manifest_invalid",
+      message: `the draft manifest must name ${origin.plugin}`,
+    };
+  }
+  return { ok: true, input: { ...input, name: origin.internalName } };
+}
+
+/** 격리 거부 문장. 초안은 설정 `none`으로도 엔진 안에 둘 수 없다는 것을 말한다 [제안] */
+function refusalTextOf(record: ExtRecord, code: IsolationRefusal): string {
+  if (record.candidate.draft === undefined) return refusalMessage(record.name);
+  return code === "draft_entry_missing"
+    ? `${record.name} is a draft without an entry; a draft runs only in an isolated plugin host, so it needs code to run`
+    : `${record.name} is a draft and needs the isolated plugin host, but no fresnel.process service is available; a draft never runs inside the engine`;
 }
 
 /** 격리 감독 손잡이의 세션을 닫는다. 손잡이가 없으면 아무것도 하지 않는다 */
@@ -722,6 +795,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    * 같은 이름을 다시 설치해 싣을 때 세대를 올려 새 모듈로 import한다(§4.4.4)
    */
   const nextGeneration = new Map<ExtensionName, number>();
+  /** 실린 초안(내부 이름 → 정보). 싣기에 성공한 것만 들고, 내리면 지운다 [제안] */
+  const drafts = new Map<ExtensionName, DraftInfo>();
 
   function missingDependency(): string | undefined {
     const required: readonly (readonly [string, unknown])[] = [
@@ -774,6 +849,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       ...(record.candidate.contentHash === null || record.candidate.contentHash === undefined
         ? {}
         : { contentHash: record.candidate.contentHash }),
+      ...(record.candidate.draft === undefined
+        ? {}
+        : {
+            draft: {
+              plugin: record.candidate.draft.plugin,
+              draftId: record.candidate.draft.draftId,
+            },
+          }),
       diagnostics: [...record.diagnostics],
     };
   }
@@ -797,13 +880,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     );
   }
 
-  /** 후보의 매니페스트 원본. 내장은 모듈의 상수, 외부는 `plugin.json`을 읽어 파싱한다(2단계 입력) */
-  async function readManifestInput(
-    candidate: ExtensionCandidate,
-  ): Promise<
-    | { readonly ok: true; readonly input: unknown }
-    | { readonly ok: false; readonly code: LoadDiagnosticCode; readonly message: string }
-  > {
+  /** 후보의 매니페스트 원본(2단계 입력). 초안이면 이름을 내부 이름으로 바꾼다 [제안] */
+  async function readManifestInput(candidate: ExtensionCandidate): Promise<ManifestInputRead> {
+    const raw = await readRawManifestInput(candidate);
+    if (!raw.ok || candidate.draft === undefined) return raw;
+    return namedAsDraft(raw.input, candidate.draft);
+  }
+
+  /** 후보의 매니페스트 원본. 내장은 모듈의 상수, 외부는 `plugin.json`을 읽어 파싱한다 */
+  async function readRawManifestInput(candidate: ExtensionCandidate): Promise<ManifestInputRead> {
     if (candidate.builtin !== null) return { ok: true, input: candidate.builtin.manifest };
     if (candidate.inferredManifest !== undefined) {
       return { ok: true, input: candidate.inferredManifest };
@@ -931,7 +1016,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const raw = raws[position];
       if (raw === undefined) throw new Bug("loader.manifest_read_missing");
       const result = raw.ok ? validateManifest(raw.input) : undefined;
-      const name = result?.manifest?.name ?? fallbackName(candidate, anonymous);
+      const name =
+        candidate.draft?.internalName ??
+        result?.manifest?.name ??
+        fallbackName(candidate, anonymous);
       const record: ExtRecord = {
         name,
         candidate,
@@ -1059,6 +1147,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       manifest: manifest?.isolation,
       hasEntry: manifest?.entry !== undefined,
       portAvailable: deps.process !== undefined && deps.isolation !== undefined,
+      draft: record.candidate.draft !== undefined,
     });
   }
 
@@ -1066,7 +1155,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   function checkIsolation(record: ExtRecord): void {
     const decision = isolationOf(record, record.manifest);
     if (decision.kind !== "refused") return;
-    fail(record, "error", "isolation", decision.code, refusalMessage(record.name));
+    fail(record, "error", "isolation", decision.code, refusalTextOf(record, decision.code));
   }
 
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
@@ -1565,6 +1654,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   ): Promise<Result<ReloadStarted, ReloadFailure>> {
     const record = records.get(name);
     if (record === undefined) return err({ kind: "unknown_extension" });
+    if (record.candidate.draft !== undefined)
+      return err({ kind: "not_reloadable", reason: "draft" });
     if (record.candidate.builtin !== null) {
       return err({ kind: "not_reloadable", reason: "builtin" });
     }
@@ -1581,6 +1672,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (deps.reviewedSource === undefined) return reload(name, signal, options);
     const record = records.get(name);
     if (record === undefined) return err({ kind: "unknown_extension" });
+    if (record.candidate.draft !== undefined)
+      return err({ kind: "not_reloadable", reason: "draft" });
     if (record.candidate.builtin !== null) {
       return err({ kind: "not_reloadable", reason: "builtin" });
     }
@@ -1693,7 +1786,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         found,
         "isolation",
         decision.code,
-        `reload of ${name}: ${refusalMessage(name)}`,
+        `reload of ${name}: ${refusalTextOf(record, decision.code)}`,
       );
       return rejected();
     }
@@ -1917,6 +2010,114 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return infoOf(record);
   }
 
+  /**
+   * 초안 입력으로 후보를 만든다. 검토본과 같은 규칙으로 실제 경로와 매니페스트를 정하고(파일이 없으면 추론 매니페스트), 초안 출처를 붙인다
+   */
+  async function draftCandidateOf(
+    input: DraftLoadInput,
+    origin: DraftOrigin,
+  ): Promise<ExtensionCandidate | undefined> {
+    const pick = await reviewedPickOf({
+      name: input.plugin,
+      source: "user",
+      root: input.root,
+      contentHash: input.contentHash,
+      ...(input.manifest === undefined ? {} : { manifest: input.manifest }),
+    });
+    if (pick === undefined) return undefined;
+    return { ...pick.candidate, draft: origin };
+  }
+
+  /**
+   * 초안을 싣는다 [제안, X.loading-trust.spec §4.9.8]. 띄우기 포트나 띄우기 설정이 없으면 아무것도 싣지 않는다(엔진 안 실행 경로가 없다).
+   * 나머지 단계는 `loadInstalled`와 같고, 기록은 내부 이름으로 둔다. 실패하면 기록을 지운다(꺼진 기록도 남기지 않는다).
+   */
+  async function loadDraft(
+    input: DraftLoadInput,
+    signal: AbortSignal,
+  ): Promise<Result<LoadInstalledStarted, LoadDraftFailure>> {
+    if (deps.process === undefined || deps.isolation === undefined) {
+      return err({ kind: "isolation_unavailable" });
+    }
+    if (startup.safeMode.active) return err({ kind: "safe_mode" });
+    const internalName = internalDraftName(input.plugin, input.draftId);
+    const held = drafts.get(internalName);
+    if (held !== undefined) {
+      return err(
+        held.plugin === input.plugin && held.draftId === input.draftId
+          ? { kind: "already_loaded" }
+          : { kind: "name_taken", internalName },
+      );
+    }
+    if (records.has(internalName)) return err({ kind: "name_taken", internalName });
+    const mark = diagnosticLog.mark();
+    const origin: DraftOrigin = {
+      plugin: input.plugin,
+      draftId: input.draftId,
+      internalName,
+      contentHash: input.contentHash,
+    };
+    const candidate = await draftCandidateOf(input, origin);
+    if (candidate === undefined) {
+      if (diagnosticLog.since(mark).length === 0) {
+        diagnosticLog.push({
+          extension: internalName,
+          source: "user",
+          stage: "discover",
+          severity: "error",
+          code: "manifest_missing",
+          message: `draft ${input.plugin} has no manifest`,
+          path: input.root,
+          generation: 0,
+        });
+      }
+      return err({ kind: "not_found", diagnostics: diagnosticLog.since(mark) });
+    }
+    const before = new Set(records.values());
+    await processBatch([candidate], signal);
+    const added = [...records.values()].filter((record) => !before.has(record));
+    const record = added.find((item) => item.candidate === candidate) ?? added[0];
+    if (record === undefined) throw new Bug(`loader.draft_without_record: ${internalName}`);
+    if (record.state === "active") {
+      drafts.set(internalName, {
+        internalName,
+        plugin: input.plugin,
+        draftId: input.draftId,
+        contentHash: input.contentHash,
+      });
+      return ok({ appliesAt: record.deferred ? "nextStepBoundary" : "now", info: infoOf(record) });
+    }
+    const state = record.state;
+    const failure = {
+      kind: "not_active",
+      state: state === "disabled" || state === "error" ? state : "rejected",
+      diagnostics: [...record.diagnostics],
+    } as const;
+    records.delete(internalName);
+    order = order.filter((item) => item !== record);
+    return err(failure);
+  }
+
+  /**
+   * 실린 초안을 내린다. 활성이면 호스트에서 내리고 격리 세션을 닫은 뒤 기록과 `drafts` 항목을 지운다. 초안이 아니면 false다 [제안]
+   */
+  async function unloadDraft(internalName: ExtensionName): Promise<boolean> {
+    if (!drafts.has(internalName)) return false;
+    const record = records.get(internalName);
+    if (record !== undefined) {
+      if (record.state === "active" || record.state === "loading") {
+        await deps.host.uninstall(internalName);
+        retireRecord(record, "disabled");
+        deps.policy.forget(internalName);
+      }
+      records.delete(internalName);
+      order = order.filter((item) => item !== record);
+    }
+    drafts.delete(internalName);
+    await cascadeProviderFailures();
+    return true;
+  }
+
   async function loadInstalled(
     name: ExtensionName,
     signal: AbortSignal,
@@ -1985,6 +2186,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    * 내장 확장이거나 로더가 모르는 이름이면 false다
    */
   async function unload(name: ExtensionName): Promise<boolean> {
+    if (drafts.has(name)) return unloadDraft(name);
     const record = records.get(name);
     if (record === undefined || record.candidate.builtin !== null) return false;
     if (record.state === "active" || record.state === "loading") {
@@ -2251,6 +2453,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       if (missing !== undefined) throw new Bug(`loader.missing_dependency: ${missing}`);
       throwIfCancelled(options.signal, "validation");
       records.clear();
+      drafts.clear();
       nextGeneration.clear();
       diagnosticLog.clear();
       order = [];
@@ -2341,6 +2544,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     reload,
     reloadFromReviewed,
     loadInstalled,
+    loadDraft,
+    unloadDraft,
+    loadDraftsOf: () => [...drafts.values()],
+    draftOf: (internalName) => drafts.get(internalName),
     unload,
     async settingChanged(name, signal) {
       const record = records.get(name);
@@ -2379,6 +2586,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         record.state = "disabled";
         return "continue";
       });
+      drafts.clear();
     },
   };
 }
