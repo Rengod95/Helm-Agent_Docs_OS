@@ -261,7 +261,7 @@ function withApproval(run: HookRun, approvals: ReadonlyMap<string, ApprovalOf>):
 function hookRunOf(flat: FlatHook): HookRun {
   const { entry, handler } = flat;
   const toolCallId = handler.toolCallId ?? null;
-  return {
+  const run: HookRun = {
     hook: entry.hook,
     registrationId: handler.registrationId,
     // 등록 항목이 없던 옛 기록은 자리 값이다
@@ -281,6 +281,8 @@ function hookRunOf(flat: FlatHook): HookRun {
     skippedBy: handler.skippedBy,
     decisionText: null,
   };
+  // 턴이 열리기 전에 실행된 훅(§4.2 규칙 17의 2)은 표지를 단다. 턴의 단계 0에만 든다
+  return entry.pre === true ? { ...run, preTurn: true } : run;
 }
 
 /**

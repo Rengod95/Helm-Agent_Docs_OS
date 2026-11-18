@@ -118,6 +118,11 @@ export interface TraceTurnEntry {
   readonly hook: string;
   readonly step: number;
   readonly handlers: readonly TraceHandlerEntry[];
+  /**
+   * 턴이 열리기 전에 실행된 훅(`thread.start`, `input.user.before`, `input.bash.before`)이 다음 턴의 단계 0 항목이 된 것이면 참.
+   * 턴 안에서 실행된 항목에는 없다(생략). 턴 기록 `turn-record-metrics.md` §4.2 규칙 17의 2 [제안]
+   */
+  readonly pre?: true;
 }
 /** `trace.turn`의 결과(W-43) */
 export interface TraceTurnResult {
@@ -184,6 +189,7 @@ const TraceTurnResultShape = Type.Object(
             ),
             { maxItems: 256 },
           ),
+          pre: Type.Optional(Type.Literal(true)),
         },
         { additionalProperties: false },
       ),

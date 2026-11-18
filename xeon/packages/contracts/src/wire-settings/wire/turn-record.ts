@@ -231,6 +231,11 @@ export interface HookRun {
    * 행은 실행이 시작된 단계에 쓰고, 이 표지는 기록이 늦었다는 뜻일 뿐 결과를 바꾸지 않는다(§7 분리 실행 행)
    */
   readonly late?: true;
+  /**
+   * 턴이 열리기 전에 실행됐다(`thread.start`, `input.user.before`, `input.bash.before`). 턴의 단계 0(`turnHooks`)에만 든다.
+   * 있으면 `true`, 없으면 생략한다 [제안, §4.2 규칙 17의 2]
+   */
+  readonly preTurn?: true;
 }
 const HookRunShape = closed({
   hook: Name,
@@ -251,6 +256,7 @@ const HookRunShape = closed({
   skippedBy: Nullable(Id),
   decisionText: Nullable(Type.String({ maxLength: 200 })),
   late: Type.Optional(Type.Literal(true)),
+  preTurn: Type.Optional(Type.Literal(true)),
 });
 export const HookRunSchema: TUnsafe<HookRun> = Type.Unsafe<HookRun>(
   HookRunShape satisfies SchemaProof<HookRun, typeof HookRunShape>,

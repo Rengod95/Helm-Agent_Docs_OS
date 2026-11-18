@@ -19,6 +19,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
+  InputQueuedPayloadSchema,
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
   ProfileAppliedPayloadSchema,
@@ -310,10 +311,96 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     return undefined;
   }
 
+  /** 한도 소비량의 증분(§4.4 규칙 23). 엔진의 `charge`(ext-host `lease.ts`)가 더하는 세 칸이다 */
+  interface FrameCharge {
+    readonly turns: number;
+    readonly spawns: number;
+    readonly tokens: number;
+  }
+
+  /**
+   * 열린 프레임 가운데 `leaseIds`에 든 것을 바꾼다. 대화의 열린 스택과, 이 대화의 열린 턴이 든 복사본을 함께 바꾼다.
+   * 턴이 닫힐 때 복사본을 쓰므로, 여러 턴에 걸친 프레임의 값은 턴 사이에도 이어서 쌓인다
+   */
+  function patchFrames(
+    threadId: string,
+    leaseIds: ReadonlySet<string>,
+    change: (frame: FrameMark) => FrameMark,
+  ): void {
+    const stack = openFrames.get(threadId);
+    if (stack !== undefined) {
+      openFrames.set(
+        threadId,
+        stack.map((frame) =>
+          frame.leaseId !== null && leaseIds.has(frame.leaseId) ? change(frame) : frame,
+        ),
+      );
+    }
+    for (const draft of drafts.values()) {
+      if (draft.threadId !== threadId) continue;
+      draft.frames.forEach((frame, index) => {
+        if (frame.leaseId !== null && leaseIds.has(frame.leaseId)) {
+          draft.frames[index] = change(frame);
+        }
+      });
+    }
+  }
+
+  /**
+   * 맨 위 프레임부터 `leaseId`까지(`leaseId`가 없으면 맨 위 전부)에 증분을 더한다. 엔진은 맨 위 임대와 그 아래 프레임에 더하므로
+   * 아래 프레임의 소비량에는 위 프레임의 소비도 든다(`charge`). 열린 프레임이 없으면 아무것도 하지 않는다
+   */
+  function chargeFrames(threadId: string, leaseId: string | null, charge: FrameCharge): void {
+    if (charge.turns === 0 && charge.spawns === 0 && charge.tokens === 0) return;
+    const stack = openFrames.get(threadId) ?? [];
+    const at =
+      leaseId === null ? stack.length - 1 : stack.findIndex((frame) => frame.leaseId === leaseId);
+    if (at < 0) return;
+    const covered = new Set<string>();
+    for (const frame of stack.slice(0, at + 1)) {
+      if (frame.leaseId !== null) covered.add(frame.leaseId);
+    }
+    patchFrames(threadId, covered, (frame) => ({
+      ...frame,
+      used: {
+        turns: frame.used.turns + charge.turns,
+        spawns: frame.used.spawns + charge.spawns,
+        tokens: frame.used.tokens + charge.tokens,
+      },
+    }));
+  }
+
+  /**
+   * 사용자 메시지 한 건(`input.queued`, 출처 사용자). 맨 위 임대의 받은 편지함으로 가므로 맨 위 프레임이 받은 것으로 센다.
+   * 임대가 받은 메시지는 사건이 없어 이 길로 세지 않는다(§11 미결)
+   */
+  function queuedUserMessage(record: DurableEventEnvelope): void {
+    const parsed = parse(InputQueuedPayloadSchema, record.payload);
+    if (!parsed.ok || parsed.value.source.type !== "user" || parsed.value.item.kind !== "user") {
+      return;
+    }
+    const top = openFrames.get(record.threadId)?.at(-1);
+    if (top === undefined || top.leaseId === null) return;
+    patchFrames(record.threadId, new Set([top.leaseId]), (frame) => ({
+      ...frame,
+      userMessages: frame.userMessages + 1,
+    }));
+  }
+
+  /** 주도 함수가 낸 하위 대화(`agent.spawned`의 owner가 drive). 엔진은 그 임대와 아래 프레임에 spawns를 더한다 */
+  function spawnCharge(record: DurableEventEnvelope): void {
+    const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
+    if (!parsed.ok) return;
+    const owner = parsed.value.owner;
+    if (owner.kind !== "drive") return;
+    chargeFrames(record.threadId, owner.leaseId, { turns: 0, spawns: 1, tokens: 0 });
+  }
+
   /**
    * 프레임 사건을 따른다(drive-isolation.md 2.6, 턴 기록 §4.9 규칙 23). `lease.acquired`는 프레임을 쌓고, `lease.released`는 내린다.
    * 깊이는 코어를 0으로 센다(`lease.acquired.depth`는 코어 위 첫 프레임이 0이라 1을 더한다).
-   * 한도 소비량, 사용자 메시지 수, `lowerResumedWith`는 사건에 실리지 않아 0과 null이다
+   * 한도 소비량과 사용자 메시지 수는 이 사건으로 세지 않고 `chargeFrames`·`queuedUserMessage`가 센다.
+   * `lowerResumedWith`는 실리는 사건이 없어 null이다
    */
   function frameEvent(record: DurableEventEnvelope): void {
     const draft = openDraftOf(record.threadId);
@@ -387,6 +474,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     const origin = parsed.ok && parsed.value.origin !== undefined ? parsed.value.origin : "user";
     // 같은 턴을 두 번 열지 않는다(방어)
     if (drafts.has(turnId)) return;
+    // 주도 함수가 연 턴은 한도의 턴 수를 올린다. 이 턴의 복사본은 올린 값을 싣도록 복사하기 전에 센다
+    if (origin === "drive") chargeFrames(record.threadId, null, { turns: 1, spawns: 0, tokens: 0 });
     const draft = newDraft({
       threadId: record.threadId,
       turnId,
@@ -737,10 +826,12 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       if (record.kind === "profile.applied") profileApplied(record);
       else if (record.kind === "thread.started" || record.kind === "thread.updated") {
         rememberStored(record);
-      } else if (record.kind === "agent.spawned") rememberChild(record);
-      else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
+      } else if (record.kind === "agent.spawned") {
+        rememberChild(record);
+        spawnCharge(record);
+      } else if (record.kind === "lease.acquired" || record.kind === "lease.released") {
         frameEvent(record);
-      }
+      } else if (record.kind === "input.queued") queuedUserMessage(record);
       const turnId = record.turnId;
       if (turnId === null) return;
       if (record.kind === "turn.started") turnStarted(record, turnId);
@@ -748,6 +839,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       else if (record.kind === "turn.completed") turnCompleted(record, turnId);
     },
     usage(call) {
+      // 한도 토큰은 엔진이 맨 위 프레임과 그 아래 프레임에 더하는 총 토큰이다(`chargeTokens`, `tokensOf`)
+      chargeFrames(call.threadId, null, { turns: 0, spawns: 0, tokens: call.usage.totalTokens });
       if (call.turnId === null || call.stepId === null) return;
       const draft = drafts.get(call.turnId);
       if (draft === undefined || draft.level !== "full") return;
