@@ -270,3 +270,144 @@ describe("blob pins", () => {
     expect((await store.rowCounts())["sys_blob_refs"]).toBe(0);
   });
 });
+
+describe("blob size limit", () => {
+  const LIMIT = 16;
+
+  async function openWithLimit(): Promise<TestStore> {
+    const clock = manualClock();
+    const store = await openTestStore({
+      clock,
+      ids: fixedIdFactory(clock),
+      settings: { maxBlobBytes: LIMIT },
+    });
+    return own(store);
+  }
+
+  test("a blob over the limit is refused before any file or row is written", async () => {
+    const store = await openWithLimit();
+    const over = new TextEncoder().encode("0123456789abcdefX");
+    const sha = sha256Hex(over);
+    const blobsDir = join(dirname(store.path), "blobs");
+    expect(store.service.putBlob(over, null)).toEqual({
+      ok: false,
+      error: { kind: "blob_too_large", size: LIMIT + 1, limit: LIMIT },
+    });
+    expect(existsSync(join(blobsDir, sha.slice(0, 2), sha.slice(2)))).toBe(false);
+    expect(readdirSync(join(blobsDir, "tmp"))).toEqual([]);
+    expect((await store.rowCounts())["sys_blobs"]).toBe(0);
+  });
+
+  test("a blob exactly at the limit is stored and read back", async () => {
+    const store = await openWithLimit();
+    const exact = new TextEncoder().encode("0123456789abcdef");
+    const ref = put(store, exact, null);
+    expect(ref.size).toBe(LIMIT);
+    expect(store.service.readBlob(ref)).toEqual({ ok: true, value: new Uint8Array(exact) });
+  });
+});
+
+describe("blob range reads", () => {
+  const ALPHABET = new TextEncoder().encode("0123456789abcdef");
+
+  test("reads exactly the requested window, including the tail and empty windows", async () => {
+    const { store } = own(await open());
+    const ref = put(store, ALPHABET);
+    const slice = (offset: number, length: number) =>
+      store.service.readBlobRange(ref, offset, length);
+    expect(slice(0, 4)).toEqual({ ok: true, value: new TextEncoder().encode("0123") });
+    expect(slice(10, 6)).toEqual({ ok: true, value: new TextEncoder().encode("abcdef") });
+    expect(slice(16, 0)).toEqual({ ok: true, value: new Uint8Array() });
+    expect(slice(4, 0)).toEqual({ ok: true, value: new Uint8Array() });
+  });
+
+  test("a window past the blob, a negative or fractional offset is a bug", async () => {
+    const { store } = own(await open());
+    const ref = put(store, ALPHABET);
+    expect(() => store.service.readBlobRange(ref, 10, 7)).toThrow("store.blob_range_out_of_bounds");
+    expect(() => store.service.readBlobRange(ref, 17, 0)).toThrow("store.blob_range_out_of_bounds");
+    expect(() => store.service.readBlobRange(ref, -1, 2)).toThrow("store.blob_range_out_of_bounds");
+    expect(() => store.service.readBlobRange(ref, 1.5, 2)).toThrow(
+      "store.blob_range_out_of_bounds",
+    );
+  });
+
+  test("a file whose size differs from the reference is blob_corrupt, a missing one blob_missing", async () => {
+    const fixture = own(await open());
+    const { store, blobsDir } = fixture;
+    const ref = put(store, ALPHABET);
+    const dest = destOf(blobsDir, ref);
+    writeFileSync(dest, "tiny");
+    expect(store.service.readBlobRange(ref, 0, 2)).toEqual({
+      ok: false,
+      error: { kind: "blob_corrupt", sha256: ref.sha256, reason: "size" },
+    });
+    rmSync(dest);
+    expect(store.service.readBlobRange(ref, 0, 2)).toEqual({
+      ok: false,
+      error: { kind: "blob_missing", sha256: ref.sha256 },
+    });
+  });
+
+  test("a window inside a large blob is the same bytes as a slice of the whole", async () => {
+    const { store } = own(await open());
+    const big = new Uint8Array(3 * 1024 * 1024).map((_, index) => index % 251);
+    const ref = put(store, big, "application/octet-stream");
+    expect(store.service.readBlobRange(ref, 1_000_000, 1000)).toEqual({
+      ok: true,
+      value: big.slice(1_000_000, 1_001_000),
+    });
+    expect(store.service.readBlobRange(ref, big.byteLength - 3, 3)).toEqual({
+      ok: true,
+      value: big.slice(big.byteLength - 3),
+    });
+  });
+});
+
+describe("blob usage", () => {
+  test("totals count each content once; per-thread counts follow pins and unpins", async () => {
+    const { store } = own(await open());
+    expect(store.service.blobUsage()).toEqual({
+      ok: true,
+      value: { total: { blobs: 0, bytes: 0 }, byThread: [] },
+    });
+
+    const a = put(store, BYTES);
+    const b = put(store, new TextEncoder().encode("another"));
+    expect(put(store, BYTES)).toEqual(a);
+    const total = { blobs: 2, bytes: a.size + b.size };
+    expect(store.service.blobUsage()).toEqual({
+      ok: true,
+      value: { total, byThread: [] },
+    });
+
+    // 대화 참조는 owner 'thread', ref_key가 대화 id다. 같은 참조를 두 번 적어도 한 번으로 센다
+    const { blobPins } = store.opened;
+    const pinned = store.root.write((tx) => {
+      blobPins.pin(tx, a.sha256, "thread", "thr_1");
+      blobPins.pin(tx, a.sha256, "thread", "thr_1");
+      blobPins.pin(tx, b.sha256, "thread", "thr_1");
+      blobPins.pin(tx, a.sha256, "thread", "thr_2");
+      // 다른 소유자의 참조는 대화별 합에 들지 않는다
+      blobPins.pin(tx, b.sha256, "core.persistence", "thread:thr_9");
+    });
+    expect(pinned.ok).toBe(true);
+    expect(store.service.blobUsage()).toEqual({
+      ok: true,
+      value: {
+        total,
+        byThread: [
+          { threadId: "thr_1", blobs: 2, bytes: a.size + b.size },
+          { threadId: "thr_2", blobs: 1, bytes: a.size },
+        ],
+      },
+    });
+
+    const removed = store.root.write((tx) => blobPins.unpinAll(tx, "thread", "thr_1"));
+    expect(removed).toEqual({ ok: true, value: 2 });
+    expect(store.service.blobUsage()).toEqual({
+      ok: true,
+      value: { total, byThread: [{ threadId: "thr_2", blobs: 1, bytes: a.size }] },
+    });
+  });
+});

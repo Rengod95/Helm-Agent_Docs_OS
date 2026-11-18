@@ -4941,6 +4941,7 @@
   "settings.l0.store.leaseTtlMs.label": "Lease expiry time",
   "settings.l0.store.leaseTtlMs.help": "Must be at least three times the heartbeat interval",
   "settings.l0.store.blobGraceMs.label": "Unreferenced blob retention time",
+  "settings.l0.store.maxBlobBytes.label": "Largest size of one stored blob",
   "settings.l0.store.blobGcEnabled.label": "Enable unreferenced blob cleanup",
   "settings.l0.store.blobGcEnabled.help": "Enable only after every blob consumer pins its blobs",
   "settings.l0.store.requireFts5.label": "FTS5 required",

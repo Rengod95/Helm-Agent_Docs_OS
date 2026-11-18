@@ -9,6 +9,7 @@ describe("resolveStoreSettings", () => {
       leaseTtlMs: 30_000,
       busyTimeoutMs: 5000,
       blobGraceMs: 86_400_000,
+      maxBlobBytes: 536_870_912,
       blobGcEnabled: false,
       requireFts5: false,
       macFullFsync: true,
@@ -22,6 +23,7 @@ describe("resolveStoreSettings", () => {
       leaseTtlMs: 9000,
       busyTimeoutMs: 0,
       blobGraceMs: 600_000,
+      maxBlobBytes: 1_048_576,
       blobGcEnabled: true,
       requireFts5: true,
       macFullFsync: false,
@@ -34,6 +36,7 @@ describe("resolveStoreSettings", () => {
         leaseTtlMs: 9000,
         busyTimeoutMs: 0,
         blobGraceMs: 600_000,
+        maxBlobBytes: 1_048_576,
         blobGcEnabled: true,
         requireFts5: true,
         macFullFsync: false,
@@ -48,6 +51,7 @@ describe("resolveStoreSettings", () => {
       leaseTtlMs: 600_001,
       busyTimeoutMs: 60_001,
       blobGraceMs: 599_999,
+      maxBlobBytes: 1_048_575,
     });
     expect(resolved.ok).toBe(false);
     if (resolved.ok) return;
@@ -56,7 +60,14 @@ describe("resolveStoreSettings", () => {
       "busyTimeoutMs",
       "heartbeatMs",
       "leaseTtlMs",
+      "maxBlobBytes",
     ]);
+  });
+
+  test("the blob size limit has a 1 MiB floor and a 2 GiB ceiling", () => {
+    expect(resolveStoreSettings({ maxBlobBytes: 1_048_576 }).ok).toBe(true);
+    expect(resolveStoreSettings({ maxBlobBytes: 2_147_483_648 }).ok).toBe(true);
+    expect(resolveStoreSettings({ maxBlobBytes: 2_147_483_649 }).ok).toBe(false);
   });
 
   test("the ttl must be at least three heartbeats", () => {

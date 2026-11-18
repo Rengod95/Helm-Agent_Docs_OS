@@ -4941,6 +4941,7 @@
   "settings.l0.store.leaseTtlMs.label": "점유 만료 시간",
   "settings.l0.store.leaseTtlMs.help": "하트비트 주기의 3배 이상이어야 해요",
   "settings.l0.store.blobGraceMs.label": "미참조 블롭 보존 시간",
+  "settings.l0.store.maxBlobBytes.label": "블롭 하나의 최대 크기",
   "settings.l0.store.blobGcEnabled.label": "미참조 블롭 정리 켜기",
   "settings.l0.store.blobGcEnabled.help": "모든 블롭 소비자가 블롭을 고정한 뒤에만 켜요",
   "settings.l0.store.requireFts5.label": "FTS5 필수",

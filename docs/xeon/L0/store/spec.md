@@ -124,8 +124,14 @@ export interface StoreCapabilities {
 export type BlobError =
   | { readonly kind: "blob_missing"; readonly sha256: string }
   | { readonly kind: "blob_corrupt"; readonly sha256: string; readonly reason: "size" | "hash" }
+  | { readonly kind: "blob_too_large"; readonly size: number; readonly limit: number }   // [제안] §4.9, §6 l0.store.maxBlobBytes
   | { readonly kind: "disk_full" }
   | { readonly kind: "io"; readonly code: string };
+export interface BlobUsageByThread { readonly threadId: string; readonly blobs: number; readonly bytes: number }
+export interface BlobUsage {
+  readonly total: { readonly blobs: number; readonly bytes: number };
+  readonly byThread: readonly BlobUsageByThread[];
+}
 
 export interface StoreService {
   readonly storeId: string;                                   // "sto_<ULID>", F.wire-settings §3.4.1 StoreId 모양
@@ -138,8 +144,12 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** [제안] `[offset, offset + length)`만 읽는다. 범위 밖·음수·정수 아님은 Bug(store.blob_range_out_of_bounds). §4.9 */
+  readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
   /** 자리표시 `blob:sha256:<hex>`처럼 해시만 아는 호출자용. 크기 대조 없이 읽는다 */
   readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
+  /** [제안] 블롭 사용량. 전체는 sys_blobs, 대화별은 owner = 'thread' 참조. §4.9 */
+  blobUsage(): Result<BlobUsage, BlobError>;
   /** 범위 핸들 소유자(`cap.*`, `ext.*`)의 블롭 참조 기록(M3-REQ-62). 트랜잭션 밖에서 부른다. 블롭 행이 없으면 `blob_missing`. 등록 안 된 소유자는 Bug(store.prefix_not_owned) */
   pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError>;
   /** `(owner, refKey)` 참조를 모두 해제한다. 해제한 행 수를 돌려준다 */
@@ -332,6 +342,7 @@ export interface StoreSettings {
   readonly leaseTtlMs: number;
   readonly busyTimeoutMs: number;
   readonly blobGraceMs: number;
+  readonly maxBlobBytes: number;                                   // §6 l0.store.maxBlobBytes. putBlob의 상한
   readonly blobGcEnabled: boolean;                                 // §6 l0.store.blobGcEnabled. 조립 루트가 gcBlobs를 부를지 정한다
   readonly requireFts5: boolean;
   readonly macFullFsync: boolean;
@@ -743,7 +754,7 @@ macOS `fullfsync` [제안]:
 - 해시: Bun 내장 `Bun.CryptoHasher("sha256")` [가정: Bun 1.4.3 API, 실측 전].
 - `putBlob(bytes, mediaType)` 순서(TX-04):
   1. 트랜잭션 안이면 `Bug(store.nested_write)`.
-  2. 해시를 계산한다.
+  2. 바이트 수가 `l0.store.maxBlobBytes`(§6)를 넘으면 `err({ kind: "blob_too_large", size, limit })`로 끝낸다. 파일도 행도 만들지 않으며 자르지 않는다 [제안]. 그 밖에는 해시를 계산한다.
   3. 목적 파일이 있고 크기가 같으면 파일 쓰기를 건너뛴다. 4~7단계를 생략하고 8단계로 간다.
   4. 임시 파일을 `wx` 모드, 0600으로 열고 전부 쓴다.
   5. `fsync(fd)` 후 닫는다.
@@ -752,6 +763,9 @@ macOS `fullfsync` [제안]:
   8. `write`에서 `sys_blobs`에 `INSERT … ON CONFLICT(sha256) DO UPDATE SET last_put_at = excluded.last_put_at`.
   9. `ok(BlobRef{ type: "blob", sha256, size, mediaType })`.
 - 이벤트 커밋 전에 블롭 쓰기가 끝나야 한다. 이벤트 envelope 256 KiB 초과 값은 블롭으로 옮긴다(EV-04, `F.records.spec` §3.4 규칙 3·4). 필드별 분리 기준(EV-04의 16 KiB 제안)과 분리 실행은 `L1.persistence.spec` 몫이다. adr.0004 §6 미결 "블롭 분리 임계 크기와 해시 함수" 중 해시 함수는 이 문서가 SHA-256으로 정한다 [제안].
+- 쓰기 중 `ENOSPC`는 `disk_full`이다. 목적 파일은 rename 뒤에만 생기고 행은 8단계에서만 생기므로, rename 앞에서 실패하면 임시 파일만 남고 뒤에서 실패하면 완전한 파일만 남는다. 어느 경우에도 행은 남지 않는다. 남은 파일은 GC가 지운다 [제안].
+- `readBlobRange(ref, offset, length)` [제안]: `openSync`와 `readSync`로 구간만 읽는다. `fstat` 크기가 `ref.size`와 다르면 `blob_corrupt{size}`, 파일이 없으면 `blob_missing`이다. 해시는 구간으로 알 수 없어 대조하지 않는다. 구간이 `[0, ref.size]` 밖이거나 정수가 아니면 `Bug(store.blob_range_out_of_bounds)`다(호출자 결함). 조각 읽기의 바탕이다. wire 메서드는 후속이다.
+- `blobUsage()` [제안]: 전체는 `sys_blobs`의 행 수와 `size` 합이다(참조 없이 유예 중인 블롭 포함, 같은 해시는 한 행). 대화별은 `sys_blob_refs`에서 `owner = 'thread'`인 참조를 `ref_key`(대화 id)로 묶고 `sys_blobs`와 조인한다. 기본 키가 `(sha256, owner, ref_key)`라 한 대화는 같은 블롭을 한 번만 센다. 같은 블롭을 두 대화가 참조하면 두 대화 모두에 든다. [미결] `owner = 'thread'`로 쓰는 쓰기 경로는 아직 없다 [근거: packages/core-persistence/src의 `pin(` 호출 0건, 2026-11-18]. core-persistence는 `sys_blob_refs`에 쓰지 않고 이벤트 투영 `p_blob_refs`(L1)로 참조를 기록한다. 대화별 값을 채우려면 core-persistence가 `pinBlob`을 부르거나 L1이 읽기 포트를 주는 방식을 정해야 한다.
 - `readBlobByHash(sha256)`: `ref.size` 대조만 빼고 `readBlob`과 같다(해시 모양 검사, `blob_missing`, 테스트 빌드의 해시 재검증). 컨텍스트 조립이 이미지 자리표시를 풀 때 쓴다(L1.context.spec §4.1).
 - `readBlob(ref)`: 파일이 없으면 `blob_missing`. 크기가 `ref.size`와 다르면 `blob_corrupt{size}`. 해시 재검증은 테스트·디버그 빌드에서만 하고 다르면 `blob_corrupt{hash}` [제안].
 - 읽기 실패 정책: store는 오류만 돌려준다. 컨텍스트 조립(L1 context)이 읽을 수 없는 이미지 blob을 `[이미지를 읽지 못함]` text 파트로 바꿔 모델에 보내고 재생은 멈추지 않는다(L1.context.spec §4.1 이미지 자리표시 풀기).
@@ -876,6 +890,8 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | 잠금 디렉터리가 네트워크 파일시스템 | §4.2 검사에서 DB와 함께 거부된다 |
 | 블롭 선쓰기 뒤 커밋 실패 | 블롭은 참조 없이 남고 유예 뒤 GC가 지운다 |
 | 블롭 파일을 사용자가 지움 | `readBlob`이 `blob_missing`. 행은 GC 1번 규칙으로 정리된다(참조가 남아 있으면 남는다) |
+| `putBlob` 바이트 수가 `l0.store.maxBlobBytes`를 넘음 | `blob_too_large{size, limit}`. 파일도 행도 만들지 않는다. 자르지 않는다 [제안] |
+| 조각 읽기 구간이 블롭을 넘거나 음수·정수 아님 | `Bug(store.blob_range_out_of_bounds)`. 호출자가 `ref.size`로 먼저 검사한다 [제안] |
 | 확장 마이그레이션 체크섬 불일치 | `migration_checksum_mismatch`. 그 확장만 꺼진다(호출자 정책) |
 | macOS 동봉 dylib 없음 | `setCustomSQLite`는 성공처럼 보일 수 있다. 프로브가 거짓이면 §4.1 표를 따른다 |
 
@@ -902,6 +918,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `l0.store.leaseTtlMs` | integer | 30000 | 3000~600000, `heartbeatMs`의 3배 이상(카탈로그 검사) | restart | managed, user | `advanced` 탭 |
 | `l0.store.busyTimeoutMs` | integer | 5000 | 0~60000 | restart | managed, user | 파일만 |
 | `l0.store.blobGraceMs` | integer | 86400000(24시간) [제안] | 600000~2592000000 | live | managed, user | `sessions` 탭 |
+| `l0.store.maxBlobBytes` | integer | 536870912(512 MiB) [제안] | 1048576~2147483648 | live | managed, user | `sessions` 탭 |
 | `l0.store.blobGcEnabled` | boolean | false [결정: 오케스트레이터 기본값, M3-REQ-84] | - | live | managed, user | `sessions` 탭, `toggle` |
 | `l0.store.requireFts5` | boolean | false | - | restart | managed, user | `advanced` 탭 |
 | `l0.store.macFullFsync` | boolean | true [제안] | - | restart | managed, user | `advanced` 탭(macOS만 표시) |
@@ -910,6 +927,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - `project`, `local`, `launch` 범위는 허용하지 않는다. DB는 사용자 단위 자원이다.
 - 주기 값(5초, 30초)을 설정 키로 노출하는 것은 `eng.transactions.design` 미결 T-6에 대한 이 문서의 답이다 [제안].
 - `blobGraceMs` 기본값 근거: 블롭 선쓰기와 커밋 사이 시간은 보통 1초 안이지만 승인 대기처럼 커밋이 늦는 경로를 넉넉히 덮는다 [가정].
+- `maxBlobBytes` [제안]: 기본 512 MiB는 큰 블롭 하나가 메모리에 한 번에 올라가는 것(`readBlob`은 전체를 읽는다)을 막는 상한이다. 하한 1 MiB는 envelope 상한 256 KiB 안의 값을 어떤 경우에도 블롭으로 옮길 수 있게 둔 것이다. 상한 2 GiB는 바이트 수를 정수로 안전하게 다루는 범위다. 저장소는 열 때 한 번 읽으므로(`blobGraceMs`와 같다) 값을 바꾸면 다시 열어야 적용된다. `runtimeChange`를 `restart`로 바꿀지는 [미결]이다.
 - `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.18)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
 - 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. `pinBlob` 호출처는 cap-web 가져오기 캐시와 cap-knowledge다. 아래 cap-mcp와 cap-dialog는 아직 고정하지 않습니다.
   - cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`)는 고정한다. 소유자는 `cap.web`이고 refKey는 원문 행의 `raw_ref`(`webraw:<sha256>`)다. 저장할 때 원문과 본문 블롭을 `pinBlob`으로 적고, 행을 지우는 `sweep`과 `purgeSessionRaw`가 `unpinBlob`으로 푼다. 시험은 `packages/cap-web/test/fetch-cache-pin.int.test.ts`다.
@@ -995,6 +1013,10 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
 21. 내보내기 경쟁(`test/export.int.test.ts`, "under a concurrent removal"). 복사 직전에 블롭 디렉터리가 지워지고 복사가 `EIO`를 내면 결과는 원래 오류 `io`(`EIO`)다. 정리의 빈 디렉터리 제거는 없는 것을 지운 것으로 보므로 정리 오류가 원래 오류를 덮지 않는다. 복사 직전에 블롭 파일이 사라지면 `io`(`ENOENT`)이고 대상은 남지 않는다. 정리가 남의 파일 때문에 실패하면 정리 오류 `io`(`ENOTEMPTY`)를 돌려주고 남의 파일은 그대로다(§4.10 S-14 결정).
 22. `exportDatabase`를 `openStore`보다 먼저 부른 프로세스에서 커스텀 dylib 경로로 열면 `Bug(store.sqlite_already_loaded)`다. 내보내기 결과는 `ok`다(`test/sqlite-order.int.test.ts`, 자식 프로세스 `fixtures/export-first.ts`).
+23. [제안] `maxBlobBytes`를 넘는 `putBlob`은 `blob_too_large{size, limit}`이고, 목적 파일도 행도 없으며 `blobs/tmp`도 비어 있다. 바이트 수가 한도와 같으면 통과한다(`test/blob.int.test.ts`, "blob size limit").
+24. [제안] 쓰기 중 `ENOSPC`는 `disk_full`이다. 장애가 rename 앞에서 나면 목적 파일이 없고 뒤에서 나면 완전한 파일만 있다. 어느 경우에도 행 수와 모든 행의 해시가 주입 전과 같다(`test/blob.fault.test.ts`, "ENOSPC while writing a blob").
+25. [제안] `readBlobRange`는 구간 바이트만 돌려준다(꼬리와 빈 구간 포함). 구간 밖·음수·정수 아님은 `Bug(store.blob_range_out_of_bounds)`이고, 파일 크기가 `ref.size`와 다르면 `blob_corrupt{size}`다(`test/blob.int.test.ts`, "blob range reads").
+26. [제안] `blobUsage()`의 전체는 `sys_blobs` 행 수와 바이트 합이고 같은 해시는 한 번 센다. 대화별은 `owner = 'thread'` 참조를 `ref_key`로 묶고, 해제하면 줄어든다(`test/blob.int.test.ts`, "blob usage").
 
 ## 10. 미결 사항
 

@@ -469,6 +469,7 @@ function openStoreGuarded(options: OpenStoreOptions, context: OpenContext): Open
       directoryFsync: policy.directoryFsync,
       verifyHash: strict,
       graceMs: options.settings.blobGraceMs,
+      maxBytes: options.settings.maxBlobBytes,
     });
     const capabilities: StoreCapabilities = {
       fts5: probe.fts5,

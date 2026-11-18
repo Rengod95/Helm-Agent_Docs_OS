@@ -35,6 +35,8 @@ export interface StoreSettings {
   readonly leaseTtlMs: number;
   readonly busyTimeoutMs: number;
   readonly blobGraceMs: number;
+  /** 블롭 하나의 최대 바이트 수. 넘는 `putBlob`은 `blob_too_large`로 거절한다(L0.store.spec §6) */
+  readonly maxBlobBytes: number;
   /** 블롭 GC(`OpenedStore.gcBlobs`)를 조립 루트가 돌릴지. 기본 false [결정: 오케스트레이터 기본값, M3-REQ-84] */
   readonly blobGcEnabled: boolean;
   readonly requireFts5: boolean;

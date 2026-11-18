@@ -3,6 +3,7 @@ import { ScopedStorePortKey } from "@fresnel/contracts/extensions";
 import type {
   BlobError,
   BlobRef,
+  BlobUsage,
   ExtensionTables,
   LeaseService,
   MigrationRunner,
@@ -75,8 +76,14 @@ export function assembleStoreService(parts: StoreServiceParts): StoreService {
     readBlob(ref: BlobRef): Result<Uint8Array, BlobError> {
       return parts.blobs.readBlob(ref);
     },
+    readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError> {
+      return parts.blobs.readBlobRange(ref, offset, length);
+    },
     readBlobByHash(sha256: string): Result<Uint8Array, BlobError> {
       return parts.blobs.readBlobByHash(sha256);
+    },
+    blobUsage(): Result<BlobUsage, BlobError> {
+      return parts.blobs.blobUsage();
     },
     pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError> {
       parts.assertPinOwner(owner);
