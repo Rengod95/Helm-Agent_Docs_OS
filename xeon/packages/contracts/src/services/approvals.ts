@@ -78,6 +78,15 @@ export interface ApprovalOrigin {
   readonly source?: RunSource;
 }
 
+/**
+ * 초안 출신 호출의 표지(L1.tools.spec §4.6.1 [결정: 2026-11-17 사용자, U2]). 검토되지 않은 플러그인 초안(덧씌우기 또는 시험 실행)에서 나온 호출의 카드에 단다.
+ * `plugin`은 확장 이름, `draftId`는 프로필 덧씌우기의 `draftId`와 같은 값이다
+ */
+export interface DraftMark {
+  readonly plugin: string;
+  readonly draftId: string;
+}
+
 export interface ToolApprovalBody {
   readonly toolName: ToolName;
   readonly capability?: { readonly id: CapabilityId; readonly method: string };
@@ -94,6 +103,10 @@ export interface ToolApprovalBody {
    * 화면은 이 값으로 "어느 플러그인이 물었나"를 보인다
    */
   readonly askedBy?: { readonly extension: string; readonly reason: string };
+  /**
+   * 초안 출신 호출이면 그 표지. 화면은 "초안" 표시를 단다. 검토된 호출과 옛 기록에는 없다 [제안: L1.tools.spec §4.6.1]
+   */
+  readonly draft?: DraftMark;
 }
 
 export interface QuestionOption {

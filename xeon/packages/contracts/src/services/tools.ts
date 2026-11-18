@@ -392,7 +392,8 @@ export interface PolicyInput {
   readonly bypassAllowed: boolean;
 }
 
-export type DecisionReason = "rule" | "mode" | "noninteractive" | "bypass_forbidden";
+/** `draft`: 초안 출신 호출이라 모드와 허용 규칙을 무시하고 묻는다(L1.tools.spec §4.6.1) */
+export type DecisionReason = "rule" | "mode" | "noninteractive" | "bypass_forbidden" | "draft";
 
 export interface PolicyDecision {
   readonly effect: PolicyEffect;

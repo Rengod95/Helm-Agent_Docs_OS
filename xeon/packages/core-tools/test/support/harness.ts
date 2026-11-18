@@ -24,12 +24,14 @@ import type {
 import type {
   ExtensionManifest,
   HookName,
+  RegistrationId,
   RegistrationSetup,
   ToolCallTraceSink,
 } from "@fresnel/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import type {
   CallerId,
+  DraftMark,
   ToolCallOutcome,
   ToolRunContext,
   ToolService,
@@ -90,6 +92,8 @@ export interface HarnessOptions {
   readonly noPathEnv?: true;
   /** 도구 호출 추적 싱크. 생략하면 추적하지 않는다 */
   readonly callTrace?: ToolCallTraceSink;
+  /** 등록 id(스코프)가 초안이면 그 표지를 돌려준다(L1.tools.spec §4.6.1). 생략하면 모든 스코프가 검토된 것이다 */
+  readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
 }
 
 /** 승인 상속 시험의 기본 작업 폴더. 프로세스가 끝나면 지운다 */
@@ -193,6 +197,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     ids,
     logger: options.logger,
     ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
+    ...(options.draftOf === undefined ? {} : { draftOf: options.draftOf }),
   };
   const runtime = createToolRuntime(deps);
   return {

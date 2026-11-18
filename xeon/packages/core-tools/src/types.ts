@@ -18,9 +18,10 @@ import type {
   ThreadId,
   Usage,
 } from "@fresnel/contracts/conversation";
-import type { ToolCallTraceEvent } from "@fresnel/contracts/extensions";
+import type { RegistrationId, ToolCallTraceEvent } from "@fresnel/contracts/extensions";
 import type {
   ApprovalEvidence,
+  DraftMark,
   ExecService,
   ExposureMode,
   ToolActivation,
@@ -96,6 +97,8 @@ export interface ToolEntry {
   readonly outputSchema: AgentTool["outputSchema"];
   readonly executionMode: AgentTool["executionMode"];
   readonly ref: ToolRef;
+  /** 도구를 등록한 스코프(플러그인 등록 id). 플러그인이 등록한 도구만 가진다. 초안 표지를 찾는 데 쓴다(L1.tools.spec §4.6.1) */
+  readonly owner?: RegistrationId | undefined;
   readonly capability: { readonly id: CapabilityId; readonly method: string } | undefined;
   readonly mcpServer: string | undefined;
   /** MCP 서버가 알린 성질(표시용). 정책 입력이 아니다 */
@@ -172,6 +175,11 @@ export interface CallState {
   interrupted: boolean;
   /** 사용자가 직접 친 셸 명령(`runUserShell`)인가. 정책 ask는 사용자 본인이 낸 명령이라 허용으로 보고 묻지 않는다 */
   readonly userShell: boolean;
+  /**
+   * 이 호출의 초안 표지(L1.tools.spec §4.6.1). 호출한 플러그인이 초안이면 그 표지, 아니면 도구를 등록한 스코프가 초안이면 그 표지다.
+   * 있으면 모드·허용 규칙과 무관하게 묻고, 그 카드에 표지를 싣는다. 승인 상속은 쓰지 않는다
+   */
+  readonly draft: DraftMark | undefined;
   /**
    * toolResult item을 쓰지 않는 호출인가(사용자 셸, 플러그인 기능 호출). 효과 기록(intent, exec, result)은 남는다.
    * 플러그인 호출은 턴이 없어 대화 항목으로 남기지 않는다(hooks-core-boundary §5.3 U-4)

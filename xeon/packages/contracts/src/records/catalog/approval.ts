@@ -100,6 +100,7 @@ const ToolApprovalDetail: TObject<{
   ruleId: TUnion<[TString, TNull]>;
   mcp: TOptional<TObject<{ server: TString; declared: TOptional<typeof McpDeclaredHintsSchema> }>>;
   askedBy: TOptional<TObject<{ extension: TString; reason: TString }>>;
+  draft: TOptional<TObject<{ plugin: TString; draftId: TString }>>;
 }> = Type.Object(
   {
     toolName: Type.String({ minLength: 1, maxLength: 128 }),
@@ -132,6 +133,16 @@ const ToolApprovalDetail: TObject<{
         {
           extension: Type.String({ minLength: 1, maxLength: 64 }),
           reason: Type.String({ minLength: 1, maxLength: 500 }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    /** 초안 출신 호출의 표지(L1.tools.spec §4.6.1). 검토된 호출과 옛 기록에는 없다 [제안] */
+    draft: Type.Optional(
+      Type.Object(
+        {
+          plugin: Type.String({ minLength: 1, maxLength: 64 }),
+          draftId: Type.String({ minLength: 1, maxLength: 128 }),
         },
         { additionalProperties: false },
       ),

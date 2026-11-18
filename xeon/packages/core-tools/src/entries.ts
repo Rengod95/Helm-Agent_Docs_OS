@@ -518,6 +518,7 @@ export function resourceEntry(owner: RegistrationId, def: ToolResourceDef): Tool
     outputSchema: undefined,
     executionMode: undefined,
     ref: { capability: `ext.${extension}`, name: def.name },
+    owner,
     capability: undefined,
     mcpServer: undefined,
     risk: deriveRisk(def.risk, def.hints),

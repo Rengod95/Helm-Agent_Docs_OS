@@ -12,6 +12,7 @@ import {
   type CapabilityRequirement,
   type ExtensionEntry,
   type ExtensionManifest,
+  type RegistrationId,
   type ToolCallTraceSink,
 } from "@fresnel/contracts/extensions";
 import type { SessionService } from "@fresnel/contracts/records";
@@ -24,6 +25,7 @@ import {
   StoreServicePortKey,
   TaskServicePortKey,
   ToolServicePortKey,
+  type DraftMark,
   type ToolOutputFiles,
   type WithHumanDecision,
 } from "@fresnel/contracts/services";
@@ -75,6 +77,11 @@ export interface ToolsPluginOptions {
   readonly onHumanDecision?: (withHumanDecision: WithHumanDecision) => void;
   /** 도구 호출 추적 싱크(읽기 전용). 조립 루트가 턴 기록 쓰는 쪽에 잇는다. 생략하면 추적하지 않는다 */
   readonly callTrace?: ToolCallTraceSink;
+  /**
+   * 등록 id가 검토되지 않은 플러그인 초안이면 그 표지를 돌려준다(L1.tools.spec §4.6.1). 조립 루트가 초안 목록으로 만든다.
+   * 생략하면 초안 호출이 없다
+   */
+  readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
   readonly loadIndex?: number;
 }
 
@@ -168,6 +175,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         ids: options.ids,
         logger: options.logger,
         ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
+        ...(options.draftOf === undefined ? {} : { draftOf: options.draftOf }),
         capabilityDefs: [
           ...BUILTIN_CAPABILITIES,
           ...(options.capabilities ?? []),

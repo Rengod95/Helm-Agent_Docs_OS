@@ -2,8 +2,8 @@ import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
 import type { AnyCapabilityDef } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ProducerHandle, SessionService, StoreService } from "@fresnel/contracts/records";
-import type { Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
-import type { ToolCallTraceSink } from "@fresnel/contracts/extensions";
+import type { RegistrationId, ToolCallTraceSink } from "@fresnel/contracts/extensions";
+import type { DraftMark, Redactor, TieredRule, ToolOutputFiles } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
 import type { InheritPathEnv } from "./inherit-target.ts";
@@ -38,6 +38,12 @@ export interface ToolsDeps {
    * (해석 수단이 없으면 카드를 건너뛰지 못하게 닫는다)
    */
   readonly pathEnvOf?: (threadId: ThreadId) => InheritPathEnv | undefined;
+  /**
+   * 등록 id(스코프)가 검토되지 않은 플러그인 초안이면 그 표지를 돌려준다. 없거나 undefined면 검토된 것이다(L1.tools.spec §4.6.1).
+   * 플러그인 기능 호출은 호출한 플러그인의 `plugin.scopeId`를, 모델 도구 호출과 플러그인이 부른 도구는 도구 항목의 `owner`를 넘긴다.
+   * 조립 루트가 초안 목록(덧씌우기와 시험 실행)에서 만든다. 넘기지 않으면 초안 호출이 없다
+   */
+  readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
   readonly truncator: OutputTruncator;
   /** 잘린 출력의 파일 사본. 없으면 안내 문장에 경로가 없다 */
   readonly outputFiles?: ToolOutputFiles;

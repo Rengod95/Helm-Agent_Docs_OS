@@ -255,3 +255,13 @@ export function evaluateReadOnlySandboxed(
     rules.filter((rule) => !(rule.source === BUILTIN_RULE_SOURCE && rule.effect === "ask")),
   );
 }
+
+/**
+ * 초안 출신 호출의 판정(L1.tools.spec §4.6.1 [결정: 2026-11-17 사용자, U2]). 거부 판정은 그대로 두고, 그 밖의 판정(모드, allow 규칙,
+ * 위험 등급으로 난 allow)은 모두 ask로 바꾼다. 답할 사람이 없으면 6단계대로 deny가 된다(allow로 넘어가지 않는다).
+ * 순수 함수다. 호출하는 쪽이 모든 평가기(일반, 대체, 읽기 전용 샌드박스, 자식 천장)의 결정 뒤에 한 번 건다
+ */
+export function evaluateDraft(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
+  if (decision.effect === "deny") return decision;
+  return finish({ effect: "ask", reason: "draft", ruleId: null, tier: null }, input);
+}

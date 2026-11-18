@@ -4,6 +4,7 @@ import {
   FIRST_DENY,
   type CapabilityRef,
   type ExtensionName,
+  type RegistrationId,
   type ToolCallPayload,
   type ToolCallTraceEvent,
   type ToolCallVerdict,
@@ -44,6 +45,7 @@ import {
   type ApprovalRequestInput,
   type ApprovalResolvedBy,
   type CallPreparation,
+  type DraftMark,
   type UserShellRequest,
   type PolicyInput,
   type PreparedCall,
@@ -97,7 +99,12 @@ import {
   resultRequest,
   type EffectKit,
 } from "./effects.ts";
-import { evaluatePolicy, evaluateReadOnlySandboxed, evaluateReplacement } from "./policy/engine.ts";
+import {
+  evaluateDraft,
+  evaluatePolicy,
+  evaluateReadOnlySandboxed,
+  evaluateReplacement,
+} from "./policy/engine.ts";
 import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
@@ -530,6 +537,22 @@ function policyLabelOf(ruleId: string | null, reason: string): string {
 }
 
 /**
+ * 호출의 초안 표지(L1.tools.spec §4.6.1). 스코프를 앞에서부터 보고 처음 초안인 것의 표지를 쓴다. 호출한 플러그인이 먼저, 도구를 등록한 스코프가 다음이다
+ */
+function draftOfCall(
+  draftOf: ToolsDeps["draftOf"],
+  scopes: readonly (RegistrationId | undefined)[],
+): DraftMark | undefined {
+  if (draftOf === undefined) return undefined;
+  for (const scope of scopes) {
+    if (scope === undefined) continue;
+    const mark = draftOf(scope);
+    if (mark !== undefined) return mark;
+  }
+  return undefined;
+}
+
+/**
  * 훅 묻기의 카드 제목. 정책도 물었으면 정책의 사유를 함께 싣는다(M5e 스펙 §5.1 H-3). 제목은 120자로 잘리므로 사유 전문은 `askedBy.reason`이 싣는다
  */
 function hookAskTitle(base: string, ask: HookAsk, policy: string | undefined): string {
@@ -945,7 +968,7 @@ export function createPipeline(
         ? evaluateReplacement(input, config.rules)
         : evaluate(input, config.rules);
     // 자식 대화는 부모 관점과 정의 제한을 합친 결정과 일반 평가 중 엄격한 쪽이다(L1.tools.spec §4.5 ceiling 단계, TL-13)
-    const decision =
+    const composed =
       run.ceiling === undefined
         ? evaluated
         : stricter(
@@ -958,6 +981,8 @@ export function createPipeline(
             ),
             evaluated,
           );
+    // 초안 출신 호출은 거부 판정만 남기고 모두 묻는다. 모드와 allow 규칙을 뒤집는 자리라 모든 평가기의 결정 뒤에 둔다(L1.tools.spec §4.6.1)
+    const decision = state.draft === undefined ? composed : evaluateDraft(composed, input);
     state.facts.policy = { effect: decision.effect, tier: decision.tier };
     if (decision.effect === "deny") {
       // 사람이 없는 실행의 정책 거부는 묻지 않고 거부한 것이라 무인 판정이다(정본 §3.2 denied_noninteractive)
@@ -977,10 +1002,12 @@ export function createPipeline(
     // 훅의 묻기도 같게 둔다(가정: 사용자가 친 명령에 확장이 다시 묻는 경로는 지금 없다)
     if (state.userShell) return undefined;
     // 바깥 도구 호출이 받은 승인을 물려받는다(U-11). 위험 등급이 그 승인 이하이면 카드를 다시 띄우지 않는다. deny와 allow는 위에서 갈렸다
-    // 훅이 물은 호출은 상속하지 않는다(훅의 묻기는 그대로 사용자에게 간다). 시크릿 사용 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않는다)
+    // 훅이 물은 호출은 상속하지 않는다(훅의 묻기는 그대로 사용자에게 간다). 초안 출신 호출도 상속하지 않는다(L1.tools.spec §4.6.1).
+    // 시크릿 사용 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않는다)
     const inherit = state.inherit;
     if (
       hookAsk === undefined &&
+      state.draft === undefined &&
       inherit !== undefined &&
       riskRankOf(input.risk) <= riskRankOf(inherit.risk) &&
       !inheritUsed.has(inherit.key)
@@ -1058,10 +1085,15 @@ export function createPipeline(
             server: entry.mcpServer,
             ...(entry.mcpDeclared === undefined ? {} : { declared: entry.mcpDeclared }),
           };
+    // 초안이면 제목 앞에 표지 문장을 둔다(정책 카드와 시크릿 사용 카드 모두). 제목은 120자로 잘리므로 표지가 잘리지 않게 앞에 둔다
+    const titled =
+      state.draft === undefined
+        ? input.title
+        : `Draft plugin "${state.draft.plugin}" asks. ${input.title}`;
     const request: ApprovalRequestInput = {
       origin,
       requestKey: input.requestKey,
-      title: input.title.slice(0, 120),
+      title: titled.slice(0, 120),
       body: {
         kind: "tool",
         tool: {
@@ -1073,6 +1105,8 @@ export function createPipeline(
           ruleId: input.ruleId,
           ...(mcp === undefined ? {} : { mcp }),
           ...(input.askedBy === undefined ? {} : { askedBy: input.askedBy }),
+          // 초안 출신 호출의 카드(시크릿 사용 카드 포함)는 표지를 싣는다(L1.tools.spec §4.6.1)
+          ...(state.draft === undefined ? {} : { draft: state.draft }),
         },
       },
       remember: input.remember,
@@ -1409,6 +1443,7 @@ export function createPipeline(
       interrupted: false,
       userShell: flags.userShell,
       silent: flags.silent,
+      draft: draftOfCall(deps.draftOf, [entry.owner]),
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
@@ -1970,6 +2005,7 @@ export function createPipeline(
       interrupted: false,
       userShell: false,
       silent: false,
+      draft: draftOfCall(deps.draftOf, [entry.owner]),
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
@@ -2461,6 +2497,8 @@ export function createPipeline(
       return err({ kind: "invalid_args", message: checked.error.message });
     }
 
+    // 호출한 플러그인이 초안이면 그 표지, 아니면 도구를 등록한 스코프의 표지다(L1.tools.spec §4.6.1)
+    const draft = draftOfCall(deps.draftOf, [request.plugin.scopeId, entry.owner]);
     const run = pluginRunOf(request, pluginCallerOf(request.plugin.name));
     const state: CallState = {
       threadId: run.threadId,
@@ -2477,7 +2515,9 @@ export function createPipeline(
       interrupted: false,
       userShell: false,
       silent: true,
-      inherit: await inheritedOf(request, request.input),
+      draft,
+      // 초안 출신 호출은 승인 상속을 찾지 않는다(카드를 건너뛰지 못하게 닫는다, L1.tools.spec §4.6.1)
+      inherit: draft === undefined ? await inheritedOf(request, request.input) : undefined,
       inheritApplied: undefined,
       slot: undefined,
       userApprovalId: undefined,
