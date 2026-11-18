@@ -213,7 +213,7 @@ test("trust.get carries the foreign-format notice from the real service when a m
   expect(found.foreignFormats).toEqual({
     code: "foreign_format_found",
     willStopReading: [".mcp.json"],
-    importable: ["CLAUDE.md"],
+    importable: [".mcp.json", "CLAUDE.md"],
     importAvailable: true,
   });
   const plain = await connection.request("trust.get", { workspace: bare });

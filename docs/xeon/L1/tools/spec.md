@@ -1049,7 +1049,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 #### 4.12.1 MCP 서버 기동 승인 [결정: M3-05, M3-REQ-75]
 
-시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 시크릿이 없어도 작업 폴더 출처(`.mcp.json` 등) 명령은 같은 게이트로 묻는다 [결정: 2026-11-04 사용자 A3]. 이때는 시크릿 정책 판정(②)을 건너뛰고 제목이 `Run MCP server "<id>" (<명령>)?`다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
+시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 시크릿이 없어도 작업 폴더 출처(`.fresnel/mcp.json` 등) 명령은 같은 게이트로 묻는다 [결정: 2026-11-04 사용자 A3]. 이때는 시크릿 정책 판정(②)을 건너뛰고 제목이 `Run MCP server "<id>" (<명령>)?`다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
 
 - 승인 레코드: kind `tool`의 비차단 요청이다. 본문은 `toolName: "mcp_start"`, `risk: "exec"`, `ruleId: "mcp.start"`, `argsHash`는 정의 해시, `args`는 `{ server, source, command, args, cwd, envNames, secretEnv, definitionHash }`다(바뀐 정의면 `changed`가 더 있다, 아래). 평문 env 값은 싣지 않고 이름만 싣는다(해시가 값을 덮는다). 제목은 `Start MCP server "<id>" with <시크릿 참조>?`다. 요청 키는 `mcpstart:<서버 id>:<해시 앞 24자>`라 같은 정의는 같은 요청이다.
 - 바뀐 정의 [결정: 오케스트레이터 기본값, fxPT]: 게이트는 서버 id마다 직전에 허용된 정의의 요약(출처, 명령, 인자, 실행 폴더, env 값의 다이제스트, `secretEnv` 전체)을 프로세스 안에만 둔다. 해시가 그 허용과 다른 정의를 물을 때만 승인 `args`에 `changed: { fields, before: { command, args, cwd } }`를 더한다. `fields`는 `command`, `args`, `cwd`, `source`, `env`, `secretEnv` 가운데 바뀐 것만 이 순서로 담는다. `env`는 이름이나 값이 바뀐 것이고 값은 싣지 않는다. `secretEnv`는 이름과 참조 전체를 비교한다(참조만 바뀌어도 잡는다). `before`는 이전 정의의 명령, 인자, 실행 폴더다(JSON 값만). 처음 묻는 정의는 `changed` 키를 싣지 않는다. 제목과 `argsHash`는 그대로다.

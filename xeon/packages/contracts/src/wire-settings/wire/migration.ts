@@ -99,7 +99,7 @@ export interface ForeignFormatFound {
   /** 프로젝트 루트 기준 상대 경로. 상위 폴더의 `.agents/skills`는 `../.agents/skills`다 */
   readonly marker: string;
   readonly harness: MigrationDetectHarness;
-  /** 지금 엔진이 이 자리를 읽는가(제거 예정) */
+  /** 엔진이 이 자리를 읽는가. M5g-2 뒤에는 거짓이다(다른 하네스 형식은 가져오기로만 들어온다) */
   readonly engineReads: boolean;
   /** 가져오기가 옮길 수 있는가 */
   readonly importable: boolean;
@@ -120,7 +120,8 @@ export const ForeignFormatFoundSchema: TUnsafe<ForeignFormatFound> =
 
 /**
  * 가져오기 알림의 값. `trust.get`의 `foreignFormats`와 `migration.detect`의 `notice`가 같은 모양이다.
- * `willStopReading`은 엔진이 곧 읽지 않을 자리이고, `importable`은 엔진은 읽지 않지만 가져오기로 옮길 수 있는 자리다
+ * `willStopReading`은 이제 읽지 않는 자리다(엔진이 예전에 읽던 `.mcp.json`, `../.agents/skills`). 필드 이름은 wire 호환으로 그대로다.
+ * `importable`은 엔진은 읽지 않지만 가져오기로 옮길 수 있는 자리다. 두 목록은 겹칠 수 있다
  */
 export interface ForeignFormatNotice {
   readonly code: "foreign_format_found";

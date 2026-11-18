@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import { wireError, type WireError } from "@fresnel/contracts/wire";
 
-// G2-02. 대화의 작업 폴더(`thread.started.workspace`) 규칙. 작업 폴더는 그 대화가 읽는 프로젝트 자원(`.fresnel/settings.json`, `.mcp.json`,
+// G2-02. 대화의 작업 폴더(`thread.started.workspace`) 규칙. 작업 폴더는 그 대화가 읽는 프로젝트 자원(`.fresnel/settings.json`, `.fresnel/mcp.json`,
 // `.fresnel/skills`, `.fresnel/commands`)의 기준 폴더이고 프로젝트 신뢰 판정이 보는 폴더다(L4.host-service.spec HS-66, HS-76). 신뢰 저장소가
 // 심볼릭 링크를 푼 경로를 키로 쓰므로 작업 폴더도 같은 형태로 저장해야 `trust.get`이 알려 준 폴더와 대화의 폴더가 같은 문자열이다.
 

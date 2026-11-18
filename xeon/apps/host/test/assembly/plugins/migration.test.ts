@@ -317,10 +317,11 @@ test("detect names the markers that exist, reads no content, and a dismissed mar
     ".agents/skills",
     "CLAUDE.md",
   ]);
+  // M5g-2 뒤: 두 표지는 이제 읽지 않는 자리(`willStopReading`)이고, 가져올 수 있어서 `importable`에도 든다
   expect(detected.notice).toEqual({
     code: "foreign_format_found",
     willStopReading: [".mcp.json", ".agents/skills"],
-    importable: ["CLAUDE.md"],
+    importable: [".mcp.json", ".agents/skills", "CLAUDE.md"],
     importAvailable: true,
   });
   expect(calls.filter((call) => !call.startsWith("lstat "))).toEqual([]);
@@ -328,14 +329,14 @@ test("detect names the markers that exist, reads no content, and a dismissed mar
 
   // 신뢰 읽기가 쓰는 짧은 판은 같은 표지를 준다
   const foreign = await service.foreignFormatsOf(fixture.proj);
-  expect(foreign?.importable).toEqual(["CLAUDE.md"]);
+  expect(foreign?.importable).toEqual([".mcp.json", ".agents/skills", "CLAUDE.md"]);
 
   // 숨긴 표지는 알림에서 빠진다. 같은 폴더의 다른 표지는 남는다
   valueOf(await service.dismiss(fixture.proj, "CLAUDE.md"));
   const after = valueOf(await service.detect(fixture.proj));
   expect(after.found.map((item) => item.marker)).toEqual([".mcp.json", ".agents/skills"]);
-  // `.mcp.json`은 엔진이 지금 읽는 표지이지만 가져오기로 옮길 수 있어서 `importAvailable`은 남는다
-  expect(after.notice?.importable).toEqual([]);
+  expect(after.notice?.willStopReading).toEqual([".mcp.json", ".agents/skills"]);
+  expect(after.notice?.importable).toEqual([".mcp.json", ".agents/skills"]);
   expect(after.notice?.importAvailable).toBe(true);
 });
 

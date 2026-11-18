@@ -830,6 +830,14 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 >
 > **CLI 통로.** `docs/xeon`에서 가져오기의 CLI 명령을 찾지 못했다 [근거: `grep -n "가져오기\|migrat" docs/xeon/L4/cli/spec.md`의 결과에 명령이 없다]. CLI는 만들지 않았다.
 
+> **M5g-2 제거 구현 상태(2026-11-18).** §8.1의 1~13번을 옮겼다.
+> - 지운 것: 루트 `.mcp.json` 읽기와 출처 `mcpjson:project`(1·2번), 설정 키 `l2.mcp.importMcpJson`과 그 토글(3·10번), 신뢰 자원의 `.mcp.json`과 `.agents/skills`, `.agents/skills`의 상위 폴더 순회(6·7번), 신뢰 카드 미리 보기의 `.mcp.json`(9번), 모델 안내와 명세의 `.mcp.json` 읽기 문장(11·13번). 주석과 문구는 현재 사실로 고쳤다(4·5번).
+> - 남긴 것: `.fresnel/mcp.json`(Fresnel 자체 배치, 신뢰 뒤에 읽는다). 설정 키가 든 사용자·프로젝트 설정 파일은 지우거나 바꾸지 않는다. 그 키는 카탈로그에 없어 `settings.readFile`의 `unknownKeys`가 경고만 낸다(§8.4의 "키 삭제"를 이 경고로 대신했다, 백업 파일도 만들지 않았다). 읽지 않는 `.mcp.json`과 `.agents/skills`는 그대로 둔다.
+> - 감지: 두 표지의 `engineReads`는 거짓이고 `stoppedReading`이 참이다. 알림의 `willStopReading`은 "이제 읽지 않는 자리"를 뜻하며 필드 이름은 wire 호환으로 그대로다([미결] [근거: `packages/contracts/src/wire-settings/wire/migration.ts`의 `ForeignFormatNoticeSchema`]: 이름 변경 여부). 신호는 `trust.get`의 `foreignFormats`로 계속 나간다.
+> - 기동 승인: 루트 `.mcp.json`의 서버는 출처가 `mcpjson:project`에서 가져온 플러그인 출처로 바뀌고 id도 `<플러그인>-<서버 이름>`이 되어 정의 해시가 다르다. 그래서 처음 기동할 때 다시 승인을 묻는다. 의도한 동작이다(§8.4 기동 승인 행).
+> - 아직 없음: §8.3의 한 번짜리 알림 카드와 [가져오기] 단추는 목적 화면(M6) 소유라 이 층에서 만들지 않았다.
+> - `ResolveProjectTrustInput.homeDir`는 `findTrustRequiringResources`가 쓰지 않게 되어 쓰는 곳이 없다. 지우면 조립과 시험 여러 곳이 바뀌므로 남겼다([미결] [근거: `packages/ext-host/src/loading-trust/trust/resolve.ts`의 `ResolveProjectTrustInput`]).
+
 ## 10. 수용 기준
 
 번호는 시험 가능한 문장이다. 괄호는 시험 종류다.

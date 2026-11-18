@@ -1288,7 +1288,7 @@ export const ExtValidateResultSchema: TUnsafe<ExtValidateResult> = Type.Unsafe<E
 
 // ── MCP 서버 목록과 행동(W-15). `mcp.servers`·`mcp.serverAction`. 상태는 `mcp.client`(cap-mcp)가, 설정 값은 설정 층이 준다 ──
 
-/** 서버 출처 묶음: `.mcp.json` 파일(`mcpjson:*`), 설정(`settings:*`), 확장 등록(`ext:*`) */
+/** 서버 출처 묶음: `.fresnel/mcp.json` 파일(`mcpjson:*`, 지금은 `mcpjson:fresnel`만 나온다), 설정(`settings:*`), 확장 등록(`ext:*`). 다른 하네스의 `.mcp.json`은 이 묶음에 없다 */
 export const MCP_SERVER_ORIGINS = ["mcpjson", "settings", "extension"] as const;
 export type McpServerOrigin = (typeof MCP_SERVER_ORIGINS)[number];
 const McpServerOriginShape = Type.Union(MCP_SERVER_ORIGINS.map((name) => Type.Literal(name)));
@@ -1382,7 +1382,7 @@ const McpToolRowShape = closed({
 export interface McpServerRow {
   readonly server: string;
   readonly title?: string;
-  /** 정의 출처 그대로(`settings:user`, `mcpjson:project`, `ext:<이름>` 등) */
+  /** 정의 출처 그대로(`settings:user`, `mcpjson:fresnel`, `ext:<이름>` 등) */
   readonly source: string;
   readonly origin: McpServerOrigin;
   readonly state: McpServerState;

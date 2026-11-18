@@ -55,7 +55,7 @@ binds: [xeon/packages/cap-mcp/**]
 | 용어 | 뜻 |
 |---|---|
 | 서버 | MCP 서버 하나. 서버 id로 부른다 |
-| 서버 id | `^[a-z][a-z0-9-]{0,31}$`. 설정 키와 순서 키에 쓴다. `.mcp.json`의 자유 이름은 이 형식으로 바꾼다(§4.2) |
+| 서버 id | `^[a-z][a-z0-9-]{0,31}$`. 설정 키와 순서 키에 쓴다. `.fresnel/mcp.json`의 자유 이름은 이 형식으로 바꾼다(§4.2) |
 | 서버 정의 | 서버 하나의 연결 방법과 정책. `McpServerDef` |
 | 동적 도구 | 서버가 `tools/list`로 광고하는 도구. 정적 `CapabilityDef.tools`로 표현하지 못하므로 X 리소스 등록으로 광고한다(`F.capabilities.spec` §5 6항) |
 | 정적 도구 | `mcp.client` 정의에 들어 있는 관리용 도구 |
@@ -131,7 +131,7 @@ export type McpServerDef = Static<typeof McpServerDefSchema>;
 - 서버 정의는 설정 키 `l2.mcp.servers`(서버 id → `McpServerDef`)에 둔다. F5 설정 스키마 하나에서 화면·파일·명령이 나오도록 하기 위해서다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6).
 - `env`와 `headers`의 값은 `secret://` 참조이거나 평문 문자열이다(최대 8192자). 스키마는 값을 문자열로만 본다. 참조 형식 검사와 시크릿 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 거부는 `cap-mcp`가 정의를 읽을 때 한다 [결정: review.m3-design-inputs D-M3-19].
 - `sandbox`는 서버별 샌드박스 설정이다. 없으면 출처별 기본값(작업 폴더 출처 켬, 사용자 출처 끔)을 쓰고, 있으면 기본값보다 우선한다. 적용 대상은 stdio 서버이며 http·sse 정의의 값은 쓰지 않는다 [결정: review.m3-design-inputs D-M3-19].
-- `.mcp.json` 호환 [제안]: 작업 폴더 루트의 `.mcp.json`과 `.fresnel/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
+- `.fresnel/mcp.json` 형식 [제안, M5g-2]: 작업 폴더의 `.fresnel/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽는다. 루트 `.mcp.json`은 M5g-2 뒤 읽지 않는다. 다른 하네스의 `.mcp.json`은 가져오기(`review/m5/migration.md`)가 플러그인 초안으로 옮긴다. 정의 검사는 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
 
 ### 3.2 기능 정의 `mcp.client`
 
@@ -146,7 +146,7 @@ export const McpServerStateSchema = Type.Union([
 export const McpServerStatusSchema = Type.Object({
   server: McpServerIdSchema,
   title: Type.Optional(Type.String()),
-  /** 정의 출처. 예: "settings:user", "settings:project", "mcpjson:project", "ext:<확장 이름>" */
+  /** 정의 출처. 예: "settings:user", "settings:project", "mcpjson:fresnel", "ext:<확장 이름>" */
   source: Type.String(),
   state: McpServerStateSchema,
   transport: Type.Union([Type.Literal("stdio"), Type.Literal("http"), Type.Literal("sse")]),
@@ -412,7 +412,7 @@ export interface McpService extends McpPort {
 - `fresnel.mcp` 등록: `cap-mcp`는 기능 바인딩(`hostOf(g).provide(McpClientKey, impl)`, `cap:mcp.client`)과 별도로 `McpService` 구현 하나를 Cordis 서비스 `fresnel.mcp`에 등록한다(`hostOf(g).providePort(McpPortKey, impl)`, `X.primitives.spec` §3.6 규칙 4·6, §3.8). `cap-mcp`는 `builtin` 확장이라 `fresnel.*` 이름을 제공할 수 있다. 같은 서비스 이름에 다른 인터페이스는 등록하지 않는다.
 - `registerServer(owner, name, config)`: 확장이 `hostOf(g).registerMcpServer(name, config)`로 부르면 X가 이 메서드를 부른다(`X.primitives.spec` §4.8). 규칙은 다음과 같다.
   - `name`은 서버 id이고 `MCP_SERVER_ID_PATTERN`을 따른다. `config`(`McpServerResourceDef`)는 `McpServerDefSchema`로 검사한다. 어긋나면 `CapabilityError("invalid_input")`을 던진다.
-  - 같은 id가 설정(`l2.mcp.servers`)이나 `.mcp.json`에 있으면 `CapabilityError("invalid_input")`으로 거부한다. 확장끼리의 같은 이름 판정은 X `ResourcePolicy`가 먼저 한다(`X.primitives.spec` §4.8 등록 규칙 3).
+  - 같은 id가 설정(`l2.mcp.servers`)이나 `.fresnel/mcp.json`에 있으면 `CapabilityError("invalid_input")`으로 거부한다. 확장끼리의 같은 이름 판정은 X `ResourcePolicy`가 먼저 한다(`X.primitives.spec` §4.8 등록 규칙 3).
   - 출처(`McpServerStatusSchema.source`)는 `ext:<확장 이름>`이다. 확장 이름은 `owner`(`RegistrationId`)의 첫 마디다. 허용·차단(§4.4)과 `secret://` 규칙(§4.3)은 설정 출처 서버와 같다.
   - 돌려준 `Unsubscribe`를 부르면(Registration이 꺼질 때 X가 자동으로 부른다) 다음 단계 경계에서 연결을 닫고 그 서버의 동적 도구를 해제한다.
 - `connect`, `reconnect`, `disable`, `callTool`은 `replay`를 생략해 `"unsafe"`다. `callTool`은 서버 쪽 효과를 알 수 없으므로 `unsafe`로 둔다.
@@ -531,15 +531,15 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 서버 정의 로딩
 
 1. 설정 `l2.mcp.servers`의 유효 값(관리 > … > 사용자 범위 병합, `F.wire-settings.spec` §4.7)을 읽는다.
-2. `l2.mcp.importMcpJson`이 참이고 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트 `.mcp.json`과 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다. 예외 [결정: 오케스트레이터 기본값, fxPT]: 신뢰 카드 미리 보기(조립 루트 `trust-preview.ts`, X.loading-trust §4.7.4)는 신뢰 전에 이 두 파일을 읽어 서버 이름과 `command`·`args`만 보인다. 상한은 파일 256 KiB, 파일당 서버 50개, `command`·인자 문자열 512자, `args` 64개다. `env`·`headers`·`url` 값은 읽고 버리며 보이지도 싣지도 않는다. 아무것도 기동하거나 로드하지 않고, 서버 목록은 신뢰 전까지 `blocked`로 남는다.
+2. 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트의 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6, M5g-2]. `l2.mcp.importMcpJson` 키는 M5g-2에서 뺐다. 파일에 남은 키는 `settings.readFile`의 `unknownKeys`로 경고만 된다. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다. 예외 [결정: 오케스트레이터 기본값, fxPT]: 신뢰 카드 미리 보기(조립 루트 `trust-preview.ts`, X.loading-trust §4.7.4)는 신뢰 전에 이 파일을 읽어 서버 이름과 `command`·`args`만 보인다. 상한은 파일 256 KiB, 파일당 서버 50개, `command`·인자 문자열 512자, `args` 64개다. `env`·`headers`·`url` 값은 읽고 버리며 보이지도 싣지도 않는다. 아무것도 기동하거나 로드하지 않고, 서버 목록은 신뢰 전까지 `blocked`로 남는다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 시크릿처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 시크릿 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
-   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:fresnel`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
-   - 확장이 `registerServer`로 등록한 서버(§3.2 `fresnel.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
-   - 대화의 켜짐 플러그인이 낸 서버(M5c §4.5.10, `contributed` 입력)를 그 대화의 정의를 읽을 때 더한다[구현 2026-11-18]. 항목은 검토본 `mcp.json`의 모양이고 정의 검사는 `.mcp.json`과 같다. 서버 id는 `<플러그인>-<서버 이름>`[제안], 출처는 `ext:<플러그인>`이다. 설정·`.mcp.json`의 id와 겹치면 그 항목만 건너뛰고 `duplicate_name`을 남긴다. 신뢰는 요구하지 않는다(검토 승인이 맡는다). 허용·차단과 승인 모드와 샌드박스는 설정 서버와 같은 함수가 판정한다. 대화를 지정하지 않는 읽기에는 없고, 그 대화의 프로필에서 플러그인이 빠지면 다음 정의 읽기에서 사라진다. [미결] [근거: packages/cap-mcp/src/transport/factory.ts] 프로젝트 출처 플러그인의 stdio 서버에 `.mcp.json`과 같은 기동 승인을 거는 일은 아직 없다(M5c §4.5.10).
+   - 출처는 `.fresnel/mcp.json`이 `mcpjson:fresnel`이다. 같은 id가 있으면 설정과 플러그인 서버가 이긴다. 루트 `.mcp.json`은 읽지 않으므로 `mcpjson:project` 출처는 더 나오지 않는다(M5g-2).
+   - 확장이 `registerServer`로 등록한 서버(§3.2 `fresnel.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.fresnel/mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
+   - 대화의 켜짐 플러그인이 낸 서버(M5c §4.5.10, `contributed` 입력)를 그 대화의 정의를 읽을 때 더한다[구현 2026-11-18]. 항목은 검토본 `mcp.json`의 모양이고 정의 검사는 `.fresnel/mcp.json`과 같다. 서버 id는 `<플러그인>-<서버 이름>`[제안], 출처는 `ext:<플러그인>`이다. 설정·`.fresnel/mcp.json`의 id와 겹치면 그 항목만 건너뛰고 `duplicate_name`을 남긴다. 신뢰는 요구하지 않는다(검토 승인이 맡는다). 허용·차단과 승인 모드와 샌드박스는 설정 서버와 같은 함수가 판정한다. 대화를 지정하지 않는 읽기에는 없고, 그 대화의 프로필에서 플러그인이 빠지면 다음 정의 읽기에서 사라진다. [미결] [근거: packages/cap-mcp/src/transport/factory.ts] 프로젝트 출처 플러그인의 stdio 서버에 `.mcp.json`과 같은 기동 승인을 거는 일은 아직 없다(M5c §4.5.10).
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
-4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
+4. 변경 반영: 설정이나 `.fresnel/mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
 
 ### 4.3 전송과 시크릿
 
@@ -647,7 +647,7 @@ sequenceDiagram
 
 - 서버 도구 목록 변경(재연결, 2차 구독 알림, `reconnect`)은 메모리에 모아 두고 단계 경계에서 한 번에 반영한다. 반영 시점은 단계를 여는 `boundary.step.before` 훅이다: 앞 단계의 도구 결과가 커밋된 뒤이고 이 단계의 도구 광고 앞이라(`L1.loop.spec` 단계 1), 바뀐 도구가 이 단계부터 보이고 단계 중간에는 도구 표가 바뀌지 않는다(U-01). `request.provider.before`는 광고 뒤라 쓰지 않는다.
 - 목록 즉시 갱신(fxMC2): `client.listServers`는 목록을 만들기 전에 정의를 다시 읽는다(`refreshDefinitions`: `load` 뒤에만, 마지막으로 대화를 지정해 읽은 옵션으로, 아래 지문 비교와 같은 직렬 길). 설정 화면이 서버를 추가·고치기·지우면 다음 `mcp.servers`가 단계 경계를 기다리지 않고 새 정의를 보이고(표시 이름 `title` 포함, 새 서버는 `connecting`부터), 지문이 같으면 연결을 건드리지 않는다. 도구가 모델 도구 집합에 들어가거나 빠지는 때는 그대로 다음 단계 경계다(§4.9) [결정: 오케스트레이터 기본값, fxMC2].
-- 정의 다시 읽기: 같은 `boundary.step.before`에서 조립 루트가 `reload(signal, { threadId })`를 부르면 설정 `l2.mcp.servers`와 `.mcp.json`을 다시 읽고, 서버 정의·작업 폴더 신뢰·`l2.mcp.*` 설정으로 만든 지문이 직전 반영과 다를 때만 서버를 맞춘다(추가는 연결, 삭제는 종료, 바뀐 정의는 재연결). 그래서 `nextTurn`인 `l2.mcp.servers` 변경이 다음 단계부터 적용된다. 읽는 설정 층은 `layers(threadId)`(작업 폴더·로컬 층의 서버 정의가 그 대화에서 보인다)이고, 작업 폴더 루트는 `workspaceOf(threadId)`, 곧 `boundary.step.before`를 낸 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 작업 폴더 출처 정의가 없다(`L2.readme` §5.10). 작업 폴더가 다른 대화가 번갈아 단계를 열면 작업 폴더 출처 정의가 그때마다 바뀌어 재연결이 잦다 [미결 13]. 반영 순서: 새 도구 집합 계산 → `diffToolsets(prev, next)` → L1.context가 `toolsAdded`/`toolsRemoved` 시스템 메시지로 기록(`F.capabilities.spec` §4.5) → `thread.mcp.after` 발화.
+- 정의 다시 읽기: 같은 `boundary.step.before`에서 조립 루트가 `reload(signal, { threadId })`를 부르면 설정 `l2.mcp.servers`와 `.fresnel/mcp.json`을 다시 읽고, 서버 정의·작업 폴더 신뢰·`l2.mcp.*` 설정으로 만든 지문이 직전 반영과 다를 때만 서버를 맞춘다(추가는 연결, 삭제는 종료, 바뀐 정의는 재연결). 그래서 `nextTurn`인 `l2.mcp.servers` 변경이 다음 단계부터 적용된다. 읽는 설정 층은 `layers(threadId)`(작업 폴더·로컬 층의 서버 정의가 그 대화에서 보인다)이고, 작업 폴더 루트는 `workspaceOf(threadId)`, 곧 `boundary.step.before`를 낸 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 작업 폴더 출처 정의가 없다(`L2.readme` §5.10). 작업 폴더가 다른 대화가 번갈아 단계를 열면 작업 폴더 출처 정의가 그때마다 바뀌어 재연결이 잦다 [미결 13]. 반영 순서: 새 도구 집합 계산 → `diffToolsets(prev, next)` → L1.context가 `toolsAdded`/`toolsRemoved` 시스템 메시지로 기록(`F.capabilities.spec` §4.5) → `thread.mcp.after` 발화.
 - 직접 등록한 동적 도구의 호출은 `executeWithContinuation`의 `threadId`로 그 대화의 설정 층(`launch` 층 `l2.mcp.result.maxBytes` 등)을 읽는다(`L1.tools.spec` §3.3).
 - 진행 중인 호출은 시작할 때의 연결과 정의로 끝까지 간다. 목록에서 빠진 도구의 진행 중 호출도 끝까지 간다(`F.capabilities.spec` §5 5항).
 - 서버 정의 삭제·`disable`: 도구는 다음 단계 경계에서 빠진다. 진행 중 호출이 있으면 `callMs` 제한 시간까지 끝나기를 허용한 뒤 연결을 닫는다. 그 뒤에 남은 호출은 `server_disconnected`다.
@@ -690,8 +690,8 @@ sequenceDiagram
 | 8 | 승인 대기 중 서버 정의 삭제 | 응답 뒤 재시도 때 `server_unknown` 오류 결과 |
 | 9 | 승인 대기 중 앱 재시작 | 대기 상태 복원. 응답 뒤 새 연결로 재시도(§4.6 7번) |
 | 10 | 시크릿 참조 미등록 | 연결 실패, `lastError.code = "secret_missing"`(L0.secrets 오류 코드를 따른다). 값이나 참조 이름 외 정보는 남기지 않는다 |
-| 11 | `.mcp.json`에 시크릿 이름의 평문 env·header 값, 형식이 틀린 `secret://` 값 | 그 서버만 건너뛰고 진단(값 없음) |
-| 12 | 신뢰하지 않는 작업 폴더의 `.mcp.json` | 읽지 않는다. 예외는 신뢰 카드 미리 보기다: 서버 이름과 `command`·`args`만 상한까지 읽고, 기동하거나 로드하지 않는다(§4.2 2번) [결정: 오케스트레이터 기본값, fxPT]. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
+| 11 | `.fresnel/mcp.json`에 시크릿 이름의 평문 env·header 값, 형식이 틀린 `secret://` 값 | 그 서버만 건너뛰고 진단(값 없음) |
+| 12 | 신뢰하지 않는 작업 폴더의 `.fresnel/mcp.json` | 읽지 않는다. 예외는 신뢰 카드 미리 보기다: 서버 이름과 `command`·`args`만 상한까지 읽고, 기동하거나 로드하지 않는다(§4.2 2번) [결정: 오케스트레이터 기본값, fxPT]. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
 | 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 수동 모드에서 처리기를 두지 않아 SDK가 그 요청을 오류로 거절한다(`mrtr.test.ts`로 확인) |
 | 14 | 도구 `inputSchema`가 한도 초과 | 노출하지 않음(`schema_invalid`) |
 | 15 | 같은 도구 호출이 병렬로 여럿 | 모두 진행. 서버 쪽 동시성 한도는 서버 몫 |
@@ -704,7 +704,6 @@ sequenceDiagram
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
 | `l2.mcp.servers` | object(서버 id → `McpServerDef`) | `{}` | — | nextTurn | managed, user, project, local | tools | false |
-| `l2.mcp.importMcpJson` | boolean | true | — | nextTurn | managed, user, project | tools | false |
 | `l2.mcp.connectTimeoutMs` | integer | 30000 | min 1000, max 600000 | nextTurn | managed, user, project, local | tools | false |
 | `l2.mcp.callTimeoutMs` | integer | 120000 | min 1000, max 3600000 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.mcp.approvalMode` | string | `"prompt"` | enum prompt, auto, deny | nextTurn | managed, user, project, local, launch | tools | false |
@@ -719,7 +718,7 @@ sequenceDiagram
 | `l2.mcp.reconnect.maxAttempts` | integer | 5 | min 1, max 100 | nextTurn | managed, user | tools | false |
 | `l2.mcp.versionNegotiation` | string | `"auto"` | enum auto, legacy, pin | restart | managed, user, project | tools | false |
 
-- `l2.mcp.servers`의 project 범위 값은 stdio 서버의 실행 명령을 정하므로 `.mcp.json`과 같이 작업 폴더가 신뢰된 상태(`thread.trust.before` 훅, §4.2)에서만 적용한다. 신뢰하지 않는 작업 폴더의 서버 정의는 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 [제안](`L2.readme` §7.1 범위 제한 규칙).
+- `l2.mcp.servers`의 project 범위 값은 stdio 서버의 실행 명령을 정하므로 `.fresnel/mcp.json`과 같이 작업 폴더가 신뢰된 상태(`thread.trust.before` 훅, §4.2)에서만 적용한다. 신뢰하지 않는 작업 폴더의 서버 정의는 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 [제안](`L2.readme` §7.1 범위 제한 규칙).
 - `l2.mcp.servers`의 화면 위젯은 `table`이고, 서버별 행에 켜기 토글, 연결 상태(`listServers`), 도구 체크 트리(`listTools`의 `exposed`)를 보인다(`_research/settings.md` §2.10 권장 열). 정의 편집은 파일과 명령으로도 된다.
 - `versionNegotiation`의 `pin`은 2026-07-28 고정이다. 고정 버전 값을 따로 두지 않는다.
 - `allowedServers`, `deniedServers`, `managedOnly`를 관리 범위에서 정하면 낮은 범위는 덮어쓰지 못하고 화면에 잠금 표시가 나온다.
@@ -730,7 +729,7 @@ sequenceDiagram
 
 - `thread.mcp.after`(session, fold tap, `dispatch: detached`, `F.extensions.spec` §3.4 29번): 서버 상태나 노출 도구 집합이 바뀐 단계 경계에서 한 번 발화한다. 페이로드 타입 `McpServersChangePayload`의 필드는 `F.extensions.spec`이 정한다. `cap-mcp`는 바뀐 서버 id 목록, 서버별 상태, 추가·제거된 도구 기계 이름(`toolsAdded`, `toolsRemoved`)을 채운다 [가정: 페이로드에 이 정보를 담을 자리가 있다].
 - 서버 도구 호출은 `tool.call.before`(first), `tool.result`(chain), `tool_execution_*`(tap)를 지난다. 페이로드의 `capability`는 동적 도구라 비어 있을 수 있다. [제안] 동적 도구는 `capability: { id: "mcp.client", method: "callTool" }`를 싣고 서버 id와 원래 도구 이름을 `details`에 둔다. 그러면 그룹 핸들러가 MCP 도구 전체를 한 조건으로 고를 수 있다.
-- `thread.trust.before`(first): `.mcp.json`을 읽을지 결정에 쓴다(§4.2).
+- `thread.trust.before`(first): `.fresnel/mcp.json`을 읽을지 결정에 쓴다(§4.2).
 - 이 문서는 새 훅을 정의하지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -783,14 +782,14 @@ sequenceDiagram
 2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
 4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 시크릿 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. 구현했다(§4.2).
-5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.fresnel/mcp.json`)은 작업 폴더 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
+5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.fresnel/mcp.json`은 작업 폴더 신뢰 뒤에만 읽는다(M5g-2 뒤 루트 `.mcp.json`은 읽지 않는다). 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
 6. [결정: review.m3-design-inputs D-M3-19 행 4, 구현 M3-REQ-97] sampling은 지원하지 않는다. 설정 키 `l2.mcp.sampling`을 지웠다. 이전 기록: sampling은
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.
 9. [결정: L2.mcp.plan §8.2] 2025 사양 서버의 서버 → 클라이언트 elicitation 요청은 수동 모드에서 처리기가 없어 오류로 거절된다(§5 13번). 사람에게 묻는 2025 경로는 필요가 생기면 그 요청만 승인 프로토콜로 옮기는 처리기를 둔다.
 10. [미결] 동적 도구 훅 페이로드의 `capability` 값(§7). `{ id: "mcp.client", method: "callTool" }`을 싣는 제안을 `F.extensions.spec` §3.5와 맞춘다.
 11. [미결] `l2.mcp.servers`를 `launch` 범위에서 바꿀 수 있게 할지. 지금은 뺐다. 대화 한정 끄기는 `disable` 메서드로 한다.
-12. [결정: 2026-11-04 사용자, B23 1안] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)은 두지 않는다. 이 문서는 설정 키 하나와 작업 폴더 `.mcp.json` 가져오기만 둔다.
+12. [결정: 2026-11-04 사용자, B23 1안] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)은 두지 않는다. 이 문서는 설정 키 하나와 작업 폴더 `.fresnel/mcp.json`만 둔다(M5g-2에서 `.mcp.json` 가져오기 설정 키를 뺐다).
 13. [미결] 작업 폴더가 서로 다른 대화가 한 엔진에서 동시에 돌 때 작업 폴더 출처 서버 정의의 범위. 지금은 단계를 연 대화의 루트를 따르므로 번갈아 열면 재연결이 일어난다. 대화(작업 폴더)별 레지스트리로 나누는 안이 있다(`L2.readme` §5.10).
 14. [결정: review.m3-design-inputs D-M3-19 행 2] 시크릿 env 서버의 기동 승인은 서버 정의마다 한 번이고 정의가 바뀌면 다시 받는다. 승인 레코드에 정의 해시를 싣는다. 명시 답이 없어 권고를 적용했다 [가정]. 샌드박스는 출처별 기본값(작업 폴더 출처 켬, 사용자 출처 끔)이다(D-M3-19 행 1). 이전 기록: 시크릿 env가 있는 stdio 서버. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2) 서버 시작에는 승인 훅이 없어 `secret_denied`로 끝난다(`L0.process.spec` 미결 P-12, ADR-0011). 구현은 M3다(`review.m3-plan`). 시크릿 없는 서버와 HTTP 서버는 영향이 없다.
 15. [미결] `l2.mcp.sandbox.*` 값만 바뀐 때 서버를 다시 판정할지. 지금 레지스트리는 정의나 정책 막힘 사유가 바뀔 때만 서버를 다시 시작한다(§4.9). 그래서 샌드박스 키를 바꿔도 `sandbox_unavailable`로 막힌 서버는 다음 `connect`·`reconnect`나 정의 변경 전까지 그대로다. §4.9는 지문이 바뀌면 서버를 맞춘다고 적었다. 샌드박스 값을 다시 시작 조건으로 넣을지 정한다.

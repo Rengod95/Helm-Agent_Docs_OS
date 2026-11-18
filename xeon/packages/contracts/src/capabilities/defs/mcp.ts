@@ -178,7 +178,7 @@ export type McpBlockedReason = Static<typeof McpBlockedReasonSchema>;
 export type McpServerStatus = {
   server: string;
   title?: string;
-  /** 정의 출처. 예: "settings:user", "settings:project", "mcpjson:project", "ext:<확장 이름>" */
+  /** 정의 출처. 예: "settings:user", "settings:project", "mcpjson:fresnel", "ext:<확장 이름>" */
   source: string;
   state: McpServerState;
   transport: "stdio" | "http" | "sse";

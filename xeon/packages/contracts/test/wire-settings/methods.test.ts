@@ -668,7 +668,7 @@ describe("M2 method schemas are written out", () => {
       required: true,
       verdict: "undecided",
       via: "headless",
-      resources: [".mcp.json", ".fresnel/settings.json"],
+      resources: [".fresnel/mcp.json", ".fresnel/settings.json"],
       options: [
         {
           choice: { kind: "folder", verdict: "allow" },
@@ -698,7 +698,7 @@ describe("M2 method schemas are written out", () => {
       required: true,
       verdict: "undecided",
       via: "headless",
-      resources: [".mcp.json"],
+      resources: [".fresnel/mcp.json"],
       options: [
         {
           choice: { kind: "folder", verdict: "allow" },
@@ -758,7 +758,7 @@ describe("M2 method schemas are written out", () => {
       required: true,
       verdict: "undecided",
       via: "headless",
-      resources: [".mcp.json"],
+      resources: [".fresnel/mcp.json"],
       options: [
         {
           choice: { kind: "folder", verdict: "allow" },

@@ -60,8 +60,9 @@ function fakeFs(input: FakeInput): TrustPreviewFs & {
   };
 }
 
-const MCP_JSON = `${ROOT}/.mcp.json`;
-const FRESNEL_MCP_JSON = `${ROOT}/.fresnel/mcp.json`;
+/** 미리 보는 프로젝트 MCP 정의 파일(Fresnel 자체 배치). 루트 `.mcp.json`은 엔진이 읽지 않으므로 미리 보지도 않는다(M5g-2) */
+const MCP_JSON = `${ROOT}/.fresnel/mcp.json`;
+const ROOT_MCP_JSON = `${ROOT}/.mcp.json`;
 
 /** 정확히 `total`바이트인 MCP 정의. 서버 `docs` 하나에 `pad` 문자열로 길이를 맞춘다 */
 /** `prefix`와 번호로 이름을 붙인 서버 60개의 정의 */
@@ -105,10 +106,10 @@ test("the MCP server name, command and args are listed exactly, and env values n
   expect(JSON.stringify(preview)).not.toContain("Bearer");
 });
 
-test("a server without args gets an empty argument list, and the .fresnel/mcp.json file is read too", async () => {
+test("a server without args gets an empty argument list from the .fresnel/mcp.json file", async () => {
   const fs = fakeFs({
     texts: {
-      [FRESNEL_MCP_JSON]: JSON.stringify({ mcpServers: { local: { command: "./bin/local" } } }),
+      [MCP_JSON]: JSON.stringify({ mcpServers: { local: { command: "./bin/local" } } }),
     },
   });
   const preview = await previewTrustResources(fs, ROOT);
@@ -119,19 +120,22 @@ test("a malformed MCP file gives an empty server list and is reported, it never 
   const fs = fakeFs({ texts: { [MCP_JSON]: '{ "mcpServers": { "docs": ' } });
   const preview = await previewTrustResources(fs, ROOT);
   expect(preview.details.mcpServers).toEqual([]);
-  expect(preview.issues).toEqual([{ path: ".mcp.json", reason: "malformed" }]);
+  expect(preview.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "malformed" }]);
 });
 
 test("a file of another shape, or servers that are not objects, give no servers and no crash", async () => {
-  const fs = fakeFs({
-    texts: {
-      [MCP_JSON]: JSON.stringify([{ command: "npx" }]),
-      [FRESNEL_MCP_JSON]: JSON.stringify({ mcpServers: { bad: "npx", nul: null } }),
-    },
-  });
-  const preview = await previewTrustResources(fs, ROOT);
-  expect(preview.details.mcpServers).toEqual([]);
-  expect(preview.issues).toEqual([]);
+  const shaped = await previewTrustResources(
+    fakeFs({ texts: { [MCP_JSON]: JSON.stringify([{ command: "npx" }]) } }),
+    ROOT,
+  );
+  expect(shaped.details.mcpServers).toEqual([]);
+  expect(shaped.issues).toEqual([]);
+  const nonObjects = await previewTrustResources(
+    fakeFs({ texts: { [MCP_JSON]: JSON.stringify({ mcpServers: { bad: "npx", nul: null } }) } }),
+    ROOT,
+  );
+  expect(nonObjects.details.mcpServers).toEqual([]);
+  expect(nonObjects.issues).toEqual([]);
 });
 
 test("a server whose argument is not a string is left out, so no argument is hidden from the list", async () => {
@@ -155,7 +159,7 @@ test("an unreadable MCP file is reported as unreadable and the preview still ret
   const fs = fakeFs({ broken: [MCP_JSON] });
   const preview = await previewTrustResources(fs, ROOT);
   expect(preview.details.mcpServers).toEqual([]);
-  expect(preview.issues).toEqual([{ path: ".mcp.json", reason: "unreadable" }]);
+  expect(preview.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "unreadable" }]);
   // 내용을 못 본 정의 파일이 있으므로 목록은 전부가 아니다
   expect(preview.details.truncated).toBe(true);
 });
@@ -252,21 +256,19 @@ test("a definition file lists at most 50 servers and the list is marked truncate
   expect(preview.details.truncated).toBe(true);
 });
 
-test("each definition file keeps its own 50 servers, so the two files together list up to 100", async () => {
-  const preview = await previewTrustResources(
-    fakeFs({
-      texts: {
-        [MCP_JSON]: JSON.stringify({ mcpServers: sixtyServers("p") }),
-        [FRESNEL_MCP_JSON]: JSON.stringify({ mcpServers: sixtyServers("f") }),
-      },
-    }),
-    ROOT,
-  );
+test("the definition file keeps its 50 servers, and a root .mcp.json beside it is neither previewed nor read (M5g-2)", async () => {
+  const fs = fakeFs({
+    texts: {
+      [MCP_JSON]: JSON.stringify({ mcpServers: sixtyServers("f") }),
+      [ROOT_MCP_JSON]: JSON.stringify({ mcpServers: sixtyServers("p") }),
+    },
+  });
+  const preview = await previewTrustResources(fs, ROOT);
   const names = preview.details.mcpServers.map((server) => server.name);
-  expect(names).toHaveLength(100);
-  expect(names.filter((name) => name.startsWith("p"))).toHaveLength(50);
-  expect(names.filter((name) => name.startsWith("f"))).toHaveLength(50);
+  expect(names).toHaveLength(50);
+  expect(names.every((name) => name.startsWith("f"))).toBe(true);
   expect(preview.details.truncated).toBe(true);
+  expect(fs.reads).not.toContain(ROOT_MCP_JSON);
 });
 
 test("a command or argument longer than 512 characters is cut to 512 with an ellipsis, and the list is marked truncated", async () => {
@@ -333,7 +335,7 @@ test("a definition file over 256 KiB is not parsed: no servers, too_large, and t
   const preview = await previewTrustResources(fs, ROOT);
   expect(preview.details.mcpServers).toEqual([]);
   expect(preview.details.truncated).toBe(true);
-  expect(preview.issues).toEqual([{ path: ".mcp.json", reason: "too_large" }]);
+  expect(preview.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "too_large" }]);
   // 읽기는 상한을 넘겨 요청하지 않는다
   expect(fs.bounds.every((bound) => bound === LIMIT)).toBe(true);
 });
@@ -355,7 +357,7 @@ test("a symlink that points out of the project is not followed: unreadable, and 
   });
   const preview = await previewTrustResources(fs, ROOT);
   expect(preview.details.mcpServers).toEqual([]);
-  expect(preview.issues).toEqual([{ path: ".mcp.json", reason: "unreadable" }]);
+  expect(preview.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "unreadable" }]);
   expect(fs.reads).not.toContain(outside);
 });
 
@@ -382,19 +384,20 @@ afterAll(() => {
 function diskProject(): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "xh-preview-")));
   cleanup.push(dir);
+  mkdirSync(join(dir, ".fresnel"));
   return dir;
 }
 
 test("on disk, a definition file of exactly 256 KiB is parsed and one byte more is refused", async () => {
   const dir = diskProject();
-  writeFileSync(join(dir, ".mcp.json"), mcpOfBytes(LIMIT));
+  writeFileSync(join(dir, ".fresnel", "mcp.json"), mcpOfBytes(LIMIT));
   const exact = await previewTrustResources(createLoaderFs(), dir);
   expect(exact.details.mcpServers).toEqual([{ name: "docs", command: "npx", args: [] }]);
 
-  writeFileSync(join(dir, ".mcp.json"), mcpOfBytes(LIMIT + 1));
+  writeFileSync(join(dir, ".fresnel", "mcp.json"), mcpOfBytes(LIMIT + 1));
   const over = await previewTrustResources(createLoaderFs(), dir);
   expect(over.details.mcpServers).toEqual([]);
-  expect(over.issues).toEqual([{ path: ".mcp.json", reason: "too_large" }]);
+  expect(over.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "too_large" }]);
 });
 
 test("on disk, a symlink from the project to a file outside it is not followed", async () => {
@@ -404,10 +407,10 @@ test("on disk, a symlink from the project to a file outside it is not followed",
     join(outside, "mcp.json"),
     JSON.stringify({ mcpServers: { leaked: { command: "npx" } } }),
   );
-  symlinkSync(join(outside, "mcp.json"), join(dir, ".mcp.json"));
+  symlinkSync(join(outside, "mcp.json"), join(dir, ".fresnel", "mcp.json"));
   const preview = await previewTrustResources(createLoaderFs(), dir);
   expect(preview.details.mcpServers).toEqual([]);
-  expect(preview.issues).toEqual([{ path: ".mcp.json", reason: "unreadable" }]);
+  expect(preview.issues).toEqual([{ path: ".fresnel/mcp.json", reason: "unreadable" }]);
 });
 
 test("on disk, a symlink that stays inside the project is followed", async () => {
@@ -417,7 +420,18 @@ test("on disk, a symlink that stays inside the project is followed", async () =>
     join(dir, "configs", "mcp.json"),
     JSON.stringify({ mcpServers: { inner: { command: "node" } } }),
   );
-  symlinkSync(join(dir, "configs", "mcp.json"), join(dir, ".mcp.json"));
+  symlinkSync(join(dir, "configs", "mcp.json"), join(dir, ".fresnel", "mcp.json"));
   const preview = await previewTrustResources(createLoaderFs(), dir);
   expect(preview.details.mcpServers).toEqual([{ name: "inner", command: "node", args: [] }]);
+});
+
+test("on disk, a root .mcp.json is neither previewed nor reported (M5g-2)", async () => {
+  const dir = diskProject();
+  writeFileSync(
+    join(dir, ".mcp.json"),
+    JSON.stringify({ mcpServers: { rootOnly: { command: "npx" } } }),
+  );
+  const preview = await previewTrustResources(createLoaderFs(), dir);
+  expect(preview.details.mcpServers).toEqual([]);
+  expect(preview.issues).toEqual([]);
 });

@@ -6,7 +6,7 @@ import type { ServerDefinition } from "../src/types.ts";
 import { createTransportFactory } from "../src/transport/factory.ts";
 import { fixedClock, manualScheduler } from "./support/time.ts";
 
-// 결정 2026-11-04 A3. 신뢰한 프로젝트의 새 `.mcp.json` 명령은 시크릿이 없어도 기동 승인을 받고, 승인 전에는 spawn하지 않는다.
+// 결정 2026-11-04 A3. 신뢰한 프로젝트의 새 `.fresnel/mcp.json` 명령은 시크릿이 없어도 기동 승인을 받고, 승인 전에는 spawn하지 않는다.
 
 function setup(verdict: "pending" | "denied") {
   const asked: McpStartDefinition[] = [];
@@ -50,7 +50,7 @@ const signal = new AbortController().signal;
 
 test("a project-origin command without secrets waits for approval and is not spawned", async () => {
   const { asked, spawned, factory } = setup("pending");
-  const opened = await factory.open(definition("mcpjson:project", true, "node-srv"), signal);
+  const opened = await factory.open(definition("mcpjson:fresnel", true, "node-srv"), signal);
   expect(opened.ok).toBe(false);
   if (opened.ok) return;
   expect(opened.error.code).toBe("approval_required");
@@ -58,7 +58,7 @@ test("a project-origin command without secrets waits for approval and is not spa
   expect(asked).toEqual([
     {
       server: "proj",
-      source: "mcpjson:project",
+      source: "mcpjson:fresnel",
       command: "node-srv",
       args: ["--x"],
       cwd: null,

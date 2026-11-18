@@ -86,11 +86,12 @@ describe("migration.detect", () => {
   test("the result lists markers with a three-value harness and a notice or null", () => {
     roundTrip(MigrationDetectResultSchema, {
       found: [
-        { marker: ".mcp.json", harness: "claude-code", engineReads: true, importable: true },
+        // M5g-2 뒤 엔진은 두 표지를 읽지 않는다(`engineReads` 거짓). 신호는 그대로 나간다
+        { marker: ".mcp.json", harness: "claude-code", engineReads: false, importable: true },
         {
           marker: "../.agents/skills",
           harness: "agent-skills",
-          engineReads: true,
+          engineReads: false,
           importable: true,
         },
         { marker: ".cursorrules", harness: "other", engineReads: false, importable: false },

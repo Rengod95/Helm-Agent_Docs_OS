@@ -655,6 +655,22 @@ test("settings.readFile returns the port's file with the keys the catalog does n
   await connection.close();
 });
 
+test("a retired l2.mcp.importMcpJson left in a settings file is an unknown key: the file keeps it and readFile only warns (M5g-2)", async () => {
+  // 가짜 엔진의 카탈로그는 실제 `buildEngineCatalog()`다. 키가 빠졌으므로 기존 알 수 없는 키 경로가 경고한다
+  const text = '{"l2.mcp.importMcpJson":false,"l2.mcp.connectTimeoutMs":45000}\n';
+  const host = createFakeHost({
+    overrides: {
+      settings: { readFile: () => Promise.resolve(ok(fileRead(text))) },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const read = await connection.request("settings.readFile", { scope: "user" });
+  expect(read.unknownKeys).toEqual(["l2.mcp.importMcpJson"]);
+  expect(read.text).toBe(text);
+  await connection.close();
+});
+
 test("settings.readFile of a file that is not an object reports no unknown keys, and an unknown thread is thread.notFound", async () => {
   const host = createFakeHost({
     overrides: {

@@ -166,7 +166,7 @@ test("a secretless project command asks once per definition hash and only a chan
   gate.onResolved((server) => resolved.push(server));
   const plain: McpStartDefinition = {
     server: "proj",
-    source: "mcpjson:project",
+    source: "mcpjson:fresnel",
     command: "node-srv",
     args: ["a"],
     cwd: null,

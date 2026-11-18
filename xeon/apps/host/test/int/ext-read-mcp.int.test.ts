@@ -44,7 +44,7 @@ function statusOf(server: string, extra: Partial<McpServerStatus>): McpServerSta
 
 const STATUSES: readonly McpServerStatus[] = [
   statusOf("remote", {
-    source: "mcpjson:project",
+    source: "mcpjson:fresnel",
     state: "blocked",
     blockedReason: "approval_required",
     lastError: { code: "approval_required", message: "waiting for approval", at: 1762473600000 },
@@ -200,7 +200,7 @@ test("mcp.servers: rows sorted by id, origin by source prefix, tools only for co
     },
     {
       server: "remote",
-      source: "mcpjson:project",
+      source: "mcpjson:fresnel",
       origin: "mcpjson",
       state: "blocked",
       blockedReason: "approval_required",

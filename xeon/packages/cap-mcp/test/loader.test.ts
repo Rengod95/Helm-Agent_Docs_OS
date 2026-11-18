@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { attempt } from "@fresnel/contracts";
 import { readSettingsServers } from "../src/settings.ts";
+import { loadDefinitions } from "../src/servers/definitions.ts";
 import { normalizeServerName, parseMcpJson } from "../src/servers/loader.ts";
 import { looksLikeSecretName } from "../src/servers/values.ts";
 import { evaluateServer } from "../src/servers/policy.ts";
 import type { ServerDefinition } from "../src/types.ts";
+import { captureLogger } from "./support/logger.ts";
 import { flush } from "./support/flush.ts";
 import { rejection } from "./support/rejection.ts";
 import { layer } from "./support/layers.ts";
@@ -41,12 +46,12 @@ function projectWorld(options: {
 }
 
 describe("definition loader", () => {
-  test("merges settings and mcp json", async () => {
+  test("merges settings and the fresnel mcp json", async () => {
     const { world } = projectWorld({
       files: {
-        [`${ROOT}/.mcp.json`]: mcpJson({
+        [`${ROOT}/.fresnel/mcp.json`]: mcpJson({
           proj: { command: "proj-server" },
-          shared: { command: "from-mcp-json" },
+          shared: { command: "from-fresnel-mcp-json" },
         }),
       },
       trusted: true,
@@ -58,7 +63,7 @@ describe("definition loader", () => {
     const bySource = Object.fromEntries(
       listed.servers.map((server) => [server.server, server.source]),
     );
-    expect(bySource).toEqual({ proj: "mcpjson:project", shared: "settings:user" });
+    expect(bySource).toEqual({ proj: "mcpjson:fresnel", shared: "settings:user" });
     await world.runtime.shutdown();
   });
 
@@ -67,7 +72,7 @@ describe("definition loader", () => {
     const taken = new Set<string>();
     const parsed = parseMcpJson(
       mcpJson({ My_Server: { command: "a" }, "1bad": { command: "b" }, ok: { command: "c" } }),
-      "root",
+      "fresnel",
       taken,
     );
     expect(parsed.ok).toBe(true);
@@ -112,11 +117,11 @@ describe("definition loader", () => {
       "f",
       "g",
     ]);
-    expect(parseMcpJson("{", "root", new Set())).toEqual({
+    expect(parseMcpJson("{", "fresnel", new Set())).toEqual({
       ok: false,
       error: { kind: "invalid_json" },
     });
-    expect(parseMcpJson("{}", "root", new Set())).toEqual({
+    expect(parseMcpJson("{}", "fresnel", new Set())).toEqual({
       ok: false,
       error: { kind: "no_servers" },
     });
@@ -133,7 +138,7 @@ describe("definition loader", () => {
         },
         fine: { command: "y", env: { TOKEN: "secret://tok" } },
       }),
-      "root",
+      "fresnel",
       new Set(),
     );
     expect(parsed.ok).toBe(true);
@@ -148,9 +153,10 @@ describe("definition loader", () => {
     expect(JSON.stringify(parsed.value.diagnostics)).not.toContain("Bearer abc");
   });
 
-  test("untrusted project skips mcp json", async () => {
+  test("untrusted project skips the fresnel mcp json and never looks at a root .mcp.json", async () => {
     const { world, files, trust } = projectWorld({
       files: {
+        // 루트 `.mcp.json`은 읽지 않으므로 진단도 없다(M5g-2)
         [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "x" } }),
         [`${ROOT}/.fresnel/mcp.json`]: mcpJson({ other: { command: "y" } }),
       },
@@ -165,7 +171,9 @@ describe("definition loader", () => {
     await world.runtime.settled();
     expect(trust.calls).toBe(1);
     expect(files.reads).toEqual([]);
-    expect(loaded.diagnostics.filter((d) => d.code === "untrusted_project")).toHaveLength(2);
+    expect(
+      loaded.diagnostics.filter((d) => d.code === "untrusted_project").map((d) => d.source),
+    ).toEqual(["mcpjson:fresnel"]);
     // project 범위 설정 정의는 목록에만 보이고 연결하지 않는다
     const listed = await world.runtime.service.client.listServers({});
     expect(listed.servers).toMatchObject([
@@ -184,10 +192,10 @@ describe("definition loader", () => {
     await world.runtime.shutdown();
   });
 
-  test("trusted project reads both files and the fresnel file wins", async () => {
+  test("trusted project reads only the fresnel mcp json; a root .mcp.json is not read", async () => {
     const { world, files } = projectWorld({
       files: {
-        [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "root" } }),
+        [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "root" }, rootonly: { command: "r" } }),
         [`${ROOT}/.fresnel/mcp.json`]: mcpJson({
           proj: { command: "fresnel" },
           other: { command: "o" },
@@ -196,7 +204,7 @@ describe("definition loader", () => {
       trusted: true,
     });
     await startWorld(world);
-    expect(files.reads.toSorted()).toEqual([`${ROOT}/.fresnel/mcp.json`, `${ROOT}/.mcp.json`]);
+    expect(files.reads).toEqual([`${ROOT}/.fresnel/mcp.json`]);
     const listed = await world.runtime.service.client.listServers({});
     const bySource = Object.fromEntries(
       listed.servers.map((server) => [server.server, server.source]),
@@ -205,17 +213,39 @@ describe("definition loader", () => {
     await world.runtime.shutdown();
   });
 
-  test("importMcpJson false skips the files", async () => {
-    const { world, files, trust } = projectWorld({
-      files: { [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "x" } }) },
-      trusted: true,
-      user: { importMcpJson: false },
-    });
-    await startWorld(world);
-    expect(files.reads).toEqual([]);
-    expect(trust.calls).toBe(0);
-    expect((await world.runtime.service.client.listServers({})).servers).toEqual([]);
-    await world.runtime.shutdown();
+  test("a root .mcp.json in a trusted folder defines no server, and .fresnel/mcp.json still does (M5g-2)", async () => {
+    // 부정 시험: 루트 `.mcp.json`은 디스크에서도 읽히지 않는다. 대조로 `.fresnel/mcp.json`은 읽힌다
+    const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-root-"));
+    try {
+      mkdirSync(join(dir, ".fresnel"));
+      writeFileSync(join(dir, ".mcp.json"), mcpJson({ "root-only": { command: "root-server" } }));
+      writeFileSync(
+        join(dir, ".fresnel", "mcp.json"),
+        mcpJson({ "fresnel-only": { command: "fresnel-server" } }),
+      );
+      const loaded = await loadDefinitions(
+        {
+          layers: [],
+          projectRoot: dir,
+          contributed: [],
+          files: {
+            exists: (path) => Promise.resolve(existsSync(path)),
+            readText: (path) =>
+              Promise.resolve(existsSync(path) ? readFileSync(path, "utf8") : null),
+          },
+          trust: fakeTrust(true),
+          logger: captureLogger(),
+        },
+        new AbortController().signal,
+      );
+      expect(loaded.servers.map((server) => [server.id, server.source])).toEqual([
+        ["fresnel-only", "mcpjson:fresnel"],
+      ]);
+      expect(loaded.servers.some((server) => server.source === "mcpjson:project")).toBe(false);
+      expect(loaded.diagnostics).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -408,7 +438,7 @@ describe("plaintext env and headers (M3-REQ-97)", () => {
         },
         web: { type: "http", url: "https://e.com", headers: { "X-Region": "eu" } },
       }),
-      "root",
+      "fresnel",
       new Set(),
     );
     expect(parsed.ok).toBe(true);
@@ -437,7 +467,7 @@ describe("plaintext env and headers (M3-REQ-97)", () => {
         typo: { command: "x", env: { REGION: "secret://Bad_Name" } },
         leaky: { command: "y", env: { DB_PASSWORD: "hunter2hunter2" } },
       }),
-      "root",
+      "fresnel",
       new Set(),
     );
     expect(parsed.ok).toBe(true);
