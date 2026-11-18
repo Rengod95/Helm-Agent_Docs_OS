@@ -22,6 +22,7 @@ import {
   type TurnStatus,
   type TurnSummary,
   type TurnFlagKey,
+  type Unsubscribe,
 } from "@fresnel/contracts/wire";
 import { Type } from "typebox";
 import { hookOutcomeOf, HOOK_OUTCOME_CLASSES } from "./classify.ts";
@@ -32,6 +33,7 @@ import {
   passesFilter,
   queryMetrics,
   type CounterFilter,
+  type MetricsQueryOutput,
 } from "./metrics.ts";
 import {
   bundleOf,
@@ -44,6 +46,7 @@ import {
   type OverrideMap,
 } from "./findings.ts";
 import type { MeasureStore, MeasureStoreError, TurnBundleRow } from "./store.ts";
+import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import { dailyId, foldTurn, mergeAggregates, type DailyCell } from "./turn-fold.ts";
 import type { TrTurnRow } from "./turn-tables.ts";
 
@@ -64,6 +67,8 @@ export type TurnReadError =
   | { readonly kind: "invalid_filter"; readonly message: string }
   | { readonly kind: "unknown_metric"; readonly id: string }
   | { readonly kind: "turn_missing" }
+  /** 대화 로그를 읽지 못했다(턴이 로그에 있는지 가릴 수 없다) */
+  | { readonly kind: "log_read"; readonly reason: string }
   | { readonly kind: "finding_not_found" }
   | { readonly kind: "not_a_test_run" };
 
@@ -79,6 +84,13 @@ export interface MetricsSettingsValues {
 /** 포트의 원천. 조립 루트가 채운다 */
 export interface TurnReadSource {
   readonly store: () => MeasureStore | undefined;
+  /** 대화 로그에서 턴의 시작 시각을 찾는다(`turn-log.ts`). 없으면 undefined */
+  readonly logTurnStartedAt: (
+    threadId: string,
+    turnId: string,
+  ) => Result<number | undefined, { readonly reason: string }>;
+  /** 턴 기록 사건의 구독(구독 알림의 원천, `turn-events.ts`) */
+  readonly events: Pick<TurnRecordEvents, "subscribe">;
   /** `x.operations.trace.enabled`의 현재 값 */
   readonly enabled: () => boolean;
   /** `x.operations.trace.retentionDays`의 현재 값. 이보다 오래된 턴은 접혔다 */
@@ -145,6 +157,8 @@ interface Snapshot {
 export interface TurnRecordReadPort {
   /** 계측 켜짐과 기록 수준(저장소가 없으면 `none`) */
   status(): { readonly enabled: boolean; readonly level: RecordLevel };
+  /** 턴 기록 사건을 구독한다(구독 알림 `turnRecord.delta`의 원천). 끊는 함수를 돌려준다 */
+  onEvent(listener: (event: TurnRecordEvent) => void): Unsubscribe;
   list(query: ListQuery): Result<ListOut, TurnReadError>;
   get(threadId: string, turnId: string): Result<GetOut, TurnReadError>;
   search(query: {
@@ -177,7 +191,8 @@ export interface TurnRecordReadPort {
   findingsBundle(
     findingId: string,
   ): Result<{ readonly bundle: FindingBundle; readonly bytes: number }, TurnReadError>;
-  profileCost(profileId: string): Result<ProfileCostOut, TurnReadError>;
+  /** `plugins`는 프로필이 정한 플러그인 이름이다(턴이 없을 때의 정적 줄을 만든다) */
+  profileCost(profileId: string, plugins: readonly string[]): Result<ProfileCostOut, TurnReadError>;
   testRunCompare(threadIds: readonly string[]): Result<TestRunCompareOut, TurnReadError>;
 }
 
@@ -198,6 +213,19 @@ interface ProfileCostOut {
   readonly nTurns: number;
   readonly plugins: ProfileCostRowOut[];
   readonly total: ProfileCostRowOut;
+}
+
+/** 정적 값이 없는 줄. 칸은 모두 null이고 basis는 unknown이다(0으로 채우지 않는다) */
+function unknownCostRow(plugin: string): ProfileCostRowOut {
+  return {
+    plugin,
+    always: null,
+    drive: null,
+    onDemand: null,
+    toolCount: null,
+    basis: "unknown",
+    shared: false,
+  };
 }
 
 interface TestRunCompareOut {
@@ -234,6 +262,29 @@ function windowOf(
 /** 저장된 문자열이 정본 목록에 있으면 그 값이다. 없으면 null(저장 데이터 손상) */
 function listedOf<T extends string>(values: readonly T[], value: string): T | null {
   return values.find((candidate) => candidate === value) ?? null;
+}
+
+/**
+ * 행이 없는 턴의 이유(§3.5). 순서대로 본다: 계측이 꺼졌으면 `off`, 턴 기록 저장소가 없거나 쓸 수 없으면 `never_recorded`,
+ * 턴이 기록을 쓸 수 있게 된 시각(`recording_since`) 뒤에 시작했고 보관 기간보다 오래되었으면 `purged`(보관 정리가 지웠다),
+ * 그 밖은 `never_recorded`다(기록 전에 시작했거나 기록이 없었다).
+ */
+function absentOf(input: {
+  readonly enabled: boolean;
+  readonly store: MeasureStore | undefined;
+  readonly startedAt: number;
+  readonly now: number;
+  readonly retentionDays: number;
+}): Absent {
+  if (!input.enabled) return "off";
+  const { store } = input;
+  if (store === undefined || !store.turnRecordAvailable()) return "never_recorded";
+  const since = store.recordingSince();
+  // 읽지 못하면 지운 것으로 단정하지 않는다
+  if (!since.ok || since.value === undefined) return "never_recorded";
+  const cutoff = input.now - input.retentionDays * DAY_MS;
+  const afterStart = input.startedAt >= since.value;
+  return afterStart && input.startedAt < cutoff ? "purged" : "never_recorded";
 }
 
 /** 턴 기록 행 하나를 목록 요약으로 바꾼다. `record_json`을 검증해 플래그와 자식 수를 얻는다 */
@@ -313,6 +364,9 @@ function foldBundles(bundles: readonly TurnBundleRow[]): DailyCell[] {
       materials: bundle.materials,
       tooluse: bundle.tooluse,
       skills: bundle.skills,
+      steps: bundle.steps,
+      cache: bundle.cache,
+      frames: bundle.frames,
     }),
   );
 }
@@ -370,6 +424,139 @@ function counterFilterOf(filter: MetricFilter): CounterFilter {
     modelVersion: filter.modelVersion ?? null,
     caller: filter.caller ?? "any",
   };
+}
+
+// ---- 버전 비교(`metrics.query`의 compare, §4.7 규칙 40) -------------------------------
+
+/** 턴 하나의 비교 그룹 키. 버전은 이 플러그인 훅 행의 `versionId`들을 정렬해 이은 값이고, 개정은 `tr_turn.profile_rev`다. 없으면 `unknown` */
+function compareKeyOf(
+  bundle: TurnBundleRow,
+  by: "pluginVersion" | "profileRev",
+  plugin: string,
+): string {
+  if (by === "profileRev") {
+    return bundle.turn.profileRev === null ? "unknown" : String(bundle.turn.profileRev);
+  }
+  const versions = versionsOf(bundle, plugin);
+  return versions.length === 0 ? "unknown" : versions.join("+");
+}
+
+function versionsOf(bundle: TurnBundleRow, plugin: string): string[] {
+  const set = new Set<string>();
+  for (const hook of bundle.hooks) {
+    if (hook.plugin === plugin && hook.versionId !== null) set.add(hook.versionId);
+  }
+  return [...set].toSorted();
+}
+
+/** 두 그룹 사이에 함께 바뀐 다른 차원(§4.7 규칙 40). 비교하는 차원은 뺀다 */
+function confoundersOf(
+  a: readonly TurnBundleRow[],
+  b: readonly TurnBundleRow[],
+  by: "pluginVersion" | "profileRev",
+  plugin: string,
+): string[] {
+  const setsOf = (bundles: readonly TurnBundleRow[]) => ({
+    model: new Set(bundles.map((bundle) => bundle.turn.model ?? "unknown")),
+    profileRev: new Set(bundles.map((bundle) => String(bundle.turn.profileRev ?? "unknown"))),
+    pluginVersion: new Set(bundles.flatMap((bundle) => versionsOf(bundle, plugin))),
+  });
+  const left = setsOf(a);
+  const right = setsOf(b);
+  const dims = by === "pluginVersion" ? (["model", "profileRev"] as const) : (["model"] as const);
+  const changed: string[] = [];
+  for (const dim of dims) {
+    const same =
+      left[dim].size === right[dim].size && [...left[dim]].every((v) => right[dim].has(v));
+    if (!same) changed.push(dim);
+  }
+  return changed;
+}
+
+interface GroupCompareInput {
+  readonly window: { readonly from: number; readonly to: number };
+  readonly bundles: readonly TurnBundleRow[];
+  readonly by: "pluginVersion" | "profileRev";
+  readonly a: string;
+  readonly b: string;
+  readonly filter: CounterFilter;
+  readonly plugin: string;
+  readonly metrics: readonly string[];
+  readonly minSample: number;
+  readonly partial: boolean;
+}
+
+/**
+ * 버전 또는 개정으로 턴을 나눠 두 그룹을 나란히 낸다. 카운터는 원본 턴을 그룹마다 다시 접어 만든다
+ * (접힌 날은 그룹을 나눌 수 없어 빠지고 `partial_window`로 알린다). 버전이 없는 턴은 `unknown` 그룹이다.
+ */
+function compareByGroups(input: GroupCompareInput): MetricsOut {
+  const groups = new Map<string, TurnBundleRow[]>();
+  for (const bundle of input.bundles) {
+    if (input.filter.profileId !== null && bundle.turn.profileId !== input.filter.profileId) {
+      continue;
+    }
+    const key = compareKeyOf(bundle, input.by, input.plugin);
+    groups.set(key, [...(groups.get(key) ?? []), bundle]);
+  }
+  const run = (key: string): MetricsQueryOutput => {
+    const cells = foldBundles(groups.get(key) ?? []);
+    const counts = turnCountsOf(cells, input.filter);
+    return queryMetrics({
+      cells,
+      metrics: [...input.metrics],
+      groupBy: [],
+      filter: input.filter,
+      minSample: input.minSample,
+      turnsFull: counts.full,
+      turnsOff: counts.off,
+      partialWindow: input.partial,
+    });
+  };
+  const left = run(input.a);
+  const right = run(input.b);
+  const keyOf = (key: string): MetricRow["key"] =>
+    input.by === "pluginVersion"
+      ? { pluginVersion: key }
+      : { profile: input.filter.profileId ?? "" };
+  const rows: MetricRow[] = [
+    { key: keyOf(input.a), values: left.rows[0]?.values ?? {} },
+    { key: keyOf(input.b), values: right.rows[0]?.values ?? {} },
+  ];
+  const confounders = confoundersOf(
+    groups.get(input.a) ?? [],
+    groups.get(input.b) ?? [],
+    input.by,
+    input.plugin,
+  );
+  const unknownSide = input.a === "unknown" || input.b === "unknown";
+  const notes: MetricNote[] = [...left.notes, ...right.notes];
+  for (const metric of input.metrics) {
+    if (confounders.length > 0) {
+      notes.push({ metric, code: "confounded", text: `changed with: ${confounders.join(", ")}` });
+    }
+    if (unknownSide) {
+      notes.push({
+        metric,
+        code: "confounded",
+        text: "unknown group: versionId or profileRev is not recorded for these turns",
+      });
+    }
+    if (input.partial) notes.push({ metric, code: "partial_window", text: null });
+  }
+  return { window: input.window, rows, notes: uniqueNotes(notes) };
+}
+
+function uniqueNotes(notes: readonly MetricNote[]): MetricNote[] {
+  const seen = new Set<string>();
+  const out: MetricNote[] = [];
+  for (const note of notes) {
+    const id = JSON.stringify([note.metric, note.code, note.text]);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(note);
+  }
+  return out;
 }
 
 // ---- 포트 -----------------------------------------------------------------------
@@ -433,29 +620,40 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
       });
     },
 
+    onEvent(listener) {
+      return source.events.subscribe(listener);
+    },
+
     get(threadId, turnId) {
+      const enabled = source.enabled();
       const store = source.store();
-      if (store === undefined)
-        return ok({ enabled: source.enabled(), level: "none", record: null, absent: "off" });
-      const bundle = store.readTurn(threadId, turnId);
-      if (!bundle.ok) return err(storeError(bundle.error));
-      if (bundle.value === undefined) {
-        return ok({
-          enabled: source.enabled(),
-          level: source.enabled() ? "full" : "log_only",
-          record: null,
-          absent: source.enabled() ? "never_recorded" : "off",
-        });
+      const level: RecordLevel = store === undefined ? "none" : enabled ? "full" : "log_only";
+      if (store !== undefined) {
+        const bundle = store.readTurn(threadId, turnId);
+        if (!bundle.ok) return err(storeError(bundle.error));
+        if (bundle.value !== undefined) {
+          const parsedJson = parseJson(bundle.value.turn.recordJson);
+          if (!parsedJson.ok) return err({ kind: "corrupt" });
+          const record = parse(TurnRecordSchema, parsedJson.value);
+          if (!record.ok) return err({ kind: "corrupt" });
+          return ok({ enabled, level, record: record.value, absent: null });
+        }
       }
-      const parsedJson = parseJson(bundle.value.turn.recordJson);
-      if (!parsedJson.ok) return err({ kind: "corrupt" });
-      const record = parse(TurnRecordSchema, parsedJson.value);
-      if (!record.ok) return err({ kind: "corrupt" });
+      // 행이 없다. 턴이 로그에도 없으면 오류다(3501). 있으면 왜 없는지 준다
+      const started = source.logTurnStartedAt(threadId, turnId);
+      if (!started.ok) return err({ kind: "log_read", reason: started.error.reason });
+      if (started.value === undefined) return err({ kind: "turn_missing" });
       return ok({
-        enabled: source.enabled(),
-        level: source.enabled() ? "full" : "log_only",
-        record: record.value,
-        absent: null,
+        enabled,
+        level,
+        record: null,
+        absent: absentOf({
+          enabled,
+          store,
+          startedAt: started.value,
+          now: source.now(),
+          retentionDays: source.retentionDays(),
+        }),
       });
     },
 
@@ -568,16 +766,41 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
         turnsOff: counts.off,
         partialWindow: counters.value.partial,
       };
-      const out =
-        query.compare === null
-          ? queryMetrics(input)
-          : compareMetrics({
-              ...input,
-              by: query.compare.by,
-              a: query.compare.a,
-              b: query.compare.b,
-            });
-      return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      const compare = query.compare;
+      if (compare === null) {
+        const out = queryMetrics(input);
+        return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      }
+      if (compare.by === "model") {
+        const out = compareMetrics({ ...input, by: "model", a: compare.a, b: compare.b });
+        return ok({ window: window.value, rows: out.rows, notes: out.notes });
+      }
+      // 버전과 개정은 키에 없어 원본 턴으로 그룹을 나눈다. 비교 차원의 필터가 필요하다
+      if (compare.by === "pluginVersion" && filter.plugin === null) {
+        return err({
+          kind: "invalid_filter",
+          message: "compare by pluginVersion needs filter.plugin",
+        });
+      }
+      if (compare.by === "profileRev" && filter.profileId === null) {
+        return err({
+          kind: "invalid_filter",
+          message: "compare by profileRev needs filter.profileId",
+        });
+      }
+      const grouped = compareByGroups({
+        window: window.value,
+        bundles: counters.value.bundles,
+        by: compare.by,
+        a: compare.a,
+        b: compare.b,
+        filter,
+        plugin: filter.plugin ?? "",
+        metrics: query.metrics,
+        minSample: settings.minSample,
+        partial: counters.value.partial,
+      });
+      return ok(grouped);
     },
 
     findingsList(query) {
@@ -676,25 +899,18 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
       return ok({ bundle: shaped.bundle, bytes: shaped.bytes });
     },
 
-    profileCost(profileId) {
+    profileCost(profileId, pluginNames) {
       const settings = source.metrics();
       const store = source.store();
       const now = source.now();
       const window = { from: now - settings.defaultWindowDays * DAY_MS, to: now };
+      // 턴이 없을 때는 프로필의 플러그인 이름만 안다. 지침과 도구 정의의 어림은 로더가 낼 때까지 null이다(§3.3)
       const empty: ProfileCostOut = {
         profileId,
         basis: "estimated",
         nTurns: 0,
-        plugins: [],
-        total: {
-          plugin: "",
-          always: null,
-          drive: null,
-          onDemand: null,
-          toolCount: null,
-          basis: "unknown",
-          shared: false,
-        },
+        plugins: pluginNames.map((plugin) => unknownCostRow(plugin)),
+        total: unknownCostRow(""),
       };
       if (store === undefined) return ok(empty);
       const counters = countersOf(

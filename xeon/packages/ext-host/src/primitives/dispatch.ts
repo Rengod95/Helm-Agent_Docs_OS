@@ -8,6 +8,7 @@ import {
   type HookName,
   type RegistrationId,
   type TraceFailureReason,
+  type TraceSourceKind,
 } from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
 import { isPluginProcessError } from "../isolation/errors.ts";
@@ -30,13 +31,14 @@ import type {
 import type { ExtDiagnostic } from "./errors.ts";
 import { foldChain } from "./fold/chain.ts";
 import { foldCollect } from "./fold/collect.ts";
-import type { FoldEnv, RunResult } from "./fold/env.ts";
+import { askOf, type FoldEnv, type RunResult } from "./fold/env.ts";
 import { foldFirst } from "./fold/first.ts";
 import { foldTap } from "./fold/tap.ts";
 import { deepFreeze } from "./freeze.ts";
 import { orderEntries } from "./order.ts";
 import type { HandlerEntry, HandlerRegistry } from "./registry.ts";
 import type { StepPause } from "./step-pause.ts";
+import type { WaitTally } from "./user-wait.ts";
 
 export {
   DEFAULT_DISPATCH_POLICY,
@@ -132,6 +134,23 @@ function infoOf(entry: HandlerEntry): HandlerEntryInfo {
 
 function refOf(entry: HandlerEntry): HandlerRef {
   return { scopeId: entry.scopeId, extension: entry.extension, seq: entry.seq };
+}
+
+/**
+ * 핸들러의 출처 자리(턴 기록 §4.2 규칙 16). 내장 등록은 `builtin`, 그 밖의 확장 등록은 `plugin`이다. 외부 훅 단위는 숨겨져
+ * 자기 행이 없으므로 여기 오지 않는다(외부 훅 행은 실행기가 `external-hook:<id>`로 직접 넣는다)
+ */
+function identityOf(entry: HandlerEntryInfo): {
+  readonly plugin: string;
+  readonly versionId: null;
+  readonly sourceKind: TraceSourceKind;
+} {
+  return {
+    plugin: entry.extension,
+    // 플러그인 버전은 로더가 아직 알려주지 않는다. 알 때까지 null이다
+    versionId: null,
+    sourceKind: entry.builtin ? "builtin" : "plugin",
+  };
 }
 
 /** 값을 낸 핸들러의 바뀐 크기. 값의 JSON 문자 수다. 직렬화할 수 없는 값은 0이다. 계측이 켜졌을 때만 부른다 */
@@ -269,6 +288,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       const state = deps.stateOf(options.threadId, entry.scopeId);
       // 핸들러가 도는 칸을 훅 스택에 쌓는다(hooks-core-boundary §5.3 U-8 (나)). 바깥 흐름의 스택에 이 핸들러 칸을 더한다
       const stack = hookStackOf(ambient());
+      // 이 실행이 사람을 기다린 계측. 핸들러 ambient에 싣고, 실행이 끝나면 기록이 읽는다(읽기 전용)
+      const waits: WaitTally = { now: () => deps.now(), count: 0, ms: 0 };
       const work = (signal: AbortSignal, gate: HandlerGate): Promise<unknown> =>
         Promise.resolve().then(() =>
           withAmbient(
@@ -279,7 +300,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               dispatchKey: options.dispatchKey,
               counter: 0,
               drive: null,
-              handler: { signal, gate },
+              handler: { signal, gate, waits },
               hookStack: [...stack, { plugin: entry.extension, point, tool: "", argsHash: "" }],
               ...(trace === undefined ? {} : { trace }),
             },
@@ -304,6 +325,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             value: outcome.value,
             activeMs: outcome.activeMs,
             startedAt,
+            waits,
           };
         case "threw":
           return {
@@ -315,15 +337,22 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               outcome.activeMs,
             ),
             startedAt,
+            waits,
           };
         case "timeout":
           return {
             kind: "failed",
             failure: failureOf(entry, "timeout", undefined, outcome.budgetMs),
             startedAt,
+            waits,
           };
         case "aborted":
-          return { kind: "aborted", startedAt, elapsedMs: deps.now() - startedAt };
+          return {
+            kind: "aborted",
+            startedAt,
+            elapsedMs: deps.now() - startedAt,
+            waits,
+          };
         default:
           return assertNever(outcome, "RunOutcome");
       }
@@ -349,6 +378,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       refOf,
       noteOk(entry, run, verdict) {
         if (trace === undefined) return;
+        const decision = verdict.decision ?? "none";
+        const ask = askOf(decision, run.waits);
         trace.record({
           registrationId: entry.scopeId,
           durationMs: run.activeMs,
@@ -357,11 +388,14 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           size: verdict.result === "modified" ? sizeOfValue(verdict.value) : 0,
           skippedBy: null,
           reason: verdict.result === "failed" ? verdict.reason : null,
-          ...(verdict.decision === undefined ? {} : { decision: verdict.decision }),
+          ...identityOf(entry),
+          decision,
+          ...(ask === undefined ? {} : { ask }),
         });
       },
       noteLost(entry, run) {
         if (trace === undefined) return;
+        const ask = askOf("none", run.waits);
         trace.record({
           registrationId: entry.scopeId,
           durationMs: run.kind === "failed" ? run.failure.elapsedMs : run.elapsedMs,
@@ -370,6 +404,9 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           size: 0,
           skippedBy: null,
           reason: run.kind === "failed" ? lostReason(run.failure.reason) : null,
+          ...identityOf(entry),
+          decision: "none",
+          ...(ask === undefined ? {} : { ask }),
         });
       },
       skip(entries, by) {
@@ -384,6 +421,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             size: 0,
             skippedBy: by.scopeId,
             reason: null,
+            ...identityOf(entry),
+            decision: "none",
           });
         }
       },

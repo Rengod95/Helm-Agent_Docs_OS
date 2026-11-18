@@ -804,6 +804,10 @@ test("trace: real dispatches through the host land in traceReadOf(host)", async 
         handlers: [
           {
             registrationId: "ext-tap",
+            plugin: "ext-tap",
+            versionId: null,
+            sourceKind: "builtin",
+            decision: "none",
             ms: 0,
             result: "passed",
             atMs: 0,
@@ -820,6 +824,10 @@ test("trace: real dispatches through the host land in traceReadOf(host)", async 
         handlers: [
           {
             registrationId: "ext-first",
+            plugin: "ext-first",
+            versionId: null,
+            sourceKind: "builtin",
+            decision: "none",
             ms: 0,
             result: "failed",
             atMs: 5,
@@ -837,6 +845,10 @@ test("trace: real dispatches through the host land in traceReadOf(host)", async 
         handlers: [
           {
             registrationId: "ext-chain",
+            plugin: "ext-chain",
+            versionId: null,
+            sourceKind: "builtin",
+            decision: "none",
             ms: 100,
             result: "failed",
             atMs: 5,

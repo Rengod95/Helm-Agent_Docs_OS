@@ -50,6 +50,29 @@ export function hookOutcomeOf(run: HookRecordedValues): HookOutcomeClass {
   }
 }
 
+/** F의 블록 id(`BlockId`, hooks-core-boundary §4.1). 지표와 발견의 `block` 대상이 이 값을 쓴다 */
+export const BLOCK_REFS = ["context", "model", "tools", "ask", "agents", "record"] as const;
+export type BlockRef = (typeof BLOCK_REFS)[number];
+
+/**
+ * 캐시 깨짐 원인 종류 → 블록. 구조 원인은 바뀐 쪽의 블록이고, 공급자 쪽 원인(TTL, 모델 전환, 알 수 없음)은 모델 호출 블록이다.
+ * 목록에 없는 종류는 모델 호출 블록으로 센다(저장 값은 그대로 두고 분류만 보수적으로 한다)
+ */
+const CAUSE_BLOCK: Readonly<Record<string, BlockRef>> = {
+  prefix_reset: "context",
+  section: "context",
+  compaction: "context",
+  toolset: "tools",
+  overlay_tools: "tools",
+  model_switch: "model",
+  ttl: "model",
+  unknown: "model",
+};
+
+export function blockOfCause(kind: string): BlockRef {
+  return CAUSE_BLOCK[kind] ?? "model";
+}
+
 /** 막음 판정 세 가지. 고장(`*_fault`)과 나머지는 막은 호출이 아니다(§5.1-②) */
 const BLOCKING_VERDICTS: ReadonlySet<string> = new Set([
   "blocked_hook",

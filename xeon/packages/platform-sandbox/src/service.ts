@@ -21,11 +21,13 @@ import {
 } from "@fresnel/contracts/services";
 import { decideAutoAllow } from "./auto-allow.ts";
 import { canonicalizePath, sortedUnique, toAbsolutePath } from "./paths.ts";
+import { runtimeReadPaths } from "./runtime-read-paths.ts";
 import {
   BLOCKED_NETWORK,
   blocklistNetwork,
   candidateWriteRoots,
   mergePolicy,
+  socatPathOf,
   toSrtGlobalConfig,
   type EffectivePolicy,
   type PolicyInput,
@@ -286,7 +288,7 @@ export async function createSandboxService(
     ].map((path) => canonicalizePath(path));
 
   const resolvePolicy = (policy: SandboxPolicy, baseDir: string): EffectivePolicy => {
-    const readOnly = policy.profile === "read-only";
+    const readOnly = policy.profile === "read-only" || policy.profile === "no-write";
     const input: PolicyInput = {
       policy,
       protectedReadDeny: [],
@@ -331,6 +333,31 @@ export async function createSandboxService(
   });
 
   const defaultPolicy: SandboxService["defaultPolicy"] = (input) => {
+    if (input.profile === "no-write") {
+      // 쓰기 루트 없음, 읽기 허용 목록 프로필(플러그인 호스트). 네트워크는 차단 목록 방식 그대로다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다
+      const { pathEntries } = analyzeRoots([]);
+      return {
+        writeRoots: [],
+        readDeny: sortedUnique(
+          pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
+        ),
+        writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
+        network: {
+          allowedDomains: [],
+          deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
+        },
+        allowEscape: false,
+        profile: "no-write",
+        readAllow: [
+          ...(input.readRoots ?? []),
+          ...runtimeReadPaths(provider.kind),
+          ...srt.helperReadPaths(),
+          ...(provider.kind === "bwrap" && tools.socatPath !== undefined
+            ? [socatPathOf(tools.socatPath)]
+            : []),
+        ],
+      };
+    }
     if (input.profile === "read-only") {
       // 쓰기 루트 없음, 네트워크 차단 프로필. 보호 경로 읽기 금지는 그대로 더한다. 호출마다 만드는 임시 폴더는 wrapShell이 더한다
       const { pathEntries } = analyzeRoots([]);

@@ -11,6 +11,7 @@ import type {
   ToolRegistration,
   ToolService,
   Unregister,
+  WithHumanDecision,
 } from "@fresnel/contracts/services";
 import { createApprovalService, type ApprovalsInternal } from "./approvals/service.ts";
 import { systemScheduler } from "./approvals/timer.ts";
@@ -33,6 +34,11 @@ import { TOOLS_SETTING_KEYS } from "./settings.ts";
 export interface ToolRuntime {
   readonly tools: ToolService;
   readonly approvals: ApprovalsInternal;
+  /**
+   * 호스트 전용: 사람의 결정을 실행하는 동안 허용을 켠다(U-11). `tools`에는 없어서 포트로 확장에 넘어가는 객체가 이 메서드를 싣지 못한다.
+   * 조립 루트가 `ToolsPluginOptions.onHumanDecision`으로만 받는다
+   */
+  readonly withHumanDecision: WithHumanDecision;
 }
 
 export function createToolRuntime(base: ToolsDeps): ToolRuntime {
@@ -150,7 +156,6 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell: (request, run) => pipeline.runUserShell(request, run),
     executeForPlugin: (request) => pipeline.executeForPlugin(request),
-    withHumanDecision: (grant, work) => pipeline.withHumanDecision(grant, work),
     toolMappedFor(capability, method) {
       // 합성 항목은 레지스트리에 들어가지 않으므로 매핑은 등록된 도구 항목만 본다
       return registry
@@ -215,5 +220,9 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     },
   };
 
-  return { tools, approvals };
+  return {
+    tools,
+    approvals,
+    withHumanDecision: (grant, work) => pipeline.withHumanDecision(grant, work),
+  };
 }

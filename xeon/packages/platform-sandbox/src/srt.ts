@@ -4,6 +4,10 @@ import {
   type SandboxRuntimeConfig,
 } from "@anthropic-ai/sandbox-runtime";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
+import { attempt } from "@fresnel/contracts";
 import { createLogMonitorGuard } from "./log-monitor.ts";
 
 // @anthropic-ai/sandbox-runtime(srt)를 import하는 유일한 파일이다(DR-07, L0.sandbox.plan §2).
@@ -61,6 +65,11 @@ export interface SrtPort {
   /** srt 설정 스키마 검증. 문제 설명을 돌려주고, 비어 있으면 통과다 */
   validateConfig(config: unknown): readonly string[];
   getLinuxGlobPatternWarnings(): readonly string[];
+  /**
+   * 읽기 허용 목록 아래에서도 srt가 샌드박스 안에서 부르는 도우미(Linux의 seccomp 필터 실행 파일)의 폴더. 읽기 허용 목록 방식은
+   * 루트를 빈 tmpfs로 덮으므로 이 폴더를 허용 목록에 넣어야 한다. 도우미가 없으면 빈 목록이다
+   */
+  helperReadPaths(): readonly string[];
 }
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -102,6 +111,17 @@ async function probeNestedUsernsWith(
     signal,
   );
   return nested ? { kind: "ok" } : { kind: "restricted" };
+}
+
+/** srt 패키지의 `vendor/seccomp` 폴더(srt가 apply-seccomp를 찾는 자리, 구조별 하위 폴더를 모두 품는다). 없으면 빈 목록 */
+function seccompHelperDirs(): readonly string[] {
+  const entry = attempt(() =>
+    createRequire(import.meta.url).resolve("@anthropic-ai/sandbox-runtime"),
+  );
+  if (!entry.ok) return [];
+  // 진입 파일은 `<패키지>/dist/index.js`다
+  const dir = join(dirname(dirname(entry.value)), "vendor", "seccomp");
+  return existsSync(dir) ? [dir] : [];
 }
 
 /** 실제 srt 싱글턴을 감싼 포트. srt는 프로세스 전역 상태이므로 프로세스에 하나만 쓴다 */
@@ -155,5 +175,12 @@ export function createSrtPort(): SrtPort {
       return parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
     },
     getLinuxGlobPatternWarnings: () => [...SandboxManager.getLinuxGlobPatternWarnings()],
+    helperReadPaths: () => [
+      ...seccompHelperDirs(),
+      // 읽기 허용 목록 방식은 최상위 폴더(`/tmp` 등)를 빈 tmpfs로 덮어 프록시 소켓이 사라지므로 소켓 파일도 허용 목록에 넣는다
+      ...[SandboxManager.getLinuxHttpSocketPath(), SandboxManager.getLinuxSocksSocketPath()].filter(
+        (path): path is string => path !== undefined,
+      ),
+    ],
   };
 }

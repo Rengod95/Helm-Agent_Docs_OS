@@ -1,16 +1,22 @@
-import { parseJson } from "@fresnel/contracts";
+import { parse, parseJson } from "@fresnel/contracts";
+import { Type } from "typebox";
 import {
+  blockOfCause,
   hookOutcomeOf,
   isBlockingVerdict,
   postBlockClassOf,
+  type BlockRef,
   type PostBlockCall,
 } from "./classify.ts";
 import type {
   DailyKey,
+  TrCacheRow,
   TrCallRow,
+  TrFrameRow,
   TrHookRow,
   TrMaterialRow,
   TrSkillRow,
+  TrStepRow,
   TrToolUseRow,
   TrTurnRow,
 } from "./turn-tables.ts";
@@ -40,13 +46,179 @@ export interface DailyCell {
 export interface TurnFoldInput {
   /** 턴 시작 시각의 UTC 날짜 `YYYY-MM-DD` */
   readonly day: string;
-  /** 키에 쓰는 열만 본다(모델, 프로필, 범위, 수준) */
-  readonly turn: Pick<TrTurnRow, "model" | "profileId" | "scopeKind" | "level">;
+  /** 키에 쓰는 열과 시간(블록 시간, §5)만 본다 */
+  readonly turn: Pick<
+    TrTurnRow,
+    "model" | "profileId" | "scopeKind" | "level" | "startedAt" | "endedAt"
+  >;
   readonly calls: readonly TrCallRow[];
   readonly hooks: readonly TrHookRow[];
   readonly materials: readonly TrMaterialRow[];
   readonly tooluse: readonly TrToolUseRow[];
   readonly skills: readonly TrSkillRow[];
+  /** 단계 행(모델 사용량, 캐시 지표 §5 block.*) */
+  readonly steps: readonly TrStepRow[];
+  /** 캐시 깨짐 원인 행(§5 block.cache_breaks*) */
+  readonly cache: readonly TrCacheRow[];
+  /** 주도 프레임 행(§5 drive.*) */
+  readonly frames: readonly TrFrameRow[];
+}
+
+/** 카운터 한 줄을 더하는 함수. `foldTurn`의 키 조립을 감춘다 */
+type Put = (
+  subject: string,
+  plugin: string,
+  ref: string,
+  caller: string,
+  counter: string,
+  value: number | null,
+  withHist: boolean,
+) => void;
+
+/** 프레임 한도와 사용량의 숫자 칸. 없는 칸은 빠진다(저장 값이 깨졌으면 빈 값이다) */
+const FrameNumbersShape = Type.Object({
+  turns: Type.Optional(Type.Number()),
+  spawns: Type.Optional(Type.Number()),
+  tokens: Type.Optional(Type.Number()),
+  maxTurns: Type.Optional(Type.Number()),
+  maxSpawns: Type.Optional(Type.Number()),
+  maxTokens: Type.Optional(Type.Number()),
+});
+
+function frameNumbersOf(json: string): {
+  readonly turns?: number;
+  readonly spawns?: number;
+  readonly tokens?: number;
+  readonly maxTurns?: number;
+  readonly maxSpawns?: number;
+  readonly maxTokens?: number;
+} {
+  const read = parseJson(json);
+  if (!read.ok) return {};
+  const checked = parse(FrameNumbersShape, read.value);
+  return checked.ok ? checked.value : {};
+}
+
+/**
+ * 블록 시간(§5 block.time_split). 턴마다 한 번씩 센다. 도구는 실행 시간, 훅은 활성 시간(사람 대기 뺌), 사람 대기는 물음의 대기 시간이다.
+ * 모델 대기는 단계 행에 없어서 나머지에 든다. 나머지는 턴 시간에서 셋을 뺀 값이고 0 아래로 내리지 않는다.
+ */
+function foldBlockTime(input: TurnFoldInput, put: Put): void {
+  const toolsMs = input.calls.reduce((sum, call) => sum + (call.execMs ?? 0), 0);
+  const hookMs = input.hooks.reduce((sum, hook) => sum + hook.ms, 0);
+  const askMs = input.hooks.reduce((sum, hook) => sum + (hook.askMs ?? 0), 0);
+  put("block", "", "", "", "tools_ms", toolsMs, false);
+  put("block", "", "", "", "hook_ms", hookMs, false);
+  put("block", "", "", "", "ask_ms", askMs, false);
+  if (input.turn.endedAt === null) return;
+  const total = Math.max(0, input.turn.endedAt - input.turn.startedAt);
+  put("block", "", "", "", "turn_ms", total, false);
+  put("block", "", "", "", "rest_ms", Math.max(0, total - toolsMs - hookMs - askMs), false);
+}
+
+/**
+ * 모델 사용량과 캐시 깨짐(§5 block.cache_hit_rate, block.cache_breaks*). 단계마다 한 번씩 센다.
+ * 깨짐은 플러그인이 있는 원인마다 한 줄(키 `cache`, 플러그인과 블록)로 센다. 같은 단계의 같은 플러그인은 한 번이다.
+ * `plugin_turns`는 그 플러그인이 낀 턴 수로 분모다.
+ */
+function foldCache(input: TurnFoldInput, put: Put, costPlugins: ReadonlySet<string>): void {
+  for (const step of input.steps) {
+    put("block", "", "", "", "steps", null, false);
+    const usage = step.input + step.cacheRead + step.cacheWrite;
+    if (usage > 0) {
+      put("block", "", "", "", "cache_read", step.cacheRead, false);
+      put("block", "", "", "", "cache_input", usage, false);
+    }
+  }
+
+  const byStep = new Map<number, TrCacheRow[]>();
+  for (const row of input.cache) {
+    const list = byStep.get(row.stepIndex) ?? [];
+    list.push(row);
+    byStep.set(row.stepIndex, list);
+  }
+  const attributed = new Set<string>();
+  for (const rows of byStep.values()) {
+    const observed = rows.some((row) => row.observed);
+    put("block", "", "", "", observed ? "break_observed" : "break_predicted", null, false);
+    if (observed && rows.every((row) => row.plugin === null)) {
+      put("block", "", "", "", "break_unattributed", null, false);
+    }
+    const perPlugin = new Map<
+      string,
+      {
+        readonly ref: BlockRef;
+        readonly observed: boolean;
+        readonly inferred: boolean;
+        readonly write: number;
+      }
+    >();
+    for (const row of rows) {
+      if (row.plugin === null) continue;
+      const prev = perPlugin.get(row.plugin);
+      perPlugin.set(row.plugin, {
+        ref: prev?.ref ?? blockOfCause(row.kind),
+        observed: (prev?.observed ?? false) || row.observed,
+        inferred: (prev?.inferred ?? false) || row.evidence === "inferred",
+        write: row.cacheWrite,
+      });
+    }
+    for (const [plugin, info] of perPlugin) {
+      attributed.add(plugin);
+      if (!info.observed) {
+        put("cache", plugin, info.ref, "", "break_predicted", null, false);
+        continue;
+      }
+      put("cache", plugin, info.ref, "", "break_observed", null, false);
+      if (info.inferred) put("cache", plugin, info.ref, "", "break_inferred", null, false);
+      put("cache", plugin, info.ref, "", "break_write", info.write, false);
+    }
+  }
+  for (const plugin of new Set([...costPlugins, ...attributed])) {
+    put("cache", plugin, "", "", "plugin_turns", null, false);
+  }
+}
+
+/**
+ * 주도 프레임(§5 drive.*). 맨 위가 플러그인인 프레임(깊이 1 이상)만 센다.
+ * `frame_turns`는 프레임 행을 가진 턴 수다. 0이면 지표는 `not_recorded`다(enC2m이 프레임을 쓰기 전).
+ * 주도 중 물음은 물음 행이 든 시각이 프레임 구간에 드는 가장 깊은 프레임의 플러그인에 센다.
+ */
+function foldFrames(input: TurnFoldInput, put: Put): void {
+  if (input.frames.length > 0) put("drive", "", "", "", "frame_turns", null, false);
+  for (const frame of input.frames) {
+    if (frame.plugin === null) continue;
+    const plugin = frame.plugin;
+    put("drive", plugin, "", "", "entries", null, false);
+    if (frame.exitReason !== null) {
+      put("drive", plugin, "", "", "exits", null, false);
+      put("drive", plugin, "", "", `exit:${frame.exitReason}`, null, false);
+    }
+    const numbers = frameNumbersOf(frame.limitsJson);
+    const used = frameNumbersOf(frame.usedJson);
+    const pairs = [
+      [numbers.maxTurns, used.turns, "turns"],
+      [numbers.maxSpawns, used.spawns, "spawns"],
+      [numbers.maxTokens, used.tokens, "tokens"],
+    ] as const;
+    for (const [limit, usedValue, name] of pairs) {
+      if (limit === undefined || usedValue === undefined) continue;
+      put("drive", plugin, "", "", `limit:${name}`, limit, false);
+      put("drive", plugin, "", "", `used:${name}`, usedValue, false);
+    }
+  }
+  for (const hook of input.hooks) {
+    if (hook.askVia === null) continue;
+    let owner: TrFrameRow | undefined;
+    for (const frame of input.frames) {
+      if (frame.plugin === null || hook.atMs < frame.enteredAtMs) continue;
+      if (frame.exitedAtMs !== null && hook.atMs >= frame.exitedAtMs) continue;
+      if (owner === undefined || frame.depth > owner.depth) owner = frame;
+    }
+    if (owner !== undefined && owner.plugin !== null) {
+      put("drive", owner.plugin, "", "", "asks", null, false);
+    }
+  }
 }
 
 function emptyAggregate(withHist: boolean): Aggregate {
@@ -257,6 +429,18 @@ export function foldTurn(input: TurnFoldInput): readonly DailyCell[] {
       null,
       false,
     );
+    // 인자 토큰 목록이 기록된 막힌 호출 수. 목록이 없으면 `rewrite_text`는 판정할 수 없어서 값이 없다(not_recorded)
+    if (argTokenListOf(call.metaJson) !== null) {
+      put(
+        "postblock",
+        call.blockedPlugin ?? "",
+        call.blockedHook ?? "",
+        "",
+        "args_known",
+        null,
+        false,
+      );
+    }
   }
 
   // 실행 결과: 실행 칸과 오류 칸, 결과 토큰 분포(§5의 tool.error_rate, tool.result_tokens)
@@ -331,6 +515,10 @@ export function foldTurn(input: TurnFoldInput): readonly DailyCell[] {
     }
   }
 
+  foldBlockTime(input, put);
+  foldCache(input, put, new Set(costs.keys()));
+  foldFrames(input, put);
+
   return [...cells.values()];
 }
 
@@ -342,15 +530,19 @@ export function postBlockCallsOf(calls: readonly TrCallRow[]): PostBlockCall[] {
     tool: call.tool,
     callKey: call.callKey,
     targetKey: call.targetKey,
-    argTokens: argTokensOf(call.metaJson),
+    argTokens: argTokenListOf(call.metaJson) ?? [],
   }));
 }
 
-function argTokensOf(metaJson: string): readonly string[] {
+/**
+ * `meta_json.argTokens`의 토큰 목록. 목록이 없거나 모양이 다르면 null이다.
+ * 수집기는 지금 인자 토큰 수(숫자)만 쓰므로 목록이 없는 호출이 많다(§5.1-② rewrite_text는 목록이 필요하다)
+ */
+function argTokenListOf(metaJson: string): readonly string[] | null {
   const read = parseJson(metaJson);
   const value: unknown = read.ok ? read.value : undefined;
-  if (typeof value !== "object" || value === null || !("argTokens" in value)) return [];
+  if (typeof value !== "object" || value === null || !("argTokens" in value)) return null;
   const tokens = value.argTokens;
-  if (!Array.isArray(tokens)) return [];
+  if (!Array.isArray(tokens)) return null;
   return tokens.filter((token): token is string => typeof token === "string");
 }

@@ -140,9 +140,49 @@
       "ko": "주도 한도 사용 비율",
       "en": "Drive usage against limits"
     },
+    "drive.usage_vs_limit.spawns": {
+      "ko": "주도 한도 대비 서브에이전트 사용 비율",
+      "en": "Drive subagent use against limit"
+    },
+    "drive.usage_vs_limit.tokens": {
+      "ko": "주도 한도 대비 토큰 사용 비율",
+      "en": "Drive token use against limit"
+    },
     "drive.exit_reasons": {
       "ko": "주도 반납 사유 분포",
       "en": "Drive exit reasons"
+    },
+    "drive.exit_reasons.budget": {
+      "ko": "반납 사유: 한도 소진",
+      "en": "Exit reason: budget exhausted"
+    },
+    "drive.exit_reasons.disabled": {
+      "ko": "반납 사유: 프로필에서 빠짐",
+      "en": "Exit reason: disabled by profile"
+    },
+    "drive.exit_reasons.done": {
+      "ko": "반납 사유: 끝남",
+      "en": "Exit reason: done"
+    },
+    "drive.exit_reasons.error": {
+      "ko": "반납 사유: 오류",
+      "en": "Exit reason: error"
+    },
+    "drive.exit_reasons.idle": {
+      "ko": "반납 사유: 유휴",
+      "en": "Exit reason: idle"
+    },
+    "drive.exit_reasons.restart": {
+      "ko": "반납 사유: 재시작",
+      "en": "Exit reason: restart"
+    },
+    "drive.exit_reasons.revoked": {
+      "ko": "반납 사유: 사용자 중지",
+      "en": "Exit reason: revoked by user"
+    },
+    "drive.exit_reasons.waiting": {
+      "ko": "반납 사유: 맡기기 대기",
+      "en": "Exit reason: waiting on handoff"
     },
     "drive.asks": {
       "ko": "주도 중 사람 물음 수",
@@ -151,6 +191,26 @@
     "block.time_split": {
       "ko": "턴 시간 분해(모델·도구·훅·사람·나머지)",
       "en": "Turn time split"
+    },
+    "block.time_split.ask": {
+      "ko": "블록 시간: 사람 대기",
+      "en": "Block time: waiting for a person"
+    },
+    "block.time_split.model": {
+      "ko": "블록 시간: 모델 대기",
+      "en": "Block time: model wait"
+    },
+    "block.time_split.rest": {
+      "ko": "블록 시간: 나머지",
+      "en": "Block time: the rest"
+    },
+    "block.time_split.tools": {
+      "ko": "블록 시간: 도구 실행과 도구 훅",
+      "en": "Block time: tools and tool hooks"
+    },
+    "block.time_split.hook": {
+      "ko": "블록 시간: 훅",
+      "en": "Block time: hooks"
     },
     "block.compactions": {
       "ko": "컴팩션 횟수",
@@ -164,9 +224,25 @@
       "ko": "캐시 깨짐 수",
       "en": "Cache breaks"
     },
+    "block.cache_breaks.predicted": {
+      "ko": "캐시 깨짐 예측만(관찰 없음)",
+      "en": "Cache breaks predicted only"
+    },
+    "block.cache_breaks.unattributed": {
+      "ko": "플러그인 귀속 없는 캐시 깨짐 비율",
+      "en": "Share of cache breaks with no plugin cause"
+    },
     "block.cache_breaks_by_plugin": {
       "ko": "플러그인별 캐시 깨짐 수",
       "en": "Cache breaks by plugin"
+    },
+    "block.cache_breaks_by_plugin.inferred": {
+      "ko": "플러그인 귀속 중 추정 비율",
+      "en": "Share of plugin-attributed breaks inferred"
+    },
+    "block.cache_breaks_by_plugin.tokens": {
+      "ko": "플러그인 캐시 깨짐의 턴당 쓰기 토큰",
+      "en": "Cache-write tokens per turn from plugin breaks"
     },
     "ver.compare": {
       "ko": "버전별 비교",
@@ -312,15 +388,27 @@
     "hook.post_block.other_tool_same_target": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
     "hook.post_block.different_path": "§5.1-②. 분모는 막힌 호출 수. 화면에서 우회라고 단정하지 않는다",
     "hook.post_block.bypass_suspect": "rewrite + rewrite_text + other_tool_same_target. 신뢰가 낮다",
-    "drive.entries": "Drive 프레임 스택이 필요하다(E1~E3)",
-    "drive.usage_vs_limit": "limits_json과 used_json이 필요하다",
-    "drive.exit_reasons": "저장된 lease.released.reason 값",
-    "block.time_split": "단계 시간이 tr_step에 없다. 병렬 호출은 구간 합집합",
+    "drive.entries": "맨 위가 플러그인인 주도 프레임(깊이 1 이상)의 수. 프레임 행이 한 번도 없으면 not_recorded다(enC2m이 쓰기 전)",
+    "drive.usage_vs_limit": "한도가 있는 프레임에서 쓴 턴의 합 나누기 한도 합. 서브에이전트와 토큰은 .spawns, .tokens다",
+    "drive.usage_vs_limit.spawns": "maxSpawns가 있는 프레임의 사용 합 나누기 한도 합",
+    "drive.usage_vs_limit.tokens": "maxTokens가 있는 프레임의 사용 합 나누기 한도 합",
+    "drive.exit_reasons": "사유가 있는 주도 프레임 수. 사유별 비율은 drive.exit_reasons.<사유>다. 값은 저장된 lease.released.reason 그대로다",
+    "drive.asks": "물음 행이 주도 프레임 구간(시작부터 끝까지)에 든 수. 가장 깊은 프레임의 플러그인에 센다",
+    "block.time_split": "턴 시간의 평균(ms/턴). 나눈 값은 .tools, .hook, .ask, .model, .rest다. 단계 시간이 행에 없어 모델 대기는 .rest에 든다",
+    "block.time_split.ask": "물음 대기 시간(ask.waitMs)의 턴 평균. 정책 승인 대기는 훅 행이 아니라서 빠진다",
+    "block.time_split.model": "모델 호출 시간은 단계 행에 없다(record_json에만 있다). 값이 없다(not_recorded)",
+    "block.time_split.rest": "턴 시간에서 도구, 훅, 사람 대기를 뺀 턴 평균(0 아래로 내리지 않는다). 모델 대기가 여기 든다",
+    "block.time_split.tools": "도구 실행 시간(exec)의 턴 평균. 병렬 호출은 합으로 세므로 근사다",
+    "block.time_split.hook": "훅 활성 시간(사람 대기 뺌)의 턴 평균. 도구 훅도 여기 든다",
     "block.compactions": "thread.compacted 로그에서 세야 한다",
-    "block.cache_hit_rate": "제공자마다 칸 뜻이 다르다. tr_step 원본이 접히지 않아 아직 계산하지 않는다",
-    "block.cache_breaks": "관찰(observed)과 예측을 나눈다. tr_cache는 아직 접히지 않는다",
-    "block.cache_breaks_by_plugin": "§5.1-⑤",
-    "ver.compare": "비교는 metrics.query의 compare로 낸다. 버전 칸은 카운터 키에 없다",
+    "block.cache_hit_rate": "cacheRead / (input + cacheRead + cacheWrite)의 단계 합 비율. 제공자마다 칸 뜻이 다르므로 근사다",
+    "block.cache_breaks": "관찰(observed)된 깨짐이 있던 단계 수. 분모는 단계 수다. 예측만 된 단계는 .predicted로 따로 센다",
+    "block.cache_breaks.predicted": "예측만 된 깨짐이 있던 단계 수. 분모는 단계 수다",
+    "block.cache_breaks.unattributed": "관찰된 깨짐 단계 가운데 플러그인 귀속이 없는 비율(unknown, ttl, compaction, model_switch). §5.1-⑤의 unknown 비율",
+    "block.cache_breaks_by_plugin": "플러그인 귀속이 있는 관찰 깨짐 수(단계와 플러그인 쌍). 분모는 그 플러그인이 낀 턴 수다. 블록으로 나누면 분모가 없어 .tokens가 비고, 플러그인으로만 나눈다 §5.1-⑤",
+    "block.cache_breaks_by_plugin.inferred": "귀속 근거가 추정(inferred)인 깨짐의 비율. 현재 기록기는 플러그인이 있는 원인을 모두 선언(declared)으로 쓰므로 0이다",
+    "block.cache_breaks_by_plugin.tokens": "관찰 깨짐의 캐시 쓰기 토큰 합을 그 플러그인이 낀 턴 수로 나눈 값. 발견 cache_break_by_plugin의 영향이다",
+    "ver.compare": "비교는 metrics.query의 compare로 낸다. pluginVersion은 filter.plugin이, profileRev는 filter.profileId가 필요하다. 원본 턴으로 나누므로 접힌 날은 빠진다",
     "cost.always": "재료와 광고 도구 정의의 합. 턴 값은 마지막 단계 기준",
     "cost.drive": "주도 프레임이 맨 위일 때의 재료",
     "cost.on_demand": "스킬 본문과 활성화한 도구 정의"

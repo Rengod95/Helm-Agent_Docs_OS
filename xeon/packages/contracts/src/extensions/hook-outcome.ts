@@ -18,8 +18,10 @@ export type HookRunReason =
   | "merge_rejected"
   | "process_exit"
   | "process_killed";
+/** 기록된 결정의 목록. 값이 없으면 `none`이다. 순서는 F §4.2 결정값 목록과 같다 */
+export const HOOK_RUN_DECISIONS = ["none", "block", "ask", "replace", "cancel", "answer"] as const;
 /** 기록된 결정. 값이 없으면 `none`이다 */
-export type HookRunDecision = "none" | "block" | "ask" | "replace" | "cancel" | "answer";
+export type HookRunDecision = (typeof HOOK_RUN_DECISIONS)[number];
 
 /** 한 핸들러 실행의 기록된 값 */
 export interface HookRunRecord {

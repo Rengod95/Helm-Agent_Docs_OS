@@ -6,9 +6,11 @@ import type {
   ExtTimingsResult,
   HookName,
   HookRunDecision,
+  TraceAsk,
   TraceFailureReason,
   TraceHandlerEntry,
   TraceHandlerResult,
+  TraceSourceKind,
   TraceTurnEntry,
   TraceTurnResult,
 } from "@fresnel/contracts/extensions";
@@ -53,8 +55,14 @@ interface TraceRecord {
   /** 앞 핸들러 때문에 건너뛴 경우 그 핸들러. 아니면 null */
   readonly skippedBy: string | null;
   readonly reason: TraceFailureReason | null;
-  /** 낸 결정(M5e §4.5). 지금은 보관하지 않는다. 기록 스펙(M5d)이 저장할 때 항목에 싣는다 */
+  /** 등록한 플러그인 이름, 버전, 출처. 디스패처가 등록 항목에서 채운다. 생략하면 항목에 싣지 않는다 */
+  readonly plugin?: string;
+  readonly versionId?: string | null;
+  readonly sourceKind?: TraceSourceKind;
+  /** 낸 결정(M5e §4.5). 생략하면 항목에 싣지 않는다 */
   readonly decision?: HookRunDecision;
+  /** 사람 대기 메타데이터. 생략하면 항목에 싣지 않는다 */
+  readonly ask?: TraceAsk;
 }
 
 /** 디스패치 하나의 기록기. 핸들러 기록은 첫 기록 때 항목 하나로 만들어진다 */
@@ -232,6 +240,11 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
           reason: run.reason,
           // 호출 지점이 아니면 키를 두지 않는다(옛 기록과 같은 모양)
           ...(toolCallId === null ? {} : { toolCallId }),
+          ...(run.plugin === undefined ? {} : { plugin: run.plugin }),
+          ...(run.versionId === undefined ? {} : { versionId: run.versionId }),
+          ...(run.sourceKind === undefined ? {} : { sourceKind: run.sourceKind }),
+          ...(run.decision === undefined ? {} : { decision: run.decision }),
+          ...(run.ask === undefined ? {} : { ask: run.ask }),
         });
       },
     };

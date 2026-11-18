@@ -22,6 +22,9 @@ import {
   TurnRecordListParamsSchema,
   TurnRecordListResultSchema,
   TurnRecordMarkParamsSchema,
+  TurnRecordUnwatchParamsSchema,
+  TurnRecordWatchParamsSchema,
+  TurnRecordWatchResultSchema,
   TurnRecordSearchParamsSchema,
   TurnRecordSearchResultSchema,
   type FindingsBundleParams,
@@ -43,12 +46,15 @@ import {
   type TurnRecordListParams,
   type TurnRecordListResult,
   type TurnRecordMarkParams,
+  type TurnRecordUnwatchParams,
+  type TurnRecordWatchParams,
+  type TurnRecordWatchResult,
   type TurnRecordSearchParams,
   type TurnRecordSearchResult,
 } from "./turn-record.ts";
 
 // 턴 기록과 지표의 메서드 표(M5d, 문서 `review/m5/turn-record-metrics.md` §3.5, §3.8). 처리기는 `apps/host/src/handlers/m5/`가 낸다.
-// 등록하지 않는 것: `turnRecord.watch`, `turnRecord.unwatch`, 알림 `turnRecord.delta`, `backtest.*`(수집기와 실행기가 필요하다).
+// 등록하지 않는 것: `backtest.*`(수집기와 실행기가 필요하다). 알림 `turnRecord.delta`는 `notifications.ts`가 아니라 `methods.ts`의 알림 표에 있다.
 // 메서드 이름과 단계 `M5`는 이 문서가 정한다. F §3.3.1 표와 `WIRE_METHODS`가 같아야 한다(wire.doc.test.ts).
 
 /** M5 메서드의 레지스트리 항목. `M4Spec`과 같은 모양이고 단계만 M5다 */
@@ -71,6 +77,8 @@ export interface TurnRecordWireSchemas {
   "turnRecord.get": Io<U<Req<TurnRecordGetParams>>, U<TurnRecordGetResult>>;
   "turnRecord.search": Io<U<Req<TurnRecordSearchParams>>, U<TurnRecordSearchResult>>;
   "turnRecord.mark": Io<U<Req<TurnRecordMarkParams>>, typeof EmptyParamsSchema>;
+  "turnRecord.watch": Io<U<Req<TurnRecordWatchParams>>, U<TurnRecordWatchResult>>;
+  "turnRecord.unwatch": Io<U<Req<TurnRecordUnwatchParams>>, typeof EmptyParamsSchema>;
   "metrics.catalog": Io<U<NoParams>, U<MetricsCatalogResult>>;
   "metrics.query": Io<U<Req<MetricsQueryParams>>, U<MetricsQueryResult>>;
   "findings.list": Io<U<Req<FindingsListParams>>, U<FindingsListResult>>;
@@ -93,6 +101,8 @@ export const TURN_RECORD_WIRE_METHODS: Table = {
   "turnRecord.get": m5(TurnRecordGetParamsSchema, TurnRecordGetResultSchema),
   "turnRecord.search": m5(TurnRecordSearchParamsSchema, TurnRecordSearchResultSchema),
   "turnRecord.mark": m5(TurnRecordMarkParamsSchema, EmptyParamsSchema),
+  "turnRecord.watch": m5(TurnRecordWatchParamsSchema, TurnRecordWatchResultSchema),
+  "turnRecord.unwatch": m5(TurnRecordUnwatchParamsSchema, EmptyParamsSchema),
   "metrics.catalog": m5(NoParamsSchema, MetricsCatalogResultSchema),
   "metrics.query": m5(MetricsQueryParamsSchema, MetricsQueryResultSchema),
   "findings.list": m5(FindingsListParamsSchema, FindingsListResultSchema),

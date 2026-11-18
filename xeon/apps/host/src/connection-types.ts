@@ -81,6 +81,12 @@ export interface Subscription {
   open: boolean;
 }
 
+/** 턴 기록 구독 하나. `sub`는 연결 안에서 유일하다. 대화를 지우면 사라진다 */
+export interface TurnWatch {
+  readonly sub: string;
+  readonly threadId: string;
+}
+
 /** 처리기가 connectionId로 찾는 연결 상태 */
 export interface ConnectionState {
   readonly id: string;
@@ -101,6 +107,8 @@ export interface ConnectionState {
       }
     | undefined;
   readonly subs: Map<string, Subscription>;
+  /** 턴 기록 구독(`turnRecord.watch`). 연결이 닫히거나 다시 맞추면 함께 버린다 */
+  readonly turnWatches: Map<string, TurnWatch>;
   /** thread.create·turn.start·thread.open(write 또는 observe)으로 연 thread. stream.chunk를 이 연결에 보낸다(HS-17) */
   readonly openThreads: Set<ThreadId>;
   /** 이 연결이 쓰기로 연 thread(HS-27 해제 판정). openThreads의 부분집합이다 */

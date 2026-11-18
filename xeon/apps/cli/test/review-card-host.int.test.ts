@@ -52,9 +52,18 @@ test("rejecting one hunk on the review card reverts the file, and the card lists
     ]),
     files: { "a.txt": ORIGINAL },
     settings: { "l0.sandbox.enabled": false },
-    harness: { terminal: TTY, readLine: (prompt, signal) => input.readLine(prompt, signal) },
+    harness: {
+      terminal: TTY,
+      readLine: async (prompt, signal) => {
+        const line = await input.readLine(prompt, signal);
+        // 되돌림은 카드 답 뒤에 비동기로 일어난다(승인 상속이 실제 경로를 푸는 동안 몇 번 쉰다). 끝내기 전에 되돌림이 반영되기를 기다린다
+        if (line === "/quit") await waitFor(() => readFileSync(file, "utf8") === ORIGINAL, 5_000);
+        return line;
+      },
+    },
   });
   clis.push(cli);
+  const file = join(cli.home.work, "a.txt");
 
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
 
@@ -83,8 +92,6 @@ test("rejecting one hunk on the review card reverts the file, and the card lists
   ]);
   expect(cli.harness.stdoutText()).toContain("done.");
 
-  // 되돌림은 응답 뒤에 파일에 반영된다. 원래 내용이 될 때까지 기다린 뒤 확인한다
-  const file = join(cli.home.work, "a.txt");
-  await waitFor(() => readFileSync(file, "utf8") === ORIGINAL, 5_000);
+  // 되돌림은 응답 뒤에 파일에 반영된다. 끝내기 전에 기다렸으므로 여기서는 값만 확인한다
   expect(readFileSync(file, "utf8")).toBe(ORIGINAL);
 }, 90_000);

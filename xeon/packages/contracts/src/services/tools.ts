@@ -619,12 +619,17 @@ export interface RuleRegistration {
  * 호출 주체는 `plugin:<이름>`이고 턴이 없어 효과 기록은 합성한 id로 남는다(L1.tools §4.6)
  */
 /**
- * 사람이 호스트에서 내린 결정(예: 지식 제안 승인) 하나가 가리킨 쓰기. `ToolService.withHumanDecision` 안에서만 켜지고,
- * 그 안에서 플러그인이 부른 호출이 `covers`에 맞으면 새 승인 카드 없이 지난다(U-11). 호출마다 한 번만 쓴다
+ * 사람이 호스트에서 내린 결정(예: 지식 제안 승인) 하나가 가리킨 쓰기. `WithHumanDecision` 안에서만 켜지고,
+ * 그 안에서 `plugin` 이름의 플러그인이 `threadId` 대화에서 부른 호출이 `covers`에 맞으면 새 승인 카드 없이 지난다(U-11).
+ * 호출마다 한 번만 쓴다
  */
 export interface HumanDecisionGrant {
   /** 이 결정의 id. 실행 기록에 상속한 승인 id로 남는다 */
   readonly id: string;
+  /** 이 결정이 실행되는 대화. 다른 대화의 호출은 허용을 받지 못한다 */
+  readonly threadId: ThreadId;
+  /** 허용을 받는 호출 주체 플러그인의 이름(`plugin:<이름>`의 이름). 학습 제안 결정은 `"learning"`이다 */
+  readonly plugin: string;
   /** 이 결정이 허용하는 위험 등급의 상한 */
   readonly risk: ToolRisk;
   /** 결정이 가리킨 대상인가. 기능과 메서드와 호출 입력을 본다 */
@@ -635,12 +640,17 @@ export interface HumanDecisionGrant {
   }) => boolean;
 }
 
+/**
+ * 사람의 결정을 실행하는 동안만 `grant`를 켠다(U-11). 호스트 조립 루트만 받는다. 이 함수는 `ToolService`(포트로 확장에 넘어가는 모양)에
+ * 없어 확장과 플러그인이 받을 수 없다. `work`가 끝나거나 실패하면 끈다. 켜 있는 동안에도 `grant.threadId`의 `grant.plugin` 호출 가운데
+ * `covers`에 맞는 것만, 같은 입력은 한 번만 카드를 건너뛴다
+ */
+export type WithHumanDecision = <T>(
+  grant: HumanDecisionGrant,
+  work: () => Promise<T>,
+) => Promise<T>;
+
 export interface ToolService extends ToolsPort {
-  /**
-   * 사람의 결정을 실행하는 동안만 `grant`를 켠다(U-11). 호스트 코드만 부른다(플러그인은 이 서비스를 받지 못한다).
-   * `work`가 끝나거나 실패하면 끈다. 켜 있는 동안에도 `covers`에 맞는 호출만, 같은 입력은 한 번만 카드를 건너뛴다
-   */
-  withHumanDecision<T>(grant: HumanDecisionGrant, work: () => Promise<T>): Promise<T>;
   /** L1·L2 코드 등록. 같은 이름이 이미 있으면 name_conflict를 돌려주고 표는 바뀌지 않는다 */
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   /**

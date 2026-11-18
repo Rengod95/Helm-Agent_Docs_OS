@@ -609,6 +609,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         store: () => undefined,
         enabled: () => false,
         retentionDays: () => 30,
+        logTurnStartedAt: () => ok(undefined),
+        events: { subscribe: () => () => undefined },
         now: () => 0,
         metrics: () => ({
           minSample: 20,

@@ -106,6 +106,14 @@ test("learning.runner hands the caller's cancel signal to the command handler as
   expect(seen[0]?.signal).toBe(controller.signal);
 });
 
+test("learning.runner names the conversation a run will use: the preferred one only when this host holds it", () => {
+  const runner = runnerOf([], [LAST], LAST);
+  expect(runner.openThreadOf(LAST)).toBe(LAST);
+  // 열려 있지 않은 대화는 run이 열린 대화로 바꾸므로 이름이 없다(사람 결정의 허용을 켜지 못한다)
+  expect(runner.openThreadOf(FIRST)).toBeUndefined();
+  expect(runner.openThreadOf(undefined)).toBeUndefined();
+});
+
 test("learning.runner falls back to the most recently opened thread and says unavailable when none is open", async () => {
   const seen: Seen[] = [];
   const fallback = await runnerOf(seen, [LAST], LAST).run("queue", FIRST, SIGNAL);

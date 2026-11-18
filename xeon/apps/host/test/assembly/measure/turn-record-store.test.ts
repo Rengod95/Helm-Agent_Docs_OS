@@ -902,3 +902,116 @@ test("a write after close is a closed error value on the turn-record methods too
   });
   expect(store.readTurn("thr_c", "trn_c")).toEqual({ ok: false, error: { kind: "closed" } });
 });
+
+// ---- 보관 정리(prune)와 접기: 표시는 남고, 접힌 턴의 cache·frame·plugincall 원본은 같은 트랜잭션에서 지운다 ----
+
+test("a user mark stays after its turn is folded by the prune and goes only with the conversation", () => {
+  withDir((dir) => {
+    const path = join(dir, "measure.db");
+    const threadId = "thr_mark_kept";
+    const store = must(openMeasureStore(path));
+    must(
+      store.upsertTurn(turnOf(threadId, "trn_mk", OLD, { status: "completed", complete: true })),
+    );
+    must(store.writeStep(fullStep(threadId, "trn_mk", 0)));
+    must(
+      store.putMark({
+        threadId,
+        turnId: "trn_mk",
+        ref: "r-core",
+        mark: "followed",
+        plugin: "core",
+        markedAt: OLD + 1000,
+      }),
+    );
+    must(store.prune(NOW, 30));
+
+    // 턴과 그 하위 행은 접혀 사라지고, 사용자 표시만 남는다
+    expect(must(store.readTurn(threadId, "trn_mk"))).toBeUndefined();
+    expect(rawCount(path, "tr_turn", threadId)).toBe(0);
+    expect(rawCount(path, "tr_mark", threadId)).toBe(1);
+    const marks = must(store.getMarks(threadId, "trn_mk"));
+    expect(marks).toHaveLength(1);
+    expect(marks[0]?.mark).toBe("followed");
+    expect(marks[0]?.plugin).toBe("core");
+    store.close();
+
+    // 대화를 지우면 표시도 함께 지워진다
+    const forgetting = must(openMeasureStore(path));
+    expect(must(forgetting.forgetThread(threadId))).toBe(1);
+    expect(must(forgetting.getMarks(threadId, "trn_mk"))).toEqual([]);
+    forgetting.close();
+    expect(rawCount(path, "tr_mark", threadId)).toBe(0);
+  });
+});
+
+test("pruning folds an old turn's cache, frame and plugin-call rows into counters and deletes the raw rows", () => {
+  withDir((dir) => {
+    const path = join(dir, "measure.db");
+    const threadId = "thr_fold_rows";
+    const store = must(openMeasureStore(path));
+    must(
+      store.upsertTurn(turnOf(threadId, "trn_old", OLD, { status: "completed", complete: true })),
+    );
+    must(store.writeStep(fullStep(threadId, "trn_old", 0)));
+    must(store.writeFrames([frameOf(threadId, "trn_old")]));
+    // 보관 기간 안의 턴은 원본으로 남는다
+    must(store.upsertTurn(turnOf(threadId, "trn_new", NOW - 60_000)));
+    must(store.writeStep(fullStep(threadId, "trn_new", 0)));
+    must(store.writeFrames([frameOf(threadId, "trn_new")]));
+    must(store.prune(NOW, 30));
+
+    // 원본은 보관 안의 턴 것만 남는다(행 하나씩). 접힌 턴의 cache, frame, plugincall 행은 없다
+    expect(rawCount(path, "tr_cache", threadId)).toBe(1);
+    expect(rawCount(path, "tr_frame", threadId)).toBe(1);
+    expect(rawCount(path, "tr_plugincall", threadId)).toBe(1);
+    expect(rawCount(path, "tr_turn", threadId)).toBe(1);
+
+    // 접힌 값은 tr_daily에 남는다: 쓰기 묶음 1200 토큰, 단계 행 하나의 캐시 블록, 프레임 하나의 진입
+    const cache = must(store.dailyCounters("cache"));
+    expect(cache.filter((row) => row.counter === "break_write")).toMatchObject([
+      { day: OLD_DAY, plugin: "core", n: 1, sum: 1200 },
+    ]);
+    expect(cache.filter((row) => row.counter === "plugin_turns")).toMatchObject([
+      { day: OLD_DAY, plugin: "core", n: 1 },
+    ]);
+    const drive = must(store.dailyCounters("drive"));
+    expect(summaryOf(drive.filter((row) => row.counter === "entries"))).toEqual([
+      "core///entries n=1 sum=0",
+    ]);
+    expect(summaryOf(drive.filter((row) => row.counter === "frame_turns"))).toEqual([
+      "///frame_turns n=1 sum=0",
+    ]);
+    store.close();
+  });
+});
+
+test("when the fold cannot read a stored counter the prune writes nothing and deletes no turn", () => {
+  withDir((dir) => {
+    const path = join(dir, "measure.db");
+    const threadId = "thr_fold_bad";
+    const store = must(openMeasureStore(path));
+    must(
+      store.upsertTurn(turnOf(threadId, "trn_bad", OLD, { status: "completed", complete: true })),
+    );
+    must(store.writeStep(fullStep(threadId, "trn_bad", 0)));
+    store.close();
+
+    // 접을 칸 하나의 히스토그램을 깨뜨린다(칸 수가 20이 아니다). 접기는 이 값을 읽다가 멈춰야 한다
+    const raw = new Database(path);
+    raw
+      .query(
+        "INSERT INTO tr_daily (day, subject, plugin, ref, model, profile, scope_kind, caller, counter, n, sum, min, max, hist_json) VALUES (?, 'hook', 'core', 'tool.call.before', 'm-1', 'prof-1', 'live', 'main', 'passed', 1, 1, 1, 1, '[1]')",
+      )
+      .run(OLD_DAY);
+    raw.close();
+
+    const reopened = must(openMeasureStore(path));
+    expect(reopened.prune(NOW, 30)).toEqual({ ok: false, error: { kind: "corrupt" } });
+    reopened.close();
+    // 접기가 실패하면 원본 턴과 하위 행이 그대로 있다
+    expect(rawCount(path, "tr_turn", threadId)).toBe(1);
+    expect(rawCount(path, "tr_cache", threadId)).toBe(1);
+    expect(rawCount(path, "tr_hook", threadId)).toBe(1);
+  });
+});

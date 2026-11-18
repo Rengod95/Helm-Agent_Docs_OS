@@ -86,6 +86,8 @@ export const operationsSettings: SettingGroup<
     readonly "trace.enabled": SettingDefInput;
     readonly "trace.retentionDays": SettingDefInput;
     readonly "trace.storeRequestBody": SettingDefInput;
+    readonly "trace.maxTurnBytes": SettingDefInput;
+    readonly "trace.testRunsAlwaysOn": SettingDefInput;
     readonly "metrics.minSample": SettingDefInput;
     readonly "metrics.defaultWindowDays": SettingDefInput;
     readonly "findings.enabled": SettingDefInput;
@@ -257,6 +259,37 @@ export const operationsSettings: SettingGroup<
     since: "0.1.0",
   },
   // 지표와 살펴볼 것(M5d §3.6, 키 이름은 [제안]). 표본 최소 20은 문서의 `minSample` 기본값이다
+  // 턴 기록의 한 턴 `record_json` 상한과 테스트 실행 대화의 항상 켜기(M5d §3.6, §4.1 규칙 4, 8). 키 이름은 [제안]
+  "trace.maxTurnBytes": {
+    type: Type.Integer(),
+    default: 262144,
+    range: { min: 16384, max: 4194304 },
+    runtimeChange: "nextTurn",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 525,
+      label: "Maximum stored size of one turn record",
+      help: "A larger turn is shortened: material names, tool lists, and hook decision texts are dropped first",
+      unit: "bytes",
+    },
+    since: "0.1.0",
+  },
+  "trace.testRunsAlwaysOn": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "nextTurn",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "toggle",
+      order: 535,
+      label: "Always record test runs",
+      help: "When on, a test run is recorded even when handler tracing is off",
+    },
+    since: "0.1.0",
+  },
   "metrics.minSample": {
     type: Type.Integer(),
     default: 20,

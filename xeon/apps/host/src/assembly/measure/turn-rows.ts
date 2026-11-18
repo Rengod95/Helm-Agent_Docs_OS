@@ -1,10 +1,18 @@
+import { createHmac } from "node:crypto";
 import type { StepComposition } from "@fresnel/contracts/conversation";
-import type { TraceHandlerEntry, TraceTurnEntry } from "@fresnel/contracts/extensions";
+import type {
+  TraceHandlerEntry,
+  TraceTurnEntry,
+  ToolCallTraceEvent,
+} from "@fresnel/contracts/extensions";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import type {
   Advertised,
+  CacheBreak,
+  CallRecord,
   FrameMark,
   HookRun,
+  Material,
   ModelCall,
   RecordLevel,
   ScopeKind,
@@ -13,7 +21,14 @@ import type {
   TurnRecord,
   TurnStatus,
 } from "@fresnel/contracts/wire";
-import type { TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import {
+  pluginCostOf,
+  type StepContextEvent,
+  type TurnSkillRead,
+  type TurnToolRow,
+} from "./turn-context.ts";
+import { fitTurnRecord } from "./turn-fit.ts";
+import type { TrCallRow, TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
 // 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
@@ -26,6 +41,14 @@ type ProfileRevChange = TurnRecord["profileRevChanges"][number];
 
 /** 턴 하나의 훅 행 상한(§4.1 규칙 8). 넘는 행은 `elided.hooks`에 센다 */
 export const MAX_HOOK_ROWS_PER_TURN = 500;
+
+/** 턴 하나의 도구 호출 행 상한(§4.1 규칙 8). 넘는 줄은 `elided.calls`에 센다 */
+export const MAX_CALL_ROWS_PER_TURN = 500;
+
+/** 등록되지 않은 도구의 소유자 자리 값. 와이어 이름 규칙(1자 이상)을 지키려고 훅과 같은 값을 쓴다 */
+const UNKNOWN_PLUGIN = "none";
+/** 등록되지 않은 도구의 위험 등급 자리 값. 알 수 없으면 가장 무거운 등급으로 센다(meta_json의 `riskKnown`이 구분한다) */
+const UNKNOWN_RISK: CallRecord["risk"] = "exec";
 
 /** 아직 채우지 않는 광고 요약의 자리 값(§3.2). 지문이 비어 있으면 스키마가 거부하므로 "none"을 둔다 */
 const ADVERTISED_NONE: Advertised = {
@@ -68,6 +91,8 @@ export interface TurnDraft {
   readonly origin: TurnRecord["origin"];
   /** 계측이 켜진 턴이면 `full`, 꺼진 턴이면 `log_only`(§4.1 규칙 3). 턴이 처음 보일 때 정한다 */
   readonly level: RecordLevel;
+  /** `record_json`의 상한(바이트, `x.operations.trace.maxTurnBytes`). 턴이 처음 보일 때 정한다(규칙 6, 8) */
+  readonly maxBytes: number;
   /** 턴 시작 때의 프로필 표지. 턴을 열 때 정한다(§4.10 규칙 60~62) */
   readonly profile: TurnProfileMark;
   /** 턴 안에서 프로필 개정이 시작 값(또는 직전 바뀜)과 달라진 단계 경계(§4.10 규칙 63) */
@@ -82,6 +107,34 @@ export interface TurnDraft {
   readonly frames: FrameMark[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
+  /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly toolCalls: Map<string, ToolCallTraceEvent[]>;
+  /** 단계 id별 조립 사실(재료와 광고, 측정 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly contexts: Map<string, StepContextEvent>;
+  /** 단계 id별 스킬 본문 읽기(측정 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
+  readonly skillReads: Map<string, { readonly toolCallId: string; readonly name: string }[]>;
+  /**
+   * 훅 실행 가운데 이미 본 것의 키(`hookKeyOf`). 단계가 끝날 때 그 단계의 실행을 넣는다. 턴을 닫을 때 키에 없는 실행이 늦은 행이다
+   */
+  readonly seenHooks: Set<string>;
+  /** 호출 id → 승인 해결(호출 줄의 `approval`). 훅 행의 물음 답을 채울 때 읽는다 */
+  readonly approvals: Map<string, ApprovalOf>;
+  /** 턴의 도구 줄(이름 → 줄). 첫 광고 토큰은 고정이고 상태와 호출 수를 갱신한다 */
+  readonly tools: Map<string, TurnToolRow>;
+  /** 턴에서 처음 읽은 스킬(이름 → 읽기) */
+  readonly skills: Map<string, TurnSkillRead>;
+  /** 이 턴의 `tr_material`에 이미 쓴 재료 키. 같은 재료는 처음 나타난 단계에만 쓴다 */
+  readonly materialKeys: Set<string>;
+  /** 이 턴의 `StepRecord`에 실은 재료 수(상한을 셀 때 쓴다) */
+  materialCount: number;
+  /** 상한 때문에 버린 재료 수, 도구 줄 수, 스킬 수 */
+  elidedMaterials: number;
+  elidedTools: number;
+  elidedSkills: number;
+  /** 이 턴에 모은 도구 호출 줄 수. 상한을 셀 때 쓴다 */
+  callRows: number;
+  /** 상한 때문에 버린 도구 호출 줄 수 */
+  elidedCalls: number;
   /** 이 턴에 쓴 훅 행 수. 상한을 셀 때 쓴다 */
   hookRows: number;
   /** 상한 때문에 버린 훅 행 수 */
@@ -106,6 +159,7 @@ export function newDraft(input: {
   readonly startedEventId: string | null;
   readonly origin: TurnRecord["origin"];
   readonly level: RecordLevel;
+  readonly maxBytes: number;
   readonly profile: TurnProfileMark;
 }): TurnDraft {
   return {
@@ -116,6 +170,20 @@ export function newDraft(input: {
     steps: [],
     frames: [],
     calls: new Map(),
+    toolCalls: new Map(),
+    contexts: new Map(),
+    skillReads: new Map(),
+    seenHooks: new Set(),
+    approvals: new Map(),
+    tools: new Map(),
+    skills: new Map(),
+    materialKeys: new Set(),
+    materialCount: 0,
+    elidedMaterials: 0,
+    elidedTools: 0,
+    elidedSkills: 0,
+    callRows: 0,
+    elidedCalls: 0,
     hookRows: 0,
     elidedHooks: 0,
     writeFailures: 0,
@@ -134,49 +202,71 @@ export function stepAfterBoundary(lastStepIndex: number | null): number {
 export interface FlatHook {
   readonly entry: TraceTurnEntry;
   readonly handler: TraceHandlerEntry;
+  /** 항목 안의 처리기 번호(0부터). `hookKeyOf`의 한 자리다 */
+  readonly handlerIndex: number;
   readonly seqGlobal: number;
 }
 
 export function flatHooksOf(entries: readonly TraceTurnEntry[]): FlatHook[] {
   const out: FlatHook[] = [];
   for (const entry of entries) {
-    for (const handler of entry.handlers) {
-      out.push({ entry, handler, seqGlobal: out.length });
-    }
+    entry.handlers.forEach((handler, handlerIndex) => {
+      out.push({ entry, handler, handlerIndex, seqGlobal: out.length });
+    });
   }
   return out;
 }
 
-/** 훅 행의 소유(§3.2 `HookRun.plugin`, `versionId`). 처리기의 등록 id로 정한다 */
-interface HookOwner {
-  readonly plugin: string;
-  readonly versionId: string | null;
+/** 훅 실행 하나의 키. 항목의 `seq`와 항목 안의 처리기 번호다. 턴 안에서 항목은 추가만 되므로 키는 바뀌지 않는다 */
+export function hookKeyOf(flat: FlatHook): string {
+  return `${flat.entry.seq}:${flat.handlerIndex}`;
 }
 
-/** 등록 id를 소유로 바꾸는 조회. 모르는 등록이면 undefined이고 행은 자리 값(`none`, null)을 쓴다 */
-export type HookOwnerOf = (registrationId: string) => HookOwner | undefined;
+/** 승인 해결 한 건(호출 줄의 `approval`) */
+export type ApprovalOf = NonNullable<ToolCallTraceEvent["approval"]>;
 
-/** 소유를 넘기지 않는 쓰는 쪽의 기본값. 모든 행이 자리 값을 쓴다 */
-export const NO_HOOK_OWNER: HookOwnerOf = () => undefined;
+/**
+ * 결정이 `ask`이고 핸들러가 `{ask:true}`를 낸 행에 승인의 대기 시간, 승인 id, 답을 채운다(턴 기록 §4.2 규칙 14 (b)).
+ * 호출 줄이 없거나 승인이 없으면 행을 그대로 둔다. `ask.answer`는 승인의 결정(allow, deny, answer)이고, 무인 실행이면 `noninteractive`다
+ */
+function joinApproval(run: HookRun, approval: ApprovalOf | undefined): HookRun {
+  if (run.ask === null || run.ask.via !== "decision" || approval === undefined) return run;
+  return {
+    ...run,
+    subject: { ...run.subject, approvalId: approval.approvalId },
+    ask: {
+      via: "decision",
+      waits: run.ask.waits,
+      waitMs: approval.waitMs,
+      approvalId: approval.approvalId,
+      answer: approval.resolvedBy === "noninteractive" ? "noninteractive" : approval.decision,
+    },
+  };
+}
 
-/** 훅 실행 한 번의 모양(§3.2 `HookRun`). 아직 채우지 않는 필드는 정본이 정한 자리 값이다 */
-function hookRunOf(flat: FlatHook, ownerOf: HookOwnerOf): HookRun {
+/** 훅 행에 그 호출의 승인을 잇는다(도구 호출 지점이 아니면 그대로다) */
+function withApproval(run: HookRun, approvals: ReadonlyMap<string, ApprovalOf>): HookRun {
+  return joinApproval(run, run.toolCallId === null ? undefined : approvals.get(run.toolCallId));
+}
+
+/** 훅 실행 한 번의 모양(§3.2 `HookRun`). 플러그인, 버전, 출처, 결정, 물음은 기록하는 쪽이 준 값이고, 모르면 자리 값이다 */
+function hookRunOf(flat: FlatHook): HookRun {
   const { entry, handler } = flat;
   const toolCallId = handler.toolCallId ?? null;
-  const owner = ownerOf(handler.registrationId);
   return {
     hook: entry.hook,
     registrationId: handler.registrationId,
-    plugin: owner?.plugin ?? "none",
-    versionId: owner?.versionId ?? null,
-    sourceKind: "plugin",
+    // 등록 항목이 없던 옛 기록은 자리 값이다
+    plugin: handler.plugin ?? UNKNOWN_PLUGIN,
+    versionId: handler.versionId ?? null,
+    sourceKind: handler.sourceKind ?? "plugin",
     seq: entry.seq,
     subject: toolCallId === null ? {} : { toolCallId },
     toolCallId,
     result: handler.result,
     reason: handler.reason,
-    decision: "none",
-    ask: null,
+    decision: handler.decision ?? "none",
+    ask: handler.ask ?? null,
     ms: handler.ms,
     atMs: handler.atMs,
     size: handler.size,
@@ -187,13 +277,13 @@ function hookRunOf(flat: FlatHook, ownerOf: HookOwnerOf): HookRun {
 
 /**
  * 한 단계(`step`)의 훅 실행을 고른다. 상한 `room`을 넘는 행은 버리고 개수를 `elided`에 센다.
- * 단계 밖 훅(step 0)도 같은 함수로 고른다. `ownerOf`는 행을 쓰는 순간의 소유를 준다
+ * 단계 밖 훅(step 0)도 같은 함수로 고른다. `approvals`가 있으면 물음 행에 승인을 잇는다
  */
 export function hooksOfStep(
   flats: readonly FlatHook[],
   step: number,
   room: number,
-  ownerOf: HookOwnerOf,
+  approvals?: ReadonlyMap<string, ApprovalOf>,
 ): {
   readonly rows: readonly { readonly run: HookRun; readonly seqGlobal: number }[];
   readonly elided: number;
@@ -206,12 +296,54 @@ export function hooksOfStep(
       elided += 1;
       continue;
     }
-    rows.push({ run: hookRunOf(flat, ownerOf), seqGlobal: flat.seqGlobal });
+    const run = hookRunOf(flat);
+    rows.push({
+      run: approvals === undefined ? run : withApproval(run, approvals),
+      seqGlobal: flat.seqGlobal,
+    });
   }
   return { rows, elided };
 }
 
-/** 훅 행 하나의 저장 모양(`tr_hook`). 열 이름이 정본 §3.4와 같다 */
+/**
+ * 턴을 닫을 때 아직 행으로 쓰지 않은 훅 실행(턴 기록 §7 "분리 실행"). 단계 밖 훅(step 0)은 턴 훅이라 여기 없다.
+ * 행은 실행이 시작된 단계에 `late: true`로 쓴다. `seqGlobal`은 턴의 모든 실행 수 뒤에서 이어 세므로 이미 쓴 행과 키가 겹치지 않는다.
+ * `room`을 넘는 행은 버리고 `elided`에 센다
+ */
+export function lateHooksOf(
+  flats: readonly FlatHook[],
+  input: {
+    readonly seen: ReadonlySet<string>;
+    readonly approvals: ReadonlyMap<string, ApprovalOf>;
+    readonly room: number;
+  },
+): {
+  readonly rows: readonly {
+    readonly run: HookRun;
+    readonly seqGlobal: number;
+    readonly stepIndex: number;
+  }[];
+  readonly elided: number;
+} {
+  const rows: { run: HookRun; seqGlobal: number; stepIndex: number }[] = [];
+  let elided = 0;
+  for (const flat of flats) {
+    if (flat.entry.step === 0 || input.seen.has(hookKeyOf(flat))) continue;
+    if (rows.length >= input.room) {
+      elided += 1;
+      continue;
+    }
+    const run = withApproval(hookRunOf(flat), input.approvals);
+    rows.push({
+      run: { ...run, late: true },
+      seqGlobal: flats.length + rows.length,
+      stepIndex: flat.entry.step,
+    });
+  }
+  return { rows, elided };
+}
+
+/** 훅 행 하나의 저장 모양(`tr_hook`). 열 이름이 정본 §3.4와 같다. 늦은 행의 표지는 열이 없어 `subject_json`에 싣는다 */
 export function trHookRowOf(
   row: { readonly run: HookRun; readonly seqGlobal: number },
   base: { readonly threadId: string; readonly turnId: string; readonly stepIndex: number },
@@ -227,14 +359,14 @@ export function trHookRowOf(
     plugin: run.plugin,
     versionId: run.versionId,
     toolCallId: run.toolCallId,
-    subjectJson: JSON.stringify(run.subject),
+    subjectJson: JSON.stringify(run.late === true ? { ...run.subject, late: true } : run.subject),
     decision: run.decision,
     result: run.result,
     reason: run.reason,
-    askVia: null,
-    askWaits: null,
-    askMs: null,
-    askAnswer: null,
+    askVia: run.ask?.via ?? null,
+    askWaits: run.ask?.waits ?? null,
+    askMs: run.ask?.waitMs ?? null,
+    askAnswer: run.ask?.answer ?? null,
     ms: run.ms,
     atMs: run.atMs,
     size: run.size,
@@ -276,35 +408,148 @@ function modelCallOf(call: UsageRecord, turnStartedAt: number): ModelCall {
   };
 }
 
-/** 단계 하나의 기록(§3.2 `StepRecord`) */
+/** 설치별 소금으로 HMAC한 앞 16 hex(§4.3 규칙 20·21). 소금 없이는 인자 값을 사전 대입으로 되짚을 수 없다 */
+function keyedHex(salt: string, text: string): string {
+  return createHmac("sha256", salt).update(text).digest("hex").slice(0, 16);
+}
+
+/**
+ * 호출 추적 줄 하나를 저장 모양(`CallRecord`)으로 옮긴다. 인자와 대상은 해시를 소금으로 한 번 더 HMAC한 짧은 값만 남긴다.
+ * `hooks`는 이 호출의 `toolCallId`에 묶인 훅 행이다(§4.3)
+ */
+export function callRecordOf(
+  event: ToolCallTraceEvent,
+  input: {
+    readonly salt: string;
+    readonly turnStartedAt: number;
+    readonly hooks: readonly HookRun[];
+  },
+): CallRecord {
+  return {
+    toolCallId: event.toolCallId,
+    parentToolCallId: event.parentToolCallId,
+    tool: event.tool,
+    plugin: event.plugin ?? UNKNOWN_PLUGIN,
+    caller: event.caller,
+    callerPlugin: event.callerPlugin,
+    via: event.via,
+    risk: event.risk ?? UNKNOWN_RISK,
+    capability: event.capability,
+    callKey: keyedHex(input.salt, event.argsHash),
+    targetKey: event.targetHash === null ? null : keyedHex(input.salt, event.targetHash),
+    afterUntrusted: event.afterUntrusted,
+    verdict: event.verdict,
+    blockedBy: event.blockedBy,
+    hooks: [...input.hooks],
+    policy: event.policy,
+    approval:
+      event.approval === null
+        ? null
+        : {
+            approvalId: event.approval.approvalId,
+            decision: event.approval.decision,
+            resolvedBy: event.approval.resolvedBy,
+            waitMs: event.approval.waitMs,
+            inheritedFrom: event.approval.inheritedFrom,
+          },
+    exec:
+      event.exec === null
+        ? null
+        : {
+            startedAtMs: Math.max(0, event.exec.startedAt - input.turnStartedAt),
+            durationMs: event.exec.durationMs,
+            status: event.exec.status,
+            effectId: event.exec.effectId,
+          },
+    result:
+      event.result === null
+        ? null
+        : {
+            tokens: event.result.tokens,
+            bytes: event.result.bytes,
+            truncated: event.result.truncated,
+            isError: event.result.isError,
+            itemId: event.result.itemId,
+          },
+  };
+}
+
+/**
+ * 호출 한 줄의 저장 모양(`tr_call`). 열은 거르기용 사본이고, 위험 등급·기능·`afterUntrusted`·인자 글자 수는 `meta_json`에 든다.
+ * `riskKnown`이 거짓이면 위험 등급은 자리 값이다
+ */
+export function trCallRowOf(
+  event: ToolCallTraceEvent,
+  record: CallRecord,
+  base: { readonly threadId: string; readonly turnId: string; readonly stepIndex: number },
+): TrCallRow {
+  return {
+    threadId: base.threadId,
+    turnId: base.turnId,
+    toolCallId: record.toolCallId,
+    stepIndex: base.stepIndex,
+    tool: record.tool,
+    plugin: record.plugin,
+    caller: record.caller,
+    callerPlugin: record.callerPlugin,
+    via: record.via,
+    inheritedFrom: record.approval?.inheritedFrom ?? null,
+    verdict: record.verdict,
+    blockedPlugin: record.blockedBy?.plugin ?? null,
+    blockedHook: record.blockedBy?.hook ?? null,
+    callKey: record.callKey,
+    targetKey: record.targetKey,
+    execMs: record.exec?.durationMs ?? null,
+    execStatus: record.exec?.status ?? null,
+    resultTokens: record.result?.tokens ?? null,
+    resultTruncated: record.result?.truncated ?? null,
+    resultItemId: record.result?.itemId ?? null,
+    metaJson: JSON.stringify({
+      risk: record.risk,
+      riskKnown: event.risk !== null,
+      capability: record.capability,
+      afterUntrusted: record.afterUntrusted,
+      parentToolCallId: record.parentToolCallId,
+      argTokens: event.argTokens,
+      registrationId: record.blockedBy?.registrationId ?? null,
+    }),
+  };
+}
+
+/** 단계 하나의 기록(§3.2 `StepRecord`). `toolCalls`는 이 단계의 도구 호출 기록이다. 재료·광고·캐시는 측정 싱크가 없으면 자리 값이다 */
 export function stepRecordOf(input: {
   readonly stepIndex: number;
   readonly stepId: string;
   readonly turnStartedAt: number;
   readonly calls: readonly UsageRecord[];
+  readonly toolCalls: readonly CallRecord[];
   readonly composition: StepComposition | null;
   readonly hooks: readonly HookRun[];
+  readonly materials?: readonly Material[];
+  readonly advertised?: Advertised;
+  readonly cache?: CacheBreak | null;
 }): StepRecord {
   return {
     stepIndex: input.stepIndex,
     stepId: input.stepId,
     modelCalls: input.calls.map((call) => modelCallOf(call, input.turnStartedAt)),
-    materials: [],
-    advertised: ADVERTISED_NONE,
-    cache: null,
+    materials: [...(input.materials ?? [])],
+    advertised: input.advertised ?? ADVERTISED_NONE,
+    cache: input.cache ?? null,
     hooks: [...input.hooks],
-    calls: [],
+    calls: [...input.toolCalls],
     composition: input.composition,
     recorded: true,
   };
 }
 
-/** 단계 행(`tr_step`). 사용량 열은 모델 호출의 합이다 */
+/** 단계 행(`tr_step`). 사용량 열은 모델 호출의 합이다. `context`가 있으면 광고 열과 지문을 채운다 */
 export function stepRowOf(input: {
   readonly threadId: string;
   readonly turnId: string;
   readonly stepIndex: number;
   readonly calls: readonly ModelCall[];
+  readonly context?: { readonly advertised: Advertised; readonly materialsFp: string | null };
 }): TrStepRow {
   let inputTokens = 0;
   let outputTokens = 0;
@@ -326,11 +571,11 @@ export function stepRowOf(input: {
     cacheRead,
     cacheWrite,
     retries: 0,
-    advCount: 0,
-    advTokens: 0,
-    deferredCount: 0,
-    toolsetFp: null,
-    materialsFp: null,
+    advCount: input.context?.advertised.count ?? 0,
+    advTokens: input.context?.advertised.tokens ?? 0,
+    deferredCount: input.context?.advertised.deferredCount ?? 0,
+    toolsetFp: input.context?.advertised.fingerprint ?? null,
+    materialsFp: input.context?.materialsFp ?? null,
     recorded: true,
   };
 }
@@ -358,18 +603,44 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     steps: [...draft.steps],
     turnHooks: [...state.turnHooks],
     continues: [],
-    skills: { listed: [], listedOmitted: 0, read: [] },
-    cost: [],
+    // 스킬 색인에 실린 이름(`listed`)은 조립 입력에 없어 아직 비운다(§4.5 규칙 29, 보고 참조)
+    skills: {
+      listed: [],
+      listedOmitted: 0,
+      read: [...draft.skills.values()].map((skill) => ({
+        name: skill.name,
+        plugin: skill.plugin,
+        via: "model" as const,
+        stepIndex: skill.stepIndex,
+        tokens: skill.tokens,
+      })),
+    },
+    cost: pluginCostOf({
+      materials: draft.steps.at(-1)?.materials ?? [],
+      tools: [...draft.tools.values()],
+      skills: [...draft.skills.values()],
+    }),
     pluginCalls: [],
     pluginStderr: [],
-    flags: NO_FLAGS,
-    elided: draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks },
+    flags: {
+      ...NO_FLAGS,
+      cacheBreak: draft.steps.some((step) => step.cache?.observed === true),
+      truncatedMaterials: draft.elidedMaterials,
+    },
+    elided: {
+      ...(draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks }),
+      ...(draft.elidedCalls === 0 ? {} : { calls: draft.elidedCalls }),
+      ...(draft.elidedMaterials === 0 ? {} : { materials: draft.elidedMaterials }),
+      ...(draft.elidedTools === 0 ? {} : { tools: draft.elidedTools }),
+      ...(draft.elidedSkills === 0 ? {} : { skills: draft.elidedSkills }),
+    },
   };
 }
 
 /** 턴 행(`tr_turn`). `record_json`은 `TurnRecord` 전체의 직렬화다 */
 export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
-  const recordJson = JSON.stringify(turnRecordOf(draft, state));
+  // 상한을 넘으면 줄인다(§4.1 규칙 8). 요약으로 바꾼 턴은 행의 `complete`도 거짓이다
+  const fitted = fitTurnRecord(turnRecordOf(draft, state), draft.maxBytes);
   const firstModel = draft.steps[0]?.modelCalls[0]?.modelId ?? null;
   return {
     threadId: draft.threadId,
@@ -386,11 +657,11 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     overlayJson: null,
     pluginStderrJson: null,
     level: draft.level,
-    complete: state.complete,
+    complete: state.complete && !fitted.summarized,
     model: firstModel,
     flags: 0,
-    recordJson,
-    recordBytes: new TextEncoder().encode(recordJson).byteLength,
+    recordJson: fitted.json,
+    recordBytes: fitted.bytes,
     startedEventId: draft.startedEventId,
   };
 }

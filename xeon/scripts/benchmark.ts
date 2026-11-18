@@ -5,6 +5,7 @@
 //   benchmark --first-token [--yes]        also time to the first stream.chunk of one real `fresnel chat -p` turn
 //   benchmark --web                        also the web bundle start and wire round trip (apps/desktop/test/web-e2e/web.benchmark.ts, needs apps/desktop/dist/ui and headless Chrome)
 //   benchmark --server                     also the server benches (benchmark-server.ts: index, lease, dispatch, store); judge them with benchmark-gate.ts
+//   benchmark --turn-record                also the turn-record write cost, trace on vs off (apps/host/test/benchmark/turn-record.benchmark.ts: real measure store in a temp folder, synthetic turns, no model call; prints numbers, no verdict)
 // --first-token calls the configured model provider (cost, key). Without --yes it prints what it would do and exits 3
 // (decision D-e: one run before M2 closes, confirmed each time).
 // Exit codes: 0 measured, 1 bad arguments, 2 environment (bun or the CLI cannot start, the turn fails), 3 needs --yes.
@@ -146,6 +147,7 @@ if (import.meta.main) {
       yes: { type: "boolean", default: false },
       server: { type: "boolean", default: false },
       web: { type: "boolean", default: false },
+      "turn-record": { type: "boolean", default: false },
     },
   });
   const planned = planBench({
@@ -221,6 +223,19 @@ if (import.meta.main) {
       { cwd: fresnelRoot, stdout: "inherit", stderr: "inherit" },
     );
     if ((await web.exited) !== 0) process.exit(2);
+  }
+
+  if (values["turn-record"]) {
+    // 턴 기록 쓰기의 비용(계측 켬과 끔). 실제 모델은 부르지 않는다. 종료코드는 벤치의 것을 그대로 낸다(0 측정, 1 인자, 2 환경)
+    const turnRecord = Bun.spawn(
+      [
+        process.execPath,
+        join(fresnelRoot, "apps", "host", "test", "benchmark", "turn-record.benchmark.ts"),
+      ],
+      { cwd: fresnelRoot, stdout: "inherit", stderr: "inherit" },
+    );
+    const code = await turnRecord.exited;
+    if (code !== 0) process.exit(code);
   }
 
   if (plan.firstToken === "off") {

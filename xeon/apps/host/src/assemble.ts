@@ -14,7 +14,15 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, MaterialPort, PortKey } from "@fresnel/contracts/extensions";
+import type {
+  ContextTraceEvent,
+  ContextTraceSink,
+  ExtensionManifest,
+  MaterialPort,
+  PortKey,
+  ToolCallTraceEvent,
+  ToolCallTraceSink,
+} from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -40,6 +48,7 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
+  type WithHumanDecision,
 } from "@fresnel/contracts/services";
 import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
@@ -126,8 +135,10 @@ import {
   type HandlerFailureInput,
   type RequestBodyInput,
 } from "./assembly/measure/recorder.ts";
-import { hookOwnerLookup } from "./assembly/measure/hook-owner.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
+import { DEFAULT_MAX_TURN_BYTES } from "./assembly/measure/turn-fit.ts";
+import { createTurnRecordEvents, type TurnRecordEvents } from "./assembly/measure/turn-events.ts";
+import { turnStartedAtInLog } from "./assembly/measure/turn-log.ts";
 import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
@@ -277,6 +288,22 @@ function retentionDaysOf(catalog: SettingCatalog, settings: SettingsEngine): num
     : DEFAULT_RETENTION_DAYS;
 }
 
+/** `x.operations.trace.maxTurnBytes`. 카탈로그에 없거나 범위를 벗어나면 기본값이다 */
+function maxTurnBytesOf(catalog: SettingCatalog, settings: SettingsEngine): number {
+  const key = "x.operations.trace.maxTurnBytes";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 16384 && value <= 4194304
+    ? value
+    : DEFAULT_MAX_TURN_BYTES;
+}
+
+/** `x.operations.trace.testRunsAlwaysOn`. 카탈로그에 없으면 켜진 값(기본 참)이다 */
+function testRunsAlwaysOnOf(catalog: SettingCatalog, settings: SettingsEngine): boolean {
+  const key = "x.operations.trace.testRunsAlwaysOn";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "boolean" ? value : true;
+}
+
 /** 지표와 발견 설정의 유효 값(M5d §3.6). 카탈로그에 없거나 모양이 틀리면 문서의 기본값이다 */
 function metricsSettingsOf(
   catalog: SettingCatalog,
@@ -405,6 +432,16 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
   const found = ext.ports.get(key);
   if (found === undefined) throw new AssembleError([{ code: "missingService", service }]);
   return found;
+}
+
+/** core-tools가 조립 때 넘긴 사람의 결정 실행 함수. 포트가 아니라 이 조립 루트의 슬롯으로 받는다(U-11) */
+function requireHumanDecision(slot: { current: WithHumanDecision | undefined }): WithHumanDecision {
+  if (slot.current === undefined) {
+    throw new AssembleError([
+      { code: "missingService", service: "fresnel.tools (human decision)" },
+    ]);
+  }
+  return slot.current;
 }
 
 /**
@@ -676,13 +713,38 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
   /** 재료 포트(M5c §4.5.10). 엔진 포트가 만들어진 뒤에 채운다. 턴 시작 지침과 스킬 색인이 호출 때 읽는다 */
   const materialSlot: { port: MaterialPort | undefined } = { port: undefined };
+  /** 턴 기록 사건의 버스. 측정 저장소를 열 때 채운다(대화 삭제는 저장소가 없어도 알려야 한다) */
+  const turnRecordEventsSlot: { current: TurnRecordEvents | undefined } = { current: undefined };
   const measureSlot: {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
     recordBody: ((input: RequestBodyInput) => void) | undefined;
+    /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
+    /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordContext: ((input: ContextTraceEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined, recordBody: undefined, forgetThread: undefined };
+  } = {
+    stop: undefined,
+    recordFailure: undefined,
+    recordBody: undefined,
+    recordCall: undefined,
+    recordContext: undefined,
+    forgetThread: undefined,
+  };
+  // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
+  const callTraceSink: ToolCallTraceSink = {
+    record: (event) => {
+      measureSlot.recordCall?.(event);
+    },
+  };
+  // 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 모델 요청 조립과 같은 슬롯을 거친다(§4.1 규칙 2)
+  const contextTraceSink: ContextTraceSink = {
+    record: (event) => {
+      measureSlot.recordContext?.(event);
+    },
+  };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
   const bodySteps = new Map<string, number>();
   const offerRequestBody = (offer: RequestBodyOffer): void => {
@@ -976,6 +1038,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
     /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
     const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    // 사람의 결정 실행 함수(core-tools가 setup 때 넘긴다). 학습 제안 결정이 읽는다. 포트로는 나가지 않는다(U-11)
+    const humanDecisionSlot: { current: WithHumanDecision | undefined } = { current: undefined };
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1142,6 +1206,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { extraCapabilityDefs: options.extraCapabilityDefs }),
         toolOutputs,
+        toolHumanDecision: (withHumanDecision) => {
+          humanDecisionSlot.current = withHumanDecision;
+        },
         clock,
         scheduler: runtime.scheduler,
         ids,
@@ -1207,10 +1274,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 대화를 지우면 측정 저장소의 턴 기록도 지운다(규칙 9). 저장소가 아직 없으면 지울 것도 없다
         onThreadRemoved: (threadId) => {
           measureSlot.forgetThread?.(threadId);
+          // 구독은 대화가 지워지면 끝난다(§3.5). 측정 저장소가 없어도 알린다
+          turnRecordEventsSlot.current?.emit({ kind: "thread_removed", threadId });
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         offerBody: offerRequestBody,
+        callTrace: callTraceSink,
+        contextTrace: contextTraceSink,
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
@@ -1331,6 +1402,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tasks = requirePort(ext, TASKS_KEY, "fresnel.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "fresnel.approvals");
     const tools = requirePort(ext, TOOLS_KEY, "fresnel.tools");
+    const withHumanDecision = requireHumanDecision(humanDecisionSlot);
     const models = requirePort(ext, MODELS_KEY, "fresnel.models");
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
@@ -1400,17 +1472,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
     // 측정 저장소(T-MEAS-STORE): 대화 DB와 분리한 파일. 켜고 끄는 값은 x.operations.trace.enabled다
+    // 턴 기록이 쓰인 사건의 버스(구독 알림 `turnRecord.delta`의 원천, M5d §3.5)
+    const turnRecordEvents = createTurnRecordEvents(logger);
+    turnRecordEventsSlot.current = turnRecordEvents;
     const measurement = startMeasurement({
       dir: dbDir,
       session,
       usage: models.usage,
       trace: traceReadOf(ext),
       // 훅 행의 플러그인과 검토본 해시(턴 기록 §3.2). 등록 목록과 로더 값은 행을 쓸 때 읽는다
-      hookOwner: hookOwnerLookup({
-        registrations: () => ext.registrations(),
-        contentHashOf: (name) =>
-          external.loader?.list().find((info) => info.name === name)?.contentHash,
-      }),
       // 턴 시작 프로필 값의 원천. 포트는 아래에서 만들어진다(호출 때 읽는다)
       pluginSet: () => portsHandle?.ports.m4.pluginSet.port,
       enabled: () => operations.trace().enabled,
@@ -1421,10 +1491,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         built.catalog.has("x.operations.trace.storeRequestBody") &&
         settings.value("x.operations.trace.storeRequestBody") === true,
       mask: (text) => secrets.service.redactor.mask(text).text,
+      events: turnRecordEvents,
+      maxTurnBytes: () => maxTurnBytesOf(built.catalog, settings),
+      testRunsAlwaysOn: () => testRunsAlwaysOnOf(built.catalog, settings),
     });
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
+    measureSlot.recordCall = measurement.offerCall;
+    measureSlot.recordContext = measurement.offerContext;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
@@ -1456,6 +1531,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         retentionDays: () => retentionDaysOf(built.catalog, settings),
         now: () => clock.now(),
         metrics: () => metricsSettingsOf(built.catalog, settings),
+        logTurnStartedAt: (threadId, turnId) => turnStartedAtInLog(session.feed, threadId, turnId),
+        events: turnRecordEvents,
       },
       mode: options.mode,
       toolOutputs,
@@ -1521,7 +1598,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         learningStore: () => learning.reader.current,
         runner: learning.runner,
         knowledge: () => learning.knowledge.current,
-        humanDecision: (grant, work) => tools.withHumanDecision(grant, work),
+        humanDecision: withHumanDecision,
         report: (message, fields) => {
           logger.warn(message, fields);
         },

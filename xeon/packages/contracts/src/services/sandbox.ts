@@ -107,8 +107,11 @@ export interface SandboxNetworkPolicy {
   deniedDomains: string[];
 }
 
-/** 샌드박스 프로필. 생략은 보통 프로필이다. `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단 + 쓰기 허용 승인 없음이다 */
-export type SandboxProfile = "read-only";
+/**
+ * 샌드박스 프로필. 생략은 보통 프로필이다. `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단 + 쓰기 허용 승인 없음이다.
+ * `"no-write"`는 쓰기 허용 루트 없음(호출 전용 빈 임시 폴더 하나만) + 네트워크는 정책 그대로다(플러그인 호스트용)
+ */
+export type SandboxProfile = "read-only" | "no-write";
 
 export interface SandboxPolicy {
   /** 절대·정규 경로. 쓰기를 허용하는 디렉터리 */
@@ -122,6 +125,11 @@ export interface SandboxPolicy {
   allowEscape: boolean;
   /** `"read-only"`면 `writeRoots`·`network` 값과 상관없이 읽기 전용 프로필로 감싼다. 샌드박스를 쓸 수 없으면 실행하지 않고 거부한다 */
   profile?: SandboxProfile;
+  /**
+   * 읽기 허용 목록. 있으면(빈 목록도) 이 경로 아래와 `readAllow`가 가리키는 파일만 읽는다(허용 목록 방식).
+   * 없으면 지금처럼 보호 경로와 `readDeny`만 막는 거부 목록 방식이다. 보호 경로를 품은 항목은 정책 합성에서 빠진다
+   */
+  readAllow?: string[];
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -141,7 +149,10 @@ const sandboxPolicyShape = Type.Object(
       { additionalProperties: false },
     ),
     allowEscape: Type.Boolean(),
-    profile: Type.Optional(Type.Literal("read-only")),
+    profile: Type.Optional(Type.Union([Type.Literal("read-only"), Type.Literal("no-write")])),
+    readAllow: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -366,8 +377,13 @@ export interface SandboxService {
   defaultPolicy(input: {
     workspaceRoots: readonly string[];
     tempDir: string;
-    /** `"read-only"`면 쓰기 루트 없이 읽기 전용 프로필 정책을 만든다(`workspaceRoots`·`tempDir`는 무시) */
+    /**
+     * `"read-only"`면 쓰기 루트 없이 읽기 전용 프로필 정책을 만든다(`workspaceRoots`·`tempDir`는 무시).
+     * `"no-write"`면 쓰기 루트 없음 + 읽기 허용 목록(`readRoots`와 런타임이 꼭 필요한 시스템 경로) 정책을 만든다(네트워크는 차단 목록 방식 그대로)
+     */
     profile?: SandboxProfile;
+    /** `"no-write"`가 읽게 하는 경로(플러그인 폴더, 실행 파일). 절대 경로 */
+    readRoots?: readonly string[];
   }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.

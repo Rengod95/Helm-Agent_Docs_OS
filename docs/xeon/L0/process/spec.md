@@ -787,15 +787,15 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 
 `spawn(spec)`:
 
-1. 정책은 `review.m5-drive-isolation` §3.4대로다 [결정: 2026-11-17 사용자]. `defaultPolicy`가 채운 보호 경로 읽기·쓰기 거부 목록과 사용자의 차단 도메인을 그대로 쓰고, 쓰기 루트는 비운다. 쓰기 거부에는 `/`를 더해 모든 경로의 쓰기를 막는다. 네트워크는 허용 목록 없이 차단 목록만 둔다(기본 전체 허용). `profile`은 쓰지 않는다. `"read-only"`는 네트워크를 막기 때문이다. `allowEscape`는 `false`다.
-2. 쓰기 루트를 비우는 것만으로는 쓰기가 닫히지 않는다. srt는 정책과 상관없이 `/tmp/claude`, `~/.npm/_logs` 같은 임시·로그 경로에 쓰기를 열어 두고, 설정 `l0.sandbox.writeRoots.extra`의 디렉터리도 정책 쓰기 루트에 더해진다 [근거: packages/platform-sandbox/src/service.ts `srtImplicitWritePaths`, `resolvePolicy`]. 쓰기 거부 `/`는 두 경우를 모두 막는다. 실측(2026-11-18): `/` 없이는 `/tmp/claude`에 쓸 수 있었고, `/`를 더한 뒤에는 그 경로, `/private/tmp`, `~/.npm/_logs`, 작업 디렉터리, `writeRoots.extra` 디렉터리 쓰기가 모두 `EPERM`으로 막혔다.
-3. 읽기는 허용 목록이 아니다. 보호 경로 거부 목록(예: `fresnel_data` 데이터 폴더, `~/.ssh`, `~/.claude`)만 막는다. 그 밖의 파일은 읽힌다. 실측(2026-11-18): `~/.ssh`와 `~/.claude` 목록 읽기와 데이터 폴더 파일 읽기는 `EPERM`이고, 작업 디렉터리 안 파일과 `/etc/hosts`는 읽혔다. 읽기 허용 목록은 `SandboxPolicy`로 표현할 수 없다 [근거: packages/contracts/src/services/sandbox.ts `SandboxPolicy`, 읽기 허용 필드가 없다](`[미결 P-16]`).
+1. 정책은 `review.m5-drive-isolation` §3.4대로다 [결정: 2026-11-17 사용자]. 샌드박스의 "쓰기 없음" 프로필(`defaultPolicy({ profile: "no-write", readRoots })`, `L0.sandbox.spec` §4.9)이 만든 정책을 그대로 쓴다: 보호 경로 읽기·쓰기 거부 목록, 사용자의 차단 도메인, 쓰기 루트 없음, 네트워크는 허용 목록 없이 차단 목록만(기본 전체 허용), `allowEscape` `false`다. `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다. 이전의 쓰기 거부 `/` 우회책은 없앴다 [결정: 2026-11-18 메인 제안, 사용자 보고됨].
+2. 쓰기는 이 프로세스 전용의 빈 임시 폴더 하나뿐이다. 프로필이 srt가 정책과 상관없이 여는 임시·로그 경로(`/tmp/claude`, `~/.npm/_logs`)와 설정 `l0.sandbox.writeRoots.extra`를 막고, 임시 폴더는 샌드박스의 `wrapArgv`가 만들어 `TMPDIR`로 알리고 `cleanup`이 지운다. 다른 플러그인 호스트와 나누지 않는다 [근거: packages/platform-sandbox/src/wrap-argv.ts, service.ts `resolvePolicy`].
+3. 읽기는 허용 목록이다 [결정: 2026-11-18 메인 제안, 사용자 보고됨]. 읽을 수 있는 것은 `readRoot`(플러그인 폴더), 실행 파일(`command`), `spec.runtimeReadRoots`(소스 실행이면 소스 작업 공간)와 샌드박스가 더하는 런타임 시스템 경로뿐이다(`L0.sandbox.spec` §4.9). 사용자 홈의 다른 파일, 다른 플러그인 폴더, 작업 폴더는 읽히지 않는다. `readRoot`가 로더가 알려 주는 그 플러그인의 실행 폴더라서 검토본 사본으로 바뀌어도 따라간다.
 4. 명령줄은 `wrapArgv(policy, { command, args, cwd: readRoot }, ...)`가 돌려준 `argv`다. 격리를 쓸 수 없으면 띄우지 않고 `sandbox_unavailable`을 돌려준다(`reason`은 `SandboxUnavailableReason`, 사유가 없으면 `unknown`). 격리 없이 띄우는 것은 사용자가 끈 때(`disabled`)와 `run_unsandboxed`일 때뿐이고, 그때 경고 `isolation.sandbox_not_enforced`(`label`, `by`)를 남긴다. `failed`는 `spawn_failed`(`code: "sandbox_failed"`), `aborted`는 `aborted`다.
 5. 자식 env는 부모 env의 허용 목록 이름(§4.9 3번과 같은 목록, 거부 패턴 제외)에 `spec.env`를 더하고, 샌드박스가 준 env를 마지막에 덮는다. 시크릿은 넘기지 않는다. `spec.env`의 이름이 변수 이름 형식이 아니면 `env_denied`, `spec.readRoot`가 절대 경로가 아니면 `EINVAL`이다. 두 경우 모두 샌드박스를 묻지 않는다 [근거: packages/platform-process/src/port/isolation-spawn.ts `spawn`의 검사 순서].
 6. cwd는 `spec.readRoot`다. 기동하지 못하면(`ENOENT` 등) `spawn_failed`와 errno 코드를 돌려주고 명령줄 정리(`cleanup`)를 부른다. 프로세스가 끝나면 `cleanup`을 한 번 부른다.
 7. 기동한 자식은 레지스트리에 `owner.kind: "plugin-host"`, `owner.ref: spec.label`, `threadId: null`으로 등록한다. `BackgroundOwnerKind`에 `plugin-host`를 더했다(`F` 서비스 `process.ts`). 그래서 종료 협조(§4.3)가 격리 자식도 정지한다. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 같은 순서가 §4.9 8번 MCP 서버에도 쓰인다.
 8. `IsolatedChild.kill("SIGTERM" | "SIGKILL")`은 프로세스 트리 전체에 보낸다. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다.
-9. 정책의 보안 경계는 이 포트가 만든 정책과 샌드박스 서비스가 정한다. 호출자가 정책을 넓힐 입력은 없다 [근거: packages/contracts/src/extensions/ports.ts `IsolationSpawnSpec`, 필드는 command, args, readRoot, env, label뿐이다].
+9. 정책의 보안 경계는 이 포트가 만든 정책과 샌드박스 서비스가 정한다. 호출자가 정책을 넓힐 입력은 없다 [근거: packages/contracts/src/extensions/ports.ts `IsolationSpawnSpec`, 필드는 command, args, readRoot, runtimeReadRoots(선택, 로더의 launch가 정한다), env, label뿐이다].
 
 ## 5. 실패와 경계 사례
 
@@ -952,8 +952,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
-- [미결 P-16] 플러그인 호스트의 읽기 범위. §4.10 3번과 같이 읽기는 보호 경로 거부 목록이고 허용 목록이 아니다(`review.m5-drive-isolation` §3.4는 "자기 패키지 폴더와 런타임만 읽는다"를 요구했다). 허용 목록은 `SandboxPolicy`에 읽기 허용 필드가 생겨야 표현된다(`F` 계약과 `L0.sandbox.spec` 변경). 또 패키지 폴더가 `fresnel_data`나 `~/.claude` 아래에 있으면 호스트가 자기 코드를 읽지 못한다. 포트는 이를 검사하지 않는다 [근거: packages/platform-process/src/port/isolation-spawn.ts `spawn`, 보호 경로 검사 없음]. 패키지 폴더 위치는 조립이 정한다.
-- [미결 P-17] 쓰기 거부 `/`는 srt가 정책 밖에서 여는 경로를 막는 우회 수단이다(§4.10 2번). 샌드박스 서비스가 "쓰지 않는" 정책을 직접 주면(예: `profile`에 쓰기 없음 값을 더하기) 이 포트는 `/`를 뺄 수 있다. 그 변경은 `L0.sandbox.spec`과 platform-sandbox에 속한다 [근거: packages/platform-sandbox/src/service.ts `defaultPolicy`, profile은 read-only 하나뿐이다].
+- [결정: P-16, P-17 닫힘] 읽기 허용 목록과 쓰기 없음 프로필은 `SandboxPolicy.readAllow`와 `profile: "no-write"`로 구현했다 [결정: 2026-11-18 메인 제안, 사용자 보고됨](§4.10 1~3번, `L0.sandbox.spec` §4.9). 남은 한계: 패키지 폴더가 `fresnel_data`나 `~/.claude` 아래면 보호 경로와 겹치는 읽기 허용 항목이 빠져 호스트가 자기 코드를 읽지 못한다. 포트는 이를 검사하지 않는다. 패키지 폴더 위치는 조립이 정한다.
 - [미결 P-18] 조립(`apps/host/src/assemble.ts`의 `processPlugin` 호출)이 아직 `sandbox`를 넘기지 않는다. 격리 확장 로더(`LoaderDeps.process`)를 붙이는 M5b 작업에서 넘긴다. 넘기지 않으면 모든 격리 spawn은 `sandbox_unavailable`이다 [근거: apps/host/src/assemble.ts `processPlugin` 호출, sandbox 인자 없음].
 - [해소 P-15] `McpSpawnSpec.sandbox`는 이 포트가 강제한다(§4.9 2번). 격리가 되면 샌드박스 서비스 `wrapArgv`의 명령줄로 띄우고, 격리를 쓸 수 없으면 `sandbox_unavailable`로 막는다. 격리 없이 띄우는 것은 사용자가 끈 때뿐이고 그때 경고 `mcp.sandbox_not_enforced`를 남긴다. 스트림은 호출자가 `argv`를 파이프로 띄워 연다(`L0.sandbox.spec` §4.9).
 - [해소 P-12, M3-05] 시크릿 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).

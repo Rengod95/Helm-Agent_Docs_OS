@@ -706,7 +706,7 @@ export function createRegistrationApi(
       }
       const signal =
         extra === undefined ? handler.signal : AbortSignal.any([handler.signal, extra]);
-      return awaitUser(handler.gate, () => wait(signal));
+      return awaitUser(handler.gate, () => wait(signal), handler.waits);
     },
     providePort<Api>(key: PortKey<Api>, impl: Api): void {
       assertOpen(record, generation);

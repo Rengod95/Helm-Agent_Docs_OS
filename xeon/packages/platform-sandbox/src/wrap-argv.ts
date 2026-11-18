@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@fresnel/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type {
   CancelScope,
   SandboxArgvRequest,
@@ -6,10 +6,14 @@ import type {
   SandboxedArgv,
   SandboxWrapError,
 } from "@fresnel/contracts/services";
+import { mkdirSync, rmSync } from "node:fs";
+import { posix } from "node:path";
+import { tmpdir } from "node:os";
 import {
   decideExecution,
   envAdditions,
   newCommandId,
+  quoteArg,
   quoteArgv,
   srtWrap,
   type WrapShellDeps,
@@ -47,14 +51,35 @@ export async function wrapArgvWith(
   if (decision.action === "reject") return err({ kind: "unavailable", reason: status.reason });
   if (decision.action === "plain") return ok(plainArgv(request, decision.by));
   const commandId = newCommandId(deps.random);
+  // "no-write" 프로필이 쓸 수 있는 곳은 이 프로세스 전용의 빈 임시 폴더 하나뿐이다. 다른 프로세스와 나누지 않고 cleanup이 지운다
+  let processTemp: string | undefined;
+  if (policy.profile === "no-write") {
+    const dir = posix.join(deps.readOnlyTempBase?.() ?? tmpdir(), `nw-${commandId}`);
+    const made = attempt(() => mkdirSync(dir, { recursive: true, mode: 0o700 }));
+    if (!made.ok) {
+      return err({ kind: "failed", message: "no-write sandbox could not prepare its temp folder" });
+    }
+    processTemp = dir;
+  }
+  const removeTemp = (): void => {
+    if (processTemp === undefined) return;
+    const removed = attempt(() => rmSync(processTemp, { recursive: true, force: true }));
+    if (!removed.ok) deps.logger.warn("sandbox.no_write_temp_cleanup_failed", {});
+  };
   const wrapped = await srtWrap(deps, policy, {
-    command: quoteArgv([request.command, ...request.args]),
+    // 임시 폴더는 srt가 정한 `TMPDIR=/tmp/claude`를 덮어야 하므로 셸 안에서 정한다
+    command:
+      processTemp === undefined
+        ? quoteArgv([request.command, ...request.args])
+        : `export TMPDIR=${quoteArg(processTemp)}; exec ${quoteArgv([request.command, ...request.args])}`,
     baseDir: request.cwd !== undefined && request.cwd.startsWith("/") ? request.cwd : "/",
     cwd: request.cwd,
     abortSignal: context.abortSignal,
     commandId,
+    ...(processTemp === undefined ? {} : { readOnlyTemp: processTemp }),
   });
   if (!wrapped.ok) {
+    removeTemp();
     return err(
       wrapped.error.code === "aborted"
         ? { kind: "aborted" }
@@ -69,6 +94,7 @@ export async function wrapArgvWith(
     cleanup: () => {
       if (cleaned) return;
       cleaned = true;
+      removeTemp();
       try {
         deps.srt.cleanupAfterCommand();
       } catch (caught) {

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { parseHostArgv } from "../src/argv.ts";
 import { exitCodeOf } from "../src/plugin-host/run.ts";
@@ -77,7 +80,31 @@ describe("pluginHostLaunch", () => {
       command: "/usr/local/bin/bun",
       args: ["/repo/xeon/apps/host/src/main.ts", "plugin-host", "--stdio"],
       env: { FRESNEL_EXT_NAME: "demo" },
+      // 작업 공간을 못 찾으면(진입 파일 위에 bun.lock이 없다) 진입 파일 폴더만 읽는다
+      runtimeReadRoots: ["/repo/xeon/apps/host/src"],
     });
+  });
+
+  test("a source run reads the workspace that holds bun.lock, a compiled binary reads nothing more", () => {
+    const root = mkdtempSync(join(tmpdir(), "launch-root-"));
+    try {
+      mkdirSync(join(root, "apps", "host", "src"), { recursive: true });
+      writeFileSync(join(root, "bun.lock"), "");
+      const launched = pluginHostLaunch(
+        { name: "demo", root: "/x", entry: "./src/index.ts", versionId: "1.0.0.1" },
+        { execPath: "/usr/local/bin/bun", entry: join(root, "apps", "host", "src", "main.ts") },
+      );
+      expect(launched.runtimeReadRoots).toEqual([root]);
+      expect(
+        "runtimeReadRoots" in
+          pluginHostLaunch(
+            { name: "demo", root: "/x", entry: "./src/index.ts", versionId: "1.0.0.1" },
+            COMPILED_SELF,
+          ),
+      ).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("compiled shape: the binary itself, then plugin-host --stdio, with no script argument", () => {

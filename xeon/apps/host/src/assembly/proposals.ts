@@ -1,5 +1,10 @@
 import { assertNever, attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
-import { isId, type JsonObject, type JsonValue } from "@fresnel/contracts/conversation";
+import {
+  isId,
+  type JsonObject,
+  type JsonValue,
+  type ThreadId,
+} from "@fresnel/contracts/conversation";
 import { isCapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
 import type {
   ProposalDecideParams,
@@ -253,13 +258,18 @@ function isObject(value: JsonValue | undefined): value is JsonObject {
 /** 학습 제안 승인 증거의 출처(`group-learning`의 `APPROVAL_SOURCE`와 같은 값) */
 const LEARNING_EVIDENCE_SOURCE = "learning.queue";
 
+/** 학습 그룹의 플러그인 이름. 그룹의 기능 호출은 `plugin:learning` 주체로 들어온다 */
+const LEARNING_PLUGIN = "learning";
+
 /**
  * 사용자가 학습 제안 하나를 승인·수정했을 때 그 결정이 가리킨 쓰기: 지식 스킬·메모리 쓰기 가운데 승인 증거가 이 제안의 것인 호출이다.
- * 다른 제안의 증거나 다른 출처의 증거를 단 호출은 맞지 않는다
+ * 다른 제안의 증거나 다른 출처의 증거를 단 호출은 맞지 않는다. 허용은 결정이 실행되는 대화(`threadId`)의 학습 그룹 호출에만 쓴다
  */
-function learningDecisionGrant(proposalId: string): HumanDecisionGrant {
+function learningDecisionGrant(proposalId: string, threadId: ThreadId): HumanDecisionGrant {
   return {
     id: `decision:learning:${proposalId}`,
+    threadId,
+    plugin: LEARNING_PLUGIN,
     risk: "write",
     covers: ({ capability, input }) => {
       if (capability !== "knowledge.skills" && capability !== "knowledge.memory") return false;
@@ -397,11 +407,15 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
           : undefined;
         const run = (): ReturnType<LearningRunner["run"]> =>
           deps.runner.run(decisionCommandLine(learningDecision(params)), owner, signal);
+        // 허용의 대화는 `run`이 실행할 대화와 같아야 한다. 부모 대화가 열려 있을 때만 그 대화이고, 열린 대화로 바꾸면 알 수 없어 허용을 켜지 않는다
+        // (보통의 승인 카드). 같은 틱에 고르므로 `run`이 고르는 대화와 같다
+        const grantThread = deps.runner.openThreadOf(owner);
         // 승인과 수정만 쓰기를 낳는다. 사람이 이 결정을 내렸으므로 그 제안의 쓰기는 카드를 다시 띄우지 않는다
         const ran =
           deps.humanDecision !== undefined &&
+          grantThread !== undefined &&
           (params.decision === "approve" || params.decision === "edit")
-            ? await deps.humanDecision(learningDecisionGrant(params.id), run)
+            ? await deps.humanDecision(learningDecisionGrant(params.id, grantThread), run)
             : await run();
         return ran.kind === "unavailable"
           ? decideFailure("unavailable", ran.detail)

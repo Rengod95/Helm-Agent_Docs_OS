@@ -77,6 +77,7 @@ import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
 import { TURN_RECORD_WIRE_METHODS, type TurnRecordWireSchemas } from "./turn-record-methods.ts";
+import { TurnRecordDeltaParamsSchema } from "./turn-record.ts";
 import {
   CacheImpactSchema,
   OverlayListSchema,
@@ -2311,6 +2312,8 @@ interface ServerNotificationSchemas {
   "project.changed": typeof ProjectChangedParamsSchema;
   "plugin.changed": typeof PluginChangedParamsSchema;
   "pluginReview.changed": typeof PluginReviewChangedParamsSchema;
+  /** M5 (턴 기록 구독, `turn-record-metrics.md` §3.5). 구독은 `turnRecord.watch`로 연다 */
+  "turnRecord.delta": typeof TurnRecordDeltaParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -2509,7 +2512,7 @@ export const WIRE_NOTIFICATIONS: {
   readonly [N in ServerNotificationName]: {
     readonly params: ServerNotificationSchemas[N];
     readonly since: SemVer;
-    readonly stage: "M1" | "M2" | "M3" | "M4";
+    readonly stage: "M1" | "M2" | "M3" | "M4" | "M5";
   };
 } = {
   "events.batch": { params: EventsBatchParamsSchema, since: "0.1.0", stage: "M1" },
@@ -2526,6 +2529,7 @@ export const WIRE_NOTIFICATIONS: {
   "project.changed": { params: ProjectChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "plugin.changed": { params: PluginChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "pluginReview.changed": { params: PluginReviewChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "turnRecord.delta": { params: TurnRecordDeltaParamsSchema, since: "0.1.0", stage: "M5" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

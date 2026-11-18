@@ -1,5 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../base/index.ts";
+import { HOOK_RUN_DECISIONS, type HookRunDecision } from "./hook-outcome.ts";
 
 // F.wire-settings.spec §3.3.6. 계측(X-15)과 Test run 제어(X-19)가 호스트 포트(`ports.ts`의 `TraceReadPort`,
 // `TestRunControlPort`)와 wire 결과(`wire/ext-read.ts`, `wire/profile-test-run.ts`)로 함께 쓰는 결과 타입이다.
@@ -63,6 +64,24 @@ export const TRACE_FAILURE_REASONS = [
   "process_killed",
 ] as const;
 export type TraceFailureReason = (typeof TRACE_FAILURE_REASONS)[number];
+
+/** 핸들러의 출처(턴 기록 `HookRun.sourceKind`와 같은 값). 외부 훅 설정의 실행은 `external_hook`, 내장 패키지는 `builtin`이다 */
+export const TRACE_SOURCE_KINDS = ["plugin", "external_hook", "builtin"] as const;
+export type TraceSourceKind = (typeof TRACE_SOURCE_KINDS)[number];
+
+/** 사람 대기 메타데이터(턴 기록 `HookRun.ask`와 같은 모양). `via`가 `decision`이면 핸들러가 `{ ask: true }`를 낸 것, `awaitUser`이면 핸들러가 직접 기다린 것이다 */
+export interface TraceAsk {
+  readonly via: "decision" | "awaitUser";
+  /** 사람을 기다린 횟수 */
+  readonly waits: number;
+  /** 기다린 시간 합(ms). 핸들러의 활성 시간에서 뺀 값과 같다 */
+  readonly waitMs: number;
+  /** 승인 요청 id. 호스트가 도구 호출의 승인에서 채운다. 알 수 없으면 null */
+  readonly approvalId: string | null;
+  /** 답. 호스트가 승인 해결에서 채운다. 알 수 없으면 null */
+  readonly answer: "allow" | "deny" | "answer" | "cancelled" | "expired" | "noninteractive" | null;
+}
+
 export interface TraceHandlerEntry {
   readonly registrationId: string;
   readonly ms: number;
@@ -80,6 +99,19 @@ export interface TraceHandlerEntry {
    * 그 밖의 지점이나 접미가 없는 디스패치에는 없다(생략). 턴 기록 정본 `turn-record-metrics.md` §4.2 규칙 13
    */
   readonly toolCallId?: string;
+  /**
+   * 등록한 플러그인(확장) 이름. 외부 훅 설정의 실행은 `external-hook:<id>`다(턴 기록 §4.2 규칙 16).
+   * 기록하는 쪽이 알 때만 있다(생략 가능). 턴 기록은 없으면 `none`으로 채운다
+   */
+  readonly plugin?: string;
+  /** 플러그인 버전 id. 로더가 아직 알려주지 않으면 null이다 */
+  readonly versionId?: string | null;
+  /** 출처 종류. 생략되면 턴 기록은 `plugin`으로 본다 */
+  readonly sourceKind?: TraceSourceKind;
+  /** 핸들러가 낸 결정값(F §4.2). 값을 내지 않았으면 `none`이다. 기록하는 쪽이 알 때만 있다 */
+  readonly decision?: HookRunDecision;
+  /** 사람 대기 메타데이터. 기다리지 않았고 결정도 `ask`가 아니면 생략한다 */
+  readonly ask?: TraceAsk;
 }
 export interface TraceTurnEntry {
   readonly seq: number;
@@ -119,6 +151,34 @@ const TraceTurnResultShape = Type.Object(
                   Type.Null(),
                 ]),
                 toolCallId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+                plugin: Type.Optional(Name),
+                versionId: Type.Optional(Type.Union([Name, Type.Null()])),
+                sourceKind: Type.Optional(
+                  Type.Union(TRACE_SOURCE_KINDS.map((kind) => Type.Literal(kind))),
+                ),
+                decision: Type.Optional(
+                  Type.Union(HOOK_RUN_DECISIONS.map((decision) => Type.Literal(decision))),
+                ),
+                ask: Type.Optional(
+                  Type.Object(
+                    {
+                      via: Type.Union([Type.Literal("decision"), Type.Literal("awaitUser")]),
+                      waits: Count,
+                      waitMs: Ms,
+                      approvalId: Type.Union([Name, Type.Null()]),
+                      answer: Type.Union([
+                        Type.Literal("allow"),
+                        Type.Literal("deny"),
+                        Type.Literal("answer"),
+                        Type.Literal("cancelled"),
+                        Type.Literal("expired"),
+                        Type.Literal("noninteractive"),
+                        Type.Null(),
+                      ]),
+                    },
+                    { additionalProperties: false },
+                  ),
+                ),
               },
               { additionalProperties: false },
             ),
