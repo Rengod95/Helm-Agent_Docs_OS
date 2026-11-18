@@ -1,29 +1,31 @@
-/* 주의 면과 줄 물듦(attention-mark.tsx의 AttendGlow, dot-orb.tsx, DP-188~191 [결정: 2026-11-13 사용자]). 주의 구슬은 없앴다(DP-211). "내 확인이 필요함"은 크리스탈 표시(crystal-mark.tsx, DP-223)와 그 오로라 계열의 옅은 물듦이 맡고(숫자는 무채색, lcMk2),
+/* 주의 면과 수 면(attention-mark.tsx의 AttendGlow, dot-orb.tsx, DP-188~191 [결정: 2026-11-13 사용자]). 주의 구슬은 없앴다(DP-211). "내 확인이 필요함"은 크리스탈 표시(crystal-mark.tsx, DP-223),
+   대화 줄 끝 수의 둥근 면(lcMk3: 줄 물듦과 줄의 표시를 뺐다), 카드의 오로라 면이 맡고(숫자는 무채색, lcMk2),
    "도는 중"은 생각 구슬과 같은 흑백 점 구슬(progress-orb.tsx)이 맡는다. 구슬은 canvas라 여기는 칸과 면만 그린다.
-   표시를 더하기보다 면(줄 물듦·카드 빛)을 먼저 쓴다. 동시에 움직이는 수는 attention-budget.ts가 정한다(요청 그림 빛 3, 진행 구슬 8, 카드 오로라 1).
+   표시를 더하기보다 면(수 면·카드 빛)을 먼저 쓴다. 동시에 움직이는 수는 attention-budget.ts가 정한다(요청 그림 빛 3, 진행 구슬 8, 카드 오로라 1).
    caustic의 스펙트럼 고리(`orb` 유틸리티), 별·느낌표·단색 점은 앱에서 쓰지 않는다(DP-188, 시험 source-rules).
    styles.css가 가져온다(CSP가 인라인 <style>을 막는다). */
 
 :root {
-  /* 별 위·아래 빛깔. 라이트는 흰 바탕에서 묻히지 않게 짙게 */
-  --fx-attend-a: light-dark(oklch(0.72 0.16 65), oklch(0.84 0.15 80));
-  --fx-attend-b: light-dark(oklch(0.62 0.19 42), oklch(0.74 0.17 48));
-  /* 줄 물듦·카드 오로라·위 변 빛의 세기(다크). 라이트는 아래에서 낮춘다(흰 바탕이 탁해지지 않게) */
+  /* 카드 주의 면(승인 카드·받은 요청 카드)의 두 빛깔: 크리스탈 표시와 같은 오로라 계열(보라 → 청록, beam.css `--fx-crystal-*`).
+     호박 → 산호였던 따뜻한 빛을 lcMk3가 바꿨다([결정: 2026-11-18 사용자 "호박색 말고 오로라 계열로 바꿔"]) */
+  --fx-attend-a: var(--fx-crystal-a);
+  --fx-attend-b: var(--fx-crystal-c);
+  /* 카드 오로라·위 변 빛의 세기(다크). 라이트는 아래에서 낮춘다(흰 바탕이 탁해지지 않게) */
   --fx-attend-wash: 10%;
   --fx-attend-haze: 7%;
   --fx-attend-edge: 50%;
-  /* 대화 줄 물듦의 세기(오로라 계열, 다크) */
-  --fx-attend-row-wash: 9%;
+  /* 대화 줄 승인 수 면에 드는 오로라 기운(다크). 라이트는 흰 바탕에서 조금 더 */
+  --fx-attend-pill-tint: 10%;
 }
 :root[data-theme="light"] {
-  --fx-attend-row-wash: 7%;
+  --fx-attend-pill-tint: 12%;
   --fx-attend-wash: 8%;
   --fx-attend-haze: 5%;
   --fx-attend-edge: 65%;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --fx-attend-row-wash: 7%;
+    --fx-attend-pill-tint: 12%;
     --fx-attend-wash: 8%;
     --fx-attend-haze: 9%;
     --fx-attend-edge: 70%;
@@ -38,25 +40,12 @@
   flex: none;
 }
 
-/* 대화 목록 줄 끝 칸(thread-list.tsx): 크리스탈·꼬리 글·진행 구슬을 줄 가운데에 세운다(글 줄높이 위에 서면 구슬이 2px 위로 뜬다).
+/* 대화 목록 줄 끝 칸(thread-list.tsx): 꼬리 글·승인 수·진행 구슬을 줄 가운데에 세운다(글 줄높이 위에 서면 구슬이 2px 위로 뜬다).
    내비 줄 끝의 크리스탈(desktop-registry.tsx)도 같다 */
 [data-slot="list-navigation-meta"]:has(> [data-slot="row-meta"], > [data-slot="crystal-mark"]) {
   display: inline-flex;
   align-items: center;
   align-self: stretch;
-}
-
-/* ---------- 줄 물듦(대화 목록 줄) ---------- */
-
-/* 움직이지 않는다. 줄 앞 끝에서 폭의 45%까지 아주 옅게 물들어 사라진다. hover·선택 바탕(background-color) 위에 겹친다.
-   빛깔은 크리스탈 표시와 같은 오로라 계열(보라 → 파랑, `--fx-crystal-a·b`)이다(DP-190을 lcMk2가 바꿈: 호박을 쓰지 않는다) */
-.fx-attend-row {
-  background-image: linear-gradient(
-    90deg,
-    color-mix(in oklch, var(--fx-crystal-a) var(--fx-attend-row-wash), transparent),
-    color-mix(in oklch, var(--fx-crystal-b) calc(var(--fx-attend-row-wash) * 0.5), transparent) 22%,
-    transparent 45%
-  );
 }
 
 /* ---------- 카드 주의 면(받은 요청 카드) ---------- */
@@ -75,11 +64,6 @@
   corner-shape: inherit;
   pointer-events: none;
 }
-/* 크리스탈 표시를 단 카드(받은 요청 카드): 면의 빛깔이 표시와 같은 오로라 계열(보라 → 청록)이다 */
-.fx-attend-glow[data-tone="crystal"] {
-  --fx-attend-a: var(--fx-crystal-a);
-  --fx-attend-b: var(--fx-crystal-c);
-}
 /* 위 변 1px 빛: 가운데가 밝고 양 끝으로 사라진다 */
 .fx-attend-glow-edge {
   position: absolute;
@@ -93,7 +77,7 @@
     transparent
   );
 }
-/* 안쪽 오로라: 위 왼쪽에서 번지는 따뜻한 큰 빛 하나. 흐를 때는 14초에 좌우로 조금 흐른다 */
+/* 안쪽 오로라: 위 왼쪽에서 번지는 옅은 큰 빛 하나. 흐를 때는 14초에 좌우로 조금 흐른다 */
 .fx-attend-glow-haze {
   position: absolute;
   top: -70%;
@@ -139,6 +123,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- 대화 줄 승인 수의 둥근 면(thread-list.tsx ApprovalCount) ---------- */
+
+/* caustic 배지(neutral soft, xs: 높이 18, 좌우 6) 위에 얹는다. 한 자리는 원, 두 자리·"99+"는 알약이다. 숫자는 무채색 굵기 600이고,
+   면에는 크리스탈과 같은 오로라 계열(보라 → 청록)이 아주 옅게 비스듬히 든다. 급함(시한 있는 승인)은 빛깔이 아니라 밝기로 갈린다: 숫자가 한 단계
+   진하고(text.primary), 면이 한 단계 밝으며(다크는 밝게, 라이트는 짙게), 오로라 테 1px이 둘린다 (DP-189 [결정: 2026-11-18 사용자 "숫자의 백그라운드에
+   동그란 surface를 넣어줘. 패딩은 너무 크지않게 적당히", lcMk3]) */
+.fx-attend-pill {
+  min-width: var(--cs-control-compact-2xs);
+  justify-content: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--fx-crystal-a) var(--fx-attend-pill-tint), transparent),
+    color-mix(in oklch, var(--fx-crystal-c) var(--fx-attend-pill-tint), transparent)
+  );
+}
+.fx-attend-pill[data-urgent] {
+  color: var(--cs-color-text-primary);
+  background-color: color-mix(in oklch, var(--cs-color-text-primary) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--fx-crystal-b) 55%, transparent);
+}
+
 /* ---------- 안전망: caustic 스펙트럼 고리를 쓰지 않는다(DP-188) ---------- */
 
 /* caustic 부품이 `orb`(conic 스펙트럼 + 가운데 구멍 + 회전)를 그리는 칸은 모두 `*-orb` 슬롯이다. 앱은 그 칸의 고리를 지운다.
@@ -155,7 +162,7 @@
 
 /* ---------- 크리스탈 표시(crystal-mark.tsx, DP-223) ---------- */
 
-/* 칸 크기 그대로 서고 줄의 글자 가운데에 맞는다. 크기는 부품이 style로 준다(12·14·16·20) */
+/* 칸 크기 그대로 서고 줄의 글자 가운데에 맞는다. 크기는 부품이 style로 준다(14·20) */
 .fx-crystal {
   display: inline-block;
   flex: none;

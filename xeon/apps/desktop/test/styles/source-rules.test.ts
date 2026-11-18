@@ -185,23 +185,22 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
     false,
     false,
   ]);
-  // 확인 필요 표시는 크리스탈(DP-223): 면을 칠한 입체(canvas)이고 점 구슬·원·벡터 별이 아니다. 요청 카드·대화 줄·받은 요청 내비 줄이 쓴다
+  // 확인 필요 표시는 크리스탈(DP-223): 미리 렌더링해 구운 유리 판(crystal-*.png)을 canvas에 겹쳐 그린다. 점 구슬·원·벡터 선 그림이 아니다(lcMk3).
+  // 쓰는 곳은 요청 카드와 제안 내비 줄뿐이고, 대화 줄에는 표시 없이 둥근 면의 수만 둔다(DP-189 [결정: 2026-11-18 사용자 "일반 대화 row 우측에는 아이콘 없어야 할듯함"])
   const crystal = codeOf(join(SRC, "views/effects/crystal-mark.tsx"));
   expect([
     /<canvas\b/.test(crystal),
-    /<DotOrb\b|\barc\(/.test(crystal),
+    /\bdrawImage\(/.test(crystal),
+    /crystal-(dark|light)\.png/.test(crystal),
+    /<DotOrb\b|\barc\(|\blineTo\(/.test(crystal),
     /<(svg|path|circle)\b/.test(crystal),
-  ]).toEqual([true, false, false]);
+  ]).toEqual([true, true, true, false, false]);
   const users = [
     "views/pages/shared/request-card.tsx",
     "views/thread-list.tsx",
     "views/desktop-registry.tsx",
   ].filter((file) => /<CrystalMark\b/.test(codeOf(join(SRC, file))));
-  expect(users).toEqual([
-    "views/pages/shared/request-card.tsx",
-    "views/thread-list.tsx",
-    "views/desktop-registry.tsx",
-  ]);
+  expect(users).toEqual(["views/pages/shared/request-card.tsx", "views/desktop-registry.tsx"]);
   // 호박 주의 구슬(AttentionMark)은 없앴다(DP-211). 수 옆에 색 표시를 다시 붙이지 않는다
   const marks = sourceFiles([".tsx", ".ts"]).filter((file) =>
     /\bAttentionMark\b/.test(codeOf(file)),
@@ -209,20 +208,28 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
   expect(marks.map(relative)).toEqual([]);
 });
 
-test("attention counts are neutral and the row wash follows the crystal colors (DP-189, DP-223)", () => {
-  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". 줄 물듦은 크리스탈과 같은 오로라 계열이다
+test("attention counts are neutral, the row count sits on a round surface without a row wash, and every attention glow is aurora (DP-189, DP-190, DP-223)", () => {
+  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface", "호박색 말고 오로라 계열로 바꿔".
+  // 수 면·카드 면은 크리스탈과 같은 오로라 계열이고 호박(oklch 색상각 40~80)을 쓰지 않는다. 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3)
   const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   const rule = (selector: string): string => {
     const at = css.indexOf(`${selector} {`);
     return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
   };
   const count = rule(".fx-attend-count");
-  const row = rule(".fx-attend-row");
+  const pill = rule(".fx-attend-pill");
+  const root = rule(":root");
+  const list = codeOf(join(SRC, "views/thread-list.tsx"));
   expect([
     /color:\s*var\(--cs-color-text-secondary\)/.test(count),
     /oklch|--fx-attend-a|--fx-attend-b/.test(count),
-    /--fx-crystal-a/.test(row),
-    /--fx-attend-a|--fx-attend-b/.test(row),
+    /\.fx-attend-row\b/.test(css) || /fx-attend-row/.test(list),
+    /--fx-crystal-a/.test(pill) && /--fx-crystal-c/.test(pill),
+    /min-width:\s*var\(--cs-control-compact-2xs\)/.test(pill),
+    /--fx-attend-a:\s*var\(--fx-crystal-a\)/.test(root),
+    /--fx-attend-b:\s*var\(--fx-crystal-c\)/.test(root),
+    /oklch\([^)]*\s(4\d|5\d|6\d|7\d|80)\)/.test(css),
+    /<Badge\b[^>]*className="fx-attend-pill"/.test(list),
     css.match(/\.fx-attend-count\b/g)?.length,
-  ]).toEqual([true, false, true, false, 1]);
+  ]).toEqual([true, false, false, true, true, true, true, false, true, 1]);
 });

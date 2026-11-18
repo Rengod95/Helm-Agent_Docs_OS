@@ -1,6 +1,6 @@
 // 크리스탈 표시의 모양(DP-223 [결정: 2026-11-18 사용자 "결정(크리스탈) 버전이 좋음", lcMk]). 로고의 비스듬히 갈라진 유리 결정 두 조각을
 // 면 몇 장만 남기고 줄인 입체다. 시안(`_notes/tools/orbit-mark/crystal-mark.html`)의 기하를 그대로 옮겼다: 단면이 고르지 않은 오각형 기둥의
-// 두 끝을 비스듬히 자르고, 왼쪽 위 → 오른쪽 아래로 갈라 두 조각을 틈을 따라 조금 밀어 놓는다. 칠하기는 crystal-mark.tsx가 한다.
+// 두 끝을 비스듬히 자르고, 왼쪽 위 → 오른쪽 아래로 갈라 두 조각을 틈을 따라 조금 밀어 놓는다. 이 모양을 scripts/crystal-bake.ts가 광선 추적해 판으로 굽고(lcMk3), crystal-mark.tsx는 그 판을 그린다.
 // 순수 값과 함수뿐이다(시험이 면 수와 틈을 본다). 틈 폭마다 껍질을 한 번 계산해 기억한다(움직임 중에도 프레임마다 다시 풀지 않는다).
 
 /** 3차원 점·벡터 */
@@ -30,7 +30,7 @@ const lerpV = (a: Vec3, b: Vec3, k: number): Vec3 => [
   a[2] + (b[2] - a[2]) * k,
 ];
 
-export function normalize(a: Vec3): Vec3 {
+function normalize(a: Vec3): Vec3 {
   const l = Math.hypot(a[0], a[1], a[2]);
   return l === 0 ? a : scaleV(a, 1 / l);
 }

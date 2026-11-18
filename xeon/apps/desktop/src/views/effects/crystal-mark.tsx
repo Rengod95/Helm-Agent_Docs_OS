@@ -1,10 +1,10 @@
-// 크리스탈 표시(DP-223 [결정: 2026-11-18 사용자 "결정(크리스탈) 버전이 좋음 … 내비 옆에도 괜찮을듯", lcMk; 재질·색 2026-11-18 "우리 앱 아이콘처럼 더 유리같은 느낌",
-// "크리스탈과 어울리는 색 … 오로라 색도 ㄱㅊ음", lcMk2]). "내 확인이 필요함"을 말한다.
-// 모양은 crystal-geometry.ts(로고의 갈라진 유리 두 조각), 상황별 움직임은 crystal-motion.ts, 여기서는 칠하기와 시계만 한다.
-// 칠하기는 앱 아이콘의 유리다: 거의 비치는 몸(오로라 빛깔이 옅게 든 얼음), 가장자리로 갈수록 밝아지는 안쪽 테(프레넬), 비쳐 보이는 뒷면 모서리(깊이),
-// 빛을 받는 윗변의 흰 날과 꼭짓점 하나의 반짝임. 빛깔은 입력창 오로라와 같은 계열(aurora.css·beam.css `--fx-crystal-*`: 보라 h288 → 파랑 h262 → 청록 h210)이고,
-// 쉬는 상태는 채도를 눌러 차분하다. 움직이는 순간에만 빛줄기가 유리 안을 지나며 빛깔이 돈다(보라 → 파랑 → 청록 → 자홍). 12~16px에서는 안쪽 모서리를 거의 지우고
-// 테와 몸의 투명도 대비로 재질을 낸다.
+// 크리스탈 표시(DP-223 [결정: 2026-11-18 사용자 "결정(크리스탈) 버전이 좋음 … 내비 옆에도 괜찮을듯", lcMk; 재질 "우리 앱 아이콘처럼 더 유리같은 느낌", lcMk2;
+// "재질 색은 앱 아이콘처럼 3d rendering 이 된 느낌 … 색이 앱 아이콘 처럼 은은하고 반짝이는 느낌", lcMk3]). "내 확인이 필요함"을 말한다.
+// 그림은 미리 렌더링한 유리다: scripts/crystal-bake.ts가 로고의 갈라진 두 조각(crystal-geometry.ts)을 광선 추적해(굴절, 프레넬 반사, 전반사,
+// 빛깔별 굴절률, 둥근 날) 판 두 장(crystal-dark.png, crystal-light.png, 배치표 crystal-sheet.ts)으로 구워 두었고, 여기서는 그 칸들을 캔버스에
+// 겹쳐 그리기만 한다. 거의 무색의 유리에 아래 왼쪽 보라·위 오른쪽 청록이 아주 옅게 스치고, 날과 꼭짓점이 반짝인다.
+// 움직임(crystal-motion.ts의 자세)은 칸을 옮겨 낸다: 틈은 두 조각을 갈라진 면을 따라 떼고(gap·split), 돌림(yaw)은 구운 이웃 두 각을 섞고,
+// 빛(glow)은 같은 칸을 한 번 더 얹어 밝히고, 빛줄기(sweep)는 유리 위에만 얹는다(source-atop).
 // 쉬는 상태는 멈춘 한 장면이다: 값이나 테마가 바뀔 때 한 번 그리고 requestAnimationFrame을 걸지 않는다. 상황이 바뀌면 그 표시만 시계에 올라
 // 움직임이 끝날 때까지(최대 420ms) 그리고 내려온다. 동시에 움직이는 표시는 4개까지이고 나머지는 바로 끝 자세다. 움직임 줄이기면 늘 끝 자세다.
 // 뜻은 이 부품이 말한다(role="img", `label`). 급함은 빛깔이 아니라 틈이 더 열린 모양과 밝기로 다르다.
@@ -12,14 +12,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
 import { cssZoomOf } from "../../lib/zoom.ts";
-import {
-  CRYSTAL_CUT_N,
-  CRYSTAL_RADIUS,
-  crystalShards,
-  normalize,
-  rotate,
-  type Vec3,
-} from "./crystal-geometry.ts";
+import { CRYSTAL_SHEET, type CrystalSheetRow } from "./crystal-sheet.ts";
 import {
   cueMotion,
   cuesOf,
@@ -33,375 +26,144 @@ import {
 } from "./crystal-motion.ts";
 import { isDark } from "./dot-orb.tsx";
 
-/** 칸 크기(CSS px). 12 좁은 칸, 14 대화 줄·내비 줄(size-icon-md), 16 줄 상태 칸, 20 카드 머리 */
-export type CrystalMarkSize = 12 | 14 | 16 | 20;
-
-type Rgb = readonly [number, number, number];
-type Point = readonly [number, number];
-
-/**
- * 오로라 빛깔 고리(sRGB). 앞 셋은 `--fx-crystal-a·b·c`(aurora.css의 보라 h288, 파랑 h262, 청록 h210과 같은 계열)를 옮긴 값이고,
- * 넷째는 beam `--fx-glow-magenta`를 눌러 쓴 자홍이다(빛줄기가 지날 때만 보인다). 다크는 밝고 라이트는 짙다
- */
-const RING_DARK: readonly Rgb[] = [
-  [161, 144, 255],
-  [102, 155, 255],
-  [71, 210, 232],
-  [214, 120, 230],
-];
-const RING_LIGHT: readonly Rgb[] = [
-  [116, 86, 224],
-  [45, 105, 222],
-  [0, 154, 177],
-  [186, 70, 190],
-];
-/** 빛깔이 빠진 유리(얼음). 채도를 누르면 이 색으로 간다 */
-const ICE_DARK: Rgb = [214, 226, 255];
-const ICE_LIGHT: Rgb = [150, 170, 215];
-/** 라이트의 바깥 날(짙은 청회색). 흰 바탕에서 유리의 윤곽을 잡는다 */
-const SLATE: Rgb = [58, 70, 112];
-const WHITE: Rgb = [255, 255, 255];
+/** 칸 크기(CSS px). 14 내비 줄(size-icon-md), 20 카드 머리 */
+export type CrystalMarkSize = 14 | 20;
 
 /** 그리기 배율 상한. 기기 2 × 앱 200%까지 또렷하다 */
 const MAX_SCALE = 4;
 /** 동시에 움직이는 표시 수 상한(목록이 한꺼번에 바뀌어도 프레임 일이 몇 개뿐이다) */
 const MAX_MOVING = 4;
-/** 빛이 오는 쪽(왼쪽 위 앞)과 반사 반각 */
-const LIGHT = normalize([-0.5, 0.75, 0.6]);
-const HALF = normalize([LIGHT[0], LIGHT[1], LIGHT[2] + 1]);
-/** 화면에서 빛이 오는 쪽(왼쪽 위, 캔버스 y는 아래로) */
-const LIGHT_2D: Point = [-0.55, -0.835];
-/** 쉬는 자세의 각(시안 "확인 필요": 요 −0.35 + 0.15, 피치 0.04, 롤 −0.26) */
-const BASE_YAW = -0.2;
-const PITCH = 0.04;
-const ROLL = -0.26;
-/** 칸 반지름 대비 결정 반지름. 튐(×1.08)에도 칸을 넘지 않는다 */
-const FILL = 0.44;
-/** 쉬는 자세의 틈 배율(시안 숨 0.6 → 1 + 0.8 × 0.6) */
-const REST_GAP = 1.48;
+/** 쉬는 자세의 빛(crystal-motion POSE_REST.glow). 이보다 밝은 자세만 한 번 더 얹는다 */
+const REST_GLOW = 0.6;
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
-const mix = (a: Rgb, b: Rgb, k: number): Rgb => [
-  a[0] + (b[0] - a[0]) * k,
-  a[1] + (b[1] - a[1]) * k,
-  a[2] + (b[2] - a[2]) * k,
-];
-const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const rgba = (c: Rgb, a: number): string =>
-  `rgba(${c.map((v) => String(Math.round(Math.min(255, Math.max(0, v))))).join(",")},${clamp01(a).toFixed(3)})`;
 
-/** 오로라 고리에서 자리 u의 색(부드럽게 잇는다) */
-function ringAt(ring: readonly Rgb[], u: number): Rgb {
-  const w = ((u % 1) + 1) % 1;
-  const x = w * ring.length;
-  const i = Math.floor(x);
-  const f = x - i;
-  const s = f * f * (3 - 2 * f);
-  const first = ring[0] ?? WHITE;
-  return mix(ring[i % ring.length] ?? first, ring[(i + 1) % ring.length] ?? first, s);
+/** 판 그림(테마마다 한 장). 처음 그릴 때 읽기 시작하고, 다 읽으면 모든 표시를 다시 그린다 */
+const SHEET_URL = {
+  dark: new URL("./crystal-dark.png", import.meta.url).href,
+  light: new URL("./crystal-light.png", import.meta.url).href,
+} as const;
+const sheets = new Map<keyof typeof SHEET_URL, HTMLImageElement>();
+
+function sheetOf(dark: boolean): HTMLImageElement | null {
+  const key = dark ? "dark" : "light";
+  const known = sheets.get(key);
+  if (known !== undefined) return known.complete && known.naturalWidth > 0 ? known : null;
+  if (typeof Image === "undefined") return null;
+  const image = new Image();
+  image.decoding = "async";
+  image.addEventListener("load", redrawAll, { once: true });
+  image.src = SHEET_URL[key];
+  sheets.set(key, image);
+  return null;
 }
 
-/** 2차원 볼록 껍질(조각 하나의 화면 윤곽). 차례는 화면에서 시계 방향이 아니어도 된다 */
-function hull2d(points: readonly Point[]): Point[] {
-  const pts = points.toSorted((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cross = (o: Point, a: Point, b: Point): number =>
-    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lower: Point[] = [];
-  for (const p of pts) {
-    while (lower.length >= 2) {
-      const a = lower[lower.length - 2];
-      const b = lower[lower.length - 1];
-      if (a === undefined || b === undefined || cross(a, b, p) > 1e-9) break;
-      lower.pop();
+/** 기기 px로 `need`인 칸에 쓸 판의 줄: 그보다 크거나 같은 가장 작은 줄(없으면 가장 큰 줄)에서 줄여 그린다 */
+export function sheetRowFor(need: number): CrystalSheetRow | undefined {
+  return CRYSTAL_SHEET.rows.find((row) => row.box >= need - 0.5) ?? CRYSTAL_SHEET.rows.at(-1);
+}
+
+/** 돌림 각 `yaw`를 구운 이웃 두 각과 그 비율로(양 끝 밖은 끝 각 하나) */
+export function yawFrames(yaw: number): readonly (readonly [number, number])[] {
+  const yaws = CRYSTAL_SHEET.yaws;
+  for (let i = 0; i < yaws.length - 1; i++) {
+    const lo = yaws[i] ?? 0;
+    const hi = yaws[i + 1] ?? 0;
+    if (yaw <= hi || i === yaws.length - 2) {
+      const k = clamp01((yaw - lo) / (hi - lo));
+      const pair: (readonly [number, number])[] = [];
+      if (k < 0.999) pair.push([i, 1 - k]);
+      if (k > 0.001) pair.push([i + 1, k]);
+      return pair;
     }
-    lower.push(p);
   }
-  const upper: Point[] = [];
-  for (const p of pts.toReversed()) {
-    while (upper.length >= 2) {
-      const a = upper[upper.length - 2];
-      const b = upper[upper.length - 1];
-      if (a === undefined || b === undefined || cross(a, b, p) > 1e-9) break;
-      upper.pop();
-    }
-    upper.push(p);
-  }
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+  return [[0, 1]];
 }
 
-function tracePath(ctx: CanvasRenderingContext2D, points: readonly Point[]): void {
-  ctx.beginPath();
-  points.forEach(([x, y], i) => {
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.closePath();
-}
+/** 빛줄기의 빛깔(옅은 오로라: 라벤더 → 하늘 → 민트). 다크는 거의 흰빛, 라이트는 흰 유리 위에서 보이게 조금 짙다 */
+const SWEEP_DARK = ["rgba(236,232,255,", "rgba(226,240,255,", "rgba(228,255,250,"] as const;
+const SWEEP_LIGHT = ["rgba(150,138,255,", "rgba(120,170,255,", "rgba(90,205,210,"] as const;
 
-interface Projected {
-  readonly n: Vec3;
-  readonly points: readonly Point[];
-  readonly z: number;
-  readonly cut: boolean;
-}
-
-interface Shard {
-  readonly faces: readonly Projected[];
-  readonly outline: readonly Point[];
-  readonly z: number;
-  /** 틈을 향한 화면 방향(갈라진 면의 법선을 화면에 옮긴 것) */
-  readonly toward: Point;
-}
-
-/** 한 자세를 칸 하나(`size` CSS px, 이미 배율이 걸린 ctx)에 그린다 */
+/**
+ * 한 자세를 칸 하나(`size` CSS px, 이미 배율이 걸린 ctx)에 그린다. `scale`은 CSS px당 기기 px(판의 줄을 고른다).
+ * 판이 아직 없으면(읽는 중) 비워 두고, 다 읽으면 다시 그린다
+ */
 function paintCrystal(
   ctx: CanvasRenderingContext2D,
   size: number,
+  scale: number,
   pose: CrystalPose,
   dark: boolean,
 ): void {
   ctx.clearRect(0, 0, size, size);
   if (pose.alpha <= 0.001) return;
-  const small = size <= 20;
-  const unit = (size * FILL) / CRYSTAL_RADIUS;
-  const scale = unit * pose.scale;
-  const gapPx = Math.max(small ? 1.3 : 1.5, size * 0.04) * REST_GAP * pose.gap;
-  const parts = crystalShards(gapPx / unit / 2);
-  const yaw = BASE_YAW + pose.yaw;
-  const cx = size / 2;
-  const cy = size / 2;
-  const radius = size * FILL * pose.scale;
-
-  const shards: Shard[] = parts.map((part, pi) => {
-    const sign = pi === 0 ? 1 : -1;
-    const off: Vec3 = [
-      CRYSTAL_CUT_N[0] * sign * pose.split,
-      CRYSTAL_CUT_N[1] * sign * pose.split,
-      CRYSTAL_CUT_N[2] * sign * pose.split,
-    ];
-    const shift = (p: Vec3): Vec3 =>
-      rotate([p[0] + off[0], p[1] + off[1], p[2] + off[2]], yaw, PITCH, ROLL);
-    const faces = part.map((face): Projected => {
-      const c = shift(face.c);
-      return {
-        n: rotate(face.n, yaw, PITCH, ROLL),
-        points: face.v.map((p): Point => {
-          const r = shift(p);
-          return [cx + r[0] * scale, cy - r[1] * scale];
-        }),
-        z: c[2],
-        cut: face.cut,
-      };
-    });
-    const z = faces.reduce((acc, f) => acc + f.z, 0) / Math.max(1, faces.length);
-    // 조각 +1은 갈라진 면 법선 쪽에 있다: 틈은 그 반대쪽이다
-    const cutN = rotate(CRYSTAL_CUT_N, yaw, PITCH, ROLL);
-    const len = Math.hypot(cutN[0], cutN[1]) || 1;
-    const toward: Point = [(-sign * cutN[0]) / len, (sign * cutN[1]) / len];
-    return { faces, outline: hull2d(faces.flatMap((f) => f.points)), z, toward };
-  });
-  shards.sort((a, b) => a.z - b.z);
-
-  // 작은 칸일수록 안쪽 모서리를 지우고 테·윤곽의 대비를 올린다(12 → 0, 24 이상 → 1)
-  const detail = clamp01((size - 12) / 12);
-  const tiny = 1 - detail;
-  // 쉬는 자세(빛 0.6)는 채도를 누른다. 가리킴·급함·움직임에서 빛깔이 오른다
-  // 빛줄기가 지나는 동안(s 0 → 1)만 빛깔 고리가 한 번 돌고 채도가 오른다. 양 끝(s 0, 1)에서 0이라 멈출 때 튀지 않는다
-  const passing = pose.sweep === null ? 0 : Math.sin(Math.PI * clamp01((pose.sweep + 1.7) / 3.4));
-  const sat = clamp01(0.55 + 1.1 * (pose.glow - 0.6) + 0.35 * passing);
-  const turn = 0.45 * passing;
-  const ring = dark ? RING_DARK : RING_LIGHT;
-  const ice = dark ? ICE_DARK : ICE_LIGHT;
-  const tint = (u: number, k = 1): Rgb => mix(ice, ringAt(ring, u), clamp01(sat * k));
-  const lw = Math.max(small ? 0.75 : 0.8, size * 0.012);
-  const rim = Math.max(0.65, size * 0.05);
-
-  // 아래 왼쪽(보라) → 위 오른쪽(청록)으로 흐르는 오로라 몸
-  const across = (alpha: number, k = 1): CanvasGradient => {
-    const g = ctx.createLinearGradient(
-      cx - radius * 0.45,
-      cy + radius * 0.9,
-      cx + radius * 0.45,
-      cy - radius * 0.9,
-    );
-    for (let i = 0; i <= 4; i++) g.addColorStop(i / 4, rgba(tint((i / 4) * 0.62 + turn, k), alpha));
-    return g;
-  };
-
+  const image = sheetOf(dark);
+  const row = sheetRowFor(size * scale * pose.scale);
+  if (image === null || row === undefined) return;
+  const box = row.box;
+  const drawn = size * pose.scale;
+  const left = (size - drawn) / 2;
+  // 모형 1이 칸에서 몇 CSS px인가. 틈은 쉬는 틈(row.half)의 배율과 더 벌어진 거리(split)만큼 두 조각을 갈라진 면을 따라 뗀다
+  const unitCss = drawn / 2 / CRYSTAL_SHEET.halfExtent;
+  const open = (row.half * (pose.gap - 1) + pose.split) * unitCss;
+  const frames = yawFrames(pose.yaw);
   ctx.save();
-  ctx.globalAlpha = Math.min(1, pose.alpha);
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  const glow = pose.glow;
-
-  for (const shard of shards) {
-    const outline = shard.outline;
-    if (outline.length < 3) continue;
-    // 틈 쪽 변: 갈라진 면에서 빛이 갈라져 빛깔이 가장 짙게 맺힌다
-    const [towardX, towardY] = shard.toward;
-    const midX = outline.reduce((acc, p) => acc + p[0], 0) / outline.length;
-    const midY = outline.reduce((acc, p) => acc + p[1], 0) / outline.length;
-    ctx.save();
-    tracePath(ctx, outline);
-    ctx.clip();
-
-    // 몸: 거의 비치는 유리. 빛깔은 옅게 든다
-    tracePath(ctx, outline);
-    ctx.fillStyle = across(dark ? 0.1 + 0.16 * glow : 0.12 + 0.1 * glow);
-    ctx.fill();
-
-    // 면: 빛을 받는 면은 희게, 비스듬한 면(가장자리 쪽)은 빛깔이 짙게(프레넬)
-    for (const face of shard.faces) {
-      if (face.n[2] <= 0 || face.points.length < 3) continue;
-      const graze = Math.pow(1 - face.n[2], 2);
-      const spec = Math.pow(Math.max(0, dot(face.n, HALF)), 14);
-      tracePath(ctx, face.points);
-      if (face.cut) {
-        // 갈라진 면: 프리즘처럼 빛깔이 가장 짙다
-        ctx.fillStyle = across(dark ? 0.32 + 0.3 * glow : 0.26 + 0.2 * glow, 1.6);
-        ctx.fill();
-        continue;
-      }
-      ctx.fillStyle = rgba(
-        WHITE,
-        (dark ? 0.04 + 0.42 * spec : 0.1 + 0.5 * spec) * (0.7 + 0.3 * glow),
-      );
-      ctx.fill();
-      if (graze > 0.08) {
-        ctx.fillStyle = across((dark ? 0.16 : 0.12) * graze * (0.6 + 0.6 * glow), 1.3);
-        ctx.fill();
-      }
-    }
-
-    // 안쪽 테(프레넬): 윤곽에서 안으로 갈수록 옅어지는 오로라 빛. 넓고 옅은 겹 위에 좁고 짙은 겹
-    tracePath(ctx, outline);
-    ctx.strokeStyle = across((dark ? 0.14 : 0.12) + 0.1 * glow, 1.4);
-    ctx.lineWidth = rim * 3.2;
-    ctx.stroke();
-    ctx.strokeStyle = across((dark ? 0.34 : 0.26) + 0.24 * glow + 0.1 * tiny, 1.6);
-    ctx.lineWidth = rim * 1.3;
-    ctx.stroke();
-
-    // 깊이: 뒷면 모서리가 비쳐 보이고, 앞면 안쪽 모서리는 가는 날이다(작은 칸에서는 거의 지운다)
-    for (const face of shard.faces) {
-      tracePath(ctx, face.points);
-      const front = face.n[2] > 0;
-      const ink = dark ? ICE_DARK : SLATE;
-      ctx.strokeStyle = rgba(ink, front ? (dark ? 0.32 : 0.26) * detail + 0.06 : 0.14 * detail);
-      ctx.lineWidth = front ? lw * 0.8 : lw * 0.6;
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 윤곽: 빛 쪽 변은 흰 날, 반대쪽은 빛깔이 든 옅은 날. 라이트는 짙은 청회 날 안쪽에 흰 날을 겹친다
-    for (let i = 0; i < outline.length; i++) {
-      const a = outline[i];
-      const b = outline[(i + 1) % outline.length];
-      if (a === undefined || b === undefined) continue;
-      const ex = b[0] - a[0];
-      const ey = b[1] - a[1];
-      const len = Math.hypot(ex, ey) || 1;
-      // 바깥 법선(윤곽 차례와 무관하게 조각 가운데에서 멀어지는 쪽)
-      let nx = ey / len;
-      let ny = -ex / len;
-      const mx = (a[0] + b[0]) / 2;
-      const my = (a[1] + b[1]) / 2;
-      if (nx * (mx - midX) + ny * (my - midY) < 0) {
-        nx = -nx;
-        ny = -ny;
-      }
-      const lit = clamp01(0.5 + 0.5 * (nx * LIGHT_2D[0] + ny * LIGHT_2D[1]));
-      ctx.beginPath();
-      ctx.moveTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
-      if (nx * towardX + ny * towardY > 0.5) {
-        ctx.strokeStyle = across((dark ? 0.6 : 0.55) + 0.3 * glow, 1.5);
-        ctx.lineWidth = Math.max(lw * 1.1, size * 0.024);
-        ctx.stroke();
-      } else if (dark) {
-        ctx.strokeStyle = rgba(
-          mix(WHITE, tint(0.2 + 0.4 * (1 - lit)), 0.55 * (1 - lit)),
-          0.42 + 0.5 * lit + 0.1 * tiny + 0.08 * glow,
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  // 이웃 두 각을 더해 섞는다(미리 곱한 값의 합 = 고른 섞음). 두 조각은 겹치지 않는다
+  ctx.globalCompositeOperation = "lighter";
+  const layer = (alpha: number): void => {
+    for (const [frame, weight] of frames) {
+      const apart = CRYSTAL_SHEET.apart[frame] ?? [0, 0];
+      for (const shard of [0, 1] as const) {
+        const sign = shard === 0 ? 1 : -1;
+        ctx.globalAlpha = clamp01(alpha * weight);
+        ctx.drawImage(
+          image,
+          (frame * 2 + shard) * box,
+          row.top,
+          box,
+          box,
+          left + apart[0] * open * sign,
+          left + apart[1] * open * sign,
+          drawn,
+          drawn,
         );
-        ctx.lineWidth = lw;
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = rgba(
-          mix(SLATE, tint(0.3, 1.2), 0.35 * (1 - lit)),
-          0.36 + 0.24 * (1 - lit) + 0.12 * tiny,
-        );
-        ctx.lineWidth = lw;
-        ctx.stroke();
-        if (lit > 0.55) {
-          // 흰 날: 윤곽 바로 안쪽
-          const inset = lw * 0.9;
-          ctx.beginPath();
-          ctx.moveTo(a[0] - nx * inset, a[1] - ny * inset);
-          ctx.lineTo(b[0] - nx * inset, b[1] - ny * inset);
-          ctx.strokeStyle = rgba(WHITE, 0.9 * (lit - 0.4));
-          ctx.lineWidth = lw * 0.9;
-          ctx.stroke();
-        }
       }
     }
+  };
+  layer(pose.alpha);
+  // 빛: 쉬는 자세보다 밝은 자세(가리킴·급함)는 같은 그림을 한 번 더 얹는다. 다크는 더해 밝히고, 라이트는 덮어 날이 또렷해진다
+  const extra = (pose.glow - REST_GLOW) * (dark ? 1.1 : 0.9);
+  if (extra > 0.01) {
+    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+    layer(pose.alpha * extra);
   }
-
-  // 빛줄기: 유리 안을 지나며 빛깔이 돈다(움직이는 순간만)
+  // 빛줄기: 아래 왼쪽 → 위 오른쪽으로 유리 위만 지난다(움직이는 순간만)
   if (pose.sweep !== null) {
     const s = clamp01((pose.sweep + 1.7) / 3.4);
-    const dx = 0.55;
-    const dy = -0.835;
-    const px = cx + dx * pose.sweep * radius * 0.62;
-    const py = cy + dy * pose.sweep * radius * 0.62;
-    const w = radius * 0.5;
-    const band = ctx.createLinearGradient(px - dx * w, py - dy * w, px + dx * w, py + dy * w);
-    const hue = ringAt(ring, 0.1 + s * 0.85);
-    band.addColorStop(0, rgba(hue, 0));
-    band.addColorStop(0.5, rgba(mix(hue, WHITE, dark ? 0.25 : 0.1), dark ? 0.75 : 0.55));
-    band.addColorStop(1, rgba(hue, 0));
-    ctx.save();
-    ctx.beginPath();
-    for (const shard of shards) {
-      shard.outline.forEach(([x, y], i) => {
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-    }
-    ctx.clip();
-    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+    const cx = size / 2 + 0.55 * pose.sweep * drawn * 0.27;
+    const cy = size / 2 - 0.835 * pose.sweep * drawn * 0.27;
+    const w = drawn * 0.24;
+    const band = ctx.createLinearGradient(
+      cx - 0.55 * w,
+      cy + 0.835 * w,
+      cx + 0.55 * w,
+      cy - 0.835 * w,
+    );
+    const tone =
+      (dark ? SWEEP_DARK : SWEEP_LIGHT)[Math.min(2, Math.floor(s * 3))] ?? "rgba(255,255,255,";
+    const peak = (dark ? 0.7 : 0.45) * Math.sin(Math.PI * s);
+    band.addColorStop(0, `${tone}0)`);
+    band.addColorStop(0.5, `${tone}${peak.toFixed(3)})`);
+    band.addColorStop(1, `${tone}0)`);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.globalAlpha = 1;
     ctx.fillStyle = band;
     ctx.fillRect(0, 0, size, size);
-    ctx.restore();
-  }
-
-  // 반짝임: 빛 쪽 꼭짓점 하나에 맺힌다
-  const top = shards
-    .flatMap((shard) => shard.outline)
-    .reduce<Point | null>(
-      (best, p) =>
-        best === null ||
-        p[0] * LIGHT_2D[0] + p[1] * LIGHT_2D[1] > best[0] * LIGHT_2D[0] + best[1] * LIGHT_2D[1]
-          ? p
-          : best,
-      null,
-    );
-  if (top !== null) {
-    const gx = top[0] + (cx - top[0]) * 0.22;
-    const gy = top[1] + (cy - top[1]) * 0.22;
-    const r = Math.max(1.4, size * 0.1);
-    const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-    const a = (dark ? 0.85 : 0.95) * (0.6 + 0.4 * glow);
-    g.addColorStop(0, rgba(WHITE, a));
-    g.addColorStop(0.35, rgba(WHITE, a * 0.45));
-    g.addColorStop(1, rgba(WHITE, 0));
-    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
-    ctx.fillStyle = g;
-    ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
   }
   ctx.restore();
 }
-
 // ---------- 시계: 움직이는 표시만 그린다 ----------
 
 interface Inputs {
@@ -437,7 +199,7 @@ function draw(entry: Entry, now: number): void {
   if (ctx === null) return;
   const unit = px / entry.size;
   ctx.setTransform(unit, 0, 0, unit, 0, 0);
-  paintCrystal(ctx, entry.size, poseAt(entry.motion, now), isDark());
+  paintCrystal(ctx, entry.size, unit, poseAt(entry.motion, now), isDark());
 }
 
 function settle(entry: Entry, now: number): void {

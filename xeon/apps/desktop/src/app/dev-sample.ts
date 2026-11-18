@@ -1,5 +1,6 @@
 // 개발 빌드 전용 "표본 상태 보기"(lcMk2, Linear AGE-53). 실제 키·대기 승인이 없어도 확인 대기 표시(크리스탈, DP-223)를 묶은 앱에서 보려고
 // 화면이 읽는 거울 면에 표본을 겹친다: 확인이 필요한 대화 둘(하나는 시한이 있는 승인), 기다리는 제안 둘(받은 요청 카드 하나가 따라 나온다).
+// 배포 대화의 둘째 승인은 명령 실행(도구, 쓰기 등급) 카드라 승인 카드의 오로라 면을 질문 카드와 같이 볼 수 있다(lcMk3).
 // 엔진 상태와 엔진 연결은 건드리지 않는다(앱 안 감시자들은 겹치지 않은 거울을 읽는다). 표본 대화를 열거나 표본 승인에 답하면 엔진이 모르는 id라
 // 실패한다(보기 전용). 정식 빌드(`BUILD_CHECKS` false)에서는 켜지지 않고 단축키도 걸리지 않는다.
 // 켜고 끄기: ⌘⌥⇧S(macOS, 다른 OS는 Ctrl+Alt+Shift+S). 값은 이 창의 localStorage에 두고 창을 다시 읽는다.
@@ -17,10 +18,16 @@ export const SAMPLE_STATE_KEY = "fresnel.dev.sampleState";
 /** 표본 제안 수(받은 요청 카드와 내비 "제안" 줄) */
 export const SAMPLE_PROPOSALS = 2;
 
-/** 표본 대화: id 꼬리, 제목 키, 기다리는 승인 수, 시한 여부 */
+/** 표본 대화: id 꼬리, 제목 키, 기다리는 승인 수, 시한 여부, 도구 승인(명령 실행)을 둘 차례(0이면 없음) */
 const THREADS = [
-  { tail: "SAMP01", title: "desktop.dev.sample.threadDeploy", approvals: 1, urgent: false },
-  { tail: "SAMP02", title: "desktop.dev.sample.threadReadme", approvals: 2, urgent: true },
+  {
+    tail: "SAMP01",
+    title: "desktop.dev.sample.threadDeploy",
+    approvals: 2,
+    urgent: false,
+    tool: 2,
+  },
+  { tail: "SAMP02", title: "desktop.dev.sample.threadReadme", approvals: 2, urgent: true, tool: 0 },
 ] as const;
 
 const threadIdOf = (tail: string): ThreadId | null => {
@@ -31,6 +38,18 @@ const eventIdOf = (tail: string, n: number): EventId | null => {
   const value = `evt_${"0".repeat(19)}${tail}${String(n)}`;
   return isId("evt", value) ? value : null;
 };
+
+/** 표본 도구 승인: 배포 명령 실행(쓰기 등급) */
+const SAMPLE_TOOL = {
+  kind: "tool",
+  tool: {
+    toolName: "bash",
+    risk: "write",
+    args: { command: "bun run deploy --dry-run" },
+    argsHash: "sample",
+    ruleId: null,
+  },
+} as const;
 
 /** 거울에 표본 대화·승인을 겹친다. 이미 같은 id가 있으면 그대로 둔다(순수 함수, `now`는 시한 계산에만 쓴다) */
 export function withSampleMirror(state: EngineMirror, now: number): EngineMirror {
@@ -75,20 +94,23 @@ export function withSampleMirror(state: EngineMirror, now: number): EngineMirror
           surfaceThreadId: threadId,
           requestedAt: now,
           ...(spec.urgent ? { expiresAt: now + 30 * 60_000 } : {}),
-          body: {
-            kind: "question",
-            question: {
-              questions: [
-                {
-                  id: "q",
-                  text: t("desktop.dev.sample.question"),
-                  options: [],
-                  multiSelect: false,
-                  allowFreeText: true,
+          body:
+            n === spec.tool
+              ? SAMPLE_TOOL
+              : {
+                  kind: "question",
+                  question: {
+                    questions: [
+                      {
+                        id: "q",
+                        text: t("desktop.dev.sample.question"),
+                        options: [],
+                        multiSelect: false,
+                        allowFreeText: true,
+                      },
+                    ],
+                  },
                 },
-              ],
-            },
-          },
         },
       };
     }

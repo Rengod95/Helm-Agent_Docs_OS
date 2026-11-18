@@ -29,7 +29,7 @@ export function RequestCard(props: {
       className="fx-attend-card flex min-w-0 items-center gap-3 rounded-xl bg-surface-base py-3 ps-4 pe-3 text-ui shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
     >
       {/* 면의 빛깔은 머리의 크리스탈과 같은 오로라 계열이다(DP-223, lcMk2) */}
-      <AttendGlow pending tone="crystal" />
+      <AttendGlow pending />
       <CrystalMark present count={props.count} size={20} label={props.markLabel} />
       <p id={labelId} className="m-0 min-w-0 flex-1 truncate" title={props.title}>
         <span className="font-medium text-text-secondary">{props.lead}</span>

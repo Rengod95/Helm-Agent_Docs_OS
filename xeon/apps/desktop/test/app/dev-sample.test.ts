@@ -46,11 +46,17 @@ describe("withSampleMirror", () => {
       selectApprovalUrgent(shown, b),
       shown.threads.byId[a]?.workspace,
       shown.threads.byId[b]?.workspace,
-    ]).toEqual([1, 2, 0, 0, false, true, "/w/helm", "/w/helm"]);
-    expect(shown.approvals.ids.map((id) => shown.approvals.byId[id]?.request.expiresAt)).toEqual([
-      undefined,
-      NOW + 30 * 60_000,
-      NOW + 30 * 60_000,
+    ]).toEqual([2, 2, 0, 0, false, true, "/w/helm", "/w/helm"]);
+    expect(
+      shown.approvals.ids.map((id) => {
+        const request = shown.approvals.byId[id]?.request;
+        return [request?.expiresAt, request?.body.kind];
+      }),
+    ).toEqual([
+      [undefined, "question"],
+      [undefined, "tool"],
+      [NOW + 30 * 60_000, "question"],
+      [NOW + 30 * 60_000, "question"],
     ]);
   });
 
