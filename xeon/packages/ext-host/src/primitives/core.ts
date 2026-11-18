@@ -73,6 +73,8 @@ export interface ResolvedDeps {
   readonly report: (diagnostic: ExtDiagnostic) => void;
   readonly strict: boolean;
   readonly setupBudgetMs: () => number | null;
+  /** 입력과 `done` 결과의 직렬화 크기 상한(바이트). 넘으면 거절한다(`input_too_large`, `result_too_large`) */
+  readonly driveInputMaxBytes: () => number;
 }
 
 // ── 경계 신호 (X.primitives.spec §3.5) ────────────────────────────────────
@@ -274,7 +276,7 @@ export type StartDriveError =
   | { readonly kind: "child_thread" }
   | { readonly kind: "not_drive" }
   | { readonly kind: "drive_error" }
-  /** 입력이 기록에 실릴 수 있는 크기(`DRIVE_INPUT_MAX_BYTES`)를 넘는다 */
+  /** 입력이 기록에 실릴 수 있는 크기(`driveInputMaxBytes`, 기본 블롭 상한과 같은 `DRIVE_INPUT_MAX_BYTES`)를 넘는다 */
   | { readonly kind: "input_too_large" };
 
 // ── thread별 런타임 ────────────────────────────────────────────────────────

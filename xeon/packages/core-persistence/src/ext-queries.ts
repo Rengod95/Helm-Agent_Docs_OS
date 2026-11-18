@@ -6,6 +6,7 @@ import {
   toJsonValue,
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
+  type JsonValue,
   type ThreadId,
 } from "@fresnel/contracts/conversation";
 import { GroupRecordSchema } from "@fresnel/contracts/extensions";
@@ -18,6 +19,7 @@ import {
   LeaseRequestedPayloadSchema,
   LeaseUserInputPayloadSchema,
   ScopeChangedPayloadSchema,
+  type DetachedField,
   type DurableEventEnvelope,
   type ExtensionEventKind,
   type ExtRecordQuery,
@@ -29,6 +31,7 @@ import {
   type SqlTx,
   type StoredScopeState,
 } from "@fresnel/contracts/records";
+import { restoreDetached, type BlobSource } from "./blob.ts";
 import {
   branchEvents,
   branchEventsWithOwner,
@@ -38,6 +41,31 @@ import {
 } from "./branch.ts";
 import { EXT_STATE_KIND_SUFFIX, ExtStatePayloadSchema } from "./ext-state.ts";
 import { rowInvalid, type RowFault } from "./rows.ts";
+
+/**
+ * 스냅샷에 실릴 값 하나를 되돌린다(L1.persistence.spec §4.11). `detached` 가운데 `pointer` 아래 항목만 쓰고, 위치는 값 기준으로 고친다.
+ * 되돌릴 항목이 없으면 blob을 읽지 않는다. 스냅샷에 실릴 값만 부르므로 닫힌 임대의 입력은 읽지 않는다
+ */
+function restoredAt(
+  value: JsonValue,
+  detached: readonly DetachedField[],
+  pointer: string,
+  blobs: BlobSource,
+): Result<JsonValue, RowFault> {
+  const under = detached.filter(
+    (field) => field.pointer === pointer || field.pointer.startsWith(`${pointer}/`),
+  );
+  if (under.length === 0) return ok(value);
+  const rebased: DetachedField[] = under.map((field) =>
+    field.encoding === undefined
+      ? { pointer: field.pointer.slice(pointer.length), ref: field.ref }
+      : { pointer: field.pointer.slice(pointer.length), ref: field.ref, encoding: field.encoding },
+  );
+  const restored = toJsonValue(restoreDetached(value, rebased, blobs));
+  return restored === undefined
+    ? err(rowInvalid(`events.envelope ${pointer} restored value`))
+    : ok(restored);
+}
 
 /** 활성 가지에서 읽는 확장 상태 이벤트의 kind 조건 */
 const STATE_FILTER: KindFilter = { sql: `kind LIKE '%${EXT_STATE_KIND_SUFFIX}'`, params: [] };
@@ -163,13 +191,27 @@ interface LeaseDraft {
   /** 프로필의 시작 주도로 부여됐다(`requestId`와 `parent`가 없다) */
   readonly profileStart: boolean;
   readonly acquiredSeq: number;
+  /** `input`이 든 기록(`lease.acquired`)의 분리 항목. 스냅샷에 실릴 때만 되돌린다 */
+  readonly detached: readonly DetachedField[];
+  /** `handoffEnd.result`가 든 기록(`lease.released`)의 분리 항목 */
+  handoffDetached: readonly DetachedField[];
+}
+
+/** 부여되지 않은 시작 요청과 처리되지 않은 사용자 메시지: 값과 그 값이 든 기록의 분리 항목 */
+interface Deferred<T> {
+  readonly value: T;
+  readonly detached: readonly DetachedField[];
 }
 
 /**
  * `ext.loadThread`: 활성 가지 위 scope.changed, lease.*, 상태 이벤트로 계산한 스냅샷.
  * 열린 임대는 목록이다(오래된 것부터, 맨 위 프레임이 마지막). 스택 위 프레임의 사용량을 아래에 더하는 일은 엔진이 한다
  */
-export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSnapshot, RowFault> {
+export function loadSnapshot(
+  tx: SqlTx,
+  threadId: ThreadId,
+  blobs: BlobSource,
+): Result<ExtThreadSnapshot, RowFault> {
   const scopeEvents = kindIn([
     "scope.changed",
     "lease.acquired",
@@ -189,14 +231,14 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   const transitions = new Map<string, number>();
   const enabledAtSeq = new Map<string, number>();
   const leaseEpochs = new Map<string, number>();
-  const states = new Map<string, StoredScopeState>();
+  const states = new Map<string, Deferred<StoredScopeState>>();
   const open: LeaseDraft[] = [];
   // 부여되지도 버려지지도 않은 시작 요청(requestId 순서 = 큐 순서)
-  const pending = new Map<string, PendingStartRequest>();
+  const pending = new Map<string, Deferred<PendingStartRequest>>();
   // 부여됐거나 버려진 요청 id. 같은 커밋에서는 기록 순서가 부여보다 뒤일 수 있어 순서와 무관하게 닫는다
   const closed = new Set<string>();
   // 가로챈 사용자 메시지 중 처리되지 않은 것(requestId 순서 = 받은 순서). 처리된 id는 순서와 무관하게 닫는다
-  const heldInputs = new Map<string, PendingUserInput>();
+  const heldInputs = new Map<string, Deferred<PendingUserInput>>();
   const settledInputs = new Set<string>();
   // 처리된 사용자 메시지가 있는 scope. 그 scope의 새 부여가 비운다
   const settledScopes = new Set<string>();
@@ -251,6 +293,8 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         handoffEnd: null,
         profileStart: requestId === undefined && parent === undefined,
         acquiredSeq: event.seq,
+        detached: event.detached ?? [],
+        handoffDetached: [],
       });
     } else if (event.kind === "lease.released") {
       const payload = parse(LeaseReleasedPayloadSchema, event.payload);
@@ -267,6 +311,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
             payload.value.reason === "done"
               ? { status: "done", result: payload.value.result ?? null }
               : { status: "aborted", result: null };
+          caller.handoffDetached = event.detached ?? [];
         }
       }
     } else if (event.kind === "lease.requested") {
@@ -278,11 +323,14 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         closed.add(request.requestId);
       } else if (!closed.has(request.requestId)) {
         pending.set(request.requestId, {
-          requestId: request.requestId,
-          scopeId: request.scopeId,
-          trigger: request.trigger,
-          parent: request.parent ?? null,
-          input: request.input ?? null,
+          value: {
+            requestId: request.requestId,
+            scopeId: request.scopeId,
+            trigger: request.trigger,
+            parent: request.parent ?? null,
+            input: request.input ?? null,
+          },
+          detached: event.detached ?? [],
         });
       }
     } else if (event.kind === "lease.user_input") {
@@ -295,9 +343,12 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         settledScopes.add(message.scopeId);
       } else if (!settledInputs.has(message.requestId) && message.input !== undefined) {
         heldInputs.set(message.requestId, {
-          requestId: message.requestId,
-          scopeId: message.scopeId,
-          input: message.input,
+          value: {
+            requestId: message.requestId,
+            scopeId: message.scopeId,
+            input: message.input,
+          },
+          detached: event.detached ?? [],
         });
       }
     } else if (event.kind === "drive.command_settled") {
@@ -310,7 +361,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     } else {
       const state = storedStateOf(event);
       if (!state.ok) return state;
-      states.set(state.value.scopeId, state.value);
+      states.set(state.value.scopeId, { value: state.value, detached: event.detached ?? [] });
     }
   }
 
@@ -318,6 +369,15 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   for (const lease of open) {
     const used = usedSince(tx, threadId, lease);
     if (!used.ok) return used;
+    const input =
+      lease.input === null ? ok(null) : restoredAt(lease.input, lease.detached, "/input", blobs);
+    if (!input.ok) return input;
+    let handoffEnd: OpenLease["handoffEnd"] = lease.handoffEnd;
+    if (handoffEnd?.status === "done" && handoffEnd.result !== null) {
+      const result = restoredAt(handoffEnd.result, lease.handoffDetached, "/result", blobs);
+      if (!result.ok) return result;
+      handoffEnd = { status: "done", result: result.value };
+    }
     openLeases.push({
       leaseId: lease.leaseId,
       lineageId: lease.lineageId,
@@ -328,26 +388,43 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
       parent: lease.parent,
       depth: lease.depth,
       contentHash: lease.contentHash,
-      input: lease.input,
-      handoffEnd: lease.handoffEnd,
+      input: input.value,
+      handoffEnd,
       awaitsUser: lease.profileStart && !settledScopes.has(lease.scopeId),
     });
   }
   // 맡기기 요청은 맡긴 프레임이 아직 열려 있을 때만 되살린다
   const openIds = new Set(open.map((lease) => lease.leaseId));
-  const pendingRequests = [...pending.values()].filter(
-    (request) =>
-      request.trigger !== "handoff" || (request.parent !== null && openIds.has(request.parent)),
-  );
+  const pendingRequests: PendingStartRequest[] = [];
+  for (const { value: request, detached } of pending.values()) {
+    if (request.trigger === "handoff" && !(request.parent !== null && openIds.has(request.parent)))
+      continue;
+    const input =
+      request.input === null ? ok(null) : restoredAt(request.input, detached, "/input", blobs);
+    if (!input.ok) return input;
+    pendingRequests.push({ ...request, input: input.value });
+  }
+  const pendingUserInputs: PendingUserInput[] = [];
+  for (const { value: message, detached } of heldInputs.values()) {
+    const input = restoredAt(message.input, detached, "/input", blobs);
+    if (!input.ok) return input;
+    pendingUserInputs.push({ ...message, input: input.value });
+  }
+  const storedStates: StoredScopeState[] = [];
+  for (const { value: state, detached } of states.values()) {
+    const doc = restoredAt(state.doc, detached, "/doc", blobs);
+    if (!doc.ok) return doc;
+    storedStates.push({ ...state, doc: doc.value });
+  }
   return ok({
     enabled: [...enabled],
     disabled: [...disabled],
     scopeTransitions: Object.fromEntries(transitions),
     enabledAtSeq: Object.fromEntries(enabledAtSeq),
-    states: [...states.values()],
+    states: storedStates,
     openLeases,
     pendingRequests,
-    pendingUserInputs: [...heldInputs.values()],
+    pendingUserInputs,
     leaseEpochs: Object.fromEntries(leaseEpochs),
   });
 }

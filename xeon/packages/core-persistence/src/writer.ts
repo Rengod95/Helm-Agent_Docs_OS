@@ -142,6 +142,9 @@ function mapBlobError(error: BlobError): StoreError {
   switch (error.kind) {
     case "disk_full":
       return { kind: "disk_full" };
+    case "blob_too_large":
+      // F StoreError에는 크기 한도 전용 kind가 없어 가장 가까운 disk_full로 낸다 [제안: 사용자 확인 필요]
+      return { kind: "disk_full" };
     case "io":
       return { kind: "io", code: error.code };
     case "blob_missing":
@@ -191,6 +194,15 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
   const { db, leases, clock, ids, faults, catalog, producers, sessions, guard } = deps;
   /** 분리 전 값으로 payload 검사를 마친 초안의 분리 사본(F.records.spec §3.4 규칙 5). 자리표시로 다시 검사하지 않는다 */
   const prevalidated = new WeakSet<object>();
+
+  /**
+   * 큰 JSON 하위 값을 자리표시로 바꾼 payload가 이 kind의 스키마를 지키는지 본다. 객체를 문자열로 바꾸면 투영기가 그 구조를 읽다 깨진다
+   * (L1.persistence.spec §4.11). 문자열 잎은 문자열을 자리표시 문자열로 바꾸므로 이 검사를 하지 않는다
+   */
+  const schemaFitsOf = (draft: DurableEventDraft): ((payload: unknown) => boolean) => {
+    const entry = catalog.entryOf(draft.kind);
+    return (payload: unknown): boolean => entry !== undefined && parse(entry.payload, payload).ok;
+  };
 
   /**
    * 초안 하나의 envelope를 완성하고 검사한다(§4.1 5단계). seq, recordedAt, parentId는 저장소가 채운다.
@@ -554,7 +566,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
             drafts.push(stamped);
             continue;
           }
-          const moved = detachLarge(stamped.draft, putBlob);
+          const moved = detachLarge(stamped.draft, putBlob, schemaFitsOf(stamped.draft));
           if (!moved.ok) return err(mapBlobError(moved.error));
           const restamped = producers.restamp(stamped, moved.value);
           prevalidated.add(restamped.draft);

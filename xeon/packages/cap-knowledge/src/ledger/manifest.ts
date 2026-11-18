@@ -37,6 +37,8 @@ const ManifestSchema = Type.Array(
 
 function blobFailure(error: BlobError, what: string): KnowledgeFailure {
   switch (error.kind) {
+    case "blob_too_large":
+      return failure("limit_exceeded", `${what}: blob too large`, { cause: error });
     case "disk_full":
       return failure("unavailable", `${what}: disk full`, { cause: error });
     case "blob_missing":

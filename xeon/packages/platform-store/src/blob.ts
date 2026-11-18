@@ -3,9 +3,11 @@ import {
   readdirSync,
   unlinkSync,
   fsyncSync,
+  fstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   renameSync,
   statSync,
   writeSync,
@@ -13,10 +15,22 @@ import {
 import { dirname, join } from "node:path";
 import { assertNever, Bug, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import type { IdFactory } from "@fresnel/contracts/conversation";
-import type { BlobError, BlobRef, SqlTx, StoreWriteError } from "@fresnel/contracts/records";
+import type {
+  BlobError,
+  BlobRef,
+  BlobUsage,
+  SqlRow,
+  SqlTx,
+  StoreReadError,
+  StoreWriteError,
+} from "@fresnel/contracts/records";
 import { assertNotInWrite, createStoreDb, readOnlyRefusal, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import { sha256Hex } from "./hash.ts";
+import { columnInt, columnString } from "./rows.ts";
+
+/** `sys_blob_refs.owner`가 대화 참조일 때의 값. `ref_key`가 대화 id다(L0.store.spec §4.9) */
+const THREAD_BLOB_OWNER = "thread";
 
 /** core-persistence 전용 블롭 참조 기록(L0.store.spec §3.4). 이벤트 커밋과 같은 트랜잭션에서 부른다 */
 export interface BlobPins {
@@ -38,6 +52,8 @@ export interface BlobDeps {
   readonly verifyHash: boolean;
   /** `l0.store.blobGraceMs`. 이 시간 안에 쓴 참조 없는 블롭은 GC가 지우지 않는다 */
   readonly graceMs: number;
+  /** `l0.store.maxBlobBytes`. 이보다 큰 바이트는 파일을 쓰기 전에 `blob_too_large`로 거절한다 */
+  readonly maxBytes: number;
 }
 
 /** GC 한 번이 지우는 항목(행·파일) 수 상한(L0.store.spec §4.9) */
@@ -64,7 +80,9 @@ export interface BlobGcReport {
 export interface BlobStore {
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
   readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
+  blobUsage(): Result<BlobUsage, BlobError>;
   /** 소유자 검증은 호출 쪽(service.ts)이 끝낸 뒤 부른다 */
   pinRef(sha256: string, owner: string, refKey: string): Result<void, BlobError>;
   unpinRefs(owner: string, refKey: string): Result<number, BlobError>;
@@ -100,6 +118,23 @@ function mapWriteError(error: StoreWriteError): BlobError {
   }
 }
 
+function mapReadError(error: StoreReadError): BlobError {
+  switch (error.kind) {
+    case "busy":
+      return { kind: "io", code: "SQLITE_BUSY" };
+    case "io":
+      return { kind: "io", code: error.code };
+    default:
+      return assertNever(error, "StoreReadError");
+  }
+}
+
+/** 집계 질의는 항상 한 행을 돌려준다. 없으면 드라이버나 SQL의 결함이다 */
+function oneRow(row: SqlRow | undefined, what: string): SqlRow {
+  if (row === undefined) throw new Bug(`store.engine_shape: ${what} returned no row`);
+  return row;
+}
+
 function blobPath(blobsDir: string, sha256: string): string {
   return join(blobsDir, sha256.slice(0, 2), sha256.slice(2));
 }
@@ -130,8 +165,10 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
     if (conn.state.phase !== "open") throw new Bug("store.closed: the store is closed");
     // 파일을 쓰기 전에 거절한다. 읽기 전용 열기에서 파일만 남는 일이 없게 한다
     if (conn.state.readOnly) return err(readOnlyRefusal());
-    const sha256 = sha256Hex(bytes);
     const size = bytes.byteLength;
+    // 한도를 넘으면 파일도 행도 만들지 않는다. 잘라 쓰지 않는다
+    if (size > deps.maxBytes) return err({ kind: "blob_too_large", size, limit: deps.maxBytes });
+    const sha256 = sha256Hex(bytes);
     const dest = blobPath(blobsDir, sha256);
     try {
       const present = statOrUndefined(dest);
@@ -199,6 +236,85 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
     readByHash(ref.sha256, ref.size);
   const readBlobByHash = (sha256: string): Result<Uint8Array, BlobError> =>
     readByHash(sha256, undefined);
+
+  /**
+   * 구간만 읽는다(fd + readSync). 해시는 대조하지 않는다(구간으로는 전체 해시를 알 수 없다). 크기는 ref.size와 대조한다.
+   * 범위가 블롭을 넘거나 정수가 아니면 호출자 결함이라 Bug다.
+   */
+  const readBlobRange = (
+    ref: BlobRef,
+    offset: number,
+    length: number,
+  ): Result<Uint8Array, BlobError> => {
+    const inside =
+      Number.isSafeInteger(offset) &&
+      Number.isSafeInteger(length) &&
+      offset >= 0 &&
+      length >= 0 &&
+      offset + length <= ref.size;
+    if (!inside) {
+      throw new Bug(
+        `store.blob_range_out_of_bounds: offset ${offset}, length ${length}, size ${ref.size}`,
+      );
+    }
+    // 저장된 참조가 깨졌더라도 경로 조작이 되지 않게 해시 모양을 먼저 본다
+    if (!SHA256_HEX.test(ref.sha256)) return err({ kind: "blob_missing", sha256: ref.sha256 });
+    let fd: number | undefined;
+    try {
+      fd = openSync(blobPath(blobsDir, ref.sha256), "r");
+      const stat = fstatSync(fd);
+      if (!stat.isFile() || stat.size !== ref.size) {
+        return err({ kind: "blob_corrupt", sha256: ref.sha256, reason: "size" });
+      }
+      const out = new Uint8Array(length);
+      let got = 0;
+      while (got < length) {
+        const n = readSync(fd, out, got, length - got, offset + got);
+        // 읽는 도중 파일이 줄었다
+        if (n === 0) return err({ kind: "blob_corrupt", sha256: ref.sha256, reason: "size" });
+        got += n;
+      }
+      return ok(out);
+    } catch (caught) {
+      if (fsCodeOf(caught) === "ENOENT") return err({ kind: "blob_missing", sha256: ref.sha256 });
+      const mapped = mapFsError(caught);
+      if (mapped === undefined) throw caught;
+      return err(mapped);
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+  };
+
+  /**
+   * 전체는 sys_blobs 행 수와 바이트 합이다. 대화별은 `owner = 'thread'` 참조를 ref_key로 묶는다.
+   * (sha256, owner, ref_key)가 기본 키라 한 대화가 같은 블롭을 두 번 세지 않는다.
+   */
+  const blobUsage = (): Result<BlobUsage, BlobError> => {
+    const read = db.read((tx): BlobUsage => {
+      const totals = oneRow(
+        tx.get("SELECT COUNT(*) AS blobs, COALESCE(SUM(size), 0) AS bytes FROM sys_blobs"),
+        "blob totals",
+      );
+      const byThread = tx
+        .all(
+          `SELECT r.ref_key AS thread_id, COUNT(*) AS blobs, COALESCE(SUM(b.size), 0) AS bytes
+           FROM sys_blob_refs r JOIN sys_blobs b ON b.sha256 = r.sha256
+           WHERE r.owner = ?
+           GROUP BY r.ref_key ORDER BY r.ref_key`,
+          [THREAD_BLOB_OWNER],
+        )
+        .map((row) => ({
+          threadId: columnString(row, "thread_id"),
+          blobs: columnInt(row, "blobs"),
+          bytes: columnInt(row, "bytes"),
+        }));
+      return {
+        total: { blobs: columnInt(totals, "blobs"), bytes: columnInt(totals, "bytes") },
+        byThread,
+      };
+    });
+    return read.ok ? ok(read.value) : err(mapReadError(read.error));
+  };
 
   const pins: BlobPins = {
     pin(tx: SqlTx, sha256: string, owner: string, refKey: string): void {
@@ -324,7 +440,17 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
     }
   };
 
-  return { putBlob, readBlob, readBlobByHash, pinRef, unpinRefs, gc, pins };
+  return {
+    putBlob,
+    readBlob,
+    readBlobRange,
+    readBlobByHash,
+    blobUsage,
+    pinRef,
+    unpinRefs,
+    gc,
+    pins,
+  };
 }
 
 /** 파일을 지운다. 없으면 이미 지운 것으로 본다. 그 밖의 실패(사용 중 등)는 false로 다음 주기에 미룬다 */

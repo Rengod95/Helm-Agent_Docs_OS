@@ -1322,7 +1322,22 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다). 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다).
+
+**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 그래서 16 MiB를 넘는 맡긴 입력이나 사용자 메시지는 엔진이 받아 기록할 수 있고, 그 값이 자식으로 가는 프레임에 실리는 순간 `frame_too_large`가 된다. 그 단계는 프로세스를 죽이지 않고 보내지도 않으며, 주도 프레임은 오류로 내려가고 등록은 `driveError`(이후 시작은 `drive_error`)가 된다(`test/isolation/isolated-drive.test.ts`). 실리는 길은 다음과 같다.
+
+| 길 | 싣는 값 | 16 MiB를 넘으면 |
+|---|---|---|
+| `drive.step` 요청 | `frame.input`(맡기기, 사용자 명령, 되살아난 입력의 `lease.acquired.input`) | 단계 오류, 주도 프레임 `error` |
+| `drive.step` 요청 | `last`(가로챈 사용자 메시지, 맡긴 쪽이 받는 `done` 결과) | 단계 오류, 주도 프레임 `error` |
+| `drive.step` 응답 | `command`의 `done` 결과, `handoff` 입력, `commit` 상태 | 자식이 오류 프레임으로 바꾸고(`frame_too_large`) 단계 오류 |
+| `engine.call` `startDrive` | 자식이 엔진에 거는 시작 입력 | 자식이 보내지 않고 호출이 `frame_too_large`로 떨어진다 |
+
+맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
+
+[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않는다. [제안] 엔진이 격리 등록에 대해 16 MiB를 넘는 입력을 받는 시점에 미리 `input_too_large`로 거절하는 쪽이 `driveError`로 떨어뜨리는 것보다 낫다. 이 규칙은 적용하지 않았다.
+
+훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
 
 #### 4.9.4 격리 가능 훅
 

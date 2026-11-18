@@ -24,7 +24,7 @@ import { createProducerRegistry } from "./producers.ts";
 import { createCoreProjector } from "./projector/core.ts";
 import { ensureProjectors } from "./projector/rebuild.ts";
 import { createProjectorController } from "./projector/registry.ts";
-import { createProjectionQuery } from "./query.ts";
+import { createProjectionQuery, registerPersistenceQuery } from "./query.ts";
 import { createReader } from "./read.ts";
 import { createResumer } from "./resume.ts";
 import { createSessionSettings } from "./session-settings.ts";
@@ -166,12 +166,13 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     logger: deps.logger,
   });
 
+  const projection = createProjectionQuery(deps.db);
   const service: SessionService = {
     retention,
     commit: (request) => writer.commit(request),
     producer: (id: ProducerId): ProducerHandle => producers.claim(id),
     projectors: controller.registry,
-    query: createProjectionQuery(deps.db),
+    query: projection,
     readFrom: (afterSeq, options) => reader.readFrom(afterSeq, options),
     readBranch: (threadId, leaf) => reader.readBranch(threadId, leaf),
     loadCheckpoint: (threadId) => reader.loadCheckpoint(threadId),
@@ -194,8 +195,10 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
       producers,
       catalog,
       canDetach: deps.putBlob !== undefined,
+      blobs: { readBlob: deps.readBlob, logger: deps.logger },
     }),
   };
   registerItemPages(service, createItemPages({ db: deps.db, catalog, reader }));
+  registerPersistenceQuery(service, projection);
   return ok(service);
 }

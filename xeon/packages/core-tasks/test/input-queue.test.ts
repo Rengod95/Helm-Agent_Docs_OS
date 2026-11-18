@@ -584,7 +584,7 @@ describe("detached payloads", () => {
 });
 
 /** 첫 입력의 payload 문자열을 blob 자리표시로 바꾸고 detached를 붙인다(큰 입력이 커밋되면 writer가 하는 일) */
-function detach(world: World, index: number, sha: string): void {
+function detach(world: World, index: number, sha: string, encoding?: "json"): void {
   const event = world.session.events.filter((candidate) => candidate.kind === "input.queued")[
     index
   ];
@@ -595,7 +595,11 @@ function detach(world: World, index: number, sha: string): void {
   }
   Reflect.set(payload.item ?? {}, "content", `blob:sha256:${sha}`);
   Reflect.set(event, "detached", [
-    { pointer: "/item/content", ref: { type: "blob", sha256: sha, size: 10, mediaType: null } },
+    {
+      pointer: "/item/content",
+      ref: { type: "blob", sha256: sha, size: 10, mediaType: null },
+      ...(encoding === undefined ? {} : { encoding }),
+    },
   ]);
 }
 
@@ -615,6 +619,35 @@ describe("large inputs", () => {
     expect(viewSelection(world, "turnStart").inputs.map((input) => input.item)).toEqual([
       { kind: "user", content: "the very large pasted text" },
     ]);
+  });
+
+  test("a detached JSON subtree is read back as JSON, not as text", async () => {
+    const sha = "d".repeat(64);
+    const parts = [{ type: "text" as const, text: "part one" }];
+    const world = createWorld({
+      readBlob: (ref) =>
+        ref.sha256 === sha
+          ? ok(new TextEncoder().encode(JSON.stringify(parts)))
+          : { ok: false, error: { kind: "blob_missing", sha256: ref.sha256 } },
+    });
+    await mustEnqueue(world, userDraft(world.threadId, "parts", { mode: "followUp" }));
+    detach(world, 0, sha, "json");
+    const [peeked] = unwrapped(world.tasks.inputs.peek(world.threadId));
+    expect(peeked?.item).toEqual({ kind: "user", content: parts });
+  });
+
+  test("a detached JSON subtree that does not parse is unreadable and does not block the inputs behind it", async () => {
+    const sha = "e".repeat(64);
+    const world = createWorld({ readBlob: () => ok(new TextEncoder().encode("{not json")) });
+    await mustEnqueue(world, userDraft(world.threadId, "broken"));
+    await mustEnqueue(world, userDraft(world.threadId, "next-steer"));
+    detach(world, 0, sha, "json");
+    expect(viewSelection(world, "stepEnd").inputs.map((input) => input.requestId)).toEqual([
+      "next-steer",
+    ]);
+    expect(world.log.records.map((record) => record.event)).toContain(
+      "tasks.queued_input_blob_unreadable",
+    );
   });
 
   test("an input whose blob is gone does not block the inputs behind it", async () => {

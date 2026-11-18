@@ -688,6 +688,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
+    // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
+    driveInputMaxBytes: () =>
+      storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
+        .maxBlobBytes,
     report: (diagnostic) => {
       diagnostics.push(diagnostic);
       late.logger?.warn("ext.diagnostic", {

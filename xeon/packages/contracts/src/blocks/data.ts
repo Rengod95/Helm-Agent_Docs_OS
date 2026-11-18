@@ -456,6 +456,7 @@ export const BLOCK_SPECS: readonly BlockSpec[] = [
       ref("l0.store.leaseTtlMs", "platform-store", ["managed", "user"]),
       ref("l0.store.busyTimeoutMs", "platform-store", ["managed", "user"]),
       ref("l0.store.blobGraceMs", "platform-store", ["managed", "user"]),
+      ref("l0.store.maxBlobBytes", "platform-store", ["managed", "user"]),
       ref("l0.store.blobGcEnabled", "platform-store", ["managed", "user"]),
       ref("l0.store.requireFts5", "platform-store", ["managed", "user"]),
       ref("l0.store.macFullFsync", "platform-store", ["managed", "user"]),

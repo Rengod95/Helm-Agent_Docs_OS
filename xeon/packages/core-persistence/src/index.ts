@@ -7,6 +7,7 @@ export {
   type ItemPageRequest,
   type ItemPages,
 } from "./item-pages.ts";
+export { persistenceQueryOf, type PersistenceQuery, type ThreadBlobUsage } from "./query.ts";
 export { type RetentionApi } from "./retention.ts";
 export {
   createThreadHooks,

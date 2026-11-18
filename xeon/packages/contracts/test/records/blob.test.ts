@@ -47,4 +47,10 @@ describe("DetachedField", () => {
     expect(parse(DetachedFieldSchema, { pointer: "/a/0/data", ref }).ok).toBe(true);
     expect(parse(DetachedFieldSchema, { pointer: "a/b", ref }).ok).toBe(false);
   });
+
+  test('encoding is absent (UTF-8 string) or "json", nothing else', () => {
+    expect(parse(DetachedFieldSchema, { pointer: "/a", ref }).ok).toBe(true);
+    expect(parse(DetachedFieldSchema, { pointer: "/a", ref, encoding: "json" }).ok).toBe(true);
+    expect(parse(DetachedFieldSchema, { pointer: "/a", ref, encoding: "base64" }).ok).toBe(false);
+  });
 });

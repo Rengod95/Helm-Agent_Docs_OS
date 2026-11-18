@@ -1456,6 +1456,31 @@
         }
       }
     },
+    "l0.store.maxBlobBytes": {
+      "default": 536870912,
+      "maximum": 2147483648,
+      "minimum": 1048576,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Largest size of one stored blob",
+          "labelKey": "settings.l0.store.maxBlobBytes.label",
+          "order": 310,
+          "tab": "sessions",
+          "unit": "bytes",
+          "unitKey": "settings.l0.store.maxBlobBytes.unit",
+          "widget": "number"
+        }
+      }
+    },
     "l0.store.requireFts5": {
       "default": false,
       "type": "boolean",

@@ -34,7 +34,9 @@ function storeService(
     leases: store.leases,
     putBlob: () => err({ kind: "disk_full" }),
     readBlob: () => err({ kind: "disk_full" }),
+    readBlobRange: () => err({ kind: "disk_full" }),
     readBlobByHash: () => err({ kind: "disk_full" }),
+    blobUsage: () => err({ kind: "disk_full" }),
     pinBlob: () => err({ kind: "disk_full" }),
     unpinBlob: () => err({ kind: "disk_full" }),
   };

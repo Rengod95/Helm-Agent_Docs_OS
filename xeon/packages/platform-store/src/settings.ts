@@ -10,6 +10,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   leaseTtlMs: 30_000,
   busyTimeoutMs: 5000,
   blobGraceMs: 86_400_000,
+  maxBlobBytes: 536_870_912,
   blobGcEnabled: false,
   requireFts5: false,
   macFullFsync: true,
@@ -73,6 +74,22 @@ const group = defineSettings("l0.store", {
     },
     since: "0.1.0",
   },
+  // 블롭 하나의 최대 바이트 수(L0.store.spec §6). 하한 1 MiB는 envelope 상한 256 KiB의 값을 분리할 수 있게 둔 것이다 [제안]
+  maxBlobBytes: {
+    type: Type.Integer(),
+    default: DEFAULT_STORE_SETTINGS.maxBlobBytes,
+    range: { min: 1_048_576, max: 2_147_483_648 },
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "sessions",
+      widget: "number",
+      order: 310,
+      label: "Largest size of one stored blob",
+      unit: "bytes",
+    },
+    since: "0.1.0",
+  },
   // 기본 끔. 블롭 소비자 가운데 아직 pinBlob을 쓰지 않는 곳이 있어(L0.store.spec §6 [미결]) 켜면 참조 없는 블롭을 지울 수 있다
   blobGcEnabled: {
     type: Type.Boolean(),
@@ -129,7 +146,7 @@ export interface StoreSettingIssue {
 }
 
 interface IntegerRule {
-  readonly name: "heartbeatMs" | "leaseTtlMs" | "busyTimeoutMs" | "blobGraceMs";
+  readonly name: "heartbeatMs" | "leaseTtlMs" | "busyTimeoutMs" | "blobGraceMs" | "maxBlobBytes";
   readonly min: number;
   readonly max: number;
 }
@@ -139,6 +156,7 @@ const INTEGER_RULES: readonly IntegerRule[] = [
   { name: "leaseTtlMs", min: 3000, max: 600_000 },
   { name: "busyTimeoutMs", min: 0, max: 60_000 },
   { name: "blobGraceMs", min: 600_000, max: 2_592_000_000 },
+  { name: "maxBlobBytes", min: 1_048_576, max: 2_147_483_648 },
 ];
 
 /**
@@ -154,6 +172,7 @@ export function resolveStoreSettings(
     leaseTtlMs: DEFAULT_STORE_SETTINGS.leaseTtlMs,
     busyTimeoutMs: DEFAULT_STORE_SETTINGS.busyTimeoutMs,
     blobGraceMs: DEFAULT_STORE_SETTINGS.blobGraceMs,
+    maxBlobBytes: DEFAULT_STORE_SETTINGS.maxBlobBytes,
   };
   for (const rule of INTEGER_RULES) {
     const value = input[rule.name];

@@ -160,6 +160,8 @@ export interface ExtHostDeps {
   readonly resourcePolicy?: ResourcePolicy;
   /** scope setup 하나의 시간 예산(ms). 조립 루트가 OperationsPolicy.setupBudgetMs를 넘긴다. 없으면 무제한 */
   readonly setupBudgetMs?: () => number | null;
+  /** 입력(맡기기, 사용자 명령, 가로챈 사용자 메시지)과 `done` 결과의 직렬화 크기 상한(UTF-8 바이트). 없으면 `DRIVE_INPUT_MAX_BYTES`(512 MiB)다. 조립 루트(`apps/host/src/assemble.ts`)가 `l0.store.maxBlobBytes`를 넘긴다(설정 파일을 읽은 뒤에 불리도록 호출 때마다 읽는다) */
+  readonly driveInputMaxBytes?: () => number;
   /** x.primitives.* 설정 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다 */
   readonly settings: PrimitivesSettingsSource;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
@@ -1140,7 +1142,7 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1b 맡기기(`handoff`) [결정: 2026-11-17 사용자, 3b]
 
-1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 입력의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES`(200,000바이트)를 넘으면 `input_too_large`다. 거부하면 스택과 기록은 바뀌지 않는다.
+1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 입력의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 주입하면 `driveInputMaxBytes`)를 넘으면 `input_too_large`다. 크기는 JSON 텍스트의 UTF-8 바이트로 잰다. 거부하면 스택과 기록은 바뀌지 않는다.
 2. `to`는 플러그인(확장) 이름이다. 플러그인 이름은 `RegistrationRecord.extension`이고 프레임 읽기의 `plugin`과 같다. 같은 확장이 플러그인을 여럿 등록하면 scope가 여럿이므로, 이름과 id가 같은 루트 scope를 고르고 그것이 없고 이름이 같은 scope가 하나뿐일 때만 고른다. 고를 수 없으면 `target_unavailable`이다. scope id는 루트 플러그인이면 확장 이름과 같고, 그 밖의 플러그인이면 `이름/플러그인`이다.
 3. 통과하면 시작 요청 `{ trigger: "handoff", scopeId, input, parentLeaseId: 맨 위의 leaseId }`를 큐 맨 앞에 넣고 맨 위 프레임을 `waiting`으로 둔다. 이번 호출은 `handoff` 결과로 끝나고 `requestApply`한다.
 4. 부여: 맡긴 프레임이 맨 위이고 `waiting`일 때 부여 판단이 맡은 프레임을 올린다. `lease.acquired`에 `parent`(맡긴 프레임의 leaseId), `depth`(맡긴 프레임 깊이 + 1), `lineageId`(= leaseId, 새 계통)를 싣는다. 맡은 프레임의 `calledBy`는 맡긴 플러그인 이름, `input`은 요청 입력이다. 한도는 §4.4.2 8번이다.
@@ -1807,6 +1809,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `RecordCommitPort`, `ExtCommitRequest`(`visibility` 포함), `ExtRecordQuery`, `ExtRecordRow`와 부속 타입, `queryRecords`의 `reader` 인자와 비공개 기록 규칙 | F.records.spec §3.9 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`) | L1.persistence.spec §3.4 |
 | setup 시간 예산 값(`OperationsPolicy.setupBudgetMs`) | X.operations.spec §3.8 |
+| 입력·결과 크기 상한(`ExtHostDeps.driveInputMaxBytes`, 기본 `DRIVE_INPUT_MAX_BYTES`) | 블롭 상한 `l0.store.maxBlobBytes`(L0.store.spec §3.1) (조립 루트가 설정에서 호출 때마다 읽어 넘긴다) |
 | `ThreadId`, `TurnId`, `StepId`, `JsonValue`, `Usage`, `IdFactory`, 단계 경계 정의 | F.conversation.spec |
 | `defineSettings`, 키 문법 | F.wire-settings.spec |
 | `SessionWriter.commit` 한 트랜잭션, `ProducerHandle` 접두 검사, TX-01·TX-03 | eng.transactions.design |
@@ -1924,7 +1927,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [닫힘, AGE-26] (3a) 시작 요청 큐 기록: 사용자 명령과 맡기기 요청은 `lease.requested`로 기록되고 재시작 뒤 큐에 되살아난다(§4.4.1b 9번). 프로필 시작은 열 때 다시 만든다. 옛 [미결] 설명: 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
-- [닫힘, AGE-26] (3b) 맡기기 요청과 맡긴 입력: `lease.requested`와 `lease.acquired.input`으로 기록된다. 입력과 `done` 결과의 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES`(200,000바이트, envelope 상한 262,144바이트 안)를 넘으면 잘라 저장하지 않고 거절한다: `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`, `done`은 `result_too_large`, 사용자 명령의 `startDrive`는 오류 `input_too_large`다. 옛 [미결] 설명: 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
+- [닫힘, AGE-26] (3b) 맡기기 요청과 맡긴 입력: `lease.requested`와 `lease.acquired.input`으로 기록된다. 입력과 `done` 결과의 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 블롭 상한 `l0.store.maxBlobBytes`의 기본값과 같다)를 넘으면 잘라 저장하지 않고 거절한다: `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`, `done`은 `result_too_large`, 사용자 명령의 `startDrive`는 오류 `input_too_large`다. 큰 값은 L1이 블롭으로 분리하므로 envelope 상한(256 KiB)과는 상관없다. 이 상한은 격리 플러그인에 닿지 않을 수 있다: 프레임 상한 16 MiB를 넘는 입력은 자식에 보내지 못한다(X.loading-trust §4.9.3). 옛 [미결] 설명: 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
 - [닫힘, AGE-26, m4/enS2] 주도 프레임이 가로챈 사용자 메시지(보류 `heldUser`, 프레임 `inbox`, 전달 중 `deliveredUser`)는 `lease.user_input`으로 기록되어 재시작 뒤 되살아난다(§4.4.1b 9번, §4.4.4의 사용자 메시지 항목). 옛 [미결] 설명: 가로챈 메시지는 입력 큐에 들어가지 않고 메모리에만 있어 재시작에서 사라졌다 [근거: packages/ext-host/src/primitives/lease.ts, packages/core-persistence/src/ext-queries.ts].
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).

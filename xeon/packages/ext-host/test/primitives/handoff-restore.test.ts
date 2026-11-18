@@ -5,7 +5,6 @@ import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveCommand, StepResult } from "@fresnel/contracts/extensions";
 import { LeaseRequestedPayloadSchema } from "@fresnel/contracts/records";
 import { parse } from "@fresnel/contracts";
-import { DRIVE_INPUT_MAX_BYTES } from "../../src/primitives/lease.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
@@ -21,6 +20,9 @@ interface Seen {
 }
 
 const LIMITS = { maxTurns: 4 };
+
+/** 입력 상한을 작게 주입한다(기본값은 512 MiB라 시험이 그만큼 할당할 수 없다) */
+const INPUT_LIMIT = 1000;
 
 async function install(
   t: Host,
@@ -356,10 +358,10 @@ test("a start request granted before a restart is not queued again", async () =>
 });
 
 test("a handoff input over the limit is refused with input_too_large and nothing is recorded", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ driveInputMaxBytes: INPUT_LIMIT });
   const thread = t.newThread();
   const seen: Seen[] = [];
-  const big = "x".repeat(DRIVE_INPUT_MAX_BYTES + 1);
+  const big = "x".repeat(INPUT_LIMIT + 1);
   await install(t, seen, "rs-a", (last) =>
     last === null ? { do: "handoff", to: "rs-b", input: big } : { do: "done" },
   );
@@ -377,16 +379,14 @@ test("a handoff input over the limit is refused with input_too_large and nothing
 });
 
 test("a user start input over the limit is refused as input_too_large and a done result over the limit is refused", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ driveInputMaxBytes: INPUT_LIMIT });
   const thread = t.newThread();
   const seen: Seen[] = [];
   await install(t, seen, "rs-a", (last) =>
-    last === null ? { do: "done", result: "y".repeat(DRIVE_INPUT_MAX_BYTES + 1) } : { do: "done" },
+    last === null ? { do: "done", result: "y".repeat(INPUT_LIMIT + 1) } : { do: "done" },
   );
   await t.host.openThread(thread);
-  expect(
-    t.host.startDrive(thread, "rs-a", { input: "x".repeat(DRIVE_INPUT_MAX_BYTES + 1) }),
-  ).toEqual({
+  expect(t.host.startDrive(thread, "rs-a", { input: "x".repeat(INPUT_LIMIT + 1) })).toEqual({
     ok: false,
     error: { kind: "input_too_large" },
   });
@@ -399,6 +399,21 @@ test("a user start input over the limit is refused as input_too_large and a done
     { kind: "refused", code: "result_too_large" },
   ]);
   expect(releasedOf(t, thread).map((released) => released.result)).toEqual([undefined]);
+});
+
+test("the limit counts the UTF-8 bytes of the JSON text, not the characters: 1000 bytes is accepted and one more is refused", async () => {
+  const t = await createTestHost({ driveInputMaxBytes: INPUT_LIMIT });
+  const thread = t.newThread();
+  await install(t, [], "rs-c", () => ({ do: "done" }));
+  await t.host.openThread(thread);
+  // 글자 333개가 각 세 바이트다: JSON 글은 335자지만 1001바이트라 넘는다(글자 수만 보면 상한 안이다)
+  expect(t.host.startDrive(thread, "rs-c", { input: "€".repeat(333) })).toEqual({
+    ok: false,
+    error: { kind: "input_too_large" },
+  });
+  // ASCII 998자는 JSON으로 1000바이트라 상한에 정확히 든다
+  expect(t.host.startDrive(thread, "rs-c", { input: "a".repeat(998) }).ok).toBe(true);
+  await t.settled();
 });
 
 test("a death right after a handoff request and before the receiver's frame (the grant commit did not land) lets the handoff continue after a restart", async () => {
