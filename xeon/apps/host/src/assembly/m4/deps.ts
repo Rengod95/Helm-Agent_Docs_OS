@@ -12,6 +12,7 @@ import type { ProjectPort } from "../../handlers/m4/project.ts";
 import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
+import type { PluginLifecycle } from "./plugin-set.ts";
 
 // M4 포트 구현이 받는 의존. 계측 읽기와 Test run 제어는 계약의 포트 타입이라 소유 트랙이 ext-host를 기다리지 않는다.
 // T-F 시점에는 빈 구현을 넘기고, T-XD의 마지막 커밋이 `index.ts`에서 ext-host 구현으로 바꾼다(`spec-deltas/t-f.md` §5 4번).
@@ -89,8 +90,10 @@ export interface M4HostEnv {
   readonly openThreadProfiles: () => readonly (string | null)[];
   /** 대화의 주도권 스택에 든 플러그인(확장) 이름. 코어 루프는 빼고 아래에서 위 순서다. 열려 있지 않으면 빈 목록(`dropsDrive`의 원천) */
   readonly driveFramePlugins: (threadId: ThreadId) => readonly string[];
-  /** 닫히지 않은 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
+  /** 엔진이 열어 쥔 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
+  /** 대화의 참조로 플러그인을 싣고 내리는 로더 연결(M5c §4.1.11). 없으면 참조만 센다 */
+  readonly lifecycle?: PluginLifecycle;
   /**
    * 대화의 프롬프트 캐시 정책(모델 호환 플래그). 도구 변화의 캐시 영향을 정한다(M5c §4.3.7). 값이 없으면
    * (생략했거나 읽지 못했으면) `profile.preview`는 도구가 바뀌는 경우 `cacheImpact`를 싣지 않는다

@@ -102,6 +102,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { pluginLifecycleOf } from "./m4/plugin-lifecycle.ts";
 import {
   approvalHooksOf,
   createMigrationSubmitter,
@@ -299,27 +300,6 @@ function backgroundCallsOf(source: MeasureReadSource): BackgroundCallReader {
     }
     return providers;
   };
-}
-
-/** 닫히지 않은 대화 id 목록. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
-function openThreadIdsOf(session: PortsDeps["session"]): readonly ThreadId[] {
-  const ids: ThreadId[] = [];
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  do {
-    const page = session.threads.list({
-      ...(cursor === undefined ? {} : { cursor }),
-      limit: 200,
-    });
-    for (const row of page.threads) {
-      if (row.status !== "closed") ids.push(row.threadId);
-    }
-    cursor = page.nextCursor ?? undefined;
-    // 되돌아온 커서는 더 읽을 곳이 없다. 이 루프는 동기라서 멈추지 않으면 이벤트 루프 전체가 멈춘다
-    if (cursor !== undefined && seen.has(cursor)) break;
-    if (cursor !== undefined) seen.add(cursor);
-  } while (cursor !== undefined);
-  return ids;
 }
 
 /**
@@ -799,6 +779,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     try {
       await ext.closeThread(threadId);
     } finally {
+      ports.m4.pluginSet.forget(threadId);
       const released = store.leases.release(lease.token);
       if (!released.ok) log.error("lease.release_failed", { threadId, kind: released.error.kind });
     }
@@ -843,6 +824,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       await session.release(threadId, "quit");
       await ext.closeThread(threadId);
     } finally {
+      // 대화가 닫혔다. 이 대화가 쓰던 플러그인의 참조를 놓는다(M5c §4.1.11). 쥐었던 대화마다 한 번이다
+      ports.m4.pluginSet.forget(threadId);
       const released = store.leases.release(lease.token);
       if (!released.ok) log.error("lease.release_failed", { threadId, kind: released.error.kind });
     }
@@ -925,6 +908,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       throw wireErrorOfStore(restored.error, "approvals.restore failed");
     }
     held.set(threadId, { token, alive });
+    // 열린 대화의 E(T)를 맞추고, 이 대화가 쓰는 플러그인이 실릴 때까지 기다린다(M5c §4.1.11)
+    await ports.m4.pluginSet.opened(threadId);
     return { ok: true, token, release: () => releaseThread(threadId) };
   }
 
@@ -1160,17 +1145,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (loader === undefined) return;
       // 적재는 이름마다 서로 독립이라 함께 기다린다. 각 적재는 상한 시간을 가진다
       await Promise.all(
-        names
-          .filter((name) => !loader.list().some((info) => info.name === name))
-          .map(async (name) => {
-            const installed = await loader.loadInstalled(
-              name,
-              AbortSignal.timeout(OVERLAY_LOAD_TIMEOUT_MS),
-            );
-            if (!installed.ok) {
-              log.error("plugin.overlay.load_failed", { name, kind: installed.error.kind });
+        names.map(async (name) => {
+          const signal = AbortSignal.timeout(OVERLAY_LOAD_TIMEOUT_MS);
+          // 기록이 있으면(시작 때 미룬 것, 내린 것) `ensureLoaded`가 싣는다. 기록이 없으면 검토본에서 새로 설치한다
+          if (loader.list().some((info) => info.name === name)) {
+            const attempted = await attemptAsync(() => loader.ensureLoaded(name, signal));
+            if (!attempted.ok || attempted.value.state !== "active") {
+              log.error("plugin.overlay.load_failed", {
+                name,
+                kind: attempted.ok ? attempted.value.state : "thrown",
+              });
             }
-          }),
+            return;
+          }
+          const installed = await loader.loadInstalled(name, signal);
+          if (!installed.ok) {
+            log.error("plugin.overlay.load_failed", { name, kind: installed.error.kind });
+          }
+        }),
       );
     },
     pluginSet: {
@@ -1290,7 +1282,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           );
         },
         openThreadProfiles: () => openThreadProfilesOf(session),
-        openThreadIds: () => openThreadIdsOf(session),
+        // 엔진이 쥔 대화만 E(T)의 대상이다(`acquireFresh`가 연다, `releaseThread`·`dropHeldThread`가 닫는다)
+        openThreadIds: () => Array.from(held.keys()),
+        // 대화의 참조로 플러그인을 싣고 내린다(M5c §4.1.11). 로더 연결은 조립 뒤에 찾는다(호출 때 읽는다)
+        lifecycle: pluginLifecycleOf({
+          loader: () => deps.extRead.loader(),
+          busy: (name) =>
+            Array.from(held.keys()).some((threadId) =>
+              ext.driveFrames(threadId).some((frame) => frame.plugin === name),
+            ),
+          signal: deps.signal,
+        }),
         driveFramePlugins: (threadId) =>
           deps.ext
             .driveFrames(threadId)

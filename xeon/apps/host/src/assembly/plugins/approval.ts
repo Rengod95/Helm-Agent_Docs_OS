@@ -57,8 +57,9 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
   }
   const loader = deps.loader();
   if (loader !== undefined) {
-    const loaded = loader.list().some((info) => info.name === name);
-    if (loaded) {
+    const record = loader.list().find((info) => info.name === name);
+    // 꺼진 기록(시작 때 미룬 것, 내린 것)은 지금 싣지도 다시 읽지도 않는다. 다음 대화가 쓸 때 `ensureLoaded`가 현재 사본으로 싣는다
+    if (record?.state === "active") {
       const started = await loader.reloadFromReviewed(name, new AbortController().signal);
       if (!started.ok) {
         deps.log.warn("plugin.review.reload_skipped", { name, kind: started.error.kind });
@@ -69,7 +70,7 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
           (cause) => deps.log.error("plugin.review.reflect_failed", { name, cause: String(cause) }),
         );
       }
-    } else {
+    } else if (record === undefined) {
       const installed = await loader.loadInstalled(name, new AbortController().signal);
       if (!installed.ok) {
         deps.log.warn("plugin.review.load_skipped", { name, kind: installed.error.kind });

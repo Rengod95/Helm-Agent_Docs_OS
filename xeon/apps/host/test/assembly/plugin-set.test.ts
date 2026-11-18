@@ -420,8 +420,36 @@ test("the lifecycle loads a plugin when its first thread uses it and unloads it 
   // 두 대화가 같은 플러그인을 써도 적재는 한 번이다
   expect(h.loads).toEqual(["alpha"]);
   h.set.forget(THREAD);
+  await settle();
   expect(h.unloads).toEqual([]);
   h.set.forget(OTHER);
+  await settle();
+  expect(h.unloads).toEqual(["alpha"]);
+});
+
+test("opening a thread waits for the plugins it uses to load, then asks the engine to apply its set", async () => {
+  const h = harness({ profiles: [profileOf("work", ["alpha"])], lifecycle: true });
+  h.threadProfile.set(THREAD, "work");
+  await h.set.refresh();
+  h.requested.length = 0;
+  h.loads.length = 0;
+  await h.set.opened(THREAD);
+  // 적재가 끝난 뒤에 적용을 요청한다. 이미 실린 것이면 다시 싣지 않는다
+  expect(h.loads).toEqual([]);
+  expect(h.requested).toEqual([THREAD]);
+  h.set.forget(THREAD);
+  await settle();
+  expect(h.unloads).toEqual(["alpha"]);
+});
+
+test("the startup default set stays loaded when the last thread lets go, other plugins unload", async () => {
+  const h = harness({ profiles: [profileOf("work", ["helm", "alpha"])], lifecycle: true });
+  h.threadProfile.set(THREAD, "work");
+  await h.set.refresh();
+  expect(h.loads).toEqual(["helm", "alpha"]);
+  h.set.forget(THREAD);
+  await settle();
+  // helm은 기본 프로필의 플러그인이라 시작 때 실려 있다(시험 기본 집합 ["helm"])
   expect(h.unloads).toEqual(["alpha"]);
 });
 
@@ -443,6 +471,7 @@ test("a stop releases the thread's reference, so the last thread to let go unloa
   expect(h.loads).toEqual(["alpha", "beta"]);
   h.stopped.add("alpha");
   h.set.recompute(THREAD);
+  await settle();
   expect(h.unloads).toEqual(["alpha"]);
 });
 

@@ -1,4 +1,4 @@
-import { detach } from "@fresnel/contracts";
+import { attempt, attemptAsync, detach } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PluginSetPort, PluginSetView } from "@fresnel/contracts/extensions";
 import type { CommonSet, EnabledSource, Profile } from "@fresnel/contracts/wire";
@@ -52,8 +52,8 @@ interface Membership {
 }
 
 /**
- * 대화 하나에 쓰이는 플러그인의 참조를 세는 자리(M5c §4.1.11). 로더가 쓰는 공개 API만 부른다: 0→1에 `ensureLoaded`,
- * 1→0에 `unload`. 기본 구현이 없다. 조립 루트가 연결하기 전에는 참조만 센다(loading-trust가 시작 때 모두 싣는다)
+ * 대화 하나에 쓰이는 플러그인의 참조를 세고 로더를 부르는 자리(M5c §4.1.11). 0→1에 `ensureLoaded`, 1→0에 `unload`를 부른다.
+ * 조립 루트(`ports.ts`)가 로더에 연결한다. 로더에 없는 이름(내장 단위, 아직 설치하지 않은 이름)은 조립이 건너뛴다
  */
 export interface PluginLifecycle {
   ensureLoaded(name: string): Promise<unknown>;
@@ -64,7 +64,7 @@ export interface PluginSetDeps {
   readonly profiles: Pick<ProfileTestRunPort, "list" | "onProfilesWritten">;
   /** 대화가 저장한 프로필 id. 저장하지 않았거나 대화가 없으면 null이다 */
   readonly threadProfileId: (threadId: ThreadId) => string | null;
-  /** 닫히지 않은 대화 목록. 프로필이 바뀌었을 때 다시 맞춘다 */
+  /** 엔진이 열어 쥔 대화 목록(E(T)를 계산할 대화). 프로필이 바뀌었을 때 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
   /**
    * 관리 범위가 `ext.<이름>.enabled = false`로 잠갔는가(M5c §4.1.10). 기본값과 사용자 값은 잠금이 아니다.
@@ -118,7 +118,14 @@ export interface PluginSetHandle {
   attachOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
   /** 얹은 턴 덧씌우기를 뺀다(입력이 접수되지 않았을 때). 집합을 다시 맞춘다 */
   cancelOverlay(threadId: ThreadId): Promise<void>;
-  /** 대화가 닫혔다. 그 대화가 쓰던 플러그인의 참조를 놓는다(1→0이면 `unload`) */
+  /**
+   * 대화가 열렸다(엔진이 쥐었다). E(T)를 맞추고, 이 대화가 쓰는 플러그인의 적재(0→1)가 끝날 때까지 기다린다. 실패는 보고하고 연다
+   */
+  opened(threadId: ThreadId): Promise<void>;
+  /**
+   * 대화가 닫혔다(엔진이 쥔 것을 놓았다). 그 대화가 쓰던 플러그인의 참조를 놓는다(1→0이면 `unload`). 대화당 한 번만 부른다.
+   * 기본 프로필의 플러그인은 시작 때 실려 있어 1→0에도 내리지 않는다 [제안]
+   */
   forget(threadId: ThreadId): void;
   /** 대화가 저장한 프로필이 없을 때 쓰는 기본 프로필의 집합. 대화가 없는 조회(순서 미리 보기)가 쓴다 */
   defaultView(): PluginSetView;
@@ -194,6 +201,11 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   const refs = new Map<string, number>();
   /** 대화별 턴 덧씌우기. 정착할 때 `turnSettled`가 지운다 */
   const overlays = new Map<ThreadId, readonly OverlayMark[]>();
+  /**
+   * 플러그인 이름별로 아직 끝나지 않은 로더 호출(적재·내리기). 같은 이름의 호출은 차례로 돈다(내리기 뒤 적재가 겹치지 않게).
+   * `opened`가 그 대화가 쓰는 이름의 호출을 기다린다. 호출은 실패해도 거절하지 않는다(보고만 한다)
+   */
+  const loading = new Map<string, Promise<void>>();
 
   /** 저장한 프로필 id를 쓰는 대화 하나의 해소 결과(복사가 없으면 undefined) */
   function resolvedOf(threadId: ThreadId | undefined): Resolved | undefined {
@@ -278,13 +290,38 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     for (const name of before) if (!next.has(name)) release(name);
   }
 
+  /**
+   * 로더 호출을 같은 이름의 앞선 호출 뒤에 돌린다. 앞선 호출이 없으면 지금 부른다. 실패는 보고하고 거절하지 않는다
+   */
+  function queue(name: string, run: () => Promise<unknown>, event: string): void {
+    const previous = loading.get(name);
+    const work =
+      previous === undefined
+        ? finish(name, run, event)
+        : previous.then(() => finish(name, run, event));
+    loading.set(name, work);
+    detach(done(name, work), (cause) => {
+      deps.report("plugin_set.queue_failed", { plugin: name, reason: reasonOf(cause) });
+    });
+  }
+
+  async function finish(name: string, run: () => Promise<unknown>, event: string): Promise<void> {
+    const result = await attemptAsync(run);
+    if (!result.ok) deps.report(event, { plugin: name, reason: reasonOf(result.error.cause) });
+  }
+
+  /** 끝난 호출의 표를 지운다. 그 사이 같은 이름의 뒤 호출이 표를 바꿨으면 그대로 둔다(그 호출이 지운다) */
+  async function done(name: string, work: Promise<void>): Promise<void> {
+    await work;
+    if (loading.get(name) === work) loading.delete(name);
+  }
+
   function acquire(name: string): void {
     const count = refs.get(name) ?? 0;
     refs.set(name, count + 1);
-    if (count > 0 || deps.lifecycle === undefined) return;
-    detach(deps.lifecycle.ensureLoaded(name), (cause) => {
-      deps.report("plugin_set.load_failed", { plugin: name, reason: reasonOf(cause) });
-    });
+    const lifecycle = deps.lifecycle;
+    if (count > 0 || lifecycle === undefined) return;
+    queue(name, () => lifecycle.ensureLoaded(name), "plugin_set.load_failed");
   }
 
   function release(name: string): void {
@@ -294,19 +331,25 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       return;
     }
     refs.delete(name);
-    if (deps.lifecycle === undefined) return;
-    detach(deps.lifecycle.unload(name), (cause) => {
-      deps.report("plugin_set.unload_failed", { plugin: name, reason: reasonOf(cause) });
-    });
+    const lifecycle = deps.lifecycle;
+    // 기본 프로필의 플러그인은 시작 때 실려 있다. 대화가 모두 닫혀도 내리지 않는다(다음 대화가 바로 쓰게 둔다) [제안]
+    if (lifecycle === undefined || deps.defaultPlugins().includes(name)) return;
+    queue(name, () => lifecycle.unload(name), "plugin_set.unload_failed");
   }
 
-  function recompute(threadId: ThreadId): void {
+  /** 대화의 E(T)에 든 외부 플러그인 참조를 맞춘다(0→1 적재, 1→0 내리기). 적용 요청은 하지 않는다 */
+  function track(threadId: ThreadId): void {
     // 복사를 아직 못 읽었으면 E(T)가 바뀐 것이 없다. 읽으면 그때 다시 맞춘다
     if (copy === undefined) return;
     const { sources } = membershipOf(threadId);
     // 코어(출처 core)는 로더가 시작 때부터 싣는 단위라 참조를 세지 않는다
     const external = admitted(sources).filter((name) => sources.get(name) !== "core");
     trackUsage(threadId, new Set(external));
+  }
+
+  function recompute(threadId: ThreadId): void {
+    if (copy === undefined) return;
+    track(threadId);
     deps.toggles.requestApply(threadId);
   }
 
@@ -378,6 +421,17 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       await deps.toggles.applyNow(threadId);
     },
     recomputeAll: recomputeOpen,
+    async opened(threadId) {
+      track(threadId);
+      const names = [...(usage.get(threadId) ?? [])];
+      await Promise.all(names.map((name) => loading.get(name) ?? Promise.resolve()));
+      // 새로 실린 등록을 이 대화의 켜짐 집합에 맞춘다. 요청이 실패해도 대화는 연다(보고만 한다)
+      if (copy === undefined) return;
+      const applied = attempt(() => deps.toggles.requestApply(threadId));
+      if (!applied.ok) {
+        deps.report("plugin_set.apply_failed", { reason: reasonOf(applied.error.cause) });
+      }
+    },
     forget(threadId) {
       overlays.delete(threadId);
       trackUsage(threadId, new Set());

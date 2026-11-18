@@ -378,10 +378,14 @@ function harness(configDir = "/nonexistent-config"): Harness {
       // 포트 시험은 확장 읽기를 부르지 않는다. 자리만 채운다
       extRead: {
         forcedOn: () => null,
-        operations: partial<OperationsPolicy>({}),
+        // 대화를 열면 E(T)가 `stopped`를 읽는다(자동 끄기 장부). 장부는 비어 있다
+        operations: partial<OperationsPolicy>({
+          autoDisabler: partial<OperationsPolicy["autoDisabler"]>({ disabled: () => [] }),
+        }),
         safeMode: { active: false, cause: null },
         extensions: () => [],
         groupService: () => undefined,
+        loader: () => undefined,
       },
       defaultPluginsDir: join(tmpdir(), "fresnel-ports-default-plugins"),
       // 포트 시험은 플러그인 읽기를 부르지 않는다. 자리만 채운다

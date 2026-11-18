@@ -51,6 +51,8 @@ export interface ExternalLoadingDeps {
   readonly uiPolicy: NonNullable<LoadOptions["uiPolicy"]>;
   /** 서비스 모드는 "on_demand": 시작 때 프로젝트를 싣지 않고 작업 폴더를 여는 때 `loadProject`가 싣는다 */
   readonly projects?: "cwd" | "on_demand";
+  /** 공장 기본 프로필의 기본 번들 이름(`defaultPluginNamesFor`). 시작 때 싣는 외부 확장의 기본 집합이다(X.loading-trust §4.3.1 5a 앞) */
+  readonly defaultNames?: readonly string[];
   readonly signal: AbortSignal;
   readonly startup?: StartupOptions;
 }
@@ -72,7 +74,7 @@ export interface ExternalLoading {
 export function loadAllOptionsOf(
   deps: Pick<
     ExternalLoadingDeps,
-    "cwd" | "extraPaths" | "uiPolicy" | "projects" | "signal" | "startup"
+    "cwd" | "extraPaths" | "uiPolicy" | "projects" | "signal" | "startup" | "defaultNames"
   >,
 ): LoadOptions {
   return {
@@ -83,6 +85,7 @@ export function loadAllOptionsOf(
     extraPaths: deps.extraPaths,
     uiPolicy: deps.uiPolicy,
     ...(deps.projects === undefined ? {} : { projects: deps.projects }),
+    ...(deps.defaultNames === undefined ? {} : { defaultNames: deps.defaultNames }),
     signal: deps.signal,
     ...(deps.startup === undefined ? {} : { startup: deps.startup }),
   };
@@ -107,6 +110,8 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
   });
   const report = await loader.loadAll(loadAllOptionsOf(deps));
   for (const diagnostic of report.diagnostics) {
+    // 시작 때 미룬 확장은 정상이라(대화가 쓸 때 싣는다) 경고로 남기지 않는다
+    if (diagnostic.code === "lazy_deferred") continue;
     const fields = {
       extension: diagnostic.extension ?? "",
       code: diagnostic.code,

@@ -682,6 +682,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         attachOverlay: () => Promise.resolve(),
         cancelOverlay: () => Promise.resolve(),
         recomputeAll: () => undefined,
+        opened: () => Promise.resolve(),
         forget: () => undefined,
         defaultView: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
         settingsOf: () => new Map(),

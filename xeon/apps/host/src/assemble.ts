@@ -1293,6 +1293,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reviewedSource: createReviewedSource(pluginStore, os.logger("plugin-store")),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
+        // 시작 때 싣는 기본 집합: 공장 기본 프로필의 번들 이름. 그 밖의 `defaultEnabled: false` 외부 확장은 대화가 쓸 때 싣는다
+        defaultNames: defaultPluginNames,
         signal: lifetime.signal,
         ...(safeModeSource === undefined
           ? {}

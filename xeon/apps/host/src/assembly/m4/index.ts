@@ -119,6 +119,7 @@ export function createM4Ports(
     forcedPlugins: scopedEnv.forcedPlugins,
     defaultPlugins: scopedEnv.defaultPlugins,
     openThreadIds: env.openThreadIds,
+    ...(env.lifecycle === undefined ? {} : { lifecycle: env.lifecycle }),
     managedOff: (name) => managedOffOf(env, name),
     stopped: env.stopped,
     registrations: env.registrations,

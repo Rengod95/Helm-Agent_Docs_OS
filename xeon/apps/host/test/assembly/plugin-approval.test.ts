@@ -126,7 +126,7 @@ test("reflect reloads an updated plugin from its reviewed copy and refreshes the
   const applied: ReloadApplied = { status: "superseded" };
   const loader = partial<ExtensionLoader>({
     // 실린 확장 하나. 반영은 이름만 본다
-    list: () => [partial<LoadedExtensionInfo>({ name: "kit" })],
+    list: () => [partial<LoadedExtensionInfo>({ name: "kit", state: "active" })],
     reloadFromReviewed: (name) => {
       reloads.push(name);
       return Promise.resolve(ok({ appliesAt: "now", applied: Promise.resolve(applied) }));
