@@ -1125,6 +1125,8 @@ export interface ExtThreadSnapshot {
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대의 목록. 오래된 것부터이고 맨 위 프레임이 마지막이다(drive-isolation.md 2.1). 재시작 복원이 이 목록으로 주도권 스택을 다시 세운다 */
   readonly openLeases: readonly OpenLease[];
+  /** 부여되지도 버려지지도 않은 시작 요청(`lease.requested`, 오래된 것부터). 맡기기 요청은 맡긴 프레임이 열려 있는 것만 싣는다. `OpenLease`는 `input`(`lease.acquired.input`)과, 맡은 프레임이 반납된 뒤 아직 쓰이지 않은 `handoffEnd`(`done`이면 `lease.released.result`)를 더 싣는다 */
+  readonly pendingRequests: readonly PendingStartRequest[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }
