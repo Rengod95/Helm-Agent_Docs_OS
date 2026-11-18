@@ -925,7 +925,7 @@ export interface RewindPlan {
 
 | # | 단계 | 실패 처리 | FaultPoint |
 |---|---|---|---|
-| 0 | 트랜잭션 밖: 지문 계산, 큰 문자열 분리와 blob 쓰기(`fresnel.store.putBlob`) | | |
+| 0 | 트랜잭션 밖: 지문 계산, 큰 값 분리와 blob 쓰기(`fresnel.store.putBlob`, §4.11) | | |
 | 1 | `StoreDb.write` 시작(`BEGIN IMMEDIATE`) | `busy`, `disk_full` | `after_begin` |
 | 2 | 소유 확인: 요청 thread와 초안이 가리키는 모든 thread에 대해 보관한 토큰으로 `fresnel.store.leases.holds(tx, token)`가 참. 같은 트랜잭션에서 `sys_leases` 행을 새로 읽어 epoch를 대조한다(TX-10). 새 thread의 첫 이벤트 `thread.started`만 예외(§4.10.1) | 토큰이 없거나 거짓이면 롤백, `ownership_lost`. `ownership_lost`는 이 경우에만 낸다 | `after_lease_check` |
 | 3 | `requests (thread_id, request_id)` 조회. 같은 지문이면 저장된 결과 + `replayed: true`, 다른 지문이면 `key_reused` | 쓰기 없음 | `after_request_check` |
@@ -1237,14 +1237,24 @@ export interface RewindPlan {
 
 | 일 | 하는 쪽 |
 |---|---|
-| blob 파일 쓰기(임시 파일, fsync, rename), 읽기, 위치, GC 실행 | L0.store(`fresnel.store.putBlob`, `readBlob`) |
+| blob 파일 쓰기(임시 파일, fsync, rename), 읽기(전체·구간), 위치, GC 실행, 크기 한도 `l0.store.maxBlobBytes`, 사용량 `blobUsage` | L0.store(`fresnel.store.putBlob`, `readBlob`, `readBlobRange`, `blobUsage`) |
 | 명시 필드(`effect.intent.args`, `effect.result.blobRef`)에 `BlobRef` 넣기 | 생산자(core-tools 등) |
-| 큰 문자열 분리: `blob:sha256:<hex>` 자리표시 + `detached` | core-persistence `detachLarge(draft)`(커밋 전, 트랜잭션 밖) |
-| 되돌리기: `detached`를 읽어 문자열을 채운 사본 | core-persistence `hydrate(event)` |
+| 큰 값 분리: 문자열 잎과 JSON 하위 값을 `blob:sha256:<hex>` 자리표시로 바꾸고 `detached`에 적는다 | core-persistence `detachLarge(draft, putBlob, fits)`(커밋 0단계, 트랜잭션 밖) |
+| 되돌리기: `detached`를 읽어 자리표시를 값으로 바꾼 사본 | core-persistence `hydrate(event)`(모든 항목), `ext.loadThread`(스냅샷이 싣는 값만) |
 | 참조 중인 해시 목록 | core-persistence `p_blob_refs`, `query.liveBlobRefs()` |
+| 대화별 블롭 사용량 | core-persistence `persistenceQueryOf(session).blobUsageByThread()` |
 
-- [제안] `detachLarge`는 payload 안의 문자열 중 64 KiB 이상인 것을 큰 것부터 옮겨 envelope가 256 KiB(`ENVELOPE_MAX_BYTES`) 이하가 될 때까지 반복한다. payload 스키마 검사는 분리 전 값으로 한다(`F.records.spec` §3.4 규칙 5).
-- `hydrate`에서 blob 파일이 없으면 `DetachedField` 위치에 자리표시를 남긴 사본과 함께 진단 오류를 낸다. 처리 정책은 `L0.store.spec`이 정한다(`F.records.spec` §5).
+- 분리 후보는 두 가지다. (a) 문자열 잎 가운데 UTF-8 64 KiB(`DETACH_MIN_BYTES`) 이상, (b) 객체·배열 가운데 JSON 직렬화 바이트가 64 KiB 이상인 것. 루트(빈 포인터)는 객체·배열 후보가 아니다. 루트 문자열은 후보다.
+- 후보는 큰 것부터 고른다. 이미 고른 값 안에 든 후보는 고르지 않는다. 조상은 자기 안의 후보보다 커서 먼저 고르게 된다. 한 자리를 옮길 때마다 envelope 크기를 옮긴 만큼만 고쳐 재고, 목표(`ENVELOPE_MAX_BYTES - 1024`) 이하가 되면 멈춘다. `detached`는 256개를 넘지 않는다. 큰 값은 직렬화를 한 번만 한다(문자열은 UTF-8 바이트를 한 번 만들어 그대로 쓴다).
+- 객체·배열을 옮긴 자리는 `encoding: "json"`을 적고, blob은 `JSON.stringify` 바이트(`application/json`)다. 문자열 잎은 `encoding`을 적지 않고 blob은 UTF-8 바이트다. 저장 형식은 옛 기록과 같다.
+- 객체·배열 후보는 자리표시로 바꾼 payload가 kind 스키마(`catalog.entryOf(kind).payload`)를 지킬 때만 고른다(`fits`). 지키지 않으면 건너뛰고 그 안의 문자열 잎을 본다. 문자열 잎은 문자열 자리에 문자열이 들어가므로 이 검사를 하지 않는다.
+- 같은 내용은 같은 해시다. `putBlob`은 같은 해시의 완전한 파일이 있으면 파일을 다시 쓰지 않고 `sys_blobs` 행의 시각만 갱신한다. 두 번 쓴 같은 내용은 파일 하나와 행 하나다.
+- `maxBlobBytes`를 넘는 블롭은 `putBlob`이 파일을 쓰기 전에 `blob_too_large`로 거절한다(잘라 쓰지 않는다). 커밋은 이를 `disk_full`로 낸다. F의 `StoreError`에는 크기 한도 전용 kind가 없다 [제안: 사용자 확인 필요]. 이벤트는 쓰지 않는다.
+- 되돌리기(`hydrate`)는 항목마다 위치의 값이 그 항목의 자리표시와 같을 때만 바꾼다(문자열이 우연히 자리표시를 닮았어도 분리 항목이 아니다). 바깥 위치부터 되돌리므로 JSON blob 안의 자리표시도 되돌려진다. `encoding: "json"`이면 blob을 `parseJson`으로 읽는다. blob이 없거나 JSON으로 읽히지 않으면 자리표시를 남기고 경고한다(`session.hydrate_missing_blob`, `session.hydrate_bad_blob`).
+- 스냅샷(`ext.loadThread`)은 실리는 값만 되돌린다: 열린 임대의 `input`(`lease.acquired`), 대기 시작 요청의 `input`(`lease.requested`), 처리되지 않은 사용자 메시지의 `input`(`lease.user_input`), 맡긴 프레임이 받을 `handoffEnd.result`(`lease.released`), scope 상태 판의 `doc`(`*.state.committed`). 닫힌 임대의 입력과 위에서 덮인 상태 판은 blob을 읽지 않는다. 되돌릴 항목이 없는 값도 읽지 않는다. 되돌리기는 `restoreDetached`가 맡고, 호출한 쪽(`loadSnapshot`)이 실리는 값마다 부른다.
+- 재생과 읽기(`readFrom`, `readBranch`)는 blob을 읽지 않고 자리표시를 그대로 준다. 쪽 읽기(`itemPagesOf`가 주는 `branchItemRecords`, §3.4)는 쪽에 든 item만 되돌린다. 시험 `blob-restore.test.ts`가 재생 중 blob 읽기 횟수 0을 본다. 재생 비용은 분리된 내용 크기와 무관해야 한다.
+- 사용량 `blobUsageByThread()`는 `p_blob_refs`를 `sys_blobs.size`와 잇는다. 두 표가 같은 DB 파일에 있어 한 질의로 된다. 같은 블롭을 두 대화가 참조하면 두 대화에 각각 든다. `sys_blobs` 행이 없는 참조는 세지 않는다. `StoreService.blobUsage().byThread`는 `sys_blob_refs`(owner `thread`)를 세는데 L1은 그 참조를 쓰지 않으므로 대화별 값이 비어 있다. F `ProjectionQuery`에는 이 메서드가 없어 `persistenceQueryOf(session)`으로 꺼낸다(item 쪽 질의 `itemPagesOf`와 같은 방식) [제안: F에 넣을지 정한다].
+- [제안] 되돌리기 범위는 스냅샷과 쪽 읽기까지다. `ext.queryRecords`의 기록과 `activeStateOf`가 재생 응답(`replayed`)에 싣는 상태 판은 아직 되돌리지 않는다. 이 두 경로의 큰 문자열 잎은 이 변경 전에도 자리표시로 나갔고, 객체·배열 하위 값도 같은 방식으로 나간다 [미결: 되돌리기를 넣을지 정한다].
 - [미결] GC 뿌리 집합 전달: L0.store는 L1을 부를 수 없다. 조립 루트(L4 host)가 `query.liveBlobRefs()`를 L0.store GC에 넘기는 방식을 제안한다. `L0.store.spec`과 정한다.
 
 ### 4.12 스키마 버전과 업캐스터

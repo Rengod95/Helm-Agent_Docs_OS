@@ -23,7 +23,7 @@ import {
   type StoreDb,
   type StoreError,
 } from "@fresnel/contracts/records";
-import { needsDetach } from "./blob.ts";
+import { needsDetach, type BlobSource } from "./blob.ts";
 import { activeStateOf, loadSnapshot, queryActiveRecords } from "./ext-queries.ts";
 import type { ProducerRegistry } from "./producers.ts";
 import { readResult } from "./rows.ts";
@@ -37,6 +37,8 @@ export interface ExtPortDeps {
   readonly catalog: KindCatalog;
   /** blob 쓰기가 있는가. 없으면 상한을 넘는 초안은 거부한다 */
   readonly canDetach: boolean;
+  /** 스냅샷이 읽는 분리 값을 되돌리는 blob 읽기(L1.persistence.spec §4.11) */
+  readonly blobs: BlobSource;
 }
 
 const COMMIT_KEY = new RegExp(COMMIT_KEY_PATTERN);
@@ -193,7 +195,9 @@ export function createExtPort(deps: ExtPortDeps): RecordCommitPort {
     // 커밋은 동기 SQLite 호출이다. 던진 것(투영기 예외 등)은 거부된 Promise로 올린다
     commit: (request) => Promise.resolve().then(() => commitSync(request)),
     loadThread(threadId): Promise<Result<ExtThreadSnapshot, ReadFailure>> {
-      return Promise.resolve().then(() => readResult(db, (tx) => loadSnapshot(tx, threadId)));
+      return Promise.resolve().then(() =>
+        readResult(db, (tx) => loadSnapshot(tx, threadId, deps.blobs)),
+      );
     },
     queryRecords(
       threadId,

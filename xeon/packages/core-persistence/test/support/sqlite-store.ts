@@ -12,10 +12,12 @@ import type {
   StoreDb,
   StoreService,
 } from "@fresnel/contracts/records";
+import type { StoreSettings } from "@fresnel/platform-store";
 import {
   openTestStore as openPlatformStore,
   TEST_HOLDER_A,
   TEST_HOLDER_B,
+  type StoreFaultInjector,
   type TestStore as PlatformTestStore,
 } from "@fresnel/platform-store/testing";
 import { sha256Hex } from "../../src/hash.ts";
@@ -53,6 +55,10 @@ export interface TestStoreOptions {
   /** 생략하면 임시 디렉터리 안 파일 */
   readonly path?: string;
   readonly clock: ManualClock;
+  /** 블롭 쓰기 지점(`blob_after_rename` 등)의 장애 주입. 저장소 안쪽 지점이다 */
+  readonly storeFaults?: StoreFaultInjector;
+  /** 저장소 설정 일부(예: `maxBlobBytes`) */
+  readonly settings?: Partial<StoreSettings>;
 }
 
 const opened = new Set<TestStore>();
@@ -71,6 +77,8 @@ export async function openTestStore(options: TestStoreOptions): Promise<TestStor
     // 저장소 id가 시험의 id 열과 섞이지 않게 다른 seed를 쓴다
     ids: fixedIdFactory(9_000_000),
     ...(options.path === undefined ? {} : { path: options.path }),
+    ...(options.storeFaults === undefined ? {} : { storeFaults: options.storeFaults }),
+    ...(options.settings === undefined ? {} : { settings: options.settings }),
   });
   const raw = new Database(inner.path);
   raw.run("PRAGMA busy_timeout = 5000");

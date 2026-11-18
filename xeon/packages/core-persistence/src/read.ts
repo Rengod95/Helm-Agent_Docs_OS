@@ -1,7 +1,6 @@
-import { Bug, type Logger, type Result } from "@fresnel/contracts";
+import type { Logger, Result } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import type {
-  DetachedField,
   DurableEventEnvelope,
   ReadFailure,
   SqlRow,
@@ -9,6 +8,7 @@ import type {
   StoreDb,
   StoreService,
 } from "@fresnel/contracts/records";
+import { restoreDetached } from "./blob.ts";
 import { readCheckpoint } from "./checkpoint.ts";
 import { envelopeOfRow } from "./events.ts";
 import { readResult } from "./rows.ts";
@@ -35,37 +35,6 @@ export interface ReaderDeps {
   readonly catalog: KindCatalog;
   readonly readBlob: StoreService["readBlob"] | undefined;
   readonly logger: Logger | undefined;
-}
-
-/** RFC 6901 포인터 토큰 해석 */
-function pointerTokens(pointer: string): readonly string[] {
-  if (pointer === "") return [];
-  return pointer
-    .slice(1)
-    .split("/")
-    .map((token) => token.replaceAll("~1", "/").replaceAll("~0", "~"));
-}
-
-/** 포인터 위치의 값을 바꾼 새 값을 돌려준다(원본을 바꾸지 않는다). 위치가 없으면 원본 그대로다 */
-function replaceAt(root: unknown, tokens: readonly string[], value: string): unknown {
-  const [head, ...rest] = tokens;
-  if (head === undefined) return value;
-  if (Array.isArray(root)) {
-    const items: readonly unknown[] = root;
-    const index = Number(head);
-    if (!Number.isInteger(index) || index < 0 || index >= items.length) return root;
-    return items.map((item, position) =>
-      position === index ? replaceAt(item, rest, value) : item,
-    );
-  }
-  if (typeof root === "object" && root !== null && head in root) {
-    const entries = Object.entries(root).map(([key, member]): [string, unknown] => [
-      key,
-      key === head ? replaceAt(member, rest, value) : member,
-    ]);
-    return Object.fromEntries(entries);
-  }
-  return root;
 }
 
 /** 동기 제너레이터를 AsyncIterable로 감싼다. 읽기는 모두 동기 SQLite 호출이라 기다릴 일이 없다 */
@@ -175,31 +144,16 @@ export function createReader(deps: ReaderDeps): Reader {
       return Promise.resolve(readResult(db, (tx) => readCheckpoint(tx, threadId)));
     },
     hydrate(event): Promise<DurableEventEnvelope> {
-      const detached: readonly DetachedField[] = event.detached ?? [];
-      if (detached.length === 0) return Promise.resolve(event);
-      const { readBlob, logger } = deps;
-      if (readBlob === undefined) {
-        return Promise.reject(new Bug("store.blob_unavailable: hydrate needs readBlob"));
-      }
-      let payload: unknown = event.payload;
-      for (const field of detached) {
-        const blob = readBlob(field.ref);
-        if (!blob.ok) {
-          // blob 파일이 없으면 자리표시를 남긴다. 처리 정책은 L0.store.spec이 정한다(F.records.spec §5)
-          logger?.warn("session.hydrate_missing_blob", {
-            pointer: field.pointer,
-            sha256: field.ref.sha256,
-            reason: blob.error.kind,
-          });
-          continue;
-        }
-        payload = replaceAt(
-          payload,
-          pointerTokens(field.pointer),
-          new TextDecoder().decode(blob.value),
-        );
-      }
-      return Promise.resolve({ ...event, payload });
+      // 되돌리기는 blob 파일을 읽는다. 재생과 목록 읽기는 이 함수를 부르지 않으므로 자리표시만 본다(L1.persistence.spec §4.11)
+      return Promise.resolve().then(() => {
+        const detached = event.detached ?? [];
+        if (detached.length === 0) return event;
+        const payload = restoreDetached(event.payload, detached, {
+          readBlob: deps.readBlob,
+          logger: deps.logger,
+        });
+        return { ...event, payload };
+      });
     },
   };
 }

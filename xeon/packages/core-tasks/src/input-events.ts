@@ -1,4 +1,4 @@
-import { ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import { ok, parse, parseJson, type Logger, type Result } from "@fresnel/contracts";
 import type { EventId, ImageContent, TextContent, ThreadId } from "@fresnel/contracts/conversation";
 import {
   EXTENSION_KIND_PATTERN,
@@ -133,7 +133,7 @@ function pointerTokens(pointer: string): readonly string[] {
 }
 
 /** 포인터 위치의 값을 바꾼 새 값을 돌려준다(원본을 바꾸지 않는다). 위치가 없으면 원본 그대로다 */
-function replaceAt(root: unknown, tokens: readonly string[], value: string): unknown {
+function replaceAt(root: unknown, tokens: readonly string[], value: unknown): unknown {
   const [head, ...rest] = tokens;
   if (head === undefined) return value;
   if (Array.isArray(root)) {
@@ -194,11 +194,19 @@ export function loadQueuedInput(
       onUnreadable?.("blob_unreadable");
       return ok(undefined);
     }
-    payload = replaceAt(
-      payload,
-      pointerTokens(field.pointer),
-      new TextDecoder().decode(blob.value),
-    );
+    const text = new TextDecoder().decode(blob.value);
+    // JSON 하위 값을 분리한 필드는 글을 되돌려 파싱한다. 파싱이 안 되면 읽을 수 없는 blob으로 본다
+    const restored = field.encoding === "json" ? parseJson(text) : ok(text);
+    if (!restored.ok) {
+      log.error("tasks.queued_input_blob_unreadable", {
+        threadId,
+        inputId: view.inputId,
+        reason: "json",
+      });
+      onUnreadable?.("blob_unreadable");
+      return ok(undefined);
+    }
+    payload = replaceAt(payload, pointerTokens(field.pointer), restored.value);
   }
   const parsed = parse(InputQueuedPayloadSchema, payload);
   if (!parsed.ok) {

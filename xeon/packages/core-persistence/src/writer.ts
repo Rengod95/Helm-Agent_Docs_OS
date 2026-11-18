@@ -196,6 +196,15 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
   const prevalidated = new WeakSet<object>();
 
   /**
+   * 큰 JSON 하위 값을 자리표시로 바꾼 payload가 이 kind의 스키마를 지키는지 본다. 객체를 문자열로 바꾸면 투영기가 그 구조를 읽다 깨진다
+   * (L1.persistence.spec §4.11). 문자열 잎은 문자열을 자리표시 문자열로 바꾸므로 이 검사를 하지 않는다
+   */
+  const schemaFitsOf = (draft: DurableEventDraft): ((payload: unknown) => boolean) => {
+    const entry = catalog.entryOf(draft.kind);
+    return (payload: unknown): boolean => entry !== undefined && parse(entry.payload, payload).ok;
+  };
+
+  /**
    * 초안 하나의 envelope를 완성하고 검사한다(§4.1 5단계). seq, recordedAt, parentId는 저장소가 채운다.
    * `checkSize`가 거짓이면 크기 검사를 건너뛴다(분리 전 검사용)
    */
@@ -557,7 +566,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
             drafts.push(stamped);
             continue;
           }
-          const moved = detachLarge(stamped.draft, putBlob);
+          const moved = detachLarge(stamped.draft, putBlob, schemaFitsOf(stamped.draft));
           if (!moved.ok) return err(mapBlobError(moved.error));
           const restamped = producers.restamp(stamped, moved.value);
           prevalidated.add(restamped.draft);
