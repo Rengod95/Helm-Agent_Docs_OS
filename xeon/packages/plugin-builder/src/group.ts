@@ -5,7 +5,9 @@ import { defineGroup, type GroupManifest, type GroupModule } from "@fresnel/grou
 import { authoringWriteGuard } from "./guard.ts";
 import { authoringDrive } from "./group-drive.ts";
 import {
+  AUTHORING_STATE_VERSION,
   AuthoringStateSchema,
+  authoringStateMigrations,
   INITIAL_AUTHORING_STATE,
   sessionOpen,
   type AuthoringState,
@@ -56,7 +58,12 @@ const DEFAULT_FIX_LOOP_LIMIT = 3;
 export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
   return defineGroup<AuthoringState>({
     manifest: authoringManifest,
-    state: { schema: AuthoringStateSchema, initial: INITIAL_AUTHORING_STATE, version: 1 },
+    state: {
+      schema: AuthoringStateSchema,
+      initial: INITIAL_AUTHORING_STATE,
+      version: AUTHORING_STATE_VERSION,
+    },
+    migrations: authoringStateMigrations,
     setup(g) {
       for (const def of authoringTools({
         g,

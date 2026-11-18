@@ -89,6 +89,34 @@ export const INITIAL_AUTHORING_STATE: AuthoringState = {
   askRound: 0,
 };
 
+/** 상태 문서 판. v2에서 `installed`(설치 결과)가 `submitted`(검토 제출 결과)로 바뀌었다. 옛 판은 `authoringStateMigrations`가 옮긴다 */
+export const AUTHORING_STATE_VERSION = 2;
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * v1 → v2. 설치 결과는 검토 항목 id가 없어 `submitted`로 옮길 수 없으므로 null이다([제안]).
+ * 설치로 끝난 대화는 단계 `done`이 그대로 남는다. 설치 요청이던 `pending`과 `denied`의 "install"은 v2에 없어 null이다.
+ * 이미 v2 모양인 문서는 그대로 둔다(같은 판에서 다시 옮겨도 같다). 모양이 아닌 입력은 그대로 돌려주고, 검사는 스키마가 Result로 거른다.
+ */
+function v1ToV2(previous: unknown): unknown {
+  if (!isRecord(previous)) return previous;
+  const { installed: _installed, ...rest } = previous;
+  return {
+    ...rest,
+    pending: rest.pending === "install" ? null : (rest.pending ?? null),
+    denied: rest.denied === "install" ? null : (rest.denied ?? null),
+    submitted: rest.submitted ?? null,
+  };
+}
+
+/** GroupDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 2는 키 1 하나로 덮는다 */
+export const authoringStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
+  1: v1ToV2,
+};
+
 const nullable = <T extends ReturnType<typeof Type.String>>(schema: T) =>
   Type.Union([schema, Type.Null()]);
 

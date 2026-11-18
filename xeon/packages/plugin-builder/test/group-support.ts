@@ -148,7 +148,7 @@ interface DevkitProbe {
 
 const OK_REPORT: ValidationReport = { ok: true, issues: [] };
 
-function devkitProbe(): DevkitProbe {
+export function devkitProbe(): DevkitProbe {
   const calls: string[] = [];
   const submits: DevkitSubmitInput[] = [];
   const probe: DevkitProbe = {
