@@ -943,7 +943,7 @@ export type NotifyError =
 [제안: `docs/xeon/review/m5/hooks-core-boundary.md` §4.7, R22. 구현 1단계] 도구 결과 `details`에 싣는 파일 변경의 공통 형식이다. 정의 파일은 `file-change.ts` 하나다. 쓰기·편집 결과의 `FileChangeSchema`(`defs/workspace.ts`)는 그대로 두고 그 위에 여러 파일과 출처를 더한다.
 
 ```ts
-export const FileChangeEntrySchema: TObject<{ ... }>; // path, op, from?, existed, diff?, added, removed, firstChangedLine?, before?, after?, source
+export const FileChangeEntrySchema: TObject<{ ... }>; // path, op, from?, existed, diff?, added, removed, firstChangedLine?, before?, after?, diffOmitted?, source
 export type FileChangeEntry = Static<typeof FileChangeEntrySchema>;
 export const FILE_CHANGES_KEY = "fileChanges" as const;
 export function fileChangesOf(details: JsonValue | null): readonly FileChangeEntry[];

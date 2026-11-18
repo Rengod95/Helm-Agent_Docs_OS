@@ -123,6 +123,7 @@ export const FileChangeSchema: TObject<{
   added: TInteger;
   removed: TInteger;
   firstChangedLine: TOptional<TInteger>;
+  diffOmitted: TOptional<TLiteral<"too_large">>;
 }> = Type.Object(
   {
     /** 정규 경로 */
@@ -135,6 +136,8 @@ export const FileChangeSchema: TObject<{
     removed: Type.Integer({ minimum: 0 }),
     /** 처음 바뀐 줄(1부터). 바뀐 줄이 없으면 생략 */
     firstChangedLine: Type.Optional(Type.Integer({ minimum: 1 })),
+    /** 입력이 커서 diff 계산을 건너뛰었다. 이때 `diff`는 빈 문자열이고 `added`·`removed`는 0이다(바뀐 줄 수를 모른다). 없으면 계산했다 */
+    diffOmitted: Type.Optional(Type.Literal("too_large")),
   },
   { additionalProperties: false },
 );
@@ -352,7 +355,10 @@ function renderChange(verb: string): (out: { change: FileChange }) => ToolConten
     content: [
       {
         type: "text",
-        text: `${verb}: ${out.change.path} (+${out.change.added} -${out.change.removed})`,
+        text:
+          out.change.diffOmitted === undefined
+            ? `${verb}: ${out.change.path} (+${out.change.added} -${out.change.removed})`
+            : `${verb}: ${out.change.path} (change summary omitted: too large)`,
       },
     ],
     structuredContent: out,
