@@ -298,6 +298,24 @@ function hookRunOf(flat: FlatHook): HookRun {
 }
 
 /**
+ * 턴 수준 훅(턴 경계와 컨텍스트 조립 앞의 첫 훅, 턴이 열리기 전에 실행된 훅). 이 훅은 `record_json`의 `turnHooks`에만 들고
+ * 첫 단계(`steps[0]`)의 `hooks`에는 들지 않는다. 둘 다에 넣으면 `flags.modified` 같은 수가 두 배가 된다(review/m5/turn-record-metrics.md §3.2).
+ * 단계 번호 0은 이 훅들과 첫 모델 단계가 함께 쓰므로 훅 이름으로 가른다 [제안: 이름 목록]
+ */
+const TURN_LEVEL_HOOKS: ReadonlySet<string> = new Set([
+  "thread.start",
+  "input.user.before",
+  "input.bash.before",
+  "input.agent.before",
+  "boundary.turn.before",
+]);
+
+/** 이 실행이 턴 수준 훅인가 */
+export function isTurnLevelHook(run: HookRun): boolean {
+  return run.preTurn === true || TURN_LEVEL_HOOKS.has(run.hook);
+}
+
+/**
  * 한 단계(`step`)의 훅 실행을 고른다. 상한 `room`을 넘는 행은 버리고 개수를 `elided`에 센다.
  * 단계 밖 훅(step 0)도 같은 함수로 고른다. `approvals`가 있으면 물음 행에 승인을 잇는다
  */

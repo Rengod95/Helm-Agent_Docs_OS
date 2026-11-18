@@ -142,7 +142,7 @@ export interface TurnRecord {
   readonly children: { childThreadId: string; agent: string; status: "running" | "completed" | "failed" | "interrupted"; used: { turns: number; tokens: number } | null }[];
   readonly frames: FrameMark[];           // Drive 프레임 스택: 턴 시작 때의 스택과 턴 안의 변화
   readonly steps: StepRecord[];
-  readonly turnHooks: HookRun[];          // 단계 밖 훅. 묶음 이름은 F의 위치 종류: boundary(conversation-start, input-received, before-turn-end)와 컨텍스트 조립 앞의 첫 훅(`input.agent.before`)과, 턴이 열리기 전에 실행되어 다음 턴의 단계 0에 붙은 `thread.start`·`input.user.before`·`input.bash.before`(`preTurn: true`, 규칙 17의 2 [제안])
+  readonly turnHooks: HookRun[];          // 단계 밖 훅. 묶음 이름은 F의 위치 종류: boundary(conversation-start, input-received, before-turn-end)와 컨텍스트 조립 앞의 첫 훅(`input.agent.before`)과, 턴이 열리기 전에 실행되어 다음 턴의 단계 0에 붙은 `thread.start`·`input.user.before`·`input.bash.before`(`preTurn: true`, 규칙 17의 2 [제안]). 이 훅은 `steps[0].hooks`에 되풀이하지 않는다(단계 번호 0을 첫 모델 단계와 함께 쓰므로 훅 이름 `thread.start`·`input.user.before`·`input.bash.before`·`input.agent.before`·`boundary.turn.before`와 `preTurn`으로 가른다 [제안]) [구현: enB5, `isTurnLevelHook`]
   readonly continues: { atMs: number; plugin: string; decided: "continue" | "stop"; reason: string | null }[];
   readonly skills: { listed: string[]; listedOmitted: number; read: { name: string; plugin: string; via: "model" | "user"; stepIndex: number; tokens: number }[] };
   readonly cost: PluginCost[];            // 파생값(§3.3)

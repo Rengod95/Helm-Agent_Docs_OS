@@ -62,6 +62,7 @@ import {
   flatHooksOf,
   hookKeyOf,
   hooksOfStep,
+  isTurnLevelHook,
   lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
@@ -685,7 +686,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       calls: draft.calls.get(stepId) ?? [],
       toolCalls: pairs.map((pair) => pair.record),
       composition: composition ?? null,
-      hooks: hookRuns,
+      // 턴 수준 훅은 `turnHooks`에만 든다. 단계 0에서도 단계 기록에는 넣지 않는다(두 번 세지 않게)
+      hooks: hookRuns.filter((run) => !isTurnLevelHook(run)),
       materials: materialPlan.kept,
       ...(advertised === undefined ? {} : { advertised }),
       cache,
@@ -732,7 +734,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
           stepIndex,
           rows: [
             { kind: "step", stepIndex, step },
-            ...step.hooks.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
+            ...hookRuns.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
             ...step.calls.map((call): DeltaRow => ({ kind: "call", stepIndex, call })),
           ],
           final: false,
@@ -754,21 +756,23 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     drafts.delete(turnId);
     const full = draft.level === "full";
     const flats = flatHooksOf(deps.trace?.turn(record.threadId, turnId)?.entries ?? []);
-    // 단계 밖 훅(턴 경계: step 0)은 `record_json`의 `turnHooks`에만 든다. 행으로는 쓰지 않는다(§3.2)
-    const turnRows = full
-      ? hooksOfStep(flats, 0, MAX_HOOK_ROWS_PER_TURN - draft.hookRows, draft.approvals)
-      : { rows: [], elided: 0 };
-    const turnHooks = turnRows.rows.map((row) => row.run);
+    // 턴 수준 훅(턴 경계와 조립 앞의 첫 훅, 턴 전 훅)은 `record_json`의 `turnHooks`에만 든다. 단계 기록에는 없다.
+    // 행은 단계 0을 쓸 때 이미 썼으므로 상한을 더 쓰지 않는다(§3.2)
+    const turnHooks = full
+      ? hooksOfStep(flats, 0, Number.POSITIVE_INFINITY, draft.approvals)
+          .rows.map((row) => row.run)
+          .filter(isTurnLevelHook)
+      : [];
     // 아직 행으로 쓰지 않은 훅 실행은 늦은 행이다(§7 분리 실행). 실행이 시작된 단계에 한 번만 쓰고, 상한은 턴 훅 다음이다
     const late = full
       ? lateHooksOf(flats, {
           seen: draft.seenHooks,
           approvals: draft.approvals,
-          room: MAX_HOOK_ROWS_PER_TURN - draft.hookRows - turnRows.rows.length,
+          room: MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
         })
       : { rows: [], elided: 0 };
-    draft.hookRows += turnRows.rows.length + late.rows.length;
-    draft.elidedHooks += turnRows.elided + late.elided;
+    draft.hookRows += late.rows.length;
+    draft.elidedHooks += late.elided;
     // 늦은 행은 그 단계의 기록에도 더한다(`record_json`의 steps.hooks). 단계 기록이 없으면 행으로만 남는다
     for (let at = 0; at < draft.steps.length; at += 1) {
       const step = draft.steps[at];
