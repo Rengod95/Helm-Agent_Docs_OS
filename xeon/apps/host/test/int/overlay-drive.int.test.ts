@@ -118,7 +118,9 @@ realTest(
             const reason = reasonOf(event);
             return reason === "overlay_on" || reason === "overlay_off" ? [reason] : [];
           }
-          return event.kind.startsWith("lease.") ? [event.kind] : [];
+          return event.kind === "lease.acquired" || event.kind === "lease.released"
+            ? [event.kind]
+            : [];
         });
         // 기록의 순서: 덧씌우기가 켜지고, 프레임이 쌓이고, 풀리고, 덧씌우기가 꺼진다
         expect(trail).toEqual(["overlay_on", "lease.acquired", "lease.released", "overlay_off"]);

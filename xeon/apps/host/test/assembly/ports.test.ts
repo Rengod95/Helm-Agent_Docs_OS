@@ -258,6 +258,7 @@ function harness(configDir = "/nonexistent-config"): Harness {
             states: [],
             openLeases: [],
             leaseEpochs: {},
+            pendingRequests: [],
           }),
         ),
     }),
