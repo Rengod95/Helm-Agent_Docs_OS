@@ -1,15 +1,6 @@
 import type { CancelScope } from "@fresnel/contracts/services";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import type { WorkspaceDeps } from "../deps.ts";
-import {
-  WorkspaceFailure,
-  getOrThrow,
-  mutationKey,
-  queueInCallOrder,
-  atomicWrite,
-  askOutsideWrite,
-  relativeToRoots,
-  resolveWorkspacePath,
-} from "@fresnel/core-workspace";
 import { buildFileChange } from "./diff.ts";
 import { decodeStrictText } from "./text-bytes.ts";
 import {
@@ -23,6 +14,7 @@ import {
 import type { FilesApi } from "./api.ts";
 
 // L2.workspace.spec §3.2 edit, §4.4 편집 규칙 E1~E17, 동시 변경 감지, §5 11·12번.
+// 경로·파일 기능(`deps.core`)은 코어 구현 묶음이 준다.
 
 type EditMethod = FilesApi["edit"];
 
@@ -48,30 +40,31 @@ function failureOf(failure: EditFailure): WorkspaceFailure {
 }
 
 export function createEdit(deps: WorkspaceDeps): EditMethod {
+  const { core } = deps;
   return async (input, options) => {
     const context: CancelScope = { abortSignal: options?.signal };
     const settings = deps.settings(options?.context?.threadId);
-    return queueInCallOrder(
+    return core.queueInCallOrder(
       deps.env.id,
       async () => {
-        const target = await resolveWorkspacePath(deps.roots, input.path, "write", context, {
-          askOutsideWrite: askOutsideWrite(deps, "edit", options?.context, options?.signal),
+        const target = await core.resolveWorkspacePath(deps.roots, input.path, "write", context, {
+          askOutsideWrite: core.askOutsideWrite(deps, "edit", options?.context, options?.signal),
         });
         if (!target.exists) {
           throw new WorkspaceFailure("not_found", `File not found: ${input.path}`);
         }
         return { resolved: target, roots: await deps.roots.roots(context) };
       },
-      ({ resolved }) => mutationKey(deps.env.id, resolved.canonical),
+      ({ resolved }) => core.mutationKey(deps.env.id, resolved.canonical),
       async ({ resolved, roots }) => {
-        const info = getOrThrow(await deps.env.fileInfo(resolved.canonical, context));
+        const info = core.getOrThrow(await deps.env.fileInfo(resolved.canonical, context));
         if (info.kind === "directory") {
           throw new WorkspaceFailure("invalid_input", `${input.path} is a directory.`, {
             detail: { reason: "is_directory" },
           });
         }
         // 이 내용이 편집의 원본이다. 이름을 바꾸기 직전에 파일이 이 내용 그대로인지 다시 본다(동시 변경 감지)
-        const bytes = getOrThrow(await deps.env.readBinaryFile(resolved.canonical, context));
+        const bytes = core.getOrThrow(await deps.env.readBinaryFile(resolved.canonical, context));
         const original = decodeStrictText(bytes);
         if (original === null) {
           throw new WorkspaceFailure(
@@ -93,7 +86,7 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
           before: bytes,
           after: encoder.encode(nextText),
         });
-        await atomicWrite(deps.env, resolved.canonical, nextText, context, {
+        await core.atomicWrite(deps.env, resolved.canonical, nextText, context, {
           expectedBefore: original,
         });
         return {
@@ -101,7 +94,7 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
           matchMode: applied.value.matchMode,
           change: buildFileChange({
             path: resolved.canonical,
-            relativePath: relativeToRoots(roots.write, resolved.canonical),
+            relativePath: core.relativeToRoots(roots.write, resolved.canonical),
             existed: true,
             before: applied.value.baseContent,
             after: applied.value.newContent,

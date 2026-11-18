@@ -13,7 +13,7 @@ import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import type { DeclaredInventory } from "../../src/assembly/m4/profile-cost.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { partial } from "../fixtures/unsafe.ts";
+import { invalidParams, partial } from "../fixtures/unsafe.ts";
 
 // M5c §4.8.1 `testRun.start`(처리기 값 시험). 프로필 저장은 실제 프로필 포트가, 엔진과 초안 목록은 가짜가 한다.
 // 시험하는 것: 기준 프로필로 대화를 만들고 표지를 다는 것, 검사가 대화를 만들기 전에 거절하는 것, 초안이 있으면 P1 전 게이트다.
@@ -36,11 +36,18 @@ interface DraftFakes {
   /** 싣기 요청(`플러그인:초안 id`) */
   readonly loads: string[];
   /** 대화에 묶인 고정 초안(대화 id마다) */
-  readonly bound: { readonly threadId: string; readonly marks: readonly FixedDraftMark[] }[];
+  readonly bound: {
+    readonly threadId: string;
+    readonly marks: readonly FixedDraftMark[];
+    /** 묶을 때 넘긴 승인 방식. `auto`가 아니면 `undefined`다(= `ask`) */
+    readonly approval?: "auto" | undefined;
+  }[];
   /** 참이면 싣기가 격리 포트 없음으로 실패한다 */
   failLoad: boolean;
-  /** 참이면 초안 플러그인이 프로젝트 동반 플러그인이다 */
+  /** 참이면 초안 플러그인, 프로젝트 동반 플러그인이다 */
   project: boolean;
+  /** 참이면 싣은 초안에 시작 Drive 등록이 없다 */
+  noDrive: boolean;
 }
 
 /** 플러그인 사실을 시험 중에 바꿀 수 있게 가변 목록을 든다. 처음에는 공장 기본의 `helm`과 `demo`다 */
@@ -57,7 +64,13 @@ function rigOf(): {
     { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
   ];
   const drafts: DraftInfo[] = [];
-  const fakes: DraftFakes = { loads: [], bound: [], failLoad: false, project: false };
+  const fakes: DraftFakes = {
+    loads: [],
+    bound: [],
+    failLoad: false,
+    project: false,
+    noDrive: false,
+  };
   // 초안 포트는 실제 구현을 가짜 로더 위에 세운다. 검사, 싣기, 묶기의 값이 실제 경로를 탄다
   const loader: DraftLoaderPort = {
     loadDraft: (input) => {
@@ -112,10 +125,11 @@ function rigOf(): {
           );
         },
         loadDrafts,
+        hasDrive: () => !fakes.noDrive,
         pluginSet: {
           hold: () => Promise.resolve(() => undefined),
-          setTestRunDrafts: (threadId, marks) => {
-            fakes.bound.push({ threadId, marks });
+          setTestRunDrafts: (threadId, marks, approval) => {
+            fakes.bound.push({ threadId, marks, approval });
             return Promise.resolve();
           },
         },
@@ -166,6 +180,7 @@ test("testRun.start with no drafts makes a test-run thread on the base profile, 
     profileId: "default",
     drafts: [],
     runGroupId: "grp-a",
+    skippedPlugins: [],
   });
   const listed = await connection.request("thread.list", {});
   expect(
@@ -259,6 +274,29 @@ test("a base profile that is invalid now is profile.invalid with the issues, and
   await connection.close();
 });
 
+test("a plugin the default profile first gives but the user deleted is skipped, listed in the result, and the test run starts", async () => {
+  const { host, facts } = rigOf();
+  const connection = await connect(host);
+  // 기본 프로필이 처음 주는 `helm`을 사용자가 지웠다(설치돼 있지 않다)
+  facts.splice(
+    facts.findIndex((fact) => fact.name === "helm"),
+    1,
+  );
+  const started = await connection.request("testRun.start", { drafts: [], runGroupId: "grp-s" });
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "default",
+    drafts: [],
+    runGroupId: "grp-s",
+    skippedPlugins: ["helm"],
+  });
+  const listed = await connection.request("thread.list", {});
+  expect(listed.threads.map((thread) => [thread.threadId, thread.profileId])).toEqual([
+    [started.threadId, "default"],
+  ]);
+  await connection.close();
+});
+
 test("a draft the plugin does not list is draft.notFound and creates no thread", async () => {
   const { host } = rigOf();
   const connection = await connect(host);
@@ -285,6 +323,7 @@ test("a draft is loaded before the thread exists, the thread is bound to it, and
     profileId: "default",
     drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
     runGroupId: "grp-d",
+    skippedPlugins: [],
   });
   // 싣기는 대화를 만들기 전에 한 번 했고, 묶은 구성은 내부 이름과 검토본 이름을 함께 싣는다
   expect(fakes.loads).toEqual(["demo:draft-1"]);
@@ -361,6 +400,166 @@ test("a draft of a project companion plugin is overlay.draftUnavailable, as for 
       connection.request("testRun.start", { drafts: [{ plugin: "demo", draftId: "draft-1" }] }),
     ),
   ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("a draft that names the start entry runs its start Drive: the bound mark says so, and the version is unchanged", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  const connection = await connect(host);
+  const started = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1", entry: "start" }],
+    runGroupId: "grp-s",
+  });
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "default",
+    drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
+    runGroupId: "grp-s",
+    skippedPlugins: [],
+  });
+  expect(fakes.bound).toEqual([
+    {
+      threadId: started.threadId,
+      marks: [
+        {
+          plugin: "ddraft1-demo",
+          draftId: "draft-1",
+          contentHash: "sha256:0123456789abcdef",
+          replaces: "demo",
+          startDrive: true,
+        },
+      ],
+    },
+  ]);
+  await connection.close();
+});
+
+test("a start-Drive draft whose loaded plugin has no drive registration is overlay.noEntry: nothing is bound and no thread is created", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  fakes.noDrive = true;
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [{ plugin: "demo", draftId: "draft-1", entry: "start" }],
+      }),
+    ),
+  ).toMatchObject({ code: 3614, data: { kind: "overlay.noEntry", details: { name: "demo" } } });
+  expect(fakes.bound).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("two start-Drive drafts are overlay.draftUnavailable: one conversation has at most one start Drive", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf({ draftId: "draft-1" }), draftOf({ draftId: "draft-2", name: "helm" }));
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [
+          { plugin: "demo", draftId: "draft-1", entry: "start" },
+          { plugin: "helm", draftId: "draft-2", entry: "start" },
+        ],
+      }),
+    ),
+  ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect(fakes.loads).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+// 드래프트 승인 방식(§4.8.1 항목 10 [결정: 2026-11-18 사용자, AGE-56]). `auto`는 묶음과 표지에 실리고, 생략과 `ask`는 싣지 않는다.
+// `auto`여도 격리 싣기는 거치므로 싣지 못하면 대화를 만들지 않는다.
+
+test("testRun.start with draftApproval auto binds its drafts with auto and the marker says so; omitted or ask binds without it", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  const connection = await connect(host);
+  const autoRun = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1" }],
+    runGroupId: "grp-auto",
+    draftApproval: "auto",
+  });
+  expect(fakes.bound).toEqual([
+    {
+      threadId: autoRun.threadId,
+      marks: [
+        {
+          plugin: "ddraft1-demo",
+          draftId: "draft-1",
+          contentHash: "sha256:0123456789abcdef",
+          replaces: "demo",
+        },
+      ],
+      approval: "auto",
+    },
+  ]);
+  const listed = await connection.request("thread.list", {});
+  expect(listed.threads.find((thread) => thread.threadId === autoRun.threadId)?.testRun).toEqual({
+    profileId: "default",
+    target: null,
+    paused: false,
+    runGroupId: "grp-auto",
+    kind: "draft",
+    draft: true,
+    draftApproval: "auto",
+  });
+
+  // 생략은 `ask`다: 묶을 때 `auto`를 싣지 않고 표지에도 없다
+  const askRun = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1" }],
+    runGroupId: "grp-ask",
+  });
+  const explicitAsk = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1" }],
+    runGroupId: "grp-ask-2",
+    draftApproval: "ask",
+  });
+  expect(fakes.bound.map((entry) => entry.approval)).toEqual(["auto", undefined, undefined]);
+  expect(fakes.bound.map((entry) => entry.threadId)).toEqual([
+    autoRun.threadId,
+    askRun.threadId,
+    explicitAsk.threadId,
+  ]);
+  const afterAsk = await connection.request("thread.list", {});
+  for (const id of [askRun.threadId, explicitAsk.threadId]) {
+    expect(afterAsk.threads.find((thread) => thread.threadId === id)?.testRun).not.toHaveProperty(
+      "draftApproval",
+    );
+  }
+  await connection.close();
+});
+
+test("draftApproval auto does not skip the isolation: without a loadable draft it is overlay.draftUnavailable and no conversation is made", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  fakes.failLoad = true;
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [{ plugin: "demo", draftId: "draft-1" }],
+        draftApproval: "auto",
+      }),
+    ),
+  ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect(fakes.bound).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("draftApproval takes only ask or auto: any other value is an invalid-params refusal and creates no thread", async () => {
+  const { host } = rigOf();
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", invalidParams({ drafts: [], draftApproval: "always" })),
+    ),
+  ).toMatchObject({ code: -32602, data: { kind: "jsonrpc.invalidParams" } });
   expect((await connection.request("thread.list", {})).threads).toEqual([]);
   await connection.close();
 });

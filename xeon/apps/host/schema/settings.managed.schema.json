@@ -743,29 +743,6 @@
         }
       }
     },
-    "ext.learning.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Learning",
-          "labelArgs": {
-            "name": "Learning"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.provider-anthropic-oauth.acknowledgeRisk": {
       "default": false,
       "type": "boolean",

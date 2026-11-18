@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { DevkitError } from "@fresnel/contracts/services";
+import { ExtTestRunParamsSchema } from "@fresnel/contracts/wire";
+import { SERVICE_NAMES, type DevkitError } from "@fresnel/contracts/services";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { BUILTIN_CAPABILITY_DEFS } from "../../src/assembly/capability-defs.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import {
   authoringDepsOf,
@@ -191,5 +193,40 @@ test("the port's refusals reach the service unchanged: dev_mode_required for rep
   );
   expect(await service.testRun({ target: "demo" })).toEqual(
     err({ kind: "io", message: "the test run did not open a thread" }),
+  );
+});
+
+// 드래프트 승인 `auto`(§4.8.1 항목 10 [결정: 2026-11-18 사용자, AGE-56])는 화면(통신을 부르는 쪽)만 고른다. 모델, 플러그인, 빌더는 고르지 못한다.
+// (다)의 부정 시험: 제작 서비스의 시험 시작은 승인 방식을 포트에 넘기지 않고, 와이어는 그 칸을 거절하며, 기능 정의 표에는 제작 서비스가 없다.
+
+test("the devkit's test run never carries a draft approval: a draftApproval the caller adds is dropped before the port, so the run is ask", async () => {
+  const seen: unknown[] = [];
+  const port = partial<DevkitPort>({
+    testRun: (params) => {
+      seen.push(params);
+      return Promise.resolve(ok({ testId: "t-12", threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }));
+    },
+  });
+  const service = devkitServiceOf(wiringOf(port));
+  // 타입은 `draftApproval`을 받지 않는다. 값으로 실어 보내도 포트의 `testRun`에는 가지 않는다
+  const attempt = { target: "demo", draftApproval: "auto" };
+  expect(await service.testRun(attempt)).toEqual(
+    ok({ threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }),
+  );
+  expect(seen).toEqual([{ kind: "testRun", target: "demo", options: {} }]);
+});
+
+test("the wire test-run params refuse a draftApproval field: only the screen's test-run call can name one, and it does so on testRun.start", () => {
+  expect(
+    parse(ExtTestRunParamsSchema, { kind: "testRun", target: "demo", draftApproval: "auto" }).ok,
+  ).toBe(false);
+  expect(parse(ExtTestRunParamsSchema, { kind: "testRun", target: "demo" }).ok).toBe(true);
+});
+
+test("no builtin capability definition exposes the devkit service, so a plugin cannot reach testRun or pick a draft approval", () => {
+  const ids = BUILTIN_CAPABILITY_DEFS.map((def) => def.id);
+  expect(ids).not.toContain(SERVICE_NAMES.devkit);
+  expect(ids.some((id) => id.toLowerCase().includes("devkit") || id.includes("testRun"))).toBe(
+    false,
   );
 });

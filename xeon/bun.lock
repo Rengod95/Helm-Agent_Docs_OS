@@ -97,6 +97,7 @@
         "@fresnel/client": "workspace:*",
         "@fresnel/contracts": "workspace:*",
         "@fresnel/core-agents": "workspace:*",
+        "@fresnel/core-authoring": "workspace:*",
         "@fresnel/core-context": "workspace:*",
         "@fresnel/core-loop": "workspace:*",
         "@fresnel/core-models": "workspace:*",
@@ -108,7 +109,6 @@
         "@fresnel/group-account-rotation": "workspace:*",
         "@fresnel/group-guide": "workspace:*",
         "@fresnel/group-helm": "workspace:*",
-        "@fresnel/group-learning": "workspace:*",
         "@fresnel/group-provider-anthropic-oauth": "workspace:*",
         "@fresnel/group-sdk": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
@@ -179,11 +179,11 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-tools": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
+        "@fresnel/core-tools": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -266,13 +266,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
         "@fresnel/core-persistence": "workspace:*",
         "@fresnel/core-tools": "workspace:*",
+        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
         "@types/bun": "catalog:",
@@ -310,6 +310,17 @@
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
         "yaml": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
+    "packages/core-authoring": {
+      "name": "@fresnel/core-authoring",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fresnel/contracts": "workspace:*",
+        "@fresnel/ext-host": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -571,6 +582,7 @@
         "@fresnel/group-sdk": "workspace:*",
       },
       "devDependencies": {
+        "@fresnel/core-authoring": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -765,6 +777,8 @@
     "@fresnel/contracts": ["@fresnel/contracts@workspace:packages/contracts"],
 
     "@fresnel/core-agents": ["@fresnel/core-agents@workspace:packages/core-agents"],
+
+    "@fresnel/core-authoring": ["@fresnel/core-authoring@workspace:packages/core-authoring"],
 
     "@fresnel/core-context": ["@fresnel/core-context@workspace:packages/core-context"],
 

@@ -1,11 +1,14 @@
 import {
   matchProtectedPath,
+  type AllowedRoots,
   type CancelScope,
   type ExecutionEnv,
-  type ProtectedPathEntry,
+  type PathAccess,
+  type ResolvedPath,
+  type RootsDeps,
   type ToolOutputFiles,
 } from "@fresnel/contracts/services";
-import { WorkspaceFailure } from "./errors.ts";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import { getOrThrow } from "./upstream/get-or-throw.ts";
 import {
   normalizeToolPath,
@@ -14,41 +17,9 @@ import {
 } from "./files/upstream/path-utils.ts";
 
 // L2.workspace.spec §4.3 경로 해석과 탈출 검사. 단계 1~3은 포크한 path-utils, 4~6은 이 파일이 한다.
+// 경로 타입의 모양은 F(`@fresnel/contracts/services`)가 정의하고, 이 파일은 기존 경로로 다시 내보낸다.
 
-export type PathAccess = "read" | "write";
-
-/** 허용 root. 정규 경로(심볼릭 링크를 푼 절대 경로) 목록 */
-export interface AllowedRoots {
-  readonly read: readonly string[];
-  readonly write: readonly string[];
-}
-
-export interface RootsDeps {
-  readonly env: Pick<ExecutionEnv, "absolutePath" | "canonicalPath" | "exists">;
-  /**
-   * 허용 root를 돌려준다. 허용 root 조회 API는 L1.tools.spec이 정한다(L2.workspace.spec §10 미결 7).
-   * 그 전에는 읽기·쓰기 root 모두 `defaultRoots`가 만든 세션 cwd 하나다.
-   */
-  readonly roots: (context: CancelScope) => Promise<AllowedRoots>;
-  /**
-   * L0.sandbox 보호 경로 목록. 샌드박스 서비스가 없으면 빈 목록. `roots`는 이 호출이 허용하는 정규 root이고,
-   * 샌드박스가 root별 git 항목(`.git/hooks` 등)을 더한다. 넘기지 않으면 bash를 돌리기 전에는 그 항목이 비어 있다.
-   */
-  readonly protectedPaths: (roots: readonly string[]) => readonly ProtectedPathEntry[];
-  /**
-   * 잘린 도구 출력의 파일 사본. 있으면 그 폴더가 읽기 root에 더해지고(쓰기 root에는 더하지 않는다), 없는 사본을 읽으려 하면
-   * 읽기 직전에 blob에서 다시 만든다(L2.workspace.spec §4.3 [결정: 2026-11-13 사용자]).
-   */
-  readonly outputs?: ToolOutputFiles;
-}
-
-export interface ResolvedPath {
-  /** 입력 경로 그대로 */
-  readonly requested: string;
-  /** 접근에 쓸 정규 경로. 아직 없는 대상이면 존재하는 가장 가까운 상위의 정규 경로에 나머지 마디를 붙인 값 */
-  readonly canonical: string;
-  readonly exists: boolean;
-}
+export type { AllowedRoots, PathAccess, ResolvedPath, RootsDeps };
 
 /** M1의 허용 root: 읽기·쓰기 모두 `env.cwd`의 정규 경로 하나 */
 export async function defaultRoots(

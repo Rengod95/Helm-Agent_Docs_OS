@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { assertNever, eachAsync, err, ok, type Result } from "@fresnel/contracts";
 import type { FileBefore } from "@fresnel/contracts/records";
-import type { CancelScope } from "@fresnel/contracts/services";
-import type { WorkspaceEnv } from "@fresnel/core-workspace";
+import type { CancelScope, WorkspaceEnv } from "@fresnel/contracts/services";
 import { sha256Bytes } from "./hash.ts";
 
 // 되감기가 파일 시스템에 손대는 자리. 쓰기는 기존 `atomicWrite`를 쓰지 않는다. 그 함수는 문자열만 받아

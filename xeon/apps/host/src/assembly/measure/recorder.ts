@@ -29,7 +29,7 @@ import { cacheExpired } from "./turn-context.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "./turn-fit.ts";
 import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
-import { createTurnWriter } from "./turn-writer.ts";
+import { createTurnWriter, type ParentLookup } from "./turn-writer.ts";
 import { messageOf } from "../../util.ts";
 
 /** 측정 DB 파일 이름 */
@@ -82,6 +82,8 @@ interface MeasureRecorderDeps {
   readonly maxTurnBytes: () => number;
   /** `x.operations.trace.testRunsAlwaysOn`의 현재 값 */
   readonly testRunsAlwaysOn: () => boolean;
+  /** 하위 대화의 부모(`agentOfChild`). 범위 표지를 부모에게서 물려받을 때 따라 올라간다(§4.6 규칙 31) */
+  readonly parentOf?: ParentLookup;
 }
 
 /** 확장 핸들러 실패 한 건(`scope.handler_failed`의 값). 휘발 이벤트라 이 기록이 재시작 뒤에도 남는 유일한 사본이다 */
@@ -356,6 +358,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
         ...(turnEvents === undefined ? {} : { events: turnEvents }),
         maxTurnBytes: deps.maxTurnBytes,
         testRunsAlwaysOn: deps.testRunsAlwaysOn,
+        ...(deps.parentOf === undefined ? {} : { parentOf: deps.parentOf }),
       })
     : undefined;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
@@ -636,6 +639,8 @@ export interface MeasurementDeps {
   readonly maxTurnBytes?: () => number;
   /** `x.operations.trace.testRunsAlwaysOn`의 현재 값. 없으면 참 */
   readonly testRunsAlwaysOn?: () => boolean;
+  /** 하위 대화의 부모(`agentOfChild`). 없으면 하위 대화도 자기 범위 표지만 본다(§4.6 규칙 31) */
+  readonly parentOf?: ParentLookup;
 }
 
 /**
@@ -713,6 +718,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     ...(deps.events === undefined ? {} : { events: deps.events }),
     maxTurnBytes: deps.maxTurnBytes ?? (() => DEFAULT_MAX_TURN_BYTES),
     testRunsAlwaysOn: deps.testRunsAlwaysOn ?? (() => true),
+    ...(deps.parentOf === undefined ? {} : { parentOf: deps.parentOf }),
   });
   return {
     stop: () => {

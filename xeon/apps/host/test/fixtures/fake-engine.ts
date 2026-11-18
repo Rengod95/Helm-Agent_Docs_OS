@@ -755,6 +755,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         hold: () => Promise.resolve(() => undefined),
         setTestRunDrafts: () => Promise.resolve(),
         testRunDraftsOf: () => undefined,
+        testRunApprovalOf: () => undefined,
         cancelOverlay: () => Promise.resolve(),
         recomputeAll: () => undefined,
         opened: () => Promise.resolve(),

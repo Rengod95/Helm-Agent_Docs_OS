@@ -91,36 +91,18 @@ const sameLayer = sameLayerGroups.map((group) => ({
 }));
 
 // DR-15 (6.3 P.2): a plugin imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources. Test files are exempt.
-// The two allowlisted edges are the only exceptions (DR-15/cap-dialog-core-tools, DR-15/cap-workspace-core-workspace in
-// scripts/dependency-allowlist.json). This tool checks the package edge; check-layers checks the entry points of each edge.
+// There is no exception: plugins get core services injected by the assembly root through ports typed in contracts.
+// check-layers checks the same rule and still reads DR-15/<name> allowlist entries.
 const P_TEST = "(^|/)(test|tests)/|\\.(test|spec)\\.[cm]?[jt]sx?$";
 const P_LOWER = "^(packages/platform-|packages/core-|plugins/)";
-const P_EXCEPTIONS = [
-  { id: "cap-dialog-core-tools", from: "^packages/cap-dialog/", to: "^packages/core-tools/" },
-  {
-    id: "cap-workspace-core-workspace",
-    from: "^packages/cap-workspace/",
-    to: "^packages/core-workspace/",
-  },
-];
 const pLowerImports = [
   {
     name: "no-l0-or-l1-import-from-P",
     severity: "error",
     comment: "A plugin imports only contracts, ext-host, group-sdk and external packages (DR-15).",
-    from: {
-      path: P_RE,
-      pathNot: `(?:${P_TEST}|${P_EXCEPTIONS.map((exception) => exception.from).join("|")})`,
-    },
+    from: { path: P_RE, pathNot: P_TEST },
     to: { path: P_LOWER },
   },
-  ...P_EXCEPTIONS.map((exception) => ({
-    name: `no-l0-or-l1-import-from-P-${exception.id}`,
-    severity: "error",
-    comment: `DR-15/${exception.id}: the one allowlisted L1 target of this plugin; other L0 or L1 imports stay violations.`,
-    from: { path: exception.from, pathNot: P_TEST },
-    to: { path: P_LOWER, pathNot: exception.to },
-  })),
 ];
 
 module.exports = {

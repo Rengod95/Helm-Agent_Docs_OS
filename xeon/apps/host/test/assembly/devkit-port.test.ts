@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
+import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/core-authoring";
 import type { ContextRef, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EvidenceRef,
@@ -364,5 +364,36 @@ test("devkit port: craftContext gives each reference of the conversation, with t
   );
   expect(await createDevkitPort(state.deps, { templates }).craftContext(origin)).toEqual(
     err({ kind: "io", message: "the craft context is not connected in this host build" }),
+  );
+});
+
+// AGE-60: 제작 코어는 시스템 모듈이다. 빌더 플러그인이 꺼져 있어도(등록된 확장이 하나도 없고 `authoring` 그룹이 실리지 않았다)
+// 드래프트 검사, 리뷰 제출, 테스트 런이 같은 포트로 돈다.
+test("devkit port: draft check, review submit and test run work with the builder plugin switched off", async () => {
+  const state = fakes("builder-off", []);
+  expect(state.deps.extUi?.host.registrations().map((info) => info.extension)).toEqual([]);
+  const sent: string[] = [];
+  const submitPort: PluginSubmitPort = {
+    submit: (request) => {
+      sent.push(request.dir);
+      return Promise.resolve(ok({ draftId: "draft_9", itemId: "rvw_9" }));
+    },
+  };
+  const port = createDevkitPort(state.deps, { templates, submit: () => submitPort });
+  const dir = join(root, "builder-off-src");
+  const made = await port.scaffold({ kind: "single-plugin", name: "builder-off", dir });
+  expect(made.ok).toBe(true);
+  // 드래프트 검사
+  expect(await port.validate(dir)).toEqual({ ok: true, value: { ok: true, issues: [] } });
+  // 리뷰 제출
+  const origin: ThreadId = fixedIdFactory(703).next("thr");
+  const evidence: readonly [EvidenceRef] = [{ kind: "turn", threadId: origin, turnId: "t-1" }];
+  expect(await port.submit({ dir, originThreadId: origin, evidence })).toEqual(
+    ok({ draftId: "draft_9", itemId: "rvw_9" }),
+  );
+  expect(sent).toEqual([dir]);
+  // 테스트 런: 설치되지 않은 대상은 포트가 `not_found`로 답한다(빌더 플러그인의 켜짐에 기대지 않는다)
+  expect(await port.testRun({ kind: "testRun", target: "builder-off" })).toEqual(
+    err({ kind: "not_found", message: "builder-off is not installed" }),
   );
 });

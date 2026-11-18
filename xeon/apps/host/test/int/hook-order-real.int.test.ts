@@ -29,9 +29,9 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 const KEY = "x.operations.hookOrder";
 /** tier 1(사용자 위치의 확장) 핸들러가 걸리는 tap 훅 */
 const SETTLE = "boundary.settle.after";
-/** tier 1 확장과 tier 3(내장 학습 그룹)가 같은 tap 훅에 걸린다 */
+/** tier 1 확장 두 개가 같은 tap 훅에 걸린다. 같은 tier 안에서는 로드 순서(확장 이름 순)로 PROBE가 PROBE_B보다 먼저 돈다 */
 const PROBE = "ext-probe";
-const LEARNING = "learning";
+const PROBE_B = "ext-probe-b";
 /** 저장한 뒤 폴더를 지워 다음 시작에서 실리지 않는 확장 */
 const GONE = "ext-gone";
 /** closed first 훅(`tool.call.before`)에 걸리는 사용자 확장 두 개 */
@@ -104,8 +104,12 @@ function settingsOf(home: EngineHome): unknown {
   return parsed;
 }
 
-/** 같은 엔진 홈에서 실제 호스트를 세운다. 기본 플러그인 폴더는 비워 사용자 위치의 확장만 실린다 */
-async function openHost(answers: readonly string[]) {
+/**
+ * 같은 엔진 홈에서 실제 호스트를 세운다. 기본 플러그인 폴더는 비워 사용자 위치의 확장만 실린다. 사용자 위치의 확장은 프로필에
+ * 들어 있어야 시작 때 실린다(AGE-49). `plugins`를 주면 기본 프로필을 cap-workspace, cap-dialog(코어가 기대는 단위)와 그 목록으로
+ * 저장한다. 목록 순서가 같은 tier 안의 기본 실행 순서다(정렬 키의 프로필 순서)
+ */
+async function openHost(answers: readonly string[], plugins: readonly string[] = []) {
   const host = await startInProcessHost({
     pluginHost: { disabled: true },
     devChecks: true,
@@ -114,6 +118,22 @@ async function openHost(answers: readonly string[]) {
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  if (plugins.length > 0) {
+    await connection.request("profile.put", {
+      profile: {
+        id: "default",
+        title: "default",
+        plugins: [
+          { name: "cap-workspace" },
+          { name: "cap-dialog" },
+          ...plugins.map((name) => ({ name })),
+        ],
+        settings: [],
+        startDrive: null,
+      },
+      baseRev: null,
+    });
+  }
   return { host, connection };
 }
 
@@ -159,36 +179,37 @@ function builtinRef(name: string) {
 }
 
 realTest(
-  "a set across tiers reverses the real dispatch order at the next step boundary, and get shows pending until a turn applies it",
+  "a set reverses the real dispatch order of two same-tier handlers at the next step boundary, and get shows pending until a turn applies it",
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
-    const running = await openHost(ANSWERS);
+    writeHookProbe(home, PROBE_B, SETTLE);
+    const running = await openHost(ANSWERS, [PROBE, PROBE_B]);
     const { connection } = running;
     try {
       const created = await connection.request("thread.create", {});
-      // 저장 값이 없으면 기본 순서다: 사용자 확장(tier 1)이 내장 학습(tier 3)보다 먼저 돈다
-      expect(await turnOrder(connection, created.threadId, "첫 질문")).toEqual([PROBE, LEARNING]);
+      // 저장 값이 없으면 기본 순서다: 같은 tier 1 안에서 로드 순서(확장 이름 순)로 ext-probe가 ext-probe-b보다 먼저 돈다
+      expect(await turnOrder(connection, created.threadId, "첫 질문")).toEqual([PROBE, PROBE_B]);
       expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
 
-      // tier 3를 tier 1 앞으로 옮긴다. 저장만 하고 적용은 다음 단계 경계다
+      // 같은 tier 1인 PROBE_B를 PROBE 앞으로 옮긴다. 저장만 하고 적용은 다음 단계 경계다
       expect(
-        await connection.request("hooks.order.set", { hook: SETTLE, order: [LEARNING, PROBE] }),
-      ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
+        await connection.request("hooks.order.set", { hook: SETTLE, order: [PROBE_B, PROBE] }),
+      ).toEqual({ hook: SETTLE, saved: [PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
       // 아직 경계 전이라 적용 중인 순서는 비어 있고(기본 순서) 저장 값과 달라 보류다
       expect(await connection.request("hooks.order.get", {})).toEqual({
-        hooks: [{ hook: SETTLE, saved: [LEARNING, PROBE], applied: [], pending: true }],
+        hooks: [{ hook: SETTLE, saved: [PROBE_B, PROBE], applied: [], pending: true }],
       });
 
       // 다음 Turn의 경계에서 적용되어 실제 실행 순서가 뒤집힌다
-      expect(await turnOrder(connection, created.threadId, "둘째 질문")).toEqual([LEARNING, PROBE]);
+      expect(await turnOrder(connection, created.threadId, "둘째 질문")).toEqual([PROBE_B, PROBE]);
       expect(await connection.request("hooks.order.get", {})).toEqual({
         hooks: [
           {
             hook: SETTLE,
-            saved: [LEARNING, PROBE],
-            applied: [LEARNING, PROBE],
+            saved: [PROBE_B, PROBE],
+            applied: [PROBE_B, PROBE],
             pending: false,
           },
         ],
@@ -196,7 +217,7 @@ realTest(
       // 읽기 값도 적용된 순서를 보인다(같은 정렬을 쓴다)
       const listed = await connection.request("hooks.list", {});
       const settle = listed.hooks.find((row) => row.hook === SETTLE);
-      expect(settle?.order?.map((entry) => entry.registrationId)).toEqual([LEARNING, PROBE]);
+      expect(settle?.order?.map((entry) => entry.registrationId)).toEqual([PROBE_B, PROBE]);
     } finally {
       await closeHost(running);
       home.dispose();
@@ -211,40 +232,41 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
-    const first = await openHost(ANSWERS);
+    writeHookProbe(home, PROBE_B, SETTLE);
+    const first = await openHost(ANSWERS, [PROBE, PROBE_B]);
     try {
       expect(
         await first.connection.request("hooks.order.set", {
           hook: SETTLE,
-          order: [LEARNING, PROBE],
+          order: [PROBE_B, PROBE],
         }),
-      ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
+      ).toEqual({ hook: SETTLE, saved: [PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
     } finally {
       await closeHost(first);
     }
     // 엔진 홈의 사용자 설정 파일에 키가 정확히 이 값으로 남는다
-    expect(settingsOf(home)).toEqual({ ...TAPE_SETTINGS, [KEY]: { [SETTLE]: [LEARNING, PROBE] } });
+    expect(settingsOf(home)).toEqual({ ...TAPE_SETTINGS, [KEY]: { [SETTLE]: [PROBE_B, PROBE] } });
 
     const second = await openHost(ANSWERS);
     try {
       const created = await second.connection.request("thread.create", {});
       expect(await turnOrder(second.connection, created.threadId, "재시작 뒤 질문")).toEqual([
-        LEARNING,
+        PROBE_B,
         PROBE,
       ]);
       expect(await second.connection.request("hooks.order.get", {})).toEqual({
         hooks: [
           {
             hook: SETTLE,
-            saved: [LEARNING, PROBE],
-            applied: [LEARNING, PROBE],
+            saved: [PROBE_B, PROBE],
+            applied: [PROBE_B, PROBE],
             pending: false,
           },
         ],
       });
       expect(settingsOf(home)).toEqual({
         ...TAPE_SETTINGS,
-        [KEY]: { [SETTLE]: [LEARNING, PROBE] },
+        [KEY]: { [SETTLE]: [PROBE_B, PROBE] },
       });
     } finally {
       await closeHost(second);
@@ -260,16 +282,17 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
+    writeHookProbe(home, PROBE_B, SETTLE);
     writeHookProbe(home, GONE, SETTLE);
-    const first = await openHost(ANSWERS);
+    const first = await openHost(ANSWERS, [PROBE, PROBE_B, GONE]);
     try {
       // 저장할 때는 실린 확장이라 오류가 없다
       expect(
         await first.connection.request("hooks.order.set", {
           hook: SETTLE,
-          order: [GONE, LEARNING, PROBE],
+          order: [GONE, PROBE_B, PROBE],
         }),
-      ).toEqual({ hook: SETTLE, saved: [GONE, LEARNING, PROBE], appliesAt: "nextStepBoundary" });
+      ).toEqual({ hook: SETTLE, saved: [GONE, PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
     } finally {
       await closeHost(first);
     }
@@ -282,7 +305,7 @@ realTest(
       const created = await second.connection.request("thread.create", {});
       // GONE의 자리는 없는 것으로 치고 남은 두 핸들러가 저장 순서대로 돈다
       expect(await turnOrder(second.connection, created.threadId, "질문")).toEqual([
-        LEARNING,
+        PROBE_B,
         PROBE,
       ]);
       // 저장 목록에는 GONE이 그대로 남고 오류는 없다
@@ -290,8 +313,8 @@ realTest(
         hooks: [
           {
             hook: SETTLE,
-            saved: [GONE, LEARNING, PROBE],
-            applied: [GONE, LEARNING, PROBE],
+            saved: [GONE, PROBE_B, PROBE],
+            applied: [GONE, PROBE_B, PROBE],
             pending: false,
           },
         ],
@@ -313,26 +336,12 @@ realTest(
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, FIRST_A, CALL);
     writeHookProbe(home, FIRST_B, CALL);
-    const running = await openHost(ANSWERS);
+    const running = await openHost(ANSWERS, [FIRST_A, FIRST_B]);
     try {
-      // 내장 `authoring`의 쓰기 가드(`tool.call.before`)는 기본 프로필에 기본으로 든다(매니페스트 기본 켜짐)이라 이 hook의 순서에 끼어든다.
-      // 이 시험은 사용자 확장 둘의 순서만 보므로 기본 프로필에서 뺀다. 코어가 기대는 `cap-workspace`·`cap-dialog`는 뺄 수 없어(M5c §4.1.17)
-      // 남기는데, 둘 다 `tool.call.before` 훅이 없어 이 순서에 끼지 않는다. 미리 보기는 기본 프로필의 집합만 본다
-      await running.connection.request("profile.put", {
-        profile: {
-          id: "default",
-          title: "default",
-          plugins: [
-            { name: "cap-workspace" },
-            { name: "cap-dialog" },
-            { name: FIRST_A },
-            { name: FIRST_B },
-          ],
-          settings: [],
-          startDrive: null,
-        },
-        baseRev: null,
-      });
+      // 사용자 위치의 확장은 대화가 열려야 실린다(AGE-49). 대화를 하나 열어 두어야 미리 보기가 두 확장의 핸들러를 본다
+      await running.connection.request("thread.create", {});
+      // 기본 프로필은 openHost가 cap-workspace·cap-dialog(코어가 기대는 단위)와 이 시험의 확장만 담는다. 내장 `authoring`의
+      // 쓰기 가드(`tool.call.before`)가 끼어들지 않아 이 순서는 사용자 확장 둘만 본다. 미리 보기는 기본 프로필의 집합만 본다
       // 제안 [B, A]: B가 먼저 답하면 A는 실행되지 않고(first_answer), B가 실패하면 closed라서 거부로 멈춘다(first_failure_deny)
       expect(
         await running.connection.request("hooks.order.preview", {
@@ -380,8 +389,10 @@ realTest(
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, COMPACT_A, COMPACT);
     writeHookProbe(home, COMPACT_B, COMPACT);
-    const running = await openHost(ANSWERS);
+    const running = await openHost(ANSWERS, [COMPACT_A, COMPACT_B]);
     try {
+      // 사용자 위치의 확장은 대화가 열려야 실린다(AGE-49). 대화를 하나 열어 두어야 미리 보기가 두 확장의 핸들러를 본다
+      await running.connection.request("thread.create", {});
       expect(
         await running.connection.request("hooks.order.preview", {
           hook: COMPACT,
@@ -461,7 +472,8 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
-    const running = await openHost(ANSWERS);
+    writeHookProbe(home, PROBE_B, SETTLE);
+    const running = await openHost(ANSWERS, [PROBE, PROBE_B]);
     const { connection } = running;
     try {
       // 가드 tier(0) 핸들러가 한 줄도 없다. 그래서 guard를 옮기는 저장과 실행은 이 호스트에서 볼 수 없다
@@ -470,15 +482,15 @@ realTest(
       expect(rows.filter((entry) => entry.tier === 0)).toEqual([]);
       const created = await connection.request("thread.create", {});
       expect(
-        await connection.request("hooks.order.set", { hook: SETTLE, order: [LEARNING, PROBE] }),
-      ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
-      expect(await turnOrder(connection, created.threadId, "질문")).toEqual([LEARNING, PROBE]);
+        await connection.request("hooks.order.set", { hook: SETTLE, order: [PROBE_B, PROBE] }),
+      ).toEqual({ hook: SETTLE, saved: [PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
+      expect(await turnOrder(connection, created.threadId, "질문")).toEqual([PROBE_B, PROBE]);
       expect(await connection.request("hooks.order.get", {})).toEqual({
         hooks: [
           {
             hook: SETTLE,
-            saved: [LEARNING, PROBE],
-            applied: [LEARNING, PROBE],
+            saved: [PROBE_B, PROBE],
+            applied: [PROBE_B, PROBE],
             pending: false,
           },
         ],
@@ -498,7 +510,7 @@ realTest(
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, FIRST_A, CALL);
     writeHookProbe(home, FIRST_B, CALL);
-    const running = await openHost(ANSWERS);
+    const running = await openHost(ANSWERS, [FIRST_A, FIRST_B]);
     const { connection } = running;
     try {
       // guard tier 핸들러가 없어서 뒤집기는 저장되고, 미리보기의 guardRisk도 비어 있다
@@ -527,15 +539,16 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
-    const running = await openHost(ANSWERS);
+    writeHookProbe(home, PROBE_B, SETTLE);
+    const running = await openHost(ANSWERS, [PROBE, PROBE_B]);
     const { connection } = running;
     try {
       const created = await connection.request("thread.create", {});
       expect(
-        await connection.request("hooks.order.set", { hook: SETTLE, order: [LEARNING, PROBE] }),
-      ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
+        await connection.request("hooks.order.set", { hook: SETTLE, order: [PROBE_B, PROBE] }),
+      ).toEqual({ hook: SETTLE, saved: [PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
       expect(await turnOrder(connection, created.threadId, "적용 전 질문")).toEqual([
-        LEARNING,
+        PROBE_B,
         PROBE,
       ]);
 
@@ -547,11 +560,11 @@ realTest(
       expect(settingsOf(home)).toEqual(TAPE_SETTINGS);
       // 저장 값은 비었고 적용 중인 순서는 다음 경계까지 남아 보류다
       expect(await connection.request("hooks.order.get", {})).toEqual({
-        hooks: [{ hook: SETTLE, saved: [], applied: [LEARNING, PROBE], pending: true }],
+        hooks: [{ hook: SETTLE, saved: [], applied: [PROBE_B, PROBE], pending: true }],
       });
       expect(await turnOrder(connection, created.threadId, "되돌린 뒤 질문")).toEqual([
         PROBE,
-        LEARNING,
+        PROBE_B,
       ]);
       expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
 
@@ -574,20 +587,21 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     writeHookProbe(home, PROBE, SETTLE);
+    writeHookProbe(home, PROBE_B, SETTLE);
     writeHookProbe(home, FIRST_A, CALL);
     writeHookProbe(home, FIRST_B, CALL);
-    const running = await openHost(ANSWERS);
+    const running = await openHost(ANSWERS, [PROBE, PROBE_B, FIRST_A, FIRST_B]);
     const { connection } = running;
     try {
       const created = await connection.request("thread.create", {});
       expect(
-        await connection.request("hooks.order.set", { hook: SETTLE, order: [LEARNING, PROBE] }),
-      ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
+        await connection.request("hooks.order.set", { hook: SETTLE, order: [PROBE_B, PROBE] }),
+      ).toEqual({ hook: SETTLE, saved: [PROBE_B, PROBE], appliesAt: "nextStepBoundary" });
       expect(
         await connection.request("hooks.order.set", { hook: CALL, order: [FIRST_B, FIRST_A] }),
       ).toEqual({ hook: CALL, saved: [FIRST_B, FIRST_A], appliesAt: "nextStepBoundary" });
       expect(await turnOrder(connection, created.threadId, "적용 전 질문")).toEqual([
-        LEARNING,
+        PROBE_B,
         PROBE,
       ]);
 
@@ -598,7 +612,7 @@ realTest(
       expect(settingsOf(home)).toEqual(TAPE_SETTINGS);
       expect(await turnOrder(connection, created.threadId, "되돌린 뒤 질문")).toEqual([
         PROBE,
-        LEARNING,
+        PROBE_B,
       ]);
       expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
       expect(await connection.request("hooks.order.reset", {})).toEqual({

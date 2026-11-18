@@ -94,7 +94,8 @@ realTest(
       // 실행 목록에도 없다: 등록은 적재된 확장에서만 나온다(승인 전에는 적재하지 않는다)
       const hooks = await client.request("hooks.list", {});
       const settle = hooks.hooks.find((hook) => hook.hook === "boundary.settle.after");
-      expect(settle?.order?.map((handler) => handler.registrationId)).not.toContain(
+      // 학습 그룹이 빌트인에서 빠져 이 훅에 내장 핸들러가 없다: 순서 목록이 없을 수 있다
+      expect(settle?.order?.map((handler) => handler.registrationId) ?? []).not.toContain(
         trusted.extension,
       );
 

@@ -297,6 +297,19 @@ describe("기록 스키마", () => {
     expect(parse(TurnRecordSchema, { ...turn, schema: 2 }).ok).toBe(false);
   });
 
+  test("TurnRecord.testRun keeps draftApproval only as auto: auto parses and keeps its value, ask and other strings fail, omission parses", () => {
+    const run = { runGroupId: "grp_1", baseProfileId: "default", drafts: [] };
+    const auto = parse(TurnRecordSchema, { ...turn, testRun: { ...run, draftApproval: "auto" } });
+    expect(auto.ok ? auto.value.testRun : auto.error).toEqual({ ...run, draftApproval: "auto" });
+    expect(parse(TurnRecordSchema, { ...turn, testRun: run }).ok).toBe(true);
+    expect(parse(TurnRecordSchema, { ...turn, testRun: { ...run, draftApproval: "ask" } }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(TurnRecordSchema, { ...turn, testRun: { ...run, draftApproval: "always" } }).ok,
+    ).toBe(false);
+  });
+
   test("HookRun.result uses the five trace results and reason takes the two process values", () => {
     expect(parse(HookRunSchema, { ...hookRun, result: "passed" }).ok).toBe(true);
     expect(parse(HookRunSchema, { ...hookRun, result: "blocked_hook" }).ok).toBe(false);
@@ -559,6 +572,21 @@ describe("메서드 params와 result 스키마(미등록)", () => {
     );
     expect(parse(schema, { ...marker, kind: "other" }).ok).toBe(false);
     expect(parse(schema, { ...marker, draft: "yes" }).ok).toBe(false);
+  });
+
+  test("TestRunMarker takes draftApproval only as auto", () => {
+    const marker = {
+      profileId: "p",
+      target: "helm",
+      paused: false,
+      kind: "draft" as const,
+      draft: true,
+    };
+    const schema = ThreadSummarySchema.properties.testRun;
+    const auto = parse(schema, { ...marker, draftApproval: "auto" });
+    expect(auto.ok ? auto.value : auto.error).toEqual({ ...marker, draftApproval: "auto" });
+    expect(parse(schema, marker).ok).toBe(true);
+    expect(parse(schema, { ...marker, draftApproval: "ask" }).ok).toBe(false);
   });
 });
 

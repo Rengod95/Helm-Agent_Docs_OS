@@ -38,7 +38,7 @@ import {
   validateCompositionReport,
   validateExtensionDir,
   type TemplateDirs,
-} from "@fresnel/plugin-builder";
+} from "@fresnel/core-authoring";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import {
   markTestRun,

@@ -4,7 +4,7 @@ import { expect, test } from "bun:test";
 import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import type { PluginMode } from "@fresnel/contracts/services";
 import { scanDriveSource } from "@fresnel/group-sdk/testing";
-import { scaffoldExtension, validateExtensionDir } from "../src/index.ts";
+import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 // 세 방식(M5c §4.9.4)의 뼈대: 템플릿으로 만들고, 검사를 통과하고, 매니페스트의 값(훅, 지침, 구동, 그룹)을 본다.

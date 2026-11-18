@@ -54,7 +54,6 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
-  type WithHumanDecision,
 } from "@fresnel/contracts/services";
 import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
@@ -109,12 +108,7 @@ import {
   unitOfModule,
 } from "./assembly/extensions.ts";
 import { isGroupCatalogManifest } from "./assembly/groups.ts";
-import {
-  createLearningWiring,
-  learningAgentsLoaded,
-  learningLoaded,
-  registerLearningProjection,
-} from "./assembly/learning.ts";
+import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
 import {
   createHostSchedule,
   outsideWatchPathsOf,
@@ -123,7 +117,6 @@ import {
 import { createStoreScheduleLeader, schedulerLeaderIsLive } from "./assembly/schedule-leader.ts";
 import { threadlessNoticeOf, threadlessNoticesOf } from "./assembly/threadless-notices.ts";
 import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
-import { createProposalPort } from "./assembly/proposals.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { startAutoTitle, titleModelFor, type AutoTitle } from "./assembly/auto-title.ts";
@@ -443,16 +436,6 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
   const found = ext.ports.get(key);
   if (found === undefined) throw new AssembleError([{ code: "missingService", service }]);
   return found;
-}
-
-/** core-tools가 조립 때 넘긴 사람의 결정 실행 함수. 포트가 아니라 이 조립 루트의 슬롯으로 받는다(U-11) */
-function requireHumanDecision(slot: { current: WithHumanDecision | undefined }): WithHumanDecision {
-  if (slot.current === undefined) {
-    throw new AssembleError([
-      { code: "missingService", service: "fresnel.tools (human decision)" },
-    ]);
-  }
-  return slot.current;
 }
 
 /**
@@ -1087,8 +1070,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
     /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
     const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
-    // 사람의 결정 실행 함수(core-tools가 setup 때 넘긴다). 학습 제안 결정이 읽는다. 포트로는 나가지 않는다(U-11)
-    const humanDecisionSlot: { current: WithHumanDecision | undefined } = { current: undefined };
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1122,13 +1103,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const dialogArea = createDialogAreaHolder();
     // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
     const web: WebStatusHolder = { current: undefined };
-    // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
-    const learning = createLearningWiring({
-      resources: () => ext.resources,
-      ids,
-      heldThreads: () => portsHandle?.heldThreads() ?? [],
-      activeThread: () => portsHandle?.activeThread() ?? null,
-    });
+    // L2 제안 대기열 어댑터 자리. 브리지 확장이 올라올 때 채운다
+    const knowledgeWire: KnowledgeWireHolder = { current: undefined };
     // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
@@ -1233,14 +1209,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           os.logger("default-plugins"),
         )
       : [];
-    // 학습 그룹의 검토 포크 정의는 내장 그룹 구성 요소라 호스트가 파일에서 읽지 않는다. 그룹을 싣을 때만 더한다 (L3.learning.spec §3.1)
-    const learningAgents = learningAgentsLoaded({ defaultGroups: options.defaultGroups, safeMode });
     const agentDefinitions =
-      options.agentDefinitions === undefined &&
-      pluginAgents.length === 0 &&
-      learningAgents.length === 0
+      options.agentDefinitions === undefined && pluginAgents.length === 0
         ? undefined
-        : [...(options.agentDefinitions ?? []), ...learningAgents, ...pluginAgents];
+        : [...(options.agentDefinitions ?? []), ...pluginAgents];
     // 가이드 폴더(스킬 원본). 개발 모드이거나 대화의 프로필이 가이드를 넣었을 때만 모델에게 스킬로 내보인다(E(T)). 플러그인 빌더는 켜짐과 무관하게 읽는다
     const guideWiring = guideWiringOf({
       env: process.env,
@@ -1260,15 +1232,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         mode: options.mode,
         // 초안 표지를 찾는 로더. 조립이 외부 확장을 싣기 전에는 없다(그때 초안도 없다)
         loader: () => external.loader,
+        // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
+        testRunApprovalOf: (threadId) =>
+          portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
           ? {}
           : { extraCapabilityDefs: options.extraCapabilityDefs }),
         toolOutputs,
-        toolHumanDecision: (withHumanDecision) => {
-          humanDecisionSlot.current = withHumanDecision;
-        },
         clock,
         scheduler: runtime.scheduler,
         ids,
@@ -1292,7 +1264,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         faults: store.value.faults,
         holder,
         ext,
-        learning,
+        knowledgeWire,
         // 제작 그룹의 devkit 포트: 엔진 포트가 만들어진 뒤에 읽는다
         // 개발 모드는 설정 값을 그때그때 읽는다(`l3.authoring.devMode`, 라이브). 키가 없으면 꺼짐이다
         authoring: {
@@ -1467,22 +1439,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const session = requirePort(ext, SESSION_KEY, "fresnel.session");
     late.session = session;
     const storeService = requirePort(ext, STORE_KEY, "fresnel.store");
-    if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
-      const failed = registerLearningProjection({
-        session,
-        store: storeService,
-        wiring: learning,
-        onSkipped: (kind) => logger.warn("learning.projection_skipped", { kind }),
-      });
-      if (failed !== undefined) {
-        throw new AssembleError([{ code: "plugin", plugin: "learning", message: failed }]);
-      }
-    }
     const loop = requirePort(ext, LOOP_KEY, "fresnel.loop");
     const tasks = requirePort(ext, TASKS_KEY, "fresnel.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "fresnel.approvals");
     const tools = requirePort(ext, TOOLS_KEY, "fresnel.tools");
-    const withHumanDecision = requireHumanDecision(humanDecisionSlot);
     const models = requirePort(ext, MODELS_KEY, "fresnel.models");
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 파일 되감기 서비스(cap-workspace가 낸다). 원본 저장 포트가 없는 조립에는 없다(처리기가 notImplemented로 답한다)
@@ -1576,6 +1536,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       events: turnRecordEvents,
       maxTurnBytes: () => maxTurnBytesOf(built.catalog, settings),
       testRunsAlwaysOn: () => testRunsAlwaysOnOf(built.catalog, settings),
+      // 하위 대화의 부모(§4.6 규칙 31): 자식 턴이 부모의 범위(테스트 실행, 테스트 대화)를 물려받도록 세션의 위임 연결을 읽는다
+      parentOf: (threadId) => {
+        // 위임으로 만든 대화 id는 항상 `thr_` 형식이다. 그 밖의 문자열은 하위 대화일 수 없다
+        if (!isId("thr", threadId)) return ok(undefined);
+        const link = session.query.agentOfChild(threadId);
+        return link.ok ? ok(link.value?.parentThreadId) : link;
+      },
     });
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
@@ -1684,12 +1651,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       },
       web,
       proposals: createProposalPort({
-        learning: () => learning.bridge.api(),
-        // 그룹이 꺼져 있어도 세션 DB의 학습 기록은 남아 있어 목록은 저장소에서 읽는다(결정은 그룹이 돌 때만)
-        learningStore: () => learning.reader.current,
-        runner: learning.runner,
-        knowledge: () => learning.knowledge.current,
-        humanDecision: withHumanDecision,
+        knowledge: () => knowledgeWire.current,
         report: (message, fields) => {
           logger.warn(message, fields);
         },

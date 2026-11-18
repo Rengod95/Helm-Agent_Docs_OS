@@ -839,7 +839,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `SecretAdminService` | `SecretAdminServiceName` | `fresnel.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
 | `McpService` | `McpServiceName` | `fresnel.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
 | `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | 없음(서비스만 낸다. X 포트 아님) | `L3.group-sdk.spec` §3.8 |
-| `DevkitService` | `DevkitServiceName` | `fresnel.devkit` | `services/devkit.ts` | `apps/host`(L4) | 없음 | `L3.authoring.spec` §3.3 [결정: M4 T-F, X-22] |
+| `DevkitService` | `DevkitServiceName` | `fresnel.devkit` | `services/devkit.ts` | `apps/host`(L4) | 없음 | `L3.authoring.spec` §3.3 [결정: M4 T-F, X-22]. 같은 파일 `services/devkit.ts`가 `KIND_CATALOG_VERSION`을 두고, `services/group-names.ts`가 그룹 이름 규칙의 정본(`GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, `checkGroupName`)을 둔다. group-sdk는 이를 다시 내보낸다 [결정: AGE-60, 제작 코어(core-authoring)와 대화하는 빌더가 코어를 import하지 않고 같은 규칙을 쓰려고] |
 
 파일별 이름. 위 표의 인터페이스와 이름 상수 외에 각 파일에 두는 이름이다. 필드는 오른쪽 열 블록을 옮겨 확정한다(규칙 1).
 

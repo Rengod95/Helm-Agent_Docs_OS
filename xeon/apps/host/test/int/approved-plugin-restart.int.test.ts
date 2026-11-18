@@ -34,7 +34,7 @@ function userPluginRoot(home: EngineHome, name: string): string {
 }
 
 /** 코드가 있는 사용자 플러그인(`defaultEnabled: false`). 엔트리가 실행되면 `marker`에 파일을 쓴다 */
-function writeCodePlugin(home: EngineHome, marker: string): void {
+function writeCodePlugin(home: EngineHome, marker: string, defaultEnabled = false): void {
   const root = userPluginRoot(home, CODE);
   mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(root, "src"), { recursive: true });
@@ -45,7 +45,7 @@ function writeCodePlugin(home: EngineHome, marker: string): void {
       name: CODE,
       version: "1.0.0",
       purpose: "Approved code plugin",
-      defaultEnabled: false,
+      defaultEnabled,
       entry: "./src/index.ts",
       plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
     }),
@@ -234,6 +234,53 @@ realTest(
         expect(body).toContain(INSTRUCTION);
         expect(body).toContain(`<name>${SKILL}</name>`);
         expect(body).toContain(SKILL_DESCRIPTION);
+      } finally {
+        await connection.close();
+        await host.close();
+      }
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  60_000,
+);
+
+realTest(
+  "an approved user-folder code plugin with defaultEnabled true does not run after a restart until a profile holds it",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-approved-default-on-")));
+    const marker = join(workspace, "code.marker");
+    writeCodePlugin(home, marker, true);
+    const model = recordingModels("approved-default-on", ["one."], { contextWindow: 200_000 });
+    const previousCwd = process.cwd();
+    process.chdir(workspace);
+    try {
+      const first = await startHost(model);
+      const firstConnection = createHostConnection(first.client);
+      await firstConnection.request("host.hello", HELLO_PARAMS);
+      await approveByName(firstConnection, CODE);
+      await firstConnection.close();
+      await first.close();
+      expect(existsSync(marker)).toBe(false);
+
+      const host = await startHost(model);
+      const connection = createHostConnection(host.client);
+      try {
+        await connection.request("host.hello", HELLO_PARAMS);
+        const listed = await connection.request("ext.list", {});
+        expect(listed.extensions.find((entry) => entry.name === CODE)?.origin).toBe("user");
+        // 매니페스트의 기본으로 켜짐은 번들에만 효력이 있다: 기본 프로필에 들지 않고 시작 때 실리지 않는다
+        expect(existsSync(marker)).toBe(false);
+        const profile = await connection.request("profile.get", { id: "default" });
+        expect(profile.profile.plugins.map((plugin) => plugin.name)).not.toContain(CODE);
+        const opened = await connection.request("thread.create", { workspace });
+        expect(existsSync(marker)).toBe(false);
+        const onThread = await connection.request("ext.list", { threadId: opened.threadId });
+        expect(onThread.extensions.find((item) => item.name === CODE)?.status).not.toBe("enabled");
       } finally {
         await connection.close();
         await host.close();

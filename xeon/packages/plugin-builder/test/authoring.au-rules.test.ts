@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { validateExtensionDir } from "../src/index.ts";
+import { validateExtensionDir } from "@fresnel/core-authoring";
 import { driveGroupFixture, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();

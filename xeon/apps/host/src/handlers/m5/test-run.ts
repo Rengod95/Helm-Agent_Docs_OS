@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import {
   OVERLAY_LIMIT,
   wireError,
+  type ProfileIssue,
   type TestRunStartResult,
   type WireHandler,
 } from "@fresnel/contracts/wire";
 import { draftVersionIdOf } from "@fresnel/ext-host";
 import type { ConnectionHub } from "../../connection-types.ts";
 import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "../../assembly/m4/profile-defaults.ts";
-import { encodeTestRunDrafts } from "../../assembly/measure/test-run-marks.ts";
+import { draftRecordOf, encodeTestRunDrafts } from "../../assembly/measure/test-run-marks.ts";
 import type { Engine } from "../../types.ts";
 import { claimWrite } from "../owner.ts";
 import { markTestRun, wireErrorOfProfile } from "../m4/profile-test-run.ts";
@@ -43,8 +44,29 @@ export function createTestRunHandlers(
         threadId: undefined,
       });
       if (!checked.ok) throw wireErrorOfProfile(checked.error);
-      const errors = checked.value.issues.filter((issue) => issue.severity === "error");
+      // 기본 프로필이 처음 주는 플러그인 가운데 설치돼 있지 않은 것(사용자가 지움)은 건너뛰고 시작한다. 건너뛴 이름은 결과에 싣는다.
+      // 그 밖의 오류(저장된 프로필이 없는 플러그인을 가리키는 경우 포함)는 그대로 `profile.invalid`다
+      const firstGiven =
+        baseProfileId === DEFAULT_PROFILE_ID
+          ? new Set(profiles.firstGivenPlugins())
+          : new Set<string>();
+      const isSkippable = (issue: ProfileIssue): boolean =>
+        issue.code === "plugin_unknown" &&
+        issue.plugin !== undefined &&
+        firstGiven.has(issue.plugin);
+      const errors = checked.value.issues.filter(
+        (issue) => issue.severity === "error" && !isSkippable(issue),
+      );
       if (errors.length > 0) throw wireErrorOfProfile({ kind: "invalid", issues: errors });
+      const skippedPlugins = [
+        ...new Set(
+          checked.value.issues.flatMap((issue) =>
+            issue.severity === "error" && isSkippable(issue) && issue.plugin !== undefined
+              ? [issue.plugin]
+              : [],
+          ),
+        ),
+      ];
       // 초안은 그 플러그인의 초안 목록에 있어야 한다. 없으면 `draft.notFound`다
       const listings = await Promise.all(
         params.drafts.map(async (draft) => ({
@@ -79,8 +101,9 @@ export function createTestRunHandlers(
         unhold();
         throw caught;
       }
-      // 싣은 초안을 대화에 묶는다. 묶은 뒤 대화가 참조로 쥔다(§4.8.1 2)
-      await testRunDrafts.bind(created.threadId, [prepared.value]);
+      // 싣은 초안을 대화에 묶는다. 묶은 뒤 대화가 참조로 쥔다(§4.8.1 2). 승인 `auto`는 그 대화의 드래프트 카드를 없앤다(항목 10)
+      const approval = params.draftApproval === "auto" ? "auto" : undefined;
+      await testRunDrafts.bind(created.threadId, [prepared.value], approval);
       await claimWrite(engine, hub(), context.connectionId, created.threadId);
       // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7). `thread.create`와 같은 순서다
       await threads.applyOpenWorkspace(created.threadId);
@@ -90,13 +113,7 @@ export function createTestRunHandlers(
         created.threadId,
         baseProfileId,
         runGroupId,
-        encodeTestRunDrafts(
-          marks.map((mark) => ({
-            plugin: mark.replaces,
-            draftId: mark.draftId,
-            contentHash: mark.contentHash,
-          })),
-        ),
+        encodeTestRunDrafts(marks.map(draftRecordOf), approval),
       );
       return {
         threadId: created.threadId,
@@ -107,6 +124,7 @@ export function createTestRunHandlers(
           versionId: draftVersionIdOf(mark),
         })),
         runGroupId,
+        skippedPlugins,
       };
     },
   };

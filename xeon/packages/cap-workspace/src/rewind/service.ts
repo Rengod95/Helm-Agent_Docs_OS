@@ -23,16 +23,10 @@ import type {
   TurnFile,
   TurnFilesView,
   UntrackedEffect,
+  WorkspaceEnv,
 } from "@fresnel/contracts/services";
-import {
-  mutationKey,
-  queueInCallOrder,
-  resolveWorkspacePath,
-  scopedDeps,
-  WorkspaceFailure,
-  type WorkspaceEnv,
-} from "@fresnel/core-workspace";
-import type { WorkspaceDeps } from "../deps.ts";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
+import { scopeDeps, type WorkspaceDeps } from "../deps.ts";
 import {
   NO_CANCEL,
   inOrder,
@@ -257,13 +251,13 @@ async function underLock(
   path: string,
   work: (env: WorkspaceEnv, canonical: string) => Promise<RewindFileResult>,
 ): Promise<RewindFileResult> {
-  const scoped = scopedDeps(deps, threadId);
+  const scoped = scopeDeps(deps, threadId);
   const env = scoped.env;
   const outcome = await attemptAsync(() =>
-    queueInCallOrder(
+    scoped.core.queueInCallOrder(
       env.id,
-      () => resolveWorkspacePath(scoped.roots, path, "write", NO_CANCEL),
-      (resolved) => mutationKey(env.id, resolved.canonical),
+      () => scoped.core.resolveWorkspacePath(scoped.roots, path, "write", NO_CANCEL),
+      (resolved) => scoped.core.mutationKey(env.id, resolved.canonical),
       (resolved) => work(env, resolved.canonical),
     ),
   );

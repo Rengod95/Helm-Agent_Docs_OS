@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scaffoldExtension, validateExtensionDir } from "../src/index.ts";
+import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();

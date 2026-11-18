@@ -14,7 +14,7 @@ import {
 import { createTestHost } from "@fresnel/ext-host/testing";
 import * as kit from "@fresnel/group-sdk";
 import { scanDriveSource } from "@fresnel/group-sdk/testing";
-import { packExtension, validateExtensionDir } from "../src/index.ts";
+import { packExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { driveGroupFixture, readManifest, tempRoot, templateDirs } from "./support.ts";
 
 // 플러그인 그룹(drive)을 한 파일로 묶고 외부 로더로 실제로 불러 drive가 도는지 본다(Y8). 단일 플러그인 묶음 시험은 validate-pack 시험에 있다.

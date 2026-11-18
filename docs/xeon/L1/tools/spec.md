@@ -427,7 +427,7 @@ export interface PolicyInput {
   readonly bypassAllowed: boolean;
 }
 
-/** `draft`: 초안 출신 호출이라 모드와 허용 규칙을 무시하고 묻는다(§4.6.1) [제안] */
+/** `draft`: 초안 출신 호출이라 모드와 허용 규칙을 무시하고 묻는다. 드래프트 승인 `auto`인 대화에서는 아니다(§4.6.1) [제안] */
 export type DecisionReason = "rule" | "mode" | "noninteractive" | "bypass_forbidden" | "draft";
 
 export interface PolicyDecision {
@@ -925,17 +925,17 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 비대화형 실행: [제안] 비대화형 실행에서 ask는 deny로 해석한다(`_research/item-catalog.md` L1-d "권한 모드"). `ToolRunContext.interactive`는 turn을 시작한 쪽이 정한다 [제안]. 사용자 입력 turn(`turn.start`)은 대화형, 예약 실행(L2.schedule)과 헤드리스 CLI 실행은 비대화형이다. drive와 위임 turn은 부모 대화를 따른다.
 - 보류 [제안: 카탈로그 "보류" 표기를 따른다]: 자동 분류 모드(별도 모델이 ask를 판정)와 자동 승인 리뷰어·연속 거부 서킷브레이커(`_research/item-catalog.md` L1-d, 진보된 설계 3·4번)는 이 문서 범위 밖이다. 도입하면 리뷰어 장애 시 거부하는 쪽으로 설계한다. 모델 자가 위험도(OpenHands `security_risk`)는 정책 입력의 하나로만 검토한다.
 
-#### 4.6.1 초안 출신 호출 [결정: 2026-11-17 사용자, U2]
+#### 4.6.1 초안 출신 호출 [결정: 2026-11-17 사용자, U2. 테스트 실행의 `auto`는 [결정: 2026-11-18 사용자, AGE-56]]
 
-검토되지 않은 플러그인 초안(덧씌우기 또는 시험 실행)에서 나온 도구 호출은 모드, 규칙, 위험 등급과 무관하게 항상 묻고, 카드에 "초안" 표지를 단다.
+검토되지 않은 플러그인 초안(덧씌우기 또는 시험 실행)에서 나온 도구 호출은 모드, 규칙, 위험 등급과 무관하게 항상 묻고, 카드에 "초안" 표지를 단다. 단, 테스트 실행의 드래프트 승인이 `auto`인 대화(와 그 서브에이전트 자식 대화)에서는 "드래프트라서 묻는" 판정(3번)과 승인 상속 금지(4번)를 건너뛴다(`[결정: 2026-11-18, 사용자, AGE-56]`). 그 대화의 드래프트 호출은 모드, 규칙, 위험 등급, 비대화형 거부, 가드 Hook을 일반 대화와 같게 받는다. 이것은 "항상"을 호출한 대화 단위로 좁히는 것이고, 등록 범위의 표지는 그대로다. `auto`는 화면(통신을 부르는 쪽)만 고른다. 모델, 플러그인, 드래프트는 이 값을 정하지 못한다.
 
 1. 표지 [제안]: `DraftMark = { plugin: string; draftId: string }`(`@fresnel/contracts/services`, 프로필 덧씌우기 `overlay`의 `plugin`·`draftId`와 같은 값)다. 준비 때 호출마다 한 번 정한다. 플러그인 기능 호출(`executeForPlugin`)은 호출한 플러그인의 `plugin.scopeId`를 먼저 보고, 없으면 도구 항목의 `owner`(등록 스코프)를 본다. 모델이 부른 도구 호출은 `owner`만 본다. 같은 값으로 `draft`가 정해지면 그 호출은 초안 출신이다.
 2. 주입 의존 [제안]: `ToolsDeps.draftOf?: (scopeId: RegistrationId) => DraftMark | undefined`(core-tools `deps.ts`). 조립 루트가 `ToolsPluginOptions.draftOf`로 넘긴다. 초안 목록(덧씌우기, 시험 실행)은 L1이 모르고 조립 루트가 안다. 넘기지 않으면 초안 호출이 없다. 도구 항목에는 등록 스코프 `ToolEntry.owner`가 붙는다(`resourceEntry`, 플러그인 등록 도구만).
-3. 판정 [결정: 2026-11-17 사용자, U2]: 5b의 결정(ceiling을 합친 뒤)에 `evaluateDraft(decision, input)`을 한 번 건다. deny는 그대로다(deny 규칙과 모드의 deny). 그 밖의 결정(bypass의 allow, allow 규칙, 위험 등급의 allow)은 모두 ask가 되고 사유는 `draft`다(`DecisionReason`에 더했다 [제안]). 그다음 6단계대로 비대화형이면 deny(`noninteractive`)다. 허용으로 넘어가는 경로는 없다.
-4. 상속 금지: 초안 출신 호출은 `inheritApproval`, 바깥 호출의 승인 상속, 사람의 결정 허용(`withHumanDecision`)을 쓰지 않는다. 승인 상속을 찾는 단계를 건너뛰어 카드를 건너뛰지 못하게 닫는다.
+3. 판정 [결정: 2026-11-17 사용자, U2]: 5b의 결정(ceiling을 합친 뒤)에 `evaluateDraft(decision, input)`을 한 번 건다. deny는 그대로다(deny 규칙과 모드의 deny). 그 밖의 결정(bypass의 allow, allow 규칙, 위험 등급의 allow)은 모두 ask가 되고 사유는 `draft`다(`DecisionReason`에 더했다 [제안]). 그다음 6단계대로 비대화형이면 deny(`noninteractive`)다. 허용으로 넘어가는 경로는 없다. 단, 호출한 대화가 드래프트 승인 `auto`인 테스트 실행이면 이 판정을 건너뛴다(`[결정: 2026-11-18, 사용자, AGE-56]`). 그 호출은 모드, 규칙, 위험 등급의 결정을 일반 대화와 같게 따르고, 모드가 물은 호출만 카드가 뜬다. 그 카드의 사유는 `draft`가 아니다. 판정 대화는 `ToolsDeps.draftAutoApproved(threadId)`가 정하며, 등록 범위의 표지로 정하지 않는다 [제안].
+4. 상속 금지: 초안 출신 호출은 `inheritApproval`, 바깥 호출의 승인 상속, 사람의 결정 허용(`withHumanDecision`)을 쓰지 않는다. 승인 상속을 찾는 단계를 건너뛰어 카드를 건너뛰지 못하게 닫는다. 단, 드래프트 승인 `auto`인 대화의 드래프트 호출은 이 금지를 받지 않는다(`[결정: 2026-11-18, 사용자, AGE-56]`). 상속의 나머지 조건(위험 등급이 바깥 승인 이하, 한 번만 씀, 경로 대조)은 일반 대화와 같다.
 5. 카드 [제안]: 도구 승인 본문 `ToolApprovalBody.draft?: DraftMark`에 표지를 싣는다. 기록 스키마(`approval.requested`의 `ToolApprovalDetail`)도 같은 선택 필드를 받는다. 제목 앞에 `Draft plugin "<확장 이름>" asks.`를 둔다. `ruleId`는 `null`이다(초안이 물은 것이라 규칙이 아니다). 같은 호출의 시크릿 사용 승인 카드도 표지를 싣는다. 화면은 `draft`가 있으면 "초안" 표시를 단다.
-6. 무인 [결정: D-M3-12를 따른다]: 답할 사람이 없고 무인 정책이 `deny`면 묻지 않고 거부한다(`noninteractive_ask_denied`). `expire`와 `wait`에서는 5번 카드로 기다린다(§4.7 6c).
-6b. 가벼운 길 닫기 [결정: 2026-11-17 사용자, U2, 구현: enB5]: 도구 매핑이 없는 `readOnly` 기능 메서드는 검토된 플러그인에는 파이프라인 항목이 없어(합성 항목은 `readOnly`가 아닌 메서드뿐) 가벼운 길로 가지만, 초안 출신 호출은 이 길을 타지 못한다. `ToolsPort.isDraftScope?(scopeId)`(`deps.draftOf`로 답한다)를 기능 래퍼(`routeOf`)가 묻고, 초안이면 파이프라인으로 보낸다. 그 호출을 위해 합성 항목은 `readOnly` 메서드에도 만들어지고(초안 호출자에게만) 위험 등급은 메서드의 `risk`, 없으면 `read`다. 3번의 판정이 그 호출을 ask로 바꾼다. 물을 대화나 호출 식별이 없어 파이프라인으로 갈 수 없는 초안 호출은 직접 부르지 않고 `effect_not_allowed`로 거부한다. 카드가 한 번 뜰 때마다 호출 하나이고 기억 범위는 `once`뿐이라(§4.7 6) 초안이 읽기 호출을 턴마다 n번 하면 턴마다 카드가 n번 뜬다.
+6. 무인 [결정: D-M3-12를 따른다]: 답할 사람이 없고 무인 정책이 `deny`면 묻지 않고 거부한다(`noninteractive_ask_denied`). `expire`와 `wait`에서는 5번 카드로 기다린다(§4.7 6c). 드래프트 승인 `auto`인 대화의 드래프트 호출은 3번이 건너뛰어지므로 이 무인 정책을 일반 대화와 같게 받는다(모드가 물은 호출만 해당, `[결정: 2026-11-18, 사용자, AGE-56]`).
+6b. 가벼운 길 닫기 [결정: 2026-11-17 사용자, U2, 구현: enB5]: 도구 매핑이 없는 `readOnly` 기능 메서드는 검토된 플러그인에는 파이프라인 항목이 없어(합성 항목은 `readOnly`가 아닌 메서드뿐) 가벼운 길로 가지만, 초안 출신 호출은 이 길을 타지 못한다. `ToolsPort.isDraftScope?(scopeId)`(`deps.draftOf`로 답한다)를 기능 래퍼(`routeOf`)가 묻고, 초안이면 파이프라인으로 보낸다. 그 호출을 위해 합성 항목은 `readOnly` 메서드에도 만들어지고(초안 호출자에게만) 위험 등급은 메서드의 `risk`, 없으면 `read`다. 3번의 판정이 그 호출을 ask로 바꾼다. 물을 대화나 호출 식별이 없어 파이프라인으로 갈 수 없는 초안 호출은 직접 부르지 않고 `effect_not_allowed`로 거부한다. 카드가 한 번 뜰 때마다 호출 하나이고 기억 범위는 `once`뿐이라(§4.7 6) 초안이 읽기 호출을 턴마다 n번 하면 턴마다 카드가 n번 뜬다. 드래프트 승인 `auto`인 대화에서도 초안 호출은 이 파이프라인 길로 가고, 판정만 일반 정책 경로(3번의 건너뜀)를 따른다. 그래서 deny 규칙과 가드 Hook은 그대로 막고, 허용 판정은 카드 없이 돈다(`[결정: 2026-11-18, 사용자, AGE-56]`).
 7. 범위 밖 [미결]: 등록 때 올라가는 내장 도구 대체 승인(`tool_replace`, §4.13)과 초안 도구 실행 안에서 낸 질문 승인(`approvals.request`의 question)은 호출의 도구 카드가 아니라 이 규칙 밖이다. 표지를 어떻게 싣을지는 정하지 않았다.
 
 ### 4.7 승인 프로토콜

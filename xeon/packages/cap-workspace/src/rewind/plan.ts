@@ -10,8 +10,8 @@ import {
   type RewindPlanOutcome,
 } from "@fresnel/contracts/records";
 import type { RewindPreviewFile, UntrackedEffect } from "@fresnel/contracts/services";
-import { resolveWorkspacePath, scopedDeps, WorkspaceFailure } from "@fresnel/core-workspace";
-import type { WorkspaceDeps } from "../deps.ts";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
+import { scopeDeps, type WorkspaceDeps } from "../deps.ts";
 import {
   NO_CANCEL,
   inOrder,
@@ -78,7 +78,7 @@ export function decide(
 async function planOne(scoped: WorkspaceDeps, group: Group, forced: boolean): Promise<PlanEntry> {
   const action: RewindFileAction = group.targetBefore.state === "absent" ? "delete" : "restore";
   const resolved = await attemptAsync(() =>
-    resolveWorkspacePath(scoped.roots, group.path, "write", NO_CANCEL),
+    scoped.core.resolveWorkspacePath(scoped.roots, group.path, "write", NO_CANCEL),
   );
   // 쓰기 루트 밖이나 보호 경로는 읽지도 않고 건너뛴다. 그 밖의 실패는 읽을 수 없는 것이다
   const current: CurrentFile = resolved.ok
@@ -126,7 +126,7 @@ export async function planRange(
       }
     }
   }
-  const scoped = scopedDeps(deps, threadId);
+  const scoped = scopeDeps(deps, threadId);
   const plan = await inOrder([...groups.values()], (group) =>
     planOne(scoped, group, overwrite.has(group.path)),
   );

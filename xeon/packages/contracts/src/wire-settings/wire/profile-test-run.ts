@@ -2,9 +2,11 @@ import {
   Type,
   type Static,
   type TArray,
+  type TLiteral,
   type TObject,
   type TOptional,
   type TString,
+  type TUnion,
   type TUnsafe,
 } from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
@@ -60,6 +62,8 @@ export interface TestRunMarker {
   readonly draft?: boolean;
   /** 같은 입력으로 다시 돌린 실행의 묶음 id. 없으면 생략 [제안] */
   readonly runGroupId?: string;
+  /** 드래프트 승인이 `auto`인 테스트 실행이면 `"auto"`다. `ask`(생략)이면 적지 않는다 [제안, 결정: 2026-11-18 사용자, AGE-56] */
+  readonly draftApproval?: "auto";
 }
 const TestRunMarkerShape = closed({
   profileId: Type.Union([Id, Type.Null()]),
@@ -68,6 +72,7 @@ const TestRunMarkerShape = closed({
   kind: Type.Optional(Type.Literal("draft")),
   draft: Type.Optional(Type.Boolean()),
   runGroupId: Type.Optional(Id),
+  draftApproval: Type.Optional(Type.Literal("auto")),
 });
 export const TestRunMarkerSchema: TUnsafe<TestRunMarker> = Type.Unsafe<TestRunMarker>(
   TestRunMarkerShape satisfies SchemaProof<TestRunMarker, typeof TestRunMarkerShape>,
@@ -143,27 +148,46 @@ export const SettingsExplainResultSchema: TUnsafe<SettingsExplainResult> =
     >,
   );
 
-/** `testRun.start`의 초안 한 줄(M5c §4.8.1). 플러그인 이름과 초안 id로 가리킨다 */
-const TestRunDraftRefSchema: TObject<{ plugin: TString; draftId: TString }> = Type.Object(
-  { plugin: Name, draftId: Id },
+/**
+ * `testRun.start`의 초안 한 줄(M5c §4.8.1). 플러그인 이름과 초안 id로 가리킨다. `entry`가 `"start"`면 그 초안의 시작 Drive로 돈다
+ * (§4.8.1 항목 2 [결정: 2026-11-18, AGE-56]). 일반 대화의 덧씌우기 초안에서는 거절한다(`overlay.noEntry`, §4.3.8).
+ */
+const TestRunDraftRefSchema: TObject<{
+  plugin: TString;
+  draftId: TString;
+  entry: TOptional<TLiteral<"start">>;
+}> = Type.Object(
+  { plugin: Name, draftId: Id, entry: Type.Optional(Type.Literal("start")) },
   { additionalProperties: false },
 );
 
 /**
+ * 드래프트 호출의 승인 방식(M5c §4.8.1 항목 4 [결정: 2026-11-18 사용자, AGE-56]). `auto`면 이 테스트 실행 대화와 그 자식 대화에서
+ * 드래프트 출신 호출에 드래프트 카드를 띄우지 않는다. 생략은 `ask`다. 호출하는 쪽(화면)만 고르고, 모델·플러그인·드래프트는 고르지 못한다.
+ */
+const TestRunDraftApprovalSchema: TUnion<[TLiteral<"ask">, TLiteral<"auto">]> = Type.Union([
+  Type.Literal("ask"),
+  Type.Literal("auto"),
+]);
+
+/**
  * `testRun.start` params(M5c §4.8.1). `drafts`는 와이어에서 `OVERLAY_WIRE_MAX`까지 받고, 넘치면 처리기가 `overlay.limit`으로 답한다
  * (덧씌우기와 같은 규칙, §4.3 [제안] (1)). `baseProfileId`를 생략하면 `default`다. `runGroupId`를 생략하면 호스트가 정한다.
+ * `draftApproval`을 생략하면 `ask`다([결정: 2026-11-18 사용자, AGE-56]).
  */
 export const TestRunStartParamsSchema: TObject<{
   baseProfileId: TOptional<TString>;
   drafts: TArray<typeof TestRunDraftRefSchema>;
   runGroupId: TOptional<TString>;
   workspace: TOptional<TString>;
+  draftApproval: TOptional<TUnion<[TLiteral<"ask">, TLiteral<"auto">]>>;
 }> = Type.Object(
   {
     baseProfileId: Type.Optional(Id),
     drafts: Type.Array(TestRunDraftRefSchema, { maxItems: OVERLAY_WIRE_MAX }),
     runGroupId: Type.Optional(Id),
     workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
+    draftApproval: Type.Optional(TestRunDraftApprovalSchema),
   },
   { additionalProperties: false },
 );
@@ -172,12 +196,14 @@ export type TestRunStartParams = Static<typeof TestRunStartParamsSchema>;
 /**
  * `testRun.start` 결과. `versionId`는 `draft:<draftId>:<내용 해시 앞 8자>`다. 구성(기준 프로필과 초안)은 대화의 수명 동안 고정이다.
  * 초안을 얹는 일은 아직 열려 있지 않아(P1 전) 지금의 처리기는 `drafts`를 항상 빈 목록으로 돌려준다.
+ * `skippedPlugins`는 기준 프로필(기본 프로필)이 처음 주는 플러그인 가운데 설치돼 있지 않아 건너뛴 이름이다(사용자가 지운 것, AGE-51). 없으면 빈 목록이다.
  */
 export const TestRunStartResultSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
   profileId: TString;
   drafts: TArray<TObject<{ plugin: TString; draftId: TString; versionId: TString }>>;
   runGroupId: TString;
+  skippedPlugins: TArray<TString>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -189,6 +215,7 @@ export const TestRunStartResultSchema: TObject<{
       ),
     ),
     runGroupId: Id,
+    skippedPlugins: Type.Array(Name, { maxItems: 512 }),
   },
   { additionalProperties: false },
 );

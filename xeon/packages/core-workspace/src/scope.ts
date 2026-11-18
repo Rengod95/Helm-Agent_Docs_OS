@@ -1,7 +1,10 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { WorkspaceDeps, WorkspaceShellSettings } from "./deps.ts";
-import type { ThreadWorkspaces } from "./ports/threads.ts";
-import type { WorkspaceEnv } from "./env.ts";
+import type {
+  ThreadWorkspaces,
+  WorkspaceDeps,
+  WorkspaceEnv,
+  WorkspaceShellSettings,
+} from "@fresnel/contracts/services";
 import { craftRoots, defaultRoots } from "./roots.ts";
 
 /**

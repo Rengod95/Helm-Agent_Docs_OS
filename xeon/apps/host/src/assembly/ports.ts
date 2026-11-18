@@ -96,6 +96,7 @@ import { backtestSettingsOf } from "./backtest/settings.ts";
 import {
   createTestRunMarks,
   decodeTestRunDrafts,
+  draftRecordOf,
   encodeTestRunDrafts,
 } from "./measure/test-run-marks.ts";
 import {
@@ -126,6 +127,7 @@ import {
   createDraftLoader,
   createOverlayPort,
   createTestRunDrafts,
+  DRAFT_DRIVE_ENTRY,
   type PreparedTestRunDrafts,
   createPluginService,
   createSourceWatch,
@@ -135,6 +137,7 @@ import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
+import { withPendingReview } from "./plugins/pending-overlay.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import { ensureResidentDrive, type ResidentDriveDeps } from "./m4/resident-drive.ts";
 import { restorableLeasesOf } from "./m4/drive-restore.ts";
@@ -425,9 +428,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 대화가 참조하는 프로필의 시작 Drive(`startDrive`)를 Registration id로 푼다(drive-isolation.md 2.2).
-   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음)
+   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음).
+   * 테스트 실행의 고정 초안이 시작 Drive를 가졌으면 그 초안의 등록이 프로필의 것을 대신한다(§4.8.1 항목 2 [결정: 2026-11-18, AGE-56]).
+   * 열기는 시작 요청을 하나만 받으므로 둘을 함께 걸 수 없다. 초안의 등록이 없으면 프로필의 것으로 넘어가지 않고 시작 요청이 없다
    */
   async function startDriveOf(threadId: ThreadId): Promise<RegistrationId | undefined> {
+    const fixedStart = ports.m4.pluginSet
+      .testRunDraftsOf(threadId)
+      ?.find((mark) => mark.startDrive === true);
+    if (fixedStart !== undefined) {
+      const found = driveRegistrationOf(fixedStart.plugin);
+      if (found === undefined) {
+        logger.warn("testrun.draft_start_unavailable", {
+          threadId,
+          plugin: fixedStart.replaces,
+        });
+      }
+      return found;
+    }
     const stored = session.query.thread(threadId);
     const profileId = stored.ok
       ? (stored.value?.profileId ?? DEFAULT_PROFILE_ID)
@@ -491,13 +509,19 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     if (!listed.ok) {
       log.error("testrun.draft_restore_failed", { threadId, kind: listed.error.kind });
     }
-    const wanted = listed.ok ? listed.value : [];
+    const wanted = listed.ok ? listed.value.drafts : [];
+    // 승인 방식도 저장된 기록에서 되살린다(§4.8.1 항목 10). 기록이 깨졌으면 `ask`다
+    const approval = listed.ok ? listed.value.approval : undefined;
     const restored: PreparedTestRunDrafts[] = [];
     for (const draft of wanted) {
       // 초안 하나씩 싣는다. 하나가 실패해도 나머지와 대화는 연다
       // oxlint-disable-next-line no-await-in-loop -- 되살리는 초안은 차례로 싣는다(싣기 큐와 같은 순서)
       const prepared = await testRunDrafts.prepare([
-        { plugin: draft.plugin, draftId: draft.draftId },
+        {
+          plugin: draft.plugin,
+          draftId: draft.draftId,
+          ...(draft.startDrive === true ? { entry: DRAFT_DRIVE_ENTRY } : {}),
+        },
       ]);
       const current = prepared.ok ? prepared.value.marks[0] : undefined;
       if (!prepared.ok || current === undefined || current.contentHash !== draft.contentHash) {
@@ -512,8 +536,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }
       restored.push(prepared.value);
     }
-    await testRunDrafts.bind(threadId, restored);
-    // 못 되살린 초안이 있으면 기록도 맞춘다: 턴 기록과 표지는 실제로 돈 구성을 싣는다
+    await testRunDrafts.bind(threadId, restored, approval);
+    // 못 되살린 초안이 있으면 기록도 맞춘다: 턴 기록과 표지는 실제로 돈 구성을 싣는다(승인 방식은 그대로 둔다)
     const marks = restored.flatMap((part) => part.marks);
     if (marks.length !== wanted.length) {
       testMarks.remember(
@@ -521,13 +545,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         stored.testBaseProfile,
         "test",
         stored.runGroupId ?? undefined,
-        encodeTestRunDrafts(
-          marks.map((mark) => ({
-            plugin: mark.replaces,
-            draftId: mark.draftId,
-            contentHash: mark.contentHash,
-          })),
-        ),
+        encodeTestRunDrafts(marks.map(draftRecordOf), approval),
       );
     }
   }
@@ -1368,6 +1386,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return queued.value.ok;
     },
   });
+  // 읽기 면: 리뷰 대기 항목이 있는 플러그인은 검토 칸이 `pending`이다. 읽기 서비스는 검토 서비스를 모르므로(검토 서비스가 읽기 서비스를 쓴다) 조립에서 얹는다
+  const pluginRead = withPendingReview(pluginService, pluginReview);
   // 원본 폴더 감시(M5c §4.5.7). 사용자 플러그인 폴더와 프로젝트 루트의 `.fresnel/plugins`를 본다. 바뀌면 훑기가 검토 항목을 만든다(승인은 하지 않는다).
   // 감시 루트는 호스트가 발견 결과에서 정한다(OS 서비스의 앱 폴더 허용 목록과 별개로 루트마다 하나만 허용하는 감시자를 연다)
   const sourceWatch = createSourceWatch({
@@ -1513,9 +1533,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     targetOf: (name) => pluginService.overlayTarget(name),
     draftOf: (draftId) => pluginReview.draftOf(draftId),
     loadDrafts,
+    hasDrive: (internalName) => driveRegistrationOf(internalName) !== undefined,
     pluginSet: {
       hold: (names) => ports.m4.pluginSet.hold(names),
-      setTestRunDrafts: (threadId, marks) => ports.m4.pluginSet.setTestRunDrafts(threadId, marks),
+      setTestRunDrafts: (threadId, marks, approval) =>
+        ports.m4.pluginSet.setTestRunDrafts(threadId, marks, approval),
     },
   });
   // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)
@@ -1604,8 +1626,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     scheduler: deps.scheduler,
     // 플러그인 읽기와 검토 흐름(M5c §3.4). 읽기는 서비스가, 검토 쓰기는 검토 서비스가 한다
     plugins: {
-      list: (filter) => pluginService.list(filter),
-      get: (name) => pluginService.get(name),
+      list: (filter) => pluginRead.list(filter),
+      get: (name) => pluginRead.get(name),
       scan: async () => {
         const scanned = await pluginReview.scan();
         await sourceWatch.sync();

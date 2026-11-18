@@ -86,7 +86,21 @@ interface PlannedDraft {
   readonly draftId: string;
   readonly internalName: string;
   readonly tree: string;
+  /** 초안의 시작 Drive를 쓰면 참이다. 테스트 실행의 초안만 될 수 있고, 아니면 필드가 없다(§4.8.1 항목 2) */
+  readonly startDrive?: true;
 }
+
+/** `planOverlay`의 선택 입력. 기본은 일반 대화의 덧씌우기다 */
+export interface PlanOverlayOptions {
+  /**
+   * 초안의 시작 Drive 항목(`start`)을 받는가. 테스트 실행(`testRun.start`)만 참이다. 일반 대화의 덧씌우기는 거짓이라 `no_entry`다
+   * (§4.3.8, 원샷 거절 시험)
+   */
+  readonly allowDraftDriveStart?: boolean;
+}
+
+/** 초안의 시작 Drive 항목 이름. 검토본의 시작 Drive 항목과 같은 이름이다 */
+export const DRAFT_DRIVE_ENTRY = "start" as const;
 
 /**
  * 덧씌우기 요청을 검사하고 계획을 세운다. 같은 플러그인이 여럿이면 첫 것만 남긴다.
@@ -97,6 +111,7 @@ export async function planOverlay(
   targetOf: (name: string) => Promise<Result<OverlayTarget | undefined, PluginPortFailure>>,
   inSet: ReadonlySet<string>,
   draftOf: DraftLookup = NO_DRAFTS,
+  options: PlanOverlayOptions = {},
 ): Promise<Result<readonly PlannedOverlay[], OverlayRefusal>> {
   if (refs.length > OVERLAY_LIMIT) return err({ kind: "limit" });
   // 대상과 초안 조회는 서로 독립이라 함께 읽고, 검사는 요청 순서대로 본다(첫 거절이 이긴다)
@@ -115,7 +130,12 @@ export async function planOverlay(
     if (!draftLookup.ok) return err({ kind: "plugin", failure: draftLookup.error });
     const target = lookup.value;
     if (ref.draftId !== undefined) {
-      const planned = plannedDraftOf(ref, draftLookup.value, target);
+      const planned = plannedDraftOf(
+        ref,
+        draftLookup.value,
+        target,
+        options.allowDraftDriveStart === true,
+      );
       if (!planned.ok) return err(planned.error);
       const existing = byPlugin.get(ref.plugin);
       if (existing === undefined) {
@@ -156,18 +176,21 @@ export async function planOverlay(
 
 /**
  * 초안 표지 하나의 계획. 초안이 없거나 그 플러그인의 것이 아니면 `draft_not_found`다. 검토본은 보지 않는다(새 플러그인도 된다).
- * 초안은 플러그인 전체만 얹는다. 도구를 더할 수 있으므로 `addsTools`는 참이다(캐시는 덧붙이는 쪽으로 본다)
+ * 초안은 플러그인 전체만 얹는다(테스트 실행은 시작 Drive 항목도 받는다). 도구를 더할 수 있으므로 `addsTools`는 참이다(캐시는 덧붙이는 쪽으로 본다)
  */
 function plannedDraftOf(
   ref: OverlayRef,
   draft: DraftRef | undefined,
   target: OverlayTarget | undefined,
+  allowDraftDriveStart: boolean,
 ): Result<Gathered, OverlayRefusal> {
   if (ref.draftId === undefined) throw new Bug("overlay.draft_ref_without_id");
   if (draft === undefined || draft.name !== ref.plugin) {
     return err({ kind: "draft_not_found", name: ref.plugin, draftId: ref.draftId });
   }
-  if (ref.entry !== undefined && ref.entry !== ref.plugin) {
+  // 초안의 시작 Drive는 테스트 실행만 받는다(§4.8.1 항목 2). 일반 대화의 덧씌우기는 그 항목을 `no_entry`로 거절한다(§4.3.8)
+  const opensDrive = ref.entry !== undefined && ref.entry !== ref.plugin;
+  if (opensDrive && !(allowDraftDriveStart && ref.entry === DRAFT_DRIVE_ENTRY)) {
     return err({ kind: "no_entry", name: ref.plugin });
   }
   // 프로젝트 동반 플러그인은 프로젝트 폴더의 것이다. 초안은 사용자 자신의 폴더에서만 만든다(§4.3.8)
@@ -181,8 +204,11 @@ function plannedDraftOf(
       draftId: ref.draftId,
       internalName: internalDraftName(ref.plugin, ref.draftId),
       tree: draft.tree,
+      ...(opensDrive ? { startDrive: true } : {}),
     },
-    invoked: [{ plugin: ref.plugin, entry: ref.plugin, kind: "plugin" }],
+    invoked: opensDrive
+      ? [{ plugin: ref.plugin, entry: DRAFT_DRIVE_ENTRY, kind: "drive" }]
+      : [{ plugin: ref.plugin, entry: ref.plugin, kind: "plugin" }],
   });
 }
 
@@ -347,7 +373,8 @@ async function attachPlanned(
   let refused: string | undefined;
   for (const item of planned) {
     if (!item.invoked.some(startsDrive)) continue;
-    if (!deps.startDrive(threadId, item.plugin).ok) {
+    // 초안의 시작 Drive는 내부 이름의 등록을 가리킨다(§4.8.1). 검토본이면 실제 이름이다
+    if (!deps.startDrive(threadId, item.draft?.internalName ?? item.plugin).ok) {
       refused = item.plugin;
       break;
     }

@@ -6,8 +6,10 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src", "test"],
-  "exclude": ["templates"],
   "references": [
+    {
+      "path": "../core-authoring"
+    },
     {
       "path": "../contracts"
     },

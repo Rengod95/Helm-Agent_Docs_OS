@@ -17,9 +17,11 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "group-sdk");
+const CONTRACTS = join(HERE, "..", "..", "..", "packages", "contracts");
 
+/** 이름 규칙의 정본 파일은 contracts(F)다. group-sdk는 그 값을 다시 내보낸다(AGE-60) */
 function groupSdkSource(): string {
-  return readFileSync(join(GROUP_SDK, "src", "define-group.ts"), "utf8");
+  return readFileSync(join(CONTRACTS, "src", "services", "group-names.ts"), "utf8");
 }
 
 /** group-sdk의 `RESERVED_GROUP_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
