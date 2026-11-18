@@ -453,6 +453,40 @@ test("a draft test run turn is test scope and carries its testRun record: base p
   }
 });
 
+// 드래프트 승인 `auto`인 테스트 실행의 턴은 `TurnRecord.testRun.draftApproval`에 `auto`를 남긴다. `ask`(생략)는 남기지 않는다(§4.8.1 항목 10).
+/** 승인 방식이 정해진 `draft_json`으로 테스트 실행 대화의 턴 하나를 쓰고, 그 턴 기록의 `testRun` 칸을 돌려준다 */
+async function testRunOfTurn(label: string, draftJson: string) {
+  const dir = mkdtempSync(join(tmpdir(), `turn-test-run-approval-${label}-`));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const marks = createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    });
+    expect(marks.remember(THREAD, "profile-a", "test", "trg-9", draftJson)).toBe(true);
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    const testRun = recordOf(turnBundle(harness).turn.recordJson).testRun;
+    harness.stop();
+    return testRun;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a turn of a test run bound with auto records draftApproval auto", async () => {
+  const testRun = await testRunOfTurn("auto", encodeTestRunDrafts([], "auto"));
+  expect(testRun).toMatchObject({ runGroupId: "trg-9", draftApproval: "auto" });
+});
+
+test("a turn of a test run bound with ask records no draftApproval", async () => {
+  const testRun = await testRunOfTurn("ask", encodeTestRunDrafts([]));
+  expect(testRun).toMatchObject({ runGroupId: "trg-9", baseProfileId: "profile-a" });
+  expect(testRun).not.toHaveProperty("draftApproval");
+});
+
 test("a test run without drafts records an empty drafts list, and a live turn records no testRun", async () => {
   const dir = mkdtempSync(join(tmpdir(), "turn-test-run-nodraft-"));
   try {

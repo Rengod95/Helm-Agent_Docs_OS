@@ -496,7 +496,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     if (!listed.ok) {
       log.error("testrun.draft_restore_failed", { threadId, kind: listed.error.kind });
     }
-    const wanted = listed.ok ? listed.value : [];
+    const wanted = listed.ok ? listed.value.drafts : [];
+    // 승인 방식도 저장된 기록에서 되살린다(§4.8.1 항목 10). 기록이 깨졌으면 `ask`다
+    const approval = listed.ok ? listed.value.approval : undefined;
     const restored: PreparedTestRunDrafts[] = [];
     for (const draft of wanted) {
       // 초안 하나씩 싣는다. 하나가 실패해도 나머지와 대화는 연다
@@ -521,8 +523,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }
       restored.push(prepared.value);
     }
-    await testRunDrafts.bind(threadId, restored);
-    // 못 되살린 초안이 있으면 기록도 맞춘다: 턴 기록과 표지는 실제로 돈 구성을 싣는다
+    await testRunDrafts.bind(threadId, restored, approval);
+    // 못 되살린 초안이 있으면 기록도 맞춘다: 턴 기록과 표지는 실제로 돈 구성을 싣는다(승인 방식은 그대로 둔다)
     const marks = restored.flatMap((part) => part.marks);
     if (marks.length !== wanted.length) {
       testMarks.remember(
@@ -530,7 +532,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         stored.testBaseProfile,
         "test",
         stored.runGroupId ?? undefined,
-        encodeTestRunDrafts(marks.map(draftRecordOf)),
+        encodeTestRunDrafts(marks.map(draftRecordOf), approval),
       );
     }
   }
@@ -1490,7 +1492,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     hasDrive: (internalName) => driveRegistrationOf(internalName) !== undefined,
     pluginSet: {
       hold: (names) => ports.m4.pluginSet.hold(names),
-      setTestRunDrafts: (threadId, marks) => ports.m4.pluginSet.setTestRunDrafts(threadId, marks),
+      setTestRunDrafts: (threadId, marks, approval) =>
+        ports.m4.pluginSet.setTestRunDrafts(threadId, marks, approval),
     },
   });
   // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)

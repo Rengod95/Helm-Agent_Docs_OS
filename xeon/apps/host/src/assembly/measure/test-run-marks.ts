@@ -22,6 +22,15 @@ export interface TestRunDraftRecord {
   readonly startDrive?: boolean;
 }
 
+/**
+ * `draft_json`의 내용. `approval`은 테스트 실행의 드래프트 승인 방식이다. `auto`일 때만 적고, `ask`(생략)는 적지 않는다
+ * (§4.8.1 항목 10 [결정: 2026-11-18 사용자, AGE-56]). 옛 기록에는 없으므로 `ask`로 읽는다
+ */
+interface TestRunDraftList {
+  readonly drafts: readonly TestRunDraftRecord[];
+  readonly approval?: "auto";
+}
+
 const TestRunDraftsJsonSchema = Type.Object(
   {
     drafts: Type.Array(
@@ -35,6 +44,7 @@ const TestRunDraftsJsonSchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    approval: Type.Optional(Type.Literal("auto")),
   },
   { additionalProperties: false },
 );
@@ -54,8 +64,14 @@ export function draftRecordOf(mark: {
   return mark.startDrive === true ? { ...record, startDrive: true } : record;
 }
 
-/** 고정 초안 목록을 `draft_json` 글로 쓴다(M5c §4.8.1). 모양은 `{drafts:[{plugin,draftId,contentHash[,startDrive]}]}`다 */
-export function encodeTestRunDrafts(drafts: readonly TestRunDraftRecord[]): string {
+/**
+ * 고정 초안 목록을 `draft_json` 글로 쓴다(M5c §4.8.1). 모양은 `{drafts:[{plugin,draftId,contentHash[,startDrive]}][,approval:"auto"]}`다.
+ * `approval`은 `auto`일 때만 싣는다(`ask`는 생략)
+ */
+export function encodeTestRunDrafts(
+  drafts: readonly TestRunDraftRecord[],
+  approval?: "auto",
+): string {
   return JSON.stringify({
     drafts: drafts.map((draft) => ({
       plugin: draft.plugin,
@@ -63,21 +79,26 @@ export function encodeTestRunDrafts(drafts: readonly TestRunDraftRecord[]): stri
       contentHash: draft.contentHash,
       ...(draft.startDrive === true ? { startDrive: true } : {}),
     })),
+    ...(approval === "auto" ? { approval: "auto" } : {}),
   });
 }
 
 /**
- * `draft_json`을 읽는다. 값이 없으면 초안이 없는 것이다. 글이 깨졌거나 모양이 다르면 `corrupt`다(저장 데이터 손상, 열기는 초안 없이 한다)
+ * `draft_json`을 읽는다. 값이 없으면 초안이 없고 `ask`다. 글이 깨졌거나 모양이 다르면 `corrupt`다(저장 데이터 손상, 열기는 초안 없이 한다)
  */
 export function decodeTestRunDrafts(
   text: string | null,
-): Result<readonly TestRunDraftRecord[], { readonly kind: "corrupt" }> {
-  if (text === null) return { ok: true, value: [] };
+): Result<TestRunDraftList, { readonly kind: "corrupt" }> {
+  if (text === null) return { ok: true, value: { drafts: [] } };
   const json = parseJson(text);
   if (!json.ok) return { ok: false, error: { kind: "corrupt" } };
   const parsed = parse(TestRunDraftsJsonSchema, json.value);
   if (!parsed.ok) return { ok: false, error: { kind: "corrupt" } };
-  return { ok: true, value: parsed.value.drafts };
+  const list: TestRunDraftList =
+    parsed.value.approval === "auto"
+      ? { drafts: parsed.value.drafts, approval: "auto" }
+      : { drafts: parsed.value.drafts };
+  return { ok: true, value: list };
 }
 
 export interface TestRunMarks {

@@ -287,7 +287,13 @@ function findProfile(
 /** 고정 초안이 하나라도 든 기록인가. 표지의 `kind = draft`를 정한다(M5c §4.8.1). 읽지 못한 기록은 초안이 없는 것으로 본다 */
 function draftedOf(json: string | null | undefined): boolean {
   const read = decodeTestRunDrafts(json ?? null);
-  return read.ok && read.value.length > 0;
+  return read.ok && read.value.drafts.length > 0;
+}
+
+/** 드래프트 승인이 `auto`인 기록인가. 표지의 `draftApproval`을 정한다(§4.8.1 항목 10). 읽지 못한 기록은 `ask`로 본다 */
+function autoApprovedOf(json: string | null | undefined): boolean {
+  const read = decodeTestRunDrafts(json ?? null);
+  return read.ok && read.value.approval === "auto";
 }
 
 export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileTestRunPort {
@@ -316,6 +322,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       paused: false,
       ...(draftedOf(stored.draftJson) ? { kind: "draft", draft: true } : {}),
       ...(stored.runGroupId === null ? {} : { runGroupId: stored.runGroupId }),
+      ...(autoApprovedOf(stored.draftJson) ? { draftApproval: "auto" } : {}),
     };
     markers.set(threadId, restored);
     return restored;
@@ -865,6 +872,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         paused: false,
         ...(draftedOf(draftsJson ?? null) ? { kind: "draft", draft: true } : {}),
         ...(runGroupId === undefined ? {} : { runGroupId }),
+        ...(autoApprovedOf(draftsJson ?? null) ? { draftApproval: "auto" } : {}),
       });
       deps.env.testRunMarks?.remember(threadId, profileId, "test", runGroupId, draftsJson);
     },

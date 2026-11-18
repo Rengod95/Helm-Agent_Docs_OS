@@ -244,11 +244,13 @@ function testRunOf(
   return {
     runGroupId: row.runGroupId,
     baseProfileId: row.testBaseProfile ?? fallbackProfileId,
-    drafts: (drafts.ok ? drafts.value : []).map((draft) => ({
+    drafts: (drafts.ok ? drafts.value.drafts : []).map((draft) => ({
       plugin: draft.plugin,
       draftId: draft.draftId,
       versionId: draftVersionIdOf(draft),
     })),
+    // 드래프트 승인이 `auto`였던 테스트 실행은 그 사실을 남긴다(§4.8.1 항목 10). `ask`는 적지 않는다
+    ...(drafts.ok && drafts.value.approval === "auto" ? { draftApproval: "auto" } : {}),
   };
 }
 

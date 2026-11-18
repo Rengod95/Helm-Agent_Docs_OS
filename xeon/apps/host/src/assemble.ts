@@ -1256,6 +1256,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         mode: options.mode,
         // 초안 표지를 찾는 로더. 조립이 외부 확장을 싣기 전에는 없다(그때 초안도 없다)
         loader: () => external.loader,
+        // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
+        testRunApprovalOf: (threadId) =>
+          portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined

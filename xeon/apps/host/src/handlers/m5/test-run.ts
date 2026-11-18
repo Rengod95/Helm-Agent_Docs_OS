@@ -79,8 +79,9 @@ export function createTestRunHandlers(
         unhold();
         throw caught;
       }
-      // 싣은 초안을 대화에 묶는다. 묶은 뒤 대화가 참조로 쥔다(§4.8.1 2)
-      await testRunDrafts.bind(created.threadId, [prepared.value]);
+      // 싣은 초안을 대화에 묶는다. 묶은 뒤 대화가 참조로 쥔다(§4.8.1 2). 승인 `auto`는 그 대화의 드래프트 카드를 없앤다(항목 10)
+      const approval = params.draftApproval === "auto" ? "auto" : undefined;
+      await testRunDrafts.bind(created.threadId, [prepared.value], approval);
       await claimWrite(engine, hub(), context.connectionId, created.threadId);
       // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7). `thread.create`와 같은 순서다
       await threads.applyOpenWorkspace(created.threadId);
@@ -90,7 +91,7 @@ export function createTestRunHandlers(
         created.threadId,
         baseProfileId,
         runGroupId,
-        encodeTestRunDrafts(marks.map(draftRecordOf)),
+        encodeTestRunDrafts(marks.map(draftRecordOf), approval),
       );
       return {
         threadId: created.threadId,

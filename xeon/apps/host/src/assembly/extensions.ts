@@ -200,6 +200,11 @@ export interface ExtensionDeps {
    * 외부 확장 로더(조립이 싣기 전에는 undefined). 초안 표지(`draftOf`)를 찾을 때만 읽는다. 초안 이름은 로더에만 있다(§4.3.8)
    */
   readonly loader: () => ExtensionLoader | undefined;
+  /**
+   * 대화의 드래프트 승인 방식(§4.8.1 항목 10 [결정: 2026-11-18 사용자, AGE-56]). `auto`인 테스트 실행 대화(와 그 자식)의 드래프트 호출은
+   * 드래프트 카드를 띄우지 않는다(L1.tools.spec §4.6.1). 엔진 포트가 뜬 뒤에 답한다. 생략하면 모든 대화가 `ask`다
+   */
+  readonly testRunApprovalOf?: (threadId: ThreadId) => "auto" | undefined;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -438,6 +443,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ...(deps.callTrace === undefined ? {} : { callTrace: deps.callTrace }),
           // 초안 출신 호출은 권한 모드와 무관하게 카드를 띄운다(U2, L1.tools.spec §4.6.1). 표지는 로더가 싣는 초안에서 본다
           draftOf: (scopeId) => draftMarkOf(deps.ext, deps.loader, scopeId),
+          // 드래프트 승인 `auto`인 테스트 실행 대화의 호출은 드래프트 카드를 띄우지 않는다. 판정은 호출한 대화로 한다(L1.tools.spec §4.6.1)
+          draftAutoApproved: (threadId) => deps.testRunApprovalOf?.(threadId) === "auto",
           loadIndex,
         }),
     ],

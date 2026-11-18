@@ -36,8 +36,15 @@ export interface TestRunDraftsPort {
    * `draft_unavailable`이다(덧씌우기와 같다). 시작 Drive를 가진 초안이 둘이거나 그 등록이 없으면 각각 `draft_unavailable`과 `drive_unavailable`이다
    */
   prepare(refs: readonly TestRunDraftRef[]): Promise<Result<PreparedTestRunDrafts, OverlayRefusal>>;
-  /** 싣은 초안을 대화에 묶고 붙잡음을 푼다(§4.8.1 2). 묶은 뒤 대화가 참조로 쥔다 */
-  bind(threadId: ThreadId, prepared: readonly PreparedTestRunDrafts[]): Promise<void>;
+  /**
+   * 싣은 초안을 대화에 묶고 붙잡음을 푼다(§4.8.1 2). 묶은 뒤 대화가 참조로 쥔다. `approval`이 `auto`면 그 대화의 드래프트 호출은
+   * 드래프트 카드를 띄우지 않는다(§4.8.1 항목 10). 생략하면 `ask`다
+   */
+  bind(
+    threadId: ThreadId,
+    prepared: readonly PreparedTestRunDrafts[],
+    approval?: "auto",
+  ): Promise<void>;
 }
 
 export interface TestRunDraftsDeps {
@@ -51,7 +58,11 @@ export interface TestRunDraftsDeps {
   readonly hasDrive: (internalName: string) => boolean;
   readonly pluginSet: {
     hold(names: readonly string[]): Promise<() => void>;
-    setTestRunDrafts(threadId: ThreadId, marks: readonly FixedDraftMark[]): Promise<void>;
+    setTestRunDrafts(
+      threadId: ThreadId,
+      marks: readonly FixedDraftMark[],
+      approval?: "auto",
+    ): Promise<void>;
   };
 }
 
@@ -117,10 +128,11 @@ export function createTestRunDrafts(deps: TestRunDraftsDeps): TestRunDraftsPort 
         unhold,
       });
     },
-    async bind(threadId, prepared) {
+    async bind(threadId, prepared, approval) {
       await deps.pluginSet.setTestRunDrafts(
         threadId,
         prepared.flatMap((part) => part.marks),
+        approval,
       );
       for (const part of prepared) part.unhold();
     },
