@@ -13,7 +13,7 @@ import {
 
 // 지난 턴에 돌려 보기(M5d-2)의 메서드와 알림 params·result 스키마다. 정본은 docs/xeon/review/m5/turn-record-metrics.md §3.5, §3.7, §4.8이다.
 // 항목 `BacktestItem`, 요약 `BacktestSummary`, 분류 `BACKTEST_CLASSES`와 근거 참조의 backtest 변형은 `turn-record.ts`에 있다(여기서 다시 쓰지 않는다).
-// 등록은 `turn-record-methods.ts`의 `BACKTEST_WIRE_METHODS`가 한다. 처리기는 아직 없다(apps/host, 실행기는 P1 뒤).
+// 등록은 `turn-record-methods.ts`의 `BACKTEST_WIRE_METHODS`가 한다. 처리기는 `apps/host/src/handlers/m5/backtest.ts`다.
 // 저장 문자열(값, 키 이름)은 정본과 글자 하나 다르지 않게 둔다.
 
 const ThreadRef = Type.String({ minLength: 1, maxLength: 64 });

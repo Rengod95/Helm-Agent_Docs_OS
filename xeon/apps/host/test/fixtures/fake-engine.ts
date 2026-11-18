@@ -643,7 +643,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.measure,
     },
     // 돌려 보기는 쓰는 멤버만 채운다. 채우지 않은 멤버를 부르면 undefined라 시험이 바로 실패한다
-    backtest: partial<BacktestPort>({ ...options.overrides?.backtest }),
+    // 진행 알림은 기본으로 아무것도 보내지 않는다(연결 허브가 구독한다)
+    backtest: partial<BacktestPort>({
+      onProgress: () => () => undefined,
+      ...options.overrides?.backtest,
+    }),
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
       decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),

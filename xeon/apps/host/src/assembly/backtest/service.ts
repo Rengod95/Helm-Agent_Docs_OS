@@ -90,7 +90,7 @@ interface BacktestProgress {
   readonly total: number;
 }
 
-/** 돌려 보기 포트. 처리기(`handlers/m5/backtest.ts`, 후속 단계)가 이것을 부른다 */
+/** 돌려 보기 포트. 처리기(`handlers/m5/backtest.ts`)가 이것을 부른다 */
 export interface BacktestPort {
   run(params: BacktestRunParams): Promise<Result<BacktestRunResult, RunStartError>>;
   status(runId: string): Result<BacktestStatusResult, RunNotFound>;

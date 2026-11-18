@@ -58,6 +58,7 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "project.changed",
   "drive.framesChanged",
   "notify.delivered",
+  "backtest.progress",
   "$/cancelRequest",
   "$/connectionReset",
 ];

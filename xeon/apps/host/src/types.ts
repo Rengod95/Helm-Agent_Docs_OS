@@ -337,7 +337,7 @@ export interface EnginePorts {
   readonly usage: UsagePort;
   /** 측정 저장소 읽기(`measure.turn`, `measure.daily`, T-MEAS-READ) */
   readonly measure: MeasurePort;
-  /** 지난 턴에 돌려 보기(M5d-2)의 실행 서비스. 처리기(`backtest.*`)는 후속 단계다 */
+  /** 지난 턴에 돌려 보기(M5d-2)의 실행 서비스. 처리기는 `handlers/m5/backtest.ts`, 알림은 `events.ts`가 보낸다 */
   readonly backtest: BacktestPort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
