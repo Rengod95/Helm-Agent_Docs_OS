@@ -44,6 +44,7 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "hooks.order.set",
   "hooks.order.reset",
   "hooks.order.preview",
+  "blocks.applied",
   "mcp.servers",
   "mcp.serverAction",
 ];
@@ -96,7 +97,7 @@ const ALPHA_ENTRY: ExtListEntry = {
   hookCount: 1,
 };
 
-test("ext-read: the 17 handlers are listed in host.hello features instead of notImplemented", async () => {
+test("ext-read: the ext-read handlers are listed in host.hello features instead of notImplemented", async () => {
   const connection = connect(createRecordedSources().sources);
   const hello = await connection.request("host.hello", HELLO_PARAMS);
   const featured = new Set(hello.features.map((feature) => feature.name));

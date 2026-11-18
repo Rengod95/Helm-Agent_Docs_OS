@@ -1209,7 +1209,7 @@ invoke(lease):
 
 - 기본 `requestId`: `${lineageId}:${그 단계 시작 때의 상태 판}.${순번}`. 순번은 같은 상태 판에서 이어서 세고(`StepProgress.nextIndex`) 상태 판이 바뀌면 0부터 다시 센다. 그래서 재시작 뒤 같은 상태에서 단계를 다시 돌리면 같은 명령이 같은 id를 만들고 이미 실행한 명령은 기록된 결과를 돌려준다.
 - 결과 기록: `turn`, `ask`, `spawn`이 정착하면 `drive.command_settled`(F.records §3.3)를 커밋 키 (scope, 명령 요청 id)로 남긴다. 내용은 scope, 요청 id, 명령, 결과 요약, 결과 참조뿐이고 주도권 id는 싣지 않는다. 그래서 재시작이나 `waiting` 뒤 재부여로 다른 주도권이 같은 명령을 다시 기록해도 내용이 같아 멱등이다.
-- 사용자 메시지: L1 루프가 `input.user.before` 뒤 `ExtHost.claimUserInput(threadId, item)`을 부른다. 단계 함수가 주도 중이면(주도권 활성·커밋) 메시지를 `inbox`에 넣고 참을 돌려주며, 루프는 그 입력을 처리하지 않는다. 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 입력 큐에 `when: "next"`로 돌려보낸다(코어 루프가 받는다) [3b: 스택 전체를 내린다(§4.4.1a 6번). `userMessages` 표지는 다음 단계의 몫이다].
+- 사용자 메시지: L1 루프가 `input.user.before` 뒤 `ExtHost.claimUserInput(threadId, item)`을 부른다. 단계 함수가 주도 중이면(주도권 활성·커밋) 메시지를 `inbox`에 넣고 참을 돌려주며, 루프는 그 입력을 처리하지 않는다. 전달한 메시지를 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 입력 큐에 `when: "next"`로 돌려보낸다(코어 루프가 받는다) [3b: 스택 전체를 내린다(§4.4.1a 6번). `userMessages` 표지는 다음 단계의 몫이다]. [결정: 2026-11-18, m4/enX1 [제안], AGE-17] 첫 사용자 입력의 행선지는 타이밍과 무관하다. 시작 요청(사용자 명령, 프로필 시작)이 큐에 있고 스택이 비어 있으면 `claimUserInput`은 메시지를 `ThreadRuntime.heldUser`에 쥐고 참을 돌려준다. 요청이 프레임이 되면 메시지는 그 프레임의 `inbox`로 넘어가고, 요청이 프레임 없이 사라지면(대상 부적합, 사용자 중지) 입력 큐에 `when: "followUp"`으로 돌려보낸다(메시지를 잃지 않는다). 프레임의 첫 단계(`firstStepDone` 전)가 끝나기 전에는 `inbox`의 메시지를 전달하지 않는다: 시작 주도의 첫 단계가 항상 먼저 돌고, 메시지는 그 뒤 단계의 `last: { kind: "user" }`로 간다. 그래서 `/helm start` 뒤 첫 사용자 메시지는 부여 시각과 상관없이 Helm의 발산 turn이 끝난 뒤 Helm이 받는다. 막 받은 프레임이 메시지를 가로채지 않던 규칙(`engaged`)은 없앴다.
 
 #### 4.4.4a 질문 대기(`ask`)와 복원 [결정: X-17, 3a 구조]
 

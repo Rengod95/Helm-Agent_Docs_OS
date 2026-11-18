@@ -1,5 +1,6 @@
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { EnabledSource } from "@fresnel/contracts/wire";
+import type { PluginSetView } from "@fresnel/contracts/extensions";
 import type { ExtReadSources } from "./ext-read-port.ts";
 
 // `ext.list.enabledSource`의 원천 연결. `ext-read-sources.ts`가 설정 원천(`settings-sources.ts`)을 거쳐 `types.ts`와 이어지므로,
@@ -17,6 +18,12 @@ export interface EnabledSourceView {
   sourceOf(threadId: ThreadId | undefined, extension: string): EnabledSource;
   /** 열린 대화의 E(T)를 다시 맞춘다. 정지가 풀리면(`ext.reenable`, `ext.disableConfirm`) 쓴다 */
   recomputeAll(): void;
+  /** 대화의 E(T). 대화가 없으면 기본 프로필의 집합이다(`blocks.applied`) */
+  viewOf(threadId: ThreadId | undefined): PluginSetView;
+  /** 프로필 하나의 집합과 `profile` 범위 설정 값. 모르는 프로필이면 undefined다 */
+  viewOfProfile(
+    profileId: string,
+  ): { readonly view: PluginSetView; readonly settings: ReadonlyMap<string, unknown> } | undefined;
 }
 
 /**
@@ -47,6 +54,26 @@ export function withEnabledSources(
       const info = registrationsOf().find((item) => item.id === registrationId);
       if (info === undefined) return "none";
       return enabledSourceOf(view, threadIdOf(threadId), info.extension);
+    },
+    blocksContext(threadId, profileId) {
+      const thread = threadIdOf(threadId);
+      if (thread === undefined && profileId !== undefined) {
+        const found = view.viewOfProfile(profileId);
+        if (found === undefined) return { kind: "unknown_profile", profileId };
+        return {
+          kind: "found",
+          profileId: found.view.profileId,
+          plugins: found.view.plugins,
+          profileSettings: found.settings,
+        };
+      }
+      const resolved = view.viewOf(thread);
+      return {
+        kind: "found",
+        profileId: resolved.profileId,
+        plugins: resolved.plugins,
+        profileSettings: undefined,
+      };
     },
     reenable(name) {
       sources.reenable(name);

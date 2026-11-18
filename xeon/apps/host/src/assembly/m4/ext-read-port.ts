@@ -17,6 +17,7 @@ import {
   type McpServerStatus,
   type McpToolInfo,
 } from "@fresnel/contracts/capabilities";
+import { BLOCK_MODEL } from "@fresnel/contracts/blocks";
 import type { GroupStatus } from "@fresnel/contracts/services";
 import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contracts/settings";
 import type {
@@ -52,7 +53,8 @@ import {
   hookIdOfUnit,
   isHookUnitName,
   previewOrder,
-  TIERS,
+  TIER_RANK_CORE,
+  TIER_RANK_GUARD,
   type GuardRiskNote,
   type HookOrderMap,
   type OrderPreview,
@@ -125,7 +127,7 @@ export interface ExternalHookView {
   readonly id: string;
   readonly point: HookName;
   readonly source: string;
-  /** 정렬 순위(`TIERS`의 인덱스) */
+  /** 정렬 순위(`tierRankOf`) */
   readonly tierRank: number;
   /** 실행하는 내장 단위의 Registration id */
   readonly unit: string;
@@ -197,8 +199,16 @@ export interface ExtReadSources {
   driveFrames(threadId: string): Promise<DriveFramesResult>;
   /** 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
   driveFramesChanged(listener: (threadId: string) => void): () => void;
-  /** 호스트 핸들러 레지스트리의 실제 등록. 지점 이름 오름차순, 안에서는 디스패치 순서(`ExtReadView.handlers`) */
-  hookHandlers(): readonly {
+  /**
+   * `blocks.applied`의 맥락(M5e-2). `threadId`가 있으면 그 대화의 E(T)(그 프로필 설정은 `settings.layers(threadId)`에 이미 있다),
+   * 없고 `profileId`가 있으면 그 프로필(공통 묶음 포함, 프로필 설정을 따로 준다), 둘 다 없으면 기본 프로필이다
+   */
+  blocksContext(threadId: string | undefined, profileId: string | undefined): BlocksContext;
+  /**
+   * 호스트 핸들러 레지스트리의 실제 등록. 지점 이름 오름차순, 안에서는 디스패치 순서(`ExtReadView.handlers`).
+   * `pluginOrder`(E(T))를 주면 그 프로필 순서로 센다(`blocks.applied`)
+   */
+  hookHandlers(pluginOrder?: readonly string[]): readonly {
     readonly point: HookName;
     readonly registrationId: string;
     readonly extension: string;
@@ -219,6 +229,18 @@ export interface ExtReadSources {
   registrationErrors(): ReadonlyMap<string, string>;
   settings: SettingExplainSource;
 }
+
+/** `blocksContext`의 결과. 프로필을 모르면 `unknown_profile`이다 */
+type BlocksContext =
+  | {
+      readonly kind: "found";
+      readonly profileId: string;
+      /** E(T)의 플러그인 이름(앞이 먼저). 코어를 포함한다 */
+      readonly plugins: readonly string[];
+      /** 프로필 id만 준 읽기의 `profile` 범위 값. 대화를 준 읽기는 `settings.layers`가 이미 든다 */
+      readonly profileSettings: ReadonlyMap<string, unknown> | undefined;
+    }
+  | { readonly kind: "unknown_profile"; readonly profileId: string };
 
 const NO_SETTINGS: SettingExplainSource = { catalog: new Map(), layers: () => [] };
 
@@ -259,6 +281,12 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
   driveFrames: () => Promise.resolve({ frames: [] }),
   driveFramesChanged: () => () => {},
+  blocksContext: () => ({
+    kind: "found",
+    profileId: "default",
+    plugins: [],
+    profileSettings: undefined,
+  }),
   hookHandlers: () => [],
   hookOrder: () => ({ saved: () => new Map(), applied: () => new Map(), pending: () => false }),
   boundCapabilities: () => [],
@@ -291,7 +319,7 @@ function byText(a: string, b: string): number {
 function previewRowOf(row: OrderRow): PreviewRow {
   return {
     ...row,
-    exempt: row.tier === TIERS.indexOf("guard") || row.tier === TIERS.indexOf("core"),
+    exempt: row.tier === TIER_RANK_GUARD || row.tier === TIER_RANK_CORE,
   };
 }
 
@@ -1054,6 +1082,66 @@ export function createExtReadPort(
         writer: context?.writer ?? writerOf(scope),
         ...(context?.profileId === undefined ? {} : { profileId: context.profileId }),
       });
+    },
+
+    async blocksApplied(params, signal) {
+      const thread = await checkThread(params.threadId, signal);
+      if (!thread.ok) return thread;
+      const context = sources.blocksContext(params.threadId, params.profileId);
+      if (context.kind === "unknown_profile") {
+        return err({ kind: "unknown_profile", profileId: context.profileId });
+      }
+      const profileLayer: ScopeStack =
+        params.threadId === undefined && context.profileSettings !== undefined
+          ? [{ scope: "profile", values: context.profileSettings }]
+          : [];
+      const layers: ScopeStack = [...sources.settings.layers(params.threadId), ...profileLayer];
+      // 같은 이름의 대체가 둘이면 프로필 순서의 앞쪽 플러그인이 이긴다(프로필 검증은 충돌을 오류로 막는다)
+      const replacerOf = (tool: string): string | undefined =>
+        context.plugins.find((name) => {
+          const record = findRecord(name);
+          return (
+            record !== undefined &&
+            pluginsOf(record.manifest).some((entry) => entry.decl.replaces?.includes(tool) === true)
+          );
+        });
+      const handlers = sources.hookHandlers(context.plugins);
+      const blocks = BLOCK_MODEL.blocks.map((block) => {
+        const hooks = new Set<string>([
+          ...block.hooks.before,
+          ...block.hooks.after,
+          ...block.hooks.events,
+        ]);
+        const orderOf = new Map<string, number>();
+        return {
+          id: block.id,
+          settings: block.settings.map((ref) => {
+            const def = sources.settings.catalog.get(ref.key);
+            if (def === undefined) return { key: ref.key, value: null, source: "default" as const };
+            const { setting } = resolveEngineSetting(def, layers);
+            return {
+              key: ref.key,
+              value: def.secret === true ? null : setting.value,
+              source: setting.source.scope,
+            };
+          }),
+          parts: block.parts.map((part) => {
+            const tool = part.how === "replaces" ? part.id.replace(/^tool:/, "") : undefined;
+            const replacer = tool === undefined ? undefined : replacerOf(tool);
+            return replacer === undefined || replacer === part.default
+              ? { id: part.id, current: part.default }
+              : { id: part.id, current: replacer, replacedBy: part.default };
+          }),
+          handlers: handlers
+            .filter((handler) => hooks.has(handler.point))
+            .map((handler) => {
+              const order = orderOf.get(handler.point) ?? 0;
+              orderOf.set(handler.point, order + 1);
+              return { hook: handler.point, plugin: handler.extension, order };
+            }),
+        };
+      });
+      return ok({ profileId: context.profileId, blocks });
     },
 
     errors: deps.env.errors,

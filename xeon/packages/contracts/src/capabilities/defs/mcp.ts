@@ -787,7 +787,7 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       disable: {
-        risk: "read",
+        risk: "write",
         description:
           "Disables the server in this session. Its tools drop out at the next step boundary.",
         input: McpServerRefSchema,

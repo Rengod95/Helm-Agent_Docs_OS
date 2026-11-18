@@ -58,7 +58,7 @@ import {
   createVolatileNotifier,
   hookUnitName,
   registrationToggleSourceOf,
-  TIERS,
+  tierRankOf,
   traceReadOf,
   type ExtHost,
   type ExtensionLoader,
@@ -1578,7 +1578,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
                 id: hook.def.id,
                 point: hook.def.point,
                 source: hook.source,
-                tierRank: TIERS.indexOf(hook.tier),
+                tierRank: tierRankOf(hook.tier),
                 unit: hookUnitName(hook.def.id),
               })),
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`

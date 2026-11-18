@@ -80,6 +80,11 @@ export interface DispatcherDeps {
    * Test run 단계 경계 기록(X-19). `boundary.step.after`에서 기다리기 직전에 부른다. host.ts가 Test run thread만 적는다
    */
   readonly onBoundary?: (threadId: ThreadId) => void;
+  /**
+   * 대화의 플러그인 순서(E(T): 공통 묶음, 프로필 목록, 덧씌우기 순의 플러그인 이름, F.operations §5.2 O-1). 같은 등급 안에서 이 순서가
+   * 로드 순서(loadIndex)보다 앞선다. 없거나 `undefined`를 주면 지금 키 `(loadIndex, seq)`를 쓴다
+   */
+  readonly pluginOrder?: (threadId: ThreadId) => readonly string[] | undefined;
 }
 
 export interface Dispatcher {
@@ -177,17 +182,32 @@ function combineSignals(...signals: readonly (AbortSignal | undefined)[]): Abort
 }
 
 /**
- * 디스패치 순서. 정렬 키 (tierOf, loadIndex, seq)의 사전식 오름차순(F.extensions.spec §4.2) 뒤에 훅별 순서 덮어쓰기를 적용한다.
+ * 디스패치 순서. 정렬 키 (tierOf, 프로필 순서, loadIndex, seq)의 사전식 오름차순(F.extensions.spec §4.2, F.operations §5.2 O-1) 뒤에 훅별 순서 덮어쓰기를 적용한다.
  * 디스패치와 읽기 조회(extReadViewOf().handlers)가 이 함수를 같이 써서 순서가 어긋나지 않게 한다
  */
 export function sortEntries(
   entries: readonly HandlerEntry[],
   point: HookName,
   policy: DispatchPolicy,
+  pluginOrder?: readonly string[],
 ): readonly HandlerEntry[] {
-  const keyed = entries.map((entry) => ({ entry, tier: policy.tierOf(infoOf(entry)) }));
+  // 같은 등급 안에서 프로필 순서(E(T))가 먼저다. 목록에 없는 확장(외부 훅 단위 등)은 목록의 것 뒤에서 loadIndex를 쓴다
+  const rankByName = new Map<string, number>();
+  pluginOrder?.forEach((name, index) => {
+    if (!rankByName.has(name)) rankByName.set(name, index);
+  });
+  const unlisted = rankByName.size;
+  const keyed = entries.map((entry) => ({
+    entry,
+    tier: policy.tierOf(infoOf(entry)),
+    rank: rankByName.get(entry.extension) ?? unlisted,
+  }));
   keyed.sort(
-    (a, b) => a.tier - b.tier || a.entry.loadIndex - b.entry.loadIndex || a.entry.seq - b.entry.seq,
+    (a, b) =>
+      a.tier - b.tier ||
+      a.rank - b.rank ||
+      a.entry.loadIndex - b.entry.loadIndex ||
+      a.entry.seq - b.entry.seq,
   );
   const sorted = keyed.map((item) => item.entry);
   return orderEntries(sorted, policy.handlerOrder?.(point));
@@ -466,6 +486,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           ),
         point,
         policy,
+        deps.pluginOrder?.(options.threadId),
       );
       const fold = decl.fold;
       if (fold === "tap" && decl.dispatch === "detached") {
