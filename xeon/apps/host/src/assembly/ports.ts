@@ -91,6 +91,7 @@ import { backtestSettingsOf } from "./backtest/settings.ts";
 import {
   createTestRunMarks,
   decodeTestRunDrafts,
+  draftRecordOf,
   encodeTestRunDrafts,
 } from "./measure/test-run-marks.ts";
 import {
@@ -121,6 +122,7 @@ import {
   createDraftLoader,
   createOverlayPort,
   createTestRunDrafts,
+  DRAFT_DRIVE_ENTRY,
   type PreparedTestRunDrafts,
   createPluginService,
   createSourceWatch,
@@ -413,9 +415,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 대화가 참조하는 프로필의 시작 Drive(`startDrive`)를 Registration id로 푼다(drive-isolation.md 2.2).
-   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음)
+   * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음).
+   * 테스트 실행의 고정 초안이 시작 Drive를 가졌으면 그 초안의 등록이 프로필의 것을 대신한다(§4.8.1 항목 2 [결정: 2026-11-18, AGE-56]).
+   * 열기는 시작 요청을 하나만 받으므로 둘을 함께 걸 수 없다. 초안의 등록이 없으면 프로필의 것으로 넘어가지 않고 시작 요청이 없다
    */
   async function startDriveOf(threadId: ThreadId): Promise<RegistrationId | undefined> {
+    const fixedStart = ports.m4.pluginSet
+      .testRunDraftsOf(threadId)
+      ?.find((mark) => mark.startDrive === true);
+    if (fixedStart !== undefined) {
+      const found = driveRegistrationOf(fixedStart.plugin);
+      if (found === undefined) {
+        logger.warn("testrun.draft_start_unavailable", {
+          threadId,
+          plugin: fixedStart.replaces,
+        });
+      }
+      return found;
+    }
     const stored = session.query.thread(threadId);
     const profileId = stored.ok
       ? (stored.value?.profileId ?? DEFAULT_PROFILE_ID)
@@ -485,7 +502,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       // 초안 하나씩 싣는다. 하나가 실패해도 나머지와 대화는 연다
       // oxlint-disable-next-line no-await-in-loop -- 되살리는 초안은 차례로 싣는다(싣기 큐와 같은 순서)
       const prepared = await testRunDrafts.prepare([
-        { plugin: draft.plugin, draftId: draft.draftId },
+        {
+          plugin: draft.plugin,
+          draftId: draft.draftId,
+          ...(draft.startDrive === true ? { entry: DRAFT_DRIVE_ENTRY } : {}),
+        },
       ]);
       const current = prepared.ok ? prepared.value.marks[0] : undefined;
       if (!prepared.ok || current === undefined || current.contentHash !== draft.contentHash) {
@@ -509,13 +530,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         stored.testBaseProfile,
         "test",
         stored.runGroupId ?? undefined,
-        encodeTestRunDrafts(
-          marks.map((mark) => ({
-            plugin: mark.replaces,
-            draftId: mark.draftId,
-            contentHash: mark.contentHash,
-          })),
-        ),
+        encodeTestRunDrafts(marks.map(draftRecordOf)),
       );
     }
   }
@@ -1472,6 +1487,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     targetOf: (name) => pluginService.overlayTarget(name),
     draftOf: (draftId) => pluginReview.draftOf(draftId),
     loadDrafts,
+    hasDrive: (internalName) => driveRegistrationOf(internalName) !== undefined,
     pluginSet: {
       hold: (names) => ports.m4.pluginSet.hold(names),
       setTestRunDrafts: (threadId, marks) => ports.m4.pluginSet.setTestRunDrafts(threadId, marks),

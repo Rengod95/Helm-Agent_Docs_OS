@@ -146,6 +146,44 @@ test("초안 덧씌우기: 시작 Drive 항목(start)이나 다른 항목 이름
   ]);
 });
 
+test("초안 테스트 실행: 허용하면 시작 Drive 항목(start)은 drive 항목으로 얹고 표지에 startDrive를 싣는다. 다른 항목은 여전히 no_entry다", async () => {
+  const allowed = { allowDraftDriveStart: true };
+  expect(
+    await planOverlay(
+      [{ plugin: "widget", draftId: DRAFT.draftId, entry: "start" }],
+      targetOf(target("widget", HASH)),
+      new Set(),
+      draftsOf(DRAFT),
+      allowed,
+    ),
+  ).toEqual(
+    ok([
+      {
+        plugin: "widget",
+        contentHash: DRAFT_HASH,
+        alreadyInProfile: false,
+        addsTools: true,
+        draft: {
+          draftId: DRAFT.draftId,
+          internalName: "ddrf1-widget",
+          tree: DRAFT.tree,
+          startDrive: true,
+        },
+        invoked: [{ plugin: "widget", entry: "start", kind: "drive" }],
+      },
+    ]),
+  );
+  expect(
+    await planOverlay(
+      [{ plugin: "widget", draftId: DRAFT.draftId, entry: "other" }],
+      targetOf(target("widget", HASH)),
+      new Set(),
+      draftsOf(DRAFT),
+      allowed,
+    ),
+  ).toEqual(err({ kind: "no_entry", name: "widget" }));
+});
+
 test("초안 덧씌우기: 같은 플러그인의 초안과 검토본을 한 요청에 섞으면 draft_unavailable이다", async () => {
   expect(
     await planOverlay(

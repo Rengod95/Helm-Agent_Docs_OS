@@ -2,6 +2,7 @@ import {
   Type,
   type Static,
   type TArray,
+  type TLiteral,
   type TObject,
   type TOptional,
   type TString,
@@ -143,9 +144,16 @@ export const SettingsExplainResultSchema: TUnsafe<SettingsExplainResult> =
     >,
   );
 
-/** `testRun.start`의 초안 한 줄(M5c §4.8.1). 플러그인 이름과 초안 id로 가리킨다 */
-const TestRunDraftRefSchema: TObject<{ plugin: TString; draftId: TString }> = Type.Object(
-  { plugin: Name, draftId: Id },
+/**
+ * `testRun.start`의 초안 한 줄(M5c §4.8.1). 플러그인 이름과 초안 id로 가리킨다. `entry`가 `"start"`면 그 초안의 시작 Drive로 돈다
+ * (§4.8.1 항목 2 [결정: 2026-11-18, AGE-56]). 일반 대화의 덧씌우기 초안에서는 거절한다(`overlay.noEntry`, §4.3.8).
+ */
+const TestRunDraftRefSchema: TObject<{
+  plugin: TString;
+  draftId: TString;
+  entry: TOptional<TLiteral<"start">>;
+}> = Type.Object(
+  { plugin: Name, draftId: Id, entry: Type.Optional(Type.Literal("start")) },
   { additionalProperties: false },
 );
 

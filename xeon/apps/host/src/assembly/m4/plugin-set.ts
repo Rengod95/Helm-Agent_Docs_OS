@@ -52,6 +52,11 @@ export interface FixedDraftMark {
   readonly draftId: string;
   readonly contentHash: string;
   readonly replaces: string;
+  /**
+   * 이 초안이 대화의 시작 Drive를 쓰는가(§4.8.1 항목 2 [결정: 2026-11-18, AGE-56]). 열 때 `ext.openThread`의 시작 요청이 된다(`ports.ts`의
+   * `startDriveOf`). 생략하면 거짓이다
+   */
+  readonly startDrive?: boolean;
 }
 
 /**

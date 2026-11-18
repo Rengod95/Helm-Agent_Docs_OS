@@ -39,8 +39,10 @@ interface DraftFakes {
   readonly bound: { readonly threadId: string; readonly marks: readonly FixedDraftMark[] }[];
   /** 참이면 싣기가 격리 포트 없음으로 실패한다 */
   failLoad: boolean;
-  /** 참이면 초안 플러그인이 프로젝트 동반 플러그인이다 */
+  /** 참이면 초안 플러그인, 프로젝트 동반 플러그인이다 */
   project: boolean;
+  /** 참이면 싣은 초안에 시작 Drive 등록이 없다 */
+  noDrive: boolean;
 }
 
 /** 플러그인 사실을 시험 중에 바꿀 수 있게 가변 목록을 든다. 처음에는 공장 기본의 `helm`과 `demo`다 */
@@ -57,7 +59,13 @@ function rigOf(): {
     { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
   ];
   const drafts: DraftInfo[] = [];
-  const fakes: DraftFakes = { loads: [], bound: [], failLoad: false, project: false };
+  const fakes: DraftFakes = {
+    loads: [],
+    bound: [],
+    failLoad: false,
+    project: false,
+    noDrive: false,
+  };
   // 초안 포트는 실제 구현을 가짜 로더 위에 세운다. 검사, 싣기, 묶기의 값이 실제 경로를 탄다
   const loader: DraftLoaderPort = {
     loadDraft: (input) => {
@@ -112,6 +120,7 @@ function rigOf(): {
           );
         },
         loadDrafts,
+        hasDrive: () => !fakes.noDrive,
         pluginSet: {
           hold: () => Promise.resolve(() => undefined),
           setTestRunDrafts: (threadId, marks) => {
@@ -361,6 +370,73 @@ test("a draft of a project companion plugin is overlay.draftUnavailable, as for 
       connection.request("testRun.start", { drafts: [{ plugin: "demo", draftId: "draft-1" }] }),
     ),
   ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("a draft that names the start entry runs its start Drive: the bound mark says so, and the version is unchanged", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  const connection = await connect(host);
+  const started = await connection.request("testRun.start", {
+    drafts: [{ plugin: "demo", draftId: "draft-1", entry: "start" }],
+    runGroupId: "grp-s",
+  });
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "default",
+    drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
+    runGroupId: "grp-s",
+  });
+  expect(fakes.bound).toEqual([
+    {
+      threadId: started.threadId,
+      marks: [
+        {
+          plugin: "ddraft1-demo",
+          draftId: "draft-1",
+          contentHash: "sha256:0123456789abcdef",
+          replaces: "demo",
+          startDrive: true,
+        },
+      ],
+    },
+  ]);
+  await connection.close();
+});
+
+test("a start-Drive draft whose loaded plugin has no drive registration is overlay.noEntry: nothing is bound and no thread is created", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf());
+  fakes.noDrive = true;
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [{ plugin: "demo", draftId: "draft-1", entry: "start" }],
+      }),
+    ),
+  ).toMatchObject({ code: 3614, data: { kind: "overlay.noEntry", details: { name: "demo" } } });
+  expect(fakes.bound).toEqual([]);
+  expect((await connection.request("thread.list", {})).threads).toEqual([]);
+  await connection.close();
+});
+
+test("two start-Drive drafts are overlay.draftUnavailable: one conversation has at most one start Drive", async () => {
+  const { host, drafts, fakes } = rigOf();
+  drafts.push(draftOf({ draftId: "draft-1" }), draftOf({ draftId: "draft-2", name: "helm" }));
+  const connection = await connect(host);
+  expect(
+    await failureOf(
+      connection.request("testRun.start", {
+        drafts: [
+          { plugin: "demo", draftId: "draft-1", entry: "start" },
+          { plugin: "helm", draftId: "draft-2", entry: "start" },
+        ],
+      }),
+    ),
+  ).toMatchObject({ code: 3615, data: { kind: "overlay.draftUnavailable" } });
+  expect(fakes.loads).toEqual([]);
   expect((await connection.request("thread.list", {})).threads).toEqual([]);
   await connection.close();
 });

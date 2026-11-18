@@ -1343,6 +1343,8 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **만들기.** 통과하면 `thread.create { testRun: true }`와 같은 경로(`ports.threads.create`)로 `profileId`가 기준인 대화를 만든다. 표지의 `runGroupId`는 입력값이거나 `trg-<uuid>`다. 측정 저장소의 `tr_thread`에 `scope_kind = test`, `test_base_profile`, `run_group_id`, `draft_json`이 적힌다(`assembly/measure/test-run-marks.ts`의 `remember`가 묶음 id와 초안 기록을 받는다). 재시작 뒤 `markerOf`가 저장된 묶음 id를 되살린다. 표지는 초안이 있으면 `kind: "draft"`, `draft: true`를 싣는다 [제안, `TestRunMarker` 선택 필드]. 결과는 `{ threadId, profileId, drafts: [{ plugin, draftId, versionId }], runGroupId }`다. `versionId`는 `draft:<draftId>:<내용 해시 앞 8자>`이고(`@fresnel/ext-host`의 `draftVersionIdOf`), `plugin`은 검토본의 실제 이름이다. 프로필 레코드는 기준 프로필의 것 그대로다. 턴 기록은 `scope = test`이고 `TurnRecord.testRun`이 기준 프로필, 묶음 id, 초안 버전을 싣는다(`turn-writer.ts`의 `testRunOf`, §4.6 규칙 37).
 
+**시작 Drive 초안(`entry: "start"`).** [결정: 2026-11-18, 사용자, AGE-56] 테스트 실행의 초안에 `entry: "start"`가 있으면 그 초안의 시작 Drive로 돈다(`prepare`가 `planOverlay`의 `allowDraftDriveStart`로 받는다). 등록이 없으면(싣고 나서 본다) 대화를 만들지 않고 `overlay.noEntry`다. 열 때 `startDriveOf`가 그 등록을 `ext.openThread`의 시작 요청으로 건다. 기준 프로필의 시작 Drive를 대신한다. 정본은 `review/m5/profile-project-loader.md` §4.8.1 항목 2와 §10 30번이다.
+
 **아직 없는 것(M5c §4.8.1).** (a) 하위 대화(`agent` 도구의 자식)의 기록 범위. 자식은 부모의 고정 구성(기준 프로필과 초안)을 집합에서 물려받지만(`plugin-set.ts`의 `parentOf`), `tr_thread`의 범위는 자기 표지를 따라 `live`로 적힌다. 지표 기본 필터에 섞인다. 기본값은 자식도 `test` 범위로 적는 것이다([미결], review m5 `profile-project-loader.md` §10 29번). (b) 초안이 있는 테스트 실행의 `TurnRecord.testRun`은 `draft: true` 칸이 없다. 초안이 있는지는 `drafts`가 비었는지로 본다([제안]).
 
 **알려진 주의.** 기준이 공장 기본 프로필이고 그 프로필이 든 기본 플러그인이 설치되지 않았으면(예: 시험 집의 `helm`) `profile.invalid`다. 저장 때의 검증과 같은 규칙을 쓰기 때문이다. 일반 대화는 같은 프로필로 열린다.

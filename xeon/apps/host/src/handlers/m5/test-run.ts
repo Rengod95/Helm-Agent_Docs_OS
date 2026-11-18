@@ -8,7 +8,7 @@ import {
 import { draftVersionIdOf } from "@fresnel/ext-host";
 import type { ConnectionHub } from "../../connection-types.ts";
 import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "../../assembly/m4/profile-defaults.ts";
-import { encodeTestRunDrafts } from "../../assembly/measure/test-run-marks.ts";
+import { draftRecordOf, encodeTestRunDrafts } from "../../assembly/measure/test-run-marks.ts";
 import type { Engine } from "../../types.ts";
 import { claimWrite } from "../owner.ts";
 import { markTestRun, wireErrorOfProfile } from "../m4/profile-test-run.ts";
@@ -90,13 +90,7 @@ export function createTestRunHandlers(
         created.threadId,
         baseProfileId,
         runGroupId,
-        encodeTestRunDrafts(
-          marks.map((mark) => ({
-            plugin: mark.replaces,
-            draftId: mark.draftId,
-            contentHash: mark.contentHash,
-          })),
-        ),
+        encodeTestRunDrafts(marks.map(draftRecordOf)),
       );
       return {
         threadId: created.threadId,

@@ -59,6 +59,21 @@ describe("testRun.start wire method", () => {
     ).not.toBe("ok");
   });
 
+  test("a draft may name the start entry, which runs that draft's start Drive; no other entry is accepted", () => {
+    expect(
+      accepts(TestRunStartParamsSchema, {
+        drafts: [{ plugin: "notes", draftId: "d1", entry: "start" }],
+      }),
+    ).toBe("ok");
+    for (const entry of ["other", "", "Start", "drive"]) {
+      expect(
+        accepts(TestRunStartParamsSchema, {
+          drafts: [{ plugin: "notes", draftId: "d1", entry }],
+        }),
+      ).not.toBe("ok");
+    }
+  });
+
   test("the wire accepts up to the overlay wire bound, and the handler answers the larger count with overlay.limit", () => {
     expect(OVERLAY_WIRE_MAX).toBe(16);
     expect(accepts(TestRunStartParamsSchema, { drafts: draftsOf(OVERLAY_WIRE_MAX) })).toBe("ok");
