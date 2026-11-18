@@ -11,9 +11,9 @@ import { authoringStateMigrations } from "../src/group-state.ts";
 import { createAuthoringGroup } from "../src/group.ts";
 import { devkitProbe } from "./group-support.ts";
 
-// 상태 문서 판 3(판 2: `installed` → `submitted`, 판 3: 종류는 플러그인 하나). 저장된 옛 문서는 엔진이 쓰는 같은 체인(`migrationChain`)으로 옮긴다.
+// 상태 문서 판 4(판 2: `installed` → `submitted`, 판 3: 종류는 플러그인 하나, 판 4: 목적·상주·원본 시작). 저장된 옛 문서는 엔진이 쓰는 같은 체인(`migrationChain`)으로 옮긴다.
 
-const chain = migrationChain(3, authoringStateMigrations);
+const chain = migrationChain(4, authoringStateMigrations);
 
 /** 저장된 문서처럼 JSON으로 바꿔 판 1에서 현재 판까지 옮긴다. 시험 입력은 모두 JSON이다 */
 function migrate(value: unknown): unknown {
@@ -202,8 +202,18 @@ test("authoring.state-v3.kind-kept: a version 2 document of the single plugin ki
   expect(migrateFromV2(stored)).toEqual(stored);
 });
 
-test("authoring.state-v3.declared: the group declares state version 3 with two migration steps", () => {
+test("authoring.state-v4.declared: the group declares state version 4 with three migration steps", () => {
   const module = createAuthoringGroup({ devkit: devkitProbe().devkit });
-  expect(module.stateVersion).toBe(3);
-  expect(module.stateUpcasters).toHaveLength(2);
+  expect(module.stateVersion).toBe(4);
+  expect(module.stateUpcasters).toHaveLength(3);
+});
+
+test("authoring.state-v4.added: a version 3 document gets no purpose, not resident, not from a source folder", () => {
+  const stored = newState({ phase: "compose", dir: "/work/demo", kind: "single-plugin" });
+  const { purpose: _purpose, resident: _resident, fromSource: _fromSource, ...v3 } = stored;
+  expect(migrate(v3)).toEqual(stored);
+  expect(migrate({ ...v3, purpose: "로그를 정리한다" })).toEqual({
+    ...stored,
+    purpose: "로그를 정리한다",
+  });
 });

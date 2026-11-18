@@ -46,7 +46,7 @@ const WORK: Profile = {
   rev: 1,
 };
 
-const PROFILES: ProfileListResult = {
+export const PROFILES: ProfileListResult = {
   profiles: [WORK],
   common: { plugins: [], settings: [], updatedAt: "2026-11-18T00:00:00.000Z", rev: 1 },
   rev: 1,

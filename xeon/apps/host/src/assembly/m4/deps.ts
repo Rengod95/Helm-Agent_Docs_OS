@@ -9,6 +9,7 @@ import type { RegistrationInfo, RegistrationToggleSourceOf } from "@fresnel/ext-
 import type { FileLock } from "@fresnel/platform-os";
 import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
 import type { ProjectPort } from "../../handlers/m4/project.ts";
+import type { PluginPort } from "../../handlers/m5/plugins.ts";
 import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
@@ -37,7 +38,15 @@ export interface M4EngineDeps {
   readonly projects: ProjectPort;
   /** 호스트 로그. Test run 대화를 지우지 못했을 때 남긴다. 구조 타입이다(`types.ts`의 `HostLogPort`가 대입된다) */
   readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
+  /**
+   * 제작 포트가 읽는 플러그인 사실(검토 서비스의 읽기 면). 원본 폴더 위치와 검토본 일치 여부(`sourceOf`), 초안 목록(`draftList`)이다.
+   * 조립 루트가 `ports.ts`의 플러그인 서비스와 검토 서비스에서 넘긴다. 없으면 두 메서드는 `io`다
+   */
+  readonly plugins?: DevkitPluginFacts;
 }
+
+/** 제작 포트가 읽는 플러그인 사실(`PluginPort`의 두 읽기 메서드). 검토 서비스·플러그인 서비스가 그대로 맞는다 */
+export type DevkitPluginFacts = Pick<PluginPort, "get" | "draftList">;
 
 /** 설정 저장소의 부분형(`types.ts`의 `SettingsStorePort`가 그대로 대입된다. 순환을 피하려고 거기서 가져오지 않는다). 확장 읽기가 쓰기 경로로 쓴다 */
 interface ProfileSettingsPort {

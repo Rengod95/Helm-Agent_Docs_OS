@@ -54,14 +54,36 @@ function requestKey(state: Readonly<AuthoringState>, what: string): string {
   return `authoring:${what}:${state.name ?? ""}:${String(state.askRound)}`.slice(0, 64);
 }
 
-/** 할 일이 없을 때의 명령. 세션이 열려 있거나 확인이 남았거나 intent 확인을 기다리면 상주하고, 아니면 물러난다 */
+/**
+ * 할 일이 없을 때의 명령. 세션이 열려 있거나 확인이 남았거나 intent 확인을 기다리면 상주하고(`yield`), 아니면 물러난다.
+ * 비상주 세션은 검토함으로 보낸 뒤 물러난다(`done`). 상주 세션은 `authoring_stop`이 닫을 때까지 `done`하지 않는다 (M5c §4.8.6)
+ */
 const restOf = (state: Readonly<AuthoringState>): DriveCommand<AuthoringState> => {
+  if (state.submitted !== null && !state.resident) return { do: "done" };
   const waiting =
     sessionOpen(state) ||
     state.pending !== null ||
     (state.phase === "intent" && !state.intentConfirmed && state.name !== null);
   return waiting ? { do: "yield" } : { do: "done" };
 };
+
+/**
+ * 상주 대화에서 검토함으로 보낸 뒤 사용자가 다시 말한 것은 같은 플러그인을 고치는 새 판이다. 이름, 폴더, 파일은 그대로 두고
+ * 뼈대 다음 단계(`compose`)부터 다시 한다. 검토 흔적(시험, 묶기, 제출)은 지운다
+ */
+function nextIteration(state: Readonly<AuthoringState>): AuthoringState {
+  return {
+    ...state,
+    phase: "compose",
+    pending: null,
+    denied: null,
+    trial: null,
+    packaged: null,
+    submitted: null,
+    lastErrorKey: null,
+    sameErrorRuns: 0,
+  };
+}
 
 /** 상태를 남기고 그 뒤 할 일을 정한다. 상태 판이 바뀌므로 물러난 뒤에도 다음 판에서 다시 본다 */
 const commitThen = (next: AuthoringState): DriveCommand<AuthoringState> => ({
@@ -137,8 +159,19 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       await resume(state, "fix", "the user wants to keep fixing: continue with authoring_validate");
       return commitThen(next);
     }
-    const next: AuthoringState = { ...state, pending: null, phase: "done" };
-    await resume(state, "fix", "the user stopped fixing: the session is done");
+    // 상주 대화는 `authoring_stop`이 끝낼 때까지 열어 둔다. 고치기를 그만둔 것은 세션을 닫는 일이 아니다
+    const next: AuthoringState = {
+      ...state,
+      pending: null,
+      phase: state.resident ? "fix" : "done",
+    };
+    await resume(
+      state,
+      "fix",
+      state.resident
+        ? "the user stopped fixing: ask what to do next"
+        : "the user stopped fixing: the session is done",
+    );
     return commitThen(next);
   };
 
@@ -222,9 +255,10 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
   };
 
   /**
-   * 맡겨진 호출(`frame.calledBy`)은 상주하지 않는다. 제작 대화가 닫혀 있고 목적이 있으면 알리고 `accepted`로 돌려준다.
-   * 제작 흐름 자체는 사용자의 `authoring_start`가 시작한다(이 단계는 목적을 받아 알리는 데까지다).
-   * 열린 대화나 읽을 수 없는 입력은 받지 않고 사유와 함께 물러난다(맡긴 쪽이 기다리지 않게)
+   * 맡겨진 호출(`frame.calledBy`)은 목적을 상태에 싣고 세션을 연 뒤 `accepted: true`로 곧 돌려준다(`done`).
+   * 맡긴 쪽(Helm)은 이 결과를 기다리므로 상주하지 않는다: 상주하면 맡긴 `/helm` 명령이 제작이 끝날 때까지 멈춘다 (drive-isolation.md §2.1, §2.6).
+   * 그래서 `accepted`는 "세션을 열었다"는 뜻이다. 열린 세션은 상태에 남아 `authoring_*` 도구가 이어 받고, 제작 대화(`craft`)는 시작 Drive로 상주한다.
+   * 열린 세션이나 읽을 수 없는 입력은 받지 않고 사유와 함께 물러난다
    */
   const handoffStep = async (
     state: Readonly<AuthoringState>,
@@ -245,7 +279,18 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       },
       { when: "next", requestId: `authoring:handoff:${id ?? purpose}`.slice(0, 64) },
     );
-    return { do: "done", result: { accepted: true, purpose } };
+    // 이름과 폴더는 아직 없다. 목적만 든 세션이고, 사용자에게 이름과 폴더를 정한 뒤 `authoring_start`로 시작한다
+    const opened: AuthoringState = {
+      ...INITIAL_AUTHORING_STATE,
+      phase: "intent",
+      sessionId: `auth-handoff-${id ?? "purpose"}`,
+      purpose,
+    };
+    return {
+      do: "commit",
+      state: opened,
+      next: { do: "done", result: { accepted: true, purpose } },
+    };
   };
 
   return async ({ state, last, frame }): Promise<DriveCommand<AuthoringState>> => {
@@ -253,7 +298,16 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     if (frame.calledBy !== null && last === null)
       return handoffStep(state, frame.calledBy, frame.input);
     // B-5: 사용자 메시지는 이 단계에서 턴으로 처리한다. 세션이 닫혀 있어도 메시지를 버리지 않는다
-    if (last?.kind === "user") return { do: "turn", input: last.message };
+    if (last?.kind === "user") {
+      // 상주 대화에서 검토함으로 보낸 뒤의 말은 같은 플러그인의 새 판이다(엔진 설계 §1.4)
+      if (state.resident && state.submitted !== null)
+        return {
+          do: "commit",
+          state: nextIteration(state),
+          next: { do: "turn", input: last.message },
+        };
+      return { do: "turn", input: last.message };
+    }
     const answer = answerOf(last);
     if (state.phase === "intent" && !state.intentConfirmed && state.name !== null)
       return intentStep(state, state.name, answer);

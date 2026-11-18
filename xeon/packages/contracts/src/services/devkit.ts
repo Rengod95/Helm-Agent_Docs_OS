@@ -25,6 +25,13 @@ export type KindStatus = (typeof KIND_STATUSES)[number];
 export const EXTENSION_KINDS = ["single-plugin"] as const;
 export type ExtensionKind = (typeof EXTENSION_KINDS)[number];
 
+/**
+ * 플러그인의 방식(M5c §4.9.4, 카드의 세 칸 Inject·Hook·Drive). 빌더는 셋 가운데 하나로 뼈대를 만든다.
+ * `hook`은 훅 하나에 붙는 코드, `inject`는 지침 파일(`components.instructions`), `drive`는 구동 단계 함수(`drives: true`, 그룹 구성원)다
+ */
+export const PLUGIN_MODES = ["hook", "inject", "drive"] as const;
+export type PluginMode = (typeof PLUGIN_MODES)[number];
+
 /** 종류 카탈로그 항목 하나(`catalog/kinds/<id>.json`) */
 export interface KindEntry {
   readonly id: ExtensionKind;
@@ -51,6 +58,8 @@ export interface ScaffoldInput {
   readonly kind: ExtensionKind;
   readonly name: string;
   readonly dir: string;
+  /** 플러그인의 방식. 생략하면 `hook`(기존 골격)이다 [제안: M5c §4.9.4] */
+  readonly mode?: PluginMode;
   /** `single-plugin`일 때 플러그인의 층. 생략하면 템플릿 기본값 [제안] */
   readonly layer?: ExtensionLayer;
   /** `group` 선언 초안. 있으면 매니페스트에 `group`이 붙는다 */
@@ -127,6 +136,27 @@ export interface ReplayReport {
   readonly failure: ReplayFailure | null;
 }
 
+/** 기존 플러그인의 원본 폴더 사실(`sourceOf`, M5c §4.9.3). 빌더는 이 폴더에서 시작한다 */
+export interface SourceFacts {
+  /** 원본 폴더의 절대 경로(`<설정 폴더>/plugins/<이름>`) */
+  readonly dir: string;
+  /** 검토본의 출처가 번들 패키지인가. 원본 폴더가 있으면 사용자가 그 번들을 옮겨 둔 것이다 */
+  readonly bundled: boolean;
+  /** 원본이 검토본과 다른가(손 수정으로 보이는 변경 포함). 참이어도 빌더는 원본에서 시작한다 */
+  readonly differsFromReviewed: boolean;
+}
+
+/** 초안 하나(`draftList`). 같은 플러그인의 초안은 `parent`로 이어지고 목록은 최신 먼저다 */
+export interface DraftSummary {
+  readonly draftId: string;
+  readonly parent: string | null;
+  readonly contentHash: string;
+  readonly createdAt: string;
+  readonly originThreadId: string | null;
+  /** 검토함으로 보냈으면 그 항목 id */
+  readonly submittedItemId: string | null;
+}
+
 export interface PackInput {
   readonly dir: string;
   readonly out?: string;
@@ -192,6 +222,8 @@ export const DEVKIT_ERROR_KINDS = [
   "not_absolute",
   /** 폴더는 있지만 `.fresnel-plugin/plugin.json`이 없다(폴더가 없으면 `not_found`) */
   "no_manifest",
+  /** 번들 플러그인이라 원본 폴더가 없다. 고칠 수 없다(M5c §4.9.3) */
+  "bundled_not_editable",
   "io",
 ] as const;
 export type DevkitErrorKind = (typeof DEVKIT_ERROR_KINDS)[number];
@@ -229,4 +261,11 @@ export interface DevkitService {
    * 포트 `PluginSubmitPort`는 호스트가 `PluginSubmitPortKey`로 조회해 부른다
    */
   submit(input: PluginSubmitRequest): Promise<DevkitResult<PluginSubmitResult>>;
+  /**
+   * 기존 플러그인의 원본 폴더(M5c §4.9.3). 이름만으로 연다. 없으면 `not_found`, 번들이면 `bundled_not_editable`.
+   * 구현이 없으면 빌더는 기존 플러그인 고치기를 거절한다(`source_unavailable`)
+   */
+  sourceOf?(name: string): Promise<DevkitResult<SourceFacts>>;
+  /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 구현이 없으면 빌더의 `authoring_drafts`가 거절한다 */
+  draftList?(name: string): Promise<DevkitResult<{ readonly drafts: readonly DraftSummary[] }>>;
 }

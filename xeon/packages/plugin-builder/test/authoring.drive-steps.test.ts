@@ -269,11 +269,17 @@ test("authoring.drive.g: a trial starts only after a yes and the fix limit keeps
   });
 });
 
-test("authoring.drive.handoff-a: a closed session handed a purpose notices it once and answers accepted", async () => {
+test("authoring.drive.handoff-a: a closed session handed a purpose opens a purpose-only session, notices it once and answers accepted at once", async () => {
   const run = drive();
   expect(await run.step(stepInput(INITIAL_AUTHORING_STATE, null, HANDED))).toEqual({
-    do: "done",
-    result: { accepted: true, purpose: "로그 정리 도구" },
+    do: "commit",
+    state: {
+      ...INITIAL_AUTHORING_STATE,
+      phase: "intent",
+      sessionId: "auth-handoff-nabcdefghijklm",
+      purpose: "로그 정리 도구",
+    },
+    next: { do: "done", result: { accepted: true, purpose: "로그 정리 도구" } },
   });
   expect(run.posts).toEqual([
     {
@@ -326,4 +332,80 @@ test("authoring.drive.handoff-d: a user-started frame (no calledBy) keeps the ex
   expect(await step(stepInput(SESSION))).toEqual({ do: "yield" });
   expect(await step(stepInput(INITIAL_AUTHORING_STATE))).toEqual({ do: "done" });
   expect(posts).toEqual([]);
+});
+
+test("authoring.drive.handoff-e: a purpose-only session has no name yet, so the step does not ask and steps aside", async () => {
+  const { step } = drive();
+  const purposeOnly: AuthoringState = {
+    ...INITIAL_AUTHORING_STATE,
+    phase: "intent",
+    sessionId: "auth-handoff-nabcdefghijklm",
+    purpose: "로그 정리 도구",
+  };
+  expect(await step(stepInput(purposeOnly))).toEqual({ do: "done" });
+});
+
+test("authoring.drive.resident-a: a resident session that submitted yields and keeps waiting for the next user message", async () => {
+  const { step, calls } = drive();
+  const submitted: AuthoringState = {
+    ...SESSION,
+    phase: "package",
+    resident: true,
+    submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
+  };
+  expect(await step(stepInput(submitted))).toEqual({ do: "yield" });
+  expect(calls).toEqual([]);
+});
+
+test("authoring.drive.resident-b: a user message after a submit in a resident session starts a fresh iteration of the same plugin", async () => {
+  const { step } = drive();
+  const submitted: AuthoringState = {
+    ...SESSION,
+    phase: "package",
+    resident: true,
+    trial: { threadId: "thr_trial" },
+    packaged: { path: `${DIR}/dist/package`, sha256: "a".repeat(64), files: 1 },
+    submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
+    lastErrorKey: null,
+  };
+  const message: StepResult = { kind: "user", message: USER };
+  expect(await step(stepInput(submitted, message))).toEqual({
+    do: "commit",
+    state: {
+      ...submitted,
+      phase: "compose",
+      trial: null,
+      packaged: null,
+      submitted: null,
+    },
+    next: { do: "turn", input: USER },
+  });
+});
+
+test("authoring.drive.resident-c: a non-resident session that submitted steps aside, and a user message still gets a turn", async () => {
+  const { step } = drive();
+  const submitted: AuthoringState = {
+    ...SESSION,
+    phase: "package",
+    submitted: { draftId: "draft_demo", itemId: "rvw_demo" },
+  };
+  expect(await step(stepInput(submitted))).toEqual({ do: "done" });
+  const message: StepResult = { kind: "user", message: USER };
+  expect(await step(stepInput(submitted, message))).toEqual({ do: "turn", input: USER });
+});
+
+test("authoring.drive.resident-d: a resident session that stops fixing stays open in the fix phase", async () => {
+  const { step } = drive();
+  const limited: AuthoringState = {
+    ...SESSION,
+    phase: "fix",
+    pending: "fix_limit",
+    sameErrorRuns: 3,
+    resident: true,
+  };
+  expect(await step(stepInput(limited, answered("no")))).toEqual({
+    do: "commit",
+    state: { ...limited, pending: null, phase: "fix" },
+    next: { do: "yield" },
+  });
 });

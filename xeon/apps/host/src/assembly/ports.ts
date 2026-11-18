@@ -1287,6 +1287,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         dialogArea: deps.dialogArea,
         log,
         projects,
+        // 제작 포트가 읽는 원본 폴더와 초안 목록(M5c §4.9.2, §4.9.3). 플러그인 wire와 같은 서비스다
+        plugins: {
+          get: (name) => pluginService.get(name),
+          draftList: (name) => pluginReview.draftList(name),
+        },
       },
       {
         catalog: deps.settings.catalog,

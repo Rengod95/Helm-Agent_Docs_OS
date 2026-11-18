@@ -12,11 +12,13 @@ import {
 import type { PluginSubmitRequest, PluginSubmitResult } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
+  DraftSummary,
   KindEntry,
   PackInput,
   PackResult,
   ScaffoldInput,
   ScaffoldResult,
+  SourceFacts,
   ValidationReport,
 } from "@fresnel/contracts/services";
 
@@ -43,6 +45,12 @@ export interface DevkitPort {
   testRun(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, DevkitError>>;
   /** `ext.test.list`. 저장된 시험 기록을 시작 순서대로 돌려준다 */
   testList(): Promise<Result<ExtTestListResult, DevkitError>>;
+  /** 기존 플러그인의 원본 폴더 사실(M5c §4.9.3). 빌더 서비스가 부른다. wire 메서드가 아니다 */
+  sourceOf(name: string): Promise<Result<SourceFacts, DevkitError>>;
+  /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 빌더 서비스가 부른다. wire 메서드가 아니다 */
+  draftList(
+    name: string,
+  ): Promise<Result<{ readonly drafts: readonly DraftSummary[] }, DevkitError>>;
 }
 
 export type DevkitMethods =
@@ -92,6 +100,7 @@ function wireErrorOf(error: DevkitError, path: string): WireError {
     case "managed_locked":
     case "not_absolute":
     case "no_manifest":
+    case "bundled_not_editable":
       return issue(`${error.kind}: ${error.message}`);
     case "not_found":
       return path === "/name"

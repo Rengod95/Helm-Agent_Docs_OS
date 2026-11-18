@@ -13,8 +13,14 @@ import {
   type PluginSubmitRequest,
   type PluginSubmitResult,
 } from "@fresnel/contracts/extensions";
-import type { ExtTestRunParams, ExtTestRunResult } from "@fresnel/contracts/wire";
-import type { DevkitError, ReplayReport } from "@fresnel/contracts/services";
+import type { DraftInfo, ExtTestRunParams, ExtTestRunResult } from "@fresnel/contracts/wire";
+import type {
+  DevkitError,
+  DraftSummary,
+  ReplayReport,
+  SourceFacts,
+} from "@fresnel/contracts/services";
+import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import {
   KIND_CATALOG,
   locateTemplateDirs,
@@ -32,6 +38,7 @@ import {
   type ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
 import { hostResourceDir } from "../../state-paths.ts";
+import { hashPluginTree } from "../plugins/content-hash.ts";
 import { messageOf } from "../../util.ts";
 import type { M4PortDeps } from "./deps.ts";
 import {
@@ -187,6 +194,30 @@ function devkitErrorOfProfile(failure: ProfilePortFailure): DevkitError {
       return assertNever(failure, "ProfilePortFailure");
   }
 }
+
+/** 플러그인 읽기 실패를 제작 오류로 옮긴다. 모르는 이름은 `not_found`, 나머지는 읽기 문제(`io`)다 */
+function devkitErrorOfPlugin(failure: PluginPortFailure): DevkitError {
+  return failure.kind === "unknown_plugin"
+    ? { kind: "not_found", message: `${failure.name} is not known` }
+    : { kind: "io", message: `the plugin could not be read (${failure.kind})` };
+}
+
+/** 초안 기록에서 빌더가 쓰는 칸만 옮긴다 */
+function draftSummaryOf(info: DraftInfo): DraftSummary {
+  return {
+    draftId: info.draftId,
+    parent: info.parent,
+    contentHash: info.contentHash,
+    createdAt: info.createdAt,
+    originThreadId: info.originThreadId,
+    submittedItemId: info.submittedItemId,
+  };
+}
+
+const PLUGIN_FACTS_MISSING: DevkitError = {
+  kind: "io",
+  message: "the plugin facts are not connected in this host build",
+};
 
 export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = {}): DevkitPort {
   const templates = (): TemplateDirs | null =>
@@ -412,6 +443,47 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     testList: async () => {
       const listed = await recordStore().list();
       return listed.ok ? ok({ tests: listed.value }) : err(storeFailureOf(listed.error));
+    },
+    // 원본 폴더의 자리는 플러그인 서비스가 안다(`get`의 `source`: 없으면 null). 서비스의 `matchesReviewed`는 마지막 훑기의
+    // 캐시라서 원본을 고친 뒤에는 낡는다. 그래서 다른지는 지금 폴더의 내용 해시와 검토본 해시(카드)를 대조해 정한다.
+    // 번들이고 원본이 없으면 고칠 수 없다(`bundled_not_editable`)
+    sourceOf: async (name) => {
+      const facts = deps.plugins;
+      if (facts === undefined) return err(PLUGIN_FACTS_MISSING);
+      const got = await facts.get(name);
+      if (!got.ok) return err(devkitErrorOfPlugin(got.error));
+      const bundled = got.value.card.origin.kind === "bundled";
+      const source = got.value.source;
+      if (source === null) {
+        return err(
+          bundled
+            ? {
+                kind: "bundled_not_editable",
+                message: `${name} is built in and has no source folder`,
+              }
+            : { kind: "not_found", message: `${name} has no source folder` },
+        );
+      }
+      const now = hashPluginTree(source.path);
+      if (!now.ok) {
+        return err({
+          kind: "io",
+          message: `the source folder of ${name} could not be read (${now.error.kind})`,
+        });
+      }
+      const found: SourceFacts = {
+        dir: source.path,
+        bundled,
+        differsFromReviewed: now.value.contentHash !== got.value.card.review.currentHash,
+      };
+      return ok(found);
+    },
+    draftList: async (name) => {
+      const facts = deps.plugins;
+      if (facts === undefined) return err(PLUGIN_FACTS_MISSING);
+      const listed = await facts.draftList(name);
+      if (!listed.ok) return err(devkitErrorOfPlugin(listed.error));
+      return ok({ drafts: listed.value.drafts.map(draftSummaryOf) });
     },
   };
 }

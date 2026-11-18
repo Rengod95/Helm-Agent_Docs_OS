@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "name": "__ID__",
+  "version": "__VERSION__",
+  "displayName": "__TITLE__",
+  "plugins": [{ "layer": "plugin", "hooks": [] }],
+  "components": { "instructions": ["instructions.md"] },
+  "defaultEnabled": false,
+  "trust": { "level": "user" }
+}

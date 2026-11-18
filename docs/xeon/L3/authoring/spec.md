@@ -78,17 +78,25 @@ binds: [xeon/packages/plugin-builder/**]
 | 도구 | 입력 | 결과 | 위험 |
 |---|---|---|---|
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
-| `authoring_start` | `{ kind, name, dir, displayName? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다 | 읽기 |
+| `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다 | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
-| `authoring_scaffold` | `{ sessionId, views?: { slot, mode }[] }` | 만든 파일 목록과 패치 | 쓰기(대상 폴더 안) |
+| `authoring_scaffold` | `{ sessionId, mode? }`(`mode`: `hook`, `inject`, `drive`) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
 | `authoring_trial` | `{ sessionId, profile?, prompt }` | Test run id, 진행 위치 | Test run 생성 |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |
 | `authoring_package` | `{ sessionId, out? }` | 패키지 경로, 내용 목록, 해시 | 쓰기 + 사람 확인 |
 | `authoring_submit` | `{ sessionId, purpose?, turnId? }` | 검토함에 올린 `{ draftId, itemId }`와 "검토함에서 승인해야 쓸 수 있다" 한 줄 | 검토 항목 생성(설치 없음, 확인 없음) |
+| `authoring_drafts` | `{ name? }` | 플러그인의 초안 목록, 최신 먼저(`draftId`, `parent`, `createdAt`, `submittedItemId`) | 읽기 |
 | `authoring_stop` | `{ sessionId? }` | 열린 제작 대화를 닫고(`idle`) 만든 파일 목록을 돌려줌 | 읽기 |
 
 - [결정: M5c §4.9, §7.7 2026-11-18] `authoring_install`은 폐기했다. 빌더의 산출 경로는 `authoring_submit`이다: 테스트의 턴 하나를 증거(`EvidenceRef` `{kind:"turn"}`)로 받아 `fresnel.devkit.submit`(포트 `PluginSubmitPort`)으로 초안과 검토 항목을 만든다. 시험을 돌리지 않았으면 `no_evidence`로 거절하고 `authoring_trial`을 먼저 돌리라고 안내한다. 증거 턴 id는 빌더 상태에 없어 `turnId` 입력으로 받는다([미결]: 테스트 대화의 턴 id를 빌더가 읽는 길은 `authoring_context`(B-4, 엔진 설계 E1)가 준다). `authoring_package`는 `ext.package`가 남아 있으니 한 파일 묶음을 사용자가 보관하는 단독 도구로 남긴다(제출에는 필요 없다). `authoring_compose`와 구성 검사는 남긴다. 옛 묶음 종류는 §4.9.5로 폐기해 빌더의 묶음 뼈대와 카탈로그 적합성 시험의 묶음 항목은 빠졌고, group-sdk 템플릿 파일은 `fresnel group new`가 그대로 쓴다([미결]: 구성 초안을 단일 플러그인 뼈대에 붙이는 경로(`group` 선언 패치)는 종류와 함께 뺄지 따로 정한다).
+- [구현 상태, 2026-11-18] 빌더의 도구 면(M5c §4.9.2~4.9.6)은 다음과 같다. 호스트 쪽 값은 `apps/host/src/assembly/m4/devkit-port.ts`가 준다.
+  - `authoring_start`는 이름만 받으면 기존 플러그인의 원본 폴더(`<설정>/plugins/<이름>`)를 연다(`fresnel.devkit`의 선택 메서드 `sourceOf`). 종류와 이름 확인 카드를 건너뛰고 검사 단계(`validate`)부터 시작하며, 뼈대는 만들지 않는다(`scaffold`가 `exists`로 거절한다). 원본이 검토본과 달라도 원본에서 시작하고, 제출은 검토 서비스가 `update` 항목으로 만든다(`provenance: "assistant"`은 바꾸지 않았다). 거절: `not_found`(원본 폴더 없음), `bundled_not_editable`(번들이고 원본 폴더 없음), `source_unavailable`(이 빌드에 `sourceOf`가 없음).
+  - `authoring_start`의 `dir`이 있으면 새 플러그인이다(`kind`는 생략하면 `single-plugin`). `purpose`(목적 한 문장, 200자 이하)와 `resident`(상주 모드, 아래)를 상태에 싣는다.
+  - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 세션의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
+  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/plugin-builder/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 그룹 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
+  - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 세션의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
+  - `authoring_replay`는 남긴다. §4.9.7은 폐기를 정하지만 재생 값은 엔진의 `backtest.run`(E)이 준다. 이 가지에는 `backtest.run`의 호스트 처리기가 없어서 옛 개발 모드 재생을 그대로 둔다 [미결: E의 `backtest.run`이 들어온 뒤 지운다] [근거: apps/host/src/assembly/m4/devkit-port.ts, apps/host/src/handlers/m4/devkit.ts].
 - 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 합니다.
 - 화면(구성기, 시험 실행)도 wire로 같은 서비스를 부릅니다(`L4.desktop-ux.spec` W-27, W-28, W-29, W-47, W-49). 그래서 에이전트와 사용자가 같은 검사와 같은 뼈대를 얻습니다.
 
@@ -227,8 +235,10 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - 맡겨졌을 때(drive-isolation.md 2.2, 2.6; `packages/plugin-builder/src/group-drive.ts`의 `handoffStep`). 다른 플러그인이 `handoff`로 부르면 프레임의 `calledBy`가 맡긴 쪽 이름이고, 첫 단계(`last`가 없음)에서 상주하지 않고 답한다. 입력은 `{ purpose, id? }`로 읽는다(`id`는 맡긴 쪽의 요청 id).
   - 제작 대화가 열려 있으면 받지 않는다: `done({ accepted: false, reason: "session_open" })`, 알림은 내지 않는다.
   - 입력을 읽지 못하면(목적 문자열이 빠짐, 재시작 뒤 입력이 비어 있음) `done({ accepted: false, reason: "bad_input" })`.
-  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
-  - 이 단계는 목적을 알리고 돌려주는 데까지다. 제작 대화를 열지 않는다. 제작은 사용자가 `authoring_start`로 이어 간다. [미결] 맡겨진 목적으로 제작 대화를 자동으로 여는 일은 정하지 않았다. [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
+  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 목적을 상태에 실어 세션을 연 뒤 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
+  - [구현 상태, 2026-11-18] 세션은 `phase: intent`, `sessionId: auth-handoff-<id>`, `purpose`만 가진다(이름과 폴더는 없다). `accepted: true`는 "세션을 열었다"는 뜻이다. 상주하지 않고 곧 `done`으로 돌려주는 까닭은 맡긴 쪽(Helm)이 이 결과를 기다리기 때문이다. 상주하면 `/helm plugin`이 제작이 끝날 때까지 멈춘다(drive-isolation.md §2.1, §2.6). 맡긴 쪽의 기록 시험(`apps/host/test/int/helm-isolated.int.test.ts`)은 빌더가 `done`으로 물러난다고 본다.
+  - 제작은 사용자가 이름과 폴더를 정한 뒤 `authoring_start`로 이어 간다(목적은 세션에 남아 시작 때 쓴다). [미결] 일반 대화에서 맡긴 세션을 상주로 이어 가는 길은 정하지 않았다. 상주는 제작 대화의 시작 Drive가 맡는다(M5c §4.8.6). [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
+- [구현 상태, 2026-11-18] 상주 모드. `authoring_start`에 `resident: true`를 주면(제작 대화, M5c §4.8.6) 검토함으로 보낸 뒤에도 물러나지 않고 `yield`로 기다린다. 그 뒤 사용자 메시지는 같은 플러그인의 새 판이다: 단계를 `compose`로 되돌리고 이름, 폴더, 파일은 그대로 두며 시험과 제출 기록은 지운다. `done`은 `authoring_stop`이 세션을 닫을 때만이다(고치기를 그만두면 `fix`에 머문다). 상주가 아닌 세션은 검토함으로 보낸 뒤 `done`으로 물러난다. 세션은 열린 채 남고 `authoring_*` 도구가 계속 받는다.
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드

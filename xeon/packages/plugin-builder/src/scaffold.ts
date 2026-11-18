@@ -1,10 +1,11 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
-import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { ExtensionLayer } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
   KindEntry,
+  PluginMode,
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
@@ -86,11 +87,29 @@ async function listFiles(root: string, prefix = ""): Promise<Result<string[], De
   return ok(nested.value.flat().toSorted());
 }
 
-/** 템플릿 파일 목록과 내용을 읽는다. 종류는 플러그인 하나라 단일 플러그인 폴더 전체다 */
-async function plannedTemplate(dirs: TemplateDirs): Promise<Result<PlannedFile[], DevkitError>> {
-  const names = await listFiles(dirs.single);
+/** 방식의 템플릿 폴더. 생략하면 훅 방식(기존 골격)이다 */
+function templateOf(dirs: TemplateDirs, mode: PluginMode): string {
+  switch (mode) {
+    case "hook":
+      return dirs.single;
+    case "inject":
+      return dirs.inject;
+    case "drive":
+      return dirs.drive;
+    default:
+      return assertNever(mode, "PluginMode");
+  }
+}
+
+/** 템플릿 파일 목록과 내용을 읽는다. 종류는 플러그인 하나이고 방식마다 템플릿 폴더 전체를 쓴다 */
+async function plannedTemplate(
+  dirs: TemplateDirs,
+  mode: PluginMode,
+): Promise<Result<PlannedFile[], DevkitError>> {
+  const root = templateOf(dirs, mode);
+  const names = await listFiles(root);
   if (!names.ok) return names;
-  return readTemplateTree(dirs.single, names.value, (path) => path);
+  return readTemplateTree(root, names.value, (path) => path);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -177,7 +196,7 @@ export async function scaffoldExtension(
 
   const state = await targetState(input.dir);
   if (!state.ok) return state;
-  const planned = await plannedTemplate(options.templates);
+  const planned = await plannedTemplate(options.templates, input.mode ?? "hook");
   if (!planned.ok) return planned;
 
   const values = {

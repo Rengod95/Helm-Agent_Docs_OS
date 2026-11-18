@@ -65,6 +65,12 @@ export interface AuthoringState {
   readonly denied: PendingAction | null;
   /** 확인 질문마다 오르는 번호. requestId를 가르는 값이라 거절 뒤 다시 물을 수 있다 */
   readonly askRound: number;
+  /** 사용자가 맡긴 목적 한 문장(맡기기의 `purpose`, 또는 `authoring_start`의 `purpose`). 초안 매니페스트의 `purpose`가 된다(M5c §4.9.6) */
+  readonly purpose: string | null;
+  /** 상주 모드(`authoring_start`의 `resident`). 참이면 검토함으로 보낸 뒤에도 물러나지 않고 다음 사용자 입력을 기다린다(M5c §4.8.6) */
+  readonly resident: boolean;
+  /** 기존 플러그인의 원본 폴더에서 시작했다(`authoring_start`에 이름만 줬다). 뼈대를 만들지 않고 검사부터 한다(M5c §4.9.3) */
+  readonly fromSource: boolean;
 }
 
 export const INITIAL_AUTHORING_STATE: AuthoringState = {
@@ -87,13 +93,17 @@ export const INITIAL_AUTHORING_STATE: AuthoringState = {
   submitted: null,
   denied: null,
   askRound: 0,
+  purpose: null,
+  resident: false,
+  fromSource: false,
 };
 
 /**
  * 상태 문서 판. v2에서 `installed`(설치 결과)가 `submitted`(검토 제출 결과)로 바뀌었다.
- * v3에서 종류는 플러그인 하나뿐이 되었다(옛 그룹 종류로 저장된 `kind`는 `authoringStateMigrations`가 옮긴다). 옛 판은 그 표가 한 판씩 옮긴다
+ * v3에서 종류는 플러그인 하나뿐이 되었다(옛 그룹 종류로 저장된 `kind`는 `authoringStateMigrations`가 옮긴다). 옛 판은 그 표가 한 판씩 옮긴다.
+ * v4에서 목적(`purpose`), 상주(`resident`), 원본 폴더 시작(`fromSource`)이 더해졌다. 옛 문서는 셋 다 꺼진 값으로 옮긴다
  */
-export const AUTHORING_STATE_VERSION = 3;
+export const AUTHORING_STATE_VERSION = 4;
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -125,10 +135,20 @@ function v2ToV3(previous: unknown): unknown {
   return { ...previous, kind: "single-plugin" };
 }
 
+/**
+ * v3 → v4. 목적, 상주, 원본 폴더 시작은 옛 문서에 없었으므로 null·거짓이다. 이미 있는 값은 그대로 둔다(같은 판에서 다시 옮겨도 같다).
+ * 모양이 아닌 입력은 그대로 돌려주고, 검사는 스키마가 Result로 거른다
+ */
+function v3ToV4(previous: unknown): unknown {
+  if (!isRecord(previous)) return previous;
+  return { purpose: null, resident: false, fromSource: false, ...previous };
+}
+
 /** GroupDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 1은 키 1, 판 2는 키 2로 한 판씩 옮긴다 */
 export const authoringStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
   1: v1ToV2,
   2: v2ToV3,
+  3: v3ToV4,
 };
 
 const nullable = <T extends ReturnType<typeof Type.String>>(schema: T) =>
@@ -192,6 +212,9 @@ const shape = Type.Object(
       Type.Null(),
     ]),
     askRound: Type.Integer({ minimum: 0 }),
+    purpose: nullable(Type.String({ minLength: 1, maxLength: 200 })),
+    resident: Type.Boolean(),
+    fromSource: Type.Boolean(),
   },
   { additionalProperties: false },
 );

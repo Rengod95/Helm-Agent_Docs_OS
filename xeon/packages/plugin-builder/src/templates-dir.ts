@@ -1,13 +1,17 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-// 템플릿 폴더 위치. 그룹 템플릿은 group-sdk가, 단일 플러그인 템플릿은 이 패키지가 가진다.
+// 템플릿 폴더 위치. 그룹 템플릿은 group-sdk가, 플러그인 골격 세 방식(훅, 지침, 구동)은 이 패키지가 가진다.
 
 export interface TemplateDirs {
   /** group-sdk의 templates/ (index.json이 있는 폴더) */
   readonly group: string;
-  /** 이 패키지의 templates/single-plugin */
+  /** 이 패키지의 templates/single-plugin. 훅 방식이고 기본값이다 */
   readonly single: string;
+  /** 이 패키지의 templates/inject-plugin. 지침 방식(`components.instructions`) */
+  readonly inject: string;
+  /** 이 패키지의 templates/drive-plugin. 구동 방식(그룹 구성원, `drives: true`) */
+  readonly drive: string;
 }
 
 /** 이 패키지 폴더(소스 실행 기준) */
@@ -34,6 +38,9 @@ export function locateTemplateDirs(
   }
   const group = candidates.find((candidate) => existsSync(join(candidate, "index.json")));
   const single = join(PACKAGE_DIR, "templates", "single-plugin");
-  if (group === undefined || !existsSync(single)) return null;
-  return { group, single };
+  const inject = join(PACKAGE_DIR, "templates", "inject-plugin");
+  const drive = join(PACKAGE_DIR, "templates", "drive-plugin");
+  const present = [single, inject, drive].every((path) => existsSync(path));
+  if (group === undefined || !present) return null;
+  return { group, single, inject, drive };
 }

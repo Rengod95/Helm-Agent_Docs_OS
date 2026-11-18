@@ -1,7 +1,7 @@
 import { parse } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
-import type { DevkitService } from "@fresnel/contracts/services";
+import { PLUGIN_MODES, type DevkitService } from "@fresnel/contracts/services";
 import { checkGroupName, type GroupApi } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import { CATALOG_VERSION } from "./catalog.ts";
@@ -31,6 +31,7 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_replay",
   "authoring_package",
   "authoring_submit",
+  "authoring_drafts",
   "authoring_stop",
 ] as const;
 
@@ -155,6 +156,53 @@ async function wakeDrive(env: ToolsEnv): Promise<JsonValue | undefined> {
   );
 }
 
+/**
+ * 기존 플러그인 고치기(M5c §4.9.3). 이름만 받아 원본 폴더(`sourceOf`)를 연다. 원본이 검토본과 달라도 원본에서 시작한다.
+ * 의도는 사용자가 이미 확인한 것이라 종류·이름 확인 카드를 건너뛰고 바로 검사 단계로 간다. 번들이나 없는 이름은 `sourceOf`가 거절한다
+ */
+async function startFromSource(
+  env: ToolsEnv,
+  name: string,
+  purpose: string | undefined,
+  resident: boolean,
+): Promise<JsonValue> {
+  if (env.devkit.sourceOf === undefined)
+    return refusal(
+      "source_unavailable",
+      "this build cannot open an existing plugin's source folder: give kind and dir to start a new plugin",
+    );
+  const found = await env.devkit.sourceOf(name);
+  if (!found.ok) return refusal(found.error.kind, found.error.message);
+  const refusedStart = await wakeDrive(env);
+  if (refusedStart !== undefined) return refusedStart;
+  const sessionId = `auth-${name}`;
+  const state = env.g.state();
+  await env.g.commit({
+    ...INITIAL_AUTHORING_STATE,
+    phase: "validate",
+    sessionId,
+    kind: "single-plugin",
+    name,
+    dir: found.value.dir,
+    intentConfirmed: true,
+    fromSource: true,
+    purpose: purpose ?? state.purpose,
+    resident,
+  });
+  return {
+    ok: true,
+    sessionId,
+    source: {
+      dir: found.value.dir,
+      bundled: found.value.bundled,
+      differsFromReviewed: found.value.differsFromReviewed,
+    },
+    note: found.value.differsFromReviewed
+      ? "the folder differs from the reviewed copy: the draft will be an update of the plugin. Edit the folder, then call authoring_validate"
+      : "the folder matches the reviewed copy: edit it, then call authoring_validate",
+  };
+}
+
 /** 요청 하나를 pending으로 올리거나 지난 결과를 돌려준다. 거절 뒤 첫 호출은 거절을 알리고, 다음 호출이 다시 묻는다 */
 async function request(
   env: ToolsEnv,
@@ -245,13 +293,15 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin authoring: open a build session for one new plugin or extension. The user confirms the kind and the name before the next steps.",
+    "Plugin authoring: open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words; resident keeps the builder waiting for the next user message after a submit (a craft chat).",
     Type.Object(
       {
-        kind: Type.Literal("single-plugin"),
         name: Type.String({ minLength: 1, maxLength: 64 }),
-        dir: Type.String({ minLength: 1, maxLength: 1024 }),
+        kind: Type.Optional(Type.Literal("single-plugin")),
+        dir: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
         displayName: Type.Optional(Type.String({ maxLength: 120 })),
+        purpose: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+        resident: Type.Optional(Type.Boolean()),
       },
       { additionalProperties: false },
     ),
@@ -264,14 +314,18 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           `the session ${state.sessionId ?? ""} is still open: call authoring_stop first, then start again`,
         );
       const name = str(input, "name");
-      const kindId = str(input, "kind");
+      const checked = checkGroupName(name);
+      if (!checked.ok)
+        return refusal("invalid_name", `name ${name} is not allowed (${checked.error.reason})`);
+      const purpose = optStr(input, "purpose");
+      const resident = input["resident"] === true;
+      // dir이 없으면 기존 플러그인이다: 이름만으로 원본 폴더를 연다
+      if (optStr(input, "dir") === undefined) return startFromSource(env, name, purpose, resident);
+      const kindId = optStr(input, "kind") ?? "single-plugin";
       const entry = (await devkit.kinds()).find((found) => found.id === kindId);
       if (entry === undefined) return refusal("unknown_kind", `no kind ${kindId}`);
       if (entry.status === "blocked")
         return refusal("blocked_kind", entry.blockedReason ?? `${kindId} is blocked`);
-      const checked = checkGroupName(name);
-      if (!checked.ok)
-        return refusal("invalid_name", `name ${name} is not allowed (${checked.error.reason})`);
       const target = resolveTargetDir(str(input, "dir"), env.workspaceOf(threadId));
       if (!target.ok)
         return target.kind === "needs_folder"
@@ -309,6 +363,9 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         submitted: null,
         denied: null,
         askRound: 0,
+        purpose: purpose ?? env.g.state().purpose,
+        resident,
+        fromSource: false,
       });
       return {
         ok: true,
@@ -340,8 +397,14 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the extension in the target folder from the template and the composition draft.",
-    Type.Object(sessionShape, { additionalProperties: false }),
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group) and the composition draft.",
+    Type.Object(
+      {
+        ...sessionShape,
+        mode: Type.Optional(Type.Union(PLUGIN_MODES.map((mode) => Type.Literal(mode)))),
+      },
+      { additionalProperties: false },
+    ),
     "write",
     async (input) => {
       const refused = checkSession(env, str(input, "sessionId")) ?? awaitingIntent(env.g.state());
@@ -349,15 +412,22 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const state = env.g.state();
       if (state.kind === null || state.name === null || state.dir === null)
         return refusal("no_session", "the session has no kind, name or folder");
+      if (state.fromSource)
+        return refusal(
+          "exists",
+          "this session opened an existing plugin's folder: edit it and call authoring_validate",
+        );
       if (state.files.length > 0)
         return refusal(
           "exists",
           "the files were already created: edit them and call authoring_validate",
         );
+      const mode = PLUGIN_MODES.find((found) => found === input["mode"]);
       const made = await devkit.scaffold({
         kind: state.kind,
         name: state.name,
         dir: state.dir,
+        ...(mode === undefined ? {} : { mode }),
         ...(state.composition === null ? {} : { group: { composition: state.composition } }),
       });
       if (!made.ok) return failure(made.error);
@@ -380,7 +450,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const refused = checkSession(env, str(input, "sessionId")) ?? awaitingIntent(env.g.state());
       if (refused !== undefined) return refused;
       const state = env.g.state();
-      if (state.dir === null || state.files.length === 0)
+      // 기존 플러그인의 원본 폴더에서 시작했으면 뼈대 대신 원본 파일이 있다(`fromSource`)
+      if (state.dir === null || (state.files.length === 0 && !state.fromSource))
         return refusal("not_scaffolded", "call authoring_scaffold first");
       if (state.pending === "fix_limit")
         return refusal(
@@ -535,7 +606,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           "no_evidence",
           `the review needs evidence: pass turnId, a turn of the Test run thread ${state.trial.threadId}`,
         );
-      const purpose = optStr(input, "purpose");
+      // 목적은 도구 입력이 우선이고, 없으면 맡기기나 시작에서 받은 목적을 쓴다(M5c §4.9.6)
+      const purpose = optStr(input, "purpose") ?? state.purpose ?? undefined;
       const sent = await devkit.submit({
         dir: state.dir,
         originThreadId: threadId,
@@ -552,6 +624,26 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         itemId: sent.value.itemId,
         notice: "검토함에서 승인해야 쓸 수 있다",
       };
+    },
+  );
+
+  // 초안 목록(M5c §4.9.2). 이름을 주지 않으면 열린 세션의 플러그인이다. 최신 먼저이고 각 초안은 앞 초안(`parent`)을 가리킨다
+  const drafts = tool(
+    "authoring_drafts",
+    "Plugin authoring: list the drafts of a plugin, newest first. Each draft names its parent (the draft before it) and the review item it was sent with, if any. Without a name it lists the drafts of the plugin in the open session.",
+    Type.Object(
+      { name: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })) },
+      { additionalProperties: false },
+    ),
+    "read",
+    async (input) => {
+      const name = optStr(input, "name") ?? env.g.state().name;
+      if (name === null) return refusal("no_name", "name the plugin, or open a session first");
+      if (devkit.draftList === undefined)
+        return refusal("drafts_unavailable", "this build cannot list the drafts of a plugin");
+      const listed = await devkit.draftList(name);
+      if (!listed.ok) return failure(listed.error);
+      return { ok: true, name, drafts: listed.value.drafts.map((draft) => json(draft)) };
     },
   );
 
@@ -580,5 +672,18 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
-  return [guide, kinds, start, compose, scaffold, validate, trial, replay, pack, submit, stop];
+  return [
+    guide,
+    kinds,
+    start,
+    compose,
+    scaffold,
+    validate,
+    trial,
+    replay,
+    pack,
+    submit,
+    drafts,
+    stop,
+  ];
 }

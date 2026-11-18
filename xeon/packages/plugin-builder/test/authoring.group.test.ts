@@ -18,7 +18,7 @@ async function confirmedSession(rig: GroupRig): Promise<void> {
   await rig.answer("yes");
 }
 
-test("authoring.manifest: builtin plugin group, default on, eleven tools registered, all deferred", async () => {
+test("authoring.manifest: builtin plugin group, default on, twelve tools registered, all deferred", async () => {
   expect(authoringManifest.name).toBe("authoring");
   expect(authoringManifest.defaultEnabled).toBe(true);
   expect(authoringManifest.trust).toEqual({ level: "builtin" });

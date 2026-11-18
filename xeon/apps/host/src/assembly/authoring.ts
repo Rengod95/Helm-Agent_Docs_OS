@@ -85,6 +85,8 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
     pack: async (input) => (await port()?.pack(input)) ?? err(NOT_READY),
     // 제출은 검토 흐름의 제출 포트다(M5c §3.5, §4.9). 설치(`link`)는 폐기됐다(M5c §7.7)
     submit: async (input) => (await port()?.submit(input)) ?? err(NOT_READY),
+    sourceOf: async (name) => (await port()?.sourceOf(name)) ?? err(NOT_READY),
+    draftList: async (name) => (await port()?.draftList(name)) ?? err(NOT_READY),
   };
 }
 

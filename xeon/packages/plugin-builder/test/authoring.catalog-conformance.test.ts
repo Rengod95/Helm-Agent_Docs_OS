@@ -24,7 +24,7 @@ test("authoring.catalog-conformance: a renamed hook in a template fails conforma
   const original = readFileSync(manifestPath, "utf8");
   expect(original).toContain('"boundary.settle.after"');
   writeFileSync(manifestPath, original.replace("boundary.settle.after", "boundary.settle.renamed"));
-  const problems = await catalogConformance({ group: real.group, single });
+  const problems = await catalogConformance({ ...real, single });
   expect(problems.length).toBeGreaterThan(0);
   expect(problems.every((line) => line.startsWith("single-plugin/conf-single:"))).toBe(true);
 });
