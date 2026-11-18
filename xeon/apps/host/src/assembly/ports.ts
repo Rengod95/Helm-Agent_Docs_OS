@@ -16,6 +16,7 @@ import {
 } from "@fresnel/contracts";
 import {
   isId,
+  type EventId,
   type IdFactory,
   type LocalIdFactory,
   type ThreadId,
@@ -24,12 +25,14 @@ import {
 import type {
   LeaseHolder,
   LeaseToken,
+  RewindId,
   SessionService,
   StoreService,
 } from "@fresnel/contracts/records";
 import type {
   ApprovalService,
   ContextService,
+  FileRewindService,
   LoopService,
   ModelService,
   OsService,
@@ -60,6 +63,7 @@ import type {
   ApprovalPort,
   EventFeedPort,
   EnginePorts,
+  FileRewindPort,
   HostLogPort,
   HostMode,
   LockOutcome,
@@ -77,6 +81,7 @@ import type {
   WithdrawFailure,
 } from "../types.ts";
 import { threadLocked } from "../handlers/owner.ts";
+import { startedRewindOf, undoneConversationOf } from "./file-rewind.ts";
 import { wireErrorOfProject } from "../handlers/m4/project.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
@@ -166,6 +171,14 @@ export interface PortsDeps {
   readonly logger: Logger;
   readonly session: SessionService;
   readonly store: StoreService;
+  /**
+   * 파일 되감기 포트. cap-workspace가 `fresnel.file-rewind`로 내놓은 서비스와 되감기 식별자 발급기다. 없으면(원본 저장 포트가
+   * 없는 조립) 파일 되감기 메서드는 `notImplemented`다
+   */
+  readonly fileRewind?: {
+    readonly service: FileRewindService;
+    readonly newRewindId: () => RewindId;
+  };
   readonly loop: LoopService;
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
@@ -754,7 +767,38 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다
       const reverted = await session.threads.revert(threadId, to, deps.ids.next("evt"));
       if (!reverted.ok) return reverted;
-      return ok({ position: { storeId, seq: reverted.value.headSeq } });
+      return ok({
+        leaf: reverted.value.leaf,
+        position: { storeId, seq: reverted.value.headSeq },
+      });
+    },
+    openTurnOf(threadId) {
+      const open = session.query.openTurn(threadId);
+      if (!open.ok) return open;
+      return ok(open.value?.turnId);
+    },
+    closed(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      return ok(found.value?.status === "closed");
+    },
+    async leafOf(threadId) {
+      // 활성 가지는 루트에서 leaf 순서로 나온다. 마지막 이벤트가 현재 leaf다
+      let leaf: EventId | null = null;
+      for await (const item of session.readBranch(threadId)) {
+        if (!item.ok) return err(item.error);
+        leaf = item.value.id;
+      }
+      return ok(leaf);
+    },
+    async restoreLeaf(threadId, target) {
+      // 되돌리기마다 새 키다. 파일 되돌리기가 대화를 되감기 직전으로 돌릴 때만 부른다(L1.persistence §4.13.2)
+      const moved = await session.threads.moveLeaf(threadId, target, {
+        reason: "restore",
+        requestKey: deps.ids.next("evt"),
+      });
+      if (!moved.ok) return moved;
+      return ok({ position: { storeId, seq: moved.value.headSeq } });
     },
     rename(threadId, title) {
       // 제목마다 새 키다: 같은 키로 다른 제목을 쓰면 key_reused라 호출 한 번이 제목 한 번이다
@@ -1500,8 +1544,20 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     clock: deps.clock,
     log: deps.logger,
   });
+  // 파일 되감기 포트(M4). 서비스와 발급기는 조립이 주고, 시작 기록 읽기는 이 대화 저장소 세션이 한다
+  const fileRewind: FileRewindPort | undefined =
+    deps.fileRewind === undefined
+      ? undefined
+      : {
+          service: deps.fileRewind.service,
+          newRewindId: deps.fileRewind.newRewindId,
+          startedOf: (threadId, rewindId) => startedRewindOf(session, threadId, rewindId),
+          undoneConversationOf: (threadId, rewindId) =>
+            undoneConversationOf(session, threadId, rewindId),
+        };
   const ports: EnginePorts = {
     threads,
+    ...(fileRewind === undefined ? {} : { fileRewind }),
     turns,
     feed,
     locks,

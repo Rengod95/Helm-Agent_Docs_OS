@@ -178,7 +178,7 @@ export function createThreadOpenHandler(
 }
 
 /** thread가 있는지 본다. 없으면 3001, 읽기 실패는 store.* 이다 */
-function requireThread(engine: Engine, threadId: ThreadId, where: string): void {
+export function requireThread(engine: Engine, threadId: ThreadId, where: string): void {
   const exists = engine.ports.threads.exists(threadId);
   if (!exists.ok) throw wireErrorOfStore(exists.error, `${where} thread lookup`);
   if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
@@ -362,7 +362,8 @@ export function createThreadRevertHandler(engine: Engine): WireHandler<"thread.r
     requireOwned(engine, params.threadId);
     const reverted = await engine.ports.threads.revert(params.threadId, params.to);
     if (!reverted.ok) throw wireErrorOfLifecycle(reverted.error, "thread.revert");
-    return reverted.value;
+    // `leaf`는 파일 되감기가 쓴다. 이 메서드의 결과에는 싣지 않는다(F wire §3.3.1 thread.revert)
+    return { position: reverted.value.position };
   };
 }
 
