@@ -757,7 +757,7 @@ Fresnel 데스크톱
 
 | 구역 | 항목 | 출처 |
 |---|---|---|
-| drive 락 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
+| drive 락 | Drive 스택(위에서 아래로 칸마다 이름, 상태(Drive 중, 핸드오프하고 기다림, 답을 기다림), 한도 칸, 플러그인 프레임이 없으면 "Drive 없이 기본으로 돌아요"), 보유 그룹, 대기열(대기 그룹과 순서, 거부된 그룹) | `drive.frames`·`drive.framesChanged`, `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
 | 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
 | 전환 기록 | 단계 경계마다의 drive 락 교대, 켜기·끄기 적용(시각, 턴, 사유) 최근 20개 | `lease.*`, `scope.changed` 이벤트 |
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
@@ -1218,6 +1218,43 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: Enter 보내기, ⇧Enter 줄바꿈, ⌘. 중단, ⌘L 입력창 초점, `/` 자동 완성(↑↓ 이동, Tab 채우기), ⌘⇧A 다음 승인 카드, 카드 안 Y·N·⇧Y.
 - 접근성: 트랜스크립트 스크롤 영역은 `role="region"`, 이름 "대화 기록", `tabindex="0"`이라 Tab으로 들어가 PageUp/PageDown/Home/End와 방향키로 움직이고 안쪽 초점 고리가 보입니다(`views/virtual-list.tsx`). 다른 대화로 바뀌면(첫 행 키가 달라지면) 이전 대화에서 올려 둔 위치를 잇지 않고 바닥에 다시 붙고, 같은 대화에서 사용자가 올려 둔 위치는 그대로입니다 [근거: rtE R-11, 재현 한 번뿐이라 원인은 추정]. 스트리밍 글자는 읽지 않고, 승인 요청과 턴 완료·실패는 앱의 polite 안내 영역 하나가 짧게 알립니다(§6.0 실시간 안내). 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
 - caustic: `Message`(user 버블, agent 세리프), `MessageCode`, `Thinking`, `ToolCall`, `ActivityTree`(서브에이전트와 Helm 렌즈 진행), `AgentRequest`(kind `permission`, `review`, `proposal`), `ChoiceGroup`(질문), `Plan`(계획 단계 미리보기), `Composer`, `Suggestions`, `Alert`, `Card`, `Dialog`, `EmptyState`, `Skeleton`, `ScrollArea`. Markdown 렌더는 caustic 밖입니다 `[gap:C-06]`.
+
+#### 6.6.1 프로필 칩, 원샷, Drive 표시 (M6a)
+
+대화 화면에서 이 대화의 프로필, 한 턴 원샷, Drive가 누구에게 있는지를 보입니다. 크래프트 쪽 화면(프로필 편집, 테스트 런)은 이 절이 아닙니다 [근거: `docs/xeon/review/m6/craft-flows.md` T1, T2, T6].
+
+```text
+ [◇ 기본 › helm › verifier  핸드오프 중  7/8턴  (i)]          ← Drive 스택 띠(플러그인이 이끌 때만)
+ [▲ 권한이 바뀌어요: 묻기 → 모두 허용]                        ← 경고 줄(숨기지 않음)
+ [▲ 스타트 Drive helm을(를) 시작할 수 없어요 · 플러그인이 멈춰 있어요. 메시지는 Drive 없이 기본으로 받아요]
+ [/review 이 턴만 ×] [◇ 원샷 helm  Drive가 끝날 때까지]         ← 원샷 칩 줄
+ ┌──────────────────────────────────────────────────────────┐
+ │ 메시지                                                    │
+ │ [+] [≡ 리뷰 ◇]                    [권한] [모델] [추론] [↑] │
+ └──────────────────────────────────────────────────────────┘
+```
+
+| 부분 | 자리와 모양 | 동작 | 출처 |
+|---|---|---|---|
+| 프로필 칩 | 입력창 아래 줄 왼쪽, 첨부(+) 뒤. 다른 칩과 같은 sm ghost(높이 28, 좌우 8, 아이콘 14, 글 13 tertiary) | 층 아이콘 + 지금 프로필 제목. 스타트 Drive가 있으면 나침반(시작할 수 없으면 경고색). 바꾼 뒤 단계 경계 전에는 화살표 + "리뷰 · 다음 단계부터", 적용되면 4초 "리뷰(으)로 바뀜" | 지금 값은 마지막 `profile.applied.profileId`, 없으면 대화 요약 `profileId`, 없으면 `default`. 제목은 `profile.list` |
+| 칩 메뉴 | 위로 열림, 폭 320 | 머리 "이 대화의 프로필"과 정보 아이콘. 맨 위 탈출구: 기본이 아니면 "기본 프로필로 전환"(`thread.setProfile { profileId: "default" }`), 이미 기본이면 같은 자리가 "기본 프로필 되돌리기"(`profile.default.reset { preview: true }`로 바뀔 것을 보이고 확인 뒤 `preview: false`). 구분선 뒤 프로필 라디오 줄: 제목, 아래 줄에 "스타트 Drive · helm", 프로필이 정한 권한 모드, "이 폴더에서 최근"(`profile.defaultFor { workspace }`). 숨긴 프로필은 지금 고른 것만 보입니다 | `profile.list`, `profile.defaultFor`, `thread.setProfile`, `profile.default.reset` |
+| 권한 경고 줄 | 입력창 위, 경고 빛 | 고른 프로필로 권한 모드가 바뀌면(`thread.setProfile` 결과 `preview.permission`) 단계 경계까지 보입니다. 대화 기록의 프로필 바뀜 표지에도 "· 권한 묻기 → 모두 허용"이 경고색으로 남습니다 | `thread.setProfile`, `profile.applied.permission` |
+| 프로필 바뀜 표지 | 대화 기록의 변화 표지 줄(§6.6 표지와 같은 모양) | "프로필: 기본 → 리뷰". 프로필을 찾지 못해 바뀌었으면 "프로필 X을(를) 찾지 못해 기본(으)로 바꿈". 같은 프로필의 다시 적용은 표지가 없습니다 | `profile.applied`(`switched`, `profile_missing`) |
+| 스타트 Drive 안내 | 입력창 위 경고 줄 | 프로필의 스타트 Drive를 시작할 수 없으면 까닭(플러그인이 없음, 리뷰를 마치지 않음, 멈춰 있음, Drive를 맡을 수 없음, 프로필 플러그인에 없음)과 "메시지는 Drive 없이 기본으로 받아요" | `profile.preview { id, threadId }`의 `issues`(`plugin_unknown`, `plugin_not_reviewed`, `driver_unavailable`, `driver_cannot_drive`, `driver_not_in_list`). 확장 목록이 바뀌면 다시 봅니다 |
+| 원샷 목록 | `/`를 친 동안 슬래시 목록 끝 "원샷" 묶음 | 프로필(과 공통 묶음)에 들지 않은 리뷰된 플러그인의 스킬·명령·플러그인 전체 항목. Drive 플러그인의 항목은 나침반과 "Drive가 끝날 때까지", 나머지는 "이 턴만". 드래프트는 플러그인마다 가장 새 것 하나를 점선 사각형, "드래프트" 칩, "호출마다 승인"으로 보입니다. 고르면(Enter, Tab, 누르기) 친 `/이름`을 지우고 칩 줄에 더합니다 | `plugin.invocables { threadId }`, `plugin.list { filter: { profileId } }`의 `usedBy`, `plugin.draft.list { name }` |
+| 원샷 칩 줄 | 입력창 바로 위 | 이번 턴 원샷(× 단추로 빼기, 한 턴 4개까지)과, 대화에 걸려 Drive가 끝날 때까지 남은 원샷(지울 수 없음) | 고른 값, `profile.applied.overlay`(`until: "release"`) |
+| 원샷 보내기 | 보내기 | 고른 칩과, 엔진 명령도 스킬도 아닌 `/이름 나머지`를 `resolveSlashName`(CLI와 같은 규칙)으로 풀어 `turn.start { overlay }`로 보냅니다. 여러 플러그인에 있으면 보내지 않고 `/플러그인:항목` 한정 이름을 알립니다. 원샷만 있고 글이 없으면 보낼 말을 적으라고 합니다. 이미 프로필에 든 이름은 글을 그대로 보내고 알립니다 | `turn.start.overlay` |
+| 턴의 원샷 표지 | 턴 발 줄, 답 동작 뒤 | "원샷 /review · /lint-kit", 드래프트가 들었으면 점선 사각형과 "· 드래프트" | `turn.started.invoked`, 드래프트 여부는 그때 살아 있던 `profile.applied.overlay[].draftId` |
+| Drive 스택 띠 | 입력창 맨 위 한 줄, 플러그인 프레임이 있을 때만 | "기본 › helm › verifier"(지금 이끄는 칸 굵게, 나머지 tertiary), 상태(Drive 중, 핸드오프 중, 답을 기다림), 맨 위 칸의 한도 칸(90% 넘으면 경고색), 정보 아이콘 | `drive.frames { threadId }`, `drive.framesChanged`마다 다시 읽음 |
+| Drive 스택 목록 | 런타임 탭 drive 락 구역 맨 위, 검사 탭 주도 구역의 역할 줄 아래 | 위에서 아래로 칸마다 상태 아이콘(나침반 강조색, 멈춤, 물음 말풍선 경고색, 기본 칸 점), 이름, 상태, 한도 칸. 아래 칸일수록 12px씩 들여 씁니다 | `drive.frames` |
+| Drive가 받은 말 | 대화 기록, 보낸 seq 자리 | 플러그인이 이끄는 동안 보낸 말과 스타트 Drive 대화의 첫 말은 사라지지 않고 내 말풍선으로 바로 섭니다. 아래에 조용히 시계 "전달 대기" → 체크 "전달됨". 코어 루프로 돌아가 대기 입력·턴이 된 말(`user-return:<요청 id>`)은 이 줄에서 빠집니다 | `lease.user_input`(`held`의 `input` PostItem 글, `settled`) |
+
+- 상태: 연결이 없으면 칩은 누를 수 없고 툴팁이 까닭을 말합니다. 띠는 그리지 않습니다. 목록을 읽는 중이면 메뉴에 누를 수 없는 "프로필을 읽는 중", 실패면 그 말과 "다시 읽기", 빈 목록이면 "고를 프로필이 없어요"입니다. 원샷 목록을 못 읽으면 슬래시 목록 끝에 "원샷 목록을 읽지 못했어요"이고 친 글은 풀지 않습니다. `thread.setProfile` 거절은 기존 프로필 실패 문장(`desktop.inspect.profile.error.*`, 신뢰가 필요하면 그 말)을 입력창 위 오류 줄로 보입니다.
+- 키보드: 칩은 Tab으로 닿고 Enter·Space로 메뉴를 엽니다. 메뉴는 방향키, Enter, Esc입니다. 원샷 행은 슬래시 목록과 같은 ↑↓, Tab, Enter이고 `aria-activedescendant`가 가리킵니다. 원샷 칩의 ×는 Tab으로 닿습니다.
+- [제안] 드래프트는 플러그인 16개까지만 읽습니다(이름 순). Drive 플러그인의 드래프트는 테스트 런에서만 돌므로(AGE-56) 대화 원샷 목록에 넣지 않습니다.
+- [제안] 기본 루프 칸의 이름은 "기본"입니다(확정 용어에 코어 루프의 화면 이름이 없어 고른 값).
+- [미결] "이 프로필 편집"과 Drive 멈춤 동작은 메뉴에 두지 않았습니다(크래프트 화면 몫).
+- [미결] "확인 필요" 수정 표지(AGE-53)는 칩, 원샷 행, Drive 입력 줄에 자리만 비워 둡니다.
 
 ### 6.7 P-03 받은 요청과 승인 카드
 

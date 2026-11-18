@@ -146,7 +146,7 @@ const tape = {
       threadId: T,
       turnId: started,
       at: iso(),
-      start: { origin: "user", scopeId: null, requestId: null, inputItemIds: [id] },
+      start: { origin: "user", scopeId: null, requestId: null, inputItemIds: [id], invoked: [] },
     }));
   },
   /** 진행 중 item 시작(답이면 assistant, 도구 실행이면 toolCall) */

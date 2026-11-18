@@ -4,8 +4,10 @@
 import type { ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
 import type {
   AgentRecord,
+  AppliedProfile,
   ApprovalTrail,
   ConvoMarker,
+  DriveInputRecord,
   GoalState,
   Intervention,
   LeaseRecord,
@@ -88,6 +90,10 @@ export type TurnSummary = {
   readonly inputItemIds: TurnRecord["inputItemIds"];
   /** 주도 턴이면 임대한 scope id(그 확장이 주도한 턴) */
   readonly leadScopeId: string | null;
+  /** 턴을 시작한 입력의 요청 id. 모르면 null */
+  readonly requestId: string | null;
+  /** 이 턴에 얹힌 원샷(`turn.started.invoked`) */
+  readonly invoked: TurnRecord["invoked"];
   readonly model: string | null;
   readonly startedAt: string | null;
   readonly running: boolean;
@@ -131,6 +137,8 @@ function summarizeTurn(turn: TurnRecord): TurnSummary {
     startedSeq: turn.startedSeq,
     inputItemIds: turn.inputItemIds,
     leadScopeId: turn.scopeId,
+    requestId: turn.requestId,
+    invoked: turn.invoked,
     model: turn.model,
     startedAt: turn.startedAt,
     running: done === null,
@@ -404,6 +412,42 @@ export function selectNow(s: EngineMirror, threadId: ThreadId): NowState {
 export function selectMarkers(s: EngineMirror, threadId: ThreadId): readonly ConvoMarker[] {
   const markers = convoOf(s, threadId).markers;
   return markers.length === 0 ? NO_MARKERS : markers;
+}
+
+// ── 프로필과 Drive 입력(M6a) ──────────────────────────────────────────
+
+/** 대화에 마지막으로 적용된 프로필. 아직 적용 사건을 못 봤으면 null */
+export function selectAppliedProfile(s: EngineMirror, threadId: ThreadId): AppliedProfile | null {
+  return convoOf(s, threadId).profile;
+}
+
+const NO_DRIVE_INPUTS: readonly DriveInputRecord[] = Object.freeze([]);
+
+/**
+ * 코어 루프로 돌려보낸 사용자 메시지의 입력 요청 id(엔진 `returnToLoop`가 `user-return:<요청 id>`를 64자로 자른다).
+ * 그 메시지는 입력 큐와 턴이 보이므로 Drive 입력 줄은 물러난다
+ */
+export function returnedRequestIdOf(requestId: string): string {
+  return `user-return:${requestId}`.slice(0, 64);
+}
+
+/**
+ * 화면에 보일 Drive 입력. 글이 없는 것(읽지 못한 `held`, `settled`만 본 것)과 코어 루프로 돌아가 입력 큐나 턴이 된 것은 뺀다.
+ * 오래된 것부터다
+ */
+export function selectDriveInputs(
+  s: EngineMirror,
+  threadId: ThreadId,
+): readonly DriveInputRecord[] {
+  const c = convoOf(s, threadId);
+  if (c.driveInputs.length === 0) return NO_DRIVE_INPUTS;
+  const taken = new Set<string>();
+  for (const turn of c.turns) if (turn.requestId !== null) taken.add(turn.requestId);
+  for (const input of s.queuedInputs) if (input.threadId === threadId) taken.add(input.requestId);
+  const shown = c.driveInputs.filter(
+    (record) => record.text !== null && !taken.has(returnedRequestIdOf(record.requestId)),
+  );
+  return shown.length === c.driveInputs.length ? c.driveInputs : shown;
 }
 
 // ── 작업 판(DP-195) ────────────────────────────────────────────────────

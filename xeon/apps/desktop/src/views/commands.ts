@@ -54,6 +54,9 @@ import type {
   ProfilePutResult,
   ThreadSetProfileResult,
   ProfilePreviewResult,
+  ProfileDefaultResetResult,
+  InvocableEntry,
+  DraftInfo,
   ExtValidateDirResult,
   ExtValidateResult,
   SecretListEntry,
@@ -924,6 +927,22 @@ export interface WorkbenchCommands {
     id: string,
     threadId?: ThreadId,
   ): Promise<Result<ProfilePreviewResult, CommandError>>;
+  /** `profile.defaultFor { workspace? }`: 이 폴더에서 새 대화가 받을 프로필 id(가장 최근 대화의 프로필, 없으면 `default`) */
+  defaultProfileFor(workspace: string | null): Promise<Result<string, CommandError>>;
+  /**
+   * `profile.default.reset { preview }`: 기본 프로필을 처음 주는 플러그인과 설정으로 돌린다. `preview`가 참이면 바꾸지 않고
+   * 바뀔 내용만 돌려준다
+   */
+  resetDefaultProfile(preview: boolean): Promise<Result<ProfileDefaultResetResult, CommandError>>;
+  /** `plugin.invocables { threadId }`: 이 대화가 `/이름`으로 부를 수 있는 항목(프로필 밖의 리뷰된 플러그인 포함) */
+  invocables(threadId: ThreadId): Promise<Result<readonly InvocableEntry[], CommandError>>;
+  /**
+   * `plugin.list { filter: { profileId } }`에서 이 프로필(과 공통 묶음)에 든 플러그인 이름. 원샷 목록이 프로필에 이미 든
+   * 플러그인을 가른다
+   */
+  pluginsInProfile(profileId: string): Promise<Result<ReadonlySet<string>, CommandError>>;
+  /** `plugin.draft.list { name }`: 그 플러그인의 드래프트(새것이 먼저) */
+  drafts(name: string): Promise<Result<readonly DraftInfo[], CommandError>>;
   /** `ext.validateComposition { composition }`(W-47): 구성 선언 검사. 이슈 목록은 비어 있으면 통과다 */
   validateComposition(
     composition: CompositionDecl,

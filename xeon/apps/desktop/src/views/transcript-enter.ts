@@ -12,6 +12,7 @@ import type { TranscriptRow } from "./transcript-rows.ts";
 export function rowEnterOf(kind: TranscriptRow["kind"]): RowEnter {
   switch (kind) {
     case "user":
+    case "driveInput":
       return "user";
     case "reply":
     case "live":
@@ -53,6 +54,7 @@ export function rowItemIdsOf(row: TranscriptRow): readonly ItemId[] {
     case "pending":
     case "compaction":
     case "marker":
+    case "driveInput":
     case "leadHead":
     case "leadEnd":
     case "turnFoot":

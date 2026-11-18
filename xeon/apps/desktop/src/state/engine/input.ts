@@ -11,6 +11,7 @@ import type {
   ThreadUpdatedPayload,
   TurnCompletedPayload,
   TurnId,
+  TurnInvoked,
   TurnStartedPayload,
 } from "@fresnel/contracts/conversation";
 import type {
@@ -142,6 +143,8 @@ type TurnStartInfo = {
   readonly requestId: string | null;
   /** 이 턴을 시작한 입력 item(사용자 말, 주도 입력). 줄 모델이 턴의 첫 줄을 고른다 */
   readonly inputItemIds: readonly ItemId[];
+  /** 이 턴에 얹힌 원샷(`turn.started.invoked`). 없으면 빈 목록 */
+  readonly invoked: readonly TurnInvoked[];
 };
 
 type VolatileBase = {
