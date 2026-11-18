@@ -164,3 +164,38 @@ describe("maskDeep", () => {
     expect(redactor.maskDeep(loop).value["name"]).toBe("n");
   });
 });
+
+describe("masking time is linear in the input length (AGE-61)", () => {
+  // 글자만 이어진 한 줄짜리 거대 텍스트. 스킴 접두를 앞에 둔 패턴은 이 입력에서 길이의 제곱 시간이 들었다(17 MiB에서 끝나지 않음)
+  const MIB = 1024 * 1024;
+
+  test.each([
+    ["letters", "y"],
+    ["scheme characters", "a1+.-"],
+    ["digits", "1"],
+  ])("a single line of %s without a scheme separator passes through unchanged", (_label, unit) => {
+    const text = unit.repeat(Math.ceil((4 * MIB) / unit.length));
+    const started = performance.now();
+    const out = createRedactor().mask(text);
+    const elapsedMs = performance.now() - started;
+    expect(out.text === text).toBe(true);
+    expect(out.hits).toEqual([]);
+    expect(elapsedMs).toBeLessThan(5000);
+  });
+
+  test("still masks a userinfo password after a long scheme-like run", () => {
+    const run = "a1".repeat(50_000);
+    const out = createRedactor().mask(`${run}://user:longpassword@host/x ${run}`);
+    expect(out.text).toBe(`${run}://user:[REDACTED:kv]@host/x ${run}`);
+    expect(out.hits).toEqual([{ kind: "kv", count: 1 }]);
+  });
+
+  test("does not read a separator without a scheme letter as userinfo", () => {
+    expect(createRedactor().mask("1://user:longpassword@host").text).toBe(
+      "1://user:longpassword@host",
+    );
+    expect(createRedactor().mask("://user:longpassword@host").text).toBe(
+      "://user:longpassword@host",
+    );
+  });
+});

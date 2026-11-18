@@ -101,7 +101,10 @@ const PREFIX_RULES: readonly PrefixRule[] = [
 // 18 §3.10.4 규칙 3. authorization 값 앞의 Bearer·Basic 같은 방식어는 값 밖에 둔다.
 const KV_PATTERN =
   /(api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization)(['"]?\s*[:=]\s*['"]?(?:(?:Bearer|Basic|Token)\s+)?)(?!\/\/)([^\s'"]{8,})/gi;
-const USERINFO_PATTERN = /([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)([^\s@/]+)(@)/gi;
+// 스킴(`[a-z][a-z0-9+.-]*`)은 `://` 뒤의 lookbehind로 확인한다. 앞에 두면 글자만 이어진 긴 줄(한 줄짜리 거대 텍스트)에서
+// 모든 시작 위치가 줄 끝까지 훑어 입력 길이의 제곱 시간이 든다. 이렇게 하면 `://`가 있는 자리에서만 거꾸로 훑는다.
+// 머리 그룹에는 스킴이 들어 있지 않다. 호출자는 머리의 길이만 쓴다.
+const USERINFO_PATTERN = /(:\/\/(?<=[a-z][a-z0-9+.-]*:\/\/)[^\s:@/]+:)([^\s@/]+)(@)/gi;
 
 const MARKER_START = "[REDACTED:";
 
