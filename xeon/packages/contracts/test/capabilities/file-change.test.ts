@@ -96,6 +96,29 @@ describe("file change entries", () => {
     ]);
   });
 
+  test("the old FileChange that skipped its diff reads as one entry that says so (AGE-61)", () => {
+    const skipped = {
+      path: "/w/big.txt",
+      existed: false,
+      diff: "",
+      added: 0,
+      removed: 0,
+      diffOmitted: "too_large",
+    };
+    expect(fileChangesOf(skipped)).toEqual([
+      {
+        path: "/w/big.txt",
+        op: "create",
+        existed: false,
+        diff: "",
+        added: 0,
+        removed: 0,
+        diffOmitted: "too_large",
+        source: "observed",
+      },
+    ]);
+  });
+
   test("null, scalars, arrays and objects without a change read as no entries", () => {
     expect(fileChangesOf(null)).toEqual([]);
     expect(fileChangesOf("text")).toEqual([]);

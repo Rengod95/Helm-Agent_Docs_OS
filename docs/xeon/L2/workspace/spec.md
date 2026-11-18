@@ -125,6 +125,8 @@ export const FileChangeSchema = Type.Object({
   removed: Type.Integer({ minimum: 0 }),
   /** 처음 바뀐 줄(1부터). 바뀐 줄이 없으면 생략 */
   firstChangedLine: Type.Optional(Type.Integer({ minimum: 1 })),
+  /** 입력이 커서 diff 계산을 건너뛰었다(§4.4). 이때 diff는 빈 문자열, added·removed는 0이다. 옛 기록에는 없고 없으면 계산했다는 뜻이다 */
+  diffOmitted: Type.Optional(Type.Literal("too_large")),
 });
 export type FileChange = Static<typeof FileChangeSchema>;
 ```
@@ -599,6 +601,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - 같은 프로세스 안의 같은 경로 변경은 `@fresnel/core-workspace`의 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로). 경로 해석이 비동기라 해석을 마친 순서로 줄에 서면 호출 순서가 바뀔 수 있으므로, 같은 파일 시스템의 `write`·`edit`은 해석을 호출 순서로 한 번에 하나씩 하고 줄에 자리를 잡은 뒤에 다음 호출의 해석을 시작한다(`queueInCallOrder`).
 - 알려진 제약: 이름 바꾸기로 파일을 바꾸므로 기존 파일의 실행 권한 등 모드 비트와 하드 링크는 유지되지 않는다. `ExecutionEnv`에 모드를 다루는 메서드가 없다 [미결 14].
 - `FileChange.diff`는 외부 라이브러리 없이 `files/diff.ts`가 만든다(통합 diff, 문맥 3줄); pi의 `diff` 패키지는 쓰지 않는다 [결정: 오케스트레이터 기본값].
+- 큰 입력은 diff를 계산하지 않는다 [제안: AGE-61, 측정으로 정함]. 이전·새 내용의 글자 수 합이 16 MiB를 넘거나 줄 수 합이 20만을 넘으면 `diff`를 빈 문자열, `added`·`removed`를 0으로 두고 `diffOmitted: "too_large"`를 적는다(잘못된 diff를 남기지 않는다). 모델에 돌려주는 글도 줄 수 대신 "change summary omitted: too large"를 말한다. 줄 수 상한은 짧은 줄 100 MiB가 9초와 약 10 GB를 쓴 측정에서 나왔다. 승인 카드는 이 diff가 아니라 도구 인자(전체 내용)를 보여 주므로 영향이 없다. 리뷰 수집은 빈 diff를 건너뛴다(`L2.artifacts.spec`, 바뀐 줄이 없는 항목과 같다).
 
 줄 해시 편집(2차, 설계 메모) [제안]:
 

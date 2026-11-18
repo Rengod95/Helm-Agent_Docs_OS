@@ -97,6 +97,12 @@ export function approvalMaskEntries(
 
 /** 추적하는 진행 중 파트의 상한. 넘으면 새 파트는 확인되지 않은 것으로 둔다(클라이언트는 확정 item이 올 때까지 가린다) */
 const MAX_TRACKED_PARTS = 4096;
+/**
+ * 파트 하나의 누적 원문 상한(UTF-16 길이) [제안: AGE-61]. 조각마다 누적 전체를 다시 훑으므로 비용이 누적 길이의 제곱으로 늘고,
+ * 훑는 동안 엔진 전체가 선다(17 MiB 텍스트를 쓰는 `write` 호출 인자가 이 길에서 끝나지 않았다). 넘으면 그 파트는 확인되지 않은 것으로
+ * 두고 끝까지 그렇게 둔다(클라이언트는 확정 item이 올 때까지 가린다). 값이 새지 않는 쪽으로 닫힌다.
+ */
+export const MAX_TRACKED_PART_CHARS: number = 256 * 1024;
 
 export interface PartMasker {
   /** 파트 조각 하나의 표식. `start`는 빈 누적에서 시작하고 `delta`만 누적을 늘린다(클라이언트의 이어 붙이기와 같다) */
@@ -122,8 +128,9 @@ export function createPartMasker(display: DisplayMaskPort): PartMasker {
         next = streams.size < MAX_TRACKED_PARTS || streams.has(partId) ? "" : null;
       } else {
         const known = streams.get(partId);
-        next =
+        const grown =
           known === undefined || known === null ? null : known + (phase === "delta" ? text : "");
+        next = grown !== null && grown.length > MAX_TRACKED_PART_CHARS ? null : grown;
       }
       streams.set(partId, next);
       if (next === null) return { verified: false };

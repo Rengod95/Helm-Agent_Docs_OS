@@ -34,6 +34,7 @@ export const FileChangeEntrySchema: TObject<{
   firstChangedLine: TOptional<TInteger>;
   before: TOptional<typeof ContentRefSchema>;
   after: TOptional<typeof ContentRefSchema>;
+  diffOmitted: TOptional<TLiteral<"too_large">>;
   source: TUnion<[TLiteral<"observed">, TLiteral<"reported">]>;
 }> = Type.Object(
   {
@@ -56,6 +57,8 @@ export const FileChangeEntrySchema: TObject<{
     firstChangedLine: Type.Optional(Type.Integer({ minimum: 1 })),
     before: Type.Optional(ContentRefSchema),
     after: Type.Optional(ContentRefSchema),
+    /** 입력이 커서 diff 계산을 건너뛰었다(`FileChange.diffOmitted`와 같다). 이때 `diff`는 없거나 비어 있다 */
+    diffOmitted: Type.Optional(Type.Literal("too_large")),
     /** `observed`는 코어 파일 서비스가 본 변경, `reported`는 플러그인이 알린 변경(검증되지 않음) */
     source: Type.Union([Type.Literal("observed"), Type.Literal("reported")]),
   },
@@ -79,6 +82,7 @@ function entryOfLegacy(change: FileChange): FileChangeEntry {
     added: change.added,
     removed: change.removed,
     ...(change.firstChangedLine === undefined ? {} : { firstChangedLine: change.firstChangedLine }),
+    ...(change.diffOmitted === undefined ? {} : { diffOmitted: change.diffOmitted }),
     source: "observed",
   };
 }
