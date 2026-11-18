@@ -441,7 +441,7 @@ scanTest(
         reportId: applied.reportId,
       });
       expect(report.report).toEqual(proposal.report);
-      expect(report.rulesVersions["claude-code"]).toBe("2026-11-17");
+      expect(report.rulesVersions["claude-code"]).toBe("2026-11-18");
 
       // 같은 계획을 한 번 더 적용하면 대기 중인 폴더와 겹쳐 거절한다. 폴더는 그대로다
       const before = bytesOf(join(pluginsDir, applied.drafts[0]?.name ?? ""));

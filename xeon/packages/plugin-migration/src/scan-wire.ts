@@ -12,6 +12,7 @@ import {
 } from "@fresnel/contracts";
 import type {
   HarnessId,
+  HookRunner,
   IrKind,
   IrNode,
   ItemScope,
@@ -104,7 +105,23 @@ type ScanWireIr =
       readonly key: string;
       readonly summary?: string;
     }
-  | { readonly kind: "blocked"; readonly of: IrKind; readonly code: string; readonly text: string };
+  | { readonly kind: "blocked"; readonly of: IrKind; readonly code: string; readonly text: string }
+  | {
+      readonly kind: "hook";
+      readonly event: string;
+      readonly matcher?: string;
+      readonly handler: string;
+      readonly timeoutSeconds?: number;
+      readonly extraKeys: readonly string[];
+      readonly code?: string;
+      readonly script?: {
+        readonly runner: HookRunner;
+        readonly fileName: string;
+        readonly path: string;
+        readonly args: readonly string[];
+        readonly bytes: ScanWireBytes;
+      };
+    };
 
 interface ScanWireItem {
   readonly itemId: string;
@@ -166,6 +183,7 @@ const IrKindShape = Type.Union([
   lit("mcp"),
   lit("field"),
   lit("blocked"),
+  lit("hook"),
 ]);
 
 const ItemScopeShape = Type.Union([
@@ -327,6 +345,30 @@ const WireIrShape = Type.Union([
     { kind: lit("blocked"), of: IrKindShape, code: Type.String(), text: Type.String() },
     CLOSED,
   ),
+  Type.Object(
+    {
+      kind: lit("hook"),
+      event: Type.String(),
+      matcher: Type.Optional(Type.String()),
+      handler: Type.String(),
+      timeoutSeconds: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+      extraKeys: Type.Array(Type.String()),
+      code: Type.Optional(Type.String()),
+      script: Type.Optional(
+        Type.Object(
+          {
+            runner: Type.Union([lit("sh"), lit("bash"), lit("bun"), lit("node"), lit("python3")]),
+            fileName: Type.String(),
+            path: Type.String(),
+            args: Type.Array(Type.String()),
+            bytes: Type.Object({ base64: Type.String({ pattern: BASE64_PATTERN }) }, CLOSED),
+          },
+          CLOSED,
+        ),
+      ),
+    },
+    CLOSED,
+  ),
 ]);
 
 const WireItemShape = Type.Object(
@@ -480,6 +522,26 @@ function decodeIr(wire: ScanWireIr): IrNode {
       };
     case "blocked":
       return wire;
+    case "hook":
+      return {
+        kind: "hook",
+        event: wire.event,
+        matcher: wire.matcher,
+        handler: wire.handler,
+        timeoutSeconds: wire.timeoutSeconds,
+        extraKeys: wire.extraKeys,
+        code: wire.code,
+        script:
+          wire.script === undefined
+            ? undefined
+            : {
+                runner: wire.script.runner,
+                fileName: wire.script.fileName,
+                path: wire.script.path,
+                args: wire.script.args,
+                bytes: Uint8Array.fromBase64(wire.script.bytes.base64),
+              },
+      };
     default:
       return assertNever(wire, "ScanWireIr");
   }

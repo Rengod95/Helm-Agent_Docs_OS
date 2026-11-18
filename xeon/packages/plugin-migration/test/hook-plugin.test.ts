@@ -1,0 +1,563 @@
+// 생성된 Hook 플러그인의 값 시험(수용 기준 2, 7, 28, 29, 30). `plugin.js`를 임시 폴더에서 실제로 불러 가짜 `g`로 부른다.
+import { describe, expect, test } from "bun:test";
+import { emit, type PlannedPluginWithMigration } from "../src/index.ts";
+import {
+  FAKE_TOKEN,
+  decode,
+  loadHookPlugin,
+  sortedText,
+  stdinOf,
+  manifestOf,
+  projectFiles,
+  proposeFrom,
+  PROJECT_ROOT,
+  ran,
+  type FakeOutcome,
+} from "./hook-support.ts";
+
+const HOOK = (file: string) => `$CLAUDE_PROJECT_DIR/.claude/hooks/${file}`;
+const HOOK_SCRIPT = "echo ok\n";
+
+function hookPluginOf(plugins: readonly PlannedPluginWithMigration[]): PlannedPluginWithMigration {
+  const found = plugins.find((plugin) => plugin.runtime !== undefined);
+  if (found === undefined) throw new Error("no hook plugin was proposed");
+  return found;
+}
+
+/** 스크립트 이름(매니페스트 선언)에서 파일 이름으로 가는 표 */
+function fileNameByScript(tree: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, string> {
+  const names = new Map<string, string>();
+  for (const decl of manifestOf(tree).scripts ?? []) {
+    names.set(decl.name, decl.file.slice(decl.file.lastIndexOf("/") + 1));
+  }
+  return names;
+}
+
+/** 훅 하나를 건 PreToolUse 설정 */
+function preToolSettings(matcher: string | undefined, commands: readonly string[]) {
+  return {
+    hooks: {
+      PreToolUse: [
+        {
+          ...(matcher === undefined ? {} : { matcher }),
+          hooks: commands.map((command) => ({ type: "command", command })),
+        },
+      ],
+    },
+  };
+}
+
+async function loadFrom(settings: unknown, scripts: Readonly<Record<string, string>>) {
+  const { proposal } = await proposeFrom(projectFiles(settings, scripts), [PROJECT_ROOT]);
+  const plugin = hookPluginOf(proposal.plugins);
+  const tree = emit(plugin);
+  return { proposal, tree, plugin };
+}
+
+describe("Hook 플러그인: 매처 판정(수용 기준 28)", () => {
+  const settings = {
+    hooks: {
+      PreToolUse: [
+        { matcher: "Edit|Write", hooks: [{ type: "command", command: HOOK("edit.sh") }] },
+        { matcher: "Bash", hooks: [{ type: "command", command: HOOK("bash.sh") }] },
+        { matcher: "bash", hooks: [{ type: "command", command: HOOK("typo.sh") }] },
+        { matcher: "^Notebook", hooks: [{ type: "command", command: HOOK("notebook.sh") }] },
+        { matcher: "mcp__memory__.*", hooks: [{ type: "command", command: HOOK("memory.sh") }] },
+        { matcher: "*", hooks: [{ type: "command", command: HOOK("star.sh") }] },
+        { matcher: "", hooks: [{ type: "command", command: HOOK("empty.sh") }] },
+      ],
+    },
+  };
+
+  test.each([
+    ["edit", ["edit", "star", "empty"]],
+    ["write", ["edit", "star", "empty"]],
+    // 대소문자가 다른 `bash` 매처는 `Bash`에 맞지 않는다(원본과 같다)
+    ["bash", ["bash", "star", "empty"]],
+    ["NotebookEdit", ["notebook", "star", "empty"]],
+    ["mcp__memory__create", ["memory", "star", "empty"]],
+    ["read", ["star", "empty"]],
+  ])("도구 %s에서 불린 스크립트는 %j", async (tool, expected) => {
+    const { tree } = await loadFrom(settings, {
+      ".claude/hooks/edit.sh": HOOK_SCRIPT,
+      ".claude/hooks/bash.sh": HOOK_SCRIPT,
+      ".claude/hooks/typo.sh": HOOK_SCRIPT,
+      ".claude/hooks/notebook.sh": HOOK_SCRIPT,
+      ".claude/hooks/memory.sh": HOOK_SCRIPT,
+      ".claude/hooks/star.sh": HOOK_SCRIPT,
+      ".claude/hooks/empty.sh": HOOK_SCRIPT,
+    });
+    const files = fileNameByScript(tree);
+    const loaded = await loadHookPlugin(tree, () => ran({ exitCode: 0 }));
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    await handler({ toolCallId: "call_1", toolName: tool, input: {} }, { threadId: "thr_1" });
+    const called = loaded.calls.map(
+      (call) => files.get(call.name)?.replace(".sh", "") ?? call.name,
+    );
+    expect(sortedText(called)).toEqual(sortedText(expected));
+  });
+});
+
+/** 도구 하나를 부른 뒤 첫 스크립트가 받은 표준 입력 */
+async function stdinFor(toolName: string, input: unknown, timeoutSettings = false) {
+  const command = HOOK("guard.sh");
+  const settings = timeoutSettings
+    ? { hooks: { PreToolUse: [{ hooks: [{ type: "command", command, timeout: 5 }] }] } }
+    : preToolSettings(undefined, [command]);
+  const { tree } = await loadFrom(settings, { ".claude/hooks/guard.sh": HOOK_SCRIPT });
+  const loaded = await loadHookPlugin(tree, () => ran({ exitCode: 0 }));
+  const handler = loaded.handlers.get("tool.call.before");
+  if (handler === undefined) throw new Error("tool.call.before is not registered");
+  await handler({ toolCallId: "call_1", toolName, input }, { threadId: "thr_1" });
+  const first = loaded.calls[0];
+  if (first === undefined) throw new Error("the script was not run");
+  return stdinOf(first.stdin);
+}
+
+describe("Hook 플러그인: 입력 모양 변환(수용 기준 28)", () => {
+  test("bash는 Bash이고 시간 제한은 초에서 밀리초가 된다", async () => {
+    const stdin = await stdinFor("bash", { command: "ls", timeout: 2 });
+    expect(stdin).toEqual({
+      session_id: "thr_1",
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "ls", timeout: 2000 },
+      tool_use_id: "call_1",
+    });
+  });
+
+  test("read는 Read이고 path는 file_path가 된다. transcript_path는 없다", async () => {
+    const stdin = await stdinFor("read", { path: "a.ts", offset: 3, limit: 10 });
+    expect(stdin.tool_name).toBe("Read");
+    expect(stdin.tool_input).toEqual({ file_path: "a.ts", offset: 3, limit: 10 });
+    expect("transcript_path" in stdin).toBe(false);
+  });
+
+  test("write와 한 편집은 Write와 Edit이고, 여러 편집은 edits 배열을 그대로 둔다", async () => {
+    expect((await stdinFor("write", { path: "b.ts", content: "x" })).tool_input).toEqual({
+      file_path: "b.ts",
+      content: "x",
+    });
+    expect(
+      (await stdinFor("edit", { path: "c.ts", edits: [{ oldText: "a", newText: "b" }] }))
+        .tool_input,
+    ).toEqual({
+      file_path: "c.ts",
+      old_string: "a",
+      new_string: "b",
+    });
+    expect(
+      (
+        await stdinFor("edit", {
+          path: "c.ts",
+          edits: [
+            { oldText: "a", newText: "b" },
+            { oldText: "c", newText: "d" },
+          ],
+        })
+      ).tool_input,
+    ).toEqual({
+      file_path: "c.ts",
+      edits: [
+        { old_string: "a", new_string: "b" },
+        { old_string: "c", new_string: "d" },
+      ],
+    });
+  });
+
+  test("원본에 있던 시간 제한 5초는 입력에서 5000밀리초가 된다", async () => {
+    const stdin = await stdinFor("bash", { command: "pwd" }, true);
+    expect(stdin.tool_input).toEqual({ command: "pwd" });
+  });
+});
+
+describe("Hook 플러그인: 결정 변환 표(수용 기준 29)", () => {
+  const SETTINGS = preToolSettings(undefined, [HOOK("guard.sh")]);
+  const decisionOf = (outcome: FakeOutcome | "reject") => async () => {
+    const { tree } = await loadFrom(SETTINGS, { ".claude/hooks/guard.sh": HOOK_SCRIPT });
+    const loaded = await loadHookPlugin(tree, () => {
+      if (outcome === "reject") return Promise.reject(new Error("adapter fault"));
+      return outcome;
+    });
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    return handler(
+      { toolCallId: "call_1", toolName: "bash", input: { command: "ls" } },
+      { threadId: "thr_1" },
+    );
+  };
+
+  test.each<[string, FakeOutcome, unknown]>([
+    [
+      "종료 코드 2는 막기이고 사유는 표준 오류다",
+      ran({ exitCode: 2, stderr: "no rm -rf" }),
+      { block: true, reason: "no rm -rf" },
+    ],
+    [
+      "사유가 500자를 넘으면 자른다",
+      ran({ exitCode: 2, stderr: "x".repeat(600) }),
+      { block: true, reason: "x".repeat(500) },
+    ],
+    ["사유가 비면 기본 문장이다", ran({ exitCode: 2 }), { block: true, reason: "훅이 막았다" }],
+    [
+      "permissionDecision deny는 막기다",
+      ran({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          hookSpecificOutput: { permissionDecision: "deny", permissionDecisionReason: "nope" },
+        }),
+      }),
+      { block: true, reason: "nope" },
+    ],
+    [
+      "최상위 decision block도 막기다",
+      ran({ exitCode: 0, stdout: JSON.stringify({ decision: "block", reason: "because" }) }),
+      { block: true, reason: "because" },
+    ],
+    [
+      "permissionDecision ask는 묻기다",
+      ran({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          hookSpecificOutput: { permissionDecision: "ask", permissionDecisionReason: "check it" },
+        }),
+      }),
+      { ask: true, reason: "check it" },
+    ],
+    [
+      "allow는 통과다(값 없음)",
+      ran({
+        exitCode: 0,
+        stdout: JSON.stringify({ hookSpecificOutput: { permissionDecision: "allow" } }),
+      }),
+      undefined,
+    ],
+    [
+      "defer는 통과다",
+      ran({
+        exitCode: 0,
+        stdout: JSON.stringify({ hookSpecificOutput: { permissionDecision: "defer" } }),
+      }),
+      undefined,
+    ],
+    [
+      "updatedInput은 기본으로 묻기다",
+      ran({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          hookSpecificOutput: { permissionDecision: "allow", updatedInput: { command: "ls" } },
+        }),
+      }),
+      { ask: true, reason: "입력을 바꾸려 했으나 지원하지 않는다" },
+    ],
+    ["종료 코드 1은 통과다", ran({ exitCode: 1, stderr: "oops" }), undefined],
+    ["종료 코드 3도 통과다", ran({ exitCode: 3 }), undefined],
+    ["시간 초과는 통과다", ran({ exitCode: null, signal: "SIGKILL", timedOut: true }), undefined],
+    ["신호로 끝나면 통과다", ran({ exitCode: null, signal: "SIGSEGV" }), undefined],
+    ["JSON이 아닌 출력은 통과다", ran({ exitCode: 0, stdout: "ok done" }), undefined],
+    ["실행 실패 값은 통과다", { ok: false, error: { kind: "spawn_failed" } }, undefined],
+    [
+      "샌드박스를 쓸 수 없는 실패 값도 통과다",
+      { ok: false, error: { kind: "sandbox_unavailable" } },
+      undefined,
+    ],
+  ])("%s", async (_name, outcome, expected) => {
+    expect(await decisionOf(outcome)()).toEqual(expected);
+  });
+
+  test("어댑터 자체의 예외는 던진다(엔진의 닫힌 실패 정책을 탄다)", async () => {
+    let thrown: unknown;
+    try {
+      await decisionOf("reject")();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect(String(thrown)).toContain("adapter fault");
+  });
+
+  test("여러 훅이 같이 걸리면 막기가 묻기보다 이긴다", async () => {
+    const settings = preToolSettings(undefined, [HOOK("ask.sh"), HOOK("block.sh")]);
+    const { tree } = await loadFrom(settings, {
+      ".claude/hooks/ask.sh": HOOK_SCRIPT,
+      ".claude/hooks/block.sh": HOOK_SCRIPT,
+    });
+    const loaded = await loadHookPlugin(tree, (name) =>
+      name === "ask"
+        ? ran({
+            exitCode: 0,
+            stdout: JSON.stringify({
+              hookSpecificOutput: { permissionDecision: "ask", permissionDecisionReason: "look" },
+            }),
+          })
+        : ran({ exitCode: 2, stderr: "stop" }),
+    );
+    const handler = loaded.handlers.get("tool.call.before");
+    if (handler === undefined) throw new Error("tool.call.before is not registered");
+    expect(
+      await handler({ toolCallId: "c", toolName: "bash", input: {} }, { threadId: "t" }),
+    ).toEqual({
+      block: true,
+      reason: "stop",
+    });
+  });
+});
+
+describe("Hook 플러그인: 나머지 지점", () => {
+  const SETTINGS = {
+    hooks: {
+      PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: HOOK("post.sh") }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: HOOK("prompt.sh") }] }],
+      Stop: [{ hooks: [{ type: "command", command: HOOK("stop.sh") }] }],
+      SessionStart: [
+        { matcher: "startup", hooks: [{ type: "command", command: HOOK("start.sh") }] },
+      ],
+    },
+  };
+  const SCRIPTS = {
+    ".claude/hooks/post.sh": HOOK_SCRIPT,
+    ".claude/hooks/prompt.sh": HOOK_SCRIPT,
+    ".claude/hooks/stop.sh": HOOK_SCRIPT,
+    ".claude/hooks/start.sh": HOOK_SCRIPT,
+  };
+
+  test("PostToolUse는 결과 본문 뒤에 훅 출력을 덧붙이고, 매처에 맞는 도구만 부른다", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, (name) =>
+      name === "post" ? ran({ exitCode: 2, stderr: "careful" }) : ran({ exitCode: 0 }),
+    );
+    const handler = loaded.handlers.get("tool.result");
+    if (handler === undefined) throw new Error("tool.result is not registered");
+    const patch = await handler(
+      { toolCallId: "call_9", toolName: "bash", input: { command: "ls" } },
+      { content: [{ type: "text", text: "out" }], isError: false },
+      { threadId: "thr_1" },
+    );
+    expect(patch).toEqual({
+      content: [
+        { type: "text", text: "out" },
+        { type: "text", text: "careful" },
+      ],
+    });
+    const stdin = stdinOf(loaded.calls[0]?.stdin ?? "{}");
+    expect(stdin.tool_response).toEqual({ text: "out", isError: false });
+    expect(stdin.hook_event_name).toBe("PostToolUse");
+    expect(
+      await handler(
+        { toolCallId: "c", toolName: "read", input: {} },
+        { content: [], isError: false },
+        { threadId: "t" },
+      ),
+    ).toBeUndefined();
+    expect(loaded.calls.length).toBe(1);
+  });
+
+  test("UserPromptSubmit는 막으면 입력을 삼키고(handled), 아니면 그대로 둔다", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, () => ran({ exitCode: 2, stderr: "no" }));
+    const handler = loaded.handlers.get("input.user.before");
+    if (handler === undefined) throw new Error("input.user.before is not registered");
+    expect(
+      await handler(
+        { text: "hi", source: "user" },
+        { text: "hi", handled: false },
+        { threadId: "t" },
+      ),
+    ).toEqual({
+      action: "handled",
+    });
+    expect(stdinOf(loaded.calls[0]?.stdin ?? "{}").prompt).toBe("hi");
+    const passing = await loadHookPlugin(tree, () => ran({ exitCode: 0 }));
+    const passHandler = passing.handlers.get("input.user.before");
+    if (passHandler === undefined) throw new Error("input.user.before is not registered");
+    expect(
+      await passHandler(
+        { text: "hi", source: "user" },
+        { text: "hi", handled: false },
+        { threadId: "t" },
+      ),
+    ).toBeUndefined();
+  });
+
+  test("Stop는 막으면 계속하게 하고, 같은 턴의 다음 호출에는 stop_hook_active가 참이다", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    let answer: FakeOutcome = ran({ exitCode: 2, stderr: "keep going" });
+    const loaded = await loadHookPlugin(tree, () => answer);
+    const handler = loaded.handlers.get("boundary.settle.before");
+    if (handler === undefined) throw new Error("boundary.settle.before is not registered");
+    const payload = { turnId: "turn_1" };
+    expect(await handler(payload, { continue: false, entries: [] }, { threadId: "t" })).toEqual({
+      continue: true,
+    });
+    expect(await handler(payload, { continue: false, entries: [] }, { threadId: "t" })).toEqual({
+      continue: true,
+    });
+    answer = ran({ exitCode: 0 });
+    expect(
+      await handler(payload, { continue: false, entries: [] }, { threadId: "t" }),
+    ).toBeUndefined();
+    expect(
+      await handler(payload, { continue: false, entries: [] }, { threadId: "t" }),
+    ).toBeUndefined();
+    // 막은 두 번은 참/거짓 순서로 active를 넘기고, 통과하면 상태가 지워져 다음 호출은 거짓이다
+    expect(loaded.calls.map((call) => stdinOf(call.stdin).stop_hook_active)).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  test("SessionStart는 시작할 때 한 번 돈다. 출력은 버린다(지켜보는 훅)", async () => {
+    const { tree } = await loadFrom(SETTINGS, SCRIPTS);
+    const loaded = await loadHookPlugin(tree, () => ran({ exitCode: 2, stderr: "ignored" }));
+    const handler = loaded.handlers.get("thread.start");
+    if (handler === undefined) throw new Error("thread.start is not registered");
+    expect(await handler({}, { threadId: "thr_9" })).toBeUndefined();
+    const stdin = stdinOf(loaded.calls[0]?.stdin ?? "{}");
+    expect(stdin).toEqual({
+      session_id: "thr_9",
+      hook_event_name: "SessionStart",
+      source: "startup",
+    });
+  });
+});
+
+function hookLine(
+  proposal: {
+    readonly report: readonly {
+      readonly label: string;
+      readonly differences: readonly { readonly text: string }[];
+    }[];
+  },
+  label: string,
+) {
+  const line = proposal.report.find((entry) => entry.label === label);
+  if (line === undefined) throw new Error(`no report line ${label}`);
+  return line;
+}
+
+describe("Hook 플러그인: 시간 제한과 입력 차이 보고(수용 기준 30)", () => {
+  test("시간 제한이 달라지면 원본 초와 최대 초를 항목마다 적는다", async () => {
+    const settings = {
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: HOOK("pre.sh") }] }],
+        SessionStart: [{ hooks: [{ type: "command", command: HOOK("start.sh"), timeout: 2 }] }],
+      },
+    };
+    const { proposal, tree } = await loadFrom(settings, {
+      ".claude/hooks/pre.sh": HOOK_SCRIPT,
+      ".claude/hooks/start.sh": HOOK_SCRIPT,
+    });
+    const pre = hookLine(proposal, "Hook PreToolUse");
+    expect(pre.differences.map((difference) => difference.text)).toContain(
+      "시간 제한이 달라진다: 원본 600초, 여기서는 최대 29초",
+    );
+    const start = hookLine(proposal, "Hook SessionStart");
+    expect(start.differences.some((difference) => difference.text.startsWith("시간 제한"))).toBe(
+      false,
+    );
+    const timeouts = (manifestOf(tree).scripts ?? [])
+      .map((decl) => decl.timeoutMs ?? 0)
+      .toSorted((a, b) => a - b);
+    expect(timeouts).toEqual([2000, 29000]);
+  });
+
+  test("지점 예산이 5초인 SessionStart의 기본 시간 제한은 4초로 줄어든다", async () => {
+    const { proposal, tree } = await loadFrom(
+      { hooks: { SessionStart: [{ hooks: [{ type: "command", command: HOOK("start.sh") }] }] } },
+      { ".claude/hooks/start.sh": HOOK_SCRIPT },
+    );
+    expect(hookLine(proposal, "Hook SessionStart").differences.map((d) => d.text)).toContain(
+      "시간 제한이 달라진다: 원본 600초, 여기서는 최대 4초",
+    );
+    expect((manifestOf(tree).scripts ?? [])[0]?.timeoutMs).toBe(4000);
+  });
+
+  test("스크립트가 입력에 없는 필드를 읽으면 그 차이를 적고, 모든 옮긴 Hook은 입력 공백을 적는다", async () => {
+    const { proposal } = await loadFrom(preToolSettings(undefined, [HOOK("log.sh")]), {
+      ".claude/hooks/log.sh": 'jq -r .transcript_path "$1"\necho "$CLAUDE_PLUGIN_DATA"\n',
+    });
+    const texts = hookLine(proposal, "Hook PreToolUse").differences.map(
+      (difference) => difference.text,
+    );
+    expect(texts.some((text) => text.includes("transcript_path"))).toBe(true);
+    expect(texts.some((text) => text.includes("CLAUDE_PLUGIN_DATA"))).toBe(true);
+    expect(texts.some((text) => text.includes("cwd와 permission_mode"))).toBe(true);
+  });
+});
+
+describe("Hook 플러그인: 결정성과 매니페스트(수용 기준 2, 생성 검사)", () => {
+  test("같은 입력을 두 번 내보내면 모든 파일의 바이트가 같다", async () => {
+    const settings = {
+      hooks: {
+        PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: HOOK("a.sh") }] }],
+        PostToolUse: [{ hooks: [{ type: "command", command: HOOK("b.sh") }] }],
+      },
+    };
+    const files = projectFiles(settings, {
+      ".claude/hooks/a.sh": HOOK_SCRIPT,
+      ".claude/hooks/b.sh": "echo b\n",
+    });
+    const first = emit(hookPluginOf((await proposeFrom(files, [PROJECT_ROOT])).proposal.plugins));
+    const second = emit(hookPluginOf((await proposeFrom(files, [PROJECT_ROOT])).proposal.plugins));
+    expect([...first.keys()]).toEqual([...second.keys()]);
+    for (const [path, bytes] of first) {
+      expect(decode(second.get(path))).toBe(decode(bytes));
+    }
+    const paths = [...first.keys()];
+    for (const path of [
+      ".fresnel-plugin/plugin.json",
+      "plugin.js",
+      "hooks.data.json",
+      "scripts/a.sh",
+      "scripts/b.sh",
+    ]) {
+      expect(paths).toContain(path);
+    }
+  });
+
+  test("매니페스트는 검사를 통과하고 진입과 지점과 결정 상한과 스크립트 선언을 가진다", async () => {
+    const { tree } = await loadFrom(preToolSettings("Bash", [HOOK("a.sh")]), {
+      ".claude/hooks/a.sh": HOOK_SCRIPT,
+    });
+    const manifest = manifestOf(tree);
+    expect(manifest.entry).toBe("./plugin.js");
+    expect(manifest.plugins).toEqual([
+      {
+        layer: "plugin",
+        hooks: ["tool.call.before"],
+        hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
+      },
+    ]);
+    expect(manifest.scripts).toEqual([
+      { name: "a", runner: "sh", file: "scripts/a.sh", timeoutMs: 29000 },
+    ]);
+    expect(manifest.purpose).toContain("훅");
+  });
+});
+
+describe("Hook 플러그인: 시크릿 값 부재(수용 기준 7)", () => {
+  test("명령의 리터럴 시크릿과 스크립트 본문의 값은 어디에도 남지 않는다", async () => {
+    const files = projectFiles(
+      {
+        hooks: {
+          PreToolUse: [
+            { hooks: [{ type: "command", command: `${HOOK("a.sh")} --token ${FAKE_TOKEN}` }] },
+            { hooks: [{ type: "command", command: HOOK("b.sh") }] },
+          ],
+        },
+      },
+      { ".claude/hooks/b.sh": `echo ${FAKE_TOKEN}\n` },
+    );
+    const { proposal, scan } = await proposeFrom(files, [PROJECT_ROOT]);
+    const serialized = JSON.stringify({ proposal, items: scan.items });
+    expect(serialized).not.toContain(FAKE_TOKEN);
+    const reasons = sortedText(proposal.report.map((line) => line.reason?.code));
+    expect(reasons).toEqual(["literal_secret_in_source", "secret_in_script"]);
+    for (const plugin of proposal.plugins) {
+      for (const bytes of emit(plugin).values()) expect(decode(bytes)).not.toContain(FAKE_TOKEN);
+    }
+  });
+});

@@ -274,7 +274,7 @@ function lineOf(mutate: (item: Record<string, unknown>) => void): unknown {
 test("the boundary refuses a malformed item line and names the failing key", () => {
   const missingId = parseScanChildLine(lineOf((item) => delete item["itemId"]));
   expect(missingId.ok).toBe(false);
-  const unknownKind = parseScanChildLine(lineOf((item) => (item["kind"] = "hook")));
+  const unknownKind = parseScanChildLine(lineOf((item) => (item["kind"] = "widget")));
   expect(unknownKind.ok).toBe(false);
   const extraKey = parseScanChildLine(lineOf((item) => (item["extra"] = true)));
   expect(extraKey.ok).toBe(false);

@@ -41,6 +41,7 @@ const IrKindSchema = Type.Union([
   Type.Literal("mcp"),
   Type.Literal("field"),
   Type.Literal("blocked"),
+  Type.Literal("hook"),
 ]);
 
 const ScopeSchema = Type.Union([
@@ -148,6 +149,31 @@ interface ManifestUserConfigEntry {
   readonly required: boolean;
 }
 
+/** 실행 선언(Hook 플러그인). 스크립트 선언, 진입 파일, 지점과 결정 상한을 매니페스트 필드로 옮긴다(설계 B [제안]) */
+function runtimeOf(runtime: NonNullable<PlannedPlugin["runtime"]>): Record<string, unknown> {
+  const hookDecides = runtime.hookDecides.map((decl) => ({
+    hook: decl.hook,
+    decides: [...decl.decides],
+  }));
+  return {
+    entry: runtime.entry,
+    scripts: runtime.scripts.map((script) => ({
+      name: script.name,
+      runner: script.runner,
+      file: script.file,
+      ...(script.args === undefined || script.args.length === 0 ? {} : { args: [...script.args] }),
+      timeoutMs: script.timeoutMs,
+    })),
+    plugins: [
+      {
+        layer: "plugin",
+        hooks: [...runtime.hooks],
+        ...(hookDecides.length === 0 ? {} : { hookDecides }),
+      },
+    ],
+  };
+}
+
 /** `.fresnel-plugin/plugin.json`. 키 순서는 고정이다(§4.5.4, 형식은 enC1이 정하기 전의 [제안]) */
 function manifestOf(plan: PlannedPlugin): Record<string, unknown> {
   const base = {
@@ -156,19 +182,24 @@ function manifestOf(plan: PlannedPlugin): Record<string, unknown> {
     version: "0.0.0",
     purpose: plan.purpose,
   };
-  if (plan.userConfig.length === 0) return base;
-  const userConfig = Object.fromEntries(
-    plan.userConfig.map((config): [string, ManifestUserConfigEntry] => [
-      config.key,
-      {
-        setting: `ext.${plan.name}.${config.key}`,
-        title: config.title,
-        sensitive: config.sensitive,
-        required: config.required,
-      },
-    ]),
-  );
-  return { ...base, userConfig };
+  const withConfig =
+    plan.userConfig.length === 0
+      ? base
+      : {
+          ...base,
+          userConfig: Object.fromEntries(
+            plan.userConfig.map((config): [string, ManifestUserConfigEntry] => [
+              config.key,
+              {
+                setting: `ext.${plan.name}.${config.key}`,
+                title: config.title,
+                sensitive: config.sensitive,
+                required: config.required,
+              },
+            ]),
+          ),
+        };
+  return plan.runtime === undefined ? withConfig : { ...withConfig, ...runtimeOf(plan.runtime) };
 }
 
 function sortedRecord(record: Readonly<Record<string, string>>): Record<string, string> {

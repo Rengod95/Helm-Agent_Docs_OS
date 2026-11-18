@@ -349,7 +349,11 @@ Fresnel 쪽 용어는 ADR-0023과 M5c를 따른다: 플러그인, 프로필, Inj
 
 정적 분석: 스크립트 본문에서 `.transcript_path`, `.tool_response.`, `CLAUDE_PLUGIN_DATA`, `$CLAUDE_ENV_FILE` 같은 입력 필드 참조를 문자열로 찾아 보고서에 "이 스크립트가 쓰는 입력 중 Fresnel이 채우지 못하는 것"으로 적는다. 정적 분석이 놓쳐도 어댑터 입력 표가 근거다. 스크립트가 어떤 결정을 낼 수 있는지는 정적으로 알 수 없으므로 `decides`는 위치가 허용하는 값의 상한(`["block","ask"]`)으로 선언한다(M5e §4.1.1, "낼 수 있다"는 뜻).
 
-**스크립트를 어디서 실행하는가(의존).** 플러그인 프로세스는 파일을 쓰지 못하고 읽기 범위가 자기 `tree/`뿐이다(엔진 설계 §3.4). 스크립트 실행은 엔진에 요청해야 하는데 지금 사용자 플러그인이 쓸 수 있는 길은 `workspace.shell.run`을 통합 호출 경로(M5e §5.3 U-3)로 부르는 것뿐이고, 이 길은 호출마다 정책 평가와 승인 카드를 탄다(`bypass`가 아닌 권한 모드에서는 매 도구 호출마다 카드가 뜬다). 그래서 Hook 조각은 **번들 스크립트 실행 기능**이 먼저 있어야 한다 [제안, 소유: E2/P1 설계]: 플러그인이 자기 검토본 `tree/` 안의 스크립트를 인자·표준 입력·허용 환경 변수 목록·시간 제한으로 실행해 종료 코드와 표준 출력·표준 오류를 따로 받는다. 샌드박스 안에서 돌고(읽기·쓰기 범위는 `bash`와 같다), 실행 사실은 도구 호출이 아니라 Hook 기록(`HookRun`)에 남고, 검토함 카드에 "셸 스크립트를 실행한다" 고정 안내가 뜬다. 이 기능이 정해지기 전에는 Hook 변환을 켜지 않는다(§9 조각 2의 시작 조건). 옛 외부 셸 훅(`x.operations.hookDefs`, 프로토콜 `fresnel.hook.v1`)은 이 기능이 하는 일을 설정 파일로 이미 하고 있다. 그 운명(플러그인으로 합칠지)은 `m5-plan.md`가 "M5g의 설계 범위 안에서 결정"이라고 적은 것이다. 결정은 §11 Q5.
+**지원 범위(조각 2 라이브러리 [제안]).** 구현한 것은 이벤트 다섯과 핸들러 하나다. `PreToolUse`(지점 `tool.call.before`, 막기와 묻기), `PostToolUse`(`tool.result`, 결과 본문 뒤에 훅 출력을 덧붙인다), `UserPromptSubmit`(`input.user.before`, 막으면 입력을 삼킨다), `Stop`(`boundary.settle.before`, 멈추지 말고 계속하게만 한다), `SessionStart`(`thread.start`, 지켜보기만 한다). 핸들러는 `type:"command"`의 `command`와 `timeout`(초)이다. 스크립트는 원본 폴더 안의 파일 하나다. 사용자 범위의 원본 폴더는 `~/.claude`이고 프로젝트 범위는 프로젝트 루트다. 명령 문자열에서 원본 폴더 안을 가리키는 첫 토큰을 스크립트로 정한다(`$CLAUDE_PROJECT_DIR`, `${CLAUDE_PROJECT_DIR}`, `$HOME`, `~/`, `./`, 폴더 기준 상대 경로, 절대 경로). 실행기는 확장자로 정한다(`.sh`→sh, `.py`→python3, `.js`·`.mjs`→node, `.ts`→bun). 실행기 단어(`sh`, `bash`, `python3`, `node`, `bun`)를 앞에 쓰면 그 단어가 실행기이고 확장자와 맞아야 한다. 스크립트 뒤 토큰은 인자(16개, 각 512자 이하)다. 시간 제한은 원본 초와 `지점 예산 − 1초` 가운데 작은 값이다(예산은 엔진 등급: 막는 지점 30초, 고치는 지점 10초, 지켜보는 지점 5초 [제안]). 그 밖은 `not_ported`로 보고한다: 옮기지 않는 이벤트(`hook_event_unsupported`), 핸들러 `http`·`prompt`·`agent`·`mcp_tool`과 알 수 없는 종류, `if`(`hook_if_unsupported`)와 그 밖의 핸들러 키(`hook_key_unsupported`), 시간 제한이 양의 수가 아님, 셸 연산자가 든 명령(`inline_command`), 원본 폴더 밖이나 심볼릭 링크로 밖을 가리키는 스크립트(`script_outside_root`), 알 수 없는 확장자(`unknown_runner`), 없는 스크립트(`script_missing`), 읽지 못하는 스크립트(`script_unreadable`), 시크릿 값이 든 명령(`literal_secret_in_source`)과 스크립트(`secret_in_script`), 정규식이 아닌 매처(`matcher_invalid`). 명령 문자열은 항목에도 보고서에도 싣지 않는다. 스크립트 본문은 바이트 그대로 `scripts/` 복사본이 되고, 시크릿 값 모양이 있으면 복사하지 않는다.
+
+옮기지 않은 것은 차이로 적는다. 허용 결정과 입력 변경(`updatedInput`)은 옮기지 않는다. 입력을 바꾸려는 훅은 묻기가 된다. `additionalContext`(문맥 추가)는 이 조각에서 옮기지 않는다. `SessionStart`는 대화 시작 종류를 구별하지 않고 항상 `startup`으로 본다. `Stop`의 계속 이유 문장은 모델에 전하지 않는다. `PostToolUse`의 구조화된 `tool_response`는 없고 본문과 오류 여부만 있다. 입력에는 `cwd`와 `permission_mode`를 채우지 않는다. 스크립트에 환경 변수를 주지 않는다. 스크립트 본문이 `transcript_path`, `tool_response`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_ENV_FILE`, `CLAUDE_PROJECT_DIR`를 읽으면 그 차이를 항목마다 적는다(문자열 검색이다). 표준 입력이 256 KiB를 넘으면 스크립트를 부르지 못하고 그 호출은 통과한다. 실행 실패를 통과로 보는 결정 변환 규칙의 결과다. 큰 `write` 내용을 검사하는 훅은 그 경우 막지 못한다 [미결] [근거: `xeon/packages/contracts/src/extensions/plugin-script.ts`의 `SCRIPT_LIMITS.stdinBytes`. 엔진 쪽 상한과 막는 쪽 실패 정책을 함께 정한다].
+
+**스크립트를 어디서 실행하는가(의존, 현재 사실).** 플러그인 코드는 `g.runScript(이름, {stdin})`으로 자기 매니페스트 `scripts`에 선언된 스크립트만 부른다. 선언은 매니페스트 `scripts`다(커밋 535eca04e). 엔진 쪽 실행기는 격리 자식의 `g.runScript`이고(커밋 fef400f0d), 검사 순서는 선언, 위치, 일반 파일, 승인, 돌려 보기, 띄우기다. 띄우는 것은 기존 `IsolationProcessPort.spawn`이고 샌드박스 프로필은 넓히지 않는다. 공개 타입 `GroupApi.runScript`는 커밋 074139252다. 이 조각의 Hook 플러그인은 이 길만 쓴다. **`HookRun` 기록은 아직 없다.** 스크립트 실행은 도구 호출 기록에도 검토함의 실행 기록에도 남지 않는다. 샌드박스 프로필을 넓혀야 하는 것(runner 밖의 도구, 쓰기, `CLAUDE_PLUGIN_DATA`, 폴더 밖 읽기)은 구현하지 않고 위 차이로 적는다. 옛 외부 셸 훅(`x.operations.hookDefs`, 프로토콜 `fresnel.hook.v1`)은 이 기능이 하는 일을 설정 파일로 이미 하고 있다. 그 운명(플러그인으로 합칠지)은 `m5-plan.md`가 "M5g의 설계 범위 안에서 결정"이라고 적은 것이다. 결정은 §11 Q5.
 
 #### 4.3.6 MCP 서버
 
@@ -803,7 +807,7 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 | M5e-1(위치 데이터, 결정 어휘 `ask`·`replace`, `decides`) | 조각 2 |
 | M5f(테스트 대화, `authoring_context`, `testRun.start`, 초안 제출 경로) | 조각 2의 시험, 조각 4 |
 | P1(격리 1단계: 초안이 격리 프로세스에서 돈다) | 조각 2: 초안 Hook을 테스트 실행에서 돌릴 때 |
-| 번들 스크립트 실행 기능(E2/P1 설계에 새로 요청, 현재 설계에 없음) | 조각 2의 시작 조건 |
+| 번들 스크립트 실행 기능(E2/P1 설계에 새로 요청) | 조각 2의 시작 조건. 구현됨 [제안]: 커밋 535eca04e(매니페스트 `scripts`와 계약), fef400f0d(격리 자식의 `g.runScript`와 실행기), 074139252(공개 타입 `GroupApi.runScript`). 실행 기록 `HookRun`은 아직 없다 |
 
 ### 9.4 구현 상태 (M5g-0, M5g-1 라이브러리, 2026-11-18)
 
@@ -828,8 +832,16 @@ M5g-0과 M5g-1을 한 릴리스에 같이 내도 된다. M5g-2는 M5g-1보다 �
 >
 > **라이브러리에서 바꾼 것.** `propose`의 반환 타입이 플러그인마다 이식 기록(`migration`)을 싣는다고 드러냈다(`PlannedPluginWithMigration`). 값은 같고 타입만 맞춘다. 제출 포트가 `migration.json`을 쓰는 데 필요하다.
 >
-> **아직 하지 않은 것.** Hook 스크립트 변환(조각 2)은 착수하지 않았다. 번들 스크립트 실행 기능(E2/P1)과 M5e-1의 위치 데이터, P1 격리, M5f 테스트 실행이 먼저 있어야 하고(§9.3), 이 층에는 그 입력이 아직 들어오지 않았다 [근거: §9.3 의존 요약]. 원본 폴더를 손으로 고친 뒤 다시 가져오는 정책(§6.5), 재시작 뒤의 보고서 보관, 화면과 승인 경로의 프로필 배치, `unsupportedHarness` 오류(지금 wire에는 하네스를 고르는 필드가 없어 이 층에서 낼 자리가 없다 [근거: `packages/contracts/src/wire-settings/wire/migration.ts`의 `migration.scan` 매개변수])는 남는다.
+> **아직 하지 않은 것.** Hook 스크립트 변환(조각 2)은 이 층 뒤의 조각 2 라이브러리 단락에서 구현했다([제안], 아래). 다음 문장은 그 이전 상태다. 번들 스크립트 실행 기능(E2/P1)과 M5e-1의 위치 데이터, P1 격리, M5f 테스트 실행이 먼저 있어야 하고(§9.3), 이 층에는 그 입력이 아직 들어오지 않았다 [근거: §9.3 의존 요약]. 원본 폴더를 손으로 고친 뒤 다시 가져오는 정책(§6.5), 재시작 뒤의 보고서 보관, 화면과 승인 경로의 프로필 배치, `unsupportedHarness` 오류(지금 wire에는 하네스를 고르는 필드가 없어 이 층에서 낼 자리가 없다 [근거: `packages/contracts/src/wire-settings/wire/migration.ts`의 `migration.scan` 매개변수])는 남는다.
 >
+> **조각 2 라이브러리 구현 상태(Hook 변환, 2026-11-18) [제안].** `xeon/packages/plugin-migration`에 Claude Code 설정의 `hooks`를 플러그인 드래프트로 바꾸는 라이브러리를 구현했다. 구현한 것: 어댑터(`src/adapters/claude-code.ts`의 `hookItems`, 핸들러마다 항목 하나, 스크립트 읽기는 `ScanFs` 읽기 호출뿐이다), 명령 풀이(`src/adapters/hook-command.ts`, 순수 함수), 규칙 데이터(`src/rules/claude-code.json`의 `hook` 규칙, 지점과 결정 상한과 예산과 이유 문장, 규칙 버전 2026-11-18), 생성 코드(`src/adapters/hook-plugin.ts`, 템플릿 `adapter-hooks@1`: 원본 매처 판정, 입력 모양 변환, 종료 코드와 출력의 결정 변환, `g.on`과 `g.runScript` 호출), 제안과 내보내기(`propose.ts`의 `planHook`과 `hookBuildOf`, `emit.ts`의 `runtime`이 매니페스트 `entry`, `scripts`, `plugins[0]`(`hooks`, `hookDecides`)을 옮긴다). 설정 파일 하나가 Hook 플러그인 하나다. 생성물은 `.fresnel-plugin/plugin.json`, `.fresnel-plugin/migration.json`, `plugin.js`, `hooks.data.json`, `scripts/<이름><확장자>`(원본 바이트 그대로)다. 스크립트 선언 이름은 원본 파일 이름 바탕이고, 시간 제한은 `min(원본 초, 지점 예산 − 1초)`다 [제안].
+
+시험(`xeon/packages/plugin-migration/test`, 246개 중 Hook 관련): 경로 형태별 39개(`hook-command.test.ts`), 어댑터 사례집(이벤트, 핸들러 종류, 스크립트, 시크릿, 모양이 틀린 설정, 수 보존) 29개(`hooks.test.ts`), 생성된 `plugin.js`를 임시 폴더에서 실제로 불러 가짜 `g`로 부르는 값 시험 38개(`hook-plugin.test.ts`): 수용 기준 28(매처 사례집 6행과 입력 모양), 29(결정 변환 표의 모든 행과 여러 훅의 합치기, 어댑터 예외는 던진다), 30(시간 제한과 입력 필드 차이를 항목마다), 2(같은 입력의 두 번째 내보내기는 바이트가 같다), 7(명령과 스크립트의 시크릿 값이 어디에도 없다), 매니페스트 검사(`validateManifest` 통과). 수용 기준 31("걸렸을 것")은 이 조각에서 구현하지 않았다. 턴 기록과 호스트 쪽 시험이 필요하다.
+
+호스트와 계약: wire `MIGRATION_IR_KINDS`에 `hook`을 더했다(계약 F 층, `wire-settings/wire/migration.ts`, F 명세 §3.3.4b). 호스트 쪽 카드, 검토 화면, 제출 경로는 바꾸지 않았다. 훑기 결과 항목의 `kind`가 `hook`이 되므로 목록 표시가 이 값을 알아야 한다.
+
+아직 하지 않은 것: `HookRun` 기록과 실행 기록 표시, `if` 조건과 `additionalContext`와 `Stop`의 계속 이유 문장(위 §4.3.5 차이), 문맥 추가를 `g.post`로 주는 길(`SessionStart`, `UserPromptSubmit`), 입력의 `cwd`와 `permission_mode`(대화 폴더와 권한 모드를 Hook 문맥에 주는 길이 없다 [미결] [근거: `xeon/packages/contracts/src/extensions/ops.ts`의 `HandlerContext`에 대화 폴더와 권한 모드가 없다]), 스크립트에 프로젝트 디렉터리 환경 변수를 주는 길(`envNames`는 플랫폼 허용 목록만 받는다), 테스트 실행에서 실제 도구 호출로 막기와 묻기를 확인하는 시험(§7.5의 "스크립트 실행 시험"), 수용 기준 31, 256 KiB 입력 상한의 막는 쪽 실패 정책 [미결] [근거: 위 §4.3.5 지원 범위 단락과 `SCRIPT_LIMITS.stdinBytes`].
+
 > **CLI 통로.** `docs/xeon`에서 가져오기의 CLI 명령을 찾지 못했다 [근거: `grep -n "가져오기\|migrat" docs/xeon/L4/cli/spec.md`의 결과에 명령이 없다]. CLI는 만들지 않았다.
 
 > **M5g-2 제거 구현 상태(2026-11-18).** §8.1의 1~13번을 옮겼다.

@@ -5,6 +5,7 @@ import { assertNever, Bug, parse } from "@fresnel/contracts";
 import { McpServerDefSchema, McpServerIdSchema } from "@fresnel/contracts/capabilities";
 import { looksLikeSecretValue } from "./secrets.ts";
 import {
+  claudeNameFor,
   findRule,
   NO_RULE,
   NO_RULE_ALTERNATIVE,
@@ -13,6 +14,12 @@ import {
   type RuleReason,
   type Ruleset,
 } from "./rules.ts";
+import {
+  HOOK_ADAPTER,
+  hookPluginJs,
+  type HookEntryData,
+  type HookScriptDecl,
+} from "./adapters/hook-plugin.ts";
 import {
   agentNameFrom,
   codePointLength,
@@ -30,6 +37,8 @@ import type {
   HarnessId,
   IrAgent,
   IrCommand,
+  IrHook,
+  IrHookScript,
   IrInstruction,
   IrKind,
   IrMcp,
@@ -38,6 +47,7 @@ import type {
   MigrationProposal,
   McpDefDraft,
   MigrationScan,
+  PluginRuntimeDecl,
   Question,
   ReportLine,
   ReportStatus,
@@ -69,7 +79,17 @@ const NOUN: Readonly<Record<IrKind, string>> = {
   mcp: "MCP 서버",
   field: "설정",
   blocked: "항목",
+  hook: "Hook",
 };
+
+/** 원본 기본 시간 제한(초). 핸들러에 `timeout`이 없을 때 쓴다(migration.md §4.3.5) */
+const DEFAULT_HOOK_TIMEOUT_SECONDS = 600;
+/** 시간 제한은 지점 예산에서 이만큼을 뺀다(엔진이 핸들러를 끊기 전에 스크립트를 끊는다) */
+const HOOK_TIMEOUT_MARGIN_SECONDS = 1;
+const SCRIPT_NAME_MAX = 32;
+/** Hook 항목의 자리: 등록 코드가 든 파일 */
+const HOOK_CODE_PATH = "plugin.js";
+const HOOK_DATA_PATH = "hooks.data.json";
 
 const PROJECT_SCOPE_TEXT =
   "프로젝트 범위에서 온 항목이다. 사용자 플러그인 폴더에 두고 프로젝트 이름의 프로필을 제안한다. 프로필 배치는 사용자가 확인한다.";
@@ -85,6 +105,25 @@ type UnitFile =
   | { readonly kind: "fixed"; readonly path: string; readonly bytes: Uint8Array }
   | { readonly kind: "numbered"; readonly stem: string; readonly bytes: Uint8Array };
 
+/** Hook 항목 하나가 플러그인에 주는 것. 스크립트 복사본과 `g.on` 등록 한 줄이다 */
+interface HookUnit {
+  readonly event: string;
+  /** `g.on`으로 거는 지점(규칙표가 정한다) */
+  readonly position: string;
+  /** 그 지점이 낼 수 있는 결정 종류의 상한 */
+  readonly decides: readonly string[];
+  /** 매처 원문. 모든 도구에 맞으면 null */
+  readonly matcher: string | null;
+  readonly keyPath: string | undefined;
+  /** 원본 설정 파일의 표시 경로 */
+  readonly sourcePath: string;
+  /** 엔진에 거는 실제 시간 제한(초). 원본 제한과 `지점 예산 − 1초` 가운데 작은 값이다 */
+  readonly timeoutSeconds: number;
+  /** 원본 시간 제한(초). 없으면 600이다 */
+  readonly originalSeconds: number;
+  readonly script: IrHookScript;
+}
+
 /** 항목 하나가 플러그인 하나의 일부로 들어가는 단위. 같은 `groupKey`의 단위는 같은 플러그인이 된다 */
 interface Unit {
   readonly groupKey: string;
@@ -95,6 +134,8 @@ interface Unit {
   readonly purpose: string;
   readonly files: readonly UnitFile[];
   readonly userConfig: readonly UserConfigDraft[];
+  /** Hook 항목이면 있다. 같은 설정 파일의 Hook은 한 플러그인이 된다 */
+  readonly hook?: HookUnit;
 }
 
 /** 항목 하나의 판정. `unit`이 있으면 플러그인으로 간다 */
@@ -781,6 +822,103 @@ function planMcp(item: SourceItem, ir: IrMcp, rs: Ruleset): Plan {
 
 // ── 항목 하나의 판정 ───────────────────────────────────────────────────────
 
+// ── Hook(설정의 hooks, migration.md §4.3.5) ────────────────────────────────
+
+/** 스크립트 파일 이름 바탕. 소문자 영숫자와 하이픈, 영문자로 시작, 32자 이하. 못 맞추면 `script` */
+function scriptSlugOf(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^[^a-z]+/, "")
+    .slice(0, SCRIPT_NAME_MAX)
+    .replace(/-+$/, "");
+  return slug === "" ? "script" : slug;
+}
+
+/** 파일 이름을 바탕과 확장자로 나눈다. 확장자는 소문자로 바꾼다 */
+function stemOf(fileName: string): { readonly stem: string; readonly extension: string } {
+  const dot = fileName.lastIndexOf(".");
+  if (dot <= 0) return { stem: fileName, extension: "" };
+  return { stem: fileName.slice(0, dot), extension: fileName.slice(dot).toLowerCase() };
+}
+
+/** `scripts/` 안의 파일 이름. 이미 쓴 이름이면 `-2`, `-3`을 붙인다 */
+function uniqueFileOf(stem: string, extension: string, used: Set<string>): string {
+  let name = `${stem}${extension}`;
+  let n = 2;
+  while (used.has(name)) {
+    name = `${stem}-${n}${extension}`;
+    n += 1;
+  }
+  used.add(name);
+  return name;
+}
+
+function hookDifferencesOf(
+  item: SourceItem,
+  rule: Rule,
+  rs: Ruleset,
+  originalSeconds: number,
+  limitSeconds: number,
+  script: IrHookScript,
+): Difference[] {
+  const out: Difference[] = [];
+  if (rule.difference !== undefined) out.push(rule.difference);
+  if (originalSeconds > limitSeconds) {
+    out.push({
+      kind: "time_limit",
+      text: `시간 제한이 달라진다: 원본 ${originalSeconds}초, 여기서는 최대 ${limitSeconds}초`,
+    });
+  }
+  out.push(...(rs.hookNotes ?? []));
+  const text = new TextDecoder().decode(script.bytes);
+  for (const input of rs.scriptInputs ?? []) {
+    if (text.includes(input.needle)) out.push({ kind: "semantic_loss", text: input.text });
+  }
+  const scope = scopeDifferenceOf(item);
+  if (scope !== undefined) out.push(scope);
+  return out;
+}
+
+/**
+ * Hook 항목 하나의 판정. 규칙이 `not_ported`이면 이유를 그대로 낸다. 옮기면 같은 설정 파일의 Hook들과 한 플러그인이 된다.
+ * 시간 제한은 원본과 `지점 예산 − 1초` 가운데 작은 값이다(엔진이 핸들러를 끊기 전에 스크립트가 끊긴다).
+ */
+function planHook(item: SourceItem, ir: IrHook, rs: Ruleset): Plan {
+  const rule = findRule(rs, { kind: "hook", container: ir.event, key: ir.handler, code: ir.code });
+  if (rule === undefined || rule.status === "not_ported") return fromRule(rule);
+  const hookRule = rule.hook;
+  if (hookRule === undefined || ir.script === undefined) {
+    return unported(NO_RULE, NO_RULE_ALTERNATIVE);
+  }
+  const originalSeconds = ir.timeoutSeconds ?? DEFAULT_HOOK_TIMEOUT_SECONDS;
+  const limitSeconds = hookRule.budgetSeconds - HOOK_TIMEOUT_MARGIN_SECONDS;
+  const group = scopeGroupOf(item.scope);
+  const hook: HookUnit = {
+    event: ir.event,
+    position: hookRule.position,
+    decides: hookRule.decides,
+    matcher: hookRule.matcher && ir.matcher !== undefined && ir.matcher !== "*" ? ir.matcher : null,
+    keyPath: item.keyPath,
+    sourcePath: item.path,
+    timeoutSeconds: Math.min(originalSeconds, limitSeconds),
+    originalSeconds,
+    script: ir.script,
+  };
+  const unit: Unit = {
+    groupKey: `${item.harness}|hook|${item.path}`,
+    harness: item.harness,
+    scope: item.scope,
+    rootLabel: item.rootLabel,
+    baseName: pluginBaseOf(item.harness, group, item.scope === "local" ? "local-hooks" : "hooks"),
+    purpose: `${HARNESS_NAME[item.harness]} ${scopeWordOf(group)} 훅(가져옴)`,
+    files: [],
+    userConfig: [],
+    hook,
+  };
+  return placed(unit, hookDifferencesOf(item, rule, rs, originalSeconds, limitSeconds, ir.script));
+}
+
 function planItem(item: SourceItem, ctx: Context): Plan {
   const rs = ctx.rulesets.get(item.harness);
   if (rs === undefined) return unported(NO_RULE, NO_RULE_ALTERNATIVE);
@@ -802,6 +940,8 @@ function planItem(item: SourceItem, ctx: Context): Plan {
       );
     case "blocked":
       return fromRule(findRule(rs, { kind: "blocked", code: ir.code }));
+    case "hook":
+      return planHook(item, ir, rs);
     default:
       return assertNever(ir, "planItem");
   }
@@ -891,7 +1031,10 @@ function labelOf(item: SourceItem): string {
     case "field":
       return fieldLabel(item, ir.container, ir.key);
     case "blocked":
+      if (ir.of === "hook") return `Hook ${item.keyPath ?? baseNameOf(item.path)}`;
       return `${NOUN[ir.of]} ${baseNameOf(item.path)}`;
+    case "hook":
+      return ir.matcher === undefined ? `Hook ${ir.event}` : `Hook ${ir.event}:${ir.matcher}`;
     default:
       return assertNever(ir, "labelOf");
   }
@@ -944,6 +1087,117 @@ function groupsOf(entries: readonly Entry[]): Map<string, Group> {
   return groups;
 }
 
+interface HookBuild {
+  readonly runtime: PluginRuntimeDecl;
+  /** 플러그인 폴더 기준 경로와 바이트. 스크립트 복사본과 생성 코드, 데이터다 */
+  readonly files: readonly { readonly path: string; readonly bytes: Uint8Array }[];
+}
+
+/**
+ * 같은 설정 파일의 Hook들을 플러그인 하나의 실행 선언과 파일로 바꾼다. 스크립트는 파일 하나를 한 번만 복사하고, 선언은
+ * Hook마다 하나다(시간 제한이 Hook마다 다르다). 결과는 입력 순서를 따르므로 같은 입력이면 같은 바이트다.
+ */
+function hookBuildOf(built: Built, rs: Ruleset | undefined): HookBuild | undefined {
+  const declNames = new Set<string>();
+  const fileNames = new Set<string>();
+  const scriptFiles = new Map<string, string>();
+  const files: { readonly path: string; readonly bytes: Uint8Array }[] = [];
+  const decls: HookScriptDecl[] = [];
+  const entries: HookEntryData[] = [];
+  const records: Record<string, unknown>[] = [];
+  const positions = new Map<string, Set<string>>();
+  for (const member of built.group.members) {
+    const hook = member.unit.hook;
+    if (hook === undefined) continue;
+    const { script } = hook;
+    const { stem, extension } = stemOf(script.fileName);
+    let file = scriptFiles.get(script.path);
+    if (file === undefined) {
+      file = uniqueFileOf(scriptSlugOf(stem), extension, fileNames);
+      scriptFiles.set(script.path, file);
+      files.push({ path: `scripts/${file}`, bytes: script.bytes });
+    }
+    const name = uniqueName(scriptSlugOf(stem), declNames, []);
+    const path = `scripts/${file}`;
+    decls.push({
+      name,
+      runner: script.runner,
+      file: path,
+      args: script.args,
+      timeoutMs: Math.round(hook.timeoutSeconds * 1000),
+    });
+    entries.push({ event: hook.event, matcher: hook.matcher, script: name });
+    records.push({
+      event: hook.event,
+      position: hook.position,
+      matcher: hook.matcher,
+      handler: "command",
+      script: name,
+      scriptFile: path,
+      timeoutSeconds: hook.timeoutSeconds,
+      originalTimeoutSeconds: hook.originalSeconds,
+      source: {
+        path: hook.sourcePath,
+        ...(hook.keyPath === undefined ? {} : { keyPath: hook.keyPath }),
+      },
+    });
+    const allowed = positions.get(hook.position) ?? new Set<string>();
+    for (const decide of hook.decides) allowed.add(decide);
+    positions.set(hook.position, allowed);
+  }
+  if (entries.length === 0) return undefined;
+
+  const hookPositions = [...positions.keys()].toSorted(byText);
+  const toolNames: Record<string, string> = {};
+  if (rs !== undefined) {
+    for (const fresnel of new Set(Object.values(rs.toolNames))) {
+      const claude = claudeNameFor(rs, fresnel);
+      if (claude !== undefined) toolNames[fresnel] = claude;
+    }
+  }
+  const code = hookPluginJs({
+    plugin: built.name,
+    positions: hookPositions,
+    entries,
+    toolNames,
+  });
+  const data = `${JSON.stringify(
+    {
+      schemaVersion: 1,
+      adapter: HOOK_ADAPTER,
+      rulesVersion: rs?.rulesVersion ?? "",
+      plugin: built.name,
+      hooks: records,
+    },
+    null,
+    2,
+  )}\n`;
+  return {
+    runtime: {
+      entry: `./${HOOK_CODE_PATH}`,
+      scripts: decls,
+      hooks: hookPositions,
+      hookDecides: hookPositions
+        .filter((position) => (positions.get(position)?.size ?? 0) > 0)
+        .map((position) => ({
+          hook: position,
+          decides: [...(positions.get(position) ?? [])].toSorted(byText),
+        })),
+    },
+    files: [
+      ...files,
+      { path: HOOK_CODE_PATH, bytes: encodeText(code) },
+      { path: HOOK_DATA_PATH, bytes: encodeText(data) },
+    ],
+  };
+}
+
+function byText(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 /** 그룹마다 플러그인 이름을 정하고(충돌은 접미사), 파일 트리를 만든다. 지침 조각은 항목 순서대로 번호를 받는다 */
 function buildPlugins(groups: Iterable<Group>, existing: readonly string[]): Built[] {
   const used = new Set<string>();
@@ -954,6 +1208,10 @@ function buildPlugins(groups: Iterable<Group>, existing: readonly string[]): Bui
     const placements: { readonly entry: Entry; readonly placement: Placement }[] = [];
     let numbered = 0;
     for (const member of group.members) {
+      if (member.unit.hook !== undefined) {
+        placements.push({ entry: member.entry, placement: { plugin: name, path: HOOK_CODE_PATH } });
+        continue;
+      }
       const paths: string[] = [];
       for (const file of member.unit.files) {
         let path: string;
@@ -1025,6 +1283,10 @@ export function propose(
 
   const plugins: PlannedPluginWithMigration[] = built.map((plugin) => {
     const { group } = plugin;
+    const hookBuild = hookBuildOf(plugin, byHarness.get(group.harness));
+    if (hookBuild !== undefined) {
+      for (const file of hookBuild.files) plugin.tree.set(file.path, file.bytes);
+    }
     const members = new Set<Entry>([
       ...group.members.map((member) => member.entry),
       ...(ownedByGroup.get(group.key) ?? []),
@@ -1042,6 +1304,7 @@ export function propose(
       tree: plugin.tree,
       pendingBuilder: [],
       userConfig: group.members.flatMap((member) => member.unit.userConfig),
+      ...(hookBuild === undefined ? {} : { runtime: hookBuild.runtime }),
       migration: {
         rulesVersions,
         sources: [...sources.values()],
