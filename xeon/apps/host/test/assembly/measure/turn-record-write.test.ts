@@ -398,6 +398,65 @@ test("a test run thread keeps its test scope after a restart and while the trace
   }
 });
 
+// M5c §4.8.9, 규칙 36: 테스트 대화(craftChat)의 턴은 `scope_kind = craft`로 적힌다. 표지는 저장소에 있어 재시작 뒤에도 남는다
+test("a craft thread keeps the craft scope after a restart, and an ordinary thread next to it stays live", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const CRAFT_THREAD: ThreadId = ids.next("thr");
+  const CRAFT_TURN: TurnId = ids.next("trn");
+  try {
+    const first = openHarness(dir, { enabled: true });
+    createTestRunMarks({
+      store: () => first.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    }).remember(CRAFT_THREAD, null, "craft");
+    first.commit([
+      event(1, "turn.started", TURN_STARTED, { threadId: CRAFT_THREAD, turnId: CRAFT_TURN }),
+    ]);
+    first.commit([
+      event(2, "turn.completed", TURN_COMPLETED, { threadId: CRAFT_THREAD, turnId: CRAFT_TURN }),
+    ]);
+    first.commit([event(3, "turn.started", TURN_STARTED)]);
+    first.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(storeOf(first.measurement).readTurn(CRAFT_THREAD, CRAFT_TURN)).toMatchObject({
+      ok: true,
+      value: { turn: { scopeKind: "craft" } },
+    });
+    expect(storeOf(first.measurement).readTurn(THREAD, TURN)).toMatchObject({
+      ok: true,
+      value: { turn: { scopeKind: "live" } },
+    });
+    first.stop();
+
+    // 재시작 뒤에도 같은 범위다. 표지는 메모리가 아니라 저장소에서 읽힌다
+    const second = openHarness(dir, { enabled: true });
+    const nextTurn = ids.next("trn");
+    second.commit([
+      event(5, "turn.started", TURN_STARTED, { threadId: CRAFT_THREAD, turnId: nextTurn }),
+    ]);
+    second.commit([
+      event(6, "turn.completed", TURN_COMPLETED, { threadId: CRAFT_THREAD, turnId: nextTurn }),
+    ]);
+    await settle();
+    expect(storeOf(second.measurement).readTurn(CRAFT_THREAD, nextTurn)).toMatchObject({
+      ok: true,
+      value: { turn: { scopeKind: "craft" } },
+    });
+    // 테스트 대화 표지는 테스트 실행 표지로 되살아나지 않는다
+    expect(
+      createTestRunMarks({
+        store: () => second.measurement.store,
+        clock: { now: () => AT },
+        logger,
+      }).recall(CRAFT_THREAD),
+    ).toBeUndefined();
+    second.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a live thread is not restored as a test run", async () => {
   const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
   try {

@@ -1312,7 +1312,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **시작 Drive(§4.8.6).** 첫 턴 앞의 시작 Drive는 프로필 `craft`의 `startDrive`가 기존 `openThread` 경로로 쌓는다. 스택이 비었을 때마다 다시 쌓는 일(§4.8.6의 "상주" 재무장)은 아직 없다: 턴 시작 경로에 스택 검사와 요청을 넣는 일이 E3 프레임 스택 작업과 겹쳐 이 단계에서 만들지 않았다. [미구현: M5c-2 이후]
 
-**기록 범위(§4.8.9).** `tr_thread`에 `craft` 표지를 쓰는 일은 측정 쪽 작업이다(`docs/xeon/review/m5/turn-record-metrics.md` §4.6 규칙 36).
+**기록 범위(§4.8.9).** 대화를 만들 때 `tr_thread`에 `scope_kind = craft` 표지를 쓴다(`threads.create`가 `craftChat`을 받으면 `testMarks.remember(…, "craft")`). 턴은 그 표지로 `craft`가 적히고 기본 지표에서 빠진다(`docs/xeon/review/m5/turn-record-metrics.md` §4.6 규칙 36).
 
 **시험.** `test/handlers/craft-chat.test.ts`(열기, 다시 열기, 목록, 프로필 보호, 원본 폴더 유무), `test/assembly/craft-chat.test.ts`(초안 묶기의 조건), `test/assembly/plugin-set.test.ts`(숨은 프로필의 해소와 공통 묶음 제외), `test/assembly/project-scope.test.ts`·`project-port.test.ts`(목록과 기본값 제외), `packages/core-workspace/test/roots.test.ts`(쓰기 범위 값).
 

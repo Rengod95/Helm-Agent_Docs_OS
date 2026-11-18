@@ -500,6 +500,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         // 범위 표지는 계측 설정과 무관하게 쓴다(`tr_thread.scope_kind = test`)
         testMarks.remember(created.value.threadId, null);
       }
+      // 테스트 대화의 턴은 `scope_kind = craft`로 적어 지표 기본 필터에서 뺀다(M5c §4.8.9, 규칙 36)
+      if (input.craftChat !== undefined) testMarks.remember(created.value.threadId, null, "craft");
       const head = session.feed.headSeq();
       if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
       return { threadId: created.value.threadId, position: { storeId, seq: head.value } };

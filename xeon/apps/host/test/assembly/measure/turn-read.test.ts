@@ -1226,6 +1226,46 @@ test("the cache counters give the hit rate, observed and predicted breaks, the u
   store.close();
 });
 
+// M5c §4.8.9, E §4.6 규칙 36: 테스트 대화(scope craft)의 턴은 지표 기본 필터에서 빠지고 `scopes`로 켜야 나온다
+test("craft-scope turns are left out of the default metrics and come back only when their scope is asked for", () => {
+  const store = memory();
+  // 일반 대화: 입력 100, 캐시 읽기 300이라 적중률 300/400
+  writeSteps(store, "thr_plain", "trn_plain", NOW - HOUR, [
+    { index: 0, input: 100, cacheRead: 300 },
+  ]);
+  // 테스트 대화: 입력 900, 캐시 읽기 0이라 적중률 0. 기본 지표에 들면 값이 바뀐다
+  writeSteps(
+    store,
+    "thr_craft",
+    "trn_craft",
+    NOW - HOUR,
+    [{ index: 0, input: 900, cacheRead: 0 }],
+    {
+      scopeKind: "craft",
+    },
+  );
+  const port = portOf(store, 1);
+  const period = { from: NOW - 60 * DAY, to: NOW };
+  const rateWith = (scopes: readonly ("live" | "craft")[] | null): number | null | undefined => {
+    const filter = scopes === null ? { period } : { period, scopes: [...scopes] };
+    const out = port.metrics({
+      metrics: ["block.cache_hit_rate"],
+      filter,
+      groupBy: [],
+      compare: null,
+    });
+    if (!out.ok) throw new Bug("metrics must answer in this test");
+    return out.value.rows[0]?.values["block.cache_hit_rate"]?.value;
+  };
+  // 기본 필터는 일반 대화만 센다
+  expect(rateWith(null)).toBeCloseTo(300 / 400, 10);
+  // 명시로 craft를 켜면 테스트 대화가 나온다
+  expect(rateWith(["craft"])).toBe(0);
+  // 둘 다 켜면 두 턴의 합이다
+  expect(rateWith(["live", "craft"])).toBeCloseTo(300 / 1300, 10);
+  store.close();
+});
+
 test("drive metrics read the frame rows: entries, exits by reason, usage against limits and asks inside the frame", () => {
   const store = memory();
   const T = "thr_drive";
