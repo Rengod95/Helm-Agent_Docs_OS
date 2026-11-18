@@ -168,6 +168,7 @@ function NavRow(props: {
   readonly onSelect: () => void;
 }): ReactNode {
   const icon = props.def?.icon;
+  const Mark = props.def?.Mark;
   const row = (badge: number | undefined): ReactNode => (
     <ListNavigationItem
       // 화면이 준 아이콘을 감싸서 지금 화면이면 selected(굵은 글꼴)로 그린다(DP-17)
@@ -179,7 +180,8 @@ function NavRow(props: {
         )
       }
       className={props.active ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
-      // 수만 둔다. 수 앞에 색 표시를 붙이지 않는다(DP-211 [결정: 2026-11-13 사용자 "남용"])
+      // 수 앞 표시는 화면이 준 부품 하나뿐이다(제안 줄의 크리스탈, DP-223). 다른 줄은 수만 둔다(DP-211 [결정: 2026-11-13 사용자 "남용"])
+      {...(Mark === undefined ? {} : { meta: <Mark />, "data-crystal-host": "" })}
       count={badge === undefined || badge <= 0 ? undefined : badge}
       onSelect={props.onSelect}
     >

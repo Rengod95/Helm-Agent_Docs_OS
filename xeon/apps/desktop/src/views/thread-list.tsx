@@ -19,8 +19,10 @@ import {
 import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlipList } from "../lib/motion-presets.tsx";
+import { CrystalMark } from "./effects/crystal-mark.tsx";
 import { ProgressOrb } from "./effects/progress-orb.tsx";
 import {
+  useApprovalUrgent,
   useThreadsStatus,
   useThreadSummaries,
   useThreadApprovals,
@@ -84,12 +86,10 @@ function metaOf(
   switch (badge) {
     case "approvals":
       return (
-        // 바탕 없는 숫자만(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 물듦과 같은 따뜻한 색 + 굵기, 뜻은 sr-only 글이 말한다
-        <span className="fx-attend-count" data-thread-badge="approvals">
-          <span aria-hidden>{approvals}</span>
-          <span className="sr-only">
-            {t("desktop.threads.approvalsBadge", { count: approvals })}
-          </span>
+        // 바탕 없는 숫자(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 물듦과 같은 따뜻한 색 + 굵기.
+        // 뜻은 앞의 크리스탈 표시(DP-223)가 말한다(숫자는 낭독하지 않는다)
+        <span className="fx-attend-count" data-thread-badge="approvals" aria-hidden>
+          {approvals}
         </span>
       );
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
@@ -139,6 +139,27 @@ function relativeTimeText(time: RelativeTime): string {
   }
 }
 
+/**
+ * 대화 줄의 크리스탈 표시(DP-223). 늘 그려 두고 `present`로 들고 난다(들어옴·나감 모션이 이 줄에서 돈다).
+ * 낭독 이름은 기다리는 승인 수와 시한 여부다
+ */
+function RowCrystal(props: {
+  readonly attention: boolean;
+  readonly approvals: number;
+  readonly urgent: boolean;
+}): ReactNode {
+  const waiting = t("desktop.threads.approvalsWaiting", { count: props.approvals });
+  return (
+    <CrystalMark
+      present={props.attention}
+      count={props.approvals}
+      urgent={props.urgent}
+      size={14}
+      label={props.urgent ? t("desktop.attention.deadline", { what: waiting }) : waiting}
+    />
+  );
+}
+
 const ThreadRow = memo(function ThreadRow(props: {
   readonly thread: ThreadSummary;
   /** 하위 에이전트가 만든 자식 대화: 부모 아래 들여 쓴 행 */
@@ -155,6 +176,7 @@ const ThreadRow = memo(function ThreadRow(props: {
   const approvals = useThreadApprovals(id);
   const unsent = unsentRowOf(useTurnFailure(id));
   const attention = approvals > 0 || unlisted > 0;
+  const urgent = useApprovalUrgent(id);
   const running = props.thread.status === "running";
   const [menuOpen, setMenuOpen] = useState(false);
   // 제목이 없는 대화는 첫 입력 미리보기를 제목 자리에 흐리게 두고(DP-141), 미리보기도 없으면 "제목 없음"을 흐리게 둔다. 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
@@ -182,18 +204,18 @@ const ThreadRow = memo(function ThreadRow(props: {
               statusLabels: { failed: t("desktop.threads.status.unsent") },
             }
           : {})}
+        // 줄 끝 한 칸: 크리스탈(확인이 필요할 때, DP-223) · 꼬리 글이나 수 · 진행 구슬(도는 중). 크리스탈은 늘 같은 자리에 그려 두고
+        // `present`로 들고 나서, 확인이 끝나면 다음 표시로 바뀌는 동안 갈라지며 나간다. 크리스탈과 수 사이 4, 꼬리 글과 진행 구슬 사이 6
         meta={
-          running && !attention ? (
-            <span data-slot="row-progress" className="inline-flex items-center gap-1.5">
-              {metaOf(props.thread, approvals, props.child, unsent, props.now)}
-              <ProgressOrb />
-            </span>
-          ) : (
-            metaOf(props.thread, approvals, props.child, unsent, props.now)
-          )
+          <span data-slot="row-meta" className="inline-flex items-center gap-1">
+            <RowCrystal attention={attention} approvals={approvals} urgent={urgent} />
+            {metaOf(props.thread, approvals, props.child, unsent, props.now)}
+            {running && !attention ? <ProgressOrb className="ms-0.5" /> : null}
+          </span>
         }
         // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
         data-flip-key={id}
+        data-crystal-host=""
         title={tooltip}
         // 오른쪽 클릭은 ⋯와 같은 메뉴를 연다(줄 끝 ⋯ 자리에 붙는다)
         onContextMenu={(event) => {
