@@ -138,9 +138,9 @@ test("reflect reloads an updated plugin from its reviewed copy and refreshes the
   expect(refreshes.count).toBeGreaterThan(0);
 });
 
-test("reflect loads a new plugin that is not running yet and warns when the load is refused", async () => {
+test("reflect does not load an approved new plugin: approval is not loading", async () => {
   const loads: string[] = [];
-  const warnings: string[] = [];
+  const refreshes = { count: 0 };
   const loader = partial<ExtensionLoader>({
     list: () => [],
     loadInstalled: (name) => {
@@ -148,10 +148,10 @@ test("reflect loads a new plugin that is not running yet and warns when the load
       return Promise.resolve(err({ kind: "not_found", diagnostics: [] }));
     },
   });
-  const hooks = approvalHooksOf(depsOf({ loader, warnings }));
+  const hooks = approvalHooksOf(depsOf({ loader, refreshes }));
   await hooks.reflect?.(contextOf({ kind: "new" }, FACT));
-  expect(loads).toEqual(["kit"]);
-  expect(warnings).toEqual(["plugin.review.load_skipped"]);
+  expect(loads).toEqual([]);
+  expect(refreshes.count).toBe(1);
 });
 
 test("a removal reflects only the plugin set, without touching the loader", async () => {

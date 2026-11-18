@@ -48,7 +48,7 @@ function failureOf(failure: PluginEditFailure): PluginPortFailure {
   return { kind: "profiles", failure };
 }
 
-/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣고, 수정은 검토본을 다시 읽고, 제거는 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
+/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣지 않고(처음 대화에 들 때 싣는다), 수정은 검토본을 다시 읽고, 제거는 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
 async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Promise<void> {
   const name = context.item.name;
   if (context.item.kind === "remove") {
@@ -70,12 +70,8 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
           (cause) => deps.log.error("plugin.review.reflect_failed", { name, cause: String(cause) }),
         );
       }
-    } else if (record === undefined) {
-      const installed = await loader.loadInstalled(name, new AbortController().signal);
-      if (!installed.ok) {
-        deps.log.warn("plugin.review.load_skipped", { name, kind: installed.error.kind });
-      }
     }
+    // 기록이 없는 새 이름은 지금 싣지 않는다. 승인은 적재가 아니다(§4.1.11): 처음 어느 대화의 프로필이나 덧씌우기에 들 때 싣는다
   }
   const refreshed = await attemptAsync(() => deps.refreshPluginSet());
   if (!refreshed.ok) deps.log.error("plugin.review.reflect_failed", { name });
