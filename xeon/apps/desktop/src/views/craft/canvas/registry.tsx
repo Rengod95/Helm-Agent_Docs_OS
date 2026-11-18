@@ -5,6 +5,7 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { useState, type ComponentType, type ReactNode } from "react";
 import * as cvA from "./cvA/index.tsx";
 import * as cvB from "./cvB/index.tsx";
+import * as cvC from "./cvC/index.tsx";
 
 export interface CanvasDesign {
   readonly id: string;
@@ -34,4 +35,5 @@ function CvBScreen(): ReactNode {
 export const CANVAS_DESIGNS: readonly CanvasDesign[] = [
   { id: "cvA", letter: "A", name: "desktop.craft.canvas.cvA.name", Screen: cvA.ProfileCanvas },
   { id: "cvB", letter: "B", name: "desktop.craft.canvas.cvB.name", Screen: CvBScreen },
+  { id: "cvC", letter: "C", name: "desktop.craft.canvas.cvC.name", Screen: cvC.ProfileCanvas },
 ];
