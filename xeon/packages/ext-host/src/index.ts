@@ -371,6 +371,12 @@ export {
   type IsolationLaunch,
   type IsolationLaunchInfo,
 } from "./isolation/proxy-entry.ts";
+// 매니페스트 `scripts`의 스크립트 실행기(설계 B). 확장마다 하나이고, 선언·위치·승인을 검사한 뒤 격리 포트로 띄운다
+export {
+  createScriptRunner,
+  type ScriptRunnerDeps,
+  type ScriptTarget,
+} from "./isolation/script-runner.ts";
 // 지난 턴에 돌려 보기의 후보 실행기(turn-record-metrics.md 4.8). 후보의 훅은 격리 자식에서만 돌고, 쓰기는 버리고 기능 호출은 거부한다
 export {
   createCandidateRunner,

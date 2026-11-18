@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test";
 import type { TSchema } from "typebox";
 import { parse } from "../../src/base/index.ts";
 import {
+  CARD_MCP_LAUNCH_LIMITS,
   CostFiguresSchema,
   EvidenceRefSchema,
   InjectInventorySchema,
   PluginCardSchema,
   PluginSettingDefSchema,
   PluginUiDeclSchema,
+  type CardLaunch,
+  type CardScript,
 } from "../../src/extensions/index.ts";
 import { PLUGIN_CARD } from "../wire-settings/plugin-fixtures.ts";
 
@@ -180,5 +183,82 @@ describe("evidence reference (E §3.5 minimal copy)", () => {
       parse(EvidenceRefSchema, { kind: "turn", threadId: "thr_1", turnId: "trn_1", stepIndex: -1 })
         .ok,
     ).toBe(false);
+  });
+});
+
+/** 픽스처 카드의 Inject 칸에 스크립트 칸을 얹은 값 */
+function withScriptLane(scripts: unknown): object {
+  return {
+    ...PLUGIN_CARD,
+    does: { ...PLUGIN_CARD.does, inject: { ...PLUGIN_CARD.does.inject, scripts } },
+  };
+}
+
+describe("script lane of the card (설계 B [제안])", () => {
+  const lintLaunch: CardLaunch = {
+    command: "sh",
+    args: ["scripts/lint.sh"],
+    envNames: ["LINT_LEVEL"],
+    cwd: null,
+  };
+  const lintScript: CardScript = { name: "lint", launch: lintLaunch, timeoutMs: 10000 };
+
+  test("an old card whose Inject lane has no scripts parses and keeps no scripts key", () => {
+    const parsed = parse(PluginCardSchema, PLUGIN_CARD);
+    const value: unknown = parsed.ok ? parsed.value : parsed.error;
+    expect(value).toEqual(PLUGIN_CARD);
+    expect(
+      parsed.ok && parsed.value.does.inject !== null && "scripts" in parsed.value.does.inject,
+    ).toBe(false);
+  });
+
+  test("a card with a scripts lane round trips by value", () => {
+    roundTrip(PluginCardSchema, withScriptLane([lintScript]));
+    roundTrip(PluginCardSchema, withScriptLane([]));
+  });
+
+  test("a script entry needs name, launch and timeoutMs, and the launch keeps its shape", () => {
+    expect(parse(PluginCardSchema, withScriptLane([{ name: "lint", launch: lintLaunch }])).ok).toBe(
+      false,
+    );
+    expect(parse(PluginCardSchema, withScriptLane([{ name: "lint", timeoutMs: 1 }])).ok).toBe(
+      false,
+    );
+    expect(parse(PluginCardSchema, withScriptLane([{ ...lintScript, extra: 1 }])).ok).toBe(false);
+    expect(
+      parse(
+        PluginCardSchema,
+        withScriptLane([{ ...lintScript, launch: { ...lintLaunch, shell: true } }]),
+      ).ok,
+    ).toBe(false);
+  });
+
+  test("the launch of a script has the same caps as the MCP launch", () => {
+    const longCommand = "x".repeat(CARD_MCP_LAUNCH_LIMITS.command + 1);
+    expect(
+      parse(
+        PluginCardSchema,
+        withScriptLane([{ ...lintScript, launch: { ...lintLaunch, command: longCommand } }]),
+      ).ok,
+    ).toBe(false);
+    const cwdSet = { ...lintLaunch, cwd: "/work" };
+    roundTrip(PluginCardSchema, withScriptLane([{ ...lintScript, launch: cwdSet }]));
+  });
+
+  test("timeoutMs is an integer from 1 to 60000 ms", () => {
+    for (const timeoutMs of [1, 60000]) {
+      expect(parse(PluginCardSchema, withScriptLane([{ ...lintScript, timeoutMs }])).ok).toBe(true);
+    }
+    for (const timeoutMs of [0, 60001, 1.5]) {
+      expect(parse(PluginCardSchema, withScriptLane([{ ...lintScript, timeoutMs }])).ok).toBe(
+        false,
+      );
+    }
+  });
+
+  test("the scripts lane holds at most 64 entries", () => {
+    const many = Array.from({ length: 65 }, (_, index) => ({ ...lintScript, name: `s${index}` }));
+    expect(parse(PluginCardSchema, withScriptLane(many)).ok).toBe(false);
+    expect(parse(PluginCardSchema, withScriptLane(many.slice(0, 64))).ok).toBe(true);
   });
 });

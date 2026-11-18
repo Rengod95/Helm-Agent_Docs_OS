@@ -150,11 +150,16 @@ export interface InjectInventory {
   readonly mcpServers: readonly { readonly name: string; readonly transport: "stdio" | "http"; readonly launch?: McpLaunch | null }[]; // launch는 [제안] 이름. stdio만 값이고 http는 null이다. 선택 필드라 옛 카드도 파싱된다
   readonly agents: readonly string[]; readonly providers: readonly string[]; readonly commands: readonly string[];
   readonly ui: readonly string[]; readonly replaces: readonly string[];
+  readonly scripts?: readonly { readonly name: string; readonly launch: McpLaunch; readonly timeoutMs: number }[]; // [제안, 설계 B] 스크립트 칸. 선택 필드라 옛 카드도 파싱된다(아래 문단)
 }
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
 export interface SkillEntry { readonly name: string; readonly path: string; readonly descriptionChars: number }
 // [제안] 승인하면 실행될 명령 한 줄(stdio 서버). 검토 승인이 이 확인 한 번이라 카드가 빠뜨리지 않고 싣는다(사용자 결정 2026-11-18, AGE-41). 환경 변수는 이름만 싣고 값은 싣지 않는다. 키 이름은 UTF-8 바이트 순. 화면은 M6c
 export interface McpLaunch { readonly command: string; readonly args: readonly string[]; readonly envNames: readonly string[]; readonly cwd: string | null }
+// [제안, 설계 B] 스크립트 칸 `scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나를 싣는다. `launch`는 `McpLaunch`와 같은 모양(`CardLaunch` 별칭)이고,
+// `command`는 실행기 이름(`sh`·`bash`·`bun`·`node`·`python3`) 또는 절대 경로, `args`는 상대 `file`을 포함하며, `envNames`는 이름만, `cwd`는 null이다. `timeoutMs`는 선언의 값이거나 10000이다.
+// 검토 카드는 이 칸을 mcpServers의 `launch`와 같은 자리에 "승인하면 실행될 명령"으로 보인다(승인 확인은 검토 승인 한 번이다, AGE-41). 하는 일 비교(`diff.ts`)는 스크립트 줄도 비교하므로 명령만 바뀐 갱신도 바뀜으로 보인다.
+// 환경 변수 값은 싣지 않는다. 화면은 M6c다. 스크립트 이름과 상한은 F.extensions.spec §3.1.4다.
 
 // F: 검토
 export type ReviewKind = "new" | "update" | "remove";
@@ -195,6 +200,10 @@ export interface Project { readonly projectId: string; readonly name: string; re
 // F: 덧씌우기
 export interface OverlayRef { readonly plugin: string; readonly draftId?: string; readonly entry?: string }
 ```
+
+> **구현 상태(2026-11-18, 트랙 enK2, 호스트 쪽): 스크립트 칸.** 구현됨: `apps/host/src/assembly/plugins/card.ts`의 `scriptOf`가 매니페스트 `scripts`마다 칸 하나를 싣는다. 명령은 실행기 이름이고, 인자는 상대 `file`에 `args`를 잇고, `envNames`는 선언된 이름을 UTF-8 바이트 순으로 중복 없이 싣고, `cwd`는 null, `timeoutMs`는 선언값이거나 10000이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`와 같고 넘으면 말줄임표를 붙이고 남은 수를 `…(+N)`으로 적는다. 읽기 단계의 매니페스트 상한이 카드 상한보다 작아서 읽은 선언은 잘리지 않는다. `diff.ts`의 `scriptDetailOf`는 실행기, 인자(JSON 배열), 환경 변수 이름, 기한을 비교해 추가, 삭제, 바뀜을 `inject` 줄 `script:<이름>`으로 보인다. 옛 카드는 `scripts`가 없어도 파싱된다. 시험은 `test/assembly/plugins/card.test.ts`와 `diff.test.ts`다.
+>
+> **AGE-14 확인(2026-11-18).** 코드가 도는 플러그인의 한 줄 안내는 카드의 `runs.code`(매니페스트 `entry`가 있을 때 참)를 근거로 한다. 화면은 M6c다. `entry` 없이 `scripts`만 있으면 `runs.code`는 거짓이라 한 줄이 뜨지 않는다. 스크립트 줄은 "승인하면 실행될 명령"으로 보이지만 부를 코드가 없어 실행되지 않는다. 카드는 이 차이를 보이지 않는다. 바꾸지 않았다 [미결: 스크립트만 있는 플러그인의 검토 문구. 제안은 검토 카드에 "부르는 코드가 없어 실행되지 않음"을 싣거나 검토에서 알리는 것이다] [근거: apps/host/test/assembly/plugins/card.test.ts(`runs` 값), packages/contracts/src/extensions/validate.ts(`entry` 없이도 스크립트 선언은 오류가 아니다)]. 실행기 해석과 허용 환경은 조립이 주며 `docs/xeon/L4/host-service/spec.md` §4.22에 있다.
 
 매니페스트(`contracts/src/extensions/manifest.ts`) 변경 [제안]:
 

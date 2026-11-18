@@ -55,3 +55,30 @@ export function envRefsIn(
   }
   return refs;
 }
+
+/** 본문 안을 찾는 값 형태(접두가 단어 경계에서 시작한다). 스크립트 본문과 명령 문자열에 쓴다 */
+const SECRET_VALUE_SEARCH: readonly RegExp[] = [
+  /\bsk-[A-Za-z0-9_-]{8,}/,
+  /\bghp_[A-Za-z0-9]{8,}/,
+  /\bgho_[A-Za-z0-9]{8,}/,
+  /\bgithub_pat_[A-Za-z0-9_]{8,}/,
+  /\bxox[abprs]-[A-Za-z0-9-]{8,}/,
+  /\bAKIA[0-9A-Z]{12,}/,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/i,
+];
+
+/** 텍스트 어디에든 알려진 시크릿 형태의 값이 있는가. 값은 돌려주지 않는다 */
+export function containsSecretValue(text: string): boolean {
+  return SECRET_VALUE_SEARCH.some((pattern) => pattern.test(text));
+}
+
+/** `NAME=값` 꼴로 시크릿 이름에 값을 준 토큰이 있는가(값이 `$` 참조면 값이 아니라 참조다) */
+export function assignsSecretLiteral(tokens: readonly string[]): boolean {
+  return tokens.some((token) => {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/.exec(token);
+    if (match === null) return false;
+    const name = match[1] ?? "";
+    const value = match[2] ?? "";
+    return looksLikeSecretName(name) && !value.startsWith("$");
+  });
+}

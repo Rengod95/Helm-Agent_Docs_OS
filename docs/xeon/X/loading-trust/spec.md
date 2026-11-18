@@ -570,7 +570,8 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 | `isolation/framing.ts` | 줄 단위 프레임 읽기·쓰기. 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값 |
 | `isolation/child-runtime.ts`, `child-api.ts`, `params.ts` | 호스트 프로세스 안의 실행기 `runPluginHost`. 엔트리를 import하고 `g`와 `hostOf(g)`의 얇은 대리 객체를 만든다. 요청마다 실려 온 상태·설정 스냅샷을 즉시 읽기(`g.state()`, `settingValue`)에 쓴다 |
 | `isolation/supervisor.ts` | 엔진 쪽 프로세스 관리: 처음 불릴 때 띄우기, 한동안 안 불리면 내리기(`idleMs`), 시간 초과 때 프로세스 종료(`process_killed`), 비정상 종료(`process_exit`)와 재시작 한도, 표준오류 수집 |
-| `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
+| `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability`, `runScript` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
+| `isolation/script-runner.ts` | [구현: 설계 B, 2026-11-18] 매니페스트 `scripts`의 스크립트를 띄우는 실행기 `createScriptRunner`(`PluginScriptPort`를 구현한다). 확장마다 하나다. 규칙은 아래 "스크립트 실행" |
 | `isolation/proxy-entry.ts` | 선언(`host.init` 응답)으로 같은 등록을 엔진의 ExtHost에 만들고 훅·도구·명령·메서드마다 대리 핸들러를 건다. 스트림 지켜보기 훅(`PLUGIN_HOST_NOTIFY_HOOKS`)은 응답을 기다리지 않는 알림이다 |
 | `isolation/effective.ts` | 격리 여부 결정(§4.9.0) |
 
@@ -578,7 +579,22 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 // 자식 프로세스 기동 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1). 구현은 platform-process(서비스 fresnel.process)다
 export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, IsolationSpawnError } from "@fresnel/contracts/extensions";
 // 로더 의존: LoaderDeps.process와 LoaderDeps.isolation(launch, setTimer, idleMs, maxRestarts(함수), restartWindowSec(함수), maskSecrets, onRestartLimit, onSupervisor)가 모두 있어야 격리가 켜진다
+// 스크립트 실행기 의존(선택): LoaderIsolation.runner(실행기 이름 → 절대 경로), LoaderIsolation.allowedEnv(허용 환경 값). 없으면 스크립트는 띄우지 않는다
 ```
+
+**스크립트 실행 [제안, 설계 B].** 격리 자식의 `g.runScript(name, {stdin?})`는 `engine.call` 메서드 `runScript`다(`PLUGIN_ENGINE_CALLS`). 엔진 쪽 처리기는 `engine-calls.ts`의 `runScript` 분기이고, 실행은 확장마다 만든 `createScriptRunner`(`script-runner.ts`)가 한다. 검사 순서는 F.extensions.spec §3.1.4의 `PluginScriptPort`를 따른다.
+
+1. 선언: 매니페스트 `scripts`에 이름이 있어야 한다. 없으면 `script_not_declared`.
+2. 위치: 파일 이름이 절대 경로, `..`, 백슬래시, NUL이면 `script_outside_tree`. 실제 위치(심볼릭 링크를 푼 것)가 확장 폴더 밖이면 `script_outside_tree`. 찾지 못하거나 일반 파일이 아니면(폴더 포함) `script_missing`. 파일 시스템 오류도 찾지 못한 것으로 본다.
+3. 승인: 검토된 버전만 뜬다. 초안은 `script_not_approved`로 막는다. 초안의 호출마다 승인 카드는 이번에 붙이지 않았다. 기능 호출의 승인 길(`capability-guard.ts`의 파이프라인과 `ToolsPort`)은 기능 메서드의 매핑을 전제로 하므로 스크립트에 그대로 쓸 수 없다(보고 대상).
+4. 돌려 보기: `replay`면 띄우지 않고 `replay_mode_denied`다. 후보 실행기(`candidate-runner.ts`)도 같은 값으로 거부한다.
+5. 실행기 이름: 조립 루트가 준 `runner(name)`이 절대 경로를 돌려야 한다. 없으면 `spawn_failed`(`code: runner_unavailable`).
+6. 띄우기: `IsolationProcessPort.spawn`이 전부다. 명령은 실행기 절대 경로, 인자는 `[검사를 통과한 실제 파일, ...args]`, `readRoot`는 확장 폴더, 라벨은 `script:<확장>:<스크립트>`다. 환경은 선언된 `envNames` 가운데 허용 값이 있고 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리지 않는 것뿐이다. 샌드박스 프로필을 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일). 샌드박스를 쓸 수 없으면 `sandbox_unavailable`이고 격리 없이 띄우지 않는다.
+7. 표준 입력: UTF-8로 쓰고 닫는다. 상한 `SCRIPT_LIMITS.stdinBytes`(256 KiB)를 넘으면 라우터가 `invalid_params`로 거절한다(호출하는 쪽의 오류이고 값이 아니다). [제안]
+8. 표준 출력과 표준 오류: 각각 `SCRIPT_LIMITS.outputBytes`(64 KiB)까지 모으고 넘는 부분은 버린다(`truncated`). 종료는 자식이 끝나고 표준 출력이 닫힌 뒤다.
+9. 기한: `timeoutMs`(생략하면 10초, 상한 60초)가 지나면 프로세스 트리를 `SIGKILL`로 죽이고 `timedOut: true`, `exitCode: null`, `signal: "SIGKILL"`로 답한다.
+10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
+11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 

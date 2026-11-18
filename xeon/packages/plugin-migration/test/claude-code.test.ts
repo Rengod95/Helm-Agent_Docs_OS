@@ -432,7 +432,6 @@ describe("claude-code: 설정 파일", () => {
       ["settings.enabledPlugins", "plugin_bundle", "enabledPlugins"],
       ["settings.env", "settings_known", "env"],
       ["settings.futureKey", "settings_key", "futureKey"],
-      ["settings.hooks", "hooks_in_settings", "hooks"],
       ["settings.outputStyle", "output_style", "outputStyle"],
       ["settings.permissions", "permissions", "permissions"],
     ]);

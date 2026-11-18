@@ -5,12 +5,15 @@ import {
   HOOKS,
   HOOK_POSITIONS,
   pluginDeclsOf,
+  SCRIPT_LIMITS,
   type CardHook,
   type CardMcpLaunch,
+  type CardScript,
   type CostFigures,
   type HookName,
   type HookPositionRow,
   type InjectInventory,
+  type ManifestScriptDecl,
   type PluginCard,
   type PluginEnforcement,
   type PluginOriginKind,
@@ -137,6 +140,32 @@ export function launchOf(config: JsonValue): CardMcpLaunch | null {
   };
 }
 
+/**
+ * 매니페스트 스크립트 하나의 칸. 명령은 실행기 이름이고 첫 인자는 상대 `file`, 그 뒤가 `args`다. 환경 변수는 선언된 이름만
+ * 정렬해 싣고 값은 싣지 않는다(거부 패턴에 걸리는 이름도 선언대로 싣는다. 실제로 넘기는 것은 실행기가 거른다). 작업 폴더는 없다.
+ * 기한은 선언의 값이거나 기본값이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`를 따르고 잘린 것은 말줄임표로 보인다
+ */
+function scriptOf(decl: ManifestScriptDecl): CardScript {
+  const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
+  const argv = [decl.file, ...(decl.args ?? [])];
+  return {
+    name: decl.name,
+    launch: {
+      command: clipText(decl.runner, CARD_MCP_LAUNCH_LIMITS.command),
+      args: capList(
+        argv.map((arg) => clipText(arg, CARD_MCP_LAUNCH_LIMITS.arg)),
+        CARD_MCP_LAUNCH_LIMITS.args,
+      ),
+      envNames: capList(
+        names.map((name) => clipText(name, CARD_MCP_LAUNCH_LIMITS.envName)),
+        CARD_MCP_LAUNCH_LIMITS.envNames,
+      ),
+      cwd: null,
+    },
+    timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
+  };
+}
+
 function injectOf(folder: CardSubject): InjectInventory | null {
   const { manifest, materials } = folder;
   const decls = pluginDeclsOf(manifest);
@@ -171,12 +200,15 @@ function injectOf(folder: CardSubject): InjectInventory | null {
     launch: server.transport === "stdio" ? launchOf(server.config) : null,
   }));
   const agents = unique(materials.agents.map((agent) => agent.name));
+  // 승인하면 실행될 명령 줄. 부를 코드(`entry`)가 없으면 아무도 부르지 않으므로 실행되지 않는다(validate.ts)
+  const scripts = (manifest.scripts ?? []).map(scriptOf);
 
   const empty =
     always.length === 0 &&
     skills.length === 0 &&
     tools.length === 0 &&
     mcpServers.length === 0 &&
+    scripts.length === 0 &&
     agents.length === 0 &&
     commands.length === 0 &&
     providers.length === 0 &&
@@ -192,6 +224,7 @@ function injectOf(folder: CardSubject): InjectInventory | null {
     commands,
     ui,
     replaces,
+    scripts,
   };
 }
 

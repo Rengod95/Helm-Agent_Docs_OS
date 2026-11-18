@@ -32,22 +32,23 @@ import {
   detectForeignFormats,
   foreignFormatNotice,
   propose,
-  scanRoots,
   type Choices,
   type ForeignFormatMarker,
   type HarnessId,
   type MigrationScan,
   type ReportLine,
   type Ruleset,
-  type ScanContext,
   type ScanFs,
-  type ScanRoot,
-  type SourceItem,
 } from "@fresnel/plugin-migration";
 import type { MigrationFailure, MigrationPort } from "../../handlers/m5/migration.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import { collectInOrder } from "./in-order.ts";
-import { createExistenceFs, createScanFs, type ScanGuard } from "./migration-fs.ts";
+import { createExistenceFs } from "./migration-fs.ts";
+import {
+  createMigrationScanner,
+  type MigrationScanSource,
+  type MigrationScanTuning,
+} from "./migration-scan-child.ts";
 import { createMigrationState, dismissKeyOf } from "./migration-state.ts";
 import type { MigrationSubmitPort } from "./migration-submit.ts";
 
@@ -55,7 +56,8 @@ import type { MigrationSubmitPort } from "./migration-submit.ts";
 // 라이브러리(`@fresnel/plugin-migration`)는 순수하다. 이 서비스는 읽기 전용 파일 포트(`migration-fs.ts`), 제출 포트, 프로필 저장소를 잇는다.
 // 예상 가능한 실패는 `Result`로 돌려준다. 원문과 가린 전 값은 로그에 쓰지 않는다(경로 종류와 상태 코드만).
 // 훑기 결과, 제안, 보고서는 서비스 메모리에 둔다(재시작하면 `migration.report.get`은 `notFound`다). 숨긴 표지만 상태 파일에 남는다.
-// 훑기는 같은 프로세스에서 읽기 전용 포트로 돈다. 샌드박스 자식 프로세스는 이 층에서 보류한다(§7.4 [제안], 보고서에 적는다).
+// 훑기는 엔진 밖의 샌드박스 자식 프로세스(`migration-scan --stdio`)에서 돈다(`migration-scan-child.ts`, §7.4 [제안]). 엔진은 자식의 응답 줄을
+// 검증해서만 받고, 원본 파일 내용을 읽거나 파싱하지 않는다. 감지는 존재만 보므로 엔진 안에 둔다.
 
 /** 서비스가 기억하는 훑기, 제안, 보고서의 수 [제안]. 넘으면 가장 오래된 것부터 버린다 */
 const KEPT_LIMIT = 32;
@@ -129,6 +131,10 @@ export interface MigrationServiceDeps {
   readonly profiles: MigrationProfilePort;
   readonly clock: Clock;
   readonly log: Logger;
+  /** 훑기 자식을 띄우는 원천(`fresnel.process`, `fresnel.sandbox`, 자기 실행, 스케줄러). 조립이 채운다 */
+  readonly scanSource: MigrationScanSource;
+  /** 훑기 자식의 기한과 응답 상한을 시험이 줄이는 값. 운영은 생략해 기본을 쓴다(§7.4 [제안]) */
+  readonly scanTuning?: MigrationScanTuning;
   /**
    * 감지가 쓰는 읽기 포트. 기본은 존재만 보는 포트다. 시험이 읽기 호출을 세는 대역으로 바꾼다
    */
@@ -174,39 +180,6 @@ async function canonicalDir(path: string): Promise<Result<string, MigrationFailu
   const stat = await attemptAsync(() => lstat(real.value));
   if (!stat.ok || !stat.value.isDirectory()) return err({ kind: "root_invalid" });
   return ok(real.value);
-}
-
-/** 항목의 정렬 순서. 라이브러리 `scanRoots`와 같은 규칙(경로, 키 경로, 항목 id)이다 */
-function bySourcePlace(a: SourceItem, b: SourceItem): number {
-  if (a.path !== b.path) return a.path < b.path ? -1 : 1;
-  const keyA = a.keyPath ?? "";
-  const keyB = b.keyPath ?? "";
-  if (keyA !== keyB) return keyA < keyB ? -1 : 1;
-  if (a.itemId === b.itemId) return 0;
-  return a.itemId < b.itemId ? -1 : 1;
-}
-
-/**
- * 루트마다 따로 훑은 결과를 하나로 모은다. 같은 `itemId`는 처음 것만 두고(라이브러리 `scanRoots`와 같다), 정렬한다.
- * 루트마다 따로 훑는 것은 진행 알림을 루트 단위로 내기 위해서다
- */
-function mergeScans(parts: readonly MigrationScan[], roots: readonly ScanRoot[]): MigrationScan {
-  const seen = new Set<string>();
-  const items: SourceItem[] = [];
-  for (const part of parts) {
-    for (const item of part.items) {
-      if (seen.has(item.itemId)) continue;
-      seen.add(item.itemId);
-      items.push(item);
-    }
-  }
-  return {
-    roots,
-    scanned: [...new Set(parts.flatMap((part) => part.scanned))].toSorted(),
-    items: items.toSorted(bySourcePlace),
-    diagnostics: parts.flatMap((part) => part.diagnostics),
-    limits: DEFAULT_SCAN_LIMITS,
-  };
 }
 
 /** 훑기 결과를 wire 응답으로 옮긴다. 값은 싣지 않고 `secretCount`만 싣는다 */
@@ -316,7 +289,7 @@ export function createMigrationService(deps: MigrationServiceDeps): MigrationPor
   const rulesets = rulesetsOf();
   const state = createMigrationState({ stateDir: deps.stateDir, log });
   const detectFs = deps.detectFs ?? createExistenceFs;
-  const ctx: ScanContext = { homeDir: deps.homeDir };
+  const scanner = createMigrationScanner(deps.scanSource, log, deps.scanTuning);
   const scans = keepLatest<MigrationScan>(KEPT_LIMIT);
   const proposals = keepLatest<StoredProposal>(KEPT_LIMIT);
   const reports = keepLatest<StoredReport>(KEPT_LIMIT);
@@ -414,27 +387,31 @@ export function createMigrationService(deps: MigrationServiceDeps): MigrationPor
       if (!resolved.ok) return err(resolved.error);
       const scanRootList = resolved.value;
       const scanId = newId("scan");
-      const guard: ScanGuard = createScanFs(scanRootList.map((root) => root.path));
-      let done = 0;
-      const parts = await collectInOrder(
-        scanRootList,
-        async (root): Promise<Result<readonly MigrationScan[], MigrationFailure>> => {
-          const part = await attemptAsync(() => scanRoots({ roots: [root], fs: guard.fs, ctx }));
-          if (!part.ok) {
-            log.error("migration.scan.failed", { scope: root.scope });
-            return err({ kind: "store", code: "scan" });
-          }
-          done += 1;
-          progress.emit({ scanId, done, total: scanRootList.length });
-          return ok([part.value]);
+      // 훑기는 자식 프로세스에서 돈다. 진행 줄은 루트마다 온다(`migration.progress`)
+      const outcome = await scanner.run({
+        scanId,
+        roots: scanRootList,
+        homeDir: deps.homeDir,
+        onProgress: (done, total) => {
+          progress.emit({ scanId, done, total });
         },
-      );
-      if (!parts.ok) return err(parts.error);
-      const merged = mergeScans(parts.value, scanRootList);
-      if (guard.limitReached() || merged.diagnostics.some((item) => item.code === "limit")) {
+      });
+      if (!outcome.ok) {
+        log.error("migration.scan.failed", { reason: outcome.error });
+        return err({ kind: "scan_failed", reason: outcome.error });
+      }
+      const reply = outcome.value;
+      if (reply.limitReached || reply.diagnostics.some((item) => item.code === "limit")) {
         log.warn("migration.scan.limit", { roots: scanRootList.length });
         return err({ kind: "scan_limit" });
       }
+      const merged: MigrationScan = {
+        roots: scanRootList,
+        scanned: reply.scanned,
+        items: reply.items,
+        diagnostics: reply.diagnostics,
+        limits: DEFAULT_SCAN_LIMITS,
+      };
       scans.set(scanId, merged);
       changes.emit({ kind: "scan" });
       return ok(scanResultOf(scanId, merged));

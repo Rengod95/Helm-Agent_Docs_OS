@@ -47,6 +47,8 @@ import {
   type RegistrationDef,
   type RegistrationId,
   type RegistrationSetup,
+  type ScriptRunFailure,
+  type ScriptRunResult,
   type ToolResourceDef,
   type UpdateStateReply,
   type Unsubscribe,
@@ -73,6 +75,7 @@ import { subscribedNames, subscribeWith, type DispatchContext } from "../primiti
 import {
   parseGroupRecords,
   parsePostReceipt,
+  parseScriptOutcome,
   parseStartDriveReply,
   parseUpdateStateReply,
 } from "./params.ts";
@@ -167,10 +170,21 @@ export interface RegState {
   readonly updateTails: Map<string, Promise<void>>;
 }
 
+/**
+ * 격리 자식의 `g`에 더하는 스크립트 실행(설계 B, F.extensions.spec §3.1.4). 자식 대리 객체에만 있다. 공개 타입
+ * (`RegistrationApi`, `GroupApi`)에 더하는 일은 P 층의 다음 커밋이다. 거절과 기동 실패는 값으로 돌아온다
+ */
+interface ChildScriptApi {
+  runScript(
+    name: string,
+    options?: { readonly stdin?: string },
+  ): Promise<Result<ScriptRunResult, ScriptRunFailure>>;
+}
+
 export interface ChildRegistration {
   readonly state: RegState;
   readonly setup: RegistrationSetup<AnyState>;
-  readonly api: RegistrationApi<AnyState>;
+  readonly api: RegistrationApi<AnyState> & ChildScriptApi;
 }
 
 /** 오류 값의 메시지. Error가 아니면 문자열로 바꾼다 */
@@ -421,8 +435,8 @@ function addSlot<N extends HookName>(
   };
 }
 
-function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
-  const api: RegistrationApi<AnyState> = {
+function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> & ChildScriptApi {
+  const api: RegistrationApi<AnyState> & ChildScriptApi = {
     id: state.id,
     on<N extends HookName>(point: N, handler: Handler<N, AnyState>): Unsubscribe {
       requireSetup(state, "on");
@@ -494,6 +508,15 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> {
     },
     onDispose(fn) {
       state.disposers.push(fn);
+    },
+    async runScript(name, options) {
+      const reply = await callEngine(
+        env,
+        state,
+        "runScript",
+        jsonOf({ name, stdin: options?.stdin ?? "" }, "the script request"),
+      );
+      return checked(parseScriptOutcome(reply), "the script result");
     },
   };
   return api;

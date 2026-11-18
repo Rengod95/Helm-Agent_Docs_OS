@@ -1,9 +1,10 @@
 import { detach } from "@fresnel/contracts";
 import { bunCommandIo } from "./bun-io.ts";
 import { parsePluginHostArgv } from "./plugin-host/argv.ts";
+import { parseMigrationScanArgv } from "./migration-scan/argv.ts";
 
 // 진입 파일. 배포 바이너리(컴파일)와 개발 진입(`bun main.ts <서브커맨드>`)이 모두 이 파일을 실행한다.
-// 이 파일은 엔진(assemble, 카탈로그, 전송)을 정적으로 싣지 않는다. `plugin-host --stdio`는 가벼운 경로만 거쳐야 시작이 빠르다
+// 이 파일은 엔진(assemble, 카탈로그, 전송)을 정적으로 싣지 않는다. `plugin-host --stdio`와 `migration-scan --stdio`는 가벼운 경로만 거쳐야 시작이 빠르다
 // (L4.host-service.spec §4.9). 나머지 서브커맨드는 command-run.ts를 동적으로 싣는다.
 
 async function runFromProcess(argv: readonly string[]): Promise<number> {
@@ -15,6 +16,16 @@ async function runFromProcess(argv: readonly string[]): Promise<number> {
     }
     const runner = await import("./plugin-host/run.ts");
     return runner.runPluginHostStdio(bunCommandIo());
+  }
+  // 가져오기의 훑기 자식(migration.md §7.4 [제안]). 엔진이 샌드박스에 넣어 띄운다. 엔진을 싣지 않는다
+  if (argv[0] === "migration-scan") {
+    const parsed = parseMigrationScanArgv(argv.slice(1));
+    if (!parsed.ok) {
+      process.stderr.write(`${parsed.message}\n`);
+      return 2;
+    }
+    const runner = await import("./migration-scan/run.ts");
+    return runner.runMigrationScanStdio(bunCommandIo());
   }
   const dev = await import("./command-run.ts");
   return dev.runDevEntry(argv);

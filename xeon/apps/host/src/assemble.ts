@@ -1566,6 +1566,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     portsHandle = createEnginePorts({
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
+      // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
+      ...(options.pluginHost?.self === undefined ? {} : { migrationSelf: options.pluginHost.self }),
       defaultPluginsDir: bundleRoot,
       pluginStore,
       localIds,

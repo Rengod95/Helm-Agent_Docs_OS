@@ -1,4 +1,13 @@
-import { Bug, assertNever, attempt, attemptAsync, parse, rethrow } from "@fresnel/contracts";
+import {
+  Bug,
+  assertNever,
+  attempt,
+  attemptAsync,
+  err,
+  parse,
+  rethrow,
+  type Result,
+} from "@fresnel/contracts";
 import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type {
@@ -9,6 +18,8 @@ import type {
   PortKey,
   ProviderResourceDef,
   RegistrationApi,
+  ScriptRunFailure,
+  ScriptRunResult,
   StateDecl,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
@@ -47,6 +58,7 @@ import type {
   GroupSettingNamespace,
   GroupSettingValues,
   GroupStartDriveResult,
+  RunScriptOptions,
 } from "./types.ts";
 
 /** 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호. 원천은 X `hostOf(g).callContext()`다 */
@@ -238,6 +250,37 @@ function instrumentCommand<S>(
   }
 }
 
+/** `runScript`의 모양. GroupApi의 메서드와 같다 */
+type RunScriptFn = (
+  name: string,
+  options?: RunScriptOptions,
+) => Promise<Result<ScriptRunResult, ScriptRunFailure>>;
+
+/** 엔진 안 등록의 대답. 띄우지 않고 닫힌 실패 값으로 준다(X engine-calls.ts의 `SCRIPTS_NOT_INJECTED`와 같은 종류) */
+const IN_ENGINE_SCRIPT_REFUSAL: Result<ScriptRunResult, ScriptRunFailure> = err({
+  kind: "sandbox_unavailable",
+  reason: "in_engine_registration",
+});
+
+/**
+ * 격리 자식의 대리 g에 있는 `runScript`(ext-host child-api.ts의 `ChildScriptApi`)를 가졌는지 본다.
+ * 엔진 안 등록의 RegistrationApi에는 없다. 있는지와 함수인지만 보고, 모양은 그 구현의 타입이 맞춘다.
+ */
+function hasRunScript<S>(
+  api: RegistrationApi<S>,
+): api is RegistrationApi<S> & { readonly runScript: RunScriptFn } {
+  return "runScript" in api && typeof api.runScript === "function";
+}
+
+/**
+ * `g.runScript`의 본체. 격리 자식이면 엔진 왕복으로 같은 값을 받는다. 엔진 안 등록에는 띄울 격리 환경이 없으므로
+ * 닫힌 실패 값을 준다(F.extensions.spec §3.1.4: 격리 없이 띄우지 않는다). 이 경우 이름과 크기는 검사하지 않는다.
+ */
+function runScriptOf<S>(api: RegistrationApi<S>): RunScriptFn {
+  if (hasRunScript(api)) return (name, options) => api.runScript(name, options);
+  return () => Promise.resolve(IN_ENGINE_SCRIPT_REFUSAL);
+}
+
 /**
  * F RegistrationApi<S>를 GroupApi<S, D>로 감싼다(L3.group-sdk.spec §3.2). setup 안에서 한 번 부른다.
  * 감싼 연산은 원래 연산을 그대로 부르고 메모리 계측(§4.9)만 더한다.
@@ -331,6 +374,7 @@ export function wrap<S, D extends GroupSettingDefs>(
     onDispose: (fn) => {
       api.onDispose(fn);
     },
+    runScript: runScriptOf(api),
     settings: () => readSettings(def.settings, access.settingsSource(), def.manifest.name),
     delegate: async (
       spec: DelegateSpec,

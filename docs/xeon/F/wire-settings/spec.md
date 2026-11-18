@@ -823,6 +823,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 - 단계: 스키마 파일은 `m4()`을 쓰므로 레지스트리 단계가 "M4"로 찍힌다. 구현 단계는 M5g다. `WireMethodSpec.stage`에 M5g 값이 생기면 바꾼다 [미결] [근거: `xeon/packages/contracts/src/wire-settings/wire/migration.ts`의 `m4()` 호출].
 - 흐름: `migration.detect`(표지의 존재만) → `migration.scan`(읽기 전용 훑기, `migration.progress`로 진행을 알린다) → `migration.proposal`(플러그인 요약, 프로필 제안, 질문, 보고 줄) → `migration.apply`(질문이 모두 닫혔을 때만. 초안과 검토 항목을 만든다. 검토함을 지나야 켜진다) → `migration.report.get`. `migration.dismiss`는 감지 알림을 다시 띄우지 않게 한다.
 - 시크릿: 훑기 결과, 제안, 보고서, 오류 어디에도 시크릿 값은 싣지 않는다. 시크릿은 자리와 개수(`secretCount`)만 싣는다. 폴더 트리 바이트(`PlannedPlugin.tree`)는 wire에 싣지 않는다.
+- [제안] `kind`에 `hook`이 더해졌다(`MIGRATION_IR_KINDS`). Claude Code 설정 파일의 `hooks` 항목이 훑기 결과의 항목 하나가 된다. 항목 종류의 목록은 라이브러리 `IrKind`와 같아야 한다(`review/m5/migration.md` §4.3.5, §9.4).
 - 알림 `migration.changed { kind }`는 상태가 바뀌었다는 알림이다. 받으면 종류에 맞는 메서드를 다시 부른다.
 - 신호: `TrustStatus.foreignFormats`(§3.3.4 신뢰 절)는 감지 알림과 같은 모양이다.
 - 오류 이름: 3670~3679 구간에 `migration.scanLimit`(3670), `migration.rootInvalid`(3671), `migration.questionsOpen`(3672), `migration.nameConflict`(3673), `migration.unsupportedHarness`(3674), `migration.notFound`(3675)를 두었다. 3676~3679는 예비다. 오류 표 §3.5.2에 행이 있다.

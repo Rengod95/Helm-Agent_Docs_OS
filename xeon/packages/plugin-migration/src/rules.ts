@@ -30,12 +30,32 @@ export interface RuleMatch {
   readonly values?: readonly string[];
 }
 
+/**
+ * Hook 이벤트 하나를 옮기는 자리(migration.md §4.3.5). `position`은 `g.on`으로 거는 지점, `decides`는 그 지점이 허용하는
+ * 결정 종류의 상한, `budgetSeconds`는 엔진이 그 지점에 주는 예산이다(ext-host `DEFAULT_BUDGETS_MS`의 같은 등급 값).
+ */
+interface RuleHook {
+  readonly position: string;
+  readonly decides: readonly string[];
+  readonly budgetSeconds: number;
+  /** 이 이벤트가 매처를 받는가. 받지 않으면 매처 원문은 무시된다(원본과 같다) */
+  readonly matcher: boolean;
+}
+
 export interface Rule {
   readonly match: RuleMatch;
   readonly status: ReportStatus;
   readonly reason?: RuleReason;
   readonly difference?: RuleDifference;
   readonly alternative?: string;
+  /** 옮기는 Hook 이벤트에만 있다. 있으면 이 규칙의 항목은 플러그인 실행 선언이 된다 */
+  readonly hook?: RuleHook;
+}
+
+/** 스크립트 본문이 입력이나 환경에서 읽는 이름(예: `transcript_path`). 본문에 나오면 차이로 적는다 */
+interface ScriptInputNote {
+  readonly needle: string;
+  readonly text: string;
 }
 
 export interface Ruleset {
@@ -46,6 +66,10 @@ export interface Ruleset {
   readonly toolNames: Readonly<Record<string, string>>;
   /** 처음 맞는 규칙이 이긴다. 값이 있는 규칙을 앞에 둔다 */
   readonly rules: readonly Rule[];
+  /** 옮긴 Hook마다 붙는 차이(입력 필드가 없다 등) */
+  readonly hookNotes?: readonly RuleDifference[];
+  /** 스크립트 본문에서 찾을 이름과 그 차이 */
+  readonly scriptInputs?: readonly ScriptInputNote[];
 }
 
 /** 규칙을 고를 때 쓰는 항목의 속성 */
@@ -74,6 +98,7 @@ const IrKindSchema = Type.Union([
   Type.Literal("mcp"),
   Type.Literal("field"),
   Type.Literal("blocked"),
+  Type.Literal("hook"),
 ]);
 
 const ReportStatusSchema = Type.Union([
@@ -105,10 +130,21 @@ const RuleMatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const RuleHookSchema = Type.Object(
+  {
+    position: Type.String({ minLength: 1, maxLength: 48 }),
+    decides: Type.Array(Type.String({ minLength: 1, maxLength: 16 }), { maxItems: 3 }),
+    budgetSeconds: Type.Integer({ minimum: 1, maximum: 600 }),
+    matcher: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
 const RuleSchema = Type.Object(
   {
     match: RuleMatchSchema,
     status: ReportStatusSchema,
+    hook: Type.Optional(RuleHookSchema),
     reason: Type.Optional(
       Type.Object(
         { code: Type.String({ minLength: 1 }), text: Type.String({ minLength: 1 }) },
@@ -137,6 +173,25 @@ const rulesetShape = Type.Object(
     docs: Type.Array(Type.String({ minLength: 1 })),
     toolNames: Type.Record(Type.String(), Type.String({ minLength: 1 })),
     rules: Type.Array(RuleSchema),
+    hookNotes: Type.Optional(
+      Type.Array(
+        Type.Object(
+          { kind: DifferenceKindSchema, text: Type.String({ minLength: 1 }) },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
+    scriptInputs: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            needle: Type.String({ minLength: 1, maxLength: 64 }),
+            text: Type.String({ minLength: 1 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -193,4 +248,15 @@ export function findRule(ruleset: Ruleset, query: RuleQuery): Rule | undefined {
 /** 원본 도구 이름의 Fresnel 이름. 표에 없으면 undefined. 객체의 상속 속성은 찾지 않는다 */
 export function toolNameFor(ruleset: Ruleset, claudeName: string): string | undefined {
   return Object.hasOwn(ruleset.toolNames, claudeName) ? ruleset.toolNames[claudeName] : undefined;
+}
+
+/**
+ * Fresnel 도구 이름의 원본 이름(Hook 입력 변환). 같은 이름이 여럿이면 표에서 먼저 적힌 것이다. 표에 없으면 undefined다.
+ * 표의 순서가 정본 이름을 고른다(예: `edit`는 `Edit`가 먼저다).
+ */
+export function claudeNameFor(ruleset: Ruleset, fresnelName: string): string | undefined {
+  for (const [claudeName, mapped] of Object.entries(ruleset.toolNames)) {
+    if (mapped === fresnelName) return claudeName;
+  }
+  return undefined;
 }
