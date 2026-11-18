@@ -318,9 +318,8 @@ realTest(
       reason: "mode_not_allowed",
     });
     // 참조의 sessions는 시크릿을 쓴 대화다(거절된 호출의 대화는 쓰지 않았으므로 없다)
-    expect((await s.connection.request("secret.references", { name: KEY_NAME })).sessions).toEqual([
-      allowed.threadId,
-    ]);
+    const references = await s.connection.request("secret.references", { name: KEY_NAME });
+    expect(references.sessions.map(String)).toEqual([allowed.threadId]);
     // limit은 앞에서부터 자른다
     expect(await s.connection.request("secret.audit", { name: KEY_NAME, limit: 1 })).toEqual({
       entries: audit.entries.slice(0, 1),

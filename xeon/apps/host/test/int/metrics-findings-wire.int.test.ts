@@ -467,6 +467,7 @@ realTest(
       const record = (await connection.request("turnRecord.get", { threadId, turnId: first }))
         .record;
       if (record === null) throw new Bug("a finished turn must have a record");
+      if (record.profile === null) throw new Bug("the turn must carry its profile");
       const profileId = record.profile.id;
       const cost = await connection.request("profileCost.get", { profileId });
       expect(cost).toMatchObject({ profileId, rev: 0, basis: "measured", nTurns: 3 });
