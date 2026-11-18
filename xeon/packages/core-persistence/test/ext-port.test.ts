@@ -274,6 +274,8 @@ describe("ext.loadThread", () => {
         contentHash: null,
         input: null,
         handoffEnd: null,
+        // 요청 id도 parent도 없는 부여는 프로필의 시작 주도이고 처리된 사용자 메시지가 아직 없다
+        awaitsUser: true,
       },
     ]);
     expect(snapshot.pendingRequests).toEqual([]);
