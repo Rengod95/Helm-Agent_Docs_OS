@@ -133,7 +133,7 @@ async function driveOneProposal(): Promise<Drive> {
 }
 
 realTest(
-  "UC-3 on the real SQLite path: a candidate waits in the projected queue and no file changes before approval; a user-scope approval is recorded but not applied, because the host path has no loose user skills folder (M5c §7.5)",
+  "UC-3 on the real SQLite path: a candidate waits in the projected queue and nothing is written before approval; a user-scope approval becomes an approved plugin in the review library and the common set, and no loose skill folder is written (AGE-41 §7.5)",
   async () => {
     const { connection, home, toolText } = await driveOneProposal();
     const skillFile = join(home.dataDir, "skills", "release-notes", "SKILL.md");
@@ -153,8 +153,10 @@ realTest(
       revision: 1,
       afterUntrusted: false,
     });
-    // 승인 전에는 스킬 파일이 없다
+    // 승인 전에는 검토함에도 검토본에도 스킬 파일에도 아무것도 없다
     expect(existsSync(skillFile)).toBe(false);
+    const inboxBefore = await connection.request("pluginReview.list", {});
+    expect(inboxBefore.items.filter((item) => item.name === "release-notes")).toEqual([]);
     const stale = await connection.request("proposal.decide", {
       source: "learning",
       id: pending.id,
@@ -169,15 +171,28 @@ realTest(
       decision: "approve",
       revision: 1,
     });
-    // 사용자 범위 스킬은 쓸 루트가 없어 적용되지 않는다. 승인은 기록되고 파일은 생기지 않는다(호스트 경로는 느슨한 사용자 폴더를 읽지도 쓰지도 않는다)
+    // 승인은 검토함의 승인본이 된다: 학습 승인이 사람의 결정이라 같은 호출에서 승인하고 제안은 적용됨으로 닫힌다
     expect(approved).toMatchObject({
       ok: true,
-      applied: false,
-      proposal: { source: "learning", status: "approved" },
+      applied: true,
+      proposal: { source: "learning", status: "applied" },
     });
+    const inboxAfter = await connection.request("pluginReview.list", {});
+    expect(
+      inboxAfter.items
+        .filter((item) => item.name === "release-notes")
+        .map((item) => [item.kind, item.state, item.provenance]),
+    ).toEqual([["new", "approved", "user_instruction"]]);
+    // 검토본 플러그인이 있고, 공통 묶음에 든다. 기본 프로필은 손대지 않는다
+    const plugin = await connection.request("plugin.get", { name: "release-notes" });
+    expect(plugin.card).toMatchObject({ name: "release-notes" });
+    const common = await connection.request("profile.common.get", {});
+    expect(common.common.plugins.map((plugin) => plugin.name)).toEqual(["release-notes"]);
+    // 옛 느슨한 폴더는 만들지 않는다(사용자 범위 쓰기는 검토함으로 간다)
     expect(existsSync(skillFile)).toBe(false);
-    const after = await connection.request("proposal.list", { status: ["approved"] });
-    expect(after.proposals.map((row) => [row.id, row.status])).toEqual([[pending.id, "approved"]]);
+    expect(existsSync(join(home.dataDir, "skills", "release-notes"))).toBe(false);
+    const after = await connection.request("proposal.list", { status: ["applied"] });
+    expect(after.proposals.map((row) => [row.id, row.status])).toEqual([[pending.id, "applied"]]);
     const again = await connection.request("proposal.decide", {
       source: "learning",
       id: pending.id,

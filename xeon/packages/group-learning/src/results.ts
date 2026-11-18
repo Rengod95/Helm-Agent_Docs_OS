@@ -42,7 +42,8 @@ export type DecisionResult =
 
 /** 적용 어댑터 결과를 대기열 전이로 바꾼 값 */
 export type ApplyTransition =
-  | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
+  /** `ledgerId`는 null일 수 있다: 사용자 범위 스킬은 플러그인 검토함의 승인본이 되어 원장 행이 없다 */
+  | { readonly kind: "applied"; readonly ledgerId: string | null; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
   /** `baseHash`는 되돌아온 판이 앞으로 쓸 현재 해시. 읽지 못했으면 null(이전 값을 둔다) */
   | {
@@ -61,7 +62,7 @@ export interface QueueSweep {
 
 /** KnowledgeChangeApi.apply의 결과(§3.6) */
 export type ApplyResult =
-  | { readonly ok: true; readonly ledgerId: string; readonly afterHash: string }
+  | { readonly ok: true; readonly ledgerId: string | null; readonly afterHash: string }
   | {
       readonly ok: false;
       readonly reason: "scan_failed" | "base_stale" | "approval_required" | "invalid" | "io";

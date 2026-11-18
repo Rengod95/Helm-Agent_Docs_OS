@@ -1211,6 +1211,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         dialogArea,
         web,
         mode: options.mode,
+        // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
+        userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
           ? {}
           : { extraCapabilityDefs: options.extraCapabilityDefs }),

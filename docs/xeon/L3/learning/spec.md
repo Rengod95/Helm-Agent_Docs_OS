@@ -444,7 +444,7 @@ export interface KnowledgeChangeApi {
     readonly approval: { readonly source: "learning.queue"; readonly proposalId: string; readonly revision: number; readonly decidedAt: number };
     readonly signal: AbortSignal;
   }): Promise<
-    | { readonly ok: true; readonly ledgerId: string; readonly afterHash: string }
+    | { readonly ok: true; readonly ledgerId: string | null; readonly afterHash: string }  // null: 플러그인 검토함 승인본(원장 행 없음) [결정: 2026-11-18 AGE-41]
     | { readonly ok: false; readonly reason: "scan_failed" | "base_stale" | "approval_required" | "invalid" | "io"; readonly detail?: string }>;
   rollback?(ledgerId: string, opts: { readonly idempotencyKey: `learning:revert:${string}`; readonly signal: AbortSignal }): Promise<
     { readonly ok: true; readonly ledgerId: string } | { readonly ok: false; readonly reason: "hash_mismatch" | "not_found" | "io" }>;
@@ -464,7 +464,7 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 | `grp.learning.proposal.created` | `Proposal`에서 `diff`를 뺀 값(status `pending` 또는 `rejected`). 투영기가 본문에서 diff를 만든다 | 제안 도구 처리 |
 | `grp.learning.proposal.edited` | `{ id, revision, diff, bodyHash }` | 사용자 수정 |
 | `grp.learning.proposal.decided` | `{ id, revision, status: "approved" \| "rejected", reason, scope, note?, at }` | 사용자 결정. `scope`는 승인 때 고른 범위(§4.5 규칙 8). `note`는 거절 메모다: 거절 명령이 메모를 주면 앞뒤 공백을 떼고 500자까지 남기며, 메모가 비면 싣지 않는다. 투영기는 거절된 행의 `note`를 이 값(없으면 null)으로 둔다 [결정: 오케스트레이터 기본값, fxLM]. 메모는 공개 레코드 `grp.learning.skill.rejected`에 싣지 않는다(§3.7.3: 레코드에는 본문과 사용자 글을 싣지 않는다) |
-| `grp.learning.proposal.applied` | `{ id, ledgerId, afterHash }` | L2-d 적용 성공 |
+| `grp.learning.proposal.applied` | `{ id, ledgerId, afterHash }` | L2-d 적용 성공. `ledgerId`는 원장 행이 없으면 null(사용자 범위 스킬의 플러그인 승인본) |
 | `grp.learning.proposal.apply_failed` | `{ id, reason, nextStatus: "pending" \| "rejected", baseHash? }` | L2-d 적용 실패. `pending`으로 돌아올 때 `baseHash`는 그때 읽은 대상의 현재 해시이고 판이 이 값을 새 `baseHash`로 가진다. 없으면 이전 값을 둔다 |
 | `grp.learning.proposal.reverted` | `{ id, ledgerId }` | 원장 롤백 성공 |
 | `grp.learning.proposal.expired` | `{ id, at }` | 만료 판정 |
@@ -620,7 +620,7 @@ export type DecisionResult =
 
 /** 적용 어댑터 결과를 대기열 전이로 바꾼 값. 순수 함수 applyOutcome(result)의 반환형 */
 export type ApplyTransition =
-  | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
+  | { readonly kind: "applied"; readonly ledgerId: string | null; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
   | { readonly kind: "backToPending"; readonly reason: "base_stale"; readonly baseHash: string | null }  // 새로 읽은 현재 해시. 못 읽으면 null(이전 값 유지)
   | { readonly kind: "retry"; readonly detail: string };          // io, 기능 일시 실패. approved 유지
@@ -771,7 +771,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 | `pending` | 승인 불요 정책(§4.1 끝, 비파괴 연산) | `approved` | 결정 주체 `"policy"` |
 | `pending` | 사용자 거절 | `rejected` | `reason = "user_rejected"`. 메모(`--note`, 앞뒤 공백을 뗀 1~500자)가 있으면 `note`로 행에 남는다(§3.7.1) [결정: 오케스트레이터 기본값, fxLM] |
 | `pending` | 만료(`l3.learning.queue.expiryDays`) | `expired` | 명령 진입 지연 정리(규칙 7) |
-| `approved` | L2-d `apply` 성공 | `applied` | `ledgerId` 기록, `grp.learning.skill.applied`(스킬일 때) |
+| `approved` | L2-d `apply` 성공 | `applied` | `ledgerId` 기록(원장 행이 없으면 null), `grp.learning.skill.applied`(스킬일 때) |
 | `approved` | L2-d `apply` 실패 `scan_failed` | `rejected` | `reason = "scan_failed"` |
 | `approved` | L2-d `apply` 실패 `base_stale` | `pending` | `reason = "base_stale"`, 새 diff를 다시 계산해 보여 준다 |
 | `approved` | L2-d `apply` 실패 `io` 등 | `approved` | 재시도 대상. 같은 `idempotencyKey`로 다시 부른다 |

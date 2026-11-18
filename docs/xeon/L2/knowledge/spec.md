@@ -152,6 +152,8 @@ export const WriteOutcomeSchema = Type.Object({
   scan: ScanSummarySchema,
   /** 인덱스(스킬 이름·설명)가 바뀌었는지. 바뀌면 다음 turn에 델타 알림(§4.2.6) */
   indexChanged: Type.Boolean(),
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보냈을 때의 검토 항목 id(§4.4.6). applied면 승인본이며 원장 행을 남기지 않는다 */
+  reviewItemId: Type.Optional(Type.String()),
 });
 export type WriteOutcome = Static<typeof WriteOutcomeSchema>;
 
@@ -882,7 +884,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 | 대상 | 경로 |
 |---|---|
-| 사용자 스킬 | `<사용자 데이터>/skills/<이름>/SKILL.md` |
+| 사용자 스킬 | `<사용자 데이터>/skills/<이름>/SKILL.md`. 호스트 조립은 이 루트를 싣지 않고, 사용자 범위 만들기는 검토함으로 간다(§4.4.6) |
 | 작업 폴더 스킬 | `<작업 폴더>/.fresnel/skills/<이름>/SKILL.md` |
 | 보관함 | 같은 루트의 `.archive/<이름>-<UTC 시각>/` |
 | 사용자 정보 메모리 | `<사용자 데이터>/memory/USER.md` |
@@ -1111,6 +1113,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - [결정: 2026-10-28 리뷰] 멱등 키는 (대화, 메서드, `CallOptions.requestId`)다. 원장과 대기열의 `request_id`에 `<threadId 또는 ->:<메서드>:<requestId>`로, 입력 지문(sha256)은 `request_fp`에 저장된다(마이그레이션 4단계). 같은 키·같은 입력의 두 번째 호출은 저장된 `outcome`을 돌려주고, 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `invalid_input`(`detail.reason: "key_reused"`)으로 거부한다. 다른 대화나 다른 메서드의 같은 `requestId`는 다른 쓰기다. `skills.manage`·`memory.manage`는 안쪽 메서드(`skills.create` 등)의 키 공간을 쓴다. 제안 결정이 다시 실행하는 쓰기의 키는 `proposal:<제안 ID>`이고 지문이 없다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
 - `requestId`가 없으면 멱등을 보장하지 않는다.
+
+#### 4.4.6 사용자 범위 만들기와 검토 싱크
+
+[결정: 사용자 2026-11-18, AGE-41] 사용자 범위 `create`는 디스크에 쓰지 않고 플러그인 검토함으로 보낸다(`review/m5/profile-project-loader.md` §4.5 구현 상태 (5)번). 조립 루트가 `KnowledgePluginOptions.userSkillSink`로 싱크를 넘긴다. 싱크는 스킬 폴더 하나를 검토 입구에 넘기고, 사람이 이미 승인한 만들기(제안 재실행, 사용자 행위자, 신뢰된 승인 증거)만 같은 호출에서 승인한다. 이 경로는 원장, 승인 게이트, 제안 대기열을 타지 않는다. 이름·설명·본문 검사, 위협 검사, 같은 이름의 사용자 스킬 충돌 검사는 `run`과 같다. 싱크가 없는 조립에서는 `unavailable`이다. `edit`·`patch`·`writeFile`·`remove`와 프로젝트 범위는 바뀌지 않는다.
 
 ### 4.5 쓰기 승인과 제안 대기열
 

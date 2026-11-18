@@ -83,7 +83,7 @@ import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
-import { userSkillsDir } from "@fresnel/cap-knowledge";
+import { userSkillsDir, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
 import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
@@ -109,6 +109,7 @@ import {
   approvalHooksOf,
   createMigrationSubmitter,
   createPluginReview,
+  createUserSkillSink,
   createOverlayPort,
   createPluginService,
   type PluginStore,
@@ -206,6 +207,8 @@ export interface PortsDeps {
 
 export interface PortsHandle {
   readonly ports: EnginePorts;
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보내는 싱크(L2.knowledge §7.5 [제안]). cap-knowledge가 부른다 */
+  readonly userSkillSink: UserSkillSink;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 쥐지 않았으면 undefined */
   tokenOf(threadId: ThreadId): LeaseToken | undefined;
   /** 이 엔진이 지금 쓰기 소유를 쥔 thread 전부(쥔 순서) */
@@ -1189,6 +1192,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       cancelOverlay: (threadId) => ports.m4.pluginSet.cancelOverlay(threadId),
     },
   });
+  // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)
+  const userSkillSink = createUserSkillSink({
+    intake: pluginReview.intake,
+    decide: (itemId, decision) => pluginReview.decide(itemId, decision),
+    log: deps.logger,
+  });
   // 마이그레이션 제출(M5g 전 조각, migration.md §7.5 [제안]). wire로 열지 않고 `engine.ports`로만 낸다. `migration.apply`가 부른다
   const pluginMigration = createMigrationSubmitter({
     userDir: userPluginsDir,
@@ -1366,6 +1375,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   return {
     ports,
+    userSkillSink,
     tokenOf: (threadId) => held.get(threadId)?.token,
     heldThreads: () => Array.from(held.keys()),
     activeThread: () => Array.from(held.keys()).at(-1) ?? null,

@@ -179,6 +179,8 @@ export type WriteOutcome = {
   scan: ScanSummary;
   /** 인덱스(스킬 이름·설명)가 바뀌었는지. 바뀌면 다음 turn에 델타 알림(§4.2.6) */
   indexChanged: boolean;
+  /** 사용자 범위 스킬 만들기를 플러그인 검토함으로 보냈을 때의 검토 항목 id. applied면 그 항목이 승인된 것이고 원장 행은 없다 */
+  reviewItemId?: string;
 };
 const writeOutcomeShape = Type.Object({
   status: Type.Union([Type.Literal("applied"), Type.Literal("queued")]),
@@ -188,6 +190,7 @@ const writeOutcomeShape = Type.Object({
   approvedBy: Type.Optional(ApprovedBySchema),
   scan: ScanSummarySchema,
   indexChanged: Type.Boolean(),
+  reviewItemId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
 });
 export const WriteOutcomeSchema: TUnsafe<WriteOutcome> = Type.Unsafe<WriteOutcome>(
   writeOutcomeShape satisfies SchemaProof<WriteOutcome, typeof writeOutcomeShape>,
@@ -560,7 +563,13 @@ function scanLines(scan: ScanSummary): string[] {
 
 function outcomeLines(out: WriteOutcome): string[] {
   const lines: string[] = [];
-  if (out.status === "applied") {
+  if (out.reviewItemId !== undefined) {
+    lines.push(
+      out.status === "applied"
+        ? `Approved as a plugin reviewItemId=${out.reviewItemId}`
+        : `Added to the plugin review inbox reviewItemId=${out.reviewItemId}. Waiting for user approval`,
+    );
+  } else if (out.status === "applied") {
     const hash = out.afterHash === undefined ? "" : ` afterHash=${out.afterHash}`;
     lines.push(`Applied ledgerId=${out.ledgerId ?? "-"}${hash}`);
   } else {
