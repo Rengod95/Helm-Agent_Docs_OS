@@ -10,6 +10,7 @@ import {
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import {
   defaultRoots,
+  workspaceCore,
   type BlobSink,
   type RgResolver,
   type ThreadWorkspaces,
@@ -119,6 +120,7 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
   const rg = options.rg === undefined ? fakeRg() : (options.rg ?? undefined);
   return {
     env,
+    core: workspaceCore,
     roots: {
       env,
       roots: (context) => defaultRoots(env, context, options.outputs),

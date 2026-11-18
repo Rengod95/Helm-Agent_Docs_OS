@@ -33,6 +33,7 @@ import {
   type PortKey,
   pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
+import { dialogCore } from "@fresnel/core-tools";
 import { fakeRedactor, manualTimers, realApprovals } from "@fresnel/core-tools/testing";
 import type {
   CommitBatch,
@@ -232,6 +233,7 @@ async function boot(
     dialogPlugin({
       settings: { layers: () => options.layers ?? [] },
       ids,
+      core: dialogCore,
       shell,
       ...(options.trust === null
         ? {}

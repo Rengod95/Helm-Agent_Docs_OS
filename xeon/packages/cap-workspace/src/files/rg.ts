@@ -1,8 +1,12 @@
 import { parse, parseJson } from "@fresnel/contracts";
-import { matchProtectedPath, type CancelScope } from "@fresnel/contracts/services";
+import {
+  matchProtectedPath,
+  type CancelScope,
+  type WorkspaceEnv,
+} from "@fresnel/contracts/services";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import { Type, type Static } from "typebox";
 import type { WorkspaceDeps } from "../deps.ts";
-import { WorkspaceFailure, type WorkspaceEnv } from "@fresnel/core-workspace";
 
 // L2.workspace.spec §3.2 grep, §4.2(샌드박스 밖), §5 10번. ripgrep은 `fresnel.exec`에 argv 배열로 넘긴다(셸 문자열을 만들지 않는다).
 // 샌드박스(fresnel.sandbox)는 거치지 않는다. 이 패키지가 고른 인자로만 실행하고, 검색 경로는 `resolveWorkspacePath`가 검사한다.

@@ -2,6 +2,7 @@ import { assertNever, Bug } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
+  DialogFailure,
   type CapabilityId,
   type CommonErrorCode,
 } from "@fresnel/contracts/capabilities";
@@ -9,34 +10,10 @@ import type { JsonValue } from "@fresnel/contracts/conversation";
 import { FileError, type FileErrorCode } from "@fresnel/contracts/services";
 
 // 이 패키지 안에서 던지는 실패와 서비스 경계 변환. 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6).
+// `DialogFailure` 클래스는 F contracts에 있다(cap-dialog도 같은 클래스를 쓴다). 경계 변환은 `FileError`를 알아야 해서 여기 둔다.
+// cap-dialog는 같은 함수를 `DialogCore`(`dialogCore`)로 받는다.
 
-/** 서비스 경계에서 `CapabilityError`로 바뀌는 실패 */
-export class DialogFailure extends Error {
-  override readonly name: string = "DialogFailure";
-  /** 공통 코드 또는 메서드 고유 코드 */
-  readonly code: string;
-  readonly retryable: boolean;
-  readonly detail: JsonValue | undefined;
-
-  constructor(
-    code: string,
-    message: string,
-    options: { readonly retryable?: boolean; readonly detail?: JsonValue } = {},
-  ) {
-    super(message);
-    this.code = code;
-    this.retryable = options.retryable ?? commonRetryable(code);
-    this.detail = options.detail;
-  }
-}
-
-function isCommonCode(code: string): code is CommonErrorCode {
-  return Object.hasOwn(DEFAULT_RETRYABLE, code);
-}
-
-function commonRetryable(code: string): boolean {
-  return isCommonCode(code) ? DEFAULT_RETRYABLE[code] : false;
-}
+export { DialogFailure };
 
 /** 파일 시스템 오류 코드를 공통 코드로 옮긴다(L2.workspace.spec §4.1 표와 같다) */
 function fileErrorCode(code: FileErrorCode): CommonErrorCode {

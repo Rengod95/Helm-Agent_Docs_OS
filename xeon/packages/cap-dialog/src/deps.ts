@@ -1,6 +1,6 @@
 import type { Logger } from "@fresnel/contracts";
 import type { CallContext, Notice } from "@fresnel/contracts/capabilities";
-import type { ApprovalsPortFactory, Timers } from "@fresnel/core-tools";
+import type { ApprovalsPortFactory, DialogCore, Timers } from "@fresnel/contracts/services";
 import type { AttachmentFiles } from "./ports/files.ts";
 import type { ImagesPort } from "./ports/images.ts";
 import type { BlobSink } from "./ports/blobs.ts";
@@ -16,6 +16,8 @@ export interface DialogDeps {
   readonly timers: Timers;
   /** 호출 한 번이 읽는 유효 설정. threadId가 있으면 세션 범위를 포함한다 */
   readonly settings: (threadId: string | undefined) => DialogSettings;
+  /** 질문 기능 묶음(`DialogCore`). 질문 서비스를 만들고 승인 포트를 감싼다. 구현 패키지를 import하지 않도록 조립 루트가 넘긴다 */
+  readonly core: DialogCore;
   /** 없으면 `ask`는 unavailable로 거부한다 */
   readonly approvals: ApprovalsPortFactory | undefined;
   /** 사람이 승인 요청에 답할 수 있는 호출인가. 알 수 없으면 참이다 */
