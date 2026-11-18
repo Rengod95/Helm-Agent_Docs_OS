@@ -16,6 +16,7 @@ import {
   DriveCommandSettledPayloadSchema,
   LeaseReleasedPayloadSchema,
   LeaseRequestedPayloadSchema,
+  LeaseUserInputPayloadSchema,
   ScopeChangedPayloadSchema,
   type DurableEventEnvelope,
   type ExtensionEventKind,
@@ -24,6 +25,7 @@ import {
   type ExtThreadSnapshot,
   type OpenLease,
   type PendingStartRequest,
+  type PendingUserInput,
   type SqlTx,
   type StoredScopeState,
 } from "@fresnel/contracts/records";
@@ -158,6 +160,8 @@ interface LeaseDraft {
   readonly input: OpenLease["input"];
   /** 맡긴 마지막 프레임의 끝. 위 프레임이 반납되면 채우고, 새 맡기기 부여나 이 scope의 명령 정착이 오면 비운다 */
   handoffEnd: OpenLease["handoffEnd"];
+  /** 프로필의 시작 주도로 부여됐다(`requestId`와 `parent`가 없다) */
+  readonly profileStart: boolean;
   readonly acquiredSeq: number;
 }
 
@@ -171,6 +175,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     "lease.acquired",
     "lease.released",
     "lease.requested",
+    "lease.user_input",
     "drive.command_settled",
   ]);
   const events = branchEvents(tx, threadId, {
@@ -190,6 +195,11 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   const pending = new Map<string, PendingStartRequest>();
   // 부여됐거나 버려진 요청 id. 같은 커밋에서는 기록 순서가 부여보다 뒤일 수 있어 순서와 무관하게 닫는다
   const closed = new Set<string>();
+  // 가로챈 사용자 메시지 중 처리되지 않은 것(requestId 순서 = 받은 순서). 처리된 id는 순서와 무관하게 닫는다
+  const heldInputs = new Map<string, PendingUserInput>();
+  const settledInputs = new Set<string>();
+  // 처리된 사용자 메시지가 있는 scope. 그 scope의 새 부여가 비운다
+  const settledScopes = new Set<string>();
 
   for (const event of events.value) {
     if (event.kind === "scope.changed") {
@@ -220,6 +230,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         const caller = open.find((lease) => lease.leaseId === parent);
         if (caller !== undefined) caller.handoffEnd = null;
       }
+      settledScopes.delete(scopeId);
       const epoch = (leaseEpochs.get(scopeId) ?? 0) + 1;
       leaseEpochs.set(scopeId, epoch);
       // 옛 기록(선택 필드 없음)은 코어 위 첫 프레임(depth 0), 맡긴 프레임이 아님(parent null), 출처 없음(contentHash null)으로 읽는다
@@ -238,6 +249,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         contentHash: contentHash ?? null,
         input: input ?? null,
         handoffEnd: null,
+        profileStart: requestId === undefined && parent === undefined,
         acquiredSeq: event.seq,
       });
     } else if (event.kind === "lease.released") {
@@ -273,6 +285,21 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
           input: request.input ?? null,
         });
       }
+    } else if (event.kind === "lease.user_input") {
+      const payload = parse(LeaseUserInputPayloadSchema, event.payload);
+      if (!payload.ok) return err(rowInvalid("events.envelope lease.user_input payload"));
+      const message = payload.value;
+      if (message.status === "settled") {
+        heldInputs.delete(message.requestId);
+        settledInputs.add(message.requestId);
+        settledScopes.add(message.scopeId);
+      } else if (!settledInputs.has(message.requestId) && message.input !== undefined) {
+        heldInputs.set(message.requestId, {
+          requestId: message.requestId,
+          scopeId: message.scopeId,
+          input: message.input,
+        });
+      }
     } else if (event.kind === "drive.command_settled") {
       const payload = parse(DriveCommandSettledPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope drive.command_settled payload"));
@@ -303,6 +330,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
       contentHash: lease.contentHash,
       input: lease.input,
       handoffEnd: lease.handoffEnd,
+      awaitsUser: lease.profileStart && !settledScopes.has(lease.scopeId),
     });
   }
   // 맡기기 요청은 맡긴 프레임이 아직 열려 있을 때만 되살린다
@@ -319,6 +347,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     states: [...states.values()],
     openLeases,
     pendingRequests,
+    pendingUserInputs: [...heldInputs.values()],
     leaseEpochs: Object.fromEntries(leaseEpochs),
   });
 }

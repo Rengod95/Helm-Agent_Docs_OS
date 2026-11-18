@@ -59,7 +59,7 @@ function leaseCommit(
   h: Harness,
   threadId: ThreadId,
   requestId: string,
-  kind: "lease.acquired" | "lease.released" | "lease.requested",
+  kind: "lease.acquired" | "lease.released" | "lease.requested" | "lease.user_input",
   payload: Record<string, unknown>,
 ) {
   return h.service.ext.commit({
@@ -415,6 +415,55 @@ describe("ext.loadThread", () => {
       reason: "revoked",
     });
     expect((await open()).pendingRequests).toEqual([]);
+  });
+
+  test("the snapshot carries the user messages not yet settled and tells a profile start frame that still awaits its first message", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const open = async () => expectOk(await h.service.ext.loadThread(threadId));
+    // 프로필의 시작 주도(requestId도 parent도 없다)와 사용자 명령이 시작한 주도(requestId가 있다)
+    await leaseCommit(h, threadId, "a1", "lease.acquired", {
+      leaseId: "lp",
+      lineageId: "lp",
+      scopeId: "profile",
+      limits: {},
+    });
+    expect((await open()).openLeases.map((lease) => lease.awaitsUser)).toEqual([true]);
+    const held = (requestId: string, content: string) =>
+      leaseCommit(h, threadId, `h:${requestId}`, "lease.user_input", {
+        requestId,
+        scopeId: "profile",
+        status: "held",
+        input: { kind: "user", content },
+      });
+    await held("m1", "first");
+    await held("m2", "second");
+    const pending = await open();
+    expect(pending.pendingUserInputs).toEqual([
+      { requestId: "m1", scopeId: "profile", input: { kind: "user", content: "first" } },
+      { requestId: "m2", scopeId: "profile", input: { kind: "user", content: "second" } },
+    ]);
+    // 전달만 되고 처리되지 않았으면 아직 첫 메시지를 기다리는 프레임이다(첫 단계의 입력이 그 메시지다)
+    expect(pending.openLeases.map((lease) => lease.awaitsUser)).toEqual([true]);
+
+    await leaseCommit(h, threadId, "s:m1", "lease.user_input", {
+      requestId: "m1",
+      scopeId: "profile",
+      status: "settled",
+    });
+    const settled = await open();
+    expect(settled.pendingUserInputs.map((message) => message.requestId)).toEqual(["m2"]);
+    expect(settled.openLeases.map((lease) => lease.awaitsUser)).toEqual([false]);
+
+    // 사용자 명령이 시작한 프레임은 기다리지 않는다
+    await leaseCommit(h, threadId, "a2", "lease.acquired", {
+      leaseId: "lu",
+      lineageId: "lu",
+      scopeId: "user-started",
+      limits: {},
+      requestId: "rq-user",
+    });
+    expect((await open()).openLeases.map((lease) => lease.awaitsUser)).toEqual([false, false]);
   });
 
   test("a handed-off stack reads oldest first, each frame with its parent, depth and contentHash", async () => {
