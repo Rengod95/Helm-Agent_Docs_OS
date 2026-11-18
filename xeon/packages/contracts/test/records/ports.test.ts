@@ -104,6 +104,7 @@ function fakePort(committer: string): RecordCommitPort {
           enabledAtSeq: {},
           states: [],
           openLeases: [],
+          pendingRequests: [],
           leaseEpochs: {},
         }),
       );
@@ -310,6 +311,7 @@ describe("ExtThreadSnapshot scope history", () => {
       enabledAtSeq: { alpha: 7 },
       states: [],
       openLeases: [],
+      pendingRequests: [],
       leaseEpochs: {},
     };
     const port: Pick<RecordCommitPort, "loadThread"> = {
@@ -338,6 +340,8 @@ describe("ExtThreadSnapshot open lease stack", () => {
       parent: null,
       depth: 0,
       contentHash: "sha256:aa",
+      input: null,
+      handoffEnd: null,
     };
     const handed: OpenLease = {
       ...core,
@@ -355,6 +359,7 @@ describe("ExtThreadSnapshot open lease stack", () => {
       enabledAtSeq: {},
       states: [],
       openLeases: [core, handed],
+      pendingRequests: [],
       leaseEpochs: {},
     };
     expect(snapshot.openLeases.map((lease) => lease.leaseId)).toEqual(["lease-1", "lease-2"]);
