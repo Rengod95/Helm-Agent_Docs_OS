@@ -1,11 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
-import {
-  WorkspaceShell,
-  type CallContext,
-  type CapabilityApi,
-  type SecretRef,
-} from "@fresnel/contracts/capabilities";
-import type { CancelScope, SecretEnvRequest } from "@fresnel/contracts/services";
+import { WorkspaceShell, type CallContext, type SecretRef } from "@fresnel/contracts/capabilities";
+import type { CancelScope, SecretEnvRequest, ShellApi } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
@@ -21,7 +16,6 @@ import {
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(fresnel.sandbox)과 실행(fresnel.exec)은 F 인터페이스로만 만난다.
 
-type ShellApi = CapabilityApi<typeof WorkspaceShell>;
 type RunInput = Parameters<ShellApi["run"]>[0];
 type RunResult = Awaited<ReturnType<ShellApi["run"]>>;
 
