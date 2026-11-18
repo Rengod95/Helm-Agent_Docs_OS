@@ -215,6 +215,9 @@ interface ProfileCostOut {
   readonly total: ProfileCostRowOut;
 }
 
+/** `profileCost.get`의 합계 줄이 `plugin` 칸에 쓰는 이름. 플러그인 이름 규칙에 없는 글자라 실제 플러그인과 겹치지 않는다 [제안] */
+export const TOTAL_ROW_PLUGIN = "*";
+
 /** 정적 값이 없는 줄. 칸은 모두 null이고 basis는 unknown이다(0으로 채우지 않는다) */
 function unknownCostRow(plugin: string): ProfileCostRowOut {
   return {
@@ -910,7 +913,7 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
         basis: "estimated",
         nTurns: 0,
         plugins: pluginNames.map((plugin) => unknownCostRow(plugin)),
-        total: unknownCostRow(""),
+        total: unknownCostRow(TOTAL_ROW_PLUGIN),
       };
       if (store === undefined) return ok(empty);
       const counters = countersOf(
@@ -958,7 +961,7 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
         shared: false,
       }));
       const total: ProfileCostRowOut = {
-        plugin: "",
+        plugin: TOTAL_ROW_PLUGIN,
         always: 0,
         drive: 0,
         onDemand: 0,

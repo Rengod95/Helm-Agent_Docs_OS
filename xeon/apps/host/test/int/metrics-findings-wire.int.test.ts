@@ -454,3 +454,79 @@ realTest(
   },
   60_000,
 );
+
+realTest(
+  "profileCost.get answers with the measured cost of the profile the three turns ran under, and the total line is named '*'",
+  async () => {
+    const home = useEngineHome();
+    const rig = await rigWith(home, {});
+    try {
+      const { connection, turnIds, threadId } = rig;
+      const first = turnIds[0];
+      if (first === undefined) throw new Bug("the turns must exist");
+      const record = (await connection.request("turnRecord.get", { threadId, turnId: first }))
+        .record;
+      if (record === null) throw new Bug("a finished turn must have a record");
+      const profileId = record.profile.id;
+      const cost = await connection.request("profileCost.get", { profileId });
+      expect(cost).toMatchObject({ profileId, rev: 0, basis: "measured", nTurns: 3 });
+      expect(cost.plugins.find((row) => row.plugin === "core.agents")).toEqual({
+        plugin: "core.agents",
+        always: 194,
+        drive: 0,
+        onDemand: 0,
+        toolCount: 1,
+        basis: "measured",
+        shared: false,
+      });
+      expect(cost.total).toEqual({
+        plugin: "*",
+        always: 5824,
+        drive: 0,
+        onDemand: 0,
+        toolCount: 27,
+        basis: "measured",
+        shared: false,
+      });
+      expect(cost.plugins.reduce((sum, row) => sum + (row.always ?? 0), 0)).toBe(5824);
+
+      // 턴이 없는 프로필은 플러그인 이름만 줄로 내고 칸은 null, 합계 줄은 '*'다
+      await connection.request("profile.put", {
+        profile: {
+          id: "cost-copy",
+          title: "Cost",
+          plugins: [{ name: "cap-knowledge" }],
+          settings: [],
+          startDrive: null,
+        },
+        baseRev: null,
+      });
+      const empty = await connection.request("profileCost.get", { profileId: "cost-copy" });
+      expect(empty).toMatchObject({ profileId: "cost-copy", basis: "estimated", nTurns: 0 });
+      expect(empty.plugins).toEqual([
+        {
+          plugin: "cap-knowledge",
+          always: null,
+          drive: null,
+          onDemand: null,
+          toolCount: null,
+          basis: "unknown",
+          shared: false,
+        },
+      ]);
+      expect(empty.total).toEqual({
+        plugin: "*",
+        always: null,
+        drive: null,
+        onDemand: null,
+        toolCount: null,
+        basis: "unknown",
+        shared: false,
+      });
+    } finally {
+      await rig.close();
+      home.dispose();
+    }
+  },
+  60_000,
+);

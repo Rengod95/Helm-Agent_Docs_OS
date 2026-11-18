@@ -1561,7 +1561,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - 오류 3501, 3511, 3512, 3531과 백테스트 3521~3525는 §3.5.2 표에 있다. 백테스트의 처리기와 실행기는 M5d-2 뒤에 온다.
 - 지난 턴에 돌려 보기(`backtest.run·status·result·cancel`)의 params·result 스키마와 알림 `backtest.progress`는 `wire/backtest.ts`에 있다. 등록은 `turn-record-methods.ts`의 `BACKTEST_WIRE_METHODS`와 `methods.ts`가 한다(§3.3.1, §3.3.2 행, 단계 M5). 항목 타입 `BacktestItem`·`BacktestSummary`는 `turn-record.ts`에 있고 `BacktestItem`에 선택 필드 `skippedBy`, `nondeterministic`을 더했다 [제안]. 처리기는 `apps/host`에 아직 없다.
 - 지표 값의 이유 목록에는 §3.8의 `user_marked`(사용자 표시로 정한 "따랐나")가 없다. 정본 목록 그대로 두었다 [미결] [근거: review/m5/turn-record-metrics.md §3.8, §3.5].
-- `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안].
+- `profileCost.get`의 플러그인 행과 `total`은 `PluginCost`가 아니라 `ProfileCostRow`(`CostFigures` 모양에 `plugin`, `shared`를 더한 것)다. 정적 추정 기준의 `drive`가 null이라 `PluginCost`의 숫자 칸으로는 담을 수 없어서다 [제안]. `total`의 `plugin` 칸은 `"*"`다(스키마가 `minLength` 1이라 빈 문자열은 결과 검증에서 -32603이 된다. `*`는 플러그인 이름에 쓸 수 없는 글자다) [제안].
 - 정본에 정의가 없던 이름은 다음처럼 정했다. `HookOutcome`은 hooks-core-boundary §4.5의 표시값 여섯, `metrics.query`의 `window`는 `MetricWindow`(`{ from, to }`), `findings.list`의 `asOf`는 시각(ms), `dataRevision`은 `tr_turn`의 가장 큰 rowid(§4.7 규칙 41)다. `metrics.query`의 행 `key`는 `groupBy`로 고른 차원만 가질 수 있어 모든 차원을 요구하지 않는다 [제안].
 - `TurnRecord.profile`(`id`, `rev`, `source`, `inherited`)과 `profileRevChanges`의 값은 `review/m5/turn-record-metrics.md` §4.10 규칙 60~63이 정한다. 턴 시작 값은 대화 로그의 `thread.started`·`thread.updated`·`profile.applied`에서 온다. `source`는 `thread`와 `builtin`, `inherited`는 하위 대화 여부다 [제안].
 
