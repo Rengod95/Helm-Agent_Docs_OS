@@ -44,7 +44,12 @@ import {
   type ThreadId,
   type Usage,
 } from "@fresnel/contracts/conversation";
-import { DenyAnswerSchema, QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
+import {
+  DenyAnswerSchema,
+  jsonUtf8Length,
+  QuestionAnswerSchema,
+  requestKeyFor,
+} from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   type ApprovalResolution,
@@ -212,15 +217,12 @@ export const DRIVE_INPUT_MAX_BYTES = 536_870_912;
 const ISOLATED_DRIVE_INPUT_MAX_BYTES: number = PLUGIN_HOST_MAX_FRAME_BYTES - 64 * 1024;
 
 /**
- * JSON 값의 UTF-8 직렬화 크기가 `limit` 안인가. 직렬화는 한 번만 한다. UTF-16 단위 하나는 UTF-8로 1바이트 이상 3바이트 이하라
- * 길이로 먼저 가릴 수 있다: 길이가 `limit`을 넘으면 넘고, 길이의 3배가 `limit` 이하면 안이다. 그 사이만 인코딩해 잰다
+ * JSON 값의 UTF-8 직렬화 크기가 `limit` 안인가. 직렬화 글을 만들지 않고 값을 훑어 센다(`jsonUtf8Length`): 100 MiB 문자열을
+ * 글로 만들면 입력만큼의 메모리가 더 든다
  */
 function withinInputLimit(value: JsonValue | null, limit: number): boolean {
   if (value === null) return true;
-  const json = JSON.stringify(value);
-  if (json.length > limit) return false;
-  if (json.length * 3 <= limit) return true;
-  return new TextEncoder().encode(json).length <= limit;
+  return jsonUtf8Length(value) <= limit;
 }
 
 /** 이 프레임을 맡긴 프레임의 scope id. 맡긴 것이 아니면 null */
