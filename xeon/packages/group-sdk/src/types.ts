@@ -8,6 +8,8 @@ import type {
   ProviderResourceDef,
   GroupDecl,
   RegistrationApi,
+  ScriptRunFailure,
+  ScriptRunResult,
   StateDecl,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
@@ -74,6 +76,14 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
 /** 주도 시작 요청의 결과 값. X `RegistrationHostApi.startDrive`가 약속으로 주는 값과 같은 모양이다. 거부는 값으로 돌아온다 */
 export type GroupStartDriveResult = Result<void, RegistrationStartDriveError>;
 
+/**
+ * `g.runScript(name, options)`의 옵션. `stdin`을 생략하면 빈 문자열이고, 상한은 `SCRIPT_LIMITS.stdinBytes`(256 KiB)다
+ * (F.extensions.spec §3.1.4). 생략과 빈 문자열은 같은 호출이다.
+ */
+export interface RunScriptOptions {
+  readonly stdin?: string;
+}
+
 /** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
 export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends RegistrationApi<S> {
   /**
@@ -113,6 +123,15 @@ export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends Re
   registerMethod(verb: string, def: ExtMethodResourceDef): void;
   /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. scope가 꺼지면 해제된다 */
   registerProvider(name: string, config: ProviderResourceDef): void;
+  /**
+   * 매니페스트 `scripts`에 선언된 이 플러그인 폴더의 스크립트를 부른다(F.extensions.spec §3.1.4, X.loading-trust.spec §3.8).
+   * 격리 자식에서는 엔진이 샌드박스 아래에서 띄운다. 선언 없음, 파일 없음, 초안, 샌드박스 없음 같은 거절과 기동 실패는
+   * 던지지 않고 `error` 값으로 온다. 엔진 안(내장) 등록에는 실행기가 없어 `sandbox_unavailable`(reason `in_engine_registration`)을 준다.
+   */
+  runScript(
+    name: string,
+    options?: RunScriptOptions,
+  ): Promise<Result<ScriptRunResult, ScriptRunFailure>>;
 }
 
 export interface GroupModule {

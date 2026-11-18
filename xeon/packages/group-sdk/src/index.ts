@@ -20,6 +20,7 @@ export {
   type GroupSettingNamespace,
   type GroupSettingValues,
   type NoSettings,
+  type RunScriptOptions,
   type StateMigrations,
 } from "./define-group.ts";
 export {

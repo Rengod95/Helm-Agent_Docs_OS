@@ -457,7 +457,7 @@ export interface PluginScriptPort { run(request: ScriptRunRequest): Promise<Resu
 - 실행 [제안]: 읽기 허용 목록은 그 플러그인의 폴더(검토본 `tree/`)와 실행기 실행 파일뿐이고, 쓰기는 없다 [근거: 설계 B 2026-11-18, `review/m5/drive-isolation.md` §3.4]. 프로필을 넓히지 않는다(`review/m5/drive-isolation.md` §3.4). 표준 입력을 쓰고 닫는다. 표준 출력과 표준 오류는 각각 `outputBytes`를 넘으면 자르고 `…Truncated`를 참으로 한다. 기한(선언의 `timeoutMs`, 생략하면 `timeoutDefaultMs`, 상한 `timeoutMaxMs`)이 지나면 프로세스 트리를 멈추고 `timedOut`을 참으로 한다. 종료 코드가 없으면 `exitCode`는 null이다.
 - 표준 입력이 `stdinBytes`를 넘을 때의 거절 종류는 정하지 않았다. 위 일곱 종류에 없다 [미결] [근거: packages/contracts/src/extensions/plugin-script.ts의 `ScriptRunFailure`].
 - 부를 코드가 없으면(`entry`가 없고 `scripts`만 있으면) 아무것도 실행되지 않는다. 이것은 오류가 아니다.
-- 포트 키(`PortKey`)와 서비스 이름은 X 층 구현 때 정한다 [미결] [근거: packages/contracts/src/extensions/ports.ts의 `PortKey` 목록]. 이 절은 계약만 정한다. 엔진 실행기, `engine.call` 메서드 `runScript`, `g.runScript`는 X·P 층의 다음 커밋이다.
+- 포트 키(`PortKey`)와 서비스 이름은 X 층 구현 때 정한다 [미결] [근거: packages/contracts/src/extensions/ports.ts의 `PortKey` 목록]. 이 절은 계약만 정한다. 엔진 실행기(`createScriptRunner`)와 `engine.call` 메서드 `runScript`는 X 층에 있다(X.loading-trust.spec §3.8). 격리 자식의 `g.runScript`는 그 메서드를 부른다. 공개 타입은 P 층 `GroupApi.runScript`다(L3.group-sdk.spec §3.2). F `RegistrationApi`에는 이 연산을 더하지 않았다. 그래서 group-sdk을 거치지 않고 `RegistrationApi`로 받은 `g`에는 타입이 없다(격리 자식에서는 런타임에 같은 연산이 있다) [제안: 보고 대상]. 엔진 안(내장) 등록의 `g.runScript`는 띄우지 않고 `sandbox_unavailable`(reason `in_engine_registration`)을 값으로 준다(group-sdk `wrap`) [제안].
 
 ### 3.2 4연산 타입 (`ops.ts`, `drive.ts`, `registration.ts`)
 

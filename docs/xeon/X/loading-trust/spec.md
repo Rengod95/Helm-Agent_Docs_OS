@@ -594,7 +594,7 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 8. 표준 출력과 표준 오류: 각각 `SCRIPT_LIMITS.outputBytes`(64 KiB)까지 모으고 넘는 부분은 버린다(`truncated`). 종료는 자식이 끝나고 표준 출력이 닫힌 뒤다.
 9. 기한: `timeoutMs`(생략하면 10초, 상한 60초)가 지나면 프로세스 트리를 `SIGKILL`로 죽이고 `timedOut: true`, `exitCode: null`, `signal: "SIGKILL"`로 답한다.
 10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
-11. 공개 타입: 자식 대리 객체에만 있다(`ChildScriptApi`). `RegistrationApi`와 `GroupApi`의 공개 타입에 더하는 일은 P 층의 다음 커밋이다.
+11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
