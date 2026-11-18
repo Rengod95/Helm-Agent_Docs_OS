@@ -1,50 +1,25 @@
-import { assertNever, attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
+import { attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
 import {
-  isId,
-  type JsonObject,
-  type JsonValue,
-  type ThreadId,
-} from "@fresnel/contracts/conversation";
-import { isCapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
+  isCapabilityError,
+  KnowledgeLedger,
+  KnowledgeLedgerKey,
+  type CallOptions,
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import type {
-  ProposalDecideParams,
   ProposalDecideResult,
   ProposalListParams,
   ProposalListResult,
   ProposalRow,
   ProposalSource,
-  ProposalStatusWire,
 } from "@fresnel/contracts/wire";
-import type { KnowledgeProposalWire } from "@fresnel/cap-knowledge";
-import type { HumanDecisionGrant } from "@fresnel/contracts/services";
-import {
-  decisionCommandLine,
-  proposalView,
-  type CommandReport,
-  type DecisionResult,
-  type LearningError,
-  type LearningQueueApi,
-  type LearningQueueReader,
-  type ProposalDecision,
-  type ProposalFilter,
-  type ProposalView,
-} from "@fresnel/group-learning";
-import type { LearningRunner } from "./learning.ts";
+import { createKnowledgeProposalWire, type KnowledgeProposalWire } from "@fresnel/cap-knowledge";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import type { ProposalPort } from "../types.ts";
 
-// M3-REQ-18(D-M3-32 a). 승인 화면이 읽는 대기열 둘을 한 목록으로 합치고 결정을 출처로 보낸다. 대기열은 합치지 않는다: 학습 그룹은 근거 이벤트,
-// 검토 id, 수정(`edit`), 충돌 대상을 가지고 L2 대기열에는 그 필드가 없다(L3.learning.spec §3.7.1). 이 파일은 조립 루트 코드다(DR-14 예외 2).
-
-/** 학습 그룹의 상태 집합. wire 상태 합집합에서 `stale`(지식 전용)만 없다 */
-const LEARNING_STATUSES: ReadonlySet<ProposalStatusWire> = new Set<ProposalStatusWire>([
-  "pending",
-  "approved",
-  "applied",
-  "rejected",
-  "expired",
-  "reverted",
-]);
+// M3-REQ-18. 승인 화면이 읽는 제안 대기열은 L2.knowledge 하나다. 학습 그룹은 빌트인에서 빠졌다(2026-11-18 사용자, AGE-49): 학습 출처(`source: "learning"`)의 목록은
+// 늘 `unavailable`이고 결정은 거절한다. 이 파일은 조립 루트 코드다(DR-14 예외 2).
 
 const DEFAULT_LIMIT = 50;
 /** 쪽 크기 상한. 요청한 `limit`이 더 커도 이 크기로 줄여 돌려주고 `nextCursor`가 이어 간다 */
@@ -53,50 +28,10 @@ const PAGE_MAX = 100;
 const TIE_PAD = 50;
 
 export interface ProposalPortDeps {
-  /** 학습 그룹이 켜져 있으면 대기열 면, 꺼졌거나 안전 모드면 undefined */
-  readonly learning: () => LearningQueueApi | undefined;
-  /**
-   * 학습 기록을 읽는 저장소 면(세션 DB의 투영). 그룹이 꺼져 있어도 남아 있다. 그룹이 실리지 않은 구성(안전 모드, 기본 그룹 끔)이면 undefined
-   * 꺼진 그룹의 목록은 이 면으로 읽는다. 결정은 그룹이 돌 때만 된다
-   */
-  readonly learningStore: () => LearningQueueReader | undefined;
-  /** 결정과 지연 정리를 `/learning` 명령으로 실행한다(기록을 쓰므로 대화가 필요하다) */
-  readonly runner: LearningRunner;
   /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
   readonly knowledge: () => KnowledgeProposalWire | undefined;
-  /**
-   * 사람의 결정을 실행하는 동안 그 결정이 가리킨 쓰기가 새 승인 카드를 띄우지 않게 한다(`ToolService.withHumanDecision`, U-11).
-   * 없으면 결정이 부르는 쓰기는 보통의 승인 카드를 띄운다
-   */
-  readonly humanDecision?: <T>(grant: HumanDecisionGrant, work: () => Promise<T>) => Promise<T>;
-  /** 오류 기록(결정에 쓰지 않는 실패: 정리, 알 수 없는 오류 코드) */
+  /** 오류 기록(결정에 쓰지 않는 실패: 알 수 없는 오류 코드) */
   readonly report: (message: string, fields: LogFields) => void;
-}
-
-/** 학습 후보 보기를 합친 목록의 행으로 옮긴다. `scope`는 스킬만 의미가 있고 그 밖은 null이다 */
-function learningRowOf(view: ProposalView): ProposalRow {
-  return {
-    source: "learning",
-    id: view.id,
-    kind: view.kind,
-    op: view.op,
-    target: view.target,
-    status: view.status,
-    destructive: view.destructive,
-    diff: view.diff,
-    rationale: view.rationale,
-    evidence: view.evidence.flatMap((entry) =>
-      isId("thr", entry.threadId) ? [{ eventId: entry.eventId, threadId: entry.threadId }] : [],
-    ),
-    conflictsWith: view.conflictsWith,
-    reason: view.reason,
-    note: view.note,
-    revision: view.revision,
-    scope: view.kind === "skill" ? view.scope : null,
-    afterUntrusted: view.afterUntrusted,
-    createdAt: view.createdAt,
-    expiresAt: view.expiresAt,
-  };
 }
 
 interface RowKey {
@@ -152,193 +87,7 @@ function decideFailure(
   return { ok: false, reason, ...(detail === undefined ? {} : { detail }) };
 }
 
-/** 목록 요청의 상태 거름을 학습 쪽 거름으로 바꾼다. 상태 거름이 없으면 undefined, 학습 상태가 하나도 없으면 빈 배열이다 */
-function learningStatusesOf(params: ProposalListParams): ProposalFilter["statuses"] {
-  const statuses = params.status?.filter((status) => LEARNING_STATUSES.has(status));
-  return statuses?.flatMap((status) => (status === "stale" ? [] : [status]));
-}
-
-/** 학습 대기열의 오류를 결정 실패 이유로 옮긴다(L3.learning.spec §3.9 → F wire `PROPOSAL_DECIDE_FAILURES`) */
-function failureOfLearning(error: LearningError): ProposalDecideResult {
-  switch (error.kind) {
-    case "learning.notFound":
-      return decideFailure("not_found");
-    case "learning.revisionMismatch":
-      return decideFailure("revision_mismatch", `current revision is ${String(error.current)}`);
-    case "learning.closed":
-      return decideFailure("closed", `the proposal is ${error.status}`);
-    case "learning.scopeNotAllowed":
-      return decideFailure("scope_not_allowed");
-    case "learning.invalidBody":
-      return decideFailure("unsupported", error.detail.slice(0, 500));
-    case "learning.noConversation":
-    case "learning.knowledgeUnavailable":
-    case "learning.settingsUnavailable":
-    case "learning.storeUnavailable":
-    case "learning.reviewBusy":
-    case "learning.noSnapshot":
-    case "learning.delegateFailed":
-      return decideFailure("unavailable", error.kind);
-    default:
-      return assertNever(error, "LearningError");
-  }
-}
-
-/**
- * 결정이 끝난 행의 상태가 실패를 뜻하는가: 스캔이 막아 거절되었거나(수정 뒤 스캔 포함), 원본이 바뀌어 `pending`으로 돌아갔다.
- * 승인 뒤 적용이 일시 실패하면(`approved` 유지) 성공이고 `applied`는 거짓이다. 다음 명령 진입 또는 목록 조회의 지연 정리가 다시 적용한다
- */
-function resultOfDecision(result: DecisionResult): ProposalDecideResult {
-  if (!result.ok) return failureOfLearning(result.error);
-  const row = learningRowOf(result.proposal);
-  if (result.proposal.status === "rejected" && result.proposal.reason === "scan_failed") {
-    return decideFailure("scan_failed");
-  }
-  if (result.proposal.status === "rejected" && result.proposal.reason === "apply_failed") {
-    return decideFailure("unavailable", "apply_failed");
-  }
-  if (result.proposal.status === "pending" && result.proposal.reason === "base_stale") {
-    return decideFailure("base_stale");
-  }
-  return { ok: true, proposal: row, applied: result.applied };
-}
-
-/** 명령이 낸 값을 결정 결과로 옮긴다. 결정 명령은 `decision`이나 `error` 값을 낸다 */
-function resultOfReport(report: CommandReport): ProposalDecideResult {
-  switch (report.kind) {
-    case "decision":
-      return resultOfDecision(report.result);
-    case "error":
-      return failureOfLearning(report.error);
-    case "usage":
-      return decideFailure("unsupported", report.text.slice(0, 500));
-    case "queue":
-    case "show":
-    case "review":
-    case "cancel":
-      return decideFailure("unavailable", `unexpected command result: ${report.kind}`);
-    default:
-      return assertNever(report, "CommandReport");
-  }
-}
-
-function learningDecision(params: ProposalDecideParams): ProposalDecision {
-  switch (params.decision) {
-    case "approve":
-      return {
-        kind: "approve",
-        proposalId: params.id,
-        revision: params.revision,
-        ...(params.scope === undefined ? {} : { scope: params.scope }),
-      };
-    case "reject":
-      return {
-        kind: "reject",
-        proposalId: params.id,
-        ...(params.note === undefined ? {} : { note: params.note }),
-      };
-    case "edit":
-      return {
-        kind: "edit",
-        proposalId: params.id,
-        revision: params.revision,
-        body: params.body,
-      };
-    case "revert":
-      return { kind: "revert", proposalId: params.id };
-    default:
-      return assertNever(params, "ProposalDecideParams");
-  }
-}
-
-function isObject(value: JsonValue | undefined): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** 학습 제안 승인 증거의 출처(`group-learning`의 `APPROVAL_SOURCE`와 같은 값) */
-const LEARNING_EVIDENCE_SOURCE = "learning.queue";
-
-/** 학습 그룹의 플러그인 이름. 그룹의 기능 호출은 `plugin:learning` 주체로 들어온다 */
-const LEARNING_PLUGIN = "learning";
-
-/**
- * 사용자가 학습 제안 하나를 승인·수정했을 때 그 결정이 가리킨 쓰기: 지식 스킬·메모리 쓰기 가운데 승인 증거가 이 제안의 것인 호출이다.
- * 다른 제안의 증거나 다른 출처의 증거를 단 호출은 맞지 않는다. 허용은 결정이 실행되는 대화(`threadId`)의 학습 그룹 호출에만 쓴다
- */
-function learningDecisionGrant(proposalId: string, threadId: ThreadId): HumanDecisionGrant {
-  return {
-    id: `decision:learning:${proposalId}`,
-    threadId,
-    plugin: LEARNING_PLUGIN,
-    risk: "write",
-    covers: ({ capability, input }) => {
-      if (capability !== "knowledge.skills" && capability !== "knowledge.memory") return false;
-      const approval = input.approval;
-      if (!isObject(approval)) return false;
-      return (
-        approval.source === LEARNING_EVIDENCE_SOURCE &&
-        typeof approval.ref === "string" &&
-        approval.ref.startsWith(`${proposalId}:`)
-      );
-    },
-  };
-}
-
 export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
-  /**
-   * 그룹이 꺼져 있을 때의 학습 목록: 저장소의 기록을 읽기만 한다(과거 기록과 대기 행이 그대로 보인다). 그룹이 돌지 않으므로 정리는 하지 않는다.
-   * 만료 일수는 그룹 설정이라 이 경로에서 알 수 없어 대기 행의 만료 시각은 비운다 [결정: 오케스트레이터 기본값, fxLM]
-   */
-  async function storedLearningRows(
-    params: ProposalListParams,
-  ): Promise<readonly ProposalRow[] | undefined> {
-    const store = deps.learningStore();
-    if (store === undefined) return undefined;
-    const statuses = learningStatusesOf(params);
-    if (statuses !== undefined && statuses.length === 0) return [];
-    const listed = await store.listProposals(statuses === undefined ? {} : { statuses });
-    if (!listed.ok) {
-      deps.report("proposal.learning_list_failed", { error: listed.error.kind });
-      return undefined;
-    }
-    return listed.value.map((proposal) => learningRowOf(proposalView(proposal, null)));
-  }
-
-  /** 학습 출처의 행. 읽지 못하면 undefined(출처를 `unavailable`에 올린다). 그룹이 꺼져 있으면 저장소에서 읽는다 */
-  async function learningRows(
-    params: ProposalListParams,
-    signal: AbortSignal,
-  ): Promise<readonly ProposalRow[] | undefined> {
-    const api = deps.learning();
-    if (api === undefined) return storedLearningRows(params);
-    // 화면을 열 때 지연 정리가 돈다: 만료와 승인된 미적용 재적용(L3.learning.spec §4.5 규칙 7). `/learning queue`가 진입 때 정리하므로
-    // 그 명령을 열린 대화에서 실행한다. 대화가 없거나 실패해도 목록은 읽는다
-    const swept = await deps.runner.run("queue", undefined, signal);
-    if (swept.kind === "unavailable")
-      deps.report("proposal.sweep_skipped", { detail: swept.detail });
-    else if (swept.report.kind === "error")
-      deps.report("proposal.sweep_failed", { error: swept.report.error.kind });
-    const statuses = learningStatusesOf(params);
-    // 학습 상태가 하나도 없는 필터(예: stale만)는 학습 쪽에서 빈 목록이다
-    if (statuses !== undefined && statuses.length === 0) return [];
-    const listed = await api.list(statuses === undefined ? {} : { statuses });
-    if (!listed.ok) {
-      deps.report("proposal.learning_list_failed", { error: listed.error.kind });
-      return undefined;
-    }
-    // 근거의 thread id가 `thr` 형식이 아니면 wire 행에 실을 수 없어 그 항목을 뺀다. 조용히 빼지 않고 알린다
-    return listed.value.map((view) => {
-      const mapped = learningRowOf(view);
-      if (mapped.evidence.length < view.evidence.length) {
-        deps.report("proposal.evidence_dropped", {
-          id: view.id,
-          dropped: view.evidence.length - mapped.evidence.length,
-        });
-      }
-      return mapped;
-    });
-  }
-
   /** 지식 출처의 행. 어댑터가 없거나 읽기가 실패하면 undefined */
   async function knowledgeRows(
     params: ProposalListParams,
@@ -370,17 +119,14 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
   return {
     async list(params, signal) {
       const wanted: readonly ProposalSource[] =
-        params.source === undefined ? ["learning", "knowledge"] : [params.source];
+        params.source === undefined ? ["knowledge"] : [params.source];
       // 지식 어댑터는 한 번에 200행까지 준다. 한 쪽(page)이 그 안에서 `limit + 1`행과 같은 시각의 중복 여유(TIE_PAD)를 채우도록 쪽 크기를 제한한다
       const limit = Math.min(params.limit ?? DEFAULT_LIMIT, PAGE_MAX);
       const cursor = decodeCursor(params.cursor);
       const unavailable: ProposalSource[] = [];
       const rows: ProposalRow[] = [];
-      if (wanted.includes("learning")) {
-        const learning = await learningRows(params, signal);
-        if (learning === undefined) unavailable.push("learning");
-        else rows.push(...learning);
-      }
+      // 학습은 빌트인이 아니다: 출처를 직접 고른 요청만 `unavailable`로 알린다
+      if (wanted.includes("learning")) unavailable.push("learning");
       if (wanted.includes("knowledge")) {
         const knowledge = await knowledgeRows(params, limit + 1 + TIE_PAD, cursor, signal);
         if (knowledge === undefined) unavailable.push("knowledge");
@@ -398,28 +144,7 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     },
     async decide(params, signal) {
       if (params.source === "learning") {
-        const api = deps.learning();
-        if (api === undefined) return decideFailure("unavailable", "learning group is not running");
-        // 결정은 후보의 부모 대화에서 실행한다. 그 대화가 이 호스트에서 열려 있지 않으면 열린 대화에서 실행한다
-        const listed = await api.list({});
-        const owner = listed.ok
-          ? listed.value.find((view) => view.id === params.id)?.evidence[0]?.threadId
-          : undefined;
-        const run = (): ReturnType<LearningRunner["run"]> =>
-          deps.runner.run(decisionCommandLine(learningDecision(params)), owner, signal);
-        // 허용의 대화는 `run`이 실행할 대화와 같아야 한다. 부모 대화가 열려 있을 때만 그 대화이고, 열린 대화로 바꾸면 알 수 없어 허용을 켜지 않는다
-        // (보통의 승인 카드). 같은 틱에 고르므로 `run`이 고르는 대화와 같다
-        const grantThread = deps.runner.openThreadOf(owner);
-        // 승인과 수정만 쓰기를 낳는다. 사람이 이 결정을 내렸으므로 그 제안의 쓰기는 카드를 다시 띄우지 않는다
-        const ran =
-          deps.humanDecision !== undefined &&
-          grantThread !== undefined &&
-          (params.decision === "approve" || params.decision === "edit")
-            ? await deps.humanDecision(learningDecisionGrant(params.id, grantThread), run)
-            : await run();
-        return ran.kind === "unavailable"
-          ? decideFailure("unavailable", ran.detail)
-          : resultOfReport(ran.report);
+        return decideFailure("unavailable", "the learning plugin is not built in");
       }
       const wire = deps.knowledge();
       if (wire === undefined)
@@ -427,4 +152,48 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
       return wire.decide(params, hostCall(signal));
     },
   };
+}
+
+/** `fresnel.knowledge`의 제안 대기열 어댑터를 나중에 채우는 자리. 브리지 확장이 채우고 `proposal.*` 처리기가 부를 때 읽는다 */
+export interface KnowledgeWireHolder {
+  current: KnowledgeProposalWire | undefined;
+}
+
+const BRIDGE_NAME = "host-proposals-bridge";
+
+/**
+ * `knowledge.ledger` 기능으로 L2.knowledge 제안 대기열 어댑터를 만들어 `holder`에 채우는 조립 확장. `proposal.list`·`proposal.decide`가
+ * 호스트(사용자) 호출 문맥으로 부른다. 안전 모드에서도 L2는 싣기 때문에 이 확장도 싣는다
+ */
+export function proposalsBridgePlugin(
+  holder: KnowledgeWireHolder,
+  loadIndex: number,
+): ExtensionUnit {
+  const manifest = defineManifest({
+    schemaVersion: 2,
+    name: BRIDGE_NAME,
+    version: "0.1.0",
+    displayName: "Proposals bridge",
+    description:
+      "Hands the knowledge proposal queue adapter to the proposal.list and proposal.decide handlers (host assembly).",
+    defaultEnabled: true,
+    entry: "./src/index.ts",
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        requires: [{ id: KnowledgeLedger.id, range: `^${KnowledgeLedger.version}` }],
+      },
+    ],
+    trust: { level: "builtin" },
+  });
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
+      holder.current = createKnowledgeProposalWire(g.capability(KnowledgeLedgerKey));
+      g.onDispose(() => {
+        holder.current = undefined;
+      });
+    });
+  };
+  return { manifest, entry, loadIndex, builtin: true };
 }

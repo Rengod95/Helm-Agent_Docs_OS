@@ -1,19 +1,12 @@
 import {
+  WorkspaceFailure,
   WorkspaceImages,
   type CapabilityApi,
   type ImageLimits,
   type WorkspaceImage,
 } from "@fresnel/contracts/capabilities";
-import type { CancelScope } from "@fresnel/contracts/services";
-import type { WorkspaceDeps } from "../deps.ts";
-import {
-  guarded,
-  getOrThrow,
-  resolveWorkspacePath,
-  scopedDeps,
-  WorkspaceFailure,
-  type BlobSink,
-} from "@fresnel/core-workspace";
+import type { BlobSink, CancelScope } from "@fresnel/contracts/services";
+import { scopeDeps, type WorkspaceDeps } from "../deps.ts";
 import type { WorkspaceSettings } from "../settings.ts";
 import { decodeBase64 } from "./decode.ts";
 import { prepareImage } from "./prepare.ts";
@@ -54,12 +47,15 @@ export async function probeImageType(
   canonicalPath: string,
   context: CancelScope,
 ): Promise<string | undefined> {
-  const reader = getOrThrow(await deps.env.openBinaryReader(canonicalPath, undefined, context));
+  const reader = deps.core.getOrThrow(
+    await deps.env.openBinaryReader(canonicalPath, undefined, context),
+  );
   try {
-    const info = getOrThrow(await reader.info(context));
+    const info = deps.core.getOrThrow(await reader.info(context));
     return await detectSupportedImageMimeTypeOf({
       size: info.size,
-      read: async (offset, length) => getOrThrow(await reader.read(offset, length, context)),
+      read: async (offset, length) =>
+        deps.core.getOrThrow(await reader.read(offset, length, context)),
     });
   } finally {
     await reader.close(context);
@@ -76,9 +72,11 @@ export async function loadImageAt(
   context: CancelScope,
 ): Promise<WorkspaceImage> {
   const blobs = blobsOf(deps);
-  const reader = getOrThrow(await deps.env.openBinaryReader(canonicalPath, undefined, context));
+  const reader = deps.core.getOrThrow(
+    await deps.env.openBinaryReader(canonicalPath, undefined, context),
+  );
   try {
-    const info = getOrThrow(await reader.info(context));
+    const info = deps.core.getOrThrow(await reader.info(context));
     if (info.size > settings.maxInputBytes) {
       throw new WorkspaceFailure(
         "invalid_input",
@@ -86,7 +84,7 @@ export async function loadImageAt(
         { detail: { reason: "input_too_large", size: info.size, limit: settings.maxInputBytes } },
       );
     }
-    const bytes = getOrThrow(await reader.read(0, info.size, context));
+    const bytes = deps.core.getOrThrow(await reader.read(0, info.size, context));
     return prepareImage(bytes, limitsOf(settings, override), blobs, displayPath);
   } finally {
     await reader.close(context);
@@ -96,7 +94,7 @@ export async function loadImageAt(
 export function createImagesApi(deps: WorkspaceDeps): ImagesApi {
   return {
     register: (input, options) =>
-      guarded(CAPABILITY, "register", () => {
+      deps.core.guarded(CAPABILITY, "register", () => {
         const settings = deps.settings(options?.context?.threadId).images;
         const blobs = blobsOf(deps);
         // 처리 전에 입력 크기를 먼저 본다. 너무 큰 입력은 디코드하지 않는다
@@ -119,13 +117,19 @@ export function createImagesApi(deps: WorkspaceDeps): ImagesApi {
         );
       }),
     load: (input, options) =>
-      guarded(CAPABILITY, "load", async () => {
-        const scoped = scopedDeps(deps, options?.context?.threadId);
+      deps.core.guarded(CAPABILITY, "load", async () => {
+        const scoped = scopeDeps(deps, options?.context?.threadId);
         const context: CancelScope = { abortSignal: options?.signal };
         const settings = scoped.settings(options?.context?.threadId).images;
-        const resolved = await resolveWorkspacePath(scoped.roots, input.path, "read", context, {
-          variants: true,
-        });
+        const resolved = await scoped.core.resolveWorkspacePath(
+          scoped.roots,
+          input.path,
+          "read",
+          context,
+          {
+            variants: true,
+          },
+        );
         if (!resolved.exists) {
           throw new WorkspaceFailure("not_found", `File not found: ${input.path}`);
         }
@@ -139,7 +143,7 @@ export function createImagesApi(deps: WorkspaceDeps): ImagesApi {
         return loadImageAt(scoped, resolved.canonical, input.path, settings, input.limits, context);
       }),
     resize: () =>
-      guarded(CAPABILITY, "resize", () =>
+      deps.core.guarded(CAPABILITY, "resize", () =>
         Promise.reject(
           new WorkspaceFailure("unsupported", "workspace.images resize needs an image processor.", {
             detail: { milestone: "2차" },

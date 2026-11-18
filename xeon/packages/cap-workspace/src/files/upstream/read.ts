@@ -7,16 +7,16 @@ import type {
   ExecService,
   ExecutionEnv,
   FileInfo,
+  WorkspaceCore,
 } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
-import {
-  WorkspaceFailure,
-  characterEnd,
-  getOrThrow,
-  utf8ByteLength,
-} from "@fresnel/core-workspace";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 // FRESNEL-PATCH: P2
 import { rangeDecoder, startsWithBom } from "./decode.ts";
+
+// FRESNEL-PATCH: P2
+/** 본문이 쓰는 코어 함수. 조립 루트가 넘긴 묶음에서 받는다(이 파일은 코어 구현을 import하지 않는다) */
+type ReadCore = Pick<WorkspaceCore, "characterEnd" | "getOrThrow" | "utf8ByteLength">;
 
 // FRESNEL-PATCH: P5
 /** 한도. 원본은 상수 DEFAULT_MAX_LINES·DEFAULT_MAX_BYTES를 썼고 여기서는 설정 l2.workspace.read.*를 호출마다 받는다. */
@@ -59,6 +59,7 @@ const NEWLINE = 0x0a;
  * `truncateHeadOf` (more than `maxBytes + 1` bytes, or `maxLines` newlines).
  */
 async function readHead(
+  core: ReadCore,
   reader: BinaryReader,
   start: number,
   end: number,
@@ -75,14 +76,14 @@ async function readHead(
     if (position >= end) return { value: undefined };
     const length = Math.min(READ_CHUNK, end - position);
     const chunk = await reader.read(position, length, context);
-    const bytes = getOrThrow(chunk);
+    const bytes = core.getOrThrow(chunk);
     if (bytes.length === 0) return { value: undefined };
     position += bytes.length;
     const decoded = decoder.decode(bytes, { stream: true });
     text += decoded;
     for (let index = decoded.indexOf("\n"); index !== -1; index = decoded.indexOf("\n", index + 1))
       newlines++;
-    if (newlines >= limits.maxLines || utf8ByteLength(text) > limits.maxBytes + 1)
+    if (newlines >= limits.maxLines || core.utf8ByteLength(text) > limits.maxBytes + 1)
       return { value: text };
     return undefined;
   });
@@ -95,6 +96,7 @@ async function readHead(
  * 이미지 분기)를 걷어 낸 본문이다. 이미지는 M2(`workspace.images`)에서 더한다. `offset`·`limit`은 1 이상의 정수다.
  */
 export async function readFileText(
+  core: ReadCore,
   env: Pick<ExecutionEnv, "openBinaryReader"> & Pick<ExecService, "truncateHeadOf">,
   absolutePath: string,
   offset: number | undefined,
@@ -102,16 +104,16 @@ export async function readFileText(
   limits: ReadLimits,
   context: Context,
 ): Promise<ReadFileOutcome> {
-  const reader = getOrThrow(await env.openBinaryReader(absolutePath, undefined, context));
+  const reader = core.getOrThrow(await env.openBinaryReader(absolutePath, undefined, context));
   try {
     // A concurrent writer can change the file between the scan and the reads. Appending (a growing log) leaves
     // the scanned text as it was. Otherwise the file is read again once.
     let attempt = 0;
     // FRESNEL-PATCH: P10
     return await repeatAsync<ReadFileOutcome>(async () => {
-      const before = getOrThrow(await reader.info(context));
-      const result = await readText(env, reader, before, offset, limit, limits, context);
-      const after = getOrThrow(await reader.info(context));
+      const before = core.getOrThrow(await reader.info(context));
+      const result = await readText(core, env, reader, before, offset, limit, limits, context);
+      const after = core.getOrThrow(await reader.info(context));
       const unchanged = after.size === before.size && after.mtimeMs === before.mtimeMs;
       if (unchanged || after.size > before.size) return { value: result };
       if (attempt === 1) {
@@ -132,6 +134,7 @@ export async function readFileText(
  * and bounding the selected lines with `truncateHead`, while reading only one scan's worth of the file plus the head.
  */
 async function readText(
+  core: ReadCore,
   env: Pick<ExecService, "truncateHeadOf">,
   reader: BinaryReader,
   info: FileInfo,
@@ -141,7 +144,9 @@ async function readText(
   context: Context,
 ): Promise<ReadFileOutcome> {
   // FRESNEL-PATCH: P5
-  const probe = getOrThrow(await reader.read(0, Math.min(info.size, BINARY_PROBE_BYTES), context));
+  const probe = core.getOrThrow(
+    await reader.read(0, Math.min(info.size, BINARY_PROBE_BYTES), context),
+  );
   if (probe.includes(0)) return { kind: "binary" };
 
   const startLine = offset === undefined ? 0 : Math.max(0, offset - 1);
@@ -151,7 +156,7 @@ async function readText(
   const requestedEnd = limit === undefined ? undefined : Math.max(scanStart + 1, startLine + limit);
   const scanEnd =
     requestedEnd !== undefined && Number.isSafeInteger(requestedEnd) ? requestedEnd : undefined;
-  const scan = getOrThrow(
+  const scan = core.getOrThrow(
     await reader.scanLines(
       { startLine: scanStart, ...(scanEnd === undefined ? {} : { endLine: scanEnd }) },
       context,
@@ -160,7 +165,7 @@ async function readText(
   const totalFileLines = scan.newlines + 1;
   // FRESNEL-PATCH: P5
   const lastByte =
-    info.size === 0 ? undefined : getOrThrow(await reader.read(info.size - 1, 1, context))[0];
+    info.size === 0 ? undefined : core.getOrThrow(await reader.read(info.size - 1, 1, context))[0];
   const fileLines = info.size === 0 ? 0 : totalFileLines - (lastByte === NEWLINE ? 1 : 0);
   // FRESNEL-PATCH: P5
   if (startLine >= Math.max(fileLines, 1)) return { kind: "beyond_end", fileLines };
@@ -175,13 +180,21 @@ async function readText(
     lines: scan.selectedBytes === 0 ? 0 : selectedLineCount - (endsWithNewline ? 1 : 0),
     bytes: scan.selectedBytes,
   };
-  const head = await readHead(reader, scan.start, scan.end, startsWithBom(probe), limits, context);
+  const head = await readHead(
+    core,
+    reader,
+    scan.start,
+    scan.end,
+    startsWithBom(probe),
+    limits,
+    context,
+  );
 
   const { content: headText, ...truncation } = env.truncateHeadOf(head, totals, limits);
   if (truncation.firstLineExceedsLimit) {
     // Show the start of the line, cut at the byte limit on a character boundary.
     const lineBytes = new TextEncoder().encode(head.split("\n")[0] ?? "");
-    const end = characterEnd(lineBytes, limits.maxBytes);
+    const end = core.characterEnd(lineBytes, limits.maxBytes);
     return {
       kind: "text",
       slice: {

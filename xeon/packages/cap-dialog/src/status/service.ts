@@ -1,7 +1,11 @@
-import { DialogStatus, type CapabilityApi, type StatusItem } from "@fresnel/contracts/capabilities";
+import {
+  DialogFailure,
+  DialogStatus,
+  type CapabilityApi,
+  type StatusItem,
+} from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
-import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
 import {
   coreItems,
@@ -77,7 +81,7 @@ export function createStatusService(deps: DialogDeps): StatusService {
 
   const api: StatusApi = {
     setItem: (input, options) =>
-      guarded(CAPABILITY, "setItem", () => {
+      deps.core.guardedDialog(CAPABILITY, "setItem", () => {
         const threadId = threadOf(options?.context?.threadId, "setItem");
         if (!store.set(threadId, input)) {
           return Promise.reject(
@@ -88,14 +92,14 @@ export function createStatusService(deps: DialogDeps): StatusService {
         return Promise.resolve({});
       }),
     clearItem: (input, options) =>
-      guarded(CAPABILITY, "clearItem", () => {
+      deps.core.guardedDialog(CAPABILITY, "clearItem", () => {
         const threadId = threadOf(options?.context?.threadId, "clearItem");
         store.clear(threadId, input.id);
         changed(threadId);
         return Promise.resolve({});
       }),
     list: (_input, options) =>
-      guarded(CAPABILITY, "list", () => {
+      deps.core.guardedDialog(CAPABILITY, "list", () => {
         const threadId = threadOf(options?.context?.threadId, "list");
         return Promise.resolve({ items: [...visible(threadId)] });
       }),

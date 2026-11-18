@@ -1,4 +1,4 @@
-// 지연 적재(M5c §4.1.11 [제안], LoadOptions.defaultNames): 시작 때는 기본 집합 밖이고 매니페스트 기본이 꺼진 외부 확장을 싣지 않는다.
+// 지연 적재(M5c §4.1.11, LoadOptions.defaultNames): 시작 때는 기본 집합 밖의 외부 확장을 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다.
 // 대화가 쓰면 `ensureLoaded`가 검토본 사본에서 싣고, `unload`는 기록을 꺼진 채 남겨 같은 이름을 다시 싣게 한다. 실제 임시 디렉터리와 실제 파이프라인.
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
@@ -103,7 +103,7 @@ test("startup leaves a reviewed plugin outside the default set off; the first en
   const harness = await harnessOf(portOf(state));
   const report = await harness.loader.loadAll({
     ...harness.options([], { cwd: project }),
-    defaultNames: [],
+    defaultNames: ["eager-kit"],
   });
 
   // 기본 집합 밖이라 시작 때 싣지 않는다. 기록은 꺼진 채 남고 이유 진단이 있다
@@ -204,4 +204,25 @@ test("a default-off plugin is held off only by a lock; with no lock its first en
   const unlocked = await harness.loader.ensureLoaded("lazy-kit", signal);
   expect(unlocked.state).toBe("active");
   expect(unlocked.diagnostics).toEqual([]);
+});
+
+test("startup does not load an outside-the-default-set plugin even when its manifest says defaultEnabled true", async () => {
+  const onRoot = await writePlugin(join(reviewedRoot, "on-kit", "a"), "tree", {
+    name: "on-kit",
+    defaultEnabled: true,
+  });
+  const state = {
+    entries: [{ name: "on-kit", source: "user" as const, root: onRoot, contentHash: HASH_A }],
+  };
+  const harness = await harnessOf(portOf(state));
+  const report = await harness.loader.loadAll({
+    ...harness.options([], { cwd: project }),
+    defaultNames: [],
+  });
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["on-kit", "disabled"],
+  ]);
+  const thread = await openThread(harness);
+  await fireIn(harness, thread, "startup");
+  expect(fired()).toEqual([]);
 });

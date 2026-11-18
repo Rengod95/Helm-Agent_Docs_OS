@@ -410,6 +410,17 @@ realTest(
     const connection = createHostConnection(host.client);
     try {
       await connection.request("host.hello", HELLO_PARAMS);
+      // 사용자 위치의 플러그인은 프로필에 들어 있어야 그 대화가 열 때 실린다(AGE-49). 코어 단위 둘과 이 시험의 플러그인을 기본 프로필에 넣는다
+      await connection.request("profile.put", {
+        profile: {
+          id: "default",
+          title: "default",
+          plugins: [{ name: "cap-workspace" }, { name: "cap-dialog" }, { name: BENCH_NAME }],
+          settings: [],
+          startDrive: null,
+        },
+        baseRev: null,
+      });
       const created = await connection.request("thread.create", {});
       const supervisor = supervisors[0];
       expect(supervisor).toBeDefined();
