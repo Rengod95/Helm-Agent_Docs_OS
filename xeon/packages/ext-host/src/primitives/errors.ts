@@ -87,6 +87,8 @@ export interface ExtDiagnostic {
     | "drive_limits_clamped"
     /** 시작 때 이미 열린 scope의 켜짐을 알리는 정보 진단 등 */
     | "scope_notice"
+    /** 가벼운 길의 플러그인 호출 줄을 추적 싱크가 받지 못했다. 호출 결과는 그대로다 */
+    | "plugin_call_trace_failed"
     /** 격리 프로세스가 주도 단계 중에 끝났다(process_exit, process_killed). 이유는 감독이 정한다(drive-isolation.md 3.3) */
     | PluginProcessFailureReason;
   readonly scopeId?: RegistrationId;

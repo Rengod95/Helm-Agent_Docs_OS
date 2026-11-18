@@ -15,6 +15,7 @@ import {
 import {
   MAX_ENTRIES_PER_TURN,
   MAX_HANDLERS_PER_ENTRY,
+  MAX_PRE_TURN_ENTRIES,
   MAX_THREADS,
 } from "../../src/operations/trace-buffer.ts";
 import { testRunControlOf, traceReadOf } from "../../src/primitives/index.ts";
@@ -986,3 +987,286 @@ async function dispatchToolCalls(t: TestHost, thread: ThreadId): Promise<void> {
   await call("call_2", "write");
   await call("call_3", "write");
 }
+
+/** 턴 전 항목 시험의 처리기 기록. 시작 시각은 `startedAt`으로 정한다 */
+function preHit(
+  registrationId: string,
+  startedAt: number = T0,
+  result: TraceHandlerResult = "passed",
+): Hit {
+  return {
+    registrationId,
+    durationMs: 1,
+    result,
+    startedAt,
+    size: 0,
+    skippedBy: null,
+    reason: null,
+  };
+}
+
+test("trace buffer: thread.start and input hooks before the first turn are its step 0 entries, flagged pre, in dispatch order", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  dispatchHits(buffer, thread, `${thread}:session.start:1`, "thread.start", T0, [
+    preHit("ext-open"),
+  ]);
+  dispatchHits(buffer, thread, "input:req_1", "input.user.before", T0, [
+    preHit("ext-ctx", T0, "modified"),
+  ]);
+  dispatchHits(buffer, thread, "user_bash:req_2", "input.bash.before", T0, [
+    preHit("ext-shell", T0, "blocked"),
+  ]);
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0 + 5, [
+    preHit("ext-turn", T0 + 5),
+  ]);
+  expect(buffer.turn(thread, turn)?.entries).toEqual([
+    {
+      seq: 0,
+      hook: "thread.start",
+      step: 0,
+      pre: true,
+      handlers: [
+        {
+          registrationId: "ext-open",
+          ms: 1,
+          result: "passed",
+          atMs: 0,
+          size: 0,
+          skippedBy: null,
+          reason: null,
+        },
+      ],
+    },
+    {
+      seq: 1,
+      hook: "input.user.before",
+      step: 0,
+      pre: true,
+      handlers: [
+        {
+          registrationId: "ext-ctx",
+          ms: 1,
+          result: "modified",
+          atMs: 0,
+          size: 0,
+          skippedBy: null,
+          reason: null,
+        },
+      ],
+    },
+    {
+      seq: 2,
+      hook: "input.bash.before",
+      step: 0,
+      pre: true,
+      handlers: [
+        {
+          registrationId: "ext-shell",
+          ms: 1,
+          result: "blocked",
+          atMs: 0,
+          size: 0,
+          skippedBy: null,
+          reason: null,
+        },
+      ],
+    },
+    {
+      seq: 3,
+      hook: "boundary.turn.before",
+      step: 0,
+      handlers: [
+        {
+          registrationId: "ext-turn",
+          ms: 1,
+          result: "passed",
+          atMs: 0,
+          size: 0,
+          skippedBy: null,
+          reason: null,
+        },
+      ],
+    },
+  ]);
+});
+
+test("trace buffer: a closed turn takes no later key without a turn, and the next turn takes the pre-turn hooks", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const first = ids.next("trn");
+  const second = ids.next("trn");
+  dispatchHits(buffer, thread, `${first}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-a"),
+  ]);
+  dispatchHits(buffer, thread, `${first}:boundary.turn.after`, "boundary.turn.after", T0, [
+    preHit("ext-b"),
+  ]);
+  // 닫힌 뒤에도 그 턴 키의 훅은 그 턴에 붙는다(현재 턴으로 다시 세우지는 않는다)
+  dispatchHits(buffer, thread, `${first}:boundary.settle.after`, "boundary.settle.after", T0, [
+    preHit("ext-c"),
+  ]);
+  // 턴 키가 없는 훅은 닫힌 턴에 붙지 않는다. 다음 턴을 기다리는 입력 훅은 기다리는 목록에 든다
+  dispatchHits(buffer, thread, "input:req_2", "input.user.before", T0, [preHit("ext-d")]);
+  dispatchHits(buffer, thread, "evt_9:lifecycle.agent.settled", "boundary.settle.after", T0, [
+    preHit("ext-e"),
+  ]);
+  dispatchHits(buffer, thread, `${second}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-f"),
+  ]);
+  expect(buffer.turn(thread, first)?.entries.map((entry) => [entry.hook, entry.seq])).toEqual([
+    ["boundary.turn.before", 0],
+    ["boundary.turn.after", 1],
+    ["boundary.settle.after", 2],
+  ]);
+  expect(
+    buffer
+      .turn(thread, second)
+      ?.entries.map((entry) => [entry.hook, entry.seq, entry.pre === true]),
+  ).toEqual([
+    ["input.user.before", 0, true],
+    ["boundary.turn.before", 1, false],
+  ]);
+});
+
+test("trace buffer: a pre-turn key while a turn is still open attaches to that turn and is not held", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const next = ids.next("trn");
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-a"),
+  ]);
+  dispatchHits(buffer, thread, "input:req_3", "input.user.before", T0, [preHit("ext-b")]);
+  expect(
+    buffer.turn(thread, turn)?.entries.map((entry) => [entry.hook, entry.step, entry.pre === true]),
+  ).toEqual([
+    ["boundary.turn.before", 0, false],
+    ["input.user.before", 0, false],
+  ]);
+  // 연 턴이 있었으므로 기다리던 항목은 없다
+  dispatchHits(buffer, thread, `${next}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-c"),
+  ]);
+  expect(buffer.turn(thread, next)?.entries.map((entry) => entry.hook)).toEqual([
+    "boundary.turn.before",
+  ]);
+});
+
+test("trace buffer: at most 8 pre-turn entries wait per thread, and the oldest are dropped first", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  for (let index = 0; index < 10; index += 1) {
+    dispatchHits(buffer, thread, `input:req_${String(index)}`, "input.user.before", T0, [
+      preHit(`ext-${String(index)}`),
+    ]);
+  }
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-turn"),
+  ]);
+  const entries = buffer.turn(thread, turn)?.entries ?? [];
+  expect(
+    entries.map((entry) => [entry.seq, entry.hook, entry.handlers[0]?.registrationId]),
+  ).toEqual([
+    [0, "input.user.before", "ext-2"],
+    [1, "input.user.before", "ext-3"],
+    [2, "input.user.before", "ext-4"],
+    [3, "input.user.before", "ext-5"],
+    [4, "input.user.before", "ext-6"],
+    [5, "input.user.before", "ext-7"],
+    [6, "input.user.before", "ext-8"],
+    [7, "input.user.before", "ext-9"],
+    [8, "boundary.turn.before", "ext-turn"],
+  ]);
+  expect(entries.filter((entry) => entry.pre === true)).toHaveLength(MAX_PRE_TURN_ENTRIES);
+});
+
+test("trace buffer: a disabled trace keeps no pre-turn entries, and a turn opened while disabled takes none", () => {
+  const ids = fixedIdFactory();
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const next = ids.next("trn");
+  const off = bufferWith({ enabled: false });
+  expect(
+    off.buffer.start({
+      threadId: thread,
+      dispatchKey: `${thread}:session.start:1`,
+      hook: "thread.start",
+      now: T0,
+    }),
+  ).toBeUndefined();
+  dispatchHits(off.buffer, thread, "input:req_1", "input.user.before", T0, [preHit("ext-a")]);
+  off.set({ enabled: true });
+  dispatchHits(off.buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-t"),
+  ]);
+  expect(off.buffer.turn(thread, turn)?.entries.map((entry) => entry.hook)).toEqual([
+    "boundary.turn.before",
+  ]);
+
+  // 기다리는 항목이 있는 채로 계측이 꺼지고 턴이 열리면, 그 항목은 버린다. 다시 켠 뒤의 다음 턴에 남지 않는다
+  const toggled = bufferWith(DEFAULT_TRACE_SETTINGS);
+  dispatchHits(toggled.buffer, thread, "input:req_2", "input.user.before", T0, [preHit("ext-b")]);
+  toggled.set({ enabled: false });
+  dispatchHits(toggled.buffer, thread, `${next}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-n"),
+  ]);
+  expect(toggled.buffer.turn(thread, next)).toBeUndefined();
+  toggled.set({ enabled: true });
+  const after = ids.next("trn");
+  dispatchHits(
+    toggled.buffer,
+    thread,
+    `${after}:boundary.turn.before`,
+    "boundary.turn.before",
+    T0,
+    [preHit("ext-x")],
+  );
+  expect(toggled.buffer.turn(thread, after)?.entries.map((entry) => entry.hook)).toEqual([
+    "boundary.turn.before",
+  ]);
+});
+
+test("trace buffer: a pre-turn dispatch still running when its turn opens keeps its pre flag and the turn's numbering", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const late = buffer.start({
+    threadId: thread,
+    dispatchKey: "input:req_late",
+    hook: "input.user.before",
+    now: T0,
+  });
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-turn"),
+  ]);
+  late?.record(preHit("ext-late"));
+  expect(
+    buffer.turn(thread, turn)?.entries.map((entry) => [entry.seq, entry.hook, entry.pre === true]),
+  ).toEqual([
+    [0, "boundary.turn.before", false],
+    [1, "input.user.before", true],
+  ]);
+});
+
+test("trace buffer: forgetThread drops the pre-turn entries that wait for a turn", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  dispatchHits(buffer, thread, "input:req_1", "input.user.before", T0, [preHit("ext-a")]);
+  buffer.forgetThread(thread);
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    preHit("ext-t"),
+  ]);
+  expect(buffer.turn(thread, turn)?.entries.map((entry) => entry.hook)).toEqual([
+    "boundary.turn.before",
+  ]);
+});

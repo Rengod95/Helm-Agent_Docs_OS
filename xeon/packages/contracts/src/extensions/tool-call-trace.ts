@@ -1,6 +1,7 @@
 // 도구 호출 추적의 읽기 전용 싱크(정본 docs/xeon/review/m5/turn-record-metrics.md §3.2, §4.1 규칙 2·7, §4.3).
 // core-tools가 도구 호출 하나를 닫을 때 `record`로 한 줄을 넘긴다. 한 방향 호출이고 반환값은 호출 경로로 돌아가지 않는다.
-// 인자 값과 결과 본문은 싣지 않는다. 인자는 정규화 JSON의 SHA-256 hex만 싣고, 호스트가 설치 소금으로 HMAC해 저장한다.
+// 결과 본문과 인자 값은 싣지 않는다. 인자는 정규화 JSON의 SHA-256 hex만 싣는다. 문자열 인자의 토큰 목록(`argTokens`)만 원본이 이 줄에 실리는데,
+// 프로세스 안에서만 쓰이고 호스트가 설치 소금으로 HMAC해 저장한다(원본 토큰은 저장하지 않는다).
 // 판정 목록은 턴 기록 와이어(`wire/turn-record.ts`의 `VERDICTS`)가 이 목록을 가져다 쓴다(F 디렉터리 순서상 extensions가 앞이다).
 
 /**
@@ -51,8 +52,13 @@ export interface ToolCallTraceEvent {
   readonly capability: { readonly id: string; readonly method: string } | null;
   /** 인자 정규화 JSON의 SHA-256 hex(파이프라인의 argsHash와 같다). 원본 인자는 싣지 않는다 */
   readonly argsHash: string;
-  /** 인자 정규화 JSON 글자 수의 4분의 1 올림(어림 토큰) */
-  readonly argTokens: number;
+  /** 인자 정규화 JSON 글자 수의 4분의 1 올림(어림 토큰 수) */
+  readonly argTokenCount: number;
+  /**
+   * 최상위 문자열 인자의 토큰 목록(원본, 최대 64개, 토큰당 64글자). 프로세스 안에서만 쓰인다. 호스트가 설치 소금으로 HMAC해 저장한다
+   * (§5.1-②). 문자열 인자가 없으면 빈 목록이다
+   */
+  readonly argTokens: readonly string[];
   /** 도구가 선언한 대상 경로 집합을 정렬해 정규화 JSON으로 적은 값의 SHA-256 hex. 선언이 없으면 null */
   readonly targetHash: string | null;
   /** 이 호출이 시작될 때 같은 턴이 웹·MCP 결과를 이미 읽었나 */

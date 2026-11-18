@@ -31,6 +31,20 @@ export const MAX_ENTRIES_PER_TURN = 5000;
 export const MAX_HANDLERS_PER_ENTRY = 256;
 /** 버퍼가 동시에 가지는 thread 수 상한 [제안]. 가장 오래 쓰이지 않은 thread부터 뺀다 */
 export const MAX_THREADS = 32;
+/**
+ * 턴이 열리기 전에 받은 항목을 thread마다 붙잡는 상한 [제안, 턴 기록 §4.2 규칙 17의 2]. 넘으면 가장 먼저 받은 항목부터 버린다.
+ * 다음 턴이 열리면 이 항목들이 그 턴의 단계 0이 되고, 계측이 꺼져 있으면 붙잡지 않는다
+ */
+export const MAX_PRE_TURN_ENTRIES = 8;
+/**
+ * 턴 전에 실행되는 훅 이름. 키 접두가 Turn이 아니어도(요청 id, 대화 id) 현재 열린 Turn이 없으면 다음 Turn의 단계 0에 붙는다.
+ * 키로 정하지 않고 훅 이름으로 정한다(§4.2 규칙 17의 2 [제안])
+ */
+const PRE_TURN_HOOKS: ReadonlySet<string> = new Set([
+  "thread.start",
+  "input.user.before",
+  "input.bash.before",
+]);
 
 /** 디스패치 하나의 시작 입력 */
 interface TraceStart {
@@ -99,29 +113,43 @@ export interface TraceBuffer {
 
 /** 쓰기 중인 항목. 생성된 뒤에는 핸들러 기록만 자란다 */
 interface MutableEntry {
-  readonly seq: number;
+  /** 턴 안의 순서. 턴 전에 받은 항목이 턴에 붙을 때 다시 센다 */
+  seq: number;
   readonly hook: string;
   readonly step: number;
+  /** 턴 전에 받은 항목이면 참 */
+  readonly pre: boolean;
   readonly handlers: TraceHandlerEntry[];
 }
 
-/** Turn 하나의 상태 */
+/**
+ * Turn 하나의 상태. 턴 전 항목을 붙잡는 자리(`holding`)도 같은 모양이다. 다음 Turn이 열리면 그 자리가 Turn이 된다
+ * (같은 객체라 아직 끝나지 않은 턴 전 디스패치의 기록도 같은 순서 번호와 같은 자리에 든다)
+ */
 interface TurnTrace {
   /** Turn이 처음 보일 때 읽은 계측 값. 이 Turn의 기록 여부를 정한다 */
-  readonly enabled: boolean;
+  enabled: boolean;
+  /** 턴 전 항목을 붙잡는 자리이면 참. 턴이 열리면 거짓이 된다 */
+  holding: boolean;
   /** Turn이 처음 보인 시각(디스패처 시계). 핸들러의 `atMs`는 이 값부터 잰다 */
-  readonly openedAt: number;
+  openedAt: number;
   readonly entries: MutableEntry[];
   /** 단계 식별자 → 단계 번호(첫 발견 순서, 1부터) */
   readonly steps: Map<string, number>;
+  /** 다음 항목에 줄 순서 번호 */
+  nextSeq: number;
+  /** `boundary.turn.after`를 받은 Turn. 닫힌 Turn은 현재 Turn이 되지 않는다 */
+  closed: boolean;
 }
 
 /** thread 하나의 상태 */
 interface ThreadTrace {
   /** 삽입 순서가 Turn 순서다. 맨 앞이 가장 오래된 Turn */
   readonly turns: Map<string, TurnTrace>;
-  /** 마지막으로 열린 Turn. stp_ 키와 그 밖의 키가 여기에 붙는다 */
+  /** 마지막으로 열린 Turn. stp_ 키와 그 밖의 키가 여기에 붙는다. 닫히면 비운다 */
   current: string | undefined;
+  /** 다음 Turn을 기다리는 턴 전 항목(thread마다 하나). 열린 Turn이 없을 때 받은 턴 전 훅이 든다 */
+  waiting: TurnTrace | undefined;
 }
 
 /** 접두는 첫 `:` 앞이다. `:`가 없으면 키 전체다 */
@@ -169,12 +197,33 @@ function stepOrdinal(turn: TurnTrace, stepId: string): number {
 }
 
 function snapshotOf(entry: MutableEntry): TraceTurnEntry {
-  return {
+  const base = {
     seq: entry.seq,
     hook: entry.hook,
     step: entry.step,
     handlers: [...entry.handlers],
   };
+  return entry.pre ? { ...base, pre: true } : base;
+}
+
+/** 턴 전 항목을 붙잡는 빈 자리 하나 */
+function waitingTrace(now: number): TurnTrace {
+  return {
+    enabled: true,
+    holding: true,
+    openedAt: now,
+    entries: [],
+    steps: new Map(),
+    nextSeq: 0,
+    closed: false,
+  };
+}
+
+/** 열린 Turn(닫히지 않고 현재인 Turn). 없으면 undefined */
+function openCurrentOf(thread: ThreadTrace): TurnTrace | undefined {
+  if (thread.current === undefined) return undefined;
+  const turn = thread.turns.get(thread.current);
+  return turn === undefined || turn.closed ? undefined : turn;
 }
 
 export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
@@ -184,7 +233,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   function threadOf(threadId: string): ThreadTrace {
     const found = threads.get(threadId);
     if (found !== undefined) return found;
-    const created: ThreadTrace = { turns: new Map(), current: undefined };
+    const created: ThreadTrace = { turns: new Map(), current: undefined, waiting: undefined };
     threads.set(threadId, created);
     while (threads.size > MAX_THREADS) dropOldest(threads);
     return created;
@@ -197,15 +246,23 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     threads.set(threadId, thread);
   }
 
-  /** 처음 보는 Turn을 연다. 계측 값을 여기서 한 번 읽고 보관 수를 넘는 가장 오래된 Turn을 뺀다 */
+  /**
+   * 처음 보는 Turn을 연다. 계측 값을 여기서 한 번 읽는다. 다음 Turn을 기다리던 턴 전 항목은 이 Turn의 단계 0이 된다.
+   * 계측이 꺼져 있으면 붙이지 않고 버린다(§4.2 규칙 17의 2)
+   */
   function openTurn(thread: ThreadTrace, turnId: string, now: number): TurnTrace {
     const settings = deps.settings();
-    const turn: TurnTrace = {
-      enabled: settings.enabled,
-      openedAt: now,
-      entries: [],
-      steps: new Map(),
-    };
+    const turn = thread.waiting ?? waitingTrace(now);
+    thread.waiting = undefined;
+    turn.holding = false;
+    turn.openedAt = now;
+    turn.enabled = settings.enabled;
+    // 계측이 꺼진 턴은 기록하지 않으므로 기다리던 항목도 버린다
+    if (!settings.enabled) turn.entries.length = 0;
+    turn.entries.forEach((entry, seq) => {
+      entry.seq = seq;
+    });
+    turn.nextSeq = turn.entries.length;
     thread.turns.set(turnId, turn);
     return turn;
   }
@@ -218,14 +275,22 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     hook: string,
     toolCallId: string | null,
   ): TraceDispatch {
+    // 턴 전이었는지는 디스패치를 시작한 때 정한다. 항목은 턴이 열린 뒤에 만들어질 수도 있다
+    const pre = turn.holding;
     let entry: MutableEntry | undefined;
     return {
       record(run) {
         // 숨기는 등록의 행은 항목을 만들지도 않는다. 그래서 아무도 돌지 않은 디스패치에는 항목이 없다
         if (deps.hidden?.(run.registrationId) === true) return;
         if (entry === undefined) {
-          if (turn.entries.length >= MAX_ENTRIES_PER_TURN) return;
-          entry = { seq: turn.entries.length, hook, step, handlers: [] };
+          if (turn.holding) {
+            // 턴 전 항목은 가장 먼저 받은 것부터 버려 상한을 지킨다
+            if (turn.entries.length >= MAX_PRE_TURN_ENTRIES) turn.entries.shift();
+          } else if (turn.entries.length >= MAX_ENTRIES_PER_TURN) {
+            return;
+          }
+          entry = { seq: turn.nextSeq, hook, step, pre, handlers: [] };
+          turn.nextSeq += 1;
           turn.entries.push(entry);
           touch(threadId, thread);
         }
@@ -234,7 +299,8 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
           registrationId: run.registrationId,
           ms: run.durationMs,
           result: run.result,
-          atMs: Math.max(0, run.startedAt - turn.openedAt),
+          // 턴 전에 실행된 훅은 턴이 열린 시각보다 앞이므로 0이다
+          atMs: pre ? 0 : Math.max(0, run.startedAt - turn.openedAt),
           size: run.size,
           skippedBy: run.skippedBy,
           reason: run.reason,
@@ -252,7 +318,11 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
 
   function* runsOf(): Generator<HandlerRun> {
     for (const thread of threads.values()) {
-      for (const turn of thread.turns.values()) {
+      const turns =
+        thread.waiting === undefined
+          ? thread.turns.values()
+          : [thread.waiting, ...thread.turns.values()];
+      for (const turn of turns) {
         for (const entry of turn.entries) {
           for (const handler of entry.handlers) {
             yield {
@@ -267,7 +337,10 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     }
   }
 
-  /** Turn 키: 그 Turn을 현재 Turn으로 세운다. 계측이 꺼진 Turn도 세워야 뒤의 stp_ 키가 엉뚱한 Turn에 붙지 않는다 */
+  /**
+   * Turn 키: 그 Turn의 항목으로 적는다. 처음 보는 Turn이면 턴 전 항목을 물려받는다.
+   * `boundary.turn.after`는 Turn을 닫는다. 닫힌 뒤의 훅(`boundary.settle.after`)은 그 Turn에 붙지만 현재 Turn으로 세우지는 않는다
+   */
   function startTurn(
     threadId: string,
     turnId: string,
@@ -281,23 +354,44 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
       turn = openTurn(thread, turnId, now);
       touch(threadId, thread);
     }
-    thread.current = turnId;
+    if (hook === "boundary.turn.after") {
+      turn.closed = true;
+      if (thread.current === turnId) thread.current = undefined;
+    } else if (!turn.closed) {
+      thread.current = turnId;
+    }
     return turn.enabled ? dispatchOf(threadId, thread, turn, 0, hook, toolCallId) : undefined;
   }
 
-  /** stp_ 키와 그 밖의 키: 현재 Turn에 붙는다(stp_는 단계 번호를 받는다). 현재 Turn이 없으면 기록하지 않는다 */
+  /**
+   * 키에 Turn이 없는 항목(stp_ 키와 그 밖의 키). 열린 현재 Turn이 있으면 그 Turn에 붙는다(stp_는 단계 번호를 받는다).
+   * 열린 Turn이 없으면 턴 전에 실행되는 훅만 다음 Turn을 기다리며 붙잡고, 나머지는 기록하지 않는다.
+   * 닫힌 이전 Turn에는 붙이지 않는다(다음 Turn의 턴 전 훅이 이전 Turn에 들어가지 않게 한다)
+   */
   function startInCurrent(
     threadId: string,
     prefix: string,
     hook: HookName,
+    now: number,
     toolCallId: string | null,
   ): TraceDispatch | undefined {
     const thread = threads.get(threadId);
-    if (thread === undefined || thread.current === undefined) return undefined;
-    const turn = thread.turns.get(thread.current);
-    if (turn === undefined || !turn.enabled) return undefined;
-    const step = prefix.startsWith("stp_") ? stepOrdinal(turn, prefix) : 0;
-    return dispatchOf(threadId, thread, turn, step, hook, toolCallId);
+    const open = thread === undefined ? undefined : openCurrentOf(thread);
+    if (thread !== undefined && open !== undefined) {
+      if (!open.enabled) return undefined;
+      const step = prefix.startsWith("stp_") ? stepOrdinal(open, prefix) : 0;
+      return dispatchOf(threadId, thread, open, step, hook, toolCallId);
+    }
+    if (!PRE_TURN_HOOKS.has(hook)) return undefined;
+    // 계측이 꺼지면 기다리던 항목도 버린다(계측을 다시 켜도 이전 항목이 다음 Turn에 붙지 않는다)
+    if (!deps.settings().enabled) {
+      if (thread !== undefined) thread.waiting = undefined;
+      return undefined;
+    }
+    const holder = threadOf(threadId);
+    const waiting = holder.waiting ?? waitingTrace(now);
+    holder.waiting = waiting;
+    return dispatchOf(threadId, holder, waiting, 0, hook, toolCallId);
   }
 
   return {
@@ -305,7 +399,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
       const prefix = prefixOf(dispatchKey);
       const toolCallId = toolCallIdOf(dispatchKey, hook);
       if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook, now, toolCallId);
-      return startInCurrent(threadId, prefix, hook, toolCallId);
+      return startInCurrent(threadId, prefix, hook, now, toolCallId);
     },
 
     turn(threadId, turnId) {

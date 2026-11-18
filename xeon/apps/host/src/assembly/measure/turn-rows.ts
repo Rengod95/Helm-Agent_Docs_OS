@@ -1,11 +1,13 @@
 import { createHmac } from "node:crypto";
 import type { StepComposition } from "@fresnel/contracts/conversation";
 import type {
+  PluginCallTraceEvent,
   TraceHandlerEntry,
   TraceTurnEntry,
   ToolCallTraceEvent,
 } from "@fresnel/contracts/extensions";
 import type { UsageRecord } from "@fresnel/contracts/services";
+import { TURN_FLAG_KEYS } from "@fresnel/contracts/wire";
 import type {
   Advertised,
   CacheBreak,
@@ -14,6 +16,7 @@ import type {
   HookRun,
   Material,
   ModelCall,
+  PluginCallLine,
   RecordLevel,
   ScopeKind,
   StepRecord,
@@ -22,13 +25,22 @@ import type {
   TurnStatus,
 } from "@fresnel/contracts/wire";
 import {
+  NO_TURN_BLOCKS,
   pluginCostOf,
   type StepContextEvent,
+  type TurnBlockFacts,
   type TurnSkillRead,
   type TurnToolRow,
 } from "./turn-context.ts";
 import { fitTurnRecord } from "./turn-fit.ts";
-import type { TrCallRow, TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import type {
+  TrCallRow,
+  TrFrameRow,
+  TrHookRow,
+  TrPluginCallRow,
+  TrStepRow,
+  TrTurnRow,
+} from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
 // 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
@@ -45,6 +57,14 @@ export const MAX_HOOK_ROWS_PER_TURN = 500;
 /** 턴 하나의 도구 호출 행 상한(§4.1 규칙 8). 넘는 줄은 `elided.calls`에 센다 */
 export const MAX_CALL_ROWS_PER_TURN = 500;
 
+/**
+ * 턴 하나의 가벼운 길 호출 줄 상한(`tr_plugincall`). 넘는 줄은 버린다. 줄 수를 세는 칸(`elided`)은 닫힌 목록이라 아직 더하지 않았다
+ */
+export const MAX_PLUGIN_CALL_ROWS_PER_TURN = 500;
+
+/** 인자가 JSON이 아닌 호출의 요청 키 재료. 인자 값은 싣지 않으므로 이런 호출은 같은 키로 센다 */
+const NON_JSON_ARGS = "non-json";
+
 /** 등록되지 않은 도구의 소유자 자리 값. 와이어 이름 규칙(1자 이상)을 지키려고 훅과 같은 값을 쓴다 */
 const UNKNOWN_PLUGIN = "none";
 /** 등록되지 않은 도구의 위험 등급 자리 값. 알 수 없으면 가장 무거운 등급으로 센다(meta_json의 `riskKnown`이 구분한다) */
@@ -59,27 +79,6 @@ const ADVERTISED_NONE: Advertised = {
   fingerprint: "none",
   byPlugin: [],
   tools: [],
-};
-
-/** 아직 채우지 않는 턴 플래그. 모두 0이다(§4.2 규칙 15의 구분은 막힘과 고장을 나누는 다른 트랙이 채운다) */
-const NO_FLAGS: TurnFlags = {
-  blockedIntent: 0,
-  blockedFault: 0,
-  deniedPolicy: 0,
-  deniedHuman: 0,
-  deniedNoninteractive: 0,
-  replaced: 0,
-  cancelledAsk: 0,
-  asked: 0,
-  modified: 0,
-  timedOut: 0,
-  failed: 0,
-  drive: false,
-  cacheBreak: false,
-  subagents: 0,
-  truncatedMaterials: 0,
-  draftActive: false,
-  untrackedWrite: false,
 };
 
 /** 쓰는 쪽이 턴 하나에 쌓는 상태. 행과 `record_json`은 이 값에서 만든다 */
@@ -105,6 +104,10 @@ export interface TurnDraft {
   readonly steps: StepRecord[];
   /** 주도권 스택의 프레임: 턴 시작 때 열려 있던 것과 턴 안의 변화(코어 위 프레임만, 깊이는 코어를 0으로 센다) */
   readonly frames: FrameMark[];
+  /** 이 턴의 `agent.spawned`로 만든 자식 대화 id. `flags.subagents`가 센다(`children` 목록은 아직 비운다) */
+  readonly spawnedChildren: Set<string>;
+  /** 가벼운 길의 플러그인 호출 줄(추적 싱크가 준 것, 들어온 순서). 턴을 닫을 때 `record_json`과 `tr_plugincall` 행이 된다 */
+  readonly pluginCalls: PluginCallLine[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
   /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
@@ -123,6 +126,8 @@ export interface TurnDraft {
   readonly tools: Map<string, TurnToolRow>;
   /** 턴에서 처음 읽은 스킬(이름 → 읽기) */
   readonly skills: Map<string, TurnSkillRead>;
+  /** 턴에 실린 색인·기억 블록의 사실(턴 기록 싱크가 알린 값). 단계마다 재료로 싣고 `skills.listed`가 된다 */
+  blocks: TurnBlockFacts;
   /** 이 턴의 `tr_material`에 이미 쓴 재료 키. 같은 재료는 처음 나타난 단계에만 쓴다 */
   readonly materialKeys: Set<string>;
   /** 이 턴의 `StepRecord`에 실은 재료 수(상한을 셀 때 쓴다) */
@@ -169,6 +174,8 @@ export function newDraft(input: {
     scope: "live",
     steps: [],
     frames: [],
+    spawnedChildren: new Set(),
+    pluginCalls: [],
     calls: new Map(),
     toolCalls: new Map(),
     contexts: new Map(),
@@ -177,6 +184,7 @@ export function newDraft(input: {
     approvals: new Map(),
     tools: new Map(),
     skills: new Map(),
+    blocks: NO_TURN_BLOCKS,
     materialKeys: new Set(),
     materialCount: 0,
     elidedMaterials: 0,
@@ -253,7 +261,7 @@ function withApproval(run: HookRun, approvals: ReadonlyMap<string, ApprovalOf>):
 function hookRunOf(flat: FlatHook): HookRun {
   const { entry, handler } = flat;
   const toolCallId = handler.toolCallId ?? null;
-  return {
+  const run: HookRun = {
     hook: entry.hook,
     registrationId: handler.registrationId,
     // 등록 항목이 없던 옛 기록은 자리 값이다
@@ -273,6 +281,8 @@ function hookRunOf(flat: FlatHook): HookRun {
     skippedBy: handler.skippedBy,
     decisionText: null,
   };
+  // 턴이 열리기 전에 실행된 훅(§4.2 규칙 17의 2)은 표지를 단다. 턴의 단계 0에만 든다
+  return entry.pre === true ? { ...run, preTurn: true } : run;
 }
 
 /**
@@ -414,6 +424,51 @@ function keyedHex(salt: string, text: string): string {
 }
 
 /**
+ * 문자열 인자 토큰 목록을 설치별 소금으로 가린 목록(`meta_json.argTokens`, §5.1-②). 토큰마다 `callKey`와 같은 방식(앞 16 hex)을 쓴다.
+ * 같은 소금이면 같은 토큰은 같은 값이고, 원본 토큰은 저장하지 않는다
+ */
+export function maskedArgTokensOf(salt: string, tokens: readonly string[]): string[] {
+  return tokens.map((token) => keyedHex(salt, token));
+}
+
+/**
+ * 가벼운 길의 호출 줄을 턴 기록 줄(`PluginCallLine`, §3.2)로 옮긴다. 요청 키는 인자 해시를 설치별 소금으로 HMAC한 짧은 값이다(§4.1 규칙 11)
+ */
+export function pluginCallLineOf(event: PluginCallTraceEvent, salt: string): PluginCallLine {
+  return {
+    plugin: event.plugin,
+    capability: event.capability,
+    method: event.method,
+    requestKey: keyedHex(salt, event.argsHash ?? NON_JSON_ARGS),
+    ok: event.ok,
+    ms: event.ms,
+    via: event.via,
+    toolCallId: event.toolCallId,
+  };
+}
+
+/** 가벼운 길의 줄 하나를 `tr_plugincall` 행으로 옮긴다. `seq`는 턴 안에서 들어온 순번이다 */
+export function trPluginCallRowOf(
+  line: PluginCallLine,
+  ids: { readonly threadId: string; readonly turnId: string },
+  seq: number,
+): TrPluginCallRow {
+  return {
+    threadId: ids.threadId,
+    turnId: ids.turnId,
+    seq,
+    plugin: line.plugin,
+    capability: line.capability,
+    method: line.method,
+    requestKey: line.requestKey,
+    ok: line.ok,
+    ms: line.ms,
+    via: line.via,
+    toolCallId: line.toolCallId,
+  };
+}
+
+/**
  * 호출 추적 줄 하나를 저장 모양(`CallRecord`)으로 옮긴다. 인자와 대상은 해시를 소금으로 한 번 더 HMAC한 짧은 값만 남긴다.
  * `hooks`는 이 호출의 `toolCallId`에 묶인 훅 행이다(§4.3)
  */
@@ -475,13 +530,14 @@ export function callRecordOf(
 }
 
 /**
- * 호출 한 줄의 저장 모양(`tr_call`). 열은 거르기용 사본이고, 위험 등급·기능·`afterUntrusted`·인자 글자 수는 `meta_json`에 든다.
- * `riskKnown`이 거짓이면 위험 등급은 자리 값이다
+ * 호출 한 줄의 저장 모양(`tr_call`). 열은 거르기용 사본이고, 위험 등급·기능·`afterUntrusted`·인자 어림 토큰 수는 `meta_json`에 든다.
+ * `riskKnown`이 거짓이면 위험 등급은 자리 값이다. `maskedArgTokens`는 `maskedArgTokensOf`의 결과다(원본 토큰은 넘기지 않는다)
  */
 export function trCallRowOf(
   event: ToolCallTraceEvent,
   record: CallRecord,
   base: { readonly threadId: string; readonly turnId: string; readonly stepIndex: number },
+  maskedArgTokens: readonly string[],
 ): TrCallRow {
   return {
     threadId: base.threadId,
@@ -510,7 +566,8 @@ export function trCallRowOf(
       capability: record.capability,
       afterUntrusted: record.afterUntrusted,
       parentToolCallId: record.parentToolCallId,
-      argTokens: event.argTokens,
+      argTokenCount: event.argTokenCount,
+      argTokens: [...maskedArgTokens],
       registrationId: record.blockedBy?.registrationId ?? null,
     }),
   };
@@ -580,6 +637,71 @@ export function stepRowOf(input: {
   };
 }
 
+/** 사람에게 물은 횟수. 같은 승인 id의 물음은 한 번이다(호출의 승인과 훅의 결정 물음은 같은 카드). 승인을 물려받은 호출은 카드를 띄우지 않았으니 세지 않는다. 승인 id가 없는 훅 물음(`awaitUser`)은 실행마다 한 번이다 */
+function askedOf(calls: readonly CallRecord[], runs: readonly HookRun[]): number {
+  const approvals = new Set<string>();
+  for (const call of calls) {
+    if (call.approval !== null && call.approval.inheritedFrom === null) {
+      approvals.add(call.approval.approvalId);
+    }
+  }
+  let unlinked = 0;
+  for (const run of runs) {
+    if (run.ask === null) continue;
+    if (run.ask.approvalId === null) unlinked += 1;
+    else approvals.add(run.ask.approvalId);
+  }
+  return approvals.size + unlinked;
+}
+
+/**
+ * 턴의 결과 수 표지(§3.2 `TurnFlags`). 단계 기록의 호출 판정과 훅 실행(턴 밖 훅과 늦은 행 포함)에서 센다.
+ * 호출은 판정마다 한 번씩 세고, 훅 실행은 `record_json`에 든 행을 센다(호출에 붙은 복사본은 따로 세지 않는다).
+ * 상한 때문에 버린 행은 세지 않는다(`elided`가 센다). `failed`는 시간 초과를 뺀 고장이고, `timedOut`은 시간 초과다.
+ * `untrackedWrite`는 항상 거짓이다: 대체 도구가 코어 서비스를 거치지 않았는지 세는 `observedCoreCalls` 계측이 아직 없다(F §5.5 P-4 3)
+ */
+export function turnFlagsOf(draft: TurnDraft, turnHooks: readonly HookRun[]): TurnFlags {
+  const calls = draft.steps.flatMap((step) => step.calls);
+  const runs = [...turnHooks, ...draft.steps.flatMap((step) => step.hooks)];
+  const verdictCount = (...verdicts: CallRecord["verdict"][]): number =>
+    calls.filter((call) => verdicts.includes(call.verdict)).length;
+  const failed = runs.filter((run) => run.result === "failed");
+  const timedOut = failed.filter((run) => run.reason === "timeout").length;
+  return {
+    blockedIntent: verdictCount("blocked_hook", "blocked_guard", "blocked_spawn"),
+    blockedFault: verdictCount("blocked_hook_fault", "blocked_guard_fault"),
+    deniedPolicy: verdictCount("denied_policy"),
+    deniedHuman: verdictCount("denied_human"),
+    deniedNoninteractive: verdictCount("denied_noninteractive"),
+    replaced: verdictCount("replaced_hook"),
+    cancelledAsk: verdictCount("cancelled_ask"),
+    asked: askedOf(calls, runs),
+    modified: runs.filter((run) => run.result === "modified").length,
+    timedOut,
+    failed: failed.length - timedOut,
+    drive: draft.frames.length > 0,
+    cacheBreak: draft.steps.some((step) => step.cache?.observed === true),
+    subagents: draft.spawnedChildren.size,
+    truncatedMaterials: draft.elidedMaterials,
+    draftActive: draft.scope === "overlay_draft",
+    untrackedWrite: false,
+  };
+}
+
+/**
+ * 턴 행의 `flags` 열(정수 비트). `TURN_FLAG_KEYS`의 i번째 칸이 `1 << i`이고, 불린 칸은 참일 때, 수 칸은 0보다 클 때 켜진다.
+ * `turnRecord.list`의 `flags` 거르기가 이 비트를 `(flags & mask) <> 0`으로 쓴다
+ */
+export function turnFlagBitsOf(flags: TurnFlags): number {
+  let bits = 0;
+  TURN_FLAG_KEYS.forEach((key, index) => {
+    const value = flags[key];
+    const on = typeof value === "boolean" ? value : value > 0;
+    if (on) bits |= 1 << index;
+  });
+  return bits;
+}
+
 /** 턴 기록 한 건(§3.2 `TurnRecord`). 아직 채우지 않는 칸은 빈 값이다 */
 function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
   return {
@@ -603,10 +725,10 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
     steps: [...draft.steps],
     turnHooks: [...state.turnHooks],
     continues: [],
-    // 스킬 색인에 실린 이름(`listed`)은 조립 입력에 없어 아직 비운다(§4.5 규칙 29, 보고 참조)
+    // 스킬 색인에 실린 이름과 못 실은 수는 턴 기록 싱크가 알린 값이다(§4.5 규칙 29). 알림이 없으면 빈 값이다
     skills: {
-      listed: [],
-      listedOmitted: 0,
+      listed: [...(draft.blocks.skillIndex?.listed ?? [])],
+      listedOmitted: draft.blocks.skillIndex?.omitted ?? 0,
       read: [...draft.skills.values()].map((skill) => ({
         name: skill.name,
         plugin: skill.plugin,
@@ -620,13 +742,9 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
       tools: [...draft.tools.values()],
       skills: [...draft.skills.values()],
     }),
-    pluginCalls: [],
+    pluginCalls: draft.pluginCalls.map((line) => ({ ...line })),
     pluginStderr: [],
-    flags: {
-      ...NO_FLAGS,
-      cacheBreak: draft.steps.some((step) => step.cache?.observed === true),
-      truncatedMaterials: draft.elidedMaterials,
-    },
+    flags: turnFlagsOf(draft, state.turnHooks),
     elided: {
       ...(draft.elidedHooks === 0 ? {} : { hooks: draft.elidedHooks }),
       ...(draft.elidedCalls === 0 ? {} : { calls: draft.elidedCalls }),
@@ -639,8 +757,9 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
 
 /** 턴 행(`tr_turn`). `record_json`은 `TurnRecord` 전체의 직렬화다 */
 export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
-  // 상한을 넘으면 줄인다(§4.1 규칙 8). 요약으로 바꾼 턴은 행의 `complete`도 거짓이다
-  const fitted = fitTurnRecord(turnRecordOf(draft, state), draft.maxBytes);
+  // 상한을 넘으면 줄인다(§4.1 규칙 8). 요약으로 바꾼 턴은 행의 `complete`도 거짓이다. 플래그는 줄이기 전 기록에서 센다
+  const record = turnRecordOf(draft, state);
+  const fitted = fitTurnRecord(record, draft.maxBytes);
   const firstModel = draft.steps[0]?.modelCalls[0]?.modelId ?? null;
   return {
     threadId: draft.threadId,
@@ -659,7 +778,7 @@ export function turnRowOf(draft: TurnDraft, state: TurnState): TrTurnRow {
     level: draft.level,
     complete: state.complete && !fitted.summarized,
     model: firstModel,
-    flags: 0,
+    flags: turnFlagBitsOf(record.flags),
     recordJson: fitted.json,
     recordBytes: fitted.bytes,
     startedEventId: draft.startedEventId,

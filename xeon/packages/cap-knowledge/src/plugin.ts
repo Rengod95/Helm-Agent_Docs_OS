@@ -12,7 +12,11 @@ import {
   type AnyCapabilityDef,
 } from "@fresnel/contracts/capabilities";
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
-import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
+import {
+  TurnRecordPortKey,
+  type ExtensionEntry,
+  type PortKey,
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
@@ -280,10 +284,13 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       }
 
       // 세션 맥락: 첫 turn 블록(스킬 인덱스, 메모리 스냅샷)과 인덱스 변경 델타(spec §4.2.5, §4.2.6, §7)
+      // 턴 기록 싱크는 조립 루트가 포트로 준다. 없으면 블록을 알리지 않는다
+      const turnRecord = optionalPort(host, TurnRecordPortKey);
       const turnContext = createTurnContext({
         skills: runtime.skills,
         memory: runtime.memory,
         logger,
+        ...(turnRecord === undefined ? {} : { turnRecord }),
       });
       g.on("thread.start", async (payload) => {
         await turnContext.start(payload.threadId, payload.reason);

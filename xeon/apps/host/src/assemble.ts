@@ -19,10 +19,15 @@ import type {
   ContextTraceSink,
   ExtensionManifest,
   MaterialPort,
+  PluginCallTraceEvent,
+  PluginCallTraceSink,
   PortKey,
   ToolCallTraceEvent,
   ToolCallTraceSink,
+  TurnBlockEvent,
+  TurnRecordSink,
 } from "@fresnel/contracts/extensions";
+import { PluginCallTracePortKey, TurnRecordPortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -723,8 +728,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordBody: ((input: RequestBodyInput) => void) | undefined;
     /** 도구 호출 추적 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
     recordCall: ((input: ToolCallTraceEvent) => void) | undefined;
+    /** 가벼운 길의 플러그인 호출 줄을 턴 기록으로 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordPluginCall: ((input: PluginCallTraceEvent) => void) | undefined;
     /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
     recordContext: ((input: ContextTraceEvent) => void) | undefined;
+    /** 색인·기억 블록의 사실을 턴 기록에 넘긴다. 측정 저장소를 열기 전에는 없다 */
+    recordTurnBlock: ((input: TurnBlockEvent) => void) | undefined;
     /** 대화 삭제 때 그 대화의 `tr_*` 행을 지운다. 측정 저장소를 열기 전에는 없다 */
     forgetThread: ((threadId: string) => void) | undefined;
   } = {
@@ -732,7 +741,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     recordFailure: undefined,
     recordBody: undefined,
     recordCall: undefined,
+    recordPluginCall: undefined,
     recordContext: undefined,
+    recordTurnBlock: undefined,
     forgetThread: undefined,
   };
   // 도구 호출 추적 싱크(읽기 전용). 도구 런타임은 측정 저장소보다 먼저 만들어지므로 값은 나중에 채운 슬롯을 거친다
@@ -741,10 +752,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       measureSlot.recordCall?.(event);
     },
   };
+  // 가벼운 길의 플러그인 호출 추적 싱크(읽기 전용). 확장의 기능 호출이 `fresnel.pluginCallTrace` 포트로 받는다(§4.3)
+  const pluginCallTraceSink: PluginCallTraceSink = {
+    record: (event) => {
+      measureSlot.recordPluginCall?.(event);
+    },
+  };
   // 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 모델 요청 조립과 같은 슬롯을 거친다(§4.1 규칙 2)
   const contextTraceSink: ContextTraceSink = {
     record: (event) => {
       measureSlot.recordContext?.(event);
+    },
+  };
+  // 색인·기억 블록의 턴 기록 싱크(읽기 전용). 내장 지식 플러그인이 `fresnel.turnRecord` 포트로 블록이 실린 사실을 알린다
+  const turnRecordSink: TurnRecordSink = {
+    record: (event) => {
+      measureSlot.recordTurnBlock?.(event);
     },
   };
   // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
@@ -1023,6 +1046,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
     );
     await register("platform-sandbox", sandboxPlatform(sandboxSource(settings), lifetime.signal));
+    // 가벼운 길의 호출 추적 포트(턴 기록이 받는다). 측정 저장소를 열기 전에는 줄을 버린다
+    await register("platform-plugin-call-trace", {
+      name: "platform-plugin-call-trace",
+      setup(ctx) {
+        ctx.providePort(PluginCallTracePortKey, pluginCallTraceSink);
+      },
+    });
+    // 색인·기억 블록의 턴 기록 포트. 플러그인은 이 포트로만 알리므로 수집기를 import하지 않는다
+    await register("platform-turn-record", {
+      name: "platform-turn-record",
+      setup(ctx) {
+        ctx.providePort(TurnRecordPortKey, turnRecordSink);
+      },
+    });
 
     // 3. 플러그인: 기본 확장(의존 순서), 이어서 extraPlugins
     const fingerprint = os.processStartFingerprint(process.pid);
@@ -1520,7 +1557,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.recordFailure = measurement.offerFailure;
     measureSlot.recordBody = measurement.offerBody;
     measureSlot.recordCall = measurement.offerCall;
+    measureSlot.recordPluginCall = measurement.offerPluginCall;
     measureSlot.recordContext = measurement.offerContext;
+    measureSlot.recordTurnBlock = measurement.offerTurnRecord;
     measureSlot.forgetThread = measurement.forgetThread;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({

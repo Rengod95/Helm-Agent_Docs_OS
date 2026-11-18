@@ -9,6 +9,7 @@ import type {
   ContextMaterialFact,
   ContextTraceEvent,
   ToolCallTraceEvent,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import type { CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
@@ -156,7 +157,8 @@ function callOf(overrides: Partial<ToolCallTraceEvent>): ToolCallTraceEvent {
     risk: "read",
     capability: null,
     argsHash: "a".repeat(64),
-    argTokens: 3,
+    argTokenCount: 3,
+    argTokens: [],
     targetHash: null,
     afterUntrusted: false,
     verdict: "allowed",
@@ -174,6 +176,7 @@ interface Rig {
   readonly commit: (events: readonly DurableEventEnvelope[]) => void;
   readonly meter: (record: UsageRecord) => void;
   readonly context: (event: ContextTraceEvent) => void;
+  readonly turnRecord: (event: TurnBlockEvent) => void;
   readonly call: (event: ToolCallTraceEvent) => void;
   readonly measurement: ReturnType<typeof startMeasurement>;
 }
@@ -216,6 +219,9 @@ function open(dir: string, enabled: boolean): Rig {
     },
     context: (event) => {
       measurement.offerContext(event);
+    },
+    turnRecord: (event) => {
+      measurement.offerTurnRecord(event);
     },
     call: (event) => {
       measurement.offerCall(event);
@@ -670,6 +676,79 @@ test("with_the_measurement_off_the_context_events_write_no_rows", async () => {
     expect(bundle.turn.level).toBe("log_only");
     expect(bundle.materials).toEqual([]);
     expect(bundle.tooluse).toEqual([]);
+    rig.measurement.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the_skill_index_and_memory_blocks_are_owned_materials_in_every_step_and_name_the_listed_skills", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-context-"));
+  try {
+    const rig = open(dir, true);
+    const SECOND_STEP: StepId = ids.next("stp");
+    rig.commit([envelope(1, "turn.started", TURN_STARTED)]);
+    // 턴 입력 뒤 블록 알림(색인 일곱 개가 밀려 나고 기억 한 덩어리). 턴의 모든 단계에 같은 재료로 실린다
+    rig.turnRecord({
+      kind: "skill_index",
+      threadId: THREAD,
+      plugin: "knowledge",
+      listed: ["alpha-skill", "beta-skill"],
+      omitted: 7,
+      tokens: 201,
+    });
+    rig.turnRecord({ kind: "memory", threadId: THREAD, plugin: "knowledge", tokens: 90 });
+    rig.context({
+      kind: "step_context",
+      threadId: THREAD,
+      turnId: TURN,
+      stepId: STEP,
+      materials: [material({ ref: "guides/style.md", tokens: 12 })],
+      advertised: advertisedOf({}),
+    });
+    rig.commit([envelope(2, "step.completed", stepCompleted(1), STEP)]);
+    // 둘째 단계는 조립 사실이 없다. 블록 재료만 그 단계의 기록에 든다
+    rig.commit([envelope(3, "step.completed", stepCompleted(2), SECOND_STEP)]);
+    rig.commit([envelope(4, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const bundle = bundleOf(rig);
+    // 같은 재료는 처음 나타난 단계에만 행으로 쓴다(둘째 단계는 행을 더하지 않는다)
+    expect(
+      bundle.materials
+        .map((row) => [
+          row.stepIndex,
+          row.plugin,
+          row.ref,
+          row.material,
+          row.kind,
+          row.tokens,
+          row.omitted,
+          row.attribution,
+        ])
+        .toSorted((left, right) => (String(left[2]) < String(right[2]) ? -1 : 1)),
+    ).toEqual([
+      [1, "alpha", "guides/style.md", "instruction", "always", 12, null, "declared"],
+      [1, "knowledge", "memory", "memory", "always", 90, null, "declared"],
+      [1, "knowledge", "skill-index", "skill_index", "always", 201, 7, "declared"],
+    ]);
+
+    const json: unknown = JSON.parse(bundle.turn.recordJson);
+    const record = parse(TurnRecordSchema, json);
+    if (!record.ok) throw new Bug("the turn record must validate");
+    // 색인에 실린 이름과 못 실은 수는 턴 기록의 `skills`에 그대로 든다
+    expect(record.value.skills.listed).toEqual(["alpha-skill", "beta-skill"]);
+    expect(record.value.skills.listedOmitted).toBe(7);
+    // 블록 재료는 두 단계 모두에 든다
+    expect(record.value.steps.map((step) => step.materials.map((item) => item.ref))).toEqual([
+      ["guides/style.md", "skill-index", "memory"],
+      ["skill-index", "memory"],
+    ]);
+    // 비용은 마지막 단계의 재료와 턴의 광고 도구를 한 번씩 센다. 지식 플러그인은 색인 201, 기억 90, 광고 도구 k-view 4
+    expect(record.value.cost).toEqual([
+      { plugin: "alpha", always: 10, drive: 0, onDemand: 0, shared: false },
+      { plugin: "knowledge", always: 201 + 90 + 4, drive: 0, onDemand: 0, shared: false },
+    ]);
     rig.measurement.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });

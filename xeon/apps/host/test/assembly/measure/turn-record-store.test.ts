@@ -1015,3 +1015,141 @@ test("when the fold cannot read a stored counter the prune writes nothing and de
     expect(rawCount(path, "tr_hook", threadId)).toBe(1);
   });
 });
+
+test("a batch whose work throws rolls back every write in it and returns an io error value", () => {
+  const store = memoryStore();
+  const boom = new Error("the work broke after two writes");
+  const result = store.batch(() => {
+    must(
+      store.writeBatch([
+        {
+          at: NOW,
+          threadId: "thr_b",
+          turnId: "trn_1",
+          kind: "turn",
+          metrics: { usd: 1 },
+          tags: {},
+        },
+      ]),
+    );
+    must(store.upsertTurn(turnOf("thr_b", "trn_1", NOW)));
+    throw boom;
+  });
+  expect(result).toEqual({ ok: false, error: { kind: "io", cause: boom } });
+  expect(store.rawCount()).toEqual({ ok: true, value: 0 });
+  expect(store.readTurn("thr_b", "trn_1")).toEqual({ ok: true, value: undefined });
+  store.close();
+});
+
+test("a batch of a turn row, a step and late hooks reads back the same bundle as the same writes made one by one", () => {
+  const apart = memoryStore();
+  const together = memoryStore();
+  const late = [hookOf("thr_c", "trn_1", 9, { stepIndex: 0 })];
+  must(apart.upsertTurn(turnOf("thr_c", "trn_1", NOW)));
+  must(apart.writeStep(fullStep("thr_c", "trn_1", 0)));
+  must(apart.writeHooks(late));
+  must(
+    together.batch(() => {
+      must(together.upsertTurn(turnOf("thr_c", "trn_1", NOW)));
+      must(together.writeStep(fullStep("thr_c", "trn_1", 0)));
+      must(together.writeHooks(late));
+    }),
+  );
+
+  const bundle = must(together.readTurn("thr_c", "trn_1"));
+  expect(bundle).toEqual(must(apart.readTurn("thr_c", "trn_1")));
+  expect(bundle?.steps.map((step) => step.stepIndex)).toEqual([0]);
+  expect(bundle?.calls.map((call) => call.toolCallId)).toEqual(["call-trn_1-0"]);
+  expect(bundle?.hooks.map((hook) => hook.seqGlobal)).toEqual([1, 9]);
+  together.close();
+  apart.close();
+});
+
+test("a five-step turn written one batch per step reads back exactly as one-by-one writes, also after a reopen", () => {
+  withDir((dir) => {
+    const apartPath = join(dir, "apart.db");
+    const batchedPath = join(dir, "batched.db");
+    const apart = must(openMeasureStore(apartPath));
+    const batched = must(openMeasureStore(batchedPath));
+    const late = [hookOf("thr_e", "trn_e", 9, { stepIndex: 0 })];
+    must(apart.upsertTurn(turnOf("thr_e", "trn_e", NOW)));
+    for (let step = 0; step < 5; step += 1) must(apart.writeStep(fullStep("thr_e", "trn_e", step)));
+    must(apart.writeHooks(late));
+
+    // 흐름과 같은 모양: 턴 행, 단계마다 한 묶음(묶음 안의 단계 쓰기는 저장점이 된다), 늦은 훅 한 묶음
+    must(batched.batch(() => must(batched.upsertTurn(turnOf("thr_e", "trn_e", NOW)))));
+    for (let step = 0; step < 5; step += 1) {
+      must(batched.batch(() => must(batched.writeStep(fullStep("thr_e", "trn_e", step)))));
+    }
+    must(batched.batch(() => must(batched.writeHooks(late))));
+
+    const bundle = must(batched.readTurn("thr_e", "trn_e"));
+    expect(bundle?.turn.status).toBe("open");
+    expect(bundle?.steps.map((row) => row.stepIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(bundle?.calls.map((row) => row.toolCallId)).toEqual([
+      "call-trn_e-0",
+      "call-trn_e-1",
+      "call-trn_e-2",
+      "call-trn_e-3",
+      "call-trn_e-4",
+    ]);
+    expect(bundle?.hooks.map((row) => [row.stepIndex, row.seqGlobal])).toEqual([
+      [0, 1],
+      [0, 9],
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+    ]);
+    expect(bundle?.materials.map((row) => row.stepIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(bundle?.tooluse.map((row) => row.tool)).toEqual(["bash"]);
+    expect(bundle?.skills.map((row) => row.skill)).toEqual(["skill-x"]);
+    expect(bundle?.plugincalls.map((row) => row.seq)).toEqual([1, 2, 3, 4, 5]);
+    expect(bundle?.cache.map((row) => row.stepIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(bundle).toEqual(must(apart.readTurn("thr_e", "trn_e")));
+
+    batched.close();
+    apart.close();
+    const reopened = must(openMeasureStore(batchedPath));
+    expect(must(reopened.readTurn("thr_e", "trn_e"))).toEqual(bundle);
+    reopened.close();
+  });
+});
+
+test("a batch of many steps that throws leaves no step rows, and the store takes the next batch as usual", () => {
+  withDir((dir) => {
+    const path = join(dir, "measure.db");
+    const store = must(openMeasureStore(path));
+    const boom = new Error("the work broke after twenty steps");
+    const failed = store.batch(() => {
+      must(store.upsertTurn(turnOf("thr_f", "trn_f", NOW)));
+      for (let step = 0; step < 20; step += 1)
+        must(store.writeStep(fullStep("thr_f", "trn_f", step)));
+      throw boom;
+    });
+    expect(failed).toEqual({ ok: false, error: { kind: "io", cause: boom } });
+    expect(rawCount(path, "tr_turn", "thr_f")).toBe(0);
+    expect(rawCount(path, "tr_step", "thr_f")).toBe(0);
+    expect(rawCount(path, "tr_call", "thr_f")).toBe(0);
+    expect(rawCount(path, "tr_tooluse", "thr_f")).toBe(0);
+
+    must(store.batch(() => must(store.upsertTurn(turnOf("thr_f", "trn_f", NOW)))));
+    must(store.batch(() => must(store.writeStep(fullStep("thr_f", "trn_f", 0)))));
+    const bundle = must(store.readTurn("thr_f", "trn_f"));
+    expect(bundle?.steps.map((row) => row.stepIndex)).toEqual([0]);
+    expect(bundle?.calls.map((row) => row.toolCallId)).toEqual(["call-trn_f-0"]);
+    store.close();
+  });
+});
+
+test("a batch on a closed store is a closed error value and its work does not run", () => {
+  const store = memoryStore();
+  store.close();
+  let ran = false;
+  expect(
+    store.batch(() => {
+      ran = true;
+    }),
+  ).toEqual({ ok: false, error: { kind: "closed" } });
+  expect(ran).toBe(false);
+});

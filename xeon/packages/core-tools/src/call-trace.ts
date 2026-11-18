@@ -12,6 +12,35 @@ import { isJsonObject, sha256HexSync, utf8Bytes } from "./util.ts";
 const EXTENSION_PREFIX = "ext.";
 const PLUGIN_CALLER_PREFIX = "plugin:";
 
+/** 문자열 인자 토큰 목록의 상한(개수, §5.1-②). 넘는 토큰은 버린다 */
+const ARG_TOKEN_LIMIT = 64;
+/** 토큰의 글자 범위: 이보다 짧은 토큰은 버리고, 긴 토큰은 이 글자 수에서 자른다 */
+const ARG_TOKEN_MIN_CHARS = 2;
+const ARG_TOKEN_MAX_CHARS = 64;
+/** 글자, 결합 기호, 숫자가 아닌 곳에서 토큰을 나눈다 */
+const TOKEN_SEPARATOR = /[^\p{L}\p{M}\p{N}]+/u;
+
+/**
+ * 문자열 인자의 토큰 목록(§5.1-②, 원본 값). 최상위 문자열 인자를 키 순서로 읽고, 글자·숫자가 아닌 곳에서 나누고, 소문자로 바꾸고,
+ * 두 글자 미만을 버리고, 64글자로 자르고, 처음 나온 순서로 중복을 뺀 뒤 64개까지 남긴다. 인자가 객체가 아니면 빈 목록이다.
+ * 이 값은 프로세스 안에서만 쓰이고, 호스트가 설치 소금으로 HMAC해 저장한다
+ */
+export function argTokensOf(args: unknown): string[] {
+  if (!isJsonObject(args)) return [];
+  const seen = new Set<string>();
+  for (const key of Object.keys(args).toSorted()) {
+    const value = args[key];
+    if (typeof value !== "string") continue;
+    for (const piece of value.split(TOKEN_SEPARATOR)) {
+      const word = Array.from(piece.toLowerCase());
+      if (word.length < ARG_TOKEN_MIN_CHARS) continue;
+      seen.add(word.slice(0, ARG_TOKEN_MAX_CHARS).join(""));
+      if (seen.size >= ARG_TOKEN_LIMIT) return [...seen];
+    }
+  }
+  return [...seen];
+}
+
 /** 호출 주체를 저장 모양으로 옮긴다. `plugin:<이름>`은 이름을, 하위 대화는 `subagent`를 준다 */
 function callerOf(caller: CallerId): Pick<CallTraceOrigin, "caller" | "callerPlugin"> {
   if (caller === "main") return { caller: "main", callerPlugin: null };
@@ -119,7 +148,8 @@ export function traceEventOf(parts: CallTraceParts): ToolCallTraceEvent {
         ? null
         : { id: entry.capability.id, method: entry.capability.method },
     argsHash: sha256HexSync(canonical),
-    argTokens: Math.ceil(canonical.length / 4),
+    argTokenCount: Math.ceil(canonical.length / 4),
+    argTokens: argTokensOf(parts.args),
     targetHash: entry === undefined ? null : targetHashOf(entry, parts.args),
     afterUntrusted: parts.afterUntrusted,
     verdict: parts.verdict,

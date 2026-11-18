@@ -7,9 +7,11 @@ import {
 } from "@fresnel/contracts/conversation";
 import type {
   ContextTraceEvent,
+  PluginCallTraceEvent,
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
@@ -25,9 +27,10 @@ import {
 } from "./store.ts";
 import { cacheExpired } from "./turn-context.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "./turn-fit.ts";
-import type { TurnRecordEvents } from "./turn-events.ts";
+import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
 import { createTurnWriter } from "./turn-writer.ts";
+import { messageOf } from "../../util.ts";
 
 /** 측정 DB 파일 이름 */
 const MEASURE_DB_FILE_NAME = "measure.db";
@@ -312,7 +315,9 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly offerBody: (input: RequestBodyInput) => void;
   readonly offerFailure: (input: HandlerFailureInput) => void;
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   readonly offerContext: (input: ContextTraceEvent) => void;
+  readonly offerTurnRecord: (input: TurnBlockEvent) => void;
   /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
   readonly forget: (threadId: string) => void;
 } {
@@ -328,6 +333,18 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       queueMicrotask(flush);
     }
   };
+  /** 쓰기 묶음 안에서 나온 턴 기록 사건. 묶음이 커밋된 뒤에 보낸다(롤백된 행을 알리지 않는다). 묶음 밖에서는 바로 보낸다 */
+  let queuedEvents: TurnRecordEvent[] | undefined;
+  const sink = deps.events;
+  const turnEvents: Pick<TurnRecordEvents, "emit"> | undefined =
+    sink === undefined
+      ? undefined
+      : {
+          emit: (event) => {
+            if (queuedEvents === undefined) sink.emit(event);
+            else queuedEvents.push(event);
+          },
+        };
   const turns = deps.turnRecords
     ? createTurnWriter({
         store: deps.store,
@@ -336,7 +353,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
         enabled: deps.enabled,
         logger: deps.logger,
         queue: enqueueOp,
-        ...(deps.events === undefined ? {} : { events: deps.events }),
+        ...(turnEvents === undefined ? {} : { events: turnEvents }),
         maxTurnBytes: deps.maxTurnBytes,
         testRunsAlwaysOn: deps.testRunsAlwaysOn,
       })
@@ -388,22 +405,52 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     callsByTurn.set(call.turnId, known);
   });
 
+  /**
+   * 묶음 하나를 커밋 하나로 쓴다: 쌓인 작업을 차례로 돌리고 측정 행을 쓴다. 작업이 던지면 그 작업만 로그에 남기고 나머지는 계속 쓴다.
+   * 묶음이 롤백되면 그 안에서 나온 턴 기록 사건은 보내지 않는다. 보존 정리는 묶음 밖에서 한다.
+   */
   function flush(): void {
     scheduled = false;
+    // 쌓인 것이 없으면 트랜잭션도 열지 않는다(`stop`과 `forget`은 쌓인 것이 없어도 부른다)
+    if (pendingOps.length === 0 && pending.length === 0) return;
     const ops = pendingOps;
     pendingOps = [];
-    for (const op of ops) op(deps.store);
-    if (pending.length === 0) return;
-    const batch = pending;
+    const records = pending;
     pending = [];
     pendingBodies = 0;
-    const written = deps.store.writeBatch(batch);
-    if (!written.ok) {
+    const heard: TurnRecordEvent[] = [];
+    queuedEvents = heard;
+    const committed = deps.store.batch(() => {
+      for (const op of ops) {
+        const mark = heard.length;
+        const ran = attempt(() => op(deps.store));
+        if (!ran.ok) {
+          heard.splice(mark);
+          deps.logger.warn("measure.op_failed", {
+            reason: ran.error.kind,
+            message: messageOf(ran.error.cause),
+          });
+        }
+      }
+      if (records.length === 0) return;
+      const written = deps.store.writeBatch(records);
+      if (!written.ok) {
+        deps.logger.warn("measure.write_failed", {
+          reason: written.error.kind,
+          dropped: records.length,
+        });
+      }
+    });
+    queuedEvents = undefined;
+    if (!committed.ok) {
       deps.logger.warn("measure.write_failed", {
-        reason: written.error.kind,
-        dropped: batch.length,
+        reason: committed.error.kind,
+        dropped: records.length,
       });
+    } else if (sink !== undefined) {
+      for (const event of heard) sink.emit(event);
     }
+    if (records.length === 0) return;
     deps.maintain();
   }
 
@@ -533,7 +580,9 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     offerBody,
     offerFailure,
     offerCall,
+    offerPluginCall,
     offerContext,
+    offerTurnRecord,
     forget: (threadId) => {
       flush();
       turns?.forget(threadId);
@@ -545,9 +594,19 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     turns?.call(input);
   }
 
+  /** 가벼운 길의 플러그인 호출 줄을 턴 기록에 넘긴다. 턴은 기록기가 이 대화의 열린 턴에서 정한다. 없으면 버린다 */
+  function offerPluginCall(input: PluginCallTraceEvent): void {
+    turns?.pluginCall(input);
+  }
+
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
   function offerContext(input: ContextTraceEvent): void {
     turns?.context(input);
+  }
+
+  /** 색인·기억 블록의 사실을 턴 기록에 넘긴다. 열린 턴이 없거나 계측이 꺼져 있으면 버린다 */
+  function offerTurnRecord(input: TurnBlockEvent): void {
+    turns?.turnRecord(input);
   }
 }
 
@@ -593,8 +652,12 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerFailure: (input: HandlerFailureInput) => void;
   /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  /** 가벼운 길의 플러그인 호출 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 열린 턴이 없으면 버린다 */
+  readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerContext: (input: ContextTraceEvent) => void;
+  /** 색인·기억 블록의 사실을 턴 기록에 넘긴다(턴 기록 싱크의 뒤). 열린 턴이 없거나 계측이 꺼져 있으면 버린다 */
+  readonly offerTurnRecord: (input: TurnBlockEvent) => void;
   /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
   readonly forgetThread: (threadId: string) => void;
 } {
@@ -607,7 +670,9 @@ export function startMeasurement(deps: MeasurementDeps): {
       offerBody: () => undefined,
       offerFailure: () => undefined,
       offerCall: () => undefined,
+      offerPluginCall: () => undefined,
       offerContext: () => undefined,
+      offerTurnRecord: () => undefined,
       forgetThread: () => undefined,
     };
   }
@@ -658,7 +723,9 @@ export function startMeasurement(deps: MeasurementDeps): {
     offerBody: recorder.offerBody,
     offerFailure: recorder.offerFailure,
     offerCall: recorder.offerCall,
+    offerPluginCall: recorder.offerPluginCall,
     offerContext: recorder.offerContext,
+    offerTurnRecord: recorder.offerTurnRecord,
     forgetThread: (threadId) => {
       recorder.forget(threadId);
       const removed = store.forgetThread(threadId);

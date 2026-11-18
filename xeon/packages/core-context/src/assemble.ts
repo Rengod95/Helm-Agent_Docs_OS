@@ -225,6 +225,8 @@ async function applyContextWithSystemHook(
 
 /** 소유자를 정할 수 없는 재료의 자리 값(로더 미병합. §4.5 규칙 27) */
 const UNOWNED_PLUGIN = "none";
+/** 기본 프롬프트와 입력이 정하지 못한 안내의 소유자(코어). 정본 turn-record-metrics.md §4.5 규칙 27 [제안] */
+const CORE_OWNER = "core";
 const PLUGIN_SECTION_PREFIX = "plugin:";
 
 /** 절 키 `plugin:<이름>:<경로>`(MaterialPort 지침 키 모양)에서 소유자와 경로를 읽는다. 모양이 다르면 소유자를 정하지 않는다 */
@@ -237,20 +239,22 @@ function sectionOwnerOf(key: string): { readonly plugin: string; readonly ref: s
 }
 
 /**
- * 이번 요청의 재료(§4.5 규칙 26·27). 입력이 이미 가진 값만 쓴다: 기본 프롬프트, 절(키의 소유자), 덧씌운 지침(`volatile.instructions`),
- * 합치기 훅이 더한 몫(적용한 핸들러의 첫 플러그인). 스킬 색인·기억은 사용자 정의 메시지로 들어와 여기서 가리지 못하므로 빠진다
+ * 이번 요청의 재료(§4.5 규칙 26·27). 입력이 이미 가진 값만 쓴다: 기본 프롬프트(코어가 선언), 절(키의 소유자), 덧씌운 지침
+ * (`volatile.instructions`: 입력이 소유자를 주면 그 플러그인이 선언, 아니면 코어가 공유), 합치기 훅이 더한 몫(적용한 핸들러의 첫 플러그인).
+ * 스킬 색인·기억은 사용자 정의 메시지로 들어와 여기서 가리지 못하므로 빠진다(턴 기록 싱크가 따로 알린다)
  */
 function materialsOf(input: {
   readonly basePrompt: string;
   readonly sections: Readonly<Record<string, string>>;
   readonly volatile: Readonly<Record<string, string>>;
+  readonly promptAdditionOwner: string | undefined;
   readonly hookInjected: number;
   readonly hookAppliers: readonly HookApplier[];
 }): ContextMaterialFact[] {
   const out: ContextMaterialFact[] = [];
   if (input.basePrompt !== "") {
     out.push({
-      plugin: UNOWNED_PLUGIN,
+      plugin: CORE_OWNER,
       versionId: null,
       registrationId: null,
       kind: "always",
@@ -260,7 +264,7 @@ function materialsOf(input: {
       truncated: false,
       omitted: null,
       itemId: null,
-      attribution: "shared",
+      attribution: "declared",
     });
   }
   for (const key of Object.keys(input.sections).toSorted()) {
@@ -283,8 +287,9 @@ function materialsOf(input: {
   }
   const addition = input.volatile["instructions"];
   if (addition !== undefined && addition !== "") {
+    const owner = input.promptAdditionOwner;
     out.push({
-      plugin: UNOWNED_PLUGIN,
+      plugin: owner ?? CORE_OWNER,
       versionId: null,
       registrationId: null,
       kind: "always",
@@ -294,7 +299,7 @@ function materialsOf(input: {
       truncated: false,
       omitted: null,
       itemId: null,
-      attribution: "shared",
+      attribution: owner === undefined ? "shared" : "declared",
     });
   }
   if (input.hookInjected > 0) {
@@ -511,6 +516,7 @@ export async function assembleContext(
     basePrompt: opts.basePrompt,
     sections: opts.sections,
     volatile: opts.volatile,
+    promptAdditionOwner: opts.promptAdditionOwner,
     hookInjected,
     hookAppliers,
   });
