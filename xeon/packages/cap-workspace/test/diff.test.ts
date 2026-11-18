@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildFileChange } from "../src/files/diff.ts";
+import { buildFileChange, MAX_DIFF_CHARS, MAX_DIFF_LINES } from "../src/files/diff.ts";
 
 // `FileChange.diff`를 만드는 `buildFileChange`의 값 비교 테스트. 출력 문자열 전체를 비교한다.
 
@@ -227,6 +227,49 @@ describe("file change diff", () => {
       added: 2002,
       removed: 2002,
       firstChangedLine: 2,
+    });
+  });
+
+  describe("inputs over the limit skip the diff (AGE-61)", () => {
+    const base = { path: "/w/f.txt", relativePath: "f.txt", existed: true };
+
+    test("one huge line is omitted, not diffed", () => {
+      const change = buildFileChange({
+        ...base,
+        before: "x".repeat(100),
+        after: "y".repeat(MAX_DIFF_CHARS),
+      });
+      expect(change).toStrictEqual({
+        path: "/w/f.txt",
+        existed: true,
+        diff: "",
+        added: 0,
+        removed: 0,
+        diffOmitted: "too_large",
+      });
+    });
+
+    test("too many short lines are omitted", () => {
+      const change = buildFileChange({
+        ...base,
+        existed: false,
+        before: "",
+        after: "a\n".repeat(MAX_DIFF_LINES),
+      });
+      expect(change.diffOmitted).toBe("too_large");
+      expect(change.diff).toBe("");
+      expect([change.added, change.removed]).toEqual([0, 0]);
+    });
+
+    test("just under both limits is still diffed", () => {
+      const change = buildFileChange({
+        ...base,
+        before: "one\n",
+        after: `one\n${"b\n".repeat(MAX_DIFF_LINES / 2 - 10)}`,
+      });
+      expect(change.diffOmitted).toBeUndefined();
+      expect(change.added).toBe(MAX_DIFF_LINES / 2 - 10);
+      expect(change.removed).toBe(0);
     });
   });
 });

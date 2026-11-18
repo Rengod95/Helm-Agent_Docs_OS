@@ -10,6 +10,17 @@ const CONTEXT_LINES = 3;
 /** 가운데 구간의 LCS 칸 수 상한(삭제 줄 수 × 추가 줄 수). 넘으면 LCS 표를 만들지 않는다 */
 const MAX_LCS_CELLS = 4_000_000;
 
+/**
+ * 이 크기를 넘는 입력은 diff를 계산하지 않는다 [제안: AGE-61, 측정으로 정함]. 이전·새 내용의 글자 수 합 상한.
+ * 줄 수가 적어도 글자가 많으면 diff 글도 커서 이벤트 한 칸의 상한(core-tools `EVENT_FIELD_MAX_BYTES`)을 넘어 어차피 버려진다.
+ */
+export const MAX_DIFF_CHARS = 16 * 1024 * 1024;
+/**
+ * 이전·새 내용의 줄 수 합 상한. 줄마다 토큰과 편집 항목 객체가 생겨 메모리가 줄 수에 비례해 크게 늘어서(짧은 줄 100 MiB에서 약 10 GB, 9초)
+ * 글자 수와 따로 막는다. 17 MiB 짧은 줄은 1.4초였다.
+ */
+export const MAX_DIFF_LINES = 200_000;
+
 type OpKind = "equal" | "remove" | "add";
 
 /** 줄 하나. 토큰은 줄바꿈까지 포함하고, 줄바꿈 없이 끝나는 마지막 줄은 줄바꿈 없이 둔다 */
@@ -195,10 +206,29 @@ function renderDiff(ops: readonly Op[], relativePath: string, existed: boolean):
   return text;
 }
 
+/** 줄바꿈 수를 세되 `limit`을 넘으면 거기서 멈춘다. 토큰 배열을 만들지 않는다 */
+function lineBreaksAtLeast(text: string, limit: number): number {
+  let count = 0;
+  let at = text.indexOf("\n");
+  while (at !== -1 && count < limit) {
+    count++;
+    at = text.indexOf("\n", at + 1);
+  }
+  return count;
+}
+
+function tooLargeForDiff(before: string, after: string): boolean {
+  if (before.length + after.length > MAX_DIFF_CHARS) return true;
+  // 줄바꿈 없이 끝나는 마지막 줄까지 세려고 줄바꿈 수에 두 쪽 한 줄씩을 더해 본다
+  const lines = lineBreaksAtLeast(before, MAX_DIFF_LINES) + 1;
+  return lines + lineBreaksAtLeast(after, MAX_DIFF_LINES) + 1 > MAX_DIFF_LINES;
+}
+
 /**
  * 쓰기·편집 결과의 `FileChange`를 만든다. `firstChangedLine`은 새 파일 기준 처음 바뀐 줄(1부터)이다.
  * 추가 줄은 그 줄 번호이고, 삭제만 있으면 삭제가 일어난 자리 바로 뒤 줄 번호(파일 끝이면 줄 수 + 1)다.
  * 바뀐 줄이 없으면 `diff`는 빈 문자열이고 `firstChangedLine` 키가 없다.
+ * 입력이 `MAX_DIFF_CHARS`나 `MAX_DIFF_LINES`를 넘으면 계산하지 않고 `diffOmitted: "too_large"`, 빈 `diff`, 0·0을 낸다(잘못된 diff를 만들지 않는다).
  */
 export function buildFileChange(input: {
   readonly path: string;
@@ -207,6 +237,16 @@ export function buildFileChange(input: {
   readonly before: string;
   readonly after: string;
 }): FileChange {
+  if (tooLargeForDiff(input.before, input.after)) {
+    return {
+      path: input.path,
+      existed: input.existed,
+      diff: "",
+      added: 0,
+      removed: 0,
+      diffOmitted: "too_large",
+    };
+  }
   const ops = withPositions(diffEntries(toTokens(input.before), toTokens(input.after)));
   const changes = ops.filter((op) => op.kind !== "equal");
   const added = changes.filter((op) => op.kind === "add").length;
