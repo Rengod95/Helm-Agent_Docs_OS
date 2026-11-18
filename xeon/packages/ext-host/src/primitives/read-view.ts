@@ -1,5 +1,10 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { HookName, RegistrationId, RegistrationStatus } from "@fresnel/contracts/extensions";
+import {
+  PluginSetPortKey,
+  type HookName,
+  type RegistrationId,
+  type RegistrationStatus,
+} from "@fresnel/contracts/extensions";
 import { sortEntries } from "./dispatch.ts";
 import { hostInternalsOf, type ExtHost } from "./host.ts";
 import type { HandlerEntry } from "./registry.ts";
@@ -34,7 +39,7 @@ export interface ExtReadView {
    * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다.
    * 훅 순서는 훅 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
    */
-  handlers(): readonly HookHandlerView[];
+  handlers(threadId?: ThreadId): readonly HookHandlerView[];
   /** 지금 바인딩된 기능 공급자. 기능 id 오름차순 */
   boundCapabilities(): readonly BoundCapabilityView[];
 }
@@ -42,8 +47,12 @@ export interface ExtReadView {
 /** 내부는 부를 때 얻는다. `createExtHost`가 만들지 않은 대역 ExtHost로도 만들 수 있게 한다(`traceReadOf`와 같다) */
 export function extReadViewOf(host: ExtHost): ExtReadView {
   return {
-    handlers() {
+    handlers(threadId) {
       const { core } = hostInternalsOf(host);
+      const pluginOrder =
+        threadId === undefined
+          ? undefined
+          : core.ports.get(PluginSetPortKey)?.resolve(threadId).plugins;
       const { policy } = core.deps;
       const byHook = new Map<HookName, HandlerEntry[]>();
       for (const entry of core.registry.entries()) {
@@ -54,7 +63,7 @@ export function extReadViewOf(host: ExtHost): ExtReadView {
       return [...byHook.keys()]
         .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
         .flatMap((point) =>
-          sortEntries(byHook.get(point) ?? [], point, policy).map((entry) => ({
+          sortEntries(byHook.get(point) ?? [], point, policy, pluginOrder).map((entry) => ({
             point: entry.point,
             scopeId: entry.scopeId,
             extension: entry.extension,

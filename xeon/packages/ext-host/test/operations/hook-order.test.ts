@@ -6,15 +6,16 @@ import {
   hookOrderValue,
   previewOrder,
   TIERS,
+  tierRankOf,
   type HookOrderMap,
   type PreviewRef,
   type PreviewRow,
 } from "../../src/operations/index.ts";
 
-const GUARD = TIERS.indexOf("guard");
-const USER = TIERS.indexOf("user");
-const BUILTIN = TIERS.indexOf("builtin");
-const CORE = TIERS.indexOf("core");
+const GUARD = tierRankOf("guard");
+const USER = tierRankOf("user");
+const BUILTIN = tierRankOf("builtin");
+const CORE = tierRankOf("core");
 
 function rowOf(registrationId: string, tier: number, exempt = false): PreviewRow {
   return { registrationId, extension: registrationId, tier, exempt };

@@ -9,10 +9,10 @@ import {
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { orderEntries } from "../primitives/order.ts";
-import { TIERS } from "./tier.ts";
+import { TIER_RANK_GUARD } from "./tier.ts";
 
 /** guard tier의 순위(0). 미리보기가 guard 핸들러를 알아보는 데만 쓴다. 순서를 고정하지 않는다 */
-const GUARD_RANK = TIERS.indexOf("guard");
+const GUARD_RANK = TIER_RANK_GUARD;
 
 /** 훅 이름 → Registration id 목록(앞이 먼저 실행된다) */
 export type HookOrderMap = ReadonlyMap<HookName, readonly RegistrationId[]>;

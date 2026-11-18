@@ -52,7 +52,8 @@ import {
   hookIdOfUnit,
   isHookUnitName,
   previewOrder,
-  TIERS,
+  TIER_RANK_CORE,
+  TIER_RANK_GUARD,
   type GuardRiskNote,
   type HookOrderMap,
   type OrderPreview,
@@ -125,7 +126,7 @@ export interface ExternalHookView {
   readonly id: string;
   readonly point: HookName;
   readonly source: string;
-  /** 정렬 순위(`TIERS`의 인덱스) */
+  /** 정렬 순위(`tierRankOf`) */
   readonly tierRank: number;
   /** 실행하는 내장 단위의 Registration id */
   readonly unit: string;
@@ -291,7 +292,7 @@ function byText(a: string, b: string): number {
 function previewRowOf(row: OrderRow): PreviewRow {
   return {
     ...row,
-    exempt: row.tier === TIERS.indexOf("guard") || row.tier === TIERS.indexOf("core"),
+    exempt: row.tier === TIER_RANK_GUARD || row.tier === TIER_RANK_CORE,
   };
 }
 

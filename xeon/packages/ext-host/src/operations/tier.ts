@@ -14,6 +14,30 @@ export const TIERS: readonly ["guard", "user", "project", "builtin", "core"] = [
   "core",
 ];
 
+/**
+ * 정렬 순위(F.operations §5.2 O-2, [결정: 2026-11-17 사용자, U3]). 등급은 셋으로 줄어 `guard`(맨 앞), `plugin`(번들·사용자·프로젝트 전부),
+ * `core`(맨 뒤)다. `user`, `project`, `builtin` 구분은 출처 표시로만 남고 정렬에서는 같은 순위다. 같은 순위 안의 순서는
+ * 대화 프로필의 플러그인 순서(E(T))가 정한다. 순위 이름 `plugin`은 [제안]이다
+ */
+export const TIER_RANK_GUARD = 0;
+export const TIER_RANK_PLUGIN = 1;
+export const TIER_RANK_CORE = 2;
+
+export function tierRankOf(tier: Tier): number {
+  switch (tier) {
+    case "guard":
+      return TIER_RANK_GUARD;
+    case "core":
+      return TIER_RANK_CORE;
+    case "user":
+    case "project":
+    case "builtin":
+      return TIER_RANK_PLUGIN;
+    default:
+      return assertNever(tier, "Tier");
+  }
+}
+
 export type HookId = string;
 
 /** 핸들러를 등록한 주체 */
@@ -50,7 +74,7 @@ export type TierOfFn = (entry: HandlerEntryInfo) => number;
 
 /** 순수 함수. HandlerOrigin에서 전체 키를 만든다 */
 export function orderKeyOf(origin: HandlerOrigin): HandlerOrderKey {
-  return [TIERS.indexOf(origin.tier), origin.loadIndex, origin.registrationIndex];
+  return [tierRankOf(origin.tier), origin.loadIndex, origin.registrationIndex];
 }
 
 /** 사전식 비교. 음수면 a가 먼저 */
@@ -92,11 +116,11 @@ export function createTierTable(): TierTable {
   };
 }
 
-/** tierOf 구현. 표에 없는 확장(로드 경로 밖에서 등록된 핸들러)은 가장 안쪽 순위 밖(TIERS.length)으로 둔다 */
+/** tierOf 구현. 순위는 `tierRankOf`다. 표에 없는 확장(로드 경로 밖에서 등록된 핸들러)은 가장 안쪽 순위 밖(`TIER_RANK_CORE + 1`)으로 둔다 */
 export function tierOfFrom(table: TierTable): TierOfFn {
   return (entry) => {
     const tier = table.get(entry.extension);
-    return tier === undefined ? TIERS.length : TIERS.indexOf(tier);
+    return tier === undefined ? TIER_RANK_CORE + 1 : tierRankOf(tier);
   };
 }
 

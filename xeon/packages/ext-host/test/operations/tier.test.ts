@@ -5,6 +5,7 @@ import {
   compareOrderKey,
   GUARD_EXTENSIONS,
   orderKeyOf,
+  tierRankOf,
   ownerKey,
   TIERS,
 } from "../../src/operations/index.ts";
@@ -137,8 +138,13 @@ test("tier: order keys sort by (tier, loadIndex, registrationIndex)", () => {
     [0, 9, 9],
     [1, 3, 0],
     [1, 3, 1],
-    [4, 0, 0],
+    [2, 0, 0],
   ]);
+  // O-2: user, project, builtin은 정렬에서 같은 순위(plugin), 구분은 출처 표시로만 남는다
+  expect(tierRankOf("user")).toBe(tierRankOf("builtin"));
+  expect(tierRankOf("project")).toBe(tierRankOf("builtin"));
+  expect(tierRankOf("guard")).toBeLessThan(tierRankOf("user"));
+  expect(tierRankOf("user")).toBeLessThan(tierRankOf("core"));
   expect(TIERS).toEqual(["guard", "user", "project", "builtin", "core"]);
   expect(ownerKey({ type: "hook", hookId: "audit" })).toBe("hook:audit");
   expect(ownerKey(owner)).toBe("ext:x-ext");
