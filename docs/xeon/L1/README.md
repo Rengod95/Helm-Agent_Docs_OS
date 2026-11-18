@@ -4,7 +4,7 @@ layer: L1
 domain: readme
 kind: readme
 status: draft
-depends_on: [L1.tasks.spec, L1.loop.spec, L1.models.spec, L1.tools.spec, L1.context.spec, L1.persistence.spec, L1.agents.spec, architecture.layers.spec, eng.context-map.design]
+depends_on: [L1.authoring.spec, L1.tasks.spec, L1.loop.spec, L1.models.spec, L1.tools.spec, L1.context.spec, L1.persistence.spec, L1.agents.spec, architecture.layers.spec, eng.context-map.design]
 binds: [xeon/packages/core-*/**, xeon/plugins/provider-anthropic-oauth/**]
 ---
 
@@ -32,6 +32,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 | persistence | L1-f 영속성과 복구 | 이벤트 저장과 투영, 원자 커밋, 결과 불명 처리, 재개, 분기 | `xeon/packages/core-persistence` | `session-core` | `fresnel.session` | `L1.persistence.spec`, `L1.persistence.plan` |
 | agents | L1-g 서브에이전트 | 인프로세스 자식 대화, 권한 상한, 결과 반환, 백그라운드 위임, 목표 판정 호출 | `xeon/packages/core-agents` | `run-engine` | `fresnel.agents` | `L1.agents.spec`, `L1.agents.plan` |
 | workspace | (계획 v2 밖) 작업 폴더 서비스 | 샌드박스를 거치는 파일·셸 서비스의 경로 검사, 쓰기 허용 승인, 셸 실행 본문, 원자 쓰기 | `xeon/packages/core-workspace` [제안] | `tool-runtime` [제안] | 기능 id는 L2가 낸다(`workspace.files`, `workspace.shell`) | `L1.workspace.spec`, `L1.workspace.plan` |
+| authoring | 제작 코어(시스템 모듈) [결정: 2026-11-18 사용자, AGE-60] | 종류 카탈로그, 뼈대 만들기, 플러그인 폴더 검사, 구성 검사, 묶기. 대화하는 빌더(L3 `authoring`)는 `fresnel.devkit` 계약으로만 쓴다 | `xeon/packages/core-authoring` | - | `fresnel.devkit`(호스트 포트가 낸다) | `L1.authoring.spec`, `L1.authoring.plan` |
 
 - 서비스 이름은 `eng.context-map.design` §5.3 표와 같다. 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `SessionService`는 `F.records.spec` §3.9에 있다. `ApprovalService`, `AgentService`도 같은 서브패스(`services/approvals.ts`, `services/agents.ts`)에 있다(`F.capabilities.spec` §3.12 규칙 7). X 포트가 같은 서비스 이름을 쓰면 서비스가 포트를 확장한다: `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`(같은 문서 규칙 2).
 - `run-engine` 컨텍스트 하나가 패키지 넷(tasks, loop, context, agents)에 걸친다. 컨텍스트 안에서도 import하지 않고 서비스로 협력한다(`eng.context-map.design` §4.4 1행).

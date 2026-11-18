@@ -23,8 +23,12 @@ import {
   type OsService,
   type ToolOutputFiles,
   type SandboxService,
+  type RgResolver,
+  type RootsDeps,
+  type ThreadWorkspaces,
   type ToolRegistration,
   type ToolService,
+  type WorkspaceCore,
 } from "@fresnel/contracts/services";
 import {
   hostOf,
@@ -32,14 +36,6 @@ import {
   type ExtensionUnit,
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
-import {
-  createWriteAccessAdapter,
-  defaultRoots,
-  envAtCwd,
-  type RgResolver,
-  type RootsDeps,
-  type ThreadWorkspaces,
-} from "@fresnel/core-workspace";
 import type { WorkspaceDeps } from "./deps.ts";
 import { workspaceManifest } from "./manifest.ts";
 import { createWorkspaceService } from "./service.ts";
@@ -52,6 +48,11 @@ const SandboxPortKey: PortKey<SandboxService> = { name: SandboxServiceName };
 const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
 
 export interface WorkspacePluginOptions {
+  /**
+   * 경로 검사, 샌드박스 셸, 쓰기 허용 승인, 파일 변경 줄 세우기의 구현 묶음. 조립 루트가 코어 패키지의 `workspaceCore`를 넘긴다.
+   * 이 패키지는 구현을 import하지 않는다(DR-15).
+   */
+  readonly core: WorkspaceCore;
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
   readonly settings: WorkspaceSettingsSource;
   /** 무인 호출의 셸 제한 시간 상한(ms). 조립 루트가 `l0.exec.unattendedTimeoutMs`를 읽어 넘긴다. 없으면 상한을 걸지 않는다 */
@@ -78,6 +79,7 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
  * 행이 없거나 읽기에 실패하면 null이다(엔진의 cwd로 간다). 읽기 실패는 다음 호출이 다시 시도하므로 여기서 던지지 않는다.
  */
 function threadWorkspaces(
+  core: Pick<WorkspaceCore, "envAtCwd">,
   session: Pick<SessionService, "query">,
   exec: Pick<ExecService, "withCwd" | "truncateHeadOf">,
   configDir: string,
@@ -87,7 +89,7 @@ function threadWorkspaces(
       const row = session.query.thread(threadId);
       return row.ok ? (row.value?.workspace ?? null) : null;
     },
-    envAt: (cwd) => envAtCwd(exec, cwd),
+    envAt: (cwd) => core.envAtCwd(exec, cwd),
     // 테스트 대화(M5c §4.8.7)의 쓰기 범위. 묶인 플러그인의 원본 폴더는 사용자 플러그인 폴더(`<설정>/plugins/<이름>`)다
     craftScopeOf: (threadId) => {
       const row = session.query.thread(threadId);
@@ -129,11 +131,11 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const writeAccess =
         options.approvals === undefined || approvalService === undefined
           ? undefined
-          : createWriteAccessAdapter(options.approvals(approvalService));
+          : options.core.createWriteAccessAdapter(options.approvals(approvalService));
 
       const roots: RootsDeps = {
         env: exec,
-        roots: (context) => defaultRoots(exec, context, options.outputFiles),
+        roots: (context) => options.core.defaultRoots(exec, context, options.outputFiles),
         protectedPaths: (allowed) => sandbox?.protectedPaths(allowed) ?? [],
         ...(options.outputFiles === undefined ? {} : { outputs: options.outputFiles }),
       };
@@ -147,9 +149,10 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         ...(store === undefined ? {} : { blobs: store }),
         ...(session === undefined
           ? {}
-          : { threads: threadWorkspaces(session, exec, os.dirs.config) }),
+          : { threads: threadWorkspaces(options.core, session, exec, os.dirs.config) }),
         rg: rgResolver(os),
         homeDir: os.dirs.home,
+        core: options.core,
         ...(writeAccess === undefined ? {} : { writeAccess }),
         ...(options.unattendedTimeoutMs === undefined
           ? {}

@@ -11,8 +11,12 @@ import {
   type ManifestIssue,
   type PluginDecl,
 } from "@fresnel/contracts/extensions";
-import type { DevkitError, DevkitIssue, ValidationReport } from "@fresnel/contracts/services";
-import { checkGroupName } from "@fresnel/group-sdk";
+import {
+  checkGroupName,
+  type DevkitError,
+  type DevkitIssue,
+  type ValidationReport,
+} from "@fresnel/contracts/services";
 import { au004, au008, au010, au011, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 

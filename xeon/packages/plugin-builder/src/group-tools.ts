@@ -1,10 +1,13 @@
 import { parse } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
-import { PLUGIN_MODES, type DevkitService } from "@fresnel/contracts/services";
+import {
+  KIND_CATALOG_VERSION,
+  PLUGIN_MODES,
+  type DevkitService,
+} from "@fresnel/contracts/services";
 import { checkGroupName, type GroupApi } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
-import { CATALOG_VERSION } from "./catalog.ts";
 import {
   errorKeyOf,
   INITIAL_AUTHORING_STATE,
@@ -287,7 +290,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       );
       return {
         ok: true,
-        catalogVersion: CATALOG_VERSION,
+        catalogVersion: KIND_CATALOG_VERSION,
         kinds: entries.map((entry) =>
           json({
             id: entry.id,

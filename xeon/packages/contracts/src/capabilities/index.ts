@@ -9,12 +9,14 @@ export * from "./goal-gate.ts";
 export * from "./capability.ts";
 export * from "./service-key.ts";
 export * from "./errors.ts";
+export * from "./dialog-failure.ts";
 export * from "./validate.ts";
 export * from "./ordering.ts";
 export * from "./secrets.ts";
 export * from "./provider.ts";
 export * from "./sandbox-block.ts";
 export * from "./file-change.ts";
+export * from "./workspace-failure.ts";
 // 내장 L2 기능 정의(F.capabilities.spec §3.9). 정의 파일은 L2 도메인마다 하나다.
 export * from "./defs/workspace.ts";
 export * from "./defs/web.ts";

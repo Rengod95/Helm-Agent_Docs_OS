@@ -14,11 +14,11 @@ import {
   type ValidationReport,
 } from "@fresnel/contracts/services";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import { KIND_CATALOG } from "@fresnel/core-authoring";
 import {
   AuthoringStateSchema,
   createAuthoringGroup,
   INITIAL_AUTHORING_STATE,
-  KIND_CATALOG,
   type AuthoringDeps,
   type AuthoringState,
 } from "../src/index.ts";

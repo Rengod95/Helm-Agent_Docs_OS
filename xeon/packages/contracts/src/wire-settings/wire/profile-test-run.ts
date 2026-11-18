@@ -196,12 +196,14 @@ export type TestRunStartParams = Static<typeof TestRunStartParamsSchema>;
 /**
  * `testRun.start` 결과. `versionId`는 `draft:<draftId>:<내용 해시 앞 8자>`다. 구성(기준 프로필과 초안)은 대화의 수명 동안 고정이다.
  * 초안을 얹는 일은 아직 열려 있지 않아(P1 전) 지금의 처리기는 `drafts`를 항상 빈 목록으로 돌려준다.
+ * `skippedPlugins`는 기준 프로필(기본 프로필)이 처음 주는 플러그인 가운데 설치돼 있지 않아 건너뛴 이름이다(사용자가 지운 것, AGE-51). 없으면 빈 목록이다.
  */
 export const TestRunStartResultSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
   profileId: TString;
   drafts: TArray<TObject<{ plugin: TString; draftId: TString; versionId: TString }>>;
   runGroupId: TString;
+  skippedPlugins: TArray<TString>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -213,6 +215,7 @@ export const TestRunStartResultSchema: TObject<{
       ),
     ),
     runGroupId: Id,
+    skippedPlugins: Type.Array(Name, { maxItems: 512 }),
   },
   { additionalProperties: false },
 );

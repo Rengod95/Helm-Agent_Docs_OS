@@ -551,7 +551,7 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   await connection.close();
 });
 
-test("group.promotion: an empty candidate list when the learning group is off", async () => {
+test("group.promotion: an empty candidate list when the sources have no promotion data", async () => {
   const connection = connect(createRecordedSources().sources);
   await connection.request("host.hello", HELLO_PARAMS);
   expect(await connection.request("group.promotion", {})).toEqual({

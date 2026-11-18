@@ -865,6 +865,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
     testRunMarker: (threadId) => markerOf(threadId),
+    firstGivenPlugins: () => env.defaultPlugins(),
     registerTestRun(threadId, profileId, runGroupId, draftsJson) {
       markers.set(threadId, {
         profileId,

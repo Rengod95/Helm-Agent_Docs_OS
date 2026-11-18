@@ -180,6 +180,7 @@ test("testRun.start with no drafts makes a test-run thread on the base profile, 
     profileId: "default",
     drafts: [],
     runGroupId: "grp-a",
+    skippedPlugins: [],
   });
   const listed = await connection.request("thread.list", {});
   expect(
@@ -273,6 +274,29 @@ test("a base profile that is invalid now is profile.invalid with the issues, and
   await connection.close();
 });
 
+test("a plugin the default profile first gives but the user deleted is skipped, listed in the result, and the test run starts", async () => {
+  const { host, facts } = rigOf();
+  const connection = await connect(host);
+  // 기본 프로필이 처음 주는 `helm`을 사용자가 지웠다(설치돼 있지 않다)
+  facts.splice(
+    facts.findIndex((fact) => fact.name === "helm"),
+    1,
+  );
+  const started = await connection.request("testRun.start", { drafts: [], runGroupId: "grp-s" });
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "default",
+    drafts: [],
+    runGroupId: "grp-s",
+    skippedPlugins: ["helm"],
+  });
+  const listed = await connection.request("thread.list", {});
+  expect(listed.threads.map((thread) => [thread.threadId, thread.profileId])).toEqual([
+    [started.threadId, "default"],
+  ]);
+  await connection.close();
+});
+
 test("a draft the plugin does not list is draft.notFound and creates no thread", async () => {
   const { host } = rigOf();
   const connection = await connect(host);
@@ -299,6 +323,7 @@ test("a draft is loaded before the thread exists, the thread is bound to it, and
     profileId: "default",
     drafts: [{ plugin: "demo", draftId: "draft-1", versionId: "draft:draft-1:01234567" }],
     runGroupId: "grp-d",
+    skippedPlugins: [],
   });
   // 싣기는 대화를 만들기 전에 한 번 했고, 묶은 구성은 내부 이름과 검토본 이름을 함께 싣는다
   expect(fakes.loads).toEqual(["demo:draft-1"]);

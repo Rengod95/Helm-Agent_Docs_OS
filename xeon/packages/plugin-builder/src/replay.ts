@@ -16,8 +16,13 @@ import {
   replayDrive,
   type ReplayDriveReport,
 } from "@fresnel/group-sdk/testing";
-import { invalid } from "./errors.ts";
-import { MANIFEST_PATH } from "./validate.ts";
+
+function invalid(message: string): DevkitError {
+  return { kind: "invalid_input", message };
+}
+
+/** 설치 폴더의 매니페스트 경로. 제작 코어(`core-authoring`)의 `MANIFEST_PATH`와 같은 값이다(플러그인은 코어를 import하지 않는다, DR-15) */
+const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
 
 // 설치된 플러그인 그룹의 재생(W-29 `ext.test.run` replay). 호스트 운영 코드는 `@fresnel/group-sdk/testing`을 import하지 않으므로(DR-08)
 // 재생기는 이 패키지에 둔다. 설치 폴더의 매니페스트와 엔트리를 읽어 `GroupModule`을 만들고 `replayDrive`를 돌린다.

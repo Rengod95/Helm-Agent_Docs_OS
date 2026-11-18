@@ -12,7 +12,7 @@
     "**/coverage/**",
     "vendor/**",
     "packages/group-sdk/templates/**",
-    "packages/plugin-builder/templates/**",
+    "packages/core-authoring/templates/**",
     "apps/desktop/mockups/**"
   ]
 }

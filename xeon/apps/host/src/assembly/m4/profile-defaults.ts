@@ -23,7 +23,7 @@ export const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "
  */
 export const CRAFT_PROFILE_ID = "craft";
 /** 테스트 대화의 시작 Drive이자 유일한 플러그인인 빌더의 내장 이름(`authoring`, 화면 이름 "Plugin Builder") */
-const CRAFT_BUILDER_PLUGIN = "authoring";
+export const CRAFT_BUILDER_PLUGIN = "authoring";
 /** 테스트 대화의 권한 모드. 묻는 모드다(`bypass`가 아니다, §4.8.5) */
 const CRAFT_PERMISSION_MODE = "default";
 

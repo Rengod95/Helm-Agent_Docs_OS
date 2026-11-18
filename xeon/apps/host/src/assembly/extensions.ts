@@ -50,17 +50,11 @@ import {
 } from "@fresnel/cap-schedule";
 import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
-import { APPROVAL_SOURCE, REVIEW_AGENT_NAME } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
-import { writeAccessTitle } from "@fresnel/core-workspace";
+import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
-import type {
-  AgentDefinition,
-  DraftMark,
-  ToolOutputFiles,
-  WithHumanDecision,
-} from "@fresnel/contracts/services";
+import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import {
   contextSettingsOf,
@@ -74,7 +68,7 @@ import { loopExtensionUnit } from "@fresnel/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
-import { toolsPlugin } from "@fresnel/core-tools";
+import { dialogCore, toolsPlugin } from "@fresnel/core-tools";
 import type {
   BuiltinExtensionModule,
   ExtHost,
@@ -86,12 +80,7 @@ import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import type { ContributedServer, McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
-import {
-  learningLoaded,
-  learningUnit,
-  proposalsBridgePlugin,
-  type LearningWiring,
-} from "./learning.ts";
+import { proposalsBridgePlugin, type KnowledgeWireHolder } from "./proposals.ts";
 import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
 import { guideLoaded, guideSkillRoots, guideUnit, type GuideWiring } from "./guide.ts";
 import { hostWebPlugin } from "./cap-web.ts";
@@ -126,8 +115,6 @@ export interface ExtensionDeps {
   readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /** 잘린 도구 출력의 파일 사본. core-tools가 쓰고 cap-workspace가 읽기 루트에 더한다 */
   readonly toolOutputs: ToolOutputFiles;
-  /** core-tools가 사람의 결정 실행 함수를 넘기는 자리(U-11). 포트로 나가지 않는다 */
-  readonly toolHumanDecision?: (withHumanDecision: WithHumanDecision) => void;
   readonly clock: Clock;
   /** 계정 회전의 간격·한도 대기가 쓰는 타이머. 시계를 따로 넘기면 core-models가 OS 타이머를 쓰지 않으므로 함께 넘긴다 */
   readonly scheduler: Scheduler;
@@ -181,8 +168,8 @@ export interface ExtensionDeps {
     /** 그룹 서비스가 올라올 때 부른다 */
     readonly onService: (service: GroupServiceWithUsage) => void;
   };
-  /** 학습 그룹과 L2 제안 대기열 어댑터를 잇는 자리(`proposal.*` 처리기가 읽는다) */
-  readonly learning: LearningWiring;
+  /** L2 제안 대기열 어댑터를 받는 자리(`proposal.*` 처리기가 읽는다) */
+  readonly knowledgeWire: KnowledgeWireHolder;
   /** 제작 그룹이 쓰는 devkit 포트 자리(엔진 포트가 만들어진 뒤에 읽는다) */
   readonly authoring: AuthoringWiring;
   /** 가이드 그룹(스킬만 내는 내장 그룹)의 가이드 폴더와 켜짐 판정 */
@@ -365,7 +352,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   };
   const openedSkillPathsOfId = (threadId: string): Promise<readonly string[]> =>
     isId("thr", threadId) ? deps.openedSkillPaths(threadId) : Promise.resolve([]);
-  const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const authoring = authoringLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const guide = guideLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
@@ -433,9 +419,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
           outputFiles: deps.toolOutputs,
-          ...(deps.toolHumanDecision === undefined
-            ? {}
-            : { onHumanDecision: deps.toolHumanDecision }),
           // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(RegistrationHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
           // 플러그인 기능 호출은 도구 매핑이 없는 메서드도 부른다(U-1 (다)). 그 정의는 내장 기능 전체다. 매니페스트에는 더하지 않는다
@@ -491,7 +474,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ...(deps.agentDefinitions === undefined
             ? {}
             : { builtinDefinitions: deps.agentDefinitions }),
-          unlistedDefinitions: [REVIEW_AGENT_NAME],
           loop: (resolve) =>
             openingChildThreads(resolve, deps.ext, deps.logger.child({ component: "core-agents" })),
           loadIndex,
@@ -501,6 +483,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       "cap-workspace",
       (loadIndex) =>
         workspacePlugin({
+          // 경로 검사, 샌드박스 셸, 쓰기 허용 승인의 구현 묶음(core-workspace가 낸다)
+          core: workspaceCore,
           settings: workspaceSource(settings),
           // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
@@ -516,6 +500,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         dialogPlugin({
           settings: layersSource(settings),
           ids: deps.ids,
+          core: dialogCore,
           // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
           interactive: (context) => context.interactive !== false,
           // 프로젝트 명령(.fresnel/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
@@ -614,8 +599,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workspaceOf: workspaceOfId,
           // 열기 훅이 낸 스킬 경로를 그 대화의 탐색 입력에 더한다(H-7)
           contributedSkillPaths: openedSkillPathsOfId,
-          // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
-          trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
           // 사용자 범위 스킬 만들기는 검토함으로 간다(플러그인 초안). 싱크는 검토 서비스가 뜬 뒤에 채워진다
           ...(deps.userSkillSink === undefined ? {} : { userSkillSink: deps.userSkillSink }),
           // 이 대화의 켜짐 집합에 가이드가 있거나 개발 모드일 때만 가이드 스킬을 싣는다. 꺼져 있으면 빈 목록이라 문맥에 아무것도 더하지 않는다
@@ -628,26 +611,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     ],
     // 대화 영역 브리지는 목표·작업·계획(cap-work)과 스킬(cap-knowledge) 뒤에 올라와야 그 기능 API를 얻는다
     ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
-    [
-      "host-proposals-bridge",
-      (loadIndex) => proposalsBridgePlugin(deps.learning.knowledge, loadIndex),
-    ],
-    ...(learning
-      ? [
-          [
-            "learning",
-            (loadIndex: number) =>
-              learningUnit(
-                {
-                  wiring: deps.learning,
-                  clock: deps.clock,
-                  logger: deps.logger.child({ component: "learning" }),
-                },
-                loadIndex,
-              ),
-          ] as const,
-        ]
-      : []),
+    ["host-proposals-bridge", (loadIndex) => proposalsBridgePlugin(deps.knowledgeWire, loadIndex)],
     ...(authoring
       ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]
       : []),

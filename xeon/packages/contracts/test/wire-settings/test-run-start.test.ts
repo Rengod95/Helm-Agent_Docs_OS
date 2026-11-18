@@ -99,8 +99,12 @@ describe("testRun.start wire method", () => {
       profileId: "default",
       drafts: [{ plugin: "notes", draftId: "d1", versionId: "draft:d1:0123abcd" }],
       runGroupId: "grp-1",
+      skippedPlugins: ["helm"],
     };
     expect(accepts(TestRunStartResultSchema, ok)).toBe("ok");
+    expect(accepts(TestRunStartResultSchema, { ...ok, skippedPlugins: [] })).toBe("ok");
+    const { skippedPlugins: _skipped, ...withoutSkipped } = ok;
+    expect(accepts(TestRunStartResultSchema, withoutSkipped)).not.toBe("ok");
     expect(accepts(TestRunStartResultSchema, { ...ok, drafts: [] })).toBe("ok");
     const { runGroupId: _omitted, ...withoutGroup } = ok;
     expect(accepts(TestRunStartResultSchema, withoutGroup)).not.toBe("ok");

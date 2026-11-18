@@ -26,7 +26,6 @@ import { WORK_SETTING_DEFS } from "@fresnel/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@fresnel/cap-workspace";
 import { accountRotationManifest, accountRotationSettings } from "@fresnel/group-account-rotation";
 import { helmManifest, helmSettings } from "@fresnel/group-helm";
-import { learningManifest, learningSettings } from "@fresnel/group-learning";
 import {
   providerAnthropicOauthManifest,
   providerAnthropicOauthSettings,
@@ -97,7 +96,6 @@ function builtinExtensionKeyGroups(): readonly CatalogGroupInput[] {
       }),
     ),
     // 설정 정의의 label은 영어 대체 문구다(한글은 locale 카탈로그에만 둔다)
-    { ...learningManifest, displayName: "Learning" },
     authoringManifest,
     guideManifest,
   ];
@@ -152,7 +150,6 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-schedule", "l2.schedule", SCHEDULE_SETTING_DEFS),
     ofGroup("group-sdk", groupSdkSettings),
     ofGroup("group-helm", helmSettings),
-    ofGroup("group-learning", learningSettings),
     ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
     // 기본 꺼짐 계정 회전 플러그인(기본 플러그인 목록에 든다). 예약 키 enabled·isolation은 X.loading-trust §4.5.2가 정한 모양이다
     ofGroup("group-account-rotation", accountRotationSettings),

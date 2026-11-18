@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -49,7 +49,26 @@ async function statusesOf(requires: readonly { id: string; range: string }[]) {
   const connection = createHostConnection(host.client);
   try {
     await connection.request("host.hello", HELLO_PARAMS);
-    const listed = await connection.request("ext.list", {});
+    // 매니페스트의 기본으로 켜짐은 번들에만 효력이 있다(AGE-49): 프로필에 넣고 그 프로필의 대화를 열어야 적재와 기능 검사가 돈다
+    await connection.request("profile.put", {
+      profile: {
+        id: "default",
+        title: "default",
+        plugins: [
+          { name: "cap-workspace" },
+          { name: "cap-dialog" },
+          { name: "cap-knowledge" },
+          { name: "demo-user" },
+        ],
+        settings: [],
+        startDrive: null,
+      },
+      baseRev: null,
+    });
+    const opened = await connection.request("thread.create", {
+      workspace: realpathSync(mkdtempSync(join(tmpdir(), "ext-core-cap-ws-"))),
+    });
+    const listed = await connection.request("ext.list", { threadId: opened.threadId });
     const entry = listed.extensions.find((item) => item.name === "demo-user");
     return {
       status: entry?.status,

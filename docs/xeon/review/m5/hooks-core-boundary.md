@@ -889,7 +889,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | O-13 | `thread.start`를 경계 훅으로 두면서 `g.subscribe`에서도 받을지 | 받는다(이벤트 목록에는 넣지 않고 경계 목록에서만). 둘 다 쓰는 코드가 없다 |
 | O-14 | 사용자 플러그인에게 접두 저장 표(SQL)를 줄지 | 주지 않는다. 상태 문서와 레코드(`g.state`, `g.record`)만 |
 | O-15 | 안전 모드(`operations/safe-mode.ts:44-49`)는 내장 L1·L2만 남긴다. tier를 셋으로 줄이면(O-2) "번들" 구분이 정렬에서 사라진다 | 출처 표시(`source: builtin`)를 유지해 안전 모드가 계속 번들만 남기게 한다 |
-| O-20 [미결] [근거: xeon/scripts/dependency-allowlist.json] | `cap-dialog`가 `core-tools`(질문 서비스 `createAskService`, `DialogFailure`, `guarded`, `toCapabilityError`, `Timers`, `questionApprovalsOver`)를, `cap-workspace`가 `core-workspace`(경로 검사, 셸 실행, 쓰기 허용, 원자 쓰기, `WorkspaceFailure`, `WorkspaceEnv`)를 소스에서 import한다. P.2(DR-15) 위반이다. 없앨 설계를 정한다 | [제안] 코어가 서비스를 기능 id와 포트로 내고, 플러그인은 F에 둔 타입과 `g.capability`(포트)로만 쓴다. 서비스 타입(오류 유니온, 의존, 셸 API)을 F로 올리는 일이 크다. 소스 9개(`cap-dialog`)와 12개(`cap-workspace`) 파일과 시험이 바뀌므로 1일을 넘는다. 층 F는 허용 목록 두 항목(`DR-15/cap-dialog-core-tools`, `DR-15/cap-workspace-core-workspace`, `approvedBy: pending-user-approval`)으로 둔다. 승인과 시한은 사용자가 정한다 |
+| O-20 [해소: 코어 서비스 주입, AGE-45] | `cap-dialog`가 `core-tools`(질문 서비스 `createAskService`, `DialogFailure`, `guarded`, `toCapabilityError`, `Timers`, `questionApprovalsOver`)를, `cap-workspace`가 `core-workspace`(경로 검사, 셸 실행, 쓰기 허용, 원자 쓰기, `WorkspaceFailure`, `WorkspaceEnv`)를 소스에서 import한다. P.2(DR-15) 위반이다. 없앨 설계를 정한다 | [제안] 코어가 서비스를 기능 id와 포트로 내고, 플러그인은 F에 둔 타입과 `g.capability`(포트)로만 쓴다. 서비스 타입(오류 유니온, 의존, 셸 API)을 F로 올리는 일이 크다. 소스 9개(`cap-dialog`)와 12개(`cap-workspace`) 파일과 시험이 바뀌므로 1일을 넘는다. 층 F는 허용 목록 두 항목(해소 전 기록. 지금은 지웠다. `DR-15/cap-dialog-core-tools`, `DR-15/cap-workspace-core-workspace`, `approvedBy: pending-user-approval`)으로 둔다. 승인과 시한은 사용자가 정한다 |
 
 ## 13. 요구 추적표
 
