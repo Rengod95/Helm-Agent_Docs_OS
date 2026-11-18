@@ -10,6 +10,7 @@ import type {
 } from "@fresnel/contracts/capabilities";
 import type {
   CraftChatStarted,
+  EventId,
   IdFactory,
   ItemId,
   ThreadId,
@@ -22,6 +23,9 @@ import type {
   LeaseToken,
   LifecycleError,
   ReadFailure,
+  RewindId,
+  RewindScope,
+  RewindUndoState,
   StoreError,
   StoreFailureKind,
   VolatileEventEnvelope,
@@ -30,6 +34,7 @@ import type {
   AgentDefinition,
   CompactOutcome,
   ContextError,
+  FileRewindService,
   HostedSearchPort,
   InputQueueError,
   LoopError,
@@ -301,6 +306,36 @@ export interface StartupNoticePort {
   notices(): readonly StartupNotice[];
 }
 
+/** 파일 되감기 기록에서 되돌리기가 읽는 시작 정보(`workspace.rewind_started`의 일부). 파일 내용은 없다 */
+export interface StartedRewind {
+  readonly scope: RewindScope;
+  readonly targetEventId: EventId;
+  readonly oldLeafEventId: EventId | null;
+}
+
+/**
+ * 파일 되감기 포트(`fresnel.file-rewind`)를 처리기가 쓰는 모양. 서비스는 cap-workspace가 내고, 되감기 식별자와 시작 기록 읽기는
+ * 조립이 채운다. 없으면(포트가 없는 조립) 파일 되감기 메서드는 `notImplemented`다.
+ */
+export interface FileRewindPort {
+  readonly service: FileRewindService;
+  /** 되감기마다 새로 만드는 식별자(`rwd_` 뒤 소문자 영숫자 16자) */
+  readonly newRewindId: () => RewindId;
+  /** 되감기 시작 기록을 찾는다. 없으면 undefined다(알 수 없는 되감기) */
+  startedOf(
+    threadId: ThreadId,
+    rewindId: RewindId,
+  ): Promise<Result<StartedRewind | undefined, ReadFailure>>;
+  /**
+   * 되돌리기가 적은 대화 쪽 상태(`workspace.rewind_undone.conversation`). 아직 되돌리지 않았거나 적용 기록이 없으면 undefined다.
+   * 되돌리기 응답은 이 값을 쓴다: 되돌리기 커밋이 leaf를 옮기므로 커밋 뒤의 leaf로 다시 셈하면 틀린다
+   */
+  undoneConversationOf(
+    threadId: ThreadId,
+    rewindId: RewindId,
+  ): Promise<Result<RewindUndoState | undefined, ReadFailure>>;
+}
+
 export interface EnginePorts {
   /** L1.persistence */
   readonly threads: ThreadPort;
@@ -371,6 +406,8 @@ export interface EnginePorts {
   readonly migration: MigrationPort;
   /** M4 wire 처리기 43개의 포트 묶음. 소유 트랙이 채울 때까지 빈 구현이다(`spec-deltas/t-f.md` §5) */
   readonly m4: M4Ports;
+  /** 파일 되감기(M4, `thread.rewind*`, `thread.turnFiles`). 포트가 없는 조립에서는 없다 */
+  readonly fileRewind?: FileRewindPort;
 }
 
 /** `thread.read`가 결과를 만들지 못한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.4.6 3항) */
@@ -437,10 +474,33 @@ export interface ThreadPort {
   ): Promise<
     Result<{ readonly threadId: ThreadId; readonly position: StreamPosition }, LifecycleError>
   >;
-  /** 쓰기 소유자만. 열린 turn이 있으면 `turn_running`이다 */
+  /**
+   * 쓰기 소유자만. 열린 turn이 있으면 `turn_running`이다. 돌려주는 `leaf`는 옮긴 뒤의 leaf(대상 item의 이벤트)다.
+   * 파일 되감기는 이 값으로 `oldLeafEventId`를 정하지 않는다(그건 `leafOf`다)
+   */
   revert(
     threadId: ThreadId,
     to: ItemId,
+  ): Promise<Result<{ readonly position: StreamPosition; readonly leaf: EventId }, LifecycleError>>;
+  /**
+   * 열린 turn(저장소의 투영 기준). 있으면 그 turn id다. 되감기는 메모리의 실행 목록(`turns.isLive`)이 아니라 이것으로 거절한다.
+   * 실행 목록은 `turn.completed`가 나간 뒤에도 잠시 참일 수 있다. 읽기 실패는 오류 값이다
+   */
+  openTurnOf(threadId: ThreadId): Result<TurnId | undefined, ReadFailure>;
+  /** 닫힌 대화인가(투영 기준). 파일 되감기는 파일을 만지기 전에 이것으로 거절한다(3007). 읽기 실패는 오류 값이다 */
+  closed(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /**
+   * 활성 가지의 마지막 이벤트(현재 leaf). 빈 대화는 null이다. 파일 되감기가 되감기 직전 leaf와 되돌리기 때 쓴다.
+   * 읽기 실패는 오류 값이다. 모르는 대화도 null이다(처리기가 `exists`로 먼저 본다)
+   */
+  leafOf(threadId: ThreadId): Promise<Result<EventId | null, ReadFailure>>;
+  /**
+   * 쓰기 소유자만. leaf를 `target`(같은 대화의 이벤트)으로 옮긴다(`thread.leaf_moved{reason:"restore"}`, L1.persistence §4.13.2).
+   * 파일 되돌리기가 대화를 되감기 직전으로 돌릴 때만 쓴다. 호출마다 새 요청 키를 만든다
+   */
+  restoreLeaf(
+    threadId: ThreadId,
+    target: EventId,
   ): Promise<Result<{ readonly position: StreamPosition }, LifecycleError>>;
   /** 쓰기 소유자만. 제목을 바꾸고(`thread.updated { title }` 커밋) 그 이벤트를 반영한 위치를 돌려준다. 호출마다 새 요청 키를 만든다 */
   rename(

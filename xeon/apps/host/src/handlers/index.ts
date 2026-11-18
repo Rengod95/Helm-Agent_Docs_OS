@@ -43,6 +43,7 @@ import {
   createSettingsSetHandler,
   createSettingsWriteFileHandler,
 } from "./settings.ts";
+import { createThreadRewindHandlers } from "./thread-rewind.ts";
 import {
   createThreadCloseHandler,
   createThreadCompactHandler,
@@ -99,6 +100,7 @@ export function createWireHandlers(
     "thread.delete": createThreadDeleteHandler(engine, hub),
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
+    ...createThreadRewindHandlers(engine),
     "thread.rename": createThreadRenameHandler(engine, hub),
     "thread.setModel": createThreadSetModelHandler(engine, hub),
     "thread.setProfile": createThreadSetProfileHandler(engine, hub),

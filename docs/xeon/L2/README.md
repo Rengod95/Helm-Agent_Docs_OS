@@ -27,7 +27,7 @@ L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 
 | 하위 층 id | 계획 v2 이름 | 도메인 | 패키지 | 기능 ID | 묶음 이름(§5.6) | 이벤트 접두사 | 테이블 접두사 | 마일스톤 | 문서 id |
 |---|---|---|---|---|---|---|---|---|---|
-| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, bash), M3(write, edit, grep)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
+| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace. | cap_workspace_(예약) | M1(read, bash), M3(write, edit, grep)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
 | L2-b | MCP 통합 | mcp | cap-mcp | mcp.client | fresnel.mcp | mcp.(휘발, 예약) | cap_mcp_ | M2(브리지, 서버 정의, 서버 주도 요청)[^mcp] | `L2.mcp.spec`, `L2.mcp.plan` |
 | L2-c | 웹 | web | cap-web | web.search, web.fetch, web.browse, web.research | fresnel.web | web.(휘발, 예약) | cap_web_ | M2(search, fetch), M3(browse, 구현 M3b 2026-10-29)[^web] | `L2.web.spec`, `L2.web.plan` |
 | L2-d | 지식과 기억 (저장소) | knowledge | cap-knowledge | knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger | fresnel.knowledge | knowledge.(예약) | cap_knowledge_ | M2 | `L2.knowledge.spec`, `L2.knowledge.plan` |
@@ -252,7 +252,7 @@ export interface ApprovalsPort {
 
 L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(도메인 소유 카탈로그)가 정본이다.
 
-- 위치: F `xeon/packages/contracts/src/records/catalog/<domain>.ts`. 이벤트가 있는 도메인(work, dialog, artifacts, schedule)만 만든다. 접두사만 예약한 도메인(workspace, mcp, web, knowledge)은 type을 실제로 더할 때 같은 형식으로 만든다.
+- 위치: F `xeon/packages/contracts/src/records/catalog/<domain>.ts`. 이벤트가 있는 도메인(work, dialog, artifacts, schedule, workspace)만 만든다. 접두사만 예약한 도메인(mcp, web, knowledge)은 type을 실제로 더할 때 같은 형식으로 만든다.
 - 형식: `F.records.spec` §3.3의 `CatalogEntry`(`kind`, `version`, `durable`, `payload`, `retired?`) 배열이다. export 이름은 `<DOMAIN>_EVENT_CATALOG`(`WORK_EVENT_CATALOG`, `DIALOG_EVENT_CATALOG`, `ARTIFACT_EVENT_CATALOG`, `SCHEDULE_EVENT_CATALOG`)다. 휘발 이벤트는 `durable: false`다. `records/catalog/index.ts`가 코어 카탈로그와 도메인 카탈로그를 병합한다.
 - 이름 규칙: `<접두사>.<이름>`, 점 하나, snake_case(`F.records.spec` §3.2 규칙 1)와 과거형(`eng.events.design` §4.5 규칙 1)을 함께 지킨다. 휘발 `<대상>.status`는 `eng.events.design` §4.5 규칙 2를 따른다.
 - 접두 예외: 내장 `cap-*`는 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 그룹 레코드 kind와 커스텀 메시지 `customType`은 이 예외에 들지 않고 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3). 그래서 `cap-work`의 이벤트는 `work.goal_judged`이고 커스텀 메시지는 `x.cap-work.goal.continue`다.

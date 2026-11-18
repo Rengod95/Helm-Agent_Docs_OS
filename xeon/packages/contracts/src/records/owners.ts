@@ -123,7 +123,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.workspace"],
     typePrefixes: ["workspace."],
     tablePrefixes: ["cap_workspace_"],
-    services: ["fresnel.workspace"],
+    services: ["fresnel.workspace", "fresnel.file-rewind"],
   },
   {
     id: "mcp",

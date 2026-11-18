@@ -41,6 +41,7 @@ import {
 import {
   ApprovalServiceName,
   ContextServiceName,
+  FileRewindPortKey,
   LoopServiceName,
   ModelServiceName,
   OsPortKey,
@@ -141,6 +142,7 @@ import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import { createRewindIdFactory } from "./assembly/file-rewind.ts";
 import { createBacktestIsolation, type BacktestIsolation } from "./assembly/backtest/isolation.ts";
 import { backtestSettingsOf } from "./assembly/backtest/settings.ts";
 import { watchUserSettings, type SettingsWatch } from "./assembly/settings-watch.ts";
@@ -559,6 +561,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const clock = runtime.clock;
   const ids = options.ids ?? createIdFactory(clock, runtime.random);
   const localIds = createLocalIdFactory(clock, runtime.random);
+  // 파일 되감기 식별자(`rwd_`)는 지역 접두 표에 없어 같은 난수 원천으로 따로 만든다
+  const newRewindId = createRewindIdFactory(runtime.random);
   const startedAt = clock.now();
 
   const lifetime = new AbortController();
@@ -1441,6 +1445,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tools = requirePort(ext, TOOLS_KEY, "fresnel.tools");
     const models = requirePort(ext, MODELS_KEY, "fresnel.models");
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
+    // 파일 되감기 서비스(cap-workspace가 낸다). 원본 저장 포트가 없는 조립에는 없다(처리기가 notImplemented로 답한다)
+    const fileRewind = ext.ports.get(FileRewindPortKey);
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
     const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
     // 틱을 돌리는 프로세스: 서비스와 앱(stdio). 설정이 아니라 모드로 정한다(서비스를 띄우지 못해 사이드카가 남아도 예약이 돈다). 쓰는 쪽은 Scheduler leader 임대로 하나만 돈다(HS-40).
@@ -1568,6 +1574,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
       // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
       ...(options.pluginHost?.self === undefined ? {} : { migrationSelf: options.pluginHost.self }),
+      ...(fileRewind === undefined ? {} : { fileRewind: { service: fileRewind, newRewindId } }),
       defaultPluginsDir: bundleRoot,
       pluginStore,
       localIds,

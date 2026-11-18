@@ -25,3 +25,4 @@ export * from "./failure-kind.ts";
 export * from "./secret-input.ts";
 export * from "./tool-output.ts";
 export * from "./workspace-core.ts";
+export * from "./file-rewind.ts";

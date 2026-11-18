@@ -491,6 +491,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
           approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           outputFiles: deps.toolOutputs,
+          // 편집 도구의 원본 저장과 파일 되감기 이벤트 id(L1.persistence.spec §4.13.2). 없으면 원본을 저장하지 않는다
+          ids: deps.ids,
           loadIndex,
         }),
     ],
