@@ -41,9 +41,11 @@ const passthroughSandbox: IsolationSandboxSource = {
  * 격리 자식을 실제로 띄우는 `pluginHost` 설정. 자기 실행 명령은 이 소스 트리의 `main.ts`이고 샌드박스는 대역이다.
  * 보고나 감독자를 받으려면 호출자가 `onLoadReport`·`onSupervisor`를 더한다(설정을 펼쳐 쓴다)
  */
-export function isolatedPluginHost(): NonNullable<AssembleOptions["pluginHost"]> {
+export function isolatedPluginHost(options?: {
+  readonly realSandbox?: boolean;
+}): NonNullable<AssembleOptions["pluginHost"]> {
   // FRESNEL_TEST_REAL_SANDBOX=1이면 대역을 빼고 엔진의 실제 `fresnel.sandbox`로 띄운다(실제 읽기 허용 목록과 쓰기 없음 프로필 아래의 격리 시험)
-  const real = Bun.env.FRESNEL_TEST_REAL_SANDBOX === "1";
+  const real = options?.realSandbox === true || Bun.env.FRESNEL_TEST_REAL_SANDBOX === "1";
   return {
     self: { execPath: process.execPath, entry: MAIN_ENTRY },
     ...(real ? {} : { sandbox: () => passthroughSandbox }),

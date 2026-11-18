@@ -83,6 +83,42 @@ function leaseReleasedOf(event: EventWire) {
   return checked.ok ? checked.value : undefined;
 }
 
+// 격리 플러그인은 검토본 사본(`<data>/plugin-store/reviewed/<이름>/<해시>/tree`)에서 뜬다. 그 경로는 보호된 데이터 폴더 안이라 읽기 허용 목록이
+// 보호 경로와 겹쳐 빠지면 호스트가 자기 코드를 읽지 못한다(enSec 한계). 실제 샌드박스(macOS)에서 실제로 뜨는지 본다.
+const realSandboxTest = process.platform === "darwin" ? realTest : test.skip;
+realSandboxTest(
+  "under the real sandbox the bundled Helm still starts from its reviewed copy in the data folder",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    let isolation: string | undefined;
+    let root: string | undefined;
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      buildModels: tapeBuildModels(tapeProvider(helmDivergeTape("helm-isolated-real-sandbox"))),
+      pluginHost: {
+        ...isolatedPluginHost({ realSandbox: true }),
+        onLoadReport: (report) => {
+          const found = report.extensions.find((entry) => entry.name === HELM);
+          isolation = found?.isolation;
+          root = found?.root;
+        },
+      },
+    });
+    const connection = createHostConnection(host.client);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      expect(isolation).toBe("process");
+      expect(root?.includes("/plugin-store/reviewed/helm/")).toBe(true);
+    } finally {
+      await connection.close();
+      await host.close();
+    }
+  },
+  60_000,
+);
+
 realTest(
   "the bundled Helm runs in its own process: the process is alive and not the engine, and /helm start drives through drive.step requests",
   async () => {

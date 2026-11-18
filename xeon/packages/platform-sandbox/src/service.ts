@@ -305,6 +305,9 @@ export async function createSandboxService(
         protectedReadDeny: pathEntries
           .filter((entry) => entry.access === "read_write")
           .map((entry) => entry.path),
+        carvableReadDeny: pathEntries
+          .filter((entry) => entry.access === "read_write" && entry.reason === "fresnel_data")
+          .map((entry) => entry.path),
         protectedWriteDeny: pathEntries.map((entry) => entry.path),
         basenameFiles: expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH),
       },

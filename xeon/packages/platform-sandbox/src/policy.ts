@@ -29,6 +29,11 @@ export interface PolicyInput {
   /** 보호 경로 중 이름 패턴이 아닌 항목(exact·prefix)의 읽기·쓰기 거부 경로 */
   readonly protectedReadDeny: readonly string[];
   readonly protectedWriteDeny: readonly string[];
+  /**
+   * `protectedReadDeny` 가운데 안쪽 경로를 읽기 허용 목록에 둘 수 있는 것(Fresnel 데이터 폴더). 허용 항목이 이 경로 안에 있어도 남기고,
+   * 이 경로를 품은 넓은 항목만 뺀다. 검토본 사본(`<data>/plugin-store/reviewed/…/tree`)을 격리 플러그인이 읽으려면 필요하다
+   */
+  readonly carvableReadDeny?: readonly string[];
   /** basename 항목을 쓰기 루트 아래에서 전개한 파일 경로 */
   readonly basenameFiles: readonly string[];
   /** 설정 l0.sandbox.writeRoots.extra */
@@ -72,8 +77,13 @@ export function mergePolicy(
   // allowRead는 같은 영역의 denyRead보다 앞서므로, 읽기 금지 경로와 겹치는 항목은 허용 목록에서 뺀다(보호 경로는 줄일 수 없다)
   // 심볼릭 링크 이름(`/lib`, `/usr/bin/socat`)은 실제 경로만 허용해서는 열리지 않는다: 링크 자체를 읽어야 따라간다. 이름과 실제 경로를 둘 다 둔다
   const spelled = input.policy.readAllow.map((path) => toAbsolutePath(path, home, base));
+  const carvable = normalizeAll(input.carvableReadDeny ?? [], home, base);
   const readAllow = sortedUnique([...spelled, ...spelled.map(canonicalizePath)]).filter(
-    (allowed) => !readDeny.some((denied) => isWithin(allowed, denied) || isWithin(denied, allowed)),
+    (allowed) =>
+      !readDeny.some(
+        (denied) =>
+          isWithin(denied, allowed) || (isWithin(allowed, denied) && !carvable.includes(denied)),
+      ),
   );
   return { ...merged, readAllow };
 }

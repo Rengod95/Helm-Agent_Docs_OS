@@ -187,6 +187,24 @@ describe("policy", () => {
     expect(toSrtFileConfig(none).filesystem?.denyRead).toEqual(["/"]);
   });
 
+  test("an allow-list entry inside a carvable (Fresnel data) path stays, one that contains it or sits in another protected path does not", () => {
+    const dirs = makeTestDirs();
+    const data = join(dirs.root, "data");
+    const secrets = join(dirs.root, "secrets");
+    const tree = join(data, "plugin-store", "reviewed", "kit", "abc", "tree");
+    const secretFile = join(secrets, "key");
+    mkdirSync(tree, { recursive: true });
+    mkdirSync(secrets, { recursive: true });
+    const merged = mergePolicy(
+      input(basePolicy({ readAllow: [tree, data, secretFile] }), dirs.home, "/", {
+        protectedReadDeny: [data, secrets],
+        carvableReadDeny: [data],
+      }),
+      [],
+    );
+    expect(merged.readAllow).toEqual([tree]);
+  });
+
   test("a symlink name stays in the allow-list next to its real path", () => {
     const dirs = makeTestDirs();
     const real = join(dirs.root, "real");
