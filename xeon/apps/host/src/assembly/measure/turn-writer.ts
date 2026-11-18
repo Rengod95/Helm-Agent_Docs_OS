@@ -1,4 +1,4 @@
-import { parse, type Logger } from "@fresnel/contracts";
+import { parse, type Logger, type Result } from "@fresnel/contracts";
 import {
   StepCompletedPayloadSchema,
   ThreadStartedPayloadSchema,
@@ -24,6 +24,7 @@ import {
   LeaseReleasedPayloadSchema,
   ProfileAppliedPayloadSchema,
   type DurableEventEnvelope,
+  type ReadFailure,
 } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
@@ -56,7 +57,13 @@ import {
   withBlockFact,
   type CacheUsage,
 } from "./turn-context.ts";
-import type { TrSkillRow, TrStepBatch, TrToolUseRow, TrTurnRow } from "./turn-tables.ts";
+import type {
+  TrSkillRow,
+  TrStepBatch,
+  TrThreadRow,
+  TrToolUseRow,
+  TrTurnRow,
+} from "./turn-tables.ts";
 import {
   callRecordOf,
   flatHooksOf,
@@ -144,6 +151,11 @@ export interface TurnWriterDeps {
   readonly maxTurnBytes: () => number;
   /** 테스트 실행 대화를 계측이 꺼져도 기록할지(`x.operations.trace.testRunsAlwaysOn`의 현재 값). 턴을 처음 볼 때 한 번 읽는다 */
   readonly testRunsAlwaysOn: () => boolean;
+  /**
+   * 하위 대화의 부모(`agentOfChild`). 자기 범위 표지 행이 없는 대화는 부모 사슬을 따라 처음 만나는 행의 범위를 물려받는다(§4.6 규칙 31).
+   * 없으면 물려받지 않고 자기 행만 본다
+   */
+  readonly parentOf?: ParentLookup;
 }
 
 export interface TurnWriter {
@@ -170,22 +182,65 @@ export interface TurnWriter {
 }
 
 /**
- * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`일 때 싣는다.
+ * 대화의 부모를 찾는다(`agentOfChild`의 `parentThreadId`). 하위 대화가 아니면 `undefined`다. 읽지 못하면 실패 값이다.
+ * 조립 루트가 세션 질의로 잇는다
+ */
+export type ParentLookup = (threadId: string) => Result<string | undefined, ReadFailure>;
+
+/** 범위 표지 행을 찾을 때 부모 사슬을 따라 올라가는 상한. 순환이나 비정상으로 깊은 사슬을 끊는다 */
+const MAX_SCOPE_CHAIN = 16;
+
+/**
+ * 범위를 정하는 표지 행(§4.6 규칙 31). 대화 자기 `tr_thread` 행이 있으면 그것이고, 없으면 부모 사슬을 따라 올라가 처음 만나는 행이다
+ * (하위 대화는 부모의 범위를 물려받는다). 어디에도 행이 없으면 일반 대화이므로 `undefined`다.
+ * 읽지 못하면 로그를 남기고 `undefined`로 둔다(§4.6 규칙 31의 일반 범위)
+ */
+function scopeRowOf(
+  store: MeasureStore,
+  threadId: string,
+  logger: Logger,
+  parentOf: ParentLookup | undefined,
+): TrThreadRow | undefined {
+  let current = threadId;
+  for (let hop = 0; hop <= MAX_SCOPE_CHAIN; hop += 1) {
+    const found = store.getThread(current);
+    if (!found.ok) {
+      logger.warn("measure.scope_read_failed", { reason: found.error.kind });
+      return undefined;
+    }
+    if (found.value !== undefined) return found.value;
+    if (parentOf === undefined) return undefined;
+    const parent = parentOf(current);
+    if (!parent.ok) {
+      logger.warn("measure.scope_read_failed", { reason: parent.error.kind });
+      return undefined;
+    }
+    if (parent.value === undefined) return undefined;
+    current = parent.value;
+  }
+  logger.warn("measure.scope_chain_cut", { threadId, reason: "depth" });
+  return undefined;
+}
+
+/** 범위 표지 행의 범위. 행이 없으면 `live`다 */
+function scopeOfRow(row: TrThreadRow | undefined): ScopeKind {
+  if (row === undefined) return "live";
+  return SCOPE_KINDS.find((candidate) => candidate === row.scopeKind) ?? "live";
+}
+
+/**
+ * 테스트 실행 대화의 구성을 범위 표지 행에서 읽는다(§4.6 규칙 37). 행이 테스트 실행의 것일 때만 싣는다. 하위 대화는 부모의 행을 쓴다(규칙 31).
  * 기준 프로필이 표지에 없으면(`thread.create { testRun: true }`로 만든 대화) 턴이 돈 프로필(`fallbackProfileId`)이 기준이다 [제안]
  * 고정 초안 기록이 깨졌으면 초안 없이 싣고 기록한다. 초안의 판 식별자는 내용 해시에서 정한다(§4.8.1 3)
  */
 function testRunOf(
-  store: MeasureStore,
-  threadId: string,
+  row: TrThreadRow | undefined,
   logger: Logger,
   fallbackProfileId: string,
 ): TurnTestRunMark {
-  const found = store.getThread(threadId);
-  if (!found.ok) return null;
-  const row = found.value;
   if (row === undefined || row.scopeKind !== "test") return null;
   const drafts = decodeTestRunDrafts(row.draftJson);
-  if (!drafts.ok) logger.warn("measure.test_run_drafts_unreadable", { threadId });
+  if (!drafts.ok) logger.warn("measure.test_run_drafts_unreadable", { threadId: row.threadId });
   return {
     runGroupId: row.runGroupId,
     baseProfileId: row.testBaseProfile ?? fallbackProfileId,
@@ -195,18 +250,6 @@ function testRunOf(
       versionId: draftVersionIdOf(draft),
     })),
   };
-}
-
-/** 범위 표지를 대화의 `tr_thread`에서 읽는다. 표지가 없거나 읽지 못하면 `live`다(§4.6 규칙 31) */
-function scopeOf(store: MeasureStore, threadId: string, logger: Logger): ScopeKind {
-  const found = store.getThread(threadId);
-  if (!found.ok) {
-    logger.warn("measure.scope_read_failed", { reason: found.error.kind });
-    return "live";
-  }
-  const kind = found.value?.scopeKind;
-  if (kind === undefined) return "live";
-  return SCOPE_KINDS.find((candidate) => candidate === kind) ?? "live";
 }
 
 export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
@@ -247,7 +290,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   /** 턴의 기록 수준. 계측이 켜졌으면 `full`, 꺼졌어도 테스트 실행 대화이고 항상 켜기가 참이면 `full`이다(§4.1 규칙 3, 4) */
   function levelOf(threadId: string): RecordLevel {
     if (deps.enabled()) return "full";
-    if (deps.testRunsAlwaysOn() && scopeOf(deps.store, threadId, deps.logger) === "test") {
+    if (
+      deps.testRunsAlwaysOn() &&
+      scopeOfRow(scopeRowOf(deps.store, threadId, deps.logger, deps.parentOf)) === "test"
+    ) {
       return "full";
     }
     return "log_only";
@@ -437,12 +483,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         : item.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
     const threadId = record.threadId;
     deps.queue((store) => {
-      const found = store.getThread(threadId);
-      if (!found.ok) {
-        deps.logger.warn("measure.test_marker_read_failed", { reason: found.error.kind });
-        return;
-      }
-      const row = found.value;
+      // 하위 대화의 입력이면 부모의 표지 행에 적는다(규칙 31). 행이 부모의 것이면 같은 행의 해시를 채운다
+      const row = scopeRowOf(store, threadId, deps.logger, deps.parentOf);
       if (row === undefined || row.scopeKind !== "test" || row.inputHash !== null) return;
       const sealed = installSaltOf();
       if (sealed === undefined) return;
@@ -519,19 +561,21 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     if (oldest.done !== true) drafts.delete(oldest.value);
   }
 
-  /** 턴 행 하나를 쓴다. 범위는 쓰는 때마다 대화의 표지에서 다시 읽는다. 쓴 행을 돌려준다(알림의 `complete`가 이것을 따른다) */
+  /**
+   * 턴 행 하나를 쓴다. 범위는 쓰는 때마다 대화의 표지 행(자기 행, 없으면 부모에게서 물려받은 행)에서 다시 읽는다.
+   * 쓴 행을 돌려준다(알림의 `complete`가 이것을 따른다)
+   */
   function writeTurnRow(
     store: MeasureStore,
     draft: TurnDraft,
     state: TurnState,
     phase: "open" | "closed",
   ): TrTurnRow {
-    draft.scope = scopeOf(store, draft.threadId, deps.logger);
+    const scopeRow = scopeRowOf(store, draft.threadId, deps.logger, deps.parentOf);
+    draft.scope = scopeOfRow(scopeRow);
     if (draft.scope === "live" && draft.draftOverlay) draft.scope = "overlay_draft";
     draft.testRun =
-      draft.scope === "test"
-        ? testRunOf(store, draft.threadId, deps.logger, draft.profile.id)
-        : null;
+      draft.scope === "test" ? testRunOf(scopeRow, deps.logger, draft.profile.id) : null;
     const row = turnRowOf(draft, state);
     const written = store.upsertTurn(row);
     if (!written.ok) {

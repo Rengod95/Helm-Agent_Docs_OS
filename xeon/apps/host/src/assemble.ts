@@ -1570,6 +1570,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       events: turnRecordEvents,
       maxTurnBytes: () => maxTurnBytesOf(built.catalog, settings),
       testRunsAlwaysOn: () => testRunsAlwaysOnOf(built.catalog, settings),
+      // 하위 대화의 부모(§4.6 규칙 31): 자식 턴이 부모의 범위(테스트 실행, 테스트 대화)를 물려받도록 세션의 위임 연결을 읽는다
+      parentOf: (threadId) => {
+        // 위임으로 만든 대화 id는 항상 `thr_` 형식이다. 그 밖의 문자열은 하위 대화일 수 없다
+        if (!isId("thr", threadId)) return ok(undefined);
+        const link = session.query.agentOfChild(threadId);
+        return link.ok ? ok(link.value?.parentThreadId) : link;
+      },
     });
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;

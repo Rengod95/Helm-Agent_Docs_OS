@@ -610,6 +610,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
     - `overlay_draft`: 실제 대화에 초안을 얹은 턴(화면 스펙 흐름 8). 초안 버전 id(`draft:<draftId>:<해시 앞 8자>`)가 `overlay.plugins[].versionId`에 있고 `draftId`가 채워진다. 이 표지의 정본은 여기이고, 호스트 기록기가 M5c의 `profile.applied.overlay[].draftId`로부터 만든다.
     - `test`: 테스트 실행 대화의 모든 턴.
     - `craft`: 테스트 대화(Craft 전용 AI 대화, M5c §4.8)의 모든 턴. 표지는 `thread.started.craftChat`에서 호스트 기록기가 만든다.
+    - 하위 대화(`agent.spawned`로 만든 자식)는 자기 범위 표지 행이 없으면 부모 사슬(`agentOfChild`)을 따라 처음 만나는 행의 범위를 물려받는다. 테스트 실행의 자식 턴은 `test`, 테스트 대화의 자식 턴은 `craft`다 [결정: 2026-11-18, 사용자, AGE-56]. 프로필 표지 `inherited`(규칙 24)와는 별개다. 구현은 `turn-writer.ts`의 `scopeRowOf`다.
 32. 테스트 실행 표지는 대화를 만들 때(`thread.create { testRun }`, `ports.ts:304`) `tr_thread`에 내구로 쓴다. `ext-host`의 `openThread(…, { testRun: true })`(`ports.ts:668`)는 재시작 뒤에도 `tr_thread`를 읽어 표지를 되살린다. 지금은 메모리 `Set`뿐이라 재시작하면 Test run이 일반 대화가 되고 그 기록이 지표에 섞인다. 표지 기록은 계측 꺼짐과 무관하게 쓴다.
 33. 지표 기본 필터는 `scopes: ["live", "overlay_reviewed"]`다. `overlay_draft`, `test`, `craft`는 명시로 넣어야 나온다. `overlay_reviewed`는 프로필에 없던 플러그인의 지표를 보려는 쓰임이 있어서 플러그인 지표에는 넣고 프로필 비용 지표에서는 뺀다 [제안].
 34. 같은 입력으로 여러 번 돌린 Test run은 `run_group_id`로 묶는다. `input_hash`는 첫 사용자 입력의 `callKey`와 같은 방식 HMAC이다. `testRun.compare`는 `input_hash`가 같으면 `sameInput: true`, 아니면 `false`로 경고만 한다. [구현: enB5, `turn-writer.ts`의 `inputHashOfQueued`가 테스트 실행 대화의 첫 사용자 `input.queued`에서 글 부분을 `\n`으로 이어 쓴다. 원문은 저장하지 않는다]

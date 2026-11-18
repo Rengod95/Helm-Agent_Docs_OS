@@ -597,7 +597,7 @@ plugin-store/
 6. 초안 출신 호출은 권한 모드와 무관하게 항상 승인 카드와 "초안" 표시를 띄운다([결정: 2026-11-17 사용자, U2], F §5.3 U-6).
 7. 기록: E의 `scope: test`, `runGroupId`, `draft: true`. 지표 기본에서 뺀다(E §4.6).
 8. 일반 대화에서 초안을 바로 써 보는 것(덧씌우기, §4.3.8)과 이 구성은 다르다: 앞은 실제 대화에 턴 단위로 얹고 `overlay_draft`로 기록되며, 이쪽은 새 대화 전체가 시험이고 `test`로 기록된다.
-9. 서브에이전트: 자식은 부모의 같은 구성(기준 프로필과 초안)을 물려받는다 [제안: §4.1.15의 덧씌우기는 안 물려주는 규칙과 달리, 테스트 대화는 전체가 한 구성이라서]. [구현 2026-11-18] 집합은 `parentOf`(`agentOfChild`)로 부모를 찾아 부모의 고정 초안과 기준 프로필을 쓴다(`plugin-set-test-run.test.ts`가 값으로 본다). 하위 대화의 `tr_thread` 범위는 자기 표지를 따르므로 부모가 테스트 실행이어도 하위 대화의 턴은 `live`로 적힌다. 이 간격은 [미결](아래 §10)이다.
+9. 서브에이전트: 자식은 부모의 같은 구성(기준 프로필과 초안)을 물려받는다 [제안: §4.1.15의 덧씌우기는 안 물려주는 규칙과 달리, 테스트 대화는 전체가 한 구성이라서]. [구현 2026-11-18] 집합은 `parentOf`(`agentOfChild`)로 부모를 찾아 부모의 고정 초안과 기준 프로필을 쓴다(`plugin-set-test-run.test.ts`가 값으로 본다). [결정: 2026-11-18, 사용자, AGE-56] 하위 대화는 부모의 기록 범위를 물려받는다(아래 §10의 29). [구현 2026-11-18] 턴 기록기가 범위 표지 행을 대화 자기 `tr_thread` 행에서 찾고, 없으면 `agentOfChild`로 부모 사슬을 따라 올라가 처음 만나는 행에서 찾는다(`apps/host/src/assembly/measure/turn-writer.ts`의 `scopeRowOf`, 깊이 상한 16). 시험은 `apps/host/test/assembly/measure/turn-record-write.test.ts`의 하위 대화 범위 시험 일곱 건이다.
 
 ### 4.9 초안과 제출 경로, 빌더가 해야 하는 것 [M6 요청 B-1·B-3·B-6 반영]
 
@@ -841,7 +841,7 @@ plugin-store/
 26. **[제안] 되돌리기의 와이어 값.** `ExtRollbackResult.appliesAt`에는 `now`가 없어 바로 적용된 되돌리기도 `nextStepBoundary`로 알린다. `clearState`는 로더의 `resetRefusedState`(거부된 상태 비우기)만 뜻한다. 상태 스키마 검사는 없다.
 27. **[제안] 판 글자와 출처 칸.** 판 글자 `<매니페스트 버전>+<해시 앞 8자>`는 같은 버전이 여럿이어도 구분된다. 와이어 `source`는 `bundled`면 `bundled`, 그 밖은 `user`다(프로젝트 출처도 `user`로 보인다).
 28. **[미결] 열린 대화의 `plugin_updated`는 E(T)의 해시 차이로 낸다.** [근거: `packages/ext-host/src/primitives/boundary.ts`(`updatedOf`), 2026-11-18 3b] `PluginSetView`에 `pluginHashes`(E(T) 플러그인 가운데 로더가 실은 판의 내용 해시)를 더했다(`packages/contracts/src/extensions/ports.ts`, 선택 필드). 경계가 지난번에 맞춘 값과 비교해 다른 것만 `updated`로 낸다. 실행 중인 대화는 다음 단계 경계에서 기록된다. F 쪽 `PluginSetView`의 정본 문서에는 이 필드를 아직 적지 않았다.
-29. **[미결] 테스트 실행 부모의 하위 대화 범위.** 하위 대화(`agent` 도구로 만든 자식)는 부모의 고정 구성(기준 프로필과 초안)을 물려받는다(§4.8.1 9, `plugin-set.ts`의 `parentOf`). 그러나 하위 대화의 `tr_thread` 범위는 자기 표지를 따르므로 `live`로 기록되어, 테스트 실행의 자식 턴이 지표 기본 필터에 섞인다. 기본값은 하위 대화의 턴도 부모의 `test` 범위와 구성으로 적는 것이다. 이 값은 하위 대화의 표지를 쓰는 길(`testMarks.remember`)이 필요하고 `thread.list`의 `testRun` 표지를 바꾸므로 이번에는 하지 않았다. [구현 2026-11-18: 하위 대화 범위 표기는 아직 없다.]
+29. **[결정: 2026-11-18, 사용자, AGE-56] 테스트 실행 부모의 하위 대화 범위.** 하위 대화(`agent` 도구로 만든 자식)는 부모의 고정 구성(기준 프로필과 초안)을 물려받는다(§4.8.1 9, `plugin-set.ts`의 `parentOf`). 그전에는 하위 대화의 `tr_thread` 범위가 자기 표지만 따라 `live`로 기록되어, 테스트 실행의 자식 턴이 지표 기본 필터에 섞였다. 결정: 하위 대화는 부모의 기록 범위(`test`, `craft`)를 물려받는다. [구현 2026-11-18] 하위 대화에는 `tr_thread` 행을 쓰지 않는다(`thread.list`의 `testRun` 표지는 바뀌지 않는다). 턴 기록기가 범위를 `scopeRowOf`로 정한다(`turn-writer.ts`). 시험은 `turn-record-write.test.ts`의 하위 대화 범위 시험 일곱 건이다.
 
 ## 11. 요구 추적표
 

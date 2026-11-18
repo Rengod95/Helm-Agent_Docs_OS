@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { Bug, ok, parse, parseJson, type Logger, type LogFields } from "@fresnel/contracts";
+import { Bug, err, ok, parse, parseJson, type Logger, type LogFields } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   PluginCallTraceEvent,
@@ -29,6 +29,7 @@ import {
   encodeTestRunDrafts,
 } from "../../../src/assembly/measure/test-run-marks.ts";
 import { createTurnRecordPort } from "../../../src/assembly/measure/turn-read.ts";
+import type { ParentLookup } from "../../../src/assembly/measure/turn-writer.ts";
 
 // T-MEAS-TURN: 턴 기록의 쓰는 쪽. 단계 끝에 단계 행과 훅 행을 쓰고(턴 도중에도 읽힌다), 턴 행은 열 때 `open`, 끝날 때 최종 상태다.
 // 계측이 꺼진 턴은 턴 행만 쓴다(log_only). 여는 때 `open`으로 남은 턴은 `lost`가 된다. 테스트 대화의 범위는 재열기 뒤에도 남고,
@@ -162,6 +163,7 @@ function openHarness(
     readonly maxTurnBytes?: number;
     readonly pluginSet?: Pick<PluginSetPort, "resolve">;
     readonly logger?: Logger;
+    readonly parentOf?: ParentLookup;
   },
 ): Harness {
   const listeners = new Set<CommitListener>();
@@ -195,6 +197,7 @@ function openHarness(
     ...(options.events === undefined ? {} : { events: options.events }),
     testRunsAlwaysOn: () => options.testRunsAlwaysOn ?? true,
     maxTurnBytes: () => options.maxTurnBytes ?? DEFAULT_MAX_TURN_BYTES,
+    ...(options.parentOf === undefined ? {} : { parentOf: options.parentOf }),
   };
   const measurement = startMeasurement(deps);
   return {
@@ -546,6 +549,283 @@ test("a live thread is not restored as a test run", async () => {
       logger,
     });
     expect(marks.recall(THREAD)).toBeUndefined();
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// §4.6 규칙 31: 하위 대화는 자기 표지 행이 없으면 부모 사슬을 따라 처음 만나는 행의 범위를 물려받는다. 테스트 실행과 테스트 대화의
+// 자식 턴은 `test`와 `craft`로 적히고, 일반 대화의 자식은 `live`다. 자식 대화 자체에는 `tr_thread` 행을 쓰지 않는다.
+
+const DRAFT_CONTENT_HASH = `sha256:${"0a1b2c3d".repeat(8)}`;
+
+/** 하위 대화 연결의 대역. `links`는 자식 id에서 부모 id로 가는 표이고, 표에 없는 id는 최상위 대화다 */
+function parentLinks(links: ReadonlyMap<string, string>): ParentLookup {
+  return (threadId) => ok(links.get(threadId));
+}
+
+/** 대화 하나의 턴 묶음을 읽는다. 없으면 시험이 실패한다 */
+function bundleOf(harness: Harness, threadId: ThreadId, turnId: TurnId) {
+  const bundle = storeOf(harness.measurement).readTurn(threadId, turnId);
+  if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+  return bundle.value;
+}
+
+/** 하위 대화의 턴 하나를 시작부터 끝까지 흘린다. 쓰기는 호출한 쪽이 기다린다 */
+function childTurnOf(harness: Harness, threadId: ThreadId, turnId: TurnId, seq: number): void {
+  harness.commit([event(seq, "turn.started", TURN_STARTED, { threadId, turnId })]);
+  harness.commit([event(seq + 1, "turn.completed", TURN_COMPLETED, { threadId, turnId })]);
+}
+
+test("a child of a test run writes its turns as test scope with the parent's test run record, with the trace off too", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-run-"));
+  const childOfRun: ThreadId = ids.next("thr");
+  const childTurnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: false,
+      parentOf: parentLinks(new Map([[childOfRun, THREAD]])),
+    });
+    expect(
+      createTestRunMarks({
+        store: () => harness.measurement.store,
+        clock: { now: () => AT },
+        logger,
+      }).remember(
+        THREAD,
+        "profile-a",
+        "test",
+        "trg-9",
+        encodeTestRunDrafts([
+          { plugin: "widget", draftId: "drf-1", contentHash: DRAFT_CONTENT_HASH },
+        ]),
+      ),
+    ).toBe(true);
+    childTurnOf(harness, childOfRun, childTurnId, 1);
+    await settle();
+    // 계측이 꺼져도 부모 테스트 실행의 항상 켜기를 따라 full로 적는다(§4.1 규칙 4)
+    const turn = bundleOf(harness, childOfRun, childTurnId).turn;
+    expect([turn.scopeKind, turn.level]).toEqual(["test", "full"]);
+    expect(recordOf(turn.recordJson)).toMatchObject({
+      scope: "test",
+      testRun: {
+        runGroupId: "trg-9",
+        baseProfileId: "profile-a",
+        drafts: [{ plugin: "widget", draftId: "drf-1", versionId: "draft:drf-1:0a1b2c3d" }],
+      },
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a child of a test chat writes the craft scope", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-craft-"));
+  const chat: ThreadId = ids.next("thr");
+  const childOfChat: ThreadId = ids.next("thr");
+  const childTurnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      parentOf: parentLinks(new Map([[childOfChat, chat]])),
+    });
+    createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    }).remember(chat, null, "craft");
+    childTurnOf(harness, childOfChat, childTurnId, 1);
+    await settle();
+    expect(bundleOf(harness, childOfChat, childTurnId).turn.scopeKind).toBe("craft");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a child of an ordinary thread stays live", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-live-"));
+  const childOfPlain: ThreadId = ids.next("thr");
+  const childTurnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      parentOf: parentLinks(new Map([[childOfPlain, THREAD]])),
+    });
+    childTurnOf(harness, childOfPlain, childTurnId, 1);
+    await settle();
+    expect(bundleOf(harness, childOfPlain, childTurnId).turn.scopeKind).toBe("live");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a grandchild inherits the test run scope through its parent", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-grandchild-"));
+  const child: ThreadId = ids.next("thr");
+  const grandchild: ThreadId = ids.next("thr");
+  const grandchildTurnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      parentOf: parentLinks(
+        new Map([
+          [child, THREAD],
+          [grandchild, child],
+        ]),
+      ),
+    });
+    createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    }).remember(THREAD, "profile-a", "test", "trg-10");
+    childTurnOf(harness, grandchild, grandchildTurnId, 1);
+    await settle();
+    const turn = bundleOf(harness, grandchild, grandchildTurnId).turn;
+    expect(turn.scopeKind).toBe("test");
+    expect(recordOf(turn.recordJson)).toMatchObject({
+      scope: "test",
+      testRun: { runGroupId: "trg-10", baseProfileId: "profile-a" },
+    });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the default metrics leave out a child's test-run calls and count only the ordinary thread's", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-metric-"));
+  const plain: ThreadId = ids.next("thr");
+  const plainTurn: TurnId = ids.next("trn");
+  const plainStep: StepId = ids.next("stp");
+  const childOfRun: ThreadId = ids.next("thr");
+  const childTurnId: TurnId = ids.next("trn");
+  const childStep: StepId = ids.next("stp");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      parentOf: parentLinks(new Map([[childOfRun, THREAD]])),
+    });
+    createTestRunMarks({
+      store: () => harness.measurement.store,
+      clock: { now: () => AT },
+      logger,
+    }).remember(THREAD, "profile-a", "test", "trg-11");
+    harness.commit([
+      event(1, "turn.started", TURN_STARTED, { threadId: plain, turnId: plainTurn }),
+    ]);
+    harness.call(
+      callEvent("plain_call", { threadId: plain, turnId: plainTurn, stepId: plainStep }),
+    );
+    harness.commit([
+      event(2, "step.completed", STEP_COMPLETED(1), {
+        threadId: plain,
+        turnId: plainTurn,
+        stepId: plainStep,
+      }),
+    ]);
+    harness.commit([
+      event(3, "turn.completed", TURN_COMPLETED, { threadId: plain, turnId: plainTurn }),
+    ]);
+    harness.commit([
+      event(4, "turn.started", TURN_STARTED, { threadId: childOfRun, turnId: childTurnId }),
+    ]);
+    harness.call(
+      callEvent("child_call", { threadId: childOfRun, turnId: childTurnId, stepId: childStep }),
+    );
+    harness.commit([
+      event(5, "step.completed", STEP_COMPLETED(1), {
+        threadId: childOfRun,
+        turnId: childTurnId,
+        stepId: childStep,
+      }),
+    ]);
+    harness.commit([
+      event(6, "turn.completed", TURN_COMPLETED, { threadId: childOfRun, turnId: childTurnId }),
+    ]);
+    await settle();
+    expect(bundleOf(harness, childOfRun, childTurnId).turn.scopeKind).toBe("test");
+    expect(bundleOf(harness, plain, plainTurn).turn.scopeKind).toBe("live");
+
+    const port = createTurnRecordPort({
+      store: () => storeOf(harness.measurement),
+      enabled: () => true,
+      retentionDays: () => 30,
+      logTurnStartedAt: () => ok(undefined),
+      events: { subscribe: () => () => undefined },
+      now: () => AT + 1000,
+      metrics: () => ({
+        minSample: 1,
+        defaultWindowDays: 30,
+        findingsEnabled: true,
+        findingOverrides: {},
+      }),
+    });
+    const period = { from: AT - 1000, to: AT + 1000 };
+    const callsWith = (scopes: readonly ("live" | "test")[] | null): number | null | undefined => {
+      const filter = scopes === null ? { period } : { period, scopes: [...scopes] };
+      const out = port.metrics({ metrics: ["tool.calls"], filter, groupBy: [], compare: null });
+      if (!out.ok) throw new Bug("the metrics must answer in this test");
+      return out.value.rows[0]?.values["tool.calls"]?.value;
+    };
+    // 기본 필터는 일반 대화의 호출 하나만 센다. 자식의 호출이 섞이면 2가 된다
+    expect(callsWith(null)).toBe(1);
+    expect(callsWith(["live", "test"])).toBe(2);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a child whose parent cannot be read is kept live and logged under the scope read key", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-read-"));
+  const warnings: [string, LogFields | undefined][] = [];
+  const childOfRun: ThreadId = ids.next("thr");
+  const childTurnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      logger: warningsOf(warnings),
+      parentOf: () => err({ kind: "busy" }),
+    });
+    childTurnOf(harness, childOfRun, childTurnId, 1);
+    await settle();
+    expect(bundleOf(harness, childOfRun, childTurnId).turn.scopeKind).toBe("live");
+    expect(warnings).toContainEqual(["measure.scope_read_failed", { reason: "busy" }]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a parent chain that loops is cut at the depth limit, and the thread stays live", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-child-loop-"));
+  const warnings: [string, LogFields | undefined][] = [];
+  const first: ThreadId = ids.next("thr");
+  const second: ThreadId = ids.next("thr");
+  const turnId: TurnId = ids.next("trn");
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      logger: warningsOf(warnings),
+      parentOf: parentLinks(
+        new Map([
+          [first, second],
+          [second, first],
+        ]),
+      ),
+    });
+    childTurnOf(harness, first, turnId, 1);
+    await settle();
+    expect(bundleOf(harness, first, turnId).turn.scopeKind).toBe("live");
+    expect(warnings).toContainEqual([
+      "measure.scope_chain_cut",
+      { threadId: first, reason: "depth" },
+    ]);
     harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });
