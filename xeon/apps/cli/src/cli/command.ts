@@ -110,7 +110,7 @@ export type AuthorCommand =
       readonly kind: "author.scaffold";
       readonly name: string;
       readonly dir: string;
-      /** 만드는 종류. 플러그인 하나다(묶음 `plugin-group`은 M5c-1에서 wire가 받지 않는다) */
+      /** 만드는 종류. 플러그인 하나다 */
       readonly extensionKind: "single-plugin";
       readonly output: OutputMode;
     }

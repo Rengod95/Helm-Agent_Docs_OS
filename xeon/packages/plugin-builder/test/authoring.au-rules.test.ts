@@ -1,16 +1,15 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scaffoldExtension, validateExtensionDir } from "../src/index.ts";
-import { readRecord, tempRoot, templateDirs } from "./support.ts";
+import { validateExtensionDir } from "../src/index.ts";
+import { driveGroupFixture, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
 
 async function scaffolded(name: string): Promise<string> {
   const dir = root.path(name);
-  const made = await scaffoldExtension({ kind: "plugin-group", name, dir }, { templates });
-  if (!made.ok) throw new Error(made.error.message);
+  await driveGroupFixture(name, dir, templates);
   return dir;
 }
 

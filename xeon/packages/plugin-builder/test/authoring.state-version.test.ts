@@ -11,15 +11,22 @@ import { authoringStateMigrations } from "../src/group-state.ts";
 import { createAuthoringGroup } from "../src/group.ts";
 import { devkitProbe } from "./group-support.ts";
 
-// 상태 문서 판 2(`installed` → `submitted`). 저장된 판 1 문서는 엔진이 쓰는 같은 체인(`migrationChain`)으로 옮긴다.
+// 상태 문서 판 3(판 2: `installed` → `submitted`, 판 3: 종류는 플러그인 하나). 저장된 옛 문서는 엔진이 쓰는 같은 체인(`migrationChain`)으로 옮긴다.
 
-const chain = migrationChain(2, authoringStateMigrations);
+const chain = migrationChain(3, authoringStateMigrations);
 
-/** 저장된 문서처럼 JSON으로 바꿔 판 1에서 판 2까지 옮긴다. 시험 입력은 모두 JSON이다 */
+/** 저장된 문서처럼 JSON으로 바꿔 판 1에서 현재 판까지 옮긴다. 시험 입력은 모두 JSON이다 */
 function migrate(value: unknown): unknown {
   const json = toJsonValue(value);
   if (json === undefined) throw new Bug("the state fixture is not JSON");
   return chain(json, 1);
+}
+
+/** 판 2로 저장된 문서를 현재 판까지 옮긴다 */
+function migrateFromV2(value: unknown): unknown {
+  const json = toJsonValue(value);
+  if (json === undefined) throw new Bug("the state fixture is not JSON");
+  return chain(json, 2);
 }
 
 /** 판 1 모양의 초기 문서(`installed` 필드가 있다). 옛 스키마의 키 그대로다 */
@@ -135,7 +142,7 @@ test("authoring.state-v2.initial: an old initial document becomes the new initia
 test("authoring.state-v2.new-shape-at-v1: a document already in the new shape passes the step unchanged", () => {
   const current = newState({
     phase: "done",
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo-group",
     dir: "/work/group",
     intentConfirmed: true,
@@ -177,8 +184,26 @@ test("authoring.state-v2.garbage: a stored document that is not a state is a Res
   expect(outcomes).toEqual([false, false, false, false, false, false, false]);
 });
 
-test("authoring.state-v2.declared: the group declares state version 2 with one migration step", () => {
+test("authoring.state-v3.kind: a version 2 document of the old group kind is read as single-plugin, the rest stays", () => {
+  const stored = {
+    ...newState({ phase: "done", dir: "/work/demo", askRound: 1 }),
+    kind: "plugin-group",
+  };
+  expect(parse(AuthoringStateSchema, stored).ok).toBe(false);
+  const migrated = migrateFromV2(stored);
+  expect(parse(AuthoringStateSchema, migrated).ok).toBe(true);
+  expect(migrated).toEqual(
+    newState({ phase: "done", dir: "/work/demo", askRound: 1, kind: "single-plugin" }),
+  );
+});
+
+test("authoring.state-v3.kind-kept: a version 2 document of the single plugin kind is not changed", () => {
+  const stored = newState({ phase: "done", kind: "single-plugin", dir: "/work/demo" });
+  expect(migrateFromV2(stored)).toEqual(stored);
+});
+
+test("authoring.state-v3.declared: the group declares state version 3 with two migration steps", () => {
   const module = createAuthoringGroup({ devkit: devkitProbe().devkit });
-  expect(module.stateVersion).toBe(2);
-  expect(module.stateUpcasters).toHaveLength(1);
+  expect(module.stateVersion).toBe(3);
+  expect(module.stateUpcasters).toHaveLength(2);
 });

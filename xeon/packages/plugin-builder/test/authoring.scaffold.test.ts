@@ -4,9 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { KindEntry } from "@fresnel/contracts/services";
-import { KIND_CATALOG, scaffoldExtension, templateKindOf } from "../src/index.ts";
-import { parse } from "@fresnel/contracts";
-import { TemplateIndexSchema } from "@fresnel/group-sdk";
+import { KIND_CATALOG, scaffoldExtension } from "../src/index.ts";
 import { readManifest, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
@@ -19,42 +17,19 @@ function fillExpected(text: string, id: string): string {
     .replaceAll("__VERSION__", "0.1.0");
 }
 
-test("authoring.scaffold-equals-template: the three group kinds are the template files with the placeholders filled (A-2)", async () => {
-  const policy: CompositionDecl = {
-    blocks: [{ id: "guard", stage: "guard", op: "on", hooks: ["tool.call.before"] }],
-  };
-  const observe: CompositionDecl = {
-    blocks: [{ id: "count", stage: "observe", op: "on", hooks: ["boundary.settle.after"] }],
-  };
-  expect(templateKindOf(undefined)).toBe("drive");
-  expect(templateKindOf(policy)).toBe("policy");
-  expect(templateKindOf(observe)).toBe("observe");
-
+test("authoring.scaffold-equals-template: the single plugin is the template files with the placeholders filled (A-2)", async () => {
   // 초안 없이 만들면 매니페스트까지 템플릿 글자 그대로다
-  const dir = root.path("eq-drive");
+  const dir = root.path("eq-single");
   const made = await scaffoldExtension(
-    { kind: "plugin-group", name: "eq-drive", dir },
+    { kind: "single-plugin", name: "eq-single", dir },
     { templates },
   );
   if (!made.ok) throw new Error(made.error.message);
-  const indexed = parse(
-    TemplateIndexSchema,
-    JSON.parse(readFileSync(join(templates.group, "index.json"), "utf8")),
-  );
-  if (!indexed.ok) throw new Error("index.json is not valid");
-  const listed = indexed.value.templates.drive.files;
-  expect(made.value.files).toEqual(
-    listed
-      .map((file) => file.split("/").slice(1).join("/").replaceAll("__ID__", "eq-drive"))
-      .toSorted(),
-  );
+  const listed = [".fresnel-plugin/plugin.json", "README.md", "src/index.ts"];
+  expect(made.value.files).toEqual(listed);
   for (const file of listed) {
-    const source = readFileSync(join(templates.group, file), "utf8");
-    const written = readFileSync(
-      join(dir, file.split("/").slice(1).join("/").replaceAll("__ID__", "eq-drive")),
-      "utf8",
-    );
-    expect(written).toBe(fillExpected(source, "eq-drive"));
+    const source = readFileSync(join(templates.single, file), "utf8");
+    expect(readFileSync(join(dir, file), "utf8")).toBe(fillExpected(source, "eq-single"));
   }
 });
 
@@ -64,7 +39,7 @@ test("authoring.scaffold: a composition draft is patched into the manifest and t
   };
   const dir = root.path("patched");
   const made = await scaffoldExtension(
-    { kind: "plugin-group", name: "patched", dir, group: { composition } },
+    { kind: "single-plugin", name: "patched", dir, group: { composition } },
     { templates, displayName: "Patched" },
   );
   if (!made.ok) throw new Error(made.error.message);
@@ -90,7 +65,7 @@ test("authoring.scaffold: a single plugin takes the requested layer", async () =
 test("authoring.scaffold: refusals leave the target folder untouched", async () => {
   const empty = root.path("refuse");
   const reserved = await scaffoldExtension(
-    { kind: "plugin-group", name: "core", dir: empty },
+    { kind: "single-plugin", name: "core", dir: empty },
     { templates },
   );
   expect(reserved).toEqual({
@@ -98,7 +73,7 @@ test("authoring.scaffold: refusals leave the target folder untouched", async () 
     error: { kind: "invalid_input", message: 'AU-001: name "core" is reserved' },
   });
   const bad = await scaffoldExtension(
-    { kind: "plugin-group", name: "Bad_Name", dir: empty },
+    { kind: "single-plugin", name: "Bad_Name", dir: empty },
     { templates },
   );
   expect(bad).toEqual({
@@ -106,7 +81,7 @@ test("authoring.scaffold: refusals leave the target folder untouched", async () 
     error: { kind: "invalid_input", message: 'AU-001: name "Bad_Name" is not valid' },
   });
   const taken = await scaffoldExtension(
-    { kind: "plugin-group", name: "taken", dir: empty },
+    { kind: "single-plugin", name: "taken", dir: empty },
     { templates, installedNames: ["taken"] },
   );
   expect(taken).toEqual({
@@ -117,7 +92,7 @@ test("authoring.scaffold: refusals leave the target folder untouched", async () 
   mkdirSync(occupied);
   writeFileSync(join(occupied, "keep.txt"), "x");
   const notEmpty = await scaffoldExtension(
-    { kind: "plugin-group", name: "fresh", dir: occupied },
+    { kind: "single-plugin", name: "fresh", dir: occupied },
     { templates },
   );
   expect(notEmpty).toEqual({
@@ -127,7 +102,7 @@ test("authoring.scaffold: refusals leave the target folder untouched", async () 
   expect(readdirSync(occupied)).toEqual(["keep.txt"]);
   expect(readdirSync(root.path("."))).not.toContain("refuse");
   const relative = await scaffoldExtension(
-    { kind: "plugin-group", name: "fresh", dir: "rel/dir" },
+    { kind: "single-plugin", name: "fresh", dir: "rel/dir" },
     { templates },
   );
   expect(relative).toEqual({
@@ -145,7 +120,7 @@ test("authoring.blocked-kind-refused: a blocked catalog entry is refused with it
     blockedReason: "waiting for the hook protocol",
   };
   const result = await scaffoldExtension(
-    { kind: "plugin-group", name: "blocked-one", dir: root.path("blocked") },
+    { kind: "single-plugin", name: "blocked-one", dir: root.path("blocked") },
     { templates, catalog: [blocked] },
   );
   expect(result).toEqual({

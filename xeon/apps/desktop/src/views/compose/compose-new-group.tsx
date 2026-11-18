@@ -186,8 +186,8 @@ export function NewGroupScreen(props: {
         <StartPicker
           read={kinds}
           selected={draft.kind}
-          // 플러그인 묶음은 고를 수 없다(`startPointsOf`가 막는다). 고를 수 있는 것은 단일 플러그인뿐이다
-          onPick={(kind) => edit({ kind: kind === "single-plugin" ? kind : null })}
+          // 종류는 단일 플러그인 하나뿐이다. 고를 수 있는 것은 `startPointsOf`가 정한다
+          onPick={(kind) => edit({ kind })}
           onRetry={() => {
             setVersion((current) => current + 1);
           }}

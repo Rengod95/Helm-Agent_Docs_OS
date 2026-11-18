@@ -47,7 +47,7 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|
 | Plugin Builder | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
 | 제작 대화 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
-| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 플러그인 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 확장 수준의 구분은 `group` 선언 유무로 한다. wire `ext.kinds`는 `single-plugin`과 `plugin-group`을 돌려주며 스키마는 T-F가 정한다 [미결] |
+| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 종류는 플러그인 하나뿐이고 그룹은 `group` 선언 유무로 정한다(종류가 아니다). wire `ext.kinds`는 `single-plugin` 하나를 돌려준다 [결정: review/m5/profile-project-loader.md §4.9.5] |
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
 | 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 Plugin Builder가 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
@@ -88,7 +88,7 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_submit` | `{ sessionId, purpose?, turnId? }` | 검토함에 올린 `{ draftId, itemId }`와 "검토함에서 승인해야 쓸 수 있다" 한 줄 | 검토 항목 생성(설치 없음, 확인 없음) |
 | `authoring_stop` | `{ sessionId? }` | 열린 제작 대화를 닫고(`idle`) 만든 파일 목록을 돌려줌 | 읽기 |
 
-- [결정: M5c §4.9, §7.7 2026-11-18] `authoring_install`은 폐기했다. 빌더의 산출 경로는 `authoring_submit`이다: 테스트의 턴 하나를 증거(`EvidenceRef` `{kind:"turn"}`)로 받아 `fresnel.devkit.submit`(포트 `PluginSubmitPort`)으로 초안과 검토 항목을 만든다. 시험을 돌리지 않았으면 `no_evidence`로 거절하고 `authoring_trial`을 먼저 돌리라고 안내한다. 증거 턴 id는 빌더 상태에 없어 `turnId` 입력으로 받는다([미결]: 테스트 대화의 턴 id를 빌더가 읽는 길은 `authoring_context`(B-4, 엔진 설계 E1)가 준다). `authoring_package`는 `ext.package`가 남아 있으니 한 파일 묶음을 사용자가 보관하는 단독 도구로 남긴다(제출에는 필요 없다). `authoring_compose`와 묶음(`plugin-group`) 구성 검사는 남긴다([미결]: 묶음 템플릿과 카탈로그 적합성 시험이 group-sdk에 묶여 있어 이번 변경에서 빼지 않았다).
+- [결정: M5c §4.9, §7.7 2026-11-18] `authoring_install`은 폐기했다. 빌더의 산출 경로는 `authoring_submit`이다: 테스트의 턴 하나를 증거(`EvidenceRef` `{kind:"turn"}`)로 받아 `fresnel.devkit.submit`(포트 `PluginSubmitPort`)으로 초안과 검토 항목을 만든다. 시험을 돌리지 않았으면 `no_evidence`로 거절하고 `authoring_trial`을 먼저 돌리라고 안내한다. 증거 턴 id는 빌더 상태에 없어 `turnId` 입력으로 받는다([미결]: 테스트 대화의 턴 id를 빌더가 읽는 길은 `authoring_context`(B-4, 엔진 설계 E1)가 준다). `authoring_package`는 `ext.package`가 남아 있으니 한 파일 묶음을 사용자가 보관하는 단독 도구로 남긴다(제출에는 필요 없다). `authoring_compose`와 구성 검사는 남긴다. 옛 묶음 종류는 §4.9.5로 폐기해 빌더의 묶음 뼈대와 카탈로그 적합성 시험의 묶음 항목은 빠졌고, group-sdk 템플릿 파일은 `fresnel group new`가 그대로 쓴다([미결]: 구성 초안을 단일 플러그인 뼈대에 붙이는 경로(`group` 선언 패치)는 종류와 함께 뺄지 따로 정한다).
 - 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 합니다.
 - 화면(구성기, 시험 실행)도 wire로 같은 서비스를 부릅니다(`L4.desktop-ux.spec` W-27, W-28, W-29, W-47, W-49). 그래서 에이전트와 사용자가 같은 검사와 같은 뼈대를 얻습니다.
 
@@ -127,13 +127,13 @@ interface DevkitService {
 ```ts
 // 개념 모양
 interface KindEntry {
-  readonly id: string;                         // 예 "group.drive", "plugin.l2-provider", "view.frame"
+  readonly id: string;                         // 예 "single-plugin", "plugin.l2-provider", "view.frame"
   readonly title: string;                      // 메시지 키
   readonly layer: "L1" | "L2" | "L3" | "plugin" | "X";
   readonly status: "stable" | "preview" | "blocked" | "deprecated";
   readonly since: string;                      // 카탈로그 버전
   readonly requires: { readonly contracts: string; readonly bridge?: string; readonly widgets?: string };  // SemVer 범위
-  readonly template?: string;                  // 템플릿 폴더. group.* 는 group-sdk/templates 를 가리킴
+  readonly template?: string;                  // 템플릿 폴더(플러그인 하나는 plugin-builder/templates/single-plugin)
   readonly checks: readonly string[];          // AU-NNN 목록
   readonly decisions: readonly string[];       // 에이전트가 정해야 할 것(예 "views.mode", "drives")
   readonly security: readonly string[];        // 보안 메모 키(예 "frame.reason", "trust.project.noFrame")
@@ -141,15 +141,13 @@ interface KindEntry {
 }
 ```
 
-- [결정: M4 T-AUTH] wire `ext.kinds`의 `KindEntry.id`는 T-F 계약이 `single-plugin`과 `plugin-group` 둘로 정했으므로, M4 카탈로그 항목은 그 둘이고 아래 표의 `group.drive`·`group.policy`·`group.observe`는 `plugin-group` 항목의 템플릿 선택지입니다. 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
+- [결정: M4 T-AUTH, 개정 review/m5/profile-project-loader.md §4.9.5 2026-11-18] wire `ext.kinds`의 `KindEntry.id`는 `single-plugin` 하나다. 종류는 플러그인 하나뿐이고 그룹은 `group` 선언이 있는 플러그인이라 종류가 아니다. 그래서 카탈로그 항목도 `single-plugin` 하나이고, 옛 그룹 종류의 `group.*` 행은 폐기했다(group-sdk 템플릿은 `fresnel group new`가 쓴다). 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
 
 M4 첫 카탈로그 [제안]:
 
 | 종류 id | 층 | 상태 | 템플릿 | 비고 |
 |---|---|---|---|---|
-| `group.drive` | L3 | stable | `group-sdk/templates` drive | 구성 초안의 단계 선언(`composition.phases`)을 채움 |
-| `group.policy` | L3 | stable | policy | |
-| `group.observe` | L3 | stable | observe | |
+| `single-plugin` | L1, L2, L3, plugin | stable | `plugin-builder/templates/single-plugin` | 플러그인 하나. 층은 고른다 |
 | `view.declarative` | 화면 | stable | 화면 트리 뼈대 | 다른 종류에 덧붙는 종류 |
 | `view.frame` | 화면 | preview | 프레임 폴더 뼈대, 다리 래퍼 | ADR-0021 §6 미결 1 확인 전에는 blocked |
 | `plugin.l2-provider` | L2 | preview | provider 뼈대 | 기능 계약(`F.capabilities.spec`)의 provider 등록 |
@@ -319,7 +317,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 ## 9. 수용 기준
 
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
-- A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `fresnel group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
+- A-2. `single-plugin` 뼈대는 템플릿 글자 그대로이고 자리만 채워집니다. 그룹 템플릿(group-sdk)은 종류 폐기 뒤 빌더가 아니라 `fresnel group new`가 씁니다. `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
 - A-4. `authoring_package`는 사람 확인 없이는 파일을 쓰지 않고, `authoring_submit`은 확인 없이 검토 항목만 만든다(실행하지 않는다). 확인을 기다리는 동안 그 대화의 drive 프레임은 `asking`으로 스택에 남습니다(drive 락을 반납하지 않는다, E3).
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.

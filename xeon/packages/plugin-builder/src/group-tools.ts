@@ -248,7 +248,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     "Plugin authoring: open a build session for one new plugin or extension. The user confirms the kind and the name before the next steps.",
     Type.Object(
       {
-        kind: Type.Union([Type.Literal("single-plugin"), Type.Literal("plugin-group")]),
+        kind: Type.Literal("single-plugin"),
         name: Type.String({ minLength: 1, maxLength: 64 }),
         dir: Type.String({ minLength: 1, maxLength: 1024 }),
         displayName: Type.Optional(Type.String({ maxLength: 120 })),

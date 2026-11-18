@@ -50,11 +50,6 @@ function notice(content: string): PostItem {
   return { kind: "context", customType: "grp.authoring.notice.status", content, display: true };
 }
 
-/** 확인 카드에 쓰는 종류 이름 */
-function kindLabelOf(kind: AuthoringState["kind"]): string {
-  return kind === "plugin-group" ? "플러그인 그룹" : "플러그인";
-}
-
 function requestKey(state: Readonly<AuthoringState>, what: string): string {
   return `authoring:${what}:${state.name ?? ""}:${String(state.askRound)}`.slice(0, 64);
 }
@@ -108,7 +103,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     if (answer === "none")
       return askOf(
         requestKey(state, "intent"),
-        confirmCard(`${kindLabelOf(state.kind)} "${name}"을 ${state.dir ?? ""}에 만들까요?`),
+        confirmCard(`플러그인 "${name}"을 ${state.dir ?? ""}에 만들까요?`),
       );
     if (answer === "yes") {
       await resume(

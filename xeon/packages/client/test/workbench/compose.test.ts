@@ -271,7 +271,7 @@ describe("새 그룹 초안", () => {
     expect(scaffoldInputOf({ ...draft, name: "X" })).toBeNull();
   });
 
-  test("시작점은 단일 플러그인이 stable이나 preview일 때만 고를 수 있다(그룹은 wire가 받지 않는다)", () => {
+  test("시작점은 단일 플러그인이 stable이나 preview일 때만 고를 수 있다", () => {
     const base = {
       layers: [],
       since: "1",
@@ -281,14 +281,14 @@ describe("새 그룹 초안", () => {
       security: [],
     };
     const rows = startPointsOf([
-      { ...base, id: "plugin-group", title: "그룹", status: "stable" },
       { ...base, id: "single-plugin", title: "플러그인", status: "stable" },
+      { ...base, id: "single-plugin", title: "플러그인", status: "preview" },
       { ...base, id: "single-plugin", title: "플러그인", status: "blocked" },
     ]);
-    expect(rows.map((row) => [row.id, row.selectable])).toEqual([
-      ["plugin-group", false],
-      ["single-plugin", true],
-      ["single-plugin", false],
+    expect(rows.map((row) => [row.id, row.status, row.selectable])).toEqual([
+      ["single-plugin", "stable", true],
+      ["single-plugin", "preview", true],
+      ["single-plugin", "blocked", false],
     ]);
   });
 

@@ -89,8 +89,11 @@ export const INITIAL_AUTHORING_STATE: AuthoringState = {
   askRound: 0,
 };
 
-/** 상태 문서 판. v2에서 `installed`(설치 결과)가 `submitted`(검토 제출 결과)로 바뀌었다. 옛 판은 `authoringStateMigrations`가 옮긴다 */
-export const AUTHORING_STATE_VERSION = 2;
+/**
+ * 상태 문서 판. v2에서 `installed`(설치 결과)가 `submitted`(검토 제출 결과)로 바뀌었다.
+ * v3에서 종류는 플러그인 하나뿐이 되었다(옛 그룹 종류로 저장된 `kind`는 `authoringStateMigrations`가 옮긴다). 옛 판은 그 표가 한 판씩 옮긴다
+ */
+export const AUTHORING_STATE_VERSION = 3;
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -112,9 +115,20 @@ function v1ToV2(previous: unknown): unknown {
   };
 }
 
-/** GroupDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 2는 키 1 하나로 덮는다 */
+/**
+ * v2 → v3. 종류는 플러그인 하나뿐이라 옛 그룹 종류로 저장된 `kind`는 `single-plugin`으로 옮긴다
+ * (review/m5/profile-project-loader.md §4.9.5: 옛 종류로 만든 폴더는 플러그인으로 읽는다). 다른 값은 그대로 둔다(검사는 스키마가 Result로 거른다).
+ * 옛 종류 문자열이 코드에 남는 자리는 이 함수뿐이다.
+ */
+function v2ToV3(previous: unknown): unknown {
+  if (!isRecord(previous) || previous["kind"] !== "plugin-group") return previous;
+  return { ...previous, kind: "single-plugin" };
+}
+
+/** GroupDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 1은 키 1, 판 2는 키 2로 한 판씩 옮긴다 */
 export const authoringStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
   1: v1ToV2,
+  2: v2ToV3,
 };
 
 const nullable = <T extends ReturnType<typeof Type.String>>(schema: T) =>
@@ -124,7 +138,7 @@ const shape = Type.Object(
   {
     phase: Type.Union(AUTHORING_PHASES.map((phase) => Type.Literal(phase))),
     sessionId: nullable(Type.String({ minLength: 1, maxLength: 80 })),
-    kind: Type.Union([Type.Literal("single-plugin"), Type.Literal("plugin-group"), Type.Null()]),
+    kind: Type.Union([Type.Literal("single-plugin"), Type.Null()]),
     name: nullable(Type.String({ minLength: 1, maxLength: 64 })),
     dir: nullable(Type.String({ minLength: 1, maxLength: 1024 })),
     displayName: nullable(Type.String({ maxLength: 120 })),

@@ -129,7 +129,7 @@ export interface ExtListEntry {
   readonly displayName: string;
   /** 유효 층(`effectiveLayer`): 플러그인 층 가운데 가장 높은 층 */
   readonly layer: string;
-  /** `group` 선언이 있으면 참. 행 종류는 `ext.kinds`의 `plugin-group` / `single-plugin`과 같다 */
+  /** `group` 선언이 있으면 참 */
   readonly isGroup: boolean;
   readonly version: string;
   readonly location: string;

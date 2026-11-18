@@ -11,9 +11,9 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 // 포트 구현은 test/assembly/devkit-port.test.ts에서 본다.
 
 const KIND: KindEntry = {
-  id: "plugin-group",
-  title: "Plugin group",
-  layers: ["L3"],
+  id: "single-plugin",
+  title: "Single plugin",
+  layers: ["L1", "L2", "L3", "plugin"],
   status: "stable",
   since: "0.1.0",
   requires: { contracts: "^0.0.0" },

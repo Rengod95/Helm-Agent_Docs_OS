@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { KindEntry, ScaffoldInput } from "@fresnel/contracts/services";
 import { KIND_CATALOG } from "./catalog.ts";
 import { scaffoldExtension } from "./scaffold.ts";
@@ -12,21 +11,9 @@ import { validateExtensionDir, type ValidateOptions } from "./validate.ts";
 // F 훅 표, 매니페스트 스키마가 바뀌어 템플릿이 깨지면 문제 목록에 그 파일 이름이 나온다.
 // 재생 규율(AU-012)까지 보려면 `options.scanDrive`를 넘긴다(시험이 `scanDriveSource`를 넘긴다).
 
-const POLICY: CompositionDecl = {
-  blocks: [{ id: "guard", stage: "guard", op: "on", hooks: ["tool.call.before"] }],
-};
-const OBSERVE: CompositionDecl = {
-  blocks: [{ id: "count", stage: "observe", op: "on", hooks: ["boundary.settle.after"] }],
-};
-
-/** 항목 하나가 만드는 입력들. 그룹은 템플릿 세 종류를 모두 만든다 */
+/** 항목 하나가 만드는 입력. 종류는 플러그인 하나라 뼈대도 하나다 */
 function inputsOf(entry: KindEntry, dir: string): readonly ScaffoldInput[] {
-  if (entry.id === "single-plugin") return [{ kind: "single-plugin", name: "conf-single", dir }];
-  return [
-    { kind: "plugin-group", name: "conf-drive", dir },
-    { kind: "plugin-group", name: "conf-policy", dir, group: { composition: POLICY } },
-    { kind: "plugin-group", name: "conf-observe", dir, group: { composition: OBSERVE } },
-  ];
+  return [{ kind: entry.id, name: "conf-single", dir }];
 }
 
 /** 문제 문장 목록. 비어 있으면 적합하다 */

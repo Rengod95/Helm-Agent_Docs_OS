@@ -23,7 +23,7 @@ export const authoringManifest: GroupManifest = defineManifest({
   name: "authoring",
   version: "0.1.0",
   displayName: "Plugin Builder",
-  description: "플러그인과 플러그인 그룹을 만드는 도구, 단계 머신, 쓰기 범위 가드",
+  description: "플러그인을 만드는 도구, 단계 머신, 쓰기 범위 가드",
   entry: "./src/index.ts",
   defaultEnabled: true,
   trust: { level: "builtin" },

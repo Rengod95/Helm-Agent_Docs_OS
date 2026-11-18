@@ -19,10 +19,10 @@ export const KIND_STATUSES = ["stable", "preview", "blocked", "deprecated"] as c
 export type KindStatus = (typeof KIND_STATUSES)[number];
 
 /**
- * 새로 만들 수 있는 확장의 종류. `single-plugin`은 플러그인 하나(층은 고른다), `plugin-group`은 `group` 선언이 있는
- * 플러그인 그룹이다(ADR-0022 §3.2, T-REG §8) [제안: 옛 plugin·group 종류를 대체한다]
+ * 새로 만들 수 있는 확장의 종류. 종류는 플러그인 하나뿐이고 층은 고른다. 그룹은 `group` 선언이 있는 플러그인이라 종류가 아니다
+ * (ADR-0022 §3.2, T-REG §8, review/m5/profile-project-loader.md §4.9.5)
  */
-export const EXTENSION_KINDS = ["single-plugin", "plugin-group"] as const;
+export const EXTENSION_KINDS = ["single-plugin"] as const;
 export type ExtensionKind = (typeof EXTENSION_KINDS)[number];
 
 /** 종류 카탈로그 항목 하나(`catalog/kinds/<id>.json`) */
@@ -53,7 +53,7 @@ export interface ScaffoldInput {
   readonly dir: string;
   /** `single-plugin`일 때 플러그인의 층. 생략하면 템플릿 기본값 [제안] */
   readonly layer?: ExtensionLayer;
-  /** `plugin-group`일 때의 `group` 선언 초안 */
+  /** `group` 선언 초안. 있으면 매니페스트에 `group`이 붙는다 */
   readonly group?: { readonly members?: readonly string[]; readonly composition?: CompositionDecl };
   /** Plugin UI 초안 */
   readonly ui?: UiDecl;

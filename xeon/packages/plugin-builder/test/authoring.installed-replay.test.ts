@@ -2,7 +2,7 @@ import { readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { packExtension, runInstalledReplay, scaffoldExtension } from "../src/index.ts";
-import { tempRoot, templateDirs } from "./support.ts";
+import { driveGroupFixture, tempRoot, templateDirs } from "./support.ts";
 
 // 설치된 플러그인 그룹의 재생(`runInstalledReplay`). 뼈대를 묶어 설치 폴더 모양을 만든 뒤 재생한다. 실제 모델은 부르지 않는다.
 
@@ -15,12 +15,16 @@ const templates = templateDirs();
  */
 async function packed(
   name: string,
-  kind: "plugin-group" | "single-plugin",
+  fixture: "drive-group" | "single-plugin",
   enabled = false,
 ): Promise<string> {
   const dir = root.path(`src-${name}`);
-  const made = await scaffoldExtension({ kind, name, dir }, { templates });
-  if (!made.ok) throw new Error(made.error.message);
+  if (fixture === "single-plugin") {
+    const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
+    if (!made.ok) throw new Error(made.error.message);
+  } else {
+    await driveGroupFixture(name, dir, templates);
+  }
   if (enabled) {
     const manifestPath = join(dir, ".fresnel-plugin", "plugin.json");
     const text = await readFile(manifestPath, "utf8");
@@ -49,7 +53,7 @@ test("a single plugin is refused: the manifest has no group", async () => {
 });
 
 test("a missing entry file is not_found", async () => {
-  const dir = await packed("replay-missing", "plugin-group");
+  const dir = await packed("replay-missing", "drive-group");
   await rm(join(dir, "dist", "index.js"));
   expect(await runInstalledReplay({ dir, maxCommits: 10 })).toEqual({
     ok: false,
@@ -58,7 +62,7 @@ test("a missing entry file is not_found", async () => {
 });
 
 test("an entry that links outside the extension folder is refused", async () => {
-  const dir = await packed("replay-escape", "plugin-group");
+  const dir = await packed("replay-escape", "drive-group");
   const outside = root.path("outside-entry.js");
   await writeFile(outside, "export default function () {}\n");
   await rm(join(dir, "dist", "index.js"));
@@ -73,7 +77,7 @@ test("an entry that links outside the extension folder is refused", async () => 
 });
 
 test("an entry without a function export is refused", async () => {
-  const dir = await packed("replay-no-function", "plugin-group");
+  const dir = await packed("replay-no-function", "drive-group");
   await writeFile(join(dir, "dist", "index.js"), "export const value = 1;\n");
   expect(await runInstalledReplay({ dir, maxCommits: 10 })).toEqual({
     ok: false,
@@ -85,7 +89,7 @@ test("an entry without a function export is refused", async () => {
 });
 
 test("an entry that fails to import is an io error with the message, not a throw", async () => {
-  const dir = await packed("replay-broken", "plugin-group");
+  const dir = await packed("replay-broken", "drive-group");
   await writeFile(join(dir, "dist", "index.js"), 'import "./no-such-module.js";\n');
   const result = await runInstalledReplay({ dir, maxCommits: 10 });
   expect(result.ok).toBe(false);
@@ -95,7 +99,7 @@ test("an entry that fails to import is an io error with the message, not a throw
 });
 
 test("maxCommits outside 1 to 1000 is invalid input", async () => {
-  const dir = await packed("replay-limit", "plugin-group");
+  const dir = await packed("replay-limit", "drive-group");
   expect(await runInstalledReplay({ dir, maxCommits: 0 })).toEqual({
     ok: false,
     error: { kind: "invalid_input", message: "maxCommits must be an integer from 1 to 1000" },
@@ -107,7 +111,7 @@ test("maxCommits outside 1 to 1000 is invalid input", async () => {
 });
 
 test("a disabled drive group replays with no commits: the report fails with no-commits", async () => {
-  const dir = await packed("replay-off", "plugin-group");
+  const dir = await packed("replay-off", "drive-group");
   expect(await runInstalledReplay({ dir, maxCommits: 50 })).toEqual({
     ok: true,
     value: { ok: false, commits: 0, cuts: [], failure: "no-commits" },
@@ -115,7 +119,7 @@ test("a disabled drive group replays with no commits: the report fails with no-c
 });
 
 test("an enabled drive group replays at every commit and the report carries the cut values", async () => {
-  const dir = await packed("replay-drive", "plugin-group", true);
+  const dir = await packed("replay-drive", "drive-group", true);
   expect(await runInstalledReplay({ dir, maxCommits: 50 })).toEqual({
     ok: true,
     value: {

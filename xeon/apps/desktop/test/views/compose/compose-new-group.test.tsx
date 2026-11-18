@@ -48,17 +48,18 @@ function radioWith(html: string, text: string): string {
   return piece === undefined ? "" : `<div role="radio"${piece}`;
 }
 
-const POINTS = startPointsOf([
-  kindOf("single-plugin", "stable", "플러그인 하나"),
-  kindOf("plugin-group", "blocked", "플러그인 그룹"),
-]);
+const POINTS = startPointsOf([kindOf("single-plugin", "stable", "플러그인 하나")]);
 
 describe("StartGrid", () => {
   test("고를 수 없는 종류는 aria-disabled이고 Tab 순서에서 빠진다", () => {
     const html = renderToString(
-      <StartGrid points={POINTS} selected="single-plugin" onPick={NOOP} />,
+      <StartGrid
+        points={startPointsOf([kindOf("single-plugin", "blocked", "플러그인 막힘")])}
+        selected={null}
+        onPick={NOOP}
+      />,
     );
-    const blocked = radioWith(html, "플러그인 그룹");
+    const blocked = radioWith(html, "단일 플러그인");
     expect(blocked).toContain('aria-disabled="true"');
     expect(blocked).toContain('tabindex="-1"');
     expect(blocked).toContain("지금 막혀 있어요");
@@ -89,21 +90,10 @@ describe("StartGrid", () => {
     expect(preview).toContain('aria-disabled="false"');
   });
 
-  test("플러그인 묶음은 준비 중이어도 고를 수 없다(M5c-1에서 wire가 받지 않는다)", () => {
-    const html = renderToString(
-      <StartGrid
-        points={startPointsOf([kindOf("plugin-group", "preview", "플러그인 그룹")])}
-        selected={null}
-        onPick={NOOP}
-      />,
-    );
-    expect(radioWith(html, "플러그인 그룹")).toContain('aria-disabled="true"');
-  });
-
   test("고른 것이 없으면 aria-checked=true가 하나도 없다", () => {
     const html = renderToString(<StartGrid points={POINTS} selected={null} onPick={NOOP} />);
     expect(html.match(/aria-checked="true"/g)).toBeNull();
-    expect(html.match(/aria-checked="false"/g)).toHaveLength(2);
+    expect(html.match(/aria-checked="false"/g)).toHaveLength(1);
   });
 });
 

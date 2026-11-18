@@ -1,14 +1,14 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
-import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
-import type { CompositionDecl, ExtensionLayer } from "@fresnel/contracts/extensions";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import type { ExtensionLayer } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
   KindEntry,
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
-import { checkGroupName, TemplateIndexSchema, type TemplateKind } from "@fresnel/group-sdk";
+import { checkGroupName } from "@fresnel/group-sdk";
 import { KIND_CATALOG } from "./catalog.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import type { TemplateDirs } from "./templates-dir.ts";
@@ -26,19 +26,6 @@ export interface ScaffoldOptions {
   readonly displayName?: string;
   /** 설치된 확장 이름(AU-001 충돌 검사) */
   readonly installedNames?: readonly string[];
-}
-
-/** 구성 초안에서 그룹 템플릿 종류를 고른다. drive 블록이 있거나 초안이 없으면 drive, 도구 호출 앞 훅만 있으면 policy, 아니면 observe */
-export function templateKindOf(composition: CompositionDecl | undefined): TemplateKind {
-  if (composition === undefined) return "drive";
-  if (composition.blocks.some((block) => block.op === "drive")) return "drive";
-  const onBlocks = composition.blocks.filter((block) => block.op === "on");
-  if (
-    onBlocks.length > 0 &&
-    onBlocks.every((block) => block.hooks?.includes("tool.call.before") === true)
-  )
-    return "policy";
-  return "observe";
 }
 
 function fill(text: string, values: { id: string; title: string; version: string }): string {
@@ -99,30 +86,11 @@ async function listFiles(root: string, prefix = ""): Promise<Result<string[], De
   return ok(nested.value.flat().toSorted());
 }
 
-/** 템플릿 파일 목록과 내용을 읽는다. 그룹은 index.json의 목록, 단일 플러그인은 폴더 전체다 */
-async function plannedTemplate(
-  input: ScaffoldInput,
-  dirs: TemplateDirs,
-): Promise<Result<PlannedFile[], DevkitError>> {
-  if (input.kind === "single-plugin") {
-    const names = await listFiles(dirs.single);
-    if (!names.ok) return names;
-    return readTemplateTree(dirs.single, names.value, (path) => path);
-  }
-  const indexText = await io("templates/index.json", () =>
-    readFile(join(dirs.group, "index.json"), "utf8"),
-  );
-  if (!indexText.ok) return indexText;
-  const json = parseJson(indexText.value);
-  if (!json.ok) return err(invalid("templates/index.json is not JSON"));
-  const index = parse(TemplateIndexSchema, json.value);
-  if (!index.ok) return err(invalid("templates/index.json has an unexpected shape"));
-  const kind = templateKindOf(input.group?.composition);
-  const entry = index.value.templates[kind];
-  return readTemplateTree(dirs.group, entry.files, (path) => {
-    const rest = path.split("/").slice(1).join("/");
-    return rest === "" ? null : rest;
-  });
+/** 템플릿 파일 목록과 내용을 읽는다. 종류는 플러그인 하나라 단일 플러그인 폴더 전체다 */
+async function plannedTemplate(dirs: TemplateDirs): Promise<Result<PlannedFile[], DevkitError>> {
+  const names = await listFiles(dirs.single);
+  if (!names.ok) return names;
+  return readTemplateTree(dirs.single, names.value, (path) => path);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -134,7 +102,7 @@ function patchManifest(text: string, input: ScaffoldInput): Result<string, Devki
     input.group?.composition !== undefined ||
     (input.group?.members?.length ?? 0) > 0 ||
     input.ui !== undefined ||
-    (input.layer !== undefined && input.kind === "single-plugin");
+    input.layer !== undefined;
   // 패치할 것이 없으면 템플릿 글자 그대로 둔다(`fresnel group new`와 같은 파일, spec §9 A-2)
   if (!wantsPatch) return ok(text);
   const json = parseJson(text);
@@ -144,8 +112,7 @@ function patchManifest(text: string, input: ScaffoldInput): Result<string, Devki
   const root = plugins[0];
   if (!isRecord(root)) return err(invalid("template manifest has no root plugin"));
   const patchedRoot: Record<string, unknown> = { ...root };
-  if (input.layer !== undefined && input.kind === "single-plugin")
-    patchedRoot["layer"] = input.layer;
+  if (input.layer !== undefined) patchedRoot["layer"] = input.layer;
 
   const composition = input.group?.composition;
   if (composition !== undefined) {
@@ -181,12 +148,17 @@ const LAYERS_OF_SINGLE: ReadonlySet<ExtensionLayer> = new Set<ExtensionLayer>([
   "plugin",
 ]);
 
+/** 종류 항목을 찾는다. 종류 값이 하나라 입력 종류와 항목 종류를 리터럴끼리 비교하면 린트가 막으므로 문자열로 받는다 */
+function entryIn(catalog: readonly KindEntry[], id: string): KindEntry | undefined {
+  return catalog.find((entry) => entry.id === id);
+}
+
 /** 뼈대를 만든다. 실패하면 파일을 하나도 쓰지 않는다(쓰기 전에 모두 계획한다) */
 export async function scaffoldExtension(
   input: ScaffoldInput,
   options: ScaffoldOptions,
 ): Promise<Result<ScaffoldResult, DevkitError>> {
-  const kind = (options.catalog ?? KIND_CATALOG).find((entry) => entry.id === input.kind);
+  const kind = entryIn(options.catalog ?? KIND_CATALOG, input.kind);
   if (kind === undefined) return err(invalid(`unknown kind: ${input.kind}`));
   if (kind.status === "blocked")
     return err({ kind: "blocked_kind", message: kind.blockedReason ?? "kind is blocked" });
@@ -202,12 +174,10 @@ export async function scaffoldExtension(
   if (!isAbsolute(input.dir)) return err(invalid("dir must be an absolute path"));
   if (input.layer !== undefined && !LAYERS_OF_SINGLE.has(input.layer))
     return err(invalid(`layer ${input.layer} is not allowed`));
-  if (input.kind === "plugin-group" && input.layer !== undefined && input.layer !== "L3")
-    return err(invalid("a plugin group has layer L3"));
 
   const state = await targetState(input.dir);
   if (!state.ok) return state;
-  const planned = await plannedTemplate(input, options.templates);
+  const planned = await plannedTemplate(options.templates);
   if (!planned.ok) return planned;
 
   const values = {

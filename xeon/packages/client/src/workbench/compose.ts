@@ -223,20 +223,15 @@ export interface StartPoint {
   readonly selectable: boolean;
 }
 
-/** `ext.scaffold`가 받는 종류. 플러그인 하나다 */
-const SCAFFOLD_KIND: ExtScaffoldParams["kind"] = "single-plugin";
-
 /**
- * 시작점 목록. `plugin-group`은 M5c-1에서 `ext.scaffold`가 받지 않으므로(플러그인 묶음은 검토 흐름에서 만들지 않는다)
- * 목록에는 있어도 고를 수 없다. 고를 수 있는 것은 `single-plugin`이 준비 중이거나 안정일 때뿐이다.
+ * 시작점 목록. 종류는 `ext.scaffold`가 받는 플러그인 하나뿐이라 고를 수 있는 것은 준비 중이거나 안정일 때뿐이다.
  */
 export function startPointsOf(kinds: readonly KindEntry[]): readonly StartPoint[] {
   return kinds.map((kind) => ({
     id: kind.id,
     title: kind.title,
     status: kind.status,
-    selectable:
-      kind.id === SCAFFOLD_KIND && (kind.status === "stable" || kind.status === "preview"),
+    selectable: kind.status === "stable" || kind.status === "preview",
   }));
 }
 

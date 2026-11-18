@@ -310,7 +310,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | host | `host.remote.config` | `{ patch?: { listen?: string, listenTls?: string\|null, hosts?: string[], tlsCert?: string\|null, tlsKey?: string\|null }, dryRun?: boolean }` | `{ settings: { listen: string, listenTls: string\|null, hosts: string[], tlsCert: string\|null, tlsKey: string\|null }, issues: { field: string, code: string }[], written: boolean, restartNeeded: boolean }`. `patch`가 없으면 읽기다. `dryRun`이면 검사만 하고 쓰지 않는다. 검사에 걸리면 `written: false`와 `issues`다. 저장 실패는 `internal`이다. 쓴 뒤 게이트웨이가 떠 있으면 `restartNeeded`가 참이고, 서비스는 자동으로 다시 띄우지 않는다 | M4 [결정: 2026-11-11 사용자] |
 | host | `host.remote.proxyExample` | `{ kind: "caddy"\|"nginx", domain: string, tlsPort: integer(1..65535) }` | `{ text: string, plan: { listen: string, listenTls: string, hosts: string[] } }`. 상태를 바꾸지 않는다. 잘못된 도메인·포트는 `jsonrpc.invalidParams`다. `plan`은 루프백 전용 구성(`loopbackOnlyPlan`)이고 `listen`의 포트는 설정 `listen`의 포트(없으면 8480)다 | M4 [결정: 2026-11-11 사용자] |
 | host | `host.clients` | `{}` | `{ clients: { connectionId: string, transport: "in-process"\|"stdio"\|"socket", name?: string, version?: string, writeThreads: integer, observedThreads: integer, self: boolean }[] }`. 연결마다 한 행이고 요청한 연결(`self`)이 맨 앞이다(최대 256개). `name`과 `version`은 `host.hello`를 마친 연결만 싣는다. 인증 토큰은 싣지 않는다 | M4 (W-12) |
-| thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
+| thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string, include?: "craft" }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition, project?: ThreadProjectRef(없으면 null), profileId?: string, sameFolder: { threadId, status }[] }`. `project`는 작업 폴더가 속한 명시 프로젝트다. `profileId`는 정해진 프로필이다(없으면 `profile.defaultFor` 값). 계산은 review m5 프로필·프로젝트 §4.4, L4 host-service §4.23 | M1 |
 | thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe", includeItems?: boolean, limit?: integer(1..500) }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition, items?: ItemRecord[], hasMore?: boolean, asOfSeq?: integer }` | M2 |
 | thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId, around?: ItemId }`(`around`는 M4, W-16) | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
@@ -429,8 +429,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
 | testRun | `testRun.phase` | `{ threadId: string }` | `{ phase: string \| null, group: string \| null, seq: integer \| null, paused: boolean, lock: { holder: string \| null, status: "active"\|"releasing"\|"none", epoch: integer \| null }, guardHits: integer, traceEnabled: boolean, boundaries: { seq: integer, phase: string \| null, paused: boolean }[] }`. 모든 칸은 필수다. `boundaries`는 최대 200개이고 오래된 것부터다(마지막이 가장 최근). 정본은 `TestRunPhaseResultSchema`(`extensions/trace-types.ts`)다 | M4 (W-50) |
-| ext | `ext.kinds` | `{}` | `{ kinds: KindEntry[] }`. `KindEntry.id`는 `single-plugin` 또는 `plugin-group`이고 `layers`는 그 종류가 쓸 수 있는 층이다 | M4 (W-27) |
-| ext | `ext.scaffold` | `{ kind: "single-plugin", name: string, dir: string, layer?: ExtensionLayer, group?: { members?: string[], composition?: CompositionDecl }, ui?: UiDecl }`. M5c-1: `kind`에서 `plugin-group`을 뺐다(`ext.kinds`는 두 종류를 그대로 돌려준다) | `{ dir: string, files: string[] }` | M4 (W-27) |
+| ext | `ext.kinds` | `{}` | `{ kinds: KindEntry[] }`. `KindEntry.id`는 `single-plugin` 하나이고 `layers`는 그 종류가 쓸 수 있는 층이다 [결정: review/m5/profile-project-loader.md §4.9.5] | M4 (W-27) |
+| ext | `ext.scaffold` | `{ kind: "single-plugin", name: string, dir: string, layer?: ExtensionLayer, group?: { members?: string[], composition?: CompositionDecl }, ui?: UiDecl }`. 종류는 플러그인 하나뿐이다(§4.9.5). `group`은 매니페스트의 `group` 선언 초안이다 | `{ dir: string, files: string[] }` | M4 (W-27) |
 | ext | `ext.validate` | `{ dir: string }` | `{ ok: boolean, issues: DevkitIssue[] }`(`schemaVersion: 2` 매니페스트 검사 결과) | M4 (W-28) |
 | ext | `ext.package` | `{ dir: string, out?: string }` | `{ path: string, files: string[], sha256: string }` | M4 (W-49) |
 | ext | `ext.test.run` | `{ kind: "replay"\|"testRun", target: string, options?: { maxCommits?, profileId?, workspace? } }` | `{ testId: string, threadId: string \| null }` | M4 (W-29) |
@@ -586,10 +586,12 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     spawnedBy: Type.Optional(ThreadSpawnedBySchema), // M4, rtE R-3. { threadId(부모), kind: "subagent"\|"internal" }. 위임으로 만든 자식이 아니면 생략 [결정: 오케스트레이터 기본값, rtE R-3]
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })), // M4, T-MODEL. 대화가 다음 turn부터 쓰도록 정한 `provider/id`. 정하지 않았으면 생략(기본 모델)
     preview: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })), // 첫 사용자 입력의 글 앞부분, 80 코드 포인트(잘리면 "…" 포함). 글이 없으면 생략. 목록 읽기만 싣는다
+    craftChat: Type.Optional(Type.Object({ plugin: Nullable(Type.String({ minLength: 1, maxLength: 96 })) }, { additionalProperties: false })), // M5c §4.8.1 테스트 대화 표지. 표지가 없으면 생략. plugin은 묶이기 전이면 null [구현 상태, 2026-11-18]
   }, { additionalProperties: false });
   ```
 - [결정: 2026-11-11 사용자] `ThreadSummary.preview`(선택)는 제목이 없는 대화를 목록에서 흐리게 보이는 글이다. 값은 `L1.persistence.spec` §4.10.7이 정한다: 텍스트 블록만 잇고 공백을 한 칸으로 줄이고 앞뒤를 자른 뒤 80 코드 포인트로 자른다(잘리면 79 코드 포인트와 "…"). 이미지와 그 밖의 첨부 내용은 넣지 않는다. 글이 없으면 생략한다(`""`로 싣지 않는다). 상한 160은 UTF-16 길이 상한이다. 이 필드가 없는 옛 호스트의 응답은 클라이언트가 그대로 "제목 없음"을 쓴다.
 
+- [구현 상태, 2026-11-18] `thread.list`의 `include: "craft"`(M5c §4.8.3)는 테스트 대화(표지가 있는 대화)도 낸다. 생략하면 뺀다. 목록 원소의 `craftChat`은 표지가 있는 대화에만 있고(`plugin`은 묶이기 전이면 null), 맥락 참조는 싣지 않는다(`L1.persistence.spec` §3.4).
 - [결정: m2-plan F.6] `thread.list`의 `workspace` 필터는 `thread.started.workspace`(`F.conversation.spec` §3.5.3)에 저장한 값과 정확히 같은 문자열을 찾는다. 호스트가 `thread.create`의 `workspace`를 정규 절대 경로로 바꿔 저장하는 규칙은 `L4.host-service.spec`이 정한다.
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.
 

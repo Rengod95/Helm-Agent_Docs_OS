@@ -9,18 +9,22 @@ import {
   validateCompositionReport,
   validateExtensionDir,
 } from "../src/index.ts";
-import { readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
+import { driveGroupFixture, readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
 
 async function scaffolded(
   name: string,
-  kind: "plugin-group" | "single-plugin" = "plugin-group",
+  fixture: "drive-group" | "single-plugin" = "drive-group",
 ): Promise<string> {
   const dir = root.path(name);
-  const made = await scaffoldExtension({ kind, name, dir }, { templates });
-  if (!made.ok) throw new Error(made.error.message);
+  if (fixture === "drive-group") {
+    await driveGroupFixture(name, dir, templates);
+  } else {
+    const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
+    if (!made.ok) throw new Error(made.error.message);
+  }
   return dir;
 }
 

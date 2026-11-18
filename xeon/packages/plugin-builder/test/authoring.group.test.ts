@@ -8,7 +8,7 @@ const DIR = "/work/demo";
 
 async function confirmedSession(rig: GroupRig): Promise<void> {
   const started = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: DIR,
   });
@@ -32,7 +32,7 @@ test("authoring.manifest: builtin plugin group, default on, eleven tools registe
 
 test("authoring.intent: tools wait for the user to confirm the kind and the name", async () => {
   const rig = await createGroupRig();
-  await rig.call("authoring_start", { kind: "plugin-group", name: "demo", dir: DIR });
+  await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
   expect(rig.state().phase).toBe("intent");
   const early = await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   expect(early).toMatchObject({ ok: false, error: { kind: "awaiting_confirmation" } });
@@ -51,7 +51,7 @@ test("authoring.start-drive: a child conversation cannot start the builder, so t
   await rig.t.settled();
   const refused = await rig.call(
     "authoring_start",
-    { kind: "plugin-group", name: "demo", dir: DIR },
+    { kind: "single-plugin", name: "demo", dir: DIR },
     child,
   );
   expect(refused).toMatchObject({ ok: false, error: { kind: "drive_unavailable" } });
@@ -217,14 +217,14 @@ test("authoring.restore: thread.start tells the model about an open session and 
 test("authoring.target-dir: a relative dir resolves inside the working folder, an absolute dir stays, no folder refuses a relative dir", async () => {
   const rig = await createGroupRig({ workspaceOf: () => "/work/space" });
   const outside = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "../other",
   });
   expect(outside).toMatchObject({ ok: false, error: { kind: "outside_workspace" } });
   expect(rig.state().phase).toBe("idle");
   const relative = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "./demo",
   });
@@ -235,14 +235,14 @@ test("authoring.target-dir: a relative dir resolves inside the working folder, a
 test("authoring.target-dir: without a working folder a relative dir opens no session and an absolute dir does", async () => {
   const rig = await createGroupRig();
   const refused = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "./demo",
   });
   expect(refused).toMatchObject({ ok: false, error: { kind: "needs_folder" } });
   expect(rig.state()).toMatchObject({ phase: "idle", dir: null, sessionId: null });
   const absolute = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "/abs/demo/../demo",
   });
@@ -256,7 +256,7 @@ test("authoring.stop: an open session closes to idle, keeps the files, and a new
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   expect(rig.state().files).toHaveLength(2);
   const blocked = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "/work/other",
   });
@@ -269,7 +269,7 @@ test("authoring.stop: an open session closes to idle, keeps the files, and a new
   // 가드는 풀리고, 같은 이름으로 다른 폴더에 다시 열 수 있다
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
   const again = await rig.call("authoring_start", {
-    kind: "plugin-group",
+    kind: "single-plugin",
     name: "demo",
     dir: "/work/other",
   });
@@ -282,7 +282,7 @@ test("authoring.stop: an open session closes to idle, keeps the files, and a new
 
 test("authoring.resume: an answer to the confirmation queues a followUp so the same flow continues without the user typing", async () => {
   const rig = await createGroupRig();
-  await rig.call("authoring_start", { kind: "plugin-group", name: "demo", dir: DIR });
+  await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
   expect(rig.t.queue.items.filter((item) => item.when === "followUp")).toEqual([]);

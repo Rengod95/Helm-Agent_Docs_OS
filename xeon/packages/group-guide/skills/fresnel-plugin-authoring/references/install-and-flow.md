@@ -52,7 +52,7 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | Tool | Input | What it does | Refuses when | User confirms |
 |---|---|---|---|---|
 | `authoring_kinds` | `layer?`, `query?` | lists kinds, status, and decisions. Read-only | never | no |
-| `authoring_start` | `kind` (`single-plugin` or `plugin-group`), `name`, `dir`, `displayName?` | opens a session. `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
+| `authoring_start` | `kind` (`single-plugin`), `name`, `dir`, `displayName?` | opens a session. `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
 | `authoring_compose` | `sessionId`, `composition` | checks and saves the composition draft (plugin groups) | kind and name not yet confirmed | no |
 | `authoring_scaffold` | `sessionId` | writes the files into `dir` | folder not empty; files already exist | no |
 | `authoring_validate` | `sessionId` | runs manifest, composition, drive replay, and AU checks. A pass moves on to trial | no files yet (`not_scaffolded`) | no. After 3 runs in a row with the same error codes and paths, it asks whether to keep fixing; "no" ends the session |

@@ -32,30 +32,27 @@ function listOf(replayValue: unknown): unknown {
 }
 
 const kind = {
-  id: "plugin-group",
-  title: "kinds.plugin-group",
-  layers: ["L3"],
+  id: "single-plugin",
+  title: "kinds.single-plugin",
+  layers: ["L1", "L2", "L3", "plugin"],
   status: "stable",
   since: "1.0.0",
   requires: { contracts: "^1.0.0" },
   checks: ["AU-001", "AU-003"],
-  decisions: ["drives"],
+  decisions: ["layer"],
   security: [],
 };
 
 describe("fresnel.devkit and its wire methods", () => {
-  test("service name, error kinds and the two extension kinds", () => {
+  test("service name, error kinds and the one extension kind", () => {
     expect(DevkitServiceName).toBe("fresnel.devkit");
     expect(DEVKIT_ERROR_KINDS).toContain("dev_mode_required");
-    expect(EXTENSION_KINDS).toEqual(["single-plugin", "plugin-group"]);
+    expect(EXTENSION_KINDS).toEqual(["single-plugin"]);
   });
 
-  test("ext.kinds returns single-plugin and plugin-group, a blocked kind carries its reason", () => {
+  test("ext.kinds returns the single-plugin kind, a blocked kind carries its reason", () => {
     roundTrip(WIRE_METHODS["ext.kinds"].result, {
-      kinds: [
-        { ...kind, id: "single-plugin", layers: ["L1", "L2", "L3", "plugin"] },
-        { ...kind, status: "blocked", blockedReason: "pending N14" },
-      ],
+      kinds: [kind, { ...kind, status: "blocked", blockedReason: "pending N14" }],
     });
     expect(
       parse(WIRE_METHODS["ext.kinds"].result, { kinds: [{ ...kind, status: "wip" }] }).ok,
@@ -71,7 +68,7 @@ describe("fresnel.devkit and its wire methods", () => {
 
   test("ext.scaffold takes group and ui drafts and rejects unknown keys and old names", () => {
     const params = WIRE_METHODS["ext.scaffold"].params;
-    // M5c-1: 종류는 single-plugin만 받는다. plugin-group은 거절한다
+    // 종류는 single-plugin만 받는다
     const base = { kind: "single-plugin", name: "my-group", dir: "/tmp/x" };
     expect(parse(params, base).ok).toBe(true);
     expect(parse(params, { ...base, group: { members: ["sync"] } }).ok).toBe(true);
@@ -89,7 +86,6 @@ describe("fresnel.devkit and its wire methods", () => {
     expect(parse(params, { ...base, composition: { blocks: [] } }).ok).toBe(false);
     expect(parse(params, { ...base, views: {} }).ok).toBe(false);
     expect(parse(params, { ...base, kind: "group" }).ok).toBe(false);
-    expect(parse(params, { ...base, kind: "plugin-group" }).ok).toBe(false);
     roundTrip(WIRE_METHODS["ext.scaffold"].result, { dir: "/tmp/x", files: ["plugin.json"] });
   });
 

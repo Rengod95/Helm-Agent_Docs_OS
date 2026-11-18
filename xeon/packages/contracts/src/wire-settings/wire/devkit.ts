@@ -36,10 +36,7 @@ const Iso = Type.String({ minLength: 1, maxLength: 40 });
 const Count = Type.Integer({ minimum: 0 });
 const ThreadRef = Type.String({ minLength: 1, maxLength: 64 });
 
-const ExtensionKindShape = Type.Union([
-  Type.Literal("single-plugin"),
-  Type.Literal("plugin-group"),
-]);
+const ExtensionKindShape = Type.Literal("single-plugin");
 const KindEntryShape = closed({
   id: ExtensionKindShape,
   title: Type.String({ minLength: 1, maxLength: 128 }),
@@ -80,7 +77,7 @@ export const ExtKindsResultSchema: TUnsafe<ExtKindsResult> = Type.Unsafe<ExtKind
 );
 
 /**
- * `ext.scaffold`의 종류. M5c-1에서 `plugin-group`을 뺐다(플러그인 묶음은 검토 흐름에서 만들지 않는다). `ext.kinds`는 옛 두 종류를 그대로 돌려준다
+ * `ext.scaffold`의 종류는 플러그인 하나뿐이다(review/m5/profile-project-loader.md §4.9.5). `ext.kinds`도 그 하나만 돌려준다
  */
 export interface ExtScaffoldParams {
   readonly kind: "single-plugin";

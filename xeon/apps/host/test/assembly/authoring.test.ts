@@ -81,7 +81,7 @@ test("the service forwards to the wire port; link is not wired until the plugin 
     },
   });
   const service = devkitServiceOf(wiringOf(port));
-  expect(await service.scaffold({ kind: "plugin-group", name: "demo", dir: "/w/demo" })).toEqual(
+  expect(await service.scaffold({ kind: "single-plugin", name: "demo", dir: "/w/demo" })).toEqual(
     ok({ dir: "/w/demo", files: ["a"] }),
   );
   expect(await service.validate("/w/demo")).toEqual(ok({ ok: true, issues: [] }));
