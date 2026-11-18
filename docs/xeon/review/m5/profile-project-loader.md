@@ -201,6 +201,10 @@ export interface Project { readonly projectId: string; readonly name: string; re
 export interface OverlayRef { readonly plugin: string; readonly draftId?: string; readonly entry?: string }
 ```
 
+> **구현 상태(2026-11-18, 트랙 enK2, 호스트 쪽): 스크립트 칸.** 구현됨: `apps/host/src/assembly/plugins/card.ts`의 `scriptOf`가 매니페스트 `scripts`마다 칸 하나를 싣는다. 명령은 실행기 이름이고, 인자는 상대 `file`에 `args`를 잇고, `envNames`는 선언된 이름을 UTF-8 바이트 순으로 중복 없이 싣고, `cwd`는 null, `timeoutMs`는 선언값이거나 10000이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`와 같고 넘으면 말줄임표를 붙이고 남은 수를 `…(+N)`으로 적는다. 읽기 단계의 매니페스트 상한이 카드 상한보다 작아서 읽은 선언은 잘리지 않는다. `diff.ts`의 `scriptDetailOf`는 실행기, 인자(JSON 배열), 환경 변수 이름, 기한을 비교해 추가, 삭제, 바뀜을 `inject` 줄 `script:<이름>`으로 보인다. 옛 카드는 `scripts`가 없어도 파싱된다. 시험은 `test/assembly/plugins/card.test.ts`와 `diff.test.ts`다.
+>
+> **AGE-14 확인(2026-11-18).** 코드가 도는 플러그인의 한 줄 안내는 카드의 `runs.code`(매니페스트 `entry`가 있을 때 참)를 근거로 한다. 화면은 M6c다. `entry` 없이 `scripts`만 있으면 `runs.code`는 거짓이라 한 줄이 뜨지 않는다. 스크립트 줄은 "승인하면 실행될 명령"으로 보이지만 부를 코드가 없어 실행되지 않는다. 카드는 이 차이를 보이지 않는다. 바꾸지 않았다 [미결: 스크립트만 있는 플러그인의 검토 문구. 제안은 검토 카드에 "부르는 코드가 없어 실행되지 않음"을 싣거나 검토에서 알리는 것이다] [근거: apps/host/test/assembly/plugins/card.test.ts(`runs` 값), packages/contracts/src/extensions/validate.ts(`entry` 없이도 스크립트 선언은 오류가 아니다)]. 실행기 해석과 허용 환경은 조립이 주며 `docs/xeon/L4/host-service/spec.md` §4.22에 있다.
+
 매니페스트(`contracts/src/extensions/manifest.ts`) 변경 [제안]:
 
 - `entry`(지금 :249 필수)를 선택으로, `plugins`(:250 `minItems: 1`)를 선택으로 바꾼다. 둘 다 없으면 §4.5.4의 추론이 채운다.

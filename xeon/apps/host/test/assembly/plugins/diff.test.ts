@@ -176,3 +176,63 @@ test("an MCP server whose command, arguments, env names or folder changed is a c
   );
   expect(folderChanged.changed.map((entry) => entry.what)).toEqual(["mcp:docs"]);
 });
+
+const LINT = {
+  name: "lint",
+  runner: "sh",
+  file: "scripts/lint.sh",
+  args: ["--strict"],
+  envNames: ["ALPHA"],
+};
+const LINT_DETAIL = 'sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]';
+
+test("a script the plugin adds or removes is an added or removed row with its command line and time limit", () => {
+  const without = cardOf(PLAIN);
+  const withLint = cardOf({ ...PLAIN, scripts: [LINT] });
+
+  const added = diffCards(without, withLint);
+  expect(added.added).toEqual([{ row: "inject", what: "script:lint", detail: LINT_DETAIL }]);
+  expect(added.changed).toEqual([]);
+
+  const removed = diffCards(withLint, without);
+  expect(removed.removed).toEqual([{ row: "inject", what: "script:lint", detail: LINT_DETAIL }]);
+  expect(removed.changed).toEqual([]);
+});
+
+test("a script whose runner, file arguments, env names or time limit changed is a changed entry, and the same line is not", () => {
+  const prev = cardOf({ ...PLAIN, scripts: [LINT] });
+
+  expect(diffCards(prev, cardOf({ ...PLAIN, scripts: [{ ...LINT }] })).changed).toEqual([]);
+
+  const runnerChanged = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, runner: "bash" }] }),
+  );
+  expect(runnerChanged.changed).toEqual([
+    {
+      row: "inject",
+      what: "script:lint",
+      detail: `${LINT_DETAIL} → bash ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]`,
+    },
+  ]);
+
+  const argChanged = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, args: ["--strict", "--fix"] }] }),
+  );
+  expect(argChanged.changed.map((entry) => entry.what)).toEqual(["script:lint"]);
+
+  const envChanged = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["ALPHA", "BETA"] }] }),
+  );
+  expect(envChanged.changed.map((entry) => entry.what)).toEqual(["script:lint"]);
+
+  const timeChanged = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, timeoutMs: 60000 }] }),
+  );
+  expect(timeChanged.changed[0]?.detail).toBe(
+    `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 60000ms]`,
+  );
+});

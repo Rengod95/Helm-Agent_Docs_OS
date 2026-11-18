@@ -14,6 +14,7 @@ import { err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { LoaderFs, ManifestScriptDecl, ScriptRunResult } from "@fresnel/contracts/extensions";
 import type { BinaryError, BinaryName, OsDirs, ResolvedBinary } from "@fresnel/contracts/services";
 import { createScriptRunner } from "@fresnel/ext-host";
+import { createPluginHostAssembly } from "../../src/assembly/plugin-host.ts";
 import {
   createSandboxService,
   readSandboxSettings,
@@ -56,6 +57,10 @@ printf '{"input":"%s","own":"%s","read":"%s","write":"%s"}' "$input" "$own_resul
 printf 'bad input\\n' 1>&2
 exit 2
 `;
+
+/** 환경 변수 값을 그대로 적는 스크립트. 허용된 것은 값으로, 허용되지 않은 것은 `unset`으로 나온다 */
+const ENV_SCRIPT =
+  'printf \'{"home":"%s","key":"%s","marker":"%s"}\' "$HOME" "${ANTHROPIC_API_KEY-unset}" "${MARKER-unset}"\n';
 
 const LOGGER: Logger = {
   debug: () => undefined,
@@ -259,6 +264,93 @@ suite("the script runner under the real sandbox", () => {
         expect(stderr.endsWith("bad input\n")).toBe(true);
         expect(existsSync(box.writePath)).toBe(false);
         expect(JSON.stringify(outcome)).not.toContain(SECRET);
+      } finally {
+        await background.close({ graceMs: 100 });
+        await closeBox(box);
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  test(
+    "the runner and the allowed environment that the assembly gives the loader reach a declared sh script under the sandbox: it sees the allowed values only",
+    async () => {
+      const box = await openBox();
+      const platform = detectProcessPlatform();
+      if (!platform.ok) throw new Error("this test needs a supported platform");
+      const background: BackgroundRegistryController = createBackgroundRegistry({
+        clock: systemClock(),
+        scheduler: box.scheduler,
+        ids: createLocalIdFactory(systemClock(), systemRandom()),
+        logger: LOGGER,
+      });
+      try {
+        const home = join(box.root, "home");
+        const parentEnv = {
+          PATH: process.env["PATH"],
+          HOME: home,
+          MARKER: "marker-value",
+          ANTHROPIC_API_KEY: "must-not-reach-the-script",
+        };
+        const port = createIsolationProcessPort({
+          platform: platform.value,
+          background,
+          sandbox: () => box.service,
+          parentEnv,
+          scheduler: box.scheduler,
+          logger: LOGGER,
+        });
+        // 실행기와 허용 환경은 조립이 준 값을 그대로 쓴다(루프가 하는 것과 같은 연결)
+        const assembly = createPluginHostAssembly({
+          scheduler: box.scheduler,
+          logger: LOGGER,
+          maskSecrets: (line) => line,
+          autoDisabler: { disableNow: () => undefined },
+          processPort: port,
+          stateDir: join(box.root, "state"),
+          settingValue: () => undefined,
+          now: () => 0,
+          parentEnv,
+        });
+        if (assembly.process === undefined) throw new Error("the assembly has no process port");
+        expect(assembly.isolation.runner?.("sh")).toBe("/bin/sh");
+        writeFileSync(join(box.tree, "env.sh"), ENV_SCRIPT);
+        const scripts: ManifestScriptDecl[] = [
+          {
+            name: "env",
+            runner: "sh",
+            file: "env.sh",
+            envNames: ["ANTHROPIC_API_KEY", "HOME", "MARKER"],
+          },
+        ];
+        const runner = createScriptRunner({
+          process: assembly.process,
+          fs: nodeFs,
+          target: { extension: "demo", scripts, tree: box.tree, approved: true },
+          resolveRunner: assembly.isolation.runner ?? (() => undefined),
+          allowedEnv: assembly.isolation.allowedEnv ?? {},
+          setTimer: (ms, fn) => {
+            const handle = box.scheduler.setTimeout(fn, ms);
+            return () => box.scheduler.clearTimeout(handle);
+          },
+        });
+        const outcome = await runner.run({
+          registration: "demo",
+          name: "env",
+          stdin: "",
+          replay: false,
+        });
+        expect(outcome.ok).toBe(true);
+        if (!outcome.ok) return;
+        // HOME은 허용 목록이라 온다. 시크릿 모양의 이름과 허용 목록 밖의 이름은 값이 없다(unset)
+        expect(outcome.value).toMatchObject({
+          exitCode: 0,
+          signal: null,
+          stdout: `{"home":"${home}","key":"unset","marker":"unset"}`,
+          stdoutTruncated: false,
+          timedOut: false,
+        });
+        expect(JSON.stringify(outcome)).not.toContain("must-not-reach-the-script");
       } finally {
         await background.close({ graceMs: 100 });
         await closeBox(box);

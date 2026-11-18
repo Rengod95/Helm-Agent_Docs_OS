@@ -1,4 +1,4 @@
-import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
+import type { CardScript, InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
 import type { DiffEntry, DiffRow, WhatItDoesDiff } from "@fresnel/contracts/wire";
 
 // "하는 일의 차이"(M5c §3.1 `WhatItDoesDiff`, §4.7.2). 이전 검토본의 카드와 후보 카드를 칸마다 같은 사실의 목록으로 펼쳐 비교한다.
@@ -36,6 +36,18 @@ function mcpDetailOf(server: McpServerCard): string {
   return parts.join(" ");
 }
 
+/**
+ * 스크립트의 비교 값. 실행기, 상대 파일과 인자(JSON 배열), 선언된 환경 변수 이름, 기한이 하나라도 바뀌면 바뀐 것이다.
+ * 기한도 넣는 것은 명령이 같아도 오래 도는 쪽으로 바뀐 갱신을 조용히 넘기지 않으려는 것이다.
+ */
+function scriptDetailOf(script: CardScript): string {
+  const { launch } = script;
+  const parts = [`${launch.command} ${JSON.stringify(launch.args)}`];
+  if (launch.envNames.length > 0) parts.push(`[env: ${launch.envNames.join(",")}]`);
+  parts.push(`[timeout: ${script.timeoutMs}ms]`);
+  return parts.join(" ");
+}
+
 /** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다 */
 function factsOf(card: PluginCard | null): Map<string, Fact> {
   const facts = new Map<string, Fact>();
@@ -56,6 +68,10 @@ function factsOf(card: PluginCard | null): Map<string, Fact> {
     }
     for (const server of inject.mcpServers) {
       add("inject", `mcp:${server.name}`, mcpDetailOf(server));
+    }
+    // 옛 카드에는 `scripts` 칸이 없다
+    for (const script of inject.scripts ?? []) {
+      add("inject", `script:${script.name}`, scriptDetailOf(script));
     }
     for (const agent of inject.agents) add("inject", `agent:${agent}`, "");
     for (const command of inject.commands) add("inject", `command:${command}`, "");

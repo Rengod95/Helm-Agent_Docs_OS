@@ -1,9 +1,10 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { Logger, Scheduler } from "@fresnel/contracts";
-import type { IsolationProcessPort, PortKey } from "@fresnel/contracts/extensions";
+import type { IsolationProcessPort, PortKey, ScriptRunner } from "@fresnel/contracts/extensions";
 import {
   ProcessServiceName,
   SandboxServiceName,
+  SENSITIVE_ENV_PATTERNS,
   type ProcessService,
   type SandboxService,
 } from "@fresnel/contracts/services";
@@ -13,6 +14,7 @@ import type {
   OperationsPolicy,
   PluginHostSupervisor,
 } from "@fresnel/ext-host";
+import { BASE_ENV_POLICY, isDeniedEnvName } from "@fresnel/platform-exec";
 import { readOsRuntime } from "@fresnel/platform-os";
 import { detectProcessPlatform } from "@fresnel/platform-process";
 import { pluginHostLaunch } from "../plugin-host/launch.ts";
@@ -78,6 +80,42 @@ export interface PluginHostAssemblyDeps {
   readonly self?: SelfRunTarget;
   /** 세션을 열 때마다 부른다. 시험이 감독의 상태를 읽는다. 운영은 생략한다 */
   readonly onSupervisor?: (name: string, supervisor: PluginHostSupervisor) => void;
+  /** 스크립트에 넘길 부모 환경 값과 실행기 PATH의 원천. 시험이 넣고, 운영은 생략해 `process.env`를 쓴다 */
+  readonly parentEnv?: Readonly<Record<string, string | undefined>>;
+  /** 실행기 이름을 절대 경로로 푼다. 시험이 넣고, 운영은 생략해 `parentEnv`의 PATH에서 찾는다. 없으면 undefined다 */
+  readonly resolveRunner?: (name: ScriptRunner) => string | undefined;
+}
+
+/**
+ * 스크립트에 넘길 수 있는 부모 환경 값(설계 B [제안]). 자식 env의 허용 목록(`BASE_ENV_POLICY.pass`, platform-process의
+ * `childEnv`가 쓰는 같은 목록)에서 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름을 뺀 값만 담는다.
+ * 선언된 `envNames`와 교차하는 것은 실행기가 한다.
+ */
+export function allowedEnvOf(
+  parent: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const name of BASE_ENV_POLICY.pass) {
+    if (isDeniedEnvName(name, SENSITIVE_ENV_PATTERNS)) continue;
+    const value = parent[name];
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
+
+/**
+ * 실행기 이름을 부모 환경의 PATH에서 찾아 절대 경로로 돌려준다. 자식이 받을 PATH와 같은 값으로 찾는다.
+ * PATH에 없거나 절대 경로가 아니면 undefined다(실행기는 `runner_unavailable`로 답한다).
+ */
+export function runnerOnPath(
+  parent: Readonly<Record<string, string | undefined>>,
+): (name: ScriptRunner) => string | undefined {
+  return (name) => {
+    const path = parent["PATH"];
+    if (path === undefined) return undefined;
+    const found = Bun.which(name, { PATH: path });
+    return found === null || !isAbsolute(found) ? undefined : found;
+  };
 }
 
 export interface PluginHostAssembly {
@@ -96,6 +134,7 @@ export interface PluginHostAssembly {
 
 export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHostAssembly {
   const supervisors = new Map<string, PluginHostSupervisor>();
+  const parentEnv = deps.parentEnv ?? process.env;
   const recordDir = join(deps.stateDir, PLUGIN_HOSTS_DIR);
   const enginePid = deps.enginePid ?? process.pid;
   const port = deps.processPort;
@@ -134,6 +173,9 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
         supervisors.set(name, supervisor);
         deps.onSupervisor?.(name, supervisor);
       },
+      // 스크립트 실행기(설계 B [제안]). 실행기 이름은 부모 환경의 PATH에서 절대 경로로 풀고, 없으면 실행기가 `runner_unavailable`로 답한다
+      runner: deps.resolveRunner ?? runnerOnPath(parentEnv),
+      allowedEnv: allowedEnvOf(parentEnv),
     },
     process: tracked,
     sweepOrphans: async () => {
