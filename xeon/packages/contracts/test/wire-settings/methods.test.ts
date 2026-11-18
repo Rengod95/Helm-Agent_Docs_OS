@@ -81,6 +81,8 @@ describe("WIRE_METHODS", () => {
       "project.changed",
       "plugin.changed",
       "pluginReview.changed",
+      "migration.progress",
+      "migration.changed",
       "turnRecord.delta",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
