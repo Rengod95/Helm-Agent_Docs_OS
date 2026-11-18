@@ -57,6 +57,7 @@ import {
   type TrCallRow,
   type TrCacheRow,
   type TrFrameRow,
+  type TrPluginCallRow,
   type TrHookRow,
   type TrStepRow,
   type TrMarkRow,
@@ -192,6 +193,8 @@ export interface MeasureStore {
   /** 턴 행을 쓴다. 턴 시작 때 `status: "open"`으로, 턴 끝에 최종 값으로 다시 쓴다 */
   upsertTurn(row: TrTurnRow): Result<number, MeasureStoreError>;
   writeFrames(rows: readonly TrFrameRow[]): Result<number, MeasureStoreError>;
+  /** 가벼운 길의 호출 줄을 쓴다(턴을 닫을 때 한 묶음으로). 같은 키는 덮어쓴다 */
+  writePluginCalls(rows: readonly TrPluginCallRow[]): Result<number, MeasureStoreError>;
   /** 턴 하나와 그 하위 행 전부. 턴이 없으면 undefined */
   readTurn(threadId: string, turnId: string): Result<TrTurnBundle | undefined, MeasureStoreError>;
   /** 턴 목록(최신 순). `recordJson`은 빼고 낸다 */
@@ -630,6 +633,8 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
     upsertTurn: (row) => turnGuarded(() => ok(upsertAll(db, TR_TURN, [row]))),
     writeFrames: (rows) =>
       turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_FRAME, rows))())),
+    writePluginCalls: (rows) =>
+      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_PLUGINCALL, rows))())),
     readTurn: (threadId, turnId) => turnGuarded(() => ok(readBundle(db, threadId, turnId))),
     listTurns: (query) => turnGuarded<TrTurnPage>(() => listTurnRows(db, query)),
     markLostTurns: () => turnGuarded(() => ok(markOpenTurnsLost(db))),

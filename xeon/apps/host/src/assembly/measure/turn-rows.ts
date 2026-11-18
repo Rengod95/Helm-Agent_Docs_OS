@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { StepComposition } from "@fresnel/contracts/conversation";
 import type {
+  PluginCallTraceEvent,
   TraceHandlerEntry,
   TraceTurnEntry,
   ToolCallTraceEvent,
@@ -14,6 +15,7 @@ import type {
   HookRun,
   Material,
   ModelCall,
+  PluginCallLine,
   RecordLevel,
   ScopeKind,
   StepRecord,
@@ -28,7 +30,14 @@ import {
   type TurnToolRow,
 } from "./turn-context.ts";
 import { fitTurnRecord } from "./turn-fit.ts";
-import type { TrCallRow, TrFrameRow, TrHookRow, TrStepRow, TrTurnRow } from "./turn-tables.ts";
+import type {
+  TrCallRow,
+  TrFrameRow,
+  TrHookRow,
+  TrPluginCallRow,
+  TrStepRow,
+  TrTurnRow,
+} from "./turn-tables.ts";
 
 // 턴 기록 행과 `record_json`을 만드는 순수 함수(정본 `docs/xeon/review/m5/turn-record-metrics.md` §3.2, §3.4, §4.1~4.2).
 // 저장하지 않는 것과 아직 채우지 않는 것은 값 자체를 두지 않는다: 덧씌우기·초안·프레임·재료·광고·캐시 원인은
@@ -44,6 +53,14 @@ export const MAX_HOOK_ROWS_PER_TURN = 500;
 
 /** 턴 하나의 도구 호출 행 상한(§4.1 규칙 8). 넘는 줄은 `elided.calls`에 센다 */
 export const MAX_CALL_ROWS_PER_TURN = 500;
+
+/**
+ * 턴 하나의 가벼운 길 호출 줄 상한(`tr_plugincall`). 넘는 줄은 버린다. 줄 수를 세는 칸(`elided`)은 닫힌 목록이라 아직 더하지 않았다
+ */
+export const MAX_PLUGIN_CALL_ROWS_PER_TURN = 500;
+
+/** 인자가 JSON이 아닌 호출의 요청 키 재료. 인자 값은 싣지 않으므로 이런 호출은 같은 키로 센다 */
+const NON_JSON_ARGS = "non-json";
 
 /** 등록되지 않은 도구의 소유자 자리 값. 와이어 이름 규칙(1자 이상)을 지키려고 훅과 같은 값을 쓴다 */
 const UNKNOWN_PLUGIN = "none";
@@ -105,6 +122,8 @@ export interface TurnDraft {
   readonly steps: StepRecord[];
   /** 주도권 스택의 프레임: 턴 시작 때 열려 있던 것과 턴 안의 변화(코어 위 프레임만, 깊이는 코어를 0으로 센다) */
   readonly frames: FrameMark[];
+  /** 가벼운 길의 플러그인 호출 줄(추적 싱크가 준 것, 들어온 순서). 턴을 닫을 때 `record_json`과 `tr_plugincall` 행이 된다 */
+  readonly pluginCalls: PluginCallLine[];
   /** 단계 id별 모델 호출(사용량 합산기가 준 것). 단계가 끝날 때 읽는다 */
   readonly calls: Map<string, UsageRecord[]>;
   /** 단계 id별 도구 호출 추적 줄(추적 싱크가 준 것). 단계가 끝날 때 읽고 비운다 */
@@ -169,6 +188,7 @@ export function newDraft(input: {
     scope: "live",
     steps: [],
     frames: [],
+    pluginCalls: [],
     calls: new Map(),
     toolCalls: new Map(),
     contexts: new Map(),
@@ -414,6 +434,43 @@ function keyedHex(salt: string, text: string): string {
 }
 
 /**
+ * 가벼운 길의 호출 줄을 턴 기록 줄(`PluginCallLine`, §3.2)로 옮긴다. 요청 키는 인자 해시를 설치별 소금으로 HMAC한 짧은 값이다(§4.1 규칙 11)
+ */
+export function pluginCallLineOf(event: PluginCallTraceEvent, salt: string): PluginCallLine {
+  return {
+    plugin: event.plugin,
+    capability: event.capability,
+    method: event.method,
+    requestKey: keyedHex(salt, event.argsHash ?? NON_JSON_ARGS),
+    ok: event.ok,
+    ms: event.ms,
+    via: event.via,
+    toolCallId: event.toolCallId,
+  };
+}
+
+/** 가벼운 길의 줄 하나를 `tr_plugincall` 행으로 옮긴다. `seq`는 턴 안에서 들어온 순번이다 */
+export function trPluginCallRowOf(
+  line: PluginCallLine,
+  ids: { readonly threadId: string; readonly turnId: string },
+  seq: number,
+): TrPluginCallRow {
+  return {
+    threadId: ids.threadId,
+    turnId: ids.turnId,
+    seq,
+    plugin: line.plugin,
+    capability: line.capability,
+    method: line.method,
+    requestKey: line.requestKey,
+    ok: line.ok,
+    ms: line.ms,
+    via: line.via,
+    toolCallId: line.toolCallId,
+  };
+}
+
+/**
  * 호출 추적 줄 하나를 저장 모양(`CallRecord`)으로 옮긴다. 인자와 대상은 해시를 소금으로 한 번 더 HMAC한 짧은 값만 남긴다.
  * `hooks`는 이 호출의 `toolCallId`에 묶인 훅 행이다(§4.3)
  */
@@ -620,7 +677,7 @@ function turnRecordOf(draft: TurnDraft, state: TurnState): TurnRecord {
       tools: [...draft.tools.values()],
       skills: [...draft.skills.values()],
     }),
-    pluginCalls: [],
+    pluginCalls: draft.pluginCalls.map((line) => ({ ...line })),
     pluginStderr: [],
     flags: {
       ...NO_FLAGS,

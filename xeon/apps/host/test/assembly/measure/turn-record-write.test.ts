@@ -6,6 +6,7 @@ import { expect, test } from "bun:test";
 import { Bug, parse, parseJson, type Logger } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
+  PluginCallTraceEvent,
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
@@ -140,6 +141,8 @@ interface Harness {
   readonly meter: (record: UsageRecord) => void;
   /** 도구 호출 추적 줄(싱크가 넘기는 값)을 턴 기록에 넘긴다 */
   readonly call: (event: ToolCallTraceEvent) => void;
+  /** 가벼운 길의 플러그인 호출 줄(싱크가 넘기는 값)을 턴 기록에 넘긴다 */
+  readonly pluginCall: (event: PluginCallTraceEvent) => void;
   readonly stop: () => void;
 }
 
@@ -200,6 +203,9 @@ function openHarness(
     },
     call: (event) => {
       measurement.offerCall(event);
+    },
+    pluginCall: (event) => {
+      measurement.offerPluginCall(event);
     },
     stop: () => measurement.stop(),
   };
@@ -1276,5 +1282,174 @@ test("the drive stack opened before a turn and the frames it changes are recorde
     harness.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 가벼운 길의 호출 줄이 넘기는 인자 해시(정규화 JSON의 SHA-256 앞 40 hex). 두 값 모두 형식만 맞춘 값이다 */
+const PLUGIN_ARGS_A = "1667c7df215d7d48f1ce00ef7fd4aa270f4e3ad6";
+const PLUGIN_ARGS_B = "ab".repeat(20);
+
+/** 요청 키는 인자 해시를 설치별 소금으로 HMAC한 앞 16 hex다(§4.1 규칙 11). 시험은 같은 식으로 기대값을 낸다 */
+function requestKeyOf(salt: string, argsHash: string): string {
+  return createHmac("sha256", salt).update(argsHash).digest("hex").slice(0, 16);
+}
+
+test("a light-path plugin call of an open turn is written when the turn closes, in call order, and reads back the same after a reopen", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.pluginCall({
+      threadId: THREAD,
+      plugin: "pc-reader",
+      capability: "demo.reader",
+      method: "peek",
+      argsHash: PLUGIN_ARGS_A,
+      ok: true,
+      ms: 4,
+      via: "method",
+      toolCallId: null,
+    });
+    harness.pluginCall({
+      threadId: THREAD,
+      plugin: "pc-reader",
+      capability: "demo.reader",
+      method: "list",
+      argsHash: PLUGIN_ARGS_B,
+      ok: false,
+      ms: 1,
+      via: "method",
+      toolCallId: "call_9",
+    });
+    harness.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const store = storeOf(harness.measurement);
+    const saltRead = store.installSalt();
+    if (!saltRead.ok) throw new Bug("the install salt must be readable");
+    const salt = saltRead.value;
+    const expectedRows = [
+      [
+        0,
+        "pc-reader",
+        "demo.reader",
+        "peek",
+        requestKeyOf(salt, PLUGIN_ARGS_A),
+        true,
+        4,
+        "method",
+        null,
+      ],
+      [
+        1,
+        "pc-reader",
+        "demo.reader",
+        "list",
+        requestKeyOf(salt, PLUGIN_ARGS_B),
+        false,
+        1,
+        "method",
+        "call_9",
+      ],
+    ];
+    const expectedLines = expectedRows.map((row) => row.slice(1));
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(
+      bundle.value.plugincalls.map((row) => [
+        row.seq,
+        row.plugin,
+        row.capability,
+        row.method,
+        row.requestKey,
+        row.ok,
+        row.ms,
+        row.via,
+        row.toolCallId,
+      ]),
+    ).toEqual(expectedRows);
+    // record_json의 pluginCalls에도 같은 줄이 들어간다(턴 기록 읽기는 이 값을 쓴다)
+    const checked = parse(TurnRecordSchema, JSON.parse(bundle.value.turn.recordJson));
+    if (!checked.ok) throw new Bug("record_json must match the TurnRecord schema");
+    expect(
+      checked.value.pluginCalls.map((line) => [
+        line.plugin,
+        line.capability,
+        line.method,
+        line.requestKey,
+        line.ok,
+        line.ms,
+        line.via,
+        line.toolCallId,
+      ]),
+    ).toEqual(expectedLines);
+    harness.stop();
+
+    const reopened = openHarness(dir, { enabled: true, trace: trace.port });
+    const again = storeOf(reopened.measurement).readTurn(THREAD, TURN);
+    if (!again.ok || again.value === undefined) throw new Bug("the turn must survive a reopen");
+    expect(
+      again.value.plugincalls.map((row) => [
+        row.seq,
+        row.plugin,
+        row.capability,
+        row.method,
+        row.requestKey,
+        row.ok,
+        row.ms,
+        row.via,
+        row.toolCallId,
+      ]),
+    ).toEqual(expectedRows);
+    reopened.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a light-path plugin call with no open turn, or in a turn with the trace off, is not written", async () => {
+  const trace = traceStub();
+  const call = {
+    threadId: THREAD,
+    plugin: "pc-reader",
+    capability: "demo.reader",
+    method: "peek",
+    argsHash: PLUGIN_ARGS_A,
+    ok: true,
+    ms: 2,
+    via: "method",
+    toolCallId: null,
+  } as const;
+  const dirOpen = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const dirOff = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    // 열린 턴이 없을 때(턴 시작 전, 턴이 닫힌 뒤)의 호출은 버린다
+    const open = openHarness(dirOpen, { enabled: true, trace: trace.port });
+    open.pluginCall(call);
+    open.commit([event(1, "turn.started", TURN_STARTED)]);
+    open.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    open.pluginCall(call);
+    await settle();
+    const closed = storeOf(open.measurement).readTurn(THREAD, TURN);
+    if (!closed.ok || closed.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(closed.value.plugincalls).toEqual([]);
+    open.stop();
+
+    // 계측이 꺼진 턴(log_only)은 턴 행만 쓰므로 호출 줄도 쓰지 않는다
+    const off = openHarness(dirOff, { enabled: false, trace: trace.port });
+    off.commit([event(1, "turn.started", TURN_STARTED)]);
+    off.pluginCall(call);
+    off.commit([event(2, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    const logOnly = storeOf(off.measurement).readTurn(THREAD, TURN);
+    if (!logOnly.ok || logOnly.value === undefined)
+      throw new Bug("the log-only turn must be readable");
+    expect(logOnly.value.turn.level).toBe("log_only");
+    expect(logOnly.value.plugincalls).toEqual([]);
+    off.stop();
+  } finally {
+    rmSync(dirOpen, { recursive: true, force: true });
+    rmSync(dirOff, { recursive: true, force: true });
   }
 });

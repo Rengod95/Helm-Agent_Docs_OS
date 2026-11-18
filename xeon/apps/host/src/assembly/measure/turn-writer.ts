@@ -10,6 +10,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import type {
   ContextTraceEvent,
+  PluginCallTraceEvent,
   PluginSetPort,
   PluginSetView,
   ToolCallTraceEvent,
@@ -24,6 +25,7 @@ import {
 } from "@fresnel/contracts/records";
 import type { UsageRecord } from "@fresnel/contracts/services";
 import {
+  PluginCallLineSchema,
   SCOPE_KINDS,
   type DeltaRow,
   type FrameMark,
@@ -57,13 +59,16 @@ import {
   lateHooksOf,
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
+  MAX_PLUGIN_CALL_ROWS_PER_TURN,
   newDraft,
+  pluginCallLineOf,
   stepAfterBoundary,
   stepRecordOf,
   stepRowOf,
   trCallRowOf,
   trFrameRowOf,
   trHookRowOf,
+  trPluginCallRowOf,
   turnRowOf,
   type TurnDraft,
   type TurnProfileMark,
@@ -138,6 +143,11 @@ export interface TurnWriter {
   usage(call: UsageRecord): void;
   /** 도구 호출 하나가 닫힌 줄(추적 싱크). 계측이 켜진 턴의 단계에 모은다. 반환값은 호출 경로로 돌아가지 않는다 */
   call(event: ToolCallTraceEvent): void;
+  /**
+   * 가벼운 길의 플러그인 호출 한 줄(추적 싱크). 가드는 턴을 모르므로 이 대화의 열린 턴에 붙인다.
+   * 열린 턴이 없거나 계측이 꺼진 턴이면 버린다. 줄은 턴을 닫을 때 한 묶음으로 쓴다
+   */
+  pluginCall(event: PluginCallTraceEvent): void;
   /** 조립 재료·광고(`step_context`)와 스킬 본문 읽기(`skill_read`)의 읽기 전용 사건. 단계가 끝날 때 행으로 바뀐다 */
   context(event: ContextTraceEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
@@ -572,6 +582,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       materials: materialPlan.fresh.map((material) => trMaterialRowOf(material, base)),
       tooluse: toolRows,
       skills: freshSkills,
+      // 가벼운 길의 줄은 턴을 닫을 때 쓴다(`turnCompleted`). 단계 묶음에는 싣지 않는다
       plugincalls: [],
       cache: cache === null ? [] : trCacheRowsOf(cache, base),
     };
@@ -643,6 +654,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const row = trFrameRowOf({ threadId: draft.threadId, turnId: draft.turnId }, frame);
       return row === null ? [] : [row];
     });
+    // 가벼운 길의 줄은 들어온 순서대로 `seq`를 받는다. 계측이 꺼진 턴은 줄을 모으지 않았다
+    const pluginCallRows = (full ? draft.pluginCalls : []).map((line, seq) =>
+      trPluginCallRowOf(line, { threadId: draft.threadId, turnId: draft.turnId }, seq),
+    );
     deps.queue((store) => {
       // 늦은 행을 먼저 쓴다. 쓰기가 실패하면 턴은 불완전하다
       if (lateBatch.length > 0) {
@@ -660,6 +675,16 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         if (!written.ok) {
           draft.writeFailures += 1;
           deps.logger.warn("measure.frame_write_failed", { reason: written.error.kind });
+        }
+      }
+      if (pluginCallRows.length > 0) {
+        const written = store.writePluginCalls(pluginCallRows);
+        if (!written.ok) {
+          draft.writeFailures += 1;
+          deps.logger.warn("measure.plugincall_write_failed", {
+            reason: written.error.kind,
+            turnId,
+          });
         }
       }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
@@ -729,6 +754,17 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const bucket = draft.toolCalls.get(event.stepId) ?? [];
       bucket.push(event);
       draft.toolCalls.set(event.stepId, bucket);
+    },
+    pluginCall(event) {
+      const draft = openDraftOf(event.threadId);
+      if (draft === undefined || draft.level !== "full") return;
+      if (draft.pluginCalls.length >= MAX_PLUGIN_CALL_ROWS_PER_TURN) return;
+      const sealed = installSaltOf();
+      if (sealed === undefined) return;
+      const line = pluginCallLineOf(event, sealed);
+      // 저장 모양에 맞지 않는 줄은 넣지 않는다. 그러지 않으면 이 턴의 기록 전체를 읽을 수 없게 된다
+      if (!parse(PluginCallLineSchema, line).ok) return;
+      draft.pluginCalls.push(line);
     },
     context(event) {
       const draft = drafts.get(event.turnId);

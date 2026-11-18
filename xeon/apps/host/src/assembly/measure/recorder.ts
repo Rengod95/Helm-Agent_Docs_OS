@@ -7,6 +7,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import type {
   ContextTraceEvent,
+  PluginCallTraceEvent,
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
@@ -312,6 +313,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly offerBody: (input: RequestBodyInput) => void;
   readonly offerFailure: (input: HandlerFailureInput) => void;
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   readonly offerContext: (input: ContextTraceEvent) => void;
   /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
   readonly forget: (threadId: string) => void;
@@ -533,6 +535,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     offerBody,
     offerFailure,
     offerCall,
+    offerPluginCall,
     offerContext,
     forget: (threadId) => {
       flush();
@@ -543,6 +546,11 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
   function offerCall(input: ToolCallTraceEvent): void {
     turns?.call(input);
+  }
+
+  /** 가벼운 길의 플러그인 호출 줄을 턴 기록에 넘긴다. 턴은 기록기가 이 대화의 열린 턴에서 정한다. 없으면 버린다 */
+  function offerPluginCall(input: PluginCallTraceEvent): void {
+    turns?.pluginCall(input);
   }
 
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
@@ -593,6 +601,8 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerFailure: (input: HandlerFailureInput) => void;
   /** 도구 호출 하나가 닫힌 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerCall: (input: ToolCallTraceEvent) => void;
+  /** 가벼운 길의 플러그인 호출 줄을 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 열린 턴이 없으면 버린다 */
+  readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerContext: (input: ContextTraceEvent) => void;
   /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
@@ -607,6 +617,7 @@ export function startMeasurement(deps: MeasurementDeps): {
       offerBody: () => undefined,
       offerFailure: () => undefined,
       offerCall: () => undefined,
+      offerPluginCall: () => undefined,
       offerContext: () => undefined,
       forgetThread: () => undefined,
     };
@@ -658,6 +669,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     offerBody: recorder.offerBody,
     offerFailure: recorder.offerFailure,
     offerCall: recorder.offerCall,
+    offerPluginCall: recorder.offerPluginCall,
     offerContext: recorder.offerContext,
     forgetThread: (threadId) => {
       recorder.forget(threadId);
