@@ -36,8 +36,8 @@ describe("WIRE_METHODS", () => {
     expect(names.filter((n) => stageOfName(n) !== "M4" && stageOfName(n) !== "M5")).toHaveLength(
       48,
     );
-    // M5 단계: 턴 기록·지표 14개, 테스트 대화 `craftChat.open`·`craftChat.list` 2개(M5c §3.6), 테스트 실행 `testRun.start` 1개(M5c §4.8.1)
-    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(17);
+    // M5 단계: 턴 기록·지표 14개, 테스트 대화 `craftChat.open`·`craftChat.list` 2개(M5c §3.6), 테스트 실행 `testRun.start` 1개(M5c §4.8.1), 지난 턴에 돌려 보기 `backtest.*` 4개(M5d-2 §3.5)
+    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(21);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
@@ -85,6 +85,7 @@ describe("WIRE_METHODS", () => {
       "migration.progress",
       "migration.changed",
       "turnRecord.delta",
+      "backtest.progress",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

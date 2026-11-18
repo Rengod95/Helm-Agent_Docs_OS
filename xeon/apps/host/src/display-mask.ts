@@ -67,6 +67,21 @@ export function queuedInputLeafMasks(
   return leaves.length === 0 ? undefined : leaves;
 }
 
+/**
+ * 주도 프레임을 연 입력(`lease.acquired.input`), 시작 요청의 입력(`lease.requested.input`), 끝난 결과(`lease.released.result`)의 잎 표식.
+ * 맡긴 입력에 시크릿 값이 들어 있을 수 있어 기록의 다른 자리와 같은 규칙을 지난다(AGE-26). 포인터는 payload 기준이다. 값이 없으면 undefined다
+ */
+export function leaseValueLeafMasks(
+  display: DisplayMaskPort,
+  payload: { readonly input?: unknown; readonly result?: unknown },
+): readonly LeafMask[] | undefined {
+  const leaves = [
+    ...(payload.input === undefined ? [] : display.displayLeafMasks(payload.input, "/input")),
+    ...(payload.result === undefined ? [] : display.displayLeafMasks(payload.result, "/result")),
+  ];
+  return leaves.length === 0 ? undefined : leaves;
+}
+
 /** approval.list 결과의 승인별 표식. 가릴 것이 없는 승인은 뺀다 */
 export function approvalMaskEntries(
   display: DisplayMaskPort,

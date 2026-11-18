@@ -140,8 +140,10 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
       });
     }),
   );
-  await t.host.openThread(a, { startDrive: "ts-group" });
-  await t.host.openThread(b, { startDrive: "ts-group" });
+  await t.host.openThread(a);
+  t.host.startDrive(a, "ts-group");
+  await t.host.openThread(b);
+  t.host.startDrive(b, "ts-group");
   await t.settled();
   expect(t.host.leaseOf(a)).toMatchObject({ scopeId: "ts-group", status: "active" });
   expect(t.host.leaseOf(b)).toMatchObject({ scopeId: "ts-group", status: "active" });
@@ -265,7 +267,8 @@ test("onChange reports toggle requests, their application and lease changes; a t
       g.drive(() => Promise.resolve({ do: "yield" }));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "ts-notify" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "ts-notify");
   await t.settled();
   const seen: string[] = [];
   t.host.onChange(() => {

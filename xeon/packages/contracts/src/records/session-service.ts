@@ -585,6 +585,25 @@ export interface OpenLease {
   readonly depth: number;
   /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
   readonly contentHash: string | null;
+  /** 프레임을 연 명령의 입력(`lease.acquired.input`). 기록에 없으면 null */
+  readonly input: JsonValue | null;
+  /**
+   * 이 프레임이 맡긴 마지막 프레임의 끝. 위 프레임이 반납됐고 이 프레임이 아직 새 단계를 시작하지 못한 경우에만 있다.
+   * `done`이면 `result`(`lease.released.result`)와 함께, 그 밖의 사유면 `aborted`다. 없으면 null
+   */
+  readonly handoffEnd: {
+    readonly status: "done" | "aborted";
+    readonly result: JsonValue | null;
+  } | null;
+}
+
+/** 재시작 때 되살릴 주도 시작 요청 하나(`lease.requested`). 부여되지도 버려지지도 않은 것 */
+export interface PendingStartRequest {
+  readonly requestId: string;
+  readonly scopeId: string;
+  readonly trigger: "user" | "handoff";
+  readonly parent: string | null;
+  readonly input: JsonValue | null;
 }
 
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
@@ -602,6 +621,8 @@ export interface ExtThreadSnapshot {
    * 재시작 복원은 이 목록으로 주도권 스택을 다시 세운다.
    */
   readonly openLeases: readonly OpenLease[];
+  /** 부여되지도 버려지지도 않은 시작 요청(오래된 것부터). 맡기기 요청은 맡긴 프레임이 아직 열려 있는 것만 싣는다 */
+  readonly pendingRequests: readonly PendingStartRequest[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

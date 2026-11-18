@@ -45,7 +45,8 @@ test("a failed boundary commit does not fire the lifecycle point", async () => {
     }),
   );
   await installDriveGroups(t, ["lr-a"]);
-  await t.host.openThread(thread, { startDrive: "lr-a" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "lr-a");
   await t.settled();
   expect(t.host.leaseOf(thread)?.scopeId).toBe("lr-a");
   await t.boundary(thread).turnSettled({ fail: true });

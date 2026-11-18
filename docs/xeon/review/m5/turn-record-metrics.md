@@ -490,6 +490,8 @@ interface BacktestItem {
     | "passes_same"
     | "candidate_fault"                 // 후보가 던지거나 시간 초과(막음이 아니다)
     | "unreplayable";
+  skippedBy?: string;                   // class가 already_stopped일 때 먼저 멈춘 훅의 이름(§4.8 규칙 49). 그 밖에는 없다 [제안]
+  nondeterministic?: true;              // 같은 입력을 두 번 돌려 결과가 달랐다(§4.8 규칙 48) [제안]
   unreplayableReason?: "tool_unknown" | "args_missing" | "blob_expired" | "thread_deleted" | "result_not_stored";
 }
 interface BacktestSummary {
@@ -499,6 +501,8 @@ interface BacktestSummary {
   candidateFaults: { threw: number; timeout: number };
 }
 ```
+
+결과는 프로세스 메모리에 둔다. 재시작하면 사라지고, 같은 실행의 결과는 그 프로세스 안에서만 읽을 수 있다 [제안]. 저장 표 `tr_backtest_run`과 `tr_backtest_item`(§3.4)은 wire 등록과 타입을 넣은 이 단계에서 만들지 않는다. 처리기와 실행기가 생기는 단계에서 정한다 [제안].
 
 ### 3.8 화면용 보조 읽기와 타입 [M6 요청 M5d-3~7 반영]
 
@@ -649,7 +653,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 50. "사용자가 나중에 되돌렸나"는 기록에서 얻을 수 있는 두 신호만 단다(`laterSignals`): 그 호출의 승인이 `deny`로 해결됨(`approval_denied`), 그 턴이 `thread.leaf_moved { reason: "rewind" }`로 가지 밖이 됨(`turn_rewound`). 파일을 되돌렸는지는 모른다. 되감기는 파일을 되돌리지 않고(`packages/contracts/src/records/session-service.ts:337`의 주석) 파일 되돌림 기록이 로그에 없기 때문이다. 이 두 신호는 "되돌렸다"가 아니라 "그런 신호가 있다"로만 보인다.
 51. "비슷하지만 못 잡은 것"(`similarNotCaught`)은 설명 가능한 두 규칙으로만 낸다: 후보가 막은 호출과 같은 도구에 같은 `targetKey`(`same_tool_same_target`), 또는 같은 도구에서 문자열 인자 토큰 집합의 겹침(자카드)이 0.6 이상(`arg_overlap`, 점수 동봉). 후보가 통과시킨 호출만 대상이고 최대 20개다. 대상 인자 문자열은 로그에서 읽어 계산하고 결과에는 `toolCallId`만 싣는다.
 52. 한도. 한 번에 최대 `maxTurns`(50) 턴, `maxCalls`(2000) 호출, 동시에 한 번만 돈다(`backtest.busy`). 기본 범위는 `live` 범위만이다. 테스트 실행과 초안 덧씌움 기록은 `include`로 넣어야 한다. 보관 기간이 지난 턴은 대상이 아니다. 삭제된 대화는 `thread_deleted`로 센다.
-53. 재현하지 못하는 것은 결과마다 고정 문구 목록 `notReproducible`로 함께 돌려준다: (1) 막힌 뒤 모델이 어떻게 반응했을지(다른 호출을 했을지, 멈췄을지), (2) 이후 호출 순서와 수(막았다면 그 뒤가 달라진다), (3) 다른 플러그인 훅과의 상호작용(후보 단독 평가), (4) 사람이 물음에 어떻게 답했을지(기록된 답만 있다), (5) 후보가 시각·외부 상태에 기대는 부분, (6) 후보의 네트워크 부작용(격리 1·2단계는 네트워크를 막지 않는다: `docs/xeon/review/m5/drive-isolation.md` §3.4). (6)을 위해 후보를 처음 돌리기 전 한 줄로 알린다 [제안].
+53. 재현하지 못하는 것은 결과마다 고정 식별자 목록 `notReproducible`로 함께 돌려준다(순서대로 `model_reaction_after_block`, `later_call_order_and_count`, `other_plugin_hook_interaction`, `human_answer_to_ask`, `candidate_time_or_external_state`, `candidate_network_side_effects`. 문장은 화면이 카탈로그로 그린다 [제안]. 실행별 사유는 항목의 `unreplayableReason`과 요약이 맡는다): (1) 막힌 뒤 모델이 어떻게 반응했을지(다른 호출을 했을지, 멈췄을지), (2) 이후 호출 순서와 수(막았다면 그 뒤가 달라진다), (3) 다른 플러그인 훅과의 상호작용(후보 단독 평가), (4) 사람이 물음에 어떻게 답했을지(기록된 답만 있다), (5) 후보가 시각·외부 상태에 기대는 부분, (6) 후보의 네트워크 부작용(격리 1·2단계는 네트워크를 막지 않는다: `docs/xeon/review/m5/drive-isolation.md` §3.4). (6)을 위해 후보를 처음 돌리기 전 한 줄로 알린다 [제안].
 54. 후보는 `versionId`로 정해진다. 초안(`draft:…`)은 검토 전에도 돌려 볼 수 있다(R2 확정: 초안은 테스트 화면에서 검토 없이 돈다). 후보가 격리 프로세스에서 돌 수 없으면(P1 전, 후보가 코드 없는 Inject 전용) `3524` 또는 `3522`다.
 
 ### 4.9 대화 안의 흔적 (R23 데이터)
@@ -809,10 +813,10 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | `apps/host/src/assembly/measure/recorder.ts:298~530` | 쓰는 때를 `step.completed`로 당김, 새 행 쓰기, `hook` 행 병행, 범위·프로필 표지 | L. [구현: 턴 행 `open`·최종, 단계 행과 `tr_hook`, `log_only`, 열 때 `markLostTurns`, 범위 `test`. 쓰기 로직은 `turn-writer.ts`와 `turn-rows.ts`. 늦은 행: 단계 끝 뒤에 끝난 실행을 턴을 닫을 때 `late: true`로 한 번 쓰고(`lateHooksOf`, `writeHooks`), 턴 훅(step 0)은 `turnHooks`에 든다. 승인 답은 호출 줄의 `approval`에서 잇는다. 요청 id 키의 입력 훅(`input.user.before`, `input.bash.before`)과 대화 시작 훅(`thread.start`)은 턴이 열릴 때 단계 0으로 붙는다(§4.2 규칙 17의 2, 2026-11-18). 남음: 턴 완료 커밋 뒤에 끝나는 실행(`boundary.turn.after`, `boundary.settle.after`)은 턴 행이 이미 정착한 뒤라 쓰지 않는다. 열린 턴 도중 들어와 다음 턴으로 가는 `followUp` 입력의 훅은 실행 중인 턴에 붙는다(§11 17). 프로필 표지와 덧씌우기는 남음. 프레임의 `used`와 `userMessages`는 `turn-writer.ts`의 `chargeFrames`·`queuedUserMessage`·`spawnCharge`가 센다(§4.4 규칙 23, 2026-11-18). 턴 플래그는 `turnFlagsOf`·`turnFlagBitsOf`(`turn-rows.ts`)가 닫을 때 세고 `tr_turn.flags` 비트로도 쓴다. `subagents`는 `agent.spawned`를 `turn-writer.ts`의 `rememberChild`가 턴에 붙여 센다. `untrackedWrite`는 계측이 없어 거짓, `draftActive`는 범위가 `overlay_draft`일 때 참이지만 그 범위를 아직 아무도 쓰지 않는다] |
 | `packages/core-persistence/src/retention.ts:34`, `:123`, `threads.remove` 경로 | `onRemoved`가 측정 저장소 삭제를 부른다 | S. [구현: `service.ts:127`의 `removed`가 두 경로를 잇고 `SessionDeps.onThreadRemoved`(`deps.ts`)로 조립 루트가 `forgetThread`를 건다] |
 | `apps/host/src/assembly/ports.ts:285`, `:319`, `:430`, `:686`, `profile-test-run-port.ts:94`, `packages/ext-host/src/primitives/host.ts:584` | 테스트 실행 표지를 `tr_thread`로 옮겨 재시작 뒤에도 유지 | M. [구현: `measure/test-run-marks.ts`가 `tr_thread`에 쓰고 되살린다. `host.ts:584`의 Set은 그대로다] |
-| `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
+| `packages/contracts/src/wire-settings/wire/` 새 파일들, `methods.ts:2414`(알림 표), `errors.ts:568~636` | §3.5의 메서드·알림·오류 3500대. [구현: 지난 턴에 돌려 보기 `backtest.*` 네 메서드, 알림 `backtest.progress`, 오류 3521~3525를 `wire/backtest.ts`와 `turn-record-methods.ts`에 등록했다. 처리기는 2026-11-18에 `apps/host/src/handlers/m5/backtest.ts`가 채웠고 알림은 `handlers/events.ts`가 보낸다] `TestRunMarker`(`profile-test-run.ts:268`) 필드 추가 | M |
 | `apps/host/src/handlers/` 새 `m5/`, `apps/host/src/assembly/measure/read.ts` | 처리기와 읽기 포트, `metrics.query` 계산, 발견 계산 [구현: M5d-1 층 4. `block.*`(시간 나눔, 캐시), `drive.*`(프레임)를 `metrics.ts`에 더하고 행이 없으면 `not_recorded`다. 비교는 `pluginVersion`·`profileRev`를 원본 턴으로 나눈다(`compareByGroups`). 발견 규칙 8과 12를 더했다. `profileCost.get`의 정적 줄은 프로필 플러그인 이름만 낸다. 미구현: 지침·도구 정의 어림(로더 대기), 모델 대기(단계 시간이 행에 없음), 컴팩션 횟수(행에 없음, `not_recorded`)] | L | 층 5 [구현: `turnRecord.watch·unwatch`와 알림 `turnRecord.delta`(`handlers/m5/watch.ts`, 사건 버스 `turn-events.ts`), `absent`의 `purged`(`turn-read.ts`, 기록 시각 `tr_meta.recording_since`, `turn-log.ts`로 로그 확인), 크기 상한(`turn-fit.ts`), `testRunsAlwaysOn`(`turn-writer.ts` `levelOf`). 훅 행의 추적 버퍼는 계측 꺼짐에서 아직 비므로 테스트 실행의 훅 행은 `trace.enabled`가 꺼지면 빈다]
-| 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 | L |
-| `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 | S |
+| 후보를 돌리는 실행기(ext-host와 플러그인 프로세스) | `backtest.*`. P1 이후에만 가능. 그 전에는 `3524`로 거절 [구현 2026-11-18: 후보 실행기는 `packages/ext-host/src/isolation/candidate-runner.ts`, 서비스는 `apps/host/src/assembly/backtest/service.ts`다. 격리 자식을 띄울 수 없으면 `3524`다(`assembly/backtest/isolation.ts`). 한계는 §11 22~29] | L |
+| `packages/ext-host/src/operations/settings-keys.ts:216` | §3.6의 새 키 [구현: `x.operations.backtest.*` 네 키를 정의했다. 범위 값은 [제안]이고 이 키를 읽는 실행기는 아직 없다] | S |
 | `apps/desktop/src/views/workbench/craft-source.ts:119`, `apps/desktop/src/views/craft/turn-flow.ts:229`, `apps/desktop/src/views/panels/context/context-model.ts:125` | M6의 일. 읽기를 `turnRecord.get`으로 옮기고 구성 표를 플러그인별로 낸다. 이 문서는 데이터만 | M(M6) |
 | 문서 | `docs/xeon/X/operations/spec.md` §4.8.3 마지막 줄("메모리에만 둔다"에 `measure.db` 사본 사실 추가), `L4/host-service/spec.md` §4.20, `F/wire-settings/spec.md` §3.3 표 | S |
 
@@ -840,9 +844,9 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 18. (R18) 모델이 바뀐 합성 데이터에서 `skill_activation_drop`이 발동하고, `minSample` 미만이면 발동하지 않는다. 발견마다 `next`가 하나 이상이다.
 19. (R18) 발견의 증거 참조로 `turnRecord.get`이 해당 턴을 돌려주고, 묶음 크기가 16 KiB 이하이며 내용 문자열이 없다.
 20. (R18) `dismiss`한 발견이 근거 값이 두 배 이상 바뀌면 다시 열린다.
-21. (R16) 후보 Hook을 `backtest.run`으로 최근 N턴에 돌리면 실행된 도구가 하나도 없다(효과 이벤트가 늘지 않는다). 요청의 `replay: true` 아래에서 후보가 `capability()`를 부르면 `replay_mode_denied`이고 그 호출은 `candidate_fault`다.
-22. (R16) 합성 기록에서 후보가 실제로 실행된 호출을 막으면 `newly_caught`, 사람이 허용했던 호출이면 추가로 `would_block_allowed_by_human`이 된다. 후보가 던지면 `candidate_fault`이고 막음으로 세지 않는다.
-23. (R16) 결과에 `notReproducible` 여섯 항목이 항상 있다. 지원하지 않는 훅은 `3522`다.
+21. (R16) 후보 Hook을 `backtest.run`으로 최근 N턴에 돌리면 실행된 도구가 하나도 없다(효과 이벤트가 늘지 않는다). 요청의 `replay: true` 아래에서 후보가 `capability()`를 부르면 `replay_mode_denied`이고 그 호출은 `candidate_fault`다. [구현 2026-11-18, 일부: 후보 실행기의 라우터가 `replay: true` 요청의 쓰기를 버리고 `capability()`를 `replay_mode_denied`로 거부한다(`packages/ext-host/test/isolation/candidate-runner.test.ts`, `engine-calls.test.ts`). 실제 엔진 시험 `apps/host/test/int/backtest-real.int.test.ts`는 돌려 보기 전후의 턴 기록, 대화 목록, 지표, 기록된 호출 수가 같음을 값으로 본다. 효과 이벤트 수는 세지 않는다. 후보가 쓰기를 시도하는 것은 플러그인 코드에서 볼 수 없다(§11 29)]
+22. (R16) 합성 기록에서 후보가 실제로 실행된 호출을 막으면 `newly_caught`, 사람이 허용했던 호출이면 추가로 `would_block_allowed_by_human`이 된다. 후보가 던지면 `candidate_fault`이고 막음으로 세지 않는다. [구현 2026-11-18: `apps/host/test/assembly/backtest/classify.test.ts`의 "every class is reached by its rule of §4.8 rule 49"와 `service.test.ts`의 "the summary counts every class, the calls seen, the calls replayed, and the candidate faults"가 분류와 고장 셈을 본다. 실제 엔진 시험 `backtest-real.int.test.ts`는 `newly_caught` 호출과 `passes_same` 호출을 하나씩 낸다. 사람이 허용한 호출의 `would_block_allowed_by_human`은 실제 엔진 시험이 만들지 않는다]
+23. (R16) 결과에 `notReproducible` 여섯 항목이 항상 있다. 지원하지 않는 훅은 `3522`다. [구현 2026-11-18: `apps/host/test/handlers/backtest.test.ts`의 "each backtest.run failure reaches the wire with its own code, kind and retryable flag"가 3521, 3522, 3524, 3525를 값으로 보고, 3523과 커서 오류는 같은 파일의 다음 시험들이 본다. 실제 엔진 시험 `backtest-real.int.test.ts`가 여섯 항목을 값으로 본다. 3522의 서비스 쪽은 `service.test.ts`의 "a candidate with no code (inject only) and a hook with no handler both answer hook_not_replayable"이다]
 24. [구현 일부: M5d-1 층 5, 항상 켜기 `turn-record-write.test.ts`(켠 때와 끈 때)] (R16) 테스트 실행 대화를 만들고 앱을 다시 시작해도 그 대화의 `scope_kind`가 `test`이고 기본 지표에 들지 않는다. `overlay_draft` 턴도 같다.
 25. (R16) 같은 입력으로 만든 테스트 실행 둘에서 `testRun.compare`가 `sameInput: true`와 `verdict`·훅 결과 수 비교를 낸다. 입력이 다르면 `false`다.
 26. [미구현: 알림은 단계 행을 쓴 뒤에만 간다(M5d-1 층 5). 단계 끝 전의 `modified` 행은 아직 없다] (R23) 훅이 `tool.result`를 고친 호출에서 `turnRecord.delta`가 단계 끝 전에 `modified` 행을 보낸다. 닫은 뒤 다시 열어 `turnRecord.get`으로 같은 행을 읽는다. [구현 2026-11-18, 턴 전 훅: 턴이 열리기 전에 실행된 훅은 턴이 열릴 때 단계 0으로 붙고, 턴을 닫을 때 `turnHooks`에 `preTurn: true`로 쓰인다. 이 알림에는 싣지 않는다. 턴 훅은 단계 끝 전 알림으로 보내지 않는다는 점은 그대로다. 시험: `turn-record-write.test.ts`의 "hooks that ran before the turn are its step 0 hooks…"]
@@ -896,6 +900,14 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 | 19 | `lowerResumedWith`(`handoff_done`, `handoff_aborted`, `user`)의 원천 사건 | 없다. null로 둔다. 맡기기 사건이 `last` 값을 싣게 되면 옮긴다. `lease.released`는 사유만 싣는다 [근거: `packages/contracts/src/records/catalog/extension-ops.ts`의 `LeaseReleasedPayloadSchema`] |
 | 20 | 한도 토큰을 총 토큰(`totalTokens`, 캐시 토큰 포함)으로 셀지, 입력과 출력만 셀지(초기 제안은 입력과 출력) | 총 토큰. 엔진 `tokensOf`가 `totalTokens`를 더하므로 입력과 출력만 세면 캐시 적중 때 엔진 카운터보다 작게 보인다. 턴 밖 모델 호출(제목 등)도 열린 프레임 동안이면 센다. 엔진은 drive 명령과 `models.complete`의 토큰만 더하므로 이 부분은 근사다 |
 | 21 | 뒤쪽 쓰기 예산(턴당 p95 5 ms 이하, §9 29번)을 확정할지. 측정값은 §4.20 측정 줄과 §9 29번에 있고 지금 판정하지 않는다 | 제안 값으로 둔다. 사용자 확인 전까지 예산 위반을 실패로 보지 않는다 |
+| 22 | 되감기 표지(`turn_rewound`)를 내지 않는다. `TurnRecord`에 되감기 표지가 없어 `BacktestItem.live.laterSignals`에는 `approval_denied`만 들어간다 | 되감기 표지를 턴 기록에 더할지 정한다 [근거: `apps/host/src/assembly/backtest/service.ts`의 `liveOf`] |
+| 23 | `hints`가 `CallRecord`에 없어 후보에 싣지 않는다 | `CallRecord`에 힌트를 더할지 정한다 [근거: `apps/host/src/assembly/backtest/payload.ts`의 `toolCallPayloadOf`] |
+| 24 | 하위 에이전트 호출의 `caller` 이름이 기록에 없어 후보에는 `"subagent"`로 준다 | 기록에 하위 에이전트 이름을 더할지 정한다 [근거: `apps/host/src/assembly/backtest/service.ts`의 `replayEntry`, `callerIdOf(call) ?? "subagent"`] |
+| 25 | 후보의 설정 값은 `{}`다. 돌려 보기는 후보가 읽는 설정 값을 넘기지 않는다 | 현재 설정 값을 넘길지 정한다 [근거: `service.ts`의 `start`, `runner.open`의 `settings: {}`] |
+| 26 | 후보의 상태는 선언된 초기 상태다. 실제로 커밋된 상태는 읽지 않는다 | 커밋된 상태를 넘길지 정한다. 넘기면 §4.8 규칙 53의 재현 불가 목록과 맞춘다 [근거: `packages/ext-host/src/isolation/candidate-runner.ts`의 `CandidateHandler.initialState` 주석] |
+| 27 | `tool.result` 돌려 보기는 저장된 결과 항목이 있어야 한다. 없으면 `result_not_stored`로 센다 | 결과 항목의 저장 범위를 정한다 [근거: `service.ts`의 `replayEntry`] |
+| 28 | 돌려 보기 결과는 프로세스 메모리에만 있다. `tr_backtest_run`, `tr_backtest_item` 표가 없어 재시작하면 사라진다 | §3.7의 [제안]대로 둔다. 저장이 필요하면 사용자 확인 뒤 표를 더한다 |
+| 29 | 후보가 받은 `replay: true` 요청 플래그는 플러그인 코드에서 볼 수 없다. 쓰기가 버려지는 사실은 값으로 직접 보이지 않고, 실제 엔진 시험의 전후 비교로만 간접으로 본다 | 쓰기 시도를 결과로 드러내는 시험 방법을 정한다 |
 
 가정(이 문서가 다른 스펙이 낼 값이라고 가정한 것): `versionId`, Inject 재료의 `when`·소유 선언(M5c §4.5.10이 낸다), `mcp.<서버>` 소유 플러그인, 사용자가 부른 스킬·명령 표지, `lease.acquired`의 `parent`·`depth`·`contentHash`, 플러그인 프로세스와 `replay` 플래그. 전부 이 문서의 외부 의존이고 없는 동안 해당 필드는 `null`로 기록된다.
 

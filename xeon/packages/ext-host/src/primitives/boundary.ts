@@ -62,6 +62,7 @@ const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   enabledAtSeq: {},
   states: [],
   openLeases: [],
+  pendingRequests: [],
   leaseEpochs: {},
 };
 
@@ -394,6 +395,7 @@ export function createBoundary(
       grant: null,
       startRequest: null,
       abandoning: null,
+      recording: [],
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") {
@@ -626,7 +628,7 @@ export function createBoundary(
       seedPluginSet(core, thread);
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
       await scope.seedThread(thread);
-      lease.restore(thread, snapshot.openLeases);
+      lease.restore(thread, snapshot.openLeases, snapshot.pendingRequests);
       // 프로필의 시작 설정(drive-isolation.md 2.2): 열린 임대가 없는 대화에서만 이 scope의 시작 요청을 둔다
       if (snapshot.openLeases.length === 0 && options?.startDrive !== undefined) {
         thread.startQueue.push({
@@ -634,6 +636,8 @@ export function createBoundary(
           trigger: "profile",
           input: null,
           parentLeaseId: null,
+          requestId: null,
+          recorded: true,
         });
       }
       // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)

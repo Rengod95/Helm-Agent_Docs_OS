@@ -89,8 +89,13 @@ export async function crashAndResume(crash: {
     builtin: true,
   });
   // 재시작은 프로필의 시작 설정으로 이어 준다(열린 임대가 있으면 복원된 스택을 잇는다)
-  await second.host.openThread(thread, { startDrive: "helm" });
+  await second.host.openThread(thread);
   await second.settled();
+  // 프로필의 시작 주도는 사용자의 첫 메시지를 기다린다(AGE-47). 열린 임대가 없으면 사용자 명령 시작으로 이어 준다
+  if (second.host.leaseOf(thread) === null) {
+    second.host.startDrive(thread, "helm");
+    await second.settled();
+  }
   await drainRounds(second, thread, 8);
   return {
     world,

@@ -80,6 +80,7 @@ export function fakeConnection(table: ConnectionTable): FakeConnection {
     "migration.progress": new Set(),
     "migration.changed": new Set(),
     "turnRecord.delta": new Set(),
+    "backtest.progress": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];
   const connection: HostConnection = {

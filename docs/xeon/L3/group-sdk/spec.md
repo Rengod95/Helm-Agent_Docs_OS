@@ -1141,7 +1141,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 3 | drive 함수 예외 | X가 그 프레임을 내린다(`lease.released{reason:"error"}`, F.extensions.spec §5 6번). `GroupStatus.drive = "error"`, `lastError = group.driveThrew`. `on` 핸들러와 `post`, `delegate`는 계속 동작한다. 오류 표시는 그룹을 끄고 다시 켜면 지워진다(X.primitives.spec §4.4.3 예외 규칙). 그동안 시작 요청은 `drive_error`로 거부된다 |
 | 4 | 맡기고 기다리는 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 그 프레임과 위 프레임이 `disabled`로 내려간다(X.primitives.spec §4.5.3) [가정]. `scope.changed{disabled}`가 커밋된다 |
 | 5 | 주도 중인 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 turn 명령은 정착까지 돈다(X.primitives.spec §4.5.3). 아래 프레임은 `aborted`로 이어 받는다. 새 후보를 고르지 않는다. 다음 주도는 사용자의 시작 요청으로 한다 |
-| 6 | drive lock 교체 중 프로세스 종료 | 반납 커밋 전 종료면 이전 holder가 그대로이고 재개 뒤 `openThread`가 열린 drive 락 목록(`openLeases`, 오래된 것부터)으로 스택을 세우고 맨 위 프레임의 drive 함수를 다시 부른다. 반납 커밋 뒤 부여 전 종료면 시작 요청 큐는 기록에 없어 재개 때 비어 있다(X.primitives.spec §10 미결). 부여 커밋 뒤 종료면 새 holder의 drive 함수가 마지막 커밋 상태로 다시 불린다 |
+| 6 | drive lock 교체 중 프로세스 종료 | 반납 커밋 전 종료면 이전 holder가 그대로이고 재개 뒤 `openThread`가 열린 drive 락 목록(`openLeases`, 오래된 것부터)으로 스택을 세우고 맨 위 프레임의 drive 함수를 다시 부른다. 반납 커밋 뒤 부여 전 종료면 사용자 명령과 맡기기의 시작 요청은 `lease.requested` 기록에서 큐에 되살아난다(프로필 시작은 열 때 다시 만든다, AGE-26). 부여 커밋 뒤 종료면 새 holder의 drive 함수가 마지막 커밋 상태로 다시 불린다 |
 | 7 | 구동 그룹 지정이 진행 중 turn이나 다른 그룹의 주도와 겹침 | 엔진은 지정 값을 읽지 않는다(E3). 지정은 기록만 되고 스택은 바뀌지 않는다. 주도를 옮기려면 사용자가 그 그룹의 주도 시작 명령을 낸다. 같은 scope 명령은 전환이 아니다. 진행 중 `loop.turn`은 끝까지 돈다 |
 | 8 | 같은 단계에서 켜기와 끄기 요청이 겹침 | 마지막 요청만 적용한다(X `RegistrationHandle` 규칙 [가정]). 상태줄은 마지막 요청을 보인다 |
 | 9 | 상태 커밋이 스키마나 크기 한도 위반 | `commit` 거부, 상태 유지, `group.stateInvalid`. drive 함수 안이면 예외로 이어져 3번 처리 |

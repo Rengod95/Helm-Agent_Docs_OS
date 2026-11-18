@@ -20,8 +20,8 @@ realTest(
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
-    // 스모크 그룹은 사용자 메시지를 처리하지 않는다: 첫 turn은 그룹의 drive turn, 둘째 turn은 돌려받은 사용자 입력이다
-    const group = smokeGroup({ followUps: 0, driveTurns: 1 });
+    // driveTurns 0인 스모크 그룹은 turn을 내지 않고 사용자 메시지를 처리하지 않는다: 첫 메시지를 첫 단계가 받고, 3단계 안에 처리하지 않아 코어 루프가 돌려받은 입력의 turn을 낸다
+    const group = smokeGroup({ followUps: 0, driveTurns: 0 });
     const host = await startInProcessHost({
       devChecks: true,
       defaultGroups: false,
@@ -30,15 +30,6 @@ realTest(
         tapeProvider(
           tapePlayer(
             tape("turn-start-drive", [
-              {
-                role: "main",
-                label: "the group's drive turn",
-                response: {
-                  type: "message",
-                  content: [t.text("drive answered.")],
-                  stopReason: "stop",
-                },
-              },
               {
                 role: "main",
                 label: "the handed-back user input",
@@ -72,7 +63,8 @@ realTest(
         baseRev: null,
       });
       const created = await connection.request("thread.create", { profileId: "drive-start" });
-      await collector.waitFor((event) => event.kind === "turn.completed", 20_000);
+      // 프로필의 시작 주도는 사용자의 첫 메시지를 첫 단계의 입력으로 받는다(AGE-47): 메시지가 오기 전에는 turn이 없다
+      expect(collector.events.filter((event) => event.kind === "turn.started")).toEqual([]);
 
       const first = await startInputWhenIdle(connection, {
         threadId: created.threadId,
@@ -91,15 +83,15 @@ realTest(
       await collector.waitFor(
         (event) =>
           event.kind === "turn.completed" &&
-          collector.events.filter((seen) => seen.kind === "turn.completed").length >= 2,
+          collector.events.filter((seen) => seen.kind === "turn.completed").length >= 1,
         20_000,
       );
       const items = JSON.stringify(
         collector.events.filter((event) => event.kind === "item.recorded").map((e) => e.payload),
       );
       expect(items).toContain("user answered.");
-      // 메시지는 한 번만 전달되어 turn이 모두 둘이다(drive turn, 돌려받은 입력의 turn)
-      expect(collector.events.filter((event) => event.kind === "turn.started")).toHaveLength(2);
+      // 메시지는 한 번만 전달되어 turn이 하나다(돌려받은 입력의 turn)
+      expect(collector.events.filter((event) => event.kind === "turn.started")).toHaveLength(1);
     } finally {
       await host.close();
       home.dispose();

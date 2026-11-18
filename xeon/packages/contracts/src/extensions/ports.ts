@@ -161,6 +161,7 @@ export type {
   ExtRecordRow,
   ExtThreadSnapshot,
   OpenLease,
+  PendingStartRequest,
   RecordCommitPort,
   StoredScopeState,
 } from "../records/index.ts";

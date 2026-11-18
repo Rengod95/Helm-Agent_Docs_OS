@@ -95,7 +95,10 @@ test("callContext is the drive context with the lease signal, and cut inside tur
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "cc-drive" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "cc-drive");
   await t.settled();
   expect(driveSeen.context?.kind).toBe("drive");
   expect(driveSeen.context?.threadId).toBe(thread);

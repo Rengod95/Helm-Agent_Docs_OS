@@ -371,3 +371,16 @@ export {
   type IsolationLaunch,
   type IsolationLaunchInfo,
 } from "./isolation/proxy-entry.ts";
+// 지난 턴에 돌려 보기의 후보 실행기(turn-record-metrics.md 4.8). 후보의 훅은 격리 자식에서만 돌고, 쓰기는 버리고 기능 호출은 거부한다
+export {
+  createCandidateRunner,
+  type CandidateCall,
+  type CandidateHandler,
+  type CandidateLaunch,
+  type CandidateLaunchInfo,
+  type CandidateOpenInput,
+  type CandidateOutcome,
+  type CandidateRunner,
+  type CandidateRunnerDeps,
+  type ReplayPoint,
+} from "./isolation/candidate-runner.ts";

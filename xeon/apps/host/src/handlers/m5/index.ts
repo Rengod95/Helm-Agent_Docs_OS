@@ -9,7 +9,7 @@ import { wireErrorOfStore } from "../../store-error.ts";
 // M5d 턴 기록과 지표의 처리기(문서 `review/m5/turn-record-metrics.md` §3.5, §3.8). 읽기 포트는 `engine.ports.measure.turnRecord`다.
 // 계측이 꺼졌거나 저장소를 열지 못한 것은 오류가 아니다(`enabled`, `level`로 낸다). 없는 대화는 `thread.notFound`(3001)다.
 // 구독(`turnRecord.watch`, `unwatch`)은 연결의 `turnWatches`에 둔다. 알림 `turnRecord.delta`는 `watch.ts`가 보낸다.
-// 등록하지 않은 것: `backtest.*`.
+// 지난 턴에 돌려 보기(`backtest.*`)는 이 표에 없다. `m5/backtest.ts`의 `createBacktestHandlers`가 채우고 `handlers/index.ts`가 합친다.
 
 /** 포트의 실패 값을 wire 오류로 옮긴다. 같은 kind는 같은 오류다 */
 function wireErrorOfTurnRead(error: TurnReadError): WireError {

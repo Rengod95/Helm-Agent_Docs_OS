@@ -114,7 +114,9 @@ test("state.restore-on-resume", async () => {
   const thread = first.newThread();
   const driveStates: number[] = [];
   await install(first, driven("resumer", driveStates));
-  await first.host.openThread(thread, { startDrive: "resumer" });
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.startDrive(thread, "resumer");
   await first.settled();
   await first.boundary(thread).turnSettled();
   await first.settled();
@@ -127,7 +129,9 @@ test("state.restore-on-resume", async () => {
   const second = await first.restart();
   const resumed: number[] = [];
   await install(second, driven("resumer", resumed));
-  await second.host.openThread(thread, { startDrive: "resumer" });
+  await second.host.openThread(thread);
+  await second.settled();
+  second.host.startDrive(thread, "resumer");
   await second.settled();
   expect(resumed[0]).toBe(2);
 });

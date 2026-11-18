@@ -580,11 +580,4 @@ describe("턴 기록 오류 코드", () => {
       expect(WIRE_ERRORS[kind].retryable).toBe(false);
     }
   });
-
-  test("backtest codes 3521 to 3525 are not registered yet", () => {
-    const codes = Object.values(WIRE_ERRORS).map((spec) => spec.code);
-    for (const code of [3521, 3522, 3523, 3524, 3525]) {
-      expect(codes).not.toContain(code);
-    }
-  });
 });

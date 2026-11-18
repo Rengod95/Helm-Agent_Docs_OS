@@ -24,6 +24,7 @@ import {
   InputQueuePortKey,
   type DriveLockBudget,
   type OpenLease,
+  type PendingStartRequest,
   type PortKey,
   type PostItem,
   type StepResult,
@@ -87,7 +88,11 @@ const USER_MESSAGE_STEP_LIMIT = 3;
  */
 export interface LeaseBroker {
   /** openThread: 저장된 열린 임대 목록(오래된 것부터, 맨 위가 마지막)으로 스택을 세운다. 죽은 scope의 프레임은 restart로 반납 예정이 된다 */
-  restore(thread: ThreadRuntime, open: readonly OpenLease[]): void;
+  restore(
+    thread: ThreadRuntime,
+    open: readonly OpenLease[],
+    pending: readonly PendingStartRequest[],
+  ): void;
   /** scope가 꺼지면 모든 thread에서 그 scope의 프레임과 그 위 프레임을 반납 예정으로 바꾼다 */
   releaseForRegistration(scopeId: RegistrationId, reason: ReleaseReason): void;
   /** 한 thread에서만 scope가 꺼질 때 그 프레임과 그 위 프레임을 반납 예정으로 바꾼다(P-28) */
@@ -175,6 +180,19 @@ function release(lease: LeaseRuntime, reason: ReleaseReason): void {
  */
 function isActive(lease: LeaseRuntime): boolean {
   return lease.status === "active";
+}
+
+/**
+ * 프레임을 여는 입력(맡기기의 `input`, 사용자 명령의 `input`)과 `done` 결과가 기록에 실릴 수 있는 직렬화 크기 상한(바이트).
+ * 내구 envelope 상한이 256 KiB(`ENVELOPE_MAX_BYTES`)라 그 안에 들어가는 가장 널널한 값으로 잡았다. 넘으면 잘라 저장하지 않고 거절한다
+ * [제안: AGE-26의 "상한은 널널히"를 이 값으로 구현. 1 MiB는 envelope 상한을 넘어 저장할 수 없다]
+ */
+export const DRIVE_INPUT_MAX_BYTES = 200_000;
+
+/** JSON 값의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES` 안인가 */
+function withinInputLimit(value: JsonValue | null): boolean {
+  if (value === null) return true;
+  return new TextEncoder().encode(JSON.stringify(value)).length <= DRIVE_INPUT_MAX_BYTES;
 }
 
 /** 명령이 거부 결과가 되는 `StepOutcome`. 예외가 아니다 */
@@ -525,6 +543,8 @@ interface FrameInit {
   readonly wantInvoke: boolean;
   readonly committed: boolean;
   readonly restoring: boolean;
+  /** 사용자의 첫 메시지가 첫 단계의 입력이다(프로필의 시작 주도). 메시지가 오기 전에는 단계 함수를 부르지 않는다 */
+  readonly awaitUser: boolean;
 }
 
 function frameOf(init: FrameInit): LeaseRuntime {
@@ -556,6 +576,7 @@ function frameOf(init: FrameInit): LeaseRuntime {
     running: false,
     missed: false,
     firstStepDone: false,
+    awaitUser: init.awaitUser,
     userSeq: 0,
     inbox: [],
     userSteps: null,
@@ -848,12 +869,14 @@ export function createLeaseBroker(
    * `handoff` 명령(drive-isolation.md 2.1). 거부할 것이면 `refused` 결과로 돌려준다(예외가 아니다). 맞으면 맡을 요청을 큐 맨 앞에 넣고
    * 맡긴 프레임을 `waiting`으로 둔 뒤 이번 호출을 끝낸다. 부여는 다음 경계에서 한다(`decideHandoff`)
    */
-  function handoffOf(
+  async function handoffOf(
     ctx: StepContext,
     command: { readonly to: string; readonly input: JsonValue },
-  ): StepOutcome {
+  ): Promise<StepOutcome> {
     const { thread, lease, record } = ctx;
     if (lease.status !== "active") return INACTIVE;
+    // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다. 이유는 결과 코드로 돌려준다
+    if (!withinInputLimit(command.input)) return refusal("input_too_large");
     if (command.to === record.extension) return refusal("self_handoff");
     if (thread.frames.some((frame) => core.scopes.get(frame.scopeId)?.extension === command.to)) {
       return refusal("already_in_stack");
@@ -866,12 +889,19 @@ export function createLeaseBroker(
     if (thread.frames.length + 1 > core.deps.settings.driveMaxDepth(thread.threadId)) {
       return refusal("depth_limit");
     }
-    thread.startQueue.unshift({
+    const request: StartRequest = {
+      requestId: core.deps.ids.next("evt"),
       scopeId: target.id,
       trigger: "handoff",
       input: command.input,
       parentLeaseId: lease.leaseId,
-    });
+      recorded: true,
+    };
+    // 부여 전에 재시작해도 맡기기가 사라지지 않게 요청을 먼저 기록한다
+    const recorded = await recordRequest(thread, request, "queued");
+    if (!recorded) return refusal("record_unavailable");
+    if (!isActive(lease)) return INACTIVE;
+    thread.startQueue.unshift(request);
     lease.state = "waiting";
     return { kind: "handoff" };
   }
@@ -1004,6 +1034,7 @@ export function createLeaseBroker(
       case "yield":
         return { kind: "yield" };
       case "done":
+        if (!withinInputLimit(command.result ?? null)) return refusal("result_too_large");
         return { kind: "done", result: command.result ?? null };
       case "handoff":
         return handoffOf(ctx, command);
@@ -1111,8 +1142,8 @@ export function createLeaseBroker(
         return { last, handedBack: true };
       }
     }
-    // 첫 단계가 끝나기 전에는 메시지를 전달하지 않는다(시작 주도가 항상 먼저)
-    if (!lease.firstStepDone) return { last, handedBack: false };
+    // 사용자 명령이 시작한 주도는 첫 단계가 먼저 돈다(명령이 곧 사용자 요청이다). 프로필의 시작 주도는 첫 메시지가 첫 단계의 입력이다
+    if (!lease.firstStepDone && !lease.awaitUser) return { last, handedBack: false };
     const message = lease.inbox.shift();
     if (message === undefined) return { last, handedBack: false };
     lease.deliveredUser = message;
@@ -1348,6 +1379,8 @@ export function createLeaseBroker(
   function start(thread: ThreadRuntime, lease: LeaseRuntime): void {
     // 맡기고 기다리는 프레임은 위 프레임이 끝나 `pendingLast`를 받을 때까지 단계 함수를 부르지 않는다
     if (lease.state !== "driving") return;
+    // 프로필의 시작 주도는 사용자의 첫 메시지가 올 때까지 첫 단계를 미룬다(AGE-47)
+    if (lease.awaitUser && !lease.firstStepDone && lease.inbox.length === 0) return;
     lease.running = true;
     lease.wantInvoke = false;
     lease.missed = false;
@@ -1395,9 +1428,87 @@ export function createLeaseBroker(
   }
 
   /** 시작 요청 하나를 큐에서 뺀다. 대상이 맞지 않아 버릴 때와 스택이 차서 버릴 때 쓴다(진단 scope_notice) */
+  /**
+   * 시작 요청 하나를 대화 기록에 남긴다(`lease.requested`). 프로필 시작(`requestId` 없음)은 열 때 다시 만들어지므로 남기지 않는다.
+   * 커밋 키가 요청 id라 같은 기록을 두 번 남기지 않는다. 기록하지 못하면 false다
+   */
+  async function recordRequest(
+    thread: ThreadRuntime,
+    request: StartRequest,
+    status: "queued" | "dropped",
+  ): Promise<boolean> {
+    if (request.requestId === null || request.trigger === "profile") return true;
+    const records = core.ports.get(RecordCommitPortKey);
+    if (records === undefined) return false;
+    const result = await records.commit({
+      threadId: thread.threadId,
+      requestId: `lrq:${status}:${request.requestId}`,
+      drafts: [
+        makeDraft(core.deps.ids, {
+          threadId: thread.threadId,
+          kind: "lease.requested",
+          payload: {
+            requestId: request.requestId,
+            scopeId: request.scopeId,
+            status,
+            trigger: request.trigger,
+            ...(request.parentLeaseId === null ? {} : { parent: request.parentLeaseId }),
+            ...(status === "queued" && request.input !== null ? { input: request.input } : {}),
+          },
+        }),
+      ],
+    });
+    return result.status !== "rejected";
+  }
+
+  /**
+   * 큐에 있는데 아직 기록되지 않은 사용자 명령을 이 경계의 커밋에 `lease.requested`(queued)로 싣는다. 같은 커밋이 그 요청을 부여하면 둘이 함께 실린다. 부여가 미뤄지는 요청(스택이 찼거나 thread가 실행 중)은 재시작 뒤에도 남는다. 커밋이 실패하면 다음 경계가 다시 싣는다
+   */
+  function recordPending(thread: ThreadRuntime, txn: BoundaryTxn): void {
+    if (thread.child) return;
+    for (const request of thread.startQueue) {
+      if (request.recorded || request.requestId === null || request.trigger === "profile") continue;
+      txn.drafts.push(
+        makeDraft(core.deps.ids, {
+          threadId: thread.threadId,
+          kind: "lease.requested",
+          payload: {
+            requestId: request.requestId,
+            scopeId: request.scopeId,
+            status: "queued",
+            trigger: request.trigger,
+            ...(request.parentLeaseId === null ? {} : { parent: request.parentLeaseId }),
+            ...(request.input === null ? {} : { input: request.input }),
+          },
+          turnId: txn.signal.turnId,
+          stepId: txn.signal.stepId,
+        }),
+      );
+      txn.recording.push(request);
+    }
+  }
+
+  /** 큐에서 빠진 요청이 재시작 뒤 되살아나지 않게 `dropped`를 남긴다. 기다리지 않고, 실패하면 진단으로 알린다 */
+  function recordDropped(thread: ThreadRuntime, request: StartRequest): void {
+    // 기록된 적 없는 요청은 되살아날 일이 없다
+    if (request.requestId === null || !request.recorded) return;
+    core.track(
+      (async () => {
+        if (await recordRequest(thread, request, "dropped")) return;
+        core.deps.report({
+          level: "warning",
+          code: "scope_notice",
+          scopeId: request.scopeId,
+          message: `the dropped drive start of ${request.scopeId} could not be recorded`,
+        });
+      })(),
+    );
+  }
+
   function dropRequest(thread: ThreadRuntime, request: StartRequest, why: string): void {
     const at = thread.startQueue.indexOf(request);
     if (at >= 0) thread.startQueue.splice(at, 1);
+    recordDropped(thread, request);
     returnHeldIfUnclaimed(thread);
     core.deps.report({
       level: "info",
@@ -1463,6 +1574,8 @@ export function createLeaseBroker(
         depth,
         ...(parent === null ? {} : { parent: parent.leaseId }),
         ...(contentHash === null ? {} : { contentHash }),
+        ...(request.input === null ? {} : { input: request.input }),
+        ...(request.requestId === null ? {} : { requestId: request.requestId }),
       },
     });
     txn.grant = frameOf({
@@ -1482,6 +1595,7 @@ export function createLeaseBroker(
       wantInvoke: true,
       committed: false,
       restoring: false,
+      awaitUser: parent === null && request.trigger === "profile",
     });
     txn.startRequest = request;
   }
@@ -1577,7 +1691,7 @@ export function createLeaseBroker(
   }
 
   return {
-    restore(thread, open) {
+    restore(thread, open, pending) {
       // 위에서 아래로 더해 각 프레임이 쓴 양(위 프레임의 own 포함)을 다시 센다. 저장된 `used`는 각 프레임의 own이다
       const running = { turns: 0, spawns: 0, tokens: 0 };
       const rebuilt: LeaseRuntime[] = [];
@@ -1597,13 +1711,14 @@ export function createLeaseBroker(
             parent: item.parent,
             depth: item.depth,
             contentHash: item.contentHash,
-            // 맡긴 쪽 이름은 기록의 `parent`로 찾는다. 맡길 때 넘긴 입력은 기록에 없어 null이다
+            // 맡긴 쪽 이름은 기록의 `parent`로 찾는다. 입력은 `lease.acquired.input`이고 옛 기록은 null이다
             calledBy: callerNameOf(open, item.parent),
-            input: null,
+            input: item.input,
             state: "waiting",
             wantInvoke: false,
             committed: true,
             restoring: true,
+            awaitUser: false,
           }),
         );
         thread.leaseEpochs.set(
@@ -1614,9 +1729,33 @@ export function createLeaseBroker(
       rebuilt.reverse();
       // 맨 위만 다시 묻는다. 아래 프레임은 맡긴 기록으로 기다린다
       const top = rebuilt.at(-1);
+      const topEnd = open.at(-1)?.handoffEnd ?? null;
+      // 재시작 전에 큐에 있던 사용자 명령과 맡기기를 큐에 되살린다(기록에서 읽은 순서대로)
+      for (const request of pending) {
+        thread.startQueue.push({
+          requestId: request.requestId,
+          scopeId: request.scopeId,
+          trigger: request.trigger,
+          input: request.input,
+          parentLeaseId: request.parent,
+          recorded: true,
+        });
+      }
+      // 맡기기 요청이 맨 위를 가리키면 그 프레임은 맡은 프레임의 부여를 기다린다(다시 묻지 않는다)
+      const waitingForHandoff =
+        top !== undefined &&
+        pending.some((request) => request.trigger === "handoff" && request.parent === top.leaseId);
       if (top !== undefined) {
-        top.state = "driving";
-        top.wantInvoke = true;
+        if (waitingForHandoff) {
+          top.state = "waiting";
+        } else {
+          top.state = "driving";
+          top.wantInvoke = true;
+          // 맡긴 프레임이 재시작 직전에 끝난 맡기기의 결과를 받는다
+          if (topEnd !== null) {
+            top.pendingLast = { kind: "handoff", status: topEnd.status, result: topEnd.result };
+          }
+        }
       }
       thread.frames.push(...rebuilt);
       // 죽은 scope(레코드 없음, 켜지지 않은 채 원하지 않음, 세대 닫힘, stale)의 프레임은 그 프레임과 위 프레임 전부를 restart로 반납한다.
@@ -1645,7 +1784,7 @@ export function createLeaseBroker(
         // 사용자 중단이면 스택 전체를 내리고 시작 요청을 비운다. 사용자의 다음 명령이 정착할 때까지 프로필·맡기기 시작을 막는다
         thread.userStopped = txn.signal.userInterrupted === true;
         if (thread.userStopped) {
-          thread.startQueue.splice(0);
+          for (const request of thread.startQueue.splice(0)) recordDropped(thread, request);
           returnHeldIfUnclaimed(thread);
           releaseFrom(thread, 0, "revoked");
         }
@@ -1658,7 +1797,12 @@ export function createLeaseBroker(
           makeDraft(core.deps.ids, {
             threadId: thread.threadId,
             kind: "lease.released",
-            payload: { leaseId: frame.leaseId, scopeId: frame.scopeId, reason: frame.reason },
+            payload: {
+              leaseId: frame.leaseId,
+              scopeId: frame.scopeId,
+              reason: frame.reason,
+              ...(frame.reason === "done" && frame.result !== null ? { result: frame.result } : {}),
+            },
             turnId: txn.signal.turnId,
             stepId: txn.signal.stepId,
           }),
@@ -1676,8 +1820,11 @@ export function createLeaseBroker(
     },
     grant(thread, txn) {
       decide(thread, txn);
+      // 판단 뒤에 싣는다: 이 경계가 버린 요청은 큐에서 이미 빠져 있어 기록되지 않는다. 읽는 쪽은 기록 순서와 무관하게 부여·버림을 본다
+      recordPending(thread, txn);
     },
     applyCommitted(thread, txn) {
+      for (const request of txn.recording) request.recorded = true;
       if (txn.releasing.length > 0) {
         const released = new Set(txn.releasing);
         const before = thread.frames;
@@ -1769,6 +1916,17 @@ export function createLeaseBroker(
       if (record.generation !== null && record.generation.drive === null) {
         return err({ kind: "not_drive" });
       }
+      // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다
+      if (!withinInputLimit(input)) return err({ kind: "input_too_large" });
+      const request: StartRequest = {
+        requestId: trigger === "profile" ? null : core.deps.ids.next("evt"),
+        scopeId,
+        trigger,
+        input,
+        parentLeaseId: null,
+        // 사용자 명령은 다음 경계의 커밋에 요청 기록을 함께 싣는다(`recordPending`). 프로필 시작은 기록하지 않는다
+        recorded: trigger === "profile",
+      };
       // 사용자가 다시 명령하면 멈춤을 푼다
       if (trigger === "user") thread.userStopped = false;
       // 같은 scope와 같은 계기, 같은 입력의 요청이 이미 큐에 있으면 하나로 본다. 입력이 연달아 와도 시작은 한 번만 부여된다
@@ -1780,7 +1938,7 @@ export function createLeaseBroker(
           item.parentLeaseId === null &&
           item.input === input,
       );
-      if (!queued) thread.startQueue.push({ scopeId, trigger, input, parentLeaseId: null });
+      if (!queued) thread.startQueue.push(request);
       // 주도 중에 온 사용자 명령: 질문 대기나 실행 밖이면 지금 스택을 바꾸고, 실행 중이면 단계 경계에서 바꾼다(switch-policy.ts)
       const top = topFrame(thread);
       if (trigger === "user" && top !== null && top.status === "active") {

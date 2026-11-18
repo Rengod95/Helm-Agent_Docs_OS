@@ -40,6 +40,7 @@ export function fakeConnection(
     "migration.changed": new Set(),
     "migration.progress": new Set(),
     "turnRecord.delta": new Set(),
+    "backtest.progress": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];
   const connection: HostConnection = {

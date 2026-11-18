@@ -70,7 +70,9 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   const thread = t.newThread();
   const group = smokeGroup();
   await install(t, group);
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "smoke-group");
   await t.settled();
 
   // drive: 임대를 받아 turn 명령을 한 번 내고 상태를 커밋한다. turn 명령의 결과 사건(drive.command_settled)이 남고 commit은 상태 커밋 사건이 그 기록이다
@@ -79,6 +81,7 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   expect(events.map((event) => event.kind)).toEqual([
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
   ]);
@@ -146,7 +149,9 @@ test("smoke.toggle-applies-at-step-boundary", async () => {
   });
   const thread = t.newThread();
   await install(t, smokeGroup());
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "smoke-group");
   await flushMicrotasks(200);
   // drive의 turn 명령이 진행 중이다
   expect(t.loop.turns).toHaveLength(1);
@@ -170,7 +175,9 @@ test("smoke.resume-reads-committed-state", async () => {
   const first = await createTestHost();
   const thread = first.newThread();
   await install(first, smokeGroup());
-  await first.host.openThread(thread, { startDrive: "smoke-group" });
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.startDrive(thread, "smoke-group");
   await first.settled();
   expect(first.loop.turns).toHaveLength(1);
 
@@ -179,7 +186,9 @@ test("smoke.resume-reads-committed-state", async () => {
     shared: { records: first.records, loop: first.loop, queue: first.queue },
   });
   await install(second, smokeGroup());
-  await second.host.openThread(thread, { startDrive: "smoke-group" });
+  await second.host.openThread(thread);
+  await second.settled();
+  second.host.startDrive(thread, "smoke-group");
   await second.settled();
   const loaded = await second.records.loadThread(thread);
   expect(loaded.ok).toBe(true);

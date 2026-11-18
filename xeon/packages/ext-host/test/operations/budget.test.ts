@@ -270,7 +270,8 @@ test("budget: drive has no time budget", async () => {
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "bud-drive" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "bud-drive");
   await flushMicrotasks(100);
   await t.timers.advance(600_000);
   expect(t.host.registrations()[0]?.drive).toBe("holding");

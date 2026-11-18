@@ -30,3 +30,4 @@ export * from "./plugin.ts";
 export * from "./plugin-review.ts";
 export * from "./migration.ts";
 export * from "./turn-record.ts";
+export * from "./backtest.ts";

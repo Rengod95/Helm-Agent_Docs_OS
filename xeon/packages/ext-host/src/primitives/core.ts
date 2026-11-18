@@ -226,8 +226,10 @@ export interface LeaseRuntime {
   running: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
-  /** 첫 단계가 끝났다. 그 전에 온 사용자 메시지는 `inbox`에서 기다렸다가 첫 단계 뒤에 전달한다: 시작 주도의 첫 단계가 항상 먼저다(drive-isolation.md 2.4) */
+  /** 첫 단계가 끝났다. 사용자 명령이 시작한 주도에서는 그 전에 온 사용자 메시지가 `inbox`에서 기다렸다가 첫 단계 뒤에 전달된다. `awaitUser`인 프레임은 메시지가 첫 단계의 입력이다(drive-isolation.md 2.4) */
   firstStepDone: boolean;
+  /** 프로필의 시작 주도: 사용자의 첫 메시지가 첫 단계의 입력이다. 첫 단계 전에는 메시지가 올 때까지 단계 함수를 부르지 않는다(AGE-47) */
+  readonly awaitUser: boolean;
   /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
   userSeq: number;
   /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */
@@ -252,10 +254,14 @@ interface HeldUserMessage {
 }
 
 export interface StartRequest {
+  /** 기록(`lease.requested`)의 요청 id. 프로필 시작은 열 때 다시 만들어 기록하지 않으므로 null */
+  readonly requestId: string | null;
   readonly scopeId: RegistrationId;
   readonly trigger: "user" | "profile" | "handoff";
   readonly input: JsonValue | null;
   readonly parentLeaseId: string | null;
+  /** 기록(`lease.requested`)이 끝났다. 끝나기 전에는 부여하지 않는다. 기록하지 않는 요청은 처음부터 참 */
+  recorded: boolean;
 }
 
 /** `ExtHost.startDrive`의 거부. 예상 가능한 실패라 값으로 돌려준다 */
@@ -264,7 +270,9 @@ export type StartDriveError =
   | { readonly kind: "unknown_scope" }
   | { readonly kind: "child_thread" }
   | { readonly kind: "not_drive" }
-  | { readonly kind: "drive_error" };
+  | { readonly kind: "drive_error" }
+  /** 입력이 기록에 실릴 수 있는 크기(`DRIVE_INPUT_MAX_BYTES`)를 넘는다 */
+  | { readonly kind: "input_too_large" };
 
 // ── thread별 런타임 ────────────────────────────────────────────────────────
 
@@ -300,6 +308,8 @@ export interface BoundaryTxn {
    * 커밋이 실패하면 아무것도 바뀌지 않아 다음 경계가 다시 판단한다
    */
   abandoning: StartRequest | null;
+  /** 이 커밋에 `lease.requested`(queued) 초안을 함께 싣는 요청. 커밋이 성공하면 `recorded`를 참으로 한다 */
+  readonly recording: StartRequest[];
 }
 
 /** `ExtHost.openThread`의 선택 인자 */

@@ -1288,6 +1288,10 @@ export interface BacktestItem {
     readonly ms: number;
   };
   readonly class: BacktestClass;
+  /** `class`가 `already_stopped`일 때 먼저 멈춘 훅의 이름(§4.8 규칙 49). 그 밖에는 없다 [제안] */
+  readonly skippedBy?: string;
+  /** 같은 입력을 두 번 돌려 결과가 달랐다(§4.8 규칙 48). 아니면 생략한다 [제안] */
+  readonly nondeterministic?: true;
   readonly unreplayableReason?:
     | "tool_unknown"
     | "args_missing"
@@ -1321,6 +1325,8 @@ const BacktestItemShape = closed({
     ms: Ms,
   }),
   class: BacktestClassSchema,
+  skippedBy: Type.Optional(Name),
+  nondeterministic: Type.Optional(Type.Literal(true)),
   unreplayableReason: Type.Optional(
     literalUnion([
       "tool_unknown",
