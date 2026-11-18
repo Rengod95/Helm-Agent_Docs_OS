@@ -36,6 +36,8 @@ export interface TestHostOptions {
   /** 리소스 이름 충돌 판정(`ExtHostDeps.resourcePolicy`) */
   readonly resourcePolicy?: ResourcePolicy;
   readonly setupBudgetMs?: number | null;
+  /** 입력과 `done` 결과의 직렬화 크기 상한(`ExtHostDeps.driveInputMaxBytes`). 없으면 `DRIVE_INPUT_MAX_BYTES`다 */
+  readonly driveInputMaxBytes?: number;
   /** setup 예산을 호출 때마다 읽는다. 정책(OperationsPolicy.setupBudgetMs)을 그대로 넘길 때 쓴다 */
   readonly setupBudget?: () => number | null;
   readonly settings?: StaticPrimitivesSettings;
@@ -121,6 +123,9 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     setTimer: timers.setTimer,
     ...(options.policy === undefined ? {} : { policy: options.policy }),
     ...(options.resourcePolicy === undefined ? {} : { resourcePolicy: options.resourcePolicy }),
+    ...(options.driveInputMaxBytes === undefined
+      ? {}
+      : { driveInputMaxBytes: options.driveInputMaxBytes }),
     setupBudgetMs: options.setupBudget ?? (() => options.setupBudgetMs ?? null),
     settings: options.settingsSource ?? createStaticPrimitivesSettings(options.settings),
     report: (diagnostic) => {

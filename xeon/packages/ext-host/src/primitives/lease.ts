@@ -196,16 +196,23 @@ function isActive(lease: LeaseRuntime): boolean {
 }
 
 /**
- * 프레임을 여는 입력(맡기기의 `input`, 사용자 명령의 `input`)과 `done` 결과가 기록에 실릴 수 있는 직렬화 크기 상한(바이트).
- * 내구 envelope 상한이 256 KiB(`ENVELOPE_MAX_BYTES`)라 그 안에 들어가는 가장 널널한 값으로 잡았다. 넘으면 잘라 저장하지 않고 거절한다
- * [제안: AGE-26의 "상한은 널널히"를 이 값으로 구현. 1 MiB는 envelope 상한을 넘어 저장할 수 없다]
+ * 프레임을 여는 입력(맡기기의 `input`, 사용자 명령의 `input`, 가로챈 사용자 메시지)과 `done` 결과가 기록에 실릴 수 있는 직렬화 크기 상한(바이트).
+ * 큰 내용은 블롭으로 분리되므로(L1 `encoding: "json"`) 상한은 블롭 상한(`l0.store.maxBlobBytes`, 기본 512 MiB)과 같은 값이다.
+ * 넘으면 잘라 저장하지 않고 거절한다. 조립 루트는 `ExtHostDeps.driveInputMaxBytes`로 다른 값을 넘길 수 있다.
+ * 격리 플러그인에는 프레임 상한(16 MiB)을 넘는 입력이 닿지 않는다(X.loading-trust §4.9.3)
  */
-export const DRIVE_INPUT_MAX_BYTES = 200_000;
+export const DRIVE_INPUT_MAX_BYTES = 536_870_912;
 
-/** JSON 값의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES` 안인가 */
-function withinInputLimit(value: JsonValue | null): boolean {
+/**
+ * JSON 값의 UTF-8 직렬화 크기가 `limit` 안인가. 직렬화는 한 번만 한다. UTF-16 단위 하나는 UTF-8로 1바이트 이상 3바이트 이하라
+ * 길이로 먼저 가릴 수 있다: 길이가 `limit`을 넘으면 넘고, 길이의 3배가 `limit` 이하면 안이다. 그 사이만 인코딩해 잰다
+ */
+function withinInputLimit(value: JsonValue | null, limit: number): boolean {
   if (value === null) return true;
-  return new TextEncoder().encode(JSON.stringify(value)).length <= DRIVE_INPUT_MAX_BYTES;
+  const json = JSON.stringify(value);
+  if (json.length > limit) return false;
+  if (json.length * 3 <= limit) return true;
+  return new TextEncoder().encode(json).length <= limit;
 }
 
 /** 명령이 거부 결과가 되는 `StepOutcome`. 예외가 아니다 */
@@ -889,7 +896,9 @@ export function createLeaseBroker(
     const { thread, lease, record } = ctx;
     if (lease.status !== "active") return INACTIVE;
     // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다. 이유는 결과 코드로 돌려준다
-    if (!withinInputLimit(command.input)) return refusal("input_too_large");
+    if (!withinInputLimit(command.input, core.deps.driveInputMaxBytes)) {
+      return refusal("input_too_large");
+    }
     if (command.to === record.extension) return refusal("self_handoff");
     if (thread.frames.some((frame) => core.scopes.get(frame.scopeId)?.extension === command.to)) {
       return refusal("already_in_stack");
@@ -1047,7 +1056,9 @@ export function createLeaseBroker(
       case "yield":
         return { kind: "yield" };
       case "done":
-        if (!withinInputLimit(command.result ?? null)) return refusal("result_too_large");
+        if (!withinInputLimit(command.result ?? null, core.deps.driveInputMaxBytes)) {
+          return refusal("result_too_large");
+        }
         return { kind: "done", result: command.result ?? null };
       case "handoff":
         return handoffOf(ctx, command);
@@ -1971,7 +1982,9 @@ export function createLeaseBroker(
       // 메시지를 받았다고 답하기 전에 기록한다. 코어 루프는 가로챈 메시지를 입력 큐에 넣지 않으므로 이 기록이 재시작 뒤 되살리는 유일한 근거다.
       // 기록하지 못하거나 너무 크면 가로채지 않고 코어 루프가 평소대로(입력 큐로) 받게 한다
       const input = toJsonValue(item);
-      if (input === undefined || !withinInputLimit(input)) return false;
+      if (input === undefined || !withinInputLimit(input, core.deps.driveInputMaxBytes)) {
+        return false;
+      }
       const held = await recordUserInput(thread, claimable.scopeId, requestId, "held", input);
       if (held === "failed") return false;
       // 같은 요청 id의 재제출이다(클라이언트의 재시도). 이미 받은 메시지이므로 다시 쌓지 않는다
@@ -2029,7 +2042,9 @@ export function createLeaseBroker(
         return err({ kind: "not_drive" });
       }
       // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다
-      if (!withinInputLimit(input)) return err({ kind: "input_too_large" });
+      if (!withinInputLimit(input, core.deps.driveInputMaxBytes)) {
+        return err({ kind: "input_too_large" });
+      }
       const request: StartRequest = {
         requestId: trigger === "profile" ? null : core.deps.ids.next("evt"),
         scopeId,

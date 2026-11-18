@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { parseJson } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import { PLUGIN_HOST_MAX_FRAME_BYTES, type PostItem } from "@fresnel/contracts/extensions";
 import type { CommandResourceDef } from "../../src/primitives/resources.ts";
 import { createIsolatedEntry } from "../../src/index.ts";
 import {
@@ -97,6 +98,11 @@ function startOf(t: TestHost, thread: ThreadId, scenario: string) {
 function stepsSent(port: FakeProcessPort): number {
   const text = port.children[0]?.received() ?? "";
   return text.split('"method":"drive.step"').length - 1;
+}
+
+/** 진단의 원인이 오류면 그 글을, 아니면 빈 글을 준다 */
+function causeMessageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : "";
 }
 
 /** 격리 주도 픽스처를 올린 호스트. 스레드는 열려 있고 주도는 아직 시작하지 않았다 */
@@ -304,4 +310,42 @@ test("a host restart while the isolated step waits after a recorded turn restore
   expect(second.loop.turns.map((turn) => turn.requestId)).toEqual(["turn-1"]);
   expect(eventsOf(second, first.thread, "drive.command_settled")).toEqual(settledBefore);
   expect(acquiredOf(second, first.thread)).toHaveLength(1);
+});
+
+// 프레임 상한(16 MiB) 시험. 엔진의 입력 상한(512 MiB) 안의 입력은 받아 기록되지만, 그 입력이 `drive.step` 프레임에 실리면
+// 한 줄이 16 MiB를 넘어 자식에게 보내지 않고 `frame_too_large`로 떨어진다(X.loading-trust §4.9.3). 자식은 살아 있고 멈추지 않는다.
+
+test("a start input over the frame limit is recorded but never sent: the drive step fails with the frame error and the child stays alive", async () => {
+  const { t, port, thread } = await isolatedHost();
+  // `frame.input`으로 실려 가는 입력이다
+  const huge = "x".repeat(PLUGIN_HOST_MAX_FRAME_BYTES);
+  expect(t.host.startDrive(thread, "dr", { input: huge }).ok).toBe(true);
+  await t.settled();
+
+  expect(stepsSent(port)).toBe(0);
+  expect(port.children).toHaveLength(1);
+  expect(port.children[0]?.isAlive()).toBe(true);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["error"]);
+  const failed = t.diagnostics.filter((diagnostic) => diagnostic.code === "handler_failed");
+  expect(failed.map((diagnostic) => causeMessageOf(diagnostic.cause))).toEqual([
+    `the frame is larger than ${PLUGIN_HOST_MAX_FRAME_BYTES} bytes; nothing was sent`,
+  ]);
+  expect(t.host.registrations()[0]?.drive).toBe("error");
+});
+
+test("a user message over the frame limit is claimed and recorded, but the step that would carry it fails with the frame error", async () => {
+  const { t, port, thread } = await isolatedHost();
+  expect(await startOf(t, thread, "steps")).toBe("started");
+  await t.settled();
+  const sentBefore = stepsSent(port);
+
+  // 사용자 메시지는 `last`(`kind: "user"`)로 실려 가는 값이다. 받는 쪽 상한은 엔진이 정하므로 기록까지 간다
+  const huge: PostItem = { kind: "user", content: "x".repeat(PLUGIN_HOST_MAX_FRAME_BYTES) };
+  expect(await t.host.claimUserInput(thread, huge, "msg-big")).toBe(true);
+  await t.settled();
+
+  expect(stepsSent(port)).toBe(sentBefore);
+  expect(port.children[0]?.isAlive()).toBe(true);
+  expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["error"]);
+  expect(t.host.registrations()[0]?.drive).toBe("error");
 });

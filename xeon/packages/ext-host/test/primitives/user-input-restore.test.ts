@@ -9,7 +9,6 @@ import {
   LeaseUserInputPayloadSchema,
   type LeaseUserInputPayload,
 } from "@fresnel/contracts/records";
-import { DRIVE_INPUT_MAX_BYTES } from "../../src/primitives/lease.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import { until } from "../isolation/support/fake-process.ts";
@@ -26,6 +25,8 @@ const SCRIPTED: MemoryLoopOptions = {
 
 const GO: PostItem = { kind: "user", content: "go" };
 const LIMITS = { maxTurns: 4 };
+/** 입력 상한을 작게 주입한다(기본값은 512 MiB라 시험이 그만큼 할당할 수 없다) */
+const INPUT_LIMIT = 1000;
 
 interface Seen {
   readonly last: StepResult | null;
@@ -137,13 +138,13 @@ test("a message resubmitted with the same request id is not delivered twice", as
 });
 
 test("a message too large to record is not claimed, so the input queue receives it as usual", async () => {
-  const t = await createTestHost({ loop: SCRIPTED });
+  const t = await createTestHost({ loop: SCRIPTED, driveInputMaxBytes: INPUT_LIMIT });
   const thread = t.newThread();
   const seen: Seen[] = [];
   await install(t, "ui-p", seen);
   await t.host.openThread(thread, { startDrive: "ui-p" });
   await t.settled();
-  const big: PostItem = { kind: "user", content: "x".repeat(DRIVE_INPUT_MAX_BYTES + 1) };
+  const big: PostItem = { kind: "user", content: "x".repeat(INPUT_LIMIT + 1) };
   expect(await t.host.claimUserInput(thread, big, "m-big")).toBe(false);
   await t.settled();
   expect(seen).toEqual([]);
