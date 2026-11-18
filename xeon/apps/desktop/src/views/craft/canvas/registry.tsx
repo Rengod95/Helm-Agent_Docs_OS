@@ -6,6 +6,7 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import * as cvA from "./cvA/index.tsx";
 import * as cvB from "./cvB/index.tsx";
 import * as cvC from "./cvC/index.tsx";
+import * as cvD from "./cvD/index.tsx";
 
 export interface CanvasDesign {
   readonly id: string;
@@ -32,8 +33,26 @@ function CvBScreen(): ReactNode {
   );
 }
 
+/** D는 원래 시안 고르기를 목록 판 아래에 받았다. 고르기는 귀퉁이 전환기로 옮겼으므로 빈 자리를 준다 */
+function CvDScreen(): ReactNode {
+  const [inside, setInside] = useState<string | null>(null);
+  if (inside === null) return <cvD.ProfileCanvas onOpen={setInside} picker={null} />;
+  return (
+    <cvD.PluginInside
+      key={inside}
+      pluginId={inside}
+      onOpen={setInside}
+      picker={null}
+      onBack={() => {
+        setInside(null);
+      }}
+    />
+  );
+}
+
 export const CANVAS_DESIGNS: readonly CanvasDesign[] = [
   { id: "cvA", letter: "A", name: "desktop.craft.canvas.cvA.name", Screen: cvA.ProfileCanvas },
   { id: "cvB", letter: "B", name: "desktop.craft.canvas.cvB.name", Screen: CvBScreen },
   { id: "cvC", letter: "C", name: "desktop.craft.canvas.cvC.name", Screen: cvC.ProfileCanvas },
+  { id: "cvD", letter: "D", name: "desktop.craft.canvas.cvD.name", Screen: CvDScreen },
 ];
