@@ -6989,6 +6989,102 @@
         }
       }
     },
+    "x.operations.backtest.callTimeoutMs": {
+      "default": 5000,
+      "maximum": 60000,
+      "minimum": 100,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Time limit for one candidate hook call",
+          "labelKey": "settings.x.operations.backtest.callTimeoutMs.label",
+          "order": 562,
+          "tab": "plugins",
+          "unit": "ms",
+          "unitKey": "settings.x.operations.backtest.callTimeoutMs.unit",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.backtest.maxCalls": {
+      "default": 2000,
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Maximum tool calls per backtest",
+          "labelKey": "settings.x.operations.backtest.maxCalls.label",
+          "order": 561,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.backtest.maxTurns": {
+      "default": 50,
+      "maximum": 1000,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Maximum turns per backtest",
+          "labelKey": "settings.x.operations.backtest.maxTurns.label",
+          "order": 560,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.backtest.totalTimeoutMs": {
+      "default": 120000,
+      "maximum": 3600000,
+      "minimum": 1000,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Time limit for one backtest",
+          "labelKey": "settings.x.operations.backtest.totalTimeoutMs.label",
+          "order": 563,
+          "tab": "plugins",
+          "unit": "ms",
+          "unitKey": "settings.x.operations.backtest.totalTimeoutMs.unit",
+          "widget": "number"
+        }
+      }
+    },
     "x.operations.budget.chainMs": {
       "default": 10000,
       "maximum": 600000,

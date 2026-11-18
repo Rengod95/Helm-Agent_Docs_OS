@@ -85,6 +85,8 @@ import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { userSkillsDir, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
+import { createBacktestPort, type BacktestSource } from "./backtest/port.ts";
+import { backtestSettingsOf } from "./backtest/settings.ts";
 import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
   createUsageSource,
@@ -168,6 +170,11 @@ export interface PortsDeps {
   readonly commands: CommandRegistryHolder;
   /** 측정 저장소 읽기 원천(T-MEAS-READ) */
   readonly measure: MeasureReadSource;
+  /**
+   * 지난 턴에 돌려 보기의 격리와 설정 원천(늦게 묶는다). 없으면(플러그인 호스트를 조립하지 않은 시험) 격리가 없는 것이다:
+   * 돌려 보기는 `3524`로 답한다
+   */
+  readonly backtest?: BacktestSource;
   /** 웹 런타임 자리. cap-web 확장이 채운다(`web.providers`) */
   readonly web: WebStatusHolder;
   /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
@@ -1305,6 +1312,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       backgroundCallsOf(deps.measure),
     ),
     measure: measurePort,
+    backtest: createBacktestPort({
+      turns: measurePort.turnRecord,
+      session: deps.session,
+      plugins: deps.pluginStore,
+      threadIds: () => allThreadRows().map((row) => row.threadId),
+      isolation: () => deps.backtest?.isolation() ?? { available: false },
+      settings: () => deps.backtest?.settings() ?? backtestSettingsOf(() => undefined),
+      now: () => deps.clock.now(),
+      // 실행 id는 `bt_` 접두와 공용 id의 ULID 부분이다(지역 접두 표에 `bt`를 더하지 않는다 [제안])
+      newRunId: () => `bt_${deps.ids.next("evt").slice("evt_".length)}`,
+    }),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

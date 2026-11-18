@@ -2,6 +2,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { MeasurePort } from "../../src/assembly/measure/read.ts";
+import type { BacktestPort } from "../../src/assembly/backtest/service.ts";
 import { createTurnRecordPort } from "../../src/assembly/measure/turn-read.ts";
 import type { Notice } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId, TurnInvoked } from "@fresnel/contracts/conversation";
@@ -152,6 +153,7 @@ export interface FakeEngineOptions {
     readonly proposals?: Partial<ProposalPort>;
     readonly usage?: Partial<UsagePort>;
     readonly measure?: Partial<MeasurePort>;
+    readonly backtest?: Partial<BacktestPort>;
     readonly activity?: Partial<ActivityPort>;
     readonly schedule?: Partial<ScheduleService>;
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
@@ -640,6 +642,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       }),
       ...options.overrides?.measure,
     },
+    // 돌려 보기는 쓰는 멤버만 채운다. 채우지 않은 멤버를 부르면 undefined라 시험이 바로 실패한다
+    backtest: partial<BacktestPort>({ ...options.overrides?.backtest }),
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
       decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),

@@ -148,6 +148,8 @@ import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import { createBacktestIsolation, type BacktestIsolation } from "./assembly/backtest/isolation.ts";
+import { backtestSettingsOf } from "./assembly/backtest/settings.ts";
 import { watchUserSettings, type SettingsWatch } from "./assembly/settings-watch.ts";
 import {
   createSecretsPort,
@@ -718,6 +720,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  /** 돌려 보기의 격리(후보는 이 자식에서만 돈다). 플러그인 호스트 조립이 있을 때만 채운다 */
+  const backtestIsolationSlot: { current: BacktestIsolation } = { current: { available: false } };
   /** 재료 포트(M5c §4.5.10). 엔진 포트가 만들어진 뒤에 채운다. 턴 시작 지침과 스킬 색인이 호출 때 읽는다 */
   const materialSlot: { port: MaterialPort | undefined } = { port: undefined };
   /** 턴 기록 사건의 버스. 측정 저장소를 열 때 채운다(대화 삭제는 저장소가 없어도 알려야 한다) */
@@ -1394,6 +1398,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
       });
+      backtestIsolationSlot.current = createBacktestIsolation({
+        enabled: options.pluginHost?.disabled !== true,
+        process: pluginHosts.process,
+        launch: pluginHosts.isolation.launch,
+        setTimer: pluginHosts.isolation.setTimer,
+        initTimeoutMs: pluginHosts.isolation.initTimeoutMs,
+        now: () => clock.now(),
+        logger: os.logger("backtest"),
+        maskSecrets: (line) => secrets.service.redactor.mask(line).text,
+      });
       // 엔진이 죽고 남은 플러그인 호스트 자식을 먼저 정리한다(L4.host-service §4.9, drive-isolation.md §3.6). 던지지 않는다
       if (options.pluginHost?.disabled !== true) await pluginHosts.sweepOrphans();
       const loaded = await loadExternalExtensions({
@@ -1586,6 +1600,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       localIds,
       homeDir: os.dirs.home,
       startupNotices,
+      backtest: {
+        isolation: () => backtestIsolationSlot.current,
+        settings: () =>
+          backtestSettingsOf((key) => (built.catalog.has(key) ? settings.value(key) : undefined)),
+      },
       measure: {
         store: () => measurement.store,
         enabled: () => operations.trace().enabled,
