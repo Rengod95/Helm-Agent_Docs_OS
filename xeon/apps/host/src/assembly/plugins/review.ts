@@ -149,6 +149,10 @@ interface DraftCreated {
 export interface PluginReview {
   /** 원본을 다시 훑고(`plugin.scan`) 새 검토 항목을 만든다 */
   scan(): Promise<Result<{ readonly queued: readonly string[] }, PluginPortFailure>>;
+  /**
+   * 프로젝트를 등록하거나 작업 폴더를 연 뒤의 훑기(M5c §4.5.7). 실패는 로그에 남고 여는 일은 막지 않는다
+   */
+  scanOpened(): Promise<void>;
   requestRemove(name: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   revert(name: string): Promise<Result<{ readonly restored: true }, PluginPortFailure>>;
   draftCreate(
@@ -1103,6 +1107,15 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         if (!rebuilt.ok) return err(rebuilt.error);
         return scanSources();
       }),
+
+    scanOpened: async () => {
+      const scanned = await serial(async () => {
+        const rebuilt = await plugins.scan();
+        if (!rebuilt.ok) return err(rebuilt.error);
+        return scanSources();
+      });
+      if (!scanned.ok) log.error("plugin.scan.opened_failed", { kind: scanned.error.kind });
+    },
 
     requestRemove: (name) =>
       serial(async () => {

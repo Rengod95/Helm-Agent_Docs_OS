@@ -60,14 +60,18 @@ interface Rig {
 }
 
 /** 같은 루트를 여는 검토 서비스 묶음. 재시작 시험은 같은 루트로 다시 연다 */
-function openRig(root: string, hooks?: ApprovalHooks): Rig {
+function openRig(
+  root: string,
+  hooks?: ApprovalHooks,
+  projectRoots: () => Promise<readonly string[]> = () => Promise.resolve([]),
+): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
     fileLock: passThroughFileLock,
   });
   const service = createPluginService({
     configDir: join(root, "config"),
-    projectRoots: () => [],
+    projectRoots,
     managedDir: null,
     bundleDir: null,
     records: () => [],
@@ -158,6 +162,36 @@ async function approvedKit(rig: Rig): Promise<ReviewItem> {
   const itemId = firstOf(valueOf(await rig.review.scan()).queued);
   return valueOf(await rig.review.decide(itemId, APPROVE)).item;
 }
+
+// M5c §4.4.10, §4.5.2, §4.7.9: 등록된 프로젝트 루트의 동반 플러그인은 `project` 출처 검토 항목이다. 승인 전에는 검토본이 없다.
+test("a plugin carried by a registered project root is a project review item, with no reviewed copy until approved", async () => {
+  const root = tempRoot("plugin-review-project-");
+  roots.push(root);
+  const project = join(root, "project");
+  writeFiles(join(project, ".fresnel", "plugins", "carried"), {
+    ".fresnel-plugin/plugin.json": manifestOf("carried", "Carried by the project"),
+    "instructions.md": "Project rule.",
+  });
+  const rig = openRig(root, undefined, () => Promise.resolve([project]));
+  const queued = valueOf(await rig.review.scan()).queued;
+  expect(queued.length).toBe(1);
+  const item = valueOf(await rig.review.get(firstOf(queued))).item;
+  expect(item).toMatchObject({ name: "carried", provenance: "project", state: "pending" });
+  expect(valueOf(await rig.store.current("carried"))).toBeNull();
+
+  valueOf(await rig.review.decide(item.itemId, APPROVE));
+  expect(valueOf(await rig.store.current("carried"))).not.toBeNull();
+});
+
+test("a project folder that is not a registered root is not scanned", async () => {
+  const root = tempRoot("plugin-review-project-");
+  roots.push(root);
+  writeFiles(join(root, "project", ".fresnel", "plugins", "stray"), {
+    ".fresnel-plugin/plugin.json": manifestOf("stray", "Not registered"),
+  });
+  const rig = openRig(root, undefined, () => Promise.resolve([]));
+  expect(valueOf(await rig.review.scan()).queued).toEqual([]);
+});
 
 test("a new plugin folder is queued as a new item, and approving it makes the reviewed copy current", async () => {
   const rig = rigOf();

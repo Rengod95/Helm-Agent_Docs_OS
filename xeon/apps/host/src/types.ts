@@ -346,6 +346,11 @@ export interface EnginePorts {
   readonly plugins: PluginPort;
   /** 검토함(`pluginReview.*`, M5c §3.4, §4.7). 처리기와 알림 허브가 쓴다 */
   readonly pluginReview: PluginReviewPort;
+  /**
+   * 프로젝트를 열었을 때(작업 폴더가 있는 `thread.create`) 그 폴더의 동반 플러그인을 검토 항목으로 훑는다(M5c §4.5.7).
+   * 실패는 로그에 남고 여는 일을 막지 않는다
+   */
+  readonly scanOpenedRoots: () => Promise<void>;
   /** 턴 덧씌우기(`turn.start.overlay`, M5c §4.3). `turn.start` 처리기가 입력 처리 앞에 쓴다 */
   readonly overlay: OverlayPort;
   /** 마이그레이션 제출(migration.md §7.5 [제안]). wire 메서드가 아니다. M5g의 `migration.apply`가 부른다 */

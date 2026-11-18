@@ -304,7 +304,7 @@ test("검토된 플러그인의 호출 항목은 검토본 폴더의 스킬과 �
   });
   const service = createPluginService({
     configDir,
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir: null,
     records: () => [],

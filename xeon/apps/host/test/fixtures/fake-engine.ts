@@ -653,6 +653,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.pluginReview,
     }),
     overlay: partial<OverlayPort>({ ...options.overrides?.overlay }),
+    // 프로젝트를 여는 훑기는 검토 포트를 쓰지 않는 시험에서 아무 일도 하지 않는다
+    scanOpenedRoots: () => Promise.resolve(),
     pluginMigration: partial<MigrationSubmitPort>({}),
     m4: {
       extRead: createExtReadPort(

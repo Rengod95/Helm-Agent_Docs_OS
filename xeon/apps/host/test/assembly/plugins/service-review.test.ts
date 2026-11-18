@@ -75,7 +75,7 @@ async function releasedRig(): Promise<Rig> {
 function serviceOf(root: string, bundleDir: string | null, store: PluginStore): PluginService {
   return createPluginService({
     configDir: join(root, "config"),
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir,
     records: () => [],

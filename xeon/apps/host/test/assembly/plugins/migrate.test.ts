@@ -418,7 +418,7 @@ test("a migrated installed copy runs with the same content, and a later change t
 
   const service = createPluginService({
     configDir: join(rig.root, "config"),
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir: null,
     records: () => [],
@@ -515,7 +515,7 @@ test("a plugin read from the legacy extensions folder is named in the diagnostic
   await startup(rig);
   const service = createPluginService({
     configDir: join(rig.root, "config"),
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir: null,
     records: () => [],

@@ -103,7 +103,7 @@ export function pluginRigOf(): PluginRig {
   });
   const service = createPluginService({
     configDir: join(root, "config"),
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir: null,
     records: () => [],

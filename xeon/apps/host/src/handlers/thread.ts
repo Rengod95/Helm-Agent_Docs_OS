@@ -77,6 +77,8 @@ export function createThreadCreateHandler(
       const attached = await projects.attach(workspace.value);
       if (!attached.ok) throw wireErrorOfProject(attached.error);
       project = attached.value;
+      // 작업 폴더를 연 것이다. 그 폴더의 동반 플러그인을 검토 항목으로 훑는다(M5c §4.5.7). 실패는 로그에 남고 여는 일은 막지 않는다
+      await ports.scanOpenedRoots();
     }
     return {
       threadId: created.threadId,

@@ -81,6 +81,8 @@ export interface ProjectPortDeps {
   readonly threadRows: () => readonly ProjectThreadRow[];
   /** 배경 읽기(동기 원천의 값 갱신)가 실패했을 때 남긴다 */
   readonly report: (message: string, fields: Readonly<Record<string, unknown>>) => void;
+  /** 프로젝트를 등록한 뒤 부른다(조립이 그 루트의 동반 플러그인을 훑는다). 기다린다 */
+  readonly onRegistered?: () => Promise<void>;
 }
 
 function errorCode(caught: unknown): string {
@@ -285,6 +287,7 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
         return ok({ projects: [...snapshot.projects, project], value: project });
       });
       if (!done.ok) return err(failureOf(done.error));
+      await deps.onRegistered?.();
       return ok(done.value.value);
     },
 

@@ -2094,12 +2094,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     });
     if (trust === null) return finish(null, false);
     if (!trust.trusted) return finish(trust, false);
-    if (loadedProjects.has(trust.projectRoot)) return finish(trust, true);
+    const alreadyLoaded = loadedProjects.has(trust.projectRoot);
+    // 검토본 목록이 있으면 이미 실은 루트도 다시 본다. 승인이 그 뒤에 끝난 프로젝트 동반 플러그인이 다음 열기에 실리게 하려고다
+    // (이미 실린 이름은 `loadProjectCandidates`가 건너뛴다). 목록이 없는 조립은 훑기가 중복 이름을 내므로 기억한 루트를 다시 훑지 않는다
+    if (alreadyLoaded && deps.reviewedSource === undefined) return finish(trust, true);
     // 실리기 전에 중단되거나 실패하면 기억하지 않는다. 다음 호출이 다시 싣는다
     await loadProjectCandidates(trust.projectRoot, options.signal);
     loadedProjects.add(trust.projectRoot);
     for (const record of order) assertNotEssentialFailure(record);
-    return finish(trust, false);
+    return finish(trust, alreadyLoaded);
   }
 
   return {

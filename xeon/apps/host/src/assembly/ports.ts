@@ -449,7 +449,22 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     report: (message, fields) => {
       log.error(message, fields);
     },
+    // 프로젝트를 등록하면 그 루트의 동반 플러그인을 검토 항목으로 만든다(M5c §4.4.10)
+    onRegistered: () => pluginReview.scanOpened(),
   });
+  /**
+   * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run 대화는 뺀다). 같은 폴더는 한 번만 준다.
+   * 읽지 못한 등록 목록은 빈 목록으로 두고 로그에 남긴다(등록된 루트가 훑이지 않을 뿐 다른 훑기는 계속된다)
+   */
+  async function scanRootsOfProjects(): Promise<readonly string[]> {
+    const registered = await projects.roots();
+    if (!registered.ok) log.error("plugin.scan.roots_failed", { kind: registered.error.kind });
+    const explicit = registered.ok ? registered.value.map((root) => root.root) : [];
+    const opened = allThreadRows().flatMap((row) =>
+      row.testRun || row.status === "closed" || row.workspace === null ? [] : [row.workspace],
+    );
+    return [...new Set([...explicit, ...opened])];
+  }
 
   const threads: ThreadPort = {
     async create(input) {
@@ -1066,8 +1081,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   // 플러그인 읽기 서비스(M5c §3.4)와 검토 서비스(§4.7, §4.9). 프로필 목록은 M4 포트가 쥔 것을 부를 때마다 읽는다(`ports`는 아래에서 채워진다)
   const pluginService = createPluginService({
     configDir: deps.configDir,
-    // 프로젝트 개념(enC2 트랙)이 주입하기 전까지 프로젝트 위치를 보지 않는다
-    projectRoots: () => [],
+    projectRoots: scanRootsOfProjects,
     // 관리 폴더는 아직 조립되지 않았다
     managedDir: null,
     bundleDir: deps.defaultPluginsDir,
@@ -1227,6 +1241,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     overlay,
     pluginReview,
+    scanOpenedRoots: () => pluginReview.scanOpened(),
     pluginMigration,
     m4: createM4Ports(
       deps.ext,

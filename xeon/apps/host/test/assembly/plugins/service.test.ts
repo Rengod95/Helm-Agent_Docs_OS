@@ -56,7 +56,7 @@ function harnessOf(options: HarnessOptions = {}): Harness {
     createPluginStore({ root: join(configDir, "plugin-store"), fileLock: passThroughFileLock });
   const service = createPluginService({
     configDir,
-    projectRoots: () => [],
+    projectRoots: () => Promise.resolve([]),
     managedDir: null,
     bundleDir: null,
     records: () => options.records ?? [],

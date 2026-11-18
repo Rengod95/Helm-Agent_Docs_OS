@@ -51,8 +51,11 @@ export type PluginStoreReader = Pick<
 export interface PluginServiceDeps {
   /** 사용자 설정 폴더(`env.configDir`). 아래 `plugins/`와 기존 `extensions/`를 본다 */
   readonly configDir: string;
-  /** 프로젝트 루트 목록. 프로젝트 개념(enC2 트랙)이 주입한다. 지금은 빈 목록을 넘긴다 */
-  readonly projectRoots: () => readonly string[];
+  /**
+   * 프로젝트 루트 목록(M5c §4.5.2). 조립이 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더를 준다.
+   * 그 폴더의 `.fresnel/plugins`와 `.fresnel/extensions`가 동반 플러그인 후보다. 읽기는 정적이다(코드는 돌지 않는다)
+   */
+  readonly projectRoots: () => Promise<readonly string[]>;
   /** 관리 폴더. 조립에 아직 없으면 null */
   readonly managedDir: string | null;
   /** 기본 제공 번들 폴더(`defaultPluginsDir()`). 없으면 null */
@@ -223,7 +226,7 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
   const found = discoverPluginFolders({
     configDir: deps.configDir,
     extraPaths: [],
-    projectRoots: deps.projectRoots(),
+    projectRoots: await deps.projectRoots(),
     managedDir: deps.managedDir,
     bundleDir: deps.bundleDir,
   });
