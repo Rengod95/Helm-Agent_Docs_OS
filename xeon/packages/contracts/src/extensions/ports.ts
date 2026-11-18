@@ -516,7 +516,10 @@ export interface MaterialText {
   readonly key: string;
   readonly text: string;
 }
-/** MCP 서버 정의 하나와 소유 플러그인. 합친 뒤에도 기록(E)이 `mcp.<서버>`의 소유자를 알아야 한다(§4.5.10) */
+/**
+ * MCP 서버 항목 하나와 소유 플러그인. 합친 뒤에도 기록(E)이 `mcp.<서버>`의 소유자를 알아야 한다(§4.5.10).
+ * `config`는 검토본 `mcp.json`의 항목 모양(`.mcp.json` 항목과 같다)이다. cap-mcp가 서버 정의로 바꾸고 `<plugin>-<name>` id를 붙인다 [제안]
+ */
 export interface McpServerMaterial {
   readonly plugin: string;
   readonly name: string;

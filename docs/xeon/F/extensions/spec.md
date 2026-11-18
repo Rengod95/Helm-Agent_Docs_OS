@@ -1045,7 +1045,7 @@ export interface MaterialPort {                                   // X가 구현
   instructions(threadId: ThreadId): readonly MaterialText[];      // MaterialText = { key, text }
   skillRoots(threadId: ThreadId): readonly SkillRootMaterial[];   // { plugin, dir }. 켜짐 집합에 든 플러그인 중 스킬이 있는 것. [미결] 반환 모양은 스펙이 적지 않아 가장 가까운 모양을 골랐다
   agentDefinitions(threadId: ThreadId): readonly MaterialText[];  // [미결] [근거: review/m5/profile-project-loader.md §3.5]
-  mcpServers(threadId: ThreadId): readonly McpServerMaterial[];   // { plugin, name, config }. 소유 플러그인 이름을 남긴다
+  mcpServers(threadId: ThreadId): readonly McpServerMaterial[];   // { plugin, name, config }. 소유 플러그인 이름을 남긴다. config는 검토본 mcp.json 항목 모양이다(코어 연결 2026-11-18)
   commands(threadId: ThreadId): readonly MaterialText[];          // [미결] [근거: review/m5/profile-project-loader.md §3.5]
 }
 export interface PluginSubmitPort {                               // 담당 AI(빌더)만 부른다. wire 메서드가 아니다

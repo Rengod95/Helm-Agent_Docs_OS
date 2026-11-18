@@ -71,7 +71,7 @@ import type {
   InstallResult,
 } from "@fresnel/ext-host";
 import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
-import type { McpProcessPort } from "@fresnel/cap-mcp";
+import type { ContributedServer, McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
 import {
@@ -274,6 +274,18 @@ function pluginSkillRootsOf(
     dir: root.dir,
     extension: root.plugin,
   }));
+}
+
+/**
+ * 대화의 켜짐 집합에 든 플러그인의 MCP 서버 정의(M5c §4.5.10). cap-mcp가 그 대화의 정의를 읽을 때 부른다. 재료 포트가 없으면 빈 목록이다.
+ * 같은 모양이라 재료 포트의 항목을 그대로 준다
+ */
+function pluginMcpServersOf(
+  materials: () => MaterialPort | undefined,
+  threadId: string,
+): readonly ContributedServer[] {
+  if (!isId("thr", threadId)) return [];
+  return materials()?.mcpServers(threadId) ?? [];
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
@@ -494,6 +506,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           version: deps.engineVersion,
           reservedToolNames: reservedToolNames,
           workspaceOf: workspaceOfId,
+          contributed: (threadId) => pluginMcpServersOf(deps.materials, threadId),
           ...(deps.mcpProcess === undefined ? {} : { process: deps.mcpProcess }),
           ...(deps.onMcpClient === undefined ? {} : { onClient: deps.onMcpClient }),
           // 서버 변화는 그 단계를 연 대화의 `thread.mcp.after`다(M5e §5.1 H-8). 키는 대화와 단계로 정해진다

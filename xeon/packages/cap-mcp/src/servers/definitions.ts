@@ -4,7 +4,12 @@ import type { McpFileReader } from "../ports/files.ts";
 import type { McpProjectTrust } from "../ports/trust.ts";
 import { readMcpSettings, readSettingsServers, type McpSettings } from "../settings.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
-import { parseMcpJson, type McpJsonOrigin } from "./loader.ts";
+import {
+  parseContributedServers,
+  parseMcpJson,
+  type ContributedServer,
+  type McpJsonOrigin,
+} from "./loader.ts";
 
 // L2.mcp.spec §4.2. 설정과 `.mcp.json`을 합쳐 서버 정의 목록을 만든다(확장 등록 서버는 service가 더한다).
 // `.mcp.json`(루트)과 `.fresnel/mcp.json`은 프로젝트가 신뢰된 뒤에만 읽는다(결정 D6).
@@ -12,6 +17,8 @@ import { parseMcpJson, type McpJsonOrigin } from "./loader.ts";
 export interface DefinitionsDeps {
   readonly layers: ScopeStack;
   readonly projectRoot: string | undefined;
+  /** 대화의 켜짐 플러그인이 낸 서버 정의(`MaterialPort.mcpServers`). 설정 다음, `.mcp.json` 앞에 합친다 */
+  readonly contributed: readonly ContributedServer[];
   readonly files: McpFileReader;
   readonly trust: McpProjectTrust;
   readonly logger: Logger;
@@ -43,6 +50,12 @@ export async function loadDefinitions(
   const fromSettings = readSettingsServers(deps.layers);
   const diagnostics: LoaderDiagnostic[] = [...fromSettings.diagnostics];
   const servers: ServerDefinition[] = [...fromSettings.servers];
+  const fromPlugins = parseContributedServers(
+    deps.contributed,
+    new Set(servers.map((server) => server.id)),
+  );
+  diagnostics.push(...fromPlugins.diagnostics);
+  servers.push(...fromPlugins.servers);
   const root = deps.projectRoot;
   const wantsFiles = settings.importMcpJson && root !== undefined;
   const needsTrust = servers.some((server) => server.requiresTrust) || wantsFiles;

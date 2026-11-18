@@ -63,6 +63,7 @@ import type { McpStorePort } from "../ports/store.ts";
 import type { McpContinuationSource, McpToolRegistrar } from "../ports/tools.ts";
 import type { McpProjectTrust } from "../ports/trust.ts";
 import { loadDefinitions, type LoadedDefinitions } from "../servers/definitions.ts";
+import type { ContributedServer } from "../servers/loader.ts";
 import {
   buildApprovalRules,
   effectiveApprovalMode,
@@ -110,6 +111,11 @@ export interface McpDeps {
    * 프로젝트 출처 정의를 쓰지 않는다: 엔진 cwd로 대신하지 않는다(L4.host-service.spec HS-66, L2.readme §5.10). 조립 루트가 넘긴다
    */
   readonly workspaceOf?: ((threadId: string) => string | undefined) | undefined;
+  /**
+   * 대화의 켜짐 플러그인이 낸 MCP 서버(`MaterialPort.mcpServers`, M5c §4.5.10). 대화를 지정한 읽기(`McpLoadOptions.threadId`)만 쓴다.
+   * 그 대화의 프로필에서 플러그인이 빠지면 다음 읽기에서 정의가 사라져 서버가 닫힌다. 없으면 플러그인 서버가 없다
+   */
+  readonly contributed?: ((threadId: string) => readonly ContributedServer[]) | undefined;
   readonly files: McpFileReader;
   readonly trust: McpProjectTrust;
   readonly transports: TransportFactory;
@@ -856,6 +862,12 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return deps.projectRoot;
   }
 
+  /** 대화를 지정한 읽기만 그 대화의 플러그인 서버를 받는다. 대화 없는 읽기에는 플러그인 서버가 없다 */
+  function contributedOf(threadId: string | undefined): readonly ContributedServer[] {
+    if (threadId === undefined || deps.contributed === undefined) return [];
+    return deps.contributed(threadId);
+  }
+
   function readDefinitions(
     signal: AbortSignal,
     options: McpLoadOptions | undefined,
@@ -863,6 +875,7 @@ export function createMcp(deps: McpDeps): McpRuntime {
     return loadDefinitions(
       {
         layers: deps.settings.layers(options?.threadId),
+        contributed: contributedOf(options?.threadId),
         projectRoot: projectRootOf(options),
         files: deps.files,
         trust: deps.trust,
@@ -934,6 +947,8 @@ export function createMcp(deps: McpDeps): McpRuntime {
     service,
     async load(signal, options) {
       const result = await readDefinitions(signal, options);
+      // 대화를 지정한 처음 읽기도 마지막 대화가 된다. 대화 없는 목록 읽기가 그 대화의 플러그인 서버를 잃지 않게 한다(reloadNow와 같다)
+      if (options?.threadId !== undefined) lastThreadOptions = options;
       loaded = result;
       loadedPrint = definitionsFingerprint(result);
       resync();

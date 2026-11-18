@@ -26,7 +26,13 @@ export {
 } from "./settings.ts";
 export type { McpSettings, McpSettingsSource, SettingsServers } from "./settings.ts";
 export { loadDefinitions } from "./servers/definitions.ts";
-export { parseMcpJson, normalizeServerName } from "./servers/loader.ts";
+export {
+  contributedSourceOf,
+  normalizeServerName,
+  parseContributedServers,
+  parseMcpJson,
+} from "./servers/loader.ts";
+export type { ContributedServer } from "./servers/loader.ts";
 export { buildApprovalRules, evaluateServer, filterTool, toolRuleKey } from "./servers/policy.ts";
 export { buildQuestions } from "./elicitation/questions.ts";
 export { buildInputResponses, checkFormContent } from "./elicitation/responses.ts";

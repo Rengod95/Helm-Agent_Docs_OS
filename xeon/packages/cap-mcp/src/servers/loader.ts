@@ -4,6 +4,7 @@ import {
   MCP_SERVER_ID_PATTERN,
   type McpServerDef,
 } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
 import { asJsonObject } from "../json.ts";
 import { checkDefinitionValues } from "./values.ts";
@@ -149,4 +150,68 @@ export function parseMcpJson(
     servers.push({ id, def: converted.def, source, managed: false, requiresTrust: true });
   }
   return ok({ servers, diagnostics });
+}
+
+/**
+ * 대화의 켜짐 플러그인이 낸 MCP 서버 항목 하나(`MaterialPort.mcpServers`, M5c §4.5.10). `plugin`은 소유 플러그인 이름이고
+ * `config`는 검토본 `mcp.json`의 항목 모양(`.mcp.json` 항목과 같다)이다. 정의로 바꾸는 검사는 `.mcp.json`과 같다.
+ */
+export interface ContributedServer {
+  readonly plugin: string;
+  readonly name: string;
+  readonly config: JsonValue;
+}
+
+/** 플러그인이 낸 서버의 출처 표기. 확장 등록 서버와 같은 `ext:` 접두를 쓴다(`ext-read-port`가 확장 묶음으로 보인다) */
+export function contributedSourceOf(plugin: string): string {
+  return `ext:${plugin}`;
+}
+
+/**
+ * 플러그인이 낸 서버 항목을 서버 정의로 바꾼다. 서버 id는 [제안] `<플러그인>-<서버 이름>`(소문자, `[a-z0-9-]` 밖은 `-`)이다.
+ * 설정과 `.mcp.json`이 먼저 `taken`에 든다. 같은 id가 이미 있으면 그 항목만 건너뛰고 `duplicate_name` 진단을 남긴다(설정이 이긴다).
+ * 형식이 맞지 않거나 정의 검사(시크릿 평문 등)를 못 넘으면 그 서버만 건너뛴다.
+ * 신뢰는 요구하지 않는다(`requiresTrust: false`): 검토본은 내용 해시로 고정되어 있고 검토 승인이 신뢰 자리를 맡는다(M5c §4.6.9).
+ * 정책(거부 목록, 허용 목록, 승인 모드, 샌드박스)은 설정 서버와 같이 이 패키지의 정책 함수가 판정한다.
+ */
+export function parseContributedServers(
+  items: readonly ContributedServer[],
+  taken: ReadonlySet<string>,
+): {
+  readonly servers: readonly ServerDefinition[];
+  readonly diagnostics: readonly LoaderDiagnostic[];
+} {
+  const servers: ServerDefinition[] = [];
+  const diagnostics: LoaderDiagnostic[] = [];
+  const seen = new Set(taken);
+  for (const item of items) {
+    const source = contributedSourceOf(item.plugin);
+    const id = `${item.plugin}-${item.name}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (!ID_REGEX.test(id)) {
+      diagnostics.push({
+        code: "invalid_name",
+        source,
+        server: item.name,
+        message: "plugin server name cannot become a server id",
+      });
+      continue;
+    }
+    if (seen.has(id)) {
+      diagnostics.push({
+        code: "duplicate_name",
+        source,
+        server: id,
+        message: "id is already defined",
+      });
+      continue;
+    }
+    const converted = convertEntry(item.config);
+    if (!converted.ok) {
+      diagnostics.push({ code: converted.code, source, server: id, message: converted.message });
+      continue;
+    }
+    seen.add(id);
+    servers.push({ id, def: converted.def, source, managed: false, requiresTrust: false });
+  }
+  return { servers, diagnostics };
 }

@@ -537,6 +537,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 시크릿처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 시크릿 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
    - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:fresnel`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
    - 확장이 `registerServer`로 등록한 서버(§3.2 `fresnel.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
+   - 대화의 켜짐 플러그인이 낸 서버(M5c §4.5.10, `contributed` 입력)를 그 대화의 정의를 읽을 때 더한다[구현 2026-11-18]. 항목은 검토본 `mcp.json`의 모양이고 정의 검사는 `.mcp.json`과 같다. 서버 id는 `<플러그인>-<서버 이름>`[제안], 출처는 `ext:<플러그인>`이다. 설정·`.mcp.json`의 id와 겹치면 그 항목만 건너뛰고 `duplicate_name`을 남긴다. 신뢰는 요구하지 않는다(검토 승인이 맡는다). 허용·차단과 승인 모드와 샌드박스는 설정 서버와 같은 함수가 판정한다. 대화를 지정하지 않는 읽기에는 없고, 그 대화의 프로필에서 플러그인이 빠지면 다음 정의 읽기에서 사라진다. [미결] [근거: packages/cap-mcp/src/transport/factory.ts] 프로젝트 출처 플러그인의 stdio 서버에 `.mcp.json`과 같은 기동 승인을 거는 일은 아직 없다(M5c §4.5.10).
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
 4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
 

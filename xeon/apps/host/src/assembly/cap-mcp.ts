@@ -23,6 +23,7 @@ import {
   createSecretServiceHeaders,
   createToolServiceRegistrar,
   createTransportFactory,
+  type ContributedServer,
   type McpMasker,
   type McpProcessPort,
   type McpRulesSink,
@@ -63,6 +64,10 @@ export interface HostMcpOptions {
    * 작업 폴더가 없는 대화에는 프로젝트 서버가 없다
    */
   readonly workspaceOf: (threadId: string) => string | undefined;
+  /**
+   * 대화의 켜짐 플러그인이 낸 MCP 서버(M5c §4.5.10). 대화마다 정의를 읽을 때 부른다(늦게 묶는다). 플러그인 서버 id는 `<플러그인>-<이름>`이다
+   */
+  readonly contributed?: (threadId: string) => readonly ContributedServer[];
   /** stdio 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
   readonly process?: McpProcessPort;
   /** 기능 공급자가 올라왔을 때 한 번 부른다. 확장 읽기 wire(`mcp.servers`)가 상태를 읽는 데 쓴다 */
@@ -161,6 +166,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         // 프로젝트 출처 정의는 대화의 첫 `boundary.step.before`에서 그 대화의 작업 폴더로 읽는다(HS-76)
         projectRoot: undefined,
         workspaceOf: options.workspaceOf,
+        contributed: options.contributed,
         files: createLoaderFs(),
         trust: { isTrusted: (projectRoot, signal) => options.trust.isTrusted(projectRoot, signal) },
         transports: createTransportFactory({
