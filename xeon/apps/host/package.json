@@ -27,6 +27,7 @@
     "@fresnel/client": "workspace:*",
     "@fresnel/contracts": "workspace:*",
     "@fresnel/core-agents": "workspace:*",
+    "@fresnel/core-authoring": "workspace:*",
     "@fresnel/core-context": "workspace:*",
     "@fresnel/core-loop": "workspace:*",
     "@fresnel/core-models": "workspace:*",

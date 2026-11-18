@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
+import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/core-authoring";
 import type { ContextRef, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EvidenceRef,

@@ -4,7 +4,7 @@ layer: L3
 domain: authoring
 kind: spec
 status: draft
-depends_on: [L3.group-sdk.spec, L3.slots.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.primitives.spec, X.operations.spec, adr.0018, adr.0021, L4.desktop-ux.spec, architecture.security.spec]
+depends_on: [L1.authoring.spec, L3.group-sdk.spec, L3.slots.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.primitives.spec, X.operations.spec, adr.0018, adr.0021, L4.desktop-ux.spec, architecture.security.spec]
 binds: [xeon/packages/plugin-builder/**]
 ---
 
@@ -62,7 +62,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 항목 | 값 |
 |---|---|
 | 이름 | `authoring`(예약 이름과 겹치지 않음, `RESERVED_GROUP_NAMES`) |
-| 패키지 | `xeon/packages/plugin-builder` |
+| 패키지 | `xeon/packages/plugin-builder`(대화하는 빌더). 파일 일(제작 코어)은 `xeon/packages/core-authoring`(L1, 시스템 모듈, `L1.authoring.spec`) [결정: 2026-11-18 사용자, AGE-60] |
 | 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(플러그인 그룹) |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 켜짐. 도구 열한 개가 모두 지연 노출(`exposure: "deferred"`)이라 켜 두어도 "hi" 턴의 문맥은 늘지 않고 모델은 `tool_search`로 찾습니다 [결정: 2026-11-13 사용자, 2026-11-01 결정을 대체]. 안전 모드와 `defaultGroups: false`에서는 싣지 않고, 사용자가 `ext.authoring.enabled`를 명시적으로 끈 설정은 존중합니다 |
@@ -94,7 +94,7 @@ binds: [xeon/packages/plugin-builder/**]
   - `authoring_start`는 이름만 받으면 기존 플러그인의 원본 폴더(`<설정>/plugins/<이름>`)를 연다(`fresnel.devkit`의 선택 메서드 `sourceOf`). 종류와 이름 확인 카드를 건너뛰고 검사 단계(`validate`)부터 시작하며, 뼈대는 만들지 않는다(`scaffold`가 `exists`로 거절한다). 원본이 검토본과 달라도 원본에서 시작하고, 제출은 검토 서비스가 `update` 항목으로 만든다(`provenance: "assistant"`은 바꾸지 않았다). 거절: `not_found`(원본 폴더 없음), `bundled_not_editable`(번들이고 원본 폴더 없음), `source_unavailable`(이 빌드에 `sourceOf`가 없음).
   - `authoring_start`의 `dir`이 있으면 새 플러그인이다(`kind`는 생략하면 `single-plugin`). `purpose`(목적 한 문장, 200자 이하)와 `resident`(상주 모드, 아래)를 상태에 싣는다.
   - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 제작 대화의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
-  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/plugin-builder/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 그룹 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
+  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/core-authoring/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 그룹 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
   - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 제작 대화의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
   - `authoring_context`(지연 읽기 도구, 입력 없음)는 테스트 대화에 붙은 맥락 참조(`craft.context` 사건, M5c §4.8.8)를 기록 순서대로 돌려준다. 발견 참조는 근거 묶음(`findings.bundle`과 같은 값)을 싣고 다른 참조는 `bundle: null`이다. 대화 id는 도구를 부른 대화의 것이다. 모델 컨텍스트에는 줄을 더하지 않는다. 거절: `context_unavailable`(이 빌드에 `craftContext`가 없음).
   - `authoring_replay`는 남긴다. §4.9.7은 폐기를 정하지만 재생 값은 엔진의 `backtest.run`(E)이 준다. 이 가지에는 `backtest.run`의 호스트 처리기가 없어서 옛 개발 모드 재생을 그대로 둔다 [미결: E의 `backtest.run`이 들어온 뒤 지운다] [근거: apps/host/src/assembly/m4/devkit-port.ts, apps/host/src/handlers/m4/devkit.ts].
@@ -122,7 +122,7 @@ interface DevkitService {
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
 - `trial`은 Test run을 만듭니다(`thread.create { trial: true }`, W-34). Test run은 대상 확장을 `launch` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
-- [결정: M4 T-AUTH] 구현은 `xeon/packages/plugin-builder`의 함수(`scaffoldExtension`, `validateExtensionDir`, `validateCompositionReport`, `packExtension`, `runInstalledReplay`)이고 `apps/host`의 `assembly/m4/devkit-port.ts`가 wire에 연결합니다.
+- [결정: M4 T-AUTH] 구현은 `xeon/packages/core-authoring`의 함수(`scaffoldExtension`, `validateExtensionDir`, `validateCompositionReport`, `packExtension`, 시스템 모듈 `L1.authoring.spec`)와 `xeon/packages/plugin-builder`의 `runInstalledReplay`(group-sdk 하니스가 필요해 P에 남고 호스트가 주입한다)이고 `apps/host`의 `assembly/m4/devkit-port.ts`가 wire에 연결합니다.
 - [결정: M4 T-AUTH] `pack`은 엔트리를 한 파일 `dist/index.js`로 번들하고 묶음 매니페스트의 `entry`를 `./dist/index.js`로 바꿉니다. 호스트가 같은 인스턴스를 주는 SDK 모듈(`SDK_MODULE_SPECIFIERS`)은 번들에 넣지 않고 외부 import로 둡니다. `ext.reload`는 한 파일 번들 엔트리만 완전히 다시 읽기 때문입니다(여러 파일 소스는 옛 상대 import가 모듈 캐시에 남습니다). `link`는 `.js`·`.mjs` 엔트리만 받고 `.ts` 소스 폴더는 `invalid_input`으로 돌려 먼저 `pack`하게 합니다. 번들이 한 파일이 아니면 `pack`이 실패합니다. 그룹 템플릿은 `defineGroup`이 만든 모듈 객체를 default로 내므로(`GroupModule.entry`가 함수), 묶을 때 가상 진입 파일이 엔트리의 `extension`이나 default를 함수로 맞춰 `extension`과 default로 다시 냅니다(함수면 그대로). 이 맞춤이 없으면 외부 로더가 `entry_not_function`으로 거절합니다. 시험 `authoring.drive-bundle`이 drive 그룹 하나를 묶어 외부 로더로 불러 drive가 도는 것까지 봅니다.
 - [결정: M4 T-AUTH] `pack` 출력은 기본 `<dir>/dist/package`(다시 만들면 비우고 씁니다)이고, 지정한 `out`은 없거나 비어 있어야 합니다(`exists`). 묶음 형식은 폴더 사본이고 `sha256`은 정렬한 `경로 NUL 파일해시` 줄들의 해시입니다(§10 4번은 그대로 미결). 묶음 최상위의 `src`, `test`, `node_modules`, `dist`, `package.json`, `tsconfig.json`과 시크릿 이름(`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*`, `credentials*`)은 넣지 않습니다.
 - [폐기: M5c §7.7] `link`(사용자 확장 위치에 복사), `remove`(폴더 지우기), `previewInstall`(설치 미리 보기, `install.ts`), `release.ts`의 설치 확인(`installConfirmation`)과 `LinkInput.expectedSha256`을 지웠다. 설치는 없다. 플러그인은 검토함에서 승인해야 쓸 수 있다(§4.6, M5c 검토 흐름). 제출 입력 검사는 `validateExtensionDir`가 맡는다(플러그인 파일이 없으면 `no_manifest`, 폴더가 없으면 `not_found`).

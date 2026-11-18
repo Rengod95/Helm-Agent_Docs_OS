@@ -14,7 +14,7 @@
       "entry": ["test/**/*.test.ts"],
       "ignore": ["templates/**"]
     },
-    "packages/plugin-builder": {
+    "packages/core-authoring": {
       "entry": ["test/**/*.test.ts"],
       "ignore": ["templates/**"]
     },

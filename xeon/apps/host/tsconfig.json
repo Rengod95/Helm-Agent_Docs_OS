@@ -92,6 +92,9 @@
       "path": "../../packages/group-guide"
     },
     {
+      "path": "../../packages/core-authoring"
+    },
+    {
       "path": "../../packages/plugin-builder"
     },
     {
