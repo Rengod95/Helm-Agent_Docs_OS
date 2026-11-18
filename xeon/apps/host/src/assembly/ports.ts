@@ -111,6 +111,7 @@ import {
   createMigrationSubmitter,
   createPluginReview,
   createUserSkillSink,
+  createDraftLoader,
   createOverlayPort,
   createPluginService,
   type PluginStore,
@@ -1290,8 +1291,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
   );
   // 턴 덧씌우기(M5c §4.3). 검사는 플러그인 서비스가 주는 대상으로, 집합은 호스트의 E(T)로 본다. 적재되지 않은 플러그인은 검토본 로더로 적재한다
+  // 초안 싣기(§4.3.8). 격리 포트가 없으면 로더가 거부하므로 초안은 엔진 안에서 돌지 않는다
+  const loadDrafts = createDraftLoader({
+    loader: () => deps.extRead.loader(),
+    report: (event, fields) => log.error(event, fields),
+    timeoutMs: OVERLAY_LOAD_TIMEOUT_MS,
+  });
   const overlay = createOverlayPort({
     targetOf: (name) => pluginService.overlayTarget(name),
+    draftOf: (draftId) => pluginReview.draftOf(draftId),
+    loadDrafts,
     inSet: (threadId) => ports.m4.pluginSet.port.resolve(threadId).plugins,
     ensureLoaded: async (names) => {
       const loader = deps.extRead.loader();

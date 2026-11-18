@@ -285,6 +285,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     if (record.turnId === null) return;
     const draft = drafts.get(record.turnId);
     if (draft === undefined) return;
+    // 초안 덧씌우기의 표지는 `overlay[].draftId`다. 그 턴의 범위를 `overlay_draft`로 바꾼다(§4.6 규칙 31)
+    if (parsed.value.overlay.some((item) => item.draftId !== undefined)) draft.draftOverlay = true;
     const current = draft.profileRevChanges.at(-1)?.rev ?? draft.profile.rev;
     if (profileRev === current) return;
     draft.profileRevChanges.push({
@@ -461,6 +463,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     phase: "open" | "closed",
   ): TrTurnRow {
     draft.scope = scopeOf(store, draft.threadId, deps.logger);
+    if (draft.scope === "live" && draft.draftOverlay) draft.scope = "overlay_draft";
     const row = turnRowOf(draft, state);
     const written = store.upsertTurn(row);
     if (!written.ok) {

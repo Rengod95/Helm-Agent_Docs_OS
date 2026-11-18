@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { ok, type Result } from "@fresnel/contracts";
 import { WireError } from "@fresnel/contracts/wire";
 import type { PluginPortFailure } from "../../src/handlers/m5/plugins.ts";
-import { createOverlayPort, type OverlayTarget } from "../../src/assembly/plugins/overlay.ts";
+import {
+  NO_DRAFTS,
+  createOverlayPort,
+  type OverlayTarget,
+} from "../../src/assembly/plugins/overlay.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS, requestTurn } from "../fixtures/wire-client.ts";
 
@@ -42,6 +46,8 @@ test("turn.start의 덧씌우기가 다섯 개면 overlay.limit이고 입력을 
   const host = createFakeHost({
     overrides: {
       overlay: createOverlayPort({
+        draftOf: NO_DRAFTS,
+        loadDrafts: () => Promise.resolve(ok(undefined)),
         targetOf: targetsOf,
         inSet: () => [],
         ensureLoaded: () => Promise.resolve(),
@@ -79,6 +85,8 @@ test("turn.start의 덧씌우기는 없는 이름과 검토본이 없는 후보�
   const host = createFakeHost({
     overrides: {
       overlay: createOverlayPort({
+        draftOf: NO_DRAFTS,
+        loadDrafts: () => Promise.resolve(ok(undefined)),
         targetOf: targetsOf,
         inSet: () => [],
         ensureLoaded: () => Promise.resolve(),
@@ -110,6 +118,8 @@ test("turn.start가 검토된 도구 플러그인을 얹으면 턴을 시작하�
   const host = createFakeHost({
     overrides: {
       overlay: createOverlayPort({
+        draftOf: NO_DRAFTS,
+        loadDrafts: () => Promise.resolve(ok(undefined)),
         targetOf: targetsOf,
         inSet: () => ["core-thing"],
         ensureLoaded: () => Promise.resolve(),

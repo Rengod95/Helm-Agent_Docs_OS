@@ -165,6 +165,21 @@ export interface PluginReview {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /**
+   * 초안 하나의 재료(덧씌우기가 쓴다, §4.3.8). 없으면 `ok(undefined)`다. 이름은 초안이 속한 플러그인이고 `tree`는 스냅샷 트리 폴더다
+   */
+  draftOf(draftId: string): Promise<
+    Result<
+      | {
+          readonly name: string;
+          readonly draftId: string;
+          readonly contentHash: string;
+          readonly tree: string;
+        }
+      | undefined,
+      PluginPortFailure
+    >
+  >;
   /** 한 줄 지침 초안과 `user_instruction` 항목(§4.10). 폴더를 쓰고, 초안을 만들고, 항목을 연다. 직렬로 돈다 */
   fromInstruction(
     request: PluginDraftFromInstructionParams,
@@ -1293,6 +1308,19 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     },
 
     fromInstruction: (request) => instructionDraft(request),
+
+    draftOf: async (draftId) => {
+      const info = await store.readDraft(draftId);
+      if (!info.ok) {
+        return info.error.kind === "not_found" ? ok(undefined) : err(storeFailure(info.error));
+      }
+      return ok({
+        name: info.value.name,
+        draftId: info.value.draftId,
+        contentHash: info.value.contentHash,
+        tree: join(store.draftDir(draftId), "tree"),
+      });
+    },
 
     draftDiscard: (draftId) =>
       serial(async () => {

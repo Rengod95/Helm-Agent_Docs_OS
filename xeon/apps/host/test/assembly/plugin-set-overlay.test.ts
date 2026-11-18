@@ -439,3 +439,37 @@ test("재시작 복원: 열린 대화를 닫으면 되살린 표지의 적재 �
   expect(spy.unloaded).toEqual(["helm"]);
   expect(fixture.set.port.resolve(id).overlay).toBeUndefined();
 });
+
+test("초안 덧씌우기는 같은 이름의 프로필 플러그인을 집합에서 빼고 내부 이름을 든다. 표지에는 실제 이름과 초안 식별자를 싣는다", async () => {
+  // 프로필(공장 기본)에 `widget`이 든 대화에 초안 `ddrf1-widget`을 얹는다(§4.3.8)
+  const fixture = fixtureOf({ defaults: ["widget"] });
+  await fixture.set.refresh();
+  const id = threadId();
+  expect(fixture.set.port.resolve(id).plugins).toEqual(["core-thing", "widget"]);
+  await fixture.set.attachOverlay(id, [
+    {
+      plugin: "ddrf1-widget",
+      contentHash: HASH_HELM,
+      until: "turn",
+      draftId: "drf-1",
+      replaces: "widget",
+    },
+  ]);
+  expect(fixture.set.port.resolve(id)).toEqual({
+    plugins: ["core-thing", "ddrf1-widget"],
+    profileId: "default",
+    profileRev: 0,
+    commonRev: 1,
+    pluginHashes: [],
+    overlay: [{ plugin: "widget", contentHash: HASH_HELM, until: "turn", draftId: "drf-1" }],
+  });
+  // 정착하면 초안이 빠지고 프로필의 `widget`이 돌아온다
+  fixture.set.port.turnSettled?.(id);
+  expect(fixture.set.port.resolve(id)).toEqual({
+    plugins: ["core-thing", "widget"],
+    profileId: "default",
+    profileRev: 0,
+    commonRev: 1,
+    pluginHashes: [],
+  });
+});

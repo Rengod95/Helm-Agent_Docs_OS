@@ -10,6 +10,7 @@ import type {
   ContextTraceSink,
   ExtensionName,
   MaterialPort,
+  RegistrationId,
   ToolCallTraceSink,
 } from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS } from "./capability-defs.ts";
@@ -56,6 +57,7 @@ import { writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type {
   AgentDefinition,
+  DraftMark,
   ToolOutputFiles,
   WithHumanDecision,
 } from "@fresnel/contracts/services";
@@ -76,6 +78,7 @@ import { toolsPlugin } from "@fresnel/core-tools";
 import type {
   BuiltinExtensionModule,
   ExtHost,
+  ExtensionLoader,
   ExtensionUnit,
   InstallResult,
 } from "@fresnel/ext-host";
@@ -193,6 +196,10 @@ export interface ExtensionDeps {
    * 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 조립이 검토 서비스가 뜬 뒤에 채운다. 지식 기능은 호출 때 얻는다
    */
   readonly userSkillSink?: () => UserSkillSink | undefined;
+  /**
+   * 외부 확장 로더(조립이 싣기 전에는 undefined). 초안 표지(`draftOf`)를 찾을 때만 읽는다. 초안 이름은 로더에만 있다(§4.3.8)
+   */
+  readonly loader: () => ExtensionLoader | undefined;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -213,6 +220,21 @@ export interface ExtensionDeps {
   readonly callTrace?: ToolCallTraceSink;
   /** 조립 재료·광고와 스킬 읽기의 싱크(읽기 전용). 턴 기록이 받는다(turn-record-metrics §4.5) */
   readonly contextTrace?: ContextTraceSink;
+}
+
+/**
+ * 등록 id의 초안 표지. 등록의 확장 이름이 로더가 싣는 초안의 내부 이름이면 그 플러그인과 초안 식별자를 돌려준다.
+ * 로더가 아직 없으면 초안도 없다(초안 이름은 로더가 싣은 뒤에만 생긴다)
+ */
+function draftMarkOf(
+  ext: ExtHost,
+  loader: () => ExtensionLoader | undefined,
+  scopeId: RegistrationId,
+): DraftMark | undefined {
+  const registration = ext.registrations().find((item) => item.id === scopeId);
+  if (registration === undefined) return undefined;
+  const draft = loader()?.draftOf(registration.extension);
+  return draft === undefined ? undefined : { plugin: draft.plugin, draftId: draft.draftId };
 }
 
 /** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 fresnel.* 포트를 쓸 수 있다 */
@@ -414,6 +436,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 플러그인 기능 호출은 도구 매핑이 없는 메서드도 부른다(U-1 (다)). 그 정의는 내장 기능 전체다. 매니페스트에는 더하지 않는다
           pluginCapabilities: [...BUILTIN_CAPABILITY_DEFS, ...(deps.extraCapabilityDefs ?? [])],
           ...(deps.callTrace === undefined ? {} : { callTrace: deps.callTrace }),
+          // 초안 출신 호출은 권한 모드와 무관하게 카드를 띄운다(U2, L1.tools.spec §4.6.1). 표지는 로더가 싣는 초안에서 본다
+          draftOf: (scopeId) => draftMarkOf(deps.ext, deps.loader, scopeId),
           loadIndex,
         }),
     ],

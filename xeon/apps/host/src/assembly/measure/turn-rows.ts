@@ -100,6 +100,11 @@ export interface TurnDraft {
   lastStepIndex: number | null;
   /** 범위 표지. 턴을 열 때 대화의 `tr_thread`에서 정한다(§4.6) */
   scope: ScopeKind;
+  /**
+   * 이 턴의 `profile.applied`가 초안 덧씌우기(`draftId`)를 실었는가. 참이면 범위는 `overlay_draft`다(§4.6 규칙 31, §4.3.8).
+   * 대화 범위가 `test`나 `craft`면 그것이 이긴다
+   */
+  draftOverlay: boolean;
   /** 끝난 단계의 기록 */
   readonly steps: StepRecord[];
   /** 주도권 스택의 프레임: 턴 시작 때 열려 있던 것과 턴 안의 변화(코어 위 프레임만, 깊이는 코어를 0으로 센다) */
@@ -172,6 +177,7 @@ export function newDraft(input: {
     profileRevChanges: [],
     lastStepIndex: null,
     scope: "live",
+    draftOverlay: false,
     steps: [],
     frames: [],
     spawnedChildren: new Set(),

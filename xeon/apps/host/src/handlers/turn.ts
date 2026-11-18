@@ -60,6 +60,8 @@ function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
     case "drive_unavailable":
       // 시작 Drive를 주도로 요청하지 못했다. 와이어는 항목이 없는 것과 같은 `overlay.noEntry`로 답한다 [제안]
       return wireError("overlay.noEntry", { details: { name: refusal.name } });
+    case "draft_not_found":
+      return wireError("draft.notFound", { details: { id: refusal.draftId } });
     case "draft_unavailable":
       return wireError("overlay.draftUnavailable");
     case "plugin":

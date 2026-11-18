@@ -8,6 +8,7 @@ import { buildPluginCard } from "../../../src/assembly/plugins/card.ts";
 import { readPluginFolder } from "../../../src/assembly/plugins/folder-reader.ts";
 import { invocablesOf, type InvocableSource } from "../../../src/assembly/plugins/invocables.ts";
 import {
+  NO_DRAFTS,
   createOverlayPort,
   planOverlay,
   type OverlayTarget,
@@ -172,12 +173,12 @@ test("planOverlay는 항목이 그 플러그인에 없으면 no_entry다. 시작
   );
 });
 
-test("planOverlay는 초안 표지를 draft_unavailable로 거절하고, 이미 든 플러그인은 alreadyInProfile로 표시하며 같은 이름은 한 번만 얹는다", async () => {
+test("planOverlay는 초안 저장소에 없는 초안 식별자를 draft_not_found로 거절하고, 이미 든 플러그인은 alreadyInProfile로 표시하며 같은 이름은 한 번만 얹는다", async () => {
   const targetOf = (name: string): Promise<Result<OverlayTarget | undefined, PluginPortFailure>> =>
     Promise.resolve(ok(target(name, HASH_A, [], true)));
-  expect(await planOverlay([{ plugin: "x", draftId: "d1" }], targetOf, new Set())).toEqual(
-    err({ kind: "draft_unavailable", name: "x" }),
-  );
+  expect(
+    await planOverlay([{ plugin: "x", draftId: "d1" }], targetOf, new Set(), NO_DRAFTS),
+  ).toEqual(err({ kind: "draft_not_found", name: "x", draftId: "d1" }));
   expect(
     await planOverlay(
       [{ plugin: "inside" }, { plugin: "outside" }, { plugin: "outside" }],
@@ -257,6 +258,8 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
   const attached: unknown[] = [];
   const cancelled: string[] = [];
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf: (name) =>
       Promise.resolve(ok(target(name, name === "tools" ? HASH_B : HASH_A, [], name === "tools"))),
     inSet: () => ["core-thing"],
@@ -293,6 +296,8 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
 test("덧씌우기 포트는 이미 든 플러그인만 얹으면 아무것도 적재하거나 얹지 않고 cacheImpact는 none이다", async () => {
   let touched = false;
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf: (name) => Promise.resolve(ok(target(name, HASH_A))),
     inSet: () => ["already"],
     ensureLoaded: () => {
@@ -420,7 +425,7 @@ test("검토된 플러그인의 호출 항목은 검토본 폴더의 스킬과 �
 
   // 검토본이 없는 원본 폴더는 항목이 없고 대상으로는 검토본 해시가 null이다
   expect(await service.overlayTarget("notes")).toEqual(
-    ok({ name: "notes", reviewedHash: null, entries: [], addsTools: false }),
+    ok({ name: "notes", reviewedHash: null, entries: [], addsTools: false, origin: "user" }),
   );
   expect(await service.overlayTarget("greeter")).toEqual(
     ok({
@@ -432,6 +437,7 @@ test("검토된 플러그인의 호출 항목은 검토본 폴더의 스킬과 �
         { entry: "greeter", kind: "plugin" },
       ],
       addsTools: false,
+      origin: "user",
     }),
   );
   expect(await service.overlayTarget("missing")).toEqual(ok(undefined));

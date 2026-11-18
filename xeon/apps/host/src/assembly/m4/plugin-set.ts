@@ -30,9 +30,17 @@ interface ProfileCopy {
  * 프레임이 풀릴 때(§4.3.4)다. 메모리에 둔다. `release` 표지는 재시작 뒤 열린 임대에서 되살린다(`restoreOverlay`, §4.3.5). `turn` 표지는 되살리지 않는다
  */
 export interface OverlayMark {
+  /** 집합에 넣을 이름. 초안이면 내부 확장 이름이다(`internalDraftName`) */
   readonly plugin: string;
   readonly contentHash: string;
   readonly until: "turn" | "release";
+  /**
+   * 초안이면 그 식별자다(§4.3.8). 초안 표지는 `replaces`의 실제 이름을 집합에서 뺀다: 같은 이름의 검토본이 프로필, 공통 묶음,
+   * 다른 덧씌우기에 있어도 그 대화에서는 초안이 자리를 대신한다
+   */
+  readonly draftId?: string;
+  /** 초안이 자리를 대신하는 실제 플러그인 이름 */
+  readonly replaces?: string;
 }
 
 /**
@@ -242,6 +250,16 @@ function resolveIn(
   };
 }
 
+/** 덧씌우기 표지 하나를 `PluginSetView.overlay` 항목으로 낸다. 초안은 자리를 대신하는 실제 이름과 식별자를 싣는다 */
+function overlayItemOf(mark: HeldMark): NonNullable<PluginSetView["overlay"]>[number] {
+  const item = {
+    plugin: mark.replaces ?? mark.plugin,
+    contentHash: mark.contentHash,
+    until: mark.until,
+  };
+  return mark.draftId === undefined ? item : { ...item, draftId: mark.draftId };
+}
+
 /** 두 설정 맵에서 값이 다른 키(추가·삭제·변경) */
 function changedKeys(
   before: ReadonlyMap<string, unknown>,
@@ -294,6 +312,10 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     }
     // 덧씌우기는 프로필 목록 뒤에 든다(M5c §4.1.3). 같은 이름은 처음 것을 남긴다
     for (const mark of marksOf(threadId)) put(mark.plugin, "overlay");
+    // 초안은 같은 이름의 실제 플러그인을 뺀다(프로필, 공통 묶음, 다른 덧씌우기 어디서 왔든)
+    for (const mark of marksOf(threadId)) {
+      if (mark.replaces !== undefined) sources.delete(mark.replaces);
+    }
     return { sources, resolved };
   }
 
@@ -329,11 +351,8 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       ...(live.length === 0
         ? {}
         : {
-            overlay: live.map((mark) => ({
-              plugin: mark.plugin,
-              contentHash: mark.contentHash,
-              until: mark.until,
-            })),
+            // 초안은 자리를 대신하는 실제 이름으로 싣는다(`profile.applied`의 기록이 이름을 읽는다)
+            overlay: live.map(overlayItemOf),
           }),
       profileId: resolved?.profileId ?? DEFAULT_PROFILE_ID,
       profileRev: resolved?.profileRev ?? 0,

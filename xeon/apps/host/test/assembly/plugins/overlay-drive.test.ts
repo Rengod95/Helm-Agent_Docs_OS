@@ -4,6 +4,7 @@ import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type { OverlayRef } from "@fresnel/contracts/wire";
 import type { PluginPortFailure } from "../../../src/handlers/m5/plugins.ts";
 import {
+  NO_DRAFTS,
   createOverlayPort,
   planOverlay,
   type DriveStartRefusal,
@@ -63,6 +64,8 @@ test("덧씌우기 포트는 시작 Drive를 release 표지로 집합에 올린 
   const order: string[] = [];
   const marks: unknown[] = [];
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf,
     inSet: () => [],
     ensureLoaded: (names) => {
@@ -99,6 +102,8 @@ test("덧씌우기 포트는 시작 Drive를 release 표지로 집합에 올린 
 test("덧씌우기 포트는 시작 요청이 거절되면 얹은 표지를 되돌리고 drive_unavailable로 거절한다", async () => {
   const cancelled: string[] = [];
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf,
     inSet: () => [],
     ensureLoaded: () => Promise.resolve(),
@@ -120,6 +125,8 @@ test("덧씌우기 포트는 시작 요청이 거절되면 얹은 표지를 되�
 
 test("덧씌우기 포트는 등록이 없는 시작 Drive도 drive_unavailable로 거절한다", async () => {
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf,
     inSet: () => [],
     ensureLoaded: () => Promise.resolve(),
@@ -139,6 +146,8 @@ test("덧씌우기 포트는 이미 집합에 든 플러그인의 시작 Drive�
   const attached: unknown[] = [];
   const started: string[] = [];
   const port = createOverlayPort({
+    draftOf: NO_DRAFTS,
+    loadDrafts: () => Promise.resolve(ok(undefined)),
     targetOf,
     inSet: () => ["driver"],
     ensureLoaded: (names) => {

@@ -573,7 +573,13 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     if (entry === undefined) return ok(undefined);
     const addsTools = addsToolsOf(entry.card);
     if (entry.reviewedHash === null) {
-      return ok({ name, reviewedHash: null, entries: [], addsTools });
+      return ok({
+        name,
+        reviewedHash: null,
+        entries: [],
+        addsTools,
+        origin: entry.card.origin.kind,
+      });
     }
     const listed = await entriesOf(entry);
     if (!listed.ok) return listed;
@@ -582,6 +588,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       reviewedHash: entry.reviewedHash,
       entries: listed.value.map((item) => ({ entry: item.entry, kind: item.kind })),
       addsTools,
+      origin: entry.card.origin.kind,
     });
   }
 

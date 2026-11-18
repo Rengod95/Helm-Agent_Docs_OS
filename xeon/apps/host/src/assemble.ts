@@ -1248,6 +1248,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         dialogArea,
         web,
         mode: options.mode,
+        // 초안 표지를 찾는 로더. 조립이 외부 확장을 싣기 전에는 없다(그때 초안도 없다)
+        loader: () => external.loader,
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined

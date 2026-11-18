@@ -1140,6 +1140,72 @@ test("a stored profile id and the profile applied before the turn give its profi
   }
 });
 
+// M5c §4.3.8, §4.6 규칙 31: 초안 덧씌우기(`profile.applied.overlay[].draftId`)가 얹힌 턴은 범위 `overlay_draft`로 적힌다. 검토본 덧씌우기는 `live`다.
+test("a turn whose profile.applied carries a draft overlay is recorded as overlay_draft, and a reviewed overlay turn stays live", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-draft-scope-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "thread.started", threadStarted("work"), { turnId: null })]);
+    harness.commit([
+      event(2, "profile.applied", profileApplied("open", "work", 2), { turnId: null }),
+    ]);
+    harness.commit([event(3, "turn.started", TURN_STARTED)]);
+    const stepA = ids.next("stp");
+    const overlayOn = (draftId: string | undefined) => ({
+      ...profileApplied("overlay_on", "work", 2),
+      overlay: [
+        {
+          plugin: "widget",
+          contentHash: `sha256:${"f".repeat(64)}`,
+          until: "turn",
+          ...(draftId === undefined ? {} : { draftId }),
+        },
+      ],
+    });
+    harness.commit([
+      event(4, "profile.applied", overlayOn("drf-1"), { stepId: stepA }),
+      event(5, "step.completed", STEP_COMPLETED(0), { stepId: stepA }),
+    ]);
+    harness.commit([event(6, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(turnBundle(harness).turn.scopeKind).toBe("overlay_draft");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a turn with a reviewed overlay only is live", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-reviewed-scope-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "thread.started", threadStarted("work"), { turnId: null })]);
+    harness.commit([
+      event(2, "profile.applied", profileApplied("open", "work", 2), { turnId: null }),
+    ]);
+    harness.commit([event(3, "turn.started", TURN_STARTED)]);
+    const stepA = ids.next("stp");
+    harness.commit([
+      event(
+        4,
+        "profile.applied",
+        {
+          ...profileApplied("overlay_on", "work", 2),
+          overlay: [{ plugin: "widget", contentHash: `sha256:${"f".repeat(64)}`, until: "turn" }],
+        },
+        { stepId: stepA },
+      ),
+      event(5, "step.completed", STEP_COMPLETED(0), { stepId: stepA }),
+    ]);
+    harness.commit([event(6, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    expect(turnBundle(harness).turn.scopeKind).toBe("live");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a revision that changes at the boundary after step N is a change at step N+1, and a repeat of the same revision is not", async () => {
   const dir = mkdtempSync(join(tmpdir(), "turn-profile-"));
   try {
