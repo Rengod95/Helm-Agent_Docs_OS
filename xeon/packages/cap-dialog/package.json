@@ -14,11 +14,11 @@
   },
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
-    "@fresnel/core-tools": "workspace:*",
     "@fresnel/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@fresnel/core-tools": "workspace:*",
     "@types/bun": "catalog:"
   },
   "fresnel": {

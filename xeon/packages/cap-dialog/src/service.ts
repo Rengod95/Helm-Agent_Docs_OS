@@ -6,7 +6,6 @@ import type {
   DialogStatus,
   NoticeFeed,
 } from "@fresnel/contracts/capabilities";
-import { createAskService } from "@fresnel/core-tools";
 import { createAttachmentsApi } from "./attachments/service.ts";
 import {
   createCommandsService,
@@ -40,7 +39,7 @@ export interface DialogRuntime {
 }
 
 export function createDialogRuntime(deps: DialogDeps): DialogRuntime {
-  const ask = createAskService(deps);
+  const ask = deps.core.createAskService(deps);
   const commands = createCommandsService(deps);
   const status = createStatusService(deps);
   const notify = createNotifyService(deps);

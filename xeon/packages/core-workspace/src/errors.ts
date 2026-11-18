@@ -2,6 +2,7 @@ import { assertNever, Bug } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
+  WorkspaceFailure,
   type CapabilityId,
   type CommonErrorCode,
 } from "@fresnel/contracts/capabilities";
@@ -15,34 +16,10 @@ import {
 
 // L2.workspace.spec §4.1. 포크 본문과 경로 검사는 WorkspaceFailure, FileError, ExecutionError를 던지고,
 // 서비스 경계(guarded)가 CapabilityError로 바꾼다. 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6).
+// WorkspaceFailure 클래스는 F(`@fresnel/contracts/capabilities`)가 정의하고 이 패키지와 기능 패키지가 같은 것을 쓴다(instanceof 동일성).
+// 여기 함수들은 FileError·ExecutionError 값을 알아야 하므로 코어에 둔다.
 
-/** 이 패키지 안에서 던지는 실패. 서비스 경계에서 `CapabilityError`로 바뀐다 */
-export class WorkspaceFailure extends Error {
-  override readonly name: string = "WorkspaceFailure";
-  /** 공통 코드 또는 메서드 고유 코드 */
-  readonly code: string;
-  readonly retryable: boolean;
-  readonly detail: JsonValue | undefined;
-
-  constructor(
-    code: string,
-    message: string,
-    options: { readonly retryable?: boolean; readonly detail?: JsonValue } = {},
-  ) {
-    super(message);
-    this.code = code;
-    this.retryable = options.retryable ?? commonRetryable(code);
-    this.detail = options.detail;
-  }
-}
-
-function isCommonCode(code: string): code is CommonErrorCode {
-  return Object.hasOwn(DEFAULT_RETRYABLE, code);
-}
-
-function commonRetryable(code: string): boolean {
-  return isCommonCode(code) ? DEFAULT_RETRYABLE[code] : false;
-}
+export { WorkspaceFailure };
 
 /** 표: FileErrorCode → CapabilityError.code (spec §4.1) */
 export function fileErrorCode(code: FileErrorCode): CommonErrorCode {

@@ -1,6 +1,6 @@
 import { Bug } from "@fresnel/contracts";
 import { createExecService, detectExecPlatform } from "@fresnel/platform-exec";
-import { defaultRoots, type WorkspaceEnv } from "@fresnel/core-workspace";
+import { defaultRoots, workspaceCore, type WorkspaceEnv } from "@fresnel/core-workspace";
 import type { WorkspaceDeps } from "../../src/deps.ts";
 import { DEFAULT_WORKSPACE_SETTINGS } from "../../src/settings.ts";
 
@@ -34,6 +34,7 @@ export function override(base: WorkspaceEnv, overrides: Partial<WorkspaceEnv>): 
 export function realDeps(env: WorkspaceEnv): WorkspaceDeps {
   return {
     env,
+    core: workspaceCore,
     roots: {
       env,
       roots: (context) => defaultRoots(env, context),

@@ -77,7 +77,8 @@ realTest(
       const reserved = (await connection.request("settings.list", { includeReserved: true })).defs;
       const allKeys = new Set(all.defs.map((def) => def.key));
       const onlyReserved = reserved.filter((def) => !allKeys.has(def.key));
-      expect(onlyReserved.length).toBeGreaterThan(0);
+      // 예약 키는 학습 그룹의 큐레이터 키뿐이었고 그 그룹이 빌트인에서 빠졌다(2026-11-18): 지금은 예약 키가 없다
+      expect(onlyReserved).toEqual([]);
       expect(onlyReserved.every((def) => def.stage === "reserved")).toBe(true);
       expect(all.defs.some((def) => def.stage === "reserved")).toBe(false);
 
