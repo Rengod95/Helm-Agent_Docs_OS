@@ -175,7 +175,6 @@ describe("per-source sandbox keys", () => {
       ["settings:user", false],
       ["settings:project", true],
       ["settings:local", true],
-      ["mcpjson:project", true],
       ["mcpjson:fresnel", true],
       ["ext:helm", true],
       ["something-new", true],
@@ -191,9 +190,9 @@ describe("per-source sandbox keys", () => {
       sandboxProjectSource: false,
     };
     expect(sandboxOf(server("settings:user"), flipped)).toBe(true);
-    expect(sandboxOf(server("mcpjson:project"), flipped)).toBe(false);
+    expect(sandboxOf(server("settings:project"), flipped)).toBe(false);
     expect(sandboxOf(server("settings:user", { ...plain, sandbox: false }), flipped)).toBe(false);
-    expect(sandboxOf(server("mcpjson:project", { ...plain, sandbox: true }), flipped)).toBe(true);
+    expect(sandboxOf(server("settings:project", { ...plain, sandbox: true }), flipped)).toBe(true);
   });
 
   test("a user-settings server reaches the process port with sandbox false and a server value with true", async () => {
@@ -224,7 +223,7 @@ describe("per-source sandbox keys", () => {
 
 const PROJECT_ROOT = "/proj";
 
-/** 프로젝트 `.mcp.json`의 서버 하나(출처 `mcpjson:project`, 기본 샌드박스 켬). 첫 기동은 `verdict`로 실패한다 */
+/** 프로젝트 `.fresnel/mcp.json`의 서버 하나(출처 `mcpjson:fresnel`, 기본 샌드박스 켬). 첫 기동은 `verdict`로 실패한다 */
 function projectWorld(verdict: McpSpawnError) {
   let process: ReturnType<typeof createStubProcessPort> | undefined;
   const world = buildWorld({
@@ -233,7 +232,7 @@ function projectWorld(verdict: McpSpawnError) {
     overrides: {
       projectRoot: PROJECT_ROOT,
       files: fakeFiles({
-        [`${PROJECT_ROOT}/.mcp.json`]: JSON.stringify({
+        [`${PROJECT_ROOT}/.fresnel/mcp.json`]: JSON.stringify({
           mcpServers: { gh: { command: "gh-mcp" } },
         }),
       }),
@@ -267,7 +266,7 @@ describe("sandbox_unavailable keeps the server blocked until a new attempt", () 
     const blocked = await client.status({ server: "gh" });
     expect(blocked).toMatchObject({
       server: "gh",
-      source: "mcpjson:project",
+      source: "mcpjson:fresnel",
       state: "blocked",
       blockedReason: "sandbox_unavailable",
       lastError: {

@@ -42,3 +42,18 @@ test("every block setting is a real catalog key with the same scopes as its defi
   expect(problems).toEqual([]);
   expect(refs.length).toBeGreaterThan(100);
 });
+
+test("blocks.applied on a host without a plugin set reads the six blocks with catalog defaults and no handlers", async () => {
+  const { connection } = createFakeHost().connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const applied = await connection.request("blocks.applied", {});
+  expect(applied.profileId).toBe("default");
+  expect(applied.blocks.map((block) => block.id)).toEqual(BLOCK_MODEL.blocks.map((b) => b.id));
+  // 값은 모델의 설정 겹 키마다 하나씩, 출처는 설정을 놓은 범위가 없으면 default다
+  for (const described of BLOCK_MODEL.blocks) {
+    const block = applied.blocks.find((entry) => entry.id === described.id);
+    expect(block?.settings.map((entry) => entry.key)).toEqual(described.settings.map((r) => r.key));
+    expect(block?.parts.map((part) => part.current)).toEqual(described.parts.map((p) => p.default));
+  }
+  await connection.close();
+});

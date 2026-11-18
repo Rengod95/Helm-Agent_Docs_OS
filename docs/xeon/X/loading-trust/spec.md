@@ -1192,13 +1192,13 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 |---|---|
 | `.fresnel/extensions/` | 작업 폴더 확장 |
 | `.fresnel/settings.json`, `.fresnel/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 작업 폴더·로컬 설정 |
-| `.fresnel/mcp.json`, `.mcp.json` | 작업 폴더 MCP 서버(`.mcp.json`은 작업 폴더 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
+| `.fresnel/mcp.json` | 작업 폴더 MCP 서버(Fresnel 자체 배치, L2.mcp.spec §4.2). 루트 `.mcp.json`은 M5g-2 뒤 엔진이 읽지 않는다(아래) |
 | `.fresnel/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
 | `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/` | 작업 폴더 자원. `.fresnel/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
 | `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
-| `.agents/skills/`(작업 폴더 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 
 - 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
+- [결정: 2026-11-17 사용자, M5g-2] 루트 `.mcp.json`과 `.agents/skills`(작업 폴더와 상위 디렉터리)는 신뢰 자원이 아니다. 엔진이 읽지 않으므로 이 자리만 있는 폴더는 판정 없이 `trusted: true`(`via: "notRequired"`)이고, 두 자리는 `resources` 목록에도 들지 않는다. 다른 하네스 형식은 가져오기(`review/m5/migration.md`)로 플러그인 초안이 될 뿐이다. 스킬 로딩(`cap-knowledge`의 `resolveSkillRoots`)도 `.agents/skills`를 읽지 않는다.
 - [결정: 오케스트레이터 기본값, fxPT] 이 목록의 파일을 "판정 전에 읽지 않는다"는 로드를 가리킨다. 신뢰 카드가 결정 전에 이름을 보이려고 하는 미리 보기는 §4.7.4의 이름 읽기만 한다.
 - `AGENTS.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다(턴 시작에 `L1.context.spec` §4.2a가 읽는다). `CLAUDE.md`는 읽지 않는다(M5c 미결 5 결정). 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
 
@@ -1247,13 +1247,13 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 작업 폴더 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
 | 작업 폴더 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
 | 작업 폴더·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 작업 폴더 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않고 로드하지 않는다. 카드 미리 보기는 두 파일을 읽어 서버 이름과 `command`·`args`만 본다(아래) | L2.mcp.spec |
+| 작업 폴더 MCP 서버(`.fresnel/mcp.json`) | 기동하지 않고 로드하지 않는다. 카드 미리 보기는 이 파일을 읽어 서버 이름과 `command`·`args`만 본다(아래) | L2.mcp.spec |
 | 작업 폴더 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 작업 폴더 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
 - 작업 폴더 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 작업 폴더 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
-- [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.mcp.json`과 `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 두 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
-- [결정: 오케스트레이터 기본값, fxPT] 미리 보기의 상한: 정의 파일 하나는 256 KiB까지만 읽고(넘으면 파싱하지 않고 `too_large`), 파일당 MCP 서버 50개(두 파일 합쳐 100개), 디렉터리당 이름 100개, `command`와 인자 문자열 512자(말줄임표 포함), 인자 64개까지 싣는다. 잘리거나 빠진 자리가 있으면 `details.truncated`가 참이다. 프로젝트 밖을 가리키는 심볼릭 링크 정의 파일은 따르지 않고 `unreadable`이다.
+- [결정: 오케스트레이터 기본값, fxPT] 신뢰 카드의 자원 이름 미리 보기(조립 루트 `apps/host/src/assembly/trust-preview.ts`의 `previewTrustResources`가 만들고, `trust.get`의 `details`로 간다)는 결정이 필요한 판정(`required`이고 `verdict`가 `allow`가 아님)에만 쓴다. 이름만 읽는다. `.fresnel/mcp.json`은 JSON으로 파싱해 서버 이름과 `command`·`args`만 뽑는다. `env`·`url`·`headers` 값은 읽고 버린다. `command`가 없거나 빈 문자열인 서버(원격 `url` 서버 등)와 `args`에 문자열이 아닌 값이 있는 서버는 목록에 싣지 않는다(파일 목록에는 남는다). `.fresnel/hooks`·`skills`·`commands`·`extensions`는 항목 이름만 본다. 실행, import, 등록은 하지 않고 이 파일 말고는 내용을 읽지 않는다. 파일이 손상되었거나 읽지 못하면 그 파일의 서버 목록을 비우고 진단 `trust.preview_skipped`를 남긴다(던지지 않는다). 목록은 상한(`TRUST_DETAILS_LIMITS`)까지만 싣는다.
+- [결정: 오케스트레이터 기본값, fxPT] 미리 보기의 상한: 정의 파일 하나는 256 KiB까지만 읽고(넘으면 파싱하지 않고 `too_large`), MCP 정의 파일당 서버 50개, 디렉터리당 이름 100개, `command`와 인자 문자열 512자(말줄임표 포함), 인자 64개까지 싣는다. 잘리거나 빠진 자리가 있으면 `details.truncated`가 참이다. 프로젝트 밖을 가리키는 심볼릭 링크 정의 파일은 따르지 않고 `unreadable`이다.
 
 #### 4.7.5 저장 파일 손상
 

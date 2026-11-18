@@ -69,6 +69,12 @@ async function trustAt(
   });
 }
 
+/** 프로젝트의 Fresnel MCP 정의(`.fresnel/mcp.json`)를 쓴다. 루트 `.mcp.json`은 엔진이 읽지 않으므로(M5g-2) 시험에 쓰지 않는다 */
+function writeProjectMcp(workspace: string, text: string): void {
+  mkdirSync(join(workspace, ".fresnel"), { recursive: true });
+  writeFileSync(join(workspace, ".fresnel", "mcp.json"), text);
+}
+
 async function rig(defaultTrust: "ask" | "always" | "never" = "ask"): Promise<Rig> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "xh-trust-")));
   cleanup.push(root);
@@ -76,7 +82,7 @@ async function rig(defaultTrust: "ask" | "always" | "never" = "ask"): Promise<Ri
   mkdirSync(configDir, { recursive: true });
   const workspace = join(root, "projects", "app");
   mkdirSync(workspace, { recursive: true });
-  writeFileSync(join(workspace, ".mcp.json"), "{}");
+  writeProjectMcp(workspace, "{}");
   return {
     trust: await trustAt(root, configDir, defaultTrust),
     workspace,
@@ -85,6 +91,25 @@ async function rig(defaultTrust: "ask" | "always" | "never" = "ask"): Promise<Ri
     trustFile: join(configDir, "trust.json"),
   };
 }
+
+test("a folder with only a root .mcp.json and a shared .agents/skills above it needs no decision (M5g-2)", async () => {
+  // 부정 시험: 엔진은 두 자리를 읽지 않으므로 신뢰 카드가 뜨지 않고, 상태의 자원 목록에도 들지 않는다
+  const { trust, root } = await rig();
+  const plain = join(root, "projects", "plain");
+  mkdirSync(join(plain, ".agents", "skills"), { recursive: true });
+  mkdirSync(join(root, "projects", ".agents", "skills"), { recursive: true });
+  mkdirSync(join(root, ".agents", "skills"), { recursive: true });
+  writeFileSync(join(plain, ".mcp.json"), "{}");
+  const inspected = await trust.inspect(plain, SIGNAL);
+  expect(inspected.result).toMatchObject({
+    projectRoot: plain,
+    required: false,
+    trusted: true,
+    verdict: "allow",
+    via: "notRequired",
+    resources: [],
+  });
+});
 
 test("a project with trust-requiring files and no decision is undecided and offers every choice", async () => {
   const { trust, workspace } = await rig();
@@ -96,7 +121,7 @@ test("a project with trust-requiring files and no decision is undecided and offe
     verdict: "undecided",
     via: "headless",
   });
-  expect(inspected.result.resources).toContain(".mcp.json");
+  expect(inspected.result.resources).toContain(".fresnel/mcp.json");
   expect(inspected.options.map((option) => option.label)).toEqual([
     "trust-folder",
     "trust-parent",
@@ -181,7 +206,7 @@ test("an undecided project lists its MCP servers by name and command, never an e
   mkdirSync(join(workspace, ".fresnel", "hooks"), { recursive: true });
   writeFileSync(join(workspace, ".fresnel", "hooks", "canary.sh"), `touch ${marker}\n`);
   writeFileSync(
-    join(workspace, ".mcp.json"),
+    join(workspace, ".fresnel", "mcp.json"),
     JSON.stringify({
       mcpServers: {
         docs: {
@@ -208,10 +233,10 @@ test("an undecided project lists its MCP servers by name and command, never an e
 
 test("a malformed MCP file lists no servers, and the project is still asked", async () => {
   const { trust, workspace } = await rig();
-  writeFileSync(join(workspace, ".mcp.json"), "{ broken");
+  writeProjectMcp(workspace, "{ broken");
   const inspected = await trust.inspect(workspace, SIGNAL);
   expect(inspected.result).toMatchObject({ required: true, verdict: "undecided" });
-  expect(inspected.result.resources).toContain(".mcp.json");
+  expect(inspected.result.resources).toContain(".fresnel/mcp.json");
   expect(inspected.details).toEqual({
     mcpServers: [],
     hooks: [],
@@ -249,7 +274,7 @@ test("two hosts deciding at the same time lose no decision", async () => {
   for (let index = 0; index < 12; index += 1) {
     const workspace = join(root, "projects", `app-${String(index)}`);
     mkdirSync(workspace, { recursive: true });
-    writeFileSync(join(workspace, ".mcp.json"), "{}");
+    writeProjectMcp(workspace, "{}");
     workspaces.push(workspace);
   }
   const results = await Promise.all(
@@ -297,7 +322,7 @@ test("remove drops this folder's stored decision and session memory, keeps the o
   const { trust, workspace, root, trustFile } = await rig();
   const sibling = join(root, "projects", "other");
   mkdirSync(sibling, { recursive: true });
-  writeFileSync(join(sibling, ".mcp.json"), "{}");
+  writeProjectMcp(sibling, "{}");
   await trust.decide(sibling, { kind: "folder", verdict: "allow" }, SIGNAL);
   await trust.decide(workspace, { kind: "folder", verdict: "allow" }, SIGNAL);
   // 이번 실행의 기억(거부)은 저장된 허용보다 먼저 보인다

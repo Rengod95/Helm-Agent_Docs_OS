@@ -4776,7 +4776,6 @@
   "settings.l2.knowledge.search.likeScanLimit.label": "짧은 질의 탐색 한도",
   "settings.l2.knowledge.search.likeScanLimit.unit": "개",
   "settings.l2.mcp.servers.label": "MCP 서버",
-  "settings.l2.mcp.importMcpJson.label": ".mcp.json 가져오기",
   "settings.l2.mcp.connectTimeoutMs.label": "MCP 연결 제한 시간",
   "settings.l2.mcp.callTimeoutMs.label": "MCP 호출 제한 시간",
   "settings.l2.mcp.approvalMode.label": "MCP 도구 승인 방식",

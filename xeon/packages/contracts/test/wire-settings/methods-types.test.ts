@@ -80,6 +80,8 @@ export type ServerNotificationNames = Expect<
     | "project.changed"
     | "plugin.changed"
     | "pluginReview.changed"
+    | "migration.progress"
+    | "migration.changed"
     | "turnRecord.delta"
   >
 >;

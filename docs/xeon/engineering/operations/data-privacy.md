@@ -131,8 +131,8 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 ## 5. 신뢰와 프로젝트 파일 읽기
 
-- 프로젝트 폴더는 판정 전에 신뢰 판정을 받습니다. 판정 전에는 프로젝트 확장을 불러오지 않고, `.mcp.json`, 스킬, 설정을 읽지 않습니다(architecture.security.spec T-03).
-- 신뢰가 필요한 자원은 `.fresnel/extensions/`, `.fresnel/settings.json`, `.fresnel/settings.local.json`, `.fresnel/mcp.json`, `.mcp.json`, `.fresnel/hooks/`, `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/`, `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md`, `.agents/skills/`입니다(X.loading-trust.spec §4.7.2).
+- 프로젝트 폴더는 판정 전에 신뢰 판정을 받습니다. 판정 전에는 프로젝트 확장을 불러오지 않고, `.fresnel/mcp.json`, 스킬, 설정을 읽지 않습니다(architecture.security.spec T-03).
+- 신뢰가 필요한 자원은 `.fresnel/extensions/`, `.fresnel/settings.json`, `.fresnel/settings.local.json`, `.fresnel/mcp.json`, `.fresnel/hooks/`, `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/`, `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md`입니다(X.loading-trust.spec §4.7.2).
 - `AGENTS.md`는 신뢰와 관계없이 읽힙니다. `CLAUDE.md`는 읽지 않습니다. 이 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않습니다. 그래도 신뢰되지 않은 입력으로 취급합니다(X.loading-trust.spec §4.7.2, architecture.security.spec §5).
 - 판정 순서는 다음과 같습니다. 재정의 값, 자원 없음, 이번 실행 기억, 대화 신뢰 훅, 저장된 결정, 기본 설정 `x.loading-trust.defaultProjectTrust`(기본 `ask`), 헤드리스 불신, 프롬프트입니다(X.loading-trust.spec §4.7.3).
 - 헤드리스 실행(print, JSON)에서는 프롬프트를 띄우지 않고 불신으로 처리합니다. 이때 결정을 저장하지 않습니다(X.loading-trust.spec §4.7.3 7번).

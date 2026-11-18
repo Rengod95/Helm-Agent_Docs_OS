@@ -55,7 +55,7 @@ binds: []
 | B-01 | 모델 출력 | 엔진 | 모델 provider 응답 | 도구 호출, 텍스트. 모델 출력은 신뢰하지 않습니다 |
 | B-02 | 도구 결과와 외부 콘텐츠 | 모델 컨텍스트 | 웹 페이지, 파일 내용, MCP 결과 | 프롬프트 주입 가능 텍스트 |
 | B-03 | 샌드박스 | 엔진 프로세스 | `bash` 자식 프로세스 | 명령, 작업 폴더 쓰기 |
-| B-04 | 작업 폴더 | 사용자 설정·내장 확장 | 저장소의 `.fresnel/`, `.mcp.json` | 확장, MCP 정의, 스킬, 설정 |
+| B-04 | 작업 폴더 | 사용자 설정·내장 확장 | 저장소의 `.fresnel/` | 확장, MCP 정의, 스킬, 설정 |
 | B-05 | MCP 서버 | 엔진 | stdio 자식 프로세스, HTTP 서버 | 도구 정의, 도구 결과, 서버 주도 요청 |
 | B-06 | 시크릿 | 시크릿 서비스(L0.secrets) | 모델 컨텍스트, 이벤트 DB, 로그, 자식 env | 참조(`secret://`)만 넘고 값은 넘지 않습니다 |
 | B-07 | 네트워크 | 엔진 | 인터넷, 사설망, 루프백 서비스 | `web.fetch`, `web.search`, MCP HTTP |
@@ -69,8 +69,8 @@ binds: []
 |---|---|---|---|---|---|---|
 | T-01 | 외부 콘텐츠의 프롬프트 주입으로 모델이 위험한 도구를 부름 | B-01, B-02 | 도구 승인 규칙과 권한 모드, 쓰기·셸 도구 승인, `web.fetch` 기본 `ask`와 대화에 나온 URL만 허용 | `L1.tools.spec`, `L2.web.spec` §4.6.6 | 가짜(승인 흐름은 실제 `ApprovalService` 시험) | G2-10 동의 표시 요건, `always` 강등 표시(T4) |
 | T-02 | 샌드박스 `bash`가 작업 폴더 밖에 쓰거나 보호 경로를 읽음 | B-03 | `fresnel.sandbox`(bubblewrap·socat, Seatbelt), 자가 시험 6항목, 격리 불가 시 기본 `disable_execute` | `L0.sandbox.spec` §4.4·§4.5 | 없음. int 시험 0개, `selfTest` 호출처 없음 | G4-01 int 시험(T3), G1-12 `selfTest` 호출(T2), CI 설치(Z), macOS Seatbelt 확인(`review.macos-checklist`) |
-| T-03 | 신뢰하지 않은 저장소의 작업 폴더 자원이 코드를 실행하거나 설정을 바꿈 | B-04 | 작업 폴더 신뢰. 판정 전에는 작업 폴더 확장을 import하지 않고 `.mcp.json`, 스킬, 설정을 읽지 않음. `untrusted`는 로드하지 않음 | `X.loading-trust.spec` §4.6·§4.7 | 가짜(X 단위 시험). 클라이언트 신뢰 카드 없음 | G1-03 wire 이름 통일(T1), 카드(T6, T7), `.fresnel/commands` 자원 표(T5), G1-10 `trust.json` 잠금(T3) |
-| T-04 | stdio MCP 서버가 사용자 권한으로 임의 동작 | B-05 | 작업 폴더 정의는 신뢰 뒤에만, 신뢰한 작업 폴더에서도 새로 생기거나 바뀐 `.mcp.json` 명령은 기동 승인 [결정: 2026-11-04 사용자 A3], 평문 env 거부, 시크릿 env 서버는 M2에서 띄우지 않음, 서버 허용·차단 목록 | ADR-0011, `L2.mcp.spec` §4.3·§4.4 | 가짜(인메모리 스텁, HTTP 서버) | G1-04 `McpProcessPort`(T3, T5), M3 샌드박스 정책과 기동 승인 |
+| T-03 | 신뢰하지 않은 저장소의 작업 폴더 자원이 코드를 실행하거나 설정을 바꿈 | B-04 | 작업 폴더 신뢰. 판정 전에는 작업 폴더 확장을 import하지 않고 `.fresnel/mcp.json`, 스킬, 설정을 읽지 않음. `untrusted`는 로드하지 않음 | `X.loading-trust.spec` §4.6·§4.7 | 가짜(X 단위 시험). 클라이언트 신뢰 카드 없음 | G1-03 wire 이름 통일(T1), 카드(T6, T7), `.fresnel/commands` 자원 표(T5), G1-10 `trust.json` 잠금(T3) |
+| T-04 | stdio MCP 서버가 사용자 권한으로 임의 동작 | B-05 | 작업 폴더 정의는 신뢰 뒤에만, 신뢰한 작업 폴더에서도 새로 생기거나 바뀐 `.fresnel/mcp.json` 명령은 기동 승인 [결정: 2026-11-04 사용자 A3], 평문 env 거부, 시크릿 env 서버는 M2에서 띄우지 않음, 서버 허용·차단 목록 | ADR-0011, `L2.mcp.spec` §4.3·§4.4 | 가짜(인메모리 스텁, HTTP 서버) | G1-04 `McpProcessPort`(T3, T5), M3 샌드박스 정책과 기동 승인 |
 | T-05 | 시크릿 값이 모델 요청, 이벤트 DB, 로그, 자식 env로 새어 나감 | B-06 | 참조만 저장, 사용 모드(`runtime-http`, 승인된 `env`), 마스킹 5계층, 자식 env 필터 `SENSITIVE_ENV_PATTERNS` | `L0.secrets.spec` §4.3~§4.5, `review.decisions-2` U-19 | 실측(실제 sops, Linux). 승인 증거 전달은 host 시험 | 시크릿 사후 삭제(G2-16, M3) |
 | T-06 | 화면 앞의 다른 사람이 시크릿을 열람 | B-06 | `reveal`의 재인증(60초, `os-auth` 우선, 없으면 `tty-confirm`), 감사 기록 | `L0.secrets.spec` §3.8·§4.9 | `tty-confirm`만 실측. `os-auth`·macOS 키체인 없음 | G4-02 macOS 확인 |
 | T-07 | `web.fetch`가 사설망·메타데이터 주소에 요청(SSRF)하거나 리다이렉트로 우회 | B-07 | URL 검사, 연결 시점 IP 검사와 고정, 리다이렉트 재검사, provider endpoint 예외 | `L2.web.spec` §4.6 | 가짜(루프백 가짜 서버). public 모드 SSRF 방어가 Bun에서 도는지 미확인 | G4-05 loopback 스모크(T5) |

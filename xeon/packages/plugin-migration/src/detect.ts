@@ -1,6 +1,6 @@
-// 감지(M5g-0, migration.md §6.1). 지금 엔진이 읽는 다른 하네스 형식의 자리와 가져오기로 옮길 수 있는 표지가 프로젝트에 있는지 **존재만** 본다.
-// `lstat`만 쓰고 내용은 읽지 않는다(`readBounded`·`listDir`를 부르지 않는다). `.agents/skills`는 엔진의 `findTrustRequiringResources`와 같은 자리를 본다.
-// 결과 값(`ForeignFormatNotice`)은 신뢰 상태 읽기(`trust.get`의 `TrustStatus`, `resources`는 이미 `.mcp.json`·`.agents/skills`를 상대 경로로 싣는다)에 선택 필드로 실을 값이다. 어느 필드에 싣는지는 호스트가 정한다.
+// 감지(M5g-0, migration.md §6.1, M5g-2 뒤의 표). 엔진이 더는 읽지 않는 다른 하네스 형식(`.mcp.json`, `.agents/skills`)과 가져오기로 옮길 수 있는 표지가
+// 프로젝트에 있는지 **존재만** 본다. `lstat`만 쓰고 내용은 읽지 않는다(`readBounded`·`listDir`를 부르지 않는다). `.agents/skills`는 루트와 모든 상위 폴더를 본다.
+// 결과 값(`ForeignFormatNotice`)은 신뢰 상태 읽기(`trust.get`의 `foreignFormats`)에 선택 필드로 실는 값이다. `TrustStatus.resources`에는 이 두 표지가 더 들어가지 않는다.
 
 import { Bug } from "@fresnel/contracts";
 import { dirnameOf, joinPath, normalizePath } from "./paths.ts";
@@ -16,9 +16,12 @@ export interface DetectInput {
 
 export interface ForeignFormatNotice {
   readonly code: "foreign_format_found";
-  /** 지금 엔진이 읽지만 곧 읽지 않게 될 자리(예: ".mcp.json", "../.agents/skills") */
+  /**
+   * 이제 읽지 않는 자리(예: ".mcp.json", "../.agents/skills"). 엔진이 예전에 읽던 자리다. 필드 이름은 wire 호환으로 그대로 둔다
+   * (`ForeignFormatNoticeSchema`, 층 A). 값의 뜻만 "더는 읽지 않는 자리"다.
+   */
   readonly willStopReading: readonly string[];
-  /** 엔진은 읽지 않지만 가져오기로 옮길 수 있는 표지 */
+  /** 엔진은 읽지 않지만 가져오기로 옮길 수 있는 표지(`willStopReading`의 자리도 여기 들 수 있다) */
   readonly importable: readonly string[];
   /** 가져오기를 쓸 수 있는가(첫 조각이 다루는 표지가 하나라도 있다) */
   readonly importAvailable: boolean;
@@ -30,25 +33,130 @@ const SHARED_SKILLS = ".agents/skills";
 /** 폴더일 때만 표지로 치는 자리. 나머지 자리는 파일이나 폴더 어느 쪽이어도 있으면 표지다 */
 const FOLDER_ONLY: ReadonlySet<string> = new Set([".claude/"]);
 
-/** 감지 표지 목록(§6.1). 데이터다. 표 순서가 결과 순서다. `engineReads`는 엔진이 지금 읽는 자리(제거 예정, §8.1)다 */
+/**
+ * 감지 표지 목록(§6.1). 데이터다. 표 순서가 결과 순서다. `engineReads`는 엔진이 지금 읽는가(M5g-2 뒤 모두 거짓), `stoppedReading`은
+ * 예전에 읽던 자리인가(§8.1 1, 2번이 제거되며 참이 된다)다.
+ */
 export const FOREIGN_FORMAT_MARKERS: readonly ForeignFormatMarker[] = [
-  { marker: ".mcp.json", harness: "claude-code", engineReads: true, importable: true },
-  { marker: ".agents/skills", harness: "agent-skills", engineReads: true, importable: true },
-  { marker: ".claude/", harness: "claude-code", engineReads: false, importable: true },
-  { marker: "CLAUDE.md", harness: "claude-code", engineReads: false, importable: true },
-  { marker: "CLAUDE.local.md", harness: "claude-code", engineReads: false, importable: true },
-  { marker: ".cursor/", harness: "other", engineReads: false, importable: false },
-  { marker: ".cursorrules", harness: "other", engineReads: false, importable: false },
-  { marker: ".codex/", harness: "other", engineReads: false, importable: false },
-  { marker: ".gemini/", harness: "other", engineReads: false, importable: false },
-  { marker: "GEMINI.md", harness: "other", engineReads: false, importable: false },
-  { marker: ".opencode/", harness: "other", engineReads: false, importable: false },
-  { marker: ".pi/", harness: "other", engineReads: false, importable: false },
-  { marker: ".clinerules", harness: "other", engineReads: false, importable: false },
-  { marker: ".cline/", harness: "other", engineReads: false, importable: false },
-  { marker: ".roo/", harness: "other", engineReads: false, importable: false },
-  { marker: ".roomodes", harness: "other", engineReads: false, importable: false },
-  { marker: ".windsurfrules", harness: "other", engineReads: false, importable: false },
+  {
+    marker: ".mcp.json",
+    harness: "claude-code",
+    engineReads: false,
+    stoppedReading: true,
+    importable: true,
+  },
+  {
+    marker: ".agents/skills",
+    harness: "agent-skills",
+    engineReads: false,
+    stoppedReading: true,
+    importable: true,
+  },
+  {
+    marker: ".claude/",
+    harness: "claude-code",
+    engineReads: false,
+    stoppedReading: false,
+    importable: true,
+  },
+  {
+    marker: "CLAUDE.md",
+    harness: "claude-code",
+    engineReads: false,
+    stoppedReading: false,
+    importable: true,
+  },
+  {
+    marker: "CLAUDE.local.md",
+    harness: "claude-code",
+    engineReads: false,
+    stoppedReading: false,
+    importable: true,
+  },
+  {
+    marker: ".cursor/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".cursorrules",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".codex/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".gemini/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: "GEMINI.md",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".opencode/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".pi/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".clinerules",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".cline/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".roo/",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".roomodes",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
+  {
+    marker: ".windsurfrules",
+    harness: "other",
+    engineReads: false,
+    stoppedReading: false,
+    importable: false,
+  },
 ];
 
 /** 확인할 자리 하나. 표 한 줄이 여러 자리가 될 수 있다(`.agents/skills`) */
@@ -120,6 +228,7 @@ export async function detectForeignFormats(
             marker: candidate.marker,
             harness: candidate.row.harness,
             engineReads: candidate.row.engineReads,
+            stoppedReading: candidate.row.stoppedReading,
             importable: candidate.row.importable,
           }
         : undefined,
@@ -128,14 +237,19 @@ export async function detectForeignFormats(
   return found.filter((marker): marker is ForeignFormatMarker => marker !== undefined);
 }
 
-/** 표지가 없으면 알림도 없다(`undefined`). 있으면 엔진이 곧 읽지 않을 자리와 가져올 수 있는 자리를 가른다 */
+/**
+ * 표지가 없으면 알림도 없다(`undefined`). 있으면 이제 읽지 않는 자리(`willStopReading`)와 가져올 수 있는 자리(`importable`)를 가른다.
+ * 두 목록은 겹칠 수 있다(`.mcp.json`은 읽지 않는 자리이면서 가져올 수 있다).
+ */
 export function foreignFormatNotice(
   markers: readonly ForeignFormatMarker[],
 ): ForeignFormatNotice | undefined {
   if (markers.length === 0) return undefined;
   return {
     code: "foreign_format_found",
-    willStopReading: markers.filter((marker) => marker.engineReads).map((marker) => marker.marker),
+    willStopReading: markers
+      .filter((marker) => marker.stoppedReading)
+      .map((marker) => marker.marker),
     importable: markers
       .filter((marker) => !marker.engineReads && marker.importable)
       .map((marker) => marker.marker),

@@ -23,6 +23,7 @@ import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import type { PluginPort } from "../../src/handlers/m5/plugins.ts";
 import type { OverlayPort } from "../../src/assembly/plugins/overlay.ts";
 import type { MigrationSubmitPort } from "../../src/assembly/plugins/migration-submit.ts";
+import type { MigrationPort } from "../../src/handlers/m5/migration.ts";
 import type { PluginReviewPort } from "../../src/handlers/m5/plugin-review.ts";
 import type { SandboxSelfTestPort } from "../../src/handlers/m4/sandbox-self-test.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
@@ -161,6 +162,8 @@ export interface FakeEngineOptions {
     readonly plugins?: Partial<PluginPort>;
     /** 검토함 포트(`pluginReview.*`). 알림 구독은 기본으로 아무것도 보내지 않는다 */
     readonly pluginReview?: Partial<PluginReviewPort>;
+    /** 가져오기 포트(`migration.*`, `trust.get`의 `foreignFormats`). 기본은 표지가 없고 알림을 보내지 않는다 */
+    readonly migration?: Partial<MigrationPort>;
     /** 턴 덧씌우기 포트(`turn.start.overlay`). 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly overlay?: Partial<OverlayPort>;
   };
@@ -666,6 +669,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     // 프로젝트를 여는 훑기는 검토 포트를 쓰지 않는 시험에서 아무 일도 하지 않는다
     scanOpenedRoots: () => Promise.resolve(),
     pluginMigration: partial<MigrationSubmitPort>({}),
+    migration: partial<MigrationPort>({
+      foreignFormatsOf: () => Promise.resolve(undefined),
+      onChanged: () => () => undefined,
+      onProgress: () => () => undefined,
+      ...options.overrides?.migration,
+    }),
     m4: {
       extRead: createExtReadPort(
         {
@@ -695,6 +704,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         opened: () => Promise.resolve(),
         forget: () => undefined,
         defaultView: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        viewOf: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+        viewOfProfile: () => undefined,
         settingsOf: () => new Map(),
         sourceOf: () => "none",
         dispose: () => undefined,

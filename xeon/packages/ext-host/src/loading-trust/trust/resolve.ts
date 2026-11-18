@@ -91,7 +91,7 @@ export async function resolveProjectTrust(
   input: ResolveProjectTrustInput,
 ): Promise<ProjectTrustResult> {
   const projectRoot = await input.store.canonical(input.projectRoot);
-  const resources = await findTrustRequiringResources(input.fs, projectRoot, input.homeDir);
+  const resources = await findTrustRequiringResources(input.fs, projectRoot);
   const base = { projectRoot, required: resources.length > 0, resources };
 
   // 1. 일회 지정은 저장하지 않는다

@@ -13,7 +13,7 @@ Find the row for the asset, then read its reference file before you write. "Work
 | Work-folder skill | `<work folder>/.fresnel/skills/<name>/SKILL.md`, only if the folder is trusted | `skill_view` only. Agents cannot write it |
 | User-info memory | `<data dir>/memory/USER.md` (store `user`) | `memory_manage` |
 | Environment memory | `<data dir>/memory/MEMORY.md` (store `env`) | `memory_manage` |
-| MCP server | `l2.mcp.servers` in `<config dir>/settings.json`, or in `.fresnel/settings.json` and `.fresnel/settings.local.json` of a trusted work folder. `.mcp.json` and `.fresnel/mcp.json` in the work folder are read too | No model tool adds, edits, or removes one. Inspect with `mcp_servers`, `mcp_list_resources`, `mcp_read_resource` |
+| MCP server | `l2.mcp.servers` in `<config dir>/settings.json`, or in `.fresnel/settings.json` and `.fresnel/settings.local.json` of a trusted work folder. `.fresnel/mcp.json` in a trusted work folder is read too. A `.mcp.json` from another tool is not read; the user can import it as a plugin draft | No model tool adds, edits, or removes one. Inspect with `mcp_servers`, `mcp_list_resources`, `mcp_read_resource` |
 | Schedule | `<state dir>/schedule/state.json` (engine-written) | `schedule_create` only. No model tool lists, cancels, or updates |
 | Subagent definition | `<config dir>/extensions/<plugin>/agents/<name>.md` (installed default plugins only) | `agent` tool runs a definition by name. Files in `<config dir>/agents` or `.fresnel/agents` are not loaded |
 

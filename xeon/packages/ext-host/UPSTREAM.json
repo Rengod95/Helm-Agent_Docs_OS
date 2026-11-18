@@ -33,7 +33,6 @@
     "config-dir-constant: CONFIG_DIR_NAME from config.ts becomes the local constant .fresnel (resources.ts)",
     "resource-list: the trust-requiring resource list uses the Fresnel names of spec section 4.7.2 (resources.ts)",
     "find-list: the boolean check returns the list of resources that were found (resources.ts)",
-    "injected-fs-home: existsSync/homedir/process.env.HOME become LoaderFs and the homeDir argument (resources.ts)",
     "decision-order: the order keeps pi's and adds session memory, store corruption and headless denial; verdicts are allow, deny, undecided (resolve.ts)",
     "point-fail-closed: an exception from the session.trust.before point denies instead of being reported and skipped (resolve.ts)",
     "corrupt-store-no-prompt: a corrupt store denies without prompting so a saved answer cannot overwrite other folders' decisions (resolve.ts)",

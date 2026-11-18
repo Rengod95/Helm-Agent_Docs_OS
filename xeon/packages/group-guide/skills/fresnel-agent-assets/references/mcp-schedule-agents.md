@@ -2,13 +2,14 @@
 
 ## MCP servers
 
-Where a server is declared. Same id in several places: settings beat `.mcp.json`; among settings scopes, managed beats local, local beats project, project beats user.
+Where a server is declared. Same id in several places: settings beat plugin servers and `.fresnel/mcp.json`; among settings scopes, managed beats local, local beats project, project beats user.
 
 | Source | Location | Notes |
 |---|---|---|
 | Settings `l2.mcp.servers` | `<config dir>/settings.json` (user); `.fresnel/settings.json` and `.fresnel/settings.local.json` (work folder) | Work-folder files apply only when the folder is trusted |
-| `.mcp.json` | Work folder root | Read only when the folder is trusted and `l2.mcp.importMcpJson` is on (default on) |
-| `.fresnel/mcp.json` | Work folder | Same rules as `.mcp.json`. Wins over `.mcp.json` for the same name |
+| `.fresnel/mcp.json` | Work folder | Read only when the folder is trusted. A server with the same id from settings or a plugin wins |
+
+A `.mcp.json` from another tool (Claude Code, Cursor, and so on) is not read. It does not start any server. The user can import it as a plugin draft instead.
 
 Settings format: `l2.mcp.servers` maps a server id to a definition. Id pattern: `^[a-z][a-z0-9-]{0,31}$`.
 
@@ -29,7 +30,7 @@ Settings format: `l2.mcp.servers` maps a server id to a definition. Id pattern: 
 - Definition keys: `transport` (required); `enabled` (default true); `title` (80 characters); `tools` (`allow`, `deny`, `approval` mapping tool name to `prompt`, `auto`, or `deny`); `timeouts` (`connectMs`, `callMs`); `trustAnnotations` (default false); `sandbox` (boolean).
 - Transports: `stdio` (`command`, `args`, `cwd`, `env`), `http` (`url` starting with `http`, `headers`), `sse` (`url`, `headers`).
 
-`.mcp.json` format (Claude Code style):
+`.fresnel/mcp.json` format (Claude Code style, `mcpServers` map):
 
 ```json
 { "mcpServers": { "docs": { "command": "npx", "args": ["-y", "example-mcp-server"] }, "remote": { "type": "http", "url": "https://example.invalid/mcp" } } }
@@ -59,7 +60,7 @@ Model tools:
 
 - Server tools appear under their own names, with no server prefix. A name that clashes with another tool hides the later one.
 - Permission rules use the key `mcp__<server>__<tool>`.
-- Changes to settings or `.mcp.json` apply at the next step boundary. Only added, removed, or changed servers reconnect.
+- Changes to settings or `.fresnel/mcp.json` apply at the next step boundary. Only added, removed, or changed servers reconnect.
 - No model tool adds, edits, or removes a server definition.
 
 ## Schedules

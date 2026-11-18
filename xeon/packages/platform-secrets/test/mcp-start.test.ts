@@ -19,7 +19,7 @@ const HANDLE = handleOf("search-api-key");
 
 const DEF: McpStartDefinition = {
   serverId: "search",
-  source: "mcpjson:project",
+  source: "mcpjson:fresnel",
   command: "npx",
   args: ["-y", "search-mcp@1.2.0"],
   cwd: null,

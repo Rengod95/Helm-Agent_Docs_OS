@@ -494,6 +494,27 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       );
     }
   });
+  // 가져오기 상태가 바뀌면 `migration.changed`, 훑기 진행은 `migration.progress`를 연결 전체에 보낸다(migration.md §7.7 [제안])
+  const offMigration = engine.ports.migration.onChanged((change) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push({
+        jsonrpc: "2.0",
+        method: "migration.changed",
+        params: toRecord({ kind: change.kind }),
+      });
+    }
+  });
+  const offMigrationProgress = engine.ports.migration.onProgress((progress) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push({
+        jsonrpc: "2.0",
+        method: "migration.progress",
+        params: toRecord({ scanId: progress.scanId, done: progress.done, total: progress.total }),
+      });
+    }
+  });
   // 프로젝트 목록을 바꾸면 연결 전체에 `project.changed`를 보낸다(review m5 §3.4). 프로필과 같은 규칙이다
   const offProjects = engine.ports.m4.project.onChange((change) => {
     for (const conn of hub.connections()) {
@@ -528,6 +549,8 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offSettings();
       offProfiles();
       offPluginReview();
+      offMigration();
+      offMigrationProgress();
       offProjects();
       offFrames();
       offNotices();

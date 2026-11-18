@@ -102,7 +102,7 @@ export interface McpDeps {
   /** 호출마다 읽는 설정 층. 변경이 다음 호출부터 적용된다 */
   readonly settings: McpSettingsSource;
   /**
-   * 대화를 지정하지 않는 읽기(`load`, `threadId` 없는 `reload`)의 프로젝트 루트. 없으면 프로젝트 출처 정의와 `.mcp.json`을 쓰지 않는다.
+   * 대화를 지정하지 않는 읽기(`load`, `threadId` 없는 `reload`)의 프로젝트 루트. 없으면 프로젝트 출처 정의와 `.fresnel/mcp.json`을 쓰지 않는다.
    * 대화가 있는 읽기는 `workspaceOf`가 정한다
    */
   readonly projectRoot: string | undefined;
@@ -154,7 +154,7 @@ export interface McpLoadOptions {
 
 export interface McpRuntime {
   readonly service: McpService;
-  /** 설정과 `.mcp.json`을 읽고 서버 연결을 시작한다(기다리지 않는다) */
+  /** 설정과 `.fresnel/mcp.json`을 읽고 서버 연결을 시작한다(기다리지 않는다) */
   load(signal: AbortSignal, options?: McpLoadOptions): Promise<LoadedDefinitions>;
   /**
    * 정의를 다시 읽고, 정의 지문(서버 정의, 신뢰, 설정)이 `load`·`reload`가 마지막에 반영한 것과 다를 때만 서버를 맞춘다. 반영했으면 true.

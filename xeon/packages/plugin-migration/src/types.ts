@@ -341,8 +341,10 @@ export interface ForeignFormatMarker {
   /** 프로젝트 루트 기준 상대 경로. 상위 폴더의 `.agents/skills`는 `../.agents/skills`처럼 적는다 */
   readonly marker: string;
   readonly harness: HarnessId | "other";
-  /** 지금 엔진이 이 자리를 읽는가(제거 예정). 거짓이면 엔진은 읽지 않고 가져오기로만 옮길 수 있다 */
+  /** 엔진이 이 자리를 읽는가. M5g-2 뒤에는 모든 표지가 거짓이다. 엔진은 다른 하네스 형식을 읽지 않고 가져오기로만 옮긴다 */
   readonly engineReads: boolean;
+  /** 엔진이 예전에 읽던 자리이고 M5g-2에서 읽지 않게 된 자리인가(`.mcp.json`, `.agents/skills`). 알림의 `willStopReading`이 이 값으로 고른다 */
+  readonly stoppedReading: boolean;
   /** 이 라이브러리의 첫 조각이 가져올 수 있는가 */
   readonly importable: boolean;
 }

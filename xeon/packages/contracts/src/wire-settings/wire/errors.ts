@@ -177,6 +177,12 @@ export type WireErrorKind =
   | "pluginReview.handEditNotAllowed"
   | "pluginReview.purposeRequired"
   | "pluginReview.profileInvalid"
+  | "migration.scanLimit"
+  | "migration.rootInvalid"
+  | "migration.questionsOpen"
+  | "migration.nameConflict"
+  | "migration.unsupportedHarness"
+  | "migration.notFound"
   | "testRun.unavailable"
   | "testRun.notATestRun"
   | "testRun.notPaused"
@@ -865,6 +871,38 @@ export const WIRE_ERRORS: {
     kind: "pluginReview.profileInvalid",
     retryable: false,
     details: IssuesDetails,
+  },
+  // 3670~3679: 가져오기(`migration.*`, migration.md §7.7 [제안]). 3676~3679는 예비다
+  /** 훑기가 파일 수, 바이트, 깊이 상한을 넘었다(`migration.scan`). 일부만 훑은 결과는 내지 않는다 */
+  "migration.scanLimit": { code: 3670, kind: "migration.scanLimit", retryable: false },
+  /** 훑을 폴더가 없거나 절대 경로가 아니다(`migration.scan`) */
+  "migration.rootInvalid": { code: 3671, kind: "migration.rootInvalid", retryable: false },
+  /** 질문이 모두 닫히지 않아 적용할 수 없다(`migration.apply`). `details.id`는 제안 id다 */
+  "migration.questionsOpen": {
+    code: 3672,
+    kind: "migration.questionsOpen",
+    retryable: false,
+    details: IdDetails,
+  },
+  /** 같은 이름의 플러그인 폴더나 프로필이 이미 있다(`migration.apply`). `details.name`이다 */
+  "migration.nameConflict": {
+    code: 3673,
+    kind: "migration.nameConflict",
+    retryable: false,
+    details: NameDetails,
+  },
+  /** 옮길 수 없는 하네스의 형식을 가져오려 했다(`migration.apply`) */
+  "migration.unsupportedHarness": {
+    code: 3674,
+    kind: "migration.unsupportedHarness",
+    retryable: false,
+  },
+  /** 그 id의 훑기, 제안, 보고서가 없다(`migration.proposal`, `migration.apply`, `migration.report.get`). `details.id`다 */
+  "migration.notFound": {
+    code: 3675,
+    kind: "migration.notFound",
+    retryable: false,
+    details: IdDetails,
   },
   /** 이 호스트는 Test run 제어 포트가 없다(`testRun.*`) */
   "testRun.unavailable": { code: 3311, kind: "testRun.unavailable", retryable: false },

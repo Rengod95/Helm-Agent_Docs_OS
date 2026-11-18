@@ -27,6 +27,7 @@ import { createProposalHandlers } from "./proposal.ts";
 import { createM5Handlers } from "./m5/index.ts";
 import { createPluginHandlers } from "./m5/plugins.ts";
 import { createPluginReviewHandlers } from "./m5/plugin-review.ts";
+import { createMigrationHandlers } from "./m5/migration.ts";
 import { createMeasureHandlers } from "./measure.ts";
 import { createModelsListHandler } from "./models.ts";
 import { createUsageGetHandler } from "./usage.ts";
@@ -138,6 +139,7 @@ export function createWireHandlers(
     ...createRemoteHandlers(remotePortOf(lifecycle?.remote)),
     ...createPluginHandlers(engine.ports.plugins),
     ...createPluginReviewHandlers(engine.ports.pluginReview),
+    ...createMigrationHandlers(engine.ports.migration),
     // 플러그인 메서드 가운데 아직 없는 것은 후속 작업이 처리기를 채운다. 프로젝트(`project.*`)는 위에서 채웠다
   };
   return table;

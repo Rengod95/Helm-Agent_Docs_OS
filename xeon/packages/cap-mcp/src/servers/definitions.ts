@@ -11,13 +11,13 @@ import {
   type McpJsonOrigin,
 } from "./loader.ts";
 
-// L2.mcp.spec §4.2. 설정과 `.mcp.json`을 합쳐 서버 정의 목록을 만든다(확장 등록 서버는 service가 더한다).
-// `.mcp.json`(루트)과 `.fresnel/mcp.json`은 프로젝트가 신뢰된 뒤에만 읽는다(결정 D6).
+// L2.mcp.spec §4.2. 설정과 `.fresnel/mcp.json`을 합쳐 서버 정의 목록을 만든다(확장 등록 서버는 service가 더한다).
+// `.fresnel/mcp.json`은 프로젝트가 신뢰된 뒤에만 읽는다(결정 D6). 다른 하네스의 `.mcp.json`은 읽지 않는다(가져오기로만 들어온다).
 
 export interface DefinitionsDeps {
   readonly layers: ScopeStack;
   readonly projectRoot: string | undefined;
-  /** 대화의 켜짐 플러그인이 낸 서버 정의(`MaterialPort.mcpServers`). 설정 다음, `.mcp.json` 앞에 합친다 */
+  /** 대화의 켜짐 플러그인이 낸 서버 정의(`MaterialPort.mcpServers`). 설정 다음, `.fresnel/mcp.json` 앞에 합친다 */
   readonly contributed: readonly ContributedServer[];
   readonly files: McpFileReader;
   readonly trust: McpProjectTrust;
@@ -26,7 +26,7 @@ export interface DefinitionsDeps {
 
 export interface LoadedDefinitions {
   readonly settings: McpSettings;
-  /** 설정과 `.mcp.json`에서 온 정의. 같은 id는 설정이 이긴다 */
+  /** 설정과 `.fresnel/mcp.json`에서 온 정의. 같은 id는 설정이 이긴다 */
   readonly servers: readonly ServerDefinition[];
   readonly diagnostics: readonly LoaderDiagnostic[];
   /** 프로젝트 신뢰 여부. 프로젝트가 없으면 거짓이다 */
@@ -35,7 +35,6 @@ export interface LoadedDefinitions {
 
 const MCP_JSON_FILES: readonly { readonly relative: string; readonly origin: McpJsonOrigin }[] = [
   { relative: ".fresnel/mcp.json", origin: "fresnel" },
-  { relative: ".mcp.json", origin: "root" },
 ];
 
 function join(root: string, relative: string): string {
@@ -57,16 +56,16 @@ export async function loadDefinitions(
   diagnostics.push(...fromPlugins.diagnostics);
   servers.push(...fromPlugins.servers);
   const root = deps.projectRoot;
-  const wantsFiles = settings.importMcpJson && root !== undefined;
-  const needsTrust = servers.some((server) => server.requiresTrust) || wantsFiles;
+  const readsProjectFiles = root !== undefined;
+  const needsTrust = servers.some((server) => server.requiresTrust) || readsProjectFiles;
   const trusted =
     root !== undefined && needsTrust ? await deps.trust.isTrusted(root, signal) : false;
 
-  if (wantsFiles) {
+  if (readsProjectFiles) {
     const taken = new Set(servers.map((server) => server.id));
     await eachAsync(MCP_JSON_FILES, async (file) => {
       const path = join(root, file.relative);
-      const source = file.origin === "root" ? "mcpjson:project" : "mcpjson:fresnel";
+      const source = `mcpjson:${file.origin}`;
       if (!trusted) {
         if (await deps.files.exists(path)) {
           diagnostics.push({
