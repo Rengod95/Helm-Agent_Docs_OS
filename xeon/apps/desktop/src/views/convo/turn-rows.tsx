@@ -104,26 +104,29 @@ export function TurnFoot(props: {
         {props.replyId === null ? null : (
           <ReplyActions threadId={props.threadId} itemId={props.replyId} />
         )}
-        {summary === undefined ? null : <InvokedMark invoked={summary.invoked} />}
-        {meta === "" ? null : lines.length === 0 ? (
-          <span className="convo-line-meta ml-auto px-1.5">{meta}</span>
-        ) : (
-          <Tooltip
-            side="top"
-            align="end"
-            content={
-              <span className="grid gap-0.5">
-                {lines.map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
+        {/* 원샷 표지는 턴 값(단계·시간)과 같은 오른쪽 묶음에 선다. 왼쪽 답 동작은 hover 전에도 자리를 차지한다 */}
+        <div className="ml-auto flex min-w-0 items-center gap-1">
+          {summary === undefined ? null : <InvokedMark invoked={summary.invoked} />}
+          {meta === "" ? null : lines.length === 0 ? (
+            <span className="convo-line-meta px-1.5">{meta}</span>
+          ) : (
+            <Tooltip
+              side="top"
+              align="end"
+              content={
+                <span className="grid gap-0.5">
+                  {lines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </span>
+              }
+            >
+              <span className="convo-line-meta rounded-xs px-1.5" tabIndex={0}>
+                {meta}
               </span>
-            }
-          >
-            <span className="convo-line-meta ml-auto rounded-xs px-1.5" tabIndex={0}>
-              {meta}
-            </span>
-          </Tooltip>
-        )}
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -229,9 +229,11 @@ export function ProfileRows(props: { readonly state: ProfileChipState }): ReactN
   if (state.read.kind === "failed") {
     return (
       <>
-        <p className="m-0 px-2 py-1.5 text-ui-sm text-text-secondary">
-          {t("desktop.profileChip.loadFailed")}
-        </p>
+        <div className="px-2 py-1.5" data-slot="profile-load-failed">
+          <ProblemLine tone="warning" role="status">
+            {t("desktop.profileChip.loadFailed")}
+          </ProblemLine>
+        </div>
         <MenuItem
           icon={<RotateCcw aria-hidden />}
           onSelect={(event) => {
@@ -466,7 +468,7 @@ export function ProfileNotices(props: { readonly state: ProfileChipState }): Rea
       {state.startDrive === null ? null : (
         <div data-slot="start-drive-notice">
           <ProblemLine tone="warning" role="status">
-            {t("desktop.startDrive.unavailable", { plugin: state.startDrive.plugin })} ·{" "}
+            {t("desktop.startDrive.unavailable", { plugin: state.startDrive.plugin })}.{" "}
             {t(startDriveBlockText(state.startDrive.block))}. {t("desktop.startDrive.fallback")}
           </ProblemLine>
         </div>

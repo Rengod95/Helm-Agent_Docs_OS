@@ -757,7 +757,7 @@ Fresnel 데스크톱
 
 | 구역 | 항목 | 출처 |
 |---|---|---|
-| drive 락 | Drive 스택(위에서 아래로 칸마다 이름, 상태(Drive 중, 핸드오프하고 기다림, 답을 기다림), 한도 칸, 플러그인 프레임이 없으면 "Drive 없이 기본으로 돌아요"), 보유 그룹, 대기열(대기 그룹과 순서, 거부된 그룹) | `drive.frames`·`drive.framesChanged`, `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
+| drive 락 | Drive 스택(위에서 아래로 칸마다 이름, 상태(Drive 중, 핸드오프하고 기다림, 답을 기다림), 한도 칸, 플러그인 프레임이 없으면 "Drive 없음"), 보유 그룹, 대기열(대기 그룹과 순서, 거부된 그룹) | `drive.frames`·`drive.framesChanged`, `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
 | 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
 | 전환 기록 | 단계 경계마다의 drive 락 교대, 켜기·끄기 적용(시각, 턴, 사유) 최근 20개 | `lease.*`, `scope.changed` 이벤트 |
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
@@ -1226,7 +1226,7 @@ compact 폭(720 이하)과 사이드바 시트:
 ```text
  [◇ 기본 › helm › verifier  핸드오프 중  7/8턴  (i)]          ← Drive 스택 띠(플러그인이 이끌 때만)
  [▲ 권한이 바뀌어요: 묻기 → 모두 허용]                        ← 경고 줄(숨기지 않음)
- [▲ 스타트 Drive helm을(를) 시작할 수 없어요 · 플러그인이 멈춰 있어요. 메시지는 Drive 없이 기본으로 받아요]
+ [▲ helm 스타트 Drive를 시작할 수 없어요. 플러그인이 멈춰 있어요. 메시지는 Drive 없이 기본으로 받아요]
  [/review 이 턴만 ×] [◇ 원샷 helm  Drive가 끝날 때까지]         ← 원샷 칩 줄
  ┌──────────────────────────────────────────────────────────┐
  │ 메시지                                                    │
@@ -1236,7 +1236,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 부분 | 자리와 모양 | 동작 | 출처 |
 |---|---|---|---|
-| 프로필 칩 | 입력창 아래 줄 왼쪽, 첨부(+) 뒤. 다른 칩과 같은 sm ghost(높이 28, 좌우 8, 아이콘 14, 글 13 tertiary) | 층 아이콘 + 지금 프로필 제목. 스타트 Drive가 있으면 나침반(시작할 수 없으면 경고색). 바꾼 뒤 단계 경계 전에는 화살표 + "리뷰 · 다음 단계부터", 적용되면 4초 "리뷰(으)로 바뀜" | 지금 값은 마지막 `profile.applied.profileId`, 없으면 대화 요약 `profileId`, 없으면 `default`. 제목은 `profile.list` |
+| 프로필 칩 | 입력창 아래 줄 왼쪽, 첨부(+) 뒤. 다른 칩과 같은 sm ghost(높이 28, 좌우 8, 아이콘 14, 글 13 tertiary) | 층 아이콘 + 지금 프로필 제목. 스타트 Drive가 있으면 나침반(시작할 수 없으면 경고색). 바꾼 뒤 단계 경계 전에는 화살표 + "리뷰 · 다음 단계부터", 적용되면 4초 "리뷰 · 바뀜" | 지금 값은 마지막 `profile.applied.profileId`, 없으면 대화 요약 `profileId`, 없으면 `default`. 제목은 `profile.list` |
 | 칩 메뉴 | 위로 열림, 폭 320 | 머리 "이 대화의 프로필"과 정보 아이콘. 맨 위 탈출구: 기본이 아니면 "기본 프로필로 전환"(`thread.setProfile { profileId: "default" }`), 이미 기본이면 같은 자리가 "기본 프로필 되돌리기"(`profile.default.reset { preview: true }`로 바뀔 것을 보이고 확인 뒤 `preview: false`). 구분선 뒤 프로필 라디오 줄: 제목, 아래 줄에 "스타트 Drive · helm", 프로필이 정한 권한 모드, "이 폴더에서 최근"(`profile.defaultFor { workspace }`). 숨긴 프로필은 지금 고른 것만 보입니다 | `profile.list`, `profile.defaultFor`, `thread.setProfile`, `profile.default.reset` |
 | 권한 경고 줄 | 입력창 위, 경고 빛 | 고른 프로필로 권한 모드가 바뀌면(`thread.setProfile` 결과 `preview.permission`) 단계 경계까지 보입니다. 대화 기록의 프로필 바뀜 표지에도 "· 권한 묻기 → 모두 허용"이 경고색으로 남습니다 | `thread.setProfile`, `profile.applied.permission` |
 | 프로필 바뀜 표지 | 대화 기록의 변화 표지 줄(§6.6 표지와 같은 모양) | "프로필: 기본 → 리뷰". 프로필을 찾지 못해 바뀌었으면 "프로필 X을(를) 찾지 못해 기본(으)로 바꿈". 같은 프로필의 다시 적용은 표지가 없습니다 | `profile.applied`(`switched`, `profile_missing`) |
@@ -1246,7 +1246,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 원샷 보내기 | 보내기 | 고른 칩과, 엔진 명령도 스킬도 아닌 `/이름 나머지`를 `resolveSlashName`(CLI와 같은 규칙)으로 풀어 `turn.start { overlay }`로 보냅니다. 여러 플러그인에 있으면 보내지 않고 `/플러그인:항목` 한정 이름을 알립니다. 원샷만 있고 글이 없으면 보낼 말을 적으라고 합니다. 이미 프로필에 든 이름은 글을 그대로 보내고 알립니다 | `turn.start.overlay` |
 | 턴의 원샷 표지 | 턴 발 줄, 답 동작 뒤 | "원샷 /review · /lint-kit", 드래프트가 들었으면 점선 사각형과 "· 드래프트" | `turn.started.invoked`, 드래프트 여부는 그때 살아 있던 `profile.applied.overlay[].draftId` |
 | Drive 스택 띠 | 입력창 맨 위 한 줄, 플러그인 프레임이 있을 때만 | "기본 › helm › verifier"(지금 이끄는 칸 굵게, 나머지 tertiary), 상태(Drive 중, 핸드오프 중, 답을 기다림), 맨 위 칸의 한도 칸(90% 넘으면 경고색), 정보 아이콘 | `drive.frames { threadId }`, `drive.framesChanged`마다 다시 읽음 |
-| Drive 스택 목록 | 런타임 탭 drive 락 구역 맨 위, 검사 탭 주도 구역의 역할 줄 아래 | 위에서 아래로 칸마다 상태 아이콘(나침반 강조색, 멈춤, 물음 말풍선 경고색, 기본 칸 점), 이름, 상태, 한도 칸. 아래 칸일수록 12px씩 들여 씁니다 | `drive.frames` |
+| Drive 스택 목록 | 런타임 탭 drive 락 구역 맨 위, 검사 탭 주도 구역의 역할 줄 아래 | 띠와 같은 순서(기본 칸부터 지금 이끄는 칸까지)로 칸마다 상태 아이콘(나침반 강조색, 멈춤, 물음 말풍선 경고색, 기본 칸 점), 이름, 상태, 한도 칸. 핸드오프로 넘겨받은 칸일수록 12px씩 들여 쓰고, 지금 이끄는 칸 이름을 굵게 씁니다 | `drive.frames` |
 | Drive가 받은 말 | 대화 기록, 보낸 seq 자리 | 플러그인이 이끄는 동안 보낸 말과 스타트 Drive 대화의 첫 말은 사라지지 않고 내 말풍선으로 바로 섭니다. 아래에 조용히 시계 "전달 대기" → 체크 "전달됨". 코어 루프로 돌아가 대기 입력·턴이 된 말(`user-return:<요청 id>`)은 이 줄에서 빠집니다 | `lease.user_input`(`held`의 `input` PostItem 글, `settled`) |
 
 - 상태: 연결이 없으면 칩은 누를 수 없고 툴팁이 까닭을 말합니다. 띠는 그리지 않습니다. 목록을 읽는 중이면 메뉴에 누를 수 없는 "프로필을 읽는 중", 실패면 그 말과 "다시 읽기", 빈 목록이면 "고를 프로필이 없어요"입니다. 원샷 목록을 못 읽으면 슬래시 목록 끝에 "원샷 목록을 읽지 못했어요"이고 친 글은 풀지 않습니다. `thread.setProfile` 거절은 기존 프로필 실패 문장(`desktop.inspect.profile.error.*`, 신뢰가 필요하면 그 말)을 입력창 위 오류 줄로 보입니다.

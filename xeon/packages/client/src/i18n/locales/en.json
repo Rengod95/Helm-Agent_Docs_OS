@@ -2170,7 +2170,7 @@
   "desktop.drive.waiting": "Waiting after handoff",
   "desktop.drive.asking": "Waiting for you",
   "desktop.drive.handoff": "Handoff",
-  "desktop.drive.alone": "Running without Drive",
+  "desktop.drive.alone": "No Drive",
   "desktop.drive.info": "Drive is when a plugin leads the chat. The top one leads now; the ones below handed off and wait.",
   "desktop.drive.infoLabel": "About Drive",
   "desktop.driveInput.pending": "Waiting",

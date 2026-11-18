@@ -237,7 +237,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
     expect(chip?.querySelector('[data-slot="start-drive-mark"]')).not.toBeNull();
     expect(asked).toEqual([{ id: "review", threadId: T }]);
     expect(container.querySelector('[data-slot="start-drive-notice"]')?.textContent).toBe(
-      `${t("desktop.startDrive.unavailable", { plugin: "helm" })} · ${t("desktop.startDrive.reason.stopped")}. ${t("desktop.startDrive.fallback")}`,
+      `${t("desktop.startDrive.unavailable", { plugin: "helm" })}. ${t("desktop.startDrive.reason.stopped")}. ${t("desktop.startDrive.fallback")}`,
     );
   });
 
@@ -418,10 +418,16 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     );
     expect(band?.textContent).toContain(t("desktop.drive.handoff"));
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
-    const steps = [...container.querySelectorAll('[data-slot="drive-stack-list"] li')].map((li) =>
+    const steps = [...container.querySelectorAll('[data-slot="drive-stack-list"] li')].map((li) => [
       li.getAttribute("data-drive-step"),
-    );
-    expect(steps).toEqual(["driving", "waiting", "waiting"]);
+      li.className.includes("ps-"),
+    ]);
+    // 띠와 같은 순서(기본 › helm › verifier), 넘겨받은 칸일수록 들여 쓴다
+    expect(steps).toEqual([
+      ["waiting", false],
+      ["waiting", true],
+      ["driving", true],
+    ]);
 
     frames = [frame(0, null, "waiting"), frame(1, "helm", "driving")];
     await act(async () => {
