@@ -2161,7 +2161,7 @@ export function createPipeline(
    * 대상 도구 항목. 기능 메서드는 도구 매핑(`ToolSpec.method`)으로 찾고, 없으면 정의에서 합성 항목 `cap:<기능>.<메서드>`를 만든다
    * (readOnly 메서드와 정의에 없는 메서드는 합성하지 않는다)
    */
-  function pluginEntryOf(target: PluginCallTarget): ToolEntry | undefined {
+  function pluginEntryOf(target: PluginCallTarget, draftCaller: boolean): ToolEntry | undefined {
     if (target.kind === "tool") return registry.get(target.name);
     const mapped = registry
       .all()
@@ -2173,7 +2173,7 @@ export function createPipeline(
     const def = (deps.capabilityDefs ?? []).find((candidate) => candidate.id === target.capability);
     return def === undefined
       ? undefined
-      : syntheticEntryOf(def, target.method, deps.resolveCapability, bridge);
+      : syntheticEntryOf(def, target.method, deps.resolveCapability, bridge, draftCaller);
   }
 
   /** 같은 호출의 기록을 durable 저장소에서 찾는다. 의도가 없으면 none, 의도만 있으면 open, 결과가 있으면 done */
@@ -2439,7 +2439,10 @@ export function createPipeline(
     }
 
     const origin = pluginOriginOf(request, toolCallId);
-    const entry = pluginEntryOf(request.target);
+    const entry = pluginEntryOf(
+      request.target,
+      deps.draftOf?.(request.plugin.scopeId) !== undefined,
+    );
     if (entry === undefined) {
       const name =
         request.target.kind === "tool"
