@@ -9,6 +9,7 @@ import {
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ApprovalService } from "@fresnel/contracts/services";
 import { commitKey } from "./kernel.ts";
+import { interruptedAnswers } from "./recover.ts";
 import type { ReviewsRuntime } from "./service.ts";
 import { roundForNewInput, type ReviewState } from "./state.ts";
 
@@ -25,6 +26,11 @@ import { roundForNewInput, type ReviewState } from "./state.ts";
 
 export interface AnswerHandler {
   onApprovalResolved(event: DurableEventEnvelope): Promise<void>;
+  /**
+   * 강제 종료로 끊긴 답의 처리를 이어서 한다(§4.2.8). `events`는 `approval.requested`, `approval.resolved`, `artifact.review_*`를 커밋 순서로 읽은 것이다.
+   * 처리한 답의 수를 돌려준다. 이미 끝난 답은 대상이 아니고, 두 번 불러도 같은 답을 두 번 적용하지 않는다
+   */
+  recoverInterrupted(events: readonly DurableEventEnvelope[]): Promise<number>;
 }
 
 function toJson(value: unknown): JsonValue {
@@ -194,21 +200,39 @@ export function createAnswerHandler(
     }
   }
 
+  async function resolved(event: DurableEventEnvelope): Promise<void> {
+    const payload = parse(ApprovalResolvedPayloadSchema, event.payload);
+    if (!payload.ok || payload.value.resolvedBy !== "user") return;
+    const target = targetOf(payload.value.approvalId);
+    if (target === undefined) return;
+    await kernel.withLock(target.reviewId, () =>
+      handle(
+        target.threadId,
+        target.reviewId,
+        payload.value.approvalId,
+        payload.value.decision,
+        payload.value.answer,
+      ),
+    );
+  }
+
   return {
+    async recoverInterrupted(events) {
+      const found = interruptedAnswers(events);
+      for (const answer of found) {
+        // 재시작 뒤에는 승인 id가 가리키는 리뷰를 메모리에서 모른다. 요청 기록에서 찾은 대상을 알려 준다
+        kernel.approvalTargets.set(answer.approvalId, {
+          threadId: answer.threadId,
+          reviewId: answer.reviewId,
+        });
+        deps.logger.info("artifacts.review_answer_resumed", { reviewId: answer.reviewId });
+        // oxlint-disable-next-line no-await-in-loop -- 리뷰마다 하나씩 이어서 한다(같은 파일을 겹쳐 쓰지 않게)
+        await resolved(answer.resolved);
+      }
+      return found.length;
+    },
     async onApprovalResolved(event) {
-      const payload = parse(ApprovalResolvedPayloadSchema, event.payload);
-      if (!payload.ok || payload.value.resolvedBy !== "user") return;
-      const target = targetOf(payload.value.approvalId);
-      if (target === undefined) return;
-      await kernel.withLock(target.reviewId, () =>
-        handle(
-          target.threadId,
-          target.reviewId,
-          payload.value.approvalId,
-          payload.value.decision,
-          payload.value.answer,
-        ),
-      );
+      await resolved(event);
     },
   };
 }

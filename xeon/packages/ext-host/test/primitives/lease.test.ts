@@ -62,7 +62,9 @@ test("a group released as idle is granted again only by a new start request", as
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "ls-idle" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-idle");
   await t.settled();
   // 효과 없이 같은 판으로 두 번 반환하면 idle로 반납된다
   await t.boundary(thread).turnSettled();
@@ -102,7 +104,9 @@ test("a child conversation gets no drive lease and its drive function never runs
   expect(kinds(t, child, "lease.acquired")).toEqual([]);
   // 같은 호스트의 주 대화는 임대를 받는다
   const main = t.newThread();
-  await t.host.openThread(main, { startDrive: "ls-child" });
+  await t.host.openThread(main);
+  await t.settled();
+  t.host.startDrive(main, "ls-child");
   await t.settled();
   expect(calls).toEqual(["ls-child"]);
   expect(kinds(t, main, "lease.acquired")).toMatchObject([{ scopeId: "ls-child" }]);
@@ -128,7 +132,9 @@ test("a drive that returns done is released as done and is not granted again wit
       },
     ),
   );
-  await t.host.openThread(thread, { startDrive: "ls-lazy" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-lazy");
   await t.settled();
   expect(kinds(t, thread, "lease.released")).toMatchObject([
     { scopeId: "ls-lazy", reason: "done" },
@@ -178,7 +184,9 @@ test("a start request made while the drive ahead is running waits and takes the 
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "ls-lazy" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-lazy");
   await started.promise;
   // 앞 단계가 도는 동안 뒤 요청은 큐에 남고 스택을 바꾸지 않는다. 앞 단계가 done으로 물러나 스택이 비면 부여된다
   requestDrive(t, thread, "ls-busy");
@@ -215,7 +223,9 @@ test("a drive whose state is open runs and takes the lock", async () => {
       },
     ),
   );
-  await t.host.openThread(thread, { startDrive: "ls-open" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-open");
   await t.settled();
   expect(calls).toEqual(["ls-open"]);
   expect(kinds(t, thread, "lease.acquired")).toMatchObject([{ scopeId: "ls-open" }]);
@@ -234,7 +244,9 @@ test("drive limits are read from the options getter when a lease is taken, so a 
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "ls-limits" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-limits");
   await t.settled();
   expect(kinds(t, thread, "lease.acquired")).toMatchObject([
     { scopeId: "ls-limits", limits: { maxTurns: 2 } },
@@ -258,7 +270,9 @@ test("a user interrupt releases the lease as revoked and the drive is not called
   const calls: string[] = [];
   await installDriveGroups(t, ["ls-stop"], calls);
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ls-stop" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "ls-stop");
   await t.settled();
   expect(calls).toEqual(["ls-stop"]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "ls-stop", status: "active" });

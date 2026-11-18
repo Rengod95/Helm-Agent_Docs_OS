@@ -15,8 +15,10 @@ import { Nullable } from "../../base/index.ts";
 import {
   EventIdSchema,
   ItemIdSchema,
+  JsonValueSchema,
   type EventId,
   type ItemId,
+  type JsonValue,
 } from "../../conversation/index.ts";
 
 // 필드의 정본은 F.extensions.spec이다. records는 extensions보다 낮은 순위라(F.readme §3) 타입을 import하지 않고
@@ -106,6 +108,8 @@ export const LeaseAcquiredPayloadSchema: TObject<{
   parent: TOptional<TString>;
   depth: TOptional<TInteger>;
   contentHash: TOptional<TString>;
+  input: TOptional<TUnsafe<JsonValue>>;
+  requestId: TOptional<TString>;
 }> = Type.Object(
   {
     /** F.extensions.spec DriveLock.leaseId */
@@ -137,6 +141,13 @@ export const LeaseAcquiredPayloadSchema: TObject<{
     depth: Type.Optional(Type.Integer({ minimum: 0 })),
     /** 그 프레임을 낸 플러그인의 versionId(`sha256:<hex>` 또는 `draft:<draftId>:<해시 앞 8자>`). 지금 값이 없는 경로는 싣지 않는다 */
     contentHash: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    /**
+     * 프레임을 연 명령의 입력(맡기기가 넘긴 `input`, 사용자 명령의 `input`). 재시작 뒤 맡은 프레임이 같은 입력으로 이어 가게 한다.
+     * 직렬화 크기는 엔진이 `DRIVE_INPUT_MAX_BYTES`로 막는다(넘으면 부여하지 않고 거절한다). 선택이라 `version`을 올리지 않는다 [제안: 이름 `input`, AGE-26]
+     */
+    input: Type.Optional(JsonValueSchema),
+    /** 이 부여를 낳은 시작 요청(`lease.requested`)의 id. 재시작 뒤 이미 부여된 요청을 다시 큐에 넣지 않는 근거다. 선택 [제안: 이름 `requestId`, AGE-26] */
+    requestId: Type.Optional(Type.String({ minLength: 1, maxLength: 96 })),
   },
   { additionalProperties: false },
 );
@@ -151,6 +162,7 @@ export type LeaseAcquiredPayload = Static<typeof LeaseAcquiredPayloadSchema>;
 export const LeaseReleasedPayloadSchema: TObject<{
   leaseId: TString;
   scopeId: TString;
+  result: TOptional<TUnsafe<JsonValue>>;
   reason: TUnion<
     [
       TLiteral<"done">,
@@ -167,6 +179,11 @@ export const LeaseReleasedPayloadSchema: TObject<{
   {
     leaseId: leaseId(),
     scopeId: scopeId(),
+    /**
+     * 사유 `done`일 때 단계 함수가 낸 결과. 맡긴 쪽이 재시작 직전에 끝난 맡기기의 결과를 받게 한다.
+     * 선택이라 `version`을 올리지 않는다 [제안: 이름 `result`, AGE-26]
+     */
+    result: Type.Optional(JsonValueSchema),
     reason: Type.Union([
       Type.Literal("done"),
       Type.Literal("disabled"),
@@ -181,6 +198,32 @@ export const LeaseReleasedPayloadSchema: TObject<{
   { additionalProperties: false },
 );
 export type LeaseReleasedPayload = Static<typeof LeaseReleasedPayloadSchema>;
+
+/**
+ * 주도 시작 요청 하나의 기록 [제안: 이름 `lease.requested`, AGE-26]. 사용자 명령(`user`)과 맡기기(`handoff`)가 큐에 들어갈 때 `queued`로,
+ * 부여 없이 버려질 때 `dropped`로 남는다. 부여되면 `lease.acquired.requestId`가 이 요청을 가리킨다. 프로필 시작은 열 때 다시 만들어지므로 남기지 않는다.
+ * 재시작 때 `queued`이고 `dropped`도 부여도 없는 요청을 큐에 되살린다. `parent`는 맡기기에서 맡긴 프레임의 leaseId다
+ */
+export const LeaseRequestedPayloadSchema: TObject<{
+  requestId: TString;
+  scopeId: TString;
+  status: TUnion<[TLiteral<"queued">, TLiteral<"dropped">]>;
+  trigger: TUnion<[TLiteral<"user">, TLiteral<"handoff">]>;
+  parent: TOptional<TString>;
+  input: TOptional<TUnsafe<JsonValue>>;
+}> = Type.Object(
+  {
+    requestId: Type.String({ minLength: 1, maxLength: 96 }),
+    scopeId: scopeId(),
+    status: Type.Union([Type.Literal("queued"), Type.Literal("dropped")]),
+    trigger: Type.Union([Type.Literal("user"), Type.Literal("handoff")]),
+    parent: Type.Optional(leaseId()),
+    /** `queued`에만 싣는다. 크기는 `DRIVE_INPUT_MAX_BYTES` 이내다 */
+    input: Type.Optional(JsonValueSchema),
+  },
+  { additionalProperties: false },
+);
+export type LeaseRequestedPayload = Static<typeof LeaseRequestedPayloadSchema>;
 
 /**
  * drive 임대 요청이 대기 상한 뒤 거부됐다(M3-REQ-99, review.m3-design-inputs D-M3-05 a).

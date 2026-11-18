@@ -18,3 +18,4 @@ export * from "./intake.ts";
 export * from "./migration-submit.ts";
 export * from "./user-skill-sink.ts";
 export * from "./migration.ts";
+export * from "./source-watch.ts";

@@ -9,7 +9,9 @@ test("a restarted host picks up enabled scopes, state and the open lease", async
   const thread = first.newThread();
   const a = createSmokeGroup({ ids: first.ids });
   await first.host.install(a.unit);
-  await first.host.openThread(thread, { startDrive: "smoke-group" });
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.startDrive(thread, "smoke-group");
   await first.settled();
   expect(first.loop.turns).toHaveLength(1);
   const acquiredBefore = first.records.events(thread).filter((e) => e.kind === "lease.acquired");
@@ -47,7 +49,9 @@ test("the drive function is re-invoked after a restart with the same request key
       });
     });
   await first.host.install(unitOf());
-  await first.host.openThread(thread, { startDrive: "res-replay" });
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.startDrive(thread, "res-replay");
   await first.settled();
   expect(first.loop.turns).toHaveLength(1);
 
@@ -55,7 +59,9 @@ test("the drive function is re-invoked after a restart with the same request key
     shared: { records: first.records, loop: first.loop, queue: first.queue },
   });
   await second.host.install(unitOf());
-  await second.host.openThread(thread, { startDrive: "res-replay" });
+  await second.host.openThread(thread);
+  await second.settled();
+  second.host.startDrive(thread, "res-replay");
   await second.settled();
   // 열린 임대로 다시 불렸고, 같은 상태 판(0)이라 같은 requestId로 replayed가 되어 새 turn은 없다
   expect(keys).toHaveLength(2);
@@ -67,7 +73,9 @@ test("an open lease whose scope is gone is released with restart", async () => {
   const first = await createTestHost();
   const thread = first.newThread();
   await first.host.install(createSmokeGroup({ ids: first.ids }).unit);
-  await first.host.openThread(thread, { startDrive: "smoke-group" });
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.startDrive(thread, "smoke-group");
   await first.settled();
 
   const second = await createTestHost({

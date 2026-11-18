@@ -300,7 +300,9 @@ test("failures.missing-inquiry-finishes-failed: the drive of an explore state wi
   });
   await rig.t.host.closeThread(rig.thread);
   // 재개는 프로필의 시작 설정으로 한다. 열린 임대가 없는 탐구를 시작 요청으로 다시 주도한다
-  await rig.t.host.openThread(rig.thread, { startDrive: "helm" });
+  await rig.t.host.openThread(rig.thread);
+  await rig.t.settled();
+  rig.t.host.startDrive(rig.thread, "helm");
   await rig.t.settled();
   await rig.drain(4);
   expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "failed" });

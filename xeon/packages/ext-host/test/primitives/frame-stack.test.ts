@@ -217,7 +217,9 @@ test("an ask keeps the frame asking, resumes the same run with the answer, and a
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "frame-ask" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-ask");
   await t.settled();
 
   // 질문 대기: 임대는 반납하지 않는다. 프레임 상태만 asking이다
@@ -252,7 +254,9 @@ test("after a restart the same question waits on its pending approval and opens 
   });
   await t.host.install(askStep);
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "frame-ask-again" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-ask-again");
   await t.settled();
   expect(lasts).toEqual([null]);
 
@@ -354,13 +358,17 @@ test("a profile start on a new conversation grants once, and reopening with the 
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "frame-p" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-p");
   await t.settled();
   expect(acquiredOf(t, thread)).toMatchObject([{ scopeId: "frame-p", depth: 0 }]);
   expect(calls).toBe(1);
 
   // 열린 임대가 있는 대화를 다시 열면 프로필 요청을 만들지 않는다. 복원된 임대가 이어진다
-  await t.host.openThread(thread, { startDrive: "frame-p" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-p");
   await t.settled();
   expect(acquiredOf(t, thread)).toHaveLength(1);
   expect(t.host.driveFrames(thread)).toHaveLength(2);

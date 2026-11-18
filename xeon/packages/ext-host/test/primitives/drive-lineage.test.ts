@@ -44,7 +44,8 @@ test("a drive that returns without committing and is granted again at the same r
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "lin-idle" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "lin-idle");
   await t.settled();
   expect(t.loop.turns).toHaveLength(1);
   // 같은 판으로 효과 없이 반환을 거듭하면 idle로 반납된다. 같은 drive 락 안의 재호출은 같은 키라 재생이다
@@ -83,7 +84,8 @@ test("a re-grant after a budget release gets a new lease and a new turn key", as
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "lin-budget" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "lin-budget");
   await t.settled();
   await t.boundary(thread).turnSettled();
   await t.boundary(thread).idle();

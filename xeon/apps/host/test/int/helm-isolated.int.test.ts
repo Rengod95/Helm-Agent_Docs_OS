@@ -18,7 +18,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { helmDivergeTape } from "../fixtures/helm-tape.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, startInputWhenIdle, until } from "../fixtures/wire-client.ts";
 
 // L4.host-service.spec §4.9, L3.helm.spec §4.9. 기본 설정의 Helm(번들, 사용자 등급)은 격리 자식(플러그인 호스트 프로세스)에서 돈다.
 // (a) 자식이 떠 있고 엔진과 다른 프로세스다. (b) `/helm start`의 주도 단계는 `drive.step` 요청으로 돌고 임대 기록이 순서대로 남는다.
@@ -232,10 +232,16 @@ realTest(
         },
         baseRev: null,
       });
-      await connection.request("thread.create", { profileId: "helm-start" });
+      const created = await connection.request("thread.create", { profileId: "helm-start" });
       const granted = await collector.waitFor((event) => event.kind === "lease.acquired", 30_000);
       expect(leaseAcquiredOf(granted)).toMatchObject({ scopeId: HELM, depth: 0 });
-      expect(requests.filter((method) => method === "drive.step").length).toBeGreaterThan(0);
+      // 프로필의 시작 주도는 사용자의 첫 메시지를 첫 단계의 입력으로 받는다(AGE-47): 메시지가 오기 전에는 단계 요청이 없다
+      expect(requests.filter((method) => method === "drive.step")).toEqual([]);
+      await startInputWhenIdle(connection, {
+        threadId: created.threadId,
+        input: "캐시 구조를 살펴봐 줘",
+      });
+      expect(await until(() => requests.includes("drive.step"), 30_000)).toBe(true);
     } finally {
       await connection.close();
       await host.close();

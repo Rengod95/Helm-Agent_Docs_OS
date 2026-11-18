@@ -36,6 +36,7 @@ import {
 import { ARTIFACTS_EXTENSION_NAME, artifactsManifest } from "./manifest.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./ports.ts";
 import { createAnswerHandler } from "./reviews/answer.ts";
+import { readEvents } from "./reviews/collect.ts";
 import { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
 import { createReviews } from "./reviews/service.ts";
 import { createReviewTextReader, type ReviewTextReader } from "./reviews/text.ts";
@@ -230,6 +231,36 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       if (unsubscribe === undefined) {
         logger.warn("artifacts.listener_unavailable", { effect: "review answers are not applied" });
       }
+      // 강제 종료로 끊긴 답(승인은 답했는데 적용·제출 기록이 없는 검토)의 되돌림을 그 대화를 다시 열 때 이어서 한다(§4.2.8, AGE-46).
+      // 쓰기 소유가 있어야 커밋할 수 있으므로 시작 때가 아니라 대화의 `thread.start`에서 한다. 같은 답을 두 번 처리해도 한 번만 적용된다
+      g.on("thread.start", (payload) => {
+        const resume = deferred(async () => {
+          // 승인 서비스가 이 대화의 해결된 승인을 아직 기억하지 못하는 시점이다(대화를 여는 중). 되돌림의 승인 상속이 그 기록을 보므로 먼저 되살린다
+          await approvalService?.restore(payload.threadId);
+          const events = readEvents(session.feed, payload.threadId, [
+            "approval.requested",
+            "approval.resolved",
+            "artifact.review_",
+          ]);
+          if (!events.ok) {
+            logger.warn("artifacts.review_resume_unreadable", { reason: events.error.kind });
+            return;
+          }
+          await answers.recoverInterrupted(events.value);
+        });
+        inflight.add(resume);
+        detach(
+          resume.finally(() => {
+            inflight.delete(resume);
+          }),
+          (cause) => {
+            logger.error("artifacts.review_resume_failed", {
+              reason: cause instanceof Error ? cause.message : "unknown",
+            });
+          },
+        );
+        return undefined;
+      });
       g.onDispose(async () => {
         unsubscribe?.();
         // 새 답은 더 받지 않고, 이미 받은 답의 되돌림은 시한 안에서 끝낸다(AGE-18)

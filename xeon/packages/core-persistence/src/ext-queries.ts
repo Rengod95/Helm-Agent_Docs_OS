@@ -13,7 +13,9 @@ import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
   LeaseAcquiredPayloadSchema,
+  DriveCommandSettledPayloadSchema,
   LeaseReleasedPayloadSchema,
+  LeaseRequestedPayloadSchema,
   ScopeChangedPayloadSchema,
   type DurableEventEnvelope,
   type ExtensionEventKind,
@@ -21,6 +23,7 @@ import {
   type ExtRecordRow,
   type ExtThreadSnapshot,
   type OpenLease,
+  type PendingStartRequest,
   type SqlTx,
   type StoredScopeState,
 } from "@fresnel/contracts/records";
@@ -152,6 +155,9 @@ interface LeaseDraft {
   readonly parent: string | null;
   readonly depth: number;
   readonly contentHash: string | null;
+  readonly input: OpenLease["input"];
+  /** 맡긴 마지막 프레임의 끝. 위 프레임이 반납되면 채우고, 새 맡기기 부여나 이 scope의 명령 정착이 오면 비운다 */
+  handoffEnd: OpenLease["handoffEnd"];
   readonly acquiredSeq: number;
 }
 
@@ -160,7 +166,13 @@ interface LeaseDraft {
  * 열린 임대는 목록이다(오래된 것부터, 맨 위 프레임이 마지막). 스택 위 프레임의 사용량을 아래에 더하는 일은 엔진이 한다
  */
 export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSnapshot, RowFault> {
-  const scopeEvents = kindIn(["scope.changed", "lease.acquired", "lease.released"]);
+  const scopeEvents = kindIn([
+    "scope.changed",
+    "lease.acquired",
+    "lease.released",
+    "lease.requested",
+    "drive.command_settled",
+  ]);
   const events = branchEvents(tx, threadId, {
     sql: `(${scopeEvents.sql} OR ${STATE_FILTER.sql})`,
     params: scopeEvents.params,
@@ -174,6 +186,10 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   const leaseEpochs = new Map<string, number>();
   const states = new Map<string, StoredScopeState>();
   const open: LeaseDraft[] = [];
+  // 부여되지도 버려지지도 않은 시작 요청(requestId 순서 = 큐 순서)
+  const pending = new Map<string, PendingStartRequest>();
+  // 부여됐거나 버려진 요청 id. 같은 커밋에서는 기록 순서가 부여보다 뒤일 수 있어 순서와 무관하게 닫는다
+  const closed = new Set<string>();
 
   for (const event of events.value) {
     if (event.kind === "scope.changed") {
@@ -193,7 +209,17 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     } else if (event.kind === "lease.acquired") {
       const payload = parse(LeaseAcquiredPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope lease.acquired payload"));
-      const { scopeId, leaseId, lineageId, limits, parent, depth, contentHash } = payload.value;
+      const { scopeId, leaseId, lineageId, limits, parent, depth, contentHash, input, requestId } =
+        payload.value;
+      if (requestId !== undefined) {
+        pending.delete(requestId);
+        closed.add(requestId);
+      }
+      // 새 맡기기가 시작되면 맡긴 프레임의 앞선 끝은 이미 쓰인 것이다
+      if (parent !== undefined) {
+        const caller = open.find((lease) => lease.leaseId === parent);
+        if (caller !== undefined) caller.handoffEnd = null;
+      }
       const epoch = (leaseEpochs.get(scopeId) ?? 0) + 1;
       leaseEpochs.set(scopeId, epoch);
       // 옛 기록(선택 필드 없음)은 코어 위 첫 프레임(depth 0), 맡긴 프레임이 아님(parent null), 출처 없음(contentHash null)으로 읽는다
@@ -210,6 +236,8 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
         parent: parent ?? null,
         depth: depth ?? 0,
         contentHash: contentHash ?? null,
+        input: input ?? null,
+        handoffEnd: null,
         acquiredSeq: event.seq,
       });
     } else if (event.kind === "lease.released") {
@@ -217,7 +245,41 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
       if (!payload.ok) return err(rowInvalid("events.envelope lease.released payload"));
       // 맨 위가 아니어도 같은 leaseId의 임대만 뺀다(leaseId는 부여마다 새로 나온다). 사유 waiting도 그냥 반납이다
       const index = open.findIndex((lease) => lease.leaseId === payload.value.leaseId);
+      const gone = index === -1 ? undefined : open[index];
       if (index !== -1) open.splice(index, 1);
+      // 맡은 프레임이 내려가면 맡긴 프레임이 받을 값을 남긴다(done이면 결과, 그 밖의 사유는 끊김)
+      if (gone?.parent !== null && gone?.parent !== undefined) {
+        const caller = open.find((lease) => lease.leaseId === gone.parent);
+        if (caller !== undefined) {
+          caller.handoffEnd =
+            payload.value.reason === "done"
+              ? { status: "done", result: payload.value.result ?? null }
+              : { status: "aborted", result: null };
+        }
+      }
+    } else if (event.kind === "lease.requested") {
+      const payload = parse(LeaseRequestedPayloadSchema, event.payload);
+      if (!payload.ok) return err(rowInvalid("events.envelope lease.requested payload"));
+      const request = payload.value;
+      if (request.status === "dropped") {
+        pending.delete(request.requestId);
+        closed.add(request.requestId);
+      } else if (!closed.has(request.requestId)) {
+        pending.set(request.requestId, {
+          requestId: request.requestId,
+          scopeId: request.scopeId,
+          trigger: request.trigger,
+          parent: request.parent ?? null,
+          input: request.input ?? null,
+        });
+      }
+    } else if (event.kind === "drive.command_settled") {
+      const payload = parse(DriveCommandSettledPayloadSchema, event.payload);
+      if (!payload.ok) return err(rowInvalid("events.envelope drive.command_settled payload"));
+      // 맡긴 프레임이 끝을 받은 뒤 명령을 정착시켰으면 그 끝은 이미 쓰인 것이다
+      for (const lease of open) {
+        if (lease.scopeId === payload.value.scopeId) lease.handoffEnd = null;
+      }
     } else {
       const state = storedStateOf(event);
       if (!state.ok) return state;
@@ -239,8 +301,16 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
       parent: lease.parent,
       depth: lease.depth,
       contentHash: lease.contentHash,
+      input: lease.input,
+      handoffEnd: lease.handoffEnd,
     });
   }
+  // 맡기기 요청은 맡긴 프레임이 아직 열려 있을 때만 되살린다
+  const openIds = new Set(open.map((lease) => lease.leaseId));
+  const pendingRequests = [...pending.values()].filter(
+    (request) =>
+      request.trigger !== "handoff" || (request.parent !== null && openIds.has(request.parent)),
+  );
   return ok({
     enabled: [...enabled],
     disabled: [...disabled],
@@ -248,6 +318,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     enabledAtSeq: Object.fromEntries(enabledAtSeq),
     states: [...states.values()],
     openLeases,
+    pendingRequests,
     leaseEpochs: Object.fromEntries(leaseEpochs),
   });
 }

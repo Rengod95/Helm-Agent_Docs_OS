@@ -115,7 +115,9 @@ test("a user command during a running turn waits for the turn, the step ends, th
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await gate.started.promise;
 
   // 턴이 도는 동안의 사용자 명령은 큐에만 남는다. 진행 중인 턴을 끊지 않는다
@@ -147,7 +149,9 @@ test("a user command while the driver is idle switches the stack at once", async
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await t.settled();
   // 첫 단계가 yield로 끝나 유휴다(실행 중이 아니다)
   expect(aCalls).toEqual([null]);
@@ -180,7 +184,9 @@ test("a user command while the driver waits for an answer takes the stack at onc
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await t.settled();
   expect(t.host.driveFrames(thread).map((frame) => frame.state)).toEqual(["driving", "asking"]);
 
@@ -204,7 +210,9 @@ test("a user command for the scope that already leads is dropped with a notice a
       g.drive(recordingStep(aCalls, (last) => (last === null ? GO : YIELD)));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await gate.started.promise;
 
   expect(t.host.startDrive(thread, "frame-a").ok).toBe(true);
@@ -237,7 +245,9 @@ test("a stop during a running turn revokes the whole stack and empties the queue
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await gate.started.promise;
   expect(t.host.startDrive(thread, "frame-b").ok).toBe(true);
 
@@ -274,7 +284,9 @@ test("a user message held by a driver that is revoked goes back to the input que
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await t.settled();
   await t.boundary(thread).turnSettled();
   await gate.started.promise;
@@ -307,7 +319,9 @@ test("a user message the top frame does not answer in three steps revokes the wh
       g.drive(recordingStep(bCalls, (last) => (last === null ? YIELD : UNHANDLED)));
     }),
   );
-  await t.host.openThread(thread, { startDrive: "frame-a" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "frame-a");
   await t.settled();
   expect(acquiredOf(t, thread).map((grant) => grant.scopeId)).toEqual(["frame-a", "frame-b"]);
 
