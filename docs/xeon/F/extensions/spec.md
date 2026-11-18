@@ -207,6 +207,15 @@ export const ExtensionManifestSchema = Type.Object({
     name: Type.String({ pattern: COMMAND_NAME_PATTERN, maxLength: 96 }),
     description: Type.String({ maxLength: 512 }),
   }, { additionalProperties: false }), { maxItems: 64 })),
+  /** 스크립트의 정적 선언(설계 B [제안], §3.1.4). 이름은 검사에서 중복을 막는다. `entry`가 없어도 된다(부를 코드가 없으면 실행되지 않는다) */
+  scripts: Type.Optional(Type.Array(Type.Object({
+    name: Type.String({ pattern: SCRIPT_NAME_PATTERN, maxLength: 32 }),
+    runner: Type.Union([Type.Literal("sh"), Type.Literal("bash"), Type.Literal("bun"), Type.Literal("node"), Type.Literal("python3")]),
+    file: Type.String({ maxLength: 512 }),
+    args: Type.Optional(Type.Array(Type.String({ maxLength: 512 }), { maxItems: 16 })),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 60000 })),
+    envNames: Type.Optional(Type.Array(Type.String({ pattern: SCRIPT_ENV_NAME_PATTERN, maxLength: 128 }), { maxItems: 16 })),
+  }, { additionalProperties: false }), { maxItems: 64 })),
   /** 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다. 생략하면 폴더 신호에서 추론한다(M5c-1, X.loading-trust) */
   entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
   /** 확장이 담는 플러그인. 1~16개. 생략하면 루트 플러그인 하나를 추론한다(`layer: "plugin"`, 훅 없음, M5c-1) */
@@ -256,6 +265,7 @@ export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): Ex
 - `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`는 F.capabilities.spec §3.1을 그대로 import한다. 두 문서의 기능 ID 형식은 같다.
 - M5c-1 매니페스트 변경 [결정: 2026-11-17, `review/m5/profile-project-loader.md` §3.1, §4.5]: `entry`와 `plugins`는 선택이다. 둘 다 없으면 루트 플러그인 하나(`layer: "plugin"`, `hooks: []`)를 추론한다(`pluginDeclsOf`, §4.5.4). `pluginsOf`와 `effectiveLayer`는 추론한 목록으로 계산한다. 새 선택 필드는 `purpose`, `tools`, `commands`, `components.instructions`다. 옛 매니페스트는 그대로 유효하다. `defaultEnabled`는 바뀌지 않는다.
 - 중복 이름 [결정: M5c-1 §4.5.6]: `tools` 이름이 둘이면 `tool_duplicate`, `commands` 이름이 둘이면 `command_duplicate`(둘 다 오류, §3.7). 두 목록은 따로 센다.
+- 스크립트 선언 [제안, 설계 B]: 확장 수준 `scripts`(최대 64개). 원소의 `name`은 `SCRIPT_NAME_PATTERN`(소문자로 시작, 소문자·숫자·하이픈, 1~32자), `runner`는 `"sh" | "bash" | "bun" | "node" | "python3"` 가운데 하나(목록 밖은 `schema`), `file`은 확장 루트 기준 상대 경로, `args`는 최대 16개 각 512자, `timeoutMs`는 정수 1~60000(생략하면 10000), `envNames`는 환경 변수 이름 최대 16개다. 이름이 둘이면 `script_duplicate`, `file`이 빈 값·절대 경로·`..` 마디·백슬래시·NUL·드라이브 문자면 `script_path_invalid`다(§4.7). `entry`가 없어도 오류가 아니다. 부를 코드가 없으면 스크립트는 실행되지 않는다.
 
 #### 3.1.1 Plugin UI와 확장 메서드 (`ui.ts`, `ext-method.ts`) [결정: 2026-10-31 사용자, ADR-0021, ADR-0022 §3.6]
 
@@ -402,7 +412,9 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number }[]; // [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다
 }
+export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
 export interface SkillEntry { readonly name: string; readonly path: string; readonly descriptionChars: number }
 export interface PluginUiDecl { readonly id: string; readonly placement: string; readonly readsState: string | null; readonly modelVisible: "none" | "partial" | "all" }
@@ -418,7 +430,34 @@ export type EvidenceRef =
 
 - 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
 - `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
+- 스크립트 칸 [제안, 설계 B]: `InjectInventory.scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나다(최대 64개). `launch`는 `CardLaunch`(= `CardMcpLaunch`, 같은 모양)다: `command`는 실행기 이름이나 절대 경로, `args`는 상대 `file`을 포함하고, `envNames`는 이름만, `cwd`는 null이다. `timeoutMs`는 정수 1~60000이고 선언이 없으면 10000이다. 검토 카드는 이 칸을 "승인하면 실행될 명령"으로 보인다(`review/m5/profile-project-loader.md` §3.1). 옛 카드는 `scripts`가 없어도 파싱된다.
 - 카드 `review.state`(`approved | pending | draft | none`)는 검토 항목 상태(`pending | approved | sent_back | discarded | superseded | withdrawn`, wire `plugin-review.ts`)와 다른 집합이다.
+
+#### 3.1.4 플러그인 스크립트 (`plugin-script.ts`) [제안: 설계 B, `review/m5/drive-isolation.md` §3.2·§3.4]
+
+플러그인이 자기 패키지 폴더 안의 파일을 실행하는 계약이다. 선언은 매니페스트 `scripts`(§3.1)가 하고, 실행은 엔진이 `PluginScriptPort`로 한다. 스크립트는 코드(`entry`)가 `g.runScript(name, {stdin?})`로 부를 때만 돈다. 이름 `scripts`, `runScript`, `script_*`는 모두 [제안]이다. 이름 패턴(`SCRIPT_NAME_PATTERN`, `SCRIPT_ENV_NAME_PATTERN`)은 `manifest.ts`에 있다.
+
+```ts
+/** 상한과 기본값. 바이트는 UTF-8 바이트다 */
+export const SCRIPT_LIMITS: { readonly stdinBytes: number; readonly outputBytes: number; readonly timeoutDefaultMs: number; readonly timeoutMaxMs: number }; // 262144(256 KiB), 65536(64 KiB, stdout·stderr 각각), 10000, 60000
+export interface ScriptRunRequest { readonly registration: RegistrationId; readonly name: string; readonly stdin: string; readonly replay: boolean }
+export interface ScriptRunResult { readonly exitCode: number | null; readonly signal: string | null; readonly stdout: string; readonly stdoutTruncated: boolean; readonly stderr: string; readonly stderrTruncated: boolean; readonly timedOut: boolean }
+export type ScriptRunFailure =
+  | { readonly kind: "script_not_declared" }
+  | { readonly kind: "script_outside_tree" }
+  | { readonly kind: "script_missing" }
+  | { readonly kind: "script_not_approved" }
+  | { readonly kind: "replay_mode_denied" }
+  | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };
+export interface PluginScriptPort { run(request: ScriptRunRequest): Promise<Result<ScriptRunResult, ScriptRunFailure>> }
+```
+
+- 실행 순서 [제안, 엔진(X) 구현]: (1) `replay`가 참이면 띄우지 않고 `replay_mode_denied`다. (2) `name`이 매니페스트 `scripts`에 없으면 `script_not_declared`다. (3) `file`을 `isScriptFileValid`로 보고, 심볼릭 링크를 따라간 실제 위치가 플러그인 폴더 밖이면 `script_outside_tree`다. (4) 파일이 없거나 일반 파일이 아니면 `script_missing`이다. (5) 승인되지 않은 버전이면 `script_not_approved`다. 일반 대화는 승인된 검토본만 돌리고, 초안은 테스트 실행에서만 돌며 호출마다 승인 카드를 거친다(2026-11-17 U2). (6) 통과하면 `IsolationProcessPort.spawn`으로 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`를 띄운다. 격리를 쓸 수 없으면 `sandbox_unavailable`로 닫힌다(띄우지 않는다).
+- 실행 [제안]: 읽기 허용 목록은 그 플러그인의 폴더(검토본 `tree/`)와 실행기 실행 파일뿐이고, 쓰기는 없다 [근거: 설계 B 2026-11-18, `review/m5/drive-isolation.md` §3.4]. 프로필을 넓히지 않는다(`review/m5/drive-isolation.md` §3.4). 표준 입력을 쓰고 닫는다. 표준 출력과 표준 오류는 각각 `outputBytes`를 넘으면 자르고 `…Truncated`를 참으로 한다. 기한(선언의 `timeoutMs`, 생략하면 `timeoutDefaultMs`, 상한 `timeoutMaxMs`)이 지나면 프로세스 트리를 멈추고 `timedOut`을 참으로 한다. 종료 코드가 없으면 `exitCode`는 null이다.
+- 표준 입력이 `stdinBytes`를 넘을 때의 거절 종류는 정하지 않았다. 위 일곱 종류에 없다 [미결] [근거: packages/contracts/src/extensions/plugin-script.ts의 `ScriptRunFailure`].
+- 부를 코드가 없으면(`entry`가 없고 `scripts`만 있으면) 아무것도 실행되지 않는다. 이것은 오류가 아니다.
+- 포트 키(`PortKey`)와 서비스 이름은 X 층 구현 때 정한다 [미결] [근거: packages/contracts/src/extensions/ports.ts의 `PortKey` 목록]. 이 절은 계약만 정한다. 엔진 실행기, `engine.call` 메서드 `runScript`, `g.runScript`는 X·P 층의 다음 커밋이다.
 
 ### 3.2 4연산 타입 (`ops.ts`, `drive.ts`, `registration.ts`)
 
@@ -1550,6 +1589,7 @@ export type ManifestIssueCode =
   | "ui_invalid" | "ui_duplicate" | "ui_mode_not_allowed" | "ui_limit" | "ui_path_invalid"
   | "ui_reason_empty" | "widgets_required" | "method_invalid" | "method_duplicate"   // ui, methods, §3.1.1
   | "tool_duplicate" | "command_duplicate"                                            // tools, commands, §3.1 (M5c-1)
+  | "script_duplicate" | "script_path_invalid"                                         // scripts, §3.1 (설계 B [제안])
   | "composition_invalid"                                                              // group.composition, §3.1.2
   // validateComposition(§3.1.2)
   | "composition_duplicate" | "composition_hooks" | "composition_plugin_unknown" | "drive_duplicate"
@@ -1716,6 +1756,8 @@ chain의 보충 규칙 [제안]:
 | `read_kind_invalid` | error | `readsRecordKinds`가 자기 접두를 가리킴(자기 레코드는 선언 없이 읽음) 또는 형식 위반 |
 | `replaces_invalid` / `replaces_duplicate` | error | `replaces`의 이름이 `TOOL_NAME_PATTERN`이 아니거나 `__`를 담음 / 같은 이름을 두 번 적음 [결정: 2026-11-03 사용자] |
 | `user_config_invalid` | error | `userConfig` 항목 안의 알 수 없는 키, 빈 `setting` |
+| `script_duplicate` | error | `scripts`의 이름이 둘이다. 경로 `/scripts/<i>/name`, 나중 것을 가리킨다 [제안, 설계 B] |
+| `script_path_invalid` | error | `scripts[].file`이 빈 값, 절대 경로, `..` 마디, 백슬래시, NUL, 드라이브 문자 가운데 하나다. 경로 `/scripts/<i>/file` [제안, 설계 B] |
 | `isolation_invalid` / `trust_invalid` | error | 허용 값 밖 |
 | `ui_*`, `widgets_required`, `method_*` | error | `ui`와 `methods` 검사. 코드와 조건은 §3.1.1 |
 | `composition_invalid` 외 | | `group.composition` 검사(`validateComposition`을 `/group/composition` 접두로 부름). 코드와 조건은 §3.1.2 |
