@@ -1535,6 +1535,6 @@ M3 판에서 닫은 항목:
 21. [미결, 엔진 규칙] [근거: packages/ext-host/src/primitives/lease.ts:727-730 deliveredUser 해제 규칙] 턴 한도 소진과 사용자 메시지가 겹치면 단계가 `done`으로 끝나고 메시지가 버려진다. X가 전달 중인 메시지를 코어 루프로 돌려주도록 요청하거나, Helm이 `yield`로 기다리게 한다.
 22. [미결, X 엔진] 탐색 표지는 drive 락이 명령 중에 회수되면 탐구 단계로 남을 수 있다. 회수를 알리는 훅이 없다. 쓰기 판정 대상이 `subagent:explorer`뿐이라 해는 없지만, drive 락 반납 훅이 생기면 표지를 idle로 되돌린다. E3 이후 남은 탐구는 같은 주제의 `/helm start`로 이어 간다(§4.9). [근거: packages/contracts/src/extensions/hooks.ts:246, 계약의 `lifecycle.lease.rejected` 한 가지만 있음]
 
-23. [미결, X 엔진] 맡기기 요청이 시작 요청 큐에만 있고 아직 부여되지 않았으면 재시작에서 사라진다. 맡긴 프레임이 기록되지 않아서다. `pluginNeed`는 상태에 남으므로 Helm은 다음 주도 시작에서 다시 맡긴다. 맡기기 요청을 기록에 싣는 방식은 정하지 않았다(drive-isolation.md §10). [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts]
+23. [닫힘, AGE-26] 맡기기 요청은 `lease.requested`로 기록되어 재시작 뒤 되살아난다(X.primitives.spec §4.4.1b 9번). 옛 설명: 맡기기 요청이 시작 요청 큐에만 있고 아직 부여되지 않았으면 재시작에서 사라진다. 맡긴 프레임이 기록되지 않아서다. `pluginNeed`는 상태에 남으므로 Helm은 다음 주도 시작에서 다시 맡긴다. 맡기기 요청을 기록에 싣는 방식은 정하지 않았다(drive-isolation.md §10). [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts]
 
 하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02. `lease.rejected` 이벤트와 `GroupStatus.drive`의 `"rejected"`는 E3에서 더 쓰지 않는다(계약 정리 단계에서 지운다).

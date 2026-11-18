@@ -1113,6 +1113,7 @@ lifecycle [결정: adr.0017]:
    - 사용자 명령: `ExtHost.startDrive(threadId, scopeId, options?)`다(`trigger`의 기본값은 `user`). 플러그인은 `RegistrationHostApi.startDrive(input?)`를 쓰고 ambient 문맥의 thread를 쓴다. 이 호출은 약속이다(격리 자식에서는 엔진 왕복이므로, §3.8의 격리 호스트 단락). 문맥이 없으면 `no_context`다. 주도 중에도 받아 큐에 넣는다.
    - 프로필 시작: `ThreadOpenOptions.startDrive`다. 열 때 열린 drive 락(`openLeases`)가 없을 때만 그 scope의 `profile` 요청을 넣는다.
    - 맡기기: 맨 위 프레임의 `handoff` 명령이다(§4.4.1b). 시작 요청 `trigger: "handoff"`를 큐 맨 앞에 넣는다. 거부는 `{ kind: "refused", code }` 결과다.
+   - 사용자 명령과 맡기기 요청은 큐에 들어갈 때 `lease.requested`로 기록한다(재시작 복원, §4.4.1b 9번). 부여는 그 기록이 끝난 뒤다. 프로필 시작은 기록하지 않는다.
    - 대상 scope의 켜짐은 그 thread 기준이다(§4.5.2). 한 thread에서 꺼진 scope는 다른 thread에서 켜져 있어도 이 thread의 요청 대상이 아니다.
 5. 부여 규칙. 큐 맨 앞 요청만 본다. 스택이 비어 있어야 부여한다. 스택이 차 있을 때 사용자 명령은 전환 정책을 따른다(§4.4.1a). 맡기기 요청은 맡긴 프레임이 맨 위이고 `waiting`일 때 부여한다(§4.4.1b). 스택이 차 있을 때 `profile` 요청은 버리고 진단 `scope_notice`를 낸다. 사용자가 멈춘 뒤(`userStopped`)에는 사용자 명령만 부여한다. 요청의 대상은 열려 있어야 하고, drive가 있어야 하며, `driveError`가 아니어야 하고, 이 thread에서 켜져 있어야 한다. 아니면 요청을 버리고 `scope_notice`를 낸다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다. 커밋이 실패하면 다음 경계가 다시 시도한다. 사용자 명령은 멈춤(`userStopped`)을 푼다.
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId`는 부여 초안의 이벤트 id를 그대로 쓴 불투명 문자열(40자 이하)이다. `lineageId`는 `leaseId`와 같다(맡기기 부여도 새 계통을 연다, §4.4.1b 4번). 경계 기여에 `lease.acquired { leaseId, scopeId, lineageId, limits, leaseEpoch, depth }`(F.records.spec §3.3)를 넣는다. `depth`는 스택 인덱스다. 사용자와 프로필 부여는 빈 스택에서 하므로 0이고, 맡기기 부여는 맡긴 프레임의 깊이 + 1이다. `parent`는 맡기기 부여에만 싣는다(맡긴 프레임의 leaseId). `contentHash`는 지금 값이 없어 싣지 않는다. 부여된 프레임은 `driving`이다.
@@ -1138,7 +1139,7 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1b 맡기기(`handoff`) [결정: 2026-11-17 사용자, 3b]
 
-1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 거부하면 스택과 기록은 바뀌지 않는다.
+1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 입력의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES`(200,000바이트)를 넘으면 `input_too_large`다. 거부하면 스택과 기록은 바뀌지 않는다.
 2. `to`는 플러그인(확장) 이름이다. 플러그인 이름은 `RegistrationRecord.extension`이고 프레임 읽기의 `plugin`과 같다. 같은 확장이 플러그인을 여럿 등록하면 scope가 여럿이므로, 이름과 id가 같은 루트 scope를 고르고 그것이 없고 이름이 같은 scope가 하나뿐일 때만 고른다. 고를 수 없으면 `target_unavailable`이다. scope id는 루트 플러그인이면 확장 이름과 같고, 그 밖의 플러그인이면 `이름/플러그인`이다.
 3. 통과하면 시작 요청 `{ trigger: "handoff", scopeId, input, parentLeaseId: 맨 위의 leaseId }`를 큐 맨 앞에 넣고 맨 위 프레임을 `waiting`으로 둔다. 이번 호출은 `handoff` 결과로 끝나고 `requestApply`한다.
 4. 부여: 맡긴 프레임이 맨 위이고 `waiting`일 때 부여 판단이 맡은 프레임을 올린다. `lease.acquired`에 `parent`(맡긴 프레임의 leaseId), `depth`(맡긴 프레임 깊이 + 1), `lineageId`(= leaseId, 새 계통)를 싣는다. 맡은 프레임의 `calledBy`는 맡긴 플러그인 이름, `input`은 요청 입력이다. 한도는 §4.4.2 8번이다.
@@ -1146,7 +1147,7 @@ lifecycle [결정: adr.0017]:
 6. 맡긴 프레임이 낸 맡기기 요청은 그 프레임이 내려갈 때 같은 경계에서 함께 버린다. 맡긴 쪽이 없는 요청은 부여되지 않는다.
 7. 복귀: 맡은 프레임이 `done`으로 내려가면(결과 포함) 커밋 뒤 맡긴 프레임이 `last = { kind: "handoff", status: "done", result }`로 이어 단계를 시작한다. `error`, `disabled`, `budget`, `idle`, `restart`, `revoked`로 위쪽만 내려가면 `status: "aborted"`다. 맡긴 프레임이 아래에 더 있으면 그 프레임까지 같은 규칙을 따른다.
 8. 맡긴 프레임은 기다리는 동안 단계 함수를 부르지 않는다(`start`가 막는다). 사용자 메시지를 받지도 않는다(`claimUserInput`은 맨 위가 `driving`일 때만 준다). 기다리던 메시지가 있으면 맡길 때 코어 루프로 돌려보낸다.
-9. 재시작: 기록의 열린 프레임 목록에서 맨 위만 `driving`으로 다시 부르고 아래는 `waiting`이다. 아래 프레임의 `calledBy`는 기록의 `parent`로 찾은 맡긴 프레임의 이름이다. 맡길 때 넘긴 `input`은 기록에 없어 null이다. 재시작 전에 큐에 있던 맡기기 요청은 기록되지 않아 사라진다(§10).
+9. 재시작: 기록의 열린 프레임 목록에서 맨 위만 `driving`으로 다시 부르고 아래는 `waiting`이다. 아래 프레임의 `calledBy`는 기록의 `parent`로 찾은 맡긴 프레임의 이름이다. 맡은 프레임의 `input`은 `lease.acquired.input`에서 읽는다(옛 기록은 null). 맡기기와 사용자 명령의 시작 요청은 큐에 들어갈 때 `lease.requested`(`queued`)로 기록되고, 부여되면 `lease.acquired.requestId`가 그 요청을 가리키며, 버려지면 `dropped`가 남는다. 재시작 때 부여도 `dropped`도 없는 요청을 기록 순서대로 큐에 되살린다. 맡기기 요청이 맨 위를 가리키면 그 프레임은 `waiting`인 채로 맡은 프레임의 부여를 기다린다(다시 묻지 않는다). 맡은 프레임이 반납된 뒤 맡긴 프레임이 아직 새 명령을 정착시키지 못했다면(`drive.command_settled`가 그 scope에 없다) 맡긴 프레임의 첫 단계가 그 끝을 `last`로 받는다: 사유 `done`이면 `lease.released.result`와 함께 `{ kind: "handoff", status: "done", result }`, 그 밖의 사유면 `aborted`다. 맡긴 프레임이 끝을 받고도 정착시킨 명령이 없는 채 끊기면 같은 끝을 다시 받는다(최소 한 번 전달). 프로필 시작 요청은 기록하지 않고 열 때 다시 만든다(§4.4.1b).
 
 #### 4.4.2 상한
 
@@ -1921,8 +1922,9 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 주도 명령(시작 요청)이 새 프레임을 받는다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
-- [미결] (3a) 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
-- [미결] (3b) 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
+- [닫힘, AGE-26] (3a) 시작 요청 큐 기록: 사용자 명령과 맡기기 요청은 `lease.requested`로 기록되고 재시작 뒤 큐에 되살아난다(§4.4.1b 9번). 프로필 시작은 열 때 다시 만든다. 옛 [미결] 설명: 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
+- [닫힘, AGE-26] (3b) 맡기기 요청과 맡긴 입력: `lease.requested`와 `lease.acquired.input`으로 기록된다. 입력과 `done` 결과의 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES`(200,000바이트, envelope 상한 262,144바이트 안)를 넘으면 잘라 저장하지 않고 거절한다: `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`, `done`은 `result_too_large`, 사용자 명령의 `startDrive`는 오류 `input_too_large`다. 옛 [미결] 설명: 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
+- [미결] (AGE-26) 주도 프레임이 가로챈 사용자 메시지는 기록되지 않는다. `claimUserInput`이 참을 돌려준 메시지(보류 `heldUser`, 프레임 `inbox`, 전달 중인 `deliveredUser`)는 입력 큐에 들어가지 않고 메모리에만 있어 재시작에서 사라진다. 첫 메시지의 순서 규칙을 바꾸는 작업(AGE-47, enX2)이 같은 구조를 건드려 이 작업에서는 고치지 않았다. 기록 방식은 정하지 않았다 [근거: packages/core-loop/src/service.ts, packages/ext-host/src/primitives/lease.ts].
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).
 - (닫힘, M3b B4-GRP) 코어 이벤트(`turn.*`, `tool.*`)의 계측 조회는 `ExtHost.queryEvents`가 맡는다(§4.6.4, M3-REQ-39).

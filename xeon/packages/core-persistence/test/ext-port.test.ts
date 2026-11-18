@@ -59,7 +59,7 @@ function leaseCommit(
   h: Harness,
   threadId: ThreadId,
   requestId: string,
-  kind: "lease.acquired" | "lease.released",
+  kind: "lease.acquired" | "lease.released" | "lease.requested",
   payload: Record<string, unknown>,
 ) {
   return h.service.ext.commit({
@@ -272,8 +272,11 @@ describe("ext.loadThread", () => {
         parent: null,
         depth: 0,
         contentHash: null,
+        input: null,
+        handoffEnd: null,
       },
     ]);
+    expect(snapshot.pendingRequests).toEqual([]);
     expect(snapshot.states).toHaveLength(1);
 
     const released = draftOf(h, threadId, "lease.released", {
@@ -325,6 +328,93 @@ describe("ext.loadThread", () => {
       reason: "budget",
     });
     expect(await open()).toEqual([]);
+  });
+
+  test("the snapshot carries the input of a frame, the end of a handed-off frame for its caller, and the start requests still pending", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const open = async () => expectOk(await h.service.ext.loadThread(threadId));
+    await leaseCommit(h, threadId, "q1", "lease.requested", {
+      requestId: "rq-user",
+      scopeId: "alpha",
+      status: "queued",
+      trigger: "user",
+      input: { topic: "t" },
+    });
+    await leaseCommit(h, threadId, "a1", "lease.acquired", {
+      leaseId: "la",
+      lineageId: "la",
+      scopeId: "alpha",
+      limits: {},
+      requestId: "rq-user",
+      input: { topic: "t" },
+    });
+    await leaseCommit(h, threadId, "q2", "lease.requested", {
+      requestId: "rq-handoff",
+      scopeId: "beta",
+      status: "queued",
+      trigger: "handoff",
+      parent: "la",
+      input: { need: 1 },
+    });
+    await leaseCommit(h, threadId, "q3", "lease.requested", {
+      requestId: "rq-dropped",
+      scopeId: "gamma",
+      status: "queued",
+      trigger: "user",
+    });
+    await leaseCommit(h, threadId, "q4", "lease.requested", {
+      requestId: "rq-dropped",
+      scopeId: "gamma",
+      status: "dropped",
+      trigger: "user",
+    });
+    // rq-user는 부여가 있어 대기에서 빠지고, rq-handoff만 남는다
+    const first = await open();
+    expect(first.openLeases.map((lease) => [lease.scopeId, lease.input])).toEqual([
+      ["alpha", { topic: "t" }],
+    ]);
+    expect(first.pendingRequests.map((request) => request.requestId)).toEqual(["rq-handoff"]);
+
+    await leaseCommit(h, threadId, "a2", "lease.acquired", {
+      leaseId: "lb",
+      lineageId: "lb",
+      scopeId: "beta",
+      limits: {},
+      depth: 1,
+      parent: "la",
+      requestId: "rq-handoff",
+      input: { need: 1 },
+    });
+    const granted = await open();
+    expect(granted.pendingRequests).toEqual([]);
+    expect(granted.openLeases.at(-1)?.input).toEqual({ need: 1 });
+    expect(granted.openLeases[0]?.handoffEnd).toBeNull();
+
+    await leaseCommit(h, threadId, "r1", "lease.released", {
+      leaseId: "lb",
+      scopeId: "beta",
+      reason: "done",
+      result: { built: true },
+    });
+    const finished = await open();
+    expect(finished.openLeases.map((lease) => lease.leaseId)).toEqual(["la"]);
+    expect(finished.openLeases[0]?.handoffEnd).toEqual({ status: "done", result: { built: true } });
+
+    // 맡긴 프레임이 반납되면 그 프레임이 낸 맡기기 요청은 되살리지 않는다
+    await leaseCommit(h, threadId, "q5", "lease.requested", {
+      requestId: "rq-orphan",
+      scopeId: "beta",
+      status: "queued",
+      trigger: "handoff",
+      parent: "la",
+    });
+    await leaseCommit(h, threadId, "r2", "lease.released", {
+      leaseId: "la",
+      scopeId: "alpha",
+      reason: "revoked",
+    });
+    expect((await open()).pendingRequests).toEqual([]);
   });
 
   test("a handed-off stack reads oldest first, each frame with its parent, depth and contentHash", async () => {

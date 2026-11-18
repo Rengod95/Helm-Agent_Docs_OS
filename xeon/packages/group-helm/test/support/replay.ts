@@ -52,7 +52,34 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
     }
     return value;
   };
-  return events.map(visit);
+  return events.flatMap((event) => {
+    // 시작 요청 기록(`lease.requested`)과 그것을 가리키는 `requestId`는 X의 부여 장부라 그룹이 정하는 부분이 아니다.
+    // 사용자 명령으로 시작한 기준 실행과 프로필 시작으로 이어 받은 절단 실행이 같은 이벤트열로 보이게 지운다(AGE-26)
+    if (kindOf(event) === "lease.requested") return [];
+    return [visit(kindOf(event) === "lease.acquired" ? withoutRequestId(event) : event)];
+  });
+}
+
+function withoutRequestId(event: JsonValue): JsonValue {
+  if (typeof event !== "object" || event === null || Array.isArray(event)) return event;
+  const out: Record<string, JsonValue> = {};
+  for (const [key, member] of Object.entries(event)) {
+    if (
+      key === "payload" &&
+      typeof member === "object" &&
+      member !== null &&
+      !Array.isArray(member)
+    ) {
+      const payload: Record<string, JsonValue> = {};
+      for (const [name, value] of Object.entries(member)) {
+        if (name !== "requestId") payload[name] = value;
+      }
+      out[key] = payload;
+    } else {
+      out[key] = member;
+    }
+  }
+  return out;
 }
 
 /**
