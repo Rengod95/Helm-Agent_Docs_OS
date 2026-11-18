@@ -1307,6 +1307,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 되돌림 직전에 `guard.output.before`(target `execution`)를 `fresnel.loop`의 `guardExecution`으로 부른다. 막히면 그 hunk는 `conflict`이고 파일에 쓰지 않는다. 리뷰를 연 turn이 없으면 가드를 부를 수 없어 `conflict`다.
 - 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
 - 설정은 `l2.artifacts.maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 키만 읽는다(`xeon/packages/cap-artifacts/src/settings.ts`). 전달 모드는 `reviews.deliverAs`를 따르고 기본은 `followUp`이다. `tools.reviewRequest`가 거짓이면 `review_request` 도구를 등록하지 않는다. 도구 등록은 설치 때 한 번 하므로 바꾼 값은 다음 설치부터 적용된다 [미결].
+- 종료 때 진행 중인 검토 답 처리(되돌림 쓰기 포함)를 기다린다. 확장을 내릴 때 새 답 구독을 먼저 끊고, 이미 받은 답의 처리가 끝나기를 `l0.process.shutdown.timeoutMs`(옵션 `drainTimeoutMs`, 기본 3000) 안에서 기다린 뒤 닫는다. 시한을 넘기면 `artifacts.drain_timeout` 경고만 남기고 닫는다. 그래서 거절 답 직후 `/quit`해도 되돌림이 종료보다 먼저 끝난다(Linear AGE-18). 종료가 느려지는 상한은 이 시한이다 [결정: 오케스트레이터 기본값, enR1].
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
 - 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 기능은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
