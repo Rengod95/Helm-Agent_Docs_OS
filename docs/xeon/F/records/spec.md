@@ -104,6 +104,7 @@ export type EnvelopeSizeError = { kind: "event_too_large"; bytes: number; limit:
 export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, EnvelopeSizeError>;
 ```
 
+- [결정: AGE-59] 큰 값의 크기 세기(`json-size.ts`): `jsonUtf8Length(value)`는 값의 `JSON.stringify` 결과의 UTF-8 바이트 수를, `stringUtf8Sizes(text)`는 문자열의 JSON 바이트 수와 UTF-8 바이트 수를 직렬화 글을 만들지 않고 센다. 100 MiB 문자열을 글로 만들고 다시 인코딩하면 입력의 여러 배 메모리가 들어서 L1 persistence(분리 판정)와 X ext-host(입력 상한 검사)가 이 함수를 쓴다. 값은 JSON 값이고 `toJSON`은 부르지 않는다. 시험은 `JSON.stringify`와 인코딩의 길이와 견준다(`test/records/json-size.test.ts`).
 - [제안] `durable`을 판별자로 하는 두 변형을 두고 `additionalProperties: false`로 닫는다. 그래서 `durable: false`인데 `seq`가 있거나, `durable: true`인데 `n`이 있으면 스키마 검증에서 거부된다.
 - [제안] 휘발 이벤트에는 `parentId`, `detached`가 없다. 분기 트리에 들어가지 않기 때문이다.
 - [제안] `afterSeq`는 기존 설계 `docs/design/09-event-store.md` §3.5의 같은 이름 필드를 가져온 것이다. 클라이언트는 이 seq까지 내구 이벤트를 받기 전에는 휘발 조각 적용을 미룰 수 있다.

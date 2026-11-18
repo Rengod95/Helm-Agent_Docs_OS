@@ -24,3 +24,4 @@ export {
   type EffectId,
   type EventId,
 } from "../conversation/ids.ts";
+export * from "./json-size.ts";
