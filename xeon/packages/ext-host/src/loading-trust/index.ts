@@ -239,8 +239,8 @@ export interface LoadOptions {
    */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   /**
-   * 시작 때 싣는 외부 확장의 기본 집합 [제안, M5c §4.1.11]. 공장 기본 프로필의 기본 번들 이름이다. 있으면 외부 확장 가운데
-   * 이름이 여기 들지 않고 매니페스트 기본이 꺼진(`defaultEnabled: false`) 것은 시작 때 싣지 않는다. 꺼진 기록으로 남아
+   * 시작 때 싣는 외부 확장의 기본 집합 [M5c §4.1.11]. 기본 프로필이 처음 주는 번들 이름이다. 있으면 외부 확장 가운데
+   * 이름이 여기 들지 않은 것은 `defaultEnabled`와 무관하게 시작 때 싣지 않는다. 꺼진 기록으로 남아
    * `lazy_deferred` 진단을 받고, 대화의 켜짐 집합(E(T))에 들 때 `ensureLoaded`가 싣는다. 없으면 모두 시작 때 싣는다(이전 동작)
    */
   readonly defaultNames?: readonly ExtensionName[];
@@ -2237,15 +2237,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /**
-   * 시작 때 싣지 않고 꺼진 채 남길 외부 확장인가(`LoadOptions.defaultNames`, [제안]). 기본 집합 밖이고 매니페스트 기본이 꺼졌다.
-   * 집합이 없으면(`undefined`) 아무것도 미루지 않는다
+   * 시작 때 싣지 않고 꺼진 채 남길 외부 확장인가(`LoadOptions.defaultNames`). 기본 집합 밖이면 매니페스트 `defaultEnabled`와
+   * 무관하게 미룬다(매니페스트의 "기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 집합이 없으면(`undefined`) 아무것도 미루지 않는다
    */
   function deferredAtStartup(
     record: ExtRecord,
     defaultNames: ReadonlySet<string> | undefined,
   ): boolean {
     if (defaultNames === undefined || record.manifest === undefined) return false;
-    return !defaultNames.has(record.name) && record.manifest.defaultEnabled === false;
+    return !defaultNames.has(record.name);
   }
 
   /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 기능 연쇄 실패를 정리한다 */
