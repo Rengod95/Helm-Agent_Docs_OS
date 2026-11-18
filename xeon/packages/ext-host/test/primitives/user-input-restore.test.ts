@@ -106,14 +106,14 @@ test("a claimed message is recorded as held before the claim answers and as sett
   expect(await t.host.claimUserInput(thread, message, "m1")).toBe(true);
   // 답이 돌아온 시점에 held 기록은 이미 있다
   expect(userInputsOf(t, thread)).toEqual([
-    { requestId: "m1", scopeId: "ui-p", status: "held", input: message },
+    { requestId: "m1", scopeId: "ui-p", status: "held", input: { kind: "user", content: "hello" } },
   ]);
   await t.settled();
 
   expect(lastsOf(seen)).toEqual([{ kind: "user", message, requestId: "m1" }]);
   expect(t.loop.turns.map((turn) => turn.input)).toEqual([message]);
   expect(userInputsOf(t, thread)).toEqual([
-    { requestId: "m1", scopeId: "ui-p", status: "held", input: message },
+    { requestId: "m1", scopeId: "ui-p", status: "held", input: { kind: "user", content: "hello" } },
     { requestId: "m1", scopeId: "ui-p", status: "settled" },
   ]);
 });
