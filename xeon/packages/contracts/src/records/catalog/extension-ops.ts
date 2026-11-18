@@ -226,6 +226,28 @@ export const LeaseRequestedPayloadSchema: TObject<{
 export type LeaseRequestedPayload = Static<typeof LeaseRequestedPayloadSchema>;
 
 /**
+ * 주도 프레임이 가로챈 사용자 메시지 하나의 기록 [제안: 이름 `lease.user_input`, AGE-26]. 코어 루프의 입력 큐에 들어가지 않는 메시지가 재시작에서 사라지지 않게 한다.
+ * `held`는 엔진이 메시지를 받은 때(`input`에 메시지 내용 `PostItem`), `settled`는 메시지가 처리됐거나 코어 루프로 돌아간 때다.
+ * 재시작 때 `held`이고 `settled`가 없는 메시지를 되살려 플러그인에 다시 전달한다(최소 한 번 전달). `requestId`가 메시지의 식별자이고 단계 입력 `last.requestId`로도 간다
+ */
+export const LeaseUserInputPayloadSchema: TObject<{
+  requestId: TString;
+  scopeId: TString;
+  status: TUnion<[TLiteral<"held">, TLiteral<"settled">]>;
+  input: TOptional<TUnsafe<JsonValue>>;
+}> = Type.Object(
+  {
+    requestId: Type.String({ minLength: 1, maxLength: 96 }),
+    scopeId: scopeId(),
+    status: Type.Union([Type.Literal("held"), Type.Literal("settled")]),
+    /** `held`에만 싣는다. 크기는 `DRIVE_INPUT_MAX_BYTES` 이내다 */
+    input: Type.Optional(JsonValueSchema),
+  },
+  { additionalProperties: false },
+);
+export type LeaseUserInputPayload = Static<typeof LeaseUserInputPayloadSchema>;
+
+/**
  * drive 임대 요청이 대기 상한 뒤 거부됐다(M3-REQ-99, review.m3-design-inputs D-M3-05 a).
  * groupId는 요청한 그룹(ExtensionName), requestSeq는 거부된 요청의 순번이다.
  * 수명주기 지점 `lifecycle.lease.rejected`의 페이로드이기도 하다.

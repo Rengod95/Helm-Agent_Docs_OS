@@ -595,6 +595,11 @@ export interface OpenLease {
     readonly status: "done" | "aborted";
     readonly result: JsonValue | null;
   } | null;
+  /**
+   * 프로필의 시작 주도(`lease.acquired`에 `requestId`와 `parent`가 없는 맨 아래 프레임)이고 그 뒤 처리된 사용자 메시지(`lease.user_input` settled)가 아직 없다.
+   * 참이면 복원한 프레임은 첫 메시지를 다시 기다린다
+   */
+  readonly awaitsUser: boolean;
 }
 
 /** 재시작 때 되살릴 주도 시작 요청 하나(`lease.requested`). 부여되지도 버려지지도 않은 것 */
@@ -604,6 +609,13 @@ export interface PendingStartRequest {
   readonly trigger: "user" | "handoff";
   readonly parent: string | null;
   readonly input: JsonValue | null;
+}
+
+/** 재시작 때 되살릴 사용자 메시지 하나(`lease.user_input`). `held`이고 `settled`가 없는 것. `input`은 저장된 메시지 내용(`PostItem`의 JSON)이다 */
+export interface PendingUserInput {
+  readonly requestId: string;
+  readonly scopeId: string;
+  readonly input: JsonValue;
 }
 
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
@@ -623,6 +635,8 @@ export interface ExtThreadSnapshot {
   readonly openLeases: readonly OpenLease[];
   /** 부여되지도 버려지지도 않은 시작 요청(오래된 것부터). 맡기기 요청은 맡긴 프레임이 아직 열려 있는 것만 싣는다 */
   readonly pendingRequests: readonly PendingStartRequest[];
+  /** 주도 프레임이 가로챘으나 처리되지 않은 사용자 메시지(오래된 것부터, `lease.user_input`) */
+  readonly pendingUserInputs: readonly PendingUserInput[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

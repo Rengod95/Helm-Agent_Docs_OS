@@ -154,6 +154,12 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       parent: "lease-1",
       input: { purpose: "x" },
     },
+    "lease.user_input": {
+      requestId: "evt-u1",
+      scopeId: "helm",
+      status: "held",
+      input: { kind: "user", content: "hi" },
+    },
     "lease.rejected": { groupId: "helm", reason: "wait_limit", requestSeq: 3 },
     "drive.command_settled": {
       scopeId: "helm",

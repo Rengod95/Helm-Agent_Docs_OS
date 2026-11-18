@@ -260,7 +260,11 @@ export type StepResult =
   /** 깊이 상한, 아직 없는 명령(`command_unavailable`) 같은 거부. 예외가 아니다 */
   | { readonly kind: "refused"; readonly code: string }
   | { readonly kind: "aborted" }
-  | { readonly kind: "user"; readonly message: PostItem }
+  /**
+   * 사용자 메시지. `requestId`는 메시지의 식별자다. 재시작이 끼면 같은 메시지가 두 번 전달될 수 있다(최소 한 번 전달).
+   * 플러그인은 이 값으로 이미 처리한 메시지를 알아본다. 같은 메시지는 같은 값이다
+   */
+  | { readonly kind: "user"; readonly message: PostItem; readonly requestId: string }
   | {
       readonly kind: "handoff";
       readonly status: "done" | "aborted";
@@ -412,7 +416,11 @@ const StepResultShape = Type.Union([
   Type.Object({ kind: Type.Literal("replaced"), by: StepHookSourceShape, value: JsonValueSchema }),
   Type.Object({ kind: Type.Literal("refused"), code: Type.String() }),
   Type.Object({ kind: Type.Literal("aborted") }),
-  Type.Object({ kind: Type.Literal("user"), message: PostItemSchema }),
+  Type.Object({
+    kind: Type.Literal("user"),
+    message: PostItemSchema,
+    requestId: Type.String({ minLength: 1, maxLength: 96 }),
+  }),
   Type.Object({
     kind: Type.Literal("handoff"),
     status: Type.Union([Type.Literal("done"), Type.Literal("aborted")]),

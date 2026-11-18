@@ -258,7 +258,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(47종, 모두 version 1). 아래 표는 `xeon/packages/contracts/test/records/catalog-doc.test.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 이 시험은 `just test packages/contracts`에서 돈다. 표 행을 고치면 코드도 고친다.
+코어 카탈로그(48종, 모두 version 1). 아래 표는 `xeon/packages/contracts/test/records/catalog-doc.test.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 이 시험은 `just test packages/contracts`에서 돈다. 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
@@ -290,6 +290,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득. 선택 필드 `input`(프레임을 연 명령·맡기기의 입력)과 `requestId`(부여를 낳은 `lease.requested`의 id)를 더한다. 입력의 직렬화 크기는 엔진이 200,000바이트로 막고 넘으면 거절한다(envelope 상한 262,144바이트 안에 들어가야 한다) [제안: 이름·상한, AGE-26] |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제. 선택 필드 `result`는 사유 `done`일 때 단계 함수가 낸 결과다. 재시작 직전에 끝난 맡기기의 결과를 맡긴 쪽이 받게 한다 [제안: 이름, AGE-26] |
 | `lease.requested` | 예 | `LeaseRequestedPayloadSchema` | 주도 시작 요청 하나의 기록(`{ requestId, scopeId, status: queued\|dropped, trigger: user\|handoff, parent?, input? }`). 사용자 명령과 맡기기가 큐에 들어갈 때 `queued`, 부여 없이 버려질 때 `dropped`다. 부여되면 `lease.acquired.requestId`가 가리킨다. 재시작 때 부여도 `dropped`도 없는 요청을 큐에 되살린다. 프로필 시작은 열 때 다시 만들어지므로 남기지 않는다 [제안: 이름 `lease.requested`, AGE-26] |
+| `lease.user_input` | 예 | `LeaseUserInputPayloadSchema` | 주도 프레임이 가로챈 사용자 메시지 하나의 기록(`{ requestId, scopeId, status: held\|settled, input? }`). `held`는 엔진이 메시지를 받아 "받았다"고 답하기 전에 남기고(`input`은 `PostItem`의 JSON, 직렬화 크기 200,000바이트 상한. 넘으면 가로채지 않고 입력 큐가 받는다), `settled`는 단계 함수가 `turn`으로 처리했거나 코어 루프의 입력 큐로 돌려보낸 뒤 남긴다. 재시작 때 `held`이고 `settled`가 없는 메시지를 되살린다. 커밋 키는 (상태, `requestId`)다. 값은 기록의 다른 입력과 같은 가림 규칙(`/input`)을 지난다 [제안: 이름 `lease.user_input`, AGE-26] |
 | `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
 | `drive.command_settled` | 예 | `DriveCommandSettledPayloadSchema` | 주도 명령 하나의 결과(`{ scopeId, requestId, command, outcome, ref? }`). 단계 함수(`review.m5-drive-isolation` 1.1)의 명령이 정착할 때 남는다. 커밋 키 (scopeId, requestId)라 재시작 뒤 같은 단계가 다시 돌아도 하나만 남는다 [제안: 이름 C0에서 확정, 결정: 2026-11-17 사용자 U1] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
@@ -625,7 +626,7 @@ export interface ToolUntrustedReadPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 47종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 48종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 기능 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
@@ -1127,6 +1128,8 @@ export interface ExtThreadSnapshot {
   readonly openLeases: readonly OpenLease[];
   /** 부여되지도 버려지지도 않은 시작 요청(`lease.requested`, 오래된 것부터). 맡기기 요청은 맡긴 프레임이 열려 있는 것만 싣는다. `OpenLease`는 `input`(`lease.acquired.input`)과, 맡은 프레임이 반납된 뒤 아직 쓰이지 않은 `handoffEnd`(`done`이면 `lease.released.result`)를 더 싣는다 */
   readonly pendingRequests: readonly PendingStartRequest[];
+  /** 주도 프레임이 가로챘으나 처리되지 않은 사용자 메시지(`lease.user_input`의 `held`에서 `settled`를 뺀 것, 받은 순서). `OpenLease.awaitsUser`는 프로필 시작 주도에 처리된 메시지가 아직 없음을 뜻한다 */
+  readonly pendingUserInputs: readonly PendingUserInput[];
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }
@@ -1277,7 +1280,7 @@ export interface RecordCommitPort {
 5. `@fresnel/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@fresnel/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
 7. `parseEventKind`는 코어 kind 44개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
-8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(47종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
+8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(48종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
 9. 카탈로그의 모든 payload 스키마가 대표 픽스처의 JSON 왕복 뒤 검증을 통과한다.
 10. `StepCheckpointSchema`는 `schemaVersion` 누락과 `stepIndex` 음수를 거부한다.
 11. `ChunkMigration.runChunk`는 동기이고 실행기가 같은 `tx`에 커서를 저장한다. 청크 중간에 던지면 그 청크의 행과 커서가 함께 롤백된다.

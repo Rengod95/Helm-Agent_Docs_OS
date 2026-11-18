@@ -83,7 +83,7 @@ type StepResult =
   | { kind: "replaced"; by: { plugin: string | null; hook: string | null }; value: Json | null }   // 훅이 결과를 대신 줌(tool의 replace, spawn의 replace{report})
   | { kind: "refused"; code: string }                                                              // 깊이 상한, hook_cycle, hook_depth, replay_mode_denied 등. 예외가 아니다
   | { kind: "aborted" }                                                                            // 사용자 중지·정지로 명령이 끝나지 않음
-  | { kind: "user"; message: PostItem }                                                            // 주도 중에 온 사용자 메시지(2.4)
+  | { kind: "user"; message: PostItem; requestId: string }                                        // 주도 중에 온 사용자 메시지(2.4). requestId는 메시지 식별자이고 재시작 뒤 재전달에서도 같다(최소 한 번 전달)
   | { kind: "handoff"; status: "done" | "aborted"; result: Json | null };                         // 맡긴 프레임의 끝(2.1, 2.4)
 ```
 
