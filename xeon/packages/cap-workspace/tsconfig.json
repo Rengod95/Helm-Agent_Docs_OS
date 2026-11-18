@@ -11,6 +11,9 @@
       "path": "../contracts"
     },
     {
+      "path": "../core-persistence"
+    },
+    {
       "path": "../core-tools"
     },
     {
@@ -21,6 +24,9 @@
     },
     {
       "path": "../platform-exec"
+    },
+    {
+      "path": "../platform-store"
     }
   ]
 }

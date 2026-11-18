@@ -26,6 +26,8 @@ import type { FilesApi } from "./api.ts";
 
 type EditMethod = FilesApi["edit"];
 
+const encoder = new TextEncoder();
+
 const FAILURE_CODES: Readonly<Record<EditFailure["kind"], string>> = {
   empty_old_text: "edit_empty_old_text",
   not_found: "edit_not_found",
@@ -84,13 +86,16 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
           fuzzy: settings.edit.fuzzy,
         });
         if (!applied.ok) throw failureOf(applied.error);
-        await atomicWrite(
-          deps.env,
-          resolved.canonical,
-          bom + restoreLineEndings(applied.value.newContent, ending),
-          context,
-          { expectedBefore: original },
-        );
+        const nextText = bom + restoreLineEndings(applied.value.newContent, ending);
+        // 원본 저장은 쓰기 전에 끝난다. 실패해도 편집은 그대로 간다(L1.persistence.spec §4.13.2)
+        deps.rewind?.capture(options?.context, options?.requestId, {
+          path: resolved.canonical,
+          before: bytes,
+          after: encoder.encode(nextText),
+        });
+        await atomicWrite(deps.env, resolved.canonical, nextText, context, {
+          expectedBefore: original,
+        });
         return {
           applied: input.edits.length,
           matchMode: applied.value.matchMode,

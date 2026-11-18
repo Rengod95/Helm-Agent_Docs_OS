@@ -19,8 +19,10 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@fresnel/core-persistence": "workspace:*",
     "@fresnel/core-tools": "workspace:*",
     "@fresnel/platform-exec": "workspace:*",
+    "@fresnel/platform-store": "workspace:*",
     "@types/bun": "catalog:"
   },
   "fresnel": {
