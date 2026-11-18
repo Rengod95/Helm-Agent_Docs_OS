@@ -82,6 +82,7 @@ import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
+import { userSkillsDir } from "@fresnel/cap-knowledge";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
 import { createTestRunMarks } from "./measure/test-run-marks.ts";
 import {
@@ -1073,6 +1074,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     records: () => deps.extRead.extensions(),
     profiles: { list: () => ports.m4.profileTestRun.list() },
     store: deps.pluginStore,
+    // 느슨한 스킬 폴더는 옮긴 뒤에도 원본으로 남는다(제거 항목을 만들지 않게 이름만 본다)
+    looseSkillsDir: userSkillsDir(deps.dataDir),
     log,
   });
   // 사용자 플러그인 폴더(`<config>/plugins`). 읽기 서비스, 한 줄 지침(§4.10), 마이그레이션 제출(§7.5)이 같이 본다

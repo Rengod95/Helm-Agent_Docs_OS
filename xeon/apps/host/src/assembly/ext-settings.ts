@@ -1,4 +1,4 @@
-import type { SettingCatalog } from "@fresnel/contracts/settings";
+import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import type { LoaderSettingsSource } from "@fresnel/ext-host";
 import type { SettingsEngine } from "./settings-engine.ts";
 
@@ -16,9 +16,17 @@ export function extSettingsOf(
   const effective = (key: string): unknown =>
     catalog.has(key) ? settings.value(key) : settings.userValues().get(key);
   return {
+    // 잠금 값만 준다: 관리 범위가 거짓으로 잠근 경우만 `false`다. 매니페스트 기본(`defaultEnabled: false`)과 사용자 값은
+    // 잠금이 아니다. 켜짐은 대화별 E(T)가 정한다(M5c §4.1.10). 키가 카탈로그에 아직 없으면 사용자 파일 값을 본다(예전 동작)
     enabled: (name) => {
-      const value = effective(`ext.${name}.enabled`);
-      return typeof value === "boolean" ? value : undefined;
+      const key = `ext.${name}.enabled`;
+      const def = catalog.get(key);
+      if (def === undefined) {
+        const value = settings.userValues().get(key);
+        return typeof value === "boolean" ? value : undefined;
+      }
+      const { setting } = resolveSetting(def, settings.layers(undefined));
+      return setting.source.scope === "managed" && setting.value === false ? false : undefined;
     },
     // 필수 사용자 설정이 채워졌는가: 값이 있고 빈 문자열이 아니다
     hasValue: (key) => {

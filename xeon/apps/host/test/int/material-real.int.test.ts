@@ -3,10 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
-import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
@@ -28,27 +26,6 @@ const PROFILE = "kit";
 const INSTRUCTION = "MATERIAL-INSTRUCTION-7d2c";
 const SKILL = "mat-skill";
 const SKILL_DESCRIPTION = "Material skill description 4f1a";
-
-/** 빈 내장 확장의 진입점. 등록만 하고 기여는 없다 */
-const membershipEntry: ExtensionEntry = ({ manifest: loaded, register }) => {
-  register(loaded.name, {}, () => {});
-};
-
-/**
- * 프로필 검증의 라이브러리는 로더가 실은 확장만 본다. 검토본 폴더만 있는 플러그인은 지금 로더에 실리지 않아 `plugin_unknown`이 난다
- * (보고 항목). 그래서 같은 이름의 빈 내장 확장을 함께 실어 라이브러리 구성원으로 만든다. 재료는 검토본 폴더에서만 온다
- */
-function membershipModule(): HostPluginModule {
-  const manifest = defineManifest({
-    schemaVersion: 2,
-    name: KIT,
-    version: "1.0.0",
-    plugins: [{ layer: "plugin", hooks: [] }],
-    defaultEnabled: false,
-    trust: { level: "builtin" },
-  });
-  return { manifest, extension: membershipEntry };
-}
 
 /** 사용자 플러그인 폴더 하나: 지침 파일 하나와 스킬 하나. 기본 프로필에는 넣지 않는다(`defaultEnabled: false`) */
 function writeKit(home: EngineHome): void {
@@ -129,7 +106,6 @@ async function openKit(): Promise<KitSession> {
   // 1차 기동: 폴더를 검토에 올려 승인한다. 승인하면 검토본 사본과 현재 가리킴이 생긴다
   const first = await startInProcessHost({
     devChecks: true,
-    defaultGroups: false,
     buildModels: model.buildModels,
   });
   const firstConnection = createHostConnection(first.client);
@@ -146,12 +122,10 @@ async function openKit(): Promise<KitSession> {
   await firstConnection.close();
   await first.close();
 
-  // 2차 기동: 같은 엔진 홈을 다시 연다. 라이브러리 구성원(membershipModule)이 있어야 프로필이 이 이름을 받는다.
-  // 재료는 승인된 검토본 폴더에서만 온다
+  // 2차 기동: 같은 엔진 홈을 다시 연다. 프로필 검증은 로더의 확장 목록을 보고, 이 플러그인은 승인 뒤 그 목록에 있다.
+  // 재료는 승인된 검토본 폴더에서 온다
   const host = await startInProcessHost({
     devChecks: true,
-    defaultGroups: false,
-    extraPlugins: [membershipModule()],
     buildModels: model.buildModels,
   });
   const connection = createHostConnection(host.client);

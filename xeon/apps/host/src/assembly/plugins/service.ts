@@ -1,5 +1,6 @@
+import { readdir } from "node:fs/promises";
 import { basename } from "node:path";
-import { err, ok, type Result } from "@fresnel/contracts";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import type { PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
 import type {
   InvocableEntry,
@@ -62,6 +63,11 @@ export interface PluginServiceDeps {
   readonly bundleDir: string | null;
   /** 로드된 확장 목록(내장 포함) */
   readonly records: () => readonly PluginRecordSource[];
+  /**
+   * 느슨한 사용자 스킬 루트(`<OsDirs.data>/skills`). 그 안의 폴더 이름은 "원본이 아직 있다"는 뜻으로만 쓴다: 옮긴 스킬의 원본이
+   * 사라졌다고 보고 제거 항목을 만들지 않게 한다. 이 폴더로는 검토 항목을 만들지 않는다(옮김이 맡는다, M5c §7.5)
+   */
+  readonly looseSkillsDir?: string;
   /** 프로필 목록. `usedBy` 계산에 쓴다. 읽지 못하면 그 실패를 호출자에게 준다 */
   readonly profiles: Pick<ProfileTestRunPort, "list">;
   /** 검토본 저장소. 검토 칸, 무결성, 보관 목록을 여기서 읽는다 */
@@ -192,6 +198,16 @@ function claimInto(
   byName.set(name, entry);
 }
 
+/** 느슨한 스킬 루트의 폴더 이름. 없거나 읽지 못하면 빈 목록이다(진단은 옮김이 남긴다) */
+async function looseSkillFolderNames(dir: string | undefined): Promise<readonly string[]> {
+  if (dir === undefined) return [];
+  const listed = await attemptAsync(() => readdir(dir, { withFileTypes: true }));
+  if (!listed.ok) return [];
+  return listed.value
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .map((entry) => entry.name);
+}
+
 /**
  * 카드 후보를 모은다. 출처 순서는 내장 레코드, 폴더 원본, 검토본 저장소, 나머지 레코드다.
  * 같은 이름은 앞의 것이 쥔다. 폴더 원본이 있는 이름은 원본 폴더가 카드 내용을 주고, 검토본이 있으면 검토 칸과 무결성만 저장소에서 덮는다.
@@ -233,9 +249,12 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
   for (const item of found.diagnostics) {
     diagnostics.push({ code: item.code, dir: item.dir, message: item.message });
   }
-  const discoveredNames = found.candidates
-    .filter((candidate) => candidate.origin !== "bundled")
-    .map((candidate) => basename(candidate.dir));
+  const discoveredNames = [
+    ...found.candidates
+      .filter((candidate) => candidate.origin !== "bundled")
+      .map((candidate) => basename(candidate.dir)),
+    ...(await looseSkillFolderNames(deps.looseSkillsDir)),
+  ];
   for (const candidate of found.candidates) {
     // 옛 위치(`<config>/extensions`)는 한 릴리스 동안 읽는다(M5c §7.4). 카드의 `origin`은 닫힌 값이라 진단과 로그로만 남긴다
     if (candidate.legacy) {

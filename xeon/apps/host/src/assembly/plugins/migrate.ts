@@ -12,7 +12,7 @@ import {
 } from "@fresnel/contracts";
 import { isSemVer } from "@fresnel/contracts/capabilities";
 import { ExtensionNameSchema } from "@fresnel/contracts/extensions";
-import { Type, type Static } from "typebox";
+import { Type } from "typebox";
 import { sequentially } from "../../util.ts";
 import { compareUtf8 } from "./content-hash.ts";
 import { readPluginFolder } from "./folder-reader.ts";
@@ -32,7 +32,7 @@ const SKILL_FILE = "SKILL.md";
 
 /** 옮김 결과 한 줄. `migrated`는 검토본에 들어간 것, `skipped`는 옮길 수 없는 이름 따위, `rejected`는 원본 문제로 거절한 것이다 */
 export interface MigrationRecord {
-  readonly step: "installed" | "history" | "loose_skill";
+  readonly step: "installed" | "history" | "loose_skill" | "loose_skill_profile";
   readonly name: string;
   readonly outcome: "migrated" | "skipped" | "rejected";
   readonly contentHash: string | null;
@@ -526,32 +526,50 @@ const LogLineShape = Type.Object({
   contentHash: Type.Union([Type.String(), Type.Null()]),
   reason: Type.Union([Type.String(), Type.Null()]),
 });
-type LogLine = Static<typeof LogLineShape>;
-
-/** 기록 한 줄이 같은 줄인지 가리는 키. 시각은 빼고 결과 내용만 본다 */
-function lineKeyOf(line: LogLine): string {
-  return JSON.stringify([line.step, line.name, line.outcome, line.contentHash, line.reason]);
+/** `migration.log`의 옮김 결과 한 줄(모양 검사를 통과한 값) */
+export interface MigrationLogLine {
+  readonly step: string;
+  readonly name: string;
+  readonly outcome: string;
+  readonly contentHash: string | null;
+  readonly reason: string | null;
 }
 
-/** 이미 적힌 줄의 키. 파일이 없으면 빈 집합이다. 읽지 못하면 `undefined`(적지 않는다) */
-async function seenLinesOf(path: string, logger: Logger): Promise<Set<string> | undefined> {
+/**
+ * `migration.log`의 옮김 결과 줄들. 파일이 없으면 빈 목록이다. 읽지 못하면 `undefined`다.
+ * 옮김 결과 모양이 아닌 줄(프로필 옮김 줄 따위)은 건너뛴다
+ */
+export async function readMigrationLines(
+  path: string,
+  logger: Logger,
+): Promise<readonly MigrationLogLine[] | undefined> {
   const text = await attemptAsync(() => readFile(path, "utf8"));
   if (!text.ok) {
-    if (codeOf(text.error.cause) === "ENOENT") return new Set();
+    if (codeOf(text.error.cause) === "ENOENT") return [];
     logger.error("plugin.migration.log_unreadable", { code: codeOf(text.error.cause) ?? "io" });
     return undefined;
   }
-  const seen = new Set<string>();
+  const lines: MigrationLogLine[] = [];
   for (const line of text.value.split("\n")) {
     if (line.length === 0) continue;
     const json = parseJson(line);
     if (!json.ok) continue;
     const shaped = parse(LogLineShape, json.value);
-    // 호스트의 다른 옮김 기록(프로필 옮김)은 이 모양이 아니므로 키에 넣지 않는다
-    if (!shaped.ok) continue;
-    seen.add(lineKeyOf(shaped.value));
+    if (shaped.ok) lines.push(shaped.value);
   }
-  return seen;
+  return lines;
+}
+
+/** 기록 한 줄이 같은 줄인지 가리는 키. 시각은 빼고 결과 내용만 본다 */
+function lineKeyOf(line: MigrationLogLine): string {
+  return JSON.stringify([line.step, line.name, line.outcome, line.contentHash, line.reason]);
+}
+
+/** 이미 적힌 줄의 키. 파일이 없으면 빈 집합이다. 읽지 못하면 `undefined`(적지 않는다) */
+async function seenLinesOf(path: string, logger: Logger): Promise<Set<string> | undefined> {
+  const lines = await readMigrationLines(path, logger);
+  if (lines === undefined) return undefined;
+  return new Set(lines.map(lineKeyOf));
 }
 
 /**

@@ -4,6 +4,7 @@ export * from "./card.ts";
 export * from "./discover.ts";
 export * from "./material-port.ts";
 export * from "./diff.ts";
+export * from "./loose-skill-profile.ts";
 export * from "./release.ts";
 export * from "./review.ts";
 export * from "./reviewed-source.ts";
