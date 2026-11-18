@@ -23,6 +23,7 @@ import {
   type IsolationProcessPort,
   type ManifestIssue,
   type PluginDecl,
+  type ScriptRunner,
   type TrustPrompter,
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
@@ -85,6 +86,7 @@ import {
   type IsolationDecision,
   type IsolationRefusal,
 } from "../isolation/effective.ts";
+import { createScriptRunner } from "../isolation/script-runner.ts";
 import {
   createIsolatedEntry,
   type IsolationLaunch,
@@ -347,6 +349,15 @@ export interface LoaderIsolation {
   readonly onRestartLimit?: (name: ExtensionName, info: RestartLimitInfo) => void;
   /** 세션(감독)을 열 때마다 부른다. 조립이 표준오류 꼬리 같은 진단을 읽을 때 쓴다 */
   readonly onSupervisor?: (name: ExtensionName, supervisor: PluginHostSupervisor) => void;
+  /**
+   * 스크립트 실행기 이름(`sh`, `bash`, `bun`, `node`, `python3`)을 절대 경로로 푼다(설계 B [제안]). 조립 루트가 준다.
+   * 없으면 스크립트 호출은 `runner_unavailable`로 답한다(띄우지 않는다)
+   */
+  readonly runner?: (name: ScriptRunner) => string | undefined;
+  /**
+   * 스크립트에 넘길 허용 환경 값. 선언된 `envNames` 가운데 여기 있고 시크릿 거부 패턴에 걸리지 않는 것만 넘긴다. 없으면 빈 값
+   */
+  readonly allowedEnv?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -1394,6 +1405,21 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         ? {}
         : { restartWindowSec: isolation.restartWindowSec }),
       ...(isolation.maskSecrets === undefined ? {} : { maskSecrets: isolation.maskSecrets }),
+      // 스크립트는 검토된 버전에서만 뜬다. 초안은 승인 카드를 재사용하는 길이 없어 띄우지 않는다(script_not_approved)
+      scripts: createScriptRunner({
+        process: port,
+        fs: deps.fs,
+        target: {
+          extension: manifest.name,
+          scripts: manifest.scripts ?? [],
+          tree: root,
+          approved: record.candidate.draft === undefined,
+        },
+        resolveRunner: isolation.runner ?? (() => undefined),
+        allowedEnv: isolation.allowedEnv ?? {},
+        setTimer: isolation.setTimer,
+        ...(isolation.logger === undefined ? {} : { logger: isolation.logger }),
+      }),
     });
   }
 

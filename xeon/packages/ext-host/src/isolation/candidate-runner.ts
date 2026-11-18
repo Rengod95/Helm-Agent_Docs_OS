@@ -325,6 +325,10 @@ function answerEngineCall(
         message: "a capability call cannot run in a replay",
       });
     }
+    case "runScript":
+      // 스크립트는 바깥에 부작용을 내므로 돌려 보기에서는 띄우지 않는다(기능 호출과 같이 거부하고 셈에 든다)
+      denial();
+      return err({ kind: "replay_mode_denied", message: "a script cannot run in a replay" });
     case "requestEffect": {
       const parsed = parse(RequestEffectSchema, call.params);
       if (!parsed.ok) return err(invalidParamsOf(parsed.error));

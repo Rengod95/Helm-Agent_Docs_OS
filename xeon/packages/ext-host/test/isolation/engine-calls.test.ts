@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
-import type { Result } from "@fresnel/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   CapabilityError,
   type CapabilityErrorData,
@@ -9,10 +9,15 @@ import {
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import {
   PLUGIN_HOST_ERROR_DETAIL_MAX_BYTES,
+  SCRIPT_LIMITS,
   type DriveCommand,
   type EngineCallParams,
   type PluginHostError,
+  type PluginScriptPort,
   type RegistrationApi,
+  type ScriptRunFailure,
+  type ScriptRunRequest,
+  type ScriptRunResult,
 } from "@fresnel/contracts/extensions";
 import {
   createEngineCallRouter,
@@ -45,7 +50,12 @@ const ECHO_ERROR: CapabilityErrorData = {
  * 실제 플러그인 경로와 같이 ambient 문맥(스레드, 등록 범위)이 있어야 `g`의 메서드가 동작한다.
  * `withEcho`이면 `demo.echo` 공급자를 올리고 등록이 그 기능을 요구한다. 공급자가 던질 값은 `echo.thrown`이다
  */
-async function rig(replayId: number | null = null, withEcho = false, waits?: OpenWaits) {
+async function rig(
+  replayId: number | null = null,
+  withEcho = false,
+  waits?: OpenWaits,
+  scripts?: PluginScriptPort,
+) {
   // 공급자의 메서드 정의(멱등 `echo`)가 있어야 가드가 재실행 문맥에서도 기능 호출을 통과시킨다
   const t = await createTestHost(withEcho ? { capabilityDefs: echoDefs } : {});
   const thread = t.newThread();
@@ -92,6 +102,7 @@ async function rig(replayId: number | null = null, withEcho = false, waits?: Ope
     gOf: (registration) => (registration === REGISTRATION ? slot.g : undefined),
     replayOf: (requestId) => requestId !== null && requestId === replayId,
     ...(waits === undefined ? {} : { waitsOf: () => waits }),
+    ...(scripts === undefined ? {} : { scripts }),
   });
   let seq = 0;
   /** `work`를 디스패치 안에서 한 번 실행하고 그 값을 돌려준다. 스레드와 등록의 ambient 문맥이 있는 자리다 */
@@ -570,4 +581,94 @@ test("a replayed startDrive answers ok without queueing a start request", async 
   expect(await inDispatch(startDriveOf(null, 7))).toEqual({ ok: true, value: { ok: true } });
   await t.settled();
   expect(seen).toEqual([]);
+});
+
+// ── runScript (설계 B): 라우터는 값을 그대로 옮기고, 실행기가 거절과 기동 실패를 값으로 낸다 ──
+
+/** 받은 요청을 기록하고 준비한 결과를 돌려주는 실행기 대역 */
+function recordingScripts(result: Result<ScriptRunResult, ScriptRunFailure>): {
+  port: PluginScriptPort;
+  requests: ScriptRunRequest[];
+} {
+  const requests: ScriptRunRequest[] = [];
+  return {
+    port: {
+      run(request) {
+        requests.push(request);
+        return Promise.resolve(result);
+      },
+    },
+    requests,
+  };
+}
+
+const RUN_RESULT: ScriptRunResult = {
+  exitCode: 2,
+  signal: null,
+  stdout: '{"ok":false}',
+  stdoutTruncated: false,
+  stderr: "bad\n",
+  stderrTruncated: false,
+  timedOut: false,
+};
+
+test("runScript passes the name, stdin and the caller's registration to the script port and answers its result", async () => {
+  const scripts = recordingScripts(ok(RUN_RESULT));
+  const { call } = await rig(null, false, undefined, scripts.port);
+  const answered = await call(callOf("runScript", { name: "check", stdin: '{"a":1}' }));
+  expect(answered).toEqual({ ok: true, value: { ok: true, value: { ...RUN_RESULT } } });
+  expect(scripts.requests).toEqual([
+    { registration: REGISTRATION, name: "check", stdin: '{"a":1}', replay: false },
+  ]);
+});
+
+test("runScript without stdin sends an empty stdin", async () => {
+  const scripts = recordingScripts(ok(RUN_RESULT));
+  const { call } = await rig(null, false, undefined, scripts.port);
+  await call(callOf("runScript", { name: "check" }));
+  expect(scripts.requests.map((request) => request.stdin)).toEqual([""]);
+});
+
+test("runScript in a replay is passed on as a replay request and the port's refusal is the answer", async () => {
+  const scripts = recordingScripts(err({ kind: "replay_mode_denied" }));
+  const { call } = await rig(7, false, undefined, scripts.port);
+  const answered = await call(callOf("runScript", { name: "check" }, 7));
+  expect(answered).toEqual({
+    ok: true,
+    value: { ok: false, error: { kind: "replay_mode_denied" } },
+  });
+  expect(scripts.requests.map((request) => request.replay)).toEqual([true]);
+});
+
+test("runScript without an injected script port answers sandbox_unavailable as a value and runs nothing", async () => {
+  const { call } = await rig();
+  const answered = await call(callOf("runScript", { name: "check" }));
+  expect(answered).toEqual({
+    ok: true,
+    value: { ok: false, error: { kind: "sandbox_unavailable", reason: "script_port_missing" } },
+  });
+});
+
+test("a runScript name that does not match the name pattern is invalid_params", async () => {
+  const scripts = recordingScripts(ok(RUN_RESULT));
+  const { call } = await rig(null, false, undefined, scripts.port);
+  const refused = errorOf(await call(callOf("runScript", { name: "Check Me" })));
+  expect(refused).toMatchObject({ kind: "invalid_params" });
+  expect(scripts.requests).toEqual([]);
+});
+
+test("runScript stdin over the byte limit is invalid_params and nothing is asked", async () => {
+  const scripts = recordingScripts(ok(RUN_RESULT));
+  const { call } = await rig(null, false, undefined, scripts.port);
+  const refused = errorOf(
+    await call(
+      callOf("runScript", { name: "check", stdin: "a".repeat(SCRIPT_LIMITS.stdinBytes + 1) }),
+    ),
+  );
+  expect(refused).toMatchObject({ kind: "invalid_params" });
+  expect(scripts.requests).toEqual([]);
+});
+
+test("parseEngineCallParams accepts runScript", () => {
+  expect(parseEngineCallParams(callOf("runScript", { name: "check" })).ok).toBe(true);
 });

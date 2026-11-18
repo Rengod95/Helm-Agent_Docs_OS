@@ -18,6 +18,10 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "CandidateRunner",
   "CandidateRunnerDeps",
   "ReplayPoint",
+  // 스크립트 실행기(isolation/script-runner.ts, 설계 B [제안]): 조립 루트가 확장마다 만들어 격리 항목에 넘긴다. 규칙은 X.loading-trust.spec §3.8 [제안: X.primitives 표 반영 요청]
+  "createScriptRunner",
+  "ScriptRunnerDeps",
+  "ScriptTarget",
   // 정렬 순위(F.operations §5.2 O-2): 호스트의 ext 읽기 포트가 면제 판정에 쓴다 [제안: 표 반영 요청]
   "tierRankOf",
   "TIER_RANK_CORE",
