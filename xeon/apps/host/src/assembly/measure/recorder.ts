@@ -18,7 +18,7 @@ import {
   type MeasureRecord,
   type MeasureStore,
 } from "./store.ts";
-import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
+import { MAX_HOOK_ROWS_PER_TURN, NO_HOOK_OWNER, type HookOwnerOf } from "./turn-rows.ts";
 import { createTurnWriter } from "./turn-writer.ts";
 
 /** 측정 DB 파일 이름 */
@@ -51,6 +51,8 @@ interface MeasureRecorderDeps {
   readonly usage: Pick<UsageMeter, "subscribe">;
   /** 핸들러 계측 링 버퍼 읽기. 없으면 `hook` 기록을 하지 않는다 */
   readonly trace: Pick<TraceReadPort, "turn"> | undefined;
+  /** 훅 행의 소유 조회(턴 기록의 `plugin`, `versionId`). 없으면 자리 값을 쓴다 */
+  readonly hookOwner: HookOwnerOf | undefined;
   /** 대화의 프로필 포트를 얻는 함수. 없거나 undefined면 턴 시작의 프로필은 대화 로그의 사건만으로 정한다 */
   readonly pluginSet: (() => Pick<PluginSetPort, "resolve"> | undefined) | undefined;
   readonly store: MeasureStore;
@@ -324,6 +326,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
         enabled: deps.enabled,
         logger: deps.logger,
         queue: enqueueOp,
+        hookOwner: deps.hookOwner ?? NO_HOOK_OWNER,
       })
     : undefined;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
@@ -530,6 +533,8 @@ export interface MeasurementDeps {
   readonly session: { readonly feed: Pick<EventFeed, "onCommit"> };
   readonly usage: Pick<UsageMeter, "subscribe">;
   readonly trace?: Pick<TraceReadPort, "turn">;
+  /** 훅 행의 플러그인과 검토본 해시(등록 id → 소유). 없으면 모든 훅 행이 자리 값을 쓴다 */
+  readonly hookOwner?: HookOwnerOf | undefined;
   /**
    * 대화의 프로필 포트(`PluginSetPortKey`)를 얻는 함수. 조립이 포트를 만들기 전에는 undefined를 준다.
    * 기록기를 켠 뒤 처음 보는 대화의 턴 시작 프로필 값에만 쓴다(§4.10 규칙 60)
@@ -593,6 +598,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     session: deps.session,
     usage: deps.usage,
     trace: deps.trace,
+    hookOwner: deps.hookOwner,
     pluginSet: deps.pluginSet,
     store,
     enabled: deps.enabled,

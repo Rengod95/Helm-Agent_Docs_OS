@@ -126,6 +126,7 @@ import {
   type HandlerFailureInput,
   type RequestBodyInput,
 } from "./assembly/measure/recorder.ts";
+import { hookOwnerLookup } from "./assembly/measure/hook-owner.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
 import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
@@ -1404,6 +1405,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       session,
       usage: models.usage,
       trace: traceReadOf(ext),
+      // 훅 행의 플러그인과 검토본 해시(턴 기록 §3.2). 등록 목록과 로더 값은 행을 쓸 때 읽는다
+      hookOwner: hookOwnerLookup({
+        registrations: () => ext.registrations(),
+        contentHashOf: (name) =>
+          external.loader?.list().find((info) => info.name === name)?.contentHash,
+      }),
       // 턴 시작 프로필 값의 원천. 포트는 아래에서 만들어진다(호출 때 읽는다)
       pluginSet: () => portsHandle?.ports.m4.pluginSet.port,
       enabled: () => operations.trace().enabled,

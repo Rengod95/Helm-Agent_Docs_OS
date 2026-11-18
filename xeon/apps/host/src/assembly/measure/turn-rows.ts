@@ -147,16 +147,28 @@ export function flatHooksOf(entries: readonly TraceTurnEntry[]): FlatHook[] {
   return out;
 }
 
+/** 훅 행의 소유(§3.2 `HookRun.plugin`, `versionId`). 처리기의 등록 id로 정한다 */
+interface HookOwner {
+  readonly plugin: string;
+  readonly versionId: string | null;
+}
+
+/** 등록 id를 소유로 바꾸는 조회. 모르는 등록이면 undefined이고 행은 자리 값(`none`, null)을 쓴다 */
+export type HookOwnerOf = (registrationId: string) => HookOwner | undefined;
+
+/** 소유를 넘기지 않는 쓰는 쪽의 기본값. 모든 행이 자리 값을 쓴다 */
+export const NO_HOOK_OWNER: HookOwnerOf = () => undefined;
+
 /** 훅 실행 한 번의 모양(§3.2 `HookRun`). 아직 채우지 않는 필드는 정본이 정한 자리 값이다 */
-function hookRunOf(flat: FlatHook): HookRun {
+function hookRunOf(flat: FlatHook, ownerOf: HookOwnerOf): HookRun {
   const { entry, handler } = flat;
   const toolCallId = handler.toolCallId ?? null;
+  const owner = ownerOf(handler.registrationId);
   return {
     hook: entry.hook,
     registrationId: handler.registrationId,
-    // 플러그인과 버전은 다른 트랙이 로더에서 채운다. 지금은 자리 값이다
-    plugin: "none",
-    versionId: null,
+    plugin: owner?.plugin ?? "none",
+    versionId: owner?.versionId ?? null,
     sourceKind: "plugin",
     seq: entry.seq,
     subject: toolCallId === null ? {} : { toolCallId },
@@ -175,12 +187,13 @@ function hookRunOf(flat: FlatHook): HookRun {
 
 /**
  * 한 단계(`step`)의 훅 실행을 고른다. 상한 `room`을 넘는 행은 버리고 개수를 `elided`에 센다.
- * 단계 밖 훅(step 0)도 같은 함수로 고른다
+ * 단계 밖 훅(step 0)도 같은 함수로 고른다. `ownerOf`는 행을 쓰는 순간의 소유를 준다
  */
 export function hooksOfStep(
   flats: readonly FlatHook[],
   step: number,
   room: number,
+  ownerOf: HookOwnerOf,
 ): {
   readonly rows: readonly { readonly run: HookRun; readonly seqGlobal: number }[];
   readonly elided: number;
@@ -193,7 +206,7 @@ export function hooksOfStep(
       elided += 1;
       continue;
     }
-    rows.push({ run: hookRunOf(flat), seqGlobal: flat.seqGlobal });
+    rows.push({ run: hookRunOf(flat, ownerOf), seqGlobal: flat.seqGlobal });
   }
   return { rows, elided };
 }

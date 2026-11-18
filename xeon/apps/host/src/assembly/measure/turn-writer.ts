@@ -29,6 +29,7 @@ import type { TrStepBatch } from "./turn-tables.ts";
 import {
   flatHooksOf,
   hooksOfStep,
+  type HookOwnerOf,
   MAX_HOOK_ROWS_PER_TURN,
   newDraft,
   stepAfterBoundary,
@@ -95,6 +96,8 @@ export interface TurnWriterDeps {
   readonly logger: Logger;
   /** 쓰기를 묶음에 넣는다. 마이크로태스크에서 넣은 순서대로 실행된다 */
   readonly queue: (op: StoreOp) => void;
+  /** 훅 행의 플러그인과 검토본 해시를 정하는 조회. 행을 쓰는 순간(단계 끝, 턴 끝)에 읽는다 */
+  readonly hookOwner: HookOwnerOf;
 }
 
 export interface TurnWriter {
@@ -349,6 +352,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       flatHooksOf(entries),
       stepIndex,
       MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
+      deps.hookOwner,
     );
     draft.hookRows += hooks.rows.length;
     draft.elidedHooks += hooks.elided;
@@ -401,6 +405,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
           flatHooksOf(deps.trace?.turn(record.threadId, turnId)?.entries ?? []),
           0,
           MAX_HOOK_ROWS_PER_TURN - draft.hookRows,
+          deps.hookOwner,
         ).rows.map((row) => row.run)
       : [];
     const endedAt = record.recordedAt;
