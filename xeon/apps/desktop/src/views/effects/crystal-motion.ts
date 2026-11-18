@@ -15,7 +15,7 @@ export interface CrystalPose {
   readonly gap: number;
   /** 쉬는 자세에서 더 돈 각(라디안) */
   readonly yaw: number;
-  /** 면이 받은 따뜻한 빛(0~1) */
+  /** 유리가 받은 빛(0~1): 테·면의 밝기와 오로라 빛깔의 채도. 쉬는 자세 0.6 */
   readonly glow: number;
   /** 두 조각이 틈을 따라 더 벌어진 거리(모형 단위) */
   readonly split: number;

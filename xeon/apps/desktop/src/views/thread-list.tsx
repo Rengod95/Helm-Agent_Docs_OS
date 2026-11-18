@@ -74,7 +74,7 @@ const LIST_COLUMN =
 const ROW_HEIGHT = SIDE_ROW;
 
 /**
- * 행 오른쪽 표식(DP-104). 승인은 바탕 없는 따뜻한 숫자(DP-189: 주의는 줄 물듦이 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
+ * 행 오른쪽 표식(DP-104). 승인은 바탕 없는 무채색 숫자(DP-189: 주의는 크리스탈 표시와 줄 물듦이 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
@@ -86,7 +86,7 @@ function metaOf(
   switch (badge) {
     case "approvals":
       return (
-        // 바탕 없는 숫자(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 물듦과 같은 따뜻한 색 + 굵기.
+        // 바탕 없는 숫자(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 무채색 + 굵기(2026-11-18 사용자 "숫자 무채색", lcMk2).
         // 뜻은 앞의 크리스탈 표시(DP-223)가 말한다(숫자는 낭독하지 않는다)
         <span className="fx-attend-count" data-thread-badge="approvals" aria-hidden>
           {approvals}

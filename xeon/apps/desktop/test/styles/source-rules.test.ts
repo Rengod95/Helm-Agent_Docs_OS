@@ -208,3 +208,21 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
   );
   expect(marks.map(relative)).toEqual([]);
 });
+
+test("attention counts are neutral and the row wash follows the crystal colors (DP-189, DP-223)", () => {
+  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". 줄 물듦은 크리스탈과 같은 오로라 계열이다
+  const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (selector: string): string => {
+    const at = css.indexOf(`${selector} {`);
+    return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
+  };
+  const count = rule(".fx-attend-count");
+  const row = rule(".fx-attend-row");
+  expect([
+    /color:\s*var\(--cs-color-text-secondary\)/.test(count),
+    /oklch|--fx-attend-a|--fx-attend-b/.test(count),
+    /--fx-crystal-a/.test(row),
+    /--fx-attend-a|--fx-attend-b/.test(row),
+    css.match(/\.fx-attend-count\b/g)?.length,
+  ]).toEqual([true, false, true, false, 1]);
+});

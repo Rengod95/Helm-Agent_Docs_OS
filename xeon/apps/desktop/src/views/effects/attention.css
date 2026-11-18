@@ -1,4 +1,4 @@
-/* 주의 면과 줄 물듦(attention-mark.tsx의 AttendGlow, dot-orb.tsx, DP-188~191 [결정: 2026-11-13 사용자]). 주의 구슬은 없앴다(DP-211). "내 확인이 필요함"은 따뜻한 빛(호박 → 산호)이 맡고,
+/* 주의 면과 줄 물듦(attention-mark.tsx의 AttendGlow, dot-orb.tsx, DP-188~191 [결정: 2026-11-13 사용자]). 주의 구슬은 없앴다(DP-211). "내 확인이 필요함"은 크리스탈 표시(crystal-mark.tsx, DP-223)와 그 오로라 계열의 옅은 물듦이 맡고(숫자는 무채색, lcMk2),
    "도는 중"은 생각 구슬과 같은 흑백 점 구슬(progress-orb.tsx)이 맡는다. 구슬은 canvas라 여기는 칸과 면만 그린다.
    표시를 더하기보다 면(줄 물듦·카드 빛)을 먼저 쓴다. 동시에 움직이는 수는 attention-budget.ts가 정한다(요청 그림 빛 3, 진행 구슬 8, 카드 오로라 1).
    caustic의 스펙트럼 고리(`orb` 유틸리티), 별·느낌표·단색 점은 앱에서 쓰지 않는다(DP-188, 시험 source-rules).
@@ -12,14 +12,18 @@
   --fx-attend-wash: 10%;
   --fx-attend-haze: 7%;
   --fx-attend-edge: 50%;
+  /* 대화 줄 물듦의 세기(오로라 계열, 다크) */
+  --fx-attend-row-wash: 9%;
 }
 :root[data-theme="light"] {
+  --fx-attend-row-wash: 7%;
   --fx-attend-wash: 8%;
   --fx-attend-haze: 5%;
   --fx-attend-edge: 65%;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
+    --fx-attend-row-wash: 7%;
     --fx-attend-wash: 8%;
     --fx-attend-haze: 9%;
     --fx-attend-edge: 70%;
@@ -44,11 +48,13 @@
 
 /* ---------- 줄 물듦(대화 목록 줄) ---------- */
 
-/* 움직이지 않는다. 줄 앞 끝에서 폭의 45%까지 따뜻하게 옅어진다. hover·선택 바탕(background-color) 위에 겹친다 */
+/* 움직이지 않는다. 줄 앞 끝에서 폭의 45%까지 아주 옅게 물들어 사라진다. hover·선택 바탕(background-color) 위에 겹친다.
+   빛깔은 크리스탈 표시와 같은 오로라 계열(보라 → 파랑, `--fx-crystal-a·b`)이다(DP-190을 lcMk2가 바꿈: 호박을 쓰지 않는다) */
 .fx-attend-row {
   background-image: linear-gradient(
     90deg,
-    color-mix(in oklch, var(--fx-attend-a) var(--fx-attend-wash), transparent),
+    color-mix(in oklch, var(--fx-crystal-a) var(--fx-attend-row-wash), transparent),
+    color-mix(in oklch, var(--fx-crystal-b) calc(var(--fx-attend-row-wash) * 0.5), transparent) 22%,
     transparent 45%
   );
 }
@@ -68,6 +74,11 @@
   border-radius: inherit;
   corner-shape: inherit;
   pointer-events: none;
+}
+/* 크리스탈 표시를 단 카드(받은 요청 카드): 면의 빛깔이 표시와 같은 오로라 계열(보라 → 청록)이다 */
+.fx-attend-glow[data-tone="crystal"] {
+  --fx-attend-a: var(--fx-crystal-a);
+  --fx-attend-b: var(--fx-crystal-c);
 }
 /* 위 변 1px 빛: 가운데가 밝고 양 끝으로 사라진다 */
 .fx-attend-glow-edge {
@@ -118,19 +129,14 @@
   animation: none;
 }
 
-/* ---------- 줄 끝 수(대화 목록 줄의 승인 수) ---------- */
+/* ---------- 줄 끝 수(대화 목록 줄의 승인 수, 상태 줄 "승인 대기 n") ---------- */
 
-/* 바탕 없는 숫자만. 물듦과 같은 호박 → 산호 계열의 글자색(라이트는 짙게), 굵기 600으로 줄 꼬리 글(400 tertiary)과 구분한다 */
+/* 바탕 없는 숫자만. 무채색(text.secondary)이고 굵기 600으로 줄 꼬리 글(400 tertiary)과 구분한다. 빛깔은 앞의 크리스탈 표시가 맡는다
+   (DP-189를 lcMk2가 바꿈 [결정: 2026-11-18 사용자 "숫자 무채색 바꿔. 호박색 쓰지말고"]) */
 .fx-attend-count {
-  color: light-dark(oklch(0.54 0.17 48), oklch(0.8 0.15 65));
+  color: var(--cs-color-text-secondary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-:root[data-theme="light"] .fx-attend-count {
-  color: oklch(0.54 0.17 48);
-}
-:root[data-theme="dark"] .fx-attend-count {
-  color: oklch(0.8 0.15 65);
 }
 
 /* ---------- 안전망: caustic 스펙트럼 고리를 쓰지 않는다(DP-188) ---------- */
