@@ -321,8 +321,9 @@ describe("host.remote methods", () => {
       },
     };
     expect(parse(result, answer).ok).toBe(true);
-    expect(parse(result, { ...answer, plan: { ...answer.plan, hosts: ["a", "b"] } }).ok).toBe(
-      false,
-    );
+    // 계획은 기존 허용 호스트에 도메인을 더한 목록이다(L4.remote §8.8). 설정의 상한(64개)까지 받는다
+    expect(parse(result, { ...answer, plan: { ...answer.plan, hosts: ["a", "b"] } }).ok).toBe(true);
+    const many = Array.from({ length: 65 }, (_, index) => `h${String(index)}.example.com`);
+    expect(parse(result, { ...answer, plan: { ...answer.plan, hosts: many } }).ok).toBe(false);
   });
 });
