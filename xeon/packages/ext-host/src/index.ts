@@ -159,6 +159,7 @@ export {
   type LoadInstalledFailure,
   type LoadInstalledStarted,
   internalDraftName,
+  draftVersionIdOf,
   type DraftInfo,
   type DraftLoadInput,
   type LoadDraftFailure,

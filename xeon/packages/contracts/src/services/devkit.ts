@@ -283,4 +283,9 @@ export interface DevkitService {
   draftList?(name: string): Promise<DevkitResult<{ readonly drafts: readonly DraftSummary[] }>>;
   /** 테스트 대화의 맥락 참조(M5c §4.8.8, 도구 `authoring_context`). 구현이 없으면 도구가 거절한다 */
   craftContext?(threadId: string): Promise<DevkitResult<CraftContextView>>;
+  /**
+   * 이 대화가 테스트 대화(`craftChat` 표지)인가 [제안, M5c §4.8.6]. 상주 모드는 모델이 넘기는 `resident`가 아니라 이 판정으로 정한다.
+   * 구현이 없으면 빌더는 모델이 넘긴 값을 그대로 쓴다. 읽지 못하면 오류다
+   */
+  isCraftChat?(threadId: string): Promise<DevkitResult<boolean>>;
 }

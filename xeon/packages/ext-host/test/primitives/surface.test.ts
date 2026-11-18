@@ -25,6 +25,8 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "ReviewedSourceListing",
   // 초안 적재(ExtensionLoader.loadDraft, X.loading-trust.spec §4.9.8 [제안]): 호스트가 초안을 싣고 내부 이름으로 찾는다 [제안: X 표 반영 요청]
   "internalDraftName",
+  // 초안의 판 식별자 `draft:<초안 id>:<해시 앞 8자>`(X.loading-trust §4.9.8 [제안]). 호스트의 테스트 실행 기록이 쓴다
+  "draftVersionIdOf",
   "DraftInfo",
   "DraftLoadInput",
   "LoadDraftFailure",

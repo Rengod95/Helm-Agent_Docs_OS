@@ -199,6 +199,7 @@ export {
 } from "./trust/store.ts";
 export { verdictOfInstall } from "./entry-loader.ts";
 export {
+  draftVersionIdOf,
   internalDraftName,
   type DraftInfo,
   type DraftLoadInput,
