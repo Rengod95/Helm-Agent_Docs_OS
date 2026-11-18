@@ -142,7 +142,7 @@ realTest(
         {
           key: {},
           values: {
-            "hook.runs": { value: 26, n: 26, state: "exact" },
+            "hook.runs": { value: 28, n: 28, state: "exact" },
             "tool.calls": { value: 0, n: 0, state: "exact" },
           },
         },
@@ -179,7 +179,7 @@ realTest(
         groupBy: ["model"],
       });
       expect(byModel.rows).toEqual([
-        { key: { model: "tape-1" }, values: { "hook.runs": { value: 26, n: 26, state: "exact" } } },
+        { key: { model: "tape-1" }, values: { "hook.runs": { value: 28, n: 28, state: "exact" } } },
       ]);
       const byDay = await connection.request("metrics.query", {
         metrics: ["hook.runs"],
@@ -199,7 +199,7 @@ realTest(
         compare: { by: "model", a: "tape-1", b: "other-model" },
       });
       expect(compared.rows).toEqual([
-        { key: { model: "tape-1" }, values: { "hook.runs": { value: 26, n: 26, state: "exact" } } },
+        { key: { model: "tape-1" }, values: { "hook.runs": { value: 28, n: 28, state: "exact" } } },
         {
           key: { model: "other-model" },
           values: { "hook.runs": { value: 0, n: 0, state: "exact" } },
