@@ -16,6 +16,7 @@ import {
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
   LeaseRequestedPayloadSchema,
+  LeaseUserInputPayloadSchema,
   type DurableEventEnvelope,
   type ReadFailure,
   type VolatileEventEnvelope,
@@ -102,6 +103,13 @@ function recordWire(display: DisplayMaskPort, event: DurableEventEnvelope): Even
     const requested = parse(LeaseRequestedPayloadSchema, event.payload);
     if (!requested.ok) return wire;
     const mask = leaseValueLeafMasks(display, requested.value);
+    return mask === undefined ? wire : { ...wire, mask: [...mask] };
+  }
+  if (event.kind === "lease.user_input") {
+    // 주도 프레임이 가로챈 사용자 메시지(AGE-26). 다른 사용자 입력과 같은 규칙을 지난다
+    const message = parse(LeaseUserInputPayloadSchema, event.payload);
+    if (!message.ok) return wire;
+    const mask = leaseValueLeafMasks(display, message.value);
     return mask === undefined ? wire : { ...wire, mask: [...mask] };
   }
   if (event.kind === "lease.released") {
