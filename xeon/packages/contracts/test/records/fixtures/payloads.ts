@@ -146,6 +146,14 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       limits: { maxTurns: 4 },
     },
     "lease.released": { leaseId: "lease-1", scopeId: "helm", reason: "budget" },
+    "lease.requested": {
+      requestId: "req-1",
+      scopeId: "helm",
+      status: "queued",
+      trigger: "handoff",
+      parent: "lease-1",
+      input: { purpose: "x" },
+    },
     "lease.rejected": { groupId: "helm", reason: "wait_limit", requestSeq: 3 },
     "drive.command_settled": {
       scopeId: "helm",

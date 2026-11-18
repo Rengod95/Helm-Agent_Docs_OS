@@ -24,7 +24,7 @@ export function artifactsManifest(): ExtensionManifest {
     plugins: [
       {
         layer: "L2",
-        hooks: [],
+        hooks: ["thread.start"],
         provides: [
           { id: ArtifactsRegistry.id, version: ArtifactsRegistry.version },
           { id: ArtifactsReviews.id, version: ArtifactsReviews.version },

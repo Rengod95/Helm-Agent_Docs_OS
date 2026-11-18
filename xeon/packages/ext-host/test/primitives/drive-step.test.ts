@@ -184,7 +184,10 @@ test("one invoke runs a turn and then a commit, and each step gets the previous 
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "step-chain" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "step-chain");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([null, TURN_RESULT]);
@@ -205,7 +208,10 @@ test("the default request id is lineage:rev.index and a restart re-runs the step
     stepOf(calls, ({ last }) => (last === null ? { do: "turn", input: GO } : { do: "yield" }));
   const firstCalls: Call[] = [];
   await install(first, "rerun-default-key", step(firstCalls));
-  await first.host.openThread(thread, { startDrive: "rerun-default-key" });
+  await first.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await first.settled();
+  first.host.startDrive(thread, "rerun-default-key");
   await first.settled();
 
   // 상태 판 0에서 첫 단계의 첫 명령이므로 순번은 0이다
@@ -247,7 +253,8 @@ test("an explicit requestId is the one the loop receives for a turn and for a sp
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "explicit-key" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "explicit-key");
   await t.settled();
 
   expect(t.loop.turns.map((turn) => turn.requestId)).toEqual(["turn-explicit"]);
@@ -270,7 +277,8 @@ test("done releases the lease with reason done, and the same scope is not grante
     },
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "done-scope" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "done-scope");
   await t.settled();
   expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["done"]);
   expect(t.host.leaseOf(thread)).toBeNull();
@@ -310,7 +318,8 @@ test("two yields in a row at the same state rev give the lease back as idle", as
     stepOf(calls, () => ({ do: "yield" })),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "yield-idle" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "yield-idle");
   await t.settled();
   expect(calls).toHaveLength(1);
   expect(t.host.leaseOf(thread)).not.toBeNull();
@@ -349,7 +358,8 @@ test("each command settles once with its lease, scope, request id, command, outc
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "settle-events" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "settle-events");
   await t.settled();
   // 시작 요청으로 받은 임대 하나가 턴·맡기기·질문까지 이어진다. 질문은 임대를 반납하지 않고 프레임을 asking으로 둔다
   expect(acquiredOf(t, thread)).toHaveLength(1);
@@ -392,7 +402,8 @@ test("a restart that replays a turn records no second drive.command_settled for 
     "settle-replay",
     stepOf([], ({ last }) => (last === null ? { do: "turn", input: GO } : { do: "yield" })),
   );
-  await first.host.openThread(thread, { startDrive: "settle-replay" });
+  await first.host.openThread(thread);
+  first.host.startDrive(thread, "settle-replay");
   await first.settled();
   const before = settledOf(first, thread);
   expect(before).toHaveLength(1);
@@ -426,7 +437,8 @@ test("a user message claimed while the drive is held becomes the next last, and 
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "user-turn" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "user-turn");
   await t.settled();
 
   const message: PostItem = { kind: "user", content: "stop the lens" };
@@ -439,7 +451,7 @@ test("a user message claimed while the drive is held becomes the next last, and 
   expect(t.host.leaseOf(thread)).not.toBeNull();
 });
 
-test("a user message that arrives while the start request is queued waits for the first step and then becomes the next last", async () => {
+test("a user message that arrives while a user-command start request is queued waits for the first step and then becomes the next last", async () => {
   const t = await createTestHost({ loop: SCRIPTED });
   const calls: Call[] = [];
   await install(
@@ -453,13 +465,15 @@ test("a user message that arrives while the start request is queued waits for th
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "user-held" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "user-held");
   // 부여 전: 시작 요청만 큐에 있다. 메시지는 코어 루프가 아니라 프레임의 몫이다
   const message: PostItem = { kind: "user", content: "first words" };
   expect(t.host.claimUserInput(thread, message)).toBe(true);
   await t.settled();
 
-  // 시작 주도의 첫 단계(last null)가 먼저 돌고 메시지는 그 뒤 단계의 last다
+  // 사용자가 명령으로 시작한 주도는 명령이 곧 사용자 요청이라 첫 단계(last null)가 먼저 돌고, 메시지는 그 뒤 단계의 last다 [제안, AGE-47]
   expect(calls[0]?.last).toBeNull();
   expect(calls.filter((call) => call.last?.kind === "user").map((call) => call.last)).toEqual([
     { kind: "user", message },
@@ -468,25 +482,128 @@ test("a user message that arrives while the start request is queued waits for th
   expect(t.queue.items).toEqual([]);
 });
 
-test("a user message held for a queued start request goes back to the input queue when the drive steps back with done", async () => {
+test("a profile's start drive takes the user's first message as the input of its first step, when the message arrives before the lease", async () => {
   const t = await createTestHost({ loop: SCRIPTED });
-  const thread = t.newThread();
-  await t.host.openThread(thread);
+  const calls: Call[] = [];
   await install(
     t,
-    "user-held-gone",
-    stepOf([], () => ({ do: "done" })),
+    "profile-first",
+    stepOf(calls, ({ last }) => {
+      if (last === null) return { do: "turn", input: GO };
+      if (last.kind === "user") return { do: "turn", input: last.message };
+      if (last.kind === "ok" && last.of === "turn") return { do: "yield" };
+      return { do: "done" };
+    }),
   );
-  const request = t.host.startDrive(thread, "user-held-gone");
-  expect(request.ok).toBe(true);
-  const message: PostItem = { kind: "user", content: "nobody leads" };
-  const claimed = t.host.claimUserInput(thread, message);
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "profile-first" });
+  // 시작 요청이 큐에 있고 프레임은 아직 없다. 메시지는 프레임이 받을 때까지 쥔다
+  const message: PostItem = { kind: "user", content: "first words" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
   await t.settled();
 
-  // 쥐고 있던 메시지는 프레임의 몫이 되고, 단계 함수가 `done`으로 물러나면 코어 루프로 돌아간다. 잃지 않는다
-  const returned = t.queue.items.filter((item) => item.item === message);
-  expect(claimed).toBe(true);
-  expect(returned).toHaveLength(1);
+  // 플러그인의 첫 단계는 메시지 없이 먼저 돌지 않는다: 첫 호출의 last가 그 메시지다
+  expect(calls[0]?.last).toEqual({ kind: "user", message });
+  expect(calls.filter((call) => call.last === null)).toEqual([]);
+  expect(t.loop.turns.map((turn) => turn.input)).toEqual([message]);
+  expect(t.queue.items).toEqual([]);
+});
+
+test("a profile's start drive waits for the user's first message, and that message arriving after the lease is the input of its first step", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "profile-wait",
+    stepOf(calls, ({ last }) => {
+      if (last === null) return { do: "turn", input: GO };
+      if (last.kind === "user") return { do: "turn", input: last.message };
+      if (last.kind === "ok" && last.of === "turn") return { do: "yield" };
+      return { do: "done" };
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "profile-wait" });
+  await t.settled();
+
+  // 프레임은 잡혔지만 메시지가 올 때까지 단계 함수를 부르지 않고 turn도 없다
+  expect(t.host.leaseOf(thread)).not.toBeNull();
+  expect(calls).toEqual([]);
+  expect(t.loop.turns).toEqual([]);
+
+  const message: PostItem = { kind: "user", content: "late first words" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
+  await t.settled();
+
+  expect(calls[0]?.last).toEqual({ kind: "user", message });
+  expect(calls.filter((call) => call.last === null)).toEqual([]);
+  expect(t.loop.turns.map((turn) => turn.input)).toEqual([message]);
+  expect(t.queue.items).toEqual([]);
+});
+
+async function firstLastOf(settleFirst: boolean): Promise<readonly (StepResult | null)[]> {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "profile-order",
+    stepOf(calls, ({ last }) => {
+      if (last?.kind === "user") return { do: "turn", input: last.message };
+      return { do: "yield" };
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "profile-order" });
+  if (settleFirst) await t.settled();
+  const message: PostItem = { kind: "user", content: "same words" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
+  await t.settled();
+  return calls.slice(0, 1).map((call) => call.last);
+}
+
+test("the order does not depend on timing: a message before the lease and a message after it both reach the first step as last", async () => {
+  const before = await firstLastOf(false);
+  const after = await firstLastOf(true);
+  const expected: StepResult = {
+    kind: "user",
+    message: { kind: "user", content: "same words" },
+  };
+  expect(before).toEqual([expected]);
+  expect(after).toEqual([expected]);
+});
+
+test("a profile's start drive that steps back with done on the first message hands that message to the input queue once", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const calls: Call[] = [];
+  await install(
+    t,
+    "profile-done",
+    stepOf(calls, () => ({ do: "done" })),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread, { startDrive: "profile-done" });
+  await t.settled();
+  const message: PostItem = { kind: "user", content: "nobody leads" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
+  await t.settled();
+
+  // 첫 단계가 메시지를 받고 `done`으로 물러났다. 메시지는 코어 루프가 받는다: 잃지 않는다
+  expect(calls.map((call) => call.last)).toEqual([{ kind: "user", message }]);
+  expect(t.queue.items.filter((item) => item.item === message)).toHaveLength(1);
+  expect(t.host.leaseOf(thread)).toBeNull();
+});
+
+test("a message held for a start request that never becomes a frame goes back to the input queue", async () => {
+  const t = await createTestHost({ loop: SCRIPTED });
+  const thread = t.newThread();
+  // 없는 scope의 시작 요청은 부여 경계에서 버려진다
+  await t.host.openThread(thread, { startDrive: "no-such-scope" });
+  const message: PostItem = { kind: "user", content: "nobody leads" };
+  expect(t.host.claimUserInput(thread, message)).toBe(true);
+  await t.settled();
+
+  expect(t.host.leaseOf(thread)).toBeNull();
+  expect(t.queue.items.filter((item) => item.item === message)).toHaveLength(1);
 });
 
 test("claimUserInput is false when no drive lease is held", async () => {
@@ -501,7 +618,8 @@ test("claimUserInput is false when no drive lease is held", async () => {
     "user-none",
     stepOf([], () => ({ do: "done" })),
   );
-  await t.host.openThread(thread, { startDrive: "user-none" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "user-none");
   await t.settled();
   // 단계 함수가 done으로 물러나 임대가 없다
   expect(t.host.leaseOf(thread)).toBeNull();
@@ -517,7 +635,8 @@ test("three steps after a user message without a turn or done give the lease bac
     stepOf(calls, ({ last }) => (last === null ? { do: "yield" } : HANDOFF)),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "user-hand-back" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "user-hand-back");
   await t.settled();
 
   const message: PostItem = { kind: "user", content: "wait, stop" };
@@ -557,7 +676,10 @@ test("eight effect-less commands in a row end the invoke with a scope notice, no
     stepOf(calls, () => HANDOFF),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "chain-limit" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "chain-limit");
   await t.settled();
 
   expect(calls).toHaveLength(8);
@@ -583,7 +705,8 @@ test("a commit the store rejects as state_conflict arrives as a refused last", a
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "state-conflict" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "state-conflict");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([
@@ -640,7 +763,8 @@ test("a tool command runs through ToolsPort as the drive's call, and its result 
     ),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "tool-ok" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "tool-ok");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([
@@ -673,7 +797,8 @@ test("a restart that replays a tool command records no second drive.command_sett
       : { do: "yield" },
   );
   await install(first, "tool-replay", step);
-  await first.host.openThread(thread, { startDrive: "tool-replay" });
+  await first.host.openThread(thread);
+  first.host.startDrive(thread, "tool-replay");
   await first.settled();
   const before = settledOf(first, thread);
   expect(before).toEqual([
@@ -767,7 +892,8 @@ for (const [label, error, expected, outcome] of TOOL_FAILURES) {
       ),
     );
     const thread = t.newThread();
-    await t.host.openThread(thread, { startDrive: "tool-failure" });
+    await t.host.openThread(thread);
+    t.host.startDrive(thread, "tool-failure");
     await t.settled();
 
     expect(calls.map((call) => call.last)).toEqual([null, expected]);
@@ -788,7 +914,8 @@ test("a tool command without fresnel.tools is refused as port_unavailable and th
     ),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "tool-no-port" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "tool-no-port");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([
@@ -816,7 +943,8 @@ test("a model command returns the text and usage, deducts the tokens from the bu
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "model-ok" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "model-ok");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([
@@ -862,7 +990,8 @@ test("a model command after the token budget is spent releases the lease as budg
     { maxTokens: 1 },
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "model-budget" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "model-budget");
   await t.settled();
 
   // 첫 호출이 토큰 1을 다 쓴다. 두 번째 명령은 호출되지 않고 임대가 budget으로 반납된다
@@ -907,7 +1036,8 @@ for (const [label, error, expected, outcome] of MODEL_FAILURES) {
       stepOf(calls, ({ last }) => (last === null ? JUDGE : { do: "done" })),
     );
     const thread = t.newThread();
-    await t.host.openThread(thread, { startDrive: "model-failure" });
+    await t.host.openThread(thread);
+    t.host.startDrive(thread, "model-failure");
     await t.settled();
 
     expect(calls.map((call) => call.last)).toEqual([null, expected]);
@@ -938,7 +1068,8 @@ for (const [label, messages] of NOTHING_TO_SEND) {
       stepOf(calls, ({ last }) => (last === null ? { do: "model", messages } : { do: "done" })),
     );
     const thread = t.newThread();
-    await t.host.openThread(thread, { startDrive: "model-empty" });
+    await t.host.openThread(thread);
+    t.host.startDrive(thread, "model-empty");
     await t.settled();
 
     expect(calls.map((call) => call.last)).toEqual([
@@ -959,7 +1090,8 @@ test("a model command without fresnel.models is refused as port_unavailable and 
     stepOf(calls, ({ last }) => (last === null ? MODEL : { do: "done" })),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "model-no-port" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "model-no-port");
   await t.settled();
 
   expect(calls.map((call) => call.last)).toEqual([
@@ -982,7 +1114,10 @@ test("failed model calls are not effects, so a chain of them ends at the chain l
     stepOf(calls, () => MODEL),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "model-chain" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "model-chain");
   await t.settled();
 
   expect(calls).toHaveLength(MAX_CHAINED_REINVOKES);
@@ -1006,7 +1141,8 @@ test("successful tool commands are effects, so a run longer than the chain limit
     ),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "tool-run" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "tool-run");
   await t.settled();
 
   expect(calls).toHaveLength(MAX_CHAINED_REINVOKES + 2);
@@ -1026,7 +1162,8 @@ test("a step function that only issues tool commands is ended by the tool comman
     stepOf(calls, () => ({ do: "tool", name: "read", args: null })),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "tool-forever" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "tool-forever");
   await t.settled();
 
   // 상한만큼 실행하고 다음 명령은 부르지 않은 채 임대가 budget으로 반납된다
@@ -1055,7 +1192,8 @@ test("tokens that a hook's agents.judge or models.complete spent are deducted fr
       );
     }),
   );
-  await t.host.openThread(thread, { startDrive: "charged" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "charged");
   await t.settled();
 
   // 두 번째 단계는 훅 30과 model 명령 10을 뺀 남은 예산을 본다

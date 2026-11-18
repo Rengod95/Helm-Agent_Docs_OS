@@ -11,7 +11,8 @@ test("the smoke group denies a tool, adds an entry at boundary.step.after, posts
   const installed = await t.host.install(unit);
   expect(installed.setups[0]?.status).toBe("applied");
   expect(installed.issues).toEqual([]);
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "smoke-group");
   await t.settled();
 
   // drive: 임대를 받아 loop.turn을 한 번 부르고 상태를 커밋한다
@@ -20,6 +21,7 @@ test("the smoke group denies a tool, adds an entry at boundary.step.after, posts
   expect(kinds).toEqual([
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "drive.command_settled",
     "grp.smoke-group.state.committed",
   ]);
@@ -88,7 +90,8 @@ test("turning the group off mid-turn applies at the step boundary and lets the t
   const thread = t.newThread();
   const { unit } = createSmokeGroup({ ids: t.ids });
   await t.host.install(unit);
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "smoke-group");
   await flushMicrotasks(200);
   // drive의 loop.turn이 진행 중이다
   expect(t.loop.turns).toHaveLength(1);

@@ -139,11 +139,12 @@ test("a_start_request_becomes_a_lease_at_a_boundary_and_runs_a_turn_after_the_us
 
   const events = h.fake.events(h.threadId);
   const kinds = kindsOf(events);
-  // 켜기와 임대 부여는 단계 0의 T4 커밋 안에 있다
-  expect(stepEndKinds(h, 0).slice(0, 4)).toEqual([
+  // 켜기와 임대 부여는 단계 0의 T4 커밋 안에 있다. 사용자 시작 요청의 기록(`lease.requested`)이 같은 커밋에 실린다(AGE-26)
+  expect(stepEndKinds(h, 0).slice(0, 5)).toEqual([
     "step.completed",
     "scope.changed",
     "lease.acquired",
+    "lease.requested",
     "checkpoint.step",
   ]);
   // 부여 기록: 빈 스택에 사용자 시작 요청이 받은 임대라 깊이 0, 이 scope의 첫 차수, 맡긴 쪽은 없다

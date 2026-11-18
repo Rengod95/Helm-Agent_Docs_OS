@@ -336,8 +336,12 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       }
     };
 
-    // 대화를 열면 시작 Drive가 임대를 받아 turn을 만든다. 사용자 입력은 아직 없다. 이 turn은 프로필의 시작 설정에서 온 것이다
+    // 대화를 열면 시작 Drive가 임대를 받지만 사용자의 첫 메시지가 올 때까지 첫 단계를 돌지 않는다(AGE-47).
+    // 첫 메시지를 받은 그룹의 첫 단계가 drive turn을 낸다(메시지는 그 단계의 입력이다)
     await connection.request("thread.open", { threadId: created.threadId, mode: "write" });
+    expect(log.all(isKind("turn.started"))).toEqual([]);
+    const firstStart = await startTurn("hello");
+    expect(firstStart).toEqual({ delivered: true });
     const driveStarted = await log.waitFor(
       (event) => event.kind === "turn.started" && payloadField(event, "scopeId") === groupId,
       "the drive's turn.started",

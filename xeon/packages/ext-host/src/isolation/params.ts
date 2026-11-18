@@ -156,6 +156,7 @@ const startDriveReplySchema = Type.Union([
         Type.Literal("child_thread"),
         Type.Literal("not_drive"),
         Type.Literal("drive_error"),
+        Type.Literal("input_too_large"),
         Type.Literal("no_context"),
       ]),
     }),

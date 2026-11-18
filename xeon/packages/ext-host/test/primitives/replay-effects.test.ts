@@ -141,7 +141,9 @@ test("drive function: reads and keyed idempotent writes pass, undeclared and key
       },
     ),
   );
-  await t.host.openThread(thread, { startDrive: "re-drv" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "re-drv");
   await t.settled();
   expect(codes).toEqual({
     read: "ok",
@@ -172,7 +174,9 @@ test("replaying a drive twice produces the effect once", async () => {
       },
     ),
   );
-  await t.host.openThread(thread, { startDrive: "re-twice" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "re-twice");
   await t.settled();
   // 같은 상태 판으로 다시 불린다
   await t.boundary(thread).turnSettled();
@@ -377,7 +381,9 @@ test("a turn started by a drive is not a replayed context for the tools inside i
       },
     ),
   );
-  await t.host.openThread(thread, { startDrive: "re-turn" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "re-turn");
   await t.settled();
   expect(codes).toEqual(["ok"]);
   expect(provider.state.effects).toBe(1);

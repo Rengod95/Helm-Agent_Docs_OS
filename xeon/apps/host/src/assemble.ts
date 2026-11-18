@@ -819,6 +819,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     try {
       // 설정 파일 감시를 먼저 닫는다: 닫은 뒤에는 다시 읽기가 시작되지 않는다
       await settingsWatchSlot.watch?.close();
+      // 플러그인 원본 감시도 먼저 닫는다: 닫은 뒤에는 훑기가 시작되지 않는다
+      await portsHandle?.closeSourceWatch();
       // 자동 제목과 보관 정리를 먼저 끊는다. 예약을 멈추고 저장소를 닫기 전이어야 한다
       autoTitleSlot.title?.close();
       dataOpsSlot.ops?.close();

@@ -350,7 +350,9 @@ test("a drive lock held by the old generation continues with the new drive funct
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(v1);
-  await t.host.openThread(thread, { startDrive: NAME });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, NAME);
   await t.settled();
   const held = t.host.leaseOf(thread);
   expect(held?.status).toBe("active");
