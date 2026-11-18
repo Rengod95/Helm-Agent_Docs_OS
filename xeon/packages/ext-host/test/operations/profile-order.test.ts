@@ -112,9 +112,25 @@ test("profile order: the hookOrder override wins over the profile order; the rea
   // 덮어쓰기에 든 둘은 자기들이 차지한 자리(c 뒤쪽 둘)에서 a, b 순으로 바뀐다
   expect(await r.settle()).toEqual(["core-tools", "plug-c", "plug-a", "plug-b"]);
   r.settings.hookOrder = new Map();
+  await r.t.host.dispatch(
+    "boundary.step.before",
+    { stepIndex: 1, stepId: r.t.ids.next("stp"), timestamp: 0 },
+    { threadId: r.thread, dispatchKey: "step-1" },
+  );
   const view = extReadViewOf(r.t.host);
   const names = (rows: ReturnType<typeof view.handlers>): string[] =>
     rows.filter((row) => row.point === TAP).map((row) => row.extension);
-  expect(names(view.handlers(r.thread))).toEqual(["core-tools", "plug-c", "plug-a", "plug-b"]);
+  expect(names(view.handlers({ threadId: r.thread }))).toEqual([
+    "core-tools",
+    "plug-c",
+    "plug-b",
+    "plug-a",
+  ]);
+  expect(names(view.handlers({ pluginOrder: ["plug-b", "plug-a"] }))).toEqual([
+    "core-tools",
+    "plug-b",
+    "plug-a",
+    "plug-c",
+  ]);
   expect(names(view.handlers())).toEqual(["core-tools", "plug-a", "plug-b", "plug-c"]);
 });

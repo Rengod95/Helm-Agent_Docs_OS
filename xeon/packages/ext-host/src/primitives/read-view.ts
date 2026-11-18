@@ -27,6 +27,15 @@ export interface BoundCapabilityView {
   readonly version: string;
 }
 
+/**
+ * `handlers`의 정렬 입력. `pluginOrder`(플러그인 이름, 앞이 먼저)를 주면 그 순서를, 아니면 `threadId`의 E(T)를 쓴다.
+ * 둘 다 없으면 프로필 순서 없이 로드 순서(loadIndex)로 센다
+ */
+interface HandlersOptions {
+  readonly threadId?: ThreadId;
+  readonly pluginOrder?: readonly string[];
+}
+
 /** 조립 루트가 wire 확장 읽기(`ext.list`)에 쓰는 읽기 전용 조회. 주도권 스택 읽기는 `ExtHost.driveFrames`다 */
 export interface ExtReadView {
   /**
@@ -39,7 +48,7 @@ export interface ExtReadView {
    * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다.
    * 훅 순서는 훅 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
    */
-  handlers(threadId?: ThreadId): readonly HookHandlerView[];
+  handlers(options?: HandlersOptions): readonly HookHandlerView[];
   /** 지금 바인딩된 기능 공급자. 기능 id 오름차순 */
   boundCapabilities(): readonly BoundCapabilityView[];
 }
@@ -47,12 +56,14 @@ export interface ExtReadView {
 /** 내부는 부를 때 얻는다. `createExtHost`가 만들지 않은 대역 ExtHost로도 만들 수 있게 한다(`traceReadOf`와 같다) */
 export function extReadViewOf(host: ExtHost): ExtReadView {
   return {
-    handlers(threadId) {
+    handlers(options) {
       const { core } = hostInternalsOf(host);
+      const threadId = options?.threadId;
       const pluginOrder =
-        threadId === undefined
+        options?.pluginOrder ??
+        (threadId === undefined
           ? undefined
-          : core.ports.get(PluginSetPortKey)?.resolve(threadId).plugins;
+          : core.ports.get(PluginSetPortKey)?.resolve(threadId).plugins);
       const { policy } = core.deps;
       const byHook = new Map<HookName, HandlerEntry[]>();
       for (const entry of core.registry.entries()) {

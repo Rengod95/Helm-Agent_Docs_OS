@@ -564,6 +564,8 @@ export const BLOCK_MODEL: BlockModel;
 
 `blocks.describe`는 기록 블록(`record`)의 `hooks.before`와 `hooks.after`가 **비어 있음을 명시**한다(빈 배열이고 생략하지 않는다). 기록 블록에는 이벤트 구독(`hooks.events`)만 있고 고치거나 막는 훅 겹이 없다(결정 A). 화면이 "이 블록에는 Hook이 없다"를 빈 칸이 아니라 설계로 보여 주기 위해서다. 블록은 여섯이고 "다섯"이라 적은 문서(`craft-plan.md` §7.2, 엔진 설계 옛 §13)는 이 스펙이 정본이다(M5e-3은 통합 정리에서 이미 반영됐다).
 
+[구현 2026-11-18, M5e-2 층 2] `blocks.applied`의 입력은 `{ threadId?, profileId? }`이고 `threadId`가 이긴다. 둘 다 없으면 기본 프로필이다. 결과는 `{ profileId, blocks: { id, settings: { key, value, source }[], parts: { id, current, replacedBy? }[], handlers: { hook, plugin, order }[] }[] }`다 [제안: 최상위 `profileId`를 더했다]. `settings`는 블록 설정 겹의 키마다 `resolveEngineSetting`이 낸 유효 값과 출처 범위(`default` 포함)이고 시크릿 키의 값은 null이다. `parts`는 `how: "replaces"`인 부품의 `current`를 프로필 순서에서 처음으로 그 도구를 `replaces`한 플러그인으로, 없으면 부품의 `default`로 낸다(대체했으면 `replacedBy`에 대체당한 기본이 선다). `provider`·`hook` 부품은 대체를 읽을 원천이 없어 `default`다. `handlers`는 블록의 앞·뒤·이벤트 훅 이름에 선 핸들러를 그 대화(프로필)의 순서로 센 것이다. 모르는 프로필은 `profile.notFound`, 모르는 대화는 `thread.notFound`다(블록 오류 코드 3700대는 쓰지 않았다). **하지 않은 것**: `outcome24h`(기록 스펙의 지표 인용)는 싣지 않았다. 처리기는 `handlers/blocks.ts`가 아니라 확장 읽기 포트(`m4/ext-read.ts`, `assembly/m4/ext-read-port.ts`의 `blocksApplied`)에 있다. 이 포트가 설정 층과 핸들러 조회를 이미 쥐고 있기 때문이다. 시험: `contracts/test/wire-settings/blocks-applied.test.ts`, `apps/host/test/handlers/blocks.test.ts`, 실제 엔진 `apps/host/test/int/blocks-applied-real.int.test.ts`.
+
 둘 다 `contracts/src/wire-settings/wire/` 아래에 스키마와 메서드 표를 두고(기존 `ext-read-methods.ts`의 `Io<…>` 형식), 호스트 처리기는 `apps/host/src/handlers/` 아래 새 파일이다. 변화 알림은 두지 않는다(프로필 변경은 단계 경계에서 적용되고 화면이 다시 읽는다) [제안].
 
 ## 5. 동작 규칙
@@ -802,7 +804,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-20 | `core-tools/src/entries.ts:424-428`(`resourceResult`), `core-tools/src/pipeline.ts`(`finishCall`), `core-tools/src/file-changes.ts`(신규) | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합. 입력 타입은 `Omit<FileChangeEntry, "source">`(`contracts/src/extensions/ports.ts`) | M |
 | D-21 | `apps/desktop/src/views/panels/changes/changes-model.ts`. `apps/desktop/src/views/approval-form.ts`는 `DIFF_HEAD_ROWS`를 내보내기만 한다(인자 기반 그림 `fileChangeViewOfArgs`는 승인 카드 미리보기에 남는다) | 변경 탭 원천을 완료 결과의 `fileChangesOf`로 교체. 출력 모양(`ChangesView`)은 그대로 | M |
 | D-22 | `cap-artifacts/src/reviews/collect.ts:53-75` | `fileChangesOf` 사용 | S |
-| D-23 | `contracts/src/blocks/` (신규)와 `contracts/src/wire-settings/wire/*` | `BLOCK_MODEL`, `blocks.describe`, `blocks.applied`, 호스트 처리기 | M |
+| D-23 | `contracts/src/blocks/` (신규)와 `contracts/src/wire-settings/wire/*` | `BLOCK_MODEL`, `blocks.describe`, `blocks.applied`, 호스트 처리기. **완료(M5e-1 `blocks.describe`, M5e-2 `blocks.applied`)**: 4.9절 구현 기록 | M |
 | D-24 | `client/src/workbench/canvas/hooks.ts` | 중복 표를 `HOOK_POSITIONS`에서 파생 | S |
 | D-25 | `ext-host/src/operations/tier.ts:9-15, 107-128`, `dispatch.ts:158-169` | tier 셋(O-2), 프로필 순서 키(O-1). **완료(M5e-2 층 1, 2026-11-18)**: 5.2절 구현 기록 | M |
 | D-26 | `scripts/check-layers.ts:20, 107-137`, `.dependency-cruiser.cjs:7-45` | `P` 등급(6.3). **완료(층 F, 2026-11-18)**: `P`와 DR-15(P.2)를 두 도구에 넣고 `L2`·`L3` 별칭을 받는다. 시험 14건을 `scripts/check-layers.test.ts`에 더했다. 남은 두 위반은 허용 목록 `DR-15/*`에 [미결](12절 O-20) [근거: xeon/scripts/dependency-allowlist.json]. 기록은 6.3 구현 기록 | M |
