@@ -13,7 +13,7 @@ export type {
   WriteAccessRequest,
   WriteAccessVia,
 } from "./ports/write-access.ts";
-export { defaultRoots, relativeToRoots, resolveWorkspacePath } from "./roots.ts";
+export { craftRoots, defaultRoots, relativeToRoots, resolveWorkspacePath } from "./roots.ts";
 export type { AllowedRoots, PathAccess, ResolvedPath, RootsDeps } from "./roots.ts";
 export { scopedDeps } from "./scope.ts";
 export { askOutsideWrite } from "./write-access.ts";

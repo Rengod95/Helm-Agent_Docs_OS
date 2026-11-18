@@ -1298,6 +1298,24 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **시험.** `test/assembly/first-start-migration.test.ts`(사용자 값의 옮김과 백업, 두 번째 시작의 바이트 동일성, 백업 덮지 않기, v1과 사용자 값의 조합, 저장소 파일 진단, 손상된 프로필과 읽지 못한 설정의 항목 격리, 옛 키가 남은 뒤의 설정 읽기), `test/assembly/implicit-project-migrate.test.ts`(중첩 프로젝트, 건너뛰기 규칙, 두 번째 실행이 아무것도 만들지 않음), `test/assembly/profile-store.test.ts`와 `plugin-set.test.ts`(옛 대화의 `default` 참조).
 
+### 4.25 테스트 대화(Craft) [구현 상태, 2026-11-18, review m5 §4.8]
+
+**숨은 프로필 `craft`(§4.8.5).** 저장하지 않는다. `assembly/m4/profile-defaults.ts`의 `craftProfile()`이 값을 준다(플러그인 `authoring` 하나, 시작 Drive `authoring`, 권한 모드 `default`, 숨김, 내장). `profile.list`에는 나오지 않고(`ProfileListResult` 규칙), `profile.put`·`delete`·`clone`(새 id)·`removePlugin`은 `profile.builtinProtected`다. `get`과 해소(`plugin-set.ts`의 `pickProfile`)는 찾는다. 이 프로필은 공통 묶음을 받지 않는다([제안] §4.8.5 5번): E(T)와 미리 보기에서 공통 묶음과 그 설정을 뺀다. 일반 대화가 `craft`를 고르면(`thread.create`, `thread.setProfile`) `profile.notFound`다. 테스트 대화의 `thread.setProfile`은 `profile.builtinProtected`다.
+
+**`craftChat.open`·`craftChat.list`(§3.6, §4.8.10).** 처리기는 `handlers/m5/craft-chat.ts`다. `open`은 `reuse: "last"`이면 그 플러그인(`plugin: null`이면 묶이지 않은 것)의 가장 최근 테스트 대화를 연다. 없거나 `reuse`가 `"new"`(생략값 [제안])이면 `thread.create`와 같은 경로로 `profileId: "craft"`, 표지 `craftChat {plugin, contexts: []}`의 대화를 만든다. `intent`는 제목으로 쓴다([제안]). 작업 폴더는 `<OsDirs.config>/plugins/<이름>`이 있을 때만 준다(없으면 작업 폴더 없이 만든다, [제안]). 쓰기 소유를 얻고 열기 훅을 부른다. `list`는 `thread.list { include: "craft" }`가 내는 대화 가운데 표지의 `plugin`이 같은 것을 최신 먼저 최대 200개 낸다. 새 오류 코드는 없다(`craftChat.open`의 오류는 저장소 오류뿐이다).
+
+**프로젝트와 목록에서 뺌(§4.8.3).** `ProjectThreadRow.craftChat`이 참인 대화는 `project.list`의 대화 수, 소속과 프로필 기본값(`project-scope.ts` `recentThreadOf`), 원본 훑기의 루트(`ports.ts` `scanRootsOfProjects`)에서 빠진다. `sameFolder`는 L1 목록의 기본 필터(`craft_chat = 0`)로 이미 뺀다.
+
+**초안이 묶는다(§4.8.2, §4.9.1).** `plugin.draft.create`(`ports.plugins.draftCreate`)가 `originThreadId`가 있는 초안을 만들면 `assembly/m4/craft-chat.ts`의 `bindDraft`가 그 대화가 묶이지 않은 테스트 대화일 때만 `setCraftPlugin`을 부른다. 같은 이름이면 아무것도 쓰지 않는다. 실패는 `craft.bind_failed` 기록만 남기고 초안은 그대로 둔다. `submit`의 시그니처는 바뀌지 않았다.
+
+**쓰기 범위(§4.8.7).** `cap-workspace`의 `threadWorkspaces`가 `craftScopeOf`를 준다. 묶인 대화는 원본 폴더가 허용 root 하나(읽기·쓰기, `craftRoots`), 출력 사본 폴더는 읽기 root다. 묶이지 않았으면 쓰기 root가 없다. 원본 폴더가 아직 없으면 쓰기 root가 없다가 빌더가 만든 뒤부터 생긴다. 일반 대화의 root는 `defaultRoots` 그대로다.
+
+**시작 Drive(§4.8.6).** 첫 턴 앞의 시작 Drive는 프로필 `craft`의 `startDrive`가 기존 `openThread` 경로로 쌓는다. 스택이 비었을 때마다 다시 쌓는 일(§4.8.6의 "상주" 재무장)은 아직 없다: 턴 시작 경로에 스택 검사와 요청을 넣는 일이 E3 프레임 스택 작업과 겹쳐 이 단계에서 만들지 않았다. [미구현: M5c-2 이후]
+
+**기록 범위(§4.8.9).** `tr_thread`에 `craft` 표지를 쓰는 일은 측정 쪽 작업이다(`docs/xeon/review/m5/turn-record-metrics.md` §4.6 규칙 36).
+
+**시험.** `test/handlers/craft-chat.test.ts`(열기, 다시 열기, 목록, 프로필 보호, 원본 폴더 유무), `test/assembly/craft-chat.test.ts`(초안 묶기의 조건), `test/assembly/plugin-set.test.ts`(숨은 프로필의 해소와 공통 묶음 제외), `test/assembly/project-scope.test.ts`·`project-port.test.ts`(목록과 기본값 제외), `packages/core-workspace/test/roots.test.ts`(쓰기 범위 값).
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |

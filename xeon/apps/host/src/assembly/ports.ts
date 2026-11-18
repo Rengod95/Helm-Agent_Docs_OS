@@ -114,6 +114,7 @@ import {
   type PluginStore,
 } from "./plugins/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
+import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import {
   PluginSubmitPortKey,
@@ -440,18 +441,33 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     onRegistered: () => pluginReview.scanOpened(),
   });
   /**
-   * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run 대화는 뺀다). 같은 폴더는 한 번만 준다.
+   * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run과 테스트 대화는 뺀다). 같은 폴더는 한 번만 준다.
    * 읽지 못한 등록 목록은 빈 목록으로 두고 로그에 남긴다(등록된 루트가 훑이지 않을 뿐 다른 훑기는 계속된다)
    */
   async function scanRootsOfProjects(): Promise<readonly string[]> {
     const registered = await projects.roots();
     if (!registered.ok) log.error("plugin.scan.roots_failed", { kind: registered.error.kind });
     const explicit = registered.ok ? registered.value.map((root) => root.root) : [];
+    // 테스트 대화(Craft)의 작업 폴더는 플러그인 원본 폴더다. 프로젝트 루트가 아니므로 훑지 않는다(§4.8.3)
     const opened = allThreadRows().flatMap((row) =>
-      row.testRun || row.status === "closed" || row.workspace === null ? [] : [row.workspace],
+      row.testRun || row.craftChat || row.status === "closed" || row.workspace === null
+        ? []
+        : [row.workspace],
     );
     return [...new Set([...explicit, ...opened])];
   }
+
+  // 테스트 대화의 원본 폴더와 초안 묶기(M5c §4.8.2, §4.8.7). 저장은 세션 원천을 거친다
+  const craftChat = createCraftChatPort({
+    configDir: deps.configDir,
+    store: {
+      thread: (threadId) => session.query.thread(threadId),
+      setCraftPlugin: (threadId, plugin, requestKey) =>
+        session.threads.setCraftPlugin(threadId, plugin, requestKey),
+    },
+    nextKey: () => deps.ids.next("evt"),
+    logger,
+  });
 
   const threads: ThreadPort = {
     async create(input) {
@@ -476,6 +492,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(workspace === undefined ? {} : { workspace }),
         ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
+        ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       if (input.testRun === true) {
@@ -494,6 +511,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     workspaceOf(threadId) {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value?.workspace ?? null) : found;
+    },
+    isCraftChat(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok ? ok(found.value?.craftChat !== undefined) : found;
     },
     async list(params) {
       // 필터는 저장된 값(정규 경로)과 같은 형태로 견준다(HS-76)
@@ -1232,7 +1253,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       scan: () => pluginReview.scan(),
       requestRemove: (name) => pluginReview.requestRemove(name),
       revert: (name) => pluginReview.revert(name),
-      draftCreate: (dir, originThreadId) => pluginReview.draftCreate(dir, originThreadId),
+      draftCreate: async (dir, originThreadId) => {
+        const made = await pluginReview.draftCreate(dir, originThreadId);
+        // 테스트 대화가 만든 초안이면 그 대화를 초안의 플러그인에 한 번 묶는다(M5c §4.8.2)
+        if (made.ok && originThreadId !== undefined) {
+          craftChat.bindDraft(originThreadId, made.value.info.name);
+        }
+        return made;
+      },
       draftList: (name) => pluginReview.draftList(name),
       draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
       draftFromInstruction: (params) => pluginReview.fromInstruction(params),
@@ -1248,6 +1276,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     pluginReview,
     scanOpenedRoots: () => pluginReview.scanOpened(),
     pluginMigration,
+    craftChat,
     m4: createM4Ports(
       deps.ext,
       {

@@ -551,6 +551,10 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 같은 쓰기를 파일 도구는 L2에서, bash는 L0 샌드박스가 먼저 막고, 보호 경로가 아니면 §4.3.1로 사람에게 묻는다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
 - [결정: 2026-11-13 사용자, `read_tool_output` 폐지, 범위 확대 같은 날] 읽기 root에 더하는 것은 `<상태 디렉터리>/spill/` 전체다. 잘린 도구 출력의 파일 사본 폴더(`spill/tool-output`, L1.tools.spec §4.8 6번)와 bash가 넘친 출력을 두는 `spill/tmp-*/pi-output-*.log`가 `read`·`grep`으로 읽힌다(`defaultRoots`가 사본 폴더의 부모를 더한다). 쓰기 root에는 더하지 않는다. 아래는 사본 폴더에 대한 규칙이다. 사본 폴더는 **읽기 root에만** 더한다(`RootsDeps.outputs`). 쓰기 root에는 없어서 `write`·`edit`는 거기에 묻지 않고 막는다(`outside_root`). 읽기 직전에 이 폴더 안의 없는 사본은 blob에서 되살린다(`ToolOutputFiles.restore`). 되살리지 못하면(blob이 지워짐) 일반 `not_found`다. 엔진이 원격 컴퓨터에서 돌아도 같은 엔진 안의 경로다.
 
+### 4.3.0 테스트 대화의 허용 root [구현 상태, 2026-11-18, M5c §4.8.7]
+
+테스트 대화(표지 `craftChat`이 있는 대화)는 작업 폴더 규칙 대신 `ThreadWorkspaces.craftScopeOf`의 값으로 root를 정한다(`core-workspace/src/scope.ts`, `roots.ts`의 `craftRoots`). 묶인 플러그인의 원본 폴더 `<설정>/plugins/<이름>`이 읽기·쓰기 root 하나이고, 출력 사본 폴더는 읽기 root다. 묶이지 않았거나 원본 폴더가 아직 없으면 쓰기 root가 없다. 원본 폴더는 `cap-workspace/src/plugin.ts`의 `threadWorkspaces`가 `os.dirs.config`로 정한다. 일반 대화의 root는 `defaultRoots` 그대로다.
+
 ### 4.3.1 작업 폴더 밖 쓰기는 막지 않고 묻는다 [결정: 2026-11-13 사용자]
 
 작업 폴더 밖 쓰기와 캐시 쓰기(`~/.npm`, `~/Library/Caches/<앱>`, `$TMPDIR` 등)는 무조건 막지 않고, 보호 경로가 아니면 사람에게 물은 뒤 허용한다. 승인을 올리는 곳은 `@fresnel/core-workspace`의 `src/write-access.ts`에 있는 `requestWriteAccess` 한 함수이고, 포트 `WriteAccessPort`(같은 패키지 `src/ports/write-access.ts`)를 거친다. 조립 루트는 `fresnel.approvals`를 감싼 L2 승인 포트로 이 포트를 만든다(같은 패키지 `write-access-adapter.ts`). 요청은 기존 도구 승인(kind `tool`)이고 새 화면 부품은 두지 않는다. `toolName`은 `bash`, `write`, `edit`이고 `args`는 `{ writePaths, allowRoots }`다. 명령 원문은 싣지 않는다.

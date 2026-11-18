@@ -42,7 +42,10 @@ import type { ProfileStoreSnapshot, ProfilesChange, ProfilesWritten } from "./pr
 import { createProfileStore } from "./profile-store.ts";
 import {
   factoryDefaultProfile,
+  CRAFT_PROFILE_ID,
+  craftProfile,
   DEFAULT_PROFILE_ID,
+  NEVER_EDITED_ISO,
   PERMISSION_MODE_KEY,
   REQUIRED_BY_CORE,
 } from "./profile-defaults.ts";
@@ -246,6 +249,20 @@ function costsOf(
   );
 }
 
+/** 숨은 `craft` 프로필은 공통 묶음을 받지 않는다(§4.8.5 [제안]). 다른 프로필에는 공통 묶음을 그대로 준다 */
+const NO_COMMON: CommonSet = { plugins: [], settings: [], updatedAt: NEVER_EDITED_ISO, rev: 0 };
+function commonOf(profileId: string, common: CommonSet): CommonSet {
+  return profileId === CRAFT_PROFILE_ID ? NO_COMMON : common;
+}
+
+/**
+ * 대화가 저장한 프로필 id를 목록에서 찾는다. 저장한 id가 없거나 목록에 없으면 기본이다(§4.1.1). `craft`는 저장 목록에 없어도 유효하다
+ */
+function effectiveIdOf(saved: string | null, stored: ReadonlySet<string>): string {
+  if (saved === null) return DEFAULT_PROFILE_ID;
+  return saved === CRAFT_PROFILE_ID || stored.has(saved) ? saved : DEFAULT_PROFILE_ID;
+}
+
 function resolvedOf(body: ProfileBody, common: CommonSet): PluginRef[] {
   const names = new Set<string>();
   for (const ref of [...common.plugins, ...body.plugins]) names.add(ref.name);
@@ -261,6 +278,8 @@ function findProfile(
   id: string,
   factory: Profile,
 ): Profile | undefined {
+  // 숨은 `craft`는 저장하지 않는다. 목록에는 나오지 않고 `get`과 해소에서만 찾는다
+  if (id === CRAFT_PROFILE_ID) return craftProfile();
   return effectiveProfiles(stored, factory).find((profile) => profile.id === id);
 }
 
@@ -336,8 +355,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
   function threadsUsing(profileId: string, stored: ReadonlySet<string>): number {
     let count = 0;
     for (const saved of env.openThreadProfiles()) {
-      const effective = saved !== null && stored.has(saved) ? saved : DEFAULT_PROFILE_ID;
-      if (effective === profileId) count += 1;
+      if (effectiveIdOf(saved, stored) === profileId) count += 1;
     }
     return count;
   }
@@ -358,8 +376,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     );
     let threadCount = 0;
     for (const threadId of env.openThreadIds()) {
-      const saved = env.threadProfileId(threadId);
-      const effective = saved !== null && stored.has(saved) ? saved : DEFAULT_PROFILE_ID;
+      const effective = effectiveIdOf(env.threadProfileId(threadId), stored);
       if (effective !== profileId) continue;
       if (env.driveFramePlugins(threadId).some((plugin) => !kept.has(plugin))) threadCount += 1;
     }
@@ -394,7 +411,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       findProfile(stored, id, factory()) ??
       findProfile(stored, DEFAULT_PROFILE_ID, factory()) ??
       factory();
-    return resolvedOf(profile, common);
+    return resolvedOf(profile, commonOf(profile.id, common));
   }
 
   /**
@@ -409,7 +426,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
   ): readonly PluginRef[] | undefined {
     if (threadId !== undefined) return threadPluginsOf(stored, threadId, common);
     const saved = findProfile(stored, id, factory());
-    return saved === undefined ? undefined : resolvedOf(saved, common);
+    return saved === undefined ? undefined : resolvedOf(saved, commonOf(saved.id, common));
   }
 
   /**
@@ -465,6 +482,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       input: ProfileInput,
       baseRev: number | null,
     ): Promise<Result<ProfilePutResult, ProfilePortFailure>> {
+      if (input.id === CRAFT_PROFILE_ID) return err({ kind: "builtin_protected", id: input.id });
       const issuesOf = await checksOf();
       const done = await store.transact<ProfilePutResult, ProfilePortFailure>((snapshot) => {
         const existing = snapshot.profiles.find((profile) => profile.id === input.id);
@@ -508,7 +526,8 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       return ok(done.value.value);
     },
     async remove(id): Promise<Result<ProfileDeleteResult, ProfilePortFailure>> {
-      if (id === DEFAULT_PROFILE_ID) return err({ kind: "builtin_protected", id });
+      if (id === DEFAULT_PROFILE_ID || id === CRAFT_PROFILE_ID)
+        return err({ kind: "builtin_protected", id });
       // 지우기 전 목록으로 잴 때 이 프로필을 쓰던 대화를 센다
       const before = await store.read();
       if (!before.ok) return before;
@@ -567,7 +586,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     async clone(
       params: ProfileCloneParams,
     ): Promise<Result<{ readonly profile: Profile }, ProfilePortFailure>> {
-      if (params.newId === DEFAULT_PROFILE_ID)
+      if (params.newId === DEFAULT_PROFILE_ID || params.newId === CRAFT_PROFILE_ID)
         return err({ kind: "builtin_protected", id: params.newId });
       const issuesOf = await checksOf();
       const done = await store.transact<Profile, ProfilePortFailure>((snapshot) => {
@@ -658,7 +677,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         body = source.draft;
         id = source.draft.id;
       }
-      const common = snapshot.value.common;
+      const common = commonOf(id, snapshot.value.common);
       const issuesOf = await checksOf();
       const issues = issuesOf(body, common);
       const missingRequired: { plugin: string; key: string }[] = [];
@@ -711,6 +730,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     async removePlugin(
       params: ProfileRemovePluginParams,
     ): Promise<Result<ProfileRemovePluginResult, ProfilePortFailure>> {
+      if (params.id === CRAFT_PROFILE_ID) return err({ kind: "builtin_protected", id: params.id });
       const issuesOf = await checksOf();
       const done = await store.transact<
         {

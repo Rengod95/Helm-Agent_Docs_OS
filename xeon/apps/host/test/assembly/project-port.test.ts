@@ -167,7 +167,7 @@ test("delete forgets the project record but keeps the folder, and a second delet
   expect(failureKindOf(await rig.port.remove(created.value.projectId))).toBe("not_found");
 });
 
-test("list counts open threads inside each root, running ones apart, and leaves out closed, test run and default folder threads", async () => {
+test("list counts open threads inside each root, running ones apart, and leaves out closed, test run, craft and default folder threads", async () => {
   const base = tempDir();
   const project = join(base, "app");
   mkdirSync(join(project, "sub"), { recursive: true });
@@ -177,6 +177,8 @@ test("list counts open threads inside each root, running ones apart, and leaves 
       threadOf(ids.next("thr"), project, { status: "running" }),
       threadOf(ids.next("thr"), project, { status: "closed" }),
       threadOf(ids.next("thr"), project, { testRun: true }),
+      // 테스트 대화(Craft)는 프로젝트 묶음에 들지 않는다(M5c §4.8.3)
+      threadOf(ids.next("thr"), project, { craftChat: true, status: "running" }),
       threadOf(ids.next("thr"), join(base, "data", DEFAULT_PROJECT_FOLDER_NAME, "t1")),
       threadOf(ids.next("thr"), join(base, "elsewhere")),
       threadOf(ids.next("thr"), null),
@@ -304,6 +306,25 @@ test("roots lists the explicit projects first and the implicit default folder pr
 });
 
 // ── 프로필 기본값의 원천(§4.4.8) ─────────────────────────────────────────
+
+test("recentThread leaves a craft thread out, so a craft thread in the folder does not change the profile default", async () => {
+  const base = tempDir();
+  const folder = join(base, "app");
+  mkdirSync(folder);
+  const canonical = realpathSync(folder);
+  const normal = ids.next("thr");
+  const rig = rigAt(join(base, "config"), join(base, "data"), {
+    threads: [
+      threadOf(normal, canonical, { updatedAt: 5, profileId: "review" }),
+      threadOf(ids.next("thr"), canonical, { updatedAt: 9, profileId: "craft", craftChat: true }),
+    ],
+  });
+  const picked = await rig.port.recentThread(canonical);
+  expect(picked.ok && picked.value?.threadId).toBe(normal);
+  expect(picked.ok && picked.value?.profileId).toBe("review");
+  const overall = await rig.port.recentThread(undefined);
+  expect(overall.ok && overall.value?.threadId).toBe(normal);
+});
 
 test("recentThread follows the recency of activity, not the order the rows were given in", async () => {
   const base = tempDir();

@@ -1,4 +1,5 @@
 import type { Clock, Result, Scheduler } from "@fresnel/contracts";
+import type { CraftChatPort } from "./assembly/m4/craft-chat.ts";
 import type { MeasurePort } from "./assembly/measure/read.ts";
 import type {
   AnyCapabilityDef,
@@ -7,6 +8,7 @@ import type {
   SecretName,
 } from "@fresnel/contracts/capabilities";
 import type {
+  CraftChatStarted,
   IdFactory,
   ItemId,
   ThreadId,
@@ -356,6 +358,8 @@ export interface EnginePorts {
   readonly overlay: OverlayPort;
   /** 마이그레이션 제출(migration.md §7.5 [제안]). wire 메서드가 아니다. M5g의 `migration.apply`가 부른다 */
   readonly pluginMigration: MigrationSubmitPort;
+  /** 테스트 대화의 플러그인 원본 폴더와 초안 묶기(M5c §4.8). `craftChat.*` 처리기와 초안 만들기가 쓴다 */
+  readonly craftChat: CraftChatPort;
   /** M4 wire 처리기 43개의 포트 묶음. 소유 트랙이 채울 때까지 빈 구현이다(`spec-deltas/t-f.md` §5) */
   readonly m4: M4Ports;
 }
@@ -400,9 +404,13 @@ export interface ThreadPort {
      * 다른 생성 경로(예약, 제작)는 작업 폴더 없이 두는 지금 동작을 그대로 쓴다
      */
     readonly defaultFolder?: boolean;
+    /** 테스트 대화 표지(`thread.started.craftChat`, M5c §4.8.1). `craftChat.open`만 준다 */
+    readonly craftChat?: CraftChatStarted;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 대화의 정규 작업 폴더(없으면 null). 모르는 대화는 `thread_not_found`가 아니라 읽기 실패로 준다 */
   workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;
+  /** 테스트 대화(표지가 있는 대화)인가. 모르는 대화는 거짓이다. 읽기 실패는 오류 값이다(M5c §4.8.5) */
+  isCraftChat(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   /**

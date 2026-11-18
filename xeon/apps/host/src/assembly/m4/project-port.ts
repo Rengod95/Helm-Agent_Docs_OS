@@ -64,7 +64,7 @@ export interface ProjectThreadRow {
   readonly profileId: string | null;
   readonly updatedAt: number;
   readonly testRun: boolean;
-  /** 테스트 대화 표지가 있는가(M5c §4.8.1). 이 층은 이 값으로 계산을 바꾸지 않는다 */
+  /** 테스트 대화 표지가 있는가(M5c §4.8.1). 프로젝트 묶음, 대화 수, 프로필 기본값 계산에서 뺀다(§4.8.3) */
   readonly craftChat: boolean;
 }
 
@@ -240,7 +240,9 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
       if (!all.ok) return all;
       const counts = new Map<string, { threads: number; running: number }>();
       for (const row of deps.threadRows()) {
-        if (row.testRun || row.workspace === null || row.status === "closed") continue;
+        if (row.testRun || row.craftChat || row.workspace === null || row.status === "closed") {
+          continue;
+        }
         const deepest = deepestRoot(row.workspace, all.value);
         // 암묵 기본 폴더 대화는 명시 프로젝트 묶음에 들지 않는다
         if (deepest === undefined || deepest.name === null) continue;

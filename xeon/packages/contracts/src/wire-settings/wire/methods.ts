@@ -34,6 +34,7 @@ import {
   type SemVer,
 } from "../../capabilities/index.ts";
 import { ApprovalAnswerSchema, ApprovalRequestedPayloadSchema } from "../../records/index.ts";
+import { ExtensionNameSchema } from "../../extensions/index.ts";
 import {
   SelfTestReportSchema,
   type BinaryName,
@@ -623,6 +624,55 @@ export const ThreadListResultSchema: TObject<{
   { additionalProperties: false },
 );
 export type ThreadListResult = Static<typeof ThreadListResultSchema>;
+
+// ── craftChat.* (M5c §3.6, §4.8.10). 테스트 대화를 여는 입구와 목록이다. 처리기는 `apps/host/src/handlers/m5/craft-chat.ts`다 ──
+
+/**
+ * `craftChat.open`: 테스트 대화를 연다. `plugin`이 null이면 새 플러그인을 만드는 대화다. `reuse: "last"`면 그 플러그인(null이면 묶이지 않은)의
+ * 가장 최근 테스트 대화를 연다(없으면 새로 만든다). `reuse`를 생략하면 `"new"`다 [제안]. `intent`는 한 줄 의도이고 대화 제목이 된다 [제안]
+ */
+export const CraftChatOpenParamsSchema: TObject<{
+  plugin: TUnion<[typeof ExtensionNameSchema, TNull]>;
+  reuse: TOptional<TUnion<[TLiteral<"last">, TLiteral<"new">]>>;
+  intent: TOptional<TString>;
+}> = Type.Object(
+  {
+    plugin: Nullable(ExtensionNameSchema),
+    reuse: Type.Optional(Type.Union([Type.Literal("last"), Type.Literal("new")])),
+    intent: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  },
+  { additionalProperties: false },
+);
+export type CraftChatOpenParams = Static<typeof CraftChatOpenParamsSchema>;
+
+/** `craftChat.open` 결과. `reused`는 기존 대화를 다시 연 것이면 참이다 */
+export const CraftChatOpenResultSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  plugin: TUnion<[TString, TNull]>;
+  reused: TBoolean;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    plugin: Nullable(Type.String({ minLength: 1, maxLength: 96 })),
+    reused: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type CraftChatOpenResult = Static<typeof CraftChatOpenResultSchema>;
+
+/** `craftChat.list`: 그 플러그인의 테스트 대화를 최신 먼저 낸다. `plugin`이 null이면 묶이지 않은 대화다 */
+export const CraftChatListParamsSchema: TObject<{
+  plugin: TUnion<[typeof ExtensionNameSchema, TNull]>;
+}> = Type.Object({ plugin: Nullable(ExtensionNameSchema) }, { additionalProperties: false });
+export type CraftChatListParams = Static<typeof CraftChatListParamsSchema>;
+
+export const CraftChatListResultSchema: TObject<{
+  threads: TArray<typeof ThreadSummarySchema>;
+}> = Type.Object(
+  { threads: Type.Array(ThreadSummarySchema, { maxItems: 200 }) },
+  { additionalProperties: false },
+);
+export type CraftChatListResult = Static<typeof CraftChatListResultSchema>;
 
 export const ThreadCreateParamsSchema: TObject<{
   workspace: TOptional<TString>;
@@ -2031,6 +2081,14 @@ interface WireSchemas
     params: WithMeta<typeof ThreadCreateParamsSchema>;
     result: typeof ThreadCreateResultSchema;
   };
+  "craftChat.open": {
+    params: WithMeta<typeof CraftChatOpenParamsSchema>;
+    result: typeof CraftChatOpenResultSchema;
+  };
+  "craftChat.list": {
+    params: WithMeta<typeof CraftChatListParamsSchema>;
+    result: typeof CraftChatListResultSchema;
+  };
   "thread.open": {
     params: WithMeta<typeof ThreadOpenParamsSchema>;
     result: typeof ThreadOpenResultSchema;
@@ -2370,6 +2428,8 @@ export const WIRE_METHODS: {
   "host.status": spec(HostStatusRequestSchema, HostStatusResultSchema, "M2"),
   "thread.list": spec(withMeta(ThreadListParamsSchema), ThreadListResultSchema, "M2"),
   "thread.create": spec(withMeta(ThreadCreateParamsSchema), ThreadCreateResultSchema, "M1"),
+  "craftChat.open": spec(withMeta(CraftChatOpenParamsSchema), CraftChatOpenResultSchema, "M5"),
+  "craftChat.list": spec(withMeta(CraftChatListParamsSchema), CraftChatListResultSchema, "M5"),
   "thread.open": spec(withMeta(ThreadOpenParamsSchema), ThreadOpenResultSchema, "M2"),
   "thread.read": spec(withMeta(ThreadReadParamsSchema), ThreadReadResultSchema, "M2"),
   "thread.close": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),

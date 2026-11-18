@@ -58,12 +58,36 @@ export async function defaultRoots(
 ): Promise<AllowedRoots> {
   const root = getOrThrow(await env.canonicalPath(env.cwd, context));
   if (outputs === undefined) return { read: [root], write: [root] };
-  // 폴더가 아직 없으면(첫 사본 전) 설정된 경로 그대로 둔다. 읽기 직전 복원이 폴더를 만든다
-  // 읽기 루트는 사본 폴더(`spill/tool-output`)의 부모인 `spill/` 전체다: bash가 넘친 출력(`spill/tmp-*/pi-output-*.log`)도
-  // `read`·`grep`으로 읽힌다. 쓰기 루트에는 더하지 않는다
+  return { read: [root, await spillReadRoot(env, outputs, context)], write: [root] };
+}
+
+/**
+ * 테스트 대화의 허용 root(M5c §4.8.7). 묶인 플러그인의 원본 폴더 `folder`가 읽기·쓰기 root 하나이고, 출력 사본 폴더는 읽기 root만이다.
+ * `folder`가 null이면(아직 묶이지 않았다) 쓰기 root가 없다. 원본 폴더가 아직 없어도 쓰기 root가 없다(빌더가 만든 뒤부터 생긴다).
+ */
+export async function craftRoots(
+  env: Pick<ExecutionEnv, "canonicalPath">,
+  context: CancelScope,
+  folder: string | null,
+  outputs?: ToolOutputFiles,
+): Promise<AllowedRoots> {
+  const spill = outputs === undefined ? [] : [await spillReadRoot(env, outputs, context)];
+  if (folder === null) return { read: spill, write: [] };
+  const canonical = await env.canonicalPath(folder, context);
+  if (!canonical.ok) return { read: spill, write: [] };
+  return { read: [canonical.value, ...spill], write: [canonical.value] };
+}
+
+// 출력 사본의 읽기 root. 사본 폴더(`spill/tool-output`)의 부모인 `spill/` 전체다: bash가 넘친 출력도 `read`·`grep`으로 읽힌다.
+// 폴더가 아직 없으면(첫 사본 전) 설정된 경로 그대로 둔다. 읽기 직전 복원이 폴더를 만든다
+async function spillReadRoot(
+  env: Pick<ExecutionEnv, "canonicalPath">,
+  outputs: ToolOutputFiles,
+  context: CancelScope,
+): Promise<string> {
   const spill = parentOf(outputs.dir);
   const canonical = await env.canonicalPath(spill, context);
-  return { read: [root, canonical.ok ? canonical.value : spill], write: [root] };
+  return canonical.ok ? canonical.value : spill;
 }
 
 /** 마지막 마디를 뺀 부모 경로. 구분자는 `/`와 `\\` 둘 다 본다 */

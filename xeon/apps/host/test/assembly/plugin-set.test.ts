@@ -544,3 +544,41 @@ test("a failed profile read keeps the copy loaded before and reports the failure
   expect(h.reports).toEqual(["plugin_set.profiles_unreadable"]);
   expect(h.set.port.resolve(THREAD).plugins).toEqual(["alpha"]);
 });
+
+// M5c §4.8.5: 숨은 `craft` 프로필. 저장 목록에 없어도 해소되고, 공통 묶음과 그 설정을 받지 않는다. 권한 모드는 `default`다.
+test("the hidden craft profile resolves to the builder alone, with no common bundle and permission mode default", async () => {
+  const h = harness({
+    profiles: [profileOf("work", ["beta"], [{ key: "l1.tools.permissionMode", value: "bypass" }])],
+    common: commonOf(["alpha"], [{ key: "l1.tools.permissionMode", value: "acceptEdits" }]),
+  });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "craft");
+  expect(h.set.port.resolve(THREAD)).toMatchObject({
+    profileId: "craft",
+    profileRev: 0,
+    commonRev: 1,
+    plugins: ["authoring"],
+  });
+  expect(h.set.sourceOf(THREAD, "alpha")).toBe("none");
+  expect(h.set.settingsOf(THREAD).get("l1.tools.permissionMode")).toBe("default");
+  // 공통 묶음을 바꿔도 craft 대화의 집합은 그대로다
+  h.profiles.write({
+    profiles: [profileOf("work", ["beta"], [{ key: "l1.tools.permissionMode", value: "bypass" }])],
+    common: commonOf(["alpha", "gamma"]),
+  });
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+  // 같은 공통 묶음을 받는 일반 대화는 공통 묶음을 본다
+  h.threadProfile.set(OTHER, "work");
+  h.open.push(OTHER);
+  expect(h.set.port.resolve(OTHER).plugins).toEqual(["alpha", "gamma", "beta"]);
+});
+
+test("a stored profile named craft is never read: the craft profile stays the builder with its own mode", async () => {
+  const h = harness({ profiles: [], common: commonOf(["alpha"]) });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "craft");
+  expect(h.set.port.resolve(THREAD).profileId).toBe("craft");
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+  expect(h.set.sourceOf(THREAD, "alpha")).toBe("none");
+  expect(h.set.sourceOf(THREAD, "authoring")).toBe("profile");
+});

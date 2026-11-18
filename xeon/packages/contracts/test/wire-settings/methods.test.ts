@@ -36,7 +36,8 @@ describe("WIRE_METHODS", () => {
     expect(names.filter((n) => stageOfName(n) !== "M4" && stageOfName(n) !== "M5")).toHaveLength(
       48,
     );
-    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(14);
+    // M5 단계: 턴 기록·지표 14개, 테스트 대화 `craftChat.open`·`craftChat.list` 2개(M5c §3.6)
+    expect(names.filter((n) => stageOfName(n) === "M5")).toHaveLength(16);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(

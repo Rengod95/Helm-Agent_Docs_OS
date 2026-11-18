@@ -24,7 +24,15 @@ function thread(
   updatedAt: number,
   overrides: Partial<ScopeThread> = {},
 ): ScopeThread {
-  return { threadId, workspace, profileId: null, updatedAt, testRun: false, ...overrides };
+  return {
+    threadId,
+    workspace,
+    profileId: null,
+    updatedAt,
+    testRun: false,
+    craftChat: false,
+    ...overrides,
+  };
 }
 
 test("isWithin accepts the root itself and its children, never a sibling with the same prefix", () => {
@@ -127,4 +135,27 @@ test("recentThreadOf without a workspace is the most recent thread overall, and 
   const picked = recentThreadOf({ threads, workspace: undefined, projectIdOf: () => null });
   expect(picked?.threadId).toBe("real");
   expect(picked?.profileId).toBe("review");
+});
+
+test("a craft thread (테스트 대화) never gives the profile default, in its folder or in the whole list", () => {
+  const threads = [
+    thread("craft-newest", "/work/app", 50, { craftChat: true, profileId: "craft" }),
+    thread("normal", "/work/app", 10, { profileId: "review" }),
+  ];
+  const sameFolder = recentThreadOf({
+    threads,
+    workspace: "/work/app",
+    projectIdOf: (path) => projectIdOf(path, ROOTS),
+  });
+  expect(sameFolder?.threadId).toBe("normal");
+  expect(sameFolder?.profileId).toBe("review");
+  const overall = recentThreadOf({ threads, workspace: undefined, projectIdOf: () => null });
+  expect(overall?.threadId).toBe("normal");
+  // 같은 폴더에 테스트 대화만 있으면 같은 폴더 단계는 비고, 같은 프로젝트의 다른 대화도 없으면 아무것도 고르지 않는다
+  const onlyCraft = recentThreadOf({
+    threads: [thread("craft-only", "/work/app", 5, { craftChat: true, profileId: "craft" })],
+    workspace: "/work/app",
+    projectIdOf: (path) => projectIdOf(path, ROOTS),
+  });
+  expect(onlyCraft).toBeUndefined();
 });

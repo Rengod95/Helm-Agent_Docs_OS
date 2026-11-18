@@ -294,10 +294,14 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const activity = new Map<ThreadId, number>();
   let activitySeq = 0;
   const testRuns = new Set<ThreadId>();
+  // 테스트 대화(Craft)의 표지: 대화마다 묶인 플러그인(묶이지 않았으면 null)
+  const craftThreads = new Map<ThreadId, string | null>();
   const summaryOf = (threadId: ThreadId): ThreadSummary => {
     const model = models.get(threadId);
     const profileId = chosenProfiles.get(threadId);
+    const craft = craftThreads.get(threadId);
     return {
+      ...(craft === undefined ? {} : { craftChat: { plugin: craft } }),
       threadId,
       title: titles.get(threadId) ?? null,
       status: "idle",
@@ -398,7 +402,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           profileId: chosenProfiles.get(threadId) ?? null,
           updatedAt: activity.get(threadId) ?? 0,
           testRun: testRuns.has(threadId),
-          craftChat: false,
+          craftChat: craftThreads.has(threadId),
         }))
         // 최근순(마지막 활동이 큰 것이 먼저)이다. 대화 목록의 정렬과 같다
         .toSorted((left, right) => right.updatedAt - left.updatedAt),
@@ -418,6 +422,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         if (input.workspace !== undefined) workspaces.set(threadId, input.workspace);
         if (input.profileId !== undefined) chosenProfiles.set(threadId, input.profileId);
         if (input.testRun === true) testRuns.add(threadId);
+        if (input.craftChat !== undefined) craftThreads.set(threadId, input.craftChat.plugin);
         activitySeq += 1;
         activity.set(threadId, activitySeq);
         commit([{ kind: "thread.started", threadId }]);
@@ -425,14 +430,23 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
       exists: (threadId) => ok(threads.has(threadId)),
       workspaceOf: (threadId) => ok(workspaces.get(threadId) ?? null),
+      isCraftChat: (threadId) => ok(craftThreads.has(threadId)),
       // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
       applyOpenWorkspace: () => Promise.resolve(),
       sameFolder: () => [],
-      list: () =>
-        Promise.resolve({
-          threads: [...threads].map(summaryOf),
-          nextCursor: null,
-        }),
+      // 테스트 대화는 `include: "craft"`일 때만 낸다(M5c §4.8.3). 그때는 최신 먼저다(실제 목록과 같다)
+      list: (params) => {
+        const craftListing = params.include === "craft";
+        const visible = [...threads].filter(
+          (threadId) => craftListing || !craftThreads.has(threadId),
+        );
+        const ordered = craftListing
+          ? visible.toSorted(
+              (left, right) => (activity.get(right) ?? 0) - (activity.get(left) ?? 0),
+            )
+          : visible;
+        return Promise.resolve({ threads: ordered.map(summaryOf), nextCursor: null });
+      },
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
@@ -667,6 +681,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     // 프로젝트를 여는 훑기는 검토 포트를 쓰지 않는 시험에서 아무 일도 하지 않는다
     scanOpenedRoots: () => Promise.resolve(),
     pluginMigration: partial<MigrationSubmitPort>({}),
+    craftChat: {
+      folderOf: (plugin) => join(fakeConfigDir, "plugins", plugin),
+      bindDraft: () => undefined,
+    },
     m4: {
       extRead: createExtReadPort(
         {

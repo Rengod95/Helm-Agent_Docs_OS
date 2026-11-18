@@ -10,4 +10,9 @@ export interface ThreadWorkspaces {
   workspaceOf(threadId: ThreadId): string | null;
   /** 그 폴더를 cwd로 하는 실행 환경 */
   envAt(cwd: string): WorkspaceEnv;
+  /**
+   * 테스트 대화(Craft, M5c §4.8.7)의 쓰기 범위 표지. 표지가 없으면(일반 대화) undefined다. `folder`는 묶인 플러그인의 원본 폴더이고,
+   * 묶이지 않았으면 null이다. 있으면 허용 root는 `craftRoots`가 정하고 작업 폴더 규칙(`workspaceOf`)은 쓰지 않는다
+   */
+  craftScopeOf?(threadId: ThreadId): { readonly folder: string | null } | undefined;
 }

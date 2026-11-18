@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { CancelScope, ProtectedPathEntry, ToolOutputFiles } from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "../src/errors.ts";
-import { defaultRoots, isWithin, resolveWorkspacePath, type PathAccess } from "../src/roots.ts";
+import {
+  craftRoots,
+  defaultRoots,
+  isWithin,
+  resolveWorkspacePath,
+  type PathAccess,
+} from "../src/roots.ts";
 import { memoryEnv } from "./support/memory-env.ts";
 
 const CONTEXT: CancelScope = { abortSignal: undefined };
@@ -213,5 +219,60 @@ describe("saved tool output (read root)", () => {
     env.put("/state/config.json", "{}");
     const denied = await failure(resolveWorkspacePath(deps, "/state/config.json", "read", CONTEXT));
     expect(denied.detail).toMatchObject({ reason: "outside_root" });
+  });
+});
+
+// M5c §4.8.7: 테스트 대화의 허용 root. 묶인 원본 폴더가 읽기·쓰기 root 하나이고, 묶이지 않으면 쓰기 root가 없다.
+describe("craftRoots (test conversation)", () => {
+  const SPILL = "/state/spill/tool-output";
+  const outputs: ToolOutputFiles = {
+    dir: SPILL,
+    pathFor: (threadId, sha256) => `${SPILL}/${threadId}/${sha256}.txt`,
+    write: () => Promise.resolve(err({ kind: "io", cause: "unused" })),
+    restore: () => Promise.resolve(ok(false)),
+    removeThread: () => Promise.resolve(),
+    sweep: () => Promise.resolve(0),
+  };
+
+  test("an unbound conversation (plugin null) has no write root and reads only the spill folder", async () => {
+    const env = memoryEnv({ cwd: "/engine" });
+    env.mkdir("/engine");
+    env.mkdir("/state/spill");
+    expect(await craftRoots(env, CONTEXT, null, outputs)).toEqual({
+      read: ["/state/spill"],
+      write: [],
+    });
+    expect(await craftRoots(env, CONTEXT, null)).toEqual({ read: [], write: [] });
+  });
+
+  test("a bound conversation writes and reads its plugin source folder only, plus the spill folder", async () => {
+    const env = memoryEnv({ cwd: "/engine" });
+    env.mkdir("/engine");
+    env.mkdir("/config/plugins/notes");
+    env.mkdir("/state/spill");
+    expect(await craftRoots(env, CONTEXT, "/config/plugins/notes", outputs)).toEqual({
+      read: ["/config/plugins/notes", "/state/spill"],
+      write: ["/config/plugins/notes"],
+    });
+  });
+
+  test("a bound conversation whose folder is not there yet has no write root until the builder makes it", async () => {
+    const env = memoryEnv({ cwd: "/engine" });
+    env.mkdir("/engine");
+    expect(await craftRoots(env, CONTEXT, "/config/plugins/fresh", outputs)).toEqual({
+      read: ["/state/spill"],
+      write: [],
+    });
+    env.mkdir("/config/plugins/fresh");
+    expect(await craftRoots(env, CONTEXT, "/config/plugins/fresh", outputs)).toEqual({
+      read: ["/config/plugins/fresh", "/state/spill"],
+      write: ["/config/plugins/fresh"],
+    });
+  });
+
+  test("a normal conversation keeps the default roots: the working folder for read and write", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    expect(await defaultRoots(env, CONTEXT)).toEqual({ read: ["/work"], write: ["/work"] });
   });
 });

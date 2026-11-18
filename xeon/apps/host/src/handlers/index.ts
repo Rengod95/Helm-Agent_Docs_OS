@@ -25,6 +25,7 @@ import {
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
 import { createM5Handlers } from "./m5/index.ts";
+import { createCraftChatHandlers } from "./m5/craft-chat.ts";
 import { createPluginHandlers } from "./m5/plugins.ts";
 import { createPluginReviewHandlers } from "./m5/plugin-review.ts";
 import { createMeasureHandlers } from "./measure.ts";
@@ -118,6 +119,7 @@ export function createWireHandlers(
     "models.list": createModelsListHandler(engine),
     ...createMeasureHandlers(engine),
     ...createM5Handlers(engine, hub),
+    ...createCraftChatHandlers(engine, hub),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine, hub),
     ...createTrustHandlers(engine),

@@ -22,7 +22,7 @@ import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.t
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
 import { markTestRun, wireErrorOfProfile } from "./m4/profile-test-run.ts";
 import { wireErrorOfProject } from "./m4/project.ts";
-import { DEFAULT_PROFILE_ID } from "../assembly/m4/profile-defaults.ts";
+import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "../assembly/m4/profile-defaults.ts";
 import { projectRefOf } from "../assembly/m4/project-scope.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
@@ -39,6 +39,10 @@ export function createThreadCreateHandler(
   return async (params, context) => {
     // 프로필: 적은 값이 있으면 그 프로필이 있는지 본다(없는 프로필 때문에 빈 대화가 남지 않게 한다, M5c §3.4). 없으면 기본값을 쓴다(§4.4.8).
     // 기본값에서 고른 `default`는 저장하지 않는다. 저장된 값이 없으면 `default`로 읽는다(§4.1.1)
+    // 숨은 `craft`는 테스트 대화만 쓴다(§4.8.5). 일반 대화에 고르면 없는 프로필이다
+    if (params.profileId === CRAFT_PROFILE_ID) {
+      throw wireErrorOfProfile({ kind: "not_found", id: CRAFT_PROFILE_ID });
+    }
     let profileId: string;
     let storedProfileId: string | undefined;
     if (params.profileId !== undefined) {
@@ -106,6 +110,12 @@ export function createThreadSetProfileHandler(
     const conn = hub().state(context.connectionId);
     if (conn === undefined || conn.phase === "closed") throw wireError("request.cancelled");
     if (!engine.ports.locks.holds(threadId)) throw wireError("thread.notOwner");
+    // 테스트 대화의 프로필은 `craft`로 고정이다. 프로필 칩이 없으므로 바꾸지 못한다(§4.8.5)
+    const craft = engine.ports.threads.isCraftChat(threadId);
+    if (!craft.ok) throw wireErrorOfStore(craft.error, "thread.setProfile craft lookup");
+    if (craft.value) throw wireErrorOfProfile({ kind: "builtin_protected", id: profileId });
+    if (profileId === CRAFT_PROFILE_ID)
+      throw wireErrorOfProfile({ kind: "not_found", id: profileId });
     const found = await profiles.get(profileId);
     if (!found.ok) throw wireErrorOfProfile(found.error);
     const previewed = await profiles.preview({

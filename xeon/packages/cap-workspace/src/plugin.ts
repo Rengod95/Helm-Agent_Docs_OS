@@ -7,6 +7,7 @@ import {
   WorkspaceShellKey,
 } from "@fresnel/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
+import { join } from "node:path";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
@@ -79,6 +80,7 @@ function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | 
 function threadWorkspaces(
   session: Pick<SessionService, "query">,
   exec: Pick<ExecService, "withCwd" | "truncateHeadOf">,
+  configDir: string,
 ): ThreadWorkspaces {
   return {
     workspaceOf: (threadId) => {
@@ -86,6 +88,13 @@ function threadWorkspaces(
       return row.ok ? (row.value?.workspace ?? null) : null;
     },
     envAt: (cwd) => envAtCwd(exec, cwd),
+    // 테스트 대화(M5c §4.8.7)의 쓰기 범위. 묶인 플러그인의 원본 폴더는 사용자 플러그인 폴더(`<설정>/plugins/<이름>`)다
+    craftScopeOf: (threadId) => {
+      const row = session.query.thread(threadId);
+      if (!row.ok || row.value?.craftChat === undefined) return undefined;
+      const plugin = row.value.craftChat.plugin;
+      return { folder: plugin === null ? null : join(configDir, "plugins", plugin) };
+    },
   };
 }
 
@@ -136,7 +145,9 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         clock: os.time.clock,
         settings: (threadId) => readWorkspaceSettings(options.settings.layers(threadId)),
         ...(store === undefined ? {} : { blobs: store }),
-        ...(session === undefined ? {} : { threads: threadWorkspaces(session, exec) }),
+        ...(session === undefined
+          ? {}
+          : { threads: threadWorkspaces(session, exec, os.dirs.config) }),
         rg: rgResolver(os),
         homeDir: os.dirs.home,
         ...(writeAccess === undefined ? {} : { writeAccess }),

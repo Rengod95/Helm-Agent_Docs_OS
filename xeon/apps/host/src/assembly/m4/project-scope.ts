@@ -24,6 +24,8 @@ export interface ScopeThread {
   readonly updatedAt: number;
   /** Test run 대화인가. 프로젝트 묶음과 기본값 계산에서 뺀다(§4.8) */
   readonly testRun: boolean;
+  /** 테스트 대화(Craft 표지)인가. 프로젝트 묶음과 기본값 계산에서 뺀다(M5c §4.8.3) */
+  readonly craftChat: boolean;
 }
 
 /** 프로필 기본값의 원천이 된 대화 */
@@ -71,7 +73,7 @@ export function projectRefOf(
 /**
  * 프로필 기본값을 고르는 대화(§4.4.8). `threads`는 최근순(`updatedAt` 내림차순)이어야 한다.
  * 같은 정규 폴더의 가장 최근 대화가 먼저다. 없으면 같은 프로젝트의 가장 최근 대화다. 둘 다 없으면 undefined다.
- * Test run 대화는 어느 단계에서도 고르지 않는다. `workspace`가 없으면 프로젝트를 가리지 않는 가장 최근 대화다.
+ * Test run 대화와 테스트 대화(Craft)는 어느 단계에서도 고르지 않는다. `workspace`가 없으면 프로젝트를 가리지 않는 가장 최근 대화다.
  */
 export function recentThreadOf(input: {
   readonly threads: readonly ScopeThread[];
@@ -79,7 +81,7 @@ export function recentThreadOf(input: {
   /** 정규 폴더가 속한 프로젝트 id. 없으면 null. `workspace`가 있을 때만 부른다 */
   readonly projectIdOf: (workspace: string) => string | null;
 }): RecentThread | undefined {
-  const candidates = input.threads.filter((thread) => !thread.testRun);
+  const candidates = input.threads.filter((thread) => !thread.testRun && !thread.craftChat);
   if (input.workspace === undefined) return candidates[0];
   const workspace = input.workspace;
   const sameFolder = candidates.find((thread) => thread.workspace === workspace);

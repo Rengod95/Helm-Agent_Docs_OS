@@ -9,6 +9,7 @@ import {
   type RegistrationToggleSourceOf,
 } from "@fresnel/ext-host";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import { CRAFT_PROFILE_ID, craftProfile } from "./profile-defaults.ts";
 
 // M5c §3.5, §4.1: 대화별 켜짐 집합 E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins, 처음 것을 남김) − 관리 잠금 − 오류 정지.
 // 호스트가 구현해 X에 `PluginSetPortKey`로 준다. 읽기는 동기여야 하므로 프로필 목록은 메모리에 둔 복사를 쓴다.
@@ -142,15 +143,33 @@ interface Picked {
   readonly profile: Profile | undefined;
   readonly factory: boolean;
   readonly missing: boolean;
+  /** 숨은 `craft` 프로필인가. 공통 묶음을 받지 않는다(§4.8.5 [제안]) */
+  readonly craft: boolean;
 }
 
 function pickProfile(copy: ProfileCopy, stored: string | null): Picked {
+  // 숨은 `craft`는 저장 목록에 없다. 값은 프로필 정의에서 온다(저장하지 않는다)
+  if (stored === CRAFT_PROFILE_ID) {
+    return {
+      usedId: CRAFT_PROFILE_ID,
+      profile: craftProfile(),
+      factory: false,
+      missing: false,
+      craft: true,
+    };
+  }
   const known = stored === null ? undefined : copy.profiles.find((p) => p.id === stored);
   const usedId = known?.id ?? DEFAULT_PROFILE_ID;
   const profile = copy.profiles.find((p) => p.id === usedId);
   // 저장하지 않은 기본(공장 값, 개정 0)은 지금 찾은 기본 플러그인을 쓴다(확장은 시작 뒤에도 더 찾힌다)
   const factory = usedId === DEFAULT_PROFILE_ID && (profile === undefined || profile.rev === 0);
-  return { usedId, profile, factory, missing: stored !== null && known === undefined };
+  return {
+    usedId,
+    profile,
+    factory,
+    missing: stored !== null && known === undefined,
+    craft: false,
+  };
 }
 
 /**
@@ -159,7 +178,8 @@ function pickProfile(copy: ProfileCopy, stored: string | null): Picked {
  */
 function settingsIn(copy: ProfileCopy, picked: Picked): ReadonlyMap<string, unknown> {
   const settings = new Map<string, unknown>();
-  for (const setting of copy.common.settings) settings.set(setting.key, setting.value);
+  if (!picked.craft)
+    for (const setting of copy.common.settings) settings.set(setting.key, setting.value);
   if (!picked.factory) {
     for (const setting of picked.profile?.settings ?? []) settings.set(setting.key, setting.value);
   }
@@ -178,7 +198,7 @@ function resolveIn(
     profileRev: picked.profile?.rev ?? 0,
     commonRev: copy.common.rev,
     ...(picked.missing && stored !== null ? { missingProfileId: stored } : {}),
-    common: copy.common.plugins.map((ref) => ref.name),
+    common: picked.craft ? [] : copy.common.plugins.map((ref) => ref.name),
     profile: picked.factory ? defaults() : (picked.profile?.plugins ?? []).map((ref) => ref.name),
     settings: settingsIn(copy, picked),
   };
