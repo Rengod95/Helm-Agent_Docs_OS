@@ -44,6 +44,11 @@ export interface ToolsDeps {
    * 조립 루트가 초안 목록(덧씌우기와 시험 실행)에서 만든다. 넘기지 않으면 초안 호출이 없다
    */
   readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
+  /**
+   * 호출한 대화가 드래프트 승인 `auto`인 테스트 실행이면 참이다(L1.tools.spec §4.6.1 [결정: 2026-11-18 사용자, AGE-56]). 판정은 등록 범위가 아니라
+   * 호출한 대화로 한다. 자식 대화의 답은 조립 루트가 부모를 따라 정한다. 생략하면 모든 대화가 `ask`다
+   */
+  readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
   readonly truncator: OutputTruncator;
   /** 잘린 출력의 파일 사본. 없으면 안내 문장에 경로가 없다 */
   readonly outputFiles?: ToolOutputFiles;

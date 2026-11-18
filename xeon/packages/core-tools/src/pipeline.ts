@@ -923,6 +923,15 @@ export function createPipeline(
   // ── 5b·5c 정책과 승인 ─────────────────────────────────────────────────
 
   /**
+   * 드래프트 카드가 걸리는 표지(L1.tools.spec §4.6.1 [결정: 2026-11-18 사용자, AGE-56]). 호출한 대화가 드래프트 승인 `auto`인 테스트 실행이면
+   * 없다(`undefined`). 판정(3번)과 승인 상속 금지(4번)는 이 값으로 정한다. 카드 제목과 본문의 출처 표지는 `state.draft`를 그대로 쓴다.
+   */
+  function draftGateOf(draft: DraftMark | undefined, threadId: ThreadId): DraftMark | undefined {
+    if (draft === undefined) return undefined;
+    return deps.draftAutoApproved?.(threadId) === true ? undefined : draft;
+  }
+
+  /**
    * 정책 판정과 승인. `hookAsk`는 `tool.call.before`가 낸 묻기다. 정책 deny는 훅이 있어도 deny다(H-1). 정책이 allow거나 ask면
    * 카드는 하나만 열고 두 사유를 싣는다(H-3). 훅이 물었으면 정책의 무인 거부를 쓰지 않고 승인 서비스가 무인 정책을 따른다(E-1)
    */
@@ -935,6 +944,8 @@ export function createPipeline(
   ): Promise<Denied | undefined> {
     const { run, entry, toolCallId } = state;
     const config = deps.config(run.threadId);
+    // 드래프트 카드가 걸리는 표지. `auto` 대화의 드래프트 호출은 모드·규칙·위험 등급 평가만 받는다(L1.tools.spec §4.6.1)
+    const cardDraft = draftGateOf(state.draft, run.threadId);
     // 읽기 전용 샌드박스 상한 아래에서는 도구가 선언한 샌드박스 위험 등급을 쓴다(대체 항목은 제외한다)
     const sandboxRisk =
       run.ceiling?.sandbox === "read-only" && entry.replacesBuiltin !== true
@@ -981,8 +992,9 @@ export function createPipeline(
             ),
             evaluated,
           );
-    // 초안 출신 호출은 거부 판정만 남기고 모두 묻는다. 모드와 allow 규칙을 뒤집는 자리라 모든 평가기의 결정 뒤에 둔다(L1.tools.spec §4.6.1)
-    const decision = state.draft === undefined ? composed : evaluateDraft(composed, input);
+    // 초안 출신 호출은 거부 판정만 남기고 모두 묻는다. 호출한 대화가 `auto`면 이 판정을 건너뛴다(L1.tools.spec §4.6.1 3).
+    // 모드와 allow 규칙을 뒤집는 자리라 모든 평가기의 결정 뒤에 둔다
+    const decision = cardDraft === undefined ? composed : evaluateDraft(composed, input);
     state.facts.policy = { effect: decision.effect, tier: decision.tier };
     if (decision.effect === "deny") {
       // 사람이 없는 실행의 정책 거부는 묻지 않고 거부한 것이라 무인 판정이다(정본 §3.2 denied_noninteractive)
@@ -1002,12 +1014,12 @@ export function createPipeline(
     // 훅의 묻기도 같게 둔다(가정: 사용자가 친 명령에 확장이 다시 묻는 경로는 지금 없다)
     if (state.userShell) return undefined;
     // 바깥 도구 호출이 받은 승인을 물려받는다(U-11). 위험 등급이 그 승인 이하이면 카드를 다시 띄우지 않는다. deny와 allow는 위에서 갈렸다
-    // 훅이 물은 호출은 상속하지 않는다(훅의 묻기는 그대로 사용자에게 간다). 초안 출신 호출도 상속하지 않는다(L1.tools.spec §4.6.1).
-    // 시크릿 사용 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않는다)
+    // 훅이 물은 호출은 상속하지 않는다(훅의 묻기는 그대로 사용자에게 간다). 초안 출신 호출도 상속하지 않는다(L1.tools.spec §4.6.1 4).
+    // `auto` 대화의 초안 호출은 이 금지를 받지 않는다. 시크릿 사용 증거로는 쓰지 않는다(`userApprovalId`를 채우지 않는다)
     const inherit = state.inherit;
     if (
       hookAsk === undefined &&
-      state.draft === undefined &&
+      cardDraft === undefined &&
       inherit !== undefined &&
       riskRankOf(input.risk) <= riskRankOf(inherit.risk) &&
       !inheritUsed.has(inherit.key)
@@ -2519,8 +2531,11 @@ export function createPipeline(
       userShell: false,
       silent: true,
       draft,
-      // 초안 출신 호출은 승인 상속을 찾지 않는다(카드를 건너뛰지 못하게 닫는다, L1.tools.spec §4.6.1)
-      inherit: draft === undefined ? await inheritedOf(request, request.input) : undefined,
+      // 초안 출신 호출은 승인 상속을 찾지 않는다(카드를 건너뛰지 못하게 닫는다, L1.tools.spec §4.6.1 4). `auto` 대화는 찾는다
+      inherit:
+        draftGateOf(draft, run.threadId) === undefined
+          ? await inheritedOf(request, request.input)
+          : undefined,
       inheritApplied: undefined,
       slot: undefined,
       userApprovalId: undefined,
