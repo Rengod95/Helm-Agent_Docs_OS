@@ -2,6 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import {
   CapabilityError,
   DialogAttachments,
+  DialogFailure,
   type Attachment,
   type CallOptions,
   type CapabilityApi,
@@ -10,7 +11,6 @@ import {
 import type { ImageContent, TextContent, ThreadId } from "@fresnel/contracts/conversation";
 import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@fresnel/contracts/records";
 import type { CancelScope } from "@fresnel/contracts/services";
-import { DialogFailure, guarded } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
 import { isJsonObject } from "../util.ts";
 import {
@@ -241,7 +241,7 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
 
   return {
     add: (input: AddInput, options) =>
-      guarded(CAPABILITY, "add", async () => {
+      deps.core.guardedDialog(CAPABILITY, "add", async () => {
         const maxBytes = deps.settings(options?.context?.threadId).attachments.maxBytes;
         const context: CancelScope = { abortSignal: options?.signal };
         const { source } = input;

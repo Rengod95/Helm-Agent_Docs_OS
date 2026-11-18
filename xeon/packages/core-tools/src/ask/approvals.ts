@@ -1,5 +1,5 @@
 import { canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
-import type { CallContext, CallerInfo } from "@fresnel/contracts/capabilities";
+import type { CallerInfo } from "@fresnel/contracts/capabilities";
 import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@fresnel/contracts/conversation";
 import { ApprovalBodyJsonSchema, type ReadFailure } from "@fresnel/contracts/records";
 import {
@@ -14,21 +14,11 @@ import {
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
   type OpenedApproval,
+  type ApprovalsPortFactory,
 } from "@fresnel/contracts/services";
 
-export type { L2ApprovalsPort };
-
-/**
- * 승인 프로토콜(`fresnel.approvals`, kind `question`)을 쓰는 유일한 자리(L2.dialog.spec §4.1.1).
- * 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(L2.readme §5.7)다. 이 포트는 요청이 낸 쪽(출처)을 호출마다 정해야 해서
- * 호출 문맥으로 포트를 만드는 팩토리로 받는다: 도구 호출 안이면 문맥의 `toolCallId`·`turnId`가 요청의 `origin`이 되어
- * L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다.
- *
- * 기본 구현은 `questionApprovalsOver`다. 조립 루트는 이 팩토리를 `dialogPlugin({ approvals })`로 바꿔 넣을 수도 있다.
- */
-export interface ApprovalsPortFactory {
-  forCall(context: CallContext | undefined): L2ApprovalsPort;
-}
+// `ApprovalsPortFactory`의 정의는 F contracts(`services/dialog-core.ts`)에 있다. 기존 경로를 지키려고 다시 내보낸다.
+export type { ApprovalsPortFactory, L2ApprovalsPort };
 
 const REQUEST_ID_MAX = L2_APPROVAL_REQUEST_ID_MAX;
 /** 호출 문맥이 없는 요청은 호스트가 직접 낸 호출이다(F.records.spec §3.3.1 caller 행) */

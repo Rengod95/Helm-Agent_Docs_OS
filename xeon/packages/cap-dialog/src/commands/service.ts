@@ -1,6 +1,7 @@
 import { attemptAsync, eachAsync } from "@fresnel/contracts";
 import {
   DialogCommands,
+  DialogFailure,
   type CallOptions,
   type CapabilityApi,
   type CommandActionRegistry,
@@ -9,7 +10,6 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { CancelScope } from "@fresnel/contracts/services";
-import { DialogFailure, guarded, toCapabilityError } from "@fresnel/core-tools";
 import type { DialogDeps } from "../deps.ts";
 import { PROJECT_COMMANDS_DIR } from "../ports/command-files.ts";
 import { parseCommandArgs, parseCommandLine } from "../upstream/pi/prompt-templates.ts";
@@ -221,7 +221,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
 
   const api: CommandsServiceApi = {
     register: (input) =>
-      guarded(CAPABILITY, "register", () => {
+      deps.core.guardedDialog(CAPABILITY, "register", () => {
         if (!isCommandName(input.name)) {
           return Promise.reject(
             new DialogFailure("invalid_input", `${input.name} is not a valid command name.`),
@@ -247,7 +247,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
         return Promise.resolve({ command: info });
       }),
     list: (input, options) =>
-      guarded(CAPABILITY, "list", async () => {
+      deps.core.guardedDialog(CAPABILITY, "list", async () => {
         const table = await catalog(options?.context?.threadId, { abortSignal: options?.signal });
         const prefix = input.prefix ?? "";
         const commands: CommandInfo[] = [];
@@ -260,7 +260,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
         return { commands };
       }),
     expand: (input, options) =>
-      guarded(CAPABILITY, "expand", async (): Promise<ExpandOutput> => {
+      deps.core.guardedDialog(CAPABILITY, "expand", async (): Promise<ExpandOutput> => {
         const found = await resolve(input.text, options?.context?.threadId, {
           abortSignal: options?.signal,
         });
@@ -280,7 +280,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
         };
       }),
     run: (input, options) =>
-      guarded(CAPABILITY, "run", async (): Promise<RunOutput> => {
+      deps.core.guardedDialog(CAPABILITY, "run", async (): Promise<RunOutput> => {
         const signal = options?.signal ?? new AbortController().signal;
         const found = await resolve(input.text, options?.context?.threadId, {
           abortSignal: signal,
@@ -337,7 +337,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
       }),
     registerAction: (decl, handler) => {
       if (!isCommandName(decl.name)) {
-        throw toCapabilityError(
+        throw deps.core.toDialogCapabilityError(
           CAPABILITY,
           "registerAction",
           new DialogFailure("invalid_input", `${decl.name} is not a valid command name.`),
@@ -346,7 +346,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
       try {
         return registry.addAction(actionInfo(decl), handler);
       } catch (caught) {
-        throw toCapabilityError(CAPABILITY, "registerAction", caught);
+        throw deps.core.toDialogCapabilityError(CAPABILITY, "registerAction", caught);
       }
     },
     declareBuiltin: (commands) =>

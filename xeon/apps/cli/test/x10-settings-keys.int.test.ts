@@ -70,12 +70,8 @@ test("X10: the settings file schema keys, the config list keys and the settings 
     .map((row) => row.def.key);
   // 읽는 코드가 없는 reserved 키는 파일 스키마에는 있지만 목록과 화면에서는 빠진다
   const extras = [...fileKeys].filter((key) => !listKeys.includes(key)).toSorted();
-  expect(extras).toEqual([
-    "l3.learning.curator.enabled",
-    "l3.learning.curator.intervalHours",
-    "l3.learning.curator.llmConsolidate",
-    "l3.learning.curator.minIdleHours",
-  ]);
+  // 학습 그룹이 빌트인에서 빠져(2026-11-18) 예약 키(`l3.learning.curator.*`)도 카탈로그에서 없어졌다. 지금은 예약 키가 없다
+  expect(extras).toEqual([]);
   for (const key of extras) {
     // 이 키들은 `stage: "reserved"`라 쓰기를 받지 않는다
     // oxlint-disable-next-line no-await-in-loop -- 하네스는 한 번에 한 명령만 돌린다 (review.m3b-plan X10)

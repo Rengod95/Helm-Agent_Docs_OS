@@ -590,7 +590,7 @@ import { openStore } from "@fresnel/platform-store";        // DR-14: 확장이 
 
 - 대상: 소스 파일(`src/**`)의 import와 `dependencies`·`peerDependencies`·`optionalDependencies`의 워크스페이스 의존. 시험 파일(`test/**`, `*.test.*`)과 `devDependencies`는 예외다. 시험은 `core-*`와 `platform-*`를 그대로 쓴다.
 - 같은 등급은 DR-02다. 플러그인끼리 import하지 않는다. `group-*`와 `plugin-builder`만 `group-sdk`의 `.`과 `./testing`을 허용 목록 `DR-02/group-sdk`, `DR-02/plugin-builder-group-sdk`로 쓴다.
-- 예외 [미결]: 허용 목록의 `DR-15/cap-dialog-core-tools`, `DR-15/cap-workspace-core-workspace` 두 쌍만 있다. 질문 서비스와 파일 서비스를 코어로 옮긴(D-27, D-28) 뒤 플러그인이 그 서비스를 주입받는 구조(포트와 기능 id)는 후속이다. 두 항목은 승인 대기다 [근거: `xeon/scripts/dependency-allowlist.json`].
+- 예외: 없다. 질문 서비스(`dialog-core`)와 파일·셸 서비스(`workspace-core`)는 `contracts`가 포트 타입(`DialogCore`, `WorkspaceCore`)과 실패 클래스(`DialogFailure`, `WorkspaceFailure`)를 두고, 오류 변환(`guarded`)처럼 services 타입이 필요한 함수는 두 포트의 멤버다. 조립 루트(`apps/host`)가 코어 구현(`dialogCore`, `workspaceCore`)을 플러그인 옵션 `core`로 주입한다. 허용 목록 두 항목(`DR-15/cap-dialog-core-tools`, `DR-15/cap-workspace-core-workspace`)은 지웠다.
 - 도구: `check-layers.ts`의 `DR-15`, `.dependency-cruiser.cjs`의 `no-l0-or-l1-import-from-P`(허용 쌍은 `no-l0-or-l1-import-from-P-<id>`). 두 도구는 같은 커밋에서 고친다.
 
 나쁜 예:

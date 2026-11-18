@@ -1,19 +1,12 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { afterEach, expect, test } from "bun:test";
 import { assemble } from "../../src/assemble.ts";
-import { createHostConnection } from "../../src/client.ts";
-import { startInProcessHost } from "../../src/command-run.ts";
 import type { AssembleOptions, Engine } from "../../src/types.ts";
-import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { toolResultTexts } from "../fixtures/tool-results.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// M3-REQ-18·104(D-M3-32 a, D-M3-02, D-M3-07): 실제 엔진(실제 cap-knowledge, 실제 세션 DB) 위에서 학습 그룹이 내장 그룹으로 서고, 합친 목록이 두 출처를
-// 읽고, 학습 대기열의 승인이 `learning.queue` 증거로 L2 쓰기 경로를 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 학습 그룹을 싣지 않는다.
+// M3-REQ-18(D-M3-32 a, D-M3-02): 실제 엔진(실제 cap-knowledge, 실제 세션 DB) 위의 `proposal.list`·`proposal.decide`. 학습 그룹은 빌트인에서 빠졌다(AGE-49):
+// 기본 목록은 지식 대기열만 읽어 `unavailable`이 비고, 학습 출처는 빈 목록과 `unavailable: ["learning"]`이며 결정은 거절한다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -41,197 +34,42 @@ async function start(
 }
 
 realTest(
-  "the learning group is a built-in group: on by default, its queue is readable and the projection tables in the session database start empty",
+  "the learning group is not built in: the default proposal list is empty with no unavailable source, and the knowledge source reads the same way",
   async () => {
     const { engine } = await start();
-    const listed = await engine.ports.proposals.list({}, SIGNAL);
-    // 학습 출처와 지식 출처가 모두 읽힌다(세션 DB의 x_learning_* 표는 엔진을 열 때 투영기를 등록하면서 만들어진다)
-    expect(listed).toEqual({ proposals: [], nextCursor: null, unavailable: [] });
-    expect(engine.catalog.has("l3.learning.trigger.userTurns")).toBe(true);
-    expect(engine.catalog.get("l3.learning.curator.enabled")?.stage).toBe("reserved");
+    expect(await engine.ports.proposals.list({}, SIGNAL)).toEqual({
+      proposals: [],
+      nextCursor: null,
+      unavailable: [],
+    });
+    expect(await engine.ports.proposals.list({ source: "knowledge" }, SIGNAL)).toEqual({
+      proposals: [],
+      nextCursor: null,
+      unavailable: [],
+    });
+    expect(engine.catalog.has("l3.learning.trigger.userTurns")).toBe(false);
   },
 );
 
 realTest(
-  "defaultGroups false and safe mode do not load the learning group, and L2 stays",
+  "asking for the learning source lists nothing and reports learning unavailable, and deciding on it is refused as unavailable",
   async () => {
-    const off = await start({ defaultGroups: false });
-    expect(await off.engine.ports.proposals.list({}, SIGNAL)).toEqual({
+    const { engine } = await start();
+    expect(await engine.ports.proposals.list({ source: "learning" }, SIGNAL)).toEqual({
       proposals: [],
       nextCursor: null,
       unavailable: ["learning"],
     });
-    const safe = await start({ safeMode: true });
-    expect(await safe.engine.ports.proposals.list({}, SIGNAL)).toEqual({
-      proposals: [],
-      nextCursor: null,
-      unavailable: ["learning"],
-    });
-    // 결정은 오류 값이다: 꺼진 그룹의 후보를 승인할 수 없다
-    const decided = await safe.engine.ports.proposals.decide(
+    const decided = await engine.ports.proposals.decide(
       { source: "learning", id: "prop_1", decision: "reject" },
       SIGNAL,
     );
-    expect(decided).toMatchObject({ ok: false, reason: "unavailable" });
+    expect(decided).toEqual({
+      ok: false,
+      reason: "unavailable",
+      detail: "the learning plugin is not built in",
+    });
   },
-);
-
-const PROPOSAL_ARGS = {
-  kind: "skill",
-  op: "create",
-  target: "release-notes",
-  body: "# Release notes\nWrite release notes from the merged pull requests.\n",
-  description: "Use when the user asks for release notes.",
-  rationale: "The user asked twice for the same release notes format.",
-  evidenceEventIds: ["evt_00000000000000000000000001"],
-};
-
-interface Drive {
-  readonly connection: ReturnType<typeof createHostConnection>;
-  readonly home: EngineHome;
-  readonly threadId: string;
-  readonly toolText: string;
-}
-
-/**
- * 실제 엔진(SQLite 세션 DB, 실제 cap-knowledge)에서 모델이 `learning_propose`를 부르는 turn을 하나 돌린다. 도구 호출은 ambient 안에서
- * 비공개 기록을 남기고 투영기가 그 기록을 `x_learning_*` 행으로 접는다. 열린 대화는 결정을 실행할 곳이다
- */
-async function driveOneProposal(): Promise<Drive> {
-  const home = useEngineHome();
-  writeUserSettings(home, TAPE_SETTINGS);
-  mkdirSync(home.dataDir, { recursive: true, mode: 0o700 });
-  const host = await startInProcessHost({
-    devChecks: true,
-    buildModels: callingModels("learning-uc3", [{ name: "learning_propose", args: PROPOSAL_ARGS }]),
-  });
-  const connection = createHostConnection(host.client);
-  closers.push(
-    async () => {
-      await connection.close();
-      await host.close();
-    },
-    () => home.dispose(),
-  );
-  await connection.request("host.hello", HELLO_PARAMS);
-  const collector = collectEvents(connection);
-  await connection.request("events.subscribe", { from: "head" });
-  const created = await connection.request("thread.create", {});
-  await connection.request("turn.start", {
-    threadId: created.threadId,
-    input: "write release notes",
-  });
-  // `learning_propose`는 읽기 위험을 선언해(builtin 그룹) 승인을 묻지 않는다
-  await collector.waitFor((event) => event.kind === "turn.completed");
-  expect(collector.events.some((event) => event.kind === "approval.requested")).toBe(false);
-  return {
-    connection,
-    home,
-    threadId: created.threadId,
-    toolText: toolResultTexts(collector.events).join("\n"),
-  };
-}
-
-realTest(
-  "UC-3 on the real SQLite path: a candidate waits in the projected queue and nothing is written before approval; a user-scope approval becomes an approved plugin in the review library and the common set, and no loose skill folder is written (AGE-41 §7.5)",
-  async () => {
-    const { connection, home, toolText } = await driveOneProposal();
-    const skillFile = join(home.dataDir, "skills", "release-notes", "SKILL.md");
-    expect(toolText).toContain("proposalId");
-    const listed = await connection.request("proposal.list", {});
-    expect(listed.unavailable).toEqual([]);
-    expect(listed.proposals).toHaveLength(1);
-    const pending = listed.proposals[0];
-    if (pending === undefined) throw new Error("the proposal was not projected");
-    expect(pending).toMatchObject({
-      source: "learning",
-      status: "pending",
-      kind: "skill",
-      op: "create",
-      target: "release-notes",
-      scope: "user",
-      revision: 1,
-      afterUntrusted: false,
-    });
-    // 승인 전에는 검토함에도 검토본에도 스킬 파일에도 아무것도 없다
-    expect(existsSync(skillFile)).toBe(false);
-    const inboxBefore = await connection.request("pluginReview.list", {});
-    expect(inboxBefore.items.filter((item) => item.name === "release-notes")).toEqual([]);
-    const stale = await connection.request("proposal.decide", {
-      source: "learning",
-      id: pending.id,
-      decision: "approve",
-      revision: 2,
-    });
-    expect(stale).toMatchObject({ ok: false, reason: "revision_mismatch" });
-    expect(existsSync(skillFile)).toBe(false);
-    const approved = await connection.request("proposal.decide", {
-      source: "learning",
-      id: pending.id,
-      decision: "approve",
-      revision: 1,
-    });
-    // 승인은 검토함의 승인본이 된다: 학습 승인이 사람의 결정이라 같은 호출에서 승인하고 제안은 적용됨으로 닫힌다
-    expect(approved).toMatchObject({
-      ok: true,
-      applied: true,
-      proposal: { source: "learning", status: "applied" },
-    });
-    const inboxAfter = await connection.request("pluginReview.list", {});
-    expect(
-      inboxAfter.items
-        .filter((item) => item.name === "release-notes")
-        .map((item) => [item.kind, item.state, item.provenance]),
-    ).toEqual([["new", "approved", "user_instruction"]]);
-    // 검토본 플러그인이 있고, 공통 묶음에 든다. 기본 프로필은 손대지 않는다
-    const plugin = await connection.request("plugin.get", { name: "release-notes" });
-    expect(plugin.card).toMatchObject({ name: "release-notes" });
-    const common = await connection.request("profile.common.get", {});
-    expect(common.common.plugins.map((plugin) => plugin.name)).toEqual(["release-notes"]);
-    // 옛 느슨한 폴더는 만들지 않는다(사용자 범위 쓰기는 검토함으로 간다)
-    expect(existsSync(skillFile)).toBe(false);
-    expect(existsSync(join(home.dataDir, "skills", "release-notes"))).toBe(false);
-    const after = await connection.request("proposal.list", { status: ["applied"] });
-    expect(after.proposals.map((row) => [row.id, row.status])).toEqual([[pending.id, "applied"]]);
-    const again = await connection.request("proposal.decide", {
-      source: "learning",
-      id: pending.id,
-      decision: "approve",
-      revision: 1,
-    });
-    expect(again).toMatchObject({ ok: false, reason: "closed" });
-  },
-  60_000,
-);
-
-realTest(
-  "a rejected or unknown learning proposal never touches the skill directory",
-  async () => {
-    const { connection, home } = await driveOneProposal();
-    const listed = await connection.request("proposal.list", {});
-    const pending = listed.proposals[0];
-    if (pending === undefined) throw new Error("the proposal was not projected");
-    const rejected = await connection.request("proposal.decide", {
-      source: "learning",
-      id: pending.id,
-      decision: "reject",
-      note: "no",
-    });
-    expect(rejected).toMatchObject({
-      ok: true,
-      applied: false,
-      proposal: { status: "rejected", reason: "user_rejected" },
-    });
-    const missing = await connection.request("proposal.decide", {
-      source: "learning",
-      id: "prop_nope",
-      decision: "approve",
-      revision: 1,
-    });
-    expect(missing).toMatchObject({ ok: false, reason: "not_found" });
-    expect(existsSync(join(home.dataDir, "skills", "release-notes"))).toBe(false);
-  },
-  60_000,
 );
 
 realTest(

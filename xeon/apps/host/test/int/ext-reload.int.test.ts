@@ -87,13 +87,25 @@ async function startReal(first: PluginInput) {
   writeFiles(installedRoot(home), first);
   const host = await startInProcessHost({
     devChecks: true,
-    // 빈 번들 폴더: 기본 플러그인은 없고 로더가 사용자 위치의 확장을 싣는다
+    // 빈 번들 폴더: 기본 플러그인은 없다. 사용자 위치의 확장은 프로필에 들어 있는 대화를 열 때만 실린다
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "ext-reload-bundles-")),
     extraPlugins: [],
     buildModels: answeringModels("ext-reload", "done."),
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  // 매니페스트의 기본으로 켜짐은 번들에만 효력이 있다(AGE-49): 확장을 기본 프로필에 넣어야 `thread.create`로 대화를 열 때 실린다.
+  // 기본 프로필을 코어가 기대는 단위 cap-workspace, cap-dialog와 이 확장으로 저장한다(이 확장은 지식 기능을 요구하지 않는다)
+  await connection.request("profile.put", {
+    profile: {
+      id: "default",
+      title: "default",
+      plugins: [{ name: "cap-workspace" }, { name: "cap-dialog" }, { name: NAME }],
+      settings: [],
+      startDrive: null,
+    },
+    baseRev: null,
+  });
   return { home, host, connection };
 }
 

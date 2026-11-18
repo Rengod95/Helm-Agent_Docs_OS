@@ -11,6 +11,7 @@ import type { NoticePort } from "../../src/ports/notices.ts";
 import type { ShellFailure, ShellPort } from "../../src/ports/shell.ts";
 import type { StatusPublisher } from "../../src/ports/session.ts";
 import { readDialogSettings } from "../../src/settings.ts";
+import { dialogCore } from "@fresnel/core-tools";
 import { manualTimers, type ManualTimers, type RealApprovals } from "@fresnel/core-tools/testing";
 import { memoryCommandFiles, type MemoryCommandFiles } from "./memory-command-files.ts";
 
@@ -179,6 +180,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     logger: recordingLogger(lines),
     timers,
     settings: () => readDialogSettings(layers),
+    core: dialogCore,
     approvals: approvals?.factory,
     interactive: options.interactive ?? (() => true),
     shell,

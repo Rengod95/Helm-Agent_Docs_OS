@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   OVERLAY_LIMIT,
   wireError,
+  type ProfileIssue,
   type TestRunStartResult,
   type WireHandler,
 } from "@fresnel/contracts/wire";
@@ -43,8 +44,29 @@ export function createTestRunHandlers(
         threadId: undefined,
       });
       if (!checked.ok) throw wireErrorOfProfile(checked.error);
-      const errors = checked.value.issues.filter((issue) => issue.severity === "error");
+      // 기본 프로필이 처음 주는 플러그인 가운데 설치돼 있지 않은 것(사용자가 지움)은 건너뛰고 시작한다. 건너뛴 이름은 결과에 싣는다.
+      // 그 밖의 오류(저장된 프로필이 없는 플러그인을 가리키는 경우 포함)는 그대로 `profile.invalid`다
+      const firstGiven =
+        baseProfileId === DEFAULT_PROFILE_ID
+          ? new Set(profiles.firstGivenPlugins())
+          : new Set<string>();
+      const isSkippable = (issue: ProfileIssue): boolean =>
+        issue.code === "plugin_unknown" &&
+        issue.plugin !== undefined &&
+        firstGiven.has(issue.plugin);
+      const errors = checked.value.issues.filter(
+        (issue) => issue.severity === "error" && !isSkippable(issue),
+      );
       if (errors.length > 0) throw wireErrorOfProfile({ kind: "invalid", issues: errors });
+      const skippedPlugins = [
+        ...new Set(
+          checked.value.issues.flatMap((issue) =>
+            issue.severity === "error" && isSkippable(issue) && issue.plugin !== undefined
+              ? [issue.plugin]
+              : [],
+          ),
+        ),
+      ];
       // 초안은 그 플러그인의 초안 목록에 있어야 한다. 없으면 `draft.notFound`다
       const listings = await Promise.all(
         params.drafts.map(async (draft) => ({
@@ -107,6 +129,7 @@ export function createTestRunHandlers(
           versionId: draftVersionIdOf(mark),
         })),
         runGroupId,
+        skippedPlugins,
       };
     },
   };

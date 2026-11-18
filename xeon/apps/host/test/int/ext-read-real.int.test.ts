@@ -74,6 +74,30 @@ ${
   );
 }
 
+/**
+ * 사용자 위치의 확장은 프로필에 들어 있어야 시작 때 실린다(AGE-49). 공장 기본 프로필의 목록(그룹과 내장 단위 포함)에 이 확장을
+ * 더해 저장한다. 목록 끝에 두므로 기본 실행 순서는 그대로다. 번들에 없는 이름(이 시험 환경의 `helm`)은 저장이 `plugin_unknown`으로
+ * 거절하므로 `ext.list`에 실린 것만 남긴다
+ */
+async function putProbeInDefaultProfile(
+  connection: ReturnType<typeof createHostConnection>,
+): Promise<void> {
+  const { profile } = await connection.request("profile.get", { id: "default" });
+  const listed = new Set(
+    (await connection.request("ext.list", {})).extensions.map((entry) => entry.name),
+  );
+  await connection.request("profile.put", {
+    profile: {
+      id: profile.id,
+      title: profile.title,
+      plugins: [...profile.plugins.filter((ref) => listed.has(ref.name)), { name: PROBE }],
+      settings: profile.settings,
+      startDrive: profile.startDrive,
+    },
+    baseRev: profile.rev,
+  });
+}
+
 async function startReal(options: {
   readonly fail: boolean;
   readonly safeMode?: boolean;
@@ -103,6 +127,7 @@ async function startReal(options: {
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  await putProbeInDefaultProfile(connection);
   return { home, host, connection, group };
 }
 
@@ -124,11 +149,13 @@ realTest(
     const { home, host, connection, group } = await startReal({ fail: false });
     try {
       const groupId = group.module.manifest.name;
+      // 프로필의 사용자 확장은 대화가 쥐어야 실린다(AGE-49). 대화를 하나 열어 두면 확장과 그 Registration이 켜진다
+      await connection.request("thread.create", {});
       const list = await connection.request("ext.list", {});
       const names = new Set(list.extensions.map((entry) => entry.name));
-      expect(
-        ["core-loop", "cap-work", "learning", groupId, PROBE].filter((name) => !names.has(name)),
-      ).toEqual([]);
+      expect(["core-loop", "cap-work", groupId, PROBE].filter((name) => !names.has(name))).toEqual(
+        [],
+      );
       const rows = new Map(list.extensions.map((entry) => [entry.name, entry]));
       expect(rows.get("core-loop")).toMatchObject({
         layer: "L1",
@@ -147,7 +174,7 @@ realTest(
         requestedGrade: "user",
         effectiveGrade: "user",
         status: "enabled",
-        // 켜짐의 출처는 E(T)다(M5c §3.4). 이 확장은 매니페스트 기본이 켜짐이라 공장 기본 프로필에 든다: `profile`
+        // 켜짐의 출처는 E(T)다(M5c §3.4). 이 확장은 startReal이 기본 프로필에 넣었다(AGE-49: 사용자 위치는 프로필에 들어야 실린다): `profile`
         enabledSource: "profile",
         hookCount: 2,
         origin: "user",
@@ -200,25 +227,18 @@ realTest(
       const hooks = await connection.request("hooks.list", {});
       const settle = hooks.hooks.find((row) => row.hook === "boundary.settle.after");
       expect(settle?.fold).toBe("tap");
-      // 실제 등록: 핸들러가 있는 Registration이 디스패치 순서로 먼저, 꺼져 있어 핸들러가 없는 `ext-probe/idle`이 tier 없이 뒤에 온다
+      // 실제 등록: 대화가 열려 같은 확장의 Registration이 모두 켜졌다. 디스패치 순서는 등록 순서다(`ext-probe`가 먼저)
       expect(settle?.order).toEqual([
         { registrationId: PROBE, extension: PROBE, tier: 1, status: "enabled", error: null },
         {
-          registrationId: "learning",
-          extension: "learning",
-          tier: 3,
+          registrationId: `${PROBE}/idle`,
+          extension: PROBE,
+          tier: 1,
           status: "enabled",
           error: null,
         },
-        {
-          registrationId: `${PROBE}/idle`,
-          extension: PROBE,
-          tier: null,
-          status: "disabled",
-          error: null,
-        },
       ]);
-      expect(settle?.registrations).toEqual(["ext-probe", "learning"]);
+      expect(settle?.registrations).toEqual(["ext-probe", "ext-probe/idle"]);
       expect(settle?.handlers).toBe(2);
 
       const health = await connection.request("ext.health", { name: PROBE });
@@ -275,7 +295,6 @@ realTest(
         // 제작 그룹(`authoring`)은 내장이고 기본 켜짐이다. 가이드 그룹(`guide`)은 내장이고 기본 꺼짐이다([결정: 2026-11-13 사용자])
         ["authoring", true, "enabled"],
         ["guide", false, "disabled"],
-        ["learning", false, "enabled"],
         [groupId, true, "enabled"],
       ]);
 

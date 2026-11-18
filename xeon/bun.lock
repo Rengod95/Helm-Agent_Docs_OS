@@ -108,7 +108,6 @@
         "@fresnel/group-account-rotation": "workspace:*",
         "@fresnel/group-guide": "workspace:*",
         "@fresnel/group-helm": "workspace:*",
-        "@fresnel/group-learning": "workspace:*",
         "@fresnel/group-provider-anthropic-oauth": "workspace:*",
         "@fresnel/group-sdk": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
@@ -179,11 +178,11 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-tools": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
+        "@fresnel/core-tools": "workspace:*",
         "@types/bun": "catalog:",
       },
     },
@@ -266,12 +265,12 @@
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
         "@fresnel/core-tools": "workspace:*",
+        "@fresnel/core-workspace": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
         "@types/bun": "catalog:",
       },
