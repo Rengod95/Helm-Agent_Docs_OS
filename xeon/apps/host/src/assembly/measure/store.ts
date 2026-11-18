@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { Database, type Statement } from "bun:sqlite";
 import { randomBytes } from "node:crypto";
 import { attempt, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import {
@@ -76,7 +76,8 @@ import {
 // 턴 기록의 보존은 턴 시작 시각 기준이고, 지난 턴의 하위 행은 `tr_daily`로 접은 뒤 지운다(같은 트랜잭션, `prune`).
 // 예외는 표시(`tr_mark`)다. 사용자 입력이라 보존 기간을 따르지 않고, 대화를 지울 때(`forgetThread`)만 지운다.
 // 백분위는 SQLite에 함수가 없어 원본 행을 정렬해서 계산한다(`percentile`). 보존 기간을 넘긴 날의 백분위는 집계(개수, 합, 최소, 최대)만 남는다.
-// 쓰기는 호출자가 모아서 `writeBatch`(측정 행)나 `writeStep`(턴 기록의 한 단계)으로 한 번에 한다(Turn 경계). 이 파일은 읽기와 쓰기만 하고 켬·끔 판단은 `recorder.ts`가 한다.
+// 쓰기는 호출자가 모아서 `writeBatch`(측정 행)나 `writeStep`(턴 기록의 한 단계)으로 한 번에 한다(Turn 경계).
+// 쓰기 묶음 하나를 커밋 하나로 만들려면 `batch`로 감싼다(안의 쓰기는 저장점이 된다). 이 파일은 읽기와 쓰기만 하고 켬·끔 판단은 `recorder.ts`가 한다.
 
 /** 원본 보관 기본 일수. 사용자가 설정에서 바꿀 수 있다 [결정: 2026-11-03 사용자] */
 export const DEFAULT_RETENTION_DAYS = 30;
@@ -140,6 +141,11 @@ interface TrTurnPage {
 export interface MeasureStore {
   /** 한 묶음을 한 트랜잭션으로 쓴다. 빈 묶음은 아무것도 하지 않는다 */
   writeBatch(records: readonly MeasureRecord[]): Result<number, MeasureStoreError>;
+  /**
+   * `work`를 한 트랜잭션으로 돌린다. 안에서 부르는 쓰기 메서드는 저장점이 되어 이 트랜잭션에 든다.
+   * `work`가 던지면 안의 쓰기를 모두 되돌리고 `io` 오류 값을 돌려준다(던지지 않는다). 쓰기 묶음 하나를 커밋 하나로 만들 때 쓴다.
+   */
+  batch(work: () => void): Result<void, MeasureStoreError>;
   /**
    * `now` 기준 `retentionDays`보다 오래된 원본을 일별 집계로 접고 지운다. 접기와 지우기는 한 트랜잭션이다. 지운 원본(`measure_raw`) 수를 돌려준다.
    * 턴 기록이 쓸 수 있으면 같은 트랜잭션에서 턴 시작이 `retentionDays`보다 오래된 `tr_*` 턴을 `tr_daily`로 접고 그 턴의 하위 행을 지운다. 표시(`tr_mark`)는 지우지 않는다.
@@ -370,13 +376,43 @@ function upgradeTurnRecord(db: Database): boolean {
   return upgraded.ok && upgraded.value;
 }
 
+/**
+ * 쓰기 문장의 준비본 캐시. bun의 `db.query` 캐시는 스무 개 안팎만 쥐고 밀어내므로(이 저장소는 그보다 많은 문장을 쓴다) 저장소가 따로 쥔다.
+ * 같은 SQL 글자면 같은 준비본을 주고, 닫을 때 모두 닫는다
+ */
+interface Statements {
+  of(sql: string): Statement;
+  finalizeAll(): void;
+}
+
+function statementsOf(db: Database): Statements {
+  const cached = new Map<string, Statement>();
+  return {
+    of(sql) {
+      const known = cached.get(sql);
+      if (known !== undefined) return known;
+      const statement = db.prepare(sql);
+      cached.set(sql, statement);
+      return statement;
+    },
+    finalizeAll() {
+      for (const statement of cached.values()) statement.finalize();
+      cached.clear();
+    },
+  };
+}
+
 /** 파일 경로(또는 `:memory:`)로 측정 저장소를 연다. 턴 기록 테이블 마이그레이션이 실패해도 열기는 성공한다 */
 export function openMeasureStore(path: string): Result<MeasureStore, MeasureStoreError> {
   const opened = attempt(() => new Database(path, { create: true }));
   if (!opened.ok) return err({ kind: "io", cause: opened.error.cause });
   const db = opened.value;
+  const statements = statementsOf(db);
   const base = attempt(() => {
     db.run("PRAGMA journal_mode = WAL");
+    // WAL에서 NORMAL은 커밋마다 fsync하지 않고 체크포인트 때만 한다. 프로세스가 죽어도 커밋한 쓰기는 남고, 전원이 끊기면 마지막 몇 커밋이 사라질 수 있을 뿐 파일은 깨지지 않는다.
+    // 전원이 끊겨 사라진 마지막 턴은 다음 열기 때 `lost`로 읽히는 것으로 충분하다(턴 기록 문서 §11 12번). 쓰기 묶음마다 디스크 동기화를 기다리던 것을 없앤다.
+    db.run("PRAGMA synchronous = NORMAL");
     db.run(SCHEMA);
     if (userVersionOf(db) < 1) db.run("PRAGMA user_version = 1");
   });
@@ -412,7 +448,7 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
     writeBatch: (records) =>
       run(() => {
         if (records.length === 0) return 0;
-        const insert = db.prepare(
+        const insert = statements.of(
           "INSERT INTO measure_raw (at, thread_id, turn_id, kind, metrics, tags) VALUES (?, ?, ?, ?, ?, ?)",
         );
         db.transaction(() => {
@@ -429,11 +465,22 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         })();
         return records.length;
       }),
+    batch: (work) =>
+      run(() => {
+        // 묶음 안의 쓰기는 저장점(중첩 `db.transaction`)이 된다. 저장점의 되돌림 기록은 임시 파일로 나가서 묶음이 몇 배 느려진다(측정).
+        // 묶음 동안만 임시 저장을 메모리에 두고 끝나면 기본값으로 되돌린다. 보존 정리 같은 다른 쓰기는 그대로다
+        db.run("PRAGMA temp_store = MEMORY");
+        try {
+          db.transaction(work)();
+        } finally {
+          db.run("PRAGMA temp_store = DEFAULT");
+        }
+      }),
     prune: (now, retentionDays) =>
       guarded(() => {
         if (retentionDays <= 0) return ok(0);
         const cutoff = now - retentionDays * DAY_MS;
-        return db.transaction(() => pruneInTransaction(db, cutoff, turnRecord))();
+        return db.transaction(() => pruneInTransaction(db, statements, cutoff, turnRecord))();
       }),
     daily: (kind, metric) =>
       run(() => {
@@ -596,7 +643,7 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         );
         return salt === null ? err({ kind: "corrupt" }) : ok(salt);
       }),
-    upsertThread: (row) => turnGuarded(() => ok(upsertAll(db, TR_THREAD, [row]))),
+    upsertThread: (row) => turnGuarded(() => ok(upsertAll(statements, TR_THREAD, [row]))),
     getThread: (threadId) =>
       turnGuarded(() =>
         ok(selectAll(db, "SELECT * FROM tr_thread WHERE thread_id = ?", [threadId], threadOf)[0]),
@@ -617,24 +664,24 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         ok(
           db.transaction(
             () =>
-              upsertAll(db, TR_STEP, [batch.step]) +
-              upsertAll(db, TR_CALL, batch.calls) +
-              upsertAll(db, TR_HOOK, batch.hooks) +
-              upsertAll(db, TR_MATERIAL, batch.materials) +
-              upsertAll(db, TR_TOOLUSE, batch.tooluse) +
-              upsertAll(db, TR_SKILL, batch.skills) +
-              upsertAll(db, TR_PLUGINCALL, batch.plugincalls) +
-              upsertAll(db, TR_CACHE, batch.cache),
+              upsertAll(statements, TR_STEP, [batch.step]) +
+              upsertAll(statements, TR_CALL, batch.calls) +
+              upsertAll(statements, TR_HOOK, batch.hooks) +
+              upsertAll(statements, TR_MATERIAL, batch.materials) +
+              upsertAll(statements, TR_TOOLUSE, batch.tooluse) +
+              upsertAll(statements, TR_SKILL, batch.skills) +
+              upsertAll(statements, TR_PLUGINCALL, batch.plugincalls) +
+              upsertAll(statements, TR_CACHE, batch.cache),
           )(),
         ),
       ),
     writeHooks: (rows) =>
-      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_HOOK, rows))())),
-    upsertTurn: (row) => turnGuarded(() => ok(upsertAll(db, TR_TURN, [row]))),
+      turnGuarded(() => ok(db.transaction(() => upsertAll(statements, TR_HOOK, rows))())),
+    upsertTurn: (row) => turnGuarded(() => ok(upsertAll(statements, TR_TURN, [row]))),
     writeFrames: (rows) =>
-      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_FRAME, rows))())),
+      turnGuarded(() => ok(db.transaction(() => upsertAll(statements, TR_FRAME, rows))())),
     writePluginCalls: (rows) =>
-      turnGuarded(() => ok(db.transaction(() => upsertAll(db, TR_PLUGINCALL, rows))())),
+      turnGuarded(() => ok(db.transaction(() => upsertAll(statements, TR_PLUGINCALL, rows))())),
     readTurn: (threadId, turnId) => turnGuarded(() => ok(readBundle(db, threadId, turnId))),
     listTurns: (query) => turnGuarded<TrTurnPage>(() => listTurnRows(db, query)),
     markLostTurns: () => turnGuarded(() => ok(markOpenTurnsLost(db))),
@@ -650,10 +697,11 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
           })(),
         ),
       ),
-    putMark: (row) => turnGuarded(() => ok(upsertAll(db, TR_MARK, [row]))),
+    putMark: (row) => turnGuarded(() => ok(upsertAll(statements, TR_MARK, [row]))),
     getMarks: (threadId, turnId) =>
       turnGuarded(() => ok(turnChildren(db, "tr_mark", threadId, turnId, "rowid", markOf))),
-    upsertFindingState: (row) => turnGuarded(() => ok(upsertAll(db, TR_FINDING_STATE, [row]))),
+    upsertFindingState: (row) =>
+      turnGuarded(() => ok(upsertAll(statements, TR_FINDING_STATE, [row]))),
     getFindingState: (findingId) =>
       turnGuarded(() =>
         ok(
@@ -683,6 +731,7 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
     close() {
       if (closed) return;
       closed = true;
+      statements.finalizeAll();
       db.close();
     },
   });
@@ -691,8 +740,12 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
 // ---- 턴 기록 보조 -----------------------------------------------------------
 
 /** 행들을 같은 키로 덮어쓰는 INSERT로 쓴다. 쓴 행 수를 돌려준다 */
-function upsertAll<Row>(db: Database, spec: TableSpec<Row>, rows: readonly Row[]): number {
-  const statement = db.query(spec.upsert);
+function upsertAll<Row>(
+  statements: Statements,
+  spec: TableSpec<Row>,
+  rows: readonly Row[],
+): number {
+  const statement = statements.of(spec.upsert);
   for (const row of rows) statement.run(...spec.bind(row));
   return rows.length;
 }
@@ -937,6 +990,7 @@ function deleteTurn(db: Database, threadId: string, turnId: string): void {
 /** `prune`의 본체. 호출자가 트랜잭션으로 감싼다. 접기 계산이 실패하면 아무것도 쓰지 않는다 */
 function pruneInTransaction(
   db: Database,
+  statements: Statements,
   cutoff: number,
   turnRecord: boolean,
 ): Result<number, MeasureStoreError> {
@@ -968,7 +1022,7 @@ function pruneInTransaction(
     }
   }
   db.prepare("DELETE FROM measure_raw WHERE at < ?").run(cutoff);
-  upsertAll(db, TR_DAILY, planned.value.map(dailyRowOf));
+  upsertAll(statements, TR_DAILY, planned.value.map(dailyRowOf));
   for (const turn of oldTurns) deleteTurn(db, turn.threadId, turn.turnId);
   return ok(old.length);
 }

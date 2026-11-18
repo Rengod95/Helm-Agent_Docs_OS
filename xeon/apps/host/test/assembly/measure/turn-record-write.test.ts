@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { Bug, ok, parse, parseJson, type Logger } from "@fresnel/contracts";
+import { Bug, ok, parse, parseJson, type Logger, type LogFields } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   PluginCallTraceEvent,
@@ -17,6 +17,7 @@ import type { UsageRecord } from "@fresnel/contracts/services";
 import { TurnRecordSchema, type FrameMark } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { startMeasurement, type MeasurementDeps } from "../../../src/assembly/measure/recorder.ts";
+import type { MeasureStore } from "../../../src/assembly/measure/store.ts";
 import {
   createTurnRecordEvents,
   type TurnRecordEvent,
@@ -157,6 +158,7 @@ function openHarness(
     readonly testRunsAlwaysOn?: boolean;
     readonly maxTurnBytes?: number;
     readonly pluginSet?: Pick<PluginSetPort, "resolve">;
+    readonly logger?: Logger;
   },
 ): Harness {
   const listeners = new Set<CommitListener>();
@@ -185,7 +187,7 @@ function openHarness(
     },
     ...(options.trace === undefined ? {} : { trace: options.trace }),
     enabled: () => options.enabled,
-    logger,
+    logger: options.logger ?? logger,
     now: () => AT,
     ...(options.events === undefined ? {} : { events: options.events }),
     testRunsAlwaysOn: () => options.testRunsAlwaysOn ?? true,
@@ -1887,6 +1889,162 @@ test("a frame entered before a turn keeps its used counts across turns: the seco
       ["lse_a", { turns: 2, spawns: 0, tokens: 270 }],
     ]);
     harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** 저장소의 `batch` 호출 수. 기록기는 이 저장소 객체의 메서드를 부르므로 같은 객체의 메서드를 바꾸면 보인다 */
+function countBatches(store: MeasureStore): { count: number } {
+  const counted = { count: 0 };
+  const original = store.batch.bind(store);
+  store.batch = (work) => {
+    counted.count += 1;
+    return original(work);
+  };
+  return counted;
+}
+
+/** 경고를 `[사건, 필드]` 짝으로 모으는 로거 */
+function warningsOf(sink: [string, LogFields | undefined][]): Logger {
+  const self: Logger = {
+    debug: () => undefined,
+    info: () => undefined,
+    warn: (event, fields) => {
+      sink.push([event, fields]);
+    },
+    error: () => undefined,
+    child: () => self,
+  };
+  return self;
+}
+
+/**
+ * 한 Turn을 끝까지 흘린다. 시작 뒤 모델 호출 하나, 그다음 단계 끝과 끝을 같은 동기 구간에 커밋한다.
+ * 쓰기는 이 구간 전체에 쌓여 마이크로태스크 한 번에 나간다
+ */
+function commitWholeTurn(harness: Harness): void {
+  harness.commit([event(1, "turn.started", TURN_STARTED)]);
+  harness.meter(usage(STEP));
+  harness.commit([
+    event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP }),
+    event(3, "turn.completed", TURN_COMPLETED),
+  ]);
+}
+
+test("the writes one tick queues are one batch: a turn's start, step and end commit once", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    const store = storeOf(harness.measurement);
+    const counted = countBatches(store);
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(counted.count).toBe(1);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect([bundle.value.turn.status, bundle.value.turn.complete]).toEqual(["completed", true]);
+    expect(
+      bundle.value.steps.map((step) => [step.stepIndex, step.model, step.input, step.output]),
+    ).toEqual([[1, "tape-1", 10, 5]]);
+    const measured = store.turn(THREAD, TURN);
+    if (!measured.ok) throw new Bug("the measure rows must be readable");
+    expect(measured.value.map((row) => row.kind)).toEqual(["call", "turn"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a queued write that throws is logged once, and the writes queued with it still commit", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  const warnings: [string, LogFields | undefined][] = [];
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      trace: trace.port,
+      logger: warningsOf(warnings),
+    });
+    const store = storeOf(harness.measurement);
+    // 턴을 여는 쓰기가 읽는 대화 표지만 처음 한 번 던진다. 나머지 쓰기는 그대로 간다
+    const readThread = store.getThread.bind(store);
+    let failedOnce = false;
+    store.getThread = (threadId) => {
+      if (!failedOnce) {
+        failedOnce = true;
+        throw new Error("thread read broke");
+      }
+      return readThread(threadId);
+    };
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(warnings).toEqual([
+      ["measure.op_failed", { reason: "threw", message: "thread read broke" }],
+    ]);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    expect([bundle.value.turn.status, bundle.value.turn.complete]).toEqual(["completed", true]);
+    expect(
+      bundle.value.steps.map((step) => [step.stepIndex, step.model, step.input, step.output]),
+    ).toEqual([[1, "tape-1", 10, 5]]);
+    const measured = store.turn(THREAD, TURN);
+    if (!measured.ok) throw new Bug("the measure rows must be readable");
+    expect(measured.value.map((row) => row.kind)).toEqual(["call", "turn"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a batch that cannot commit writes nothing, tells no subscriber, and logs the rows it dropped", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  const warnings: [string, LogFields | undefined][] = [];
+  const events = createTurnRecordEvents(logger);
+  const heard: TurnRecordEvent[] = [];
+  events.subscribe((event) => {
+    heard.push(event);
+  });
+  try {
+    const harness = openHarness(dir, {
+      enabled: true,
+      trace: trace.port,
+      events,
+      logger: warningsOf(warnings),
+    });
+    const store = storeOf(harness.measurement);
+    // 묶음의 작업은 모두 돌고 나서 커밋이 실패한다(롤백)
+    const original = store.batch.bind(store);
+    store.batch = (work) =>
+      original(() => {
+        work();
+        throw new Error("the commit failed");
+      });
+    commitWholeTurn(harness);
+    await settle();
+
+    expect(warnings).toEqual([["measure.write_failed", { reason: "io", dropped: 2 }]]);
+    expect(heard).toEqual([]);
+    expect(store.readTurn(THREAD, TURN)).toEqual({ ok: true, value: undefined });
+    expect(store.rawCount()).toEqual({ ok: true, value: 0 });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("stopping with nothing queued opens no batch", () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const trace = traceStub();
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: trace.port });
+    const counted = countBatches(storeOf(harness.measurement));
+    harness.stop();
+    expect(counted.count).toBe(0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

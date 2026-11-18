@@ -27,9 +27,10 @@ import {
 } from "./store.ts";
 import { cacheExpired } from "./turn-context.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "./turn-fit.ts";
-import type { TurnRecordEvents } from "./turn-events.ts";
+import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import { MAX_HOOK_ROWS_PER_TURN } from "./turn-rows.ts";
 import { createTurnWriter } from "./turn-writer.ts";
+import { messageOf } from "../../util.ts";
 
 /** 측정 DB 파일 이름 */
 const MEASURE_DB_FILE_NAME = "measure.db";
@@ -332,6 +333,18 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       queueMicrotask(flush);
     }
   };
+  /** 쓰기 묶음 안에서 나온 턴 기록 사건. 묶음이 커밋된 뒤에 보낸다(롤백된 행을 알리지 않는다). 묶음 밖에서는 바로 보낸다 */
+  let queuedEvents: TurnRecordEvent[] | undefined;
+  const sink = deps.events;
+  const turnEvents: Pick<TurnRecordEvents, "emit"> | undefined =
+    sink === undefined
+      ? undefined
+      : {
+          emit: (event) => {
+            if (queuedEvents === undefined) sink.emit(event);
+            else queuedEvents.push(event);
+          },
+        };
   const turns = deps.turnRecords
     ? createTurnWriter({
         store: deps.store,
@@ -340,7 +353,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
         enabled: deps.enabled,
         logger: deps.logger,
         queue: enqueueOp,
-        ...(deps.events === undefined ? {} : { events: deps.events }),
+        ...(turnEvents === undefined ? {} : { events: turnEvents }),
         maxTurnBytes: deps.maxTurnBytes,
         testRunsAlwaysOn: deps.testRunsAlwaysOn,
       })
@@ -392,22 +405,52 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     callsByTurn.set(call.turnId, known);
   });
 
+  /**
+   * 묶음 하나를 커밋 하나로 쓴다: 쌓인 작업을 차례로 돌리고 측정 행을 쓴다. 작업이 던지면 그 작업만 로그에 남기고 나머지는 계속 쓴다.
+   * 묶음이 롤백되면 그 안에서 나온 턴 기록 사건은 보내지 않는다. 보존 정리는 묶음 밖에서 한다.
+   */
   function flush(): void {
     scheduled = false;
+    // 쌓인 것이 없으면 트랜잭션도 열지 않는다(`stop`과 `forget`은 쌓인 것이 없어도 부른다)
+    if (pendingOps.length === 0 && pending.length === 0) return;
     const ops = pendingOps;
     pendingOps = [];
-    for (const op of ops) op(deps.store);
-    if (pending.length === 0) return;
-    const batch = pending;
+    const records = pending;
     pending = [];
     pendingBodies = 0;
-    const written = deps.store.writeBatch(batch);
-    if (!written.ok) {
+    const heard: TurnRecordEvent[] = [];
+    queuedEvents = heard;
+    const committed = deps.store.batch(() => {
+      for (const op of ops) {
+        const mark = heard.length;
+        const ran = attempt(() => op(deps.store));
+        if (!ran.ok) {
+          heard.splice(mark);
+          deps.logger.warn("measure.op_failed", {
+            reason: ran.error.kind,
+            message: messageOf(ran.error.cause),
+          });
+        }
+      }
+      if (records.length === 0) return;
+      const written = deps.store.writeBatch(records);
+      if (!written.ok) {
+        deps.logger.warn("measure.write_failed", {
+          reason: written.error.kind,
+          dropped: records.length,
+        });
+      }
+    });
+    queuedEvents = undefined;
+    if (!committed.ok) {
       deps.logger.warn("measure.write_failed", {
-        reason: written.error.kind,
-        dropped: batch.length,
+        reason: committed.error.kind,
+        dropped: records.length,
       });
+    } else if (sink !== undefined) {
+      for (const event of heard) sink.emit(event);
     }
+    if (records.length === 0) return;
     deps.maintain();
   }
 
