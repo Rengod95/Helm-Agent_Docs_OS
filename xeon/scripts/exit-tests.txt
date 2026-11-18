@@ -60,10 +60,9 @@ Y1 apps/desktop test/views/approval-card-mounts.test.tsx
 Y4 apps/host test/int/trace-turn.int.test.ts
 # Y5 packages/client <파일>
 # Y5 apps/desktop test/e2e/frame-isolation.e2e.test.ts
-# Y6 half: the wire doc tables equal the registry; knowledge.memory.read, add, replace and remove run on the real engine. One host int test per method is still not complete:
-# 25 methods are called only by test/handlers (fake ports), not by test/int.
+# Y6: the wire doc tables equal the registry; every wire method runs on the real engine with value-comparing tests (AGE-11, 2026-11-18). Not testable on the real engine: sandbox.selfTest/lastSelfTest sandbox-on path, secret.references settingKeys, profileCost.get (defect found).
 Y6 packages/contracts test/wire-settings/wire.doc.test.ts
-Y6 apps/host test/int/knowledge-memory.int.test.ts
+Y6 apps/host test/int/knowledge-memory.int.test.ts test/int/profile-wire.int.test.ts test/int/project-wire.int.test.ts test/int/blocks-devkit-wire.int.test.ts test/int/plugin-wire.int.test.ts test/int/migration-wire.int.test.ts test/int/ext-devkit-wire.int.test.ts test/int/turn-record-wire.int.test.ts test/int/metrics-findings-wire.int.test.ts test/int/thread-model-export-wire.int.test.ts test/int/settings-trust-wire.int.test.ts test/int/provider-usage-wire.int.test.ts test/int/craft-chat-wire.int.test.ts test/int/remote-wire.int.test.ts test/int/secret-wire.int.test.ts test/int/sandbox-wire.int.test.ts test/handlers/profile-common-get.test.ts test/handlers/plugin-draft-list.test.ts test/handlers/turn-record-read.test.ts test/handlers/metrics-read.test.ts
 # Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run. Missing: replayDrive on a group that asks.
 Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
 Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
