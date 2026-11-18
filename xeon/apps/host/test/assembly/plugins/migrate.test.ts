@@ -1,16 +1,29 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmdirSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { ok, parseJson, type Logger } from "@fresnel/contracts";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
 import { createExtUiVersionPort } from "../../../src/assembly/m4/ext-ui-version-port.ts";
 import type { ExtUiVersionSource } from "../../../src/assembly/m4/ext-ui-version-source.ts";
 import {
+  buildPluginCard,
   createPluginReview,
   createPluginService,
   createPluginStore,
+  currentTreePathSync,
   readPluginFolder,
   reviewStartupPlugins,
+  type PluginFolder,
+  type PluginReviewMeta,
   type PluginStore,
 } from "../../../src/assembly/plugins/index.ts";
 import { partial } from "../../fixtures/unsafe.ts";
@@ -537,4 +550,151 @@ test("a plugin read from the legacy extensions folder is named in the diagnostic
     diagnostics.ok &&
       diagnostics.value.filter((item) => item.code === "legacy_location").map((item) => item.dir),
   ).toEqual([join(rig.installedDir, "kit")]);
+});
+
+// AGE-41: 옛 배치의 프로젝트 검토본(이름 키 폴더 안)을 `<projectId>~<이름>` 폴더로 옮긴다(`project_review_key`). 두 번째 시작은 아무것도 바꾸지 않는다.
+let sourceSeq = 0;
+
+function hexOf(contentHash: string): string {
+  return contentHash.slice("sha256:".length);
+}
+
+/** 원본 폴더 하나를 스냅샷한다. 내용이 다르면 해시가 다르다 */
+async function snapshotOf(rig: Rig, name: string, body: string) {
+  sourceSeq += 1;
+  const src = join(rig.root, "sources", `${name}-${sourceSeq}`);
+  writeFiles(src, {
+    ".fresnel-plugin/plugin.json": JSON.stringify({ schemaVersion: 2, name, version: "1.0.0" }),
+    "instructions.md": body,
+  });
+  const folder = readPluginFolder(src, { origin: "user" });
+  if (!folder.ok) throw new Error(`fixture folder rejected: ${folder.error.kind}`);
+  const snapshot = await rig.store.snapshotCandidate(src);
+  if (!snapshot.ok) throw new Error(`snapshot failed: ${snapshot.error.kind}`);
+  return { contentHash: snapshot.value.contentHash, folder: folder.value };
+}
+
+/** 검토본 메타. 프로젝트 출처면 카드에 프로젝트 id를 싣는다(`projectId`가 없으면 싣지 않는다) */
+function metaOf(
+  fixture: { readonly contentHash: string; readonly folder: PluginFolder },
+  origin: "user" | "project",
+  projectId: string | undefined,
+  decisionId: string,
+): PluginReviewMeta {
+  const cardOrigin = projectId === undefined ? { kind: origin } : { kind: origin, projectId };
+  return {
+    name: fixture.folder.name,
+    version: "1.0.0",
+    contentHash: fixture.contentHash,
+    approvedAt: NOW,
+    decisionId,
+    origin,
+    inferredManifest: fixture.folder.inferred,
+    card: buildPluginCard({
+      folder: fixture.folder,
+      origin: cardOrigin,
+      review: {
+        state: "approved",
+        currentHash: fixture.contentHash,
+        pendingItemId: null,
+        approvedAt: NOW,
+      },
+      usedBy: [],
+      health: { state: "idle", lastActiveAt: null, lastError: null },
+    }),
+  };
+}
+
+/** 저장소의 모든 파일 경로(정렬)와 옮김 기록 파일의 글. 두 번째 시작 뒤에 같은지 본다 */
+function storeStateOf(rig: Rig): { readonly files: readonly string[]; readonly log: string } {
+  const reviewed = join(rig.root, "plugin-store", "reviewed");
+  return {
+    files: readdirSync(reviewed, { recursive: true }).map(String).toSorted(),
+    log: readFileSync(rig.logPath, "utf8"),
+  };
+}
+
+test("a project copy filed under its plain name moves to its project key; a second start changes nothing", async () => {
+  const rig = rigOf();
+  const storeRoot = join(rig.root, "plugin-store");
+  const reviewed = join(storeRoot, "reviewed");
+  // 옛 배치 만들기: 프로젝트 검토본 A(current, 프로젝트 id 있음)와 사용자 검토본 B, 프로젝트 id 없는 프로젝트 검토본 C를 `kit/` 아래에 둔다
+  const a = await snapshotOf(rig, "kit", "Project A rule.");
+  const b = await snapshotOf(rig, "kit", "User rule.");
+  const c = await snapshotOf(rig, "kit", "Legacy rule.");
+  mkdirSync(join(reviewed, "kit"), { recursive: true });
+
+  expect(
+    (await rig.store.promote(a.contentHash, metaOf(a, "project", "prj_x", "project:aaaa0001"))).ok,
+  ).toBe(true);
+  renameSync(
+    join(reviewed, "prj_x~kit", hexOf(a.contentHash)),
+    join(reviewed, "kit", hexOf(a.contentHash)),
+  );
+  rmdirSync(join(reviewed, "prj_x~kit"));
+  writeFileSync(join(reviewed, "kit", "current"), `${hexOf(a.contentHash)}\n`);
+
+  expect(
+    (await rig.store.promote(b.contentHash, metaOf(b, "user", undefined, "user:bbbb0002"))).ok,
+  ).toBe(true);
+
+  // 프로젝트 id 없는 옛 줄: 후보 트리를 이름 키 폴더로 옮기고, 카드에 프로젝트 id가 없는 메타를 쓴다
+  const candidate = rig.store.candidateTree(c.contentHash);
+  if (!candidate.ok) throw new Error("candidate of the fixture is missing");
+  mkdirSync(join(reviewed, "kit", hexOf(c.contentHash)), { recursive: true });
+  renameSync(candidate.value, join(reviewed, "kit", hexOf(c.contentHash), "tree"));
+  writeFileSync(
+    join(reviewed, "kit", hexOf(c.contentHash), "meta.json"),
+    `${JSON.stringify(metaOf(c, "project", undefined, "project:cccc0003"), null, 2)}\n`,
+  );
+
+  // 옮기기 전: 이름 키의 current는 프로젝트 검토본이라 재료로는 읽히지 않는다(출처가 키와 다르다)
+  expect(currentTreePathSync(storeRoot, "kit")).toEqual({ ok: true, value: null });
+
+  await startup(rig);
+
+  expect(existsSync(join(reviewed, "prj_x~kit", hexOf(a.contentHash), "meta.json"))).toBe(true);
+  expect(existsSync(join(reviewed, "kit", hexOf(a.contentHash)))).toBe(false);
+  expect(readFileSync(join(reviewed, "prj_x~kit", "current"), "utf8").trim()).toBe(
+    hexOf(a.contentHash),
+  );
+  expect(existsSync(join(reviewed, "kit", "current"))).toBe(false);
+  // 사용자 검토본과 프로젝트 id 없는 것은 그대로 남는다
+  expect(existsSync(join(reviewed, "kit", hexOf(b.contentHash), "meta.json"))).toBe(true);
+  expect(existsSync(join(reviewed, "kit", hexOf(c.contentHash), "meta.json"))).toBe(true);
+  expect(await rig.store.current("prj_x/kit")).toMatchObject({
+    ok: true,
+    value: { contentHash: a.contentHash },
+  });
+  expect(await rig.store.current("kit")).toEqual({ ok: true, value: null });
+
+  const migrated = logLinesOf(rig.logPath)
+    .filter(
+      (
+        line,
+      ): line is {
+        step: string;
+        name: string;
+        outcome: string;
+        contentHash: string;
+        reason: string | null;
+      } =>
+        typeof line === "object" &&
+        line !== null &&
+        "step" in line &&
+        line.step === "project_review_key",
+    )
+    .map((line) => JSON.stringify([line.name, line.outcome, line.contentHash, line.reason]))
+    .toSorted();
+  expect(migrated).toEqual(
+    [
+      JSON.stringify(["prj_x/kit", "migrated", a.contentHash, null]),
+      JSON.stringify(["kit", "skipped", c.contentHash, "no_project_id"]),
+    ].toSorted(),
+  );
+
+  // 두 번째 시작: 파일도 기록도 그대로다(같은 줄을 다시 적지 않는다)
+  const before = storeStateOf(rig);
+  await startup(rig, [], "2026-11-18T09:00:00.000Z");
+  expect(storeStateOf(rig)).toEqual(before);
 });

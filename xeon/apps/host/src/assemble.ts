@@ -168,6 +168,7 @@ import {
   createReviewedSource,
   currentTreePathSync,
   readPluginFolder,
+  reviewKeyOf,
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import {
@@ -182,6 +183,7 @@ import { pluginFactOf } from "./assembly/m4/plugin-fact.ts";
 import { COMMON_ID } from "./assembly/m4/plugin-edit.ts";
 import { observeStops } from "./assembly/m4/plugin-set.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
+import { createStartupProjectIdOf } from "./assembly/m4/startup-project-id.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
 import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
@@ -1054,6 +1056,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ? undefined
         : portsHandle?.ports.m4.project.rootOfWorkspace(workspace);
     };
+    // 대화의 프로젝트 id(AGE-41). 프로젝트 출처 검토본을 고를 때 쓴다. 작업 폴더가 없거나 포트가 아직 없으면 없다
+    const projectIdOfThread = (threadId: ThreadId): string | undefined => {
+      const workspace = workspaceOf(threadId);
+      return workspace === undefined
+        ? undefined
+        : portsHandle?.ports.m4.project.projectIdOfWorkspace(workspace);
+    };
     const commands: CommandRegistryHolder = {
       current: undefined,
       api: undefined,
@@ -1369,6 +1378,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reviewedSource: createReviewedSource(pluginStore, os.logger("plugin-store")),
         cwd: process.cwd(),
         projects: options.mode === "service" ? "on_demand" : "cwd",
+        // 시작 때 cwd 프로젝트의 id. 포트가 아직 없어서 `projects.json`과 기본 폴더 설정에서 계산한다(AGE-41)
+        projectIdOf: createStartupProjectIdOf({
+          configDir: os.dirs.config,
+          dataDir: os.dirs.data,
+          fileLock: osHandle.fileLock,
+          clock,
+          signal: lifetime.signal,
+          settingValue: (key) => settings.value(key),
+          logger: os.logger("project-ext"),
+        }),
         // 시작 때 싣는 기본 집합: 공장 기본 프로필의 번들 이름. 그 밖의 `defaultEnabled: false` 외부 확장은 대화가 쓸 때 싣는다
         defaultNames: defaultPluginNames,
         signal: lifetime.signal,
@@ -1614,6 +1633,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         trust: projectTrust,
         logger: os.logger("project-ext"),
         signal: lifetime.signal,
+        projectIdOf: (workspace) => portsHandle?.ports.m4.project.projectIdOfWorkspace(workspace),
       }),
       workspaceOf,
       schedule,
@@ -1629,10 +1649,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const materialLog = os.logger("plugin-store");
     materialSlot.port = createMaterialPort({
       pluginSet: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
-      treeOf: (name) => {
-        const tree = currentTreePathSync(pluginStoreRoot, name);
-        if (tree.ok) return tree.value;
-        materialLog.warn("plugin.material.tree_failed", { plugin: name, kind: tree.error.kind });
+      // 사용자·번들 검토본(이름 키)이 먼저다(같은 이름이면 로더가 사용자 것을 싣는다). 없고 대화의 프로젝트가 있으면 그 프로젝트의 검토본이다
+      treeOf: (name, threadId) => {
+        const projectId = projectIdOfThread(threadId);
+        const projectKey =
+          projectId === undefined ? null : reviewKeyOf({ origin: "project", name, projectId });
+        const keys = projectKey !== null && projectKey.ok ? [name, projectKey.value] : [name];
+        for (const key of keys) {
+          const tree = currentTreePathSync(pluginStoreRoot, key);
+          if (!tree.ok) {
+            materialLog.warn("plugin.material.tree_failed", {
+              plugin: name,
+              kind: tree.error.kind,
+            });
+            return null;
+          }
+          if (tree.value !== null) return tree.value;
+        }
         return null;
       },
       // 재료 읽기는 출처를 쓰지 않는다(지침·스킬·에이전트·명령·MCP 정의의 모양은 같다)

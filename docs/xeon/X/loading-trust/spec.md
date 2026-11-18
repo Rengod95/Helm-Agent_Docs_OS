@@ -283,6 +283,11 @@ export interface LoadOptions {
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
+  /**
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다.
+   * 없으면 시작 때 프로젝트 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다(호스트의 `projectIdOf`)
+   */
+  readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
   /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 작업 폴더 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   /**
@@ -303,6 +308,11 @@ export interface LoadProjectOptions {
   readonly prompter?: TrustPrompter;
   /** 호출자가 이미 정한 판정(저장하지 않는다) */
   readonly trustOverride?: boolean;
+  /**
+   * 이 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 없으면 프로젝트 검토본을 하나도 싣지 않는다
+   */
+  readonly projectId?: string;
   readonly signal: AbortSignal;
 }
 
@@ -826,7 +836,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.fresnel-plugin/plugin.json` | `user` |
 | `project` | `<projectRoot>/.fresnel/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `project` |
 
-- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트 파일이 없는 항목은 `ReviewedSourceEntry.manifest`(호스트가 폴더에서 추론해 준 매니페스트)가 있으면 그것으로 싣는다. 엔트리가 없으므로 코드는 돌지 않고 선언한 플러그인마다 등록 하나만 생긴다(§4.4.2). 추론도 없으면 싣지 않는다 [구현: enC3 2026-11-18, `discover.ts`의 `inferredManifest`, `apps/host/src/assembly/plugins/reviewed-source.ts`]. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
+- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트 파일이 없는 항목은 `ReviewedSourceEntry.manifest`(호스트가 폴더에서 추론해 준 매니페스트)가 있으면 그것으로 싣는다. 엔트리가 없으므로 코드는 돌지 않고 선언한 플러그인마다 등록 하나만 생긴다(§4.4.2). 추론도 없으면 싣지 않는다 [구현: enC3 2026-11-18, `discover.ts`의 `inferredManifest`, `apps/host/src/assembly/plugins/reviewed-source.ts`]. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: AGE-41 2026-11-18] 프로젝트 출처 항목은 `ReviewedSourceEntry.projectId`를 싣는다. 로더는 `loadProject`의 `projectId`(또는 `projects: "cwd"`의 `projectIdOf`)와 같은 항목만 싣고, id가 없는 프로젝트 항목은 어느 프로젝트에서도 싣지 않으며 진단 `project_no_id`(경고)를 남긴다. 사용자·번들 항목은 `projectId`가 없고 지금처럼 싣는다. 시험은 `packages/ext-host/test/loading-trust/reviewed-source.test.ts`다. [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
 - 외부 확장의 매니페스트는 확장 루트의 `.fresnel-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.

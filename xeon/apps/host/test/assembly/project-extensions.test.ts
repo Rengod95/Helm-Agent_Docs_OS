@@ -17,6 +17,8 @@ import { partial } from "../fixtures/unsafe.ts";
 // 여기서 보는 것은 적재가 도는 신호, 호출자별 거절, 불신 폴더가 아무것도 싣지 않고 묻지도 않는 것이다.
 
 const WORKSPACE = "/work/project";
+/** 작업 폴더의 프로젝트 id(AGE-41). 로더에 그대로 넘어간다 */
+const PROJECT_ID = "prj_one";
 const SILENT: Logger = {
   debug() {},
   info() {},
@@ -74,6 +76,7 @@ test("a caller that leaves does not cancel the load: the other caller gets the r
     loader: () => loader,
     trust: trustWith(() => "allow"),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: host.signal,
   });
   const first = new AbortController();
@@ -107,6 +110,7 @@ test("closing the engine aborts the shared load, and the caller waiting on it ge
     loader: () => loader,
     trust: trustWith(() => "allow"),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: host.signal,
   });
   const caller = new AbortController();
@@ -129,6 +133,7 @@ test("a failed shared load is forgotten, so the next call loads the project agai
     loader: () => loader,
     trust: trustWith(() => "allow"),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: host.signal,
   });
   const caller = new AbortController();
@@ -145,6 +150,7 @@ test("a trusted workspace loads its project once, and the verdict reaches the lo
     loader: () => loader,
     trust: trustWith(() => "allow"),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: host.signal,
   });
 
@@ -163,6 +169,7 @@ test("an undecided or denied workspace loads nothing and asks nothing", async ()
     loader: () => loader,
     trust: trustWith(() => verdict),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: new AbortController().signal,
   });
   const caller = new AbortController();
@@ -182,6 +189,7 @@ test("after the decision is recorded, the next ensure of the workspace loads it"
     loader: () => loader,
     trust: trustWith(() => verdict),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: new AbortController().signal,
   });
   const caller = new AbortController();
@@ -213,6 +221,7 @@ test("concurrent calls for one workspace share a single load, and a later call f
     loader: () => loader,
     trust: trustWith(() => "allow"),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal: new AbortController().signal,
   });
 
@@ -237,6 +246,7 @@ test("with no loader or no workspace, ensure resolves at once without judging tr
     loader: () => undefined,
     trust: partial<ProjectTrust>({}),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal,
   });
   expect(await withoutLoader.ensure(WORKSPACE, signal)).toEqual(undefined);
@@ -246,8 +256,31 @@ test("with no loader or no workspace, ensure resolves at once without judging tr
     loader: () => loader,
     trust: partial<ProjectTrust>({}),
     logger: SILENT,
+    projectIdOf: () => PROJECT_ID,
     signal,
   });
   expect(await withoutWorkspace.ensure(undefined, signal)).toEqual(undefined);
   expect(calls.length).toEqual(0);
+});
+
+// AGE-41: 프로젝트 적재는 작업 폴더의 프로젝트 id를 로더에 넘긴다. 그 id의 프로젝트 검토본만 실린다.
+test("the project load carries the workspace's project id to the loader; without one it carries none", async () => {
+  const { loader, calls } = recordingLoader(async () => LOADED);
+  const withId = createProjectExtensions({
+    loader: () => loader,
+    trust: trustWith(() => "allow"),
+    logger: SILENT,
+    signal: new AbortController().signal,
+    projectIdOf: (workspace) => (workspace === WORKSPACE ? PROJECT_ID : undefined),
+  });
+  await withId.ensure(WORKSPACE, new AbortController().signal);
+  const withoutId = createProjectExtensions({
+    loader: () => loader,
+    trust: trustWith(() => "allow"),
+    logger: SILENT,
+    signal: new AbortController().signal,
+    projectIdOf: () => undefined,
+  });
+  await withoutId.ensure("/work/elsewhere", new AbortController().signal);
+  expect(calls.map((options) => options.projectId)).toEqual([PROJECT_ID, undefined]);
 });

@@ -10,6 +10,7 @@ export * from "./review.ts";
 export * from "./reviewed-source.ts";
 export * from "./service.ts";
 export * from "./store.ts";
+export * from "./review-key.ts";
 export * from "./approval.ts";
 export * from "./invocables.ts";
 export * from "./overlay.ts";

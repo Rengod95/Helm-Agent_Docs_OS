@@ -2,6 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Logger } from "@fresnel/contracts";
+import { buildPluginCard } from "../../../src/assembly/plugins/card.ts";
+import { readPluginFolder } from "../../../src/assembly/plugins/folder-reader.ts";
 import {
   createPluginStore,
   createReviewedSource,
@@ -113,4 +115,49 @@ test("a store that cannot be read gives an empty listing and a logged error, not
   const listing = await createReviewedSource(store, loggerOf(logged)).list();
   expect(listing).toEqual({ entries: [], diagnostics: [] });
   expect(logged.map((line) => line.message)).toEqual(["plugin.store.list_failed"]);
+});
+
+// AGE-41: 프로젝트 출처 검토본은 `projectId`를 싣는다. 같은 이름의 번들 검토본은 싣지 않는다.
+test("a project copy is listed with its project id, and the same name's bundled copy keeps none", async () => {
+  const { root, store } = await approvedStore();
+  const srcDir = join(root, "project-src");
+  writeFiles(srcDir, {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "helm",
+      version: "2.0.0",
+    }),
+  });
+  const folder = readPluginFolder(srcDir, { origin: "project" });
+  if (!folder.ok) throw new Error("fixture folder rejected");
+  const snapshot = await store.snapshotCandidate(srcDir);
+  if (!snapshot.ok) throw new Error("snapshot failed");
+  const contentHash = snapshot.value.contentHash;
+  const approvedAt = "2026-11-18T02:00:00.000Z";
+  const promoted = await store.promote(contentHash, {
+    name: "helm",
+    version: "2.0.0",
+    contentHash,
+    approvedAt,
+    decisionId: "project:ffff0001",
+    origin: "project",
+    inferredManifest: folder.value.inferred,
+    card: buildPluginCard({
+      folder: folder.value,
+      origin: { kind: "project", projectId: "prj_a" },
+      review: { state: "approved", currentHash: contentHash, pendingItemId: null, approvedAt },
+      usedBy: [],
+      health: { state: "idle", lastActiveAt: null, lastError: null },
+    }),
+  });
+  expect(promoted.ok).toBe(true);
+  expect((await store.setCurrent("prj_a/helm", contentHash)).ok).toBe(true);
+  const listing = await createReviewedSource(store, loggerOf([])).list();
+  expect(
+    listing.entries.map((entry) => [entry.name, entry.source, entry.projectId ?? null]),
+  ).toEqual([
+    ["helm", "bundled", null],
+    ["helm", "project", "prj_a"],
+  ]);
+  expect(listing.diagnostics).toEqual([]);
 });

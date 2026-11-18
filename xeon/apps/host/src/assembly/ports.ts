@@ -114,6 +114,8 @@ import {
   type PluginStore,
 } from "./plugins/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
+import { projectIdOf } from "./m4/project-scope.ts";
+import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import {
   PluginSubmitPortKey,
@@ -438,14 +440,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
    * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run 대화는 뺀다). 같은 폴더는 한 번만 준다.
    * 읽지 못한 등록 목록은 빈 목록으로 두고 로그에 남긴다(등록된 루트가 훑이지 않을 뿐 다른 훑기는 계속된다)
    */
-  async function scanRootsOfProjects(): Promise<readonly string[]> {
+  async function scanRootsOfProjects(): Promise<readonly DiscoverProjectRoot[]> {
     const registered = await projects.roots();
     if (!registered.ok) log.error("plugin.scan.roots_failed", { kind: registered.error.kind });
-    const explicit = registered.ok ? registered.value.map((root) => root.root) : [];
-    const opened = allThreadRows().flatMap((row) =>
-      row.testRun || row.status === "closed" || row.workspace === null ? [] : [row.workspace],
+    const scope = registered.ok ? registered.value : [];
+    const explicit: DiscoverProjectRoot[] = scope.map((root) => ({
+      root: root.root,
+      projectId: root.projectId,
+    }));
+    // 닫히지 않은 대화의 작업 폴더는 가장 깊은 루트의 프로젝트에 속한다(없으면 id가 없다)
+    const opened: DiscoverProjectRoot[] = allThreadRows().flatMap((row) =>
+      row.testRun || row.status === "closed" || row.workspace === null
+        ? []
+        : [{ root: row.workspace, projectId: projectIdOf(row.workspace, scope) }],
     );
-    return [...new Set([...explicit, ...opened])];
+    const byRoot = new Map<string, DiscoverProjectRoot>();
+    for (const item of [...explicit, ...opened]) {
+      if (!byRoot.has(item.root)) byRoot.set(item.root, item);
+    }
+    return [...byRoot.values()];
   }
 
   const threads: ThreadPort = {

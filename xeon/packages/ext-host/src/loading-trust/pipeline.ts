@@ -96,6 +96,8 @@ export type LoadDiagnosticCode =
   | "isolation_protocol"
   /** 검토본의 내용 해시가 저장된 값과 다르다. 그 플러그인은 적재하지 않는다(M5c §4.6.5) */
   | "pinned_corrupt"
+  /** 프로젝트 출처 검토본에 프로젝트 id가 없다. 어느 프로젝트에서도 싣지 않는다(M5c §4.7.9, AGE-41) [제안] */
+  | "project_no_id"
   | UiDiagnosticCode;
 
 const IssueSchema: TObject<{

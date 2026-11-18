@@ -10,13 +10,19 @@ import { compareUtf8 } from "./content-hash.ts";
 /** 후보의 출처. 추가 경로(extraPaths)는 사용자 설정이라 `user`다 */
 type PluginLocationOrigin = "user" | "project" | "managed" | "bundled";
 
+/** 프로젝트 루트 하나. `projectId`가 없으면 그 루트의 후보는 프로젝트 출처지만 키를 만들 수 없다(검토하지 않는다) */
+export interface DiscoverProjectRoot {
+  readonly root: string;
+  readonly projectId: string | null;
+}
+
 export interface DiscoverInput {
   /** 사용자 설정 폴더(`OsDirs.config`). 아래 `plugins/`와 기존 `extensions/`를 본다 */
   readonly configDir: string;
   /** 설정이 주는 추가 경로. 각 경로의 하위 폴더가 후보다 */
   readonly extraPaths: readonly string[];
   /** 프로젝트 루트 목록. 신뢰가 허용된 뒤에만 준다. 빈 목록이면 프로젝트 위치를 보지 않는다 */
-  readonly projectRoots: readonly string[];
+  readonly projectRoots: readonly DiscoverProjectRoot[];
   /** 관리 폴더. 아래 `plugins/`를 본다 */
   readonly managedDir: string | null;
   /** 기본 제공 번들 폴더. 아래 하위 폴더가 후보다 */
@@ -29,6 +35,8 @@ interface PluginCandidate {
   readonly dir: string;
   /** 기존 위치다. 읽기만 하고 새로 쓰지 않는다 */
   readonly legacy: boolean;
+  /** 프로젝트 위치의 후보만 가진다. 루트에 프로젝트 id가 없으면 null이다 */
+  readonly projectId: string | null;
 }
 
 type DiscoverDiagnosticCode = "name_conflict" | "outside_root" | "unreadable_entry";
@@ -50,34 +58,51 @@ interface Container {
   readonly legacy: boolean;
   /** 프로젝트 위치면 참. 하위 폴더의 실제 경로가 이 폴더 밖이면 거절한다 */
   readonly bounded: boolean;
+  /** 프로젝트 위치의 프로젝트 id(사용자·관리·번들 위치는 null) */
+  readonly projectId: string | null;
 }
 
 const PeekSchema = Type.Object({ name: Type.String() });
 
 function containersOf(input: DiscoverInput): readonly Container[] {
   const containers: Container[] = [
-    { origin: "user", dir: join(input.configDir, "plugins"), legacy: false, bounded: false },
-    { origin: "user", dir: join(input.configDir, "extensions"), legacy: true, bounded: false },
+    {
+      origin: "user",
+      dir: join(input.configDir, "plugins"),
+      legacy: false,
+      bounded: false,
+      projectId: null,
+    },
+    {
+      origin: "user",
+      dir: join(input.configDir, "extensions"),
+      legacy: true,
+      bounded: false,
+      projectId: null,
+    },
     ...input.extraPaths.map((dir): Container => ({
       origin: "user",
       dir,
       legacy: false,
       bounded: false,
+      projectId: null,
     })),
   ];
-  for (const root of input.projectRoots) {
+  for (const project of input.projectRoots) {
     containers.push(
       {
         origin: "project",
-        dir: join(root, ".fresnel", "plugins"),
+        dir: join(project.root, ".fresnel", "plugins"),
         legacy: false,
         bounded: true,
+        projectId: project.projectId,
       },
       {
         origin: "project",
-        dir: join(root, ".fresnel", "extensions"),
+        dir: join(project.root, ".fresnel", "extensions"),
         legacy: true,
         bounded: true,
+        projectId: project.projectId,
       },
     );
   }
@@ -87,10 +112,17 @@ function containersOf(input: DiscoverInput): readonly Container[] {
       dir: join(input.managedDir, "plugins"),
       legacy: false,
       bounded: false,
+      projectId: null,
     });
   }
   if (input.bundleDir !== null) {
-    containers.push({ origin: "bundled", dir: input.bundleDir, legacy: false, bounded: false });
+    containers.push({
+      origin: "bundled",
+      dir: input.bundleDir,
+      legacy: false,
+      bounded: false,
+      projectId: null,
+    });
   }
   return containers;
 }
@@ -216,7 +248,12 @@ export function discoverPluginFolders(input: DiscoverInput): DiscoverResult {
         continue;
       }
       claimed.set(name, child.dir);
-      candidates.push({ origin: container.origin, dir: child.dir, legacy: container.legacy });
+      candidates.push({
+        origin: container.origin,
+        dir: child.dir,
+        legacy: container.legacy,
+        projectId: container.projectId,
+      });
     }
   }
   return { candidates, diagnostics };

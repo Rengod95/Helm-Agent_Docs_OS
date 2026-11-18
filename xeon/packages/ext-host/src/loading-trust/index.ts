@@ -210,6 +210,11 @@ export interface LoadOptions {
    */
   readonly projects?: "cwd" | "on_demand";
   /**
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id(M5c §4.7.9, AGE-41). 프로젝트 출처 검토본은 이 id가 맞을 때만 싣는다.
+   * 없으면 이 프로젝트의 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다
+   */
+  readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
+  /**
    * 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, X.loading-trust.spec §4.3.4). 없는 값은 기본을 쓴다(앱 켬, 프로젝트 앱 끔).
    * 이 호출의 값을 `loadProject`도 그대로 쓴다. 바뀌면 다음 시작에 적용한다
    */
@@ -232,6 +237,11 @@ export interface LoadProjectOptions {
   readonly prompter?: TrustPrompter;
   /** 호출자가 이미 정한 판정(저장하지 않는다). 서비스 호스트가 클라이언트의 `trust.decide` 결과를 넘길 때 쓴다 */
   readonly trustOverride?: boolean;
+  /**
+   * 이 프로젝트 루트의 프로젝트 id(M5c §4.7.9, AGE-41). 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 없으면 프로젝트 검토본을 하나도 싣지 않는다(그 항목은 진단으로 남는다)
+   */
+  readonly projectId?: string;
   readonly signal: AbortSignal;
 }
 
@@ -322,11 +332,15 @@ export interface LoaderIsolation {
 
 /**
  * 검토본 목록의 항목 하나(M5c §4.6.3). `root`는 검토본 `tree/`이고 실행과 읽기는 이 폴더만 쓴다. 원본 폴더는 읽지 않는다.
- * `source`는 저장소 기록의 출처다(`bundled`는 로더에서 사용자 등급으로 싣는다, §4.6.9)
+ * `source`는 저장소 기록의 출처다(`bundled`는 로더에서 사용자 등급으로 싣는다, §4.6.9).
+ * `projectId`는 프로젝트 출처 항목만 가진다(AGE-41). 같은 이름이라도 프로젝트가 다르면 다른 검토본이고, 로더는 그 프로젝트를 여는 때만 싣는다.
+ * 프로젝트 출처인데 `projectId`가 없으면 어느 프로젝트에서도 싣지 않는다
  */
 export interface ReviewedSourceEntry {
   readonly name: ExtensionName;
   readonly source: "user" | "project" | "bundled";
+  /** 프로젝트 출처 항목의 프로젝트 id. 사용자·번들 항목은 없다 */
+  readonly projectId?: string;
   readonly root: string;
   /** `sha256:<hex>`. 판 식별자 `versionId`가 된다 */
   readonly contentHash: string;
@@ -2119,22 +2133,40 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return result;
   }
 
-  /** 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다 */
+  /**
+   * 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다. 검토본 목록이 있으면 `projectId`가 이 프로젝트인 프로젝트 검토본만 싣는다
+   * (AGE-41). 프로젝트 id가 없는 프로젝트 검토본은 어느 프로젝트에서도 싣지 않고 진단을 남긴다.
+   */
   async function loadProjectCandidates(
     projectRoot: string,
     signal: AbortSignal,
+    projectId: string | undefined,
     defaultNames?: ReadonlySet<string>,
   ): Promise<void> {
     if (deps.reviewedSource !== undefined) {
       // 검토본 목록이 있으면 프로젝트 폴더를 훑지 않는다. 프로젝트 동반은 검토 항목이 승인된 뒤에만 목록에 나타난다(M5c §4.7.9).
-      // 목록은 루트별이 아니다(프로젝트 개념은 enC2 트랙이 맡는다). 이미 실린 이름은 다시 싣지 않는다
+      // 이미 실린 이름은 다시 싣지 않는다. 같은 이름의 다른 프로젝트 검토본은 목록에 있어도 여기서 이름이 겹쳐 건너뛴다
       const listing = await deps.reviewedSource.list();
       diagnosticLog.pushAll(
         listing.diagnostics.filter((item) => item.source === "project").map(reviewedDiagnosticOf),
       );
-      const picks = (await reviewedPicksOf(listing, (source) => source === "project")).filter(
-        (pick) => !records.has(pick.name),
+      const projectEntries = listing.entries.filter((entry) => entry.source === "project");
+      for (const entry of projectEntries) {
+        if (entry.projectId !== undefined) continue;
+        diagnosticLog.push(
+          projectDiagnostic(
+            "project_no_id",
+            "warning",
+            `reviewed project copy ${entry.name} has no project id; it is not loaded`,
+          ),
+        );
+      }
+      const mine = projectEntries.filter(
+        (entry) => entry.projectId !== undefined && entry.projectId === projectId,
       );
+      const picks = (
+        await reviewedPicksOf({ entries: mine, diagnostics: [] }, (source) => source === "project")
+      ).filter((pick) => !records.has(pick.name));
       await processBatch(
         picks.map((pick) => pick.candidate),
         signal,
@@ -2196,7 +2228,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     // (이미 실린 이름은 `loadProjectCandidates`가 건너뛴다). 목록이 없는 조립은 훑기가 중복 이름을 내므로 기억한 루트를 다시 훑지 않는다
     if (alreadyLoaded && deps.reviewedSource === undefined) return finish(trust, true);
     // 실리기 전에 중단되거나 실패하면 기억하지 않는다. 다음 호출이 다시 싣는다
-    await loadProjectCandidates(trust.projectRoot, options.signal);
+    await loadProjectCandidates(trust.projectRoot, options.signal, options.projectId);
     loadedProjects.add(trust.projectRoot);
     for (const record of order) assertNotEssentialFailure(record);
     return finish(trust, alreadyLoaded);
@@ -2273,7 +2305,16 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         projectTrust = await resolveProject(options);
         if (projectTrust?.trusted === true) {
           loadedProjects.add(projectTrust.projectRoot);
-          await loadProjectCandidates(projectTrust.projectRoot, options.signal, defaultNames);
+          const projectId =
+            options.projectIdOf === undefined
+              ? undefined
+              : await options.projectIdOf(projectTrust.projectRoot);
+          await loadProjectCandidates(
+            projectTrust.projectRoot,
+            options.signal,
+            projectId,
+            defaultNames,
+          );
         }
       }
       for (const record of order) assertNotEssentialFailure(record);

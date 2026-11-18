@@ -351,3 +351,124 @@ test("the path functions name drafts and queue items under the store root", () =
   expect(fixture.store.draftDir("dr_1")).toBe(join(fixture.root, "drafts", "dr_1"));
   expect(fixture.store.queueFile("rv_1")).toBe(join(fixture.root, "queue", "rv_1.json"));
 });
+
+// AGE-41: 프로젝트 출처 검토본은 `<projectId>/<이름>` 키로 들어간다. 같은 이름의 사용자 검토본과 섞이지 않는다.
+/** 프로젝트 출처의 메타를 만든다. 카드의 출처에 프로젝트 id를 싣는다 */
+function projectMetaOf(meta: PluginReviewMeta, projectId: string): PluginReviewMeta {
+  return {
+    ...meta,
+    origin: "project",
+    card: { ...meta.card, origin: { kind: "project", projectId } },
+  };
+}
+
+test("a project plugin's reviewed copy sits under its project key, apart from the same name's user copy", async () => {
+  const fixture = fixtureOf();
+  const userHash = await fullApprove(
+    fixture,
+    "User greeter",
+    "2026-11-18T01:00:00.000Z",
+    "user:aaaa0001",
+  );
+  const { contentHash, meta } = await approve(
+    fixture,
+    "Project greeter",
+    "2026-11-18T02:00:00.000Z",
+    "project:bbbb0002",
+  );
+  const promoted = await fixture.store.promote(contentHash, projectMetaOf(meta, "prj_a"));
+  expect(promoted.ok).toBe(true);
+  expect(
+    existsSync(join(fixture.root, "reviewed", `prj_a~greeter`, hexOf(contentHash), "meta.json")),
+  ).toBe(true);
+  // 승격만으로는 current가 바뀌지 않는다. 같은 이름의 사용자 검토본은 그대로다
+  expect(await fixture.store.names()).toEqual({ ok: true, value: ["greeter", "prj_a/greeter"] });
+  expect(await fixture.store.current("greeter")).toMatchObject({
+    ok: true,
+    value: { contentHash: userHash },
+  });
+  expect(await fixture.store.setCurrent("prj_a/greeter", contentHash)).toEqual({
+    ok: true,
+    value: undefined,
+  });
+  const projectCurrent = await fixture.store.current("prj_a/greeter");
+  expect(projectCurrent).toMatchObject({
+    ok: true,
+    value: { contentHash, meta: { origin: "project" } },
+  });
+  expect(await fixture.store.current("greeter")).toMatchObject({
+    ok: true,
+    value: { contentHash: userHash },
+  });
+});
+
+test("a key that is not a safe name or project id is refused before any folder is touched", async () => {
+  const fixture = fixtureOf();
+  const invalid = { ok: false, error: { kind: "invalid_name" } };
+  expect(await fixture.store.current("prj_a/../greeter")).toMatchObject(invalid);
+  expect(await fixture.store.current("prj_a/Bad Name")).toMatchObject(invalid);
+  expect(await fixture.store.current("prj.a/greeter")).toMatchObject(invalid);
+  expect(await fixture.store.current("~greeter")).toMatchObject(invalid);
+  expect(await fixture.store.current("prj_a/greeter/extra")).toMatchObject(invalid);
+  expect(await fixture.store.setCurrent("prj_a/", `sha256:${"a".repeat(64)}`)).toMatchObject(
+    invalid,
+  );
+  expect(existsSync(join(fixture.root, "reviewed"))).toBe(false);
+});
+
+test("a project copy without a project id cannot be promoted under a project key", async () => {
+  const fixture = fixtureOf();
+  const { contentHash, meta } = await approve(
+    fixture,
+    "No id",
+    "2026-11-18T03:00:00.000Z",
+    "project:cccc0003",
+  );
+  // 카드에 프로젝트 id가 없으면 키를 만들 수 없다
+  const promoted = await fixture.store.promote(contentHash, { ...meta, origin: "project" });
+  expect(promoted).toMatchObject({ ok: false, error: { kind: "invalid_name" } });
+});
+
+test("recover keeps a logged project copy and removes an interrupted one under the same name", async () => {
+  const fixture = fixtureOf();
+  const approvedMeta = await approve(
+    fixture,
+    "Logged project",
+    "2026-11-18T02:00:00.000Z",
+    "project:logged01",
+  );
+  expect(
+    (
+      await fixture.store.promote(
+        approvedMeta.contentHash,
+        projectMetaOf(approvedMeta.meta, "prj_a"),
+      )
+    ).ok,
+  ).toBe(true);
+  expect((await fixture.store.setCurrent("prj_a/greeter", approvedMeta.contentHash)).ok).toBe(true);
+  expect(
+    (await fixture.store.appendLog(logEntry("project:logged01", approvedMeta.contentHash))).ok,
+  ).toBe(true);
+
+  // 승인 도중 끊긴 것: 승격만 하고 기록이 없다
+  const interrupted = await approve(
+    fixture,
+    "Interrupted project",
+    "2026-11-18T04:00:00.000Z",
+    "project:lost0004",
+  );
+  expect(
+    (await fixture.store.promote(interrupted.contentHash, projectMetaOf(interrupted.meta, "prj_a")))
+      .ok,
+  ).toBe(true);
+
+  const recovered = await fixture.store.recover();
+  expect(recovered).toEqual({
+    ok: true,
+    value: { removed: [`prj_a/greeter/${hexOf(interrupted.contentHash)}`] },
+  });
+  expect(await fixture.store.current("prj_a/greeter")).toMatchObject({
+    ok: true,
+    value: { contentHash: approvedMeta.contentHash },
+  });
+});

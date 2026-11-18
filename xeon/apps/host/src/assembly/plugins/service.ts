@@ -16,7 +16,7 @@ import type { ExtensionRecord } from "../m4/ext-read-port.ts";
 import { compareUtf8 } from "./content-hash.ts";
 import { addsToolsOf, invocablesOf } from "./invocables.ts";
 import { buildPluginCard, type CardSubject } from "./card.ts";
-import { discoverPluginFolders } from "./discover.ts";
+import { discoverPluginFolders, type DiscoverProjectRoot } from "./discover.ts";
 import {
   readPluginFolder,
   type FolderDiagnostic,
@@ -25,7 +25,8 @@ import {
   type PluginMaterials,
 } from "./folder-reader.ts";
 import type { OverlayTarget } from "./overlay.ts";
-import type { PluginStore, PluginStoreError, ReviewedVersion } from "./store.ts";
+import { reviewKeyOf } from "./review-key.ts";
+import type { PluginStore, PluginStoreError, PluginVersionInfo, ReviewedVersion } from "./store.ts";
 
 // 플러그인 읽기 서비스(M5c §3.4 `plugin.list`, `plugin.get`, `plugin.scan`, §4.5). 원본 폴더와 로드된 레코드와 검토본 저장소에서 카드를 만든다.
 // 카드의 검토 칸과 무결성은 저장소에서 온다. 원본 폴더는 카드의 내용(후보 기준)이고, 원본 해시가 검토본과 다르면 `matchesReviewed`가 거짓이다.
@@ -53,10 +54,10 @@ export interface PluginServiceDeps {
   /** 사용자 설정 폴더(`env.configDir`). 아래 `plugins/`와 기존 `extensions/`를 본다 */
   readonly configDir: string;
   /**
-   * 프로젝트 루트 목록(M5c §4.5.2). 조립이 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더를 준다.
+   * 프로젝트 루트 목록(M5c §4.5.2). 조립이 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더를 준다(프로젝트 id와 함께).
    * 그 폴더의 `.fresnel/plugins`와 `.fresnel/extensions`가 동반 플러그인 후보다. 읽기는 정적이다(코드는 돌지 않는다)
    */
-  readonly projectRoots: () => Promise<readonly string[]>;
+  readonly projectRoots: () => Promise<readonly DiscoverProjectRoot[]>;
   /** 관리 폴더. 조립에 아직 없으면 null */
   readonly managedDir: string | null;
   /** 기본 제공 번들 폴더(`defaultPluginsDir()`). 없으면 null */
@@ -102,6 +103,10 @@ export interface PluginSourceEntry {
   readonly sourceHash: string;
   /** 현재 검토본의 해시. 검토본이 없으면 null */
   readonly reviewedHash: string | null;
+  /** 이 원본의 검토본 키(사용자·번들은 이름, 프로젝트는 `<projectId>/<이름>`). 검토본을 두지 않는 출처와 프로젝트 id가 없으면 null */
+  readonly reviewKey: string | null;
+  /** 프로젝트 출처 원본의 프로젝트 id. 다른 출처는 null이다 */
+  readonly projectId: string | null;
 }
 
 /** 원본 폴더의 훑기 결과. `discoveredNames`는 읽지 못한 폴더도 든 폴더 이름이다(원본이 사라졌는지 가린다) */
@@ -138,6 +143,8 @@ const NO_MATERIALS: PluginMaterials = {
 interface Entry {
   /** 사용처(`usedBy`)를 뺀 카드. 사용처는 읽을 때 채운다 */
   readonly card: PluginCard;
+  /** 검토본 키. 원본과 검토본이 같은 키일 때만 한 항목으로 합친다(같은 이름이라도 다른 프로젝트의 검토본은 합치지 않는다) */
+  readonly reviewKey: string | null;
   /** 폴더 원본 경로. 원본 폴더가 없으면 null */
   readonly source: string | null;
   /** 원본 폴더의 내용 해시. 원본이 없으면 null */
@@ -208,6 +215,32 @@ async function looseSkillFolderNames(dir: string | undefined): Promise<readonly 
     .map((entry) => entry.name);
 }
 
+/** 카드의 출처. 프로젝트 id가 있으면 함께 적는다 */
+function originOfCandidate(kind: PluginOriginKind, projectId: string | null): PluginCard["origin"] {
+  return projectId === null ? { kind } : { kind, projectId };
+}
+
+/**
+ * 원본 폴더 하나의 검토본 키. 사용자·번들은 이름이고 프로젝트는 `<projectId>/<이름>`이다.
+ * 검토본을 두지 않는 출처(내장, 관리)와 프로젝트 id가 없는 프로젝트 폴더는 null이다
+ */
+function reviewKeyOfOrigin(
+  kind: PluginOriginKind,
+  name: string,
+  projectId: string | null,
+): string | null {
+  if (kind !== "user" && kind !== "project" && kind !== "bundled") return null;
+  const key = reviewKeyOf({ origin: kind, name, projectId });
+  return key.ok ? key.value : null;
+}
+
+/** 사용자·번들 키(이름)를 프로젝트 키보다 앞에 둔다. 같은 이름이면 앞의 것이 쥔다(로더의 규칙과 같다) */
+function userFirst(a: string, b: string): number {
+  const aProject = a.includes("/");
+  if (aProject !== b.includes("/")) return aProject ? 1 : -1;
+  return compareUtf8(a, b);
+}
+
 /**
  * 카드 후보를 모은다. 출처 순서는 내장 레코드, 폴더 원본, 검토본 저장소, 나머지 레코드다.
  * 같은 이름은 앞의 것이 쥔다. 폴더 원본이 있는 이름은 원본 폴더가 카드 내용을 주고, 검토본이 있으면 검토 칸과 무결성만 저장소에서 덮는다.
@@ -231,6 +264,7 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
           usedBy: [],
           health: IDLE_HEALTH,
         }),
+        reviewKey: null,
         source: null,
         sourceHash: null,
         reviewedHash: null,
@@ -264,6 +298,14 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
         message: "read from the legacy location; the startup move copies it to the reviewed store",
       });
     }
+    // 프로젝트 id가 없는 프로젝트 폴더는 검토본 키를 만들 수 없어 검토하지 않는다(진단으로만 남긴다)
+    if (candidate.origin === "project" && candidate.projectId === null) {
+      diagnostics.push({
+        code: "project_no_id",
+        dir: candidate.dir,
+        message: "the project root has no project id; its plugin is not reviewed",
+      });
+    }
     const read = readPluginFolder(candidate.dir, { origin: candidate.origin });
     if (!read.ok) {
       for (const item of read.error.diagnostics) {
@@ -280,11 +322,12 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
       {
         card: buildPluginCard({
           folder: read.value,
-          origin: { kind: candidate.origin },
+          origin: originOfCandidate(candidate.origin, candidate.projectId),
           review: NO_REVIEW,
           usedBy: [],
           health: IDLE_HEALTH,
         }),
+        reviewKey: reviewKeyOfOrigin(candidate.origin, read.value.name, candidate.projectId),
         source: candidate.dir,
         sourceHash: read.value.contentHash,
         reviewedHash: null,
@@ -293,23 +336,26 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
     );
   }
 
-  // 검토본 저장소: 원본 폴더가 있는 이름이면 검토 칸과 무결성을 덮고, 없으면 검토본 메타의 카드로 항목을 만든다
-  const names = await deps.store.names();
-  if (!names.ok) return err(storeFailure(names.error));
-  // 이름마다 현재 검토본과 무결성을 읽는다. 서로 독립이라 함께 읽는다
+  // 검토본 저장소: 키마다 현재 검토본과 무결성을 읽는다. 원본 폴더와 키가 같은 검토본은 그 원본의 검토 칸과 무결성을 덮고,
+  // 없으면 검토본 메타의 카드로 항목을 만든다. 사용자·번들 키를 프로젝트 키보다 먼저 본다
+  const keys = await deps.store.names();
+  if (!keys.ok) return err(storeFailure(keys.error));
+  // 키마다 현재 검토본과 무결성을 읽는다. 서로 독립이라 함께 읽는다
   const loaded = await Promise.all(
-    names.value.map(async (name) => {
-      const current = await deps.store.current(name);
-      if (!current.ok || current.value === null) return { name, current, integrity: null };
-      const integrity = await deps.store.verifyIntegrity(name, current.value.contentHash);
-      return { name, current, integrity };
+    keys.value.toSorted(userFirst).map(async (key) => {
+      const current = await deps.store.current(key);
+      if (!current.ok || current.value === null) return { key, current, integrity: null };
+      const integrity = await deps.store.verifyIntegrity(key, current.value.contentHash);
+      return { key, current, integrity };
     }),
   );
   for (const item of loaded) {
-    const name = item.name;
+    const key = item.key;
     if (!item.current.ok) return err(storeFailure(item.current.error));
     const version = item.current.value;
     if (version === null || item.integrity === null) continue;
+    // 카드의 이름은 메타의 이름이다. 키의 프로젝트 부분은 메타의 카드가 가진다
+    const name = version.meta.name;
     const integrity = item.integrity;
     let health: PluginCard["health"] = IDLE_HEALTH;
     if (!integrity.ok) {
@@ -321,20 +367,20 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
       };
       diagnostics.push({
         code: "pinned_corrupt",
-        dir: `reviewed/${name}`,
-        message: `the reviewed copy of ${name} no longer matches its recorded hash`,
+        dir: `reviewed/${key}`,
+        message: `the reviewed copy of ${key} no longer matches its recorded hash`,
       });
     }
     const existing = byName.get(name);
-    if (existing !== undefined) {
-      if (existing.card.origin.kind === "builtin") {
-        diagnostics.push({
-          code: "name_conflict",
-          dir: `reviewed/${name}`,
-          message: `plugin name "${name}" is already claimed`,
-        });
-        continue;
-      }
+    if (existing !== undefined && existing.card.origin.kind === "builtin") {
+      diagnostics.push({
+        code: "name_conflict",
+        dir: `reviewed/${key}`,
+        message: `plugin name "${name}" is already claimed`,
+      });
+      continue;
+    }
+    if (existing !== undefined && existing.reviewKey === key) {
       byName.set(name, {
         ...existing,
         card: { ...existing.card, review: approvedReview(version), health },
@@ -342,16 +388,18 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
       });
       continue;
     }
+    // 원본이 없거나 같은 이름의 다른 키(다른 프로젝트의 검토본)면 이 검토본은 따로 항목이 된다. 이름이 겹치면 `name_conflict`다
     claimInto(
       byName,
       diagnostics,
       {
         card: { ...version.meta.card, review: approvedReview(version), health, usedBy: [] },
+        reviewKey: key,
         source: null,
         sourceHash: null,
         reviewedHash: version.contentHash,
       },
-      `reviewed/${name}`,
+      `reviewed/${key}`,
     );
   }
 
@@ -370,6 +418,7 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
           usedBy: [],
           health: IDLE_HEALTH,
         }),
+        reviewKey: null,
         source: null,
         sourceHash: null,
         reviewedHash: null,
@@ -462,20 +511,20 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
    * 검토본은 적재 때 이미 검사를 거쳤고, 여기서 막으면 목록 전체가 빈다
    */
   async function reviewedFolderOf(
-    name: string,
+    reviewKey: string,
     reviewedHash: string,
     origin: PluginCard["origin"]["kind"],
   ): Promise<Result<PluginFolder | null, PluginPortFailure>> {
-    const key = `${name}\0${reviewedHash}`;
-    let outcome = reviewedReads.get(key);
+    const cacheKey = `${reviewKey}\0${reviewedHash}`;
+    let outcome = reviewedReads.get(cacheKey);
     if (outcome === undefined) {
-      const tree = await deps.store.treePath(name);
+      const tree = await deps.store.treePath(reviewKey);
       if (!tree.ok) return err(storeFailure(tree.error));
       outcome = readPluginFolder(tree.value, { origin });
-      reviewedReads.set(key, outcome);
+      reviewedReads.set(cacheKey, outcome);
     }
     if (!outcome.ok) {
-      deps.log.info("plugin.invocables.unreadable", { name, kind: outcome.error.kind });
+      deps.log.info("plugin.invocables.unreadable", { key: reviewKey, kind: outcome.error.kind });
       return ok(null);
     }
     return ok(outcome.value);
@@ -486,8 +535,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     entry: Entry,
   ): Promise<Result<readonly InvocableEntry[], PluginPortFailure>> {
     const reviewedHash = entry.reviewedHash;
-    if (reviewedHash === null) return ok([]);
-    const folder = await reviewedFolderOf(entry.card.name, reviewedHash, entry.card.origin.kind);
+    const reviewKey = entry.reviewKey;
+    if (reviewedHash === null || reviewKey === null) return ok([]);
+    const folder = await reviewedFolderOf(reviewKey, reviewedHash, entry.card.origin.kind);
     if (!folder.ok) return folder;
     return ok(
       invocablesOf({
@@ -544,9 +594,14 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     if (!listed.ok) return err({ kind: "profiles", failure: listed.error });
     const entries = await entriesOf(entry);
     if (!entries.ok) return entries;
-    const versions = await deps.store.versions(name);
-    if (!versions.ok) return err(storeFailure(versions.error));
-    const shaped: readonly PluginVersion[] = versions.value.map((item) => ({
+    // 검토본을 두지 않는 항목(키가 없다)은 보관 목록이 빈 것이다
+    let listedVersions: readonly PluginVersionInfo[] = [];
+    if (entry.reviewKey !== null) {
+      const versions = await deps.store.versions(entry.reviewKey);
+      if (!versions.ok) return err(storeFailure(versions.error));
+      listedVersions = versions.value;
+    }
+    const shaped: readonly PluginVersion[] = listedVersions.map((item) => ({
       hash: item.contentHash,
       approvedAt: item.approvedAt,
       current: item.current,
@@ -599,6 +654,8 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           origin: entry.card.origin.kind,
           sourceHash: entry.sourceHash,
           reviewedHash: entry.reviewedHash,
+          reviewKey: entry.reviewKey,
+          projectId: entry.card.origin.projectId ?? null,
         });
       }
       return ok({ entries, discoveredNames: read.value.discoveredNames });

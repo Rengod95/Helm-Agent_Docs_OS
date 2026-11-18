@@ -20,6 +20,10 @@ export interface ProjectExtensionsDeps {
   /** 외부 확장 로더. 외부 확장을 싣지 않는 조립(`defaultGroups: false`)이면 아직 없다 */
   readonly loader: () => ExtensionLoader | undefined;
   readonly trust: ProjectTrust;
+  /**
+   * 작업 폴더의 프로젝트 id(AGE-41). 프로젝트 출처 검토본은 이 id가 맞을 때만 싣는다. 정해지지 않았으면 undefined이고 그때는 싣지 않는다
+   */
+  readonly projectIdOf: (workspace: string) => string | undefined;
   readonly logger: Logger;
   /** 엔진 수명 신호. 공유 적재는 이 신호로 돈다: 닫히면 적재를 중단하고, 먼저 부른 호출자가 떠나도 멈추지 않는다 */
   readonly signal: AbortSignal;
@@ -36,11 +40,13 @@ export function createProjectExtensions(deps: ProjectExtensionsDeps): ProjectExt
   ): Promise<void> {
     const trust = await deps.trust.resolve(workspace, signal);
     if (!trust.trusted) return;
+    const projectId = deps.projectIdOf(workspace);
     const report = await loader.loadProject({
       projectRoot: workspace,
       mode: "headless",
       // 판정은 위에서 끝냈다. 같은 결정을 로더에 그대로 넘긴다
       trustOverride: true,
+      ...(projectId === undefined ? {} : { projectId }),
       signal,
     });
     if (report.alreadyLoaded) return;

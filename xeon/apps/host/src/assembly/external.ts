@@ -51,6 +51,8 @@ export interface ExternalLoadingDeps {
   readonly uiPolicy: NonNullable<LoadOptions["uiPolicy"]>;
   /** 서비스 모드는 "on_demand": 시작 때 프로젝트를 싣지 않고 작업 폴더를 여는 때 `loadProject`가 싣는다 */
   readonly projects?: "cwd" | "on_demand";
+  /** cwd 프로젝트의 프로젝트 id(AGE-41). 시작 때 판정한 프로젝트 루트마다 부른다. 없으면 시작 때 프로젝트 검토본을 싣지 않는다 */
+  readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
   /** 공장 기본 프로필의 기본 번들 이름(`defaultPluginNamesFor`). 시작 때 싣는 외부 확장의 기본 집합이다(X.loading-trust §4.3.1 5a 앞) */
   readonly defaultNames?: readonly string[];
   readonly signal: AbortSignal;
@@ -74,7 +76,14 @@ export interface ExternalLoading {
 export function loadAllOptionsOf(
   deps: Pick<
     ExternalLoadingDeps,
-    "cwd" | "extraPaths" | "uiPolicy" | "projects" | "signal" | "startup" | "defaultNames"
+    | "cwd"
+    | "extraPaths"
+    | "uiPolicy"
+    | "projects"
+    | "projectIdOf"
+    | "signal"
+    | "startup"
+    | "defaultNames"
   >,
 ): LoadOptions {
   return {
@@ -85,6 +94,7 @@ export function loadAllOptionsOf(
     extraPaths: deps.extraPaths,
     uiPolicy: deps.uiPolicy,
     ...(deps.projects === undefined ? {} : { projects: deps.projects }),
+    ...(deps.projectIdOf === undefined ? {} : { projectIdOf: deps.projectIdOf }),
     ...(deps.defaultNames === undefined ? {} : { defaultNames: deps.defaultNames }),
     signal: deps.signal,
     ...(deps.startup === undefined ? {} : { startup: deps.startup }),

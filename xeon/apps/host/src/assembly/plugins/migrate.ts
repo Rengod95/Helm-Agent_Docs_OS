@@ -32,7 +32,12 @@ const SKILL_FILE = "SKILL.md";
 
 /** 옮김 결과 한 줄. `migrated`는 검토본에 들어간 것, `skipped`는 옮길 수 없는 이름 따위, `rejected`는 원본 문제로 거절한 것이다 */
 export interface MigrationRecord {
-  readonly step: "installed" | "history" | "loose_skill" | "loose_skill_profile";
+  readonly step:
+    | "installed"
+    | "history"
+    | "loose_skill"
+    | "loose_skill_profile"
+    | "project_review_key";
   readonly name: string;
   readonly outcome: "migrated" | "skipped" | "rejected";
   readonly contentHash: string | null;
