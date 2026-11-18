@@ -162,6 +162,11 @@ export interface ExtensionUnit {
    * 없으면 RegistrationDef.defaultEnabled, 매니페스트 defaultEnabled, true 순으로 정한다(X.primitives.spec §4.5.1)
    */
   readonly initialEnabled?: boolean;
+  /**
+   * 검토본 단위의 내용 해시(`sha256:<hex>`). 있으면 이 단위가 쌓는 Drive 프레임의 `lease.acquired.contentHash`가 된다
+   * (재시작 복원이 검토본과 맞춘다, M5c §4.3.5). 내장과 원본 폴더 탐색 단위는 없다
+   */
+  readonly contentHash?: string;
 }
 
 export interface InstallResult {
@@ -908,6 +913,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         unit: installed,
         manifest,
         loadIndex: unit.loadIndex,
+        contentHash: unit.contentHash ?? null,
         staged,
         resetRefusedState: options?.resetRefusedState === true,
       },
@@ -951,6 +957,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       loadIndex: unit.loadIndex,
       builtin: unit.builtin,
       trust: unit.trust ?? (unit.builtin ? "builtin" : "untrusted"),
+      contentHash: unit.contentHash ?? null,
       scopeIds: [],
     };
     core.units.set(name, installed);

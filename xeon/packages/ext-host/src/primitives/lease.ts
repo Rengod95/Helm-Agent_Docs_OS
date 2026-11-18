@@ -524,6 +524,7 @@ interface FrameInit {
   readonly state: "driving" | "waiting";
   readonly wantInvoke: boolean;
   readonly committed: boolean;
+  readonly restoring: boolean;
 }
 
 function frameOf(init: FrameInit): LeaseRuntime {
@@ -541,6 +542,7 @@ function frameOf(init: FrameInit): LeaseRuntime {
     parent: init.parent,
     depth: init.depth,
     contentHash: init.contentHash,
+    restoring: init.restoring,
     state: init.state,
     asking: false,
     input: init.input,
@@ -574,6 +576,24 @@ interface RunTrack {
 function releaseScope(thread: ThreadRuntime, scopeId: RegistrationId, reason: ReleaseReason): void {
   const index = thread.frames.findIndex((frame) => frame.scopeId === scopeId);
   if (index >= 0) releaseFrom(thread, index, reason);
+}
+
+/**
+ * 복원된 프레임을 아래에서 위로 확인한다. 이 경계의 적용 뒤에도 scope가 켜져 있지 않으면 그 프레임과 위 프레임을 `restart`로 반납한다
+ * (`activating`은 이 경계에서 켜지는 scope다)
+ */
+function verifyRestored(thread: ThreadRuntime, txn: BoundaryTxn): void {
+  for (const frame of thread.frames) {
+    if (!frame.restoring) continue;
+    frame.restoring = false;
+    const alive =
+      thread.active.has(frame.scopeId) ||
+      txn.activating.some((record) => record.id === frame.scopeId);
+    if (!alive) {
+      releaseFrom(thread, thread.frames.indexOf(frame), "restart");
+      return;
+    }
+  }
 }
 
 export function createLeaseBroker(
@@ -1429,7 +1449,9 @@ export function createLeaseBroker(
     });
     // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하). 계통은 새로 연다(lineageId = leaseId)
     const leaseId = draft.id;
-    // 선택 필드는 값이 있을 때만 싣는다(exactOptionalPropertyTypes). versionId 값이 없어 contentHash는 싣지 않는다
+    // 검토본 단위의 판 식별자. 재시작 복원이 검토본과 맞춘다(M5c §4.3.5). 내장과 원본 탐색 단위는 값이 없어 싣지 않는다
+    const contentHash = core.units.get(record.extension)?.contentHash ?? null;
+    // 선택 필드는 값이 있을 때만 싣는다(exactOptionalPropertyTypes)
     txn.drafts.push({
       ...draft,
       payload: {
@@ -1440,6 +1462,7 @@ export function createLeaseBroker(
         leaseEpoch,
         depth,
         ...(parent === null ? {} : { parent: parent.leaseId }),
+        ...(contentHash === null ? {} : { contentHash }),
       },
     });
     txn.grant = frameOf({
@@ -1452,12 +1475,13 @@ export function createLeaseBroker(
       used: { turns: 0, spawns: 0, tokens: 0 },
       parent: parent?.leaseId ?? null,
       depth,
-      contentHash: null,
+      contentHash,
       calledBy: parent === null ? null : (core.scopes.get(parent.scopeId)?.extension ?? null),
       input: request.input,
       state: "driving",
       wantInvoke: true,
       committed: false,
+      restoring: false,
     });
     txn.startRequest = request;
   }
@@ -1579,6 +1603,7 @@ export function createLeaseBroker(
             state: "waiting",
             wantInvoke: false,
             committed: true,
+            restoring: true,
           }),
         );
         thread.leaseEpochs.set(
@@ -1594,15 +1619,16 @@ export function createLeaseBroker(
         top.wantInvoke = true;
       }
       thread.frames.push(...rebuilt);
-      // 죽은 scope(레코드 없음, 꺼짐, 세대 닫힘, stale)의 프레임은 그 프레임과 위 프레임 전부를 restart로 반납한다
+      // 죽은 scope(레코드 없음, 켜지지 않은 채 원하지 않음, 세대 닫힘, stale)의 프레임은 그 프레임과 위 프레임 전부를 restart로 반납한다.
+      // 원하는데 세대가 아직 없는 scope는 이 열기의 첫 적용이 켠다. 켜지지 않으면 `collectReleases`가 확인해 반납한다
       const deadAt = rebuilt.findIndex((frame) => {
         const record = core.scopes.get(frame.scopeId);
-        const alive =
-          record !== undefined &&
-          thread.active.has(frame.scopeId) &&
-          record.generation?.open === true &&
-          !record.generation.stale;
-        return !alive;
+        // 원하는 켜짐은 `wantedBy`와 같다: 이 대화의 요청이 있으면 그것이고, 없으면 등록의 켜기 요청이다
+        if (record === undefined) return true;
+        if (!(thread.want.get(frame.scopeId)?.enabled ?? record.desired)) return true;
+        const generation = record.generation;
+        if (generation === null) return false;
+        return !generation.open || generation.stale;
       });
       if (deadAt >= 0) releaseFrom(thread, deadAt, "restart");
     },
@@ -1613,6 +1639,8 @@ export function createLeaseBroker(
       releaseScope(thread, scopeId, reason);
     },
     collectReleases(thread, txn) {
+      // 재시작 뒤 복원된 프레임은 이 경계가 scope를 적용한 뒤에 확인한다(`turn_settled`는 적용하지 않는다)
+      if (txn.signal.kind !== "turn_settled") verifyRestored(thread, txn);
       if (txn.signal.kind === "turn_settled") {
         // 사용자 중단이면 스택 전체를 내리고 시작 요청을 비운다. 사용자의 다음 명령이 정착할 때까지 프로필·맡기기 시작을 막는다
         thread.userStopped = txn.signal.userInterrupted === true;
@@ -1743,7 +1771,16 @@ export function createLeaseBroker(
       }
       // 사용자가 다시 명령하면 멈춤을 푼다
       if (trigger === "user") thread.userStopped = false;
-      thread.startQueue.push({ scopeId, trigger, input, parentLeaseId: null });
+      // 같은 scope와 같은 계기, 같은 입력의 요청이 이미 큐에 있으면 하나로 본다. 입력이 연달아 와도 시작은 한 번만 부여된다
+      // (테스트 대화의 상주 시작 Drive가 입력마다 요청한다, M5c §4.8.6)
+      const queued = thread.startQueue.some(
+        (item) =>
+          item.scopeId === scopeId &&
+          item.trigger === trigger &&
+          item.parentLeaseId === null &&
+          item.input === input,
+      );
+      if (!queued) thread.startQueue.push({ scopeId, trigger, input, parentLeaseId: null });
       // 주도 중에 온 사용자 명령: 질문 대기나 실행 밖이면 지금 스택을 바꾸고, 실행 중이면 단계 경계에서 바꾼다(switch-policy.ts)
       const top = topFrame(thread);
       if (trigger === "user" && top !== null && top.status === "active") {

@@ -200,6 +200,11 @@ export interface LeaseRuntime {
   readonly depth: number;
   /** 그 프레임을 낸 플러그인의 versionId(`lease.acquired.contentHash`). 기록에 없으면 null */
   readonly contentHash: string | null;
+  /**
+   * 재시작 뒤 `restore`가 세운 프레임이고 아직 scope가 살아 있는지 확인하지 않았다. 원하는데 세대가 없던 scope는 첫 적용이 켠다.
+   * 그 적용이 scope를 켜지 못했으면 첫 경계의 `collectReleases`가 `restart`로 반납한다
+   */
+  restoring: boolean;
   /** driving: 주도 중(맨 위). waiting: 맡긴 위 프레임을 기다리는 중이다. 기다리는 프레임은 단계 함수를 부르지 않는다 */
   state: "driving" | "waiting";
   /** 질문 대기 중이다. 임대는 반납하지 않으므로 상태만 바뀐다(drive-isolation.md 2.1) */
@@ -375,6 +380,8 @@ export interface InstalledUnit {
   readonly builtin: boolean;
   /** 단위 교체는 신뢰 등급을 바꾸지 못하므로(loading-trust 재읽기 3단계) 설치 때 정한 값이 끝까지 간다 */
   readonly trust: TrustRequest["level"];
+  /** 지금 실행 중인 검토본의 내용 해시. 검토본이 아니면 null. 교체 적용 때 새 값으로 바뀐다 */
+  contentHash: string | null;
   readonly scopeIds: RegistrationId[];
 }
 

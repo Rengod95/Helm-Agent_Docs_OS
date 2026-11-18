@@ -281,6 +281,7 @@ export function unitOfExternal(
   loadIndex: number,
   initialEnabled: boolean | undefined,
   trust: TrustRequest["level"],
+  contentHash?: string,
 ): ExtensionUnit {
   return {
     manifest,
@@ -289,5 +290,6 @@ export function unitOfExternal(
     builtin: false,
     trust,
     ...(initialEnabled === undefined ? {} : { initialEnabled }),
+    ...(contentHash === undefined ? {} : { contentHash }),
   };
 }

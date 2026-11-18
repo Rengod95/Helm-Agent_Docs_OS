@@ -157,6 +157,8 @@ export interface SwapPlan {
   readonly unit: InstalledUnit;
   readonly manifest: RegistrationDefinition["manifest"];
   readonly loadIndex: number;
+  /** 새 판의 내용 해시(검토본이면). 적용 때 단위에 옮긴다(`lease.acquired.contentHash`의 원천) */
+  readonly contentHash: string | null;
   /** 새 버전의 scope, 엔트리가 `register`한 순서 */
   readonly staged: readonly StagedScope[];
   /** 참이면 새 버전이 저장된 상태를 받지 못할 때 그 상태를 `initial`로 다시 쓴다(되돌리기 `clearState`) */
@@ -657,6 +659,7 @@ export function createRegistrationRuntime(
     });
     unit.manifest = plan.manifest;
     unit.loadIndex = plan.loadIndex;
+    unit.contentHash = plan.contentHash;
     for (const item of plan.staged) {
       const record = core.scopes.get(item.id);
       if (record === undefined) continue;

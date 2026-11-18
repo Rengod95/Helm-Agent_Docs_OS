@@ -231,8 +231,17 @@ function applyPluginSet(
   const updated = previous === null ? [] : updatedOf(previous, view);
   const liveOverlay = view.overlay ?? [];
   const previousOverlay = previous?.overlay ?? [];
+  // 첫 경계(열기)에 이미 스택에 든 프레임의 덧씌우기는 재시작 복원이다. 이전 실행이 켠 것이 활성 기록이므로 `overlay_on`을 다시 남기지 않는다
+  const restoredFrames = new Set(
+    thread.frames.flatMap((frame) => {
+      const extension = core.scopes.get(frame.scopeId)?.extension;
+      return extension === undefined ? [] : [extension];
+    }),
+  );
   const overlayOn = liveOverlay.filter(
-    (item) => !previousOverlay.some((old) => old.plugin === item.plugin),
+    (item) =>
+      !previousOverlay.some((old) => old.plugin === item.plugin) &&
+      (previous !== null || !restoredFrames.has(item.plugin)),
   );
   const overlayOff = previousOverlay.filter(
     (item) => !liveOverlay.some((now) => now.plugin === item.plugin),
