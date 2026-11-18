@@ -673,7 +673,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           : [{ type: "text", text: chain.value.text }, ...images],
     };
     // 단계 함수가 주도 중이면 사용자 메시지는 그쪽 다음 단계로 간다. 기다리는 명령(turn, spawn)이 있어도 입력은 쌓이지 않는다
-    if (deps.ext.claimUserInput(request.threadId, item)) {
+    if (await deps.ext.claimUserInput(request.threadId, item, requestId)) {
       if (request.requestId !== undefined) {
         const claimed = claimedRequests.get(request.threadId) ?? [];
         claimed.push(request.requestId);
