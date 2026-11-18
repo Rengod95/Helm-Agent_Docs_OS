@@ -70,8 +70,18 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
           (cause) => deps.log.error("plugin.review.reflect_failed", { name, cause: String(cause) }),
         );
       }
+    } else if (record === undefined) {
+      // 기록이 없는 새 이름은 코드를 싣지 않는다. 승인은 적재가 아니다(§4.1.11): 검토본을 검증해 꺼진 기록만 남기고(`deferStart`),
+      // 처음 어느 대화의 프로필이나 덧씌우기에 들 때 `ensureLoaded`가 싣는다. 기록이 있어야 목록과 프로필 검사가 이 이름을 안다
+      const recorded = await loader.loadInstalled(name, new AbortController().signal, {
+        deferStart: true,
+      });
+      const deferred =
+        !recorded.ok && recorded.error.kind === "not_active" && recorded.error.state === "disabled";
+      if (!recorded.ok && !deferred) {
+        deps.log.warn("plugin.review.load_skipped", { name, kind: recorded.error.kind });
+      }
     }
-    // 기록이 없는 새 이름은 지금 싣지 않는다. 승인은 적재가 아니다(§4.1.11): 처음 어느 대화의 프로필이나 덧씌우기에 들 때 싣는다
   }
   const refreshed = await attemptAsync(() => deps.refreshPluginSet());
   if (!refreshed.ok) deps.log.error("plugin.review.reflect_failed", { name });

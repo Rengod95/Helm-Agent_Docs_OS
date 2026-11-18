@@ -201,3 +201,28 @@ export const extension = ({ register }) => {
   await fireIn(harness, thread, "k1");
   expect(fakeGroupSdk.seen).toEqual(["flaky:third"]);
 });
+
+test("deferStart records a disabled entry without running the code, and ensureLoaded loads it the first time", async () => {
+  const { harness, thread } = await started();
+  await writePlugin(userExtensions, "approved", { name: "approved" });
+  const recorded = await harness.loader.loadInstalled("approved", signal, { deferStart: true });
+  expect(recorded.ok).toBe(false);
+  if (recorded.ok) return;
+  expect(recorded.error.kind).toBe("not_active");
+  if (recorded.error.kind !== "not_active") return;
+  expect(recorded.error.state).toBe("disabled");
+  expect(harness.loader.list().map((info) => [info.name, info.state])).toEqual([
+    ["approved", "disabled"],
+  ]);
+  // 코드는 싣지 않았다: 호스트에 등록이 없고 훅이 불리지 않는다
+  expect(harness.t.host.registration("approved")).toBeUndefined();
+  expect(harness.policy.tiers.get("approved")).toBeUndefined();
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k0");
+  expect(fakeGroupSdk.seen).not.toContain("approved:fired");
+  // 처음 대화의 집합에 들 때 `ensureLoaded`가 싣는다
+  const loaded = await harness.loader.ensureLoaded("approved", signal);
+  expect(loaded.state).toBe("active");
+  await fireIn(harness, thread, "k1");
+  expect(fakeGroupSdk.seen).toContain("approved:fired");
+});

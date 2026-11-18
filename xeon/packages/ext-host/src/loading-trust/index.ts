@@ -489,6 +489,14 @@ export type LoadInstalledFailure =
       readonly diagnostics: readonly LoadDiagnostic[];
     };
 
+/**
+ * `loadInstalled`의 선택 값. `deferStart`면 검토본을 검증해 기록만 꺼진 채(`disabled`, `lazy_deferred`) 남기고 코드는 싣지 않는다.
+ * 승인은 적재가 아니다(M5c §4.1.11): 승인한 새 이름을 목록과 프로필 검사가 알도록 기록만 두고, 대화의 집합에 처음 들 때 `ensureLoaded`가 싣는다
+ */
+export interface LoadInstalledOptions {
+  readonly deferStart?: boolean;
+}
+
 /** 새 이름을 실었다 */
 export interface LoadInstalledStarted {
   /** now: 이 호출이 돌아오기 전에 켜졌다. nextStepBoundary: 실행 중인 turn이 있어 켜기가 단계 경계를 기다린다 */
@@ -543,6 +551,7 @@ export interface ExtensionLoader {
   loadInstalled(
     name: ExtensionName,
     signal: AbortSignal,
+    options?: LoadInstalledOptions,
   ): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
   /**
    * 외부 확장을 호스트에서 내리고 로더 기록은 `disabled`로 남긴다 [제안, M5c §4.1.11]. 세대는 올라가고, 같은 이름의
@@ -1911,6 +1920,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   async function loadInstalled(
     name: ExtensionName,
     signal: AbortSignal,
+    options?: LoadInstalledOptions,
   ): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>> {
     if (records.has(name)) return err({ kind: "already_loaded" });
     if (startup.safeMode.active) return err({ kind: "safe_mode" });
@@ -1948,7 +1958,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       return err({ kind: "not_found", diagnostics: diagnosticLog.since(mark) });
     }
     const before = new Set(records.values());
-    await processBatch([target], signal);
+    await processBatch([target], signal, undefined, options?.deferStart === true);
     const added = [...records.values()].filter((record) => !before.has(record));
     const record = added.find((item) => item.candidate === target) ?? added[0];
     if (record === undefined) throw new Bug(`loader.install_without_record: ${name}`);
@@ -2018,6 +2028,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     candidates: readonly ExtensionCandidate[],
     signal: AbortSignal,
     defaultNames?: ReadonlySet<string>,
+    deferAll = false,
   ): Promise<void> {
     throwIfCancelled(signal, "validation");
     const batch = await ingest(candidates);
@@ -2032,7 +2043,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     throwIfCancelled(signal, "enable check");
     const alive: ExtRecord[] = [];
     for (const record of batch) {
-      if (record.state === "resolved" && deferredAtStartup(record, defaultNames)) {
+      if (record.state === "resolved" && (deferAll || deferredAtStartup(record, defaultNames))) {
         // 시작 때 싣지 않는다. 기록은 꺼진 채 남고 `ensureLoaded`가 대화의 E(T)에 들 때 싣는다
         fail(
           record,

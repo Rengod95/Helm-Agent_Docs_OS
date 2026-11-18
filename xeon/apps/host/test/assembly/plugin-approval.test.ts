@@ -138,20 +138,33 @@ test("reflect reloads an updated plugin from its reviewed copy and refreshes the
   expect(refreshes.count).toBeGreaterThan(0);
 });
 
-test("reflect does not load an approved new plugin: approval is not loading", async () => {
-  const loads: string[] = [];
+test("reflect records an approved new plugin as deferred without starting its code", async () => {
+  const installs: { readonly name: string; readonly deferStart: boolean | undefined }[] = [];
+  const warnings: string[] = [];
   const refreshes = { count: 0 };
   const loader = partial<ExtensionLoader>({
     list: () => [],
-    loadInstalled: (name) => {
-      loads.push(name);
-      return Promise.resolve(err({ kind: "not_found", diagnostics: [] }));
+    loadInstalled: (name, _signal, options) => {
+      installs.push({ name, deferStart: options?.deferStart });
+      return Promise.resolve(err({ kind: "not_active", state: "disabled", diagnostics: [] }));
     },
   });
-  const hooks = approvalHooksOf(depsOf({ loader, refreshes }));
+  const hooks = approvalHooksOf(depsOf({ loader, refreshes, warnings }));
   await hooks.reflect?.(contextOf({ kind: "new" }, FACT));
-  expect(loads).toEqual([]);
+  expect(installs).toEqual([{ name: "kit", deferStart: true }]);
+  expect(warnings).toEqual([]);
   expect(refreshes.count).toBe(1);
+});
+
+test("reflect warns when the reviewed copy of a new plugin cannot be recorded", async () => {
+  const warnings: string[] = [];
+  const loader = partial<ExtensionLoader>({
+    list: () => [],
+    loadInstalled: () => Promise.resolve(err({ kind: "not_found", diagnostics: [] })),
+  });
+  const hooks = approvalHooksOf(depsOf({ loader, warnings }));
+  await hooks.reflect?.(contextOf({ kind: "new" }, FACT));
+  expect(warnings).toEqual(["plugin.review.load_skipped"]);
 });
 
 test("a removal reflects only the plugin set, without touching the loader", async () => {

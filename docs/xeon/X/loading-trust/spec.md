@@ -380,7 +380,7 @@ export interface ExtensionLoader {
   /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
   reload(name: ExtensionName, signal: AbortSignal, options?: ReloadOptions): Promise<Result<ReloadStarted, ReloadFailure>>;
   /** 설치한 새 이름 하나를 사용자 위치에서 시작 때와 같은 파이프라인으로 싣는다. 켜기는 단계 경계 규칙을 따른다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
-  loadInstalled(name: ExtensionName, signal: AbortSignal): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
+  loadInstalled(name: ExtensionName, signal: AbortSignal, options?: { readonly deferStart?: boolean }): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
   /**
    * 외부 확장을 호스트에서 내리고 로더 기록은 `disabled`로 남긴다(세대 +1) [제안, M5c §4.1.11]. 같은 이름의 `ensureLoaded`가
    * 다시 싣는다. 내장이거나 모르는 이름이면 false다. 기록을 지우는 제거는 이 함수가 하지 않는다
@@ -1496,4 +1496,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
 25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 값 스키마는 §6 표에 있고(`x.ui.apps` 기본 `true`), 로더는 `LoadOptions.uiPolicy`로 받는다 [근거: `xeon/packages/ext-host/src/loading-trust/index.ts:181`]. §3.6 `loadingTrustSettings` 키 집합에 들어갔는지는 이 감사에서 확인하지 않았다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.
-26. [미결] 승인이 기록 없는 새 이름을 `loadInstalled`로 바로 싣는다(`apps/host/src/assembly/plugins/approval.ts`의 `reflectOf`). 보관만 한 플러그인의 코드가 승인 때 돈다. §4.1.11(M5c)은 E(T)에 처음 들어올 때 싣는다고 한다. 바꾸려면 승인과 덧씌우기(`overlay.ensureLoaded`)가 기록을 만든 뒤 `ensureLoaded`만 부르게 한다 [제안]. 덧씌우기는 얹기 전에 적재를 기다리므로 같이 바꾼다.
+26. 승인이 새 이름의 코드를 싣지 않는다 [결정: 2026-11-18 사용자, AGE-41 "승인은 적재가 아니다"]. `loadInstalled(name, signal, { deferStart: true })`는 같은 파이프라인으로 검토본을 검증하고 기록만 꺼진 채(`disabled`, 진단 `lazy_deferred`) 남기며 엔트리를 import하지도 `ExtHost.install`을 부르지도 않는다(결과는 `not_active`의 `disabled`). 호스트의 승인 `reflect`(`apps/host/src/assembly/plugins/approval.ts`)가 이것으로 기록을 만들어 목록과 프로필 검사가 이름을 알게 하고, 처음 대화의 E(T)에 들 때(참조 0→1)와 덧씌우기가 `ensureLoaded`로 싣는다. 기록 없는 이름이 대화에 먼저 들면 `plugin-lifecycle.ts`가 `loadInstalled`로 싣는다 [근거: 2026-11-18 사용자 결정].

@@ -157,6 +157,7 @@ export {
   type ReloadOptions,
   type ReloadStarted,
   type LoadInstalledFailure,
+  type LoadInstalledOptions,
   type LoadInstalledStarted,
   type InstallSource,
   type LoadDiagnostic,
