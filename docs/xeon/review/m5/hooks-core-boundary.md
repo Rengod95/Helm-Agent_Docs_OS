@@ -620,6 +620,7 @@ export const BLOCK_MODEL: BlockModel;
 - **U-9 호출자 신원은 호스트가 정한다.** 격리 프로세스의 플러그인은 서비스 객체를 갖지 못하고 요청만 보낸다. 신원 `plugin:<이름>`은 연결을 연 호스트가 붙인다. 요청 본문의 신원 주장은 무시한다. 엔진 안의 플러그인은 래퍼가 `target.extension`으로 붙인다(지금 `untrustedContext`와 같다).
 - **U-10 효과 작업자.** `requestEffect`의 작업자도 서비스를 직접 부르지 않고 `executeForPlugin(via: "effect")`를 부른다. 요청 키는 기존 `key`다. `effect.requested|started|settled` 기록은 그대로 두고 파이프라인의 기록이 더해진다.
 - **U-11 중첩 호출의 승인 상속** [제안]. 플러그인 도구 호출(예: 대체 `edit`)이 사용자 승인을 받은 뒤 그 안에서 같은 플러그인이 부르는 호출은, (가) 위험 등급이 바깥 호출 이하이고 (나) 정책 deny 규칙에 걸리지 않고 (다) 훅의 묻기가 없을 때 바깥 호출의 승인 증거(`approval`)를 물려받아 카드를 다시 띄우지 않는다. 훅 발화, 샌드박스, 보호 경로는 그대로다. 근거: 대체 도구는 위험 등급이 원본 이상으로 고정되어(`core-tools/src/registry.ts:141-151`) 승인을 한 번 받는데, 안에서 쓰는 `workspace.files.edit` 호출이 한 번 더 묻으면 대체 도구가 쓸 수 없게 된다. 12절 O-4.
+  - **경로 목록(AGE-27, 2026-11-18)**: 바깥 호출 인자가 카드에 경로를 여럿 보였으면(`path`, `paths`(문자열 배열), `files`(`path`를 가진 객체 배열)) 그 목록 전체가 승인 대상이다. 안쪽 쓰기의 `path`가 목록 가운데 하나와 같은 실제 파일이면 상속한다. 정규화와 링크 처리는 단일 경로와 같은 함수(`sameTarget`)를 쓰고 조인 규칙(같은 호출, 한 번, 같은 대화)은 그대로다. 목록 밖 경로, 모양이 틀린 칸, 빈 목록, 경로가 없는 인자(셸을 감싼 도구)는 상속하지 않고 새 카드가 뜬다. 인자 칸 이름은 [제안]이다.
 
   상속은 승인을 건너뛰는 길이므로 다음으로 좁힌다(구현 2026-11-18, enE2u). 위 (가)~(다)는 스펙 그대로이고 아래는 스펙이 말하지 않아 더한 [제안]이다.
   1. **사람이 답한 승인에서만 나온다.** 승인 기록이 `resolvedBy: "user"`일 때만이다. 훅의 `answer`, 무인 처리, 만료, 취소, 정책 자동 허용은 승인 기록이 없거나 사람의 답이 아니므로 상속하지 않는다. 도구 승인은 허용만, 검토 카드는 사람의 답(`answer`, `deny`) 모두 물려준다(되돌림은 그 결정의 결과다).
@@ -721,7 +722,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | `agents.judge` | `judge`: read |
 | `models.complete` | `complete`: read |
 | `artifacts.registry` | `archive`: read |
-| `artifacts.reviews` | `approve`, `reject`, `comment`, `close`: read / `submit`: write(작업 폴더를 되돌린다) |
+| `artifacts.reviews` | `comment`, `close`: read / `approve`, `reject`, `submit`: write(`approve`·`reject`는 플러그인이 에이전트의 파일 변경 검토를 스스로 판정하는 길이라 올렸다. 사용자 확정 2026-11-18, AGE-10. `submit`은 작업 폴더를 되돌린다) |
 | `dialog.aside` | `ask`: read |
 | `dialog.attachments` | `add`: read |
 | `dialog.commands` | `register`, `run`: read |
@@ -731,7 +732,7 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | `knowledge.ledger` | `decide`, `rollback`: write |
 | `knowledge.memory` | `add`, `remove`, `replace`: write |
 | `knowledge.skills` | `create`, `edit`, `patch`, `reindex`, `remove`, `writeFile`: write |
-| `mcp.client` | `callTool`, `connect`, `reconnect`: exec / `disable`: read |
+| `mcp.client` | `callTool`, `connect`, `reconnect`: exec / `disable`: write(사용자 확정 2026-11-18, AGE-10) |
 | `schedule.entries` | `cancel`: write / `fire`: exec |
 | `web.research` | `cancel`: write / `start`: exec |
 | `work.goals` | `set`, `clear`, `judge`: read |

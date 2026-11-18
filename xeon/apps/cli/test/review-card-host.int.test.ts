@@ -5,7 +5,6 @@ import { t } from "@fresnel/core-models/testing";
 import type { JsonObject } from "@fresnel/contracts/conversation";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, modelsOf, type RealCli, type TapeStep } from "./support/real-host.ts";
-import { waitFor } from "./support/harness.ts";
 import { scriptedInput } from "./support/script.ts";
 
 // B2-ART (실제 호스트): 모델이 a.txt를 고치고 review_request로 검토를 연다. 검토 카드에서 hunk f0h0을 거절하면 파일이
@@ -54,12 +53,7 @@ test("rejecting one hunk on the review card reverts the file, and the card lists
     settings: { "l0.sandbox.enabled": false },
     harness: {
       terminal: TTY,
-      readLine: async (prompt, signal) => {
-        const line = await input.readLine(prompt, signal);
-        // 되돌림은 카드 답 뒤에 비동기로 일어난다(승인 상속이 실제 경로를 푸는 동안 몇 번 쉰다). 끝내기 전에 되돌림이 반영되기를 기다린다
-        if (line === "/quit") await waitFor(() => readFileSync(file, "utf8") === ORIGINAL, 5_000);
-        return line;
-      },
+      readLine: (prompt, signal) => input.readLine(prompt, signal),
     },
   });
   clis.push(cli);
@@ -92,6 +86,6 @@ test("rejecting one hunk on the review card reverts the file, and the card lists
   ]);
   expect(cli.harness.stdoutText()).toContain("done.");
 
-  // 되돌림은 응답 뒤에 파일에 반영된다. 끝내기 전에 기다렸으므로 여기서는 값만 확인한다
+  // 거절 답 직후 /quit해도 종료가 진행 중인 되돌림을 끝낸 뒤 일어난다(기다림 없음)
   expect(readFileSync(file, "utf8")).toBe(ORIGINAL);
 }, 90_000);

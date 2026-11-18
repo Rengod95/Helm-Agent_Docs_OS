@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { JsonObject } from "@fresnel/contracts/conversation";
 import type { FileSystem } from "@fresnel/contracts/services";
+import { isJsonObject } from "./util.ts";
 
 // hooks-core-boundary U-11: 승인 상속은 승인 카드가 사용자에게 보여 준 대상에만 쓴다. 경로는 대화의 작업 폴더 기준 실제 경로(링크를 푼
 // 절대 경로)로 풀어 비교한다. 풀 수 없거나 작업 폴더 밖을 가리키면 상속하지 않는다.
@@ -162,14 +163,49 @@ export async function pathInCard(
   );
 }
 
-/** 안쪽 호출의 `path`가 바깥 도구 호출 인자가 카드에 보여 준 `path`와 같은 실제 파일을 가리키는가 */
+/**
+ * 바깥 도구 호출 인자가 카드에 보여 준 경로 목록: `path`(문자열), `paths`(문자열 배열), `files`(`path`를 가진 객체 배열)를 모은다.
+ * 어느 칸이든 모양이 맞지 않으면 보여 준 대상을 알 수 없으므로 undefined다. 경로가 하나도 없으면(셸을 감싼 도구 등) undefined다
+ */
+function shownPathsOf(outer: JsonObject): readonly string[] | undefined {
+  const shown: string[] = [];
+  const single = outer["path"];
+  if (single !== undefined) {
+    if (typeof single !== "string") return undefined;
+    shown.push(single);
+  }
+  const many = outer["paths"];
+  if (many !== undefined) {
+    if (!Array.isArray(many)) return undefined;
+    for (const item of many) {
+      if (typeof item !== "string") return undefined;
+      shown.push(item);
+    }
+  }
+  const files = outer["files"];
+  if (files !== undefined) {
+    if (!Array.isArray(files)) return undefined;
+    for (const item of files) {
+      if (!isJsonObject(item)) return undefined;
+      const path = item["path"];
+      if (typeof path !== "string") return undefined;
+      shown.push(path);
+    }
+  }
+  return shown.length === 0 ? undefined : shown;
+}
+
+/**
+ * 안쪽 호출의 `path`가 바깥 도구 호출 인자가 카드에 보여 준 경로(하나 또는 목록) 가운데 같은 실제 파일을 가리키는가.
+ * 목록의 정규화와 링크 처리는 단일 경로와 같다(`sameTarget`을 그대로 쓴다)
+ */
 export async function samePathAsOuter(
   env: InheritPathEnv,
   inner: JsonObject,
   outer: JsonObject,
 ): Promise<boolean> {
   const path = pathOf(inner);
-  const shown = pathOf(outer);
+  const shown = shownPathsOf(outer);
   if (path === undefined || shown === undefined) return false;
-  return sameTarget(env, path, [shown]);
+  return sameTarget(env, path, shown);
 }
