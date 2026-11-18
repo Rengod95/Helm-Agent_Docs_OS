@@ -38,9 +38,7 @@ export interface ThreadBlobUsage {
  * 두 표는 같은 데이터베이스 파일에 있어 한 질의로 된다. 디스크에 행이 없는 참조는 세지 않는다.
  * `StoreService.blobUsage().byThread`는 `sys_blob_refs`(owner = 'thread')를 세는데 L1은 그 참조를 쓰지 않으므로 대화별 값이 비어 있다
  */
-export function readBlobUsageByThread(
-  db: StoreDb,
-): Result<readonly ThreadBlobUsage[], ReadFailure> {
+function readBlobUsageByThread(db: StoreDb): Result<readonly ThreadBlobUsage[], ReadFailure> {
   return readResult(db, (tx): Result<readonly ThreadBlobUsage[], RowFault> => {
     const usage: ThreadBlobUsage[] = [];
     const rows = tx.all(
