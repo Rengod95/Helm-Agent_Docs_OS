@@ -1,30 +1,6 @@
-import type { ExecService, ExecutionEnv } from "@fresnel/contracts/services";
+import type { ExecService, WorkspaceEnv } from "@fresnel/contracts/services";
 
-/**
- * 이 패키지가 `fresnel.exec`에서 쓰는 메서드. `ExecService`가 그대로 대입된다. 출력 절단(`truncateHeadOf`)은 사본 없이
- * `fresnel.exec`로 부른다(review.decisions-2 D-08, B-04). 쓰는 메서드를 좁혀 두면 시험용 대역이 이 목록만 구현하면 된다.
- */
-export type WorkspaceEnv = Pick<ExecService, "truncateHeadOf"> &
-  Pick<
-    ExecutionEnv,
-    | "id"
-    | "cwd"
-    | "absolutePath"
-    | "canonicalPath"
-    | "exists"
-    | "fileInfo"
-    | "listDir"
-    | "openBinaryReader"
-    | "readTextFile"
-    | "readBinaryFile"
-    | "writeFile"
-    | "flushFile"
-    | "renameFile"
-    | "remove"
-    | "joinPath"
-    | "exec"
-    | "cleanup"
-  >;
+export type { WorkspaceEnv };
 
 /**
  * 같은 `fresnel.exec`에서 cwd만 다른 env. 대화의 작업 폴더(`thread.started.workspace`)마다 하나 만든다(L2.workspace.spec §4.3).
