@@ -14,6 +14,9 @@ import type {
 
 export const DevkitServiceName = "fresnel.devkit" as const;
 
+/** 종류 카탈로그의 버전(L3.authoring.spec §3.4). 제작 코어가 카탈로그를 내고, 대화하는 빌더는 이 값을 도구 결과에 싣는다 */
+export const KIND_CATALOG_VERSION = "0.1.0";
+
 export const KIND_LAYERS = ["L1", "L2", "L3", "plugin", "X"] as const;
 export type KindLayer = (typeof KIND_LAYERS)[number];
 export const KIND_STATUSES = ["stable", "preview", "blocked", "deprecated"] as const;
