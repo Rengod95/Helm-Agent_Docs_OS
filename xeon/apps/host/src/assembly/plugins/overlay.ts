@@ -4,7 +4,8 @@ import { OVERLAY_LIMIT, type InvocableKind, type OverlayRef } from "@fresnel/con
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 
 // 턴 덧씌우기의 검사와 계획(M5c §4.3.1~4, §4.3.9). `turn.start.overlay`를 입력 처리 앞에서 본다.
-// 검사 순서는 한도, 이름, 검토본, 항목, 초안이다. 이미 대화의 집합에 든 플러그인은 아무 일도 하지 않으므로 `alreadyInProfile`로만 표시한다.
+// 검사 순서는 한도, 이름, 검토본, 항목, 초안이다. 이미 대화의 집합에 든 플러그인은 덧씌우지 않으므로 `alreadyInProfile`로만 표시한다.
+// 시작 Drive 항목(`start`)은 얹은 뒤 주도를 요청한다(§4.3.2, drive-isolation.md 2.2). 그 표지는 프레임이 풀릴 때까지 산다(§4.3.4).
 
 /** 덧씌우기 대상 하나의 재료. 검토본이 없으면 `reviewedHash`가 null이다 */
 export interface OverlayTarget {
@@ -25,8 +26,10 @@ export type OverlayRefusal =
   | { readonly kind: "not_found"; readonly name: string }
   /** 현재 검토본이 없다(승인 대기뿐이거나 내장 패키지다) */
   | { readonly kind: "not_reviewed"; readonly name: string }
-  /** 그 플러그인에 그 항목이 없다. 시작 Drive 항목도 여기로 거절한다(§4.3.2, M5c-2의 일회 Drive 전까지) */
+  /** 그 플러그인에 그 항목이 없다. 시작 Drive 항목은 있으면 얹는다(§4.3.2) */
   | { readonly kind: "no_entry"; readonly name: string }
+  /** 시작 Drive를 주도로 요청하지 못했다(등록이 없거나 호스트가 거절했다). 얹은 표지는 되돌린다. 와이어는 `overlay.noEntry`다 [제안] */
+  | { readonly kind: "drive_unavailable"; readonly name: string }
   /** 초안 덧씌우기는 격리 1단계 전에는 쓸 수 없다(§4.3.8) */
   | { readonly kind: "draft_unavailable"; readonly name: string }
   /** 대상을 읽는 저장소나 프로필의 실패. 처리기가 그 실패의 와이어 오류로 옮긴다 */
@@ -98,12 +101,15 @@ interface Gathered {
   invoked: TurnInvoked[];
 }
 
-/**
- * 이름으로 지정한 항목의 종류. 시작 Drive 항목은 얹지 않는다(M5c-2의 일이다), 그래서 undefined다. 스킬, 명령, 플러그인 항목만 연다.
- */
+/** 이름으로 지정한 항목의 종류. 스킬, 명령, 플러그인 항목과 시작 Drive 항목을 연다. 없으면 undefined다 */
 function kindOfEntry(target: OverlayTarget, entry: string): InvocableKind | undefined {
-  const found = target.entries.find((item) => item.entry === entry && item.kind !== "drive");
+  const found = target.entries.find((item) => item.entry === entry);
   return found?.kind;
+}
+
+/** 시작 Drive 항목으로 얹은 것인가. 이 항목의 표지는 프레임이 풀릴 때까지 산다(§4.3.4) */
+function startsDrive(item: TurnInvoked): boolean {
+  return item.kind === "drive";
 }
 
 function sameInvoked(a: TurnInvoked, b: TurnInvoked): boolean {
@@ -119,6 +125,11 @@ interface OverlayAttachResult {
   readonly invoked: readonly TurnInvoked[];
 }
 
+/** 시작 Drive 요청을 큐에 넣지 못한 이유. 등록이 없거나(`no_drive`) 호스트가 거절했다(`not_started`) */
+export type DriveStartRefusal =
+  | { readonly kind: "no_drive" }
+  | { readonly kind: "not_started"; readonly reason: string };
+
 /** 턴 덧씌우기를 얹고 되돌리는 통로. 처리기가 `turn.start`에서 부른다 */
 export interface OverlayPort {
   /** 검사하고 통과한 것만 그 대화에 얹은 뒤 입력 처리 앞에 적용을 기다린다 */
@@ -126,8 +137,11 @@ export interface OverlayPort {
     threadId: ThreadId,
     refs: readonly OverlayRef[],
   ): Promise<Result<OverlayAttachResult, OverlayRefusal>>;
-  /** 입력이 접수되지 않았을 때 얹은 것을 되돌린다 */
-  cancel(threadId: ThreadId): Promise<void>;
+  /**
+   * 입력이 접수되지 않았거나 턴이 되지 않았을 때 얹은 것을 되돌린다. `keepDrive`가 참이면 시작 Drive의 요청이 큐에 있어 입력을
+   * 주도 프레임이 받은 것이므로, 아직 부여되지 않은 Drive 표지는 남긴다(프레임이 풀리거나 정착할 때 뺀다)
+   */
+  cancel(threadId: ThreadId, keepDrive: boolean): Promise<void>;
 }
 
 export interface OverlayPortDeps {
@@ -145,11 +159,16 @@ export interface OverlayPortDeps {
       marks: readonly {
         readonly plugin: string;
         readonly contentHash: string;
-        readonly until: "turn";
+        readonly until: "turn" | "release";
       }[],
     ): Promise<void>;
-    cancelOverlay(threadId: ThreadId): Promise<void>;
+    cancelOverlay(threadId: ThreadId, keepDrive: boolean): Promise<void>;
   };
+  /**
+   * 사용자 명령으로 그 플러그인의 주도를 요청한다(drive-isolation.md 2.2). 호출자는 대상이 E(T)에 든 뒤에 부른다.
+   * 큐에 넣으면 값이고, 실제 부여는 다음 경계가 정한다(버려지면 표지가 정착할 때 빠진다)
+   */
+  readonly startDrive: (threadId: ThreadId, plugin: string) => Result<void, DriveStartRefusal>;
 }
 
 export function createOverlayPort(deps: OverlayPortDeps): OverlayPort {
@@ -157,7 +176,7 @@ export function createOverlayPort(deps: OverlayPortDeps): OverlayPort {
     async attach(threadId, refs) {
       const planned = await planOverlay(refs, deps.targetOf, new Set(deps.inSet(threadId)));
       if (!planned.ok) return err(planned.error);
-      // 이미 집합에 든 플러그인은 아무 일도 하지 않는다(§4.3.3)
+      // 이미 집합에 든 플러그인은 덧씌우지 않는다(§4.3.3). 그 시작 Drive는 아래에서 그대로 요청한다
       const fresh = planned.value.filter((item) => !item.alreadyInProfile);
       if (fresh.length > 0) {
         await deps.ensureLoaded(fresh.map((item) => item.plugin));
@@ -166,15 +185,28 @@ export function createOverlayPort(deps: OverlayPortDeps): OverlayPort {
           fresh.map((item) => ({
             plugin: item.plugin,
             contentHash: item.contentHash,
-            until: "turn" as const,
+            until: item.invoked.some(startsDrive) ? "release" : "turn",
           })),
         );
+      }
+      // 시작 요청은 표지를 얹고 적용한 뒤에 한다: 주도는 E(T)에 든 대상에만 준다(drive-isolation.md 2.2)
+      let refused: string | undefined;
+      for (const item of planned.value) {
+        if (!item.invoked.some(startsDrive)) continue;
+        if (!deps.startDrive(threadId, item.plugin).ok) {
+          refused = item.plugin;
+          break;
+        }
+      }
+      if (refused !== undefined) {
+        await deps.pluginSet.cancelOverlay(threadId, false);
+        return err({ kind: "drive_unavailable", name: refused });
       }
       return ok({
         cacheImpact: fresh.some((item) => item.addsTools) ? "tool_change_append" : "none",
         invoked: fresh.flatMap((item) => item.invoked),
       });
     },
-    cancel: (threadId) => deps.pluginSet.cancelOverlay(threadId),
+    cancel: (threadId, keepDrive) => deps.pluginSet.cancelOverlay(threadId, keepDrive),
   };
 }

@@ -153,13 +153,23 @@ function driverTargetOf(
   );
 }
 
-test("planOverlay는 항목이 그 플러그인에 없으면 no_entry이고, 시작 Drive 항목은 얹지 않아 no_entry다", async () => {
+test("planOverlay는 항목이 그 플러그인에 없으면 no_entry다. 시작 Drive 항목(start)은 있으면 얹는다(overlay-drive.test.ts)", async () => {
   expect(
     await planOverlay([{ plugin: "driver", entry: "other" }], driverTargetOf, new Set()),
   ).toEqual(err({ kind: "no_entry", name: "driver" }));
   expect(
     await planOverlay([{ plugin: "driver", entry: "start" }], driverTargetOf, new Set()),
-  ).toEqual(err({ kind: "no_entry", name: "driver" }));
+  ).toEqual(
+    ok([
+      {
+        plugin: "driver",
+        contentHash: HASH_A,
+        alreadyInProfile: false,
+        addsTools: false,
+        invoked: [{ plugin: "driver", entry: "start", kind: "drive" }],
+      },
+    ]),
+  );
 });
 
 test("planOverlay는 초안 표지를 draft_unavailable로 거절하고, 이미 든 플러그인은 alreadyInProfile로 표시하며 같은 이름은 한 번만 얹는다", async () => {
@@ -264,6 +274,7 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
         return Promise.resolve();
       },
     },
+    startDrive: () => ok(undefined),
   });
   const id = threadId();
   const result = await port.attach(id, refsOf("core-thing", "tools"));
@@ -275,7 +286,7 @@ test("덧씌우기 포트는 집합에 없는 것만 적재를 요청하고 얹�
   );
   expect(loaded).toEqual([["tools"]]);
   expect(attached).toEqual([[{ plugin: "tools", contentHash: HASH_B, until: "turn" }]]);
-  await port.cancel(id);
+  await port.cancel(id, false);
   expect(cancelled).toEqual([id]);
 });
 
@@ -295,6 +306,7 @@ test("덧씌우기 포트는 이미 든 플러그인만 얹으면 아무것도 �
       },
       cancelOverlay: () => Promise.resolve(),
     },
+    startDrive: () => ok(undefined),
   });
   expect(await port.attach(threadId(), refsOf("already"))).toEqual(
     ok({ cacheImpact: "none", invoked: [] }),

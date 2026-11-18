@@ -125,6 +125,13 @@ export function createM4Ports(
     stopped: env.stopped,
     registrations: env.registrations,
     toggles: env.toggles,
+    // 시작 Drive 덧씌우기의 수명은 주도 프레임이 쥔다(M5c §4.3.4). 프레임 목록과 임대 변화는 X가 준다
+    driveFramePlugins: env.driveFramePlugins,
+    whenIdle: env.whenIdle,
+    driveFramesChanged: (listener) =>
+      host.onChange((change) => {
+        if (change.kind === "lease" && change.threadId !== null) listener(change.threadId);
+      }),
     settingsChanged: env.settingsChanged,
     report: (message, fields) => {
       engine.log.error(message, fields);

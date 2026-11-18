@@ -25,11 +25,22 @@ interface ProfileCopy {
   readonly common: CommonSet;
 }
 
-/** 대화에 얹힌 턴 덧씌우기 하나(M5c §4.3). 턴이 정착하면 `turnSettled`가 뺀다. 메모리에만 둔다(재시작 복원은 §4.3.5의 뒤 단계) */
+/**
+ * 대화에 얹는 덧씌우기 하나(M5c §4.3). `until`이 수명을 정한다: `turn`은 그 턴이 정착할 때, `release`는 시작 Drive의 주도
+ * 프레임이 풀릴 때(§4.3.4)다. 메모리에만 둔다(재시작 복원은 §4.3.5의 뒤 단계)
+ */
 export interface OverlayMark {
   readonly plugin: string;
   readonly contentHash: string;
-  readonly until: "turn";
+  readonly until: "turn" | "release";
+}
+
+/**
+ * 얹힌 덧씌우기 하나의 내부 상태. `granted`는 `release` 표지의 주도 프레임이 실제로 부여되어 스택에 든 적이 있는지다.
+ * 시작 요청이 버려지면 끝까지 `false`이고, 정착할 때 뺀다. 기록에는 싣지 않는다
+ */
+interface HeldMark extends OverlayMark {
+  readonly granted: boolean;
 }
 
 /**
@@ -78,6 +89,15 @@ export interface PluginSetDeps {
    */
   readonly stopped: (name: string) => boolean;
   readonly registrations: () => readonly RegistrationInfo[];
+  /** 주도 스택에 든 플러그인 이름(코어 루프는 빼고, 아래에서 위 순서). 열려 있지 않으면 빈 목록이다 */
+  readonly driveFramePlugins: (threadId: ThreadId) => readonly string[];
+  /**
+   * 임대가 부여되거나 반납되어 커밋됐음을 알리는 구독(`ExtHost.onChange`의 `lease`). 시작 Drive 표지의 부여와 해제를 여기서 본다.
+   * 돌려주는 함수는 구독을 끊는다
+   */
+  readonly driveFramesChanged: (listener: (threadId: ThreadId) => void) => () => void;
+  /** 대화의 루프가 쉴 때 `fn`을 돈다. 루프가 도는 경계 안에서 생긴 집합 변화를 유휴 적용으로 미룬다 */
+  readonly whenIdle: (threadId: ThreadId, fn: () => Promise<void>) => Promise<void>;
   /** 지금 실행 중인 검토본의 내용 해시(없으면 undefined). E(T)의 `pluginHashes`가 된다(M5c §4.6.7) */
   readonly loadedHash: (name: string) => string | undefined;
   /** 모든 대화에 항상 켜는 플러그인(코어와 개발 모드의 가이드 그룹). 관리 잠금은 여기서도 이긴다 */
@@ -117,8 +137,11 @@ export interface PluginSetHandle {
    * 입력을 받지 못했으면 `cancelOverlay`로 되돌린다
    */
   attachOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
-  /** 얹은 턴 덧씌우기를 뺀다(입력이 접수되지 않았을 때). 집합을 다시 맞춘다 */
-  cancelOverlay(threadId: ThreadId): Promise<void>;
+  /**
+   * 얹은 덧씌우기를 되돌린다(입력이 접수되지 않았을 때). 턴 표지는 뺀다. 부여되지 않은 release 표지는 `keepDrive`가 거짓일 때만 뺀다
+   * (참이면 시작 요청이 큐에 있어 입력을 주도 프레임이 받은 것이다). 부여된 release 표지는 프레임이 풀릴 때까지 남는다
+   */
+  cancelOverlay(threadId: ThreadId, keepDrive: boolean): Promise<void>;
   /**
    * 대화가 열렸다(엔진이 쥐었다). E(T)를 맞추고, 이 대화가 쓰는 플러그인의 적재(0→1)가 끝날 때까지 기다린다. 실패는 보고하고 연다
    */
@@ -228,8 +251,8 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
   const usage = new Map<ThreadId, ReadonlySet<string>>();
   /** 플러그인 이름별 참조 대화 수. 0→1에 `ensureLoaded`, 1→0에 `unload`를 부른다 */
   const refs = new Map<string, number>();
-  /** 대화별 턴 덧씌우기. 정착할 때 `turnSettled`가 지운다 */
-  const overlays = new Map<ThreadId, readonly OverlayMark[]>();
+  /** 대화별 덧씌우기 표지. 턴 표지는 정착할 때, 부여되지 않은 release 표지도 정착할 때, 부여된 release 표지는 프레임이 풀릴 때 뺀다 */
+  const overlays = new Map<ThreadId, readonly HeldMark[]>();
   /**
    * 플러그인 이름별로 아직 끝나지 않은 로더 호출(적재·내리기). 같은 이름의 호출은 차례로 돈다(내리기 뒤 적재가 겹치지 않게).
    * `opened`가 그 대화가 쓰는 이름의 호출을 기다린다. 호출은 실패해도 거절하지 않는다(보고만 한다)
@@ -268,12 +291,12 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     return { sources, resolved };
   }
 
-  /** 대화의 턴 덧씌우기 표지. 없으면 빈 목록이다 */
-  function marksOf(threadId: ThreadId | undefined): readonly OverlayMark[] {
+  /** 대화의 덧씌우기 표지. 없으면 빈 목록이다 */
+  function marksOf(threadId: ThreadId | undefined): readonly HeldMark[] {
     return threadId === undefined ? [] : (overlays.get(threadId) ?? []);
   }
 
-  function setOverlays(threadId: ThreadId, marks: readonly OverlayMark[]): void {
+  function setOverlays(threadId: ThreadId, marks: readonly HeldMark[]): void {
     if (marks.length === 0) overlays.delete(threadId);
     else overlays.set(threadId, marks);
   }
@@ -387,6 +410,21 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     deps.toggles.requestApply(threadId);
   }
 
+  /**
+   * 턴 정착이나 임대 해제 알림은 루프가 아직 도는 경계 안에서 온다. 그 경계는 이미 적용을 끝냈으므로 `requestApply`는 실행 중이라
+   * 건너뛰고, 다음 단계 경계가 없어 변화가 적용되지 않는다. 그래서 루프가 쉴 때 적용한다. 단계 경계가 먼저 맞췄으면 차이가 없다
+   */
+  function recomputeWhenIdle(threadId: ThreadId): void {
+    if (copy === undefined) return;
+    track(threadId);
+    detach(
+      deps.whenIdle(threadId, () => deps.toggles.applyNow(threadId)),
+      (cause) => {
+        deps.report("plugin_set.apply_failed", { reason: reasonOf(cause) });
+      },
+    );
+  }
+
   function recomputeOpen(): void {
     for (const threadId of deps.openThreadIds()) recompute(threadId);
   }
@@ -425,14 +463,50 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     applyCopy({ profiles: written.profiles, common: written.common });
   });
 
+  /**
+   * 임대가 바뀌었다. 이 대화의 `release` 표지를 본다: 프레임에 든 것은 부여됐다고 적고, 부여된 뒤 프레임에서 빠진 것은 뺀다.
+   * 뺐으면 E(T)를 다시 맞춘다(그 경계에서 `overlay_off`가 남는다). 부여되지 않은 것은 정착까지 기다린다
+   */
+  function driveChanged(threadId: ThreadId): void {
+    const marks = marksOf(threadId);
+    if (!marks.some((mark) => mark.until === "release")) return;
+    const framed = new Set(deps.driveFramePlugins(threadId));
+    const next: HeldMark[] = [];
+    let removed = false;
+    for (const mark of marks) {
+      if (mark.until === "turn") {
+        next.push(mark);
+      } else if (framed.has(mark.plugin)) {
+        next.push(mark.granted ? mark : { ...mark, granted: true });
+      } else if (mark.granted) {
+        removed = true;
+      } else {
+        next.push(mark);
+      }
+    }
+    setOverlays(threadId, next);
+    if (removed) recomputeWhenIdle(threadId);
+  }
+
+  const offDriveChanges = deps.driveFramesChanged((threadId) => {
+    driveChanged(threadId);
+  });
+
+  /** 정착이나 취소 때 남길 표지. 턴 표지와, 부여되지 않은 release 표지는 뺀다. 부여된 release 표지는 프레임이 풀릴 때까지 남는다 */
+  function keptAfterTurn(marks: readonly HeldMark[]): readonly HeldMark[] {
+    return marks.filter((mark) => mark.until === "release" && mark.granted);
+  }
+
   return {
     port: {
       resolve: viewOf,
-      // 턴이 정착하면 그 턴의 덧씌우기를 뺀다. 집합은 다음 유휴 적용에서 맞춘다(overlay_off)
+      // 턴이 정착하면 그 턴의 덧씌우기를 뺀다. 프레임이 쥔 시작 Drive 표지는 남긴다. 집합은 다음 유휴 적용에서 맞춘다(overlay_off)
       turnSettled: (threadId) => {
-        if (!overlays.has(threadId)) return;
-        overlays.delete(threadId);
-        recompute(threadId);
+        const marks = marksOf(threadId);
+        const kept = keptAfterTurn(marks);
+        if (kept.length === marks.length) return;
+        setOverlays(threadId, kept);
+        recomputeWhenIdle(threadId);
       },
     },
     refresh,
@@ -440,16 +514,28 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     attachOverlay: async (threadId, marks) => {
       const merged = [...marksOf(threadId)];
       for (const mark of marks) {
-        if (!merged.some((item) => item.plugin === mark.plugin)) merged.push(mark);
+        const at = merged.findIndex((item) => item.plugin === mark.plugin);
+        if (at < 0) {
+          merged.push({ ...mark, granted: false });
+          continue;
+        }
+        // 같은 이름이 턴 표지로 있으면 수명이 긴 release로 올린다. 그 밖에는 처음 것을 남긴다
+        const existing = merged[at];
+        if (mark.until === "release" && existing?.until === "turn") {
+          merged[at] = { ...mark, granted: false };
+        }
       }
       setOverlays(threadId, merged);
       if (copy === undefined) return;
       recompute(threadId);
       await deps.toggles.applyNow(threadId);
     },
-    cancelOverlay: async (threadId) => {
-      if (!overlays.has(threadId)) return;
-      overlays.delete(threadId);
+    cancelOverlay: async (threadId, keepDrive) => {
+      // 입력이 접수되지 않았을 때 되돌린다. 프레임이 쥔 표지는 프레임이 풀릴 때까지 남고, 시작 요청이 큐에 있으면 부여되지 않은 것도 남긴다
+      const marks = marksOf(threadId);
+      const kept = marks.filter((mark) => mark.until === "release" && (mark.granted || keepDrive));
+      if (kept.length === marks.length) return;
+      setOverlays(threadId, kept);
       if (copy === undefined) return;
       recompute(threadId);
       await deps.toggles.applyNow(threadId);
@@ -490,7 +576,10 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       if (deps.stopped(name)) return "none";
       return membershipOf(threadId).sources.get(name) ?? "none";
     },
-    dispose: unsubscribe,
+    dispose: () => {
+      offDriveChanges();
+      unsubscribe();
+    },
   };
 }
 

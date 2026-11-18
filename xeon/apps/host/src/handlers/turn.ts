@@ -56,7 +56,9 @@ function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
     case "not_reviewed":
       return wireError("overlay.notReviewed", { details: { name: refusal.name } });
     case "no_entry":
-      // 시작 Drive 항목도 여기로 거절한다. 일회 Drive는 M5c-2의 일이라 이 단계에서는 항목이 없는 것과 같다(§4.3.2)
+      return wireError("overlay.noEntry", { details: { name: refusal.name } });
+    case "drive_unavailable":
+      // 시작 Drive를 주도로 요청하지 못했다. 와이어는 항목이 없는 것과 같은 `overlay.noEntry`로 답한다 [제안]
       return wireError("overlay.noEntry", { details: { name: refusal.name } });
     case "draft_unavailable":
       return wireError("overlay.draftUnavailable");
@@ -83,12 +85,14 @@ export function createTurnStartHandler(
     const overlay = params.overlay ?? [];
     let cacheImpact: "none" | "tool_change_append" | null = null;
     let invoked: readonly TurnInvoked[] | undefined;
+    let startsDrive = false;
     if (overlay.length > 0) {
       if (ports.turns.isLive(threadId)) throw wireError("turn.busy");
       const attached = await ports.overlay.attach(threadId, overlay);
       if (!attached.ok) throw wireErrorOfOverlay(attached.error);
       cacheImpact = attached.value.cacheImpact;
       invoked = attached.value.invoked;
+      startsDrive = invoked.some((item) => item.kind === "drive");
     }
     const outcome = await ports.turns.submit(
       threadId,
@@ -97,9 +101,10 @@ export function createTurnStartHandler(
       params.whenBusy,
       invoked,
     );
-    // 입력이 접수되지 않았거나 턴이 되지 않았으면 얹은 덧씌우기를 되돌린다
+    // 입력이 접수되지 않았거나 턴이 되지 않았으면 얹은 덧씌우기를 되돌린다. 시작 Drive의 요청이 큐에 있으면 입력은 주도 프레임이
+    // 받으므로(`delivered`) 그 Drive 표지는 남긴다. 턴 표지는 그래도 뺀다(이 호출이 턴을 시작하지 않는다)
     if (overlay.length > 0 && (!outcome.ok || "delivered" in outcome)) {
-      await ports.overlay.cancel(threadId);
+      await ports.overlay.cancel(threadId, outcome.ok && startsDrive);
     }
     if (!outcome.ok) {
       if (outcome.reason === "rejected") throw loopRejection(outcome.error, "turn.start");

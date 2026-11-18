@@ -370,6 +370,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     logger,
   });
   /**
+   * 이름의 플러그인이 주도할 수 있는 Registration id(drive-isolation.md 2.2). 매니페스트가 주도를 선언한 Registration을 먼저 본다.
+   * 없으면 undefined다. 시작 Drive(프로필과 덧씌우기)가 함께 쓴다
+   */
+  function driveRegistrationOf(named: string): RegistrationId | undefined {
+    const registrations = deps.ext.registrations();
+    // 세대는 대화가 그 플러그인을 켤 때 열리므로 첫 열기에서는 아직 "none"일 수 있다. 매니페스트가 주도를 선언한 Registration을 먼저 본다
+    const record = deps.extRead.extensions().find((one) => one.manifest.name === named);
+    const declared = new Set(
+      pluginDeclsOf(record?.manifest ?? {})
+        .filter((decl) => decl.drives === true)
+        .map((decl) => registrationIdOf({ name: named }, decl.id)),
+    );
+    return (
+      registrations.find((info) => info.extension === named && declared.has(info.id))?.id ??
+      registrations.find((info) => info.extension === named && info.drive !== "none")?.id
+    );
+  }
+
+  /**
    * 대화가 참조하는 프로필의 시작 Drive(`startDrive`)를 Registration id로 푼다(drive-isolation.md 2.2).
    * 프로필을 못 읽거나 시작 Drive가 없거나 그 플러그인에 drive 등록이 없으면 undefined다(시작 요청 없음)
    */
@@ -381,17 +400,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const profile = await ports.m4.profileTestRun.get(profileId);
     if (!profile.ok || profile.value.startDrive === null) return undefined;
     const named = profile.value.startDrive;
-    const registrations = deps.ext.registrations();
-    // 세대는 대화가 그 플러그인을 켤 때 열리므로 첫 열기에서는 아직 "none"일 수 있다. 매니페스트가 주도를 선언한 Registration을 먼저 본다
-    const record = deps.extRead.extensions().find((one) => one.manifest.name === named);
-    const declared = new Set(
-      pluginDeclsOf(record?.manifest ?? {})
-        .filter((decl) => decl.drives === true)
-        .map((decl) => registrationIdOf({ name: named }, decl.id)),
-    );
-    const found =
-      registrations.find((info) => info.extension === named && declared.has(info.id))?.id ??
-      registrations.find((info) => info.extension === named && info.drive !== "none")?.id;
+    const found = driveRegistrationOf(named);
     // 조용히 넘어가지 않는다: 이 대화는 시작 Drive 없이 열린다. 같은 사유는 `profile.preview`의 이슈(`driver_unavailable` 등)로도 보인다
     if (found === undefined) {
       logger.warn("profile.start_drive_unavailable", { profileId, plugin: named, threadId });
@@ -1247,7 +1256,19 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     pluginSet: {
       attachOverlay: (threadId, marks) => ports.m4.pluginSet.attachOverlay(threadId, marks),
-      cancelOverlay: (threadId) => ports.m4.pluginSet.cancelOverlay(threadId),
+      cancelOverlay: (threadId, keepDrive) => ports.m4.pluginSet.cancelOverlay(threadId, keepDrive),
+    },
+    // 시작 Drive 덧씌우기(§4.3.2): 사용자 명령으로 주도를 요청한다. 실패는 기록하고 거절 값으로 돌려준다
+    startDrive: (threadId, plugin) => {
+      const scopeId = driveRegistrationOf(plugin);
+      if (scopeId === undefined) {
+        log.error("plugin.overlay.drive_failed", { plugin, kind: "no_drive" });
+        return err({ kind: "no_drive" });
+      }
+      const started = deps.ext.startDrive(threadId, scopeId, { trigger: "user" });
+      if (started.ok) return ok(undefined);
+      log.error("plugin.overlay.drive_failed", { plugin, kind: started.error.kind });
+      return err({ kind: "not_started", reason: started.error.kind });
     },
   });
   // 사용자 범위 스킬 만들기의 검토 싱크(L2.knowledge §7.5 [제안]). 지식 기능이 검토 서비스가 뜬 뒤에 얻는다(`PortsHandle.userSkillSink`)
@@ -1408,6 +1429,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
             ),
           signal: deps.signal,
         }),
+        whenIdle: (threadId, fn) => loop.whenIdle(threadId, fn),
         driveFramePlugins: (threadId) =>
           deps.ext
             .driveFrames(threadId)

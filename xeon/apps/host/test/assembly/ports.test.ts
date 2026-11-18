@@ -318,6 +318,8 @@ function harness(configDir = "/nonexistent-config"): Harness {
     // 대화별 켜짐 집합 포트를 플랫폼 모듈로 등록한다(m4/index.ts). 시험 가짜는 등록만 받는다
     registerPlatform: () => Promise.resolve(ok(undefined)),
     registrations: () => state.registrations,
+    // 임대 변화 구독(시험은 알림을 보내지 않는다). 집합의 `driveFramesChanged`가 이 구독을 받는다
+    onChange: () => () => undefined,
     openThread: (_threadId, options) => {
       calls.push("ext.openThread");
       openOptions.push(options);

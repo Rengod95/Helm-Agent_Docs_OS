@@ -108,6 +108,11 @@ export interface M4HostEnv {
   readonly openThreadProfiles: () => readonly (string | null)[];
   /** 대화의 주도권 스택에 든 플러그인(확장) 이름. 코어 루프는 빼고 아래에서 위 순서다. 열려 있지 않으면 빈 목록(`dropsDrive`의 원천) */
   readonly driveFramePlugins: (threadId: ThreadId) => readonly string[];
+  /**
+   * 대화의 루프가 쉴 때 `fn`을 돈다(`LoopPort.whenIdle`). 정착이나 임대 해제처럼 루프가 아직 도는 경계 안에서 생긴 집합 변화를
+   * 유휴 적용으로 미룬다. 그 뒤에는 다음 단계 경계가 없다(M5c §4.3.4)
+   */
+  readonly whenIdle: (threadId: ThreadId, fn: () => Promise<void>) => Promise<void>;
   /** 엔진이 열어 쥔 대화 id. 프로필이 바뀌었을 때 대화별 켜짐 집합을 다시 맞춘다 */
   readonly openThreadIds: () => readonly ThreadId[];
   /** 대화의 참조로 플러그인을 싣고 내리는 로더 연결(M5c §4.1.11). 없으면 참조만 센다 */

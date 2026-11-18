@@ -170,6 +170,9 @@ function harness(
     forcedPlugins: () => state.forced,
     defaultPlugins: () => state.defaults,
     toggles,
+    driveFramePlugins: () => [],
+    driveFramesChanged: () => () => undefined,
+    whenIdle: (_id, fn) => fn(),
     settingsChanged: (change) => {
       settingsEvents.push({ keys: change.keys, threadId: change.threadId });
     },
