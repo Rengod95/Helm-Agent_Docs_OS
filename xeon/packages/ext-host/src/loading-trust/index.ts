@@ -273,7 +273,10 @@ export class LoadAbortError extends Error {
 
 /** 확장 설정 유효 값 읽기. 조립 루트가 설정 서비스에 연결해 넘긴다 [제안, LoaderDeps에 선택으로 더한다] */
 export interface LoaderSettingsSource {
-  /** `ext.<name>.enabled`의 유효 값. 정해진 값이 없으면 undefined(매니페스트 기본값을 쓴다) */
+  /**
+   * `ext.<name>.enabled`의 잠금 값. 관리 범위가 거짓으로 잠갔을 때만 `false`를 준다. 잠기지 않았으면 undefined다.
+   * 매니페스트 기본(`defaultEnabled: false`)은 잠금이 아니다: 켜짐은 대화별 E(T)가 정한다(M5c §4.1.10, §4.1.11)
+   */
   enabled(name: ExtensionName): boolean | undefined;
   /** 설정 키에 유효 값이 있는가. required userConfig 확인에 쓴다 */
   hasValue(key: string): boolean;
@@ -327,6 +330,11 @@ export interface ReviewedSourceEntry {
   readonly root: string;
   /** `sha256:<hex>`. 판 식별자 `versionId`가 된다 */
   readonly contentHash: string;
+  /**
+   * 검토본 트리에 매니페스트 파일이 없을 때 호스트가 추론한 매니페스트(스킬 폴더에서 옮긴 것). 파일도 추론도 없으면 싣지 않는다.
+   * 파일이 있으면 파일이 이긴다
+   */
+  readonly manifest?: ExtensionManifest;
 }
 
 /** 적재 때 검토본 저장소가 낸 진단. 무결성이 어긋난 항목은 목록에서 빠지고 이것으로 남는다(M5c §4.6.5) */
@@ -774,6 +782,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     | { readonly ok: false; readonly code: LoadDiagnosticCode; readonly message: string }
   > {
     if (candidate.builtin !== null) return { ok: true, input: candidate.builtin.manifest };
+    if (candidate.inferredManifest !== undefined) {
+      return { ok: true, input: candidate.inferredManifest };
+    }
     const path = candidate.manifestPath;
     if (path === null) return { ok: false, code: "manifest_missing", message: "no manifest path" };
     const read = await attemptAsync(() => deps.fs.readText(path));
@@ -790,7 +801,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return { ok: true, input: json.value };
   }
 
-  /** 검토본 목록의 한 항목을 후보로 만든다. 매니페스트가 없으면 undefined다(코드가 없다) */
+  /**
+   * 검토본 목록의 한 항목을 후보로 만든다. 매니페스트 파일이 없으면 호스트가 준 추론 매니페스트를 쓰고, 그것도 없으면 undefined다.
+   * 코드가 없는 검토본(지침이나 스킬만 든 폴더)은 이렇게 실린다: 엔트리가 없으면 `noCodeEntry`가 등록만 만든다
+   */
   async function reviewedPickOf(entry: ReviewedSourceEntry): Promise<ReviewedPick | undefined> {
     // 발견과 같은 규칙으로 실제 경로를 쓴다. 엔트리가 루트 밖인지 가리는 검사는 실제 경로끼리 비교하기 때문이다(macOS의 /var → /private/var)
     const resolved = await attemptAsync(() => deps.fs.realpath(entry.root));
@@ -823,11 +837,25 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       });
       return undefined;
     }
-    if (!present.value) return undefined;
+    const source = installSourceOf(entry.source);
+    if (!present.value) {
+      if (entry.manifest === undefined) return undefined;
+      return {
+        name: entry.name,
+        candidate: {
+          source,
+          root,
+          manifestPath: null,
+          builtin: null,
+          contentHash: entry.contentHash,
+          inferredManifest: entry.manifest,
+        },
+      };
+    }
     return {
       name: entry.name,
       candidate: {
-        source: installSourceOf(entry.source),
+        source,
         root,
         manifestPath,
         builtin: null,
@@ -837,8 +865,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /**
-   * 검토본 목록에서 `include`가 고른 출처의 후보를 만든다. 매니페스트가 없는 항목(스킬만 든 폴더 따위)은 코드가 없어
-   * 적재 대상이 아니므로 건너뛴다. 매니페스트를 확인하지 못한 항목은 경고 진단을 남기고 건너뛴다
+   * 검토본 목록에서 `include`가 고른 출처의 후보를 만든다. 매니페스트 파일도 추론 매니페스트도 없는 항목은 건너뛴다.
+   * 매니페스트를 확인하지 못한 항목은 경고 진단을 남기고 건너뛴다
    */
   async function reviewedPicksOf(
     listing: ReviewedSourceListing,

@@ -826,7 +826,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.fresnel-plugin/plugin.json` | `user` |
 | `project` | `<projectRoot>/.fresnel/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `project` |
 
-- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트가 없는 항목(스킬만 든 검토본)은 적재하지 않는다. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
+- [구현: M5c 검토본 단계] `LoaderDeps.reviewedSource`(검토본 목록 포트)가 있으면 `user`·`project` 위치와 `extraPaths`는 훑지 않고 목록에서 받는다. 목록 항목의 `root`는 검토본 `tree/`이고 후보의 `contentHash`가 된다. 매니페스트 파일이 없는 항목은 `ReviewedSourceEntry.manifest`(호스트가 폴더에서 추론해 준 매니페스트)가 있으면 그것으로 싣는다. 엔트리가 없으므로 코드는 돌지 않고 선언한 플러그인마다 등록 하나만 생긴다(§4.4.2). 추론도 없으면 싣지 않는다 [구현: enC3 2026-11-18, `discover.ts`의 `inferredManifest`, `apps/host/src/assembly/plugins/reviewed-source.ts`]. `managed`만 위 표대로 훑는다. 번들 출처는 사용자 등급으로 싣는다. 포트가 없으면 위 표 그대로다(시험 호환). 목록은 적재 때마다 검토본의 해시를 다시 맞추고 어긋난 항목은 진단 `pinned_corrupt`로 뺀다(`docs/xeon/review/m5/profile-project-loader.md` §4.6). [구현: M5c 3b] `ExtensionLoader.reloadFromReviewed(name, signal, options)`는 검토본 목록의 현재 검토본을 `reload`와 같은 검사와 적용(`replaceUnit`, 단계 경계)으로 다시 읽는다. 기록의 후보가 새 `root`와 `contentHash`로 바뀌고, `LoadedExtensionInfo.contentHash`가 실린 판의 해시를 준다. 검토본 목록이 없으면 `reload`와 같다. 목록에 그 이름이 없으면 `rejected`다.
 - 외부 확장의 매니페스트는 확장 루트의 `.fresnel-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
@@ -1084,6 +1084,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 값이 없으면 `"process"` | `managed`, `user` | `restart` | 내장이 아닌 확장 |
 
 - `enabled`의 범위는 `managed`뿐이라(D10) 사용자가 설정이나 대화에서 바꾸지 못한다. 이 범위 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
+- 로더가 `LoaderSettingsSource.enabled`로 받는 값은 잠금뿐이다. 관리 범위가 거짓으로 잠근 확장만 `false`다. 매니페스트 기본(`defaultEnabled: false`)과 사용자 값은 잠금이 아니라서 켜짐은 대화별 E(T)가 정한다(M5c §4.1.10, §4.1.11). 카탈로그 기본을 잠금으로 읽으면 대화가 쓰는 default-off 확장이 재시작 뒤 영영 실리지 않는다 [구현: enC3 2026-11-18, `apps/host/src/assembly/ext-settings.ts`].
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
 - `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 값 `none`은 엔진 안에서 돌리기를 허락하는 예외이고 매니페스트 `isolation`은 설정 값이 없을 때의 요청이다(§4.9.0, F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
@@ -1426,7 +1427,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 3. `essential: true` 내장 확장의 엔트리가 throw하면 `loadAll`이 `LoadAbortError`를 던지고 진단에 `essential_failed`가 있다.
 4. 작업 폴더 신뢰 판정 전에는 작업 폴더 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `thread.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
 5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 작업 폴더 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
-6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 대화 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
+6. 관리 잠금(`ext.<name>.enabled`가 관리 범위에서 거짓)인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 잠금이 없고 매니페스트 기본이 꺼졌으면 `ensureLoaded`(대화가 쓸 때)가 엔트리를 한 번 부른다. 이 값은 사용자 범위에서 바꿀 수 없다(D10).
 7. 격리 확장 프록시의 `tool.call.before` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
 8. (삭제) pi 어댑터는 두지 않는다.
 9. `requires: [{ id: "web.search", range: "^1.0.0" }]`인 확장은 provider가 없으면 엔트리가 실행되지 않고 진단 `capability_missing`에 기능 ID가 있다.
@@ -1485,3 +1486,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
 25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 값 스키마는 §6 표에 있고(`x.ui.apps` 기본 `true`), 로더는 `LoadOptions.uiPolicy`로 받는다 [근거: `xeon/packages/ext-host/src/loading-trust/index.ts:181`]. §3.6 `loadingTrustSettings` 키 집합에 들어갔는지는 이 감사에서 확인하지 않았다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.
+26. [미결] 승인이 기록 없는 새 이름을 `loadInstalled`로 바로 싣는다(`apps/host/src/assembly/plugins/approval.ts`의 `reflectOf`). 보관만 한 플러그인의 코드가 승인 때 돈다. §4.1.11(M5c)은 E(T)에 처음 들어올 때 싣는다고 한다. 바꾸려면 승인과 덧씌우기(`overlay.ensureLoaded`)가 기록을 만든 뒤 `ensureLoaded`만 부르게 한다 [제안]. 덧씌우기는 얹기 전에 적재를 기다리므로 같이 바꾼다.

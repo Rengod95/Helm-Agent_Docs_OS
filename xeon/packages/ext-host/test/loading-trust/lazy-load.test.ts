@@ -184,3 +184,24 @@ test("a deferred plugin with no default set is loaded at startup as before", asy
   const report = await harness.loader.loadAll(harness.options([], { cwd: project }));
   expect(report.extensions.map((info) => info.state)).toEqual(["active"]);
 });
+
+test("a default-off plugin is held off only by a lock; with no lock its first ensureLoaded loads it (the manifest default is not a lock)", async () => {
+  // 매니페스트 기본이 꺼진 확장도 잠기지 않았으면 대화가 쓰는 순간 싣는다. 잠금(거짓)만 막는다(M5c §4.1.10)
+  const root = await reviewedRootOf("lazy-kit", HASH_A);
+  const state = {
+    entries: [{ name: "lazy-kit", source: "user" as const, root, contentHash: HASH_A }],
+  };
+  const harness = await harnessOf(portOf(state));
+  await harness.loader.loadAll({ ...harness.options([], { cwd: project }), defaultNames: [] });
+  expect(harness.loader.list().map((info) => info.state)).toEqual(["disabled"]);
+
+  harness.settings.enabled.set("lazy-kit", false);
+  const locked = await harness.loader.ensureLoaded("lazy-kit", signal);
+  expect(locked.state).toBe("disabled");
+  expect(locked.diagnostics.map((entry) => entry.code)).toEqual(["disabled_by_setting"]);
+
+  harness.settings.enabled.delete("lazy-kit");
+  const unlocked = await harness.loader.ensureLoaded("lazy-kit", signal);
+  expect(unlocked.state).toBe("active");
+  expect(unlocked.diagnostics).toEqual([]);
+});

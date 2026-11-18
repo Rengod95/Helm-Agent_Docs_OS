@@ -35,6 +35,11 @@ export interface ExtensionCandidate {
    * 검토본 후보의 내용 해시(`sha256:<hex>`). 있으면 판 식별자 `versionId`가 된다(M5c §9.1). 내장이나 원본 폴더 탐색 후보는 없다(null·생략)
    */
   readonly contentHash?: string | null;
+  /**
+   * 검토본 트리에 매니페스트 파일이 없을 때 호스트가 추론한 매니페스트(M5c §4.5.4). 있으면 파일 대신 이것을 읽는다.
+   * 코드가 없는 검토본(스킬이나 지침만 든 폴더)이 이 값으로 실린다. `manifestPath`는 그때 null이다
+   */
+  readonly inferredManifest?: ExtensionManifest;
 }
 
 /** 내장 모듈 목록 → 후보(X.loading-trust.spec §4.2.1). 외부 위치 탐색은 `discoverExternal`이다 */

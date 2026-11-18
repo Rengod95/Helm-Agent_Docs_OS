@@ -95,8 +95,8 @@ test("with a reviewed source the user folder is not scanned and each reviewed tr
   ]);
 });
 
-test("a reviewed tree without a manifest is not loaded and raises no diagnostic", async () => {
-  // 스킬만 든 검토본은 코드가 없어 적재 대상이 아니다(M5c §4.5.4 추론은 카드 쪽이다)
+test("a reviewed tree without a manifest and without an inferred one from the host is not loaded and raises no diagnostic", async () => {
+  // 매니페스트 파일도 호스트의 추론도 없는 검토본은 싣지 않는다. 진단은 남기지 않는다(목록이 이미 거른 것이다)
   const skillRoot = join(reviewedRoot, "skills", HASH_A.slice("sha256:".length), "tree");
   await putFile(join(skillRoot, "SKILL.md"), "---\nname: skills\n---\n");
   const harness = await harnessOf(
@@ -105,6 +105,40 @@ test("a reviewed tree without a manifest is not loaded and raises no diagnostic"
   const report = await harness.loader.loadAll(harness.options([], { cwd: project }));
   expect(report.extensions).toEqual([]);
   expect(report.diagnostics).toEqual([]);
+});
+
+test("a reviewed copy with no manifest file loads with the manifest the host infers for it; it runs no code and registers its plugin", async () => {
+  // 스킬 폴더에서 옮긴 검토본: 파일이 없고 호스트가 추론 매니페스트를 준다. 엔트리가 없어 코드는 돌지 않고, 선언한 플러그인 하나의 등록이 생긴다
+  const skillRoot = join(reviewedRoot, "skills", HASH_A.slice("sha256:".length), "tree");
+  await putFile(join(skillRoot, "SKILL.md"), "---\nname: skills\n---\n");
+  const inferred = {
+    schemaVersion: 2 as const,
+    name: "skills",
+    version: "0.0.0-aaaaaaaa",
+    plugins: [{ layer: "plugin" as const, hooks: [] }],
+  };
+  const harness = await harnessOf(
+    portOf({
+      entries: [
+        {
+          name: "skills",
+          source: "user",
+          root: skillRoot,
+          contentHash: HASH_A,
+          manifest: inferred,
+        },
+      ],
+    }),
+  );
+  const report = await harness.loader.loadAll(harness.options([], { cwd: project }));
+  expect(report.diagnostics).toEqual([]);
+  expect(report.extensions.map((info) => [info.name, info.source, info.state, info.root])).toEqual([
+    ["skills", "user", "active", skillRoot],
+  ]);
+  expect(harness.loader.list().map((info) => info.manifest?.name)).toEqual(["skills"]);
+  expect(harness.t.host.registrations().map((registration) => registration.extension)).toEqual([
+    "skills",
+  ]);
 });
 
 test("integrity diagnostics from the port reach the report and the corrupt entry is not in the list", async () => {
