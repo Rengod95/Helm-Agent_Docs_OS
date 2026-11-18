@@ -1,58 +1,22 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@fresnel/contracts";
 import { CapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
-import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ProposalDecideParams,
+  ProposalDecideResult,
   ProposalRow,
-  ProposalStatusWire,
 } from "@fresnel/contracts/wire";
 import type { KnowledgeProposalListInput, KnowledgeProposalWire } from "@fresnel/cap-knowledge";
-import {
-  decisionCommandLine,
-  type DecisionResult,
-  type LearningError,
-  type LearningQueueApi,
-  type LearningQueueReader,
-  type Proposal,
-  type ProposalDecision,
-  type ProposalFilter,
-  type ProposalView,
-} from "@fresnel/group-learning";
-import type { HumanDecisionGrant } from "@fresnel/contracts/services";
-import type { LearningRunner } from "../../src/assembly/learning.ts";
 import { createProposalPort } from "../../src/assembly/proposals.ts";
-import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
-// M3-REQ-18(D-M3-32 a): `proposal.list`·`proposal.decide`의 포트. 두 출처를 한 목록으로 합치고 결정을 출처로 보낸다. 가짜 두 출처 위의 시험이다.
-// 실제 L2 대기열과 학습 대기열 위의 시험은 test/int/proposals.int.test.ts다.
+// M3-REQ-18: `proposal.list`·`proposal.decide`의 포트. 학습 그룹은 빌트인에서 빠졌다(AGE-49): 목록은 지식 대기열만 읽고, 학습 출처는 늘 `unavailable`이고
+// 결정은 거절한다. 가짜 지식 대기열 위의 시험이다. 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
 
 const SIGNAL = new AbortController().signal;
-const MIXED_STATUS: ProposalStatusWire[] = ["applied", "reverted"];
-const THREAD = fixedIdFactory().next("thr");
-
-function view(patch: Partial<ProposalView> & { id: string }): ProposalView {
-  return {
-    kind: "skill",
-    op: "create",
-    target: "release-notes",
-    status: "pending",
-    destructive: false,
-    diff: "+ x",
-    rationale: "asked twice",
-    evidence: [{ eventId: "evt_1", threadId: THREAD }],
-    conflictsWith: null,
-    reason: null,
-    note: null,
-    revision: 1,
-    scope: "user",
-    afterUntrusted: false,
-    createdAt: 1000,
-    expiresAt: 1000 + 30 * 86_400_000,
-    source: "learning",
-    ...patch,
-  };
-}
+const LEARNING_NOT_BUILT_IN: ProposalDecideResult = {
+  ok: false,
+  reason: "unavailable",
+  detail: "the learning plugin is not built in",
+};
 
 function row(patch: Partial<ProposalRow> & { id: string }): ProposalRow {
   return {
@@ -77,43 +41,7 @@ function row(patch: Partial<ProposalRow> & { id: string }): ProposalRow {
   };
 }
 
-/** 저장소에 남은 학습 기록 하나(투영 행). 그룹이 꺼져 있을 때의 목록이 읽는다 */
-function stored(patch: Partial<Proposal> & { id: string }): Proposal {
-  return {
-    kind: "skill",
-    op: "create",
-    target: "release-notes",
-    diff: "+ x",
-    body: "x",
-    description: null,
-    bodyHash: "0".repeat(64),
-    baseHash: null,
-    rationale: "asked twice",
-    evidenceEventIds: ["evt_1"],
-    threadId: THREAD,
-    status: "pending",
-    reviewId: null,
-    conflictsWith: null,
-    destructive: false,
-    scope: "user",
-    afterUntrusted: false,
-    reason: null,
-    note: null,
-    findings: [],
-    ledgerId: null,
-    createdAt: 1000,
-    updatedAt: 1000,
-    revision: 1,
-    ...patch,
-  };
-}
-
 interface Calls {
-  /** 명령 실행기가 받은 줄과 실행 대화 */
-  readonly runs: { line: string; preferred: string | undefined }[];
-  readonly sweeps: number[];
-  /** 저장소 면이 받은 거름(그룹이 꺼져 있을 때의 목록) */
-  readonly storeLists: ProposalFilter[];
   readonly knowledgeLists: {
     input: KnowledgeProposalListInput;
     options: CallOptions | undefined;
@@ -123,78 +51,10 @@ interface Calls {
 }
 
 function rig(options: {
-  readonly learning?: readonly ProposalView[] | "down";
-  /** 그룹이 꺼져 있어도 남은 학습 기록. 없으면(undefined) 학습 그룹이 실리지 않은 구성이다. "error"면 읽기가 실패한다 */
-  readonly store?: readonly Proposal[] | "error";
+  /** 지식 대기열의 행. `down`이면 지식 어댑터가 없고, `throws`면 읽기가 실패한다 */
   readonly knowledge?: readonly ProposalRow[] | "down" | "throws";
-  /** 결정 명령 줄의 후보 id를 받아 명령이 낼 결정 결과를 정한다 */
-  readonly decide?: (proposalId: string) => DecisionResult;
-  readonly sweepFails?: boolean;
-  /** 열린 대화가 없다 */
-  readonly noThread?: boolean;
-  /** 이 호스트에서 열려 있는 대화. 생략하면 `THREAD` 하나다. `noThread`면 없다 */
-  readonly openThreads?: readonly ThreadId[];
-  readonly knowledgeDecide?: KnowledgeProposalWire["decide"];
-  /** 사람의 결정을 실행하는 동안 켠 허용을 받는다. 없으면 허용 경로가 없는 구성이다 */
-  readonly humanDecision?: <T>(grant: HumanDecisionGrant, work: () => Promise<T>) => Promise<T>;
 }) {
-  const calls: Calls = {
-    runs: [],
-    sweeps: [],
-    storeLists: [],
-    knowledgeLists: [],
-    knowledgeDecides: [],
-    reports: [],
-  };
-  const api: LearningQueueApi = {
-    list: (filter) => {
-      const all =
-        options.learning === undefined || options.learning === "down" ? [] : options.learning;
-      const rows = all.filter(
-        (found) => filter.statuses === undefined || filter.statuses.includes(found.status),
-      );
-      return Promise.resolve(ok(rows));
-    },
-  };
-  const openThreads: readonly ThreadId[] =
-    options.noThread === true ? [] : (options.openThreads ?? [THREAD]);
-  const runner: LearningRunner = {
-    report: () => undefined,
-    openThreadOf: (preferred) =>
-      preferred === undefined ? undefined : openThreads.find((thread) => thread === preferred),
-    run: (line, preferred) => {
-      calls.runs.push({ line, preferred });
-      if (options.noThread === true) {
-        return Promise.resolve({ kind: "unavailable", detail: "no conversation is open" });
-      }
-      if (line === "queue") {
-        calls.sweeps.push(calls.runs.length - 1);
-        return Promise.resolve(
-          options.sweepFails === true
-            ? {
-                kind: "report",
-                report: {
-                  kind: "error",
-                  error: { kind: "learning.storeUnavailable", detail: "down" },
-                },
-              }
-            : { kind: "report", report: { kind: "queue", views: [], sweep: null } },
-        );
-      }
-      const proposalId = line.split(" ")[2] ?? "";
-      return Promise.resolve({
-        kind: "report",
-        report: {
-          kind: "decision",
-          result: options.decide?.(proposalId) ?? {
-            ok: true,
-            proposal: view({ id: proposalId }),
-            applied: false,
-          },
-        },
-      });
-    },
-  };
+  const calls: Calls = { knowledgeLists: [], knowledgeDecides: [], reports: [] };
   const wire: KnowledgeProposalWire = {
     list: (input, callOptions) => {
       calls.knowledgeLists.push({ input, options: callOptions });
@@ -223,45 +83,17 @@ function rig(options: {
         .toSorted((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
       return Promise.resolve(filtered.slice(0, input.limit ?? 50));
     },
-    decide:
-      options.knowledgeDecide ??
-      ((params, callOptions) => {
-        calls.knowledgeDecides.push({ params, options: callOptions });
-        return Promise.resolve({
-          ok: true,
-          proposal: row({ id: params.id }),
-          applied: params.decision === "approve",
-        });
-      }),
-  };
-  const reader: LearningQueueReader = {
-    getProposal: () => Promise.resolve(ok(undefined)),
-    listProposals: (filter) => {
-      calls.storeLists.push(filter);
-      if (options.store === "error") {
-        return Promise.resolve(
-          err({ kind: "learning.storeUnavailable", detail: "the projection is down" }),
-        );
-      }
-      const all = options.store ?? [];
-      return Promise.resolve(
-        ok(
-          all.filter(
-            (found) => filter.statuses === undefined || filter.statuses.includes(found.status),
-          ),
-        ),
-      );
+    decide: (params, callOptions) => {
+      calls.knowledgeDecides.push({ params, options: callOptions });
+      return Promise.resolve({
+        ok: true,
+        proposal: row({ id: params.id }),
+        applied: params.decision === "approve",
+      });
     },
-    getReviewByChild: () => Promise.resolve(ok(undefined)),
-    getReview: () => Promise.resolve(ok(undefined)),
-    listReviews: () => Promise.resolve(ok([])),
   };
   const port = createProposalPort({
-    learning: () => (options.learning === "down" ? undefined : api),
-    learningStore: () => (options.store === undefined ? undefined : reader),
-    runner,
     knowledge: () => (options.knowledge === "down" ? undefined : wire),
-    ...(options.humanDecision === undefined ? {} : { humanDecision: options.humanDecision }),
     report: (message) => {
       calls.reports.push(message);
     },
@@ -271,218 +103,90 @@ function rig(options: {
 
 // ── proposal.list ───────────────────────────────────────────────────────
 
-test("proposal.list merges both queues newest first and breaks ties by source then id", async () => {
+test("proposal.list orders the knowledge queue newest first and breaks ties by id ascending", async () => {
   const { port } = rig({
-    learning: [
-      view({ id: "prop_b", createdAt: 2000 }),
-      view({ id: "prop_a", createdAt: 3000 }),
-      view({ id: "prop_c", createdAt: 1000 }),
-    ],
     knowledge: [
       row({ id: "knp_z", createdAt: 2000 }),
       row({ id: "knp_y", createdAt: 2000 }),
       row({ id: "knp_x", createdAt: 500 }),
+      row({ id: "knp_w", createdAt: 3000 }),
     ],
   });
   const listed = await port.list({}, SIGNAL);
-  // createdAt 내림차순. 같으면 (source, id) 오름차순이고 "knowledge"가 "learning"보다 앞이다
   expect(listed.proposals.map((entry) => [entry.source, entry.id])).toEqual([
-    ["learning", "prop_a"],
+    ["knowledge", "knp_w"],
     ["knowledge", "knp_y"],
     ["knowledge", "knp_z"],
-    ["learning", "prop_b"],
-    ["learning", "prop_c"],
     ["knowledge", "knp_x"],
   ]);
   expect(listed.unavailable).toEqual([]);
   expect(listed.nextCursor).toBeNull();
 });
 
-test("proposal.list maps a learning row: scope only for skills, evidence with a thread, the source column", async () => {
-  const { port } = rig({
-    learning: [
-      view({ id: "prop_skill", scope: "project" }),
-      view({
-        id: "prop_memory",
-        kind: "memory",
-        op: "add",
-        target: "user",
-        scope: "user",
-        afterUntrusted: true,
-        conflictsWith: "other",
-        reason: "base_stale",
-        createdAt: 900,
-      }),
-      view({
-        id: "prop_rejected",
-        status: "rejected",
-        reason: "user_rejected",
-        note: "이 팀 한정",
-        expiresAt: null,
-        createdAt: 800,
-      }),
-    ],
-    knowledge: [],
+test("proposal.list without a source reads only the knowledge queue and reports no unavailable source", async () => {
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1" })] });
+  const listed = await port.list({}, SIGNAL);
+  expect(listed).toEqual({
+    proposals: [row({ id: "knp_1" })],
+    nextCursor: null,
+    unavailable: [],
   });
-  const { proposals } = await port.list({ source: "learning" }, SIGNAL);
-  expect(proposals[0]).toEqual({
-    source: "learning",
-    id: "prop_skill",
-    kind: "skill",
-    op: "create",
-    target: "release-notes",
-    status: "pending",
-    destructive: false,
-    diff: "+ x",
-    rationale: "asked twice",
-    evidence: [{ eventId: "evt_1", threadId: THREAD }],
-    conflictsWith: null,
-    reason: null,
-    note: null,
-    revision: 1,
-    scope: "project",
-    afterUntrusted: false,
-    createdAt: 1000,
-    expiresAt: 1000 + 30 * 86_400_000,
-  });
-  expect(proposals[1]).toMatchObject({
-    kind: "memory",
-    scope: null,
-    afterUntrusted: true,
-    conflictsWith: "other",
-    reason: "base_stale",
-  });
-  // 거절 메모와 만료 시각(대기 상태가 아니면 없음)은 그대로 옮긴다
-  expect(proposals[2]).toMatchObject({
-    id: "prop_rejected",
-    status: "rejected",
-    note: "이 팀 한정",
-    expiresAt: null,
-  });
+  expect(calls.knowledgeLists).toHaveLength(1);
 });
 
-test("proposal.list reports a source it cannot read and still returns the other", async () => {
-  const learningDown = await rig({ learning: "down", knowledge: [row({ id: "knp_1" })] }).port.list(
-    {},
-    SIGNAL,
-  );
-  expect(learningDown.unavailable).toEqual(["learning"]);
-  expect(learningDown.proposals.map((entry) => entry.id)).toEqual(["knp_1"]);
-  const knowledgeDown = await rig({
-    learning: [view({ id: "prop_1" })],
-    knowledge: "down",
-  }).port.list({}, SIGNAL);
-  expect(knowledgeDown.unavailable).toEqual(["knowledge"]);
-  expect(knowledgeDown.proposals.map((entry) => entry.id)).toEqual(["prop_1"]);
-  const throwing = rig({ learning: [view({ id: "prop_1" })], knowledge: "throws" });
-  const result = await throwing.port.list({}, SIGNAL);
-  expect(result.unavailable).toEqual(["knowledge"]);
-  expect(throwing.calls.reports).toEqual(["proposal.knowledge_list_failed"]);
-  const both = await rig({ learning: "down", knowledge: "down" }).port.list({}, SIGNAL);
-  expect(both).toEqual({ proposals: [], nextCursor: null, unavailable: ["learning", "knowledge"] });
-});
-
-test("proposal.list reads the stored learning history while the group is off: no sweep, the rows keep their status, and a pending row has no expiry", async () => {
-  const off = rig({
-    learning: "down",
-    knowledge: [],
-    store: [
-      stored({ id: "prop_applied", status: "applied", createdAt: 3000 }),
-      stored({ id: "prop_pending", status: "pending", createdAt: 2000 }),
-      stored({ id: "prop_rejected", status: "rejected", reason: "user_rejected", createdAt: 1000 }),
-    ],
+test("proposal.list asked for the learning source returns no rows and reports learning unavailable, and never reads the knowledge queue", async () => {
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1" })] });
+  expect(await port.list({ source: "learning" }, SIGNAL)).toEqual({
+    proposals: [],
+    nextCursor: null,
+    unavailable: ["learning"],
   });
-  const listed = await off.port.list({}, SIGNAL);
-  expect(listed.unavailable).toEqual([]);
-  expect(listed.proposals.map((entry) => [entry.id, entry.status, entry.expiresAt])).toEqual([
-    ["prop_applied", "applied", null],
-    ["prop_pending", "pending", null],
-    ["prop_rejected", "rejected", null],
-  ]);
-  // 꺼진 그룹은 정리를 돌리지 않는다(정리는 그룹의 명령이다)
-  expect(off.calls.runs).toEqual([]);
-  // 결정은 그룹이 돌 때만 되므로 꺼진 동안에는 `unavailable`이다
-  expect(
-    await off.port.decide(
-      { source: "learning", id: "prop_pending", decision: "approve", revision: 1 },
-      SIGNAL,
-    ),
-  ).toEqual({ ok: false, reason: "unavailable", detail: "learning group is not running" });
-  expect(off.calls.runs).toEqual([]);
-});
-
-test("proposal.list with the group off filters the stored rows by status and skips the store for a stale-only filter", async () => {
-  const off = rig({
-    learning: "down",
-    knowledge: [],
-    store: [
-      stored({ id: "prop_applied", status: "applied", createdAt: 3000 }),
-      stored({ id: "prop_pending", status: "pending", createdAt: 2000 }),
-    ],
+  // 상태 거름이 있어도 학습 출처는 빈 목록이고 `unavailable`이다
+  expect(await port.list({ source: "learning", status: ["pending"] }, SIGNAL)).toEqual({
+    proposals: [],
+    nextCursor: null,
+    unavailable: ["learning"],
   });
-  const applied = await off.port.list({ status: ["applied"] }, SIGNAL);
-  expect(applied.proposals.map((entry) => entry.id)).toEqual(["prop_applied"]);
-  expect(off.calls.storeLists).toEqual([{ statuses: ["applied"] }]);
-  // 학습 상태가 없는 거름(stale만)은 저장소를 읽지 않고 빈 목록이다
-  const stale = await off.port.list({ status: ["stale"] }, SIGNAL);
-  expect(stale).toEqual({ proposals: [], nextCursor: null, unavailable: [] });
-  expect(off.calls.storeLists).toEqual([{ statuses: ["applied"] }]);
-});
-
-test("proposal.list with the group off and a store that fails still reports learning as unavailable, and says why", async () => {
-  const broken = rig({ learning: "down", knowledge: [], store: "error" });
-  const listed = await broken.port.list({}, SIGNAL);
-  expect(listed).toEqual({ proposals: [], nextCursor: null, unavailable: ["learning"] });
-  expect(broken.calls.reports).toEqual(["proposal.learning_list_failed"]);
-});
-
-test("proposal.list with a source filter reads only that source and does not call the other", async () => {
-  const { port, calls } = rig({
-    learning: [view({ id: "prop_1" })],
-    knowledge: [row({ id: "knp_1" })],
-  });
-  expect(
-    (await port.list({ source: "learning" }, SIGNAL)).proposals.map((entry) => entry.id),
-  ).toEqual(["prop_1"]);
   expect(calls.knowledgeLists).toEqual([]);
-  expect(
-    (await port.list({ source: "knowledge" }, SIGNAL)).proposals.map((entry) => entry.id),
-  ).toEqual(["knp_1"]);
-  // 읽지 않은 출처는 unavailable이 아니다
-  expect((await port.list({ source: "knowledge" }, SIGNAL)).unavailable).toEqual([]);
+  expect(calls.reports).toEqual([]);
 });
 
-test("proposal.list applies the status filter on the server: stale is knowledge only, reverted is learning only", async () => {
+test("proposal.list with a knowledge source reads only the knowledge queue and reports nothing unavailable", async () => {
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1" })] });
+  const listed = await port.list({ source: "knowledge" }, SIGNAL);
+  expect(listed).toEqual({ proposals: [row({ id: "knp_1" })], nextCursor: null, unavailable: [] });
+  expect(calls.knowledgeLists).toHaveLength(1);
+});
+
+test("proposal.list reports the knowledge queue as unavailable when its adapter is missing or its read fails, and keeps the rest of the answer", async () => {
+  const knowledgeDown = await rig({ knowledge: "down" }).port.list({ source: "knowledge" }, SIGNAL);
+  expect(knowledgeDown).toEqual({ proposals: [], nextCursor: null, unavailable: ["knowledge"] });
+  const throwing = rig({ knowledge: "throws" });
+  const result = await throwing.port.list({}, SIGNAL);
+  expect(result).toEqual({ proposals: [], nextCursor: null, unavailable: ["knowledge"] });
+  expect(throwing.calls.reports).toEqual(["proposal.knowledge_list_failed"]);
+});
+
+test("proposal.list applies the status filter on the server for the knowledge queue", async () => {
   const { port, calls } = rig({
-    learning: [
-      view({ id: "prop_a", status: "applied" }),
-      view({ id: "prop_b", status: "reverted" }),
-      view({ id: "prop_c", status: "pending" }),
-    ],
     knowledge: [row({ id: "knp_a", status: "stale" }), row({ id: "knp_b", status: "applied" })],
   });
   const stale = await port.list({ status: ["stale"] }, SIGNAL);
   expect(stale.proposals.map((entry) => entry.id)).toEqual(["knp_a"]);
   expect(stale.unavailable).toEqual([]);
-  const mixed = await port.list({ status: MIXED_STATUS }, SIGNAL);
-  expect(mixed.proposals.map((entry) => entry.id).toSorted()).toEqual([
-    "knp_b",
-    "prop_a",
-    "prop_b",
-  ]);
+  const applied = await port.list({ status: ["applied", "reverted"] }, SIGNAL);
+  expect(applied.proposals.map((entry) => entry.id)).toEqual(["knp_b"]);
   expect(calls.knowledgeLists.at(-1)?.input.status).toEqual(["applied", "reverted"]);
 });
 
-test("proposal.list pages with an opaque cursor and the pages together are the whole list", async () => {
-  const learning = Array.from({ length: 5 }, (_, n) =>
-    view({ id: `prop_${String(n)}`, createdAt: 5000 - n * 10 }),
+test("proposal.list pages with an opaque cursor and the pages together are the whole knowledge list, ties included", async () => {
+  // 두 행씩 같은 시각이라 쪽 경계가 같은 시각 한가운데 걸린다
+  const knowledge = Array.from({ length: 9 }, (_, n) =>
+    row({ id: `knp_${String(n)}`, createdAt: 5000 - Math.floor(n / 2) * 10 }),
   );
-  const knowledge = Array.from({ length: 4 }, (_, n) =>
-    row({ id: `knp_${String(n)}`, createdAt: 5005 - n * 10 }),
-  );
-  const { port } = rig({ learning, knowledge });
+  const { port } = rig({ knowledge });
   const whole = await port.list({ limit: 200 }, SIGNAL);
-  expect(whole.proposals).toHaveLength(9);
+  expect(whole.proposals.map((entry) => entry.id)).toEqual(knowledge.map((entry) => entry.id));
   const collected: string[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 10; page += 1) {
@@ -495,202 +199,18 @@ test("proposal.list pages with an opaque cursor and the pages together are the w
   expect(collected).toEqual(whole.proposals.map((entry) => entry.id));
 });
 
-test("proposal.list sweeps the learning queue before it reads, and a failed sweep does not fail the list", async () => {
-  const sweepOk = rig({ learning: [view({ id: "prop_1" })], knowledge: [] });
-  await sweepOk.port.list({}, SIGNAL);
-  expect(sweepOk.calls.sweeps).toEqual([0]);
-  const failing = rig({ learning: [view({ id: "prop_1" })], knowledge: [], sweepFails: true });
-  const result = await failing.port.list({}, SIGNAL);
-  expect(result.proposals.map((entry) => entry.id)).toEqual(["prop_1"]);
-  expect(failing.calls.reports).toEqual(["proposal.sweep_failed"]);
-  // 열린 대화가 없으면 정리를 건너뛰고 목록은 읽는다
-  const idle = rig({ learning: [view({ id: "prop_1" })], knowledge: [], noThread: true });
-  expect((await idle.port.list({}, SIGNAL)).proposals.map((entry) => entry.id)).toEqual(["prop_1"]);
-  expect(idle.calls.reports).toEqual(["proposal.sweep_skipped"]);
-});
-
-test("proposal.decide runs the command in the proposal's parent conversation and says unavailable when none is open", async () => {
-  const { port, calls } = rig({ learning: [view({ id: "prop_1" })] });
-  await port.decide({ source: "learning", id: "prop_1", decision: "reject" }, SIGNAL);
-  expect(calls.runs).toEqual([{ line: "queue reject prop_1", preferred: THREAD }]);
-  const idle = rig({ learning: [view({ id: "prop_1" })], noThread: true });
-  expect(
-    await idle.port.decide({ source: "learning", id: "prop_1", decision: "reject" }, SIGNAL),
-  ).toEqual({ ok: false, reason: "unavailable", detail: "no conversation is open" });
-});
-
 test("proposal.list calls the knowledge queue as the host, not as an extension or a model", async () => {
-  const { port, calls } = rig({ learning: [], knowledge: [] });
+  const { port, calls } = rig({ knowledge: [] });
   await port.list({}, SIGNAL);
   expect(calls.knowledgeLists[0]?.options?.context).toEqual({ caller: { kind: "host" } });
   expect(calls.knowledgeLists[0]?.options?.signal).toBe(SIGNAL);
-});
-
-// ── proposal.decide ─────────────────────────────────────────────────────
-
-test("proposal.decide routes a learning decision to the learning queue with the revision and scope", async () => {
-  const { port, calls } = rig({
-    learning: [],
-    decide: (proposalId) => ({
-      ok: true,
-      proposal: view({ id: proposalId, status: "applied", scope: "project" }),
-      applied: true,
-    }),
-  });
-  const approved = await port.decide(
-    { source: "learning", id: "prop_1", decision: "approve", revision: 3, scope: "project" },
-    SIGNAL,
-  );
-  expect(approved).toMatchObject({
-    ok: true,
-    applied: true,
-    proposal: { source: "learning", id: "prop_1", status: "applied", scope: "project" },
-  });
-  await port.decide(
-    { source: "learning", id: "prop_1", decision: "reject", note: "too vague" },
-    SIGNAL,
-  );
-  await port.decide(
-    { source: "learning", id: "prop_1", decision: "edit", revision: 2, body: "new body" },
-    SIGNAL,
-  );
-  await port.decide({ source: "learning", id: "prop_1", decision: "revert" }, SIGNAL);
-  const decisions: readonly ProposalDecision[] = [
-    { kind: "approve", proposalId: "prop_1", revision: 3, scope: "project" },
-    { kind: "reject", proposalId: "prop_1", note: "too vague" },
-    { kind: "edit", proposalId: "prop_1", revision: 2, body: "new body" },
-    { kind: "revert", proposalId: "prop_1" },
-  ];
-  // 결정은 `/learning` 명령 줄로 실행한다. 후보의 부모 대화(근거의 thread)에서 돈다
-  expect(calls.runs.filter((run) => run.line !== "queue")).toEqual(
-    decisions.map((decision) => ({ line: decisionCommandLine(decision), preferred: undefined })),
-  );
-  // 지식 대기열은 부르지 않는다
-  expect(calls.knowledgeDecides).toEqual([]);
-});
-
-test("proposal.decide routes a knowledge decision to the knowledge queue as the host", async () => {
-  const { port, calls } = rig({ learning: [], knowledge: [] });
-  const decided = await port.decide(
-    { source: "knowledge", id: "knp_1", decision: "approve", revision: 1, scope: "user" },
-    SIGNAL,
-  );
-  expect(decided).toMatchObject({
-    ok: true,
-    applied: true,
-    proposal: { source: "knowledge", id: "knp_1" },
-  });
-  expect(calls.knowledgeDecides).toHaveLength(1);
-  expect(calls.knowledgeDecides[0]?.options.context).toEqual({ caller: { kind: "host" } });
-  expect(calls.runs).toEqual([]);
-});
-
-const LEARNING_ERRORS: readonly [LearningError, string][] = [
-  [{ kind: "learning.notFound", proposalId: "p" }, "not_found"],
-  [{ kind: "learning.revisionMismatch", proposalId: "p", current: 4 }, "revision_mismatch"],
-  [{ kind: "learning.closed", proposalId: "p", status: "applied" }, "closed"],
-  [{ kind: "learning.scopeNotAllowed", proposalId: "p" }, "scope_not_allowed"],
-  [
-    { kind: "learning.invalidBody", proposalId: "p", detail: "patch body is not JSON" },
-    "unsupported",
-  ],
-  [{ kind: "learning.knowledgeUnavailable" }, "unavailable"],
-  [{ kind: "learning.settingsUnavailable" }, "unavailable"],
-  [{ kind: "learning.storeUnavailable", detail: "busy" }, "unavailable"],
-  [{ kind: "learning.reviewBusy", requestId: "r" }, "unavailable"],
-];
-
-test("proposal.decide turns every learning error into a decision failure value, never a throw", async () => {
-  for (const [error, reason] of LEARNING_ERRORS) {
-    const { port } = rig({ learning: [], decide: () => ({ ok: false, error }) });
-    // eslint-disable-next-line no-await-in-loop -- 오류마다 하나씩 본다
-    const result = await port.decide(
-      { source: "learning", id: "p", decision: "approve", revision: 1 },
-      SIGNAL,
-    );
-    expect(result).toMatchObject({ ok: false, reason });
-  }
-  const detail = await rig({
-    learning: [],
-    decide: () => ({
-      ok: false,
-      error: { kind: "learning.revisionMismatch", proposalId: "p", current: 4 },
-    }),
-  }).port.decide({ source: "learning", id: "p", decision: "approve", revision: 1 }, SIGNAL);
-  expect(detail).toEqual({
-    ok: false,
-    reason: "revision_mismatch",
-    detail: "current revision is 4",
-  });
-});
-
-function outcome(patch: Partial<ProposalView>) {
-  return rig({
-    learning: [],
-    decide: (proposalId) => ({
-      ok: true,
-      proposal: view({ id: proposalId, ...patch }),
-      applied: false,
-    }),
-  });
-}
-
-test("proposal.decide maps a rejected-by-scan or stale outcome of an approval to failure reasons and keeps a retry as success", async () => {
-  expect(
-    await outcome({ status: "rejected", reason: "scan_failed" }).port.decide(
-      { source: "learning", id: "p", decision: "approve", revision: 1 },
-      SIGNAL,
-    ),
-  ).toMatchObject({ ok: false, reason: "scan_failed" });
-  expect(
-    await outcome({ status: "pending", reason: "base_stale", revision: 2 }).port.decide(
-      { source: "learning", id: "p", decision: "approve", revision: 1 },
-      SIGNAL,
-    ),
-  ).toMatchObject({ ok: false, reason: "base_stale" });
-  expect(
-    await outcome({ status: "rejected", reason: "apply_failed" }).port.decide(
-      { source: "learning", id: "p", decision: "approve", revision: 1 },
-      SIGNAL,
-    ),
-  ).toMatchObject({ ok: false, reason: "unavailable" });
-  // 적용이 일시 실패해 approved로 남았다: 성공이고 applied는 거짓이다(다음 목록 조회의 정리가 다시 적용한다)
-  expect(
-    await outcome({ status: "approved" }).port.decide(
-      { source: "learning", id: "p", decision: "approve", revision: 1 },
-      SIGNAL,
-    ),
-  ).toMatchObject({ ok: true, applied: false, proposal: { status: "approved" } });
-  // 수정한 본문을 스캔이 막은 경우도 실패다
-  expect(
-    await outcome({ status: "rejected", reason: "scan_failed" }).port.decide(
-      { source: "learning", id: "p", decision: "edit", revision: 1, body: "x" },
-      SIGNAL,
-    ),
-  ).toMatchObject({ ok: false, reason: "scan_failed" });
-});
-
-test("proposal.decide says unavailable when the source cannot be reached", async () => {
-  const learningDown = await rig({ learning: "down", knowledge: [] }).port.decide(
-    { source: "learning", id: "p", decision: "reject" },
-    SIGNAL,
-  );
-  expect(learningDown).toMatchObject({ ok: false, reason: "unavailable" });
-  const knowledgeDown = await rig({ learning: [], knowledge: "down" }).port.decide(
-    { source: "knowledge", id: "p", decision: "reject" },
-    SIGNAL,
-  );
-  expect(knowledgeDown).toMatchObject({ ok: false, reason: "unavailable" });
 });
 
 test("proposal.list pages through more than 200 knowledge rows without losing any or ending early", async () => {
   const knowledge = Array.from({ length: 450 }, (_, n) =>
     row({ id: `knp_${String(n).padStart(4, "0")}`, createdAt: 100_000 - n }),
   );
-  const learning = Array.from({ length: 3 }, (_, n) =>
-    view({ id: `prop_${String(n)}`, createdAt: 99_700 - n }),
-  );
-  const { port } = rig({ learning, knowledge });
+  const { port } = rig({ knowledge });
   const collected: string[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 20; page += 1) {
@@ -703,101 +223,49 @@ test("proposal.list pages through more than 200 knowledge rows without losing an
     if (next.nextCursor === null) break;
     cursor = next.nextCursor;
   }
-  expect(collected).toHaveLength(453);
-  expect(new Set(collected).size).toBe(453);
+  expect(collected).toEqual(knowledge.map((entry) => entry.id));
 });
 
-test("proposal.list reports learning evidence it cannot put on the wire instead of dropping it silently", async () => {
-  const { port, calls } = rig({
-    learning: [view({ id: "prop_1", evidence: [{ eventId: "evt_1", threadId: "not-a-thread" }] })],
-    knowledge: [],
-  });
-  const listed = await port.list({}, SIGNAL);
-  expect(listed.proposals[0]?.evidence).toEqual([]);
-  expect(calls.reports).toContain("proposal.evidence_dropped");
-});
+// ── proposal.decide ─────────────────────────────────────────────────────
 
-// U-11: 사람이 학습 제안을 승인·수정하는 동안만, 그 제안의 승인 증거를 단 지식 쓰기가 새 승인 카드 없이 지난다.
-
-const GRANT_CALL: Parameters<HumanDecisionGrant["covers"]>[0] = {
-  capability: "knowledge.skills",
-  method: "create",
-  input: { name: "n", approval: { source: "learning.queue", ref: "prop_1:3", decidedAt: 1 } },
-};
-
-test("proposal.decide opens a human-decision grant for approve and edit only, and the grant covers only that proposal's learning.queue evidence", async () => {
-  const grants: HumanDecisionGrant[] = [];
-  const { port } = rig({
-    learning: [view({ id: "prop_1" })],
-    humanDecision: (grant, work) => {
-      grants.push(grant);
-      return work();
-    },
-  });
-  await port.decide({ source: "learning", id: "prop_1", decision: "approve", revision: 3 }, SIGNAL);
-  await port.decide(
-    { source: "learning", id: "prop_1", decision: "edit", revision: 3, body: "b" },
+test("proposal.decide routes a knowledge decision to the knowledge queue as the host", async () => {
+  const { port, calls } = rig({ knowledge: [] });
+  const decided = await port.decide(
+    { source: "knowledge", id: "knp_1", decision: "approve", revision: 1, scope: "user" },
     SIGNAL,
   );
-  await port.decide({ source: "learning", id: "prop_1", decision: "reject" }, SIGNAL);
-  await port.decide({ source: "learning", id: "prop_1", decision: "revert" }, SIGNAL);
-  expect(grants.map((grant) => grant.id)).toEqual([
-    "decision:learning:prop_1",
-    "decision:learning:prop_1",
-  ]);
-  const grant = grants[0];
-  if (grant === undefined) throw new Error("no grant was opened");
-  expect(grant.risk).toBe("write");
-  expect(grant.covers(GRANT_CALL)).toBe(true);
-  // 다른 제안의 증거, 다른 출처의 증거, 증거 없음, 다른 기능은 맞지 않는다
-  expect(
-    grant.covers({
-      ...GRANT_CALL,
-      input: { approval: { source: "learning.queue", ref: "prop_2:3" } },
-    }),
-  ).toBe(false);
-  expect(
-    grant.covers({
-      ...GRANT_CALL,
-      input: { approval: { source: "other.queue", ref: "prop_1:3" } },
-    }),
-  ).toBe(false);
-  expect(grant.covers({ ...GRANT_CALL, input: { name: "n" } })).toBe(false);
-  expect(grant.covers({ ...GRANT_CALL, capability: "workspace.files" })).toBe(false);
-  // 허용은 결정이 실행되는 대화(부모 대화)와 학습 그룹 플러그인에만 쓴다
-  expect(grant.threadId).toBe(THREAD);
-  expect(grant.plugin).toBe("learning");
+  expect(decided).toEqual({
+    ok: true,
+    applied: true,
+    proposal: row({ id: "knp_1" }),
+  });
+  expect(calls.knowledgeDecides).toHaveLength(1);
+  expect(calls.knowledgeDecides[0]?.options.context).toEqual({ caller: { kind: "host" } });
 });
 
-test("proposal.decide opens no grant when the parent conversation is not open, and the decision runs in the open conversation as a normal card", async () => {
-  const grants: HumanDecisionGrant[] = [];
-  const closed = fixedIdFactory(2).next("thr");
-  // 부모 대화가 열려 있지 않으면 결정은 열린 대화에서 실행되고, 그 대화를 알 수 없으니 허용을 켜지 않는다(보통의 승인 카드)
-  const { port, calls } = rig({
-    learning: [view({ id: "prop_1", evidence: [{ eventId: "evt_1", threadId: closed }] })],
-    humanDecision: (grant, work) => {
-      grants.push(grant);
-      return work();
-    },
-  });
-  await port.decide({ source: "learning", id: "prop_1", decision: "approve", revision: 3 }, SIGNAL);
-  expect(grants).toEqual([]);
-  expect(calls.runs.map((run) => run.preferred)).toEqual([closed]);
+test("proposal.decide on the learning source fails as unavailable for every decision, and touches neither queue", async () => {
+  const { port, calls } = rig({ knowledge: [] });
+  const variants: ProposalDecideParams[] = [
+    { source: "learning", id: "prop_1", decision: "approve", revision: 1 },
+    { source: "learning", id: "prop_1", decision: "approve", revision: 3, scope: "project" },
+    { source: "learning", id: "prop_1", decision: "reject", note: "too vague" },
+    { source: "learning", id: "prop_1", decision: "edit", revision: 2, body: "new body" },
+    { source: "learning", id: "prop_1", decision: "revert" },
+  ];
+  const results = await Promise.all(variants.map((params) => port.decide(params, SIGNAL)));
+  expect(results).toEqual(variants.map(() => LEARNING_NOT_BUILT_IN));
+  expect(calls.knowledgeDecides).toEqual([]);
+  expect(calls.reports).toEqual([]);
 });
 
-test("proposal.decide opens no grant when the proposal has no parent conversation", async () => {
-  const grants: HumanDecisionGrant[] = [];
-  const { port, calls } = rig({
-    learning: [view({ id: "prop_1", evidence: [] })],
-    humanDecision: (grant, work) => {
-      grants.push(grant);
-      return work();
-    },
-  });
-  await port.decide(
-    { source: "learning", id: "prop_1", decision: "edit", revision: 2, body: "b" },
+test("proposal.decide on the knowledge source says unavailable when the knowledge queue is missing", async () => {
+  const knowledgeDown = await rig({ knowledge: "down" }).port.decide(
+    { source: "knowledge", id: "knp_1", decision: "reject" },
     SIGNAL,
   );
-  expect(grants).toEqual([]);
-  expect(calls.runs.map((run) => run.preferred)).toEqual([undefined]);
+  expect(knowledgeDown).toEqual({
+    ok: false,
+    reason: "unavailable",
+    detail: "knowledge store is not available",
+  });
 });

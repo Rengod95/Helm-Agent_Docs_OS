@@ -1,24 +1,12 @@
-import type { CancelScope, ExecutionEnv } from "@fresnel/contracts/services";
-import { WorkspaceFailure } from "../errors.ts";
+import type { AtomicEnv, AtomicWriteOptions, CancelScope } from "@fresnel/contracts/services";
+import { WorkspaceFailure } from "@fresnel/contracts/capabilities";
 import { getOrThrow } from "../upstream/get-or-throw.ts";
 
 // L2.workspace.spec §4.4 원자적 쓰기와 동시 변경 감지 [결정: 오케스트레이터 기본값, 미결 4].
 // 같은 디렉터리의 임시 파일에 쓰고 이름을 바꾼다. 쓰는 도중 프로세스가 죽어도 대상 파일은 원본이거나 새 내용 전체다.
+// 두 타입의 모양은 F(`@fresnel/contracts/services`)가 정의한다.
 
-/** 원자적 쓰기가 쓰는 파일 시스템 메서드 */
-export type AtomicEnv = Pick<
-  ExecutionEnv,
-  "readTextFile" | "writeFile" | "flushFile" | "renameFile" | "remove" | "exists" | "joinPath"
->;
-
-export interface AtomicWriteOptions {
-  /**
-   * 있으면 이름을 바꾸기 직전에 대상 파일을 다시 읽어 이 내용과 같은지 본다. 다르거나 파일이 없어졌으면
-   * `edit_conflict`로 거부하고 대상은 그대로 둔다(읽은 뒤 다른 프로세스나 `bash`가 파일을 바꾼 경우).
-   * 확인과 이름 바꾸기 사이의 틈은 남는다. 이 검사는 잠금이 아니라 덮어쓰기 위험을 줄이는 감지다.
-   */
-  readonly expectedBefore?: string;
-}
+export type { AtomicEnv, AtomicWriteOptions };
 
 /** 임시 파일 이름의 접두. 죽은 쓰기가 남긴 파일을 알아보는 표지 */
 const ATOMIC_TEMP_MARK = ".fresnel-tmp-";

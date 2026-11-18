@@ -291,8 +291,8 @@ export interface LoadOptions {
   /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 작업 폴더 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   /**
-   * 시작 때 싣는 외부 확장의 기본 집합 [제안, M5c §4.1.11]. 공장 기본 프로필의 기본 번들 이름이다. 없으면 모두 싣는다(이전 동작).
-   * 있으면 시작 때(`loadAll`의 묶음과 시작 때 싣는 프로젝트 묶음) 이름이 여기 없고 매니페스트 `defaultEnabled`가 거짓인 외부 확장은
+   * 시작 때 싣는 외부 확장의 기본 집합 [M5c §4.1.11]. 기본 프로필이 처음 주는 번들 이름이다. 없으면 모두 싣는다(이전 동작).
+   * 있으면 시작 때(`loadAll`의 묶음과 시작 때 싣는 프로젝트 묶음) 이름이 여기 없는 외부 확장은 `defaultEnabled`와 무관하게
    * 싣지 않는다(§4.3.1 5a단계 앞, 진단 `lazy_deferred`). 기록은 `disabled`로 남고 `ensureLoaded`가 싣는다(§4.4.4)
    */
   readonly defaultNames?: readonly ExtensionName[];
@@ -886,7 +886,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | 4 | 신뢰 판정 | 설치 위치, `trust.level`, 작업 폴더 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
 | 5 | 설정 연결 | `settingsFromManifest` + 예약 키 → 설정 그룹 | `rejected` | `settings_rejected`, `settings_reserved_key` |
 | 5a | 켜짐 확인 | `ext.<name>.enabled`, 필수 userConfig, `LoadOptions.startup`(`policy.startupFilter`, 2차) | `disabled` | `disabled_by_setting`, `config_required`, `safe_mode`, `disabled_flag` |
-| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없고 매니페스트 `defaultEnabled`가 거짓이면 싣지 않는다. 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다) | `disabled` | `lazy_deferred` |
+| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다) | `disabled` | `lazy_deferred` |
 | 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
 | 6 | 기능 요구 충족 | `requires` × 집합의 `provides`·코어 기능 | `error` | `capability_missing` |
 | 6a | tier 등록 | `policy.admit`(X.operations.spec §3.8) | `error` | `tier_rejected` |

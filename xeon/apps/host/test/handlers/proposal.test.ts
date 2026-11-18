@@ -5,8 +5,8 @@ import { rejectionOf } from "../fixtures/rejection.ts";
 import { invalidParams } from "../fixtures/unsafe.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// proposal.list, proposal.decide(F wire §3.3.1, M3-REQ-18). 가짜 엔진 위의 실제 처리기다. 두 대기열을 합치는 포트의 시험은
-// test/assembly/proposals.test.ts이고, 실제 두 대기열 위의 시험은 test/int/proposals.int.test.ts다.
+// proposal.list, proposal.decide(F wire §3.3.1, M3-REQ-18). 가짜 엔진 위의 실제 처리기다. 제안 대기열(지식 하나, 학습은 빌트인에서 뺐다) 포트의 시험은
+// test/assembly/proposals.test.ts이고, 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
 
 const ROW: WireResult<"proposal.list">["proposals"][number] = {
   source: "learning",
