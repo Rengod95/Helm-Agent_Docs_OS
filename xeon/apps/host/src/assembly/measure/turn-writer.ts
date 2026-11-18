@@ -170,19 +170,25 @@ export interface TurnWriter {
 }
 
 /**
- * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`이고 기준 프로필이 있을 때만 싣는다.
+ * 테스트 실행 대화의 구성을 `tr_thread`에서 읽는다(§4.6 규칙 37). 범위가 `test`일 때 싣는다.
+ * 기준 프로필이 표지에 없으면(`thread.create { testRun: true }`로 만든 대화) 턴이 돈 프로필(`fallbackProfileId`)이 기준이다 [제안]
  * 고정 초안 기록이 깨졌으면 초안 없이 싣고 기록한다. 초안의 판 식별자는 내용 해시에서 정한다(§4.8.1 3)
  */
-function testRunOf(store: MeasureStore, threadId: string, logger: Logger): TurnTestRunMark {
+function testRunOf(
+  store: MeasureStore,
+  threadId: string,
+  logger: Logger,
+  fallbackProfileId: string,
+): TurnTestRunMark {
   const found = store.getThread(threadId);
   if (!found.ok) return null;
   const row = found.value;
-  if (row === undefined || row.scopeKind !== "test" || row.testBaseProfile === null) return null;
+  if (row === undefined || row.scopeKind !== "test") return null;
   const drafts = decodeTestRunDrafts(row.draftJson);
   if (!drafts.ok) logger.warn("measure.test_run_drafts_unreadable", { threadId });
   return {
     runGroupId: row.runGroupId,
-    baseProfileId: row.testBaseProfile,
+    baseProfileId: row.testBaseProfile ?? fallbackProfileId,
     drafts: (drafts.ok ? drafts.value : []).map((draft) => ({
       plugin: draft.plugin,
       draftId: draft.draftId,
@@ -522,7 +528,10 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
   ): TrTurnRow {
     draft.scope = scopeOf(store, draft.threadId, deps.logger);
     if (draft.scope === "live" && draft.draftOverlay) draft.scope = "overlay_draft";
-    draft.testRun = draft.scope === "test" ? testRunOf(store, draft.threadId, deps.logger) : null;
+    draft.testRun =
+      draft.scope === "test"
+        ? testRunOf(store, draft.threadId, deps.logger, draft.profile.id)
+        : null;
     const row = turnRowOf(draft, state);
     const written = store.upsertTurn(row);
     if (!written.ok) {

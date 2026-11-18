@@ -861,7 +861,7 @@ export interface CompareRow { readonly row: string; readonly values: Record<stri
 35. (R16) 한 턴 안에서 프로필 개정이 바뀌면 `profileRevChanges`에 바뀐 단계가 남는다. `TurnRecord.profile.source`에 `project_default`는 없다.
 36. (R16) 테스트 대화(`craftChat`)의 턴이 `scope = craft`로 기록되고 지표 기본 필터에서 빠진다. 계측이 꺼져 있어도 표지는 내구로 남는다.
     [구현 상태, 2026-11-18] 대화를 만들 때 `tr_thread`에 `scope_kind = craft` 표지를 쓴다(`assembly/measure/test-run-marks.ts`의 `remember(…, "craft")`, `assembly/ports.ts`의 `threads.create`). 턴 기록기는 그 표지를 저장소에서 읽으므로 재시작 뒤에도 같은 범위다. 기본 지표 범위는 `live`와 `overlay_reviewed`뿐이라 `craft`와 `test`는 기본에서 빠진다(`turn-read.ts` `DEFAULT_SCOPES`). 계측이 꺼졌을 때 craft 턴을 항상 적는 일(`testRunsAlwaysOn`과 같은 규칙)은 하지 않았다. 시험: `test/assembly/measure/turn-record-write.test.ts`(재시작), `turn-read.test.ts`(기본 필터와 `scopes: ["craft"]`).
-37. (R16) 테스트 실행 대화의 `TurnRecord.testRun`이 기준 프로필과 초안 버전 id를 싣고 `overlay`는 null이다.
+37. (R16) 테스트 실행 대화의 `TurnRecord.testRun`이 기준 프로필과 초안 버전 id를 싣고 `overlay`는 null이다. `thread.create { testRun: true }`로 만든 대화는 표지에 기준 프로필이 없으므로 턴이 돈 프로필이 기준이다 [제안, 구현: enB5].
 38. (R23) `TurnRecord.children`이 자식 대화 목록을 싣고 `turnRecord.search`가 여러 대화에 걸쳐 플러그인이 일한 턴을 찾는다.
 39. (R17, R18) `findings.bundle`이 16 KiB 이하로 id·해시·숫자만 낸다. `turnRecord.mark`는 Inject만 하는 플러그인에만 받고 대화 로그에 새 기록을 더하지 않는다.
 

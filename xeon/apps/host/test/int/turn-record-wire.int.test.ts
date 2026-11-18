@@ -626,12 +626,17 @@ realTest(
       await runTurns(connection, collector, runC.threadId, ["다른 질문"]);
       if (turnA === undefined || turnB === undefined) throw new Bug("each run must have a turn");
 
-      // 테스트 실행 턴은 `test` 범위로 남는다(표지의 구성 값은 `record.testRun` 결함 때문에 여기서 보지 않는다)
+      // 테스트 실행 턴은 `test` 범위로 남는다(구성은 기준 프로필과 묶음 id, 초안 없음이다)
       const recordA = await connection.request("turnRecord.get", {
         threadId: runA.threadId,
         turnId: turnA,
       });
       expect(recordA.record?.scope).toBe("test");
+      expect(recordA.record?.testRun).toEqual({
+        runGroupId: "grp-a",
+        baseProfileId: "work",
+        drafts: [],
+      });
 
       // 첫 사용자 입력의 HMAC이 `tr_thread.input_hash`에 남고, 입력 원문은 남지 않는다
       const opened = openMeasureStore(join(home.dataDir, "measure.db"));
@@ -685,6 +690,47 @@ realTest(
         }),
       );
       expect([notTest.code, notTest.data.kind]).toEqual([3312, "testRun.notATestRun"]);
+    } finally {
+      await host.close();
+      home.dispose();
+    }
+  },
+  60_000,
+);
+
+realTest(
+  "turnRecord.get fills record.testRun for a test run made by thread.create too: the profile the turn ran under is the base and there are no drafts",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const models = recordingModels(
+      "turn-record-plain-test-run",
+      [{ text: "답", inputTokens: 1000 }],
+      { contextWindow: 100_000 },
+    );
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultGroups: false,
+      buildModels: models.buildModels,
+    });
+    const connection = createHostConnection(host.client);
+    const collector = collectEvents(connection);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      const created = await connection.request("thread.create", { testRun: true });
+      const [turnId] = await runTurns(connection, collector, created.threadId, ["질문"]);
+      if (turnId === undefined) throw new Bug("the run must have a turn");
+      const read = await connection.request("turnRecord.get", {
+        threadId: created.threadId,
+        turnId,
+      });
+      expect(read.record?.scope).toBe("test");
+      expect(read.record?.testRun).toEqual({
+        runGroupId: null,
+        baseProfileId: "default",
+        drafts: [],
+      });
     } finally {
       await host.close();
       home.dispose();
