@@ -116,10 +116,12 @@ function requestedOf(events: readonly EventWire[]) {
   });
 }
 
-// 엔진의 입력 상한(200,000바이트, X.primitives.spec §10)을 한 글자 넘는 입력
-const OVER_LIMIT = "x".repeat(200_001);
+// 입력 상한은 `l0.store.maxBlobBytes`를 따른다(X.primitives.spec §10). 시험은 설정의 하한(1 MiB)으로 낮추고 한 글자 넘는 입력을 쓴다
+const LIMIT_BYTES = 1_048_576;
+const OVER_LIMIT = "x".repeat(LIMIT_BYTES + 1);
 
 const BASE_SETTINGS = { "x.primitives.driveRequiresGroup": false };
+const LIMITED_SETTINGS = { ...BASE_SETTINGS, "l0.store.maxBlobBytes": LIMIT_BYTES };
 
 realTest(
   "a restart in the middle of a handoff: the handed-off plugin continues with the recorded input and its caller receives the result",
@@ -262,7 +264,7 @@ realTest(
   "an input over the limit is refused with a reason for both a handoff and a user start, and nothing is recorded for it",
   async () => {
     const home = useEngineHome();
-    writeUserSettings(home, BASE_SETTINGS);
+    writeUserSettings(home, LIMITED_SETTINGS);
     const big = OVER_LIMIT;
     const script: Script = {
       calls: [],
