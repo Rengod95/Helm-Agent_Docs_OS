@@ -34,3 +34,10 @@ export {
   type ForeignFormatNotice,
 } from "./detect.ts";
 export { FIRST_PIECE_ADAPTERS, scanRoots, type ScanInput } from "./scan.ts";
+export {
+  decodeScanItem,
+  parseScanChildLine,
+  parseScanRequest,
+  scanJsonReplacer,
+  type ScanRequest,
+} from "./scan-wire.ts";
