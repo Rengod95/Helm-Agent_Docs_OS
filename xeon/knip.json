@@ -82,6 +82,7 @@
         "test/fixtures/review-crash-host.ts",
         "test/fixtures/mcp-stdio-server.ts",
         "test/fixtures/mcp-sandbox-probe.ts",
+        "test/fixtures/migration-scan-probe.ts",
         "test/fixtures/marker-child.ts",
         "test/fixtures/secret-add-child.ts"
       ]

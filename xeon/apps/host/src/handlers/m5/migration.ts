@@ -21,12 +21,20 @@ import { wireErrorOfPluginFailure, type PluginPortFailure } from "./plugins.ts";
 // 처리기는 서비스(`assembly/plugins/migration.ts`)가 돌려준 값을 그대로 옮기고 실패만 wire 오류로 바꾼다.
 // 알림 `migration.changed`와 `migration.progress`는 `onChanged`, `onProgress`를 연결 허브가 듣고 보낸다.
 
+/**
+ * 훑기 자식이 끝까지 못 간 이유(migration.md §7.4 [제안]). `unavailable`은 격리를 쓸 수 없어 띄우지 않았다는 뜻이다.
+ * `timeout`은 기한을 넘겼다, `crashed`는 자식이 응답 없이 끝났거나 실패를 알렸다, `bad_reply`는 응답 줄이 상한을 넘었거나 검증을 통과하지 못했다
+ */
+export type MigrationScanFailureReason = "unavailable" | "timeout" | "crashed" | "bad_reply";
+
 /** 서비스가 내는 실패. 예상 가능한 것만 둔다(TY-11). 판별자는 `kind`다 */
 export type MigrationFailure =
   /** 훑을 폴더가 없거나 절대 경로가 아니다(`migration.rootInvalid`) */
   | { readonly kind: "root_invalid" }
   /** 항목 상한을 넘었다. 일부만 훑은 결과는 내지 않는다(`migration.scanLimit`) */
   | { readonly kind: "scan_limit" }
+  /** 훑기 자식이 결과를 내지 못했다(`store.io`, `details.code`는 `scan_<이유>`). 원문과 경로는 싣지 않는다 */
+  | { readonly kind: "scan_failed"; readonly reason: MigrationScanFailureReason }
   /** 질문이 닫히지 않았다(`migration.questionsOpen`, `details.id`는 제안 id) */
   | { readonly kind: "questions_open"; readonly proposalId: string }
   /** 같은 이름의 플러그인 폴더나 프로필이 이미 있다(`migration.nameConflict`, `details.name`) */
@@ -83,6 +91,12 @@ function wireErrorOfMigration(failure: MigrationFailure): WireError {
       return wireError("migration.rootInvalid");
     case "scan_limit":
       return wireError("migration.scanLimit");
+    case "scan_failed":
+      // `store.io`의 세부 값은 `code`(64자 이하)뿐이라 이유를 코드에 붙인다. 새 wire 오류 번호는 만들지 않는다
+      return wireError("store.io", {
+        message: "migration: the scan could not finish",
+        details: { code: `scan_${failure.reason}` },
+      });
     case "questions_open":
       return wireError("migration.questionsOpen", { details: { id: failure.proposalId } });
     case "name_conflict":

@@ -7,7 +7,7 @@ import { currentSelf, selfEntryPrefix, type SelfRunTarget } from "../self-comman
 // 환경은 허용 목록으로만 만든다(시크릿과 DB 경로를 넣지 않는다). 부모 환경의 허용 목록 이름은 포트(platform-process)가 더한다.
 
 /** 소스 실행이 읽는 작업 공간: 진입 파일에서 올라가며 처음 만나는 `bun.lock`이 있는 폴더. 못 찾으면 진입 파일 폴더만 읽는다 */
-function sourceWorkspaceOf(entry: string): string {
+export function sourceWorkspaceOf(entry: string): string {
   let dir = dirname(entry);
   for (;;) {
     if (existsSync(join(dir, "bun.lock"))) return dir;

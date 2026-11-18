@@ -126,6 +126,8 @@ import {
   createSourceWatch,
   type PluginStore,
 } from "./plugins/index.ts";
+import { processPortOf, sandboxSourceOf } from "./plugin-host.ts";
+import { currentSelf, type SelfRunTarget } from "../self-command.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
@@ -176,6 +178,8 @@ export interface PortsDeps {
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
   readonly tools: Pick<ToolService, "meta">;
   readonly ext: ExtHost;
+  /** 훑기 자식을 띄울 때 쓰는 자기 실행 값. 시험이 넣고, 운영은 생략해 이 실행 파일을 쓴다(`plugin-host`와 같다) */
+  readonly migrationSelf?: SelfRunTarget;
   readonly holder: LeaseHolder;
   readonly settings: SettingsEngine;
   readonly secrets: SecretsPort;
@@ -1499,6 +1503,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     clock: deps.clock,
     log: deps.logger,
+    // 훑기 자식의 띄우기 원천(migration.md §7.4 [제안]). 포트와 샌드박스는 호출 때 찾는다: 조립 순서상 나중에 올라온다
+    scanSource: {
+      process: () => processPortOf(deps.ext),
+      sandbox: sandboxSourceOf(deps.ext),
+      self: deps.migrationSelf ?? currentSelf(),
+      scheduler: deps.scheduler,
+    },
   });
   const ports: EnginePorts = {
     threads,

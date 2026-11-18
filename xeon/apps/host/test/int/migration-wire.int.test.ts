@@ -24,6 +24,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { requireSandboxOrSkip, sandboxGate } from "../fixtures/sandbox-service.ts";
 
 // migration.md §6, §7.7 [제안] (int, 실제 엔진): 다른 하네스(Claude Code)의 설정이 든 프로젝트를 가져온다.
 // 감지는 표지를 존재만 보고, 훑기는 항목을 값 없이 세고, 제안은 플러그인 계획과 보고 줄을 주고,
@@ -32,6 +33,12 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
+// 훑기는 샌드박스 자식 프로세스에서 돈다(migration.md §7.4 [제안]). 샌드박스를 쓸 수 없으면 훑기와 적용을 건너뛴다(mcp-sandbox.int.test.ts와 같다)
+const sandbox = await sandboxGate(tmpdir());
+requireSandboxOrSkip(sandbox, "migration-wire.int");
+const scanTest = gate.blocker === undefined && sandbox.runnable ? test : test.skip;
+/** 자식을 띄울 자기 실행 값. 소스 실행이므로 진입 파일을 준다(운영은 이 파일이 컴파일된 실행 파일이다) */
+const MAIN_ENTRY = new URL("../../src/main.ts", import.meta.url).pathname;
 
 const TIMEOUT_MS = 60_000;
 /** 시험 프로젝트의 시크릿 가짜 값. 응답 어디에도 나오면 안 된다(§6.6, 값 없이 개수만 싣는다) */
@@ -102,7 +109,7 @@ function sha256Of(bytes: Uint8Array): string {
 async function startMigrationHost(bundles: string) {
   const host = await startInProcessHost({
     devChecks: true,
-    pluginHost: { disabled: true },
+    pluginHost: { disabled: true, self: { execPath: process.execPath, entry: MAIN_ENTRY } },
     defaultPluginsDir: bundles,
     extraPlugins: [],
   });
@@ -127,7 +134,7 @@ async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
   throw caught;
 }
 
-realTest(
+scanTest(
   "after the migrated plugins are approved, applying the same plan submits nothing again; a proposed project profile is created empty and listed",
   async () => {
     const home: EngineHome = useEngineHome();
@@ -303,7 +310,7 @@ realTest(
   TIMEOUT_MS,
 );
 
-realTest(
+scanTest(
   "migration.scan counts the project's items without their values, announces progress and change, and refuses bad roots",
   async () => {
     const home: EngineHome = useEngineHome();
@@ -367,7 +374,7 @@ realTest(
   TIMEOUT_MS,
 );
 
-realTest(
+scanTest(
   "migration.apply writes the planned plugin folder and a migration review item that match the proposal; the report reads back, and a second apply of the same plan is refused while the first is pending",
   async () => {
     const home: EngineHome = useEngineHome();
