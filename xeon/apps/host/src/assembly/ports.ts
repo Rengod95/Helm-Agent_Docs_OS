@@ -118,6 +118,7 @@ import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import {
   PluginSubmitPortKey,
+  CraftContextPortKey,
   pluginDeclsOf,
   registrationIdOf,
   type RegistrationId,
@@ -458,12 +459,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   }
 
   // 테스트 대화의 원본 폴더와 초안 묶기(M5c §4.8.2, §4.8.7). 저장은 세션 원천을 거친다
+  const measurePort = createMeasurePort(deps.measure);
   const craftChat = createCraftChatPort({
     configDir: deps.configDir,
     store: {
       thread: (threadId) => session.query.thread(threadId),
       setCraftPlugin: (threadId, plugin, requestKey) =>
         session.threads.setCraftPlugin(threadId, plugin, requestKey),
+      // 맥락 참조(`craft.context`, M5c §4.8.8): 쓰기는 대화의 쓰기 소유자가 부르고, 읽기는 모든 가지의 기록을 본다
+      recordCraftContext: (threadId, payload, requestKey) =>
+        session.threads.recordCraftContext(threadId, payload, requestKey),
+      readContextEvents: (threadId) => readEventsOfAllBranches(session, threadId, "craft.context"),
     },
     nextKey: () => deps.ids.next("evt"),
     logger,
@@ -1153,6 +1159,27 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return queued.value.ok;
     },
   });
+  // 맥락 참조 읽기 포트를 플랫폼 모듈로 낸다(M5c §4.8.8). 빌더 서비스의 `craftContext`가 호출 때 찾는다
+  detach(
+    ext
+      .registerPlatform({
+        name: "fresnel.craft-context",
+        setup(ctx) {
+          ctx.providePort(CraftContextPortKey, {
+            read: (threadId) => craftChat.readContext(threadId),
+          });
+        },
+      })
+      .then((registered) => {
+        if (!registered.ok) deps.logger.error("craft_context.register_failed", {});
+        return registered.ok;
+      }),
+    (cause) => {
+      deps.logger.error("craft_context.register_failed", {
+        reason: cause instanceof Error ? cause.message : String(cause),
+      });
+    },
+  );
   // 담당 AI의 제출 포트를 플랫폼 모듈로 낸다(M5c §3.5). 키 이름은 스펙이 정하지 않아 [제안]이다. m4의 `fresnel.plugin-set`과 같은 등록 방식이다
   detach(
     ext
@@ -1241,7 +1268,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           ?.contextWindow,
       backgroundCallsOf(deps.measure),
     ),
-    measure: createMeasurePort(deps.measure),
+    measure: measurePort,
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,
@@ -1292,6 +1319,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           get: (name) => pluginService.get(name),
           draftList: (name) => pluginReview.draftList(name),
         },
+        // 발견의 근거 묶음(`findings.bundle`과 같은 턴 기록 읽기, M5c §4.8.8)
+        findingsBundle: (findingId) => measurePort.turnRecord.findingsBundle(findingId),
       },
       {
         catalog: deps.settings.catalog,

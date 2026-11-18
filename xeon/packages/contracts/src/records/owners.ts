@@ -75,7 +75,8 @@ export const CONTEXTS: readonly ContextDef[] = [
     layer: "L1",
     domains: ["persistence"],
     producers: ["core.persistence"],
-    typePrefixes: ["thread.", "checkpoint.", "settings."],
+    // craft.: 테스트 대화의 맥락 참조(M5c §4.8.8)는 대화 저장소가 쓴다
+    typePrefixes: ["thread.", "checkpoint.", "settings.", "craft."],
     tablePrefixes: [
       "events",
       "event_seq",
@@ -242,6 +243,7 @@ export const TYPE_PREFIX_OWNERS: Readonly<Record<string, string>> = {
   "thread.": "core.persistence",
   "checkpoint.": "core.persistence",
   "settings.": "core.persistence",
+  "craft.": "core.persistence",
   "input.": "core.tasks",
   "post.": "core.tasks",
   "turn.": "core.loop",

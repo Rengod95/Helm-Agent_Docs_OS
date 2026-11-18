@@ -93,9 +93,10 @@ binds: [xeon/packages/plugin-builder/**]
 - [구현 상태, 2026-11-18] 빌더의 도구 면(M5c §4.9.2~4.9.6)은 다음과 같다. 호스트 쪽 값은 `apps/host/src/assembly/m4/devkit-port.ts`가 준다.
   - `authoring_start`는 이름만 받으면 기존 플러그인의 원본 폴더(`<설정>/plugins/<이름>`)를 연다(`fresnel.devkit`의 선택 메서드 `sourceOf`). 종류와 이름 확인 카드를 건너뛰고 검사 단계(`validate`)부터 시작하며, 뼈대는 만들지 않는다(`scaffold`가 `exists`로 거절한다). 원본이 검토본과 달라도 원본에서 시작하고, 제출은 검토 서비스가 `update` 항목으로 만든다(`provenance: "assistant"`은 바꾸지 않았다). 거절: `not_found`(원본 폴더 없음), `bundled_not_editable`(번들이고 원본 폴더 없음), `source_unavailable`(이 빌드에 `sourceOf`가 없음).
   - `authoring_start`의 `dir`이 있으면 새 플러그인이다(`kind`는 생략하면 `single-plugin`). `purpose`(목적 한 문장, 200자 이하)와 `resident`(상주 모드, 아래)를 상태에 싣는다.
-  - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 세션의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
+  - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 제작 대화의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
   - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/plugin-builder/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 그룹 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
-  - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 세션의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
+  - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 제작 대화의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
+  - `authoring_context`(지연 읽기 도구, 입력 없음)는 테스트 대화에 붙은 맥락 참조(`craft.context` 사건, M5c §4.8.8)를 기록 순서대로 돌려준다. 발견 참조는 근거 묶음(`findings.bundle`과 같은 값)을 싣고 다른 참조는 `bundle: null`이다. 대화 id는 도구를 부른 대화의 것이다. 모델 컨텍스트에는 줄을 더하지 않는다. 거절: `context_unavailable`(이 빌드에 `craftContext`가 없음).
   - `authoring_replay`는 남긴다. §4.9.7은 폐기를 정하지만 재생 값은 엔진의 `backtest.run`(E)이 준다. 이 가지에는 `backtest.run`의 호스트 처리기가 없어서 옛 개발 모드 재생을 그대로 둔다 [미결: E의 `backtest.run`이 들어온 뒤 지운다] [근거: apps/host/src/assembly/m4/devkit-port.ts, apps/host/src/handlers/m4/devkit.ts].
 - 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 합니다.
 - 화면(구성기, 시험 실행)도 wire로 같은 서비스를 부릅니다(`L4.desktop-ux.spec` W-27, W-28, W-29, W-47, W-49). 그래서 에이전트와 사용자가 같은 검사와 같은 뼈대를 얻습니다.
@@ -235,10 +236,10 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - 맡겨졌을 때(drive-isolation.md 2.2, 2.6; `packages/plugin-builder/src/group-drive.ts`의 `handoffStep`). 다른 플러그인이 `handoff`로 부르면 프레임의 `calledBy`가 맡긴 쪽 이름이고, 첫 단계(`last`가 없음)에서 상주하지 않고 답한다. 입력은 `{ purpose, id? }`로 읽는다(`id`는 맡긴 쪽의 요청 id).
   - 제작 대화가 열려 있으면 받지 않는다: `done({ accepted: false, reason: "session_open" })`, 알림은 내지 않는다.
   - 입력을 읽지 못하면(목적 문자열이 빠짐, 재시작 뒤 입력이 비어 있음) `done({ accepted: false, reason: "bad_input" })`.
-  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 목적을 상태에 실어 세션을 연 뒤 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
-  - [구현 상태, 2026-11-18] 세션은 `phase: intent`, `sessionId: auth-handoff-<id>`, `purpose`만 가진다(이름과 폴더는 없다). `accepted: true`는 "세션을 열었다"는 뜻이다. 상주하지 않고 곧 `done`으로 돌려주는 까닭은 맡긴 쪽(Helm)이 이 결과를 기다리기 때문이다. 상주하면 `/helm plugin`이 제작이 끝날 때까지 멈춘다(drive-isolation.md §2.1, §2.6). 맡긴 쪽의 기록 시험(`apps/host/test/int/helm-isolated.int.test.ts`)은 빌더가 `done`으로 물러난다고 본다.
-  - 제작은 사용자가 이름과 폴더를 정한 뒤 `authoring_start`로 이어 간다(목적은 세션에 남아 시작 때 쓴다). [미결] 일반 대화에서 맡긴 세션을 상주로 이어 가는 길은 정하지 않았다. 상주는 제작 대화의 시작 Drive가 맡는다(M5c §4.8.6). [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
-- [구현 상태, 2026-11-18] 상주 모드. `authoring_start`에 `resident: true`를 주면(제작 대화, M5c §4.8.6) 검토함으로 보낸 뒤에도 물러나지 않고 `yield`로 기다린다. 그 뒤 사용자 메시지는 같은 플러그인의 새 판이다: 단계를 `compose`로 되돌리고 이름, 폴더, 파일은 그대로 두며 시험과 제출 기록은 지운다. `done`은 `authoring_stop`이 세션을 닫을 때만이다(고치기를 그만두면 `fix`에 머문다). 상주가 아닌 세션은 검토함으로 보낸 뒤 `done`으로 물러난다. 세션은 열린 채 남고 `authoring_*` 도구가 계속 받는다.
+  - 그 밖이면 알림 `[authoring] <calledBy>가 플러그인 제작을 맡겼다: <purpose>`를 `post`하고 목적을 상태에 실어 제작 대화을 연 뒤 `done({ accepted: true, purpose })`를 돌려준다. 알림 requestId는 `authoring:handoff:<id>`다(`id`가 없으면 목적). 같은 단계가 재시작 뒤 다시 와도 알림이 한 번만 난다.
+  - [구현 상태, 2026-11-18] 제작 대화은 `phase: intent`, `sessionId: auth-handoff-<id>`, `purpose`만 가진다(이름과 폴더는 없다). `accepted: true`는 "제작 대화을 열었다"는 뜻이다. 상주하지 않고 곧 `done`으로 돌려주는 까닭은 맡긴 쪽(Helm)이 이 결과를 기다리기 때문이다. 상주하면 `/helm plugin`이 제작이 끝날 때까지 멈춘다(drive-isolation.md §2.1, §2.6). 맡긴 쪽의 기록 시험(`apps/host/test/int/helm-isolated.int.test.ts`)은 빌더가 `done`으로 물러난다고 본다.
+  - 제작은 사용자가 이름과 폴더를 정한 뒤 `authoring_start`로 이어 간다(목적은 제작 대화에 남아 시작 때 쓴다). [미결] 일반 대화에서 맡긴 제작 대화을 상주로 이어 가는 길은 정하지 않았다. 상주는 제작 대화의 시작 Drive가 맡는다(M5c §4.8.6). [근거: packages/plugin-builder/src/group-drive.ts, packages/group-helm/src/drive.ts]
+- [구현 상태, 2026-11-18] 상주 모드. `authoring_start`에 `resident: true`를 주면(제작 대화, M5c §4.8.6) 검토함으로 보낸 뒤에도 물러나지 않고 `yield`로 기다린다. 그 뒤 사용자 메시지는 같은 플러그인의 새 판이다: 단계를 `compose`로 되돌리고 이름, 폴더, 파일은 그대로 두며 시험과 제출 기록은 지운다. `done`은 `authoring_stop`이 제작 대화을 닫을 때만이다(고치기를 그만두면 `fix`에 머문다). 상주가 아닌 제작 대화은 검토함으로 보낸 뒤 `done`으로 물러난다. 제작 대화은 열린 채 남고 `authoring_*` 도구가 계속 받는다.
 - 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드

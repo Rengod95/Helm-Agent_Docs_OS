@@ -32,6 +32,7 @@ export const AUTHORING_TOOL_NAMES = [
   "authoring_package",
   "authoring_submit",
   "authoring_drafts",
+  "authoring_context",
   "authoring_stop",
 ] as const;
 
@@ -647,6 +648,28 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     },
   );
 
+  // 맥락 참조(M5c §4.8.8, B-4). 테스트 대화에 붙은 참조(플러그인, 발견, 턴, 검토 항목, 초안)와 한 줄 의도를 읽는다.
+  // 발견 참조는 근거 묶음을 싣는다. 모델 컨텍스트에는 줄을 더하지 않고 필요할 때 이 도구로 읽는다
+  const context = tool(
+    "authoring_context",
+    "Plugin authoring: read what the user attached to this craft chat: references to a plugin, a finding (with its evidence bundle), a turn, a call, a replay, a review item or a draft, and the one-line intent. Read it when the user refers to something they attached.",
+    Type.Object({}, { additionalProperties: false }),
+    "read",
+    async (_input, threadId) => {
+      if (devkit.craftContext === undefined)
+        return refusal("context_unavailable", "this build cannot read the craft context");
+      const read = await devkit.craftContext(threadId);
+      if (!read.ok) return failure(read.error);
+      return {
+        ok: true,
+        threadId,
+        refs: read.value.refs.map((entry) =>
+          json({ ref: entry.ref, bundle: entry.bundle ?? null }),
+        ),
+      };
+    },
+  );
+
   const stop = tool(
     "authoring_stop",
     "Close the open authoring session (the files already created stay). Use it to start again in another folder or when the user wants to stop.",
@@ -684,6 +707,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
     pack,
     submit,
     drafts,
+    context,
     stop,
   ];
 }

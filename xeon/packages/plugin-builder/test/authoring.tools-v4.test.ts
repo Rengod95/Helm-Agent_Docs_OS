@@ -256,3 +256,47 @@ test("authoring.resident: the resident flag set at start is kept in the state, a
   await rig.call("authoring_stop", {});
   expect(rig.state()).toMatchObject({ resident: false, sessionId: null, purpose: null });
 });
+
+test("authoring.context.a: the context tool reads the references of the calling craft chat, with the evidence bundle of a finding", async () => {
+  const seen: string[] = [];
+  const base = devkitProbe();
+  const devkit: DevkitService = {
+    ...base.devkit,
+    craftContext: (threadId) => {
+      seen.push(threadId);
+      return Promise.resolve(
+        ok({
+          threadId,
+          refs: [
+            { ref: { kind: "plugin", name: "demo" }, bundle: null },
+            {
+              ref: { kind: "finding", findingId: "fnd_1" },
+              bundle: { findingId: "fnd_1", hash: "sha256:x", samples: 3 },
+            },
+          ],
+        }),
+      );
+    },
+  };
+  const rig = await createGroupRig({ devkit });
+  expect(await rig.call("authoring_context", {})).toEqual({
+    ok: true,
+    threadId: rig.thread,
+    refs: [
+      { ref: { kind: "plugin", name: "demo" }, bundle: null },
+      {
+        ref: { kind: "finding", findingId: "fnd_1" },
+        bundle: { findingId: "fnd_1", hash: "sha256:x", samples: 3 },
+      },
+    ],
+  });
+  expect(seen).toEqual([rig.thread]);
+});
+
+test("authoring.context.b: without a craftContext in this build the context tool says so", async () => {
+  const rig = await createGroupRig();
+  expect(await rig.call("authoring_context", {})).toMatchObject({
+    ok: false,
+    error: { kind: "context_unavailable" },
+  });
+});

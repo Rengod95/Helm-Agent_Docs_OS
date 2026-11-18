@@ -1,5 +1,12 @@
-import type { ThreadSummary, WireHandler } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import {
+  wireError,
+  type CraftChatOpenParams,
+  type ThreadSummary,
+  type WireHandler,
+} from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../../connection-types.ts";
+import type { CraftPluginError } from "@fresnel/contracts/records";
 import { CRAFT_PROFILE_ID } from "../../assembly/m4/profile-defaults.ts";
 import { canonicalWorkspace } from "../../assembly/workspace.ts";
 import type { Engine } from "../../types.ts";
@@ -43,6 +50,27 @@ async function existingFolderOf(engine: Engine, plugin: string): Promise<string 
   return canonical.ok ? canonical.value : undefined;
 }
 
+/**
+ * 열 때 맥락 참조를 남긴다(M5c §4.8.8). 참조가 있거나 한 줄 의도가 있을 때만 한 번 쓴다. 쓰지 못하면 `store.io`다.
+ * 대화가 없어졌거나 닫혔으면 그 실패를 그대로 알린다(열기 자체는 이미 끝났다)
+ */
+function recordOpenContext(engine: Engine, threadId: ThreadId, params: CraftChatOpenParams): void {
+  const refs = params.context ?? [];
+  if (refs.length === 0 && params.intent === undefined) return;
+  const written = engine.ports.craftChat.recordContext(threadId, {
+    refs,
+    intent: params.intent ?? null,
+  });
+  if (!written.ok) throw wireErrorOfCraftContext(written.error);
+}
+
+function wireErrorOfCraftContext(error: CraftPluginError) {
+  return wireError("store.io", {
+    message: `the craft context could not be recorded (${error.kind})`,
+    details: { code: "io" },
+  });
+}
+
 export function createCraftChatHandlers(
   engine: Engine,
   hub: () => ConnectionHub,
@@ -57,6 +85,7 @@ export function createCraftChatHandlers(
         const latest = (await craftThreadsOf(engine, plugin))[0];
         if (latest !== undefined) {
           await claimWrite(engine, hub(), context.connectionId, latest.threadId);
+          recordOpenContext(engine, latest.threadId, params);
           return { threadId: latest.threadId, plugin, reused: true };
         }
       }
@@ -70,6 +99,7 @@ export function createCraftChatHandlers(
       await claimWrite(engine, hub(), context.connectionId, created.threadId);
       // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7). `thread.create`와 같은 순서다
       await engine.ports.threads.applyOpenWorkspace(created.threadId);
+      recordOpenContext(engine, created.threadId, params);
       return { threadId: created.threadId, plugin, reused: false };
     },
 

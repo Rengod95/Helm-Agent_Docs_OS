@@ -11,6 +11,7 @@ import {
 } from "@fresnel/contracts/wire";
 import type { PluginSubmitRequest, PluginSubmitResult } from "@fresnel/contracts/extensions";
 import type {
+  CraftContextView,
   DevkitError,
   DraftSummary,
   KindEntry,
@@ -51,6 +52,8 @@ export interface DevkitPort {
   draftList(
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftSummary[] }, DevkitError>>;
+  /** 테스트 대화의 맥락 참조와 발견의 근거 묶음(M5c §4.8.8). 빌더 서비스가 부른다. wire 메서드가 아니다 */
+  craftContext(threadId: string): Promise<Result<CraftContextView, DevkitError>>;
 }
 
 export type DevkitMethods =

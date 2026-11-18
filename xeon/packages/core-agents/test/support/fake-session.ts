@@ -293,6 +293,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
       setModel: () => unsupported("threads.setModel"),
       setProfile: () => unsupported("threads.setProfile"),
       setCraftPlugin: () => unsupported("threads.setCraftPlugin"),
+      recordCraftContext: () => unsupported("threads.recordCraftContext"),
       prepareSwitch: () => Promise.resolve(ok(undefined)),
       openSettled: () => Promise.resolve(undefined),
       applyOpenWorkspace: () => unsupported("threads.applyOpenWorkspace"),

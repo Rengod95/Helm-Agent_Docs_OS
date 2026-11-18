@@ -144,3 +144,54 @@ test("craftChat.open takes the plugin's source folder as the workspace when it e
   expect(workspaceOf(without.threadId)).toBeNull();
   await connection.close();
 });
+
+test("craftChat.open with context records one craft.context event per open, and the refs read back in order without repeats (M5c §4.8.8)", async () => {
+  const host = createFakeHost({});
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const a = { kind: "plugin", name: "demo" } as const;
+  const b = { kind: "turn", threadId: "thr_elsewhere", turnId: "turn_1" } as const;
+  const c = { kind: "review", itemId: "rvw_1" } as const;
+  const opened = await connection.request("craftChat.open", {
+    plugin: null,
+    intent: "고치기",
+    context: [a, b],
+  });
+  // 같은 대화를 다시 연다(reuse last): 맥락이 있으면 새 사건이 하나 더 남는다
+  const again = await connection.request("craftChat.open", {
+    plugin: null,
+    reuse: "last",
+    context: [b, c],
+  });
+  expect(again).toMatchObject({ threadId: opened.threadId, reused: true });
+  // 맥락도 의도도 없이 여는 것은 사건을 남기지 않는다
+  await connection.request("craftChat.open", { plugin: null, reuse: "last" });
+  const events = host.fake.events
+    .filter((event) => event.kind === "craft.context" && event.threadId === opened.threadId)
+    .map((event) => event.payload);
+  expect(events).toEqual([
+    { refs: [a, b], intent: "고치기" },
+    { refs: [b, c], intent: null },
+  ]);
+  expect(await host.fake.engine.ports.craftChat.readContext(opened.threadId)).toEqual({
+    ok: true,
+    value: [a, b, c],
+  });
+  await connection.close();
+});
+
+test("craftChat.open with a context list longer than the limit is refused before any thread is made", async () => {
+  const host = createFakeHost({});
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const refs = Array.from({ length: 17 }, (_, index) => ({
+    kind: "plugin" as const,
+    name: `p${String(index)}`,
+  }));
+  const refused = await failureOf(
+    connection.request("craftChat.open", { plugin: null, context: refs }),
+  );
+  expect(refused).toBeDefined();
+  expect((await connection.request("thread.list", { include: "craft" })).threads).toEqual([]);
+  await connection.close();
+});

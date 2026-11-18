@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { err, ok, type Logger } from "@fresnel/contracts";
 import type { CraftChatSummary, ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { createCraftChatPort, type CraftChatStore } from "../../src/assembly/m4/craft-chat.ts";
+import {
+  createCraftChatPort,
+  refsOfEvents,
+  type CraftChatStore,
+} from "../../src/assembly/m4/craft-chat.ts";
 
 // M5c §4.8.2, §4.9.1: 초안을 만들면 테스트 대화를 그 플러그인에 한 번 묶는다. 묶인 뒤, 일반 대화, 없는 대화는 쓰지 않는다.
 
@@ -40,6 +44,8 @@ function storeOf(
       recorded.binds.push({ threadId, plugin, requestKey });
       return fail ? err({ kind: "not_craft_chat", threadId }) : ok(undefined);
     },
+    recordCraftContext: () => ok(undefined),
+    readContextEvents: () => Promise.resolve(ok([])),
   };
   return { store, recorded };
 }
@@ -88,4 +94,30 @@ test("a failed bind is only recorded: the draft is not undone and nothing is thr
 test("the plugin folder is <config>/plugins/<name>, the same place a user plugin is read from", () => {
   const { store, recorded } = storeOf({});
   expect(portOver(store, recorded).folderOf("notes")).toBe("/config/plugins/notes");
+});
+
+const event = (payload: unknown) => ({ payload });
+
+test("craft context: the refs of the events read in order, once each, and an unreadable event is a failure value", () => {
+  const ok1 = refsOfEvents([
+    event({ refs: [{ kind: "plugin", name: "demo" }], intent: "고치기" }),
+    event({
+      refs: [
+        { kind: "plugin", name: "demo" },
+        { kind: "review", itemId: "rvw_1" },
+      ],
+      intent: null,
+    }),
+  ]);
+  expect(ok1).toEqual({
+    ok: true,
+    value: [
+      { kind: "plugin", name: "demo" },
+      { kind: "review", itemId: "rvw_1" },
+    ],
+  });
+  expect(refsOfEvents([event({ refs: [{ kind: "thread" }], intent: null })])).toEqual({
+    ok: false,
+    error: { kind: "store", code: "craft_context_unreadable" },
+  });
 });

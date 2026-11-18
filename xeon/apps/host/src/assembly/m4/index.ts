@@ -1,5 +1,6 @@
 import { detach } from "@fresnel/contracts";
 import {
+  CraftContextPortKey,
   effectiveLayer,
   PluginSetPortKey,
   PluginSubmitPortKey,
@@ -181,6 +182,8 @@ export function createM4Ports(
     devkit: createDevkitPort(deps, {
       profiles: profileTestRun,
       submit: () => host.ports.get(PluginSubmitPortKey),
+      // 맥락 참조 읽기(M5c §4.8.8). 플랫폼 모듈이 올라온 뒤에 찾는다
+      craftContext: () => host.ports.get(CraftContextPortKey),
     }),
     sandboxSelfTest: createSandboxSelfTestPort(host),
   };

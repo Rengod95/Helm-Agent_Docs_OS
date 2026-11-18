@@ -141,6 +141,7 @@ export function createAdminOps(
   | "setModel"
   | "setProfile"
   | "setCraftPlugin"
+  | "recordCraftContext"
   | "applyOpenWorkspace"
   | "sameFolder"
 > {
@@ -441,6 +442,47 @@ export function createAdminOps(
                 causationId: null,
                 correlationId: null,
                 payload: { craftChat: { plugin } },
+              }),
+            ],
+            checkpoint: null,
+          };
+        },
+      });
+      if (!committed.ok) return err(committed.error);
+      const result = committed.value;
+      if (result.status === "key_reused") return err({ kind: "key_reused", requestKey });
+      if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
+      return ok(undefined);
+    },
+
+    recordCraftContext(threadId, payload, requestKey): Result<void, CraftPluginError> {
+      const denied = ownerError(sessions, threadId);
+      if (denied !== null) return err(denied);
+      const read = readResult(db, (tx) => readThread(tx, threadId));
+      if (!read.ok) return err(read.error);
+      if (read.value === undefined) return err({ kind: "thread_not_found", threadId });
+      if (read.value.craftChat === null) return err({ kind: "not_craft_chat", threadId });
+      if (read.value.status === "closed") return err({ kind: "thread_closed", threadId });
+      const committed = writer.commit({
+        threadId,
+        requestId: `craft-context:${commitKeyPart(requestKey, sha256Hex)}`,
+        fingerprintSource: { refs: payload.refs, intent: payload.intent },
+        build(view): CommitPlan {
+          if (view.threadStatus === "closed") {
+            return { kind: "reject", code: "thread_closed", detail: null };
+          }
+          return {
+            kind: "append",
+            drafts: [
+              handle.draft({
+                id: ids.next("evt"),
+                kind: "craft.context",
+                threadId,
+                turnId: null,
+                stepId: null,
+                causationId: null,
+                correlationId: null,
+                payload: { refs: [...payload.refs], intent: payload.intent },
               }),
             ],
             checkpoint: null,

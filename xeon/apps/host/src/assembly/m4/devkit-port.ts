@@ -2,8 +2,15 @@ import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { assertNever, attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
+  isId,
+  toJsonValue,
+  type ContextRef,
+  type JsonValue,
+  type ThreadId,
+} from "@fresnel/contracts/conversation";
+import {
+  type CraftContextPort,
   EXTENSION_NAME_PATTERN,
   isGroupExtension,
   validateManifest,
@@ -15,6 +22,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { DraftInfo, ExtTestRunParams, ExtTestRunResult } from "@fresnel/contracts/wire";
 import type {
+  CraftContextEntry,
   DevkitError,
   DraftSummary,
   ReplayReport,
@@ -73,6 +81,8 @@ export interface DevkitPortOptions {
    * 조립 루트가 확장 호스트에서 찾아 넘긴다. 없으면 제출은 `io`다
    */
   readonly submit?: () => PluginSubmitPort | undefined;
+  /** 맥락 참조 읽기(`CraftContextPortKey`, M5c §4.8.8). 호출 때 읽는다. 없으면 `craftContext`는 `io`다 */
+  readonly craftContext?: () => CraftContextPort | undefined;
 }
 
 const DEFAULT_MAX_COMMITS = 200;
@@ -213,6 +223,19 @@ function draftSummaryOf(info: DraftInfo): DraftSummary {
     submittedItemId: info.submittedItemId,
   };
 }
+
+/** 발견 참조의 근거 묶음(`findings.bundle`과 같은 값). 발견이 아니거나 읽지 못하면 null이다 */
+function findingBundleOf(read: M4PortDeps["findingsBundle"], ref: ContextRef): JsonValue | null {
+  if (ref.kind !== "finding" || read === undefined) return null;
+  const found = read(ref.findingId);
+  if (!found.ok) return null;
+  return toJsonValue(found.value.bundle) ?? null;
+}
+
+const CRAFT_CONTEXT_MISSING: DevkitError = {
+  kind: "io",
+  message: "the craft context is not connected in this host build",
+};
 
 const PLUGIN_FACTS_MISSING: DevkitError = {
   kind: "io",
@@ -477,6 +500,26 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
         differsFromReviewed: now.value.contentHash !== got.value.card.review.currentHash,
       };
       return ok(found);
+    },
+    // 맥락 참조는 대화의 `craft.context` 사건에서 읽는다(포트). 발견 참조는 근거 묶음을 싣는다
+    craftContext: async (threadId) => {
+      const port = options.craftContext?.();
+      if (port === undefined) return err(CRAFT_CONTEXT_MISSING);
+      if (!isId("thr", threadId)) {
+        return err({ kind: "not_found", message: `${threadId} is not a conversation` });
+      }
+      const read = await port.read(threadId);
+      if (!read.ok) {
+        return err({
+          kind: "io",
+          message: `the craft context could not be read (${read.error.code})`,
+        });
+      }
+      const refs: CraftContextEntry[] = read.value.map((ref) => ({
+        ref,
+        bundle: findingBundleOf(deps.findingsBundle, ref),
+      }));
+      return ok({ threadId, refs });
     },
     draftList: async (name) => {
       const facts = deps.plugins;

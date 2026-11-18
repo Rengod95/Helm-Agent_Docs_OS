@@ -20,6 +20,7 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
+import { refsOfEvents } from "../../src/assembly/m4/craft-chat.ts";
 import type { PluginPort } from "../../src/handlers/m5/plugins.ts";
 import type { OverlayPort } from "../../src/assembly/plugins/overlay.ts";
 import type { MigrationSubmitPort } from "../../src/assembly/plugins/migration-submit.ts";
@@ -684,6 +685,18 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     craftChat: {
       folderOf: (plugin) => join(fakeConfigDir, "plugins", plugin),
       bindDraft: () => undefined,
+      // 맥락 참조는 실제 저장 경로처럼 `craft.context` 사건으로 남고, 읽기는 그 사건들을 기록 순서대로 잇는다(M5c §4.8.8)
+      recordContext: (threadId, payload) => {
+        if (!craftThreads.has(threadId)) return err({ kind: "not_craft_chat", threadId });
+        commit([{ kind: "craft.context", threadId, payload }]);
+        return ok(undefined);
+      },
+      readContext: (threadId) =>
+        Promise.resolve(
+          refsOfEvents(
+            events.filter((event) => event.kind === "craft.context" && event.threadId === threadId),
+          ),
+        ),
     },
     m4: {
       extRead: createExtReadPort(

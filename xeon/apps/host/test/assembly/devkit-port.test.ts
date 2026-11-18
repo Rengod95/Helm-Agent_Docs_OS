@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ContextRef, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EvidenceRef,
   PluginCard,
@@ -294,5 +294,53 @@ test("devkit port: draftList gives the drafts newest first with their parent, an
   );
   expect(await port.draftList("ghost")).toEqual(
     err({ kind: "not_found", message: "ghost is not known" }),
+  );
+});
+
+test("devkit port: craftContext gives each reference of the conversation, with the evidence bundle only for a finding", async () => {
+  const state = fakes("craft-context");
+  const refs: ContextRef[] = [
+    { kind: "plugin", name: "demo" },
+    { kind: "finding", findingId: "fnd_1" },
+    { kind: "finding", findingId: "fnd_gone" },
+  ];
+  const port = createDevkitPort(
+    partial<M4PortDeps>({
+      ...state.deps,
+      findingsBundle: (findingId) =>
+        findingId === "fnd_1"
+          ? ok({ bundle: { findingId, samples: 2 } })
+          : err({ kind: "not_found" }),
+    }),
+    {
+      templates,
+      craftContext: () => ({
+        read: (threadId) => {
+          expect(threadId).toBe(origin);
+          return Promise.resolve(ok(refs));
+        },
+      }),
+    },
+  );
+  const origin: ThreadId = fixedIdFactory(703).next("thr");
+  expect(await port.craftContext(origin)).toEqual(
+    ok({
+      threadId: origin,
+      refs: [
+        { ref: { kind: "plugin", name: "demo" }, bundle: null },
+        {
+          ref: { kind: "finding", findingId: "fnd_1" },
+          bundle: { findingId: "fnd_1", samples: 2 },
+        },
+        { ref: { kind: "finding", findingId: "fnd_gone" }, bundle: null },
+      ],
+    }),
+  );
+  // 대화 id 모양이 아니면 없는 대화다. 포트가 없으면 입출력 오류다
+  expect(await port.craftContext("not-a-thread")).toEqual(
+    err({ kind: "not_found", message: "not-a-thread is not a conversation" }),
+  );
+  expect(await createDevkitPort(state.deps, { templates }).craftContext(origin)).toEqual(
+    err({ kind: "io", message: "the craft context is not connected in this host build" }),
   );
 });

@@ -1,4 +1,5 @@
 import type { Result } from "../base/index.ts";
+import type { ContextRef, JsonValue } from "../conversation/index.ts";
 import type {
   BridgeCapability,
   CompositionDecl,
@@ -157,6 +158,18 @@ export interface DraftSummary {
   readonly submittedItemId: string | null;
 }
 
+/** 맥락 참조 하나와 그 내용(`craftContext`). 발견 참조는 근거 묶음(`findings.bundle`과 같은 값)을 싣는다 */
+export interface CraftContextEntry {
+  readonly ref: ContextRef;
+  /** 발견 참조의 근거 묶음. 발견이 아니거나 읽지 못했으면 null */
+  readonly bundle: JsonValue | null;
+}
+/** 테스트 대화의 맥락(`craftContext`): 기록 순서대로 이어 붙인 참조 목록 */
+export interface CraftContextView {
+  readonly threadId: string;
+  readonly refs: readonly CraftContextEntry[];
+}
+
 export interface PackInput {
   readonly dir: string;
   readonly out?: string;
@@ -268,4 +281,6 @@ export interface DevkitService {
   sourceOf?(name: string): Promise<DevkitResult<SourceFacts>>;
   /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 구현이 없으면 빌더의 `authoring_drafts`가 거절한다 */
   draftList?(name: string): Promise<DevkitResult<{ readonly drafts: readonly DraftSummary[] }>>;
+  /** 테스트 대화의 맥락 참조(M5c §4.8.8, 도구 `authoring_context`). 구현이 없으면 도구가 거절한다 */
+  craftContext?(threadId: string): Promise<DevkitResult<CraftContextView>>;
 }

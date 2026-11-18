@@ -16,9 +16,10 @@ export type CoreArea =
   | "agent"
   | "secret"
   | "tool"
-  | "profile";
+  | "profile"
+  | "craft";
 
-/** 코어 kind 44종. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다). */
+/** 코어 kind 46종. F.records.spec §3.3 표와 같다(test/records/catalog-doc.test.ts가 대조한다). */
 export const CORE_EVENT_KINDS: readonly [
   "thread.started",
   "thread.updated",
@@ -65,6 +66,7 @@ export const CORE_EVENT_KINDS: readonly [
   "tool.sandbox_bypassed",
   "tool.untrusted_read",
   "profile.applied",
+  "craft.context",
 ] = [
   "thread.started",
   "thread.updated",
@@ -111,6 +113,7 @@ export const CORE_EVENT_KINDS: readonly [
   "tool.sandbox_bypassed",
   "tool.untrusted_read",
   "profile.applied",
+  "craft.context",
 ];
 export type CoreEventKind = (typeof CORE_EVENT_KINDS)[number];
 
@@ -134,6 +137,7 @@ export const CORE_AREAS: readonly CoreArea[] = [
   "secret",
   "tool",
   "profile",
+  "craft",
 ];
 
 /** 내장 L2 도메인이 소유하는 영역(§3.3.2). 카탈로그 파일이 있는 영역만 */

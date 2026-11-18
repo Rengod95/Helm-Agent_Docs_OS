@@ -42,6 +42,7 @@ import {
   type OsPlatform,
 } from "../../services/index.ts";
 import {
+  CraftContextsSchema,
   CraftChatSummarySchema,
   EventIdSchema,
   ImageContentSchema,
@@ -637,11 +638,14 @@ export const CraftChatOpenParamsSchema: TObject<{
   plugin: TUnion<[typeof ExtensionNameSchema, TNull]>;
   reuse: TOptional<TUnion<[TLiteral<"last">, TLiteral<"new">]>>;
   intent: TOptional<TString>;
+  context: TOptional<typeof CraftContextsSchema>;
 }> = Type.Object(
   {
     plugin: Nullable(ExtensionNameSchema),
     reuse: Type.Optional(Type.Union([Type.Literal("last"), Type.Literal("new")])),
     intent: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    // 맥락 참조(M5c §4.8.8). 열 때 `craft.context` 사건 하나로 남고, 모델 컨텍스트에는 줄로 더하지 않는다
+    context: Type.Optional(CraftContextsSchema),
   },
   { additionalProperties: false },
 );

@@ -308,6 +308,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `tool.sandbox_bypassed` | 예 | `ToolSandboxBypassedPayloadSchema` | 샌드박스 밖에서 실행한 도구 호출(`reason`: `escape`·`run_unsandboxed`·`disabled`). 명령과 출력 값은 싣지 않는다 |
 | `tool.untrusted_read` | 예 | `ToolUntrustedReadPayloadSchema` | 턴 안에서 웹·MCP 도구 결과를 읽은 기록(`afterUntrusted`의 재시작 유지). 결과 본문은 싣지 않는다 |
 | `profile.applied` | 예 | `ProfileAppliedPayloadSchema` | 대화의 켜짐 집합이 바뀌어 적용된 경계마다 하나. 사유, 프로필 id와 개정, 공통 묶음 개정, 플러그인 집합 차이, 덧씌우기 |
+| `craft.context` | 예 | `CraftContextPayloadSchema` | 테스트 대화를 열 때 사용자가 붙인 맥락 참조와 한 줄 의도(M5c §4.8.8). 참조만 싣고 내용(근거 묶음, 턴 기록)은 싣지 않는다. [구현 상태, 2026-11-18] 코어 영역 `craft`로 더했다(저장 문자열 새 값 하나) |
 <!-- catalog:end -->
 
 - [제안] 토큰 델타(`item.updated`의 `update.kind: "part_delta"`, payload `PartDelta`)와 진행 표시(`*.updated`, `item.started`)는 휘발이다. 델타 전용 kind는 두지 않는다. 알림 `type`과 카탈로그 kind를 같게 두는 `F.conversation.spec` §3.5.3 규칙 때문이다. 완성 파트(`part.recorded`)와 완성 item(`item.recorded`)만 내구다(`_research/session-storage.md` 권장안, `docs/design/19-client-protocol.md` §3.5.2).

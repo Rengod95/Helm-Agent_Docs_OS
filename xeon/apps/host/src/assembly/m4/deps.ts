@@ -43,6 +43,15 @@ export interface M4EngineDeps {
    * 조립 루트가 `ports.ts`의 플러그인 서비스와 검토 서비스에서 넘긴다. 없으면 두 메서드는 `io`다
    */
   readonly plugins?: DevkitPluginFacts;
+  /**
+   * 발견의 근거 묶음(`findings.bundle`과 같은 값, 턴 기록 읽기 포트). 빌더의 `authoring_context`가 발견 참조에 싣는다.
+   * 없으면 발견 참조의 `bundle`은 null이다
+   */
+  readonly findingsBundle?: (
+    findingId: string,
+  ) =>
+    | { readonly ok: true; readonly value: { readonly bundle: unknown } }
+    | { readonly ok: false; readonly error: { readonly kind: string } };
 }
 
 /** 제작 포트가 읽는 플러그인 사실(`PluginPort`의 두 읽기 메서드). 검토 서비스·플러그인 서비스가 그대로 맞는다 */

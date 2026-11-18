@@ -272,6 +272,13 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       toolName: "web_fetch",
       at: 1_700_000_000_000,
     },
+    "craft.context": {
+      refs: [
+        { kind: "plugin", name: "demo" },
+        { kind: "turn", threadId: THREAD, turnId: "turn_1" },
+      ],
+      intent: "고치기",
+    },
     "profile.applied": {
       reason: "switched",
       profileId: "inquiry",

@@ -183,3 +183,31 @@ describe("craft chat marker: thread.list and fork", () => {
     expect(expectOk(h.service.query.thread(forkId))?.craftChat).toEqual({ plugin: "helm" });
   });
 });
+
+describe("craft context: craft.context is recorded on a craft chat only (M5c §4.8.8)", () => {
+  test("recordCraftContext appends one craft.context event with the refs and intent, and an ordinary thread refuses it", async () => {
+    const h = await openHarness();
+    const threadId = createCraft(h, "ctx chat", { plugin: null, contexts: [] });
+    const refs: ContextRef[] = [
+      { kind: "plugin", name: "demo" },
+      { kind: "review", itemId: "rvw_1" },
+    ];
+    expect(
+      h.service.threads.recordCraftContext(threadId, { refs, intent: "올리기" }, "ctx-req-1"),
+    ).toEqual({ ok: true, value: undefined });
+    const payloads: unknown[] = [];
+    for await (const item of h.service.readFrom(0, { threadId })) {
+      if (!item.ok) throw new Error(`the thread could not be read: ${item.error.kind}`);
+      if (item.value.kind === "craft.context") payloads.push(item.value.payload);
+    }
+    expect(payloads).toEqual([{ refs, intent: "올리기" }]);
+    // 같은 요청 키로 다시 쓰면 기록을 늘리지 않는다(요청 id 멱등)
+    expect(
+      h.service.threads.recordCraftContext(threadId, { refs, intent: "올리기" }, "ctx-req-1"),
+    ).toEqual({ ok: true, value: undefined });
+    const plain = newThread(h, "plain").threadId;
+    expect(
+      h.service.threads.recordCraftContext(plain, { refs, intent: null }, "ctx-req-2"),
+    ).toEqual({ ok: false, error: { kind: "not_craft_chat", threadId: plain } });
+  });
+});

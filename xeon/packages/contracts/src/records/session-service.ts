@@ -1,6 +1,7 @@
 import type { Result } from "../base/index.ts";
 import type {
   CraftChatStarted,
+  ContextRef,
   CraftChatSummary,
   EffectId,
   EventId,
@@ -465,6 +466,15 @@ export interface ThreadLifecycle {
   setCraftPlugin(
     threadId: ThreadId,
     plugin: string,
+    requestKey: string,
+  ): Result<void, CraftPluginError>;
+  /**
+   * 테스트 대화의 맥락 참조를 남긴다(`craft.context`, M5c §4.8.8). 대화를 열 때마다 한 번이고 이전 사건은 지우지 않는다.
+   * `not_craft_chat`이면 표지가 없는 대화다. 쓰기 소유자만 부른다
+   */
+  recordCraftContext(
+    threadId: ThreadId,
+    payload: { readonly refs: readonly ContextRef[]; readonly intent: string | null },
     requestKey: string,
   ): Result<void, CraftPluginError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */

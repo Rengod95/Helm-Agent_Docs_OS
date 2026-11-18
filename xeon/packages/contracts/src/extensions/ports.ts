@@ -13,7 +13,7 @@ import type {
   ToolResultView,
   ToolRisk,
 } from "../capabilities/index.ts";
-import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
+import type { ContextRef, JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
   ExtensionTables,
@@ -573,3 +573,17 @@ export interface PluginSubmitPort {
 }
 /** 포트 키 [제안]: 스펙(M5c §3.5)이 이름을 정하지 않았다. 플랫폼 모듈 `fresnel.plugin-submit`이 이 키로 낸다 */
 export const PluginSubmitPortKey: PortKey<PluginSubmitPort> = { name: "fresnel.pluginSubmit" };
+/** 맥락 읽기 실패. 저장소 읽기 실패만 있다 */
+export interface CraftContextError {
+  readonly kind: "store";
+  readonly code: string;
+}
+/**
+ * 테스트 대화의 맥락 참조 읽기(M5c §4.8.8). 대화의 `craft.context` 사건을 기록 순서대로 이어 붙인 참조 목록을 준다(중복은 뺀다).
+ * 구현은 호스트이고 빌더 서비스(`craftContext`)가 이 포트로 읽는다. 모델 컨텍스트에는 들어가지 않는다.
+ */
+export interface CraftContextPort {
+  read(threadId: ThreadId): Promise<Result<readonly ContextRef[], CraftContextError>>;
+}
+/** 포트 키. 플랫폼 모듈 `fresnel.craft-context`가 호스트 구현을 낸다 */
+export const CraftContextPortKey: PortKey<CraftContextPort> = { name: "fresnel.craftContext" };
