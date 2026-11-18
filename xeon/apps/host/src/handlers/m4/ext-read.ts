@@ -21,6 +21,7 @@ type ExtReadError =
   | { readonly kind: "unknown_extension"; readonly name: string }
   | { readonly kind: "unknown_group"; readonly id: string }
   | { readonly kind: "unknown_thread"; readonly threadId: string }
+  | { readonly kind: "unknown_profile"; readonly profileId: string }
   | { readonly kind: "unknown_setting"; readonly key: string }
   /** 안전 모드에서 `ext.reenable`, `ext.reload`를 거부한다(§2 2번 [제안]) */
   | { readonly kind: "safe_mode_active" }
@@ -64,6 +65,7 @@ export interface ExtReadPort {
   readonly orderSet: PortCall<"hooks.order.set">;
   readonly orderReset: PortCall<"hooks.order.reset">;
   readonly orderPreview: PortCall<"hooks.order.preview">;
+  readonly blocksApplied: PortCall<"blocks.applied">;
   readonly mcpServers: PortCall<"mcp.servers">;
   readonly mcpServerAction: PortCall<"mcp.serverAction">;
   /** 저장 쓰기 실패를 wire 오류로 옮기는 조립의 함수들(`ProfileTestRunPort.errors`와 같은 것) */
@@ -91,6 +93,7 @@ export type ExtReadMethods =
   | "hooks.order.set"
   | "hooks.order.reset"
   | "hooks.order.preview"
+  | "blocks.applied"
   | "mcp.servers"
   | "mcp.serverAction";
 
@@ -106,6 +109,8 @@ function wireErrorOf(
       return wireError("group.notFound", { details: { id: error.id } });
     case "unknown_thread":
       return wireError("thread.notFound", { details: { threadId: error.threadId } });
+    case "unknown_profile":
+      return wireError("profile.notFound", { details: { id: error.profileId } });
     case "unknown_setting":
       return wireError("settings.unknownKey", { details: { key: error.key } });
     case "safe_mode_active":
@@ -172,6 +177,8 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
       settle("hooks.order.reset", port.orderReset(params, context.signal)),
     "hooks.order.preview": (params, context) =>
       settle("hooks.order.preview", port.orderPreview(params, context.signal)),
+    "blocks.applied": (params, context) =>
+      settle("blocks.applied", port.blocksApplied(params, context.signal)),
     "mcp.servers": (params, context) =>
       settle("mcp.servers", port.mcpServers(params, context.signal)),
     "mcp.serverAction": (params, context) =>

@@ -31,6 +31,8 @@ function viewOf(answers: Readonly<Record<string, EnabledSource>>): {
       recomputeAll: () => {
         recomputed.count += 1;
       },
+      viewOf: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
+      viewOfProfile: () => undefined,
     },
   };
 }

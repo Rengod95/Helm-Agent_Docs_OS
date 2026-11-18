@@ -564,6 +564,8 @@ export const BLOCK_MODEL: BlockModel;
 
 `blocks.describe`는 기록 블록(`record`)의 `hooks.before`와 `hooks.after`가 **비어 있음을 명시**한다(빈 배열이고 생략하지 않는다). 기록 블록에는 이벤트 구독(`hooks.events`)만 있고 고치거나 막는 훅 겹이 없다(결정 A). 화면이 "이 블록에는 Hook이 없다"를 빈 칸이 아니라 설계로 보여 주기 위해서다. 블록은 여섯이고 "다섯"이라 적은 문서(`craft-plan.md` §7.2, 엔진 설계 옛 §13)는 이 스펙이 정본이다(M5e-3은 통합 정리에서 이미 반영됐다).
 
+[구현 2026-11-18, M5e-2 층 2] `blocks.applied`의 입력은 `{ threadId?, profileId? }`이고 `threadId`가 이긴다. 둘 다 없으면 기본 프로필이다. 결과는 `{ profileId, blocks: { id, settings: { key, value, source }[], parts: { id, current, replacedBy? }[], handlers: { hook, plugin, order }[] }[] }`다 [제안: 최상위 `profileId`를 더했다]. `settings`는 블록 설정 겹의 키마다 `resolveEngineSetting`이 낸 유효 값과 출처 범위(`default` 포함)이고 시크릿 키의 값은 null이다. `parts`는 `how: "replaces"`인 부품의 `current`를 프로필 순서에서 처음으로 그 도구를 `replaces`한 플러그인으로, 없으면 부품의 `default`로 낸다(대체했으면 `replacedBy`에 대체당한 기본이 선다). `provider`·`hook` 부품은 대체를 읽을 원천이 없어 `default`다. `handlers`는 블록의 앞·뒤·이벤트 훅 이름에 선 핸들러를 그 대화(프로필)의 순서로 센 것이다. 모르는 프로필은 `profile.notFound`, 모르는 대화는 `thread.notFound`다(블록 오류 코드 3700대는 쓰지 않았다). **하지 않은 것**: `outcome24h`(기록 스펙의 지표 인용)는 싣지 않았다. 처리기는 `handlers/blocks.ts`가 아니라 확장 읽기 포트(`m4/ext-read.ts`, `assembly/m4/ext-read-port.ts`의 `blocksApplied`)에 있다. 이 포트가 설정 층과 핸들러 조회를 이미 쥐고 있기 때문이다. 시험: `contracts/test/wire-settings/blocks-applied.test.ts`, `apps/host/test/handlers/blocks.test.ts`, 실제 엔진 `apps/host/test/int/blocks-applied-real.int.test.ts`.
+
 둘 다 `contracts/src/wire-settings/wire/` 아래에 스키마와 메서드 표를 두고(기존 `ext-read-methods.ts`의 `Io<…>` 형식), 호스트 처리기는 `apps/host/src/handlers/` 아래 새 파일이다. 변화 알림은 두지 않는다(프로필 변경은 단계 경계에서 적용되고 화면이 다시 읽는다) [제안].
 
 ## 5. 동작 규칙
@@ -592,6 +594,7 @@ export const BLOCK_MODEL: BlockModel;
 - **O-3 덮어쓰기 유지.** `x.operations.hookOrder`와 `hooks.order.get|set|reset|preview`(`contracts/src/wire-settings/wire/ext-read.ts:889-987`)는 그대로 쓰고 이름도 바꾸지 않는다. 가드 위험 미리보기(`previewOrder`, `checkOrder`)는 `guard` tier 핸들러를 옮길 때만 경고한다.
 - **O-4 순서가 뜻을 바꾸는 곳.** chain은 값이 흘러가므로 순서가 최종 값을 바꾼다. collect는 기여를 순서대로 모은다. `tool.call.before`와 `agent.spawn.before`는 H-2가 종류의 우선순위를 정하므로 순서는 사유와 `replace` 내용만 바꾼다. 화면의 "순서가 중요" 표시(`client/src/workbench/canvas/hooks.ts`의 `orderMatters`)는 이 규칙으로 다시 계산한다.
 - **O-5 변경 시점.** 프로필 목록 순서와 덮어쓰기는 다음 단계 경계에 적용된다(지금과 같다).
+- **[구현 2026-11-18, M5e-2 층 1]** 정렬 키는 `(순위, E(T) 위치, loadIndex, seq)`다. 순위는 `tierRankOf`(`guard` 0, `user`·`project`·`builtin` 1, `core` 2)이고 `Tier` 문자열은 출처 표시로 그대로 남는다 [제안: 문자열을 지우지 않고 순위만 줄였다. `ext.list`와 자동 끄기 면제(`guard`, `core`)가 문자열을 읽는다]. E(T) 위치는 대화의 `PluginSetPort.resolve(threadId).plugins`에서 읽는다(공통 묶음, 프로필 목록, 덧씌우기 순). 목록에 없는 확장(외부 훅 단위 등)은 목록의 것 뒤에서 `loadIndex`를 쓴다. 디스패처(`DispatcherDeps.pluginOrder`)와 읽기 조회(`extReadViewOf().handlers(threadId?)`)가 같은 `sortEntries`를 쓴다. `hookOrder` 덮어쓰기는 이 순서 위에 얹힌다. 읽기 조회의 `tier` 값은 순위(0~2)다. 시험은 `ext-host/test/operations/profile-order.test.ts`.
 - 시험: 프로필 목록 `[A, B]`일 때 같은 chain 훅에서 A의 패치가 먼저 적용된다. 목록을 `[B, A]`로 바꾸면 다음 단계에서 순서가 뒤집힌다. `hookOrder` 덮어쓰기는 목록 순서보다 우선한다.
 
 ### 5.3 플러그인 기능 호출의 통합 경로
@@ -802,9 +805,9 @@ L3와 나머지: `group-helm`, `group-learning`, `group-guide`, `group-account-r
 | D-20 | `core-tools/src/entries.ts:424-428`(`resourceResult`), `core-tools/src/pipeline.ts`(`finishCall`), `core-tools/src/file-changes.ts`(신규) | 플러그인 도구 결과의 `details`를 널로 고정하지 않고 `ctx.changes.report`와 관찰 변경을 합치며 `tool.result` 뒤 병합. 입력 타입은 `Omit<FileChangeEntry, "source">`(`contracts/src/extensions/ports.ts`) | M |
 | D-21 | `apps/desktop/src/views/panels/changes/changes-model.ts`. `apps/desktop/src/views/approval-form.ts`는 `DIFF_HEAD_ROWS`를 내보내기만 한다(인자 기반 그림 `fileChangeViewOfArgs`는 승인 카드 미리보기에 남는다) | 변경 탭 원천을 완료 결과의 `fileChangesOf`로 교체. 출력 모양(`ChangesView`)은 그대로 | M |
 | D-22 | `cap-artifacts/src/reviews/collect.ts:53-75` | `fileChangesOf` 사용 | S |
-| D-23 | `contracts/src/blocks/` (신규)와 `contracts/src/wire-settings/wire/*` | `BLOCK_MODEL`, `blocks.describe`, `blocks.applied`, 호스트 처리기 | M |
+| D-23 | `contracts/src/blocks/` (신규)와 `contracts/src/wire-settings/wire/*` | `BLOCK_MODEL`, `blocks.describe`, `blocks.applied`, 호스트 처리기. **완료(M5e-1 `blocks.describe`, M5e-2 `blocks.applied`)**: 4.9절 구현 기록 | M |
 | D-24 | `client/src/workbench/canvas/hooks.ts` | 중복 표를 `HOOK_POSITIONS`에서 파생 | S |
-| D-25 | `ext-host/src/operations/tier.ts:9-15, 107-128`, `dispatch.ts:158-169` | tier 셋(O-2), 프로필 순서 키(O-1) | M |
+| D-25 | `ext-host/src/operations/tier.ts:9-15, 107-128`, `dispatch.ts:158-169` | tier 셋(O-2), 프로필 순서 키(O-1). **완료(M5e-2 층 1, 2026-11-18)**: 5.2절 구현 기록 | M |
 | D-26 | `scripts/check-layers.ts:20, 107-137`, `.dependency-cruiser.cjs:7-45` | `P` 등급(6.3). **완료(층 F, 2026-11-18)**: `P`와 DR-15(P.2)를 두 도구에 넣고 `L2`·`L3` 별칭을 받는다. 시험 14건을 `scripts/check-layers.test.ts`에 더했다. 남은 두 위반은 허용 목록 `DR-15/*`에 [미결](12절 O-20) [근거: xeon/scripts/dependency-allowlist.json]. 기록은 6.3 구현 기록 | M |
 | D-27 | `cap-workspace` → 새 코어 서비스 | 6.1. **완료(층 D2, 2026-11-18)**: 서비스 부분을 `core-workspace`(L1, 이름 [제안])로 옮겼다. 기능 id와 등록은 cap에 남았다. 시험 분할과 포크 기록 분할은 §9 6단계 기록 | L |
 | D-28 | `cap-dialog/src/ask/` → `core-tools/src/ask/` | 6.1. **완료(층 D1, 2026-11-18)**: 질문 서비스를 `core-tools/src/ask/`로 옮겼다. 옛 src 652줄(`ask/` 368, `ports/approvals.ts` 166, `errors.ts` 111, `ports/timers.ts` 7)이 새 src 678줄(`service.ts` 177, `expiry.ts` 100, `mapping.ts` 97, `approvals.ts` 166, `errors.ts` 111, `deps.ts` 27)이 됐다. 시험 `ask-flow` 410줄, `ask-restart.fault` 120, `ask-schema` 197, `ask-wait` 81은 `core-tools/test/ask/`로, 시험 대역 `adapter` 54줄은 `core-tools/test/ask/support/`, `real-approvals` 186과 `timers` 36은 `core-tools/src/testing/`로 옮겼다. 새 `test/ask/support/harness.ts`(86줄)는 질문 의존만 잇는 대역이다. 설정 층을 읽는 `ask-defaults.test.ts`는 cap-dialog에 남았다 | M |

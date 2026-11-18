@@ -1028,6 +1028,107 @@ export const BlocksDescribeResultSchema: TUnsafe<BlocksDescribeResult> =
     BlockModelShape satisfies SchemaProof<BlocksDescribeResult, typeof BlockModelShape>,
   );
 
+/**
+ * `blocks.applied`(M5e-2, 스펙 §4.9). 대화(또는 프로필)에 실제로 적용된 블록 구성이다. `threadId`가 있으면 그 대화의 프로필과 덧씌우기를,
+ * `profileId`만 있으면 그 프로필(공통 묶음 포함)을, 둘 다 없으면 기본 프로필을 읽는다. 둘 다 있으면 `threadId`가 이긴다.
+ * `settings`는 블록의 설정 겹 키마다 유효 값과 그 출처 범위(`default` 포함), `parts`는 교체 가능한 부품마다 지금 쓰이는 구현,
+ * `handlers`는 그 블록의 앞·뒤·이벤트 훅 위치마다 디스패치 순서(프로필 순서)대로 선 핸들러다. 시크릿 키의 값은 싣지 않고 null이다.
+ */
+export interface BlocksAppliedParams {
+  readonly threadId?: string;
+  readonly profileId?: string;
+}
+const BlocksAppliedParamsShape2 = request({
+  threadId: Type.Optional(ThreadRef),
+  profileId: Type.Optional(Name),
+});
+export const BlocksAppliedParamsSchema: TUnsafe<Req<BlocksAppliedParams>> = Type.Unsafe<
+  Req<BlocksAppliedParams>
+>(
+  BlocksAppliedParamsShape2 satisfies SchemaProof<
+    Req<BlocksAppliedParams>,
+    typeof BlocksAppliedParamsShape2
+  >,
+);
+export type BlockAppliedSettingScope =
+  | "managed"
+  | "launch"
+  | "profile"
+  | "local"
+  | "project"
+  | "user"
+  | "default";
+export interface BlockAppliedSetting {
+  readonly key: string;
+  readonly value: unknown;
+  readonly source: BlockAppliedSettingScope;
+}
+export interface BlockAppliedPart {
+  readonly id: string;
+  /** 지금 쓰이는 구현. 코어(또는 기본 구현)면 `core`, 아니면 대체한 플러그인 이름 */
+  readonly current: string;
+  /** 대체당한 기본 구현(`ReplaceablePart.default`). 기본 구현이 쓰이면 없다 */
+  readonly replacedBy?: string;
+}
+export interface BlockAppliedHandler {
+  readonly hook: string;
+  readonly plugin: string;
+  /** 그 훅에서 이 핸들러의 순서(0부터, 디스패치 순서) */
+  readonly order: number;
+}
+export interface BlockApplied {
+  readonly id: "context" | "model" | "tools" | "ask" | "agents" | "record";
+  readonly settings: readonly BlockAppliedSetting[];
+  readonly parts: readonly BlockAppliedPart[];
+  readonly handlers: readonly BlockAppliedHandler[];
+}
+export interface BlocksAppliedResult {
+  /** 읽은 프로필 id. 대화가 가리키는 프로필이 없으면 `default`다 */
+  readonly profileId: string;
+  readonly blocks: readonly BlockApplied[];
+}
+const BlockAppliedShape = closed({
+  id: BlockIdShape,
+  settings: Type.Array(
+    closed({
+      key: Type.String({ minLength: 1, maxLength: 200 }),
+      value: Type.Unknown(),
+      source: Type.Union([
+        Type.Literal("managed"),
+        Type.Literal("launch"),
+        Type.Literal("profile"),
+        Type.Literal("local"),
+        Type.Literal("project"),
+        Type.Literal("user"),
+        Type.Literal("default"),
+      ]),
+    }),
+    { maxItems: 200 },
+  ),
+  parts: Type.Array(
+    closed({
+      id: Type.String({ minLength: 1, maxLength: 96 }),
+      current: Name,
+      replacedBy: Type.Optional(Name),
+    }),
+    { maxItems: 16 },
+  ),
+  handlers: Type.Array(closed({ hook: HookNameSchema, plugin: Name, order: Count }), {
+    maxItems: 2000,
+  }),
+});
+const BlocksAppliedResultShape2 = closed({
+  profileId: Name,
+  blocks: Type.Array(BlockAppliedShape, { maxItems: 6 }),
+});
+export const BlocksAppliedResultSchema: TUnsafe<BlocksAppliedResult> =
+  Type.Unsafe<BlocksAppliedResult>(
+    BlocksAppliedResultShape2 satisfies SchemaProof<
+      BlocksAppliedResult,
+      typeof BlocksAppliedResultShape2
+    >,
+  );
+
 /** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 외부 훅도 훅마다 Registration(`fresnel-hooks-<훅 id>`)이라 다른 핸들러처럼 순서에 넣을 수 있다(X.operations §4.7.4). 알 수 없는 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
 export interface HooksOrderSetParams {
   readonly hook: string;
