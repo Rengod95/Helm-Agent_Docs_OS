@@ -1,4 +1,5 @@
-import { attemptAsync, type Logger, type Result } from "@fresnel/contracts";
+import { attempt, attemptAsync, type Logger, type Result } from "@fresnel/contracts";
+import type { TurnBlockEvent, TurnRecordSink } from "@fresnel/contracts/extensions";
 import type { KnowledgeFailure } from "./errors.ts";
 import { diffIndex, formatIndexDelta, isEmptyDelta, type IndexSnapshot } from "./skills/delta.ts";
 import type { SkillIndexBlock } from "./skills/prompt-block.ts";
@@ -30,6 +31,11 @@ export interface TurnContextDeps {
   };
   readonly logger: Logger;
   /**
+   * 턴 기록 싱크(읽기 전용). 블록이 이력에 실린 대화의 turn이 시작할 때마다 색인의 이름·수·토큰과 기억의 토큰을 알린다.
+   * 없으면 아무것도 알리지 않는다. 싱크의 실패는 턴을 막지 않는다
+   */
+  readonly turnRecord?: TurnRecordSink;
+  /**
    * turn 시작이 시작 작업과 재색인을 기다리는 최대 시간(ms). hook 체인 예산(10초)보다 짧아야 한다: 예산을 넘기면 체인이 turn의
    * 블록을 버리는데 상태에는 기록되어 그 대화가 스킬 목록을 못 받는다. 기본 5000
    */
@@ -51,6 +57,24 @@ export interface TurnContext {
 
 function joinBlocks(blocks: readonly string[]): string {
   return blocks.filter((block) => block !== "").join("\n\n");
+}
+
+/** 글자 수 / 4 올림. core-context의 `textTokens`와 같은 어림이다(P층은 core-*를 import하지 않으므로 같은 식을 둔다) */
+function tokensOf(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** 턴 기록의 소유 이름. 기능 id `knowledge.skills`·`knowledge.memory`의 앞 이름이다(도구 광고의 소유 규칙과 같다) */
+const BLOCK_OWNER = "knowledge";
+
+/** 첫 turn에 실은 블록의 사실. 이력에 남아 모델이 계속 보므로 이 대화의 turn마다 같은 값을 알린다. 바뀐 색인은 델타 메시지가 알리고 여기는 따르지 않는다 */
+interface BlockFacts {
+  readonly skills: {
+    readonly listed: readonly string[];
+    readonly omitted: number;
+    readonly tokens: number;
+  } | null;
+  readonly memoryTokens: number | null;
 }
 
 const DEFAULT_WAIT_MS = 5000;
@@ -76,6 +100,8 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
   const waitMs = deps.waitMs ?? DEFAULT_WAIT_MS;
   // 세션별로 마지막으로 모델에게 알린 인덱스. 항목이 있으면 첫 turn 블록을 이미 넣었다(재개한 세션은 기록에 있다고 본다)
   const states = new Map<string, IndexSnapshot>();
+  // 블록이 실린 대화의 블록 사실(턴 기록 싱크가 알릴 값)
+  const blockFacts = new Map<string, BlockFacts>();
   // 시작이 진행 중인 세션의 시작 작업. 거부가 없는 값이다. turn은 이것이 끝난 뒤에 상태를 읽는다
   const starting = new Map<string, Promise<unknown>>();
 
@@ -95,6 +121,17 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     if (!block.ok) warn("knowledge.context.index_failed", threadId, block.error);
     if (!memory.ok) warn("knowledge.context.memory_failed", threadId, memory.error);
     states.set(threadId, snapshot.value);
+    blockFacts.set(threadId, {
+      skills:
+        block.ok && block.value.text !== ""
+          ? {
+              listed: block.value.included,
+              omitted: block.value.omitted,
+              tokens: tokensOf(block.value.text),
+            }
+          : null,
+      memoryTokens: memory.ok && memory.value !== "" ? tokensOf(memory.value) : null,
+    });
     const text = joinBlocks([block.ok ? block.value.text : "", memory.ok ? memory.value : ""]);
     return text === ""
       ? undefined
@@ -113,6 +150,32 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     const changes = diffIndex(state, current.value);
     if (isEmptyDelta(changes)) return undefined;
     return { customType: DELTA_MESSAGE_TYPE, content: formatIndexDelta(changes), display: false };
+  };
+
+  // 블록 사실을 턴 기록 싱크에 알린다. 싱크가 던져도 턴은 그대로 간다(기록은 요청을 바꾸지 않는다)
+  const report = (threadId: string): void => {
+    const sink = deps.turnRecord;
+    const facts = blockFacts.get(threadId);
+    if (sink === undefined || facts === undefined) return;
+    const events: TurnBlockEvent[] = [];
+    if (facts.skills !== null) {
+      events.push({
+        kind: "skill_index",
+        threadId,
+        plugin: BLOCK_OWNER,
+        listed: facts.skills.listed,
+        omitted: facts.skills.omitted,
+        tokens: facts.skills.tokens,
+      });
+    }
+    if (facts.memoryTokens !== null) {
+      events.push({ kind: "memory", threadId, plugin: BLOCK_OWNER, tokens: facts.memoryTokens });
+    }
+    for (const event of events) {
+      const sent = attempt(() => sink.record(event));
+      if (!sent.ok)
+        deps.logger.warn("knowledge.turn_record_failed", { threadId, kind: event.kind });
+    }
   };
 
   const startSession = async (threadId: string, reason: SessionStartReason): Promise<void> => {
@@ -167,11 +230,13 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
         return undefined;
       }
       const state = states.get(threadId);
-      if (state === undefined) return introduce(threadId);
-      return delta(threadId, state);
+      const message = state === undefined ? await introduce(threadId) : delta(threadId, state);
+      report(threadId);
+      return message;
     },
     shutdown: (threadId) => {
       states.delete(threadId);
+      blockFacts.delete(threadId);
       starting.delete(threadId);
     },
     size: () => states.size,

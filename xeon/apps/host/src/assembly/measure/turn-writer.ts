@@ -15,6 +15,7 @@ import type {
   PluginSetView,
   ToolCallTraceEvent,
   TraceReadPort,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
@@ -37,6 +38,7 @@ import type { MeasureStore } from "./store.ts";
 import type { TurnRecordEvent, TurnRecordEvents } from "./turn-events.ts";
 import {
   advertisedRecordOf,
+  blockMaterialsOf,
   cacheBreakOf,
   MAX_MATERIAL_ROWS_PER_TURN,
   MAX_SKILL_ROWS_PER_TURN,
@@ -48,6 +50,7 @@ import {
   trCacheRowsOf,
   trMaterialRowOf,
   trToolUseRowOf,
+  withBlockFact,
   type CacheUsage,
 } from "./turn-context.ts";
 import type { TrSkillRow, TrStepBatch, TrToolUseRow, TrTurnRow } from "./turn-tables.ts";
@@ -60,6 +63,7 @@ import {
   MAX_CALL_ROWS_PER_TURN,
   MAX_HOOK_ROWS_PER_TURN,
   MAX_PLUGIN_CALL_ROWS_PER_TURN,
+  maskedArgTokensOf,
   newDraft,
   pluginCallLineOf,
   stepAfterBoundary,
@@ -150,6 +154,11 @@ export interface TurnWriter {
   pluginCall(event: PluginCallTraceEvent): void;
   /** 조립 재료·광고(`step_context`)와 스킬 본문 읽기(`skill_read`)의 읽기 전용 사건. 단계가 끝날 때 행으로 바뀐다 */
   context(event: ContextTraceEvent): void;
+  /**
+   * 색인·기억 블록의 사실(턴 기록 싱크). 이 대화의 열린 턴에 붙이고, 턴이 끝날 때까지 그 턴의 모든 단계에 재료로 싣는다.
+   * 열린 턴이 없거나 계측이 꺼진 턴이면 버린다
+   */
+  turnRecord(event: TurnBlockEvent): void;
   /** 대화를 지운다. 이 대화의 열린 턴 상태를 버린다. 대기 중인 쓰기는 호출자가 먼저 비운다 */
   forget(threadId: string): void;
 }
@@ -283,10 +292,16 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     });
   }
 
-  /** 하위 대화를 기억한다. `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다 */
+  /**
+   * 하위 대화를 기억한다. `agent.spawned`는 자식의 첫 턴보다 먼저 커밋된다. 부모 턴에서 만든 것이면 그 턴의 자식 목록에도 넣는다(`flags.subagents`)
+   */
   function rememberChild(record: DurableEventEnvelope): void {
     const parsed = parse(AgentSpawnedPayloadSchema, record.payload);
-    if (parsed.ok) addBounded(childThreads, parsed.value.childThreadId);
+    if (!parsed.ok) return;
+    addBounded(childThreads, parsed.value.childThreadId);
+    if (record.turnId !== null) {
+      drafts.get(record.turnId)?.spawnedChildren.add(parsed.value.childThreadId);
+    }
   }
 
   /** 이 대화에서 지금 열려 있는 턴(있으면 하나) */
@@ -457,6 +472,8 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
               turnStartedAt: draft.startedAt,
               hooks: hookRuns.filter((run) => run.toolCallId === event.toolCallId),
             }),
+            // 원본 토큰은 이 줄에서 가려 저장하고, 행과 기록에는 가린 값만 간다
+            maskedArgTokens: maskedArgTokensOf(sealed, event.argTokens),
           }));
     const base = { threadId: draft.threadId, turnId: draft.turnId, stepIndex };
     const usage = draft.calls.get(stepId) ?? [];
@@ -476,7 +493,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
     });
     draft.elidedTools += noted.elided;
     const materialPlan = materialPlanOf({
-      materials: context?.materials ?? [],
+      materials: [...(context?.materials ?? []), ...blockMaterialsOf(draft.blocks)],
       budget: MAX_MATERIAL_ROWS_PER_TURN - draft.materialCount,
       seen: draft.materialKeys,
     });
@@ -577,7 +594,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
               },
             }),
       }),
-      calls: pairs.map((pair) => trCallRowOf(pair.event, pair.record, base)),
+      calls: pairs.map((pair) => trCallRowOf(pair.event, pair.record, base, pair.maskedArgTokens)),
       hooks: hooks.rows.map((row) => trHookRowOf(row, base)),
       materials: materialPlan.fresh.map((material) => trMaterialRowOf(material, base)),
       tooluse: toolRows,
@@ -778,6 +795,11 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       const reads = draft.skillReads.get(event.stepId) ?? [];
       reads.push({ toolCallId: event.toolCallId, name: event.name });
       draft.skillReads.set(event.stepId, reads);
+    },
+    turnRecord(event) {
+      const draft = openDraftOf(event.threadId);
+      if (draft === undefined || draft.level !== "full") return;
+      draft.blocks = withBlockFact(draft.blocks, event);
     },
     forget(threadId) {
       for (const [turnId, draft] of drafts) {

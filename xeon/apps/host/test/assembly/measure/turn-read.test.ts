@@ -1579,10 +1579,10 @@ test("rewrite_text marks a bash retry whose argument tokens overlap and differen
   store.close();
 });
 
-test("rewrite_text is not_recorded when the calls carry only the numeric argTokens count the collector writes today", () => {
+test("rewrite_text is not_recorded when the calls carry only a numeric argTokens (the old count form, not a token list)", () => {
   const store = memory();
   const T = "thr_rw_count";
-  // 수집기는 인자 토큰 목록 대신 토큰 수(숫자)를 쓴다. 겹침을 잴 수 없으니 rewrite_text는 값이 없고 나머지는 센다
+  // 예전 모양(숫자)의 `argTokens`는 목록이 아니다. 겹침을 잴 수 없으니 rewrite_text는 값이 없고 나머지는 센다
   const countOnly = (turn: string, stepIndex: number, extra: Partial<TrCallRow>) =>
     call(T, turn, `${turn}-${String(stepIndex)}`, {
       tool: "bash",

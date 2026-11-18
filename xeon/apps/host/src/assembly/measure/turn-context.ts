@@ -5,6 +5,7 @@ import type {
   AdvertisedFact,
   ContextMaterialFact,
   ContextTraceEvent,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import type { Advertised, CacheBreak, Material, PluginCost } from "@fresnel/contracts/wire";
 import type { TrCacheRow, TrMaterialRow, TrToolUseRow } from "./turn-tables.ts";
@@ -410,4 +411,75 @@ export function pluginCostOf(input: {
       onDemand: row.onDemand,
       shared: row.shared,
     }));
+}
+
+// ---- 색인과 기억 블록(§3.2 `skills`, §4.5 규칙 29, 턴 기록 싱크) -----------------
+
+/**
+ * 턴에 실린 색인·기억 블록의 사실. 싱크가 알린 값을 든다. 블록은 대화 이력에 남아 모델이 턴마다 보므로 턴 안의 모든 단계에 같은 재료로 싣는다.
+ * 알림이 없으면 빈 값이다(블록이 없거나 알리지 못한 턴)
+ */
+export interface TurnBlockFacts {
+  readonly skillIndex: {
+    readonly plugin: string;
+    /** 색인에 실린 스킬 이름(싣는 순서). 상한을 넘는 이름은 싣지 않는다 */
+    readonly listed: readonly string[];
+    readonly omitted: number;
+    readonly tokens: number;
+  } | null;
+  readonly memory: { readonly plugin: string; readonly tokens: number } | null;
+}
+
+export const NO_TURN_BLOCKS: TurnBlockFacts = { skillIndex: null, memory: null };
+
+/** 싱크 사건 하나를 턴의 블록 사실에 넣는다. 같은 종류의 알림은 마지막 값으로 바꾼다 */
+export function withBlockFact(facts: TurnBlockFacts, event: TurnBlockEvent): TurnBlockFacts {
+  if (event.kind === "skill_index") {
+    return {
+      ...facts,
+      skillIndex: {
+        plugin: nameOf(event.plugin),
+        listed: event.listed.slice(0, MAX_SKILL_ROWS_PER_TURN).map(nameOf),
+        omitted: event.omitted,
+        tokens: event.tokens,
+      },
+    };
+  }
+  return { ...facts, memory: { plugin: nameOf(event.plugin), tokens: event.tokens } };
+}
+
+/** 블록 사실을 재료 줄로 바꾼다(§3.2 `Material`). 값 자체는 없다. 둘 다 항상 실린다(`kind: "always"`)이고 선언으로 귀속된다 */
+export function blockMaterialsOf(facts: TurnBlockFacts): ContextMaterialFact[] {
+  const out: ContextMaterialFact[] = [];
+  if (facts.skillIndex !== null) {
+    out.push({
+      plugin: facts.skillIndex.plugin,
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "skill_index",
+      ref: "skill-index",
+      tokens: facts.skillIndex.tokens,
+      truncated: false,
+      omitted: facts.skillIndex.omitted,
+      itemId: null,
+      attribution: "declared",
+    });
+  }
+  if (facts.memory !== null) {
+    out.push({
+      plugin: facts.memory.plugin,
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "memory",
+      ref: "memory",
+      tokens: facts.memory.tokens,
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: "declared",
+    });
+  }
+  return out;
 }

@@ -1,8 +1,14 @@
 import { expect, test } from "bun:test";
 import { canonicalJson, type Logger } from "@fresnel/contracts";
-import type { ContextTraceEvent, ContextTraceSink } from "@fresnel/contracts/extensions";
+import {
+  defineManifest,
+  type ContextTraceEvent,
+  type ContextTraceSink,
+  type ExtensionEntry,
+} from "@fresnel/contracts/extensions";
 import type { OrderedTool } from "@fresnel/contracts/capabilities";
 import type { AdvertisedToolset } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import {
   advertisedFactOf,
@@ -85,6 +91,69 @@ test("request_bodies_are_byte_identical_with_the_trace_sink_on_and_off", async (
       event.kind === "skill_read" ? [[event.name, event.toolCallId.startsWith("s1")]] : [],
     ),
   ).toEqual([["deploy", true]]);
+});
+
+/** `input.agent.before`에서 안내 한 줄을 기본 프롬프트 뒤에 더하는 확장. 안내의 출처가 하나로 정해지는 경우를 만든다 */
+function promptAdditionOf(name: string, text: string): ExtensionUnit {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
+      g.on("input.agent.before", (payload) => ({
+        systemPrompt: `${payload.systemPrompt}\n\n${text}`,
+      }));
+    });
+  };
+  return {
+    manifest: defineManifest({
+      schemaVersion: 2,
+      name,
+      version: "0.1.0",
+      entry: "./index.ts",
+      plugins: [{ layer: "plugin", hooks: ["input.agent.before"] }],
+    }),
+    entry,
+    loadIndex: 4,
+    builtin: false,
+  };
+}
+
+/** 요청 본문과, 조립에 넘긴 안내(`volatile.instructions`)다. 조립 대역은 volatile을 메시지에 붙이지 않으므로 안내는 입력으로 확인한다 */
+async function runWithAddition(contextTrace: ContextTraceSink | undefined): Promise<{
+  readonly bodies: string;
+  readonly instructions: readonly (string | undefined)[];
+  readonly owners: readonly (string | undefined)[];
+}> {
+  const h = await createHarness({
+    tools,
+    script: [...script],
+    ...(contextTrace === undefined ? {} : { contextTrace }),
+  });
+  await h.host.host.install(promptAdditionOf("advisor", "Prefer short answers."));
+  await h.host.settled();
+  await h.loop.admit({
+    threadId: h.threadId,
+    content: "go",
+    via: "interactive",
+    requestId: "req-1",
+  });
+  await h.settle();
+  return {
+    bodies: bodiesOf(h.models.requests),
+    instructions: h.context.assembled.map((item) => item.volatile["instructions"]),
+    owners: h.context.assembled.map((item) => item.promptAdditionOwner),
+  };
+}
+
+test("the_prompt_addition_owner_is_reported_and_the_request_bytes_do_not_change", async () => {
+  const off = await runWithAddition(undefined);
+  const events: ContextTraceEvent[] = [];
+  const on = await runWithAddition({ record: (event) => events.push(event) });
+  // 안내가 조립까지 갔다는 것을 먼저 확인해 바이트 비교가 빈 값끼리 맞는 일을 막는다
+  expect(off.instructions).toEqual(["Prefer short answers.", "Prefer short answers."]);
+  expect(on.bodies).toBe(off.bodies);
+  // 출처가 하나의 핸들러로 정해지므로 두 단계 모두 조립 입력이 그 플러그인을 소유자로 준다(재료 줄은 실제 조립이 쓴다)
+  expect(off.owners).toEqual(["advisor", "advisor"]);
+  expect(on.owners).toEqual(["advisor", "advisor"]);
+  expect(events.filter((event) => event.kind === "step_context").length).toBe(2);
 });
 
 test("a_sink_that_throws_leaves_the_request_unchanged_and_logs_one_warning", async () => {

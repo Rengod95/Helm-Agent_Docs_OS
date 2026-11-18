@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { canonicalJson, type Logger } from "@fresnel/contracts";
 import { WorkspaceFiles, WorkspaceFilesKey } from "@fresnel/contracts/capabilities";
 import type { ToolCallTraceEvent, ToolCallTraceSink } from "@fresnel/contracts/extensions";
+import { argTokensOf } from "../src/call-trace.ts";
 import { eachInOrder } from "../src/util.ts";
 import {
   ASSISTANT,
@@ -97,7 +98,41 @@ test("an allowed read records one allowed line with its owner, caller, exec and 
   expect(lineOf(trace.events, "t_read")?.argsHash).toBe(
     createHash("sha256").update(canonical).digest("hex"),
   );
-  expect(lineOf(trace.events, "t_read")?.argTokens).toBe(Math.ceil(canonical.length / 4));
+  expect(lineOf(trace.events, "t_read")?.argTokenCount).toBe(Math.ceil(canonical.length / 4));
+  // 문자열 인자 "a.txt"의 토큰은 a(두 글자 미만이라 버림)와 txt다
+  expect(lineOf(trace.events, "t_read")?.argTokens).toEqual(["txt"]);
+});
+
+test("the argument tokens are the lowercase words of the top-level string arguments, in key order, without duplicates", () => {
+  expect(
+    argTokensOf({
+      path: "src/A.ts",
+      command: "Git status --short; rm -rf build/ && GIT status",
+      count: 3,
+      flag: true,
+      note: "a",
+      nested: { text: "ignored because it is not top-level" },
+    }),
+  ).toEqual(["git", "status", "short", "rm", "rf", "build", "src", "ts"]);
+  expect(argTokensOf({ text: "Résumé 2026 año, 東京 ok" })).toEqual([
+    "résumé",
+    "2026",
+    "año",
+    "東京",
+    "ok",
+  ]);
+  expect(argTokensOf({ count: 3 })).toEqual([]);
+  expect(argTokensOf(["not", "an", "object"])).toEqual([]);
+});
+
+test("the argument tokens stop at 64 distinct words and cut each word at 64 characters", () => {
+  const words = Array.from({ length: 70 }, (_, index) => `w${String(index).padStart(3, "0")}`);
+  const tokens = argTokensOf({ text: words.join(" ") });
+  expect(tokens).toHaveLength(64);
+  expect(tokens[0]).toBe("w000");
+  expect(tokens.at(-1)).toBe("w063");
+  const long = "x".repeat(70);
+  expect(argTokensOf({ text: long })).toEqual(["x".repeat(64)]);
 });
 
 test("a tool.call.before block records blocked_hook with the blocking handler", async () => {

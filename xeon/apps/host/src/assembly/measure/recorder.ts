@@ -11,6 +11,7 @@ import type {
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
+  TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import {
   AgentSpawnedPayloadSchema,
@@ -315,6 +316,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly offerCall: (input: ToolCallTraceEvent) => void;
   readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   readonly offerContext: (input: ContextTraceEvent) => void;
+  readonly offerTurnRecord: (input: TurnBlockEvent) => void;
   /** 대화를 지운다. 대기 중인 쓰기를 먼저 쓰고 그 대화의 열린 턴 상태를 버린다 */
   readonly forget: (threadId: string) => void;
 } {
@@ -537,6 +539,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     offerCall,
     offerPluginCall,
     offerContext,
+    offerTurnRecord,
     forget: (threadId) => {
       flush();
       turns?.forget(threadId);
@@ -556,6 +559,11 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다. 계측이 꺼져 있거나 턴 기록을 쓸 수 없으면 아무것도 하지 않는다 */
   function offerContext(input: ContextTraceEvent): void {
     turns?.context(input);
+  }
+
+  /** 색인·기억 블록의 사실을 턴 기록에 넘긴다. 열린 턴이 없거나 계측이 꺼져 있으면 버린다 */
+  function offerTurnRecord(input: TurnBlockEvent): void {
+    turns?.turnRecord(input);
   }
 }
 
@@ -605,6 +613,8 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly offerPluginCall: (input: PluginCallTraceEvent) => void;
   /** 조립 재료·광고와 스킬 읽기를 턴 기록에 넘긴다(읽기 전용 싱크의 뒤). 계측이 꺼져 있거나 저장소가 없으면 아무것도 하지 않는다 */
   readonly offerContext: (input: ContextTraceEvent) => void;
+  /** 색인·기억 블록의 사실을 턴 기록에 넘긴다(턴 기록 싱크의 뒤). 열린 턴이 없거나 계측이 꺼져 있으면 버린다 */
+  readonly offerTurnRecord: (input: TurnBlockEvent) => void;
   /** 대화를 지운다. 그 대화의 `tr_*` 행과 쌓인 턴 상태를 지운다(§4.1 규칙 9). 저장소가 없으면 아무것도 하지 않는다 */
   readonly forgetThread: (threadId: string) => void;
 } {
@@ -619,6 +629,7 @@ export function startMeasurement(deps: MeasurementDeps): {
       offerCall: () => undefined,
       offerPluginCall: () => undefined,
       offerContext: () => undefined,
+      offerTurnRecord: () => undefined,
       forgetThread: () => undefined,
     };
   }
@@ -671,6 +682,7 @@ export function startMeasurement(deps: MeasurementDeps): {
     offerCall: recorder.offerCall,
     offerPluginCall: recorder.offerPluginCall,
     offerContext: recorder.offerContext,
+    offerTurnRecord: recorder.offerTurnRecord,
     forgetThread: (threadId) => {
       recorder.forget(threadId);
       const removed = store.forgetThread(threadId);

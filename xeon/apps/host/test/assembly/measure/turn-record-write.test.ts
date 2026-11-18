@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { Bug, parse, parseJson, type Logger } from "@fresnel/contracts";
+import { Bug, ok, parse, parseJson, type Logger } from "@fresnel/contracts";
 import type { StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   PluginCallTraceEvent,
@@ -24,6 +24,7 @@ import {
 } from "../../../src/assembly/measure/turn-events.ts";
 import { DEFAULT_MAX_TURN_BYTES } from "../../../src/assembly/measure/turn-fit.ts";
 import { createTestRunMarks } from "../../../src/assembly/measure/test-run-marks.ts";
+import { createTurnRecordPort } from "../../../src/assembly/measure/turn-read.ts";
 
 // T-MEAS-TURN: 턴 기록의 쓰는 쪽. 단계 끝에 단계 행과 훅 행을 쓰고(턴 도중에도 읽힌다), 턴 행은 열 때 `open`, 끝날 때 최종 상태다.
 // 계측이 꺼진 턴은 턴 행만 쓴다(log_only). 여는 때 `open`으로 남은 턴은 `lost`가 된다. 테스트 대화의 범위는 재열기 뒤에도 남고,
@@ -475,7 +476,8 @@ function callEvent(
     risk: "read",
     capability: { id: "workspace.files", method: "read" },
     argsHash: createHmac("sha256", "args").update(toolCallId).digest("hex"),
-    argTokens: 6,
+    argTokenCount: 6,
+    argTokens: [],
     targetHash: null,
     afterUntrusted: false,
     verdict: "allowed",
@@ -588,7 +590,8 @@ test("a closed step writes its tool call rows with keyed hashes and links each c
         capability: { id: "workspace.shell", method: "run" },
         afterUntrusted: false,
         parentToolCallId: null,
-        argTokens: 6,
+        argTokenCount: 6,
+        argTokens: [],
         registrationId: "ext:a",
       }),
     });
@@ -1451,5 +1454,179 @@ test("a light-path plugin call with no open turn, or in a turn with the trace of
   } finally {
     rmSync(dirOpen, { recursive: true, force: true });
     rmSync(dirOff, { recursive: true, force: true });
+  }
+});
+
+// ---- 인자 토큰(§5.1-②)과 턴 플래그(§3.2) --------------------------------------
+
+/** 셸 호출 한 줄. 인자 토큰 목록을 싣고, 시험마다 단계와 턴을 덮어쓴다 */
+function shellCall(toolCallId: string, overrides: Partial<ToolCallTraceEvent>): ToolCallTraceEvent {
+  return callEvent(toolCallId, {
+    tool: "bash",
+    plugin: "core",
+    risk: "exec",
+    capability: null,
+    argTokenCount: 30,
+    argTokens: [],
+    ...overrides,
+  });
+}
+
+const SHELL_BLOCKED_BY = { plugin: "guard", hook: "tool.call.before", registrationId: "guard:a" };
+const CHILD_THREAD: ThreadId = ids.next("thr");
+
+test("a retry with overlapping argument tokens after a blocked call is rewrite_text in the metric, and the rewrite is no longer not_recorded", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    const STEP_B1: StepId = ids.next("stp");
+    const STEP_B2: StepId = ids.next("stp");
+    const TURN_B: TurnId = ids.next("trn");
+    // 턴 1: 막힌 명령의 토큰 다섯(cat, secret, txt, grep, token)에 재시도의 토큰 여섯이 다섯을 겹친다(5/6 = 0.833 ≥ 0.8)
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(
+      shellCall("blk_a", {
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        argTokens: ["cat", "secret", "txt", "grep", "token"],
+      }),
+    );
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.call(
+      shellCall("retry_a", {
+        stepId: STEP_B2,
+        argTokens: ["cat", "secret", "txt", "grep", "token", "wc"],
+      }),
+    );
+    harness.commit([event(3, "step.completed", STEP_COMPLETED(2), { stepId: STEP_B2 })]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    // 턴 2: 같은 막힘 뒤의 재시도는 토큰이 하나도 겹치지 않는다(different_path)
+    harness.commit([event(5, "turn.started", TURN_STARTED, { turnId: TURN_B })]);
+    harness.call(
+      shellCall("blk_b", {
+        turnId: TURN_B,
+        stepId: STEP_B1,
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        argTokens: ["cat", "secret", "txt", "grep", "token"],
+      }),
+    );
+    harness.commit([
+      event(6, "step.completed", STEP_COMPLETED(1), { stepId: STEP_B1, turnId: TURN_B }),
+    ]);
+    harness.call(
+      shellCall("retry_b", {
+        turnId: TURN_B,
+        stepId: STEP_B2,
+        argTokens: ["paper", "scissors", "rock"],
+      }),
+    );
+    harness.commit([
+      event(7, "step.completed", STEP_COMPLETED(2), { stepId: STEP_B2, turnId: TURN_B }),
+    ]);
+    harness.commit([event(8, "turn.completed", TURN_COMPLETED, { turnId: TURN_B })]);
+    await settle();
+
+    const store = storeOf(harness.measurement);
+    const port = createTurnRecordPort({
+      store: () => store,
+      enabled: () => true,
+      retentionDays: () => 30,
+      logTurnStartedAt: () => ok(undefined),
+      events: { subscribe: () => () => undefined },
+      now: () => AT + 1000,
+      metrics: () => ({
+        minSample: 1,
+        defaultWindowDays: 30,
+        findingsEnabled: true,
+        findingOverrides: {},
+      }),
+    });
+    const out = port.metrics({
+      metrics: [
+        "hook.post_block",
+        "hook.post_block.rewrite_text",
+        "hook.post_block.different_path",
+      ],
+      filter: { period: { from: AT - 1000, to: AT + 1000 } },
+      groupBy: [],
+      compare: null,
+    });
+    if (!out.ok) throw new Bug("the metrics must answer in this test");
+    const values = out.value.rows[0]?.values ?? {};
+    expect(values["hook.post_block"]).toMatchObject({ value: 2 });
+    expect(values["hook.post_block.rewrite_text"]).toMatchObject({ value: 0.5, denom: 2 });
+    expect(values["hook.post_block.different_path"]).toMatchObject({ value: 0.5, denom: 2 });
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the argument tokens are stored as install-salted keys: the same word gives the same key, and no raw word reaches a stored row", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(shellCall("mask_1", { argTokenCount: 9, argTokens: ["ledger", "marigold"] }));
+    harness.call(shellCall("mask_2", { argTokenCount: 4, argTokens: ["ledger"] }));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const salt = saltOf(harness.measurement);
+    const bundle = turnBundle(harness);
+    const metaOf = (toolCallId: string): unknown =>
+      JSON.parse(bundle.calls.find((row) => row.toolCallId === toolCallId)?.metaJson ?? "null");
+    expect(metaOf("mask_1")).toEqual({
+      risk: "exec",
+      riskKnown: true,
+      capability: null,
+      afterUntrusted: false,
+      parentToolCallId: null,
+      argTokenCount: 9,
+      argTokens: [keyedOf(salt, "ledger"), keyedOf(salt, "marigold")],
+      registrationId: null,
+    });
+    expect(metaOf("mask_2")).toMatchObject({
+      argTokenCount: 4,
+      argTokens: [keyedOf(salt, "ledger")],
+    });
+    // 가린 값은 원본 단어와 다르고, 원본 단어는 이 턴의 저장된 어느 행에도 없다
+    expect(keyedOf(salt, "ledger")).not.toBe("ledger");
+    const stored = JSON.stringify(bundle);
+    expect(stored).not.toContain("ledger");
+    expect(stored).not.toContain("marigold");
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the turn row's flags column holds the bits of the flags in record_json, and a child spawned in the turn counts as a subagent", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  try {
+    const harness = openHarness(dir, { enabled: true });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    harness.call(
+      shellCall("blk_flags", {
+        verdict: "blocked_hook",
+        blockedBy: SHELL_BLOCKED_BY,
+        exec: null,
+        result: null,
+      }),
+    );
+    harness.commit([event(2, "agent.spawned", agentSpawned(CHILD_THREAD))]);
+    harness.commit([event(3, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(4, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+
+    const turn = turnBundle(harness).turn;
+    expect(recordOf(turn.recordJson).flags).toMatchObject({ blockedIntent: 1, subagents: 1 });
+    // blockedIntent은 비트 0, subagents는 비트 13이다
+    expect(turn.flags).toBe(1 + 8192);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

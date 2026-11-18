@@ -36,7 +36,7 @@ test("materials_list_base_prompt_sections_and_prompt_addition_with_exact_tokens"
   // 글자 수 / 4 올림: 16자 → 4, 20자 → 5, 13자 → 4, 11자 → 3
   expect(result.materials).toEqual([
     {
-      plugin: "none",
+      plugin: "core",
       versionId: null,
       registrationId: null,
       kind: "always",
@@ -46,7 +46,7 @@ test("materials_list_base_prompt_sections_and_prompt_addition_with_exact_tokens"
       truncated: false,
       omitted: null,
       itemId: null,
-      attribution: "shared",
+      attribution: "declared",
     },
     {
       plugin: "alpha",
@@ -75,7 +75,7 @@ test("materials_list_base_prompt_sections_and_prompt_addition_with_exact_tokens"
       attribution: "shared",
     },
     {
-      plugin: "none",
+      plugin: "core",
       versionId: null,
       registrationId: null,
       kind: "always",
@@ -88,6 +88,35 @@ test("materials_list_base_prompt_sections_and_prompt_addition_with_exact_tokens"
       attribution: "shared",
     },
   ]);
+});
+
+test("a_prompt_addition_with_a_known_source_is_owned_by_that_plugin_and_declared", async () => {
+  const result = await assembleWith({
+    basePrompt: "You are Fresnel.",
+    volatile: { instructions: "Extra rule." },
+    promptAdditionOwner: "advisor",
+  });
+  // 글자 수 / 4 올림: 11자 → 3
+  expect(result.materials.filter((material) => material.ref === "prompt-addition")).toEqual([
+    {
+      plugin: "advisor",
+      versionId: null,
+      registrationId: null,
+      kind: "always",
+      material: "instruction",
+      ref: "prompt-addition",
+      tokens: 3,
+      truncated: false,
+      omitted: null,
+      itemId: null,
+      attribution: "declared",
+    },
+  ]);
+  expect(
+    result.materials
+      .filter((material) => material.ref === "base-prompt")
+      .map((material) => [material.plugin, material.attribution, material.tokens]),
+  ).toEqual([["core", "declared", 4]]);
 });
 
 test("a_context_hook_injection_is_one_shared_hook_text_material_owned_by_the_first_applier", async () => {

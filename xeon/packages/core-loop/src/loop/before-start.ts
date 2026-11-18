@@ -40,6 +40,12 @@ export async function beforeAgentStart(
   });
   // 접두는 기본 프롬프트로 고정이므로 핸들러가 바꾼 부분은 단계마다 붙이는 안내로 따로 들고 간다(`environment.ts`)
   state.promptAddition = promptAddition(state.basePrompt, outcome.value.systemPrompt);
+  // 기여한 핸들러가 하나뿐이면 안내의 출처를 안다(§4.5 규칙 27). 둘 이상이면 어느 쪽인지 정하지 않는다
+  const [onlyContributor, ...otherContributors] = outcome.contributed;
+  state.promptAdditionOwner =
+    onlyContributor !== undefined && otherContributors.length === 0
+      ? onlyContributor.extension
+      : null;
   const records = outcome.value.messages.map((draft) =>
     customItemOf(ctx.ids.next("itm"), draft, ctx.clock.now()),
   );
