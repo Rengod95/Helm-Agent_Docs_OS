@@ -3,7 +3,7 @@
 // 자동 꺼짐 알림은 위 띠에 두지 않고 고른 플러그인의 카드에 있다(`craft-parts.tsx`의 `ExtNotice`). 그 카드의 답은 여기서 준다.
 import { t } from "@fresnel/client/i18n";
 import { useWorkbench } from "../../state/workbench/index.ts";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { CraftProvider } from "../craft/craft-context.tsx";
 import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -12,41 +12,15 @@ import { AutoOffActionsContext, ListStatusBand, useToggleRequest } from "./craft
 import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 import { ScreenHeader } from "../shell/screen-header.tsx";
-import { Select, SelectOption } from "@caustic/react";
 import { BUILD_CHECKS } from "../../app/build.ts";
-import { CANVAS_DESIGNS } from "../craft/canvas/registry.ts";
+import { CanvasDesigns } from "../craft/canvas/switcher.tsx";
 
-/** 개발 빌드: 지금 캔버스("now")와 프로필 캔버스 시안(registry) 사이를 바꾼다 */
+/** 개발 빌드: 지금 화면과 프로필 캔버스 시안 다섯(`craft/canvas/registry.tsx`)을 귀퉁이 전환기로 바꾼다 */
 export function CraftScreen(): ReactNode {
-  const [design, setDesign] = useState("now");
-  const chosen = CANVAS_DESIGNS.find((d) => d.id === design);
-  const picker = BUILD_CHECKS ? (
-    <div className="absolute right-3 bottom-3 z-20">
-      <Select
-        size="sm"
-        aria-label={t("desktop.craft.canvas.cvA.picker.label")}
-        value={design}
-        onValueChange={setDesign}
-        className="w-40"
-      >
-        <SelectOption value="now">{t("desktop.craft.canvas.cvA.picker.current")}</SelectOption>
-        {CANVAS_DESIGNS.map((d) => (
-          <SelectOption key={d.id} value={d.id}>
-            {t(d.name)}
-          </SelectOption>
-        ))}
-      </Select>
-    </div>
-  ) : null;
-  return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      {chosen === undefined ? <CanvasScreen /> : <chosen.ProfileCanvas key={chosen.id} />}
-      {picker}
-    </div>
-  );
+  return BUILD_CHECKS ? <CanvasDesigns current={<CurrentCraftScreen />} /> : <CurrentCraftScreen />;
 }
 
-function CanvasScreen(): ReactNode {
+function CurrentCraftScreen(): ReactNode {
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
   const source = useCraftSource(controller, toggle.request);
