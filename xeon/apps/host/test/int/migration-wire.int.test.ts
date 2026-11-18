@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, test } from "bun:test";
+import { parseJson } from "@fresnel/contracts";
 import {
   WireError,
   type HostConnection,
@@ -82,6 +83,41 @@ function fixtureOf(root: string): Fixture {
   return { home, proj: realpathSync(proj) };
 }
 
+/** Hook 시험의 시크릿 가짜 값. 두 번째 훅의 스크립트에만 든다 */
+const HOOK_SECRET = "sk-test-VALUE-4c7e1b9d";
+/** 첫 훅의 스크립트 바이트(한글 주석이 있어 UTF-8 바이트가 그대로 복사되는지 본다) */
+const GUARD_TEXT =
+  '#!/bin/sh\n# 위험한 명령을 막는다\ninput=$(cat)\ncase "$input" in\n  *"rm -rf"*) echo "rm -rf is blocked" >&2; exit 2 ;;\nesac\nexit 0\n';
+const LEAK_TEXT = `#!/bin/sh\nexport API_KEY=${HOOK_SECRET}\nexit 0\n`;
+/** 프로젝트 설정의 Hook: PreToolUse 훅 하나(옮긴다), PostToolUse 훅 하나(스크립트에 시크릿 값이 있어 옮기지 않는다) */
+const HOOK_SETTINGS = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: "Bash|Write",
+        hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh" }],
+      },
+    ],
+    PostToolUse: [
+      {
+        matcher: "",
+        hooks: [{ type: "command", command: "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh" }],
+      },
+    ],
+  },
+};
+
+/** Hook 시험의 프로젝트. 홈 폴더는 비어 있다 */
+function hookFixtureOf(root: string): Fixture {
+  const home = join(root, "home");
+  const proj = join(root, "proj");
+  mkdirSync(home, { recursive: true });
+  writeText(join(proj, ".claude", "settings.json"), `${JSON.stringify(HOOK_SETTINGS, null, 2)}\n`);
+  writeText(join(proj, ".claude", "hooks", "guard.sh"), GUARD_TEXT);
+  writeText(join(proj, ".claude", "hooks", "leak.sh"), LEAK_TEXT);
+  return { home, proj: realpathSync(proj) };
+}
+
 function writeText(path: string, text: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, text);
@@ -99,6 +135,12 @@ function bytesOf(root: string): Record<string, Uint8Array> {
   };
   walk(root, "");
   return files;
+}
+
+/** 파일 바이트 가운데 값이 든 것이 있는가 */
+function holdsValue(files: Record<string, Uint8Array>, value: string): boolean {
+  const needle = Buffer.from(value);
+  return Object.values(files).some((bytes) => Buffer.from(bytes).includes(needle));
 }
 
 function sha256Of(bytes: Uint8Array): string {
@@ -477,6 +519,127 @@ scanTest(
       );
       expect(noScan.data.kind).toBe("migration.notFound");
       expect(noScan.data.details).toEqual({ id: "scan-missing" });
+    } finally {
+      await connection.close();
+      await host.close();
+      restoreHome();
+      rmSync(bundles, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  TIMEOUT_MS,
+);
+
+scanTest(
+  "a Claude Code hook config becomes one hook plugin draft: the guard script is copied byte for byte, the hook with a secret in its script is reported not_ported, and no secret value or original file changes",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const root = mkdtempSync(join(tmpdir(), "xh-migration-hook-"));
+    const fixture = hookFixtureOf(root);
+    const restoreHome = redirectHome(fixture.home);
+    const bundles = mkdtempSync(join(tmpdir(), "migration-bundles-"));
+    const pluginsDir = join(home.root, "config", "plugins");
+    const projectBefore = bytesOf(fixture.proj);
+    const homeBefore = bytesOf(fixture.home);
+    const { host, connection } = await startMigrationHost(bundles);
+    try {
+      const scanned = await connection.request("migration.scan", {
+        roots: [{ path: fixture.proj, scope: "project", label: "proj" }],
+      });
+      // 훅 항목은 두 개다. 응답에는 시크릿 값이 없다
+      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(2);
+      expect(JSON.stringify(scanned)).not.toContain(HOOK_SECRET);
+
+      const proposal = await connection.request("migration.proposal", { scanId: scanned.scanId });
+      expect(proposal.questions).toEqual([]);
+      expect(proposal.plugins.length).toBe(1);
+      // 보고 줄: 옮긴 PreToolUse는 차이가 있고, 시크릿 값이 든 PostToolUse는 옮기지 않는다
+      const hookLines = proposal.report.filter((line) => line.kind === "hook");
+      expect(
+        hookLines
+          .map((line) => `${line.status}:${line.reason?.code ?? "-"}`)
+          .toSorted((a, b) => a.localeCompare(b)),
+      ).toEqual(["differs:-", "not_ported:secret_in_script"]);
+
+      const applied = await connection.request("migration.apply", {
+        proposalId: proposal.proposalId,
+        choices: { answers: {} },
+      });
+      expect(applied.profiles).toEqual([]);
+      expect(applied.drafts.length).toBe(1);
+      const draft = applied.drafts[0];
+      if (draft === undefined) throw new Error("expected one hook plugin draft");
+
+      // 드래프트 폴더: 매니페스트, 이식 기록, 생성 코드, 데이터, 스크립트 복사본 하나
+      const folder = join(pluginsDir, draft.name);
+      const onDisk = bytesOf(folder);
+      expect(Object.keys(onDisk).toSorted()).toEqual([
+        ".fresnel-plugin/migration.json",
+        ".fresnel-plugin/plugin.json",
+        "hooks.data.json",
+        "plugin.js",
+        "scripts/guard.sh",
+      ]);
+      // 스크립트 복사본은 원본 바이트 그대로다
+      expect(Buffer.from(onDisk["scripts/guard.sh"] ?? new Uint8Array())).toEqual(
+        Buffer.from(GUARD_TEXT, "utf8"),
+      );
+      const manifestParsed = parseJson(
+        readFileSync(join(folder, ".fresnel-plugin/plugin.json"), "utf8"),
+      );
+      if (!manifestParsed.ok) throw new Error("the manifest is not JSON");
+      expect(manifestParsed.value).toMatchObject({
+        schemaVersion: 2,
+        name: draft.name,
+        entry: "./plugin.js",
+        scripts: [{ name: "guard", runner: "sh", file: "scripts/guard.sh", timeoutMs: 29_000 }],
+        plugins: [
+          {
+            layer: "plugin",
+            hooks: ["tool.call.before"],
+            hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
+          },
+        ],
+      });
+
+      // 검토 항목: 대기 중이고 출처가 가져오기다. 카드의 스크립트 줄에 실행될 명령이 실린다
+      const item = (await connection.request("pluginReview.get", { itemId: draft.itemId })).item;
+      expect(item.provenance).toBe("migration");
+      expect(item.state).toBe("pending");
+      expect(item.card.enforcement).toBe("enforced");
+      expect(item.card.does.hook?.hooks.map((hook) => hook.name)).toEqual(["tool.call.before"]);
+      expect(item.card.does.inject?.scripts).toEqual([
+        {
+          name: "guard",
+          launch: { command: "sh", args: ["scripts/guard.sh"], envNames: [], cwd: null },
+          timeoutMs: 29_000,
+        },
+      ]);
+      expect(item.card.runs).toEqual({ code: true, isolated: true });
+
+      // 값 없음: 응답, 보고서, 검토 항목, 드래프트 폴더, 엔진 홈 어디에도 시크릿 값이 없다
+      const report = await connection.request("migration.report.get", {
+        reportId: applied.reportId,
+      });
+      expect(report.report).toEqual(proposal.report);
+      for (const text of [
+        JSON.stringify(scanned),
+        JSON.stringify(proposal),
+        JSON.stringify(applied),
+        JSON.stringify(report),
+        JSON.stringify(item),
+      ]) {
+        expect(text).not.toContain(HOOK_SECRET);
+      }
+      expect(holdsValue(bytesOf(home.root), HOOK_SECRET)).toBe(false);
+      // 대조: 같은 검색은 원본의 `leak.sh`에서 값을 찾는다(검색이 값을 볼 수 있다는 확인)
+      expect(holdsValue(projectBefore, HOOK_SECRET)).toBe(true);
+
+      // 원본 폴더 두 곳은 시험 전후로 파일 목록과 바이트가 같다
+      expect(bytesOf(fixture.proj)).toEqual(projectBefore);
+      expect(bytesOf(fixture.home)).toEqual(homeBefore);
     } finally {
       await connection.close();
       await host.close();
