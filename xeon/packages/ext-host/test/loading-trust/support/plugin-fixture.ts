@@ -55,6 +55,8 @@ export interface PluginFiles {
   readonly drives?: boolean;
   /** 매니페스트 `isolation`. 생략하면 없다 */
   readonly isolation?: "none" | "process";
+  /** 매니페스트 `defaultEnabled`(기본 켜짐). 생략하면 없다(기본 켜짐으로 본다) */
+  readonly defaultEnabled?: boolean;
 }
 
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
@@ -99,6 +101,7 @@ export async function writePlugin(
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
     ...(files.ui === undefined ? {} : { ui: files.ui }),
     ...(files.isolation === undefined ? {} : { isolation: files.isolation }),
+    ...(files.defaultEnabled === undefined ? {} : { defaultEnabled: files.defaultEnabled }),
   };
   await putFile(join(root, ".fresnel-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));
   await putFile(join(root, "src", "index.ts"), files.entry ?? defaultEntry(files.name));

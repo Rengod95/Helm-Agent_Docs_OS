@@ -214,6 +214,12 @@ export interface LoadOptions {
    * 이 호출의 값을 `loadProject`도 그대로 쓴다. 바뀌면 다음 시작에 적용한다
    */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
+  /**
+   * 시작 때 싣는 외부 확장의 기본 집합 [제안, M5c §4.1.11]. 공장 기본 프로필의 기본 번들 이름이다. 있으면 외부 확장 가운데
+   * 이름이 여기 들지 않고 매니페스트 기본이 꺼진(`defaultEnabled: false`) 것은 시작 때 싣지 않는다. 꺼진 기록으로 남아
+   * `lazy_deferred` 진단을 받고, 대화의 켜짐 집합(E(T))에 들 때 `ensureLoaded`가 싣는다. 없으면 모두 시작 때 싣는다(이전 동작)
+   */
+  readonly defaultNames?: readonly ExtensionName[];
   readonly signal: AbortSignal;
 }
 
@@ -517,7 +523,8 @@ export interface ExtensionLoader {
     signal: AbortSignal,
   ): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
   /**
-   * 지운 외부 확장을 호스트와 로더 기록에서 내린다(§4.4.5). 재시작 없이 목록에서 빠지고 같은 이름을 다시 설치해 실을 수 있다.
+   * 외부 확장을 호스트에서 내리고 로더 기록은 `disabled`로 남긴다 [제안, M5c §4.1.11]. 세대는 올라가고, 같은 이름의
+   * `ensureLoaded`가 검토본 사본에서 다시 싣는다(기록이 없어 생기는 `unknown_extension`이 없다). 목록에는 꺼진 채 보인다.
    * 내장 확장이거나 로더가 모르는 이름이면 false다
    */
   unload(name: ExtensionName): Promise<boolean>;
@@ -1809,6 +1816,22 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return ok({ appliesAt: started.value.appliesAt, applied });
   }
 
+  /**
+   * 꺼진 기록이 가리는 검토본이 목록의 현재 사본과 다르면 그 사본을 돌려준다(승인이 기록을 꺼 둔 채 현재를 바꾼 경우).
+   * 같거나 목록에 없거나 검토본 목록이 없으면 undefined다
+   */
+  async function currentReviewedCopyOf(record: ExtRecord): Promise<ExtensionCandidate | undefined> {
+    if (deps.reviewedSource === undefined || record.candidate.builtin !== null) return undefined;
+    const listing = await deps.reviewedSource.list();
+    const pick = (await reviewedPicksOf(listing, (source) => source !== "project")).find(
+      (item) => item.name === record.name,
+    );
+    if (pick === undefined || pick.candidate.contentHash === record.candidate.contentHash) {
+      return undefined;
+    }
+    return pick.candidate;
+  }
+
   async function ensureLoaded(
     name: ExtensionName,
     signal: AbortSignal,
@@ -1817,6 +1840,20 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (record === undefined) throw new Bug(`loader.unknown_extension: ${name}`);
     if (record.state !== "disabled") return infoOf(record);
     throwIfCancelled(signal, `loading ${name}`);
+    // 꺼진 기록은 시작 때 본 사본을 쥐고 있다. 그 뒤 승인으로 현재가 바뀌었으면 현재 사본으로 기록을 다시 만든다
+    const current = await currentReviewedCopyOf(record);
+    if (current !== undefined) {
+      records.delete(name);
+      order = order.filter((item) => item !== record);
+      nextGeneration.set(name, record.generation + 1);
+      await processBatch([current], signal);
+      const reloaded = records.get(name);
+      if (reloaded === undefined) throw new Bug(`loader.reingest_without_record: ${name}`);
+      assertNotEssentialFailure(reloaded);
+      return infoOf(reloaded);
+    }
+    // 시작 때의 이유(꺼진 채 남긴 `lazy_deferred` 같은 것)는 이번 시도의 판정으로 바뀐다. 남은 것만 다시 적는다
+    record.diagnostics.length = 0;
     record.state = "resolved";
     if (checkEnabled(record)) {
       checkCapabilities(
@@ -1891,17 +1928,20 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return err(failure);
   }
 
+  /**
+   * 외부 확장을 호스트에서 내리고 기록은 꺼진 채 남긴다(`disabled`, 세대 +1). 같은 이름의 `ensureLoaded`가 검토본에서 다시 싣는다.
+   * 내장 확장이거나 로더가 모르는 이름이면 false다
+   */
   async function unload(name: ExtensionName): Promise<boolean> {
     const record = records.get(name);
     if (record === undefined || record.candidate.builtin !== null) return false;
-    nextGeneration.set(name, record.generation + 1);
-    records.delete(name);
-    order = order.filter((item) => item !== record);
     if (record.state === "active" || record.state === "loading") {
       await deps.host.uninstall(name);
       retireRecord(record, "disabled");
       deps.policy.forget(name);
     }
+    record.generation += 1;
+    record.state = "disabled";
     await cascadeProviderFailures();
     return true;
   }
@@ -1919,10 +1959,23 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return inLoadOrder().map(infoOf);
   }
 
+  /**
+   * 시작 때 싣지 않고 꺼진 채 남길 외부 확장인가(`LoadOptions.defaultNames`, [제안]). 기본 집합 밖이고 매니페스트 기본이 꺼졌다.
+   * 집합이 없으면(`undefined`) 아무것도 미루지 않는다
+   */
+  function deferredAtStartup(
+    record: ExtRecord,
+    defaultNames: ReadonlySet<string> | undefined,
+  ): boolean {
+    if (defaultNames === undefined || record.manifest === undefined) return false;
+    return !defaultNames.has(record.name) && record.manifest.defaultEnabled === false;
+  }
+
   /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 기능 연쇄 실패를 정리한다 */
   async function processBatch(
     candidates: readonly ExtensionCandidate[],
     signal: AbortSignal,
+    defaultNames?: ReadonlySet<string>,
   ): Promise<void> {
     throwIfCancelled(signal, "validation");
     const batch = await ingest(candidates);
@@ -1937,7 +1990,18 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     throwIfCancelled(signal, "enable check");
     const alive: ExtRecord[] = [];
     for (const record of batch) {
-      if (record.state === "resolved" && checkEnabled(record)) alive.push(record);
+      if (record.state === "resolved" && deferredAtStartup(record, defaultNames)) {
+        // 시작 때 싣지 않는다. 기록은 꺼진 채 남고 `ensureLoaded`가 대화의 E(T)에 들 때 싣는다
+        fail(
+          record,
+          "disabled",
+          "settings",
+          "lazy_deferred",
+          `${record.name} is not in the default set; it loads when a conversation uses it`,
+        );
+      } else if (record.state === "resolved" && checkEnabled(record)) {
+        alive.push(record);
+      }
       assertNotEssentialFailure(record);
     }
     checkCapabilities(
@@ -2028,7 +2092,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /** 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다 */
-  async function loadProjectCandidates(projectRoot: string, signal: AbortSignal): Promise<void> {
+  async function loadProjectCandidates(
+    projectRoot: string,
+    signal: AbortSignal,
+    defaultNames?: ReadonlySet<string>,
+  ): Promise<void> {
     if (deps.reviewedSource !== undefined) {
       // 검토본 목록이 있으면 프로젝트 폴더를 훑지 않는다. 프로젝트 동반은 검토 항목이 승인된 뒤에만 목록에 나타난다(M5c §4.7.9).
       // 목록은 루트별이 아니다(프로젝트 개념은 enC2 트랙이 맡는다). 이미 실린 이름은 다시 싣지 않는다
@@ -2042,6 +2110,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       await processBatch(
         picks.map((pick) => pick.candidate),
         signal,
+        defaultNames,
       );
       return;
     }
@@ -2055,7 +2124,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       }),
     );
     diagnosticLog.pushAll(project.diagnostics);
-    await processBatch(project.candidates, signal);
+    await processBatch(project.candidates, signal, defaultNames);
   }
 
   async function loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport> {
@@ -2146,6 +2215,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           .filter((item) => item.source !== "project")
           .map(reviewedDiagnosticOf),
       );
+      // 시작 때 싣는 기본 집합(`defaultNames`)은 이 호출에서만 쓴다. 나중의 `loadInstalled`·`ensureLoaded`는 집합과 무관하게 싣는다
+      const defaultNames =
+        options.defaultNames === undefined ? undefined : new Set<string>(options.defaultNames);
       await processBatch(
         [
           ...candidatesFromBuiltins(options.builtins),
@@ -2153,6 +2225,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           ...reviewedFirst.map((pick) => pick.candidate),
         ],
         options.signal,
+        defaultNames,
       );
 
       // 2. 프로젝트 신뢰와 프로젝트 확장. 안전 모드에서는 프로젝트 확장을 싣지 않으므로 판정(프롬프트)도 하지 않는다.
@@ -2172,7 +2245,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         projectTrust = await resolveProject(options);
         if (projectTrust?.trusted === true) {
           loadedProjects.add(projectTrust.projectRoot);
-          await loadProjectCandidates(projectTrust.projectRoot, options.signal);
+          await loadProjectCandidates(projectTrust.projectRoot, options.signal, defaultNames);
         }
       }
       for (const record of order) assertNotEssentialFailure(record);

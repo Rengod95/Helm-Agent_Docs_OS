@@ -138,19 +138,27 @@ test("a name that is already loaded is left to reload", async () => {
   expect(result.error.kind).toBe("already_loaded");
 });
 
-test("unload takes a removed extension out of the host and the list, and the name can come back", async () => {
+test("unload takes the extension out of the host, keeps a disabled record, and ensureLoaded brings it back", async () => {
   const { harness, thread } = await started();
   await writePlugin(userExtensions, "gone", { name: "gone" });
-  expect((await harness.loader.loadInstalled("gone", signal)).ok).toBe(true);
+  const installed = await harness.loader.loadInstalled("gone", signal);
+  if (!installed.ok) throw new Error(`load refused: ${JSON.stringify(installed.error)}`);
+  const before = installed.value.info.generation;
   expect(await harness.loader.unload("gone")).toBe(true);
-  expect(harness.loader.list()).toEqual([]);
+  expect(harness.loader.list().map((info) => [info.name, info.state])).toEqual([
+    ["gone", "disabled"],
+  ]);
   expect(harness.t.host.registration("gone")).toBeUndefined();
   expect(harness.policy.tiers.get("gone")).toBeUndefined();
   fakeGroupSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
   expect(fakeGroupSdk.seen).not.toContain("gone:fired");
-  expect(await harness.loader.unload("gone")).toBe(false);
-  expect((await harness.loader.loadInstalled("gone", signal)).ok).toBe(true);
+  // 같은 이름의 `ensureLoaded`는 기록이 있으니 `unknown_extension`으로 멈추지 않고, 새 세대로 다시 싣는다
+  const again = await harness.loader.ensureLoaded("gone", signal);
+  expect(again.state).toBe("active");
+  expect(again.generation).toBeGreaterThan(before);
+  await fireIn(harness, thread, "k1");
+  expect(fakeGroupSdk.seen).toContain("gone:fired");
 });
 
 test("a package that throws while loading, then is fixed in place, loads on the second install", async () => {
@@ -176,7 +184,7 @@ export const extension = ({ register }) => {
   if (!second.ok) throw new Error(`load refused: ${JSON.stringify(second.error)}`);
   await fireIn(harness, thread, "k0");
   expect(fakeGroupSdk.seen).toContain("flaky:fixed");
-  // 지우고 고쳐 다시 설치해도 새 코드가 돈다
+  // 내리고 고쳐 다시 실어도 새 코드가 돈다
   expect(await harness.loader.unload("flaky")).toBe(true);
   await putFile(
     join(root, "src", "index.ts"),
@@ -188,7 +196,7 @@ export const extension = ({ register }) => {
 };
 `,
   );
-  expect((await harness.loader.loadInstalled("flaky", signal)).ok).toBe(true);
+  expect((await harness.loader.ensureLoaded("flaky", signal)).state).toBe("active");
   fakeGroupSdk.seen.length = 0;
   await fireIn(harness, thread, "k1");
   expect(fakeGroupSdk.seen).toEqual(["flaky:third"]);

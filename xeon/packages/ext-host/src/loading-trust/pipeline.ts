@@ -86,6 +86,8 @@ export type LoadDiagnosticCode =
   | "plugin_not_registered"
   | "essential_failed"
   | "disabled_by_setting"
+  /** 시작 때 싣지 않는다(공장 기본 밖이고 매니페스트 기본이 꺼졌다). 대화가 쓰면 `ensureLoaded`가 싣는다 [제안] */
+  | "lazy_deferred"
   | "safe_mode"
   | "disabled_flag"
   | "isolation_unavailable"
