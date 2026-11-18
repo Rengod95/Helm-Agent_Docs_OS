@@ -115,7 +115,8 @@ test("loop.ask opens one question approval and keeps the frame asking, with no r
   const probe = newProbe();
   await installAsker(t, "ask-one", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-one" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "ask-one");
   await t.settled();
 
   // 답을 기다리는 `ask`는 결과를 주지 않는다. 임대는 반납하지 않고 프레임 상태만 질문 대기가 된다. 단계 함수는 그 한 번만 불린다
@@ -155,7 +156,10 @@ test("an answered question returns to the same step with its answer, with no re-
   const probe = newProbe();
   await installAsker(t, "ask-two", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-two" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "ask-two");
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -185,7 +189,10 @@ test("a denied question returns the user's feedback and takes its title from loo
   const probe = newProbe();
   await installAsker(t, "ask-deny", probe, askRequestOf("q1", "Confirm plan"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-deny" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "ask-deny");
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -208,7 +215,10 @@ test("an expired question is denied as expired, with no feedback key", async () 
   const probe = newProbe();
   await installAsker(t, "ask-expire", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-expire" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "ask-expire");
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -227,7 +237,8 @@ test("disabling a waiting group leaves its approval pending, and a later answer 
   const probe = newProbe();
   await installAsker(t, "ask-off", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-off" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "ask-off");
   await t.settled();
 
   const approval = onlyApproval(approvals);
@@ -256,7 +267,8 @@ test("loop.ask without the approval port is refused as port_unavailable and keep
   const probe = newProbe();
   await installAsker(t, "ask-bare", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-bare" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "ask-bare");
   await t.settled();
 
   // 거부는 `refused` 결과로 다음 단계에 온다. 임대와 예산은 그대로다
@@ -273,7 +285,8 @@ test("an invalid ask request is refused as record_invalid before any approval is
   const probe = newProbe();
   await installAsker(t, "ask-bad", probe, { requestId: "", card: questionCard });
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-bad" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "ask-bad");
   await t.settled();
 
   expect(probe.lasts).toEqual([null, { kind: "refused", code: "record_invalid" }]);
@@ -290,7 +303,10 @@ test("a stored answer that is not a question answer is refused as record_invalid
   const probe = newProbe();
   await installAsker(t, "ask-broken", probe, askRequestOf("q1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "ask-broken" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "ask-broken");
   await t.settled();
 
   const approval = onlyApproval(approvals);

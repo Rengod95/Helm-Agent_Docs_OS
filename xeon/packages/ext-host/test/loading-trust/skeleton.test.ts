@@ -13,7 +13,8 @@ test("skeleton: the loader loads the smoke group and its operations run", async 
     harness.options([{ manifest: unit.manifest, extension: unit.entry }]),
   );
   // 시작 요청은 scope가 설치된 뒤에 대화를 열어야 부여된다(설치 전의 요청은 경계에서 버려진다)
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "smoke-group");
   await t.settled();
   expect(report.extensions.map((info) => [info.name, info.state, info.trust])).toEqual([
     ["smoke-group", "active", "builtin"],
@@ -49,7 +50,8 @@ test("skeleton: turning the group off through the setting applies at the next st
   await harness.loader.loadAll(
     harness.options([{ manifest: unit.manifest, extension: unit.entry }]),
   );
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "smoke-group");
   await t.settled();
   // turn이 도는 중에 설정이 바뀐다
   t.loop.setRunning(thread, true);

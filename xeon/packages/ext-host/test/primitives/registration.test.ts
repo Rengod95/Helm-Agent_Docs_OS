@@ -29,7 +29,8 @@ test("disable applies at step boundary", async () => {
       });
     }),
   );
-  await t.host.openThread(thread, { startDrive: "scp-group" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "scp-group");
   await t.settled();
   expect(t.host.registrations()[0]?.drive).toBe("holding");
 

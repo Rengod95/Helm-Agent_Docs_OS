@@ -63,7 +63,9 @@ async function snapshotAfterDrive(records: MemoryRecordStore): Promise<unknown> 
   const thread = t.newThread();
   const { unit } = createSmokeGroup({ ids: t.ids });
   await t.host.install(unit);
-  await t.host.openThread(thread, { startDrive: "smoke-group" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "smoke-group");
   await t.settled();
   const loaded = await records.loadThread(thread);
   if (!loaded.ok) throw new Error(`loadThread failed: ${loaded.error.kind}`);
@@ -87,7 +89,9 @@ describe("M-01 group drive on the real session store", () => {
     const { unit } = createSmokeGroup({ ids: t.ids });
     const installed = await t.host.install(unit);
     expect(installed.setups[0]?.status).toBe("applied");
-    await t.host.openThread(thread, { startDrive: "smoke-group" });
+    await t.host.openThread(thread);
+    await t.settled();
+    t.host.startDrive(thread, "smoke-group");
     await t.settled();
 
     const kinds = records.events(thread).map((event) => event.kind);

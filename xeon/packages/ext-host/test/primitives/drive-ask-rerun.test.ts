@@ -158,7 +158,10 @@ test("a restart before the answer waits on the same approval and opens no second
   const run: Run = { seen: [] };
   await installAskChain(first, "rerun-open", run, ["q1"]);
   const thread = first.newThread();
-  await first.host.openThread(thread, { startDrive: "rerun-open" });
+  await first.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await first.settled();
+  first.host.startDrive(thread, "rerun-open");
   await first.settled();
   expect(run.seen).toEqual(["start"]);
   expect(approvals.created).toHaveLength(1);
@@ -191,7 +194,10 @@ test("an answered ask is returned again by every re-run, also after a restart", 
   const run: Run = { seen: [] };
   await installAskChain(first, "rerun-done", run, ["q1"]);
   const thread = first.newThread();
-  await first.host.openThread(thread, { startDrive: "rerun-done" });
+  await first.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await first.settled();
+  first.host.startDrive(thread, "rerun-done");
   await first.settled();
   await answerAll(approvals, first);
   // 답은 같은 호출 안에서 `last`로 오고, 단계 함수는 끝내기(yield)로 돌아간다. 임대는 그대로 남는다
@@ -219,7 +225,10 @@ test("a second, different ask opens its own approval and the first stays answere
   const run: Run = { seen: [] };
   await installAskChain(t, "rerun-two", run, ["q1", "q2"]);
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-two" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "rerun-two");
   await t.settled();
   expect(run.seen).toEqual(["start"]);
   expect(approvals.created).toHaveLength(1);
@@ -252,7 +261,10 @@ test("a turn with an explicit requestId before the ask is not run again after th
   const run: Run = { seen: [] };
   await installAskChain(t, "rerun-turn-explicit", run, ["q1"], turnExplicit("go", "step-1"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-turn-explicit" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "rerun-turn-explicit");
   await t.settled();
   expect(t.loop.turns).toHaveLength(1);
 
@@ -281,7 +293,10 @@ test("a turn with the default key before the ask is not run again after the answ
   const run: Run = { seen: [] };
   await installAskChain(t, "rerun-turn-default", run, ["q1"], turnDefault("go"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-turn-default" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "rerun-turn-default");
   await t.settled();
   expect(t.loop.turns).toHaveLength(1);
 
@@ -300,7 +315,10 @@ test("a spawn with the default key before the ask is not run again after the ans
   const run: Run = { seen: [] };
   await installAskChain(t, "rerun-spawn-default", run, ["q1"], spawnDefault());
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-spawn-default" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "rerun-spawn-default");
   await t.settled();
   expect(t.loop.spawns).toHaveLength(1);
 
@@ -318,7 +336,10 @@ test("a default-key turn, an ask, the answer and a restart run the turn once", a
   const run: Run = { seen: [] };
   await installAskChain(first, "rerun-restart-turn", run, ["q1"], turnDefault("go"));
   const thread = first.newThread();
-  await first.host.openThread(thread, { startDrive: "rerun-restart-turn" });
+  await first.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await first.settled();
+  first.host.startDrive(thread, "rerun-restart-turn");
   await first.settled();
   expect(run.seen).toEqual(["start", "turn"]);
 
@@ -353,7 +374,10 @@ test("two asks in one run keep one lineage and the default-key turn runs once", 
   const run: Run = { seen: [] };
   await installAskChain(t, "rerun-two-turn", run, ["q1", "q2"], turnDefault("go"));
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-two-turn" });
+  await t.host.openThread(thread);
+  // 열기 적용이 정착한 뒤에 시작 요청을 넣는다(겹치면 적용이 한 번 더 돌아 단계 함수가 한 번 더 불린다)
+  await t.settled();
+  t.host.startDrive(thread, "rerun-two-turn");
   await t.settled();
   await answerAll(approvals, t);
   await answerAll(approvals, t);
@@ -381,7 +405,8 @@ test("a command from a step whose lease was revoked while it waited is not run",
     }),
   );
   const thread = t.newThread();
-  await t.host.openThread(thread, { startDrive: "rerun-fence" });
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "rerun-fence");
   await flushMicrotasks(200);
   await t.boundary(thread).turnSettled({ userInterrupted: true });
   // 기다림이 끝나도 반납된 임대의 turn은 포트에 닿지 않는다

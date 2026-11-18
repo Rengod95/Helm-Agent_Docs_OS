@@ -70,7 +70,9 @@ test("an open policy lets the same plain extension register drive and take the l
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status])).toEqual([
     ["drv-open", "applied"],
   ]);
-  await t.host.openThread(thread, { startDrive: "drv-open" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "drv-open");
   await t.settled();
   expect(calls).toEqual(["drv-open"]);
   // 턴 결과가 주도 명령 정착 사건으로 남는다(drive.command_settled)
@@ -95,7 +97,9 @@ test("default policy: a plugin group member with drives takes the lock", async (
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status])).toEqual([
     ["drv-group", "applied"],
   ]);
-  await t.host.openThread(thread, { startDrive: "drv-group" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "drv-group");
   await t.settled();
   expect(calls).toEqual(["drv-group"]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-group" });
@@ -121,7 +125,9 @@ test("default policy: a named plugin that group.members lists may drive", async 
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status])).toEqual([
     ["drv-listed/main", "applied"],
   ]);
-  await t.host.openThread(thread, { startDrive: "drv-listed/main" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "drv-listed/main");
   await t.settled();
   expect(calls).toEqual(["drv-listed/main"]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-listed/main" });
@@ -182,7 +188,9 @@ test("with the policy open, two enabled drive registrations: only the one a star
   await t.host.install(
     makeUnit({ name: "drv-b", drives: true, loadIndex: 1 }, drivingSetup(calls, "drv-b")),
   );
-  await t.host.openThread(thread, { startDrive: "drv-b" });
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.startDrive(thread, "drv-b");
   await t.settled();
   expect(calls).toEqual(["drv-b"]);
   expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "drv-b", status: "active" });

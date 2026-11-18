@@ -164,7 +164,10 @@ export function createRuntimeReplayHarness(): CountingReplayHarness {
         loadIndex: 0,
         builtin: true,
       });
-      await t.host.openThread(thread, { startDrive: group.manifest.name });
+      // 프로필의 시작 주도는 사용자의 첫 메시지를 기다린다(AGE-47). 재생은 메시지 없이 그룹의 drive를 돌리므로 사용자 명령 시작을 쓴다
+      await t.host.openThread(thread);
+      await t.settled();
+      t.host.startDrive(thread, group.manifest.name);
       await t.settled();
       await drain(t, thread, DRAIN_ROUNDS);
       const events = t.records.events(thread).map((draft) => {

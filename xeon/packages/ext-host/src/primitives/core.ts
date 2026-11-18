@@ -221,8 +221,10 @@ export interface LeaseRuntime {
   running: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
-  /** 첫 단계가 끝났다. 그 전에 온 사용자 메시지는 `inbox`에서 기다렸다가 첫 단계 뒤에 전달한다: 시작 주도의 첫 단계가 항상 먼저다(drive-isolation.md 2.4) */
+  /** 첫 단계가 끝났다. 사용자 명령이 시작한 주도에서는 그 전에 온 사용자 메시지가 `inbox`에서 기다렸다가 첫 단계 뒤에 전달된다. `awaitUser`인 프레임은 메시지가 첫 단계의 입력이다(drive-isolation.md 2.4) */
   firstStepDone: boolean;
+  /** 프로필의 시작 주도: 사용자의 첫 메시지가 첫 단계의 입력이다. 첫 단계 전에는 메시지가 올 때까지 단계 함수를 부르지 않는다(AGE-47) */
+  readonly awaitUser: boolean;
   /** 지금까지 단계 함수에 전달한 사용자 메시지 수. 사용자 메시지 turn의 기본 요청 id 재료다(같은 판의 둘째 메시지가 첫 turn의 id를 재사용하지 않게) */
   userSeq: number;
   /** 사용자가 보낸 메시지 중 아직 단계 함수에 `last`로 전달하지 못한 것(2.4). 앞에서부터 하나씩 전달한다 */

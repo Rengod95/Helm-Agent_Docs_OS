@@ -524,6 +524,8 @@ interface FrameInit {
   readonly state: "driving" | "waiting";
   readonly wantInvoke: boolean;
   readonly committed: boolean;
+  /** 사용자의 첫 메시지가 첫 단계의 입력이다(프로필의 시작 주도). 메시지가 오기 전에는 단계 함수를 부르지 않는다 */
+  readonly awaitUser: boolean;
 }
 
 function frameOf(init: FrameInit): LeaseRuntime {
@@ -554,6 +556,7 @@ function frameOf(init: FrameInit): LeaseRuntime {
     running: false,
     missed: false,
     firstStepDone: false,
+    awaitUser: init.awaitUser,
     userSeq: 0,
     inbox: [],
     userSteps: null,
@@ -1091,8 +1094,8 @@ export function createLeaseBroker(
         return { last, handedBack: true };
       }
     }
-    // 첫 단계가 끝나기 전에는 메시지를 전달하지 않는다(시작 주도가 항상 먼저)
-    if (!lease.firstStepDone) return { last, handedBack: false };
+    // 사용자 명령이 시작한 주도는 첫 단계가 먼저 돈다(명령이 곧 사용자 요청이다). 프로필의 시작 주도는 첫 메시지가 첫 단계의 입력이다
+    if (!lease.firstStepDone && !lease.awaitUser) return { last, handedBack: false };
     const message = lease.inbox.shift();
     if (message === undefined) return { last, handedBack: false };
     lease.deliveredUser = message;
@@ -1328,6 +1331,8 @@ export function createLeaseBroker(
   function start(thread: ThreadRuntime, lease: LeaseRuntime): void {
     // 맡기고 기다리는 프레임은 위 프레임이 끝나 `pendingLast`를 받을 때까지 단계 함수를 부르지 않는다
     if (lease.state !== "driving") return;
+    // 프로필의 시작 주도는 사용자의 첫 메시지가 올 때까지 첫 단계를 미룬다(AGE-47)
+    if (lease.awaitUser && !lease.firstStepDone && lease.inbox.length === 0) return;
     lease.running = true;
     lease.wantInvoke = false;
     lease.missed = false;
@@ -1458,6 +1463,7 @@ export function createLeaseBroker(
       state: "driving",
       wantInvoke: true,
       committed: false,
+      awaitUser: parent === null && request.trigger === "profile",
     });
     txn.startRequest = request;
   }
@@ -1579,6 +1585,7 @@ export function createLeaseBroker(
             state: "waiting",
             wantInvoke: false,
             committed: true,
+            awaitUser: false,
           }),
         );
         thread.leaseEpochs.set(

@@ -149,8 +149,13 @@ export function createHelmReplay(
         builtin: true,
       });
       // 재개(복원)는 프로필의 시작 설정으로 이어 준다. 열린 임대가 있으면 복원된 스택을 잇고 없으면 시작 요청을 넣는다
-      await t.host.openThread(thread, restore === null ? undefined : { startDrive: "helm" });
+      await t.host.openThread(thread);
       await t.settled();
+      // 프로필의 시작 주도는 사용자의 첫 메시지를 기다린다(AGE-47). 열린 임대가 없으면 재개는 사용자 명령 시작으로 이어 준다
+      if (restore !== null && t.host.leaseOf(thread) === null) {
+        t.host.startDrive(thread, "helm");
+        await t.settled();
+      }
       if (restore === null) {
         await callCommand(t, thread, `start ${topic}`);
         await settleOnce(t, thread, "start");
