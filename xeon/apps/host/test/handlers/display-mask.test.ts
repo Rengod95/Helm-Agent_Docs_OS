@@ -15,7 +15,12 @@ import {
   type StreamChunkParams,
 } from "@fresnel/contracts/wire";
 import { createRedactor } from "@fresnel/platform-secrets/testing";
-import { createPartMasker, itemLeafMasks, itemMaskEntries } from "../../src/display-mask.ts";
+import {
+  createPartMasker,
+  itemLeafMasks,
+  itemMaskEntries,
+  MAX_TRACKED_PART_CHARS,
+} from "../../src/display-mask.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { rawClient } from "../fixtures/raw-client.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -201,6 +206,36 @@ test("a part the host never saw start is unverified; a completed part forgets it
   });
   masker.completed("prt_y");
   expect(masker.delta("prt_y", "delta", "abc")).toEqual({ verified: false });
+});
+
+test("a part whose text grows past the tracking limit turns unverified and stays so (AGE-61)", () => {
+  const masker = createPartMasker(createRedactor());
+  masker.delta("prt_big", "start", "");
+  const half = `${"y".repeat(MAX_TRACKED_PART_CHARS / 2 - 1)} `;
+  expect(masker.delta("prt_big", "delta", half)).toEqual({
+    verified: true,
+    len: half.length,
+    visible: half.length,
+    ranges: [],
+  });
+  const full = masker.delta("prt_big", "delta", half);
+  expect(full).toEqual({
+    verified: true,
+    len: MAX_TRACKED_PART_CHARS,
+    visible: MAX_TRACKED_PART_CHARS,
+    ranges: [],
+  });
+  expect(masker.delta("prt_big", "delta", "z")).toEqual({ verified: false });
+  expect(masker.delta("prt_big", "delta", "z")).toEqual({ verified: false });
+  expect(masker.delta("prt_big", "end", "")).toEqual({ verified: false });
+  // 다른 파트는 영향이 없다
+  masker.delta("prt_small", "start", "");
+  expect(masker.delta("prt_small", "delta", "abc")).toEqual({
+    verified: true,
+    len: 3,
+    visible: 0,
+    ranges: [],
+  });
 });
 
 test("the thread.read entries carry leaf masks by item id and never the value", () => {

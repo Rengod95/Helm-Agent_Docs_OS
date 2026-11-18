@@ -405,9 +405,8 @@ describe("undo, scopes and the turn view", () => {
     async () => {
       const folder = makeFolder();
       try {
-        // UTF-8이 아닌 바이트로 쓴다. 텍스트면 쓰기 도구가 줄 단위 변경 기록을 17 MiB 전체에 대해 계산해 시험이 끝나지 않는다.
-        // 상한 검사는 내용 종류와 무관하므로 이 시험의 대상(원본 저장 상한)은 그대로다
-        const big = Buffer.alloc(17 * 1024 * 1024, 0xff);
+        // 한 줄짜리 거대 텍스트다. 예전에는 이 크기의 텍스트에서 쓰기 도구가 끝나지 않아 바이너리로 돌렸다(AGE-61, 지금은 끝난다)
+        const big = Buffer.alloc(17 * 1024 * 1024, 0x78);
         writeFileSync(join(folder.dir, "big.bin"), big);
         const session = await start(turnModels("rewind-big", [[write("big.bin", "small\n")]]));
         const threadId = await createThread(session, folder.dir);
