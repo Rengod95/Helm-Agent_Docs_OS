@@ -896,7 +896,7 @@ export function createLeaseBroker(
     const { thread, lease, record } = ctx;
     if (lease.status !== "active") return INACTIVE;
     // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다. 이유는 결과 코드로 돌려준다
-    if (!withinInputLimit(command.input, core.deps.driveInputMaxBytes)) {
+    if (!withinInputLimit(command.input, core.deps.driveInputMaxBytes())) {
       return refusal("input_too_large");
     }
     if (command.to === record.extension) return refusal("self_handoff");
@@ -1056,7 +1056,7 @@ export function createLeaseBroker(
       case "yield":
         return { kind: "yield" };
       case "done":
-        if (!withinInputLimit(command.result ?? null, core.deps.driveInputMaxBytes)) {
+        if (!withinInputLimit(command.result ?? null, core.deps.driveInputMaxBytes())) {
           return refusal("result_too_large");
         }
         return { kind: "done", result: command.result ?? null };
@@ -1982,7 +1982,7 @@ export function createLeaseBroker(
       // 메시지를 받았다고 답하기 전에 기록한다. 코어 루프는 가로챈 메시지를 입력 큐에 넣지 않으므로 이 기록이 재시작 뒤 되살리는 유일한 근거다.
       // 기록하지 못하거나 너무 크면 가로채지 않고 코어 루프가 평소대로(입력 큐로) 받게 한다
       const input = toJsonValue(item);
-      if (input === undefined || !withinInputLimit(input, core.deps.driveInputMaxBytes)) {
+      if (input === undefined || !withinInputLimit(input, core.deps.driveInputMaxBytes())) {
         return false;
       }
       const held = await recordUserInput(thread, claimable.scopeId, requestId, "held", input);
@@ -2042,7 +2042,7 @@ export function createLeaseBroker(
         return err({ kind: "not_drive" });
       }
       // 입력은 기록에 실리므로 잘라 저장하지 않고 거절한다
-      if (!withinInputLimit(input, core.deps.driveInputMaxBytes)) {
+      if (!withinInputLimit(input, core.deps.driveInputMaxBytes())) {
         return err({ kind: "input_too_large" });
       }
       const request: StartRequest = {

@@ -119,9 +119,9 @@ export interface ExtHostDeps {
   readonly setupBudgetMs?: () => number | null;
   /**
    * 입력(맡기기, 사용자 명령, 가로챈 사용자 메시지)과 `done` 결과의 직렬화 크기 상한(바이트). 없으면 `DRIVE_INPUT_MAX_BYTES`다.
-   * 조립 루트가 블롭 상한(`l0.store.maxBlobBytes`)을 넘길 수 있다. 격리 플러그인은 프레임 상한(16 MiB)을 넘는 입력을 받지 못한다
+   * 조립 루트가 블롭 상한(`l0.store.maxBlobBytes`)을 읽는 함수를 넘긴다. 격리 플러그인은 프레임 상한(16 MiB)을 넘는 입력을 받지 못한다
    */
-  readonly driveInputMaxBytes?: number;
+  readonly driveInputMaxBytes?: () => number;
   /** x.primitives.* 설정 값 읽기 */
   readonly settings: PrimitivesSettingsSource;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
@@ -620,7 +620,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     report,
     strict: deps.strict ?? true,
     setupBudgetMs: deps.setupBudgetMs ?? (() => null),
-    driveInputMaxBytes: deps.driveInputMaxBytes ?? DRIVE_INPUT_MAX_BYTES,
+    driveInputMaxBytes: deps.driveInputMaxBytes ?? (() => DRIVE_INPUT_MAX_BYTES),
   };
   const bridge = createCordisBridge((cause) => {
     report({ level: "error", code: "handler_failed", message: "cordis effect failed", cause });

@@ -117,15 +117,14 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
   const diagnostics: ExtDiagnostic[] = [];
   const loop = options.shared?.loop ?? memoryLoopPort(options.loop);
   const queue = options.shared?.queue ?? memoryInputQueue();
+  const inputLimit = options.driveInputMaxBytes;
   const host = createExtHost({
     ids,
     now: timers.now,
     setTimer: timers.setTimer,
     ...(options.policy === undefined ? {} : { policy: options.policy }),
     ...(options.resourcePolicy === undefined ? {} : { resourcePolicy: options.resourcePolicy }),
-    ...(options.driveInputMaxBytes === undefined
-      ? {}
-      : { driveInputMaxBytes: options.driveInputMaxBytes }),
+    ...(inputLimit === undefined ? {} : { driveInputMaxBytes: () => inputLimit }),
     setupBudgetMs: options.setupBudget ?? (() => options.setupBudgetMs ?? null),
     settings: options.settingsSource ?? createStaticPrimitivesSettings(options.settings),
     report: (diagnostic) => {

@@ -159,8 +159,8 @@ export interface ExtHostDeps {
   readonly resourcePolicy?: ResourcePolicy;
   /** scope setup 하나의 시간 예산(ms). 조립 루트가 OperationsPolicy.setupBudgetMs를 넘긴다. 없으면 무제한 */
   readonly setupBudgetMs?: () => number | null;
-  /** 입력(맡기기, 사용자 명령, 가로챈 사용자 메시지)과 `done` 결과의 직렬화 크기 상한(UTF-8 바이트). 없으면 `DRIVE_INPUT_MAX_BYTES`(512 MiB)다. 조립 루트가 블롭 상한을 넘길 수 있다 [제안] */
-  readonly driveInputMaxBytes?: number;
+  /** 입력(맡기기, 사용자 명령, 가로챈 사용자 메시지)과 `done` 결과의 직렬화 크기 상한(UTF-8 바이트). 없으면 `DRIVE_INPUT_MAX_BYTES`(512 MiB)다. 조립 루트(`apps/host/src/assemble.ts`)가 `l0.store.maxBlobBytes`를 넘긴다(설정 파일을 읽은 뒤에 불리도록 호출 때마다 읽는다) */
+  readonly driveInputMaxBytes?: () => number;
   /** x.primitives.* 설정 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다 */
   readonly settings: PrimitivesSettingsSource;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
@@ -1808,7 +1808,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `RecordCommitPort`, `ExtCommitRequest`(`visibility` 포함), `ExtRecordQuery`, `ExtRecordRow`와 부속 타입, `queryRecords`의 `reader` 인자와 비공개 기록 규칙 | F.records.spec §3.9 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`) | L1.persistence.spec §3.4 |
 | setup 시간 예산 값(`OperationsPolicy.setupBudgetMs`) | X.operations.spec §3.8 |
-| 입력·결과 크기 상한(`ExtHostDeps.driveInputMaxBytes`, 기본 `DRIVE_INPUT_MAX_BYTES`) | 블롭 상한 `l0.store.maxBlobBytes`(L0.store.spec §3.1) [제안: 조립 루트 연결] [근거: `apps/host/src/assemble.ts`의 `createExtHost` 호출은 `driveInputMaxBytes`를 넘기지 않는다] |
+| 입력·결과 크기 상한(`ExtHostDeps.driveInputMaxBytes`, 기본 `DRIVE_INPUT_MAX_BYTES`) | 블롭 상한 `l0.store.maxBlobBytes`(L0.store.spec §3.1) (조립 루트가 설정에서 호출 때마다 읽어 넘긴다) |
 | `ThreadId`, `TurnId`, `StepId`, `JsonValue`, `Usage`, `IdFactory`, 단계 경계 정의 | F.conversation.spec |
 | `defineSettings`, 키 문법 | F.wire-settings.spec |
 | `SessionWriter.commit` 한 트랜잭션, `ProducerHandle` 접두 검사, TX-01·TX-03 | eng.transactions.design |

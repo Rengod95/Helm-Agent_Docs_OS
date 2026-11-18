@@ -74,7 +74,7 @@ export interface ResolvedDeps {
   readonly strict: boolean;
   readonly setupBudgetMs: () => number | null;
   /** 입력과 `done` 결과의 직렬화 크기 상한(바이트). 넘으면 거절한다(`input_too_large`, `result_too_large`) */
-  readonly driveInputMaxBytes: number;
+  readonly driveInputMaxBytes: () => number;
 }
 
 // ── 경계 신호 (X.primitives.spec §3.5) ────────────────────────────────────
