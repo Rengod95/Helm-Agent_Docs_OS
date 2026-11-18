@@ -12,8 +12,24 @@ import { AutoOffActionsContext, ListStatusBand, useToggleRequest } from "./craft
 import { BuilderEntry } from "./builder-entry.tsx";
 import { HookAnswersContext } from "./hook-notice.tsx";
 import { ScreenHeader } from "../shell/screen-header.tsx";
+import { BUILD_CHECKS } from "../../app/build.ts";
+import {
+  CanvasDraftHost,
+  CanvasDraftPicker,
+  CURRENT,
+  useCanvasDraft,
+} from "../craft/canvas/registry.ts";
 
 export function CraftScreen(): ReactNode {
+  // 개발 빌드: 지금 캔버스와 프로필 캔버스 시안(registry) 사이를 바꾼다
+  const [draft, setDraft] = useCanvasDraft();
+  const picker = <CanvasDraftPicker value={draft} onValueChange={setDraft} />;
+  if (BUILD_CHECKS && draft !== CURRENT)
+    return <CanvasDraftHost key={draft} id={draft} picker={picker} />;
+  return <CurrentCraftScreen picker={BUILD_CHECKS ? picker : null} />;
+}
+
+function CurrentCraftScreen(props: { readonly picker: ReactNode }): ReactNode {
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
   const source = useCraftSource(controller, toggle.request);
@@ -38,7 +54,7 @@ export function CraftScreen(): ReactNode {
     [controller],
   );
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {/* 캔버스가 그려지면 도구 막대가 펼치기 단추를 가진다. 목록을 못 읽는 동안은 캔버스가 없어 머리를 둔다 */}
       <ScreenHeader hidden={ready} title={t("desktop.shell.nav.overview")} />
       <ListStatusBand controller={controller} />
@@ -50,6 +66,9 @@ export function CraftScreen(): ReactNode {
             </CraftProvider>
           </HookAnswersContext>
         </AutoOffActionsContext>
+      )}
+      {props.picker !== null && (
+        <div className="absolute bottom-3 left-3 z-20 w-40">{props.picker}</div>
       )}
       {toggle.dialog}
       <BuilderEntry controller={controller} />
