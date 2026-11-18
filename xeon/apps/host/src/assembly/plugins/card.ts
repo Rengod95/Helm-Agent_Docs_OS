@@ -1,9 +1,12 @@
 import { assertNever } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
+  CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
   pluginDeclsOf,
   type CardHook,
+  type CardMcpLaunch,
   type CostFigures,
   type HookName,
   type HookPositionRow,
@@ -13,10 +16,13 @@ import {
   type PluginOriginKind,
   type PluginUiDecl,
 } from "@fresnel/contracts/extensions";
+import { compareUtf8 } from "./content-hash.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
 
 // 플러그인 카드(M5c §3.1, §4.5.5, §4.5.9). 읽은 폴더와 매니페스트에서 정적으로 계산한다.
 // 코드는 실행하지 않는다. 호스트가 채우는 값(출처, 검토 상태, 사용처, 건강 상태)은 입력으로 받는다.
+
+const ELLIPSIS = "…";
 
 /**
  * 카드를 만드는 재료. 폴더 원본은 `PluginFolder`가 그대로 맞는다. 폴더 원본이 없는 플러그인(내장 패키지,
@@ -61,6 +67,76 @@ function positionText(position: PositionRow): string {
   }
 }
 
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 글자 수(UTF-16 단위)가 `max` 이내면 그대로, 넘으면 말줄임표를 붙여 `max` 이내로 자른다. 서로게이트 쌍은 쪼개지 않는다 */
+function clipText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = "";
+  for (const char of text) {
+    if (out.length + char.length > max - 1) break;
+    out += char;
+  }
+  return `${out}${ELLIPSIS}`;
+}
+
+/** 항목 목록을 상한까지만 싣는다. 넘으면 마지막 자리에 남은 수를 적어 잘렸다는 것을 보인다 */
+function capList(items: readonly string[], max: number): string[] {
+  if (items.length <= max) return [...items];
+  const kept = items.slice(0, max - 1);
+  return [...kept, `${ELLIPSIS}(+${items.length - kept.length})`];
+}
+
+/**
+ * `args`. 없거나 null이면 빈 목록이다. 배열이면 문자열 항목은 그대로 두고 그 밖의 항목은 JSON 문자열로 적는다.
+ * 배열이 아니면 값 하나로 적는다. 검토자에게 숨기지 않는 것이 목적이라 잘못된 모양도 버리지 않는다.
+ */
+function argsOf(value: JsonValue | undefined): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    return [clipText(JSON.stringify(value), CARD_MCP_LAUNCH_LIMITS.arg)];
+  }
+  const shown = value.map((item) =>
+    clipText(typeof item === "string" ? item : JSON.stringify(item), CARD_MCP_LAUNCH_LIMITS.arg),
+  );
+  return capList(shown, CARD_MCP_LAUNCH_LIMITS.args);
+}
+
+/** `env`의 키 이름만 UTF-8 바이트 순으로 싣는다. 값은 싣지 않는다. 객체가 아니면 이름이 없다 */
+function envNamesOf(value: JsonValue | undefined): string[] {
+  if (!isJsonObject(value)) return [];
+  const names = Object.keys(value)
+    .toSorted(compareUtf8)
+    .map((name) => clipText(name, CARD_MCP_LAUNCH_LIMITS.envName));
+  return capList(names, CARD_MCP_LAUNCH_LIMITS.envNames);
+}
+
+/** `cwd`. 없거나 null이면 null이고, 문자열이 아니면 JSON 문자열로 적는다 */
+function cwdOf(value: JsonValue | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return clipText(text, CARD_MCP_LAUNCH_LIMITS.cwd);
+}
+
+/**
+ * stdio 서버 설정(`mcp.json` 항목의 raw 값)에서 승인하면 실행될 명령 줄을 뽑는다. 코드는 실행하지 않는다.
+ * 설정이 객체가 아니거나 `command`가 빈 문자열이 아닌 문자열이 아니면 null이다(읽기 단계가 이미 거른다).
+ * 환경 변수는 키 이름만 싣고 값은 읽지도 싣지도 않는다.
+ */
+export function launchOf(config: JsonValue): CardMcpLaunch | null {
+  if (!isJsonObject(config)) return null;
+  const command = config.command;
+  if (typeof command !== "string" || command.length === 0) return null;
+  return {
+    command: clipText(command, CARD_MCP_LAUNCH_LIMITS.command),
+    args: argsOf(config.args),
+    envNames: envNamesOf(config.env),
+    cwd: cwdOf(config.cwd),
+  };
+}
+
 function injectOf(folder: CardSubject): InjectInventory | null {
   const { manifest, materials } = folder;
   const decls = pluginDeclsOf(manifest);
@@ -88,9 +164,11 @@ function injectOf(folder: CardSubject): InjectInventory | null {
     path: skill.path,
     descriptionChars: skill.descriptionChars,
   }));
+  // 승인하면 실행될 명령은 stdio만 있다. http 서버는 실행 줄이 없어 null이다
   const mcpServers = materials.mcpServers.map((server) => ({
     name: server.name,
     transport: server.transport,
+    launch: server.transport === "stdio" ? launchOf(server.config) : null,
   }));
   const agents = unique(materials.agents.map((agent) => agent.name));
 

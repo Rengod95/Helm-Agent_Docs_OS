@@ -44,6 +44,39 @@ export type CardMcpTransport = (typeof CARD_MCP_TRANSPORTS)[number];
 const CardMcpTransportShape = Type.Union(CARD_MCP_TRANSPORTS.map((name) => Type.Literal(name)));
 
 /**
+ * 승인하면 실행될 명령 한 줄(stdio 서버). 승인 한 번이 확인이라 검토 카드가 이 값을 빠뜨리지 않고 보여 준다
+ * (사용자 결정 2026-11-18, AGE-41). 환경 변수는 이름만 싣고 값은 싣지 않는다. [제안] 이름 `launch`
+ */
+export interface CardMcpLaunch {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly envNames: readonly string[];
+  readonly cwd: string | null;
+}
+/** `CardMcpLaunch`의 상한. 카드를 만드는 쪽(호스트 `card.ts`)이 넘지 않게 자르고, 잘랐다는 표시를 남긴다 */
+export const CARD_MCP_LAUNCH_LIMITS: {
+  readonly command: number;
+  readonly arg: number;
+  readonly args: number;
+  readonly envName: number;
+  readonly envNames: number;
+  readonly cwd: number;
+} = { command: 1024, arg: 1024, args: 128, envName: 128, envNames: 128, cwd: 1024 };
+const CardMcpLaunchShape = Type.Object(
+  {
+    command: Type.String({ minLength: 1, maxLength: CARD_MCP_LAUNCH_LIMITS.command }),
+    args: Type.Array(Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.arg }), {
+      maxItems: CARD_MCP_LAUNCH_LIMITS.args,
+    }),
+    envNames: Type.Array(Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.envName }), {
+      maxItems: CARD_MCP_LAUNCH_LIMITS.envNames,
+    }),
+    cwd: Type.Union([Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.cwd }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+/**
  * 비용 근거의 출처. [로컬 정의] E §3.3(`docs/xeon/review/m5/turn-record-metrics.md`)의 `CostBasis`·`CostFigures`를
  * 최소한으로 옮긴 것이다. E 구현이 `contracts`에 들어오면 그 정의를 import하고 이 블록을 지운다.
  * 카드의 값은 정적이라 `basis`는 `declared`나 `unknown`이다
@@ -192,7 +225,12 @@ export interface InjectInventory {
     readonly skills: readonly SkillEntry[];
   };
   readonly tools: readonly { readonly name: string; readonly description: string | null }[];
-  readonly mcpServers: readonly { readonly name: string; readonly transport: CardMcpTransport }[];
+  /** `launch`는 stdio 서버만 값이 있고 http는 null이다. 선택 필드라 `launch`가 없는 옛 카드도 파싱된다 */
+  readonly mcpServers: readonly {
+    readonly name: string;
+    readonly transport: CardMcpTransport;
+    readonly launch?: CardMcpLaunch | null;
+  }[];
   readonly agents: readonly string[];
   readonly providers: readonly string[];
   readonly commands: readonly string[];
@@ -216,7 +254,14 @@ const InjectInventoryShape = Type.Object(
       { maxItems: 512 },
     ),
     mcpServers: Type.Array(
-      Type.Object({ name: Id, transport: CardMcpTransportShape }, { additionalProperties: false }),
+      Type.Object(
+        {
+          name: Id,
+          transport: CardMcpTransportShape,
+          launch: Type.Optional(Type.Union([CardMcpLaunchShape, Type.Null()])),
+        },
+        { additionalProperties: false },
+      ),
       { maxItems: 64 },
     ),
     agents: Type.Array(Id, { maxItems: 256 }),

@@ -183,6 +183,33 @@ test("a plugin carried by a registered project root is a project review item, wi
   expect(valueOf(await rig.store.current("carried"))).not.toBeNull();
 });
 
+// 사용자 결정 2026-11-18(AGE-41): 승인하면 실행될 stdio 명령이 프로젝트 출처 검토 항목의 카드에 실린다. env 값은 실리지 않는다.
+test("a project plugin's stdio server shows the command it will run on approval, with env names and no values", async () => {
+  const root = tempRoot("plugin-review-project-mcp-");
+  roots.push(root);
+  const project = join(root, "project");
+  writeFiles(join(project, ".fresnel", "plugins", "wired"), {
+    ".fresnel-plugin/plugin.json": manifestOf("wired", "Wired to a server"),
+    "mcp.json": JSON.stringify({
+      mcpServers: {
+        notes: { command: "node", args: ["notes.js"], env: { TOKEN: "s3cr3t-value" } },
+      },
+    }),
+  });
+  const rig = openRig(root, undefined, () => Promise.resolve([project]));
+  const queued = valueOf(await rig.review.scan()).queued;
+  const item = valueOf(await rig.review.get(firstOf(queued))).item;
+  expect(item).toMatchObject({ provenance: "project", state: "pending" });
+  expect(item.card.does.inject?.mcpServers).toEqual([
+    {
+      name: "notes",
+      transport: "stdio",
+      launch: { command: "node", args: ["notes.js"], envNames: ["TOKEN"], cwd: null },
+    },
+  ]);
+  expect(JSON.stringify(item)).not.toContain("s3cr3t-value");
+});
+
 test("a project folder that is not a registered root is not scanned", async () => {
   const root = tempRoot("plugin-review-project-");
   roots.push(root);

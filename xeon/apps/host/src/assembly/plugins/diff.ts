@@ -1,4 +1,4 @@
-import type { PluginCard } from "@fresnel/contracts/extensions";
+import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
 import type { DiffEntry, DiffRow, WhatItDoesDiff } from "@fresnel/contracts/wire";
 
 // "하는 일의 차이"(M5c §3.1 `WhatItDoesDiff`, §4.7.2). 이전 검토본의 카드와 후보 카드를 칸마다 같은 사실의 목록으로 펼쳐 비교한다.
@@ -20,6 +20,22 @@ function clip(text: string, limit: number): string {
   return text.length <= limit ? text : text.slice(0, limit);
 }
 
+type McpServerCard = InjectInventory["mcpServers"][number];
+
+/**
+ * MCP 서버의 비교 값. stdio는 승인하면 실행될 명령 줄이라 명령, 인자, 환경 변수 이름, 작업 폴더 가운데 하나라도 바뀌면 바뀐 것이다.
+ * 인자는 JSON 배열로 적어 공백이 든 인자와 여러 인자가 같은 글로 보이지 않게 한다. `launch`가 없는 옛 카드는 전송만 적는다.
+ */
+function mcpDetailOf(server: McpServerCard): string {
+  const launch = server.launch ?? null;
+  if (launch === null) return server.transport;
+  const parts = [`stdio: ${launch.command}`];
+  if (launch.args.length > 0) parts.push(JSON.stringify(launch.args));
+  if (launch.envNames.length > 0) parts.push(`[env: ${launch.envNames.join(",")}]`);
+  if (launch.cwd !== null) parts.push(`[cwd: ${launch.cwd}]`);
+  return parts.join(" ");
+}
+
 /** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다 */
 function factsOf(card: PluginCard | null): Map<string, Fact> {
   const facts = new Map<string, Fact>();
@@ -39,7 +55,7 @@ function factsOf(card: PluginCard | null): Map<string, Fact> {
       add("inject", `tool:${tool.name}`, tool.description ?? "");
     }
     for (const server of inject.mcpServers) {
-      add("inject", `mcp:${server.name}`, server.transport);
+      add("inject", `mcp:${server.name}`, mcpDetailOf(server));
     }
     for (const agent of inject.agents) add("inject", `agent:${agent}`, "");
     for (const command of inject.commands) add("inject", `command:${command}`, "");
