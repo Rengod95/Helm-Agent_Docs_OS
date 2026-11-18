@@ -110,6 +110,7 @@ import {
   tasksSource,
   toolsSource,
   workspaceSource,
+  shutdownTimeoutMs,
 } from "./settings-sources.ts";
 
 // L4.host-service.spec §4.1 3단계. 기본 플러그인을 의존 순서로 싣는다: session → tasks → models → context → tools → loop → agents → workspace.
@@ -498,6 +499,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           localIds: deps.localIds,
           approvals: (service) => createBareL2ApprovalsPort(service),
           settings: layersSource(settings),
+          drainTimeoutMs: () => shutdownTimeoutMs(settings),
           // 리뷰 본문 읽기(`review.get`, W-02)의 자리. 확장이 내려가면 undefined가 와서 포트는 unavailable을 낸다
           onReviews: (reader) => {
             deps.dialogArea.reviews = reader;
