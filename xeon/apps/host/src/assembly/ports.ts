@@ -130,6 +130,7 @@ import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
+import { withPendingReview } from "./plugins/pending-overlay.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import { ensureResidentDrive, type ResidentDriveDeps } from "./m4/resident-drive.ts";
 import { restorableLeasesOf } from "./m4/drive-restore.ts";
@@ -1324,6 +1325,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return queued.value.ok;
     },
   });
+  // 읽기 면: 리뷰 대기 항목이 있는 플러그인은 검토 칸이 `pending`이다. 읽기 서비스는 검토 서비스를 모르므로(검토 서비스가 읽기 서비스를 쓴다) 조립에서 얹는다
+  const pluginRead = withPendingReview(pluginService, pluginReview);
   // 원본 폴더 감시(M5c §4.5.7). 사용자 플러그인 폴더와 프로젝트 루트의 `.fresnel/plugins`를 본다. 바뀌면 훑기가 검토 항목을 만든다(승인은 하지 않는다).
   // 감시 루트는 호스트가 발견 결과에서 정한다(OS 서비스의 앱 폴더 허용 목록과 별개로 루트마다 하나만 허용하는 감시자를 연다)
   const sourceWatch = createSourceWatch({
@@ -1548,8 +1551,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     scheduler: deps.scheduler,
     // 플러그인 읽기와 검토 흐름(M5c §3.4). 읽기는 서비스가, 검토 쓰기는 검토 서비스가 한다
     plugins: {
-      list: (filter) => pluginService.list(filter),
-      get: (name) => pluginService.get(name),
+      list: (filter) => pluginRead.list(filter),
+      get: (name) => pluginRead.get(name),
       scan: async () => {
         const scanned = await pluginReview.scan();
         await sourceWatch.sync();
