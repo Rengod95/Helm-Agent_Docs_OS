@@ -49,11 +49,12 @@ import {
   type WireResult,
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
+import { stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { itemPagesOf } from "@fresnel/core-persistence";
 import { PrimitiveError, registrationToggleSourceOf, type ExtHost } from "@fresnel/ext-host";
-import type { FileLock } from "@fresnel/platform-os";
+import { createFileWatcher, createFsWatchBackend, type FileLock } from "@fresnel/platform-os";
 import type {
   ActivityPort,
   ApprovalPort,
@@ -113,6 +114,7 @@ import {
   createUserSkillSink,
   createOverlayPort,
   createPluginService,
+  createSourceWatch,
   type PluginStore,
 } from "./plugins/index.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
@@ -222,6 +224,8 @@ export interface PortsHandle {
   activeThread(): ThreadId | null;
   /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session.shutdown("quit")을 발화한다 */
   releaseAll(): Promise<void>;
+  /** 플러그인 원본 폴더 감시를 닫는다(엔진을 닫기 전). 진행 중인 훑기를 기다린다 */
+  closeSourceWatch(): Promise<void>;
 }
 
 function toLogValue(value: unknown): LogValue {
@@ -447,7 +451,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       log.error(message, fields);
     },
     // 프로젝트를 등록하면 그 루트의 동반 플러그인을 검토 항목으로 만든다(M5c §4.4.10)
-    onRegistered: () => pluginReview.scanOpened(),
+    onRegistered: () => scanOpenedAndWatch(),
   });
   /**
    * 원본 훑기의 프로젝트 루트(M5c §4.5.2): 등록된 프로젝트의 루트와 닫히지 않은 대화의 작업 폴더(Test run과 테스트 대화는 뺀다). 같은 폴더는 한 번만 준다.
@@ -1176,6 +1180,51 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return queued.value.ok;
     },
   });
+  // 원본 폴더 감시(M5c §4.5.7). 사용자 플러그인 폴더와 프로젝트 루트의 `.fresnel/plugins`를 본다. 바뀌면 훑기가 검토 항목을 만든다(승인은 하지 않는다).
+  // 감시 루트는 호스트가 발견 결과에서 정한다(OS 서비스의 앱 폴더 허용 목록과 별개로 루트마다 하나만 허용하는 감시자를 연다)
+  const sourceWatch = createSourceWatch({
+    enabled: () => deps.settings.value("x.loading-trust.sourceWatch") !== false,
+    containers: async () => {
+      const roots = await scanRootsOfProjects();
+      return [
+        userPluginsDir,
+        join(deps.configDir, "extensions"),
+        ...roots.flatMap((root) => [
+          join(root.root, ".fresnel", "plugins"),
+          join(root.root, ".fresnel", "extensions"),
+        ]),
+      ];
+    },
+    sourceDirs: async () => {
+      const sources = await pluginService.sources();
+      return sources.ok ? sources.value.entries.map((entry) => entry.dir) : [];
+    },
+    exists: async (path) => (await attemptAsync(() => stat(path))).ok,
+    watch: (root, opts, onBatch) =>
+      createFileWatcher({
+        allowedRoots: [root],
+        scheduler: deps.scheduler,
+        logger: deps.logger,
+        backends: [createFsWatchBackend({ logger: deps.logger, startMs: 50 })],
+      }).watch(root, opts, onBatch),
+    scan: async () => {
+      const scanned = await pluginReview.scan();
+      if (!scanned.ok) log.error("plugin.watch.scan_failed", { kind: scanned.error.kind });
+    },
+    logger: deps.logger,
+  });
+  /** 열린 루트를 훑고 감시 집합을 맞춘다(새로 열린 프로젝트의 `.fresnel/plugins`를 보게 된다) */
+  async function scanOpenedAndWatch(): Promise<void> {
+    await pluginReview.scanOpened();
+    await sourceWatch.sync();
+  }
+  // 설정이 live로 바뀌면 감시 집합을 맞춘다(끄면 전부 닫는다)
+  const offSourceWatchSetting = deps.settings.onChange((change) => {
+    if (change.keys.length > 0 && !change.keys.includes("x.loading-trust.sourceWatch")) return;
+    detach(sourceWatch.sync(), (cause) => {
+      log.error("plugin.watch.sync_failed", { message: messageOf(cause) });
+    });
+  });
   // 맥락 참조 읽기 포트를 플랫폼 모듈로 낸다(M5c §4.8.8). 빌더 서비스의 `craftContext`가 호출 때 찾는다
   detach(
     ext
@@ -1315,7 +1364,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     plugins: {
       list: (filter) => pluginService.list(filter),
       get: (name) => pluginService.get(name),
-      scan: () => pluginReview.scan(),
+      scan: async () => {
+        const scanned = await pluginReview.scan();
+        await sourceWatch.sync();
+        return scanned;
+      },
       requestRemove: (name) => pluginReview.requestRemove(name),
       revert: (name) => pluginReview.revert(name),
       draftCreate: async (dir, originThreadId) => {
@@ -1339,7 +1392,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     overlay,
     pluginReview,
-    scanOpenedRoots: () => pluginReview.scanOpened(),
+    scanOpenedRoots: () => scanOpenedAndWatch(),
     pluginMigration,
     craftChat,
     migration,
@@ -1466,6 +1519,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     tokenOf: (threadId) => held.get(threadId)?.token,
     heldThreads: () => Array.from(held.keys()),
     activeThread: () => Array.from(held.keys()).at(-1) ?? null,
+    async closeSourceWatch() {
+      offSourceWatchSetting();
+      await sourceWatch.close();
+    },
     releaseAll() {
       return sequentially(Array.from(held.keys()), async (threadId) => {
         try {
