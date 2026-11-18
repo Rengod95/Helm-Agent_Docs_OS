@@ -178,6 +178,7 @@ realTest(
         profileId: "work",
         drafts: [{ plugin: DRAFT, draftId: draft.draftId, versionId }],
         runGroupId: "grp-draft",
+        skippedPlugins: [],
       });
       // 대화를 여는 때 기록된 시작 적용이 초안의 내부 이름을 싣는다(§4.8.1 2)
       const opened = await collector.waitFor(

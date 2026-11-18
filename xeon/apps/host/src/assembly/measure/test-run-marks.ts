@@ -11,11 +11,24 @@ import type { TrThreadRow } from "./turn-tables.ts";
 /** 대화 범위 표지의 값. `test`는 Test run 대화, `craft`는 테스트 대화(M5c §4.8.9, 규칙 36)다 */
 type ThreadScopeMark = "test" | "craft";
 
-/** 고정 초안 하나의 기록(`tr_thread.draft_json`의 항목). `plugin`은 검토본의 이름이고 `contentHash`는 초안의 내용 해시다 */
+/**
+ * 고정 초안 하나의 기록(`tr_thread.draft_json`의 항목). `plugin`은 검토본의 이름이고 `contentHash`는 초안의 내용 해시다.
+ * `startDrive`는 그 초안이 시작 Drive를 쓸 때만 참이다(없으면 옛 기록과 같다, §4.8.1 항목 3)
+ */
 export interface TestRunDraftRecord {
   readonly plugin: string;
   readonly draftId: string;
   readonly contentHash: string;
+  readonly startDrive?: boolean;
+}
+
+/**
+ * `draft_json`의 내용. `approval`은 테스트 실행의 드래프트 승인 방식이다. `auto`일 때만 적고, `ask`(생략)는 적지 않는다
+ * (§4.8.1 항목 10 [결정: 2026-11-18 사용자, AGE-56]). 옛 기록에는 없으므로 `ask`로 읽는다
+ */
+interface TestRunDraftList {
+  readonly drafts: readonly TestRunDraftRecord[];
+  readonly approval?: "auto";
 }
 
 const TestRunDraftsJsonSchema = Type.Object(
@@ -26,37 +39,66 @@ const TestRunDraftsJsonSchema = Type.Object(
           plugin: Type.String({ minLength: 1, maxLength: 96 }),
           draftId: Type.String({ minLength: 1, maxLength: 128 }),
           contentHash: Type.String({ minLength: 1, maxLength: 128 }),
+          startDrive: Type.Optional(Type.Literal(true)),
         },
         { additionalProperties: false },
       ),
     ),
+    approval: Type.Optional(Type.Literal("auto")),
   },
   { additionalProperties: false },
 );
 
-/** 고정 초안 목록을 `draft_json` 글로 쓴다(M5c §4.8.1). 모양은 `{drafts:[{plugin,draftId,contentHash}]}`다 */
-export function encodeTestRunDrafts(drafts: readonly TestRunDraftRecord[]): string {
+/** 고정 초안 표지 하나를 `draft_json`의 기록 한 줄로 옮긴다. `startDrive`는 참일 때만 싣는다 */
+export function draftRecordOf(mark: {
+  readonly replaces: string;
+  readonly draftId: string;
+  readonly contentHash: string;
+  readonly startDrive?: boolean;
+}): TestRunDraftRecord {
+  const record: TestRunDraftRecord = {
+    plugin: mark.replaces,
+    draftId: mark.draftId,
+    contentHash: mark.contentHash,
+  };
+  return mark.startDrive === true ? { ...record, startDrive: true } : record;
+}
+
+/**
+ * 고정 초안 목록을 `draft_json` 글로 쓴다(M5c §4.8.1). 모양은 `{drafts:[{plugin,draftId,contentHash[,startDrive]}][,approval:"auto"]}`다.
+ * `approval`은 `auto`일 때만 싣는다(`ask`는 생략)
+ */
+export function encodeTestRunDrafts(
+  drafts: readonly TestRunDraftRecord[],
+  approval?: "auto",
+): string {
   return JSON.stringify({
     drafts: drafts.map((draft) => ({
       plugin: draft.plugin,
       draftId: draft.draftId,
       contentHash: draft.contentHash,
+      ...(draft.startDrive === true ? { startDrive: true } : {}),
     })),
+    ...(approval === "auto" ? { approval: "auto" } : {}),
   });
 }
 
 /**
- * `draft_json`을 읽는다. 값이 없으면 초안이 없는 것이다. 글이 깨졌거나 모양이 다르면 `corrupt`다(저장 데이터 손상, 열기는 초안 없이 한다)
+ * `draft_json`을 읽는다. 값이 없으면 초안이 없고 `ask`다. 글이 깨졌거나 모양이 다르면 `corrupt`다(저장 데이터 손상, 열기는 초안 없이 한다)
  */
 export function decodeTestRunDrafts(
   text: string | null,
-): Result<readonly TestRunDraftRecord[], { readonly kind: "corrupt" }> {
-  if (text === null) return { ok: true, value: [] };
+): Result<TestRunDraftList, { readonly kind: "corrupt" }> {
+  if (text === null) return { ok: true, value: { drafts: [] } };
   const json = parseJson(text);
   if (!json.ok) return { ok: false, error: { kind: "corrupt" } };
   const parsed = parse(TestRunDraftsJsonSchema, json.value);
   if (!parsed.ok) return { ok: false, error: { kind: "corrupt" } };
-  return { ok: true, value: parsed.value.drafts };
+  const list: TestRunDraftList =
+    parsed.value.approval === "auto"
+      ? { drafts: parsed.value.drafts, approval: "auto" }
+      : { drafts: parsed.value.drafts };
+  return { ok: true, value: list };
 }
 
 export interface TestRunMarks {

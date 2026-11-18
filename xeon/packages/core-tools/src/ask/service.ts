@@ -10,7 +10,11 @@ import {
 import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { requestKeyFor } from "@fresnel/contracts/records";
-import type { ApprovalRequestError, L2ApprovalSnapshot } from "@fresnel/contracts/services";
+import type {
+  ApprovalRequestError,
+  AskService,
+  L2ApprovalSnapshot,
+} from "@fresnel/contracts/services";
 import { sha256HexSync } from "../util.ts";
 import type { AskDeps } from "./deps.ts";
 import { DialogFailure, guarded } from "./errors.ts";
@@ -25,10 +29,8 @@ type AskApi = CapabilityApi<typeof DialogAsk>;
 
 const CAPABILITY = DialogAsk.id;
 
-export interface AskService {
-  readonly api: AskApi;
-  dispose(): void;
-}
+// `AskService`의 정의는 F contracts(`services/dialog-core.ts`)에 있다. 기존 경로를 지키려고 다시 내보낸다.
+export type { AskService };
 
 function requestFailure(error: ApprovalRequestError): DialogFailure {
   switch (error.kind) {

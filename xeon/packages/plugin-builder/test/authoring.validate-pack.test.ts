@@ -8,7 +8,7 @@ import {
   scaffoldExtension,
   validateCompositionReport,
   validateExtensionDir,
-} from "../src/index.ts";
+} from "@fresnel/core-authoring";
 import { driveGroupFixture, readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();

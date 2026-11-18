@@ -6,7 +6,7 @@ import { afterAll } from "bun:test";
 import { parse, parseJson } from "@fresnel/contracts";
 import { validateManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 import { TemplateIndexSchema } from "@fresnel/group-sdk";
-import { locateTemplateDirs, type TemplateDirs } from "../src/index.ts";
+import { locateTemplateDirs, type TemplateDirs } from "@fresnel/core-authoring";
 
 // 시험 공용. 임시 폴더는 시험 파일이 끝나면 지운다.
 

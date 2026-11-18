@@ -107,6 +107,9 @@ realTest(
       expect(userRows.plugins.map((card) => card.name)).toEqual([NAME]);
       expect(userRows.plugins[0]?.purpose).toBe("Writes LIST-1 on each settled turn");
       expect(userRows.plugins[0]?.origin).toEqual({ kind: "user" });
+      // 리뷰 대기 항목이 있는 플러그인은 검토 칸이 대기이고 그 항목 id를 싣는다
+      expect(userRows.plugins[0]?.review.state).toBe("pending");
+      expect(userRows.plugins[0]?.review.pendingItemId).toBe(itemId);
 
       await approveLibrary(connection, itemId);
       const approved = await connection.request("plugin.list", {

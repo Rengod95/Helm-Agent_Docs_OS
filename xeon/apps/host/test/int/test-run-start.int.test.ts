@@ -51,6 +51,7 @@ realTest(
         profileId: "work",
         drafts: [],
         runGroupId: "grp-int",
+        skippedPlugins: [],
       });
       expect(await connection.request("profile.get", { id: "work" })).toEqual(stored);
       const turn = await startTurnWhenIdle(connection, {

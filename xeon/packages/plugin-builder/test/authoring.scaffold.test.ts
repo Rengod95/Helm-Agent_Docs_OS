@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { KindEntry } from "@fresnel/contracts/services";
-import { KIND_CATALOG, scaffoldExtension } from "../src/index.ts";
+import { KIND_CATALOG, scaffoldExtension } from "@fresnel/core-authoring";
 import { readManifest, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();

@@ -241,6 +241,8 @@ function harness(configDir = "/nonexistent-config"): Harness {
       turnByRequestId: () =>
         ok(state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn)),
       queuedInputs: () => state.queuedRead ?? ok(state.queued),
+      // 테스트 실행 대화의 부모를 찾는다. 이 시험의 대화는 하위 대화가 아니다
+      agentOfChild: () => ok(undefined),
     }),
     feed: partial<SessionService["feed"]>({
       headSeq: () => ok(5),
@@ -585,6 +587,29 @@ describe("threads", () => {
     const { ports } = createEnginePorts(h.deps);
     await ports.locks.tryAcquire(THREAD, "app");
     expect(h.openOptions).toEqual([undefined]);
+  });
+
+  test("opening a test-run thread whose fixed draft starts a drive passes the draft's registration as startDrive", async () => {
+    const h = harness();
+    h.state.registrations = [
+      partial<RegistrationInfo>({
+        id: "ddraft1-demo",
+        extension: "ddraft1-demo",
+        drive: "registered",
+      }),
+    ];
+    const { ports } = createEnginePorts(h.deps);
+    await ports.m4.pluginSet.setTestRunDrafts(THREAD, [
+      {
+        plugin: "ddraft1-demo",
+        draftId: "draft-1",
+        contentHash: "sha256:0123456789abcdef",
+        replaces: "demo",
+        startDrive: true,
+      },
+    ]);
+    await ports.locks.tryAcquire(THREAD, "app");
+    expect(h.openOptions).toEqual([{ startDrive: "ddraft1-demo" }]);
   });
 
   test("a create with the same creationKey gives back the first thread, and the list keeps one thread", async () => {

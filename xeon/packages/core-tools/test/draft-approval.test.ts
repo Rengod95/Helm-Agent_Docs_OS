@@ -7,7 +7,8 @@ import {
   WorkspaceFiles,
   WorkspaceFilesKey,
 } from "@fresnel/contracts/capabilities";
-import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import type { ToolCallTraceEvent } from "@fresnel/contracts/extensions";
 import { ApprovalRequestedPayloadSchema, EffectIntentSchema } from "@fresnel/contracts/records";
 import type { DraftMark, PluginCallRequest } from "@fresnel/contracts/services";
 import { Type } from "typebox";
@@ -16,6 +17,7 @@ import {
   createHarness,
   EDITED_FILE_CHANGE,
   expectOk,
+  installHandlers,
   layer,
   until,
   type Harness,
@@ -482,4 +484,194 @@ test("isDraftScope is true for a registration scope the draft lookup knows and f
   const h = await createHarness({ draftOf });
   expect(h.runtime.tools.isDraftScope?.("draft-plug")).toBe(true);
   expect(h.runtime.tools.isDraftScope?.("ok-plug")).toBe(false);
+});
+
+// 테스트 실행의 드래프트 승인 `auto`(L1.tools.spec §4.6.1 [결정: 2026-11-18 사용자, AGE-56]). 호출한 대화가 `auto`면 드래프트 판정(3번)과
+// 승인 상속 금지(4번)만 건너뛴다. 모드, 규칙, 위험 등급, 비대화형 거부, 가드 Hook은 일반 대화와 같다. 같은 드래프트를 `auto`가 아닌 대화에서
+// 부르면 여전히 카드다. `auto`는 대화 단위다: 등록 범위의 표지와 무관하게 호출한 대화의 값으로 정한다.
+
+test("auto: a draft call in an auto thread runs with no card under bypass, and the same draft in another thread still asks with the draft mark", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [BYPASS],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const draft = countingTool(h, "draft-ext", "draft_tool");
+
+  const auto = await callTool(h.runtime.tools, h.run(), {
+    id: "au-1",
+    name: "draft_tool",
+    args: {},
+  });
+  expect(auto.blocked).toBeUndefined();
+  expect(draft.calls).toBe(1);
+  expect(toolCards(h)).toEqual([]);
+
+  // 같은 드래프트 도구를 `auto`가 아닌 대화에서 부르면 드래프트 카드가 뜬다(bypass라 모드가 묻지 않으므로 카드는 드래프트 때문이다)
+  const other = h.ids.next("thr");
+  const pending = callTool(h.runtime.tools, h.run({ threadId: other }), {
+    id: "au-2",
+    name: "draft_tool",
+    args: {},
+  });
+  await until(() => toolCards(h, other).length === 1);
+  const [card] = toolCards(h, other);
+  expect(card?.body.kind === "tool" ? card.body.tool.draft : undefined).toEqual({
+    plugin: "draft-ext",
+    draftId: "d-7",
+  });
+  expect(draft.calls).toBe(1);
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
+  expect((await pending).blocked).toBeUndefined();
+  expect(draft.calls).toBe(2);
+});
+
+test("auto: the mode still asks a draft call under default, and that card keeps only the provenance mark and is refused by a deny", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const draft = countingTool(h, "draft-ext", "draft_tool");
+
+  const done = callTool(h.runtime.tools, h.run(), { id: "mo-1", name: "draft_tool", args: {} });
+  await until(() => toolCards(h).length === 1);
+  const [card] = toolCards(h);
+  // 카드가 뜨는 이유는 모드의 ask다. 출처 표지(제목 앞 문장과 본문 `draft`)는 초안이라서 그대로 남는다
+  expect(card?.title.startsWith('Draft plugin "draft-ext" asks.')).toBe(true);
+  expect(card?.body.kind === "tool" ? card.body.tool.draft : undefined).toEqual({
+    plugin: "draft-ext",
+    draftId: "d-7",
+  });
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "deny" });
+  expect((await done).blocked).toBe("The user denied this tool call.");
+  expect(draft.calls).toBe(0);
+});
+
+test("auto: a deny rule still denies a draft call under bypass, and no card opens", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [
+      layer("user", {
+        "l1.tools.permissionMode": "bypass",
+        "l1.tools.rules": [
+          {
+            id: "u.deny-draft",
+            action: "tool.call",
+            resource: { tool: "draft_denied" },
+            effect: "deny",
+          },
+        ],
+      }),
+    ],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const denied = countingTool(h, "draft-ext", "draft_denied");
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "au-deny",
+    name: "draft_denied",
+    args: {},
+  });
+  expect(out.blocked).toContain("[fresnel:denied_by_policy]");
+  expect(denied.calls).toBe(0);
+  expect(toolCards(h)).toEqual([]);
+});
+
+test("auto: a tool.call.before block still stops a draft call with no card, and the trace names the blocking hook", async () => {
+  const autoThreads: ThreadId[] = [];
+  const events: ToolCallTraceEvent[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [BYPASS],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+    callTrace: {
+      record: (event) => {
+        events.push(event);
+      },
+    },
+  });
+  autoThreads.push(h.thread);
+  const draft = countingTool(h, "draft-ext", "draft_tool");
+  await installHandlers(h, "guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => ({ block: true, reason: "no drafts today" }));
+  });
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "au-guard",
+    name: "draft_tool",
+    args: {},
+  });
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] no drafts today");
+  expect(draft.calls).toBe(0);
+  expect(toolCards(h)).toEqual([]);
+  expect(events.find((event) => event.toolCallId === "au-guard")).toMatchObject({
+    verdict: "blocked_hook",
+    blockedBy: { plugin: "guard", hook: "tool.call.before" },
+  });
+});
+
+test("auto: with no one to answer, a draft call that the default mode asks is denied and never runs", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const draft = countingTool(h, "draft-ext", "draft_tool");
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "au-noninteractive",
+    name: "draft_tool",
+    args: {},
+  });
+  expect(out.blocked).toContain("[fresnel:noninteractive_ask_denied]");
+  expect(draft.calls).toBe(0);
+  expect(toolCards(h)).toEqual([]);
+});
+
+test("auto: a draft plugin call may inherit a valid approval, so it runs with no card in default mode", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const probe = registerEdit(h);
+  const approvalId = await answeredReviewCard(h);
+  const result = await h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...editFrom("draft-plug", "auto-inherit", { approvalId }),
+  });
+  expect(result).toMatchObject({ ok: true, value: { isError: false } });
+  expect(toolCards(h)).toEqual([]);
+  expect(probe.calls).toEqual(["edit"]);
+});
+
+test("auto: a readOnly capability call from a draft plugin takes the pipeline and runs with no card under bypass", async () => {
+  const autoThreads: ThreadId[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [BYPASS],
+    capabilityDefs: [Peeker],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+  });
+  autoThreads.push(h.thread);
+  const peeks: string[] = [];
+  h.apis.set(Peeker.id, {
+    peek: (input: { value: string }) => {
+      peeks.push(input.value);
+      return Promise.resolve({ ok: true });
+    },
+  });
+  h.runtime.tools.register({ kind: "capability", def: Peeker, key: serviceKey(Peeker) });
+  const result = await h.runtime.tools.executeForPlugin(peekFrom(h, "draft-plug", "auto-peek-1"));
+  expect(result).toMatchObject({ ok: true, value: { isError: false } });
+  expect(peeks).toEqual(["x"]);
+  expect(toolCards(h)).toEqual([]);
 });

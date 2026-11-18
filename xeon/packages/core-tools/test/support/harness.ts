@@ -18,6 +18,7 @@ import type {
   AgentToolResult,
   AgentToolUpdateCallback,
   AssistantMessage,
+  IdFactory,
   JsonValue,
   ThreadId,
 } from "@fresnel/contracts/conversation";
@@ -94,6 +95,8 @@ export interface HarnessOptions {
   readonly callTrace?: ToolCallTraceSink;
   /** 등록 id(스코프)가 초안이면 그 표지를 돌려준다(L1.tools.spec §4.6.1). 생략하면 모든 스코프가 검토된 것이다 */
   readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
+  /** 드래프트 승인 `auto`인 대화(L1.tools.spec §4.6.1). 생략하면 모든 대화가 `ask`다 */
+  readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
 }
 
 /** 승인 상속 시험의 기본 작업 폴더. 프로세스가 끝나면 지운다 */
@@ -112,6 +115,8 @@ export interface Harness {
   readonly runtime: ToolRuntime;
   readonly deps: ToolsDeps;
   readonly thread: ThreadId;
+  /** 대화 id를 새로 낸다(두 번째 대화가 필요한 시험이 쓴다). 대화를 열지는 않는다 */
+  readonly ids: IdFactory;
   /** 기능 서비스 API 대역 표(기능 id → API 객체) */
   readonly apis: Map<string, unknown>;
   /** 파일 범위 설정 층을 바꾼다 */
@@ -120,6 +125,7 @@ export interface Harness {
     interactive?: boolean;
     signal?: AbortSignal;
     caller?: CallerId;
+    threadId?: ThreadId;
   }): ToolRunContext;
 }
 
@@ -198,6 +204,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     logger: options.logger,
     ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
     ...(options.draftOf === undefined ? {} : { draftOf: options.draftOf }),
+    ...(options.draftAutoApproved === undefined
+      ? {}
+      : { draftAutoApproved: options.draftAutoApproved }),
   };
   const runtime = createToolRuntime(deps);
   return {
@@ -210,6 +219,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     runtime,
     deps,
     thread,
+    ids,
     apis,
     setLayers: (layers) => {
       fileLayers = layers;
@@ -218,7 +228,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       const run = fakeRunContext({
         session,
         ids,
-        threadId: thread,
+        threadId: overrides?.threadId ?? thread,
         ...(overrides?.interactive === undefined ? {} : { interactive: overrides.interactive }),
         ...(overrides?.signal === undefined ? {} : { signal: overrides.signal }),
         ...(overrides?.caller === undefined ? {} : { caller: overrides.caller }),

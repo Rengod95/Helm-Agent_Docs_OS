@@ -46,6 +46,17 @@ describe("testRun.start wire method", () => {
     expect(accepts(TestRunStartParamsSchema, { baseProfileId: "", drafts: [] })).not.toBe("ok");
   });
 
+  test("draftApproval is optional and takes ask or auto; the value is kept and any other value is refused", () => {
+    expect(accepts(TestRunStartParamsSchema, { drafts: [] })).toBe("ok");
+    for (const draftApproval of ["ask", "auto"] as const) {
+      const parsed = parse(TestRunStartParamsSchema, { drafts: [], draftApproval });
+      expect(parsed.ok ? parsed.value.draftApproval : parsed.error.kind).toBe(draftApproval);
+    }
+    for (const draftApproval of ["AUTO", "always", "", "allow", null, true]) {
+      expect(accepts(TestRunStartParamsSchema, { drafts: [], draftApproval })).not.toBe("ok");
+    }
+  });
+
   test("each draft names a plugin and a draft id, and nothing else", () => {
     expect(
       accepts(TestRunStartParamsSchema, { drafts: [{ plugin: "notes", draftId: "d1" }] }),
@@ -57,6 +68,21 @@ describe("testRun.start wire method", () => {
         drafts: [{ plugin: "notes", draftId: "d1", versionId: "x" }],
       }),
     ).not.toBe("ok");
+  });
+
+  test("a draft may name the start entry, which runs that draft's start Drive; no other entry is accepted", () => {
+    expect(
+      accepts(TestRunStartParamsSchema, {
+        drafts: [{ plugin: "notes", draftId: "d1", entry: "start" }],
+      }),
+    ).toBe("ok");
+    for (const entry of ["other", "", "Start", "drive"]) {
+      expect(
+        accepts(TestRunStartParamsSchema, {
+          drafts: [{ plugin: "notes", draftId: "d1", entry }],
+        }),
+      ).not.toBe("ok");
+    }
   });
 
   test("the wire accepts up to the overlay wire bound, and the handler answers the larger count with overlay.limit", () => {
@@ -73,8 +99,12 @@ describe("testRun.start wire method", () => {
       profileId: "default",
       drafts: [{ plugin: "notes", draftId: "d1", versionId: "draft:d1:0123abcd" }],
       runGroupId: "grp-1",
+      skippedPlugins: ["helm"],
     };
     expect(accepts(TestRunStartResultSchema, ok)).toBe("ok");
+    expect(accepts(TestRunStartResultSchema, { ...ok, skippedPlugins: [] })).toBe("ok");
+    const { skippedPlugins: _skipped, ...withoutSkipped } = ok;
+    expect(accepts(TestRunStartResultSchema, withoutSkipped)).not.toBe("ok");
     expect(accepts(TestRunStartResultSchema, { ...ok, drafts: [] })).toBe("ok");
     const { runGroupId: _omitted, ...withoutGroup } = ok;
     expect(accepts(TestRunStartResultSchema, withoutGroup)).not.toBe("ok");

@@ -9,7 +9,7 @@ import type {
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
-import { checkGroupName } from "@fresnel/group-sdk";
+import { checkGroupName } from "@fresnel/contracts/services";
 import { KIND_CATALOG } from "./catalog.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import type { TemplateDirs } from "./templates-dir.ts";

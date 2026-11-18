@@ -5,7 +5,7 @@ import { ok } from "@fresnel/contracts";
 import type { EvidenceRef } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { locateTemplateDirs } from "@fresnel/plugin-builder";
+import { locateTemplateDirs } from "@fresnel/core-authoring";
 import type { PluginMode } from "@fresnel/contracts/services";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";

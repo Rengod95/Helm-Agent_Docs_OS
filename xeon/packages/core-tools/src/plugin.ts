@@ -82,6 +82,8 @@ export interface ToolsPluginOptions {
    * 생략하면 초안 호출이 없다
    */
   readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
+  /** 호출한 대화가 드래프트 승인 `auto`인가(`ToolsDeps.draftAutoApproved`). 생략하면 모든 대화가 `ask`다 */
+  readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
   readonly loadIndex?: number;
 }
 
@@ -176,6 +178,9 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         logger: options.logger,
         ...(options.callTrace === undefined ? {} : { callTrace: options.callTrace }),
         ...(options.draftOf === undefined ? {} : { draftOf: options.draftOf }),
+        ...(options.draftAutoApproved === undefined
+          ? {}
+          : { draftAutoApproved: options.draftAutoApproved }),
         capabilityDefs: [
           ...BUILTIN_CAPABILITIES,
           ...(options.capabilities ?? []),

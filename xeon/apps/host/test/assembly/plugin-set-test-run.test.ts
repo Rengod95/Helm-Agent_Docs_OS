@@ -15,6 +15,7 @@ import {
 const PARENT = threadOf("thr_01ARZ3NDEKTSV4RRFFQ69G5FA1");
 const CHILD = threadOf("thr_01ARZ3NDEKTSV4RRFFQ69G5FA2");
 const PLAIN = threadOf("thr_01ARZ3NDEKTSV4RRFFQ69G5FA3");
+const SIBLING = threadOf("thr_01ARZ3NDEKTSV4RRFFQ69G5FA4");
 
 const HASH_DEMO = `sha256:${"d".repeat(64)}`;
 const HASH_ZETA = `sha256:${"e".repeat(64)}`;
@@ -167,4 +168,28 @@ test("an ordinary thread with no test run keeps the default set, even when it is
   await set.setTestRunDrafts(PARENT, FIXED);
   expect(set.port.resolve(PLAIN).plugins).toEqual([]);
   expect(set.port.resolve(PLAIN).profileId).toBe("default");
+});
+
+test("the draft approval auto belongs to the test run it was bound with: its child inherits it, a sibling test run and an ordinary thread do not, and forgetting the run clears it", async () => {
+  const { set } = fixtureOf();
+  await set.refresh();
+  await set.setTestRunDrafts(PARENT, FIXED, "auto");
+  await set.setTestRunDrafts(SIBLING, FIXED);
+  expect(set.testRunApprovalOf(PARENT)).toBe("auto");
+  expect(set.testRunApprovalOf(CHILD)).toBe("auto");
+  expect(set.testRunApprovalOf(SIBLING)).toBeUndefined();
+  expect(set.testRunApprovalOf(PLAIN)).toBeUndefined();
+  // 잊으면 승인 방식도 사라진다(자식도 부모가 없어 `ask`가 된다)
+  set.forget(PARENT);
+  expect(set.testRunApprovalOf(PARENT)).toBeUndefined();
+  expect(set.testRunApprovalOf(CHILD)).toBeUndefined();
+});
+
+test("binding the same test run again without auto makes it ask, and a child then has no approval", async () => {
+  const { set } = fixtureOf();
+  await set.refresh();
+  await set.setTestRunDrafts(PARENT, FIXED, "auto");
+  await set.setTestRunDrafts(PARENT, FIXED);
+  expect(set.testRunApprovalOf(PARENT)).toBeUndefined();
+  expect(set.testRunApprovalOf(CHILD)).toBeUndefined();
 });
