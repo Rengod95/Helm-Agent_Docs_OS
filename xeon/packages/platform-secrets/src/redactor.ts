@@ -2,6 +2,13 @@ import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { RedactionHit, SecretName } from "@fresnel/contracts/capabilities";
 import type { LeafMask, MaskRange } from "@fresnel/contracts/conversation";
 import type { RegisterKnownError, Redactor } from "@fresnel/contracts/services";
+import {
+  findJwts,
+  findPrivateKeyBlocks,
+  findUserinfoValues,
+  replaceSpans,
+  type Span,
+} from "./linear-scan.ts";
 
 // L0.secrets.spec §3.5. docs/design/18-security.md §3.10.4의 규칙 1~3을 옮긴 것이다.
 // 마스킹은 보조 수단이다. 등록하지 않은 인코딩이나 조각난 값은 잡지 못한다.
@@ -74,34 +81,36 @@ function variantsOf(value: Uint8Array): readonly string[] {
 
 interface PrefixRule {
   readonly kind: string;
-  readonly pattern: RegExp;
+  /** 일치 자리. 정규식 하나로 쓰면 큰 입력에서 제곱으로 느려지는 규칙(PEM, JWT)은 선형 탐색(`linear-scan.ts`)을 쓴다 */
+  readonly find: (text: string) => readonly Span[];
+}
+
+function byPattern(pattern: RegExp): (text: string) => readonly Span[] {
+  return (text) =>
+    [...text.matchAll(pattern)].map((match) => ({
+      start: match.index,
+      end: match.index + match[0].length,
+    }));
 }
 
 // 18 §3.10.4 규칙 2. 헬름 전용 helm_dt_ 패턴은 뺀다. 표지에서 해시 앞 8자도 뺀다(spec §3.5).
 // 접두 패턴은 더 긴 것(sk-ant-)을 일반 것(sk-)보다 앞에 둔다.
 const PREFIX_RULES: readonly PrefixRule[] = [
-  { kind: "anthropic_key", pattern: /sk-ant-[A-Za-z0-9_-]{20,}/g },
-  { kind: "openai_key", pattern: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g },
-  { kind: "google_key", pattern: /AIza[0-9A-Za-z_-]{35}/g },
-  { kind: "github_pat", pattern: /github_pat_[A-Za-z0-9_]{50,}/g },
-  { kind: "github_token", pattern: /ghp_[A-Za-z0-9]{36}/g },
-  { kind: "slack_token", pattern: /xox[abposr]-[A-Za-z0-9-]{10,}/g },
-  { kind: "aws_access_key", pattern: /AKIA[0-9A-Z]{16}/g },
-  { kind: "age_key", pattern: /AGE-SECRET-KEY-1[0-9A-Z]{58}/g },
-  {
-    kind: "private_key",
-    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  },
-  {
-    kind: "jwt",
-    pattern: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
-  },
+  { kind: "anthropic_key", find: byPattern(/sk-ant-[A-Za-z0-9_-]{20,}/g) },
+  { kind: "openai_key", find: byPattern(/sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g) },
+  { kind: "google_key", find: byPattern(/AIza[0-9A-Za-z_-]{35}/g) },
+  { kind: "github_pat", find: byPattern(/github_pat_[A-Za-z0-9_]{50,}/g) },
+  { kind: "github_token", find: byPattern(/ghp_[A-Za-z0-9]{36}/g) },
+  { kind: "slack_token", find: byPattern(/xox[abposr]-[A-Za-z0-9-]{10,}/g) },
+  { kind: "aws_access_key", find: byPattern(/AKIA[0-9A-Z]{16}/g) },
+  { kind: "age_key", find: byPattern(/AGE-SECRET-KEY-1[0-9A-Z]{58}/g) },
+  { kind: "private_key", find: findPrivateKeyBlocks },
+  { kind: "jwt", find: findJwts },
 ];
 
 // 18 §3.10.4 규칙 3. authorization 값 앞의 Bearer·Basic 같은 방식어는 값 밖에 둔다.
 const KV_PATTERN =
   /(api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization)(['"]?\s*[:=]\s*['"]?(?:(?:Bearer|Basic|Token)\s+)?)(?!\/\/)([^\s'"]{8,})/gi;
-const USERINFO_PATTERN = /([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)([^\s@/]+)(@)/gi;
 
 const MARKER_START = "[REDACTED:";
 
@@ -165,10 +174,9 @@ function finishHits(hits: ReadonlyMap<string, number>): readonly RedactionHit[] 
 function maskPrefix(text: string, hits: Map<string, number>): string {
   let current = text;
   for (const rule of PREFIX_RULES) {
-    current = current.replace(rule.pattern, () => {
-      bump(hits, rule.kind, 1);
-      return `${MARKER_START}${rule.kind}]`;
-    });
+    const spans = rule.find(current);
+    bump(hits, rule.kind, spans.length);
+    current = replaceSpans(current, spans, `${MARKER_START}${rule.kind}]`);
   }
   return current;
 }
@@ -182,14 +190,11 @@ function maskKv(text: string, hits: Map<string, number>): string {
       return `${key}${sep}[REDACTED:kv]`;
     },
   );
-  return afterPairs.replace(
-    USERINFO_PATTERN,
-    (whole: string, head: string, value: string, at: string) => {
-      if (value.startsWith(MARKER_START)) return whole;
-      bump(hits, "kv", 1);
-      return `${head}[REDACTED:kv]${at}`;
-    },
+  const spans = findUserinfoValues(afterPairs).filter(
+    (span) => !afterPairs.startsWith(MARKER_START, span.start),
   );
+  bump(hits, "kv", spans.length);
+  return replaceSpans(afterPairs, spans, "[REDACTED:kv]");
 }
 
 /** 청크 경계에 걸친 값을 가리기 위한 이어 가는 상태. 호출자는 끝에 flush를 한 번 부른다 */
@@ -398,13 +403,8 @@ export function createRedactor(): RedactorImpl {
       }
     }
     for (const rule of PREFIX_RULES) {
-      for (const match of text.matchAll(rule.pattern)) {
-        found.push({
-          start: match.index,
-          end: match.index + match[0].length,
-          label: rule.kind,
-          rank: 1,
-        });
+      for (const span of rule.find(text)) {
+        found.push({ start: span.start, end: span.end, label: rule.kind, rank: 1 });
       }
     }
     for (const match of text.matchAll(KV_PATTERN)) {
@@ -414,12 +414,8 @@ export function createRedactor(): RedactorImpl {
       const start = match.index + match[0].length - value.length;
       found.push({ start, end: start + value.length, label: "kv", rank: 2 });
     }
-    for (const match of text.matchAll(USERINFO_PATTERN)) {
-      const head = match[1];
-      const value = match[2];
-      if (head === undefined || value === undefined) continue;
-      const start = match.index + head.length;
-      found.push({ start, end: start + value.length, label: "kv", rank: 2 });
+    for (const span of findUserinfoValues(text)) {
+      found.push({ start: span.start, end: span.end, label: "kv", rank: 2 });
     }
     found.sort((a, b) => a.start - b.start || a.rank - b.rank || b.end - a.end);
     const merged: MaskRange[] = [];
