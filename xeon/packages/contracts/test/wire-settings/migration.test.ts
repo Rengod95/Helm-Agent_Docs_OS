@@ -279,9 +279,15 @@ describe("migration.proposal", () => {
     expect(
       accepts(MigrationProposalResultSchema, {
         ...base,
-        report: [{ ...REPORT_EXACT, kind: "hook" }],
+        report: [{ ...REPORT_EXACT, kind: "widget" }],
       }),
     ).toBe(false);
+    expect(
+      accepts(MigrationProposalResultSchema, {
+        ...base,
+        report: [{ ...REPORT_EXACT, kind: "hook" }],
+      }),
+    ).toBe(true);
     expect(
       accepts(MigrationProposalResultSchema, {
         ...base,

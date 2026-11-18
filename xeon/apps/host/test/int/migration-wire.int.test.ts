@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect, test } from "bun:test";
+import { parseJson } from "@fresnel/contracts";
 import {
   WireError,
   type HostConnection,
@@ -24,6 +25,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { requireSandboxOrSkip, sandboxGate } from "../fixtures/sandbox-service.ts";
 
 // migration.md §6, §7.7 [제안] (int, 실제 엔진): 다른 하네스(Claude Code)의 설정이 든 프로젝트를 가져온다.
 // 감지는 표지를 존재만 보고, 훑기는 항목을 값 없이 세고, 제안은 플러그인 계획과 보고 줄을 주고,
@@ -32,6 +34,12 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
+// 훑기는 샌드박스 자식 프로세스에서 돈다(migration.md §7.4 [제안]). 샌드박스를 쓸 수 없으면 훑기와 적용을 건너뛴다(mcp-sandbox.int.test.ts와 같다)
+const sandbox = await sandboxGate(tmpdir());
+requireSandboxOrSkip(sandbox, "migration-wire.int");
+const scanTest = gate.blocker === undefined && sandbox.runnable ? test : test.skip;
+/** 자식을 띄울 자기 실행 값. 소스 실행이므로 진입 파일을 준다(운영은 이 파일이 컴파일된 실행 파일이다) */
+const MAIN_ENTRY = new URL("../../src/main.ts", import.meta.url).pathname;
 
 const TIMEOUT_MS = 60_000;
 /** 시험 프로젝트의 시크릿 가짜 값. 응답 어디에도 나오면 안 된다(§6.6, 값 없이 개수만 싣는다) */
@@ -75,6 +83,41 @@ function fixtureOf(root: string): Fixture {
   return { home, proj: realpathSync(proj) };
 }
 
+/** Hook 시험의 시크릿 가짜 값. 두 번째 훅의 스크립트에만 든다 */
+const HOOK_SECRET = "sk-test-VALUE-4c7e1b9d";
+/** 첫 훅의 스크립트 바이트(한글 주석이 있어 UTF-8 바이트가 그대로 복사되는지 본다) */
+const GUARD_TEXT =
+  '#!/bin/sh\n# 위험한 명령을 막는다\ninput=$(cat)\ncase "$input" in\n  *"rm -rf"*) echo "rm -rf is blocked" >&2; exit 2 ;;\nesac\nexit 0\n';
+const LEAK_TEXT = `#!/bin/sh\nexport API_KEY=${HOOK_SECRET}\nexit 0\n`;
+/** 프로젝트 설정의 Hook: PreToolUse 훅 하나(옮긴다), PostToolUse 훅 하나(스크립트에 시크릿 값이 있어 옮기지 않는다) */
+const HOOK_SETTINGS = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: "Bash|Write",
+        hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh" }],
+      },
+    ],
+    PostToolUse: [
+      {
+        matcher: "",
+        hooks: [{ type: "command", command: "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh" }],
+      },
+    ],
+  },
+};
+
+/** Hook 시험의 프로젝트. 홈 폴더는 비어 있다 */
+function hookFixtureOf(root: string): Fixture {
+  const home = join(root, "home");
+  const proj = join(root, "proj");
+  mkdirSync(home, { recursive: true });
+  writeText(join(proj, ".claude", "settings.json"), `${JSON.stringify(HOOK_SETTINGS, null, 2)}\n`);
+  writeText(join(proj, ".claude", "hooks", "guard.sh"), GUARD_TEXT);
+  writeText(join(proj, ".claude", "hooks", "leak.sh"), LEAK_TEXT);
+  return { home, proj: realpathSync(proj) };
+}
+
 function writeText(path: string, text: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, text);
@@ -94,6 +137,12 @@ function bytesOf(root: string): Record<string, Uint8Array> {
   return files;
 }
 
+/** 파일 바이트 가운데 값이 든 것이 있는가 */
+function holdsValue(files: Record<string, Uint8Array>, value: string): boolean {
+  const needle = Buffer.from(value);
+  return Object.values(files).some((bytes) => Buffer.from(bytes).includes(needle));
+}
+
 function sha256Of(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
@@ -102,7 +151,7 @@ function sha256Of(bytes: Uint8Array): string {
 async function startMigrationHost(bundles: string) {
   const host = await startInProcessHost({
     devChecks: true,
-    pluginHost: { disabled: true },
+    pluginHost: { disabled: true, self: { execPath: process.execPath, entry: MAIN_ENTRY } },
     defaultPluginsDir: bundles,
     extraPlugins: [],
   });
@@ -127,7 +176,7 @@ async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
   throw caught;
 }
 
-realTest(
+scanTest(
   "after the migrated plugins are approved, applying the same plan submits nothing again; a proposed project profile is created empty and listed",
   async () => {
     const home: EngineHome = useEngineHome();
@@ -303,7 +352,7 @@ realTest(
   TIMEOUT_MS,
 );
 
-realTest(
+scanTest(
   "migration.scan counts the project's items without their values, announces progress and change, and refuses bad roots",
   async () => {
     const home: EngineHome = useEngineHome();
@@ -367,7 +416,7 @@ realTest(
   TIMEOUT_MS,
 );
 
-realTest(
+scanTest(
   "migration.apply writes the planned plugin folder and a migration review item that match the proposal; the report reads back, and a second apply of the same plan is refused while the first is pending",
   async () => {
     const home: EngineHome = useEngineHome();
@@ -434,7 +483,7 @@ realTest(
         reportId: applied.reportId,
       });
       expect(report.report).toEqual(proposal.report);
-      expect(report.rulesVersions["claude-code"]).toBe("2026-11-17");
+      expect(report.rulesVersions["claude-code"]).toBe("2026-11-18");
 
       // 같은 계획을 한 번 더 적용하면 대기 중인 폴더와 겹쳐 거절한다. 폴더는 그대로다
       const before = bytesOf(join(pluginsDir, applied.drafts[0]?.name ?? ""));
@@ -470,6 +519,127 @@ realTest(
       );
       expect(noScan.data.kind).toBe("migration.notFound");
       expect(noScan.data.details).toEqual({ id: "scan-missing" });
+    } finally {
+      await connection.close();
+      await host.close();
+      restoreHome();
+      rmSync(bundles, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  TIMEOUT_MS,
+);
+
+scanTest(
+  "a Claude Code hook config becomes one hook plugin draft: the guard script is copied byte for byte, the hook with a secret in its script is reported not_ported, and no secret value or original file changes",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const root = mkdtempSync(join(tmpdir(), "xh-migration-hook-"));
+    const fixture = hookFixtureOf(root);
+    const restoreHome = redirectHome(fixture.home);
+    const bundles = mkdtempSync(join(tmpdir(), "migration-bundles-"));
+    const pluginsDir = join(home.root, "config", "plugins");
+    const projectBefore = bytesOf(fixture.proj);
+    const homeBefore = bytesOf(fixture.home);
+    const { host, connection } = await startMigrationHost(bundles);
+    try {
+      const scanned = await connection.request("migration.scan", {
+        roots: [{ path: fixture.proj, scope: "project", label: "proj" }],
+      });
+      // 훅 항목은 두 개다. 응답에는 시크릿 값이 없다
+      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(2);
+      expect(JSON.stringify(scanned)).not.toContain(HOOK_SECRET);
+
+      const proposal = await connection.request("migration.proposal", { scanId: scanned.scanId });
+      expect(proposal.questions).toEqual([]);
+      expect(proposal.plugins.length).toBe(1);
+      // 보고 줄: 옮긴 PreToolUse는 차이가 있고, 시크릿 값이 든 PostToolUse는 옮기지 않는다
+      const hookLines = proposal.report.filter((line) => line.kind === "hook");
+      expect(
+        hookLines
+          .map((line) => `${line.status}:${line.reason?.code ?? "-"}`)
+          .toSorted((a, b) => a.localeCompare(b)),
+      ).toEqual(["differs:-", "not_ported:secret_in_script"]);
+
+      const applied = await connection.request("migration.apply", {
+        proposalId: proposal.proposalId,
+        choices: { answers: {} },
+      });
+      expect(applied.profiles).toEqual([]);
+      expect(applied.drafts.length).toBe(1);
+      const draft = applied.drafts[0];
+      if (draft === undefined) throw new Error("expected one hook plugin draft");
+
+      // 드래프트 폴더: 매니페스트, 이식 기록, 생성 코드, 데이터, 스크립트 복사본 하나
+      const folder = join(pluginsDir, draft.name);
+      const onDisk = bytesOf(folder);
+      expect(Object.keys(onDisk).toSorted()).toEqual([
+        ".fresnel-plugin/migration.json",
+        ".fresnel-plugin/plugin.json",
+        "hooks.data.json",
+        "plugin.js",
+        "scripts/guard.sh",
+      ]);
+      // 스크립트 복사본은 원본 바이트 그대로다
+      expect(Buffer.from(onDisk["scripts/guard.sh"] ?? new Uint8Array())).toEqual(
+        Buffer.from(GUARD_TEXT, "utf8"),
+      );
+      const manifestParsed = parseJson(
+        readFileSync(join(folder, ".fresnel-plugin/plugin.json"), "utf8"),
+      );
+      if (!manifestParsed.ok) throw new Error("the manifest is not JSON");
+      expect(manifestParsed.value).toMatchObject({
+        schemaVersion: 2,
+        name: draft.name,
+        entry: "./plugin.js",
+        scripts: [{ name: "guard", runner: "sh", file: "scripts/guard.sh", timeoutMs: 29_000 }],
+        plugins: [
+          {
+            layer: "plugin",
+            hooks: ["tool.call.before"],
+            hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
+          },
+        ],
+      });
+
+      // 검토 항목: 대기 중이고 출처가 가져오기다. 카드의 스크립트 줄에 실행될 명령이 실린다
+      const item = (await connection.request("pluginReview.get", { itemId: draft.itemId })).item;
+      expect(item.provenance).toBe("migration");
+      expect(item.state).toBe("pending");
+      expect(item.card.enforcement).toBe("enforced");
+      expect(item.card.does.hook?.hooks.map((hook) => hook.name)).toEqual(["tool.call.before"]);
+      expect(item.card.does.inject?.scripts).toEqual([
+        {
+          name: "guard",
+          launch: { command: "sh", args: ["scripts/guard.sh"], envNames: [], cwd: null },
+          timeoutMs: 29_000,
+        },
+      ]);
+      expect(item.card.runs).toEqual({ code: true, isolated: true });
+
+      // 값 없음: 응답, 보고서, 검토 항목, 드래프트 폴더, 엔진 홈 어디에도 시크릿 값이 없다
+      const report = await connection.request("migration.report.get", {
+        reportId: applied.reportId,
+      });
+      expect(report.report).toEqual(proposal.report);
+      for (const text of [
+        JSON.stringify(scanned),
+        JSON.stringify(proposal),
+        JSON.stringify(applied),
+        JSON.stringify(report),
+        JSON.stringify(item),
+      ]) {
+        expect(text).not.toContain(HOOK_SECRET);
+      }
+      expect(holdsValue(bytesOf(home.root), HOOK_SECRET)).toBe(false);
+      // 대조: 같은 검색은 원본의 `leak.sh`에서 값을 찾는다(검색이 값을 볼 수 있다는 확인)
+      expect(holdsValue(projectBefore, HOOK_SECRET)).toBe(true);
+
+      // 원본 폴더 두 곳은 시험 전후로 파일 목록과 바이트가 같다
+      expect(bytesOf(fixture.proj)).toEqual(projectBefore);
+      expect(bytesOf(fixture.home)).toEqual(homeBefore);
     } finally {
       await connection.close();
       await host.close();

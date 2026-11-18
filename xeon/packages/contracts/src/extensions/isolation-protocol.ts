@@ -71,6 +71,7 @@ export const PLUGIN_ENGINE_CALLS = [
   "reportChanges",
   "updateState",
   "awaitUser",
+  "runScript",
 ] as const;
 export type PluginEngineCallName = (typeof PLUGIN_ENGINE_CALLS)[number];
 

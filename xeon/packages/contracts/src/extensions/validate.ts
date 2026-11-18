@@ -84,6 +84,10 @@ export type ManifestIssueCode =
   | "method_duplicate"
   | "tool_duplicate"
   | "command_duplicate"
+  /** `scripts` 이름이 둘이다(설계 B [제안]). 거부다 */
+  | "script_duplicate"
+  /** `scripts`의 `file`이 빈 값이거나 확장 루트 밖을 가리킨다(설계 B [제안]). 거부다 */
+  | "script_path_invalid"
   | "composition_invalid"
   // validateComposition
   | "composition_duplicate"
@@ -775,6 +779,7 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
 
   issues.push(...checkPluginList(manifest));
   issues.push(...checkDeclaredNames(manifest));
+  issues.push(...checkScripts(manifest));
   pluginDeclsOf(manifest).forEach((plugin, pluginIndex) => {
     issues.push(...checkPluginHooks(manifest, plugin, `/plugins/${pluginIndex}`));
   });
@@ -1121,6 +1126,48 @@ function checkDeclaredNames(manifest: ExtensionManifest): readonly ManifestIssue
       ),
     );
   }
+  return issues;
+}
+
+/**
+ * 스크립트 `file`이 확장 루트 안의 상대 경로인가(설계 B [제안], F.extensions.spec §4.7). 빈 값, 절대 경로(`/`, 드라이브 문자),
+ * 백슬래시, NUL, `..` 마디는 밖이다. 심볼릭 링크로 밖을 가리키는 것은 실행기가 실제 위치로 따로 본다(`script_outside_tree`)
+ */
+export function isScriptFileValid(file: string): boolean {
+  if (file.length === 0 || file.includes("\0") || file.includes("\\")) return false;
+  if (file.startsWith("/") || /^[A-Za-z]:/.test(file)) return false;
+  return file.split("/").every((segment) => segment !== "..");
+}
+
+/**
+ * `scripts` 선언 검사(설계 B [제안]): 이름이 같은 것이 둘이면 `script_duplicate`(나중 것), `file`이 `isScriptFileValid`에 걸리면
+ * `script_path_invalid`. 스키마를 통과한 뒤에만 돈다. `entry`가 없어도 오류가 아니다(부를 코드가 없으면 실행되지 않는다)
+ */
+function checkScripts(manifest: ExtensionManifest): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const scripts = manifest.scripts ?? [];
+  for (const { index, id } of duplicatesIn(scripts.map((script) => script.name))) {
+    issues.push(
+      issue(
+        "error",
+        "script_duplicate",
+        `/scripts/${index}/name`,
+        `script name "${id}" is declared twice`,
+      ),
+    );
+  }
+  scripts.forEach((script, index) => {
+    if (!isScriptFileValid(script.file)) {
+      issues.push(
+        issue(
+          "error",
+          "script_path_invalid",
+          `/scripts/${index}/file`,
+          'script file must be a relative path inside the extension root (no absolute path, no "..", no backslash, no NUL)',
+        ),
+      );
+    }
+  });
   return issues;
 }
 

@@ -71,7 +71,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ### 3.1 진입점과 import
 
 ```text
-@fresnel/group-sdk           defineGroup, validateGroupDef, groupManifest, isGroupModule, GroupDef, GroupApi, GroupModule,
+@fresnel/group-sdk           defineGroup, validateGroupDef, groupManifest, isGroupModule, GroupDef, GroupApi, GroupModule, RunScriptOptions,
                           DelegateSpec, DelegateToolPolicy, DelegateLimits, DelegateFork, DelegateReceipt,
                           DelegateResult, GroupService, GroupServiceName,
                           GroupStatus, 명령·상태줄 함수, GroupMetrics, PromotionReport, 설정 정의
@@ -184,6 +184,13 @@ export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> 
   registerMethod(verb: string, def: ExtMethodResourceDef): void;
   /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. Registration이 꺼지면 해제된다 */
   registerProvider(name: string, config: ProviderResourceDef): void;
+  /** 매니페스트 `scripts`의 이 플러그인 폴더 스크립트를 부른다(F.extensions.spec §3.1.4). 거절과 기동 실패는 `error` 값이다. 엔진 안 등록은 `sandbox_unavailable`을 준다 */
+  runScript(name: string, options?: RunScriptOptions): Promise<Result<ScriptRunResult, ScriptRunFailure>>;
+}
+
+/** `g.runScript`의 옵션. 생략한 `stdin`은 빈 문자열이다(상한 256 KiB) */
+export interface RunScriptOptions {
+  readonly stdin?: string;
 }
 
 export interface GroupModule {
@@ -208,6 +215,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.fresnel-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
 - 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8, §4.12)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 네 연산을 `GroupApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
+- 스크립트 실행 [제안]: `runScript(name, options?)`는 격리 자식의 대리 `g`(ext-host `ChildScriptApi`)가 가진 같은 이름 연산을 그대로 부른다. 그 연산은 `engine.call` 메서드 `runScript`이고 결과는 `Result<ScriptRunResult, ScriptRunFailure>`(F.extensions.spec §3.1.4)다. 거절과 기동 실패는 던지지 않고 `error` 값이다. 표준 입력 상한 초과와 이름 문법 위반은 엔진 호출 오류(`invalid_params`)라서 값이 아니고 약속이 거부된다(X.loading-trust.spec §3.8). 엔진 안(내장) 등록에는 실행기가 없으므로 `wrap`이 이름과 크기를 보지 않고 `{ ok: false, error: { kind: "sandbox_unavailable", reason: "in_engine_registration" } }`를 준다 [근거: packages/group-sdk/src/wrap.ts `runScriptOf`, 2026-11-18]. 이 시그니처는 group-sdk이 F의 `Result`와 `ScriptRunResult`·`ScriptRunFailure`를 재사용해 적는다. 새 의존은 없다.
 - `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 포트 `GroupSettingsSourceKey`(서비스 이름 `fresnel.settings`, 조립 루트가 설정 서비스에 연결하는 자리)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 시크릿 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).
 - 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `RegistrationApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `RegistrationApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
@@ -1180,7 +1188,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `defineGroup`, `GroupDef`, `GroupApi`(`registerTool`, `registerCommand`, `registerMethod`, `registerProvider` 포함), `GroupModule`, `validateGroupDef`, `groupManifest`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`(예약 이름 정본) | L3.helm.spec, L3.learning.spec, L3.slots.spec 템플릿, L3.readme §4 |
+| `defineGroup`, `GroupDef`, `GroupApi`(`registerTool`, `registerCommand`, `registerMethod`, `registerProvider`, `runScript` 포함), `RunScriptOptions`, `GroupModule`, `validateGroupDef`, `groupManifest`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`(예약 이름 정본) | L3.helm.spec, L3.learning.spec, L3.slots.spec 템플릿, L3.readme §4 |
 | `checkGroupName`, `GroupNameError`(R2 이름 검사, 순수 함수) | L3.slots.spec §3.3.4, `L4.cli.spec`(DR-14로 같은 규칙을 따로 구현) |
 | `TemplateKindSchema`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `TemplateKind`, `TemplateIndex` | L3.slots.spec §3.3.3(`templates/index.json`), `L4.cli.spec` |
 | `DelegateSpec`, `DelegateReceipt`, `DelegateResult`, `DelegateError`, `DelegateReport`, `DelegateToolPolicy`, `DelegateLimits`, `DelegateFork` | L3.learning.spec, L3.helm.spec, L1.agents.spec(`DelegateRequest` 대응) |

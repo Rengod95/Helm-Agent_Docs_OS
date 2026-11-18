@@ -35,12 +35,17 @@ import {
   RecordSubjectSchema,
   type EngineCallParams,
   isErrorDetailWithinLimit,
+  SCRIPT_LIMITS,
+  SCRIPT_NAME_PATTERN,
   type PluginEngineCallName,
   type PluginHostError,
   type PluginHostErrorOrigin,
+  type PluginScriptPort,
   type RecordQuery,
   type RegistrationApi,
   type ReportedFileChange,
+  type ScriptRunFailure,
+  type ScriptRunResult,
   type ToolChangeReport,
 } from "@fresnel/contracts/extensions";
 import { stateAs } from "../erase.ts";
@@ -79,6 +84,7 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("reportChanges"),
     Type.Literal("updateState"),
     Type.Literal("awaitUser"),
+    Type.Literal("runScript"),
   ]),
   registration: Type.String({ minLength: 1 }),
   requestId: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
@@ -163,6 +169,15 @@ const RequestEffectSchema = Type.Object({
   key: Type.String({ minLength: 1, maxLength: EFFECT_KEY_MAX }),
 });
 
+/**
+ * `runScript`의 params(설계 B). 이름은 매니페스트 `scripts`의 이름 문법이다. 표준 입력은 없으면 빈 문자열이고
+ * 상한(`SCRIPT_LIMITS.stdinBytes`)은 바이트로 본다(라우터가 본다)
+ */
+const RunScriptSchema = Type.Object({
+  name: Type.String({ pattern: SCRIPT_NAME_PATTERN, maxLength: 32 }),
+  stdin: Type.Optional(Type.String()),
+});
+
 /** `engine.call`의 params를 검증한다. 맞지 않으면 호출하는 쪽이 `invalid_params`로 답한다 */
 export function parseEngineCallParams(value: unknown): Result<EngineCallParams, ParseError> {
   return parse(EngineCallParamsSchema, value);
@@ -185,6 +200,11 @@ export interface EngineCallRouterDeps {
    * 대리 등록이 요청이 끝날 때 남은 만큼 시간 예산 시계를 푼다(끝 신호 없이 죽은 자식의 대기가 시계를 영원히 멈추지 않게)
    */
   readonly waitsOf?: (requestId: number | null) => OpenWaits | undefined;
+  /**
+   * 스크립트 실행기(`runScript`, 설계 B). 없으면 스크립트 호출은 `sandbox_unavailable` 값으로 답한다(격리 없이 띄우지 않는다).
+   * 확장마다 `createScriptRunner`로 만들어 준다
+   */
+  readonly scripts?: PluginScriptPort;
 }
 
 /** 요청 하나의 열린 사용자 대기 수. 라우터가 셈하고 대리 등록이 읽는다 */
@@ -200,6 +220,7 @@ interface RouteContext {
   readonly changes: ToolChangeReport | undefined;
   readonly ambient: Ambient | undefined;
   readonly waits: OpenWaits | undefined;
+  readonly scripts: PluginScriptPort | undefined;
 }
 
 /** `engine.call` 하나를 처리한다. 값은 응답의 `result`이고 오류는 응답의 `error`다 */
@@ -457,10 +478,34 @@ async function route(
       }
       return ok(null);
     }
+    case "runScript": {
+      const parsed = parse(RunScriptSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      const { name } = parsed.value;
+      const stdin = parsed.value.stdin ?? "";
+      if (new TextEncoder().encode(stdin).byteLength > SCRIPT_LIMITS.stdinBytes) {
+        return err({
+          kind: "invalid_params",
+          message: `stdin is over ${SCRIPT_LIMITS.stdinBytes} bytes`,
+        });
+      }
+      // 답은 `Result<ScriptRunResult, ScriptRunFailure>`의 JSON이다. 거절과 기동 실패는 호출하는 쪽에 값으로 간다
+      const outcome: Result<ScriptRunResult, ScriptRunFailure> =
+        context.scripts === undefined
+          ? SCRIPTS_NOT_INJECTED
+          : await context.scripts.run({ registration: g.id, name, stdin, replay });
+      return jsonReply(outcome, "the script result");
+    }
     default:
       return assertNever(method, "PluginEngineCallName");
   }
 }
+
+/** 실행기가 주입되지 않은 조립의 답. 띄우지 않고 닫힌 실패(`sandbox_unavailable`)로 준다 */
+const SCRIPTS_NOT_INJECTED: Result<ScriptRunResult, ScriptRunFailure> = err({
+  kind: "sandbox_unavailable",
+  reason: "script_port_missing",
+});
 
 /** 엔진의 실제 등록 API로 `engine.call`을 옮기는 함수를 만든다. 호출마다 등록과 문맥을 조회한다 */
 export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRouter {
@@ -476,6 +521,7 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
       changes: deps.changesOf?.(params.requestId),
       ambient: amb,
       waits: deps.waitsOf?.(params.requestId),
+      scripts: deps.scripts,
     };
     const routed = await attemptAsync(() =>
       amb === undefined

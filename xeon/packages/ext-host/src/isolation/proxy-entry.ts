@@ -40,6 +40,7 @@ import {
   type IsolationSpawnSpec,
   type PluginHostRequestName,
   type PluginRegistrationDecl,
+  type PluginScriptPort,
   type RecordKind,
   type RegistrationApi,
   type RegistrationDef,
@@ -165,6 +166,8 @@ export interface IsolatedEntryDeps {
   readonly onRestartLimit?: (info: RestartLimitInfo) => void;
   /** 세션(감독)을 열 때마다 한 번 부른다. 로더는 이것으로 끊을 감독을 안다 */
   readonly onSupervisor?: (supervisor: PluginHostSupervisor) => void;
+  /** 이 확장의 스크립트 실행기(`runScript`). 없으면 스크립트 호출은 `sandbox_unavailable`로 답한다 */
+  readonly scripts?: PluginScriptPort;
 }
 
 /** 자식이 보낸 도구 선언(`PluginToolDecl.def`)의 모양. `execute`는 빠져 있다 */
@@ -487,6 +490,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ambientOf: (requestId) => (requestId === null ? undefined : ambients.get(requestId)),
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
       waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
+      ...(deps.scripts === undefined ? {} : { scripts: deps.scripts }),
     });
     // 흐름 제어는 감독이 보내는 알림을 쓰고, 감독의 확인과 종료를 받는다. 두 값이 서로를 가리키므로 흐름 제어는 감독 뒤에 만든다
     const supervisor = createPluginHostSupervisor({

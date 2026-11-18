@@ -68,6 +68,7 @@ import type {
   TurnPort,
   UsagePort,
   ActivityPort,
+  FileRewindPort,
 } from "../../src/types.ts";
 
 // 아래 층 패키지 없이 호스트의 연결·처리기·전송을 시험하려는 가짜 엔진. 이벤트 로그는 메모리이고 커밋 알림은 커밋 직후 같은 턴에서
@@ -139,6 +140,8 @@ export interface FakeEngineOptions {
   readonly extUi?: ExtUiVersionPort;
   /** 확장 메서드 포트. 기본은 모든 호출이 not_found인 빈 포트 */
   readonly extMethod?: ExtMethodPort;
+  /** 파일 되감기 포트. 생략하면 없다(처리기는 -32601이고 `host.hello`의 features에서 빠진다) */
+  readonly fileRewind?: FileRewindPort;
   /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
   readonly overrides?: {
     readonly threads?: Partial<ThreadPort>;
@@ -418,6 +421,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   });
 
   const ports: EnginePorts = {
+    ...(options.fileRewind === undefined ? {} : { fileRewind: options.fileRewind }),
     threads: {
       create(input) {
         const threadId = ids.next("thr");
@@ -458,6 +462,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
+      openTurnOf: () => ok(undefined),
+      closed: () => ok(false),
+      leafOf: () => Promise.reject(new Error("leafOf is not part of the fake")),
+      restoreLeaf: () => Promise.reject(new Error("restoreLeaf is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
       read: () => Promise.reject(new Error("read is not part of the fake")),
       rename(threadId, title) {

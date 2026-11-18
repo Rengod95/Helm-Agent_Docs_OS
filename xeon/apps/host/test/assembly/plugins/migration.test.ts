@@ -17,6 +17,7 @@ import {
   type MigrationProfilePort,
 } from "../../../src/assembly/plugins/migration.ts";
 import { createExistenceFs } from "../../../src/assembly/plugins/migration-fs.ts";
+import { SCAN_DEADLINE_MS } from "../../../src/assembly/plugins/migration-scan-child.ts";
 import { createMigrationSubmitter } from "../../../src/assembly/plugins/migration-submit.ts";
 import type { MigrationPort } from "../../../src/handlers/m5/migration.ts";
 import {
@@ -30,9 +31,12 @@ import {
   type PluginRig,
 } from "./intake-rig.ts";
 import { writeFiles } from "./support.ts";
+import { fakeScanSource, type FakeScanSource } from "./migration-scan-rig.ts";
 
 // 가져오기 서비스(migration.md §6, §7.4, §7.5)를 임시 폴더의 고정 자료로 시험한다. 수용 기준 4~6, 12, 13, 14, 19를 맡는다.
 // 실제 홈 폴더는 읽지 않는다: 홈 대신 임시 폴더 `home/`을 넘긴다. 자료의 시크릿 값은 모두 가짜 문자열이다.
+// 훑기는 자식 프로세스에서 돈다. 여기서는 띄우기 대역(`migration-scan-rig.ts`)이 실제 자식 본체를 같은 프로세스에서 돌린다.
+// 자식을 실제 샌드박스에 넣어 띄우는 시험은 `test/int/migration-scan-isolated.int.test.ts`가 본다.
 
 afterEach(() => {
   removeRigs();
@@ -202,12 +206,16 @@ function scanRootsOf(fixture: Fixture): readonly MigrationScanRoot[] {
   ];
 }
 
-/** 서비스 한 세트: 제출 포트, 프로필 대역, 로그. 감지 포트는 시험이 바꿔 낄 수 있다 */
+/** 서비스 한 세트: 제출 포트, 프로필 대역, 로그, 훑기 띄우기 대역. 감지 포트는 시험이 바꿔 낄 수 있다 */
 function serviceOf(
   rig: PluginRig,
   fixture: Fixture,
   profiles: ReturnType<typeof profilesOf>,
-  options: { readonly log?: Logger; readonly detectFs?: () => ScanFs } = {},
+  options: {
+    readonly log?: Logger;
+    readonly detectFs?: () => ScanFs;
+    readonly scan?: FakeScanSource;
+  } = {},
 ): MigrationPort {
   const log = options.log ?? SILENT;
   const submitter = createMigrationSubmitter({
@@ -223,6 +231,7 @@ function serviceOf(
     profiles: profiles.port,
     clock: CLOCK,
     log,
+    scanSource: (options.scan ?? fakeScanSource()).source,
     ...(options.detectFs === undefined ? {} : { detectFs: options.detectFs }),
   });
 }
@@ -676,7 +685,8 @@ test("a report is kept under its id, and an unknown id answers notFound", async 
 });
 
 test("the migration files import no process or network module, and the reader has no write call", async () => {
-  // 소스 검사(§7.4, 수용 기준 4·6): 가져오기 파일은 프로세스나 네트워크 모듈을 가져오지 않는다
+  // 소스 검사(§7.4, 수용 기준 4·6): 가져오기 파일은 프로세스나 네트워크 모듈을 가져오지 않는다.
+  // 띄우기 호출(`spawn`)은 자식 띄우기 파일 `migration-scan-child.ts` 한 곳에만 있다(그 파일은 아래에서 원본 파일 읽기가 없는지 본다)
   const files = [
     "src/assembly/plugins/migration.ts",
     "src/assembly/plugins/migration-fs.ts",
@@ -687,6 +697,15 @@ test("the migration files import no process or network module, and the reader ha
   const forbidden = /child_process|node:net|node:http|node:https|Bun\.spawn|\bspawn\(|\bexec\(/;
   for (const file of files) {
     expect(forbidden.test(readFileSync(join(root, file), "utf8"))).toBe(false);
+  }
+  // 엔진 쪽은 원본 파일 내용을 읽지 않는다. 훑기는 자식이 하고, 엔진은 자식의 응답 줄만 검증해서 받는다
+  const engineSide = [
+    "src/assembly/plugins/migration.ts",
+    "src/assembly/plugins/migration-scan-child.ts",
+  ];
+  const contentReaders = /readFile|readdir|createScanFs|scanRoots|from "node:fs"/;
+  for (const file of engineSide) {
+    expect(contentReaders.test(readFileSync(join(root, file), "utf8"))).toBe(false);
   }
   const reader = readFileSync(join(root, "src/assembly/plugins/migration-fs.ts"), "utf8");
   for (const write of [
@@ -717,4 +736,59 @@ test("onChanged announces each applied change, and a refused call announces noth
   expect(changes).toEqual(["dismiss"]);
   expect(errorOf(await service.dismiss("relative", "x"))).toEqual({ kind: "root_invalid" });
   expect(changes).toEqual(["dismiss"]);
+});
+
+test("a scan the sandbox cannot run is refused as scan_failed/unavailable: no child, no progress, nothing announced", async () => {
+  const rig = pluginRigOf();
+  const fixture = fixtureOf(rig);
+  const scan = fakeScanSource({ sandbox: "unavailable" });
+  const service = serviceOf(rig, fixture, profilesOf([]), { scan });
+  const changes: MigrationChangedParams[] = [];
+  service.onChanged((change) => changes.push(change));
+  expect(errorOf(await service.scan(scanRootsOf(fixture)))).toEqual({
+    kind: "scan_failed",
+    reason: "unavailable",
+  });
+  expect(scan.spawns).toEqual([]);
+  expect(changes).toEqual([]);
+});
+
+test("a child that outlives the deadline is killed and refused as scan_failed/timeout: its progress is not announced and no result is kept", async () => {
+  const rig = pluginRigOf();
+  const fixture = fixtureOf(rig);
+  const started = Promise.withResolvers<void>();
+  const scan = fakeScanSource({
+    behavior: () => {
+      started.resolve();
+    },
+  });
+  const service = serviceOf(rig, fixture, profilesOf([]), { scan });
+  const progress: MigrationProgressParams[] = [];
+  service.onProgress((item) => progress.push(item));
+  const running = service.scan(scanRootsOf(fixture));
+  await started.promise;
+  scan.scheduler.advance(SCAN_DEADLINE_MS);
+  expect(errorOf(await running)).toEqual({ kind: "scan_failed", reason: "timeout" });
+  expect(scan.spawns.map((record) => record.kills)).toEqual([["SIGKILL"]]);
+  expect(progress).toEqual([]);
+});
+
+test("a child that reports the item limit is refused as scanLimit, and the partial result is not kept", async () => {
+  const rig = pluginRigOf();
+  const fixture = fixtureOf(rig);
+  const scan = fakeScanSource({
+    behavior: (child) => {
+      child.write(
+        `${JSON.stringify({ kind: "ok", limitReached: true, scan: { scanned: [], items: [], diagnostics: [] } })}\n`,
+      );
+      child.exit(0, null);
+    },
+  });
+  const service = serviceOf(rig, fixture, profilesOf([]), { scan });
+  expect(errorOf(await service.scan(scanRootsOf(fixture)))).toEqual({ kind: "scan_limit" });
+  expect(scan.spawns).toHaveLength(1);
+  expect(errorOf(await service.proposal("scan-1", undefined))).toEqual({
+    kind: "not_found",
+    id: "scan-1",
+  });
 });

@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
 import { ExtensionNameSchema } from "./name.ts";
+import { SCRIPT_LIMITS } from "./plugin-script.ts";
 
 // F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
 // 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
@@ -75,6 +76,9 @@ const CardMcpLaunchShape = Type.Object(
   },
   { additionalProperties: false },
 );
+
+/** 승인하면 실행될 명령 한 줄의 이름. MCP stdio 서버와 스크립트 칸이 같은 모양을 쓴다(설계 B [제안]) */
+export type CardLaunch = CardMcpLaunch;
 
 /**
  * 비용 근거의 출처. [로컬 정의] E §3.3(`docs/xeon/review/m5/turn-record-metrics.md`)의 `CostBasis`·`CostFigures`를
@@ -218,6 +222,24 @@ export const PluginSettingDefSchema: TUnsafe<PluginSettingDef> = Type.Unsafe<Plu
   PluginSettingDefShape satisfies SchemaProof<PluginSettingDef, typeof PluginSettingDefShape>,
 );
 
+/**
+ * Inject 칸의 스크립트 한 줄(설계 B [제안]). `launch`는 `command`가 실행기 이름이나 절대 경로, `args`가 상대 `file`을 포함한다.
+ * 환경 변수는 이름만 싣는다. `timeoutMs`는 선언의 값이거나 기본값(`SCRIPT_LIMITS.timeoutDefaultMs`)이다
+ */
+export interface CardScript {
+  readonly name: string;
+  readonly launch: CardLaunch;
+  readonly timeoutMs: number;
+}
+const CardScriptShape = Type.Object(
+  {
+    name: Id,
+    launch: CardMcpLaunchShape,
+    timeoutMs: Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs }),
+  },
+  { additionalProperties: false },
+);
+
 /** Inject 칸의 재료 목록. 항목마다 파일 경로나 이름만 두고 본문은 싣지 않는다 */
 export interface InjectInventory {
   readonly instructions: {
@@ -236,6 +258,8 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];
   readonly replaces: readonly string[];
+  /** 매니페스트 `scripts`의 스크립트 칸(설계 B [제안]). 선택 필드라 `scripts`가 없는 옛 카드도 파싱된다. 검토 카드는 "승인하면 실행될 명령"으로 보인다 */
+  readonly scripts?: readonly CardScript[];
 }
 const InjectInventoryShape = Type.Object(
   {
@@ -269,6 +293,7 @@ const InjectInventoryShape = Type.Object(
     commands: Type.Array(Id, { maxItems: 256 }),
     ui: Type.Array(PluginUiDeclShape, { maxItems: 64 }),
     replaces: Type.Array(Id, { maxItems: 16 }),
+    scripts: Type.Optional(Type.Array(CardScriptShape, { maxItems: 64 })),
   },
   { additionalProperties: false },
 );

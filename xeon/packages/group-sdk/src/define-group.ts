@@ -40,6 +40,7 @@ export type {
   GroupSettingValues,
   GroupStartDriveResult,
   NoSettings,
+  RunScriptOptions,
 } from "./types.ts";
 export type { StateMigrations } from "./state.ts";
 

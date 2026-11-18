@@ -16,6 +16,7 @@ import {
 } from "@fresnel/contracts";
 import {
   isId,
+  type EventId,
   type IdFactory,
   type LocalIdFactory,
   type ThreadId,
@@ -24,12 +25,14 @@ import {
 import type {
   LeaseHolder,
   LeaseToken,
+  RewindId,
   SessionService,
   StoreService,
 } from "@fresnel/contracts/records";
 import type {
   ApprovalService,
   ContextService,
+  FileRewindService,
   LoopService,
   ModelService,
   OsService,
@@ -60,6 +63,7 @@ import type {
   ApprovalPort,
   EventFeedPort,
   EnginePorts,
+  FileRewindPort,
   HostLogPort,
   HostMode,
   LockOutcome,
@@ -77,6 +81,7 @@ import type {
   WithdrawFailure,
 } from "../types.ts";
 import { threadLocked } from "../handlers/owner.ts";
+import { startedRewindOf, undoneConversationOf } from "./file-rewind.ts";
 import { wireErrorOfProject } from "../handlers/m4/project.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
@@ -128,6 +133,8 @@ import {
   createSourceWatch,
   type PluginStore,
 } from "./plugins/index.ts";
+import { processPortOf, sandboxSourceOf } from "./plugin-host.ts";
+import { currentSelf, type SelfRunTarget } from "../self-command.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
@@ -169,6 +176,14 @@ export interface PortsDeps {
   readonly logger: Logger;
   readonly session: SessionService;
   readonly store: StoreService;
+  /**
+   * 파일 되감기 포트. cap-workspace가 `fresnel.file-rewind`로 내놓은 서비스와 되감기 식별자 발급기다. 없으면(원본 저장 포트가
+   * 없는 조립) 파일 되감기 메서드는 `notImplemented`다
+   */
+  readonly fileRewind?: {
+    readonly service: FileRewindService;
+    readonly newRewindId: () => RewindId;
+  };
   readonly loop: LoopService;
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
@@ -179,6 +194,8 @@ export interface PortsDeps {
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
   readonly tools: Pick<ToolService, "meta">;
   readonly ext: ExtHost;
+  /** 훑기 자식을 띄울 때 쓰는 자기 실행 값. 시험이 넣고, 운영은 생략해 이 실행 파일을 쓴다(`plugin-host`와 같다) */
+  readonly migrationSelf?: SelfRunTarget;
   readonly holder: LeaseHolder;
   readonly settings: SettingsEngine;
   readonly secrets: SecretsPort;
@@ -772,7 +789,38 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다
       const reverted = await session.threads.revert(threadId, to, deps.ids.next("evt"));
       if (!reverted.ok) return reverted;
-      return ok({ position: { storeId, seq: reverted.value.headSeq } });
+      return ok({
+        leaf: reverted.value.leaf,
+        position: { storeId, seq: reverted.value.headSeq },
+      });
+    },
+    openTurnOf(threadId) {
+      const open = session.query.openTurn(threadId);
+      if (!open.ok) return open;
+      return ok(open.value?.turnId);
+    },
+    closed(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      return ok(found.value?.status === "closed");
+    },
+    async leafOf(threadId) {
+      // 활성 가지는 루트에서 leaf 순서로 나온다. 마지막 이벤트가 현재 leaf다
+      let leaf: EventId | null = null;
+      for await (const item of session.readBranch(threadId)) {
+        if (!item.ok) return err(item.error);
+        leaf = item.value.id;
+      }
+      return ok(leaf);
+    },
+    async restoreLeaf(threadId, target) {
+      // 되돌리기마다 새 키다. 파일 되돌리기가 대화를 되감기 직전으로 돌릴 때만 부른다(L1.persistence §4.13.2)
+      const moved = await session.threads.moveLeaf(threadId, target, {
+        reason: "restore",
+        requestKey: deps.ids.next("evt"),
+      });
+      if (!moved.ok) return moved;
+      return ok({ position: { storeId, seq: moved.value.headSeq } });
     },
     rename(threadId, title) {
       // 제목마다 새 키다: 같은 키로 다른 제목을 쓰면 key_reused라 호출 한 번이 제목 한 번이다
@@ -1521,9 +1569,28 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     clock: deps.clock,
     log: deps.logger,
+    // 훑기 자식의 띄우기 원천(migration.md §7.4 [제안]). 포트와 샌드박스는 호출 때 찾는다: 조립 순서상 나중에 올라온다
+    scanSource: {
+      process: () => processPortOf(deps.ext),
+      sandbox: sandboxSourceOf(deps.ext),
+      self: deps.migrationSelf ?? currentSelf(),
+      scheduler: deps.scheduler,
+    },
   });
+  // 파일 되감기 포트(M4). 서비스와 발급기는 조립이 주고, 시작 기록 읽기는 이 대화 저장소 세션이 한다
+  const fileRewind: FileRewindPort | undefined =
+    deps.fileRewind === undefined
+      ? undefined
+      : {
+          service: deps.fileRewind.service,
+          newRewindId: deps.fileRewind.newRewindId,
+          startedOf: (threadId, rewindId) => startedRewindOf(session, threadId, rewindId),
+          undoneConversationOf: (threadId, rewindId) =>
+            undoneConversationOf(session, threadId, rewindId),
+        };
   const ports: EnginePorts = {
     threads,
+    ...(fileRewind === undefined ? {} : { fileRewind }),
     turns,
     feed,
     locks,

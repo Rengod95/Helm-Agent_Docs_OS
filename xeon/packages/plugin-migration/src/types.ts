@@ -4,8 +4,16 @@
 /** 원본 하네스. 첫 조각은 셋이다: Claude Code 형식, 공통 AGENTS.md, 공통 Agent Skills */
 export type HarnessId = "claude-code" | "agents-md" | "agent-skills";
 
-/** 중간 표현의 종류(§4.1). 첫 조각이 만드는 것은 instruction, skill, command, agent, mcp, field, blocked다 */
-export type IrKind = "instruction" | "skill" | "command" | "agent" | "mcp" | "field" | "blocked";
+/** 중간 표현의 종류(§4.1). instruction, skill, command, agent, mcp, field, blocked는 조각 1이고 hook은 조각 2다 */
+export type IrKind =
+  | "instruction"
+  | "skill"
+  | "command"
+  | "agent"
+  | "mcp"
+  | "field"
+  | "blocked"
+  | "hook";
 
 export type ItemScope = "user" | "project" | "local" | "managed" | "plugin";
 
@@ -190,7 +198,55 @@ export interface IrBlocked {
   readonly text: string;
 }
 
-export type IrNode = IrInstruction | IrSkill | IrCommand | IrAgent | IrMcp | IrField | IrBlocked;
+/** 플러그인 스크립트의 실행기(매니페스트 `ScriptRunnerSchema`와 같은 고정 목록) */
+export type HookRunner = "sh" | "bash" | "bun" | "node" | "python3";
+
+/**
+ * Hook 핸들러 `command`가 가리키는 스크립트 하나. 바이트는 원본 그대로이고(플러그인 `scripts/`로 복사한다), 시크릿 값이 든 것은
+ * 항목으로 만들지 않는다(`secret_in_script`).
+ */
+export interface IrHookScript {
+  readonly runner: HookRunner;
+  /** 원본 파일 이름(확장자 포함). 복사본의 이름 바탕이다 */
+  readonly fileName: string;
+  /** 표시 경로(홈은 `~`) */
+  readonly path: string;
+  /** 실행기 뒤에 붙는 인자(명령의 스크립트 뒤 토큰). 값에 시크릿이 없다 */
+  readonly args: readonly string[];
+  readonly bytes: Uint8Array;
+}
+
+/**
+ * 설정 `hooks`의 핸들러 하나(`settings.hooks.<이벤트>[i].hooks[j]`). `code`가 있으면 옮기지 못하는 이유 코드이고,
+ * 규칙표가 `not_ported`의 이유 문장을 고른다. 명령 문자열 자체는 싣지 않는다(시크릿이 들어 있을 수 있다).
+ */
+export interface IrHook {
+  readonly kind: "hook";
+  /** 원본 이벤트 이름(`PreToolUse` 등). 알 수 없는 이벤트도 그대로 싣는다 */
+  readonly event: string;
+  /** 매처 원문. 없거나 빈 값이면 undefined */
+  readonly matcher: string | undefined;
+  /** 핸들러 종류 원문(`command`, `http`, `prompt`, `agent`, `mcp_tool`, 그 밖) */
+  readonly handler: string;
+  /** 시간 제한(초) 원문. 없으면 undefined(원본 기본 600초) */
+  readonly timeoutSeconds: number | undefined;
+  /** 옮기지 못하는 키 이름들(`if`, `async` 등). 값은 싣지 않는다 */
+  readonly extraKeys: readonly string[];
+  /** 옮기지 못하는 이유 코드. 없으면 규칙표가 이벤트와 핸들러로 정한다 */
+  readonly code: string | undefined;
+  /** `command` 핸들러가 원본 폴더 안의 스크립트를 가리킬 때만 있다 */
+  readonly script: IrHookScript | undefined;
+}
+
+export type IrNode =
+  | IrInstruction
+  | IrSkill
+  | IrCommand
+  | IrAgent
+  | IrMcp
+  | IrField
+  | IrBlocked
+  | IrHook;
 
 // ── 훑기 결과 ─────────────────────────────────────────────────────────────
 
@@ -304,6 +360,25 @@ export interface UserConfigDraft {
   readonly secretName: string;
 }
 
+/** Hook 플러그인의 실행 선언. `emit`이 매니페스트 `entry`, `scripts`, `plugins[0]`에 옮긴다 */
+export interface PluginRuntimeDecl {
+  /** 확장 루트 기준 진입 파일(`./plugin.js`) */
+  readonly entry: string;
+  /** `g.runScript(name)`으로 부를 스크립트 선언들 */
+  readonly scripts: readonly {
+    readonly name: string;
+    readonly runner: HookRunner;
+    /** 플러그인 폴더 기준 상대 경로(`scripts/<파일>`) */
+    readonly file: string;
+    readonly args?: readonly string[];
+    readonly timeoutMs: number;
+  }[];
+  /** `g.on`으로 거는 지점 이름(정렬된 목록) */
+  readonly hooks: readonly string[];
+  /** 지점마다 낼 수 있는 결정 상한(위치가 허용하는 값) */
+  readonly hookDecides: readonly { readonly hook: string; readonly decides: readonly string[] }[];
+}
+
 export interface PlannedPlugin {
   readonly name: string;
   /** 한 문장. 없으면 검토에서 승인할 수 없다(M5c §4.7.6) */
@@ -315,6 +390,8 @@ export interface PlannedPlugin {
   /** 결정적으로 못 만들어 빌더에게 넘길 itemId. 첫 조각은 항상 빈 목록이다 */
   readonly pendingBuilder: readonly string[];
   readonly userConfig: readonly UserConfigDraft[];
+  /** Hook 플러그인이면 있다. 없으면 매니페스트에 실행 선언이 없다 */
+  readonly runtime?: PluginRuntimeDecl;
 }
 
 export interface ProfileProposal {

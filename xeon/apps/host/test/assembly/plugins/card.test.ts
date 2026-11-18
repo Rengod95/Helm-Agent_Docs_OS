@@ -1,11 +1,17 @@
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { HOOKS, PluginCardSchema, type PluginCard } from "@fresnel/contracts/extensions";
+import {
+  HOOKS,
+  PluginCardSchema,
+  type ExtensionManifest,
+  type PluginCard,
+} from "@fresnel/contracts/extensions";
 import {
   buildPluginCard,
   launchOf,
   type BuildCardInput,
+  type CardSubject,
 } from "../../../src/assembly/plugins/card.ts";
 import {
   readPluginFolder,
@@ -313,4 +319,93 @@ test("a card stored before the launch field still parses against the schema", ()
     },
   };
   expect(parse(PluginCardSchema, legacy).ok).toBe(true);
+});
+
+const EMPTY_MATERIALS: CardSubject["materials"] = {
+  instructions: [],
+  skills: [],
+  mcpServers: [],
+  agents: [],
+  commands: [],
+};
+
+const SCRIPTS_DECLARED = {
+  schemaVersion: 2,
+  name: "script-kit",
+  version: "1.0.0",
+  scripts: [
+    {
+      name: "lint",
+      runner: "sh",
+      file: "scripts/lint.sh",
+      args: ["--strict", "src"],
+      envNames: ["ZETA", "ALPHA", "ZETA"],
+    },
+    { name: "report", runner: "python3", file: "scripts/report.py", timeoutMs: 5000 },
+  ],
+};
+
+test("a declared script's card line is its runner, then the relative file and args, sorted unique env names, no folder, and the time limit", () => {
+  const card = cardOf(
+    folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
+  );
+  expect(card.does.inject?.scripts).toEqual([
+    {
+      name: "lint",
+      launch: {
+        command: "sh",
+        args: ["scripts/lint.sh", "--strict", "src"],
+        envNames: ["ALPHA", "ZETA"],
+        cwd: null,
+      },
+      timeoutMs: 10000,
+    },
+    {
+      name: "report",
+      launch: { command: "python3", args: ["scripts/report.py"], envNames: [], cwd: null },
+      timeoutMs: 5000,
+    },
+  ]);
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+});
+
+test("a plugin with scripts and no entry shows the script line but marks no code, so no code calls the script", () => {
+  // 승인하면 실행될 명령 줄은 보이지만 `entry`가 없어 `runs.code`는 거짓이다. AGE-14 한 줄은 코드가 있을 때만 뜬다
+  const card = cardOf(
+    folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
+  );
+  expect(card.runs).toEqual({ code: false, isolated: null });
+  expect(card.does.inject?.scripts?.map((script) => script.name)).toEqual(["lint", "report"]);
+});
+
+test("a script line longer than the launch limits is cut with a mark, and a long argument list keeps a count", () => {
+  // 읽기 단계가 거르는 길이를 일부러 넘긴 선언으로 상한만 본다. 자른 값도 카드 스키마를 지킨다
+  const manifest: ExtensionManifest = {
+    schemaVersion: 2,
+    name: "long-kit",
+    version: "1.0.0",
+    scripts: [
+      {
+        name: "long",
+        runner: "sh",
+        file: "s".repeat(2000),
+        args: Array.from({ length: 130 }, (_, index) => `a${index}`),
+        envNames: ["N".repeat(200)],
+      },
+    ],
+  };
+  const card = buildPluginCard({
+    folder: { name: "long-kit", manifest, materials: EMPTY_MATERIALS },
+    origin: { kind: "user" },
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+  });
+  const script = card.does.inject?.scripts?.[0];
+  expect(script?.launch.args.length).toBe(128);
+  expect(script?.launch.args[0]).toBe(`${"s".repeat(1023)}…`);
+  expect(script?.launch.args.at(-1)).toBe("…(+4)");
+  expect(script?.launch.envNames).toEqual([`${"N".repeat(127)}…`]);
+  expect(script?.timeoutMs).toBe(10000);
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
 });

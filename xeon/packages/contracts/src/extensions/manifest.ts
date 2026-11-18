@@ -3,6 +3,7 @@ import {
   type Static,
   type TArray,
   type TBoolean,
+  type TInteger,
   type TLiteral,
   type TObject,
   type TOptional,
@@ -25,6 +26,7 @@ import { PluginIdSchema } from "./registration-id.ts";
 import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
 import { UiDeclSchema, type UiDecl } from "./ui.ts";
+import { SCRIPT_LIMITS } from "./plugin-script.ts";
 
 export { EXTENSION_NAME_PATTERN, ExtensionNameSchema, type ExtensionName } from "./name.ts";
 
@@ -165,6 +167,54 @@ export const ManifestCommandDeclSchema: TObject<{
 );
 export type ManifestCommandDecl = Static<typeof ManifestCommandDeclSchema>;
 
+/** 스크립트 이름 형식(설계 B [제안]). `g.runScript(name)`의 이름과 같은 문법이다 */
+export const SCRIPT_NAME_PATTERN: string = "^[a-z][a-z0-9-]{0,31}$";
+/** 환경 변수 이름 형식(설계 B [제안]). 값은 플랫폼의 허용 목록 환경에서만 온다 */
+export const SCRIPT_ENV_NAME_PATTERN: string = "^[A-Za-z_][A-Za-z0-9_]{0,127}$";
+
+/** 실행기 고정 목록(설계 B [제안]). 엔진이 PATH에서 절대 경로로 풀어 띄운다. 목록 밖은 스키마 오류다 */
+export const ScriptRunnerSchema: TUnion<
+  [TLiteral<"sh">, TLiteral<"bash">, TLiteral<"bun">, TLiteral<"node">, TLiteral<"python3">]
+> = Type.Union([
+  Type.Literal("sh"),
+  Type.Literal("bash"),
+  Type.Literal("bun"),
+  Type.Literal("node"),
+  Type.Literal("python3"),
+]);
+export type ScriptRunner = Static<typeof ScriptRunnerSchema>;
+
+/**
+ * 스크립트 선언 하나(`scripts`, 설계 B [제안]). `file`은 확장 루트 기준 상대 경로이고 위치 검사는 `validateManifest`가 한다
+ * (`script_path_invalid`). 엔진은 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`로 띄운다. 부르는 것은 코드의 `g.runScript(name)`이다
+ */
+export const ManifestScriptDeclSchema: TObject<{
+  name: TString;
+  runner: typeof ScriptRunnerSchema;
+  file: TString;
+  args: TOptional<TArray<TString>>;
+  timeoutMs: TOptional<TInteger>;
+  envNames: TOptional<TArray<TString>>;
+}> = Type.Object(
+  {
+    name: Type.String({ pattern: SCRIPT_NAME_PATTERN, maxLength: 32 }),
+    runner: ScriptRunnerSchema,
+    file: Type.String({ maxLength: 512 }),
+    /** 실행기 뒤에 붙는 인자. 상한 16개, 각 512자 */
+    args: Type.Optional(Type.Array(Type.String({ maxLength: 512 }), { maxItems: 16 })),
+    /** 기한(ms). 생략하면 `SCRIPT_LIMITS.timeoutDefaultMs`, 상한은 `SCRIPT_LIMITS.timeoutMaxMs` */
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs })),
+    /** 값을 넘겨 받을 환경 변수 이름. 개수 상한 16. 시크릿 거부 패턴에 걸리는 이름은 실행기가 뺀다 */
+    envNames: Type.Optional(
+      Type.Array(Type.String({ pattern: SCRIPT_ENV_NAME_PATTERN, maxLength: 128 }), {
+        maxItems: 16,
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type ManifestScriptDecl = Static<typeof ManifestScriptDeclSchema>;
+
 /** 확장이 담는 플러그인 하나. 이 선언 하나가 Registration 하나가 된다 */
 export const PluginDeclSchema: TObject<{
   id: TOptional<typeof PluginIdSchema>;
@@ -273,6 +323,7 @@ export const ExtensionManifestSchema: TObject<{
   purpose: TOptional<TString>;
   tools: TOptional<TArray<typeof ManifestToolDeclSchema>>;
   commands: TOptional<TArray<typeof ManifestCommandDeclSchema>>;
+  scripts: TOptional<TArray<typeof ManifestScriptDeclSchema>>;
   entry: TOptional<TString>;
   plugins: TOptional<TArray<typeof PluginDeclSchema>>;
   group: TOptional<typeof GroupDeclSchema>;
@@ -305,6 +356,11 @@ export const ExtensionManifestSchema: TObject<{
     tools: Type.Optional(Type.Array(ManifestToolDeclSchema, { maxItems: 64 })),
     /** 명령의 정적 선언(M5c-1). 이름은 검사에서 중복을 막는다 */
     commands: Type.Optional(Type.Array(ManifestCommandDeclSchema, { maxItems: 64 })),
+    /**
+     * 스크립트의 정적 선언(설계 B [제안]). 엔진이 플러그인 폴더 안의 파일을 실행기로 띄운다. 이름은 검사에서 중복을 막는다.
+     * `entry`가 없으면 부를 코드가 없으므로 실행되지 않는다(오류가 아니다)
+     */
+    scripts: Type.Optional(Type.Array(ManifestScriptDeclSchema, { maxItems: 64 })),
     /**
      * 확장 루트 기준 상대 경로. 예: "./src/index.ts". 엔트리 모듈 하나가 모든 플러그인을 등록한다.
      * 생략할 수 있다(M5c-1). 생략하면 코드 플러그인이 아니고 폴더 신호에서 추론한다(§4.5.4)

@@ -84,14 +84,19 @@ test("an unknown status, a bad difference kind, or a missing rulesVersion is rej
   expect(parseRuleset(withoutVersion).ok).toBe(false);
 });
 
-test("the bundled rulesets are the three harnesses, all at the same reading date", () => {
+test("the bundled rulesets are the three harnesses; each keeps the reading date of its last re-read", () => {
   expect(BUNDLED_RULESETS.map((ruleset) => ruleset.harness)).toEqual([
     "claude-code",
     "agent-skills",
     "agents-md",
   ]);
+  // Claude Code는 Hook 조각(2026-11-18)에서 다시 읽었다. 나머지는 이 조각에서 다시 읽지 않았으므로 옛 날짜를 그대로 둔다
+  expect(BUNDLED_RULESETS.map((ruleset) => ruleset.rulesVersion)).toEqual([
+    "2026-11-18",
+    "2026-11-17",
+    "2026-11-17",
+  ]);
   for (const ruleset of BUNDLED_RULESETS) {
-    expect(ruleset.rulesVersion).toBe("2026-11-17");
     expect(ruleset.docs.length).toBeGreaterThan(0);
   }
 });

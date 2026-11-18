@@ -26,6 +26,7 @@ async function open(host: FakeHost) {
 }
 
 const POSITION = { storeId: FAKE_STORE_ID, seq: 3 };
+const LEAF = fixedIdFactory(900).next("evt");
 const ids = fixedIdFactory(900);
 const OTHER_THREAD = ids.next("thr");
 const RUNNING_TURN = ids.next("trn");
@@ -172,7 +173,7 @@ test("thread.revert needs the write ownership and does not take it implicitly (H
       threads: {
         revert: (threadId, to) => {
           reverted.push(`${threadId}:${to}`);
-          return Promise.resolve(ok({ position: POSITION }));
+          return Promise.resolve(ok({ position: POSITION, leaf: LEAF }));
         },
       },
     },
@@ -202,7 +203,9 @@ test("thread.revert while a turn runs is turn.busy and a bad target is thread.in
       threads: {
         revert: () => {
           const next = outcomes.shift();
-          return Promise.resolve(next === undefined ? ok({ position: POSITION }) : err(next));
+          return Promise.resolve(
+            next === undefined ? ok({ position: POSITION, leaf: LEAF }) : err(next),
+          );
         },
       },
     },

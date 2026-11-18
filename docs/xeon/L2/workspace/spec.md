@@ -31,7 +31,7 @@ binds: [xeon/packages/cap-workspace/**]
 | `ExecutionEnv` 인터페이스와 구현(pi durable env 포크), 출력 spill, 프로세스 그룹 종료 | `L0.exec.spec` |
 | OS 샌드박스 정책, 쓰기 허용 경로의 커널 수준 강제, 보호 경로 목록 | `L0.sandbox.spec` |
 | 권한 모드, 권한 규칙, 승인 프로토콜, 도구 실행 파이프라인, 결과 경계화 | `L1.tools.spec` |
-| 되감기와 파일 복원, 체크포인트 | `L1.persistence.spec` |
+| 대화의 되감기(leaf 이동)와 분기, 단계 체크포인트 | `L1.persistence.spec`. 파일 되감기는 이 도메인이 한다(§4.8) |
 | 시크릿 주입과 출력 마스킹 | `L0.secrets.spec`, `L1.tools.spec` |
 | blob 저장 구현(`sys_blobs`, 파일 배치) | `L0.store.spec` |
 | 첨부 입력 경로(붙여넣기, URL 첨부, 사용자 입력과의 결합) | `L2.dialog.spec` |
@@ -471,7 +471,7 @@ export interface WorkspaceService {
 
 ### 3.6 이벤트와 레코드
 
-- 이벤트 접두사 `workspace.`는 예약만 한다. 이 문서는 이벤트 type을 정의하지 않는다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
+- 이벤트 접두사 `workspace.`는 파일 되감기 이벤트 다섯 종(`workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten`)이 쓴다. 정의는 `F.records.spec` §3.3.3이다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
 - 테이블 접두사 `cap_workspace_`도 예약만 한다. 테이블을 만들지 않는다.
 - 파일 변경 기록은 도구 결과에 싣는다. `write`, `edit`의 `toContent`는 `details`에 `FileChange`를 넣고, `structuredContent`에도 같은 값이 있다. `L2.artifacts.spec`의 리뷰는 이 `details`를 근거로 한다.
 
@@ -654,8 +654,19 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ### 4.8 파일 복원과의 경계
 
-- 파일 복원(되감기, 체크포인트로 돌아가기)은 `L1.persistence`가 소유한다. 이 도메인은 복원 API를 두지 않는다.
-- `write`, `edit` 결과의 `FileChange.diff`는 사람이 보는 기록이고 복원 원본이 아니다. 복원에 쓸 이전 내용의 스냅샷을 어떻게 남길지(blob, git 객체 등)는 `L1.persistence.spec`이 정한다.
+- 파일 되감기(미리보기, 적용, 덮어쓰기, 되돌리기, 턴별 파일 보기)는 이 도메인이 소유한다. 포트 `FileRewindPortKey`(`fresnel.file-rewind`, F `services/file-rewind.ts`)를 `host.provide`로 내놓고, 호스트가 `thread.rewind*`·`thread.turnFiles` 처리기에서 받아 쓴다. 대화의 되감기(leaf 이동)는 `L1.persistence`가 한다(`L1.persistence.spec` §4.13.2).
+- `write`, `edit` 결과의 `FileChange.diff`는 사람이 보는 기록이고 복원 원본이 아니다. 복원에 쓸 이전 내용은 편집 전에 blob으로 저장하고 `workspace.files_captured` 이벤트가 그 참조를 가진다(`F.records.spec` §3.3.3).
+- 원본 저장 위치: `write`, `edit`는 `atomicWrite` 직전, 경로별 줄 세우기 안에서 `capture`를 부른다. 문맥에 대화(`threadId`)와 턴(`turnId`)이 있고, `SessionPortKey`·blob 포트와 이벤트 id 발급기가 있을 때만 한다. 없으면 아무것도 하지 않는다. 옛 내용은 바이트 그대로(UTF-8이 아니어도) blob에 넣는다. `edit`는 읽어 둔 바이트를 재사용하고 한 번 더 읽지 않는다. 이벤트는 경로, 옛 상태, 쓸 내용의 해시만 싣는다.
+- 기록 순서: 커밋은 쓰기 전에 끝난다. 커밋이 실패하면 쓰기는 막지 않고 그대로 간다. 로그 `workspace.rewind_capture_failed`에 경로와 사유 종류만 남긴다. 그 턴의 그 경로는 추적하지 않는다(처음 기록이 실패하면 이후 쓰기도 기록하지 않는다. 중간 내용을 옛 상태로 적지 않기 위해서다). `.git` 안 경로는 기록하지 않는다. 사용자의 `.git`은 되감기가 건드리지 않는다.
+- 첫 쓰기 판정: `(대화, 턴, 경로)`의 첫 쓰기면 `first:true`와 옛 상태를 적고, 같은 턴의 이후 쓰기는 `first:false`와 해시만 적는다. 판정 집합은 대화의 `workspace.files_captured`를 처음 쓸 때 읽어 채우므로 재시작 뒤 같은 턴이 이어져도 맞는다.
+- 상한 [제안]: 파일당 16 MiB(`FILE_SNAPSHOT_MAX_BYTES`)를 넘으면 저장하지 않고 `unrestorable{too_large}`. 대화당 512 MiB(`THREAD_SNAPSHOT_QUOTA_BYTES`, 서로 다른 blob 해시의 크기 합, 되감기 직전 저장분 포함)를 넘으면 새 저장은 `unrestorable{quota}`. 두 값은 cap-workspace의 상수이고 설정 키는 만들지 않는다. 자동 삭제는 하지 않는다(대화를 지우면 함께 지워진다).
+- 되감기 계획: 범위는 `to` 항목 뒤의 활성 가지 이벤트다. 같은 경로는 범위 안에서 가장 이른 `first:true`의 옛 상태로 돌아가고, 기대 해시는 범위 안 마지막 쓰기 해시다. 범위 안에서 처음 쓰기가 `first:false`뿐이면(턴 중간이 목표) 옛 상태를 모르므로 `unreadable`로 건너뛴다. 현재 내용이 옛 상태와 같으면 `already_original`로 건너뛴다. 기대 해시와 같으면 복원하거나(없던 파일이면 지운다) 계획한다. 다르면 `kept_changed`로 건드리지 않는다(파일이 지워졌으면 `deleted_outside`, 아니면 `changed_outside`). 옛 상태를 저장하지 못한 것은 `unrestorable`로 건너뛴다. 쓰기 루트 밖이나 보호 경로는 `denied`로 건너뛴다. 이 경로에서는 사람에게 묻지 않는다.
+- 복원 쓰기: 같은 디렉터리의 임시 파일에 바이트를 쓰고, 디스크에 내린 뒤 이름을 바꾼다. 문자열용 `atomicWrite`는 UTF-8만 쓰므로 바이트 복원에는 같은 절차를 바이트판으로 둔다. 상위 디렉터리가 사라졌으면 `writeFile`이 만든다. 새 파일은 현재 내용이 기대 해시와 같을 때만 지우고, 빈 디렉터리는 지우지 않는다. 같은 경로의 다른 변경과는 `queueInCallOrder`와 `mutationKey`로 줄을 세운다. 모드 비트는 `FileInfo`에 없어 기록하지 않으며 복원하지 않는다(§10 14와 같다).
+- 되감기 순서: 시작 전에 대상 파일의 현재 내용을 `undoBefore`로 저장하고, `rewind_started`를 커밋한 뒤 파일을 쓰고, `rewind_applied`를 커밋한다. 시작만 있으면 `incomplete`로 보인다. 같은 `rewindId`로 다시 적용하면 이미 원본인 파일은 `already_original`이고, 이미 적용이 끝난 되감기는 처음 결과를 돌려준다. 범위가 `conversation`이면 파일을 건드리지 않고 기록도 남기지 않는다.
+- 덮어쓰기: 밖에서 바뀌어 남긴(`kept_changed`) 경로만 골라 강제로 복원한다. `rewind_overwritten`으로 적는다.
+- 되돌리기: 계획이 `planned`였고 적용 결과가 `restored`·`deleted`인 경로만 대상이다. 현재 내용이 되감기가 쓴 내용과 같을 때 `undoBefore`로 돌린다. 다르면 `kept_changed`다. 대화 쪽 상태는 되돌리기 시점의 leaf가 `oldLeafEventId`와 같으면 `restored`, 아니면 `moved_on`, 범위가 `files`면 `not_included`다. 호스트는 대화의 leaf를 먼저 되돌린 뒤 되돌리기를 불러야 `restored`가 된다(§10 16).
+- 추적 밖: 셸 명령(`effect.intent`의 도구 이름 `bash`)과 `agent.spawned`는 미리보기의 `untracked`로 알린다.
+- 서비스: `FileRewindService`(F `services/file-rewind.ts`)를 `FileRewindPortKey`로 `providePort`한다. 이벤트 id 발급기(`ids`)는 조립 루트가 넘긴다. 넘기지 않으면 편집 도구는 원본을 저장하지 않고 되감기 포트도 내지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -676,6 +687,10 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | 13 | photon 로드 실패 | 처리기 없음 상태로 동작. 큰 이미지는 `image_too_large` |
 | 14 | 이미지 blob이 요청 조립 시점에 없음 | L1.context가 텍스트 자리표시로 바꾼다(§4.6) |
 | 15 | `ExecutionEnv`가 원격(SSH) 백엔드 | 같은 규칙으로 동작한다. 정규 경로와 root는 원격 파일 시스템 기준이다. ripgrep은 원격에 있어야 한다 [가정] |
+| 16 | 편집 전 원본 저장의 커밋이 실패 | 쓰기는 그대로 간다. 로그 `workspace.rewind_capture_failed`(경로와 사유 종류만). 그 턴의 그 경로는 추적하지 않는다(§4.8) |
+| 17 | 파일이 16 MiB를 넘거나 대화 총량이 512 MiB를 넘음 | 원본 없이 기록한다(`unrestorable`). 되감기 미리보기에서 `skip`(`too_large`·`quota`)이고, 그 파일은 대화만 되감긴다 |
+| 18 | 되감기 적용 중 저장이 실패함 | 시작 기록만 남아 `incomplete`로 보인다. 같은 `rewindId`로 다시 적용하면 이미 원본인 파일은 `already_original`이다 |
+| 19 | 되감기 범위의 파일을 다른 대화가 고침 | 건드리지 않고 `kept_changed`(`changed_outside`)로 알린다. 덮어쓰기로 고를 수 있다 |
 
 ## 6. 설정 노출
 
@@ -767,3 +782,6 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
 14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.
 15. (삭제됨 [결정: 2026-11-15 사용자]) `l2.workspace.find.maxResults`와 `l2.workspace.list.maxEntries`는 사용자가 지우기로 정했고 2026-11-15 정리로 지웠다. 옛 설정 파일의 값은 무시된다. [근거: 2026-11-15 사용자 결정]
+16. [미결] 되돌리기의 대화 상태 순서. 호스트가 대화 leaf를 되돌린 뒤 파일 되돌리기를 불러야 `conversation`이 `restored`가 된다. 순서는 호스트 단계(`L4.host-service.spec`)가 정한다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절과 L1.persistence §4.13.2의 되돌리기 항목]
+17. [미결] 덮어쓰기로 고친 파일의 되돌리기. 설계 문구는 계획된 파일만 되돌린다. 덮어쓰기 전의 내용은 `undoBefore`로 이미 저장되므로 나중에 대상을 넓힐 수 있다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절의 undo 규칙]
+18. [미결] `RewindPreviewReason`에 `outside_root`와 보호 경로 사유가 없다. 이 경우 미리보기는 사유를 `null`로 보인다. 사유를 넓히는 것은 F 정의 변경이라 따로 정한다. [근거: F.records 정의 `packages/contracts/src/services/file-rewind.ts`의 `RewindPreviewReason`]

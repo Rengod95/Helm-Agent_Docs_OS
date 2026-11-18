@@ -11,6 +11,8 @@ import {
   DriveLockBudgetSchema,
   DriveStepLastSchema,
   GroupRecordSchema,
+  type ScriptRunFailure,
+  type ScriptRunResult,
   type CommandRunParams,
   type DriveFrameInfo,
   type DriveLockBudget,
@@ -288,4 +290,40 @@ export function parsePostReceipt(value: unknown): Result<PostReceipt, ParseError
 /** 엔진이 답한 `readRecords` 결과 */
 export function parseGroupRecords(value: unknown): Result<readonly GroupRecord[], ParseError> {
   return parse(Type.Array(GroupRecordSchema), value);
+}
+
+const scriptRunResultSchema = Type.Object({
+  exitCode: Type.Union([Type.Integer(), Type.Null()]),
+  signal: Type.Union([Type.String(), Type.Null()]),
+  stdout: Type.String(),
+  stdoutTruncated: Type.Boolean(),
+  stderr: Type.String(),
+  stderrTruncated: Type.Boolean(),
+  timedOut: Type.Boolean(),
+});
+
+const scriptRunFailureSchema = Type.Union([
+  Type.Object({ kind: Type.Literal("script_not_declared") }),
+  Type.Object({ kind: Type.Literal("script_outside_tree") }),
+  Type.Object({ kind: Type.Literal("script_missing") }),
+  Type.Object({ kind: Type.Literal("script_not_approved") }),
+  Type.Object({ kind: Type.Literal("replay_mode_denied") }),
+  Type.Object({
+    kind: Type.Literal("spawn_failed"),
+    code: Type.String(),
+    message: Type.String(),
+  }),
+  Type.Object({ kind: Type.Literal("sandbox_unavailable"), reason: Type.String() }),
+]);
+
+const scriptOutcomeSchema = Type.Union([
+  Type.Object({ ok: Type.Literal(true), value: scriptRunResultSchema }),
+  Type.Object({ ok: Type.Literal(false), error: scriptRunFailureSchema }),
+]);
+
+/** 엔진이 답한 `runScript` 결과(`Result<ScriptRunResult, ScriptRunFailure>`의 JSON). 거절과 기동 실패도 값으로 온다 */
+export function parseScriptOutcome(
+  value: unknown,
+): Result<Result<ScriptRunResult, ScriptRunFailure>, ParseError> {
+  return parse(scriptOutcomeSchema, value);
 }

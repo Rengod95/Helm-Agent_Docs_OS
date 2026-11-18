@@ -8,10 +8,12 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
 import { join } from "node:path";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
+  FileRewindPortKey,
   OsPortKey,
   SandboxServiceName,
   SessionPortKey,
@@ -40,6 +42,10 @@ import type { WorkspaceDeps } from "./deps.ts";
 import { workspaceManifest } from "./manifest.ts";
 import { createWorkspaceService } from "./service.ts";
 import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.ts";
+import { createRewindCapture } from "./rewind/capture.ts";
+import { DEFAULT_REWIND_LIMITS } from "./rewind/limits.ts";
+import { createFileRewindService } from "./rewind/service.ts";
+import { createRewindStore } from "./rewind/store.ts";
 
 // L2.workspace.plan W4. 구현 패키지(platform-exec, platform-sandbox, core-tools)를 import하지 않고 F 서비스 인터페이스를
 // 포트(fresnel.exec, fresnel.sandbox, fresnel.os, fresnel.tools)로만 받는다. Cordis는 import하지 않는다(DR-11).
@@ -61,6 +67,11 @@ export interface WorkspacePluginOptions {
   readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   /** 잘린 도구 출력의 파일 사본. 조립 루트가 넘긴다. 있으면 그 폴더를 `read`·`grep`의 읽기 루트에 더한다 */
   readonly outputFiles?: ToolOutputFiles;
+  /**
+   * 되감기 기록의 이벤트 id 발급기. 조립 루트가 넘긴다. 없으면 편집 도구는 원본을 저장하지 않고 되감기 포트도 내지 않는다
+   * (L1.persistence.spec §4.13.2). 세션 포트와 blob 포트가 있어야 한다.
+   */
+  readonly ids?: IdFactory;
   readonly loadIndex?: number;
 }
 
@@ -128,6 +139,18 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const store = optionalPort(host, StoreServicePortKey);
       const logger = os.logger("workspace");
       const approvalService = optionalPort(host, ApprovalServicePortKey);
+      // 파일 되감기의 원본 저장과 되감기 포트. 세션, blob, 이벤트 id 발급기가 모두 있어야 한다. 생산자 핸들은 한 번만 받는다
+      const rewindStore =
+        session === undefined || store === undefined || options.ids === undefined
+          ? undefined
+          : createRewindStore({
+              session,
+              producer: session.producer("cap.workspace"),
+              ids: options.ids,
+              blobs: store,
+              logger,
+              limits: DEFAULT_REWIND_LIMITS,
+            });
       const writeAccess =
         options.approvals === undefined || approvalService === undefined
           ? undefined
@@ -157,12 +180,20 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         ...(options.unattendedTimeoutMs === undefined
           ? {}
           : { unattendedTimeoutMs: options.unattendedTimeoutMs }),
+        ...(rewindStore === undefined ? {} : { rewind: createRewindCapture(rewindStore) }),
       };
       const service = createWorkspaceService(deps);
       host.provide(WorkspaceFilesKey, service.files);
       host.provide(WorkspaceShellKey, service.shell);
 
       host.provide(WorkspaceImagesKey, service.images);
+      if (rewindStore === undefined) {
+        logger.warn("workspace.rewind_missing", {
+          effect: "edits do not keep originals and file rewind is not available",
+        });
+      } else {
+        host.providePort(FileRewindPortKey, createFileRewindService(deps, rewindStore));
+      }
 
       if (sandbox === undefined) {
         logger.warn("workspace.sandbox_missing", { effect: "bash is rejected as unavailable" });

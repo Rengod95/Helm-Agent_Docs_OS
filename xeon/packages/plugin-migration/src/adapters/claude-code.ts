@@ -3,14 +3,21 @@
 // 본문의 `` !`cmd` ``와 치환, Hook 명령, 설정 값은 실행하지 않는다. 세기만 하거나 키 이름만 싣는다.
 // 설정 파일의 값은 파일 하나를 읽는 동안만 메모리에 있고, 항목에는 최상위 키 이름만 남는다(migration.md §6.6).
 // 설계: docs/xeon/review/m5/migration.md §3.2, §4.3.1~4.3.4, §6.2, §10 수용 기준 1·3·10·11·20.
-import { assertNever, attemptAsync, eachAsync, parseJson } from "@fresnel/contracts";
+import { assertNever, attempt, attemptAsync, eachAsync, parseJson } from "@fresnel/contracts";
 import { parseDocument, type FrontmatterValue } from "../frontmatter.ts";
 import { itemIdOf, sha256Hex } from "../hash.ts";
 import { dirnameOf, displayPath, isInside, joinPath, normalizePath } from "../paths.ts";
-import { looksLikeSecretName, looksLikeSecretValue } from "../secrets.ts";
+import {
+  assignsSecretLiteral,
+  containsSecretValue,
+  looksLikeSecretName,
+  looksLikeSecretValue,
+} from "../secrets.ts";
 import type {
   HarnessId,
   IrAgent,
+  IrHook,
+  IrHookScript,
   IrNode,
   ItemScope,
   ScanContext,
@@ -23,10 +30,11 @@ import type {
   SourceItem,
 } from "../types.ts";
 import { scanSkillsDir } from "./agent-skills.ts";
+import { parseHookCommand } from "./hook-command.ts";
 
 const HARNESS: HarnessId = "claude-code";
 const AGENTS_HARNESS: HarnessId = "agents-md";
-const RULES_VERSION = "2026-11-17";
+const RULES_VERSION = "2026-11-18";
 const CLAUDE_DIR = ".claude";
 /** 가져오기를 푸는 깊이의 상한. 최상위 지침에서 가져온 파일이 1단계다(migration.md §4.3.1) */
 const MAX_IMPORT_DEPTH = 4;
@@ -49,9 +57,21 @@ const AGENT_KNOWN_KEYS: ReadonlySet<string> = new Set([
   "model",
   "permissionMode",
 ]);
+/** Hook 핸들러에서 `command` 종류가 받는 키. 그 밖의 키는 옮기지 못하는 키다 */
+const COMMAND_HANDLER_KEYS: ReadonlySet<string> = new Set(["type", "command", "timeout"]);
+/** 알려진 핸들러 종류. 이 밖은 `hook_handler_unknown`이다 */
+const KNOWN_HANDLER_TYPES: ReadonlySet<string> = new Set([
+  "command",
+  "http",
+  "prompt",
+  "agent",
+  "mcp_tool",
+]);
+const SPACE_SPLIT = /\s+/;
+/** 시간 제한을 볼 때 쓰는 매처 문법: 글자, 숫자, `_`, `-`, 공백, `,`, `|`만 있으면 정확 일치 목록이다 */
+const EXACT_MATCHER = /^[A-Za-z0-9_\-\s,|]+$/;
 /** 설정 최상위 키가 옮기지 못하는 이유. 목록에 없는 키는 모르는 키라 `settings_key`다(규칙이 없어 `no_rule`로 보고된다) */
 const SETTINGS_CODES: ReadonlyMap<string, string> = new Map([
-  ["hooks", "hooks_in_settings"],
   ["permissions", "permissions"],
   ["outputStyle", "output_style"],
   ["enabledPlugins", "plugin_bundle"],
@@ -827,6 +847,342 @@ function agentItems(scan: Scan, md: MdFile, file: TextFile): void {
   }
 }
 
+// ── Hook(설정의 hooks, migration.md §4.3.5) ───────────────────────────────
+
+/** 배열이면 그 원소들. 아니면 undefined(JSON 값을 `any`로 받지 않는다) */
+function itemsOf(value: unknown): readonly unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
+}
+
+/** 매처가 정규식 문법으로 풀리지 않으면 참이다(정확 일치 목록과 `*`, 빈 값은 문제가 없다) */
+function matcherBroken(matcher: string | undefined): boolean {
+  if (matcher === undefined || matcher === "" || matcher === "*") return false;
+  if (EXACT_MATCHER.test(matcher)) return false;
+  return !attempt(() => new RegExp(matcher)).ok;
+}
+
+/** 원본 폴더 기준. 사용자 범위는 `~/.claude`, 프로젝트 범위는 프로젝트 루트다 */
+function hookFolderOf(scan: Scan): {
+  readonly folder: string;
+  readonly projectDir: string | undefined;
+} {
+  if (scan.root.scope === "user") {
+    return { folder: joinPath(scan.root.path, CLAUDE_DIR), projectDir: undefined };
+  }
+  return { folder: scan.root.path, projectDir: scan.root.path };
+}
+
+function hookBlocked(
+  scan: Scan,
+  file: TextFile,
+  scope: ItemScope,
+  keyPath: string,
+  code: string,
+  text: string,
+): void {
+  scan.items.push(
+    itemOf(scan, {
+      harness: HARNESS,
+      scope,
+      path: file.shown,
+      keyPath,
+      sha256: file.sha256,
+      bytes: file.bytes,
+      ir: { kind: "blocked", of: "hook", code, text },
+      warnings: [],
+    }),
+  );
+}
+
+type ScriptRead =
+  | { readonly kind: "ok"; readonly bytes: Uint8Array }
+  | {
+      readonly kind: "blocked";
+      readonly code: "script_missing" | "script_outside_root" | "script_unreadable";
+    };
+
+/**
+ * 스크립트 파일 하나를 읽는다. 실제 위치(심볼릭 링크를 풀고)가 원본 폴더 안이어야 한다. 읽는 것은 `ScanFs`의 읽기 호출뿐이다.
+ * 실행하지 않는다.
+ */
+async function readScriptFile(scan: Scan, path: string, folder: string): Promise<ScriptRead> {
+  const stat = await attemptAsync(() => scan.fs.lstat(path));
+  if (!stat.ok || stat.value === null) return { kind: "blocked", code: "script_missing" };
+  const real = await attemptAsync(() => scan.fs.realpath(path));
+  const folderReal = await attemptAsync(() => scan.fs.realpath(folder));
+  if (!folderReal.ok || !real.ok) return { kind: "blocked", code: "script_outside_root" };
+  if (!isInside(folderReal.value, real.value))
+    return { kind: "blocked", code: "script_outside_root" };
+  const target = await attemptAsync(() => scan.fs.lstat(real.value));
+  if (!target.ok || target.value === null || target.value.kind !== "file") {
+    return { kind: "blocked", code: "script_missing" };
+  }
+  const read = await attemptAsync(() => scan.fs.readBounded(real.value, scan.limits.maxFileBytes));
+  if (!read.ok) return { kind: "blocked", code: "script_unreadable" };
+  const content = read.value;
+  switch (content.kind) {
+    case "text":
+      return { kind: "ok", bytes: ENCODER.encode(content.text) };
+    case "binary":
+      return { kind: "ok", bytes: content.bytes };
+    case "too_large":
+    case "unreadable":
+      return { kind: "blocked", code: "script_unreadable" };
+    default:
+      return assertNever(content, "readScriptFile");
+  }
+}
+
+/** 핸들러 하나의 IR. 옮길 수 없는 이유는 `code`에 하나 정한다(처음 걸린 것). 명령 문자열은 싣지 않는다 */
+async function hookHandlerIr(
+  scan: Scan,
+  event: string,
+  matcher: string | undefined,
+  handler: Readonly<Record<string, unknown>>,
+): Promise<{ readonly ir: IrHook; readonly scriptBytes: Uint8Array | undefined }> {
+  const rawType = handler["type"];
+  const type = typeof rawType === "string" ? rawType : "";
+  const rawTimeout = handler["timeout"];
+  let timeoutSeconds: number | undefined;
+  let code: string | undefined;
+  if (rawTimeout !== undefined) {
+    if (typeof rawTimeout === "number" && Number.isFinite(rawTimeout) && rawTimeout > 0) {
+      timeoutSeconds = rawTimeout;
+    } else {
+      code = "hook_timeout_invalid";
+    }
+  }
+  if (!KNOWN_HANDLER_TYPES.has(type)) code ??= "hook_handler_unknown";
+  if (type !== "command") {
+    return {
+      ir: {
+        kind: "hook",
+        event,
+        matcher,
+        handler: type,
+        timeoutSeconds,
+        extraKeys: [],
+        code,
+        script: undefined,
+      },
+      scriptBytes: undefined,
+    };
+  }
+
+  const extraKeys = Object.keys(handler)
+    .filter((key) => !COMMAND_HANDLER_KEYS.has(key))
+    .toSorted(byCodeUnit);
+  if (extraKeys.includes("if")) code ??= "hook_if_unsupported";
+  else if (extraKeys.length > 0) code ??= "hook_key_unsupported";
+  if (matcherBroken(matcher)) code ??= "matcher_invalid";
+
+  const command = handler["command"];
+  if (typeof command !== "string" || command.trim() === "") {
+    code ??= "inline_command";
+  } else if (containsSecretValue(command) || assignsSecretLiteral(command.split(SPACE_SPLIT))) {
+    code ??= "secret_in_command";
+  }
+
+  if (code !== undefined || typeof command !== "string") {
+    return {
+      ir: {
+        kind: "hook",
+        event,
+        matcher,
+        handler: type,
+        timeoutSeconds,
+        extraKeys,
+        code,
+        script: undefined,
+      },
+      scriptBytes: undefined,
+    };
+  }
+  const { folder, projectDir } = hookFolderOf(scan);
+  const parsed = parseHookCommand(command, { folder, projectDir, homeDir: scan.ctx.homeDir });
+  if (parsed.kind === "blocked") {
+    return {
+      ir: {
+        kind: "hook",
+        event,
+        matcher,
+        handler: type,
+        timeoutSeconds,
+        extraKeys,
+        code: parsed.code,
+        script: undefined,
+      },
+      scriptBytes: undefined,
+    };
+  }
+  const read = await readScriptFile(scan, parsed.path, folder);
+  if (read.kind === "blocked") {
+    return {
+      ir: {
+        kind: "hook",
+        event,
+        matcher,
+        handler: type,
+        timeoutSeconds,
+        extraKeys,
+        code: read.code,
+        script: undefined,
+      },
+      scriptBytes: undefined,
+    };
+  }
+  const text = new TextDecoder().decode(read.bytes);
+  if (containsSecretValue(text)) {
+    return {
+      ir: {
+        kind: "hook",
+        event,
+        matcher,
+        handler: type,
+        timeoutSeconds,
+        extraKeys,
+        code: "secret_in_script",
+        script: undefined,
+      },
+      scriptBytes: undefined,
+    };
+  }
+  const script: IrHookScript = {
+    runner: parsed.runner,
+    fileName: parsed.fileName,
+    path: displayPath(parsed.path, scan.ctx.homeDir),
+    args: parsed.args,
+    bytes: read.bytes,
+  };
+  return {
+    ir: {
+      kind: "hook",
+      event,
+      matcher,
+      handler: type,
+      timeoutSeconds,
+      extraKeys,
+      code: undefined,
+      script,
+    },
+    scriptBytes: read.bytes,
+  };
+}
+
+/**
+ * 설정의 `hooks`를 항목으로 바꾼다. 핸들러마다 항목 하나다(`settings.hooks.<이벤트>[i].hooks[j]`). 모양이 맞지 않는 자리는
+ * 차단 항목으로 남긴다(조용한 누락 없음). 항목의 해시는 설정 파일과 그 항목이 가리키는 스크립트의 바이트로 만든다.
+ */
+async function hookItems(
+  scan: Scan,
+  file: TextFile,
+  value: unknown,
+  scope: ItemScope,
+): Promise<void> {
+  if (!isRecord(value)) {
+    hookBlocked(scan, file, scope, "settings.hooks", "hook_malformed", "hooks");
+    return;
+  }
+  await eachAsync(Object.keys(value).toSorted(byCodeUnit), async (event) => {
+    await hookEventItems(scan, file, scope, event, value[event]);
+    return undefined;
+  });
+}
+
+/** 이벤트 하나의 매처 묶음들. 묶음마다 핸들러를 차례로 낸다 */
+async function hookEventItems(
+  scan: Scan,
+  file: TextFile,
+  scope: ItemScope,
+  event: string,
+  value: unknown,
+): Promise<void> {
+  const eventKey = `settings.hooks.${event}`;
+  const groups = itemsOf(value);
+  if (groups === undefined) {
+    hookBlocked(scan, file, scope, eventKey, "hook_malformed", event);
+    return;
+  }
+  await eachAsync(groups.entries(), async ([groupIndex, group]) => {
+    await hookGroupItems(scan, file, scope, event, `${eventKey}[${groupIndex}]`, group);
+    return undefined;
+  });
+}
+
+/** 매처 묶음 하나. 모르는 키와 모양이 틀린 자리는 차단 항목으로 남는다 */
+async function hookGroupItems(
+  scan: Scan,
+  file: TextFile,
+  scope: ItemScope,
+  event: string,
+  groupKey: string,
+  group: unknown,
+): Promise<void> {
+  if (!isRecord(group)) {
+    hookBlocked(scan, file, scope, groupKey, "hook_malformed", event);
+    return;
+  }
+  for (const key of Object.keys(group).toSorted(byCodeUnit)) {
+    if (key !== "matcher" && key !== "hooks") {
+      hookBlocked(scan, file, scope, `${groupKey}.${key}`, "hook_group_key_unsupported", key);
+    }
+  }
+  const matcher = group["matcher"];
+  if (matcher !== undefined && typeof matcher !== "string") {
+    hookBlocked(scan, file, scope, groupKey, "hook_malformed", event);
+    return;
+  }
+  const handlers = itemsOf(group["hooks"]);
+  if (handlers === undefined) {
+    hookBlocked(scan, file, scope, `${groupKey}.hooks`, "hook_malformed", event);
+    return;
+  }
+  const matcherText = matcher === undefined || matcher === "" ? undefined : matcher;
+  await eachAsync(handlers.entries(), async ([handlerIndex, handler]) => {
+    await hookHandlerItem(
+      scan,
+      file,
+      scope,
+      event,
+      `${groupKey}.hooks[${handlerIndex}]`,
+      matcherText,
+      handler,
+    );
+    return undefined;
+  });
+}
+
+/** 핸들러 하나를 항목으로 낸다. 항목의 해시는 설정 파일과 스크립트 바이트로 만든다 */
+async function hookHandlerItem(
+  scan: Scan,
+  file: TextFile,
+  scope: ItemScope,
+  event: string,
+  keyPath: string,
+  matcher: string | undefined,
+  handler: unknown,
+): Promise<void> {
+  if (!isRecord(handler)) {
+    hookBlocked(scan, file, scope, keyPath, "hook_malformed", event);
+    return;
+  }
+  const { ir, scriptBytes } = await hookHandlerIr(scan, event, matcher, handler);
+  const sha256 =
+    scriptBytes === undefined ? file.sha256 : sha256Hex(`${file.sha256}:${sha256Hex(scriptBytes)}`);
+  scan.items.push(
+    itemOf(scan, {
+      harness: HARNESS,
+      scope,
+      path: file.shown,
+      keyPath,
+      sha256,
+      bytes: file.bytes,
+      ir,
+      warnings: [],
+    }),
+  );
+}
+
 /** 설정 파일 하나. 최상위 키마다 차단 항목을 낸다. 값은 읽은 뒤 버린다 */
 async function settingsFile(scan: Scan, abs: string, scope: ItemScope): Promise<void> {
   const file = await readTopFile(scan, abs);
@@ -841,7 +1197,10 @@ async function settingsFile(scan: Scan, abs: string, scope: ItemScope): Promise<
     diagnose(scan, "invalid_json", abs, "최상위가 객체가 아니라 읽지 않았다");
     return;
   }
+  // `hooks`는 핸들러마다 항목이라 따로 낸다(항목 순서는 훑기 끝에 정렬된다)
+  if (Object.hasOwn(root, "hooks")) await hookItems(scan, file, root["hooks"], scope);
   for (const key of Object.keys(root).toSorted(byCodeUnit)) {
+    if (key === "hooks") continue;
     scan.items.push(
       itemOf(scan, {
         harness: HARNESS,

@@ -832,12 +832,16 @@ describe("threads", () => {
 
   test("revert uses a fresh request key for every call and reports the head the session committed", async () => {
     const h = harness();
-    h.state.revert = ok({ leaf: ids.next("evt"), headSeq: 12 });
+    const leaf = ids.next("evt");
+    h.state.revert = ok({ leaf, headSeq: 12 });
     const { ports } = createEnginePorts(h.deps);
     const to = ids.next("itm");
     const first = await ports.threads.revert(THREAD, to);
     await ports.threads.revert(THREAD, to);
-    expect(first).toEqual({ ok: true, value: { position: { storeId: STORE_ID, seq: 12 } } });
+    expect(first).toEqual({
+      ok: true,
+      value: { leaf, position: { storeId: STORE_ID, seq: 12 } },
+    });
     const keys = h.calls.filter((call) => call.startsWith("threads.revert:"));
     expect(keys).toHaveLength(2);
     expect(new Set(keys).size).toBe(2);

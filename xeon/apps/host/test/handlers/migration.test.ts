@@ -18,6 +18,7 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import { partial } from "../fixtures/unsafe.ts";
 import { removeTree } from "../fixtures/remove-tree.ts";
 import { SILENT } from "../assembly/plugins/intake-rig.ts";
+import { fakeScanSource } from "../assembly/plugins/migration-scan-rig.ts";
 import { tempRoot, writeFiles } from "../assembly/plugins/support.ts";
 
 // 가져오기 처리기(`migration.*`)와 `trust.get`의 `foreignFormats`, 알림 두 개의 wire 모양을 가짜 엔진 위의 실제 처리기로 시험한다.
@@ -89,6 +90,19 @@ test("each migration failure reaches the wire with its own code, kind and detail
       code: 3675,
       kind: "migration.notFound",
       details: { id: "scan-9" },
+    },
+    // 훑기 자식이 끝까지 못 갔다. wire에는 새 번호가 없고 `store.io`의 `code`에 이유를 붙인다(host-service §4.25)
+    {
+      failure: { kind: "scan_failed", reason: "timeout" },
+      code: 5006,
+      kind: "store.io",
+      details: { code: "scan_timeout" },
+    },
+    {
+      failure: { kind: "scan_failed", reason: "unavailable" },
+      code: 5006,
+      kind: "store.io",
+      details: { code: "scan_unavailable" },
     },
   ];
   await Promise.all(
@@ -194,6 +208,7 @@ test("trust.get carries the foreign-format notice from the real service when a m
     profiles: partial<MigrationProfilePort>({}),
     clock: { now: () => 0 },
     log: SILENT,
+    scanSource: fakeScanSource().source,
   });
   const host = createFakeHost({
     overrides: {

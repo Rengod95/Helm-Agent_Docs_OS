@@ -36,6 +36,7 @@ export const MIGRATION_IR_KINDS = [
   "mcp",
   "field",
   "blocked",
+  "hook",
 ] as const;
 export type MigrationIrKind = (typeof MIGRATION_IR_KINDS)[number];
 

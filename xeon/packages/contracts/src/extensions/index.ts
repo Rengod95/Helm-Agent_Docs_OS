@@ -10,6 +10,7 @@ export * from "./ops.ts";
 export * from "./registration.ts";
 export * from "./ui.ts";
 export * from "./plugin-card.ts";
+export * from "./plugin-script.ts";
 export * from "./ext-method.ts";
 export * from "./composition.ts";
 export * from "./manifest.ts";
