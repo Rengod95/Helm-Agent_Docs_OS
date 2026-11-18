@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { attempt } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
+import type { PluginHostSupervisor } from "@fresnel/ext-host";
 import { buildHelmPlugin } from "@fresnel/group-helm/build";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
@@ -97,11 +100,36 @@ function readReport(path: string): { readonly pid: number; readonly count: numbe
   return { pid: parsed.pid, count: parsed.count };
 }
 
+/**
+ * 기본 프로필을 코어 단위(cap-workspace, cap-dialog)와 이 시험의 플러그인 이름들로 저장한다. 사용자 위치의 플러그인은 프로필에 들어 있어야
+ * 그 프로필의 대화가 열릴 때 실린다(AGE-49). 코어 단위를 빼면 플러그인이 코어 단위를 요구해 거부된다
+ */
+async function putDefaultProfile(
+  connection: HostConnection,
+  plugins: readonly string[],
+): Promise<void> {
+  await connection.request("profile.put", {
+    profile: {
+      id: "default",
+      title: "default",
+      plugins: [
+        { name: "cap-workspace" },
+        { name: "cap-dialog" },
+        ...plugins.map((name) => ({ name })),
+      ],
+      settings: [],
+      startDrive: null,
+    },
+    baseRev: null,
+  });
+}
+
 async function startWith(home: EngineHome, settings: Readonly<Record<string, unknown>>) {
   const reportPath = join(home.root, "plugin-report.json");
   writeUserSettings(home, { ...TAPE_SETTINGS, ...settings });
   installPlugin(home, reportPath);
-  let isolationOfPlugin: string | undefined;
+  // 시작 보고(onLoadReport)는 시작 때의 스냅샷이라 대화가 열어 싣는 플러그인은 보이지 않는다. 격리 자식은 실릴 때 감독자를 만든다
+  const supervisors: PluginHostSupervisor[] = [];
   const host = await startInProcessHost({
     devChecks: true,
     defaultPluginsDir: mkdtempSync(join(tmpdir(), "plugin-host-bundles-")),
@@ -109,18 +137,19 @@ async function startWith(home: EngineHome, settings: Readonly<Record<string, unk
     buildModels: answeringModels("plugin-host-e2e", "done."),
     pluginHost: {
       ...isolatedPluginHost(),
-      onLoadReport: (report) => {
-        isolationOfPlugin = report.extensions.find((entry) => entry.name === NAME)?.isolation;
+      onSupervisor: (name, supervisor) => {
+        if (name === NAME) supervisors.push(supervisor);
       },
     },
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  await putDefaultProfile(connection, [NAME]);
   return {
     host,
     connection,
     reportPath,
-    isolation: () => isolationOfPlugin,
+    isolation: () => (supervisors.length > 0 ? "process" : "none"),
     close: async (): Promise<void> => {
       await connection.close();
       await host.close();
@@ -129,14 +158,20 @@ async function startWith(home: EngineHome, settings: Readonly<Record<string, unk
   };
 }
 
-/** 열어 둔 대화에서 turn 하나를 끝까지 돌린다. 정산 훅이 끝날 때까지 `turn.completed`를 기다린다 */
-async function runTurn(started: Awaited<ReturnType<typeof startWith>>): Promise<string> {
+type Started = Awaited<ReturnType<typeof startWith>>;
+
+/** 기본 프로필의 대화를 하나 연다. 사용자 위치의 플러그인은 이 대화가 열릴 때 실린다 */
+async function openThread(started: Started) {
   const created = await started.connection.request("thread.create", {});
+  return created.threadId;
+}
+
+/** 열어 둔 대화에서 turn 하나를 끝까지 돌린다. 정산 훅이 끝날 때까지 `turn.completed`를 기다린다 */
+async function runTurn(started: Started, threadId: ThreadId): Promise<void> {
   const collector = collectEvents(started.connection);
   await started.connection.request("events.subscribe", { from: "head" });
-  await started.connection.request("turn.start", { threadId: created.threadId, input: "질문" });
+  await started.connection.request("turn.start", { threadId, input: "질문" });
   await collector.waitFor((event) => event.kind === "turn.completed");
-  return created.threadId;
 }
 
 realTest(
@@ -145,8 +180,10 @@ realTest(
     const home = useEngineHome();
     const started = await startWith(home, {});
     try {
+      // 플러그인은 대화가 열릴 때 실린다. 열고 나서 격리를 본다
+      const threadId = await openThread(started);
       expect(started.isolation()).toBe("process");
-      await runTurn(started);
+      await runTurn(started, threadId);
       const report = await until(
         async () => readReport(started.reportPath),
         (value) => value?.count === 1,
@@ -167,7 +204,8 @@ realTest(
   async () => {
     const home = useEngineHome();
     const started = await startWith(home, {});
-    await runTurn(started);
+    const threadId = await openThread(started);
+    await runTurn(started, threadId);
     const report = await until(
       async () => readReport(started.reportPath),
       (value) => value !== undefined,
@@ -190,8 +228,9 @@ realTest(
     const home = useEngineHome();
     const started = await startWith(home, { [`ext.${NAME}.isolation`]: "none" });
     try {
+      const threadId = await openThread(started);
       expect(started.isolation()).toBe("none");
-      await runTurn(started);
+      await runTurn(started, threadId);
       const report = await until(
         async () => readReport(started.reportPath),
         (value) => value?.count === 1,
@@ -333,7 +372,8 @@ realTest(
     const reportPath = join(home.root, "group-report.json");
     writeUserSettings(home, TAPE_SETTINGS);
     installGroup(home, reportPath);
-    let isolationOfGroup: string | undefined;
+    // 시작 보고는 시작 때의 스냅샷이라 대화가 열어 싣는 그룹은 보이지 않는다. 격리 자식은 실릴 때 감독자를 만든다
+    const groupSupervisors: PluginHostSupervisor[] = [];
     const host = await startInProcessHost({
       devChecks: true,
       defaultPluginsDir: mkdtempSync(join(tmpdir(), "plugin-host-group-bundles-")),
@@ -341,18 +381,19 @@ realTest(
       buildModels: groupModels(),
       pluginHost: {
         ...isolatedPluginHost(),
-        onLoadReport: (report) => {
-          isolationOfGroup = report.extensions.find(
-            (entry) => entry.name === GROUP_NAME,
-          )?.isolation;
+        onSupervisor: (name, supervisor) => {
+          if (name === GROUP_NAME) groupSupervisors.push(supervisor);
         },
       },
     });
     const connection = createHostConnection(host.client);
     try {
       await connection.request("host.hello", HELLO_PARAMS);
-      expect(isolationOfGroup).toBe("process");
+      // `command.run`의 명령 서비스는 host-dialog-bridge가 채운다. 기본 프로필을 바꾸면 이 단위도 빠지므로 함께 넣는다
+      await putDefaultProfile(connection, [GROUP_NAME, "host-dialog-bridge"]);
+      // 그룹은 이 대화가 열릴 때 실린다(AGE-49). 열고 나서 격리를 본다
       const created = await connection.request("thread.create", {});
+      expect(groupSupervisors.length > 0 ? "process" : "none").toBe("process");
       const collector = collectEvents(connection);
       await connection.request("events.subscribe", { from: "head" });
 
