@@ -731,6 +731,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         refresh: () => Promise.resolve(),
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
+        restoreOverlay: () => Promise.resolve(),
         cancelOverlay: () => Promise.resolve(),
         recomputeAll: () => undefined,
         opened: () => Promise.resolve(),

@@ -120,10 +120,14 @@ import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
+import { ensureResidentDrive, type ResidentDriveDeps } from "./m4/resident-drive.ts";
+import { restorableLeasesOf } from "./m4/drive-restore.ts";
+import type { OverlayMark } from "./m4/plugin-set.ts";
 import {
   PluginSubmitPortKey,
   CraftContextPortKey,
   pluginDeclsOf,
+  pluginsOf,
   registrationIdOf,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
@@ -407,6 +411,41 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
     return found;
   }
+  /**
+   * 재시작 뒤 Drive 덧씌우기 되살리기(M5c §4.3.5). 저장된 열린 임대 가운데 프로필 밖 플러그인의 프레임을 `release` 표지로 얹는다.
+   * `ext.openThread`보다 먼저 부른다: 열 때 scope가 살아 있어야 프레임이 죽은 scope로 반납되지 않는다. 검토본이 없거나 내용 해시가
+   * 임대와 다르면(업데이트됨) 얹지 않는다. 그 프레임은 열 때 `restart`로 반납된다. 읽지 못하면 열 때 저장소 오류로 알린다
+   */
+  async function restoreDriveOverlays(threadId: ThreadId): Promise<void> {
+    const snapshot = await session.ext.loadThread(threadId);
+    // 읽지 못하면 얹지 않는다. 같은 읽기를 하는 `ext.openThread`가 저장소 오류로 알린다
+    if (!snapshot.ok) {
+      log.error("plugin.overlay.restore_unreadable", { threadId, kind: snapshot.error.kind });
+      return;
+    }
+    // 등록 id마다 플러그인 이름. 로더가 싣지 않은 플러그인도 매니페스트 기록으로 이름을 안다
+    const pluginOfScope = new Map<string, string>();
+    for (const record of deps.extRead.extensions()) {
+      for (const entry of pluginsOf(record.manifest)) {
+        pluginOfScope.set(entry.registrationId, record.manifest.name);
+      }
+    }
+    // 후보마다 검토본을 확인한다. 검토본이 없거나 판이 바뀌었으면 얹지 않는다(판 식별자가 다르면 같은 프레임이 아니다)
+    const verified = await Promise.all(
+      restorableLeasesOf(snapshot.value.openLeases, (scopeId) => pluginOfScope.get(scopeId)).map(
+        async (lease): Promise<OverlayMark[]> => {
+          const target = await pluginService.overlayTarget(lease.plugin);
+          return target.ok && target.value?.reviewedHash === lease.contentHash
+            ? [{ plugin: lease.plugin, contentHash: lease.contentHash, until: "release" }]
+            : [];
+        },
+      ),
+    );
+    const marks = verified.flat();
+    if (marks.length === 0) return;
+    await ports.m4.pluginSet.restoreOverlay(threadId, marks);
+  }
+
   /** Test run 대화인가. 메모리에 없으면 측정 저장소의 표지에서 되살린다(재시작 뒤) */
   function isTestRunThread(threadId: ThreadId): boolean {
     if (testRunThreads.has(threadId)) return true;
@@ -724,6 +763,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }),
   };
 
+  /** 테스트 대화의 상주 시작 Drive(M5c §4.8.6)가 쓰는 의존. 주도 스택은 엔진의 임대 목록에서 읽는다 */
+  const residentDriveDeps: ResidentDriveDeps = {
+    isCraftChat: (threadId) => {
+      const found = threads.isCraftChat(threadId);
+      if (found.ok) return found.value;
+      log.error("craft.drive_read_failed", { threadId, kind: found.error.kind });
+      return false;
+    },
+    framePlugins: (threadId) =>
+      deps.ext
+        .driveFrames(threadId)
+        .flatMap((frame) => (frame.plugin === null ? [] : [frame.plugin])),
+    startDriveOf,
+    startDrive: (threadId, scopeId, requested) => deps.ext.startDrive(threadId, scopeId, requested),
+    report: (message, fields) => {
+      log.error(message, fields);
+    },
+  };
+
   /** `turns.submit`의 본문. 같은 thread의 컴팩션과 겹치지 않게 부르는 쪽이 gate 안에서 부른다 */
   async function submitInput(
     threadId: ThreadId,
@@ -743,6 +801,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     if (running !== null && whenBusy === undefined) {
       return { ok: false, reason: "busy", turnId: running };
     }
+    // 테스트 대화는 입력을 받기 전에 주도 프레임이 있어야 한다(M5c §4.8.6). 요청은 입력 접수 앞에 큐에 든다
+    await ensureResidentDrive(residentDriveDeps, threadId);
     const admitted = await loop.admit({
       threadId,
       content: input,
@@ -877,6 +937,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         message: messageOf(closed.error.cause),
       });
     }
+    // 열지 못한 대화가 얹은 덧씌우기(재시작 복원)와 적재 참조를 놓는다(M5c §4.1.11)
+    ports.m4.pluginSet.forget(threadId);
     const lease = store.leases.release(token);
     if (!lease.ok) log.error("lease.release_failed", { threadId, kind: lease.error.kind });
   }
@@ -944,6 +1006,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
+      // 재시작 뒤 Drive 덧씌우기를 되살린다. 프레임이 열 때 scope를 찾도록 `ext.openThread`보다 먼저 한다
+      await restoreDriveOverlays(threadId);
       const testRun = isTestRunThread(threadId);
       const startDrive = await startDriveOf(threadId);
       await ext.openThread(

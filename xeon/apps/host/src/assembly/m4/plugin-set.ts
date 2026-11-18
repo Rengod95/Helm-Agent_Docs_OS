@@ -27,7 +27,7 @@ interface ProfileCopy {
 
 /**
  * 대화에 얹는 덧씌우기 하나(M5c §4.3). `until`이 수명을 정한다: `turn`은 그 턴이 정착할 때, `release`는 시작 Drive의 주도
- * 프레임이 풀릴 때(§4.3.4)다. 메모리에만 둔다(재시작 복원은 §4.3.5의 뒤 단계)
+ * 프레임이 풀릴 때(§4.3.4)다. 메모리에 둔다. `release` 표지는 재시작 뒤 열린 임대에서 되살린다(`restoreOverlay`, §4.3.5). `turn` 표지는 되살리지 않는다
  */
 export interface OverlayMark {
   readonly plugin: string;
@@ -137,6 +137,12 @@ export interface PluginSetHandle {
    * 입력을 받지 못했으면 `cancelOverlay`로 되돌린다
    */
   attachOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
+  /**
+   * 재시작 뒤 열린 임대에서 되살린 Drive 덧씌우기를 얹고, 이 대화가 쓰는 플러그인의 적재가 끝날 때까지 기다린다(M5c §4.3.5).
+   * `ext.openThread` 앞에 부른다: 열 때 scope가 살아 있어야 프레임이 죽은 scope로 반납되지 않는다. `release` 표지만 받는다.
+   * 프로필·공통 묶음·코어에 든 이름, 관리 잠금, 오류 정지, 훅 단위는 얹지 않는다. 적용은 열 때의 첫 경계가 한다
+   */
+  restoreOverlay(threadId: ThreadId, marks: readonly OverlayMark[]): Promise<void>;
   /**
    * 얹은 덧씌우기를 되돌린다(입력이 접수되지 않았을 때). 턴 표지는 뺀다. 부여되지 않은 release 표지는 `keepDrive`가 거짓일 때만 뺀다
    * (참이면 시작 요청이 큐에 있어 입력을 주도 프레임이 받은 것이다). 부여된 release 표지는 프레임이 풀릴 때까지 남는다
@@ -529,6 +535,30 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       if (copy === undefined) return;
       recompute(threadId);
       await deps.toggles.applyNow(threadId);
+    },
+    restoreOverlay: async (threadId, marks) => {
+      // 복사를 아직 못 읽었으면 읽는다. 그래도 없으면 E(T)를 셀 수 없으므로 얹지 않는다(열 때 그 프레임은 restart로 반납된다)
+      if (copy === undefined) await refresh();
+      if (copy === undefined) return;
+      const { sources } = membershipOf(threadId);
+      const restored: HeldMark[] = [];
+      for (const mark of marks) {
+        if (mark.until !== "release") continue;
+        if (sources.has(mark.plugin) || restored.some((item) => item.plugin === mark.plugin)) {
+          continue;
+        }
+        if (deps.managedOff(mark.plugin) || deps.stopped(mark.plugin)) continue;
+        if (isHookUnitName(mark.plugin)) continue;
+        restored.push({ ...mark, granted: true });
+      }
+      if (restored.length === 0) return;
+      const kept = marksOf(threadId).filter(
+        (item) => !restored.some((mark) => mark.plugin === item.plugin),
+      );
+      setOverlays(threadId, [...kept, ...restored]);
+      // 적재는 참조가 0→1일 때 시작된다. 그 호출이 끝날 때까지 기다린다(열 때 scope가 있어야 한다)
+      track(threadId);
+      await Promise.all(restored.map((mark) => loading.get(mark.plugin) ?? Promise.resolve()));
     },
     cancelOverlay: async (threadId, keepDrive) => {
       // 입력이 접수되지 않았을 때 되돌린다. 프레임이 쥔 표지는 프레임이 풀릴 때까지 남고, 시작 요청이 큐에 있으면 부여되지 않은 것도 남긴다

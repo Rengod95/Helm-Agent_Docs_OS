@@ -246,6 +246,21 @@ function harness(configDir = "/nonexistent-config"): Harness {
       headSeq: () => ok(5),
       oldestReplayableSeq: () => 0,
     }),
+    // 열 때 되살리는 Drive 덧씌우기가 읽는다. 열린 임대가 없는 빈 스냅샷이다
+    ext: partial<SessionService["ext"]>({
+      loadThread: () =>
+        Promise.resolve(
+          ok({
+            enabled: [],
+            disabled: [],
+            scopeTransitions: {},
+            enabledAtSeq: {},
+            states: [],
+            openLeases: [],
+            leaseEpochs: {},
+          }),
+        ),
+    }),
     openForWrite: () => state.openForWrite,
     recover: (threadId, recoverDeps) => {
       calls.push(

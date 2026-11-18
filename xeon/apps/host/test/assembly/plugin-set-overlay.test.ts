@@ -3,7 +3,11 @@ import { afterEach, expect, test } from "bun:test";
 import { ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type { RegistrationToggleSourceOf } from "@fresnel/ext-host";
-import { createPluginSet, type OverlayMark } from "../../src/assembly/m4/plugin-set.ts";
+import {
+  createPluginSet,
+  type OverlayMark,
+  type PluginLifecycle,
+} from "../../src/assembly/m4/plugin-set.ts";
 import { createMaterialPort } from "../../src/assembly/plugins/material-port.ts";
 import { readPluginFolder } from "../../src/assembly/plugins/folder-reader.ts";
 import { removeTree, tempRoot, writeFiles } from "./plugins/support.ts";
@@ -30,16 +34,26 @@ interface Fixture {
   readonly applyRequests: string[];
   readonly applyNowCalls: string[];
   managedOff: Set<string>;
+  /** 오류로 멈춘 플러그인 이름. 시험이 바꾼다 */
+  readonly stoppedNames: Set<string>;
   /** 대화별 드라이브 프레임의 플러그인 이름(주도 스택). 시험이 바꾼다 */
   readonly frames: Map<ThreadId, readonly string[]>;
   /** X가 임대 변화를 알리는 것을 흉내 낸다(`ExtHost.onChange`의 `lease`) */
   readonly leaseChanged: (id: ThreadId) => void;
 }
 
-function fixtureOf(): Fixture {
+interface FixtureOptions {
+  /** 적재와 내리기를 기록하는 로더 연결. 없으면 참조만 센다 */
+  readonly lifecycle?: PluginLifecycle;
+  /** 공장 기본 프로필의 플러그인(프로필 집합의 구성원) */
+  readonly defaults?: readonly string[];
+}
+
+function fixtureOf(options: FixtureOptions = {}): Fixture {
   const applyRequests: string[] = [];
   const applyNowCalls: string[] = [];
   const managed = new Set<string>();
+  const stoppedNames = new Set<string>();
   const frames = new Map<ThreadId, readonly string[]>();
   const listeners: ((id: ThreadId) => void)[] = [];
   const toggles: RegistrationToggleSourceOf = {
@@ -71,8 +85,8 @@ function fixtureOf(): Fixture {
     registrations: () => [],
     loadedHash: (name) => (name === "tools" ? HASH_TOOLS : undefined),
     forcedPlugins: () => ["core-thing"],
-    defaultPlugins: () => [],
-    stopped: () => false,
+    defaultPlugins: () => options.defaults ?? [],
+    stopped: (name) => stoppedNames.has(name),
     settingsChanged: () => undefined,
     toggles,
     driveFramePlugins: (id) => frames.get(id) ?? [],
@@ -83,12 +97,14 @@ function fixtureOf(): Fixture {
       return () => undefined;
     },
     report: () => undefined,
+    ...(options.lifecycle === undefined ? {} : { lifecycle: options.lifecycle }),
   });
   return {
     set,
     applyRequests,
     applyNowCalls,
     managedOff: managed,
+    stoppedNames,
     frames,
     leaseChanged: (id) => {
       for (const listener of listeners) listener(id);
@@ -305,5 +321,121 @@ test("시작 Drive 덧씌우기가 끝나도 프로필과 프로필의 사용 �
   fixture.leaseChanged(id);
   fixture.set.port.turnSettled?.(id);
   expect(fixture.set.viewOfProfile("default")).toEqual(before);
+  expect(fixture.set.port.resolve(id).overlay).toBeUndefined();
+});
+
+// ── 재시작 복원(M5c §4.3.5): 열린 임대의 Drive 프레임을 release 표지로 되살린다 ─────────
+
+/** 적재와 내리기를 기록하는 로더 연결. `ensureLoaded`는 `gate`가 풀릴 때까지 끝나지 않는다 */
+function lifecycleSpy(gate: Promise<void> = Promise.resolve()): PluginLifecycle & {
+  readonly loaded: string[];
+  readonly unloaded: string[];
+} {
+  const loaded: string[] = [];
+  const unloaded: string[] = [];
+  return {
+    loaded,
+    unloaded,
+    async ensureLoaded(name) {
+      loaded.push(name);
+      await gate;
+      return undefined;
+    },
+    async unload(name) {
+      unloaded.push(name);
+      return undefined;
+    },
+  };
+}
+
+/** 마이크로태스크를 모두 비운다. 그 뒤에도 끝나지 않은 일은 기다리는 중이다 */
+function flushed(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+test("재시작 복원: 되살린 Drive 표지는 적재가 끝난 뒤에 돌아오고, 집합에 release 표지로 든다", async () => {
+  const gate = Promise.withResolvers<void>();
+  const spy = lifecycleSpy(gate.promise);
+  const fixture = fixtureOf({ lifecycle: spy });
+  await fixture.set.refresh();
+  const id = threadId();
+  const restoring = fixture.set.restoreOverlay(id, [DRIVE]);
+  const finished = restoring.then((): "finished" => "finished");
+  await flushed();
+  // 적재가 끝나기 전에는 돌아오지 않는다(`ext.openThread`가 scope를 찾아야 프레임이 산다)
+  expect(spy.loaded).toEqual(["helm"]);
+  expect(await Promise.race([finished, Promise.resolve<"pending">("pending")])).toBe("pending");
+  gate.resolve();
+  await restoring;
+  expect(await finished).toBe("finished");
+  // 열기 전이라 적용을 요청하지 않는다. 적용은 열 때의 첫 경계가 한다
+  expect(fixture.applyNowCalls).toEqual([]);
+  expect(fixture.set.port.resolve(id)).toMatchObject({
+    plugins: ["core-thing", "helm"],
+    overlay: [{ plugin: "helm", contentHash: HASH_HELM, until: "release" }],
+  });
+});
+
+test("재시작 복원: 프로필에 든 이름, 코어 이름, 관리 잠금, 오류 정지, 턴 표지는 되살리지 않는다", async () => {
+  const spy = lifecycleSpy();
+  const fixture = fixtureOf({ lifecycle: spy, defaults: ["helm"] });
+  fixture.managedOff.add("managed-drive");
+  fixture.stoppedNames.add("stopped-drive");
+  await fixture.set.refresh();
+  const id = threadId();
+  await fixture.set.restoreOverlay(id, [
+    // 공장 기본 프로필에 든 이름
+    DRIVE,
+    // 코어 이름
+    { plugin: "core-thing", contentHash: HASH_HELM, until: "release" },
+    // 관리 잠금과 오류 정지
+    { plugin: "managed-drive", contentHash: HASH_HELM, until: "release" },
+    { plugin: "stopped-drive", contentHash: HASH_HELM, until: "release" },
+    // 턴 표지는 프레임과 무관하다
+    { plugin: "tools", contentHash: HASH_TOOLS, until: "turn" },
+  ]);
+  await flushed();
+  // 적재는 프로필의 helm만 한다(E(T)의 구성원이라 `refresh`가 싣는다). 되살리기가 더한 적재는 없다
+  expect(spy.loaded).toEqual(["helm"]);
+  expect(fixture.set.port.resolve(id).overlay).toBeUndefined();
+  expect(fixture.set.port.resolve(id).plugins).toEqual(["core-thing", "helm"]);
+});
+
+test("재시작 복원: 되살린 표지는 프레임이 풀리면 빠지고, 집합을 맞추도록 요청하고, 적재를 내린다", async () => {
+  const spy = lifecycleSpy();
+  const fixture = fixtureOf({ lifecycle: spy });
+  await fixture.set.refresh();
+  const id = threadId();
+  await fixture.set.restoreOverlay(id, [DRIVE]);
+  // 프레임이 쥐고 있는 동안은 표지도 적재도 남는다
+  fixture.frames.set(id, ["helm"]);
+  fixture.leaseChanged(id);
+  await flushed();
+  expect(fixture.set.port.resolve(id).overlay).toEqual([
+    { plugin: "helm", contentHash: HASH_HELM, until: "release" },
+  ]);
+  expect(spy.unloaded).toEqual([]);
+  fixture.applyNowCalls.length = 0;
+  fixture.frames.set(id, []);
+  fixture.leaseChanged(id);
+  await flushed();
+  expect(fixture.applyNowCalls).toEqual([id]);
+  expect(fixture.set.port.resolve(id).overlay).toBeUndefined();
+  expect(spy.unloaded).toEqual(["helm"]);
+});
+
+test("재시작 복원: 열린 대화를 닫으면 되살린 표지의 적재 참조가 놓인다", async () => {
+  const spy = lifecycleSpy();
+  const fixture = fixtureOf({ lifecycle: spy });
+  await fixture.set.refresh();
+  const id = threadId();
+  await fixture.set.restoreOverlay(id, [DRIVE]);
+  await flushed();
+  expect(spy.loaded).toEqual(["helm"]);
+  fixture.set.forget(id);
+  await flushed();
+  expect(spy.unloaded).toEqual(["helm"]);
   expect(fixture.set.port.resolve(id).overlay).toBeUndefined();
 });
