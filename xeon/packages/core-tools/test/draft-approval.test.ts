@@ -774,6 +774,7 @@ const SCRIPT_CARD_INPUT = {
   envNames: ["MARKER"],
   stdinBytes: 5,
   stdinPreview: "hello",
+  uses: ["system_tools", "network"],
 };
 
 /** 초안 플러그인이 스크립트를 부르는 요청. `run`이 불린 횟수를 센다 */

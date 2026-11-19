@@ -352,6 +352,7 @@ const SCRIPT_CARD_SCHEMA = Type.Object({
   envNames: Type.Array(Type.String()),
   stdinBytes: Type.Integer({ minimum: 0 }),
   stdinPreview: Type.String(),
+  uses: Type.Array(Type.String()),
 });
 
 /**
