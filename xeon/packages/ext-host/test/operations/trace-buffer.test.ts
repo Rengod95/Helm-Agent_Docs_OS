@@ -1270,3 +1270,70 @@ test("trace buffer: forgetThread drops the pre-turn entries that wait for a turn
     "boundary.turn.before",
   ]);
 });
+
+test("trace buffer: onRecord reports each handler right after it is recorded, with the turn and the entry so far, and skips records made before the turn opened", () => {
+  const ids = fixedIdFactory();
+  const { buffer } = bufferWith({ enabled: true });
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const heard: {
+    turnId: string;
+    hook: string;
+    step: number;
+    ids: string[];
+    handlerIndex: number;
+  }[] = [];
+  const off = buffer.onRecord((event) => {
+    heard.push({
+      turnId: event.turnId,
+      hook: event.entry.hook,
+      step: event.entry.step,
+      ids: event.entry.handlers.map((handler) => handler.registrationId),
+      handlerIndex: event.handlerIndex,
+    });
+  });
+  const hit = (registrationId: string): Hit => ({
+    registrationId,
+    durationMs: 2,
+    result: "passed",
+    startedAt: T0,
+    size: 0,
+    skippedBy: null,
+    reason: null,
+  });
+  // 턴이 열리기 전에 도는 훅은 알리지 않는다
+  dispatchHits(buffer, thread, `${thread}:input.user.before`, "input.user.before", T0, [
+    hit("pre"),
+  ]);
+  // 턴 키의 훅으로 턴을 열고, 단계 키의 도구 훅이 두 처리기를 차례로 남긴다
+  dispatchHits(buffer, thread, `${turn}:boundary.turn.before`, "boundary.turn.before", T0, [
+    hit("turn-hook"),
+  ]);
+  const step = ids.next("stp");
+  const dispatch = buffer.start({
+    threadId: thread,
+    dispatchKey: `${step}:tool.call.before:call_1`,
+    hook: "tool.call.before",
+    now: T0 + 5,
+  });
+  dispatch?.record(hit("first"));
+  expect(heard.at(-1)).toEqual({
+    turnId: turn,
+    hook: "tool.call.before",
+    step: 1,
+    ids: ["first"],
+    handlerIndex: 0,
+  });
+  dispatch?.record(hit("second"));
+  expect(heard.at(-1)).toEqual({
+    turnId: turn,
+    hook: "tool.call.before",
+    step: 1,
+    ids: ["first", "second"],
+    handlerIndex: 1,
+  });
+  expect(heard.map((item) => item.ids.at(-1))).toEqual(["turn-hook", "first", "second"]);
+  off();
+  dispatchHits(buffer, thread, `${step}:tool.result:call_1`, "tool.result", T0 + 9, [hit("late")]);
+  expect(heard.length).toBe(3);
+});

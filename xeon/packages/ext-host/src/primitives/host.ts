@@ -468,6 +468,7 @@ export function traceReadOf(host: ExtHost): TraceReadPort {
     enabled: () => hostInternalsOf(host).trace.enabled(),
     turn: (threadId, turnId) => hostInternalsOf(host).trace.turn(threadId, turnId),
     timings: (filter) => hostInternalsOf(host).trace.timings(filter),
+    onRecord: (listener) => hostInternalsOf(host).trace.onRecord(listener),
   };
 }
 

@@ -1085,6 +1085,8 @@ export interface TrustPrompter {
     enabled(): boolean;                                           // `x.operations.trace.enabled`
     turn(threadId: ThreadId, turnId: TurnId): TraceTurnResult | undefined;   // 버퍼 밖이면 undefined
     timings(filter: { hook?: HookName; registrationId?: RegistrationId }): ExtTimingsResult;
+    // [제안, 2026-11-20 enTr] 핸들러 기록이 쌓인 직후 알린다(턴 전 기록 제외). 호스트가 Hook 결과를 `turnRecord.delta`로 단계 끝보다 먼저 보내는 길. 없는 대역은 알리지 않는다
+    onRecord?(listener: (event: TraceRecordEvent) => void): Unsubscribe;   // { threadId, turnId: string, entry: TraceTurnEntry(그 핸들러까지), handlerIndex }
   }
   export interface TestRunControlPort {
     pause(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;   // 다음 단계 경계에서 멈춤, drive lock 유지

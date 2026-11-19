@@ -864,7 +864,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 
 ### 3.9 계측 링 버퍼와 시간 분포 (`trace-buffer.ts`, `handler-timings.ts`)
 
-X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다.
+X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다. [구현 2026-11-20, enTr] 버퍼는 `onRecord(listener)`로 핸들러 기록이 쌓인 직후를 알린다(`TraceReadPort.onRecord`). 알림은 턴이 열린 뒤의 기록만 싣고(턴 전 항목은 제외), 듣는 쪽은 Hook을 부르는 길 위에서 불리므로 던지지 않고 짧게 끝나야 한다. 듣는 쪽이 없으면 사본을 만들지 않는다. 시험은 `test/operations/trace-buffer.test.ts`.
 
 ```ts
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
