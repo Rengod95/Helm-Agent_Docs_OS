@@ -79,6 +79,7 @@ import type {
   TrustChoice,
   TrustListResult,
   TrustStatus,
+  TurnRecordDeltaParams,
   WireParams,
   WireResult,
   WorkspaceStatusResult,
@@ -824,6 +825,61 @@ export interface MeasureCommands {
   promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
 }
 
+/**
+ * Craft 메트릭(C9)과 트레이스(C8) 화면의 wire(M5d `review/m5/turn-record-metrics.md` §3.5, §3.8). 결과는 요청의 반환값이라 거울에 넣지 않는다.
+ * 쓰기는 인사이트 닫기, 프로필에서 빼기, 테스트 챗 열기 셋이고 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다.
+ */
+export interface CraftMetricsCommands {
+  /** `metrics.catalog`: 지표 정의(이름, 단위, 정의 문장) */
+  catalog(): Promise<Result<WireResult<"metrics.catalog">, CommandError>>;
+  /** `metrics.query`: 값마다 `state`와 `reason`이 있어 없는 값을 0으로 그리지 않는다 */
+  query(
+    params: WireParams<"metrics.query">,
+  ): Promise<Result<WireResult<"metrics.query">, CommandError>>;
+  /** `findings.list`: 인사이트. 닫은 것은 `state: "dismissed"`로 따로 읽는다 */
+  findings(
+    params: WireParams<"findings.list">,
+  ): Promise<Result<WireResult<"findings.list">, CommandError>>;
+  /** `findings.evidence`: 인사이트 근거 한 쪽 */
+  evidence(
+    findingId: string,
+    cursor: string | null,
+  ): Promise<Result<WireResult<"findings.evidence">, CommandError>>;
+  /** `findings.dismiss`: 닫는다. `until`이 있으면 그때 다시 연다(값이 바뀌어도 엔진이 다시 연다) */
+  dismiss(findingId: string, until: number | null): Promise<Result<null, CommandError>>;
+  /** `profile.list`: 거르기의 프로필 목록 */
+  profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `plugin.get`: 버전 전후 비교의 버전 목록(`versions`) */
+  plugin(name: string): Promise<Result<WireResult<"plugin.get">, CommandError>>;
+  /** `turnRecord.list`: 한 대화의 턴 목록 한 쪽 */
+  turns(
+    params: WireParams<"turnRecord.list">,
+  ): Promise<Result<WireResult<"turnRecord.list">, CommandError>>;
+  /** `turnRecord.get { detail: "full" }`: 턴 하나의 기록. 없으면 `record`가 null이고 `absent`가 이유다 */
+  turn(
+    threadId: string,
+    turnId: string,
+  ): Promise<Result<WireResult<"turnRecord.get">, CommandError>>;
+  /**
+   * `turnRecord.watch`와 알림 `turnRecord.delta`: 대화의 턴 기록 변화를 받는다. 값은 구독을 닫는 함수다.
+   * 닫은 뒤에는 `onDelta`가 다시 불리지 않는다
+   */
+  watch(
+    threadId: string,
+    onDelta: (params: TurnRecordDeltaParams) => void,
+  ): Promise<Result<() => void, CommandError>>;
+  /** `craftChat.open { reuse: "last", context }`: 근거를 들고 테스트 챗을 연다. 값은 그 대화 id다 */
+  openCraftChat(
+    params: WireParams<"craftChat.open">,
+  ): Promise<Result<WireResult<"craftChat.open">, CommandError>>;
+  /** `profile.removePlugin`: 프로필에서 플러그인 하나를 뺀다. `baseRev`가 다르면 거절된다 */
+  removeFromProfile(
+    profileId: string,
+    plugin: string,
+    baseRev: number,
+  ): Promise<Result<WireResult<"profile.removePlugin">, CommandError>>;
+}
+
 /** 확장이 소유한 저장 테이블 한 줄 */
 export interface StorageTableRow {
   readonly name: string;
@@ -1170,6 +1226,8 @@ export interface Commands {
   readonly tests: TestCommands;
   /** 성능 측정 화면(P-20)의 측정 읽기 */
   readonly measure: MeasureCommands;
+  /** Craft 메트릭·트레이스 화면(C9, C8)의 읽기와 인사이트 닫기 */
+  readonly craftMetrics: CraftMetricsCommands;
   readonly schedule: ScheduleCommands;
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;

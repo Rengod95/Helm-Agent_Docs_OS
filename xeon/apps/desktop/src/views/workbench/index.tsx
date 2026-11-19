@@ -12,6 +12,8 @@ import { ExtensionsScreen } from "./extensions-screen.tsx";
 import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
 import { MetricsScreen } from "../measure/metrics-screen.tsx";
+import { CraftMetricsScreen } from "../craft/metrics/metrics-screen.tsx";
+import { CraftTraceScreen } from "../craft/trace/trace-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
@@ -22,10 +24,12 @@ import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
 import {
   Eye,
   FlaskConical,
+  History,
   Layers,
   LayoutGrid,
   Package,
   Plug,
+  Spline,
   SquareStack,
   Target,
 } from "@caustic/react/icons";
@@ -76,6 +80,21 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.engine",
     icon: <Plug />,
     render: () => scoped(store, <EngineScreen />),
+  });
+  registry.registerScreen({
+    id: "craft-metrics",
+    area: "workbench",
+    label: "desktop.shell.nav.craftMetrics",
+    icon: <Spline />,
+    render: () => <CraftMetricsScreen />,
+  });
+  // 트레이스(C8)는 목적 화면이다. 내비 줄 없이 메트릭의 근거 줄과 대화의 "이 턴 기록"이 연다(`craft/trace/target.ts`)
+  registry.registerScreen({
+    id: "trace",
+    area: "workbench",
+    label: "desktop.shell.screen.trace",
+    icon: <History />,
+    render: () => <CraftTraceScreen />,
   });
 }
 

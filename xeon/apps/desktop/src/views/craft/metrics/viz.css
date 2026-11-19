@@ -1,0 +1,132 @@
+/* 메트릭(C9)과 트레이스(C8)의 그림 색. caustic 토큰만 쓴다(셸 CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다).
+   색은 종류를 가르는 데만 쓴다: Inject·Hook·Drive·도구 넷. 값은 프로필 캔버스(cv3)의 종류 색과 같은 식이다(oklab에서 섞어 색상은 그대로 두고 채도만 누른다).
+   Hook 결과(통과·고침·물음·막음)는 색이 아니라 먹의 진하기로 가르고, 고장(오류·시간 초과)만 위험 글자색이다.
+   다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정). */
+:root {
+  --viz-inject: color-mix(
+    in oklab,
+    var(--cs-color-identity-iris) 78%,
+    var(--cs-color-text-primary)
+  );
+  --viz-hook: color-mix(in oklab, var(--cs-color-identity-amber) 62%, var(--cs-color-text-primary));
+  --viz-drive: color-mix(in oklab, var(--cs-color-agent-stop-1) 82%, var(--cs-color-text-primary));
+  --viz-tool: color-mix(in oklab, var(--cs-color-identity-mint) 70%, var(--cs-color-text-primary));
+  --viz-model: var(--cs-color-text-tertiary);
+  --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
+  --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+  --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
+  --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent);
+  --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 60%, transparent);
+  --viz-blocked: color-mix(in oklab, var(--cs-color-text-primary) 86%, transparent);
+  --viz-fault: var(--cs-color-danger-text);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --viz-inject: color-mix(
+      in oklab,
+      var(--cs-color-identity-iris) 74%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-hook: color-mix(
+      in oklab,
+      var(--cs-color-identity-amber) 74%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-drive: color-mix(
+      in oklab,
+      var(--cs-color-agent-stop-1) 76%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-tool: color-mix(
+      in oklab,
+      var(--cs-color-identity-mint) 66%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+    --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+    --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+    --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+  }
+}
+:root[data-theme="dark"] {
+  --viz-inject: color-mix(
+    in oklab,
+    var(--cs-color-identity-iris) 74%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-hook: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 74%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-drive: color-mix(
+    in oklab,
+    var(--cs-color-agent-stop-1) 76%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-tool: color-mix(
+    in oklab,
+    var(--cs-color-identity-mint) 66%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+  --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+  --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+  --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+  --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+}
+
+@layer components {
+  /* 그림 안의 글자: 숫자는 고정폭 숫자, 축 글자는 흐리게 */
+  .viz-figure {
+    font-variant-numeric: tabular-nums;
+  }
+  .viz-axis {
+    fill: var(--cs-color-text-tertiary);
+    font-size: 11px;
+  }
+  .viz-gridline {
+    stroke: var(--viz-grid);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  /* 막대·칸에 올리면 같은 묶음의 다른 칸이 물러난다 */
+  .viz-hoverable [data-viz-mark] {
+    transition: opacity 120ms ease;
+  }
+  .viz-hoverable[data-viz-hot] [data-viz-mark]:not([data-viz-hot]) {
+    opacity: 0.35;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viz-hoverable [data-viz-mark] {
+      transition: none;
+    }
+  }
+  /* 표본이 적은 칸과 기록되지 않은 칸의 빗금 */
+  .viz-hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--viz-track) 0 2px,
+      transparent 2px 6px
+    );
+  }
+  /* 트레이스 흐름 줄의 진행 중 표시(움직임 줄이기면 멈춘다) */
+  @keyframes viz-live {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .viz-live {
+    animation: viz-live 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viz-live {
+      animation: none;
+    }
+  }
+}
