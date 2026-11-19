@@ -42,6 +42,7 @@ export async function openRealHarness(options: {
     clock,
     store,
     putBlob: (bytes, mediaType) => store.service.putBlob(bytes, mediaType),
+    putBlobStream: (source, mediaType) => store.service.putBlobStream(source, mediaType),
     readBlob,
   });
   return { h, store, reads };

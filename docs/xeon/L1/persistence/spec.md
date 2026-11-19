@@ -1244,14 +1244,14 @@ export interface RewindPlan {
 |---|---|
 | blob 파일 쓰기(임시 파일, fsync, rename), 읽기(전체·구간), 위치, GC 실행, 크기 한도 `l0.store.maxBlobBytes`, 사용량 `blobUsage` | L0.store(`fresnel.store.putBlob`, `readBlob`, `readBlobRange`, `blobUsage`) |
 | 명시 필드(`effect.intent.args`, `effect.result.blobRef`)에 `BlobRef` 넣기 | 생산자(core-tools 등) |
-| 큰 값 분리: 문자열 잎과 JSON 하위 값을 `blob:sha256:<hex>` 자리표시로 바꾸고 `detached`에 적는다 | core-persistence `detachLarge(draft, putBlob, fits)`(커밋 0단계, 트랜잭션 밖) |
+| 큰 값 분리: 문자열 잎과 JSON 하위 값을 `blob:sha256:<hex>` 자리표시로 바꾸고 `detached`에 적는다 | core-persistence `detachLarge(draft, putBlob, fits, putBlobStream?)`(커밋 0단계, 트랜잭션 밖) |
 | 되돌리기: `detached`를 읽어 자리표시를 값으로 바꾼 사본 | core-persistence `hydrate(event)`(모든 항목), `ext.loadThread`(스냅샷이 싣는 값만) |
 | 참조 중인 해시 목록 | core-persistence `p_blob_refs`, `query.liveBlobRefs()` |
 | 대화별 블롭 사용량 | core-persistence `persistenceQueryOf(session).blobUsageByThread()` |
 
 - 분리 후보는 두 가지다. (a) 문자열 잎 가운데 UTF-8 64 KiB(`DETACH_MIN_BYTES`) 이상, (b) 객체·배열 가운데 JSON 직렬화 바이트가 64 KiB 이상인 것. 루트(빈 포인터)는 객체·배열 후보가 아니다. 루트 문자열은 후보다.
 - 후보는 큰 것부터 고른다. 이미 고른 값 안에 든 후보는 고르지 않는다. 조상은 자기 안의 후보보다 커서 먼저 고르게 된다. 한 자리를 옮길 때마다 envelope 크기를 옮긴 만큼만 고쳐 재고, 목표(`ENVELOPE_MAX_BYTES - 1024`) 이하가 되면 멈춘다. `detached`는 256개를 넘지 않는다. 큰 값은 직렬화를 한 번만 한다.
-- [결정: AGE-59] 쓰는 쪽 메모리: 크기는 직렬화 글을 만들지 않고 센다(`jsonUtf8Length`, `stringUtf8Sizes`, F.records.spec §3.1). 분리 판정에 envelope 전체를 `JSON.stringify`하지 않는다. 문자열 후보의 UTF-8 바이트는 옮길 때 한 번만 만든다(후보로 고르기만 한 값은 만들지 않는다). 객체·배열 후보는 크기를 미리 잰 버퍼 하나에 잎 하나씩 인코딩해 넣는다(전체 직렬화 글과 인코딩 사본을 만들지 않는다). 모양이 예상과 다르면 `JSON.stringify` 뒤 인코딩으로 쓴다. 실측(100 MiB 문자열 하나, 이 층의 커밋): 최고 RSS 1.14 GB에서 0.31 GB(기준 0.07 GB 포함), 512 MiB 문자열 1.17 GB. 남은 복사는 JS 문자열 원본과 UTF-8 바이트 사본 둘이다.
+- [결정: AGE-59] 쓰는 쪽은 조각으로 보낸다. 저장소에 `putBlobStream`이 있으면(`detachLarge`의 넷째 인자) 큰 값을 `produce(sink)`의 조각으로 넘긴다. 문자열은 최대 1 MiB 글자씩 `encodeInto`로 인코딩하고 서로게이트 짝을 자르지 않는다. JSON 하위 값은 `JSON.stringify`와 같은 바이트를 64 KiB 버퍼 하나로 밀어 쓰고, 긴 잎은 16 K 글자씩 이스케이프한다. 저장소는 조각마다 SHA-256을 갱신하며 임시 파일에 쓰고 해시가 끝난 뒤 목적 경로를 정한다(L0.store §4.9). 크기는 직렬화 글을 만들지 않고 센다(`jsonUtf8Length`, `stringUtf8Sizes`). 커밋 지문은 `canonicalJson`의 바이트를 같은 조각 쓰기로 해시에 넣는다(`canonicalJsonSha256Hex`, 결과는 `sha256Hex(canonicalJson(v))`와 같다). 저장소가 없으면 값 전체를 한 버퍼로 만들어 `putBlob`에 준다. 목표는 쓰는 동안 더하는 메모리가 입력의 0.2배 이하다. 실측(100 MiB, 커밋 한 번, 기준은 같은 하네스의 분리 전 구현): ASCII 문자열 추가 RSS 126 MiB → 29 MiB, 한글 문자열 125 MiB → 32 MiB, 객체(lease 입력) 1241 MiB → 338 MiB. ASCII·한글의 남은 약 25 MiB는 입력 크기와 무관하다(5 MiB 입력에서도 같다). 첫 검사 단계(크기 세기)에서 나타나며 정규식 대신 루프나 조각 검사로 바꿔도 줄지 않았다. 목표에는 아직 못 미친다. 객체의 남은 증가는 크기·후보 순회와 `ext` 경로의 `toJsonValue` 사본에서 오는 것으로 보이나 측정으로 확인하지 않았다 [미결] [근거: packages/core-persistence/src/ext-port.ts].
 - 객체·배열을 옮긴 자리는 `encoding: "json"`을 적고, blob은 `JSON.stringify` 바이트(`application/json`)다. 문자열 잎은 `encoding`을 적지 않고 blob은 UTF-8 바이트다. 저장 형식은 옛 기록과 같다.
 - 객체·배열 후보는 자리표시로 바꾼 payload가 kind 스키마(`catalog.entryOf(kind).payload`)를 지킬 때만 고른다(`fits`). 지키지 않으면 건너뛰고 그 안의 문자열 잎을 본다. 문자열 잎은 문자열 자리에 문자열이 들어가므로 이 검사를 하지 않는다.
 - 같은 내용은 같은 해시다. `putBlob`은 같은 해시의 완전한 파일이 있으면 파일을 다시 쓰지 않고 `sys_blobs` 행의 시각만 갱신한다. 두 번 쓴 같은 내용은 파일 하나와 행 하나다.
