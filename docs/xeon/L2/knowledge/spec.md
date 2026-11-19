@@ -1439,7 +1439,6 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 11. [미결] 2글자 질의 LIKE 경로의 탐색 범위(`likeScanLimit`)와 성능 목표(`_research/notes/L2-3.md` §5).
 12. [미결] L3 학습 정책의 `kind: "script"(반복 작업 스크립트) 저장 위치. 2차(§3.9).
 13. [미결] 작업 폴더 스킬(`.fresnel/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
-14. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
 14. [미결] 되감긴 가지의 메시지를 대화 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
@@ -1449,3 +1448,4 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
 21. 닫음 [결정: M3-REQ-91]: 원장 `afterUntrusted` 표시. F `LedgerEntry.afterUntrusted?`와 `Proposal.afterUntrusted?`가 들어왔고 열 `after_untrusted`(마이그레이션 3단계)에 남긴다.
 22. 닫음 [결정: M3-REQ-91, D-M3-32 a]: 확장의 제안 결정. 대기열은 둘을 유지하고 `decide`는 호스트(사용자) 전용이다(§4.5.2). 확장이 이 대기열을 결정하는 길은 두지 않는다. 학습 그룹은 자기 대기열을 결정하고 이 기능의 쓰기를 증거와 함께 부른다.
+23. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
