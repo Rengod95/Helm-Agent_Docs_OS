@@ -11,6 +11,7 @@ import {
   DriveLockBudgetSchema,
   DriveStepLastSchema,
   GroupRecordSchema,
+  PluginHostTransferOptionSchema,
   type ScriptRunFailure,
   type ScriptRunResult,
   type CommandRunParams,
@@ -51,6 +52,7 @@ const hostInitSchema = Type.Object({
   root: Type.String(),
   entry: Type.String(),
   settings: Type.Record(Type.String(), JsonValueSchema),
+  transfer: Type.Optional(PluginHostTransferOptionSchema),
 });
 
 const hookInvokeSchema = Type.Object({

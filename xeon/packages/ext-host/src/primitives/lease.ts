@@ -210,8 +210,9 @@ function isActive(lease: LeaseRuntime): boolean {
 export const DRIVE_INPUT_MAX_BYTES = 536_870_912;
 
 /**
- * 격리 플러그인(프로세스)이 받는 입력과 결과의 직렬화 크기 상한. 한 줄 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`)에서 요청 뼈대
- * (`drive.step`의 다른 칸) 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫]. 넘는 값을 받아 기록하면 단계 요청이 `frame_too_large`로 실패해
+ * 격리 플러그인(프로세스)이 받는 입력과 결과의 직렬화 크기 상한의 옛 값. 한 줄 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`)에서 요청 뼈대
+ * (`drive.step`의 다른 칸) 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫]. 조각 전송이 협상되지 않은 격리 등록(또는 세대가 없는 격리 확장)에 쓴다.
+ * 협상된 등록은 `isolatedInputLimit`이 준 값을 쓴다(proxy-entry.ts). 넘는 값을 받아 기록하면 단계 요청이 `frame_too_large`로 실패해
  * 등록이 `driveError`가 되므로, 기록하기 전에 `input_too_large`로 거절한다
  */
 const ISOLATED_DRIVE_INPUT_MAX_BYTES: number = PLUGIN_HOST_MAX_FRAME_BYTES - 64 * 1024;
@@ -883,12 +884,18 @@ export function createLeaseBroker(
     return port;
   }
 
-  /** 입력을 받을 등록이 격리 플러그인이면 한 줄 상한 안으로 줄인 상한. 아니면 설정의 상한이다 */
+  /**
+   * 입력을 받을 등록이 격리 플러그인이면 그 등록의 입력 상한으로 줄인 값(협상된 조각 상한, 없으면 옛 한 줄 상한). 아니면 설정의 상한이다.
+   * 격리 표시가 없는 격리 확장(세대가 없다)은 옛 값으로 본다
+   */
   function inputLimitFor(receiver: RegistrationRecord | undefined | null): number {
     const configured = core.deps.driveInputMaxBytes();
-    const isolated =
-      receiver?.generation?.drive?.isolated === true || receiver?.manifest.isolation === "process";
-    return isolated ? Math.min(configured, ISOLATED_DRIVE_INPUT_MAX_BYTES) : configured;
+    const inputLimit = receiver?.generation?.drive?.inputLimit;
+    if (inputLimit !== undefined) return Math.min(configured, inputLimit());
+    if (receiver?.manifest.isolation === "process") {
+      return Math.min(configured, ISOLATED_DRIVE_INPUT_MAX_BYTES);
+    }
+    return configured;
   }
 
   /**
