@@ -140,7 +140,7 @@ import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { withPendingReview } from "./plugins/pending-overlay.ts";
-import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
+import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import { ensureResidentDrive, type ResidentDriveDeps } from "./m4/resident-drive.ts";
 import { restorableLeasesOf } from "./m4/drive-restore.ts";
 import type { OverlayMark } from "./m4/plugin-set.ts";
@@ -457,6 +457,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const profile = await ports.m4.profileTestRun.get(profileId);
     if (!profile.ok || profile.value.startDrive === null) return undefined;
     const named = profile.value.startDrive;
+    // 관리 잠금으로 빌더가 빠진 테스트 챗은 시작 Drive 없이 빈 대화로 연다(오류 아님) [결정: 2026-11-19, 사용자, AGE-60]
+    if (
+      profileId === CRAFT_PROFILE_ID &&
+      ports.m4.pluginSet.sourceOf(threadId, named) === "managed"
+    ) {
+      return undefined;
+    }
     const found = driveRegistrationOf(named);
     // 조용히 넘어가지 않는다: 이 대화는 시작 Drive 없이 열린다. 같은 사유는 `profile.preview`의 이슈(`driver_unavailable` 등)로도 보인다
     if (found === undefined) {

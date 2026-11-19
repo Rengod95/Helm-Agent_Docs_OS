@@ -85,7 +85,7 @@ interface Resolved {
 interface Membership {
   readonly sources: ReadonlyMap<string, EnabledSource>;
   readonly resolved: Resolved | undefined;
-  /** 늘 E(T)에 드는 이름: 테스트 챗의 빌더(AGE-60). 관리 잠금, 오류 정지, 드래프트·덧씌우기가 빼지 못한다 */
+  /** E(T)에 드는 이름: 테스트 챗의 빌더(AGE-60). 오류 정지, 드래프트·덧씌우기가 빼지 못한다. 관리 잠금은 뺀다(이유는 `sourceOf`가 `managed`로 읽힌다) */
   readonly pinned: ReadonlySet<string>;
 }
 
@@ -447,10 +447,11 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     sources: ReadonlyMap<string, EnabledSource>,
     pinned: ReadonlySet<string> = new Set(),
   ): string[] {
-    return [...sources.keys()].filter(
-      (name) =>
-        pinned.has(name) ||
-        (!deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name)),
+    return [...sources.keys()].filter((name) =>
+      // 고정 이름(테스트 챗의 빌더)은 오류 정지를 면제받지만 관리 잠금은 면제받지 못한다 [결정: 2026-11-19, 사용자, AGE-60]
+      pinned.has(name)
+        ? !deps.managedOff(name)
+        : !deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name),
     );
   }
 
