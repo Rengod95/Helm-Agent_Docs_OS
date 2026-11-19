@@ -811,6 +811,26 @@
     display: none;
   }
 
+  /* 중간: 참조 표의 글을 키우고 설명은 줄인다. 구역 안 카드의 부품 번호는 구역 머리가 말하므로 감춘다 */
+  .cvf-root[data-lod="mid"] .cvf-ref-name,
+  .cvf-root[data-lod="far"] .cvf-ref-name {
+    font-size: 16px;
+  }
+
+  .cvf-root[data-lod="mid"] .cvf-ref-mark,
+  .cvf-root[data-lod="far"] .cvf-ref-mark {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .cvf-root[data-lod="mid"] .cvf-ref-note {
+    font-size: 13px;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-card .cvf-mark {
+    display: none;
+  }
+
   /* ── 관계 선 ── */
   .cvf-rel {
     transition: opacity var(--cs-duration-quick, 100ms) ease-out;
