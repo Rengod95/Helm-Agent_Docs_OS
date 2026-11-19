@@ -212,7 +212,7 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
 const hues = (text: string): number[] =>
   [...text.matchAll(/oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s*\)/g)].map((m) => Number(m[1]));
 
-test("attention counts are caustic badges without a gradient, urgent is an inverted colourless badge, attention rows join into one wash, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
+test("attention counts are caustic badges without a gradient, urgent is an inverted colourless badge, attention rows join into one near-neutral squircle wash, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
   // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface". 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3).
   // lcMk4(2026-11-19): "일반적인 경우는 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", "더 채도높은 색을 쓰던지 마이크로 모션",
   // "변경검토나 단순 질문이나, 가드 각각 다른 색이 중심인데, 각 중심색에 맞게 오로라의 색조합들도 각각 다르게"
@@ -230,6 +230,12 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
     css.indexOf("@media", css.indexOf("@keyframes fx-attend-urgent")),
   );
   const wash = rule('[data-slot="list-navigation-item"]:has(> [data-attention])::before');
+  // 물듦 잉크의 다크·라이트 [채도, 불투명도]
+  const washInk = [
+    ...(css.match(/--fx-row-wash:\s*light-dark\(([^;]*)\);/)?.[1] ?? "").matchAll(
+      /oklch\(\s*[\d.]+\s+([\d.]+)\s+[\d.]+\s*\/\s*([\d.]+)\s*\)/g,
+    ),
+  ].map((m) => [Number(m[1]), Number(m[2])] as const);
   const list = codeOf(join(SRC, "views/thread-list.tsx"));
   const kinds = ["review", "question", "tool", "guard"].map((kind) =>
     rule(`.fx-attend-glow[data-kind="${kind}"]`),
@@ -256,10 +262,14 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
       /info|oklch|hsl|rgb/.test(urgent + list.slice(list.indexOf("function ApprovalCount"))),
       /filter|color|opacity/.test(cue),
     ],
-    // 확인이 필요한 줄은 물들고(data-attention), 연달아 있으면 아래로 틈을 덮고 맞닿은 모서리를 편다
+    // 확인이 필요한 줄은 물들고(data-attention), 연달아 있으면 아래로 틈을 덮고 맞닿은 모서리를 편다.
+    // 물듦은 거의 무채색 잉크(--fx-row-wash)이고 줄 단추와 같은 반경(lg)·squircle이다(lcMk7: "거의 뉴트럴", "radius가 좀 높은거같아. squircle 적용도")
     [
       /data-attention=\{attention \? "" : undefined\}/.test(list),
-      /--fx-crystal-a/.test(wash),
+      /var\(--fx-row-wash\)/.test(wash),
+      /--fx-crystal/.test(wash),
+      /border-radius:\s*var\(--cs-radius-lg\);\s*corner-shape:\s*squircle;/.test(wash),
+      washInk.map(([chroma, alpha]) => chroma <= 0.08 && alpha <= 0.05),
       /bottom:\s*-2px;\s*border-end-start-radius:\s*0;\s*border-end-end-radius:\s*0/.test(css),
       /\+ \[data-row-menu\]\s*\+ \[data-slot="list-navigation-item"\]:has\(> \[data-attention\]\)::before \{\s*border-start-start-radius:\s*0;\s*border-start-end-radius:\s*0/.test(
         css,
@@ -283,7 +293,22 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
     [],
     true,
     [true, true, false, false],
-    [true, true, true, true],
+    [true, true, false, true, [true, true], true, true],
     1,
   ]);
+});
+
+test("the card's top-edge light never reaches the bottom edge of a low card, and tall cards keep the 72px reach (DP-190)", () => {
+  // lcMk7: 받은 요청 맨 위의 낮은 카드(52px)는 세로 72px 빛이 아래 변에 옅은 빛깔 선을 그었다. 빛의 칸을 min(72px, 카드 높이의 70%)로 둔다.
+  // 타원 크기에 길이와 백분율을 섞은 min()을 바로 쓰면 Chromium이 마스크 전체를 버리므로 칸 크기(mask-size)로 준다
+  const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const at = css.indexOf(".fx-attend-edge {");
+  const edge = css.slice(at, css.indexOf("}", at));
+  expect([
+    edge.match(
+      /radial-gradient\(48% 100% at 50% 0, #000 0, #000 24%, transparent 100%\) 0 0 \/ 100% min\(72px, 70%\)\s+no-repeat,/g,
+    )?.length,
+    /radial-gradient\([^)]*min\(/.test(edge),
+    /48% 72px/.test(edge),
+  ]).toEqual([2, false, false]);
 });
