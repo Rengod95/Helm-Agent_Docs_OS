@@ -16,6 +16,8 @@ import type {
 } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
+  type BlobError,
+  type BlobRef,
   type CommitPlan,
   type CommitRequest,
   type CommitResult,
@@ -90,6 +92,7 @@ export interface HarnessOptions {
   readonly withHolder?: boolean;
   readonly readBlob?: SessionDeps["readBlob"];
   readonly putBlob?: SessionDeps["putBlob"];
+  readonly putBlobStream?: SessionDeps["putBlobStream"];
 }
 
 export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -123,6 +126,7 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     ...(options.withHolder === false ? {} : { holder: TEST_HOLDER_A }),
     ...(options.readBlob === undefined ? {} : { readBlob: options.readBlob }),
     ...(options.putBlob === undefined ? {} : { putBlob: options.putBlob }),
+    ...(options.putBlobStream === undefined ? {} : { putBlobStream: options.putBlobStream }),
     ...(options.faults === undefined ? {} : { faults: options.faults }),
     ...(options.settings === undefined ? {} : { settings: options.settings }),
     ...(options.guardProjectors === undefined ? {} : { guardProjectors: options.guardProjectors }),
@@ -644,19 +648,39 @@ export function expectOk<T>(
   return result.value;
 }
 
-/** 파일 대신 메모리에 두는 blob 저장소 대역. L0.store의 putBlob·readBlob과 같은 F 모양이다 */
+/**
+ * 파일 대신 메모리에 두는 blob 저장소 대역. L0.store의 putBlob·putBlobStream·readBlob과 같은 F 모양이다.
+ * putBlobStream은 조각을 이어 붙여 putBlob과 같은 값을 만든다. 넘긴 조각 수와 가장 큰 조각을 `pieces`에 센다
+ */
 export function memoryBlobs(): {
   readonly putBlob: NonNullable<SessionDeps["putBlob"]>;
+  readonly putBlobStream: NonNullable<SessionDeps["putBlobStream"]>;
   readonly readBlob: NonNullable<SessionDeps["readBlob"]>;
   readonly files: ReadonlyMap<string, Uint8Array>;
+  readonly pieces: { count: number; largest: number };
 } {
   const files = new Map<string, Uint8Array>();
+  const pieces = { count: 0, largest: 0 };
+  const putBytes = (bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError> => {
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    files.set(sha256, bytes);
+    return ok({ type: "blob", sha256, size: bytes.length, mediaType });
+  };
   return {
     files,
-    putBlob(bytes, mediaType) {
-      const sha256 = createHash("sha256").update(bytes).digest("hex");
-      files.set(sha256, bytes);
-      return ok({ type: "blob", sha256, size: bytes.length, mediaType });
+    pieces,
+    putBlob: putBytes,
+    putBlobStream(source, mediaType) {
+      const bytes = new Uint8Array(source.size);
+      let at = 0;
+      source.produce((chunk) => {
+        pieces.count += 1;
+        pieces.largest = Math.max(pieces.largest, chunk.byteLength);
+        bytes.set(chunk, at);
+        at += chunk.byteLength;
+      });
+      if (at !== source.size) throw new Bug("store.blob_stream_size: memory stream size mismatch");
+      return putBytes(bytes, mediaType);
     },
     readBlob(ref) {
       const bytes = files.get(ref.sha256);

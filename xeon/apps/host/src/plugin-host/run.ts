@@ -25,7 +25,8 @@ interface LineSink {
 }
 
 /**
- * 줄 싱크를 쓰기 큐로 만든다. 줄 끝 `\n`은 쓰는 쪽(framing)이 이미 붙였다. 쓰기 실패는 기록해 두고 닫을 때 값으로 돌려준다
+ * 줄 싱크를 쓰기 큐로 만든다. 줄 끝 `\n`은 쓰는 쪽(framing)이 이미 붙였다. 쓰기 실패는 기록해 두고 닫을 때 값으로 돌려준다.
+ * 비워지기를 기다릴 수 있어(`drained`) 조각 전송의 역압이 자식의 표준출력까지 닿는다
  */
 function lineSinkOf(stream: WritableStream<Uint8Array>): LineSink {
   const writer = stream.getWriter();
@@ -37,6 +38,10 @@ function lineSinkOf(stream: WritableStream<Uint8Array>): LineSink {
         detach(writer.write(encoder.encode(line)), (caught) => {
           failures.push(caught);
         });
+      },
+      // 큰 줄의 조각 전송은 조각마다 이 기다림을 받아 쓰기 큐가 쌓이지 않게 한다(AGE-59 역압). 쓰기가 실패하면 기다림도 실패한다
+      drained() {
+        return writer.ready;
       },
     },
     async close() {

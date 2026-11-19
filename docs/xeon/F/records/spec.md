@@ -1006,6 +1006,8 @@ export interface BlobUsage {
   readonly total: { readonly blobs: number; readonly bytes: number };
   readonly byThread: readonly BlobUsageByThread[];                  // [제안] owner = 'thread' 참조를 ref_key(대화 id)별로 센다
 }
+/** [제안] 조각으로 쓰는 블롭 원천. `size`는 전체 바이트 수로 미리 알린다. `produce`는 `sink`를 동기로 여러 번 부르고, 조각은 호출 동안만 유효하다 */
+export type BlobStreamSource = { readonly size: number; produce(sink: (chunk: Uint8Array) => void): void };
 export interface StoreService {
   readonly storeId: string;                   // "sto_<ULID>"(F.conversation.spec §3.2.1 ①)
   readonly capabilities: StoreCapabilities;
@@ -1016,6 +1018,8 @@ export interface StoreService {
   readonly leases: LeaseService;
   /** 트랜잭션 밖에서만 부른다(TX-04) */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
+  /** [제안] `putBlob`과 같은 결과를 내되 바이트를 조각으로 받아 해시를 조각마다 갱신하며 쓴다. `source.size`와 다르게 쓰면 Bug(store.blob_stream_size). 트랜잭션 밖에서만 부른다 */
+  putBlobStream(source: BlobStreamSource, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
   /** [제안] `[offset, offset + length)`만 읽는다. 범위가 ref.size를 넘거나 음수면 Bug(store.blob_range_out_of_bounds). 해시는 대조하지 않는다 */
   readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;

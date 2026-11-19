@@ -1,15 +1,6 @@
 // 세션 테이블에 쓰는 단일 커밋 경로(L1.persistence.spec §4.1, eng.transactions.design §4.3~§4.4, TX-07).
 // 테이블에 쓰는 코드는 이 파일과 projector/, lifecycle.ts의 remove(M2)뿐이다.
-import {
-  assertNever,
-  Bug,
-  canonicalJson,
-  err,
-  ok,
-  parse,
-  type Clock,
-  type Result,
-} from "@fresnel/contracts";
+import { assertNever, Bug, err, ok, parse, type Clock, type Result } from "@fresnel/contracts";
 import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   checkEnvelopeSize,
@@ -34,10 +25,10 @@ import {
   type StoreError,
   type StoreWriteError,
 } from "@fresnel/contracts/records";
-import { detachLarge, needsDetach, type PutBlob } from "./blob.ts";
+import { detachLarge, needsDetach, type PutBlob, type PutBlobStream } from "./blob.ts";
 import { checkpointDraftInput, completeCheckpoint, isApprovalWait } from "./checkpoint.ts";
 import { insertEvent, headSeqOf } from "./events.ts";
-import { sha256Hex } from "./hash.ts";
+import { canonicalJsonSha256Hex } from "./json-stream.ts";
 import type { GuardState, OpenSessions } from "./ownership.ts";
 import { toProjectionTx } from "./projector/tx.ts";
 import { PERSISTENCE_PRODUCER, producerOwnsKind, type ProducerRegistry } from "./producers.ts";
@@ -102,6 +93,8 @@ export interface WriterDeps {
   readonly guard: GuardState;
   /** blob 쓰기(0단계, 큰 문자열 분리). 없으면 envelope 상한을 넘는 초안은 store.event_too_large다 */
   readonly putBlob?: PutBlob;
+  /** 조각 blob 쓰기. 있으면 큰 값을 조각으로 인코딩해 보낸다(L1.persistence.spec §4.11). 없으면 putBlob에 값 전체를 준다 */
+  readonly putBlobStream?: PutBlobStream;
   /** 코어 투영기가 첫째, 그 뒤가 cap·ext 투영기(등록 순서). 커밋 7단계가 관심 kind만 적용한다 */
   readonly projectors: () => readonly Projector[];
   /** 참이면 확장·기능 투영기의 문장이 소유 테이블 밖을 건드릴 때 Bug(store.prefix_not_owned)로 거부한다(테스트·디버그 빌드) */
@@ -325,7 +318,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       return err({ kind: "read_only", reason: open.readOnly });
     }
     // 0. 트랜잭션 밖: 지문 계산
-    const fingerprint = sha256Hex(canonicalJson(request.fingerprintSource));
+    const fingerprint = canonicalJsonSha256Hex(request.fingerprintSource);
     const threadId = request.threadId;
     let appended: readonly DurableEventEnvelope[] = [];
     const abort: { error: StoreError | null } = { error: null };
@@ -566,7 +559,12 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
             drafts.push(stamped);
             continue;
           }
-          const moved = detachLarge(stamped.draft, putBlob, schemaFitsOf(stamped.draft));
+          const moved = detachLarge(
+            stamped.draft,
+            putBlob,
+            schemaFitsOf(stamped.draft),
+            deps.putBlobStream,
+          );
           if (!moved.ok) return err(mapBlobError(moved.error));
           const restamped = producers.restamp(stamped, moved.value);
           prevalidated.add(restamped.draft);

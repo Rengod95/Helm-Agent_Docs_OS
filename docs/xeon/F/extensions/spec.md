@@ -1948,3 +1948,21 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 주도 단계 함수(`drive`)는 setup에서 `g.drive(step, options)`를 한 번 받아 두고, 엔진이 주도 단계마다 `drive.step` 요청으로 부른다. 명령(`turn`, `ask`, `spawn`, `commit`, `handoff`, `yield`, `done`)은 엔진이 실행한다. 한도 옵션은 선언의 `drive.limits`로 시작하고 단계 응답의 `limits`로 바뀌지만, 바뀐 값은 **다음 주도권를 받을 때** 읽힌다(실행 중인 주도권의 한도는 바뀌지 않는다). 단계 시간 한도 `DRIVE_STEP_DEADLINE_MS`(120000 ms)는 제안값이고 설정 키 항목은 정해지지 않아 상수로 둔다(엔진 시험은 `driveStepDeadlineMs`로 주입한다). 단계 함수 안의 `awaitUser` 대기는 이 한도에서 뺀다(`begin`에서 시계를 멈추고 `end`에서 남은 시간으로 이어 간다. 사람을 기다리는 시간으로 플러그인이 죽지 않는다). 그 밖의 시간이 한도를 넘으면 감독이 프로세스를 멈추고(`process_killed`), 프로세스가 스스로 끝나면 `process_exit`이다. 두 경우 모두 프레임과 그 위 프레임을 `error`로 내리고, 주도 등록을 오류로 표시하지 않으므로 다음 시작 요청이 새 프로세스에서 새 프레임을 맡는다. 단계 함수가 던지면 그 단계는 오류이고 주도 등록을 오류로 표시한다.
 
 훅 실패 이유에 `process_exit`(프로세스가 스스로 끝남), `process_killed`(엔진이 시간 초과로 종료)를 더한다. 기록(`TraceFailureReason`)에 새 문자열로 저장된다.
+
+### 큰 줄의 조각 전송 [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8]
+
+한 줄(JSON 프레임 하나)이 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB, 줄 끝 제외 UTF-8 바이트)를 넘으면 보내는 쪽은 그 줄을 연속된 조각 프레임으로 나눠 보내고, 받는 쪽은 조각을 모아 원래 줄로 되돌린다. 플러그인 API, `GroupApi`, `RegistrationApi`, 매니페스트와 프레임의 의미는 바뀌지 않는다. 조각 프레임은 알림 모양(`method`와 `params`만 있다)이고 줄 하나가 JSON 하나다. 기존 줄 단위 프레임 모양(`RawPluginHostFrameSchema`)은 바꾸지 않는다.
+
+| 조각 | 메서드 | params |
+|---|---|---|
+| 시작 | `frame.begin` | `{x, size, parts, sha256, frameId?, frameKind?}`. `x`는 전송 번호다(보내는 쪽이 하나씩 늘린다). `size`는 원래 줄의 UTF-8 바이트 수, `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시다. `frameId`는 원래 프레임의 `id`이고, 없으면 생략한다. `frameKind`(`request` 또는 `response`)는 `frameId`가 있을 때 그 프레임이 요청인지 답인지다. 두 쪽의 `id` 번호는 따로 세므로, 받는 쪽은 이것으로 자기 대기 요청인지 가린다 |
+| 조각 | `frame.part` | `{x, i, data}`. `x`는 시작 알림의 전송 번호, `i`는 0부터의 순번, `data`는 원래 줄 글의 조각이다. 조각은 `PLUGIN_HOST_TRANSFER_PART_CHARS`(1 MiB 글자) 단위로 자르며, 서로게이트 쌍을 가르지 않으려고 한 글자 짧을 수 있다 |
+
+시작 알림 다음에 조각 `0`부터 `parts - 1`까지를 순서대로 보낸다. 한 방향에서 큰 줄의 전송은 하나씩 차례로(FIFO) 간다. 전송 중에는 그 방향의 다른 줄이 끼지 않는다. 조각 하나를 보낸 뒤에는 받는 쪽이 비워지기를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 전송을 접는다. 받는 쪽의 검사(순번, 크기, 해시)와 실패 값은 X.loading-trust §4.9.3에 정한다.
+
+**협상 칸 `transfer` [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8.2].** `host.init` 요청 params의 선택 칸 `transfer: {maxBytes}`는 엔진이 받을 수 있는 원래 줄의 최대 UTF-8 바이트 수다. `host.init` 응답의 같은 칸은 자식이 받을 수 있는 최대치다. 두 칸은 선택이다.
+
+- 조각 전송은 양쪽이 칸을 가졌을 때만 켠다. 엔진은 응답에 `transfer`가 있을 때 엔진 → 자식 방향으로 조각을 쓰고, 자식은 요청에 `transfer`가 있을 때 자식 → 엔진 방향으로 조각을 쓴다. 칸이 없는 쪽에는 넘는 줄을 보내지 않고 `frame_too_large`로 실패한다.
+- 한 줄 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`)을 넘는 줄은 상대 칸의 `maxBytes` 안일 때만 조각으로 보낸다. 넘으면 `frame_too_large`다. 한 줄 상한 안의 줄은 `maxBytes`와 상관없이 한 줄로 보낸다(받는 쪽도 줄 상한만 본다).
+- `host.init` 교환이 끝나기 전에는 조각 전송을 쓰지 않는다. 시작 요청 자체는 작다.
+- 프로토콜 버전은 1 그대로다. 칸은 선택이라 버전을 올리지 않는다.

@@ -119,8 +119,8 @@ export interface Generation {
   drive: {
     readonly fn: DriveCall;
     readonly options: ErasedDriveOptions;
-    /** 단계 함수가 격리 프로세스에 있다(`isolation/mark.ts`) */
-    readonly isolated: boolean;
+    /** 단계 함수가 격리 프로세스에 있으면 그 입력 상한을 읽는 함수다(`isolation/mark.ts`). 없으면 격리가 아니다 */
+    readonly inputLimit: (() => number) | undefined;
   } | null;
   readonly disposers: (() => void | Promise<void>)[];
   api: RegistrationApi<AnyState> | null;
