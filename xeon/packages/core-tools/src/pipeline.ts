@@ -166,8 +166,17 @@ export interface Pipeline {
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 /** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
 const CLOSED_OUTCOME_LIMIT = 4096;
+/** 모드·내장 기본 규칙이 낸 ask이고 내장 도구 대체가 아니면, 자율 허용이나 기억된 스크립트 승인이 허용으로 바꿀 수 있다 */
+function skippable(decision: PolicyDecision, entry: ToolEntry): boolean {
+  if (decision.effect !== "ask") return false;
+  if (decision.tier !== null && decision.tier !== "default") return false;
+  return entry.replacesBuiltin !== true;
+}
+
 /** 자율 허용(`auto`) 테스트 런이 ask를 허용으로 바꾼 호출의 정책 기록 티어(`CallRecord.policy.tier`). 표준 티어가 아니라 "묻지 않고 허용함"을 읽게 하는 표지다 */
 const AUTO_TEST_RUN_TIER = "auto_test_run";
+/** 이 테스트 런에서 이미 허용한 드래프트 스크립트를 묻지 않고 허용한 호출의 정책 기록 티어 */
+const SCRIPT_REMEMBERED_TIER = "script_remembered";
 /** 시크릿 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 시크릿 사용 승인임을 화면과 기록에 보인다 */
 const SECRET_USE_RULE_ID = "secret.use";
 /** 사용자 셸(`!명령`)을 실행하는 도구 이름 */
@@ -929,23 +938,21 @@ export function createPipeline(
    * 드래프트 카드가 걸리는 표지(L1.tools.spec §4.6.1 [결정: 2026-11-18 사용자, AGE-56]). 호출한 대화가 드래프트 승인 `auto`인 테스트 실행이면
    * 없다(`undefined`). 판정(3번)과 승인 상속 금지(4번)는 이 값으로 정한다. 카드 제목과 본문의 출처 표지는 `state.draft`를 그대로 쓴다.
    */
-  function draftGateOf(
-    draft: DraftMark | undefined,
-    threadId: ThreadId,
-    entry?: ToolEntry,
-  ): DraftMark | undefined {
+  function draftGateOf(draft: DraftMark | undefined, threadId: ThreadId): DraftMark | undefined {
     if (draft === undefined) return undefined;
-    // 초안 스크립트 실행은 `auto`도 건너뛰지 않는다(AGE-58 [제안]): auto는 "드래프트라서 뜨는 도구 호출 카드"만 없앤다
-    if (entry?.alwaysCard === true) return draft;
     return deps.draftAutoApproved?.(threadId) === true ? undefined : draft;
   }
 
   /** 호출한 대화가 자율 허용(`auto`) 테스트 런이고 이 ask를 허용으로 바꿀 수 있는가 */
   function autoRunAllows(decision: PolicyDecision, entry: ToolEntry, threadId: ThreadId): boolean {
-    if (decision.effect !== "ask") return false;
-    if (decision.tier !== null && decision.tier !== "default") return false;
-    if (entry.replacesBuiltin === true || entry.alwaysCard === true) return false;
-    return deps.draftAutoApproved?.(threadId) === true;
+    return skippable(decision, entry) && deps.draftAutoApproved?.(threadId) === true;
+  }
+
+  /** 이 호출이 드래프트 스크립트이고 이 대화(또는 부모 대화)에서 같은 열쇠의 카드를 이미 허용했는가. 읽지 못하면 아니다(다시 묻는다) */
+  async function scriptRememberedIn(entry: ToolEntry, threadId: ThreadId): Promise<boolean> {
+    if (entry.scriptRuleId === undefined) return false;
+    const found = await approvals.remembered?.(threadId, entry.scriptRuleId);
+    return found?.ok === true && found.value;
   }
 
   /**
@@ -962,7 +969,9 @@ export function createPipeline(
     const { run, entry, toolCallId } = state;
     const config = deps.config(run.threadId);
     // 드래프트 카드가 걸리는 표지. `auto` 대화의 드래프트 호출은 모드·규칙·위험 등급 평가만 받는다(L1.tools.spec §4.6.1)
-    const cardDraft = draftGateOf(state.draft, run.threadId, entry);
+    // 드래프트 스크립트는 이 테스트 런에서 이미 허용한 적이 있으면(`scriptRuleId`, 이 대화나 부모 대화의 기억 범위 `thread`) 카드를 건너뛴다(AGE-58 [제안])
+    const scriptRemembered = await scriptRememberedIn(entry, run.threadId);
+    const cardDraft = scriptRemembered ? undefined : draftGateOf(state.draft, run.threadId);
     // 읽기 전용 샌드박스 상한 아래에서는 도구가 선언한 샌드박스 위험 등급을 쓴다(대체 항목은 제외한다)
     const sandboxRisk =
       run.ceiling?.sandbox === "read-only" && entry.replacesBuiltin !== true
@@ -1030,12 +1039,13 @@ export function createPipeline(
     // 자율 허용 테스트 런의 대화(자식 포함)에서는 권한 모드·내장 기본 규칙이 낸 ask를 허용으로 바꾼다(L1.tools.spec §4.6.1 [결정: 2026-11-19, 사용자, AGE-56]).
     // 거부(deny)와 훅이 낸 묻기, 사용자·managed 티어 규칙의 ask, 내장 도구 대체의 ask는 그대로 남는다. 승인 id가 없으므로 시크릿 사용 증거가 되지 않는다.
     // 어떤 호출이 자동으로 돌았는지는 정책 기록의 `tier: "auto_test_run"`으로 남는다
-    if (
-      hookAsk === undefined &&
-      !config.managedRestricts &&
-      autoRunAllows(decision, entry, run.threadId)
-    ) {
-      state.facts.policy = { effect: "allow", tier: AUTO_TEST_RUN_TIER };
+    const autoGrant = autoRunAllows(decision, entry, run.threadId)
+      ? AUTO_TEST_RUN_TIER
+      : scriptRemembered && skippable(decision, entry)
+        ? SCRIPT_REMEMBERED_TIER
+        : undefined;
+    if (hookAsk === undefined && !config.managedRestricts && autoGrant !== undefined) {
+      state.facts.policy = { effect: "allow", tier: autoGrant };
       return undefined;
     }
     // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다.
@@ -1071,7 +1081,10 @@ export function createPipeline(
       {
         argsPayload,
         argsHash,
-        ruleId: hookAsk === undefined ? decision.ruleId : `hook:${hookAsk.extension}`,
+        ruleId:
+          hookAsk === undefined
+            ? (entry.scriptRuleId ?? decision.ruleId)
+            : `hook:${hookAsk.extension}`,
         title:
           hookAsk === undefined
             ? policyBase
@@ -1082,7 +1095,8 @@ export function createPipeline(
               ),
         requestKey: requestKeyFor(toolCallId, sha256HexSync),
         // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자]. 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
-        remember: ["once"],
+        // 드래프트 스크립트 카드는 "이 테스트 런 동안 다시 묻지 않음"(thread) 하나를 낸다 [결정: 2026-11-19, 사용자, AGE-58]
+        remember: hookAsk === undefined && entry.scriptRuleId !== undefined ? ["thread"] : ["once"],
         ...(hookAsk === undefined ? {} : { askedBy: hookAsk }),
       },
       signal,
@@ -2205,7 +2219,7 @@ export function createPipeline(
     if (target.kind === "tool") return registry.get(target.name);
     // 초안 스크립트 실행은 초안 출신 호출에만 열린다. 검토된 플러그인의 스크립트는 이 길을 타지 않는다(AGE-58)
     if (target.kind === "script")
-      return draftCaller ? scriptEntryOf(target.name, target.run) : undefined;
+      return draftCaller ? scriptEntryOf(target.name, target.run, target.memoryKey) : undefined;
     const mapped = registry
       .all()
       .find(
@@ -2566,7 +2580,7 @@ export function createPipeline(
       draft,
       // 초안 출신 호출은 승인 상속을 찾지 않는다(카드를 건너뛰지 못하게 닫는다, L1.tools.spec §4.6.1 4). `auto` 대화는 찾는다
       inherit:
-        draftGateOf(draft, run.threadId, entry) === undefined
+        draftGateOf(draft, run.threadId) === undefined
           ? await inheritedOf(request, request.input)
           : undefined,
       inheritApplied: undefined,

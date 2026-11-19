@@ -782,6 +782,7 @@ function scriptFrom(
   requestId: string,
   probe: { runs: number },
   inheritApproval?: { approvalId: string },
+  memoryKey?: string,
 ): Omit<PluginCallRequest, "threadId"> {
   return {
     plugin: { name: scopeId, scopeId },
@@ -789,6 +790,7 @@ function scriptFrom(
     target: {
       kind: "script",
       name: "check",
+      ...(memoryKey === undefined ? {} : { memoryKey }),
       run: () => {
         probe.runs += 1;
         return Promise.resolve({ ok: true, value: { exitCode: 0, timedOut: false } });
@@ -844,40 +846,134 @@ test("script: a declined card never runs the script and comes back as denied by 
   expect(probe.runs).toBe(0);
 });
 
-test("script: an auto thread still opens the card for a draft script, under bypass, while an auto draft tool call opens none", async () => {
+test("script: an auto thread opens no card for a draft script, runs it, and the trace records the auto grant", async () => {
+  const autoThreads: ThreadId[] = [];
+  const events: ToolCallTraceEvent[] = [];
+  const h = await createHarness({
+    draftOf,
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
+    callTrace: {
+      record: (event) => {
+        events.push(event);
+      },
+    },
+  });
+  autoThreads.push(h.thread);
+  const probe = { runs: 0 };
+  const result = await h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-3", probe, undefined, "k-auto"),
+  });
+  expect(result).toMatchObject({ ok: true, value: { isError: false } });
+  expect(probe.runs).toBe(1);
+  expect(toolCards(h)).toEqual([]);
+  expect(events.find((event) => event.tool === "script_check")).toMatchObject({
+    policy: { effect: "allow", tier: "auto_test_run" },
+    approval: null,
+  });
+});
+
+test("script: a deny rule and a tool.call.before block still stop a draft script in an auto thread", async () => {
   const autoThreads: ThreadId[] = [];
   const h = await createHarness({
     draftOf,
-    layers: [BYPASS],
+    layers: [
+      layer("user", {
+        "l1.tools.permissionMode": "bypass",
+        "l1.tools.rules": [
+          {
+            id: "u.deny-script",
+            action: "tool.call",
+            resource: { tool: "script_check" },
+            effect: "deny",
+          },
+        ],
+      }),
+    ],
     draftAutoApproved: (threadId) => autoThreads.includes(threadId),
   });
   autoThreads.push(h.thread);
   const probe = { runs: 0 };
-  const pending = h.runtime.tools.executeForPlugin({
+  const denied = await h.runtime.tools.executeForPlugin({
     threadId: h.thread,
-    ...scriptFrom("draft-plug", "script-3", probe),
+    ...scriptFrom("draft-plug", "script-3d", probe),
+  });
+  expect(denied.ok).toBe(false);
+  expect(probe.runs).toBe(0);
+  expect(toolCards(h)).toEqual([]);
+});
+
+test("script: an ask thread asks once per script, remembers the allow for this thread only, and asks again for another key", async () => {
+  const h = await createHarness({
+    draftOf,
+    layers: [layer("user", { "l1.tools.permissionMode": "default" })],
+  });
+  const probe = { runs: 0 };
+  const first = h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-5a", probe, undefined, "k-one"),
   });
   await until(() => toolCards(h).length === 1);
-  expect(probe.runs).toBe(0);
   const [card] = toolCards(h);
-  // 카드는 드래프트 표지를 단다(auto여도 건너뛰지 않는 카드다)
-  expect(card?.body.kind === "tool" ? card.body.tool.draft : undefined).toEqual({
-    plugin: "draft-plug",
-    draftId: "d-8",
+  // 카드는 "이 테스트 런 동안 다시 묻지 않음"(thread) 하나만 제안한다
+  expect(card?.remember).toEqual(["thread"]);
+  expect(card?.body.kind === "tool" ? card.body.tool.ruleId : undefined).toBe("script.run:k-one");
+  await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "allow" });
+  expect(await first).toMatchObject({ ok: true });
+  expect(probe.runs).toBe(1);
+  // 같은 열쇠(같은 초안 내용, 같은 스크립트)는 다시 묻지 않는다
+  const second = await h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-5b", probe, undefined, "k-one"),
   });
+  expect(second).toMatchObject({ ok: true });
+  expect(probe.runs).toBe(2);
+  expect(toolCards(h)).toEqual([]);
+  // 열쇠가 다르면(초안의 내용 해시나 스크립트가 다르면) 다시 묻는다
+  const third = h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-5c", probe, undefined, "k-two"),
+  });
+  await until(() => toolCards(h).length === 1);
+  const [again] = toolCards(h);
+  await h.runtime.approvals.respond(again?.approvalId ?? "", { decision: "deny" });
+  expect(await third).toMatchObject({ ok: false });
+  expect(probe.runs).toBe(2);
+});
+
+test("script: a denied card is not remembered, and a script call with no key asks every time", async () => {
+  const h = await createHarness({ draftOf, layers: [BYPASS] });
+  const probe = { runs: 0 };
+  const denied = h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-6a", probe, undefined, "k-d"),
+  });
+  await until(() => toolCards(h).length === 1);
+  await h.runtime.approvals.respond(toolCards(h)[0]?.approvalId ?? "", { decision: "deny" });
+  await denied;
+  const retry = h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-6b", probe, undefined, "k-d"),
+  });
+  await until(() => toolCards(h).length === 1);
+  const [card] = toolCards(h);
   await h.runtime.approvals.respond(card?.approvalId ?? "", { decision: "deny" });
-  expect(await pending).toMatchObject({ ok: false, error: { kind: "denied" } });
+  await retry;
+  // 열쇠가 없으면 카드는 once만 낸다
+  const bare = h.runtime.tools.executeForPlugin({
+    threadId: h.thread,
+    ...scriptFrom("draft-plug", "script-6c", probe),
+  });
+  await until(() => toolCards(h).length === 1);
+  expect(toolCards(h)[0]?.remember).toEqual(["once"]);
+  await h.runtime.approvals.respond(toolCards(h)[0]?.approvalId ?? "", { decision: "deny" });
+  await bare;
   expect(probe.runs).toBe(0);
 });
 
-test("script: a valid inherited approval does not skip the card of a draft script, even in an auto thread", async () => {
-  const autoThreads: ThreadId[] = [];
-  const h = await createHarness({
-    draftOf,
-    layers: [BYPASS],
-    draftAutoApproved: (threadId) => autoThreads.includes(threadId),
-  });
-  autoThreads.push(h.thread);
+test("script: a valid inherited approval does not skip the card of a draft script in an ask thread", async () => {
+  const h = await createHarness({ draftOf, layers: [BYPASS] });
   const probe = { runs: 0 };
   const pending = h.runtime.tools.executeForPlugin({
     threadId: h.thread,
