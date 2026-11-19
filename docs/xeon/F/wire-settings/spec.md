@@ -1189,7 +1189,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3612 | `overlay.notFound` | false | 그 플러그인이나 항목이 등록되어 있지 않다 | `name` |
 | 3613 | `overlay.limit` | false | 덧씌우기는 한 턴에 4개까지다 | - |
 | 3614 | `overlay.noEntry` | false | 그 플러그인에 그 이름의 항목이 들어 있지 않다. `testRun.start`의 시작 Drive 초안은 등록이 없어도 같은 코드로 거절하고 대화를 만들지 않는다 | `name` |
-| 3615 | `overlay.draftUnavailable` | false | 격리 포트가 없으면 초안을 싣지 않는다(덧씌우기와 `testRun.start`의 초안). 같은 플러그인의 다른 초안이 섞이거나 프로젝트 동반 플러그인이어도 같다 | - |
+| 3615 | `overlay.draftUnavailable` | false | 격리 포트가 없으면 초안을 싣지 않는다(덧씌우기와 `testRun.start`의 초안). 같은 플러그인의 다른 초안이 섞이거나 프로젝트 동반 플러그인이어도 같다. 사유는 `details.reason`으로 가른다 [제안, 2026-11-20 enTr]: `isolation_unavailable`(격리를 쓸 수 없다), `safe_mode`, `not_active`(싣었지만 켜지지 않았다), `content_changed`(같은 내부 이름에 다른 내용이 실려 있다), `load_failed`(그 밖의 싣기 실패), `project_plugin`, `mixed_versions`, `duplicate_start_drive`. 코드와 `kind`는 그대로이고 `reason`을 모르는 화면은 `details.name`만 읽어도 된다 | `{ name, reason }` |
 | 3616 | `draft.notFound` | false | 그 id의 초안이 남아 있지 않다 | `id` |
 | 3621 | `plugin.invalid` | false | 후보 폴더의 매니페스트나 구성이 올바르지 않다 | `issues: {code, severity?, plugin?, key?, other?, tool?}[]` |
 | 3622 | `plugin.tooLarge` | false | 후보 폴더가 파일 수, 크기, 깊이 상한을 넘는다 | - |
