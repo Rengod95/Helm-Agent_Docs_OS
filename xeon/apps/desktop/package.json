@@ -26,6 +26,7 @@
     "@caustic/tokens": "workspace:*",
     "@fresnel/client": "workspace:*",
     "@fresnel/contracts": "workspace:*",
+    "@xyflow/react": "catalog:",
     "border-beam": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
