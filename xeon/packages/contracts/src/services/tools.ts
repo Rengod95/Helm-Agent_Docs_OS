@@ -665,8 +665,11 @@ export interface ToolService extends ToolsPort {
     options?: ToolRegisterOptions,
   ): Result<Unregister, ToolRegisterError>;
 
-  /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
-  meta(name: ToolName): ToolMeta | undefined;
+  /**
+   * 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다. `threadId`가 있으면 그 대화가 보는 이름으로 찾는다
+   * (같은 이름이 대화마다 다른 도구일 수 있다, L1.tools.spec §3.3.1). 없으면 전 대화에 보이는 전역 이름만 찾는다
+   */
+  meta(name: ToolName, threadId?: ThreadId | null): ToolMeta | undefined;
 
   /** 내장 도구 대체 등록의 현재 상태. 승인 전(`pending`)과 거부(`denied`)인 대체도 나온다. 등록 순서다 */
   replacements(): readonly ToolReplacementState[];

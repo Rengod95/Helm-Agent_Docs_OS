@@ -225,10 +225,10 @@ export interface ToolService extends ToolsPort {
   /** L1·L2 코드 등록. 같은 순서 키·이름이 이미 있으면 ToolsError(tools.name_conflict)를 던진다 */
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   /** X ToolsPort 등록(확장 hostOf(g).registerTool). 아래 규칙으로 DirectToolRegistration을 만들어 위 메서드와 같은 경로로 등록한다 */
-  register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
+  register(owner: ScopeId, def: ToolResourceDef, options?: ToolRegisterOptions): Result<Unregister, ToolRegisterError>;
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
-  meta(name: ToolName): ToolMeta | undefined;
+  meta(name: ToolName, threadId?: ThreadId | null): ToolMeta | undefined; // threadId가 있으면 그 대화가 보는 이름으로 찾는다(§3.3.1)
 
   /** 광고 목록 산출(§4.1). 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
