@@ -1951,7 +1951,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 | 조각 | 메서드 | params |
 |---|---|---|
-| 시작 | `frame.begin` | `{x, size, parts, sha256, frameId?}`. `x`는 전송 번호다(보내는 쪽이 하나씩 늘린다). `size`는 원래 줄의 UTF-8 바이트 수, `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시다. `frameId`는 원래 프레임의 `id`이고, 없으면 생략한다 |
+| 시작 | `frame.begin` | `{x, size, parts, sha256, frameId?, frameKind?}`. `x`는 전송 번호다(보내는 쪽이 하나씩 늘린다). `size`는 원래 줄의 UTF-8 바이트 수, `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시다. `frameId`는 원래 프레임의 `id`이고, 없으면 생략한다. `frameKind`(`request` 또는 `response`)는 `frameId`가 있을 때 그 프레임이 요청인지 답인지다. 두 쪽의 `id` 번호는 따로 세므로, 받는 쪽은 이것으로 자기 대기 요청인지 가린다 |
 | 조각 | `frame.part` | `{x, i, data}`. `x`는 시작 알림의 전송 번호, `i`는 0부터의 순번, `data`는 원래 줄 글의 조각이다. 조각은 `PLUGIN_HOST_TRANSFER_PART_CHARS`(1 MiB 글자) 단위로 자르며, 서로게이트 쌍을 가르지 않으려고 한 글자 짧을 수 있다 |
 
 시작 알림 다음에 조각 `0`부터 `parts - 1`까지를 순서대로 보낸다. 한 방향에서 큰 줄의 전송은 하나씩 차례로(FIFO) 간다. 전송 중에는 그 방향의 다른 줄이 끼지 않는다. 조각 하나를 보낸 뒤에는 받는 쪽이 비워지기를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 전송을 접는다. 받는 쪽의 검사(순번, 크기, 해시)와 실패 값은 X.loading-trust §4.9.3에 정한다.

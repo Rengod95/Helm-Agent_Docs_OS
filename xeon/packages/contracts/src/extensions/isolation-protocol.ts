@@ -254,7 +254,9 @@ export function classifyFrame(
 
 /**
  * 조각 전송 시작 알림 `frame.begin`의 params. `x`는 전송 번호(보내는 쪽이 하나씩 늘린다), `size`는 원래 줄의 UTF-8 바이트 수,
- * `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시, `frameId`는 원래 프레임의 `id`(없으면 생략)다
+ * `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시, `frameId`는 원래 프레임의 `id`(없으면 생략)다.
+ * `frameKind`는 `frameId`가 있을 때 그 프레임이 요청(`request`)인지 응답(`response`)인지다. 두 쪽의 `id` 번호는 따로 세므로
+ * 받는 쪽은 이것으로 자기 대기 표의 요청인지 상대 요청에 대한 답인지 가린다(AGE-59 [제안] 덧붙임)
  */
 export interface PluginHostTransferBegin {
   readonly x: number;
@@ -262,7 +264,11 @@ export interface PluginHostTransferBegin {
   readonly parts: number;
   readonly sha256: string;
   readonly frameId?: number;
+  readonly frameKind?: PluginHostTransferFrameKind;
 }
+
+/** 조각으로 보낸 프레임이 `id`를 가진 요청인지 답인지. `frame.begin`의 `frameKind`다 */
+export type PluginHostTransferFrameKind = "request" | "response";
 
 /** 조각 알림 `frame.part`의 params. `i`는 0부터의 순번, `data`는 원래 줄 글의 조각이다 */
 export interface PluginHostTransferPart {
@@ -283,6 +289,7 @@ const TransferBeginShape = Type.Object(
     parts: Type.Integer({ minimum: 1 }),
     sha256: Type.String({ pattern: "^[0-9a-f]{64}$" }),
     frameId: Type.Optional(Type.Integer({ minimum: 0 })),
+    frameKind: Type.Optional(Type.Union([Type.Literal("request"), Type.Literal("response")])),
   },
   { additionalProperties: false },
 );
