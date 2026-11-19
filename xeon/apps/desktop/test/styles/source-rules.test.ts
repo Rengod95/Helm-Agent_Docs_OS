@@ -212,10 +212,11 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
 const hues = (text: string): number[] =>
   [...text.matchAll(/oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s*\)/g)].map((m) => Number(m[1]));
 
-test("attention counts are caustic badges without a gradient, urgent is info solid, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
+test("attention counts are caustic badges without a gradient, urgent is an inverted colourless badge, attention rows join into one wash, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
   // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface". 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3).
   // lcMk4(2026-11-19): "일반적인 경우는 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", "더 채도높은 색을 쓰던지 마이크로 모션",
   // "변경검토나 단순 질문이나, 가드 각각 다른 색이 중심인데, 각 중심색에 맞게 오로라의 색조합들도 각각 다르게"
+  // lcMk5(2026-11-19): "3색없는 버전으로 4.나 가 좋은데, 얘는 border radius를 없애던가 해서, 연속적인 두 row가 확인이 필요할 때 … 이어지게"
   const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   const rule = (selector: string): string => {
     const at = css.indexOf(`${selector} {`);
@@ -223,6 +224,12 @@ test("attention counts are caustic badges without a gradient, urgent is info sol
   };
   const count = rule(".fx-attend-count");
   const pill = rule(".fx-attend-pill");
+  const urgent = rule(".fx-attend-pill[data-urgent]");
+  const cue = css.slice(
+    css.indexOf("@keyframes fx-attend-urgent"),
+    css.indexOf("@media", css.indexOf("@keyframes fx-attend-urgent")),
+  );
+  const wash = rule('[data-slot="list-navigation-item"]:has(> [data-attention])::before');
   const list = codeOf(join(SRC, "views/thread-list.tsx"));
   const kinds = ["review", "question", "tool", "guard"].map((kind) =>
     rule(`.fx-attend-glow[data-kind="${kind}"]`),
@@ -239,9 +246,25 @@ test("attention counts are caustic badges without a gradient, urgent is info sol
     kinds.map((block) => centre(block).every((h) => h >= 40 && h <= 100)),
     kinds.map(centre),
     hues(css).filter((h) => h > 21 && h < 45),
-    /<Badge\b[^>]*className=\{props\.urgent \? "fx-attend-pill bg-info-solid text-info-on" : "fx-attend-pill"\}/.test(
+    // 급함: 무채색 안에서 뒤집힌 면(글자색 면, 바탕색 숫자)이고 빛깔(info·oklch)이 없다. 한 번의 움직임은 크기만이다
+    /<Badge\b[^>]*className="fx-attend-pill"[^>]*data-urgent=\{props\.urgent \? "" : undefined\}/.test(
       list,
     ),
+    [
+      /background-color:\s*var\(--cs-color-text-primary\)/.test(urgent),
+      /color:\s*var\(--cs-color-bg-app\)/.test(urgent),
+      /info|oklch|hsl|rgb/.test(urgent + list.slice(list.indexOf("function ApprovalCount"))),
+      /filter|color|opacity/.test(cue),
+    ],
+    // 확인이 필요한 줄은 물들고(data-attention), 연달아 있으면 아래로 틈을 덮고 맞닿은 모서리를 편다
+    [
+      /data-attention=\{attention \? "" : undefined\}/.test(list),
+      /--fx-crystal-a/.test(wash),
+      /bottom:\s*-2px;\s*border-end-start-radius:\s*0;\s*border-end-end-radius:\s*0/.test(css),
+      /\+ \[data-row-menu\]\s*\+ \[data-slot="list-navigation-item"\]:has\(> \[data-attention\]\)::before \{\s*border-start-start-radius:\s*0;\s*border-start-end-radius:\s*0/.test(
+        css,
+      ),
+    ],
     css.match(/\.fx-attend-count\b/g)?.length,
   ]).toEqual([
     true,
@@ -259,6 +282,8 @@ test("attention counts are caustic badges without a gradient, urgent is info sol
     ],
     [],
     true,
+    [true, true, false, false],
+    [true, true, true, true],
     1,
   ]);
 });

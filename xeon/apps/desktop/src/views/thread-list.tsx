@@ -142,9 +142,10 @@ function approvalCountText(approvals: number): string {
 /**
  * 줄 끝 승인 수(DP-189 [결정: 2026-11-18 사용자 "숫자의 백그라운드에 동그란 surface를 넣어줘. 패딩은 너무 크지않게 적당히", lcMk3]).
  * 보통은 caustic 배지(neutral soft, xs 18px, 좌우 6px) 그대로다: 그라데이션 없이 caustic의 면·글자색·모서리([결정: 2026-11-19 사용자 "일반적인 경우는
- * 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", lcMk4]). 급함(시한 있는 승인)은 채도 높은 info solid 면에 흰 글자이고, 보던 줄이 새로 급해진
- * 순간 한 번만 숨 쉬듯 커지며 밝아졌다 가라앉는다(`data-cue="urgent"`, [결정: 2026-11-19 사용자 "더 채도높은 색을 쓰던지 마이크로 모션 이펙트를 넣던지"]).
- * 처음 그릴 때(목록을 열 때)는 움직이지 않는다. 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
+ * 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", lcMk4]). 급함(시한 있는 승인)은 빛깔 없이 무채색 안에서 뒤집힌다: 면이 글자색(text.primary),
+ * 숫자가 바탕색(bg.app)·굵기 700이라 멈춘 채로도 보통 수와 갈리고, 보던 줄이 새로 급해진 순간 한 번만 톡 커졌다 앉는다(`data-cue="urgent"`, 0.9초,
+ * 크기만) [결정: 2026-11-19 사용자 "3색없는 버전으로", lcMk5가 lcMk4의 info solid 파랑 면을 바꿈]. 처음 그릴 때(목록을 열 때)는 움직이지 않는다.
+ * 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
  */
 function ApprovalCount(props: { readonly approvals: number; readonly urgent: boolean }): ReactNode {
   const waiting = t("desktop.threads.approvalsWaiting", { count: props.approvals });
@@ -158,8 +159,8 @@ function ApprovalCount(props: { readonly approvals: number; readonly urgent: boo
   return (
     <Badge
       size="xs"
-      // 급함은 caustic info solid의 면·글자(배지 solid × info와 같은 토큰). 보통은 배지 기본(neutral soft) 그대로다
-      className={props.urgent ? "fx-attend-pill bg-info-solid text-info-on" : "fx-attend-pill"}
+      // 급함의 뒤집힌 면·글자는 attention.css `.fx-attend-pill[data-urgent]`가 칠한다. 보통은 배지 기본(neutral soft) 그대로다
+      className="fx-attend-pill"
       data-thread-badge="approvals"
       data-urgent={props.urgent ? "" : undefined}
       data-cue={cue ? "urgent" : undefined}
@@ -211,7 +212,7 @@ const ThreadRow = memo(function ThreadRow(props: {
       <ListNavigationItem
         current={selected}
         // 앞 칸(DP-189 [결정: 2026-11-13 사용자 "좌측 아이콘은 아예 빼버리고"]): 줄 앞에는 표시를 두지 않아 모든 줄의 제목이 같은 열에 선다.
-        // 내 확인이 필요하면 끝의 둥근 면 위 숫자(줄 물듦은 lcMk3가 뺐다), 도는 중이면 끝의 진행 구슬, 안 보냈으면 caustic 실패 점이다. caustic
+        // 내 확인이 필요하면 줄의 옅은 물듦과 끝의 둥근 면 위 숫자(DP-190, lcMk5), 도는 중이면 끝의 진행 구슬, 안 보냈으면 caustic 실패 점이다. caustic
         // `status="running"`은 스펙트럼 고리를 그려 쓰지 않는다(DP-188). 승인을 기다리는 턴은 멈춰 있으므로 주의가 이긴다(진행 구슬 없음)
         {...(!attention && !running && unsent
           ? {
@@ -228,6 +229,8 @@ const ThreadRow = memo(function ThreadRow(props: {
         }
         // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
         data-flip-key={id}
+        // 확인이 필요한 줄의 물듦: 연달아 있는 줄은 attention.css가 한 띠로 잇는다(DP-190)
+        data-attention={attention ? "" : undefined}
         title={tooltip}
         // 오른쪽 클릭은 ⋯와 같은 메뉴를 연다(줄 끝 ⋯ 자리에 붙는다)
         onContextMenu={(event) => {
