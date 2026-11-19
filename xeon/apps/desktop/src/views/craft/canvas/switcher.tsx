@@ -80,7 +80,11 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
                 value={d.id}
                 aria-label={t(d.name)}
                 title={`${t(d.name)} · ${String(i + 1)}`}
-                className={d.round === 1 ? "font-mono text-text-tertiary" : "font-mono"}
+                className={
+                  d.round === 1
+                    ? "font-mono text-text-tertiary"
+                    : "font-mono font-semibold text-text-primary"
+                }
               >
                 {d.letter}
               </SegmentedControlItem>
