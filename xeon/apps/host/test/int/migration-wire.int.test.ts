@@ -615,6 +615,7 @@ scanTest(
           name: "guard",
           launch: { command: "sh", args: ["scripts/guard.sh"], envNames: [], cwd: null },
           timeoutMs: 29_000,
+          uses: ["system_tools", "network"],
         },
       ]);
       expect(item.card.runs).toEqual({ code: true, isolated: true });

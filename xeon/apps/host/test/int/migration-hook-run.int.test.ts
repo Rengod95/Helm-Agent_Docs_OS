@@ -53,12 +53,35 @@ fi
 exit 0
 `;
 
+/** 표준 입력의 JSON을 읽고 `re`로 명령을 보고 `subprocess`로 `git --version`을 부르는 `python3` 훅(AGE-58 마무리, enK7). 위험한 SQL이면 막는다 */
+const PY_GUARD_TEXT = `#!/usr/bin/env python3
+import json
+import re
+import subprocess
+import sys
+
+event = json.load(sys.stdin)
+command = (event.get("tool_input") or {}).get("command", "")
+git = subprocess.run(["/usr/bin/git", "--version"], capture_output=True, text=True)
+if git.returncode != 0:
+    sys.stderr.write("git is not reachable from the python hook\\n")
+    sys.exit(1)
+if re.search(r"drop\\s+table", command, re.IGNORECASE):
+    sys.stderr.write("drop table is blocked by the python guard\\n")
+    sys.exit(2)
+sys.exit(0)
+`;
+
 const HOOK_SETTINGS = {
   hooks: {
     PreToolUse: [
       {
         matcher: "Bash|Write",
         hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh" }],
+      },
+      {
+        matcher: "Bash",
+        hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/.claude/hooks/py_guard.py" }],
       },
     ],
   },
@@ -91,6 +114,12 @@ function hookTape(bigPath: string) {
         tape("migration-hook-run", [
           callTurn("passes", "bash", { command: "echo hook-pass-ok" }, "call_pass"),
           callTurn("is blocked", "bash", { command: "rm -rf ./nothing-here" }, "call_block"),
+          callTurn(
+            "is blocked by python",
+            "bash",
+            { command: "echo DROP TABLE users" },
+            "call_py_block",
+          ),
           callTurn("big input", "write", big, "call_big"),
           {
             role: "main" as const,
@@ -137,6 +166,7 @@ scanTest(
       `${JSON.stringify(HOOK_SETTINGS, null, 2)}\n`,
     );
     writeText(join(project, ".claude", "hooks", "guard.sh"), GUARD_TEXT);
+    writeText(join(project, ".claude", "hooks", "py_guard.py"), PY_GUARD_TEXT);
     const bundles = mkdtempSync(join(tmpdir(), "migration-hook-bundles-"));
     const bigPath = join(workspace, "big.txt");
     const restoreHome = redirectHome(userHome);
@@ -159,7 +189,7 @@ scanTest(
       const scanned = await connection.request("migration.scan", {
         roots: [{ path: project, scope: "project", label: "proj" }],
       });
-      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(1);
+      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(2);
       const proposal = await connection.request("migration.proposal", { scanId: scanned.scanId });
       expect(proposal.plugins.length).toBe(1);
       const applied = await connection.request("migration.apply", {
@@ -207,12 +237,15 @@ scanTest(
       const asked = await collector.waitFor(approvalOf, 90_000);
       // 카드가 뜬 시점에 앞의 두 호출은 이미 끝나 있다
       const before = toolResultTexts(collector.events, 4000);
-      expect(before.length).toBe(2);
-      const [passed, blocked] = before;
+      expect(before.length).toBe(3);
+      const [passed, blocked, pyBlocked] = before;
       expect(passed).toContain("hook-pass-ok");
       expect(passed).not.toContain('isError":true');
       expect(blocked).toContain("rm -rf is blocked by the guard");
       expect(blocked).toContain('isError":true');
+      // `python3` 훅: 같은 호출의 통과(위 `passed`)에도 돌았고(JSON을 읽고 `git --version`까지 불러 종료 0), 위험한 SQL은 막는다
+      expect(pyBlocked).toContain("drop table is blocked by the python guard");
+      expect(pyBlocked).toContain('isError":true');
 
       // 카드는 훅이 낸 묻기다: 큰 입력이라 스크립트를 돌리지 못했다는 이유가 담긴다. 쓰기는 아직 일어나지 않았다
       const pending = await connection.request("approval.list", { threadId: created.threadId });
@@ -240,9 +273,9 @@ scanTest(
       );
       expect(existsSync(bigPath)).toBe(false);
       const results = toolResultTexts(collector.events, 4000);
-      expect(results.length).toBe(3);
-      expect(results[2]).toContain('isError":true');
-      expect(results[2]).toContain("too big");
+      expect(results.length).toBe(4);
+      expect(results[3]).toContain('isError":true');
+      expect(results[3]).toContain("too big");
       expect(statSyncOrZero(bigPath)).toBe(0);
     } finally {
       await connection.close();

@@ -22,6 +22,7 @@ import type {
 import { BASE_ENV_POLICY, isDeniedEnvName } from "@fresnel/platform-exec";
 import { readOsRuntime } from "@fresnel/platform-os";
 import { detectProcessPlatform } from "@fresnel/platform-process";
+import { probePython, type PythonRuntime, type RunCommandSync } from "./python-runtime.ts";
 import { pluginHostLaunch } from "../plugin-host/launch.ts";
 import type { SelfRunTarget } from "../self-command.ts";
 import {
@@ -134,12 +135,39 @@ export function allowedEnvOf(
  */
 export function runnerOnPath(
   parent: Readonly<Record<string, string | undefined>>,
+  runSync?: RunCommandSync,
 ): (name: ScriptRunner) => string | undefined {
-  return (name) => {
-    const path = parent["PATH"];
-    if (path === undefined) return undefined;
-    const found = Bun.which(name, { PATH: path });
-    return found === null || !isAbsolute(found) ? undefined : found;
+  return scriptRunnersOnPath(parent, runSync).runner;
+}
+
+/**
+ * 실행기 해석 한 벌. `python3`는 PATH의 shim이나 개발자 도구 껍데기를 그대로 쓰지 않고, 인터프리터에 물어 실제 실행 파일과
+ * 설치 접두 폴더로 푼다(`runSync`가 있을 때만. 없으면 PATH에서 찾은 값 그대로다). 물어도 답이 없으면 undefined다.
+ * `readRoots`는 그 실행기가 샌드박스 안에서 시작하는 데 읽어야 하는 경로(읽기 전용)다. `python3` 말고는 비어 있다.
+ */
+export function scriptRunnersOnPath(
+  parent: Readonly<Record<string, string | undefined>>,
+  runSync?: RunCommandSync,
+): {
+  readonly runner: (name: ScriptRunner) => string | undefined;
+  readonly readRoots: (name: ScriptRunner, command: string) => readonly string[];
+} {
+  const python = new Map<string, PythonRuntime | undefined>();
+  const resolved = new Map<string, PythonRuntime>();
+  return {
+    runner: (name) => {
+      const path = parent["PATH"];
+      if (path === undefined) return undefined;
+      const found = Bun.which(name, { PATH: path });
+      if (found === null || !isAbsolute(found)) return undefined;
+      if (name !== "python3" || runSync === undefined) return found;
+      if (!python.has(found)) python.set(found, probePython(found, runSync));
+      const runtime = python.get(found);
+      if (runtime !== undefined) resolved.set(runtime.command, runtime);
+      return runtime?.command;
+    },
+    readRoots: (name, command) =>
+      name === "python3" ? (resolved.get(command)?.readRoots ?? []) : [],
   };
 }
 
@@ -160,6 +188,7 @@ export interface PluginHostAssembly {
 export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHostAssembly {
   const supervisors = new Map<string, PluginHostSupervisor>();
   const parentEnv = deps.parentEnv ?? process.env;
+  const runners = scriptRunnersOnPath(parentEnv, readOsRuntime().runSync);
   const recordDir = join(deps.stateDir, PLUGIN_HOSTS_DIR);
   const enginePid = deps.enginePid ?? process.pid;
   const port = deps.processPort;
@@ -203,7 +232,9 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
         deps.onSupervisor?.(name, supervisor);
       },
       // 스크립트 실행기(설계 B [제안]). 실행기 이름은 부모 환경의 PATH에서 절대 경로로 풀고, 없으면 실행기가 `runner_unavailable`로 답한다
-      runner: deps.resolveRunner ?? runnerOnPath(parentEnv),
+      runner: deps.resolveRunner ?? runners.runner,
+      // 주입된 해석기는 읽기 경로를 정하지 않는다. 운영의 `python3`는 설치 접두 폴더를 읽기로 연다
+      ...(deps.resolveRunner === undefined ? { runnerReadRoots: runners.readRoots } : {}),
       allowedEnv: allowedEnvOf(parentEnv),
       ...(deps.scriptGate === undefined ? {} : { scriptGate: deps.scriptGate }),
       ...(deps.sandboxAvailable === undefined ? {} : { sandboxAvailable: deps.sandboxAvailable }),

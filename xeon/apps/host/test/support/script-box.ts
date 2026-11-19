@@ -22,6 +22,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { BinaryError, BinaryName, OsDirs, ResolvedBinary } from "@fresnel/contracts/services";
 import { createScriptRunner } from "@fresnel/ext-host";
+import { scriptRunnersOnPath } from "../../src/assembly/plugin-host.ts";
 import {
   createSandboxService,
   readSandboxSettings,
@@ -35,6 +36,7 @@ import {
 } from "@fresnel/platform-process";
 import {
   createLocalIdFactory,
+  readOsRuntime,
   systemClock,
   systemRandom,
   systemScheduler,
@@ -139,6 +141,8 @@ async function createService(
 
 export async function openScriptBox(options?: {
   readonly resolve?: (name: ScriptRunner) => string | undefined;
+  /** `python3`를 찾을 PATH. 기본은 이 프로세스의 PATH다(shim, Homebrew, 개발자 도구 껍데기를 따로 시험할 때 쓴다) */
+  readonly pythonPath?: string;
 }): Promise<ScriptBox> {
   const root = realpathSync(mkdtempSync(join(DISK_TMP, "fresnel-script-box-")));
   const dirs: OsDirs = {
@@ -188,6 +192,11 @@ export async function openScriptBox(options?: {
     logger: LOGGER,
   });
   const paths = runnerPaths();
+  // `python3`는 운영과 같은 해석기로 푼다(실제 인터프리터와 설치 폴더 읽기 경로)
+  const pythons = scriptRunnersOnPath(
+    { PATH: options?.pythonPath ?? process.env["PATH"] },
+    readOsRuntime().runSync,
+  );
   const resolve =
     options?.resolve ??
     ((name: ScriptRunner) =>
@@ -197,7 +206,9 @@ export async function openScriptBox(options?: {
           ? paths.bash
           : name === "bun"
             ? paths.bun
-            : undefined);
+            : name === "python3"
+              ? pythons.runner("python3")
+              : undefined);
   let counter = 0;
   const run = async (spec: RunSpec): Promise<ScriptRunResult | string> => {
     counter += 1;
@@ -227,6 +238,7 @@ export async function openScriptBox(options?: {
       fs: nodeFs,
       target: { extension: "demo", scripts, tree, approved: spec.draft === undefined },
       resolveRunner: resolve,
+      runnerReadRoots: pythons.readRoots,
       allowedEnv: {},
       ...(spec.draft === undefined ? {} : { draftGate: spec.draft.gate }),
       setTimer: (ms, fn) => {

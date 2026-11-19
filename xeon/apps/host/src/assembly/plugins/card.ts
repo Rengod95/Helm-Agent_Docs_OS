@@ -6,6 +6,7 @@ import {
   HOOK_POSITIONS,
   pluginDeclsOf,
   SCRIPT_LIMITS,
+  SCRIPT_USES,
   type CardHook,
   type CardMcpLaunch,
   type CardScript,
@@ -163,6 +164,7 @@ function scriptOf(decl: ManifestScriptDecl): CardScript {
       cwd: null,
     },
     timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
+    uses: SCRIPT_USES,
   };
 }
 

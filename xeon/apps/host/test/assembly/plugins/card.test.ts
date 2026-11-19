@@ -359,11 +359,13 @@ test("a declared script's card line is its runner, then the relative file and ar
         cwd: null,
       },
       timeoutMs: 10000,
+      uses: ["system_tools", "network"],
     },
     {
       name: "report",
       launch: { command: "python3", args: ["scripts/report.py"], envNames: [], cwd: null },
       timeoutMs: 5000,
+      uses: ["system_tools", "network"],
     },
   ]);
   expect(parse(PluginCardSchema, card).ok).toBe(true);
