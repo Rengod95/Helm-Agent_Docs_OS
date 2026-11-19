@@ -143,6 +143,8 @@ export interface StoreService {
   leases: LeaseService;
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
+  /** [제안] `putBlob`과 같은 결과를 조각으로 받아 쓴다. `source.size`와 다르게 쓰면 Bug(store.blob_stream_size). §4.9 */
+  putBlobStream(source: BlobStreamSource, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
   /** [제안] `[offset, offset + length)`만 읽는다. 범위 밖·음수·정수 아님은 Bug(store.blob_range_out_of_bounds). §4.9 */
   readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
@@ -764,6 +766,7 @@ macOS `fullfsync` [제안]:
   9. `ok(BlobRef{ type: "blob", sha256, size, mediaType })`.
 - 이벤트 커밋 전에 블롭 쓰기가 끝나야 한다. 이벤트 envelope 256 KiB 초과 값은 블롭으로 옮긴다(EV-04, `F.records.spec` §3.4 규칙 3·4). 필드별 분리 기준(EV-04의 16 KiB 제안)과 분리 실행은 `L1.persistence.spec` 몫이다. adr.0004 §6 미결 "블롭 분리 임계 크기와 해시 함수" 중 해시 함수는 이 문서가 SHA-256으로 정한다 [제안].
 - 쓰기 중 `ENOSPC`는 `disk_full`이다. 목적 파일은 rename 뒤에만 생기고 행은 8단계에서만 생기므로, rename 앞에서 실패하면 임시 파일만 남고 뒤에서 실패하면 완전한 파일만 남는다. 어느 경우에도 행은 남지 않는다. 남은 파일은 GC가 지운다 [제안].
+- `putBlobStream(source, mediaType)` [제안]: `putBlob`과 같은 검사(트랜잭션 밖, 닫힘, 읽기 전용, `maxBlobBytes`를 파일 쓰기 전에)와 같은 결과(참조, 행, 오류)를 낸다. 바이트는 `source.produce`가 준 조각마다 해시에 넣고 임시 파일에 바로 쓴다. 입력 전체를 한 버퍼로 만들지 않으므로 이 쓰기가 더하는 메모리는 조각 크기 정도다(목표: 100 MiB 입력에 대해 입력의 0.2배 이하, L1.persistence.spec §4.11의 조각 인코딩과 맞춘다). 해시가 끝난 뒤 목적 경로를 정한다. 같은 해시의 완전한 파일이 있으면 임시 파일을 지우고, 없으면 `putBlob`의 4~9단계와 같다. 선언한 `size`와 쓴 바이트 수가 다르면 임시 파일을 지우고 `Bug(store.blob_stream_size)`다. 장애 지점 순서는 `putBlob`과 같다(`blob_after_tmp_write`, `blob_after_fsync`, `blob_after_rename`, `blob_before_row`). 실패하면 임시 파일을 지우고, 목적 파일과 행은 `putBlob`과 같은 규칙으로 남는다.
 - `readBlobRange(ref, offset, length)` [제안]: `openSync`와 `readSync`로 구간만 읽는다. `fstat` 크기가 `ref.size`와 다르면 `blob_corrupt{size}`, 파일이 없으면 `blob_missing`이다. 해시는 구간으로 알 수 없어 대조하지 않는다. 구간이 `[0, ref.size]` 밖이거나 정수가 아니면 `Bug(store.blob_range_out_of_bounds)`다(호출자 결함). 조각 읽기의 바탕이다. wire 메서드는 후속이다.
 - `blobUsage()` [제안]: 전체는 `sys_blobs`의 행 수와 `size` 합이다(참조 없이 유예 중인 블롭 포함, 같은 해시는 한 행). 대화별은 `sys_blob_refs`에서 `owner = 'thread'`인 참조를 `ref_key`(대화 id)로 묶고 `sys_blobs`와 조인한다. 기본 키가 `(sha256, owner, ref_key)`라 한 대화는 같은 블롭을 한 번만 센다. 같은 블롭을 두 대화가 참조하면 두 대화 모두에 든다. [미결] `owner = 'thread'`로 쓰는 쓰기 경로는 아직 없다 [근거: packages/core-persistence/src의 `pin(` 호출 0건, 2026-11-18]. core-persistence는 `sys_blob_refs`에 쓰지 않고 이벤트 투영 `p_blob_refs`(L1)로 참조를 기록한다. 대화별 값을 채우려면 core-persistence가 `pinBlob`을 부르거나 L1이 읽기 포트를 주는 방식을 정해야 한다.
 - `readBlobByHash(sha256)`: `ref.size` 대조만 빼고 `readBlob`과 같다(해시 모양 검사, `blob_missing`, 테스트 빌드의 해시 재검증). 컨텍스트 조립이 이미지 자리표시를 풀 때 쓴다(L1.context.spec §4.1).
