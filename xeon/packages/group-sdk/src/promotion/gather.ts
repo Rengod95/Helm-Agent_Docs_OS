@@ -8,7 +8,13 @@ import type { ExtHost } from "@fresnel/ext-host";
 import type { PromotionInput } from "./report.ts";
 
 /** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `GroupHostView`가 이 부분을 포함한다 */
-export type PromotionHostView = Pick<ExtHost, "registrations" | "queryEvents" | "toolOwner">;
+export type PromotionHostView = Pick<ExtHost, "registrations" | "queryEvents"> & {
+  /**
+   * 대화가 보는 도구 이름으로 그 도구를 등록한 레코드를 찾는다. 같은 이름이 여러 주인에게 있어도 그 대화가 보는 쪽만 돌려준다.
+   * 이름은 호출을 기록한 대화에서 모델이 본 이름이다
+   */
+  toolOwnerIn(name: string, threadId: ThreadId): ReturnType<ExtHost["toolOwner"]>;
+};
 
 type PromotionCall = PromotionInput["calls"][number];
 
@@ -28,8 +34,9 @@ function owningGroup(
   host: PromotionHostView,
   installed: ReadonlySet<RegistrationId>,
   tool: ToolName,
+  threadId: ThreadId,
 ): GroupId | undefined {
-  const record = host.toolOwner(tool);
+  const record = host.toolOwnerIn(tool, threadId);
   if (record === undefined || !installed.has(record.scopeId)) return undefined;
   return record.extension;
 }
@@ -37,7 +44,7 @@ function owningGroup(
 /**
  * 승격 집계 입력을 X 이벤트에서 모은다(L3.group-sdk.spec §3.12, G-18).
  * 호출 한 건은 `effect.intent` 하나다. 도구 실행 전에 한 번 커밋되고 같은 요청 키(`tool:<키>:intent`)로는 다시 쓰이지 않는다.
- * `turn.started`로 그 turn의 출처를 알고, `toolOwner`로 설치된 그룹이 등록한 도구만 고른다.
+ * `turn.started`로 그 turn의 출처를 알고, `toolOwnerIn`으로 그 대화가 보는 도구 가운데 설치된 그룹이 등록한 것만 고른다.
  * 한 thread의 조회가 실패하면(Result err) 그 thread는 건너뛰고 나머지를 모은다.
  */
 export async function gatherPromotionInput(
@@ -71,7 +78,7 @@ export async function gatherPromotionInput(
       const checked = parse(EffectIntentSchema, event.payload);
       if (!checked.ok) continue;
       const tool = checked.value.toolName;
-      const owner = owningGroup(host, installed, tool);
+      const owner = owningGroup(host, installed, tool, threadId);
       if (owner === undefined) continue;
       toolOwners.set(tool, owner);
       calls.push({ tool, seq: event.seq, threadId, origin });

@@ -985,7 +985,7 @@ export function buildPromotionReport(input: PromotionInput): PromotionReport;
 
 - 호출 한 건은 `effect.intent` 이벤트 하나다. 도구 실행 전에 한 번 커밋되고 요청 키가 `tool:<키>:intent`라 재실행되어도 한 건이다. `turnId`로 turn 출처와 잇는다.
 - turn 출처는 `turn.started`에서 읽는다. `scopeId`가 null이 아니면 그 Registration(drive turn). `scopeId`가 null이고 `origin`이 `user`(또는 없음)이면 `"user"`다. `delegation`, `scheduled`, `remote`, `other` turn은 호출을 만든 scope를 이벤트에서 알 수 없어 입력에서 뺀다 [미결](§10).
-- 도구 소유는 `ExtHost.toolOwner(name)`으로 찾는다. 기록의 `scopeId`가 `registrations()`에 있는 설치된 Registration일 때만 그 `extension`(그룹 이름)을 소유 그룹으로 본다. 소유 그룹이 없는 도구의 호출은 입력에 넣지 않는다.
+- 도구 소유는 호출을 기록한 대화가 보는 이름으로 찾는다(`PromotionHostView.toolOwnerIn(name, threadId)`, `GroupServiceDeps.toolOwnerIn`. 도구 이름은 대화마다 정해지므로 같은 이름이 여러 주인에게 있을 수 있다. L1.tools.spec §3.3.1 7). 조립이 `toolOwnerIn`을 주지 않으면 `ExtHost.toolOwner(name)`을 쓴다. 기록의 `scopeId`가 `registrations()`에 있는 설치된 Registration일 때만 그 `extension`(그룹 이름)을 소유 그룹으로 본다. 소유 그룹이 없는 도구의 호출은 입력에 넣지 않는다.
 - 조회는 `queryEvents(threadId, { kindPrefix: "turn.started" })`와 `{ kindPrefix: "effect.intent" }`다. 한 thread의 조회가 하나라도 실패하면(Result err) 그 thread를 건너뛰고 나머지를 모은다.
 - 현재 thread 기본 입력은 `GroupServiceDeps.promotion`이 없을 때 `createGroupService`가 만든다. 현재 thread가 없으면 빈 보고다.
 
