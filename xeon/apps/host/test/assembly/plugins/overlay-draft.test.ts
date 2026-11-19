@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
-import type { LoadDraftFailure, LoadInstalledStarted } from "@fresnel/ext-host";
+import type { LoadDiagnostic, LoadDraftFailure, LoadInstalledStarted } from "@fresnel/ext-host";
 import type { PluginPortFailure } from "../../../src/handlers/m5/plugins.ts";
 import {
   createDraftLoader,
@@ -126,7 +126,7 @@ test("초안 덧씌우기: 프로젝트 동반 플러그인의 초안은 draft_u
       new Set(),
       draftsOf(DRAFT),
     ),
-  ).toEqual(err({ kind: "draft_unavailable", name: "widget" }));
+  ).toEqual(err({ kind: "draft_unavailable", name: "widget", reason: "project_plugin" }));
 });
 
 test("초안 덧씌우기: 시작 Drive 항목(start)이나 다른 항목 이름은 no_entry다. 초안은 플러그인 전체만 얹는다", async () => {
@@ -192,7 +192,7 @@ test("초안 덧씌우기: 같은 플러그인의 초안과 검토본을 한 요
       new Set(),
       draftsOf(DRAFT),
     ),
-  ).toEqual(err({ kind: "draft_unavailable", name: "widget" }));
+  ).toEqual(err({ kind: "draft_unavailable", name: "widget", reason: "mixed_versions" }));
 });
 
 test("초안 싣기: 격리가 없으면(isolation_unavailable) 싣지 않고 실패를 알린다. 성공한 적재는 없다", async () => {
@@ -212,12 +212,14 @@ test("초안 싣기: 격리가 없으면(isolation_unavailable) 싣지 않고 �
     report: (event, fields) => reports.push(JSON.stringify([event, fields])),
     timeoutMs: 1_000,
   });
-  expect(await load([DRAFT])).toEqual(err({ name: "widget", kind: "isolation_unavailable" }));
+  expect(await load([DRAFT])).toEqual(
+    err({ name: "widget", kind: "isolation_unavailable", reason: "isolation_unavailable" }),
+  );
   expect(attempts).toEqual(["widget"]);
   expect(reports).toEqual([
     JSON.stringify([
       "plugin.overlay.draft_load_failed",
-      { name: "widget", kind: "isolation_unavailable" },
+      { name: "widget", kind: "isolation_unavailable", reason: "isolation_unavailable" },
     ]),
   ]);
 });
@@ -241,7 +243,9 @@ test("초안 싣기: 두 번째 초안이 실패하면 이 호출이 싣은 첫 
   };
   const load = createDraftLoader({ loader: () => loader, report: () => {}, timeoutMs: 1_000 });
   const broken: DraftRef = { ...DRAFT, name: "broken", draftId: "drf-2" };
-  expect(await load([DRAFT, broken])).toEqual(err({ name: "broken", kind: "safe_mode" }));
+  expect(await load([DRAFT, broken])).toEqual(
+    err({ name: "broken", kind: "safe_mode", reason: "safe_mode" }),
+  );
   expect(loaded).toEqual(["widget"]);
   expect(unloaded).toEqual(["ddrf1-widget"]);
 });
@@ -257,7 +261,10 @@ test("초안 덧씌우기 포트: 싣지 못한 초안이면 draft_unavailable�
       return Promise.resolve();
     },
     draftOf: draftsOf(DRAFT),
-    loadDrafts: () => Promise.resolve(err({ name: "widget", kind: "isolation_unavailable" })),
+    loadDrafts: () =>
+      Promise.resolve(
+        err({ name: "widget", kind: "isolation_unavailable", reason: "isolation_unavailable" }),
+      ),
     pluginSet: {
       attachOverlay: (_threadId, marks) => {
         attached.push(marks);
@@ -273,7 +280,7 @@ test("초안 덧씌우기 포트: 싣지 못한 초안이면 draft_unavailable�
       { plugin: "widget", draftId: DRAFT.draftId },
       { plugin: "other" },
     ]),
-  ).toEqual(err({ kind: "draft_unavailable", name: "widget" }));
+  ).toEqual(err({ kind: "draft_unavailable", name: "widget", reason: "isolation_unavailable" }));
   expect(loaded).toEqual([]);
   expect(attached).toEqual([]);
 });
@@ -312,5 +319,78 @@ test("초안 덧씌우기 포트: 싣기에 성공하면 표지는 초안 내부
         replaces: "widget",
       },
     ],
+  ]);
+});
+
+test("초안 싣기: 싣지 못한 이유마다 와이어 사유와 기록 한 줄이 갈린다(not_active, content_changed, 로더 없음, 그 밖)", async () => {
+  const reports: string[] = [];
+  const report = (event: string, fields: object): void => {
+    reports.push(JSON.stringify([event, fields]));
+  };
+  const diagnostic = partial<LoadDiagnostic>({ code: "manifest_invalid" });
+  const failures: readonly LoadDraftFailure[] = [
+    { kind: "not_active", state: "rejected", diagnostics: [diagnostic] },
+    { kind: "name_taken", internalName: "ddrf1-widget" },
+  ];
+  for (const failure of failures) {
+    const loader: DraftLoaderPort = {
+      loadDraft: () => Promise.resolve(err(failure)),
+      unloadDraft: () => Promise.resolve(true),
+      draftOf: () => undefined,
+    };
+    const load = createDraftLoader({ loader: () => loader, report, timeoutMs: 1_000 });
+    // oxlint-disable-next-line no-await-in-loop -- 사유마다 차례로 값을 비교한다
+    const refused = await load([DRAFT]);
+    expect(refused.ok ? null : refused.error.reason).toBe(
+      failure.kind === "not_active" ? "not_active" : "load_failed",
+    );
+  }
+  // 같은 내부 이름에 다른 내용이 이미 실려 있다
+  const held: DraftLoaderPort = {
+    loadDraft: () => Promise.resolve(ok(partial<LoadInstalledStarted>({ appliesAt: "now" }))),
+    unloadDraft: () => Promise.resolve(true),
+    draftOf: () => ({
+      internalName: "ddrf1-widget",
+      plugin: "widget",
+      draftId: "drf-1",
+      contentHash: "sha256:other",
+    }),
+  };
+  const changed = await createDraftLoader({ loader: () => held, report, timeoutMs: 1_000 })([
+    DRAFT,
+  ]);
+  expect(changed).toEqual(
+    err({ name: "widget", kind: "content_changed", reason: "content_changed" }),
+  );
+  // 로더가 아직 없다
+  const none = await createDraftLoader({ loader: () => undefined, report, timeoutMs: 1_000 })([
+    DRAFT,
+  ]);
+  expect(none).toEqual(
+    err({ name: "widget", kind: "loader_unavailable", reason: "isolation_unavailable" }),
+  );
+  expect(reports).toEqual([
+    JSON.stringify([
+      "plugin.overlay.draft_load_failed",
+      {
+        name: "widget",
+        kind: "not_active",
+        reason: "not_active",
+        state: "rejected",
+        code: "manifest_invalid",
+      },
+    ]),
+    JSON.stringify([
+      "plugin.overlay.draft_load_failed",
+      { name: "widget", kind: "name_taken", reason: "load_failed" },
+    ]),
+    JSON.stringify([
+      "plugin.overlay.draft_load_failed",
+      { name: "widget", kind: "content_changed", reason: "content_changed" },
+    ]),
+    JSON.stringify([
+      "plugin.overlay.draft_load_failed",
+      { name: "widget", kind: "loader_unavailable", reason: "isolation_unavailable" },
+    ]),
   ]);
 });

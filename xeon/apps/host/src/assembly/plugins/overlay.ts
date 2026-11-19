@@ -1,7 +1,12 @@
 import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId, TurnInvoked } from "@fresnel/contracts/conversation";
 import type { PluginOriginKind } from "@fresnel/contracts/extensions";
-import { OVERLAY_LIMIT, type InvocableKind, type OverlayRef } from "@fresnel/contracts/wire";
+import {
+  OVERLAY_LIMIT,
+  type DraftUnavailableReason,
+  type InvocableKind,
+  type OverlayRef,
+} from "@fresnel/contracts/wire";
 import { internalDraftName } from "@fresnel/ext-host";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 
@@ -43,6 +48,8 @@ export const NO_DRAFTS: DraftLookup = () => Promise.resolve(ok(undefined));
 export interface DraftLoadRefusal {
   readonly name: string;
   readonly kind: string;
+  /** 와이어의 `overlay.draftUnavailable` 사유(`details.reason`). 싣기 실패는 로더가 준 종류에서 정한다 */
+  readonly reason: DraftUnavailableReason;
 }
 
 /** 덧씌우기를 거절하는 이유 */
@@ -63,7 +70,11 @@ export type OverlayRefusal =
    * 초안을 격리 프로세스에 싣지 못했다(격리 포트가 없는 것을 포함한다), 프로젝트 동반 플러그인이다, 같은 플러그인의 다른 판과 섞였다.
    * 실린 것은 없다. 실패 종류는 `plugin.overlay.draft_load_failed`로 기록한다(§4.3.8)
    */
-  | { readonly kind: "draft_unavailable"; readonly name: string }
+  | {
+      readonly kind: "draft_unavailable";
+      readonly name: string;
+      readonly reason: DraftUnavailableReason;
+    }
   /** 대상을 읽는 저장소나 프로필의 실패. 처리기가 그 실패의 와이어 오류로 옮긴다 */
   | { readonly kind: "plugin"; readonly failure: PluginPortFailure };
 
@@ -142,7 +153,7 @@ export async function planOverlay(
         byPlugin.set(ref.plugin, planned.value);
       } else if (existing.draft?.draftId !== ref.draftId) {
         // 같은 플러그인의 다른 초안이나 검토본과 섞이면 어느 것이 자리를 대신하는지 정할 수 없다
-        return err({ kind: "draft_unavailable", name: ref.plugin });
+        return err({ kind: "draft_unavailable", name: ref.plugin, reason: "mixed_versions" });
       }
       continue;
     }
@@ -166,7 +177,7 @@ export async function planOverlay(
         invoked: [invoked],
       });
     } else if (existing.draft !== undefined) {
-      return err({ kind: "draft_unavailable", name: ref.plugin });
+      return err({ kind: "draft_unavailable", name: ref.plugin, reason: "mixed_versions" });
     } else if (!existing.invoked.some((item) => sameInvoked(item, invoked))) {
       existing.invoked.push(invoked);
     }
@@ -194,7 +205,9 @@ function plannedDraftOf(
     return err({ kind: "no_entry", name: ref.plugin });
   }
   // 프로젝트 동반 플러그인은 프로젝트 폴더의 것이다. 초안은 사용자 자신의 폴더에서만 만든다(§4.3.8)
-  if (target?.origin === "project") return err({ kind: "draft_unavailable", name: ref.plugin });
+  if (target?.origin === "project") {
+    return err({ kind: "draft_unavailable", name: ref.plugin, reason: "project_plugin" });
+  }
   return ok({
     plugin: ref.plugin,
     contentHash: draft.contentHash,
@@ -352,7 +365,13 @@ async function attachPlanned(
   );
   if (drafts.length > 0) {
     const loaded = await deps.loadDrafts(drafts);
-    if (!loaded.ok) return err({ kind: "draft_unavailable", name: loaded.error.name });
+    if (!loaded.ok) {
+      return err({
+        kind: "draft_unavailable",
+        name: loaded.error.name,
+        reason: loaded.error.reason,
+      });
+    }
   }
   // 이미 집합에 든 플러그인은 덧씌우지 않는다(§4.3.3). 초안은 검토본 자리를 대신하므로 집합에 들어 있어도 얹는다
   const fresh = planned.filter((item) => !item.alreadyInProfile);

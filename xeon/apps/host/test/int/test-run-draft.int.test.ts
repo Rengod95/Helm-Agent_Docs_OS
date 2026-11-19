@@ -492,6 +492,55 @@ realTest(
 );
 
 realTest(
+  "a draft whose code throws when it loads is refused with overlay.draftUnavailable and reason not_active, and nothing stays loaded",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-test-run-draft-bad-")));
+    const folder = join(workspace, "draft-folder");
+    writeDraftFolder(folder, join(workspace, "tool.marker"));
+    // 싣는 때 던지는 엔트리로 바꾼다
+    writeFileSync(
+      join(folder, "src", "index.ts"),
+      'export const extension = () => { throw new Error("boom"); };\n',
+    );
+    const previousCwd = process.cwd();
+    process.chdir(workspace);
+    const host = await startInProcessHost(isolatedOptions("test-run-draft-bad"));
+    const connection = createHostConnection(host.client);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      await storeBaseProfile(connection);
+      const draft = await createDraft(connection, folder);
+      const refused = await rejectionOf(
+        connection.request("testRun.start", {
+          baseProfileId: "work",
+          drafts: [{ plugin: DRAFT, draftId: draft.draftId }],
+        }),
+      );
+      expect(refused).toMatchObject({
+        data: {
+          kind: "overlay.draftUnavailable",
+          details: { name: DRAFT, reason: "not_active" },
+        },
+      });
+      const listed = await connection.request("ext.list", {});
+      expect(
+        listed.extensions.some((entry) => entry.name === internalDraftName(DRAFT, draft.draftId)),
+      ).toBe(false);
+    } finally {
+      await attemptAsync(() => connection.close());
+      await attemptAsync(() => host.close());
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  120_000,
+);
+
+realTest(
   "with no isolated plugin host a draft test run is refused with overlay.draftUnavailable, and no thread is created",
   async () => {
     const home = useEngineHome();
@@ -519,7 +568,12 @@ realTest(
           drafts: [{ plugin: DRAFT, draftId: draft.draftId }],
         }),
       );
-      expect(refused).toMatchObject({ data: { kind: "overlay.draftUnavailable" } });
+      expect(refused).toMatchObject({
+        data: {
+          kind: "overlay.draftUnavailable",
+          details: { name: DRAFT, reason: "isolation_unavailable" },
+        },
+      });
       // 대화는 하나도 늘지 않고, 초안은 어디에도 실리지 않는다
       expect((await connection.request("thread.list", {})).threads.length).toBe(before);
       const listed = await connection.request("ext.list", {});
