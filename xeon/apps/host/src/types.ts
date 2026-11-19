@@ -433,7 +433,7 @@ export type ThreadCompactFailure =
   | { readonly kind: "context_failed"; readonly error: ContextError };
 
 /** `ThreadPort.startDriveAfterSwitch`의 결과 */
-export type StartDriveAfterSwitch =
+type StartDriveAfterSwitch =
   /** 시작 요청을 걸었다 */
   | "requested"
   /** 이미 대화가 시작됐거나 주도 프레임이 있다. 도중 전환이라 시작하지 않는다 */
