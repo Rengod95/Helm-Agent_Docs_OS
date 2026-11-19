@@ -1416,7 +1416,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - 격리는 강제다. 설정 `ext.<이름>.isolation`, 매니페스트 `isolation`, 기본 규칙을 보지 않고 언제나 `process`다. 띄우기 포트와 띄우기 설정이 없으면 `isolation_unavailable`로 싣지 않는다. 엔진 안에서 도는 경로가 없다. 매니페스트에 `entry`가 없으면 띄울 코드가 없으므로 `draft_entry_missing`(단계 `isolation`)으로 거부한다.
 - 출처는 사용자 등급(`source: "user"`)이고 신뢰 상한은 §4.6을 따른다.
-- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
+- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자(`drf_` 접두를 뗀 ULID)의 소문자 영숫자 끝 여섯 글자 + `-` + 플러그인 이름. 앞쪽은 시간이라 같은 때 만든 판끼리 겹치므로 무작위인 끝을 쓴다 [구현 2026-11-20, enTr]. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
 - 판 식별자(`versionId`)는 `draft:<draftId>:<내용 해시 앞 8자>`다. 격리 라벨은 `ext:<내부 이름>:<versionId>`다.
 - `LoadedExtensionInfo`는 `isolation: "process"`이고 `name`은 내부 이름이며 `draft: { plugin, draftId }`를 더한다.
 - 로더는 싣기에 성공한 초안을 내부 이름 표로 든다(`loadDraftsOf()`, `draftOf(내부 이름)`). 초안은 이 표로만 구분하고 이름 모양으로 판단하지 않는다.
