@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,8 +32,16 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 const NAME = "pluginhost";
 const TIMEOUT_MS = 30_000;
 
-/** 플러그인 엔트리. 보고 파일 경로를 넣어 만든다. `typebox`는 X가 가상 모듈로 등록한다 */
-function entryText(reportPath: string): string {
+/**
+ * 플러그인이 보고를 쓰는 곳은 호출 전용 임시 폴더(`$TMPDIR`)다. 쓰기 없음 샌드박스가 쓰기를 허용하는 곳은 그 폴더 하나뿐이라서, 시험 폴더(`home.root`)에
+ * 쓰는 가정은 `FRESNEL_TEST_REAL_SANDBOX=1`에서 막힌다. 시험은 임시 폴더들에서 시험마다 다른 파일 이름으로 보고를 찾는다(`findReport`)
+ */
+function reportWriteExpr(reportName: string): string {
+  return `((process.env.TMPDIR ?? "/tmp") + "/" + ${JSON.stringify(reportName)})`;
+}
+
+/** 플러그인 엔트리. 보고 파일 이름을 넣어 만든다. `typebox`는 X가 가상 모듈로 등록한다 */
+function entryText(reportName: string): string {
   return `import { Type } from "typebox";
 import { writeFileSync } from "node:fs";
 export const extension = ({ register }) => {
@@ -41,7 +50,7 @@ export const extension = ({ register }) => {
       const next = g.state().count + 1;
       await g.commit({ count: next });
       await g.recordPrivate(${JSON.stringify(`x.${NAME}.run.turn`)}, { pid: process.pid });
-      writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify({ pid: process.pid, count: next }));
+      writeFileSync(${reportWriteExpr(reportName)}, JSON.stringify({ pid: process.pid, count: next }));
     });
   });
 };
@@ -56,12 +65,12 @@ const MANIFEST = JSON.stringify({
   plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
 });
 
-function installPlugin(home: EngineHome, reportPath: string): void {
+function installPlugin(home: EngineHome, reportName: string): void {
   const root = join(home.root, "config", "extensions", NAME);
   mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, ".fresnel-plugin", "plugin.json"), MANIFEST);
-  writeFileSync(join(root, "src", "index.ts"), entryText(reportPath));
+  writeFileSync(join(root, "src", "index.ts"), entryText(reportName));
 }
 
 /** 값이 조건을 만족할 때까지 다시 읽는다. 마감을 넘으면 마지막 값을 돌려준다 */
@@ -83,9 +92,35 @@ function alive(pid: number): boolean {
   }).ok;
 }
 
+/** 보고 파일이 있을 수 있는 폴더들: 임시 폴더 후보와 그 아래 호출 전용 폴더(이름이 `nw-`로 시작하고, 사용자별 `fresnel-<uid>` 폴더 아래에도 있다), 시험 폴더 아래 호출 전용 폴더 */
+function reportCandidates(reportName: string, home: EngineHome): readonly string[] {
+  const bases = [tmpdir(), "/tmp", "/private/tmp", process.env["TMPDIR"] ?? tmpdir()];
+  const found: string[] = bases.map((base) => join(base, reportName));
+  // 임시 폴더 후보는 한 단계(`nw-*`)만 본다(시스템 폴더가 섞여 있어 깊이 훑지 않는다). 시험 폴더만 깊이 훑는다
+  const scans: readonly [string, Bun.Glob][] = [
+    ...bases.map((base): [string, Bun.Glob] => [base, new Bun.Glob(`nw-*/${reportName}`)]),
+    // 엔진의 임시 폴더는 사용자별 `fresnel-<uid>` 아래에 호출 전용 폴더(`nw-*`)를 만든다
+    ...bases.map((base): [string, Bun.Glob] => [
+      base,
+      new Bun.Glob(`fresnel-*/nw-*/${reportName}`),
+    ]),
+    [home.root, new Bun.Glob(`**/nw-*/${reportName}`)],
+  ];
+  for (const [base, glob] of scans) {
+    if (!existsSync(base)) continue;
+    for (const match of glob.scanSync({ cwd: base, onlyFiles: true }))
+      found.push(join(base, match));
+  }
+  return found;
+}
+
 /** 플러그인이 쓴 보고(`{"pid":N,"count":M}`). 없으면 undefined */
-function readReport(path: string): { readonly pid: number; readonly count: number } | undefined {
-  if (!existsSync(path)) return undefined;
+function findReport(
+  reportName: string,
+  home: EngineHome,
+): { readonly pid: number; readonly count: number } | undefined {
+  const path = reportCandidates(reportName, home).find((candidate) => existsSync(candidate));
+  if (path === undefined) return undefined;
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (
     typeof parsed !== "object" ||
@@ -125,9 +160,9 @@ async function putDefaultProfile(
 }
 
 async function startWith(home: EngineHome, settings: Readonly<Record<string, unknown>>) {
-  const reportPath = join(home.root, "plugin-report.json");
+  const reportName = `plugin-report-${randomUUID()}.json`;
   writeUserSettings(home, { ...TAPE_SETTINGS, ...settings });
-  installPlugin(home, reportPath);
+  installPlugin(home, reportName);
   // 시작 보고(onLoadReport)는 시작 때의 스냅샷이라 대화가 열어 싣는 플러그인은 보이지 않는다. 격리 자식은 실릴 때 감독자를 만든다
   const supervisors: PluginHostSupervisor[] = [];
   const host = await startInProcessHost({
@@ -148,7 +183,7 @@ async function startWith(home: EngineHome, settings: Readonly<Record<string, unk
   return {
     host,
     connection,
-    reportPath,
+    report: () => findReport(reportName, home),
     isolation: () => (supervisors.length > 0 ? "process" : "none"),
     close: async (): Promise<void> => {
       await connection.close();
@@ -185,7 +220,7 @@ realTest(
       expect(started.isolation()).toBe("process");
       await runTurn(started, threadId);
       const report = await until(
-        async () => readReport(started.reportPath),
+        async () => started.report(),
         (value) => value?.count === 1,
       );
       expect(report?.count).toBe(1);
@@ -207,7 +242,7 @@ realTest(
     const threadId = await openThread(started);
     await runTurn(started, threadId);
     const report = await until(
-      async () => readReport(started.reportPath),
+      async () => started.report(),
       (value) => value !== undefined,
     );
     expect(report === undefined ? false : alive(report.pid)).toBe(true);
@@ -232,7 +267,7 @@ realTest(
       expect(started.isolation()).toBe("none");
       await runTurn(started, threadId);
       const report = await until(
-        async () => readReport(started.reportPath),
+        async () => started.report(),
         (value) => value?.count === 1,
       );
       expect(report?.count).toBe(1);
@@ -295,7 +330,7 @@ const GROUP_MANIFEST = JSON.stringify({
 });
 
 /** 그룹 엔트리. 상태 `{count}`를 정산 훅이 한 씩 올려 커밋하고, 도구와 명령이 같은 상태를 읽는다 */
-function groupEntryText(reportPath: string): string {
+function groupEntryText(reportName: string): string {
   return `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
 import { defineGroup, groupManifest } from "@fresnel/group-sdk";
@@ -306,7 +341,7 @@ const group = defineGroup({
   setup(g) {
     g.on("boundary.settle.after", async () => {
       const committed = await g.commit({ count: g.state().count + 1 });
-      writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify({ pid: process.pid, count: committed.count }));
+      writeFileSync(${reportWriteExpr(reportName)}, JSON.stringify({ pid: process.pid, count: committed.count }));
     });
     g.registerTool({
       name: ${JSON.stringify(GROUP_TOOL)},
@@ -325,12 +360,12 @@ export const extension = group.entry;
 `;
 }
 
-function installGroup(home: EngineHome, reportPath: string): void {
+function installGroup(home: EngineHome, reportName: string): void {
   const root = join(home.root, "config", "extensions", GROUP_NAME);
   mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(join(root, ".fresnel-plugin", "plugin.json"), GROUP_MANIFEST);
-  writeFileSync(join(root, "src", "index.ts"), groupEntryText(reportPath));
+  writeFileSync(join(root, "src", "index.ts"), groupEntryText(reportName));
 }
 
 /** 첫 turn은 답만 하고, 둘째 turn은 도구를 한 번 부른 뒤 답한다(테이프 순서) */
@@ -369,9 +404,9 @@ realTest(
   "a defineGroup plugin runs in its own process: its hook commits, its tool and command read the committed state",
   async () => {
     const home = useEngineHome();
-    const reportPath = join(home.root, "group-report.json");
+    const reportName = `group-report-${randomUUID()}.json`;
     writeUserSettings(home, TAPE_SETTINGS);
-    installGroup(home, reportPath);
+    installGroup(home, reportName);
     // 시작 보고는 시작 때의 스냅샷이라 대화가 열어 싣는 그룹은 보이지 않는다. 격리 자식은 실릴 때 감독자를 만든다
     const groupSupervisors: PluginHostSupervisor[] = [];
     const host = await startInProcessHost({
@@ -401,7 +436,7 @@ realTest(
       await startTurnWhenIdle(connection, { threadId: created.threadId, input: "첫 질문" });
       await collector.waitFor((event) => event.kind === "turn.completed");
       const first = await until(
-        async () => readReport(reportPath),
+        async () => findReport(reportName, home),
         (value) => value?.count === 1,
       );
       expect(first?.count).toBe(1);
@@ -422,7 +457,7 @@ realTest(
       ).toEqual({ applied: true });
       await collector.waitFor((event) => event.kind === "turn.completed" && !seen.has(event));
       const second = await until(
-        async () => readReport(reportPath),
+        async () => findReport(reportName, home),
         (value) => value?.count === 2,
       );
       expect(second?.count).toBe(2);
