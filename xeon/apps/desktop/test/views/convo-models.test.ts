@@ -304,6 +304,8 @@ function turnOf(over: Partial<TurnSummary>): TurnSummary {
     startedSeq: 1,
     inputItemIds: [],
     leadScopeId: null,
+    requestId: null,
+    invoked: [],
     model: null,
     startedAt: "2026-11-11T00:00:00.000Z",
     running: false,

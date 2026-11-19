@@ -415,6 +415,7 @@ function turn(
     scopeId: options.scopeId ?? null,
     requestId: null,
     inputItemIds: [input],
+    invoked: [],
     model: MODEL,
     steps: options.steps,
     lastStepIndex: options.steps - 1,

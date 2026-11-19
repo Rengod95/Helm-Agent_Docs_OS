@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ItemId, TurnId } from "@fresnel/contracts/conversation";
 import type { AnchoredCompaction } from "../state/engine/compaction-anchor.ts";
-import type { ConvoMarker } from "../state/engine/convo.ts";
+import type { ConvoMarker, DriveInputRecord } from "../state/engine/convo.ts";
 import type { ItemShape, ShapeBlock } from "../state/engine/index.ts";
 import type { CompactionRecord } from "../state/engine/state.ts";
 import type { VirtualRow } from "./virtual-list.tsx";
@@ -45,6 +45,8 @@ export type TranscriptRow = VirtualRow &
     | { readonly kind: "pending" }
     | { readonly kind: "compaction"; readonly record: CompactionRecord }
     | { readonly kind: "marker"; readonly marker: ConvoMarker }
+    /** Drive가 받은 사용자 말(`lease.user_input`). 보낸 자리에 바로 서고 전달 대기 → 전달됨을 조용히 보인다 */
+    | { readonly kind: "driveInput"; readonly input: DriveInputRecord }
     | { readonly kind: "leadHead"; readonly leaseId: string }
     | { readonly kind: "leadEnd"; readonly leaseId: string }
     | {
@@ -235,6 +237,7 @@ function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
     case "pending":
     case "compaction":
     case "marker":
+    case "driveInput":
     case "leadHead":
     case "leadEnd":
     case "turnFoot":
@@ -244,17 +247,22 @@ function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
   }
 }
 
-/** 표지를 놓을 교환 번호. seq가 그 교환의 턴 시작보다 앞이면 그 교환 앞이다. 어디에도 없으면 끝(교환 수) */
+/** seq로 놓을 교환 번호. seq가 그 교환의 턴 시작보다 앞이면 그 교환 앞이다. 어디에도 없으면 끝(교환 수) */
+function seqSlotOf(seq: number, exchanges: readonly Exchange[]): number {
+  const at = exchanges.findIndex(
+    (e) => e.turn !== null && e.turn.startedSeq !== null && e.turn.startedSeq > seq,
+  );
+  return at >= 0 ? at : exchanges.length;
+}
+
+/** 표지를 놓을 교환 번호. 예약 실행은 그 턴 앞이고, 나머지는 seq 자리다 */
 function markerSlotOf(marker: ConvoMarker, exchanges: readonly Exchange[]): number {
   if (marker.change.kind === "scheduled_start") {
     const turnId = marker.change.turnId;
     const at = exchanges.findIndex((e) => e.turn?.turnId === turnId);
     if (at >= 0) return at;
   }
-  const at = exchanges.findIndex(
-    (e) => e.turn !== null && e.turn.startedSeq !== null && e.turn.startedSeq > marker.seq,
-  );
-  return at >= 0 ? at : exchanges.length;
+  return seqSlotOf(marker.seq, exchanges);
 }
 
 export function transcriptRowsOf(input: {
@@ -265,6 +273,8 @@ export function transcriptRowsOf(input: {
   readonly anchors: readonly AnchoredCompaction[];
   readonly turns: readonly TurnRef[];
   readonly markers: readonly ConvoMarker[];
+  /** Drive가 받은 사용자 말. 표지처럼 seq 자리에 선다 */
+  readonly driveInputs?: readonly DriveInputRecord[];
   readonly leads: readonly LeadRef[];
   /** 열린 대화가 도는 중이다. 마지막 교환에는 턴 발 줄을 두지 않는다 */
   readonly running: boolean;
@@ -289,13 +299,30 @@ export function transcriptRowsOf(input: {
     const slot = markerSlotOf(marker, exchanges);
     markersAt.set(slot, [...(markersAt.get(slot) ?? []), marker]);
   }
-  const markerRows = (slot: number): TranscriptRow[] =>
-    (markersAt.get(slot) ?? []).map((marker) => ({
-      kind: "marker",
-      key: `mark:${marker.seq}`,
-      lead: null,
-      marker,
-    }));
+  const inputsAt = new Map<number, DriveInputRecord[]>();
+  for (const driveInput of input.driveInputs ?? []) {
+    const slot = seqSlotOf(driveInput.seq, exchanges);
+    inputsAt.set(slot, [...(inputsAt.get(slot) ?? []), driveInput]);
+  }
+  // 한 자리에서는 seq 순서다. 표지와 보낸 말이 섞여도 일어난 차례대로 선다
+  const markerRows = (slot: number): TranscriptRow[] => {
+    const placed: { readonly seq: number; readonly row: TranscriptRow }[] = [
+      ...(markersAt.get(slot) ?? []).map((marker) => ({
+        seq: marker.seq,
+        row: { kind: "marker", key: `mark:${marker.seq}`, lead: null, marker } as const,
+      })),
+      ...(inputsAt.get(slot) ?? []).map((driveInput) => ({
+        seq: driveInput.seq,
+        row: {
+          kind: "driveInput",
+          key: `drive-input:${driveInput.requestId}`,
+          lead: null,
+          input: driveInput,
+        } as const,
+      })),
+    ];
+    return placed.toSorted((a, b) => a.seq - b.seq).map((entry) => entry.row);
+  };
 
   const head: TranscriptRow[] = [];
   const after = new Map<ItemId, TranscriptRow[]>();

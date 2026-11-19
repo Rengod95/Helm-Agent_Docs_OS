@@ -36,6 +36,9 @@ import { reloadOnExtChanges, useWorkbenchController } from "../workbench/control
 import { FailureRecords } from "../workbench/ext-detail.tsx";
 import { kindText, stateText, stateTone } from "../workbench/ext-row.tsx";
 import { HookAnswersContext, HookNoticeList } from "../workbench/hook-notice.tsx";
+import { DriveStackCards, type DriveStopControl } from "../convo/drive-stack.tsx";
+import { useDriveStop } from "../convo/drive-frames.ts";
+import { driveStackOf } from "../convo/drive-stack-model.ts";
 
 /** 한 묶음의 읽기 상태 */
 export type Load<T> =
@@ -130,11 +133,17 @@ function Member(props: { readonly member: DriveMemberVM }): ReactNode {
   );
 }
 
-function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
+function DriveSection(props: {
+  readonly view: RuntimeDriveView;
+  readonly frames: readonly DriveFrameView[];
+  readonly stop: DriveStopControl | null;
+}): ReactNode {
   const { view } = props;
   return (
     <div className="grid gap-2">
       {!view.holderAgrees && <Alert tone="warning">{t("desktop.runtime.lock.mismatch")}</Alert>}
+      {/* 쌓인 판: 맨 위가 지금 Drive를 쥔 칸, 아래가 핸드오프하고 기다리는 칸, 맨 아래 "기본"(lcM6b §6.6.1) */}
+      <DriveStackCards view={driveStackOf(props.frames)} stop={props.stop} />
       <p className="m-0 flex flex-wrap items-center gap-2 text-ui">
         <span className="text-text-tertiary">{t("desktop.runtime.lock.holder")}</span>
         {view.holder === null ? (
@@ -290,6 +299,8 @@ export function RuntimeBody(props: {
   readonly failures: readonly HandlerFailureEntry[];
   readonly transitions: readonly TransitionEntry[];
   readonly notices?: ReactNode;
+  /** 도는 턴이 있으면 맨 위 판의 Drive 멈추기 */
+  readonly stop?: DriveStopControl | null;
 }): ReactNode {
   const { data, link } = props;
   const noThread = props.threadId === null;
@@ -318,7 +329,13 @@ export function RuntimeBody(props: {
     if (data.drive.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.lock.failed")}</Alert>;
     const { groups, frames } = data.drive.value;
-    return <DriveSection view={runtimeViewOf(groups, frames)} />;
+    return (
+      <DriveSection
+        view={runtimeViewOf(groups, frames)}
+        frames={frames}
+        stop={props.stop ?? null}
+      />
+    );
   };
   const extsBody = (): ReactNode => {
     if (noThread) return null;
@@ -391,6 +408,25 @@ function RuntimeHookNotices(): ReactNode {
 /** 런타임 탭. 열린 대화와 엔진 연결을 읽어 `RuntimeBody`에 넘긴다. 맨 위 훅 알림은 워크벤치 스토어를 읽는 `RuntimeHookNotices`다 */
 export function RuntimeTab(): ReactNode {
   const threadId = useOpenThreadId();
+  return threadId === null ? (
+    <RuntimeTabFor threadId={null} />
+  ) : (
+    <RuntimeTabLive threadId={threadId} />
+  );
+}
+
+/** 열린 대화가 있으면 그 대화의 Drive 멈추기를 맨 위 판에 둔다 */
+function RuntimeTabLive(props: { readonly threadId: ThreadId }): ReactNode {
+  const live = useLinkPhase() === "live";
+  const stop = useDriveStop(props.threadId, !live);
+  return <RuntimeTabFor threadId={props.threadId} stop={stop} />;
+}
+
+function RuntimeTabFor(props: {
+  readonly threadId: ThreadId | null;
+  readonly stop?: DriveStopControl | null;
+}): ReactNode {
+  const { threadId } = props;
   const link = linkOf(useLinkPhase());
   const data = useRuntimeData(threadId, link === "live");
   const failures = useHandlerFailures();
@@ -403,6 +439,7 @@ export function RuntimeTab(): ReactNode {
       failures={failures}
       transitions={transitions}
       notices={<RuntimeHookNotices />}
+      stop={props.stop ?? null}
     />
   );
 }

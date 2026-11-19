@@ -22,6 +22,7 @@ function turn(over: Partial<TurnRecord> = {}): TurnRecord {
     scopeId: null,
     requestId: null,
     inputItemIds: [],
+    invoked: [],
     model: null,
     steps: 3,
     lastStepIndex: 2,

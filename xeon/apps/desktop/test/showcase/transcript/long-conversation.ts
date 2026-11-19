@@ -236,6 +236,7 @@ function turn(input: ItemId): TurnRecord {
     scopeId: null,
     requestId: null,
     inputItemIds: [input],
+    invoked: [],
     model: MODEL,
     steps: 12,
     lastStepIndex: 11,

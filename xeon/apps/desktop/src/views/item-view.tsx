@@ -8,6 +8,7 @@ import { CardRow } from "./convo/cards.tsx";
 import { CustomRow, ReplyRow, UserRow } from "./convo/message-rows.tsx";
 import { ThinkingPending } from "./convo/thinking-block.tsx";
 import { OrphanResultRow } from "./convo/tool-call-row.tsx";
+import { DriveInputRow } from "./convo/drive-input-row.tsx";
 import { LeadEnd, LeadHead, MarkerRow, TurnFoot } from "./convo/turn-rows.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 
@@ -27,6 +28,7 @@ const ROW_PAD: Readonly<Record<TranscriptRow["kind"], string>> = {
   pending: "pb-2",
   compaction: "py-2",
   marker: "py-2",
+  driveInput: "pb-3",
   leadHead: "pb-1",
   leadEnd: "pb-6",
   turnFoot: "pb-6",
@@ -79,6 +81,8 @@ function RowBody(props: {
       return <CompactionDivider record={row.record} />;
     case "marker":
       return <MarkerRow marker={row.marker} />;
+    case "driveInput":
+      return <DriveInputRow input={row.input} />;
     case "leadHead":
       return <LeadHead threadId={threadId} leaseId={row.leaseId} />;
     case "leadEnd":
