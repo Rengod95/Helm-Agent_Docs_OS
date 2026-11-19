@@ -54,3 +54,26 @@ test("an interpreter that fails, answers nothing usable, or names a shallow or m
     probePython("/p", answering(["/bin/python3", join(root, "nope"), join(root, "nope"), "/"])),
   ).toBeUndefined();
 });
+
+test("a prefix that is the home folder or contains it is refused, a folder under home is fine", () => {
+  const home = join(root, "home", "me");
+  const install = join(home, ".local", "python");
+  mkdirSync(join(install, "bin"), { recursive: true });
+  const exe = join(install, "bin", "python3");
+  writeFileSync(exe, "");
+  // 홈 자체가 접두 폴더(`--prefix=$HOME`)면 홈 전체가 읽기로 열리므로 거절한다
+  expect(probePython("/p", answering([exe, home, home, home]), home)).toBeUndefined();
+  // 홈을 품는 폴더도 거절한다
+  expect(
+    probePython(
+      "/p",
+      answering([exe, join(root, "home"), join(root, "home"), join(root, "home")]),
+      home,
+    ),
+  ).toBeUndefined();
+  // 홈 아래의 설치 폴더는 그 폴더만 연다
+  expect(probePython("/p", answering([exe, install, install, install]), home)).toEqual({
+    command: exe,
+    readRoots: [install],
+  });
+});

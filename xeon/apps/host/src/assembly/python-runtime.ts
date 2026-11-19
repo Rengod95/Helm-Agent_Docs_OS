@@ -1,4 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { attempt } from "@fresnel/contracts";
 import type { OsRuntime } from "@fresnel/platform-os";
@@ -26,12 +27,21 @@ function realOr(path: string): string {
   return real.ok ? real.value : path;
 }
 
-/** 접두 폴더로 쓸 수 있는 값인가: 절대 경로이고 파일 시스템 루트나 사용자 홈 같은 얕은 폴더가 아니다(깊이 2 미만이면 거른다) */
-function usablePrefix(path: string): boolean {
+/** `inner`가 `outer`와 같거나 그 아래인가(둘 다 정규 경로) */
+function within(inner: string, outer: string): boolean {
+  return inner === outer || inner.startsWith(outer.endsWith("/") ? outer : `${outer}/`);
+}
+
+/**
+ * 접두 폴더로 쓸 수 있는 값인가: 절대 경로이고, 파일 시스템 루트 같은 얕은 폴더가 아니며(깊이 2 미만이면 거른다),
+ * 사용자 홈 폴더이거나 홈을 품는 폴더가 아니다(`--prefix=$HOME`으로 지은 인터프리터가 홈 전체를 읽기로 열지 못하게 한다)
+ */
+function usablePrefix(path: string, home: string): boolean {
   return (
     isAbsolute(path) &&
     existsSync(path) &&
-    path.split("/").filter((part) => part !== "").length >= 2
+    path.split("/").filter((part) => part !== "").length >= 2 &&
+    !within(realOr(home), realOr(path))
   );
 }
 
@@ -39,7 +49,11 @@ function usablePrefix(path: string): boolean {
  * `command`(PATH에서 찾은 `python3`)를 실제 인터프리터와 읽을 경로로 푼다. 물어서 답이 없거나 접두 폴더가 이상하면 undefined다
  * (그러면 실행기는 지금처럼 `runner_unavailable`로 답한다).
  */
-export function probePython(command: string, runSync: RunCommandSync): PythonRuntime | undefined {
+export function probePython(
+  command: string,
+  runSync: RunCommandSync,
+  home: string = homedir(),
+): PythonRuntime | undefined {
   const asked = runSync([command, "-I", "-S", "-c", PROBE_SOURCE]);
   if (!asked.ok || asked.value.exitCode !== 0) return undefined;
   const [executable, basePrefix, baseExecPrefix, prefix] = asked.value.stdout
@@ -50,7 +64,7 @@ export function probePython(command: string, runSync: RunCommandSync): PythonRun
   }
   const roots = new Set<string>();
   for (const candidate of [basePrefix, baseExecPrefix]) {
-    if (candidate !== undefined && usablePrefix(candidate)) roots.add(realOr(candidate));
+    if (candidate !== undefined && usablePrefix(candidate, home)) roots.add(realOr(candidate));
   }
   if (roots.size === 0) return undefined;
   const isVenv = prefix !== undefined && prefix !== "" && prefix !== basePrefix;
