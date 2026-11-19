@@ -1381,6 +1381,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
+        // 조각 전송의 엔진 쪽 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다. 맡기기 입력 상한과 같은 값이다(X.primitives §10)
+        transferMaxBytes: () =>
+          storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
+            .maxBlobBytes,
       });
       backtestIsolationSlot.current = createBacktestIsolation({
         enabled: options.pluginHost?.disabled !== true,

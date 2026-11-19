@@ -35,6 +35,11 @@ import {
 const PLUGIN_HOST_INIT_TIMEOUT_MS = 5000;
 /** 마지막 호출 뒤 내리기까지(ms). 설정 키가 없어 상수로 둔다 */
 const PLUGIN_HOST_IDLE_MS = 60000;
+/**
+ * 조각 전송의 엔진 쪽 상한의 절대 최대(바이트, 1 GiB). 설정 `l0.store.maxBlobBytes`가 이보다 크면 이 값으로 자른다.
+ * 자식 쪽 상한(`PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`)은 감독이 협상에서 따로 자른다(X.loading-trust §4.9.3)
+ */
+const PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES: number = 1024 * 1024 * 1024;
 
 /** 재시작 한도 설정 키(X.loading-trust §4.9.7). 죽음을 셀 때마다 읽는다(live) */
 const MAX_RESTARTS_KEY = "x.loading-trust.isolation.maxRestarts";
@@ -61,6 +66,12 @@ function integerOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
 }
 
+/** 조각 전송 상한을 절대 최대로 자른다. 값이 없거나 1 미만이면 조각을 끈다(undefined) */
+function transferMaxOf(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isSafeInteger(value) || value < 1) return undefined;
+  return Math.min(value, PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES);
+}
+
 export interface PluginHostAssemblyDeps {
   readonly scheduler: Scheduler;
   readonly logger: Logger;
@@ -80,6 +91,11 @@ export interface PluginHostAssemblyDeps {
   readonly self?: SelfRunTarget;
   /** 세션을 열 때마다 부른다. 시험이 감독의 상태를 읽는다. 운영은 생략한다 */
   readonly onSupervisor?: (name: string, supervisor: PluginHostSupervisor) => void;
+  /**
+   * 조각 전송의 엔진 쪽 상한(live, 바이트). 운영은 `l0.store.maxBlobBytes`를 넘긴다(같은 값이 맡기기 입력 상한이다).
+   * 절대 최대(`PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES`)로 자른다. 없으면 조각 전송을 끈다
+   */
+  readonly transferMaxBytes?: () => number | undefined;
   /** 스크립트에 넘길 부모 환경 값과 실행기 PATH의 원천. 시험이 넣고, 운영은 생략해 `process.env`를 쓴다 */
   readonly parentEnv?: Readonly<Record<string, string | undefined>>;
   /** 실행기 이름을 절대 경로로 푼다. 시험이 넣고, 운영은 생략해 `parentEnv`의 PATH에서 찾는다. 없으면 undefined다 */
@@ -165,6 +181,10 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       restartWindowSec: () =>
         integerOr(deps.settingValue(RESTART_WINDOW_KEY), RESTART_WINDOW_DEFAULT_SEC),
       maskSecrets: deps.maskSecrets,
+      // 조각 전송의 상한(live). 절대 최대로 자른다. 없거나 정수가 아니면 조각을 끈다
+      ...(deps.transferMaxBytes === undefined
+        ? {}
+        : { transferMaxBytes: () => transferMaxOf(deps.transferMaxBytes?.()) }),
       // 재시작 한도를 넘은 확장은 기준과 무관하게 바로 끈다(X.operations.spec §4.3.4). 다시 켜기는 설정으로 한다
       onRestartLimit: (name) => {
         deps.autoDisabler.disableNow(`ext:${name}`, "isolation_restart_limit");
