@@ -22,6 +22,12 @@ export type PluginCallTarget =
   | {
       readonly kind: "script";
       readonly name: string;
+      /**
+       * 이 테스트 런 동안 같은 스크립트를 다시 묻지 않는 기억의 열쇠(AGE-58 [제안], [결정: 2026-11-19, 사용자, AGE-58]). 호출하는 쪽(엔진 조립)이
+       * 초안의 내용 해시, 스크립트 이름, 프로세스 시작마다 새로 나는 값으로 만든다. 있으면 카드가 기억 범위 `thread`를 내고
+       * (`SCRIPT_RUN_RULE_PREFIX` + 열쇠가 카드의 `ruleId`), 승인하면 이 대화와 자식 대화에서 같은 열쇠의 카드를 건너뛴다. 없으면 "이번 한 번"이다
+       */
+      readonly memoryKey?: string;
       readonly run: (
         signal: AbortSignal,
       ) => Promise<{ readonly ok: boolean; readonly value: JsonValue }>;

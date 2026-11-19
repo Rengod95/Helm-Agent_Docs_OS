@@ -113,7 +113,7 @@ export interface ScriptDraftCall {
 /**
  * 초안 스크립트의 승인 문. 엔진 조립 루트가 준다(없으면 초안 스크립트는 `script_not_approved`다).
  * 구현은 이 대화가 테스트 런이고 확장이 그 대화에 묶인 초안인지를 보고, 맞으면 호출마다 승인 카드를 열고, 승인한 호출만 `run`을 부른다.
- * 일반 대화이거나 묶이지 않은 초안이면 `script_not_approved`다. 승인은 상속하지 않고 기억하지 않는다("이번 한 번")
+ * 일반 대화이거나 묶이지 않은 초안이면 `script_not_approved`다. 승인은 상속하지 않는다. 드래프트 승인 `auto`인 테스트 런에는 카드가 없고, 그 밖에는 스크립트마다 처음 한 번만 묻는다: 승인하면 이 테스트 런 동안 같은 초안 내용의 같은 스크립트는 다시 묻지 않는다(`PluginCallTarget`의 `memoryKey`, 기억 범위 `thread`) [결정: 2026-11-19, 사용자, AGE-58]
  */
 export type ScriptDraftGate = (
   call: ScriptDraftCall,
