@@ -52,6 +52,16 @@ export interface BlobUsage {
   readonly byThread: readonly BlobUsageByThread[];
 }
 
+/**
+ * 큰 블롭을 조각으로 쓰는 원천(`putBlobStream`). 전체를 한 버퍼로 만들지 않는다.
+ * `size`는 `produce`가 `sink`로 넘길 바이트의 정확한 합이며 미리 안다. 다르면 저장소가 Bug(store.blob_stream_size)다.
+ * `produce`는 `sink`를 동기로 여러 번 부를 수 있다. 조각(`chunk`)은 `sink` 호출 동안만 유효하다. 생산자가 한 버퍼를 되풀이해 쓸 수 있다.
+ */
+export type BlobStreamSource = {
+  readonly size: number;
+  produce(sink: (chunk: Uint8Array) => void): void;
+};
+
 export interface StoreService {
   /** "sto_<ULID>" (F.conversation.spec §3.2.1 ①) */
   readonly storeId: string;
@@ -63,6 +73,13 @@ export interface StoreService {
   readonly leases: LeaseService;
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
+  /**
+   * `putBlob`과 같은 결과(같은 블롭 참조, 같은 행, 같은 오류)를 내되 바이트를 조각으로 받아 해시를 조각마다 갱신하며 파일에 쓴다.
+   * 큰 값을 옮길 때 입력 전체의 사본을 만들지 않는다(L0.store.spec §4.9). 트랜잭션 밖에서만 부른다(TX-04).
+   * `source.size`를 넘거나 모자라게 쓰면 Bug(store.blob_stream_size)다. 한도(`blob_too_large`)는 `putBlob`과 같이 파일을 쓰기 전에 본다.
+   * [과도기: L0 구현과 L1 호출자를 붙인 뒤 필수 멤버로 바꾼다]
+   */
+  putBlobStream?(source: BlobStreamSource, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
   /**
    * 블롭의 `[offset, offset + length)` 바이트만 읽는다. 파일 전체를 읽지 않는다. 크기 대조는 `readBlob`과 같고
