@@ -49,7 +49,7 @@ X11 scripts release-smoke.test.ts
 # A commented line is a placeholder for a test file that is not written yet; an uncommented line with an unfilled <파일> fails as
 # missing, so an unfinished condition cannot pass by accident.
 # M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry, and the host int test for knowledge.memory.*; 25 methods
-# have only a handler-level host test, no int test, see the report of track enM4s), Y7 (half: no replayDrive test for a group that asks), Y14 (no axe, no keyboard path
+# have only a handler-level host test, no int test, see the report of track enM4s), Y14 (no axe, no keyboard path
 # test), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
 # Y1 half: approval-card.same-in-three-places. pages.six-states-render is not written (Y1 stays partial).
 Y1 apps/desktop test/views/approval-card-mounts.test.tsx
@@ -63,10 +63,10 @@ Y4 apps/host test/int/trace-turn.int.test.ts
 # Y6: the wire doc tables equal the registry; every wire method runs on the real engine with value-comparing tests (AGE-11, 2026-11-18). Not testable on the real engine: sandbox.selfTest/lastSelfTest sandbox-on path, secret.references settingKeys, profileCost.get (defect found).
 Y6 packages/contracts test/wire-settings/wire.doc.test.ts
 Y6 apps/host test/int/knowledge-memory.int.test.ts test/int/profile-wire.int.test.ts test/int/project-wire.int.test.ts test/int/blocks-devkit-wire.int.test.ts test/int/plugin-wire.int.test.ts test/int/migration-wire.int.test.ts test/int/ext-devkit-wire.int.test.ts test/int/turn-record-wire.int.test.ts test/int/metrics-findings-wire.int.test.ts test/int/thread-model-export-wire.int.test.ts test/int/settings-trust-wire.int.test.ts test/int/provider-usage-wire.int.test.ts test/int/craft-chat-wire.int.test.ts test/int/remote-wire.int.test.ts test/int/secret-wire.int.test.ts test/int/sandbox-wire.int.test.ts test/handlers/profile-common-get.test.ts test/handlers/plugin-draft-list.test.ts test/handlers/turn-record-read.test.ts test/handlers/metrics-read.test.ts
-# Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run. Missing: replayDrive on a group that asks.
+# Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run.
 Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
 Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
-# Y7 packages/group-sdk <파일>   (replayDrive with ask: not written)
+Y7 packages/group-sdk test/replay.test.ts
 # Moved to M6 (Craft): Y8, Y9 (the ext-host pause test already exists as test-run-pause.test.ts; M6 W8 re-states it)
 # Y8 packages/plugin-builder <파일>
 # Y9 packages/ext-host test/trial-pause.test.ts
