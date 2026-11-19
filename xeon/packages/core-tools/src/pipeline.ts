@@ -1435,7 +1435,7 @@ export function createPipeline(
     ): Promise<CallPreparation> =>
       settleWith(rejectedResult(reason, false), traceOf(verdict, entry));
 
-    const entry = registry.get(call.name);
+    const entry = registry.view(deps.exposureOf?.(run.threadId)).get(call.name);
     if (entry === undefined) {
       return settle(
         `[fresnel:tool_unavailable] Tool ${call.name} is not available.`,
@@ -1992,7 +1992,7 @@ export function createPipeline(
     intent: EffectIntent,
     run: ToolRunContext,
   ): Promise<Result<ToolCallOutcome, ReadFailure>> {
-    const entry = registry.get(intent.toolName);
+    const entry = registry.view(deps.exposureOf?.(run.threadId)).get(intent.toolName);
     if (entry === undefined) {
       throw new Bug(`tools.rerun_tool_missing: ${intent.toolName} is no longer registered`);
     }
@@ -2105,7 +2105,7 @@ export function createPipeline(
         origin: callState?.origin ?? originOfRun(run, call.id, null),
         tool: call.name,
         args: callState?.args ?? call.arguments,
-        entry: registry.get(call.name),
+        entry: registry.view(deps.exposureOf?.(run.threadId)).get(call.name),
         callState,
         verdict: verdictOfReject(reason),
       },
@@ -2179,12 +2179,17 @@ export function createPipeline(
    * 대상 도구 항목. 기능 메서드는 도구 매핑(`ToolSpec.method`)으로 찾고, 없으면 정의에서 합성 항목 `cap:<기능>.<메서드>`를 만든다
    * (readOnly 메서드와 정의에 없는 메서드는 합성하지 않는다)
    */
-  function pluginEntryOf(target: PluginCallTarget, draftCaller: boolean): ToolEntry | undefined {
-    if (target.kind === "tool") return registry.get(target.name);
+  function pluginEntryOf(
+    threadId: ThreadId,
+    target: PluginCallTarget,
+    draftCaller: boolean,
+  ): ToolEntry | undefined {
+    const view = registry.view(deps.exposureOf?.(threadId));
+    if (target.kind === "tool") return view.get(target.name);
     // 초안 스크립트 실행은 초안 출신 호출에만 열린다. 검토된 플러그인의 스크립트는 이 길을 타지 않는다(AGE-58)
     if (target.kind === "script")
       return draftCaller ? scriptEntryOf(target.name, target.run) : undefined;
-    const mapped = registry
+    const mapped = view
       .all()
       .find(
         (entry) =>
@@ -2461,6 +2466,7 @@ export function createPipeline(
 
     const origin = pluginOriginOf(request, toolCallId);
     const entry = pluginEntryOf(
+      request.threadId,
       request.target,
       deps.draftOf?.(request.plugin.scopeId) !== undefined,
     );

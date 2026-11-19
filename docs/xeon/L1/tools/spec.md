@@ -318,6 +318,16 @@ export interface RuleRegistration {
 - `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool.call.before` 훅의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool.call.before` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
 - `suspendWhile(threadId, toolCallId, wait)` [결정: M2 검토 3]: F `ToolService`의 메서드다(승격 완료, §8.3 F 요청 14). `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구는 자식을 기다리는 `service.spawn`을 이 안에서 기다린다. 슬롯을 쥔 채 기다리면 `tools` 상한만큼의 `agent` 호출이 자식의 도구 호출 슬롯을 막아 교착한다.
 
+#### 3.3.1 대화별 이름과 가시성 [결정: 2026-11-19, 사용자, AGE-56]
+
+한 대화의 도구 목록은 그 대화가 실은 플러그인(E(T))의 도구뿐이고, 도구는 승인됐을 때와 같은 이름으로 보인다. 도구 표 하나로 이것을 하려고 표의 구조를 이렇게 정한다. 구현은 `core-tools`의 `registry.ts`·`runtime.ts`·`pipeline.ts`다.
+
+1. `register(owner, def, { perThread: true })`로 등록한 항목은 열쇠가 (주인, 요청한 이름)이다. `def.name`은 플러그인이 요청한 이름이고, 주인이 다르면 같은 이름이 여럿이어도 `name_conflict`가 아니다. 같은 (주인, 이름)을 두 번 넣으면 `name_conflict`다. `perThread`가 아닌 항목(내장, 기능 도구, MCP, `ToolRegistration`)은 지금처럼 전역 이름이 유일하다. 조립이 `perThread`를 쓰는 것은 이름 정책이 대화마다 정해야 하는 확장 도구뿐이다(X.operations.spec §3.5).
+2. 조립 루트가 `ToolsDeps.exposureOf(threadId)`로 `{ nameOf(주인, 요청한 이름) }`를 준다. 돌려주는 값이 문자열이면 그 대화에서의 노출 이름이고, `null`이면 그 대화에 보이지 않는다. `exposureOf`가 없거나 `undefined`를 돌려주거나 대화가 없으면 `perThread` 항목이 모두 요청한 이름 그대로 보인다(호스트 없는 조립과 옛 시험).
+3. 광고(`advertise`), 호출 준비(`prepare`), 재실행(`rerun`), 닫힌 호출의 기록, `tool_search`, 플러그인이 도구를 이름으로 부르는 `executeForPlugin`, `meta(name, threadId)`는 모두 그 대화가 보는 표(`ToolRegistry.view(exposure)`)에서 이름을 찾는다. 보는 표의 항목은 `name`·`label`·`ref.name`이 노출 이름이고 `owner`는 그대로다. 다른 대화에만 실린 플러그인의 도구는 요청한 이름으로도 정식 이름으로도 `tool_unavailable`이다. 전역 항목의 이름과 겹치는 `perThread` 항목은 그 대화에서 가려진다(전역 항목이 이긴다).
+4. 정책 평가, 허용 규칙, 승인 기록, Hook 페이로드, 호출 추적, 턴 기록에 남는 도구 이름은 보는 표의 노출 이름, 곧 모델이 본 이름이다. 드래프트의 호출인지는 이름이 아니라 도구를 등록한 주인(`entry.owner`)으로 정한다(§4.6.1). 그래서 같은 이름의 승인본에 준 허용 규칙과 승인 상속은 드래프트의 호출에 물려지지 않고, 드래프트의 호출은 항상 드래프트 카드를 지난다(`auto`인 테스트 런만 그 카드를 건너뛴다).
+5. 이미 저장된 이름(턴 기록의 `toolName`, `effect.intent`)은 그대로 읽는다. 옛 기록에 남은 드래프트의 내부 이름(`d<태그>-<이름>__<도구>`)도 문자열이라 그대로 읽히고, 그 이름이 지금의 표에 없으면 재실행은 전과 같이 `tools.rerun_tool_missing`이다(이 일은 이 변경 전에도 같았다).
+
 ### 3.4 노출 (`tools.ts`)
 
 ```ts

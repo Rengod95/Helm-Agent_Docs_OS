@@ -99,6 +99,8 @@ export interface ToolEntry {
   readonly ref: ToolRef;
   /** 도구를 등록한 스코프(플러그인 등록 id). 플러그인이 등록한 도구만 가진다. 초안 표지를 찾는 데 쓴다(L1.tools.spec §4.6.1) */
   readonly owner?: RegistrationId | undefined;
+  /** 대화별 이름 항목이다(`add`의 `perThread`). 레지스트리가 붙이고, `name`은 요청한 이름이며 대화가 보는 이름은 `ToolRegistry.view`가 정한다 */
+  readonly perThread?: true;
   readonly capability: { readonly id: CapabilityId; readonly method: string } | undefined;
   readonly mcpServer: string | undefined;
   /** MCP 서버가 알린 성질(표시용). 정책 입력이 아니다 */

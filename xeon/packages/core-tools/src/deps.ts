@@ -24,6 +24,14 @@ export interface ToolsConfig extends ToolsScalarConfig {
 }
 
 /** 런타임(서비스 조립) 의존. 플러그인이 포트에서 모아 넘기고, 테스트는 대역을 넘긴다 */
+/**
+ * 한 대화가 보는 도구 이름 규칙(L1.tools.spec §3.3.1). `perThread`로 등록된 항목에만 적용한다.
+ * 돌려주는 값이 `null`이면 그 대화에 그 도구는 보이지 않는다(광고에도 호출에도 없다)
+ */
+export interface ToolExposure {
+  nameOf(owner: RegistrationId, requested: string): string | null;
+}
+
 export interface ToolsDeps {
   readonly session: ToolsSession;
   /** fresnel.session.producer("core.tools")로 받은 핸들. 플러그인 setup 중 한 번만 받는다 */
@@ -49,6 +57,11 @@ export interface ToolsDeps {
    * 호출한 대화로 한다. 자식 대화의 답은 조립 루트가 부모를 따라 정한다. 생략하면 모든 대화가 `ask`다
    */
   readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
+  /**
+   * 대화가 보는 도구 이름 규칙. 조립 루트가 대화의 플러그인 집합(E(T))과 이름 정책으로 만든다. 없거나 undefined를 돌려주면(또는 대화가 없으면)
+   * `perThread` 항목이 모두 요청한 이름 그대로 보인다
+   */
+  readonly exposureOf?: (threadId: ThreadId | null) => ToolExposure | undefined;
   readonly truncator: OutputTruncator;
   /** 잘린 출력의 파일 사본. 없으면 안내 문장에 경로가 없다 */
   readonly outputFiles?: ToolOutputFiles;

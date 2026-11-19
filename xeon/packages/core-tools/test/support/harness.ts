@@ -97,6 +97,8 @@ export interface HarnessOptions {
   readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
   /** 드래프트 승인 `auto`인 대화(L1.tools.spec §4.6.1). 생략하면 모든 대화가 `ask`다 */
   readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
+  /** 대화가 보는 도구 이름 규칙(L1.tools.spec §3.3.1). 생략하면 `perThread` 도구가 모두 요청한 이름으로 보인다 */
+  readonly exposureOf?: ToolsDeps["exposureOf"];
 }
 
 /** 승인 상속 시험의 기본 작업 폴더. 프로세스가 끝나면 지운다 */
@@ -207,6 +209,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     ...(options.draftAutoApproved === undefined
       ? {}
       : { draftAutoApproved: options.draftAutoApproved }),
+    ...(options.exposureOf === undefined ? {} : { exposureOf: options.exposureOf }),
   };
   const runtime = createToolRuntime(deps);
   return {
