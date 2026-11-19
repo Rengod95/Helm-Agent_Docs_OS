@@ -2,6 +2,7 @@ import type { Result } from "@fresnel/contracts";
 import type {
   PluginReviewFileResult,
   ReviewDecision,
+  ReviewFileSide,
   ReviewItem,
   ReviewState,
   WireHandlers,
@@ -24,7 +25,11 @@ export interface PluginReviewPort {
     readonly name?: string;
   }): Promise<Result<{ readonly items: readonly ReviewItem[] }, PluginPortFailure>>;
   get(itemId: string): Promise<Result<{ readonly item: ReviewItem }, PluginPortFailure>>;
-  file(itemId: string, path: string): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
+  file(
+    itemId: string,
+    path: string,
+    side?: ReviewFileSide,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
@@ -55,7 +60,7 @@ export function createPluginReviewHandlers(
   return {
     "pluginReview.list": (params) => unwrap(port.list(params)),
     "pluginReview.get": (params) => unwrap(port.get(params.itemId)),
-    "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path)),
+    "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path, params.side)),
     "pluginReview.submitDraft": (params) => unwrap(port.submitDraft(params.draftId)),
     "pluginReview.decide": (params) => unwrap(port.decide(params.itemId, params.decision)),
   };

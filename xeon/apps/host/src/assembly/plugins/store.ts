@@ -253,6 +253,12 @@ export interface PluginStore {
     contentHash: string,
     path: string,
   ): Promise<Result<Uint8Array, PluginStoreError>>;
+  /** 보관된 검토본(키와 해시) 안 파일의 바이트. 그 버전이 보관소에 없거나 파일이 없으면 `not_found`다 */
+  readReviewedFile(
+    key: string,
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>>;
   /**
    * 원본 폴더를 초안 스냅샷(`drafts/<draftId>/tree`)으로 복사하고 `meta(contentHash)`를 `meta.json`으로 쓴다.
    * 복사 중 원본이 바뀌면 `source_unstable`이다. 원본은 읽기만 한다
@@ -1055,6 +1061,24 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     return ok(new Uint8Array(bytes.value));
   }
 
+  async function readReviewedFile(
+    key: string,
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    const tree = await treePath(key, contentHash);
+    if (!tree.ok) return err(tree.error);
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `reviewed file ${path}` });
+    const file = join(tree.value, path);
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `reviewed file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
+  }
+
   function draftPathOf(draftId: string): string {
     return join(draftsDir, draftId);
   }
@@ -1181,6 +1205,7 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     clearCurrent,
     candidateTree: candidateTreeOf,
     readCandidateFile,
+    readReviewedFile,
     saveDraft,
     writeDraft,
     readDraft,

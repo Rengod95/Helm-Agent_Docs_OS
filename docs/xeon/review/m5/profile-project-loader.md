@@ -285,7 +285,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `plugin.draft.discard` | 같음 | `{ draftId }` | `{}` | `draft.notFound` |
 | `pluginReview.list` | F 검토 wire(새 파일), 호스트 | `{ state?: ReviewState; name?: string }` | `{ items: ReviewItem[] }`(`files`와 `card`는 요약) | - |
 | `pluginReview.get` | 같음 | `{ itemId }` | `{ item: ReviewItem }` | `pluginReview.notFound` |
-| `pluginReview.file` | 같음 | `{ itemId; path }` | `{ path; text: string \| null; truncated: boolean }`(후보 스냅샷의 파일) | `pluginReview.notFound`, `pluginReview.pathInvalid` |
+| `pluginReview.file` | 같음 | `{ itemId; path; side?: "candidate" \| "base" }` | `{ path; text: string \| null; truncated: boolean; missing?: boolean }`(새 판 또는 지난 승인 버전의 파일. [구현 2026-11-20, 트랙 enRv] 아래 "지난 승인 버전 읽기") | `pluginReview.notFound`, `pluginReview.pathInvalid` |
 | `pluginReview.submitDraft` | 같음 | `{ draftId }` | `{ itemId }` | `draft.notFound` |
 | `pluginReview.decide` | 같음 | `{ itemId; decision: ReviewDecision }` | `{ item; appliedTo: string[] }`(적용된 프로필 id) | `pluginReview.notFound`, `pluginReview.notPending`, `pluginReview.handEditNotAllowed`, `pluginReview.purposeRequired`, `pluginReview.profileInvalid`(`details.issues`) |
 | `project.list` | F 프로젝트 wire(새 파일), 호스트 | `{}` | `{ projects: Project[] }` | - |
@@ -564,6 +564,8 @@ plugin-store/
 
 1. 항목을 만드는 일: 담당 AI의 `PluginSubmitPort.submit`(provenance `assistant`, `originThreadId`와 증거 필수), `pluginReview.submitDraft`(초안, 만든 대화가 `originThreadId`), 원본 해시가 검토본과 다름(§4.5.8, 원본 출처가 사용자 폴더면 `unknown`, 프로젝트 동반이면 `project`), `plugin.requestRemove`와 원본 폴더 삭제 감지(`remove`), 번들 갱신(`bundled`. 항목 없이 §7.5가 처리).
 2. 항목 내용: 카드(후보 기준), "하는 일의 차이"(`WhatItDoesDiff`: 이전 검토본 카드와 후보 카드의 칸별 비교, 강제력 변화, 비용 변화), 증거 참조, 코드(파일 목록과 `pluginReview.file`로 읽는 내용), 만든 대화.
+
+   [구현 2026-11-20, 트랙 enRv, 지난 승인 버전 읽기] 승인본 보관소는 해시만이 아니라 승인한 판의 파일 트리 전체를 `versions/<키>/<해시>/tree`에 둔다(키마다 5개). 그래서 저장 형식은 바꾸지 않았다. 항목을 만들 때 비교 대상 버전의 파일 목록을 읽어 `ReviewItem.baseFiles`(선택)에 싣는다(새 플러그인이거나 읽지 못했으면 생략). `pluginReview.file`의 `side: "base"`는 `baseHash` 버전의 파일을, 생략이나 `"candidate"`는 새 판의 파일을 준다. 경로는 각각 `baseFiles`, `files`에 있어야 하고 없으면 `pluginReview.pathInvalid`다(새 판에서 지워진 파일은 `baseFiles`에만 있고, 새로 생긴 파일은 `files`에만 있다). 본문 규칙은 두 쪽이 같다: 이진이면 `text` null, 256 KiB를 넘으면 앞부분과 `truncated`. 줄 단위 비교는 호출자가 한다. 결정한 뒤에도 읽는다: 승인한 항목의 새 판은 승격된 승인본 보관소에서 읽는다. 지난 버전이 보관 한도(5개)로 지워졌거나 버려진 항목의 새 판 스냅샷이 없으면 `missing: true`, `text: null`로 답한다(오류가 아니다). 카드에는 매니페스트 버전을 `PluginCard.version`(선택)으로 싣는다. 이름 `side`, `missing`, `baseFiles`, `version`은 [제안]이다.
 3. 결정은 셋이다.
    - 승인: `profileIds`(기본은 `originProfileId`)에 넣거나 `libraryOnly`로 보관만 한다. 모든 대상 프로필을 먼저 `validateProfile`로 검사하고 하나라도 오류면 `pluginReview.profileInvalid`로 전체를 거절한다(아무것도 바뀌지 않는다). 통과하면 한 번에 스냅샷 승격, `current` 교체, 프로필 갱신(순서 맨 뒤)을 커밋한다. `update` 항목은 `profileIds`가 비어도 되고(이름으로 든 프로필 모두에 새 검토본이 적용된다 [제안: 미결 4]), `remove` 승인은 이름이 든 모든 프로필·공통 묶음에서 그 이름을 빼고 라이브러리에서 내린다. 지울 때 미리 보기(`pluginReview.get`의 `item.diff.removed`와 영향받는 프로필 id, 같이 지워지는 상태·기록)를 항목에 싣는다.
    - 돌려보내기: `reason`(1~2000자)을 항목에 저장하고 `originThreadId` 대화가 열려 있으면 그 사유를 그 대화의 입력으로 넣는다(`post`, `when: "next"`) [제안]. 대화가 없으면 항목에만 남는다.
