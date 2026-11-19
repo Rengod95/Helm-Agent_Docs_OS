@@ -439,6 +439,8 @@ test("a script that exits with 2 returns its code, stdout and stderr as values, 
     command: "/bin/sh",
     args: [join(tree, "check.sh"), "--strict"],
     readRoot: tree,
+    // 스크립트 실행기만 시스템 도구 읽기·실행을 켠다(AGE-58)
+    systemTools: true,
     env: { PATH: "/usr/bin" },
     label: "script:demo:check",
   });
@@ -754,6 +756,7 @@ test("a draft script with a gate and a thread opens the card first: the card sho
         envNames: ["MARKER"],
         stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
         stdinPreview: "token [masked] é",
+        uses: ["system_tools", "network"],
       },
     },
   ]);

@@ -30,6 +30,7 @@ interface FakeSandbox {
     /** 입력에 있을 때만 기록한다 */
     readonly profile?: SandboxProfile;
     readonly readRoots?: readonly string[];
+    readonly systemTools?: boolean;
   }[];
   /** wrapArgv에 들어온 정책과 요청 순서대로 */
   readonly wrapCalls: readonly {
@@ -46,6 +47,7 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
     tempDir: string;
     profile?: SandboxProfile;
     readRoots?: string[];
+    systemTools?: boolean;
   }[] = [];
   const wrapCalls: { policy: SandboxPolicy; request: SandboxArgvRequest }[] = [];
   let cleanupCount = 0;
@@ -57,6 +59,7 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
         tempDir: input.tempDir,
         ...(input.profile === undefined ? {} : { profile: input.profile }),
         ...(input.readRoots === undefined ? {} : { readRoots: [...input.readRoots] }),
+        ...(input.systemTools === undefined ? {} : { systemTools: input.systemTools }),
       });
       if (input.profile === "no-write") {
         return {

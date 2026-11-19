@@ -281,6 +281,11 @@ export interface ToolsScalarConfig {
   readonly mode: PermissionMode;
   /** 모드 `bypass`를 정한 범위가 저장소(`REPOSITORY_SCOPES`)면 참이다. 대체 항목에는 bypass를 허용하지 않는다 */
   readonly modeFromRepository: boolean;
+  /**
+   * 관리 범위(`managed`)가 권한 모드를 정했거나 bypass를 금지했으면 참이다. 자율 허용 테스트 런도 이 경우의 ask는 허용으로 바꾸지 않는다
+   * (L1.tools.spec §4.6.1 [결정: 2026-11-19, 사용자, AGE-56]: 관리 설정이 이긴다)
+   */
+  readonly managedRestricts: boolean;
   readonly bypassAllowed: boolean;
   readonly output: { readonly maxLines: number; readonly maxBytes: number };
   readonly deferThreshold: number;
@@ -311,6 +316,7 @@ export function normalizeStoredMode(value: unknown): PermissionMode | undefined 
 function pickMode(layers: ScopeStack): {
   readonly mode: PermissionMode;
   readonly fromRepository: boolean;
+  readonly fromManaged: boolean;
 } {
   for (const scope of SCOPE_PRECEDENCE) {
     if (!PERMISSION_MODE_SCOPES.some((allowed) => allowed === scope)) continue;
@@ -318,21 +324,27 @@ function pickMode(layers: ScopeStack): {
     if (layer === undefined || !layer.values.has(TOOLS_SETTING_KEYS.permissionMode)) continue;
     const mode = normalizeStoredMode(layer.values.get(TOOLS_SETTING_KEYS.permissionMode));
     if (mode !== undefined) {
-      return { mode, fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope) };
+      return {
+        mode,
+        fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope),
+        fromManaged: scope === "managed",
+      };
     }
   }
-  return { mode: TOOLS_SETTING_DEFAULTS.permissionMode, fromRepository: false };
+  return { mode: TOOLS_SETTING_DEFAULTS.permissionMode, fromRepository: false, fromManaged: false };
 }
 
 export function readScalarConfig(layers: ScopeStack): ToolsScalarConfig {
   const defaults = TOOLS_SETTING_DEFAULTS;
   const mode = pickMode(layers);
+  const bypassAllowed =
+    pick(layers, TOOLS_SETTING_KEYS.bypassAllowed, MANAGED_ONLY, isBoolean) ??
+    defaults.bypassAllowed;
   return {
     mode: mode.mode,
     modeFromRepository: mode.fromRepository,
-    bypassAllowed:
-      pick(layers, TOOLS_SETTING_KEYS.bypassAllowed, MANAGED_ONLY, isBoolean) ??
-      defaults.bypassAllowed,
+    managedRestricts: mode.fromManaged || !bypassAllowed,
+    bypassAllowed,
     output: {
       maxLines:
         pick(layers, TOOLS_SETTING_KEYS.outputMaxLines, FILE_SCOPES, integerIn(100, 100_000)) ??

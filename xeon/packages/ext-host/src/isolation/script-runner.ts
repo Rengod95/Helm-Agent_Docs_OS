@@ -20,6 +20,7 @@ import {
   type ScriptRunFailure,
   type ScriptRunner,
   type ScriptRunResult,
+  type ScriptUse,
 } from "@fresnel/contracts/extensions";
 import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 import { isAbsolute, join } from "node:path";
@@ -216,6 +217,9 @@ function previewOf(stdin: string, mask: ScriptRunnerDeps["maskText"]): string {
   return mask(head);
 }
 
+/** 스크립트 실행기가 띄운 자식이 쓸 수 있는 것: 시스템 도구와 네트워크(`systemTools`와 격리 네트워크 결정). 카드가 알린다 */
+const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
+
 /** 확장 하나의 스크립트 실행기를 만든다. 호출마다 선언과 위치와 승인을 검사하고, 통과하면 띄운다 */
 export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
   const { target } = deps;
@@ -243,6 +247,8 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         command: runner,
         args: [located.value, ...(decl.args ?? [])],
         readRoot: target.tree,
+        // 스크립트가 시스템 도구(`grep`, `sed`, `git` 읽기 전용 등)를 쓰도록 읽기·실행 허용을 넓힌다. 쓰기와 폴더 밖 데이터 읽기는 여전히 막힌다
+        systemTools: true,
         env: envOf(decl.envNames ?? [], deps.allowedEnv),
         label: `script:${target.extension}:${decl.name}`,
       };
@@ -273,6 +279,7 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         envNames: Object.keys(spec.env),
         stdinBytes: new TextEncoder().encode(request.stdin).byteLength,
         stdinPreview: previewOf(request.stdin, deps.maskText),
+        uses: SCRIPT_USES,
       };
       return gate({
         extension: target.extension,

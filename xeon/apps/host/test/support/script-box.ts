@@ -13,6 +13,7 @@ import { err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type {
+  IsolationSpawnSpec,
   LoaderFs,
   ManifestScriptDecl,
   ScriptDraftGate,
@@ -98,6 +99,10 @@ interface RunSpec {
   readonly args?: readonly string[];
   readonly stdin?: string;
   readonly timeoutMs?: number;
+  /**
+   * `false`면 실행기가 켠 시스템 도구 읽기(`systemTools`)를 떼고 띄운다. 넓히기 전의 경계를 같은 시험으로 다시 보는 대조용이다. 기본은 실행기가 정한 대로(켬)다
+   */
+  readonly systemTools?: boolean;
   /** 있으면 초안(검토 전)으로 돌린다: 승인 문을 걸고 호출한 대화를 붙인다 */
   readonly draft?: { readonly gate: ScriptDraftGate };
 }
@@ -208,8 +213,17 @@ export async function openScriptBox(options?: {
         ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
       },
     ];
+    const process =
+      spec.systemTools === false
+        ? {
+            spawn: (request: IsolationSpawnSpec) => {
+              const { systemTools: _dropped, ...narrowed } = request;
+              return port.spawn(narrowed);
+            },
+          }
+        : port;
     const runner = createScriptRunner({
-      process: port,
+      process,
       fs: nodeFs,
       target: { extension: "demo", scripts, tree, approved: spec.draft === undefined },
       resolveRunner: resolve,

@@ -118,10 +118,11 @@ export interface ToolEntry {
   readonly raw: RawExecutor;
   readonly locks: LockDeclarer | undefined;
   /**
-   * 초안 스크립트 실행의 합성 항목이다(`PluginCallTarget` `script`, AGE-58 [제안]). 드래프트 승인 `auto`인 테스트 런에서도 드래프트 카드를 건너뛰지 않고
-   * 승인 상속도 받지 않는다. 검토 전 코드가 프로세스를 띄우는 것은 도구 호출 카드를 없애는 `auto`의 뜻보다 무겁다
+   * 초안 스크립트 실행의 합성 항목이 "이 테스트 런 동안 다시 묻지 않음"으로 쓰는 `ruleId`(`SCRIPT_RUN_RULE_PREFIX` + `PluginCallTarget`의 `memoryKey`).
+   * 있으면 카드는 기억 범위 `thread`를 내고, 이 대화나 부모 대화에서 이 규칙을 허용한 적이 있으면 카드를 건너뛴다(AGE-58 [제안], [결정: 2026-11-19, 사용자, AGE-58]).
+   * 없으면 호출마다 "이번 한 번"이다
    */
-  readonly alwaysCard?: true;
+  readonly scriptRuleId?: string;
   /** 내장 도구를 같은 이름으로 대체하는 항목이다(레지스트리가 승인된 대체에만 붙인다). 기본 허용 규칙을 적용하지 않는다(L1.tools.spec §4.13) */
   readonly replacesBuiltin?: true;
 }

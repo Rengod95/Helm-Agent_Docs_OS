@@ -28,6 +28,13 @@ export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: Approval
 export const WRITE_ACCESS_RULE_ID = "sandbox.write_access" as const;
 
 /**
+ * 드래프트 스크립트 실행 승인(L1.tools.spec §4.6.1 6c)의 `ruleId` 접두. `ruleId`는 이 접두와 `PluginCallTarget`의 `memoryKey`를 이은 값이다.
+ * 이 규칙의 도구 승인만 `remember: ["thread"]`(이 테스트 런 동안 다시 묻지 않음) 하나를 낼 수 있고, 응답이 기억 범위를 생략하면 그 하나로 본다
+ * [결정: 2026-11-19, 사용자, AGE-58]
+ */
+export const SCRIPT_RUN_RULE_PREFIX = "script.run:" as const;
+
+/**
  * 웹 접근 승인(L2.web.spec §4.5.5)의 `ruleId`. 이 규칙의 도구 승인만 `remember: ["once", "always", "thread"]`를 낼 수 있다
  * (나머지 승인은 once뿐, L1.tools.spec §4.7 6번). 이 규칙에서 기억 범위는 웹 정책 설정에 쓰는 선택을 뜻한다:
  * `once` = 이번만 허용, `always` = 이 사이트 계속 허용(호스트를 `l2.web.policy.allow`의 user 범위에 더한다),

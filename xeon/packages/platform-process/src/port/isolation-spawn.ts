@@ -69,6 +69,7 @@ function pluginHostPolicy(
     tempDir: cwd,
     profile: "no-write",
     readRoots: [cwd, spec.command, ...(spec.runtimeReadRoots ?? [])],
+    ...(spec.systemTools === true ? { systemTools: true } : {}),
   });
 }
 

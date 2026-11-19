@@ -130,6 +130,21 @@ export interface SandboxPolicy {
    * 없으면 지금처럼 보호 경로와 `readDeny`만 막는 거부 목록 방식이다. 보호 경로를 품은 항목은 정책 합성에서 빠진다
    */
   readAllow?: string[];
+  /**
+   * 읽기 허용 목록 방식에서 이름 하나만(하위 경로 없이) 읽게 하는 절대 경로. 심볼릭 링크 자체처럼 `readAllow`(하위 경로 포함, 정규 경로로 바뀜)로는 열 수 없는 것이다.
+   * macOS(Seatbelt)에서만 쓰이고 프로필 맨 끝에 `(allow file-read* (literal ...))`로 더해진다. 다른 제공자는 무시한다 [제안, AGE-58]
+   */
+  readAllowLiteral?: string[];
+  /**
+   * 읽기 허용 목록 뒤에 다시 막는 파일(개별 도구). 허용한 폴더 안의 특정 실행 파일을 읽기와 실행 모두 막는다. 프로필 맨 끝에
+   * `(deny file-read* ...)`와 `(deny process-exec ...)`로 더해져 앞의 허용을 이긴다. macOS(Seatbelt)에서만 쓰이고 다른 제공자는 무시한다 [제안, AGE-58]
+   */
+  toolDeny?: string[];
+  /**
+   * 프로필 맨 끝에서 다시 막는 Mach 서비스 이름(`(deny mach-lookup (global-name ...))`). 기본 프로필이 열어 둔 서비스(키체인 데몬, LaunchServices)를 도구를 거치지 않는
+   * 호출도 못 쓰게 한다. macOS(Seatbelt)에서만 쓰이고 다른 제공자는 무시한다 [제안, AGE-58]
+   */
+  machDeny?: string[];
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -152,6 +167,15 @@ const sandboxPolicyShape = Type.Object(
     profile: Type.Optional(Type.Union([Type.Literal("read-only"), Type.Literal("no-write")])),
     readAllow: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
+    ),
+    readAllowLiteral: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
+    ),
+    toolDeny: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 128 }),
+    ),
+    machDeny: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 64 }),
     ),
   },
   { additionalProperties: false },
@@ -384,6 +408,8 @@ export interface SandboxService {
     profile?: SandboxProfile;
     /** `"no-write"`가 읽게 하는 경로(플러그인 폴더, 실행 파일). 절대 경로 */
     readRoots?: readonly string[];
+    /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다) */
+    systemTools?: boolean;
   }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.

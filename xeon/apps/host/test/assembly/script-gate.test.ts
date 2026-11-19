@@ -24,6 +24,7 @@ const CARD: ScriptCard = {
   envNames: ["MARKER"],
   stdinBytes: 3,
   stdinPreview: "abc",
+  uses: ["system_tools", "network"],
 };
 
 const RESULT: ScriptRunResult = {
@@ -117,11 +118,42 @@ test("a test-run thread with the draft bound opens the card through the tools po
       envNames: ["MARKER"],
       stdinBytes: 3,
       stdinPreview: "abc",
+      uses: ["system_tools", "network"],
     },
     requestId: "req-1",
   });
   // 승인 상속은 싣지 않는다
   expect(requests[0]?.inheritApproval).toBeUndefined();
+});
+
+test("every call carries a memory key made of the draft content hash, the script name and the boot value", async () => {
+  const { tools, requests } = fakeTools("allow");
+  const marks = new Map([[TEST_THREAD, [mark("draft-ext")]]]);
+  const gate = gateOf(tools, marks);
+  await gate(callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT))));
+  await gate(callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT))));
+  // 내용 해시가 다른 같은 이름의 초안
+  const changed = gateOf(
+    tools,
+    new Map([[TEST_THREAD, [{ ...mark("draft-ext"), contentHash: "h2" }]]]),
+  );
+  await changed(callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT))));
+  // 프로세스를 다시 시작한 뒤(시작 값이 다르다)의 같은 초안
+  const restarted = createScriptDraftGate({
+    tools: () => tools,
+    testRunDraftsOf: (threadId) => marks.get(threadId),
+    newRequestId: () => "req-x",
+    bootId: "boot2",
+  });
+  await restarted(callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT))));
+  const keys = requests.map((request) =>
+    request.target.kind === "script" ? request.target.memoryKey : undefined,
+  );
+  expect(keys[0]).toBeDefined();
+  expect(keys[1]).toBe(keys[0]);
+  expect(keys[2]).not.toBe(keys[0]);
+  expect(keys[3]).not.toBe(keys[0]);
+  expect(keys[0]?.length).toBeLessThanOrEqual(64);
 });
 
 test("each call gets its own request id, so a second call opens its own card", async () => {
