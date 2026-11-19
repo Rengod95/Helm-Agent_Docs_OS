@@ -18,11 +18,27 @@ import type { RecordKind, RecordSubject } from "./group-record.ts";
 export const PLUGIN_HOST_PROTOCOL_VERSION = 1 as const;
 
 /**
- * 프레임 한 줄의 상한(바이트). 앱과 엔진 사이의 상한(1 MiB, wire)을 그대로 쓰지 않는다: 5 MB 입력의 왕복이 14 ms 안팎이라
- * 훅 입력(컨텍스트 조립의 메시지 목록)이 1 MiB를 넘는 일이 흔하기 때문이다. 넘으면 보내지 않고 `frame_too_large`로 실패한다.
- * 나눠 보내기와 참조 넘기기는 하지 않는다(3단계 이후의 일)
+ * 프레임 한 줄의 상한(바이트, 줄 끝 제외). 앱과 엔진 사이의 상한(1 MiB, wire)을 그대로 쓰지 않는다: 5 MB 입력의 왕복이 14 ms 안팎이라
+ * 훅 입력(컨텍스트 조립의 메시지 목록)이 1 MiB를 넘는 일이 흔하기 때문이다. 이보다 큰 줄은 조각 전송(`frame.begin`과 `frame.part`,
+ * 아래 `PLUGIN_HOST_TRANSFER_*`)으로 나눠 보낼 수 있다. 조각 전송은 양쪽이 협상 칸 `transfer`를 가졌을 때만 쓴다.
+ * 협상이 안 된 쪽으로 넘는 줄을 보내면 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기는 하지 않는다
  */
 export const PLUGIN_HOST_MAX_FRAME_BYTES: number = 16 * 1024 * 1024;
+
+/**
+ * 조각 전송에서 조각 하나가 담는 원래 줄 글의 길이(UTF-16 글자 단위). 서로게이트 쌍은 가르지 않으므로 조각은 한 글자 짧을 수 있다.
+ * 글자 하나가 JSON에서 최대 여섯 바이트(제어 문자의 `\u00XX` 이스케이프)를 차지해도 조각 알림 한 줄은 상한 안이다(1 MiB × 6 = 6 MiB)
+ */
+export const PLUGIN_HOST_TRANSFER_PART_CHARS: number = 1024 * 1024;
+
+/** 받는 쪽이 조각 하나를 받은 뒤 비워지기를 기다리는 시간(ms). 넘으면 보내는 쪽은 그 전송을 접는다 */
+export const PLUGIN_HOST_TRANSFER_STALL_MS: number = 30_000;
+
+/** 조각 전송 시작 알림의 메서드 이름. params는 `PluginHostTransferBegin`이다 */
+export const PLUGIN_HOST_TRANSFER_BEGIN = "frame.begin" as const;
+
+/** 조각 알림의 메서드 이름. params는 `PluginHostTransferPart`다 */
+export const PLUGIN_HOST_TRANSFER_PART = "frame.part" as const;
 
 /** 플러그인 프로세스가 표준오류로 내는 글을 엔진이 남기는 상한. 줄 하나(글자), 모아 두는 줄 수 */
 export const PLUGIN_HOST_STDERR_LINE_MAX: number = 2000;
@@ -234,6 +250,68 @@ export function classifyFrame(
   return err({ kind: "invalid_frame" });
 }
 
+// ── 큰 줄의 조각 전송 ─────────────────────────────────────────────────────
+
+/**
+ * 조각 전송 시작 알림 `frame.begin`의 params. `x`는 전송 번호(보내는 쪽이 하나씩 늘린다), `size`는 원래 줄의 UTF-8 바이트 수,
+ * `parts`는 조각 수, `sha256`은 원래 줄 바이트의 16진 해시, `frameId`는 원래 프레임의 `id`(없으면 생략)다
+ */
+export interface PluginHostTransferBegin {
+  readonly x: number;
+  readonly size: number;
+  readonly parts: number;
+  readonly sha256: string;
+  readonly frameId?: number;
+}
+
+/** 조각 알림 `frame.part`의 params. `i`는 0부터의 순번, `data`는 원래 줄 글의 조각이다 */
+export interface PluginHostTransferPart {
+  readonly x: number;
+  readonly i: number;
+  readonly data: string;
+}
+
+/** 협상 칸 `transfer`(`host.init`의 요청과 응답). 받을 수 있는 원래 줄의 최대 UTF-8 바이트 수다. 칸이 없으면 옛 쪽이라 조각을 쓰지 않는다 */
+export interface PluginHostTransferOption {
+  readonly maxBytes: number;
+}
+
+const TransferBeginShape = Type.Object(
+  {
+    x: Type.Integer({ minimum: 0 }),
+    size: Type.Integer({ minimum: 1 }),
+    parts: Type.Integer({ minimum: 1 }),
+    sha256: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+    frameId: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+export const PluginHostTransferBeginSchema: TUnsafe<PluginHostTransferBegin> =
+  Type.Unsafe<PluginHostTransferBegin>(
+    TransferBeginShape satisfies SchemaProof<PluginHostTransferBegin, typeof TransferBeginShape>,
+  );
+
+const TransferPartShape = Type.Object(
+  {
+    x: Type.Integer({ minimum: 0 }),
+    i: Type.Integer({ minimum: 0 }),
+    data: Type.String(),
+  },
+  { additionalProperties: false },
+);
+export const PluginHostTransferPartSchema: TUnsafe<PluginHostTransferPart> =
+  Type.Unsafe<PluginHostTransferPart>(
+    TransferPartShape satisfies SchemaProof<PluginHostTransferPart, typeof TransferPartShape>,
+  );
+
+const TransferOptionShape = Type.Object({
+  maxBytes: Type.Integer({ minimum: 1 }),
+});
+export const PluginHostTransferOptionSchema: TUnsafe<PluginHostTransferOption> =
+  Type.Unsafe<PluginHostTransferOption>(
+    TransferOptionShape satisfies SchemaProof<PluginHostTransferOption, typeof TransferOptionShape>,
+  );
+
 // ── 요청의 모양 ───────────────────────────────────────────────────────────
 
 /** 훅과 도구와 명령 호출에 실리는 공통 문맥 */
@@ -264,6 +342,8 @@ export interface HostInitParams {
   readonly root: string;
   readonly entry: string;
   readonly settings: Readonly<Record<string, JsonValue>>;
+  /** 엔진이 받을 수 있는 최대 줄 크기. 자식이 큰 줄을 조각으로 보내는 데 쓴다. 없으면 옛 엔진이라 조각을 쓰지 않는다 */
+  readonly transfer?: PluginHostTransferOption;
 }
 
 /** 플러그인이 등록한 것 하나의 선언. 엔진은 이 선언으로 대리 핸들러를 같은 등록 순서로 만든다 */
@@ -319,6 +399,8 @@ export interface PluginToolDecl {
 export interface HostInitResult {
   readonly protocolVersion: number;
   readonly registrations: readonly PluginRegistrationDecl[];
+  /** 자식이 받을 수 있는 최대 줄 크기. 엔진이 자식에게 큰 줄을 조각으로 보내는 데 쓴다. 없으면 옛 자식이라 조각을 쓰지 않는다 */
+  readonly transfer?: PluginHostTransferOption;
 }
 
 export interface HookInvokeParams extends PluginCallContext {
