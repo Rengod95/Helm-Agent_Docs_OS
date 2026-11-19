@@ -202,7 +202,7 @@ export async function openScriptBox(options?: {
   const run = async (spec: RunSpec): Promise<ScriptRunResult | string> => {
     counter += 1;
     const name = `s${counter}`;
-    const file = `${name}.${spec.runner === "bun" ? "ts" : "sh"}`;
+    const file = `${name}.${spec.runner === "bun" ? "ts" : spec.runner === "node" ? "mjs" : spec.runner === "python3" ? "py" : "sh"}`;
     writeFileSync(join(tree, file), spec.body);
     const scripts: ManifestScriptDecl[] = [
       {
