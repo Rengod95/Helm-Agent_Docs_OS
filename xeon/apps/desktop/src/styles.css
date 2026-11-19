@@ -11,6 +11,7 @@
 @import "./views/craft/link.css";
 @import "./views/craft/canvas/cvA/cvA.css";
 @import "./views/craft/canvas/cvB/cvB.css";
+@import "./views/craft/canvas/cvH/cvH.css";
 @import "./views/illustrations/illustrations.css";
 @import "./views/transcript-caret.css";
 @import "./views/thinking-indicator.css";
