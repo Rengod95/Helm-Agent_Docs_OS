@@ -1,0 +1,1077 @@
+/* cvG(깊이) 캔버스의 모양. 색·글자는 caustic 토큰에서 온다. 무대는 두 층이다: 레일이 놓인 띠만 한 단계 밝고(--cv3-band)
+   위아래는 한 단계 어둡다(--cv3-floor). 격자·셰이더·유리·번쩍임 없이 그림자와 겹침으로만 층을 가른다:
+   바닥(레일·곡선, 그림자 없음) < 받침판(낮은 그림자) < 판(높은 그림자) < 플로팅 상세(가장 높은 그림자).
+   React Flow 규칙은 `@layer xyflow`에, 나머지는 components 층에 둔다(무층 규칙 금지). base.css는 cvA.css가 이미 불러온다. */
+
+@layer xyflow {
+  .cv3-root {
+    --cv3-floor: var(--cs-color-bg-canvas);
+    --cv3-band: var(--cs-color-bg-app);
+    --cv3-plate: var(--cs-color-surface-raised);
+    --cv3-plate-edge: color-mix(in oklab, var(--cs-color-text-primary) 10%, transparent);
+    --cv3-plate-edge-hot: color-mix(in oklab, var(--cs-color-text-primary) 30%, transparent);
+    --cv3-ped: color-mix(in oklab, var(--cs-color-surface-base) 72%, var(--cs-color-bg-app));
+    --cv3-station: color-mix(in oklab, var(--cs-color-text-primary) 5%, var(--cv3-band));
+    --cv3-line: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --cv3-line-soft: color-mix(in oklab, var(--cs-color-text-primary) 12%, transparent);
+    --cv3-chrome: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
+    /* 종류 색: 종류를 가르는 데만 쓰고 채도를 누른다 */
+    --cv3-inject: color-mix(
+      in oklch,
+      var(--cs-color-identity-iris) 84%,
+      var(--cs-color-text-secondary)
+    );
+    --cv3-hook: color-mix(
+      in oklch,
+      var(--cs-color-identity-amber) 80%,
+      var(--cs-color-text-secondary)
+    );
+    --cv3-drive: color-mix(
+      in oklch,
+      var(--cs-color-agent-stop-1) 84%,
+      var(--cs-color-text-secondary)
+    );
+    --cv3-tool: color-mix(
+      in oklch,
+      var(--cs-color-identity-mint) 74%,
+      var(--cs-color-text-secondary)
+    );
+    /* 층의 그림자 셋 */
+    --cv3-lift-ped: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 6px 14px -8px rgb(0 0 0 / 0.55);
+    --cv3-lift-plate: drop-shadow(0 14px 18px rgb(0 0 0 / 0.42))
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.38));
+    --cv3-lift-plate-hot: drop-shadow(0 22px 26px rgb(0 0 0 / 0.5))
+      drop-shadow(0 3px 4px rgb(0 0 0 / 0.4));
+    --cv3-lift-float: 0 30px 70px -16px rgb(0 0 0 / 0.7), 0 6px 16px rgb(0 0 0 / 0.38);
+    --cv3-lift-card: 0 10px 22px -10px rgb(0 0 0 / 0.6), 0 2px 4px rgb(0 0 0 / 0.3);
+    --cv3-lift-card-hot: 0 16px 30px -12px rgb(0 0 0 / 0.7), 0 3px 6px rgb(0 0 0 / 0.34);
+    --cv3-mono: var(--cs-font-mono, ui-monospace, monospace);
+    background: var(--cv3-floor);
+  }
+
+  .cv3-root[data-scheme="light"] {
+    --cv3-plate: var(--cs-color-surface-base);
+    --cv3-plate-edge: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+    --cv3-ped: color-mix(in oklab, var(--cs-color-bg-app) 60%, var(--cs-color-bg-canvas));
+    --cv3-station: color-mix(in oklab, var(--cs-color-text-primary) 4%, var(--cv3-band));
+    --cv3-chrome: color-mix(in oklab, var(--cs-color-surface-base) 96%, transparent);
+    --cv3-inject: color-mix(
+      in oklch,
+      var(--cs-color-identity-iris) 78%,
+      var(--cs-color-text-primary)
+    );
+    --cv3-hook: color-mix(
+      in oklch,
+      var(--cs-color-identity-amber) 62%,
+      var(--cs-color-text-primary)
+    );
+    --cv3-drive: color-mix(
+      in oklch,
+      var(--cs-color-agent-stop-1) 82%,
+      var(--cs-color-text-primary)
+    );
+    --cv3-tool: color-mix(
+      in oklch,
+      var(--cs-color-identity-mint) 70%,
+      var(--cs-color-text-primary)
+    );
+    --cv3-lift-ped: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 14px -10px rgb(0 0 0 / 0.18);
+    --cv3-lift-plate: drop-shadow(0 12px 16px rgb(0 0 0 / 0.1))
+      drop-shadow(0 1px 2px rgb(0 0 0 / 0.12));
+    --cv3-lift-plate-hot: drop-shadow(0 20px 24px rgb(0 0 0 / 0.14))
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.14));
+    --cv3-lift-float: 0 28px 64px -18px rgb(0 0 0 / 0.26), 0 4px 12px rgb(0 0 0 / 0.08);
+    --cv3-lift-card: 0 8px 18px -10px rgb(0 0 0 / 0.16), 0 1px 2px rgb(0 0 0 / 0.08);
+    --cv3-lift-card-hot: 0 14px 26px -12px rgb(0 0 0 / 0.22), 0 2px 4px rgb(0 0 0 / 0.1);
+  }
+
+  .cv3-flow.react-flow {
+    --xy-background-color: transparent;
+    --xy-node-border: 0;
+    --xy-node-background-color: transparent;
+    --xy-node-boxshadow-hover: none;
+    --xy-node-boxshadow-selected: none;
+    --xy-node-color: var(--cs-color-text-primary);
+    background: transparent;
+  }
+
+  .cv3-flow .react-flow__node {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    cursor: default;
+  }
+
+  /* xyflow는 고를 수도 끌 수도 없는 노드에 pointer-events: none을 준다. 판·받침판·더미·빌더는 안을 누를 수 있게 되살린다
+     (띠·바닥·관계 선은 그대로 지나가게 둔다) */
+  .cv3-flow .react-flow__node-plate > *,
+  .cv3-flow .react-flow__node-pedestal > *,
+  .cv3-flow .react-flow__node-pile > *,
+  .cv3-flow .react-flow__node-builder > * {
+    pointer-events: auto;
+  }
+
+  .cv3-flow .react-flow__node:focus-visible {
+    outline: none;
+  }
+
+  .cv3-flow .react-flow__node:focus-visible .cv3-shape,
+  .cv3-flow .react-flow__node:focus-visible .cv3-pile-top {
+    stroke: var(--cs-color-focus-ring);
+    outline-color: var(--cs-color-focus-ring);
+  }
+
+  .cv3-flow .react-flow__pane {
+    cursor: default;
+  }
+
+  .cv3-flow .react-flow__pane.dragging {
+    cursor: grabbing;
+  }
+
+  .cv3-flow .react-flow__attribution {
+    display: none;
+  }
+}
+
+@layer components {
+  .cv3-mono {
+    font-family: var(--cv3-mono);
+  }
+
+  /* ── 무대: 두 층 ── */
+  .cv3-band {
+    background: var(--cv3-band);
+    box-shadow:
+      0 -1px 0 var(--cv3-line-soft),
+      0 1px 0 var(--cv3-line-soft);
+  }
+
+  .cv3-band-fill {
+    fill: var(--cv3-band);
+  }
+
+  .cv3-floor,
+  .cv3-links {
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cv3-rail-line {
+    stroke: var(--cv3-line);
+    stroke-width: 1.5;
+  }
+
+  .cv3-station {
+    fill: var(--cv3-station);
+    stroke: var(--cv3-line-soft);
+    stroke-width: 1;
+  }
+
+  .cv3-station-num {
+    fill: var(--cs-color-text-tertiary);
+    font: 500 14px var(--cv3-mono);
+  }
+
+  .cv3-station-label {
+    fill: var(--cs-color-text-primary);
+    font: 600 17px var(--cs-font-ui);
+  }
+
+  .cv3-gate {
+    stroke: var(--cv3-line);
+    stroke-width: 1.5;
+  }
+
+  .cv3-gate-dot {
+    fill: var(--cv3-band);
+    stroke: var(--cs-color-text-secondary);
+    stroke-width: 1.5;
+  }
+
+  .cv3-gate-label {
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
+  }
+
+  .cv3-tick {
+    fill: var(--cv3-line);
+  }
+
+  .cv3-tick-used {
+    fill: var(--cs-color-text-secondary);
+  }
+
+  .cv3-return path {
+    fill: none;
+    stroke: var(--cv3-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+  }
+
+  .cv3-return text {
+    fill: var(--cs-color-text-tertiary);
+    font: 14px var(--cs-font-ui);
+  }
+
+  .cv3-arrow-floor {
+    fill: none;
+    stroke: var(--cs-color-text-tertiary);
+    stroke-width: 1.2;
+  }
+
+  /* 판에서 레일로 내려가는 곡선(층을 넘는다): 종류 색, 옅게 */
+  .cv3-wire {
+    fill: none;
+    stroke: color-mix(in oklab, currentColor 46%, transparent);
+    stroke-width: 1.6;
+  }
+
+  .cv3-wire-on {
+    stroke: currentColor;
+    stroke-width: 2.2;
+  }
+
+  .cv3-wire-end {
+    fill: currentColor;
+    stroke: var(--cv3-band);
+    stroke-width: 2;
+  }
+
+  .cv3-count {
+    fill: var(--cv3-plate);
+    stroke: color-mix(in oklab, currentColor 50%, transparent);
+  }
+
+  .cv3-count-text {
+    fill: var(--cs-color-text-primary);
+    font: 600 12px var(--cs-font-ui);
+  }
+
+  .cv3-target {
+    fill: color-mix(in oklab, currentColor 18%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+
+  .cv3-cross path {
+    fill: none;
+    stroke: var(--cs-color-warning-text);
+    stroke-width: 1.5;
+  }
+
+  .cv3-cross text {
+    fill: var(--cs-color-warning-text);
+    font: 500 12px var(--cs-font-ui);
+  }
+
+  /* ── 같은 층의 관계 직선 ── */
+  .cv3-rel {
+    fill: none;
+    stroke-width: 1.4;
+    stroke: color-mix(in oklab, var(--cs-color-text-secondary) 70%, transparent);
+    stroke-linejoin: round;
+  }
+
+  .cv3-rel-handoff {
+    stroke: color-mix(in oklab, var(--cv3-drive) 75%, transparent);
+    stroke-width: 2;
+  }
+
+  .cv3-rel-creates {
+    stroke: color-mix(in oklab, var(--cs-color-warning-text) 70%, transparent);
+  }
+
+  .cv3-rel-replaces {
+    stroke: var(--cs-color-warning-text);
+  }
+
+  .cv3-rel-on {
+    stroke-width: 2.2;
+  }
+
+  .cv3-rel-on.cv3-rel-depends,
+  .cv3-rel-on.cv3-rel-reads {
+    stroke: var(--cs-color-text-primary);
+  }
+
+  .cv3-rel-on.cv3-rel-handoff {
+    stroke: var(--cv3-drive);
+  }
+
+  .cv3-rel-mark {
+    fill: var(--cv3-band);
+    stroke: var(--cs-color-text-secondary);
+    stroke-width: 1.3;
+  }
+
+  .cv3-rel-mark-handoff {
+    fill: none;
+    stroke: var(--cv3-drive);
+    stroke-width: 1.6;
+  }
+
+  .cv3-rel-mark-creates {
+    fill: none;
+    stroke: var(--cs-color-warning-text);
+  }
+
+  .cv3-rel-pill {
+    fill: var(--cv3-chrome);
+    stroke: var(--cv3-line-soft);
+  }
+
+  .cv3-rel-text {
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
+  }
+
+  .cv3-rel-text-handoff {
+    fill: var(--cv3-drive);
+  }
+
+  /* ── 뜬 층: 판 ──
+     네 종류가 같은 카드 한 가족이다(둥근 모서리는 rounded-xl, squircle은 caustic이 준다). 종류는 색·아이콘 타일과
+     레일 쪽 변의 작은 이음새(.cv3-port, 8px 안쪽) 하나로만 가른다. 그림자는 box-shadow 하나(층의 깊이). */
+  .cv3-plate {
+    position: relative;
+    background: var(--cv3-plate);
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-plate-edge),
+      var(--cv3-lift-card);
+    transition:
+      opacity 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .cv3-plate:hover,
+  .cv3-plate[data-mark="selected"] {
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-plate-edge-hot),
+      var(--cv3-lift-card-hot);
+  }
+
+  .cv3-plate[data-mark="selected"] {
+    box-shadow:
+      inset 0 0 0 1.5px currentColor,
+      var(--cv3-lift-card-hot);
+  }
+
+  .cv3-plate[data-mark="related"] {
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-plate-edge-hot),
+      var(--cv3-lift-card);
+  }
+
+  /* 드래프트: 리뷰 전이라 테두리가 점선이다(경고 색) */
+  .cv3-plate[data-draft="true"] {
+    outline: 1px dashed color-mix(in oklab, var(--cs-color-warning-text) 70%, transparent);
+    outline-offset: -1px;
+  }
+
+  /* 레일 쪽 변의 이음새: 선이 판에서 나오는 자리. 종류마다 모양 하나(Inject 주둥이, 도구 두 갈래, Hook 마름모, Drive 갈매기) */
+  .cv3-port {
+    position: absolute;
+    color: currentColor;
+    pointer-events: none;
+  }
+
+  .cv3-port[data-side="down"] {
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%);
+  }
+
+  .cv3-port[data-side="up"] {
+    left: 50%;
+    top: -6px;
+    transform: translateX(-50%) scaleY(-1);
+  }
+
+  .cv3-port[data-side="right"] {
+    top: 50%;
+    right: -6px;
+    transform: translateY(-50%);
+  }
+
+  .cv3-dim {
+    opacity: 0.35;
+  }
+
+  /* 중간·멀리의 상태 표: 카드 위 변 오른쪽에 반쯤 걸친다. 바탕은 판 면 + 상태 색이라 선 위에서도 읽힌다 */
+  .cv3-edge-marks {
+    position: absolute;
+    top: 0;
+    right: 12px;
+    transform: translateY(-50%);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .cv3-edge-marks .cv3-mark {
+    background-color: var(--cv3-plate);
+    background-image: linear-gradient(
+      color-mix(in oklab, currentColor 14%, transparent),
+      color-mix(in oklab, currentColor 14%, transparent)
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 35%, transparent);
+  }
+
+  .cv3-plate-body {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .cv3-plate-hit {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: 0;
+    border-radius: inherit;
+    cursor: pointer;
+  }
+
+  /* 멀리서 보는 이름: 하이픈 뒤에서 두 줄까지 접힌다(잘라 내지 않는다) */
+  .cv3-name-wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    hyphens: manual;
+  }
+
+  .cv3-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--cs-color-text-tertiary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    white-space: nowrap;
+  }
+
+  .cv3-mark-mid {
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 7px;
+    font-size: 13.5px;
+  }
+
+  .cv3-mark-big {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 9px;
+    font-size: 18px;
+  }
+
+  .cv3-mark-error {
+    color: var(--cs-color-danger-text);
+    background: color-mix(in oklab, var(--cs-color-danger-text) 12%, transparent);
+  }
+
+  .cv3-mark-start {
+    color: var(--cv3-drive);
+    background: color-mix(in oklab, var(--cv3-drive) 14%, transparent);
+  }
+
+  .cv3-mark-draft {
+    color: var(--cs-color-warning-text);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-warning-text) 55%, transparent);
+  }
+
+  .cv3-mark-pending {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cv3-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 5px;
+    font: 11px var(--cv3-mono);
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    white-space: nowrap;
+  }
+
+  /* 포커스가 도착했을 때 한 번만 퍼지는 고리(그 뒤로 도는 것 없음) */
+  .cv3-arrive {
+    position: absolute;
+    inset: -8px;
+    border-radius: 18px;
+    border: 2px solid currentColor;
+    pointer-events: none;
+    opacity: 0;
+    animation: cv3-arrive 1100ms ease-out 1;
+  }
+
+  @keyframes cv3-arrive {
+    0% {
+      opacity: 0.9;
+      transform: scale(0.97);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cv3-arrive {
+      animation-duration: 1ms;
+    }
+  }
+
+  /* ── 받침 층: 묶음 ── */
+  .cv3-pedestal {
+    position: relative;
+    border-radius: 18px;
+    background: var(--cv3-ped);
+    box-shadow:
+      var(--cv3-lift-ped),
+      inset 0 0 0 1px var(--cv3-line-soft);
+    cursor: pointer;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv3-pedestal[data-mark="selected"] {
+    box-shadow:
+      var(--cv3-lift-ped),
+      inset 0 0 0 1.5px var(--cs-color-text-secondary);
+  }
+
+  .cv3-pile {
+    position: relative;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv3-pile-sheet,
+  .cv3-pile-top {
+    position: absolute;
+    border-radius: 12px;
+    background: var(--cv3-plate);
+    box-shadow: inset 0 0 0 1px var(--cv3-plate-edge);
+  }
+
+  /* 접힌 더미 위의 펼치기 단추는 더미 전체를 덮는 누름 층(.cv3-plate-hit) 위에 선다(묶은 빌드에서 누를 수 없던 것을 고침) */
+  .cv3-pile-top .cv3-icon-btn {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cv3-pile-sheet {
+    filter: brightness(0.86);
+  }
+
+  .cv3-pile-top {
+    filter: var(--cv3-lift-plate);
+    outline: 1px solid transparent;
+  }
+
+  .cv3-pile[data-mark="selected"] .cv3-pile-top {
+    box-shadow: inset 0 0 0 1.75px var(--cs-color-text-secondary);
+  }
+
+  /* ── 바닥: 프로필 밖의 빌더 ── */
+  .cv3-builder {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 236px;
+    height: 104px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border: 1px dashed var(--cv3-line);
+    color: var(--cs-color-text-tertiary);
+    cursor: pointer;
+  }
+
+  .cv3-builder[data-mark="selected"],
+  .cv3-builder[data-mark="related"] {
+    border-color: var(--cs-color-warning-text);
+    color: var(--cs-color-warning-text);
+  }
+
+  /* ── 크롬(캔버스 위 작은 판들) ── */
+  .cv3-chrome {
+    border-radius: 10px;
+    background: var(--cv3-chrome);
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-line-soft),
+      0 4px 14px -6px rgb(0 0 0 / 0.3);
+  }
+
+  .cv3-root svg {
+    flex-shrink: 0;
+  }
+
+  .cv3-icon-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: transparent;
+    border-radius: 7px;
+    color: var(--cs-color-text-tertiary);
+    outline: none;
+  }
+
+  .cv3-icon-btn:hover:not(:disabled) {
+    background: var(--cs-color-fill-hover);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv3-icon-btn:disabled {
+    opacity: 0.35;
+  }
+
+  .cv3-icon-btn:focus-visible,
+  .cv3-tool-btn:focus-visible,
+  .cv3-row:focus-visible,
+  .cv3-row-rail:focus-visible,
+  .cv3-link:focus-visible,
+  .cv3-member:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .cv3-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    min-width: 28px;
+    justify-content: center;
+    padding: 0 6px;
+    border-radius: 7px;
+    color: var(--cs-color-text-secondary);
+    outline: none;
+  }
+
+  .cv3-tool-btn:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cv3-tool-btn[aria-pressed="true"] {
+    background: var(--cs-color-fill-selected);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv3-stage {
+    background: var(--cv3-floor);
+  }
+
+  .cv3-drop {
+    box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
+  }
+
+  .cv3-ghost {
+    will-change: transform;
+  }
+
+  /* ── 사이드 패널 ── */
+  .cv3-palette {
+    border-right: 1px solid var(--cs-color-border-subtle);
+    background: var(--cs-color-surface-base);
+    min-height: 0;
+  }
+
+  .cv3-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 30px;
+    padding: 0 30px 0 8px;
+    border-radius: 8px;
+    text-align: left;
+    outline: none;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .cv3-row:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cv3-row[aria-current="true"] {
+    background: var(--cs-color-fill-selected);
+  }
+
+  .cv3-row-add {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    opacity: 0;
+  }
+
+  .group:hover .cv3-row-add,
+  .group:focus-within .cv3-row-add {
+    opacity: 1;
+  }
+
+  .cv3-row-rail {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    outline: none;
+  }
+
+  .cv3-row-rail:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  /* ── 맨 위 층: 플로팅 상세 ── */
+  /* 받은 요청 카드(approval-card)와 같은 면: surface.base, 1px border.subtle 안쪽 선, rounded-xl(squircle). 떠 있으므로 그림자만 더한다.
+     머리 아래에는 선을 긋지 않는다(받은 요청 카드에 생겼던 머리 아래 선과 같은 것을 만들지 않는다). 섹션 사이에만 선이 있다 */
+  .cv3-float {
+    background: var(--cs-color-surface-base);
+    box-shadow:
+      inset 0 0 0 1px var(--cs-color-border-subtle),
+      var(--cv3-lift-float);
+  }
+
+  .cv3-float-head {
+    user-select: none;
+  }
+
+  .cv3-float-foot {
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+
+  /* 본문 섹션: 섹션과 섹션 사이에 border.subtle 선 하나, 위아래 14px */
+  .cv3-sec + .cv3-sec {
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+
+  /* 설명과 동작의 네 줄: 왼쪽 세로 선 위의 점 넷(언제 → 읽고 → 바꾸고 → 낸다) */
+  .cv3-flow-steps {
+    position: relative;
+  }
+
+  .cv3-flow-steps::before {
+    content: "";
+    position: absolute;
+    left: 11px;
+    top: 14px;
+    bottom: 14px;
+    width: 1px;
+    background: var(--cs-color-border-default);
+  }
+
+  .cv3-flow-dot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 23px;
+    height: 23px;
+    border-radius: 999px;
+    color: var(--cs-color-text-secondary);
+    background: var(--cs-color-surface-base);
+    box-shadow: inset 0 0 0 1px var(--cs-color-border-default);
+  }
+
+  .cv3-fact {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    max-width: 100%;
+    column-gap: 6px;
+    min-height: 22px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--cs-color-text-primary);
+    background: var(--cs-color-neutral-track);
+  }
+
+  .cv3-fact[data-warn] {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cv3-fact-value {
+    overflow-wrap: anywhere;
+    font: 11px/16px var(--cv3-mono);
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cv3-fact[data-warn] .cv3-fact-value {
+    color: inherit;
+  }
+
+  .cv3-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+    white-space: nowrap;
+  }
+
+  .cv3-pill-warn {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cv3-pill-ok {
+    color: var(--cs-color-success-text);
+    background: color-mix(in oklab, var(--cs-color-success-text) 12%, transparent);
+  }
+
+  .cv3-well {
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--cv3-line-soft);
+  }
+
+  .cv3-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv3-tool-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 5%, transparent);
+  }
+
+  .cv3-tool-chip[data-writes] {
+    color: var(--cs-color-text-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-warning-text) 40%, transparent);
+  }
+
+  .cv3-tool-chip[data-writes] span:last-child {
+    color: var(--cs-color-warning-text);
+  }
+
+  .cv3-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+  }
+
+  .cv3-risk-seg {
+    width: 14px;
+    height: 5px;
+    border-radius: 2px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 12%, transparent);
+  }
+
+  .cv3-risk-seg[data-on] {
+    background: var(--cs-color-text-secondary);
+  }
+
+  .cv3-risk-seg[data-on][data-high] {
+    background: var(--cs-color-warning-text);
+  }
+
+  .cv3-link {
+    color: var(--cs-color-text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--cv3-line);
+    text-underline-offset: 3px;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .cv3-link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .cv3-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    outline: none;
+  }
+
+  .cv3-member:hover {
+    background: var(--cs-color-neutral-hover);
+  }
+
+  .cv3-bundle-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
+  }
+
+  /* 미니 그림(상세의 작동 칸) */
+  .cv3-mini-rail {
+    stroke: var(--cv3-line);
+    stroke-width: 1.5;
+  }
+
+  .cv3-mini-block {
+    fill: var(--cv3-station);
+    stroke: var(--cv3-line-soft);
+  }
+
+  .cv3-mini-label {
+    fill: var(--cs-color-text-secondary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cv3-mini-out {
+    font: 600 12px var(--cs-font-ui);
+  }
+
+  .cv3-mini-gate {
+    fill: color-mix(in oklab, currentColor 20%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cv3-mini-branch {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cv3-mini-branch-pass {
+    stroke: var(--cv3-line);
+  }
+
+  /* ── 플러그인 내부 ── */
+  .cv3-icard {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background: var(--cv3-plate);
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-plate-edge),
+      0 12px 18px -10px rgb(0 0 0 / 0.5),
+      0 2px 3px rgb(0 0 0 / 0.3);
+  }
+
+  .cv3-root[data-scheme="light"] .cv3-icard {
+    box-shadow:
+      inset 0 0 0 1px var(--cv3-plate-edge),
+      0 10px 16px -10px rgb(0 0 0 / 0.16),
+      0 1px 2px rgb(0 0 0 / 0.1);
+  }
+
+  .cv3-icard-step {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, currentColor 55%, transparent),
+      inset 3px 0 0 0 currentColor,
+      0 12px 18px -10px rgb(0 0 0 / 0.5);
+  }
+
+  .cv3-icard-ghost {
+    background: transparent;
+    box-shadow: none;
+    border: 1px dashed var(--cv3-line);
+  }
+
+  .cv3-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: currentColor;
+    background: color-mix(in oklab, currentColor 15%, transparent);
+  }
+
+  .cv3-in-path {
+    fill: none;
+    stroke: var(--cv3-line);
+    stroke-width: 1.6;
+  }
+
+  .cv3-in-flow {
+    stroke: color-mix(in oklab, var(--cs-color-text-secondary) 80%, transparent);
+  }
+
+  .cv3-in-return {
+    stroke: var(--cv3-drive);
+    stroke-dasharray: 5 4;
+  }
+
+  .cv3-in-handoff {
+    stroke: var(--cv3-drive);
+    stroke-width: 2;
+  }
+
+  .cv3-in-feed {
+    stroke: color-mix(in oklab, var(--cv3-inject) 70%, transparent);
+  }
+
+  .cv3-in-lazy {
+    stroke: color-mix(in oklab, var(--cv3-inject) 60%, transparent);
+    stroke-dasharray: 2 4;
+  }
+
+  .cv3-in-branch {
+    stroke: var(--cv3-hook);
+  }
+
+  .cv3-in-arrowhead {
+    fill: none;
+    stroke: var(--cv3-drive);
+    stroke-width: 1.6;
+  }
+
+  .cv3-in-label {
+    fill: var(--cs-color-text-tertiary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cv3-in-label-return,
+  .cv3-in-label-handoff {
+    fill: var(--cv3-drive);
+  }
+}

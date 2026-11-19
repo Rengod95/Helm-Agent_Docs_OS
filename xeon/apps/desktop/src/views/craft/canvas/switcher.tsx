@@ -1,16 +1,16 @@
-// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸: `F G H │ A B C D E │ –`.
-// 둘째 판 F·G·H가 앞에 또렷하게 서고, 첫 판 A~E는 비교용으로 흐리게 뒤에 선다. 키보드 1~3은 F·G·H, 4~8은 A~E, 0은 지금 화면.
-// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 첫 판의 키와 따로 두어 둘째 판 빌드는 F로 처음 연다.
+// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸: `G2 │ F G H │ A B C D E │ –`.
+// 셋째 판 G2와 둘째 판 F·G·H가 앞에 또렷하게 서고, 첫 판 A~E는 비교용으로 흐리게 뒤에 선다. 키보드 1은 G2, 2~4는 F·G·H, 5~9는 A~E, 0은 지금 화면.
+// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 앞 판의 키와 따로 두어 셋째 판 빌드는 G2로 처음 연다.
 // 글자 입력 중에는 숫자 키를 가로채지 않는다.
 import { t } from "@fresnel/client/i18n";
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { CANVAS_DESIGNS } from "./registry.tsx";
 
-const KEY = "fresnel.craft.canvasDesign.round2";
+const KEY = "fresnel.craft.canvasDesign.round3";
 const CURRENT = "current";
 
-/** 고른 적이 없으면 첫 칸(둘째 판의 F)으로 연다 */
+/** 고른 적이 없으면 첫 칸(셋째 판의 G2)으로 연다 */
 function stored(): string {
   const value = localStorage.getItem(KEY);
   if (value !== null && (value === CURRENT || CANVAS_DESIGNS.some((d) => d.id === value)))
