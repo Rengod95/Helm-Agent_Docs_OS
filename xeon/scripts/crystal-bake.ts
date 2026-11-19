@@ -28,6 +28,7 @@ import {
   type Plane,
   type Shot,
   type Solid,
+  type Studio,
   type V3,
 } from "./crystal-trace.ts";
 
@@ -51,20 +52,45 @@ export function restHalfGap(box: number): number {
   return (1.3 * 1.48) / unitCss / 2;
 }
 
+/** 맑은 유리: 빛깔마다 굴절률이 조금씩 달라 날에 옅은 무지개가 선다(lcMk4가 분산을 넓혔다). 흡수는 아주 옅은 하늘빛만 남긴다 */
 const GLASS: Omit<Glass, "bevel"> = {
-  ior: [1.502, 1.512, 1.522],
-  absorb: [0.1, 0.05, 0],
+  ior: [1.494, 1.512, 1.532],
+  absorb: [0.05, 0.025, 0],
   bounces: 7,
 };
 
-/** 테마마다 스튜디오와 바탕색(caustic bg-app: 다크 oklch 0.135, 라이트 0.975) */
-const THEMES = {
-  dark: { env: studio({ dark: true, veil: 0.32, aurora: 0.55 }), backdrop: [0.07, 0.07, 0.07] },
-  light: {
-    env: studio({ dark: false, veil: 0.26, aurora: 0.55 }),
-    backdrop: [0.965, 0.965, 0.965],
-  },
-} as const satisfies Record<string, { readonly env: Shot["env"]; readonly backdrop: V3 }>;
+type Theme = "dark" | "light";
+
+/** 테마 바탕색(caustic bg-app: 다크 oklch 0.135, 라이트 0.975). 빛깔이 든 투과분을 색에 접을 때만 쓴다 */
+const BACKDROP: Readonly<Record<Theme, V3>> = {
+  dark: [0.07, 0.07, 0.07],
+  light: [0.965, 0.965, 0.965],
+};
+
+/** 작은 칸(14·20 CSS px의 2x 판)으로 보는 칸 한 변의 상한(기기 px) */
+const SMALL_BOX = 40;
+
+/**
+ * 테마·칸 크기마다 스튜디오(lcMk4). 큰 칸은 앱 아이콘의 결정처럼 맑고 밝은 유리, 작은 칸은 같은 유리를 14·20px에서도 읽히게
+ * 몸을 더 채우고(veil) 빛깔과 가장자리 빛을 올린다(줄이면 잔 결이 평균되어 회색이 되기 때문이다)
+ */
+export function studioOf(theme: Theme, box: number): Studio {
+  const small = box <= SMALL_BOX;
+  if (theme === "dark") {
+    return small
+      ? { dark: true, veil: 0.78, aurora: 1, lift: 1.3, rim: 1.4 }
+      : { dark: true, veil: 0.64, aurora: 0.95, lift: 1.08, rim: 1.1 };
+  }
+  return small
+    ? { dark: false, veil: 0.72, aurora: 1, lift: 0.9, rim: 0.4 }
+    : { dark: false, veil: 0.6, aurora: 1, lift: 0.92, rim: 0.35 };
+}
+
+/** 노출(빛 → 0~1로 접는 세기). 다크의 작은 칸은 더 밝게 접는다 */
+function exposureOf(theme: Theme, box: number): number {
+  if (theme === "light") return 1.4;
+  return box <= SMALL_BOX ? 1.6 : 1.45;
+}
 
 /** 모서리를 깎는 깊이(모형 단위). 앱 아이콘의 결정처럼 모든 모서리에 좁은 면이 하나씩 생겨 빛을 받는다 */
 const CHAMFER = 0.018;
@@ -113,16 +139,17 @@ export function apartAt(yaw: number): readonly [number, number] {
 }
 
 /** 한 칸 크기의 판 한 줄(조각마다 곧은 RGBA): 자세 × 조각 2 */
-function bakeRow(box: number, theme: keyof typeof THEMES): Uint8Array[] {
+function bakeRow(box: number, theme: Theme): Uint8Array[] {
   const unitPx = box / 2 / HALF_EXTENT;
   const shot: Shot = {
     size: box,
     halfExtent: HALF_EXTENT,
     ss: box <= 40 ? 8 : box <= 64 ? 6 : 3,
-    glass: { ...GLASS, bevel: Math.max(0.05, 1.1 / unitPx) },
-    env: THEMES[theme].env,
-    backdrop: THEMES[theme].backdrop,
-    exposure: 1.3,
+    // 둥근 날은 화면에서 약 1px(작은 칸은 1.3px: 날의 반짝임이 한 px을 넘어 선으로 읽힌다)
+    glass: { ...GLASS, bevel: Math.max(0.05, (box <= SMALL_BOX ? 1.3 : 1.1) / unitPx) },
+    env: studio(studioOf(theme, box)),
+    backdrop: BACKDROP[theme],
+    exposure: exposureOf(theme, box),
   };
   return BAKE_YAWS.flatMap((yaw) =>
     renderLayers(solidsAt(yaw, restHalfGap(box)), shot).map((layer) => toStraight8(layer.px)),
@@ -132,7 +159,7 @@ function bakeRow(box: number, theme: keyof typeof THEMES): Uint8Array[] {
 /** 판 하나: 줄마다 칸 크기 하나, 줄 안에 칸들이 왼쪽부터 */
 function bakeSheet(
   boxes: readonly number[],
-  theme: keyof typeof THEMES,
+  theme: Theme,
 ): { readonly width: number; readonly height: number; readonly png: Uint8Array } {
   const cells = BAKE_YAWS.length * 2;
   const width = Math.max(...boxes) * cells;

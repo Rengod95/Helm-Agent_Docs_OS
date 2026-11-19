@@ -378,26 +378,33 @@ export function encodePng(width: number, height: number, rgba: Uint8Array): Uint
 const KEY = unit([-0.55, 0.7, 0.55]);
 const STRIP = unit([0.85, 0.1, 0.35]);
 const LOW = unit([0.1, -0.6, 0.6]);
-/** 오로라 빛깔(아주 옅게 섞는다): 아래 왼쪽 보라, 위 오른쪽 청록 */
-const VIOLET: V3 = [0.62, 0.52, 1];
-const TEAL: V3 = [0.42, 0.9, 0.92];
+/** 둘째 반짝임(오른쪽 위 앞): 열쇠 빛이 닿지 않는 면의 날에도 작은 빛점이 선다 */
+const SIDE_KEY = unit([0.6, 0.75, 0.3]);
+/** 앱 아이콘 바탕의 빛깔(lcMk4): 위 왼쪽 하늘빛, 아래 오른쪽 보랏빛. 유리 너머로 비치는 면이 이 두 빛을 띤다 */
+const SKY: V3 = [0.5, 0.8, 1];
+const LAVENDER: V3 = [0.68, 0.54, 1];
 
 /** 스튜디오 하나의 세기 */
 export interface Studio {
   readonly dark: boolean;
-  /** 유리를 곧장 지나는 빛 가운데 뒤판의 빛을 띠는 몫(나머지는 투명). 클수록 우윳빛 */
+  /** 유리를 곧장 지나는 빛 가운데 뒤판의 빛을 띠는 몫(나머지는 투명). 클수록 유리 몸이 밝은 뒤판을 품는다 */
   readonly veil: number;
-  /** 오로라 빛깔의 세기(0이면 무색) */
+  /** 하늘빛·보랏빛의 세기(0이면 흰 뒤판) */
   readonly aurora: number;
+  /** 뒤판과 방의 밝기 배율 */
+  readonly lift: number;
+  /** 뒤에서 비스듬히 오는 가장자리 빛의 세기 */
+  readonly rim: number;
 }
 
 /** 얼음빛(빛깔이 빠진 유리의 아주 옅은 푸른 기). 라이트는 어두운 데일수록 이 빛으로 간다(검정 대신 옅은 청회 날) */
-const ICE_DARK: V3 = [0.9, 0.94, 1];
-const ICE_LIGHT: V3 = [0.56, 0.64, 0.92];
+const ICE_DARK: V3 = [0.9, 0.95, 1];
+const ICE_LIGHT: V3 = [0.34, 0.5, 0.94];
 
 /**
- * 스튜디오 환경. 화면 앞쪽(카메라 쪽)은 열쇠 빛·띠 빛·방의 밝기(라이트는 밝은 방과 조금 어두운 옆벽: 날이 옅은 청회 윤곽이 된다),
- * 화면 뒤로 곧장 가는 방향은 앱 바탕(투명)이고, 그중 `veil`만큼은 뒤판(왼쪽 위가 밝은 둥근 빛, 옅은 오로라 흐름)을 띤다
+ * 스튜디오 환경(lcMk4: 앱 아이콘처럼 밝은 판 앞의 맑은 유리). 화면 앞쪽(카메라 쪽)은 넓은 면광과 작은 열쇠 빛, 띠 빛, 방의 밝기이고,
+ * 화면 뒤로 곧장 가는 방향은 앱 바탕(투명)이되 그중 `veil`만큼은 밝은 뒤판(하늘빛 → 흰 → 보랏빛, 왼쪽 위가 더 밝고 아래가 조금 가라앉는다)을 띤다.
+ * 뒤로 비스듬히 빠지는 방향은 가장자리 빛(`rim`)을 받아 날이 빛난다
  */
 export function studio(spec: Studio): Env {
   const { dark } = spec;
@@ -410,31 +417,37 @@ export function studio(spec: Studio): Env {
     const t = (-2.4 - p[2]) / Math.min(-0.05, d[2]);
     const qx = p[0] + d[0] * t;
     const qy = p[1] + d[1] * t;
-    const glow = Math.exp(-((qx + 0.7) ** 2 + (qy - 0.9) ** 2) / 2.2);
-    const diag = (qx + qy) * 0.7;
-    const base = 0.86;
-    const hue =
-      base +
-      ((VIOLET[ch] ?? base) - base) * smooth(0.1, -1, diag) * spec.aurora +
-      ((TEAL[ch] ?? base) - base) * smooth(-0.1, 1, diag) * spec.aurora;
-    return tone(dark ? 0.55 + 1.6 * glow : 0.42 + 0.5 * glow, ch) * (hue / base);
+    const glow = Math.exp(-((qx + 0.6) ** 2 + (qy - 0.8) ** 2) / 1.6);
+    const diag = (qx - qy) * 0.6;
+    const sky = smooth(0.2, -1.1, diag) * spec.aurora;
+    const lav = smooth(-0.2, 1.1, diag) * spec.aurora;
+    const hue = 1 + ((SKY[ch] ?? 1) - 1) * sky + ((LAVENDER[ch] ?? 1) - 1) * lav;
+    // 아래로 갈수록 조금 가라앉는다(면마다 밝기가 달라 깎인 모양이 읽힌다)
+    const deep = smooth(0, -1.3, qy);
+    const sink = (1 - 0.5 * deep) * (1 + ((LAVENDER[ch] ?? 1) - 1) * 0.6 * deep * spec.aurora);
+    const level = dark ? 0.5 + 0.75 * glow : 0.66 + 0.34 * glow;
+    return spec.lift * level * sink * hue;
   };
   return (d, ch, p) => {
     const behind = smooth(0.35, 0.8, -d[2]);
-    // 열쇠 빛: 넓고 부드러운 빛 위에 작고 센 빛(날과 꼭짓점의 반짝임)
+    // 넓은 면광 위에 작고 센 열쇠 빛(날과 꼭짓점의 반짝임)
     const align = dot(d, KEY);
     const key =
-      smooth(0.7, 0.92, align) * (dark ? 1.2 : 0.8) + smooth(0.95, 0.99, align) * (dark ? 6 : 4);
-    const crown = smooth(0.55, 0.95, d[1]) * (dark ? 1 : 0.4);
-    const strip = smooth(0.92, 0.985, dot(d, STRIP)) * (dark ? 1.6 : 0.9);
-    const low = smooth(0.9, 0.98, dot(d, LOW)) * (dark ? 0.6 : 0.2);
+      smooth(0.55, 0.9, align) * (dark ? 1.5 : 0.9) + smooth(0.95, 0.99, align) * (dark ? 7 : 4.5);
+    const crown = smooth(0.5, 0.95, d[1]) * (dark ? 1.2 : 0.45);
+    const strip = smooth(0.9, 0.985, dot(d, STRIP)) * (dark ? 2 : 1);
+    const low = smooth(0.88, 0.98, dot(d, LOW)) * (dark ? 0.8 : 0.25);
+    const glint = smooth(0.965, 0.995, dot(d, SIDE_KEY)) * (dark ? 5 : 3);
+    // 뒤로 비스듬히 빠지는 빛(가장자리): 화면 평면에 가까울수록 세다. 하늘빛이 조금 든다
+    const graze = smooth(0.5, 0.95, Math.hypot(d[0], d[1])) * smooth(-0.1, 0.45, -d[2]);
+    const rim = graze * spec.rim * (dark ? 1.8 : 0.9) * (SKY[ch] ?? 1);
     const room = dark
-      ? 0.3 + 0.55 * smooth(-0.4, 0.9, d[1])
-      : (0.55 + 0.4 * smooth(-0.3, 0.9, d[1])) * (1 - 0.35 * smooth(0.45, 0.95, Math.abs(d[0]))) -
-        0.1 * smooth(0, -0.5, d[1]);
-    const front = tone(room, ch) + key + crown + strip + low;
+      ? 0.4 + 0.6 * smooth(-0.4, 0.9, d[1])
+      : (0.55 + 0.4 * smooth(-0.3, 0.9, d[1])) * (1 - 0.4 * smooth(0.45, 0.95, Math.abs(d[0]))) -
+        0.12 * smooth(0, -0.5, d[1]);
+    const front = spec.lift * tone(room, ch) + key + crown + strip + low + glint;
     return {
-      c: front * (1 - behind) + behind * spec.veil * backdrop(d, ch, p),
+      c: front * (1 - behind) + behind * spec.veil * backdrop(d, ch, p) + rim,
       bg: behind * (1 - spec.veil),
     };
   };

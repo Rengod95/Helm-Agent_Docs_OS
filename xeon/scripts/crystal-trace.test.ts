@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
-import { apartAt, BAKE_YAWS, chamfered, restHalfGap, solidsAt } from "./crystal-bake.ts";
+import { apartAt, BAKE_YAWS, chamfered, restHalfGap, solidsAt, studioOf } from "./crystal-bake.ts";
 import {
   bevelNormal,
   crc32,
@@ -124,5 +124,27 @@ test("rendering puts each sample in the layer of the shard it hits first and lea
     round(layers[layer]?.px[(3 + x) * 4 + 3] ?? -1);
   expect([alpha(0, 0), alpha(0, 2), alpha(1, 0), alpha(1, 2), alpha(0, 1), alpha(1, 1)]).toEqual([
     1, 0, 0, 1, 0, 0,
+  ]);
+});
+
+/** 칸 크기 하나의 스튜디오 세기 [몸 채움, 빛깔, 밝기] */
+const pick = (theme: "dark" | "light", box: number): readonly number[] => {
+  const s = studioOf(theme, box);
+  return [s.veil, s.aurora, s.lift];
+};
+
+test("small boxes get a fuller, more tinted body than the 64 box so 14 and 20 px do not average to grey (lcMk4)", () => {
+  expect([
+    pick("dark", 28),
+    pick("dark", 40),
+    pick("dark", 64),
+    pick("light", 40),
+    pick("light", 64),
+  ]).toEqual([
+    [0.78, 1, 1.3],
+    [0.78, 1, 1.3],
+    [0.64, 0.95, 1.08],
+    [0.72, 1, 0.9],
+    [0.6, 1, 0.92],
   ]);
 });
