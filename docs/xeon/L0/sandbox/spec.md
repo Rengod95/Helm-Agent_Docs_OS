@@ -531,7 +531,7 @@ export function selectSandboxProvider(input: {
     |---|---|---|
     | 다른 프로세스 목록·인자·환경 변수, `ps`, `lsof` | `--unshare-pid`와 새 `/proc`(`--proc /proc`)이라 샌드박스 안 프로세스만 보인다. 단 srt의 `enableWeakerNestedSandbox`가 켜지면 `--bind /proc /proc`로 호스트 `/proc`이 열린다(이 서비스는 켜지 않는다) | 도구 개별 막기는 없다(`ps`는 돈다. 자기 프로세스만 보인다) |
     | 폴더 밖 읽기 | 루트를 빈 tmpfs로 덮고 허용 항목만 다시 연다 | — |
-    | 키체인·클립보드·화면·다른 앱 조작·앱 실행(서비스) | 대응하는 Mach 서비스가 없다. 같은 일을 하는 데스크톱 서비스(D-Bus, X11/Wayland, 비밀 서비스)는 유닉스 소켓인데, 파일은 tmpfs로 가려지고 `seccomp`이 `socket(AF_UNIX)`을 막는다 | `seccomp` 실행 파일이 없으면 srt가 "유닉스 소켓 막기 꺼짐" 경고만 내고 계속한다. 이 서비스는 그 경고를 막지 않는다 → **유닉스 소켓이 열린 채 도는 길이 있다** |
+    | 키체인·클립보드·화면·다른 앱 조작·앱 실행(서비스) | 대응하는 Mach 서비스가 없다. 같은 일을 하는 데스크톱 서비스(D-Bus, X11/Wayland, 시크릿 서비스)는 유닉스 소켓인데, 파일은 tmpfs로 가려지고 `seccomp`이 `socket(AF_UNIX)`을 막는다 | `seccomp` 실행 파일이 없으면 srt가 "유닉스 소켓 막기 꺼짐" 경고만 내고 계속한다. 이 서비스는 그 경고를 막지 않는다 → **유닉스 소켓이 열린 채 도는 길이 있다** |
     | IOKit 속성(시리얼 번호) | `--dev /dev`로 최소 장치만 두고 `/sys`는 읽기 허용 목록에 없다. 단 `/sys/class/dmi/id`가 목록에 들어가면 열린다 | `systemInfoDeny`에 해당하는 규칙 없음 |
     | 전원 관리·소리·배포 알림 | 서비스 소켓이 가려진다 | 개별 규칙 없음 |
     | `launchd` | 없음(systemd 사용자 서비스는 D-Bus/소켓이라 위와 같다) | `systemctl --user`는 소켓이 없어 실패하지만 `seccomp`이 꺼진 경우의 시험이 없다 |
@@ -557,7 +557,7 @@ export function selectSandboxProvider(input: {
     | 사용자 기본 설정(`cfprefsd.*`, `CFPreferencesCopyAppValue` 다른 앱) | 막힘(`null`) | 막힘 | — |
     | 개인정보 서비스(`tccd`, 위치, 연락처) | 막힘 | 막힘 | — |
     | 다른 프로세스 목록(`proc_listallpids`, `sysctl kern.proc.all`) | **열림**(약 700개) | 막힘 | 실행 중인 프로세스 전체 |
-    | 다른 프로세스의 인자와 환경 변수(`sysctl kern.procargs2`) | **열림** | 막힘 | 같은 사용자 프로세스의 명령줄과 환경 변수(비밀이 들어 있을 수 있다) |
+    | 다른 프로세스의 인자와 환경 변수(`sysctl kern.procargs2`) | **열림** | 막힘 | 같은 사용자 프로세스의 명령줄과 환경 변수(시크릿이 들어 있을 수 있다) |
     | 다른 프로세스의 경로, 작업 폴더, 열린 파일(`proc_pidpath`, `proc_pidinfo`) | **열림** | 막힘 | 실행 파일 경로, 작업 폴더, 열린 파일 목록 |
     | IOKit 속성(`ioreg`, `IORegistryEntryCreateCFProperty`) | **열림**(`ioreg`에서 시리얼 번호가 읽혔다) | 막힘(속성). 레지스트리 이름 목록은 열림 | 기기 시리얼 번호, 하드웨어 UUID |
     | 전원 관리(`PowerManagement.control`, `IOPMrootDomain` 열기) | **열림**(연결이 열렸다) | 막힘 | 잠자기 요청, 잠자기 방지 |
