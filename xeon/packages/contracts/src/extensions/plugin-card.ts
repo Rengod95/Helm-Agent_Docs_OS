@@ -338,6 +338,8 @@ const CardHookShape = Type.Object(
 export interface PluginCard {
   readonly name: string;
   readonly displayName: string;
+  /** 매니페스트의 버전(SemVer). 매니페스트를 읽을 수 없는 카드(내장 따위)에는 없다 [제안] 이름 `version` */
+  readonly version?: string;
   /** 목적 한 문장. 없으면 검토에서 승인할 수 없다(`pluginReview.purposeRequired`) */
   readonly purpose: string | null;
   readonly does: {
@@ -371,6 +373,7 @@ const PluginCardShape = Type.Object(
   {
     name: ExtensionNameSchema,
     displayName: Type.String({ minLength: 1, maxLength: 64 }),
+    version: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     purpose: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
     does: Type.Object(
       {

@@ -388,6 +388,7 @@ export function validateComposition(composition: CompositionDecl, context?: Comp
 export interface PluginCard {
   readonly name: string;                                          // ExtensionNameSchema
   readonly displayName: string;
+  readonly version?: string;                                      // 매니페스트의 버전(SemVer). 매니페스트가 없는 카드(내장 따위)에는 없다 [제안] 이름 `version` (enRv, 2026-11-20)
   readonly purpose: string | null;                                // 한 문장, 최대 200자. 없으면 검토에서 승인할 수 없다
   readonly does: {
     readonly inject: InjectInventory | null;

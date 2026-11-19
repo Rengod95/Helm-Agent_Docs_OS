@@ -133,6 +133,13 @@ export const ReviewItemRemovalSchema: TUnsafe<ReviewItemRemoval> = Type.Unsafe<R
 /** 검토 항목 파일 하나의 요약. 해시는 내용 해시(`sha256:<hex>`)가 아니라 파일 내용의 sha256 16진이다 */
 const ReviewFileShape = closed({ path: Path, bytes: Count, sha256: Sha256Hex });
 
+/** `ReviewItem.files`와 `baseFiles`의 한 줄 */
+export interface ReviewFileEntry {
+  readonly path: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
 /**
  * 검토함의 한 줄. `card`는 후보 기준이고 `baseHash`가 가리키는 현재 검토본과의 차이는 `diff`에 있다.
  * 스펙은 `pluginReview.list`가 `files`와 `card`를 요약한다고 적지만(§3.4) 요약 방법은 정하지 않았다. [미결] 지금은 목록도 같은 스키마다
@@ -154,11 +161,12 @@ export interface ReviewItem {
   readonly card: PluginCard;
   readonly diff: WhatItDoesDiff;
   readonly evidence: readonly EvidenceRef[];
-  readonly files: readonly {
-    readonly path: string;
-    readonly bytes: number;
-    readonly sha256: string;
-  }[];
+  readonly files: readonly ReviewFileEntry[];
+  /**
+   * 비교 대상인 지난 승인 버전(`baseHash`)의 파일 목록. 항목을 만들 때 그 버전이 보관소에 있어 읽었으면 싣고, 새 플러그인이거나 읽지 못했으면 생략한다.
+   * 목록에 있는 경로는 `pluginReview.file`의 `side: "base"`로 읽는다. 새 판에서 지워진 파일은 `files`에 없고 여기에만 있다 [제안] 이름 `baseFiles`
+   */
+  readonly baseFiles?: readonly ReviewFileEntry[];
   readonly createdAt: string;
   readonly decidedAt: string | null;
   /** 돌려보내기 사유(1~2000자) */
@@ -180,6 +188,7 @@ const ReviewItemShape = closed({
   diff: WhatItDoesDiffSchema,
   evidence: Type.Array(EvidenceRefSchema, { maxItems: 500 }),
   files: Type.Array(ReviewFileShape, { maxItems: 2000 }),
+  baseFiles: Type.Optional(Type.Array(ReviewFileShape, { maxItems: 2000 })),
   createdAt: Iso,
   decidedAt: Type.Union([Iso, Type.Null()]),
   reason: Type.Union([Type.String({ minLength: 1, maxLength: 2000 }), Type.Null()]),
@@ -275,12 +284,28 @@ export const PluginReviewGetResultSchema: TUnsafe<PluginReviewGetResult> =
     >,
   );
 
-/** 후보 스냅샷의 파일 하나. 본문은 `truncated`가 참이면 잘린 것이고 텍스트가 아니면 null이다 */
+export const REVIEW_FILE_SIDES = ["candidate", "base"] as const;
+/** `pluginReview.file`이 읽는 쪽. `candidate` 이 항목의 새 판(기본), `base` 지난 승인 버전(`baseHash`) [제안] 이름 `side` */
+export type ReviewFileSide = (typeof REVIEW_FILE_SIDES)[number];
+const ReviewFileSideShape = Type.Union(REVIEW_FILE_SIDES.map((name) => Type.Literal(name)));
+
+/**
+ * 항목의 파일 하나. `side`가 없거나 `candidate`면 새 판의 파일이고 `path`는 `files`에 있어야 한다.
+ * 결정한 항목도 읽는다(승인한 항목은 승인본 보관소에서, 그 밖의 닫힌 항목은 새 판 스냅샷이 남아 있을 때만).
+ * `base`면 지난 승인 버전의 파일이고 `path`는 `baseFiles`에 있어야 한다. 목록에 없는 경로는 `pluginReview.pathInvalid`(3653)다.
+ * 본문 규칙은 두 쪽이 같다: 텍스트가 아니면 `text`가 null, 256 KiB(262144바이트)를 넘으면 앞부분만 싣고 `truncated`가 참이다.
+ * 줄 단위 비교는 호출자가 두 쪽의 본문으로 한다
+ */
 export interface PluginReviewFileParams {
   readonly itemId: string;
   readonly path: string;
+  readonly side?: ReviewFileSide;
 }
-const PluginReviewFileParamsShape = request({ itemId: Id, path: Path });
+const PluginReviewFileParamsShape = request({
+  itemId: Id,
+  path: Path,
+  side: Type.Optional(ReviewFileSideShape),
+});
 export const PluginReviewFileParamsSchema: TUnsafe<Req<PluginReviewFileParams>> = Type.Unsafe<
   Req<PluginReviewFileParams>
 >(
@@ -293,11 +318,17 @@ export interface PluginReviewFileResult {
   readonly path: string;
   readonly text: string | null;
   readonly truncated: boolean;
+  /**
+   * 참이면 그 쪽 스냅샷이 보관소에 더는 없어 내용을 줄 수 없다(보관 5개를 넘어 지워진 지난 버전, 버려진 새 판). 이때 `text`는 null이고
+   * 이진 파일과는 `missing`으로 가른다. 거짓이거나 생략하면 파일을 읽은 것이다 [제안] 이름 `missing`
+   */
+  readonly missing?: boolean;
 }
 const PluginReviewFileResultShape = closed({
   path: Path,
   text: Type.Union([Type.String({ maxLength: 262144 }), Type.Null()]),
   truncated: Type.Boolean(),
+  missing: Type.Optional(Type.Boolean()),
 });
 export const PluginReviewFileResultSchema: TUnsafe<PluginReviewFileResult> =
   Type.Unsafe<PluginReviewFileResult>(
