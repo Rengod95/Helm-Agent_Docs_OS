@@ -504,6 +504,12 @@
     box-shadow: inset 0 0 0 1px var(--cvg-plate-edge);
   }
 
+  /* 접힌 더미 위의 펼치기 단추는 더미 전체를 덮는 누름 층(.cvg-plate-hit) 위에 선다(묶은 빌드에서 누를 수 없던 것을 고침) */
+  .cvg-pile-top .cvg-icon-btn {
+    position: relative;
+    z-index: 1;
+  }
+
   .cvg-pile-sheet {
     filter: brightness(0.86);
   }
