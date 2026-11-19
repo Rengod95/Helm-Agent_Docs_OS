@@ -52,14 +52,14 @@ export function restHalfGap(box: number): number {
   return (1.3 * 1.48) / unitCss / 2;
 }
 
-/** 맑은 유리: 빛깔마다 굴절률이 조금씩 달라 날에 옅은 무지개가 선다(lcMk4가 분산을 넓혔다). 흡수는 아주 옅은 하늘빛만 남긴다 */
+/** 맑은 유리: 빛깔마다 굴절률이 조금씩 달라 날에 옅은 무지개가 선다(lcMk4가 분산을 넓혔다). 흡수는 넷째 판의 반으로 줄여 거의 무색이다(lcMk5) */
 const GLASS: Omit<Glass, "bevel"> = {
   ior: [1.494, 1.512, 1.532],
-  absorb: [0.05, 0.025, 0],
+  absorb: [0.02, 0.01, 0],
   bounces: 7,
 };
 
-type Theme = "dark" | "light";
+export type Theme = "dark" | "light";
 
 /** 테마 바탕색(caustic bg-app: 다크 oklch 0.135, 라이트 0.975). 빛깔이 든 투과분을 색에 접을 때만 쓴다 */
 const BACKDROP: Readonly<Record<Theme, V3>> = {
@@ -71,24 +71,71 @@ const BACKDROP: Readonly<Record<Theme, V3>> = {
 const SMALL_BOX = 40;
 
 /**
- * 테마·칸 크기마다 스튜디오(lcMk4). 큰 칸은 앱 아이콘의 결정처럼 맑고 밝은 유리, 작은 칸은 같은 유리를 14·20px에서도 읽히게
- * 몸을 더 채우고(veil) 빛깔과 가장자리 빛을 올린다(줄이면 잔 결이 평균되어 회색이 되기 때문이다)
+ * 테마·칸 크기마다 스튜디오(lcMk5 [결정: 2026-11-19 사용자 "앱 아이콘처럼 더 투명하고 반짝이게"]). 넷째 판의 뿌연 몸은 뒤에서 비스듬히 오는
+ * 가장자리 빛(rim)과 넓은 빛이 꺾여 나간 광선마다 실려 면을 채운 탓이었다. 그래서 면은 맑게 비우고(veil·rim·soft를 낮추고, 앞쪽 방의
+ * `open`만큼 앱 바탕이 비친다) 빛은 날의 작은 정반사 점(spark)과 안쪽의 가는 띠(lines)에 모은다.
+ * 작은 칸(14·20px의 2x 판)은 줄이지 않고 따로 맞춘다: 다크는 날 위 한두 점이 칸 하나를 채울 만큼 반짝임을 더 올리고, 라이트는 흰 바탕에서
+ * 모양이 사라지지 않게 몸을 조금 더 채우고 방을 낮춰 날이 청회로 선다
  */
 export function studioOf(theme: Theme, box: number): Studio {
   const small = box <= SMALL_BOX;
   if (theme === "dark") {
     return small
-      ? { dark: true, veil: 0.78, aurora: 1, lift: 1.3, rim: 1.4 }
-      : { dark: true, veil: 0.64, aurora: 0.95, lift: 1.08, rim: 1.1 };
+      ? {
+          dark: true,
+          veil: 0.25,
+          aurora: 1,
+          lift: 1.5,
+          room: 0.8,
+          open: 0.8,
+          soft: 0.25,
+          rim: 0.5,
+          spark: 4.5,
+          lines: 1.5,
+        }
+      : {
+          dark: true,
+          veil: 0.25,
+          aurora: 1,
+          lift: 1.2,
+          room: 0.8,
+          open: 0.9,
+          soft: 0.2,
+          rim: 0.5,
+          spark: 2.5,
+          lines: 1.2,
+        };
   }
   return small
-    ? { dark: false, veil: 0.72, aurora: 1, lift: 0.9, rim: 0.4 }
-    : { dark: false, veil: 0.6, aurora: 1, lift: 0.92, rim: 0.35 };
+    ? {
+        dark: false,
+        veil: 0.6,
+        aurora: 1,
+        lift: 0.55,
+        room: 0.5,
+        open: 0,
+        soft: 0.45,
+        rim: 0.1,
+        spark: 3.4,
+        lines: 1.4,
+      }
+    : {
+        dark: false,
+        veil: 0.2,
+        aurora: 1,
+        lift: 0.75,
+        room: 0.7,
+        open: 0.35,
+        soft: 0.6,
+        rim: 0.1,
+        spark: 2,
+        lines: 1,
+      };
 }
 
-/** 노출(빛 → 0~1로 접는 세기). 다크의 작은 칸은 더 밝게 접는다 */
+/** 노출(빛 → 0~1로 접는 세기). 다크의 작은 칸은 더 밝게, 라이트의 작은 칸은 날이 하얗게 날아가지 않게 조금 낮게 접는다 */
 function exposureOf(theme: Theme, box: number): number {
-  if (theme === "light") return 1.4;
+  if (theme === "light") return box <= SMALL_BOX ? 1.25 : 1.4;
   return box <= SMALL_BOX ? 1.6 : 1.45;
 }
 
@@ -138,10 +185,10 @@ export function apartAt(yaw: number): readonly [number, number] {
   return [n[0], -n[1]];
 }
 
-/** 한 칸 크기의 판 한 줄(조각마다 곧은 RGBA): 자세 × 조각 2 */
-function bakeRow(box: number, theme: Theme): Uint8Array[] {
+/** 한 칸 크기·테마의 굽기 설정 */
+export function shotOf(box: number, theme: Theme): Shot {
   const unitPx = box / 2 / HALF_EXTENT;
-  const shot: Shot = {
+  return {
     size: box,
     halfExtent: HALF_EXTENT,
     ss: box <= 40 ? 8 : box <= 64 ? 6 : 3,
@@ -151,6 +198,11 @@ function bakeRow(box: number, theme: Theme): Uint8Array[] {
     backdrop: BACKDROP[theme],
     exposure: exposureOf(theme, box),
   };
+}
+
+/** 한 칸 크기의 판 한 줄(조각마다 곧은 RGBA): 자세 × 조각 2 */
+function bakeRow(box: number, theme: Theme): Uint8Array[] {
+  const shot = shotOf(box, theme);
   return BAKE_YAWS.flatMap((yaw) =>
     renderLayers(solidsAt(yaw, restHalfGap(box)), shot).map((layer) => toStraight8(layer.px)),
   );

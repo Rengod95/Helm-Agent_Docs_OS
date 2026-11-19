@@ -8,8 +8,11 @@ import {
   enterSolid,
   exitSolid,
   fresnel,
+  HIGHLIGHT_SPILL,
   refract,
   renderLayers,
+  smooth,
+  studio,
   toStraight8,
   type Plane,
   type Solid,
@@ -127,13 +130,13 @@ test("rendering puts each sample in the layer of the shard it hits first and lea
   ]);
 });
 
-/** 칸 크기 하나의 스튜디오 세기 [몸 채움, 빛깔, 밝기] */
+/** 칸 크기 하나의 스튜디오 세기 [면을 비우는 몫, 날의 반짝임, 가장자리 빛] */
 const pick = (theme: "dark" | "light", box: number): readonly number[] => {
   const s = studioOf(theme, box);
-  return [s.veil, s.aurora, s.lift];
+  return [s.open, s.spark, s.rim];
 };
 
-test("small boxes get a fuller, more tinted body than the 64 box so 14 and 20 px do not average to grey (lcMk4)", () => {
+test("faces stay open and the light goes to edge glints; small boxes get stronger glints than the 64 box (lcMk5)", () => {
   expect([
     pick("dark", 28),
     pick("dark", 40),
@@ -141,10 +144,45 @@ test("small boxes get a fuller, more tinted body than the 64 box so 14 and 20 px
     pick("light", 40),
     pick("light", 64),
   ]).toEqual([
-    [0.78, 1, 1.3],
-    [0.78, 1, 1.3],
-    [0.64, 0.95, 1.08],
-    [0.72, 1, 0.9],
-    [0.6, 1, 0.92],
+    [0.8, 4.5, 0.5],
+    [0.8, 4.5, 0.5],
+    [0.9, 2.5, 0.5],
+    [0, 3.4, 0.1],
+    [0.35, 2, 0.1],
+  ]);
+});
+
+test("the open share of the front room is the app background, so an unlit face lets the backdrop through (lcMk5)", () => {
+  const spec = { ...studioOf("dark", 64), soft: 0, spark: 0, lines: 0, rim: 0 };
+  // 카메라 쪽으로 곧장 나가는 방향: 넓은 빛·점 빛·띠·가장자리 빛이 닿지 않는 자리
+  const toward = (open: number): readonly number[] => {
+    const sample = studio({ ...spec, open })([0, 0, 1], 1, [0, 0, 0]);
+    return [round(sample.c), round(sample.bg)];
+  };
+  expect([toward(1), toward(0)]).toEqual([
+    [0, 1],
+    // 다크 방: 0.4 + 0.6 × smooth(−0.4, 0.9, y), 방 세기 0.8, 초록의 얼음빛 0.95
+    [round((0.4 + 0.6 * smooth(-0.4, 0.9, 0)) * 0.8 * 0.95), 0],
+  ]);
+});
+
+test("a light above 1 in one colour spills its excess into every colour, so a split glint burns white (lcMk5)", () => {
+  const big: Solid = CUBE.map((plane) => ({ n: plane.n, d: plane.d * 3 }));
+  const [layer] = renderLayers([big], {
+    size: 1,
+    halfExtent: 1,
+    ss: 1,
+    glass: { ior: [1.5, 1.5, 1.5], absorb: [0, 0, 0], bevel: 0.01, bounces: 1 },
+    // 빨강만 3, 초록·파랑은 0이고 바탕으로 가는 몫이 없다
+    env: (_d, ch) => ({ c: ch === 0 ? 3 : 0, bg: 0 }),
+    backdrop: [0, 0, 0],
+    exposure: 1,
+  });
+  const px = [...(layer?.px ?? [])].slice(0, 3).map(round);
+  // 빛은 프레넬 반사 몫과 안에서 나온 몫의 합이라 정확히 3이다(바탕으로 가는 몫이 없어 모두 빛)
+  expect(px).toEqual([
+    round(1 - Math.exp(-(3 + 2 * HIGHLIGHT_SPILL))),
+    round(1 - Math.exp(-2 * HIGHLIGHT_SPILL)),
+    round(1 - Math.exp(-2 * HIGHLIGHT_SPILL)),
   ]);
 });

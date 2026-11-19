@@ -233,6 +233,12 @@ export interface Layer {
   readonly px: Float32Array;
 }
 
+/**
+ * 센 빛의 넘침(lcMk5): 한 빛깔이 1을 넘는 만큼의 이 몫을 세 빛깔 모두에 더한다. 분산으로 갈라진 작은 반짝임 하나가 빨강·노랑 점으로 남지 않고
+ * 사진의 강한 반사처럼 흰빛으로 탄다(빛깔은 반짝임 둘레의 옅은 무지개로만 남는다)
+ */
+export const HIGHLIGHT_SPILL = 0.6;
+
 /** 카메라: 화면 앞 9 모형 단위(약한 원근) */
 const CAMERA: V3 = [0, 0, 9];
 
@@ -272,11 +278,14 @@ export function renderLayers(solids: readonly Solid[], shot: Shot): Layer[] {
         const layer = layers[k];
         if (layer === undefined) return;
         const through = ((s.bg[0] ?? 0) + (s.bg[1] ?? 0) + (s.bg[2] ?? 0)) / 3 / count;
-        for (let ch = 0; ch < 3; ch++) {
-          // 빛깔이 든 투과(평균과의 차)는 테마 바탕색에 실어 색에 접는다
+        // 빛깔이 든 투과(평균과의 차)는 테마 바탕색에 실어 색에 접는다
+        const lights = [0, 1, 2].map((ch) => {
           const tinted = ((s.bg[ch] ?? 0) / count - through) * (shot.backdrop[ch] ?? 0);
-          const light = Math.max(0, (s.c[ch] ?? 0) / count + tinted);
-          layer[i + ch] = 1 - Math.exp(-light * shot.exposure);
+          return Math.max(0, (s.c[ch] ?? 0) / count + tinted);
+        });
+        const spill = Math.max(0, Math.max(...lights) - 1) * HIGHLIGHT_SPILL;
+        for (let ch = 0; ch < 3; ch++) {
+          layer[i + ch] = 1 - Math.exp(-((lights[ch] ?? 0) + spill) * shot.exposure);
         }
         layer[i + 3] = Math.min(1, Math.max(0, 1 - through));
       });
@@ -380,6 +389,24 @@ const STRIP = unit([0.85, 0.1, 0.35]);
 const LOW = unit([0.1, -0.6, 0.6]);
 /** 둘째 반짝임(오른쪽 위 앞): 열쇠 빛이 닿지 않는 면의 날에도 작은 빛점이 선다 */
 const SIDE_KEY = unit([0.6, 0.75, 0.3]);
+/**
+ * 작고 센 점 빛들(lcMk5): 화면 평면 가까이 사방에 흩어 두어 둥근 날(베벨)의 법선이 그중 하나와 맞는 자리마다 날 위에 작은 정반사 점이 선다.
+ * 면 전체가 아니라 날과 꼭짓점만 반짝이게 아주 좁고, 앞면을 지나 꺾여 보이는 자리(넓은 빛깔 얼룩)가 생기지 않게 화면 쪽으로 서지 않는다
+ */
+const GLINTS: readonly V3[] = [
+  unit([-0.3, 0.9, 0.3]),
+  unit([0.9, 0.35, 0.25]),
+  unit([-0.85, -0.25, 0.45]),
+  unit([0.25, -0.85, 0.45]),
+];
+/**
+ * 가는 띠 빛(lcMk5): 길고 좁은 소프트박스 두 개. 안에서 전반사로 튄 광선이 이 띠를 보면 유리 안쪽에 밝은 줄이 선다.
+ * 축(띠 평면의 법선)과 띠가 놓인 반구 방향
+ */
+const BANDS: readonly { readonly axis: V3; readonly side: V3 }[] = [
+  { axis: unit([1, 0.3, 0]), side: unit([0, 0.3, 1]) },
+  { axis: unit([0.25, 1, -0.1]), side: unit([0.4, -0.1, 1]) },
+];
 /** 앱 아이콘 바탕의 빛깔(lcMk4): 위 왼쪽 하늘빛, 아래 오른쪽 보랏빛. 유리 너머로 비치는 면이 이 두 빛을 띤다 */
 const SKY: V3 = [0.5, 0.8, 1];
 const LAVENDER: V3 = [0.68, 0.54, 1];
@@ -387,14 +414,27 @@ const LAVENDER: V3 = [0.68, 0.54, 1];
 /** 스튜디오 하나의 세기 */
 export interface Studio {
   readonly dark: boolean;
-  /** 유리를 곧장 지나는 빛 가운데 뒤판의 빛을 띠는 몫(나머지는 투명). 클수록 유리 몸이 밝은 뒤판을 품는다 */
+  /** 유리를 곧장 지나는 빛 가운데 뒤판의 빛을 띠는 몫(나머지는 투명). 작을수록 유리 너머 앱 바탕이 비친다 */
   readonly veil: number;
   /** 하늘빛·보랏빛의 세기(0이면 흰 뒤판) */
   readonly aurora: number;
-  /** 뒤판과 방의 밝기 배율 */
+  /** 뒤판의 밝기 배율 */
   readonly lift: number;
+  /** 앞쪽 방(넓은 면광)의 밝기 배율 */
+  readonly room: number;
+  /**
+   * 앞쪽 방 가운데 앱 바탕(투명)인 몫. 유리 안에서 꺾여 옆·앞으로 나간 빛도 그 몫만큼 화면 바탕을 비춘다:
+   * 빛(열쇠·띠·점)을 받지 않는 면이 뿌옇게 차지 않고 맑게 비친다
+   */
+  readonly open: number;
   /** 뒤에서 비스듬히 오는 가장자리 빛의 세기 */
   readonly rim: number;
+  /** 넓은 빛(열쇠 빛의 넓은 자락, 위쪽 하늘, 띠 빛, 아래 반사판)의 세기. 작을수록 면이 맑고 빛은 날에 모인다 */
+  readonly soft: number;
+  /** 날과 꼭짓점의 작은 정반사 점(열쇠 빛 심, 둘째 반짝임, 흩어 둔 점 빛)의 세기 */
+  readonly spark: number;
+  /** 가는 띠 빛(안쪽의 밝은 줄)의 세기 */
+  readonly lines: number;
 }
 
 /** 얼음빛(빛깔이 빠진 유리의 아주 옅은 푸른 기). 라이트는 어두운 데일수록 이 빛으로 간다(검정 대신 옅은 청회 날) */
@@ -402,9 +442,9 @@ const ICE_DARK: V3 = [0.9, 0.95, 1];
 const ICE_LIGHT: V3 = [0.34, 0.5, 0.94];
 
 /**
- * 스튜디오 환경(lcMk4: 앱 아이콘처럼 밝은 판 앞의 맑은 유리). 화면 앞쪽(카메라 쪽)은 넓은 면광과 작은 열쇠 빛, 띠 빛, 방의 밝기이고,
- * 화면 뒤로 곧장 가는 방향은 앱 바탕(투명)이되 그중 `veil`만큼은 밝은 뒤판(하늘빛 → 흰 → 보랏빛, 왼쪽 위가 더 밝고 아래가 조금 가라앉는다)을 띤다.
- * 뒤로 비스듬히 빠지는 방향은 가장자리 빛(`rim`)을 받아 날이 빛난다
+ * 스튜디오 환경(lcMk5: 앱 아이콘처럼 맑고 반짝이는 유리). 화면 앞쪽(카메라 쪽)은 넓은 면광(`room`)과 작은 열쇠 빛, 띠 빛, 흩어 둔 작은 점 빛,
+ * 가는 띠 빛 둘이고, 화면 뒤로 곧장 가는 방향은 앱 바탕(투명)이되 그중 `veil`만큼은 밝은 뒤판(하늘빛 → 흰 → 보랏빛)을 띤다.
+ * 뒤로 비스듬히 빠지는 방향은 가장자리 빛(`rim`)을 받아 날이 빛난다. 면은 맑게 비우고 빛은 날·꼭짓점·안쪽 줄에 모은다
  */
 export function studio(spec: Studio): Env {
   const { dark } = spec;
@@ -432,12 +472,18 @@ export function studio(spec: Studio): Env {
     const behind = smooth(0.35, 0.8, -d[2]);
     // 넓은 면광 위에 작고 센 열쇠 빛(날과 꼭짓점의 반짝임)
     const align = dot(d, KEY);
-    const key =
-      smooth(0.55, 0.9, align) * (dark ? 1.5 : 0.9) + smooth(0.95, 0.99, align) * (dark ? 7 : 4.5);
+    const key = smooth(0.55, 0.9, align) * (dark ? 1.5 : 0.9);
+    const peak = smooth(0.95, 0.99, align) * (dark ? 7 : 4.5);
     const crown = smooth(0.5, 0.95, d[1]) * (dark ? 1.2 : 0.45);
     const strip = smooth(0.9, 0.985, dot(d, STRIP)) * (dark ? 2 : 1);
     const low = smooth(0.88, 0.98, dot(d, LOW)) * (dark ? 0.8 : 0.25);
-    const glint = smooth(0.965, 0.995, dot(d, SIDE_KEY)) * (dark ? 5 : 3);
+    let glint = smooth(0.965, 0.995, dot(d, SIDE_KEY)) * (dark ? 5 : 3);
+    for (const g of GLINTS) glint += smooth(0.955, 0.99, dot(d, g)) * (dark ? 6 : 3.5);
+    let lines = 0;
+    for (const band of BANDS) {
+      lines +=
+        smooth(0.06, 0.015, Math.abs(dot(d, band.axis))) * smooth(0.1, 0.5, dot(d, band.side));
+    }
     // 뒤로 비스듬히 빠지는 빛(가장자리): 화면 평면에 가까울수록 세다. 하늘빛이 조금 든다
     const graze = smooth(0.5, 0.95, Math.hypot(d[0], d[1])) * smooth(-0.1, 0.45, -d[2]);
     const rim = graze * spec.rim * (dark ? 1.8 : 0.9) * (SKY[ch] ?? 1);
@@ -445,10 +491,15 @@ export function studio(spec: Studio): Env {
       ? 0.4 + 0.6 * smooth(-0.4, 0.9, d[1])
       : (0.55 + 0.4 * smooth(-0.3, 0.9, d[1])) * (1 - 0.4 * smooth(0.45, 0.95, Math.abs(d[0]))) -
         0.12 * smooth(0, -0.5, d[1]);
-    const front = spec.lift * tone(room, ch) + key + crown + strip + low + glint;
+    const front =
+      (1 - spec.open) * spec.room * tone(room, ch) +
+      (key + crown + strip + low) * spec.soft +
+      peak * spec.spark +
+      glint * spec.spark +
+      lines * spec.lines * (dark ? 2.4 : 1.2);
     return {
       c: front * (1 - behind) + behind * spec.veil * backdrop(d, ch, p) + rim,
-      bg: behind * (1 - spec.veil),
+      bg: behind * (1 - spec.veil) + (1 - behind) * spec.open,
     };
   };
 }
