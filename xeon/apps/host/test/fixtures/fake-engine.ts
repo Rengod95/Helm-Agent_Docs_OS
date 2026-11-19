@@ -749,6 +749,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           resolve: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
         },
         refresh: () => Promise.resolve(),
+        readable: () => true,
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
         restoreOverlay: () => Promise.resolve(),

@@ -16,6 +16,8 @@ interface FakeChildOptions {
   readonly ignoreSigterm?: boolean;
   /** 자식이 아무것도 읽지 않는다(host.init 시간 초과 시험) */
   readonly silent?: boolean;
+  /** 옛 자식: `host.init` 응답에서 조각 칸(`transfer`)을 뺀다(AGE-59 협상 시험) */
+  readonly oldChild?: boolean;
 }
 
 interface ExitInfo {
@@ -58,6 +60,11 @@ async function* tapped(
   }
 }
 
+/** 옛 자식의 `host.init` 응답을 흉내 낸다: 조각 칸을 뺀다. 다른 줄은 그대로다 */
+function withoutTransferAnswer(line: string): string {
+  return line.replace(/,"transfer":\{"maxBytes":\d+\}/, "");
+}
+
 function startFakeChild(pid: number, options: FakeChildOptions): FakeChild {
   const stdin = new PassThrough();
   const stdout = new PassThrough();
@@ -88,8 +95,9 @@ function startFakeChild(pid: number, options: FakeChildOptions): FakeChild {
       }),
       output: {
         write: (line) => {
-          emitted.push(line);
-          if (!finished) stdout.write(line);
+          const sent = options.oldChild === true ? withoutTransferAnswer(line) : line;
+          emitted.push(sent);
+          if (!finished) stdout.write(sent);
         },
       },
       stderr: {

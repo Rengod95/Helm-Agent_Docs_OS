@@ -56,6 +56,15 @@ async function ownedToolHost(): Promise<{ t: TestHost; thread: ThreadId }> {
   return { t, thread };
 }
 
+/** 이름만으로 도구 주인을 찾는 조회를 쓰는 집계 입력 뷰(이름이 대화마다 다르지 않은 조립) */
+function hostViewOf(t: TestHost): PromotionHostView {
+  return {
+    registrations: () => t.host.registrations(),
+    queryEvents: (threadId, query) => t.host.queryEvents(threadId, query),
+    toolOwnerIn: (name) => t.host.toolOwner(name),
+  };
+}
+
 /** 이벤트 초안. 저장소가 seq와 recordedAt을 채운다 */
 function draftOf(
   t: TestHost,
@@ -297,7 +306,7 @@ test("promotion.report-values-from-a-real-event-log", async () => {
   }
   const seqAt = (draft: DurableEventDraft): number => seqOf.get(draft.id) ?? -1;
 
-  const report = buildPromotionReport(await gatherPromotionInput(t.host, [first, second]));
+  const report = buildPromotionReport(await gatherPromotionInput(hostViewOf(t), [first, second]));
 
   // 그룹 B와 C의 호출은 각 turn의 scope로 센다. 그룹 A 자신의 호출은 소비자가 아니고, other_tool은 빠진다
   expect(report).toEqual({
@@ -341,7 +350,7 @@ test("promotion.gather-skips-a-thread-whose-read-fails-and-delegated-turns", asy
   // 읽기가 실패하는 thread는 건너뛴다. 나머지 thread의 값은 그대로 모은다
   const view: PromotionHostView = {
     registrations: () => t.host.registrations(),
-    toolOwner: (name) => t.host.toolOwner(name),
+    toolOwnerIn: (name) => t.host.toolOwner(name),
     queryEvents: (threadId, query) =>
       threadId === failing
         ? Promise.resolve(err({ kind: "port_unavailable" as const }))
@@ -396,4 +405,60 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
   expect((await runGroupCommand(service, { op: "status" })).text).toBe(
     "group-a  켜짐  drive=없음\n승격 후보: a_tool (group-a -> group-b)",
   );
+});
+
+test("promotion.gather-resolves-the-tool-owner-in-the-thread-that-made-the-call", async () => {
+  // 같은 도구 이름 `shared`가 대화마다 다른 그룹의 도구다(도구 이름은 대화마다 정해진다). 이름만으로 찾으면 먼저 등록된 쪽이 되지만 대화가 보는 쪽이 주인이다
+  const t = await createTestHost();
+  await t.host.registerPlatform({
+    name: "promotion-tools",
+    setup(ctx) {
+      ctx.providePort(ToolsPortKey, {
+        register: () => ok(() => undefined),
+        toolMappedFor: () => false,
+        executeForPlugin: () =>
+          Promise.resolve(
+            err({ kind: "unavailable", message: "test double: plugin calls are not used here" }),
+          ),
+      });
+    },
+  });
+  await install(t, toolGroup("group-a", "a_tool"));
+  await install(t, toolGroup("group-b", "b_tool"));
+  const inA = t.newThread();
+  const inB = t.newThread();
+  await t.host.openThread(inA);
+  await t.host.openThread(inB);
+  await t.settled();
+  const commits = [
+    [inA, "a"],
+    [inB, "b"],
+  ] as const;
+  await Promise.all(
+    commits.map(([thread, key]) => {
+      const turn = t.ids.next("trn");
+      return t.records.commit({
+        threadId: thread,
+        requestId: `shared:${key}`,
+        drafts: [turnStarted(t, thread, turn, null, "user"), intentOf(t, thread, turn, "shared")],
+      });
+    }),
+  );
+  const recordA = t.host.toolOwner("a_tool");
+  const recordB = t.host.toolOwner("b_tool");
+  const view: PromotionHostView = {
+    ...hostViewOf(t),
+    toolOwnerIn: (name, threadId) =>
+      name === "shared" ? (threadId === inA ? recordA : recordB) : undefined,
+  };
+  // 승격 보고는 현재 대화 하나의 이벤트로 만든다(`defaultPromotion`). 같은 이름이어도 그 대화가 보는 그룹이 주인이다
+  expect((await gatherPromotionInput(view, [inA])).toolOwners).toEqual(
+    new Map([["shared", "group-a"]]),
+  );
+  expect((await gatherPromotionInput(view, [inB])).toolOwners).toEqual(
+    new Map([["shared", "group-b"]]),
+  );
+  // 대화가 보지 못하는 도구는 주인이 없어 호출에서 빠진다
+  const hidden = await gatherPromotionInput({ ...view, toolOwnerIn: () => undefined }, [inA, inB]);
+  expect(hidden).toEqual({ toolOwners: new Map(), calls: [] });
 });

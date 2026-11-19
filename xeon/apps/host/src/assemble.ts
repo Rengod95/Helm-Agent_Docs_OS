@@ -15,6 +15,7 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import { createToolPluginsOf, createToolVisibility } from "./assembly/m4/tool-exposure.ts";
 import type {
   ContextTraceEvent,
   ContextTraceSink,
@@ -1215,6 +1216,21 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         now: () => new Date(clock.now()).toISOString(),
       });
     }
+    // 대화가 보는 도구는 그 대화가 실은 플러그인(E(T))의 것이다. 하위 대화는 맨 위 부모의 집합을 쓴다.
+    // E(T)를 읽지 못하면(엔진 포트가 뜨기 전, 프로필 복사 읽기 전, 부모 조회 실패) 내장 도구만 보인다
+    const toolVisibility = createToolVisibility({
+      toolRecords: () => ext.resources.list("tool"),
+      realNameOf: (extension) => external.loader?.draftOf(extension)?.plugin,
+      pluginsOf: createToolPluginsOf({
+        ready: () => portsHandle?.ports.m4.pluginSet.readable() === true,
+        isThread: (id): id is ThreadId => isId("thr", id),
+        parentOf: (threadId) => {
+          const link = session.query.agentOfChild(threadId);
+          return link.ok ? link.value?.parentThreadId : null;
+        },
+        resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
+      }),
+    });
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
@@ -1248,19 +1264,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
         testRunApprovalOf: (threadId) =>
           portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
-        // 대화가 보는 도구는 그 대화가 실은 플러그인(E(T))의 것이다. 하위 대화는 맨 위 부모의 집합을 쓴다. 엔진 포트가 뜨기 전에는 거르지 않는다
-        toolPluginsOf: (threadId) => {
-          if (portsHandle === undefined) return undefined;
-          let top = threadId;
-          for (let depth = 0; depth < 16; depth += 1) {
-            if (!isId("thr", top)) return undefined;
-            const link = session.query.agentOfChild(top);
-            const parent = link.ok ? link.value?.parentThreadId : undefined;
-            if (parent === undefined) break;
-            top = parent;
-          }
-          return portsHandle.ports.m4.pluginSet.port.resolve(top).plugins;
-        },
+        toolVisibility,
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
@@ -1411,6 +1415,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
+        // 조각 전송의 엔진 쪽 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다. 맡기기 입력 상한과 같은 값이다(X.primitives §10)
+        transferMaxBytes: () =>
+          storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
+            .maxBlobBytes,
       });
       backtestIsolationSlot.current = createBacktestIsolation({
         enabled: options.pluginHost?.disabled !== true,
@@ -1683,6 +1691,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
+        toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },
       web,
