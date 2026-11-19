@@ -21,6 +21,7 @@ import {
   type ExtHost,
   type PortKey,
   type PortLookup,
+  type ResourcePolicy,
 } from "../../../src/primitives/index.ts";
 import {
   createTestHost,
@@ -45,6 +46,8 @@ export interface HarnessOptions {
   readonly host?: Omit<TestHostOptions, "timers" | "policy" | "setupBudget">;
   readonly guardStatements?: boolean;
   readonly reservedNames?: ReservedNames;
+  /** 리소스 이름 정책을 바꿔 넣는다. 생략하면 `createOperationsPolicy`의 정책이다 */
+  readonly resourcePolicy?: ResourcePolicy;
   /** 외부 훅 실행기를 정책의 hooks 자리에 연결한다 */
   readonly hooks?: OperationsDeps["hooks"];
 }
@@ -103,7 +106,7 @@ export async function createOperationsHarness(
     ...options.host,
     timers,
     policy,
-    resourcePolicy: policy.resources,
+    resourcePolicy: options.resourcePolicy ?? policy.resources,
     setupBudget: () => policy.setupBudgetMs(),
     // 조립 루트가 넘기는 두 자리(X.operations.spec §3.8): 확장 메서드 예산과 장부 보고
     methodRun: policy.runMethod,

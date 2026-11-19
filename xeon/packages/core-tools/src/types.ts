@@ -99,6 +99,8 @@ export interface ToolEntry {
   readonly ref: ToolRef;
   /** 도구를 등록한 스코프(플러그인 등록 id). 플러그인이 등록한 도구만 가진다. 초안 표지를 찾는 데 쓴다(L1.tools.spec §4.6.1) */
   readonly owner?: RegistrationId | undefined;
+  /** 대화별 이름 항목이다(`add`의 `perThread`). 레지스트리가 붙이고, `name`은 요청한 이름이며 대화가 보는 이름은 `ToolRegistry.view`가 정한다 */
+  readonly perThread?: true;
   readonly capability: { readonly id: CapabilityId; readonly method: string } | undefined;
   readonly mcpServer: string | undefined;
   /** MCP 서버가 알린 성질(표시용). 정책 입력이 아니다 */
@@ -115,6 +117,11 @@ export interface ToolEntry {
   readonly outputLimits: OutputLimits | "self";
   readonly raw: RawExecutor;
   readonly locks: LockDeclarer | undefined;
+  /**
+   * 초안 스크립트 실행의 합성 항목이다(`PluginCallTarget` `script`, AGE-58 [제안]). 드래프트 승인 `auto`인 테스트 런에서도 드래프트 카드를 건너뛰지 않고
+   * 승인 상속도 받지 않는다. 검토 전 코드가 프로세스를 띄우는 것은 도구 호출 카드를 없애는 `auto`의 뜻보다 무겁다
+   */
+  readonly alwaysCard?: true;
   /** 내장 도구를 같은 이름으로 대체하는 항목이다(레지스트리가 승인된 대체에만 붙인다). 기본 허용 규칙을 적용하지 않는다(L1.tools.spec §4.13) */
   readonly replacesBuiltin?: true;
 }

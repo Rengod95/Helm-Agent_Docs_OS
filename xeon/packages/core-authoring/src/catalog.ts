@@ -11,7 +11,7 @@ export const KIND_CATALOG: readonly KindEntry[] = [
     status: "stable",
     since: KIND_CATALOG_VERSION,
     requires: { contracts: "^0.0.0" },
-    template: "plugin-builder/templates/single-plugin",
+    template: "core-authoring/templates/single-plugin",
     checks: ["AU-001", "AU-002", "AU-003", "AU-009"],
     decisions: ["layer", "ui.mode"],
     security: ["trust.noBuiltin", "secrets.noLiteral"],

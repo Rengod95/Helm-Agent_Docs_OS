@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { KIND_CATALOG_VERSION } from "@fresnel/contracts/services";
 import { KIND_CATALOG, kindEntryOf, locateTemplateDirs, scaffoldExtension } from "../src/index.ts";
 
@@ -23,4 +25,12 @@ test("예약된 이름과 형식에 맞지 않는 이름은 뼈대를 만들기 
     ),
   );
   expect(made.map((result) => result.ok)).toEqual([false, false]);
+});
+
+test("카탈로그의 template 값은 packages 아래 실제 폴더를 가리킨다", () => {
+  const packages = join(import.meta.dir, "..", "..");
+  for (const entry of KIND_CATALOG) {
+    expect(entry.template).toBe("core-authoring/templates/single-plugin");
+    expect(existsSync(join(packages, entry.template ?? "", "README.md"))).toBe(true);
+  }
 });

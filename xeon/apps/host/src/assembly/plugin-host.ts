@@ -1,6 +1,11 @@
 import { isAbsolute, join } from "node:path";
 import type { Logger, Scheduler } from "@fresnel/contracts";
-import type { IsolationProcessPort, PortKey, ScriptRunner } from "@fresnel/contracts/extensions";
+import type {
+  IsolationProcessPort,
+  PortKey,
+  ScriptDraftGate,
+  ScriptRunner,
+} from "@fresnel/contracts/extensions";
 import {
   ProcessServiceName,
   SandboxServiceName,
@@ -100,6 +105,10 @@ export interface PluginHostAssemblyDeps {
   readonly parentEnv?: Readonly<Record<string, string | undefined>>;
   /** 실행기 이름을 절대 경로로 푼다. 시험이 넣고, 운영은 생략해 `parentEnv`의 PATH에서 찾는다. 없으면 undefined다 */
   readonly resolveRunner?: (name: ScriptRunner) => string | undefined;
+  /** 초안 스크립트의 승인 문(AGE-58 [제안]). 시험이 넣고, 조립 루트는 도구 서비스와 테스트 런 묶음으로 만들어 준다. 없으면 초안 스크립트는 거절한다 */
+  readonly scriptGate?: ScriptDraftGate;
+  /** 이 기기에서 격리를 쓸 수 있는가(지연 조회). 초안 스크립트가 카드를 열기 전에 묻는다 */
+  readonly sandboxAvailable?: () => boolean;
 }
 
 /**
@@ -196,6 +205,8 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       // 스크립트 실행기(설계 B [제안]). 실행기 이름은 부모 환경의 PATH에서 절대 경로로 풀고, 없으면 실행기가 `runner_unavailable`로 답한다
       runner: deps.resolveRunner ?? runnerOnPath(parentEnv),
       allowedEnv: allowedEnvOf(parentEnv),
+      ...(deps.scriptGate === undefined ? {} : { scriptGate: deps.scriptGate }),
+      ...(deps.sandboxAvailable === undefined ? {} : { sandboxAvailable: deps.sandboxAvailable }),
     },
     process: tracked,
     sweepOrphans: async () => {

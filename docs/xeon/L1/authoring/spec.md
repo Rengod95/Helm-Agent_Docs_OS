@@ -28,4 +28,5 @@ binds: [xeon/packages/core-authoring/**]
 
 - `@fresnel/contracts`, `@fresnel/ext-host`(묶기가 쓰는 SDK 모듈 지정자)뿐이다. 새 의존 예외를 만들지 않는다.
 - 플러그인(`plugin-builder`)이 `core-*`를 import하는 것은 DR-15가 소스에서 막는다(`just check-layers`). 시험 파일은 면제라 `plugin-builder`의 시험이 코어 함수를 직접 부른다. `authoring.core-boundary.test.ts`가 소스 쪽을 값으로 고정한다.
-- [결정: 구현] 종류 카탈로그 항목의 `template` 값 `plugin-builder/templates/single-plugin`은 저장·와이어 값이라 그대로 둔다(실제 템플릿은 `core-authoring/templates`에 있다). 값을 맞추는 일은 [미결]이다.
+- [결정: 2026-11-19, 사용자, AGE-60] 종류 카탈로그 항목의 `template` 값은 실제 위치인 `core-authoring/templates/single-plugin`이다(옛 값 `plugin-builder/templates/single-plugin`은 밖에 나간 적이 없어 읽지 않는다). 시험이 그 폴더가 있는지 확인한다.
+- [결정: 2026-11-19, 사용자, AGE-60] 관리자가 관리 범위에서 `ext.authoring.enabled`를 거짓으로 잠그면 테스트 챗에도 빌더를 싣지 않는다. 테스트 챗은 시작 Drive 없이 빈 대화로 열리고, 화면은 `ext.list`의 `enabledSource: "managed"`로 이유를 안다. 빌더가 오류로 자동 정지된 경우는 테스트 챗에 그대로 싣는다.

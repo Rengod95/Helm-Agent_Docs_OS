@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createChunkNumbering } from "@fresnel/cap-dialog";
@@ -27,7 +28,11 @@ import type {
   TurnBlockEvent,
   TurnRecordSink,
 } from "@fresnel/contracts/extensions";
-import { PluginCallTracePortKey, TurnRecordPortKey } from "@fresnel/contracts/extensions";
+import {
+  PluginCallTracePortKey,
+  ToolsPortKey,
+  TurnRecordPortKey,
+} from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -59,6 +64,7 @@ import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
+  createToolNamesPolicy,
   createRegistrationControl,
   createVolatileNotifier,
   hookUnitName,
@@ -173,6 +179,7 @@ import {
   reviewKeyOf,
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
+import { createScriptDraftGate } from "./assembly/plugins/script-gate.ts";
 import {
   createPluginHostAssembly,
   processPortOf,
@@ -681,6 +688,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     now: () => clock.now(),
     setTimer,
     policy: operations,
+    // 도구의 노출 이름만 대화마다 정한다(X.operations.spec §4.5.1). 나머지 리소스는 같은 이름을 거부하던 그대로다
+    resourcePolicy: createToolNamesPolicy(),
     setupBudgetMs: () => operations.setupBudgetMs(),
     // x.operations.trace.* 유효 값. 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3)
     trace: () => operations.trace(),
@@ -1239,6 +1248,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
         testRunApprovalOf: (threadId) =>
           portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
+        // 대화가 보는 도구는 그 대화가 실은 플러그인(E(T))의 것이다. 하위 대화는 맨 위 부모의 집합을 쓴다. 엔진 포트가 뜨기 전에는 거르지 않는다
+        toolPluginsOf: (threadId) => {
+          if (portsHandle === undefined) return undefined;
+          let top = threadId;
+          for (let depth = 0; depth < 16; depth += 1) {
+            if (!isId("thr", top)) return undefined;
+            const link = session.query.agentOfChild(top);
+            const parent = link.ok ? link.value?.parentThreadId : undefined;
+            if (parent === undefined) break;
+            top = parent;
+          }
+          return portsHandle.ports.m4.pluginSet.port.resolve(top).plugins;
+        },
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
@@ -1377,6 +1399,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         stateDir: os.dirs.state,
         settingValue: (key) => settings.value(key),
         now: () => clock.now(),
+        // 초안 스크립트는 테스트 런에 묶인 초안만, 호출마다 승인 카드를 거쳐 돈다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
+        scriptGate: createScriptDraftGate({
+          tools: () => ext.ports.get(ToolsPortKey),
+          testRunDraftsOf: (threadId) => portsHandle?.ports.m4.pluginSet.testRunDraftsOf(threadId),
+          newRequestId: () => `script-${randomUUID()}`,
+        }),
+        sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}

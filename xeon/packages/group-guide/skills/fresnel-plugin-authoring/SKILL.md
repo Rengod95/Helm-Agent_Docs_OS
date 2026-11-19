@@ -34,7 +34,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 
 These tools are deferred: find them with tool search before you call them.
 
-Templates: `xeon/packages/plugin-builder/templates/single-plugin/` (single plugin) and `xeon/packages/group-sdk/templates/` (drive, policy, and observe groups).
+Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugin) and `xeon/packages/group-sdk/templates/` (drive, policy, and observe groups).
 
 ## Reference files
 

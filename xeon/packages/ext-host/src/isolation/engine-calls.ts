@@ -493,7 +493,13 @@ async function route(
       const outcome: Result<ScriptRunResult, ScriptRunFailure> =
         context.scripts === undefined
           ? SCRIPTS_NOT_INJECTED
-          : await context.scripts.run({ registration: g.id, name, stdin, replay });
+          : await context.scripts.run({
+              registration: g.id,
+              name,
+              stdin,
+              replay,
+              ...(context.ambient === undefined ? {} : { threadId: context.ambient.threadId }),
+            });
       return jsonReply(outcome, "the script result");
     }
     default:

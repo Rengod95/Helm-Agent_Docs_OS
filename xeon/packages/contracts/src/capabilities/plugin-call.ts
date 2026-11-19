@@ -14,7 +14,18 @@ export type PluginCallVia = "hook" | "tool" | "command" | "method" | "drive" | "
  */
 export type PluginCallTarget =
   | { readonly kind: "tool"; readonly name: ToolName }
-  | { readonly kind: "capability"; readonly capability: CapabilityId; readonly method: string };
+  | { readonly kind: "capability"; readonly capability: CapabilityId; readonly method: string }
+  /**
+   * 초안 스크립트 실행(설계 B, AGE-58 [제안]). 도구 실행 블록이 합성 항목(위험 등급 `exec`)으로 승인 카드를 열고, 승인되면 `run`을 부른다.
+   * 입력(`input`)은 카드가 보여 줄 값이다. 초안 출신 호출에만 열린다(아니면 `unavailable`). `ok`가 거짓이면 도구 결과가 오류다
+   */
+  | {
+      readonly kind: "script";
+      readonly name: string;
+      readonly run: (
+        signal: AbortSignal,
+      ) => Promise<{ readonly ok: boolean; readonly value: JsonValue }>;
+    };
 
 export interface PluginCallRequest {
   readonly threadId: ThreadId;

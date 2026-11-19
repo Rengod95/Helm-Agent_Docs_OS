@@ -225,10 +225,10 @@ export interface ToolService extends ToolsPort {
   /** L1·L2 코드 등록. 같은 순서 키·이름이 이미 있으면 ToolsError(tools.name_conflict)를 던진다 */
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   /** X ToolsPort 등록(확장 hostOf(g).registerTool). 아래 규칙으로 DirectToolRegistration을 만들어 위 메서드와 같은 경로로 등록한다 */
-  register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
+  register(owner: ScopeId, def: ToolResourceDef, options?: ToolRegisterOptions): Result<Unregister, ToolRegisterError>;
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
-  meta(name: ToolName): ToolMeta | undefined;
+  meta(name: ToolName, threadId?: ThreadId | null): ToolMeta | undefined; // threadId가 있으면 그 대화가 보는 이름으로 찾는다(§3.3.1)
 
   /** 광고 목록 산출(§4.1). 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
@@ -317,6 +317,16 @@ export interface RuleRegistration {
 - `registerRules`의 첫 사용처는 core-agents의 자식 차단 규칙(`source: "core:agents"`, L1.agents.spec §4.3)이다. 확장 티어 규칙 등록은 2차다(§4.11).
 - `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool.call.before` 훅의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool.call.before` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
 - `suspendWhile(threadId, toolCallId, wait)` [결정: M2 검토 3]: F `ToolService`의 메서드다(승격 완료, §8.3 F 요청 14). `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구는 자식을 기다리는 `service.spawn`을 이 안에서 기다린다. 슬롯을 쥔 채 기다리면 `tools` 상한만큼의 `agent` 호출이 자식의 도구 호출 슬롯을 막아 교착한다.
+
+#### 3.3.1 대화별 이름과 가시성 [결정: 2026-11-19, 사용자, AGE-56]
+
+한 대화의 도구 목록은 그 대화가 실은 플러그인(E(T))의 도구뿐이고, 도구는 승인됐을 때와 같은 이름으로 보인다. 도구 표 하나로 이것을 하려고 표의 구조를 이렇게 정한다. 구현은 `core-tools`의 `registry.ts`·`runtime.ts`·`pipeline.ts`다.
+
+1. `register(owner, def, { perThread: true })`로 등록한 항목은 열쇠가 (주인, 요청한 이름)이다. `def.name`은 플러그인이 요청한 이름이고, 주인이 다르면 같은 이름이 여럿이어도 `name_conflict`가 아니다. 같은 (주인, 이름)을 두 번 넣으면 `name_conflict`다. `perThread` 항목의 요청한 이름이 전역 항목(내장, 기능, MCP)의 이름과 같거나, 전역 항목이 이미 `perThread` 항목이 요청한 이름을 요구해도 `name_conflict`다(어느 대화에서 조용히 가려지는 도구를 만들지 않는다). `perThread`가 아닌 항목(내장, 기능 도구, MCP, `ToolRegistration`)은 지금처럼 전역 이름이 유일하다. 조립이 `perThread`를 쓰는 것은 이름 정책이 대화마다 정해야 하는 확장 도구뿐이다(X.operations.spec §3.5).
+2. 조립 루트가 `ToolsDeps.exposureOf(threadId)`로 `{ nameOf(주인, 요청한 이름) }`를 준다. 돌려주는 값이 문자열이면 그 대화에서의 노출 이름이고, `null`이면 그 대화에 보이지 않는다. `exposureOf`가 없거나 `undefined`를 돌려주거나 대화가 없으면 `perThread` 항목이 모두 요청한 이름 그대로 보인다(호스트 없는 조립과 옛 시험).
+3. 광고(`advertise`), 호출 준비(`prepare`), 재실행(`rerun`), 닫힌 호출의 기록, `tool_search`, 플러그인이 도구를 이름으로 부르는 `executeForPlugin`, `meta(name, threadId)`는 모두 그 대화가 보는 표(`ToolRegistry.view(exposure)`)에서 이름을 찾는다. 보는 표의 항목은 `name`·`label`·`ref.name`이 노출 이름이고 `owner`는 그대로다. 다른 대화에만 실린 플러그인의 도구는 요청한 이름으로도 정식 이름으로도 `tool_unavailable`이다. 전역 항목의 이름과 겹치는 `perThread` 항목은 그 대화에서 가려진다(전역 항목이 이긴다).
+4. 정책 평가, 허용 규칙, 승인 기록, Hook 페이로드, 호출 추적, 턴 기록에 남는 도구 이름은 보는 표의 노출 이름, 곧 모델이 본 이름이다. 드래프트의 호출인지는 이름이 아니라 도구를 등록한 주인(`entry.owner`)으로 정한다(§4.6.1). 그래서 같은 이름의 승인본에 준 허용 규칙과 승인 상속은 드래프트의 호출에 물려지지 않고, 드래프트의 호출은 항상 드래프트 카드를 지난다(`auto`인 테스트 런만 그 카드를 건너뛴다).
+5. 이미 저장된 이름(턴 기록의 `toolName`, `effect.intent`)은 그대로 읽는다. 옛 기록에 남은 드래프트의 내부 이름(`d<태그>-<이름>__<도구>`)도 문자열이라 그대로 읽히고, 그 이름이 지금의 표에 없으면 재실행은 전과 같이 `tools.rerun_tool_missing`이다(이 일은 이 변경 전에도 같았다).
 
 ### 3.4 노출 (`tools.ts`)
 
@@ -936,6 +946,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 5. 카드 [제안]: 도구 승인 본문 `ToolApprovalBody.draft?: DraftMark`에 표지를 싣는다. 기록 스키마(`approval.requested`의 `ToolApprovalDetail`)도 같은 선택 필드를 받는다. 제목 앞에 `Draft plugin "<확장 이름>" asks.`를 둔다. `ruleId`는 `null`이다(초안이 물은 것이라 규칙이 아니다). 같은 호출의 시크릿 사용 승인 카드도 표지를 싣는다. 화면은 `draft`가 있으면 "초안" 표시를 단다.
 6. 무인 [결정: D-M3-12를 따른다]: 답할 사람이 없고 무인 정책이 `deny`면 묻지 않고 거부한다(`noninteractive_ask_denied`). `expire`와 `wait`에서는 5번 카드로 기다린다(§4.7 6c). 드래프트 승인 `auto`인 대화의 드래프트 호출은 3번이 건너뛰어지므로 이 무인 정책을 일반 대화와 같게 받는다(모드가 물은 호출만 해당, `[결정: 2026-11-18, 사용자, AGE-56]`).
 6b. 가벼운 길 닫기 [결정: 2026-11-17 사용자, U2, 구현: enB5]: 도구 매핑이 없는 `readOnly` 기능 메서드는 검토된 플러그인에는 파이프라인 항목이 없어(합성 항목은 `readOnly`가 아닌 메서드뿐) 가벼운 길로 가지만, 초안 출신 호출은 이 길을 타지 못한다. `ToolsPort.isDraftScope?(scopeId)`(`deps.draftOf`로 답한다)를 기능 래퍼(`routeOf`)가 묻고, 초안이면 파이프라인으로 보낸다. 그 호출을 위해 합성 항목은 `readOnly` 메서드에도 만들어지고(초안 호출자에게만) 위험 등급은 메서드의 `risk`, 없으면 `read`다. 3번의 판정이 그 호출을 ask로 바꾼다. 물을 대화나 호출 식별이 없어 파이프라인으로 갈 수 없는 초안 호출은 직접 부르지 않고 `effect_not_allowed`로 거부한다. 카드가 한 번 뜰 때마다 호출 하나이고 기억 범위는 `once`뿐이라(§4.7 6) 초안이 읽기 호출을 턴마다 n번 하면 턴마다 카드가 n번 뜬다. 드래프트 승인 `auto`인 대화에서도 초안 호출은 이 파이프라인 길로 가고, 판정만 일반 정책 경로(3번의 건너뜀)를 따른다. 그래서 deny 규칙과 가드 Hook은 그대로 막고, 허용 판정은 카드 없이 돈다(`[결정: 2026-11-18, 사용자, AGE-56]`).
+6c. 초안 스크립트 실행 [제안, 2026-11-19, AGE-58 (사용자 결정 3 "호출마다 승인 카드")]: 플러그인 호출 대상에 `{ kind: "script", name, run }`을 더했다(`PluginCallTarget`). 도구 실행 블록이 합성 항목 `script_<이름>`(위험 등급 `exec`, 모델에 광고하지 않음, 레지스트리 밖)을 만들고, 입력은 카드가 보여 줄 값 `{ command, args, envNames, stdinBytes, stdinPreview }`이다. 같은 순서(`tool.call.before`, 정책, 승인, `guard.tool.before`, 의도, 실행)를 지나고 승인된 호출만 `run`을 부른다. 초안 출신 호출에만 열리고(검토된 호출은 `unavailable`), 카드는 3번의 판정을 받아 모드와 허용 규칙과 무관하게 묻는다. **드래프트 승인 `auto`도 이 카드를 건너뛰지 않고 승인 상속도 받지 않는다**(`ToolEntry.alwaysCard`): `auto`는 "드래프트라서 뜨는 도구 호출 카드"만 없앤다. 검토 전 코드가 프로세스를 띄우는 것은 그보다 무겁다. [제안: 사용자가 AGE-56에서 `auto`의 뜻을 아직 정하지 않았다. 가장 보수적인 쪽으로 두었다.] 거부 규칙과 훅의 막기는 그대로 막고, 답할 사람이 없으면 거부한다(6번). 카드는 호출마다 한 번이고 기억 범위는 `once`뿐이다. 호출자가 주는 `requestId`는 호출마다 새로 나는 값이다(같은 값은 기록된 결과를 돌려주고 다시 돌지 않는다).
 7. 범위 밖 [미결]: 등록 때 올라가는 내장 도구 대체 승인(`tool_replace`, §4.13)과 초안 도구 실행 안에서 낸 질문 승인(`approvals.request`의 question)은 호출의 도구 카드가 아니라 이 규칙 밖이다. 표지를 어떻게 싣을지는 정하지 않았다.
 
 ### 4.7 승인 프로토콜

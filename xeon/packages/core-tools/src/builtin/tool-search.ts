@@ -1,5 +1,6 @@
 import { MAX_TOOLS_PER_REQUEST } from "@fresnel/contracts/capabilities";
 import { parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { TOOL_SEARCH_NAME } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import type { ToolsDeps } from "../deps.ts";
@@ -56,8 +57,8 @@ function preview(description: string): string {
 }
 
 type SearchDeps = Pick<ToolsDeps, "session" | "config"> & {
-  /** 등록 표의 현재 항목 */
-  readonly entries: () => readonly ToolEntry[];
+  /** 한 대화가 보는 등록 표의 현재 항목 */
+  readonly entries: (threadId: ThreadId) => readonly ToolEntry[];
 };
 
 async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
@@ -78,7 +79,7 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
   const config = deps.config(threadId);
   // 서브에이전트의 천장(허용 목록 포함)을 그대로 적용한다. 빠뜨리면 허용 목록 밖 지연 도구의 이름과 설명이 목록에 실린다
   const planned = planExposure(
-    deps.entries(),
+    deps.entries(threadId),
     {
       run: {
         threadId,

@@ -18,6 +18,7 @@ export {
 } from "./settings.ts";
 export type { CapabilityResolver } from "./entries.ts";
 export type { OutputTruncator } from "./types.ts";
+export type { ToolExposure } from "./deps.ts";
 export {
   createMcpStartGate,
   MCP_START_RULE_ID,

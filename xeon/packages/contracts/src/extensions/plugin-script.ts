@@ -1,4 +1,5 @@
 import type { Result } from "../base/index.ts";
+import type { ThreadId } from "../conversation/index.ts";
 import type { RegistrationId } from "./registration-id.ts";
 
 // 플러그인이 자기 패키지 폴더의 스크립트를 실행하는 계약(설계 B, F.extensions.spec §3.1.4). 이름 `scripts`, `runScript`,
@@ -32,7 +33,28 @@ export interface ScriptRunRequest {
   readonly stdin: string;
   /** 돌려 보기 요청이면 참. 스크립트를 띄우지 않고 `replay_mode_denied`로 거절한다 */
   readonly replay: boolean;
+  /**
+   * 부른 훅이나 주도가 돌던 대화. 엔진이 호출을 낳은 요청의 문맥에서 붙인다. 문맥이 없으면 없다.
+   * 초안(검토 전 버전)의 스크립트는 이 대화가 테스트 런일 때만 승인 카드를 거쳐 돈다(`ScriptDraftGate`) [제안, AGE-58]
+   */
+  readonly threadId?: ThreadId;
 }
+
+/**
+ * 승인 카드에 싣는 실행 내용(설계 B, AGE-58 [제안]). 카드는 이것으로 "무엇이 돌게 되는지"를 보여 준다.
+ * `command`는 실행기의 절대 경로, `args`는 스크립트 파일(절대 경로)과 선언된 인자다. `envNames`는 자식에게 실제로 넘어가는 이름뿐이고 값은 싣지 않는다.
+ * `stdinPreview`는 표준 입력의 앞부분(가림 규칙을 지난 값)이다
+ */
+export interface ScriptCard {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly envNames: readonly string[];
+  readonly stdinBytes: number;
+  readonly stdinPreview: string;
+}
+
+/** 표준 입력 미리보기의 글자 수 상한 [제안]. 넘는 부분은 잘린다 */
+export const SCRIPT_CARD_PREVIEW_CHARS = 200;
 
 /** 실행이 끝난 결과. 종료 코드가 없고 신호로 끝났거나 기한으로 멈춰졌으면 `exitCode`는 null이다 */
 export interface ScriptRunResult {
@@ -61,9 +83,41 @@ export type ScriptRunFailure =
   | { readonly kind: "script_not_approved" }
   /** 돌려 보기 요청에서 부른 것이다 */
   | { readonly kind: "replay_mode_denied" }
+  /**
+   * 승인 카드(또는 정책, 훅)가 이 호출을 거절했거나 카드가 끝나지 않았다. 스크립트는 돌지 않았다.
+   * `cause`는 도구 호출 실패 종류(`ToolErrorKind`)와 같은 문자열이고 `resolvedBy`는 누가 거절했는지다(없으면 거절한 쪽이 없다)
+   */
+  | {
+      readonly kind: "script_denied";
+      readonly cause: string;
+      readonly resolvedBy?: "policy" | "human" | "noninteractive";
+    }
   | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
   /** 샌드박스에 넣어야 하는데 이 기기에서 격리할 수 없다. 격리 없이 띄우지 않는다(닫힌 실패) */
   | { readonly kind: "sandbox_unavailable"; readonly reason: string };
+
+/** 초안 스크립트 호출 하나. 승인 문(`ScriptDraftGate`)이 카드로 열고, 승인되면 `run`을 부른다 */
+export interface ScriptDraftCall {
+  /** 확장 이름(초안의 내부 이름) */
+  readonly extension: string;
+  /** 부른 플러그인의 Registration id */
+  readonly registration: RegistrationId;
+  readonly threadId: ThreadId;
+  /** 매니페스트 `scripts`의 이름 */
+  readonly name: string;
+  readonly card: ScriptCard;
+  /** 승인된 뒤에만 부른다. 샌드박스 안에서 스크립트를 띄우고 끝나길 기다린다 */
+  readonly run: (signal: AbortSignal) => Promise<Result<ScriptRunResult, ScriptRunFailure>>;
+}
+
+/**
+ * 초안 스크립트의 승인 문. 엔진 조립 루트가 준다(없으면 초안 스크립트는 `script_not_approved`다).
+ * 구현은 이 대화가 테스트 런이고 확장이 그 대화에 묶인 초안인지를 보고, 맞으면 호출마다 승인 카드를 열고, 승인한 호출만 `run`을 부른다.
+ * 일반 대화이거나 묶이지 않은 초안이면 `script_not_approved`다. 승인은 상속하지 않고 기억하지 않는다("이번 한 번")
+ */
+export type ScriptDraftGate = (
+  call: ScriptDraftCall,
+) => Promise<Result<ScriptRunResult, ScriptRunFailure>>;
 
 /**
  * 스크립트 실행 포트. 엔진(X)이 구현한다. 구현은 선언, 위치, 승인, 돌려 보기 플래그를 이 순서로 검사하고, 통과하면

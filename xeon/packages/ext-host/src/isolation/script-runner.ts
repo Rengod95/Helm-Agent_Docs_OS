@@ -2,10 +2,11 @@
 // 검사 순서는 계약(plugin-script.ts의 `PluginScriptPort`)이 정한 대로다: 선언 → 위치(렉시컬과 실제 위치가 확장 폴더 안) →
 // 일반 파일 → 승인 → 돌려 보기 플래그 → 띄우기. 띄우는 것은 주입된 `IsolationProcessPort.spawn`뿐이다. 샌드박스 프로필을
 // 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일뿐). 기한이 지나면 프로세스 트리를 죽이고 `timedOut`으로 답한다.
-// 기동 실패와 샌드박스 없음은 결과 값이다. 초안(승인되지 않은 버전)은 띄우지 않는다. 승인 카드를 재사용하는 길은 없다(보고 대상).
+// 기동 실패와 샌드박스 없음은 결과 값이다. 초안(승인되지 않은 버전)은 승인 문(`draftGate`)이 호출마다 카드를 열어 승인한 호출만 띄운다(테스트 런에서만, AGE-58). 승인 카드를 재사용하는 길은 없다.
 import { attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import {
   isEntryInsideRoot,
+  SCRIPT_CARD_PREVIEW_CHARS,
   SCRIPT_LIMITS,
   type IsolatedChild,
   type IsolationProcessPort,
@@ -14,6 +15,8 @@ import {
   type LoaderFs,
   type ManifestScriptDecl,
   type PluginScriptPort,
+  type ScriptCard,
+  type ScriptDraftGate,
   type ScriptRunFailure,
   type ScriptRunner,
   type ScriptRunResult,
@@ -48,6 +51,15 @@ export interface ScriptRunnerDeps {
   readonly setTimer: (ms: number, fn: () => void) => () => void;
   /** 표준 입력 쓰기 오류(자식이 먼저 끝남)를 기록한다. 없으면 버린다 */
   readonly logger?: Logger;
+  /**
+   * 초안(`target.approved`가 거짓)의 스크립트 승인 문(AGE-58 [제안]). 없으면 초안 스크립트는 `script_not_approved`다.
+   * 있으면 호출한 대화(`request.threadId`)가 있을 때만 카드를 열 수 있고, 승인한 호출만 띄운다
+   */
+  readonly draftGate?: ScriptDraftGate;
+  /** 이 기기에서 격리할 수 있는가. 거짓이면 카드를 열지 않고 거절한다(카드를 승인해도 띄우지 못하는 것을 막는다) */
+  readonly sandboxAvailable?: () => boolean;
+  /** 표준 입력 미리보기를 카드에 싣기 전에 가린다(엔진의 시크릿 마스킹). 없으면 미리보기를 싣지 않는다 */
+  readonly maskText?: (text: string) => string;
 }
 
 /** 시크릿 거부 패턴의 정규식. 끝과 앞의 `*`만 와일드카드다(`SENSITIVE_ENV_PATTERNS`의 정본 규칙) */
@@ -156,7 +168,7 @@ function decodeAll(parts: readonly Uint8Array[], size: number): string {
 /** 띄운 자식에게 표준 입력을 쓰고 닫은 뒤 끝날 때까지 기다린다. 기한이 지나면 트리를 죽인다 */
 async function runChild(
   child: IsolatedChild,
-  request: { readonly stdin: string; readonly timeoutMs: number },
+  request: { readonly stdin: string; readonly timeoutMs: number; readonly signal?: AbortSignal },
   deps: Pick<ScriptRunnerDeps, "setTimer" | "logger">,
 ): Promise<ScriptRunResult> {
   const stdout = capture(child.stdout, SCRIPT_LIMITS.outputBytes);
@@ -170,8 +182,15 @@ async function runChild(
   child.stdin.on("error", (cause: unknown) => {
     deps.logger?.debug("script.stdin_closed", { reason: messageOf(cause) });
   });
+  // 호출이 중단되면(카드가 끝난 뒤 대화가 멈춤 등) 프로세스 트리를 죽인다
+  const onAbort = (): void => {
+    child.kill("SIGKILL");
+  };
+  if (request.signal?.aborted === true) onAbort();
+  request.signal?.addEventListener("abort", onAbort, { once: true });
   child.stdin.end(request.stdin);
   const finished = await child.exited;
+  request.signal?.removeEventListener("abort", onAbort);
   cancel();
   const out = stdout();
   const errOut = stderr();
@@ -190,6 +209,13 @@ function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
+/** 표준 입력 미리보기. 앞 `SCRIPT_CARD_PREVIEW_CHARS`자만 가림 규칙을 지난 값으로 싣는다. 가림 수단이 없으면 싣지 않는다 */
+function previewOf(stdin: string, mask: ScriptRunnerDeps["maskText"]): string {
+  if (mask === undefined) return "";
+  const head = Array.from(stdin).slice(0, SCRIPT_CARD_PREVIEW_CHARS).join("");
+  return mask(head);
+}
+
 /** 확장 하나의 스크립트 실행기를 만든다. 호출마다 선언과 위치와 승인을 검사하고, 통과하면 띄운다 */
 export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
   const { target } = deps;
@@ -199,7 +225,11 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
       if (decl === undefined) return err({ kind: "script_not_declared" });
       const located = await locate(deps.fs, target.tree, decl.file);
       if (!located.ok) return err(located.error);
-      if (!target.approved) return err({ kind: "script_not_approved" });
+      // 초안은 승인 문이 있고 호출한 대화가 있을 때만 카드로 열 수 있다. 그 밖에는 띄우지 않는다
+      const gate = target.approved ? undefined : deps.draftGate;
+      if (!target.approved && (gate === undefined || request.threadId === undefined)) {
+        return err({ kind: "script_not_approved" });
+      }
       if (request.replay) return err({ kind: "replay_mode_denied" });
       const runner = deps.resolveRunner(decl.runner);
       if (runner === undefined || !isAbsolute(runner)) {
@@ -216,17 +246,42 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         env: envOf(decl.envNames ?? [], deps.allowedEnv),
         label: `script:${target.extension}:${decl.name}`,
       };
-      const spawned = await deps.process.spawn(spec);
-      if (!spawned.ok) return err(failureOfSpawn(spawned.error));
-      const result = await runChild(
-        spawned.value,
-        {
-          stdin: request.stdin,
-          timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
-        },
-        deps,
-      );
-      return ok(result);
+      const launch = async (
+        signal?: AbortSignal,
+      ): Promise<Result<ScriptRunResult, ScriptRunFailure>> => {
+        const spawned = await deps.process.spawn(spec);
+        if (!spawned.ok) return err(failureOfSpawn(spawned.error));
+        const result = await runChild(
+          spawned.value,
+          {
+            stdin: request.stdin,
+            timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
+            ...(signal === undefined ? {} : { signal }),
+          },
+          deps,
+        );
+        return ok(result);
+      };
+      if (gate === undefined || request.threadId === undefined) return launch();
+      // 초안: 격리할 수 없으면 카드를 열지 않고 거절한다
+      if (deps.sandboxAvailable?.() === false) {
+        return err({ kind: "sandbox_unavailable", reason: "sandbox_off" });
+      }
+      const card: ScriptCard = {
+        command: spec.command,
+        args: spec.args,
+        envNames: Object.keys(spec.env),
+        stdinBytes: new TextEncoder().encode(request.stdin).byteLength,
+        stdinPreview: previewOf(request.stdin, deps.maskText),
+      };
+      return gate({
+        extension: target.extension,
+        registration: request.registration,
+        threadId: request.threadId,
+        name: decl.name,
+        card,
+        run: (signal) => launch(signal),
+      });
     },
   };
 }

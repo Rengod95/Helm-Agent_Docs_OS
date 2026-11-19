@@ -448,11 +448,13 @@ export type ScriptRunFailure =
   | { readonly kind: "script_missing" }
   | { readonly kind: "script_not_approved" }
   | { readonly kind: "replay_mode_denied" }
+  | { readonly kind: "script_denied"; readonly cause: string; readonly resolvedBy?: "policy" | "human" | "noninteractive" }
   | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
   | { readonly kind: "sandbox_unavailable"; readonly reason: string };
 export interface PluginScriptPort { run(request: ScriptRunRequest): Promise<Result<ScriptRunResult, ScriptRunFailure>> }
 ```
 
+- 초안 스크립트 [제안, 2026-11-19, AGE-58]: `ScriptRunRequest.threadId?`(호출한 대화)와 `ScriptDraftGate`(`ScriptDraftCall`을 받아 카드를 열고, 승인한 호출만 `run`을 부른다)를 더했다. 거절한 카드, 정책 거부, 훅의 막기는 `script_denied`(`cause`는 도구 호출 실패 종류)다. 승인 문이 없거나 대화가 없으면 초안은 `script_not_approved`다. `PluginCallTarget`에 `{ kind: "script", name, run }`을 더했다(L1.tools §4.6.1 6c).
 - 실행 순서 [제안, 엔진(X) 구현]: (1) `replay`가 참이면 띄우지 않고 `replay_mode_denied`다. (2) `name`이 매니페스트 `scripts`에 없으면 `script_not_declared`다. (3) `file`을 `isScriptFileValid`로 보고, 심볼릭 링크를 따라간 실제 위치가 플러그인 폴더 밖이면 `script_outside_tree`다. (4) 파일이 없거나 일반 파일이 아니면 `script_missing`이다. (5) 승인되지 않은 버전이면 `script_not_approved`다. 일반 대화는 승인된 검토본만 돌리고, 초안은 테스트 실행에서만 돌며 호출마다 승인 카드를 거친다(2026-11-17 U2). (6) 통과하면 `IsolationProcessPort.spawn`으로 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`를 띄운다. 격리를 쓸 수 없으면 `sandbox_unavailable`로 닫힌다(띄우지 않는다).
 - 실행 [제안]: 읽기 허용 목록은 그 플러그인의 폴더(검토본 `tree/`)와 실행기 실행 파일뿐이고, 쓰기는 없다 [근거: 설계 B 2026-11-18, `review/m5/drive-isolation.md` §3.4]. 프로필을 넓히지 않는다(`review/m5/drive-isolation.md` §3.4). 표준 입력을 쓰고 닫는다. 표준 출력과 표준 오류는 각각 `outputBytes`를 넘으면 자르고 `…Truncated`를 참으로 한다. 기한(선언의 `timeoutMs`, 생략하면 `timeoutDefaultMs`, 상한 `timeoutMaxMs`)이 지나면 프로세스 트리를 멈추고 `timedOut`을 참으로 한다. 종료 코드가 없으면 `exitCode`는 null이다.
 - 표준 입력이 `stdinBytes`를 넘을 때의 거절 종류는 정하지 않았다. 위 일곱 종류에 없다 [미결] [근거: packages/contracts/src/extensions/plugin-script.ts의 `ScriptRunFailure`].
@@ -961,8 +963,10 @@ export type ToolRegisterError =
   | { readonly kind: "replace_conflict"; readonly toolName: string; readonly existing: string }  // 다른 확장이 이미 대체함
 /** 내장 도구 대체 등록의 출처. X가 매니페스트 `replaces` 선언이 있는 이름에만 `ToolResourceDef.replaces`로 싣는다 */
 export interface ToolReplaceClaim { readonly extension: string; readonly trust: "builtin" | "user" | "project" | "untrusted" }
-/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
-export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
+/** `perThread`이면 `def.name`은 플러그인이 요청한 이름이고 보이는 이름과 가시성은 대화마다 정해진다. 주인이 다르면 같은 이름이 여럿이어도 된다. 생략하면 `def.name`이 전 대화에 보이는 전역 이름이다 [결정: 2026-11-19, 사용자, AGE-56] */
+export interface ToolRegisterOptions { readonly perThread?: boolean }
+/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 전역 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
+export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef, options?: ToolRegisterOptions): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {
   registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;

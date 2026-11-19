@@ -23,6 +23,7 @@ import {
   type IsolationProcessPort,
   type ManifestIssue,
   type PluginDecl,
+  type ScriptDraftGate,
   type ScriptRunner,
   type TrustPrompter,
   type TrustStoreBackend,
@@ -363,6 +364,13 @@ export interface LoaderIsolation {
    * 스크립트에 넘길 허용 환경 값. 선언된 `envNames` 가운데 여기 있고 시크릿 거부 패턴에 걸리지 않는 것만 넘긴다. 없으면 빈 값
    */
   readonly allowedEnv?: Readonly<Record<string, string>>;
+  /**
+   * 초안 스크립트의 승인 문(AGE-58 [제안]). 조립 루트가 준다. 없으면 초안의 스크립트는 `script_not_approved`다.
+   * 있어도 구현이 테스트 런의 묶인 초안인지 보고, 일반 대화는 거절한다
+   */
+  readonly scriptGate?: ScriptDraftGate;
+  /** 이 기기에서 격리(샌드박스)를 쓸 수 있는가. 초안 스크립트가 카드를 열기 전에 묻는다. 없으면 묻지 않는다(띄울 때 막힌다) */
+  readonly sandboxAvailable?: () => boolean;
 }
 
 /**
@@ -1413,7 +1421,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       ...(isolation.transferMaxBytes === undefined
         ? {}
         : { transferMaxBytes: isolation.transferMaxBytes }),
-      // 스크립트는 검토된 버전에서만 뜬다. 초안은 승인 카드를 재사용하는 길이 없어 띄우지 않는다(script_not_approved)
+      // 스크립트는 검토된 버전에서 뜬다. 초안은 승인 문(`scriptGate`)이 호출마다 카드를 열 때만 뜨고, 문이 없으면 띄우지 않는다(script_not_approved)
       scripts: createScriptRunner({
         process: port,
         fs: deps.fs,
@@ -1427,6 +1435,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         allowedEnv: isolation.allowedEnv ?? {},
         setTimer: isolation.setTimer,
         ...(isolation.logger === undefined ? {} : { logger: isolation.logger }),
+        ...(isolation.scriptGate === undefined ? {} : { draftGate: isolation.scriptGate }),
+        ...(isolation.sandboxAvailable === undefined
+          ? {}
+          : { sandboxAvailable: isolation.sandboxAvailable }),
+        ...(isolation.maskSecrets === undefined ? {} : { maskText: isolation.maskSecrets }),
       }),
     });
   }
