@@ -83,6 +83,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "@tailwindcss/vite": "4.3.3",
     "motion": "14.12.0",
+    "@xyflow/react": "13.0.1",
     "border-beam": "1.4.1",
     "thinking-orbs": "0.3.2",
     "react-markdown": "10.1.0",
