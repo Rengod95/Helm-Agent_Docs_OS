@@ -811,7 +811,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 플러그인은 폴더이고 검토 항목을 지나야 켜진다. 이 절은 그 wire다. 스키마는 `wire/plugin.ts`(`PLUGIN_WIRE_METHODS`, `InvocableEntry`, `DraftInfo`, `PluginChangedParamsSchema`)와 `wire/plugin-review.ts`(`PLUGIN_REVIEW_WIRE_METHODS`, `ReviewItem`, `ReviewDecision`, `PluginReviewChangedParamsSchema`)다. 카드 타입은 `extensions/plugin-card.ts`(F 확장 계약 §3.1.3)다.
 
 - 등록: 이 메서드와 알림은 `methods.ts`(`WIRE_METHODS`, `WIRE_NOTIFICATIONS`)에 등록되었고, §3.3.1 메서드 표와 §3.3.2 알림 표에 행이 있다. 표 대조 시험(`wire.doc.test`)이 이 행들을 레지스트리와 대조한다.
-- 단계: 스키마 파일은 `m4()`을 쓰므로 단계가 "M4"로 찍힌다. M5 단계 값이 `WireMethodSpec.stage`에 생기면 바꾼다 [미결] [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts`].
+- 단계: `WireMethodSpec.stage`에는 이제 "M5" 값이 있다(`methods.ts`의 `stage: "M1" | … | "M5"`). `craftChat.*`, `testRun.start`와 턴 기록·지표·지난 턴에 돌려 보기 메서드(`turn-record-methods.ts`)는 "M5"로 찍힌다. 프로필 메서드(`wire/profile.ts`의 `m4()` 호출)는 아직 "M4"로 찍힌다 [미결] [근거: `xeon/packages/contracts/src/wire-settings/wire/methods.ts` 2709·2730행, `wire/turn-record-methods.ts` 86행].
 - 이름 공간: 검토함은 `pluginReview.*`다. 기존 `review.get`(변경 검토)과 겹치지 않으려고 접두를 따로 뒀다. 플러그인 메서드 `plugin.*`는 `ext.*` 곁의 새 접두다.
 
 | 메서드 | params | result | 주요 오류 |

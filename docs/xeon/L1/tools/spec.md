@@ -1151,6 +1151,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.output.maxBytes` | integer(1,024~1,048,576) | 51200 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.exposure.deferThreshold` | integer(0~128) | 64 | nextTurn | managed, user, project, local | tools | number |
+| `l1.tools.pluginCallDepth` [결정: review.decisions-2 U-8] | integer(1~8) | 3 | nextTurn | managed, user, project, local | tools | number |
+| `l1.tools.pluginCalls` [제안: 이름, enE2m] | boolean | `true` | live | managed, user, project, local | tools | toggle |
 | `l1.tools.unattended.approval` [제안] | `"wait" \| "deny" \| "expire"` | `"expire"` | nextTurn | managed, user, project, local, launch | permissions | select |
 | `l1.tools.unattended.timeoutSeconds` [제안] | integer(1~604,800) | 3600 | nextTurn | managed, user, project, local, launch | permissions | number |
 

@@ -1355,7 +1355,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 14 | 탐구 중 `/helm start` | 같은 주제(또는 주제 생략)면 이어 가기 요청이다. 상태를 바꾸지 않고 시작 요청만 낸다. 다른 주제면 오류 응답("이미 탐구 중")이고 상태를 바꾸지 않는다 |
 | 15 | `idle`이고 `pending`이 없음 | `{ do: "done" }`으로 주도권을 내려놓는다. 다음 `/helm start`의 시작 요청으로 다시 주도한다(§3.3). drive 락 필요 판정 훅은 두지 않는다(§3.3) |
 | 16 | 상태 검증 실패 | §4.9. `state_inconsistent`(§4.12) |
-| 17 | X 기능 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(L2 정의에 `readOnly` 선언이 아직 없음) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
+| 17 | X 기능 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(그 L2 메서드 정의에 `readOnly` 선언이 없음. `knowledge.*` 읽기 메서드는 `readOnly: true`를 선언한다: `contracts/src/capabilities/defs/knowledge.ts`) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
 | 18 | `work.tasks.create`에 `idempotent` 선언이 없음 | X가 `effect_not_allowed`로 거부한다. 작업 연결만 빠지고 발견 기록은 남는다 |
 | 19 | 상태 커밋 판 충돌(`state_conflict`) | 엔진이 commit 명령을 거부해 `refused`로 돌아온다. `yield`한다. 다음 호출이 커밋된 판을 다시 읽는다(§4.12) |
 | 23 | 주도 중 사용자 메시지 | `last`가 `user`이면 맨 위 `turn` 명령으로 처리하고 같은 단계로 이어 간다. 턴 한도가 없으면 단계를 그대로 진행한다(§4.5). 메시지를 3단계 안에 처리하지 못하면 엔진이 코어 루프로 돌려보낸다(drive-isolation 2.4) |
