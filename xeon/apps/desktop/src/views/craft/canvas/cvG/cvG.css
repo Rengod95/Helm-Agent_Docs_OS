@@ -1,0 +1,951 @@
+/* cvG(깊이) 캔버스의 모양. 색·글자는 caustic 토큰에서 온다. 무대는 두 층이다: 레일이 놓인 띠만 한 단계 밝고(--cvg-band)
+   위아래는 한 단계 어둡다(--cvg-floor). 격자·셰이더·유리·번쩍임 없이 그림자와 겹침으로만 층을 가른다:
+   바닥(레일·곡선, 그림자 없음) < 받침판(낮은 그림자) < 판(높은 그림자) < 플로팅 상세(가장 높은 그림자).
+   React Flow 규칙은 `@layer xyflow`에, 나머지는 components 층에 둔다(무층 규칙 금지). base.css는 cvA.css가 이미 불러온다. */
+
+@layer xyflow {
+  .cvg-root {
+    --cvg-floor: var(--cs-color-bg-canvas);
+    --cvg-band: var(--cs-color-bg-app);
+    --cvg-plate: var(--cs-color-surface-raised);
+    --cvg-plate-edge: color-mix(in oklab, var(--cs-color-text-primary) 10%, transparent);
+    --cvg-plate-edge-hot: color-mix(in oklab, var(--cs-color-text-primary) 30%, transparent);
+    --cvg-ped: color-mix(in oklab, var(--cs-color-surface-base) 72%, var(--cs-color-bg-app));
+    --cvg-station: color-mix(in oklab, var(--cs-color-text-primary) 5%, var(--cvg-band));
+    --cvg-line: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --cvg-line-soft: color-mix(in oklab, var(--cs-color-text-primary) 12%, transparent);
+    --cvg-chrome: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
+    /* 종류 색: 종류를 가르는 데만 쓰고 채도를 누른다 */
+    --cvg-inject: color-mix(
+      in oklch,
+      var(--cs-color-identity-iris) 84%,
+      var(--cs-color-text-secondary)
+    );
+    --cvg-hook: color-mix(
+      in oklch,
+      var(--cs-color-identity-amber) 80%,
+      var(--cs-color-text-secondary)
+    );
+    --cvg-drive: color-mix(
+      in oklch,
+      var(--cs-color-agent-stop-1) 84%,
+      var(--cs-color-text-secondary)
+    );
+    --cvg-tool: color-mix(
+      in oklch,
+      var(--cs-color-identity-mint) 74%,
+      var(--cs-color-text-secondary)
+    );
+    /* 층의 그림자 셋 */
+    --cvg-lift-ped: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 6px 14px -8px rgb(0 0 0 / 0.55);
+    --cvg-lift-plate: drop-shadow(0 14px 18px rgb(0 0 0 / 0.42))
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.38));
+    --cvg-lift-plate-hot: drop-shadow(0 22px 26px rgb(0 0 0 / 0.5))
+      drop-shadow(0 3px 4px rgb(0 0 0 / 0.4));
+    --cvg-lift-float: 0 30px 70px -16px rgb(0 0 0 / 0.7), 0 6px 16px rgb(0 0 0 / 0.38);
+    --cvg-mono: var(--cs-font-mono, ui-monospace, monospace);
+    background: var(--cvg-floor);
+  }
+
+  .cvg-root[data-scheme="light"] {
+    --cvg-plate: var(--cs-color-surface-base);
+    --cvg-plate-edge: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+    --cvg-ped: color-mix(in oklab, var(--cs-color-bg-app) 60%, var(--cs-color-bg-canvas));
+    --cvg-station: color-mix(in oklab, var(--cs-color-text-primary) 4%, var(--cvg-band));
+    --cvg-chrome: color-mix(in oklab, var(--cs-color-surface-base) 96%, transparent);
+    --cvg-inject: color-mix(
+      in oklch,
+      var(--cs-color-identity-iris) 78%,
+      var(--cs-color-text-primary)
+    );
+    --cvg-hook: color-mix(
+      in oklch,
+      var(--cs-color-identity-amber) 62%,
+      var(--cs-color-text-primary)
+    );
+    --cvg-drive: color-mix(
+      in oklch,
+      var(--cs-color-agent-stop-1) 82%,
+      var(--cs-color-text-primary)
+    );
+    --cvg-tool: color-mix(
+      in oklch,
+      var(--cs-color-identity-mint) 70%,
+      var(--cs-color-text-primary)
+    );
+    --cvg-lift-ped: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 14px -10px rgb(0 0 0 / 0.18);
+    --cvg-lift-plate: drop-shadow(0 12px 16px rgb(0 0 0 / 0.1))
+      drop-shadow(0 1px 2px rgb(0 0 0 / 0.12));
+    --cvg-lift-plate-hot: drop-shadow(0 20px 24px rgb(0 0 0 / 0.14))
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.14));
+    --cvg-lift-float: 0 28px 64px -18px rgb(0 0 0 / 0.26), 0 4px 12px rgb(0 0 0 / 0.08);
+  }
+
+  .cvg-flow.react-flow {
+    --xy-background-color: transparent;
+    --xy-node-border: 0;
+    --xy-node-background-color: transparent;
+    --xy-node-boxshadow-hover: none;
+    --xy-node-boxshadow-selected: none;
+    --xy-node-color: var(--cs-color-text-primary);
+    background: transparent;
+  }
+
+  .cvg-flow .react-flow__node {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    cursor: default;
+  }
+
+  /* xyflow는 고를 수도 끌 수도 없는 노드에 pointer-events: none을 준다. 판·받침판·더미·빌더는 안을 누를 수 있게 되살린다
+     (띠·바닥·관계 선은 그대로 지나가게 둔다) */
+  .cvg-flow .react-flow__node-plate > *,
+  .cvg-flow .react-flow__node-pedestal > *,
+  .cvg-flow .react-flow__node-pile > *,
+  .cvg-flow .react-flow__node-builder > * {
+    pointer-events: auto;
+  }
+
+  .cvg-flow .react-flow__node:focus-visible {
+    outline: none;
+  }
+
+  .cvg-flow .react-flow__node:focus-visible .cvg-shape,
+  .cvg-flow .react-flow__node:focus-visible .cvg-pile-top {
+    stroke: var(--cs-color-focus-ring);
+    outline-color: var(--cs-color-focus-ring);
+  }
+
+  .cvg-flow .react-flow__pane {
+    cursor: default;
+  }
+
+  .cvg-flow .react-flow__pane.dragging {
+    cursor: grabbing;
+  }
+
+  .cvg-flow .react-flow__attribution {
+    display: none;
+  }
+}
+
+@layer components {
+  .cvg-mono {
+    font-family: var(--cvg-mono);
+  }
+
+  /* ── 무대: 두 층 ── */
+  .cvg-band {
+    background: var(--cvg-band);
+    box-shadow:
+      0 -1px 0 var(--cvg-line-soft),
+      0 1px 0 var(--cvg-line-soft);
+  }
+
+  .cvg-band-fill {
+    fill: var(--cvg-band);
+  }
+
+  .cvg-floor,
+  .cvg-links {
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cvg-rail-line {
+    stroke: var(--cvg-line);
+    stroke-width: 1.5;
+  }
+
+  .cvg-station {
+    fill: var(--cvg-station);
+    stroke: var(--cvg-line-soft);
+    stroke-width: 1;
+  }
+
+  .cvg-station-num {
+    fill: var(--cs-color-text-tertiary);
+    font: 500 14px var(--cvg-mono);
+  }
+
+  .cvg-station-label {
+    fill: var(--cs-color-text-primary);
+    font: 600 17px var(--cs-font-ui);
+  }
+
+  .cvg-gate {
+    stroke: var(--cvg-line);
+    stroke-width: 1.5;
+  }
+
+  .cvg-gate-dot {
+    fill: var(--cvg-band);
+    stroke: var(--cs-color-text-secondary);
+    stroke-width: 1.5;
+  }
+
+  .cvg-gate-label {
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
+  }
+
+  .cvg-tick {
+    fill: var(--cvg-line);
+  }
+
+  .cvg-tick-used {
+    fill: var(--cs-color-text-secondary);
+  }
+
+  .cvg-return path {
+    fill: none;
+    stroke: var(--cvg-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+  }
+
+  .cvg-return text {
+    fill: var(--cs-color-text-tertiary);
+    font: 14px var(--cs-font-ui);
+  }
+
+  .cvg-arrow-floor {
+    fill: none;
+    stroke: var(--cs-color-text-tertiary);
+    stroke-width: 1.2;
+  }
+
+  /* 판에서 레일로 내려가는 곡선(층을 넘는다): 종류 색, 옅게 */
+  .cvg-wire {
+    fill: none;
+    stroke: color-mix(in oklab, currentColor 46%, transparent);
+    stroke-width: 1.6;
+  }
+
+  .cvg-wire-on {
+    stroke: currentColor;
+    stroke-width: 2.2;
+  }
+
+  .cvg-wire-end {
+    fill: currentColor;
+    stroke: var(--cvg-band);
+    stroke-width: 2;
+  }
+
+  .cvg-count {
+    fill: var(--cvg-plate);
+    stroke: color-mix(in oklab, currentColor 50%, transparent);
+  }
+
+  .cvg-count-text {
+    fill: var(--cs-color-text-primary);
+    font: 600 12px var(--cs-font-ui);
+  }
+
+  .cvg-target {
+    fill: color-mix(in oklab, currentColor 18%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+
+  .cvg-cross path {
+    fill: none;
+    stroke: var(--cs-color-warning-text);
+    stroke-width: 1.5;
+  }
+
+  .cvg-cross text {
+    fill: var(--cs-color-warning-text);
+    font: 500 12px var(--cs-font-ui);
+  }
+
+  /* ── 같은 층의 관계 직선 ── */
+  .cvg-rel {
+    fill: none;
+    stroke-width: 1.4;
+    stroke: color-mix(in oklab, var(--cs-color-text-secondary) 70%, transparent);
+    stroke-linejoin: round;
+  }
+
+  .cvg-rel-handoff {
+    stroke: color-mix(in oklab, var(--cvg-drive) 75%, transparent);
+    stroke-width: 2;
+  }
+
+  .cvg-rel-creates {
+    stroke: color-mix(in oklab, var(--cs-color-warning-text) 70%, transparent);
+  }
+
+  .cvg-rel-replaces {
+    stroke: var(--cs-color-warning-text);
+  }
+
+  .cvg-rel-on {
+    stroke-width: 2.2;
+  }
+
+  .cvg-rel-on.cvg-rel-depends,
+  .cvg-rel-on.cvg-rel-reads {
+    stroke: var(--cs-color-text-primary);
+  }
+
+  .cvg-rel-on.cvg-rel-handoff {
+    stroke: var(--cvg-drive);
+  }
+
+  .cvg-rel-mark {
+    fill: var(--cvg-band);
+    stroke: var(--cs-color-text-secondary);
+    stroke-width: 1.3;
+  }
+
+  .cvg-rel-mark-handoff {
+    fill: none;
+    stroke: var(--cvg-drive);
+    stroke-width: 1.6;
+  }
+
+  .cvg-rel-mark-creates {
+    fill: none;
+    stroke: var(--cs-color-warning-text);
+  }
+
+  .cvg-rel-pill {
+    fill: var(--cvg-chrome);
+    stroke: var(--cvg-line-soft);
+  }
+
+  .cvg-rel-text {
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
+  }
+
+  .cvg-rel-text-handoff {
+    fill: var(--cvg-drive);
+  }
+
+  /* ── 뜬 층: 판 ── */
+  .cvg-plate {
+    position: relative;
+    transition: opacity 160ms ease;
+  }
+
+  .cvg-plate-shape {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    filter: var(--cvg-lift-plate);
+    pointer-events: none;
+  }
+
+  .cvg-shape {
+    fill: var(--cvg-plate);
+    stroke: var(--cvg-plate-edge);
+    stroke-width: 1;
+  }
+
+  .cvg-shape-draft {
+    stroke: color-mix(in oklab, var(--cvg-hook) 70%, transparent);
+    stroke-dasharray: 5 4;
+  }
+
+  .cvg-plate[data-mark="selected"] .cvg-plate-shape,
+  .cvg-plate:hover .cvg-plate-shape {
+    filter: var(--cvg-lift-plate-hot);
+  }
+
+  .cvg-plate[data-mark="selected"] .cvg-shape {
+    stroke: currentColor;
+    stroke-width: 1.75;
+  }
+
+  .cvg-plate[data-mark="related"] .cvg-shape {
+    stroke: var(--cvg-plate-edge-hot);
+  }
+
+  .cvg-dim {
+    opacity: 0.35;
+  }
+
+  .cvg-plate-body {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .cvg-plate-hit {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+
+  /* 멀리서 보는 이름: 하이픈 뒤에서 두 줄까지 접힌다(잘라 내지 않는다) */
+  .cvg-name-wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    hyphens: manual;
+  }
+
+  .cvg-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-tertiary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    white-space: nowrap;
+  }
+
+  .cvg-mark-big {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 15px;
+  }
+
+  .cvg-mark-start {
+    color: var(--cvg-drive);
+    background: color-mix(in oklab, var(--cvg-drive) 14%, transparent);
+  }
+
+  .cvg-mark-draft {
+    color: var(--cs-color-warning-text);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-warning-text) 55%, transparent);
+  }
+
+  .cvg-mark-pending {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cvg-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 5px;
+    font: 11px var(--cvg-mono);
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    white-space: nowrap;
+  }
+
+  /* 포커스가 도착했을 때 한 번만 퍼지는 고리(그 뒤로 도는 것 없음) */
+  .cvg-arrive {
+    position: absolute;
+    inset: -8px;
+    border-radius: 18px;
+    border: 2px solid currentColor;
+    pointer-events: none;
+    opacity: 0;
+    animation: cvg-arrive 1100ms ease-out 1;
+  }
+
+  @keyframes cvg-arrive {
+    0% {
+      opacity: 0.9;
+      transform: scale(0.97);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cvg-arrive {
+      animation-duration: 1ms;
+    }
+  }
+
+  /* ── 받침 층: 묶음 ── */
+  .cvg-pedestal {
+    position: relative;
+    border-radius: 18px;
+    background: var(--cvg-ped);
+    box-shadow:
+      var(--cvg-lift-ped),
+      inset 0 0 0 1px var(--cvg-line-soft);
+    cursor: pointer;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvg-pedestal[data-mark="selected"] {
+    box-shadow:
+      var(--cvg-lift-ped),
+      inset 0 0 0 1.5px var(--cs-color-text-secondary);
+  }
+
+  .cvg-pile {
+    position: relative;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvg-pile-sheet,
+  .cvg-pile-top {
+    position: absolute;
+    border-radius: 12px;
+    background: var(--cvg-plate);
+    box-shadow: inset 0 0 0 1px var(--cvg-plate-edge);
+  }
+
+  .cvg-pile-sheet {
+    filter: brightness(0.86);
+  }
+
+  .cvg-pile-top {
+    filter: var(--cvg-lift-plate);
+    outline: 1px solid transparent;
+  }
+
+  .cvg-pile[data-mark="selected"] .cvg-pile-top {
+    box-shadow: inset 0 0 0 1.75px var(--cs-color-text-secondary);
+  }
+
+  /* ── 바닥: 프로필 밖의 빌더 ── */
+  .cvg-builder {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 236px;
+    height: 104px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border: 1px dashed var(--cvg-line);
+    color: var(--cs-color-text-tertiary);
+    cursor: pointer;
+  }
+
+  .cvg-builder[data-mark="selected"],
+  .cvg-builder[data-mark="related"] {
+    border-color: var(--cs-color-warning-text);
+    color: var(--cs-color-warning-text);
+  }
+
+  /* ── 크롬(캔버스 위 작은 판들) ── */
+  .cvg-chrome {
+    border-radius: 10px;
+    background: var(--cvg-chrome);
+    box-shadow:
+      inset 0 0 0 1px var(--cvg-line-soft),
+      0 4px 14px -6px rgb(0 0 0 / 0.3);
+  }
+
+  .cvg-root svg {
+    flex-shrink: 0;
+  }
+
+  .cvg-icon-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: transparent;
+    border-radius: 7px;
+    color: var(--cs-color-text-tertiary);
+    outline: none;
+  }
+
+  .cvg-icon-btn:hover:not(:disabled) {
+    background: var(--cs-color-fill-hover);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvg-icon-btn:disabled {
+    opacity: 0.35;
+  }
+
+  .cvg-icon-btn:focus-visible,
+  .cvg-tool-btn:focus-visible,
+  .cvg-row:focus-visible,
+  .cvg-row-rail:focus-visible,
+  .cvg-link:focus-visible,
+  .cvg-member:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .cvg-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    min-width: 28px;
+    justify-content: center;
+    padding: 0 6px;
+    border-radius: 7px;
+    color: var(--cs-color-text-secondary);
+    outline: none;
+  }
+
+  .cvg-tool-btn:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cvg-tool-btn[aria-pressed="true"] {
+    background: var(--cs-color-fill-selected);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvg-stage {
+    background: var(--cvg-floor);
+  }
+
+  .cvg-drop {
+    box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
+  }
+
+  .cvg-ghost {
+    will-change: transform;
+  }
+
+  /* ── 사이드 패널 ── */
+  .cvg-palette {
+    border-right: 1px solid var(--cs-color-border-subtle);
+    background: var(--cs-color-surface-base);
+    min-height: 0;
+  }
+
+  .cvg-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 30px;
+    padding: 0 30px 0 8px;
+    border-radius: 8px;
+    text-align: left;
+    outline: none;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .cvg-row:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cvg-row[aria-current="true"] {
+    background: var(--cs-color-fill-selected);
+  }
+
+  .cvg-row-add {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    opacity: 0;
+  }
+
+  .group:hover .cvg-row-add,
+  .group:focus-within .cvg-row-add {
+    opacity: 1;
+  }
+
+  .cvg-row-rail {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    outline: none;
+  }
+
+  .cvg-row-rail:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  /* ── 맨 위 층: 플로팅 상세 ── */
+  .cvg-float {
+    border-radius: 16px;
+    background: var(--cs-color-surface-raised);
+    box-shadow:
+      inset 0 0 0 1px var(--cvg-plate-edge),
+      var(--cvg-lift-float);
+  }
+
+  .cvg-root[data-scheme="light"] .cvg-float {
+    background: var(--cs-color-surface-base);
+  }
+
+  .cvg-float-head {
+    border-bottom: 1px solid var(--cs-color-border-subtle);
+    user-select: none;
+  }
+
+  .cvg-float-foot {
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+
+  .cvg-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+    white-space: nowrap;
+  }
+
+  .cvg-pill-warn {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cvg-pill-ok {
+    color: var(--cs-color-success-text);
+    background: color-mix(in oklab, var(--cs-color-success-text) 12%, transparent);
+  }
+
+  .cvg-well {
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--cvg-line-soft);
+  }
+
+  .cvg-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvg-tool-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 5%, transparent);
+  }
+
+  .cvg-tool-chip[data-writes] {
+    color: var(--cs-color-text-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-warning-text) 40%, transparent);
+  }
+
+  .cvg-tool-chip[data-writes] span:last-child {
+    color: var(--cs-color-warning-text);
+  }
+
+  .cvg-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+  }
+
+  .cvg-risk-seg {
+    width: 14px;
+    height: 5px;
+    border-radius: 2px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 12%, transparent);
+  }
+
+  .cvg-risk-seg[data-on] {
+    background: var(--cs-color-text-secondary);
+  }
+
+  .cvg-risk-seg[data-on][data-high] {
+    background: var(--cs-color-warning-text);
+  }
+
+  .cvg-link {
+    color: var(--cs-color-text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--cvg-line);
+    text-underline-offset: 3px;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .cvg-link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .cvg-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 8px;
+    outline: none;
+  }
+
+  .cvg-member:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cvg-bundle-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
+  }
+
+  /* 미니 그림(상세의 작동 칸) */
+  .cvg-mini-rail {
+    stroke: var(--cvg-line);
+    stroke-width: 1.5;
+  }
+
+  .cvg-mini-block {
+    fill: var(--cvg-station);
+    stroke: var(--cvg-line-soft);
+  }
+
+  .cvg-mini-label {
+    fill: var(--cs-color-text-secondary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cvg-mini-out {
+    font: 600 12px var(--cs-font-ui);
+  }
+
+  .cvg-mini-gate {
+    fill: color-mix(in oklab, currentColor 20%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cvg-mini-branch {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cvg-mini-branch-pass {
+    stroke: var(--cvg-line);
+  }
+
+  /* ── 플러그인 내부 ── */
+  .cvg-icard {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background: var(--cvg-plate);
+    box-shadow:
+      inset 0 0 0 1px var(--cvg-plate-edge),
+      0 12px 18px -10px rgb(0 0 0 / 0.5),
+      0 2px 3px rgb(0 0 0 / 0.3);
+  }
+
+  .cvg-root[data-scheme="light"] .cvg-icard {
+    box-shadow:
+      inset 0 0 0 1px var(--cvg-plate-edge),
+      0 10px 16px -10px rgb(0 0 0 / 0.16),
+      0 1px 2px rgb(0 0 0 / 0.1);
+  }
+
+  .cvg-icard-step {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, currentColor 55%, transparent),
+      inset 3px 0 0 0 currentColor,
+      0 12px 18px -10px rgb(0 0 0 / 0.5);
+  }
+
+  .cvg-icard-ghost {
+    background: transparent;
+    box-shadow: none;
+    border: 1px dashed var(--cvg-line);
+  }
+
+  .cvg-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: currentColor;
+    background: color-mix(in oklab, currentColor 15%, transparent);
+  }
+
+  .cvg-in-path {
+    fill: none;
+    stroke: var(--cvg-line);
+    stroke-width: 1.6;
+  }
+
+  .cvg-in-flow {
+    stroke: color-mix(in oklab, var(--cs-color-text-secondary) 80%, transparent);
+  }
+
+  .cvg-in-return {
+    stroke: var(--cvg-drive);
+    stroke-dasharray: 5 4;
+  }
+
+  .cvg-in-handoff {
+    stroke: var(--cvg-drive);
+    stroke-width: 2;
+  }
+
+  .cvg-in-feed {
+    stroke: color-mix(in oklab, var(--cvg-inject) 70%, transparent);
+  }
+
+  .cvg-in-lazy {
+    stroke: color-mix(in oklab, var(--cvg-inject) 60%, transparent);
+    stroke-dasharray: 2 4;
+  }
+
+  .cvg-in-branch {
+    stroke: var(--cvg-hook);
+  }
+
+  .cvg-in-arrowhead {
+    fill: none;
+    stroke: var(--cvg-drive);
+    stroke-width: 1.6;
+  }
+
+  .cvg-in-label {
+    fill: var(--cs-color-text-tertiary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cvg-in-label-return,
+  .cvg-in-label-handoff {
+    fill: var(--cvg-drive);
+  }
+}

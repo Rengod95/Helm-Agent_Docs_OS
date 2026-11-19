@@ -9,6 +9,7 @@ import * as cvC from "./cvC/index.tsx";
 import * as cvD from "./cvD/index.tsx";
 import * as cvE from "./cvE/index.tsx";
 import * as cvF from "./cvF/index.tsx";
+import * as cvG from "./cvG/index.tsx";
 
 export interface CanvasDesign {
   readonly id: string;
@@ -75,4 +76,5 @@ export const CANVAS_DESIGNS: readonly CanvasDesign[] = [
   { id: "cvD", letter: "D", name: "desktop.craft.canvas.cvD.name", Screen: CvDScreen },
   { id: "cvE", letter: "E", name: "desktop.craft.canvas.cvE.name", Screen: CvEScreen },
   { id: "cvF", letter: "F", name: "desktop.craft.canvas.cvF.name", Screen: cvF.Screen },
+  { id: "cvG", letter: "G", name: "desktop.craft.canvas.cvG.name", Screen: cvG.Screen },
 ];
