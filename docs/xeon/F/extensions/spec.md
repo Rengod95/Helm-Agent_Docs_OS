@@ -963,8 +963,10 @@ export type ToolRegisterError =
   | { readonly kind: "replace_conflict"; readonly toolName: string; readonly existing: string }  // 다른 확장이 이미 대체함
 /** 내장 도구 대체 등록의 출처. X가 매니페스트 `replaces` 선언이 있는 이름에만 `ToolResourceDef.replaces`로 싣는다 */
 export interface ToolReplaceClaim { readonly extension: string; readonly trust: "builtin" | "user" | "project" | "untrusted" }
-/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
-export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
+/** `perThread`이면 `def.name`은 플러그인이 요청한 이름이고 보이는 이름과 가시성은 대화마다 정해진다. 주인이 다르면 같은 이름이 여럿이어도 된다. 생략하면 `def.name`이 전 대화에 보이는 전역 이름이다 [결정: 2026-11-19, 사용자, AGE-56] */
+export interface ToolRegisterOptions { readonly perThread?: boolean }
+/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 전역 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
+export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef, options?: ToolRegisterOptions): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {
   registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;

@@ -39,6 +39,7 @@ import type {
   PortKey,
   RegistrationId,
   ToolRegisterError,
+  ToolRegisterOptions,
   ToolResourceDef,
   ToolsPort,
 } from "../extensions/index.ts";
@@ -658,7 +659,11 @@ export interface ToolService extends ToolsPort {
    * X ToolsPort 등록. orderKey는 `ext.<owner의 확장 이름>`, tool은 def의 name·description·parameters와 def.execute를 감싼 AgentTool,
    * 재생 정책은 def.replay다. hints·policy·exposure·outputLimits는 생략하고 유도 규칙을 따른다
    */
-  register(owner: RegistrationId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
+  register(
+    owner: RegistrationId,
+    def: ToolResourceDef,
+    options?: ToolRegisterOptions,
+  ): Result<Unregister, ToolRegisterError>;
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
   meta(name: ToolName): ToolMeta | undefined;

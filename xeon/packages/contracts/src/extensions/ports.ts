@@ -351,11 +351,24 @@ export interface ToolReplaceClaim {
 }
 
 /**
+ * 도구 등록 선택 사항. `perThread`이면 `def.name`은 노출 이름이 아니라 플러그인이 요청한 이름이고, 그 도구가 모델에게 보이는 이름과
+ * 보이는지는 대화마다 정해진다(L1.tools.spec §3.3.1 [결정: 2026-11-19, 사용자, AGE-56]). 같은 이름이 다른 주인으로 여럿 있어도 등록은 실패하지 않는다.
+ * 생략하면 `def.name`이 곧 모든 대화에 보이는 노출 이름이다(전역 이름은 유일해야 한다)
+ */
+export interface ToolRegisterOptions {
+  readonly perThread?: boolean;
+}
+
+/**
  * ToolService(fresnel.tools)가 포함하는 부분형. 등록은 이름이 겹치면 통째로 실패하고 표는 그대로다.
  * `executeForPlugin`은 플러그인 기능 호출을 도구 실행 블록에 태운다(hooks-core-boundary §4.6). X(ext-host)가 `ToolsPortKey`로 받는다
  */
 export interface ToolsPort {
-  register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
+  register(
+    owner: RegistrationId,
+    def: ToolResourceDef,
+    options?: ToolRegisterOptions,
+  ): Result<Unsubscribe, ToolRegisterError>;
   executeForPlugin(request: PluginCallRequest): Promise<Result<ToolResultView, ToolError>>;
   /**
    * 기능 메서드에 도구 매핑(`ToolSpec.method`)이 있는가(hooks-core-boundary §5.3 U-1 (가)). 기능 래퍼가 파이프라인 경로를 고를 때 쓴다.
