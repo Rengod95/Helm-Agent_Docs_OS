@@ -24,6 +24,7 @@ const CARD: ScriptCard = {
   envNames: ["MARKER"],
   stdinBytes: 3,
   stdinPreview: "abc",
+  uses: ["system_tools", "network"],
 };
 
 const RESULT: ScriptRunResult = {
@@ -117,6 +118,7 @@ test("a test-run thread with the draft bound opens the card through the tools po
       envNames: ["MARKER"],
       stdinBytes: 3,
       stdinPreview: "abc",
+      uses: ["system_tools", "network"],
     },
     requestId: "req-1",
   });

@@ -40,6 +40,7 @@ function cardInput(call: ScriptDraftCall): JsonObject {
     envNames: [...call.card.envNames],
     stdinBytes: call.card.stdinBytes,
     stdinPreview: call.card.stdinPreview,
+    uses: [...call.card.uses],
   };
 }
 
