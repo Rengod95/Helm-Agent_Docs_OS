@@ -93,7 +93,7 @@ import { runThreadCompact } from "./thread-compact.ts";
 import { QueuedInputs, useHeldCount, useSendHeld } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 import { ProblemLine } from "./pages/shared/problem-state.tsx";
-import { useDriveFrames } from "./convo/drive-frames.ts";
+import { useDriveFrames, useDriveStop } from "./convo/drive-frames.ts";
 import { DriveStackBand } from "./convo/drive-stack.tsx";
 import { driveStackOf } from "./convo/drive-stack-model.ts";
 import { OneShotChips, OneShotRow, useOneShotSource, type LiveOneShot } from "./convo/one-shot.tsx";
@@ -320,6 +320,7 @@ function ComposerFor(props: {
   // Drive 스택 띠(입력창 맨 위). 플러그인이 이끌 때만 보인다
   const driveFrames = useDriveFrames(props.threadId);
   const driveStack = driveFrames.kind === "ready" ? driveStackOf(driveFrames.frames) : null;
+  const driveStop = useDriveStop(props.threadId, props.engineGone);
   // 원샷: 이번 턴에 얹을 것(지울 수 있음)과 Drive가 끝날 때까지 남은 것(대화에 걸린 덧씌우기)
   const [picks, setPicks] = useState<readonly OneShotPick[]>([]);
   const [oneShotNote, setOneShotNote] = useState<string | null>(null);
@@ -726,7 +727,6 @@ function ComposerFor(props: {
         detach(send(), rethrow);
       }}
     >
-      {driveStack === null ? null : <DriveStackBand view={driveStack} />}
       <QueuedInputs
         threadId={props.threadId}
         disabledReason={props.disabledReason}
@@ -893,6 +893,7 @@ function ComposerFor(props: {
       />
       {/* 상자 안의 빈 곳(꼬리 줄의 틈, 칩 사이)을 눌러도 글 칸에 초점이 가고 커서는 글 끝이다(DP-131). 단추·칩·첨부는 제 동작을 하고,
           글 칸 안(안쪽 여백 포함)은 브라우저가 그대로 맡아 눌러 끌면 글이 골라진다 */}
+      {driveStack === null ? null : <DriveStackBand view={driveStack} stop={driveStop} />}
       <div
         className="contents"
         onMouseDown={(event) => {
@@ -927,7 +928,7 @@ function ComposerFor(props: {
           rows={1}
           // 48에서 시작해 글이 늘면 max-h(240, 약 11줄)까지 자라고 넘으면 안에서 스크롤한다(field-sizing). 비우면 48로 돌아간다
           className="max-h-60 min-h-12 resize-none pt-3 pb-0 [field-sizing:content]"
-          containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
+          containerClassName={`composer-box relative z-[1] rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
           value={draft}
           // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
           placeholder={props.disabledReason ?? undefined}

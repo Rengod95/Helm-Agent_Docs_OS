@@ -3,7 +3,9 @@ import { t } from "@fresnel/client/i18n";
 import type { InvocableEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import type { ConvoMarker, DriveInputRecord } from "../../src/state/engine/convo.ts";
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import { DriveInputRow } from "../../src/views/convo/drive-input-row.tsx";
+import { driveStackOf } from "../../src/views/convo/drive-stack-model.ts";
 import { InvokedMark, OneShotChips } from "../../src/views/convo/one-shot.tsx";
 import {
   ONE_SHOT_MAX,
@@ -281,5 +283,77 @@ describe("칩 값과 스타트 Drive 막힘", () => {
       "cannotDrive",
     );
     expect(startDriveBlockOf([], "helm")).toBeNull();
+  });
+});
+
+const driveFrame = (
+  depth: number,
+  plugin: string | null,
+  state: DriveFrameView["state"],
+  over: Partial<DriveFrameView> = {},
+): DriveFrameView => ({
+  depth,
+  plugin,
+  versionId: null,
+  leaseId: plugin === null ? null : `lease-${plugin}`,
+  state,
+  used: { turns: 0, spawns: 0, tokens: 0 },
+  limits: {},
+  ...over,
+});
+
+describe("Drive 스택 그림 값(drive.frames → 띠·판)", () => {
+  test("깊이 순서로 다시 세우고, 핸드오프한 칸은 넘겨받은 바로 위 칸의 이름을 가진다", () => {
+    const view = driveStackOf([
+      driveFrame(2, "verifier", "driving"),
+      driveFrame(0, null, "waiting"),
+      driveFrame(1, "helm", "waiting"),
+    ]);
+    expect(view.steps.map((step) => [step.name, step.core, step.stateText, step.handedTo])).toEqual(
+      [
+        [t("desktop.drive.core"), true, t("desktop.drive.waiting"), "helm"],
+        ["helm", false, t("desktop.drive.waiting"), "verifier"],
+        ["verifier", false, t("desktop.drive.driving"), null],
+      ],
+    );
+    expect(view.alone).toBe(false);
+    expect(view.handoff).toBe(true);
+    expect(view.path).toBe(`${t("desktop.drive.core")} › helm › verifier`);
+  });
+
+  test("기본 루프만 돌면 그 칸 하나가 Drive 없음이다", () => {
+    const view = driveStackOf([driveFrame(0, null, "driving")]);
+    expect(view.steps.map((step) => [step.stateText, step.handedTo, step.meters])).toEqual([
+      [t("desktop.drive.alone"), null, []],
+    ]);
+    expect(view.alone).toBe(true);
+    expect(view.handoff).toBe(false);
+  });
+
+  test("한도가 있는 칸만 막대가 되고, 채움은 0..1, 90%부터 경고다. 한도 0은 가득 찬 경고다", () => {
+    const view = driveStackOf([
+      driveFrame(0, null, "waiting"),
+      driveFrame(1, "helm", "asking", {
+        used: { turns: 11, spawns: 0, tokens: 50_000 },
+        limits: { turns: 12, tokens: 200_000, spawns: 0 },
+      }),
+    ]);
+    const top = view.steps.at(-1);
+    expect(top?.stateText).toBe(t("desktop.drive.asking"));
+    expect(
+      top?.meters.map((meter) => [meter.kind, Math.round(meter.ratio * 100), meter.warn]),
+    ).toEqual([
+      ["turns", 92, true],
+      ["tokens", 25, false],
+      ["spawns", 100, true],
+    ]);
+    // 쓴 양이 한도를 넘어도 막대는 가득 찬 데서 멈춘다
+    const over = driveStackOf([
+      driveFrame(1, "helm", "driving", {
+        used: { turns: 20, spawns: 0, tokens: 0 },
+        limits: { turns: 12 },
+      }),
+    ]);
+    expect(over.steps[0]?.meters.map((meter) => meter.ratio)).toEqual([1]);
   });
 });

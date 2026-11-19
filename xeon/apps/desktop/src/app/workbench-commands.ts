@@ -221,10 +221,13 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("profile.list", {}));
       return got.ok ? ok(got.value.profiles) : err(got.error);
     },
+    // `thread.setProfile`은 쓰기 소유자만 부른다. 앱은 첫 턴(`turn.start`) 전까지 대화를 관찰로만 열므로, 고르기 전에 쓰기로 연다
+    // (`thread.open write`, 이미 쥐었으면 그대로다). 다른 프로세스가 쥐었으면 그 오류(locked)를 그대로 돌려준다
     applyProfile: (id, threadId) =>
-      withConnection((c) =>
-        c.request("thread.setProfile", threadSetProfileRequestOf(id, threadId)),
-      ),
+      withConnection(async (c) => {
+        await c.request("thread.open", { threadId, mode: "write" });
+        return c.request("thread.setProfile", threadSetProfileRequestOf(id, threadId));
+      }),
     putProfile: (profile, baseRev) =>
       withConnection((c) => c.request("profile.put", { profile, baseRev })),
     async deleteProfile(id) {

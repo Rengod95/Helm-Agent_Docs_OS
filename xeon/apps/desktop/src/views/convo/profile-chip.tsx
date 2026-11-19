@@ -4,12 +4,11 @@ import {
   DialogAction,
   DialogClose,
   Menu,
-  MenuHeading,
   MenuItem,
   MenuSeparator,
   toast,
 } from "@caustic/react";
-import { ArrowRight, Check, Compass, Layers, RotateCcw } from "@caustic/react/icons";
+import { Check, Clock, Compass, RotateCcw, SlidersHorizontal } from "@caustic/react/icons";
 import { profileFailureOf } from "@fresnel/client/workbench";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -19,7 +18,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAppliedProfile, useThread } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { COMPOSER_CHIP_CLASS, MenuText } from "../composer-chips.tsx";
-import { InfoTip } from "../craft/info-tip.tsx";
 import { ProblemLine } from "../pages/shared/problem-state.tsx";
 import { profileFailureText } from "../workbench/profile-text.ts";
 import {
@@ -34,11 +32,14 @@ import {
 import { reloadProfiles, useProfiles, type ProfilesRead } from "./profile-listing.ts";
 import { permissionModeNameOf } from "./turn-model.ts";
 
-// 입력창 프로필 칩(lcM6a, L4 desktop-ux §6.6.1, craft-flows T1).
-// 칩은 입력창 아래 줄 왼쪽, 첨부(+) 뒤에 선다. 모양은 다른 칩(권한 모드·모델)과 같은 sm ghost다(높이 28, 좌우 8, 아이콘 14).
-// - 닫힘: 겹친 층 아이콘 + 프로필 이름. 스타트 Drive가 있으면 나침반을 붙인다(시작할 수 없으면 경고색).
-// - 바꾼 직후: "리뷰 · 다음 단계부터"(단계 경계 전), 적용되면 몇 초 "리뷰(으)로 바뀜".
-// - 열림: 맨 위 탈출구(기본 프로필로 전환 / 기본 프로필 되돌리기), 구분선, 프로필 목록(라디오). 도움말은 머리의 정보 아이콘 뒤.
+// 입력창 프로필 칩(lcM6a·lcM6b, L4 desktop-ux §6.6.1, craft-flows T1).
+// 칩은 입력창 아래 줄 왼쪽, 첨부(+) 뒤에 선다. 권한 모드 칩과 같은 문법이다: sm ghost(높이 28, 좌우 8), 앞 아이콘 14 + 글 13 tertiary,
+// chevron·배경·테두리 없이 hover만 `neutral.hover`. 따로 그린 표시를 덧붙이지 않고 상태는 앞 아이콘, 글, 글색 셋으로만 말한다.
+// - 평소: 조절 아이콘 + 프로필 이름. 스타트 Drive가 있는 프로필은 앞 아이콘이 나침반이다(메뉴 줄의 아이콘과 같다).
+// - 스타트 Drive를 시작할 수 없음: 칩 전체가 경고색(모두 허용 모드의 위험색과 같은 자리). 까닭은 입력창 위 경고 줄이 말한다.
+// - 바꾼 직후: 시계 + "빠르게 · 다음 단계부터"(Drive가 받은 말의 "전달 대기"와 같은 시계). 적용되면 4초 체크 + "빠르게 · 바뀜".
+// - 목록 읽기 실패: 모드 칩의 "모름"처럼 이름에 점선 밑줄, 까닭은 툴팁과 메뉴 맨 위 줄.
+// - 열림: 권한 모드 메뉴와 같은 줄(아이콘, 이름, 아래 설명, 고른 줄 체크), 구분선 뒤 맨 아래에 되돌리기(모델 칩의 "기본 모델로 되돌리기" 자리).
 // 권한이 바뀌는 전환은 경고 줄로 입력창 위에 보인다(숨기지 않는다).
 
 /** "바뀜" 표시를 두는 시간 */
@@ -263,7 +264,7 @@ export function ProfileRows(props: { readonly state: ProfileChipState }): ReactN
         role="menuitemradio"
         selected={row.selected}
         className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
-        icon={row.startDrive === null ? <Layers aria-hidden /> : <Compass aria-hidden />}
+        icon={row.startDrive === null ? <SlidersHorizontal aria-hidden /> : <Compass aria-hidden />}
         end={row.selected ? <Check aria-hidden className="size-3.5" /> : undefined}
         data-profile-row={row.id}
         onSelect={() => {
@@ -345,7 +346,7 @@ function ResetDialog(props: {
   );
 }
 
-/** 칩 글: 바꿀 것이 있으면 "리뷰 · 다음 단계부터", 막 바뀌었으면 "리뷰(으)로 바뀜", 아니면 이름 */
+/** 칩 글: 바꿀 것이 있으면 "빠르게 · 다음 단계부터", 막 바뀌었으면 "빠르게 · 바뀜", 아니면 이름 */
 function chipTextOf(state: ProfileChipState): string {
   if (state.view.pending !== null) {
     return t("desktop.profileChip.pending", { to: state.view.pending.title });
@@ -360,13 +361,23 @@ function chipLabelOf(state: ProfileChipState): string {
     view.pending === null
       ? t("desktop.profileChip.aria", { name: view.title })
       : t("desktop.profileChip.pendingAria", { from: view.title, to: view.pending.title });
+  const parts = [base];
   if (state.startDrive !== null) {
-    return `${base}, ${t("desktop.profileChip.startDriveOff", { plugin: state.startDrive.plugin })}`;
+    parts.push(t("desktop.profileChip.startDriveOff", { plugin: state.startDrive.plugin }));
+  } else if (view.startDrive !== null) {
+    parts.push(t("desktop.profileChip.startDriveAria", { plugin: view.startDrive }));
   }
-  if (view.startDrive !== null) {
-    return `${base}, ${t("desktop.profileChip.startDriveAria", { plugin: view.startDrive })}`;
-  }
-  return base;
+  if (state.read.kind === "failed") parts.push(t("desktop.profileChip.loadFailed"));
+  return parts.join(", ");
+}
+
+/** 칩의 앞 아이콘 하나: 바뀜 대기 시계, 막 바뀜 체크, 스타트 Drive 나침반, 아니면 조절 아이콘 */
+function ChipIcon(props: { readonly state: ProfileChipState }): ReactNode {
+  const { state } = props;
+  if (state.view.pending !== null) return <Clock aria-hidden data-slot="profile-pending-mark" />;
+  if (state.changed !== null) return <Check aria-hidden data-slot="profile-changed-mark" />;
+  if (state.view.startDrive !== null) return <Compass aria-hidden data-slot="start-drive-mark" />;
+  return <SlidersHorizontal aria-hidden />;
 }
 
 export function ProfileChip(props: {
@@ -376,6 +387,8 @@ export function ProfileChip(props: {
   const { state } = props;
   const { view } = state;
   const moving = view.pending !== null;
+  const failed = state.read.kind === "failed";
+  const blocked = state.startDrive !== null && !moving;
   return (
     <>
       <Menu
@@ -393,31 +406,36 @@ export function ProfileChip(props: {
             size="sm"
             variant="ghost"
             disabled={props.disabled || state.offline}
-            title={state.offline ? t("desktop.profileChip.offline") : undefined}
+            title={
+              state.offline
+                ? t("desktop.profileChip.offline")
+                : failed
+                  ? t("desktop.profileChip.loadFailed")
+                  : undefined
+            }
             data-composer-chip="profile"
-            data-state={moving ? "pending" : state.changed === null ? "ready" : "changed"}
+            data-state={
+              moving ? "pending" : state.changed !== null ? "changed" : failed ? "unsure" : "ready"
+            }
+            data-start-drive={view.startDrive === null ? undefined : blocked ? "blocked" : "ready"}
             aria-label={chipLabelOf(state)}
-            className={`${COMPOSER_CHIP_CLASS} ${moving ? "text-text-secondary" : ""}`}
+            className={`${COMPOSER_CHIP_CLASS} ${blocked ? "text-warning-text hover:text-warning-text" : ""}`}
           >
-            {moving ? <ArrowRight aria-hidden /> : <Layers aria-hidden />}
-            <span className="truncate">{chipTextOf(state)}</span>
-            {view.startDrive === null ? null : (
-              <Compass
-                aria-hidden
-                data-slot="start-drive-mark"
-                className={state.startDrive === null ? "text-accent-text" : "text-warning-text"}
-              />
-            )}
+            <ChipIcon state={state} />
+            <span
+              className={
+                failed
+                  ? "truncate underline decoration-dotted decoration-1 underline-offset-4"
+                  : "truncate"
+              }
+            >
+              {chipTextOf(state)}
+            </span>
           </Button>
         }
       >
-        <MenuHeading className="flex items-center gap-1">
-          {t("desktop.profileChip.heading")}
-          <InfoTip
-            text={t("desktop.profileChip.info")}
-            label={t("desktop.profileChip.infoLabel")}
-          />
-        </MenuHeading>
+        <ProfileRows state={state} />
+        <MenuSeparator />
         {view.escape === "switch" ? (
           <MenuItem
             icon={<RotateCcw aria-hidden />}
@@ -440,8 +458,6 @@ export function ProfileChip(props: {
             {t("desktop.profileChip.reset")}
           </MenuItem>
         )}
-        <MenuSeparator />
-        <ProfileRows state={state} />
       </Menu>
       <ResetDialog offer={state.resetOffer} onClose={state.closeReset} />
     </>

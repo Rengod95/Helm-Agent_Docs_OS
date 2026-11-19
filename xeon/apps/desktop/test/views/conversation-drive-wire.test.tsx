@@ -16,7 +16,11 @@ import { decodeDurable } from "../../src/state/engine/decode.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import type { Commands } from "../../src/views/commands.ts";
 import { useDriveFrames } from "../../src/views/convo/drive-frames.ts";
-import { DriveStackBand, DriveStackList } from "../../src/views/convo/drive-stack.tsx";
+import {
+  DriveStackBand,
+  DriveStackCards,
+  type DriveStopControl,
+} from "../../src/views/convo/drive-stack.tsx";
 import { driveStackOf } from "../../src/views/convo/drive-stack-model.ts";
 import { OneShotRow, useOneShotSource } from "../../src/views/convo/one-shot.tsx";
 import { oneShotRowsOf } from "../../src/views/convo/one-shot-model.ts";
@@ -35,7 +39,7 @@ import { fakeCommands } from "./fake-commands.ts";
 
 // lcM6a: 대화 화면 부품이 부르는 wire 메서드마다 "가짜 응답(상태) → 화면 글"을 본다. linkedom DOM 위에 실제 훅을 올린다.
 // profile.list · profile.preview · thread.setProfile · profile.defaultFor · profile.default.reset → 프로필 칩·경고 줄·메뉴
-// drive.frames · drive.framesChanged → Drive 스택 띠·목록
+// drive.frames · drive.framesChanged → Drive 스택 띠·판, 멈추기
 // plugin.invocables · plugin.list · plugin.draft.list → 원샷 목록 행
 
 const GLOBAL_KEYS = [
@@ -47,9 +51,14 @@ const GLOBAL_KEYS = [
   "IS_REACT_ACT_ENVIRONMENT",
 ] as const;
 const saved = new Map<string, PropertyDescriptor | undefined>();
+/** 흉내 창의 이벤트 생성자(누르기를 보낸다) */
+let DomEvent: typeof Event | null = null;
 
 beforeAll(() => {
-  const { window, document } = parseHTML("<!doctype html><html><body></body></html>");
+  const { window, document, Event } = parseHTML("<!doctype html><html><body></body></html>");
+  DomEvent = Event;
+  // 띠·판의 나타남은 motion 부품이다. 흉내 창에는 애니메이션이 없으므로 움직임 줄이기(그냥 그린다)로 둔다
+  document.documentElement.setAttribute("data-motion", "reduce");
   for (const key of GLOBAL_KEYS) saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   const values: Record<(typeof GLOBAL_KEYS)[number], unknown> = {
     window,
@@ -235,6 +244,10 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
     const chip = container.querySelector('[data-composer-chip="profile"]');
     expect(chip?.textContent).toBe("리뷰");
     expect(chip?.querySelector('[data-slot="start-drive-mark"]')).not.toBeNull();
+    // 입력창 줄의 칩 문법: 상태는 아이콘·색으로만. 스타트 Drive가 막히면 칩 전체가 경고 색이다(권한 칩의 위험 색처럼)
+    expect(chip?.getAttribute("data-state")).toBe("ready");
+    expect(chip?.getAttribute("data-start-drive")).toBe("blocked");
+    expect(chip?.className.includes("text-warning-text")).toBe(true);
     expect(asked).toEqual([{ id: "review", threadId: T }]);
     expect(container.querySelector('[data-slot="start-drive-notice"]')?.textContent).toBe(
       `${t("desktop.startDrive.unavailable", { plugin: "helm" })}. ${t("desktop.startDrive.reason.stopped")}. ${t("desktop.startDrive.fallback")}`,
@@ -266,6 +279,9 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
     const chip = container.querySelector('[data-composer-chip="profile"]');
     expect(chip?.getAttribute("data-state")).toBe("pending");
     expect(chip?.textContent).toBe(t("desktop.profileChip.pending", { to: "빠르게" }));
+    // 대기 중은 "전달 대기"와 같은 시계 아이콘 하나다
+    expect(chip?.querySelector('[data-slot="profile-pending-mark"]')).not.toBeNull();
+    expect(chip?.querySelector('[data-slot="start-drive-mark"]')).toBeNull();
     expect(container.querySelector('[data-slot="profile-permission-notice"]')?.textContent).toBe(
       t("desktop.profileChip.permission", {
         from: permissionModeNameOf("default"),
@@ -379,20 +395,29 @@ function frame(
   };
 }
 
-function DriveProbe(): ReactNode {
+function DriveProbe(props: { readonly stop?: DriveStopControl | null }): ReactNode {
   const read = useDriveFrames(T);
   if (read.kind !== "ready") return <p data-read={read.kind} />;
   const view = driveStackOf(read.frames);
   return (
     <>
-      <DriveStackBand view={view} />
-      <DriveStackList view={view} />
+      <DriveStackBand view={view} stop={props.stop ?? null} />
+      <DriveStackCards view={view} stop={props.stop ?? null} />
     </>
   );
 }
 
+/** 카드 판을 위에서부터: [상태, 층, 이름] */
+function cardsOf(container: HTMLElement): (string | null)[][] {
+  return [...container.querySelectorAll('[data-slot="drive-stack"] [data-level]')].map((card) => [
+    card.getAttribute("data-drive-step"),
+    card.getAttribute("data-level"),
+    card.querySelector("span.truncate")?.textContent ?? null,
+  ]);
+}
+
 describe("Drive 스택: drive.frames · drive.framesChanged", () => {
-  test("핸드오프 중이면 띠에 기본 › helm › verifier와 핸드오프 중을 적고, 알림이 오면 다시 읽는다", async () => {
+  test("핸드오프하면 띠와 맨 위 판이 같은 말(Drive 중)을 쓰고, 판은 위에서부터 쌓이며, 알림이 오면 다시 읽는다", async () => {
     let frames: readonly DriveFrameView[] = [
       frame(0, null, "waiting"),
       frame(1, "helm", "waiting"),
@@ -416,17 +441,34 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     expect(band?.getAttribute("aria-label")).toBe(
       t("desktop.drive.aria", { path: `${t("desktop.drive.core")} › helm › verifier` }),
     );
-    expect(band?.textContent).toContain(t("desktop.drive.handoff"));
+    expect(band?.getAttribute("data-drive-top")).toBe("driving");
+    expect(band?.querySelector('[data-slot="drive-band-state"]')?.textContent).toBe(
+      t("desktop.drive.driving"),
+    );
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
-    const steps = [...container.querySelectorAll('[data-slot="drive-stack-list"] li')].map((li) => [
-      li.getAttribute("data-drive-step"),
-      li.className.includes("ps-"),
+    // 띠의 겹친 칸: 아래 칸(기본, helm) 뒤에 맨 앞 칸(verifier)
+    expect(
+      [...(band?.querySelectorAll('[data-slot="drive-deck"] [data-drive-step]') ?? [])].map(
+        (pill) => pill.getAttribute("data-drive-step"),
+      ),
+    ).toEqual(["waiting", "waiting", "driving"]);
+    // 패널 판: 맨 위가 Drive를 쥔 칸, 맨 아래가 기본
+    expect(cardsOf(container)).toEqual([
+      ["driving", "0", "verifier"],
+      ["waiting", "1", "helm"],
+      ["waiting", "2", t("desktop.drive.core")],
     ]);
-    // 띠와 같은 순서(기본 › helm › verifier), 넘겨받은 칸일수록 들여 쓴다
-    expect(steps).toEqual([
-      ["waiting", false],
-      ["waiting", true],
-      ["driving", true],
+    const stack = container.querySelector('[data-slot="drive-stack"]');
+    expect(stack?.getAttribute("data-depth")).toBe("3");
+    // 띠와 패널은 맨 위 칸의 상태를 같은 글로 적는다
+    expect(stack?.querySelector('[data-level="0"]')?.textContent).toContain(
+      t("desktop.drive.driving"),
+    );
+    expect(
+      [...container.querySelectorAll('[data-slot="drive-handoff-to"]')].map((el) => el.textContent),
+    ).toEqual([
+      t("desktop.drive.handedTo", { name: "verifier" }),
+      t("desktop.drive.handedTo", { name: "helm" }),
     ]);
 
     frames = [frame(0, null, "waiting"), frame(1, "helm", "driving")];
@@ -434,20 +476,87 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       notify.fire();
     });
     await settle();
-    expect(container.querySelector('[data-slot="drive-stack-band"]')?.textContent).toContain(
+    expect(container.querySelector('[data-slot="drive-band-state"]')?.textContent).toBe(
       t("desktop.drive.driving"),
+    );
+    expect(container.querySelector('[data-slot="drive-stack"]')?.getAttribute("data-depth")).toBe(
+      "2",
     );
   });
 
-  test("기본 루프만 돌면 띠가 없고 목록은 기본 루프만 돈다고 적는다", async () => {
+  test("묻는 중이면 띠와 맨 위 판이 같은 경고 글을 쓴다", async () => {
+    const container = await mount(
+      <DriveProbe />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(ok([frame(0, null, "waiting"), frame(1, "helm", "asking")])),
+      }),
+    );
+    expect(container.querySelector('[data-slot="drive-band-state"]')?.textContent).toBe(
+      t("desktop.drive.asking"),
+    );
+    expect(cardsOf(container)).toEqual([
+      ["asking", "0", "helm"],
+      ["waiting", "1", t("desktop.drive.core")],
+    ]);
+  });
+
+  test("기본 루프만 돌면 띠가 없고 판은 기본 루프만 돈다고 적는다", async () => {
     const container = await mount(
       <DriveProbe />,
       withWorkbench({ driveFrames: () => Promise.resolve(ok([frame(0, null, "driving")])) }),
     );
     expect(container.querySelector('[data-slot="drive-stack-band"]')).toBeNull();
-    expect(container.querySelector('[data-slot="drive-stack-list"]')?.textContent).toContain(
+    expect(container.querySelector('[data-slot="drive-stack"]')?.textContent).toContain(
       t("desktop.drive.alone"),
     );
+    expect(cardsOf(container)).toEqual([["driving", "0", t("desktop.drive.core")]]);
+  });
+
+  test("멈추기를 주면 띠와 맨 위 판에 멈추기가 있고, 누르면 그 함수를 부른다. 막혔으면 이유를 걸고 누를 수 없다", async () => {
+    const pressed: string[] = [];
+    const frames = [frame(0, null, "waiting"), frame(1, "helm", "driving")];
+    const container = await mount(
+      <DriveProbe
+        stop={{ stopping: false, blockedReason: null, onStop: () => pressed.push("stop") }}
+      />,
+      withWorkbench({ driveFrames: () => Promise.resolve(ok(frames)) }),
+    );
+    const buttons = [...container.querySelectorAll('[data-slot="drive-stop"]')];
+    // 띠에 하나, 맨 위 판에 하나. 아래 판에는 없다
+    expect(buttons.length).toBe(2);
+    expect(
+      container.querySelector(
+        '[data-slot="drive-stack"] [data-level="1"] [data-slot="drive-stop"]',
+      ),
+    ).toBeNull();
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      t("desktop.drive.stopLabel"),
+      t("desktop.drive.stopLabel"),
+    ]);
+    await act(async () => {
+      if (DomEvent !== null) buttons[0]?.dispatchEvent(new DomEvent("click", { bubbles: true }));
+    });
+    expect(pressed).toEqual(["stop"]);
+
+    const blocked = await mount(
+      <DriveProbe stop={{ stopping: false, blockedReason: "엔진 없음", onStop: () => {} }} />,
+      withWorkbench({ driveFrames: () => Promise.resolve(ok(frames)) }),
+    );
+    const off = blocked.querySelector('[data-slot="drive-stop"]');
+    expect(off?.hasAttribute("disabled")).toBe(true);
+    expect(off?.getAttribute("title")).toBe("엔진 없음");
+  });
+
+  test("멈추기가 없으면(턴이 돌지 않음) 버튼을 그리지 않는다", async () => {
+    const container = await mount(
+      <DriveProbe />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(ok([frame(0, null, "waiting"), frame(1, "helm", "driving")])),
+      }),
+    );
+    expect(container.querySelector('[data-slot="drive-stop"]')).toBeNull();
   });
 
   test("읽지 못하면 오류 상태다", async () => {
