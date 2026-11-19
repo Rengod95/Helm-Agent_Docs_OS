@@ -9,7 +9,8 @@ import {
 } from "../../state/workbench/index.ts";
 import { OpenExtensionRecordsContext, recordsJumpOf } from "../extension-records-link.ts";
 
-function RecordsJump(props: { readonly children: ReactNode }): ReactNode {
+/** "기록 보기" 문맥만 준다. 워크벤치 스토어 문맥 안에서 쓴다(런타임 탭의 Drive 카드, lcM6c) */
+export function RecordsJump(props: { readonly children: ReactNode }): ReactNode {
   const shell = useShellActions();
   const workbench = useWorkbenchActions();
   const open = useMemo(() => recordsJumpOf(shell, workbench), [shell, workbench]);

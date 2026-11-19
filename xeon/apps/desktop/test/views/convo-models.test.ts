@@ -243,6 +243,10 @@ const LEAD: LeadSegment = {
   limits: { maxTurns: 8, maxTokens: 50_000 },
   turnIds: [trn(1)],
   used: { turns: 3, tokens: 46_000, spawns: 0 },
+  parent: null,
+  requestId: null,
+  inputLine: null,
+  branchesRunning: 0,
 };
 
 describe("lead", () => {

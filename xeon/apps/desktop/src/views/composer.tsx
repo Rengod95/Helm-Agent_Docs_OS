@@ -22,6 +22,7 @@ import {
   useOpenThreadId,
   useQueuedInputs,
   useRetrying,
+  useThreadApprovals,
   useThreadRunning,
   useWriteAccessAllowed,
   type ProviderRetry,
@@ -95,7 +96,8 @@ import { useSetupNeeded } from "./setup-needed.ts";
 import { ProblemLine } from "./pages/shared/problem-state.tsx";
 import { useDriveFrames, useDriveStop } from "./convo/drive-frames.ts";
 import { DriveStackBand } from "./convo/drive-stack.tsx";
-import { driveStackOf } from "./convo/drive-stack-model.ts";
+import { driveBandBeamOf, driveStackOf } from "./convo/drive-stack-model.ts";
+import { useComposerBeamYield } from "./effects/convo-beam.tsx";
 import { OneShotChips, OneShotRow, useOneShotSource, type LiveOneShot } from "./convo/one-shot.tsx";
 import {
   ONE_SHOT_MAX,
@@ -321,6 +323,14 @@ function ComposerFor(props: {
   const driveFrames = useDriveFrames(props.threadId);
   const driveStack = driveFrames.kind === "ready" ? driveStackOf(driveFrames.frames) : null;
   const driveStop = useDriveStop(props.threadId, props.engineGone);
+  // Drive 띠가 보이는 동안 입력창 빛은 꺼지고 띠의 윗변이 같은 빛을 낸다(lcM6c). 띠가 없으면 입력창 빛은 전과 같다
+  const approvals = useThreadApprovals(props.threadId);
+  const driveBeam = driveBandBeamOf({
+    view: driveStack,
+    running,
+    approvals,
+  });
+  useComposerBeamYield(driveBeam.band);
   // 원샷: 이번 턴에 얹을 것(지울 수 있음)과 Drive가 끝날 때까지 남은 것(대화에 걸린 덧씌우기)
   const [picks, setPicks] = useState<readonly OneShotPick[]>([]);
   const [oneShotNote, setOneShotNote] = useState<string | null>(null);
@@ -893,7 +903,9 @@ function ComposerFor(props: {
       />
       {/* 상자 안의 빈 곳(꼬리 줄의 틈, 칩 사이)을 눌러도 글 칸에 초점이 가고 커서는 글 끝이다(DP-131). 단추·칩·첨부는 제 동작을 하고,
           글 칸 안(안쪽 여백 포함)은 브라우저가 그대로 맡아 눌러 끌면 글이 골라진다 */}
-      {driveStack === null ? null : <DriveStackBand view={driveStack} stop={driveStop} />}
+      {driveStack === null ? null : (
+        <DriveStackBand view={driveStack} stop={driveStop} beam={driveBeam.state} />
+      )}
       <div
         className="contents"
         onMouseDown={(event) => {

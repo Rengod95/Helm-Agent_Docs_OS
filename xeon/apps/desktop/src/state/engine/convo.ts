@@ -293,7 +293,49 @@ export type LeaseRecord = {
   readonly releasedSeq: number | null;
   readonly releasedAt: string | null;
   readonly releaseReason: LeaseReleasedPayload["reason"] | null;
+  /** 핸드오프한 쪽 프레임의 임대 id(`lease.acquired.parent`). 사용자 명령이나 스타트 Drive면 null */
+  readonly parent: string | null;
+  /** 이 부여를 낳은 시작 요청 id(`lease.acquired.requestId`). 프로필의 스타트 Drive는 요청 사건 없이 쌓여 null이다 */
+  readonly requestId: string | null;
+  /** 넘겨받은 입력의 한 줄(`lease.acquired.input`, 가림 적용 뒤). 글이 없으면 null(`driveInputLineOf`) */
+  readonly inputLine: string | null;
 };
+
+/** 한 줄 상한(글자). 넘으면 말줄임표로 끝난다 */
+const DRIVE_INPUT_LINE_MAX = 160;
+/** 객체 입력에서 한 줄로 읽는 키. 앞선 것이 이긴다 */
+const DRIVE_INPUT_KEYS = [
+  "task",
+  "goal",
+  "summary",
+  "prompt",
+  "instruction",
+  "text",
+  "message",
+  "input",
+] as const;
+
+/**
+ * 넘겨받은 입력(`JsonValue`)의 한 줄. 글이면 그 글, 객체면 위 키 가운데 처음 있는 글이다. 그 밖(숫자, 배열, 모르는 모양)은
+ * 화면에 JSON을 쏟지 않으려고 null이다. 줄바꿈은 빈칸으로, 160자를 넘으면 자른다
+ */
+export function driveInputLineOf(input: unknown): string | null {
+  let raw: unknown = input;
+  if (input !== null && typeof input === "object" && !Array.isArray(input)) {
+    raw = undefined;
+    for (const key of DRIVE_INPUT_KEYS) {
+      const value: unknown = Object.entries(input).find(([name]) => name === key)?.[1];
+      if (typeof value === "string" && value.trim() !== "") {
+        raw = value;
+        break;
+      }
+    }
+  }
+  if (typeof raw !== "string") return null;
+  const line = raw.replace(/\s+/g, " ").trim();
+  if (line === "") return null;
+  return line.length > DRIVE_INPUT_LINE_MAX ? `${line.slice(0, DRIVE_INPUT_LINE_MAX - 1)}…` : line;
+}
 
 // ── 하위 에이전트 ─────────────────────────────────────────────────────
 
@@ -1386,6 +1428,9 @@ export function convoLeaseAcquired(
       releasedSeq: null,
       releasedAt: null,
       releaseReason: null,
+      parent: p.parent ?? null,
+      requestId: p.requestId ?? null,
+      inputLine: driveInputLineOf(p.input),
     };
     return { ...c, leases: capTail([...c.leases, record], CONVO_LEASE_CAP) };
   });

@@ -533,6 +533,9 @@ export const CONVO: ThreadConvo = {
       releasedSeq: 157.5,
       releasedAt: at(170),
       releaseReason: null,
+      parent: null,
+      requestId: null,
+      inputLine: null,
     },
   ],
   markers: [

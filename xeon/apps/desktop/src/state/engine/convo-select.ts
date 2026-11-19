@@ -204,6 +204,14 @@ export type LeadSegment = {
   readonly turnIds: readonly TurnId[];
   /** 한도 대비 사용량: 턴 수, 토큰 합(끝난 턴의 사용량), 위임 수 */
   readonly used: { readonly turns: number; readonly tokens: number; readonly spawns: number };
+  /** 핸드오프한 쪽 임대 id. 사용자 명령이나 스타트 Drive면 null */
+  readonly parent: string | null;
+  /** 시작 요청 id. 프로필의 스타트 Drive면 null */
+  readonly requestId: string | null;
+  /** 넘겨받은 입력의 한 줄. 없으면 null */
+  readonly inputLine: string | null;
+  /** 이 임대가 낸 하위 에이전트 가운데 아직 도는 것(병렬 갈래) */
+  readonly branchesRunning: number;
 };
 
 const leadCache = new WeakMap<ThreadConvo, readonly LeadSegment[]>();
@@ -224,9 +232,10 @@ export function selectLeadSegments(s: EngineMirror, threadId: ThreadId): readonl
         (lease.releasedSeq === null || t.startedSeq <= lease.releasedSeq),
     );
     const tokens = mine.reduce((sum, t) => sum + (t.completion?.usage?.totalTokens ?? 0), 0);
-    const spawns = c.agents.filter(
+    const spawned = c.agents.filter(
       (a) => a.owner.kind === "drive" && a.owner.leaseId === lease.leaseId,
-    ).length;
+    );
+    const spawns = spawned.length;
     return {
       leaseId: lease.leaseId,
       scopeId: lease.scopeId,
@@ -240,6 +249,10 @@ export function selectLeadSegments(s: EngineMirror, threadId: ThreadId): readonl
       limits: lease.limits,
       turnIds: mine.map((t) => t.turnId),
       used: { turns: mine.length, tokens, spawns },
+      parent: lease.parent,
+      requestId: lease.requestId,
+      inputLine: lease.inputLine,
+      branchesRunning: spawned.filter((a) => a.status === "running").length,
     };
   });
   leadCache.set(c, made);

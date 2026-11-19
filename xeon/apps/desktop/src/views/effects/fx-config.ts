@@ -42,8 +42,11 @@ export function schemeOf(root: HTMLElement, osDark: boolean): FxScheme {
 
 // ── 입력창 아래 변 빛(DP-167) ────────────────────────────────────────
 
-/** 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다) */
-export type GlowVariant = "field" | "chip";
+/**
+ * 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다),
+ * band는 Drive 띠(lcM6c): field를 위아래로 뒤집어 띠의 윗변에 선, 그 아래 띠 안쪽으로 낮은 번짐
+ */
+export type GlowVariant = "field" | "chip" | "band";
 
 /** 빛깔 이름. beam.css의 `--fx-glow-<이름>`(border-beam `line` colorful 팔레트) */
 type GlowTint =
@@ -102,6 +105,25 @@ export const GLOW_TUNE: Readonly<Record<GlowVariant, GlowTune>> = {
       { at: 0.6, width: 0.3, tint: "blue", phase: 2 },
       { at: 0.76, width: 0.3, tint: "indigo", phase: 1 },
       { at: 0.92, width: 0.3, tint: "orange", phase: 3 },
+    ],
+  },
+  // 띠는 입력창과 폭이 거의 같아(좌우 12 들임) 선 알갱이는 field 그대로다. 번짐은 띠 높이(28)에 맞춰 덩이 다섯으로 줄인다
+  band: {
+    line: [
+      { at: 0.07, width: 0.26, tint: "teal", phase: 0 },
+      { at: 0.21, width: 0.26, tint: "purple", phase: 2 },
+      { at: 0.36, width: 0.26, tint: "blue", phase: 1 },
+      { at: 0.5, width: 0.26, tint: "core", phase: 3 },
+      { at: 0.64, width: 0.26, tint: "indigo", phase: 0 },
+      { at: 0.79, width: 0.26, tint: "cyan", phase: 2 },
+      { at: 0.93, width: 0.26, tint: "magenta", phase: 1 },
+    ],
+    bloom: [
+      { at: 0.12, width: 0.32, tint: "teal", phase: 1 },
+      { at: 0.32, width: 0.32, tint: "purple", phase: 3 },
+      { at: 0.52, width: 0.32, tint: "blue", phase: 0 },
+      { at: 0.72, width: 0.32, tint: "indigo", phase: 2 },
+      { at: 0.9, width: 0.32, tint: "pink", phase: 1 },
     ],
   },
   chip: {

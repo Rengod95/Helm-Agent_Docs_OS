@@ -420,6 +420,55 @@
   inset: 0;
 }
 
+/* 띠 변형(Drive 띠, lcM6c): 입력창의 아래 변 빛을 뒤집어 띠(탭)의 윗변에 둔다. 판은 띠 면 테두리 위(inset -1px)에 겹치고 반경은 띠 면을 따른다.
+   선 겹의 마스크만 위쪽으로 바꾸고(윗변과 위 두 모서리 곡선), 번짐은 윗변에서 띠 안쪽(아래)으로 낮게 내려온다. 빛깔·알갱이·키프레임은 입력창과 같다 */
+.fx-beam-band {
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.fx-beam[data-variant="band"] {
+  /* 띠 면의 위 모서리(rounded-t-xl) */
+  --fx-beam-radius: 12px;
+  inset: 0;
+}
+.fx-beam[data-variant="band"] .fx-glow-edge {
+  -webkit-mask:
+    linear-gradient(
+      to bottom,
+      #000 0,
+      #000 calc(var(--fx-beam-radius, 16px) * 0.45),
+      transparent var(--fx-beam-radius, 16px)
+    ),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    linear-gradient(
+      to bottom,
+      #000 0,
+      #000 calc(var(--fx-beam-radius, 16px) * 0.45),
+      transparent var(--fx-beam-radius, 16px)
+    ),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: intersect, exclude;
+}
+/* 띠의 보이는 줄은 28이라 번짐은 윗변에서 18까지, 세기는 입력창의 0.7배: 글(이름·멈추기) 뒤가 물들지 않고 윗변만 빛난다 */
+.fx-beam[data-variant="band"] .fx-glow-bloom {
+  top: 0;
+  bottom: auto;
+  height: 18px;
+  opacity: calc(var(--fx-glow-bloom) * 0.7);
+  filter: blur(8px) saturate(1.1);
+}
+.fx-beam[data-variant="band"] .fx-glow-cloud {
+  top: -55%;
+  bottom: auto;
+  transform-origin: 50% 0;
+}
+
 /* 정지 선(머리 줄 아래 선의 움직임 줄이기) */
 .fx-beam-still {
   position: absolute;

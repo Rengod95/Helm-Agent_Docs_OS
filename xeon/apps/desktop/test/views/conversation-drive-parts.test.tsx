@@ -5,7 +5,16 @@ import { renderToString } from "react-dom/server";
 import type { ConvoMarker, DriveInputRecord } from "../../src/state/engine/convo.ts";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import { DriveInputRow } from "../../src/views/convo/drive-input-row.tsx";
-import { driveStackOf } from "../../src/views/convo/drive-stack-model.ts";
+import { driveInputLineOf } from "../../src/state/engine/convo.ts";
+import {
+  driveBandBeamOf,
+  driveCardOf,
+  driveStackOf,
+  driveVersionOf,
+  type DriveLeaseFacts,
+} from "../../src/views/convo/drive-stack-model.ts";
+import { ProfileGlyph } from "../../src/views/convo/profile-glyph.tsx";
+import { composerBeamStateOf } from "../../src/views/effects/convo-beam.tsx";
 import { InvokedMark, OneShotChips } from "../../src/views/convo/one-shot.tsx";
 import {
   ONE_SHOT_MAX,
@@ -14,8 +23,15 @@ import {
   overlayRefOf,
   type OneShotPick,
 } from "../../src/views/convo/one-shot-model.ts";
-import { profileChipViewOf, startDriveBlockOf } from "../../src/views/convo/profile-chip-model.ts";
+import {
+  profileChipViewOf,
+  profileLookOf,
+  profileRowLookOf,
+  profileTitleOf,
+  startDriveBlockOf,
+} from "../../src/views/convo/profile-chip-model.ts";
 import { markerTextOf, permissionModeNameOf } from "../../src/views/convo/turn-model.ts";
+import { tokenCountText } from "../../src/views/model-usage.ts";
 import { transcriptRowsOf } from "../../src/views/transcript-rows.ts";
 import { itm, trn } from "../state/helpers.ts";
 
@@ -254,7 +270,8 @@ describe("칩 값과 스타트 Drive 막힘", () => {
       }),
     ).toEqual({
       currentId: "default",
-      title: "default",
+      // 기본 프로필의 엔진 제목 default는 화면에서 "기본"이다(lcM6c)
+      title: t("desktop.profileChip.defaultName"),
       pending: { id: "review", title: "review" },
       startDrive: null,
       escape: "switch",
@@ -311,7 +328,8 @@ describe("Drive 스택 그림 값(drive.frames → 띠·판)", () => {
     ]);
     expect(view.steps.map((step) => [step.name, step.core, step.stateText, step.handedTo])).toEqual(
       [
-        [t("desktop.drive.core"), true, t("desktop.drive.waiting"), "helm"],
+        // 기본 루프는 핸드오프하지 않는다(lcM6c): 위 Drive를 기다린다는 말만 있고 넘겨준 칸은 없다
+        [t("desktop.drive.core"), true, t("desktop.drive.coreWaiting"), null],
         ["helm", false, t("desktop.drive.waiting"), "verifier"],
         ["verifier", false, t("desktop.drive.driving"), null],
       ],
@@ -355,5 +373,270 @@ describe("Drive 스택 그림 값(drive.frames → 띠·판)", () => {
       }),
     ]);
     expect(over.steps[0]?.meters.map((meter) => meter.ratio)).toEqual([1]);
+  });
+});
+
+// lcM6c: 띠는 맨 위 칸 하나와 아래 수(+N), 띠의 빛 규칙, 맨 위 판 카드 값, 프로필 아이콘 변주와 기본 이름
+
+const lease = (over: Partial<DriveLeaseFacts> = {}): DriveLeaseFacts => ({
+  leaseId: "lease-verifier",
+  acquiredAt: new Date(2026, 10, 19, 15, 4).toISOString(),
+  parent: null,
+  requestId: null,
+  inputLine: null,
+  branchesRunning: 0,
+  ...over,
+});
+
+const HANDOFF = [
+  driveFrame(0, null, "waiting"),
+  driveFrame(1, "helm", "waiting", {
+    used: { turns: 4, spawns: 1, tokens: 30_000 },
+    limits: { turns: 12 },
+  }),
+  driveFrame(2, "verifier", "driving", {
+    versionId: `sha256:${"ab12cd34".repeat(8)}`,
+    used: { turns: 7, spawns: 0, tokens: 9_000 },
+    limits: { turns: 8, tokens: 200_000 },
+  }),
+];
+
+describe("Drive 띠와 카드 값(lcM6c)", () => {
+  test("띠의 +N은 맨 위 아래에서 기다리는 플러그인 칸 수다(기본 루프는 세지 않는다)", () => {
+    expect(driveStackOf(HANDOFF).below).toBe(1);
+    expect(driveStackOf(HANDOFF.slice(0, 2).concat([])).below).toBe(0);
+    expect(driveStackOf([driveFrame(0, null, "driving")]).below).toBe(0);
+  });
+
+  test("엔진이 늘 driving으로 보내는 기본 루프 칸은 위에 플러그인 칸이 있으면 위 Drive를 기다림으로 읽고 핸드오프로 적지 않는다", () => {
+    const view = driveStackOf([
+      driveFrame(0, null, "driving"),
+      driveFrame(1, "authoring", "driving"),
+    ]);
+    expect(
+      view.steps.map((step) => [step.name, step.state, step.stateText, step.handedTo]),
+    ).toEqual([
+      [t("desktop.drive.core"), "waiting", t("desktop.drive.coreWaiting"), null],
+      ["authoring", "driving", t("desktop.drive.driving"), null],
+    ]);
+    // 혼자일 때는 그대로 Drive 없음이다
+    expect(driveStackOf([driveFrame(0, null, "driving")]).steps[0]?.state).toBe("driving");
+  });
+
+  test("카드의 한도 줄은 이름 칸이 따로 있어 이름 없는 양을 쓴다", () => {
+    const view = driveStackOf([
+      driveFrame(0, null, "waiting"),
+      driveFrame(1, "helm", "driving", {
+        used: { turns: 3, spawns: 1, tokens: 9000 },
+        limits: { turns: 8, tokens: 200_000, spawns: 4 },
+      }),
+    ]);
+    expect(view.steps.at(-1)?.meters.map((meter) => meter.amount)).toEqual([
+      "3/8",
+      `${tokenCountText(9000)}/${tokenCountText(200_000)}`,
+      "1/4",
+    ]);
+  });
+
+  test("판 표시: sha256는 앞 7자, draft는 드래프트, 모르는 모양과 null은 없음", () => {
+    expect(driveVersionOf(`sha256:${"ABCDEF12".repeat(8)}`)).toEqual({
+      kind: "approved",
+      short: "abcdef1",
+    });
+    expect(driveVersionOf("draft:drf_1:0a1b2c3d")).toEqual({ kind: "draft" });
+    expect(driveVersionOf("v1.2.0")).toBeNull();
+    expect(driveVersionOf(null)).toBeNull();
+  });
+
+  test("띠의 빛: 띠가 있으면 입력창 빛을 맡고, Drive 중에 턴이 돌면 run, 승인을 기다리면 wait, 아니면 off", () => {
+    const view = driveStackOf(HANDOFF);
+    expect(driveBandBeamOf({ view, running: true, approvals: 0 })).toEqual({
+      band: true,
+      state: "run",
+    });
+    expect(driveBandBeamOf({ view, running: false, approvals: 0 })).toEqual({
+      band: true,
+      state: "off",
+    });
+    expect(driveBandBeamOf({ view, running: true, approvals: 1 })).toEqual({
+      band: true,
+      state: "wait",
+    });
+    const asking = driveStackOf([driveFrame(0, null, "waiting"), driveFrame(1, "helm", "asking")]);
+    expect(driveBandBeamOf({ view: asking, running: true, approvals: 0 })).toEqual({
+      band: true,
+      state: "off",
+    });
+    const alone = driveStackOf([driveFrame(0, null, "driving")]);
+    expect(driveBandBeamOf({ view: alone, running: true, approvals: 0 })).toEqual({
+      band: false,
+      state: "off",
+    });
+    expect(driveBandBeamOf({ view: null, running: true, approvals: 2 })).toEqual({
+      band: false,
+      state: "off",
+    });
+  });
+
+  test("입력창 빛: Drive 띠가 맡으면 꺼지고, 아니면 전과 같다", () => {
+    expect(composerBeamStateOf({ running: true, awaitingApproval: false, driveBand: true })).toBe(
+      "off",
+    );
+    expect(composerBeamStateOf({ running: true, awaitingApproval: true, driveBand: true })).toBe(
+      "off",
+    );
+    expect(composerBeamStateOf({ running: true, awaitingApproval: false, driveBand: false })).toBe(
+      "run",
+    );
+    expect(composerBeamStateOf({ running: false, awaitingApproval: true, driveBand: false })).toBe(
+      "wait",
+    );
+  });
+
+  test("카드: 핸드오프로 쥔 칸은 넘겨준 칸 이름, 넘겨받은 입력, 시작 시각, 갈래, 끝나면 갈 칸을 가진다", () => {
+    const view = driveStackOf(HANDOFF);
+    const card = driveCardOf(
+      view,
+      [
+        lease({
+          parent: "lease-helm",
+          requestId: "req-9",
+          inputLine: "결과를 검증해 줘",
+          branchesRunning: 2,
+        }),
+      ],
+      true,
+    );
+    expect(
+      card === null
+        ? null
+        : {
+            name: card.step.name,
+            version: card.step.version,
+            origin: card.origin,
+            since: card.since,
+            activity: card.activity,
+            branches: card.branches,
+            next: card.next,
+            meters: card.step.meters.map((m) => [m.text, m.left, m.warn]),
+          },
+    ).toEqual({
+      name: "verifier",
+      version: { kind: "approved", short: "ab12cd3" },
+      origin: { kind: "handoff", from: "helm", input: "결과를 검증해 줘" },
+      since: "15:04",
+      activity: "turn",
+      branches: 2,
+      next: "helm",
+      meters: [
+        [
+          t("desktop.convo.lead.turns", { used: 7, max: 8 }),
+          t("desktop.drive.card.leftTurns", { n: 1 }),
+          false,
+        ],
+        [
+          t("desktop.convo.lead.tokens", {
+            used: tokenCountText(9_000),
+            max: tokenCountText(200_000),
+          }),
+          t("desktop.drive.card.leftTokens", { n: tokenCountText(191_000) }),
+          false,
+        ],
+      ],
+    });
+  });
+
+  test("카드: 부모 없이 요청 id가 있으면 명령, 둘 다 없으면 스타트 Drive, 임대 기록을 못 봤으면 모름", () => {
+    const view = driveStackOf([
+      driveFrame(0, null, "waiting"),
+      driveFrame(1, "verifier", "driving"),
+    ]);
+    expect(
+      driveCardOf(view, [lease({ requestId: "req-1", inputLine: "x" })], false)?.origin,
+    ).toEqual({
+      kind: "command",
+      input: "x",
+    });
+    expect(driveCardOf(view, [lease()], false)?.origin).toEqual({ kind: "startDrive" });
+    const unknown = driveCardOf(view, [], false);
+    expect(
+      unknown === null ? null : [unknown.origin, unknown.since, unknown.activity, unknown.next],
+    ).toEqual([{ kind: "unknown" }, null, "holding", t("desktop.drive.core")]);
+  });
+
+  test("카드: 답을 기다리는 칸은 asking이고, 플러그인 프레임이 없으면 카드가 없다", () => {
+    const view = driveStackOf([driveFrame(0, null, "waiting"), driveFrame(1, "helm", "asking")]);
+    expect(driveCardOf(view, [], true)?.activity).toBe("asking");
+    expect(driveCardOf(driveStackOf([driveFrame(0, null, "driving")]), [], true)).toBeNull();
+  });
+
+  test("남은 양: 다 쓰면 한도에 닿음", () => {
+    const view = driveStackOf([
+      driveFrame(1, "helm", "driving", {
+        used: { turns: 8, spawns: 3, tokens: 0 },
+        limits: { turns: 8, spawns: 4 },
+      }),
+    ]);
+    expect(view.steps[0]?.meters.map((m) => m.left)).toEqual([
+      t("desktop.drive.card.leftNone"),
+      t("desktop.drive.card.leftSpawns", { n: 1 }),
+    ]);
+  });
+
+  test("넘겨받은 입력 한 줄: 글, 객체의 task 같은 키, 그 밖은 null. 줄바꿈은 빈칸, 160자에서 자른다", () => {
+    expect(driveInputLineOf("  검증\n해 줘 ")).toBe("검증 해 줘");
+    expect(driveInputLineOf({ files: ["a"], task: "결과 검증" })).toBe("결과 검증");
+    expect(driveInputLineOf({ goal: "", summary: "요약" })).toBe("요약");
+    expect(driveInputLineOf({ files: ["a"] })).toBeNull();
+    expect(driveInputLineOf(42)).toBeNull();
+    expect(driveInputLineOf(undefined)).toBeNull();
+    const long = driveInputLineOf("가".repeat(200));
+    expect([long?.length, long?.endsWith("…")]).toEqual([160, true]);
+  });
+});
+
+describe("프로필 아이콘 변주와 기본 이름(lcM6c)", () => {
+  const ready = { kind: "ready", profiles: [] } as const;
+  const viewOf = (over: { applied?: string; requested?: string | null } = {}) =>
+    profileChipViewOf({
+      applied: over.applied ?? "review",
+      assigned: over.applied ?? "review",
+      requested: over.requested ?? null,
+      read: ready,
+    });
+
+  test("앞선 상태가 이긴다: 바꾸는 중, 시작할 수 없음, 방금 바뀜, 읽기 실패, 스타트 Drive, 기본, 보통", () => {
+    const base = { changed: false, failed: false, blocked: false };
+    expect(profileLookOf({ ...base, view: viewOf({ requested: "fast" }), blocked: true })).toBe(
+      "pending",
+    );
+    expect(profileLookOf({ ...base, view: viewOf(), blocked: true, changed: true })).toBe(
+      "blocked",
+    );
+    expect(profileLookOf({ ...base, view: viewOf(), changed: true, failed: true })).toBe("changed");
+    expect(profileLookOf({ ...base, view: viewOf(), failed: true })).toBe("unsure");
+    expect(profileLookOf({ ...base, view: { ...viewOf(), startDrive: "helm" } })).toBe("start");
+    expect(profileLookOf({ ...base, view: viewOf({ applied: "default" }) })).toBe("default");
+    expect(profileLookOf({ ...base, view: viewOf() })).toBe("ready");
+    expect(profileRowLookOf({ id: "default", startDrive: null })).toBe("default");
+    expect(profileRowLookOf({ id: "default", startDrive: "helm" })).toBe("start");
+    expect(profileRowLookOf({ id: "review", startDrive: null })).toBe("ready");
+  });
+
+  test("엔진이 준 기본 프로필 제목 default는 화면에서 기본이고, 사용자가 붙인 이름은 그대로다", () => {
+    expect(profileTitleOf("default", "default")).toBe(t("desktop.profileChip.defaultName"));
+    expect(profileTitleOf("default", " Default ")).toBe(t("desktop.profileChip.defaultName"));
+    expect(profileTitleOf("default", "내 기본")).toBe("내 기본");
+    expect(profileTitleOf("review", "default")).toBe("default");
+    expect(viewOf({ applied: "default" }).title).toBe(t("desktop.profileChip.defaultName"));
+  });
+
+  test("프로필 아이콘은 변주마다 다른 모양이고 16·20 크기를 style로 준다", () => {
+    const looks = ["ready", "start", "pending", "changed", "default", "unsure", "blocked"] as const;
+    const html = looks.map((look) => renderToString(<ProfileGlyph look={look} size={16} />));
+    expect(new Set(html.map((one) => one.replace(/data-profile-glyph="[a-z]+"/, ""))).size).toBe(7);
+    expect(
+      renderToString(<ProfileGlyph look="ready" size={20} />).includes("width:20px;height:20px"),
+    ).toBe(true);
   });
 });

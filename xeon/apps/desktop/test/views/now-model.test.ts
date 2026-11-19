@@ -74,6 +74,10 @@ function lead(active: boolean, maxTurns?: number): LeadSegment {
     limits: maxTurns === undefined ? {} : { maxTurns },
     turnIds: [trn(1), trn(2)],
     used: { turns: 2, tokens: 0, spawns: 0 },
+    parent: null,
+    requestId: null,
+    inputLine: null,
+    branchesRunning: 0,
   };
 }
 

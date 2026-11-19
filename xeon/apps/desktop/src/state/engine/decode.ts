@@ -331,8 +331,15 @@ const DURABLE: Readonly<
       : { ...base, type: "unreadable" };
   },
   // 전환 기록(§4.9.8): 단계 경계의 drive 락 교대와 켜기·끄기 적용
-  "lease.acquired": (base, payload) => {
-    const p = parse(LeaseAcquiredPayloadSchema, payload);
+  // 넘겨받은 입력(`input`)은 플러그인이 준 값이라 화면 가림 표식을 먼저 적용한다(Drive 카드가 한 줄로 보인다, lcM6c).
+  // 표식이 맞지 않으면 읽을 수 없는 사실이다(원문은 거울에 들어가지 않는다)
+  "lease.acquired": (base, payload, mask) => {
+    const masked =
+      mask === undefined || mask.length === 0
+        ? { ok: true, value: payload }
+        : applyLeafMasks(payload, mask);
+    if (!masked.ok) return { ...base, type: "unreadable" };
+    const p = parse(LeaseAcquiredPayloadSchema, masked.value);
     return p.ok
       ? { ...base, type: "lease.acquired", payload: p.value }
       : { ...base, type: "unreadable" };

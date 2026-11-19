@@ -8,7 +8,7 @@ import {
   MenuSeparator,
   toast,
 } from "@caustic/react";
-import { Check, Clock, Compass, RotateCcw, SlidersHorizontal } from "@caustic/react/icons";
+import { Check, RotateCcw } from "@caustic/react/icons";
 import { profileFailureOf } from "@fresnel/client/workbench";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -23,22 +23,26 @@ import { profileFailureText } from "../workbench/profile-text.ts";
 import {
   DEFAULT_PROFILE_ID,
   profileChipViewOf,
+  profileLookOf,
   profileMenuOf,
+  profileRowLookOf,
   startDriveBlockOf,
   startDriveBlockText,
   type ProfileChipView,
   type StartDriveBlock,
 } from "./profile-chip-model.ts";
+import { ProfileGlyph } from "./profile-glyph.tsx";
 import { reloadProfiles, useProfiles, type ProfilesRead } from "./profile-listing.ts";
 import { permissionModeNameOf } from "./turn-model.ts";
 
 // 입력창 프로필 칩(lcM6a·lcM6b, L4 desktop-ux §6.6.1, craft-flows T1).
-// 칩은 입력창 아래 줄 왼쪽, 첨부(+) 뒤에 선다. 권한 모드 칩과 같은 문법이다: sm ghost(높이 28, 좌우 8), 앞 아이콘 14 + 글 13 tertiary,
+// 칩은 입력창 아래 줄 왼쪽, 첨부(+) 뒤에 선다. 권한 모드 칩과 같은 문법이다: sm ghost(높이 28, 좌우 8), 앞 아이콘 + 글 13 tertiary,
 // chevron·배경·테두리 없이 hover만 `neutral.hover`. 따로 그린 표시를 덧붙이지 않고 상태는 앞 아이콘, 글, 글색 셋으로만 말한다.
-// - 평소: 조절 아이콘 + 프로필 이름. 스타트 Drive가 있는 프로필은 앞 아이콘이 나침반이다(메뉴 줄의 아이콘과 같다).
-// - 스타트 Drive를 시작할 수 없음: 칩 전체가 경고색(모두 허용 모드의 위험색과 같은 자리). 까닭은 입력창 위 경고 줄이 말한다.
-// - 바꾼 직후: 시계 + "빠르게 · 다음 단계부터"(Drive가 받은 말의 "전달 대기"와 같은 시계). 적용되면 4초 체크 + "빠르게 · 바뀜".
-// - 목록 읽기 실패: 모드 칩의 "모름"처럼 이름에 점선 밑줄, 까닭은 툴팁과 메뉴 맨 위 줄.
+// 앞 아이콘은 프로필 아이콘(profile-glyph.tsx, 16)이다. 한 벌 상자 하나의 변주로 상태를 말한다(lcM6c):
+// - 평소: 칸 셋 + 프로필 이름. 스타트 Drive가 있는 프로필은 왼쪽 칸이 찬다. 기본 프로필은 고른 네 칸이고 이름은 "기본"이다.
+// - 스타트 Drive를 시작할 수 없음: 왼쪽 칸이 금 간 채 차고 칩 전체가 경고색(모두 허용 모드의 위험색과 같은 자리). 까닭은 입력창 위 경고 줄이 말한다.
+// - 바꾼 직후: 조각 하나가 상자 밖으로 빠진 모양 + "빠르게 · 다음 단계부터". 적용되면 4초 그 조각이 차고 "빠르게 · 바뀜".
+// - 목록 읽기 실패: 점선 테두리 아이콘, 모드 칩의 "모름"처럼 이름에 점선 밑줄, 까닭은 툴팁과 메뉴 맨 위 줄.
 // - 열림: 권한 모드 메뉴와 같은 줄(아이콘, 이름, 아래 설명, 고른 줄 체크), 구분선 뒤 맨 아래에 되돌리기(모델 칩의 "기본 모델로 되돌리기" 자리).
 // 권한이 바뀌는 전환은 경고 줄로 입력창 위에 보인다(숨기지 않는다).
 
@@ -263,8 +267,8 @@ export function ProfileRows(props: { readonly state: ProfileChipState }): ReactN
         key={row.id}
         role="menuitemradio"
         selected={row.selected}
-        className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
-        icon={row.startDrive === null ? <SlidersHorizontal aria-hidden /> : <Compass aria-hidden />}
+        className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-px [&>[data-slot=menu-label]]:whitespace-normal"
+        icon={<ProfileGlyph look={profileRowLookOf(row)} size={20} />}
         end={row.selected ? <Check aria-hidden className="size-3.5" /> : undefined}
         data-profile-row={row.id}
         onSelect={() => {
@@ -371,13 +375,19 @@ function chipLabelOf(state: ProfileChipState): string {
   return parts.join(", ");
 }
 
-/** 칩의 앞 아이콘 하나: 바뀜 대기 시계, 막 바뀜 체크, 스타트 Drive 나침반, 아니면 조절 아이콘 */
-function ChipIcon(props: { readonly state: ProfileChipState }): ReactNode {
+/** 칩의 앞 아이콘: 프로필 아이콘의 변주 하나(`profileLookOf`) */
+function ChipIcon(props: {
+  readonly state: ProfileChipState;
+  readonly blocked: boolean;
+}): ReactNode {
   const { state } = props;
-  if (state.view.pending !== null) return <Clock aria-hidden data-slot="profile-pending-mark" />;
-  if (state.changed !== null) return <Check aria-hidden data-slot="profile-changed-mark" />;
-  if (state.view.startDrive !== null) return <Compass aria-hidden data-slot="start-drive-mark" />;
-  return <SlidersHorizontal aria-hidden />;
+  const look = profileLookOf({
+    view: state.view,
+    changed: state.changed !== null,
+    failed: state.read.kind === "failed",
+    blocked: props.blocked,
+  });
+  return <ProfileGlyph look={look} size={16} />;
 }
 
 export function ProfileChip(props: {
@@ -421,7 +431,7 @@ export function ProfileChip(props: {
             aria-label={chipLabelOf(state)}
             className={`${COMPOSER_CHIP_CLASS} ${blocked ? "text-warning-text hover:text-warning-text" : ""}`}
           >
-            <ChipIcon state={state} />
+            <ChipIcon state={state} blocked={blocked} />
             <span
               className={
                 failed

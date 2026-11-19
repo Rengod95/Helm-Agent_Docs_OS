@@ -1,4 +1,4 @@
-import type { MessageId } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import type { Profile, ProfileIssue } from "@fresnel/contracts/wire";
 import { permissionModeOf } from "../permission-mode-model.ts";
 import type { ProfilesRead } from "./profile-listing.ts";
@@ -23,6 +23,54 @@ export type ProfileChipView = {
   readonly escape: "switch" | "reset";
 };
 
+/**
+ * 화면에 보일 프로필 이름. 엔진은 기본 프로필의 제목을 영어 "default"로 준다: 화면은 기본 프로필(id `default`)이 그 제목 그대로면
+ * 문구 카탈로그의 "기본"으로 보인다. 사용자가 다른 이름을 붙였으면 그 이름이다(lcM6c)
+ */
+export function profileTitleOf(id: string, title: string): string {
+  if (id === DEFAULT_PROFILE_ID && title.trim().toLowerCase() === DEFAULT_PROFILE_ID) {
+    return t("desktop.profileChip.defaultName");
+  }
+  return title;
+}
+
+/** 프로필 아이콘의 변주(profile-glyph.tsx). blocked만 경고색이다 */
+export type ProfileLook =
+  | "ready"
+  | "start"
+  | "pending"
+  | "changed"
+  | "default"
+  | "unsure"
+  | "blocked";
+
+/**
+ * 칩 아이콘의 변주. 앞선 것이 이긴다: 바꾸는 중, 스타트 Drive를 시작할 수 없음, 방금 바뀜, 읽기 실패, 스타트 Drive, 기본 프로필, 보통
+ */
+export function profileLookOf(input: {
+  readonly view: ProfileChipView;
+  readonly changed: boolean;
+  readonly failed: boolean;
+  readonly blocked: boolean;
+}): ProfileLook {
+  const { view } = input;
+  if (view.pending !== null) return "pending";
+  if (input.blocked) return "blocked";
+  if (input.changed) return "changed";
+  if (input.failed) return "unsure";
+  if (view.startDrive !== null) return "start";
+  return view.currentId === DEFAULT_PROFILE_ID ? "default" : "ready";
+}
+
+/** 메뉴 줄의 변주: 스타트 Drive가 있으면 start, 기본 프로필이면 default, 아니면 ready */
+export function profileRowLookOf(row: {
+  readonly id: string;
+  readonly startDrive: string | null;
+}): ProfileLook {
+  if (row.startDrive !== null) return "start";
+  return row.id === DEFAULT_PROFILE_ID ? "default" : "ready";
+}
+
 function profileOf(read: ProfilesRead, id: string): Profile | undefined {
   return read.kind === "ready" ? read.profiles.find((profile) => profile.id === id) : undefined;
 }
@@ -38,7 +86,8 @@ export function profileChipViewOf(input: {
 }): ProfileChipView {
   const target = input.requested ?? input.assigned ?? input.applied ?? DEFAULT_PROFILE_ID;
   const currentId = input.applied ?? target;
-  const titleOf = (id: string): string => profileOf(input.read, id)?.title ?? id;
+  const titleOf = (id: string): string =>
+    profileTitleOf(id, profileOf(input.read, id)?.title ?? id);
   return {
     currentId,
     title: titleOf(currentId),
@@ -72,7 +121,7 @@ export function profileMenuOf(
       const mode = profile.settings.find((setting) => setting.key === PERMISSION_MODE_KEY);
       return {
         id: profile.id,
-        title: profile.title,
+        title: profileTitleOf(profile.id, profile.title),
         selected: profile.id === selectedId,
         recent: profile.id === recentId && profile.id !== selectedId,
         startDrive: profile.startDrive,
