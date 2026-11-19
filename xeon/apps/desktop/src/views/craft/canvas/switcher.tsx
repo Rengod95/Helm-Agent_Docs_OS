@@ -1,0 +1,90 @@
+// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸 여섯: 지금 화면(–)과 시안 A~E. 키보드 1~5는 시안, 0은 지금 화면.
+// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 글자 입력 중에는 숫자 키를 가로채지 않는다.
+import { t } from "@fresnel/client/i18n";
+import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
+import { useEffect, useState, type ReactNode } from "react";
+import { CANVAS_DESIGNS } from "./registry.tsx";
+
+const KEY = "fresnel.craft.canvasDesign";
+const CURRENT = "current";
+
+/** 고른 적이 없으면 첫 시안(A)으로 연다 */
+function stored(): string {
+  const value = localStorage.getItem(KEY);
+  if (value !== null && (value === CURRENT || CANVAS_DESIGNS.some((d) => d.id === value)))
+    return value;
+  return CANVAS_DESIGNS[0]?.id ?? CURRENT;
+}
+
+function remember(id: string): void {
+  localStorage.setItem(KEY, id);
+}
+
+/** 글을 넣는 자리에 초점이 있으면 숫자 키는 그 자리의 것이다 */
+function typing(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable || target.closest("input, textarea, select, [role='textbox']") !== null
+  );
+}
+
+export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode {
+  const [choice, setChoice] = useState(stored);
+  const choose = (id: string): void => {
+    remember(id);
+    setChoice(id);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat || typing(e.target)) return;
+      if (!/^[0-9]$/.test(e.key)) return;
+      const id = e.key === "0" ? CURRENT : CANVAS_DESIGNS[Number(e.key) - 1]?.id;
+      if (id === undefined) return;
+      remember(id);
+      setChoice(id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const design = CANVAS_DESIGNS.find((d) => d.id === choice);
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {design === undefined ? props.current : <design.Screen key={design.id} />}
+      {/* 캔버스 네 귀퉁이는 시안마다 판(자세히 보기, 확대 막대)이 쓰므로 왼쪽 판 바닥에 둔다 */}
+      <div
+        data-canvas-switcher=""
+        className="fixed bottom-2 left-24 z-40 opacity-55 transition-opacity hover:opacity-100 focus-within:opacity-100"
+      >
+        <SegmentedControl
+          size="xs"
+          variant="ghost"
+          aria-label={t("desktop.craft.canvas.pick")}
+          value={design?.id ?? CURRENT}
+          onValueChange={choose}
+        >
+          <SegmentedControlItem
+            value={CURRENT}
+            aria-label={t("desktop.craft.canvas.current")}
+            title={`${t("desktop.craft.canvas.current")} · 0`}
+            className="font-mono"
+          >
+            {"–"}
+          </SegmentedControlItem>
+          {CANVAS_DESIGNS.map((d, i) => (
+            <SegmentedControlItem
+              key={d.id}
+              value={d.id}
+              aria-label={t(d.name)}
+              title={`${t(d.name)} · ${String(i + 1)}`}
+              className="font-mono"
+            >
+              {d.letter}
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+      </div>
+    </div>
+  );
+}

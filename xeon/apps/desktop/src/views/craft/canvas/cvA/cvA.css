@@ -1,0 +1,248 @@
+/* cvA(HUD) 캔버스의 모양. 색·글자는 caustic 토큰에서 온다(라이트·다크는 토큰이 따른다).
+   React Flow는 자기 규칙을 `@layer xyflow`에 둔다. 덮는 규칙도 같은 층에 두고 특이도를 하나 올린다. */
+@import "@xyflow/react/base.css";
+
+@layer xyflow {
+  .cva-root {
+    /* 종류의 빛 넷. 크리스탈과 어울리는 오로라 쪽 색(민트·라군·아이리스)과 호박색 하나 */
+    --cva-inject: var(--cs-color-identity-mint);
+    --cva-hook: var(--cs-color-identity-iris);
+    --cva-drive: var(--cs-color-agent-stop-1);
+    --cva-tool: var(--cs-color-identity-amber);
+    /* 계기판의 선: 무채색 셋 */
+    --cva-line: color-mix(in oklab, var(--cs-color-text-primary) 26%, transparent);
+    --cva-line-soft: color-mix(in oklab, var(--cs-color-text-primary) 13%, transparent);
+    --cva-line-hot: color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent);
+    --cva-plate: color-mix(in oklab, var(--cs-color-bg-canvas) 86%, transparent);
+    --cva-plate-edge: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --cva-plate-edge-hot: color-mix(in oklab, var(--cs-color-text-primary) 64%, transparent);
+    --cva-panel: color-mix(in oklab, var(--cs-color-bg-canvas) 90%, transparent);
+    --cva-mono: var(--cs-font-mono, ui-monospace, monospace);
+  }
+
+  .cva-flow.react-flow {
+    --xy-background-color: transparent;
+    --xy-node-border: 0;
+    --xy-node-background-color: transparent;
+    --xy-node-boxshadow-hover: none;
+    --xy-node-boxshadow-selected: none;
+    --xy-node-color: var(--cs-color-text-primary);
+    background: transparent;
+  }
+
+  .cva-flow .react-flow__node {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .cva-flow .react-flow__node:focus-visible {
+    outline: none;
+  }
+
+  .cva-flow .react-flow__node:focus-visible .cva-plate-svg path.cva-plate-line {
+    stroke: var(--cs-color-focus-ring);
+    stroke-width: 1.5;
+  }
+
+  .cva-flow .react-flow__pane {
+    cursor: default;
+  }
+
+  .cva-flow .react-flow__pane.dragging {
+    cursor: grabbing;
+  }
+
+  .cva-flow .react-flow__node-scene {
+    pointer-events: none;
+  }
+
+  .cva-flow .react-flow__attribution {
+    display: none;
+  }
+}
+
+/* 무층 규칙을 두지 않는다: 나머지는 components 층이다 */
+@layer components {
+  /* 판: 윤곽은 SVG로 그리고 글은 그 위에 놓는다 */
+  .cva-plate-svg {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cva-plate-svg path.cva-plate-fill {
+    fill: var(--cva-plate);
+  }
+
+  .cva-plate-svg path.cva-plate-line {
+    fill: none;
+    stroke: var(--cva-plate-edge);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--cs-duration-quick, 100ms) ease-out;
+  }
+
+  .cva-node:hover .cva-plate-svg path.cva-plate-line {
+    stroke: color-mix(in oklab, var(--cs-color-text-primary) 40%, transparent);
+  }
+
+  .cva-node[data-selected="true"] .cva-plate-svg path.cva-plate-line {
+    stroke: var(--cva-plate-edge-hot);
+  }
+
+  .cva-node[data-draft="true"] .cva-plate-svg path.cva-plate-line {
+    stroke-dasharray: 4 3;
+  }
+
+  .cva-node[data-dim="true"] {
+    opacity: 0.32;
+  }
+
+  /* 판의 닿는 곳(쐐기·걸쇠·뾰족)만 종류의 빛을 받는다 */
+  .cva-plate-svg path.cva-plate-touch {
+    fill: none;
+    stroke: var(--cva-ink);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cva-node[data-selected="true"] .cva-plate-svg {
+    filter: drop-shadow(0 0 10px color-mix(in oklab, var(--cva-ink) 30%, transparent));
+  }
+
+  /* 고른 노드의 조준 표식: 바깥 네 귀퉁이 */
+  .cva-reticle {
+    position: absolute;
+    inset: -7px;
+    pointer-events: none;
+    color: var(--cva-line-hot);
+  }
+
+  [data-kind="inject"] {
+    --cva-ink: var(--cva-inject);
+  }
+
+  [data-kind="hook"] {
+    --cva-ink: var(--cva-hook);
+  }
+
+  [data-kind="drive"] {
+    --cva-ink: var(--cva-drive);
+  }
+
+  [data-kind="tool"] {
+    --cva-ink: var(--cva-tool);
+  }
+
+  [data-kind="group"] {
+    --cva-ink: var(--cva-line-hot);
+  }
+
+  .cva-mono {
+    font-family: var(--cva-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+
+  /* 장면(레일·선)의 글 */
+  .cva-scene text {
+    font-family: var(--cva-mono);
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+
+  .cva-scene .cva-station-name {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    fill: var(--cs-color-text-secondary);
+  }
+
+  .cva-scene .cva-tertiary {
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  /* 끄는 동안 놓을 자리 */
+  .cva-slot {
+    fill: none;
+    stroke: var(--cva-ink);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    opacity: 0.7;
+  }
+
+  .cva-slot[data-hot="true"] {
+    stroke-dasharray: none;
+    stroke-width: 1.5;
+    opacity: 1;
+    fill: color-mix(in oklab, var(--cva-ink) 10%, transparent);
+  }
+
+  .cva-slot-bar {
+    fill: var(--cva-ink);
+    opacity: 0.55;
+  }
+
+  .cva-slot-bar[data-hot="true"] {
+    opacity: 1;
+  }
+
+  /* 떠 있는 판(목록·상세·머리·도구 막대): 모서리 하나를 깎은 계기판 */
+  .cva-panel {
+    background: var(--cva-panel);
+    border: 1px solid var(--cva-line-soft);
+    clip-path: polygon(
+      0 0,
+      calc(100% - 10px) 0,
+      100% 10px,
+      100% 100%,
+      10px 100%,
+      0 calc(100% - 10px)
+    );
+  }
+
+  .cva-panel-corners {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    color: var(--cva-line);
+  }
+
+  .cva-row {
+    transition: background-color var(--cs-duration-quick, 100ms) ease-out;
+  }
+
+  .cva-row:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cva-row:focus-visible {
+    outline: 1.5px solid var(--cs-color-focus-ring);
+    outline-offset: -1.5px;
+  }
+
+  .cva-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cva-plate-svg path.cva-plate-line,
+    .cva-row {
+      transition: none;
+    }
+  }
+
+  :root[data-motion="reduce"] .cva-plate-svg path.cva-plate-line,
+  :root[data-motion="reduce"] .cva-row {
+    transition: none;
+  }
+}
