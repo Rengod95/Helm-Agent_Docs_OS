@@ -145,6 +145,12 @@ export interface SandboxPolicy {
    * 호출도 못 쓰게 한다. macOS(Seatbelt)에서만 쓰이고 다른 제공자는 무시한다 [제안, AGE-58]
    */
   machDeny?: string[];
+  /**
+   * 참이면 프로필 맨 끝에서 시스템 정보 길을 막는다: 다른 프로세스의 정보(목록, 인자와 환경 변수, 실행 파일 경로, 작업 폴더, 열린 파일), 하드웨어 레지스트리(IOKit) 속성과 전원 관리 연결,
+   * 다른 앱에 보내는 배포 알림. 자기 프로세스와 같은 샌드박스 안 프로세스의 정보는 그대로 읽힌다. 도구를 막아도 네이티브 호출(`bun:ffi`, `ctypes`)로 열리는 길이다.
+   * macOS(Seatbelt)에서만 쓰이고 다른 제공자는 무시한다 [제안, AGE-58 후속]
+   */
+  systemInfoDeny?: boolean;
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -177,6 +183,7 @@ const sandboxPolicyShape = Type.Object(
     machDeny: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 64 }),
     ),
+    systemInfoDeny: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

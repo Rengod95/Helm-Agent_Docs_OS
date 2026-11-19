@@ -345,7 +345,8 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
           ),
         );
       }
-      readOnlyTemp = dir;
+      // 임시 폴더 기반이 심볼릭 링크 아래(macOS의 `/var/folders`는 `/private/var/folders`)면 Seatbelt는 정규 경로로 비교하므로 정규 경로로 풀어 `TMPDIR`에 쓴다(wrapArgv의 `nw-`와 같다)
+      readOnlyTemp = canonicalizePath(dir);
     }
     const removeReadOnlyTemp = (): void => {
       if (readOnlyTemp === undefined) return;

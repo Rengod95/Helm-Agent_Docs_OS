@@ -45,34 +45,78 @@ function profileEnd(text: string, from: number): number {
   return -1;
 }
 
+/** 프로필 끝에 덧붙이는 구간의 표지. 덧붙인 뒤 정확히 한 번 있는지 확인하는 데도 쓴다 */
+const TAIL_MARK = "; script tools";
+
 /**
- * `policy.readAllowLiteral`과 `policy.toolDeny`를 Seatbelt 프로필 맨 끝에 더한다. 뒤에 오는 규칙이 앞의 규칙을 이기므로 허용한 폴더 안의 개별 도구를 다시 막을 수 있다.
- * Seatbelt 프로필(`sandbox-exec -p '...'`)이 아니면(bwrap, 격리 없음) 그대로 둔다. 안전하지 않은 경로(따옴표 등)는 건너뛴다
+ * `systemInfoDeny`가 더하는 Seatbelt 규칙. 뒤에 오는 규칙이 앞의 규칙을 이긴다(srt 기본 프로필이 허용한 것을 다시 막는다).
+ * - 다른 프로세스의 정보(`process-info*`)와 프로세스 표·인자·환경 변수를 주는 `sysctl`: 자기 프로세스와 같은 샌드박스 안 프로세스는 다시 허용한다
+ * - IOKit 레지스트리 속성(시리얼 번호, 하드웨어 UUID 등)과 전원 관리 사용자 클라이언트
+ * - 다른 앱이 듣는 배포 알림 보내기
  */
-function withProfileTail(argv: readonly string[], policy: SandboxPolicy): string[] {
-  const literals = (policy.readAllowLiteral ?? []).filter(seatbeltSafe);
-  const denied = (policy.toolDeny ?? []).filter(seatbeltSafe);
-  const mach = (policy.machDeny ?? []).filter((name) => /^[A-Za-z0-9._@-]+$/.test(name));
-  if (literals.length === 0 && denied.length === 0 && mach.length === 0) return [...argv];
+const SYSTEM_INFO_RULES: readonly string[] = [
+  "(deny process-info*)",
+  "(allow process-info* (target self))",
+  "(allow process-info* (target same-sandbox))",
+  '(deny sysctl-read (sysctl-name-prefix "kern.proc.all") (sysctl-name-prefix "kern.proc.pgrp.") (sysctl-name-prefix "kern.proc.pid.") (sysctl-name-prefix "kern.procargs"))',
+  "(deny iokit-get-properties)",
+  '(deny iokit-open (iokit-registry-entry-class "RootDomainUserClient"))',
+  "(deny distributed-notification-post)",
+];
+
+const MACH_NAME = /^[A-Za-z0-9._@-]+$/;
+
+/**
+ * `policy.readAllowLiteral`, `policy.toolDeny`, `policy.machDeny`, `policy.systemInfoDeny`를 Seatbelt 프로필 맨 끝에 더한다. 뒤에 오는 규칙이 앞의 규칙을 이기므로 허용한 폴더 안의 개별 도구를 다시 막을 수 있다.
+ * 더할 규칙이 없거나 Seatbelt가 아니면(bwrap, 격리 없음) 그대로 둔다.
+ * Seatbelt인데 덧붙이지 못하면(안전하지 않은 경로, srt가 만든 프로필 문자열의 모양이 달라짐) 막기를 조용히 빼지 않고 실패를 돌려준다: 호출자는 스크립트를 띄우지 않는다
+ */
+function withProfileTail(
+  argv: readonly string[],
+  policy: SandboxPolicy,
+  kind: WrapShellDeps["provider"]["kind"],
+): Result<string[], string> {
+  const wantLiterals = policy.readAllowLiteral ?? [];
+  const wantDenied = policy.toolDeny ?? [];
+  const wantMach = policy.machDeny ?? [];
+  const wantInfo = policy.systemInfoDeny === true;
+  if (wantLiterals.length + wantDenied.length + wantMach.length === 0 && !wantInfo) {
+    return ok([...argv]);
+  }
+  if (kind !== "seatbelt") return ok([...argv]);
+  if (
+    !wantLiterals.every(seatbeltSafe) ||
+    !wantDenied.every(seatbeltSafe) ||
+    !wantMach.every((name) => MACH_NAME.test(name))
+  ) {
+    return err("sandbox profile tail rejected an unsafe path or service name");
+  }
+  const rules: string[] = [];
+  if (wantLiterals.length > 0) {
+    rules.push(`(allow file-read* ${wantLiterals.map((path) => `(literal "${path}")`).join(" ")})`);
+  }
+  if (wantDenied.length > 0) {
+    const targets = wantDenied.map((path) => `(literal "${path}")`).join(" ");
+    rules.push(`(deny file-read* ${targets})`, `(deny process-exec ${targets})`);
+  }
+  if (wantMach.length > 0) {
+    rules.push(`(deny mach-lookup ${wantMach.map((name) => `(global-name "${name}")`).join(" ")})`);
+  }
+  if (wantInfo) rules.push(...SYSTEM_INFO_RULES);
   const marker = "sandbox-exec -p '";
-  return argv.map((arg) => {
+  let applied = 0;
+  const wrapped = argv.map((arg) => {
     const start = arg.indexOf(marker);
     if (start < 0) return arg;
     const end = profileEnd(arg, start + marker.length);
     if (end < 0) return arg;
-    const rules: string[] = [];
-    if (literals.length > 0) {
-      rules.push(`(allow file-read* ${literals.map((path) => `(literal "${path}")`).join(" ")})`);
-    }
-    if (denied.length > 0) {
-      const targets = denied.map((path) => `(literal "${path}")`).join(" ");
-      rules.push(`(deny file-read* ${targets})`, `(deny process-exec ${targets})`);
-    }
-    if (mach.length > 0) {
-      rules.push(`(deny mach-lookup ${mach.map((name) => `(global-name "${name}")`).join(" ")})`);
-    }
-    return `${arg.slice(0, end)}\n; script tools\n${rules.join("\n")}\n${arg.slice(end)}`;
+    applied += 1;
+    return `${arg.slice(0, end)}\n${TAIL_MARK}\n${rules.join("\n")}\n${arg.slice(end)}`;
   });
+  if (applied !== 1 || wrapped.join("\u0000").split(TAIL_MARK).length !== 2) {
+    return err("sandbox profile tail could not be applied to the srt profile");
+  }
+  return ok(wrapped);
 }
 
 /** 격리 없이 도는 명령줄. 요청 그대로다 */
@@ -139,10 +183,18 @@ export async function wrapArgvWith(
         : { kind: "failed", message: wrapped.error.message },
     );
   }
+  const tailed = withProfileTail(wrapped.value.argv, policy, deps.provider.kind);
+  if (!tailed.ok) {
+    // 막기를 덧붙이지 못한 채로는 띄우지 않는다. srt가 이 명령용으로 만든 것을 되돌린다
+    removeTemp();
+    const cleanedUp = attempt(() => deps.srt.cleanupAfterCommand());
+    if (!cleanedUp.ok) deps.logger.warn("sandbox.cleanup_failed", {});
+    deps.logger.warn("sandbox.profile_tail_failed", {});
+    return err({ kind: "failed", message: tailed.error });
+  }
   let cleaned = false;
   return ok({
-    argv: withProfileTail(wrapped.value.argv, policy),
-
+    argv: tailed.value,
     env: envAdditions(deps.parentEnv(), wrapped.value.env),
     sandboxed: true,
     cleanup: () => {

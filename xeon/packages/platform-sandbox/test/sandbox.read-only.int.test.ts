@@ -135,6 +135,30 @@ suite("read-only sandbox profile (real srt)", () => {
     expect(readdirSync(box.dirs.tmp).filter((name) => name.startsWith("ro-"))).toEqual([]);
   });
 
+  test("the per-call temp folder is writable when the temp base sits behind a symlink (macOS /var/folders)", async () => {
+    const linked = await startRealSandbox({}, { tmpBehindSymlink: true });
+    try {
+      const policy = linked.service.defaultPolicy({
+        workspaceRoots: [linked.dirs.workspace],
+        tempDir: linked.dirs.tmp,
+        profile: "read-only",
+      });
+      const ran = await runCollected(
+        linked.service.wrapShell(linked.shell, policy),
+        'echo "$TMPDIR"; echo probe > "$TMPDIR/p" && cat "$TMPDIR/p"',
+        { cwd: linked.dirs.workspace },
+      );
+      expect(ran.exitCode).toBe(0);
+      const lines = ran.output.trim().split("\n");
+      // 정규 경로(링크가 풀린 경로)로 쓴다
+      expect(lines[0]?.startsWith(join(linked.dirs.root, "tmp-actual", "ro-"))).toBe(true);
+      expect(lines[1]).toBe("probe");
+    } finally {
+      await linked.service.dispose();
+      rmSync(linked.dirs.root, { recursive: true, force: true });
+    }
+  });
+
   test("curl cannot reach the network: it never gets an answer from the proxy, unlike the normal profile", async () => {
     const command =
       "curl -sS -m 8 -o /dev/null -w '%{http_code}' http://fresnel-ro-probe.invalid/ 2>/dev/null; true";

@@ -165,6 +165,8 @@ export interface FakeSrtOptions {
   readonly passthrough?: boolean;
   /** 있으면 wrap이 이 Seatbelt 프로필을 `sandbox-exec -p '<프로필>' /bin/bash -c '<원래 명령>'`으로 감싼 argv를 돌려준다(프로필 안의 `'`는 `'"'"'`로 이스케이프한 모양) */
   readonly seatbeltProfile?: string;
+  /** 있으면 wrap이 이 함수가 만든 argv를 그대로 돌려준다(srt가 만든 프로필 문자열의 모양이 달라진 경우를 시험한다). seatbeltProfile보다 먼저 쓴다 */
+  readonly rawArgv?: (command: string) => string[];
   readonly validateIssues?: readonly string[];
   /** deniedDomains에 이 값이 든 설정은 검증에서 거부한다 */
   readonly invalidDomains?: readonly string[];
@@ -212,15 +214,17 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
       fake.wrapCalls.push(input);
       if (options.wrapError !== undefined) return Promise.reject(options.wrapError);
       const argv =
-        options.seatbeltProfile !== undefined
-          ? [
-              "/bin/bash",
-              "-c",
-              `env A=1 /usr/bin/sandbox-exec -p '${options.seatbeltProfile.replaceAll("'", `'"'"'`)}' /bin/bash -c '${input.command}'`,
-            ]
-          : options.passthrough === true
-            ? ["bash", "-c", input.command]
-            : ["bash", "-c", `WRAPPED:${input.command}`];
+        options.rawArgv !== undefined
+          ? options.rawArgv(input.command)
+          : options.seatbeltProfile !== undefined
+            ? [
+                "/bin/bash",
+                "-c",
+                `env A=1 /usr/bin/sandbox-exec -p '${options.seatbeltProfile.replaceAll("'", `'"'"'`)}' /bin/bash -c '${input.command}'`,
+              ]
+            : options.passthrough === true
+              ? ["bash", "-c", input.command]
+              : ["bash", "-c", `WRAPPED:${input.command}`];
       return Promise.resolve({ argv, env: options.wrapEnv ?? {} });
     },
     getViolationLines: () => {

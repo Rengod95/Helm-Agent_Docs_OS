@@ -55,7 +55,15 @@ const DARWIN_TOOL_PATHS: readonly string[] = [
  * 이름 하나만 읽게 하는 경로. `/var`는 `/private/var`로 가는 심볼릭 링크라서 `/var/select/developer_dir`을 읽는 도구(`xcode-select` shim)가
  * 링크 자체를 읽는다. 하위 경로까지 열면 `/private/var`가 통째로 열리므로(시험으로 확인) 링크 이름만 literal로 연다
  */
-const DARWIN_TOOL_LITERALS: readonly string[] = ["/var", "/etc", "/private/etc/gitconfig"];
+const DARWIN_TOOL_LITERALS: readonly string[] = [
+  "/var",
+  "/etc",
+  "/private/etc/gitconfig",
+  // `node`(공식 빌드와 mise 설치본)가 시작할 때 읽는 OpenSSL 설정. 파일이 있는데 `EPERM`이면 `OpenSSL configuration error`로 시작 직후 끝난다(`/private/etc/ssl`의 `openssl.cnf`와 다른 파일)
+  "/System/Library/OpenSSL/openssl.cnf",
+  // `cat`이 표준 출력의 파일 정보를 읽는다. 허용하지 않으면 `cat file > /dev/null`이 `stdout: Operation not permitted`로 실패한다(훅 스크립트가 입력을 비울 때 쓴다). 널 장치 하나다
+  "/dev/null",
+];
 
 /**
  * 시스템 도구 폴더를 열어도 다시 막는 실행 파일(개별 도구 차단, [결정: 2026-11-19, 사용자, AGE-58]의 조건: 클립보드, 화면 캡처, 키체인, 다른 앱 조작,
@@ -122,6 +130,17 @@ const DARWIN_MACH_DENY: readonly string[] = [
   "com.apple.SecurityServer",
   "com.apple.securityd.xpc",
   "com.apple.coreservices.launchservicesd",
+  // 기본 프로필이 열어 둔 서비스 가운데 훅 스크립트에 필요 없는 것. 우회 시험(`script-bypass.int.test.ts`)에서 닫아도 bun, node, python3, sh, git, curl이 그대로 도는 것을 확인했다
+  // - `com.apple.lsd.mapdb`: LaunchServices 데이터베이스(설치된 앱과 문서 형식 조회)
+  // - `com.apple.PowerManagement.control`: 전원 관리(잠자기 요청, 잠자기 방지)
+  // - `com.apple.distributed_notifications@Uv3`: 다른 앱이 듣는 배포 알림
+  // - `com.apple.audio.systemsoundserver`: 시스템 소리 재생
+  "com.apple.lsd.mapdb",
+  "com.apple.PowerManagement.control",
+  "com.apple.distributed_notifications@Uv3",
+  "com.apple.audio.systemsoundserver",
+  // 열어 두는 서비스(닫으면 `os.userInfo()`, `pwd`, `getpass`가 깨진다): `com.apple.system.opendirectoryd.libinfo`, `.membership`(사용자·그룹 이름 조회),
+  // `com.apple.system.notification_center`(notifyd), `com.apple.logd`, `com.apple.system.logger`, `com.apple.bsd.dirhelper`, `com.apple.fonts`
 ];
 
 export function systemToolMachDeny(kind: SandboxProvider["kind"]): readonly string[] {
@@ -131,6 +150,13 @@ export function systemToolMachDeny(kind: SandboxProvider["kind"]): readonly stri
 /** 시스템 도구 폴더 안에서 다시 막는 실행 파일(있는 것만). Seatbelt만 프로필 끝에서 적용한다. bwrap은 아직 같은 뜻의 막기가 없다(Linux 확인 못 함) */
 export function systemToolDeny(kind: SandboxProvider["kind"]): readonly string[] {
   return kind === "seatbelt" ? DARWIN_TOOL_DENY.filter((path) => existsSync(path)) : [];
+}
+
+/**
+ * 프로필 끝에서 시스템 정보 길을 막을지(Seatbelt만). 스크립트 실행기가 켠다. 규칙 내용은 `wrap-argv.ts`의 `SYSTEM_INFO_RULES`
+ */
+export function systemInfoDeny(kind: SandboxProvider["kind"]): boolean {
+  return kind === "seatbelt";
 }
 
 /** 이름 하나만 읽게 하는 경로(Seatbelt) */

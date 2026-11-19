@@ -170,6 +170,8 @@ export interface SandboxPolicy {
   toolDeny?: string[];
   /** 프로필 끝에서 다시 막는 Mach 서비스 이름(`(deny mach-lookup (global-name ...))`). Seatbelt만 쓴다 [제안, AGE-58] */
   machDeny?: string[];
+  /** 참이면 프로필 끝에서 시스템 정보 길을 막는다(다른 프로세스 정보, 프로세스 표·인자 sysctl, IOKit 속성과 전원 관리 연결, 배포 알림 보내기). Seatbelt만 쓴다 [제안, AGE-58 후속] */
+  systemInfoDeny?: boolean;
 }
 export const SandboxPolicySchema: Schema<SandboxPolicy>;
 
@@ -511,7 +513,7 @@ export function selectSandboxProvider(input: {
 
 `policy.profile`이 `"no-write"`면 플러그인 호스트처럼 오래 사는 프로세스를 "쓰기 없음, 읽기는 허용 목록, 네트워크는 정책 그대로"로 감쌉니다. 읽기 전용 프로필(4.2절)과 다른 점은 네트워크를 막지 않고 읽기가 허용 목록이라는 것입니다. 이전에 플러그인 호스트가 쓰던 쓰기 거부 `/` 우회책은 없앴습니다.
 
-- **쓰기**: 정책의 `writeRoots`와 설정 `writeRoots.extra`를 쓰지 않습니다. srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부 목록에 더합니다(읽기 전용 프로필과 같습니다). 쓸 수 있는 곳은 `wrapArgv`가 호출마다 만드는 이 프로세스 전용의 빈 임시 폴더 `<os.dirs.tmp>/nw-<commandId>`(권한 0700) 하나뿐이고 읽기도 됩니다. 다른 프로세스와 나누지 않으며 `cleanup`이 지웁니다. 폴더 경로는 정규 경로(realpath)로 풀어 `TMPDIR`와 쓰기 허용에 씁니다: macOS의 임시 폴더(`/var/folders/...`)는 `/private/var/folders`로 가는 링크 아래라서 풀지 않으면 Seatbelt가 정규 경로로 비교하는 쓰기 허용에 닿지 않아 `EPERM`이 난다(실제 엔진의 플러그인 호스트 시험으로 발견, 2026-11-19, AGE-58 후속). 읽기 전용 프로필의 `ro-` 폴더(`wrapShell`)에는 같은 처리를 아직 하지 않았다. 명령은 `export TMPDIR=<폴더>; exec <명령>`으로 감쌉니다. srt가 env로 정한 `TMPDIR=/tmp/claude`를 덮으려면 셸 안에서 정해야 합니다. 폴더를 만들지 못하면 `err({ kind: "failed" })`입니다.
+- **쓰기**: 정책의 `writeRoots`와 설정 `writeRoots.extra`를 쓰지 않습니다. srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부 목록에 더합니다(읽기 전용 프로필과 같습니다). 쓸 수 있는 곳은 `wrapArgv`가 호출마다 만드는 이 프로세스 전용의 빈 임시 폴더 `<os.dirs.tmp>/nw-<commandId>`(권한 0700) 하나뿐이고 읽기도 됩니다. 다른 프로세스와 나누지 않으며 `cleanup`이 지웁니다. 폴더 경로는 정규 경로(realpath)로 풀어 `TMPDIR`와 쓰기 허용에 씁니다: macOS의 임시 폴더(`/var/folders/...`)는 `/private/var/folders`로 가는 링크 아래라서 풀지 않으면 Seatbelt가 정규 경로로 비교하는 쓰기 허용에 닿지 않아 `EPERM`이 난다(실제 엔진의 플러그인 호스트 시험으로 발견, 2026-11-19, AGE-58 후속). 읽기 전용 프로필의 `ro-` 폴더(`wrapShell`)에도 같은 처리를 한다(임시 폴더 기반이 링크 아래일 때 `TMPDIR` 쓰기가 되는지 실제 샌드박스 시험 `sandbox.read-only.int.test.ts`로 확인, 2026-11-19, AGE-58 후속 enK6). 명령은 `export TMPDIR=<폴더>; exec <명령>`으로 감쌉니다. srt가 env로 정한 `TMPDIR=/tmp/claude`를 덮으려면 셸 안에서 정해야 합니다. 폴더를 만들지 못하면 `err({ kind: "failed" })`입니다.
 - **읽기**: `srt`에 `denyRead: ["/", ...보호 경로]`와 `allowRead: readAllow`를 넘깁니다. `readAllow`는 호출자가 준 경로(`defaultPolicy`의 `readRoots`: 플러그인 폴더, 실행 파일)에 아래 시스템 경로를 더한 목록입니다. 심볼릭 링크 이름(`/lib`, `/usr/bin/socat`)은 실제 경로만으로는 열리지 않으므로 이름과 실제 경로를 둘 다 둡니다. 셸은 사용자 `PATH`의 bash가 아니라 `/bin/bash`를 씁니다(허용 목록에 들어가야 하므로).
 - **시스템 경로**(실제 샌드박스에서 하나씩 빼 보며 좁힌 목록, `platform-sandbox/src/runtime-read-paths.ts`): macOS는 `/usr/share/icu`(Bun의 ICU 데이터, 없으면 소스 실행의 Bun이 시작 직후 죽는다) 하나입니다. 컴파일된 호스트 바이너리는 실행 파일 하나라 이것도 없이 뜹니다. Linux는 `/bin/bash`(srt가 샌드박스 안에서 돌리는 셸), `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`(동적 링커와 공유 라이브러리)이고 서비스가 srt 도우미를 더합니다: srt 패키지의 `vendor/seccomp`(seccomp 실행 파일), 프록시 소켓 파일(srt가 최상위 폴더를 빈 tmpfs로 덮으므로 허용 목록에 없으면 프록시 연결이 끊긴다), 탐지한 `socat`의 실제 파일(`socat`이 `socat1` 링크인 배포판이 있다. srt에 넘기는 `socatPath`도 같은 실제 경로로 푼다). 인증서 묶음과 DNS 설정은 넣지 않습니다: https는 샌드박스 프록시를 거치고(TLS 인증서는 Bun에 내장) 이름 풀이는 프록시가 합니다.
 - **한계**: 소스 실행(개발)의 호스트는 진입 파일이 가져오는 소스와 `node_modules`를 읽어야 해서 호출자가 `readRoots`에 소스 작업 공간(`bun.lock`이 있는 폴더)을 더합니다. 읽기 허용 목록 항목이 보호 경로와 겹치면 항목이 빠집니다. 예외는 Fresnel 데이터 폴더(`fresnel_data`)뿐입니다: 그 안쪽 항목(검토본 사본 `<data>/plugin-store/reviewed/<이름>/<해시>/tree`)은 남고, 데이터 폴더 전체를 품은 넓은 항목은 빠집니다(`PolicyInput.carvableReadDeny`, 시험 `policy.test.ts`, `helm-isolated.int.test.ts`의 실제 샌드박스 시험 [결정: enC3m, 검토본에서 격리 플러그인이 떠야 해서 [제안]]). 플러그인 폴더가 `~/.claude` 같은 다른 보호 경로 아래면 호스트가 자기 코드를 읽지 못합니다. Linux x64는 실행해 보지 못했고(arm64 Docker에서만 확인) `/lib64`(x64 로더 위치)는 이 목록의 추측이 아닌 일반 규칙이지만 실측은 아닙니다.
@@ -519,9 +521,61 @@ export function selectSandboxProvider(input: {
   - macOS 읽기·실행(`readAllow`): `/bin`, `/usr/bin`(요청), `/private/var/select`(`/usr/bin/git` 같은 개발자 도구 껍데기가 읽는 선택 링크 `developer_dir`와 `sh`, 링크 둘뿐이다), 선택한 개발자 폴더의 `usr`와 `SDKs`(링크가 가리키는 곳을 지금 읽어 정한다: Command Line Tools면 `/Library/Developer/CommandLineTools`, 진짜 `git`과 라이브러리, 껍데기가 SDK를 찾는다), `/private/etc/ssl`(`curl`의 LibreSSL이 시작할 때 읽는 `openssl.cnf`와 CA 묶음, 없으면 `Auto configuration failed`로 끝난다), `/System/Library/CoreServices/SystemVersion.plist`(`xcrun`과 `sw_vers`가 호스트 OS 버전을 읽는다).
   - macOS 이름 하나만(`readAllowLiteral`): `/var`(`/private/var`로 가는 링크 자체), `/etc`(`/private/etc`로 가는 링크 자체), `/private/etc/gitconfig`(`git`이 시스템 설정을 열어 본다. 없는 파일인데 `EPERM`이면 `git`이 죽는다), 선택한 개발자 폴더 자체(껍데기가 `developer directory ... is not accessible`로 확인한다). `/etc/hosts`, `/etc/passwd`, `/private/var/db`, `/var/folders`, `/Library/Preferences`는 여전히 막혀 있다.
   - macOS 다시 막기(`toolDeny`, 프로필 끝의 `deny file-read*`와 `deny process-exec`): `launchctl`, `open`, `osascript`, `osacompile`, `security`, `pbcopy`, `pbpaste`, `screencapture`, `defaults`, `mdfind`, `mdls`, `log`, `lsof`, `ps`, `top`, `sudo`, `su`. 이유는 `runtime-read-paths.ts`의 `DARWIN_TOOL_DENY` 주석이다. 넓히기 전의 시험에서 `launchctl print`(사용자 launchd 도메인 읽기, 제출·삭제 요청이 launchd까지 닿는다), `security`(로그인 키체인 질의가 SecurityServer까지 닿아 "없음"이 아니라 검색이 일어났다), `mdfind`, `lsof -p 다른 프로세스`는 절대 경로로 이미 돌았다(넓히기와 무관한 기존 구멍이다). 이제 모두 실행 자체가 막힌다(종료 코드 126).
-  - macOS Mach 서비스 막기(`machDeny`): `com.apple.SecurityServer`, `com.apple.securityd.xpc`(키체인 데몬), `com.apple.coreservices.launchservicesd`(LaunchServices). 기본 프로필이 열어 둔 서비스를 도구를 거치지 않는 호출(Security 프레임워크를 부르는 스크립트)도 못 쓰게 한다.
-  - Linux(bwrap): `/bin`과 `/usr/bin`을 더한다(라이브러리는 `/lib*`, `/usr/lib*`가 이미 연다). 개별 도구 막기와 Mach 서비스 막기는 Seatbelt 전용이라 Linux에는 아직 없다. **이 맥에서 실행해 확인하지 못했다.**
-  - 막지 못한 것: `launchd`에 직접 말하는 길(Mach 조회가 아니라 부트스트랩 포트라서 프로필로 막을 수 없다)과 srt 기본 프로필이 열어 둔 그 밖의 서비스는 도구를 막는 것으로는 닫히지 않는다. 스크립트가 런타임(`bun`)으로 네이티브 호출을 직접 하면 도구 막기를 돌아간다. 네트워크는 2026-11-17 결정대로 열려 있다(프록시 주소와 인증 값이 자식 환경에 오고 전역 정책이라 이 프로필에서 따로 막지 못한다).
+  - macOS Mach 서비스 막기(`machDeny`): `com.apple.SecurityServer`, `com.apple.securityd.xpc`(키체인 데몬), `com.apple.coreservices.launchservicesd`(LaunchServices)와, 우회 시험(아래)에서 열려 있음이 확인되어 더한 `com.apple.lsd.mapdb`(LaunchServices 데이터베이스 읽기: 설치된 앱 조회), `com.apple.PowerManagement.control`(잠자기 요청과 방지), `com.apple.distributed_notifications@Uv3`(다른 앱이 듣는 배포 알림), `com.apple.audio.systemsoundserver`(시스템 소리). 기본 프로필이 열어 둔 서비스를 도구를 거치지 않는 호출(Security 프레임워크를 부르는 스크립트)도 못 쓰게 한다. 닫으면 `bun`, `node`, `python3`, `sh`, `git`, `curl`이 그대로 도는 것을 확인했다. **열어 두는 서비스**(닫으면 `os.userInfo()`, python `pwd`·`getpass`, `git`의 작성자 조회가 깨진다): `com.apple.system.opendirectoryd.libinfo`와 `.membership`(사용자·그룹 이름 조회: 이 컴퓨터의 로컬 계정 목록과 그룹 소속이 `dscacheutil -q user`, `id root`로 읽힌다), `com.apple.system.notification_center`(notifyd), `com.apple.logd`, `com.apple.system.logger`, `com.apple.bsd.dirhelper`, `com.apple.fonts`.
+  - macOS 시스템 정보 막기(`systemInfoDeny: true`, 프로필 끝 규칙은 `wrap-argv.ts`의 `SYSTEM_INFO_RULES`): `(deny process-info*)` 뒤에 자기 프로세스와 같은 샌드박스 안 프로세스만 다시 허용하고, 프로세스 표·인자·환경 변수를 주는 `sysctl`(`kern.proc.all`, `kern.proc.pgrp.`, `kern.proc.pid.`, `kern.procargs`), IOKit 레지스트리 속성(`iokit-get-properties`: 시리얼 번호, 하드웨어 UUID), 전원 관리 사용자 클라이언트(`RootDomainUserClient`), 배포 알림 보내기(`distributed-notification-post`)를 막는다. 근거: 이 길들은 srt 기본 프로필이 열어 두었고, 도구를 막아도(`ps`, `lsof`, `ioreg`) `bun:ffi`나 `ctypes`로 직접 부르면 열렸다(우회 시험의 "전" 열). 이 규칙은 `systemTools`를 켠 스크립트 실행기에만 적용한다.
+  - 읽기 허용 이름에 더한 것: `/System/Library/OpenSSL/openssl.cnf`(`node`가 시작할 때 읽는다. 없이는 `OpenSSL configuration error`로 `node`가 시작 직후 끝나서 `node` 실행기가 샌드박스 안에서 아예 돌지 않았다), `/dev/null`(`cat`이 표준 출력의 정보를 읽는다. 없이는 `cat > /dev/null`이 `Operation not permitted`로 실패했다).
+  - **덧붙이기가 실패하면 스크립트를 띄우지 않는다**(fail-closed): 프로필 끝에 규칙을 덧붙이는 방식은 srt가 만든 `sandbox-exec -p '…'` 문자열의 모양에 기댄다. Seatbelt인데 (가) 경로나 서비스 이름에 따옴표·역슬래시·줄바꿈이 있거나 상대 경로라서 규칙을 만들 수 없거나, (나) 프로필 문자열을 찾지 못하거나 닫는 따옴표가 없거나, (다) 덧붙인 뒤 표지(`; script tools`)가 정확히 한 번이 아니면 `wrapArgv`는 규칙을 빼고 계속하지 않고 `err({ kind: "failed", message })`를 돌려주고 srt가 만든 것을 되돌린다(`cleanup`, 임시 폴더 삭제). 시험: `wrap-argv.test.ts`(여섯 가지 안전하지 않은 값, 문자열 모양 변경, 닫히지 않는 따옴표). Seatbelt가 아닌 제공자(bwrap, 격리 없음)는 이 덧붙이기를 쓰지 않으므로 그대로 둔다.
+  - Linux(bwrap): `/bin`과 `/usr/bin`을 더한다(라이브러리는 `/lib*`, `/usr/lib*`가 이미 연다). `toolDeny`, `machDeny`, `systemInfoDeny`, `readAllowLiteral`은 Seatbelt 전용이라 Linux에서는 무시한다. **이 맥에서 실행해 확인하지 못했다. 아래 표는 srt 0.0.79 `linux-sandbox-utils.js`와 이 패키지의 코드를 읽은 것이다.**
+
+    | 맥에서 막은 것 | Linux(bwrap)가 막는 방식(코드로 읽음) | 대응이 없는 것 |
+    |---|---|---|
+    | 다른 프로세스 목록·인자·환경 변수, `ps`, `lsof` | `--unshare-pid`와 새 `/proc`(`--proc /proc`)이라 샌드박스 안 프로세스만 보인다. 단 srt의 `enableWeakerNestedSandbox`가 켜지면 `--bind /proc /proc`로 호스트 `/proc`이 열린다(이 서비스는 켜지 않는다) | 도구 개별 막기는 없다(`ps`는 돈다. 자기 프로세스만 보인다) |
+    | 폴더 밖 읽기 | 루트를 빈 tmpfs로 덮고 허용 항목만 다시 연다 | — |
+    | 키체인·클립보드·화면·다른 앱 조작·앱 실행(서비스) | 대응하는 Mach 서비스가 없다. 같은 일을 하는 데스크톱 서비스(D-Bus, X11/Wayland, 비밀 서비스)는 유닉스 소켓인데, 파일은 tmpfs로 가려지고 `seccomp`이 `socket(AF_UNIX)`을 막는다 | `seccomp` 실행 파일이 없으면 srt가 "유닉스 소켓 막기 꺼짐" 경고만 내고 계속한다. 이 서비스는 그 경고를 막지 않는다 → **유닉스 소켓이 열린 채 도는 길이 있다** |
+    | IOKit 속성(시리얼 번호) | `--dev /dev`로 최소 장치만 두고 `/sys`는 읽기 허용 목록에 없다. 단 `/sys/class/dmi/id`가 목록에 들어가면 열린다 | `systemInfoDeny`에 해당하는 규칙 없음 |
+    | 전원 관리·소리·배포 알림 | 서비스 소켓이 가려진다 | 개별 규칙 없음 |
+    | `launchd` | 없음(systemd 사용자 서비스는 D-Bus/소켓이라 위와 같다) | `systemctl --user`는 소켓이 없어 실패하지만 `seccomp`이 꺼진 경우의 시험이 없다 |
+    | 막은 도구(`security`, `launchctl`, `osascript`, `open`, `sudo`, `su`) | 도구 개별 막기 없음. `/usr/bin`이 열려 있어 `xdg-open`, `loginctl`, `systemctl`이 실행된다(소켓·`/proc`이 막혀 일을 못 한다고 코드는 말하지만 확인하지 못했다). `sudo`·`su`는 사용자 이름공간 안이라 권한이 오르지 않는다 | **도구 실행 막기가 Linux에는 없다** |
+    | `/dev/null`·OpenSSL 설정 읽기 | `--dev /dev`가 `/dev/null`을 준다. OpenSSL 설정은 `/etc`가 가려져서 파일이 없다(`EPERM`이 아니라 `ENOENT`라 `node`가 시작한다고 코드는 말한다) | — |
+
+    맥에서 막은 것 가운데 Linux에 대응이 없는 목록: (1) 도구 개별 실행 막기(`toolDeny`), (2) Mach 서비스 막기(`machDeny`: Linux에는 해당 서비스가 없고 소켓은 seccomp이 막는다), (3) `systemInfoDeny`의 네 가지(프로세스 정보는 PID 이름공간이 막지만 IOKit 속성·전원 관리·배포 알림은 개별 규칙이 없다), (4) 덧붙이기 실패 시 시작 거절(Linux는 덧붙이기를 쓰지 않아 해당 없음), (5) 우회 시험(`script-bypass.int.test.ts`)은 맥에서만 돈다(`process.platform === "darwin"`). 추측으로 고치지 않았다.
+  - **막지 못한 길**(우회 시험의 결론, 2026-11-19, enK6):
+    - `launchd`(맥의 작업 관리자)에 부트스트랩 포트로 직접 말하는 길은 프로필로 막을 수 없다. 시험(막은 `launchctl`만 임시로 풀어 같은 샌드박스에서 돌렸다): `print user/<uid>`가 서비스 목록 1,524줄을 돌려주고(밖에서 돌린 것과 같다), `kickstart`·`bootout`·`blame`이 launchd까지 닿아 "그런 서비스 없음"이라는 launchd의 답을 받았고(권한 오류가 아니다), 내용 없는 작업 파일의 `bootstrap`은 밖에서와 같은 launchd의 오류(`5: Input/output error`)로 끝났다. 즉 조회뿐 아니라 시작·중지·등록 요청이 launchd에서 처리된다. 스크립트가 쓸 수 있는 임시 폴더에 작업 파일을 쓰고 등록하면 샌드박스 밖에서 도는 작업이 생길 수 있다. 지금 이 길을 막는 것은 `launchctl` 실행 막기 하나뿐이다. 네이티브 호출(`bun:ffi`, `ctypes`)이 launchd의 비공개 통신 규약을 직접 쓰면 돌아간다. 이 규약 호출은 구현하지 않았고(작업 등록 위험) 따라서 네이티브 경로는 "확인 불가, 열린 것으로 취급"이다. 줄이는 방법은 10절 14번.
+    - 네트워크는 2026-11-17 결정대로 열려 있다(프록시 주소와 인증 값이 자식 환경에 오고 전역 정책이라 이 프로필에서 따로 막지 못한다).
+    - 로컬 계정 목록·그룹 소속(`libinfo`), notifyd(알림 상태 읽기와 보내기), `logd`(로그 쓰기), POSIX 공유 메모리 이름 공간(`ipc-posix-shm`), IOKit 레지스트리의 기기 종류·클래스 이름 목록(속성 값은 막았다), 같은 샌드박스 안에서 만든 프로그램의 실행(임시 폴더에 쓴 스크립트와 컴파일한 실행 파일이 돈다. 같은 프로필 아래라서 밖으로 나가지는 않는다)은 열려 있다.
+  - **우회 시험 표**(실제 샌드박스, `apps/host/test/int/script-bypass.int.test.ts`와 시험용 임시 틀. "전"은 이 커밋 전의 프로필, "후"는 이 커밋): 막힘 = 샌드박스가 거부함, 열림 = 값이 돌아옴. 값은 읽지 않았고 종류만 적는다.
+
+    | 길 | 전 | 후 | 열렸던 것이 새는 정보 |
+    |---|---|---|---|
+    | 키체인(`SecKeychainFindGenericPassword`, 없는 항목) | 막힘(`-50`, "항목 없음" `-25300`이 아니다) | 막힘 | — |
+    | 클립보드(`com.apple.pasteboard.1` 조회, `PasteboardCreate`) | 막힘 | 막힘 | — |
+    | 화면 캡처·창 서버(`windowserver.active`, `CARenderServer`, `replayd`) | 막힘 | 막힘 | — |
+    | 다른 앱 조작(`coreservices.appleevents`) | 막힘 | 막힘 | — |
+    | 앱 실행(`launchservicesd`, `lsd.open`, `lsd.modifydb`) | 막힘 | 막힘 | — |
+    | LaunchServices 데이터베이스(`lsd.mapdb`) | **열림** | 막힘 | 설치된 앱과 문서 형식 |
+    | Spotlight(`metadata.mds`) | 막힘 | 막힘 | — |
+    | 사용자 기본 설정(`cfprefsd.*`, `CFPreferencesCopyAppValue` 다른 앱) | 막힘(`null`) | 막힘 | — |
+    | 개인정보 서비스(`tccd`, 위치, 연락처) | 막힘 | 막힘 | — |
+    | 다른 프로세스 목록(`proc_listallpids`, `sysctl kern.proc.all`) | **열림**(약 700개) | 막힘 | 실행 중인 프로세스 전체 |
+    | 다른 프로세스의 인자와 환경 변수(`sysctl kern.procargs2`) | **열림** | 막힘 | 같은 사용자 프로세스의 명령줄과 환경 변수(비밀이 들어 있을 수 있다) |
+    | 다른 프로세스의 경로, 작업 폴더, 열린 파일(`proc_pidpath`, `proc_pidinfo`) | **열림** | 막힘 | 실행 파일 경로, 작업 폴더, 열린 파일 목록 |
+    | IOKit 속성(`ioreg`, `IORegistryEntryCreateCFProperty`) | **열림**(`ioreg`에서 시리얼 번호가 읽혔다) | 막힘(속성). 레지스트리 이름 목록은 열림 | 기기 시리얼 번호, 하드웨어 UUID |
+    | 전원 관리(`PowerManagement.control`, `IOPMrootDomain` 열기) | **열림**(연결이 열렸다) | 막힘 | 잠자기 요청, 잠자기 방지 |
+    | 배포 알림 보내기(`distributed_notifications`) | **열림** | 막힘 | (보내기) 다른 앱에 알림 |
+    | 시스템 소리(`audio.systemsoundserver`) | **열림** | 막힘 | (재생) |
+    | 사용자·그룹 조회(`libinfo`, `id`, `dscacheutil`) | 열림 | 열림 | 로컬 계정 이름 목록, 그룹 소속 |
+    | `launchd` 부트스트랩 포트(`launchctl`을 임시로 풀고 시험) | **열림**(조회, 시작, 중지, 등록 요청이 처리된다) | 열림. 프로필로 막을 수 없다 | 서비스 목록, 작업 시작·등록 |
+    | 막은 도구의 직접 실행(`security`, `launchctl`, `osascript`, `open`, `pbpaste`, `defaults`, `screencapture`, `lsof`, `ps`) | 막힘 | 막힘 | — |
+    | `env`, `xcrun`, `sh -c`, `arch`, `xargs`, `find -exec`, `script`, `exec -a`, `/usr/bin/../bin/…`로 막은 도구 실행 | 막힘 | 막힘 | — |
+    | 막은 도구의 심볼릭 링크 실행, `cp`·`cat`으로 임시 폴더에 복사해 실행 | 막힘(읽기도 막혀 복사본이 빈 파일이다) | 막힘 | — |
+    | `DYLD_INSERT_LIBRARIES`로 막은 도구 실행 | 막힘 | 막힘 | — |
+    | 임시 폴더에 쓴 스크립트 실행 | 열림 | 열림(같은 프로필 안이라 밖으로 나가지 않는다) | — |
+    | 열린 도구로 폴더 밖 읽기(`cat`, `find`, `tar`, `sqlite3`, `plutil`, `grep`, `dd`, `strings`, `xxd`, `curl file://`, `awk`, `openssl`, `git`, `ditto`, `perl`, `ruby`로 시험용 가짜 파일, 홈, `~/.ssh`, `/Users`, `/Applications`, `/etc/passwd`, 키체인 폴더, `/var/db`, `/var/run/utmpx` 목록·읽기) | 막힘 | 막힘 | — |
+    | 프로세스 도구(`pgrep`, `pkill`, `sample`, `vmmap`, `nettop`, `crontab`, `at`, `sysctl -a`, `netstat`) | 막힘(서비스가 없어서) | 막힘 | — |
+    | 시험이 이 기계에 남긴 것 | — | — | 없음(아래 "흔적" 확인) |
+
+    위 "열림"은 모두 도구 없이 `bun:ffi`로 부른 값이다. `python3 ctypes`로 같은 시험(서비스 조회 열한 개, 키체인, 프로세스 목록, 다른 프로세스 인자·경로)을 한 결과는 "후"에서 `bun:ffi`와 같았다(서비스 조회 `1100`, 키체인 `-50`, 프로세스 정보 막힘). `node`의 네이티브 애드온은 컴파일해야 해서 시험하지 않았다(프로필은 프로세스 단위라서 런타임과 상관없다고 본다).
+  - **정상 훅 스크립트 확인**(`script-bypass.int.test.ts`): `grep`, `sed`, `awk`, `sort`, `jq`, `git --version`, 빈 커밋을 만드는 `git init`·`commit`·`log`, `curl --version`, `id -un`, `hostname`, `uname`, 임시 폴더 쓰기, `cat > /dev/null`, 자식 프로세스 만들고 죽이기, 백그라운드와 `wait`가 돈다. `bun`과 `node` 스크립트의 `os.userInfo()`, `os.hostname()`, `os.cpus()`, `process.memoryUsage()`, `spawnSync`(`sh`, `jq`, `git`)가 돈다. 알려진 기존 한계(이 변경과 무관, 전 후 같다): 이름 없이 부른 `mktemp`는 `TMPDIR`을 무시하고 `/var/folders`에 쓰려다 실패한다(`mktemp "$TMPDIR/x.XXXX"`는 된다), `perl`·`ruby`·`shasum`(Perl 스크립트)은 `/System/Library/Perl`을 읽지 못해 못 돈다, `/usr/bin/python3` 껍데기는 `xcrun` 캐시를 쓰지 못해 실패한다, `os.uptime()`은 `EPERM`, `node`가 PATH의 읽을 수 없는 폴더를 만나면 `spawn("grep")`이 `EPERM`(절대 경로는 된다), 실행기 `python3`는 설치 폴더(표준 라이브러리)를 읽을 수 없어서 `runtimeReadRoots`가 없으면 시작하지 못한다(설치 폴더를 읽게 하면 돈다. 사용자 결정 10절 14번).
   - 도구 동작(실제 샌드박스 시험, `script-boundary.int.test.ts`): `command -v`(PATH 탐색), `grep`, `sed`, `awk`, `cat`, `find`, `sort`, `jq`, `curl --version`, 개발자 폴더의 진짜 `git`과 PATH의 `git`(Apple 껍데기: `xcrun` 캐시를 쓰지 못한다는 경고만 내고 돈다)의 읽기 전용 명령이 돈다. 종료 코드, 표준 출력, 표준 오류는 그대로 돌아온다.
 - 확인: `sandbox.no-write.int.test.ts`(실제 srt). 플러그인 폴더 안 읽기, 다른 플러그인 폴더·홈 파일 읽기 거부, 폴더 안 쓰기·작업 폴더 쓰기 거부, 자기 임시 폴더 쓰기와 읽기, `cleanup` 뒤 폴더 삭제, 두 프로세스의 폴더가 다름을 값으로 본다. macOS Seatbelt와 Linux bubblewrap(Docker arm64)에서 모두 통과했다. https(example.com)가 되는 것은 실제 샌드박스 아래 컴파일 바이너리로 손으로 확인했다(시험에 넣지 않았다: 바깥 인터넷이 필요하다).
 
@@ -649,3 +703,4 @@ export function selectSandboxProvider(input: {
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
 12. [미결] 위반 수집 시점. macOS 로그 스트림의 줄은 명령이 끝난 뒤에 도착할 수 있다(위 요약의 측정). 그래서 명령이 끝난 직후 `getViolationsForCommand`로 모으면 쓰기 거부가 빠질 수 있고, 막은 것의 분류(4.2절 11번)도 같은 공백을 가진다. 모든 셸 호출에 대기를 넣으면 지연이 생기므로, 0이 아닌 종료에만 짧게 기다리는 방안과 로그 출력을 줄 단위로 읽는 방안을 비교해 정한다.
 11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 경로를 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).
+14. [미결] 스크립트 실행기가 `launchd` 직접 통신으로 샌드박스 밖에서 도는 작업을 등록할 수 있는 길(4.9절 "막지 못한 길"). 막은 `launchctl` 실행은 도구 길만 닫는다. 줄이는 선택지(각각 잃는 것): (가) 네이티브 호출이 되는 실행기 `bun`·`node`·`python3`를 빼고 `sh`·`bash`만 둔다(`bun`·`node`·`python3` 스크립트 불가. 훅 변환기는 원본 스크립트의 확장자로 실행기를 고르므로 `.js`·`.ts`·`.py` 훅은 변환해도 쓸 수 없게 된다). (나) 스크립트 실행기를 별도 프로세스 계정이나 별도 샌드박스(작업 관리자 연결이 없는 환경)에서 띄운다(구조 변경이 크다). (다) 그대로 두고 카드의 "코드 실행" 안내와 승인에 기댄다(승인된 플러그인만 스크립트를 돌린다). 권고: (다)를 유지하되 (나)를 후속으로 설계한다. 사용자가 정한다. 실행기 `python3`는 `runtimeReadRoots`가 없어 설치 폴더를 읽지 못해 시작하지 못하므로 어느 쪽이든 먼저 정해야 한다(설치 폴더 읽기를 여는 것도 사용자 결정이다).

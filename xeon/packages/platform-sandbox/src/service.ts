@@ -23,6 +23,7 @@ import { decideAutoAllow } from "./auto-allow.ts";
 import { canonicalizePath, sortedUnique, toAbsolutePath } from "./paths.ts";
 import {
   runtimeReadPaths,
+  systemInfoDeny,
   systemToolDeny,
   systemToolMachDeny,
   systemToolLiterals,
@@ -362,6 +363,7 @@ export async function createSandboxService(
               readAllowLiteral: [...systemToolLiterals(provider.kind)],
               toolDeny: [...systemToolDeny(provider.kind)],
               machDeny: [...systemToolMachDeny(provider.kind)],
+              ...(systemInfoDeny(provider.kind) ? { systemInfoDeny: true } : {}),
             }
           : {}),
         readAllow: [

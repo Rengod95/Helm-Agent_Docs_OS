@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { err, ok, type Result } from "@fresnel/contracts";
 import {
@@ -138,8 +138,16 @@ export interface RealSandbox {
 /** 실제 srt로 서비스를 만든다. 임시 디렉터리 아래 home, data, workspace를 쓴다 */
 export async function startRealSandbox(
   overrides: Partial<SandboxSettings> = {},
+  options: { readonly tmpBehindSymlink?: boolean } = {},
 ): Promise<RealSandbox> {
   const dirs = makeTestDirs();
+  if (options.tmpBehindSymlink === true) {
+    // macOS의 임시 폴더(`/var/folders/...`)처럼 임시 폴더 기반이 심볼릭 링크 아래에 있는 모양을 만든다
+    const actual = join(dirs.root, "tmp-actual");
+    rmSync(dirs.tmp, { recursive: true, force: true });
+    mkdirSync(actual, { recursive: true });
+    symlinkSync(actual, dirs.tmp);
+  }
   const vault = join(dirs.root, "vault");
   mkdirSync(vault, { recursive: true });
   writeFileSync(join(vault, "secret.txt"), VAULT_SECRET);
