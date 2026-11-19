@@ -387,10 +387,16 @@ function injectLayout(p: Plugin): InsideLayout {
   });
   // 스킬: 필요할 때 실린다(점선). 설명만 늘 실린다
   const cols = 3;
+  // 늘 실리는 카드가 없으면 스킬 판을 컨텍스트 조립 바로 위 가운데에, 있으면 그 오른쪽에 둔다
+  const gridW = cols * 196 - 16;
+  const gridX =
+    always.length === 0
+      ? (st.x0 + st.x1) / 2 - gridW / 2
+      : Math.max(620, 160 + always.length * 230 + 40);
   s.skills.forEach((k, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const x = 620 + col * 196;
+    const x = gridX + col * 196;
     const y = -bandHalf - 230 + row * 76;
     cards.push(
       card({
@@ -412,7 +418,7 @@ function injectLayout(p: Plugin): InsideLayout {
       d: "M0 0",
       style: "lazy",
       label: {
-        x: 620 + 290,
+        x: gridX + gridW / 2,
         y: -bandHalf - 250,
         text: t("desktop.craft.canvas.cvG.inside.skillsHint", { n: s.skills.length }),
       },
@@ -663,7 +669,8 @@ export function PluginInside(props: {
     const id = window.requestAnimationFrame(() => {
       detach(
         rf.fitView({
-          padding: { top: "72px", left: "40px", right: "40px", bottom: "40px" },
+          nodes: layout.cards.map((c) => ({ id: c.id })),
+          padding: { top: "84px", left: "48px", right: "64px", bottom: "72px" },
           maxZoom: 1.1,
           duration: 0,
         }),
@@ -686,7 +693,7 @@ export function PluginInside(props: {
         draggable: false,
         selectable: false,
         focusable: false,
-        zIndex: -1,
+        zIndex: 0,
         style: { pointerEvents: "none" },
       },
       ...layout.cards.map((c): InsideNode => ({
@@ -759,7 +766,12 @@ export function PluginInside(props: {
           variant="ghost"
           onClick={() => {
             detach(
-              rf.fitView({ padding: 0.12, maxZoom: 1.1, duration: reduced ? 0 : 240 }),
+              rf.fitView({
+                nodes: layout.cards.map((c) => ({ id: c.id })),
+                padding: { top: "84px", left: "48px", right: "64px", bottom: "72px" },
+                maxZoom: 1.1,
+                duration: reduced ? 0 : 240,
+              }),
               rethrow,
             );
           }}

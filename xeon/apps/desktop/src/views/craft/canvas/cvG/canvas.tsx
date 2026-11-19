@@ -4,7 +4,7 @@
 // 끌기: 목록 줄을 캔버스에 놓으면 넣고(붙는 자리가 미리 밝아진다), 판을 목록으로 끌어 놓으면 뺀다.
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import { ReactFlow, useReactFlow, useViewportStore, type FitViewOptions } from "@xyflow/react";
+import { ReactFlow, useReactFlow, useViewportStore } from "@xyflow/react";
 import {
   useCallback,
   useEffect,
@@ -56,11 +56,8 @@ import { KIND_WORD, RELATION_HINT, RELATION_WORD } from "./words.ts";
 
 /** 이보다 좁은 창에서는 사이드 패널을 타일 막대로 접은 채 연다 */
 const WIDE_ENOUGH = 1280;
-const FIT: FitViewOptions = {
-  padding: { top: "64px", left: "28px", right: "28px", bottom: "40px" },
-  maxZoom: 1.05,
-  minZoom: 0.25,
-};
+/** 맞춤 보기 여백(화면 픽셀). 위는 프로필 머리, 아래는 도구 막대, 오른쪽은 앱의 세로 도구 자리 */
+const FIT_PAD = { top: "72px", left: "28px", right: "60px", bottom: "64px" } as const;
 const REL_KINDS: readonly RelationKind[] = ["handoff", "depends", "reads", "creates", "replaces"];
 
 interface Drag {
@@ -131,19 +128,32 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     [profile],
   );
 
-  // 처음, 프로필을 바꿀 때, 패널을 접고 펼 때 화면에 맞춘다
-  const fitKey = `${store.current}|${paletteOpen ? "open" : "rail"}`;
-  const fitted = useRef("");
+  // 맞춤 보기: 배치가 아는 테두리(판·묶음·레일·빌더)로 맞춘다. 끝없이 긴 바닥 띠는 넣지 않는다.
+  // 처음(ReactFlow가 준비되면), 맞춤 단추, 패널을 접고 펼 때(폭이 바뀐 다음 프레임). 프로필을 바꾸면 index.tsx가 새로 그린다
+  const fitLayout = useCallback(
+    (duration: number): void => {
+      const b = layout.bounds;
+      detachView(
+        rf.fitBounds(
+          { x: b.x, y: b.y, width: b.w, height: b.h },
+          { padding: FIT_PAD, duration: reduced ? 0 : duration },
+        ),
+      );
+    },
+    [layout, rf, reduced],
+  );
+  // 사용자가 직접 옮기거나 확대하기 전까지는 캔버스 크기가 바뀔 때마다(처음 잴 때, 패널을 접고 펼 때) 다시 맞춘다
+  const autoFit = useRef(true);
+  const paneW = useViewportStore((s) => s.width);
+  const paneH = useViewportStore((s) => s.height);
   useEffect(() => {
-    if (fitted.current === fitKey) return undefined;
-    fitted.current = fitKey;
-    const id = window.requestAnimationFrame(() => {
-      detachView(rf.fitView({ ...FIT, duration: 0 }));
-    });
-    return () => {
-      window.cancelAnimationFrame(id);
-    };
-  }, [rf, fitKey]);
+    if (!autoFit.current || paneW === 0 || paneH === 0) return;
+    fitLayout(0);
+  }, [paneW, paneH, fitLayout]);
+  const togglePalette = useCallback((): void => {
+    autoFit.current = true;
+    setPaletteOpen((o) => !o);
+  }, []);
 
   const rectOf = useCallback((id: string): Rect | null => rectIn(layout, id), [layout]);
 
@@ -152,8 +162,11 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     (r: Rect | null, keepZoom: boolean): void => {
       const box = wrapRef.current?.getBoundingClientRect();
       if (r === null || box === undefined) return;
-      const z = keepZoom ? zoom : Math.min(Math.max(zoom, 0.92), 1.05);
+      autoFit.current = false;
       const free = box.width - PANEL_W - 32;
+      // 판 하나는 읽을 만큼(92~105%) 키우고, 넓은 받침판은 빈 자리에 다 들어오게 줄인다
+      const room = Math.min((free - 64) / r.w, (box.height - 180) / r.h);
+      const z = keepZoom ? zoom : Math.max(0.4, Math.min(Math.max(zoom, 0.92), 1.05, room));
       const shift = (box.width / 2 - free / 2) / z;
       detachView(
         rf.setCenter(r.x + r.w / 2 + shift, r.y + r.h / 2, {
@@ -431,6 +444,8 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     return pt === null ? null : { ...pt, kind: p.kind };
   }, [drag, layout]);
 
+  // 층 순서(xyflow는 음수 zIndex를 판 아래 바닥 뒤로 보내 누를 수 없게 하므로 0부터):
+  // 띠 0 · 바닥 1 · 받침판·빌더 2 · 관계 선 3 · 판·더미 4
   const nodes = useMemo((): CanvasNode[] => {
     const markOf = (id: string): Mark =>
       id === selected ? "selected" : related.has(id) ? "related" : "none";
@@ -445,7 +460,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         selectable: false,
         focusable: false,
         style: { pointerEvents: "none" },
-        zIndex: -3,
+        zIndex: 0,
       },
       {
         id: "floor",
@@ -461,7 +476,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         selectable: false,
         focusable: false,
         style: { pointerEvents: "none" },
-        zIndex: -2,
+        zIndex: 1,
       },
       {
         id: "links",
@@ -472,7 +487,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         selectable: false,
         focusable: false,
         style: { pointerEvents: "none" },
-        zIndex: 0,
+        zIndex: 3,
       },
     ];
     for (const g of layout.bundles) {
@@ -485,7 +500,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         draggable: false,
         selectable: false,
         focusable: g.collapsed,
-        zIndex: g.collapsed ? 1 : -1,
+        zIndex: g.collapsed ? 4 : 2,
         ariaLabel: t("desktop.craft.canvas.cvG.a11y.bundle", {
           name: bundleMetaOf(g.id).displayName,
           n: g.members.length,
@@ -507,7 +522,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         draggable: false,
         selectable: false,
         focusable: true,
-        zIndex: 1,
+        zIndex: 4,
         ariaLabel: t("desktop.craft.canvas.cvG.a11y.plate", {
           name,
           kind: t(KIND_WORD[p.placed.plugin.kind]),
@@ -524,7 +539,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         draggable: false,
         selectable: false,
         focusable: true,
-        zIndex: -1,
+        zIndex: 2,
       });
     }
     return list;
@@ -582,7 +597,14 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
   return (
     <CanvasActionsContext value={actions}>
-      <div className="cvg-root flex min-h-0 flex-1" data-scheme={theme}>
+      {/* Esc는 어디에 포커스가 있든(목록 줄 포함) 떠 있는 상세를 닫는다 */}
+      <div
+        className="cvg-root flex min-h-0 flex-1"
+        data-scheme={theme}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && selected !== null) setSelected(null);
+        }}
+      >
         <div ref={paletteRef} className="flex">
           <Palette
             profile={profile}
@@ -599,9 +621,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             onPointerDown={(name, e) => {
               startPointer(name, "palette", e);
             }}
-            onToggle={() => {
-              setPaletteOpen((o) => !o);
-            }}
+            onToggle={togglePalette}
           />
         </div>
         <div
@@ -626,6 +646,9 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             zoomOnDoubleClick={false}
             minZoom={0.2}
             maxZoom={1.8}
+            onMoveStart={(e) => {
+              if (e !== null) autoFit.current = false;
+            }}
             proOptions={{ hideAttribution: true }}
             aria-label={t("desktop.craft.canvas.cvG.canvas")}
             onPaneClick={() => {
@@ -721,7 +744,8 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               className="cvg-tool-btn"
               aria-label={t("desktop.craft.canvas.cvG.tool.fit")}
               onClick={() => {
-                detachView(rf.fitView({ ...FIT, duration: reduced ? 0 : 260 }));
+                autoFit.current = true;
+                fitLayout(260);
               }}
             >
               <Icon name="fit" size={14} />

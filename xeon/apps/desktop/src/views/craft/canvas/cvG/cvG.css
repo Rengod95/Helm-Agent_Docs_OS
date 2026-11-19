@@ -100,6 +100,15 @@
     cursor: default;
   }
 
+  /* xyflow는 고를 수도 끌 수도 없는 노드에 pointer-events: none을 준다. 판·받침판·더미·빌더는 안을 누를 수 있게 되살린다
+     (띠·바닥·관계 선은 그대로 지나가게 둔다) */
+  .cvg-flow .react-flow__node-plate > *,
+  .cvg-flow .react-flow__node-pedestal > *,
+  .cvg-flow .react-flow__node-pile > *,
+  .cvg-flow .react-flow__node-builder > * {
+    pointer-events: auto;
+  }
+
   .cvg-flow .react-flow__node:focus-visible {
     outline: none;
   }
@@ -159,12 +168,12 @@
 
   .cvg-station-num {
     fill: var(--cs-color-text-tertiary);
-    font: 500 11px var(--cvg-mono);
+    font: 500 14px var(--cvg-mono);
   }
 
   .cvg-station-label {
-    fill: var(--cs-color-text-secondary);
-    font: 500 13.5px var(--cs-font-ui);
+    fill: var(--cs-color-text-primary);
+    font: 600 17px var(--cs-font-ui);
   }
 
   .cvg-gate {
@@ -179,8 +188,8 @@
   }
 
   .cvg-gate-label {
-    fill: var(--cs-color-text-tertiary);
-    font: 12.5px var(--cs-font-ui);
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
   }
 
   .cvg-tick {
@@ -200,7 +209,7 @@
 
   .cvg-return text {
     fill: var(--cs-color-text-tertiary);
-    font: 11.5px var(--cs-font-ui);
+    font: 14px var(--cs-font-ui);
   }
 
   .cvg-arrow-floor {
@@ -313,7 +322,7 @@
 
   .cvg-rel-text {
     fill: var(--cs-color-text-secondary);
-    font: 500 11.5px var(--cs-font-ui);
+    font: 500 15px var(--cs-font-ui);
   }
 
   .cvg-rel-text-handoff {
@@ -377,6 +386,16 @@
     background: transparent;
     border: 0;
     cursor: pointer;
+  }
+
+  /* 멀리서 보는 이름: 하이픈 뒤에서 두 줄까지 접힌다(잘라 내지 않는다) */
+  .cvg-name-wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    hyphens: manual;
   }
 
   .cvg-mark {
@@ -502,11 +521,11 @@
   .cvg-builder {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 176px;
-    height: 64px;
-    padding: 0 14px;
-    border-radius: 12px;
+    gap: 14px;
+    width: 236px;
+    height: 104px;
+    padding: 0 18px;
+    border-radius: 14px;
     border: 1px dashed var(--cvg-line);
     color: var(--cs-color-text-tertiary);
     cursor: pointer;
@@ -527,12 +546,19 @@
       0 4px 14px -6px rgb(0 0 0 / 0.3);
   }
 
+  .cvg-root svg {
+    flex-shrink: 0;
+  }
+
   .cvg-icon-btn {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     width: 26px;
     height: 26px;
+    padding: 0;
+    background: transparent;
     border-radius: 7px;
     color: var(--cs-color-text-tertiary);
     outline: none;

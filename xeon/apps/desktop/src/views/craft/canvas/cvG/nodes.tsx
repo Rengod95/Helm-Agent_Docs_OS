@@ -24,7 +24,7 @@ import {
   type PlateGeo,
   type ProfileLayout,
 } from "./layout.ts";
-import type { Kind, Plugin, RelationKind } from "./model.ts";
+import { pluginOf, type Kind, type Plugin, type RelationKind } from "./model.ts";
 import { bundleMetaOf } from "./sample-ext.ts";
 import {
   anchorWord,
@@ -38,9 +38,11 @@ import {
 
 // ── 확대 단계 ─────────────────────────────────────────────────────
 
-type Lod = "far" | "mid" | "near";
+/** 확대 단계: 아주 멂(이름만 크게), 멂(이름·붙는 자리), 중간(목적 두 줄·요약), 가까이(칩·바닥줄) */
+type Lod = "tiny" | "far" | "mid" | "near";
 
 function lodOf(zoom: number): Lod {
+  if (zoom < 0.4) return "tiny";
   if (zoom < 0.62) return "far";
   if (zoom < 1.05) return "mid";
   return "near";
@@ -166,7 +168,7 @@ function FloorNode(props: NodeProps<Node<FloorData, "floor">>): ReactNode {
             d={`M${tools.x1 - 30} ${RAIL_HALF + 2} C${tools.x1 - 30} ${RAIL_HALF + 34} ${model.x0 + 30} ${RAIL_HALF + 34} ${model.x0 + 30} ${RAIL_HALF + 4}`}
             markerEnd="url(#cvg-arrow-floor)"
           />
-          <text x={(tools.x1 + model.x0) / 2} y={RAIL_HALF + 44} textAnchor="middle">
+          <text x={(tools.x1 + model.x0) / 2} y={RAIL_HALF + 52} textAnchor="middle">
             {t("desktop.craft.canvas.cvG.loop.step")}
           </text>
         </g>
@@ -174,10 +176,10 @@ function FloorNode(props: NodeProps<Node<FloorData, "floor">>): ReactNode {
       {input !== undefined && end !== undefined ? (
         <g className="cvg-return">
           <path
-            d={`M${end.x} ${RAIL_HALF - 10} V${BAND_HALF - 34} H${input.x} V${RAIL_HALF - 6}`}
+            d={`M${end.x} ${RAIL_HALF - 10} V${BAND_HALF - 20} H${input.x} V${RAIL_HALF - 6}`}
             markerEnd="url(#cvg-arrow-floor)"
           />
-          <text x={(input.x + end.x) / 2} y={BAND_HALF - 42} textAnchor="middle">
+          <text x={(input.x + end.x) / 2} y={BAND_HALF - 28} textAnchor="middle">
             {t("desktop.craft.canvas.cvG.loop.turn")}
           </text>
         </g>
@@ -193,10 +195,10 @@ function FloorNode(props: NodeProps<Node<FloorData, "floor">>): ReactNode {
             rx={9}
             className="cvg-station"
           />
-          <text x={s.x0 + 14} y={5} className="cvg-station-num">
+          <text x={s.x0 + 13} y={6} className="cvg-station-num">
             {String(i + 1).padStart(2, "0")}
           </text>
-          <text x={s.x0 + 36} y={5} className="cvg-station-label">
+          <text x={s.x0 + 38} y={6} className="cvg-station-label">
             {t(BLOCK_WORD[s.id])}
           </text>
         </g>
@@ -206,7 +208,7 @@ function FloorNode(props: NodeProps<Node<FloorData, "floor">>): ReactNode {
         <g key={x.id}>
           <line x1={x.x} x2={x.x} y1={-RAIL_HALF + 4} y2={RAIL_HALF - 4} className="cvg-gate" />
           <circle cx={x.x} cy={0} r={5} className="cvg-gate-dot" />
-          <text x={x.x} y={-RAIL_HALF - 10} textAnchor="middle" className="cvg-gate-label">
+          <text x={x.x} y={-RAIL_HALF - 12} textAnchor="middle" className="cvg-gate-label">
             {t(BOUNDARY_WORD[x.id])}
           </text>
         </g>
@@ -368,20 +370,22 @@ function RelationLabel(props: {
 }): ReactElement {
   const word = t(RELATION_WORD[props.kind]);
   const label = props.text === "" ? word : `${word} · ${props.text}`;
-  const w = label.length * 6.6 + 16;
+  // 글자 폭 어림: 한글은 글자 크기만큼, 라틴·숫자는 그 반쯤
+  let w = 20;
+  for (let i = 0; i < label.length; i++) w += label.charCodeAt(i) > 0x1100 ? 15 : 8.2;
   return (
     <g>
       <rect
         x={props.x - w / 2}
-        y={props.y - 11}
+        y={props.y - 14}
         width={w}
-        height={20}
-        rx={6}
+        height={27}
+        rx={8}
         className="cvg-rel-pill"
       />
       <text
         x={props.x}
-        y={props.y + 3.5}
+        y={props.y + 5}
         textAnchor="middle"
         className={`cvg-rel-text cvg-rel-text-${props.kind}`}
       >
@@ -497,16 +501,26 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
         />
       </svg>
       {arrive > 0 ? <span key={arrive} className="cvg-arrive" aria-hidden="true" /> : null}
-      {lod === "far" ? (
-        <div className="cvg-plate-body justify-center gap-2 px-5">
-          <div className="flex items-center gap-3">
+      {lod === "tiny" ? (
+        <div className="cvg-plate-body justify-center gap-3 px-5">
+          <div className="flex items-center gap-3.5">
             <KindTile kind={p.kind} size={46} draft={draft} />
-            <span className="min-w-0 flex-1 truncate text-[25px] font-semibold text-text-primary">
+            <span className="cvg-name-wrap min-w-0 flex-1 text-[28px] leading-[33px] font-semibold tracking-[-0.01em] text-text-primary">
+              {p.name}
+            </span>
+          </div>
+          <Marks geo={geo} big />
+        </div>
+      ) : lod === "far" ? (
+        <div className="cvg-plate-body justify-center gap-2.5 px-5">
+          <div className="flex items-center gap-3">
+            <KindTile kind={p.kind} size={44} draft={draft} />
+            <span className="cvg-name-wrap min-w-0 flex-1 text-[25px] leading-[29px] font-semibold text-text-primary">
               {p.name}
             </span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-[17px] text-text-secondary">{where}</span>
+            <span className="truncate text-[20px] text-text-secondary">{where}</span>
             <Marks geo={geo} big />
           </div>
         </div>
@@ -592,24 +606,31 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
 
 // ── 받침 층: 묶음 ─────────────────────────────────────────────────
 
-function BundleHead(props: { readonly geo: BundleGeo; readonly big: boolean }): ReactNode {
+function BundleHead(props: {
+  readonly geo: BundleGeo;
+  readonly big: boolean;
+  /** 종류 표시(접힌 더미는 줄마다 타일이 있어 뺀다) */
+  readonly kinds?: boolean;
+}): ReactNode {
   const actions = use(CanvasActionsContext);
   const meta = bundleMetaOf(props.geo.id);
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="text-text-secondary">
-        <PartGlyph name="package" size={props.big ? 22 : 16} />
+        <PartGlyph name="package" size={props.big ? 26 : 16} />
       </span>
       <span
-        className={`truncate font-semibold text-text-primary ${props.big ? "text-[22px]" : "text-[14px]"}`}
+        className={`truncate font-semibold text-text-primary ${props.big ? "text-[26px]" : "text-[15px]"}`}
       >
         {meta.displayName}
       </span>
-      <span className={`shrink-0 text-text-tertiary ${props.big ? "text-[16px]" : "text-[12px]"}`}>
+      <span
+        className={`shrink-0 text-text-tertiary ${props.big ? "text-[19px]" : "text-[12.5px]"}`}
+      >
         {t("desktop.craft.canvas.cvG.bundle.count", { n: props.geo.members.length })}
       </span>
       <span className="ms-auto flex shrink-0 items-center gap-1">
-        {props.geo.kinds.map((k) => (
+        {(props.kinds === false ? [] : props.geo.kinds).map((k) => (
           <span key={k} style={{ color: KIND_COLOR[k] }} className="flex">
             <KindGlyph kind={k} size={props.big ? 16 : 12} />
           </span>
@@ -655,7 +676,7 @@ function PedestalNode(props: NodeProps<Node<PedestalData, "pedestal">>): ReactNo
     >
       {arrive > 0 ? <span key={arrive} className="cvg-arrive" aria-hidden="true" /> : null}
       <div className="px-3.5 pt-2.5">
-        <BundleHead geo={geo} big={lod === "far"} />
+        <BundleHead geo={geo} big={lod === "far" || lod === "tiny"} />
       </div>
     </div>
   );
@@ -690,22 +711,41 @@ function PileNode(props: NodeProps<Node<PedestalData, "pile">>): ReactNode {
       <div className="cvg-pile-top" style={{ left: 0, top: PILE_OFFSET * 2, width: w, height: h }}>
         {arrive > 0 ? <span key={arrive} className="cvg-arrive" aria-hidden="true" /> : null}
         <div className="flex h-full flex-col gap-2 px-4 py-3.5">
-          <BundleHead geo={geo} big={lod === "far"} />
-          {lod === "far" ? null : (
+          <BundleHead geo={geo} big={lod === "far" || lod === "tiny"} kinds={false} />
+          {lod === "far" || lod === "tiny" ? (
+            // 멀리서: 구성원마다 종류 타일과 이름(셋까지, 나머지는 수)
+            <ol className="mt-auto flex flex-col gap-1.5">
+              {geo.members.slice(0, 3).map((m) => {
+                const kind = pluginOf(m)?.kind;
+                return (
+                  <li key={m} className="flex min-w-0 items-center gap-2.5">
+                    {kind === undefined ? null : <KindTile kind={kind} size={30} />}
+                    <span className="truncate text-[21px] font-medium text-text-primary">{m}</span>
+                  </li>
+                );
+              })}
+              {geo.members.length > 3 ? (
+                <li className="text-[18px] text-text-tertiary">
+                  {t("desktop.craft.canvas.cvG.bundle.count", { n: geo.members.length - 3 })}
+                </li>
+              ) : null}
+            </ol>
+          ) : (
             <>
               <p className="line-clamp-2 text-[13.5px] leading-[18px] text-text-secondary">
                 {t(meta.purpose)}
               </p>
-              <ol className="mt-auto flex flex-col gap-0.5">
-                {geo.members.map((m, i) => (
-                  <li
-                    key={m}
-                    className="flex items-center gap-1.5 text-[12.5px] text-text-secondary"
-                  >
-                    <span className="w-3 text-text-tertiary tabular-nums">{String(i + 1)}</span>
-                    <span className="truncate">{m}</span>
-                  </li>
-                ))}
+              <ol className="mt-auto flex flex-col gap-1">
+                {geo.members.map((m, i) => {
+                  const kind = pluginOf(m)?.kind;
+                  return (
+                    <li key={m} className="flex items-center gap-2 text-[13px] text-text-secondary">
+                      <span className="w-3 text-text-tertiary tabular-nums">{String(i + 1)}</span>
+                      {kind === undefined ? null : <KindTile kind={kind} size={18} />}
+                      <span className="truncate">{m}</span>
+                    </li>
+                  );
+                })}
               </ol>
             </>
           )}
@@ -737,12 +777,12 @@ function BuilderNode(props: NodeProps<Node<BuilderData, "builder">>): ReactNode 
         actions.select("@builder");
       }}
     >
-      <PartGlyph name="builder" size={16} />
+      <PartGlyph name="builder" size={26} />
       <div className="min-w-0">
-        <div className="truncate text-[13px] font-medium text-text-primary">
+        <div className="truncate text-[19px] font-semibold text-text-primary">
           {t("desktop.craft.canvas.cvG.builder.name")}
         </div>
-        <div className="truncate text-[11.5px] text-text-tertiary">
+        <div className="line-clamp-2 text-[14px] leading-[18px] text-text-tertiary">
           {t("desktop.craft.canvas.cvG.builder.where")}
         </div>
       </div>

@@ -22,17 +22,22 @@ const PLATE_W = 252;
 const PLATE_H = 156;
 const STACK_GAP = 14;
 const COL_GAP = 20;
-/** 한 더미의 판 수. 넘치면 옆에 새 더미를 세운다 */
-const WRAP = 3;
+/** 한 더미의 판 수: 붙은 수의 제곱근쯤(둘 이상). 넘치면 옆에 새 더미를 세운다. 낮고 넓게 두어 맞춤 보기가 읽을 만한 배율이 되게 */
+function wrapOf(count: number): number {
+  return Math.max(2, Math.ceil(Math.sqrt(count * 0.8)));
+}
+/** Drive 줄이 레일 끝을 넘으면 그 위에 새 줄을 둔다 */
+const DRIVE_ROW_GAP = 40;
 const PED_PAD = 14;
-const PED_HEAD = 40;
+const PED_HEAD = 50;
 /** 접힌 묶음(판 더미): 뒤 판 두 장이 비켜 선다 */
 export const PILE_OFFSET = 7;
 export const RAIL_HALF = 24;
-const LANE_GAP = 72;
+/** 레일에서 판까지. 판이 바닥 띠 밖(띠 가장자리 바로 위·아래)에 뜨게 띠보다 조금 크다 */
+const LANE_GAP = 96;
 const DRIVE_GAP = 76;
 /** 바닥 띠(한 단계 밝은 무대)의 반 높이 */
-export const BAND_HALF = 150;
+export const BAND_HALF = 112;
 
 export interface Rect {
   readonly x: number;
@@ -157,10 +162,11 @@ function bundleLane(members: readonly Placed[]): Lane {
   return feed * 2 > members.length ? "feed" : "hook";
 }
 
+/** 받침판: 구성원 판이 매니페스트 순서대로 왼쪽에서 오른쪽으로 나란히 선다 */
 function pedestalSize(count: number): { w: number; h: number } {
   return {
-    w: PLATE_W + PED_PAD * 2,
-    h: PED_HEAD + count * PLATE_H + (count - 1) * STACK_GAP + PED_PAD,
+    w: PED_PAD * 2 + count * PLATE_W + (count - 1) * COL_GAP,
+    h: PED_HEAD + PLATE_H + PED_PAD,
   };
 }
 
@@ -178,15 +184,16 @@ function itemSize(item: Item, collapsed: ReadonlySet<string>): { w: number; h: n
   return pedestalSize(item.members.length);
 }
 
-/** 더미(세로로 쌓인 것)들. WRAP을 넘으면 옆 더미로 */
+/** 더미(세로로 쌓인 것)들. 한 더미에 wrapOf(판 수)까지, 넘치면 옆 더미로 */
 function columnsOf(items: readonly Item[]): Item[][] {
+  const wrap = wrapOf(items.length);
   const cols: Item[][] = [];
   for (const it of items) {
     const last = cols[cols.length - 1];
     if (
       it.type === "bundle" ||
       last === undefined ||
-      last.length >= WRAP ||
+      last.length >= wrap ||
       last[0]?.type === "bundle"
     )
       cols.push([it]);
@@ -349,8 +356,8 @@ export function layoutProfile(
     if (!isCollapsed) {
       it.members.forEach((m, k) => {
         plates.push({
-          x: x + PED_PAD,
-          y: y + PED_HEAD + k * (PLATE_H + STACK_GAP),
+          x: x + PED_PAD + k * (PLATE_W + COL_GAP),
+          y: y + PED_HEAD,
           w: PLATE_W,
           h: PLATE_H,
           placed: m,
@@ -481,7 +488,11 @@ export function layoutProfile(
     const first = nameOf(it)[0];
     if (first !== undefined) visit(first);
   }
-  let cursor = (anchorX.get("boundary:input-received") ?? 0) - PLATE_W / 2;
+  const rowStart = (anchorX.get("boundary:input-received") ?? 0) - PLATE_W / 2;
+  const rowEnd = (stopX[stopX.length - 1] ?? 0) + 80;
+  let cursor = rowStart;
+  let rowBottom = driveBottom;
+  let rowHeight = 0;
   for (const it of ordered) {
     const size = itemSize(it, collapsed);
     let x = cursor;
@@ -492,7 +503,14 @@ export function layoutProfile(
       if (xs.length > 0)
         x = Math.max(cursor, xs.reduce((s, v) => s + v, 0) / xs.length - size.w / 2);
     }
-    placeItem(it, x, driveBottom - size.h, "drive", 0);
+    // 레일 끝을 넘으면 위에 새 줄(핸드오프 사슬 순서는 그대로 왼쪽에서)
+    if (x + size.w > rowEnd && cursor > rowStart) {
+      rowBottom -= rowHeight + DRIVE_ROW_GAP;
+      rowHeight = 0;
+      x = rowStart;
+    }
+    placeItem(it, x, rowBottom - size.h, "drive", 0);
+    rowHeight = Math.max(rowHeight, size.h);
     cursor = x + size.w + COL_GAP + 36;
   }
   // 스타트 Drive는 입력 받기 경계로 내려간다(턴을 쥔다)
@@ -524,11 +542,20 @@ export function layoutProfile(
   const created = relations.find((r) => r.kind === "creates");
   if (created !== undefined) {
     const target = rectOf(created.to);
-    if (target !== null) builder = { x: target.x + target.w + 56, y: target.y + 18, w: 176, h: 64 };
+    if (target !== null)
+      builder = { x: target.x + target.w + 56, y: target.y + 26, w: 236, h: 104 };
   }
   const relGeo: RelationGeo[] = [];
   const pairCount = new Map<string, number>();
-  for (const r of relations) {
+  // 핸드오프가 먼저 곧은 자리를 갖고, 같은 쌍의 다른 관계는 둘레로 돈다
+  const routed = relations.toSorted(
+    (a, b) => Number(b.kind === "handoff") - Number(a.kind === "handoff"),
+  );
+  const laneAt = (name: string): Lane =>
+    plates.find((p) => p.placed.plugin.name === name)?.lane ??
+    bundles.find((b) => b.members.includes(name))?.lane ??
+    "drive";
+  for (const r of routed) {
     const from = r.from === BUILDER ? builder : rectOf(r.from);
     if (from === null) continue;
     if (r.kind === "replaces") {
@@ -552,7 +579,11 @@ export function layoutProfile(
     const key = [r.from, r.to].toSorted().join("|");
     const k = pairCount.get(key) ?? 0;
     pairCount.set(key, k + 1);
-    relGeo.push({ relation: r, ...route(from, to, k), cross: false });
+    relGeo.push({
+      relation: r,
+      ...route(from, to, k, laneAt(r.to) === "feed" ? "above" : "below"),
+      cross: false,
+    });
   }
 
   // ── 경계 ──
@@ -600,13 +631,34 @@ function n(v: number): string {
  * 같은 층 안의 관계 선: 직선과 직각으로만 간다(레일로 내려가는 곡선과 헷갈리지 않게).
  * 가로로 떨어져 있으면 마주 보는 옆면끼리, 세로로 떨어져 있으면 위아래 면끼리 잇는다. 같은 쌍의 둘째 선은 비켜 선다
  */
-function route(a: Rect, b: Rect, k: number): { d: string; lx: number; ly: number } {
+function route(
+  a: Rect,
+  b: Rect,
+  k: number,
+  side: "above" | "below",
+): { d: string; lx: number; ly: number } {
   const off = k * 16;
   const acx = a.x + a.w / 2;
   const bcx = b.x + b.w / 2;
   const acy = a.y + a.h / 2;
   const bcy = b.y + b.h / 2;
   const gapX = b.x > a.x + a.w ? b.x - (a.x + a.w) : a.x > b.x + b.w ? a.x - (b.x + b.w) : -1;
+  // 같은 줄의 이웃: 둘째 관계이거나 사이가 좁으면 판 사이를 지나지 않고 줄 둘레(괄호 모양)로 돈다
+  if (gapX >= 0 && (k > 0 || gapX < 140)) {
+    const sx = acx + (bcx > acx ? 40 : -40);
+    const tx = bcx + (bcx > acx ? -40 : 40);
+    const lane =
+      side === "above"
+        ? Math.min(a.y, b.y) - 30 - k * 30
+        : Math.max(a.y + a.h, b.y + b.h) + 30 + k * 30;
+    const sy = side === "above" ? a.y : a.y + a.h;
+    const ty = side === "above" ? b.y : b.y + b.h;
+    return {
+      d: `M${n(sx)} ${n(sy)} L${n(sx)} ${n(lane)} L${n(tx)} ${n(lane)} L${n(tx)} ${n(ty)}`,
+      lx: (sx + tx) / 2,
+      ly: lane,
+    };
+  }
   if (gapX >= 0) {
     const right = bcx > acx;
     const sx = right ? a.x + a.w : a.x;

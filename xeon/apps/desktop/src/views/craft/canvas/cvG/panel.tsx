@@ -44,7 +44,8 @@ import {
 } from "./words.ts";
 
 export const PANEL_W = 460;
-const DOCK = { right: 16, top: 60 } as const;
+/** 붙은 자리: 오른쪽 위. 아래는 확대·맞춤 도구 막대 자리를 비워 둔다 */
+const DOCK = { right: 16, top: 60, foot: 76 } as const;
 
 export interface PanelActions {
   close(): void;
@@ -102,13 +103,13 @@ function FloatingPanel(props: {
               right: DOCK.right,
               top: DOCK.top,
               width: PANEL_W,
-              maxHeight: `calc(100% - ${String(DOCK.top + 16)}px)`,
+              maxHeight: `calc(100% - ${String(DOCK.top + DOCK.foot)}px)`,
             }
           : {
               left: pos.x,
               top: pos.y,
               width: PANEL_W,
-              maxHeight: `calc(100% - ${String(pos.y + 16)}px)`,
+              maxHeight: `calc(100% - ${String(pos.y + DOCK.foot)}px)`,
             }
       }
       onKeyDown={(e) => {
