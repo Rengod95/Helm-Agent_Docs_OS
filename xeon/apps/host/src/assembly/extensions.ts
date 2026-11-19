@@ -69,7 +69,7 @@ import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/cor
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
 import { dialogCore, toolsPlugin } from "@fresnel/core-tools";
-import { createToolExposureOf } from "./m4/tool-exposure.ts";
+import type { ToolVisibility } from "./m4/tool-exposure.ts";
 import type {
   BuiltinExtensionModule,
   ExtHost,
@@ -194,10 +194,10 @@ export interface ExtensionDeps {
    */
   readonly testRunApprovalOf?: (threadId: ThreadId) => "auto" | undefined;
   /**
-   * 대화가 실은 플러그인 이름(E(T))으로 도구를 대화마다 거른다(L1.tools.spec §3.3.1 [결정: 2026-11-19, 사용자, AGE-56]). 하위 대화는 맨 위 부모의 집합을 쓴다.
-   * 읽을 수 없으면 undefined고 그러면 실린 모든 외부 도구가 보인다. 엔진 포트가 뜬 뒤에 답한다
+   * 대화가 보는 도구 이름과 가시성(L1.tools.spec §3.3.1 [결정: 2026-11-19, 사용자, AGE-56]). 도구는 `perThread`로 등록되고 이름은 대화가 실은 플러그인(E(T))으로 정한다.
+   * E(T)를 읽지 못하면(엔진 포트가 뜨기 전, 프로필 복사 읽기 전, 부모 조회 실패, 대화 id 아님) 내장 도구만 보인다. 승격 집계의 도구 주인 조회도 같은 규칙을 쓴다
    */
-  readonly toolPluginsOf?: (threadId: ThreadId) => readonly string[] | undefined;
+  readonly toolVisibility: ToolVisibility;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -331,6 +331,7 @@ function pluginMcpServersOf(
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
+  const { exposureOf, toolOwnerIn } = deps.toolVisibility;
   // cap-dialog의 동작 명령 등록부와 명령 서비스 API. 브리지 확장이 채우고 cap-work와 호스트의 command.* 처리기가 읽는다
   const commandRegistry = deps.commands;
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
@@ -434,12 +435,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           draftOf: (scopeId) => draftMarkOf(deps.ext, deps.loader, scopeId),
           // 드래프트 승인 `auto`인 테스트 실행 대화의 호출은 드래프트 카드를 띄우지 않는다. 판정은 호출한 대화로 한다(L1.tools.spec §4.6.1)
           draftAutoApproved: (threadId) => deps.testRunApprovalOf?.(threadId) === "auto",
-          // 대화가 보는 도구 이름과 가시성. 도구는 `perThread`로 등록되고(`perThreadToolNames`), 이름은 대화의 E(T)로 정한다
-          exposureOf: createToolExposureOf({
-            toolRecords: () => deps.ext.resources.list("tool"),
-            realNameOf: (extension) => deps.loader()?.draftOf(extension)?.plugin,
-            pluginsOf: (threadId) => deps.toolPluginsOf?.(threadId),
-          }),
+          exposureOf,
           loadIndex,
         }),
     ],
@@ -468,6 +464,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           groups: deps.groups.entries,
           onEnabled: deps.groups.onEnabled,
           onService: deps.groups.onService,
+          toolOwnerIn,
           report: (cause) => {
             deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
           },

@@ -7,6 +7,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import {
   createGroupService,
+  type GroupServiceDeps,
   GroupSettingsSourceKey,
   type GroupCatalogEntry,
   type GroupServiceWithUsage,
@@ -35,6 +36,8 @@ export interface HostGroupsOptions {
   readonly onEnabled?: (id: string) => void;
   /** 서비스가 올라올 때마다 부른다. 확장 읽기(`group.*`, `drive.*`)가 현재 서비스를 읽는다 */
   readonly onService?: (service: GroupServiceWithUsage) => void;
+  /** 대화가 보는 도구 이름으로 도구 주인을 찾는다(승격 집계). 도구 이름이 대화마다 다르므로 이름만으로는 주인이 하나로 정해지지 않는다 */
+  readonly toolOwnerIn?: GroupServiceDeps["toolOwnerIn"];
 }
 
 /**
@@ -69,6 +72,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         options.settings.value("l3.group-sdk.instrumentation") !== false;
       const service = createGroupService({
         host: options.ext,
+        ...(options.toolOwnerIn === undefined ? {} : { toolOwnerIn: options.toolOwnerIn }),
         catalog: { groups: options.groups },
         currentThread: options.currentThread,
         report: options.report,

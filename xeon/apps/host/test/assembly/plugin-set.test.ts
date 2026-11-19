@@ -332,6 +332,13 @@ test("nothing is requested before the copy loads, and every open thread is asked
   expect(h.requested).toEqual([THREAD, OTHER]);
 });
 
+test("the plugin set is not readable until the profile copy loads (before that E(T) is every registered extension, drafts included)", async () => {
+  const h = harness({ profiles: [profileOf("work", ["beta"])] });
+  expect(h.set.readable()).toBe(false);
+  await h.set.refresh();
+  expect(h.set.readable()).toBe(true);
+});
+
 test("a profile write asks every open thread again, and reports only the changed profile setting keys", async () => {
   const h = harness({
     profiles: [profileOf("work", ["alpha"], [{ key: "l1.loop.maxSteps", value: 3 }])],

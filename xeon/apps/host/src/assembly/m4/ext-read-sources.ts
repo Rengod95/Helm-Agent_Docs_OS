@@ -26,6 +26,7 @@ import {
   gatherPromotionInput,
   summarizeUsage,
   type GroupServiceWithUsage,
+  type PromotionHostView,
   type ScopeUsage,
 } from "@fresnel/group-sdk";
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
@@ -56,6 +57,8 @@ export interface ExtReadAssembly {
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
   readonly loader: () => ExtensionLoader | undefined;
+  /** 대화가 보는 도구 이름으로 도구 주인을 찾는다(승격 집계) */
+  readonly toolOwnerIn: PromotionHostView["toolOwnerIn"];
   /** 호스트 시계(ms). 실패 장부 창이 덮는 시간을 지금까지로 잰다 */
   readonly now: () => number;
   /** 그룹 서비스. `host-groups` 단위가 올라올 때 채워지고 그 전에는 없다 */
@@ -489,7 +492,16 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       });
       const current = env.activeThread();
       const targets = requested ?? (current === null ? [] : [current]);
-      const report = buildPromotionReport(await gatherPromotionInput(env.ext, targets));
+      const report = buildPromotionReport(
+        await gatherPromotionInput(
+          {
+            registrations: () => env.ext.registrations(),
+            queryEvents: (threadId, query) => env.ext.queryEvents(threadId, query),
+            toolOwnerIn: assembly.toolOwnerIn,
+          },
+          targets,
+        ),
+      );
       return {
         throughSeq: report.throughSeq,
         threads: report.threads,
