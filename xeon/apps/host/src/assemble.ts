@@ -1383,11 +1383,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         stateDir: os.dirs.state,
         settingValue: (key) => settings.value(key),
         now: () => clock.now(),
-        // 초안 스크립트는 테스트 런에 묶인 초안만, 호출마다 승인 카드를 거쳐 돈다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
+        // 초안 스크립트는 테스트 런에 묶인 초안만 돈다. 승인 카드는 `auto`에서는 없고 그 밖에는 스크립트마다 처음 한 번이다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
         scriptGate: createScriptDraftGate({
           tools: () => ext.ports.get(ToolsPortKey),
           testRunDraftsOf: (threadId) => portsHandle?.ports.m4.pluginSet.testRunDraftsOf(threadId),
           newRequestId: () => `script-${randomUUID()}`,
+          bootId: randomUUID(),
         }),
         sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
