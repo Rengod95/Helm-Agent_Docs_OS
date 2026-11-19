@@ -66,7 +66,7 @@ Notes:
 
 - `authoring_trial` accepts `prompt` and `profile`, but the current code starts the Test run on the folder only and does not pass them on.
 - `authoring_scaffold` only writes into an empty or missing folder. To work on an existing extension, edit its files directly.
-- Plugin group templates: `scaffold` picks `drive` when the composition has a drive block or no composition is given; `policy` when every `on` block hooks only `tool.call.before`; `observe` otherwise. Single plugins use `xeon/packages/plugin-builder/templates/single-plugin/`.
+- Plugin group templates: `scaffold` picks `drive` when the composition has a drive block or no composition is given; `policy` when every `on` block hooks only `tool.call.before`; `observe` otherwise. Single plugins use `xeon/packages/core-authoring/templates/single-plugin/`.
 - Placeholders `__ID__`, `__TITLE__`, `__VERSION__` are filled in. The version starts at `0.1.0`.
 - Write guard: while a session is open, a write or exec tool call must stay inside `dir`. Shell command strings are not inspected for paths; only the working folder is checked.
 - An open session survives restarts; the session posts a status notice when a conversation resumes.
