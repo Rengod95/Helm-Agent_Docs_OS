@@ -1912,12 +1912,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 51. (M3) 피드로 온 `agent.settled`는 `owner` scope의 구독자만 받고 같은 이벤트는 한 번만 발화한다(§4.11).
 52. (M3) 선언 없는 쓰기 요청은 requested → started → settled 순으로 한 번 실행되고, 재시작 뒤 결과 없는 `started`는 `unsafe` 메서드에서 `unknown`으로 닫힌다(§4.10).
 53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 훅, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 drive 락의 `lease.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
-55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
-56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
-57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
-58. (3b) 맡기기 `handoff`는 명령 시점에 자기 자신(`self_handoff`), 스택에 있는 플러그인(`already_in_stack`), 쓸 수 없는 대상(`target_unavailable`), 깊이 초과(`depth_limit`)를 결과로 거부하고 스택과 기록을 바꾸지 않는다. 받아들이면 맡긴 프레임은 `waiting`이고 맡은 프레임의 `lease.acquired`에 `parent`와 `depth`가 맡긴 쪽을 가리킨다(§4.4.1b, 시험: `packages/ext-host/test/primitives/handoff-stack.test.ts`).
-59. (3b) 맡은 프레임의 한도는 맡긴 쪽의 남은 양을 넘지 못하고, 맡은 쪽이 쓴 턴과 서브에이전트는 맡긴 쪽의 사용량에도 더해진다(§4.4.2 8번, 시험: `packages/ext-host/test/primitives/limits-inheritance.test.ts`).
-60. (3b) 사용자 명령의 전환은 실행 중인 단계를 끊지 않고, 끝난 경계에서 스택 전체를 `revoked`로 내린 뒤 한 줄 `scope_notice`를 남긴다. 유휴와 질문 대기에서는 바로 내린다(§4.4.1a, 시험: `packages/ext-host/test/primitives/user-command-priority.test.ts`).
+54. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
+55. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
+56. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
+57. (3b) 맡기기 `handoff`는 명령 시점에 자기 자신(`self_handoff`), 스택에 있는 플러그인(`already_in_stack`), 쓸 수 없는 대상(`target_unavailable`), 깊이 초과(`depth_limit`)를 결과로 거부하고 스택과 기록을 바꾸지 않는다. 받아들이면 맡긴 프레임은 `waiting`이고 맡은 프레임의 `lease.acquired`에 `parent`와 `depth`가 맡긴 쪽을 가리킨다(§4.4.1b, 시험: `packages/ext-host/test/primitives/handoff-stack.test.ts`).
 58. (M4, X-3) `hostOf(g).registerMethod`는 매니페스트 `methods`에 없는 동사와 `EXT_VERB_PATTERN`을 어긴 동사를 `resource_name_invalid`로, 같은 확장 안의 같은 동사를 `resource_conflict`로 거부한다. 다른 확장의 같은 동사는 둘 다 `list()`에 남는다. `params`나 `result` 스키마를 컴파일할 수 없으면 `method_schema_invalid`다(§4.12).
 59. (M4, X-3) 등록한 메서드를 `call`하면 처리기가 돌려준 값이 `{ kind: "ok", value }`로 나온다. `params`가 `decl.params`를 어기면 처리기를 부르지 않고 `params_invalid`이며, `issues`는 `path`와 `message`를 담고 typebox 기본 상한 8개를 넘지 않는다(§4.12).
 60. (M4, X-3) 처리기가 `decl.result`를 어긴 값이나 `undefined`를 돌려주면 `result_invalid`이고, 던지면 `threw`이며 메시지는 앞 500자다. `onMethodSettled`는 두 경우에 각각 `result_invalid`·`threw`로 한 번씩 불리고, 던진 원인은 `handler_failed` 진단으로 남는다.
@@ -1926,6 +1924,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 63. (M4, X-3) scope를 끄고 다시 켜면 메서드가 `list()`에 다시 나타나고 검사기가 새로 만들어져 `params` 검사가 그대로 된다.
 64. (M4, X-3) thread가 열려 있으면 처리기는 `invocation: "method"`인 ambient 안에서 돌아 `hostOf(g).commit`이 `no_thread` 없이 동작한다. `threadId`가 `null`이면 처리기는 ambient 없이 돈다.
 65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 주도 명령(시작 요청)이 새 프레임을 받는다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
+66. (3b) 맡은 프레임의 한도는 맡긴 쪽의 남은 양을 넘지 못하고, 맡은 쪽이 쓴 턴과 서브에이전트는 맡긴 쪽의 사용량에도 더해진다(§4.4.2 8번, 시험: `packages/ext-host/test/primitives/limits-inheritance.test.ts`).
+67. (3b) 사용자 명령의 전환은 실행 중인 단계를 끊지 않고, 끝난 경계에서 스택 전체를 `revoked`로 내린 뒤 한 줄 `scope_notice`를 남긴다. 유휴와 질문 대기에서는 바로 내린다(§4.4.1a, 시험: `packages/ext-host/test/primitives/user-command-priority.test.ts`).
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [닫힘, AGE-26] (3a) 시작 요청 큐 기록: 사용자 명령과 맡기기 요청은 `lease.requested`로 기록되고 재시작 뒤 큐에 되살아난다(§4.4.1b 9번). 프로필 시작은 열 때 다시 만든다. 옛 [미결] 설명: 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
