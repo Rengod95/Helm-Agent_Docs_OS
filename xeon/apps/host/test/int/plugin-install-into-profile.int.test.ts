@@ -65,7 +65,7 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> {
 
 /** 이슈 코드만 값으로 비교한다(`profile.invalid`의 `details.issues`) */
 function issueCodesOf(error: WireError): readonly string[] {
-  const issues: unknown = error.data.details["issues"];
+  const issues: unknown = recordOf(error.data.details)["issues"];
   if (!Array.isArray(issues)) return [];
   return issues.map((issue: unknown) => {
     const code = recordOf(issue)["code"];
