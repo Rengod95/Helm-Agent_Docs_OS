@@ -49,7 +49,7 @@ X11 scripts release-smoke.test.ts
 # A commented line is a placeholder for a test file that is not written yet; an uncommented line with an unfilled <파일> fails as
 # missing, so an unfinished condition cannot pass by accident.
 # M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry, and the host int test for knowledge.memory.*; 25 methods
-# have only a handler-level host test, no int test, see the report of track enM4s), Y14 (no axe, no keyboard path
+# have only a handler-level host test, no int test, see the report of track enM4s), Y14 (half: no axe, no keyboard path
 # test), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
 # Y1 half: approval-card.same-in-three-places. pages.six-states-render is not written (Y1 stays partial).
 Y1 apps/desktop test/views/approval-card-mounts.test.tsx
@@ -80,7 +80,8 @@ Y12 packages/ext-host test/loading-trust/levels.test.ts test/operations/handler-
 Y12 packages/group-sdk test/service.test.ts
 Y12 apps/host test/int/startup-health.int.test.ts test/assembly/ext-enabled.test.ts
 Y13 scripts caustic-gaps.test.ts
-# Y14 apps/desktop <파일>   (axe over all pages and the keyboard path: not written, large)
+# Y14 half (AGE-37): control names, alt text and tabindex over the connection screen render. axe and the keyboard path are not written: axe-core is not a dependency of this workspace, adding it is the user's call.
+Y14 apps/desktop test/lib/a11y-markup.test.ts test/views/a11y-names.test.tsx
 # Y15 half: en locale tests and the Hangul rule's own tests. The repo scan is `just check-ts-rules`, `just terms check`.
 Y15 apps/desktop test/en-locale-no-hangul.test.ts test/views/en-locale-smoke.test.tsx test/desktop-locale.test.ts
 Y15 scripts check-ts-rules.test.ts terms-stage3.test.ts
