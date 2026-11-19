@@ -1,6 +1,7 @@
 import type { ItemPages } from "@fresnel/core-persistence";
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { ItemId, ItemRecord } from "@fresnel/contracts/conversation";
+import { jsonUtf8Length } from "@fresnel/contracts/records";
 import {
   WIRE_LIMITS,
   type StoreId,
@@ -23,10 +24,9 @@ const THREAD_READ_DEFAULT_LIMIT = 200;
  */
 const THREAD_READ_BUDGET_BYTES: number = WIRE_LIMITS.maxFrameBytes - 64 * 1024;
 
-const encoder = new TextEncoder();
-
+/** item 직렬화 크기. 글과 그 인코딩 사본을 만들지 않고 센다(큰 항목 하나가 입력의 두 배를 더 쓰지 않게 한다) */
 function sizeOf(item: ItemRecord): number {
-  return encoder.encode(JSON.stringify(item)).byteLength;
+  return jsonUtf8Length(item);
 }
 
 /** 예산 안에서 가장 새 item부터 최대 `limit`개를 고른다(`items`는 오래된 것부터). 하나는 항상 담는다 */

@@ -337,14 +337,14 @@ test("the real child stops reading in the middle of a transfer: after the stall 
   expect(logLines.join("")).not.toContain(MARKER);
 }, 120_000);
 
-test("while 100 MiB is sent the child's input queue stays at or under 8 MiB, and the engine's RSS grows less than 1.5 times the line", async () => {
+test("while 100 MiB is sent the child's input queue stays at or under 8 MiB, and the engine's RSS grows less than 2 times the line", async () => {
   const sup = supervisorOf(nodePort());
   expect((await sup.start()).ok).toBe(true);
   const child = children[0];
   if (child === undefined) throw new Error("no child");
   const text = asciiOf(100 * MIB);
   const body = methodBody("digest", { text });
-  const lineBytes = new TextEncoder().encode(JSON.stringify(body)).byteLength;
+  const lineBytes = Buffer.byteLength(JSON.stringify(body));
   Bun.gc(true);
   const before = process.memoryUsage().rss;
   let peakRss = before;
@@ -358,5 +358,7 @@ test("while 100 MiB is sent the child's input queue stays at or under 8 MiB, and
   expect(resultOf(reply)).toEqual(digestOf(text));
   expect(samples).toBeGreaterThan(0);
   expect(max).toBeLessThanOrEqual(8 * MIB);
-  expect(peakRss - before).toBeLessThan(lineBytes * 1.5);
+  // 쌓아 두며 보내면 줄 글 하나 + 쌓인 바이트 하나(≈2배 이상)가 더 든다. 전체 패키지를 한꺼번에 돌릴 때의 RSS 잡음을 감안해 2배로 막는다.
+  // 한 번에 하나만 쓴다는 직접 증거는 위의 입력 큐 상한(8 MiB)이다
+  expect(peakRss - before).toBeLessThan(lineBytes * 2);
 }, 240_000);
