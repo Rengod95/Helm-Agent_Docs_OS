@@ -233,7 +233,7 @@ function TurnSummaryStrip(props: {
         </StateChip>
         <StateChip>{t(SCOPE_WORD[r.scope])}</StateChip>
       </div>
-      <div className="grid grid-cols-2 gap-4 compact:grid-cols-3 medium:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 compact:grid-cols-3 wide:grid-cols-6">
         <Stat label={t("desktop.craft.trace.kpi.length")} value={msText(props.lengthMs)} />
         <Stat
           label={t("desktop.craft.trace.kpi.modelCalls")}
