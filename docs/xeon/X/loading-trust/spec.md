@@ -567,7 +567,7 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 
 | 모듈 | 내용 |
 |---|---|
-| `isolation/framing.ts` | 줄 단위 프레임 읽기·쓰기. 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값 |
+| `isolation/framing.ts`(`frame-line.ts`, `framing-types.ts`, `transfer-read.ts`, `transfer-write.ts`) | 줄 단위 프레임 읽기·쓰기와 큰 줄의 조각 전송(§4.9.3). 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값. 옵션을 주면 조각으로 보낸다 |
 | `isolation/child-runtime.ts`, `child-api.ts`, `params.ts` | 호스트 프로세스 안의 실행기 `runPluginHost`. 엔트리를 import하고 `g`와 `hostOf(g)`의 얇은 대리 객체를 만든다. 요청마다 실려 온 상태·설정 스냅샷을 즉시 읽기(`g.state()`, `settingValue`)에 쓴다 |
 | `isolation/supervisor.ts` | 엔진 쪽 프로세스 관리: 처음 불릴 때 띄우기, 한동안 안 불리면 내리기(`idleMs`), 시간 초과 때 프로세스 종료(`process_killed`), 비정상 종료(`process_exit`)와 재시작 한도, 표준오류 수집 |
 | `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability`, `runScript` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
@@ -1322,7 +1322,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다).
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다. 조각 전송은 프레이밍 계층의 옵션이고(아래 단락), 격리 감독과 자식의 연결이 그 옵션을 켜는 일은 다음 단계가 한다. 그 전까지 두 쪽 모두 옵션을 주지 않으므로 이 문장이 지금의 동작이다. 참조 넘기기는 하지 않는다.
 
 **입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 한 줄 상한에서 뼈대 몫 64 KiB를 뺀 값(`ISOLATED_DRIVE_INPUT_MAX_BYTES`, 16 MiB - 64 KiB) 안인지 **기록하기 전에** 본다 [제안: 뼈대 몫 64 KiB]. 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 
@@ -1336,6 +1336,22 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
 
 [제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않고, 위 규칙대로 받는 시점에 거절한다(`test/isolation/isolated-drive.test.ts`).
+
+**큰 줄의 조각 전송(프레이밍) [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8].** 쓰는 쪽은 `createFrameWriter`에 `transfer.maxBytes`를 주면 상한을 넘고 그 안인 줄을 시작 알림 `frame.begin`과 조각 알림 `frame.part`로 나눠 보낸다(모양은 `F.extensions.spec` 부록). 한 방향에서 큰 줄은 들어온 순서대로(FIFO) 한 번에 하나씩 나가고, 그 사이에 쓴 작은 줄도 뒤에서 기다린다. 조각을 하나 쓴 뒤에는 `drained()`를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 프레임의 전송을 접고 `transfer_stalled`를 알린다. `write`는 줄 세운 프레임에도 `ok`를 돌려주므로, 나중에 나가지 못한 프레임은 `onTransferFailed`로 알린다. `abort`는 프로세스가 죽었을 때 나가지 못한 프레임을 모두 알린다.
+
+받는 쪽은 `createFrameReader`에 `maxTransferBytes`를 주면 시작 알림마다 한 전송만 모아 합치고, 합친 줄을 한 프레임으로 낸다. 조각 알림은 결과로 나오지 않는다. 옵션이 없으면 시작 알림은 `disabled`로 실패한다. 실패는 `transfer_failed` 값 하나이고, `reason`은 다음 가운데 하나다.
+
+| 이유 | 뜻 |
+|---|---|
+| `disabled` | 받는 쪽이 조각 전송을 켜지 않았다 |
+| `too_large` | 시작 알림의 `size`가 받을 수 있는 크기를 넘는다. 조각을 모으기 전에 버린다 |
+| `busy` | 받는 중인 전송이 있는데 새 시작 알림이 왔다. 받던 것과 새 것을 모두 버린다 |
+| `order` | 전송 번호나 순번이 어긋났다. 조각이 빠지거나 두 번 오거나 시작 없이 오거나, 전송 가운데 조각이 아닌 줄이 왔다 |
+| `size` | 조각의 UTF-8 바이트 합이 `size`와 다르다. 넘는 순간 버린다 |
+| `hash` | 합친 줄의 `sha256`이 다르다 |
+| `truncated` | 전송 중에 입력이 끝났다 |
+
+`frameId`는 시작 알림이 가진 값만 싣는다(`busy`는 새 시작 알림의 값이다). 실패 뒤 그 전송의 남은 조각은 다음 정상 줄이 올 때까지 조용히 버리므로, 실패 하나에 값 하나가 난다. 합친 줄이 JSON이 아니면 `parse_json`, 프레임 모양이 아니거나 조각 알림 메서드를 가지면 `invalid_frame` 값이다. 오류 값에는 줄 글과 해시를 싣지 않는다.
 
 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
 

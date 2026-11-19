@@ -29,6 +29,7 @@ import {
   PLUGIN_HOST_STDERR_LINE_MAX,
   PLUGIN_HOST_STDERR_LINES_MAX,
   PLUGIN_HOST_MAX_FRAME_BYTES,
+  PluginHostTransferOptionSchema,
   isPluginHostToEngineNotification,
   type EngineCallParams,
   type HostDisposeParams,
@@ -265,6 +266,7 @@ const EventDoneSchema = Type.Object({ eventKey: Type.String() });
 const HostInitResultSchema = Type.Object({
   protocolVersion: Type.Integer(),
   registrations: Type.Array(DeclSchema),
+  transfer: Type.Optional(PluginHostTransferOptionSchema),
 });
 
 const SUPERVISOR_ERROR_KINDS: ReadonlySet<string> = new Set<string>([
@@ -393,6 +395,7 @@ function writeFrameError(error: FrameWriteError): CallError {
     case "encode_failed":
       return { kind: "invalid_params", message: "the frame is not JSON" };
     case "write_failed":
+    case "transfer_stalled":
       return { kind: "process_exit", message: "the plugin host did not take the frame" };
     default:
       return assertNever(error, "FrameWriteError");

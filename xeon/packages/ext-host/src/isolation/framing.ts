@@ -1,83 +1,50 @@
 // 플러그인 호스트 프로토콜의 줄 단위 프레이밍. 엔진과 자식이 같이 쓴다(isolation-protocol.ts).
-// 읽기는 바이트 스트림을 줄로 나누고 줄마다 JSON, 프레임 모양, 종류를 본다. 쓰기는 프레임 하나를 줄 하나로 낸다.
+// 읽기는 바이트 스트림을 줄로 나누고 줄마다 JSON, 프레임 모양, 종류를 본다. 조각 알림(frame.begin, frame.part)은 모아서 원래 프레임 하나로 낸다.
+// 쓰기는 프레임 하나를 줄 하나로 내고, 조각 옵션을 주면 상한을 넘는 줄을 조각으로 낸다(transfer-write.ts).
 // 둘 다 던지지 않는다. 줄 하나가 틀리거나 상한을 넘으면 그 줄만 값으로 실패하고 다음 줄을 계속 읽는다.
-import {
-  attempt,
-  attemptAsync,
-  err,
-  ok,
-  parse,
-  parseJson,
-  repeatAsync,
-  type JsonParseError,
-  type Result,
-} from "@fresnel/contracts";
-import {
-  classifyFrame,
-  PLUGIN_HOST_MAX_FRAME_BYTES,
-  RawPluginHostFrameSchema,
-  type ClassifiedFrame,
-  type PluginHostFrame,
-} from "@fresnel/contracts/extensions";
+import { attempt, attemptAsync, err, repeatAsync, type Result } from "@fresnel/contracts";
+import { PLUGIN_HOST_MAX_FRAME_BYTES, type PluginHostFrame } from "@fresnel/contracts/extensions";
+import { stringUtf8Sizes } from "@fresnel/contracts/records";
+import { frameOfLine } from "./frame-line.ts";
+import type {
+  FrameReadResult,
+  FrameSink,
+  FrameWriteError,
+  FrameWriterOptions,
+} from "./framing-types.ts";
+import { createTransferAssembler } from "./transfer-read.ts";
+import { createOutbound } from "./transfer-write.ts";
 
-/** 프레임 읽기 실패. 값이다. `frame_too_large`는 상한을 넘은 줄을 버렸다는 뜻이다 */
-export type FrameReadError =
-  | { readonly kind: "frame_too_large"; readonly max: number }
-  | JsonParseError
-  | { readonly kind: "invalid_frame"; readonly cause: unknown }
-  | { readonly kind: "read_failed"; readonly cause: unknown };
-
-export type FrameReadResult = Result<ClassifiedFrame, FrameReadError>;
-
-/** 줄을 받는 쪽. 줄 끝 `\n`은 쓰는 쪽(createFrameWriter)이 붙인다 */
-export interface FrameSink {
-  write(line: string): void;
-}
-
-export type FrameWriteError =
-  | { readonly kind: "frame_too_large"; readonly max: number }
-  | { readonly kind: "encode_failed"; readonly cause: unknown }
-  | { readonly kind: "write_failed"; readonly cause: unknown };
-
-export interface FrameWriter {
-  write(frame: PluginHostFrame): Result<void, FrameWriteError>;
-}
+export type {
+  FrameReadError,
+  FrameReadResult,
+  FrameSink,
+  FrameWriteError,
+  FrameWriterOptions,
+} from "./framing-types.ts";
 
 const NEWLINE = 10;
-const decoder = new TextDecoder();
-const encoder = new TextEncoder();
 
-/** 줄 하나(줄 끝 제외)의 바이트를 프레임으로 본다. 빈 줄은 프레임이 아니다 */
-function frameOfLine(bytes: Uint8Array): FrameReadResult | undefined {
-  if (bytes.byteLength === 0) return undefined;
-  const json = parseJson(decoder.decode(bytes));
-  if (!json.ok) return err(json.error);
-  const raw = parse(RawPluginHostFrameSchema, json.value);
-  if (!raw.ok) return err({ kind: "invalid_frame", cause: raw.error });
-  const classified = classifyFrame(raw.value);
-  if (!classified.ok) return err({ kind: "invalid_frame", cause: classified.error });
-  return ok(classified.value);
+/** 프레임을 하나씩 꺼내는 읽기. `next()`는 다음 결과를, 입력이 끝났으면 null을 돌려준다 */
+export interface FrameReader {
+  next(): Promise<FrameReadResult | null>;
 }
 
-function joinParts(parts: readonly Uint8Array[], total: number): Uint8Array {
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    joined.set(part, offset);
-    offset += part.byteLength;
-  }
-  return joined;
+export interface FrameReaderOptions {
+  /**
+   * 받을 수 있는 원래 줄의 최대 UTF-8 바이트 수. 없으면 조각 전송을 받지 않는다(시작 알림마다 `transfer_failed` `disabled`).
+   * 줄 하나의 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`)은 이와 상관없이 줄 분할이 지킨다
+   */
+  readonly maxTransferBytes?: number;
 }
 
+/** 바이트 덩어리를 줄 결과로 나누는 상태. 조각 알림도 줄 결과로 나오고, 읽는 쪽(transfer-read.ts)이 소비한다 */
 interface LineSplitter {
   push(chunk: Uint8Array): readonly FrameReadResult[];
   finish(): readonly FrameReadResult[];
 }
 
-/**
- * 바이트 덩어리를 줄로 나눈다. 줄 하나가 상한을 넘으면 `frame_too_large`를 한 번 내고 그 줄의 나머지를 버린다.
- * 상한은 줄 끝을 뺀 바이트 수다(`PLUGIN_HOST_MAX_FRAME_BYTES`)
- */
+/** 바이트 덩어리를 줄로 나눈다. 줄 하나가 상한을 넘으면 `frame_too_large`를 한 번 내고 그 줄의 나머지를 버린다. 상한은 줄 끝을 뺀 바이트 수다 */
 function lineSplitter(): LineSplitter {
   const max = PLUGIN_HOST_MAX_FRAME_BYTES;
   let parts: Uint8Array[] = [];
@@ -138,20 +105,34 @@ function lineSplitter(): LineSplitter {
   return { push, finish };
 }
 
-/** 프레임을 하나씩 꺼내는 읽기. `next()`는 다음 결과를, 입력이 끝났으면 null을 돌려준다 */
-export interface FrameReader {
-  next(): Promise<FrameReadResult | null>;
+function joinParts(parts: readonly Uint8Array[], total: number): Uint8Array {
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    joined.set(part, offset);
+    offset += part.byteLength;
+  }
+  return joined;
 }
 
 /**
  * 바이트 스트림을 프레임 읽기 결과로 하나씩 꺼내게 한다. 입력이 끝나면 남은 줄을 내고 `null`을 돌려준다.
- * 스트림 읽기 실패는 `read_failed` 값 하나로 내고 끝낸다(TY-25: 받은 값을 `cause`에 담는다)
+ * 조각 알림은 모아 원래 프레임 하나로 낸다(실패하면 `transfer_failed` 하나). 스트림 읽기 실패는 `read_failed` 값 하나로 내고 끝낸다
+ * (TY-25: 받은 값을 `cause`에 담는다)
  */
-export function createFrameReader(input: AsyncIterable<Uint8Array>): FrameReader {
+export function createFrameReader(
+  input: AsyncIterable<Uint8Array>,
+  options: FrameReaderOptions = {},
+): FrameReader {
   const splitter = lineSplitter();
+  const assembler = createTransferAssembler(options.maxTransferBytes);
   const iterator = input[Symbol.asyncIterator]();
   const queue: FrameReadResult[] = [];
   let ended = false;
+
+  function assembled(items: readonly FrameReadResult[]): readonly FrameReadResult[] {
+    return items.flatMap((item) => assembler.accept(item));
+  }
 
   // 순차 읽기가 목적이라 repeatAsync를 쓴다(no-await-in-loop 예외는 그 함수 한 곳이다, TY-22)
   function next(): Promise<FrameReadResult | null> {
@@ -162,14 +143,15 @@ export function createFrameReader(input: AsyncIterable<Uint8Array>): FrameReader
       const step = await attemptAsync(() => iterator.next());
       if (!step.ok) {
         ended = true;
-        return { value: err({ kind: "read_failed", cause: step.error.cause }) };
+        queue.push(err({ kind: "read_failed", cause: step.error.cause }), ...assembler.finish());
+        return undefined;
       }
       if (step.value.done === true) {
         ended = true;
-        queue.push(...splitter.finish());
+        queue.push(...assembled(splitter.finish()), ...assembler.finish());
         return undefined;
       }
-      queue.push(...splitter.push(step.value.value));
+      queue.push(...assembled(splitter.push(step.value.value)));
       return undefined;
     });
   }
@@ -177,20 +159,39 @@ export function createFrameReader(input: AsyncIterable<Uint8Array>): FrameReader
   return { next };
 }
 
+/** 프레임 쓰기. `write`는 동기다. 줄 세워 나중에 나가는 프레임도 `ok`를 받는다 */
+export interface FrameWriter {
+  write(frame: PluginHostFrame): Result<void, FrameWriteError>;
+  /** 아직 나가지 않은 프레임 수. 보내는 중인 것을 포함한다 */
+  pending(): number;
+  /** 쓰기를 닫는다. 나가지 않은 프레임은 `onTransferFailed`로 알린다(프로세스가 죽었을 때) */
+  abort(): void;
+}
+
 /**
- * 프레임 하나를 JSON 한 줄로 쓴다. 상한을 넘는 프레임은 보내지 않고 `frame_too_large`를 값으로 돌려준다
- * (나눠 보내기와 참조 넘기기는 하지 않는다). 쓰기 실패도 값이다
+ * 프레임 하나를 JSON 한 줄로 쓴다. 옵션(`transfer`)이 없으면 상한을 넘는 프레임은 보내지 않고 `frame_too_large`를 값으로 돌려준다.
+ * 옵션이 있으면 `transfer.maxBytes` 안의 큰 줄은 조각으로 나눠 FIFO로 보낸다. 쓰기 실패도 값이다
  */
-export function createFrameWriter(sink: FrameSink): FrameWriter {
+export function createFrameWriter(sink: FrameSink, options: FrameWriterOptions = {}): FrameWriter {
+  const outbound = createOutbound(sink, options);
+  const transfer = options.transfer;
   return {
     write(frame) {
       const encoded = attempt(() => JSON.stringify(frame));
       if (!encoded.ok) return err({ kind: "encode_failed", cause: encoded.error.cause });
-      if (encoder.encode(encoded.value).byteLength > PLUGIN_HOST_MAX_FRAME_BYTES) {
-        return err({ kind: "frame_too_large", max: PLUGIN_HOST_MAX_FRAME_BYTES });
+      const bytes = stringUtf8Sizes(encoded.value).utf8;
+      if (
+        bytes > PLUGIN_HOST_MAX_FRAME_BYTES &&
+        (transfer === undefined || bytes > transfer.maxBytes)
+      ) {
+        return err({
+          kind: "frame_too_large",
+          max: transfer?.maxBytes ?? PLUGIN_HOST_MAX_FRAME_BYTES,
+        });
       }
-      const written = attempt(() => sink.write(`${encoded.value}\n`));
-      return written.ok ? ok(undefined) : err({ kind: "write_failed", cause: written.error.cause });
+      return outbound.send({ frame, line: encoded.value, bytes });
     },
+    pending: () => outbound.pending(),
+    abort: () => outbound.abort(),
   };
 }
