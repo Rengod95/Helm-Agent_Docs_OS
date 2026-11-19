@@ -179,6 +179,22 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     await child.exited;
   });
 
+  test("a launch with systemTools asks the sandbox for the system tool paths, and a launch without it does not", async () => {
+    const dir = tempDirOf();
+    const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
+    const { port } = open({ sandbox: () => sandbox.source });
+    const plain = await started(port, specOf({ readRoot: dir, args: [MCP_CHILD, "echo"] }));
+    const tools = await started(
+      port,
+      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], systemTools: true }),
+    );
+    expect(sandbox.policyInputs.map((input) => input.systemTools)).toEqual([undefined, true]);
+    plain.stdin.end();
+    tools.stdin.end();
+    await plain.exited;
+    await tools.exited;
+  });
+
   test("the policy of the sandbox is handed to wrapArgv unchanged: protected defaults and blocked domains stay", async () => {
     const seen: SandboxPolicy[] = [];
     const given: SandboxPolicy = {
