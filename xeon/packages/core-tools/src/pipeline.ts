@@ -47,6 +47,7 @@ import {
   type CallPreparation,
   type DraftMark,
   type UserShellRequest,
+  type PolicyDecision,
   type PolicyInput,
   type PreparedCall,
   type RejectReason,
@@ -165,6 +166,8 @@ export interface Pipeline {
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 /** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
 const CLOSED_OUTCOME_LIMIT = 4096;
+/** 자율 허용(`auto`) 테스트 런이 ask를 허용으로 바꾼 호출의 정책 기록 티어(`CallRecord.policy.tier`). 표준 티어가 아니라 "묻지 않고 허용함"을 읽게 하는 표지다 */
+const AUTO_TEST_RUN_TIER = "auto_test_run";
 /** 시크릿 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 시크릿 사용 승인임을 화면과 기록에 보인다 */
 const SECRET_USE_RULE_ID = "secret.use";
 /** 사용자 셸(`!명령`)을 실행하는 도구 이름 */
@@ -937,6 +940,14 @@ export function createPipeline(
     return deps.draftAutoApproved?.(threadId) === true ? undefined : draft;
   }
 
+  /** 호출한 대화가 자율 허용(`auto`) 테스트 런이고 이 ask를 허용으로 바꿀 수 있는가 */
+  function autoRunAllows(decision: PolicyDecision, entry: ToolEntry, threadId: ThreadId): boolean {
+    if (decision.effect !== "ask") return false;
+    if (decision.tier !== null && decision.tier !== "default") return false;
+    if (entry.replacesBuiltin === true || entry.alwaysCard === true) return false;
+    return deps.draftAutoApproved?.(threadId) === true;
+  }
+
   /**
    * 정책 판정과 승인. `hookAsk`는 `tool.call.before`가 낸 묻기다. 정책 deny는 훅이 있어도 deny다(H-1). 정책이 allow거나 ask면
    * 카드는 하나만 열고 두 사유를 싣는다(H-3). 훅이 물었으면 정책의 무인 거부를 쓰지 않고 승인 서비스가 무인 정책을 따른다(E-1)
@@ -1016,6 +1027,17 @@ export function createPipeline(
       );
     }
     if (decision.effect === "allow" && hookAsk === undefined) return undefined;
+    // 자율 허용 테스트 런의 대화(자식 포함)에서는 권한 모드·내장 기본 규칙이 낸 ask를 허용으로 바꾼다(L1.tools.spec §4.6.1 [결정: 2026-11-19, 사용자, AGE-56]).
+    // 거부(deny)와 훅이 낸 묻기, 사용자·managed 티어 규칙의 ask, 내장 도구 대체의 ask는 그대로 남는다. 승인 id가 없으므로 시크릿 사용 증거가 되지 않는다.
+    // 어떤 호출이 자동으로 돌았는지는 정책 기록의 `tier: "auto_test_run"`으로 남는다
+    if (
+      hookAsk === undefined &&
+      !config.managedRestricts &&
+      autoRunAllows(decision, entry, run.threadId)
+    ) {
+      state.facts.policy = { effect: "allow", tier: AUTO_TEST_RUN_TIER };
+      return undefined;
+    }
     // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다.
     // 훅의 묻기도 같게 둔다(가정: 사용자가 친 명령에 확장이 다시 묻는 경로는 지금 없다)
     if (state.userShell) return undefined;
