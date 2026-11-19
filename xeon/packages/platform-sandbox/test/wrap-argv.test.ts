@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SandboxArgvRequest, SandboxPolicy } from "@fresnel/contracts/services";
 import type { PlatformInput } from "../src/select.ts";
@@ -276,6 +276,37 @@ describe("wrapArgv", () => {
     expect(existsSync(twoTemp)).toBe(true);
     second.value.cleanup();
     expect(existsSync(twoTemp)).toBe(false);
+  });
+
+  test("the no-write temp folder under a symbolic link is exported and allowed by its real path (macOS /var/folders is such a link)", async () => {
+    const dirs = makeTestDirs();
+    const link = join(dirs.root, "tmp-link");
+    symlinkSync(dirs.tmp, link);
+    const srt = fakeSrt();
+    const service = await createSandboxService(
+      {
+        os: fakeOs({ ...dirs, tmp: link }),
+        settings: () => settingsOf(),
+        srt,
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const policy = service.defaultPolicy({
+      workspaceRoots: [],
+      tempDir: link,
+      profile: "no-write",
+      readRoots: [dirs.workspace],
+    });
+    const wrapped = await service.wrapArgv(policy, tool({ command: "host", args: [] }), NO_CANCEL);
+    expect(wrapped.ok).toBe(true);
+    const call = srt.wrapCalls[0];
+    const temp = tempOf(call?.command);
+    expect(temp.startsWith(dirs.tmp)).toBe(true);
+    expect(temp.startsWith(link)).toBe(false);
+    expect(call?.customConfig.filesystem?.allowWrite).toEqual([temp]);
+    if (wrapped.ok) wrapped.value.cleanup();
   });
 
   test("the no-write profile reads only the allow-list and keeps the network policy of the sandbox", async () => {

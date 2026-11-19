@@ -8,6 +8,7 @@ import type {
 } from "@fresnel/contracts/services";
 import { mkdirSync, rmSync } from "node:fs";
 import { posix } from "node:path";
+import { canonicalizePath } from "./paths.ts";
 import { tmpdir } from "node:os";
 import {
   decideExecution,
@@ -109,7 +110,9 @@ export async function wrapArgvWith(
     if (!made.ok) {
       return err({ kind: "failed", message: "no-write sandbox could not prepare its temp folder" });
     }
-    processTemp = dir;
+    // 임시 폴더 기반이 심볼릭 링크 아래(macOS의 `/var/folders`는 `/private/var/folders`)면 Seatbelt는 정규 경로로 비교하므로 허용이 닿지 않는다.
+    // 정규 경로로 풀어 쓰기 허용과 `TMPDIR`에 쓴다
+    processTemp = canonicalizePath(dir);
   }
   const removeTemp = (): void => {
     if (processTemp === undefined) return;
