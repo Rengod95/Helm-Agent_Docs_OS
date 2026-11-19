@@ -224,6 +224,7 @@ export {
   DEFAULT_BUDGETS_MS,
   DEFAULT_TRACE_SETTINGS,
   createResourcePolicy,
+  createToolNamesPolicy,
   exposeToolNames,
   toolNameKey,
   type ToolNameInput,

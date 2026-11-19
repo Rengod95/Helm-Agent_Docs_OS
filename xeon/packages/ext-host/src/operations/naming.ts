@@ -183,3 +183,11 @@ export function createResourcePolicy(
     },
   };
 }
+
+/**
+ * 도구의 노출 이름만 대화마다 정하고(`perThreadToolNames`) 나머지 종류(명령, 단축키, 플래그, 제공자 등)는 정책이 없을 때와 같게 두는 정책이다:
+ * 같은 이름이 이미 있으면 거부한다. 조립 루트가 `ExtHostDeps.resourcePolicy`로 넘긴다(X.operations.spec §4.5.1)
+ */
+export function createToolNamesPolicy(): ResourcePolicy {
+  return { resolve: () => ({ action: "reject" }), perThreadToolNames: true };
+}

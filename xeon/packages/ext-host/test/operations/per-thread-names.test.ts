@@ -8,6 +8,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import {
+  createToolNamesPolicy,
   exposeToolNames,
   NO_RESERVED_NAMES,
   toolNameKey,
@@ -73,7 +74,10 @@ function toolDef(name: string): ToolResourceDef {
 }
 
 async function harnessWithPort(perThreadToolNames: boolean) {
-  const harness = await createOperationsHarness({ reservedNames: RESERVED, perThreadToolNames });
+  const harness = await createOperationsHarness({
+    reservedNames: RESERVED,
+    ...(perThreadToolNames ? { resourcePolicy: createToolNamesPolicy() } : {}),
+  });
   const calls: { readonly owner: string; readonly name: string; readonly perThread: boolean }[] =
     [];
   const port: ToolsPort = {

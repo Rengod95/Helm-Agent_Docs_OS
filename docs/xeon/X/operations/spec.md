@@ -611,6 +611,9 @@ export function createResourcePolicy(
   options?: { readonly perThreadToolNames?: boolean },
 ): ResourcePolicy;
 
+/** 도구 이름만 대화마다 정하고 나머지 종류는 같은 이름을 거부하는 정책(§4.5.1). 조립 루트가 `ExtHostDeps.resourcePolicy`로 넘긴다 */
+export function createToolNamesPolicy(): ResourcePolicy;
+
 /** 한 대화의 도구 이름을 정하는 입력. `owner`는 드래프트여도 내부 이름이 아니라 실제 플러그인 이름이다 */
 export interface ToolNameInput { readonly scopeId: string; readonly owner: ExtensionName; readonly name: string; readonly builtin: boolean }
 /** 도구 이름 한 개의 열쇠 (scopeId, 요청한 이름) */
@@ -1267,10 +1270,10 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 규칙 1~5는 이름이 정해지는 집합을 "엔진에 실린 전체"로 읽었다. 그러면 같은 플러그인의 드래프트와 승인본이 함께 실려 있을 때 둘이 서로 충돌로 보여, 승인본까지 모든 대화에서 정식 이름(`<플러그인>__<이름>`)으로 바뀌었다(원샷에서도). 도구는 이 집합을 **대화**로 바꾼다.
 
-1. `createResourcePolicy(reserved, { perThreadToolNames: true })`이면 리소스 저장소는 도구를 엔진 전체 집합으로 이름 짓지 않는다. 도구의 노출 이름(`ResourceRecord.exposed`)은 요청한 이름이고, 도구 포트(`fresnel.tools`)에 `perThread: true`로 요청한 이름 그대로 넘긴다. 정식 이름이 64자를 넘는 외부 도구는 여전히 등록을 거부한다(규칙 4). 명령·단축키·플래그는 그대로 엔진 전체 집합이다.
+1. 정책의 `perThreadToolNames`가 참이면(`createToolNamesPolicy()`, 또는 `createResourcePolicy(reserved, { perThreadToolNames: true })`) 리소스 저장소는 도구를 엔진 전체 집합으로 이름 짓지 않는다. 도구의 노출 이름(`ResourceRecord.exposed`)은 요청한 이름이고, 도구 포트(`fresnel.tools`)에 `perThread: true`로 요청한 이름 그대로 넘긴다. 정식 이름이 64자를 넘는 외부 도구는 여전히 등록을 거부한다(규칙 4). 명령·단축키·플래그는 그대로 엔진 전체 집합이다.
 2. 한 대화가 모델에게 보는 이름은 호출하는 쪽(조립 루트)이 `exposeToolNames`로 계산한다. 입력은 그 대화의 E(T)에 든 확장의 도구 레코드뿐이고(내장은 늘 든다), 드래프트의 `owner`는 내부 이름이 아니라 **실제 플러그인 이름**이다. 규칙 2·3은 이 집합 안에서만 적용한다. 드래프트는 E(T)에서 같은 이름의 승인본을 대신하므로(M5c §4.8.1 2) 한 대화에서 둘이 함께 보이는 일이 없고, 드래프트는 승인됐을 때와 같은 이름을 받는다.
 3. 다른 대화에 실린 확장은 이 대화의 이름 계산에 들지 않는다. 승인본의 이름은 드래프트가 엔진에 실려 있는지와 무관하다.
-4. `perThreadToolNames`가 거짓이면 옛 동작(엔진 전체 집합)이다. 이 값은 조립 루트(`apps/host`)가 켠다.
+4. `perThreadToolNames`가 거짓이면 옛 동작(엔진 전체 집합)이다. 조립 루트(`apps/host`)는 `createToolNamesPolicy()`를 `ExtHostDeps.resourcePolicy`로 넘긴다. 전에는 이 자리를 비워 두어 어떤 종류도 이름 정책을 받지 않았다(같은 이름은 모두 `resource_conflict`). 이 정책은 도구만 바꾸고 명령·단축키·플래그는 그대로 같은 이름을 거부한다.
 
 primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 

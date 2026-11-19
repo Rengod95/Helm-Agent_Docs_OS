@@ -464,16 +464,21 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       let setLevel = false;
       if (spec.replaces !== undefined) {
         // 요청한 이름을 그대로 노출한다
+      } else if (spec.kind === "tool" && policy?.perThreadToolNames === true) {
+        // 도구의 노출 이름은 대화마다 정한다. 여기서는 요청한 이름 그대로 두고, 정식 이름이 64자를 넘을 외부 도구만 거부한다(`resolveNames`의 too_long과 같다)
+        if (!spec.builtin && `${spec.extension}__${spec.name}`.length > MAX_NAME_LENGTH) {
+          return err(
+            new PrimitiveError(
+              "resource_name_invalid",
+              `${spec.kind} ${spec.name} of ${spec.extension} is too long to expose`,
+              { scopeId: spec.scopeId },
+            ),
+          );
+        }
       } else if (policy?.exposeAll !== undefined && GOVERNED.has(spec.kind)) {
         setLevel = true;
         const mine = reexpose(spec.kind, record);
-        // 대화마다 이름을 정하는 조립도 정식 이름이 64자를 넘을 외부 도구는 등록을 거부한다(`resolveNames`의 too_long과 같다)
-        const tooLongForPerThread =
-          spec.kind === "tool" &&
-          policy.perThreadToolNames === true &&
-          !spec.builtin &&
-          `${spec.extension}__${spec.name}`.length > MAX_NAME_LENGTH;
-        if (mine?.reason === "too_long" || tooLongForPerThread) {
+        if (mine?.reason === "too_long") {
           return err(
             new PrimitiveError(
               "resource_name_invalid",
