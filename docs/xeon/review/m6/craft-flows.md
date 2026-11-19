@@ -599,6 +599,18 @@ P1은 처음부터 보인다. P2는 보이지만 작다. P3은 선택(펼침, �
 | 결정 | 승인(넣을 프로필 고르기, 기본은 만든 대화의 프로필, 보관만 가능), 돌려보내기(사유), 버리기 |
 | 삭제 항목 | 같이 지워지는 상태와 기록, 빠지는 프로필 |
 
+**구현 노트 (트랙 m6R, 2026-11-20).** C5는 Craft 내비 "리뷰"(화면 id `craftReview`, 개요 바로 아래)로 들어갔다. 코드는 `apps/desktop/src/views/craft/review/`다. 화면 id `review`는 P-04 변경 검토가 이미 쓴다.
+
+- 데이터: `pluginReview.list`, `pluginReview.file`, `pluginReview.decide`, `profile.list`, `ext.list`(관리자 잠금), 알림 `pluginReview.changed`·`plugin.changed`로 다시 읽는다. 새 설치는 오늘의 확장 화면이 `plugin.draft.create` → `pluginReview.submitDraft`로 올린다.
+- 목록: 대기 항목을 오래된 것부터, 새 설치·갱신·드래프트 승인·제거 넷으로 묶는다. wire `new` 가운데 대화에서 만든 것(`originThreadId`)과 "지침 추가"(`user_instruction`)는 드래프트 승인, 나머지는 새 설치다 [제안]. 원본 변경과 프로젝트 동반은 따로 묶지 않고 출처 글("프로젝트가 싣고 옴")과 경고로 보인다.
+- 자세히: 머리(종류 타일, 이름, 무엇을·어디서·언제, 종류·강제력 칩) → 코드 실행 안내(늘 보임, AC-51) → 승인하면 실행될 것(스크립트·MCP 서버 명령, `CardScript.uses`의 시스템 도구·네트워크, 기한, 환경 변수 이름) → 하는 일(목적, 끼어드는 곳, 갱신이면 칸별 차이) → 바뀌는 파일 → 권한과 위험 → 출처 → 승인하면(넣을 곳, 결정). 삭제 항목은 같이 지워지는 것과 빠지는 프로필을 보인다.
+- 파일 차이: 이전 승인 버전의 파일 목록(같은 이름의 승인 항목 가운데 `candidateHash`가 이 항목의 `baseHash`인 것)과 sha256으로 견준다. 이전 내용을 읽는 wire가 없어 본문은 새 내용만 보인다 [근거: `packages/contracts/src/wire-settings/wire/plugin-review.ts`의 `pluginReview.file`]. 엔진은 대기 중인 항목의 본문만 주므로 결정한 뒤에는 목록만 보인다.
+- 결정: 승인과 거절 둘이다. 거절은 사유를 적으면 돌려보내기(`sendBack`), 비우면 버리기(`discard`)다 [제안]. 새 플러그인의 넣을 곳 기본은 "보관만 하기"다 [제안]. 실제 엔진에서 가져온 새 플러그인을 프로필에 넣어 승인하면 `profile.invalid`(3656)로 거절되고, 엔진을 다시 시작해야 프로필에 넣을 수 있다(enK6 보고를 2026-11-20 임시 홈에서 다시 확인). 그래서 위 표의 "기본은 만든 대화의 프로필"은 갱신 이후 항목에만 쓴다. 3656이 오면 새 플러그인에는 다시 시작 순서를 알린다.
+- 관리자 잠금: 엔진에 리뷰 전체 잠금 신호가 없다 [근거: `packages/contracts/src/wire-settings/wire/plugin-review.ts`]. 관리자가 끈 플러그인(`ext.list`의 `enabledSource: managed`)의 항목에 "승인해도 대화에 실리지 않는다"를 보인다.
+- 받은 요청: 크리스털(AGE-53)이 이 브랜치에 없어 내비의 대기 수 배지만 있다 [근거: AGE-53]. 리뷰 항목을 받은 요청의 승인 대기열에 넣지 않는다 [제안].
+- 아직 없는 것: 증거(턴, 돌려 본 결과) 칸, 설정 값 칸, 카드에 버전이 없어 출처의 버전은 "엔진이 알려 주지 않아요"다 [근거: `packages/contracts/src/extensions/plugin-card.ts`의 `PluginCard`, `apps/desktop/src/views/craft/review/review-detail.tsx`].
+- 개발 빌드에만 판 바꾸기(가: 목록 + 자세히, 나: 펼치는 카드)와 표본 장면이 있다. 배포 빌드는 가다 [제안].
+
 #### 6.13 C6 테스트
 
 | 위계 | 정보 |

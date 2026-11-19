@@ -16,6 +16,8 @@ import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
+import { ReviewBadge } from "../craft/review/review-badge.tsx";
+import { ReviewScreen } from "../craft/review/review-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
@@ -24,6 +26,7 @@ import {
   FlaskConical,
   Layers,
   LayoutGrid,
+  ListChecks,
   Package,
   Plug,
   SquareStack,
@@ -41,6 +44,14 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.overview",
     icon: <LayoutGrid />,
     render: () => scoped(store, <CraftScreen />),
+  });
+  registry.registerScreen({
+    id: "craftReview",
+    area: "workbench",
+    label: "desktop.shell.nav.review",
+    icon: <ListChecks />,
+    Badge: ReviewBadge,
+    render: () => <ReviewScreen />,
   });
   registry.registerScreen({
     id: "extensions",

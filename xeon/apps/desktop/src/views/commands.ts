@@ -343,6 +343,29 @@ export interface ReviewCommands {
 }
 
 /**
+ * Craft 리뷰 화면(C5, `views/craft/review/`). 항목은 요청 결과라 거울에 넣지 않는다(FS-03).
+ * `list`는 모든 상태의 항목을 읽는다: 대기 항목과, 비교 대상(`baseHash`)을 승인한 지난 항목의 파일 목록이 함께 필요하다.
+ */
+export interface PluginReviewCommands {
+  /** `pluginReview.list {}` */
+  list(): Promise<Result<WireResult<"pluginReview.list">, CommandError>>;
+  /** `pluginReview.file`. 후보 스냅샷의 파일 하나 */
+  file(
+    itemId: string,
+    path: string,
+  ): Promise<Result<WireResult<"pluginReview.file">, CommandError>>;
+  /** `pluginReview.decide` */
+  decide(
+    itemId: string,
+    decision: WireParams<"pluginReview.decide">["decision"],
+  ): Promise<Result<WireResult<"pluginReview.decide">, CommandError>>;
+  /** `profile.list`. 승인할 때 넣을 프로필을 고른다 */
+  profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `pluginReview.changed`와 `plugin.changed`를 듣는다. 반환값은 구독 해제 */
+  onChanged(listener: () => void): () => void;
+}
+
+/**
  * 사용량 게이지(P-11 "사용량 (이 대화)"). 게이지는 요청 결과라 거울에 넣지 않는다(FS-03). 읽기만 하고 연결과 host 실패만 `CommandError`다.
  */
 export interface UsageCommands {
@@ -1188,6 +1211,8 @@ export interface Commands {
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
+  /** Craft 리뷰 화면(C5): 플러그인 검토 항목 */
+  readonly pluginReview: PluginReviewCommands;
   /** 제안 화면의 충돌 스킬 본문(W-14). 읽기 한 번이다 */
   readonly skills: SkillCommands;
   /** 설정 "대화와 컨텍스트" 탭의 기억 구역(W-19) */

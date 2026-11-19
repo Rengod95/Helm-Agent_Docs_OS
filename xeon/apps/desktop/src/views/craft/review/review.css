@@ -1,0 +1,77 @@
+/* 리뷰 화면(C5). 종류 색은 종류를 가르는 데만 쓰고 채도를 누른다(캔버스 cv3의 `--cv3-<종류>`와 같은 식).
+   그 밖의 색은 caustic 토큰만 쓴다. 인라인 <style>은 셸 CSP가 막으므로 이 파일을 styles.css가 가져온다 */
+.rv-root {
+  --rv-inject: color-mix(
+    in oklch,
+    var(--cs-color-identity-iris) 84%,
+    var(--cs-color-text-secondary)
+  );
+  --rv-hook: color-mix(
+    in oklch,
+    var(--cs-color-identity-amber) 80%,
+    var(--cs-color-text-secondary)
+  );
+  --rv-drive: color-mix(in oklch, var(--cs-color-agent-stop-1) 84%, var(--cs-color-text-secondary));
+  --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--cs-color-text-secondary));
+}
+
+.rv-kind-inject {
+  --rv-kind: var(--rv-inject);
+}
+.rv-kind-hook {
+  --rv-kind: var(--rv-hook);
+}
+.rv-kind-drive {
+  --rv-kind: var(--rv-drive);
+}
+.rv-kind-tool {
+  --rv-kind: var(--rv-tool);
+}
+
+/* 종류 타일: 옅은 종류 색 바탕 + 종류 색 그림(받은 요청 카드의 아이콘 타일 28과 같은 자리) */
+.rv-tile {
+  color: var(--rv-kind);
+  background: color-mix(in oklab, var(--rv-kind) 15%, transparent);
+}
+.rv-kind-text {
+  color: var(--rv-kind);
+}
+
+/* 주의 한 줄: 글은 무채색, 줄 앞 2px 선만 경고·위험 색(채도 높은 글자색·물듦 금지) */
+.rv-caution {
+  padding-inline-start: 10px;
+  color: var(--cs-color-text-primary);
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--cs-color-warning-text) 75%, transparent);
+}
+.rv-caution-danger {
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--cs-color-danger-text) 80%, transparent);
+}
+
+/* 코드 실행 안내: 늘 보이는 칸. 무채색 면과 테두리, 앞 선만 경고 색 */
+.rv-code-notice {
+  color: var(--cs-color-text-primary);
+  background: color-mix(in oklab, var(--cs-color-text-primary) 3%, transparent);
+  box-shadow:
+    inset 2px 0 0 color-mix(in oklab, var(--cs-color-warning-text) 75%, transparent),
+    inset 0 0 0 1px var(--cs-color-border-subtle);
+}
+
+.rv-code-notice.rv-notice-danger {
+  box-shadow:
+    inset 2px 0 0 color-mix(in oklab, var(--cs-color-danger-text) 80%, transparent),
+    inset 0 0 0 1px var(--cs-color-border-subtle);
+}
+
+/* 파일 차이 표시: 기호만 색(바뀜 경고, 추가 성공, 지움 위험), 줄은 무채색 */
+.rv-change-added {
+  color: var(--cs-color-success-text);
+}
+.rv-change-changed {
+  color: var(--cs-color-warning-text);
+}
+.rv-change-removed {
+  color: var(--cs-color-danger-text);
+}
+.rv-change-same {
+  color: var(--cs-color-text-placeholder);
+}
