@@ -411,7 +411,7 @@ export type ContextRef =
 3. 시크릿 값: 정의가 `secret: true`(`SecretRef` 타입)인 키는 `secret://<이름>` 형태만 저장한다. 리터럴이면 `secret_literal` 오류이고 값은 이벤트, 로그, 오류에 싣지 않는다. 시크릿 저장소에 이름이 없으면 `secret_missing` 경고다. 프로필은 참조만 가지고, 값은 사용 때 `fresnel.secrets`가 연다(`L0.secrets.spec` §4.2, §4.3).
 4. 코어 설정 값: 키 정의의 `allowedScopes`에 `profile`이 있는 키만 둔다. 검사는 지금의 `checkSettingWrite`(`profile-test-run-port.ts:125`)를 `profile` 범위로 호출한다. 프로필이 권한 모드를 두지 않으면(미설정) 아래 층의 값(사용자 파일, 기본값 `bypass`)이 쓰인다. 새 프로필은 만들 때 `default`의 코어 설정 값을 복사해 시작한다 [제안].
 5. 공통 묶음은 같은 검증을 받는다. 시작 Drive는 없다. 공통 묶음에 든 플러그인을 프로필에서 뺄 수 없다 [제안].
-6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 도중 전환(`thread.setProfile`)은 시작 Drive를 시작하지 않는다 [제안: 미결 3].
+6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 첫 메시지를 보내기 전의 빈 대화(turn도 큐에 든 입력도 없고 플러그인이 쥔 프레임이 없는 대화)에서 `thread.setProfile`을 부르면 새 프로필의 시작 Drive를 열 때와 같은 시작 요청으로 건다. 사용자에게는 "그 프로필로 시작한 대화"이므로 직전 프로필이 기본이든 시작 Drive 없는 프로필이든 있는 프로필이든 결과가 같아야 한다 [구현 2026-11-20, 트랙 enSd, `ThreadPort.startDriveAfterSwitch`, 시험 `apps/host/test/int/profile-switch-start-drive.int.test.ts`]. 첫 메시지 뒤의 전환(턴이 끝난 뒤, 턴이 도는 중)은 시작 Drive를 시작하지 않는다 [제안: 미결 3]. 이미 도는 Drive는 전환으로 내려가지 않는다.
 7. 검증은 저장과 `profile.preview`에서 같은 함수(`validateProfile(profile, common, library, catalog)`)가 한다. 오류(`error`)가 하나라도 있으면 `profile.put`을 `profile.invalid`로 거절하고 저장하지 않는다. 오류:
    - `plugin_unknown`(라이브러리에 없음), `plugin_not_reviewed`(검토본이 없고 승인 대기뿐)
    - `replace_conflict`: 해소된 목록 안에서 두 플러그인이 `replaces`로 같은 내장 도구를 대체(`PluginDecl.replaces`, `manifest.ts:147`). 플러그인 둘의 이름과 도구 이름을 싣는다
@@ -824,7 +824,7 @@ plugin-store/
 
 1. **기본 폴더 대화의 쓰기 범위.** 기본값: 대화 폴더(`<기본 폴더>/<threadId>`)만. 대안: 기본 폴더 전체(프로젝트 루트 규칙과 같음).
 2. **프로젝트 밖 폴더로 `thread.create`를 부를 때.** 기본값: 그 폴더를 루트로 프로젝트를 자동 생성한다(CLI와 예약 실행 유지). 대안: 오류로 거절하고 프로젝트를 먼저 만들게 한다.
-3. **도중 전환 때 새 프로필의 시작 Drive.** 기본값: 시작하지 않는다(첫 턴 전에만). 대안: 스택이 비어 있으면 전환 직후 시작.
+3. **도중 전환 때 새 프로필의 시작 Drive.** 기본값: 첫 메시지 뒤에는 시작하지 않는다. 첫 메시지 전의 빈 대화는 시작한다(2026-11-20 구현, 4.1.14 6번). 대안: 첫 메시지 뒤라도 스택이 비어 있으면 전환 직후 시작.
 4. **새 검토본 승인이 번지는 범위.** 기본값: 이름으로 든 모든 프로필(프로필은 버전을 고정하지 않는다). 대안: 프로필마다 해시 핀.
 5. **지침 파일 이름. [결정: 2026-11-18 사용자] `AGENTS.md`만 읽는다.** `CLAUDE.md`와 다른 이름은 읽지 않는다. 문서(`data-privacy.md`, `X/loading-trust/spec.md`, `architecture/security/spec.md`)의 `CLAUDE.md` 문장은 같은 변경에서 고쳤다. 대안(둘 다 읽기)은 버린다.
 6. **프로젝트 루트 이동.** 기본값: 다루지 않는다(루트 없음 상태로 보인다). 대안: `project.relocate`.

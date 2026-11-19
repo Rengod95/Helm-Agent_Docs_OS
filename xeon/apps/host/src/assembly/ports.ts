@@ -853,6 +853,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!head.ok) return head;
       return ok({ position: { storeId, seq: head.value } });
     },
+    async startDriveAfterSwitch(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      // 첫 메시지 전의 빈 대화만이다: turn도 큐에 든 입력도 없고, 플러그인이 쥔 주도 프레임이 없다(깊이 0은 코어 루프다)
+      if (found.value === undefined) return ok("not_fresh");
+      if (found.value.lastTurnId !== null || found.value.queuedInputs > 0) return ok("not_fresh");
+      if (deps.ext.driveFrames(threadId).some((frame) => frame.plugin !== null)) {
+        return ok("not_fresh");
+      }
+      const scopeId = await startDriveOf(threadId);
+      if (scopeId === undefined) return ok("none");
+      const started = deps.ext.startDrive(threadId, scopeId, { trigger: "profile" });
+      if (!started.ok) {
+        logger.warn("profile.switch_start_drive_rejected", { threadId, kind: started.error.kind });
+        return ok("rejected");
+      }
+      return ok("requested");
+    },
     hasTitle(threadId) {
       const found = session.query.thread(threadId);
       if (!found.ok) return found;
