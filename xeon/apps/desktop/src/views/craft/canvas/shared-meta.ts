@@ -1,9 +1,13 @@
-// cvG 표본 덧붙임: 공통 표본(`../shared-sample.ts`)에 없는 플러그인 메타를 계약의 이름으로 더한다(값은 표본이다).
+// 시안 F·G·H가 함께 보는 플러그인 메타(AGE-31 둘째 판). 공통 표본(`shared-sample.ts`)에 없는 값을 계약의 이름으로 더한다(값은 표본이다).
+// 세 리드가 각자 덧붙인 값 가운데 가장 풍부한 cvG의 것을 바탕으로 하나로 맞췄다. 맞추며 더한 것: 드래프트를 만든 대화
+// (`origin.createdIn`, `DraftInfo.originThreadId`)와 리뷰 항목 id(cvF·cvH), MCP 실행 명령(`CardMcpLaunch`, cvH), 노드 30개 장면의
+// 플러그인마다 다른 목적(cvF). 시안 F·H는 이 값을 자기 모양으로 바꿔 읽는다(`cvF/sample-ext.ts`, `cvH/sample-ext.ts`).
 // 필드 이름은 계약을 따른다: 매니페스트(`ExtensionManifest`의 version·author·license·purpose, `PluginDecl`의 requires·optional·provides·
 // readsRecordKinds·replaces, `group.members`), 카드(`PluginCard`의 origin·review·enforcement·runs·cost·health·usedBy), 드래프트(`DraftInfo`).
 // 묶음은 매니페스트 `plugins[]` + `group`을 가진 패키지 하나이고 프로필은 그 이름 하나를 참조한다(`PluginRef.name`).
 import type { MessageId } from "@fresnel/client/i18n";
-import { SHARED_PROFILES, type SharedProfileId } from "../shared-sample.ts";
+import type { CardMcpLaunch, HookName } from "@fresnel/contracts/extensions";
+import { ALL_SHARED_PLUGINS, SHARED_PROFILES, type SharedProfileId } from "./shared-sample.ts";
 
 /** `PLUGIN_ORIGIN_KINDS` */
 export type OriginKind = "builtin" | "bundled" | "user" | "project" | "managed";
@@ -12,7 +16,7 @@ export type ReviewState = "approved" | "pending" | "draft" | "none";
 /** `PLUGIN_HEALTH_STATES` */
 export type HealthState = "ok" | "idle" | "error" | "stopped" | "integrity";
 
-interface CapabilityNeed {
+export interface CapabilityNeed {
   readonly id: string;
   readonly range: string;
 }
@@ -24,6 +28,8 @@ interface CapabilityGive {
 
 /** 리뷰 대기 중인 새 판(`DraftInfo` + 리뷰 항목). 승인본을 고친 것이면 `parentVersion`이 있다 */
 interface PendingDraft {
+  /** `DraftInfo.draftId` */
+  readonly draftId: string;
   readonly version: string;
   readonly contentHash: string;
   /** 앞 판(승인본). 새 플러그인이면 null */
@@ -32,6 +38,8 @@ interface PendingDraft {
   readonly provenance: "assistant" | "user";
   /** `DraftInfo.label` */
   readonly label: MessageId;
+  /** `DraftInfo.submittedItemId`: 검토함에 올라간 항목 */
+  readonly submittedItemId: string;
 }
 
 export interface PluginMeta {
@@ -52,6 +60,8 @@ export interface PluginMeta {
   readonly pending: PendingDraft | null;
   /** 빌더가 테스트 챗에서 만들었다(`origin.createdIn`) */
   readonly createdByBuilder: boolean;
+  /** `origin.createdIn.threadId`: 이 플러그인을 만든 대화. 없으면 null */
+  readonly createdIn: string | null;
   readonly enforcement: "advisory" | "enforced";
   /** `runs.isolated`. 코드가 없으면 null */
   readonly isolated: boolean | null;
@@ -71,7 +81,9 @@ export interface PluginMeta {
   /** 같은 이름으로 대체하는 내장 도구 */
   readonly replaces: readonly string[];
   /** 매니페스트 `hooks`(Hook 이름) */
-  readonly hooks: readonly string[];
+  readonly hooks: readonly HookName[];
+  /** 도구만: 승인하면 실행될 명령(`CardMcpLaunch`) */
+  readonly launch: CardMcpLaunch | null;
 }
 
 const APPROVED = (hash: string, at: string): PluginMeta["review"] => ({
@@ -86,6 +98,7 @@ const PLAIN = {
   license: "MIT",
   pending: null,
   createdByBuilder: false,
+  createdIn: null,
   enforcement: "advisory",
   health: "ok",
   requires: [],
@@ -95,13 +108,14 @@ const PLAIN = {
   recordKinds: [],
   replaces: [],
   hooks: [],
+  launch: null,
 } as const;
 
 const META: Readonly<Record<string, PluginMeta>> = {
   "house-style": {
     ...PLAIN,
     displayName: "House Style",
-    purpose: "desktop.craft.canvas.cvG.purpose.houseStyle",
+    purpose: "desktop.craft.canvas.sample.purpose.houseStyle",
     version: "1.0.2",
     author: "team",
     origin: "project",
@@ -113,7 +127,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   "repo-skills": {
     ...PLAIN,
     displayName: "Repo Skills",
-    purpose: "desktop.craft.canvas.cvG.purpose.repoSkills",
+    purpose: "desktop.craft.canvas.sample.purpose.repoSkills",
     version: "0.4.0",
     author: "team",
     origin: "project",
@@ -125,7 +139,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   memory: {
     ...PLAIN,
     displayName: "Memory",
-    purpose: "desktop.craft.canvas.cvG.purpose.memory",
+    purpose: "desktop.craft.canvas.sample.purpose.memory",
     version: "2.1.0",
     author: "fresnel",
     origin: "bundled",
@@ -133,13 +147,14 @@ const META: Readonly<Record<string, PluginMeta>> = {
     review: APPROVED("51d0be", "2026-11-02"),
     isolated: false,
     cost: { ...NO_COST, always: 1400 },
-    optional: [{ id: "knowledge.memory", range: "^1.0.0" }],
+    // 엔진에서 기억을 내는 쪽(`cap-knowledge`)처럼 `knowledge.memory`를 낸다. helm이 이것을 선택 의존으로 받는다
+    provides: [{ id: "knowledge.memory", version: "1.0.0" }],
     hooks: ["request.context.before"],
   },
   "secret-guard": {
     ...PLAIN,
     displayName: "Secret Guard",
-    purpose: "desktop.craft.canvas.cvG.purpose.secretGuard",
+    purpose: "desktop.craft.canvas.sample.purpose.secretGuard",
     version: "1.3.1",
     author: "fresnel",
     origin: "bundled",
@@ -153,29 +168,33 @@ const META: Readonly<Record<string, PluginMeta>> = {
   "lint-on-edit": {
     ...PLAIN,
     displayName: "Lint on Edit",
-    purpose: "desktop.craft.canvas.cvG.purpose.lintOnEdit",
+    purpose: "desktop.craft.canvas.sample.purpose.lintOnEdit",
     version: "1.2.0",
     author: "team",
     origin: "user",
     pkg: "quality",
     review: APPROVED("77b9a1", "2026-11-10"),
+    // 승인본 1.2.0 위에 빌더가 고친 1.3.0이 리뷰를 기다린다
     pending: {
+      draftId: "drf_3m8t1c",
       version: "1.3.0",
       contentHash: "c3e512",
       parentVersion: "1.2.0",
       provenance: "assistant",
-      label: "desktop.craft.canvas.cvG.draftLabel.lint",
+      label: "desktop.craft.canvas.sample.draftLabel.lint",
+      submittedItemId: "rvw_4p1x8d",
     },
     isolated: true,
     cost: NO_COST,
     provides: [{ id: "lint.report", version: "1.0.0" }],
     recordKinds: ["grp.quality.lint.reported"],
-    hooks: ["tool.execution.after"],
+    // 공통 표본의 결정이 "바꿈"이므로 결과를 고칠 수 있는 Hook(fold chain)에 건다
+    hooks: ["tool.result"],
   },
   "cost-cap": {
     ...PLAIN,
     displayName: "Cost Cap",
-    purpose: "desktop.craft.canvas.cvG.purpose.costCap",
+    purpose: "desktop.craft.canvas.sample.purpose.costCap",
     version: "0.9.0",
     author: "you",
     origin: "user",
@@ -188,7 +207,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   helm: {
     ...PLAIN,
     displayName: "Helm",
-    purpose: "desktop.craft.canvas.cvG.purpose.helm",
+    purpose: "desktop.craft.canvas.sample.purpose.helm",
     version: "0.1.1",
     author: "fresnel",
     origin: "bundled",
@@ -217,7 +236,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   verifier: {
     ...PLAIN,
     displayName: "Verifier",
-    purpose: "desktop.craft.canvas.cvG.purpose.verifier",
+    purpose: "desktop.craft.canvas.sample.purpose.verifier",
     version: "1.2.0",
     author: "team",
     origin: "user",
@@ -234,7 +253,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   "github-mcp": {
     ...PLAIN,
     displayName: "GitHub",
-    purpose: "desktop.craft.canvas.cvG.purpose.github",
+    purpose: "desktop.craft.canvas.sample.purpose.github",
     version: "3.0.1",
     author: "github",
     origin: "user",
@@ -244,11 +263,17 @@ const META: Readonly<Record<string, PluginMeta>> = {
     cost: { ...NO_COST, always: 1900, toolCount: 12 },
     requires: [{ id: "mcp.client", range: "^1.0.0" }],
     provides: [{ id: "github.issues", version: "1.2.0" }],
+    launch: {
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-github"],
+      envNames: ["GITHUB_TOKEN"],
+      cwd: null,
+    },
   },
   "commit-msg": {
     ...PLAIN,
     displayName: "Commit Message",
-    purpose: "desktop.craft.canvas.cvG.purpose.commitMsg",
+    purpose: "desktop.craft.canvas.sample.purpose.commitMsg",
     version: "0.1.0",
     author: "you",
     license: null,
@@ -256,13 +281,16 @@ const META: Readonly<Record<string, PluginMeta>> = {
     pkg: "commit-msg",
     review: { state: "draft", currentHash: null, approvedAt: null },
     pending: {
+      draftId: "drf_8k2q",
       version: "0.1.0",
       contentHash: "5be7a0",
       parentVersion: null,
       provenance: "assistant",
-      label: "desktop.craft.canvas.cvG.draftLabel.commit",
+      label: "desktop.craft.canvas.sample.draftLabel.commit",
+      submittedItemId: "rvw_7k2m9x",
     },
     createdByBuilder: true,
+    createdIn: "thr_8q2n4w",
     isolated: true,
     cost: NO_COST,
     health: "idle",
@@ -271,7 +299,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   "web-research": {
     ...PLAIN,
     displayName: "Web Research",
-    purpose: "desktop.craft.canvas.cvG.purpose.webResearch",
+    purpose: "desktop.craft.canvas.sample.purpose.webResearch",
     version: "0.6.0",
     author: "community",
     origin: "user",
@@ -287,7 +315,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   changelog: {
     ...PLAIN,
     displayName: "Changelog",
-    purpose: "desktop.craft.canvas.cvG.purpose.changelog",
+    purpose: "desktop.craft.canvas.sample.purpose.changelog",
     version: "1.0.0",
     author: "team",
     origin: "project",
@@ -300,7 +328,7 @@ const META: Readonly<Record<string, PluginMeta>> = {
   "test-runner": {
     ...PLAIN,
     displayName: "Test Runner",
-    purpose: "desktop.craft.canvas.cvG.purpose.testRunner",
+    purpose: "desktop.craft.canvas.sample.purpose.testRunner",
     version: "0.3.2",
     author: "team",
     origin: "user",
@@ -315,17 +343,51 @@ const META: Readonly<Record<string, PluginMeta>> = {
   },
 };
 
-/** 노드 30개 장면의 플러그인: 관계가 있는 것만 따로 적는다(나머지는 종류의 기본값) */
+/** 노드 30개 장면의 플러그인 스물: 목적은 하나씩, 관계가 있는 것은 그 값도 */
 const SCALE_META: Readonly<Record<string, Partial<PluginMeta>>> = {
-  triage: { requires: [{ id: "github.issues", range: "^1.0.0" }] },
-  refactorer: { replaces: ["edit"] },
-};
-
-const SCALE_PURPOSE: Readonly<Record<"inject" | "hook" | "drive" | "tool", MessageId>> = {
-  inject: "desktop.craft.canvas.cvG.purpose.scaleInject",
-  hook: "desktop.craft.canvas.cvG.purpose.scaleHook",
-  drive: "desktop.craft.canvas.cvG.purpose.scaleDrive",
-  tool: "desktop.craft.canvas.cvG.purpose.scaleTool",
+  "api-docs": { purpose: "desktop.craft.canvas.sample.purpose.apiDocs" },
+  "db-schema": { purpose: "desktop.craft.canvas.sample.purpose.dbSchema" },
+  runbooks: { purpose: "desktop.craft.canvas.sample.purpose.runbooks" },
+  "design-notes": { purpose: "desktop.craft.canvas.sample.purpose.designNotes" },
+  onboarding: { purpose: "desktop.craft.canvas.sample.purpose.onboarding" },
+  "ts-style": { purpose: "desktop.craft.canvas.sample.purpose.tsStyle" },
+  "pii-mask": {
+    purpose: "desktop.craft.canvas.sample.purpose.piiMask",
+    enforcement: "enforced",
+    hooks: ["tool.call.before"],
+  },
+  "license-check": {
+    purpose: "desktop.craft.canvas.sample.purpose.licenseCheck",
+    hooks: ["tool.call.before"],
+  },
+  "format-on-save": {
+    purpose: "desktop.craft.canvas.sample.purpose.formatOnSave",
+    hooks: ["tool.result"],
+  },
+  "bundle-cap": {
+    purpose: "desktop.craft.canvas.sample.purpose.bundleCap",
+    enforcement: "enforced",
+    hooks: ["tool.result"],
+  },
+  "budget-alert": {
+    purpose: "desktop.craft.canvas.sample.purpose.budgetAlert",
+    hooks: ["guard.model.before"],
+  },
+  "deploy-gate": {
+    purpose: "desktop.craft.canvas.sample.purpose.deployGate",
+    hooks: ["boundary.settle.before"],
+  },
+  triage: {
+    purpose: "desktop.craft.canvas.sample.purpose.triage",
+    requires: [{ id: "github.issues", range: "^1.0.0" }],
+  },
+  planner: { purpose: "desktop.craft.canvas.sample.purpose.planner" },
+  refactorer: { purpose: "desktop.craft.canvas.sample.purpose.refactorer", replaces: ["edit"] },
+  "doc-writer": { purpose: "desktop.craft.canvas.sample.purpose.docWriter" },
+  "jira-mcp": { purpose: "desktop.craft.canvas.sample.purpose.jiraMcp" },
+  "slack-mcp": { purpose: "desktop.craft.canvas.sample.purpose.slackMcp" },
+  "sentry-mcp": { purpose: "desktop.craft.canvas.sample.purpose.sentryMcp" },
+  "figma-mcp": { purpose: "desktop.craft.canvas.sample.purpose.figmaMcp" },
 };
 
 /** 표본의 짧은 해시(앞 6자리)를 이름에서 정한다. 같은 이름은 늘 같은 값이다 */
@@ -344,7 +406,7 @@ export function metaOf(name: string, kind: "inject" | "hook" | "drive" | "tool")
   return {
     ...PLAIN,
     displayName: name,
-    purpose: SCALE_PURPOSE[kind],
+    purpose: "desktop.craft.canvas.sample.purpose.unknown",
     version: "1.0.0",
     author: "team",
     origin: "user",
@@ -371,7 +433,7 @@ const BUNDLES: Readonly<Record<string, BundleMeta>> = {
   quality: {
     id: "quality",
     displayName: "Quality",
-    purpose: "desktop.craft.canvas.cvG.purpose.quality",
+    purpose: "desktop.craft.canvas.sample.purpose.quality",
     version: "1.2.0",
     author: "team",
     origin: "user",
@@ -384,7 +446,7 @@ export function bundleMetaOf(id: string): BundleMeta {
     BUNDLES[id] ?? {
       id,
       displayName: id,
-      purpose: "desktop.craft.canvas.cvG.purpose.quality",
+      purpose: "desktop.craft.canvas.sample.purpose.unknown",
       version: "1.0.0",
       author: "team",
       origin: "user",
@@ -403,4 +465,38 @@ export function usedByOf(name: string): readonly string[] {
     if (p.plugins.includes(name)) out.push(id);
   }
   return out;
+}
+
+/** 코어 기능 묶음(`packages/cap-*`)이 주는 기능의 이름 앞부분. 이 기능은 프로필에 내는 플러그인이 없어도 채워진다 */
+const ENGINE_CAPS = [
+  "agents.",
+  "artifacts.",
+  "dialog.",
+  "knowledge.",
+  "mcp.",
+  "models.",
+  "schedule.",
+  "web.",
+  "work.",
+  "workspace.",
+] as const;
+
+function engine(id: string): boolean {
+  return ENGINE_CAPS.some((prefix) => id.startsWith(prefix));
+}
+
+/** 표본 플러그인이 내는 기능 전부 */
+const PROVIDED: ReadonlySet<string> = new Set(
+  ALL_SHARED_PLUGINS.flatMap((p) => metaOf(p.name, p.kind).provides.map((c) => c.id)),
+);
+
+/**
+ * 플러그인끼리의 의존으로 그릴 것: 표본 안의 다른 플러그인이 내는 기능(필수·선택 둘 다)과, 엔진도 주지 않아 채워지지 않을 수 있는 필수 기능.
+ * 엔진이 주는 기능만 바라는 의존은 플러그인끼리의 관계가 아니므로 뺀다(엔진 쪽 공급자를 따로 그리는 시안 G는 `metaOf`를 그대로 읽는다)
+ */
+export function pluginNeeds(meta: PluginMeta): readonly CapabilityNeed[] {
+  return [
+    ...meta.requires.filter((r) => PROVIDED.has(r.id) || !engine(r.id)),
+    ...meta.optional.filter((r) => PROVIDED.has(r.id)),
+  ];
 }

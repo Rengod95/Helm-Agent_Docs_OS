@@ -26,7 +26,7 @@ import {
   type Plugin,
   type RelationKind,
 } from "./model.ts";
-import { bundleMetaOf, usedByOf } from "./sample-ext.ts";
+import { bundleMetaOf, usedByOf } from "../shared-meta.ts";
 import {
   anchorWord,
   BLOCK_WORD,

@@ -115,6 +115,7 @@ describe("cvF 관계", () => {
     expect(relationsOf(dev, CATALOG)).toEqual([
       { kind: "handoff", from: "helm", to: "verifier" },
       { kind: "depends", from: "helm", to: "memory", capability: "knowledge.memory" },
+      { kind: "depends", from: "verifier", to: "lint-on-edit", capability: "lint.report" },
     ]);
   });
 

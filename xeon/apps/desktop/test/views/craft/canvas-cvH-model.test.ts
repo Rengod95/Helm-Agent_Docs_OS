@@ -71,15 +71,14 @@ describe("cvH 선로: 프로필 조작", () => {
 });
 
 describe("cvH 선로: 관계", () => {
-  test("개발 프로필은 엔진에 있는 다섯 관계만 그린다", () => {
+  test("개발 프로필은 엔진에 있는 관계만 그린다(F·G와 같은 표본)", () => {
     expect(relationKeys(dev)).toEqual([
       "creates:seed:commit-msg>commit-msg",
-      "depends:commit-msg>github-mcp",
-      "depends:verifier>-!",
+      "depends:helm>memory",
+      "depends:verifier>lint-on-edit",
       "handoff:helm>verifier",
       "owns:group:quality>lint-on-edit",
       "owns:group:quality>verifier",
-      "replaces:lint-on-edit>part:tool:edit",
     ]);
   });
 

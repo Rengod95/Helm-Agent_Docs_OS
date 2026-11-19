@@ -7,7 +7,7 @@ import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactElement } f
 import type { SharedProfileId } from "../shared-sample.ts";
 import { Icon, KIND_COLOR, KindTile, PartGlyph } from "./glyphs.tsx";
 import { inProfile, INSTALLED, type CanvasProfile, type Kind } from "./model.ts";
-import { bundleMetaOf } from "./sample-ext.ts";
+import { bundleMetaOf } from "../shared-meta.ts";
 import { KIND_WORD } from "./words.ts";
 
 const ORDER: readonly Kind[] = ["drive", "inject", "hook", "tool"];

@@ -1,6 +1,6 @@
 // cvG "깊이" 시안의 순수 모델과 배치: 효과 순서와 같은 자리 순서, 엔진에 있는 관계만, 묶음째 넣고 빼기,
 // 베이스는 빠지지 않음, 같은 자리 안 순서 바꾸기, 판끼리 겹치지 않는 배치, 접은 묶음의 선 합치기.
-// 값은 공용 표본(`shared-sample.ts`)과 cvG의 보탬(`cvG/sample-ext.ts`)에서 읽는다.
+// 값은 공용 표본(`shared-sample.ts`)과 F·G·H가 함께 보는 메타(`shared-meta.ts`)에서 읽는다.
 import { describe, expect, test } from "bun:test";
 import { layoutProfile, type Rect } from "../../../src/views/craft/canvas/cvG/layout.ts";
 import {
@@ -68,6 +68,7 @@ describe("relationsOf", () => {
     expect(rel.toSorted()).toEqual(
       [
         "creates @builder>commit-msg ",
+        "depends helm>memory knowledge.memory",
         "depends verifier>lint-on-edit lint.report",
         "handoff helm>verifier ",
         "reads verifier>helm grp.helm.discovery.*",

@@ -50,7 +50,7 @@ import {
   RelationSwatch,
   type PanelActions,
 } from "./panel.tsx";
-import { bundleMetaOf } from "./sample-ext.ts";
+import { bundleMetaOf } from "../shared-meta.ts";
 import { currentProfile, setCollapsed, setProfile, updateStore, useCanvasStore } from "./store.ts";
 import { KIND_WORD, RELATION_HINT, RELATION_WORD } from "./words.ts";
 

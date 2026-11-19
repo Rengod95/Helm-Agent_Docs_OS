@@ -8,7 +8,7 @@ import {
   type SharedPoint,
   type SharedProfileId,
 } from "../shared-sample.ts";
-import { metaOf, type PluginMeta } from "./sample-ext.ts";
+import { metaOf, type PluginMeta } from "../shared-meta.ts";
 
 export type Kind = "inject" | "hook" | "drive" | "tool";
 export type BlockId = "context" | "model" | "tools" | "ask" | "agents" | "record";

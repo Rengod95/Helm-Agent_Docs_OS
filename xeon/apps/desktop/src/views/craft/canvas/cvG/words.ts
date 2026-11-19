@@ -2,7 +2,7 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import type { SharedRisk, SharedStepId } from "../shared-sample.ts";
 import type { Anchor, BlockId, BoundaryId, Kind, RelationKind } from "./model.ts";
-import type { HealthState, OriginKind, ReviewState } from "./sample-ext.ts";
+import type { HealthState, OriginKind, ReviewState } from "../shared-meta.ts";
 
 export const KIND_WORD: Readonly<Record<Kind, MessageId>> = {
   inject: "desktop.craft.canvas.cvG.kind.inject",

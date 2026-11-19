@@ -25,7 +25,7 @@ import {
   type ProfileLayout,
 } from "./layout.ts";
 import { pluginOf, type Kind, type Plugin, type RelationKind } from "./model.ts";
-import { bundleMetaOf } from "./sample-ext.ts";
+import { bundleMetaOf } from "../shared-meta.ts";
 import {
   anchorWord,
   BLOCK_WORD,
