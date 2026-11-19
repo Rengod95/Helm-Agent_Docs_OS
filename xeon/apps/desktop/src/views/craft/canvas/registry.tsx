@@ -1,6 +1,6 @@
-// 프로필 캔버스 시안 다섯(AGE-31, 개발 빌드만). 시안마다 화면 하나(`Screen`)를 낸다: 프로필 캔버스와, 노드를 열면 들어가는 플러그인 내부.
-// 시안 A·C는 내부 들어가기를 스스로 하고, B·D·E는 캔버스와 내부 두 부품을 낸다. 둘을 같은 모양으로 맞추는 얇은 자리만 여기에 둔다.
-// 고르기(귀퉁이 전환기, 키 1~5)는 `switcher.tsx`가 한다.
+// 프로필 캔버스 시안(AGE-31, 개발 빌드만). 둘째 판 F·G·H가 앞에, 첫 판 A~E가 뒤에 선다(비교용). 시안마다 화면 하나(`Screen`)를 낸다:
+// 프로필 캔버스와, 노드를 열면 들어가는 플러그인 내부. A·C·F·G·H는 내부 들어가기를 스스로 하고, B·D·E는 캔버스와 내부 두 부품을 낸다.
+// 둘을 같은 모양으로 맞추는 얇은 자리만 여기에 둔다. 고르기(왼쪽 아래 전환기, 키 1~8)는 `switcher.tsx`가 한다.
 import type { MessageId } from "@fresnel/client/i18n";
 import { useState, type ComponentType, type ReactNode } from "react";
 import * as cvA from "./cvA/index.tsx";
@@ -14,8 +14,10 @@ import * as cvH from "./cvH/index.tsx";
 
 export interface CanvasDesign {
   readonly id: string;
-  /** 전환기 칸에 보이는 글자(A~E) */
+  /** 전환기 칸에 보이는 글자(A~H) */
   readonly letter: string;
+  /** 몇째 판인가. 전환기가 둘째 판을 앞에 두고 판 사이를 가른다 */
+  readonly round: 1 | 2;
   /** 전환기 칸의 이름(툴팁·화면 읽기) */
   readonly name: MessageId;
   readonly Screen: ComponentType;
@@ -70,13 +72,32 @@ function CvEScreen(): ReactNode {
   );
 }
 
+/** 전환기 순서: 둘째 판 F·G·H, 그다음 첫 판 A~E */
 export const CANVAS_DESIGNS: readonly CanvasDesign[] = [
-  { id: "cvA", letter: "A", name: "desktop.craft.canvas.cvA.name", Screen: cvA.ProfileCanvas },
-  { id: "cvB", letter: "B", name: "desktop.craft.canvas.cvB.name", Screen: CvBScreen },
-  { id: "cvC", letter: "C", name: "desktop.craft.canvas.cvC.name", Screen: cvC.ProfileCanvas },
-  { id: "cvD", letter: "D", name: "desktop.craft.canvas.cvD.name", Screen: CvDScreen },
-  { id: "cvE", letter: "E", name: "desktop.craft.canvas.cvE.name", Screen: CvEScreen },
-  { id: "cvF", letter: "F", name: "desktop.craft.canvas.cvF.name", Screen: cvF.Screen },
-  { id: "cvG", letter: "G", name: "desktop.craft.canvas.cvG.name", Screen: cvG.Screen },
-  { id: "cvH", letter: "H", name: "desktop.craft.canvas.cvH.name", Screen: cvH.ProfileCanvas },
+  { id: "cvF", letter: "F", round: 2, name: "desktop.craft.canvas.cvF.name", Screen: cvF.Screen },
+  { id: "cvG", letter: "G", round: 2, name: "desktop.craft.canvas.cvG.name", Screen: cvG.Screen },
+  {
+    id: "cvH",
+    letter: "H",
+    round: 2,
+    name: "desktop.craft.canvas.cvH.name",
+    Screen: cvH.ProfileCanvas,
+  },
+  {
+    id: "cvA",
+    letter: "A",
+    round: 1,
+    name: "desktop.craft.canvas.cvA.name",
+    Screen: cvA.ProfileCanvas,
+  },
+  { id: "cvB", letter: "B", round: 1, name: "desktop.craft.canvas.cvB.name", Screen: CvBScreen },
+  {
+    id: "cvC",
+    letter: "C",
+    round: 1,
+    name: "desktop.craft.canvas.cvC.name",
+    Screen: cvC.ProfileCanvas,
+  },
+  { id: "cvD", letter: "D", round: 1, name: "desktop.craft.canvas.cvD.name", Screen: CvDScreen },
+  { id: "cvE", letter: "E", round: 1, name: "desktop.craft.canvas.cvE.name", Screen: CvEScreen },
 ];

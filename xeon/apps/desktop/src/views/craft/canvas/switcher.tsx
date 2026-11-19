@@ -1,14 +1,16 @@
-// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸 여섯: 지금 화면(–)과 시안 A~E. 키보드 1~5는 시안, 0은 지금 화면.
-// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 글자 입력 중에는 숫자 키를 가로채지 않는다.
+// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸: `F G H │ A B C D E │ –`.
+// 둘째 판 F·G·H가 앞에 또렷하게 서고, 첫 판 A~E는 비교용으로 흐리게 뒤에 선다. 키보드 1~3은 F·G·H, 4~8은 A~E, 0은 지금 화면.
+// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 첫 판의 키와 따로 두어 둘째 판 빌드는 F로 처음 연다.
+// 글자 입력 중에는 숫자 키를 가로채지 않는다.
 import { t } from "@fresnel/client/i18n";
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { CANVAS_DESIGNS } from "./registry.tsx";
 
-const KEY = "fresnel.craft.canvasDesign";
+const KEY = "fresnel.craft.canvasDesign.round2";
 const CURRENT = "current";
 
-/** 고른 적이 없으면 첫 시안(A)으로 연다 */
+/** 고른 적이 없으면 첫 칸(둘째 판의 F)으로 연다 */
 function stored(): string {
   const value = localStorage.getItem(KEY);
   if (value !== null && (value === CURRENT || CANVAS_DESIGNS.some((d) => d.id === value)))
@@ -25,6 +27,13 @@ function typing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return (
     target.isContentEditable || target.closest("input, textarea, select, [role='textbox']") !== null
+  );
+}
+
+/** 판 사이의 가는 세로선(칸이 아니라 화면 읽기에서 빠진다) */
+function Divider(): ReactNode {
+  return (
+    <span aria-hidden="true" className="mx-1 h-3.5 w-px shrink-0 self-center bg-border-default" />
   );
 }
 
@@ -64,25 +73,28 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
           value={design?.id ?? CURRENT}
           onValueChange={choose}
         >
+          {CANVAS_DESIGNS.map((d, i) => (
+            <Fragment key={d.id}>
+              {i > 0 && CANVAS_DESIGNS[i - 1]?.round !== d.round ? <Divider /> : null}
+              <SegmentedControlItem
+                value={d.id}
+                aria-label={t(d.name)}
+                title={`${t(d.name)} · ${String(i + 1)}`}
+                className={d.round === 1 ? "font-mono text-text-tertiary" : "font-mono"}
+              >
+                {d.letter}
+              </SegmentedControlItem>
+            </Fragment>
+          ))}
+          <Divider />
           <SegmentedControlItem
             value={CURRENT}
             aria-label={t("desktop.craft.canvas.current")}
             title={`${t("desktop.craft.canvas.current")} · 0`}
-            className="font-mono"
+            className="font-mono text-text-tertiary"
           >
             {"–"}
           </SegmentedControlItem>
-          {CANVAS_DESIGNS.map((d, i) => (
-            <SegmentedControlItem
-              key={d.id}
-              value={d.id}
-              aria-label={t(d.name)}
-              title={`${t(d.name)} · ${String(i + 1)}`}
-              className="font-mono"
-            >
-              {d.letter}
-            </SegmentedControlItem>
-          ))}
         </SegmentedControl>
       </div>
     </div>
