@@ -8,6 +8,7 @@ import {
   isEntryInsideRoot,
   SCRIPT_CARD_PREVIEW_CHARS,
   SCRIPT_LIMITS,
+  SCRIPT_USES,
   type IsolatedChild,
   type IsolationProcessPort,
   type IsolationSpawnError,
@@ -20,7 +21,6 @@ import {
   type ScriptRunFailure,
   type ScriptRunner,
   type ScriptRunResult,
-  type ScriptUse,
 } from "@fresnel/contracts/extensions";
 import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 import { isAbsolute, join } from "node:path";
@@ -46,6 +46,8 @@ export interface ScriptRunnerDeps {
   readonly target: ScriptTarget;
   /** 실행기 이름을 절대 경로로 푼다. 없으면 `runner_unavailable`이다(조립 루트가 준다) */
   readonly resolveRunner: (name: ScriptRunner) => string | undefined;
+  /** 실행기가 시작하는 데 읽어야 하는 경로(읽기 전용, `python3`의 설치 폴더 등). 없으면 실행 파일 말고는 더 열지 않는다 */
+  readonly runnerReadRoots?: (name: ScriptRunner, command: string) => readonly string[];
   /** 허용 목록에 든 환경 값. 선언된 `envNames` 가운데 여기 있는 것만 자식에게 넘긴다 */
   readonly allowedEnv: Readonly<Record<string, string>>;
   /** 기한과 정리 시계. 취소 함수를 돌려준다(격리의 다른 시계와 같은 모양이다) */
@@ -217,9 +219,6 @@ function previewOf(stdin: string, mask: ScriptRunnerDeps["maskText"]): string {
   return mask(head);
 }
 
-/** 스크립트 실행기가 띄운 자식이 쓸 수 있는 것: 시스템 도구와 네트워크(`systemTools`와 격리 네트워크 결정). 카드가 알린다 */
-const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
-
 /** 확장 하나의 스크립트 실행기를 만든다. 호출마다 선언과 위치와 승인을 검사하고, 통과하면 띄운다 */
 export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
   const { target } = deps;
@@ -243,13 +242,19 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
           message: `no absolute path is set for the ${decl.runner} runner`,
         });
       }
+      const runtimeReadRoots = deps.runnerReadRoots?.(decl.runner, runner) ?? [];
       const spec: IsolationSpawnSpec = {
         command: runner,
         args: [located.value, ...(decl.args ?? [])],
         readRoot: target.tree,
+        ...(runtimeReadRoots.length === 0 ? {} : { runtimeReadRoots }),
         // 스크립트가 시스템 도구(`grep`, `sed`, `git` 읽기 전용 등)를 쓰도록 읽기·실행 허용을 넓힌다. 쓰기와 폴더 밖 데이터 읽기는 여전히 막힌다
         systemTools: true,
-        env: envOf(decl.envNames ?? [], deps.allowedEnv),
+        // `python3`는 설치 폴더가 읽기 전용이라 `__pycache__`를 쓰지 못한다. 쓰려다 실패하지 않게 막는다
+        env: {
+          ...envOf(decl.envNames ?? [], deps.allowedEnv),
+          ...(decl.runner === "python3" ? { PYTHONDONTWRITEBYTECODE: "1" } : {}),
+        },
         label: `script:${target.extension}:${decl.name}`,
       };
       const launch = async (

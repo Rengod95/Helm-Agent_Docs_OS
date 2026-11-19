@@ -360,6 +360,8 @@ export interface LoaderIsolation {
    * 없으면 스크립트 호출은 `runner_unavailable`로 답한다(띄우지 않는다)
    */
   readonly runner?: (name: ScriptRunner) => string | undefined;
+  /** 실행기가 샌드박스 안에서 시작하려고 읽어야 하는 경로(읽기 전용). 실행기 이름과 `runner`가 푼 절대 경로를 받는다. 없으면 더하지 않는다 */
+  readonly runnerReadRoots?: (name: ScriptRunner, command: string) => readonly string[];
   /**
    * 스크립트에 넘길 허용 환경 값. 선언된 `envNames` 가운데 여기 있고 시크릿 거부 패턴에 걸리지 않는 것만 넘긴다. 없으면 빈 값
    */
@@ -1432,6 +1434,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           approved: record.candidate.draft === undefined,
         },
         resolveRunner: isolation.runner ?? (() => undefined),
+        ...(isolation.runnerReadRoots === undefined
+          ? {}
+          : { runnerReadRoots: isolation.runnerReadRoots }),
         allowedEnv: isolation.allowedEnv ?? {},
         setTimer: isolation.setTimer,
         ...(isolation.logger === undefined ? {} : { logger: isolation.logger }),
