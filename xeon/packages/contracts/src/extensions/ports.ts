@@ -222,6 +222,11 @@ export interface IsolationSpawnSpec {
    * 실행 파일(`command`)은 적지 않아도 읽힌다
    */
   readonly runtimeReadRoots?: readonly string[];
+  /**
+   * 참이면 읽기 허용 목록에 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위해 꼭 필요한 시스템 경로를 더한다(읽기·실행만, 쓰기는 더하지 않는다).
+   * 스크립트 실행기만 켠다. 다른 프로필(훑기 자식, 플러그인 격리 프로세스)은 켜지 않는다 [결정: 2026-11-19, 사용자, AGE-58 "다 열어"]
+   */
+  readonly systemTools?: true;
   /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   /** "ext:<name>:<versionId>" */
