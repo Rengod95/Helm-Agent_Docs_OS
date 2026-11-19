@@ -15,6 +15,8 @@ import {
 } from "../../src/state/engine/selectors.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "../../src/state/engine/state.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { attendKindOf } from "../../src/views/approval-card/approval-card.tsx";
+import { writeAccessViewOf } from "../../src/views/approval-card/write-access-model.ts";
 import { STORE, summary, thr } from "../state/helpers.ts";
 
 // 개발 빌드의 표본 보기(lcMk2): 거울에 표본 대화 둘(하나는 시한 있는 승인)을 겹친다. 실제 거울 값은 바꾸지 않는다
@@ -30,7 +32,7 @@ function realMirror(): EngineMirror {
 }
 
 describe("withSampleMirror", () => {
-  test("adds two waiting threads in front, one with a deadline, in the first real folder", () => {
+  test("adds two waiting threads in front, one with a deadline, in the first real folder, with one card of each kind", () => {
     const real = realMirror();
     const shown = withSampleMirror(real, NOW);
     const ids = shown.threads.ids;
@@ -47,16 +49,21 @@ describe("withSampleMirror", () => {
       shown.threads.byId[a]?.workspace,
       shown.threads.byId[b]?.workspace,
     ]).toEqual([2, 2, 0, 0, false, true, "/w/helm", "/w/helm"]);
+    // 네 카드 종류가 하나씩(lcMk4): 질문, 도구, 변경 검토, 쓰기 허용(가드)
     expect(
       shown.approvals.ids.map((id) => {
         const request = shown.approvals.byId[id]?.request;
-        return [request?.expiresAt, request?.body.kind];
+        if (request === undefined) return [];
+        return [
+          request.expiresAt,
+          attendKindOf(request.body.kind, writeAccessViewOf(request) !== null),
+        ];
       }),
     ).toEqual([
       [undefined, "question"],
       [undefined, "tool"],
-      [NOW + 30 * 60_000, "question"],
-      [NOW + 30 * 60_000, "question"],
+      [NOW + 30 * 60_000, "review"],
+      [NOW + 30 * 60_000, "guard"],
     ]);
   });
 

@@ -140,19 +140,32 @@ function approvalCountText(approvals: number): string {
 }
 
 /**
- * 줄 끝 승인 수(DP-189 [결정: 2026-11-18 사용자 "일반 대화 row 우측에는 아이콘 없어야 할듯함. 그리고 추가적으로 숫자의 백그라운드에 동그란 surface를 넣어줘.
- * 패딩은 너무 크지않게 적당히", lcMk3]가 2026-11-13 "원형 뒷배경 빼는게"를 바꿈). caustic 배지(neutral soft, xs 18px, 좌우 6px)의 둥근 면에
- * 무채색 숫자, 면에 아주 옅은 오로라 기운이 든다(`.fx-attend-pill`). 급함(시한 있는 승인)은 빛깔이 아니라 밝기로 다르다: 숫자가 한 단계 진하고 면이 밝으며
- * 오로라 테 1px이 둘린다. 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
+ * 줄 끝 승인 수(DP-189 [결정: 2026-11-18 사용자 "숫자의 백그라운드에 동그란 surface를 넣어줘. 패딩은 너무 크지않게 적당히", lcMk3]).
+ * 보통은 caustic 배지(neutral soft, xs 18px, 좌우 6px) 그대로다: 그라데이션 없이 caustic의 면·글자색·모서리([결정: 2026-11-19 사용자 "일반적인 경우는
+ * 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", lcMk4]). 급함(시한 있는 승인)은 채도 높은 info solid 면에 흰 글자이고, 보던 줄이 새로 급해진
+ * 순간 한 번만 숨 쉬듯 커지며 밝아졌다 가라앉는다(`data-cue="urgent"`, [결정: 2026-11-19 사용자 "더 채도높은 색을 쓰던지 마이크로 모션 이펙트를 넣던지"]).
+ * 처음 그릴 때(목록을 열 때)는 움직이지 않는다. 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
  */
 function ApprovalCount(props: { readonly approvals: number; readonly urgent: boolean }): ReactNode {
   const waiting = t("desktop.threads.approvalsWaiting", { count: props.approvals });
+  const [seen, setSeen] = useState(props.urgent);
+  const [cue, setCue] = useState(false);
+  // 앞 값과 견주어 그리는 중에 정한다(효과 안에서 상태를 바꾸지 않는다)
+  if (seen !== props.urgent) {
+    setSeen(props.urgent);
+    setCue(props.urgent);
+  }
   return (
     <Badge
       size="xs"
-      className="fx-attend-pill"
+      // 급함은 caustic info solid의 면·글자(배지 solid × info와 같은 토큰). 보통은 배지 기본(neutral soft) 그대로다
+      className={props.urgent ? "fx-attend-pill bg-info-solid text-info-on" : "fx-attend-pill"}
       data-thread-badge="approvals"
       data-urgent={props.urgent ? "" : undefined}
+      data-cue={cue ? "urgent" : undefined}
+      onAnimationEnd={() => {
+        setCue(false);
+      }}
     >
       <span aria-hidden>{approvalCountText(props.approvals)}</span>
       <span className="sr-only">

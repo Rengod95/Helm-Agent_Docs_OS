@@ -208,9 +208,14 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
   expect(marks.map(relative)).toEqual([]);
 });
 
-test("attention counts are neutral, the row count sits on a round surface without a row wash, and every attention glow is aurora (DP-189, DP-190, DP-223)", () => {
-  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface", "호박색 말고 오로라 계열로 바꿔".
-  // 수 면·카드 면은 크리스탈과 같은 오로라 계열이고 호박(oklch 색상각 40~80)을 쓰지 않는다. 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3)
+/** CSS 글의 oklch(L C H) 색상각들 */
+const hues = (text: string): number[] =>
+  [...text.matchAll(/oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s*\)/g)].map((m) => Number(m[1]));
+
+test("attention counts are caustic badges without a gradient, urgent is info solid, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
+  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface". 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3).
+  // lcMk4(2026-11-19): "일반적인 경우는 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", "더 채도높은 색을 쓰던지 마이크로 모션",
+  // "변경검토나 단순 질문이나, 가드 각각 다른 색이 중심인데, 각 중심색에 맞게 오로라의 색조합들도 각각 다르게"
   const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   const rule = (selector: string): string => {
     const at = css.indexOf(`${selector} {`);
@@ -218,18 +223,42 @@ test("attention counts are neutral, the row count sits on a round surface withou
   };
   const count = rule(".fx-attend-count");
   const pill = rule(".fx-attend-pill");
-  const root = rule(":root");
   const list = codeOf(join(SRC, "views/thread-list.tsx"));
+  const kinds = ["review", "question", "tool", "guard"].map((kind) =>
+    rule(`.fx-attend-glow[data-kind="${kind}"]`),
+  );
+  // 종류마다 중심색(a)과 이웃 색(b·c)이 있고, 따뜻한 색상각(40~100)은 호박 칸인 도구·가드에만 있다. 위험(33) 근처(21~45)는 어디에도 없다
+  const centre = (block: string): number[] => hues(block.slice(0, block.indexOf("--fx-attend-b")));
   expect([
     /color:\s*var\(--cs-color-text-secondary\)/.test(count),
     /oklch|--fx-attend-a|--fx-attend-b/.test(count),
     /\.fx-attend-row\b/.test(css) || /fx-attend-row/.test(list),
-    /--fx-crystal-a/.test(pill) && /--fx-crystal-c/.test(pill),
+    /gradient|background/.test(pill),
     /min-width:\s*var\(--cs-control-compact-2xs\)/.test(pill),
-    /--fx-attend-a:\s*var\(--fx-crystal-a\)/.test(root),
-    /--fx-attend-b:\s*var\(--fx-crystal-c\)/.test(root),
-    /oklch\([^)]*\s(4\d|5\d|6\d|7\d|80)\)/.test(css),
-    /<Badge\b[^>]*className="fx-attend-pill"/.test(list),
+    kinds.map((block) => ["a", "b", "c"].every((k) => block.includes(`--fx-attend-${k}:`))),
+    kinds.map((block) => centre(block).every((h) => h >= 40 && h <= 100)),
+    kinds.map(centre),
+    hues(css).filter((h) => h > 21 && h < 45),
+    /<Badge\b[^>]*className=\{props\.urgent \? "fx-attend-pill bg-info-solid text-info-on" : "fx-attend-pill"\}/.test(
+      list,
+    ),
     css.match(/\.fx-attend-count\b/g)?.length,
-  ]).toEqual([true, false, false, true, true, true, true, false, true, 1]);
+  ]).toEqual([
+    true,
+    false,
+    false,
+    false,
+    true,
+    [true, true, true, true],
+    [false, false, true, true],
+    [
+      [290, 290],
+      [240, 238],
+      [80, 86],
+      [66, 68],
+    ],
+    [],
+    true,
+    1,
+  ]);
 });

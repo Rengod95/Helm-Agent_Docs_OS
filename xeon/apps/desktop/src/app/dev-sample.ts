@@ -1,14 +1,15 @@
 // 개발 빌드 전용 "표본 상태 보기"(lcMk2, Linear AGE-53). 실제 키·대기 승인이 없어도 확인 대기 표시(크리스탈, DP-223)를 묶은 앱에서 보려고
 // 화면이 읽는 거울 면에 표본을 겹친다: 확인이 필요한 대화 둘(하나는 시한이 있는 승인), 기다리는 제안 둘(받은 요청 카드 하나가 따라 나온다).
-// 배포 대화의 둘째 승인은 명령 실행(도구, 쓰기 등급) 카드라 승인 카드의 오로라 면을 질문 카드와 같이 볼 수 있다(lcMk3).
+// 승인 카드 네 종류(질문, 도구, 변경 검토, 쓰기 허용)가 하나씩 있어 종류마다 다른 오로라 빛깔 조합을 한 화면에서 볼 수 있다(lcMk4).
 // 엔진 상태와 엔진 연결은 건드리지 않는다(앱 안 감시자들은 겹치지 않은 거울을 읽는다). 표본 대화를 열거나 표본 승인에 답하면 엔진이 모르는 id라
 // 실패한다(보기 전용). 정식 빌드(`BUILD_CHECKS` false)에서는 켜지지 않고 단축키도 걸리지 않는다.
 // 켜고 끄기: ⌘⌥⇧S(macOS, 다른 OS는 Ctrl+Alt+Shift+S). 값은 이 창의 localStorage에 두고 창을 다시 읽는다.
 
 import { t } from "@fresnel/client/i18n";
-import { attempt } from "@fresnel/contracts";
+import { assertNever, attempt } from "@fresnel/contracts";
 import { isId, type EventId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
+import type { LiveApprovalRequest } from "../state/engine/input.ts";
 import type { EngineMirror, PendingApproval } from "../state/engine/state.ts";
 import type { ReadonlyStore } from "../state/shared/readonly-store.ts";
 import { BUILD_CHECKS } from "./build.ts";
@@ -18,17 +19,29 @@ export const SAMPLE_STATE_KEY = "fresnel.dev.sampleState";
 /** 표본 제안 수(받은 요청 카드와 내비 "제안" 줄) */
 export const SAMPLE_PROPOSALS = 2;
 
-/** 표본 대화: id 꼬리, 제목 키, 기다리는 승인 수, 시한 여부, 도구 승인(명령 실행)을 둘 차례(0이면 없음) */
-const THREADS = [
+/** 표본 승인의 종류: 질문, 도구(명령 실행), 변경 검토, 쓰기 허용(샌드박스 밖 쓰기, 카드 종류 "가드") */
+type SampleKind = "question" | "tool" | "review" | "guard";
+
+/** 표본 대화: id 꼬리, 제목 키, 시한 여부, 기다리는 승인들의 종류(차례대로) */
+const THREADS: readonly {
+  readonly tail: string;
+  readonly title: "desktop.dev.sample.threadDeploy" | "desktop.dev.sample.threadReadme";
+  readonly urgent: boolean;
+  readonly kinds: readonly SampleKind[];
+}[] = [
   {
     tail: "SAMP01",
     title: "desktop.dev.sample.threadDeploy",
-    approvals: 2,
     urgent: false,
-    tool: 2,
+    kinds: ["question", "tool"],
   },
-  { tail: "SAMP02", title: "desktop.dev.sample.threadReadme", approvals: 2, urgent: true, tool: 0 },
-] as const;
+  {
+    tail: "SAMP02",
+    title: "desktop.dev.sample.threadReadme",
+    urgent: true,
+    kinds: ["review", "guard"],
+  },
+];
 
 const threadIdOf = (tail: string): ThreadId | null => {
   const value = `thr_${"0".repeat(20)}${tail}`;
@@ -50,6 +63,75 @@ const SAMPLE_TOOL = {
     ruleId: null,
   },
 } as const;
+
+/** 표본 쓰기 허용: 샌드박스 밖 경로에 쓰는 명령(write-access-model의 `subject: "write_access"`) */
+const SAMPLE_GUARD = {
+  kind: "tool",
+  tool: {
+    toolName: "bash",
+    risk: "write",
+    args: {
+      subject: "write_access",
+      tool: "bash",
+      command: "npm install -g pnpm",
+      writePaths: ["~/.npm/_cacache/index-v5"],
+      allowRoots: ["~/.npm"],
+      homeWide: false,
+    },
+    argsHash: "sample-guard",
+    ruleId: "sandbox.write_access",
+  },
+} as const;
+
+/** 표본 변경 검토: 파일 둘(id는 형식만 맞춘 표본 값) */
+function sampleReview(): LiveApprovalRequest["body"] {
+  return {
+    kind: "review",
+    review: {
+      reviewId: "rvw_00000000000000000000SAMPRV",
+      artifactId: "art_00000000000000000000SAMPAR",
+      title: "README",
+      round: 1,
+      files: [
+        { path: "README.md", change: "modified", binary: false, hunks: 3 },
+        { path: "docs/README.ko.md", change: "added", binary: false, hunks: 1 },
+      ],
+    },
+  };
+}
+
+/** 표본 질문: 자유 글 한 칸 */
+function sampleQuestion(): LiveApprovalRequest["body"] {
+  return {
+    kind: "question",
+    question: {
+      questions: [
+        {
+          id: "q",
+          text: t("desktop.dev.sample.question"),
+          options: [],
+          multiSelect: false,
+          allowFreeText: true,
+        },
+      ],
+    },
+  };
+}
+
+function sampleBody(kind: SampleKind): LiveApprovalRequest["body"] {
+  switch (kind) {
+    case "question":
+      return sampleQuestion();
+    case "tool":
+      return SAMPLE_TOOL;
+    case "review":
+      return sampleReview();
+    case "guard":
+      return SAMPLE_GUARD;
+    default:
+      return assertNever(kind, "SampleKind");
+  }
+}
 
 /** 거울에 표본 대화·승인을 겹친다. 이미 같은 id가 있으면 그대로 둔다(순수 함수, `now`는 시한 계산에만 쓴다) */
 export function withSampleMirror(state: EngineMirror, now: number): EngineMirror {
@@ -76,11 +158,12 @@ export function withSampleMirror(state: EngineMirror, now: number): EngineMirror
       forkedFrom: null,
       resumable: null,
       queuedInputs: 0,
-      pendingApprovals: spec.approvals,
+      pendingApprovals: spec.kinds.length,
     };
-    for (let n = 1; n <= spec.approvals; n++) {
+    spec.kinds.forEach((kind, k) => {
+      const n = k + 1;
       const approvalId = eventIdOf(spec.tail, n);
-      if (approvalId === null) continue;
+      if (approvalId === null) return;
       approvalIds.push(approvalId);
       approvalsById[approvalId] = {
         approvalId,
@@ -94,26 +177,10 @@ export function withSampleMirror(state: EngineMirror, now: number): EngineMirror
           surfaceThreadId: threadId,
           requestedAt: now,
           ...(spec.urgent ? { expiresAt: now + 30 * 60_000 } : {}),
-          body:
-            n === spec.tool
-              ? SAMPLE_TOOL
-              : {
-                  kind: "question",
-                  question: {
-                    questions: [
-                      {
-                        id: "q",
-                        text: t("desktop.dev.sample.question"),
-                        options: [],
-                        multiSelect: false,
-                        allowFreeText: true,
-                      },
-                    ],
-                  },
-                },
+          body: sampleBody(kind),
         },
       };
-    }
+    });
   });
   if (threadIds.length === 0) return state;
   return {
