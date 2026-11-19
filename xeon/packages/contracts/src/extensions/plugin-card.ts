@@ -2,7 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { SCRIPT_LIMITS } from "./plugin-script.ts";
+import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
 // F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
 // 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
@@ -230,12 +230,19 @@ export interface CardScript {
   readonly name: string;
   readonly launch: CardLaunch;
   readonly timeoutMs: number;
+  /** 승인하면 이 스크립트가 쓸 수 있는 것(`ScriptCard.uses`와 같은 값). 선택 필드라 없는 옛 카드도 파싱된다. 없으면 화면은 알리지 못한다 */
+  readonly uses?: readonly ScriptUse[];
 }
 const CardScriptShape = Type.Object(
   {
     name: Id,
     launch: CardMcpLaunchShape,
     timeoutMs: Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs }),
+    uses: Type.Optional(
+      Type.Array(Type.Union([Type.Literal("system_tools"), Type.Literal("network")]), {
+        maxItems: 2,
+      }),
+    ),
   },
   { additionalProperties: false },
 );

@@ -61,6 +61,12 @@ export interface ScriptCard {
 /** 스크립트 카드가 알리는 권한 */
 export type ScriptUse = "system_tools" | "network";
 
+/**
+ * 스크립트 실행기가 띄운 자식이 쓸 수 있는 것 전부(`systemTools`와 격리 네트워크 결정, [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]).
+ * 승인 카드(초안 호출)와 검토 카드(`CardScript.uses`)가 같은 값을 싣는다: 스크립트는 코드이고, 승인하면 시스템 도구와 네트워크를 쓴다
+ */
+export const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
+
 /** 표준 입력 미리보기의 글자 수 상한 [제안]. 넘는 부분은 잘린다 */
 export const SCRIPT_CARD_PREVIEW_CHARS = 200;
 

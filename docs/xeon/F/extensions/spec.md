@@ -412,7 +412,7 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
-  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number }[]; // [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것(`system_tools`, `network`, `SCRIPT_USES`)이고 승인 카드(`ScriptCard.uses`)와 같은 값이다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
 }
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
