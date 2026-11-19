@@ -24,6 +24,8 @@ import {
   type IsolationSpawnSpec,
   type LoaderFs,
   type ManifestScriptDecl,
+  type ScriptCard,
+  type ScriptDraftGate,
   type ScriptRunResult,
 } from "@fresnel/contracts/extensions";
 import { createScriptRunner, type ScriptTarget } from "../../src/isolation/script-runner.ts";
@@ -33,7 +35,8 @@ import {
   type CallScope,
   type ChildEnv,
 } from "../../src/isolation/child-api.ts";
-import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "../../src/testing/index.ts";
 
 // 설계 B의 실행기 시험(값으로 비교한다). 띄우기 포트는 가짜다: 자식을 띄우지 않고 받은 표준 입력과 명세를 기록한다.
 // 실제 샌드박스 아래의 시험은 apps/host/test/int/script-sandbox.int.test.ts가 본다.
@@ -656,4 +659,234 @@ test("a reply that does not have the script result shape is an invalid_result en
   if (attempted.ok) return;
   expect(attempted.error.cause).toBeInstanceOf(PluginEngineCallError);
   expect(attempted.error.cause).toMatchObject({ kind: "invalid_result" });
+});
+
+// ── 초안 스크립트의 승인 문(AGE-58 [제안]) ─────────────────────────────────────────────
+
+interface GateCall {
+  readonly extension: string;
+  readonly registration: string;
+  readonly threadId: ThreadId;
+  readonly name: string;
+  readonly card: ScriptCard;
+}
+
+/** 승인 문 대역. 호출을 기록하고, `approve`가 참이면 `run`을 불러 그 결과를 돌려주고, 아니면 거절한다 */
+function fakeGate(approve: boolean): { gate: ScriptDraftGate; calls: GateCall[] } {
+  const calls: GateCall[] = [];
+  const gate: ScriptDraftGate = async (call) => {
+    calls.push({
+      extension: call.extension,
+      registration: call.registration,
+      threadId: call.threadId,
+      name: call.name,
+      card: call.card,
+    });
+    if (!approve) return err({ kind: "script_denied", cause: "denied", resolvedBy: "human" });
+    return call.run(new AbortController().signal);
+  };
+  return { gate, calls };
+}
+
+function draftRunner(
+  tree: string,
+  port: IsolationProcessPort,
+  gate: ScriptDraftGate | undefined,
+  extra?: {
+    readonly sandboxAvailable?: () => boolean;
+    readonly maskText?: (text: string) => string;
+    readonly allowedEnv?: Record<string, string>;
+    readonly envNames?: string[];
+  },
+): ReturnType<typeof createScriptRunner> {
+  return createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(
+      tree,
+      [
+        {
+          name: "check",
+          runner: "sh",
+          file: "check.sh",
+          args: ["--flag"],
+          ...(extra?.envNames === undefined ? {} : { envNames: extra.envNames }),
+        },
+      ],
+      false,
+    ),
+    resolveRunner: SH_RESOLVER,
+    allowedEnv: extra?.allowedEnv ?? {},
+    setTimer: manualTimers().setTimer,
+    ...(gate === undefined ? {} : { draftGate: gate }),
+    ...(extra?.sandboxAvailable === undefined ? {} : { sandboxAvailable: extra.sandboxAvailable }),
+    ...(extra?.maskText === undefined ? {} : { maskText: extra.maskText }),
+  });
+}
+
+const DRAFT_THREAD: ThreadId = fixedIdFactory(31).next("thr");
+
+test("a draft script with a gate and a thread opens the card first: the card shows the command, arguments, environment names, stdin size and a masked preview, and nothing starts before the gate runs it", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(true);
+  const runner = draftRunner(tree, port, gate, {
+    allowedEnv: { MARKER: "m", OTHER: "o" },
+    envNames: ["MARKER", "ANTHROPIC_API_KEY"],
+    maskText: (text) => text.replaceAll("secret-value", "[masked]"),
+  });
+  const outcome = await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "token secret-value é",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(calls).toEqual([
+    {
+      extension: "demo",
+      registration: "demo",
+      threadId: DRAFT_THREAD,
+      name: "check",
+      card: {
+        command: "/bin/sh",
+        args: [join(tree, "check.sh"), "--flag"],
+        envNames: ["MARKER"],
+        stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
+        stdinPreview: "token [masked] é",
+      },
+    },
+  ]);
+  expect(outcome).toEqual({
+    ok: true,
+    value: {
+      exitCode: 0,
+      signal: null,
+      stdout: "done",
+      stdoutTruncated: false,
+      stderr: "",
+      stderrTruncated: false,
+      timedOut: false,
+    },
+  });
+  expect(launched.length).toBe(1);
+  expect(launched[0]?.stdinText()).toBe("token secret-value é");
+});
+
+test("a declined card runs nothing: the script is not started and the denial comes back as a value", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({});
+  const { gate, calls } = fakeGate(false);
+  const outcome = await draftRunner(tree, port, gate).run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(outcome).toEqual({
+    ok: false,
+    error: { kind: "script_denied", cause: "denied", resolvedBy: "human" },
+  });
+  expect(calls.length).toBe(1);
+  expect(launched.length).toBe(0);
+});
+
+test("the stdin preview is cut to the first 200 characters, and it is empty when there is no masking", async () => {
+  const { tree } = layout();
+  const long = "あ".repeat(300);
+  const masked = fakeGate(false);
+  await draftRunner(tree, fakeProcess({}).port, masked.gate, { maskText: (text) => text }).run({
+    registration: "demo",
+    name: "check",
+    stdin: long,
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  const unmasked = fakeGate(false);
+  await draftRunner(tree, fakeProcess({}).port, unmasked.gate).run({
+    registration: "demo",
+    name: "check",
+    stdin: long,
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(masked.calls[0]?.card.stdinPreview).toBe("あ".repeat(200));
+  expect(masked.calls[0]?.card.stdinBytes).toBe(900);
+  expect(unmasked.calls[0]?.card.stdinPreview).toBe("");
+});
+
+test("a draft script is refused and the gate is not asked: no thread, no gate, replay, undeclared name, outside the folder, or no isolation", async () => {
+  const { tree, secret } = layout();
+  writeFileSync(join(tree, "out.sh"), "echo x\n");
+  const { port, launched } = fakeProcess({});
+  const { gate, calls } = fakeGate(true);
+  const base = { registration: "demo", stdin: "", replay: false } as const;
+  const noThread = await draftRunner(tree, port, gate).run({ ...base, name: "check" });
+  const noGate = await draftRunner(tree, port, undefined).run({
+    ...base,
+    name: "check",
+    threadId: DRAFT_THREAD,
+  });
+  const replay = await draftRunner(tree, port, gate).run({
+    ...base,
+    name: "check",
+    replay: true,
+    threadId: DRAFT_THREAD,
+  });
+  const undeclared = await draftRunner(tree, port, gate).run({
+    ...base,
+    name: "other",
+    threadId: DRAFT_THREAD,
+  });
+  const escaping = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [{ name: "bad", runner: "sh", file: secret }], false),
+    resolveRunner: SH_RESOLVER,
+    allowedEnv: {},
+    setTimer: manualTimers().setTimer,
+    draftGate: gate,
+  });
+  const outside = await escaping.run({ ...base, name: "bad", threadId: DRAFT_THREAD });
+  const noSandbox = await draftRunner(tree, port, gate, { sandboxAvailable: () => false }).run({
+    ...base,
+    name: "check",
+    threadId: DRAFT_THREAD,
+  });
+  expect([noThread, noGate, replay, undeclared, outside, noSandbox]).toEqual([
+    { ok: false, error: { kind: "script_not_approved" } },
+    { ok: false, error: { kind: "script_not_approved" } },
+    { ok: false, error: { kind: "replay_mode_denied" } },
+    { ok: false, error: { kind: "script_not_declared" } },
+    { ok: false, error: { kind: "script_outside_tree" } },
+    { ok: false, error: { kind: "sandbox_unavailable", reason: "sandbox_off" } },
+  ]);
+  expect(calls.length).toBe(0);
+  expect(launched.length).toBe(0);
+});
+
+test("a reviewed (approved) script does not go through the gate", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(false);
+  const runner = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [{ name: "check", runner: "sh", file: "check.sh" }]),
+    resolveRunner: SH_RESOLVER,
+    allowedEnv: {},
+    setTimer: manualTimers().setTimer,
+    draftGate: gate,
+  });
+  const outcome = await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(outcome.ok).toBe(true);
+  expect(calls.length).toBe(0);
+  expect(launched.length).toBe(1);
 });
