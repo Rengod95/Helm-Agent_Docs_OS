@@ -91,17 +91,11 @@ async function loadAll(
 
 /** 로더가 준 싣기 실패 종류를 와이어의 사유로 옮긴다. 모르는 종류는 `load_failed`다 */
 function reasonOfLoadKind(kind: string): DraftUnavailableReason {
-  switch (kind) {
-    case "isolation_unavailable":
-    case "loader_unavailable":
-      return "isolation_unavailable";
-    case "safe_mode":
-    case "not_active":
-    case "content_changed":
-      return kind;
-    default:
-      return "load_failed";
+  if (kind === "isolation_unavailable" || kind === "loader_unavailable") {
+    return "isolation_unavailable";
   }
+  if (kind === "safe_mode" || kind === "not_active" || kind === "content_changed") return kind;
+  return "load_failed";
 }
 
 /** 이 호출이 싣은 초안을 내린다. 내리지 못하면 기록만 남기고 계속한다 */

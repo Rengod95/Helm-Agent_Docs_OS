@@ -339,7 +339,7 @@ test("초안 싣기: 싣지 못한 이유마다 와이어 사유와 기록 한 �
       draftOf: () => undefined,
     };
     const load = createDraftLoader({ loader: () => loader, report, timeoutMs: 1_000 });
-    // oxlint-disable-next-line no-await-in-loop -- 사유마다 차례로 값을 비교한다
+    // oxlint-disable-next-line no-await-in-loop -- 사유마다 차례로 값을 비교한다 (eng.testing.guide TS-05)
     const refused = await load([DRAFT]);
     expect(refused.ok ? null : refused.error.reason).toBe(
       failure.kind === "not_active" ? "not_active" : "load_failed",
