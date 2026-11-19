@@ -7,14 +7,12 @@ import { tokenCountText } from "../model-usage.ts";
 // 맨 아래는 기본 루프(플러그인 null)다. 위 프레임에 핸드오프한 프레임은 `waiting`이다. 순수 함수만 있다.
 // 띠와 패널은 같은 값(`stateText`)을 쓴다: 둘 다 "맨 위 칸이 무엇을 하는가"를 같은 말로 말한다(lcM6b).
 
-/** 한도 칸 하나: "3/8턴". 90%부터 경고 */
+/** 한도 칸 하나: "3/8턴". 90%부터 경고. 남은 양은 글로 풀지 않고 숫자와 막대로만 보인다(lcM6d) */
 export type DriveMeter = {
   readonly kind: "turns" | "tokens" | "spawns";
   readonly text: string;
   /** 이름 없는 양("3/8", "9,000/20만"). 카드의 한도 줄은 이름 칸이 따로 있어 이것을 쓴다 */
   readonly amount: string;
-  /** 남은 양 글("1턴 남음"). 카드 발이 쓴다 */
-  readonly left: string;
   /** 0..1, 막대의 채움 */
   readonly ratio: number;
   readonly warn: boolean;
@@ -35,7 +33,7 @@ export type DriveStep = {
   readonly name: string;
   readonly core: boolean;
   readonly state: DriveFrameView["state"];
-  /** 띠·패널이 같이 쓰는 상태 글: "Drive 중", "핸드오프하고 기다림", "답을 기다림", 기본 루프만 돌면 "Drive 없음" */
+  /** 띠·패널이 같이 쓰는 상태 글: "Driving", "핸드오프하고 기다림", "답을 기다림", 기본 루프만 돌면 "Drive 없음" */
   readonly stateText: string;
   /** 핸드오프한 칸이면 넘겨받은 바로 위 칸의 이름 */
   readonly handedTo: string | null;
@@ -51,8 +49,6 @@ export type DriveStackView = {
   readonly handoff: boolean;
   /** "기본 › helm › verifier" */
   readonly path: string;
-  /** 지금 Drive를 쥔 칸 아래에서 기다리는 플러그인 칸 수(기본 루프는 세지 않는다). 띠의 "+2" */
-  readonly below: number;
 };
 
 const WARN_RATIO = 0.9;
@@ -63,8 +59,7 @@ function meterOf(kind: DriveMeter["kind"], used: number, max: number, text: stri
     kind === "tokens"
       ? `${tokenCountText(used)}/${tokenCountText(max)}`
       : `${String(used)}/${String(max)}`;
-  const meter = { kind, text, amount, left: "", ratio, warn: max <= 0 || used / max >= WARN_RATIO };
-  return { ...meter, left: driveLeftTextOf(meter, max - used) };
+  return { kind, text, amount, ratio, warn: max <= 0 || used / max >= WARN_RATIO };
 }
 
 /** 한도가 있는 칸만: 턴, 토큰, 위임 */
@@ -119,7 +114,7 @@ export function driveStackOf(frames: readonly DriveFrameView[]): DriveStackView 
   const steps = ordered.map((frame, index): DriveStep => {
     const above = ordered[index + 1];
     // 엔진은 코어 루프 칸을 늘 driving으로 보낸다(ext-host lease.ts framesOf). 위에 플러그인 칸이 있으면 코어는 그 칸이 끝나기를
-    // 기다리는 자리라 화면은 waiting으로 읽는다(띠와 판에 "Drive 중"이 둘 나오지 않게)
+    // 기다리는 자리라 화면은 waiting으로 읽는다(띠와 판에 "Driving"이 둘 나오지 않게)
     const state = frame.plugin === null && above !== undefined ? "waiting" : frame.state;
     return {
       key: frame.leaseId ?? `depth:${frame.depth}`,
@@ -146,7 +141,6 @@ export function driveStackOf(frames: readonly DriveFrameView[]): DriveStackView 
     alone,
     handoff: steps.some((step) => !step.core && step.state === "waiting"),
     path: steps.map((step) => step.name).join(" › "),
-    below: Math.max(0, steps.filter((step) => !step.core).length - 1),
   };
 }
 
@@ -158,27 +152,19 @@ export function driveVersionOf(versionId: string | null): DriveVersion | null {
   return hex === undefined ? null : { kind: "approved", short: hex.slice(0, 7).toLowerCase() };
 }
 
-// ── 지금 Drive를 쥔 칸의 카드(lcM6c) ──────────────────────────────
-
-/**
- * 어떻게 Drive를 쥐었나. `lease.acquired`의 `parent`가 있으면 핸드오프, 없고 `requestId`가 있으면 사용자 명령,
- * 둘 다 없으면 프로필의 스타트 Drive다(스타트 Drive는 시작 요청 사건 없이 쌓인다). 그 임대 사건을 거울이 못 봤으면 unknown
- */
-type DriveOrigin =
-  | { readonly kind: "handoff"; readonly from: string; readonly input: string | null }
-  | { readonly kind: "command"; readonly input: string | null }
-  | { readonly kind: "startDrive" }
-  | { readonly kind: "unknown" };
+// ── 지금 Drive를 쥔 칸의 카드(lcM6c·lcM6d) ────────────────────────
 
 /** 지금 무엇을 하나: 턴을 돌림, 턴 없이 쥐고 있음(다음 말을 받음), 사람의 답을 기다림 */
 type DriveActivity = "turn" | "holding" | "asking";
 
-/** 맨 위 판(지금 Drive를 쥔 칸)이 보이는 값 */
+/**
+ * 맨 위 판(지금 Drive를 쥔 칸)이 보이는 값. 어떻게 쥐었나와 시작 시각의 줄은 없앴다(lcM6d, 사용자 2026-11-20 "불필요").
+ * 넘겨받은 입력(핸드오프나 명령이 건넨 한 줄)은 이 칸이 무엇을 하는지라 남긴다
+ */
 export type DriveCardView = {
   readonly step: DriveStep;
-  readonly origin: DriveOrigin;
-  /** 쥐기 시작한 지역 시각 "15:04". 모르면 null */
-  readonly since: string | null;
+  /** 넘겨받은 입력의 한 줄. 스타트 Drive이거나 임대 사건을 못 봤으면 null */
+  readonly input: string | null;
   readonly activity: DriveActivity;
   /** 도는 하위 에이전트(병렬 갈래) 수 */
   readonly branches: number;
@@ -186,30 +172,19 @@ export type DriveCardView = {
   readonly next: string | null;
 };
 
-/** 카드가 읽는 임대 기록 한 건(거울의 주도 구간에서 필요한 것만) */
+/** 카드가 읽는 임대 기록 한 건(거울의 Drive 구간에서 필요한 것만) */
 export type DriveLeaseFacts = {
   readonly leaseId: string;
-  readonly acquiredAt: string;
   readonly parent: string | null;
   readonly requestId: string | null;
   readonly inputLine: string | null;
   readonly branchesRunning: number;
 };
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/** ISO 시각을 지역 "HH:MM"으로. 읽지 못하면 null */
-function driveClockOf(iso: string): string | null {
-  const when = new Date(iso);
-  if (Number.isNaN(when.getTime())) return null;
-  return `${pad2(when.getHours())}:${pad2(when.getMinutes())}`;
-}
-
 /**
  * 맨 위 칸의 카드 값. 플러그인 프레임이 없으면 null(카드 대신 "기본 · Drive 없음" 판).
- * `running`은 이 대화에 도는 턴이 있는가다. 맨 위 칸이 답을 기다리면 asking, 턴이 돌면 turn, 아니면 holding
+ * `running`은 이 대화에 도는 턴이 있는가다. 맨 위 칸이 답을 기다리면 asking, 턴이 돌면 turn, 아니면 holding.
+ * 입력 줄은 핸드오프(`parent`)나 사용자 명령(`requestId`)으로 쥔 임대에만 있다(스타트 Drive는 넘겨받은 입력이 없다)
  */
 export function driveCardOf(
   view: DriveStackView,
@@ -220,35 +195,14 @@ export function driveCardOf(
   if (view.alone || top === undefined) return null;
   const below = view.steps.at(-2);
   const lease = top.leaseId === null ? undefined : leases.find((l) => l.leaseId === top.leaseId);
+  const handed = lease !== undefined && (lease.parent !== null || lease.requestId !== null);
   return {
     step: top,
-    origin: driveOriginOf(view, lease),
-    since: lease === undefined ? null : driveClockOf(lease.acquiredAt),
+    input: handed ? lease.inputLine : null,
     activity: top.state === "asking" ? "asking" : running ? "turn" : "holding",
     branches: lease?.branchesRunning ?? 0,
     next: below?.name ?? null,
   };
-}
-
-function driveOriginOf(view: DriveStackView, lease: DriveLeaseFacts | undefined): DriveOrigin {
-  if (lease === undefined) return { kind: "unknown" };
-  if (lease.parent !== null) {
-    const from = view.steps.find((step) => step.leaseId === lease.parent);
-    // 넘겨준 칸이 스택에 없으면(이미 내려갔다) 바로 아래 칸이 받을 자리라 그 이름을 쓴다
-    const name = from?.name ?? view.steps.at(-2)?.name ?? t("desktop.drive.core");
-    return { kind: "handoff", from: name, input: lease.inputLine };
-  }
-  if (lease.requestId !== null) return { kind: "command", input: lease.inputLine };
-  return { kind: "startDrive" };
-}
-
-/** 남은 양 글: "1턴 남음", "토큰 11k 남음", "위임 1번 남음". 상한이 0이거나 다 썼으면 "한도에 닿음" */
-function driveLeftTextOf(meter: DriveMeter, left: number): string {
-  if (left <= 0) return t("desktop.drive.card.leftNone");
-  if (meter.kind === "turns") return t("desktop.drive.card.leftTurns", { n: left });
-  if (meter.kind === "tokens")
-    return t("desktop.drive.card.leftTokens", { n: tokenCountText(left) });
-  return t("desktop.drive.card.leftSpawns", { n: left });
 }
 
 /** 칸 상태의 글 */

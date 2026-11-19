@@ -34,11 +34,9 @@ function itemsUnder(html: string, heading: string): string[] {
   );
 }
 
-/** 보유 줄(`보유` 글 뒤의 문단)의 마크업 */
+/** "지금 Driving 중" 칸(플러그인 순서 표의 첫 칸)의 마크업 */
 function holderLineOf(lock: string): string {
-  const at = lock.indexOf(`>${t("desktop.runtime.lock.holder")}</span>`);
-  if (at === -1) return "";
-  return lock.slice(at, lock.indexOf("</p>", at));
+  return under(lock, t("desktop.runtime.lock.holder"));
 }
 
 /** 구역(section)의 마크업 */

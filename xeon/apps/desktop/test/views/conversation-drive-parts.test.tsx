@@ -380,7 +380,6 @@ describe("Drive 스택 그림 값(drive.frames → 띠·판)", () => {
 
 const lease = (over: Partial<DriveLeaseFacts> = {}): DriveLeaseFacts => ({
   leaseId: "lease-verifier",
-  acquiredAt: new Date(2026, 10, 19, 15, 4).toISOString(),
   parent: null,
   requestId: null,
   inputLine: null,
@@ -402,10 +401,9 @@ const HANDOFF = [
 ];
 
 describe("Drive 띠와 카드 값(lcM6c)", () => {
-  test("띠의 +N은 맨 위 아래에서 기다리는 플러그인 칸 수다(기본 루프는 세지 않는다)", () => {
-    expect(driveStackOf(HANDOFF).below).toBe(1);
-    expect(driveStackOf(HANDOFF.slice(0, 2).concat([])).below).toBe(0);
-    expect(driveStackOf([driveFrame(0, null, "driving")]).below).toBe(0);
+  test("스택 길: 아래 → 위 칸 이름을 잇는다(띠의 aria와 판의 목록 이름)", () => {
+    expect(driveStackOf(HANDOFF).path).toBe(`${t("desktop.drive.core")} › helm › verifier`);
+    expect(driveStackOf([driveFrame(0, null, "driving")]).path).toBe(t("desktop.drive.core"));
   });
 
   test("엔진이 늘 driving으로 보내는 기본 루프 칸은 위에 플러그인 칸이 있으면 위 Drive를 기다림으로 읽고 핸드오프로 적지 않는다", () => {
@@ -493,7 +491,7 @@ describe("Drive 띠와 카드 값(lcM6c)", () => {
     );
   });
 
-  test("카드: 핸드오프로 쥔 칸은 넘겨준 칸 이름, 넘겨받은 입력, 시작 시각, 갈래, 끝나면 갈 칸을 가진다", () => {
+  test("카드: 핸드오프로 쥔 칸은 넘겨받은 입력, 갈래, 끝나면 갈 칸을 가지고, 한도는 남은 양 글 없이 양만 가진다", () => {
     const view = driveStackOf(HANDOFF);
     const card = driveCardOf(
       view,
@@ -513,55 +511,48 @@ describe("Drive 띠와 카드 값(lcM6c)", () => {
         : {
             name: card.step.name,
             version: card.step.version,
-            origin: card.origin,
-            since: card.since,
+            input: card.input,
             activity: card.activity,
             branches: card.branches,
             next: card.next,
-            meters: card.step.meters.map((m) => [m.text, m.left, m.warn]),
+            meters: card.step.meters.map((m) => [m.text, m.amount, m.warn]),
           },
     ).toEqual({
       name: "verifier",
       version: { kind: "approved", short: "ab12cd3" },
-      origin: { kind: "handoff", from: "helm", input: "결과를 검증해 줘" },
-      since: "15:04",
+      input: "결과를 검증해 줘",
       activity: "turn",
       branches: 2,
       next: "helm",
       meters: [
-        [
-          t("desktop.convo.lead.turns", { used: 7, max: 8 }),
-          t("desktop.drive.card.leftTurns", { n: 1 }),
-          false,
-        ],
+        [t("desktop.convo.lead.turns", { used: 7, max: 8 }), "7/8", false],
         [
           t("desktop.convo.lead.tokens", {
             used: tokenCountText(9_000),
             max: tokenCountText(200_000),
           }),
-          t("desktop.drive.card.leftTokens", { n: tokenCountText(191_000) }),
+          `${tokenCountText(9_000)}/${tokenCountText(200_000)}`,
           false,
         ],
       ],
     });
   });
 
-  test("카드: 부모 없이 요청 id가 있으면 명령, 둘 다 없으면 스타트 Drive, 임대 기록을 못 봤으면 모름", () => {
+  test("카드: 입력 줄은 명령으로 쥔 칸에만 있고, 스타트 Drive나 임대 기록을 못 본 칸은 없다", () => {
     const view = driveStackOf([
       driveFrame(0, null, "waiting"),
       driveFrame(1, "verifier", "driving"),
     ]);
-    expect(
-      driveCardOf(view, [lease({ requestId: "req-1", inputLine: "x" })], false)?.origin,
-    ).toEqual({
-      kind: "command",
-      input: "x",
-    });
-    expect(driveCardOf(view, [lease()], false)?.origin).toEqual({ kind: "startDrive" });
+    expect(driveCardOf(view, [lease({ requestId: "req-1", inputLine: "x" })], false)?.input).toBe(
+      "x",
+    );
+    expect(driveCardOf(view, [lease({ inputLine: "y" })], false)?.input).toBeNull();
     const unknown = driveCardOf(view, [], false);
-    expect(
-      unknown === null ? null : [unknown.origin, unknown.since, unknown.activity, unknown.next],
-    ).toEqual([{ kind: "unknown" }, null, "holding", t("desktop.drive.core")]);
+    expect(unknown === null ? null : [unknown.input, unknown.activity, unknown.next]).toEqual([
+      null,
+      "holding",
+      t("desktop.drive.core"),
+    ]);
   });
 
   test("카드: 답을 기다리는 칸은 asking이고, 플러그인 프레임이 없으면 카드가 없다", () => {
@@ -570,16 +561,16 @@ describe("Drive 띠와 카드 값(lcM6c)", () => {
     expect(driveCardOf(driveStackOf([driveFrame(0, null, "driving")]), [], true)).toBeNull();
   });
 
-  test("남은 양: 다 쓰면 한도에 닿음", () => {
+  test("한도: 다 쓰면 경고이고 양만 보인다(남은 양 글이 없다)", () => {
     const view = driveStackOf([
       driveFrame(1, "helm", "driving", {
         used: { turns: 8, spawns: 3, tokens: 0 },
         limits: { turns: 8, spawns: 4 },
       }),
     ]);
-    expect(view.steps[0]?.meters.map((m) => m.left)).toEqual([
-      t("desktop.drive.card.leftNone"),
-      t("desktop.drive.card.leftSpawns", { n: 1 }),
+    expect(view.steps[0]?.meters.map((m) => [m.amount, m.warn])).toEqual([
+      ["8/8", true],
+      ["3/4", false],
     ]);
   });
 

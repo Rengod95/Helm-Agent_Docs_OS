@@ -202,7 +202,7 @@ export type LeadSegment = {
   readonly limits: LeaseRecord["limits"];
   /** 이 구간에서 주도한 턴(같은 scope이고 구간 안에서 시작한 턴). 오래된 것이 앞이다 */
   readonly turnIds: readonly TurnId[];
-  /** 한도 대비 사용량: 턴 수, 토큰 합(끝난 턴의 사용량), 위임 수 */
+  /** 한도 대비 사용량: 턴 수(끝난 턴만, 엔진의 한도 셈과 같다), 토큰 합(끝난 턴의 사용량), 위임 수 */
   readonly used: { readonly turns: number; readonly tokens: number; readonly spawns: number };
   /** 핸드오프한 쪽 임대 id. 사용자 명령이나 스타트 Drive면 null */
   readonly parent: string | null;
@@ -248,7 +248,9 @@ export function selectLeadSegments(s: EngineMirror, threadId: ThreadId): readonl
       releaseReason: lease.releaseReason,
       limits: lease.limits,
       turnIds: mine.map((t) => t.turnId),
-      used: { turns: mine.length, tokens, spawns },
+      // 턴 수는 끝난 턴만 센다: 엔진은 턴이 끝나 돌아온 뒤에 그 턴을 한도에 더한다(ext-host lease `charge`). 도는 턴까지 세면
+      // 띠·카드(`drive.frames`의 used)는 0/4인데 이 줄은 1/4가 된다(lcM6d)
+      used: { turns: mine.filter((t) => t.completion !== null).length, tokens, spawns },
       parent: lease.parent,
       requestId: lease.requestId,
       inputLine: lease.inputLine,

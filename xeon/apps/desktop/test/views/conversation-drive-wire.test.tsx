@@ -439,7 +439,7 @@ function cardsOf(container: HTMLElement): (string | null)[][] {
 }
 
 describe("Drive 스택: drive.frames · drive.framesChanged", () => {
-  test("핸드오프하면 띠와 맨 위 판이 같은 말(Drive 중)을 쓰고, 판은 위에서부터 쌓이며, 알림이 오면 다시 읽는다", async () => {
+  test("핸드오프하면 띠와 맨 위 판이 같은 말(Driving)을 쓰고, 판은 위에서부터 쌓이며, 알림이 오면 다시 읽는다", async () => {
     let frames: readonly DriveFrameView[] = [
       frame(0, null, "waiting"),
       frame(1, "helm", "waiting"),
@@ -468,14 +468,18 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       t("desktop.drive.driving"),
     );
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
-    // 띠는 지금 Drive를 쥔 칸 하나와 아래에서 기다리는 플러그인 수(+1)만 보인다. 뒤 칸 카드는 없다(lcM6c)
+    // 띠는 넷만 보인다: 이름, 상태 칩, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
     expect(band?.querySelector('[data-slot="drive-band-name"]')?.textContent).toBe("verifier");
-    const below = band?.querySelector('[data-slot="drive-band-below"]');
-    expect([below?.textContent, below?.getAttribute("title")]).toEqual([
-      t("desktop.drive.below", { n: 1 }),
-      `${t("desktop.drive.core")} › helm › verifier`,
-    ]);
+    expect(band?.querySelector('[data-slot="drive-band-turns"]')?.textContent).toBe(
+      t("desktop.convo.lead.turns", { used: 7, max: 8 }),
+    );
+    expect(band?.querySelector('[data-slot="drive-band-below"]')).toBeNull();
+    expect(band?.querySelector('[data-slot="info-tip"]')).toBeNull();
     expect(band?.querySelectorAll("[data-drive-step]").length).toBe(0);
+    // 상태 글은 테두리만 있는 칩이다
+    expect(
+      band?.querySelector('[data-slot="drive-band-state"]')?.getAttribute("data-variant"),
+    ).toBe("outline");
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");
     expect(band?.querySelector(".fx-beam")).toBeNull();
@@ -676,19 +680,19 @@ describe("원샷 목록: plugin.invocables · plugin.list · plugin.draft.list",
   });
 });
 
-/** 카드 머리 둘째 줄과 넘겨받은 입력 줄의 글(없으면 null) */
-async function originLinesOf(
+/** 카드의 넘겨받은 입력 줄 글(없으면 null)과 어떻게·언제부터 줄이 있는가 */
+async function inputLineOf(
   frames: readonly DriveFrameView[],
   leases: readonly DriveLeaseFacts[],
-): Promise<readonly (string | null)[]> {
+): Promise<readonly (string | boolean | null)[]> {
   const container = await mount(
     <DriveProbe leases={leases} />,
     withWorkbench({ driveFrames: () => Promise.resolve(ok(frames)) }),
   );
   const card = container.querySelector('[data-slot="drive-card"]');
   return [
-    card?.querySelector('[data-slot="drive-origin"]')?.textContent ?? null,
     card?.querySelector('[data-slot="drive-input"]')?.textContent ?? null,
+    card?.querySelector('[data-slot="drive-origin"]') !== null,
   ];
 }
 
@@ -725,24 +729,18 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     ).toBe("wait");
   });
 
-  test("카드 머리 둘째 줄: 요청 id가 있으면 명령으로 시작(입력 인용), 없으면 스타트 Drive로 시작(인용 없음), 임대 기록이 없으면 줄이 없다", async () => {
-    const facts = {
-      leaseId: "lease-verifier",
-      acquiredAt: new Date(2026, 10, 19, 9, 30).toISOString(),
-      parent: null,
-      branchesRunning: 0,
-    };
-    const since = t("desktop.drive.card.since", { time: "09:30" });
+  test("카드에는 어떻게 쥐었나·언제부터 줄이 없고, 입력 인용은 명령·핸드오프로 쥔 칸에만 있다(lcM6d)", async () => {
+    const facts = { leaseId: "lease-verifier", parent: null, branchesRunning: 0 };
     expect(
-      await originLinesOf(HANDOFF, [{ ...facts, requestId: "req-1", inputLine: "검증해 줘" }]),
-    ).toEqual([`${t("desktop.drive.card.fromCommand")} · ${since}`, "검증해 줘"]);
+      await inputLineOf(HANDOFF, [{ ...facts, requestId: "req-1", inputLine: "검증해 줘" }]),
+    ).toEqual(["검증해 줘", false]);
     expect(
-      await originLinesOf(HANDOFF, [{ ...facts, requestId: null, inputLine: "검증해 줘" }]),
-    ).toEqual([`${t("desktop.drive.card.fromStart")} · ${since}`, null]);
-    expect(await originLinesOf(HANDOFF, [])).toEqual([null, null]);
+      await inputLineOf(HANDOFF, [{ ...facts, requestId: null, inputLine: "검증해 줘" }]),
+    ).toEqual([null, false]);
+    expect(await inputLineOf(HANDOFF, [])).toEqual([null, false]);
   });
 
-  test("카드 머리는 이름·판·상태, 넘겨준 칸과 시작 시각, 넘겨받은 입력이고 몸은 하는 일과 한도, 발은 다음 칸과 기록 보기다", async () => {
+  test("카드 머리는 이름·판·상태 칩, 넘겨받은 입력이고 몸은 하는 일과 한도(양만), 발은 다음 칸과 기록 보기다", async () => {
     const opened: string[] = [];
     const container = await mount(
       <DriveProbe
@@ -750,7 +748,6 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
         leases={[
           {
             leaseId: "lease-verifier",
-            acquiredAt: new Date(2026, 10, 19, 15, 4).toISOString(),
             parent: "lease-helm",
             requestId: "req-1",
             inputLine: "결과를 검증해 줘",
@@ -768,7 +765,7 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
       card?.getAttribute("data-activity"),
       text("drive-version"),
       text("drive-card-state"),
-      text("drive-origin"),
+      card?.querySelector('[data-slot="drive-card-state"]')?.getAttribute("data-variant") ?? null,
       text("drive-input"),
       text("drive-activity"),
       text("drive-next"),
@@ -777,11 +774,11 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
       "turn",
       "ab12cd3",
       t("desktop.drive.driving"),
-      `${t("desktop.drive.card.fromHandoff", { name: "helm" })} · ${t("desktop.drive.card.since", { time: "15:04" })}`,
+      "outline",
       "결과를 검증해 줘",
       `${t("desktop.drive.card.turn")} · ${t("desktop.drive.card.branches", { n: 2 })}`,
       t("desktop.drive.card.next", { name: "helm" }),
-      `7/8 · ${t("desktop.drive.card.leftTurns", { n: 1 })}`,
+      "7/8",
     ]);
     const records = card?.querySelector('[data-slot="drive-records"]');
     expect(records?.textContent).toBe(t("desktop.drive.card.records"));
@@ -791,7 +788,7 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     expect(opened).toEqual(["verifier"]);
   });
 
-  test("드래프트 Drive는 띠와 카드에 드래프트 칩이 붙고, 기록으로 갈 곳이 없으면 단추가 없다", async () => {
+  test("드래프트 Drive는 카드에만 드래프트 칩이 붙고(띠는 넷만), 기록으로 갈 곳이 없으면 단추가 없다", async () => {
     const container = await mount(
       <DriveProbe />,
       withWorkbench({
@@ -806,12 +803,14 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     );
     expect(
       [...container.querySelectorAll('[data-slot="drive-draft"]')].map((chip) => chip.textContent),
-    ).toEqual([t("desktop.oneShot.draft"), t("desktop.oneShot.draft")]);
+    ).toEqual([t("desktop.oneShot.draft")]);
+    expect(
+      container.querySelector('[data-slot="drive-stack-band"] [data-slot="drive-draft"]'),
+    ).toBeNull();
     const card = container.querySelector('[data-slot="drive-card"]');
     expect(card?.querySelector('[data-slot="drive-version"]')).toBeNull();
     expect(card?.querySelector('[data-slot="drive-records"]')).toBeNull();
-    // 임대 기록을 못 봤으면 어떻게·언제부터 줄이 없고, 턴이 없으면 다음 말이 그 플러그인에 간다고 적는다
-    expect(card?.querySelector('[data-slot="drive-origin"]')).toBeNull();
+    // 턴이 없으면 다음 말이 그 플러그인에 간다고 적는다
     expect(card?.querySelector('[data-slot="drive-activity"]')?.textContent).toBe(
       t("desktop.drive.card.holding", { name: "helm" }),
     );

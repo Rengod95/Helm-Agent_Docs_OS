@@ -246,8 +246,9 @@ export function BeamEdge(props: { readonly state: BeamState }): ReactNode {
 }
 
 /**
- * Drive 띠의 윗변 빛(lcM6c). 입력창 빛(field)을 뒤집은 변형이다: 띠(탭)의 윗변과 위 두 모서리를 같은 무지개 선과 알갱이가 흐르고,
- * 그 아래 띠 안쪽으로 낮게 번진다. 판은 CSS가 부모(띠 면) 테두리 위(inset -1px)에 두고 반경은 부모를 따른다(잴 것이 없다).
+ * Drive 띠의 윗변 빛(lcM6c·lcM6d). 입력창 빛(field)과 같은 기법의 얇은 변형이다: 띠(탭) 윗변의 곧은 구간에만 1px 선과 알갱이가 흐르고
+ * (위 두 모서리 곡선은 빛나지 않는다), 그 바로 아래 6px만 옅게 번진다. 빛깔은 붉은 기운을 뺀 띠 전용 팔레트다(beam.css).
+ * 판은 CSS가 부모(띠 면) 테두리 위(inset -1px)에 두고 반경은 부모를 따른다(잴 것이 없다).
  * 상태와 모양은 입력창과 같다(run 살아 있는 빛, wait 경고 색 선, 움직임 줄이기면 정지 선, off면 판이 없다)
  */
 export function BeamBand(props: { readonly state: BeamState }): ReactNode {

@@ -395,7 +395,7 @@ describe("selectLeadSegments", () => {
     });
   });
 
-  test("보유 중인 임대는 active이고 반납 사유와 반납 seq가 없다", () => {
+  test("보유 중인 임대는 active이고 반납 사유와 반납 seq가 없다. 도는 턴은 엔진처럼 한도의 턴 수에 아직 세지 않는다(lcM6d)", () => {
     const held: LeaseRecord = {
       ...LEASE,
       releasedSeq: null,
@@ -405,14 +405,17 @@ describe("selectLeadSegments", () => {
     const s = mirrorOf({
       [T]: convoOf({
         leases: [held],
-        turns: [turnOf(2, { startedSeq: 6, scopeId: "g" })],
+        turns: [
+          turnOf(2, { startedSeq: 6, scopeId: "g", completion: DONE }),
+          turnOf(3, { startedSeq: 7, scopeId: "g" }),
+        ],
       }),
     });
     expect(selectLeadSegments(s, T)[0]).toMatchObject({
       active: true,
       releasedSeq: null,
       releaseReason: null,
-      turnIds: [trn(2)],
+      turnIds: [trn(2), trn(3)],
       used: { turns: 1, tokens: 0, spawns: 0 },
     });
   });

@@ -1,4 +1,4 @@
-import { Button, Tooltip } from "@caustic/react";
+import { Button, Chip, Tooltip } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -155,7 +155,7 @@ export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   );
 }
 
-/** 주도 구간 머리: 표지 + "helm이 이끄는 중" + 한도 칸 */
+/** Drive 구간 머리: 표지 + "helm" + "Driving" 칩 + 한도 칸 */
 export function LeadHead(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;
@@ -170,11 +170,24 @@ export function LeadHead(props: {
       data-slot="convo-lead-head"
     >
       <span aria-hidden className="convo-lead-dot" />
-      <span className="text-ui-strong text-text-primary">
-        {lead.active
-          ? t("desktop.convo.lead.active", { name })
-          : t("desktop.convo.lead.past", { name })}
-      </span>
+      {/* 지금 Drive 중이면 이름 + 테두리 칩 "Driving"(띠·카드와 같은 칩, lcM6d), 끝났으면 "helm의 Drive" */}
+      {lead.active ? (
+        <>
+          <span className="text-ui-strong text-text-primary">{name}</span>
+          <Chip
+            size="sm"
+            variant="outline"
+            data-slot="convo-lead-driving"
+            className="text-text-secondary"
+          >
+            {t("desktop.drive.driving")}
+          </Chip>
+        </>
+      ) : (
+        <span className="text-ui-strong text-text-primary">
+          {t("desktop.convo.lead.past", { name })}
+        </span>
+      )}
       {meters.length === 0 ? null : (
         <span className="convo-line-meta flex items-center gap-1.5">
           {meters.map((meter, index) => (
