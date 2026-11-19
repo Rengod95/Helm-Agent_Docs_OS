@@ -226,3 +226,25 @@ test("without an exposure rule, perThread tools are visible under the name they 
   const ran = await callTool(h.runtime.tools, h.run(), { id: "z1", name: "check", args: {} });
   expect(textOf(ran.result)).toContain("approved");
 });
+
+function toolDef(name: string) {
+  return {
+    name,
+    description: "d",
+    parameters: Type.Object({}),
+    replay: "safe" as const,
+    execute: () => Promise.resolve("x"),
+  };
+}
+
+test("a perThread tool cannot take a name a global tool already holds, and a global tool cannot take a name a perThread tool asked for", async () => {
+  const h = await createHarness();
+  expectOk(h.runtime.tools.register("a-ext", toolDef("held")));
+  const scopedSecond = h.runtime.tools.register("b-ext", toolDef("held"), { perThread: true });
+  expect(scopedSecond.ok).toBe(false);
+  if (!scopedSecond.ok)
+    expect(scopedSecond.error).toEqual({ kind: "name_conflict", toolName: "held" });
+  expectOk(h.runtime.tools.register("c-ext", toolDef("asked"), { perThread: true }));
+  const globalSecond = h.runtime.tools.register("d-ext", toolDef("asked"));
+  expect(globalSecond.ok).toBe(false);
+});

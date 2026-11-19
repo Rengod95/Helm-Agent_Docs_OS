@@ -32,7 +32,7 @@ interface Candidate {
 }
 
 /** 한 대화가 보는 도구 표. 대화별 이름과 가시성을 적용한 뒤의 항목이다(항목의 `name`이 그 대화에서의 노출 이름) */
-export interface ToolView {
+interface ToolView {
   get(name: ToolName): ToolEntry | undefined;
   all(): readonly ToolEntry[];
 }
@@ -121,6 +121,11 @@ export function createRegistry(): ToolRegistry {
     return active === undefined ? entry : active.effective;
   }
 
+  function isScopedName(name: string): boolean {
+    for (const entry of scoped.values()) if (entry.name === name) return true;
+    return false;
+  }
+
   function viewOf(exposure: ToolExposure | undefined): ToolView {
     const globals = [...table.values()].map(effective);
     const taken = new Set<string>(globals.map((entry) => entry.name));
@@ -150,7 +155,8 @@ export function createRegistry(): ToolRegistry {
         const keys = new Set<string>();
         for (const entry of entries) {
           const key = scopedKey(entry.owner, entry.name);
-          if (scoped.has(key) || keys.has(key)) {
+          // 전역 이름(내장, 기능, MCP)과 겹치는 요청은 전과 같이 거부한다. 대화 표에서 조용히 가려지는 도구를 만들지 않는다
+          if (scoped.has(key) || keys.has(key) || table.has(entry.name)) {
             return err({ kind: "name_conflict", toolName: entry.name });
           }
           keys.add(key);
@@ -169,7 +175,7 @@ export function createRegistry(): ToolRegistry {
       }
       const incoming = new Set<string>();
       for (const entry of entries) {
-        if (table.has(entry.name) || incoming.has(entry.name)) {
+        if (table.has(entry.name) || incoming.has(entry.name) || isScopedName(entry.name)) {
           return err({ kind: "name_conflict", toolName: entry.name });
         }
         incoming.add(entry.name);
