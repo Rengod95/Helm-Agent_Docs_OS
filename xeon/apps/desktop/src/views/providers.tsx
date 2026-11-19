@@ -16,13 +16,17 @@ export function Providers(props: {
   readonly engine: ReadonlyStore<EngineMirror>;
   readonly ui: ReadonlyStore<UiState>;
   readonly commands: Commands;
+  /** 기다리는 제안 수의 바닥. 개발 빌드의 표본 보기만 준다(`app/dev-sample.ts`) */
+  readonly sampleProposals?: number;
   readonly children: ReactNode;
 }): ReactNode {
   return (
     <EngineStoreContext value={props.engine}>
       <UiStoreContext value={props.ui}>
         <CommandsContext value={props.commands}>
-          <ProposalPendingProvider>
+          <ProposalPendingProvider
+            {...(props.sampleProposals === undefined ? {} : { floor: props.sampleProposals })}
+          >
             <MotionRoot>{props.children}</MotionRoot>
           </ProposalPendingProvider>
         </CommandsContext>
