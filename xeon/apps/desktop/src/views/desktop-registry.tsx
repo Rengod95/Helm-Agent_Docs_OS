@@ -30,6 +30,7 @@ import { ChatLoadError } from "./chat-load-error.tsx";
 import { NowStrip } from "./now/now-strip.tsx";
 import { Composer } from "./composer.tsx";
 import { ComposerBeam, ThreadLoadBeam } from "./effects/convo-beam.tsx";
+import { CrystalMark } from "./effects/crystal-mark.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SpawnedNotice } from "./spawned-notice.tsx";
@@ -235,12 +236,29 @@ const SCHEDULES_SCREEN: ScreenDef = {
   render: () => <SchedulesScreen />,
 };
 
+/**
+ * 제안 내비 줄의 크리스탈 표시(DP-223 [결정: 2026-11-18 사용자 "내비 옆에도 괜찮을듯"]). 검토를 기다리는 제안이 있을 때만 보이고,
+ * 내비에서 이 줄 하나만 표시를 단다(받은 요청은 오른쪽 막대 탭이라 내비 줄이 없다, DP-192). 낭독 이름은 기다리는 제안 수다
+ */
+function ProposalsMark(): ReactNode {
+  const count = useProposalPending().count;
+  return (
+    <CrystalMark
+      present={count > 0}
+      count={count}
+      size={14}
+      label={t("desktop.attention.proposals", { count })}
+    />
+  );
+}
+
 // 내비 배지는 대기 제안 수다(0이면 안 보인다). 수는 `ProposalPendingProvider`가 읽는다(SC-06 1단계)
 const PROPOSALS_SCREEN: ScreenDef = {
   id: "proposals",
   area: "chat",
   label: "desktop.shell.nav.proposals",
   icon: <Lightbulb />,
+  Mark: ProposalsMark,
   Badge: (p) => p.render(useProposalPending().count),
   render: () => <ProposalsScreen />,
 };

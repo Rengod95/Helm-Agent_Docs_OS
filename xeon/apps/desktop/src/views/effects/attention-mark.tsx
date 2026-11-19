@@ -7,7 +7,9 @@ import { useAttentionLive } from "./attention-budget.ts";
 
 /**
  * 카드 주의 면의 겹(위 변 빛 + 안쪽 오로라). `.fx-attend-card`를 단 카드 안 첫 자식으로 둔다. 카드 바탕 위·글 아래에 깔린다.
- * `pending`이면 화면 전체에서 하나만 오로라가 흐르고(attention-budget) 나머지는 같은 빛으로 멈춰 있다
+ * `pending`이면 화면 전체에서 하나만 오로라가 흐르고(attention-budget) 나머지는 같은 빛으로 멈춰 있다.
+ * 빛깔은 승인 카드와 받은 요청 카드 모두 크리스탈 표시와 같은 오로라 계열(보라 → 청록)이다(DP-191·223 [결정: 2026-11-18 사용자 "호박색 말고 오로라 계열로 바꿔", lcMk3]가
+ * 승인 카드의 따뜻한 빛을 바꿈). 위험 등급·거부 같은 뜻이 있는 색은 카드 안의 배지·단추가 그대로 낸다
  */
 export function AttendGlow(props: { readonly pending: boolean }): ReactNode {
   const live = useAttentionLive("card", props.pending);
