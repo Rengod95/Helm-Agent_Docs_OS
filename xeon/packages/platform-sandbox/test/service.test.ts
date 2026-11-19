@@ -150,3 +150,35 @@ describe("sandbox service wiring", () => {
     expect(srt.initializeCalls.length).toBe(1);
   });
 });
+
+describe("defaultPolicy no-write with systemTools", () => {
+  test("adds the system tool folders to the read allow-list only when asked, and never a write root", async () => {
+    const dirs = makeTestDirs();
+    const service = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const base = {
+      workspaceRoots: [],
+      tempDir: dirs.tmp,
+      profile: "no-write" as const,
+      readRoots: ["/plugin"],
+    };
+    const plain = service.defaultPolicy(base);
+    const tools = service.defaultPolicy({ ...base, systemTools: true });
+    expect(plain.readAllow).not.toContain("/usr/bin");
+    expect(tools.readAllow).toContain("/usr/bin");
+    expect(tools.readAllow).toContain("/bin");
+    expect(tools.writeRoots).toEqual([]);
+    expect(tools.writeDeny).toEqual(plain.writeDeny);
+    // 시스템 도구 폴더가 없는 제공자 쪽(여기서는 bwrap)은 Seatbelt 전용 막기를 싣지 않는다
+    expect(tools.toolDeny ?? []).toEqual([]);
+    expect(tools.machDeny ?? []).toEqual([]);
+  });
+});

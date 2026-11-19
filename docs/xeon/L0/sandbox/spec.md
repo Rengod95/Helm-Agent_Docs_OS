@@ -164,6 +164,12 @@ export interface SandboxPolicy {
    * 없으면 지금까지와 같은 거부 목록 방식이다. 보호 경로(읽기)나 `readDeny`와 겹치는 항목(같거나 그 안이거나 그것을 품은 것)은 정책 병합에서 빠진다 [결정: 2026-11-18 메인 제안, 사용자 보고됨]
    */
   readAllow?: string[];
+  /** `no-write`에서 이름 하나만(하위 경로 없이) 읽게 하는 절대 경로(심볼릭 링크 이름 `/var`, `/etc` 등). Seatbelt만 쓰고 프로필 끝에 `(allow file-read* (literal ...))`로 더한다 [제안, AGE-58] */
+  readAllowLiteral?: string[];
+  /** 읽기 허용 뒤에 다시 막는 실행 파일(개별 도구). Seatbelt만 쓰고 프로필 끝에 `(deny file-read* ...)`와 `(deny process-exec ...)`로 더해 앞의 허용을 이긴다 [제안, AGE-58] */
+  toolDeny?: string[];
+  /** 프로필 끝에서 다시 막는 Mach 서비스 이름(`(deny mach-lookup (global-name ...))`). Seatbelt만 쓴다 [제안, AGE-58] */
+  machDeny?: string[];
 }
 export const SandboxPolicySchema: Schema<SandboxPolicy>;
 
@@ -509,7 +515,14 @@ export function selectSandboxProvider(input: {
 - **읽기**: `srt`에 `denyRead: ["/", ...보호 경로]`와 `allowRead: readAllow`를 넘깁니다. `readAllow`는 호출자가 준 경로(`defaultPolicy`의 `readRoots`: 플러그인 폴더, 실행 파일)에 아래 시스템 경로를 더한 목록입니다. 심볼릭 링크 이름(`/lib`, `/usr/bin/socat`)은 실제 경로만으로는 열리지 않으므로 이름과 실제 경로를 둘 다 둡니다. 셸은 사용자 `PATH`의 bash가 아니라 `/bin/bash`를 씁니다(허용 목록에 들어가야 하므로).
 - **시스템 경로**(실제 샌드박스에서 하나씩 빼 보며 좁힌 목록, `platform-sandbox/src/runtime-read-paths.ts`): macOS는 `/usr/share/icu`(Bun의 ICU 데이터, 없으면 소스 실행의 Bun이 시작 직후 죽는다) 하나입니다. 컴파일된 호스트 바이너리는 실행 파일 하나라 이것도 없이 뜹니다. Linux는 `/bin/bash`(srt가 샌드박스 안에서 돌리는 셸), `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`(동적 링커와 공유 라이브러리)이고 서비스가 srt 도우미를 더합니다: srt 패키지의 `vendor/seccomp`(seccomp 실행 파일), 프록시 소켓 파일(srt가 최상위 폴더를 빈 tmpfs로 덮으므로 허용 목록에 없으면 프록시 연결이 끊긴다), 탐지한 `socat`의 실제 파일(`socat`이 `socat1` 링크인 배포판이 있다. srt에 넘기는 `socatPath`도 같은 실제 경로로 푼다). 인증서 묶음과 DNS 설정은 넣지 않습니다: https는 샌드박스 프록시를 거치고(TLS 인증서는 Bun에 내장) 이름 풀이는 프록시가 합니다.
 - **한계**: 소스 실행(개발)의 호스트는 진입 파일이 가져오는 소스와 `node_modules`를 읽어야 해서 호출자가 `readRoots`에 소스 작업 공간(`bun.lock`이 있는 폴더)을 더합니다. 읽기 허용 목록 항목이 보호 경로와 겹치면 항목이 빠집니다. 예외는 Fresnel 데이터 폴더(`fresnel_data`)뿐입니다: 그 안쪽 항목(검토본 사본 `<data>/plugin-store/reviewed/<이름>/<해시>/tree`)은 남고, 데이터 폴더 전체를 품은 넓은 항목은 빠집니다(`PolicyInput.carvableReadDeny`, 시험 `policy.test.ts`, `helm-isolated.int.test.ts`의 실제 샌드박스 시험 [결정: enC3m, 검토본에서 격리 플러그인이 떠야 해서 [제안]]). 플러그인 폴더가 `~/.claude` 같은 다른 보호 경로 아래면 호스트가 자기 코드를 읽지 못합니다. Linux x64는 실행해 보지 못했고(arm64 Docker에서만 확인) `/lib64`(x64 로더 위치)는 이 목록의 추측이 아닌 일반 규칙이지만 실측은 아닙니다.
-- 스크립트 실행기의 경계(AGE-58, 2026-11-19): 이 프로필 위의 스크립트 실행기는 `apps/host/test/int/script-boundary.int.test.ts`가 고정한다. 프록시 주소와 인증 값이 자식 환경에 와서 프록시를 쓰는 클라이언트는 목록 밖 호스트에 닿는다(srt의 네트워크 정책이 전역이라 이 프로필에서 따로 막지 못한다). 시스템 도구는 읽기 허용 목록과 무관하게 절대 경로로 시작된다. 읽기 허용에 `/bin`, `/usr/bin`을 더하는 일은 네트워크가 막힌 뒤로 미뤘다([미결], L4.host-service §4.27 미결 58).
+- **스크립트 실행기의 시스템 도구 읽기·실행**(AGE-58, [결정: 2026-11-19, 사용자, AGE-58 "다 열어"], 해석은 [제안]): 스크립트 실행기(`IsolationSpawnSpec.systemTools: true`, 다른 프로필·훑기 자식·플러그인 격리 프로세스는 켜지 않는다)에만 `defaultPolicy`의 `systemTools`가 읽기·실행 허용에 아래를 더한다. 쓰기는 하나도 더하지 않는다. `/usr`, `/private/var`, `/etc`, `/Library`, 홈은 통째로 열지 않는다(`/var`를 하위까지 열면 `/private/var`가 통째로 열려서 시험으로 막았다). 구현은 `runtime-read-paths.ts`의 `systemToolReadPaths`, `systemToolLiterals`, `systemToolDeny`, `systemToolMachDeny`와 `wrap-argv.ts`의 프로필 끝 덧붙이기(`withProfileTail`)다.
+  - macOS 읽기·실행(`readAllow`): `/bin`, `/usr/bin`(요청), `/private/var/select`(`/usr/bin/git` 같은 개발자 도구 껍데기가 읽는 선택 링크 `developer_dir`와 `sh`, 링크 둘뿐이다), 선택한 개발자 폴더의 `usr`와 `SDKs`(링크가 가리키는 곳을 지금 읽어 정한다: Command Line Tools면 `/Library/Developer/CommandLineTools`, 진짜 `git`과 라이브러리, 껍데기가 SDK를 찾는다), `/private/etc/ssl`(`curl`의 LibreSSL이 시작할 때 읽는 `openssl.cnf`와 CA 묶음, 없으면 `Auto configuration failed`로 끝난다), `/System/Library/CoreServices/SystemVersion.plist`(`xcrun`과 `sw_vers`가 호스트 OS 버전을 읽는다).
+  - macOS 이름 하나만(`readAllowLiteral`): `/var`(`/private/var`로 가는 링크 자체), `/etc`(`/private/etc`로 가는 링크 자체), `/private/etc/gitconfig`(`git`이 시스템 설정을 열어 본다. 없는 파일인데 `EPERM`이면 `git`이 죽는다), 선택한 개발자 폴더 자체(껍데기가 `developer directory ... is not accessible`로 확인한다). `/etc/hosts`, `/etc/passwd`, `/private/var/db`, `/var/folders`, `/Library/Preferences`는 여전히 막혀 있다.
+  - macOS 다시 막기(`toolDeny`, 프로필 끝의 `deny file-read*`와 `deny process-exec`): `launchctl`, `open`, `osascript`, `osacompile`, `security`, `pbcopy`, `pbpaste`, `screencapture`, `defaults`, `mdfind`, `mdls`, `log`, `lsof`, `ps`, `top`, `sudo`, `su`. 이유는 `runtime-read-paths.ts`의 `DARWIN_TOOL_DENY` 주석이다. 넓히기 전의 시험에서 `launchctl print`(사용자 launchd 도메인 읽기, 제출·삭제 요청이 launchd까지 닿는다), `security`(로그인 키체인 질의가 SecurityServer까지 닿아 "없음"이 아니라 검색이 일어났다), `mdfind`, `lsof -p 다른 프로세스`는 절대 경로로 이미 돌았다(넓히기와 무관한 기존 구멍이다). 이제 모두 실행 자체가 막힌다(종료 코드 126).
+  - macOS Mach 서비스 막기(`machDeny`): `com.apple.SecurityServer`, `com.apple.securityd.xpc`(키체인 데몬), `com.apple.coreservices.launchservicesd`(LaunchServices). 기본 프로필이 열어 둔 서비스를 도구를 거치지 않는 호출(Security 프레임워크를 부르는 스크립트)도 못 쓰게 한다.
+  - Linux(bwrap): `/bin`과 `/usr/bin`을 더한다(라이브러리는 `/lib*`, `/usr/lib*`가 이미 연다). 개별 도구 막기와 Mach 서비스 막기는 Seatbelt 전용이라 Linux에는 아직 없다. **이 맥에서 실행해 확인하지 못했다.**
+  - 막지 못한 것: `launchd`에 직접 말하는 길(Mach 조회가 아니라 부트스트랩 포트라서 프로필로 막을 수 없다)과 srt 기본 프로필이 열어 둔 그 밖의 서비스는 도구를 막는 것으로는 닫히지 않는다. 스크립트가 런타임(`bun`)으로 네이티브 호출을 직접 하면 도구 막기를 돌아간다. 네트워크는 2026-11-17 결정대로 열려 있다(프록시 주소와 인증 값이 자식 환경에 오고 전역 정책이라 이 프로필에서 따로 막지 못한다).
+  - 도구 동작(실제 샌드박스 시험, `script-boundary.int.test.ts`): `command -v`(PATH 탐색), `grep`, `sed`, `awk`, `cat`, `find`, `sort`, `jq`, `curl --version`, 개발자 폴더의 진짜 `git`과 PATH의 `git`(Apple 껍데기: `xcrun` 캐시를 쓰지 못한다는 경고만 내고 돈다)의 읽기 전용 명령이 돈다. 종료 코드, 표준 출력, 표준 오류는 그대로 돌아온다.
 - 확인: `sandbox.no-write.int.test.ts`(실제 srt). 플러그인 폴더 안 읽기, 다른 플러그인 폴더·홈 파일 읽기 거부, 폴더 안 쓰기·작업 폴더 쓰기 거부, 자기 임시 폴더 쓰기와 읽기, `cleanup` 뒤 폴더 삭제, 두 프로세스의 폴더가 다름을 값으로 본다. macOS Seatbelt와 Linux bubblewrap(Docker arm64)에서 모두 통과했다. https(example.com)가 되는 것은 실제 샌드박스 아래 컴파일 바이너리로 손으로 확인했다(시험에 넣지 않았다: 바깥 인터넷이 필요하다).
 
 ## 5. 실패와 경계 사례

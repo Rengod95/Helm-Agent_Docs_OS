@@ -21,7 +21,13 @@ import {
 } from "@fresnel/contracts/services";
 import { decideAutoAllow } from "./auto-allow.ts";
 import { canonicalizePath, sortedUnique, toAbsolutePath } from "./paths.ts";
-import { runtimeReadPaths } from "./runtime-read-paths.ts";
+import {
+  runtimeReadPaths,
+  systemToolDeny,
+  systemToolMachDeny,
+  systemToolLiterals,
+  systemToolReadPaths,
+} from "./runtime-read-paths.ts";
 import {
   BLOCKED_NETWORK,
   blocklistNetwork,
@@ -351,9 +357,17 @@ export async function createSandboxService(
         },
         allowEscape: false,
         profile: "no-write",
+        ...(input.systemTools === true
+          ? {
+              readAllowLiteral: [...systemToolLiterals(provider.kind)],
+              toolDeny: [...systemToolDeny(provider.kind)],
+              machDeny: [...systemToolMachDeny(provider.kind)],
+            }
+          : {}),
         readAllow: [
           ...(input.readRoots ?? []),
           ...runtimeReadPaths(provider.kind),
+          ...(input.systemTools === true ? systemToolReadPaths(provider.kind) : []),
           ...srt.helperReadPaths(),
           ...(provider.kind === "bwrap" && tools.socatPath !== undefined
             ? [socatPathOf(tools.socatPath)]
