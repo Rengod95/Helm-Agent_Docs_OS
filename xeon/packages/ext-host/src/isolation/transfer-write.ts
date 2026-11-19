@@ -21,6 +21,7 @@ import {
   PLUGIN_HOST_TRANSFER_STALL_MS,
   type PluginHostFrame,
   type PluginHostTransferBegin,
+  type PluginHostTransferFrameKind,
 } from "@fresnel/contracts/extensions";
 import type { FrameSink, FrameWriteError, FrameWriterOptions } from "./framing-types.ts";
 
@@ -110,8 +111,16 @@ export function createOutbound(sink: FrameSink, options: FrameWriterOptions): Ou
   async function deliver(item: OutboundLine): Promise<FrameWriteError | undefined> {
     current = item;
     const failure =
-      item.bytes > PLUGIN_HOST_MAX_FRAME_BYTES ? await sendTransfer(item) : writeLine(item.line);
+      item.bytes > PLUGIN_HOST_MAX_FRAME_BYTES ? await deliverTransfer(item) : writeLine(item.line);
     current = undefined;
+    return failure;
+  }
+
+  /** 큰 줄 하나의 전송을 알린다. 시작 알림을 쓰기 전에 `onTransferStart`, 끝나면 `onTransferEnd`를 부른다 */
+  async function deliverTransfer(item: OutboundLine): Promise<FrameWriteError | undefined> {
+    options.onTransferStart?.(item.frame);
+    const failure = await sendTransfer(item);
+    options.onTransferEnd?.(item.frame, failure === undefined);
     return failure;
   }
 
@@ -221,13 +230,12 @@ function beginOf(
   sha256: string,
   parts: number,
 ): PluginHostTransferBegin {
-  const frameId = frameIdOf(item.frame);
   return {
     x,
     size: item.bytes,
     parts,
     sha256,
-    ...(frameId === undefined ? {} : { frameId }),
+    ...tagOf(item.frame),
   };
 }
 
@@ -235,8 +243,13 @@ function partLine(x: number, i: number, data: string): string {
   return JSON.stringify({ method: PLUGIN_HOST_TRANSFER_PART, params: { x, i, data } });
 }
 
-function frameIdOf(frame: PluginHostFrame): number | undefined {
-  return "id" in frame ? frame.id : undefined;
+/** 프레임의 `id`와 요청인지 답인지. 알림(id가 없다)은 빈 표시다 */
+function tagOf(frame: PluginHostFrame): {
+  readonly frameId?: number;
+  readonly frameKind?: PluginHostTransferFrameKind;
+} {
+  if (!("id" in frame)) return {};
+  return { frameId: frame.id, frameKind: "method" in frame ? "request" : "response" };
 }
 
 function defaultSetTimer(ms: number, fn: () => void): () => void {

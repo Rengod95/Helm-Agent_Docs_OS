@@ -159,9 +159,25 @@ export function createFrameReader(
   return { next };
 }
 
+/**
+ * 자식이 받을 수 있는 원래 줄의 최대 UTF-8 바이트 수(조각 전송의 자식 쪽 상한). 자식은 `host.init` 응답의 `transfer`로 이것을 알리고,
+ * 자식의 입력 읽기도 이 값을 상한으로 쓴다. 엔진은 자기 값과 이것 가운데 작은 값을 쓴다(supervisor.ts)
+ */
+/**
+ * 자식의 조각 상한(바이트). 측정(AGE-59, 맥, bun 1.4.3): 자식의 최고 RSS는 받는 쪽 약 2.6배, 보내는 쪽 약 6배의 줄 크기다.
+ * 256 MiB에서 최고 RSS가 1.3~1.8 GiB, 512 MiB에서 2.6~3.6 GiB라 1.5 GiB 기준을 넘는다. 128 MiB는 최고 0.7~0.95 GiB다.
+ * 그래서 128 MiB로 둔다(docs/xeon/X/loading-trust/spec.md §4.9.3의 측정 표)
+ */
+export const PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES: number = 128 * 1024 * 1024;
+
 /** 프레임 쓰기. `write`는 동기다. 줄 세워 나중에 나가는 프레임도 `ok`를 받는다 */
 export interface FrameWriter {
   write(frame: PluginHostFrame): Result<void, FrameWriteError>;
+  /**
+   * 조각 전송의 상한을 바꾼다(`undefined`는 끄기). 협상이 끝나기 전에는 끄고 두며, 이후 `write`가 보는 상한만 바뀐다.
+   * 이미 보내는 중인 전송은 그대로 끝낸다
+   */
+  setTransfer(maxBytes: number | undefined): void;
   /** 아직 나가지 않은 프레임 수. 보내는 중인 것을 포함한다 */
   pending(): number;
   /** 쓰기를 닫는다. 나가지 않은 프레임은 `onTransferFailed`로 알린다(프로세스가 죽었을 때) */
@@ -169,12 +185,12 @@ export interface FrameWriter {
 }
 
 /**
- * 프레임 하나를 JSON 한 줄로 쓴다. 옵션(`transfer`)이 없으면 상한을 넘는 프레임은 보내지 않고 `frame_too_large`를 값으로 돌려준다.
- * 옵션이 있으면 `transfer.maxBytes` 안의 큰 줄은 조각으로 나눠 FIFO로 보낸다. 쓰기 실패도 값이다
+ * 프레임 하나를 JSON 한 줄로 쓴다. 조각 전송이 꺼져 있으면 상한을 넘는 프레임은 보내지 않고 `frame_too_large`를 값으로 돌려준다.
+ * 켜져 있으면 `transfer.maxBytes` 안의 큰 줄은 조각으로 나눠 FIFO로 보낸다. 쓰기 실패도 값이다
  */
 export function createFrameWriter(sink: FrameSink, options: FrameWriterOptions = {}): FrameWriter {
   const outbound = createOutbound(sink, options);
-  const transfer = options.transfer;
+  let transfer = options.transfer;
   return {
     write(frame) {
       const encoded = attempt(() => JSON.stringify(frame));
@@ -190,6 +206,9 @@ export function createFrameWriter(sink: FrameSink, options: FrameWriterOptions =
         });
       }
       return outbound.send({ frame, line: encoded.value, bytes });
+    },
+    setTransfer(maxBytes) {
+      transfer = maxBytes === undefined ? undefined : { maxBytes };
     },
     pending: () => outbound.pending(),
     abort: () => outbound.abort(),

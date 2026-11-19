@@ -55,6 +55,7 @@ function beginLine(begin: {
   readonly parts: number;
   readonly sha256: string;
   readonly frameId: number | undefined;
+  readonly frameKind?: "request" | "response" | undefined;
 }): string {
   return JSON.stringify({ method: "frame.begin", params: begin });
 }
@@ -64,7 +65,12 @@ function partLine(x: number, i: number, data: string): string {
 }
 
 /** 원래 줄 글을 시작 알림과 조각 줄들로 바꾼다. 줄 끝은 붙이지 않는다 */
-function transferLines(text: string, x: number, frameId: number | undefined): string[] {
+function transferLines(
+  text: string,
+  x: number,
+  frameId: number | undefined,
+  frameKind?: "request" | "response",
+): string[] {
   const spans = spansOf(text);
   const begin = beginLine({
     x,
@@ -72,6 +78,7 @@ function transferLines(text: string, x: number, frameId: number | undefined): st
     parts: spans.length,
     sha256: sha256Of(text),
     frameId,
+    frameKind,
   });
   return [begin, ...spans.map(([start, end], i) => partLine(x, i, text.slice(start, end)))];
 }
@@ -197,7 +204,7 @@ describe("frame transfer round trip", () => {
       { maxTransferBytes: 64 * MIB },
     );
     // 쓰는 쪽의 줄 모양은 시험의 조각 구간과 같다(첫 조각은 쌍 앞에서 끊는다)
-    const expected = transferLines(json, 0, 2).map((line) => `${line}\n`);
+    const expected = transferLines(json, 0, 2, "response").map((line) => `${line}\n`);
     expect(piped.lines).toEqual(expected);
     expect(piped.results).toEqual([ok({ kind: "response", id: 2, result: { text } })]);
   });

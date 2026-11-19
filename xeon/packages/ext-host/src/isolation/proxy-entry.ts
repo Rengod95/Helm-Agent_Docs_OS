@@ -25,6 +25,7 @@ import {
 import {
   DriveCommandSchema,
   HOOKS,
+  PLUGIN_HOST_MAX_FRAME_BYTES,
   PLUGIN_HOST_NOTIFY_HOOKS,
   PLUGIN_HOST_PROTOCOL_VERSION,
   RecordKindSchema,
@@ -66,6 +67,7 @@ import { createNotifyGate, notifyKeyOf, type NotifyGate } from "./notify-gate.ts
 import { parseDriveStepReply } from "./params.ts";
 import {
   createPluginHostSupervisor,
+  expectedTransferLimitOf,
   type CallError,
   type DeadlineClock,
   type PluginHostSupervisor,
@@ -82,6 +84,11 @@ const DEFAULT_INIT_TIMEOUT_MS = 10_000;
  * 이 값을 기본으로 쓴다(`IsolatedEntryDeps.driveStepDeadlineMs`로 바꾼다)
  */
 const DRIVE_STEP_DEADLINE_MS = 120_000;
+
+/**
+ * 격리 등록이 받는 입력의 상한에서 뺄 요청 뼈대 몫(바이트). `drive.step` 요청의 다른 칸(상태, 설정, 틀)이 같은 줄에 든다 [제안: 뼈대 몫]
+ */
+const FRAME_SKELETON_MARGIN_BYTES = 64 * 1024;
 
 /** 이 종류의 오류는 프로세스가 없어서 생긴 것이다. 호출은 `process_exit`로 센다 */
 const SUPERVISOR_FAILURE_KINDS: ReadonlySet<string> = new Set([
@@ -161,6 +168,13 @@ export interface IsolatedEntryDeps {
   readonly maxRestarts?: () => number;
   /** 죽음을 세는 창(초, 설정 `restartWindowSec`). 없으면 감독 기본 */
   readonly restartWindowSec?: () => number;
+  /**
+   * 조각 전송의 엔진 쪽 상한(live). 없거나 `undefined`면 조각을 쓰지 않아 격리 등록의 입력 상한은 한 줄 상한이다(supervisor.ts).
+   * 조각을 쓰면 입력 상한이 이 값에 맞춰진다(X.loading-trust §4.9.3)
+   */
+  readonly transferMaxBytes?: () => number | undefined;
+  /** 조각 하나를 받는 쪽이 비워지기를 기다리는 시간(ms). 시험이 짧게 준다. 없으면 `PLUGIN_HOST_TRANSFER_STALL_MS` */
+  readonly transferStallMs?: number;
   readonly maskSecrets?: (line: string) => string;
   /** 등록이 모두 꺼져 세션을 닫을 때의 사유. 다시 읽기 중이면 `reload`다 */
   readonly endReason?: () => "reload" | "disabled";
@@ -517,6 +531,8 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(deps.maxRestarts === undefined ? {} : { maxRestarts: deps.maxRestarts }),
       ...(deps.restartWindowSec === undefined ? {} : { restartWindowSec: deps.restartWindowSec }),
       ...(deps.maskSecrets === undefined ? {} : { maskSecrets: deps.maskSecrets }),
+      ...(deps.transferMaxBytes === undefined ? {} : { transferMaxBytes: deps.transferMaxBytes }),
+      ...(deps.transferStallMs === undefined ? {} : { transferStallMs: deps.transferStallMs }),
     });
     const gate = createNotifyGate({
       send: (params) => supervisor.notify("event.notify", params).then((reply) => reply.ok),
@@ -541,6 +557,18 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     current = undefined;
     closing?.gate.reset();
     closing?.supervisor.dispose(reason);
+  }
+
+  /**
+   * 격리 등록이 지금 받을 수 있는 입력의 상한(바이트). 협상된 엔진 → 자식 조각 상한(떠 있지 않으면 같은 빌드의 기대 값), 조각이 없으면
+   * 한 줄 상한에서 뼈대 몫을 뺀다. 등록의 단계 표시가 이 함수를 읽을 때마다 부른다
+   */
+  function inputLimitNow(): number {
+    const limit =
+      current === undefined
+        ? expectedTransferLimitOf(deps.transferMaxBytes?.())
+        : current.supervisor.transferLimit();
+    return Math.max(0, (limit ?? PLUGIN_HOST_MAX_FRAME_BYTES) - FRAME_SKELETON_MARGIN_BYTES);
   }
 
   /** 호출 하나를 감독에 보낸다. 요청 id를 디스패치 문맥에 잇는다(라우터가 쓴다) */
@@ -822,7 +850,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
             return limits.current;
           },
         };
-        g.drive(markIsolatedStep(drivingOf(g, p, limits)), options);
+        g.drive(markIsolatedStep(drivingOf(g, p, limits), inputLimitNow), options);
       }
       for (const hook of p.hooks) {
         g.on(

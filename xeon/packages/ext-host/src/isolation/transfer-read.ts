@@ -13,7 +13,12 @@ import {
 } from "@fresnel/contracts/extensions";
 import { stringUtf8Sizes } from "@fresnel/contracts/records";
 import { frameOfJoined } from "./frame-line.ts";
-import type { FrameReadError, FrameReadResult, TransferFailReason } from "./framing-types.ts";
+import type {
+  FrameReadError,
+  FrameReadResult,
+  TransferFailReason,
+  TransferTag,
+} from "./framing-types.ts";
 
 export interface TransferAssembler {
   /** 줄 하나의 결과를 넣는다. 조각 알림은 내보내지 않고, 합쳐진 프레임이나 실패 값을 내보낸다 */
@@ -25,7 +30,7 @@ export interface TransferAssembler {
 /** 받는 중인 전송 하나 */
 interface Receiving {
   readonly x: number;
-  readonly frameId: number | undefined;
+  readonly tag: TransferTag;
   readonly size: number;
   readonly parts: number;
   readonly sha256: string;
@@ -45,6 +50,8 @@ type State =
 
 const IDLE: State = { kind: "idle" };
 const DISCARDING: State = { kind: "discarding" };
+/** 시작 알림에 `frameId`가 없는 실패 표시 */
+const NO_TAG: TransferTag = {};
 
 /**
  * 조각 전송을 받는 상태 기계를 만든다. `maxBytes`는 받을 수 있는 원래 줄의 최대 UTF-8 바이트 수다.
@@ -55,8 +62,7 @@ export function createTransferAssembler(maxBytes: number | undefined): TransferA
 
   /** 정상 줄은 받던 전송을 끝낸다. 받던 전송이 있었으면 그 전송은 순번 오류다 */
   function plain(item: FrameReadResult): readonly FrameReadResult[] {
-    const interrupted =
-      state.kind === "receiving" ? [failure("order", state.transfer.frameId)] : [];
+    const interrupted = state.kind === "receiving" ? [failure("order", state.transfer.tag)] : [];
     state = IDLE;
     return [...interrupted, item];
   }
@@ -64,35 +70,33 @@ export function createTransferAssembler(maxBytes: number | undefined): TransferA
   /** 줄 오류는 조각이 깨졌을 수 있다. 받던 전송을 순번 오류로 끝내고 남은 조각을 버린다 */
   function lineFailed(error: FrameReadError): readonly FrameReadResult[] {
     if (state.kind !== "receiving") return [err(error)];
-    const interrupted = failure("order", state.transfer.frameId);
+    const interrupted = failure("order", state.transfer.tag);
     state = DISCARDING;
     return [interrupted, err(error)];
   }
 
   /** 시작 알림을 받지 않는다. 실패 하나를 내고 그 전송의 남은 조각을 버린다 */
-  function refuse(
-    reason: TransferFailReason,
-    frameId: number | undefined,
-  ): readonly FrameReadResult[] {
+  function refuse(reason: TransferFailReason, tag: TransferTag): readonly FrameReadResult[] {
     state = DISCARDING;
-    return [failure(reason, frameId)];
+    return [failure(reason, tag)];
   }
 
   function begin(params: unknown): readonly FrameReadResult[] {
     const parsed = parse(PluginHostTransferBeginSchema, params);
     if (!parsed.ok) return lineFailed({ kind: "invalid_frame", cause: parsed.error });
-    const { x, size, parts, sha256, frameId } = parsed.value;
+    const { x, size, parts, sha256 } = parsed.value;
+    const tag = tagOf(parsed.value);
     if (!partsFit(size, parts)) {
       return lineFailed({ kind: "invalid_frame", cause: "the part count does not fit the size" });
     }
-    if (maxBytes === undefined) return refuse("disabled", frameId);
-    if (state.kind === "receiving") return refuse("busy", frameId);
-    if (size > maxBytes) return refuse("too_large", frameId);
+    if (maxBytes === undefined) return refuse("disabled", tag);
+    if (state.kind === "receiving") return refuse("busy", tag);
+    if (size > maxBytes) return refuse("too_large", tag);
     state = {
       kind: "receiving",
       transfer: {
         x,
-        frameId,
+        tag,
         size,
         parts,
         sha256,
@@ -111,7 +115,7 @@ export function createTransferAssembler(maxBytes: number | undefined): TransferA
     if (state.kind === "idle") {
       // 시작 없이 온 조각. 같은 전송의 남은 조각이 더 올 수 있어 버리는 상태로 간다
       state = DISCARDING;
-      return [failure("order", undefined)];
+      return [failure("order", NO_TAG)];
     }
     if (state.kind === "discarding") return [];
     return take(state.transfer, parsed.value);
@@ -133,7 +137,7 @@ export function createTransferAssembler(maxBytes: number | undefined): TransferA
 
   function abandon(reason: TransferFailReason, transfer: Receiving): readonly FrameReadResult[] {
     state = DISCARDING;
-    return [failure(reason, transfer.frameId)];
+    return [failure(reason, transfer.tag)];
   }
 
   function accept(item: FrameReadResult): readonly FrameReadResult[] {
@@ -151,7 +155,7 @@ export function createTransferAssembler(maxBytes: number | undefined): TransferA
   function finish(): readonly FrameReadResult[] {
     const open = state;
     state = IDLE;
-    return open.kind === "receiving" ? [failure("truncated", open.transfer.frameId)] : [];
+    return open.kind === "receiving" ? [failure("truncated", open.transfer.tag)] : [];
   }
 
   return { accept, finish };
@@ -166,18 +170,32 @@ function partsFit(size: number, parts: number): boolean {
   return parts >= fewest && parts <= size;
 }
 
-/** 마지막 조각을 받은 뒤의 검사. 글은 여기서 합쳐 한 번만 파싱한다 */
+/**
+ * 마지막 조각을 받은 뒤의 검사. 글은 여기서 한 번만 합쳐 파싱한다. 합친 뒤에는 조각의 참조를 놓는다(`texts`를 비운다).
+ * 측정에서 최고 메모리는 거의 줄지 않았다(100 MiB에서 358 → 352 MiB): 최고점은 파싱이 글 사본을 하나 더 만들 때다
+ */
 function complete(transfer: Receiving): FrameReadResult {
-  if (transfer.bytes !== transfer.size) return failure("size", transfer.frameId);
-  if (transfer.hash.digest("hex") !== transfer.sha256) return failure("hash", transfer.frameId);
-  return frameOfJoined(transfer.texts.join(""));
+  if (transfer.bytes !== transfer.size) return failure("size", transfer.tag);
+  if (transfer.hash.digest("hex") !== transfer.sha256) return failure("hash", transfer.tag);
+  const joined = transfer.texts.join("");
+  transfer.texts.length = 0;
+  return frameOfJoined(joined);
 }
 
 /** 전송 실패 값 하나. 오류 값에는 조각의 글도 해시도 싣지 않는다 */
-function failure(reason: TransferFailReason, frameId: number | undefined): FrameReadResult {
-  return err({ kind: "transfer_failed", reason, ...frameIdPart(frameId) });
+function failure(reason: TransferFailReason, tag: TransferTag): FrameReadResult {
+  return err({ kind: "transfer_failed", reason, ...tag });
 }
 
-function frameIdPart(frameId: number | undefined): { readonly frameId?: number } {
-  return frameId === undefined ? {} : { frameId };
+/** 시작 알림의 `frameId`와 `frameKind`를 실패 표시로 옮긴다. 있는 칸만 싣는다 */
+function tagOf(begin: {
+  readonly frameId?: number;
+  readonly frameKind?: TransferTag["frameKind"];
+}): TransferTag {
+  const frameId = begin.frameId;
+  const frameKind = begin.frameKind;
+  return {
+    ...(frameId === undefined ? {} : { frameId }),
+    ...(frameKind === undefined ? {} : { frameKind }),
+  };
 }

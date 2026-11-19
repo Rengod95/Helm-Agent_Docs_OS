@@ -1322,9 +1322,9 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다. 조각 전송은 프레이밍 계층의 옵션이고(아래 단락), 격리 감독과 자식의 연결이 그 옵션을 켜는 일은 다음 단계가 한다. 그 전까지 두 쪽 모두 옵션을 주지 않으므로 이 문장이 지금의 동작이다. 참조 넘기기는 하지 않는다.
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘는 줄은 두 쪽이 조각 칸(`transfer`)을 주고받아 협상했을 때만 조각 전송(`frame.begin`과 `frame.part`, 아래 단락)으로 보낸다. 협상이 안 된 쪽으로 넘는 줄은 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기(블롭 참조를 넘기고 조각을 따로 읽는 길)는 하지 않는다. 조각은 통신 층이 나누고 합치므로 플러그인 API, `GroupApi`, `RegistrationApi`, 매니페스트는 바뀌지 않는다.
 
-**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 한 줄 상한에서 뼈대 몫 64 KiB를 뺀 값(`ISOLATED_DRIVE_INPUT_MAX_BYTES`, 16 MiB - 64 KiB) 안인지 **기록하기 전에** 본다 [제안: 뼈대 몫 64 KiB]. 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
+**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 그 등록의 입력 상한을 **기록하기 전에** 본다. 상한은 협상된 엔진 → 자식 조각 상한(엔진 값 `l0.store.maxBlobBytes`와 자식 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`, 128 MiB, 가운데 작은 값)에서 뼈대 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫 64 KiB]. 협상이 안 된 격리 등록(조각 칸이 없는 자식, 엔진 값이 없는 조립)은 옛 값 16 MiB − 64 KiB(`ISOLATED_DRIVE_INPUT_MAX_BYTES`)를 쓴다. 표의 "16 MiB를 넘으면"은 협상되지 않은 쪽의 동작이고, 협상된 쪽에서는 같은 자리의 협상된 상한을 넘을 때 같은 규칙이다. 등록마다 상한을 읽는 함수는 `markIsolatedStep`이 단계 함수에 단다(`isolation/mark.ts`). 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 
 | 길 | 싣는 값 | 16 MiB를 넘으면 |
 |---|---|---|
@@ -1335,7 +1335,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
 
-[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않고, 위 규칙대로 받는 시점에 거절한다(`test/isolation/isolated-drive.test.ts`).
+조각 전송으로 격리 플러그인은 협상된 상한 안의 큰 입력을 받는다. 블롭 참조를 넘기고 `blob.read`로 조각을 받는 길(플러그인 API의 변화)은 여전히 없다. 협상이 안 된 격리 등록에는 16 MiB − 64 KiB가 닿고, 넘는 입력은 기록하기 전에 거절한다(`test/isolation/isolated-drive.test.ts`). 협상된 상한의 시험은 `test/isolation/transfer-drive.test.ts`다.
 
 **큰 줄의 조각 전송(프레이밍) [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8].** 쓰는 쪽은 `createFrameWriter`에 `transfer.maxBytes`를 주면 상한을 넘고 그 안인 줄을 시작 알림 `frame.begin`과 조각 알림 `frame.part`로 나눠 보낸다(모양은 `F.extensions.spec` 부록). 한 방향에서 큰 줄은 들어온 순서대로(FIFO) 한 번에 하나씩 나가고, 그 사이에 쓴 작은 줄도 뒤에서 기다린다. 조각을 하나 쓴 뒤에는 `drained()`를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 프레임의 전송을 접고 `transfer_stalled`를 알린다. `write`는 줄 세운 프레임에도 `ok`를 돌려주므로, 나중에 나가지 못한 프레임은 `onTransferFailed`로 알린다. `abort`는 프로세스가 죽었을 때 나가지 못한 프레임을 모두 알린다.
 
@@ -1354,6 +1354,45 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 `frameId`는 시작 알림이 가진 값만 싣는다(`busy`는 새 시작 알림의 값이다). 실패 뒤 그 전송의 남은 조각은 다음 정상 줄이 올 때까지 조용히 버리므로, 실패 하나에 값 하나가 난다. 합친 줄이 JSON이 아니면 `parse_json`, 프레임 모양이 아니거나 조각 알림 메서드를 가지면 `invalid_frame` 값이다. 오류 값에는 줄 글과 해시를 싣지 않는다.
 
 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
+
+**조각 전송의 협상과 상한 [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8.2·§8.4].** 엔진은 띄울 때마다 설정 `l0.store.maxBlobBytes`를 읽는다(맡기기 입력 상한과 같은 값, live). 절대 최대 `PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES`(1 GiB)로 자르고 `host.init` 요청의 `transfer: {maxBytes}`로 알리며, 자식 읽기의 상한으로도 쓴다. 자식은 자기 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`(128 MiB)를 응답의 `transfer`로 알린다. 엔진 → 자식의 조각 상한은 둘 가운데 작은 값이다. 응답에 칸이 없으면(옛 자식) 조각을 끈다. 자식 → 엔진 방향은 자식이 엔진의 값과 자기 상한 가운데 작은 값으로 나눈다. 엔진의 받는 쪽 상한은 엔진이 알린 값이다.
+
+| 경우 | 호출의 결과 | 프로세스 |
+|---|---|---|
+| 답(또는 자식의 요청)의 조각이 어긋남: `order`, `size`, `hash`, `busy`, `too_large`, `disabled`, `invalid_frame` | 엔진이 기다리던 요청은 `invalid_response`(메시지에 이유를 싣는다). 자식의 `engine.call`이 깨졌으면 엔진은 `invalid_params` 오류로 답하고, 자식은 `engine.call`을 그 오류로 끝낸다 | 산다 |
+| 같은 실패인데 프레임 `id`가 없다(알림) | 기록만 남긴다(`plugin_host.transfer_failed`, 이유만) | 산다 |
+| 전송 중에 입력이 끝났다(`truncated`) | 답을 기다리던 요청은 `process_exit`(프로세스가 답을 다 쓰기 전에 끝났다) | 끝났다(죽음으로 센다) |
+| 보내는 쪽의 쓰기가 끊겼다(프로세스가 죽었다) | 기다리던 요청은 `process_exit`. 보내던 전송은 멈춘다 | 끝났다 |
+| 받는 쪽이 비우지 않는다: 조각 하나를 쓴 뒤 `transferStallMs`(기본 `PLUGIN_HOST_TRANSFER_STALL_MS`, 30 s) 안에 비워지지 않는다 | 요청은 `process_killed`(메시지에 멈춤을 적는다), 함께 떠 있던 것은 `process_exit` | 멈춘다(SIGTERM, 유예 뒤 SIGKILL). 죽음으로 센다 |
+| 조각 상한을 넘는 줄 | 보내지 않고 `frame_too_large` | 산다 |
+| 큰 줄을 보내는 동안 | 그 요청의 시간 한도 시계는 멈춘다. 전송이 끝나면 남은 시간으로 이어 간다. 엔진이 답을 받는 동안(자식 → 엔진)의 시계는 멈추지 않는다 [미결] [근거: packages/ext-host/src/isolation/supervisor.ts `onFrame`, 읽는 쪽은 호출의 시계를 가리키지 않는다] | — |
+
+기록(`plugin_host.*`)에는 이유(`reason`)와 오류 종류만 싣는다. 조각의 글, 전체 글, 해시, 길이는 싣지 않는다(시험이 본다).
+
+**측정 (AGE-59, 맥, bun 1.4.3, 실제 자식 `bun apps/host/src/main.ts plugin-host --stdio`, 한 조합 한 번 측정이라 ±10~20 %).** 자식 유휴 RSS는 85~92 MiB, 엔진 유휴(측정 도구 제외)는 59~63 MiB다. 자식 최고 RSS는 보내기(값 → 자식, 단계가 값을 다이제스트로 읽는다)와 받기(자식 → 엔진, 같은 크기의 값)를 따로 잰다. 벽시계는 호출 시작부터 답까지이고, 괄호 안은 자식의 단계가 값을 본 시각까지다.
+
+| 크기 | 종류 | 자식 최고 RSS, 보내기 / 받기 (MiB) | 엔진 최고 RSS, 보내기 / 받기 (MiB) | 보내기 벽시계 (단계까지) ms | 받기 벽시계 ms |
+|---|---|---|---|---|---|
+| 20 MiB | ASCII | 216 / 263 | 188 / 168 | 120 (106) | 76 |
+| 20 MiB | 한글 | 211 / 258 | 130 / 125 | 109 (92) | 78 |
+| 20 MiB | 객체(1 KB 글 항목) | 204 / 239 | 177 / 131 | 113 (92) | 86 |
+| 100 MiB | ASCII | 656 / 836 | 554 / 459 | 506 (435) | 353 |
+| 100 MiB | 한글 | 579 / 709 | 303 / 204 | 441 (359) | 354 |
+| 100 MiB | 객체 | 773 / 812 | 455 / 404 | 499 (393) | 396 |
+| 128 MiB | ASCII | 807 / 863 | 695 / 551 | 638 (552) | 462 |
+| 128 MiB | 한글 | 709 / 813 | 376 / 367 | 737 (595) | 715 |
+| 128 MiB | 객체 | 903 / 946 | 392 / 326 | 654 (521) | 522 |
+| 256 MiB | ASCII | 1479 / 1826 | 1061 / 563 | 1270 (1099) | 906 |
+| 256 MiB | 한글 | 1299 / 1515 | 811 / 580 | 1113 (902) | 904 |
+| 256 MiB | 객체 | 1611 / 1652 | 1025 / 505 | 1304 (1023) | 1400 |
+| 512 MiB | ASCII | 2790 / 3505 | 1913 / 1140 | 2553 (2208) | 1831 |
+| 512 MiB | 한글 | 2591 / 3615 | 590 / 704 | 2235 (1816) | 1831 |
+
+- 100 MiB 행은 받는 쪽 조립의 `texts` 참조를 합친 뒤 놓는 줄임(`transfer-read.ts`)을 넣기 전에 잰 것이다. 그 줄임으로 받기만 한 최고 RSS는 358 → 352 MiB로 거의 줄지 않았다. 최고점은 파싱이 글 사본을 하나 더 만드는 순간이라 조각 참조를 놓는 것으로는 내려가지 않는다. 512 MiB의 객체 행은 시간 때문에 재지 않았다.
+- 자식 최고 RSS는 받는 쪽이 줄 크기의 약 2.6배, 보내는 쪽이 약 6~7.5배다(100 MiB 측정에서 보내는 쪽은 V8 글 사본과 줄 글이 겹친다). 엔진 쪽은 보내는 동안 최고 RSS가 측정 도구가 든 값보다 줄 크기의 1.1배쯤 늘었다(100 MiB ASCII: 448 → 554 MiB). 기준 1.5배 아래다.
+- 판단. 자식 최고 RSS 기준(512 MiB에서 2 GiB 이하, 아니면 256·128 MiB에서 1.5 GiB 이하)에 따라 512 MiB(최고 2.6~3.6 GiB)는 넘고 256 MiB(최고 1.3~1.8 GiB)도 받기 쪽이 넘는다. 그래서 자식 상한은 128 MiB(최고 0.7~0.95 GiB)다. 엔진 설정이 1 GiB여도 실제 상한은 자식 상한으로 줄어든다. 128 MiB 자식 상한이면 입력 상한은 128 MiB − 64 KiB다.
+- 측정 값은 `docs/xeon/X/loading-trust/spec.md`에만 싣는다(재현 도구는 저장소 밖이다).
+
 
 #### 4.9.4 격리 가능 훅
 

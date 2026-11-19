@@ -345,6 +345,11 @@ export interface LoaderIsolation {
   readonly restartWindowSec?: () => number;
   /** 표준오류 한 줄을 저장하기 전에 가린다. 던지면 그 줄을 버린다 */
   readonly maskSecrets?: (line: string) => string;
+  /**
+   * 조각 전송(큰 줄을 나눠 보내기)의 엔진 쪽 상한(바이트). 띄울 때마다 읽는다(live). 없거나 `undefined`면 조각을 쓰지 않는다
+   * (격리 입력의 상한은 한 줄 상한이다). 앱이 `l0.store.maxBlobBytes`를 넘긴다(X.loading-trust §4.9.3)
+   */
+  readonly transferMaxBytes?: () => number | undefined;
   /** 재시작 한도를 넘으면 한 번 알린다. 앱은 이 알림으로 확장을 끌지 묻는다 */
   readonly onRestartLimit?: (name: ExtensionName, info: RestartLimitInfo) => void;
   /** 세션(감독)을 열 때마다 부른다. 조립이 표준오류 꼬리 같은 진단을 읽을 때 쓴다 */
@@ -1405,6 +1410,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         ? {}
         : { restartWindowSec: isolation.restartWindowSec }),
       ...(isolation.maskSecrets === undefined ? {} : { maskSecrets: isolation.maskSecrets }),
+      ...(isolation.transferMaxBytes === undefined
+        ? {}
+        : { transferMaxBytes: isolation.transferMaxBytes }),
       // 스크립트는 검토된 버전에서만 뜬다. 초안은 승인 카드를 재사용하는 길이 없어 띄우지 않는다(script_not_approved)
       scripts: createScriptRunner({
         process: port,
