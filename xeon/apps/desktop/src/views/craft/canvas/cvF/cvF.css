@@ -1,0 +1,1503 @@
+/* cvF("도면") 캔버스의 모양. 색·글자는 caustic 토큰에서 온다(라이트·다크는 토큰이 따른다).
+   바탕은 빈 종이다: 격자·빛·셰이더가 없고, 장면이 그리는 기준선 셋(사슬선)과 구간 눈금만 있다. 쉬는 동안 도는 것이 없다.
+   React Flow는 자기 규칙을 `@layer xyflow`에 둔다. 덮는 규칙도 같은 층에 두고 특이도를 하나 올린다(무층 규칙 금지). */
+@import "@xyflow/react/base.css";
+
+@layer xyflow {
+  .cvf-root {
+    --cvf-paper: var(--cs-color-bg-canvas);
+    --cvf-card: color-mix(in oklab, var(--cs-color-bg-canvas) 95%, var(--cs-color-text-primary));
+    --cvf-edge: color-mix(in oklab, var(--cs-color-text-primary) 30%, transparent);
+    --cvf-edge-strong: color-mix(in oklab, var(--cs-color-text-primary) 48%, transparent);
+    --cvf-line: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --cvf-line-soft: color-mix(in oklab, var(--cs-color-text-primary) 11%, transparent);
+    --cvf-datum: color-mix(in oklab, var(--cs-color-text-primary) 16%, transparent);
+    --cvf-rail: color-mix(in oklab, var(--cs-color-text-primary) 58%, transparent);
+    --cvf-wire: color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent);
+    --cvf-rel: color-mix(in oklab, var(--cs-color-text-primary) 66%, transparent);
+    --cvf-mono: var(--cs-font-mono, ui-monospace, monospace);
+    background: var(--cvf-paper);
+  }
+
+  /* 밝은 판: 부품은 종이보다 한 단 밝다(어두운 판은 한 단 밝은 회색) */
+  .cvf-root[data-theme="light"] {
+    --cvf-card: color-mix(in oklab, var(--cs-color-bg-canvas) 25%, white);
+  }
+
+  .cvf-flow.react-flow {
+    --xy-background-color: transparent;
+    --xy-node-border: 0;
+    --xy-node-background-color: transparent;
+    --xy-node-boxshadow-hover: none;
+    --xy-node-boxshadow-selected: none;
+    --xy-node-color: var(--cs-color-text-primary);
+    background: transparent;
+  }
+
+  .cvf-flow .react-flow__node {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .cvf-flow .react-flow__node:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    outline-offset: 5px;
+    border-radius: 10px;
+  }
+
+  .cvf-flow .react-flow__node-scene {
+    pointer-events: none;
+  }
+
+  .cvf-flow .react-flow__pane {
+    cursor: default;
+  }
+
+  .cvf-flow .react-flow__pane.dragging {
+    cursor: grabbing;
+  }
+
+  .cvf-flow .react-flow__handle.cvf-handle {
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    pointer-events: none;
+  }
+
+  /* 선 색과 굵기: React Flow의 .react-flow__edge-path 규칙을 같은 층에서 덮는다.
+     관계 선은 축척과 무관하게 화면에서 같은 굵기(도면의 굵은 선)라 레일에 붙는 가는 선과 갈린다. */
+  .cvf-flow .react-flow__edge-path.cvf-rel {
+    fill: none;
+    stroke: var(--cvf-rel);
+    stroke-width: 1.6;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .cvf-flow .react-flow__edge-path.cvf-rel[data-hot="true"] {
+    stroke: var(--cs-color-text-primary);
+    stroke-width: 2.2;
+  }
+
+  .cvf-flow .react-flow__edge-path.cvf-in-line {
+    fill: none;
+    stroke: color-mix(in oklab, var(--cs-color-text-primary) 42%, transparent);
+    stroke-width: 1.25;
+  }
+
+  .cvf-flow .react-flow__edge-path.cvf-in-handoff {
+    stroke: var(--cvf-rel);
+    stroke-width: 1.5;
+  }
+
+  /* 자체 루프: 종류 색 끊긴 선이 모든 갈래 밑을 돌아 첫 단계로 */
+  .cvf-flow .react-flow__edge-path.cvf-in-loop {
+    stroke: var(--cvf-drive);
+    stroke-width: 1.6;
+  }
+}
+
+@layer components {
+  .cvf-markers {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .cvf-marker-fill {
+    fill: var(--cvf-rel);
+  }
+
+  .cvf-marker-hollow {
+    fill: var(--cvf-paper);
+    stroke: var(--cvf-rel);
+    stroke-width: 1.25;
+  }
+
+  .cvf-marker-line {
+    stroke: var(--cvf-rel);
+    stroke-width: 1.25;
+  }
+
+  /* ── 장면: 기준선·구간 번호·레일 ── */
+  .cvf-scene {
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cvf-datum > path {
+    fill: none;
+    stroke: var(--cvf-datum);
+    stroke-width: 1;
+    stroke-dasharray: 28 5 3 5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .cvf-datum circle {
+    fill: var(--cvf-paper);
+    stroke: var(--cvf-line);
+    stroke-width: 1;
+  }
+
+  .cvf-datum .cvf-tick {
+    stroke: var(--cvf-line);
+    stroke-dasharray: none;
+  }
+
+  .cvf-datum-letter {
+    font-family: var(--cvf-mono);
+    font-size: 10px;
+    font-weight: 600;
+    fill: var(--cs-color-text-secondary);
+  }
+
+  .cvf-datum-word {
+    font-size: 11px;
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-colref path {
+    stroke: var(--cvf-line);
+  }
+
+  .cvf-colref text {
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-rail,
+  .cvf-rail-arrow {
+    fill: none;
+    stroke: var(--cvf-rail);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cvf-return {
+    fill: none;
+    stroke: var(--cvf-line);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+
+  .cvf-return-word {
+    font-size: 10.5px;
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-wire {
+    fill: none;
+    stroke: var(--cvf-wire);
+    stroke-width: 1;
+  }
+
+  .cvf-wire-start {
+    stroke: var(--cvf-drive);
+    stroke-width: 1.25;
+  }
+
+  .cvf-block rect {
+    fill: var(--cvf-card);
+    stroke: var(--cvf-rail);
+    stroke-width: 1;
+  }
+
+  .cvf-block-n {
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-block-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    fill: var(--cs-color-text-primary);
+  }
+
+  .cvf-boundary circle {
+    fill: var(--cvf-paper);
+    stroke: var(--cvf-rail);
+    stroke-width: 1.5;
+  }
+
+  .cvf-boundary text {
+    font-size: 11px;
+    fill: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-point {
+    fill: var(--cvf-paper);
+    stroke: var(--cvf-rail);
+    stroke-width: 1;
+  }
+
+  .cvf-point[data-filled="true"] {
+    fill: var(--cvf-hook);
+    stroke: var(--cvf-hook);
+  }
+
+  /* ── 플러그인 카드 ── */
+  .cvf-card {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .cvf-outline {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cvf-outline-fill {
+    fill: var(--cvf-card);
+    stroke: var(--cvf-edge);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--cs-duration-quick, 100ms) ease-out;
+  }
+
+  .cvf-outline-ear {
+    fill: none;
+    stroke: var(--cvf-edge);
+    stroke-width: 1;
+  }
+
+  .cvf-kind-rule {
+    fill: currentColor;
+  }
+
+  .cvf-card:hover .cvf-outline-fill {
+    stroke: var(--cvf-edge-strong);
+  }
+
+  .cvf-card[data-selected="true"] .cvf-outline-fill {
+    stroke: var(--cs-color-text-primary);
+    stroke-width: 1.5;
+  }
+
+  .cvf-card[data-draft="true"] .cvf-outline-fill {
+    stroke-dasharray: 5 3;
+  }
+
+  .cvf-corners {
+    position: absolute;
+    left: -7px;
+    top: -7px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cvf-corners path {
+    fill: none;
+    stroke: var(--cs-color-text-primary);
+    stroke-width: 1.5;
+  }
+
+  .cvf-near {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 12px 10px 14px;
+    color: var(--cs-color-text-primary);
+    min-width: 0;
+  }
+
+  .cvf-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 22px;
+    min-width: 0;
+  }
+
+  .cvf-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--cvf-mono);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .cvf-mark,
+  .cvf-ref-mark {
+    flex: none;
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 16px;
+    padding: 0 4px;
+    border: 1px solid var(--cvf-edge);
+    border-radius: 4px;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    min-width: 0;
+  }
+
+  .cvf-decision {
+    display: inline-flex;
+    color: var(--cvf-hook);
+  }
+
+  .cvf-purpose {
+    flex: 1 1 auto;
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--cs-color-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .cvf-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-parts {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--cvf-mono);
+    font-size: 11px;
+  }
+
+  .cvf-ago {
+    flex: none;
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+  }
+
+  .cvf-chips {
+    display: inline-flex;
+    flex: none;
+    gap: 4px;
+  }
+
+  .cvf-chip {
+    display: inline-block;
+    font-size: 10.5px;
+    line-height: 16px;
+    padding: 0 5px;
+    border: 1px solid var(--cvf-line);
+    border-radius: 4px;
+    color: var(--cs-color-text-secondary);
+    white-space: nowrap;
+  }
+
+  .cvf-chip[data-tone="warning"] {
+    color: var(--cs-color-warning-text);
+    border-color: color-mix(in oklab, var(--cs-color-warning-text) 45%, transparent);
+  }
+
+  .cvf-chip[data-tone="danger"] {
+    color: var(--cs-color-danger-text);
+    border-color: color-mix(in oklab, var(--cs-color-danger-text) 45%, transparent);
+  }
+
+  .cvf-card[data-kind="drive"] .cvf-chip[data-tone="kind"] {
+    color: var(--cvf-drive);
+    border-color: color-mix(in oklab, var(--cvf-drive) 45%, transparent);
+  }
+
+  .cvf-card[data-kind="hook"] .cvf-chip[data-tone="kind"] {
+    color: var(--cvf-hook);
+    border-color: color-mix(in oklab, var(--cvf-hook) 45%, transparent);
+  }
+
+  /* 베이스: 도면의 고정 부품처럼 빗금 */
+  .cvf-hatch {
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--cs-color-text-primary) 16%, transparent) 0 1px,
+      transparent 1px 4px
+    );
+  }
+
+  .cvf-far {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .cvf-far-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--cvf-mono);
+    font-size: 25px;
+    line-height: 1.35;
+    font-weight: 600;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-far .cvf-chip {
+    font-size: 17px;
+    line-height: 24px;
+    padding: 0 7px;
+  }
+
+  /* 확대 단계: 가까이 = 전부, 중간 = 이름·자리·구성 수(글을 키운다), 멀리 = 큰 이름 */
+  .cvf-root[data-lod="far"] .cvf-near {
+    display: none;
+  }
+
+  .cvf-root[data-lod="far"] .cvf-far {
+    display: flex;
+  }
+
+  .cvf-root[data-lod="far"] .cvf-rel-label {
+    display: none;
+  }
+
+  .cvf-root[data-lod="mid"] .cvf-card .cvf-near,
+  .cvf-root[data-lod="mid"] .cvf-stack-front .cvf-near {
+    justify-content: center;
+    gap: 9px;
+    padding-top: 10px;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-purpose,
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-ago {
+    display: none;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-name {
+    font-size: 21px;
+    line-height: 1.3;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-meta {
+    font-size: 16px;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-parts {
+    font-size: 15px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-chip {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  /* 순서 풍선(도면의 부품 번호) */
+  .cvf-balloon {
+    position: absolute;
+    left: -9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--cvf-edge);
+    background: var(--cvf-paper);
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-balloon[data-side="below"] {
+    top: -9px;
+  }
+
+  .cvf-balloon[data-side="above"] {
+    bottom: -9px;
+  }
+
+  .cvf-balloon-inline {
+    position: static;
+    flex: none;
+  }
+
+  /* 패널에서 와서 포커스가 간 노드: 고리가 한 번 퍼진다. 끝나면 아무것도 돌지 않는다 */
+  .cvf-card::after,
+  .cvf-zone::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border-radius: 12px;
+    border: 2px solid var(--cs-color-focus-ring);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .cvf-card[data-pulsing="true"][data-pulse="a"]::after,
+  .cvf-zone[data-pulsing="true"][data-pulse="a"]::after {
+    animation: cvf-pulse-a 1200ms ease-out 1 both;
+  }
+
+  .cvf-card[data-pulsing="true"][data-pulse="b"]::after,
+  .cvf-zone[data-pulsing="true"][data-pulse="b"]::after {
+    animation: cvf-pulse-b 1200ms ease-out 1 both;
+  }
+
+  @keyframes cvf-pulse-a {
+    0% {
+      opacity: 0.95;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.09);
+    }
+  }
+
+  @keyframes cvf-pulse-b {
+    0% {
+      opacity: 0.95;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.09);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cvf-card[data-pulsing="true"]::after,
+    .cvf-zone[data-pulsing="true"]::after {
+      animation: none;
+    }
+
+    .cvf-outline-fill {
+      transition: none;
+    }
+  }
+
+  :root[data-motion="reduce"] .cvf-card[data-pulsing="true"]::after,
+  :root[data-motion="reduce"] .cvf-zone[data-pulsing="true"]::after {
+    animation: none;
+  }
+
+  /* ── 묶음 구역 ── */
+  .cvf-zone {
+    position: relative;
+  }
+
+  .cvf-zone-line {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cvf-zone-line rect {
+    fill: color-mix(in oklab, var(--cs-color-text-primary) 2.5%, transparent);
+    stroke: var(--cvf-edge);
+    stroke-width: 1;
+    stroke-dasharray: 16 4 2 4;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .cvf-zone[data-selected="true"] .cvf-zone-line rect {
+    stroke: var(--cs-color-text-primary);
+    stroke-width: 1.5;
+  }
+
+  .cvf-zone-head {
+    position: absolute;
+    left: 12px;
+    top: 7px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    min-width: 0;
+  }
+
+  .cvf-zone-letter {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    border: 1px solid var(--cvf-edge-strong);
+    font-family: var(--cvf-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-zone-letter-sm {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+  }
+
+  .cvf-zone-letter-lg {
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+  }
+
+  .cvf-zone-letter-far {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .cvf-zone-name {
+    font-family: var(--cvf-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-zone-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-zone-toggle {
+    margin-left: auto;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--cs-color-text-secondary);
+    cursor: pointer;
+  }
+
+  .cvf-zone-toggle:hover {
+    background: var(--cs-color-fill-hover);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-zone-toggle:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+  }
+
+  .cvf-root[data-lod="far"] .cvf-zone-head {
+    transform: scale(1.8);
+    transform-origin: left center;
+  }
+
+  .cvf-stack {
+    position: absolute;
+    left: 0;
+  }
+
+  .cvf-stack-sheet {
+    position: absolute;
+    border: 1px solid var(--cvf-edge);
+    border-radius: 8px;
+    background: var(--cvf-card);
+  }
+
+  .cvf-stack-front {
+    position: absolute;
+    left: 0;
+    top: 0;
+    border: 1px solid var(--cvf-edge-strong);
+    border-radius: 8px;
+    background: var(--cvf-card);
+    cursor: pointer;
+  }
+
+  .cvf-zone-closed[data-selected="true"] .cvf-stack-front {
+    border-color: var(--cs-color-text-primary);
+  }
+
+  .cvf-kinds {
+    display: inline-flex;
+    gap: 3px;
+  }
+
+  /* ── 쌓인 줄의 참조 표·내장 도구 표 ── */
+  .cvf-ref {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 9px 0 6px;
+    border: 1px dashed var(--cvf-edge);
+    border-radius: 6px;
+    background: var(--cvf-paper);
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  .cvf-ref:hover {
+    border-color: var(--cvf-edge-strong);
+  }
+
+  .cvf-ref:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+  }
+
+  .cvf-ref[data-selected="true"] {
+    border-style: solid;
+    border-color: var(--cs-color-text-primary);
+  }
+
+  .cvf-ref-name {
+    font-family: var(--cvf-mono);
+    font-size: 12px;
+    color: var(--cs-color-text-primary);
+    white-space: nowrap;
+  }
+
+  .cvf-ref-note {
+    margin-left: auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-builtin {
+    cursor: default;
+    padding-left: 10px;
+  }
+
+  .cvf-struck {
+    text-decoration: line-through;
+    text-decoration-color: var(--cs-color-text-tertiary);
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-root[data-lod="far"] .cvf-ref-note {
+    display: none;
+  }
+
+  /* 중간: 참조 표의 글을 키우고 설명은 줄인다. 구역 안 카드의 부품 번호는 구역 머리가 말하므로 감춘다 */
+  .cvf-root[data-lod="mid"] .cvf-ref-name,
+  .cvf-root[data-lod="far"] .cvf-ref-name {
+    font-size: 16px;
+  }
+
+  .cvf-root[data-lod="mid"] .cvf-ref-mark,
+  .cvf-root[data-lod="far"] .cvf-ref-mark {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .cvf-root[data-lod="mid"] .cvf-ref-note {
+    font-size: 13px;
+  }
+
+  .cvf-root[data-lod="mid"] .react-flow__node .cvf-card .cvf-mark {
+    display: none;
+  }
+
+  /* ── 관계 선 ── */
+  .cvf-rel {
+    transition: opacity var(--cs-duration-quick, 100ms) ease-out;
+  }
+
+  .cvf-rel-depends {
+    stroke-dasharray: 6 4;
+  }
+
+  .cvf-rel-replaces {
+    stroke-dasharray: 12 4 2 4;
+  }
+
+  .cvf-rel[data-dim="true"] {
+    opacity: 0.28;
+  }
+
+  .cvf-rel-label {
+    position: absolute;
+    pointer-events: none;
+    font-family: var(--cvf-mono);
+    font-size: 13px;
+    line-height: 20px;
+    padding: 0 6px;
+    border-radius: 4px;
+    border: 1px solid var(--cvf-line-soft);
+    background: var(--cvf-paper);
+    color: var(--cs-color-text-secondary);
+    white-space: nowrap;
+  }
+
+  .cvf-rel-label[data-hot="true"] {
+    color: var(--cs-color-text-primary);
+    border-color: var(--cvf-edge);
+  }
+
+  .cvf-rel-label[data-dim="true"] {
+    opacity: 0.3;
+  }
+
+  .cvf-sym-line {
+    fill: none;
+    stroke: var(--cvf-rel);
+    stroke-width: 1.25;
+  }
+
+  .cvf-sym-fill {
+    fill: var(--cvf-rel);
+  }
+
+  .cvf-sym-hollow {
+    fill: var(--cvf-paper);
+    stroke: var(--cvf-rel);
+    stroke-width: 1.25;
+  }
+
+  .cvf-sym-zone {
+    fill: none;
+    stroke: var(--cvf-rel);
+    stroke-width: 1;
+    stroke-dasharray: 6 2 1.5 2;
+  }
+
+  .cvf-rel-sym {
+    flex: none;
+  }
+
+  /* ── 범례와 표제란 ── */
+  .cvf-legend {
+    position: absolute;
+    top: 12px;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cvf-paper) 90%, transparent);
+    border: 1px solid var(--cvf-line-soft);
+    border-radius: 8px;
+  }
+
+  .cvf-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .cvf-legend-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--cvf-line);
+  }
+
+  .cvf-title {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 10;
+    display: flex;
+    border: 1px solid var(--cvf-edge);
+    border-radius: 3px;
+    background: var(--cvf-paper);
+  }
+
+  .cvf-title-cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 12px;
+    border-left: 1px solid var(--cvf-line);
+    min-width: 0;
+  }
+
+  .cvf-title-cell:first-child {
+    border-left: 0;
+  }
+
+  .cvf-title-scale {
+    padding-right: 6px;
+  }
+
+  .cvf-title-k {
+    font-size: 10px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-title-v {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+    white-space: nowrap;
+  }
+
+  .cvf-title-cell[data-tone="warning"] .cvf-title-v,
+  .cvf-title-cell[data-tone="warning"] .cvf-title-k {
+    color: var(--cs-color-warning-text);
+  }
+
+  .cvf-title-toggle {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+    cursor: pointer;
+  }
+
+  .cvf-title-toggle[aria-pressed="false"] {
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-title-toggle:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    border-radius: 3px;
+  }
+
+  .cvf-empty-hint {
+    position: absolute;
+    right: 0;
+    /* 비어 있는 Drive 띠 아래, 표제란 위 */
+    bottom: 132px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--cs-color-text-secondary);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* ── 떠 있는 상세 판 ── */
+  .cvf-panel {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    /* 오른쪽 아래 표제란(축척 단추)을 덮지 않는다: 위 16 + 표제란 높이와 틈 88 */
+    max-height: calc(100% - 104px);
+    background: var(--cs-color-surface-base);
+    border: 1px solid var(--cvf-edge);
+    border-radius: 12px;
+    box-shadow: var(--cs-elevation-3, 0 16px 40px rgb(0 0 0 / 0.35));
+    overflow: hidden;
+  }
+
+  .cvf-panel-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px 10px 12px 16px;
+    border-bottom: 1px solid var(--cvf-line-soft);
+    cursor: grab;
+    user-select: none;
+  }
+
+  .cvf-panel-head:active {
+    cursor: grabbing;
+  }
+
+  .cvf-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 16px 8px;
+  }
+
+  .cvf-panel-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--cvf-line-soft);
+  }
+
+  .cvf-purpose-lg {
+    margin: 14px 0 12px;
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-sec {
+    padding: 12px 0;
+    border-top: 1px solid var(--cvf-line-soft);
+  }
+
+  .cvf-sec-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 9px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-sec-n {
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    font-weight: 400;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-kvs {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 0;
+  }
+
+  .cvf-kv {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    font-size: 13px;
+  }
+
+  .cvf-kv dt {
+    font-size: 12px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-kv dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .cvf-tag {
+    font-family: var(--cvf-mono);
+    font-size: 11.5px;
+    line-height: 18px;
+    padding: 0 6px;
+    border: 1px solid var(--cvf-line);
+    border-radius: 4px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px 12px;
+  }
+
+  .cvf-tool {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--cvf-mono);
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-tool::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--cvf-edge);
+  }
+
+  .cvf-tool[data-writes="true"] {
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-tool[data-writes="true"]::before {
+    background: var(--cs-color-warning-text);
+    border-color: var(--cs-color-warning-text);
+  }
+
+  .cvf-steps {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cvf-step-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .cvf-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px;
+    border: 1px solid color-mix(in oklab, var(--cvf-drive) 50%, transparent);
+    border-radius: 5px;
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .cvf-step-n {
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-step-x {
+    font-family: var(--cvf-mono);
+    font-size: 11px;
+    color: var(--cvf-drive);
+  }
+
+  .cvf-step-out {
+    border-style: dashed;
+    font-family: var(--cvf-mono);
+  }
+
+  .cvf-step-arrow {
+    width: 12px;
+    height: 1px;
+    background: var(--cvf-edge);
+  }
+
+  .cvf-settings {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 2px 14px;
+  }
+
+  .cvf-setting {
+    display: contents;
+  }
+
+  .cvf-risk {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .cvf-risk-step {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .cvf-risk-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--cvf-line-soft);
+  }
+
+  .cvf-risk-step[data-on="true"] .cvf-risk-bar {
+    background: var(--cs-color-text-secondary);
+  }
+
+  .cvf-risk[data-level="write"] .cvf-risk-step[data-on="true"] .cvf-risk-bar,
+  .cvf-risk[data-level="exec"] .cvf-risk-step[data-on="true"] .cvf-risk-bar {
+    background: var(--cs-color-warning-text);
+  }
+
+  .cvf-risk-word {
+    font-size: 11px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-risk-step[data-top="true"] .cvf-risk-word {
+    color: var(--cs-color-text-primary);
+    font-weight: 600;
+  }
+
+  .cvf-cost {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .cvf-cost-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 9px;
+    border: 1px solid var(--cvf-line-soft);
+    border-radius: 6px;
+  }
+
+  .cvf-cost-k {
+    font-size: 11px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-cost-v {
+    font-family: var(--cvf-mono);
+    font-size: 13px;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-rels,
+  .cvf-members {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cvf-rel-row,
+  .cvf-member {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-rel-row[data-present="false"] {
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-member {
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: var(--cs-color-text-primary);
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: var(--cvf-line);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .cvf-link:hover {
+    text-decoration-color: var(--cs-color-text-primary);
+  }
+
+  .cvf-link:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    border-radius: 3px;
+  }
+
+  .cvf-link:disabled {
+    cursor: default;
+    text-decoration: none;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding-left: 16px;
+    font-size: 12.5px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-empty {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  /* ── 플러그인 안 ── */
+  .cvf-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    height: 100%;
+    padding: 0 12px;
+    border: 1px solid var(--cvf-edge);
+    border-radius: 7px;
+    background: var(--cvf-card);
+    min-width: 0;
+  }
+
+  .cvf-box[data-tone="kind"] {
+    border-color: color-mix(in oklab, currentColor 50%, transparent);
+    box-shadow: inset 3px 0 0 currentColor;
+  }
+
+  .cvf-box[data-tone="stop"] {
+    border-color: var(--cvf-rail);
+    border-radius: 26px;
+    padding: 0 18px;
+  }
+
+  .cvf-box[data-tone="ghost"] {
+    border-style: dashed;
+  }
+
+  .cvf-box[data-tone="warn"] {
+    border-color: color-mix(in oklab, var(--cs-color-warning-text) 55%, transparent);
+  }
+
+  .cvf-box-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cvf-box-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cvf-box-n {
+    position: absolute;
+    top: -9px;
+    left: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--cvf-edge);
+    background: var(--cvf-paper);
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-inside-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border: 1px dashed var(--cvf-edge);
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 2%, transparent);
+  }
+
+  .cvf-inside-frame-title {
+    position: absolute;
+    top: 9px;
+    left: 14px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-table {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--cvf-line);
+    border-radius: 8px;
+    background: var(--cvf-card);
+  }
+
+  .cvf-table-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cvf-table .cvf-kv {
+    grid-template-columns: minmax(0, 1fr) auto;
+    font-size: 12px;
+  }
+
+  .cvf-in-loop {
+    stroke-dasharray: 7 4;
+  }
+
+  .cvf-in-dashed {
+    stroke-dasharray: 4 3;
+  }
+
+  .cvf-in-label {
+    display: block;
+    width: max-content;
+    margin: 0 auto;
+    font-family: var(--cvf-mono);
+    font-size: 10.5px;
+    line-height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    border: 1px solid var(--cvf-line-soft);
+    background: var(--cvf-paper);
+    color: var(--cs-color-text-secondary);
+    white-space: nowrap;
+  }
+
+  .cvf-in-label.cvf-in-label-loop {
+    color: var(--cvf-drive);
+    border-color: color-mix(in oklab, var(--cvf-drive) 45%, transparent);
+  }
+
+  .cvf-crumb {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+    padding: 4px 14px 4px 4px;
+    border: 1px solid var(--cvf-line-soft);
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--cvf-paper) 92%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+}
