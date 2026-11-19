@@ -1,4 +1,5 @@
 import { Bug, canonicalJson, parse } from "@fresnel/contracts";
+import { Type } from "typebox";
 import {
   isCapabilityError,
   serviceKey,
@@ -337,6 +338,62 @@ export function syntheticEntryOf(
     outputLimits: {},
     raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
     locks: undefined,
+  };
+}
+
+/** 초안 스크립트 합성 항목의 이름(훅 페이로드의 도구 이름 문법 `[a-zA-Z0-9_-]`에 맞춘다). 플러그인 기능 호출만 이 이름을 본다(AGE-58 [제안]) */
+const SCRIPT_TOOL_PREFIX = "script_";
+
+/** 카드가 보여 주는 스크립트 실행 입력의 모양. 값은 엔진이 만든다(`ScriptCard`) */
+const SCRIPT_CARD_SCHEMA = Type.Object({
+  command: Type.String(),
+  args: Type.Array(Type.String()),
+  envNames: Type.Array(Type.String()),
+  stdinBytes: Type.Integer({ minimum: 0 }),
+  stdinPreview: Type.String(),
+});
+
+/**
+ * 초안 스크립트 실행의 합성 항목(AGE-58 [제안]). 레지스트리에 넣지 않고 모델에는 광고하지 않는다. 위험 등급은 가장 엄한 `exec`이고,
+ * 실행은 호출자가 준 `run`이다(엔진이 샌드박스 안에서 스크립트를 띄운다). 드래프트 `auto`에도 카드를 건너뛰지 않는다(`alwaysCard`)
+ */
+export function scriptEntryOf(
+  name: string,
+  run: (signal: AbortSignal) => Promise<{ readonly ok: boolean; readonly value: JsonValue }>,
+): ToolEntry {
+  const toolName = `${SCRIPT_TOOL_PREFIX}${name}`;
+  const description = "Run a script of an unreviewed plugin draft inside the isolation sandbox.";
+  return {
+    name: toolName,
+    label: name,
+    description,
+    parameters: SCRIPT_CARD_SCHEMA,
+    outputSchema: undefined,
+    executionMode: undefined,
+    ref: { capability: "ext.script", name: toolName },
+    capability: undefined,
+    mcpServer: undefined,
+    risk: "exec",
+    classes: [],
+    hints: {},
+    replay: "unsafe",
+    exposure: "deferred",
+    outputLimits: {},
+    raw: async (call) => {
+      const outcome = await run(call.signal);
+      const text = outcome.ok ? "The script ran." : "The script did not run.";
+      return {
+        result: {
+          content: [textBlock(text)],
+          structuredContent: outcome.value,
+          details: { kind: "script" },
+          ...(outcome.ok ? {} : { isError: true }),
+        },
+        interrupted: false,
+      };
+    },
+    locks: undefined,
+    alwaysCard: true,
   };
 }
 

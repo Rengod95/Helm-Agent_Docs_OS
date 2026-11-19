@@ -77,7 +77,7 @@ import {
 } from "./call-trace.ts";
 import { commitWithRetry, describeFailure } from "./commit.ts";
 import type { ToolsDeps } from "./deps.ts";
-import { errorOutcome, syntheticEntryOf } from "./entries.ts";
+import { errorOutcome, scriptEntryOf, syntheticEntryOf } from "./entries.ts";
 import { pathInCard, samePathAsOuter } from "./inherit-target.ts";
 import type { InputBridge } from "./mcp-input.ts";
 import {
@@ -926,8 +926,14 @@ export function createPipeline(
    * 드래프트 카드가 걸리는 표지(L1.tools.spec §4.6.1 [결정: 2026-11-18 사용자, AGE-56]). 호출한 대화가 드래프트 승인 `auto`인 테스트 실행이면
    * 없다(`undefined`). 판정(3번)과 승인 상속 금지(4번)는 이 값으로 정한다. 카드 제목과 본문의 출처 표지는 `state.draft`를 그대로 쓴다.
    */
-  function draftGateOf(draft: DraftMark | undefined, threadId: ThreadId): DraftMark | undefined {
+  function draftGateOf(
+    draft: DraftMark | undefined,
+    threadId: ThreadId,
+    entry?: ToolEntry,
+  ): DraftMark | undefined {
     if (draft === undefined) return undefined;
+    // 초안 스크립트 실행은 `auto`도 건너뛰지 않는다(AGE-58 [제안]): auto는 "드래프트라서 뜨는 도구 호출 카드"만 없앤다
+    if (entry?.alwaysCard === true) return draft;
     return deps.draftAutoApproved?.(threadId) === true ? undefined : draft;
   }
 
@@ -945,7 +951,7 @@ export function createPipeline(
     const { run, entry, toolCallId } = state;
     const config = deps.config(run.threadId);
     // 드래프트 카드가 걸리는 표지. `auto` 대화의 드래프트 호출은 모드·규칙·위험 등급 평가만 받는다(L1.tools.spec §4.6.1)
-    const cardDraft = draftGateOf(state.draft, run.threadId);
+    const cardDraft = draftGateOf(state.draft, run.threadId, entry);
     // 읽기 전용 샌드박스 상한 아래에서는 도구가 선언한 샌드박스 위험 등급을 쓴다(대체 항목은 제외한다)
     const sandboxRisk =
       run.ceiling?.sandbox === "read-only" && entry.replacesBuiltin !== true
@@ -2175,6 +2181,9 @@ export function createPipeline(
    */
   function pluginEntryOf(target: PluginCallTarget, draftCaller: boolean): ToolEntry | undefined {
     if (target.kind === "tool") return registry.get(target.name);
+    // 초안 스크립트 실행은 초안 출신 호출에만 열린다. 검토된 플러그인의 스크립트는 이 길을 타지 않는다(AGE-58)
+    if (target.kind === "script")
+      return draftCaller ? scriptEntryOf(target.name, target.run) : undefined;
     const mapped = registry
       .all()
       .find(
@@ -2459,7 +2468,9 @@ export function createPipeline(
       const name =
         request.target.kind === "tool"
           ? request.target.name
-          : `${request.target.capability}.${request.target.method}`;
+          : request.target.kind === "script"
+            ? `script_${request.target.name}`
+            : `${request.target.capability}.${request.target.method}`;
       traceClosed({
         origin,
         tool: name,
@@ -2533,7 +2544,7 @@ export function createPipeline(
       draft,
       // 초안 출신 호출은 승인 상속을 찾지 않는다(카드를 건너뛰지 못하게 닫는다, L1.tools.spec §4.6.1 4). `auto` 대화는 찾는다
       inherit:
-        draftGateOf(draft, run.threadId) === undefined
+        draftGateOf(draft, run.threadId, entry) === undefined
           ? await inheritedOf(request, request.input)
           : undefined,
       inheritApplied: undefined,

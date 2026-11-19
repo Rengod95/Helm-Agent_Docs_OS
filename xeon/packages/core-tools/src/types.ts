@@ -115,6 +115,11 @@ export interface ToolEntry {
   readonly outputLimits: OutputLimits | "self";
   readonly raw: RawExecutor;
   readonly locks: LockDeclarer | undefined;
+  /**
+   * 초안 스크립트 실행의 합성 항목이다(`PluginCallTarget` `script`, AGE-58 [제안]). 드래프트 승인 `auto`인 테스트 런에서도 드래프트 카드를 건너뛰지 않고
+   * 승인 상속도 받지 않는다. 검토 전 코드가 프로세스를 띄우는 것은 도구 호출 카드를 없애는 `auto`의 뜻보다 무겁다
+   */
+  readonly alwaysCard?: true;
   /** 내장 도구를 같은 이름으로 대체하는 항목이다(레지스트리가 승인된 대체에만 붙인다). 기본 허용 규칙을 적용하지 않는다(L1.tools.spec §4.13) */
   readonly replacesBuiltin?: true;
 }
