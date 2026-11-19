@@ -10,6 +10,7 @@ import {
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
   TurnUpdatedPayloadSchema,
+  applyLeafMasks,
   maskItemRecord,
   type ApprovalMaskEntry,
   type LeafMask,
@@ -23,6 +24,8 @@ import {
   LeaseAcquiredPayloadSchema,
   LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
+  LeaseUserInputPayloadSchema,
+  ProfileAppliedPayloadSchema,
   ScopeChangedPayloadSchema,
   ReviewAppliedPayloadSchema,
   ReviewSubmittedPayloadSchema,
@@ -68,7 +71,8 @@ import type {
   QueuedPreview,
   VolatileFact,
 } from "./input.ts";
-import { progressTextOf, turnNoticeOf, type ConvoEvent } from "./convo.ts";
+import { PostItemSchema } from "@fresnel/contracts/extensions";
+import { progressTextOf, turnNoticeOf, type ConvoEvent, type DriveInputFact } from "./convo.ts";
 import type { Static, TSchema } from "typebox";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;
@@ -110,6 +114,34 @@ function queuedPreviewOf(item: InputQueuedPayload["item"]): QueuedPreview {
   if (text !== "") return { kind: "text", text };
   const hasImage = typeof content !== "string" && content.some((part) => part.type === "image");
   return { kind: "label", labelKey: hasImage ? "image" : "empty" };
+}
+
+/**
+ * Drive가 가로챈 사용자 메시지(`lease.user_input`)를 화면 값으로 바꾼다. 호스트가 준 가림 표식을 payload 기준으로 먼저 적용하고,
+ * 메시지(`PostItem`)의 글 파트를 잇는다. 표식이 맞지 않거나 모양이 다르면 null이다(읽을 수 없는 사실). 사용자 말이 아니거나 글이 없으면 글은 null이다
+ */
+function driveInputOf(
+  payload: unknown,
+  mask: readonly LeafMask[] | undefined,
+): DriveInputFact | null {
+  const masked =
+    mask === undefined || mask.length === 0
+      ? { ok: true, value: payload }
+      : applyLeafMasks(payload, mask);
+  if (!masked.ok) return null;
+  const p = parse(LeaseUserInputPayloadSchema, masked.value);
+  if (!p.ok) return null;
+  const item = p.value.input === undefined ? null : parse(PostItemSchema, p.value.input);
+  let text: string | null = null;
+  if (item !== null && item.ok && item.value.kind === "user") {
+    const { content } = item.value;
+    const raw =
+      typeof content === "string"
+        ? content
+        : content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+    text = raw.trim() === "" ? null : raw;
+  }
+  return { requestId: p.value.requestId, scopeId: p.value.scopeId, status: p.value.status, text };
 }
 
 /** 대화 화면이 읽는 내구 kind 하나의 디코더. 검증을 통과하면 `convo` 사실이고, 아니면 읽을 수 없는 사실이다 */
@@ -155,6 +187,7 @@ const DURABLE: Readonly<
             scopeId: p.value.scopeId,
             requestId: p.value.requestId,
             inputItemIds: p.value.inputItemIds,
+            invoked: p.value.invoked ?? [],
           },
         }
       : { ...base, type: "turn.started" };
@@ -244,6 +277,16 @@ const DURABLE: Readonly<
     kind: "secret.masked",
     payload,
   })),
+  "profile.applied": convoEntry(ProfileAppliedPayloadSchema, (payload) => ({
+    kind: "profile.applied",
+    payload,
+  })),
+  "lease.user_input": (base, payload, mask) => {
+    const input = driveInputOf(payload, mask);
+    return input === null
+      ? { ...base, type: "unreadable" }
+      : { ...base, type: "convo", event: { kind: "lease.user_input", input } };
+  },
   "step.started": (base) => ({ ...base, type: "step.started" }),
   "thread.started": (base, payload) => {
     const p = parse(ThreadStartedPayloadSchema, payload);

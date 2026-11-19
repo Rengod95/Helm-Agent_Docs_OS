@@ -653,6 +653,7 @@ function convoOf(convo: Convo, fact: DurableFact, at: ConvoAt, before: EngineMir
         scopeId: fact.start?.scopeId ?? null,
         requestId: fact.start?.requestId ?? null,
         inputItemIds: fact.start?.inputItemIds ?? [],
+        invoked: fact.start?.invoked ?? [],
         model: before.threads.byId[fact.threadId]?.model ?? null,
       });
     case "turn.completed":

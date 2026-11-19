@@ -36,6 +36,8 @@ import { reloadOnExtChanges, useWorkbenchController } from "../workbench/control
 import { FailureRecords } from "../workbench/ext-detail.tsx";
 import { kindText, stateText, stateTone } from "../workbench/ext-row.tsx";
 import { HookAnswersContext, HookNoticeList } from "../workbench/hook-notice.tsx";
+import { DriveStackList } from "../convo/drive-stack.tsx";
+import { driveStackOf } from "../convo/drive-stack-model.ts";
 
 /** 한 묶음의 읽기 상태 */
 export type Load<T> =
@@ -130,11 +132,16 @@ function Member(props: { readonly member: DriveMemberVM }): ReactNode {
   );
 }
 
-function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
+function DriveSection(props: {
+  readonly view: RuntimeDriveView;
+  readonly frames: readonly DriveFrameView[];
+}): ReactNode {
   const { view } = props;
   return (
     <div className="grid gap-2">
       {!view.holderAgrees && <Alert tone="warning">{t("desktop.runtime.lock.mismatch")}</Alert>}
+      {/* 누가 이끌고 누가 기다리는지(기본 › helm › verifier), 칸마다 한도. 핸드오프 중에도 보인다(lcM6a §6.6.1) */}
+      <DriveStackList view={driveStackOf(props.frames)} />
       <p className="m-0 flex flex-wrap items-center gap-2 text-ui">
         <span className="text-text-tertiary">{t("desktop.runtime.lock.holder")}</span>
         {view.holder === null ? (
@@ -318,7 +325,7 @@ export function RuntimeBody(props: {
     if (data.drive.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.lock.failed")}</Alert>;
     const { groups, frames } = data.drive.value;
-    return <DriveSection view={runtimeViewOf(groups, frames)} />;
+    return <DriveSection view={runtimeViewOf(groups, frames)} frames={frames} />;
   };
   const extsBody = (): ReactNode => {
     if (noThread) return null;

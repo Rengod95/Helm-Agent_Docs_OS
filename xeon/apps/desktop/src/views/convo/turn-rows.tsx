@@ -13,6 +13,8 @@ import {
 import { useCommands } from "../commands.ts";
 import { useModelNameOf } from "../model-usage.ts";
 import { ReplyActions } from "./message-actions.tsx";
+import { InvokedMark } from "./one-shot.tsx";
+import { profileTitleOf, useProfiles } from "./profile-listing.ts";
 import {
   clockOf,
   leaderNameOf,
@@ -86,7 +88,8 @@ export function TurnFoot(props: {
   const stop = summary === undefined ? null : stopNoticeOf(summary);
   const meta = summary === undefined ? "" : turnMetaOf(summary, nameOf);
   const lines = summary === undefined ? [] : turnDetailLinesOf(summary);
-  if (stop === null && meta === "" && props.replyId === null) return null;
+  const invoked = summary?.invoked.length ?? 0;
+  if (stop === null && meta === "" && props.replyId === null && invoked === 0) return null;
   return (
     <div className="grid gap-1" data-slot="convo-turn-foot">
       {stop === null ? null : (
@@ -101,25 +104,29 @@ export function TurnFoot(props: {
         {props.replyId === null ? null : (
           <ReplyActions threadId={props.threadId} itemId={props.replyId} />
         )}
-        {meta === "" ? null : lines.length === 0 ? (
-          <span className="convo-line-meta ml-auto px-1.5">{meta}</span>
-        ) : (
-          <Tooltip
-            side="top"
-            align="end"
-            content={
-              <span className="grid gap-0.5">
-                {lines.map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
+        {/* 원샷 표지는 턴 값(단계·시간)과 같은 오른쪽 묶음에 선다. 왼쪽 답 동작은 hover 전에도 자리를 차지한다 */}
+        <div className="ml-auto flex min-w-0 items-center gap-1">
+          {summary === undefined ? null : <InvokedMark invoked={summary.invoked} />}
+          {meta === "" ? null : lines.length === 0 ? (
+            <span className="convo-line-meta px-1.5">{meta}</span>
+          ) : (
+            <Tooltip
+              side="top"
+              align="end"
+              content={
+                <span className="grid gap-0.5">
+                  {lines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </span>
+              }
+            >
+              <span className="convo-line-meta rounded-xs px-1.5" tabIndex={0}>
+                {meta}
               </span>
-            }
-          >
-            <span className="convo-line-meta ml-auto rounded-xs px-1.5" tabIndex={0}>
-              {meta}
-            </span>
-          </Tooltip>
-        )}
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -128,15 +135,20 @@ export function TurnFoot(props: {
 /** 변화 표지 한 줄(압축 구분선과 한 벌) */
 export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   const nameOf = useModelNameOf();
+  const profiles = useProfiles();
   const clock = clockOf(props.marker.at);
-  const text = markerTextOf(props.marker, nameOf);
+  const text = markerTextOf(props.marker, nameOf, (id) => profileTitleOf(profiles, id));
   const { change } = props.marker;
   // 모델 바꿈은 화면 이름으로 적고 참조(`provider/model`)는 hover에 둔다
   const title = change.kind === "model" ? change.model : undefined;
+  // 프로필 전환으로 권한이 바뀌었으면 그 줄은 경고색이다(숨기지 않는다)
+  const warn = change.kind === "profile" && change.permission !== null;
   return (
     <div className="convo-divider" role="separator" aria-label={text}>
       <span className="flex items-baseline gap-2">
-        <span title={title}>{text}</span>
+        <span title={title} className={warn ? "text-warning-text" : undefined}>
+          {text}
+        </span>
         {clock === "" ? null : <span className="text-footnote">{clock}</span>}
       </span>
     </div>

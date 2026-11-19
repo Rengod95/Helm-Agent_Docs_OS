@@ -16,7 +16,14 @@ import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
 import * as csel from "./convo-select.ts";
 import { selectTranscriptShapes, type ItemShape } from "./transcript-shape.ts";
-import type { ApprovalTrail, ConvoMarker, Intervention, ToolProgress } from "./convo.ts";
+import type {
+  AppliedProfile,
+  ApprovalTrail,
+  ConvoMarker,
+  DriveInputRecord,
+  Intervention,
+  ToolProgress,
+} from "./convo.ts";
 import type { AnchoredCompaction } from "./compaction-anchor.ts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
@@ -191,6 +198,12 @@ export const useNow = (threadId: ThreadId): csel.NowState =>
   useEngine((s) => csel.selectNow(s, threadId));
 export const useConvoMarkers = (threadId: ThreadId): readonly ConvoMarker[] =>
   useEngine((s) => csel.selectMarkers(s, threadId));
+/** 대화에 마지막으로 적용된 프로필(`profile.applied`). 못 봤으면 null */
+export const useAppliedProfile = (threadId: ThreadId): AppliedProfile | null =>
+  useEngine((s) => csel.selectAppliedProfile(s, threadId));
+/** Drive가 받은 사용자 메시지 가운데 대화에 보일 것(M6a) */
+export const useDriveInputs = (threadId: ThreadId): readonly DriveInputRecord[] =>
+  useEngine((s) => csel.selectDriveInputs(s, threadId));
 /** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인) */
 export const useLooseInterventions = (threadId: ThreadId): readonly Intervention[] =>
   useEngine((s) => csel.selectLooseInterventions(s, threadId));
