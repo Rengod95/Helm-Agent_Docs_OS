@@ -15,6 +15,7 @@ import type {
   ToolCallTraceEvent,
   ToolCallTraceSink,
   TraceReadPort,
+  TraceRecordEvent,
   TraceTurnEntry,
 } from "@fresnel/contracts/extensions";
 import type { CommitBatch, CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
@@ -38,7 +39,7 @@ interface Arm {
   readonly context: ContextTraceSink;
   readonly call: ToolCallTraceSink;
   readonly usage: (record: UsageRecord) => void;
-  readonly hook: (turnId: TurnId, entry: TraceTurnEntry) => void;
+  readonly hook: (threadId: ThreadId, turnId: TurnId, entry: TraceTurnEntry) => void;
   readonly dropTrace: (turnId: TurnId) => void;
   readonly warnings: () => number;
   readonly readTurn: (threadId: ThreadId, turnId: TurnId) => TurnReadResult;
@@ -152,12 +153,20 @@ function openArm(enabled: boolean): Arm {
     },
     child: () => logger,
   };
-  const trace: Pick<TraceReadPort, "turn"> = {
+  const recordListeners = new Set<(event: TraceRecordEvent) => void>();
+  const trace: Pick<TraceReadPort, "turn" | "onRecord"> = {
     turn: (_threadId, turnId) => ({
       traceEnabled: enabled,
       retained: enabled,
       entries: enabled ? (traces.get(turnId) ?? []) : [],
     }),
+    // 실제 링 버퍼처럼 처리기 기록이 쌓인 직후를 알린다(도는 중에 Hook 행을 보내는 길)
+    onRecord: (listener) => {
+      recordListeners.add(listener);
+      return () => {
+        recordListeners.delete(listener);
+      };
+    },
   };
   // 싱크 슬롯. 조립 루트처럼 기록기를 연 뒤에 채운다
   const slot: {
@@ -219,12 +228,15 @@ function openArm(enabled: boolean): Arm {
     usage: (record) => {
       for (const listener of usageListeners) listener(record);
     },
-    hook: (turnId, entry) => {
+    hook: (threadId, turnId, entry) => {
       // 계측이 꺼져 있으면 링 버퍼는 아무것도 쌓지 않는다
       if (!enabled) return;
       const list = traces.get(turnId) ?? [];
       list.push(entry);
       traces.set(turnId, list);
+      for (const [handlerIndex] of entry.handlers.entries()) {
+        for (const listener of recordListeners) listener({ threadId, turnId, entry, handlerIndex });
+      }
     },
     dropTrace: (turnId) => {
       traces.delete(turnId);
@@ -294,7 +306,7 @@ async function runTurn(arm: Arm, turn: SyntheticTurn): Promise<TurnTiming> {
       }),
     );
     // 계측 링 버퍼에 훅 실행이 쌓이는 일은 단계 끝 커밋 전에 끝나 있다(잰 밖)
-    for (const entry of step.hooks) arm.hook(turn.turnId, entry);
+    for (const entry of step.hooks) arm.hook(turn.started.threadId, turn.turnId, entry);
     const commitMs = timed(() => {
       arm.commit(step.completed);
     });

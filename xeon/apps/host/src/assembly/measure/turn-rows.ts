@@ -130,6 +130,11 @@ export interface TurnDraft {
    * 훅 실행 가운데 이미 본 것의 키(`hookKeyOf`). 단계가 끝날 때 그 단계의 실행을 넣는다. 턴을 닫을 때 키에 없는 실행이 늦은 행이다
    */
   readonly seenHooks: Set<string>;
+  /**
+   * 실행이 끝난 직후 알림으로 먼저 보낸 훅 행(`liveHookKeyOf` → 행). 단계 끝 알림은 같은 값이면 다시 보내지 않고,
+   * 승인을 이은 뒤 값이 달라졌거나 늦은 행이면 다시 보낸다(같은 키의 나중 행이 이긴다). 저장하는 행에는 영향이 없다
+   */
+  readonly liveHooks: Map<string, HookRun>;
   /** 호출 id → 승인 해결(호출 줄의 `approval`). 훅 행의 물음 답을 채울 때 읽는다 */
   readonly approvals: Map<string, ApprovalOf>;
   /** 턴의 도구 줄(이름 → 줄). 첫 광고 토큰은 고정이고 상태와 호출 수를 갱신한다 */
@@ -156,6 +161,11 @@ export interface TurnDraft {
   elidedHooks: number;
   /** 단계 묶음 쓰기가 실패한 횟수. 0이 아니면 턴은 불완전하다(`complete: false`) */
   writeFailures: number;
+  /**
+   * 이 턴의 앞 단계가 이미 저장돼 있는 채로 이어진 턴이다(재시작으로 끊긴 턴이 같은 턴 id로 이어졌다). 이어진 뒤의 단계만 쥐고 있으므로
+   * 기록은 불완전하다(§11 12번 [제안]: 같은 턴에 이어 쓰지 않고 `complete: false`로 둔다)
+   */
+  resumed: boolean;
 }
 
 /** 턴을 끝낼 때 정해지는 값 */
@@ -193,6 +203,7 @@ export function newDraft(input: {
     contexts: new Map(),
     skillReads: new Map(),
     seenHooks: new Set(),
+    liveHooks: new Map(),
     approvals: new Map(),
     tools: new Map(),
     skills: new Map(),
@@ -207,6 +218,7 @@ export function newDraft(input: {
     hookRows: 0,
     elidedHooks: 0,
     writeFailures: 0,
+    resumed: false,
   };
 }
 
@@ -235,6 +247,26 @@ export function flatHooksOf(entries: readonly TraceTurnEntry[]): FlatHook[] {
     });
   }
   return out;
+}
+
+/** 알림으로 먼저 보낸 훅 행의 키. 행에서 얻는다(항목의 `seq`와 등록 id) */
+export function liveHookKeyOf(run: HookRun): string {
+  return `${String(run.seq)}:${run.registrationId}`;
+}
+
+/**
+ * 실행이 끝난 직후 알릴 훅 행. 턴 수준 훅(턴 경계, 턴 전 훅)은 단계 끝 전 알림으로 보내지 않으므로 undefined다(§3.8 항목 26).
+ * 승인은 그 시점까지 이은 것만 붙는다
+ */
+export function liveHookRunOf(
+  entry: TraceTurnEntry,
+  handlerIndex: number,
+  approvals: ReadonlyMap<string, ApprovalOf>,
+): HookRun | undefined {
+  const handler = entry.handlers[handlerIndex];
+  if (handler === undefined || entry.pre === true) return undefined;
+  const run = withApproval(hookRunOf({ entry, handler, handlerIndex, seqGlobal: -1 }), approvals);
+  return isTurnLevelHook(run) ? undefined : run;
 }
 
 /** 훅 실행 하나의 키. 항목의 `seq`와 항목 안의 처리기 번호다. 턴 안에서 항목은 추가만 되므로 키는 바뀌지 않는다 */
