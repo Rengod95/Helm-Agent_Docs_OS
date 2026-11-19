@@ -102,14 +102,15 @@ function reportCandidates(reportName: string, home: EngineHome): readonly string
     // 엔진의 임시 폴더는 사용자별 `fresnel-<uid>` 아래에 호출 전용 폴더(`nw-*`)를 만든다
     ...bases.map((base): [string, Bun.Glob] => [
       base,
-      new Bun.Glob(`fresnel-*/nw-*/${reportName}`),
+      new Bun.Glob(`fresnel-${String(process.getuid?.() ?? "")}/nw-*/${reportName}`),
     ]),
     [home.root, new Bun.Glob(`**/nw-*/${reportName}`)],
   ];
   for (const [base, glob] of scans) {
     if (!existsSync(base)) continue;
-    for (const match of glob.scanSync({ cwd: base, onlyFiles: true }))
-      found.push(join(base, match));
+    // 다른 시험이 같은 임시 폴더에서 폴더를 만들고 지우는 동안 훑으면 실패할 수 있다. 그때는 이 후보를 건너뛰고 다음 읽기에서 다시 찾는다
+    const scanned = attempt(() => [...glob.scanSync({ cwd: base, onlyFiles: true })]);
+    if (scanned.ok) for (const match of scanned.value) found.push(join(base, match));
   }
   return found;
 }
