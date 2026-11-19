@@ -69,6 +69,7 @@ import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/cor
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
 import { dialogCore, toolsPlugin } from "@fresnel/core-tools";
+import { createToolExposureOf } from "./m4/tool-exposure.ts";
 import type {
   BuiltinExtensionModule,
   ExtHost,
@@ -192,6 +193,11 @@ export interface ExtensionDeps {
    * 드래프트 카드를 띄우지 않는다(L1.tools.spec §4.6.1). 엔진 포트가 뜬 뒤에 답한다. 생략하면 모든 대화가 `ask`다
    */
   readonly testRunApprovalOf?: (threadId: ThreadId) => "auto" | undefined;
+  /**
+   * 대화가 실은 플러그인 이름(E(T))으로 도구를 대화마다 거른다(L1.tools.spec §3.3.1 [결정: 2026-11-19, 사용자, AGE-56]). 하위 대화는 맨 위 부모의 집합을 쓴다.
+   * 읽을 수 없으면 undefined고 그러면 실린 모든 외부 도구가 보인다. 엔진 포트가 뜬 뒤에 답한다
+   */
+  readonly toolPluginsOf?: (threadId: ThreadId) => readonly string[] | undefined;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -428,6 +434,12 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           draftOf: (scopeId) => draftMarkOf(deps.ext, deps.loader, scopeId),
           // 드래프트 승인 `auto`인 테스트 실행 대화의 호출은 드래프트 카드를 띄우지 않는다. 판정은 호출한 대화로 한다(L1.tools.spec §4.6.1)
           draftAutoApproved: (threadId) => deps.testRunApprovalOf?.(threadId) === "auto",
+          // 대화가 보는 도구 이름과 가시성. 도구는 `perThread`로 등록되고(`perThreadToolNames`), 이름은 대화의 E(T)로 정한다
+          exposureOf: createToolExposureOf({
+            toolRecords: () => deps.ext.resources.list("tool"),
+            realNameOf: (extension) => deps.loader()?.draftOf(extension)?.plugin,
+            pluginsOf: (threadId) => deps.toolPluginsOf?.(threadId),
+          }),
           loadIndex,
         }),
     ],
