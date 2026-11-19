@@ -104,6 +104,44 @@ export function resolveNames(
   });
 }
 
+/** 한 대화의 도구 이름을 정하는 입력 하나. `owner`는 확장 이름이고, 드래프트면 내부 이름이 아니라 실제 플러그인 이름을 넣는다 */
+export interface ToolNameInput {
+  readonly scopeId: string;
+  readonly owner: ExtensionName;
+  /** 등록 요청 이름(접두 없음) */
+  readonly name: string;
+  readonly builtin: boolean;
+}
+
+/** 도구 이름 한 개의 열쇠: (등록 scope, 요청한 이름) */
+export function toolNameKey(scopeId: string, name: string): string {
+  return `${scopeId}\u0000${name}`;
+}
+
+/**
+ * 한 대화에 실린 도구 레코드의 노출 이름을 정한다(L1.tools.spec §3.3.1, X.operations.spec §3.5). 순수 함수이고 `resolveNames`와 같은 규칙이다.
+ * 그 대화에 실린 것만 넣는다: 다른 대화의 드래프트와 승인본은 서로의 이름 계산에 들지 않는다. 열쇠는 `toolNameKey`다.
+ */
+export function exposeToolNames(
+  inputs: readonly ToolNameInput[],
+  reserved: ReservedNames,
+): ReadonlyMap<string, string> {
+  const resolved = resolveNames(
+    inputs.map((input) => ({
+      kind: "tool" as const,
+      owner: input.owner,
+      name: input.name,
+      builtin: input.builtin,
+    })),
+    reserved,
+  );
+  const names = new Map<string, string>();
+  inputs.forEach((input, index) => {
+    names.set(toolNameKey(input.scopeId, input.name), resolved[index]?.exposed ?? input.name);
+  });
+  return names;
+}
+
 function claimOf(record: ResourceRecord & { readonly kind: NamedResourceKind }): ResourceClaim {
   return { kind: record.kind, owner: record.extension, name: record.name, builtin: record.builtin };
 }
@@ -113,8 +151,12 @@ function claimOf(record: ResourceRecord & { readonly kind: NamedResourceKind }):
  * 쌍 판정(`resolve`)은 집합 판정을 못 쓰는 호출자를 위해 들어오는 쪽만 정식 이름으로 바꾼다(rename).
  * 쌍 판정만으로는 먼저 등록된 쪽이 짧은 이름을 유지해 로드 순서 무관 규칙을 지키지 못한다(§4.5)
  */
-export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy {
+export function createResourcePolicy(
+  reserved: ReservedNames,
+  options: { readonly perThreadToolNames?: boolean } = {},
+): ResourcePolicy {
   return {
+    ...(options.perThreadToolNames === true ? { perThreadToolNames: true as const } : {}),
     resolve(incoming, existing) {
       if (!isNamedKind(incoming.kind)) return { action: "reject" };
       // 같은 확장이 같은 이름을 두 번 등록하는 것은 정식 이름으로도 구분되지 않는다

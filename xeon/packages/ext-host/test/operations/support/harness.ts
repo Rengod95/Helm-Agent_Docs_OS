@@ -45,6 +45,8 @@ export interface HarnessOptions {
   readonly host?: Omit<TestHostOptions, "timers" | "policy" | "setupBudget">;
   readonly guardStatements?: boolean;
   readonly reservedNames?: ReservedNames;
+  /** 도구 이름을 대화마다 정한다(X.operations.spec §4.5.1) */
+  readonly perThreadToolNames?: boolean;
   /** 외부 훅 실행기를 정책의 hooks 자리에 연결한다 */
   readonly hooks?: OperationsDeps["hooks"];
 }
@@ -98,6 +100,9 @@ export async function createOperationsHarness(
     ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.guardStatements === undefined ? {} : { guardStatements: options.guardStatements }),
     ...(options.reservedNames === undefined ? {} : { reservedNames: options.reservedNames }),
+    ...(options.perThreadToolNames === undefined
+      ? {}
+      : { perThreadToolNames: options.perThreadToolNames }),
   });
   const t = await createTestHost({
     ...options.host,

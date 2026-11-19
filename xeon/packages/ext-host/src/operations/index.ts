@@ -105,6 +105,9 @@ export {
   NO_RESERVED_NAMES,
   qualifiedName,
   resolveNames,
+  exposeToolNames,
+  toolNameKey,
+  type ToolNameInput,
   type NamedResourceKind,
   type ReservedNames,
   type ResolvedName,
@@ -187,6 +190,11 @@ export interface OperationsDeps {
   readonly guardStatements?: boolean;
   /** 외부 확장이 짧은 이름으로 쓸 수 없는 내장 이름. 기본은 없음(내장 패키지의 등록만 짧은 이름을 지킨다) */
   readonly reservedNames?: ReservedNames;
+  /**
+   * 참이면 도구의 노출 이름을 엔진 전체가 아니라 대화마다 정한다(`exposeToolNames`, L1.tools.spec §3.3.1). 저장소는 도구를 요청한 이름 그대로
+   * `perThread`로 도구 포트에 넘긴다. 기본은 거짓(옛 동작: 엔진 전체 집합에서 정한다)
+   */
+  readonly perThreadToolNames?: boolean;
   /** 답할 화면이 있나(연결된 클라이언트). 없으면 자동 끄기 기준을 넘어도 묻지도 끄지도 않는다 [결정: 2026-11-04 사용자] */
   readonly canAsk?: () => boolean;
 }
@@ -319,7 +327,9 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
     ledger,
     autoDisabler,
     storage,
-    resources: createResourcePolicy(deps.reservedNames ?? NO_RESERVED_NAMES),
+    resources: createResourcePolicy(deps.reservedNames ?? NO_RESERVED_NAMES, {
+      perThreadToolNames: deps.perThreadToolNames === true,
+    }),
     admit(info, layer): Result<Tier, TierError> {
       const assigned = assignTier({
         name: info.name,
