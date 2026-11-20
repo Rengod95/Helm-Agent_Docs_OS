@@ -1,0 +1,1554 @@
+/* cv6(G5) 캔버스의 모양. 색·글자는 caustic 토큰에서 온다. 바닥은 한 면(--cv6-floor) 위에 아주 옅은 점 격자(--cv6-dot)가 깔리고,
+   화면 가장자리로 갈수록 점이 어둠에 묻힌다(비네트, 화면에 고정된 정지 면). 고른 판 뒤에만 종류 색의 빛이 번진다.
+   판은 무채색 카드이고 종류는 왼쪽 위의 책갈피(탭) 하나로만 말한다. 셰이더·유리·번쩍임·backdrop-filter 없이 그림자와 겹침으로 층을 가른다:
+   빛 < 바닥(레일·소켓·줄기, 그림자 없음) < 받침판(낮은 그림자) < 판(높은 그림자) < 플로팅 상세(가장 높은 그림자).
+   React Flow 규칙은 `@layer xyflow`에, 나머지는 components 층에 둔다(무층 규칙 금지). base.css는 cvA.css가 이미 불러온다. */
+
+@layer xyflow {
+  .cv6-root {
+    --cv6-floor: var(--cs-color-bg-canvas);
+    /* 점 격자: 참고 그림의 점(#222 on #020202) = 흰 13% */
+    --cv6-dot: color-mix(in srgb, var(--cs-color-text-primary) 13%, transparent);
+    /* 카드 면(참고 (12,14,16)), 테두리(참고 (33,36,37) = 흰 9%) */
+    --cv6-plate: color-mix(in srgb, var(--cs-color-surface-base) 84%, var(--cs-color-bg-canvas));
+    --cv6-plate-edge: color-mix(in srgb, var(--cs-color-text-primary) 9%, transparent);
+    --cv6-plate-edge-hot: color-mix(in srgb, var(--cs-color-text-primary) 16%, transparent);
+    /* 안쪽 면(참고 (25,27,31))과 그 테두리(흰 3%), 꼬리표 테두리(참고 (50,52,56)), 알약(안쪽 면과 같은 면 + 흰 5% 테두리) */
+    --cv6-well: color-mix(in srgb, var(--cs-color-surface-raised) 85%, var(--cv6-plate));
+    --cv6-well-edge: color-mix(in srgb, var(--cs-color-text-primary) 3%, transparent);
+    /* 상세 패널의 면(G4 값 그대로) */
+    --cv6-pwell: color-mix(
+      in oklab,
+      var(--cs-color-text-primary) 4.5%,
+      var(--cs-color-surface-raised)
+    );
+    --cv6-pwell-edge: color-mix(in oklab, var(--cs-color-text-primary) 5%, transparent);
+    --cv6-tag-edge: color-mix(in srgb, var(--cs-color-text-primary) 11%, transparent);
+    --cv6-pill: var(--cv6-well);
+    --cv6-pill-edge: color-mix(in srgb, var(--cs-color-text-primary) 5%, transparent);
+    /* 글: 이름(흰), 설명(참고 L 0.70), 안쪽 면의 글(참고 (106,107,111)), 푸터(참고 (127,129,131)), 메뉴 점(참고 (63~69)) */
+    --cv6-desc: var(--cs-color-text-tertiary);
+    --cv6-body: color-mix(in srgb, var(--cs-color-text-primary) 34%, var(--cv6-well));
+    --cv6-foot: color-mix(in srgb, var(--cs-color-text-primary) 46%, var(--cv6-plate));
+    --cv6-menu: color-mix(in srgb, var(--cs-color-text-primary) 24%, var(--cv6-plate));
+    --cv6-pill-icon: var(--cs-color-text-secondary);
+    /* 선(참고 (42~53), 굵기 1.5), 나가는 점(안 (38,39,39), 테 (61~65)) */
+    --cv6-wire: color-mix(in srgb, var(--cs-color-text-primary) 20%, transparent);
+    --cv6-wire-hot: color-mix(in srgb, var(--cs-color-text-primary) 34%, transparent);
+    --cv6-wire-solid: color-mix(in srgb, var(--cs-color-text-primary) 20%, var(--cv6-floor));
+    --cv6-handle: color-mix(in srgb, var(--cs-color-text-primary) 15%, var(--cv6-floor));
+    --cv6-handle-ring: color-mix(in srgb, var(--cs-color-text-primary) 26%, var(--cv6-floor));
+    --cv6-ped: color-mix(in srgb, var(--cs-color-surface-base) 40%, var(--cs-color-bg-canvas));
+    --cv6-station: var(--cv6-plate);
+    --cv6-station-solid: var(--cv6-plate);
+    --cv6-line: color-mix(in srgb, var(--cs-color-text-primary) 20%, transparent);
+    --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 10%, transparent);
+    --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
+    /* 종류 색: 채도 높은 토큰을 그대로(섞어 누르지 않는다). 탭 면은 토큰을 캔버스 바탕(거의 검정)에 섞어 진하게,
+       탭 글·아이콘은 같은 색상의 글 토큰. 섞는 비율은 참고 그림의 두 탭(파랑 (1,32,85), 초록 (20,49,25))의 밝기에 맞춘다 */
+    --cv6-inject: var(--cs-color-identity-iris);
+    --cv6-hook: var(--cs-color-identity-amber);
+    --cv6-drive: var(--cs-color-agent-stop-1);
+    --cv6-tool: var(--cs-color-identity-mint);
+    --cv6-inject-text: var(--cs-color-info-text);
+    --cv6-hook-text: var(--cs-color-warning-text);
+    --cv6-drive-text: var(--cs-color-agent-text);
+    --cv6-tool-text: var(--cs-color-success-text);
+    --cv6-inject-tab: color-mix(in srgb, var(--cv6-inject) 20%, var(--cs-color-bg-canvas));
+    --cv6-hook-tab: color-mix(in srgb, var(--cv6-hook) 16%, var(--cs-color-bg-canvas));
+    --cv6-drive-tab: color-mix(in srgb, var(--cv6-drive) 24%, var(--cs-color-bg-canvas));
+    --cv6-tool-tab: color-mix(in srgb, var(--cv6-tool) 22%, var(--cs-color-bg-canvas));
+    --cv6-bundle-tab: color-mix(
+      in srgb,
+      var(--cs-color-text-primary) 13%,
+      var(--cs-color-bg-canvas)
+    );
+    /* 빛의 세기(카드 변에서 종류 색 약 19%, 참고 (13,20,48)) */
+    --cv6-glow-a: 20%;
+    /* 층의 그림자 */
+    --cv6-lift-ped: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 6px 14px -8px rgb(0 0 0 / 0.55);
+    --cv6-lift-plate: drop-shadow(0 14px 18px rgb(0 0 0 / 0.42))
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.38));
+    --cv6-lift-float: 0 30px 70px -16px rgb(0 0 0 / 0.7), 0 6px 16px rgb(0 0 0 / 0.38);
+    --cv6-lift-card: 0 12px 24px -14px rgb(0 0 0 / 0.7);
+    --cv6-mono: var(--cs-font-mono, ui-monospace, monospace);
+    background: var(--cv6-floor);
+  }
+
+  /* 밝은 테마: 참고 그림은 어두운 것뿐이다. 같은 구조에 밝은 바탕의 값을 둔다(탭은 종류 색의 옅은 면 + 진한 글) */
+  .cv6-root[data-scheme="light"] {
+    --cv6-dot: color-mix(in srgb, var(--cs-color-text-primary) 16%, transparent);
+    --cv6-plate: var(--cs-color-surface-base);
+    --cv6-plate-edge: color-mix(in srgb, var(--cs-color-text-primary) 11%, transparent);
+    --cv6-plate-edge-hot: color-mix(in srgb, var(--cs-color-text-primary) 20%, transparent);
+    --cv6-well: color-mix(in srgb, var(--cs-color-text-primary) 4%, var(--cs-color-surface-base));
+    --cv6-well-edge: color-mix(in srgb, var(--cs-color-text-primary) 6%, transparent);
+    --cv6-pwell: color-mix(
+      in oklab,
+      var(--cs-color-text-primary) 3.5%,
+      var(--cs-color-surface-base)
+    );
+    --cv6-pwell-edge: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    --cv6-tag-edge: color-mix(in srgb, var(--cs-color-text-primary) 16%, transparent);
+    --cv6-pill: color-mix(in srgb, var(--cs-color-text-primary) 4%, var(--cs-color-surface-base));
+    --cv6-pill-edge: color-mix(in srgb, var(--cs-color-text-primary) 9%, transparent);
+    --cv6-body: color-mix(in srgb, var(--cs-color-text-primary) 58%, var(--cv6-well));
+    --cv6-foot: color-mix(in srgb, var(--cs-color-text-primary) 52%, var(--cv6-plate));
+    --cv6-menu: color-mix(in srgb, var(--cs-color-text-primary) 34%, var(--cv6-plate));
+    --cv6-wire: color-mix(in srgb, var(--cs-color-text-primary) 28%, transparent);
+    --cv6-wire-hot: color-mix(in srgb, var(--cs-color-text-primary) 48%, transparent);
+    --cv6-wire-solid: color-mix(in srgb, var(--cs-color-text-primary) 30%, var(--cv6-floor));
+    --cv6-handle: var(--cs-color-surface-base);
+    --cv6-handle-ring: color-mix(
+      in srgb,
+      var(--cs-color-text-primary) 34%,
+      var(--cs-color-surface-base)
+    );
+    --cv6-ped: color-mix(in srgb, var(--cs-color-bg-app) 60%, var(--cs-color-bg-canvas));
+    --cv6-line: color-mix(in srgb, var(--cs-color-text-primary) 26%, transparent);
+    --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 12%, transparent);
+    --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-base) 96%, transparent);
+    --cv6-inject-text: color-mix(in srgb, var(--cv6-inject) 62%, black);
+    --cv6-hook-text: color-mix(in srgb, var(--cv6-hook) 48%, black);
+    --cv6-drive-text: color-mix(in srgb, var(--cv6-drive) 80%, black);
+    --cv6-tool-text: color-mix(in srgb, var(--cv6-tool) 58%, black);
+    --cv6-inject-tab: color-mix(in srgb, var(--cv6-inject) 20%, var(--cs-color-surface-base));
+    --cv6-hook-tab: color-mix(in srgb, var(--cv6-hook) 30%, var(--cs-color-surface-base));
+    --cv6-drive-tab: color-mix(in srgb, var(--cv6-drive) 18%, var(--cs-color-surface-base));
+    --cv6-tool-tab: color-mix(in srgb, var(--cv6-tool) 22%, var(--cs-color-surface-base));
+    --cv6-bundle-tab: color-mix(
+      in srgb,
+      var(--cs-color-text-primary) 9%,
+      var(--cs-color-surface-base)
+    );
+    --cv6-glow-a: 30%;
+    --cv6-lift-ped: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 14px -10px rgb(0 0 0 / 0.18);
+    --cv6-lift-plate: drop-shadow(0 12px 16px rgb(0 0 0 / 0.1))
+      drop-shadow(0 1px 2px rgb(0 0 0 / 0.12));
+    --cv6-lift-float: 0 28px 64px -18px rgb(0 0 0 / 0.26), 0 4px 12px rgb(0 0 0 / 0.08);
+    --cv6-lift-card: 0 10px 20px -12px rgb(0 0 0 / 0.16), 0 1px 2px rgb(0 0 0 / 0.06);
+  }
+
+  /* 종류마다 탭·빛·글의 색 한 벌 */
+  .cv6-root [data-kind="inject"] {
+    --cv6-k: var(--cv6-inject);
+    --cv6-k-text: var(--cv6-inject-text);
+    --cv6-k-tab: var(--cv6-inject-tab);
+  }
+
+  .cv6-root [data-kind="hook"] {
+    --cv6-k: var(--cv6-hook);
+    --cv6-k-text: var(--cv6-hook-text);
+    --cv6-k-tab: var(--cv6-hook-tab);
+  }
+
+  .cv6-root [data-kind="drive"] {
+    --cv6-k: var(--cv6-drive);
+    --cv6-k-text: var(--cv6-drive-text);
+    --cv6-k-tab: var(--cv6-drive-tab);
+  }
+
+  .cv6-root [data-kind="tool"] {
+    --cv6-k: var(--cv6-tool);
+    --cv6-k-text: var(--cv6-tool-text);
+    --cv6-k-tab: var(--cv6-tool-tab);
+  }
+
+  .cv6-flow.react-flow {
+    --xy-background-color: transparent;
+    --xy-node-border: 0;
+    --xy-node-background-color: transparent;
+    --xy-node-boxshadow-hover: none;
+    --xy-node-boxshadow-selected: none;
+    --xy-node-color: var(--cs-color-text-primary);
+    background: transparent;
+  }
+
+  .cv6-flow .react-flow__node {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    cursor: default;
+  }
+
+  /* xyflow는 고를 수도 끌 수도 없는 노드에 pointer-events: none을 준다. 판·받침판·더미·빌더는 안을 누를 수 있게 되살린다
+     (띠·바닥·관계 선은 그대로 지나가게 둔다) */
+  .cv6-flow .react-flow__node-plate > *,
+  .cv6-flow .react-flow__node-pedestal > *,
+  .cv6-flow .react-flow__node-pile > *,
+  .cv6-flow .react-flow__node-builder > * {
+    pointer-events: auto;
+  }
+
+  .cv6-flow .react-flow__node:focus-visible {
+    outline: none;
+  }
+
+  .cv6-flow .react-flow__node:focus-visible .cv6-shape,
+  .cv6-flow .react-flow__node:focus-visible .cv6-pile-top {
+    stroke: var(--cs-color-focus-ring);
+    outline-color: var(--cs-color-focus-ring);
+  }
+
+  .cv6-flow .react-flow__pane {
+    cursor: default;
+  }
+
+  .cv6-flow .react-flow__pane.dragging {
+    cursor: grabbing;
+  }
+
+  .cv6-flow .react-flow__attribution {
+    display: none;
+  }
+}
+
+@layer components {
+  .cv6-mono {
+    font-family: var(--cv6-mono);
+  }
+
+  /* ── 바닥: 점 격자와 비네트 ──
+     점 면은 캔버스 밑(React Flow 앞 형제)에 깔리고 캔버스를 옮기면 transform으로만 따라간다(합성만, 다시 칠하지 않음).
+     비네트는 화면에 고정된 정지 면 하나: 가운데는 비어 있고 가장자리로 갈수록 바닥 색이 점을 덮는다. 판과 선은 덮지 않는다 */
+  .cv6-dots {
+    position: absolute;
+    z-index: 0;
+    background-repeat: repeat;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .cv6-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse 72% 68% at 50% 48%,
+      transparent 0%,
+      transparent 42%,
+      color-mix(in oklab, var(--cv6-floor) 70%, transparent) 78%,
+      var(--cv6-floor) 100%
+    );
+  }
+
+  /* ── 빛 층: 고른 판 뒤의 번짐 ──
+     참고 그림의 빛: 카드의 위 변 바깥이 가장 진하고(약 19px까지), 왼쪽 변은 위에서 3/4까지, 오른쪽 변은 위에서 1/3까지 번지며
+     아래 변에는 없다. 변 바로 바깥이 평평하게 진하다가 19px쯤에서 사라진다(가장자리에 밝은 테가 없다). 카드 모양 상자의 그림자 한 겹을 위로 2px 올려 주고, 왼쪽 아래 → 오른쪽 위로 기운 선에서
+     흐려지는 마스크로 아래쪽을 지운다. 색은 종류 토큰 그대로(알파만), 바닥 점 위에 반투명으로 덮여 점이 종류 색으로 물든다.
+     필터·backdrop-filter 없음. 고른 판이 바뀔 때만 다시 그린다 */
+  .cv6-glow {
+    position: relative;
+    pointer-events: none;
+    mask-image: linear-gradient(158deg, #000 0%, #000 40%, transparent 64%);
+  }
+
+  .cv6-glow-halo {
+    position: absolute;
+    border-radius: 10px;
+    box-shadow: 0 -2px 26px 6px color-mix(in srgb, var(--cv6-k) var(--cv6-glow-a), transparent);
+  }
+
+  /* 루프 오른쪽이 넘칠 때: 오른쪽 가장자리 가운데의 "루프 계속" */
+  .cv6-more {
+    position: absolute;
+    right: 64px;
+    z-index: 10;
+    transform: translateY(-50%);
+  }
+
+  .cv6-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 8px 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--cs-color-text-secondary);
+    cursor: pointer;
+  }
+
+  .cv6-more-btn:hover {
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-more-btn:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .cv6-floor,
+  .cv6-links {
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .cv6-rail-line {
+    stroke: var(--cv6-line);
+    stroke-width: 1.5;
+  }
+
+  /* 루프 블록: 판과 같은 가족(같은 면 색, 같은 옅은 테두리, 큰 반경). 탭은 달지 않는다(탭은 플러그인 종류의 이름이다) */
+  .cv6-station {
+    fill: var(--cv6-station);
+    stroke: var(--cv6-plate-edge-hot);
+    stroke-width: 1;
+  }
+
+  .cv6-station-num {
+    fill: var(--cs-color-text-tertiary);
+    font: 500 14px var(--cv6-mono);
+  }
+
+  .cv6-station-label {
+    fill: var(--cs-color-text-primary);
+    font: 600 17px var(--cs-font-ui);
+  }
+
+  .cv6-gate {
+    stroke: var(--cv6-line);
+    stroke-width: 1.5;
+  }
+
+  .cv6-gate-dot {
+    fill: var(--cv6-station-solid);
+    stroke: var(--cs-color-text-secondary);
+    stroke-width: 1.5;
+  }
+
+  .cv6-gate-label {
+    fill: var(--cs-color-text-secondary);
+    font: 500 15px var(--cs-font-ui);
+  }
+
+  .cv6-tick {
+    fill: var(--cv6-line);
+  }
+
+  .cv6-tick-used {
+    fill: var(--cs-color-text-secondary);
+  }
+
+  .cv6-return path {
+    fill: none;
+    stroke: var(--cv6-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+  }
+
+  .cv6-return text {
+    fill: var(--cs-color-text-tertiary);
+    font: 14px var(--cs-font-ui);
+  }
+
+  .cv6-arrow-floor {
+    fill: none;
+    stroke: var(--cs-color-text-tertiary);
+    stroke-width: 1.2;
+  }
+
+  /* 판에서 소켓까지(층을 넘는 선): 참고 그림의 선 그대로. 1.5px 무채색 실선, 직각으로 꺾이고 모서리 반경 10.
+     고른 판(과 관계된 판)의 선은 같은 무채색으로 조금 밝아진다 */
+  .cv6-wire {
+    fill: none;
+    stroke: var(--cv6-wire);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cv6-wire-on {
+    stroke: var(--cv6-wire-hot);
+  }
+
+  /* 들어가는 끝: 열린 꺾쇠(높이 11, 깊이 6, 굵기 1.5). 끝이 블록 변에 닿는다 */
+  .cv6-socket {
+    fill: none;
+    stroke: var(--cv6-wire);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cv6-socket-on {
+    stroke: var(--cv6-wire-hot);
+  }
+
+  .cv6-count {
+    fill: var(--cv6-handle);
+    stroke: var(--cv6-handle-ring);
+    stroke-width: 1;
+  }
+
+  .cv6-count-text {
+    fill: var(--cs-color-text-secondary);
+    font: 600 12px var(--cs-font-ui);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cv6-target {
+    fill: color-mix(in srgb, var(--cv6-k) 18%, transparent);
+    stroke: var(--cv6-k);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+
+  /* 내장 도구 대체: 레일로 내려가는 곡선. 선의 굵기와 끝은 다른 선과 같고, 경고라 경고 색이다 */
+  .cv6-cross path {
+    fill: none;
+    stroke: var(--cs-color-warning-text);
+    stroke-width: 1.5;
+  }
+
+  .cv6-cross text {
+    fill: var(--cs-color-warning-text);
+    font: 500 12px var(--cs-font-ui);
+  }
+
+  /* ── 같은 층의 관계 선 ──
+     참고 그림의 선 문법 하나로 그린다: 1.5px 무채색 실선, 반경 10의 꺾임, 나가는 쪽 점(지름 8), 들어가는 쪽 열린 꺾쇠.
+     관계의 종류는 선 위의 이름표(의존·핸드오프·기록 읽기·만듦)가 말한다(점선·네모 표식을 쓰지 않는다) */
+  .cv6-rel {
+    fill: none;
+    stroke-width: 1.5;
+    stroke: var(--cv6-wire);
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .cv6-rel-on {
+    stroke: var(--cv6-wire-hot);
+  }
+
+  .cv6-rel-dot {
+    fill: var(--cv6-handle);
+    stroke: var(--cv6-handle-ring);
+    stroke-width: 1;
+  }
+
+  .cv6-rel-arrow {
+    fill: none;
+    stroke: var(--cv6-wire);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cv6-rel-on-arrow {
+    stroke: var(--cv6-wire-hot);
+  }
+
+  .cv6-rel-pill {
+    fill: var(--cv6-plate);
+    stroke: var(--cv6-plate-edge);
+  }
+
+  .cv6-rel-text {
+    fill: var(--cs-color-text-tertiary);
+    font: 500 13px var(--cs-font-ui);
+  }
+
+  /* ── 뜬 층: 판 ──
+     참고 그림의 노드 카드 그대로(`cv6-shots/ref-measure.md`). 판 노드는 면이 없는 틀이고, 그 안에 책갈피(탭)와 카드(.cv6-card)가
+     차례로 선다. 탭은 카드 뒤에서 위로 솟고, 카드의 둥근 왼쪽 위 모서리 사이로 탭 색이 보인다.
+     카드: 반경 10, 면 (12,14,16)쯤, 1px 흰 9% 테두리, 사방 패딩 12. 머리(아이콘 16 + 이름 14/500 + 세로 점 셋) → 12 →
+     설명(14/20 두 줄) → 11 → 안쪽 면(한 단 밝은 면, 반경 6, 패딩 8: 꼬리표 18 + 5 + 글 14/20) → 11 → 알약(24) → 12 → 푸터(12/16) */
+  .cv6-plate {
+    position: relative;
+    transition: opacity 160ms ease;
+  }
+
+  .cv6-card {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: var(--cv6-plate);
+    box-shadow:
+      inset 0 0 0 1px var(--cv6-plate-edge),
+      var(--cv6-lift-card);
+    transition: box-shadow 160ms ease;
+  }
+
+  .cv6-plate:hover .cv6-card,
+  .cv6-plate[data-mark="related"] .cv6-card {
+    box-shadow:
+      inset 0 0 0 1px var(--cv6-plate-edge-hot),
+      var(--cv6-lift-card);
+  }
+
+  /* 드래프트: 리뷰 전이라 카드 테두리가 점선이다(경고 색) */
+  .cv6-plate[data-draft="true"] .cv6-card {
+    outline: 1px dashed color-mix(in srgb, var(--cs-color-warning-text) 70%, transparent);
+    outline-offset: -1px;
+  }
+
+  /* 책갈피(탭): 카드 왼쪽 변과 같은 자리에서 시작해 윗변 위로 20 솟는다(가까이). 위 모서리 반경 6.
+     아래 12는 카드 뒤로 들어간다. 면은 종류 토큰을 바탕에 섞은 진한 색, 글·아이콘은 종류의 글 토큰(12/500) */
+  .cv6-tab {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% - 12px);
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 5px;
+    height: 32px;
+    padding: 4px 8px 0;
+    border-radius: 6px 6px 0 0;
+    background: var(--cv6-k-tab);
+    color: var(--cv6-k-text);
+    font: 500 12px/12px var(--cs-font-ui);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .cv6-tab > * {
+    flex: none;
+  }
+
+  .cv6-tab > span {
+    margin-top: 0.5px;
+  }
+
+  .cv6-tab[data-lod="mid"] {
+    gap: 7px;
+    height: 40px;
+    padding: 6px 11px 0;
+    border-radius: 8px 8px 0 0;
+    font-size: 16px;
+    line-height: 16px;
+  }
+
+  .cv6-tab[data-lod="far"] {
+    height: 48px;
+    padding: 6px 12px 0;
+    border-radius: 9px 9px 0 0;
+  }
+
+  /* 묶음의 탭: 종류가 아니라 "묶음"이라 무채색. 받침판·더미는 면이 탭을 덮지 않으므로 윗변에 바로 선다 */
+  .cv6-pedestal > .cv6-tab,
+  .cv6-pile-top > .cv6-tab {
+    bottom: 100%;
+    height: 20px;
+    padding-top: 4px;
+    color: var(--cs-color-text-secondary);
+    background: var(--cv6-bundle-tab);
+  }
+
+  .cv6-pedestal > .cv6-tab[data-lod="mid"],
+  .cv6-pile-top > .cv6-tab[data-lod="mid"] {
+    height: 28px;
+    padding-top: 6px;
+  }
+
+  .cv6-pedestal > .cv6-tab[data-lod="far"],
+  .cv6-pile-top > .cv6-tab[data-lod="far"] {
+    height: 36px;
+  }
+
+  /* 나가는 점(참고 그림의 핸들): 지름 8, 어두운 회색 안 + 1px 밝은 테. 가운데가 카드 변 위에 선다.
+     레일 쪽 변 가운데(Inject·도구는 아래 변, Hook은 위 변), Drive의 핸드오프는 오른쪽 변.
+     같은 자리에 여럿이면 점 대신 호출 순서 번호를 단 같은 모양의 동그라미 */
+  .cv6-pad {
+    position: absolute;
+    left: 50%;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--cv6-handle);
+    box-shadow: inset 0 0 0 1px var(--cv6-handle-ring);
+    pointer-events: none;
+  }
+
+  .cv6-pad[data-lod="mid"] {
+    width: 12px;
+    height: 12px;
+  }
+
+  .cv6-pad[data-lod="far"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .cv6-plate[data-mark="selected"] .cv6-pad,
+  .cv6-plate[data-mark="related"] .cv6-pad {
+    box-shadow: inset 0 0 0 1px var(--cv6-wire-hot);
+  }
+
+  .cv6-pad[data-lip="bottom"] {
+    bottom: 0;
+    transform: translate(-50%, 50%);
+  }
+
+  .cv6-pad[data-lip="top"] {
+    top: 0;
+    transform: translate(-50%, -50%);
+  }
+
+  .cv6-pad[data-side="out"] {
+    top: 50%;
+    right: 0;
+    left: auto;
+    transform: translate(50%, -50%);
+  }
+
+  .cv6-pad[data-numbered] {
+    width: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    font: 600 11px/20px var(--cs-font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv6-pad[data-numbered][data-lod="mid"] {
+    min-width: 28px;
+    height: 28px;
+    font-size: 15px;
+    line-height: 28px;
+  }
+
+  .cv6-pad[data-numbered][data-lod="far"] {
+    min-width: 38px;
+    height: 38px;
+    font-size: 21px;
+    line-height: 38px;
+  }
+
+  .cv6-dim {
+    opacity: 0.35;
+  }
+
+  /* 중간·멀리의 상태 표: 카드 위 변 오른쪽에 반쯤 걸친다 */
+  .cv6-edge-marks {
+    position: absolute;
+    top: 0;
+    right: 12px;
+    transform: translateY(-50%);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .cv6-edge-marks .cv6-mark {
+    background-color: var(--cv6-plate);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
+  }
+
+  /* 카드 몸(가까이): 사방 12. 칸 사이는 참고 그림대로 12 · 11 · 11 · 12 */
+  .cv6-plate-body {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    pointer-events: none;
+  }
+
+  .cv6-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+    min-width: 0;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+  }
+
+  /* 오른쪽 위의 세로 점 셋(참고 그림의 메뉴): 누르면 상세가 뜬다 */
+  .cv6-menu {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 20px;
+    margin-right: -3px;
+    color: var(--cv6-menu);
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
+  .cv6-menu:hover {
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv6-menu:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+  }
+
+  .cv6-desc {
+    flex: none;
+    margin: 12px 0 0;
+    min-height: 40px;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--cv6-desc);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* 안쪽 면: 꼬리표(붙는 자리) + 그 설명. 남는 높이를 채워 알약과 푸터가 늘 바닥에 선다 */
+  .cv6-card-well {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    min-height: 0;
+    margin-top: 11px;
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--cv6-well);
+    box-shadow: inset 0 0 0 1px var(--cv6-well-edge);
+    overflow: hidden;
+  }
+
+  .cv6-tag {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    max-width: 100%;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--cv6-tag-edge);
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cv6-well-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--cv6-body);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+  }
+
+  /* 알약 칩: 겹친 판 아이콘 + 값 하나(14/500 흰). 값이 없어도 줄 높이는 남긴다 */
+  .cv6-pill-row {
+    display: flex;
+    flex: none;
+    align-items: center;
+    height: 24px;
+    margin-top: 11px;
+    min-width: 0;
+  }
+
+  .cv6-chip-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    max-width: 100%;
+    padding: 0 8px 0 7px;
+    border-radius: 5px;
+    background: var(--cv6-pill);
+    box-shadow: inset 0 0 0 1px var(--cv6-pill-edge);
+    font-size: 14px;
+    line-height: 24px;
+    font-weight: 500;
+    color: var(--cs-color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .cv6-chip-pill > svg {
+    flex: none;
+    color: var(--cv6-pill-icon);
+  }
+
+  .cv6-chip-pill > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 푸터: 흐린 수치. 왼쪽부터 늘 드는 토큰, 시계 + 최근 사용. 항목 사이 12, 아이콘과 글 사이 4 */
+  .cv6-foot {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    height: 16px;
+    margin-top: 12px;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--cv6-foot);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .cv6-foot-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* 중간(48~85%): 같은 칸을 크게. 푸터는 뺀다 */
+  .cv6-plate-body[data-lod="mid"] {
+    padding: 16px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-head {
+    gap: 10px;
+    height: 28px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-name {
+    font-size: 20px;
+    line-height: 28px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-desc {
+    min-height: 48px;
+    font-size: 17px;
+    line-height: 24px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-card-well {
+    gap: 6px;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-tag {
+    height: 22px;
+    padding: 0 7px;
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-well-text {
+    font-size: 17px;
+    line-height: 24px;
+    -webkit-line-clamp: 2;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-pill-row {
+    height: 30px;
+    margin-top: 12px;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-chip-pill {
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px 0 9px;
+    border-radius: 6px;
+    font-size: 17px;
+    line-height: 30px;
+  }
+
+  /* 멀리(48% 아래): 이름만 크게(두 줄까지) */
+  .cv6-plate-body[data-lod="far"] {
+    justify-content: center;
+    gap: 14px;
+    padding: 20px 22px;
+  }
+
+  .cv6-plate-hit {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: 0;
+    border-radius: inherit;
+    cursor: pointer;
+  }
+
+  /* 멀리서 보는 이름: 하이픈 뒤에서 두 줄까지 접힌다(잘라 내지 않는다) */
+  .cv6-name-wrap {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    hyphens: manual;
+  }
+
+  .cv6-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--cs-color-text-tertiary);
+    box-shadow: inset 0 0 0 1px var(--cv6-tag-edge);
+    white-space: nowrap;
+  }
+
+  .cv6-mark-mid {
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .cv6-mark-big {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 19px;
+  }
+
+  .cv6-mark-error {
+    color: var(--cs-color-danger-text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-color-danger-text) 45%, transparent);
+  }
+
+  .cv6-mark-start {
+    color: var(--cv6-drive-text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cv6-drive) 50%, transparent);
+  }
+
+  .cv6-mark-draft {
+    color: var(--cs-color-warning-text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-color-warning-text) 50%, transparent);
+  }
+
+  .cv6-mark-pending {
+    color: var(--cs-color-warning-text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-color-warning-text) 50%, transparent);
+  }
+
+  .cv6-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 5px;
+    font: 11px var(--cv6-mono);
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+    white-space: nowrap;
+  }
+
+  /* 상세 패널의 한 단 밝은 면(G4의 값 그대로: 상세 패널은 바꾸지 않는다) */
+  .cv6-well {
+    padding: 7px 9px;
+    border-radius: 10px;
+    corner-shape: squircle;
+    background: var(--cv6-pwell);
+    box-shadow: inset 0 0 0 1px var(--cv6-pwell-edge);
+  }
+
+  /* 포커스가 도착했을 때 한 번만 퍼지는 고리(그 뒤로 도는 것 없음) */
+  .cv6-arrive {
+    position: absolute;
+    inset: -8px;
+    border-radius: 16px;
+    border: 2px solid currentColor;
+    pointer-events: none;
+    opacity: 0;
+    animation: cv6-arrive 1100ms ease-out 1;
+  }
+
+  @keyframes cv6-arrive {
+    0% {
+      opacity: 0.9;
+      transform: scale(0.97);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cv6-arrive {
+      animation-duration: 1ms;
+    }
+  }
+
+  /* ── 받침 층: 묶음 ── */
+  .cv6-pedestal {
+    position: relative;
+    border-radius: 14px;
+    background: var(--cv6-ped);
+    box-shadow:
+      var(--cv6-lift-ped),
+      inset 0 0 0 1px var(--cv6-line-soft);
+    cursor: pointer;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv6-pedestal[data-mark="selected"] {
+    box-shadow:
+      var(--cv6-lift-ped),
+      inset 0 0 0 1.5px var(--cs-color-text-secondary);
+  }
+
+  .cv6-pile {
+    position: relative;
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv6-pile-sheet,
+  .cv6-pile-top {
+    position: absolute;
+    border-radius: 10px;
+    background: var(--cv6-plate);
+    box-shadow: inset 0 0 0 1px var(--cv6-plate-edge);
+  }
+
+  /* 접힌 더미 위의 펼치기 단추는 더미 전체를 덮는 누름 층(.cv6-plate-hit) 위에 선다(묶은 빌드에서 누를 수 없던 것을 고침) */
+  .cv6-pile-top .cv6-icon-btn {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cv6-pile-sheet {
+    filter: brightness(0.86);
+  }
+
+  .cv6-pile-top {
+    filter: var(--cv6-lift-plate);
+    outline: 1px solid transparent;
+  }
+
+  .cv6-pile[data-mark="selected"] .cv6-pile-top {
+    box-shadow: inset 0 0 0 1.75px var(--cs-color-text-secondary);
+  }
+
+  /* ── 바닥: 프로필 밖의 빌더 ── */
+  .cv6-builder {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 236px;
+    height: 104px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border: 1px dashed var(--cv6-line);
+    color: var(--cs-color-text-tertiary);
+    cursor: pointer;
+  }
+
+  .cv6-builder[data-mark="selected"],
+  .cv6-builder[data-mark="related"] {
+    border-color: var(--cs-color-warning-text);
+    color: var(--cs-color-warning-text);
+  }
+
+  /* ── 크롬(캔버스 위 작은 판들) ── */
+  .cv6-chrome {
+    border-radius: 10px;
+    background: var(--cv6-chrome);
+    box-shadow:
+      inset 0 0 0 1px var(--cv6-line-soft),
+      0 4px 14px -6px rgb(0 0 0 / 0.3);
+  }
+
+  .cv6-root svg {
+    flex-shrink: 0;
+  }
+
+  .cv6-icon-btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: transparent;
+    border-radius: 7px;
+    color: var(--cs-color-text-tertiary);
+    outline: none;
+  }
+
+  .cv6-icon-btn:hover:not(:disabled) {
+    background: var(--cs-color-fill-hover);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-icon-btn:disabled {
+    opacity: 0.35;
+  }
+
+  .cv6-icon-btn:focus-visible,
+  .cv6-tool-btn:focus-visible,
+  .cv6-link:focus-visible,
+  .cv6-member:focus-visible {
+    outline: 2px solid var(--cs-color-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .cv6-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    min-width: 28px;
+    justify-content: center;
+    padding: 0 6px;
+    border-radius: 7px;
+    color: var(--cs-color-text-secondary);
+    outline: none;
+  }
+
+  .cv6-tool-btn:hover {
+    background: var(--cs-color-fill-hover);
+  }
+
+  .cv6-tool-btn[aria-pressed="true"] {
+    background: var(--cs-color-fill-selected);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-stage {
+    background: var(--cv6-floor);
+  }
+
+  .cv6-drop {
+    box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
+  }
+
+  .cv6-ghost {
+    will-change: transform;
+  }
+
+  /* ── 사이드 패널 ── */
+  .cv6-palette {
+    --cv6-cell: color-mix(
+      in oklab,
+      var(--cs-color-text-primary) 3.5%,
+      var(--cs-color-surface-base)
+    );
+    --cv6-cell-edge: var(--cs-color-border-subtle);
+    border-right: 1px solid var(--cs-color-border-subtle);
+    background: var(--cs-color-surface-base);
+    min-height: 0;
+  }
+
+  .cv6-root[data-scheme="light"] .cv6-palette {
+    --cv6-cell: color-mix(
+      in oklab,
+      var(--cs-color-text-primary) 2.5%,
+      var(--cs-color-surface-base)
+    );
+  }
+
+  /* F의 칸: 줄마다 옅은 면과 1px 테두리. 호버·고름은 대화 목록 줄의 상태(neutral-hover, control-raised + control-edge)가 덮는다 */
+  .cv6-cell {
+    background: var(--cv6-cell);
+    box-shadow: inset 0 0 0 1px var(--cv6-cell-edge);
+  }
+
+  .cv6-check {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--cs-control-md, 32px);
+    height: var(--cs-control-md, 32px);
+    padding: 0;
+    color: var(--cs-color-text-tertiary);
+    cursor: pointer;
+    outline: none;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .cv6-check[data-on] {
+    color: var(--cs-color-text-secondary);
+  }
+
+  .cv6-check:hover:not(:disabled) {
+    background: var(--cs-color-neutral-hover);
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-check:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  .cv6-check:focus-visible {
+    box-shadow: var(--cs-focus);
+  }
+
+  /* ── 맨 위 층: 플로팅 상세 ── */
+  /* 받은 요청 카드(approval-card)와 같은 면: surface.base, 1px border.subtle 안쪽 선. 모서리는 rounded-3xl(squircle, 사용자 2026-11-20). 떠 있으므로 그림자만 더한다.
+     머리 아래에는 늘 긋는 선이 없다. 본문이 머리(또는 접히는 줄) 밑으로 지나갈 때만 그 아래에 선이 생긴다. 섹션 사이에는 선이 있다 */
+  .cv6-float {
+    background: var(--cs-color-surface-base);
+    box-shadow:
+      inset 0 0 0 1px var(--cs-color-border-subtle),
+      var(--cv6-lift-float);
+  }
+
+  .cv6-float-head {
+    user-select: none;
+    background: var(--cs-color-surface-base);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    box-shadow: 0 1px 0 transparent;
+    transition: box-shadow 160ms ease;
+  }
+
+  .cv6-float-head[data-edge] {
+    box-shadow: 0 1px 0 var(--cs-color-border-subtle);
+  }
+
+  /* 접히는 줄(칩 줄·최근 사용 줄): 스크롤 상자 맨 위에 sticky로 붙는다. 자리는 늘 그대로이고 transform·opacity만 움직인다 */
+  .cv6-tuck {
+    background: var(--cs-color-surface-base);
+    box-shadow: 0 1px 0 transparent;
+    transition:
+      transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      opacity 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .cv6-tuck[data-edge] {
+    box-shadow: 0 1px 0 var(--cs-color-border-subtle);
+  }
+
+  .cv6-tuck[data-tucked] {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cv6-tuck,
+    .cv6-float-head {
+      transition: none;
+    }
+  }
+
+  .cv6-float-foot {
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+
+  /* 본문 섹션: 섹션과 섹션 사이에 border.subtle 선 하나, 위아래 20px(접힌 섹션은 16px) */
+  .cv6-sec + .cv6-sec {
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+
+  /* 작동 방식의 네 줄(시점·입력·영향·출력): 위의 그림·순서·관계와 점선 하나로 가른다 */
+  .cv6-facts {
+    border-top: 1px dashed var(--cs-color-border-subtle);
+  }
+
+  .cv6-fact {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    max-width: 100%;
+    column-gap: 6px;
+    min-height: 22px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--cs-color-text-primary);
+    background: var(--cs-color-neutral-track);
+  }
+
+  .cv6-fact[data-warn] {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cv6-fact-value {
+    overflow-wrap: anywhere;
+    font: 11px/16px var(--cv6-mono);
+    color: var(--cs-color-text-tertiary);
+  }
+
+  .cv6-fact[data-warn] .cv6-fact-value {
+    color: inherit;
+  }
+
+  .cv6-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+    white-space: nowrap;
+  }
+
+  .cv6-pill-warn {
+    color: var(--cs-color-warning-text);
+    background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+  }
+
+  .cv6-pill-ok {
+    color: var(--cs-color-success-text);
+    background: color-mix(in oklab, var(--cs-color-success-text) 12%, transparent);
+  }
+
+  .cv6-well {
+    border-radius: 10px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+    box-shadow: inset 0 0 0 1px var(--cv6-line-soft);
+  }
+
+  .cv6-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid;
+    color: var(--cs-color-text-primary);
+  }
+
+  .cv6-tool-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 5%, transparent);
+  }
+
+  .cv6-tool-chip[data-writes] {
+    color: var(--cs-color-text-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-warning-text) 40%, transparent);
+  }
+
+  .cv6-tool-chip[data-writes] span:last-child {
+    color: var(--cs-color-warning-text);
+  }
+
+  .cv6-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
+  }
+
+  .cv6-risk-seg {
+    width: 14px;
+    height: 5px;
+    border-radius: 2px;
+    background: color-mix(in oklab, var(--cs-color-text-primary) 12%, transparent);
+  }
+
+  .cv6-risk-seg[data-on] {
+    background: var(--cs-color-text-secondary);
+  }
+
+  .cv6-risk-seg[data-on][data-high] {
+    background: var(--cs-color-warning-text);
+  }
+
+  .cv6-link {
+    color: var(--cs-color-text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--cv6-line);
+    text-underline-offset: 3px;
+    border-radius: 4px;
+    outline: none;
+  }
+
+  .cv6-link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .cv6-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    outline: none;
+  }
+
+  .cv6-member:hover {
+    background: var(--cs-color-neutral-hover);
+  }
+
+  .cv6-bundle-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    color: var(--cs-color-text-secondary);
+    background: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
+  }
+
+  /* 미니 그림(상세의 작동 칸) */
+  .cv6-mini-rail {
+    stroke: var(--cv6-line);
+    stroke-width: 1.5;
+  }
+
+  .cv6-mini-block {
+    fill: var(--cv6-station);
+    stroke: var(--cv6-line-soft);
+  }
+
+  .cv6-mini-label {
+    fill: var(--cs-color-text-secondary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cv6-mini-out {
+    font: 600 12px var(--cs-font-ui);
+  }
+
+  .cv6-mini-gate {
+    fill: color-mix(in oklab, currentColor 20%, transparent);
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cv6-mini-branch {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .cv6-mini-branch-pass {
+    stroke: var(--cv6-line);
+  }
+
+  /* ── 플러그인 내부 ── */
+  .cv6-icard {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 14px;
+    border-radius: 12px;
+    background: var(--cv6-plate);
+    box-shadow:
+      inset 0 0 0 1px var(--cv6-plate-edge),
+      0 12px 18px -10px rgb(0 0 0 / 0.5),
+      0 2px 3px rgb(0 0 0 / 0.3);
+  }
+
+  .cv6-root[data-scheme="light"] .cv6-icard {
+    box-shadow:
+      inset 0 0 0 1px var(--cv6-plate-edge),
+      0 10px 16px -10px rgb(0 0 0 / 0.16),
+      0 1px 2px rgb(0 0 0 / 0.1);
+  }
+
+  .cv6-icard-step {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, currentColor 55%, transparent),
+      inset 3px 0 0 0 currentColor,
+      0 12px 18px -10px rgb(0 0 0 / 0.5);
+  }
+
+  .cv6-icard-ghost {
+    background: transparent;
+    box-shadow: none;
+    border: 1px dashed var(--cv6-line);
+  }
+
+  .cv6-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: currentColor;
+    background: color-mix(in oklab, currentColor 15%, transparent);
+  }
+
+  .cv6-in-path {
+    fill: none;
+    stroke: var(--cv6-line);
+    stroke-width: 1.6;
+  }
+
+  .cv6-in-flow {
+    stroke: color-mix(in oklab, var(--cs-color-text-secondary) 80%, transparent);
+  }
+
+  .cv6-in-return {
+    stroke: var(--cv6-drive);
+    stroke-dasharray: 5 4;
+  }
+
+  .cv6-in-handoff {
+    stroke: var(--cv6-drive);
+    stroke-width: 2;
+  }
+
+  .cv6-in-feed {
+    stroke: color-mix(in oklab, var(--cv6-inject) 70%, transparent);
+  }
+
+  .cv6-in-lazy {
+    stroke: color-mix(in oklab, var(--cv6-inject) 60%, transparent);
+    stroke-dasharray: 2 4;
+  }
+
+  .cv6-in-branch {
+    stroke: var(--cv6-hook);
+  }
+
+  .cv6-in-arrowhead {
+    fill: none;
+    stroke: var(--cv6-drive);
+    stroke-width: 1.6;
+  }
+
+  .cv6-in-label {
+    fill: var(--cs-color-text-tertiary);
+    font: 12px var(--cs-font-ui);
+  }
+
+  .cv6-in-label-return,
+  .cv6-in-label-handoff {
+    fill: var(--cv6-drive);
+  }
+}
