@@ -363,3 +363,25 @@ describe("런타임 탭 맨 위: 알림 자리는 첫 구역 위에 온다", () 
     );
   });
 });
+
+describe("런타임 목록의 Drive 역할(lcM6f)", () => {
+  test("역할은 칩이 아니라 띠·카드와 같은 상태 글이다: 쥔 플러그인은 멈춘 그라데이션 Driving, 기다림은 조용한 글", () => {
+    const html = body(HELM_HOLDER);
+    const roles = [
+      ...html.matchAll(/<span[^>]*data-slot="runtime-drive-role"[^>]*>([^<]*)<\/span>/g),
+    ].map((m) => {
+      const tag = m[0];
+      return [
+        m[1] ?? "",
+        /data-look="([a-z]+)"/.exec(tag)?.[1] ?? null,
+        tag.includes("drive-word"),
+        tag.includes("data-wave"),
+      ];
+    });
+    expect(roles).toEqual([
+      [t("desktop.runtime.role.holder"), "driving", true, false],
+      [t("desktop.runtime.role.waiting"), "quiet", false, false],
+    ]);
+    expect(html).not.toContain('data-slot="chip"');
+  });
+});

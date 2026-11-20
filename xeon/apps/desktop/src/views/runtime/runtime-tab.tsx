@@ -22,7 +22,7 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
 import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
-import { Alert, Chip, Skeleton, StatusDot } from "@caustic/react";
+import { Alert, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -38,7 +38,12 @@ import { reloadOnExtChanges, useWorkbenchController } from "../workbench/control
 import { FailureRecords } from "../workbench/ext-detail.tsx";
 import { kindText, stateText, stateTone } from "../workbench/ext-row.tsx";
 import { HookAnswersContext, HookNoticeList } from "../workbench/hook-notice.tsx";
-import { DriveStackCards, type DriveStopControl } from "../convo/drive-stack.tsx";
+import {
+  DriveStackCards,
+  DriveWord,
+  type DriveStopControl,
+  type DriveWordLook,
+} from "../convo/drive-stack.tsx";
 import { useDriveStop } from "../convo/drive-frames.ts";
 import { driveStackOf, type DriveLeaseFacts } from "../convo/drive-stack-model.ts";
 import { useOpenExtensionRecords } from "../extension-records-link.ts";
@@ -242,6 +247,16 @@ export const RoleText: Readonly<Record<DriveRoleOf, MessageId>> = {
   none: "desktop.runtime.role.none",
 };
 
+/**
+ * 역할을 Drive 띠·카드의 상태 글 문법으로(lcM6f: 칩을 없앴다). 쥔 플러그인은 "Driving" 그라데이션 글(물결은 입력창 위 띠만이라 여기는
+ * 멈춰 있다), 기다림은 tertiary 글, 오류는 경고색 글이다
+ */
+const RoleLook: Readonly<Record<Exclude<DriveRoleOf, "none">, DriveWordLook>> = {
+  holder: "driving",
+  waiting: "quiet",
+  error: "warning",
+};
+
 /** 전환 기록의 해제 사유마다 글 하나다(템플릿으로 만들지 않는다) */
 const ReleasedText: Readonly<Record<LeaseReleasedPayload["reason"], MessageId>> = {
   done: "desktop.runtime.transitions.released.done",
@@ -328,9 +343,13 @@ function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
           {row.displayName ?? row.name}
         </span>
         {row.drive !== null && row.drive !== "none" && (
-          <Chip size="xs" variant="outline" className="text-text-secondary">
-            {t(RoleText[row.drive])}
-          </Chip>
+          <DriveWord
+            look={RoleLook[row.drive]}
+            text={t(RoleText[row.drive])}
+            slot="runtime-drive-role"
+            wave={false}
+            className={`text-ui-sm ${row.drive === "holder" ? "font-semibold" : ""}`}
+          />
         )}
         <span className="ms-auto shrink-0">
           <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />

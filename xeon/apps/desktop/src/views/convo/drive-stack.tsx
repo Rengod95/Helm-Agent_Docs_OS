@@ -14,8 +14,8 @@ import {
 } from "./drive-stack-model.ts";
 
 // Drive 스택 그림 둘(lcM6b~lcM6e, L4 desktop-ux §6.6.1). 둘은 같은 칸을 같은 말(`DriveStep.stateText`)로 말한다.
-// - 띠(`DriveStackBand`): 입력창 윗변에 붙은 얇은 탭(보이는 줄 28). 넷만 있다(lcM6d, 사용자 2026-11-20): 플러그인 이름,
-//   상태 글("Driving", 칩 없이 글. 턴이 도는 동안 물결 그라데이션, lcM6e), 턴 수(턴마다 한 칸인 막대와 "2/4턴"), 멈추기 단추(xs ghost).
+// - 띠(`DriveStackBand`): 입력창 윗변에 붙은 얇은 탭(보이는 줄 28). 넷만 있다(lcM6d, 사용자 2026-11-20): 상태 글("Driving", 칩 없이
+//   그라데이션 글. 턴이 도는 동안 물결, lcM6e·lcM6f), 플러그인 이름과 턴 수(턴마다 한 칸인 막대와 "2/4턴")의 한 묶음, 멈추기 단추(xs soft).
 //   기다리는 플러그인 수, 드래프트 표시, 도움말은
 //   오른쪽 패널(런타임 탭의 Drive 카드와 쌓인 판, Drive 제목 옆 정보 아이콘)이 맡는다.
 //   Drive가 턴을 돌리는 동안 입력창의 빛이 띠의 윗변으로 옮겨 온다(`BeamBand`, 입력창 빛은 꺼진다). 좁으면 턴 수를 뺀다(@container).
@@ -23,7 +23,7 @@ import {
 //   발 끝나면 어디로·행동). 아래 판은 한 줄: 위 화살표(바로 위 판에 핸드오프), 이름, 첫 한도, 상태. 아래 판일수록
 //   안으로 8px씩 좁아지며 위 판 뒤로 8px 들어간다(쌓인 카드). 판이 쌓이고 빠질 때만 높이가 열리고 닫힌다(PresenceItem).
 // 아이콘은 뒤 판에만 상태 하나에 하나다: Driving 나침반, 핸드오프하고 기다림 위 화살표, 답을 기다림 물음 말풍선(경고색), 기본 루프 점.
-// 색은 경고(답을 기다림, 한도 90%, 드래프트)와 도는 동안의 "Driving" 물결에만 쓴다.
+// 색은 경고(답을 기다림, 한도 90%, 드래프트)와 "Driving" 글(띠 빛과 같은 빛깔, 물결은 띠에서만)에만 쓴다.
 
 /** 입력창이 넘기는 멈추기. 도는 턴이 있을 때만 있다(`turn.interrupt`가 Drive 스택을 모두 내린다) */
 export type DriveStopControl = {
@@ -87,10 +87,11 @@ function StopGlyph(): ReactNode {
 }
 
 /**
- * 멈추기: 앱의 보통 단추(lcM6e, 사용자 2026-11-20 "칩 디자인 롤백, 아이콘과 텍스트 간격 일반적인 간격"). caustic Button xs ghost
- * (높이 24, 좌우 8, 아이콘 14와 글 사이 4, 글 12/500 secondary). 올리면 차고 글이 primary로, 누르면 한 단 더 찬다. 카드(raised 면)에서는
- * ghost 그대로 `neutral-hover`·`neutral-pressed`이고, 띠(`neutral-soft` 면)에서는 그 면의 다음 두 단 `soft-hover`·`soft-pressed`다
- * (`onSoft`: ghost의 옅은 hover가 soft 면 위에서는 거의 보이지 않아서. caustic soft 단추의 3→4→5와 같은 사다리)
+ * 멈추기(lcM6f, 사용자 2026-11-20 "단추로 보이게, 칩은 롤백"). 테두리도 알약 모양도 없이 면이 한 단 찬 caustic Button xs soft다
+ * (높이 24, 좌우 8, 반경 md, 아이콘 14와 글 사이 4, 글 12/500 primary): 앱의 xs 단추와 같은 틀이고 면만 깔려 있어 쉴 때도 단추로 읽힌다.
+ * 면은 놓인 바탕에서 한 단 떨어진다. 띠(`neutral-soft` 면, `onSoft`)에서는 soft 사다리의 다음 단 `soft-hover` → 올림·누름 `soft-pressed`,
+ * 카드(raised 면)에서는 그 면의 누름 단(`neutral-pressed`, caustic이 raised 안에서 raised용 값으로 바꾼다) → 올림·누름 `soft-pressed`다.
+ * 누름은 올림과 같은 면에 caustic 단추의 누름 움직임(`press`)이 더해진다
  */
 function StopButton(props: {
   readonly stop: DriveStopControl;
@@ -101,7 +102,7 @@ function StopButton(props: {
     <Button
       type="button"
       size="xs"
-      variant="ghost"
+      variant="soft"
       data-slot="drive-stop"
       disabled={stop.stopping || stop.blockedReason !== null}
       title={stop.blockedReason ?? t("desktop.drive.stopInfo")}
@@ -109,8 +110,8 @@ function StopButton(props: {
       iconStart={<StopGlyph />}
       className={
         props.onSoft === true
-          ? "shrink-0 hover:bg-neutral-soft-hover active:bg-neutral-soft-pressed"
-          : "shrink-0"
+          ? "shrink-0 bg-neutral-soft-hover hover:bg-neutral-soft-pressed active:bg-neutral-soft-pressed"
+          : "shrink-0 bg-neutral-pressed hover:bg-neutral-soft-pressed active:bg-neutral-soft-pressed"
       }
       onClick={stop.onStop}
     >
@@ -120,33 +121,42 @@ function StopButton(props: {
 }
 
 /**
- * 상태 글(lcM6e: 칩을 없앴다). "Driving"은 Drive가 턴을 돌리는 동안(`live`) 물결 그라데이션(convo.css `.drive-wave`)이고,
- * 쉬는 동안은 보통 글이다. 답을 기다리면 경고색, 그 밖의 상태는 tertiary. 크기·굵기는 부르는 쪽이 정한다
+ * 상태 글(lcM6e: 칩을 없앴다). "Driving"은 어디서나 띠 빛과 같은 채도 높은 빛깔의 그라데이션 글이다(convo.css `.drive-word`, lcM6f).
+ * 물결로 흐르는 것은 한 화면에 한 곳, 입력창 위 띠뿐이고 그것도 Drive가 턴을 돌리는 동안(`wave`)만이다. 카드·런타임 목록·대화 기록의
+ * "Driving"은 멈춘 그라데이션이다. 답을 기다리면 경고색, 그 밖의 상태는 tertiary. 크기·굵기는 부르는 쪽이 정한다
  */
-function DriveWord(props: {
-  readonly step: DriveStep;
+export function DriveWord(props: {
+  /** driving 그라데이션 글, warning 경고색 글(답을 기다림, 오류), quiet tertiary 글 */
+  readonly look: DriveWordLook;
+  /** Drive 칸 상태(띠·카드). 시험과 견줌 사진이 읽는다 */
+  readonly state?: DriveStep["state"];
+  readonly text: string;
   readonly slot: string;
-  readonly live: boolean;
+  readonly wave: boolean;
   readonly className: string;
 }): ReactNode {
-  const { step } = props;
-  const wave = props.live && step.state === "driving";
-  const tone =
-    step.state === "asking"
-      ? "text-warning-text"
-      : step.state === "driving"
-        ? "text-text-secondary"
-        : "text-text-tertiary";
+  const driving = props.look === "driving";
+  const wave = props.wave && driving;
+  const tone = props.look === "warning" ? "text-warning-text" : "text-text-tertiary";
   return (
     <span
       data-slot={props.slot}
-      data-drive-state={step.state}
+      data-look={props.look}
+      data-drive-state={props.state}
       data-wave={wave ? "" : undefined}
-      className={`shrink-0 whitespace-nowrap ${props.className} ${wave ? "drive-wave" : tone}`}
+      className={`shrink-0 whitespace-nowrap ${props.className} ${driving ? "drive-word" : tone}`}
     >
-      {step.stateText}
+      {props.text}
     </span>
   );
+}
+
+export type DriveWordLook = "driving" | "warning" | "quiet";
+
+/** 칸 상태의 글 모양: Driving은 그라데이션, 답을 기다림은 경고색, 나머지(기다림, 쉼)는 조용한 글 */
+function wordLookOf(state: DriveStep["state"]): DriveWordLook {
+  if (state === "driving") return "driving";
+  return state === "asking" ? "warning" : "quiet";
 }
 
 /** 턴 한도가 이만큼까지면 한 턴을 한 칸으로 나눈다(96px에 8칸이면 칸이 10px). 넘으면 칸이 점처럼 작아져 이어진 막대다 */
@@ -231,10 +241,11 @@ export function DriveStackBand(props: {
 const BAND_ROW = "h-[var(--drive-band-h,28px)]";
 
 /**
- * 띠의 한 줄(lcM6e). 위계: 플러그인 이름이 주(13/500 primary), "Driving"은 그 이름의 상태(12/500, 도는 동안 물결)라 이름 바로 뒤에
- * 8px로 붙고, 턴 막대(96, 턴마다 한 칸)와 "2/4턴"은 한 덩이로 20px 떨어져 선다. 오른쪽 끝은 멈추기 단추(xs ghost, 띠 끝에서 6:
- * 단추 글이 끝나는 자리가 이름이 시작하는 자리와 같은 14px 안쪽이다). 줄은 윗변 테두리(1px) 아래 27px의 가운데에 선다(`pt-px`).
- * 이름과 "Driving"은 한 기준선에 서고, 막대는 숫자의 대문자 높이 가운데에, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
+ * 띠의 한 줄(lcM6f, 사용자 2026-11-20 "B안, 이름과 턴 막대를 같은 섹션으로"). 왼쪽부터 상태 "Driving"(12/600, 도는 동안 물결), 20 떨어져
+ * 한 묶음(이름 13/600 primary, 8 뒤에 턴 막대 96, 6 뒤에 "2/4턴"), 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
+ * "Driving"이 먼저 오는 대신 이름이 띠에서 가장 무겁고 밝은 글이라 "무엇이" Driving인지가 흐려지지 않는다. 묶음 안 간격(8·6)은 묶음
+ * 밖 간격(20, 멈추기까지는 남는 폭)의 반도 안 되어 이름과 턴이 한 덩이로 읽힌다. 줄은 윗변 테두리(1px) 아래 27px의 가운데에 선다(`pt-px`).
+ * "Driving"과 이름은 한 기준선에 서고, 막대는 숫자의 대문자 높이 가운데에, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
  */
 function BandBody(props: {
   readonly view: DriveStackView;
@@ -263,35 +274,37 @@ function BandBody(props: {
         <BeamBand state={props.beam} />
       </div>
       <div className="relative mx-3 flex h-full min-w-0 items-center ps-3.5 pe-1.5 pt-px">
-        <span className="flex min-w-0 items-baseline gap-2">
+        <DriveWord
+          look={wordLookOf(top.state)}
+          state={top.state}
+          text={top.stateText}
+          slot="drive-band-state"
+          wave={props.beam === "run"}
+          className="text-ui-sm font-semibold"
+        />
+        <span data-slot="drive-band-group" className="ms-5 flex min-w-0 items-center gap-2">
           <span
             data-slot="drive-band-name"
-            className="min-w-0 truncate text-ui-strong text-text-primary"
+            className="min-w-0 truncate text-ui-strong font-semibold text-text-primary"
           >
             {top.name}
           </span>
-          <DriveWord
-            step={top}
-            slot="drive-band-state"
-            live={props.beam === "run"}
-            className="text-ui-sm"
-          />
-        </span>
-        {turns === undefined ? null : (
-          <span
-            data-slot="drive-band-turns"
-            className="ms-5 hidden shrink-0 items-center gap-2 @min-[26rem]:inline-flex"
-          >
-            <TurnTrack meter={turns} className="w-24 shrink-0" />
+          {turns === undefined ? null : (
             <span
-              data-slot="drive-band-turns-text"
-              className={`text-footnote tabular-nums ${turns.warn ? "text-warning-text" : "text-text-tertiary"}`}
+              data-slot="drive-band-turns"
+              className="hidden shrink-0 items-center gap-1.5 @min-[26rem]:inline-flex"
             >
-              {turns.text}
+              <TurnTrack meter={turns} className="w-24 shrink-0" />
+              <span
+                data-slot="drive-band-turns-text"
+                className={`text-footnote tabular-nums ${turns.warn ? "text-warning-text" : "text-text-tertiary"}`}
+              >
+                {turns.text}
+              </span>
             </span>
-          </span>
-        )}
-        <span className="min-w-3 flex-1" />
+          )}
+        </span>
+        <span className="min-w-6 flex-1" />
         {props.stop === null ? null : <StopButton stop={props.stop} onSoft />}
       </div>
     </div>
@@ -363,11 +376,11 @@ function activityTextOf(card: DriveCardView): string {
 
 /**
  * 지금 Drive를 쥔 칸의 카드(맨 위 판). 세 칸으로 나뉜다(lcM6d):
- * - 머리(누가): 플러그인 이름(굵게), 판(짧은 해시 또는 드래프트 칩), 오른쪽 끝 상태 글("Driving", 턴이 도는 동안 물결, lcM6e).
+ * - 머리(누가): 플러그인 이름(굵게), 판(짧은 해시 또는 드래프트 칩), 오른쪽 끝 상태 글("Driving", 멈춘 그라데이션 글. 물결은 띠만, lcM6f).
  *   넘겨받은 입력이 있으면 그 한 줄을
  *   인용 선과 함께. 어떻게 쥐었나·언제부터의 줄은 없다.
  * - 몸(지금 무엇을): "턴을 돌리는 중 · 갈래 2개", 한도마다 한 줄(이름, 막대, "7/8"). 남은 양을 글로 풀지 않는다. 90%부터 경고색.
- * - 발(다음과 행동): "끝나면 helm 차례", 기록 보기, 멈추기(턴이 도는 동안). 둘 다 앱의 보통 단추(xs ghost, lcM6e).
+ * - 발(다음과 행동): "끝나면 helm 차례", 기록 보기, 멈추기(턴이 도는 동안). 기록 보기는 xs ghost, 멈추기는 면이 깔린 xs soft(lcM6f).
  */
 function DriveCard(props: {
   readonly card: DriveCardView;
@@ -404,10 +417,12 @@ function DriveCard(props: {
             </span>
           )}
           <DriveWord
-            step={step}
+            look={wordLookOf(step.state)}
+            state={step.state}
+            text={step.stateText}
             slot="drive-card-state"
-            live={card.activity === "turn"}
-            className="ms-auto text-ui-sm"
+            wave={false}
+            className="ms-auto text-ui-sm font-semibold"
           />
         </div>
         {card.input === null ? null : (

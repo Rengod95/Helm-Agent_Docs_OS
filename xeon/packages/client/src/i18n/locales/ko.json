@@ -2204,6 +2204,7 @@
   "desktop.startDrive.fallback": "메시지는 Drive 없이 기본으로 받아요",
   "desktop.startDrive.rejected": "{plugin} 스타트 Drive를 시작하지 못했어요",
   "desktop.startDrive.reason.refused": "엔진이 시작을 받아들이지 않았어요",
+  "desktop.startDrive.reason.driveError": "Drive가 오류로 멈춰 있어요",
   "desktop.startDrive.deferred": "지금 턴이 끝나면 {plugin} Drive가 시작돼요",
   "desktop.convo.more": "더 보기",
   "desktop.convo.status.done": "끝남",

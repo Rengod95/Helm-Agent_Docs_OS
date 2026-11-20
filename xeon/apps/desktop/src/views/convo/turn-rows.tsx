@@ -1,4 +1,4 @@
-import { Button, Chip, Tooltip } from "@caustic/react";
+import { Button, Tooltip } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -13,6 +13,7 @@ import {
 import { useCommands } from "../commands.ts";
 import { useModelNameOf } from "../model-usage.ts";
 import { ReplyActions } from "./message-actions.tsx";
+import { DriveWord } from "./drive-stack.tsx";
 import { InvokedMark } from "./one-shot.tsx";
 import { profileTitleOf, useProfiles } from "./profile-listing.ts";
 import {
@@ -155,7 +156,7 @@ export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   );
 }
 
-/** Drive 구간 머리: 표지 + "helm" + "Driving" 칩 + 한도 칸 */
+/** Drive 구간 머리: 표지 + "helm" + "Driving" 글 + 한도 칸 */
 export function LeadHead(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;
@@ -170,18 +171,18 @@ export function LeadHead(props: {
       data-slot="convo-lead-head"
     >
       <span aria-hidden className="convo-lead-dot" />
-      {/* 지금 Drive 중이면 이름 + 테두리 칩 "Driving"(띠·카드와 같은 칩, lcM6d), 끝났으면 "helm의 Drive" */}
+      {/* 지금 Drive 중이면 이름 + "Driving" 글(lcM6f: 칩을 없앴다. 띠·카드와 같은 그라데이션 글이고, 물결은 입력창 위 띠만 흐르므로 여기는 멈춰 있다),
+          끝났으면 "helm의 Drive" */}
       {lead.active ? (
         <>
           <span className="text-ui-strong text-text-primary">{name}</span>
-          <Chip
-            size="sm"
-            variant="outline"
-            data-slot="convo-lead-driving"
-            className="text-text-secondary"
-          >
-            {t("desktop.drive.driving")}
-          </Chip>
+          <DriveWord
+            look="driving"
+            text={t("desktop.drive.driving")}
+            slot="convo-lead-driving"
+            wave={false}
+            className="text-ui-sm font-semibold"
+          />
         </>
       ) : (
         <span className="text-ui-strong text-text-primary">

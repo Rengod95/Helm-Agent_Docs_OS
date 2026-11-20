@@ -2204,6 +2204,7 @@
   "desktop.startDrive.fallback": "Messages go to the core without Drive",
   "desktop.startDrive.rejected": "Start Drive {plugin} didn't start",
   "desktop.startDrive.reason.refused": "The engine refused to start it",
+  "desktop.startDrive.reason.driveError": "Its Drive stopped with an error",
   "desktop.startDrive.deferred": "{plugin} Drive starts when this turn ends",
   "desktop.convo.more": "Show more",
   "desktop.convo.status.done": "Done",

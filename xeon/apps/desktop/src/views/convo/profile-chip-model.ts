@@ -1,5 +1,10 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
-import type { Profile, ProfileIssue, SetProfileStartDrive } from "@fresnel/contracts/wire";
+import type {
+  GroupStatusWire,
+  Profile,
+  ProfileIssue,
+  SetProfileStartDrive,
+} from "@fresnel/contracts/wire";
 import { permissionModeOf } from "../permission-mode-model.ts";
 import type { ProfilesRead } from "./profile-listing.ts";
 
@@ -138,15 +143,37 @@ export function profileMenuOf(
 export type StartDriveOutcome = {
   readonly kind: "deferred" | "rejected";
   readonly plugin: string;
+  /**
+   * 거절의 까닭 가운데 화면이 따로 아는 것(lcM6f). 엔진은 `startDrive: "rejected"`에 까닭을 싣지 않는다(호스트 로그
+   * `profile.switch_start_drive_rejected`의 `kind`에만 있다). 그래서 거절을 받은 뒤 `group.list`를 읽어 그 플러그인의 Drive가 오류
+   * 상태(`drive: "error"`)면 `driveError`, Drive를 쓰지 않는 그룹이면 `cannotDrive`다. 모르면 null(엔진이 받아들이지 않았다는 말만 한다)
+   */
+  readonly reason: StartRejectReason | null;
 };
+
+export type StartRejectReason = "driveError" | "cannotDrive";
 
 export function startDriveOutcomeOf(
   result: SetProfileStartDrive | null,
   plugin: string | null,
 ): StartDriveOutcome | null {
   if (plugin === null) return null;
-  if (result === "deferred" || result === "rejected") return { kind: result, plugin };
+  if (result === "deferred" || result === "rejected") return { kind: result, plugin, reason: null };
   return null;
+}
+
+/**
+ * 거절된 스타트 Drive의 까닭을 `group.list`에서 찾는다. 그 플러그인 그룹의 Drive가 오류 상태면 `driveError`(엔진 `drive_error`),
+ * Drive를 쓰지 않는 그룹이면 `cannotDrive`(엔진 `not_drive`). 목록에 없거나 둘 다 아니면 모른다(null)
+ */
+export function startRejectReasonOf(
+  groups: readonly Pick<GroupStatusWire, "id" | "drive" | "usesDrive">[],
+  plugin: string,
+): StartRejectReason | null {
+  const group = groups.find((one) => one.id === plugin);
+  if (group === undefined) return null;
+  if (group.drive === "error") return "driveError";
+  return group.usesDrive ? null : "cannotDrive";
 }
 
 /**

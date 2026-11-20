@@ -836,34 +836,35 @@
   white-space: nowrap;
 }
 
-/* "Driving" 글의 물결(lcM6e, 사용자 2026-11-20). 띠 빛과 같은 색 가족(초록·파랑·보라·노랑, 붉은 기운 없음)을 글자 모양으로 잘라 넣고
-   천천히 옆으로 흘린다. 밝기 폭은 좁다(다크 L 0.76~0.86, 라이트 L 0.50~0.60): 색만 바뀌고 글의 무게는 그대로 읽힌다.
-   - 이 클래스는 Drive가 턴을 돌리는 동안에만 붙는다(drive-stack.tsx `DriveWord`). 쉬는 화면의 "Driving"은 보통 글이라 애니메이션이 없다(비용 0).
-   - 무늬는 글 상자의 두 배 폭이고 처음과 끝 색이 같아 이음매가 없다. 한 바퀴 9초, 초당 20번만 옮긴다(steps):
-     옮기는 양이 1px 아래라 눈에는 매끄럽고, 다시 그리는 넓이는 글 상자뿐이다.
-   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 멈춘 그라데이션이다 */
-.drive-wave {
-  --drive-wave-a: light-dark(oklch(0.55 0.13 152), oklch(0.82 0.13 152));
-  --drive-wave-b: light-dark(oklch(0.52 0.15 252), oklch(0.79 0.12 245));
-  --drive-wave-c: light-dark(oklch(0.52 0.16 298), oklch(0.77 0.13 298));
-  --drive-wave-d: light-dark(oklch(0.6 0.12 95), oklch(0.86 0.12 95));
-  /* 이웃끼리 섞여도 붉어지지 않는 순서: 보라는 파랑 곁에만, 노랑은 초록 곁에만(띠 빛과 같은 규칙) */
+/* "Driving" 글(lcM6e 물결, lcM6f 색과 멈춘 그라데이션). 띠 윗변 빛과 같은 채도 높은 빛깔 토큰(beam.css `--fx-glow-*`)을 섞지 않고 그대로
+   글자 모양으로 잘라 넣는다(사용자 2026-11-20: 옅은 파스텔이 아니라 띠 빛의 진하기). 빛깔은 띠 빛의 붉은 기운 없는 가족(청록·파랑·보라·초록·노랑)이고
+   이웃끼리 섞여도 붉어지지 않는 순서다(보라는 파랑 곁에만, 노랑은 초록 곁에만).
+   - 라이트는 노랑(밝기 0.86)이 흰 바탕에서 글로 읽히지 않아(대비 1.4) 그 자리에 초록을 둔다. 다른 빛깔은 두 테마가 같은 토큰이다.
+   - 어디서나(띠, 카드, 런타임 목록, 대화 기록) 멈춘 그라데이션이다. 무늬는 글 상자의 두 배 폭이라 글에는 앞 절반(청록→파랑→보라→파랑)이 보인다.
+   - 흐르는 것(`data-wave`)은 한 화면에 한 곳, 입력창 위 띠뿐이고 Drive가 턴을 돌리는 동안만이다(drive-stack.tsx `DriveWord`).
+     처음과 끝 색이 같아 이음매가 없고, 한 바퀴 9초에 초당 20번만 옮긴다(steps): 다시 그리는 넓이는 글 상자뿐, 쉬는 화면은 0이다.
+   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 흐르지 않는다 */
+.drive-word {
+  --drive-word-y: light-dark(var(--fx-glow-green), var(--fx-glow-yellow));
   background-image: linear-gradient(
     90deg,
-    var(--drive-wave-a),
-    var(--drive-wave-b) 20%,
-    var(--drive-wave-c) 40%,
-    var(--drive-wave-b) 60%,
-    var(--drive-wave-a) 76%,
-    var(--drive-wave-d) 88%,
-    var(--drive-wave-a)
+    var(--fx-glow-teal),
+    var(--fx-glow-blue) 18%,
+    var(--fx-glow-purple) 34%,
+    var(--fx-glow-blue) 50%,
+    var(--fx-glow-cyan) 62%,
+    var(--fx-glow-green) 76%,
+    var(--drive-word-y) 88%,
+    var(--fx-glow-teal)
   );
   background-size: 200% 100%;
   background-repeat: repeat-x;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  /* 왼쪽에서 오른쪽으로(읽는 방향) 흐른다 */
+}
+/* 왼쪽에서 오른쪽으로(읽는 방향) 흐른다 */
+.drive-word[data-wave] {
   animation: drive-wave 9s steps(180) infinite;
 }
 @keyframes drive-wave {
@@ -872,10 +873,10 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drive-wave {
+  .drive-word[data-wave] {
     animation: none;
   }
 }
-:root[data-motion="reduce"] .drive-wave {
+:root[data-motion="reduce"] .drive-word[data-wave] {
   animation: none;
 }
