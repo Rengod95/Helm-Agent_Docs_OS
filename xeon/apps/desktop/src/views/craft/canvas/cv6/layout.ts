@@ -48,12 +48,12 @@ const PED_HEAD = 36 + TAB_ROOM;
 export const PILE_OFFSET = 7;
 /** 레일 블록의 반 높이 */
 export const RAIL_HALF = 24;
-/** 레일 블록의 변에서 판까지(Hook 줄은 판 위로 탭이 솟으므로 버스와 탭 사이가 남게) */
-const LANE_GAP = 96;
+/** 레일 블록의 변에서 판까지. Hook 줄의 탭이 가장 높이 솟아도(멀리 단계 36) 버스(32)와 12가 남는다. 처음 여는 배율(50%)에서 루프가 1920×1080에 다 들게 96에서 줄였다 */
+const LANE_GAP = 80;
 /** 버스가 서는 곳: 블록의 변에서 이만큼 바깥(판과 변의 가운데쯤) */
-const BUS_OFF = 40;
-/** 재료 줄 맨 위(탭 끝)에서 Drive 줄 바닥까지 */
-const DRIVE_LIFT = 76 + TAB_ROOM;
+const BUS_OFF = 32;
+/** 재료 줄 맨 위(탭 끝)에서 Drive 줄 바닥까지(같은 까닭으로 112에서 96으로) */
+const DRIVE_LIFT = 60 + TAB_ROOM;
 
 export interface Rect {
   readonly x: number;

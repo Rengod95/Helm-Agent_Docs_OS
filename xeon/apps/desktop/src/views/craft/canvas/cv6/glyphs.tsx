@@ -1,13 +1,23 @@
 // cv6 표식: 종류 그림(D의 넷을 이어받는다: Inject 들어가는 화살, Hook 문, Drive 겹 갈매기, 도구 플러그), 구성 요소 그림, 공용 선 그림.
-// 종류 색은 종류를 가르는 데만 쓴다. 값은 `cv6.css`의 `--cv6-<종류>`(채도 높은 caustic 토큰 그대로)다.
+// 종류 색은 종류를 가르는 데만 쓴다. 값은 `cv6.css`의 카드 탭과 같은 한 벌이다: 글·그림·선은 탭 글 색(`--cv6-<종류>-text`),
+// 타일의 면은 탭 면(`--cv6-<종류>-tab`). 왼쪽 목록의 타일이 카드의 탭을 작게 옮긴 모양이 된다.
 import type { CSSProperties, ReactElement } from "react";
 import type { Kind } from "./model.ts";
 
+/** 종류의 글·그림·선 색(탭 글 색) */
 export const KIND_COLOR: Readonly<Record<Kind, string>> = {
-  inject: "var(--cv6-inject)",
-  hook: "var(--cv6-hook)",
-  drive: "var(--cv6-drive)",
-  tool: "var(--cv6-tool)",
+  inject: "var(--cv6-inject-text)",
+  hook: "var(--cv6-hook-text)",
+  drive: "var(--cv6-drive-text)",
+  tool: "var(--cv6-tool-text)",
+};
+
+/** 종류의 면 색(탭 면) */
+const KIND_FACE: Readonly<Record<Kind, string>> = {
+  inject: "var(--cv6-inject-tab)",
+  hook: "var(--cv6-hook-tab)",
+  drive: "var(--cv6-drive-tab)",
+  tool: "var(--cv6-tool-tab)",
 };
 
 const STROKE = {
@@ -52,7 +62,7 @@ export function KindGlyph(props: { readonly kind: Kind; readonly size?: number }
   );
 }
 
-/** 종류 색의 아이콘 타일: 옅은 종류 색 바탕 + 종류 색 그림. 드래프트는 점선 테두리 */
+/** 종류 색의 아이콘 타일: 탭 면 + 탭 글 색의 그림(카드의 탭과 같은 두 색). 드래프트는 점선 테두리 */
 export function KindTile(props: {
   readonly kind: Kind;
   readonly size: number;
@@ -64,7 +74,7 @@ export function KindTile(props: {
     height: props.size,
     color,
     borderRadius: Math.round(props.size * 0.28),
-    background: `color-mix(in oklab, ${color} 15%, transparent)`,
+    background: KIND_FACE[props.kind],
     boxShadow: props.draft === true ? `inset 0 0 0 1px ${color}` : undefined,
     outline: props.draft === true ? `1px dashed ${color}` : undefined,
     outlineOffset: props.draft === true ? 2 : undefined,

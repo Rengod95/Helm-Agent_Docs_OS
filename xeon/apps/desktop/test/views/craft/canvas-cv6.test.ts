@@ -12,6 +12,7 @@ import {
 import {
   layoutProfile,
   PLATE_H,
+  RAIL_HALF,
   TAB_ROOM,
   type Rect,
 } from "../../../src/views/craft/canvas/cv6/layout.ts";
@@ -92,6 +93,20 @@ describe("layoutProfile", () => {
     const l = layoutProfile(profileFromSample("dev"), new Set());
     const sizes = new Set(l.plates.map((p) => `${p.w}×${p.h}`));
     expect([PLATE_H, [...sizes]]).toEqual([289, ["316×289"]]);
+  });
+
+  test("레일과 판 사이 80: 첫 판이 레일 가운데에서 ±104, 멀리 단계의 탭(36)과 버스(블록 변에서 32) 사이 12, 루프 높이 1937", () => {
+    const l = layoutProfile(profileFromSample("dev"), new Set());
+    const below = Math.min(...l.plates.filter((p) => p.y > 0).map((p) => p.y));
+    const above = Math.max(
+      ...l.plates
+        .filter((p) => p.y + p.h < 0 && p.placed.plugin.kind !== "drive")
+        .map((p) => p.y + p.h),
+    );
+    // G5는 레일과 판 사이 96, 재료 줄 위 Drive 줄까지 112였다(루프 높이 1985). 처음 여는 50%에서 1920×1080에 다 들게 줄였다
+    expect([below, above, below - TAB_ROOM - (RAIL_HALF + 32), l.bounds.h]).toEqual([
+      104, -104, 12, 1937,
+    ]);
   });
 
   test("탭 자리까지 넣어도 판끼리 겹치지 않는다(개발, 30개, 한 자리 1·5·20)", () => {

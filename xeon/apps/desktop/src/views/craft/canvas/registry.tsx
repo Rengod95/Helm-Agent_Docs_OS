@@ -1,6 +1,6 @@
 // 프로필 캔버스 시안(AGE-31, 개발 빌드만). 여섯째 판 G5(cv6)가 맨 앞에, 다섯째 판 G4, 넷째 판 G3, 셋째 판 G2, 둘째 판 F·G·H와 첫 판 A~E가 뒤에 선다(비교용). 시안마다 화면 하나(`Screen`)를 낸다:
 // 프로필 캔버스와, 노드를 열면 들어가는 플러그인 내부. A·C·F·G·H·G2·G3·G4·G5는 내부 들어가기를 스스로 하고, B·D·E는 캔버스와 내부 두 부품을 낸다.
-// 둘을 같은 모양으로 맞추는 얇은 자리만 여기에 둔다. 고르기(왼쪽 아래 전환기, 키 1~8)는 `switcher.tsx`가 한다.
+// 둘을 같은 모양으로 맞추는 얇은 자리만 여기에 둔다. 고르기(캔버스 위 오른쪽의 시안 메뉴, 키 1~9·0)는 `switcher.tsx`가 한다.
 import type { MessageId } from "@fresnel/client/i18n";
 import { useState, type ComponentType, type ReactNode } from "react";
 import * as cvA from "./cvA/index.tsx";
