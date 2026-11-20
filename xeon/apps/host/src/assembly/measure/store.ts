@@ -45,6 +45,7 @@ import {
   TURN_CHILD_TABLES,
   TURN_CHILD_TABLES_KEPT_BY_PRUNE,
   TURN_RECORD_DDL,
+  TURN_RECORD_INDEXES,
   TURN_RECORD_VERSION,
   TURN_SUMMARY_COLUMNS,
   turnOf,
@@ -126,6 +127,23 @@ export interface TrTurnQuery {
   readonly scopes?: readonly string[];
   /** 턴 플래그 비트 마스크. 하나라도 겹치는 턴만 낸다 */
   readonly flagsMask?: number;
+}
+
+/**
+ * 대화를 가로지르는 턴 질의(AGE-36). `cursor`는 `next`로 받은 값이고 `<시작 시각>:<행 id>`다.
+ * 순서가 (시작 시각, 행 id) 키라서 읽는 사이 새 턴이 생겨도 쪽 경계가 밀리지 않는다
+ */
+interface TrRecentQuery {
+  readonly cursor?: string;
+  readonly limit?: number;
+  /** 시작 시각 `[from, to)`. 없으면 그쪽은 열려 있다 */
+  readonly from?: number;
+  readonly to?: number;
+  readonly profileId?: string;
+  /** 그 플러그인의 훅이 결정(통과·건너뜀이 아닌 값)을 낸 턴만 */
+  readonly plugin?: string;
+  /** 범위 종류 허용 목록. 빈 목록이면 아무것도 내지 않는다 */
+  readonly scopes: readonly string[];
 }
 
 interface TrTurnListRow extends Omit<TrTurnRow, "recordJson"> {
@@ -230,6 +248,8 @@ export interface MeasureStore {
   dailyWindow(query: DailyWindowQuery): Result<readonly DailyCell[], MeasureStoreError>;
   /** `tr_turn`의 가장 큰 rowid. 발견 캐시의 `dataRevision`이다. 빈 표면 0 */
   maxTurnRowid(): Result<number, MeasureStoreError>;
+  /** 모든 대화의 턴(시작 시각 역순, `turnRecord.recent`). `recordJson`은 빼고 낸다 */
+  recentTurns(query: TrRecentQuery): Result<TrTurnPage, MeasureStoreError>;
   /** 훅 실행 행 검색(`turnRecord.search`). 최신 행부터 `beforeRowid` 아래에서 `limit`개까지 낸다 */
   searchHooks(query: HookSearchQuery): Result<readonly HookSearchRow[], MeasureStoreError>;
   close(): void;
@@ -367,6 +387,8 @@ function upgradeTurnRecord(db: Database): boolean {
         db.run(`PRAGMA user_version = ${String(TURN_RECORD_VERSION)}`);
       })();
     }
+    // 색인은 버전과 따로 매번 보장한다(버전 2가 이미 만들어진 저장소에도 더한다)
+    db.run(TURN_RECORD_INDEXES);
     // 소금은 있으면 그대로 둔다. 없을 때만 새로 만든다
     db.query("INSERT OR IGNORE INTO tr_meta (key, value) VALUES ('install_salt', ?)").run(
       randomBytes(32).toString("hex"),
@@ -684,6 +706,7 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
       turnGuarded(() => ok(db.transaction(() => upsertAll(statements, TR_PLUGINCALL, rows))())),
     readTurn: (threadId, turnId) => turnGuarded(() => ok(readBundle(db, threadId, turnId))),
     listTurns: (query) => turnGuarded<TrTurnPage>(() => listTurnRows(db, query)),
+    recentTurns: (query) => turnGuarded<TrTurnPage>(() => recentTurnRows(db, query)),
     markLostTurns: () => turnGuarded(() => ok(markOpenTurnsLost(db))),
     forgetThread: (threadId) =>
       turnGuarded(() =>
@@ -831,6 +854,54 @@ function listTurnRows(db: Database, query: TrTurnQuery): Result<TrTurnPage, Meas
   const items = more ? rows.slice(0, limit) : rows;
   const last = items[items.length - 1];
   return ok({ items, next: more && last !== undefined ? String(last.rowid) : null });
+}
+
+/** 훅 한 줄이 결정을 낸 값인가: `hookOutcomeOf`에서 통과·건너뜀이 아닌 쪽과 같다 */
+const HOOK_DECIDED_SQL = `h.result <> 'skipped' AND (h.result <> 'passed' OR h.decision IN ('ask', 'block', 'cancel', 'replace', 'answer'))`;
+
+function recentTurnRows(db: Database, query: TrRecentQuery): Result<TrTurnPage, MeasureStoreError> {
+  if (query.scopes.length === 0) return ok({ items: [], next: null });
+  const limit = Math.min(Math.max(query.limit ?? DEFAULT_PAGE, 1), MAX_PAGE);
+  const where = [`scope_kind IN (${marksOf(query.scopes.length)})`];
+  const params: SqlValue[] = [...query.scopes];
+  if (query.from !== undefined) {
+    where.push("started_at >= ?");
+    params.push(query.from);
+  }
+  if (query.to !== undefined) {
+    where.push("started_at < ?");
+    params.push(query.to);
+  }
+  if (query.cursor !== undefined) {
+    const match = /^(\d+(?:\.\d+)?):(\d+)$/.exec(query.cursor);
+    if (match === null) return err({ kind: "invalid_cursor" });
+    where.push("(started_at < ? OR (started_at = ? AND rowid < ?))");
+    params.push(Number(match[1]), Number(match[1]), Number(match[2]));
+  }
+  if (query.profileId !== undefined) {
+    where.push("profile_id = ?");
+    params.push(query.profileId);
+  }
+  if (query.plugin !== undefined) {
+    where.push(
+      `EXISTS (SELECT 1 FROM tr_hook h WHERE h.thread_id = tr_turn.thread_id AND h.turn_id = tr_turn.turn_id AND h.plugin = ? AND ${HOOK_DECIDED_SQL})`,
+    );
+    params.push(query.plugin);
+  }
+  params.push(limit + 1);
+  const rows = selectAll(
+    db,
+    `SELECT rowid AS row_id, ${TURN_SUMMARY_COLUMNS} FROM tr_turn WHERE ${where.join(" AND ")} ORDER BY started_at DESC, rowid DESC LIMIT ?`,
+    params,
+    (cols) => ({ rowid: colNum(cols, "row_id"), ...turnSummaryOf(cols) }),
+  );
+  const more = rows.length > limit;
+  const items = more ? rows.slice(0, limit) : rows;
+  const last = items[items.length - 1];
+  return ok({
+    items,
+    next: more && last !== undefined ? `${String(last.startedAt)}:${String(last.rowid)}` : null,
+  });
 }
 
 /** 열 두 칸과 `record_json`의 두 키를 맞춘다. JSON을 읽을 수 없으면 열만 바꾼다 */

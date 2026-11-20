@@ -696,6 +696,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value !== undefined) : found;
     },
+    titleOf(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok
+        ? ok(found.value === undefined ? undefined : { title: found.value.title })
+        : found;
+    },
     workspaceOf(threadId) {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value?.workspace ?? null) : found;

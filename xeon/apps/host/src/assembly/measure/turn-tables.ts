@@ -887,6 +887,11 @@ export function dailyOf(cols: Cols): TrDailyRow {
 // ---- 스키마 -----------------------------------------------------------------
 
 /** 버전 2 DDL. 한 트랜잭션에서 실행한다(실패하면 한 줄도 남지 않는다). 인덱스는 §3.4 표의 것뿐이다 */
+/** 버전과 무관하게 열 때마다 보장하는 색인. `tr_turn(started_at)`은 대화를 가로지르는 최근 턴 목록(`turnRecord.recent`)의 순서 키다(행 id가 뒤에 암묵으로 붙는다) */
+export const TURN_RECORD_INDEXES = `
+CREATE INDEX IF NOT EXISTS tr_turn_started ON tr_turn(started_at);
+`;
+
 export const TURN_RECORD_DDL = `
 CREATE TABLE IF NOT EXISTS tr_meta (
   key TEXT PRIMARY KEY,
