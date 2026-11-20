@@ -133,9 +133,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog",
+          "label": "Enable Chat interface",
           "labelArgs": {
-            "name": "Dialog"
+            "name": "Chat interface"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -663,9 +663,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog area bridge",
+          "label": "Enable Work-knowledge bridge",
           "labelArgs": {
-            "name": "Dialog area bridge"
+            "name": "Work-knowledge bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -686,9 +686,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog bridge",
+          "label": "Enable Chat-app bridge",
           "labelArgs": {
-            "name": "Dialog bridge"
+            "name": "Chat-app bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -732,9 +732,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Proposals bridge",
+          "label": "Enable Knowledge proposals bridge",
           "labelArgs": {
-            "name": "Proposals bridge"
+            "name": "Knowledge proposals bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -1449,6 +1449,35 @@
         }
       }
     },
+    "l0.sandbox.protectedPaths.allowRead": {
+      "default": [],
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
+          "helpKey": "settings.l0.sandbox.protectedPaths.allowRead.help",
+          "label": "Protected paths shell commands may read",
+          "labelKey": "settings.l0.sandbox.protectedPaths.allowRead.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "list"
+        }
+      }
+    },
     "l0.sandbox.protectedPaths.extra": {
       "default": [],
       "items": {
@@ -1476,6 +1505,29 @@
           "order": 102,
           "tab": "permissions",
           "widget": "list"
+        }
+      }
+    },
+    "l0.sandbox.sandboxImportedHooks": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+          "helpKey": "settings.l0.sandbox.sandboxImportedHooks.help",
+          "label": "Run imported hooks inside the sandbox",
+          "labelKey": "settings.l0.sandbox.sandboxImportedHooks.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "toggle"
         }
       }
     },

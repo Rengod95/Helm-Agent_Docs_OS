@@ -438,7 +438,7 @@ const ENV_DECLARED = {
   ],
 };
 
-test("an environment-mode script line shows the original command, the tool found on PATH, the references with fingerprints and the wide uses (AGE-58)", () => {
+test("an environment-mode script line shows the original command, the tool found on PATH, the references with fingerprints and the full-access uses (AGE-58)", () => {
   const folder = folderOf("env-kit", {
     ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
   });
@@ -452,7 +452,8 @@ test("an environment-mode script line shows the original command, the tool found
   });
   expect(parse(PluginCardSchema, card).ok).toBe(true);
   const [guard, unknown] = card.does.inject?.scripts ?? [];
-  expect(guard?.uses).toEqual(["user_environment", "read_wide", "write_project", "network"]);
+  // 기본(샌드박스 설정 꺼짐): 사용자 권한 그대로, 샌드박스 없음
+  expect(guard?.uses).toEqual(["user_full_access", "user_environment", "network"]);
   expect(guard?.env).toEqual({
     command: 'PYTHONPATH=x python3.11 "$CLAUDE_PROJECT_DIR"/.claude/hooks/x.py --strict',
     shell: "sh",
@@ -474,6 +475,56 @@ test("an environment-mode script line shows the original command, the tool found
     versionHints: [],
     fromProject: true,
   });
+});
+
+const ENV_ORIGIN: BuildCardInput["origin"] = { kind: "project", projectId: "p1" };
+
+test("the environment-mode uses are the user's own access by default and the sandboxed list when the sandbox setting is on, and a narrow script keeps its narrow uses either way (AGE-58)", () => {
+  const envFolder = folderOf("env-kit", {
+    ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
+  });
+  const scriptFolder = folderOf("script-kit", {
+    ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED),
+  });
+  const plain = buildPluginCard({
+    folder: envFolder,
+    origin: ENV_ORIGIN,
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+  });
+  expect(plain.does.inject?.scripts?.map((script) => script.uses)).toEqual([
+    ["user_full_access", "user_environment", "network"],
+    ["user_full_access", "user_environment", "network"],
+  ]);
+
+  const sandboxed = buildPluginCard({
+    folder: envFolder,
+    origin: ENV_ORIGIN,
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+    envSandboxed: true,
+  });
+  expect(parse(PluginCardSchema, sandboxed).ok).toBe(true);
+  expect(sandboxed.does.inject?.scripts?.map((script) => script.uses)).toEqual([
+    ["user_environment", "read_wide", "write_project", "network"],
+    ["user_environment", "read_wide", "write_project", "network"],
+  ]);
+
+  // 좁은 스크립트(환경 모드 선언이 없는 것)는 샌드박스 설정과 상관없이 좁은 사용 목록이다
+  const narrow = buildPluginCard({
+    folder: scriptFolder,
+    origin: ENV_ORIGIN,
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+    envSandboxed: true,
+  });
+  expect(narrow.does.inject?.scripts?.map((script) => script.uses)).toEqual([
+    ["system_tools", "network"],
+    ["system_tools", "network"],
+  ]);
 });
 
 test("a tool that is not on PATH is listed as missing, and a narrow script keeps the narrow uses and no env", () => {

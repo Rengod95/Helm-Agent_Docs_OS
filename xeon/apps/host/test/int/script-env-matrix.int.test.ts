@@ -22,12 +22,15 @@ import {
   type ScriptEnvBox,
 } from "../support/script-env-box.ts";
 
-// 환경 모드(가져온 훅, AGE-58 원칙 가)의 실제 샌드박스 행렬 시험(트랙 enK9). 실행기(`createScriptRunner`)가 환경 모드
-// 선언(`env`)을 실제 띄우기 포트와 실제 샌드박스(srt, Seatbelt)로 돌린다. 샌드박스의 홈은 임시 가짜 홈이라 보호 경로
-// (`~/.ssh`, `~/.claude`, `~/Library/Keychains`)가 가짜 홈에 있다. 자식의 사용자 환경은 이 프로세스 환경의 복사본이다
-// (PATH의 버전 관리자 shim이 돌려면 실제 HOME이 필요하다). 행렬 20행(a/b 변형 포함), 막혀야 하는 행, 우회 재현, 닫힌 실패 행을 본다.
-// 확인하는 것은 종료 코드, 정확한 표준 출력, 파일 생김 여부다. 가짜 비밀의 내용은 결과에 나오면 안 된다.
-// 샌드박스를 쓸 수 없으면 건너뛴다(맥이 아니면 건너뛴다). FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2로 끝난다.
+// 환경 모드(가져온 훅, AGE-58 원칙 가) 시험(트랙 enK9). 두 묶음이 있다.
+// (A) 옛 샌드박스 길(`envSandboxed: () => true`, 설정 `l0.sandbox.sandboxImportedHooks`를 켠 경우): 실행기(`createScriptRunner`)가
+//     실제 띄우기 포트와 실제 샌드박스(srt, Seatbelt)로 돌린다. 샌드박스의 홈은 임시 가짜 홈이라 보호 경로(`~/.ssh`,
+//     `~/.claude`, `~/Library/Keychains`)가 가짜 홈에 있다. 행렬 20행(a/b 변형 포함), 막혀야 하는 행, 우회 재현, 닫힌 실패 행을 본다.
+//     확인하는 것은 종료 코드, 정확한 표준 출력, 파일 생김 여부다. 가짜 비밀의 내용은 결과에 나오면 안 된다.
+// (B) 기본 길(사용자 권한, 샌드박스 없음, `envSandboxed` 거짓): 실제 `createHookRunner`로 돈다. 자식의 HOME은 가짜 홈이고
+//     가짜 비밀 파일을 읽고 가짜 홈에 쓸 수 있다. 환경 이름 거르기, 참조 지문, 작업 폴더, 종료 코드를 값으로 비교한다.
+// 샌드박스를 쓸 수 없으면 (A)가 건너뛰어진다(맥이 아니면 건너뛴다). FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2로 끝난다.
+// (B)는 샌드박스가 필요 없다. 맥에서만 돈다.
 
 const ENVIRONMENT_EXIT_CODE = 2;
 const TEST_TIMEOUT_MS = 240_000;
@@ -44,6 +47,7 @@ if (!runnable) {
   process.stderr.write("SKIPPED script-env-matrix.int: sandbox not runnable here\n");
 }
 const suite = runnable ? describe : describe.skip;
+const hookSuite = process.platform === "darwin" ? describe : describe.skip;
 
 /** 행 하나의 결과. 실행됐는가(종료 0, 기대한 표준 출력, 확인 통과)와 종료 코드 */
 interface Cell {
@@ -125,13 +129,13 @@ function firstLine(text: string, box: ScriptEnvBox): string {
   return masked.slice(0, 160);
 }
 
-/** 환경 모드 venv를 만든다(`--without-pip`, 설치 없음). 모듈 `mymod`를 site-packages에 둔다 */
-function makeVenv(root: string): string {
+/** 환경 모드 venv를 만든다(`--without-pip`, 설치 없음). 모듈 `mymod`를 site-packages에 둔다. 만드는 호출도 가짜 홈을 쓴다(샌드박스 밖) */
+function makeVenv(root: string, home: string): string {
   const dir = join(root, "venv");
   const made = Bun.spawnSync(["python3", "-m", "venv", "--without-pip", dir], {
     stdout: "pipe",
     stderr: "pipe",
-    env: processEnvCopy(),
+    env: { ...processEnvCopy(), HOME: home },
   });
   if (made.exitCode !== 0) throw new Error("the venv fixture could not be made");
   const lib = join(dir, "lib");
@@ -217,7 +221,7 @@ const ROWS: readonly Row[] = [
     id: "r10-venv-module",
     needs: ["python3"],
     setup: (ctx) => {
-      ctx.venvPython = makeVenv(ctx.box.root);
+      ctx.venvPython = makeVenv(ctx.box.root, ctx.box.home);
     },
     command: (ctx) => `${ctx.venvPython} -c "import mymod; print(mymod.VALUE)"`,
     stdout: "venv-module-ok",
@@ -444,16 +448,16 @@ print("\\n".join(out))
 `;
 }
 
-/** 막힌 도구가 다른 경로로 도는지 본다(enK6 `EXEC_FN`과 같다): 실행되면 usage 문구가 나온다 */
+/**
+ * 막힌 도구가 다른 경로로 도는지 본다(enK6 `EXEC_FN`과 같다): 실행되면 usage 문구가 나온다.
+ * 도움말 호출(`-h`, `help`)만 쓴다. `osascript`, `open`, `pbpaste`, `screencapture`는 도움말 호출이 없거나(`open -h`는 헤더를 연다)
+ * 실제 동작이 일어날 수 있어 이 목록에서 뺐다(사용자 규칙: osascript·System Events 금지, launchd 요청 금지).
+ */
 const EXEC_PROBE = `x() { local label=$1; shift; local out; out=$("$@" 2>&1); if echo "$out" | grep -qi "usage"; then echo "$label=ran"; else echo "$label=blocked"; fi; }
 x control_grep grep --help
 x direct /usr/bin/security -h
 x launchctl /bin/launchctl help
-x osascript /usr/bin/osascript -h
-x open /usr/bin/open -h
-x pbpaste /usr/bin/pbpaste -h
 x defaults /usr/bin/defaults help
-x screencapture /usr/sbin/screencapture -h
 x via_env env security -h
 x via_env_abs /usr/bin/env /usr/bin/security -h
 x via_xcrun xcrun security -h
@@ -529,7 +533,7 @@ function specOf(row: Row, ctx: MatrixCtx): EnvRunSpec {
   };
 }
 
-suite("script runner in env mode: the real sandbox matrix (AGE-58 principle A)", () => {
+suite("env mode, sandboxed old path: the real sandbox matrix (AGE-58 principle A)", () => {
   let slot: ScriptEnvBox | undefined;
   beforeAll(async () => {
     slot = await openScriptEnvBox();
@@ -572,7 +576,7 @@ suite("script runner in env mode: the real sandbox matrix (AGE-58 principle A)",
   );
 });
 
-suite("script runner in env mode: negative rows (must be denied)", () => {
+suite("env mode, sandboxed old path: negative rows (must be denied)", () => {
   let slot: ScriptEnvBox | undefined;
   beforeAll(async () => {
     slot = await openScriptEnvBox();
@@ -698,29 +702,20 @@ suite("script runner in env mode: negative rows (must be denied)", () => {
   );
 
   test(
-    "N07 the blocked tools do not run: osascript, security, launchctl, open",
+    "N07 the blocked tools do not run: security and launchctl, by their help calls only (no osascript, open, or launchd requests)",
     async () => {
       const box = requireBox(slot);
-      const osa = resultOf(
-        await box.run({ name: "n07-osascript", command: `osascript -e 'return 1'` }),
-      );
-      if (osa !== undefined) {
-        expect(osa.exitCode).not.toBe(0);
-        expect(osa.stdout.trim()).not.toBe("1");
-      }
+      // 도움말 호출만 쓴다. 막히면 종료 코드가 0이 아니고 usage 문구가 나오지 않는다
       const sec = resultOf(await box.run({ name: "n07-security", command: `security -h` }));
       if (sec !== undefined) {
         expect(sec.exitCode).not.toBe(0);
         expect(`${sec.stdout}\n${sec.stderr}`).not.toMatch(/usage/i);
       }
-      const launch = resultOf(await box.run({ name: "n07-launchctl", command: `launchctl list` }));
+      const launch = resultOf(await box.run({ name: "n07-launchctl", command: `launchctl help` }));
       if (launch !== undefined) {
         expect(launch.exitCode).not.toBe(0);
-        expect(launch.stdout).not.toContain("Label");
+        expect(`${launch.stdout}\n${launch.stderr}`).not.toMatch(/usage/i);
       }
-      // `open`은 실행이 막혀야 한다(화면에 아무것도 뜨지 않는다)
-      const opened = resultOf(await box.run({ name: "n07-open", command: `open -a Finder` }));
-      if (opened !== undefined) expect(opened.exitCode).not.toBe(0);
     },
     TEST_TIMEOUT_MS,
   );
@@ -773,7 +768,7 @@ suite("script runner in env mode: negative rows (must be denied)", () => {
   );
 });
 
-suite("script runner in env mode: bypass replays (enK6 cases, same denied outcomes)", () => {
+suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied outcomes)", () => {
   let slot: ScriptEnvBox | undefined;
   beforeAll(async () => {
     slot = await openScriptEnvBox();
@@ -849,7 +844,8 @@ suite("script runner in env mode: bypass replays (enK6 cases, same denied outcom
       expect(ran).toEqual([]);
       // 막힌 도구의 복사본은 읽기부터 막힌다(도구 거부 목록이 읽기도 막는다): 복사본이 0바이트다(enK6과 같다)
       expect(results["copy_cat_bytes"]).toBe("0");
-      expect(Object.keys(results).length).toBeGreaterThanOrEqual(23);
+      // 프로브가 낸 결과 줄은 19개다(대조 control_grep 1개와 나머지 18개, copy_cat_bytes 포함). 줄이 빠지면 여기서 실패한다
+      expect(Object.keys(results).length).toBe(19);
     },
     TEST_TIMEOUT_MS,
   );
@@ -881,7 +877,7 @@ suite("script runner in env mode: bypass replays (enK6 cases, same denied outcom
   );
 });
 
-suite("script runner in env mode: fail-closed rows", () => {
+suite("env mode, sandboxed old path: fail-closed rows", () => {
   let slot: ScriptEnvBox | undefined;
   beforeAll(async () => {
     slot = await openScriptEnvBox();
@@ -980,13 +976,14 @@ suite("script runner in env mode: fail-closed rows", () => {
   );
 
   test(
-    "Fd sandbox unavailable: sandbox_unavailable, nothing ran, no marker",
+    "Fd sandbox unavailable (sandboxed old path, envSandboxed true): sandbox_unavailable, nothing ran, no marker",
     async () => {
       const box = requireBox(slot);
       const before = box.spawns();
       const outcome = await box.run({
         name: "fd-no-sandbox",
         command: `printf ran > marker-fd.txt`,
+        envSandboxed: true,
         sandboxAvailable: () => false,
       });
       expect(outcome.ok).toBe(false);
@@ -998,3 +995,204 @@ suite("script runner in env mode: fail-closed rows", () => {
     TEST_TIMEOUT_MS,
   );
 });
+
+/** 기본 길의 사용자 환경: 시스템 도구만 있는 고정 PATH와 가짜 홈, 그리고 이 시험이 정한 값. 실제 환경 복사본은 쓰지 않는다 */
+function hookEnv(
+  box: ScriptEnvBox,
+  extra: Readonly<Record<string, string>> = {},
+): Readonly<Record<string, string>> {
+  return { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", HOME: box.home, ...extra };
+}
+
+/** 기본 길(샌드박스 없음)로 돌린다. 사용자 환경을 주지 않으면 `hookEnv`를 쓴다 */
+function hookRun(
+  box: ScriptEnvBox,
+  spec: Omit<EnvRunSpec, "envSandboxed">,
+): Promise<EnvRunOutcome> {
+  return box.run({ userEnv: hookEnv(box), ...spec, envSandboxed: false });
+}
+
+hookSuite(
+  "script runner in env mode, default path: no sandbox, the user's own permissions (AGE-58, decision 2026-11-20)",
+  () => {
+    let slot: ScriptEnvBox | undefined;
+    beforeAll(async () => {
+      slot = await openScriptEnvBox();
+    });
+    afterAll(async () => {
+      await slot?.close();
+      slot = undefined;
+    });
+
+    test(
+      "(a) the hook writes into the fake home outside the project, and the fake secret files it reads come out on stdout",
+      async () => {
+        const box = requireBox(slot);
+        const written = join(box.home, "hook-wrote.txt");
+        const ssh = join(box.home, ".ssh", "id_fake");
+        const cred = join(box.home, ".claude", "credentials.json");
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-a-home-rw",
+            command: `printf written > "${written}" && cat "${ssh}" && cat "${cred}" && cat "${written}"`,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.signal).toBeNull();
+        expect(result.stdout).toBe(
+          `${box.secrets.ssh}\n{"token": "${box.secrets.credentials}"}\nwritten`,
+        );
+        expect(readFileSync(written, "utf8")).toBe("written");
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(b) a uv-style cache write under $HOME/.cache/uv works, and $HOME is the fake home (uv itself is not run)",
+      async () => {
+        const box = requireBox(slot);
+        const cacheFile = join(box.home, ".cache", "uv", "x");
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-b-uv-cache",
+            command: `mkdir -p "$HOME/.cache/uv" && printf cached > "$HOME/.cache/uv/x" && echo "home=$HOME" && echo "wrote=$(cat "$HOME/.cache/uv/x")"`,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toBe(`home=${box.home}\nwrote=cached\n`);
+        expect(readFileSync(cacheFile, "utf8")).toBe("cached");
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(c) FRESNEL_HOME and FRESNEL_DEV in the user env are not visible to the hook; GH_TOKEN, AWS_PROFILE and SSH_AUTH_SOCK are",
+      async () => {
+        const box = requireBox(slot);
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-c-env-names",
+            userEnv: hookEnv(box, {
+              FRESNEL_HOME: "fake-fresnel-home",
+              FRESNEL_DEV: "1",
+              GH_TOKEN: "fake-gh-token",
+              AWS_PROFILE: "fake-aws-profile",
+              SSH_AUTH_SOCK: "fake-ssh-agent-socket",
+            }),
+            command: `for n in FRESNEL_HOME FRESNEL_DEV GH_TOKEN AWS_PROFILE SSH_AUTH_SOCK; do if v=$(printenv "$n"); then echo "$n=$v"; else echo "$n=absent"; fi; done`,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toBe(
+          "FRESNEL_HOME=absent\nFRESNEL_DEV=absent\nGH_TOKEN=fake-gh-token\nAWS_PROFILE=fake-aws-profile\nSSH_AUTH_SOCK=fake-ssh-agent-socket\n",
+        );
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(d1) a reference with a null hash whose file is missing does not stop the hook",
+      async () => {
+        const box = requireBox(slot);
+        const missing = join(box.project, "never-created-ref.txt");
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-d1-null-ref",
+            command: `echo null-ref-ran`,
+            refs: [{ path: missing, hash: null }],
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toBe("null-ref-ran\n");
+        expect(existsSync(missing)).toBe(false);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(d2) a hashed reference that changed returns script_ref_changed(changed) and the hook does not run",
+      async () => {
+        const box = requireBox(slot);
+        const refPath = join(box.project, "ref-d2.txt");
+        writeFileSync(refPath, "v1\n");
+        const hash = sha256Of(refPath);
+        writeFileSync(refPath, "v2\n");
+        const before = box.hookRuns();
+        const outcome = await hookRun(box, {
+          name: "h-d2-changed",
+          command: `printf ran > marker-d2.txt`,
+          refs: [{ path: refPath, hash }],
+        });
+        expect(outcome.ok).toBe(false);
+        if (outcome.ok) return;
+        expect(outcome.error).toEqual({
+          kind: "script_ref_changed",
+          path: refPath,
+          reason: "changed",
+        });
+        expect(box.hookRuns()).toBe(before);
+        expect(existsSync(join(box.project, "marker-d2.txt"))).toBe(false);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(e) sandboxAvailable false does not stop the default path: the hook runs",
+      async () => {
+        const box = requireBox(slot);
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-e-no-sandbox",
+            command: `printf ran > marker-e.txt && echo e-ok`,
+            sandboxAvailable: () => false,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toBe("e-ok\n");
+        expect(readFileSync(join(box.project, "marker-e.txt"), "utf8")).toBe("ran");
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(f) the hook's working folder is the project folder, and CLAUDE_PROJECT_DIR is set to it",
+      async () => {
+        const box = requireBox(slot);
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-f-cwd",
+            command: `pwd -P && printf '%s\\n' "$CLAUDE_PROJECT_DIR" && cat README.md`,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toBe(`${box.project}\n${box.project}\ncommitted\n`);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    test(
+      "(g) a command that exits 2 gives exitCode 2 and its stderr text",
+      async () => {
+        const box = requireBox(slot);
+        const result = resultOf(
+          await hookRun(box, {
+            name: "h-g-exit-2",
+            command: `echo "hook says no" >&2; exit 2`,
+          }),
+        );
+        if (result === undefined) return;
+        expect(result.exitCode).toBe(2);
+        expect(result.timedOut).toBe(false);
+        expect(result.stdout).toBe("");
+        expect(result.stderr).toBe("hook says no\n");
+      },
+      TEST_TIMEOUT_MS,
+    );
+  },
+);

@@ -11,16 +11,24 @@ const storedAsk = (key: string): unknown =>
   key === "l0.sandbox.onUnavailable" ? "ask" : undefined;
 
 describe("sandbox settings", () => {
+  test("sandboxImportedHooks is off by default and only managed and user scopes may set it", () => {
+    const def = SANDBOX_SETTING_DEFS.find((d) => d.key === "l0.sandbox.sandboxImportedHooks");
+    expect(def?.default).toBe(false);
+    expect(def?.allowedScopes).toEqual(["managed", "user"]);
+  });
+
   test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.protectedPaths.extra",
+      "l0.sandbox.protectedPaths.allowRead",
       "l0.sandbox.writeRoots.extra",
       "l0.sandbox.escapeRetry",
       "l0.sandbox.network.blockedDomains",
       "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
+      "l0.sandbox.sandboxImportedHooks",
       "l0.sandbox.selfTestIntervalMin",
     ]);
     for (const def of SANDBOX_SETTING_DEFS) {
@@ -39,6 +47,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.writeRoots.extra",
+      "l0.sandbox.protectedPaths.allowRead",
       "l0.sandbox.escapeRetry",
       "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
@@ -61,6 +70,7 @@ describe("sandbox settings", () => {
       enabled: true,
       onUnavailable: "disable_execute",
       protectedPathsExtra: [],
+      protectedPathsAllowRead: [],
       writeRootsExtra: [],
       escapeRetry: false,
       blockedDomains: [],
@@ -80,6 +90,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.escapeRetry": true,
       "l0.sandbox.network.blockedDomains": ["bad.example"],
       "l0.sandbox.credentialFiles": "deny",
+      "l0.sandbox.protectedPaths.allowRead": ["~/.kube"],
       "l0.sandbox.nestedNamespaces": true,
       "l0.sandbox.selfTestIntervalMin": 0,
     };
@@ -87,6 +98,7 @@ describe("sandbox settings", () => {
       enabled: false,
       onUnavailable: "run_unsandboxed",
       protectedPathsExtra: ["/a", "~/b"],
+      protectedPathsAllowRead: ["~/.kube"],
       writeRootsExtra: ["/w"],
       escapeRetry: true,
       blockedDomains: ["bad.example"],
