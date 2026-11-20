@@ -110,6 +110,7 @@ binds: []
 | Add-on | 플레이그라운드 | Playground | `addons`, `plugins` | proposed |
 | Background service | 이 컴퓨터(백그라운드) | This computer (background) | — | proposed |
 | Benchmark | 성능 측정 | Benchmark | `benchmark` | proposed |
+| Bridge | 브릿지 | Bridge | — | decided |
 | Capability | 기능 | Capability | `CapabilityId` | proposed |
 | Display name | 디스플레이 네임 | Display name | `displayName` | proposed |
 | Drive limits | 주도 한도 | Lead limits | `driveLimits`, `driveDefaultLimits` | proposed |

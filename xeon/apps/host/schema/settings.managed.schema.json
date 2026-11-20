@@ -133,9 +133,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog",
+          "label": "Enable Chat interface",
           "labelArgs": {
-            "name": "Dialog"
+            "name": "Chat interface"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -663,9 +663,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog area bridge",
+          "label": "Enable Work-knowledge bridge",
           "labelArgs": {
-            "name": "Dialog area bridge"
+            "name": "Work-knowledge bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -686,9 +686,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog bridge",
+          "label": "Enable Chat-app bridge",
           "labelArgs": {
-            "name": "Dialog bridge"
+            "name": "Chat-app bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -732,9 +732,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Proposals bridge",
+          "label": "Enable Knowledge proposals bridge",
           "labelArgs": {
-            "name": "Proposals bridge"
+            "name": "Knowledge proposals bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,

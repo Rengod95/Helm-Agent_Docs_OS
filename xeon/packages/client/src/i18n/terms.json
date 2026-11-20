@@ -550,6 +550,23 @@
     "sources": ["adr.0022", "L2.schedule.spec"],
     "status": "proposed"
   },
+  "bridge": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Bridge",
+      "en": "Bridge"
+    },
+    "ui": {
+      "ko": "브릿지",
+      "en": "Bridge"
+    },
+    "surfaces": ["settings", "workbench"],
+    "forbid": {
+      "ui": ["브리지"]
+    },
+    "sources": ["adr.0022"],
+    "status": "decided"
+  },
   "secret": {
     "kind": "concept",
     "doc": {
