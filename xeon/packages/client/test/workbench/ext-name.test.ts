@@ -77,7 +77,6 @@ describe("기능 부품 이름", () => {
     expect(pick("host-memory-bridge", "Memory Service Bridge")).toBe("메모리 서비스 브릿지");
     expect(pick("host-proposals-bridge", "Proposal Service Bridge")).toBe("프로포절 서비스 브릿지");
     expect(pick("cap-schedule", "Schedules")).toBe("예약");
-    expect(pick("host-groups", "Group service")).toBe("그룹 서비스");
     expect(pick("authoring", "Plugin Builder")).toBe("플러그인 빌더");
   });
 });

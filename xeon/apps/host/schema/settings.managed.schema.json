@@ -697,29 +697,6 @@
         }
       }
     },
-    "ext.host-groups.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Group service",
-          "labelArgs": {
-            "name": "Group service"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.host-memory-bridge.enabled": {
       "default": true,
       "type": "boolean",

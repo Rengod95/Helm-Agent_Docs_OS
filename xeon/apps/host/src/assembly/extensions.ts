@@ -82,7 +82,6 @@ import type {
 import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import type { ContributedServer, McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
-import { hostGroupsPlugin } from "./groups.ts";
 import { proposalsBridgePlugin, type KnowledgeWireHolder } from "./proposals.ts";
 import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
 import { guideLoaded, guideSkillRoots, guideUnit, type GuideWiring } from "./guide.ts";
@@ -100,7 +99,7 @@ import {
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
-import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
+import type { GroupCatalogEntry } from "@fresnel/group-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -172,8 +171,6 @@ export interface ExtensionDeps {
     readonly currentThread: () => ThreadId | null;
     readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
-    /** 그룹 서비스가 올라올 때 부른다 */
-    readonly onService: (service: GroupServiceWithUsage) => void;
   };
   /** L2 제안 대기열 어댑터를 받는 자리(`proposal.*` 처리기가 읽는다) */
   readonly knowledgeWire: KnowledgeWireHolder;
@@ -338,7 +335,7 @@ function pluginMcpServersOf(
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
-  const { exposureOf, toolOwnerIn } = deps.toolVisibility;
+  const { exposureOf } = deps.toolVisibility;
   // cap-dialog의 동작 명령 등록부와 명령 서비스 API. 브리지 확장이 채우고 cap-work와 호스트의 command.* 처리기가 읽는다
   const commandRegistry = deps.commands;
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
@@ -458,19 +455,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           kindLookup,
           cancelledByOwnerOf,
           ...(deps.contextTrace === undefined ? {} : { contextTrace: deps.contextTrace }),
-          loadIndex,
-        }),
-    ],
-    [
-      "host-groups",
-      (loadIndex) =>
-        hostGroupsPlugin({
-          ext: deps.ext,
-          settings,
-          currentThread: deps.groups.currentThread,
-          groups: deps.groups.entries,
-          onService: deps.groups.onService,
-          toolOwnerIn,
           loadIndex,
         }),
     ],

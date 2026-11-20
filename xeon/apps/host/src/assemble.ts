@@ -99,7 +99,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
-import type { GroupServiceWithUsage } from "@fresnel/group-sdk";
+import type { GroupCatalogEntry } from "@fresnel/group-sdk";
 import {
   openStore,
   storePlugin,
@@ -115,7 +115,7 @@ import {
   scheduleUnit,
   unitOfModule,
 } from "./assembly/extensions.ts";
-import { isGroupCatalogManifest } from "./assembly/groups.ts";
+import { createHostGroupService, isGroupCatalogManifest } from "./assembly/groups.ts";
 import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
 import {
   createHostSchedule,
@@ -1102,8 +1102,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 서비스가 올라온 뒤에 올리는 단위(예약). 확장 읽기 목록이 내장 단위와 함께 읽는다 */
     const lateUnits: ExtensionUnit[] = [];
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
-    /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
-    const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    /** 설치된 그룹(L3 매니페스트)과 로드 순서. 단위 목록과 로더 보고가 채워진 뒤에 읽는다 */
+    const groupEntries = (): readonly GroupCatalogEntry[] => [
+      ...unitList.units
+        .filter((unit) => isGroupCatalogManifest(unit.manifest))
+        .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+      ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
+    ];
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1251,6 +1256,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
       }),
     });
+    // 그룹 서비스(`fresnel.groups`): 확장 읽기의 `group.*`가 읽는다. 확장 단위가 아니라 조립 루트가 만든다
+    const groupService = createHostGroupService({
+      ext,
+      settings,
+      currentThread: () => portsHandle?.activeThread() ?? null,
+      groups: groupEntries,
+      toolOwnerIn: toolVisibility.toolOwnerIn,
+    });
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
@@ -1330,17 +1343,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
-          onService: (service) => {
-            groupServiceSlot.current = service;
-          },
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
-          entries: () => [
-            ...unitList.units
-              .filter((unit) => isGroupCatalogManifest(unit.manifest))
-              .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
-            ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
-          ],
+          entries: groupEntries,
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
@@ -1722,7 +1727,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         extensions: extensionRecords,
         loader: () => external.loader,
         now: () => clock.now(),
-        groupService: () => groupServiceSlot.current,
+        groupService: () => groupService,
         toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },

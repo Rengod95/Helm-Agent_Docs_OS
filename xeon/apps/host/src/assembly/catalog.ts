@@ -65,7 +65,6 @@ const BUILTIN_EXTENSIONS: readonly {
   { name: "core-context", displayName: "Context", layer: "L1" },
   { name: "core-tools", displayName: "Tool runtime", layer: "L1" },
   { name: "core-loop", displayName: "Agent loop", layer: "L1" },
-  { name: "host-groups", displayName: "Group service", layer: "plugin" },
   { name: "core-agents", displayName: "Subagents", layer: "L1" },
   { name: "cap-workspace", displayName: "Workspace tools", layer: "L2" },
   { name: "cap-dialog", displayName: "Client Services", layer: "L2" },

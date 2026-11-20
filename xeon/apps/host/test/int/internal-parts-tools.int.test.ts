@@ -13,7 +13,7 @@ import { testGroup } from "../fixtures/test-group.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// AGE-33 (int, 실제 엔진, 임시 홈): 내부 부품이 모델에 내주는 도구의 수, 그리고 부품(host-groups, host-dialog-bridge,
+// AGE-33 (int, 실제 엔진, 임시 홈): 내부 부품이 모델에 내주는 도구의 수, 그리고 부품(host-dialog-bridge,
 // host-skill-bridge, host-memory-bridge, host-proposals-bridge)을 기본 프로필에서 빼면 어느 wire 메서드와 도구가 사라지는지를 실제 엔진으로 본다.
 
 const gate = await realEngineGate();
