@@ -127,8 +127,8 @@ export function createThreadSetProfileHandler(
     if (!set.ok) throw wireErrorOfLifecycle(set.error, "thread.setProfile");
     // 전환은 다음 단계 경계에서 적용된다. 유휴 대화도 다음 매크로태스크에 맞춘다(M5c §4.1.8)
     engine.ports.m4.pluginSet.recompute(threadId);
-    // 첫 메시지 전의 빈 대화는 "그 프로필로 시작한 대화"다: 새 프로필의 시작 Drive를 연다(열 때와 같은 시작 요청)
-    const started = await ports.threads.startDriveAfterSwitch(threadId);
+    // 화면의 프로필 칩과 실제 동작을 맞춘다(AGE-64): 새 프로필의 시작 Drive로 바꾸되 이미 일하는 Drive는 끊지 않는다
+    const started = await ports.threads.switchStartDrive(threadId);
     if (!started.ok) throw wireErrorOfStore(started.error, "thread.setProfile start drive");
     // 미리 본 값을 그대로 싣는다(M5c §3.4). 전환 전의 대화 기준으로 잰 값이다
     const { permission, toolsChanged, cacheImpact } = previewed.value;
@@ -139,6 +139,7 @@ export function createThreadSetProfileHandler(
         ...(toolsChanged === undefined ? {} : { toolsChanged }),
         ...(cacheImpact === undefined ? {} : { cacheImpact }),
       },
+      startDrive: started.value,
     };
   };
 }

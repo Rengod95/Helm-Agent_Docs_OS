@@ -65,6 +65,7 @@ import type {
   StoreId,
   StreamPosition,
   TurnStartInput,
+  SetProfileStartDrive,
   WhenBusy,
   Unsubscribe,
   UsageContext,
@@ -432,17 +433,6 @@ export type ThreadCompactFailure =
   /** 컨텍스트 서비스가 읽기, 투영, 요약, 커밋 가운데 하나를 마치지 못했다 */
   | { readonly kind: "context_failed"; readonly error: ContextError };
 
-/** `ThreadPort.startDriveAfterSwitch`의 결과 */
-type StartDriveAfterSwitch =
-  /** 시작 요청을 걸었다 */
-  | "requested"
-  /** 이미 대화가 시작됐거나 주도 프레임이 있다. 도중 전환이라 시작하지 않는다 */
-  | "not_fresh"
-  /** 새 프로필에 시작 Drive가 없거나 쓸 수 없다 */
-  | "none"
-  /** 엔진이 시작 요청을 거절했다 */
-  | "rejected";
-
 export interface ThreadPort {
   /**
    * `creationKey`가 있으면 같은 키로 이미 만든 thread를 돌려준다. 돌려준 `threadId`는 처음 만든 것이고 새 thread는 없다
@@ -535,11 +525,10 @@ export interface ThreadPort {
     profileId: string,
   ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
   /**
-   * 프로필을 바꾼 뒤 부른다. 첫 메시지를 받기 전의 빈 대화(대화 항목이 없고 주도 프레임이 없는 대화)이면 새 프로필의 시작 Drive를
-   * 대화를 열 때와 같은 시작 요청으로 건다. 이미 대화가 시작됐거나 프레임이 있으면 건드리지 않는다(도중 전환은 시작 Drive를
-   * 시작하지 않는다, profile-project-loader.md 4.1.14 6번). 결과는 무슨 일이 있었는지를 값으로 준다
+   * 프로필을 바꾼 뒤 부른다. 새 프로필의 시작 Drive에 맞춰 엔진이 스택을 바꾼다(AGE-64, X.primitives §4.4.1c): 메시지를 받지 않은 옛 시작 Drive는
+   * 내리고, 이미 일하는 Drive는 두고 끝난 뒤 시작하며, 턴이 도는 중이면 끝난 뒤 시작한다. 결과는 화면에 알릴 값이다
    */
-  startDriveAfterSwitch(threadId: ThreadId): Promise<Result<StartDriveAfterSwitch, ReadFailure>>;
+  switchStartDrive(threadId: ThreadId): Promise<Result<SetProfileStartDrive, ReadFailure>>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 제목 값(없으면 null). `thread.export`의 머리말과 파일 이름에 쓴다. 값을 가리지 않는다(처리기가 가린다). 모르는 thread는 null이다 */

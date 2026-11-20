@@ -411,7 +411,22 @@ export type ContextRef =
 3. 시크릿 값: 정의가 `secret: true`(`SecretRef` 타입)인 키는 `secret://<이름>` 형태만 저장한다. 리터럴이면 `secret_literal` 오류이고 값은 이벤트, 로그, 오류에 싣지 않는다. 시크릿 저장소에 이름이 없으면 `secret_missing` 경고다. 프로필은 참조만 가지고, 값은 사용 때 `fresnel.secrets`가 연다(`L0.secrets.spec` §4.2, §4.3).
 4. 코어 설정 값: 키 정의의 `allowedScopes`에 `profile`이 있는 키만 둔다. 검사는 지금의 `checkSettingWrite`(`profile-test-run-port.ts:125`)를 `profile` 범위로 호출한다. 프로필이 권한 모드를 두지 않으면(미설정) 아래 층의 값(사용자 파일, 기본값 `bypass`)이 쓰인다. 새 프로필은 만들 때 `default`의 코어 설정 값을 복사해 시작한다 [제안].
 5. 공통 묶음은 같은 검증을 받는다. 시작 Drive는 없다. 공통 묶음에 든 플러그인을 프로필에서 뺄 수 없다 [제안].
-6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). 첫 메시지를 보내기 전의 빈 대화(turn도 큐에 든 입력도 없고 플러그인이 쥔 프레임이 없는 대화)에서 `thread.setProfile`을 부르면 새 프로필의 시작 Drive를 열 때와 같은 시작 요청으로 건다. 사용자에게는 "그 프로필로 시작한 대화"이므로 직전 프로필이 기본이든 시작 Drive 없는 프로필이든 있는 프로필이든 결과가 같아야 한다 [구현 2026-11-20, 트랙 enSd, `ThreadPort.startDriveAfterSwitch`, 시험 `apps/host/test/int/profile-switch-start-drive.int.test.ts`]. 첫 메시지 뒤의 전환(턴이 끝난 뒤, 턴이 도는 중)은 시작 Drive를 시작하지 않는다 [제안: 미결 3]. 이미 도는 Drive는 전환으로 내려가지 않는다.
+6. 시작 Drive는 `startDrive` 한 필드라서 둘이 겹칠 수 없다. 값은 `E`에 들고 `drives: true`이며 시작 항목(`does.drive.start`)이 있어야 한다. 아니면 `driver_not_in_list`, `driver_cannot_drive`다. 엔진은 새 대화의 첫 턴 앞에서 스택이 비어 있을 때만 그 플러그인의 프레임을 쌓는다(엔진 설계 §2.2). `thread.setProfile`은 새 프로필의 시작 Drive에 맞춰 스택을 바꾼다 [결정: 2026-11-20, 사용자, AGE-64, "둘다 나"]. 프로필 칩이 보여 주는 것과 실제 동작이 같아야 하되 이미 일하는 Drive를 중간에 끊지 않는다. 판정과 스택 변경은 엔진이 한다(X.primitives §4.4.1c, `ExtHost.switchStartDrive`). 호스트는 `ThreadPort.switchStartDrive`로 새 프로필의 시작 Drive(`startDriveOf`)와 첫 메시지 전인지(turn도 큐에 든 입력도 없다)를 넘긴다.
+
+| 전환 때 상태 | 전환 뒤 (`startDrive` 결과) |
+| --- | --- |
+| 첫 메시지 전, 쥔 Drive 없음(직전 프로필이 기본이든 시작 Drive 없는 프로필이든) | 새 시작 Drive가 쥐고 첫 메시지를 받는다 (`requested`) |
+| 첫 메시지 전, 같은 시작 Drive가 이미 쥠 | 그대로다 (`leading`) |
+| 첫 메시지 전, 다른 시작 Drive가 쥠(메시지를 받지 않음) | 옛 Drive를 `revoked`로 내리고 새 시작 Drive가 쥔다 (`requested`) |
+| 첫 메시지 전, 새 프로필에 시작 Drive 없음 | 메시지를 받지 않은 옛 시작 Drive를 내린다 [제안: 칩과 동작이 같아야 한다는 목적에서 끌어냄] (`none`) |
+| 첫 메시지 뒤, 쉬는 중(쥔 Drive 없음) | 바로 새 시작 Drive가 시작한다. 메시지를 기다리지 않고 첫 단계를 돈다 (`requested`) |
+| 첫 메시지 뒤, 코어 루프 turn이 도는 중 | 그 turn이 끝난 뒤 시작한다 (`deferred`). 그 사이에 보낸 메시지는 코어 루프가 먼저 받는다: 시작은 큐의 입력이 모두 처리된 뒤다 [제안: AGE-47·AGE-54 "첫 메시지가 시작 Drive보다 먼저"와 같은 방향] |
+| 옛 시작 Drive(또는 핸드오프로 이어진 Drive)가 이미 일하는 중 | 그대로 두고 스택이 코어 루프로 돌아온 뒤 새 시작 Drive가 시작한다 (`deferred`) |
+| 첫 메시지 뒤, 새 프로필에 시작 Drive 없음 | 일하는 Drive는 그대로 둔다. 기다리던 시작은 지운다 (`none`) |
+| 같은 프로필로 바꾸기, 연달아 바꾸기 | 같은 시작 Drive가 쥐고 있으면 `leading`. 연달아 바꾸면 마지막 프로필만 유효하다 [제안] |
+| 테스트 런 드래프트가 시작 Drive를 가짐, 원샷(`/이름`)으로 얹은 Drive, 사용자가 명령으로 시작한 Drive | 전환이 내리지 않는다. 시작 요청만 스택이 빈 뒤로 건다 (드래프트의 시작이 `startDriveOf`에서 프로필의 것을 대신한다) |
+
+결과 필드 `thread.setProfile.startDrive`는 선택이고 값은 `requested`, `deferred`, `leading`, `none`, `rejected`다(이름은 [제안], F.wire-settings §3.4 표). 기다리는 시작이 실제로 걸리면 화면은 이어서 오는 `lease.acquired` 이벤트와 `drive.frames`로 안다. 기다리는 시작은 기록하지 않는다(새 기록 종류를 만들지 않았다). 재시작 뒤에는 열기가 같은 요청을 다시 건다: 열린 임대가 없으면 시작 요청을 걸고, 있으면 그 스택에 시작 Drive가 없을 때 스택이 빈 뒤의 시작으로 건다. 시험: `apps/host/test/int/profile-switch-start-drive.int.test.ts`(실제 엔진), `packages/ext-host/test/primitives/profile-switch-drive.test.ts`.
 7. 검증은 저장과 `profile.preview`에서 같은 함수(`validateProfile(profile, common, library, catalog)`)가 한다. 오류(`error`)가 하나라도 있으면 `profile.put`을 `profile.invalid`로 거절하고 저장하지 않는다. 오류:
    - `plugin_unknown`(라이브러리에 없음), `plugin_not_reviewed`(검토본이 없고 승인 대기뿐)
    - `replace_conflict`: 해소된 목록 안에서 두 플러그인이 `replaces`로 같은 내장 도구를 대체(`PluginDecl.replaces`, `manifest.ts:147`). 플러그인 둘의 이름과 도구 이름을 싣는다
@@ -429,7 +444,7 @@ export type ContextRef =
 1. 대상은 검토된 플러그인(현재 검토본이 있는 것)과 초안이다. 검토본이 없는 후보를 이름으로 지정하면 `overlay.notReviewed`다. `draftId`는 `plugin.draft.create`가 만든 스냅샷만 가리킨다.
 2. 사용자가 프로필 밖 플러그인의 스킬, 명령, Drive 시작을 직접 부르면 클라이언트가 `plugin.invocables`로 목록을 얻고 `turn.start { overlay: [...] }`로 보낸다. 모든 플러그인 유형(Inject, Hook, Drive, 도구)을 허용한다 [결정: 2026-11-17 사용자]. 스킬·명령·Drive 시작이 없는 Hook 전용·도구 전용 플러그인은 `kind: "plugin"` 항목(이름으로 얹기)으로 부른다(`OverlayRef.entry`를 생략하면 이름으로 얹는다). 사용자가 직접 부른 스킬·명령은 턴 입력(`turn.started`의 선택 필드 `invoked: { plugin; entry; kind }[]` [제안])에 남겨 기록(E)이 `via: "user"`로 읽는다.
 3. 적용 시점은 그 턴의 입력 처리 앞이다. `E(T)`에 대화의 덧씌우기가 더해지고 `profile.applied { reason: "overlay_on", overlay }`가 한 번 남는다. 이미 `E(T)`에 있는 플러그인을 지정하면 아무것도 하지 않고 `alreadyInProfile`로 본다.
-4. 해제: Inject와 Hook과 도구는 그 턴이 정착할 때, Drive 항목은 그 플러그인 프레임이 어떤 이유로든 해제될 때(`lease.released`, 사용자 중지, 오류)다. 프로필 전환은 해제 사유가 아니다. 해제 때 `profile.applied { reason: "overlay_off" }`를 남긴다. 중지는 스택 전체를 내리므로 모든 덧씌우기가 해제된다(엔진 설계 §2.4).
+4. 해제: Inject와 Hook과 도구는 그 턴이 정착할 때, Drive 항목은 그 플러그인 프레임이 어떤 이유로든 해제될 때(`lease.released`, 사용자 중지, 오류)다. 프로필 전환은 해제 사유가 아니다. 예외: 아직 메시지를 받지 않은 프로필 시작 Drive는 전환이 `revoked`로 내린다(4.1.14 6번, [결정: 2026-11-20, 사용자, AGE-64]). 원샷으로 얹은 Drive와 사용자가 명령으로 시작한 Drive는 내리지 않는다. 해제 때 `profile.applied { reason: "overlay_off" }`를 남긴다. 중지는 스택 전체를 내리므로 모든 덧씌우기가 해제된다(엔진 설계 §2.4).
 5. 재시작 복원: 턴 덧씌우기는 활성 가지의 `overlay_on`에 짝 `overlay_off`가 없고 그 턴이 정착하지 않았으면 이어서 쓴다. Drive 덧씌우기는 복원된 프레임 스택에서 프로필 밖 플러그인을 덧씌우기로 되살린다(프레임이 `lease.acquired.contentHash`를 가진다). [구현 2026-11-18: Drive 부분은 구현했다(아래 구현 상태 (10)). 턴 덧씌우기의 복원은 아직 없다.]
 6. 덧씌우기는 프로필, 공통 묶음, `usedBy`를 바꾸지 않는다. 검토본의 프로필 설정 값은 프로필 쪽에 있으므로 덧씌우기 플러그인은 플러그인 기본값으로 돈다 [제안]. 덧씌우기 플러그인이 필수 설정을 가졌고 값이 없으면 `waiting`이 되고 흔적에 표시한다.
 7. 도구를 더하는 덧씌우기는 그 턴의 도구 목록을 바꾼다. 프롬프트 캐시 처리는 `L1.context.spec` §4.3을 따른다: 모델 캐시 정책의 `midConversationToolChanges`가 참이면 `tool_change` 항목을 덧붙이고(접두는 그대로, 캐시가 깨지는 곳은 덧붙인 위치부터), 거짓이면 명시 재광고(`readvertise(explicit)`)로 그 턴에 한 번 접두 캐시를 다시 쓴다. 해제 때는 제거를 덧붙일 수 있으면 덧붙이고 못 하면 광고 목록을 두며(호출은 디스패치가 거부한다) 두 번째 재광고를 강제하지 않는다. 결과는 `turn.start`의 `cacheImpact`로 알린다. Hook과 지침만 더하는 덧씌우기는 도구 목록을 바꾸지 않는다. 지침을 더하면 `sections`가 바뀌므로 `midConversationSections`가 거짓이면 다음 컴팩션까지 모델에 보이지 않는다. 덧씌우기가 지침을 싣는 경우 이 제약을 흔적에 표시한다 [제안]. [구현 2026-11-18, 프로필 미리 보기와 `thread.setProfile`] `profile.preview`의 `cacheImpact`는 도구 목록 변화가 없으면 `none`이다. 바뀌면 대화 모델의 캐시 정책(`CachePolicy.midConversationToolChanges`, 호스트 `cachePolicyOf`가 `main` 역할을 푼 값)이 참이면 `tool_change_append`, 거짓이면 `readvertise`다. 대화가 없거나 정책을 읽지 못하면 `cacheImpact`를 싣지 않는다(기본값을 꾸며 내지 않는다). 기준이 없으면(대화 없이 저장하지 않은 새 id) `toolsChanged`와 `cacheImpact`를 모두 싣지 않는다. 턴의 `turn.start.cacheImpact`와 덧씌우기의 도구 더하기는 아직 구현하지 않았다.
@@ -826,7 +841,7 @@ plugin-store/
 
 1. **기본 폴더 대화의 쓰기 범위.** 기본값: 대화 폴더(`<기본 폴더>/<threadId>`)만. 대안: 기본 폴더 전체(프로젝트 루트 규칙과 같음).
 2. **프로젝트 밖 폴더로 `thread.create`를 부를 때.** 기본값: 그 폴더를 루트로 프로젝트를 자동 생성한다(CLI와 예약 실행 유지). 대안: 오류로 거절하고 프로젝트를 먼저 만들게 한다.
-3. **도중 전환 때 새 프로필의 시작 Drive.** 기본값: 첫 메시지 뒤에는 시작하지 않는다. 첫 메시지 전의 빈 대화는 시작한다(2026-11-20 구현, 4.1.14 6번). 대안: 첫 메시지 뒤라도 스택이 비어 있으면 전환 직후 시작.
+3. **도중 전환 때 새 프로필의 시작 Drive.** [결정: 2026-11-20, 사용자, AGE-64] 첫 메시지 뒤라도 시작 Drive가 있는 프로필로 바꾸면 바꾼 직후(turn이 도는 중이면 끝난 뒤) 시작한다. 시작 Drive에서 다른 시작 Drive로 바꾸면 아직 메시지를 받지 않은 Drive는 내리고 바꾸며, 이미 일하는 Drive는 두고 끝난 뒤 시작한다(4.1.14 6번). 닫힘.
 4. **새 검토본 승인이 번지는 범위.** 기본값: 이름으로 든 모든 프로필(프로필은 버전을 고정하지 않는다). 대안: 프로필마다 해시 핀.
 5. **지침 파일 이름. [결정: 2026-11-18 사용자] `AGENTS.md`만 읽는다.** `CLAUDE.md`와 다른 이름은 읽지 않는다. 문서(`data-privacy.md`, `X/loading-trust/spec.md`, `architecture/security/spec.md`)의 `CLAUDE.md` 문장은 같은 변경에서 고쳤다. 대안(둘 다 읽기)은 버린다.
 6. **프로젝트 루트 이동.** 기본값: 다루지 않는다(루트 없음 상태로 보인다). 대안: `project.relocate`.

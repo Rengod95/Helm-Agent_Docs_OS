@@ -490,7 +490,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         commit([{ kind: "thread.updated", threadId, payload: { profileId } }]);
         return ok({ position: position() });
       },
-      startDriveAfterSwitch: () => Promise.resolve(ok("not_fresh")),
+      switchStartDrive: () => Promise.resolve(ok("none")),
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
       hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
       title: (threadId) => ok(titles.get(threadId) ?? null),

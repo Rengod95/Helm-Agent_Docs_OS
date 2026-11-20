@@ -699,6 +699,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
+    // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)
+    hasQueuedInput: (threadId) => {
+      const found = late.session?.query.thread(threadId);
+      return found?.ok === true && (found.value?.queuedInputs ?? 0) > 0;
+    },
     driveInputMaxBytes: () =>
       storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
         .maxBlobBytes,
