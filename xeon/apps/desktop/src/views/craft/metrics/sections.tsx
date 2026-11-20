@@ -16,10 +16,11 @@ import {
   placeAlong,
   StackRows,
   Swatch,
+  type ColumnPoint,
   type Series,
 } from "./charts.tsx";
 import { cellText, countText, msText, percentText, tokensText } from "./format.ts";
-import { KIND_COLOR } from "./glyphs.tsx";
+import { DECISION_INK, DECISION_TEXTURE, DecisionGlyph, KIND_COLOR } from "./glyphs.tsx";
 import {
   CONTEXT_PARTS,
   CONTEXT_TOP,
@@ -27,19 +28,26 @@ import {
   blockTimeOf,
   cellOf,
   contextOf,
+  coveredDays,
   dailyOf,
   foldSlices,
+  rawDecisionsOf,
+  sampleStatusOf,
+  turnsOnDay,
   pluginRowsOf,
   sortPluginRows,
   valueOf,
   type Cell,
   type CompareMetric,
   type ContextPart,
+  type DayPoint,
+  type RecentTurn,
   type PluginRow,
   type PluginSort,
   type TimeBlock,
 } from "./model.ts";
-import { Card, Gate, LoadProblem, LoadingBlock, Section, Stat } from "./parts.tsx";
+import { InfoTip } from "../info-tip.tsx";
+import { Card, Gate, LoadProblem, LoadingBlock, Section } from "./parts.tsx";
 import type { MetricsActions, MetricsData, PluginVersionRow } from "./source.ts";
 
 // ───────── 컨텍스트 ─────────
@@ -75,11 +83,21 @@ const SLICE_INK = [
   "color-mix(in oklab, var(--cs-color-text-primary) 20%, transparent)",
 ];
 
+/** 플러그인을 좁혀 보기: 같은 플러그인을 다시 고르면 푼다 */
+function focusToggle(data: MetricsData): (plugin: string) => void {
+  return (plugin) => {
+    data.setFilter({ ...data.filter, plugin: data.filter.plugin === plugin ? null : plugin });
+  };
+}
+
 export function ContextSection(props: {
   readonly data: MetricsData;
   readonly hero: boolean;
 }): ReactNode {
   const [table, setTable] = useState(false);
+  const [all, setAll] = useState(false);
+  const focus = props.data.filter.plugin;
+  const toggle = focusToggle(props.data);
   return (
     <Section
       id="cm-context"
@@ -138,6 +156,8 @@ export function ContextSection(props: {
             );
           }
           const folded = foldSlices(breakdown.slices, CONTEXT_TOP);
+          const rowLimit = all ? breakdown.slices.length : props.hero ? 8 : 6;
+          const focused = breakdown.slices.find((x) => x.plugin === focus) ?? null;
           const segments = [
             ...folded.shown.map((s, i) => ({
               id: s.plugin,
@@ -161,22 +181,31 @@ export function ContextSection(props: {
                 ]),
           ];
           return (
-            <div className="grid gap-5">
-              <div className="grid gap-2">
-                <div className="flex items-baseline gap-2">
+            <div className="grid grid-cols-1 gap-5">
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="viz-figure text-title-1 leading-8 font-semibold text-text-primary">
-                    {tokensText(breakdown.total)}
+                    {tokensText(focused === null ? breakdown.total : focused.total)}
                   </span>
                   <span className="text-ui text-text-secondary">
-                    {t("desktop.craft.metrics.context.perTurnLong")}
+                    {focused === null
+                      ? t("desktop.craft.metrics.context.perTurnLong")
+                      : t("desktop.craft.metrics.context.perTurnFocus", {
+                          plugin: focused.plugin,
+                          share: percentText(
+                            breakdown.total === 0 ? 0 : focused.total / breakdown.total,
+                          ),
+                        })}
                   </span>
-                  <span className="ml-auto flex items-center gap-4 text-ui-sm text-text-secondary">
+                  <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-text-secondary">
                     {CONTEXT_PARTS.map((part) => (
                       <span key={part} className="flex items-center gap-1.5">
                         <Swatch color={PART_COLOR[part]} />
                         {t(PART_WORD[part])}
                         <span className="viz-figure text-text-primary">
-                          {tokensText(breakdown.totals[part])}
+                          {tokensText(
+                            focused === null ? breakdown.totals[part] : focused.parts[part],
+                          )}
                         </span>
                       </span>
                     ))}
@@ -187,9 +216,11 @@ export function ContextSection(props: {
                   height={props.hero ? 32 : 24}
                   labels
                   label={t("desktop.craft.metrics.context.byPlugin")}
+                  picked={focus}
+                  onPick={toggle}
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <div className="text-ui-sm text-text-tertiary">
                   {t("desktop.craft.metrics.context.byPart")}
                 </div>
@@ -197,7 +228,10 @@ export function ContextSection(props: {
                   series={partSeries()}
                   label={t("desktop.craft.metrics.context.byPart")}
                   format={tokensText}
-                  rows={breakdown.slices.slice(0, props.hero ? 10 : 6).map((s) => ({
+                  picked={focus}
+                  onPick={toggle}
+                  pickLabel={(name) => t("desktop.craft.metrics.focus.pick", { plugin: name })}
+                  rows={breakdown.slices.slice(0, rowLimit).map((s) => ({
                     id: s.plugin,
                     name: s.plugin,
                     label: s.plugin,
@@ -205,6 +239,20 @@ export function ContextSection(props: {
                     totalText: tokensText(s.total),
                   }))}
                 />
+                {breakdown.slices.length > rowLimit ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="-ms-2 w-fit font-normal text-text-tertiary"
+                    onClick={() => {
+                      setAll(true);
+                    }}
+                  >
+                    {t("desktop.craft.metrics.context.moreRows", {
+                      n: String(breakdown.slices.length - rowLimit),
+                    })}
+                  </Button>
+                ) : null}
               </div>
               {breakdown.missing.length === 0 ? null : (
                 <p className="text-ui-sm text-text-tertiary">
@@ -236,7 +284,7 @@ const BLOCK_COLOR: Readonly<Record<TimeBlock, string>> = {
   model: "var(--viz-model)",
   tools: KIND_COLOR.tool,
   hook: KIND_COLOR.hook,
-  ask: "var(--viz-asked)",
+  ask: "var(--viz-ink-2)",
   rest: "var(--viz-pass)",
 };
 
@@ -282,7 +330,7 @@ export function TimeSection(props: { readonly data: MetricsData }): ReactNode {
           const known = time.blocks.filter((b) => b.cell.kind === "value");
           const missing = time.blocks.filter((b) => b.cell.kind !== "value");
           return (
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="flex items-baseline gap-2">
                 <span className="viz-figure text-title-2 leading-7 font-semibold text-text-primary">
                   {cellText(time.total, msText)}
@@ -343,9 +391,21 @@ const SORT_WORD: Readonly<Record<PluginSort, MessageId>> = {
 
 /** 표의 숫자 칸. 값이 없으면 사유를 흐리게(0이 아니다) */
 function Num(props: { readonly cell: Cell; readonly format: (v: number) => string }): ReactNode {
+  if (props.cell.kind === "sample") {
+    // 표의 칸은 좁아 표본 부족을 긴 글 대신 줄표로 두고, 뜻은 표 아래 한 줄과 읽기 도구용 글로 준다
+    const text = cellText(props.cell, props.format);
+    return (
+      <span className="text-ui-sm text-text-tertiary" title={text}>
+        <span aria-hidden="true">–</span>
+        <span className="sr-only">{text}</span>
+      </span>
+    );
+  }
   if (props.cell.kind !== "value") {
     return (
-      <span className="text-ui-sm text-text-tertiary">{cellText(props.cell, props.format)}</span>
+      <span className="text-ui-sm whitespace-nowrap text-text-tertiary">
+        {cellText(props.cell, props.format)}
+      </span>
     );
   }
   return <span className="viz-figure text-text-primary">{cellText(props.cell, props.format)}</span>;
@@ -392,6 +452,8 @@ const TABLE_LIMIT = 12;
 export function PluginTableSection(props: { readonly data: MetricsData }): ReactNode {
   const [sort, setSort] = useState<PluginSort>("context");
   const [all, setAll] = useState(false);
+  const focus = props.data.filter.plugin;
+  const toggle = focusToggle(props.data);
   return (
     <Section
       id="cm-plugins"
@@ -414,7 +476,9 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
             );
           }
           const max = Math.max(1, ...rows.map((r) => r.context ?? 0));
-          const shown = all ? rows : rows.slice(0, TABLE_LIMIT);
+          const top = all ? rows : rows.slice(0, TABLE_LIMIT);
+          const focusRow = rows.find((r) => r.plugin === focus);
+          const shown = focusRow === undefined || top.includes(focusRow) ? top : [...top, focusRow];
           const header = (id: PluginSort | null, label: string, numeric: boolean): ReactNode => (
             <th
               scope="col"
@@ -440,7 +504,7 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
             </th>
           );
           return (
-            <div className="grid gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <div className="overflow-x-auto rounded-xl border border-border-subtle">
                 <table className="viz-figure w-full border-collapse text-ui">
                   <caption className="sr-only">{t("desktop.craft.metrics.table.title")}</caption>
@@ -460,33 +524,42 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
                     {shown.map((row) => (
                       <tr
                         key={row.plugin}
-                        className="h-9 border-b border-border-subtle last:border-b-0 hover:bg-neutral-hover"
+                        className={`h-9 border-b border-border-subtle last:border-b-0 hover:bg-neutral-hover ${row.plugin === focus ? "bg-control-raised" : ""}`}
                       >
-                        <th
-                          scope="row"
-                          className="max-w-56 truncate px-3 text-left font-normal text-text-primary"
-                        >
-                          {row.plugin}
+                        <th scope="row" className="max-w-56 px-1.5 text-left font-normal">
+                          <button
+                            type="button"
+                            aria-pressed={row.plugin === focus}
+                            aria-label={t("desktop.craft.metrics.focus.pick", {
+                              plugin: row.plugin,
+                            })}
+                            className="flex h-7 w-full min-w-0 items-center rounded-md border-0 bg-transparent px-1.5 py-0 text-left text-text-primary outline-none hover:underline focus-visible:focus-ring"
+                            onClick={() => {
+                              toggle(row.plugin);
+                            }}
+                          >
+                            <span className="truncate">{row.plugin}</span>
+                          </button>
                         </th>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <ContextBar row={row} max={max} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.hookRuns} format={countText} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.blocked} format={countText} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.asked} format={countText} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.defied} format={countText} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.fault} format={percentText} />
                         </td>
-                        <td className="px-3 text-right">
+                        <td className="px-2.5 text-right whitespace-nowrap">
                           <Num cell={row.calls} format={countText} />
                         </td>
                       </tr>
@@ -494,6 +567,13 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
                   </tbody>
                 </table>
               </div>
+              {shown.some((r) =>
+                [r.blocked, r.asked, r.defied, r.fault].some((c) => c.kind === "sample"),
+              ) ? (
+                <span className="text-ui-sm text-text-tertiary">
+                  {t("desktop.craft.metrics.table.sampleNote")}
+                </span>
+              ) : null}
               {!all && rows.length > TABLE_LIMIT ? (
                 <Button
                   size="sm"
@@ -515,12 +595,31 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
 }
 
 // ───────── 날별 흐름 ─────────
+// 위 기둥은 그날의 턴 수, 아래 쌓은 기둥은 그날의 Hook 결정(막음·물음·고침)이다. 결정의 결은 트레이스의 결정 표와 같은 점 구슬 문법이다.
+// 그날 결정 수를 엔진이 표본 부족으로 내지 않으면, 화면이 읽은 턴이 그날 턴 전부일 때만 턴 요약의 합(있는 그대로의 수)을 쓴다.
+// 그것도 안 되면 0이 아니라 빗금 칸이다. 기둥을 누르면 그날의 턴이 "최근 턴"에 걸린다.
+
+const DECISION_KINDS = ["blocked", "asked", "modified"] as const;
+type DecisionKind = (typeof DECISION_KINDS)[number];
+
+const DECISION_WORD: Readonly<Record<DecisionKind, MessageId>> = {
+  blocked: "desktop.craft.metrics.daily.blocked",
+  asked: "desktop.craft.metrics.daily.asked",
+  modified: "desktop.craft.metrics.daily.modified",
+};
 
 function decisionSeries(): readonly Series[] {
-  return [
-    { id: "blocked", label: t("desktop.craft.metrics.daily.blocked"), color: "var(--viz-blocked)" },
-    { id: "asked", label: t("desktop.craft.metrics.daily.asked"), color: "var(--viz-modified)" },
-  ];
+  return DECISION_KINDS.map((kind) => ({
+    id: kind,
+    label: t(DECISION_WORD[kind]),
+    color: DECISION_INK[kind],
+    texture: DECISION_TEXTURE[kind],
+    mark: (
+      <span className="text-text-primary">
+        <DecisionGlyph decision={kind} size={11} />
+      </span>
+    ),
+  }));
 }
 
 function dayTick(day: string, long: boolean): string {
@@ -533,15 +632,80 @@ function dayTick(day: string, long: boolean): string {
   ).format(at);
 }
 
+export function dayLongText(day: string): string {
+  return dayTick(day, true);
+}
+
+/** 그날 결정 한 칸: 엔진 값, 턴 요약의 합, 또는 낼 수 없음 */
+interface DayDecisions {
+  readonly day: string;
+  readonly values: Readonly<Record<DecisionKind, number>> | null;
+  readonly source: "engine" | "turns" | "none";
+}
+
+function dayDecisionsOf(
+  points: readonly DayPoint[],
+  covered: ReadonlySet<string>,
+  turns: readonly RecentTurn[],
+  focused: boolean,
+): DayDecisions[] {
+  return points.map((p) => {
+    if (p.blocked !== null && p.asked !== null && p.modified !== null) {
+      return {
+        day: p.day,
+        values: { blocked: p.blocked, asked: p.asked, modified: p.modified },
+        source: "engine",
+      };
+    }
+    // 턴 요약에는 플러그인별 결정이 없다. 좁혀 볼 때는 쓰지 않는다
+    if (!focused && covered.has(p.day)) {
+      const raw = rawDecisionsOf(turnsOnDay(turns, p.day).map((r) => r.turn));
+      return {
+        day: p.day,
+        values: { blocked: raw.blocked, asked: raw.asked, modified: raw.modified },
+        source: "turns",
+      };
+    }
+    return { day: p.day, values: null, source: "none" };
+  });
+}
+
+function decisionText(dd: DayDecisions | undefined, kind: DecisionKind): string {
+  return dd?.values === null || dd === undefined
+    ? t("desktop.craft.metrics.cell.sample")
+    : countText(dd.values[kind]);
+}
+
+/** 그날 결정 기둥 하나. 턴이 있었는데 값을 낼 수 없으면 빗금 칸이고, 턴 요약의 합이면 올린 값에 그렇다고 적는다 */
+function decisionPointOf(dd: DayDecisions, hadTurns: boolean): ColumnPoint {
+  const base: ColumnPoint = {
+    id: dd.day,
+    tick: dayTick(dd.day, false),
+    title: dayTick(dd.day, true),
+    parts: DECISION_KINDS.map((kind) => ({ series: kind, value: dd.values?.[kind] ?? 0 })),
+  };
+  if (dd.values === null && hadTurns) {
+    return { ...base, missing: t("desktop.craft.metrics.daily.missing") };
+  }
+  if (dd.source === "turns") return { ...base, note: t("desktop.craft.metrics.daily.fromTurns") };
+  return base;
+}
+
 export function DailySection(props: {
   readonly data: MetricsData;
   readonly height?: number;
+  readonly pickedDay: string | null;
+  readonly onPickDay: (day: string) => void;
 }): ReactNode {
   const [table, setTable] = useState(false);
+  const d = props.data;
+  const focus = d.filter.plugin;
+  const recentTurns = d.recent.kind === "ready" ? d.recent.value.turns : [];
   return (
     <Section
       id="cm-daily"
       title={t("desktop.craft.metrics.daily.title")}
+      info={t("desktop.craft.metrics.daily.info")}
       actions={
         <FigureToggle
           table={table}
@@ -552,13 +716,24 @@ export function DailySection(props: {
       }
     >
       <Gate
-        load={props.data.daily}
+        load={d.daily}
         height={220}
         label={t("desktop.craft.metrics.daily.title")}
-        onRetry={props.data.actions.reload}
+        onRetry={d.actions.reload}
       >
         {(result) => {
           const points = dailyOf(result);
+          const focusPoints =
+            d.focusDaily !== null && d.focusDaily.kind === "ready"
+              ? dailyOf(d.focusDaily.value)
+              : null;
+          const decisionPoints = focus === null ? points : (focusPoints ?? []);
+          const decisions = dayDecisionsOf(
+            decisionPoints,
+            coveredDays(points, recentTurns),
+            recentTurns,
+            focus !== null,
+          );
           if (table) {
             return (
               <ChartTable
@@ -566,27 +741,28 @@ export function DailySection(props: {
                 columns={[
                   { id: "day", label: t("desktop.craft.metrics.table.day") },
                   { id: "turns", label: t("desktop.craft.metrics.daily.turns"), numeric: true },
-                  { id: "blocked", label: t("desktop.craft.metrics.daily.blocked"), numeric: true },
-                  { id: "asked", label: t("desktop.craft.metrics.daily.asked"), numeric: true },
+                  ...DECISION_KINDS.map((kind) => ({
+                    id: kind,
+                    label: t(DECISION_WORD[kind]),
+                    numeric: true,
+                  })),
                 ]}
-                rows={points.map((p) => ({
+                rows={points.map((p, i) => ({
                   id: p.day,
                   cells: [
                     dayTick(p.day, true),
                     countText(p.turns),
-                    p.blocked === null
-                      ? t("desktop.craft.metrics.cell.sample")
-                      : countText(p.blocked),
-                    p.asked === null ? t("desktop.craft.metrics.cell.sample") : countText(p.asked),
+                    ...DECISION_KINDS.map((kind) => decisionText(decisions[i], kind)),
                   ],
                 }))}
               />
             );
           }
           const h = props.height ?? 120;
+          const anyTurns = decisions.some((x) => x.source === "turns");
           return (
-            <div className="grid gap-4">
-              <div className="grid gap-1.5">
+            <div className="grid grid-cols-1 gap-5">
+              <div className="grid grid-cols-1 gap-1.5">
                 <div className="text-ui-sm text-text-tertiary">
                   {t("desktop.craft.metrics.daily.turns")}
                 </div>
@@ -595,7 +771,7 @@ export function DailySection(props: {
                     {
                       id: "turns",
                       label: t("desktop.craft.metrics.daily.turns"),
-                      color: "var(--viz-asked)",
+                      color: "var(--viz-ink-2)",
                     },
                   ]}
                   points={points.map((p) => ({
@@ -603,34 +779,49 @@ export function DailySection(props: {
                     tick: dayTick(p.day, false),
                     title: dayTick(p.day, true),
                     parts: [{ series: "turns", value: p.turns }],
+                    ...(p.turns > 0 ? { note: t("desktop.craft.metrics.daily.pickHint") } : {}),
                   }))}
                   height={h}
                   label={t("desktop.craft.metrics.daily.turns")}
                   format={countText}
+                  picked={props.pickedDay}
+                  onPick={props.onPickDay}
+                  pickLabel={t("desktop.craft.metrics.daily.pickLabel")}
                 />
               </div>
-              <div className="grid gap-1.5">
-                <div className="flex items-center gap-3">
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-ui-sm text-text-tertiary">
-                    {t("desktop.craft.metrics.daily.decisions")}
+                    {focus === null
+                      ? t("desktop.craft.metrics.daily.decisions")
+                      : t("desktop.craft.metrics.daily.decisionsOf", { plugin: focus })}
                   </span>
                   <Legend series={decisionSeries()} />
                 </div>
-                <Columns
-                  series={decisionSeries()}
-                  points={points.map((p) => ({
-                    id: p.day,
-                    tick: dayTick(p.day, false),
-                    title: dayTick(p.day, true),
-                    parts: [
-                      { series: "blocked", value: p.blocked ?? 0 },
-                      { series: "asked", value: p.asked ?? 0 },
-                    ],
-                  }))}
-                  height={Math.round(h * 0.8)}
-                  label={t("desktop.craft.metrics.daily.decisions")}
-                  format={countText}
-                />
+                {focus !== null && focusPoints === null ? (
+                  <LoadingBlock
+                    height={Math.round(h * 0.8)}
+                    label={t("desktop.craft.metrics.daily.decisions")}
+                  />
+                ) : (
+                  <Columns
+                    series={decisionSeries()}
+                    points={decisions.map((dd) =>
+                      decisionPointOf(dd, (points.find((p) => p.day === dd.day)?.turns ?? 0) > 0),
+                    )}
+                    height={Math.round(h * 0.8)}
+                    label={t("desktop.craft.metrics.daily.decisions")}
+                    format={countText}
+                    picked={props.pickedDay}
+                    onPick={props.onPickDay}
+                    pickLabel={t("desktop.craft.metrics.daily.pickLabel")}
+                  />
+                )}
+                {anyTurns ? (
+                  <p className="text-ui-sm text-text-tertiary">
+                    {t("desktop.craft.metrics.daily.fromTurnsNote")}
+                  </p>
+                ) : null}
               </div>
             </div>
           );
@@ -676,7 +867,9 @@ export function CompareSection(props: { readonly data: MetricsData }): ReactNode
       ? pluginRowsOf(props.data.plugins.value).map((r) => r.plugin)
       : [];
   const [picked, setPicked] = useState<string | null>(null);
-  const plugin = picked !== null && plugins.includes(picked) ? picked : (plugins[0] ?? null);
+  const focus = props.data.filter.plugin;
+  const chosen = focus ?? picked;
+  const plugin = chosen !== null && plugins.includes(chosen) ? chosen : (plugins[0] ?? null);
   const actions = props.data.actions;
   const live = props.data.link === "live";
   // 읽은 결과는 그 플러그인·거르기(= `actions`)의 것일 때만 쓴다. 아니면 읽는 중이다
@@ -735,7 +928,10 @@ export function CompareSection(props: { readonly data: MetricsData }): ReactNode
             variant="soft"
             aria-label={t("desktop.craft.metrics.compare.pick")}
             value={plugin ?? ""}
-            onValueChange={setPicked}
+            onValueChange={(value) => {
+              if (focus === null) setPicked(value);
+              else props.data.setFilter({ ...props.data.filter, plugin: value });
+            }}
             className="w-52"
           >
             {plugins.map((name) => (
@@ -815,7 +1011,10 @@ function CompareBody(props: { readonly state: CompareState }): ReactNode {
 
 // ───────── 머리 숫자 ─────────
 
-/** 판 나의 머리 줄: 기록된 턴, 턴당 컨텍스트, 막음, 물음, 지침이 있는데도 막음 */
+/**
+ * 머리 줄: 턴, 턴당 플러그인 컨텍스트, 막음, 물음, 지침이 있어도 막은 횟수.
+ * 막음·물음을 엔진이 표본 부족으로 내지 않고 화면이 기간의 턴을 다 읽었으면, 턴 요약의 합을 "표본 적음" 표지와 함께 보인다
+ */
 export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
   const d = props.data;
   if (d.plugins.kind !== "ready" || d.daily.kind !== "ready") {
@@ -823,6 +1022,12 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
   }
   const rows = pluginRowsOf(d.plugins.value);
   const turns = dailyOf(d.daily.value).reduce((s, p) => s + p.turns, 0);
+  const recent = d.recent.kind === "ready" ? d.recent.value : null;
+  // 기간의 턴을 다 읽었을 때만 합을 쓴다(읽은 턴 수가 메트릭의 턴 수 이상)
+  const raw =
+    recent !== null && turns > 0 && recent.turns.length >= turns
+      ? rawDecisionsOf(recent.turns.map((r) => r.turn))
+      : null;
   const sum = (pick: (r: PluginRow) => Cell): Cell => {
     const known = rows.map(pick).filter((c) => c.kind === "value");
     if (known.length === 0) return rows.map(pick)[0] ?? { kind: "absent", reason: null };
@@ -835,12 +1040,26 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
     };
   };
   const context = contextOf(rows);
+  const fromRaw = (cell: Cell, value: number | undefined): { cell: Cell; few: boolean } =>
+    cell.kind === "sample" && value !== undefined && d.filter.plugin === null
+      ? { cell: { kind: "value", value, approx: false, n: turns }, few: true }
+      : { cell, few: false };
+  const blocked = fromRaw(
+    sum((r) => r.blocked),
+    raw?.blocked,
+  );
+  const asked = fromRaw(
+    sum((r) => r.asked),
+    raw?.asked,
+  );
   const cells: readonly {
     readonly id: string;
     readonly label: string;
     readonly cell: Cell;
     readonly fmt: (v: number) => string;
     readonly info?: string;
+    readonly mark?: ReactNode;
+    readonly few?: boolean;
   }[] = [
     {
       id: "turns",
@@ -860,14 +1079,18 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
     {
       id: "blocked",
       label: t("desktop.craft.metrics.kpi.blocked"),
-      cell: sum((r) => r.blocked),
+      cell: blocked.cell,
+      few: blocked.few,
       fmt: countText,
+      mark: <DecisionGlyph decision="blocked" size={11} />,
     },
     {
       id: "asked",
       label: t("desktop.craft.metrics.kpi.asked"),
-      cell: sum((r) => r.asked),
+      cell: asked.cell,
+      few: asked.few,
       fmt: countText,
+      mark: <DecisionGlyph decision="asked" size={11} />,
     },
     {
       id: "defied",
@@ -877,17 +1100,89 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
       info: t("desktop.craft.metrics.table.defiedInfo"),
     },
   ];
+  // 칸마다 이름·값·덧말 세 줄을 subgrid로 맞춰, 이름이 두 줄로 접혀도 값이 한 줄에 선다
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-border-subtle px-5 py-4 compact:grid-cols-5">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-border-subtle px-5 py-4 @[30rem]/metrics:grid-cols-3 @[42rem]/metrics:grid-cols-5">
       {cells.map((c) => (
-        <Stat
-          key={c.id}
-          label={c.label}
-          value={cellText(c.cell, c.fmt)}
-          muted={c.cell.kind !== "value"}
-          {...(c.info === undefined ? {} : { info: c.info })}
-        />
+        <div key={c.id} className="row-span-3 grid min-w-0 grid-rows-subgrid gap-y-1">
+          <div className="flex items-end gap-1.5 text-ui-sm text-text-tertiary">
+            {c.mark === undefined ? null : <span className="flex h-5 items-center">{c.mark}</span>}
+            <span className="min-w-0 text-pretty">{c.label}</span>
+            {c.info === undefined ? null : (
+              <span className="flex h-5 items-center">
+                <InfoTip text={c.info} />
+              </span>
+            )}
+          </div>
+          <div
+            className={`viz-figure truncate ${c.cell.kind !== "value" ? "text-ui leading-7 text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
+          >
+            {cellText(c.cell, c.fmt)}
+          </div>
+          {c.few === true ? (
+            <span className="text-ui-sm text-text-tertiary">
+              {t("desktop.craft.metrics.kpi.fewTurns")}
+            </span>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+        </div>
       ))}
+    </div>
+  );
+}
+
+// ───────── 표본 ─────────
+
+/**
+ * 턴이 최소 표본보다 적을 때의 조용한 한 줄: 지금까지 모인 턴과 몇 턴 더 모이면 비율·평균이 보이는지, 그리고 그만큼의 점.
+ * 점 하나가 턴 하나다(최소 표본까지). 최소 표본을 못 읽었으면 숫자 없이 말한다. 다 모였으면 그리지 않는다
+ */
+export function SampleBand(props: { readonly data: MetricsData }): ReactNode {
+  const d = props.data;
+  if (d.daily.kind !== "ready") return null;
+  const turns = dailyOf(d.daily.value).reduce((s, p) => s + p.turns, 0);
+  if (turns === 0) return null;
+  const status = sampleStatusOf(turns, d.minSample);
+  if (status.short === 0) return null;
+  if (status.short === null) {
+    // 최소 표본을 모르면, 엔진이 표본 부족이라 한 칸이 있을 때만 말한다
+    const plugins = d.plugins.kind === "ready" ? pluginRowsOf(d.plugins.value) : [];
+    const few = plugins.some((r) => r.blocked.kind === "sample" || r.asked.kind === "sample");
+    if (!few) return null;
+  }
+  const min = status.min ?? 0;
+  const dots = Math.min(min, 40);
+  return (
+    <div
+      role="note"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 text-ui text-text-secondary"
+    >
+      {status.min === null ? null : (
+        <svg width={dots * 7} height={8} aria-hidden="true" className="block shrink-0">
+          {Array.from({ length: dots }, (_, i) => (
+            <circle
+              key={String(i)}
+              cx={i * 7 + 3.5}
+              cy={4}
+              r={2}
+              fill={
+                i < Math.round((Math.min(turns, min) / min) * dots)
+                  ? "var(--cs-color-text-secondary)"
+                  : "var(--viz-track)"
+              }
+            />
+          ))}
+        </svg>
+      )}
+      <span>
+        {status.short === null
+          ? t("desktop.craft.metrics.sample.unknown", { n: countText(turns) })
+          : t("desktop.craft.metrics.sample.short", {
+              n: countText(turns),
+              more: countText(status.short),
+            })}
+      </span>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import {
   type Series,
 } from "../metrics/charts.tsx";
 import { msText } from "../metrics/format.ts";
-import { KIND_COLOR } from "../metrics/glyphs.tsx";
+import { DecisionGlyph, KIND_COLOR, isFaultDecision } from "../metrics/glyphs.tsx";
 import { LANES, type Lane, type Outcome, type Span } from "./model.ts";
 
 const LANE_WORD: Readonly<Record<Lane, MessageId>> = {
@@ -36,7 +36,22 @@ export const OUTCOME_WORD: Readonly<Record<Outcome, MessageId>> = {
   skipped: "desktop.craft.trace.outcome.skipped",
 };
 
-export function outcomeColor(outcome: Outcome): string {
+/** 결정의 점 구슬 하나(범례·칩·표). 먹은 결정의 진하기, 고장은 위험 글자색이다 */
+export function DecisionMark(props: {
+  readonly decision: Outcome;
+  readonly size?: number;
+}): ReactNode {
+  return (
+    <span
+      className={isFaultDecision(props.decision) ? "text-danger-text" : "text-text-primary"}
+      aria-hidden="true"
+    >
+      <DecisionGlyph decision={props.decision} size={props.size ?? 11} />
+    </span>
+  );
+}
+
+function outcomeColor(outcome: Outcome): string {
   switch (outcome) {
     case "pass":
     case "skipped":
@@ -157,11 +172,18 @@ export function Timeline(props: TimelineProps): ReactNode {
     { id: "model", label: t("desktop.craft.trace.lane.model"), color: "var(--viz-model)" },
     { id: "tool", label: t("desktop.craft.trace.lane.tool"), color: KIND_COLOR.tool },
     { id: "drive", label: t("desktop.craft.trace.lane.drive"), color: KIND_COLOR.drive },
-    { id: "pass", label: t(OUTCOME_WORD.pass), color: outcomeColor("pass") },
-    { id: "modified", label: t(OUTCOME_WORD.modified), color: outcomeColor("modified") },
-    { id: "asked", label: t(OUTCOME_WORD.asked), color: outcomeColor("asked") },
-    { id: "blocked", label: t(OUTCOME_WORD.blocked), color: outcomeColor("blocked") },
-    { id: "fault", label: t("desktop.craft.trace.outcome.fault"), color: outcomeColor("error") },
+    ...(["pass", "modified", "asked", "blocked"] as const).map((o): Series => ({
+      id: o,
+      label: t(OUTCOME_WORD[o]),
+      color: outcomeColor(o),
+      mark: <DecisionMark decision={o} />,
+    })),
+    {
+      id: "fault",
+      label: t("desktop.craft.trace.outcome.fault"),
+      color: outcomeColor("error"),
+      mark: <DecisionMark decision="error" />,
+    },
     { id: "ask", label: t("desktop.craft.trace.lane.ask"), color: "", hatch: true },
   ];
 
@@ -235,7 +257,7 @@ export function Timeline(props: TimelineProps): ReactNode {
                 patternTransform="rotate(45)"
               >
                 <rect width="5" height="5" fill="var(--viz-track)" />
-                <line x1="0" y1="0" x2="0" y2="5" stroke="var(--viz-asked)" strokeWidth="1.5" />
+                <line x1="0" y1="0" x2="0" y2="5" stroke="var(--viz-ink-2)" strokeWidth="1.5" />
               </pattern>
             </defs>
             {ticks.map((at) => (

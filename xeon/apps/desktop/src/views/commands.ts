@@ -878,6 +878,11 @@ export interface CraftMetricsCommands {
     plugin: string,
     baseRev: number,
   ): Promise<Result<WireResult<"profile.removePlugin">, CommandError>>;
+  /**
+   * `settings.get { keys: ["x.operations.metrics.minSample"] }`: 비율·평균을 내는 엔진의 최소 표본 수.
+   * 정의가 없거나 값이 정수가 아니면 null이다(화면은 "몇 턴 더"를 말하지 않는다)
+   */
+  minSample(): Promise<Result<number | null, CommandError>>;
 }
 
 /** 확장이 소유한 저장 테이블 한 줄 */

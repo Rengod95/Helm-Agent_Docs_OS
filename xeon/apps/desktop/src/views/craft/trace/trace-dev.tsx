@@ -16,6 +16,8 @@ const SCENE_WORD: Readonly<Record<TraceScene, MessageId>> = {
   live: "desktop.craft.metrics.dev.scene.live",
   sample: "desktop.craft.metrics.dev.scene.sample",
   running: "desktop.craft.trace.dev.running",
+  pending: "desktop.craft.trace.dev.pending",
+  partial: "desktop.craft.trace.dev.partial",
   many: "desktop.craft.metrics.dev.scene.many",
   empty: "desktop.craft.metrics.dev.scene.empty",
   absent: "desktop.craft.trace.dev.absent",

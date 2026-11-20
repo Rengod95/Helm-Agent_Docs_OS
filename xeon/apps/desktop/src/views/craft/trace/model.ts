@@ -87,10 +87,19 @@ export interface HookEntry {
   readonly place: HookPlace;
 }
 
+export function hookEntryOf(run: HookRun, step: number | null, call: CallRecord | null): HookEntry {
+  return { run, step, call, outcome: outcomeOf(run), place: hookPlaceOf(run.hook) };
+}
+
+/** 시각 순서로 줄 세운다(같은 시각이면 실행 순서) */
+export function sortEntries(entries: readonly HookEntry[]): HookEntry[] {
+  return entries.toSorted((a, b) => a.run.atMs - b.run.atMs || a.run.seq - b.run.seq);
+}
+
 export function hookEntriesOf(record: TurnRecord): HookEntry[] {
   const out: HookEntry[] = [];
   const push = (run: HookRun, step: number | null, call: CallRecord | null): void => {
-    out.push({ run, step, call, outcome: outcomeOf(run), place: hookPlaceOf(run.hook) });
+    out.push(hookEntryOf(run, step, call));
   };
   for (const run of record.turnHooks) push(run, null, null);
   for (const step of record.steps) {

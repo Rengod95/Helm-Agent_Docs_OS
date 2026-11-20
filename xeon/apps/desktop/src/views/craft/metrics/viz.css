@@ -1,6 +1,8 @@
 /* 메트릭(C9)과 트레이스(C8)의 그림 색. caustic 토큰만 쓴다(셸 CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다).
    색은 종류를 가르는 데만 쓴다: Inject·Hook·Drive·도구 넷. 값은 프로필 캔버스(cv3)의 종류 색과 같은 식이다(oklab에서 섞어 색상은 그대로 두고 채도만 누른다).
-   Hook 결과(통과·고침·물음·막음)는 색이 아니라 먹의 진하기로 가르고, 고장(오류·시간 초과)만 위험 글자색이다.
+   중립 먹(--viz-ink-1~3)은 종류가 아닌 그림(턴 수, 전후 비교)에 쓴다.
+   Hook 결정(막음·물음·고침·통과·시간 초과)은 먼저 점 구슬의 모양(glyphs.tsx)으로 가르고, 색은 누른 색으로 거든다:
+   막음은 산호, 물음은 호박, 고침은 슬레이트, 통과는 흐린 먹, 고장(오류·시간 초과)만 위험 글자색이다.
    다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정). */
 :root {
   --viz-inject: color-mix(
@@ -15,9 +17,24 @@
   --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
   --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
   --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
-  --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent);
-  --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 60%, transparent);
-  --viz-blocked: color-mix(in oklab, var(--cs-color-text-primary) 86%, transparent);
+  --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent);
+  --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 60%, transparent);
+  --viz-ink-3: color-mix(in oklab, var(--cs-color-text-primary) 86%, transparent);
+  --viz-modified: color-mix(
+    in oklab,
+    var(--cs-color-identity-slate) 60%,
+    var(--cs-color-text-primary)
+  );
+  --viz-asked: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 58%,
+    var(--cs-color-text-primary)
+  );
+  --viz-blocked: color-mix(
+    in oklab,
+    var(--cs-color-identity-coral) 52%,
+    var(--cs-color-text-primary)
+  );
   --viz-fault: var(--cs-color-danger-text);
 }
 @media (prefers-color-scheme: dark) {
@@ -45,8 +62,23 @@
     --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
     --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
     --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
-    --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
-    --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+    --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+    --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+    --viz-modified: color-mix(
+      in oklab,
+      var(--cs-color-identity-slate) 62%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-asked: color-mix(
+      in oklab,
+      var(--cs-color-identity-amber) 58%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-blocked: color-mix(
+      in oklab,
+      var(--cs-color-identity-coral) 52%,
+      var(--cs-color-text-secondary)
+    );
   }
 }
 :root[data-theme="dark"] {
@@ -73,8 +105,23 @@
   --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
   --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
   --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
-  --viz-modified: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
-  --viz-asked: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+  --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+  --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+  --viz-modified: color-mix(
+    in oklab,
+    var(--cs-color-identity-slate) 62%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-asked: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 58%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-blocked: color-mix(
+    in oklab,
+    var(--cs-color-identity-coral) 52%,
+    var(--cs-color-text-secondary)
+  );
 }
 
 @layer components {
@@ -102,6 +149,11 @@
     .viz-hoverable [data-viz-mark] {
       transition: none;
     }
+  }
+  /* 눌러 고르는 그림 칸(날별 기둥): 키보드 초점은 칸 테두리로 */
+  .viz-pick:focus-visible > rect:first-child {
+    stroke: var(--cs-color-focus-ring);
+    stroke-width: 2;
   }
   /* 표본이 적은 칸과 기록되지 않은 칸의 빗금 */
   .viz-hatch {

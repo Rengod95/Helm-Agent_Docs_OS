@@ -11,13 +11,23 @@ import type {
   MetricValue,
   MetricsQueryResult,
   Profile,
+  TurnFlags,
+  TurnSummary,
 } from "@fresnel/contracts/wire";
-import { BLOCK_TIME_METRICS, DAILY_METRICS, PLUGIN_METRICS, type MetricsFilter } from "./model.ts";
-import type { Load, MetricsActions, MetricsData } from "./source.ts";
+import {
+  BLOCK_TIME_METRICS,
+  DAILY_METRICS,
+  PLUGIN_METRICS,
+  type MetricsFilter,
+  type RecentTurn,
+} from "./model.ts";
+import type { Load, MetricsActions, MetricsData, RecentTurns } from "./source.ts";
 
 export const SCENES = [
   "live",
   "sample",
+  "few",
+  "quiet",
   "empty",
   "loading",
   "failed",
@@ -269,10 +279,166 @@ function dailyResult(days: number, many: boolean): MetricsQueryResult {
         [DAILY_METRICS.hookRuns]: v(runs, runs),
         [DAILY_METRICS.blocked]: ratio(((i * 13) % 9) / runs + 0.01, runs),
         [DAILY_METRICS.asked]: ratio(((i * 7) % 5) / runs + 0.004, runs),
+        [DAILY_METRICS.modified]: ratio(((i * 5) % 4) / runs + 0.006, runs),
       },
     });
   }
   return { window: window(days), rows, notes: [] };
+}
+
+/** 플러그인 하나로 좁혀 본 날별 결정(표본). 턴 수 칸은 플러그인 칸이 없어 비어 있다 */
+function focusDailyResult(days: number, plugin: string): MetricsQueryResult {
+  const seed = SEEDS.find((x) => x.name === plugin);
+  const weight = seed === undefined ? 0.2 : Math.min(1, (seed.blocked + seed.asked) / 40);
+  const rows: MetricRow[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = new Date(NOW - i * DAY).toISOString().slice(0, 10);
+    const runs = 40;
+    rows.push({
+      key: { day },
+      values: {
+        [DAILY_METRICS.hookRuns]: v(runs, runs),
+        [DAILY_METRICS.blocked]: ratio((((i * 11) % 7) * weight) / runs, runs),
+        [DAILY_METRICS.asked]: ratio((((i * 5) % 4) * weight) / runs, runs),
+        [DAILY_METRICS.modified]: ratio((((i * 3) % 3) * weight) / runs, runs),
+      },
+    });
+  }
+  return { window: window(days), rows, notes: [] };
+}
+
+/** 턴이 적은 장면(6턴): 비율 칸은 표본 부족이고 날별 결정도 엔진이 내지 않는다 */
+function fewResults(days: number): {
+  readonly plugins: MetricsQueryResult;
+  readonly daily: MetricsQueryResult;
+  readonly blocks: MetricsQueryResult;
+} {
+  const few: MetricValue = { value: null, n: 6, state: "insufficient_sample" };
+  const plugins = SEEDS.slice(0, 4).map((s): MetricRow => ({
+    key: { plugin: s.name },
+    values: {
+      [PLUGIN_METRICS.always]: v(s.always, 6, true),
+      [PLUGIN_METRICS.drive]: v(s.drive, 6, true),
+      [PLUGIN_METRICS.onDemand]: v(s.onDemand, 6, true),
+      [PLUGIN_METRICS.hookRuns]: v(Math.round(s.hookRuns / 40), Math.round(s.hookRuns / 40)),
+      [PLUGIN_METRICS.blocked]: few,
+      [PLUGIN_METRICS.asked]: few,
+      [PLUGIN_METRICS.modified]: few,
+      [PLUGIN_METRICS.fault]: few,
+      [PLUGIN_METRICS.defied]: v(s.defied === 0 ? 0 : 1, 6, true),
+      [PLUGIN_METRICS.calls]: v(Math.round(s.calls / 30), Math.round(s.calls / 30)),
+    },
+  }));
+  const dayRows: MetricRow[] = [
+    { day: 1, turns: 2 },
+    { day: 0, turns: 4 },
+  ].map((x) => ({
+    key: { day: new Date(NOW - x.day * DAY).toISOString().slice(0, 10) },
+    values: {
+      [DAILY_METRICS.turns]: { value: null, n: x.turns, state: "insufficient_sample" },
+      [DAILY_METRICS.calls]: v(x.turns * 3, x.turns * 3),
+      [DAILY_METRICS.hookRuns]: v(x.turns * 5, x.turns * 5),
+      [DAILY_METRICS.blocked]: { value: null, n: x.turns * 5, state: "insufficient_sample" },
+      [DAILY_METRICS.asked]: { value: null, n: x.turns * 5, state: "insufficient_sample" },
+      [DAILY_METRICS.modified]: { value: null, n: x.turns * 5, state: "insufficient_sample" },
+    },
+  }));
+  const blocks: MetricsQueryResult = {
+    window: window(days),
+    rows: [
+      {
+        key: {},
+        values: Object.fromEntries(
+          Object.values(BLOCK_TIME_METRICS).map((m) => [
+            m,
+            m === BLOCK_TIME_METRICS.model ? NOT_RECORDED : few,
+          ]),
+        ),
+      },
+    ],
+    notes: [],
+  };
+  return {
+    plugins: { window: window(days), rows: plugins, notes: [] },
+    daily: { window: window(days), rows: dayRows, notes: [] },
+    blocks,
+  };
+}
+
+/** 개발용 장면의 대화 제목. 화면 글자이므로 카탈로그에서 꺼낸다 */
+function titlesOf(): readonly (string | null)[] {
+  return [
+    t("desktop.craft.metrics.dev.sample.title1"),
+    t("desktop.craft.metrics.dev.sample.title2"),
+    t("desktop.craft.metrics.dev.sample.title3"),
+    t("desktop.craft.metrics.dev.sample.title4"),
+    null,
+    t("desktop.craft.metrics.dev.sample.title5"),
+  ];
+}
+
+function flagsOf(patch: Partial<TurnFlags>): TurnFlags {
+  return {
+    blockedIntent: 0,
+    blockedFault: 0,
+    deniedPolicy: 0,
+    deniedHuman: 0,
+    deniedNoninteractive: 0,
+    replaced: 0,
+    cancelledAsk: 0,
+    asked: 0,
+    modified: 0,
+    timedOut: 0,
+    failed: 0,
+    drive: false,
+    cacheBreak: false,
+    subagents: 0,
+    truncatedMaterials: 0,
+    draftActive: false,
+    untrackedWrite: false,
+    ...patch,
+  };
+}
+
+function fewAt(x: RecentTurn, i: number): RecentTurn {
+  return {
+    title: x.title,
+    turn: { ...x.turn, startedAt: NOW - (i < 4 ? i * 3_600_000 : DAY + i * 3_600_000) },
+  };
+}
+
+/** 최근 턴(표본). 턴 id는 트레이스 표본이 받는 모양(`trn_sample_N`, 대화 `thr_sample`)이다 */
+function recentSample(count: number, days: number): RecentTurns {
+  const turns: RecentTurn[] = [];
+  const titles = titlesOf();
+  for (let i = 0; i < count; i += 1) {
+    const startedAt = NOW - Math.round((i * (days * DAY)) / Math.max(count, 1) / 1.15) - i * 97_000;
+    const status: TurnSummary["status"] = i === 0 ? "open" : i === 7 ? "interrupted" : "completed";
+    turns.push({
+      title: titles[i % titles.length] ?? null,
+      turn: {
+        threadId: "thr_sample",
+        turnId: `trn_sample_${String((i % 12) + 1)}`,
+        startedAt,
+        endedAt: status === "open" ? null : startedAt + 15_000,
+        status,
+        scope: "live",
+        complete: i !== 4 && i !== 0,
+        profileId: "prof_daily",
+        stepCount: 1 + (i % 4),
+        callCount: (i * 3) % 7,
+        flags: flagsOf({
+          blockedIntent: i % 5 === 1 ? 1 : 0,
+          asked: i % 3 === 2 ? 1 : 0,
+          modified: i % 4 === 3 ? 2 : 0,
+          timedOut: i === 9 ? 1 : 0,
+        }),
+        frameDepthMax: 0,
+        childCount: 0,
+      },
+    });
+  }
+  return { turns, threads: Math.min(12, 5 + Math.floor(count / 10)), partial: count > 30 };
 }
 
 function evidence(n: number): EvidenceRef[] {
@@ -379,7 +545,7 @@ function findings(many: boolean): Finding[] {
     "repeat_after_block",
     "skill_activation_drop",
   ] as const;
-  for (let i = 0; i < 13; i += 1) {
+  for (let i = 0; i < 15; i += 1) {
     const rule = rules[i % rules.length] ?? "skill_never_read";
     extra.push(
       finding(
@@ -518,14 +684,21 @@ export function sampleData(
     profiles: ready(profiles()),
     catalog: ready(catalog()),
     actions: { ...NO_ACTIONS, ...actions },
+    minSample: 20,
+    focusDaily:
+      filter.plugin === null
+        ? null
+        : ready(focusDailyResult(many ? 30 : filter.days, filter.plugin)),
   };
   const all = (load: Load<never>): MetricsData => ({
     ...base,
+    focusDaily: filter.plugin === null ? null : load,
     plugins: load,
     blocks: load,
     daily: load,
     findings: load,
     dismissed: load,
+    recent: load,
   });
   switch (scene) {
     case "loading":
@@ -546,6 +719,22 @@ export function sampleData(
         daily: ready(empty),
         findings: ready(none),
         dismissed: ready(none),
+        recent: ready({ turns: [], threads: 0, partial: false }),
+      };
+    }
+    case "few": {
+      const r = fewResults(days);
+      const none: FindingsListResult = { asOf: NOW, dataRevision: 1, findings: [] };
+      const recent = recentSample(6, 2);
+      return {
+        ...base,
+        plugins: ready(r.plugins),
+        blocks: ready(r.blocks),
+        daily: ready(r.daily),
+        findings: ready(none),
+        dismissed: ready(none),
+        // 6턴은 이틀에 나뉜다(어제 2, 오늘 4): 메트릭의 날별 턴 수와 같게
+        recent: ready({ ...recent, turns: recent.turns.map(fewAt) }),
       };
     }
     case "off": {
@@ -574,13 +763,25 @@ export function sampleData(
         daily: ready(dailyResult(days, false)),
         findings: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
         dismissed: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
+        recent: ready(recentSample(24, days)),
       };
     }
+    case "quiet":
+      return {
+        ...base,
+        plugins: ready(pluginsResult(days, false)),
+        blocks: ready(blocksResult(days)),
+        daily: ready(dailyResult(days, false)),
+        findings: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
+        dismissed: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
+        recent: ready(recentSample(40, days)),
+      };
     case "sample":
     case "many": {
       const list = findings(many);
       return {
         ...base,
+        recent: ready(recentSample(many ? 200 : 40, days)),
         plugins: ready(pluginsResult(days, many)),
         blocks: ready(blocksResult(days)),
         daily: ready(dailyResult(days, many)),

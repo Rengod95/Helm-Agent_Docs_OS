@@ -111,6 +111,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       watch: () => Promise.resolve(err({ kind: "unsupported" })),
       openCraftChat: () => Promise.resolve(err({ kind: "unsupported" })),
       removeFromProfile: () => Promise.resolve(err({ kind: "unsupported" })),
+      minSample: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     workbench: {
       list: () => Promise.resolve(ok([])),

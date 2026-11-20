@@ -1,7 +1,7 @@
-// 메트릭 화면(C9)의 그리기. 질문: "내 플러그인들이 실제로 효과가 있나, 비용은 얼마나 드나?"
-// 판 둘(개발 빌드에서 바꿔 본다):
-// - 가 `insights`: 인사이트가 먼저(스펙 AC-40의 순서). 그다음 플러그인 표, 컨텍스트 분해, 블록별 시간, 날별 흐름, 버전 전후.
-// - 나 `charts`: 숫자와 분해 그림이 먼저. 머리 숫자, 큰 컨텍스트 분해, 옆 칸에 인사이트를 좁게. 그다음 시간·흐름·표·버전.
+// 메트릭 화면(C9)의 그리기. 질문 둘: "규칙을 넣었는데 지키는지", "컨텍스트가 어디에 쓰이는지".
+// 짜임(사용자 2026-11-20): 그림이 먼저인 판 나를 바탕으로 콘텐츠 영역 전체를 쓴다. 왼쪽은 그림 칸(따로 스크롤),
+// 오른쪽은 인사이트 고정 열(열 안에서 따로 스크롤). 콘텐츠 폭이 `NARROW`보다 좁으면 열 대신 위 요약 줄과 서랍이다.
+// 왼쪽 차례: 머리 숫자 → 표본 줄 → 컨텍스트 분해 → 블록별 시간 │ 날별 흐름 → 최근 턴 → 플러그인 표 → 버전 전후.
 import { activeLocale, t } from "@fresnel/client/i18n";
 import {
   Button,
@@ -12,26 +12,38 @@ import {
   SegmentedControlItem,
 } from "@caustic/react";
 import type { ReactNode } from "react";
+import { X } from "@caustic/react/icons";
+import { useEffect, useRef, useState } from "react";
 import { useCommands } from "../../commands.ts";
 import {
   HEADER_SEGMENTED_SIZE,
   HEADER_SELECT_SIZE,
   ScreenHeader,
 } from "../../shell/screen-header.tsx";
-import { InsightList } from "./insights.tsx";
-import { PERIODS, dailyOf, isPeriod, type MetricsFilter } from "./model.ts";
+import { useWidth } from "./charts.tsx";
+import { InsightPanel, InsightSummary } from "./insights.tsx";
+import { DEFAULT_FILTER, PERIODS, dailyOf, isPeriod, type MetricsFilter } from "./model.ts";
+import { RecentTurnsSection } from "./recent.tsx";
 import {
   CompareSection,
   ContextSection,
   DailySection,
   KpiStrip,
   PluginTableSection,
+  SampleBand,
   TimeSection,
 } from "./sections.tsx";
-import { Section } from "./parts.tsx";
 import type { MetricsData } from "./source.ts";
 
-export type MetricsLayout = "insights" | "charts";
+/** 이 폭(px, 콘텐츠 영역)보다 좁으면 인사이트가 서랍으로 간다. 1100px 창에서 내비를 뺀 폭이 이 아래다 */
+const NARROW = 880;
+
+/** 인사이트 열의 폭: 콘텐츠가 넓을수록 넉넉히(근거와 다음 걸음이 한 줄씩 읽히게) */
+function columnWidthOf(width: number): number {
+  if (width >= 1500) return 420;
+  if (width >= 1100) return 360;
+  return 340;
+}
 
 const ALL = "__all";
 
@@ -76,6 +88,19 @@ function FilterBar(props: { readonly data: MetricsData }): ReactNode {
             ))
           : null}
       </Select>
+      {filter.plugin === null ? null : (
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label={t("desktop.craft.metrics.focus.clear", { plugin: filter.plugin })}
+          onClick={() => {
+            set({ plugin: null });
+          }}
+        >
+          <span className="max-w-36 truncate">{filter.plugin}</span>
+          <X size={12} />
+        </Button>
+      )}
       <Chip
         size="md"
         variant="outline"
@@ -108,7 +133,7 @@ function EmptyFigure(): ReactNode {
       <g transform="translate(20 18)">
         <rect width="132" height="76" rx="12" fill="none" stroke="var(--cs-color-border-default)" />
         <rect x="14" y="14" width="70" height="12" rx="6" fill="var(--viz-pass)" />
-        <rect x="48" y="32" width="70" height="12" rx="6" fill="var(--viz-modified)" />
+        <rect x="48" y="32" width="70" height="12" rx="6" fill="var(--viz-ink-1)" />
         <rect x="14" y="50" width="52" height="12" rx="6" fill="var(--viz-pass)" />
       </g>
       {/* 2. 트레이스: 시간 줄 */}
@@ -131,7 +156,7 @@ function EmptyFigure(): ReactNode {
             width="10"
             height={h}
             rx="3"
-            fill={i === 5 ? "var(--viz-blocked)" : "var(--viz-modified)"}
+            fill={i === 5 ? "var(--viz-ink-3)" : "var(--viz-ink-1)"}
           />
         ))}
       </g>
@@ -166,7 +191,7 @@ function EmptyPage(props: { readonly filtered: boolean; readonly onClear: () => 
   return (
     <div className="mx-auto grid max-w-140 justify-items-center gap-5 px-4 py-16 text-center">
       <EmptyFigure />
-      <div className="grid gap-1.5">
+      <div className="grid grid-cols-1 gap-1.5">
         <h2 className="text-title-3 font-semibold text-text-primary">
           {t("desktop.craft.metrics.empty.title")}
         </h2>
@@ -248,77 +273,133 @@ function isEmpty(data: MetricsData): boolean {
   );
 }
 
-function InsightsFirst(props: { readonly data: MetricsData }): ReactNode {
-  const d = props.data;
-  return (
-    <div className="grid gap-10">
-      <Section
-        id="cm-insights"
-        title={t("desktop.craft.metrics.insight.title")}
-        info={t("desktop.craft.metrics.insight.info")}
-      >
-        <InsightList data={d} compact={false} limit={6} locale={activeLocale()} />
-      </Section>
-      <PluginTableSection data={d} />
-      <ContextSection data={d} hero={false} />
-      <div className="grid items-start gap-10 medium:grid-cols-2">
-        <TimeSection data={d} />
-        <DailySection data={d} height={96} />
-      </div>
-      <CompareSection data={d} />
-    </div>
-  );
-}
-
-function ChartsFirst(props: { readonly data: MetricsData }): ReactNode {
-  const d = props.data;
-  return (
-    <div className="grid gap-10">
-      <KpiStrip data={d} />
-      <div className="grid gap-10 wide:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid min-w-0 content-start gap-10">
-          <ContextSection data={d} hero />
-          <DailySection data={d} height={120} />
-        </div>
-        <Section
-          id="cm-insights"
-          title={t("desktop.craft.metrics.insight.title")}
-          info={t("desktop.craft.metrics.insight.info")}
-          className="content-start"
-        >
-          <InsightList data={d} compact limit={4} locale={activeLocale()} />
-        </Section>
-      </div>
-      <TimeSection data={d} />
-      <PluginTableSection data={d} />
-      <CompareSection data={d} />
-    </div>
-  );
-}
-
-export function MetricsView(props: {
+/** 왼쪽 그림 칸. 그림들의 짜임은 칸 폭(컨테이너 `metrics`)으로 정한다 */
+function ChartsColumn(props: {
   readonly data: MetricsData;
-  readonly layout: MetricsLayout;
+  readonly narrow: boolean;
+  readonly onOpenInsights: () => void;
 }): ReactNode {
   const d = props.data;
-  const filtered = d.filter.profileId !== null || d.filter.includeTests || d.filter.days !== 30;
+  const [day, setDay] = useState<string | null>(null);
+  const recentRef = useRef<HTMLDivElement>(null);
+  return (
+    <div className="grid w-full grid-cols-1 gap-10 px-6 pt-4 pb-12">
+      <div className="grid grid-cols-1 gap-4">
+        <OffBand data={d} />
+        <StaleNote data={d} />
+        {props.narrow ? <InsightSummary data={d} onOpen={props.onOpenInsights} /> : null}
+        <KpiStrip data={d} />
+        <SampleBand data={d} />
+      </div>
+      <ContextSection data={d} hero />
+      <div className="grid grid-cols-1 items-start gap-10 @[44rem]/metrics:grid-cols-2">
+        <TimeSection data={d} />
+        <DailySection
+          data={d}
+          height={128}
+          pickedDay={day}
+          onPickDay={(picked) => {
+            setDay(day === picked ? null : picked);
+            recentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }}
+        />
+      </div>
+      <div ref={recentRef} className="scroll-mt-4">
+        <RecentTurnsSection
+          data={d}
+          day={day}
+          onClearDay={() => {
+            setDay(null);
+          }}
+        />
+      </div>
+      <PluginTableSection data={d} />
+      <CompareSection data={d} />
+    </div>
+  );
+}
+
+export function MetricsView(props: { readonly data: MetricsData }): ReactNode {
+  const d = props.data;
+  const filtered =
+    d.filter.profileId !== null ||
+    d.filter.includeTests ||
+    d.filter.days !== DEFAULT_FILTER.days ||
+    d.filter.plugin !== null;
+  const frame = useRef<HTMLDivElement>(null);
+  const width = useWidth(frame);
+  const narrow = width > 0 && width < NARROW;
+  const [drawer, setDrawer] = useState(false);
+  const drawerOpen = narrow && drawer;
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setDrawer(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [drawerOpen]);
+  const empty = isEmpty(d);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ScreenHeader title={t("desktop.craft.metrics.title")} controls={<FilterBar data={d} />} />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {isEmpty(d) ? (
-          <EmptyPage
-            filtered={filtered}
-            onClear={() => {
-              d.setFilter({ days: 30, profileId: null, includeTests: true });
-            }}
-          />
-        ) : (
-          <div className="mx-auto grid w-full max-w-280 gap-6 px-6 pt-2 pb-12">
-            <OffBand data={d} />
-            <StaleNote data={d} />
-            {props.layout === "insights" ? <InsightsFirst data={d} /> : <ChartsFirst data={d} />}
+      <div ref={frame} className="relative flex min-h-0 flex-1">
+        {empty ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <EmptyPage
+              filtered={filtered}
+              onClear={() => {
+                d.setFilter(DEFAULT_FILTER);
+              }}
+            />
           </div>
+        ) : (
+          <>
+            <div className="@container/metrics min-h-0 min-w-0 flex-1 overflow-y-auto">
+              <ChartsColumn
+                data={d}
+                narrow={narrow}
+                onOpenInsights={() => {
+                  setDrawer(true);
+                }}
+              />
+            </div>
+            {narrow ? null : (
+              <div
+                className="flex min-h-0 shrink-0 flex-col border-l border-border-subtle"
+                style={{ width: columnWidthOf(width) }}
+              >
+                <InsightPanel data={d} locale={activeLocale()} />
+              </div>
+            )}
+            {drawerOpen ? (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 z-20 bg-bg-scrim"
+                  onClick={() => {
+                    setDrawer(false);
+                  }}
+                />
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="cm-insights-title"
+                  className="absolute inset-y-0 right-0 z-30 flex w-[min(400px,100%)] flex-col border-l border-border-subtle bg-surface-base shadow-3"
+                >
+                  <InsightPanel
+                    data={d}
+                    locale={activeLocale()}
+                    onClose={() => {
+                      setDrawer(false);
+                    }}
+                  />
+                </div>
+              </>
+            ) : null}
+          </>
         )}
       </div>
     </div>

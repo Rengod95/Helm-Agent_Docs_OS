@@ -3,6 +3,7 @@
 // 테스트 런과 테스트 챗의 기록은 기본 범위에서 빠진다(M5d §4.6 규칙 33). 사용자가 켤 때만 범위에 든다.
 import type {
   Finding,
+  TurnSummary,
   MetricFilter,
   MetricReason,
   MetricRow,
@@ -22,14 +23,24 @@ export interface MetricsFilter {
   readonly profileId: string | null;
   /** 참이면 테스트 런·드래프트 덧씌우기·테스트 챗의 기록도 넣는다 */
   readonly includeTests: boolean;
+  /**
+   * 좁혀 볼 플러그인. null이면 모든 플러그인. 플러그인 칸이 있는 값(컨텍스트, Hook 결정, 표, 인사이트)만 좁혀지고
+   * 턴 수와 블록별 시간은 턴 전체의 값이다(엔진 카운터의 블록 칸에는 플러그인이 없다)
+   */
+  readonly plugin: string | null;
 }
 
-export const DEFAULT_FILTER: MetricsFilter = { days: 7, profileId: null, includeTests: false };
+export const DEFAULT_FILTER: MetricsFilter = {
+  days: 7,
+  profileId: null,
+  includeTests: false,
+  plugin: null,
+};
 
 /** 일반 대화와 검토된 일회 덧씌우기. 엔진의 기본 범위와 같다 */
-const LIVE_SCOPES: readonly ScopeKind[] = ["live", "overlay_reviewed"];
+export const LIVE_SCOPES: readonly ScopeKind[] = ["live", "overlay_reviewed"];
 /** 테스트 기록까지 */
-const ALL_SCOPES: readonly ScopeKind[] = [
+export const ALL_SCOPES: readonly ScopeKind[] = [
   "live",
   "overlay_reviewed",
   "overlay_draft",
@@ -41,12 +52,16 @@ export function isPeriod(value: number): value is PeriodDays {
   return PERIODS.some((p) => p === value);
 }
 
-/** 화면의 거르기를 엔진의 거르기로 바꾼다. 범위는 늘 명시해 엔진 기본값이 바뀌어도 테스트 기록이 섞이지 않는다 */
-export function metricFilterOf(filter: MetricsFilter): MetricFilter {
+/**
+ * 화면의 거르기를 엔진의 거르기로 바꾼다. 범위는 늘 명시해 엔진 기본값이 바뀌어도 테스트 기록이 섞이지 않는다.
+ * 플러그인 좁히기는 `withPlugin`이 참일 때만 싣는다(턴 수·블록별 시간은 턴 전체로 읽는다)
+ */
+export function metricFilterOf(filter: MetricsFilter, withPlugin = false): MetricFilter {
   return {
     period: { days: filter.days },
     scopes: [...(filter.includeTests ? ALL_SCOPES : LIVE_SCOPES)],
     ...(filter.profileId === null ? {} : { profileId: filter.profileId }),
+    ...(withPlugin && filter.plugin !== null ? { plugin: filter.plugin } : {}),
   };
 }
 
@@ -118,6 +133,7 @@ export const DAILY_METRICS = {
   hookRuns: "hook.runs",
   blocked: "hook.outcomes.blocked",
   asked: "hook.outcomes.asked",
+  modified: "hook.outcomes.modified",
 } as const;
 
 /** 버전 전후 비교가 나란히 놓는 지표 */
@@ -299,6 +315,7 @@ export interface DayPoint {
   readonly calls: number | null;
   readonly blocked: number | null;
   readonly asked: number | null;
+  readonly modified: number | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -319,13 +336,16 @@ export function dailyOf(result: MetricsQueryResult): DayPoint[] {
   for (let at = start; at < result.window.to; at += DAY_MS) days.push(dayKeyOf(at));
   return days.map((day) => {
     const values = byDay.get(day);
-    if (values === undefined) return { day, turns: 0, calls: 0, blocked: 0, asked: 0 };
+    if (values === undefined) {
+      return { day, turns: 0, calls: 0, blocked: 0, asked: 0, modified: 0 };
+    }
     return {
       day,
       turns: values[DAILY_METRICS.turns]?.n ?? 0,
       calls: valueOf(cellOf(values[DAILY_METRICS.calls])),
       blocked: valueOf(countCellOf(values[DAILY_METRICS.blocked])),
       asked: valueOf(countCellOf(values[DAILY_METRICS.asked])),
+      modified: valueOf(countCellOf(values[DAILY_METRICS.modified])),
     };
   });
 }
@@ -362,4 +382,130 @@ export function insightFiguresOf(
   return all
     .toSorted((a, b) => Number(b.cell.kind === "value") - Number(a.cell.kind === "value"))
     .slice(0, limit);
+}
+
+// ───────── 최근 턴(트레이스로 가는 길) ─────────
+// 엔진은 대화마다 턴 목록을 준다(`turnRecord.list { threadId }`). 모든 대화를 한 번에 보는 목록은 없다.
+// 그래서 화면이 아는 대화 목록에서 기간 안에 움직인 대화를 최근 순으로 `RECENT_THREADS`개까지 골라 한 쪽씩 읽고 합친다.
+
+/** 최근 턴을 읽을 대화 수와 대화마다 읽을 턴 수 */
+const RECENT_THREADS = 12;
+export const RECENT_PER_THREAD = 50;
+
+export interface RecentTurn {
+  readonly turn: TurnSummary;
+  /** 대화 제목. 없으면 null(화면은 "제목 없는 대화") */
+  readonly title: string | null;
+}
+
+/** 대화 후보. 화면의 대화 목록(`thread.list`)에서 온다 */
+export interface ThreadCandidate {
+  readonly threadId: string;
+  readonly title: string | null;
+  readonly updatedAt: number;
+  readonly profileId: string | null;
+  /** 테스트 런·테스트 챗 대화 */
+  readonly test: boolean;
+}
+
+/** 기간 안에 움직였고 프로필·테스트 거르기에 맞는 대화. 최근 순이다 */
+export function eligibleThreadsOf(
+  threads: readonly ThreadCandidate[],
+  filter: MetricsFilter,
+  now: number,
+): ThreadCandidate[] {
+  const from = now - filter.days * DAY_MS;
+  return threads
+    .filter((th) => th.updatedAt >= from)
+    .filter((th) => filter.includeTests || !th.test)
+    .filter((th) => filter.profileId === null || th.profileId === filter.profileId)
+    .toSorted((a, b) => b.updatedAt - a.updatedAt || a.threadId.localeCompare(b.threadId));
+}
+
+/** 읽을 대화: 맞는 대화 가운데 최근 `RECENT_THREADS`개 */
+export function recentThreadsOf(
+  threads: readonly ThreadCandidate[],
+  filter: MetricsFilter,
+  now: number,
+): ThreadCandidate[] {
+  return eligibleThreadsOf(threads, filter, now).slice(0, RECENT_THREADS);
+}
+
+/** 대화마다 읽은 턴을 합친다. 기간 밖과 다른 프로필의 턴은 빼고 최근 순이다 */
+export function mergeRecent(
+  pages: readonly { readonly title: string | null; readonly items: readonly TurnSummary[] }[],
+  filter: MetricsFilter,
+  now: number,
+): RecentTurn[] {
+  const from = now - filter.days * DAY_MS;
+  return pages
+    .flatMap((p) => p.items.map((turn) => ({ turn, title: p.title })))
+    .filter((r) => r.turn.startedAt >= from)
+    .filter((r) => filter.profileId === null || r.turn.profileId === filter.profileId)
+    .toSorted(
+      (a, b) => b.turn.startedAt - a.turn.startedAt || a.turn.turnId.localeCompare(b.turn.turnId),
+    );
+}
+
+export function turnsOnDay(turns: readonly RecentTurn[], day: string): RecentTurn[] {
+  return turns.filter((r) => dayKeyOf(r.turn.startedAt) === day);
+}
+
+/** 턴 요약의 결정 수(있는 그대로의 합). 막음은 의도한 막음만, 고장으로 막힌 것은 `fault`다 */
+export interface RawDecisions {
+  readonly blocked: number;
+  readonly asked: number;
+  readonly modified: number;
+  readonly fault: number;
+}
+
+export function rawDecisionsOf(turns: readonly TurnSummary[]): RawDecisions {
+  return turns.reduce<RawDecisions>(
+    (acc, t) => ({
+      blocked: acc.blocked + t.flags.blockedIntent,
+      asked: acc.asked + t.flags.asked,
+      modified: acc.modified + t.flags.modified,
+      fault: acc.fault + t.flags.blockedFault + t.flags.timedOut + t.flags.failed,
+    }),
+    { blocked: 0, asked: 0, modified: 0, fault: 0 },
+  );
+}
+
+/** 끊겼다 이어졌거나 기록이 모자란 턴(`complete: false`). 도는 턴(`open`)은 아직 모른다 */
+export function isPartialTurn(turn: TurnSummary): boolean {
+  return !turn.complete && turn.status !== "open";
+}
+
+/**
+ * 날마다 읽은 턴이 그날 턴 전부인가. 메트릭의 그날 턴 수와 읽은 턴 수가 같으면 그날의 결정 수를 턴 요약의 합으로 보일 수 있다.
+ * 메트릭이 그날 턴 수를 모르면(0) 덮었다고 보지 않는다
+ */
+export function coveredDays(
+  daily: readonly DayPoint[],
+  turns: readonly RecentTurn[],
+): ReadonlySet<string> {
+  const counts = new Map<string, number>();
+  for (const r of turns) {
+    const day = dayKeyOf(r.turn.startedAt);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  return new Set(
+    daily.filter((p) => p.turns > 0 && (counts.get(p.day) ?? 0) >= p.turns).map((p) => p.day),
+  );
+}
+
+// ───────── 표본 ─────────
+
+/**
+ * 기간 안에 모인 턴 수와 엔진의 최소 표본 수(설정 `x.operations.metrics.minSample`). 최소 표본을 못 읽었으면 null이다.
+ * `short`는 비율·평균이 보이려면 더 모여야 할 턴 수(0이면 다 모였다)
+ */
+export interface SampleStatus {
+  readonly turns: number;
+  readonly min: number | null;
+  readonly short: number | null;
+}
+
+export function sampleStatusOf(turns: number, min: number | null): SampleStatus {
+  return { turns, min, short: min === null ? null : Math.max(0, min - turns) };
 }

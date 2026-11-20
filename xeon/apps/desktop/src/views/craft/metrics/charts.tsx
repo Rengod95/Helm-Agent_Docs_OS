@@ -3,7 +3,7 @@
 // 모든 그림에 같은 내용의 표(`ChartTable`)가 있다. 색은 `viz.css`의 종류 색과 먹 단계뿐이다.
 import { t } from "@fresnel/client/i18n";
 import { Button } from "@caustic/react";
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 // ───────── 공용 ─────────
 
@@ -51,9 +51,83 @@ export interface Series {
   readonly color: string;
   /** 빗금(기록되지 않은 갈래) */
   readonly hatch?: boolean;
+  /** 칸의 결. `solid`(기본)는 꽉 찬 색, `dense`·`sparse`는 점 결이다(Hook 결정의 갈래) */
+  readonly texture?: Texture;
+  /** 범례의 색 칸 대신 쓰는 그림(Hook 결정의 점 구슬) */
+  readonly mark?: ReactNode;
 }
 
-export function Swatch(props: { readonly color: string; readonly hatch?: boolean }): ReactNode {
+export type Texture = "solid" | "dense" | "sparse";
+
+/** 점 결의 칸 간격(px)과 점 반지름. 촘촘한 결은 물음, 성긴 결은 고침이다 */
+const TEXTURE_STEP: Readonly<Record<Exclude<Texture, "solid">, number>> = { dense: 3, sparse: 5 };
+
+/** 한 SVG 안의 점 결 정의. `prefix`는 그 SVG의 고유 id(같은 화면의 그림끼리 겹치지 않게) */
+function TextureDefs(props: {
+  readonly prefix: string;
+  readonly series: readonly Series[];
+}): ReactNode {
+  return (
+    <defs>
+      {props.series
+        .filter((s) => s.texture === "dense" || s.texture === "sparse")
+        .map((s) => {
+          const step = s.texture === "dense" ? TEXTURE_STEP.dense : TEXTURE_STEP.sparse;
+          return (
+            <pattern
+              key={s.id}
+              id={`${props.prefix}-${s.id}`}
+              width={step}
+              height={step}
+              patternUnits="userSpaceOnUse"
+            >
+              <rect
+                width={step}
+                height={step}
+                style={{ fill: `color-mix(in oklab, ${s.color} 32%, transparent)` }}
+              />
+              <circle
+                cx={step / 2}
+                cy={step / 2}
+                r={step === TEXTURE_STEP.dense ? 1.05 : 1.3}
+                fill={s.color}
+              />
+            </pattern>
+          );
+        })}
+    </defs>
+  );
+}
+
+/** 갈래의 칠: 결이 있으면 그 결의 무늬, 아니면 색 */
+function fillOf(prefix: string, series: Series | undefined): string {
+  if (series === undefined) return "var(--viz-pass)";
+  if (series.texture === "dense" || series.texture === "sparse") {
+    return `url(#${prefix}-${series.id})`;
+  }
+  return series.color;
+}
+
+export function Swatch(props: {
+  readonly color: string;
+  readonly hatch?: boolean;
+  readonly texture?: Texture;
+}): ReactNode {
+  if (props.texture === "dense" || props.texture === "sparse") {
+    const step = props.texture === "dense" ? 3 : 5;
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-block size-2.5 shrink-0 rounded-[3px]"
+        style={{
+          backgroundColor: `color-mix(in oklab, ${props.color} 32%, transparent)`,
+          backgroundImage: `radial-gradient(${props.color} 1px, transparent 1.2px)`,
+          backgroundSize: `${String(step)}px ${String(step)}px`,
+          backgroundPosition: "center",
+        }}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"
@@ -70,7 +144,13 @@ export function Legend(props: { readonly series: readonly Series[] }): ReactNode
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-text-secondary">
       {props.series.map((s) => (
         <li key={s.id} className="flex items-center gap-1.5">
-          <Swatch color={s.color} {...(s.hatch === true ? { hatch: true } : {})} />
+          {s.mark ?? (
+            <Swatch
+              color={s.color}
+              {...(s.hatch === true ? { hatch: true } : {})}
+              {...(s.texture === undefined ? {} : { texture: s.texture })}
+            />
+          )}
           {s.label}
         </li>
       ))}
@@ -173,10 +253,16 @@ export function SegmentBar(props: {
   readonly height?: number;
   readonly label: string;
   readonly labels?: boolean;
+  /** 고른 칸. 다른 칸은 물러난다 */
+  readonly picked?: string | null;
+  /** 칸을 누르면 부른다(같은 일을 하는 단추가 그림 밖에도 있어야 한다: 키보드) */
+  readonly onPick?: (id: string) => void;
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
-  const [hot, setHot] = useState<string | null>(null);
+  const [hovered, setHot] = useState<string | null>(null);
+  const hot = hovered ?? props.picked ?? null;
+  const pick = props.onPick;
   const height = props.height ?? 20;
   const total = props.segments.reduce((s, x) => s + x.value, 0);
   const gap = 2;
@@ -235,6 +321,14 @@ export function SegmentBar(props: {
               height={height}
               rx={i === 0 || i === placed.length - 1 ? 4 : 1.5}
               fill={s.hatch === true ? "url(#viz-hatch)" : s.color}
+              {...(pick === undefined || s.id.startsWith("__")
+                ? {}
+                : {
+                    className: "cursor-pointer",
+                    onClick: () => {
+                      pick(s.id);
+                    },
+                  })}
               onPointerEnter={() => {
                 setHot(s.id);
               }}
@@ -282,10 +376,18 @@ export function StackRows(props: {
   readonly rows: readonly StackRow[];
   readonly format: (value: number) => string;
   readonly label: string;
+  /** 고른 줄. 다른 줄은 물러난다 */
+  readonly picked?: string | null;
+  /** 줄 이름을 단추로 만든다(누르면 그 줄을 고른다) */
+  readonly onPick?: (id: string) => void;
+  /** 줄 이름 단추의 화면 읽기 이름 */
+  readonly pickLabel?: (name: string) => string;
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
   const [hot, setHot] = useState<{ row: string; series: string } | null>(null);
+  const picked = props.picked ?? null;
+  const pick = props.onPick;
   const max = Math.max(1, ...props.rows.map((r) => r.parts.reduce((s, p) => s + p.value, 0)));
   const colorOf = (id: string): string =>
     props.series.find((s) => s.id === id)?.color ?? "var(--viz-pass)";
@@ -306,8 +408,25 @@ export function StackRows(props: {
         {props.rows.map((row, ri) => {
           let x = 0;
           return (
-            <div key={row.id} className="contents">
-              <div className="truncate text-ui text-text-primary">{row.label}</div>
+            <div
+              key={row.id}
+              className={`contents ${picked !== null && picked !== row.id ? "[&>*]:opacity-45" : ""}`}
+            >
+              {pick === undefined ? (
+                <div className="truncate text-ui text-text-primary">{row.label}</div>
+              ) : (
+                <button
+                  type="button"
+                  aria-pressed={picked === row.id}
+                  aria-label={props.pickLabel?.(row.name) ?? row.name}
+                  className={`-mx-1.5 flex h-7 min-w-0 items-center rounded-md border-0 bg-transparent px-1.5 py-0 text-left text-ui hover:bg-neutral-hover outline-none focus-visible:focus-ring ${picked === row.id ? "font-medium text-text-primary" : "text-text-primary"}`}
+                  onClick={() => {
+                    pick(row.id);
+                  }}
+                >
+                  <span className="min-w-0 truncate">{row.label}</span>
+                </button>
+              )}
               <div ref={ri === 0 ? ref : undefined} className="h-7 min-w-0">
                 <svg
                   role="img"
@@ -371,11 +490,15 @@ export interface ColumnPoint {
   /** 올린 값의 머리(긴 날짜) */
   readonly title: string;
   readonly parts: readonly { readonly series: string; readonly value: number }[];
+  /** 값을 낼 수 없는 날(표본 부족). 0 기둥 대신 빗금 칸을 세운다 */
+  readonly missing?: string;
+  /** 올린 값 아래에 덧붙이는 한 줄(값의 출처 등) */
+  readonly note?: string;
 }
 
 /**
  * 날마다 세로 기둥(갈래를 쌓는다). 축은 하나다. 값이 0인 날은 바닥 선만 남는다.
- * 기둥이 많으면 눈금 글을 건너뛴다.
+ * 기둥이 많으면 눈금 글을 건너뛴다. `onPick`이 있으면 기둥이 단추가 된다(키보드: 탭과 Enter·Space).
  */
 export function Columns(props: {
   readonly series: readonly Series[];
@@ -383,9 +506,14 @@ export function Columns(props: {
   readonly height: number;
   readonly label: string;
   readonly format: (value: number) => string;
+  readonly picked?: string | null;
+  readonly onPick?: (id: string) => void;
+  /** 기둥 단추의 이름(화면 읽기). 날짜 뒤에 붙는다 */
+  readonly pickLabel?: string;
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
+  const prefix = `viz${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [hot, setHot] = useState<string | null>(null);
   const axisW = 28;
   const plotW = Math.max(40, width - axisW);
@@ -396,37 +524,54 @@ export function Columns(props: {
   const top = Math.ceil(max / step) * step;
   const n = Math.max(1, props.points.length);
   const slot = plotW / n;
-  const bar = Math.max(3, Math.min(28, slot * 0.62));
+  const bar = Math.max(3, Math.min(32, slot * 0.62));
   const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(plotW / 56))));
-  const colorOf = (id: string): string =>
-    props.series.find((s) => s.id === id)?.color ?? "var(--viz-pass)";
+  const seriesOf = (id: string): Series | undefined => props.series.find((s) => s.id === id);
   const hotPoint = props.points.find((p) => p.id === hot) ?? null;
+  const picked = props.picked ?? null;
   const ticks: number[] = [];
   for (let v = 0; v <= top; v += step) ticks.push(v);
+  const pick = props.onPick;
   return (
     <div ref={ref} className="relative">
       {hotPoint === null ? null : (
         <Readout>
           <div className="mb-0.5 text-text-tertiary">{hotPoint.title}</div>
-          {hotPoint.parts.map((p) => (
-            <div key={p.series} className="flex items-center gap-1.5">
-              <Swatch color={colorOf(p.series)} />
-              <span className="text-text-secondary">
-                {props.series.find((s) => s.id === p.series)?.label ?? p.series}
-              </span>
-              <span className="viz-figure ml-auto pl-3 font-medium">{props.format(p.value)}</span>
-            </div>
-          ))}
+          {hotPoint.missing === undefined ? (
+            hotPoint.parts.map((p) => {
+              const s = seriesOf(p.series);
+              return (
+                <div key={p.series} className="flex items-center gap-1.5">
+                  {s?.mark ?? (
+                    <Swatch
+                      color={s?.color ?? "var(--viz-pass)"}
+                      {...(s?.texture === undefined ? {} : { texture: s.texture })}
+                    />
+                  )}
+                  <span className="text-text-secondary">{s?.label ?? p.series}</span>
+                  <span className="viz-figure ml-auto pl-3 font-medium">
+                    {props.format(p.value)}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-text-secondary">{hotPoint.missing}</div>
+          )}
+          {hotPoint.note === undefined ? null : (
+            <div className="mt-0.5 text-text-tertiary">{hotPoint.note}</div>
+          )}
         </Readout>
       )}
       <svg
-        role="img"
+        role={pick === undefined ? "img" : "group"}
         aria-label={props.label}
         width={width}
         height={props.height}
         className="viz-hoverable block"
-        {...(hot === null ? {} : { "data-viz-hot": "" })}
+        {...(hot === null && picked === null ? {} : { "data-viz-hot": "" })}
       >
+        <TextureDefs prefix={prefix} series={props.series} />
         <g transform="translate(0 8)">
           {ticks.map((v) => {
             const y = plotH - (v / top) * plotH + 0.5;
@@ -442,51 +587,122 @@ export function Columns(props: {
           {props.points.map((p, i) => {
             const cx = axisW + slot * i + slot / 2;
             let y = plotH;
-            return (
-              <g
-                key={p.id}
-                data-viz-mark=""
-                {...(hot === p.id ? { "data-viz-hot": "" } : {})}
-                onPointerEnter={() => {
-                  setHot(p.id);
-                }}
-                onPointerLeave={() => {
-                  setHot(null);
-                }}
-              >
-                <rect x={cx - slot / 2} y={0} width={slot} height={plotH} fill="transparent" />
-                {p.parts
-                  .filter((part) => part.value > 0)
-                  .map((part, pi, parts) => {
-                    const h = Math.max(
-                      2,
-                      (part.value / top) * plotH - (pi < parts.length - 1 ? 2 : 0),
-                    );
-                    y -= h;
-                    const rectY = y;
-                    y -= 2;
-                    const last = pi === parts.length - 1;
-                    return (
-                      <rect
-                        key={part.series}
-                        x={cx - bar / 2}
-                        y={rectY}
-                        width={bar}
-                        height={h}
-                        rx={last ? Math.min(4, bar / 2) : 1}
-                        fill={colorOf(part.series)}
-                      />
-                    );
-                  })}
-                {i % every === 0 ? (
-                  <text className="viz-axis" x={cx} y={plotH + 15} textAnchor="middle">
+            const lit = hot === p.id || picked === p.id;
+            const body = (
+              <>
+                <rect
+                  x={cx - slot / 2}
+                  y={0}
+                  width={slot}
+                  height={plotH}
+                  rx={6}
+                  fill={picked === p.id ? "var(--viz-track)" : "transparent"}
+                />
+                {p.missing === undefined ? (
+                  p.parts
+                    .filter((part) => part.value > 0)
+                    .map((part, pi, parts) => {
+                      const h = Math.max(
+                        2,
+                        (part.value / top) * plotH - (pi < parts.length - 1 ? 2 : 0),
+                      );
+                      y -= h;
+                      const rectY = y;
+                      y -= 2;
+                      const last = pi === parts.length - 1;
+                      return (
+                        <rect
+                          key={part.series}
+                          x={cx - bar / 2}
+                          y={rectY}
+                          width={bar}
+                          height={h}
+                          rx={last ? Math.min(4, bar / 2) : 1}
+                          fill={fillOf(prefix, seriesOf(part.series))}
+                        />
+                      );
+                    })
+                ) : (
+                  <rect
+                    x={cx - bar / 2}
+                    y={plotH - 10}
+                    width={bar}
+                    height={10}
+                    rx={2}
+                    fill="url(#viz-hatch-col)"
+                    stroke="var(--viz-grid)"
+                  />
+                )}
+                {i % every === 0 || picked === p.id ? (
+                  <text
+                    className="viz-axis"
+                    x={cx}
+                    y={plotH + 15}
+                    textAnchor="middle"
+                    style={picked === p.id ? { fill: "var(--cs-color-text-primary)" } : undefined}
+                  >
                     {p.tick}
                   </text>
                 ) : null}
+              </>
+            );
+            const common = {
+              "data-viz-mark": "",
+              ...(lit ? { "data-viz-hot": "" } : {}),
+              onPointerEnter: () => {
+                setHot(p.id);
+              },
+              onPointerLeave: () => {
+                setHot(null);
+              },
+            };
+            if (pick === undefined) {
+              return (
+                <g key={p.id} {...common}>
+                  {body}
+                </g>
+              );
+            }
+            return (
+              <g
+                key={p.id}
+                {...common}
+                role="button"
+                tabIndex={0}
+                aria-pressed={picked === p.id}
+                aria-label={`${p.title} ${props.pickLabel ?? ""}`.trim()}
+                className="viz-pick cursor-pointer outline-none"
+                onFocus={() => {
+                  setHot(p.id);
+                }}
+                onBlur={() => {
+                  setHot(null);
+                }}
+                onClick={() => {
+                  pick(p.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  pick(p.id);
+                }}
+              >
+                {body}
               </g>
             );
           })}
         </g>
+        <defs>
+          <pattern
+            id="viz-hatch-col"
+            width="5"
+            height="5"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="5" stroke="var(--viz-grid)" strokeWidth="2" />
+          </pattern>
+        </defs>
       </svg>
     </div>
   );
@@ -523,11 +739,11 @@ export function PairBars(props: {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
   return (
-    <div role="group" aria-label={props.label} className="grid gap-2">
+    <div role="group" aria-label={props.label} className="grid grid-cols-1 gap-2">
       <Legend
         series={[
           { id: "a", label: props.aLabel, color: "var(--viz-pass)" },
-          { id: "b", label: props.bLabel, color: "var(--viz-asked)" },
+          { id: "b", label: props.bLabel, color: "var(--viz-ink-2)" },
         ]}
       />
       <div className="grid grid-cols-[minmax(8rem,14rem)_1fr] items-center gap-x-3 gap-y-2">
@@ -536,7 +752,7 @@ export function PairBars(props: {
           return (
             <div key={row.id} className="contents">
               <div className="text-ui text-text-secondary">{row.label}</div>
-              <div ref={ri === 0 ? ref : undefined} className="grid min-w-0 gap-1">
+              <div ref={ri === 0 ? ref : undefined} className="grid grid-cols-1 min-w-0 gap-1">
                 {(["a", "b"] as const).map((side) => {
                   const v = side === "a" ? row.a : row.b;
                   const text = side === "a" ? row.aText : row.bText;
@@ -551,7 +767,7 @@ export function PairBars(props: {
                             width={w}
                             height={8}
                             rx={3}
-                            fill={side === "a" ? "var(--viz-pass)" : "var(--viz-asked)"}
+                            fill={side === "a" ? "var(--viz-pass)" : "var(--viz-ink-2)"}
                           />
                         </svg>
                       )}

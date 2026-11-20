@@ -16,27 +16,32 @@ import {
   type BlockId,
   type HookEntry,
 } from "./model.ts";
-import { OUTCOME_WORD, outcomeColor } from "./timeline.tsx";
+import { DecisionMark, OUTCOME_WORD } from "./timeline.tsx";
 
-/** Hook 실행 하나의 작은 표. 외곽선 칩: 결과 점 + 플러그인 + 결과 */
+/**
+ * Hook 실행 하나의 작은 표. 외곽선 칩: 결정의 점 구슬 + 플러그인 + 결정 글. 점 구슬의 배치만으로도 막음·물음·고침·통과·고장이
+ * 갈린다(글자를 읽지 않아도). `live`면 도는 턴에서 방금 끝나 아직 단계에 들지 않은 행이다
+ */
 export function HookChip(props: {
   readonly entry: HookEntry;
   readonly plugin?: boolean;
+  readonly live?: boolean;
+  readonly as?: "li" | "span";
 }): ReactNode {
   const e = props.entry;
   const fault = isFault(e.outcome);
-  return (
-    <li
-      className={`inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-ui-sm ${fault ? "border-danger-border text-danger-text" : "border-border-subtle text-text-secondary"}`}
-    >
-      <span
-        aria-hidden="true"
-        className="inline-block size-2 shrink-0 rounded-[2px]"
-        style={{ background: outcomeColor(e.outcome) }}
-      />
+  const className = `inline-flex h-6 items-center gap-1.5 rounded-md border px-2 text-ui-sm ${fault ? "border-danger-border text-danger-text" : "border-border-subtle text-text-secondary"} ${props.live === true ? "viz-live" : ""}`;
+  const body = (
+    <>
+      <DecisionMark decision={e.outcome} />
       {props.plugin === false ? null : <span className="text-text-primary">{e.run.plugin}</span>}
       <span>{t(OUTCOME_WORD[e.outcome])}</span>
-    </li>
+    </>
+  );
+  return props.as === "span" ? (
+    <span className={className}>{body}</span>
+  ) : (
+    <li className={className}>{body}</li>
   );
 }
 

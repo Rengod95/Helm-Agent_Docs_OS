@@ -30,6 +30,8 @@ import { placeText } from "./place.ts";
 import {
   drivePathOf,
   hookEntriesOf,
+  hookEntryOf,
+  sortEntries,
   isFault,
   loadedOf,
   outcomeCountsOf,
@@ -40,8 +42,8 @@ import {
   usageOf,
   type HookEntry,
 } from "./model.ts";
-import { OUTCOME_WORD, Timeline } from "./timeline.tsx";
-import type { TraceData, TurnPage } from "./source.ts";
+import { DecisionMark, OUTCOME_WORD, Timeline } from "./timeline.tsx";
+import type { PendingHook, TraceData, TurnPage } from "./source.ts";
 
 type TraceMode = "time" | "blocks";
 
@@ -72,11 +74,21 @@ const EXIT_WORD: Readonly<Record<NonNullable<FrameMark["exitReason"]>, MessageId
   disabled: "desktop.craft.trace.exit.disabled",
 };
 
-/** 상태 칩: 외곽선만(색 없음) */
-function StateChip(props: { readonly children: ReactNode; readonly danger?: boolean }): ReactNode {
+/** 상태 칩: 외곽선만(색 없음). 기록이 온전하지 않으면 경고 테두리, 고장이면 위험 글자색 */
+function StateChip(props: {
+  readonly children: ReactNode;
+  readonly danger?: boolean;
+  readonly warn?: boolean;
+}): ReactNode {
+  const tone =
+    props.danger === true
+      ? "border-danger-border text-danger-text"
+      : props.warn === true
+        ? "border-warning-border text-text-primary"
+        : "border-border-default text-text-secondary";
   return (
     <span
-      className={`inline-flex h-5 shrink-0 items-center rounded-md border px-1.5 text-ui-sm ${props.danger === true ? "border-danger-border text-danger-text" : "border-border-default text-text-secondary"}`}
+      className={`inline-flex h-5 shrink-0 items-center rounded-md border px-1.5 text-ui-sm ${tone}`}
     >
       {props.children}
     </span>
@@ -110,6 +122,7 @@ function TurnRow(props: {
     }),
     ...(stopped > 0 ? [t("desktop.craft.trace.rail.stopped", { n: countText(stopped) })] : []),
     ...(s.status === "completed" ? [] : [t(STATUS_WORD[s.status])]),
+    ...(!s.complete && s.status !== "open" ? [t("desktop.craft.trace.status.partial")] : []),
   ].join(" · ");
   return (
     <ListNavigationItem
@@ -231,6 +244,9 @@ function TurnSummaryStrip(props: {
         <StateChip danger={r.status === "failed" || r.status === "lost"}>
           {t(STATUS_WORD[r.status])}
         </StateChip>
+        {!r.complete && r.status !== "open" ? (
+          <StateChip warn>{t("desktop.craft.trace.status.partial")}</StateChip>
+        ) : null}
         <StateChip>{t(SCOPE_WORD[r.scope])}</StateChip>
       </div>
       <div className="grid grid-cols-2 gap-4 compact:grid-cols-3 wide:grid-cols-6">
@@ -264,7 +280,11 @@ function entryPlaceText(e: HookEntry, locale: string): string {
   return e.call === null ? where : `${where} · ${e.call.tool}`;
 }
 
-function HooksSection(props: { readonly entries: readonly HookEntry[] }): ReactNode {
+function HooksSection(props: {
+  readonly entries: readonly HookEntry[];
+  /** 방금 끝나 아직 단계에 들지 않은 행(`entries`에 함께 있다) */
+  readonly live: ReadonlySet<HookEntry>;
+}): ReactNode {
   const locale = activeLocale();
   const decided = props.entries.filter((e) => e.outcome !== "pass" && e.outcome !== "skipped");
   const [all, setAll] = useState(decided.length === 0);
@@ -303,6 +323,9 @@ function HooksSection(props: { readonly entries: readonly HookEntry[] }): ReactN
             {counts.map((c) => (
               <li key={c.outcome} className="viz-figure text-ui-sm text-text-secondary">
                 <StateChip danger={isFault(c.outcome)}>
+                  <span className="me-1.5 inline-flex">
+                    <DecisionMark decision={c.outcome} />
+                  </span>
                   {t(OUTCOME_WORD[c.outcome])} {countText(c.n)}
                 </StateChip>
               </li>
@@ -349,9 +372,7 @@ function HooksSection(props: { readonly entries: readonly HookEntry[] }): ReactN
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      <ul className="flex">
-                        <HookChip entry={e} plugin={false} />
-                      </ul>
+                      <HookChip entry={e} plugin={false} as="span" live={props.live.has(e)} />
                     </td>
                     <td className="px-2 py-1.5 text-right text-text-tertiary">
                       {msText(e.run.ms)}
@@ -719,9 +740,12 @@ function TurnBody(props: {
   readonly record: TurnRecord;
   readonly mode: TraceMode;
   readonly live: boolean;
+  readonly pending: readonly PendingHook[];
 }): ReactNode {
   const r = props.record;
-  const entries = hookEntriesOf(r);
+  const fresh = props.pending.map((p) => hookEntryOf(p.run, p.stepIndex, null));
+  const entries = sortEntries([...hookEntriesOf(r), ...fresh]);
+  const freshSet: ReadonlySet<HookEntry> = new Set(fresh);
   const spans = spansOf(r);
   const lengthMs = turnLengthOf(r, spans);
   return (
@@ -749,11 +773,17 @@ function TurnBody(props: {
           <BlockFlow record={r} entries={entries} />
         )}
       </section>
-      <HooksSection key={`${r.threadId}:${r.turnId}`} entries={entries} />
-      <LoadedSection record={r} />
-      <DriveSection record={r} />
-      <CostSection record={r} />
-      <ChildrenSection record={r} />
+      <div className="grid items-start gap-10 @[76rem]/trace:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="grid min-w-0 gap-10">
+          <HooksSection key={`${r.threadId}:${r.turnId}`} entries={entries} live={freshSet} />
+          <DriveSection record={r} />
+        </div>
+        <div className="grid min-w-0 gap-10">
+          <LoadedSection record={r} />
+          <CostSection record={r} />
+          <ChildrenSection record={r} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -808,7 +838,7 @@ function TurnPane(props: { readonly data: TraceData; readonly mode: TraceMode })
             body={t("desktop.craft.trace.absentTurn.body")}
           />
         ) : (
-          <TurnBody record={got.record} mode={props.mode} live={d.watching} />
+          <TurnBody record={got.record} mode={props.mode} live={d.watching} pending={d.pending} />
         )
       }
     </Gate>
@@ -892,8 +922,8 @@ export function TraceView(props: { readonly data: TraceData }): ReactNode {
               {(page) => <TurnRail data={d} page={page} />}
             </Gate>
           </div>
-          <div className="min-h-0 overflow-y-auto">
-            <div className="mx-auto grid w-full max-w-260 gap-6 px-6 pt-4 pb-12">
+          <div className="@container/trace min-h-0 overflow-y-auto">
+            <div className="grid w-full gap-6 px-6 pt-4 pb-12">
               {d.link === "offline" && d.record.kind === "ready" ? (
                 <div role="status" className="text-ui-sm text-warning-text">
                   {t("desktop.craft.metrics.stale")}

@@ -10,19 +10,28 @@ import type {
   Profile,
 } from "@fresnel/contracts/wire";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLinkPhase } from "../../../state/engine/index.ts";
+import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useCommands, type CommandError } from "../../commands.ts";
 import { tabLinkOf } from "../../workbench/tab-read.ts";
 import { openTrace } from "../trace/target.ts";
 import {
+  ALL_SCOPES,
   BLOCK_TIME_METRICS,
   COMPARE_METRICS,
   DAILY_METRICS,
+  DEFAULT_FILTER,
+  LIVE_SCOPES,
   PLUGIN_METRICS,
+  RECENT_PER_THREAD,
+  eligibleThreadsOf,
+  mergeRecent,
   metricFilterOf,
   metricIdsOf,
+  recentThreadsOf,
   type MetricsFilter,
+  type RecentTurn,
+  type ThreadCandidate,
 } from "./model.ts";
 
 export type Link = ReturnType<typeof tabLinkOf>;
@@ -69,6 +78,15 @@ export interface MetricsActions {
   ) => Promise<Result<MetricsQueryResult, CommandError>>;
 }
 
+/** 최근 턴의 한 묶음. 엔진에 모든 대화의 턴 목록이 없어 화면이 대화마다 읽어 합친 것이다 */
+export interface RecentTurns {
+  readonly turns: readonly RecentTurn[];
+  /** 읽은 대화 수 */
+  readonly threads: number;
+  /** 다 못 읽었다: 기간 안에 움직인 대화가 더 있거나, 한 대화의 턴이 한 쪽을 넘었다 */
+  readonly partial: boolean;
+}
+
 export interface MetricsData {
   readonly link: Link;
   readonly filter: MetricsFilter;
@@ -78,8 +96,13 @@ export interface MetricsData {
   readonly plugins: Load<MetricsQueryResult>;
   readonly blocks: Load<MetricsQueryResult>;
   readonly daily: Load<MetricsQueryResult>;
+  /** 플러그인을 좁혀 볼 때 그 플러그인의 날별 Hook 결정. 좁히지 않으면 null */
+  readonly focusDaily: Load<MetricsQueryResult> | null;
   readonly findings: Load<FindingsListResult>;
   readonly dismissed: Load<FindingsListResult>;
+  readonly recent: Load<RecentTurns>;
+  /** 엔진의 최소 표본 수. 못 읽으면 null */
+  readonly minSample: number | null;
   readonly actions: MetricsActions;
 }
 
@@ -126,16 +149,14 @@ export function useMetricsSource(): MetricsData {
   const commands = useCommands();
   const shell = useShellActions();
   const link = tabLinkOf(useLinkPhase());
-  const [filter, setFilter] = useState<MetricsFilter>({
-    days: 7,
-    profileId: null,
-    includeTests: false,
-  });
+  const [filter, setFilter] = useState<MetricsFilter>(DEFAULT_FILTER);
+  const threads = useThreadSummaries();
   const [nonce, setNonce] = useState(0);
   const reload = useCallback(() => {
     setNonce((n) => n + 1);
   }, []);
-  const filterKey = JSON.stringify(filter);
+  // 플러그인 좁히기는 턴 전체 값(표, 블록별 시간, 턴 수, 인사이트 읽기)을 다시 읽지 않는다
+  const filterKey = JSON.stringify({ ...filter, plugin: null });
   const wireFilter = metricFilterOf(filter);
   const m = commands.craftMetrics;
 
@@ -156,6 +177,56 @@ export function useMetricsSource(): MetricsData {
   const daily = useRead(`daily:${filterKey}`, link, nonce, () =>
     m.query({ metrics: metricIdsOf(DAILY_METRICS), filter: wireFilter, groupBy: ["day"] }),
   );
+  const focusKey = `focus:${JSON.stringify(filter)}`;
+  const focusLoad = useRead(focusKey, link, nonce, () =>
+    filter.plugin === null
+      ? Promise.resolve(err<CommandError>({ kind: "unsupported" }))
+      : m.query({
+          metrics: metricIdsOf(DAILY_METRICS),
+          filter: metricFilterOf(filter, true),
+          groupBy: ["day"],
+        }),
+  );
+  const focusDaily = filter.plugin === null ? null : focusLoad;
+  const minSampleLoad = useRead("minSample", link, nonce, () => m.minSample());
+  const minSample = minSampleLoad.kind === "ready" ? minSampleLoad.value : null;
+
+  // 최근 턴: 기간 안에 움직인 대화를 골라 대화마다 한 쪽씩 읽는다. 키는 고른 대화와 그 마지막 턴이라
+  // 대화가 움직일 때마다가 아니라 새 턴이 생길 때만 다시 읽는다(쉬는 화면은 읽지 않는다)
+  const candidates = threads.map((th): ThreadCandidate => ({
+    threadId: th.threadId,
+    title: th.title,
+    updatedAt: Date.parse(th.updatedAt),
+    profileId: th.profileId ?? null,
+    test: th.testRun !== undefined || th.craftChat !== undefined,
+  }));
+  const [now] = useState(() => Date.now());
+  const picked = recentThreadsOf(candidates, filter, now);
+  const lastTurns = new Map<string, string>(
+    threads.map((th) => [th.threadId, th.lastTurnId ?? ""]),
+  );
+  const moreThreads = eligibleThreadsOf(candidates, filter, now).length > picked.length;
+  const recentKey = `recent:${filterKey}:${picked.map((th) => `${th.threadId}@${lastTurns.get(th.threadId) ?? ""}`).join(",")}`;
+  const recent = useRead(recentKey, link, nonce, async () => {
+    const scope = [...(filter.includeTests ? ALL_SCOPES : LIVE_SCOPES)];
+    const pages = await Promise.all(
+      picked.map(async (th) => {
+        const got = await m.turns({ threadId: th.threadId, limit: RECENT_PER_THREAD, scope });
+        return { th, got };
+      }),
+    );
+    const failed = pages.find((p) => !p.got.ok);
+    if (failed !== undefined && !failed.got.ok && pages.every((p) => !p.got.ok)) return failed.got;
+    const read = pages.flatMap((p) =>
+      p.got.ok ? [{ title: p.th.title, items: p.got.value.items, next: p.got.value.next }] : [],
+    );
+    return ok({
+      turns: mergeRecent(read, filter, now),
+      threads: read.length,
+      partial: moreThreads || read.some((p) => p.next !== null) || read.length < pages.length,
+    });
+  });
+
   const findingParams = {
     period: { days: filter.days },
     ...(filter.profileId === null ? {} : { profileId: filter.profileId }),
@@ -227,8 +298,11 @@ export function useMetricsSource(): MetricsData {
     plugins,
     blocks,
     daily,
+    focusDaily,
     findings,
     dismissed,
+    recent,
+    minSample,
     actions,
   };
 }

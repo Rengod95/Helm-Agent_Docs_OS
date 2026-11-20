@@ -20,6 +20,8 @@ export const TRACE_SCENES = [
   "live",
   "sample",
   "running",
+  "pending",
+  "partial",
   "many",
   "empty",
   "absent",
@@ -432,6 +434,7 @@ export function sampleTrace(
     from: "metrics" as const,
     loadingMore: false,
     watching: false,
+    pending: [],
     actions: all,
   };
   const turnId = state.turnId ?? "trn_sample_0";
@@ -451,6 +454,41 @@ export function sampleTrace(
         turns: ready(page(0, 12, 12)),
         record: got(sampleRecord(turnId, true)),
       };
+    case "pending": {
+      // 도는 턴: 단계 2가 아직 끝나지 않았는데 그 단계의 Hook 셋이 먼저 왔다(엔진이 실행 직후 보낸 행)
+      const record = sampleRecord(turnId, true);
+      const stepIndex = (record.steps.at(-1)?.stepIndex ?? 0) + 1;
+      const early = (name: string, plugin: string, atMs: number, patch: Partial<HookRun>) => ({
+        stepIndex,
+        run: hook(name, plugin, atMs, 9, { seq: 900 + atMs, ...patch }),
+      });
+      return {
+        ...base,
+        turnId,
+        watching: true,
+        turns: ready(page(0, 12, 12)),
+        record: got(record),
+        pending: [
+          early("request.context.before", "docs-voice", 12_520, { result: "modified", size: 220 }),
+          early("tool.call.before", "repo-guard", 12_910, {
+            result: "blocked",
+            decision: "block",
+            decisionText: t("desktop.craft.trace.dev.sample.blocked"),
+          }),
+          early("tool.call.before", "review-flow", 13_040, { decision: "ask" }),
+        ],
+      };
+    }
+    case "partial": {
+      // 끊겼다 이어진 턴: 이어진 뒤의 단계만 남았고 `complete: false`다
+      const full = sampleRecord(turnId, false);
+      return {
+        ...base,
+        turnId,
+        turns: ready(page(0, 12, 12)),
+        record: got({ ...full, complete: false, steps: full.steps.slice(-1) }),
+      };
+    }
     case "many":
       return {
         ...base,

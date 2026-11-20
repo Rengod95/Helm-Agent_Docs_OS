@@ -17,7 +17,10 @@ export function Section(props: {
 }): ReactNode {
   const titleId = `${props.id}-title`;
   return (
-    <section aria-labelledby={titleId} className={`grid min-w-0 gap-3 ${props.className ?? ""}`}>
+    <section
+      aria-labelledby={titleId}
+      className={`grid min-w-0 grid-cols-1 gap-3 ${props.className ?? ""}`}
+    >
       <div className="flex min-h-7 items-center gap-2">
         <h2 id={titleId} className="text-title-3 leading-5 font-semibold text-text-primary">
           {props.title}
@@ -38,7 +41,7 @@ export function Card(props: {
   readonly className?: string;
   readonly as?: "div" | "li";
 }): ReactNode {
-  const className = `grid min-w-0 gap-3 rounded-xl border border-border-subtle bg-surface-base p-4 ${props.className ?? ""}`;
+  const className = `grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-border-subtle bg-surface-base p-4 ${props.className ?? ""}`;
   return props.as === "li" ? (
     <li className={className}>{props.children}</li>
   ) : (
@@ -55,7 +58,7 @@ export function LoadingBlock(props: {
     <div
       aria-busy="true"
       aria-label={props.label}
-      className="grid gap-2"
+      className="grid grid-cols-1 gap-2"
       style={{ minHeight: props.height }}
     >
       <Skeleton width="38%" height={12} />
@@ -119,10 +122,10 @@ export function Stat(props: {
   readonly mark?: ReactNode;
 }): ReactNode {
   return (
-    <div className="grid min-w-0 gap-1">
+    <div className="grid grid-cols-1 min-w-0 gap-1">
       <div className="flex items-center gap-1.5 text-ui-sm text-text-tertiary">
         {props.mark}
-        <span className="truncate">{props.label}</span>
+        <span className="min-w-0 text-pretty">{props.label}</span>
         {props.info === undefined ? null : <InfoTip text={props.info} />}
       </div>
       <div

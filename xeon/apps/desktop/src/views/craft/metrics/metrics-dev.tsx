@@ -1,23 +1,25 @@
-// 메트릭 화면의 판 전환기와 표본 장면(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸: `가 │ 나`와 장면 고르기.
-// 장면 "실제 엔진"은 실제 원천을 그대로 쓰고 나머지는 `sample.ts`의 표본이다. 표본의 "이 턴 보기"도 트레이스로 간다(표본 턴).
-// 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다). 키보드 1·2는 판을 바꾼다(글자 입력 중 제외).
+// 메트릭 화면의 표본 장면 고르기(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸 하나.
+// 판 전환기(가·나)는 사용자가 나의 짜임을 고르며 뺐다(2026-11-20). 장면 "실제 엔진"은 실제 원천을 그대로 쓰고
+// 나머지는 `sample.ts`의 표본이다. 표본의 "이 턴 보기"와 최근 턴도 트레이스로 간다(표본 턴).
+// 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { attempt } from "@fresnel/contracts";
-import { Select, SelectOption, SegmentedControl, SegmentedControlItem } from "@caustic/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Select, SelectOption } from "@caustic/react";
+import { useState, type ReactNode } from "react";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { openTrace } from "../trace/target.ts";
 import { DEFAULT_FILTER, type MetricsFilter } from "./model.ts";
-import { MetricsView, type MetricsLayout } from "./metrics-view.tsx";
+import { MetricsView } from "./metrics-view.tsx";
 import { SCENES, sampleData, type Scene } from "./sample.ts";
 import type { MetricsData } from "./source.ts";
 
-const LAYOUT_KEY = "fresnel.craft.metrics.layout";
 const SCENE_KEY = "fresnel.craft.metrics.scene";
 
 const SCENE_WORD: Readonly<Record<Scene, MessageId>> = {
   live: "desktop.craft.metrics.dev.scene.live",
   sample: "desktop.craft.metrics.dev.scene.sample",
+  few: "desktop.craft.metrics.dev.scene.few",
+  quiet: "desktop.craft.metrics.dev.scene.quiet",
   empty: "desktop.craft.metrics.dev.scene.empty",
   loading: "desktop.craft.metrics.dev.scene.loading",
   failed: "desktop.craft.metrics.dev.scene.failed",
@@ -43,18 +45,8 @@ function writeKey(key: string, value: string): void {
   });
 }
 
-function typing(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.isContentEditable || target.closest("input, textarea, select, [role='textbox']") !== null
-  );
-}
-
 export function MetricsDev(props: { readonly live: MetricsData }): ReactNode {
   const shell = useShellActions();
-  const [layout, setLayout] = useState<MetricsLayout>(() =>
-    readKey(LAYOUT_KEY) === "charts" ? "charts" : "insights",
-  );
   const [scene, setScene] = useState<Scene>(() => {
     const stored = readKey(SCENE_KEY);
     return isScene(stored) ? stored : "live";
@@ -70,55 +62,13 @@ export function MetricsDev(props: { readonly live: MetricsData }): ReactNode {
             shell.updatePlace({ screen: "trace", scroll: 0 });
           },
         });
-  const chooseLayout = (value: string): void => {
-    const next: MetricsLayout = value === "charts" ? "charts" : "insights";
-    writeKey(LAYOUT_KEY, next);
-    setLayout(next);
-  };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat || typing(e.target)) return;
-      if (e.key !== "1" && e.key !== "2") return;
-      const next: MetricsLayout = e.key === "1" ? "insights" : "charts";
-      writeKey(LAYOUT_KEY, next);
-      setLayout(next);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, []);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <MetricsView key={`${scene}:${layout}`} data={data} layout={layout} />
+      <MetricsView key={scene} data={data} />
       <div
         data-metrics-switcher=""
         className="fixed bottom-2 left-24 z-40 flex items-center gap-1 opacity-55 transition-opacity focus-within:opacity-100 hover:opacity-100"
       >
-        <SegmentedControl
-          size="xs"
-          variant="ghost"
-          aria-label={t("desktop.craft.metrics.dev.pick")}
-          value={layout}
-          onValueChange={chooseLayout}
-        >
-          <SegmentedControlItem
-            value="insights"
-            aria-label={t("desktop.craft.metrics.dev.a")}
-            title={`${t("desktop.craft.metrics.dev.a")} · 1`}
-            className="font-semibold"
-          >
-            {t("desktop.craft.metrics.dev.aShort")}
-          </SegmentedControlItem>
-          <SegmentedControlItem
-            value="charts"
-            aria-label={t("desktop.craft.metrics.dev.b")}
-            title={`${t("desktop.craft.metrics.dev.b")} · 2`}
-            className="font-semibold"
-          >
-            {t("desktop.craft.metrics.dev.bShort")}
-          </SegmentedControlItem>
-        </SegmentedControl>
         <Select
           size="xs"
           variant="ghost"

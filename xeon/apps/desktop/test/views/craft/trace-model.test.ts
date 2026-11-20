@@ -15,7 +15,7 @@ import {
   type Span,
 } from "../../../src/views/craft/trace/model.ts";
 import { sampleRecord } from "../../../src/views/craft/trace/sample.ts";
-import { withDelta } from "../../../src/views/craft/trace/source.ts";
+import { liveHookKey, withDelta } from "../../../src/views/craft/trace/source.ts";
 import { packRows } from "../../../src/views/craft/trace/timeline.tsx";
 
 describe("hook places", () => {
@@ -132,13 +132,60 @@ describe("a running turn", () => {
       rows: [{ kind: "turn", status: "completed", complete: true }],
       final: true,
     };
-    const next = withDelta(record, delta);
+    const next = withDelta({ record, pending: [] }, delta);
     expect([next.record.status, next.record.complete, next.stale]).toEqual([
       "completed",
       true,
       false,
     ]);
-    expect(withDelta(record, { ...delta, turnId: "trn_other" }).record).toBe(record);
+    expect(withDelta({ record, pending: [] }, { ...delta, turnId: "trn_other" }).record).toBe(
+      record,
+    );
+  });
+
+  test("a Hook row that ends before its step is held, shown, and leaves once the step lands", () => {
+    const record = sampleRecord("trn_live", true);
+    const last = record.steps.at(-1);
+    const run = record.steps.flatMap((st) => st.hooks).at(0);
+    if (last === undefined || run === undefined) throw new Error("sample record has no step hook");
+    const stepIndex = last.stepIndex + 1;
+    const early = { ...run, seq: 900, toolCallId: null, subject: {} };
+    const base = { sub: "sub_1", threadId: record.threadId, turnId: "trn_live", final: false };
+    const held = withDelta(
+      { record, pending: [] },
+      { ...base, stepIndex, rows: [{ kind: "hook", stepIndex, hook: early }] },
+    );
+    expect([held.stale, held.pending.map((p) => [p.stepIndex, liveHookKey(p.run)])]).toEqual([
+      false,
+      [[stepIndex, `900:${run.registrationId}`]],
+    ]);
+    const landed = withDelta(held, {
+      ...base,
+      stepIndex,
+      rows: [{ kind: "step", stepIndex, step: { ...last, stepIndex, hooks: [early], calls: [] } }],
+    });
+    expect([landed.pending.length, landed.record.steps.at(-1)?.hooks.map((h) => h.seq)]).toEqual([
+      0,
+      [900],
+    ]);
+  });
+
+  test("a non-Hook row without its place still asks for a re-read", () => {
+    const record = sampleRecord("trn_live", true);
+    const call = record.steps.flatMap((st) => st.calls).at(0);
+    if (call === undefined) throw new Error("sample record has no call");
+    const out = withDelta(
+      { record, pending: [] },
+      {
+        sub: "sub_1",
+        threadId: record.threadId,
+        turnId: "trn_live",
+        stepIndex: 99,
+        rows: [{ kind: "call", stepIndex: 99, call }],
+        final: false,
+      },
+    );
+    expect(out.stale).toBe(true);
   });
 });
 
