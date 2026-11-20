@@ -9,14 +9,15 @@ import {
   WorkTasks,
   WorkTasksKey,
   type CapabilityApi,
+  type ServiceKey,
 } from "@fresnel/contracts/capabilities";
 import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import { OsPortKey } from "@fresnel/contracts/services";
 import type { ReviewTextReader } from "@fresnel/cap-artifacts";
 import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 
-// 대화 영역 wire(W-02, W-05, W-06, W-14, W-19)가 읽는 L2 기능의 서비스 API를 나중에 채우는 자리와 그 조립 확장. `assembly/l2-units.ts`의 대화 브리지와
-// 같은 방식이다: 확장이 기능을 얻어 `holder`에 채우고, 포트(`dialog-area-port.ts`)가 호출 시점에 읽는다. 조립 루트 코드(DR-14 예외 2).
+// 대화 영역 wire(W-02, W-05, W-06, W-14, W-19)가 읽는 L2 기능의 서비스 API를 나중에 채우는 자리와 그 조립 확장 넷(Goal, Task, Skill, Memory Service Bridge).
+// `assembly/l2-units.ts`의 Ask Service Bridge와 같은 방식이다: 확장이 기능을 얻어 `holder`에 채우고, 포트(`dialog-area-port.ts`)가 호출 시점에 읽는다. 조립 루트 코드(DR-14 예외 2).
 // 리뷰 본문 읽기(`reviews`)는 cap-artifacts 확장이 `onReviews`로 채우고 내려갈 때 비운다(`extensions.ts`). 기능 API가 아니라 읽기 면이다.
 
 /** `work.goals` 기능의 서비스 API. `goal.status`가 쓴다 */
@@ -85,21 +86,31 @@ function isMemoryApi(value: unknown): value is MemoryApi {
   );
 }
 
-const BRIDGE_NAME = "host-dialog-area-bridge";
+/** 서비스 브리지 하나의 모양: 내부 부품 이름, 표시 이름, 하는 일, 선택 의존하는 기능, 얻은 API를 자리에 채우고 비우는 방법 */
+interface ServiceBridgeSpec<Api> {
+  readonly name: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly capability: { readonly id: string; readonly version: string };
+  readonly key: ServiceKey<Api>;
+  readonly isApi: (value: unknown) => value is Api;
+  readonly fill: (api: Api) => void;
+  readonly clear: () => void;
+  readonly missingEvent: string;
+  readonly missingEffect: string;
+}
 
 /**
- * 대화 영역의 기능 API를 `holder`에 채우는 조립 확장. 목표와 작업은 cap-work, 스킬은 cap-knowledge가 준다. 기능이 없거나 꺼지면
- * 자리가 비고 포트는 빈 결과(목표, 작업)나 `unavailable`(스킬, 기억)을 낸다. 네 기능은 선택 의존이다(없어도 올라온다).
- * 이 확장은 cap-knowledge 뒤에 올라와야 스킬 API를 볼 수 있다(`extensions.ts`의 순서)
+ * 서비스 하나를 앱에 넘기는 조립 확장. 기능이 없거나 꺼지면 자리가 비고 포트는 빈 결과(목표, 작업)나 `unavailable`(스킬, 기억)을 낸다.
+ * 기능은 선택 의존이다(없어도 올라온다). 스킬과 메모리 브리지는 cap-knowledge 뒤에 올라와야 그 API를 볼 수 있다(`extensions.ts`의 순서)
  */
-export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: number): ExtensionUnit {
+function serviceBridgePlugin<Api>(spec: ServiceBridgeSpec<Api>, loadIndex: number): ExtensionUnit {
   const manifest = defineManifest({
     schemaVersion: 2,
-    name: BRIDGE_NAME,
+    name: spec.name,
     version: "0.1.0",
-    displayName: "Work-knowledge bridge",
-    description:
-      "Hands the work goal and task services and the knowledge skill and memory services to the host's dialog-area wire methods.",
+    displayName: spec.displayName,
+    description: spec.description,
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [
@@ -107,12 +118,7 @@ export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: numb
         layer: "L2",
         hooks: [],
         requires: [],
-        optional: [
-          { id: WorkGoals.id, range: `^${WorkGoals.version}` },
-          { id: WorkTasks.id, range: `^${WorkTasks.version}` },
-          { id: KnowledgeSkills.id, range: `^${KnowledgeSkills.version}` },
-          { id: KnowledgeMemory.id, range: `^${KnowledgeMemory.version}` },
-        ],
+        optional: [{ id: spec.capability.id, range: `^${spec.capability.version}` }],
       },
     ],
     trust: { level: "builtin" },
@@ -120,32 +126,106 @@ export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: numb
   const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
     register(loaded.name, { defaultEnabled: true }, (g) => {
       const logger = hostOf(g).port(OsPortKey).logger("dialog-area");
-      const goals: unknown = g.capability(WorkGoalsKey);
-      if (isGoalsApi(goals)) holder.goals = goals;
-      else logger.warn("dialog_area.goals_missing", { effect: "goal.status reports no goal" });
-      const tasks: unknown = g.capability(WorkTasksKey);
-      if (isTasksApi(tasks)) holder.tasks = tasks;
-      else logger.warn("dialog_area.tasks_missing", { effect: "work.tasks.list reports no tasks" });
-      const skills: unknown = g.capability(KnowledgeSkillsKey);
-      if (isSkillsApi(skills)) holder.skills = skills;
-      else
-        logger.warn("dialog_area.skills_missing", {
-          effect: "knowledge.skills.view is not available",
-        });
-      const memory: unknown = g.capability(KnowledgeMemoryKey);
-      if (isMemoryApi(memory)) holder.memory = memory;
-      else
-        logger.warn("dialog_area.memory_missing", {
-          effect: "knowledge.memory.* is not available",
-        });
-      g.onDispose(() => {
-        holder.goals = undefined;
-        holder.tasks = undefined;
-        holder.skills = undefined;
-        holder.memory = undefined;
-      });
+      const api: unknown = g.capability(spec.key);
+      if (spec.isApi(api)) spec.fill(api);
+      else logger.warn(spec.missingEvent, { effect: spec.missingEffect });
+      g.onDispose(spec.clear);
       return ok(undefined);
     });
   };
   return { manifest, entry, loadIndex, builtin: true };
+}
+
+/** Goal Service Bridge(`host-goal-bridge`): `work.goals`의 서비스 API를 `goal.status`에 넘긴다 */
+export function goalBridgePlugin(holder: DialogAreaHolder, loadIndex: number): ExtensionUnit {
+  return serviceBridgePlugin<GoalsApi>(
+    {
+      name: "host-goal-bridge",
+      displayName: "Goal Service Bridge",
+      description: "Hands the work goal service to the host's goal.status wire method.",
+      capability: WorkGoals,
+      key: WorkGoalsKey,
+      isApi: isGoalsApi,
+      fill: (api) => {
+        holder.goals = api;
+      },
+      clear: () => {
+        holder.goals = undefined;
+      },
+      missingEvent: "dialog_area.goals_missing",
+      missingEffect: "goal.status reports no goal",
+    },
+    loadIndex,
+  );
+}
+
+/** Task Service Bridge(`host-task-bridge`): `work.tasks`의 서비스 API를 `work.tasks.list`에 넘긴다 */
+export function taskBridgePlugin(holder: DialogAreaHolder, loadIndex: number): ExtensionUnit {
+  return serviceBridgePlugin<TasksApi>(
+    {
+      name: "host-task-bridge",
+      displayName: "Task Service Bridge",
+      description: "Hands the work task service to the host's work.tasks.list wire method.",
+      capability: WorkTasks,
+      key: WorkTasksKey,
+      isApi: isTasksApi,
+      fill: (api) => {
+        holder.tasks = api;
+      },
+      clear: () => {
+        holder.tasks = undefined;
+      },
+      missingEvent: "dialog_area.tasks_missing",
+      missingEffect: "work.tasks.list reports no tasks",
+    },
+    loadIndex,
+  );
+}
+
+/** Skill Service Bridge(`host-skill-bridge`): `knowledge.skills`의 서비스 API를 `knowledge.skills.view`에 넘긴다. cap-knowledge 뒤에 올라온다 */
+export function skillBridgePlugin(holder: DialogAreaHolder, loadIndex: number): ExtensionUnit {
+  return serviceBridgePlugin<SkillsApi>(
+    {
+      name: "host-skill-bridge",
+      displayName: "Skill Service Bridge",
+      description:
+        "Hands the knowledge skill service to the host's knowledge.skills.view wire method.",
+      capability: KnowledgeSkills,
+      key: KnowledgeSkillsKey,
+      isApi: isSkillsApi,
+      fill: (api) => {
+        holder.skills = api;
+      },
+      clear: () => {
+        holder.skills = undefined;
+      },
+      missingEvent: "dialog_area.skills_missing",
+      missingEffect: "knowledge.skills.view is not available",
+    },
+    loadIndex,
+  );
+}
+
+/** Memory Service Bridge(`host-memory-bridge`): `knowledge.memory`의 서비스 API를 `knowledge.memory.*`에 넘긴다. cap-knowledge 뒤에 올라온다 */
+export function memoryBridgePlugin(holder: DialogAreaHolder, loadIndex: number): ExtensionUnit {
+  return serviceBridgePlugin<MemoryApi>(
+    {
+      name: "host-memory-bridge",
+      displayName: "Memory Service Bridge",
+      description:
+        "Hands the knowledge memory service to the host's knowledge.memory.* wire methods.",
+      capability: KnowledgeMemory,
+      key: KnowledgeMemoryKey,
+      isApi: isMemoryApi,
+      fill: (api) => {
+        holder.memory = api;
+      },
+      clear: () => {
+        holder.memory = undefined;
+      },
+      missingEvent: "dialog_area.memory_missing",
+      missingEffect: "knowledge.memory.* is not available",
+    },
+    loadIndex,
+  );
 }

@@ -4,6 +4,7 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  internalPluginLayer,
   isGroupExtension,
   pluginDeclsOf,
   SCRIPT_LIMITS,
@@ -396,6 +397,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const displayName = manifest.displayName?.trim() ?? "";
   const purpose = manifest.purpose ?? singleSkillPurpose(materials.skills);
   const projectId = input.origin.projectId;
+  const internal = isInternalCard(input.origin.kind, manifest);
+  const internalLayer = internal ? internalPluginLayer(manifest.name) : undefined;
   const origin =
     projectId === undefined ? { kind: input.origin.kind } : { kind: input.origin.kind, projectId };
 
@@ -410,7 +413,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     cost: costOf(folder, manifest.tools?.length ?? 0),
     health: input.health,
     origin,
-    internal: isInternalCard(input.origin.kind, manifest),
+    internal,
+    ...(internalLayer === undefined ? {} : { internalLayer }),
     review: input.review,
     usedBy: input.usedBy,
   };
