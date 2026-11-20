@@ -12,6 +12,8 @@ export interface EffectivePolicy {
   readonly writeDeny: readonly string[];
   /** 읽기 허용 목록. 있으면 허용 목록 방식이다(`SandboxPolicy.readAllow`). 보호 경로를 품은 항목은 빠져 있다 */
   readonly readAllow?: readonly string[];
+  /** 설정 `protectedPaths.allowRead`로 보호 경로 안쪽을 다시 읽게 하는 경로. 거부 목록 방식에서 srt `allowRead`로 보낸다 */
+  readonly readCarve?: readonly string[];
 }
 
 /** 상태 탐지가 찾은 헬퍼 절대 경로(L0.sandbox.spec §3.2 마지막 행, §5.3) */
@@ -119,7 +121,11 @@ export function toSrtFileConfig(policy: EffectivePolicy): SrtCommandConfig {
         policy.readAllow === undefined
           ? policy.readDeny.map(toPathEntry)
           : ["/", ...policy.readDeny.map(toPathEntry)],
-      ...(policy.readAllow === undefined ? {} : { allowRead: policy.readAllow.map(toPathEntry) }),
+      ...(policy.readAllow === undefined
+        ? policy.readCarve === undefined
+          ? {}
+          : { allowRead: policy.readCarve.map(toPathEntry) }
+        : { allowRead: policy.readAllow.map(toPathEntry) }),
       denyWrite: policy.writeDeny.map(toPathEntry),
       allowGitConfig: false,
     },

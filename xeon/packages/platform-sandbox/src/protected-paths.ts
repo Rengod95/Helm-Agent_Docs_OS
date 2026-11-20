@@ -266,3 +266,98 @@ export function dropProtectedWriteRoots(
   }
   return { kept, removed };
 }
+
+/** 설정 `protectedPaths.allowRead`로 풀 수 없는 기본 보호 경로의 이유 코드: 이 제품 자신의 시크릿·데이터·설정 */
+const PINNED_REASONS: ReadonlySet<Reason> = new Set<Reason>([
+  "secret_key",
+  "fresnel_data",
+  "fresnel_config",
+]);
+/** 풀 수 없는 OS 키체인(홈 아래와 시스템). provider가 `credentials`로 내므로 경로로 고른다 */
+const PINNED_KEYCHAIN_HOME = [
+  "Library/Keychains",
+  ".local/share/keyrings",
+  ".local/share/kwalletd",
+];
+const PINNED_KEYCHAIN_ABSOLUTE = ["/Library/Keychains"];
+
+/** 이 항목은 `protectedPaths.allowRead`로 풀 수 없다(L0.sandbox.spec §3.3.1) */
+function isPinnedEntry(item: ProtectedPathEntry, home: string): boolean {
+  if (PINNED_REASONS.has(item.reason)) return true;
+  if (item.match === "basename") return false;
+  const keychains = [
+    ...PINNED_KEYCHAIN_HOME.map((name) => canonicalizePath(posix.join(home, name))),
+    ...PINNED_KEYCHAIN_ABSOLUTE.map((path) => canonicalizePath(path)),
+  ];
+  return keychains.includes(item.path);
+}
+
+export interface ReadReleaseResult {
+  readonly entries: readonly ProtectedPathEntry[];
+  /** 보호 경로 안쪽을 다시 읽게 하는 경로(항목 자체를 푼 것은 없다) */
+  readonly carved: readonly string[];
+  /** 풀지 않은 값의 개수(값은 싣지 않는다) */
+  readonly ignored: { readonly unknown: number; readonly pinned: number };
+}
+
+function trimSlash(value: string): string {
+  return value.length > 1 ? value.replace(/\/+$/, "") : value;
+}
+
+function samePath(a: string, b: string): boolean {
+  return trimSlash(a) === trimSlash(b);
+}
+
+/**
+ * 사용자가 고른 경로(정규 절대 경로)로 기본 보호 경로의 읽기를 푼다. 쓰기 거부는 그대로다. 줄이지 않는 규칙은 지킨다: 목록은 남고 항목의 접근만 `write`로 낮아진다.
+ * - 항목의 경로와 같으면 그 항목을 `write`(읽기 허용, 쓰기 거부)로 바꾼다.
+ * - 항목 안쪽이면 항목은 두고 `carved`에 담는다(읽기 예외, 쓰기는 항목이 계속 막는다).
+ * - 어떤 읽기 거부 항목에도 들지 않으면 `unknown`, 풀 수 없는 항목에 들거나 그것을 품으면 `pinned`다. 둘 다 아무것도 풀지 않는다.
+ * basename 항목(`.env`)은 이름 규칙이라 경로로 고를 수 없다.
+ */
+export function applyReadRelease(
+  entries: readonly ProtectedPathEntry[],
+  chosen: readonly string[],
+  home: string,
+): ReadReleaseResult {
+  const pathEntries = entries.filter((item) => item.match !== "basename");
+  const unlock = new Set<ProtectedPathEntry>();
+  const carved: string[] = [];
+  let unknown = 0;
+  let pinned = 0;
+  for (const path of new Set(chosen)) {
+    const hits = pathEntries.filter(
+      (item) =>
+        item.access === "read_write" && matchProtectedPath([item], path, "read") !== undefined,
+    );
+    if (hits.length === 0) {
+      unknown += 1;
+      continue;
+    }
+    const containsPinned = pathEntries.some(
+      (item) =>
+        isPinnedEntry(item, home) &&
+        (matchProtectedPath([item], path, "write") !== undefined ||
+          matchProtectedPath([{ ...item, path, match: "prefix" }], item.path, "write") !==
+            undefined),
+    );
+    if (containsPinned) {
+      pinned += 1;
+      continue;
+    }
+    let carve = false;
+    for (const hit of hits) {
+      if (samePath(hit.path, path)) unlock.add(hit);
+      else carve = true;
+    }
+    if (carve) carved.push(path);
+  }
+  const released = entries.map((item): ProtectedPathEntry =>
+    unlock.has(item) ? { ...item, access: "write" } : item,
+  );
+  return {
+    entries: dedupe(released),
+    carved: [...new Set(carved)].toSorted(),
+    ignored: { unknown, pinned },
+  };
+}
