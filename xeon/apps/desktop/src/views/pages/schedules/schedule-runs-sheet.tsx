@@ -53,7 +53,7 @@ function RunLine(props: {
             {t("desktop.schedules.runs.missed")}
           </span>
         ) : null}
-        <span className="tabular-nums text-text-secondary">{timeOf(run.startedAt, locale)}</span>
+        <span className="text-text-secondary">{timeOf(run.startedAt, locale)}</span>
         {threadId === null ? null : (
           <Button
             size="xs"

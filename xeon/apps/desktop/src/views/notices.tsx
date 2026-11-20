@@ -728,7 +728,7 @@ function NoticeList(props: { readonly feed: NoticeFeed; readonly thread: InboxTh
       <header className="flex h-7 items-center gap-2">
         <h2 className="m-0 text-ui-strong text-text-primary">{t("desktop.notices.title")}</h2>
         {unread === 0 ? null : (
-          <span className="text-ui-sm text-text-tertiary tabular-nums">
+          <span className="text-ui-sm text-text-tertiary">
             {t("desktop.notices.unread", { count: unread })}
           </span>
         )}

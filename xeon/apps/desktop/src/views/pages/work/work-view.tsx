@@ -124,7 +124,7 @@ function GoalPanel(props: {
         )}
         <span className="flex-1" />
         {vm === null ? null : (
-          <span className="flex-none text-ui-sm font-normal tabular-nums text-text-tertiary">
+          <span className="flex-none text-ui-sm font-normal text-text-tertiary">
             {t("desktop.work.goal.judged", { judged: vm.judged, max: vm.maxJudgments })}
           </span>
         )}

@@ -18,9 +18,7 @@ export function WellGroup(props: {
   const label = (
     <>
       <span className="truncate">{props.title}</span>
-      {props.count === undefined ? null : (
-        <span className="font-normal tabular-nums">{props.count}</span>
-      )}
+      {props.count === undefined ? null : <span className="font-normal">{props.count}</span>}
     </>
   );
   const open = props.fold?.open ?? true;

@@ -174,9 +174,7 @@ function Section(props: {
         <h2 id={id} className="m-0 flex flex-1 items-baseline gap-2 text-title-2 text-text-primary">
           {props.title}
           {props.count === undefined ? null : (
-            <span className="text-ui font-normal text-text-tertiary tabular-nums">
-              {props.count}
-            </span>
+            <span className="text-ui font-normal text-text-tertiary">{props.count}</span>
           )}
         </h2>
         {props.end}
@@ -264,7 +262,7 @@ function BuiltinGroup(props: {
         <span id={id} className="text-ui font-medium text-text-primary">
           {t("desktop.addons.builtin.title")}
         </span>
-        <span className="text-ui text-text-tertiary tabular-nums">{props.rows.length}</span>
+        <span className="text-ui text-text-tertiary">{props.rows.length}</span>
         <span className="min-w-0 truncate text-ui text-text-tertiary">
           {t("desktop.addons.builtin.body")}
         </span>

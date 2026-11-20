@@ -4,11 +4,26 @@
    2) 아이콘과 글자가 같은 줄일 때 한글 글자가 아이콘보다 위로 보이던 어긋남(약 1.5px)의 공용 원인 보정.
       줄 높이는 첫 번째로 쓸 수 있는 글꼴의 ascent/descent가 정한다. Geist가 번들되지 않고 SUIT는 공백 글리프가 unicode-range 밖이라,
       실제 줄 기준은 시스템 글꼴(Apple SD Gothic Neo: ascent .90, descent .30)이고 한글 잉크 중심이 줄 중앙보다 약 .065em 위에 놓인다.
-      공백 한 글자(U+0020)만 가진 글꼴 "Fresnel Metrics"를 ui 스택 맨 앞에 두어 줄 기준을 ascent .96·descent .23으로 바꾼다(글리프는 그리지 않는다). */
+      공백 한 글자(U+0020)만 가진 글꼴 "Fresnel Metrics"를 ui 스택 맨 앞에 두어 줄 기준을 ascent .96·descent .23으로 바꾼다(글리프는 그리지 않는다).
+   3) 숫자·영문도 한글과 같은 가족으로(lcNum, 2026-11-20 사용자 AGE-34 "숫자폰트들도 일반 타이포와 동일한 폰트패밀리를 사용했으면").
+      caustic의 SUIT face는 unicode-range가 한글뿐이고 Geist는 번들되지 않아, 숫자와 영문이 시스템 글꼴(Apple SD Gothic Neo)로 떨어졌다.
+      같은 SUIT 파일(caustic이 싣는 것, 새 글꼴 파일 없음)을 범위 제한 없이 "Fresnel Sans"로 한 번 더 선언하고 ui 스택에서 Geist를 뺀다.
+      그래서 한 줄의 한글·영문·숫자가 모두 SUIT이고 자간 토큰도 하나다.
+   4) 고정폭은 코드(코드 조각, 경로, 해시, 명령)에만 쓴다. Geist Mono는 번들되지 않고 Chromium은 ui-monospace를 모르며 SF Mono는 앱에 열려 있지 않아
+      고정폭 글이 기본 Courier로 그려졌다. macOS 시스템 글꼴 Menlo를 SF Mono 다음에 둔다(새 글꼴 파일 없음).
+   5) caustic base는 Geist에 맞춘 "cv11", "ss01"을 body에 건다. SUIT의 ss01은 숫자 0을 원형(영문 O와 같은 모양)으로 바꿔 "3,000"이 "3,OOO"처럼 읽힌다.
+      앱은 Geist를 쓰지 않으므로 ss01을 빼고 cv11만 둔다(Pretendard에서는 ss01을 빼도 보이는 차이가 없다). */
 @font-face {
   font-family: "Pretendard Variable";
   src: url("./fonts/pretendard/PretendardVariable.woff2") format("woff2");
   font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Fresnel Sans";
+  src: url("../node_modules/@caustic/tokens/fonts/suit/SUIT-Variable.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -23,9 +38,16 @@
 }
 html:root {
   --cs-font-ui:
-    "Fresnel Metrics", "Geist", "SUIT Variable", "SUIT", "Apple SD Gothic Neo", "Malgun Gothic",
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    "Fresnel Metrics", "Fresnel Sans", "SUIT Variable", "SUIT", "Apple SD Gothic Neo",
+    "Malgun Gothic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --cs-font-voice:
     "Pretendard Variable", "SUIT Variable", "Apple SD Gothic Neo", "Malgun Gothic", ui-sans-serif,
     system-ui, sans-serif;
+  --cs-font-mono:
+    "Geist Mono", ui-monospace, "SF Mono", Menlo, "Cascadia Code", Consolas, monospace;
+}
+@layer base {
+  body {
+    font-feature-settings: "cv11";
+  }
 }

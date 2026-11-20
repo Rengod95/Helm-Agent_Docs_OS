@@ -230,7 +230,7 @@ function ToolRow(props: {
         </span>
         <span role="cell" className="flex min-w-0 items-baseline gap-1.5">
           {order === null ? null : (
-            <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
+            <span className="flex-none text-footnote text-text-tertiary tabular-nums">
               {props.index + 1}
             </span>
           )}

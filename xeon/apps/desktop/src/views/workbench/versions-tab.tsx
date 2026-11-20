@@ -233,7 +233,7 @@ function VersionsTable(props: {
           case "version":
             return (
               <span className="inline-flex items-center gap-1.5">
-                <span className="font-mono text-mono-sm text-text-primary">{row.version}</span>
+                <span className="text-text-primary">{row.version}</span>
                 {row.current && (
                   <Badge size="xs" variant="soft">
                     {t("desktop.workbench.versions.current")}
@@ -293,11 +293,11 @@ function FallbackVersions(props: {
         className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
       >
         <ListDescriptionRow term={t("desktop.workbench.versions.installed")}>
-          <span className="font-mono text-mono-sm text-text-primary">{props.installed}</span>
+          <span className="text-text-primary">{props.installed}</span>
         </ListDescriptionRow>
         {props.bundled !== null && (
           <ListDescriptionRow term={t("desktop.workbench.versions.bundled")}>
-            <span className="font-mono text-mono-sm text-text-primary">{props.bundled}</span>
+            <span className="text-text-primary">{props.bundled}</span>
           </ListDescriptionRow>
         )}
       </ListDescription>

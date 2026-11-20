@@ -160,7 +160,6 @@
   font-size: 12px;
   line-height: 16px;
   color: var(--cs-color-text-tertiary);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .notice-repeat {
@@ -168,7 +167,6 @@
   font-size: 12px;
   line-height: 16px;
   color: var(--cs-color-text-tertiary);
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .notice-dismiss {

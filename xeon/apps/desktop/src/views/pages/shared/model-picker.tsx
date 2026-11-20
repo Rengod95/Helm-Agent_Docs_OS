@@ -104,11 +104,7 @@ export function ModelPicker(props: ModelPickerProps): ReactNode {
           ...(meta === null
             ? {}
             : {
-                meta: (
-                  <span className="font-mono text-mono-sm text-text-tertiary tabular-nums">
-                    {meta}
-                  </span>
-                ),
+                meta: <span className="text-footnote text-text-tertiary">{meta}</span>,
               }),
         };
       }),

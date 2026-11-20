@@ -373,7 +373,7 @@ function ProviderCardView(props: {
           <span className="min-w-0 truncate">{statusLine}</span>
         </span>
         {card.usage === null ? null : (
-          <span className="truncate ps-3 text-ui-sm text-text-tertiary tabular-nums">
+          <span className="truncate ps-3 text-ui-sm text-text-tertiary">
             {usageLineOf(card.usage)}
           </span>
         )}
@@ -1381,9 +1381,7 @@ function ModelAccessLine(props: {
         {name}
       </span>
       {meta === null ? null : (
-        <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
-          {meta}
-        </span>
+        <span className="flex-none text-footnote text-text-tertiary">{meta}</span>
       )}
       {row.usable ? null : (
         <span className="flex-none text-ui-sm text-text-tertiary">

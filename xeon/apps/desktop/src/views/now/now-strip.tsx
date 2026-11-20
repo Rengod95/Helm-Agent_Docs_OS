@@ -165,7 +165,7 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
   }
   if (items.length === 0) return null;
   return (
-    <span className="flex shrink-0 items-center text-ui-sm text-text-tertiary tabular-nums">
+    <span className="flex shrink-0 items-center text-ui-sm text-text-tertiary">
       {items.map((item) => (
         <span
           key={item.key}
@@ -260,7 +260,7 @@ function SectionHead(props: { readonly children: ReactNode; readonly end?: React
   return (
     <div className="flex h-6 items-center justify-between gap-2 text-ui-sm text-text-tertiary">
       <h3 className="m-0 text-ui-sm font-normal">{props.children}</h3>
-      {props.end === undefined ? null : <span className="tabular-nums">{props.end}</span>}
+      {props.end === undefined ? null : <span>{props.end}</span>}
     </div>
   );
 }
@@ -381,7 +381,7 @@ function NowBody(props: { readonly id: string; readonly view: NowView }): ReactN
                 <span className="min-w-0 flex-1 truncate text-ui text-text-primary">
                   {agent.name}
                 </span>
-                <span className="shrink-0 font-mono text-ui-sm text-text-tertiary tabular-nums">
+                <span className="shrink-0 text-ui-sm text-text-tertiary tabular-nums">
                   {agentTailOf(agent)}
                 </span>
               </li>

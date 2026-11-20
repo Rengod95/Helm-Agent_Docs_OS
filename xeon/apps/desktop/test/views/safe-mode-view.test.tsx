@@ -94,9 +94,9 @@ function toneOf(cell: string): string | null {
   return /data-bar-tone="([^"]+)"/.exec(cell)?.[1] ?? null;
 }
 
-/** 칸에 보이는 글. 글 칸은 숫자와 같이 `tabular-nums` 줄 뒤에 온다 */
+/** 칸에 보이는 글. 글 칸은 `data-bar-text` 표식을 단 span이다 */
 function textOf(cell: string): string | null {
-  return /tabular-nums">([^<]*)</.exec(cell)?.[1] ?? null;
+  return /data-bar-text[^>]*>([^<]*)</.exec(cell)?.[1] ?? null;
 }
 
 describe("the safe mode suggestion card", () => {

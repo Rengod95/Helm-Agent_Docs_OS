@@ -124,7 +124,7 @@ export function StorageView(props: StorageViewProps): ReactNode {
         ) : null}
         {load.kind === "ready" ? (
           <>
-            <p className="m-0 text-ui font-medium text-text-primary tabular-nums">
+            <p className="m-0 text-ui font-medium text-text-primary">
               {t("desktop.settings.storage.total", {
                 size: formatBytes(
                   storageRowsOf(load.usage).reduce((sum, row) => sum + row.bytes, 0),

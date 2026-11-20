@@ -468,7 +468,7 @@ function FoldedPart(props: {
         <span id={id} className="text-ui font-medium text-text-primary">
           {props.title}
         </span>
-        <span className="text-ui text-text-tertiary tabular-nums">{props.count}</span>
+        <span className="text-ui text-text-tertiary">{props.count}</span>
       </button>
       {open ? (
         <div className="pt-2">
