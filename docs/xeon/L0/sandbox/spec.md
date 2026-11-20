@@ -309,10 +309,10 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 | `<home>/.cargo/credentials.toml`, `<home>/.cargo/credentials`, `<home>/.gem/credentials`, `<home>/.terraform.d/credentials.tfrc.json` | exact | 읽기·쓰기 | `credentials` | 게시·원격 실행 토큰 파일. `~/.cargo/config.toml`, `~/.cargo/bin`은 막지 않는다(빌드가 읽는다). 게시할 때만 읽는 파일이다 [제안: enPp] |
 | `<home>/.gemini/`, `<home>/.cursor/`, `<home>/.config/github-copilot/`, `<home>/.config/opencode/`, `<home>/.local/share/opencode/` | prefix | 읽기·쓰기 | `agent_credentials` | 다른 AI 하네스의 로그인 토큰과 MCP 설정. `~/.claude`와 같은 기준 [제안: enPp] |
 | 키체인: `/Library/Keychains/`, macOS `<home>/Library/Keychains/` | prefix | 읽기·쓰기 | `credentials` | macOS provider 행. 막아도 `security list-keychains`, `security find-identity`, `codesign`, `curl`의 HTTPS 연결은 그대로 돈다(이 맥 실측, 키체인 접근은 시스템 서비스가 대신한다) [제안: enPp] |
-| 브라우저 프로필(쿠키, 저장된 로그인, 방문 기록): macOS `<home>/Library/Application Support/` 아래 `Google/Chrome`, `Chromium`, `Microsoft Edge`, `BraveSoftware`, `Arc`, `Vivaldi`, `com.operasoftware.Opera`, `Firefox`, 그리고 `<home>/Library/Safari/`, `<home>/Library/Cookies/` | prefix | 읽기·쓰기 | `credentials` | macOS provider 행. Safari는 macOS도 막지만 목록에 둔다 [제안: enPp] |
-| macOS 비밀번호 관리자·메신저·메일: `<home>/Library/Application Support/` 아래 `1Password`, `Bitwarden`, `KeePassXC`, `Signal`, `Slack`, `discord`, `<home>/Library/Group Containers/2BUA8C4S2C.com.1password/`, `<home>/Library/Containers/com.1password.1password/`, `<home>/Library/Messages/`, `<home>/Library/Mail/` | prefix | 읽기·쓰기 | `credentials` | macOS provider 행 [제안: enPp] |
-| Linux·WSL2 브라우저 프로필: `<home>/.config/` 아래 `google-chrome`, `google-chrome-beta`, `chromium`, `microsoft-edge`, `BraveSoftware`, `vivaldi`, `opera`, `<home>/.mozilla/`, `<home>/.thunderbird/`, `<home>/snap/firefox/common/.mozilla/`, `<home>/snap/chromium/common/chromium/`, `<home>/.var/app/` 아래 `org.mozilla.firefox`, `com.google.Chrome`, `org.chromium.Chromium`, `com.brave.Browser`, `com.microsoft.Edge` | prefix | 읽기·쓰기 | `credentials` | Linux provider 행. 실제 srt(bubblewrap)로는 아직 돌려 보지 못했다 [미결: enPp, bubblewrap이 있는 기기에서 `sandbox.secret-folders.int.test.ts`를 돌려야 한다] |
-| Linux·WSL2 비밀번호 관리자·키링·메신저: `<home>/.config/` 아래 `1Password`, `Bitwarden`, `KeePassXC`, `keepassxc`, `Signal`, `Slack`, `discord`, `<home>/.local/share/keyrings/`, `<home>/.local/share/kwalletd/` | prefix | 읽기·쓰기 | `credentials` | Linux provider 행. 위와 같이 Linux 실측 전 [미결: enPp] |
+| macOS 쿠키 저장소: `<home>/Library/Cookies/` | prefix | 읽기·쓰기 | `credentials` | macOS provider 행. 키체인과 함께 막는다 |
+| macOS 비밀번호 관리자: `<home>/Library/Application Support/` 아래 `1Password`, `Bitwarden`, `KeePassXC`, `<home>/Library/Group Containers/2BUA8C4S2C.com.1password/`, `<home>/Library/Containers/com.1password.1password/` | prefix | 읽기·쓰기 | `credentials` | macOS provider 행 |
+| (기본 목록에 없음) 브라우저 프로필과 메신저·메일 데이터: macOS의 Chrome·Chromium·Edge·Brave·Arc·Vivaldi·Opera·Firefox 프로필, `Signal`·`Slack`·`discord`, Linux의 같은 자리(`.config/google-chrome`, `.mozilla`, `.thunderbird` 등) | 해당 없음 | 막지 않음 | 해당 없음 | 기본으로 읽을 수 있다 [결정: 2026-11-20, 사용자, AGE-63 "목록 줄이기"]. 쓰기는 작업 공간 밖이라 계속 거부된다. 막으려면 `l0.sandbox.protectedPaths.extra`에 더한다. macOS의 `Library/Safari`, `Library/Messages`, `Library/Mail`은 OS(TCC)가 스스로 막는다. 브라우저 프로필을 열면 그 안의 쿠키와 저장된 로그인도 읽힌다 |
+| Linux·WSL2 비밀번호 관리자·키링: `<home>/.config/` 아래 `1Password`, `Bitwarden`, `KeePassXC`, `keepassxc`, `<home>/.local/share/keyrings/`, `<home>/.local/share/kwalletd/` | prefix | 읽기·쓰기 | `credentials` | Linux provider 행. Linux 실측 전 |
 | `<home>/.config/gh/`, `<home>/.netrc`, `<home>/.docker/config.json`, `<home>/.npmrc`, `<home>/.pypirc` | prefix·exact | 설정 `l0.sandbox.credentialFiles`가 `allow`(기본)이면 쓰기, `deny`이면 읽기·쓰기 | `credentials` | CLI 인증 파일. 기본은 읽기를 허용해 `gh`와 사설 레지스트리 `npm`이 샌드박스 안에서 인증된다 [결정: review.m3-design-inputs D-M3-18 행 2]. 개인 키(`.ssh`)와 클라우드 자격은 항상 읽기도 거부한다 [결정: 오케스트레이터 기본값, D-M3-18은 `~/.npmrc`, `~/.config/gh` 등을 예로만 들었다]. `credentialFiles`는 이 행만 바꾸고 위의 행은 어느 값에서도 열지 않는다 |
 | `<home>/.bashrc`, `.bash_profile`, `.zshrc`, `.zprofile`, `.zshenv`, `.profile`, `<home>/.gitconfig` | exact | 쓰기 | `shell_startup` | 같음. srt 자동 보호와 겹친다(README:1142-1190) |
 | `<root>/.git/config`, `<root>/.git/config.worktree`, `<root>/.git/info/attributes`, `<root>/.git/hooks/`, `<root>/.gitmodules` | exact·prefix | 쓰기 | `git_exec` | 같음. 다음 git 호출에서 명령이 실행된다. srt 자동 보호와 겹친다 |
@@ -320,12 +320,24 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 
 지운 행: `/srv/volumes/**`(Helm 홈서버), `~/.config/helm/**`, `~/.dotfiles/secrets/**`·`~/projects/*/secrets/**`(사용자별 경로, `protectedPaths.extra`로 더한다), `~/data/**`·`~/vault/**`(사용자 개인 자료), `/mnt/**`(WSL Windows 드라이브. 작업 공간이 `/mnt/c` 아래일 수 있어 기본에서 뺀다 [제안]).
 
-- 기본 목록에서 항목을 빼는 설정은 없다(`protectedPaths.extra`는 더하기만 한다). 브라우저 자동화처럼 프로필을 읽어야 하는 사용자를 위한 빼기 길은 만들지 않았다 [미결: enPp, 사용자 결정].
+- 기본 목록의 읽기를 푸는 설정 `l0.sandbox.protectedPaths.allowRead`가 있다(아래 3.3.1절). 기본 목록 자체는 줄지 않는다. 항목이 목록에 남고, 사용자가 고른 것만 셸 도구 샌드박스에서 읽기가 열린다 [결정: 2026-11-20, 사용자, AGE-63 결정 2 나].
 - 읽어야 일하는 설정일 수 있어 막지 않은 것: `~/.gitconfig`·셸 시작 파일(쓰기만 막는다), `~/.npmrc`·`~/.config/gh`·`~/.docker/config.json`·`~/.netrc`·`~/.pypirc`(위 `credentialFiles` 행), `~/.cargo/config.toml`, `~/.m2/settings.xml`(저장소 주소와 인증이 한 파일), `~/.config/configstore`(npm 계열 CLI의 갱신 상태). 뒤의 둘은 막았을 때 깨지는지 실측하지 않았다.
 - 시험: `git status`, `git commit`, `gh --version`, `npm --version`, `bun install --dry-run`, `ssh -V`, `curl` HTTPS는 이 목록 아래에서 그대로 돈다(이 맥, 실제 srt, 실제 홈을 보호한 채). 자동 시험은 `test/sandbox.secret-folders.int.test.ts`(임시 홈)와 `test/protected-paths.test.ts`다.
 - 보호 경로의 기본 집합은 `SandboxProvider.defaultProtectedPaths(dirs)`(OS별)와 공통 표를 합친 것이다. macOS 전용 행은 darwin provider만 낸다.
 - `wrapShell`은 호출자가 넘긴 정책에 보호 경로를 항상 합친다. 호출자가 `readDeny`·`writeDeny`를 비워도 보호 경로는 빠지지 않는다.
 - 쓰기 루트가 보호 경로 안에 있으면(예: `writeRoots`에 `<fresnelData>`) `defaultPolicy`와 `wrapShell` 모두 그 쓰기 루트를 지우고 위반 사유를 시작 로그에 남긴다 [제안]. `denyWrite`가 이기므로 결과는 같지만 자동 허용 판정을 흐리지 않기 위해서다.
+
+#### 3.3.1 기본 보호 경로의 읽기 풀기 [결정: 2026-11-20, 사용자, AGE-63 결정 2 나; 키 이름과 세부는 [제안]]
+
+브라우저 자동화처럼 보호 폴더(예: 크롬 프로필)를 읽어야 하는 사용자를 위해 설정 `l0.sandbox.protectedPaths.allowRead`(`string[]`, 기본 `[]`)로 기본 보호 경로의 읽기를 푼다. 경고가 분명한 설정이다(화면 문구: "이 폴더를 에이전트가 읽을 수 있게 돼요").
+
+- 항목은 경로로 고른다. `~/`나 절대 경로이고, 기본 보호 경로 항목의 경로와 같거나 그 안쪽이어야 한다. 항목과 같으면 그 항목이 `write`(읽기 허용, 쓰기 거부)로 낮아진다. 안쪽이면 항목은 그대로 두고 그 경로만 srt `allowRead` 예외로 다시 연다(쓰기는 항목이 계속 막는다). 풀리는 것은 읽기뿐이고 쓰기는 어느 경우에도 열리지 않는다.
+- 범위는 `managed`, `user`다. `project`는 받지 않는다(저장소의 설정 파일이 사용자의 시크릿 폴더를 열 수 없게 한다). 프로젝트 파일에 적혀 있으면 설정 엔진이 값을 무시하고 `issues`에 남긴다(`F.wire-settings.spec`). 관리자 잠금은 기존 문법이다: `managed` 값이 이기고 잠기므로, 관리자가 이 키를 `[]`로 두면 사용자는 풀 수 없다.
+- **풀 수 없는 항목**(적어도 풀리지 않고 진단만 남는다): 이유 코드 `secret_key`(시크릿 파일, SOPS·age 키), `fresnel_data`(Fresnel 데이터 폴더), `fresnel_config`(설정 폴더), 그리고 OS 키체인(macOS `~/Library/Keychains`, `/Library/Keychains`, Linux `~/.local/share/keyrings`, `~/.local/share/kwalletd`). 이 제품 자신의 시크릿과 인증이라 풀면 제품의 보장이 깨진다. 이 항목 안쪽이거나 그것을 품은 경로도 풀리지 않는다. 구현은 `isPinnedEntry`다.
+- 기본 목록에 없는 경로(이름 규칙 `.env`, 항목의 부모, 목록 밖)와 상대 경로는 아무것도 풀지 않는다. 시작 로그에 `sandbox.protected_path_release_ignored { relative, unknown, pinned }` 개수만 남기고 값은 싣지 않는다.
+- **셸 도구에만 적용한다.** 호출이 `defaultPolicy({ userReadRelease: true })`로 정책을 만들었을 때만(`SandboxPolicy.userReadRelease`, 셸 도구 `core-workspace/src/shell/run.ts`가 읽기 전용 프로필이 아닌 호출에 켠다) `wrapShell`의 정책 합성이 풀기를 반영한다. 읽기 전용·쓰기 없음(플러그인 격리)·`script-env` 프로필과 `wrapArgv`(MCP stdio 서버 포함)는 정책에 이 표시가 없어 풀리지 않는다. 그쪽은 승인 기반(검토본, 지문)이라 이 설정과 뜻이 다르다. L2 파일 도구가 보는 `protectedPaths()` 목록도 바뀌지 않는다 [미결: 셸은 읽지만 파일 도구는 같은 폴더를 계속 거부한다. 파일 도구에도 풀지 사용자 결정].
+- `credentialFiles`와 따로 움직인다. `credentialFiles`는 CLI 인증 파일 행만 바꾸고, 이 설정은 `credentials` 행을 포함한 읽기 거부 항목에서 골라 푼다.
+- 시험: `test/read-release.test.ts`(순수 규칙, 서비스 연결, 다른 프로필), 실제 srt로 `test/release-read.int.test.ts`(가짜 홈: 풀린 항목은 읽히고 쓰기는 거부, 안쪽 경로만 열리고 나머지는 막힘, 안 푼 항목과 풀 수 없는 항목은 막힘, 표시 없는 호출은 막힘).
 
 ### 3.4 exec와의 접점
 
@@ -397,7 +409,7 @@ export function selectSandboxProvider(input: {
 
 `wrapShell(shell, policy)`가 돌려준 `Shell`의 `exec(command, options, context)`:
 
-1. 유효 정책 = `policy` ∪ 보호 경로 ∪ 설정 추가분(`protectedPaths.extra`, `writeRoots.extra`). 보호 경로 안의 쓰기 루트를 지운다.
+1. 유효 정책 = `policy` ∪ 보호 경로 ∪ 설정 추가분(`protectedPaths.extra`, `writeRoots.extra`). 보호 경로 안의 쓰기 루트를 지운다. `policy.userReadRelease`가 참이면 설정 `protectedPaths.allowRead`로 고른 항목의 읽기 거부를 뺀다(3.3.1절).
 2. `policy.allowEscape`가 참이면:
    - `l0.sandbox.escapeRetry`가 참일 때만 허용한다. 아니면 `err(ExecutionError("sandbox_unavailable"))`. (격리 불가 판정과 무관하다. `onUnavailable`의 물어보기 값은 뺐다, 4.5절.)
    - 허용이면 감싸지 않고 `shell.exec`를 부른 뒤 결과에 `sandbox: { sandboxed: false, level: "none", unsandboxedBy: "escape", violations: [], violationsTruncated: false }`를 붙인다.
@@ -596,15 +608,15 @@ export function selectSandboxProvider(input: {
   - 도구 동작(실제 샌드박스 시험, `script-boundary.int.test.ts`): `command -v`(PATH 탐색), `grep`, `sed`, `awk`, `cat`, `find`, `sort`, `jq`, `curl --version`, 개발자 폴더의 진짜 `git`과 PATH의 `git`(Apple 껍데기: `xcrun` 캐시를 쓰지 못한다는 경고만 내고 돈다)의 읽기 전용 명령이 돈다. 종료 코드, 표준 출력, 표준 오류는 그대로 돌아온다.
 - 확인: `sandbox.no-write.int.test.ts`(실제 srt). 플러그인 폴더 안 읽기, 다른 플러그인 폴더·홈 파일 읽기 거부, 폴더 안 쓰기·작업 폴더 쓰기 거부, 자기 임시 폴더 쓰기와 읽기, `cleanup` 뒤 폴더 삭제, 두 프로세스의 폴더가 다름을 값으로 본다. macOS Seatbelt와 Linux bubblewrap(Docker arm64)에서 모두 통과했다. https(example.com)가 되는 것은 실제 샌드박스 아래 컴파일 바이너리로 손으로 확인했다(시험에 넣지 않았다: 바깥 인터넷이 필요하다).
 
-#### 스크립트 환경 프로필 `script-env` (두 모드) [결정: 2026-11-20, 사용자, AGE-58 원칙 가; 이름과 세부는 [제안]]
+#### 스크립트 환경 프로필 `script-env` (옵트인: 설정 `l0.sandbox.sandboxImportedHooks`를 켰을 때만) [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 이름과 세부는 [제안]]
 
-스크립트 실행기에는 두 모드가 있다. **좁은 모드**는 위의 "쓰기 없음 프로필과 읽기 허용 목록"이고 지금까지와 같다(Fresnel에서 새로 만든 플러그인의 스크립트가 쓴다, 결정 (3)). **환경 모드**는 가져온 훅이 "원래 돌던 환경"에서 돌게 하는 `profile: "script-env"`다: Fresnel은 시크릿이 있는 곳의 읽기, 프로젝트 밖의 쓰기, 키체인·앱 조작·`launchd`를 다루는 도구의 실행만 막는다. 환경 모드를 받는 쪽(누가 받을 수 있는가)은 X.loading-trust §3.8 "환경 모드"가 정한다. 이 프로필은 `IsolationSpawnSpec.scriptEnv`가 있을 때만 만들어진다.
+스크립트 실행기에는 세 길이 있다. **좁은 모드**는 위의 "쓰기 없음 프로필과 읽기 허용 목록"이고 지금까지와 같다(Fresnel에서 새로 만든 플러그인의 스크립트가 쓴다, 결정 (3)). **환경 모드 기본 길**은 가져온 훅을 샌드박스 없이 사용자 권한으로 돌린다. 이 절의 프로필을 쓰지 않는다. 다른 하네스의 훅과 같은 모양이다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. **환경 모드 옛 길**은 설정 `l0.sandbox.sandboxImportedHooks`(managed·user 범위, 기본 끔, 이름은 [제안])를 켰을 때만 쓴다. 이 옛 길에서는 가져온 훅이 `profile: "script-env"` 안에서 돌아 보호 경로를 읽지 못하고, 프로젝트와 임시 폴더 밖에 쓰지 못하며, 도구와 Mach 서비스를 쓰지 못한다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 앞선 샌드박스 작업을 버리지 않으려고 남겼다]. 환경 모드를 받는 쪽(누가 받을 수 있는가)은 X.loading-trust §3.8 "환경 모드"가 정한다. 이 프로필은 `IsolationSpawnSpec.scriptEnv`가 있을 때만 만들어진다. 아래 글머리는 모두 옛 길, 즉 설정을 켰을 때만 적용된다.
 
-- **읽기**: `readAllow`가 없는 거부 목록 방식이다. 보호 경로(기본 목록과 설정 추가분. 키체인, 브라우저 프로필, 비밀번호 관리자, 다른 하네스의 토큰 폴더, `~/.ssh`, `~/.claude`, `.env` 계열 등 3.3절)만 읽기를 거부한다. 쓰기 없음 프로필의 `systemTools`가 더하던 허용 목록은 필요 없어 더하지 않는다.
+- **읽기**: `readAllow`가 없는 거부 목록 방식이다. 보호 경로(기본 목록과 설정 추가분. 키체인, 비밀번호 관리자, 다른 하네스의 토큰 폴더, `~/.ssh`, `~/.claude`, `.env` 계열 등 3.3절)만 읽기를 거부한다. 쓰기 없음 프로필의 `systemTools`가 더하던 허용 목록은 필요 없어 더하지 않는다.
 - **읽기 예외(`readCarveOuts`)**: 보호 경로 안에 있는 파일 가운데 가져올 때 지문을 적은 참조 파일만 다시 읽게 한다(예: `~/.claude/hooks/x.py`). 파일이 보호 경로의 엄격한 하위 폴더에 있으면 그 폴더(옆 모듈 import가 깨지지 않게, 결정 (4)의 이유), 보호 경로 바로 아래에 있으면 그 파일 하나다(`readCarveOutsOf`, 호스트). Seatbelt 프로필 끝에 `(allow file-read* (subpath …))`, 파일은 `(literal …)`로 더하고 보호 거부를 이긴다(실제 srt 프로필에서 확인: 시험 `sandbox.script-env.int.test.ts`). 같은 보호 경로의 다른 파일(`~/.claude/.credentials.json` 등)은 계속 막힌다. 닫힌 실패(띄우지 않는다): 경로가 절대 경로가 아니거나 없거나 안전하지 않은 글자를 가짐, 보호 경로와 같거나 그것을 품은 폴더(`~/.claude` 자체, 홈, `/`), 보호 파일 이름(`.env` 등)이거나 그것이 든 폴더(깊이 3까지 탐색). 예외는 `script-env` 프로필에서만 받고 bwrap은 예외를 받지 않는다(예외가 없으면 거부 목록 방식 그대로). 예외를 받는 것은 다른 AI 하네스의 설정 폴더(`~/.claude` 등, `agent_credentials`) 안의 스크립트 파일(`.sh`, `.py`, `.js`, `.mjs`, `.ts`, `.rb`, `.pl`)뿐이다. 명령 문자열에 경로가 적혀 있다는 이유만으로는 열지 않는다: 토큰 파일, 대화 기록, 그 밖의 데이터 파일과 `~/.ssh` 같은 다른 보호 경로는 참조로 적혀 있어도 계속 막힌다 [결정: 2026-11-20, 오케스트레이터, AGE-58 "시크릿 읽기는 막는다"의 적용].
 - **쓰기**: 프로젝트 폴더(`projectDir`, 정규 경로)와 이 호출 전용 임시 폴더(`se-<id>`, 0700, `TMPDIR`로 알림, 끝나면 지움)뿐이다. 설정 `writeRoots.extra`는 쓰지 않고, srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부에 더한다. 보호 경로(쓰기)는 프로젝트 안에서도 거부다(`.git/hooks`, `.git/config` 등). 홈의 캐시와 로그에는 쓰지 못한다(`uv`의 `~/.cache/uv`, `>> ~/….log`는 오류로 끝난다) [결정: 2026-11-20, 사용자, AGE-58 (1)].
 - **막기(그대로 얹는다)**: 쓰기 없음+`systemTools` 프로필과 같은 `toolDeny`(`osascript`, `security`, `launchctl`, `open` 등), `machDeny`(키체인 데몬, LaunchServices), `systemInfoDeny`, 그리고 프로필 끝에 덧붙이지 못하면 띄우지 않는 닫힌 실패. 네트워크는 정책 그대로(차단 도메인 목록만)다. `launchd` 직접 통신은 이 프로필로도 막지 못한다(위 "막지 못한 길"). 읽기를 넓힌 탓에 보호 경로에 없는 시크릿은 읽힌다: 막는 것은 방지턱이고, 보호 경로 표를 늘려 줄인다.
-- **샌드박스 밖 실행 없음**: `allowEscape`는 거절하고, 격리를 쓸 수 없으면 `onUnavailable` 설정과 상관없이 거절한다(`run_unsandboxed`로 돌리지 않는다). 사용자가 격리를 껐을 때(`disabled`)만 쓰기 없음과 같이 격리 없이 돌고 경고 `isolation.sandbox_not_enforced`를 남긴다. `wrapShell`은 이 프로필을 거절하고(`sandbox_failed`) `wrapArgv`로만 돈다.
+- **샌드박스 밖 실행 없음**: `allowEscape`는 거절하고, 격리를 쓸 수 없으면 `onUnavailable` 설정과 상관없이 거절한다(`run_unsandboxed`로 돌리지 않는다). 스크립트 실행기(좁은 모드와 옛 길)는 사용자가 격리를 껐을 때(`disabled`)에도 띄우지 않고 `sandbox_unavailable`(사유 `sandbox_off`)로 거절한다 [근거: `xeon/packages/ext-host/src/isolation/script-runner.ts`의 `sandboxAvailable` 검사, `xeon/packages/platform-sandbox/src/status.ts`의 `disabled`]. 셸 도구(`wrapShell`)가 `disabled`에서 격리 없이 도는 것과 다르다. 기본 환경 모드 길은 샌드박스를 쓰지 않으므로 이 검사가 없다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. `wrapShell`은 이 프로필을 거절하고(`sandbox_failed`) `wrapArgv`로만 돈다.
 - **정책 모양**: `defaultPolicy({profile: "script-env", projectDir, readCarveOuts, systemTools: true, …})`는 `writeRoots = [정규 projectDir]`(상대 경로나 없는 폴더면 빈 목록), `readDeny`는 보호 경로(읽기), `readAllow` 없음, `profile: "script-env"`를 준다. `platform-process`의 `spawn`은 `spec.scriptEnv`가 있으면 작업 폴더를 `projectDir`로 하고 자식 env를 `childEnv(부모, spec.env)`로 만든다(호출자가 사용자 환경에서 시크릿 거부 패턴을 이미 뺐다). 없으면 동작은 이전과 같다.
 - **Linux(bwrap)**: 거부 목록 방식(홈을 빈 tmpfs로 덮고 보호 경로를 막는다)과 프로젝트·임시 폴더 쓰기까지는 같은 모양이지만 이 맥에서 시험하지 못했다(코드 읽기와 단위 시험뿐). 읽기 예외는 거절하고, 도구·서비스·시스템 정보 막기는 Seatbelt 전용이라 없다(위 표).
 - **시험 틀 수정**: srt의 위반 기록은 프로세스 전체가 공유하고 명령 id로 맞춘다. 시험 도구가 서비스마다 같은 난수 씨앗(`seededRandom(11)`)을 쓰면 파일 사이에 id가 겹쳐 한 파일의 거부가 다음 파일의 명령에 붙었다. 프로세스마다 다른 난수로 바꿨다.
@@ -648,16 +660,18 @@ export function selectSandboxProvider(input: {
 | `l0.sandbox.enabled` | `boolean` | `true` | `managed`, `user` | `nextTurn` | M1 | 탭 `permissions`(임시. `"sandbox"` 추가 요청, 목표는 '샌드박스와 네트워크' 탭), `toggle`. 끌 때 위험 고지 필요 |
 | `l0.sandbox.onUnavailable` | `string`(`range.enum`: `disable_execute`, `run_unsandboxed`) | `disable_execute` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `select`. `run_unsandboxed` 선택 시 위험 고지 |
 | `l0.sandbox.protectedPaths.extra` | `string[]`(절대 경로 또는 `~/`로 시작) | `[]` | `managed`, `user`, `project` | `nextTurn` | M1 | `permissions`(임시), `list`. 기본 보호 경로는 읽기 전용으로 함께 표시 |
+| `l0.sandbox.protectedPaths.allowRead` | `string[]`(절대 경로 또는 `~/`로 시작, 최대 64) | `[]` | `managed`, `user` | `nextTurn` | M4 | `permissions`, `list`. 경고 문구 필수("이 폴더를 에이전트가 읽을 수 있게 돼요"). 3.3.1절 |
 | `l0.sandbox.writeRoots.extra` | `string[]` | `[]` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `list` |
 | `l0.sandbox.escapeRetry` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `toggle`. 아직 쓰이지 않는다(§4.3 둘째 줄). 막힌 쓰기는 L2.workspace.spec §4.3.1이 묻는다 |
 | `l0.sandbox.network.blockedDomains` | `string[]`(`host`, `*.host`, `host:port`) | `[]` | `managed`, `user`, `project` | `restart` | M3 | `permissions`(임시), `list`. 목록 밖은 모두 허용 |
 | `l0.sandbox.credentialFiles` | `string`(`range.enum`: `allow`, `deny`) | `allow` | `managed`, `user` | `nextTurn` | M3 | `permissions`(임시), `select` |
 | `l0.sandbox.nestedNamespaces` | `boolean` | `false` | `managed`, `user` | `restart` | M3 | `permissions`(임시), `toggle`. 켤 때 위험 고지 필요 |
+| `l0.sandbox.sandboxImportedHooks` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M5g [제안] | `permissions`(임시), `toggle`. 켜면 가져온 훅이 샌드박스 안에서 돈다(§4.9 "스크립트 환경 프로필"). 기본은 끔이다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 키 이름은 [제안]] |
 | `l0.sandbox.selfTestIntervalMin` | `integer`(`range` 0~1440, 0은 시작 때만) | `60` | `managed`, `user` | `restart` | M1 | 탭 `advanced`(파일만) |
 | `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | 정의하지 않음 | | | 후속 | 기본 허용 방식이라 허용 목록 키는 두지 않는다(§10 1번) |
 
 - 키 문법은 `F.wire-settings.spec` §3.8.1을 따른다. 정의는 `src/settings.ts`의 `defineSettings("l0.sandbox", …)`다.
-- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 작업 폴더 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
+- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `protectedPaths.allowRead`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. `sandboxImportedHooks`는 끄는 쪽이 넓히는 키라 같은 규칙을 받는다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 작업 폴더 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
 - 네트워크 키는 srt가 프로세스당 정책 하나라 `restart`다(`_research/notes/L0-1.md` §8). 실행 중 변경(`updateConfig`)은 2차에서 다시 본다.
 - 탭: `_research/settings.md` §4의 5번 탭 '샌드박스와 네트워크'에 둔다. F `SettingsTab`(`F.wire-settings.spec` §3.8.2)에 해당 값이 없어 `"sandbox"` 추가를 F에 요청한다(8.2절). 추가 전까지는 `"permissions"`에 둔다 [제안].
 - 시크릿 값 키는 없다.
@@ -666,7 +680,7 @@ export function selectSandboxProvider(input: {
 
 - `fresnel.sandbox`는 `on` 훅을 선언하지 않는다. 도구 실행 훅(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
-- 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안].
+- 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안]. 다만 승인된 가져온 훅의 기본 길(환경 모드)은 이 샌드박스 밖에서 돈다. 확장이 정책을 바꾸는 API는 여전히 없고, 이 길은 가져오기 검토를 승인한 사용자의 결정으로 열린다(X.loading-trust §3.8) [결정: 2026-11-20, 사용자, AGE-58].
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -713,7 +727,7 @@ export function selectSandboxProvider(input: {
 9. 성공한 샌드박스 실행의 `ShellExecResult.sandbox.sandboxed`가 참이고, M1 스모크의 bash 도구 호출 이벤트 details에서 이 값을 확인할 수 있다.
 10. `wrapShell`이 넘긴 `secretEnv` 참조는 아래 `Shell`에 그대로 도착하고, `SandboxRunReport`와 시작 로그에 시크릿 값이 없다.
 11. srt 래핑이 throw하면 `sandbox_failed`이고 `cleanupAfterCommand` 호출이 0회다.
-12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<fresnelData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
+12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<fresnelData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다. (h) `release-read.int.test.ts`가 `protectedPaths.allowRead`를 확인한다(3.3.1절).
 13. 12번 시험의 필수 바이너리(Linux: `bwrap`, `socat`, `rg` / macOS: `rg`)가 없으면, 환경 변수 `FRESNEL_REQUIRE_SANDBOX=1`이거나 `CI=true`일 때 종료 코드 2(환경 문제)로 끝나고 stderr에 `ENV sandbox.int: missing <이름>. <설치 안내>`를 쓴다. 그 밖의 기기에서는 건너뛰고 stderr에 `SKIPPED ENV sandbox.int: …`를 한 줄 남긴다. CI가 이 파일을 건너뛴 채 통과하지 않게 하는 쪽은 Z 트랙(G4-07)이 `test-capped.sh`의 종료 코드 전달과 건너뜀 수 출력으로 잇는다.
 14. `test/wrap-argv.test.ts`가 4.9절을 값으로 확인한다. 격리 가능 시 srt가 준 argv와 한 번만 인용한 명령 문자열, 부모 env와 다른 항목만 든 env, `wrapShell`과 같은 srt 설정, `cleanup` 두 번 호출에 `cleanupAfterCommand` 한 번, 래핑 실패의 `failed`(이름과 code만)와 `cleanupAfterCommand` 0회, 중단의 `aborted`, 격리 불가의 `unavailable`, 실행 허락 시 요청 그대로의 argv와 `unsandboxedBy`, 허용 도메인의 `failed`.
 

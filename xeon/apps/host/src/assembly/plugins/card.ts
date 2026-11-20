@@ -4,9 +4,11 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  internalPluginLayer,
   isGroupExtension,
   pluginDeclsOf,
   SCRIPT_LIMITS,
+  SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
   SCRIPT_USES,
   type CardHook,
@@ -49,6 +51,8 @@ export interface BuildCardInput {
   readonly health: PluginCard["health"];
   /** 실행 파일 위치 찾기(PATH 탐색, 실행하지 않는다). 환경 모드 스크립트의 카드 칸이 쓴다. 생략하면 엔진 프로세스의 PATH다 */
   readonly whichTool?: (name: string) => string | undefined;
+  /** 참이면 환경 모드 스크립트의 권한을 샌드박스 안의 값(`SCRIPT_ENV_SANDBOXED_USES`)으로 싣는다(설정 `l0.sandbox.sandboxImportedHooks`). 생략하면 거짓: 사용자 권한 그대로(`SCRIPT_ENV_USES`) */
+  readonly envSandboxed?: boolean;
 }
 
 type PositionRow = HookPositionRow["positions"][number];
@@ -216,6 +220,7 @@ function scriptOf(
   decl: ManifestScriptDecl,
   fromProject: boolean,
   which: (name: string) => string | undefined,
+  envSandboxed: boolean,
 ): CardScript {
   const env = envOf(decl, fromProject, which);
   const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
@@ -235,7 +240,8 @@ function scriptOf(
       cwd: null,
     },
     timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
-    uses: env === undefined ? SCRIPT_USES : SCRIPT_ENV_USES,
+    uses:
+      env === undefined ? SCRIPT_USES : envSandboxed ? SCRIPT_ENV_SANDBOXED_USES : SCRIPT_ENV_USES,
     ...(env === undefined ? {} : { env }),
   };
 }
@@ -244,6 +250,7 @@ function injectOf(
   folder: CardSubject,
   fromProject: boolean,
   which: (name: string) => string | undefined,
+  envSandboxed: boolean,
 ): InjectInventory | null {
   const { manifest, materials } = folder;
   const decls = pluginDeclsOf(manifest);
@@ -279,7 +286,9 @@ function injectOf(
   }));
   const agents = unique(materials.agents.map((agent) => agent.name));
   // 승인하면 실행될 명령 줄. 부를 코드(`entry`)가 없으면 아무도 부르지 않으므로 실행되지 않는다(validate.ts)
-  const scripts = (manifest.scripts ?? []).map((decl) => scriptOf(decl, fromProject, which));
+  const scripts = (manifest.scripts ?? []).map((decl) =>
+    scriptOf(decl, fromProject, which, envSandboxed),
+  );
 
   const empty =
     always.length === 0 &&
@@ -378,6 +387,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     folder,
     input.origin.kind === "project",
     input.whichTool ?? ((name) => Bun.which(name) ?? undefined),
+    input.envSandboxed === true,
   );
   const hook = hookOf(folder);
   const drive = driveOf(folder);
@@ -387,6 +397,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const displayName = manifest.displayName?.trim() ?? "";
   const purpose = manifest.purpose ?? singleSkillPurpose(materials.skills);
   const projectId = input.origin.projectId;
+  const internal = isInternalCard(input.origin.kind, manifest);
+  const internalLayer = internal ? internalPluginLayer(manifest.name) : undefined;
   const origin =
     projectId === undefined ? { kind: input.origin.kind } : { kind: input.origin.kind, projectId };
 
@@ -401,7 +413,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     cost: costOf(folder, manifest.tools?.length ?? 0),
     health: input.health,
     origin,
-    internal: isInternalCard(input.origin.kind, manifest),
+    internal,
+    ...(internalLayer === undefined ? {} : { internalLayer }),
     review: input.review,
     usedBy: input.usedBy,
   };

@@ -133,9 +133,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog",
+          "label": "Enable Client Services",
           "labelArgs": {
-            "name": "Dialog"
+            "name": "Client Services"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -651,29 +651,6 @@
         }
       }
     },
-    "ext.host-dialog-area-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Dialog area bridge",
-          "labelArgs": {
-            "name": "Dialog area bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.host-dialog-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -686,9 +663,32 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Dialog bridge",
+          "label": "Enable Ask Service Bridge",
           "labelArgs": {
-            "name": "Dialog bridge"
+            "name": "Ask Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-goal-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Goal Service Bridge",
+          "labelArgs": {
+            "name": "Goal Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -720,6 +720,29 @@
         }
       }
     },
+    "ext.host-memory-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Memory Service Bridge",
+          "labelArgs": {
+            "name": "Memory Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "ext.host-proposals-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -732,9 +755,55 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Proposals bridge",
+          "label": "Enable Proposal Service Bridge",
           "labelArgs": {
-            "name": "Proposals bridge"
+            "name": "Proposal Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-skill-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Skill Service Bridge",
+          "labelArgs": {
+            "name": "Skill Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-task-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Task Service Bridge",
+          "labelArgs": {
+            "name": "Task Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -1449,6 +1518,35 @@
         }
       }
     },
+    "l0.sandbox.protectedPaths.allowRead": {
+      "default": [],
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
+          "helpKey": "settings.l0.sandbox.protectedPaths.allowRead.help",
+          "label": "Protected paths shell commands may read",
+          "labelKey": "settings.l0.sandbox.protectedPaths.allowRead.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "list"
+        }
+      }
+    },
     "l0.sandbox.protectedPaths.extra": {
       "default": [],
       "items": {
@@ -1476,6 +1574,29 @@
           "order": 102,
           "tab": "permissions",
           "widget": "list"
+        }
+      }
+    },
+    "l0.sandbox.sandboxImportedHooks": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+          "helpKey": "settings.l0.sandbox.sandboxImportedHooks.help",
+          "label": "Run imported hooks inside the sandbox",
+          "labelKey": "settings.l0.sandbox.sandboxImportedHooks.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "toggle"
         }
       }
     },

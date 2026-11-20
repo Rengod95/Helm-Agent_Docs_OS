@@ -323,17 +323,45 @@ describe("secret folders added to the default table (enPp)", () => {
   ];
   const mac = [
     join("Library", "Keychains", "login.keychain-db"),
+    join("Library", "Application Support", "1Password", "data", "a.sqlite"),
+    join("Library", "Application Support", "Bitwarden", "data.json"),
+  ];
+  const linux = [
+    join(".local", "share", "keyrings", "login.keyring"),
+    join(".config", "1Password", "settings", "s.json"),
+    join(".config", "Bitwarden", "data.json"),
+  ];
+  // 브라우저 프로필과 메신저·메일은 기본으로 막지 않는다 [결정: 2026-11-20, 사용자, AGE-63]
+  const macOpen = [
     join("Library", "Application Support", "Google", "Chrome", "Default", "Cookies"),
     join("Library", "Application Support", "Firefox", "Profiles", "p", "logins.json"),
     join("Library", "Application Support", "Arc", "User Data", "Default", "History"),
-    join("Library", "Safari", "History.db"),
+    join("Library", "Application Support", "Slack", "storage", "a"),
+    join("Library", "Mail", "V10", "a.emlx"),
   ];
-  const linux = [
+  const linuxOpen = [
     join(".config", "google-chrome", "Default", "Login Data"),
     join(".mozilla", "firefox", "p", "key4.db"),
-    join(".local", "share", "keyrings", "login.keyring"),
     join(".config", "BraveSoftware", "Brave-Browser", "Default", "Cookies"),
+    join(".config", "Signal", "sql", "db.sqlite"),
+    join(".thunderbird", "p", "a"),
   ];
+
+  test("browser profiles and messenger or mail data are not in the default table on either OS", () => {
+    const dirs = makeTestDirs();
+    const darwin = build(dirs, {
+      providerEntries: selectSandboxProvider(darwinPlatform()).defaultProtectedPaths(dirs),
+    });
+    for (const name of macOpen) {
+      expect(matchProtectedPath(darwin, join(dirs.home, name), "read")).toBeUndefined();
+    }
+    const onLinux = build(dirs, {
+      providerEntries: selectSandboxProvider(linuxPlatform()).defaultProtectedPaths(dirs),
+    });
+    for (const name of linuxOpen) {
+      expect(matchProtectedPath(onLinux, join(dirs.home, name), "read")).toBeUndefined();
+    }
+  });
 
   test("common rows deny read and write on every OS", () => {
     const dirs = makeTestDirs();

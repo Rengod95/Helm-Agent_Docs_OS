@@ -7,6 +7,8 @@ import {
   EvidenceRefSchema,
   InjectInventorySchema,
   INTERNAL_PLUGIN_NAMES,
+  internalLayerTextKey,
+  internalPluginLayer,
   internalPluginTextKey,
   isInternalPluginName,
   PluginCardSchema,
@@ -273,11 +275,32 @@ describe("internal plugin marker (AGE-33)", () => {
     expect(parse(PluginCardSchema, { ...PLUGIN_CARD, internal: "yes" }).ok).toBe(false);
   });
 
+  test("the layer value round trips, may be omitted and rejects unknown values", () => {
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, internal: true, internalLayer: "core" });
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, internal: true, internalLayer: "bridge" });
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, internalLayer: "plugin" }).ok).toBe(false);
+  });
+
+  test("every internal name has a layer: core-* is core, cap-* is capability, host-* is bridge", () => {
+    for (const name of INTERNAL_PLUGIN_NAMES) {
+      const expected = name.startsWith("core-")
+        ? "core"
+        : name.startsWith("cap-")
+          ? "capability"
+          : "bridge";
+      expect(internalPluginLayer(name)).toBe(expected);
+    }
+    expect(internalPluginLayer("authoring")).toBeUndefined();
+    expect(internalLayerTextKey("capability")).toBe("plugin.internal.layer.capability");
+  });
+
   test("text keys are camelCase per field and the name list has no duplicates", () => {
     expect(internalPluginTextKey("core-loop", "name")).toBe("plugin.internal.coreLoop.name");
-    expect(internalPluginTextKey("host-dialog-area-bridge", "purpose")).toBe(
-      "plugin.internal.hostDialogAreaBridge.purpose",
+    expect(internalPluginTextKey("host-goal-bridge", "purpose")).toBe(
+      "plugin.internal.hostGoalBridge.purpose",
     );
+    expect(INTERNAL_PLUGIN_NAMES).toHaveLength(22);
+    expect(INTERNAL_PLUGIN_NAMES).not.toContain("host-dialog-area-bridge");
     expect(new Set(INTERNAL_PLUGIN_NAMES).size).toBe(INTERNAL_PLUGIN_NAMES.length);
     expect(isInternalPluginName("core-loop")).toBe(true);
     expect(isInternalPluginName("authoring")).toBe(false);

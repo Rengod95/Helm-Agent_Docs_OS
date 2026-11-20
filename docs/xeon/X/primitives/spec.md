@@ -606,6 +606,7 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
    | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | 없음(3a: X는 중재 포트를 쓰지 않는다) |
 
    - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12의 `GroupService`도 같은 규칙을 따른다. 중재 포트 확장은 F 정리 뒤에 빠진다 [미결, 근거: packages/contracts/src/services/groups.ts].
+   - [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"] `ProcessPort`는 `IsolationProcessPort`(샌드박스로 띄우기)와 `HookProcessPort`(외부 훅 실행)를 합친 것이다. 가져온 훅의 기본 길(환경 모드)은 `HookProcessPort.run`으로 띄우고 샌드박스를 쓰지 않는다. 설정 `l0.sandbox.sandboxImportedHooks`를 켠 옛 길과 좁은 모드는 `IsolationProcessPort.spawn`을 쓴다. 두 포트의 모양과 격리 프로필은 이 결정으로 바뀌지 않는다. 조립 루트(`apps/host/src/assemble.ts`)는 같은 `ProcessPort`에서 `hookProcess`와 `createLoginShellRunner`의 값을 얻는다.
 7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@fresnel/ext-host/testing` 안에 F 인터페이스로 만든다.
 
 ### 3.7 Cordis 서비스 이름 유도

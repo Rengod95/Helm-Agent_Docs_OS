@@ -136,7 +136,7 @@ export interface RealSandbox {
 
 /** 실제 srt로 서비스를 만든다. 임시 디렉터리 아래 home, data, workspace를 쓴다 */
 export async function startRealSandbox(
-  overrides: Partial<SandboxSettings> = {},
+  overrides: Partial<SandboxSettings> | ((dirs: TestDirs) => Partial<SandboxSettings>) = {},
   options: { readonly tmpBehindSymlink?: boolean } = {},
 ): Promise<RealSandbox> {
   const dirs = makeTestDirs();
@@ -153,7 +153,7 @@ export async function startRealSandbox(
   const settings: SandboxSettings = {
     ...readSandboxSettings(() => undefined),
     protectedPathsExtra: [vault],
-    ...overrides,
+    ...(typeof overrides === "function" ? overrides(dirs) : overrides),
   };
   const log = memoryLogger();
   const os: Pick<OsService, "dirs" | "time" | "logger" | "resolveBinary"> = {

@@ -88,7 +88,13 @@ import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
-import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
+import {
+  goalBridgePlugin,
+  memoryBridgePlugin,
+  skillBridgePlugin,
+  taskBridgePlugin,
+  type DialogAreaHolder,
+} from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
@@ -620,8 +626,11 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
-    // 대화 영역 브리지는 목표·작업·계획(cap-work)과 스킬(cap-knowledge) 뒤에 올라와야 그 기능 API를 얻는다
-    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
+    // 목표·태스크 브리지는 cap-work 뒤에, 스킬·메모리 브리지는 cap-knowledge 뒤에 올라와야 그 기능 API를 얻는다
+    ["host-goal-bridge", (loadIndex) => goalBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-task-bridge", (loadIndex) => taskBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-skill-bridge", (loadIndex) => skillBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-memory-bridge", (loadIndex) => memoryBridgePlugin(deps.dialogArea, loadIndex)],
     ["host-proposals-bridge", (loadIndex) => proposalsBridgePlugin(deps.knowledgeWire, loadIndex)],
     ...(authoring
       ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]
