@@ -431,7 +431,8 @@ export function sampleItems(): readonly ReviewItem[] {
         version: "1.5.0",
         purpose: "웹 페이지를 읽어 본문만 돌려주는 도구 둘을 준다.",
         runs: { code: true, isolated: true },
-        cost: { always: 0, drive: null, onDemand: 410, toolCount: 2, basis: "declared" },
+        // 지난 판(1.4.0)은 매 턴 0, 쓸 때만 230이었다: 차이(+120, +180)와 맞춘다
+        cost: { always: 120, drive: null, onDemand: 410, toolCount: 2, basis: "declared" },
         does: {
           inject: inventory({
             tools: [

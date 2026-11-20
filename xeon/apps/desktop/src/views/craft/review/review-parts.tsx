@@ -1,12 +1,11 @@
 // 리뷰 화면의 작은 부품과 말(상세의 두 열과 목록이 같이 쓴다). 섹션 문법은 캔버스 상세 패널(cv4)과 같다:
 // 섹션 제목은 15/600 primary(`text-title-3`)이고 아이콘을 달지 않는다. 섹션과 섹션은 간격과 가는 선으로 가른다.
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { Badge, Toast } from "@caustic/react";
-import { Check, CircleAlert, Info, TriangleAlert } from "@caustic/react/icons";
+import { Badge, Button, toastVariants } from "@caustic/react";
 import { assertNever } from "@fresnel/contracts";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import { useId, type ReactNode } from "react";
-import { KindGlyph } from "./review-glyphs.tsx";
+import { KindGlyph, ToneGlyph, type ToneName } from "./review-glyphs.tsx";
 import type { HookPower } from "@fresnel/contracts/extensions";
 import type { EntryKind, Keeper, Place, PluginKind, PurposeDraft } from "./review-model.ts";
 
@@ -224,10 +223,12 @@ export function Fact(props: { readonly term: string; readonly children: ReactNod
 /**
  * 알림의 세기. 앱의 알림 토스트(caustic `Toast`)의 tone과 같은 이름이다: 정보(info), 주의(warning), 막힘(danger), 끝남(success), 소식(neutral)
  */
-export type NoticeTone = "info" | "warning" | "danger" | "success" | "neutral";
+export type NoticeTone = ToneName;
 
 /**
- * 알림 카드(m6R4). 앱의 알림 토스트 부품을 제자리(`inline`)에 그린다: 테두리 면, 둥근 모서리 2xl, 세기 색의 맨 그림, 제목(13/500)과 설명(12, 보조 글색).
+ * 알림 카드(m6R4 → m6R5). 앱의 알림 토스트와 같은 모양을 이 화면에서 그린다: 토스트의 면 클래스(`toastVariants`: 세기 색 테두리, 둥근 모서리 2xl,
+ * 세기 색의 그림 변수 `--tone-glyph`)와 같은 칸(그림 칸 18px 높이 · 6px · 제목 13/500, 설명 12 보조 글색, 끝 단추 xs ghost).
+ * caustic `Toast`는 그림을 바꿀 수 없어(주의·막힘에 느낌표) 이 화면만 느낌표 없는 그림(`ToneGlyph`)을 쓴다. 앱의 다른 토스트는 그대로다.
  * 떠 있는 토스트가 아니므로 그림자는 없다. 늘 보이는 안내는 `note`, 결정 결과처럼 방금 생긴 것은 `status`로 읽힌다
  */
 export function NoticeCard(props: {
@@ -240,35 +241,48 @@ export function NoticeCard(props: {
   readonly actionLabel?: string;
   readonly onAction?: () => void;
 }): ReactNode {
+  const { tone } = props;
+  const action = props.actionLabel ?? null;
+  const column = tone === "neutral" ? "col-span-full" : "col-start-2";
   return (
-    <Toast
-      inline
-      tone={props.tone}
-      shadow="none"
-      title={props.title}
+    <div
       role={props.live === true ? "status" : "note"}
+      data-slot="review-notice"
+      data-tone={tone}
       data-review-notice={props.name}
-      {...(props.description === undefined ? {} : { description: props.description })}
-      {...(props.actionLabel === undefined ? {} : { actionLabel: props.actionLabel })}
-      {...(props.onAction === undefined ? {} : { onAction: props.onAction })}
-    />
+      className={toastVariants({ tone, shadow: "none", action: action !== null })}
+    >
+      <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-1.5 break-keep wrap-anywhere">
+        {tone === "neutral" ? null : (
+          <span
+            aria-hidden="true"
+            className="grid h-4.5 flex-none place-items-center text-(--tone-glyph) [&_svg]:size-icon-md"
+          >
+            <ToneGlyph tone={tone} />
+          </span>
+        )}
+        <div className={`${column} text-ui-strong text-text-primary`}>{props.title}</div>
+        {props.description === undefined ? null : (
+          <div
+            className={`${column} text-ui-sm font-normal ${tone === "danger" ? "text-danger-text" : "text-text-secondary"}`}
+          >
+            {props.description}
+          </div>
+        )}
+      </div>
+      {action === null ? null : (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => {
+            props.onAction?.();
+          }}
+        >
+          {action}
+        </Button>
+      )}
+    </div>
   );
-}
-
-function lineGlyph(tone: NoticeTone): ReactNode {
-  switch (tone) {
-    case "info":
-    case "neutral":
-      return <Info />;
-    case "warning":
-      return <TriangleAlert />;
-    case "danger":
-      return <CircleAlert />;
-    case "success":
-      return <Check />;
-    default:
-      return assertNever(tone, "notice line tone");
-  }
 }
 
 /**
@@ -290,7 +304,7 @@ export function NoticeLine(props: {
       {...(Tag === "p" ? { role: "note" } : {})}
     >
       <span aria-hidden="true" className="rv-line-notice-mark">
-        {lineGlyph(props.tone)}
+        <ToneGlyph tone={props.tone} />
       </span>
       <span className="min-w-0">{props.children}</span>
     </Tag>

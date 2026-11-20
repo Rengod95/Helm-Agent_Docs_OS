@@ -97,7 +97,7 @@ describe("list beside the detail", () => {
     expect(LINT_HTML).not.toContain("rounded-xl bg-surface-base p-4");
     expect(columnsOf(LINT_HTML)).toEqual({
       read: ["about", "how", "runs", "files"],
-      judge: ["risk", "source"],
+      judge: ["risk", "cost", "source"],
     });
     expect(LINT_HTML).toContain('aria-label="판단할 것"');
   });
@@ -146,6 +146,7 @@ describe("list beside the detail", () => {
         "runs",
         "files",
         "risk",
+        "cost",
         "source",
       ]);
     }
@@ -270,7 +271,9 @@ describe("fourth round (m6R4)", () => {
   const HELPER = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_drive")));
 
   test("notices are the app's toast part in place, with the toast's tone", () => {
-    expect(LINT_HTML).toMatch(/data-slot="toast" data-tone="info"[^>]*data-review-notice="code"/);
+    expect(LINT_HTML).toMatch(
+      /data-slot="review-notice" data-tone="info"[^>]*data-review-notice="code"/,
+    );
     const locked = render(ready(LINT, ["lint-guard"]));
     expect(locked).toMatch(/data-tone="danger"[^>]*data-review-notice="managed"/);
     expect(IMPORTED).toMatch(/data-tone="warning"[^>]*data-review-notice="code"/);
@@ -328,5 +331,54 @@ describe("fourth round (m6R4)", () => {
   test("the header is flush so the list and detail lines meet the header line", () => {
     expect(LINT_HTML).toMatch(/<header class="shell-header[^"]*" data-flush=""/);
     expect(render(ready([]))).not.toContain("data-flush");
+  });
+});
+
+describe("fifth round (m6R5)", () => {
+  const NOTES = render(
+    ready(
+      ITEMS.filter((item) => item.itemId === "rvw_sample_notes"),
+      ["release-notes"],
+    ),
+  );
+  const FETCH = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_fetch")));
+  const IMPORTED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported")));
+
+  test("notices and risk lines draw this screen's glyphs, never the toast's exclamation glyphs", () => {
+    for (const html of [NOTES, IMPORTED, LINT_HTML]) {
+      expect(html).not.toContain('data-slot="toast-icon"');
+      expect(html).not.toContain('data-slot="toast"');
+    }
+    expect(attrs(NOTES, "data-tone-glyph")).toContain("danger");
+    expect(attrs(IMPORTED, "data-tone-glyph")).toContain("warning");
+    expect(attrs(LINT_HTML, "data-tone-glyph")).toEqual(["info", "warning"]);
+  });
+
+  test("cost is its own section between risk and source, with name-value rows and no warning tone", () => {
+    expect(columnsOf(NOTES).judge).toEqual(["risk", "cost", "source"]);
+    const cost = NOTES.slice(
+      NOTES.indexOf('data-section="cost"'),
+      NOTES.indexOf('data-section="source"'),
+    );
+    expect(cost).toContain(">비용<");
+    expect(cost).toContain(">매 턴<");
+    expect(cost).toContain("약 64토큰");
+    expect(cost).toContain(">쓸 때만<");
+    expect(cost).toContain("약 900토큰");
+    expect(cost).not.toContain("data-tone");
+    const risk = NOTES.slice(
+      NOTES.indexOf('data-section="risk"'),
+      NOTES.indexOf('data-section="cost"'),
+    );
+    expect(risk).not.toContain("토큰");
+  });
+
+  test("an update's cost row shows the change after what it carries; nothing carried is one quiet line", () => {
+    expect(FETCH).toContain("약 120토큰");
+    expect(FETCH).toContain("120토큰 늘어요");
+    expect(FETCH).toContain(">도구 정의<");
+    expect(FETCH).toContain(">2개<");
+    expect(LINT_HTML).toContain("매 턴 싣는 양이 늘지 않아요");
+    expect(FETCH).toContain("따로 알릴 위험이 없어요");
   });
 });

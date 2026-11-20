@@ -20,9 +20,12 @@
   /* 상속되는 글꼴과 `font-ui` 유틸리티(토스트 등 caustic 부품)가 같은 스택을 읽는다 */
   --font-ui: var(--rv-font);
   font-family: var(--rv-font);
-  /* 오른쪽 끝 여백(m6R4). 화면은 셸의 오른쪽 막대 자리까지 차고(머리 `flush`), 막대(창 끝 12 + 폭 34)가 뜨는 판단 열만 그만큼 안쪽 여백을 둔다.
-     막대가 없는 화면에서는 16px. 무대가 840px보다 좁으면 셸이 본문에 막대 자리를 다시 주므로(styles.css DP-135) 여기서는 더하지 않는다 */
-  --rv-end: max(16px, calc(var(--stage-rail, 0px) + 12px));
+  /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
+     오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
+  --rv-end: 20px;
+  /* 숫자 0이 영문 O처럼 동그랗게 나오는 SUIT의 ss01을 이 화면에서 끈다(caustic base가 body에 "cv11", "ss01"을 건다).
+     앱 전체 수정(lcNum, fonts.css 5)과 같은 값이다 */
+  font-feature-settings: "cv11";
   --rv-inject: color-mix(
     in oklch,
     var(--cs-color-identity-iris) 84%,
@@ -37,10 +40,9 @@
   --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--cs-color-text-secondary));
 }
 
-@container stage (max-width: 840px) {
-  .rv-root {
-    --rv-end: 16px;
-  }
+/* 막대와 겹치는 줄(m6R5): 그 줄만 끝 바깥 여백으로 막대 왼쪽 12px 앞에서 끝난다. 폭은 훅이 잰다(`--rail-cut`). 선과 면은 그대로 끝까지 간다 */
+.rv-root [data-under-rail] {
+  margin-inline-end: var(--rail-cut, 0px);
 }
 
 .rv-kind-inject {
@@ -166,10 +168,10 @@
 }
 
 .rv-detail {
-  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다). 막대 자리(`--rv-end` − 16)는 그 밖에 더한다 */
+  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다). 넷째 판이 더하던 막대 자리(44)는 읽는 열에 돌려준다 */
   --rv-judge-w: clamp(272px, calc(100cqi - 560px), 312px);
   --rv-pad: 24px;
-  /* 판단 열의 안쪽 여백(시작 20, 끝은 막대를 비키는 `--rv-end`) */
+  /* 판단 열의 안쪽 여백(시작 20, 끝 `--rv-end` 20) */
   --rv-judge-start: 20px;
   --rv-judge-end: var(--rv-end);
   /* 읽는 열의 끝 여백. 두 열이면 판단 열과 맞닿으므로 24, 한 열이면 막대를 비킨다 */
@@ -177,7 +179,7 @@
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) calc(var(--rv-judge-w) + var(--rv-end) - 16px);
+  grid-template-columns: minmax(0, 1fr) var(--rv-judge-w);
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "head head"
@@ -303,7 +305,7 @@
 }
 
 /* stack(그리고 좁은 영역): 한 열. 알림은 요약 바로 아래로 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 바닥에 붙는다.
-   한 열이면 모든 칸이 막대 쪽 끝을 비킨다(`--rv-read-end`) */
+   한 열이면 모든 칸의 끝 여백이 같다(`--rv-read-end`). 막대와 겹치는 줄만 막대를 비킨다 */
 .rv-detail[data-arrange="stack"] {
   --rv-read-end: max(var(--rv-pad), var(--rv-end));
   --rv-judge-start: var(--rv-pad);

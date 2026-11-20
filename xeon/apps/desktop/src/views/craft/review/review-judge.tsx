@@ -1,5 +1,5 @@
 // 리뷰 상세의 오른쪽 좁은 열: "판단하는 것"(AGE-34). 긴 차이를 읽는 동안에도 경고와 결정 단추가 보이도록 이 열은 따로 스크롤한다.
-// 위에서부터: 결정 결과 → 관리 잠금 → 코드 실행 안내(늘 보임, [결정: AGE-14]) → 권한과 위험 → 출처 → 결정 칸(넣을 곳과 없는 플러그인 경고,
+// 위에서부터: 결정 결과 → 관리 잠금 → 코드 실행 안내(늘 보임, [결정: AGE-14]) → 권한과 위험 → 비용(m6R5) → 출처 → 결정 칸(넣을 곳과 없는 플러그인 경고,
 // 목적 한 문장, 거절 사유, 실패 사유, 거절·승인). 셋째 판: 결정 칸은 열 바닥에 따로 떠 있지 않고 출처 바로 뒤를 따른다. 열이 넘칠 때만
 // 바닥에 붙는다(sticky). 그래서 짧은 항목에서 출처와 단추 사이가 비지 않는다. 좁은 창에서는 셋으로 나뉜다(`review.css`): 경고는 요약 아래로
 // 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 화면 바닥에 붙는다.
@@ -26,6 +26,7 @@ import {
   approveDecisionOf,
   approveOutcomeOf,
   codeNoticeOf,
+  costViewOf,
   decideFailureOf,
   defaultTargetOf,
   keeperOf,
@@ -36,6 +37,7 @@ import {
   shortHash,
   warningsOf,
   type ApproveOutcome,
+  type CostLine,
   type DecideFailure,
   type Target,
   type Versions,
@@ -128,7 +130,7 @@ function MissingNote(props: { readonly names: readonly string[] }): ReactNode {
   );
 }
 
-const WARNING_WORD: Readonly<Record<Exclude<Warning, "costUp">, MessageId>> = {
+const WARNING_WORD: Readonly<Record<Warning, MessageId>> = {
   handEdit: "desktop.craft.review.risk.handEdit",
   managedOff: "desktop.craft.review.risk.managedOff",
   purposeMissing: "desktop.craft.review.does.purposeMissing",
@@ -141,12 +143,10 @@ function RiskSection(props: {
   readonly managedOff: boolean;
 }): ReactNode {
   const { item } = props;
-  // 목적 문장 없음은 설명 섹션과 결정 칸이, 관리 잠금은 위의 알림 카드가 말하므로 여기서 되풀이하지 않는다
+  // 목적 문장 없음은 설명 섹션과 결정 칸이, 관리 잠금은 위의 알림 카드가 말하므로 여기서 되풀이하지 않는다. 비용은 아래 비용 섹션이 말한다
   const warnings = warningsOf(item, props.managedOff).filter(
-    (w) => w !== "purposeMissing" && w !== "managedOff" && w !== "costUp",
+    (w) => w !== "purposeMissing" && w !== "managedOff",
   );
-  const always = item.diff.costDelta.always;
-  const cost = always !== null && always !== 0 ? always : null;
   return (
     <Section title="desktop.craft.review.section.risk" id="risk">
       <Facts>
@@ -154,7 +154,7 @@ function RiskSection(props: {
           {t(KEEPER_LINE[keeperOf(item.card)])}
         </Fact>
       </Facts>
-      {warnings.length === 0 && cost === null ? (
+      {warnings.length === 0 ? (
         <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.craft.review.risk.none")}</p>
       ) : (
         <ul className="rv-lines m-0 p-0">
@@ -163,14 +163,63 @@ function RiskSection(props: {
               {t(WARNING_WORD[w])}
             </NoticeLine>
           ))}
-          {cost === null ? null : (
-            <NoticeLine as="li" tone={cost > 0 ? "warning" : "neutral"}>
-              {cost > 0
-                ? t("desktop.craft.review.risk.costUp", { tokens: cost })
-                : t("desktop.craft.review.risk.costDown", { tokens: -cost })}
-            </NoticeLine>
-          )}
         </ul>
+      )}
+    </Section>
+  );
+}
+
+/** 비용 한 줄의 값: "약 N토큰", 바뀐 양은 그 뒤에 흐린 글로("· N토큰 늘어요"). 비용은 위험이 아니라 경고 색과 그림을 쓰지 않는다 */
+function CostValue(props: { readonly line: CostLine }): ReactNode {
+  const { tokens, change } = props.line;
+  const changeText =
+    change === null
+      ? null
+      : change > 0
+        ? t("desktop.craft.review.cost.more", { tokens: change })
+        : t("desktop.craft.review.cost.less", { tokens: -change });
+  if (tokens === null) return changeText;
+  return (
+    <>
+      {t("desktop.craft.review.cost.tokens", { tokens })}
+      {changeText === null ? null : (
+        <span className="text-text-tertiary">
+          {" · "}
+          {changeText}
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * 비용(m6R5). 권한과 위험에서 빼낸 별도 섹션이다. 같은 이름표-값 줄을 쓰고, 엔진이 값을 주지 않으면 섹션이 없고, 싣는 양이 없으면 한 줄로 말한다
+ */
+function CostSection(props: { readonly item: ReviewItem }): ReactNode {
+  const view = costViewOf(props.item);
+  if (view.kind === "hidden") return null;
+  return (
+    <Section title="desktop.craft.review.section.cost" id="cost">
+      {view.kind === "none" ? (
+        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.craft.review.cost.none")}</p>
+      ) : (
+        <Facts>
+          {view.always === null ? null : (
+            <Fact term={t("desktop.craft.review.cost.always")}>
+              <CostValue line={view.always} />
+            </Fact>
+          )}
+          {view.onDemand === null ? null : (
+            <Fact term={t("desktop.craft.review.cost.onDemand")}>
+              <CostValue line={view.onDemand} />
+            </Fact>
+          )}
+          {view.tools === null ? null : (
+            <Fact term={t("desktop.craft.review.cost.tools")}>
+              {t("desktop.craft.review.cost.toolCount", { count: view.tools })}
+            </Fact>
+          )}
+        </Facts>
       )}
     </Section>
   );
@@ -672,6 +721,7 @@ export function JudgeColumn(props: {
           {item.kind === "remove" ? null : (
             <RiskSection item={item} managedOff={props.managedOff} />
           )}
+          <CostSection item={item} />
           <SourceSection
             item={item}
             versions={props.versions}

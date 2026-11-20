@@ -297,14 +297,8 @@ export function purposeDraftOf(card: PluginCard): PurposeDraft {
   }
 }
 
-/** 이 항목에서 보여야 할 경고. 순서는 무게 순이다 */
-export type Warning =
-  | "handEdit"
-  | "purposeMissing"
-  | "enforcedNow"
-  | "costUp"
-  | "projectCode"
-  | "managedOff";
+/** 이 항목에서 보여야 할 경고. 순서는 무게 순이다. 비용은 위험이 아니라 따로 `costViewOf`가 말한다(m6R5) */
+export type Warning = "handEdit" | "purposeMissing" | "enforcedNow" | "projectCode" | "managedOff";
 
 /** `managedOff`는 관리자가 이 플러그인을 꺼 둔 경우다(`ext.list`의 `enabledSource: managed`) */
 export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warning[] {
@@ -316,9 +310,62 @@ export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warn
   if (change !== null && change.from === "advisory" && change.to === "enforced") {
     out.push("enforcedNow");
   }
-  if ((item.diff.costDelta.always ?? 0) > 0) out.push("costUp");
   if (item.provenance === "project" && item.card.runs.code) out.push("projectCode");
   return out;
+}
+
+/** 비용 한 줄: 카드의 어림 토큰(`tokens`)과 지난 검토본에서 바뀐 양(`change`, 음수면 줄어듦). 없는 값은 null이다 */
+export interface CostLine {
+  readonly tokens: number | null;
+  readonly change: number | null;
+}
+
+/**
+ * 비용 섹션(m6R5) [결정: 2026-11-20 사용자 "매턴 실는 양이 는다는 텍스트는 별도 섹션을 파 → '비용'"]. 엔진 카드의 비용 칸(`card.cost`)과
+ * 차이(`diff.costDelta`)만 쓰고 값을 짓지 않는다. 엔진이 주는 것: 매 턴 싣는 양(`always`), 쓸 때만 싣는 양(`onDemand`), 도구 수(`toolCount`).
+ * Drive 중에 싣는 양(`drive`)은 엔진이 정적으로 세지 않아(늘 null) 줄이 없다.
+ * - `hidden`: 엔진이 비용 값을 하나도 주지 않았다. 섹션을 그리지 않는다(0으로 그리지 않는다).
+ * - `none`: 값은 있는데 싣는 양이 없다(0). "늘지 않아요" 한 줄.
+ * - `rows`: 0이 아닌 값만 줄이 된다. 새 항목은 차이가 곧 전체라 `change`가 없고, 제거는 줄어드는 양만(`tokens` 없음) 말한다
+ */
+export type CostView =
+  | { readonly kind: "hidden" }
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "rows";
+      readonly always: CostLine | null;
+      readonly onDemand: CostLine | null;
+      readonly tools: number | null;
+    };
+
+function costLineOf(
+  kind: ReviewItem["kind"],
+  tokens: number | null,
+  delta: number | null,
+): CostLine | null {
+  if (kind === "remove")
+    return delta === null || delta === 0 ? null : { tokens: null, change: delta };
+  const change = kind === "new" || delta === 0 ? null : delta;
+  if ((tokens ?? 0) === 0 && change === null) return null;
+  return { tokens, change };
+}
+
+export function costViewOf(item: ReviewItem): CostView {
+  const { cost } = item.card;
+  const { costDelta } = item.diff;
+  const known =
+    cost.always !== null ||
+    cost.onDemand !== null ||
+    cost.toolCount !== null ||
+    costDelta.always !== null ||
+    costDelta.onDemand !== null;
+  if (!known) return { kind: "hidden" };
+  const always = costLineOf(item.kind, cost.always, costDelta.always);
+  const onDemand = costLineOf(item.kind, cost.onDemand, costDelta.onDemand);
+  const tools =
+    item.kind !== "remove" && cost.toolCount !== null && cost.toolCount > 0 ? cost.toolCount : null;
+  if (always === null && onDemand === null && tools === null) return { kind: "none" };
+  return { kind: "rows", always, onDemand, tools };
 }
 
 /** 승인을 막는 이유. 없으면 null이다. 목적 문장은 승인하면서 채울 수 있으므로 막지 않는다(§4.7.6) */

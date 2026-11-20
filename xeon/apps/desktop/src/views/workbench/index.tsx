@@ -43,6 +43,8 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     area: "workbench",
     label: "desktop.shell.nav.overview",
     icon: <LayoutGrid />,
+    // 캔버스가 무대 가장자리까지 깔리고 막대와 겹치는 판은 캔버스가 스스로 비킨다
+    bleed: true,
     render: () => scoped(store, <CraftScreen />),
   });
   registry.registerScreen({
@@ -52,6 +54,8 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     icon: <ListChecks />,
     Mark: ReviewMark,
     Badge: ReviewBadge,
+    // 목록과 두 열이 창 끝까지 가고, 막대와 겹치는 줄만 화면이 비킨다(m6R5, `review-view.tsx`의 `useRailAvoid`)
+    bleed: true,
     render: () => <ReviewScreen />,
   });
   registry.registerScreen({

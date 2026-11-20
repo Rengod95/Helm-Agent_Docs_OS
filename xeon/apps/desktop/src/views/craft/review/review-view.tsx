@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { useThreadSummaries } from "../../../state/engine/index.ts";
+import { useRailAvoid } from "../../shell/rail-avoid.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 import { SIDE_ROW } from "../../side-row.ts";
 import { InfoTip } from "../info-tip.tsx";
@@ -35,7 +36,7 @@ import {
   type DetailArrange,
   type FileHandle,
 } from "./review-detail.tsx";
-import { KindTile } from "./review-glyphs.tsx";
+import { KindTile, ToneGlyph } from "./review-glyphs.tsx";
 import { agoText, ENTRY_WORD } from "./review-parts.tsx";
 import {
   entryKindOf,
@@ -204,21 +205,26 @@ function LoadBand(props: { readonly data: ReviewData }): ReactNode {
       );
     case "offline":
       return (
-        <div className="w-full max-w-[720px] p-4">
-          <Alert tone="warning">{t("desktop.craft.review.state.offline")}</Alert>
+        <div data-rail-avoid="" className="w-full max-w-[720px] p-4">
+          <Alert tone="warning" icon={<ToneGlyph tone="warning" />}>
+            {t("desktop.craft.review.state.offline")}
+          </Alert>
         </div>
       );
     case "unsupported":
       return (
-        <div className="w-full max-w-[720px] p-4">
-          <Alert tone="warning">{t("desktop.craft.review.state.unsupported")}</Alert>
+        <div data-rail-avoid="" className="w-full max-w-[720px] p-4">
+          <Alert tone="warning" icon={<ToneGlyph tone="warning" />}>
+            {t("desktop.craft.review.state.unsupported")}
+          </Alert>
         </div>
       );
     case "failed":
       return (
-        <div className="w-full max-w-[720px] p-4">
+        <div data-rail-avoid="" className="w-full max-w-[720px] p-4">
           <Alert
             tone="danger"
+            icon={<ToneGlyph tone="danger" />}
             actions={[
               {
                 label: t("desktop.craft.review.state.retry"),
@@ -281,7 +287,9 @@ function OfflineBand(props: { readonly offline: boolean }): ReactNode {
   if (!props.offline) return null;
   return (
     <div className="px-4 pt-2">
-      <Alert tone="warning">{t("desktop.craft.review.state.offlineStale")}</Alert>
+      <Alert data-rail-avoid="" tone="warning" icon={<ToneGlyph tone="warning" />}>
+        {t("desktop.craft.review.state.offlineStale")}
+      </Alert>
     </div>
   );
 }
@@ -400,6 +408,13 @@ function SplitLayout(props: {
 
 // ── 화면 ────────────────────────────────────────────────────────────────
 
+/**
+ * 오른쪽 떠 있는 막대와 겹치면 막대를 비키는 줄들(m6R5). 줄 단위로 고른다: 알림 카드, 섹션 안의 한 덩이(제목, 알림 줄, 이름표-값의 값),
+ * 결정 칸의 한 칸. 선과 열의 면은 고르지 않아 끝까지 간다. 고른 줄이 막대와 세로로도 가로로도 겹칠 때만 줄어든다(`rail-avoid.ts`)
+ */
+const RAIL_ROWS =
+  ".rv-head > *, .rv-alerts > *, .rv-sec > :not(.rv-facts, .rv-lines), .rv-facts dd, .rv-lines > *, .rv-decide > *";
+
 function ReadyView(props: {
   readonly data: ReviewData;
   readonly ready: Ready;
@@ -412,6 +427,7 @@ function ReadyView(props: {
   const empty = state.groups.length === 0;
   // 화면을 열면 초점을 화면으로 옮긴다: 탐색 줄을 눌러 들어와도 j·k·a·r가 바로 듣는다. 글을 쓰는 중이면 옮기지 않는다
   const rootRef = useRef<HTMLElement>(null);
+  useRailAvoid(rootRef, RAIL_ROWS);
   useEffect(() => {
     if (typing(document.activeElement)) return;
     rootRef.current?.focus({ preventScroll: true });
@@ -424,8 +440,8 @@ function ReadyView(props: {
       className="flex min-h-0 flex-1 flex-col outline-none focus-visible:shadow-none focus-visible:outline-none"
       onKeyDown={state.onKeyDown}
     >
-      {/* 목록과 자세히는 머리 선 바로 아래에서 시작하고 오른쪽 끝까지 간다(`flush`): 세로 선이 머리 선과 만나고, 셸의 오른쪽 막대 자리는
-          화면이 스스로 판단 열 안쪽 여백으로 비킨다(`review.css`의 `--rv-end`, m6R4) */}
+      {/* 목록과 자세히는 머리 선 바로 아래에서 시작하고 창 오른쪽 끝까지 간다(`flush`, 등록의 `bleed`): 세로 선이 머리 선과 만나고,
+          오른쪽 떠 있는 막대와 겹치는 줄만 화면이 비킨다(`RAIL_ROWS`, m6R5) */}
       <ScreenHeader
         title={t("desktop.craft.review.title")}
         flush={!empty}
@@ -465,6 +481,28 @@ function headerControls(keys: ReactNode, dev: ReviewDevSlot | null): ReactNode {
   );
 }
 
+/** 불러오는 중·실패·끊김 화면. 끝까지 쓰는 화면이라 이 안내도 막대와 겹치면 비킨다 */
+function LoadView(props: {
+  readonly data: ReviewData;
+  readonly dev: ReviewDevSlot | null;
+}): ReactNode {
+  const rootRef = useRef<HTMLElement>(null);
+  useRailAvoid(rootRef, "");
+  return (
+    <section
+      ref={rootRef}
+      aria-label={t("desktop.craft.review.title")}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <ScreenHeader
+        title={t("desktop.craft.review.title")}
+        controls={headerControls(null, props.dev)}
+      />
+      <LoadBand data={props.data} />
+    </section>
+  );
+}
+
 export function ReviewView(props: {
   readonly data: ReviewData;
   /** 개발 빌드의 견주기 판. 배포 빌드는 `band`다 */
@@ -474,20 +512,7 @@ export function ReviewView(props: {
 }): ReactNode {
   const { load } = props.data;
   const dev = props.dev ?? null;
-  if (load.status !== "ready") {
-    return (
-      <section
-        aria-label={t("desktop.craft.review.title")}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <ScreenHeader
-          title={t("desktop.craft.review.title")}
-          controls={headerControls(null, dev)}
-        />
-        <LoadBand data={props.data} />
-      </section>
-    );
-  }
+  if (load.status !== "ready") return <LoadView data={props.data} dev={dev} />;
   return (
     <ReadyView
       data={props.data}

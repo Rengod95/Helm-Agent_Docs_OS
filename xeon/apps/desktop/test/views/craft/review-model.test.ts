@@ -6,6 +6,7 @@ import {
   approveOutcomeOf,
   baseItemOf,
   codeNoticeOf,
+  costViewOf,
   decideFailureOf,
   defaultTargetOf,
   entryKindOf,
@@ -121,10 +122,58 @@ describe("what runs when approved", () => {
     expect(codeNoticeOf(RULE.card)).toBeNull();
   });
 
-  test("warnings: a missing purpose, a cost increase, project code and an admin lock (a new item has no enforcement change)", () => {
+  test("warnings: a missing purpose, project code and an admin lock (a new item has no enforcement change); cost is not a warning", () => {
     expect(warningsOf(DRIVE, false)).toEqual(["purposeMissing"]);
-    expect(warningsOf(FETCH, false)).toEqual(["costUp"]);
+    expect(warningsOf(FETCH, false)).toEqual([]);
     expect(warningsOf(LINT, true)).toEqual(["managedOff", "projectCode"]);
+  });
+});
+
+describe("cost section (m6R5)", () => {
+  const NOTES = sample("rvw_sample_notes");
+
+  test("an update shows what it carries now and how much that changed since the last approved version", () => {
+    expect(costViewOf(FETCH)).toEqual({
+      kind: "rows",
+      always: { tokens: 120, change: 120 },
+      onDemand: { tokens: 410, change: 180 },
+      tools: 2,
+    });
+  });
+
+  test("a new item shows what it carries, without a change (the change would be the whole)", () => {
+    expect(costViewOf(NOTES)).toEqual({
+      kind: "rows",
+      always: { tokens: 64, change: null },
+      onDemand: { tokens: 900, change: null },
+      tools: null,
+    });
+  });
+
+  test("nothing carried is one line, and no value from the engine is no section", () => {
+    expect(costViewOf(LINT)).toEqual({ kind: "none" });
+    const unknown: ReviewItem = {
+      ...LINT,
+      card: {
+        ...LINT.card,
+        cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+      },
+    };
+    expect(costViewOf(unknown)).toEqual({ kind: "hidden" });
+  });
+
+  test("a removal says only how much less every turn carries", () => {
+    const gone: ReviewItem = {
+      ...NOTES,
+      kind: "remove",
+      diff: { ...NOTES.diff, costDelta: { always: -64, onDemand: -900 } },
+    };
+    expect(costViewOf(gone)).toEqual({
+      kind: "rows",
+      always: { tokens: null, change: -64 },
+      onDemand: { tokens: null, change: -900 },
+      tools: null,
+    });
   });
 });
 

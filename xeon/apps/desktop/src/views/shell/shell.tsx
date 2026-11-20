@@ -276,8 +276,9 @@ function ShellFrame(props: ShellProps): ReactNode {
   const hasRail =
     props.registry.endTabs(railArea, railScreen).length > 0 ||
     props.registry.pluginEndTabs(railArea, railScreen).length > 0;
-  // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
-  const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
+  // 끝까지 쓰는 화면(등록의 `bleed`, 크래프트 개요와 리뷰)은 무대 가장자리까지 깔린다. 셸은 여백과 막대 자리 비우기를 두지 않고,
+  // 막대와 겹치는 칸은 화면이 스스로 비킨다(`rail-avoid.ts`). 설정 화면은 화면 등록과 따로 그려지므로 늘 셸의 여백을 받는다
+  const bleed = !props.settingsOpen && props.registry.screen(railScreen)?.bleed === true;
   useWindowResize();
   useShellShortcuts(props);
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
