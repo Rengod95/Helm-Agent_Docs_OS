@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
+import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plugins.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
@@ -21,6 +22,10 @@ type HookPower = string;
 export const PLUGIN_ORIGIN_KINDS = ["builtin", "bundled", "user", "project", "managed"] as const;
 export type PluginOriginKind = (typeof PLUGIN_ORIGIN_KINDS)[number];
 const PluginOriginKindShape = Type.Union(PLUGIN_ORIGIN_KINDS.map((name) => Type.Literal(name)));
+
+const InternalPluginLayerShape = Type.Union(
+  INTERNAL_PLUGIN_LAYERS.map((name) => Type.Literal(name)),
+);
 
 export const PLUGIN_HEALTH_STATES = ["ok", "idle", "error", "stopped", "integrity"] as const;
 export type PluginHealthState = (typeof PLUGIN_HEALTH_STATES)[number];
@@ -416,6 +421,11 @@ export interface PluginCard {
    * [제안] 이름 `internal` (AGE-33, enIn)
    */
   readonly internal?: boolean;
+  /**
+   * 내부 부품의 층 값. 목록 화면이 내부 부품을 코어와 기능으로 나눠 보이는 데 쓴다. `internal`이 참인 카드에만 있다
+   * [결정: 2026-11-20, 사용자, AGE-33] 이름 `internalLayer`는 [제안]
+   */
+  readonly internalLayer?: InternalPluginLayer;
   readonly review: {
     readonly state: CardReviewState;
     readonly currentHash: string | null;
@@ -480,6 +490,7 @@ const PluginCardShape = Type.Object(
       { additionalProperties: false },
     ),
     internal: Type.Optional(Type.Boolean()),
+    internalLayer: Type.Optional(InternalPluginLayerShape),
     review: Type.Object(
       {
         state: CardReviewStateShape,
