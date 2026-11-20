@@ -452,7 +452,7 @@ interface Finding {
 
 F의 `blocks.applied.handlers[].outcome24h`는 `metrics.query`를 `period: { from, to }`(24시간)로 불러 지표 `hook.outcomes`를 인용한다(일 단위 `{ days }`가 아니다).
 
-`ThreadSummary.testRun`(`packages/contracts/src/wire-settings/wire/methods.ts:526`)의 `TestRunMarker`는 선택 필드 `kind`, `draft`, `runGroupId`를 더한다 [제안]. 기존 `profileId`, `target`, `paused`는 그대로다.
+`ThreadSummary.testRun`(`packages/contracts/src/wire-settings/wire/methods.ts:526`)의 `TestRunMarker`는 선택 필드 `kind`, `draft`, `runGroupId`를 더한다(세 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안]). 기존 `profileId`, `target`, `paused`는 그대로다.
 
 테스트 실행의 드래프트 승인 방식 [결정: 2026-11-18, 사용자, AGE-56]: `testRun.start`의 `draftApproval`이 `auto`면 표지 `TestRunMarker`와 턴 기록 `TurnRecord.testRun`에 `draftApproval: "auto"`를 싣는다. `ask`(생략)는 적지 않는다 [제안]. 턴 기록에 남아 나중에 "그 런은 자동 허용이었다"를 알 수 있게 한다. 저장은 `tr_thread.draft_json`의 최상위 선택 필드 `approval`이다.
 

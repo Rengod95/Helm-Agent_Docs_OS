@@ -1581,7 +1581,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 재사용과 바뀐 곳:
 
 - `HookRun.reason`은 라이브 `trace.turn`과 같은 목록 `TRACE_FAILURE_REASONS`(`threw`, `timeout`, `result_invalid`, `merge_rejected`, `process_exit`, `process_killed`)를 쓴다. 격리 프로세스 종료 둘은 enP1이 라이브 목록에 더했고, 기록 전용 목록(`HOOK_FAILURE_REASONS`)은 없앴다. apps/desktop의 `RESULT_REASON` 표에 새 두 값의 글을 더했다.
-- `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`를 더했다 [제안]. 드래프트 승인이 `auto`인 테스트 실행이면 `draftApproval: "auto"`를 더 싣는다. `ask`는 적지 않는다 [제안, 결정: 2026-11-18, 사용자, AGE-56].
+- `TestRunMarker`(`ThreadSummary.testRun`)에 선택 필드 `kind`(`"draft"`), `draft`, `runGroupId`의 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]이다(각 필드를 더하는 모양은 [제안]). 드래프트 승인이 `auto`인 테스트 실행이면 `draftApproval: "auto"`를 더 싣는다. `ask`는 적지 않는다 [제안, 결정: 2026-11-18, 사용자, AGE-56].
 - `TurnRecord.testRun`에 선택 필드 `draftApproval`(값은 `"auto"`뿐이고 `ask`는 생략)을 더했다 [제안, 결정: 2026-11-18, 사용자, AGE-56]. 턴 기록에 `auto`였다는 것이 남는다.
 - 오류 3501, 3511, 3512, 3531과 백테스트 3521~3525는 §3.5.2 표에 있다. 백테스트의 처리기와 실행기는 M5d-2 뒤에 온다.
 - 지난 턴에 돌려 보기(`backtest.run·status·result·cancel`)의 params·result 스키마와 알림 `backtest.progress`는 `wire/backtest.ts`에 있다. 등록은 `turn-record-methods.ts`의 `BACKTEST_WIRE_METHODS`와 `methods.ts`가 한다(§3.3.1, §3.3.2 행, 단계 M5). 항목 타입 `BacktestItem`·`BacktestSummary`는 `turn-record.ts`에 있고 `BacktestItem`에 선택 필드 `skippedBy`, `nondeterministic`을 더했다 [제안]. 처리기는 `apps/host`에 아직 없다.

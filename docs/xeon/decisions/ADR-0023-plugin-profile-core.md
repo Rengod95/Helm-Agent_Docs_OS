@@ -190,7 +190,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/w
 
 - [권고: 메인 세션, 확인 대기] 사용자 명령이 실행 중인 구동기보다 우선하는가(§3.5.4). 이 규칙과 Z4·R25의 종료 조건은 작업 기본값이다.
 - [권고: 메인 세션, 확인 대기] 깊이 상한 3과 한도 차감 세부(§3.5.1), 격리 1단계 전에는 초안을 돌리지 않는 규칙(§3.7.5), 검토함 카드의 고정 안내(§3.10.2).
-- [제안] 저장 문자열이 되는 이름(`drive.command_settled`, `drive.frames`, `plugin.draft.fromInstruction`, `testRun.start`, `authoring_submit`, `provenance:"user_instruction"`, `decides`)은 계약 동결(C0)에서 확정한다. `.fresnel/hooks`와 그 밖의 배치 이름, U3의 세부(§3.4.2)도 [제안]이다.
+- [제안] 저장 문자열이 되는 이름(`drive.command_settled`, `drive.frames`, `plugin.draft.fromInstruction`, `testRun.start`, `authoring_submit`, `provenance:"user_instruction"`, `decides`)은 계약 동결(C0)에서 확정한다. 그 가운데 `drive.command_settled`는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]로 확정했다. `.fresnel/hooks`와 그 밖의 배치 이름, U3의 세부(§3.4.2)도 [제안]이다.
 - [권고: 메인 세션, 확인 대기] "성능 측정" 화면을 지표와 턴 기록으로 흡수한다(§3.14.5). 승격 보고는 따로 결정한다.
 - [확인 대기] 문서의 층 지도와 이름을 실제로 바꿀지(코드의 디렉터리 이름은 바꾸지 않는다).
 - [미결] "루프"를 Craft 용어로 등록할지(권고: 등록하지 않고 "기본 턴 흐름"을 쓴다).

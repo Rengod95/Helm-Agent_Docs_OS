@@ -219,7 +219,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `thread.updated.profileId` | 선택 필드 추가 | F `conversation/lifecycle.ts:77-95` | 전환. `model`(:93)과 같은 규칙: 활성 가지의 마지막 값이 현재 값 |
 | `thread.updated.workspace` | 선택 필드 추가 | 같은 곳 | "대화 시작" 훅이 대화 폴더를 정할 때만. 첫 턴 전에만 쓴다(§4.4.9) |
 | `profile.applied` | 새 코어 이벤트 kind | F `records/kind-names.ts:20-` `CORE_EVENT_KINDS`, `records/catalog` | 아래 payload. 대화의 켜짐 집합이 바뀌어 적용된 경계마다 하나. 이 이벤트는 관찰값이 아니라 상태 사건이다(덧씌우기 복원, 켜짐 집합 감사, 재생 결정성): 관찰값을 로그에 더하지 않는다는 E §3.1의 방안 A 거부와 겹치지 않는다. F.records 카탈로그의 종류 목록과 문서 대조 시험(`records/catalog/index.ts`)을 같이 갱신한다 |
-| `turn.started.invoked` | 선택 필드 추가 | F `conversation/lifecycle.ts`(`TurnInvokedSchema`), `records/catalog/input.ts`(`input.queued.invoked`) | 한 턴 덧씌우기로 그 턴에 얹힌 항목 `{plugin, entry, kind}[]`. 없으면 필드를 쓰지 않는다. §4.3.2 [제안]. 옛 기록은 필드가 없다 |
+| `turn.started.invoked` | 선택 필드 추가 | F `conversation/lifecycle.ts`(`TurnInvokedSchema`), `records/catalog/input.ts`(`input.queued.invoked`) | 한 턴 덧씌우기로 그 턴에 얹힌 항목 `{plugin, entry, kind}[]`. 없으면 필드를 쓰지 않는다. §4.3.2, 이름 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]. 옛 기록은 필드가 없다 |
 | `scope.changed` | 기존, 유지 | F `records/catalog/index.ts:96` | Registration별 켜짐 결과. 계속 남긴다 |
 | `lease.acquired.contentHash` | 선택 필드 추가 | 엔진 설계 §2.6이 `parent`, `depth`, `contentHash` 셋을 한 번에 선언한다(전부 선택, `version`을 올리지 않는다) | Drive 프레임이 쌓일 때의 `versionId`. 이 문서는 값의 뜻만 정한다(§9.1). [구현 2026-11-18] 검토본 단위의 판 식별자만 싣는다(내장과 원본 탐색 단위는 싣지 않는다, `ExtensionUnit.contentHash`). 재시작 복원(§4.3.5)이 이 값을 검토본과 맞춘다 |
 | `profiles.json` | 호스트 파일, schemaVersion 2 | 호스트 `assembly/m4/profile-store.ts:156`(지금 v1) | `{schemaVersion: 2, common, profiles}`. 내장 `default` 행은 처음 고칠 때 만든다 |
@@ -247,7 +247,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `ext.<name>.enabled` | 사용자 범위에서 제거, 관리 범위만 남김 | boolean, `allowedScopes: ["managed"]`(2026-11-18 확인: `settings-keys.ts:32`가 이미 `managed`만 연다) | 관리자가 플러그인을 막는 잠금으로만 쓴다(§4.1.10). 쓰기 화면과 wire 쓰기 경로는 없다 |
 | 새 범위 `profile` | `SettingScope`와 `SCOPE_PRECEDENCE` 추가 | 우선순위: `managed > launch > profile > local > project > user > default` | `layers.ts:9`(`SCOPE_PRECEDENCE`)는 2026-11-18 확인으로 이미 `profile`을 넣고 있다. 값은 대화가 참조한 프로필과 공통 묶음의 `settings` 병합 결과. `settings.set`으로 쓸 수 없다(`profile.put`만 쓴다) |
 | `l1.tools.permissionMode`, `l1.models.default` | `allowedScopes`에 `profile` 추가 | 기존 값 | 처음 허용하는 코어 키. 다른 키는 정의의 `allowedScopes`에 `profile`을 더해 연다 [제안] |
-| `x.primitives.driveDefaultLimits`, 깊이 상한 키(엔진 설계 §2.3, `x.primitives.driveMaxDepth` [제안: 이름]) | `allowedScopes`에 `profile` 추가 | 기존 값 | 프로필이 바꿀 수 있는 주도 한도. 천장 `x.primitives.driveLimits`는 `profile` 범위를 열지 않는다(프로필이 천장을 넘기지 못한다) |
+| `x.primitives.driveDefaultLimits`, 깊이 상한 키(엔진 설계 §2.3, `x.primitives.driveMaxDepth`, 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]) | `allowedScopes`에 `profile` 추가 | 기존 값 | 프로필이 바꿀 수 있는 주도 한도. 천장 `x.primitives.driveLimits`는 `profile` 범위를 열지 않는다(프로필이 천장을 넘기지 못한다) |
 | `l2.*`, `l3.*` 중 소유 플러그인이 있는 키(예: `l2.web.policy.*`, `l2.mcp.*`, `skills.*`, `memory.*`, `commands.advertise`) | 키 정의의 `allowedScopes`에 개별로 `profile` 추가 | 기존 값 | F §12 O-10과 부록 A가 목록의 정본. 키의 소유 플러그인이 `E`에 있어야 프로필에 둘 수 있다(§4.2.2) |
 | `ext.<name>.<key>` (userConfig 키) | `allowedScopes`에 `profile` 추가 | 기존 값. `sensitive` 키는 `SecretRef`(`secret://<이름>`)만 | `settingsFromManifest`(`settings-keys.ts:~88-130`) |
 | `x.loading-trust.sourceWatch` | 추가 | boolean, 기본 `true`, `runtimeChange: "live"`, `managed,user` | 원본 폴더 감시(§4.5.7) |
