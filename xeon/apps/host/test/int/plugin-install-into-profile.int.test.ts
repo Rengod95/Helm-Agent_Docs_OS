@@ -259,13 +259,14 @@ realTest(
 );
 
 realTest(
-  "approving into the default profile is refused when another plugin of that profile is unknown, naming that plugin and not the new one, and the item stays pending",
+  "approving into the default profile works while it lists a plugin this machine lacks: the result names the missing plugin, the profile keeps it, and a thread on it runs the new plugin and skips the missing one (AGE-34)",
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-install-default-")));
+    const marker = join(workspace, "m");
     const source = join(workspace, "source", NAME);
-    writeMarkerPluginAt(source, NAME, "INSTALL-1", join(workspace, "m"));
+    writeMarkerPluginAt(source, NAME, "INSTALL-1", marker);
     const model = recordingModels("install-default", ["one."], { contextWindow: 200_000 });
     const previousCwd = process.cwd();
     process.chdir(workspace);
@@ -274,28 +275,48 @@ realTest(
     const connection = createHostConnection(host.client);
     try {
       await connection.request("host.hello", HELLO_PARAMS);
-      const itemId = await install(connection, source);
-      const refused = await wireErrorOf(
-        connection.request("pluginReview.decide", {
-          itemId,
-          decision: { kind: "approve", profileIds: ["default"], libraryOnly: false },
-        }),
-      );
-      expect(refused.code).toBe(3656);
-      expect(refused.data.kind).toBe("pluginReview.profileInvalid");
-      expect(issueCodesOf(refused)).toEqual(["plugin_unknown"]);
-      const details = JSON.stringify(refused.data.details);
-      expect(details).toContain('"plugin":"helm"');
-      expect(details).not.toContain(NAME);
-      expect((await connection.request("pluginReview.get", { itemId })).item.state).toBe("pending");
+      const collector = collectEvents(connection);
+      await connection.request("events.subscribe", { from: "head" });
+      const before = await connection.request("profile.get", { id: "default" });
+      expect(before.missingPlugins).toEqual(["helm"]);
 
-      // 다른 프로필에는 같은 승인이 된다
-      await connection.request("profile.put", { profile: profileBody(PROFILE, []), baseRev: null });
+      const itemId = await install(connection, source);
       const decided = await connection.request("pluginReview.decide", {
         itemId,
-        decision: { kind: "approve", profileIds: [PROFILE], libraryOnly: false },
+        decision: { kind: "approve", profileIds: ["default"], libraryOnly: false },
       });
-      expect(decided.appliedTo).toEqual([PROFILE]);
+      expect(decided.item.state).toBe("approved");
+      expect(decided.appliedTo).toEqual(["default"]);
+      expect(decided.missingPlugins).toEqual(["helm"]);
+      const stored = await connection.request("profile.get", { id: "default" });
+      const names = stored.profile.plugins.map((ref) => ref.name);
+      expect([names.includes("helm"), names.at(-1)]).toEqual([true, NAME]);
+      expect(stored.missingPlugins).toEqual(["helm"]);
+
+      // 새로 넣는 플러그인 자체가 없으면 거절한다: 이미 있던 `helm`은 이름에 오르지 않는다
+      const refused = await wireErrorOf(
+        connection.request("profile.put", {
+          profile: profileBody("default", [...names, "ghost"]),
+          baseRev: stored.profile.rev,
+        }),
+      );
+      expect(refused.data.kind).toBe("profile.invalid");
+      const refusedIssues = JSON.stringify(refused.data.details);
+      expect(refusedIssues).toContain('"plugin":"ghost"');
+      expect(refusedIssues).toContain('"severity":"error"');
+      // 만든 적 없는 프로필에 없는 플러그인을 넣는 것도 거절한다(첫 저장은 전부 새 항목이다)
+      const fresh = await wireErrorOf(
+        connection.request("profile.put", {
+          profile: profileBody(PROFILE, ["helm"]),
+          baseRev: null,
+        }),
+      );
+      expect(issueCodesOf(fresh)).toEqual(["plugin_unknown"]);
+
+      // 그 프로필의 대화는 없는 `helm`을 건너뛰고 승인한 플러그인의 훅을 돈다
+      const thread = await connection.request("thread.create", { workspace, profileId: "default" });
+      await runTurn(connection, collector, thread.threadId, "hello");
+      expect(await markerAfter(marker)).toContain("INSTALL-1");
     } finally {
       await connection.close();
       await host.close();

@@ -1,6 +1,6 @@
 import { attemptAsync, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { ExtensionLoader } from "@fresnel/ext-host";
-import type { PluginEditFailure } from "../../handlers/m4/profile-test-run.ts";
+import type { PluginEditApplied, PluginEditFailure } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import type { PluginEditRequest } from "../m4/plugin-edit.ts";
 import type { ApprovalContext, ApprovalHooks } from "./review.ts";
@@ -14,7 +14,7 @@ export interface ApprovalHookDeps {
     checkPluginEdit(request: PluginEditRequest): Promise<Result<void, PluginEditFailure>>;
     applyPluginEdit(
       request: PluginEditRequest,
-    ): Promise<Result<readonly string[], PluginEditFailure>>;
+    ): Promise<Result<PluginEditApplied, PluginEditFailure>>;
   };
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다 */
   readonly loader: () => ExtensionLoader | undefined;
@@ -98,7 +98,7 @@ export function approvalHooksOf(deps: ApprovalHookDeps): ApprovalHooks {
     },
     async afterCommit(context) {
       const request = editOf(context);
-      if (request === null) return ok([]);
+      if (request === null) return ok({ profileIds: [], missingPlugins: [] });
       const applied = await deps.profiles.applyPluginEdit(request);
       return applied.ok ? ok(applied.value) : err(failureOf(applied.error));
     },

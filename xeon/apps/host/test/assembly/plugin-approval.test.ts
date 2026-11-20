@@ -73,7 +73,8 @@ function depsOf(
   return {
     profiles: {
       checkPluginEdit: overrides.check ?? (() => Promise.resolve(ok(undefined))),
-      applyPluginEdit: overrides.apply ?? (() => Promise.resolve(ok([]))),
+      applyPluginEdit:
+        overrides.apply ?? (() => Promise.resolve(ok({ profileIds: [], missingPlugins: [] }))),
     },
     loader: () => overrides.loader,
     refreshPluginSet: () => {

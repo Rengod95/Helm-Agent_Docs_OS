@@ -35,7 +35,7 @@ import type {
   ReviewState,
   WhatItDoesDiff,
 } from "@fresnel/contracts/wire";
-import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import type { PluginEditApplied, ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
 import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
@@ -100,6 +100,8 @@ export interface ApprovalContext {
 interface DecisionOutcome {
   readonly item: ReviewItem;
   readonly appliedTo: readonly string[];
+  /** 적용된 프로필이 이미 가리키던 이 기기에 없는 플러그인(경고, AGE-34) */
+  readonly missingPlugins: readonly string[];
 }
 
 /**
@@ -109,7 +111,7 @@ interface DecisionOutcome {
  */
 export interface ApprovalHooks {
   beforeCommit?(context: ApprovalContext): Promise<Result<void, PluginPortFailure>>;
-  afterCommit?(context: ApprovalContext): Promise<Result<readonly string[], PluginPortFailure>>;
+  afterCommit?(context: ApprovalContext): Promise<Result<PluginEditApplied, PluginPortFailure>>;
   reflect?(context: ApprovalContext): Promise<void>;
 }
 
@@ -950,6 +952,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
 
     // 프로필 갱신이 실패하면 `current`를 옛 검토본으로 되돌린다. 되돌리기도 실패하면 로그에만 남긴다
     let appliedTo: readonly string[] = [];
+    let missingPlugins: readonly string[] = [];
     if (hooks.afterCommit !== undefined) {
       const done = await hooks.afterCommit(context);
       if (!done.ok) {
@@ -962,7 +965,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         }
         return done;
       }
-      appliedTo = done.value;
+      appliedTo = done.value.profileIds;
+      missingPlugins = done.value.missingPlugins;
     }
 
     // 보관 정리가 실패해도 승인은 되돌리지 않는다(검토본은 이미 current다). 실패는 로그에 남긴다
@@ -1001,7 +1005,11 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (!refreshed.ok) log.error("plugin.review.refresh_failed", { name: item.name });
     if (hooks.reflect !== undefined) await hooks.reflect(context);
     emit({ kind: "plugin", name: item.name });
-    return ok({ item: saved.value, appliedTo: [...appliedTo] });
+    return ok({
+      item: saved.value,
+      appliedTo: [...appliedTo],
+      missingPlugins: [...missingPlugins],
+    });
   }
 
   async function sendBack(
@@ -1020,7 +1028,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       });
       if (!delivered) log.warn("plugin.review.origin_not_notified", { itemId: item.itemId });
     }
-    return ok({ item: saved.value, appliedTo: [] });
+    return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
   }
 
   async function discard(item: ReviewItem): Promise<Result<DecisionOutcome, PluginPortFailure>> {
@@ -1031,7 +1039,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     await dropCandidate(item.candidateHash, listed.value, item.itemId);
     const logged = await logDecision(item, "discarded", []);
     if (!logged.ok) return err(logged.error);
-    return ok({ item: saved.value, appliedTo: [] });
+    return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
   }
 
   /** 같은 이름의 초안을 최근 `KEEP_DRAFTS`개만 남긴다. 검토 항목이 가리키는 초안은 남긴다 */
