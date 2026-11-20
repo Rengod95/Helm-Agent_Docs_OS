@@ -90,9 +90,9 @@ test("the bundled rulesets are the three harnesses; each keeps the reading date 
     "agent-skills",
     "agents-md",
   ]);
-  // Claude Code는 Hook 조각(2026-11-18)에서 다시 읽었다. 나머지는 이 조각에서 다시 읽지 않았으므로 옛 날짜를 그대로 둔다
+  // Claude Code는 환경 모드 조각(2026-11-20)에서 규칙을 바꿨다(환경 모드 차이, 긴 명령 거절). 나머지는 이 조각에서 다시 읽지 않았으므로 옛 날짜를 그대로 둔다
   expect(BUNDLED_RULESETS.map((ruleset) => ruleset.rulesVersion)).toEqual([
-    "2026-11-18",
+    "2026-11-20",
     "2026-11-17",
     "2026-11-17",
   ]);

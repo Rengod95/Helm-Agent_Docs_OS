@@ -12,7 +12,6 @@ import {
 } from "@fresnel/contracts";
 import type {
   HarnessId,
-  HookRunner,
   IrKind,
   IrNode,
   ItemScope,
@@ -114,12 +113,16 @@ type ScanWireIr =
       readonly timeoutSeconds?: number;
       readonly extraKeys: readonly string[];
       readonly code?: string;
-      readonly script?: {
-        readonly runner: HookRunner;
-        readonly fileName: string;
-        readonly path: string;
-        readonly args: readonly string[];
-        readonly bytes: ScanWireBytes;
+      readonly env?: {
+        readonly command: string;
+        readonly shell: "sh" | "bash";
+        readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+        readonly refsKnown: boolean;
+        readonly readsInputs: readonly string[];
+        readonly firstWord?: string;
+        readonly missingTools: readonly string[];
+        readonly versionHints: readonly string[];
+        readonly notes: readonly string[];
       };
     };
 
@@ -354,14 +357,27 @@ const WireIrShape = Type.Union([
       timeoutSeconds: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
       extraKeys: Type.Array(Type.String()),
       code: Type.Optional(Type.String()),
-      script: Type.Optional(
+      env: Type.Optional(
         Type.Object(
           {
-            runner: Type.Union([lit("sh"), lit("bash"), lit("bun"), lit("node"), lit("python3")]),
-            fileName: Type.String(),
-            path: Type.String(),
-            args: Type.Array(Type.String()),
-            bytes: Type.Object({ base64: Type.String({ pattern: BASE64_PATTERN }) }, CLOSED),
+            command: Type.String({ minLength: 1, maxLength: 4096 }),
+            shell: Type.Union([lit("sh"), lit("bash")]),
+            refs: Type.Array(
+              Type.Object(
+                {
+                  path: Type.String({ minLength: 1, maxLength: 1024 }),
+                  hash: Type.Union([Type.String({ maxLength: 100 }), Type.Null()]),
+                },
+                CLOSED,
+              ),
+              { maxItems: 16 },
+            ),
+            refsKnown: Type.Boolean(),
+            readsInputs: Type.Array(Type.String()),
+            firstWord: Type.Optional(Type.String()),
+            missingTools: Type.Array(Type.String()),
+            versionHints: Type.Array(Type.String()),
+            notes: Type.Array(Type.String()),
           },
           CLOSED,
         ),
@@ -531,16 +547,7 @@ function decodeIr(wire: ScanWireIr): IrNode {
         timeoutSeconds: wire.timeoutSeconds,
         extraKeys: wire.extraKeys,
         code: wire.code,
-        script:
-          wire.script === undefined
-            ? undefined
-            : {
-                runner: wire.script.runner,
-                fileName: wire.script.fileName,
-                path: wire.script.path,
-                args: wire.script.args,
-                bytes: Uint8Array.fromBase64(wire.script.bytes.base64),
-              },
+        env: wire.env,
       };
     default:
       return assertNever(wire, "ScanWireIr");

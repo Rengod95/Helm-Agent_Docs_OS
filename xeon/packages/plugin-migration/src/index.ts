@@ -25,6 +25,11 @@ export {
 } from "./emit.ts";
 export { agentSkillsAdapter, scanSkillsDir } from "./adapters/agent-skills.ts";
 export { claudeCodeAdapter } from "./adapters/claude-code.ts";
+export {
+  describeHookCommand,
+  type HookEnvContext,
+  type HookFileInfo,
+} from "./adapters/hook-env.ts";
 export { convertMcpEntry, mcpJsonAdapter } from "./adapters/mcp-json.ts";
 export {
   FOREIGN_FORMAT_MARKERS,

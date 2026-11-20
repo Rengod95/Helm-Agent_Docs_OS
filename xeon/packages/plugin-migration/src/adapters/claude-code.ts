@@ -17,7 +17,7 @@ import type {
   HarnessId,
   IrAgent,
   IrHook,
-  IrHookScript,
+  IrHookEnv,
   IrNode,
   ItemScope,
   ScanContext,
@@ -31,10 +31,16 @@ import type {
 } from "../types.ts";
 import { scanSkillsDir } from "./agent-skills.ts";
 import { parseHookCommand } from "./hook-command.ts";
+import {
+  describeHookCommand,
+  HOOK_COMMAND_MAX_CHARS,
+  HOOK_INPUT_NAMES,
+  type HookFileInfo,
+} from "./hook-env.ts";
 
 const HARNESS: HarnessId = "claude-code";
 const AGENTS_HARNESS: HarnessId = "agents-md";
-const RULES_VERSION = "2026-11-18";
+const RULES_VERSION = "2026-11-20";
 const CLAUDE_DIR = ".claude";
 /** 가져오기를 푸는 깊이의 상한. 최상위 지침에서 가져온 파일이 1단계다(migration.md §4.3.1) */
 const MAX_IMPORT_DEPTH = 4;
@@ -58,7 +64,7 @@ const AGENT_KNOWN_KEYS: ReadonlySet<string> = new Set([
   "permissionMode",
 ]);
 /** Hook 핸들러에서 `command` 종류가 받는 키. 그 밖의 키는 옮기지 못하는 키다 */
-const COMMAND_HANDLER_KEYS: ReadonlySet<string> = new Set(["type", "command", "timeout"]);
+const COMMAND_HANDLER_KEYS: ReadonlySet<string> = new Set(["type", "command", "timeout", "shell"]);
 /** 알려진 핸들러 종류. 이 밖은 `hook_handler_unknown`이다 */
 const KNOWN_HANDLER_TYPES: ReadonlySet<string> = new Set([
   "command",
@@ -894,52 +900,102 @@ function hookBlocked(
   );
 }
 
-type ScriptRead =
-  | { readonly kind: "ok"; readonly bytes: Uint8Array }
-  | {
-      readonly kind: "blocked";
-      readonly code: "script_missing" | "script_outside_root" | "script_unreadable";
-    };
-
 /**
- * 스크립트 파일 하나를 읽는다. 실제 위치(심볼릭 링크를 풀고)가 원본 폴더 안이어야 한다. 읽는 것은 `ScanFs`의 읽기 호출뿐이다.
- * 실행하지 않는다.
+ * 명령이 원본 폴더 안의 스크립트 파일 하나로 풀렸을 때, 그 파일이 없거나 일반 파일이 아니거나 읽지 못하면 그 이유 코드다.
+ * 이 경우만 옮기지 않는다(hard failure). 스크립트는 복사하지 않으므로 그 밖의 경우는 환경 모드로 옮긴다. 실행하지 않는다.
  */
-async function readScriptFile(scan: Scan, path: string, folder: string): Promise<ScriptRead> {
+async function scriptProblemOf(
+  scan: Scan,
+  path: string,
+): Promise<"script_missing" | "script_unreadable" | undefined> {
   const stat = await attemptAsync(() => scan.fs.lstat(path));
-  if (!stat.ok || stat.value === null) return { kind: "blocked", code: "script_missing" };
+  if (!stat.ok || stat.value === null) return "script_missing";
+  if (stat.value.kind === "dir" || stat.value.kind === "other") return "script_missing";
+  const info = await fileInfoOf(scan, path);
+  return info !== undefined && info.sha256 === null ? "script_unreadable" : undefined;
+}
+
+/** 핸들러 하나의 IR을 만드는 바탕 필드. 옮길 수 없는 이유 `code`는 처음 걸린 것 하나다 */
+interface HookBaseFields {
+  readonly event: string;
+  readonly matcher: string | undefined;
+  readonly handler: string;
+  readonly timeoutSeconds: number | undefined;
+  readonly extraKeys: readonly string[];
+  readonly code: string | undefined;
+}
+
+function irOf(base: HookBaseFields, env?: IrHookEnv): IrHook {
+  return {
+    kind: "hook",
+    event: base.event,
+    matcher: base.matcher,
+    handler: base.handler,
+    timeoutSeconds: base.timeoutSeconds,
+    extraKeys: base.extraKeys,
+    code: base.code,
+    env,
+  };
+}
+
+/** 정규 파일 하나의 정보. 심볼릭 링크는 풀어서 보되 훑기 포트가 허용한 루트 밖은 읽지 않는다. 실행하지 않는다 */
+async function fileInfoOf(scan: Scan, path: string): Promise<HookFileInfo | undefined> {
+  const stat = await attemptAsync(() => scan.fs.lstat(path));
+  if (!stat.ok || stat.value === null) return undefined;
+  if (stat.value.kind !== "symlink") return regularInfoOf(scan, path);
   const real = await attemptAsync(() => scan.fs.realpath(path));
-  const folderReal = await attemptAsync(() => scan.fs.realpath(folder));
-  if (!folderReal.ok || !real.ok) return { kind: "blocked", code: "script_outside_root" };
-  if (!isInside(folderReal.value, real.value))
-    return { kind: "blocked", code: "script_outside_root" };
-  const target = await attemptAsync(() => scan.fs.lstat(real.value));
-  if (!target.ok || target.value === null || target.value.kind !== "file") {
-    return { kind: "blocked", code: "script_missing" };
+  if (!real.ok) return undefined;
+  return regularInfoOf(scan, real.value);
+}
+
+function firstLineOf(text: string): string {
+  return (text.split("\n")[0] ?? "").replace(/\r$/, "");
+}
+
+async function regularInfoOf(scan: Scan, path: string): Promise<HookFileInfo | undefined> {
+  const stat = await attemptAsync(() => scan.fs.lstat(path));
+  if (!stat.ok || stat.value === null || stat.value.kind !== "file") return undefined;
+  const read = await attemptAsync(() => scan.fs.readBounded(path, scan.limits.maxFileBytes));
+  if (!read.ok) {
+    return { size: stat.value.size, sha256: null, firstLine: undefined, inputNames: [] };
   }
-  const read = await attemptAsync(() => scan.fs.readBounded(real.value, scan.limits.maxFileBytes));
-  if (!read.ok) return { kind: "blocked", code: "script_unreadable" };
   const content = read.value;
   switch (content.kind) {
-    case "text":
-      return { kind: "ok", bytes: ENCODER.encode(content.text) };
+    case "text": {
+      const bytes = ENCODER.encode(content.text);
+      return {
+        size: bytes.byteLength,
+        sha256: sha256Hex(bytes),
+        firstLine: firstLineOf(content.text),
+        inputNames: HOOK_INPUT_NAMES.filter((name) => content.text.includes(name)),
+      };
+    }
     case "binary":
-      return { kind: "ok", bytes: content.bytes };
+      return {
+        size: content.bytes.byteLength,
+        sha256: sha256Hex(content.bytes),
+        firstLine: undefined,
+        inputNames: [],
+      };
     case "too_large":
     case "unreadable":
-      return { kind: "blocked", code: "script_unreadable" };
+      return { size: stat.value.size, sha256: null, firstLine: undefined, inputNames: [] };
     default:
-      return assertNever(content, "readScriptFile");
+      return assertNever(content, "regularInfoOf");
   }
 }
 
-/** 핸들러 하나의 IR. 옮길 수 없는 이유는 `code`에 하나 정한다(처음 걸린 것). 명령 문자열은 싣지 않는다 */
+/**
+ * 핸들러 하나의 IR. `command` 핸들러는 모두 환경 모드로 옮긴다: 명령 원문을 싣고 원래 환경에서 돌린다. 스크립트는 복사하지
+ * 않는다(AGE-58 사용자 결정, 2026-11-20). 옮기지 않는 것은 hard failure(스크립트가 없거나 읽지 못함)와 키, 시크릿뿐이다.
+ * `fingerprint`는 항목 해시에 더할 원료다(참조 파일의 지문).
+ */
 async function hookHandlerIr(
   scan: Scan,
   event: string,
   matcher: string | undefined,
   handler: Readonly<Record<string, unknown>>,
-): Promise<{ readonly ir: IrHook; readonly scriptBytes: Uint8Array | undefined }> {
+): Promise<{ readonly ir: IrHook; readonly fingerprint: string | undefined }> {
   const rawType = handler["type"];
   const type = typeof rawType === "string" ? rawType : "";
   const rawTimeout = handler["timeout"];
@@ -954,19 +1010,15 @@ async function hookHandlerIr(
   }
   if (!KNOWN_HANDLER_TYPES.has(type)) code ??= "hook_handler_unknown";
   if (type !== "command") {
-    return {
-      ir: {
-        kind: "hook",
-        event,
-        matcher,
-        handler: type,
-        timeoutSeconds,
-        extraKeys: [],
-        code,
-        script: undefined,
-      },
-      scriptBytes: undefined,
+    const base: HookBaseFields = {
+      event,
+      matcher,
+      handler: type,
+      timeoutSeconds,
+      extraKeys: [],
+      code,
     };
+    return { ir: irOf(base), fingerprint: undefined };
   }
 
   const extraKeys = Object.keys(handler)
@@ -974,6 +1026,10 @@ async function hookHandlerIr(
     .toSorted(byCodeUnit);
   if (extraKeys.includes("if")) code ??= "hook_if_unsupported";
   else if (extraKeys.length > 0) code ??= "hook_key_unsupported";
+  const rawShell = handler["shell"];
+  if (rawShell !== undefined && rawShell !== "sh" && rawShell !== "bash") {
+    code ??= "hook_key_unsupported";
+  }
   if (matcherBroken(matcher)) code ??= "matcher_invalid";
 
   const command = handler["command"];
@@ -981,92 +1037,37 @@ async function hookHandlerIr(
     code ??= "inline_command";
   } else if (containsSecretValue(command) || assignsSecretLiteral(command.split(SPACE_SPLIT))) {
     code ??= "secret_in_command";
+  } else if (command.length > HOOK_COMMAND_MAX_CHARS) {
+    code ??= "hook_command_too_long";
+  }
+  const base: HookBaseFields = { event, matcher, handler: type, timeoutSeconds, extraKeys, code };
+  if (code !== undefined || typeof command !== "string") {
+    return { ir: irOf(base), fingerprint: undefined };
   }
 
-  if (code !== undefined || typeof command !== "string") {
-    return {
-      ir: {
-        kind: "hook",
-        event,
-        matcher,
-        handler: type,
-        timeoutSeconds,
-        extraKeys,
-        code,
-        script: undefined,
-      },
-      scriptBytes: undefined,
-    };
-  }
   const { folder, projectDir } = hookFolderOf(scan);
   const parsed = parseHookCommand(command, { folder, projectDir, homeDir: scan.ctx.homeDir });
-  if (parsed.kind === "blocked") {
-    return {
-      ir: {
-        kind: "hook",
-        event,
-        matcher,
-        handler: type,
-        timeoutSeconds,
-        extraKeys,
-        code: parsed.code,
-        script: undefined,
-      },
-      scriptBytes: undefined,
-    };
+  // 명령이 원본 폴더 안의 스크립트 파일 하나로 풀리면, 그 파일이 있어야 한다(없으면 옮기지 않는다)
+  if (parsed.kind === "script") {
+    const problem = await scriptProblemOf(scan, parsed.path);
+    if (problem !== undefined)
+      return { ir: irOf({ ...base, code: problem }), fingerprint: undefined };
   }
-  const read = await readScriptFile(scan, parsed.path, folder);
-  if (read.kind === "blocked") {
-    return {
-      ir: {
-        kind: "hook",
-        event,
-        matcher,
-        handler: type,
-        timeoutSeconds,
-        extraKeys,
-        code: read.code,
-        script: undefined,
-      },
-      scriptBytes: undefined,
-    };
-  }
-  const text = new TextDecoder().decode(read.bytes);
-  if (containsSecretValue(text)) {
-    return {
-      ir: {
-        kind: "hook",
-        event,
-        matcher,
-        handler: type,
-        timeoutSeconds,
-        extraKeys,
-        code: "secret_in_script",
-        script: undefined,
-      },
-      scriptBytes: undefined,
-    };
-  }
-  const script: IrHookScript = {
-    runner: parsed.runner,
-    fileName: parsed.fileName,
-    path: displayPath(parsed.path, scan.ctx.homeDir),
-    args: parsed.args,
-    bytes: read.bytes,
-  };
-  return {
-    ir: {
-      kind: "hook",
-      event,
-      matcher,
-      handler: type,
-      timeoutSeconds,
-      extraKeys,
-      code: undefined,
-      script,
-    },
-    scriptBytes: read.bytes,
-  };
+
+  // 환경 모드(모든 command 핸들러, 사용자 결정 2026-11-20): 명령 원문을 싣고 원래 환경에서 돌린다. 스크립트는 복사하지 않고
+  // 참조 파일의 지문과 입력 필드 이름만 낸다
+  const env = await describeHookCommand(command, {
+    homeDir: scan.ctx.homeDir,
+    projectDir,
+    shell: rawShell === "bash" ? "bash" : "sh",
+    fileInfo: (path) => fileInfoOf(scan, path),
+    onPath: scan.ctx.onPath,
+  });
+  const fingerprint =
+    env.refs.length === 0
+      ? undefined
+      : env.refs.map((ref) => `${ref.path}=${ref.hash ?? "unreadable"}`).join("\n");
+  return { ir: irOf(base, env), fingerprint };
 }
 
 /**
@@ -1166,9 +1167,9 @@ async function hookHandlerItem(
     hookBlocked(scan, file, scope, keyPath, "hook_malformed", event);
     return;
   }
-  const { ir, scriptBytes } = await hookHandlerIr(scan, event, matcher, handler);
+  const { ir, fingerprint } = await hookHandlerIr(scan, event, matcher, handler);
   const sha256 =
-    scriptBytes === undefined ? file.sha256 : sha256Hex(`${file.sha256}:${sha256Hex(scriptBytes)}`);
+    fingerprint === undefined ? file.sha256 : sha256Hex(`${file.sha256}:${fingerprint}`);
   scan.items.push(
     itemOf(scan, {
       harness: HARNESS,

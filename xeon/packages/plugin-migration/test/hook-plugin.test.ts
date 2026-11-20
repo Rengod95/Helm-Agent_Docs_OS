@@ -1,6 +1,7 @@
 // 생성된 Hook 플러그인의 값 시험(수용 기준 2, 7, 28, 29, 30). `plugin.js`를 임시 폴더에서 실제로 불러 가짜 `g`로 부른다.
 import { describe, expect, test } from "bun:test";
 import { parseJson } from "@fresnel/contracts";
+import { sha256Hex } from "../src/hash.ts";
 import { emit, type PlannedPluginWithMigration } from "../src/index.ts";
 import {
   FAKE_TOKEN,
@@ -14,6 +15,7 @@ import {
   PROJECT_ROOT,
   ran,
   type FakeOutcome,
+  type LoadedHookPlugin,
 } from "./hook-support.ts";
 
 const HOOK = (file: string) => `$CLAUDE_PROJECT_DIR/.claude/hooks/${file}`;
@@ -23,15 +25,6 @@ function hookPluginOf(plugins: readonly PlannedPluginWithMigration[]): PlannedPl
   const found = plugins.find((plugin) => plugin.runtime !== undefined);
   if (found === undefined) throw new Error("no hook plugin was proposed");
   return found;
-}
-
-/** 스크립트 이름(매니페스트 선언)에서 파일 이름으로 가는 표 */
-function fileNameByScript(tree: ReadonlyMap<string, Uint8Array>): ReadonlyMap<string, string> {
-  const names = new Map<string, string>();
-  for (const decl of manifestOf(tree).scripts ?? []) {
-    names.set(decl.name, decl.file.slice(decl.file.lastIndexOf("/") + 1));
-  }
-  return names;
 }
 
 /** 훅 하나를 건 PreToolUse 설정 */
@@ -88,14 +81,12 @@ describe("Hook 플러그인: 매처 판정(수용 기준 28)", () => {
       ".claude/hooks/star.sh": HOOK_SCRIPT,
       ".claude/hooks/empty.sh": HOOK_SCRIPT,
     });
-    const files = fileNameByScript(tree);
     const loaded = await loadHookPlugin(tree, () => ran({ exitCode: 0 }));
     const handler = loaded.handlers.get("tool.call.before");
     if (handler === undefined) throw new Error("tool.call.before is not registered");
     await handler({ toolCallId: "call_1", toolName: tool, input: {} }, { threadId: "thr_1" });
-    const called = loaded.calls.map(
-      (call) => files.get(call.name)?.replace(".sh", "") ?? call.name,
-    );
+    // 선언 이름은 읽는 첫 파일의 이름이다(`edit.sh` → `edit`)
+    const called = loaded.calls.map((call) => call.name);
     expect(sortedText(called)).toEqual(sortedText(expected));
   });
 });
@@ -257,11 +248,19 @@ describe("Hook 플러그인: 결정 변환 표(수용 기준 29)", () => {
     ["시간 초과는 통과다", ran({ exitCode: null, signal: "SIGKILL", timedOut: true }), undefined],
     ["신호로 끝나면 통과다", ran({ exitCode: null, signal: "SIGSEGV" }), undefined],
     ["JSON이 아닌 출력은 통과다", ran({ exitCode: 0, stdout: "ok done" }), undefined],
-    ["실행 실패 값은 통과다", { ok: false, error: { kind: "spawn_failed" } }, undefined],
+    // 띄우지 못한 것은 묻는다(AGE-58 (2)). 이전에는 통과였다
     [
-      "샌드박스를 쓸 수 없는 실패 값도 통과다",
+      "띄우지 못한 실행은 묻는다",
+      { ok: false, error: { kind: "spawn_failed", code: "ENOENT" } },
+      { ask: true, reason: "훅을 돌릴 수 없어요: 띄우지 못했어요(ENOENT). 계속할까요?" },
+    ],
+    [
+      "샌드박스를 쓸 수 없는 실행은 묻는다",
       { ok: false, error: { kind: "sandbox_unavailable" } },
-      undefined,
+      {
+        ask: true,
+        reason: "훅을 돌릴 수 없어요: 이 기기에서 샌드박스를 쓸 수 없어요. 계속할까요?",
+      },
     ],
   ])("%s", async (_name, outcome, expected) => {
     expect(await decisionOf(outcome)()).toEqual(expected);
@@ -512,8 +511,8 @@ describe("Hook 플러그인: 결정성과 매니페스트(수용 기준 2, 생�
       ".fresnel-plugin/plugin.json",
       "plugin.js",
       "hooks.data.json",
-      "scripts/a.sh",
-      "scripts/b.sh",
+      "scripts/a.cmd",
+      "scripts/b.cmd",
     ]) {
       expect(paths).toContain(path);
     }
@@ -532,9 +531,28 @@ describe("Hook 플러그인: 결정성과 매니페스트(수용 기준 2, 생�
         hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
       },
     ]);
+    // 모든 명령은 환경 모드다: 명령 원문을 매니페스트에 싣고, 스크립트는 복사하지 않고 지문만 낸다
     expect(manifest.scripts).toEqual([
-      { name: "a", runner: "sh", file: "scripts/a.sh", timeoutMs: 29000 },
+      {
+        name: "a",
+        runner: "sh",
+        file: "scripts/a.cmd",
+        timeoutMs: 29000,
+        env: {
+          command: HOOK("a.sh"),
+          shell: "sh",
+          refs: [
+            {
+              path: `${PROJECT_ROOT.path}/.claude/hooks/a.sh`,
+              hash: `sha256:${sha256Hex(HOOK_SCRIPT)}`,
+            },
+          ],
+          refsKnown: true,
+        },
+      },
     ]);
+    expect(decode(tree.get("scripts/a.cmd"))).toBe(`${HOOK("a.sh")}\n`);
+    expect(tree.has("scripts/a.sh")).toBe(false);
     expect(manifest.purpose).toContain("훅");
   });
 });
@@ -555,8 +573,13 @@ describe("Hook 플러그인: 시크릿 값 부재(수용 기준 7)", () => {
     const { proposal, scan } = await proposeFrom(files, [PROJECT_ROOT]);
     const serialized = JSON.stringify({ proposal, items: scan.items });
     expect(serialized).not.toContain(FAKE_TOKEN);
-    const reasons = sortedText(proposal.report.map((line) => line.reason?.code));
-    expect(reasons).toEqual(["literal_secret_in_source", "secret_in_script"]);
+    // 스크립트 본문의 값은 옮기는 이유가 아니다(환경 모드는 복사하지 않는다). 옮기지 않는 이유는 명령의 리터럴 시크릿뿐이다
+    const reasons = sortedText(
+      proposal.report
+        .filter((line) => line.status === "not_ported")
+        .map((line) => line.reason?.code),
+    );
+    expect(reasons).toEqual(["literal_secret_in_source"]);
     for (const plugin of proposal.plugins) {
       for (const bytes of emit(plugin).values()) expect(decode(bytes)).not.toContain(FAKE_TOKEN);
     }
@@ -655,10 +678,210 @@ describe("Hook 플러그인: 큰 입력은 막는 지점에서 묻는다(수용 
     expect(String(thrown)).toContain("engine refused: engine_call_failed");
   });
 
-  test("hooks.data.json은 템플릿 버전 adapter-hooks@2를 적는다", async () => {
+  test("hooks.data.json은 템플릿 버전 adapter-hooks@5를 적는다", async () => {
     const { tree } = await loadFrom(SETTINGS, SCRIPTS);
     const data = parseJson(decode(tree.get("hooks.data.json")));
     if (!data.ok) throw new Error("hooks.data.json is not JSON");
-    expect(data.value).toMatchObject({ schemaVersion: 1, adapter: "adapter-hooks@2" });
+    expect(data.value).toMatchObject({ schemaVersion: 1, adapter: "adapter-hooks@5" });
+  });
+});
+
+/** 불러온 플러그인에서 지점의 핸들러를 꺼낸다. 없으면 던진다(시험의 전제가 깨진 것이다) */
+function handlerOf(plugin: LoadedHookPlugin, point: string) {
+  const handler = plugin.handlers.get(point);
+  if (handler === undefined) throw new Error(`${point} is not registered`);
+  return handler;
+}
+
+describe("Hook 플러그인: 돌리지 못한 훅은 묻는다(AGE-58 사용자 결정 2026-11-20 (2))", () => {
+  const SETTINGS_ALL = {
+    hooks: {
+      PreToolUse: [{ hooks: [{ type: "command", command: HOOK("pre.sh") }] }],
+      PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: HOOK("post.sh") }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: HOOK("prompt.sh") }] }],
+      Stop: [{ hooks: [{ type: "command", command: HOOK("stop.sh") }] }],
+      SessionStart: [
+        { matcher: "startup", hooks: [{ type: "command", command: HOOK("start.sh") }] },
+      ],
+    },
+  };
+  const SCRIPTS_ALL = {
+    ".claude/hooks/pre.sh": HOOK_SCRIPT,
+    ".claude/hooks/post.sh": HOOK_SCRIPT,
+    ".claude/hooks/prompt.sh": HOOK_SCRIPT,
+    ".claude/hooks/stop.sh": HOOK_SCRIPT,
+    ".claude/hooks/start.sh": HOOK_SCRIPT,
+  };
+  const CALL = { toolCallId: "call_1", toolName: "bash", input: { command: "ls" } };
+
+  /** 모든 훅이 같은 답을 내는 플러그인을 불러온다 */
+  async function pluginAnswering(answer: FakeOutcome) {
+    const { tree } = await loadFrom(SETTINGS_ALL, SCRIPTS_ALL);
+    return loadHookPlugin(tree, () => answer);
+  }
+
+  /** 도구 호출 앞 지점의 결정 */
+  async function preToolDecision(answer: FakeOutcome): Promise<unknown> {
+    const plugin = await pluginAnswering(answer);
+    return handlerOf(plugin, "tool.call.before")(CALL, { threadId: "thr_1" });
+  }
+
+  test.each<[string, FakeOutcome, string]>([
+    [
+      "스크립트가 바뀌었다",
+      {
+        ok: false,
+        error: {
+          kind: "script_ref_changed",
+          path: `${PROJECT_ROOT.path}/.claude/hooks/pre.sh`,
+          reason: "changed",
+        },
+      },
+      `훅을 돌릴 수 없어요: 스크립트 ${PROJECT_ROOT.path}/.claude/hooks/pre.sh가 바뀌었어요. 가져오기를 다시 해야 해요. 계속할까요?`,
+    ],
+    [
+      "스크립트가 없어졌다",
+      {
+        ok: false,
+        error: { kind: "script_ref_changed", path: "/opt/x.sh", reason: "missing" },
+      },
+      "훅을 돌릴 수 없어요: 스크립트 /opt/x.sh가 없어요. 가져오기를 다시 해야 해요. 계속할까요?",
+    ],
+    [
+      "스크립트를 읽을 수 없다",
+      {
+        ok: false,
+        error: { kind: "script_ref_changed", path: "/opt/y.sh", reason: "unreadable" },
+      },
+      "훅을 돌릴 수 없어요: 스크립트 /opt/y.sh가 읽을 수 없어요. 가져오기를 다시 해야 해요. 계속할까요?",
+    ],
+    [
+      "띄우지 못했다",
+      { ok: false, error: { kind: "spawn_failed", code: "EACCES" } },
+      "훅을 돌릴 수 없어요: 띄우지 못했어요(EACCES). 계속할까요?",
+    ],
+    [
+      "샌드박스를 쓸 수 없다",
+      { ok: false, error: { kind: "sandbox_unavailable" } },
+      "훅을 돌릴 수 없어요: 이 기기에서 샌드박스를 쓸 수 없어요. 계속할까요?",
+    ],
+    [
+      "환경 모드를 받을 수 없다",
+      { ok: false, error: { kind: "script_env_not_granted" } },
+      "훅을 돌릴 수 없어요: 이 훅은 환경 모드를 받을 수 없어요. 계속할까요?",
+    ],
+    [
+      "선언에 없다",
+      { ok: false, error: { kind: "script_not_declared" } },
+      "훅을 돌릴 수 없어요: script_not_declared. 계속할까요?",
+    ],
+    [
+      "플러그인 밖이다",
+      { ok: false, error: { kind: "script_outside_tree" } },
+      "훅을 돌릴 수 없어요: script_outside_tree. 계속할까요?",
+    ],
+    [
+      "파일이 없다",
+      { ok: false, error: { kind: "script_missing" } },
+      "훅을 돌릴 수 없어요: script_missing. 계속할까요?",
+    ],
+    [
+      "승인되지 않았다",
+      { ok: false, error: { kind: "script_not_approved" } },
+      "훅을 돌릴 수 없어요: script_not_approved. 계속할까요?",
+    ],
+  ])("%s면 도구 호출 앞에서 그 사유로 묻는다", async (_label, answer, reason) => {
+    expect(await preToolDecision(answer)).toEqual({ ask: true, reason });
+  });
+
+  test("재생 거절과 승인 카드의 거절은 사람이 정한 결과라 통과다", async () => {
+    expect(
+      await preToolDecision({ ok: false, error: { kind: "replay_mode_denied" } }),
+    ).toBeUndefined();
+    expect(await preToolDecision({ ok: false, error: { kind: "script_denied" } })).toBeUndefined();
+  });
+
+  test("종료 코드 127은 표준 오류의 첫 줄을 사유로 묻는다", async () => {
+    expect(
+      await preToolDecision(ran({ exitCode: 127, stderr: "python3.11: command not found\n" })),
+    ).toEqual({
+      ask: true,
+      reason: "훅을 돌릴 수 없어요: python3.11: command not found. 계속할까요?",
+    });
+  });
+
+  test("종료 코드 127이고 표준 오류가 비면 종료 코드로 말한다", async () => {
+    expect(await preToolDecision(ran({ exitCode: 127 }))).toEqual({
+      ask: true,
+      reason: "훅을 돌릴 수 없어요: 명령을 찾을 수 없어요(127). 계속할까요?",
+    });
+  });
+
+  test("종료 코드 126이고 표준 오류가 비면 실행할 수 없다고 말한다", async () => {
+    expect(await preToolDecision(ran({ exitCode: 126 }))).toEqual({
+      ask: true,
+      reason: "훅을 돌릴 수 없어요: 실행할 수 없어요(126). 계속할까요?",
+    });
+  });
+
+  test("표준 오류의 첫 줄은 160글자까지만 쓰고, 사유 전체는 500글자를 넘지 않는다", async () => {
+    const long = "x".repeat(300);
+    const reason = await preToolDecision(ran({ exitCode: 127, stderr: long }));
+    expect(reason).toEqual({
+      ask: true,
+      reason: `훅을 돌릴 수 없어요: ${"x".repeat(160)}. 계속할까요?`,
+    });
+  });
+
+  test("다른 종료 코드는 그대로다: 1과 3은 통과, 2는 표준 오류가 사유인 막기, 시간 초과는 통과", async () => {
+    expect(await preToolDecision(ran({ exitCode: 1, stderr: "oops" }))).toBeUndefined();
+    expect(await preToolDecision(ran({ exitCode: 3 }))).toBeUndefined();
+    expect(await preToolDecision(ran({ exitCode: 2, stderr: "no" }))).toEqual({
+      block: true,
+      reason: "no",
+    });
+    expect(
+      await preToolDecision(ran({ exitCode: null, signal: "SIGKILL", timedOut: true })),
+    ).toBeUndefined();
+  });
+
+  test("도구 결과 지점은 돌리지 못한 훅의 사유를 결과 본문 뒤에 붙인다", async () => {
+    const { tree } = await loadFrom(SETTINGS_ALL, SCRIPTS_ALL);
+    const loaded = await loadHookPlugin(tree, (name) =>
+      name === "post"
+        ? ran({ exitCode: 127, stderr: "jq: command not found" })
+        : ran({ exitCode: 0 }),
+    );
+    const patch = await handlerOf(loaded, "tool.result")(
+      { toolCallId: "call_9", toolName: "bash", input: { command: "ls" } },
+      { content: [{ type: "text", text: "out" }], isError: false },
+      { threadId: "thr_1" },
+    );
+    expect(patch).toEqual({
+      content: [
+        { type: "text", text: "out" },
+        { type: "text", text: "훅을 돌릴 수 없어요: jq: command not found. 계속할까요?" },
+      ],
+    });
+  });
+
+  test("입력, 멈춤, 시작 지점은 돌리지 못한 훅을 막지 않고 통과시킨다", async () => {
+    const plugin = await pluginAnswering({ ok: false, error: { kind: "sandbox_unavailable" } });
+    expect(
+      await handlerOf(plugin, "input.user.before")(
+        { text: "hi" },
+        { text: "hi", handled: false },
+        { threadId: "t" },
+      ),
+    ).toBeUndefined();
+    expect(
+      await handlerOf(plugin, "boundary.settle.before")(
+        { turnId: "turn_1" },
+        { continue: false, entries: [] },
+        { threadId: "t" },
+      ),
+    ).toBeUndefined();
+    expect(await handlerOf(plugin, "thread.start")({}, { threadId: "thr_9" })).toBeUndefined();
+    expect(plugin.calls.map((call) => call.name)).toEqual(["prompt", "stop", "start"]);
   });
 });
