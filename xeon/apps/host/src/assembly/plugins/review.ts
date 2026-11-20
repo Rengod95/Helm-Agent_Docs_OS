@@ -930,6 +930,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         decisionId: item.itemId,
         origin,
         inferredManifest: read.inferred,
+        // 출처가 마이그레이션인 항목을 승인한 검토본만 환경 모드 스크립트를 받는다(AGE-58 [제안]). 매니페스트가 아니라 이 호스트 기록이 근거다
+        ...(item.provenance === "migration" ? { importedScripts: true } : {}),
         card: {
           ...item.card,
           purpose,

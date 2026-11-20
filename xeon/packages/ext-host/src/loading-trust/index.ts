@@ -28,6 +28,7 @@ import {
   type TrustPrompter,
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SettingDef, SettingNamespace } from "@fresnel/contracts/settings";
 import type { AdmitInfo, OperationsPolicy } from "../operations/index.ts";
 import { NO_STARTUP_OPTIONS, startupFilter, type StartupOptions } from "../operations/safe-mode.ts";
@@ -39,6 +40,7 @@ import {
   externalLocations,
   MANIFEST_RELATIVE_PATH,
   orderKeyOfBuiltin,
+  scriptEnvGrantOf,
   type BuiltinExtensionModule,
   type ExtensionCandidate,
 } from "./discover.ts";
@@ -87,7 +89,7 @@ import {
   type IsolationDecision,
   type IsolationRefusal,
 } from "../isolation/effective.ts";
-import { createScriptRunner } from "../isolation/script-runner.ts";
+import { createScriptRunner, type ScriptRefReader } from "../isolation/script-runner.ts";
 import {
   createIsolatedEntry,
   type IsolationLaunch,
@@ -373,6 +375,14 @@ export interface LoaderIsolation {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리(샌드박스)를 쓸 수 있는가. 초안 스크립트가 카드를 열기 전에 묻는다. 없으면 묻지 않는다(띄울 때 막힌다) */
   readonly sandboxAvailable?: () => boolean;
+  /** 환경 모드 스크립트의 사용자 환경(AGE-58 [제안]). 값은 기록하지 않는다. `ScriptRunnerDeps.userEnv` */
+  readonly userEnv?: () => Promise<Readonly<Record<string, string>>>;
+  /** 환경 모드 참조 파일의 지문 확인 수단. `ScriptRunnerDeps.refs` */
+  readonly scriptRefs?: ScriptRefReader;
+  /** 환경 모드 참조 파일 가운데 보호 경로 안의 것의 읽기 예외. `ScriptRunnerDeps.readCarveOutsFor` */
+  readonly readCarveOutsFor?: (refPaths: readonly string[]) => readonly string[];
+  /** 호출한 대화의 프로젝트 폴더. `ScriptRunnerDeps.projectDirOf` */
+  readonly projectDirOf?: (threadId: ThreadId | undefined) => string | undefined;
 }
 
 /**
@@ -394,6 +404,8 @@ export interface ReviewedSourceEntry {
    * 파일이 있으면 파일이 이긴다
    */
   readonly manifest?: ExtensionManifest;
+  /** 승인한 검토 항목의 출처가 마이그레이션이면 참(호스트가 `meta.json`에서 채운다). 환경 모드 스크립트를 받을 자격의 유일한 근거다(AGE-58 [제안]) */
+  readonly importedScripts?: boolean;
 }
 
 /** 적재 때 검토본 저장소가 낸 진단. 무결성이 어긋난 항목은 목록에서 빠지고 이것으로 남는다(M5c §4.6.5) */
@@ -984,6 +996,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           builtin: null,
           contentHash: entry.contentHash,
           inferredManifest: entry.manifest,
+          ...(entry.importedScripts === true ? { importedScripts: true } : {}),
         },
       };
     }
@@ -995,6 +1008,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         manifestPath,
         builtin: null,
         contentHash: entry.contentHash,
+        ...(entry.importedScripts === true ? { importedScripts: true } : {}),
       },
     };
   }
@@ -1394,6 +1408,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (port === undefined || isolation === undefined) {
       throw new Bug(`loader.isolation_without_port: ${record.name}`);
     }
+    const envGrant = scriptEnvGrantOf(record.candidate);
     return createIsolatedEntry({
       manifest,
       root,
@@ -1432,6 +1447,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           scripts: manifest.scripts ?? [],
           tree: root,
           approved: record.candidate.draft === undefined,
+          ...(envGrant === undefined ? {} : { envGrant }),
         },
         resolveRunner: isolation.runner ?? (() => undefined),
         ...(isolation.runnerReadRoots === undefined
@@ -1445,6 +1461,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           ? {}
           : { sandboxAvailable: isolation.sandboxAvailable }),
         ...(isolation.maskSecrets === undefined ? {} : { maskText: isolation.maskSecrets }),
+        ...(isolation.userEnv === undefined ? {} : { userEnv: isolation.userEnv }),
+        ...(isolation.scriptRefs === undefined ? {} : { refs: isolation.scriptRefs }),
+        ...(isolation.readCarveOutsFor === undefined
+          ? {}
+          : { readCarveOutsFor: isolation.readCarveOutsFor }),
+        ...(isolation.projectDirOf === undefined ? {} : { projectDirOf: isolation.projectDirOf }),
       }),
     });
   }

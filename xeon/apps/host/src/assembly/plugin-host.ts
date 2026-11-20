@@ -1,5 +1,6 @@
 import { isAbsolute, join } from "node:path";
 import type { Logger, Scheduler } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   IsolationProcessPort,
   PortKey,
@@ -18,6 +19,7 @@ import type {
   LoaderIsolation,
   OperationsPolicy,
   PluginHostSupervisor,
+  ScriptRefReader,
 } from "@fresnel/ext-host";
 import { BASE_ENV_POLICY, isDeniedEnvName } from "@fresnel/platform-exec";
 import { readOsRuntime } from "@fresnel/platform-os";
@@ -110,6 +112,13 @@ export interface PluginHostAssemblyDeps {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리를 쓸 수 있는가(지연 조회). 초안 스크립트가 카드를 열기 전에 묻는다 */
   readonly sandboxAvailable?: () => boolean;
+  /** 환경 모드 스크립트(가져온 훅)의 사용자 환경과 참조 파일, 읽기 예외, 프로젝트 폴더(AGE-58 [제안]). 없으면 환경 모드는 돌지 않는다(`script_env_not_granted` 이전에 `user_env_unavailable`) */
+  readonly scriptEnv?: {
+    readonly userEnv: () => Promise<Readonly<Record<string, string>>>;
+    readonly refs: ScriptRefReader;
+    readonly readCarveOutsFor: (refPaths: readonly string[]) => readonly string[];
+    readonly projectDirOf: (threadId: ThreadId | undefined) => string | undefined;
+  };
 }
 
 /**
@@ -238,6 +247,14 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       allowedEnv: allowedEnvOf(parentEnv),
       ...(deps.scriptGate === undefined ? {} : { scriptGate: deps.scriptGate }),
       ...(deps.sandboxAvailable === undefined ? {} : { sandboxAvailable: deps.sandboxAvailable }),
+      ...(deps.scriptEnv === undefined
+        ? {}
+        : {
+            userEnv: deps.scriptEnv.userEnv,
+            scriptRefs: deps.scriptEnv.refs,
+            readCarveOutsFor: deps.scriptEnv.readCarveOutsFor,
+            projectDirOf: deps.scriptEnv.projectDirOf,
+          }),
     },
     process: tracked,
     sweepOrphans: async () => {

@@ -210,7 +210,7 @@ export const ScriptEnvDeclSchema: TObject<{
     /** 원래 명령 문자열 원문 */
     command: Type.String({ minLength: 1, maxLength: 4096 }),
     shell: ScriptEnvShellSchema,
-    /** 명령이 참조한 파일(절대 경로)과 가져올 때의 지문. 지문이 null이면 읽지 못했다(실행 때 없음으로 본다) */
+    /** 명령이 참조한 파일(절대 경로)과 가져올 때의 지문. 지문이 null이면 가져올 때 읽지 못했다(실행 때 파일이 있어도 `unreadable`, 없으면 `missing`으로 닫힌 실패다) */
     refs: Type.Array(
       Type.Object(
         {
