@@ -70,6 +70,7 @@ import {
   type ReleaseReason,
   type RegistrationRecord,
   type StartDriveError,
+  type SwitchStartDriveOutcome,
   type UserEntry,
   type StartRequest,
   type ThreadRuntime,
@@ -146,6 +147,16 @@ export interface LeaseBroker {
     trigger: "user" | "profile",
     input: JsonValue | null,
   ): Result<void, StartDriveError>;
+  /**
+   * 프로필 전환이 시작 Drive를 맞춘다(AGE-64). 이전 전환이 걸어 둔 기다리는 시작은 지우고 마지막 전환만 남긴다.
+   * 아직 메시지를 받지 않은 프로필 시작 프레임 하나만 스택에 있으면 내린다. 이미 일하는 프레임, 사용자·맡기기로 쌓인 프레임은 내리지 않고
+   * 스택이 빈 뒤에 시작하도록 건다. `scopeId`가 null이면 새 프로필에 시작 Drive가 없다. `fresh`는 첫 메시지 전의 빈 대화다
+   */
+  switchStartDrive(
+    threadId: ThreadId,
+    scopeId: RegistrationId | null,
+    fresh: boolean,
+  ): Result<SwitchStartDriveOutcome, StartDriveError>;
   /** 읽기: thread의 스택을 아래에서 위로 주는 `drive.frames` 모양. 코어 루프가 맨 아래 깊이 0이다 */
   framesOf(thread: ThreadRuntime): readonly DriveFrameView[];
   /**
@@ -652,6 +663,36 @@ function verifyRestored(thread: ThreadRuntime, txn: BoundaryTxn): void {
       return;
     }
   }
+}
+
+/** 사용자 메시지를 보류할 시작 요청. 첫 메시지 뒤의 전환이 건 시작(`afterTurn`)은 메시지를 받지 않는다 */
+function holdingRequest(thread: ThreadRuntime): StartRequest | undefined {
+  return thread.startQueue.find((entry) => entry.trigger !== "handoff" && entry.afterTurn !== true);
+}
+
+/** 전환이 건 기다리는 시작 요청을 모두 큐에서 지운다. 기록한 적이 없어 `dropped`는 남기지 않는다 */
+function removeSwitchRequests(thread: ThreadRuntime): void {
+  const kept = thread.startQueue.filter(
+    (item) => !(item.trigger === "profile" && item.waitStack === true),
+  );
+  if (kept.length !== thread.startQueue.length) {
+    thread.startQueue.splice(0, thread.startQueue.length, ...kept);
+  }
+}
+
+/** 아직 메시지를 받지 않은 프로필 시작 프레임인가: 입력도 단계도 turn도 없다(AGE-64) */
+function isUntouchedStart(thread: ThreadRuntime, frame: LeaseRuntime): boolean {
+  return (
+    frame.status === "active" &&
+    frame.awaitUser &&
+    !frame.firstStepDone &&
+    !frame.running &&
+    frame.userSeq === 0 &&
+    frame.inbox.length === 0 &&
+    frame.deliveredUser === null &&
+    frame.used.turns === 0 &&
+    thread.heldUser.length === 0
+  );
 }
 
 export function createLeaseBroker(
@@ -1191,7 +1232,7 @@ export function createLeaseBroker(
   function returnHeldIfUnclaimed(thread: ThreadRuntime): void {
     if (thread.heldUser.length === 0) return;
     if (thread.frames.length > 0) return;
-    if (thread.startQueue.some((entry) => entry.trigger !== "handoff")) return;
+    if (holdingRequest(thread) !== undefined) return;
     const queue = core.ports.get(InputQueuePortKey);
     const held = thread.heldUser.splice(0);
     if (queue === undefined) return;
@@ -1704,7 +1745,7 @@ export function createLeaseBroker(
       wantInvoke: true,
       committed: false,
       restoring: false,
-      awaitUser: parent === null && request.trigger === "profile",
+      awaitUser: parent === null && request.trigger === "profile" && request.afterTurn !== true,
     });
     txn.startRequest = request;
   }
@@ -1742,8 +1783,17 @@ export function createLeaseBroker(
       return;
     }
     if (topFrame(thread) !== null) {
-      // 스택이 차 있으면 프로필 시작은 버린다. 사용자 명령은 큐에 둔 채 전환(switch-policy)을 기다린다
-      if (request.trigger === "profile") dropRequest(thread, request, "the drive stack is busy");
+      // 스택이 차 있으면 프로필 시작은 버린다. 전환이 건 시작은 스택이 빌 때까지 기다린다. 사용자 명령은 큐에 둔 채 전환(switch-policy)을 기다린다
+      if (request.trigger === "profile" && request.waitStack !== true) {
+        dropRequest(thread, request, "the drive stack is busy");
+      }
+      return;
+    }
+    // 첫 메시지 뒤의 전환은 도는 turn이 끝나 유휴가 된 경계에서만 시작한다
+    if (
+      request.afterTurn === true &&
+      (txn.signal.kind !== "idle" || !loopStatusIdle(thread.threadId))
+    ) {
       return;
     }
     // 사용자가 멈춘 뒤에는 사용자 명령만 주도를 시작한다
@@ -1799,6 +1849,27 @@ export function createLeaseBroker(
     hooks.requestApply(thread.threadId);
   }
 
+  /** 메시지를 받지 않은 시작 프레임을 기존 내리는 길(`revoked`)로 내린다. 반납 기록은 다음 경계가 커밋한다 */
+  function revokeUntouchedStart(
+    thread: ThreadRuntime,
+    frame: LeaseRuntime,
+    next: RegistrationId | null,
+  ): void {
+    const from = core.scopes.get(frame.scopeId)?.extension ?? frame.scopeId;
+    const to = next === null ? null : (core.scopes.get(next)?.extension ?? next);
+    releaseFrom(thread, 0, "revoked");
+    core.deps.report({
+      level: "info",
+      code: "scope_notice",
+      scopeId: frame.scopeId,
+      message:
+        to === null
+          ? `${from} 시작 주도를 내렸다(프로필 전환, 새 프로필에 시작 Drive 없음)`
+          : `${from} 시작 주도를 ${to}으로 바꿨다(프로필 전환)`,
+    });
+    hooks.requestApply(thread.threadId);
+  }
+
   /** 사용자 메시지를 받을 곳. 프레임이 없고 시작 요청이 있으면 보류, 맨 위가 주도 중이면 그 프레임의 `inbox`, 아니면 null(코어 루프가 받는다) */
   function claimTargetOf(
     thread: ThreadRuntime,
@@ -1810,7 +1881,7 @@ export function createLeaseBroker(
     if (lease === null) {
       // 시작 요청이 이미 큐에 있으면 프레임이 잡힐 때까지 메시지를 쥐고 있다가 그 프레임의 첫 단계 뒤에 전달한다(2.4).
       // 부여가 먼저인지 메시지가 먼저인지에 따라 행선지가 갈리지 않는다. 요청이 프레임 없이 사라지면 코어 루프로 돌려보낸다
-      const request = thread.startQueue.find((entry) => entry.trigger !== "handoff");
+      const request = holdingRequest(thread);
       if (request === undefined || thread.userStopped) return null;
       return { kind: "held", scopeId: request.scopeId };
     }
@@ -2059,7 +2130,7 @@ export function createLeaseBroker(
           continue;
         }
         const frame = thread.frames.findLast((candidate) => candidate.scopeId === stored.scopeId);
-        const request = thread.startQueue.find((candidate) => candidate.trigger !== "handoff");
+        const request = holdingRequest(thread);
         if (frame !== undefined) {
           frame.inbox.push(entry);
         } else if (request !== undefined && !thread.userStopped) {
@@ -2094,7 +2165,11 @@ export function createLeaseBroker(
         recorded: trigger === "profile",
       };
       // 사용자가 다시 명령하면 멈춤을 푼다
-      if (trigger === "user") thread.userStopped = false;
+      if (trigger === "user") {
+        thread.userStopped = false;
+        // 사용자가 직접 명령하면 전환이 걸어 둔 기다리는 시작은 물러난다
+        removeSwitchRequests(thread);
+      }
       // 같은 scope와 같은 계기, 같은 입력의 요청이 이미 큐에 있으면 하나로 본다. 입력이 연달아 와도 시작은 한 번만 부여된다
       // (테스트 대화의 상주 시작 Drive가 입력마다 요청한다, M5c §4.8.6)
       const queued = thread.startQueue.some(
@@ -2114,6 +2189,50 @@ export function createLeaseBroker(
       }
       hooks.requestApply(threadId);
       return ok(undefined);
+    },
+    switchStartDrive(threadId, scopeId, fresh) {
+      const thread = core.threads.get(threadId);
+      if (thread === undefined) return err({ kind: "unknown_thread" });
+      if (thread.child) return err({ kind: "child_thread" });
+      // 마지막 전환만 유효하다
+      removeSwitchRequests(thread);
+      const base = thread.frames[0];
+      const untouched =
+        thread.frames.length === 1 && base !== undefined && isUntouchedStart(thread, base);
+      if (scopeId === null) {
+        if (untouched) revokeUntouchedStart(thread, base, null);
+        return ok("none");
+      }
+      const record = core.scopes.get(scopeId);
+      if (record === undefined) return err({ kind: "unknown_scope" });
+      if (record.driveError) return err({ kind: "drive_error" });
+      if (record.generation !== null && record.generation.drive === null) {
+        return err({ kind: "not_drive" });
+      }
+      const top = topFrame(thread);
+      if (
+        thread.frames.length === 1 &&
+        top !== null &&
+        top.scopeId === scopeId &&
+        top.status === "active"
+      ) {
+        return ok("leading");
+      }
+      if (untouched) revokeUntouchedStart(thread, base, scopeId);
+      thread.startQueue.push({
+        requestId: null,
+        scopeId,
+        trigger: "profile",
+        input: null,
+        parentLeaseId: null,
+        recorded: true,
+        waitStack: true,
+        ...(fresh ? {} : { afterTurn: true }),
+      });
+      hooks.requestApply(threadId);
+      const waiting =
+        (thread.frames.length > 0 && !untouched) || (!fresh && !loopStatusIdle(threadId));
+      return ok(waiting ? "deferred" : "requested");
     },
     chargeTokens(thread, tokens) {
       const top = thread.frames.at(-1);

@@ -50,6 +50,7 @@ import {
   type InstalledUnit,
   type RegistrationRecord,
   type StartDriveError,
+  type SwitchStartDriveOutcome,
   type ThreadOpenOptions,
   type ThreadRuntime,
   type PrimitivesSettingsSource,
@@ -323,6 +324,16 @@ export interface ExtHost {
     scopeId: RegistrationId,
     options?: { readonly input?: JsonValue; readonly trigger?: "user" | "profile" },
   ): Result<void, StartDriveError>;
+  /**
+   * 프로필 전환이 시작 Drive를 맞춘다(AGE-64, X.primitives.spec §4.4.1a). 마지막 전환만 유효하다. 아직 메시지를 받지 않은 프로필 시작 프레임은 내리고,
+   * 이미 일하는 프레임과 사용자·맡기기로 쌓인 프레임은 내리지 않고 스택이 빈 뒤에 시작하도록 건다. `scopeId`가 null이면 새 프로필에 시작 Drive가 없다.
+   * `fresh`는 첫 메시지 전의 빈 대화다(시작 Drive가 첫 메시지를 받는다)
+   */
+  switchStartDrive(
+    threadId: ThreadId,
+    scopeId: RegistrationId | null,
+    fresh: boolean,
+  ): Result<SwitchStartDriveOutcome, StartDriveError>;
   /**
    * thread의 주도권 스택을 아래에서 위로 읽는다(`drive.frames`, drive-isolation.md 2.6). 맨 아래는 코어 루프(깊이 0)다.
    * thread가 열려 있지 않으면 빈 목록이다
@@ -1187,6 +1198,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         options?.trigger ?? "user",
         options?.input ?? null,
       );
+    },
+    switchStartDrive(threadId, scopeId, fresh) {
+      return lease.switchStartDrive(threadId, scopeId, fresh);
     },
     driveFrames(threadId) {
       const thread = core.threads.get(threadId);
