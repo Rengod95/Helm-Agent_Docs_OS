@@ -1428,6 +1428,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
             now: () => clock.now(),
             logger: os.logger("script-env"),
           }),
+          hookProcess: () => ext.ports.get(ProcessPortKey),
+          envSandboxed: () => settings.value("l0.sandbox.sandboxImportedHooks") === true,
           refs: nodeScriptRefReader,
           readCarveOutsFor: readCarveOutsOf(() => sandboxSourceOf(ext)()?.protectedPaths() ?? []),
           projectDirOf: (threadId) =>

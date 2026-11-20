@@ -12,6 +12,7 @@ import {
 import { join } from "node:path";
 import { err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type {
+  HookProcessPort,
   IsolationProcessPort,
   LoaderFs,
   ManifestScriptDecl,
@@ -29,6 +30,7 @@ import {
 } from "@fresnel/platform-sandbox";
 import {
   createBackgroundRegistry,
+  createHookRunner,
   createIsolationProcessPort,
   detectProcessPlatform,
   type BackgroundRegistryController,
@@ -42,10 +44,13 @@ import {
 } from "@fresnel/platform-os";
 import { nodeScriptRefReader, readCarveOutsOf } from "../../src/assembly/script-env-host.ts";
 
-// 환경 모드(가져온 훅, AGE-58 원칙 가)의 실제 샌드박스 시험 도구. `createScriptRunner`(환경 모드 선언)를 실제 띄우기 포트와
-// 실제 샌드박스 서비스로 돌린다. 샌드박스의 `home`(OsDirs.home)은 임시 가짜 홈이다: 보호 경로(`~/.ssh`, `~/.claude`,
-// `~/Library/Keychains`)가 가짜 홈 아래에 있다. 실제 홈의 비밀은 만지지 않는다. 자식의 사용자 환경은 이 프로세스 환경의
-// 복사본이라 PATH의 버전 관리자 shim이 돈다(호출마다 `extraEnv`로 HOME 등을 바꿀 수 있다).
+// 환경 모드(가져온 훅, AGE-58 원칙 가)의 시험 도구. `createScriptRunner`(환경 모드 선언)를 돌린다.
+// 두 길이 있다(호출마다 `envSandboxed`로 고른다, 기본은 참):
+// - 참(옛 길, 기본): 실제 샌드박스 서비스와 띄우기 포트로 돈다. 샌드박스의 `home`(OsDirs.home)은 임시 가짜 홈이다: 보호 경로
+//   (`~/.ssh`, `~/.claude`, `~/Library/Keychains`)가 가짜 홈 아래에 있다. 자식의 사용자 환경은 이 프로세스 환경의 복사본이라
+//   PATH의 버전 관리자 shim이 돈다(호출마다 `extraEnv`로 HOME 등을 바꿀 수 있다).
+// - 거짓(기본 길, 사용자 권한·샌드박스 없음): 실제 `createHookRunner`로 돈다. 자식의 HOME은 항상 임시 가짜 홈이다(실제 홈을
+//   넘기지 않는다). 사용자 환경은 `userEnv`로 준 값만 쓴다.
 // 이 파일은 `script-box.ts`(좁은 모드)의 동작을 바꾸지 않는다. 같은 도구를 따로 연다.
 
 const DISK_TMP = "/tmp";
@@ -127,6 +132,13 @@ export interface EnvRunSpec {
   readonly sandboxAvailable?: () => boolean;
   /** 사용자 환경 복사본에 더하는 값(이 호출만 쓴다). 예: `HOME`을 가짜 홈으로 */
   readonly extraEnv?: Readonly<Record<string, string>>;
+  /** 옛 길(샌드박스 안)로 돌릴지. 기본은 참(`envSandboxed: () => true`). 거짓이면 기본 길(사용자 권한, 샌드박스 없음)로 돈다 */
+  readonly envSandboxed?: boolean;
+  /**
+   * 사용자 환경 전체. 주면 프로세스 환경 복사본과 `extraEnv`를 쓰지 않는다. 기본 길에서는 HOME이 가짜 홈으로 덮인다.
+   * 기본 길 시험이 실제 비밀 대신 가짜 값만 넣을 때 쓴다
+   */
+  readonly userEnv?: Readonly<Record<string, string>>;
 }
 
 export type EnvRunOutcome = Result<ScriptRunResult, ScriptRunFailure>;
@@ -151,6 +163,8 @@ export interface ScriptEnvBox {
   readonly service: SandboxServiceHandle;
   /** 띄우기 포트까지 간 호출 수(실행기가 막아서 띄우지 않은 호출은 세지 않는다) */
   readonly spawns: () => number;
+  /** 기본 길의 훅 실행 포트까지 간 호출 수(막혀서 실행되지 않은 호출은 세지 않는다) */
+  readonly hookRuns: () => number;
   readonly run: (spec: EnvRunSpec) => Promise<EnvRunOutcome>;
   readonly close: () => Promise<void>;
 }
@@ -289,6 +303,21 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
       return port.spawn(spec);
     },
   };
+  // 기본 길의 실제 훅 실행기(샌드박스 없음). 시간 제한과 정리는 이 포트가 맡는다
+  const hookRunner = createHookRunner({
+    platform: platform.value,
+    scheduler,
+    graceMs: 100,
+    shutdownSignal: new AbortController().signal,
+    logger: LOGGER,
+  });
+  let hookCount = 0;
+  const hooks: HookProcessPort = {
+    run: (hookSpec) => {
+      hookCount += 1;
+      return hookRunner.run(hookSpec);
+    },
+  };
   const run = async (spec: EnvRunSpec): Promise<EnvRunOutcome> => {
     const shell = spec.shell ?? "sh";
     const file = `${spec.name}.cmd`;
@@ -301,8 +330,12 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
     };
     const grant = spec.grant ?? grantFor(project);
     const extra = spec.extraEnv ?? {};
+    const sandboxed = spec.envSandboxed ?? true;
     const runner = createScriptRunner({
       process: counted,
+      // 옛 길에서는 훅 포트를 주지 않는다(샌드박스 없는 길로 새지 않게). 기본 길에서만 준다
+      ...(sandboxed ? {} : { hookProcess: () => hooks }),
+      envSandboxed: () => sandboxed,
       fs: nodeFs,
       target: {
         extension: "demo",
@@ -318,7 +351,11 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
         const handle = scheduler.setTimeout(fn, ms);
         return () => scheduler.clearTimeout(handle);
       },
-      userEnv: async () => ({ ...processEnvCopy(), ...extra }),
+      userEnv: async () => {
+        const base = spec.userEnv ?? { ...processEnvCopy(), ...extra };
+        // 기본 길은 가짜 홈을 HOME으로 쓴다. 실제 홈이 훅에 넘어가지 않게 덮는다
+        return sandboxed ? base : { ...base, HOME: home };
+      },
       refs: nodeScriptRefReader,
       readCarveOutsFor: readCarveOutsOf(() => service.protectedPaths()),
       sandboxAvailable: spec.sandboxAvailable ?? (() => service.status().available),
@@ -339,6 +376,7 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
     secrets,
     service,
     spawns: () => spawnCount,
+    hookRuns: () => hookCount,
     run,
     close: async () => {
       await background.close({ graceMs: 100 });
