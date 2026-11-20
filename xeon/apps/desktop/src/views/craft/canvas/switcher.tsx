@@ -1,17 +1,17 @@
-// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸: `G3 │ G2 F G H │ A B C D E │ –`.
-// 넷째 판 G3가 맨 앞에, 셋째 판 G2와 둘째 판 F·G·H가 한 칸에 또렷하게 서고, 첫 판 A~E는 비교용으로 흐리게 뒤에 선다.
-// 키보드 1은 G3, 2는 G2, 3~5는 F·G·H, 6~9는 A~D, 0은 지금 화면.
-// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 앞 판의 키와 따로 두어 넷째 판 빌드는 G3로 처음 연다.
+// 시안 전환기(AGE-31, 개발 빌드만). 창 왼쪽 아래(왼쪽 판의 설정 줄 옆)의 작은 칸: `G4 │ G3 G2 F G H │ A B C D E │ –`.
+// 다섯째 판 G4가 맨 앞에, 넷째 판 G3·셋째 판 G2와 둘째 판 F·G·H가 한 칸에 또렷하게 서고, 첫 판 A~E는 비교용으로 흐리게 뒤에 선다.
+// 키보드 1은 G4, 2는 G3, 3은 G2, 4~6은 F·G·H, 7~9는 A~C, 0은 지금 화면.
+// 고른 값은 localStorage에 남아 다시 열어도 그대로다(찍기 도구도 이 키를 미리 정한다). 앞 판의 키와 따로 두어 다섯째 판 빌드는 G4로 처음 연다.
 // 글자 입력 중에는 숫자 키를 가로채지 않는다.
 import { t } from "@fresnel/client/i18n";
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { CANVAS_DESIGNS } from "./registry.tsx";
 
-const KEY = "fresnel.craft.canvasDesign.round4";
+const KEY = "fresnel.craft.canvasDesign.round5";
 const CURRENT = "current";
 
-/** 고른 적이 없으면 첫 칸(넷째 판의 G3)으로 연다 */
+/** 고른 적이 없으면 첫 칸(다섯째 판의 G4)으로 연다 */
 function stored(): string {
   const value = localStorage.getItem(KEY);
   if (value !== null && (value === CURRENT || CANVAS_DESIGNS.some((d) => d.id === value)))
@@ -31,9 +31,9 @@ function typing(target: EventTarget | null): boolean {
   );
 }
 
-/** 전환기의 칸 묶음: 넷째 판, 셋째·둘째 판, 첫 판. 묶음이 바뀌는 자리에 세로선이 선다 */
+/** 전환기의 칸 묶음: 다섯째 판, 넷째·셋째·둘째 판, 첫 판. 묶음이 바뀌는 자리에 세로선이 선다 */
 function bandOf(round: number): number {
-  if (round >= 4) return 2;
+  if (round >= 5) return 2;
   return round >= 2 ? 1 : 0;
 }
 
