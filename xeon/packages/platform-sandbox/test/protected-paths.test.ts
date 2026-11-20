@@ -307,6 +307,121 @@ describe("matchProtectedPath decides by access", () => {
   });
 });
 
+describe("secret folders added to the default table (enPp)", () => {
+  const common = [
+    join(".gnupg", "private-keys-v1.d", "k"),
+    join(".password-store", "a.gpg"),
+    join(".azure", "accessTokens.json"),
+    join(".config", "op", "config"),
+    join(".cargo", "credentials.toml"),
+    join(".terraform.d", "credentials.tfrc.json"),
+  ];
+  const agents = [
+    join(".gemini", "oauth_creds.json"),
+    join(".cursor", "mcp.json"),
+    join(".local", "share", "opencode", "auth.json"),
+  ];
+  const mac = [
+    join("Library", "Keychains", "login.keychain-db"),
+    join("Library", "Application Support", "Google", "Chrome", "Default", "Cookies"),
+    join("Library", "Application Support", "Firefox", "Profiles", "p", "logins.json"),
+    join("Library", "Application Support", "Arc", "User Data", "Default", "History"),
+    join("Library", "Safari", "History.db"),
+  ];
+  const linux = [
+    join(".config", "google-chrome", "Default", "Login Data"),
+    join(".mozilla", "firefox", "p", "key4.db"),
+    join(".local", "share", "keyrings", "login.keyring"),
+    join(".config", "BraveSoftware", "Brave-Browser", "Default", "Cookies"),
+  ];
+
+  test("common rows deny read and write on every OS", () => {
+    const dirs = makeTestDirs();
+    for (const providerEntries of [
+      selectSandboxProvider(darwinPlatform()).defaultProtectedPaths(dirs),
+      selectSandboxProvider(linuxPlatform()).defaultProtectedPaths(dirs),
+    ]) {
+      const entries = build(dirs, { providerEntries });
+      for (const name of common) {
+        const hit = matchProtectedPath(entries, join(dirs.home, name), "read");
+        expect(hit?.reason).toBe("credentials");
+        expect(hit?.access).toBe("read_write");
+        expect(matchProtectedPath(entries, join(dirs.home, name), "write")?.reason).toBe(
+          "credentials",
+        );
+      }
+      for (const name of agents) {
+        expect(matchProtectedPath(entries, join(dirs.home, name), "read")?.reason).toBe(
+          "agent_credentials",
+        );
+      }
+    }
+  });
+
+  test("tools still read their plain config: only the credential file of cargo and terraform is denied", () => {
+    const dirs = makeTestDirs();
+    const entries = build(dirs);
+    for (const name of [
+      join(".cargo", "config.toml"),
+      join(".cargo", "bin", "rustc"),
+      join(".terraform.d", "plugins", "p"),
+      ".gitconfig",
+    ]) {
+      expect(matchProtectedPath(entries, join(dirs.home, name), "read")).toBeUndefined();
+    }
+  });
+
+  test("macOS rows come from the darwin provider, Linux rows from the linux provider", () => {
+    const dirs = makeTestDirs();
+    const onDarwin = build(dirs, {
+      providerEntries: selectSandboxProvider(darwinPlatform()).defaultProtectedPaths(dirs),
+    });
+    const onLinux = build(dirs, {
+      providerEntries: selectSandboxProvider(linuxPlatform()).defaultProtectedPaths(dirs),
+    });
+    for (const name of mac) {
+      expect(matchProtectedPath(onDarwin, join(dirs.home, name), "read")?.reason).toBe(
+        "credentials",
+      );
+      expect(matchProtectedPath(onLinux, join(dirs.home, name), "read")).toBeUndefined();
+    }
+    for (const name of linux) {
+      expect(matchProtectedPath(onLinux, join(dirs.home, name), "read")?.reason).toBe(
+        "credentials",
+      );
+      expect(matchProtectedPath(onDarwin, join(dirs.home, name), "read")).toBeUndefined();
+    }
+    // 시스템 키체인은 홈 밖 절대 경로다
+    expect(matchProtectedPath(onDarwin, "/Library/Keychains/System.keychain", "read")?.reason).toBe(
+      "credentials",
+    );
+    expect(
+      matchProtectedPath(onLinux, "/Library/Keychains/System.keychain", "read"),
+    ).toBeUndefined();
+  });
+
+  test("credentialFiles=allow does not open any of the added rows", () => {
+    const dirs = makeTestDirs();
+    const entries = build(dirs, {
+      credentialReadAllowed: true,
+      providerEntries: selectSandboxProvider(darwinPlatform()).defaultProtectedPaths(dirs),
+    });
+    for (const name of [...common, ...agents, ...mac]) {
+      expect(matchProtectedPath(entries, join(dirs.home, name), "read")).toBeDefined();
+    }
+  });
+
+  test("protectedPaths.extra still adds on top of the larger default table", () => {
+    const dirs = makeTestDirs();
+    const extra = join(dirs.home, "vault");
+    const entries = build(dirs, { extraPaths: [extra] });
+    expect(matchProtectedPath(entries, join(extra, "x"), "read")?.reason).toBe("user_extra");
+    expect(matchProtectedPath(entries, join(dirs.home, ".gnupg", "x"), "read")?.reason).toBe(
+      "credentials",
+    );
+  });
+});
+
 describe("credential file reads (M3-REQ-55)", () => {
   const readable = [
     ".npmrc",

@@ -13,6 +13,7 @@ import { err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type {
+  IsolationSpawnSpec,
   LoaderFs,
   ManifestScriptDecl,
   ScriptDraftGate,
@@ -21,6 +22,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { BinaryError, BinaryName, OsDirs, ResolvedBinary } from "@fresnel/contracts/services";
 import { createScriptRunner } from "@fresnel/ext-host";
+import { scriptRunnersOnPath } from "../../src/assembly/plugin-host.ts";
 import {
   createSandboxService,
   readSandboxSettings,
@@ -34,6 +36,7 @@ import {
 } from "@fresnel/platform-process";
 import {
   createLocalIdFactory,
+  readOsRuntime,
   systemClock,
   systemRandom,
   systemScheduler,
@@ -98,6 +101,10 @@ interface RunSpec {
   readonly args?: readonly string[];
   readonly stdin?: string;
   readonly timeoutMs?: number;
+  /**
+   * `false`면 실행기가 켠 시스템 도구 읽기(`systemTools`)를 떼고 띄운다. 넓히기 전의 경계를 같은 시험으로 다시 보는 대조용이다. 기본은 실행기가 정한 대로(켬)다
+   */
+  readonly systemTools?: boolean;
   /** 있으면 초안(검토 전)으로 돌린다: 승인 문을 걸고 호출한 대화를 붙인다 */
   readonly draft?: { readonly gate: ScriptDraftGate };
 }
@@ -134,6 +141,8 @@ async function createService(
 
 export async function openScriptBox(options?: {
   readonly resolve?: (name: ScriptRunner) => string | undefined;
+  /** `python3`를 찾을 PATH. 기본은 이 프로세스의 PATH다(shim, Homebrew, 개발자 도구 껍데기를 따로 시험할 때 쓴다) */
+  readonly pythonPath?: string;
 }): Promise<ScriptBox> {
   const root = realpathSync(mkdtempSync(join(DISK_TMP, "fresnel-script-box-")));
   const dirs: OsDirs = {
@@ -183,6 +192,11 @@ export async function openScriptBox(options?: {
     logger: LOGGER,
   });
   const paths = runnerPaths();
+  // `python3`는 운영과 같은 해석기로 푼다(실제 인터프리터와 설치 폴더 읽기 경로)
+  const pythons = scriptRunnersOnPath(
+    { PATH: options?.pythonPath ?? process.env["PATH"] },
+    readOsRuntime().runSync,
+  );
   const resolve =
     options?.resolve ??
     ((name: ScriptRunner) =>
@@ -192,12 +206,14 @@ export async function openScriptBox(options?: {
           ? paths.bash
           : name === "bun"
             ? paths.bun
-            : undefined);
+            : name === "python3"
+              ? pythons.runner("python3")
+              : undefined);
   let counter = 0;
   const run = async (spec: RunSpec): Promise<ScriptRunResult | string> => {
     counter += 1;
     const name = `s${counter}`;
-    const file = `${name}.${spec.runner === "bun" ? "ts" : "sh"}`;
+    const file = `${name}.${spec.runner === "bun" ? "ts" : spec.runner === "node" ? "mjs" : spec.runner === "python3" ? "py" : "sh"}`;
     writeFileSync(join(tree, file), spec.body);
     const scripts: ManifestScriptDecl[] = [
       {
@@ -208,11 +224,21 @@ export async function openScriptBox(options?: {
         ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
       },
     ];
+    const process =
+      spec.systemTools === false
+        ? {
+            spawn: (request: IsolationSpawnSpec) => {
+              const { systemTools: _dropped, ...narrowed } = request;
+              return port.spawn(narrowed);
+            },
+          }
+        : port;
     const runner = createScriptRunner({
-      process: port,
+      process,
       fs: nodeFs,
       target: { extension: "demo", scripts, tree, approved: spec.draft === undefined },
       resolveRunner: resolve,
+      runnerReadRoots: pythons.readRoots,
       allowedEnv: {},
       ...(spec.draft === undefined ? {} : { draftGate: spec.draft.gate }),
       setTimer: (ms, fn) => {

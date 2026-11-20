@@ -142,7 +142,7 @@ interface KindEntry {
   readonly status: "stable" | "preview" | "blocked" | "deprecated";
   readonly since: string;                      // 카탈로그 버전
   readonly requires: { readonly contracts: string; readonly bridge?: string; readonly widgets?: string };  // SemVer 범위
-  readonly template?: string;                  // 템플릿 폴더(플러그인 하나는 plugin-builder/templates/single-plugin)
+  readonly template?: string;                  // 템플릿 폴더(플러그인 하나는 core-authoring/templates/single-plugin)
   readonly checks: readonly string[];          // AU-NNN 목록
   readonly decisions: readonly string[];       // 에이전트가 정해야 할 것(예 "views.mode", "drives")
   readonly security: readonly string[];        // 보안 메모 키(예 "frame.reason", "trust.project.noFrame")
@@ -156,7 +156,7 @@ M4 첫 카탈로그 [제안]:
 
 | 종류 id | 층 | 상태 | 템플릿 | 비고 |
 |---|---|---|---|---|
-| `single-plugin` | L1, L2, L3, plugin | stable | `plugin-builder/templates/single-plugin` | 플러그인 하나. 층은 고른다 |
+| `single-plugin` | L1, L2, L3, plugin | stable | `core-authoring/templates/single-plugin` | 플러그인 하나. 층은 고른다 |
 | `view.declarative` | 화면 | stable | 화면 트리 뼈대 | 다른 종류에 덧붙는 종류 |
 | `view.frame` | 화면 | preview | 프레임 폴더 뼈대, 다리 래퍼 | ADR-0021 §6 미결 1 확인 전에는 blocked |
 | `plugin.l2-provider` | L2 | preview | provider 뼈대 | 기능 계약(`F.capabilities.spec`)의 provider 등록 |

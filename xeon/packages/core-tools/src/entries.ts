@@ -34,6 +34,7 @@ import {
   answerMcpInput,
   type InputBridge,
 } from "./mcp-input.ts";
+import { SCRIPT_RUN_RULE_PREFIX } from "@fresnel/contracts/services";
 import { pluginNameOf } from "./plugin-call.ts";
 import { deriveRisk } from "./policy/modes.ts";
 import type { LockDecl, RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
@@ -351,15 +352,18 @@ const SCRIPT_CARD_SCHEMA = Type.Object({
   envNames: Type.Array(Type.String()),
   stdinBytes: Type.Integer({ minimum: 0 }),
   stdinPreview: Type.String(),
+  uses: Type.Array(Type.String()),
 });
 
 /**
  * 초안 스크립트 실행의 합성 항목(AGE-58 [제안]). 레지스트리에 넣지 않고 모델에는 광고하지 않는다. 위험 등급은 가장 엄한 `exec`이고,
- * 실행은 호출자가 준 `run`이다(엔진이 샌드박스 안에서 스크립트를 띄운다). 드래프트 `auto`에도 카드를 건너뛰지 않는다(`alwaysCard`)
+ * 실행은 호출자가 준 `run`이다(엔진이 샌드박스 안에서 스크립트를 띄운다). 드래프트 `auto`인 테스트 런에서는 카드가 없고,
+ * 그 밖의 테스트 런에서는 `memoryKey`마다 처음 한 번만 묻는다(`scriptRuleId`, [결정: 2026-11-19, 사용자, AGE-58])
  */
 export function scriptEntryOf(
   name: string,
   run: (signal: AbortSignal) => Promise<{ readonly ok: boolean; readonly value: JsonValue }>,
+  memoryKey?: string,
 ): ToolEntry {
   const toolName = `${SCRIPT_TOOL_PREFIX}${name}`;
   const description = "Run a script of an unreviewed plugin draft inside the isolation sandbox.";
@@ -393,7 +397,7 @@ export function scriptEntryOf(
       };
     },
     locks: undefined,
-    alwaysCard: true,
+    ...(memoryKey === undefined ? {} : { scriptRuleId: `${SCRIPT_RUN_RULE_PREFIX}${memoryKey}` }),
   };
 }
 

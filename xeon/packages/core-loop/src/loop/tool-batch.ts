@@ -276,7 +276,7 @@ export async function runToolBatch(
   } else {
     // 호출 중 하나라도 도구 executionMode가 "sequential"이면 배치 전체를 순차로 돈다(원본 executeToolCalls)
     const sequential = pending.some(
-      (call) => ctx.tools.meta(call.name)?.executionMode === "sequential",
+      (call) => ctx.tools.meta(call.name, run.threadId)?.executionMode === "sequential",
     );
     live = sequential
       ? await runSequential(run, input.assistant, pending, toolRun)

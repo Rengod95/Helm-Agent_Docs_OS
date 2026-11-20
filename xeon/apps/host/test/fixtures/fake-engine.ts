@@ -490,6 +490,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         commit([{ kind: "thread.updated", threadId, payload: { profileId } }]);
         return ok({ position: position() });
       },
+      switchStartDrive: () => Promise.resolve(ok("none")),
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
       hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
       title: (threadId) => ok(titles.get(threadId) ?? null),
@@ -749,6 +750,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           resolve: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
         },
         refresh: () => Promise.resolve(),
+        readable: () => true,
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
         restoreOverlay: () => Promise.resolve(),

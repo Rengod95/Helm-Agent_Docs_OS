@@ -439,7 +439,59 @@ test("a script that exits with 2 returns its code, stdout and stderr as values, 
     command: "/bin/sh",
     args: [join(tree, "check.sh"), "--strict"],
     readRoot: tree,
+    // 스크립트 실행기만 시스템 도구 읽기·실행을 켠다(AGE-58)
+    systemTools: true,
     env: { PATH: "/usr/bin" },
+    label: "script:demo:check",
+  });
+});
+
+test("a python3 script opens its install folders for reading only, never writes bytecode, and the card lists that environment name", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "" });
+  const runner = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [
+      { name: "report", runner: "python3", file: "check.sh", envNames: ["PATH"] },
+    ]),
+    resolveRunner: (name) => (name === "python3" ? "/opt/py/bin/python3" : undefined),
+    runnerReadRoots: (name, command) =>
+      name === "python3" && command === "/opt/py/bin/python3" ? ["/opt/py"] : [],
+    allowedEnv: { PATH: "/usr/bin" },
+    setTimer: manualTimers().setTimer,
+  });
+  await runner.run({ registration: "demo", name: "report", stdin: "", replay: false });
+  expect(launched[0]?.spec).toEqual({
+    command: "/opt/py/bin/python3",
+    args: [join(tree, "check.sh")],
+    readRoot: tree,
+    runtimeReadRoots: ["/opt/py"],
+    systemTools: true,
+    env: { PATH: "/usr/bin", PYTHONDONTWRITEBYTECODE: "1" },
+    label: "script:demo:report",
+  });
+});
+
+test("a runner without read roots (sh) gets no runtimeReadRoots even when the resolver is present", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "" });
+  const runner = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [{ name: "check", runner: "sh", file: "check.sh" }]),
+    resolveRunner: SH_RESOLVER,
+    runnerReadRoots: () => [],
+    allowedEnv: {},
+    setTimer: manualTimers().setTimer,
+  });
+  await runner.run({ registration: "demo", name: "check", stdin: "", replay: false });
+  expect(launched[0]?.spec).toEqual({
+    command: "/bin/sh",
+    args: [join(tree, "check.sh")],
+    readRoot: tree,
+    systemTools: true,
+    env: {},
     label: "script:demo:check",
   });
 });
@@ -754,6 +806,7 @@ test("a draft script with a gate and a thread opens the card first: the card sho
         envNames: ["MARKER"],
         stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
         stdinPreview: "token [masked] é",
+        uses: ["system_tools", "network"],
       },
     },
   ]);

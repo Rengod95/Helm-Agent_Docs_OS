@@ -284,7 +284,7 @@ export interface LoadOptions {
    */
   readonly projects?: "cwd" | "on_demand";
   /**
-   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다.
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다(다른 프로젝트의 같은 이름 승인본이 실리지 않는다. 구분 키는 `프로젝트/이름` 문자열이 아니라 `projectId` 칸이다).
    * 없으면 시작 때 프로젝트 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다(호스트의 `projectIdOf`)
    */
   readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
@@ -309,7 +309,7 @@ export interface LoadProjectOptions {
   /** 호출자가 이미 정한 판정(저장하지 않는다) */
   readonly trustOverride?: boolean;
   /**
-   * 이 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 이 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
    * 없으면 프로젝트 검토본을 하나도 싣지 않는다
    */
   readonly projectId?: string;
@@ -567,7 +567,7 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 
 | 모듈 | 내용 |
 |---|---|
-| `isolation/framing.ts` | 줄 단위 프레임 읽기·쓰기. 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값 |
+| `isolation/framing.ts`(`frame-line.ts`, `framing-types.ts`, `transfer-read.ts`, `transfer-write.ts`) | 줄 단위 프레임 읽기·쓰기와 큰 줄의 조각 전송(§4.9.3). 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값. 옵션을 주면 조각으로 보낸다 |
 | `isolation/child-runtime.ts`, `child-api.ts`, `params.ts` | 호스트 프로세스 안의 실행기 `runPluginHost`. 엔트리를 import하고 `g`와 `hostOf(g)`의 얇은 대리 객체를 만든다. 요청마다 실려 온 상태·설정 스냅샷을 즉시 읽기(`g.state()`, `settingValue`)에 쓴다 |
 | `isolation/supervisor.ts` | 엔진 쪽 프로세스 관리: 처음 불릴 때 띄우기, 한동안 안 불리면 내리기(`idleMs`), 시간 초과 때 프로세스 종료(`process_killed`), 비정상 종료(`process_exit`)와 재시작 한도, 표준오류 수집 |
 | `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability`, `runScript` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
@@ -586,7 +586,7 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 
 1. 선언: 매니페스트 `scripts`에 이름이 있어야 한다. 없으면 `script_not_declared`.
 2. 위치: 파일 이름이 절대 경로, `..`, 백슬래시, NUL이면 `script_outside_tree`. 실제 위치(심볼릭 링크를 푼 것)가 확장 폴더 밖이면 `script_outside_tree`. 찾지 못하거나 일반 파일이 아니면(폴더 포함) `script_missing`. 파일 시스템 오류도 찾지 못한 것으로 본다.
-3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 호출마다 승인 카드를 거쳐 뜬다. 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). [결정: 2026-11-19, 사용자, AGE-58 (3)]
+3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 승인 카드를 거쳐 뜬다(드래프트 승인 `auto`인 테스트 런은 카드 없음, 그 밖에는 스크립트마다 처음 한 번만 묻고 같은 초안 내용의 같은 스크립트는 그 테스트 런 동안 다시 묻지 않는다. `[결정: 2026-11-19, 사용자, AGE-58]`, L1.tools §4.6.1 6c). 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 카드는 `uses`(`system_tools`: `/bin`, `/usr/bin`의 도구를 읽고 실행, `network`: 격리 플러그인과 같은 네트워크)도 싣는다: 승인하면 이 스크립트가 시스템 도구와 네트워크를 쓸 수 있다는 것이 카드에서 읽힌다. 쓰기와 폴더 밖 데이터 읽기는 목록에 없고 막혀 있다 [제안, AGE-58]. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). 스크립트 실행기가 도는 샌드박스는 도구를 막아도 네이티브 호출로 열리는 길(다른 프로세스 정보, IOKit 속성, 전원 관리, 배포 알림, LaunchServices 데이터베이스)을 프로필에서 닫았고, `launchd` 직접 통신은 막을 수 없어 열려 있다(L0.sandbox §4.9, 미결 13). 카드의 "코드 실행" 안내가 이 열림을 사용자에게 알리는 자리다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가": 이 길은 지금대로 두고 카드 안내와 승인에 기댄다. 더 강한 격리는 후속 이슈]. 검토 카드의 스크립트 줄(`CardScript.uses`)도 같은 `uses`를 싣는다. 실행기 `python3`는 PATH의 shim을 푼 실제 인터프리터의 설치 폴더를 읽기로 열어(`ScriptRunnerDeps.runnerReadRoots`, `IsolationSpawnSpec.runtimeReadRoots`) 돌고, 스크립트 환경에 `PYTHONDONTWRITEBYTECODE=1`을 준다(L0.sandbox §4.9). 가져온 훅 플러그인의 끝까지 시험(훑기 → 적용 → 승인 → 격리 자식의 실제 훅 → 막기·통과, 256 KiB 초과 입력은 묻기 카드)은 `apps/host/test/int/migration-hook-run.int.test.ts`다. [결정: 2026-11-19, 사용자, AGE-58 (3)]
 4. 돌려 보기: `replay`면 띄우지 않고 `replay_mode_denied`다. 후보 실행기(`candidate-runner.ts`)도 같은 값으로 거부한다.
 5. 실행기 이름: 조립 루트가 준 `runner(name)`이 절대 경로를 돌려야 한다. 없으면 `spawn_failed`(`code: runner_unavailable`).
 6. 띄우기: `IsolationProcessPort.spawn`이 전부다. 명령은 실행기 절대 경로, 인자는 `[검사를 통과한 실제 파일, ...args]`, `readRoot`는 확장 폴더, 라벨은 `script:<확장>:<스크립트>`다. 환경은 선언된 `envNames` 가운데 허용 값이 있고 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리지 않는 것뿐이다. 샌드박스 프로필을 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일). 샌드박스를 쓸 수 없으면 `sandbox_unavailable`이고 격리 없이 띄우지 않는다.
@@ -595,6 +595,16 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 9. 기한: `timeoutMs`(생략하면 10초, 상한 60초)가 지나면 프로세스 트리를 `SIGKILL`로 죽이고 `timedOut: true`, `exitCode: null`, `signal: "SIGKILL"`로 답한다.
 10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
 11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
+
+**환경 모드 [결정: 2026-11-20, 사용자, AGE-58 원칙 가("가져온 스크립트는 원래 돌던 환경에서 돈다"); 아래 세부는 [제안]].** 선언에 `env`(F.extensions §3.1)가 있는 스크립트는 위 1~11 대신 다음 순서로 돈다. 구현은 `script-runner.ts`의 `runEnv`다.
+
+1. **자격(가장 중요한 안전 조건).** `ScriptTarget.envGrant.granted`가 참이고 검토된 버전(초안 아님)일 때만 돈다. `envGrant`는 로더가 `ExtensionCandidate.importedScripts`(검토본 후보만 가진다)에서 만들고, 그 값은 호스트가 승인한 검토본의 기록(`meta.json`의 `importedScripts`, 승인한 검토 항목의 출처가 `migration`일 때만 `review.ts`가 쓴다)에서만 온다. 매니페스트의 `env`는 권한이 아니다. 초안, 사용자 폴더 플러그인, 빌더가 만든 플러그인, 손으로 만든 선언은 `script_env_not_granted`이고 좁은 모드로 바꿔 돌지 않는다(초안은 승인 문도 열지 않는다). 프로젝트 폴더가 정해지지 않아도(`ScriptRunnerDeps.projectDirOf(threadId)`가 대화의 프로젝트 루트, 없으면 대화 폴더를 준다. `envGrant.projectDir`가 대체값) 같은 실패다.
+2. 동반 파일(`file`)이 플러그인 폴더 안의 일반 파일이어야 한다(위치 검사 3~4번). 돌려 보기는 `replay_mode_denied`, 격리 불가는 `sandbox_unavailable`이다.
+3. **지문 확인.** `refs`의 지문이 있는 파일마다 실행 직전에 본다. 없으면 `script_ref_changed(missing)`, 읽지 못하면 `unreadable`, 지문이 다르면 `changed`이고 스크립트는 돌지 않는다. 가져올 때 지문을 못 낸(null) 참조는 지금 파일이 있어도 같은 파일인지 확인할 수 없으므로 닫힌 실패(`unreadable`)이고, 없으면 `missing`이다. 훅은 도구 호출마다 돌므로 비용을 줄인다: 파일마다 크기와 수정 시각을 먼저 `stat`하고, 지난번에 같은 지문으로 확인한 파일과 크기·수정 시각·기대 지문이 모두 같으면 내용을 다시 읽지 않는다(호출당 `stat` 한 번, 바뀐 파일만 한 번 해시). 확인과 띄우기 사이의 틈은 막지 못한다(확인 직후에 파일이 바뀌면 그 호출은 바뀐 파일로 돈다). 명령 문자열 자체가 원래 하네스의 설정에서 바뀐 경우는 이 확인이 보지 못한다: 가져오기를 다시 해야 반영된다.
+4. **환경.** `ScriptRunnerDeps.userEnv()`의 사용자 환경에서 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름과 잘못된 이름을 한 번 더 빼고, `CLAUDE_PROJECT_DIR`를 프로젝트 폴더로 채운다. 선언의 `envNames`와 `BASE_ENV_POLICY`는 쓰지 않는다. 호스트의 `userEnv`는 사용자의 로그인 셸을 한 번 띄워 환경을 읽는다(L4.host-service: `user-env.ts`; 시간 제한 5초, 10분 캐시, 실패하면 엔진 프로세스의 환경, 값은 기록하지 않고 변수 개수와 PATH 항목 개수만 기록한다).
+5. **띄우기.** `<shell> -c "<command>"`(`shell`은 `sh` 또는 `bash`, 실행 파일은 `runner(shell)` 아니면 `/bin/<shell>`), 작업 폴더와 `readRoot`는 프로젝트 폴더, `IsolationSpawnSpec.scriptEnv = {projectDir, readCarveOuts}`로 L0.sandbox "스크립트 환경 프로필"을 쓴다. `readCarveOuts`는 보호 경로 안에 있는 참조 파일의 읽기 예외다(`readCarveOutsOf`: 보호 경로의 하위 폴더에 있으면 그 폴더, 보호 경로 바로 아래면 그 파일 하나). 카드와 `ScriptCard.uses`는 `SCRIPT_ENV_USES`다.
+6. **종료 코드와 기록.** 종료 코드의 뜻(0 통과, 2 막기와 표준 오류가 사유, 시간 제한)은 기존 훅 계약대로다. 막지 않는 오류(2가 아닌 비정상 종료, 기한, 신호)는 진행하되 `script.env_failed` 경고로 표준 오류 끝 512자(가림 규칙을 지난 값)와 종료 코드를 로그에 남긴다. 값은 남기지 않는다. 턴 기록의 Hook 행에는 실패 사유를 실을 칸이 없어(`TraceHandlerEntry.reason`은 핸들러가 던진 이유의 닫힌 목록) 새 저장 기록 종류를 만들지 않고 [미결]로 남긴다.
+7. **훅을 돌릴 수 없을 때**: 실행 파일 없음(127), 실행 불가(126), 띄우기 실패, 지문 불일치, 샌드박스 불가는 `outcomeOf`가 "통과"가 아니라 `unrunnable`로 바꾸고 `tool.call.before`는 묻기(`ask`, 사유 "훅을 돌릴 수 없어요: …. 계속할까요?")로 답한다(`adapter-hooks@5`, migration.md §4.3.5). 결정을 내지 않는 자리는 진행한다(`tool.result`는 결과 뒤에 사유를 붙인다).
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
@@ -1322,9 +1332,9 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다).
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘는 줄은 두 쪽이 조각 칸(`transfer`)을 주고받아 협상했을 때만 조각 전송(`frame.begin`과 `frame.part`, 아래 단락)으로 보낸다. 협상이 안 된 쪽으로 넘는 줄은 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기(블롭 참조를 넘기고 조각을 따로 읽는 길)는 하지 않는다. 조각은 통신 층이 나누고 합치므로 플러그인 API, `GroupApi`, `RegistrationApi`, 매니페스트는 바뀌지 않는다.
 
-**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 한 줄 상한에서 뼈대 몫 64 KiB를 뺀 값(`ISOLATED_DRIVE_INPUT_MAX_BYTES`, 16 MiB - 64 KiB) 안인지 **기록하기 전에** 본다 [제안: 뼈대 몫 64 KiB]. 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
+**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 그 등록의 입력 상한을 **기록하기 전에** 본다. 상한은 협상된 엔진 → 자식 조각 상한(엔진 값 `l0.store.maxBlobBytes`와 자식 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`, 128 MiB, 가운데 작은 값)에서 뼈대 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫 64 KiB]. 협상이 안 된 격리 등록(조각 칸이 없는 자식, 엔진 값이 없는 조립)은 옛 값 16 MiB − 64 KiB(`ISOLATED_DRIVE_INPUT_MAX_BYTES`)를 쓴다. 표의 "16 MiB를 넘으면"은 협상되지 않은 쪽의 동작이고, 협상된 쪽에서는 같은 자리의 협상된 상한을 넘을 때 같은 규칙이다. 등록마다 상한을 읽는 함수는 `markIsolatedStep`이 단계 함수에 단다(`isolation/mark.ts`). 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 
 | 길 | 싣는 값 | 16 MiB를 넘으면 |
 |---|---|---|
@@ -1335,9 +1345,64 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
 
-[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않고, 위 규칙대로 받는 시점에 거절한다(`test/isolation/isolated-drive.test.ts`).
+조각 전송으로 격리 플러그인은 협상된 상한 안의 큰 입력을 받는다. 블롭 참조를 넘기고 `blob.read`로 조각을 받는 길(플러그인 API의 변화)은 여전히 없다. 협상이 안 된 격리 등록에는 16 MiB − 64 KiB가 닿고, 넘는 입력은 기록하기 전에 거절한다(`test/isolation/isolated-drive.test.ts`). 협상된 상한의 시험은 `test/isolation/transfer-drive.test.ts`다.
+
+**큰 줄의 조각 전송(프레이밍) [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8].** 쓰는 쪽은 `createFrameWriter`에 `transfer.maxBytes`를 주면 상한을 넘고 그 안인 줄을 시작 알림 `frame.begin`과 조각 알림 `frame.part`로 나눠 보낸다(모양은 `F.extensions.spec` 부록). 한 방향에서 큰 줄은 들어온 순서대로(FIFO) 한 번에 하나씩 나가고, 그 사이에 쓴 작은 줄도 뒤에서 기다린다. 조각을 하나 쓴 뒤에는 `drained()`를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 프레임의 전송을 접고 `transfer_stalled`를 알린다. `write`는 줄 세운 프레임에도 `ok`를 돌려주므로, 나중에 나가지 못한 프레임은 `onTransferFailed`로 알린다. `abort`는 프로세스가 죽었을 때 나가지 못한 프레임을 모두 알린다.
+
+받는 쪽은 `createFrameReader`에 `maxTransferBytes`를 주면 시작 알림마다 한 전송만 모아 합치고, 합친 줄을 한 프레임으로 낸다. 조각 알림은 결과로 나오지 않는다. 옵션이 없으면 시작 알림은 `disabled`로 실패한다. 실패는 `transfer_failed` 값 하나이고, `reason`은 다음 가운데 하나다.
+
+| 이유 | 뜻 |
+|---|---|
+| `disabled` | 받는 쪽이 조각 전송을 켜지 않았다 |
+| `too_large` | 시작 알림의 `size`가 받을 수 있는 크기를 넘는다. 조각을 모으기 전에 버린다 |
+| `busy` | 받는 중인 전송이 있는데 새 시작 알림이 왔다. 받던 것과 새 것을 모두 버린다 |
+| `order` | 전송 번호나 순번이 어긋났다. 조각이 빠지거나 두 번 오거나 시작 없이 오거나, 전송 가운데 조각이 아닌 줄이 왔다 |
+| `size` | 조각의 UTF-8 바이트 합이 `size`와 다르다. 넘는 순간 버린다 |
+| `hash` | 합친 줄의 `sha256`이 다르다 |
+| `truncated` | 전송 중에 입력이 끝났다 |
+
+`frameId`는 시작 알림이 가진 값만 싣는다(`busy`는 새 시작 알림의 값이다). 실패 뒤 그 전송의 남은 조각은 다음 정상 줄이 올 때까지 조용히 버리므로, 실패 하나에 값 하나가 난다. 합친 줄이 JSON이 아니면 `parse_json`, 프레임 모양이 아니거나 조각 알림 메서드를 가지면 `invalid_frame` 값이다. 오류 값에는 줄 글과 해시를 싣지 않는다.
 
 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
+
+**조각 전송의 협상과 상한 [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8.2·§8.4].** 엔진은 띄울 때마다 설정 `l0.store.maxBlobBytes`를 읽는다(맡기기 입력 상한과 같은 값, live). 절대 최대 `PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES`(1 GiB)로 자르고 `host.init` 요청의 `transfer: {maxBytes}`로 알리며, 자식 읽기의 상한으로도 쓴다. 자식은 자기 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`(128 MiB)를 응답의 `transfer`로 알린다. 엔진 → 자식의 조각 상한은 둘 가운데 작은 값이다. 응답에 칸이 없으면(옛 자식) 조각을 끈다. 자식 → 엔진 방향은 자식이 엔진의 값과 자기 상한 가운데 작은 값으로 나눈다. 엔진의 받는 쪽 상한은 엔진이 알린 값이다.
+
+| 경우 | 호출의 결과 | 프로세스 |
+|---|---|---|
+| 답(또는 자식의 요청)의 조각이 어긋남: `order`, `size`, `hash`, `busy`, `too_large`, `disabled`, `invalid_frame` | 엔진이 기다리던 요청은 `invalid_response`(메시지에 이유를 싣는다). 자식의 `engine.call`이 깨졌으면 엔진은 `invalid_params` 오류로 답하고, 자식은 `engine.call`을 그 오류로 끝낸다 | 산다 |
+| 같은 실패인데 프레임 `id`가 없다(알림) | 기록만 남긴다(`plugin_host.transfer_failed`, 이유만) | 산다 |
+| 전송 중에 입력이 끝났다(`truncated`) | 답을 기다리던 요청은 `process_exit`(프로세스가 답을 다 쓰기 전에 끝났다) | 끝났다(죽음으로 센다) |
+| 보내는 쪽의 쓰기가 끊겼다(프로세스가 죽었다) | 기다리던 요청은 `process_exit`. 보내던 전송은 멈춘다 | 끝났다 |
+| 받는 쪽이 비우지 않는다: 조각 하나를 쓴 뒤 `transferStallMs`(기본 `PLUGIN_HOST_TRANSFER_STALL_MS`, 30 s) 안에 비워지지 않는다 | 요청은 `process_killed`(메시지에 멈춤을 적는다), 함께 떠 있던 것은 `process_exit` | 멈춘다(SIGTERM, 유예 뒤 SIGKILL). 죽음으로 센다 |
+| 조각 상한을 넘는 줄 | 보내지 않고 `frame_too_large` | 산다 |
+| 큰 줄을 보내는 동안 | 그 요청의 시간 한도 시계는 멈춘다. 전송이 끝나면 남은 시간으로 이어 간다. 엔진이 답을 받는 동안(자식 → 엔진)의 시계는 멈추지 않는다 [미결] [근거: packages/ext-host/src/isolation/supervisor.ts `onFrame`, 읽는 쪽은 호출의 시계를 가리키지 않는다] | — |
+
+기록(`plugin_host.*`)에는 이유(`reason`)와 오류 종류만 싣는다. 조각의 글, 전체 글, 해시, 길이는 싣지 않는다(시험이 본다).
+
+**측정 (AGE-59, 맥, bun 1.4.3, 실제 자식 `bun apps/host/src/main.ts plugin-host --stdio`, 한 조합 한 번 측정이라 ±10~20 %).** 자식 유휴 RSS는 85~92 MiB, 엔진 유휴(측정 도구 제외)는 59~63 MiB다. 자식 최고 RSS는 보내기(값 → 자식, 단계가 값을 다이제스트로 읽는다)와 받기(자식 → 엔진, 같은 크기의 값)를 따로 잰다. 벽시계는 호출 시작부터 답까지이고, 괄호 안은 자식의 단계가 값을 본 시각까지다.
+
+| 크기 | 종류 | 자식 최고 RSS, 보내기 / 받기 (MiB) | 엔진 최고 RSS, 보내기 / 받기 (MiB) | 보내기 벽시계 (단계까지) ms | 받기 벽시계 ms |
+|---|---|---|---|---|---|
+| 20 MiB | ASCII | 216 / 263 | 188 / 168 | 120 (106) | 76 |
+| 20 MiB | 한글 | 211 / 258 | 130 / 125 | 109 (92) | 78 |
+| 20 MiB | 객체(1 KB 글 항목) | 204 / 239 | 177 / 131 | 113 (92) | 86 |
+| 100 MiB | ASCII | 656 / 836 | 554 / 459 | 506 (435) | 353 |
+| 100 MiB | 한글 | 579 / 709 | 303 / 204 | 441 (359) | 354 |
+| 100 MiB | 객체 | 773 / 812 | 455 / 404 | 499 (393) | 396 |
+| 128 MiB | ASCII | 807 / 863 | 695 / 551 | 638 (552) | 462 |
+| 128 MiB | 한글 | 709 / 813 | 376 / 367 | 737 (595) | 715 |
+| 128 MiB | 객체 | 903 / 946 | 392 / 326 | 654 (521) | 522 |
+| 256 MiB | ASCII | 1479 / 1826 | 1061 / 563 | 1270 (1099) | 906 |
+| 256 MiB | 한글 | 1299 / 1515 | 811 / 580 | 1113 (902) | 904 |
+| 256 MiB | 객체 | 1611 / 1652 | 1025 / 505 | 1304 (1023) | 1400 |
+| 512 MiB | ASCII | 2790 / 3505 | 1913 / 1140 | 2553 (2208) | 1831 |
+| 512 MiB | 한글 | 2591 / 3615 | 590 / 704 | 2235 (1816) | 1831 |
+
+- 100 MiB 행은 받는 쪽 조립의 `texts` 참조를 합친 뒤 놓는 줄임(`transfer-read.ts`)을 넣기 전에 잰 것이다. 그 줄임으로 받기만 한 최고 RSS는 358 → 352 MiB로 거의 줄지 않았다. 최고점은 파싱이 글 사본을 하나 더 만드는 순간이라 조각 참조를 놓는 것으로는 내려가지 않는다. 512 MiB의 객체 행은 시간 때문에 재지 않았다.
+- 자식 최고 RSS는 받는 쪽이 줄 크기의 약 2.6배, 보내는 쪽이 약 6~7.5배다(100 MiB 측정에서 보내는 쪽은 V8 글 사본과 줄 글이 겹친다). 엔진 쪽은 보내는 동안 최고 RSS가 측정 도구가 든 값보다 줄 크기의 1.1배쯤 늘었다(100 MiB ASCII: 448 → 554 MiB). 기준 1.5배 아래다.
+- 판단. 자식 최고 RSS 기준(512 MiB에서 2 GiB 이하, 아니면 256·128 MiB에서 1.5 GiB 이하)에 따라 512 MiB(최고 2.6~3.6 GiB)는 넘고 256 MiB(최고 1.3~1.8 GiB)도 받기 쪽이 넘는다. 그래서 자식 상한은 128 MiB(최고 0.7~0.95 GiB)다. 엔진 설정이 1 GiB여도 실제 상한은 자식 상한으로 줄어든다. 128 MiB 자식 상한이면 입력 상한은 128 MiB − 64 KiB다.
+- 측정 값은 `docs/xeon/X/loading-trust/spec.md`에만 싣는다(재현 도구는 저장소 밖이다).
+
 
 #### 4.9.4 격리 가능 훅
 
@@ -1361,7 +1426,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - 격리는 강제다. 설정 `ext.<이름>.isolation`, 매니페스트 `isolation`, 기본 규칙을 보지 않고 언제나 `process`다. 띄우기 포트와 띄우기 설정이 없으면 `isolation_unavailable`로 싣지 않는다. 엔진 안에서 도는 경로가 없다. 매니페스트에 `entry`가 없으면 띄울 코드가 없으므로 `draft_entry_missing`(단계 `isolation`)으로 거부한다.
 - 출처는 사용자 등급(`source: "user"`)이고 신뢰 상한은 §4.6을 따른다.
-- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
+- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자(`drf_` 접두를 뗀 ULID)의 소문자 영숫자 끝 여섯 글자 + `-` + 플러그인 이름. 앞쪽은 시간이라 같은 때 만든 판끼리 겹치므로 무작위인 끝을 쓴다 [구현 2026-11-20, enTr]. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
 - 판 식별자(`versionId`)는 `draft:<draftId>:<내용 해시 앞 8자>`다. 격리 라벨은 `ext:<내부 이름>:<versionId>`다.
 - `LoadedExtensionInfo`는 `isolation: "process"`이고 `name`은 내부 이름이며 `draft: { plugin, draftId }`를 더한다.
 - 로더는 싣기에 성공한 초안을 내부 이름 표로 든다(`loadDraftsOf()`, `draftOf(내부 이름)`). 초안은 이 표로만 구분하고 이름 모양으로 판단하지 않는다.
@@ -1424,6 +1489,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
+- [결정: 2026-11-18, 사용자, AGE-9] 격리 플러그인 프로세스 재시작 한도는 10분 안에 3회를 유지한다(`isolation.maxRestarts` 기본 3, `isolation.restartWindowSec` 기본 600). 코드의 기본도 같다(`isolation/supervisor.ts`의 `PLUGIN_HOST_RESTART_DEFAULTS`).
 - `x.loading-trust.*` 키는 작업 폴더 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
 - `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(작업 폴더의 개인 파일)도 작업 폴더가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 작업 폴더가 `local`로 다시 켤 수 없다.
 - [결정: 2026-11-12 dzX] 조립 루트(`apps/host`)는 재시작할 때 `x.ui.apps`, `x.ui.allowProjectApps`를 읽어 로더 `loadAll`의 `uiPolicy`로 싣는다(`apps/host/src/assembly/settings-sources.ts` `uiPolicyOf`, `apps/host/src/assembly/external.ts` `loadAllOptionsOf`). 불리언이 아닌 칸은 싣지 않아 로더 기본(앱 켬, 작업 폴더 앱 끔)을 쓴다. 작업 폴더 앱 끔이 보수적인 쪽이라 모르는 값도 그쪽으로 간다. 앱 정책 칸은 데스크톱 화면이 설정 값을 직접 읽어 항목을 가리는 일도 맡으므로, 화면과 엔진은 다음 시작까지 값이 어긋날 수 있다 [근거: `apps/desktop/src/plugin-ui/placements.ts`(화면 쪽 `appsAllowed`), `packages/ext-host/src/loading-trust/index.ts` `loadAll` `uiPolicy`].

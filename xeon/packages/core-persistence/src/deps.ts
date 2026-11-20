@@ -38,6 +38,8 @@ export interface SessionDeps {
   readonly readBlob?: StoreService["readBlob"];
   /** fresnel.store의 blob 쓰기. 큰 문자열 분리(detachLarge)에 쓴다. 없으면 상한을 넘는 envelope는 store.event_too_large다 */
   readonly putBlob?: StoreService["putBlob"];
+  /** fresnel.store의 조각 blob 쓰기. 있으면 큰 값을 조각으로 인코딩해 보내고, 없으면 `putBlob`에 값 전체를 준다 */
+  readonly putBlobStream?: StoreService["putBlobStream"];
   readonly clock: Clock;
   readonly ids: IdFactory;
   /** 구독자 예외 같은 운영 기록. 없으면 남기지 않는다 */

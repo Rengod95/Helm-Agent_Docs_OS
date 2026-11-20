@@ -51,6 +51,48 @@ export interface ScriptCard {
   readonly envNames: readonly string[];
   readonly stdinBytes: number;
   readonly stdinPreview: string;
+  /**
+   * 승인하면 이 스크립트가 쓸 수 있는 것(AGE-58 [제안], [결정: 2026-11-19, 사용자, AGE-58 "다 열어"]). `system_tools`는 `/bin`, `/usr/bin`의 도구(`grep`, `sed`, `git` 등)를 읽고 실행하는 것,
+   * `network`는 격리 플러그인과 같은 네트워크(전체 허용)다. 쓰기와 폴더 밖 데이터 읽기는 목록에 없고 여전히 막혀 있다
+   */
+  readonly uses: readonly ScriptUse[];
+}
+
+/** 스크립트 카드가 알리는 권한 */
+export type ScriptUse =
+  | "system_tools"
+  | "network"
+  /** 환경 모드: 사용자의 PATH와 환경 변수(시크릿 거부 목록 제외)로 돈다 [제안, AGE-58] */
+  | "user_environment"
+  /** 환경 모드: 보호 경로(시크릿 폴더)를 뺀 모든 파일을 읽는다 */
+  | "read_wide"
+  /** 환경 모드: 프로젝트 폴더와 훅 전용 임시 폴더에 쓴다. 홈과 그 밖은 쓰지 못한다 */
+  | "write_project";
+
+/**
+ * 스크립트 실행기가 띄운 자식이 쓸 수 있는 것 전부(`systemTools`와 격리 네트워크 결정, [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]).
+ * 승인 카드(초안 호출)와 검토 카드(`CardScript.uses`)가 같은 값을 싣는다: 스크립트는 코드이고, 승인하면 시스템 도구와 네트워크를 쓴다
+ */
+export const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
+
+/** 환경 모드 스크립트가 쓸 수 있는 것 전부 [결정: 2026-11-20, 사용자, AGE-58 원칙 가] */
+export const SCRIPT_ENV_USES: readonly ScriptUse[] = [
+  "user_environment",
+  "read_wide",
+  "write_project",
+  "network",
+];
+
+/**
+ * 환경 모드 선언을 받아들여도 되는가의 근거(AGE-58 [제안], 가장 중요한 안전 조건). 매니페스트의 `env` 선언은 권한이 아니다.
+ * 호스트가 검토본의 기록(승인한 검토 항목의 출처가 마이그레이션)에서만 `granted: true`를 만든다. 초안, 사용자 폴더, 빌더, 손으로 만든 플러그인은 `granted: false`다.
+ * `projectDir`은 작업 폴더와 쓰기 루트가 되는 프로젝트 폴더(절대 경로)이고, 없으면 환경 모드는 돌지 못한다
+ */
+export interface ScriptEnvGrant {
+  readonly granted: boolean;
+  readonly projectDir: string | null;
+  /** 프로젝트가 싣고 온 훅인가(카드의 "프로젝트에서 온 코드" 표시) */
+  readonly fromProject: boolean;
 }
 
 /** 표준 입력 미리보기의 글자 수 상한 [제안]. 넘는 부분은 잘린다 */
@@ -94,7 +136,15 @@ export type ScriptRunFailure =
     }
   | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
   /** 샌드박스에 넣어야 하는데 이 기기에서 격리할 수 없다. 격리 없이 띄우지 않는다(닫힌 실패) */
-  | { readonly kind: "sandbox_unavailable"; readonly reason: string };
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string }
+  /** 환경 모드 선언인데 이 플러그인은 받을 자격이 없다(마이그레이션 출처로 승인된 검토본이 아님, 초안, 프로젝트 폴더 없음). 돌지 않았다 [제안, AGE-58] */
+  | { readonly kind: "script_env_not_granted" }
+  /** 참조한 파일이 가져올 때와 다르거나 없다. 돌지 않았다. 다시 가져오기(검토)가 필요하다 [제안, AGE-58] */
+  | {
+      readonly kind: "script_ref_changed";
+      readonly path: string;
+      readonly reason: "changed" | "missing" | "unreadable";
+    };
 
 /** 초안 스크립트 호출 하나. 승인 문(`ScriptDraftGate`)이 카드로 열고, 승인되면 `run`을 부른다 */
 export interface ScriptDraftCall {
@@ -113,7 +163,7 @@ export interface ScriptDraftCall {
 /**
  * 초안 스크립트의 승인 문. 엔진 조립 루트가 준다(없으면 초안 스크립트는 `script_not_approved`다).
  * 구현은 이 대화가 테스트 런이고 확장이 그 대화에 묶인 초안인지를 보고, 맞으면 호출마다 승인 카드를 열고, 승인한 호출만 `run`을 부른다.
- * 일반 대화이거나 묶이지 않은 초안이면 `script_not_approved`다. 승인은 상속하지 않고 기억하지 않는다("이번 한 번")
+ * 일반 대화이거나 묶이지 않은 초안이면 `script_not_approved`다. 승인은 상속하지 않는다. 드래프트 승인 `auto`인 테스트 런에는 카드가 없고, 그 밖에는 스크립트마다 처음 한 번만 묻는다: 승인하면 이 테스트 런 동안 같은 초안 내용의 같은 스크립트는 다시 묻지 않는다(`PluginCallTarget`의 `memoryKey`, 기억 범위 `thread`) [결정: 2026-11-19, 사용자, AGE-58]
  */
 export type ScriptDraftGate = (
   call: ScriptDraftCall,

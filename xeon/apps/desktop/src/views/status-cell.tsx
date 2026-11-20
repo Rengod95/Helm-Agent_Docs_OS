@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 
 /** 상태의 뜻(설정 화면의 상태 띠·점 등이 쓴다). 상태 줄 칸은 이 값을 점으로 그리지 않는다(DP-206) */
 export type StatusDot = "success" | "warning" | "danger" | "neutral";
-/** 칸 글자색. attention은 내 확인이 필요한 수(승인 대기)로, 대화 목록의 수와 같은 따뜻한 글자색과 굵기 600이다(`.fx-attend-count`, DP-189) */
+/** 칸 글자색. attention은 내 확인이 필요한 수(승인 대기)로, 대화 목록의 수와 같은 무채색 글자색과 굵기 600이다(`.fx-attend-count`, DP-189) */
 export type StatusTone = "warning" | "danger" | "attention";
 
 const TONE_CLASS: Readonly<Record<StatusTone | "none", string>> = {

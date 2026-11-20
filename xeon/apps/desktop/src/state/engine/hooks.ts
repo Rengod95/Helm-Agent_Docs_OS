@@ -148,6 +148,9 @@ export const useLatestTurnId = (id: ThreadId | null): TurnId | null =>
 export const useRecentTurnIds = (id: string | null): readonly TurnId[] =>
   useEngine((s) => sel.selectRecentTurnIds(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);
+/** 이 대화에 시한이 있는 대기 승인이 있는지 */
+export const useApprovalUrgent = (id: ThreadId): boolean =>
+  useEngine((s) => sel.selectApprovalUrgent(s, id));
 /** 받은 확장 핸들러 실패 기록(휘발, 최대 500행). 확장별로 거르는 일은 화면이 한다 */
 export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
   useEngine(sel.selectHandlerFailures);

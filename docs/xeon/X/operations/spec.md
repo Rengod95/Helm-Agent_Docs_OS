@@ -606,7 +606,20 @@ export function resolveNames(claims: readonly ResourceClaim[], reserved: Reserve
  * 쌍 판정 resolve는 집합 판정을 못 쓰는 호출자를 위해 들어오는 쪽만 정식 이름으로 바꾼다(rename). 같은 확장의 중복이나
  * 규칙 밖 kind는 reject다
  */
-export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy;
+export function createResourcePolicy(
+  reserved: ReservedNames,
+  options?: { readonly perThreadToolNames?: boolean },
+): ResourcePolicy;
+
+/** 도구 이름만 대화마다 정하고 나머지 종류는 같은 이름을 거부하는 정책(§4.5.1). 조립 루트가 `ExtHostDeps.resourcePolicy`로 넘긴다 */
+export function createToolNamesPolicy(): ResourcePolicy;
+
+/** 한 대화의 도구 이름을 정하는 입력. `owner`는 드래프트여도 내부 이름이 아니라 실제 플러그인 이름이다 */
+export interface ToolNameInput { readonly scopeId: string; readonly owner: ExtensionName; readonly name: string; readonly builtin: boolean }
+/** 도구 이름 한 개의 열쇠 (scopeId, 요청한 이름) */
+export function toolNameKey(scopeId: string, name: string): string;
+/** 순수 함수. 그 대화에 실린 도구만 넣으면 `resolveNames`와 같은 규칙으로 열쇠마다 노출 이름을 돌려준다(§4.5.1) */
+export function exposeToolNames(inputs: readonly ToolNameInput[], reserved: ReservedNames): ReadonlyMap<string, string>;
 
 /** 예약 이름이 없는 값. 내장 패키지의 등록만 짧은 이름을 지킨다 */
 export const NO_RESERVED_NAMES: ReservedNames;
@@ -851,7 +864,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 
 ### 3.9 계측 링 버퍼와 시간 분포 (`trace-buffer.ts`, `handler-timings.ts`)
 
-X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다.
+X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다. [구현 2026-11-20, enTr] 버퍼는 `onRecord(listener)`로 핸들러 기록이 쌓인 직후를 알린다(`TraceReadPort.onRecord`). 알림은 턴이 열린 뒤의 기록만 싣고(턴 전 항목은 제외), 듣는 쪽은 Hook을 부르는 길 위에서 불리므로 던지지 않고 짧게 끝나야 한다. 듣는 쪽이 없으면 사본을 만들지 않는다. 시험은 `test/operations/trace-buffer.test.ts`.
 
 ```ts
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
@@ -1138,7 +1151,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 외부 훅 줄(`hook`이 훅 id)의 `keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
+- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름은 제안, 키 이름 `x.operations.hookDisabled`는 결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]: 화면은 `hooks.list`의 외부 훅 줄(`hook`이 훅 id)의 `keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
 
 #### 4.3.4 알림과 기록
 
@@ -1252,6 +1265,15 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 7. 단축키는 충돌하면 어느 쪽도 짧은 키를 받지 않는다. 사용자가 키 바인딩 설정으로 직접 지정한다. 키 바인딩 파일은 `L4.cli.spec`, `L4.desktop.spec` 소유다.
 8. 플래그(확장이 등록하는 CLI 플래그)는 정식 형식 `--<확장 이름>:<이름>`을 항상 받고, 충돌이 없으면 `--<이름>`도 받는다. CLI 파서는 확장 로드 뒤에 확장 플래그를 해석한다(`L4.cli.spec` [가정]).
 9. primitives `ResourceKind`의 나머지 셋(`provider`, `mcp_server`, `message_renderer`)은 이 규칙 밖이다. 같은 이름이면 `reject`다. provider 이름 충돌의 선택 규칙은 `x.primitives.capabilityProviders`와 `L1.models.spec`이 정한다.
+
+#### 4.5.1 도구 이름은 대화마다 정한다 [결정: 2026-11-19, 사용자, AGE-56]
+
+규칙 1~5는 이름이 정해지는 집합을 "엔진에 실린 전체"로 읽었다. 그러면 같은 플러그인의 드래프트와 승인본이 함께 실려 있을 때 둘이 서로 충돌로 보여, 승인본까지 모든 대화에서 정식 이름(`<플러그인>__<이름>`)으로 바뀌었다(원샷에서도). 도구는 이 집합을 **대화**로 바꾼다.
+
+1. 정책의 `perThreadToolNames`가 참이면(`createToolNamesPolicy()`, 또는 `createResourcePolicy(reserved, { perThreadToolNames: true })`) 리소스 저장소는 도구를 엔진 전체 집합으로 이름 짓지 않는다. 도구의 노출 이름(`ResourceRecord.exposed`)은 요청한 이름이고, 도구 포트(`fresnel.tools`)에 `perThread: true`로 요청한 이름 그대로 넘긴다. 정식 이름이 64자를 넘는 외부 도구는 여전히 등록을 거부한다(규칙 4). 명령·단축키·플래그는 그대로 엔진 전체 집합이다.
+2. 한 대화가 모델에게 보는 이름은 호출하는 쪽(조립 루트)이 `exposeToolNames`로 계산한다. 입력은 그 대화의 E(T)에 든 확장의 도구 레코드뿐이고(내장은 늘 든다), 드래프트의 `owner`는 내부 이름이 아니라 **실제 플러그인 이름**이다. 규칙 2·3은 이 집합 안에서만 적용한다. 드래프트는 E(T)에서 같은 이름의 승인본을 대신하므로(M5c §4.8.1 2) 한 대화에서 둘이 함께 보이는 일이 없고, 드래프트는 승인됐을 때와 같은 이름을 받는다.
+3. 다른 대화에 실린 확장은 이 대화의 이름 계산에 들지 않는다. 승인본의 이름은 드래프트가 엔진에 실려 있는지와 무관하다.
+4. `perThreadToolNames`가 거짓이면 옛 동작(엔진 전체 집합)이다. 조립 루트(`apps/host`)는 `createToolNamesPolicy()`를 `ExtHostDeps.resourcePolicy`로 넘긴다. 전에는 이 자리를 비워 두어 어떤 종류도 이름 정책을 받지 않았다(같은 이름은 모두 `resource_conflict`). 이 정책은 도구만 바꾸고 명령·단축키·플래그는 그대로 같은 이름을 거부한다.
 
 primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 

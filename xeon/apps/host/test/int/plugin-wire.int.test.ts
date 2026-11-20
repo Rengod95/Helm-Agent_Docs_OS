@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -459,6 +467,105 @@ realTest(
       );
       expect(unknown.code).toBe(3651);
       expect(unknown.data.details).toEqual({ id: "rvw_missing_wire" });
+    } finally {
+      await connection.close();
+      await host.close();
+      rmSync(bundles, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  TIMEOUT_MS,
+);
+
+realTest(
+  "pluginReview.file reads the previous approved version of an update (side base) and the new side, before and after the decision, and the card carries the manifest version",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const bundles = mkdtempSync(join(tmpdir(), "plugin-wire-bundles-"));
+    const marker = join(bundles, "base.marker");
+    const folder = writeMarkerPlugin(home, NAME, "BASE-1", marker);
+    const oldCode = readFileSync(join(folder, "src", "index.ts"), "utf8");
+    const { host, connection } = await startPluginHost(bundles);
+    try {
+      const first = await scanForNew(connection, NAME);
+      expect(
+        (await connection.request("pluginReview.get", { itemId: first })).item.card.version,
+      ).toBe("1.0.0");
+      // 처음 설치에는 지난 판이 없다
+      expect(
+        (await connection.request("pluginReview.get", { itemId: first })).item.baseFiles,
+      ).toBeUndefined();
+      const baseRefused = await wireErrorOf(
+        connection.request("pluginReview.file", {
+          itemId: first,
+          path: "src/index.ts",
+          side: "base",
+        }),
+      );
+      expect(baseRefused.data.kind).toBe("pluginReview.pathInvalid");
+      await approveLibrary(connection, first);
+
+      // 담당 AI가 코드를 고치고 파일을 하나 더한 새 판을 낸다
+      writeMarkerPlugin(home, NAME, "BASE-2", marker);
+      writeFileSync(join(folder, "extra.md"), "Only in the new version.\n");
+      const newCode = readFileSync(join(folder, "src", "index.ts"), "utf8");
+      const draft = await connection.request("plugin.draft.create", { dir: folder });
+      const submitted = await connection.request("pluginReview.submitDraft", {
+        draftId: draft.draftId,
+      });
+      const update = (await connection.request("pluginReview.get", { itemId: submitted.itemId }))
+        .item;
+      expect(update.kind).toBe("update");
+      expect(update.baseFiles?.map((file) => file.path).toSorted()).toEqual([
+        ".fresnel-plugin/plugin.json",
+        "src/index.ts",
+      ]);
+      expect(update.files.map((file) => file.path).toSorted()).toEqual([
+        ".fresnel-plugin/plugin.json",
+        "extra.md",
+        "src/index.ts",
+      ]);
+      expect(
+        await connection.request("pluginReview.file", {
+          itemId: submitted.itemId,
+          path: "src/index.ts",
+          side: "base",
+        }),
+      ).toEqual({ path: "src/index.ts", text: oldCode, truncated: false });
+      expect(
+        await connection.request("pluginReview.file", {
+          itemId: submitted.itemId,
+          path: "src/index.ts",
+        }),
+      ).toEqual({ path: "src/index.ts", text: newCode, truncated: false });
+      const newOnly = await wireErrorOf(
+        connection.request("pluginReview.file", {
+          itemId: submitted.itemId,
+          path: "extra.md",
+          side: "base",
+        }),
+      );
+      expect(newOnly.data.kind).toBe("pluginReview.pathInvalid");
+
+      // 결정한 뒤에도 두 쪽을 읽는다
+      await connection.request("pluginReview.decide", {
+        itemId: submitted.itemId,
+        decision: { kind: "approve", profileIds: [], libraryOnly: true },
+      });
+      expect(
+        await connection.request("pluginReview.file", {
+          itemId: submitted.itemId,
+          path: "src/index.ts",
+          side: "base",
+        }),
+      ).toEqual({ path: "src/index.ts", text: oldCode, truncated: false });
+      expect(
+        await connection.request("pluginReview.file", {
+          itemId: submitted.itemId,
+          path: "extra.md",
+        }),
+      ).toEqual({ path: "extra.md", text: "Only in the new version.\n", truncated: false });
     } finally {
       await connection.close();
       await host.close();

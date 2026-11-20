@@ -1,4 +1,5 @@
 // @fresnel/group-sdk/testing. 다른 패키지의 testing 서브패스를 import하지 않는다(DR-08).
+export { autoAnswerApprovals, type AutoAnswerApprovals } from "./fake-approvals.ts";
 export { checkGroup } from "./check-group.ts";
 export {
   fakeAgents,
@@ -23,6 +24,7 @@ export {
 export {
   createRuntimeReplayHarness,
   type CountingReplayHarness,
+  type RuntimeReplayHarnessOptions,
 } from "./replay/runtime-harness.ts";
 export {
   scanDriveSource,

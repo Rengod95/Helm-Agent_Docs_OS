@@ -238,6 +238,31 @@ const NameDetails = Type.Object(
   { name: Type.String({ maxLength: 128 }) },
   { additionalProperties: false },
 );
+/**
+ * `overlay.draftUnavailable`의 사유 [제안, 2026-11-20 enTr]. 오류 코드는 그대로 두고 `details.reason`으로 구분한다.
+ * `isolation_unavailable` 격리를 쓸 수 없다(격리 포트나 로더가 없다), `safe_mode` 안전 모드, `not_active` 싣었지만 켜지지 않았다,
+ * `content_changed` 같은 내부 이름에 다른 내용이 이미 실려 있다, `load_failed` 그 밖의 싣기 실패(매니페스트 없음, 시간 초과 등),
+ * `project_plugin` 프로젝트 동반 플러그인이라 초안을 얹지 않는다, `mixed_versions` 한 요청에 같은 플러그인의 다른 판이나 검토본이 섞였다,
+ * `duplicate_start_drive` 시작 Drive를 가진 초안이 둘이다
+ */
+export const DRAFT_UNAVAILABLE_REASONS = [
+  "isolation_unavailable",
+  "safe_mode",
+  "not_active",
+  "content_changed",
+  "load_failed",
+  "project_plugin",
+  "mixed_versions",
+  "duplicate_start_drive",
+] as const;
+export type DraftUnavailableReason = (typeof DRAFT_UNAVAILABLE_REASONS)[number];
+const DraftUnavailableDetails = Type.Object(
+  {
+    name: Type.String({ maxLength: 128 }),
+    reason: Type.Union(DRAFT_UNAVAILABLE_REASONS.map((reason) => Type.Literal(reason))),
+  },
+  { additionalProperties: false },
+);
 const IdDetails = Type.Object(
   { id: Type.String({ maxLength: 128 }) },
   { additionalProperties: false },
@@ -788,6 +813,7 @@ export const WIRE_ERRORS: {
     code: 3615,
     kind: "overlay.draftUnavailable",
     retryable: false,
+    details: DraftUnavailableDetails,
   },
   /** 그 id의 초안이 없다 */
   "draft.notFound": {

@@ -103,7 +103,15 @@ export type FakeOutcome =
         readonly stderrTruncated: boolean;
       };
     }
-  | { readonly ok: false; readonly error: { readonly kind: string } };
+  | {
+      readonly ok: false;
+      readonly error: {
+        readonly kind: string;
+        readonly code?: string;
+        readonly path?: string;
+        readonly reason?: string;
+      };
+    };
 
 interface FakeCall {
   readonly name: string;

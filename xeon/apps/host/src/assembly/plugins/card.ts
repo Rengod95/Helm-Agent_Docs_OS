@@ -4,8 +4,11 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  isGroupExtension,
   pluginDeclsOf,
   SCRIPT_LIMITS,
+  SCRIPT_ENV_USES,
+  SCRIPT_USES,
   type CardHook,
   type CardMcpLaunch,
   type CardScript,
@@ -44,6 +47,8 @@ export interface BuildCardInput {
   readonly review: PluginCard["review"];
   readonly usedBy: readonly string[];
   readonly health: PluginCard["health"];
+  /** 실행 파일 위치 찾기(PATH 탐색, 실행하지 않는다). 환경 모드 스크립트의 카드 칸이 쓴다. 생략하면 엔진 프로세스의 PATH다 */
+  readonly whichTool?: (name: string) => string | undefined;
 }
 
 type PositionRow = HookPositionRow["positions"][number];
@@ -140,12 +145,79 @@ export function launchOf(config: JsonValue): CardMcpLaunch | null {
   };
 }
 
+/** 명령 문자열의 첫 실행 단어. 앞의 `NAME=값` 접두는 건너뛴다. 셸 내장과 변수·경로로 시작하는 단어는 찾지 않는다(undefined) */
+function firstToolOf(command: string): string | undefined {
+  for (const word of command.trim().split(/\s+/)) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
+      // 대입의 값에 명령 치환이 있으면(`f=$(jq -r …)`) 첫 실행 파일은 그 안에 있다. 여기서는 찾지 않는다(`-r`을 도구로 잘못 꼽지 않는다)
+      if (word.includes("$(") || word.includes("`")) return undefined;
+      continue;
+    }
+    const bare = word.replace(/^[\u0022\u0027]+|[\u0022\u0027]+$/g, "");
+    if (bare === "" || bare.startsWith("$") || bare.includes("/") || SHELL_WORDS.has(bare)) {
+      return undefined;
+    }
+    return bare;
+  }
+  return undefined;
+}
+
+const SHELL_WORDS: ReadonlySet<string> = new Set([
+  "cd",
+  "echo",
+  "test",
+  "[",
+  "export",
+  "set",
+  "if",
+  "for",
+  "while",
+  "true",
+  "false",
+  ":",
+  "exit",
+  "read",
+  "printf",
+]);
+
+/**
+ * 환경 모드 칸(AGE-58 [제안]). 원문 명령, 찾아낸 첫 단어의 위치(PATH 탐색만, 실행하지 않는다), 참조 파일과 지문, 이 기기에 없는 실행 파일을 싣는다.
+ * 버전의 근거 글은 가져오기 보고서가 갖고 있고 매니페스트에는 없어 카드는 비워 둔다. `fromProject`는 출처가 프로젝트인 검토 항목이다
+ */
+function envOf(
+  decl: ManifestScriptDecl,
+  fromProject: boolean,
+  which: (name: string) => string | undefined,
+): CardScript["env"] {
+  const env = decl.env;
+  if (env === undefined) return undefined;
+  const tool = firstToolOf(env.command);
+  const found = tool === undefined ? undefined : which(tool);
+  return {
+    command: clipText(env.command, ENV_COMMAND_CHARS),
+    shell: env.shell,
+    interpreter: found ?? null,
+    refs: env.refs.slice(0, 16).map((ref) => ({ path: clipText(ref.path, 1024), hash: ref.hash })),
+    refsKnown: env.refsKnown,
+    missingTools: tool !== undefined && found === undefined ? [tool] : [],
+    versionHints: [],
+    fromProject,
+  };
+}
+
+const ENV_COMMAND_CHARS = 4096;
+
 /**
  * 매니페스트 스크립트 하나의 칸. 명령은 실행기 이름이고 첫 인자는 상대 `file`, 그 뒤가 `args`다. 환경 변수는 선언된 이름만
  * 정렬해 싣고 값은 싣지 않는다(거부 패턴에 걸리는 이름도 선언대로 싣는다. 실제로 넘기는 것은 실행기가 거른다). 작업 폴더는 없다.
  * 기한은 선언의 값이거나 기본값이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`를 따르고 잘린 것은 말줄임표로 보인다
  */
-function scriptOf(decl: ManifestScriptDecl): CardScript {
+function scriptOf(
+  decl: ManifestScriptDecl,
+  fromProject: boolean,
+  which: (name: string) => string | undefined,
+): CardScript {
+  const env = envOf(decl, fromProject, which);
   const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
   const argv = [decl.file, ...(decl.args ?? [])];
   return {
@@ -163,10 +235,16 @@ function scriptOf(decl: ManifestScriptDecl): CardScript {
       cwd: null,
     },
     timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
+    uses: env === undefined ? SCRIPT_USES : SCRIPT_ENV_USES,
+    ...(env === undefined ? {} : { env }),
   };
 }
 
-function injectOf(folder: CardSubject): InjectInventory | null {
+function injectOf(
+  folder: CardSubject,
+  fromProject: boolean,
+  which: (name: string) => string | undefined,
+): InjectInventory | null {
   const { manifest, materials } = folder;
   const decls = pluginDeclsOf(manifest);
   const tools = (manifest.tools ?? []).map((tool) => ({
@@ -201,7 +279,7 @@ function injectOf(folder: CardSubject): InjectInventory | null {
   }));
   const agents = unique(materials.agents.map((agent) => agent.name));
   // 승인하면 실행될 명령 줄. 부를 코드(`entry`)가 없으면 아무도 부르지 않으므로 실행되지 않는다(validate.ts)
-  const scripts = (manifest.scripts ?? []).map(scriptOf);
+  const scripts = (manifest.scripts ?? []).map((decl) => scriptOf(decl, fromProject, which));
 
   const empty =
     always.length === 0 &&
@@ -287,11 +365,20 @@ function costOf(folder: CardSubject, toolCount: number): CostFigures {
   };
 }
 
+/** 내부 부품 판정(F.extensions.spec §3.1.3): 출처가 내장이고 매니페스트에 `group` 블록이 없다. 대화마다 켜고 끌 수 있는 내장 그룹은 아니다 */
+function isInternalCard(kind: PluginOriginKind, manifest: CardSubject["manifest"]): boolean {
+  return kind === "builtin" && !isGroupExtension(manifest);
+}
+
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */
 export function buildPluginCard(input: BuildCardInput): PluginCard {
   const { folder } = input;
   const { manifest, materials } = folder;
-  const inject = injectOf(folder);
+  const inject = injectOf(
+    folder,
+    input.origin.kind === "project",
+    input.whichTool ?? ((name) => Bun.which(name) ?? undefined),
+  );
   const hook = hookOf(folder);
   const drive = driveOf(folder);
   const enforced = drive !== null || (hook?.hooks.some((item) => item.fold !== "tap") ?? false);
@@ -306,6 +393,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   return {
     name: folder.name,
     displayName: displayName === "" ? folder.name : displayName,
+    version: manifest.version,
     purpose,
     does: { inject, hook, drive },
     enforcement,
@@ -313,6 +401,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     cost: costOf(folder, manifest.tools?.length ?? 0),
     health: input.health,
     origin,
+    internal: isInternalCard(input.origin.kind, manifest),
     review: input.review,
     usedBy: input.usedBy,
   };

@@ -248,6 +248,14 @@ export const selectTurnFailures = (s: EngineMirror): Readonly<Record<string, str
 export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId | null =>
   id === null ? null : (s.latestTurnId[id] ?? null);
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;
+/** 이 대화에 시한(`expiresAt`)이 있는 대기 승인이 있는지(크리스탈 표시의 급함, DP-223) */
+export const selectApprovalUrgent = (s: EngineMirror, id: ThreadId): boolean =>
+  s.approvals.ids.some((approvalId) => {
+    const approval = s.approvals.byId[approvalId];
+    return (
+      approval !== undefined && approval.threadId === id && approval.request.expiresAt !== undefined
+    );
+  });
 export const selectHandlerFailures = (s: EngineMirror): EngineMirror["handlerFailures"] =>
   s.handlerFailures;
 

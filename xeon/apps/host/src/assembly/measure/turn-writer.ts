@@ -15,6 +15,7 @@ import type {
   PluginSetView,
   ToolCallTraceEvent,
   TraceReadPort,
+  TraceRecordEvent,
   TurnBlockEvent,
 } from "@fresnel/contracts/extensions";
 import {
@@ -69,6 +70,8 @@ import {
   flatHooksOf,
   hookKeyOf,
   hooksOfStep,
+  liveHookKeyOf,
+  liveHookRunOf,
   isTurnLevelHook,
   keyedHex,
   lateHooksOf,
@@ -137,7 +140,7 @@ function storedIdOf(view: PluginSetView | undefined): string | null {
 
 export interface TurnWriterDeps {
   readonly store: MeasureStore;
-  readonly trace: Pick<TraceReadPort, "turn"> | undefined;
+  readonly trace: Pick<TraceReadPort, "turn" | "onRecord"> | undefined;
   /** 대화의 프로필 포트(`PluginSetPortKey`). 기록기를 켠 뒤에 처음 보는 대화의 턴 시작 값을 채울 때만 읽는다 */
   readonly pluginSet: (() => Pick<PluginSetPort, "resolve"> | undefined) | undefined;
   /** 계측 켬 여부(`x.operations.trace.enabled`의 현재 값). 턴을 처음 볼 때 한 번 읽는다(규칙 6) */
@@ -161,6 +164,11 @@ export interface TurnWriterDeps {
 export interface TurnWriter {
   /** 커밋된 사건 한 건. 턴 시작, 단계 끝, 턴 끝만 본다 */
   event(record: DurableEventEnvelope): void;
+  /**
+   * 훅 실행 하나가 끝난 직후(트레이스 버퍼의 `onRecord`). 그 행을 단계 끝보다 먼저 알림으로 보낸다. 저장은 하지 않는다.
+   * 턴 수준 훅과 열리지 않은 턴의 기록은 보내지 않는다
+   */
+  hook(event: TraceRecordEvent): void;
   /** 모델 호출 한 번(사용량 합산기). 단계의 모델 호출을 모은다 */
   usage(call: UsageRecord): void;
   /** 도구 호출 하나가 닫힌 줄(추적 싱크). 계측이 켜진 턴의 단계에 모은다. 반환값은 호출 경로로 돌아가지 않는다 */
@@ -632,6 +640,9 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       maxBytes: deps.maxTurnBytes(),
       profile: profileAtStart(record.threadId),
     });
+    // 이 턴의 행이 이미 있으면 앞 단계가 저장된 채로 이어진 턴이다(재시작으로 끊긴 턴). 이어진 뒤만 쥐고 있으므로 불완전하다
+    const stored = deps.store.readTurn(record.threadId, turnId);
+    draft.resumed = stored.ok && stored.value !== undefined;
     remember(draft);
     return draft;
   }
@@ -810,6 +821,13 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       plugincalls: [],
       cache: cache === null ? [] : trCacheRowsOf(cache, base),
     };
+    // 실행이 끝난 직후 이미 보낸 행은 같은 값이면 다시 보내지 않는다. 승인을 이어 값이 달라진 행은 다시 보낸다(같은 키의 나중 행이 이긴다)
+    const unsentHooks = hookRuns.filter((hook) => {
+      const key = liveHookKeyOf(hook);
+      const sent = draft.liveHooks.get(key);
+      draft.liveHooks.delete(key);
+      return sent === undefined || JSON.stringify(sent) !== JSON.stringify(hook);
+    });
     deps.queue((store) => {
       const written = store.writeStep(batch);
       if (written.ok) {
@@ -821,7 +839,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
           stepIndex,
           rows: [
             { kind: "step", stepIndex, step },
-            ...hookRuns.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
+            ...unsentHooks.map((hook): DeltaRow => ({ kind: "hook", stepIndex, hook })),
             ...step.calls.map((call): DeltaRow => ({ kind: "call", stepIndex, call })),
           ],
           final: false,
@@ -914,7 +932,7 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
         }
       }
       // 단계 쓰기가 하나라도 실패했으면 턴은 불완전하다. 계측이 꺼진 턴도 단계 기록이 없으므로 불완전하다
-      const complete = full && draft.writeFailures === 0;
+      const complete = full && draft.writeFailures === 0 && !draft.resumed;
       const written = writeTurnRow(
         store,
         draft,
@@ -960,6 +978,32 @@ export function createTurnWriter(deps: TurnWriterDeps): TurnWriter {
       if (record.kind === "turn.started") turnStarted(record, turnId);
       else if (record.kind === "step.completed") stepCompleted(record, turnId);
       else if (record.kind === "turn.completed") turnCompleted(record, turnId);
+    },
+    /**
+     * 훅 실행 하나가 끝난 직후(트레이스 버퍼의 알림). 그 훅 행을 단계 끝을 기다리지 않고 `turnRecord.delta`로 보낸다.
+     * 저장은 그대로 단계 끝과 턴 끝에 한다. 메모리에서 행 하나를 만들어 알리기만 하므로 저장소를 건드리지 않는다
+     */
+    hook(event) {
+      const draft = drafts.get(event.turnId);
+      if (draft === undefined || draft.level !== "full" || draft.threadId !== event.threadId) {
+        return;
+      }
+      const run = liveHookRunOf(event.entry, event.handlerIndex, draft.approvals);
+      if (run === undefined) return;
+      const key = liveHookKeyOf(run);
+      // 단계 끝에서 이미 본 실행이거나, 행 상한(저장하는 행과 같은 상한)을 넘으면 보내지 않는다
+      if (draft.seenHooks.has(`${String(event.entry.seq)}:${String(event.handlerIndex)}`)) return;
+      if (draft.liveHooks.has(key)) return;
+      if (draft.hookRows + draft.liveHooks.size >= MAX_HOOK_ROWS_PER_TURN) return;
+      draft.liveHooks.set(key, run);
+      publish({
+        kind: "rows",
+        threadId: draft.threadId,
+        turnId: draft.turnId,
+        stepIndex: event.entry.step,
+        rows: [{ kind: "hook", stepIndex: event.entry.step, hook: run }],
+        final: false,
+      });
     },
     usage(call) {
       // 한도 토큰은 엔진이 맨 위 프레임과 그 아래 프레임에 더하는 총 토큰이다(`chargeTokens`, `tokensOf`)

@@ -1,8 +1,14 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { NO_EFFECTS, replayDrive, threadMismatches } from "../src/testing/index.ts";
 import {
+  autoAnswerApprovals,
+  NO_EFFECTS,
+  replayDrive,
+  threadMismatches,
+} from "../src/testing/index.ts";
+import {
+  askingDriveGroup,
   badDriveGroup,
   doubledEffectGroup,
   goodDriveGroup,
@@ -147,4 +153,24 @@ test("replay.fails-with-effects-mismatch-when-the-baseline-count-is-not-as-expec
   });
   expect(report).toMatchObject({ ok: false, failure: "effects-mismatch" });
   expect(report.effects?.delegate).toBe(3);
+});
+
+test("replay.group-that-asks-passes-with-the-recorded-answer-returned-again", async () => {
+  const approvals = autoAnswerApprovals({ q1: { selected: ["yes"] } });
+  const report = await replayDrive({
+    group: askingDriveGroup(),
+    harness: createReplayHarness({ approvals: approvals.service }),
+  });
+  expect(report.failure).toBeUndefined();
+  expect(report.commits).toBe(3);
+  expect(report.cuts.map((cut) => cut.commitIndex)).toEqual([1, 2, 3]);
+  expect(report.cuts.every((cut) => cut.equal && cut.digest === report.baselineDigest)).toBe(true);
+  expect(report.ok).toBe(true);
+  // 사람 확인은 단계마다 하나다. 절단 실행이 같은 요청 키로 다시 물어도 새 요청은 늘지 않는다
+  expect(approvals.created.map((request) => request.body.kind)).toEqual([
+    "question",
+    "question",
+    "question",
+  ]);
+  expect(new Set(approvals.created.map((request) => request.requestKey)).size).toBe(3);
 });

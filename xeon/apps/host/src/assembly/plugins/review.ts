@@ -26,6 +26,7 @@ import type {
   PluginDraftFromInstructionResult,
   PluginReviewFileResult,
   Provenance,
+  ReviewFileSide,
   ProfileListResult,
   ReviewDecision,
   ReviewItem,
@@ -34,7 +35,7 @@ import type {
   ReviewState,
   WhatItDoesDiff,
 } from "@fresnel/contracts/wire";
-import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
+import type { PluginEditApplied, ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
 import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
@@ -99,6 +100,8 @@ export interface ApprovalContext {
 interface DecisionOutcome {
   readonly item: ReviewItem;
   readonly appliedTo: readonly string[];
+  /** 적용된 프로필이 이미 가리키던 이 기기에 없는 플러그인(경고, AGE-34) */
+  readonly missingPlugins: readonly string[];
 }
 
 /**
@@ -108,7 +111,7 @@ interface DecisionOutcome {
  */
 export interface ApprovalHooks {
   beforeCommit?(context: ApprovalContext): Promise<Result<void, PluginPortFailure>>;
-  afterCommit?(context: ApprovalContext): Promise<Result<readonly string[], PluginPortFailure>>;
+  afterCommit?(context: ApprovalContext): Promise<Result<PluginEditApplied, PluginPortFailure>>;
   reflect?(context: ApprovalContext): Promise<void>;
 }
 
@@ -189,7 +192,12 @@ export interface PluginReview {
     readonly name?: string;
   }): Promise<Result<{ readonly items: readonly ReviewItem[] }, PluginPortFailure>>;
   get(itemId: string): Promise<Result<{ readonly item: ReviewItem }, PluginPortFailure>>;
-  file(itemId: string, path: string): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
+  /** `side`가 없으면 새 판(`candidate`)이다. `base`는 지난 승인 버전이다 */
+  file(
+    itemId: string,
+    path: string,
+    side?: ReviewFileSide,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
@@ -299,6 +307,8 @@ interface ItemFields {
   readonly diff: WhatItDoesDiff;
   readonly evidence: readonly EvidenceRef[];
   readonly files: ReviewItem["files"];
+  /** 지난 승인 버전의 파일 목록. 읽지 못했거나 비교 대상이 없으면 생략한다 */
+  readonly baseFiles?: ReviewItem["files"];
   readonly removal: ReviewItemRemoval | null;
 }
 
@@ -317,6 +327,7 @@ function pendingItemOf(itemId: string, fields: ItemFields, createdAt: string): R
     diff: fields.diff,
     evidence: [...fields.evidence],
     files: [...fields.files],
+    ...(fields.baseFiles === undefined ? {} : { baseFiles: [...fields.baseFiles] }),
     createdAt,
     decidedAt: null,
     reason: null,
@@ -355,6 +366,16 @@ function hashInUse(items: readonly ReviewItem[], hash: string, except: string): 
 
 function filesOf(folder: PluginFolder): ReviewItem["files"] {
   return folder.files.map((file) => ({ path: file.path, bytes: file.bytes, sha256: file.sha256 }));
+}
+
+/** 지난 승인 버전의 파일 목록. 버전이 없거나 보관소에서 읽지 못하면 비워 둔다(그 항목은 비교 없이 새 내용만 보인다) */
+function baseFilesOf(
+  reviewed: ReviewedVersion | null,
+  origin: PluginOriginKind,
+): { readonly baseFiles?: ReviewItem["files"] } {
+  if (reviewed === null) return {};
+  const read = readPluginFolder(reviewed.treePath, { origin });
+  return read.ok ? { baseFiles: filesOf(read.value) } : {};
 }
 
 /** 트리 해시 오류를 초안·제출의 실패로 옮긴다 */
@@ -627,6 +648,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         diff: diffCards(reviewed.value?.meta.card ?? null, withPurpose),
         evidence: input.evidence,
         files: filesOf(folder),
+        ...baseFilesOf(reviewed.value, input.origin),
         removal: null,
       },
       deps.now(),
@@ -801,6 +823,30 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     return ok({ queued: [...created.value, ...removed.value] });
   }
 
+  /**
+   * 항목의 한 쪽 스냅샷에서 파일 바이트를 읽는다. 그 쪽 스냅샷이 보관소에 없으면 null이다(`missing`).
+   * 새 판은 대기 중이면 후보 스냅샷이고, 승인된 뒤에는 후보가 승인본 보관소로 옮겨 갔으므로 거기서 읽는다.
+   * 지난 승인 버전은 승인본 보관소에서 읽는다(보관 `KEEP_VERSIONS`개를 넘으면 지워져 null이다)
+   */
+  async function readSnapshotFile(
+    item: ReviewItem,
+    side: ReviewFileSide,
+    hash: string,
+    path: string,
+  ): Promise<Result<Uint8Array | null, PluginPortFailure>> {
+    const keyed = keyOfOrigin(item.card.origin, item.name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
+    const fromReviewed = side === "base" || item.state === "approved";
+    const bytes =
+      fromReviewed && key !== null
+        ? await store.readReviewedFile(key, hash, path)
+        : await store.readCandidateFile(hash, path);
+    if (bytes.ok) return ok(bytes.value);
+    if (bytes.error.kind === "not_found") return ok(null);
+    return err(storeFailure(bytes.error));
+  }
+
   async function reloadItems(): Promise<readonly ReviewItem[]> {
     const listed = await store.listItems();
     return listed.ok ? listed.value : [];
@@ -886,6 +932,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         decisionId: item.itemId,
         origin,
         inferredManifest: read.inferred,
+        // 출처가 마이그레이션인 항목을 승인한 검토본만 환경 모드 스크립트를 받는다(AGE-58 [제안]). 매니페스트가 아니라 이 호스트 기록이 근거다
+        ...(item.provenance === "migration" ? { importedScripts: true } : {}),
         card: {
           ...item.card,
           purpose,
@@ -906,6 +954,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
 
     // 프로필 갱신이 실패하면 `current`를 옛 검토본으로 되돌린다. 되돌리기도 실패하면 로그에만 남긴다
     let appliedTo: readonly string[] = [];
+    let missingPlugins: readonly string[] = [];
     if (hooks.afterCommit !== undefined) {
       const done = await hooks.afterCommit(context);
       if (!done.ok) {
@@ -918,7 +967,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         }
         return done;
       }
-      appliedTo = done.value;
+      appliedTo = done.value.profileIds;
+      missingPlugins = done.value.missingPlugins;
     }
 
     // 보관 정리가 실패해도 승인은 되돌리지 않는다(검토본은 이미 current다). 실패는 로그에 남긴다
@@ -957,7 +1007,11 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (!refreshed.ok) log.error("plugin.review.refresh_failed", { name: item.name });
     if (hooks.reflect !== undefined) await hooks.reflect(context);
     emit({ kind: "plugin", name: item.name });
-    return ok({ item: saved.value, appliedTo: [...appliedTo] });
+    return ok({
+      item: saved.value,
+      appliedTo: [...appliedTo],
+      missingPlugins: [...missingPlugins],
+    });
   }
 
   async function sendBack(
@@ -976,7 +1030,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       });
       if (!delivered) log.warn("plugin.review.origin_not_notified", { itemId: item.itemId });
     }
-    return ok({ item: saved.value, appliedTo: [] });
+    return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
   }
 
   async function discard(item: ReviewItem): Promise<Result<DecisionOutcome, PluginPortFailure>> {
@@ -987,7 +1041,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     await dropCandidate(item.candidateHash, listed.value, item.itemId);
     const logged = await logDecision(item, "discarded", []);
     if (!logged.ok) return err(logged.error);
-    return ok({ item: saved.value, appliedTo: [] });
+    return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
   }
 
   /** 같은 이름의 초안을 최근 `KEEP_DRAFTS`개만 남긴다. 검토 항목이 가리키는 초안은 남긴다 */
@@ -1364,7 +1418,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return ok({ item: read.value });
     },
 
-    file: async (itemId, path) => {
+    file: async (itemId, path, side = "candidate") => {
       const read = await store.readItem(itemId);
       if (!read.ok) {
         return read.error.kind === "not_found"
@@ -1372,16 +1426,15 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
           : err(storeFailure(read.error));
       }
       const item = read.value;
-      // 목록에 없는 경로(상위 이동, 절대 경로 포함)는 스냅샷 밖이다
-      if (item.candidateHash === null || !item.files.some((file) => file.path === path)) {
+      // 목록에 없는 경로(상위 이동, 절대 경로 포함)는 스냅샷 밖이다. 새 판은 `files`, 지난 승인 버전은 `baseFiles`가 가른다
+      const listed = side === "base" ? (item.baseFiles ?? []) : item.files;
+      const hash = side === "base" ? item.baseHash : item.candidateHash;
+      if (hash === null || !listed.some((file) => file.path === path)) {
         return err({ kind: "path_invalid" });
       }
-      const bytes = await store.readCandidateFile(item.candidateHash, path);
-      if (!bytes.ok) {
-        return bytes.error.kind === "not_found"
-          ? err({ kind: "path_invalid" })
-          : err(storeFailure(bytes.error));
-      }
+      const bytes = await readSnapshotFile(item, side, hash, path);
+      if (!bytes.ok) return bytes;
+      if (bytes.value === null) return ok({ path, text: null, truncated: false, missing: true });
       return ok(fileTextOf(path, bytes.value));
     },
 

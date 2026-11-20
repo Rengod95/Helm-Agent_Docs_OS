@@ -1,6 +1,8 @@
 // Hook 어댑터의 사례집(migration.md §4.3.5, §10 수용 기준 1, 7): 이벤트별, 핸들러 종류별, 경로 형태별, 이유 코드별.
 import { describe, expect, test } from "bun:test";
 import { HOOK_NAMES } from "@fresnel/contracts/extensions";
+import { sha256Hex } from "../src/hash.ts";
+
 import { memoryFs } from "./support.ts";
 import {
   scanRoots,
@@ -13,7 +15,6 @@ import {
   FAKE_TOKEN,
   HOME,
   USER_ROOT,
-  decode,
   proposeFrom,
   rulesetsOf,
   sortedText,
@@ -113,7 +114,7 @@ describe("Hook 어댑터: 핸들러 종류별 판정", () => {
 });
 
 describe("Hook 어댑터: 경로와 스크립트별 판정", () => {
-  test("스크립트를 복사하고 그 바이트를 그대로 싣는다", async () => {
+  test("스크립트는 복사하지 않고, 명령 원문과 스크립트 파일의 지문을 싣는다", async () => {
     const { scan } = await reportOf(
       {
         hooks: {
@@ -124,28 +125,47 @@ describe("Hook 어댑터: 경로와 스크립트별 판정", () => {
     );
     const item = scan.items.find((entry) => entry.ir.kind === "hook");
     if (item?.ir.kind !== "hook") throw new Error("no hook item");
-    expect(item.ir.script?.runner).toBe("sh");
-    expect(item.ir.script?.args).toEqual(["--strict"]);
-    expect(decode(item.ir.script?.bytes)).toBe("exit 0\n");
+    expect(item.ir.env?.command).toBe("~/.claude/hooks/guard.sh --strict");
+    expect(item.ir.env?.shell).toBe("sh");
+    expect(item.ir.env?.refs).toEqual([
+      { path: `${HOME}/.claude/hooks/guard.sh`, hash: `sha256:${sha256Hex("exit 0\n")}` },
+    ]);
     expect(item.ir.matcher).toBe("Bash");
   });
 
+  // 옮기지 않던 형태(인라인, 폴더 밖, 알 수 없는 확장자)는 이제 환경 모드로 옮긴다(hook-env.test.ts가 값을 본다)
+  test.each([["없는 파일", "~/.claude/hooks/missing.sh", "script_missing"]])(
+    "%s는 %s",
+    async (_name, command, code) => {
+      const { lineAt } = await reportOf(
+        { hooks: { PreToolUse: [{ hooks: [cmd(command)] }] } },
+        { ".claude/hooks/x.txt": SCRIPT },
+      );
+      const line = lineAt("settings.hooks.PreToolUse[0].hooks[0]");
+      expect(line.status).toBe("not_ported");
+      expect(line.reason?.code).toBe(code);
+    },
+  );
+
   test.each([
-    ["셸 파이프", "cat ~/.claude/x.sh | sh", "inline_command"],
-    ["홈의 다른 폴더", "~/scripts/x.sh", "script_outside_root"],
-    ["알 수 없는 확장자", "~/.claude/hooks/x.txt", "unknown_runner"],
-    ["없는 파일", "~/.claude/hooks/missing.sh", "script_missing"],
-  ])("%s는 %s", async (_name, command, code) => {
-    const { lineAt } = await reportOf(
+    ["셸 파이프", "cat ~/.claude/x.sh | sh"],
+    ["홈의 다른 폴더", "~/scripts/x.sh"],
+    ["알 수 없는 확장자", "~/.claude/hooks/x.txt"],
+  ])("%s는 환경 모드로 옮긴다(differs, 명령 원문을 싣는다)", async (_name, command) => {
+    const { lineAt, scan } = await reportOf(
       { hooks: { PreToolUse: [{ hooks: [cmd(command)] }] } },
       { ".claude/hooks/x.txt": SCRIPT },
     );
     const line = lineAt("settings.hooks.PreToolUse[0].hooks[0]");
-    expect(line.status).toBe("not_ported");
-    expect(line.reason?.code).toBe(code);
+    expect(line.status).toBe("differs");
+    expect(line.reason).toBeUndefined();
+    const item = scan.items.find((entry) => entry.ir.kind === "hook");
+    if (item?.ir.kind !== "hook") throw new Error("no hook item");
+    expect(item.ir.code).toBeUndefined();
+    expect(item.ir.env?.command).toBe(command);
   });
 
-  test("심볼릭 링크로 밖을 가리키는 스크립트는 script_outside_root다", async () => {
+  test("심볼릭 링크로 밖을 가리키는 스크립트는 환경 모드로 옮기고, 지문은 링크가 가리키는 파일의 것이다", async () => {
     const files = {
       [`${CLAUDE}/settings.json`]: JSON.stringify({
         hooks: { PreToolUse: [{ hooks: [cmd("~/.claude/hooks/link.sh")] }] },
@@ -160,15 +180,18 @@ describe("Hook 어댑터: 경로와 스크립트별 판정", () => {
     });
     const hook = scan.items.find((item) => item.ir.kind === "hook");
     if (hook?.ir.kind !== "hook") throw new Error("no hook item");
-    expect(hook.ir.code).toBe("script_outside_root");
+    expect(hook.ir.code).toBeUndefined();
+    expect(hook.ir.env?.refs).toEqual([
+      { path: `${CLAUDE}/hooks/link.sh`, hash: `sha256:${sha256Hex(SCRIPT)}` },
+    ]);
   });
 
-  test("스크립트 본문의 시크릿 값은 복사하지 않고 값을 어디에도 싣지 않는다", async () => {
+  test("스크립트 본문의 시크릿 값은 옮기는 이유가 아니다. 값은 어디에도 싣지 않는다", async () => {
     const { scan, proposal, lineAt } = await reportOf(
       { hooks: { PreToolUse: [{ hooks: [cmd("~/.claude/hooks/leak.sh")] }] } },
       { ".claude/hooks/leak.sh": `curl -H "Authorization: Bearer ${FAKE_TOKEN}"\n` },
     );
-    expect(lineAt("settings.hooks.PreToolUse[0].hooks[0]").reason?.code).toBe("secret_in_script");
+    expect(lineAt("settings.hooks.PreToolUse[0].hooks[0]").status).toBe("differs");
     expect(JSON.stringify({ scan: scan.items, report: proposal.report })).not.toContain(FAKE_TOKEN);
   });
 
@@ -243,7 +266,8 @@ describe("Hook 어댑터: 원본 불변", () => {
     ]);
   });
 
-  test("옮긴 Hook의 IR은 명령 문자열 필드를 싣지 않는다", async () => {
+  // 명령 원문은 IR의 최상위 `command`가 아니라 `env.command`에만 있다(환경 모드, 사용자 결정 2026-11-20)
+  test("옮긴 Hook의 IR은 명령 원문을 env 안에만 싣는다", async () => {
     const { scan } = await reportOf(
       { hooks: { PreToolUse: [{ hooks: [cmd("~/.claude/hooks/x.sh --token-file ~/t")] }] } },
       { ".claude/hooks/x.sh": SCRIPT },
@@ -252,7 +276,7 @@ describe("Hook 어댑터: 원본 불변", () => {
     if (hook?.ir.kind !== "hook") throw new Error("no hook item");
     const ir: IrHook = hook.ir;
     expect("command" in ir).toBe(false);
-    expect(ir.script?.args).toEqual(["--token-file", "~/t"]);
+    expect(ir.env?.command).toBe("~/.claude/hooks/x.sh --token-file ~/t");
   });
 
   test("규칙의 지점 이름은 모두 계약의 Hook 이름이다", () => {

@@ -10,6 +10,8 @@ import type {
   PluginSetPort,
   ToolCallTraceEvent,
   TraceReadPort,
+  HookName,
+  TraceRecordEvent,
   TraceTurnEntry,
 } from "@fresnel/contracts/extensions";
 import type { CommitListener, DurableEventEnvelope } from "@fresnel/contracts/records";
@@ -157,7 +159,7 @@ function openHarness(
   dir: string,
   options: {
     readonly enabled: boolean;
-    readonly trace?: Pick<TraceReadPort, "turn">;
+    readonly trace?: Pick<TraceReadPort, "turn" | "onRecord">;
     readonly events?: Pick<TurnRecordEvents, "emit">;
     readonly testRunsAlwaysOn?: boolean;
     readonly maxTurnBytes?: number;
@@ -1325,6 +1327,204 @@ test("a subscriber hears the step rows, then the turn row with final true, from 
       [null, true, ["turn"]],
     ]);
     harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a hook row is sent as soon as its handler ends, step end sends only what changed, and the sent rows merged by key equal the stored rows", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const entries: TraceTurnEntry[] = [];
+  const listeners = new Set<(event: TraceRecordEvent) => void>();
+  const port: Pick<TraceReadPort, "turn" | "onRecord"> = {
+    turn: () => ({ traceEnabled: true, retained: true, entries: [...entries] }),
+    onRecord: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+  /** 항목 하나에 처리기를 하나 더 쌓고 그 직후를 알린다(버퍼가 하는 일) */
+  const record = (
+    seq: number,
+    hook: HookName,
+    step: number,
+    next: TraceTurnEntry["handlers"][number],
+  ): void => {
+    const found = entries.find((entry) => entry.seq === seq);
+    const entry: TraceTurnEntry = {
+      seq,
+      hook,
+      step,
+      handlers: [...(found?.handlers ?? []), next],
+    };
+    if (found === undefined) entries.push(entry);
+    else entries[entries.indexOf(found)] = entry;
+    for (const listener of listeners) {
+      listener({ threadId: THREAD, turnId: TURN, entry, handlerIndex: entry.handlers.length - 1 });
+    }
+  };
+  const events = createTurnRecordEvents(logger);
+  const heard: TurnRecordEvent[] = [];
+  events.subscribe((event) => {
+    heard.push(event);
+  });
+  try {
+    const harness = openHarness(dir, { enabled: true, trace: port, events });
+    harness.commit([event(1, "turn.started", TURN_STARTED)]);
+    // 턴 수준 훅은 단계 끝 전 알림으로 보내지 않는다
+    record(0, "boundary.turn.before", 0, handler("ext:turn", "passed"));
+    expect(heard).toEqual([]);
+    // 도구 호출 앞의 훅: 물음 하나(승인은 아직 모른다)와 막음 하나. 각각 끝난 직후 한 줄씩 간다
+    record(1, "tool.call.before", 1, {
+      ...handler("ext:asker", "passed", "call_2"),
+      decision: "ask",
+      ask: { via: "decision", waits: 0, waitMs: 0, approvalId: null, answer: null },
+    });
+    expect(heard.map((item) => item.kind === "rows" && item.rows.map((row) => row.kind))).toEqual([
+      ["hook"],
+    ]);
+    record(1, "tool.call.before", 1, handler("ext:guard", "blocked", "call_2"));
+    const liveHooks = heard.flatMap((item) =>
+      item.kind === "rows"
+        ? item.rows.flatMap((row) =>
+            row.kind === "hook" ? [[item.final, item.stepIndex, row.hook]] : [],
+          )
+        : [],
+    );
+    expect(
+      liveHooks.map(([final, stepIndex, hook]) => [
+        final,
+        stepIndex,
+        typeof hook === "object" && hook !== null && "registrationId" in hook
+          ? [hook.registrationId, hook.result, hook.toolCallId]
+          : null,
+      ]),
+    ).toEqual([
+      [false, 1, ["ext:asker", "passed", "call_2"]],
+      [false, 1, ["ext:guard", "blocked", "call_2"]],
+    ]);
+    // 승인이 해결되고 단계가 끝난다
+    harness.call(
+      callEvent("call_2", {
+        approval: {
+          approvalId: "apr_1",
+          decision: "allow",
+          resolvedBy: "user",
+          waitMs: 420,
+          inheritedFrom: null,
+        },
+      }),
+    );
+    harness.meter(usage(STEP));
+    harness.commit([event(2, "step.completed", STEP_COMPLETED(1), { stepId: STEP })]);
+    harness.commit([event(3, "turn.completed", TURN_COMPLETED)]);
+    await settle();
+    // 단계 끝에는 단계와 호출, 그리고 승인을 이어 값이 달라진 물음 행만 다시 간다(막음 행은 같은 값이라 다시 가지 않는다)
+    const stepEnd = heard.slice(2);
+    expect(
+      stepEnd.map((item) =>
+        item.kind === "rows"
+          ? [
+              item.final,
+              item.rows.map((row) =>
+                row.kind === "hook" ? `hook:${row.hook.registrationId}` : row.kind,
+              ),
+            ]
+          : item.kind,
+      ),
+    ).toEqual([
+      [false, ["step", "hook:ext:asker", "call"]],
+      [true, ["turn"]],
+    ]);
+    // 도는 중에 보낸 행과 단계 끝에 보낸 행을 같은 키의 나중 행이 이기게 합치면 저장된 행과 같다
+    const merged = new Map<string, unknown>();
+    for (const item of heard) {
+      if (item.kind !== "rows") continue;
+      for (const row of item.rows) {
+        if (row.kind === "hook")
+          merged.set(`${String(row.hook.seq)}:${row.hook.registrationId}`, row.hook);
+      }
+    }
+    const bundle = storeOf(harness.measurement).readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the closed turn must be readable");
+    expect(
+      bundle.value.hooks.map((row) => [row.registrationId, row.decision, row.askAnswer, row.askMs]),
+    ).toEqual([
+      ["ext:asker", "ask", "allow", 420],
+      ["ext:guard", "none", null, null],
+    ]);
+    const asker = merged.get("1:ext:asker");
+    expect(asker).toMatchObject({
+      registrationId: "ext:asker",
+      ask: { via: "decision", approvalId: "apr_1", answer: "allow", waitMs: 420 },
+    });
+    expect(merged.get("1:ext:guard")).toMatchObject({
+      registrationId: "ext:guard",
+      result: "blocked",
+    });
+    expect([...merged.keys()].toSorted()).toEqual(["1:ext:asker", "1:ext:guard"]);
+    harness.stop();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a turn cut by a restart and continued under the same turn id keeps only the steps after the continuation, is not complete, and the list summary says the same numbers as the record", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-write-"));
+  const STEP_2: StepId = ids.next("stp");
+  try {
+    const first = openHarness(dir, { enabled: true });
+    first.commit([event(1, "turn.started", TURN_STARTED)]);
+    first.call(callEvent("call_1"));
+    first.call(callEvent("call_2"));
+    first.meter(usage(STEP));
+    first.commit([event(2, "step.completed", STEP_COMPLETED(0), { stepId: STEP })]);
+    await settle();
+    first.stop();
+
+    const second = openHarness(dir, { enabled: true });
+    second.meter(usage(STEP_2));
+    second.commit([event(3, "step.completed", STEP_COMPLETED(1), { stepId: STEP_2 })]);
+    second.commit([event(4, "turn.completed", { ...TURN_COMPLETED, stepCount: 2 })]);
+    await settle();
+    const store = storeOf(second.measurement);
+    const bundle = store.readTurn(THREAD, TURN);
+    if (!bundle.ok || bundle.value === undefined) throw new Bug("the turn must be readable");
+    // 앞 단계의 행은 지우지 않는다. 턴 행은 이어진 뒤의 기록이고 불완전하다(§11 12번 [제안])
+    expect(bundle.value.steps.map((step) => step.stepIndex)).toEqual([0, 1]);
+    expect(bundle.value.calls.map((call) => call.toolCallId)).toEqual(["call_1", "call_2"]);
+    expect([bundle.value.turn.status, bundle.value.turn.complete]).toEqual(["completed", false]);
+    const port = createTurnRecordPort({
+      store: () => store,
+      enabled: () => true,
+      retentionDays: () => 30,
+      logTurnStartedAt: () => ok(undefined),
+      events: { subscribe: () => () => undefined },
+      now: () => AT,
+      metrics: () => ({
+        minSample: 20,
+        defaultWindowDays: 30,
+        findingsEnabled: true,
+        findingOverrides: {},
+      }),
+    });
+    const got = port.get(THREAD, TURN);
+    const listed = port.list({ threadId: THREAD, limit: 10 });
+    if (!got.ok || !listed.ok) throw new Bug("the port must answer in this test");
+    const recorded = got.value.record?.steps.map((step) => [step.stepIndex, step.calls.length]);
+    // 상세는 이어진 뒤의 단계 하나(호출 0개). 목록 요약도 같은 숫자를 낸다
+    expect(recorded).toEqual([[1, 0]]);
+    expect(
+      listed.value.items.map((item) => [
+        item.turnId,
+        item.stepCount,
+        item.callCount,
+        item.complete,
+      ]),
+    ).toEqual([[TURN, 1, 0, false]]);
+    second.stop();
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

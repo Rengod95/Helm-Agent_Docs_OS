@@ -10,6 +10,9 @@ import {
 } from "@fresnel/contracts/services";
 import { canonicalizePath, toAbsolutePath } from "./paths.ts";
 
+/** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3). basename 항목을 쓰기 루트 아래에서 찾을 때 쓴다 */
+export const BASENAME_SEARCH_DEPTH = 3;
+
 // L0.sandbox.spec §3.3. 보호 경로는 줄일 수 없고 설정으로 더할 수만 있다.
 
 type Reason = ProtectedPathEntry["reason"];
@@ -84,6 +87,34 @@ export interface ProtectedPathInput {
 const CREDENTIAL_READABLE_PREFIX = [".config/gh"] as const;
 const CREDENTIAL_READABLE_EXACT = [".netrc", ".docker/config.json", ".npmrc", ".pypirc"] as const;
 
+/**
+ * 홈 아래 시크릿 폴더·파일(읽기·쓰기 거부). 평소 도구가 일하려고 읽는 설정(`~/.gitconfig`, `.npmrc`의 레지스트리 주소 등)은 여기 없다.
+ * 그런 것은 위의 CREDENTIAL_READABLE_*(설정으로 고른다)에 있거나 막지 않는다(L0.sandbox.spec §3.3).
+ * 브라우저·메신저·비밀번호 관리자 폴더는 OS마다 자리가 달라 provider가 낸다(providers/*.ts).
+ */
+const SECRET_HOME_PREFIX = [
+  ".gnupg",
+  ".password-store",
+  ".azure",
+  ".config/op",
+  ".op",
+  ".config/glab-cli",
+] as const;
+const SECRET_HOME_EXACT = [
+  ".cargo/credentials.toml",
+  ".cargo/credentials",
+  ".gem/credentials",
+  ".terraform.d/credentials.tfrc.json",
+] as const;
+/** 다른 AI 하네스의 인증·토큰이 든 폴더(`~/.claude`와 같은 기준) */
+const AGENT_HOME_PREFIX = [
+  ".gemini",
+  ".cursor",
+  ".config/github-copilot",
+  ".config/opencode",
+  ".local/share/opencode",
+] as const;
+
 /** 작업 공간 root마다 붙는 git 실행 경로(L0.sandbox.spec §3.3 git_exec 행) */
 export function gitProtectedEntries(roots: readonly string[]): ProtectedPathEntry[] {
   const entries: ProtectedPathEntry[] = [];
@@ -150,6 +181,9 @@ export function buildProtectedPaths(input: ProtectedPathInput): readonly Protect
       "credentials",
     ),
     ...homeEntries(home, [".git-credentials"], "exact", "read_write", "credentials"),
+    ...homeEntries(home, SECRET_HOME_PREFIX, "prefix", "read_write", "credentials"),
+    ...homeEntries(home, SECRET_HOME_EXACT, "exact", "read_write", "credentials"),
+    ...homeEntries(home, AGENT_HOME_PREFIX, "prefix", "read_write", "agent_credentials"),
     ...homeEntries(home, CREDENTIAL_READABLE_PREFIX, "prefix", credentialAccess, "credentials"),
     ...homeEntries(home, CREDENTIAL_READABLE_EXACT, "exact", credentialAccess, "credentials"),
     // 셸 시작 파일

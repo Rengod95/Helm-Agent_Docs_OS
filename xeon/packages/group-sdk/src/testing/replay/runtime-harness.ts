@@ -1,7 +1,11 @@
 import { canonicalJson } from "@fresnel/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
-import { AgentServicePortKey } from "@fresnel/contracts/services";
+import {
+  AgentServicePortKey,
+  ApprovalServicePortKey,
+  type ApprovalService,
+} from "@fresnel/contracts/services";
 import {
   createTestHost,
   memoryInputQueue,
@@ -143,7 +147,14 @@ async function drain(t: TestHost, thread: ReturnType<TestHost["newThread"]>, rou
  * 테스트 호스트와 인메모리 기록 저장소로 만든 ReplayHarness.
  * 복원은 기준 실행의 앞 커밋 지점까지의 이벤트를 새 저장소에 넣고 호스트를 다시 만든 뒤(`restart`) thread를 여는 것이다.
  */
-export function createRuntimeReplayHarness(): CountingReplayHarness {
+export interface RuntimeReplayHarnessOptions {
+  /** 주면 모든 실행이 이 승인 서비스를 쓴다. 사람 확인(loop.ask)을 지나가는 그룹을 재생할 때 넣는다(`autoAnswerApprovals`) */
+  readonly approvals?: ApprovalService;
+}
+
+export function createRuntimeReplayHarness(
+  options: RuntimeReplayHarnessOptions = {},
+): CountingReplayHarness {
   const originals = new WeakMap<object, DurableEventDraft>();
   let shared: SharedPorts | undefined;
   let current: { readonly agents: FakeAgents; readonly thread: ThreadId } | undefined;
@@ -186,6 +197,15 @@ export function createRuntimeReplayHarness(): CountingReplayHarness {
           ctx.providePort(AgentServicePortKey, ports.agents);
         },
       });
+      const { approvals } = options;
+      if (approvals !== undefined) {
+        await t.host.registerPlatform({
+          name: "replay-approvals",
+          setup(ctx) {
+            ctx.providePort(ApprovalServicePortKey, approvals);
+          },
+        });
+      }
       await t.host.install({
         manifest: group.manifest,
         entry: group.entry,

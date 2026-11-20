@@ -18,6 +18,7 @@ test("defaults match the l1.tools settings table", () => {
   expect(readScalarConfig([])).toEqual({
     mode: "bypass",
     modeFromRepository: false,
+    managedRestricts: false,
     bypassAllowed: true,
     output: { maxLines: 2000, maxBytes: 51_200 },
     deferThreshold: 64,
@@ -69,6 +70,11 @@ test("the scope that set the mode is reported, and a repository scope is flagged
   const bypass = { "l1.tools.permissionMode": "bypass" };
   expect(readScalarConfig([layer("project", bypass)]).modeFromRepository).toBe(true);
   expect(readScalarConfig([layer("local", bypass)]).modeFromRepository).toBe(true);
+  expect(readScalarConfig([layer("managed", bypass)]).managedRestricts).toBe(true);
+  expect(
+    readScalarConfig([layer("managed", { "l1.tools.bypassAllowed": false })]).managedRestricts,
+  ).toBe(true);
+  expect(readScalarConfig([layer("user", bypass)]).managedRestricts).toBe(false);
   expect(readScalarConfig([layer("user", bypass)]).modeFromRepository).toBe(false);
   expect(readScalarConfig([layer("launch", bypass)]).modeFromRepository).toBe(false);
   // 범위 안이어도 값 검사에 걸리면 건너뛰므로 그 층이 정한 모드가 아니다

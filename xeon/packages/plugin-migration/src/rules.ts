@@ -66,9 +66,9 @@ export interface Ruleset {
   readonly toolNames: Readonly<Record<string, string>>;
   /** 처음 맞는 규칙이 이긴다. 값이 있는 규칙을 앞에 둔다 */
   readonly rules: readonly Rule[];
-  /** 옮긴 Hook마다 붙는 차이(입력 필드가 없다 등) */
+  /** 옮긴 Hook 명령마다 붙는 차이(입력 필드가 없다, 명령이 원래 환경에서 돈다 등) */
   readonly hookNotes?: readonly RuleDifference[];
-  /** 스크립트 본문에서 찾을 이름과 그 차이 */
+  /** 참조 파일 본문에서 찾을 입력 필드 이름과 그 차이 */
   readonly scriptInputs?: readonly ScriptInputNote[];
 }
 

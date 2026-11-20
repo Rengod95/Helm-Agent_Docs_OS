@@ -6,6 +6,7 @@ import {
   type ExtensionManifest,
   type LoaderFs,
   type LoaderPaths,
+  type ScriptEnvGrant,
 } from "@fresnel/contracts/extensions";
 import { BUILTIN_LAYER_ORDER, type OrderKey } from "./load-order.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
@@ -43,6 +44,11 @@ export interface ExtensionCandidate {
   readonly inferredManifest?: ExtensionManifest;
   /** 초안 후보(`loadDraft`)면 그 출처. 내부 이름과 판 식별자를 정하고, 이름은 매니페스트 이름 대신 이것을 쓴다 [제안] */
   readonly draft?: DraftOrigin;
+  /**
+   * 검토본이 마이그레이션 출처로 승인되었다는 호스트 기록(AGE-58 [제안]). 참이면 이 확장의 환경 모드 스크립트(`scripts[].env`)를 받아들인다.
+   * 호스트의 검토본 저장소 기록(`meta.json`)에서만 채우고, 매니페스트에서는 읽지 않는다. 초안과 내장과 원본 폴더 탐색 후보는 없다
+   */
+  readonly importedScripts?: boolean;
 }
 
 /** 내장 모듈 목록 → 후보(X.loading-trust.spec §4.2.1). 외부 위치 탐색은 `discoverExternal`이다 */
@@ -192,4 +198,13 @@ export async function discoverExternal(
     return "continue";
   });
   return { candidates, diagnostics };
+}
+
+/**
+ * 후보가 환경 모드 스크립트를 받을 자격(AGE-58 [제안]). 호스트가 검토본 기록에서 채운 `importedScripts`가 참이고 초안이 아닐 때만 `granted: true`다.
+ * 프로젝트 폴더는 실행 때 대화가 준다(`projectDirOf`)라 여기서는 비워 둔다. 내장, 초안, 원본 폴더 탐색, 표지 없는 검토본은 undefined다
+ */
+export function scriptEnvGrantOf(candidate: ExtensionCandidate): ScriptEnvGrant | undefined {
+  if (candidate.importedScripts !== true || candidate.draft !== undefined) return undefined;
+  return { granted: true, projectDir: null, fromProject: candidate.source === "project" };
 }

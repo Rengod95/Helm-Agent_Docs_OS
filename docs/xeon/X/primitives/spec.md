@@ -123,13 +123,13 @@ import type {
 | `ProjectTrustResult`, `ResolveProjectTrustInput`, `ProjectTrustStore`, `createProjectTrustStore`, `resolveProjectTrust`, `findTrustRequiringResources`, `TRUST_REQUIRING_PROJECT_RESOURCES`, `trustOptions`, `TrustLookup`, `TrustStoreError`, `TrustVerdict`, `TrustVia`, `LoaderMode` | 인터페이스, 함수, 상수, 타입 | X.loading-trust.spec §3.7 |
 | `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustChoice`, `TrustChoiceKind`, `TrustOption`, `TrustUpdate` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.7) |
 | `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.8) |
-| `createScriptRunner`, `ScriptRunnerDeps`, `ScriptTarget` | 함수, 인터페이스 | X.loading-trust.spec §3.8 [제안: 확장마다 만든 스크립트 실행기, 조립 루트가 격리 항목에 넘긴다] |
+| `createScriptRunner`, `ScriptRunnerDeps`, `ScriptTarget`, `ScriptRefReader`, `ScriptRefStat` | 함수, 인터페이스 | X.loading-trust.spec §3.8 [제안: 확장마다 만든 스크립트 실행기, 조립 루트가 격리 항목에 넘긴다] |
 | `VirtualModuleRegistry` | 인터페이스 | X.loading-trust.spec §3.9 |
 | `Tier`, `TIERS` | 타입, 상수 | X.operations.spec §3.1 |
 | `ScopeChangeReason`, `RegistrationControl`, `OperationsNotifier`, `HandlerOutcomeRecord`, `FailureStats` | 타입, 인터페이스 | X.operations.spec §3.3 |
 | `createVolatileNotifier` | 함수 | X.operations.spec §3.3 |
 | `storageOf`, `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `ExtTableDefs`, `ExtQuery`, `ExtTableReader`, `ExtTableWriter`, `ExtRowError`, `ExtStorageError`, `ExtStorageAdmin`, `ExtTableRecord`, `extTablePrefix`, `parseExtTableName` | 함수, 인터페이스 | X.operations.spec §3.4 |
-| `createResourcePolicy`, `ReservedNames` | 함수, 인터페이스 | X.operations.spec §3.5 |
+| `createResourcePolicy`, `ReservedNames`, `createToolNamesPolicy`, `exposeToolNames`, `toolNameKey`, `ToolNameInput` | 함수, 인터페이스 | X.operations.spec §3.5, §4.5.1 |
 | `StartupOptions`, `StartupHealthStore`, `startupFilter`, `shouldSuggestSafeMode` | 인터페이스, 함수 | X.operations.spec §3.6 |
 | `HookDef`, `HookDefSchema`, `HookInput`, `HookOutput`, `HookOutputSchema`, `HOOK_SCHEMA_VERSION` | 타입, 스키마, 상수 | X.operations.spec §3.7 |
 | `HookProcessPort`, `HookRunSpec`, `HookRawRun` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.operations.spec §3.7) |
@@ -764,6 +764,8 @@ export interface ResourcePolicy {
    * 쌍 판정 대신 이것을 쓴다. 결과는 입력 순서와 무관하다(X.operations.spec §4.5 규칙 3)
    */
   exposeAll?(records: readonly ResourceRecord[]): readonly ResourceExposure[];
+  /** 참이면 도구는 이 집합 판정을 받지 않는다. 노출 이름은 요청한 이름이고 도구 포트에 `perThread`로 넘긴다(X.operations.spec §4.5.1) */
+  readonly perThreadToolNames?: true;
 }
 
 /** exposeAll이 레코드마다 돌려준다. 레코드는 (kind, scopeId, name)으로 가리킨다 */
@@ -1118,7 +1120,7 @@ lifecycle [결정: adr.0017]:
    - 맡기기: 맨 위 프레임의 `handoff` 명령이다(§4.4.1b). 시작 요청 `trigger: "handoff"`를 큐 맨 앞에 넣는다. 거부는 `{ kind: "refused", code }` 결과다.
    - 사용자 명령과 맡기기 요청은 큐에 들어갈 때 `lease.requested`로 기록한다(재시작 복원, §4.4.1b 9번). 부여는 그 기록이 끝난 뒤다. 프로필 시작은 기록하지 않는다.
    - 대상 scope의 켜짐은 그 thread 기준이다(§4.5.2). 한 thread에서 꺼진 scope는 다른 thread에서 켜져 있어도 이 thread의 요청 대상이 아니다.
-5. 부여 규칙. 큐 맨 앞 요청만 본다. 스택이 비어 있어야 부여한다. 스택이 차 있을 때 사용자 명령은 전환 정책을 따른다(§4.4.1a). 맡기기 요청은 맡긴 프레임이 맨 위이고 `waiting`일 때 부여한다(§4.4.1b). 스택이 차 있을 때 `profile` 요청은 버리고 진단 `scope_notice`를 낸다. 사용자가 멈춘 뒤(`userStopped`)에는 사용자 명령만 부여한다. 요청의 대상은 열려 있어야 하고, drive가 있어야 하며, `driveError`가 아니어야 하고, 이 thread에서 켜져 있어야 한다. 아니면 요청을 버리고 `scope_notice`를 낸다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다. 커밋이 실패하면 다음 경계가 다시 시도한다. 사용자 명령은 멈춤(`userStopped`)을 푼다.
+5. 부여 규칙. 큐 맨 앞 요청만 본다. 스택이 비어 있어야 부여한다. 스택이 차 있을 때 사용자 명령은 전환 정책을 따른다(§4.4.1a). 맡기기 요청은 맡긴 프레임이 맨 위이고 `waiting`일 때 부여한다(§4.4.1b). 스택이 차 있을 때 `profile` 요청은 버리고 진단 `scope_notice`를 낸다(프로필 전환이 건 시작은 예외다: 스택이 빌 때까지 기다린다, §4.4.1c). 사용자가 멈춘 뒤(`userStopped`)에는 사용자 명령만 부여한다. 요청의 대상은 열려 있어야 하고, drive가 있어야 하며, `driveError`가 아니어야 하고, 이 thread에서 켜져 있어야 한다. 아니면 요청을 버리고 `scope_notice`를 낸다. 요청은 `lease.acquired`가 커밋된 뒤에 큐에서 지운다. 커밋이 실패하면 다음 경계가 다시 시도한다. 사용자 명령은 멈춤(`userStopped`)을 푼다.
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId`는 부여 초안의 이벤트 id를 그대로 쓴 불투명 문자열(40자 이하)이다. `lineageId`는 `leaseId`와 같다(맡기기 부여도 새 계통을 연다, §4.4.1b 4번). 경계 기여에 `lease.acquired { leaseId, scopeId, lineageId, limits, leaseEpoch, depth }`(F.records.spec §3.3)를 넣는다. `depth`는 스택 인덱스다. 사용자와 프로필 부여는 빈 스택에서 하므로 0이고, 맡기기 부여는 맡긴 프레임의 깊이 + 1이다. `parent`는 맡기기 부여에만 싣는다(맡긴 프레임의 leaseId). `contentHash`는 지금 값이 없어 싣지 않는다. 부여된 프레임은 `driving`이다.
 7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLeases`의 `leaseEpoch`와 `leaseEpochs`로 같은 drive 락를 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(부여마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
 8. 옛 중재의 대기와 거부(대기 계수, 상한 `leaseWaitLimit`, `lease.rejected` 발행, `lifecycle.lease.rejected` 발화, 쿨다운, `withdrawn`)는 3a에서 걷어 냈다. `lease.rejected` 이벤트 종류와 `lifecycle.lease.rejected` 점의 스키마는 옛 기록을 읽을 때만 남는다. X는 두 값을 발행하지 않는다.
@@ -1142,7 +1144,7 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1b 맡기기(`handoff`) [결정: 2026-11-17 사용자, 3b]
 
-1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 입력의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 주입하면 `driveInputMaxBytes`)를 넘으면 `input_too_large`다. 맡을 쪽이 격리 등록이면 상한은 한 줄 상한 안(16 MiB - 64 KiB)으로 줄어든다(X.loading-trust §4.9.3). 크기는 JSON 텍스트의 UTF-8 바이트로 잰다. 거부하면 스택과 기록은 바뀌지 않는다.
+1. 명령 `{ do: "handoff", to, input }`은 `executeCommand`가 받는다. 거부할 것이면 예외가 아니라 결과 `{ kind: "refused", code }`다. 검사 순서: 자기 자신(`to`가 맨 위 플러그인 이름과 같다)이면 `self_handoff`, 스택에 이미 있는 플러그인이면 `already_in_stack`, 대상이 없거나 이 thread에서 켜지지 않았거나 drive가 없거나 `driveError`면 `target_unavailable`, 새 프레임 깊이(스택 길이 + 1)가 `x.primitives.driveMaxDepth`를 넘으면 `depth_limit`. 입력의 직렬화 크기가 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 주입하면 `driveInputMaxBytes`)를 넘으면 `input_too_large`다. 맡을 쪽이 격리 등록이면 상한은 협상된 조각 상한(엔진 설정 `l0.store.maxBlobBytes`와 자식 상한 128 MiB 가운데 작은 값)에서 뼈대 몫 64 KiB를 뺀 값으로 줄어든다. 협상이 안 되면 한 줄 상한 안(16 MiB - 64 KiB)이다(X.loading-trust §4.9.3). 크기는 JSON 텍스트의 UTF-8 바이트로 잰다. 거부하면 스택과 기록은 바뀌지 않는다.
 2. `to`는 플러그인(확장) 이름이다. 플러그인 이름은 `RegistrationRecord.extension`이고 프레임 읽기의 `plugin`과 같다. 같은 확장이 플러그인을 여럿 등록하면 scope가 여럿이므로, 이름과 id가 같은 루트 scope를 고르고 그것이 없고 이름이 같은 scope가 하나뿐일 때만 고른다. 고를 수 없으면 `target_unavailable`이다. scope id는 루트 플러그인이면 확장 이름과 같고, 그 밖의 플러그인이면 `이름/플러그인`이다.
 3. 통과하면 시작 요청 `{ trigger: "handoff", scopeId, input, parentLeaseId: 맨 위의 leaseId }`를 큐 맨 앞에 넣고 맨 위 프레임을 `waiting`으로 둔다. 이번 호출은 `handoff` 결과로 끝나고 `requestApply`한다.
 4. 부여: 맡긴 프레임이 맨 위이고 `waiting`일 때 부여 판단이 맡은 프레임을 올린다. `lease.acquired`에 `parent`(맡긴 프레임의 leaseId), `depth`(맡긴 프레임 깊이 + 1), `lineageId`(= leaseId, 새 계통)를 싣는다. 맡은 프레임의 `calledBy`는 맡긴 플러그인 이름, `input`은 요청 입력이다. 한도는 §4.4.2 8번이다.
@@ -1151,6 +1153,17 @@ lifecycle [결정: adr.0017]:
 7. 복귀: 맡은 프레임이 `done`으로 내려가면(결과 포함) 커밋 뒤 맡긴 프레임이 `last = { kind: "handoff", status: "done", result }`로 이어 단계를 시작한다. `error`, `disabled`, `budget`, `idle`, `restart`, `revoked`로 위쪽만 내려가면 `status: "aborted"`다. 맡긴 프레임이 아래에 더 있으면 그 프레임까지 같은 규칙을 따른다.
 8. 맡긴 프레임은 기다리는 동안 단계 함수를 부르지 않는다(`start`가 막는다). 사용자 메시지를 받지도 않는다(`claimUserInput`은 맨 위가 `driving`일 때만 준다). 기다리던 메시지가 있으면 맡길 때 코어 루프로 돌려보낸다.
 9. 재시작: 기록의 열린 프레임 목록에서 맨 위만 `driving`으로 다시 부르고 아래는 `waiting`이다. 아래 프레임의 `calledBy`는 기록의 `parent`로 찾은 맡긴 프레임의 이름이다. 맡은 프레임의 `input`은 `lease.acquired.input`에서 읽는다(옛 기록은 null). 맡기기와 사용자 명령의 시작 요청은 큐에 들어갈 때 `lease.requested`(`queued`)로 기록되고, 부여되면 `lease.acquired.requestId`가 그 요청을 가리키며, 버려지면 `dropped`가 남는다. 재시작 때 부여도 `dropped`도 없는 요청을 기록 순서대로 큐에 되살린다. 맡기기 요청이 맨 위를 가리키면 그 프레임은 `waiting`인 채로 맡은 프레임의 부여를 기다린다(다시 묻지 않는다). 맡은 프레임이 반납된 뒤 맡긴 프레임이 아직 새 명령을 정착시키지 못했다면(`drive.command_settled`가 그 scope에 없다) 맡긴 프레임의 첫 단계가 그 끝을 `last`로 받는다: 사유 `done`이면 `lease.released.result`와 함께 `{ kind: "handoff", status: "done", result }`, 그 밖의 사유면 `aborted`다. 맡긴 프레임이 끝을 받고도 정착시킨 명령이 없는 채 끊기면 같은 끝을 다시 받는다(최소 한 번 전달). 프로필 시작 요청은 기록하지 않고 열 때 다시 만든다(§4.4.1b). 가로챈 사용자 메시지도 되살린다: `lease.user_input`이 `held`이고 `settled`가 없는 메시지(`ExtThreadSnapshot.pendingUserInputs`, 받은 순서)를 같은 scope의 프레임이 있으면 그 `inbox`로, 프레임이 아직 없고 시작 요청이 있으면 `heldUser`로 되돌리고, 둘 다 없으면 입력 큐에 `when: "followUp"`(요청 id `user-return:<메시지 id>`)으로 돌려보내고 `settled`를 남긴다. 프로필의 시작 주도 프레임(`lease.acquired`에 `requestId`와 `parent`가 없다)은 그 scope에 처리된 사용자 메시지(`settled`)가 아직 없으면 `OpenLease.awaitsUser`가 참이라 복원한 프레임도 첫 메시지를 다시 기다린다(`awaitUser`, 첫 단계 전 호출 없음). 처리된 메시지가 있으면 기다리지 않는다.
+
+#### 4.4.1c 프로필 전환의 시작 Drive [결정: 2026-11-20, 사용자, AGE-64]
+
+`ExtHost.switchStartDrive(threadId, scopeId | null, fresh)`가 `thread.setProfile`의 뒤에 시작 Drive를 맞춘다. `scopeId`가 null이면 새 프로필에 시작 Drive가 없다. `fresh`는 첫 메시지 전의 빈 대화다. 결과는 `requested`(시작 요청을 걸었다), `deferred`(도는 turn이나 이미 일하는 Drive가 끝난 뒤 시작한다), `leading`(새 시작 Drive가 이미 쥐고 있다), `none`(새 프로필에 시작 Drive가 없다)이다.
+
+1. 마지막 전환만 유효하다. 호출은 먼저 이전 전환이 걸어 둔 기다리는 시작(`waitStack`)을 모두 큐에서 지운다. 기록한 적이 없어 `dropped`는 남기지 않는다. 사용자 명령 `startDrive`(`trigger: "user"`)도 같은 요청을 지운다(사용자가 직접 말한 쪽이 이긴다).
+2. "아직 메시지를 받지 않은 시작 Drive"는 엔진의 사실로 판정한다: 스택에 프레임이 하나이고, 그 프레임이 프로필 시작(`awaitUser`)이며 첫 단계 전이고(`firstStepDone` 거짓, 도는 중 아님), 받은 메시지(`userSeq`, `inbox`, 전달 중, 쥐고 있는 메시지)와 쓴 turn(`used.turns`)이 없다.
+3. 그런 프레임은 기존 내리는 길(`revoked`, §4.4.1a의 `releaseFrom`)로 내린다. 플러그인 프로세스에 알리고 `lease.released`를 남긴다. 새 시작이 있으면 반납이 커밋된 뒤 부여된다.
+4. 이미 일을 시작한 프레임, 사용자 명령이나 원샷, 맡기기로 쌓인 프레임, 스택이 둘 이상인 경우는 내리지 않는다. 새 시작 요청(`waitStack`)을 큐에 두고 스택이 빈 뒤에 부여한다(`deferred`). 새 시작 Drive가 맨 위에서 이미 쥐고 있으면 아무것도 하지 않는다(`leading`).
+5. 첫 메시지 뒤의 전환이 건 시작(`afterTurn`, `fresh` 거짓)은 도는 turn이 끝나 유휴 경계가 되고, 입력 큐에 먼저 보낸 입력이 남아 있지 않고(`hasQueuedInput`, 호스트가 준다), 스택이 비었을 때만 부여한다. turn이 정착하면 엔진이 유휴 적용을 청해 이 조건을 다시 본다. 사용자 메시지를 이 요청에 쥐지 않는다: 그 사이에 온 메시지는 코어 루프가 먼저 받는다(AGE-47의 "첫 메시지가 시작 Drive보다 먼저"와 같은 방향). 부여된 프레임은 메시지를 기다리지 않고 첫 단계(`last: null`)를 바로 돈다. 첫 메시지 전의 전환(`fresh`)은 AGE-47대로 시작 Drive가 첫 메시지를 받는다(`awaitUser`).
+6. 재시작: 전환이 건 시작은 기록하지 않는다(새 기록 종류를 만들지 않는다). 열기(`openThread`)가 프로필의 시작 Drive(`startDrive`)를 다시 건다. 열린 `lease`가 없으면 기존대로 시작 요청이 걸리고, 열린 `lease`가 있고 그 스택에 시작 Drive의 scope가 없으면 같은 요청을 `waitStack`·`afterTurn`으로 건다. 일하던 Drive가 복원돼 끝난 뒤 시작 Drive가 이어진다.
 
 #### 4.4.2 상한
 
@@ -1640,7 +1653,7 @@ recordPrivate(kind, payload):
 
 1. 모든 등록은 호출한 scope 세대의 fiber effect다. `fiber.effect(() => { const off = port.register(...); return off })` 형태다. scope가 꺼지면(§4.5.3 4단계) 해제기가 자동으로 실행된다. pi는 확장을 내릴 때 자동 해제가 없고, 도구와 명령은 해제 API 자체가 없다(`docs/extensions.md:160` "hidden으로 재등록").
 2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer, web_provider)는 포트 없이 등록된다.
-3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. `web_provider`는 이 규칙의 예외다. 같은 scope의 중복만 거부하고 다른 확장의 같은 이름은 모두 남긴다(§3.9.1). 이름 충돌 규칙 자체는 X.operations.spec 소유다.
+3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. `web_provider`는 이 규칙의 예외다. 같은 scope의 중복만 거부하고 다른 확장의 같은 이름은 모두 남긴다(§3.9.1). 이름 충돌 규칙 자체는 X.operations.spec 소유다. 정책의 `perThreadToolNames`가 참이면 도구는 이 규칙을 받지 않는다: 요청한 이름 그대로 `perThread`로 도구 포트에 등록하고(주인이 다르면 같은 이름이 여럿이어도 된다), 대화가 보는 이름은 X.operations.spec §4.5.1의 `exposeToolNames`가 대화마다 정한다 [결정: 2026-11-19, 사용자, AGE-56].
 4. 등록과 해제는 `ResourceRegistry.subscribe` 구독자에게 알린다. 노출 이름이 바뀌면 `removed`(옛 이름) 뒤에 `added`(새 이름)를 알린다. 구독자의 예외는 `report`로 남기고 다음 구독자에게 이어 간다. L4는 이 표를 읽어 명령 목록과 키 조합를 갱신한다.
 5. 도구 등록은 setup 안이나 세대가 열린 동안 할 수 있다. 등록한 도구가 모델에 보이는 시점(다음 요청)은 L1.tools.spec이 정한다. 도구 포트에는 노출 이름을 정의의 `name`으로 넘긴다(`execute`는 원본 정의를 그대로 부른다). 포트가 이름을 거부하면(`ToolRegisterError.name_conflict`) `resource_conflict`다.
 6. 이름 형식: 1~64자, 공백·제어 문자 없음. 도구는 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`)을 따른다. 어기면 `resource_name_invalid`다. 정식 이름이 64자를 넘는 외부 도구는 `exposeAll`의 `too_long`으로 `resource_name_invalid`이다.
@@ -1756,8 +1769,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|---|---|---|---|
 | `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
 | `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
-| `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자] | 정수≥1 | `8` | managed, user, project, launch, profile | `nextTurn`. 맡기기가 소비한다(§4.4.1b, §4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
-| `x.primitives.driveRequiresGroup` [제안] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인 그룹만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
+| `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자. 키 이름은 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] | 정수≥1 | `8` | managed, user, project, launch, profile | `nextTurn`. 맡기기가 소비한다(§4.4.1b, §4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
+| `x.primitives.driveRequiresGroup` [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인 그룹만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "기능 공급자" 표 |
 
 - `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `driveRequiresGroup`은 `toggle`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
@@ -1856,7 +1869,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
 31. `fresnel.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
 32. (3a, X.1) 중재 포트와 후보 추첨은 없다 [근거: packages/ext-host/src/primitives/lease.ts]. 시작 요청 큐의 맨 앞 요청은 스택이 빈 때 부여되고, 그 부여는 `lease.acquired`(`depth` 0, `parent` 없음)로 기록된다.
-33. (3b) 스택이 차 있을 때 사용자 명령은 §4.4.1a의 정책대로 스택을 바꾼다. 실행 중이면 단계 경계까지 큐에 남고, 그 경계의 커밋에서 `lease.released`(`revoked`)가 기록되고 새 `lease.acquired`가 그다음 커밋에 기록된다. 스택이 차 있을 때 `profile` 요청은 버려지고 `scope_notice` 진단이 남는다.
+33. (3b) 스택이 차 있을 때 사용자 명령은 §4.4.1a의 정책대로 스택을 바꾼다. 실행 중이면 단계 경계까지 큐에 남고, 그 경계의 커밋에서 `lease.released`(`revoked`)가 기록되고 새 `lease.acquired`가 그다음 커밋에 기록된다. 스택이 차 있을 때 `profile` 요청은 버려지고 `scope_notice` 진단이 남는다(전환이 건 시작은 스택이 빌 때까지 기다린다, §4.4.1c, 시험: `packages/ext-host/test/primitives/profile-switch-drive.test.ts`).
 34. (M2, X.1) 저장된 상태가 낮은 버전이면 `migrateState` 훅의 결과가 새 판(`rev + 1`, 선언 버전)으로 커밋된다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 저장된 버전이 선언보다 높으면 `state_future_version`이고 그 thread에서는 켜지지 않는다. 같은 이동을 두 번째 시작에서 다시 하지 않는다.
 35. (M2, X.1) 같은 기능의 공급자가 둘이면 `capabilityProviders`가 고른 공급자만 `cap:<id>`에 바인딩된다. 설정이 없거나 후보가 아닌 확장을 가리키면 `capability_ambiguous` 진단을 내고 바인딩하지 않는다. major가 다른 공급자는 진단과 함께 제외된다.
 36. (M2, X.1) 두 thread가 열려 있을 때 한 thread에서 scope를 끄면 그 thread의 핸들러와 drive 락만 빠지고 세대는 유지된다. 마지막 thread에서도 끄면 세대가 닫히고 `onDispose`가 한 번 실행된다. 전체 `enable()`·`disable()`은 thread별 요청을 지운다.
@@ -1910,12 +1923,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 51. (M3) 피드로 온 `agent.settled`는 `owner` scope의 구독자만 받고 같은 이벤트는 한 번만 발화한다(§4.11).
 52. (M3) 선언 없는 쓰기 요청은 requested → started → settled 순으로 한 번 실행되고, 재시작 뒤 결과 없는 `started`는 `unsafe` 메서드에서 `unknown`으로 닫힌다(§4.10).
 53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 훅, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 drive 락의 `lease.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
-55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
-56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
-57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
-58. (3b) 맡기기 `handoff`는 명령 시점에 자기 자신(`self_handoff`), 스택에 있는 플러그인(`already_in_stack`), 쓸 수 없는 대상(`target_unavailable`), 깊이 초과(`depth_limit`)를 결과로 거부하고 스택과 기록을 바꾸지 않는다. 받아들이면 맡긴 프레임은 `waiting`이고 맡은 프레임의 `lease.acquired`에 `parent`와 `depth`가 맡긴 쪽을 가리킨다(§4.4.1b, 시험: `packages/ext-host/test/primitives/handoff-stack.test.ts`).
-59. (3b) 맡은 프레임의 한도는 맡긴 쪽의 남은 양을 넘지 못하고, 맡은 쪽이 쓴 턴과 서브에이전트는 맡긴 쪽의 사용량에도 더해진다(§4.4.2 8번, 시험: `packages/ext-host/test/primitives/limits-inheritance.test.ts`).
-60. (3b) 사용자 명령의 전환은 실행 중인 단계를 끊지 않고, 끝난 경계에서 스택 전체를 `revoked`로 내린 뒤 한 줄 `scope_notice`를 남긴다. 유휴와 질문 대기에서는 바로 내린다(§4.4.1a, 시험: `packages/ext-host/test/primitives/user-command-priority.test.ts`).
+54. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
+55. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
+56. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
+57. (3b) 맡기기 `handoff`는 명령 시점에 자기 자신(`self_handoff`), 스택에 있는 플러그인(`already_in_stack`), 쓸 수 없는 대상(`target_unavailable`), 깊이 초과(`depth_limit`)를 결과로 거부하고 스택과 기록을 바꾸지 않는다. 받아들이면 맡긴 프레임은 `waiting`이고 맡은 프레임의 `lease.acquired`에 `parent`와 `depth`가 맡긴 쪽을 가리킨다(§4.4.1b, 시험: `packages/ext-host/test/primitives/handoff-stack.test.ts`).
 58. (M4, X-3) `hostOf(g).registerMethod`는 매니페스트 `methods`에 없는 동사와 `EXT_VERB_PATTERN`을 어긴 동사를 `resource_name_invalid`로, 같은 확장 안의 같은 동사를 `resource_conflict`로 거부한다. 다른 확장의 같은 동사는 둘 다 `list()`에 남는다. `params`나 `result` 스키마를 컴파일할 수 없으면 `method_schema_invalid`다(§4.12).
 59. (M4, X-3) 등록한 메서드를 `call`하면 처리기가 돌려준 값이 `{ kind: "ok", value }`로 나온다. `params`가 `decl.params`를 어기면 처리기를 부르지 않고 `params_invalid`이며, `issues`는 `path`와 `message`를 담고 typebox 기본 상한 8개를 넘지 않는다(§4.12).
 60. (M4, X-3) 처리기가 `decl.result`를 어긴 값이나 `undefined`를 돌려주면 `result_invalid`이고, 던지면 `threw`이며 메시지는 앞 500자다. `onMethodSettled`는 두 경우에 각각 `result_invalid`·`threw`로 한 번씩 불리고, 던진 원인은 `handler_failed` 진단으로 남는다.
@@ -1924,10 +1935,12 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 63. (M4, X-3) scope를 끄고 다시 켜면 메서드가 `list()`에 다시 나타나고 검사기가 새로 만들어져 `params` 검사가 그대로 된다.
 64. (M4, X-3) thread가 열려 있으면 처리기는 `invocation: "method"`인 ambient 안에서 돌아 `hostOf(g).commit`이 `no_thread` 없이 동작한다. `threadId`가 `null`이면 처리기는 ambient 없이 돈다.
 65. (M4, F1) 사용자 중단으로 끝난 turn의 `turn_settled`에서 drive 락이 `lease.released { reason: "revoked" }`로 반납되고, 그 뒤 drive 함수가 다시 불리지 않으며, 사용자의 다음 주도 명령(시작 요청)이 새 프레임을 받는다. 확인: `packages/ext-host/test/primitives/lease.test.ts`, `packages/core-loop/test/drive-budget.test.ts`.
+66. (3b) 맡은 프레임의 한도는 맡긴 쪽의 남은 양을 넘지 못하고, 맡은 쪽이 쓴 턴과 서브에이전트는 맡긴 쪽의 사용량에도 더해진다(§4.4.2 8번, 시험: `packages/ext-host/test/primitives/limits-inheritance.test.ts`).
+67. (3b) 사용자 명령의 전환은 실행 중인 단계를 끊지 않고, 끝난 경계에서 스택 전체를 `revoked`로 내린 뒤 한 줄 `scope_notice`를 남긴다. 유휴와 질문 대기에서는 바로 내린다(§4.4.1a, 시험: `packages/ext-host/test/primitives/user-command-priority.test.ts`).
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [닫힘, AGE-26] (3a) 시작 요청 큐 기록: 사용자 명령과 맡기기 요청은 `lease.requested`로 기록되고 재시작 뒤 큐에 되살아난다(§4.4.1b 9번). 프로필 시작은 열 때 다시 만든다. 옛 [미결] 설명: 시작 요청 큐는 기록되지 않는다. `openThread`는 큐를 빈 채로 열고(`boundary.ts`) 프로필 시작 요청만 다시 넣는다. 재시작 전에 큐에 있던 사용자 명령은 사라진다. drive-isolation.md 2.7의 "대기 중인 명령이 지워지지 않는다" 조건을 3a는 아직 지키지 않는다. 큐를 기록에 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts].
-- [닫힘, AGE-26] (3b) 맡기기 요청과 맡긴 입력: `lease.requested`와 `lease.acquired.input`으로 기록된다. 입력과 `done` 결과의 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 블롭 상한 `l0.store.maxBlobBytes`의 기본값과 같다)를 넘으면 잘라 저장하지 않고 거절한다: `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`, `done`은 `result_too_large`, 사용자 명령의 `startDrive`는 오류 `input_too_large`다. 큰 값은 L1이 블롭으로 분리하므로 envelope 상한(256 KiB)과는 상관없다. 받는 쪽이 격리 등록이면 상한은 16 MiB - 64 KiB로 줄어들고, 넘는 입력은 기록하기 전에 같은 이름으로 거절한다(사용자 메시지는 가로채지 않는다)(X.loading-trust §4.9.3). 옛 [미결] 설명: 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
+- [닫힘, AGE-26] (3b) 맡기기 요청과 맡긴 입력: `lease.requested`와 `lease.acquired.input`으로 기록된다. 입력과 `done` 결과의 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, 블롭 상한 `l0.store.maxBlobBytes`의 기본값과 같다)를 넘으면 잘라 저장하지 않고 거절한다: `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`, `done`은 `result_too_large`, 사용자 명령의 `startDrive`는 오류 `input_too_large`다. 큰 값은 L1이 블롭으로 분리하므로 envelope 상한(256 KiB)과는 상관없다. 받는 쪽이 격리 등록이면 상한은 협상된 조각 상한(위 §4.9.3, 협상이 안 되면 16 MiB - 64 KiB)으로 줄어들고, 넘는 입력은 기록하기 전에 같은 이름으로 거절한다(사용자 메시지는 가로채지 않는다)(X.loading-trust §4.9.3). AGE-59에서 격리 자식의 입력은 조각으로 가므로 상한이 16 MiB에서 협상된 값으로 바뀌었다. 플러그인 API는 그대로다. 옛 [미결] 설명: 맡기기 요청도 시작 요청 큐에 있어 기록되지 않는다. 재시작 사이에 대기하던 맡기기는 사라지고 맨 위가 다시 묻는다. 맡길 때 넘긴 입력(`input`)도 `lease.acquired`에 없어 재시작 뒤 맡은 프레임의 `input`은 null이다. 싣는 방식은 정하지 않았다 [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts].
 - [닫힘, AGE-26, m4/enS2] 주도 프레임이 가로챈 사용자 메시지(보류 `heldUser`, 프레임 `inbox`, 전달 중 `deliveredUser`)는 `lease.user_input`으로 기록되어 재시작 뒤 되살아난다(§4.4.1b 9번, §4.4.4의 사용자 메시지 항목). 옛 [미결] 설명: 가로챈 메시지는 입력 큐에 들어가지 않고 메모리에만 있어 재시작에서 사라졌다 [근거: packages/ext-host/src/primitives/lease.ts, packages/core-persistence/src/ext-queries.ts].
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).

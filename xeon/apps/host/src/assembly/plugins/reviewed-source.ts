@@ -108,6 +108,7 @@ export function createReviewedSource(store: PluginStore, logger: Logger): Review
           contentHash: version.contentHash,
           ...(item.parts.projectId === null ? {} : { projectId: item.parts.projectId }),
           ...(item.manifest === undefined ? {} : { manifest: item.manifest }),
+          ...(version.meta.importedScripts === true ? { importedScripts: true } : {}),
         });
       }
       return { entries, diagnostics };

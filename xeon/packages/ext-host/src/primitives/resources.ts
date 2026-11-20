@@ -86,6 +86,11 @@ export interface ResourcePolicy {
    * 결과는 입력 순서와 무관해야 하고(X.operations.spec §4.5 규칙 3) 레코드마다 하나씩 돌려준다
    */
   exposeAll?(records: readonly ResourceRecord[]): readonly ResourceExposure[];
+  /**
+   * 참이면 도구는 엔진 전체 집합으로 이름을 정하지 않는다. 노출 이름은 요청한 이름이고(`ResourceRecord.exposed`), 도구 포트에 `perThread`로
+   * 넘긴다. 대화마다 보이는 이름은 `exposeToolNames`가 그 대화의 집합으로 정한다(L1.tools.spec §3.3.1)
+   */
+  readonly perThreadToolNames?: true;
 }
 
 /**
@@ -262,17 +267,22 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
         // 정의의 이름은 노출 이름으로 바꿔 넘긴다. 메서드는 원본 객체를 그대로 부른다
         const original = toolDefOf(record.def);
         if (original === undefined) return ok(NOOP);
-        const registered = port.register(record.scopeId, {
-          name: record.exposed,
-          description: original.description,
-          parameters: original.parameters,
-          replay: original.replay,
-          ...(original.exposure === undefined ? {} : { exposure: original.exposure }),
-          ...(original.risk === undefined ? {} : { risk: original.risk }),
-          ...(original.hints === undefined ? {} : { hints: original.hints }),
-          ...(record.replaces === undefined ? {} : { replaces: record.replaces }),
-          execute: (args, ctx) => original.execute(args, ctx),
-        });
+        const perThread = deps.policy?.perThreadToolNames === true && record.replaces === undefined;
+        const registered = port.register(
+          record.scopeId,
+          {
+            name: record.exposed,
+            description: original.description,
+            parameters: original.parameters,
+            replay: original.replay,
+            ...(original.exposure === undefined ? {} : { exposure: original.exposure }),
+            ...(original.risk === undefined ? {} : { risk: original.risk }),
+            ...(original.hints === undefined ? {} : { hints: original.hints }),
+            ...(record.replaces === undefined ? {} : { replaces: record.replaces }),
+            execute: (args, ctx) => original.execute(args, ctx),
+          },
+          perThread ? { perThread: true } : undefined,
+        );
         if (!registered.ok) {
           const failure = registered.error;
           return err(
@@ -344,6 +354,8 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
   function reexpose(kind: ResourceKind, extra?: ResourceRecord): ResourceExposure | undefined {
     const policy = deps.policy;
     if (policy?.exposeAll === undefined || !GOVERNED.has(kind)) return undefined;
+    // 도구를 대화마다 정하는 조립이면 엔진 전체 집합으로 이름을 다시 정하지 않는다
+    if (kind === "tool" && policy.perThreadToolNames === true) return undefined;
     // 대체 등록은 이름 정책의 집합에 넣지 않는다. 요청한 이름이 곧 노출 이름이다
     const records = recordsOf(kind).filter((record) => record.replaces === undefined);
     const exposures = policy.exposeAll(extra === undefined ? records : [...records, extra]);
@@ -452,6 +464,17 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       let setLevel = false;
       if (spec.replaces !== undefined) {
         // 요청한 이름을 그대로 노출한다
+      } else if (spec.kind === "tool" && policy?.perThreadToolNames === true) {
+        // 도구의 노출 이름은 대화마다 정한다. 여기서는 요청한 이름 그대로 두고, 정식 이름이 64자를 넘을 외부 도구만 거부한다(`resolveNames`의 too_long과 같다)
+        if (!spec.builtin && `${spec.extension}__${spec.name}`.length > MAX_NAME_LENGTH) {
+          return err(
+            new PrimitiveError(
+              "resource_name_invalid",
+              `${spec.kind} ${spec.name} of ${spec.extension} is too long to expose`,
+              { scopeId: spec.scopeId },
+            ),
+          );
+        }
       } else if (policy?.exposeAll !== undefined && GOVERNED.has(spec.kind)) {
         setLevel = true;
         const mine = reexpose(spec.kind, record);

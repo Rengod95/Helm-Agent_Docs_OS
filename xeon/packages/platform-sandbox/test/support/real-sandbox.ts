@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { err, ok, type Result } from "@fresnel/contracts";
 import {
@@ -17,7 +17,6 @@ import { createSandboxService, type SandboxServiceHandle } from "../../src/servi
 import { detectPlatformInput, selectSandboxProvider } from "../../src/select.ts";
 import { readSandboxSettings, type SandboxSettings } from "../../src/settings.ts";
 import { createSrtPort } from "../../src/srt.ts";
-import { seededRandom } from "./clock.ts";
 import { makeTestDirs, memoryLogger, type TestDirs } from "./fakes.ts";
 
 // 실제 srt(bubblewrap 또는 Seatbelt)와 실제 자식 프로세스로 샌드박스를 시험하는 도구. 가짜 srt를 쓰는 단위 시험과 달리
@@ -138,8 +137,16 @@ export interface RealSandbox {
 /** 실제 srt로 서비스를 만든다. 임시 디렉터리 아래 home, data, workspace를 쓴다 */
 export async function startRealSandbox(
   overrides: Partial<SandboxSettings> = {},
+  options: { readonly tmpBehindSymlink?: boolean } = {},
 ): Promise<RealSandbox> {
   const dirs = makeTestDirs();
+  if (options.tmpBehindSymlink === true) {
+    // macOS의 임시 폴더(`/var/folders/...`)처럼 임시 폴더 기반이 심볼릭 링크 아래에 있는 모양을 만든다
+    const actual = join(dirs.root, "tmp-actual");
+    rmSync(dirs.tmp, { recursive: true, force: true });
+    mkdirSync(actual, { recursive: true });
+    symlinkSync(actual, dirs.tmp);
+  }
   const vault = join(dirs.root, "vault");
   mkdirSync(vault, { recursive: true });
   writeFileSync(join(vault, "secret.txt"), VAULT_SECRET);
@@ -154,7 +161,9 @@ export async function startRealSandbox(
     time: {
       clock: { now: () => Date.now() },
       scheduler: { setTimeout: () => 0, clearTimeout: () => undefined },
-      random: seededRandom(11),
+      // 명령 식별자는 프로세스 안에서 유일해야 한다. srt의 위반 기록은 프로세스 전체에서 명령 식별자로 귀속하므로
+      // 서비스마다 같은 난수열을 쓰면 앞선 시험의 거부가 뒤 시험의 명령에 붙는다(sandbox.script-env 시험과 sandbox.int 시험의 충돌로 확인했다)
+      random: () => Math.random(),
     },
     logger: (component) => log.child({ component }),
     resolveBinary: (name) => resolveOnPath(name),

@@ -15,6 +15,7 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import { createToolPluginsOf, createToolVisibility } from "./assembly/m4/tool-exposure.ts";
 import type {
   ContextTraceEvent,
   ContextTraceSink,
@@ -30,6 +31,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import {
   PluginCallTracePortKey,
+  ProcessPortKey,
   ToolsPortKey,
   TurnRecordPortKey,
 } from "@fresnel/contracts/extensions";
@@ -64,6 +66,7 @@ import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
+  createToolNamesPolicy,
   createRegistrationControl,
   createVolatileNotifier,
   hookUnitName,
@@ -179,6 +182,8 @@ import {
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import { createScriptDraftGate } from "./assembly/plugins/script-gate.ts";
+import { nodeScriptRefReader, readCarveOutsOf } from "./assembly/script-env-host.ts";
+import { createLoginShellRunner, createUserEnvResolver } from "./assembly/user-env.ts";
 import {
   createPluginHostAssembly,
   processPortOf,
@@ -687,6 +692,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     now: () => clock.now(),
     setTimer,
     policy: operations,
+    // 도구의 노출 이름만 대화마다 정한다(X.operations.spec §4.5.1). 나머지 리소스는 같은 이름을 거부하던 그대로다
+    resourcePolicy: createToolNamesPolicy(),
     setupBudgetMs: () => operations.setupBudgetMs(),
     // x.operations.trace.* 유효 값. 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3)
     trace: () => operations.trace(),
@@ -695,6 +702,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
+    // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)
+    hasQueuedInput: (threadId) => {
+      const found = late.session?.query.thread(threadId);
+      return found?.ok === true && (found.value?.queuedInputs ?? 0) > 0;
+    },
     driveInputMaxBytes: () =>
       storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
         .maxBlobBytes,
@@ -1212,6 +1224,21 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         now: () => new Date(clock.now()).toISOString(),
       });
     }
+    // 대화가 보는 도구는 그 대화가 실은 플러그인(E(T))의 것이다. 하위 대화는 맨 위 부모의 집합을 쓴다.
+    // E(T)를 읽지 못하면(엔진 포트가 뜨기 전, 프로필 복사 읽기 전, 부모 조회 실패) 내장 도구만 보인다
+    const toolVisibility = createToolVisibility({
+      toolRecords: () => ext.resources.list("tool"),
+      realNameOf: (extension) => external.loader?.draftOf(extension)?.plugin,
+      pluginsOf: createToolPluginsOf({
+        ready: () => portsHandle?.ports.m4.pluginSet.readable() === true,
+        isThread: (id): id is ThreadId => isId("thr", id),
+        parentOf: (threadId) => {
+          const link = session.query.agentOfChild(threadId);
+          return link.ok ? link.value?.parentThreadId : null;
+        },
+        resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
+      }),
+    });
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
@@ -1245,6 +1272,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
         testRunApprovalOf: (threadId) =>
           portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
+        toolVisibility,
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
@@ -1383,17 +1411,38 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         stateDir: os.dirs.state,
         settingValue: (key) => settings.value(key),
         now: () => clock.now(),
-        // 초안 스크립트는 테스트 런에 묶인 초안만, 호출마다 승인 카드를 거쳐 돈다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
+        // 초안 스크립트는 테스트 런에 묶인 초안만 돈다. 승인 카드는 `auto`에서는 없고 그 밖에는 스크립트마다 처음 한 번이다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
         scriptGate: createScriptDraftGate({
           tools: () => ext.ports.get(ToolsPortKey),
           testRunDraftsOf: (threadId) => portsHandle?.ports.m4.pluginSet.testRunDraftsOf(threadId),
           newRequestId: () => `script-${randomUUID()}`,
+          bootId: randomUUID(),
         }),
         sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
+        // 가져온 훅(환경 모드): 사용자의 로그인 셸 환경, 참조 파일 지문, 보호 경로 안 참조의 읽기 예외, 대화의 프로젝트 폴더(AGE-58 [제안])
+        scriptEnv: {
+          userEnv: createUserEnvResolver({
+            parentEnv: process.env,
+            home: os.dirs.home,
+            run: createLoginShellRunner(() => ext.ports.get(ProcessPortKey)),
+            now: () => clock.now(),
+            logger: os.logger("script-env"),
+          }),
+          refs: nodeScriptRefReader,
+          readCarveOutsFor: readCarveOutsOf(() => sandboxSourceOf(ext)()?.protectedPaths() ?? []),
+          projectDirOf: (threadId) =>
+            threadId === undefined
+              ? undefined
+              : (projectRootOfThread(threadId) ?? workspaceOf(threadId)),
+        },
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
+        // 조각 전송의 엔진 쪽 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다. 맡기기 입력 상한과 같은 값이다(X.primitives §10)
+        transferMaxBytes: () =>
+          storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
+            .maxBlobBytes,
       });
       backtestIsolationSlot.current = createBacktestIsolation({
         enabled: options.pluginHost?.disabled !== true,
@@ -1666,6 +1715,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
+        toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },
       web,

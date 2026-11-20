@@ -2,6 +2,7 @@ import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
+  SCRIPT_RUN_RULE_PREFIX,
   WEB_ACCESS_RULE_ID,
   WRITE_ACCESS_RULE_ID,
   type ApprovalDecision,
@@ -71,6 +72,10 @@ function rememberIssue(input: ApprovalRequestInput): string | undefined {
   if (writeAccess && remember.length === 2 && remember[0] === "once" && remember[1] === "thread") {
     return undefined;
   }
+  // 드래프트 스크립트 실행 승인은 "이 테스트 런 동안 다시 묻지 않음"(thread) 하나를 제안한다 [결정: 2026-11-19, 사용자, AGE-58]
+  const scriptRun =
+    body.kind === "tool" && body.tool.ruleId?.startsWith(SCRIPT_RUN_RULE_PREFIX) === true;
+  if (scriptRun && remember.length === 1 && remember[0] === "thread") return undefined;
   // 웹 접근 승인은 이번만·이 사이트 계속(always)·모든 사이트(thread)를 함께 제안한다 [결정: 2026-11-15 사용자]
   const webAccess = body.kind === "tool" && body.tool.ruleId === WEB_ACCESS_RULE_ID;
   if (
@@ -139,7 +144,9 @@ function rememberOf(
   request: ApprovalRequest,
   response: ApprovalResponse,
 ): Result<ApprovalRemember, ResponseError> {
-  const asked = response.remember ?? "once";
+  // 제안이 하나뿐인 요청(드래프트 스크립트 승인)은 응답이 범위를 생략하면 그 하나로 본다
+  const only = request.remember.length === 1 ? request.remember[0] : undefined;
+  const asked = response.remember ?? only ?? "once";
   if (!request.remember.includes(asked)) {
     return err({ kind: "remember_not_offered", remember: asked });
   }

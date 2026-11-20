@@ -1,10 +1,10 @@
 // 큰 값 분리와 되돌리기(L1.persistence.spec §4.11, PS-15, eng.transactions.design §4.3 0단계, F.records.spec §3.4 규칙 4·5).
 // 분리는 트랜잭션 밖에서만 부른다(TX-04): blob 파일 쓰기가 들어 있다. 되돌리기는 읽기 연결 안에서도 부를 수 있다(파일 읽기뿐이다).
 import { Bug, err, ok, parseJson, type Logger, type Result } from "@fresnel/contracts";
+import { collectBlobSource, jsonBlobSource, stringBlobSource } from "./json-stream.ts";
 import {
   BLOB_PLACEHOLDER_PREFIX,
   ENVELOPE_MAX_BYTES,
-  isPlainJsonText,
   jsonUtf8Length,
   stringUtf8Sizes,
   type BlobError,
@@ -140,54 +140,6 @@ function measure(node: unknown, tokens: readonly string[], out: Candidate[]): nu
   return byteLength(JSON.stringify(node));
 }
 
-/**
- * JSON 값을 UTF-8 바이트로 쓴다. 미리 잰 크기(`size`)의 버퍼 하나에 조각(잎 하나씩)을 바로 인코딩해 넣어, 전체 직렬화 글과 그 인코딩 사본을
- * 따로 만들지 않는다(100 MiB 값을 글로 만들고 다시 인코딩하면 입력의 두 배가 더 든다). 값의 모양이 예상과 다르거나 쓴 바이트 수가
- * `size`와 다르면 undefined다. 호출자는 옛 방식(`JSON.stringify` 뒤 인코딩)으로 쓴다
- */
-function encodeJsonValue(value: unknown, size: number): Uint8Array | undefined {
-  const out = new Uint8Array(size);
-  let at = 0;
-  const put = (text: string): boolean => {
-    const { read, written } = encoder.encodeInto(text, out.subarray(at));
-    if (read !== text.length) return false;
-    at += written;
-    return true;
-  };
-  const walk = (node: unknown): boolean => {
-    if (typeof node === "string") {
-      // 출력 가능한 ASCII뿐이면 `JSON.stringify`는 따옴표만 더한다. 글을 다시 만들지 않고 바로 쓴다
-      if (isPlainJsonText(node)) return put('"') && put(node) && put('"');
-      return put(JSON.stringify(node));
-    }
-    if (Array.isArray(node)) {
-      const items: readonly unknown[] = node;
-      if (!put("[")) return false;
-      for (const [index, item] of items.entries()) {
-        if (index > 0 && !put(",")) return false;
-        if (!walk(item)) return false;
-      }
-      return put("]");
-    }
-    if (typeof node === "object" && node !== null) {
-      if (!put("{")) return false;
-      let first = true;
-      for (const [key, member] of Object.entries(node)) {
-        if (member === undefined) continue;
-        if (!first && !put(",")) return false;
-        first = false;
-        if (!put(JSON.stringify(key)) || !put(":") || !walk(member)) return false;
-      }
-      return put("}");
-    }
-    if (node === undefined) return put("null");
-    // 함수와 심볼은 `JSON.stringify`가 글을 만들지 않는다. 옛 방식에 맡긴다
-    if (typeof node === "function" || typeof node === "symbol") return false;
-    return put(JSON.stringify(node));
-  };
-  return walk(value) && at === size ? out : undefined;
-}
-
 /** 루트 객체·배열은 후보가 아니다: 루트를 자리표시로 바꾸면 payload 전체가 문자열이 되어 투영기와 스키마가 읽지 못한다 */
 function finishContainer(
   node: object,
@@ -243,6 +195,7 @@ function updateAt(
 }
 
 export type PutBlob = StoreService["putBlob"];
+export type PutBlobStream = StoreService["putBlobStream"];
 
 function withDetached(
   draft: DurableEventDraft,
@@ -259,12 +212,14 @@ function withDetached(
  * - 이미 옮긴 값의 안(또는 그 자체)은 다시 고르지 않는다. 큰 값 안에 든 후보는 큰 값이 옮겨지면 함께 사라진다.
  * - `fits`가 거짓이면 그 후보는 건너뛴다. 자리표시로 바꾼 payload가 kind 스키마를 지키지 않으면 투영기가 읽다가 깨지기 때문이다.
  * - `detached`는 256개를 넘지 않는다. 더 옮길 자리가 없으면 남은 것을 그대로 돌려주고 커밋의 크기 검사가 알린다.
+ * - `putBlobStream`이 있으면 값을 조각으로 보내 입력 전체의 사본을 만들지 않는다. 없으면 `putBlob`에 값 전체를 한 버퍼로 준다.
  * 분리할 것이 없으면 같은 초안을 돌려준다.
  */
 export function detachLarge(
   draft: DurableEventDraft,
   putBlob: PutBlob,
   fits: (payload: unknown) => boolean = () => true,
+  putBlobStream?: PutBlobStream,
 ): Result<DurableEventDraft, BlobError> {
   const already = draft.detached ?? [];
   // envelope 크기는 한 번 재고, 옮길 때마다 바뀐 만큼만 더한다(전체를 다시 직렬화하지 않는다)
@@ -284,12 +239,7 @@ export function detachLarge(
     if (taken.some((ancestor) => isSameOrBelow(candidate.pointer, ancestor))) continue;
     const json = candidate.source.kind === "json";
     if (json && !fits(withValueAt(current.payload, candidate.tokens, PLACEHOLDER_SHAPE))) continue;
-    const data =
-      candidate.source.kind === "string"
-        ? encoder.encode(candidate.source.text)
-        : (encodeJsonValue(candidate.source.value, candidate.size) ??
-          encoder.encode(JSON.stringify(candidate.source.value)));
-    const stored = putBlob(data, json ? JSON_MEDIA_TYPE : null);
+    const stored = storeCandidate(candidate, putBlob, putBlobStream);
     if (!stored.ok) return err(stored.error);
     const ref: BlobRef = stored.value;
     const field: DetachedField = json
@@ -310,6 +260,27 @@ export function detachLarge(
     );
   }
   return ok(current);
+}
+
+/**
+ * 후보 하나를 blob으로 쓴다. 조각 저장소가 있으면 조각으로 보내고, 없으면 값 전체를 한 버퍼로 만들어 `putBlob`에 준다.
+ * 함수나 심볼이 든 JSON은 조각으로 보내지 않고 `JSON.stringify` 글을 쓴다(옛 방식과 같다).
+ */
+function storeCandidate(
+  candidate: Candidate,
+  putBlob: PutBlob,
+  putBlobStream: PutBlobStream | undefined,
+): Result<BlobRef, BlobError> {
+  const { source } = candidate;
+  if (source.kind === "string") {
+    if (putBlobStream === undefined) return putBlob(encoder.encode(source.text), null);
+    return putBlobStream(stringBlobSource(source.text, candidate.size), null);
+  }
+  const legacy = (): Uint8Array => encoder.encode(JSON.stringify(source.value));
+  const streamed = jsonBlobSource(source.value, candidate.size);
+  if (streamed === undefined) return putBlob(legacy(), JSON_MEDIA_TYPE);
+  if (putBlobStream !== undefined) return putBlobStream(streamed, JSON_MEDIA_TYPE);
+  return putBlob(collectBlobSource(streamed) ?? legacy(), JSON_MEDIA_TYPE);
 }
 
 /** 되돌리기에 쓰는 저장소 읽기와 경고 기록 통로 */

@@ -5,20 +5,22 @@ import type { LoadDiagnostic } from "./pipeline.ts";
 
 /** 내부 이름의 첫 글자. 확장 이름 패턴이 소문자로 시작하므로 `d`로 시작한다 [제안] */
 const DRAFT_NAME_PREFIX = "d";
-/** 초안 식별자에서 가져오는 영숫자 글자 수 [제안] */
+/** 초안 식별자의 끝에서 가져오는 영숫자 글자 수 [제안] */
 const DRAFT_TAG_LENGTH = 6;
 /** 확장 이름의 최대 길이(`EXTENSION_NAME_PATTERN`의 `{1,31}`에 맞춘 32자) */
 const EXTENSION_NAME_MAX = 32;
 
 /**
- * 초안의 내부 확장 이름 [제안]: `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름.
- * 플러그인 이름 부분은 전체가 32자를 넘지 않도록 자른다. 잘라서 같은 이름이 되면 로더가 `name_taken`으로 거부한다.
+ * 초안의 내부 확장 이름 [제안]: `d` + 초안 식별자의 소문자 영숫자 끝 여섯 글자 + `-` + 플러그인 이름.
+ * 식별자는 `drf_` 접두 뒤가 ULID라 앞쪽은 시간이다. 앞 글자를 쓰면 가까운 때 만든 판들이 같은 이름이 되므로(접두 `drf`와 시간 세 글자만 남는다)
+ * 접두를 떼고 무작위인 끝을 쓴다. 플러그인 이름 부분은 전체가 32자를 넘지 않도록 자른다. 잘라서 같은 이름이 되면 로더가 `name_taken`으로 거부한다.
  */
 export function internalDraftName(plugin: string, draftId: string): string {
   const tag = draftId
     .toLowerCase()
+    .replace(/^[a-z]{3}_/, "")
     .replace(/[^a-z0-9]/g, "")
-    .slice(0, DRAFT_TAG_LENGTH);
+    .slice(-DRAFT_TAG_LENGTH);
   const head = `${DRAFT_NAME_PREFIX}${tag}-`;
   return `${head}${plugin.slice(0, EXTENSION_NAME_MAX - head.length)}`;
 }

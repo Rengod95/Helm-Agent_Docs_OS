@@ -2,7 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { SCRIPT_LIMITS } from "./plugin-script.ts";
+import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
 // F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
 // 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
@@ -230,12 +230,68 @@ export interface CardScript {
   readonly name: string;
   readonly launch: CardLaunch;
   readonly timeoutMs: number;
+  /** 승인하면 이 스크립트가 쓸 수 있는 것(`ScriptCard.uses`와 같은 값). 선택 필드라 없는 옛 카드도 파싱된다. 없으면 화면은 알리지 못한다 */
+  readonly uses?: readonly ScriptUse[];
+  /** 환경 모드(가져온 훅)일 때만. 리뷰 화면은 이것으로 "당신의 셸 명령 그대로 돈다"를 그린다 [제안, AGE-58] */
+  readonly env?: CardScriptEnv;
 }
+
+/**
+ * 환경 모드 카드 칸. `command`는 원문 그대로다(가림 규칙은 호스트가 지난다). `interpreter`는 PATH에서 찾아낸 첫 단어의 위치이고 못 찾았으면 null이다.
+ * `refs`의 `hash`가 null이면 지문을 못 냈다. `refsKnown`이 거짓이면 어떤 파일을 읽는지 알 수 없다고 말해야 한다(추측으로 채우지 않는다).
+ * `missingTools`는 이 기기에 없는 실행 파일, `versionHints`는 버전의 근거가 되는 글이다(`python3.11` 이름, shebang, 옆의 `.python-version`)
+ */
+export interface CardScriptEnv {
+  readonly command: string;
+  readonly shell: "sh" | "bash";
+  readonly interpreter: string | null;
+  readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+  readonly refsKnown: boolean;
+  readonly missingTools: readonly string[];
+  readonly versionHints: readonly string[];
+  /** 프로젝트가 싣고 온 훅인가 */
+  readonly fromProject: boolean;
+}
+const CardScriptEnvShape = Type.Object(
+  {
+    command: Type.String({ maxLength: 4096 }),
+    shell: Type.Union([Type.Literal("sh"), Type.Literal("bash")]),
+    interpreter: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+    refs: Type.Array(
+      Type.Object(
+        {
+          path: Type.String({ maxLength: 1024 }),
+          hash: Type.Union([Type.String({ maxLength: 100 }), Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16 },
+    ),
+    refsKnown: Type.Boolean(),
+    missingTools: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 }),
+    versionHints: Type.Array(Type.String({ maxLength: 256 }), { maxItems: 16 }),
+    fromProject: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 const CardScriptShape = Type.Object(
   {
     name: Id,
     launch: CardMcpLaunchShape,
     timeoutMs: Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs }),
+    uses: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("system_tools"),
+          Type.Literal("network"),
+          Type.Literal("user_environment"),
+          Type.Literal("read_wide"),
+          Type.Literal("write_project"),
+        ]),
+        { maxItems: 5 },
+      ),
+    ),
+    env: Type.Optional(CardScriptEnvShape),
   },
   { additionalProperties: false },
 );
@@ -331,6 +387,8 @@ const CardHookShape = Type.Object(
 export interface PluginCard {
   readonly name: string;
   readonly displayName: string;
+  /** 매니페스트의 버전(SemVer). 매니페스트를 읽을 수 없는 카드(내장 따위)에는 없다 [제안] 이름 `version` */
+  readonly version?: string;
   /** 목적 한 문장. 없으면 검토에서 승인할 수 없다(`pluginReview.purposeRequired`) */
   readonly purpose: string | null;
   readonly does: {
@@ -351,6 +409,12 @@ export interface PluginCard {
     readonly projectId?: string;
     readonly createdIn?: { readonly threadId: string };
   };
+  /**
+   * 내부 부품 여부: 엔진이 스스로 싣고 사용자가 켜고 끌 수 없으면 참이다(`origin.kind`가 `builtin`이고 매니페스트에 `group` 블록이 없다).
+   * 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 거짓이다. 선택 필드라 없는 옛 카드(검토본 메타)도 파싱되고, 화면은 없으면 거짓으로 읽는다.
+   * [제안] 이름 `internal` (AGE-33, enIn)
+   */
+  readonly internal?: boolean;
   readonly review: {
     readonly state: CardReviewState;
     readonly currentHash: string | null;
@@ -364,6 +428,7 @@ const PluginCardShape = Type.Object(
   {
     name: ExtensionNameSchema,
     displayName: Type.String({ minLength: 1, maxLength: 64 }),
+    version: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     purpose: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
     does: Type.Object(
       {
@@ -413,6 +478,7 @@ const PluginCardShape = Type.Object(
       },
       { additionalProperties: false },
     ),
+    internal: Type.Optional(Type.Boolean()),
     review: Type.Object(
       {
         state: CardReviewStateShape,

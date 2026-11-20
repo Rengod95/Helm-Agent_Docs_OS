@@ -72,6 +72,19 @@ export function containsSecretValue(text: string): boolean {
   return SECRET_VALUE_SEARCH.some((pattern) => pattern.test(text));
 }
 
+const SECRET_VALUE_MASKS: readonly RegExp[] = SECRET_VALUE_SEARCH.map(
+  (pattern) =>
+    new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`),
+);
+
+/**
+ * 알려진 시크릿 형태의 값을 `***`로 가린 텍스트를 돌려준다(보고서에 명령을 싣기 전에 쓴다). 값이 없으면 원문과 같다.
+ * 명령은 `secret_in_command`로 이미 걸러지므로 이 가림은 마지막 방어다.
+ */
+export function maskSecretValues(text: string): string {
+  return SECRET_VALUE_MASKS.reduce((masked, pattern) => masked.replace(pattern, "***"), text);
+}
+
 /** `NAME=값` 꼴로 시크릿 이름에 값을 준 토큰이 있는가(값이 `$` 참조면 값이 아니라 참조다) */
 export function assignsSecretLiteral(tokens: readonly string[]): boolean {
   return tokens.some((token) => {

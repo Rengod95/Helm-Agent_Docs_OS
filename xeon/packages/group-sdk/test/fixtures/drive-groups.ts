@@ -1,4 +1,4 @@
-import type { ExtensionEntry, RegistrationApi } from "@fresnel/contracts/extensions";
+import type { AskCard, ExtensionEntry, RegistrationApi } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { defineGroup, type GroupModule } from "../../src/index.ts";
 import { realHostAccess, wrap } from "../../src/wrap.ts";
@@ -133,5 +133,41 @@ export function doubledEffectGroup(harness: CountingReplayHarness): GroupModule 
   return effectGroup("doubled-effects", harness, () => {
     calls += 1;
     return `fx:${calls}`;
+  });
+}
+
+const ASK_CARD: AskCard = {
+  questions: [
+    {
+      id: "q1",
+      header: "Plan",
+      text: "Proceed?",
+      options: [
+        { id: "yes", label: "Yes" },
+        { id: "no", label: "No" },
+      ],
+      multiSelect: false,
+      allowFreeText: false,
+    },
+  ],
+};
+
+/**
+ * 사람 확인을 지나가는 drive 그룹(Y7). 단계마다 `loop.ask`로 묻고, 답이 오면 그 답을 센 수로 커밋한다.
+ * ask의 요청 id는 커밋된 상태에서 정하므로 재호출하면 같은 id로 다시 물어 기록된 답을 돌려받는다.
+ */
+export function askingDriveGroup(): GroupModule {
+  return defineGroup<{ readonly n: number }>({
+    manifest: groupManifestOf({ name: "asking-drive", drives: true }),
+    state: COUNTER,
+    setup(g) {
+      g.drive(async ({ state, last }) => {
+        if (last?.kind === "ask") {
+          return { do: "commit", state: { n: state.n + 1 }, next: { do: "yield" } };
+        }
+        if (state.n >= STEPS) return { do: "yield" };
+        return { do: "ask", card: ASK_CARD, requestId: `ask:${state.n}` };
+      });
+    },
   });
 }

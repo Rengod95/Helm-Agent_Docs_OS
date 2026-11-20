@@ -17,7 +17,7 @@ import {
   type ToggleReceipt,
 } from "@fresnel/contracts/services";
 import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
-import { gatherPromotionInput } from "./promotion/gather.ts";
+import { gatherPromotionInput, type PromotionHostView } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
@@ -42,6 +42,11 @@ export type GroupHostView = Pick<
 
 export interface GroupServiceDeps {
   readonly host: GroupHostView;
+  /**
+   * 승격 집계가 쓰는 도구 주인 조회: 대화가 보는 이름으로 찾는다. 도구 이름은 대화마다 정해지므로 같은 이름이 여러 주인에게 있을 수 있다.
+   * 없으면 이름만으로 찾는 `host.toolOwner`를 쓴다(이름이 대화마다 다르지 않은 조립)
+   */
+  readonly toolOwnerIn?: PromotionHostView["toolOwnerIn"];
   readonly catalog: GroupCatalogPort;
   /**
    * 서비스가 상태를 보여 줄 thread. 서비스 한 인스턴스는 활성 thread 하나의 그룹 상태를 보인다
@@ -245,7 +250,14 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
   async function defaultPromotion(): Promise<PromotionReport> {
     const thread = deps.currentThread();
-    const input = await gatherPromotionInput(deps.host, thread === null ? [] : [thread]);
+    const input = await gatherPromotionInput(
+      {
+        registrations: () => deps.host.registrations(),
+        queryEvents: (threadId, query) => deps.host.queryEvents(threadId, query),
+        toolOwnerIn: deps.toolOwnerIn ?? ((name) => deps.host.toolOwner(name)),
+      },
+      thread === null ? [] : [thread],
+    );
     return buildPromotionReport(input);
   }
 
