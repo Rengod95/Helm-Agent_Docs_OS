@@ -448,13 +448,14 @@ function PendingCard(props: {
           )}
         </header>
         {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다.
-            본문은 카드 높이 상한 안에서 혼자 스크롤한다(가장자리 흐림이 더 있음을 알린다) */}
+            본문은 카드 높이 상한 안에서 혼자 스크롤한다(가장자리 흐림이 더 있음을 알린다).
+            스크롤 상자는 사방 4px 넓히고 본문이 같은 만큼 안쪽 여백을 가져, 선택지의 초점 고리(바깥 3px)가 상자에 잘리지 않고 글 자리는 그대로다 */}
         <ScrollArea
           fade
           label={t("desktop.approvals.body.label")}
-          className="h-auto min-h-0 shrink [&:not(:has([data-slot=approval-body]>:not(:empty)))]:hidden"
+          className="-m-1 h-auto min-h-0 w-[calc(100%+0.5rem)] shrink [&:not(:has([data-slot=approval-body]>:not(:empty)))]:hidden"
         >
-          <div data-slot="approval-body" className="grid min-w-0 gap-2 pl-10">
+          <div data-slot="approval-body" className="grid min-w-0 gap-2 p-1 pl-11">
             {bodyNode}
             {sendState === undefined || sendState === "sending" ? null : (
               <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
