@@ -12,6 +12,8 @@ import {
   fileRowsOf,
   firstFileOf,
   kindsOf,
+  missingByProfileOf,
+  missingForTarget,
   nextAfter,
   pendingOf,
   placeOf,
@@ -234,15 +236,63 @@ describe("deciding", () => {
   });
 
   test("after approval: profile names, and keep-only for a new plugin added to no profile (no restart)", () => {
-    expect(approveOutcomeOf(LINT, [], SAMPLE_PROFILES)).toEqual({ profiles: [], library: true });
+    expect(approveOutcomeOf(LINT, [], SAMPLE_PROFILES)).toEqual({
+      profiles: [],
+      library: true,
+      missing: [],
+    });
     expect(approveOutcomeOf(LINT, ["writing"], SAMPLE_PROFILES)).toEqual({
       profiles: ["글쓰기"],
       library: false,
+      missing: [],
     });
     expect(approveOutcomeOf(FETCH, ["default", "x"], SAMPLE_PROFILES)).toEqual({
       profiles: ["기본", "x"],
       library: false,
+      missing: [],
     });
+  });
+
+  test("the engine's missing plugins come through as a warning, once each", () => {
+    expect(approveOutcomeOf(LINT, ["default"], SAMPLE_PROFILES, ["helm", "helm"])).toEqual({
+      profiles: ["기본"],
+      library: false,
+      missing: ["helm"],
+    });
+  });
+});
+
+describe("missing plugins before approval", () => {
+  const profiles = [
+    { id: "default", plugins: [{ name: "helm" }, { name: "word-count" }] },
+    { id: "writing", plugins: [{ name: "word-count" }] },
+  ];
+  const installed = new Set(["word-count"]);
+
+  test("a profile pointing to a plugin that is not installed lists it; a clean profile is absent", () => {
+    const missing = missingByProfileOf(profiles, null, installed);
+    expect([...missing.entries()]).toEqual([["default", ["helm"]]]);
+  });
+
+  test("the base (common set) counts for every profile", () => {
+    const missing = missingByProfileOf(profiles, { plugins: [{ name: "gone" }] }, installed);
+    expect([...missing.entries()]).toEqual([
+      ["default", ["helm", "gone"]],
+      ["writing", ["gone"]],
+    ]);
+  });
+
+  test("an unread install list says nothing rather than calling everything missing", () => {
+    expect(missingByProfileOf(profiles, null, null).size).toBe(0);
+  });
+
+  test("the chosen profile's list, without the plugin under review itself", () => {
+    const missing = new Map([["default", ["helm", "line-count"]]]);
+    expect(
+      missingForTarget(missing, { kind: "profile", profileId: "default" }, "line-count"),
+    ).toEqual(["helm"]);
+    expect(missingForTarget(missing, { kind: "library" }, "line-count")).toEqual([]);
+    expect(missingForTarget(missing, { kind: "unset" }, "line-count")).toEqual([]);
   });
 });
 

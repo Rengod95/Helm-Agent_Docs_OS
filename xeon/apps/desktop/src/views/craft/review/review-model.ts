@@ -426,15 +426,57 @@ export function decideFailureOf(error: {
 export interface ApproveOutcome {
   readonly profiles: readonly string[];
   readonly library: boolean;
+  /**
+   * 넣은 프로필이 이미 가리키던, 지금 이 기기에 없는 플러그인(엔진의 `missingPlugins`). 거절이 아니라 경고다: 실행 때 건너뛴다
+   * [결정: 2026-11-20, 사용자, AGE-34]
+   */
+  readonly missing: readonly string[];
 }
 
 export function approveOutcomeOf(
   item: Pick<ReviewItem, "kind">,
   appliedTo: readonly string[],
   profiles: readonly Pick<Profile, "id" | "title">[],
+  missingPlugins: readonly string[] = [],
 ): ApproveOutcome {
   const names = appliedTo.map((id) => profiles.find((p) => p.id === id)?.title ?? id);
-  return { profiles: names, library: item.kind === "new" && appliedTo.length === 0 };
+  return {
+    profiles: names,
+    library: item.kind === "new" && appliedTo.length === 0,
+    missing: [...new Set(missingPlugins)],
+  };
+}
+
+/**
+ * 넣을 곳을 고를 때 미리 보이는 "이 기기에 없는 플러그인": 프로필과 베이스(공통 묶음)가 가리키지만 `ext.list`에 없는 이름.
+ * 미리 보기일 뿐이고 승인 결과의 `missingPlugins`가 정본이다. 설치 목록을 못 읽었으면(`installed` null) 아무것도 말하지 않는다
+ * (모르는 것을 없다고 그리지 않는다)
+ */
+export function missingByProfileOf(
+  profiles: readonly Pick<Profile, "id" | "plugins">[],
+  common: { readonly plugins: readonly { readonly name: string }[] } | null,
+  installed: ReadonlySet<string> | null,
+): ReadonlyMap<string, readonly string[]> {
+  const out = new Map<string, readonly string[]>();
+  if (installed === null) return out;
+  const base = common?.plugins.map((ref) => ref.name) ?? [];
+  for (const profile of profiles) {
+    const names = [...new Set([...profile.plugins.map((ref) => ref.name), ...base])].filter(
+      (name) => !installed.has(name),
+    );
+    if (names.length > 0) out.set(profile.id, names);
+  }
+  return out;
+}
+
+/** 고른 프로필의 없는 플러그인. 지금 리뷰하는 플러그인 자신은 승인하면 생기므로 뺀다 */
+export function missingForTarget(
+  missing: ReadonlyMap<string, readonly string[]>,
+  target: Target,
+  itemName: string,
+): readonly string[] {
+  if (target.kind !== "profile") return [];
+  return (missing.get(target.profileId) ?? []).filter((name) => name !== itemName);
 }
 
 /** 버전 줄. 갱신이면 지난 승인 항목의 카드 버전과 견준다. 엔진이 버전을 주지 않은 카드(매니페스트에 없음)는 null이다 */

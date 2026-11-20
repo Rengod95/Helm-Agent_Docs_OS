@@ -1,5 +1,6 @@
-// 리뷰 화면(C5, AGE-34 둘째 판). 왼쪽 목록(대화 목록과 같은 줄) + 오른쪽 자세히(콘텐츠 영역 전체, `review-detail.tsx`).
+// 리뷰 화면(C5, AGE-34). 왼쪽 목록(대화 목록과 같은 줄) + 오른쪽 자세히(콘텐츠 영역 전체, `review-detail.tsx`).
 // 키: j·k(↑·↓) 목록 이동, a 승인, r 거절, [ ] 파일 넘기기. 글을 넣는 칸 안에서는 먹지 않는다.
+// 개발 빌드는 `dev` 칸으로 표본 메뉴를 머리 오른쪽 끝에 얹고, 빈 화면에 "표본 장면 보기"를 둔다(셋째 판: 창 왼쪽 아래 구석에서 옮겼다).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   Alert,
@@ -11,7 +12,7 @@ import {
   listNavigationMeta,
   Skeleton,
 } from "@caustic/react";
-import { Inbox } from "@caustic/react/icons";
+import { FlaskConical, Inbox } from "@caustic/react/icons";
 import { assertNever } from "@fresnel/contracts";
 import type { Profile, ReviewItem } from "@fresnel/contracts/wire";
 import {
@@ -95,7 +96,14 @@ interface Ready {
   readonly items: readonly ReviewItem[];
   readonly profiles: readonly Profile[];
   readonly managedOff: ReadonlySet<string>;
+  readonly missing: ReadonlyMap<string, readonly string[]>;
   readonly offline: boolean;
+}
+
+/** 개발 빌드만: 머리 오른쪽 끝의 표본 메뉴와, 빈 화면에서 표본 장면으로 가는 길(`review-dev.tsx`) */
+export interface ReviewDevSlot {
+  readonly menu: ReactNode;
+  readonly showSample: () => void;
 }
 
 /** 화면 상태: 고른 항목, 이 화면에서 결정한 항목(목록에 "방금 결정함"으로 남는다), 키 처리 */
@@ -232,7 +240,8 @@ function LoadBand(props: { readonly data: ReviewData }): ReactNode {
   }
 }
 
-function Empty(): ReactNode {
+function Empty(props: { readonly dev: ReviewDevSlot | null }): ReactNode {
+  const { dev } = props;
   return (
     <div className="grid flex-1 place-items-center p-6">
       <EmptyState
@@ -241,6 +250,18 @@ function Empty(): ReactNode {
         icon={<Inbox />}
         title={t("desktop.craft.review.state.empty")}
         description={t("desktop.craft.review.state.emptyHint")}
+        {...(dev === null
+          ? {}
+          : {
+              actions: [
+                {
+                  label: t("desktop.craft.review.dev.showSample"),
+                  icon: <FlaskConical />,
+                  variant: "ghost",
+                  onClick: dev.showSample,
+                },
+              ],
+            })}
       />
     </div>
   );
@@ -321,10 +342,10 @@ function SplitLayout(props: {
   const titleOf = useThreadTitles();
   const item = state.item;
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="rv-split flex min-h-0 flex-1">
       <nav
         aria-label={t("desktop.craft.review.listLabel")}
-        className="flex w-[272px] shrink-0 flex-col overflow-y-auto border-e border-border-subtle px-2 pt-2 pb-4"
+        className="rv-list flex shrink-0 flex-col overflow-y-auto border-e border-border-subtle px-2 pt-2 pb-4"
       >
         {state.groups.map((group) => (
           <div key={group.key} className="grid gap-px pt-2 first:pt-0">
@@ -359,6 +380,7 @@ function SplitLayout(props: {
           item={item}
           versions={versionsOf(item, ready.items)}
           profiles={ready.profiles}
+          missing={ready.missing}
           managedOff={ready.managedOff.has(item.name)}
           offline={ready.offline}
           threadTitle={titleOf(item.originThreadId)}
@@ -382,6 +404,7 @@ function ReadyView(props: {
   readonly data: ReviewData;
   readonly ready: Ready;
   readonly arrange: DetailArrange;
+  readonly dev: ReviewDevSlot | null;
 }): ReactNode {
   const state = useReviewState(props.data, props.ready);
   // 상대 시각(n분 전)의 기준. 화면을 연 때로 고정한다(그리기마다 바뀌지 않게)
@@ -410,11 +433,11 @@ function ReadyView(props: {
             </span>
           )
         }
-        controls={empty ? undefined : <KeysTip />}
+        controls={headerControls(empty ? null : <KeysTip />, props.dev)}
       />
       <OfflineBand offline={props.ready.offline} />
       {empty ? (
-        <Empty />
+        <Empty dev={props.dev} />
       ) : (
         <SplitLayout
           data={props.data}
@@ -428,19 +451,36 @@ function ReadyView(props: {
   );
 }
 
+/** 머리 오른쪽 칸: 키 안내, 그리고 맨 오른쪽 끝에 개발 빌드의 표본 메뉴 */
+function headerControls(keys: ReactNode, dev: ReviewDevSlot | null): ReactNode {
+  if (keys === null && dev === null) return undefined;
+  return (
+    <>
+      {keys}
+      {dev?.menu}
+    </>
+  );
+}
+
 export function ReviewView(props: {
   readonly data: ReviewData;
   /** 개발 빌드의 견주기 판. 배포 빌드는 `band`다 */
   readonly arrange?: DetailArrange;
+  /** 개발 빌드만. 배포 빌드는 넘기지 않는다 */
+  readonly dev?: ReviewDevSlot;
 }): ReactNode {
   const { load } = props.data;
+  const dev = props.dev ?? null;
   if (load.status !== "ready") {
     return (
       <section
         aria-label={t("desktop.craft.review.title")}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <ScreenHeader title={t("desktop.craft.review.title")} />
+        <ScreenHeader
+          title={t("desktop.craft.review.title")}
+          controls={headerControls(null, dev)}
+        />
         <LoadBand data={props.data} />
       </section>
     );
@@ -452,9 +492,11 @@ export function ReviewView(props: {
         items: load.items,
         profiles: load.profiles,
         managedOff: load.managedOff,
+        missing: load.missing,
         offline: load.offline,
       }}
       arrange={props.arrange ?? "band"}
+      dev={dev}
     />
   );
 }

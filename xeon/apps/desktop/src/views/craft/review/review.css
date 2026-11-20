@@ -79,7 +79,23 @@
 /* ── 자세히 배치(AGE-34 둘째 판) ─────────────────────────────────────────
    카드 면 없이 목록 오른쪽 콘텐츠 영역 전체를 쓴다. 위 요약 띠 + 아래 두 열(가운데 읽는 열, 오른쪽 판단 열).
    두 열은 따로 스크롤한다: 긴 차이를 읽는 동안 오른쪽 열의 경고와 결정 칸이 그대로 남는다.
-   개발 빌드의 견주기 판: rail(요약 띠를 오른쪽 열 위로), stack(한 열). 좁은 영역(720px 아래)은 늘 stack이다 */
+   개발 빌드의 견주기 판: rail(요약 띠를 오른쪽 열 위로), stack(한 열). 좁은 영역(780px 아래)은 늘 stack이다 */
+/* 목록과 자세히의 줄(셋째 판). 옆 내비를 연 1265~1400px 창에서 읽는 열이 420px 남짓으로 좁던 것을 고친다:
+   1) 목록(272→216px)과 판단 열(312→272px)을 먼저 줄여 읽는 열에 돌려준다.
+   2) 그래도 읽는 열이 460px 아래로 내려가는 폭(자세히 780px 아래)이면 한 열로 접는다(읽는 열이 자세히 폭 전체를 쓰고 결정 칸은 바닥에 붙는다).
+   옆 내비를 연 창 기준: 1440 → 읽는 열 520px, 1360 → 500px, 1320 아래 → 한 열 */
+.rv-split {
+  container: rv-split / inline-size;
+}
+.rv-list {
+  width: 272px;
+}
+@container rv-split (width < 1180px) {
+  .rv-list {
+    width: clamp(216px, calc(100cqi - 840px), 272px);
+  }
+}
+
 .rv-detail-host {
   container: rv-detail / inline-size;
   display: flex;
@@ -90,7 +106,8 @@
 }
 
 .rv-detail {
-  --rv-judge-w: 312px;
+  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다) */
+  --rv-judge-w: clamp(272px, calc(100cqi - 560px), 312px);
   --rv-pad: 24px;
   display: grid;
   flex: 1;
@@ -124,6 +141,8 @@
   border-inline-start: 1px solid var(--cs-color-border-subtle);
 }
 
+/* 판단 열은 한 스크롤 안에 경고, 권한·출처, 결정 칸을 차례로 둔다. 결정 칸은 내용 바로 뒤를 따르고, 열이 넘칠 때만 바닥에 붙는다.
+   (둘째 판은 결정 칸을 열 바닥에 따로 두어 짧은 항목에서 출처와 단추 사이가 길게 비었다) */
 .rv-judge-scroll {
   display: grid;
   flex: 1;
@@ -131,7 +150,7 @@
   gap: 4px;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 16px 20px;
+  padding: 20px 16px 0;
 }
 
 .rv-alerts {
@@ -147,9 +166,13 @@
 }
 
 .rv-decide-dock {
-  flex: none;
-  padding: 14px 16px 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -16px;
+  padding: 16px 16px 20px;
   border-top: 1px solid var(--cs-color-border-subtle);
+  background: var(--cs-color-bg-app);
 }
 
 /* 섹션: 위아래 20px, 섹션 사이 가는 선(캔버스 상세 패널 cv4와 같은 문법). 오른쪽 열은 16px */
@@ -214,11 +237,12 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
+  margin: 0;
   padding: 12px var(--rv-pad) 14px;
   background: var(--cs-color-bg-app);
 }
 
-@container rv-detail (width < 720px) {
+@container rv-detail (width < 780px) {
   .rv-detail {
     --rv-pad: 20px;
     grid-template-columns: minmax(0, 1fr);
@@ -259,8 +283,16 @@
     position: sticky;
     bottom: 0;
     z-index: 1;
+    margin: 0;
     padding: 12px var(--rv-pad) 14px;
     background: var(--cs-color-bg-app);
+  }
+}
+
+/* 자세히가 좁은 두 열(780~860px): 좌우 여백을 20px로 */
+@container rv-detail (780px <= width < 860px) {
+  .rv-detail {
+    --rv-pad: 20px;
   }
 }
 
@@ -304,4 +336,15 @@
 }
 .rv-diff [data-slot="code-diff-content"] {
   overflow-wrap: anywhere;
+}
+
+/* 접힌 줄의 들여쓰기(셋째 판): 줄 앞 공백만큼 내어 쓴다. 첫 줄은 제자리에서 시작하고, 넘어간 줄은 코드의 들여쓰기 칸에서 이어진다.
+   `--rv-indent`는 줄마다 앞 공백 폭(ch, 탭은 4칸)이다(`review-files.tsx`) */
+.rv-diff [data-slot="code-diff-content"] {
+  tab-size: 4;
+}
+.rv-line {
+  display: block;
+  padding-inline-start: var(--rv-indent, 0ch);
+  text-indent: calc(-1 * var(--rv-indent, 0ch));
 }

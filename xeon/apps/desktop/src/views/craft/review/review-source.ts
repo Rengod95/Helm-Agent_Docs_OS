@@ -10,6 +10,7 @@ import type {
 } from "@fresnel/contracts/wire";
 import { useCommands, type CommandError } from "../../commands.ts";
 import { useLinkPhase } from "../../../state/engine/index.ts";
+import { missingByProfileOf } from "./review-model.ts";
 
 // 리뷰 화면의 원천. 실제 엔진(`pluginReview.list`, `profile.list`, `ext.list`)을 읽고 `pluginReview.changed`·`plugin.changed`가
 // 오면 다시 읽는다. 개발 빌드의 표본(`review-samples.ts`)도 같은 모양(`ReviewData`)을 낸다: 화면은 둘을 가르지 않는다.
@@ -27,6 +28,8 @@ export type ReviewLoad =
       readonly profiles: readonly Profile[];
       /** 관리자가 꺼 둔 플러그인 이름(`ext.list`의 `enabledSource: managed`) */
       readonly managedOff: ReadonlySet<string>;
+      /** 프로필 id → 그 프로필(과 베이스)이 가리키지만 이 기기에 없는 플러그인. 넣을 곳 고르기의 미리 보기(`missingByProfileOf`) */
+      readonly missing: ReadonlyMap<string, readonly string[]>;
       /** 읽은 뒤 연결이 끊겼다. 목록은 남기고 결정을 잠근다 */
       readonly offline: boolean;
     };
@@ -86,6 +89,13 @@ export function useReviewSource(): ReviewData {
         items: listed.value.items,
         profiles: profiles.ok ? profiles.value.profiles : [],
         managedOff,
+        missing: profiles.ok
+          ? missingByProfileOf(
+              profiles.value.profiles,
+              profiles.value.common,
+              exts.ok ? new Set(exts.value.map((entry) => entry.name)) : null,
+            )
+          : new Map(),
         offline: false,
       });
     };

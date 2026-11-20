@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { lineDiffOf, linesOf, wholeFileRows } from "../../../src/views/craft/review/review-diff.ts";
+import {
+  indentOf,
+  lineDiffOf,
+  linesOf,
+  MAX_HANG,
+  wholeFileRows,
+} from "../../../src/views/craft/review/review-diff.ts";
 
 // 갱신 항목의 전·후 줄 차이(review-diff.ts). 덩이, 접은 같은 줄 수, 줄 번호(지운 줄은 지난 판, 나머지는 새 판)를 값으로 본다.
 
@@ -71,5 +77,20 @@ describe("line diff of two versions", () => {
       { kind: "context", text: "x", number: 1 },
       { kind: "context", text: "y", number: 2 },
     ]);
+  });
+});
+
+describe("wrapped line indent", () => {
+  test("counts leading spaces, tabs to the next stop of 4, and stops at the first other character", () => {
+    expect(indentOf("plain")).toBe(0);
+    expect(indentOf("    return x;")).toBe(4);
+    expect(indentOf("\tif (a) {")).toBe(4);
+    expect(indentOf("  \tx")).toBe(4);
+    expect(indentOf("\t\t  y  z")).toBe(10);
+    expect(indentOf("   ")).toBe(3);
+  });
+
+  test("a very deep indent is capped so the wrapped part keeps room", () => {
+    expect(indentOf(`${" ".repeat(80)}x`)).toBe(MAX_HANG);
   });
 });

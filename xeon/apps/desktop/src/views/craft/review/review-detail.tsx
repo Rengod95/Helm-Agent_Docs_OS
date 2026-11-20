@@ -93,7 +93,14 @@ function ReviewHead(props: {
         {kindsOf(item.card).map((kind) => (
           <KindChip key={kind} kind={kind} />
         ))}
-        <Chip tone={item.card.enforcement === "enforced" ? "warning" : "neutral"}>
+        <Chip
+          tone={item.card.enforcement === "enforced" ? "warning" : "neutral"}
+          title={
+            item.card.enforcement === "enforced"
+              ? t("desktop.craft.review.risk.enforced")
+              : t("desktop.craft.review.risk.advisory")
+          }
+        >
           {item.card.enforcement === "enforced"
             ? t("desktop.craft.review.chip.enforced")
             : t("desktop.craft.review.chip.advisory")}
@@ -577,6 +584,7 @@ export function ReviewDetail(props: {
   readonly item: ReviewItem;
   readonly versions: Versions;
   readonly profiles: readonly Profile[];
+  readonly missing: ReadonlyMap<string, readonly string[]>;
   readonly managedOff: boolean;
   readonly offline: boolean;
   readonly threadTitle: string | null;
@@ -621,6 +629,7 @@ export function ReviewDetail(props: {
           item={item}
           versions={props.versions}
           profiles={props.profiles}
+          missing={props.missing}
           managedOff={props.managedOff}
           offline={props.offline}
           threadTitle={props.threadTitle}

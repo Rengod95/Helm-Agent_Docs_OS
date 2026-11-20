@@ -14,10 +14,11 @@ import {
   useEffect,
   useImperativeHandle,
   useState,
+  type CSSProperties,
   type ReactNode,
   type Ref,
 } from "react";
-import { lineDiffOf, wholeFileRows, type DiffHunk, type DiffRow } from "./review-diff.ts";
+import { indentOf, lineDiffOf, wholeFileRows, type DiffHunk, type DiffRow } from "./review-diff.ts";
 import {
   fileRowsOf,
   firstFileOf,
@@ -87,6 +88,20 @@ function skipLine(count: number, key: string): ReactNode {
   );
 }
 
+type HangStyle = CSSProperties & { readonly "--rv-indent": string };
+
+/** 줄 하나의 글. 넘어간 줄이 코드의 들여쓰기 칸에서 이어지도록 앞 공백 폭을 `--rv-indent`로 넘긴다(`review.css`의 `.rv-line`) */
+function HangLine(props: { readonly text: string }): ReactNode {
+  const indent = indentOf(props.text);
+  if (indent === 0) return <span className="rv-line">{props.text}</span>;
+  const style: HangStyle = { "--rv-indent": `${String(indent)}ch` };
+  return (
+    <span className="rv-line" style={style}>
+      {props.text}
+    </span>
+  );
+}
+
 /** 차이 줄 묶음. 덩이 사이에는 접은 같은 줄 수를 한 줄로 둔다 */
 function DiffBlock(props: {
   readonly hunks: readonly DiffHunk[];
@@ -114,7 +129,7 @@ function DiffBlock(props: {
                 kind={row.kind}
                 number={row.number}
               >
-                {row.text}
+                <HangLine text={row.text} />
               </CodeDiffLine>
             ))}
           </Fragment>

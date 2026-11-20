@@ -14,7 +14,7 @@ import {
 import type { ReviewData, ReviewLoad } from "../../../src/views/craft/review/review-source.ts";
 import type { DetailArrange } from "../../../src/views/craft/review/review-detail.tsx";
 import { issueText } from "../../../src/views/craft/review/review-judge.tsx";
-import { ReviewView } from "../../../src/views/craft/review/review-view.tsx";
+import { ReviewView, type ReviewDevSlot } from "../../../src/views/craft/review/review-view.tsx";
 import { harness } from "../../state/helpers.ts";
 
 // 리뷰 화면(목록 + 요약 띠와 두 열의 자세히)의 정적 마크업. 낭독기가 읽을 이름과 역할, 늘 보이는 코드 실행 안내, 열마다 섹션 순서,
@@ -37,21 +37,23 @@ function ready(
   items: readonly ReviewItem[],
   managedOff: readonly string[] = [],
   offline = false,
+  missing: ReadonlyMap<string, readonly string[]> = new Map(),
 ): ReviewLoad {
   return {
     status: "ready",
     items,
     profiles: SAMPLE_PROFILES,
     managedOff: new Set(managedOff),
+    missing,
     offline,
   };
 }
 
-function render(load: ReviewLoad, arrange: DetailArrange = "band"): string {
+function render(load: ReviewLoad, arrange: DetailArrange = "band", dev?: ReviewDevSlot): string {
   const node: ReactNode = (
     <EngineStoreContext value={frozenStore(harness().store.read.getState())}>
       <ShellStoreContext value={createShellStore(1440)}>
-        <ReviewView data={dataOf(load)} arrange={arrange} />
+        <ReviewView data={dataOf(load)} arrange={arrange} {...(dev === undefined ? {} : { dev })} />
       </ShellStoreContext>
     </EngineStoreContext>
   );
@@ -147,6 +149,55 @@ describe("list beside the detail", () => {
         "source",
       ]);
     }
+  });
+});
+
+describe("third round", () => {
+  const DEV: ReviewDevSlot = {
+    menu: (
+      <button type="button" data-review-switcher="">
+        표본 · 실제 엔진
+      </button>
+    ),
+    showSample: () => undefined,
+  };
+
+  test("the dev sample menu sits in the screen header, after the keys hint, in every state", () => {
+    const html = render(ready(ITEMS), "band", DEV);
+    const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(header).toContain("data-review-switcher");
+    expect(render({ status: "loading" }, "band", DEV)).toContain("data-review-switcher");
+    expect(render(ready(ITEMS))).not.toContain("data-review-switcher");
+  });
+
+  test("an empty screen offers the sample scene in the dev build only", () => {
+    expect(render(ready([]), "band", DEV)).toContain("표본 장면 보기");
+    expect(render(ready([]))).not.toContain("표본 장면 보기");
+  });
+
+  test("the decide panel follows the source section inside the judging column's scroll", () => {
+    const scroll = LINT_HTML.indexOf('class="rv-judge-scroll"');
+    const source = LINT_HTML.indexOf('data-section="source"');
+    const dock = LINT_HTML.indexOf('class="rv-decide-dock"');
+    expect(scroll).toBeGreaterThan(0);
+    expect(source).toBeGreaterThan(scroll);
+    expect(dock).toBeGreaterThan(source);
+  });
+
+  test("enforcement reads as who keeps it: the model's call or the engine", () => {
+    expect(LINT_HTML).not.toContain(">권고<");
+    expect(LINT_HTML).toMatch(/>(모델 재량|엔진 강제)</);
+    expect(LINT_HTML).toContain(">지키는 쪽<");
+  });
+
+  test("a chosen profile that already points to a missing plugin shows a quiet warning, not a block", () => {
+    const helper = ITEMS.filter((item) => item.itemId === "rvw_sample_drive");
+    expect(helper[0]?.originProfileId).toBe("default");
+    const html = render(ready(helper, [], false, new Map([["default", ["helm"]]])));
+    expect(html).toContain('data-slot="review-missing"');
+    expect(html).toContain("‘helm’ 플러그인이 이 기기에 없어요. 이 프로필에서는 건너뛰어요.");
+    const clean = render(ready(helper));
+    expect(clean).not.toContain('data-slot="review-missing"');
   });
 });
 

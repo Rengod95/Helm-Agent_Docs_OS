@@ -75,10 +75,17 @@ const CHIP_TONE: Readonly<Record<"neutral" | "warning", string>> = {
 
 export function Chip(props: {
   readonly tone?: "neutral" | "warning";
+  /** 칩 말의 풀이(마우스를 올리면 보인다). 낭독기는 칩 말을 읽고 같은 뜻의 문장은 권한과 위험 섹션이 읽는다 */
+  readonly title?: string;
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <Badge size="sm" variant="outline" className={CHIP_TONE[props.tone ?? "neutral"]}>
+    <Badge
+      size="sm"
+      variant="outline"
+      className={CHIP_TONE[props.tone ?? "neutral"]}
+      {...(props.title === undefined ? {} : { title: props.title })}
+    >
       {props.children}
     </Badge>
   );

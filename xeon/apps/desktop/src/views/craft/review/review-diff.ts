@@ -183,3 +183,16 @@ export function lineDiffOf(before: string, after: string): LineDiff {
     removed: rows.filter((row) => row.kind === "remove").length,
   };
 }
+
+/** 접힌 줄을 내어 쓸 폭(ch). 줄 앞의 공백과 탭(4칸)을 센다. 아주 깊은 들여쓰기는 32칸에서 멈춘다(넘어간 줄이 너무 좁아지지 않게) */
+export const MAX_HANG = 32;
+
+export function indentOf(text: string): number {
+  let width = 0;
+  for (const ch of text) {
+    if (ch === " ") width += 1;
+    else if (ch === "\t") width += 4 - (width % 4);
+    else break;
+  }
+  return Math.min(width, MAX_HANG);
+}

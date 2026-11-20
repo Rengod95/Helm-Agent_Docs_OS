@@ -1,7 +1,8 @@
-// 리뷰 상세의 오른쪽 좁은 열: "판단하는 것"(AGE-34 둘째 판). 긴 차이를 읽는 동안에도 경고와 결정 단추가 보이도록 이 열은 따로 스크롤하고
-// 결정 칸은 열 바닥에 붙어 있다. 위에서부터: 결정 결과 → 관리 잠금 → 코드 실행 안내(늘 보임, [결정: AGE-14]) → 권한과 위험 → 출처 →
-// 결정 칸(넣을 곳, 목적 한 문장, 거절 사유, 실패 사유, 거절·승인). 좁은 창에서는 셋으로 나뉜다(`review.css`): 경고는 요약 아래로 올라가고,
-// 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 화면 바닥에 붙는다.
+// 리뷰 상세의 오른쪽 좁은 열: "판단하는 것"(AGE-34). 긴 차이를 읽는 동안에도 경고와 결정 단추가 보이도록 이 열은 따로 스크롤한다.
+// 위에서부터: 결정 결과 → 관리 잠금 → 코드 실행 안내(늘 보임, [결정: AGE-14]) → 권한과 위험 → 출처 → 결정 칸(넣을 곳과 없는 플러그인 경고,
+// 목적 한 문장, 거절 사유, 실패 사유, 거절·승인). 셋째 판: 결정 칸은 열 바닥에 따로 떠 있지 않고 출처 바로 뒤를 따른다. 열이 넘칠 때만
+// 바닥에 붙는다(sticky). 그래서 짧은 항목에서 출처와 단추 사이가 비지 않는다. 좁은 창에서는 셋으로 나뉜다(`review.css`): 경고는 요약 아래로
+// 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 화면 바닥에 붙는다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { Button, cn, Select, SelectOption, Textarea } from "@caustic/react";
 import { Check, ChevronRight, X } from "@caustic/react/icons";
@@ -17,6 +18,7 @@ import {
   codeNoticeOf,
   decideFailureOf,
   defaultTargetOf,
+  missingForTarget,
   needsTarget,
   rejectDecisionOf,
   shortHash,
@@ -59,6 +61,28 @@ function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
     >
       {t("desktop.craft.review.code.notice")}
       {extra.length === 0 ? null : <> {extra.join(" ")}</>}
+    </p>
+  );
+}
+
+/** 이 기기에 없는 플러그인 이름들을 ‘a’, ‘b’로 */
+function quoted(names: readonly string[]): string {
+  return names.map((name) => `‘${name}’`).join(", ");
+}
+
+/**
+ * 조용한 경고 한 줄: 넣을 프로필이 이미 가리키던, 지금 이 기기에 없는 플러그인. 거절이 아니다(실행 때 건너뛴다) [결정: 2026-11-20, AGE-34].
+ * 글은 무채색, 줄 앞 2px 선만 경고 색(`rv-caution`)
+ */
+function MissingNote(props: { readonly names: readonly string[] }): ReactNode {
+  if (props.names.length === 0) return null;
+  return (
+    <p
+      role="note"
+      data-slot="review-missing"
+      className="rv-caution m-0 text-ui-sm text-text-secondary"
+    >
+      {t("desktop.craft.review.missing.note", { names: quoted(props.names) })}
     </p>
   );
 }
@@ -212,6 +236,7 @@ function DecidedPanel(props: {
           <p className={MUTED}>{t("desktop.craft.review.after.noProfiles")}</p>
         )
       ) : null}
+      {decided.kind === "approved" ? <MissingNote names={decided.outcome.missing} /> : null}
       {props.onNext === null ? null : (
         <div>
           <Button size="sm" variant="ghost" className="-ms-2.5 gap-1" onClick={props.onNext}>
@@ -304,6 +329,7 @@ function targetNote(target: Target): MessageId | null {
 function DecidePanel(props: {
   readonly item: ReviewItem;
   readonly profiles: readonly Profile[];
+  readonly missing: ReadonlyMap<string, readonly string[]>;
   readonly offline: boolean;
   readonly data: Pick<ReviewData, "decide">;
   readonly handleRef: Ref<DecisionHandle>;
@@ -346,7 +372,12 @@ function DecidePanel(props: {
       if (decision.kind === "approve") {
         props.onDecided(item.itemId, {
           kind: "approved",
-          outcome: approveOutcomeOf(item, result.value.appliedTo, profiles),
+          outcome: approveOutcomeOf(
+            item,
+            result.value.appliedTo,
+            profiles,
+            result.value.missingPlugins ?? [],
+          ),
           removal: item.kind === "remove",
         });
       } else {
@@ -373,13 +404,18 @@ function DecidePanel(props: {
   }, [phase.kind]);
 
   const note = item.kind === "new" ? targetNote(target) : null;
+  const targetMissing =
+    item.kind === "new" ? missingForTarget(props.missing, target, item.name) : [];
+  // 3656의 사유 가운데 경고(이미 있던 없는 플러그인)는 거절 사유가 아니다. 거절 사유만 위험 색으로 보인다
+  const blocking =
+    phase.kind === "failed" ? phase.issues.filter((issue) => issue.severity !== "warning") : [];
   const status: ReactNode =
     phase.kind === "failed" ? (
       <div role="alert" className="grid gap-1 text-ui text-danger-text">
         <p className="m-0">{t(FAILURE_WORD[phase.failure])}</p>
-        {phase.issues.length === 0 ? null : (
+        {blocking.length === 0 ? null : (
           <ul className="m-0 grid gap-1 p-0" data-slot="review-profile-issues">
-            {phase.issues.map((issue, index) => (
+            {blocking.map((issue, index) => (
               <li
                 key={`${issue.code}:${issue.profile ?? ""}:${issue.plugin ?? ""}:${String(index)}`}
                 className="rv-caution rv-caution-danger list-none text-text-primary"
@@ -432,6 +468,7 @@ function DecidePanel(props: {
             <SelectOption value={LIBRARY}>{t("desktop.craft.review.after.library")}</SelectOption>
           </Select>
           {note === null ? null : <span className="text-ui-sm text-text-tertiary">{t(note)}</span>}
+          <MissingNote names={targetMissing} />
         </label>
       ) : item.kind === "update" ? (
         <p className="m-0 text-ui-sm text-text-tertiary">
@@ -550,6 +587,7 @@ export function JudgeColumn(props: {
   readonly item: ReviewItem;
   readonly versions: Versions;
   readonly profiles: readonly Profile[];
+  readonly missing: ReadonlyMap<string, readonly string[]>;
   readonly managedOff: boolean;
   readonly offline: boolean;
   readonly threadTitle: string | null;
@@ -594,19 +632,20 @@ export function JudgeColumn(props: {
             now={props.now}
           />
         </div>
+        {props.decided === null ? (
+          <div className="rv-decide-dock">
+            <DecidePanel
+              item={item}
+              profiles={props.profiles}
+              missing={props.missing}
+              offline={props.offline}
+              data={props.data}
+              handleRef={props.handleRef}
+              onDecided={props.onDecided}
+            />
+          </div>
+        ) : null}
       </div>
-      {props.decided === null ? (
-        <div className="rv-decide-dock">
-          <DecidePanel
-            item={item}
-            profiles={props.profiles}
-            offline={props.offline}
-            data={props.data}
-            handleRef={props.handleRef}
-            onDecided={props.onDecided}
-          />
-        </div>
-      ) : null}
     </aside>
   );
 }

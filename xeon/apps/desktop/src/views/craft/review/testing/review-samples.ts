@@ -313,7 +313,8 @@ export const SAMPLE_PROFILES: readonly Profile[] = [
     id: "default",
     title: "기본",
     builtin: true,
-    plugins: [],
+    // 이 기기에 없는 플러그인을 가리킨다(`SAMPLE_INSTALLED`에 없다): 넣을 곳 고르기와 승인 결과의 경고를 보이려고
+    plugins: [{ name: "helm" }, { name: "web-fetch-plus" }],
     settings: [],
     startDrive: null,
     updatedAt: ago(4000),
@@ -330,6 +331,9 @@ export const SAMPLE_PROFILES: readonly Profile[] = [
     rev: 1,
   },
 ];
+
+/** 표본 기기에 설치된 플러그인 이름(`ext.list`의 자리). "기본" 프로필의 helm은 여기 없다 */
+export const SAMPLE_INSTALLED: ReadonlySet<string> = new Set(["web-fetch-plus", "old-timer"]);
 
 const FETCH_BASE_FILES: ReviewItem["files"] = [
   {
