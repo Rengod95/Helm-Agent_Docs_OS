@@ -46,6 +46,7 @@ import {
   dropProtectedWriteRoots,
   expandBasenameEntries,
   resolveExtraPaths,
+  suggestedProtectedPaths,
   withGitEntries,
 } from "./protected-paths.ts";
 import { runSelfTest, SELF_TEST_ITEM_IDS } from "./self-test.ts";
@@ -558,6 +559,12 @@ export async function createSandboxService(
     // 호출한 쪽이 넘긴 root도 git 항목을 받는다. knownRoots는 bash 정책을 만든 뒤에야 차므로 그것만 쓰면 첫 파일 쓰기가 열린다
     protectedPaths: (roots) =>
       withGitEntries(baseProtectedEntries(), [...knownRoots, ...(roots ?? [])]),
+    protectedPathKey: (value) => resolveExtraPaths([value], dirs.home).resolved[0],
+    suggestedProtectedPaths: () =>
+      suggestedProtectedPaths(currentStatus(false).platform).flatMap((row) => {
+        const key = resolveExtraPaths([row.path], dirs.home).resolved[0];
+        return key === undefined ? [] : [{ path: row.path, label: row.label, key }];
+      }),
     wrapShell: (shell, policy) => wrapShellWith(wrapDeps(true), shell, policy),
     wrapArgv: (policy, request, context) => wrapArgvWith(wrapDeps(true), policy, request, context),
     autoAllow: (policy, request) =>

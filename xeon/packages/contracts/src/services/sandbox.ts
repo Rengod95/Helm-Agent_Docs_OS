@@ -415,6 +415,16 @@ export type SandboxWrapError =
   | { readonly kind: "failed"; readonly message: string }
   | { readonly kind: "aborted" };
 
+/**
+ * 제안 목록의 이 기기 줄(AGE-63, L0.sandbox.spec §3.3.1). `path`는 설정 `extra`에 적는 모양(`~/…` 또는 절대 경로)이고,
+ * `key`는 같은 경로를 보호 경로 비교에 쓰는 정규 절대 경로다.
+ */
+export interface SuggestedProtectedPathView {
+  readonly path: string;
+  readonly label: string;
+  readonly key: string;
+}
+
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
@@ -441,6 +451,14 @@ export interface SandboxService {
    * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
+  /**
+   * 설정 `l0.sandbox.protectedPaths.extra`의 값 하나를 보호 경로 비교 키(정규 절대 경로)로 바꾼다. `resolveExtraPaths`와 같은 규칙이다
+   * (`~`와 `~/…`는 홈 기준, 절대 경로는 그대로, 있는 경로는 실제 경로로 푼다). 그 밖의 값은 undefined다.
+   * 같은 경로인지 견줄 때 쓴다(cap-workspace의 `sandbox_protect`는 이것으로 중복과 `/`·홈 거부를 정한다).
+   */
+  protectedPathKey(value: string): string | undefined;
+  /** 이 기기에서 제안되는 경로 줄(`suggestedProtectedPaths(platform)`). 기본은 쓰기만 막는 자격 폴더의 목록이고, 설정 extra에 적으면 읽기도 막힌다 */
+  suggestedProtectedPaths(): readonly SuggestedProtectedPathView[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
   /**

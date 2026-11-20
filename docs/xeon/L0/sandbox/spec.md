@@ -239,6 +239,10 @@ export interface SandboxService {
    * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
+  /** 설정 extra 값 하나를 보호 경로 비교 키(정규 절대 경로)로 바꾼다. `resolveExtraPaths`와 같은 규칙이고, 그 밖의 값은 undefined다 [결정: 2026-11-20, AGE-63] */
+  protectedPathKey(value: string): string | undefined;
+  /** 이 기기의 제안 경로 줄(`suggestedProtectedPaths(platform)`)을 `~/…` 형식과 비교 키로 돌려준다 [결정: 2026-11-20, AGE-63] */
+  suggestedProtectedPaths(): readonly SuggestedProtectedPathView[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
   /** 오래 사는 프로세스(stdio MCP 서버)를 정책 안에서 돌릴 명령줄을 만든다(4.9절). 호출자가 argv를 스트림 그대로 spawn한다 */
@@ -337,7 +341,8 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 - 설정 `l0.sandbox.protectedPaths.allowRead`는 두지 않는다. 읽기를 풀 대상이 Fresnel 자신의 항목뿐이고 그것은 풀 수 없다. 설정 `l0.sandbox.credentialFiles`도 두지 않는다. CLI 인증 파일의 기본 동작은 읽기 허용과 쓰기 거부이고, 읽기까지 막으려면 `extra`에 적는다. 두 키는 정의, 구현과 시험에서 뺐다.
 - 옛 키를 담은 사용자 설정 파일은 설정 엔진의 알 수 없는 키 처리를 따른다. 옛 값을 새 키로 옮기는 코드는 두지 않는다.
 - 제안 목록: `protected-paths.ts`의 `SUGGESTED_PROTECTED_PATHS`(줄마다 `path`, `match`, `reason`, `os`, `label`)와 `SUGGESTED_NAME_PATTERNS`(`.env`, `.env.*`, `appliesViaExtra: false`)가 이전에 읽기를 막던 자격 경로를 담는다. `suggestedProtectedPaths(platform)`는 그 OS의 줄을 돌려준다. 설정 `extra`에 적을 수 있는 것은 경로 줄뿐이고, 이름 패턴은 `extra`로 고를 수 없다.
-- 막을 부분은 대화로 더한다. 나중의 대화 도구가 제안 목록을 보여 주고, 사용자가 고른 경로를 설정 `extra`에 적는다. 에이전트가 `extra`를 직접 바꾸는 길은 이 절이 정하지 않는다 [미결: 근거 결정 2026-11-20, AGE-63].
+- 막을 부분은 대화로 더한다. 모델 도구 `sandbox_protect`(기능 `workspace.protection`, cap-workspace)가 사용자 범위 `extra`에 경로를 더하고, `sandbox_protected`가 지금 막힌 것과 제안 목록을 보여 준다 [결정: 2026-11-20, 사용자, AGE-63 "전체 허용, 막을 부분만 대화로 더한다"]. 이 도구는 더하기만 한다. 막기를 푸는 메서드, 인자, 설정 쓰기는 없다. 제안 목록의 줄은 `protectedPathKey`로 비교 키를 얻어 중복과 `/`·홈 거부를 정한다(`protectedPathKey`, `suggestedProtectedPaths`는 3.1절).
+- 적용 시점 [결정: 2026-11-20, AGE-63, 시험으로 확인]: 설정 `extra`는 `runtimeChange: "nextTurn"`으로 선언되어 있지만, 실제로는 다음 셸 호출과 다음 파일 도구 호출부터 적용된다(같은 턴 안에서도). 보호 목록은 호출마다 `settings()`에서 다시 만들고, 셸 정책도 호출마다 풀며, 설정 저장소의 쓰기는 메모리 값을 쓰기 전에 바꾼다. 시험은 `test/sandbox.protect-live.int.test.ts`(실제 srt: 같은 감싼 셸이 설정만 바뀐 뒤 막힌다)와 `test/service.test.ts`(`nextTurn` 설정이 다음 호출부터 반영된다). 이미 시작한 프로세스(stdio MCP 서버 등)는 다시 시작할 때까지 옛 정책을 쓴다. 선언과 실제가 다르므로 설정 화면의 "다음 턴부터" 표시는 [미결: runtimeChange를 `live`로 바꿀지 사용자 결정]이다.
 - 영향: `script-env`와 `no-write`(4.9절), 읽기 전용 프로필(4.2절)은 `readDeny`를 `read_write` 항목에서 만든다. 그래서 이제 Fresnel 자신의 시크릿·데이터와 `extra`만 막는다. `no-write`는 읽기 허용 목록이 나머지를 막으므로 실제로 열리는 것은 목록의 경로다.
 - 구현: `protected-paths.ts`(`SUGGESTED_*`, `suggestedProtectedPaths`, `osCredentialEntries`)와 `index.ts`의 내보내기. 설정 정의는 `settings.ts`다.
 - 시험: `test/sandbox.default-reads.int.test.ts`(실제 srt: 기본 읽기, 쓰기 경계, Fresnel 자신의 경로, `extra`, 셸과 파일 도구 목록의 일치), `test/sandbox.secret-folders.int.test.ts`(제안 목록 폴더를 기본에서 읽고 쓰기는 막는다, `extra`에 넣으면 읽기와 쓰기를 모두 막는다), `test/protected-paths.test.ts`(표와 제안 목록의 값), `test/sandbox.script-env.int.test.ts`(스크립트 환경의 읽기 거부). 파일 도구 쪽은 `packages/cap-workspace/test/read.test.ts`가 쓰기 전용 항목은 읽히고 읽기 거부 항목은 막히는 것을 확인한다.
@@ -690,7 +695,7 @@ export function selectSandboxProvider(input: {
 
 | 이름 | 소비 문서 |
 |---|---|
-| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest`, `lastSelfTestReport` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
+| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `protectedPathKey`, `suggestedProtectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest`, `lastSelfTestReport` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
 | `describeSandboxStatus`(F `services/sandbox.ts`의 순수 함수, review.decisions-2 D-04) | `L4.cli.spec`, `L4.settings-ui.spec`. 구현 패키지를 import하지 않고 F에서 가져온다(DR-14) |
 | `@fresnel/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
 
