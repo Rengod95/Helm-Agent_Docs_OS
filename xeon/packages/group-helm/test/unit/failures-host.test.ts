@@ -31,7 +31,6 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
     host: t.host,
     catalog: groupCatalogOf([helmGroup]),
     currentThread: () => thread,
-    report: () => {},
   });
   await t.host.install({
     manifest: helmGroup.manifest,
@@ -44,9 +43,9 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
   await callCommand(t, thread, "start 캐시 무효화");
   await settleOnce(t, thread, "start");
   await drainRounds(t, thread, 6);
-  const status = service.status("helm");
-  expect(status.ok && status.value.drive).toBe("error");
-  expect(status.ok && status.value.lastError?.kind).toBe("group.driveThrew");
+  const status = service.list().find((group) => group.id === "helm");
+  expect(status?.drive).toBe("error");
+  expect(status?.lastError?.kind).toBe("group.driveThrew");
   // 모르는 예외는 삼키지 않는다: 탐구는 끝난 기록 없이 마지막 커밋 상태에 남는다
   expect(t.records.events(thread).some((event) => event.kind === "grp.helm.inquiry.finished")).toBe(
     false,

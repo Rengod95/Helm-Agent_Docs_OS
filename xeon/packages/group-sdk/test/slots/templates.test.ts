@@ -380,14 +380,14 @@ test("template.dependencies-match-imports", async () => {
 test("template.drive-group-loads-and-toggles", async () => {
   await withGenerated("drive", "tpl-drive", async (dir) => {
     const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
-    const { t, thread, service } = await serviceRig([module]);
+    const { t, thread } = await serviceRig([module]);
     // 로드: 템플릿 기본값은 꺼짐이라 스택도 drive 호출도 없다
     expect(t.host.registration("tpl-drive")?.status).toBe("disabled");
     expect(t.host.leaseOf(thread)).toBeNull();
     expect(t.loop.turns).toHaveLength(0);
 
     // 켜기만으로는 주도하지 않는다. 중재가 없어 시작 요청이 있어야 스택에 오른다(drive-isolation.md 2.2)
-    expect(service.enable("tpl-drive")).toMatchObject({ ok: true });
+    t.host.registration("tpl-drive")?.enable();
     await t.boundary(thread).stepEnd();
     await t.settled();
     expect(t.host.leaseOf(thread)).toBeNull();
@@ -410,14 +410,14 @@ test("template.drive-group-loads-and-toggles", async () => {
     expect(turnsWhenDone).toBe(3);
 
     // 끄기: 요청은 즉시 기록되고 다음 경계에서 스택이 내려간다
-    expect(service.disable("tpl-drive")).toMatchObject({ ok: true });
+    t.host.registration("tpl-drive")?.disable();
     expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "tpl-drive" });
     const drafts = await t.boundary(thread).stepEnd();
     expect(drafts.map((draft) => draft.kind)).toContain("lease.released");
     expect(t.host.leaseOf(thread)).toBeNull();
 
     // 다시 켜고 시작하면 스택에 오르지만, 커밋된 상태가 done이라 턴을 내지 않고 돌아간다
-    expect(service.enable("tpl-drive")).toMatchObject({ ok: true });
+    t.host.registration("tpl-drive")?.enable();
     expect(t.host.startDrive(thread, "tpl-drive").ok).toBe(true);
     await t.boundary(thread).stepEnd();
     await t.settled();

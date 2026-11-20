@@ -6,12 +6,11 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createGroupService,
   defineGroup,
-  runGroupCommand,
   type GroupApi,
   type GroupHostView,
 } from "../src/index.ts";
 import { groupCatalogOf } from "../src/testing/index.ts";
-import { serviceRig } from "./support/host.ts";
+import { serviceRig, statusOf } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
 const ids = fixedIdFactory(500);
@@ -131,22 +130,14 @@ test("metrics.status-merges-counters-with-thread-usage-after-the-status-command"
     host: view,
     catalog: groupCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
-    report: () => {},
   });
   const counted = { denies: 0, posts: 1, spawns: 0, delegates: 0 };
   // 명령을 치기 전에는 개수 카운터만 보인다. 비용은 이벤트 집계에서만 오므로 카운터 `addUsage`의 0.25는 들어가지 않는다
-  expect(service.status("helm")).toMatchObject({
-    ok: true,
-    value: { metrics: { ...counted, costUsd: 0, leaseMs: 0 } },
-  });
-  expect((await runGroupCommand(service, { op: "status" })).ok).toBe(true);
-  // 명령이 현재 thread의 lease.*, turn.*, agent.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5로 바꾼다(카운터 0.25는 더하지 않는다).
-  // 승격 후보 줄을 정하려고 turn.started와 effect.intent도 읽는다(L3.group-sdk.spec §3.12)
-  expect(queried).toEqual(["lease.", "turn.", "agent.", "turn.started", "effect.intent"]);
-  expect(service.status("helm")).toMatchObject({
-    ok: true,
-    value: { metrics: { ...counted, costUsd: 0.5, leaseMs: 600 } },
-  });
+  expect(statusOf(service, "helm")?.metrics).toEqual({ ...counted, costUsd: 0, leaseMs: 0 });
+  await service.refreshUsage(rig.thread);
+  // 갱신이 현재 thread의 lease.*, turn.*, agent.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5로 바꾼다(카운터 0.25는 더하지 않는다)
+  expect(queried).toEqual(["lease.", "turn.", "agent."]);
+  expect(statusOf(service, "helm")?.metrics).toEqual({ ...counted, costUsd: 0.5, leaseMs: 600 });
 });
 
 test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
@@ -164,20 +155,13 @@ test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
     host: view,
     catalog: groupCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
-    report: () => {},
   });
-  await runGroupCommand(service, { op: "status" });
-  expect(service.status("helm")).toMatchObject({
-    ok: true,
-    value: { metrics: { costUsd: 0.5, leaseMs: 600 } },
-  });
-  // 조회가 실패하면 명령은 그대로 끝나고 이전 캐시가 남는다
+  await service.refreshUsage(rig.thread);
+  expect(statusOf(service, "helm")?.metrics).toMatchObject({ costUsd: 0.5, leaseMs: 600 });
+  // 조회가 실패하면 갱신은 그대로 끝나고 이전 캐시가 남는다
   failing = true;
-  expect((await runGroupCommand(service, { op: "status", id: "helm" })).ok).toBe(true);
-  expect(service.status("helm")).toMatchObject({
-    ok: true,
-    value: { metrics: { costUsd: 0.5, leaseMs: 600 } },
-  });
+  await service.refreshUsage(rig.thread);
+  expect(statusOf(service, "helm")?.metrics).toMatchObject({ costUsd: 0.5, leaseMs: 600 });
 });
 
 test("metrics.status-real-host-has-no-turn-usage", async () => {
@@ -186,12 +170,8 @@ test("metrics.status-real-host-has-no-turn-usage", async () => {
     host: rig.t.host,
     catalog: groupCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
-    report: () => {},
   });
-  expect((await runGroupCommand(service, { op: "status" })).ok).toBe(true);
+  await service.refreshUsage(rig.thread);
   // 시험 호스트의 기록 저장소는 recordedAt을 0으로 돌려주고 turn.* 이벤트를 쓰지 않는다
-  expect(service.status("helm")).toMatchObject({
-    ok: true,
-    value: { metrics: { posts: 1, costUsd: 0, leaseMs: 0 } },
-  });
+  expect(statusOf(service, "helm")?.metrics).toMatchObject({ posts: 1, costUsd: 0, leaseMs: 0 });
 });

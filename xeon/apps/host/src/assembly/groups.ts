@@ -19,7 +19,6 @@ import type { SettingsEngine } from "./settings-engine.ts";
 // - 그룹 목록(GroupCatalogPort): 설치한 단위 가운데 L3 매니페스트
 // - 그룹 설정 읽기(GroupSettingsSource, `fresnel.settings`): 설정 엔진의 유효 값
 // 서비스는 `onService`로 조립 루트에 넘긴다(확장 읽기 `group.*`와 `drive.*`가 현재 서비스를 읽는다). 중재 포트와 구동 그룹 설정은 없다(E3, drive-isolation.md 2.2).
-// `/group` 명령은 등록하지 않는다: 명령 처리기가 출력을 돌려줄 길(F `CommandResourceDef`는 void)이 아직 없다.
 // 조립 루트 코드(DR-14 예외 2).
 
 export interface HostGroupsOptions {
@@ -29,10 +28,7 @@ export interface HostGroupsOptions {
   readonly currentThread: () => ThreadId | null;
   /** 설치된 단위 가운데 그룹(L3)의 매니페스트와 로드 순서 */
   readonly groups: () => readonly GroupCatalogEntry[];
-  readonly report: (cause: unknown) => void;
   readonly loadIndex: number;
-  /** `/group on`이 켠 직후 부른다(`GroupServiceDeps.onEnabled`) */
-  readonly onEnabled?: (id: string) => void;
   /** 서비스가 올라올 때마다 부른다. 확장 읽기(`group.*`, `drive.*`)가 현재 서비스를 읽는다 */
   readonly onService?: (service: GroupServiceWithUsage) => void;
   /** 대화가 보는 도구 이름으로 도구 주인을 찾는다(승격 집계). 도구 이름이 대화마다 다르므로 이름만으로는 주인이 하나로 정해지지 않는다 */
@@ -73,9 +69,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         ...(options.toolOwnerIn === undefined ? {} : { toolOwnerIn: options.toolOwnerIn }),
         catalog: { groups: options.groups },
         currentThread: options.currentThread,
-        report: options.report,
         instrumentation,
-        ...(options.onEnabled === undefined ? {} : { onEnabled: options.onEnabled }),
       });
       options.onService?.(service);
     });

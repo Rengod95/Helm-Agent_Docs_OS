@@ -172,8 +172,6 @@ export interface ExtensionDeps {
     readonly currentThread: () => ThreadId | null;
     readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
-    /** `/group on` 뒤에 부른다. 실패 장부를 비운다(X-4) */
-    readonly onEnabled: (id: string) => void;
     /** 그룹 서비스가 올라올 때 부른다 */
     readonly onService: (service: GroupServiceWithUsage) => void;
   };
@@ -471,12 +469,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings,
           currentThread: deps.groups.currentThread,
           groups: deps.groups.entries,
-          onEnabled: deps.groups.onEnabled,
           onService: deps.groups.onService,
           toolOwnerIn,
-          report: (cause) => {
-            deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
-          },
           loadIndex,
         }),
     ],

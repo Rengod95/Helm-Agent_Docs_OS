@@ -6600,7 +6600,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
+          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
           "helpKey": "settings.l3.groupSdk.instrumentation.help",
           "label": "Group instrumentation",
           "labelKey": "settings.l3.groupSdk.instrumentation.label",

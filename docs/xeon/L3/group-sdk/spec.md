@@ -35,7 +35,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 - drive 역할 계산(스택에서 `DriveRole`을 읽는 규칙)과 주도 시작 요청 전달. 후보 중재 정책은 없다(E3, §3.5) [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - 그룹 비공개 상태와 공개 레코드의 구분, 상태 커밋 규칙, 분기·재개 때 복원, 상태 스키마 마이그레이션
 - 그룹 사이 통신의 허용·금지 목록과 검사 수단
-- `fresnel.groups` 서비스(`GroupService`), `/group` 명령 문법, 상태줄 문자열
+- `fresnel.groups` 서비스(`GroupService`: 목록과 상태)
 - 2차: 재생 규율 검사 도구(`replayDrive`, `scanDriveSource`), 승격 보고(`PromotionReport`), 계측(`GroupMetrics`)
 - `l3.group-sdk.*` 설정 키
 
@@ -596,148 +596,22 @@ export interface GroupStatus {
   readonly metrics: GroupMetricsSummary | null;
 }
 
-export type GroupCommandError =
-  | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] };
-
-export type GroupResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: GroupCommandError };
-
-export interface ToggleReceipt {
-  readonly id: GroupId;
-  readonly status: RegistrationStatus;
-  /** 실행 중인 turn이 있으면 nextStepBoundary. 유휴 시점 적용은 즉시 now(X.primitives.spec §4.5.5, R19) */
-  readonly appliesAt: "nextStepBoundary" | "now";
-}
-
-/** fresnel.groups 서비스. 중재 포트(choose)와 구동 그룹 설정 쓰기(setDriveHolder)는 E3에서 걷었다(§3.5) */
+/** fresnel.groups 서비스. 중재 포트(choose)와 구동 그룹 설정 쓰기(setDriveHolder)는 E3에서 걷었고, 전환 명령(`/group`)과 켜기·끄기·상태·변경 알림은 AGE-33에서 걷었다(호출자가 없었다) */
 export interface GroupService {
   /** 설치된 모든 그룹. 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
   list(): readonly GroupStatus[];
-  status(id: string): GroupResult<GroupStatus>;
-  /** RegistrationHandle.enable() 요청만 기록. 이미 켜져 있으면 그대로 ok */
-  enable(id: string): GroupResult<ToggleReceipt>;
-  disable(id: string): GroupResult<ToggleReceipt>;
-  /** 상태가 바뀔 때 전체 목록을 넘긴다. 단계 경계마다 최대 한 번 */
-  onChange(listener: (groups: readonly GroupStatus[]) => void): Unsubscribe;
 }
 ```
 
 - 구현 [M2, E3에서 `driveHolderSetting()`과 `setDriveHolder`를 걷음]: `createGroupService(deps)`가 `GroupServiceWithUsage`(`GroupService` + 계측 메서드)를 만든다. 의존은 `host`(`ExtHost`의 `registrations`·`registration`·`driveFrames`·`onChange`·`ports`·`queryEvents`·`toolOwner`·`resetRegistrationState`), `catalog`, `currentThread`, `report`이고 `instrumentation`·`onEnabled`·`metrics`·`promotion`은 선택이다.
 - 서비스 이름 `fresnel.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`다. 서비스는 포트가 아니라 조립 루트가 `onService`로 받는다(E3).
-- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
-- `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 Registration 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
+- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupSettingUnwritableReason`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - 거부 표시 [M3a, G-30, E3에서 걷음]: `lease.rejected` 구독과 거부 집합(`lease-rejections.ts`)은 없다. 엔진은 이 이벤트를 더 발행하지 않는다. `GroupStatus.drive`의 `rejected`도 더 내지 않는다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. Registration 토글과 drive lock이 thread마다 따로인지는 X.primitives.spec이 정한다.
 
-### 3.9 전환 명령과 상태줄
+### 3.9 전환 명령과 상태줄 [AGE-33에서 걷음]
 
-명령 문법(L4가 등록하고 group-sdk은 해석과 실행만 제공한다). `on`, `off`, `reset`의 대상은 플러그인 그룹이다. 그룹 하나는 확장 하나이므로 `on`과 `off`는 구성원 전체(`group.members`, 없으면 모든 플러그인)를 한 번에 켜고 끈다. `drive` 명령은 E3에서 걷었다. 주도 시작은 `/helm start`(`g.startDrive()`)가 맡는다(§3.5).
-
-```text
-group-cmd = "/group" [ SP sub ]
-sub       = "status" [ SP name ]
-          | "on" SP name
-          | "off" SP name
-          | "drive" SP ( name | "auto" )
-          | "reset" SP name
-name      = %x61-7A 1*31( %x61-7A / DIGIT / "-" )   ; GROUP_NAME_PATTERN
-```
-
-```ts
-// xeon/packages/group-sdk/src/commands.ts
-export type GroupCommand =
-  | { readonly op: "status"; readonly id?: string }
-  | { readonly op: "on" | "off"; readonly id: string }
-  | { readonly op: "drive"; readonly target: string }    // "auto" 또는 그룹 이름
-  | { readonly op: "reset"; readonly id: string };       // 저장 상태 재설정(B4-GRP). 켜기 상태는 바꾸지 않는다
-
-export type GroupCommandParse =
-  | { readonly ok: true; readonly command: GroupCommand }
-  | { readonly ok: false; readonly usage: string };
-
-/** "/group" 뒤의 인자 문자열을 해석한다. 순수 함수 */
-export function parseGroupCommand(args: string): GroupCommandParse;
-
-export interface CommandOutput {
-  readonly ok: boolean;
-  /** 사람이 읽는 여러 줄 문자열 */
-  readonly text: string;
-  /** 다음 단계 경계에 적용될 변경이 있으면 참 */
-  readonly pending: boolean;
-}
-
-export function runGroupCommand(service: GroupService, command: GroupCommand): Promise<CommandOutput>;
-
-/** L4 명령 등록부에 넘기는 모양 [가정: L4.cli.spec의 명령 등록 인터페이스] */
-export interface GroupCommandRegistration {
-  readonly name: "group";
-  readonly summary: string;
-  readonly usage: string;
-  run(args: string): Promise<CommandOutput>;
-}
-export function groupCommand(service: GroupService): GroupCommandRegistration;
-```
-
-출력 문자열 [제안]:
-
-| 경우 | `text` |
-|---|---|
-| 인자 해석 실패 | `사용법: /group status [이름] \| on <이름> \| off <이름>` |
-| 알 수 없는 이름 | `알 수 없는 그룹: xyz. 설치된 그룹: helm, learning` |
-| 켜기 요청(실행 중) | `helm 켜기 요청을 기록했다. 다음 단계 경계에 적용한다` |
-| 켜기 적용(유휴) | `helm 그룹을 켰다` |
-| 끄기 요청(실행 중) | `helm 끄기 요청을 기록했다. 다음 단계 경계에 적용한다` |
-| 끄기 적용(유휴) | `helm 그룹을 껐다` |
-| drive 지정(drive lock 없음, 또는 지정한 후보로 X가 옮김) | `구동 그룹을 지정했다: helm. 다음 단계 경계에 적용한다` |
-| drive 지정(지정한 그룹이 후보가 아니어서 현재 drive lock을 유지) | `구동 그룹을 지정했다: helm. review의 drive lock이 반납된 뒤 적용한다` |
-| drive 지정(이미 holder) | `구동 그룹을 지정했다: helm` |
-| drive auto | `구동 그룹 선택을 바꿨다: auto. 현재 holder는 유지한다` |
-| 저장 상태 재설정 성공 [B4-GRP] | `<id>: 저장 상태를 초기값으로 되돌렸습니다. 다음 단계 경계에서 다시 실행됩니다.`. 그룹이 꺼진 상태(`scope`가 `disabled`)면 뒤에 ` /group on <id>로 켜세요.`를 덧붙인다(§10 닫힘) |
-| 저장 상태 재설정 대상이 아님 [B4-GRP] | `<id> 그룹은 되돌릴 저장 상태 오류가 없다` |
-| 재설정할 대화가 없음 [B4-GRP] | `재설정할 대화가 없다` |
-| 재설정 실패 [B4-GRP] | `<id> 그룹의 저장 상태를 되돌리지 못했다: <X 오류 kind>` |
-
-- 한국어 조사(을/를, 으로/로)는 그룹 이름의 발음에 따라 달라져 문자열로 정할 수 없으므로 이름 뒤에 조사를 붙이지 않는 문장으로 쓴다.
-
-`/group reset <이름>`(B4-GRP)은 `GroupServiceWithUsage.resetState(id)`를 부른다. 이 메서드는 group-sdk 서비스 타입에만 있고 F `GroupService`에는 없다. 반환은 `Result<{ rev }, GroupResetError>`다. `GroupResetError`는 `group.unknown`(설치 목록에 없는 이름, `known`을 싣는다), `group.noThread`(현재 thread 없음), `group.notResettable`(X `not_refused`), `group.resetFailed`(X 오류 kind를 `message`에 싣는다, 예: `thread_not_open`)다. 성공하면 X `ExtHost.resetScopeState(thread, id)`가 선언 초기값을 새 판으로 쓰고 오류를 지우고 적용을 예약한다. 명령은 `enable`·`disable`을 부르지 않는다.
-
-`/group status`는 그룹마다 한 줄을 낸다: `<이름>  <켜짐|꺼짐|켜는 중(다음 단계 경계)|끄는 중(다음 단계 경계)>  drive=<구동|대기|없음|오류>  [오류: <message>]`. 첫 줄은 `구동 그룹 설정: <auto|이름>`이고, 설정이 설치되지 않은 그룹을 가리키면 `구동 그룹 설정: review(설치되지 않음)`이다. 첫 줄은 서비스가 `driveHolderSetting()`을 가질 때(`GroupServiceWithSetting`)만 낸다. 출력 구현은 `runGroupCommand`·`groupCommand`(`commands.ts`)다.
-이름 없는 `/group status`는 그룹 줄 뒤에 승격 후보가 있을 때만 `승격 후보: <도구> (<소유 그룹> -> <소비자>, …)` 줄을 더한다. 후보가 여럿이면 `; `로 잇는다. 후보 계산은 §3.12다 [결정: 오케스트레이터 기본값, B4-GRP].
-
-상태줄:
-
-```ts
-// xeon/packages/group-sdk/src/status-line.ts
-export interface StatusLineOptions {
-  /** 표시 폭(열). 한글·CJK는 두 열로 센다. 기본 60 */
-  readonly maxWidth?: number;
-  /** l3.group-sdk.statusLine 값. false면 null을 돌려준다. 기본 true */
-  readonly enabled?: boolean;
-}
-/** l3.group-sdk.statusLine이 false이거나 표시할 그룹이 없으면 null. 순수 함수 */
-export function formatGroupStatusLine(groups: readonly GroupStatus[], options?: StatusLineOptions): string | null;
-```
-
-규칙 [제안]:
-
-1. 표시 대상은 켜졌거나 켜기·끄기가 대기 중인 그룹이다. 하나도 없으면 null이다.
-2. 형식은 `그룹 ` 뒤에 항목을 공백으로 잇는다. 항목은 이름 뒤에 표시를 붙인다: holder `[구동]`, 대기 `[대기]`, 오류 `[오류]`. 켜기 대기는 `+이름`, 끄기 대기는 `-이름`이다.
-3. 순서는 holder, 켜진 그룹(로드 순서), 대기 중인 토글 순이다. 오류 표시(`[오류]`)와 대기 표시(`[대기]`)는 순서를 바꾸지 않는다. 그 그룹은 켜진 그룹의 로드 순서 자리에 둔다.
-4. 대기 중인 토글이나 holder 변경이 있으면 끝에 ` · 다음 단계 경계에 적용`을 붙인다.
-5. 폭을 넘으면 뒤 항목부터 빼고 `+N`(뺀 개수)을 항목 바로 뒤에 붙인다. 적용 대기 문구는 빼지 않고, 항목 하나는 폭을 넘어도 남긴다. 기본 폭은 60열이다. 아래 예 3은 48열을 넘기 때문이다(전각 문자를 두 열로 센 값이 58열).
-
-예:
-
-| 상황 | 상태줄 |
-|---|---|
-| Helm 구동, 학습 그룹 켜짐 | `그룹 helm[구동] learning` |
-| 추가 그룹 review 대기 | `그룹 helm[구동] learning review[대기]` |
-| 실행 중 learning 끄기 요청 | `그룹 helm[구동] learning -learning · 다음 단계 경계에 적용` |
-| Helm drive 예외 | `그룹 helm[오류] learning` |
-| helm이 review에게 맡기고 기다림(`DriveRole` `waiting`), learning 켜짐 | `그룹 helm[대기] learning` |
-
-- 상태줄 문자열 생성은 group-sdk이 하고, 표시 위치와 갱신 주기는 L4가 정한다. L4는 `GroupService.onChange`나 wire 알림으로 목록을 받는다 [가정: L4.cli.spec, F.wire-settings.spec 알림 표].
+`/group` 명령(`parseGroupCommand`, `runGroupCommand`, `groupCommand`), 상태줄(`formatGroupStatusLine`, 설정 `l3.group-sdk.statusLine`), 서비스의 `status`·`enable`·`disable`·`onChange`와 `resetState`는 없다. 등록하는 곳도 읽는 곳도 시험뿐이었다(AGE-33 조사). 그룹의 켜기·끄기는 X 예약 키 `ext.<이름>.enabled`와 `ext.*` wire가, 상태는 `group.list` wire가 맡는다.
 
 ### 3.10 replayDrive (재생 규율 검사 하니스)
 
@@ -991,7 +865,7 @@ export function buildPromotionReport(input: PromotionInput): PromotionReport;
 
 승격 절차 [제안]:
 
-1. `PromotionReport`의 후보를 `/group status`의 부가 줄과 2차 설정 화면에 보인다. 자동으로 옮기지 않는다.
+1. `PromotionReport`의 후보를 `group.promotion` wire와 2차 설정 화면에 보인다. 자동으로 옮기지 않는다.
 2. 사람이 승격을 결정하면 해당 L2 도메인 spec에 기능 정의를 더하고 F `capabilities/defs/<domain>.ts`에 정의를 둔다(F.capabilities.spec §3.9).
 3. 구현을 `cap-<domain>`으로 옮긴다. 원래 그룹은 `g.capability(key)`로 바꾸고 매니페스트 `requires`에 기능을 더한다.
 4. 모델 도구 이름은 바꾸지 않는다. 이름이 L2 규칙과 충돌하면 한 부 버전 동안 옛 이름을 별칭으로 둔다.
@@ -1167,12 +1041,11 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 키 | 타입 | 기본값 | 범위(`allowedScopes`) | 대화 중 변경 | `runtimeChange` | 위젯 | 뜻 |
 |---|---|---|---|---|---|---|---|
 | `l3.group-sdk.instrumentation` | boolean | `true` | managed, user, project, local, launch | 가능 | `live` | `toggle` | 그룹 계측 기록(§4.9, 2차) |
-| `l3.group-sdk.statusLine` | boolean | `true` | user, project, local, launch | 가능 | `live` | `toggle` | 상태줄 그룹 표시(§3.9) |
 
 - 구동 그룹 선택 [결정: review.decisions-2 S-15, E3에서 걷음]: group-sdk은 구동 그룹 키를 두지 않는다. 키 `x.primitives.activeDriver`는 설정과 계약에서 걷었다(E3, drive-isolation.md 2.2). group-sdk은 이 값을 읽거나 쓰지 않고 `/group status`도 설정 줄을 내지 않는다. `setDriveHolder`와 `/group drive`도 계약 정리 단계에서 함께 걷었다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
 - 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-sdk은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - drive lock 상한의 일반 기본값은 X 키 `x.primitives.driveDefaultLimits`, 천장은 `x.primitives.driveLimits`다(F.extensions.spec §6). 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 기본값을 덮어쓰고, 천장보다 클 수 없다(review.decisions-2 U-12).
-- 명령: `/group status|on <이름>|off <이름>|drive <이름|auto>`(§3.9). 설정 파일과 `fresnel config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
+- 명령은 없다(§3.9). 설정 파일과 `fresnel config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
 
 ## 7. 훅
 
@@ -1205,7 +1078,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 |---|---|
 | `ExtensionManifest`, `RegistrationApi`, `StateDecl`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveOptions`, `DriveLock`, `DriveLockId`, `RegistrationId`, `RegistrationStatus`, `RegistrationHandle`, `ExtensionEntry`, `GroupRecord`, `RecordKind`, `GroupId`, `validateManifest`, `validateUsage`, `validateManifestSet` | F.extensions.spec |
 | `Upcaster`, `DurableEventEnvelope`, `scope.changed`, `lease.acquired`, `lease.released`, `checkpoint.step`의 `leaseRefs`, 분기 규칙 | F.records.spec |
-| `ServiceKey`, `ToolName`. `@fresnel/contracts/services`의 `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `GroupMetricsSummary`(§3.12 `services/groups.ts`) | F.capabilities.spec |
+| `ServiceKey`, `ToolName`. `@fresnel/contracts/services`의 `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupMetricsSummary`(§3.12 `services/groups.ts`) | F.capabilities.spec |
 | `SettingDefInput`, `SettingGroup`, `defineSettings`, `SettingScope`, `EffectiveSetting`, `WriteCheck` | F.wire-settings.spec |
 | `ThreadId`, `ItemId`, `EventId`, `JsonValue`, 단계 경계 용어 | F.conversation.spec |
 | drive lock 메커니즘(§4.4), 중재 포트 호출 규칙은 E3에서 없앴다(§3.5), `ExtHost`(`fresnel.ext`)의 `registrations()`·`registration()`(§3.1, §3.9), `hostOf(g).registerTool`·`registerCommand`·`registerProvider`와 `ToolResourceDef`·`CommandResourceDef`·`ProviderResourceDef`(§3.8, §4.8), 유휴 토글 적용(§4.5.5). 요청 사항 4개(§3.13)와 테스트 호스트(`@fresnel/ext-host/testing`)는 [가정] | X.primitives.spec |

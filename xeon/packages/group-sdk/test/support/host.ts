@@ -5,6 +5,7 @@ import {
   createGroupService,
   type GroupModule,
   type GroupServiceWithUsage,
+  type GroupStatus,
 } from "../../src/index.ts";
 import { groupCatalogOf } from "../../src/testing/index.ts";
 
@@ -58,13 +59,9 @@ export interface ServiceRig {
   readonly t: TestHost;
   readonly thread: ThreadId;
   readonly service: GroupServiceWithUsage;
-  readonly reported: unknown[];
 }
 
-export async function serviceRig(
-  modules: readonly GroupModule[],
-  extra: { readonly onEnabled?: (id: string) => void } = {},
-): Promise<ServiceRig> {
+export async function serviceRig(modules: readonly GroupModule[]): Promise<ServiceRig> {
   const t = await createTestHost({
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
@@ -75,18 +72,18 @@ export async function serviceRig(
     },
   });
   const thread = t.newThread();
-  const reported: unknown[] = [];
   const service = createGroupService({
     host: t.host,
     catalog: groupCatalogOf(modules),
     currentThread: () => thread,
-    report: (cause) => {
-      reported.push(cause);
-    },
-    ...(extra.onEnabled === undefined ? {} : { onEnabled: extra.onEnabled }),
   });
   await installInOrder(t, modules);
   await t.host.openThread(thread);
   await t.settled();
-  return { t, thread, service, reported };
+  return { t, thread, service };
+}
+
+/** 서비스 목록에서 id의 상태를 찾는다 */
+export function statusOf(service: GroupServiceWithUsage, id: string): GroupStatus | undefined {
+  return service.list().find((group) => group.id === id);
 }

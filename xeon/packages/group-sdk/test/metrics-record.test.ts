@@ -9,7 +9,7 @@ import {
   type MetricsRecordedPayload,
 } from "../src/index.ts";
 import { groupCatalogOf } from "../src/testing/index.ts";
-import { install } from "./support/host.ts";
+import { install, statusOf } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
 const KEY = "l3.group-sdk.instrumentation";
@@ -192,19 +192,21 @@ test("metrics.status-is-null-when-instrumentation-is-off", async () => {
     host: t.host,
     catalog: groupCatalogOf([module]),
     currentThread: () => thread,
-    report: () => {},
     instrumentation: () => false,
   });
   const on = createGroupService({
     host: t.host,
     catalog: groupCatalogOf([module]),
     currentThread: () => thread,
-    report: () => {},
   });
-  expect(off.status("status-off")).toMatchObject({ ok: true, value: { metrics: null } });
-  expect(on.status("status-off")).toMatchObject({
-    ok: true,
-    value: { metrics: { denies: 0, posts: 0, spawns: 0, delegates: 0, costUsd: 0, leaseMs: 0 } },
+  expect(statusOf(off, "status-off")?.metrics).toBeNull();
+  expect(statusOf(on, "status-off")?.metrics).toEqual({
+    denies: 0,
+    posts: 0,
+    spawns: 0,
+    delegates: 0,
+    costUsd: 0,
+    leaseMs: 0,
   });
 });
 

@@ -10,7 +10,6 @@ import {
   createGroupService,
   defineGroup,
   gatherPromotionInput,
-  runGroupCommand,
   type PromotionHostView,
 } from "../src/index.ts";
 import { groupCatalogOf } from "../src/testing/index.ts";
@@ -387,11 +386,10 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
     host: t.host,
     catalog: groupCatalogOf([owner]),
     currentThread: () => thread,
-    report: () => undefined,
   });
 
   // 호출이 없으면 후보 줄이 없다
-  expect((await runGroupCommand(service, { op: "status" })).text).toBe("group-a  켜짐  drive=없음");
+  expect((await service.promotionReport()).candidates.filter((c) => c.candidate)).toEqual([]);
   // 그룹 B의 drive turn이 a_tool을 부르면 후보 줄이 group 줄 뒤에 붙는다
   const bTurn = t.ids.next("trn");
   await t.records.commit({
@@ -402,9 +400,14 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
       intentOf(t, thread, bTurn, "a_tool"),
     ],
   });
-  expect((await runGroupCommand(service, { op: "status" })).text).toBe(
-    "group-a  켜짐  drive=없음\n승격 후보: a_tool (group-a -> group-b)",
-  );
+  const candidates = (await service.promotionReport()).candidates.filter((c) => c.candidate);
+  expect(
+    candidates.map((c) => ({
+      tool: c.tool,
+      owner: c.owner,
+      consumers: c.consumers.map((consumer) => consumer.scopeId),
+    })),
+  ).toEqual([{ tool: "a_tool", owner: "group-a", consumers: ["group-b"] }]);
 });
 
 test("promotion.gather-resolves-the-tool-owner-in-the-thread-that-made-the-call", async () => {

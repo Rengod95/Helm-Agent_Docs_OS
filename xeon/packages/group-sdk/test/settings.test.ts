@@ -3,7 +3,7 @@ import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import { groupSdkSettings } from "../src/index.ts";
 
 test("settings.no-drive-holder-key", () => {
-  expect(Object.keys(groupSdkSettings.defs).toSorted()).toEqual(["instrumentation", "statusLine"]);
+  expect(Object.keys(groupSdkSettings.defs).toSorted()).toEqual(["instrumentation"]);
   expect(groupSdkSettings.namespace).toBe("l3.group-sdk");
   for (const def of Object.values(groupSdkSettings.defs)) {
     expect(checkSettingDef(def)).toEqual([]);

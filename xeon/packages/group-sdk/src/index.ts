@@ -83,31 +83,11 @@ export {
   type TemplatePlaceholder,
 } from "./templates.ts";
 export {
-  GROUP_USAGE,
-  groupCommand,
-  parseGroupCommand,
-  runGroupCommand,
-  type CommandOutput,
-  type GroupCommand,
-  type GroupCommandParse,
-  type GroupCommandRegistration,
-  type GroupResetError,
-  type GroupServiceWithUsage,
-} from "./commands.ts";
-export { displayWidth, formatGroupStatusLine, type StatusLineOptions } from "./status-line.ts";
-export {
   GroupServiceName,
   createGroupService,
   type GroupHostView,
+  type GroupServiceWithUsage,
   type GroupServiceDeps,
 } from "./service.ts";
 export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-export type {
-  DriveRole,
-  GroupCommandError,
-  GroupError,
-  GroupResult,
-  GroupService,
-  GroupStatus,
-  ToggleReceipt,
-} from "@fresnel/contracts/services";
+export type { DriveRole, GroupError, GroupService, GroupStatus } from "@fresnel/contracts/services";

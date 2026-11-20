@@ -1330,12 +1330,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
-          // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
-          onEnabled: (id) => {
-            operations.autoDisabler.clearLedger(`ext:${id}`);
-            // 자동 끄기 장부를 비우면 멈춘 확장이 다시 E(T)에 들 수 있다(M5c §4.1.12)
-            portsHandle?.ports.m4.pluginSet.recomputeAll();
-          },
           onService: (service) => {
             groupServiceSlot.current = service;
           },

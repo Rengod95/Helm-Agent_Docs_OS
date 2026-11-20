@@ -1,22 +1,14 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import {
-  LoopPortKey,
-  type DriveFrameView,
-  type GroupId,
-  type RegistrationId,
-  type Unsubscribe,
-} from "@fresnel/contracts/extensions";
+import type { DriveFrameView, GroupId, RegistrationId } from "@fresnel/contracts/extensions";
 import type { ExtHost, RegistrationInfo } from "@fresnel/ext-host";
 import {
   GroupServiceName,
   type DriveRole,
   type GroupError,
   type GroupMetricsSummary,
-  type GroupResult,
+  type GroupService,
   type GroupStatus,
-  type ToggleReceipt,
 } from "@fresnel/contracts/services";
-import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
 import { gatherPromotionInput, type PromotionHostView } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
@@ -29,15 +21,7 @@ export { GroupServiceName };
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
 export type GroupHostView = Pick<
   ExtHost,
-  | "registrations"
-  | "registration"
-  | "leaseOf"
-  | "driveFrames"
-  | "onChange"
-  | "ports"
-  | "queryEvents"
-  | "toolOwner"
-  | "resetRegistrationState"
+  "registrations" | "leaseOf" | "driveFrames" | "queryEvents" | "toolOwner"
 >;
 
 export interface GroupServiceDeps {
@@ -53,8 +37,6 @@ export interface GroupServiceDeps {
    * (L3.group-sdk.spec §3.8 [가정]). 없으면 null
    */
   readonly currentThread: () => ThreadId | null;
-  /** onChange 구독자가 던진 값을 받는다. 기록하거나 알리는 일을 해야 한다(TY-25) */
-  readonly report: (cause: unknown) => void;
   /** l3.group-sdk.instrumentation 값. 기본 true */
   readonly instrumentation?: () => boolean;
   /**
@@ -63,15 +45,20 @@ export interface GroupServiceDeps {
    */
   readonly metrics?: (id: GroupId) => GroupMetricsSummary | null;
   /**
-   * 승격 집계(L3.group-sdk.spec §3.12). `/group status`가 후보 줄을 낼 때 부른다. 없으면 현재 thread의 이벤트로 `gatherPromotionInput`과
+   * 승격 집계(L3.group-sdk.spec §3.12). 없으면 현재 thread의 이벤트로 `gatherPromotionInput`과
    * `buildPromotionReport`를 돌린다. 현재 thread가 없으면 빈 보고다.
    */
   readonly promotion?: () => Promise<PromotionReport>;
-  /**
-   * `enable`가 켜기를 요청한 직후 부른다. 조립 루트가 X `AutoDisabler.clearLedger("ext:<id>")`를 연결한다.
-   * 연결하지 않으면 자동으로 꺼진 그룹을 다시 켜도 실패 장부가 남아 재시작 전까지 다시 꺼지지 않는다(M4 X-4)
-   */
-  readonly onEnabled?: (id: GroupId) => void;
+}
+
+/** createGroupService가 돌려주는 서비스. 상태를 보일 thread를 알려 주고 그 thread의 이벤트 집계를 갱신한다 */
+export interface GroupServiceWithUsage extends GroupService {
+  /** 상태를 보이는 thread. 없으면 null */
+  currentThread(): ThreadId | null;
+  /** thread의 `lease.*`·`turn.*` 이벤트로 임대 시간과 비용 캐시를 다시 셈한다. 조회가 실패하면 캐시를 그대로 둔다 */
+  refreshUsage(threadId: ThreadId): Promise<void>;
+  /** 현재 thread의 승격 집계(L3.group-sdk.spec §3.12) */
+  promotionReport(): Promise<PromotionReport>;
 }
 
 /** 활성 thread 하나의 이벤트 집계. `refreshUsage`가 채운다 */
@@ -115,13 +102,10 @@ function driveRoleOf(
 }
 
 /**
- * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록·켜기 끄기·구동 그룹 지정을 한 객체로 낸다.
+ * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록과 상태를 낸다.
  * 상태는 `ExtHost.registrations()`·`driveFrames()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
 export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
-  const listeners = new Set<(groups: readonly GroupStatus[]) => void>();
-  let hostSubscription: Unsubscribe | undefined;
-  let scheduled = false;
   let usage: UsageCache | undefined;
 
   /**
@@ -193,60 +177,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
       .map((item) => item.status);
   }
 
-  function knownIds(): readonly GroupId[] {
-    return deps.catalog.groups().map((entry) => entry.manifest.name);
-  }
-
-  function find(id: string): GroupCatalogEntry | undefined {
-    return deps.catalog.groups().find((entry) => entry.manifest.name === id);
-  }
-
-  function turnRunning(): boolean {
-    const thread = deps.currentThread();
-    if (thread === null) return false;
-    return deps.host.ports.get(LoopPortKey)?.status(thread) === "running";
-  }
-
-  function flush(): void {
-    scheduled = false;
-    if (listeners.size === 0) return;
-    const groups = list();
-    for (const listener of listeners) {
-      try {
-        listener(groups);
-      } catch (cause) {
-        deps.report(cause);
-      }
-    }
-  }
-
-  /** 같은 동기 구간의 변경은 구독자에게 한 번만 알린다 */
-  function schedule(): void {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(flush);
-  }
-
-  function toggle(id: string, enabled: boolean): GroupResult<ToggleReceipt> {
-    const handle = find(id) === undefined ? undefined : deps.host.registration(id);
-    if (handle === undefined) {
-      return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
-    }
-    if (enabled) {
-      handle.enable();
-      deps.onEnabled?.(id);
-    } else handle.disable();
-    schedule();
-    return {
-      ok: true,
-      value: {
-        id,
-        status: handle.status,
-        appliesAt: turnRunning() ? "nextStepBoundary" : "now",
-      },
-    };
-  }
-
   /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
   async function defaultPromotion(): Promise<PromotionReport> {
     const thread = deps.currentThread();
@@ -265,23 +195,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     list,
     currentThread: () => deps.currentThread(),
     promotionReport: () => (deps.promotion ?? defaultPromotion)(),
-    async resetState(id) {
-      if (find(id) === undefined) {
-        return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
-      }
-      const thread = deps.currentThread();
-      if (thread === null) return { ok: false, error: { kind: "group.noThread" } };
-      const reset = await deps.host.resetRegistrationState(thread, id);
-      if (reset.ok) {
-        schedule();
-        return { ok: true, value: reset.value };
-      }
-      const error: GroupResetError =
-        reset.error.kind === "not_refused"
-          ? { kind: "group.notResettable", id }
-          : { kind: "group.resetFailed", id, message: reset.error.kind };
-      return { ok: false, error };
-    },
     async refreshUsage(threadId) {
       const leases = await deps.host.queryEvents(threadId, { kindPrefix: "lease." });
       const turns = await deps.host.queryEvents(threadId, { kindPrefix: "turn." });
@@ -292,26 +205,6 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
         (a, b) => a.seq - b.seq,
       );
       usage = { threadId, byScope: summarizeUsage(ordered) };
-    },
-    status(id) {
-      const entry = find(id);
-      if (entry === undefined) {
-        return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
-      }
-      return { ok: true, value: statusOf(entry) };
-    },
-    enable: (id) => toggle(id, true),
-    disable: (id) => toggle(id, false),
-    onChange(listener) {
-      listeners.add(listener);
-      hostSubscription ??= deps.host.onChange(schedule);
-      return () => {
-        listeners.delete(listener);
-        if (listeners.size === 0) {
-          hostSubscription?.();
-          hostSubscription = undefined;
-        }
-      };
     },
   };
 }
