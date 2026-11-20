@@ -52,3 +52,8 @@ export function isInside(parent: string, child: string): boolean {
 export function sortedUnique(paths: readonly string[]): string[] {
   return [...new Set(paths)].toSorted();
 }
+
+/** Seatbelt 규칙 문자열에 그대로 넣어도 되는 경로인가(절대 경로이고 따옴표, 역슬래시, 줄바꿈이 없다) */
+export function seatbeltSafe(path: string): boolean {
+  return path.startsWith("/") && !/["'\\\n\r]/.test(path);
+}

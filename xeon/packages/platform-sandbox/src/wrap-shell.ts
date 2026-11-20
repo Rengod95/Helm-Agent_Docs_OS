@@ -11,6 +11,7 @@ import {
 import {
   ExecutionError,
   type CancelScope,
+  type ProtectedPathEntry,
   type SandboxPolicy,
   type SandboxRunReport,
   type SandboxStatus,
@@ -49,6 +50,8 @@ export interface WrapShellDeps {
   readonly tools: () => SrtTools;
   /** 읽기 전용 프로필이 호출마다 빈 임시 폴더를 만들 부모 폴더(`os.dirs.tmp`). 생략하면 OS 임시 폴더 */
   readonly readOnlyTempBase?: () => string;
+  /** 보호 경로 항목 전체(기본 + 설정 추가분). script-env의 읽기 예외 검사가 basename 항목을 쓴다 */
+  readonly protectedEntries: () => readonly ProtectedPathEntry[];
   /** exec 때마다 맨 먼저 부른다. 설정 변경(enabled)으로 낡은 탐지 결과를 새로 고치는 자리다 */
   readonly ensureCurrent: (context: CancelScope) => Promise<void>;
 }
@@ -150,10 +153,15 @@ export type ExecutionDecision =
  */
 export function decideExecution(
   status: SandboxStatus,
-  policy: Pick<SandboxPolicy, "allowEscape">,
+  policy: Pick<SandboxPolicy, "allowEscape" | "profile">,
   escapeRetry: boolean,
 ): ExecutionDecision {
   if (status.reason === "disabled") return { action: "plain", by: "disabled" };
+  // 스크립트 환경은 격리 불가일 때 onUnavailable이 run_unsandboxed여도 샌드박스 밖에서 돌지 않는다(닫힌 실패). 사용자가 끈 경우(disabled)만 위에서 허락한다
+  if (policy.profile === "script-env") {
+    if (policy.allowEscape) return { action: "reject", cause: "escape" };
+    return status.available ? { action: "sandboxed" } : { action: "reject", cause: "unavailable" };
+  }
   if (policy.allowEscape) {
     return escapeRetry ? { action: "plain", by: "escape" } : { action: "reject", cause: "escape" };
   }
@@ -200,8 +208,10 @@ export interface SrtWrapRequest {
   readonly cwd: string | undefined;
   readonly abortSignal: AbortSignal | undefined;
   readonly commandId: string;
-  /** 읽기 전용 프로필이 이 호출에 허용하는 유일한 쓰기 루트(호출 전용 빈 임시 폴더) */
+  /** 읽기 전용 프로필이 이 호출에 허용하는 유일한 쓰기 루트(호출 전용 빈 임시 폴더). 스크립트 환경은 이 폴더를 쓰기 루트에 더한다 */
   readonly readOnlyTemp?: string;
+  /** wrapArgv가 이미 풀어 둔 유효 정책(읽기 예외 검사와 같은 값을 쓰려고). 없으면 여기서 푼다 */
+  readonly resolved?: EffectivePolicy;
 }
 
 /**
@@ -219,7 +229,7 @@ export async function srtWrap(
       new ExecutionError("sandbox_failed", "network allow-list policy is not supported yet"),
     );
   }
-  const resolved = deps.resolvePolicy(policy, request.baseDir);
+  const resolved = request.resolved ?? deps.resolvePolicy(policy, request.baseDir);
   const effective: EffectivePolicy =
     policy.profile === "read-only" || policy.profile === "no-write"
       ? {
@@ -236,7 +246,16 @@ export async function srtWrap(
                 ]),
               }),
         }
-      : resolved;
+      : policy.profile === "script-env" && request.readOnlyTemp !== undefined
+        ? // 스크립트 환경: 프로젝트 폴더에 더해 이 호출의 임시 폴더만 쓴다. 읽기 허용 목록은 없다
+          {
+            ...resolved,
+            writeRoots: sortedUnique([
+              ...resolved.writeRoots,
+              canonicalizePath(request.readOnlyTemp),
+            ]),
+          }
+        : resolved;
   const customConfig = toSrtFileConfig(effective);
   const issues = deps.srt.validateConfig(validationCandidate(deps.tools(), customConfig));
   if (issues.length > 0) {
@@ -407,6 +426,12 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
 
   return {
     async exec(command, options, context) {
+      // 스크립트 환경은 wrapArgv로만 쓴다. 여기서는 임시 폴더와 시스템 도구 막기를 더하지 않으므로 돌리지 않는다
+      if (policy.profile === "script-env") {
+        return err(
+          new ExecutionError("sandbox_failed", "script-env profile runs only through wrapArgv"),
+        );
+      }
       await deps.ensureCurrent(context);
       const status = deps.status();
       const decision = decideExecution(status, policy, deps.escapeRetry());

@@ -73,6 +73,25 @@ function pluginHostPolicy(
   });
 }
 
+/**
+ * 가져온 훅의 스크립트 환경 정책("script-env", AGE-58 원칙 가): 읽기는 보호 경로만 거부하고 읽기 허용 목록은 없다.
+ * 쓰기는 프로젝트 폴더와 호출 임시 폴더뿐이다. `readCarveOuts`는 보호 경로 안에서 다시 읽게 할 경로다. 스크립트 실행기의 막기를 켠다.
+ * `runtimeReadRoots`는 이 프로필에서 쓰지 않는다(읽기 허용 목록이 없다).
+ */
+function scriptEnvPolicy(
+  sandbox: IsolationSandboxSource,
+  scriptEnv: NonNullable<IsolationSpawnSpec["scriptEnv"]>,
+): SandboxPolicy {
+  return sandbox.defaultPolicy({
+    workspaceRoots: [],
+    tempDir: scriptEnv.projectDir,
+    profile: "script-env",
+    projectDir: scriptEnv.projectDir,
+    readCarveOuts: [...scriptEnv.readCarveOuts],
+    systemTools: true,
+  });
+}
+
 /** 격리 자식을 띄우는 포트를 만든다. `ProcessService.spawn`이 이 포트를 그대로 쓴다 */
 export function createIsolationProcessPort(deps: IsolationProcessDeps): IsolationProcessPort {
   const stdinCloseMs = deps.stdinCloseMs ?? DEFAULT_STDIN_CLOSE_MS;
@@ -91,8 +110,12 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
       });
       return err({ kind: "sandbox_unavailable", reason: "service_missing" });
     }
+    const policy =
+      spec.scriptEnv === undefined
+        ? pluginHostPolicy(sandbox, cwd, spec)
+        : scriptEnvPolicy(sandbox, spec.scriptEnv);
     const wrapped = await sandbox.wrapArgv(
-      pluginHostPolicy(sandbox, cwd, spec),
+      policy,
       { command: spec.command, args: spec.args, cwd },
       { abortSignal: undefined },
     );
@@ -127,7 +150,11 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
       if (!isAbsolute(spec.readRoot)) {
         return spawnFailed("EINVAL", "readRoot must be an absolute path");
       }
-      const cwd = resolvePath(spec.readRoot);
+      // 스크립트 환경은 작업 폴더가 프로젝트 폴더다. 읽기 루트(`readRoot`)는 그대로 절대 경로여야 한다
+      if (spec.scriptEnv !== undefined && !isAbsolute(spec.scriptEnv.projectDir)) {
+        return spawnFailed("EINVAL", "scriptEnv.projectDir must be an absolute path");
+      }
+      const cwd = resolvePath(spec.scriptEnv?.projectDir ?? spec.readRoot);
       // 샌드박스를 먼저 정한다. 막힌 호스트는 아무것도 띄우지 않는다
       const sandboxed = await wrapForSandbox(spec, cwd);
       if (!sandboxed.ok) return sandboxed;
