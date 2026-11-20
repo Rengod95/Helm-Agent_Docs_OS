@@ -386,15 +386,7 @@ export function fadeIn(els: Iterable<Element>): void {
 // ── 대화 줄 들어옴(dzM2 시안 §2, DP-117) ─────────────────────────────────────────
 
 /** 줄 들어옴의 갈래. 줄 종류(`TranscriptRow["kind"]`)를 `views/transcript-enter.ts`가 이 값으로 옮긴다 */
-export type RowEnter =
-  | "user"
-  | "reply"
-  | "quiet"
-  | "card"
-  | "foot"
-  | "divider"
-  | "compaction"
-  | "leadHead";
+export type RowEnter = "user" | "reply" | "quiet" | "card" | "foot" | "divider" | "compaction";
 
 type EnterTrack = {
   /** 없으면 요소 자체, 있으면 그 가상 요소(`::before`·`::after`)나 그 선택자로 찾은 자식 */
@@ -474,16 +466,6 @@ export const ROW_ENTER: Readonly<Record<RowEnter, readonly EnterTrack[]>> = {
       duration: 900,
       easing: EASE.standard,
       delay: 80,
-    },
-  ],
-  // 주도 머리: 답과 같은 초점 맞춤 + 레일이 위에서 아래로 그어진다
-  leadHead: [
-    { keyframes: rise(SHIFT.block, ENTER_BLUR), duration: 200, easing: EASE.enter },
-    {
-      pseudo: "::before",
-      keyframes: [{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
-      duration: 280,
-      easing: EASE.panel,
     },
   ],
 };

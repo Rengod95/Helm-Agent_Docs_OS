@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { AgentRow, LeadSegment, NowState } from "../../src/state/engine/index.ts";
+import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import {
+  leadsBesideBandOf,
   nowShownOf,
   nowViewOf,
   progressPercentOf,
@@ -201,5 +203,39 @@ describe("scopeNameOf", () => {
     expect(scopeNameOf("group:helm")).toBe("helm");
     expect(scopeNameOf("ext/plugins/helm")).toBe("helm");
     expect(scopeNameOf("helm")).toBe("helm");
+  });
+});
+
+function driveFrame(depth: number, plugin: string | null): DriveFrameView {
+  return {
+    depth,
+    plugin,
+    versionId: null,
+    leaseId: plugin === null ? null : `lease-${plugin}`,
+    state: "driving",
+    used: { turns: 0, spawns: 0, tokens: 0 },
+    limits: {},
+  };
+}
+
+describe("Drive 띠 곁의 Drive 구간(lcM6g)", () => {
+  const leads = [lead(true, 4)];
+  test("입력창 위 Drive 띠가 보이면(플러그인 프레임) 지금 띠는 Drive를 말하지 않는다", () => {
+    const covered = leadsBesideBandOf(leads, {
+      kind: "ready",
+      frames: [driveFrame(0, null), driveFrame(1, "authoring")],
+    });
+    expect(covered).toEqual([]);
+    expect(nowShownOf(nowOf(), [], covered)).toBe(false);
+  });
+  test("스택을 읽는 중이면 뺀다(띠가 오면 사라지는 깜빡임을 막는다)", () => {
+    expect(leadsBesideBandOf(leads, { kind: "loading" })).toEqual([]);
+  });
+  test("띠가 없으면(기본 루프만, 연결 없음, 읽기 실패) 지금 띠가 Drive를 말한다", () => {
+    expect([
+      leadsBesideBandOf(leads, { kind: "ready", frames: [driveFrame(0, null)] }),
+      leadsBesideBandOf(leads, { kind: "offline" }),
+      leadsBesideBandOf(leads, { kind: "error" }),
+    ]).toEqual([leads, leads, leads]);
   });
 });

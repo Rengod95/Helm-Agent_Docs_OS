@@ -13,7 +13,7 @@ import {
 import { useCommands } from "../commands.ts";
 import { useModelNameOf } from "../model-usage.ts";
 import { ReplyActions } from "./message-actions.tsx";
-import { DriveWord } from "./drive-stack.tsx";
+import { DrivingBy } from "./drive-stack.tsx";
 import { InvokedMark } from "./one-shot.tsx";
 import { profileTitleOf, useProfiles } from "./profile-listing.ts";
 import {
@@ -156,7 +156,11 @@ export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   );
 }
 
-/** Drive 구간 머리: 표지 + "helm" + "Driving" 글 + 한도 칸 */
+/**
+ * Drive 구간 머리(lcM6g, 사용자 2026-11-21: 보라 점과 왼쪽 띠를 없앴다). 색 없는 조용한 한 줄이다: 지금 Drive 중이면
+ * "Driving by authoring"(앞 글 13/400 secondary, 이름 13/500 primary. 물결은 입력창 위 띠만 흐르므로 여기는 멈춰 있다), 끝났으면
+ * "authoring의 Drive", 이어서 한도 칸(12 tertiary, 가운데 점으로 나눔). 구간의 시작은 이 줄이, 끝은 끝 줄(`LeadEnd`)이 말한다
+ */
 export function LeadHead(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;
@@ -167,34 +171,32 @@ export function LeadHead(props: {
   const meters = leadMetersOf(lead);
   return (
     <div
-      className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1"
+      className="flex min-h-7 min-w-0 flex-wrap items-baseline gap-y-1"
       data-slot="convo-lead-head"
     >
-      <span aria-hidden className="convo-lead-dot" />
-      {/* 지금 Drive 중이면 이름 + "Driving" 글(lcM6f: 칩을 없앴다. 띠·카드와 같은 그라데이션 글이고, 물결은 입력창 위 띠만 흐르므로 여기는 멈춰 있다),
-          끝났으면 "helm의 Drive" */}
       {lead.active ? (
-        <>
-          <span className="text-ui-strong text-text-primary">{name}</span>
-          <DriveWord
-            look="driving"
-            text={t("desktop.drive.driving")}
-            slot="convo-lead-driving"
-            wave={false}
-            className="text-ui-sm font-semibold"
-          />
-        </>
+        <DrivingBy
+          name={name}
+          wave={false}
+          wordSlot="convo-lead-driving"
+          nameSlot="convo-lead-name"
+          wordClassName="text-ui"
+          nameClassName="text-ui font-medium text-text-primary"
+        />
       ) : (
-        <span className="text-ui-strong text-text-primary">
+        <span className="text-ui text-text-secondary">
           {t("desktop.convo.lead.past", { name })}
         </span>
       )}
       {meters.length === 0 ? null : (
-        <span className="convo-line-meta flex items-center gap-1.5">
-          {meters.map((meter, index) => (
-            <span key={meter.text} className={meter.warn ? "convo-meter-warn" : undefined}>
-              {index === 0 ? "" : "· "}
-              {meter.text}
+        // 칸마다 앞에 가운데 점. 점 양옆은 6으로 같다(글자 빈칸을 쓰지 않아 점이 뒤 글에 붙어 보이지 않는다)
+        <span data-slot="convo-lead-meters" className="convo-line-meta flex items-baseline">
+          {meters.map((meter) => (
+            <span key={meter.text} className="whitespace-nowrap">
+              <span aria-hidden className="px-1.5">
+                ·
+              </span>
+              <span className={meter.warn ? "convo-meter-warn" : undefined}>{meter.text}</span>
             </span>
           ))}
         </span>
@@ -203,7 +205,7 @@ export function LeadHead(props: {
   );
 }
 
-/** 주도 구간 끝: 반납 사유 */
+/** Drive 구간 끝: 반납 사유(머리 줄과 같은 왼쪽 선, tertiary). 다음 턴과는 아래 24로 떨어진다 */
 export function LeadEnd(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;

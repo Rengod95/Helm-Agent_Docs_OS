@@ -12,6 +12,7 @@ import {
   driveStackOf,
   driveVersionOf,
   type DriveLeaseFacts,
+  drivingByPartsOf,
 } from "../../src/views/convo/drive-stack-model.ts";
 import { ProfileGlyph } from "../../src/views/convo/profile-glyph.tsx";
 import { composerBeamStateOf } from "../../src/views/effects/convo-beam.tsx";
@@ -706,6 +707,16 @@ describe("Drive 띠와 카드 값(lcM6c)", () => {
     expect(driveInputLineOf(undefined)).toBeNull();
     const long = driveInputLineOf("가".repeat(200));
     expect([long?.length, long?.endsWith("…")]).toEqual([160, true]);
+  });
+});
+
+describe("Driving by 구절(lcM6g)", () => {
+  test("번역 글을 이름 자리에서 나눈다: 앞 글, 이름, 뒤 글(빈칸은 그리는 쪽이 둔다)", () => {
+    expect([drivingByPartsOf("authoring"), drivingByPartsOf("a very long plugin name")]).toEqual([
+      { before: "Driving by", name: "authoring", after: "" },
+      { before: "Driving by", name: "a very long plugin name", after: "" },
+    ]);
+    expect(t("desktop.drive.drivingBy", { name: "authoring" })).toBe("Driving by authoring");
   });
 });
 

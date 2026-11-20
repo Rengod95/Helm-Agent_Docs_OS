@@ -13,7 +13,7 @@ import { LeadEnd, LeadHead, MarkerRow, TurnFoot } from "./convo/turn-rows.tsx";
 import { transcriptRowsOf, type TranscriptRow } from "./transcript-rows.ts";
 
 // 대화 목록의 한 줄(dzT2a 시안, L4 desktop-ux §16). 줄 모델(`transcript-rows.ts`)이 정한 줄 종류를 `views/convo/`의 부품으로 그린다.
-// 틀(`RowFrame`)이 읽기 열(736px, 좌우 12px)과 줄 종류별 아래 여백을 정하고, 주도 구간 줄에는 왼쪽 레일(`data-lead`)을 단다.
+// 틀(`RowFrame`)이 읽기 열(736px, 좌우 12px)과 줄 종류별 아래 여백을 정한다. Drive 구간 줄도 보통 줄과 같은 왼쪽 선에 선다(lcM6g: 레일 없음).
 // 행 부품은 자기 id만 구독한다(FS-19). 목록 부품은 줄 배열만 바뀔 때 다시 그린다.
 
 /** 줄 종류별 아래 여백(시안 1절): 같은 턴 안 블록 사이 8, 사용자 말 뒤 4(동작 줄 24가 그 위에 있다), 턴 발 줄 뒤 24 */
@@ -40,7 +40,6 @@ function RowFrame(props: { readonly row: TranscriptRow; readonly children: React
     <article
       className={`convo-row mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] px-3 empty:hidden ${ROW_PAD[row.kind]}`}
       data-row-kind={row.kind}
-      data-lead={row.lead ?? undefined}
     >
       {props.children}
     </article>
@@ -150,7 +149,7 @@ export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function StreamingRow(props: { readonly id: ItemId }): ReactNode {
     const threadId = useOpenThreadId();
     if (threadId === null) return null;
-    const row: TranscriptRow = { kind: "live", key: props.id, lead: null, id: props.id };
+    const row: TranscriptRow = { kind: "live", key: props.id, id: props.id };
     return <TranscriptRowView threadId={threadId} row={row} unsentId={null} />;
   },
 );

@@ -582,9 +582,16 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       t("desktop.drive.aria", { path: `${t("desktop.drive.core")} › helm › verifier` }),
     );
     expect(band?.getAttribute("data-drive-top")).toBe("driving");
-    expect(band?.querySelector('[data-slot="drive-band-state"]')?.textContent).toBe(
-      t("desktop.drive.driving"),
-    );
+    // "Driving by verifier" 한 구절이다(lcM6g): 앞 글은 "Driving by", 이름은 따로 또렷한 글
+    expect([
+      band?.querySelector('[data-slot="drive-band-state"]')?.textContent,
+      band?.querySelector('[data-slot="drive-driving-by"]')?.textContent,
+      band?.querySelector('[data-slot="drive-driving-by"]')?.getAttribute("title"),
+    ]).toEqual([
+      "Driving by",
+      t("desktop.drive.drivingBy", { name: "verifier" }),
+      t("desktop.drive.drivingBy", { name: "verifier" }),
+    ]);
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
     // 띠는 넷만 보인다: 이름, 상태 글, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
     expect(band?.querySelector('[data-slot="drive-band-name"]')?.textContent).toBe("verifier");
@@ -601,7 +608,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       track?.querySelectorAll("[data-done]").length,
       track?.children.length,
     ]).toEqual(["8", 7, 8]);
-    // 상태 글은 칩이 아니라 글이다(lcM6e). 빛이 꺼져 있으면(턴이 돌지 않음) 흐르지 않는 그라데이션 글이다(lcM6f)
+    // 상태 글은 칩이 아니라 글이다(lcM6e). 빛이 꺼져 있으면(턴이 돌지 않음) 흐르지 않는 무채색 글이다(lcM6g)
     const word = band?.querySelector('[data-slot="drive-band-state"]');
     expect([
       word?.tagName,
@@ -610,15 +617,15 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       word?.hasAttribute("data-wave"),
       word?.classList.contains("drive-word"),
     ]).toEqual(["SPAN", null, null, false, true]);
-    // B안(lcM6f): "Driving"이 먼저, 그 뒤 이름과 턴 수가 한 묶음이다
-    const row = word?.parentElement;
+    // lcM6g: "Driving by 이름" 구절이 먼저, 그 뒤 턴 수. 구절 안은 앞 글과 이름 둘이다
+    const phrase = word?.parentElement;
     const group = band?.querySelector('[data-slot="drive-band-group"]');
     expect([
-      [...(row?.children ?? [])].slice(0, 2).map((el) => el.getAttribute("data-slot")),
+      [...(phrase?.children ?? [])].map((el) => el.getAttribute("data-slot")),
       [...(group?.children ?? [])].map((el) => el.getAttribute("data-slot")),
     ]).toEqual([
-      ["drive-band-state", "drive-band-group"],
-      ["drive-band-name", "drive-band-turns"],
+      ["drive-band-state", "drive-band-name"],
+      ["drive-driving-by", "drive-band-turns"],
     ]);
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");
@@ -648,7 +655,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     });
     await settle();
     expect(container.querySelector('[data-slot="drive-band-state"]')?.textContent).toBe(
-      t("desktop.drive.driving"),
+      "Driving by",
     );
     expect(container.querySelector('[data-slot="drive-stack"]')?.getAttribute("data-depth")).toBe(
       "2",
@@ -743,7 +750,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       live?.textContent,
       live?.hasAttribute("data-wave"),
       live?.classList.contains("drive-word"),
-    ]).toEqual([t("desktop.drive.driving"), true, true]);
+    ]).toEqual(["Driving by", true, true]);
     const asking = await mount(
       <DriveProbe beam="run" />,
       withWorkbench({
@@ -1003,8 +1010,8 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     ]).toEqual([
       "turn",
       "ab12cd3",
-      t("desktop.drive.driving"),
-      // 카드의 "Driving"은 멈춘 그라데이션 글이다: 흐르는 것은 한 화면에 입력창 위 띠 하나뿐(lcM6f)
+      "Driving by",
+      // 카드의 "Driving by"는 멈춘 무채색 글이다: 흐르는 것은 한 화면에 입력창 위 띠 하나뿐(lcM6g)
       false,
       true,
       "결과를 검증해 줘",

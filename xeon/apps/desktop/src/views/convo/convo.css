@@ -688,29 +688,7 @@
   box-shadow: 0 0 6px 0.5px color-mix(in oklch, var(--fx-crystal-b) 45%, transparent);
 }
 
-/* ── 주도 구간 레일 ─────────────────────────────────────────────── */
-.convo-row[data-lead] {
-  position: relative;
-}
-.convo-row[data-lead]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 2px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--cs-color-agent-border);
-  /* 주도 머리가 새로 생길 때 레일이 위에서 아래로 그어진다(ROW_ENTER.leadHead) */
-  transform-origin: top center;
-}
-.convo-lead-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--cs-color-agent-solid);
-}
+/* ── Drive 구간 머리 줄의 한도(lcM6g: 레일과 점을 없앴다. 구간은 머리 줄과 끝 줄의 글로만 보인다) ── */
 .convo-meter-warn {
   color: var(--cs-color-warning-text);
 }
@@ -836,47 +814,52 @@
   white-space: nowrap;
 }
 
-/* "Driving" 글(lcM6e 물결, lcM6f 색과 멈춘 그라데이션). 띠 윗변 빛과 같은 채도 높은 빛깔 토큰(beam.css `--fx-glow-*`)을 섞지 않고 그대로
-   글자 모양으로 잘라 넣는다(사용자 2026-11-20: 옅은 파스텔이 아니라 띠 빛의 진하기). 빛깔은 띠 빛의 붉은 기운 없는 가족(청록·파랑·보라·초록·노랑)이고
-   이웃끼리 섞여도 붉어지지 않는 순서다(보라는 파랑 곁에만, 노랑은 초록 곁에만).
-   - 라이트는 노랑(밝기 0.86)이 흰 바탕에서 글로 읽히지 않아(대비 1.4) 그 자리에 초록을 둔다. 다른 빛깔은 두 테마가 같은 토큰이다.
-   - 어디서나(띠, 카드, 런타임 목록, 대화 기록) 멈춘 그라데이션이다. 무늬는 글 상자의 두 배 폭이라 글에는 앞 절반(청록→파랑→보라→파랑)이 보인다.
-   - 흐르는 것(`data-wave`)은 한 화면에 한 곳, 입력창 위 띠뿐이고 Drive가 턴을 돌리는 동안만이다(drive-stack.tsx `DriveWord`).
-     처음과 끝 색이 같아 이음매가 없고, 한 바퀴 9초에 초당 20번만 옮긴다(steps): 다시 그리는 넓이는 글 상자뿐, 쉬는 화면은 0이다.
-   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 흐르지 않는다 */
+/* "Driving" 글(lcM6g, 사용자 2026-11-21 "무지개스럽고 과하다 → 무채색 기반 그라데이션"). 색 없이 밝기만 다르다:
+   - 쉴 때(카드, 런타임 목록, 대화 기록의 머리 줄, 움직임 줄이기)는 text-secondary 한 색이다.
+   - 흐르는 것(`data-wave`)은 한 화면에 한 곳, 입력창 위 띠의 "Driving by"뿐이고 Drive가 턴을 돌리는 동안만이다(drive-stack.tsx `DriveWord`).
+     생각하는 중의 반짝임(thinking-indicator.css `.thinking-shimmer`)과 같은 짜임이다: 무늬 폭 400%, 가운데 20%에 text-primary 빛,
+     오른쪽에서 왼쪽 끝까지 2초. 바탕만 반짝임의 tertiary 대신 secondary라 쉴 때 글보다 어두워지지 않는다.
+     초당 30번만 옮긴다(steps): 다시 그리는 넓이는 글 상자뿐, 쉬는 화면은 0이다.
+   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 흐르지 않고 secondary 한 색이다 */
 .drive-word {
-  --drive-word-y: light-dark(var(--fx-glow-green), var(--fx-glow-yellow));
+  --drive-word-base: var(--cs-color-text-secondary);
+  --drive-word-high: var(--cs-color-text-primary);
+  color: var(--drive-word-base);
+}
+.drive-word[data-wave] {
   background-image: linear-gradient(
     90deg,
-    var(--fx-glow-teal),
-    var(--fx-glow-blue) 18%,
-    var(--fx-glow-purple) 34%,
-    var(--fx-glow-blue) 50%,
-    var(--fx-glow-cyan) 62%,
-    var(--fx-glow-green) 76%,
-    var(--drive-word-y) 88%,
-    var(--fx-glow-teal)
+    var(--drive-word-base) 0%,
+    var(--drive-word-base) 40%,
+    var(--drive-word-high) 50%,
+    var(--drive-word-base) 60%,
+    var(--drive-word-base) 100%
   );
-  background-size: 200% 100%;
-  background-repeat: repeat-x;
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation: drive-wave 2s steps(60) infinite;
 }
-/* 왼쪽에서 오른쪽으로(읽는 방향) 흐른다 */
-.drive-word[data-wave] {
-  animation: drive-wave 9s steps(180) infinite;
-}
+/* 왼쪽에서 오른쪽으로(읽는 방향) 지나간다: 무늬의 오른쪽 끝에서 왼쪽 끝으로 옮긴다 */
 @keyframes drive-wave {
+  from {
+    background-position: 100% 0;
+  }
   to {
-    background-position-x: -200%;
+    background-position: 0% 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .drive-word[data-wave] {
     animation: none;
+    background-image: none;
+    color: var(--drive-word-base);
   }
 }
 :root[data-motion="reduce"] .drive-word[data-wave] {
   animation: none;
+  background-image: none;
+  color: var(--drive-word-base);
 }

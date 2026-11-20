@@ -231,3 +231,34 @@ export function driveBandBeamOf(input: {
   if (input.approvals > 0) return { band: true, state: "wait" };
   return { band: true, state: input.running && top.state === "driving" ? "run" : "off" };
 }
+
+/** 입력창 위 Drive 띠를 그리는가: 플러그인 프레임이 하나라도 있으면 그린다(기본 루프만 돌면 그리지 않는다) */
+export function driveBandShownOf(view: DriveStackView): boolean {
+  return !view.alone && view.steps.length > 0;
+}
+
+/** "Driving by {name}"을 이름 앞 글, 이름, 이름 뒤 글로 나눈 것. 앞뒤 글의 이름 쪽 빈칸은 떼어 낸다(그리는 쪽이 간격을 둔다) */
+export type DrivingByParts = {
+  readonly before: string;
+  readonly name: string;
+  readonly after: string;
+};
+
+/** 이름 자리 표시. 번역 글에 나올 수 없는 제어 문자다 */
+const NAME_MARK = "\u0001";
+
+/**
+ * "Driving by {name}"(lcM6g, 사용자 2026-11-21 "Driving by <plugin name>으로 고치면 두 개를 분리 안 해도 된다")을 나눈다.
+ * 한 구절이지만 그릴 때 무게가 둘이라(앞 글은 무채색 물결, 이름은 또렷하게) 번역 글을 이름 자리에서 자른다. 이름이 앞에 오는 언어도 된다.
+ * 번역 글에 이름 자리가 없으면 다 앞 글이다
+ */
+export function drivingByPartsOf(name: string): DrivingByParts {
+  const marked = t("desktop.drive.drivingBy", { name: NAME_MARK });
+  const at = marked.indexOf(NAME_MARK);
+  if (at < 0) return { before: t("desktop.drive.drivingBy", { name }), name: "", after: "" };
+  return {
+    before: marked.slice(0, at).trimEnd(),
+    name,
+    after: marked.slice(at + NAME_MARK.length).trimStart(),
+  };
+}

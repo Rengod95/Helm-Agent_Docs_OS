@@ -20,6 +20,7 @@ export function rowEnterOf(kind: TranscriptRow["kind"]): RowEnter {
       return "reply";
     case "activity":
     case "result":
+    case "leadHead":
       return "quiet";
     case "card":
     case "custom":
@@ -31,8 +32,6 @@ export function rowEnterOf(kind: TranscriptRow["kind"]): RowEnter {
       return "divider";
     case "compaction":
       return "compaction";
-    case "leadHead":
-      return "leadHead";
     default:
       return assertNever(kind, "TranscriptRow.kind");
   }
