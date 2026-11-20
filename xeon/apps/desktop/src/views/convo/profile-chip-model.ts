@@ -1,5 +1,5 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
-import type { Profile, ProfileIssue } from "@fresnel/contracts/wire";
+import type { Profile, ProfileIssue, SetProfileStartDrive } from "@fresnel/contracts/wire";
 import { permissionModeOf } from "../permission-mode-model.ts";
 import type { ProfilesRead } from "./profile-listing.ts";
 
@@ -128,6 +128,37 @@ export function profileMenuOf(
         permission: mode === undefined ? null : permissionModeOf(mode.value),
       };
     });
+}
+
+/**
+ * 전환(`thread.setProfile`)의 스타트 Drive 결과 가운데 화면이 알릴 것(AGE-64). `requested`·`leading`은 띠가 서는 것으로 충분하고
+ * `none`은 보일 것이 없다. `deferred`는 "지금 턴이 끝나면 시작"의 조용한 안내, `rejected`는 경고다. 새 프로필에 스타트 Drive가 없거나
+ * 결과를 알리지 않는 옛 호스트면 null
+ */
+export type StartDriveOutcome = {
+  readonly kind: "deferred" | "rejected";
+  readonly plugin: string;
+};
+
+export function startDriveOutcomeOf(
+  result: SetProfileStartDrive | null,
+  plugin: string | null,
+): StartDriveOutcome | null {
+  if (plugin === null) return null;
+  if (result === "deferred" || result === "rejected") return { kind: result, plugin };
+  return null;
+}
+
+/**
+ * 알린 결과를 내릴 때인가. "기다림"은 그 플러그인이 Drive 스택에 섰거나(띠가 그 자리를 받는다), 턴이 끝났는데 플러그인 Drive가 하나도
+ * 없으면(엔진이 시작하지 않았다) 내린다. "거절"은 다음 전환까지 남는다
+ */
+export function startOutcomeSettled(
+  outcome: StartDriveOutcome | null,
+  drive: { readonly plugins: readonly string[]; readonly running: boolean },
+): boolean {
+  if (outcome?.kind !== "deferred") return false;
+  return drive.plugins.includes(outcome.plugin) || (!drive.running && drive.plugins.length === 0);
 }
 
 /** 스타트 Drive를 시작할 수 없는 까닭. `profile.preview`의 이슈에서 그 플러그인 것만 본다 */

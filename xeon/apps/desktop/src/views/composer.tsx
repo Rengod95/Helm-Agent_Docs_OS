@@ -317,11 +317,15 @@ function ComposerFor(props: {
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [unknownName, setUnknownName] = useState<string | null>(null);
-  // 프로필 칩(아래 줄 왼쪽)과 그 경고 줄(권한이 바뀌는 전환, 시작할 수 없는 스타트 Drive, 입력창 위). lcM6a §6.6.1
-  const profileChip = useProfileChip(props.threadId, setError);
   // Drive 스택 띠(입력창 맨 위). 플러그인이 이끌 때만 보인다
   const driveFrames = useDriveFrames(props.threadId);
   const driveStack = driveFrames.kind === "ready" ? driveStackOf(driveFrames.frames) : null;
+  // 프로필 칩(아래 줄 왼쪽)과 그 줄(권한이 바뀌는 전환, 시작할 수 없는 스타트 Drive, 미뤄진 스타트 Drive, 입력창 위). lcM6a·lcM6e §6.6.1
+  const profileChip = useProfileChip(props.threadId, setError, {
+    plugins:
+      driveStack === null ? [] : driveStack.steps.flatMap((step) => (step.core ? [] : [step.name])),
+    running,
+  });
   const driveStop = useDriveStop(props.threadId, props.engineGone);
   // Drive 띠가 보이는 동안 입력창 빛은 꺼지고 띠의 윗변이 같은 빛을 낸다(lcM6c). 띠가 없으면 입력창 빛은 전과 같다
   const approvals = useThreadApprovals(props.threadId);

@@ -835,3 +835,47 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* "Driving" 글의 물결(lcM6e, 사용자 2026-11-20). 띠 빛과 같은 색 가족(초록·파랑·보라·노랑, 붉은 기운 없음)을 글자 모양으로 잘라 넣고
+   천천히 옆으로 흘린다. 밝기 폭은 좁다(다크 L 0.76~0.86, 라이트 L 0.50~0.60): 색만 바뀌고 글의 무게는 그대로 읽힌다.
+   - 이 클래스는 Drive가 턴을 돌리는 동안에만 붙는다(drive-stack.tsx `DriveWord`). 쉬는 화면의 "Driving"은 보통 글이라 애니메이션이 없다(비용 0).
+   - 무늬는 글 상자의 두 배 폭이고 처음과 끝 색이 같아 이음매가 없다. 한 바퀴 9초, 초당 20번만 옮긴다(steps):
+     옮기는 양이 1px 아래라 눈에는 매끄럽고, 다시 그리는 넓이는 글 상자뿐이다.
+   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 멈춘 그라데이션이다 */
+.drive-wave {
+  --drive-wave-a: light-dark(oklch(0.55 0.13 152), oklch(0.82 0.13 152));
+  --drive-wave-b: light-dark(oklch(0.52 0.15 252), oklch(0.79 0.12 245));
+  --drive-wave-c: light-dark(oklch(0.52 0.16 298), oklch(0.77 0.13 298));
+  --drive-wave-d: light-dark(oklch(0.6 0.12 95), oklch(0.86 0.12 95));
+  /* 이웃끼리 섞여도 붉어지지 않는 순서: 보라는 파랑 곁에만, 노랑은 초록 곁에만(띠 빛과 같은 규칙) */
+  background-image: linear-gradient(
+    90deg,
+    var(--drive-wave-a),
+    var(--drive-wave-b) 20%,
+    var(--drive-wave-c) 40%,
+    var(--drive-wave-b) 60%,
+    var(--drive-wave-a) 76%,
+    var(--drive-wave-d) 88%,
+    var(--drive-wave-a)
+  );
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* 왼쪽에서 오른쪽으로(읽는 방향) 흐른다 */
+  animation: drive-wave 9s steps(180) infinite;
+}
+@keyframes drive-wave {
+  to {
+    background-position-x: -200%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drive-wave {
+    animation: none;
+  }
+}
+:root[data-motion="reduce"] .drive-wave {
+  animation: none;
+}

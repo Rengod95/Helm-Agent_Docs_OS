@@ -13,7 +13,11 @@ import { profileFailureOf } from "@fresnel/client/workbench";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { PermissionChange, ProfileDefaultResetResult } from "@fresnel/contracts/wire";
+import type {
+  PermissionChange,
+  ProfileDefaultResetResult,
+  SetProfileStartDrive,
+} from "@fresnel/contracts/wire";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAppliedProfile, useThread } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
@@ -26,10 +30,13 @@ import {
   profileLookOf,
   profileMenuOf,
   profileRowLookOf,
+  startDriveOutcomeOf,
+  startOutcomeSettled,
   startDriveBlockOf,
   startDriveBlockText,
   type ProfileChipView,
   type StartDriveBlock,
+  type StartDriveOutcome,
 } from "./profile-chip-model.ts";
 import { ProfileGlyph } from "./profile-glyph.tsx";
 import { reloadProfiles, useProfiles, type ProfilesRead } from "./profile-listing.ts";
@@ -56,6 +63,8 @@ export type ProfileChipState = {
   readonly changed: string | null;
   readonly permission: PermissionChange | null;
   readonly startDrive: { readonly plugin: string; readonly block: StartDriveBlock } | null;
+  /** 마지막 전환(`thread.setProfile`)의 스타트 Drive 결과 가운데 알릴 것(기다림, 거절). 없으면 null(AGE-64, lcM6e) */
+  readonly startOutcome: StartDriveOutcome | null;
   readonly recentId: string | null;
   readonly offline: boolean;
   readonly choose: (id: string) => void;
@@ -103,10 +112,19 @@ function useStartDriveBlock(
   return { plugin, block: found.block };
 }
 
+/** 지금 Drive 스택(입력창이 읽은 `drive.frames`)에서 프로필 칩이 보는 것. 기다리던 스타트 Drive가 섰는지, 쉬는지 */
+export type ProfileChipDrive = {
+  /** 스택에 있는 플러그인 이름들(기본 루프 빼고) */
+  readonly plugins: readonly string[];
+  /** 이 대화에 도는 턴이 있다 */
+  readonly running: boolean;
+};
+
 /** 칩의 상태와 동작. 입력창이 한 번 부르고 칩·경고 줄에 나눠 준다 */
 export function useProfileChip(
   threadId: ThreadId,
   onError: (text: string) => void,
+  drive: ProfileChipDrive,
 ): ProfileChipState {
   const commands = useCommands();
   const read = useProfiles();
@@ -157,9 +175,19 @@ export function useProfileChip(
     view.startDrive,
     !offline,
   );
+  // 전환의 스타트 Drive 결과(AGE-64). 내릴 때는 `startOutcomeSettled`가 정한다. 한 번 내린 것은 플러그인이 다시 빠져도 돌아오지 않게
+  // 그리는 중에 바로 지운다(React의 "렌더 중 상태 맞추기": 효과를 거치지 않아 한 번 더 그리지 않는다)
+  const [startOutcome, setStartOutcome] = useState<StartDriveOutcome | null>(null);
+  const settled = startOutcomeSettled(startOutcome, drive);
+  if (settled) setStartOutcome(null);
   const choose = (id: string): void => {
     setRequested({ id, base: assigned });
     setChanged(null);
+    setStartOutcome(null);
+    const plugin =
+      read.kind === "ready"
+        ? (read.profiles.find((profile) => profile.id === id)?.startDrive ?? null)
+        : null;
     detach(
       commands.workbench.applyProfile(id, threadId).then((done) => {
         if (!done.ok) {
@@ -170,6 +198,8 @@ export function useProfileChip(
         }
         const change = done.value.preview.permission;
         setPermission(change === undefined ? null : { target: id, change });
+        const result: SetProfileStartDrive | null = done.value.startDrive ?? null;
+        setStartOutcome(startDriveOutcomeOf(result, plugin));
         return undefined;
       }),
       rethrow,
@@ -206,6 +236,7 @@ export function useProfileChip(
     permission:
       permission !== null && view.pending?.id === permission.target ? permission.change : null,
     startDrive,
+    startOutcome: settled ? null : startOutcome,
     recentId,
     offline,
     choose,
@@ -475,7 +506,9 @@ export function ProfileChip(props: {
 }
 
 /**
- * 입력창 위 경고 줄: 다음 단계부터 권한이 바뀌는 전환, 시작할 수 없는 스타트 Drive. 경고는 정보 아이콘 뒤에 숨기지 않는다
+ * 입력창 위 줄: 다음 단계부터 권한이 바뀌는 전환(경고), 시작할 수 없는 스타트 Drive(경고), 전환한 프로필의 스타트 Drive가
+ * 지금 턴 뒤로 미뤄짐(조용한 안내, lcM6e). 경고는 정보 아이콘 뒤에 숨기지 않는다. 안내는 사용자가 프로필을 고른 뒤에만 나온다.
+ * 엔진이 시작을 거절했는데 `profile.preview`가 까닭(막힘)을 말하면 그 막힘 줄 하나로 말하고, 까닭을 모르면 거절 줄을 따로 둔다
  */
 export function ProfileNotices(props: { readonly state: ProfileChipState }): ReactNode {
   const { state } = props;
@@ -499,6 +532,36 @@ export function ProfileNotices(props: { readonly state: ProfileChipState }): Rea
           </ProblemLine>
         </div>
       )}
+      {state.startOutcome?.kind !== "rejected" || state.startDrive !== null ? null : (
+        <div data-slot="start-drive-rejected">
+          <ProblemLine tone="warning" role="status">
+            {t("desktop.startDrive.rejected", { plugin: state.startOutcome.plugin })}.{" "}
+            {t("desktop.startDrive.reason.refused")}. {t("desktop.startDrive.fallback")}
+          </ProblemLine>
+        </div>
+      )}
+      {state.startOutcome?.kind !== "deferred" ? null : (
+        <StartDriveDeferred plugin={state.startOutcome.plugin} />
+      )}
     </>
+  );
+}
+
+/**
+ * 미뤄진 스타트 Drive의 조용한 안내 한 줄(lcM6e). 경고 줄과 같은 자리·높이(28, 좌우 4, 아이콘과 글 사이 8)이지만 경고색과 삼각형이 없다:
+ * 앞 아이콘은 칩과 같은 프로필 아이콘의 "바꾸는 중" 변주(16, 칩과 같은 크기), 글은 13 tertiary
+ */
+function StartDriveDeferred(props: { readonly plugin: string }): ReactNode {
+  return (
+    <div
+      role="status"
+      data-slot="start-drive-deferred"
+      className="flex min-h-7 min-w-0 items-center gap-2 px-1 text-ui text-text-tertiary"
+    >
+      <ProfileGlyph look="pending" size={16} />
+      <span className="min-w-0 flex-1 truncate">
+        {t("desktop.startDrive.deferred", { plugin: props.plugin })}
+      </span>
+    </div>
   );
 }

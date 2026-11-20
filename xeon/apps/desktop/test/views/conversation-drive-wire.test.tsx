@@ -10,7 +10,7 @@ import type {
   ProfilePreviewResult,
 } from "@fresnel/contracts/wire";
 import { parseHTML } from "linkedom";
-import { act, type ReactNode } from "react";
+import { act, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { decodeDurable } from "../../src/state/engine/decode.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
@@ -31,6 +31,7 @@ import {
   ProfileRows,
   resetLinesOf,
   useProfileChip,
+  type ProfileChipDrive,
   type ProfileChipState,
 } from "../../src/views/convo/profile-chip.tsx";
 import { permissionModeNameOf } from "../../src/views/convo/turn-model.ts";
@@ -217,10 +218,18 @@ async function settle(): Promise<void> {
 describe("프로필 칩: profile.list · profile.preview · thread.setProfile · profile.defaultFor", () => {
   let captured: ProfileChipState | null = null;
   const errors: string[] = [];
+  /** 프로필 칩이 보는 Drive 스택(입력창이 넘기는 값). 시험이 바꿔 다시 그린다 */
+  let setDrive: ((drive: ProfileChipDrive) => void) | null = null;
   function ChipProbe(): ReactNode {
-    const state = useProfileChip(T, (text) => {
-      errors.push(text);
-    });
+    const [drive, setDriveState] = useState<ProfileChipDrive>({ plugins: [], running: true });
+    setDrive = setDriveState;
+    const state = useProfileChip(
+      T,
+      (text) => {
+        errors.push(text);
+      },
+      drive,
+    );
     captured = state;
     return (
       <div>
@@ -297,6 +306,68 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
         from: permissionModeNameOf("default"),
         to: permissionModeNameOf("bypass"),
       }),
+    );
+  });
+
+  test("전환한 프로필의 스타트 Drive가 미뤄지면(deferred) 조용한 줄을 보이고, 그 Drive가 스택에 서면 내린다(lcM6e)", async () => {
+    const container = await mount(
+      <ChipProbe />,
+      withWorkbench({
+        profiles: () => Promise.resolve(ok(PROFILES)),
+        previewProfile: () => Promise.resolve(ok(preview([]))),
+        applyProfile: () =>
+          Promise.resolve(
+            ok({
+              position: { storeId: "sto_00000000000000000000000001", seq: 9 },
+              preview: {},
+              startDrive: "deferred",
+            }),
+          ),
+      }),
+    );
+    await act(async () => {
+      captured?.choose("review");
+    });
+    await settle();
+    const line = container.querySelector('[data-slot="start-drive-deferred"]');
+    expect([
+      line?.textContent,
+      line?.getAttribute("role"),
+      container.querySelector("[data-problem-line]"),
+    ]).toEqual([t("desktop.startDrive.deferred", { plugin: "helm" }), "status", null]);
+    await act(async () => {
+      setDrive?.({ plugins: ["helm"], running: true });
+    });
+    expect(container.querySelector('[data-slot="start-drive-deferred"]')).toBeNull();
+    // 한 번 내린 안내는 Drive가 끝나 스택에서 빠져도 돌아오지 않는다
+    await act(async () => {
+      setDrive?.({ plugins: [], running: false });
+    });
+    expect(container.querySelector('[data-slot="start-drive-deferred"]')).toBeNull();
+  });
+
+  test("엔진이 스타트 Drive 시작을 거절하고(rejected) 까닭을 모르면 경고 줄로 알린다(lcM6e)", async () => {
+    const container = await mount(
+      <ChipProbe />,
+      withWorkbench({
+        profiles: () => Promise.resolve(ok(PROFILES)),
+        previewProfile: () => Promise.resolve(ok(preview([]))),
+        applyProfile: () =>
+          Promise.resolve(
+            ok({
+              position: { storeId: "sto_00000000000000000000000001", seq: 9 },
+              preview: {},
+              startDrive: "rejected",
+            }),
+          ),
+      }),
+    );
+    await act(async () => {
+      captured?.choose("review");
+    });
+    await settle();
+    expect(container.querySelector('[data-slot="start-drive-rejected"]')?.textContent).toBe(
+      `${t("desktop.startDrive.rejected", { plugin: "helm" })}. ${t("desktop.startDrive.reason.refused")}. ${t("desktop.startDrive.fallback")}`,
     );
   });
 
@@ -468,7 +539,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       t("desktop.drive.driving"),
     );
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
-    // 띠는 넷만 보인다: 이름, 상태 칩, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
+    // 띠는 넷만 보인다: 이름, 상태 글, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
     expect(band?.querySelector('[data-slot="drive-band-name"]')?.textContent).toBe("verifier");
     expect(band?.querySelector('[data-slot="drive-band-turns"]')?.textContent).toBe(
       t("desktop.convo.lead.turns", { used: 7, max: 8 }),
@@ -476,10 +547,22 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     expect(band?.querySelector('[data-slot="drive-band-below"]')).toBeNull();
     expect(band?.querySelector('[data-slot="info-tip"]')).toBeNull();
     expect(band?.querySelectorAll("[data-drive-step]").length).toBe(0);
-    // 상태 글은 테두리만 있는 칩이다
-    expect(
-      band?.querySelector('[data-slot="drive-band-state"]')?.getAttribute("data-variant"),
-    ).toBe("outline");
+    // 턴 막대는 한도 8이라 한 턴 한 칸이고, 쓴 7칸이 찬다(lcM6e)
+    const track = band?.querySelector('[data-slot="drive-band-track"]');
+    expect([
+      track?.getAttribute("data-cells"),
+      track?.querySelectorAll("[data-done]").length,
+      track?.children.length,
+    ]).toEqual(["8", 7, 8]);
+    // 상태 글은 칩이 아니라 글이다(lcM6e). 빛이 꺼져 있으면(턴이 돌지 않음) 물결도 없다
+    const word = band?.querySelector('[data-slot="drive-band-state"]');
+    expect([
+      word?.tagName,
+      word?.getAttribute("data-variant") ?? null,
+      word?.closest('[data-slot="chip"]') ?? null,
+      word?.hasAttribute("data-wave"),
+      word?.classList.contains("drive-wave"),
+    ]).toEqual(["SPAN", null, null, false, false]);
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");
     expect(band?.querySelector(".fx-beam")).toBeNull();
@@ -588,6 +671,83 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       }),
     );
     expect(container.querySelector('[data-slot="drive-stop"]')).toBeNull();
+  });
+
+  test("Drive가 턴을 돌리는 동안(빛 run)만 띠의 Driving이 물결이고, 묻는 중이면 물결 없이 경고색이다", async () => {
+    const running = await mount(
+      <DriveProbe beam="run" />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(ok([frame(0, null, "waiting"), frame(1, "helm", "driving")])),
+      }),
+    );
+    const live = running.querySelector('[data-slot="drive-band-state"]');
+    expect([
+      live?.textContent,
+      live?.hasAttribute("data-wave"),
+      live?.classList.contains("drive-wave"),
+    ]).toEqual([t("desktop.drive.driving"), true, true]);
+    const asking = await mount(
+      <DriveProbe beam="run" />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(ok([frame(0, null, "waiting"), frame(1, "helm", "asking")])),
+      }),
+    );
+    const word = asking.querySelector('[data-slot="drive-band-state"]');
+    expect([
+      word?.hasAttribute("data-wave"),
+      word?.classList.contains("text-warning-text"),
+    ]).toEqual([false, true]);
+  });
+
+  test("턴 한도가 8을 넘으면 칸을 나누지 않은 막대다", async () => {
+    const container = await mount(
+      <DriveProbe />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(
+            ok([
+              frame(0, null, "waiting"),
+              frame(1, "helm", "driving", {
+                used: { turns: 3, spawns: 0, tokens: 0 },
+                limits: { turns: 20 },
+              }),
+            ]),
+          ),
+      }),
+    );
+    const track = container.querySelector(
+      '[data-slot="drive-stack-band"] [data-slot="drive-band-track"]',
+    );
+    expect([track?.getAttribute("data-cells") ?? null, track?.getAttribute("data-slot")]).toEqual([
+      null,
+      "drive-band-track",
+    ]);
+    expect(container.querySelector('[data-slot="drive-band-turns-text"]')?.textContent).toBe(
+      t("desktop.convo.lead.turns", { used: 3, max: 20 }),
+    );
+  });
+
+  test("멈추기는 칩이 아니라 앱의 보통 단추(xs ghost)다", async () => {
+    const container = await mount(
+      <DriveProbe stop={{ stopping: false, blockedReason: null, onStop: () => {} }} />,
+      withWorkbench({
+        driveFrames: () =>
+          Promise.resolve(ok([frame(0, null, "waiting"), frame(1, "helm", "driving")])),
+      }),
+    );
+    expect(
+      [...container.querySelectorAll('[data-slot="drive-stop"]')].map((b) => [
+        b.tagName,
+        b.getAttribute("data-size"),
+        b.getAttribute("data-variant"),
+        b.textContent,
+      ]),
+    ).toEqual([
+      ["BUTTON", "xs", "ghost", t("desktop.drive.stop")],
+      ["BUTTON", "xs", "ghost", t("desktop.drive.stop")],
+    ]);
   });
 
   test("읽지 못하면 오류 상태다", async () => {
@@ -740,7 +900,7 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     expect(await inputLineOf(HANDOFF, [])).toEqual([null, false]);
   });
 
-  test("카드 머리는 이름·판·상태 칩, 넘겨받은 입력이고 몸은 하는 일과 한도(양만), 발은 다음 칸과 기록 보기다", async () => {
+  test("카드 머리는 이름·판·상태 글, 넘겨받은 입력이고 몸은 하는 일과 한도(양만), 발은 다음 칸과 기록 보기다", async () => {
     const opened: string[] = [];
     const container = await mount(
       <DriveProbe
@@ -765,7 +925,7 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
       card?.getAttribute("data-activity"),
       text("drive-version"),
       text("drive-card-state"),
-      card?.querySelector('[data-slot="drive-card-state"]')?.getAttribute("data-variant") ?? null,
+      card?.querySelector('[data-slot="drive-card-state"]')?.hasAttribute("data-wave") ?? null,
       text("drive-input"),
       text("drive-activity"),
       text("drive-next"),
@@ -774,7 +934,8 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
       "turn",
       "ab12cd3",
       t("desktop.drive.driving"),
-      "outline",
+      // 턴이 도는 동안 카드의 "Driving"은 물결 글이다(lcM6e)
+      true,
       "결과를 검증해 줘",
       `${t("desktop.drive.card.turn")} · ${t("desktop.drive.card.branches", { n: 2 })}`,
       t("desktop.drive.card.next", { name: "helm" }),

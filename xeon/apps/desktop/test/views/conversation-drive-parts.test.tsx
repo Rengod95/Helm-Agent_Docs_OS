@@ -29,7 +29,11 @@ import {
   profileRowLookOf,
   profileTitleOf,
   startDriveBlockOf,
+  startDriveOutcomeOf,
+  startOutcomeSettled,
+  type ProfileChipView,
 } from "../../src/views/convo/profile-chip-model.ts";
+import { ProfileNotices, type ProfileChipState } from "../../src/views/convo/profile-chip.tsx";
 import { markerTextOf, permissionModeNameOf } from "../../src/views/convo/turn-model.ts";
 import { tokenCountText } from "../../src/views/model-usage.ts";
 import { transcriptRowsOf } from "../../src/views/transcript-rows.ts";
@@ -300,6 +304,98 @@ describe("칩 값과 스타트 Drive 막힘", () => {
       "cannotDrive",
     );
     expect(startDriveBlockOf([], "helm")).toBeNull();
+  });
+});
+
+/** 프로필 줄의 스타트 Drive 줄 이름들(서버 렌더 글에서) */
+function slotsOf(html: string): string[] {
+  return [...html.matchAll(/data-slot="(start-drive-[a-z]+)"/g)].map((match) => match[1] ?? "");
+}
+
+describe("전환의 스타트 Drive 결과(thread.setProfile.startDrive, AGE-64, lcM6e)", () => {
+  test("기다림·거절만 알리고, 시작했거나 이미 쥐었거나 없거나 옛 호스트면 알리지 않는다", () => {
+    expect(
+      (["requested", "deferred", "leading", "none", "rejected", null] as const).map((result) =>
+        startDriveOutcomeOf(result, "helm"),
+      ),
+    ).toEqual([
+      null,
+      { kind: "deferred", plugin: "helm" },
+      null,
+      null,
+      { kind: "rejected", plugin: "helm" },
+      null,
+    ]);
+    // 새 프로필에 스타트 Drive가 없으면 결과가 무엇이든 알릴 것이 없다
+    expect(startDriveOutcomeOf("deferred", null)).toBeNull();
+  });
+
+  test("기다림은 그 플러그인이 스택에 서거나, 턴이 끝났는데 플러그인 Drive가 없으면 내린다. 거절은 남는다", () => {
+    const deferred = { kind: "deferred", plugin: "helm" } as const;
+    expect([
+      startOutcomeSettled(deferred, { plugins: [], running: true }),
+      startOutcomeSettled(deferred, { plugins: ["authoring"], running: false }),
+      startOutcomeSettled(deferred, { plugins: ["authoring", "helm"], running: true }),
+      startOutcomeSettled(deferred, { plugins: [], running: false }),
+      startOutcomeSettled({ kind: "rejected", plugin: "helm" }, { plugins: [], running: false }),
+      startOutcomeSettled(null, { plugins: [], running: false }),
+    ]).toEqual([false, false, true, true, false, false]);
+  });
+
+  const view: ProfileChipView = {
+    currentId: "review",
+    title: "리뷰",
+    pending: null,
+    startDrive: "helm",
+    escape: "switch",
+  };
+  const stateOf = (over: Partial<ProfileChipState>): ProfileChipState => ({
+    view,
+    read: { kind: "loading" },
+    changed: null,
+    permission: null,
+    startDrive: null,
+    startOutcome: null,
+    recentId: null,
+    offline: false,
+    choose: () => {},
+    onOpen: () => {},
+    resetPreview: () => {},
+    resetOffer: null,
+    closeReset: () => {},
+    ...over,
+  });
+
+  test("기다림은 경고색 없는 조용한 줄 하나, 거절은 경고 줄이다", () => {
+    const deferred = renderToString(
+      <ProfileNotices state={stateOf({ startOutcome: { kind: "deferred", plugin: "helm" } })} />,
+    );
+    expect(slotsOf(deferred)).toEqual(["start-drive-deferred"]);
+    expect(deferred).toContain(t("desktop.startDrive.deferred", { plugin: "helm" }));
+    expect(deferred).not.toContain("data-problem-line");
+    const rejected = renderToString(
+      <ProfileNotices state={stateOf({ startOutcome: { kind: "rejected", plugin: "helm" } })} />,
+    );
+    expect(slotsOf(rejected)).toEqual(["start-drive-rejected"]);
+    expect(rejected).toContain('data-problem-line="warning"');
+    expect(rejected).toContain(t("desktop.startDrive.reason.refused"));
+  });
+
+  test("거절했고 까닭(막힘)을 알면 막힘 줄 하나로 말한다", () => {
+    const html = renderToString(
+      <ProfileNotices
+        state={stateOf({
+          startOutcome: { kind: "rejected", plugin: "helm" },
+          startDrive: { plugin: "helm", block: "notReviewed" },
+        })}
+      />,
+    );
+    expect(slotsOf(html)).toEqual(["start-drive-notice"]);
+    expect(html).toContain(t("desktop.startDrive.reason.notReviewed"));
+  });
+
+  test("아무 결과도 없으면 줄이 없다", () => {
+    expect(slotsOf(renderToString(<ProfileNotices state={stateOf({})} />))).toEqual([]);
   });
 });
 
