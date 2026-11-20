@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
   isSampleToggle,
   SAMPLE_STATE_KEY,
+  sampleScenePartsOf,
   sampleStateOn,
   sampleView,
   withSampleMirror,
+  withSampleScene,
 } from "../../src/app/dev-sample.ts";
 import type { MirrorInput } from "../../src/state/engine/input.ts";
 import { reduceMirror } from "../../src/state/engine/reduce.ts";
@@ -81,6 +83,54 @@ describe("withSampleMirror", () => {
       shown.threads.ids.length,
       shown.threads.ids.map((id) => shown.threads.byId[id]?.workspace),
     ]).toEqual(["ready", 2, [null, null]]);
+  });
+});
+
+function opened(): EngineMirror {
+  return {
+    ...realMirror(),
+    transcript: { status: "loading", threadId: thr(1), sinceSeq: 0, held: [] },
+  };
+}
+
+describe("withSampleScene", () => {
+  // 쌓임 장면(AGE-65): 열린 실제 대화에 질문 승인, 도구 승인, 목표, 대기 입력을 겹쳐 입력창 위 쌓임을 앱에서 본다
+  test("reads known parts once in a fixed order and drops the rest", () => {
+    expect([
+      sampleScenePartsOf(null),
+      sampleScenePartsOf(""),
+      sampleScenePartsOf("goal, ask,nope,ask"),
+      sampleScenePartsOf("queued,tool,askLong"),
+    ]).toEqual([[], [], ["ask", "goal"], ["askLong", "tool", "queued"]]);
+  });
+
+  test("puts the cards, the goal and the queued input on the open thread", () => {
+    const shown = withSampleScene(opened(), ["ask", "tool", "goal", "queued"], NOW);
+    expect([
+      shown.approvals.ids.map((id) => shown.approvals.byId[id]?.request.body.kind),
+      shown.approvals.ids.map((id) => shown.approvals.byId[id]?.threadId),
+      shown.approvals.ids.map((id) => {
+        const body = shown.approvals.byId[id]?.request.body;
+        return body?.kind === "question" ? body.question.questions.length : null;
+      }),
+      shown.convo[thr(1)]?.goal?.goal.status,
+      shown.queuedInputs.map((input) => [input.threadId, input.mode]),
+    ]).toEqual([
+      ["question", "tool"],
+      [thr(1), thr(1)],
+      [3, null],
+      "active",
+      [[thr(1), "followUp"]],
+    ]);
+  });
+
+  test("leaves the mirror alone with no open thread or no parts, and does not add a card twice", () => {
+    const real = realMirror();
+    expect(withSampleScene(real, ["ask"], NOW)).toBe(real);
+    const open = opened();
+    expect(withSampleScene(open, [], NOW)).toBe(open);
+    const once = withSampleScene(open, ["ask"], NOW);
+    expect(withSampleScene(once, ["ask"], NOW).approvals.ids).toEqual(once.approvals.ids);
   });
 });
 

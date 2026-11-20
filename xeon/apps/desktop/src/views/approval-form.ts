@@ -553,16 +553,31 @@ export function answerOf(
 ): QuestionAnswerWire | null {
   const out: Record<string, { selected: string[]; text?: string }> = {};
   for (const question of questions) {
-    const pick = pickOf(draft, question.id);
-    const optionIds = new Set(question.options.map((option) => option.id));
-    const selected = pick.selected.filter((id) => optionIds.has(id));
-    if (!question.multiSelect && selected.length > 1) return null;
-    const text = question.allowFreeText ? pick.text.trim() : "";
-    if (text.length > FREE_TEXT_MAX) return null;
-    if (selected.length === 0 && text.length === 0) return null;
-    out[question.id] = text.length === 0 ? { selected } : { selected, text };
+    const answer = questionAnswerOf(question, draft);
+    if (answer === null) return null;
+    out[question.id] = answer;
   }
   return out;
+}
+
+/** 질문 하나의 답. `answerOf`가 질문마다 쓰는 규칙이고, 답이 없거나 맞지 않으면 null이다 */
+function questionAnswerOf(
+  question: QuestionItem,
+  draft: QuestionDraft,
+): { selected: string[]; text?: string } | null {
+  const pick = pickOf(draft, question.id);
+  const optionIds = new Set(question.options.map((option) => option.id));
+  const selected = pick.selected.filter((id) => optionIds.has(id));
+  if (!question.multiSelect && selected.length > 1) return null;
+  const text = question.allowFreeText ? pick.text.trim() : "";
+  if (text.length > FREE_TEXT_MAX) return null;
+  if (selected.length === 0 && text.length === 0) return null;
+  return text.length === 0 ? { selected } : { selected, text };
+}
+
+/** 질문 하나에 보낼 수 있는 답이 있는가(질문 카드 넘김 표시의 "답함", DP-224). `answerOf`와 같은 규칙이다 */
+export function questionAnsweredOf(question: QuestionItem, draft: QuestionDraft): boolean {
+  return questionAnswerOf(question, draft) !== null;
 }
 
 export const QUESTION_TEXT_MAX: number = FREE_TEXT_MAX;
