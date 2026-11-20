@@ -400,6 +400,7 @@ export interface PluginCard {
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
+  readonly internal?: boolean;                                    // 내부 부품 여부 [결정: 2026-11-20, 사용자, AGE-33]. 이름 `internal`은 [제안]. 없으면 거짓으로 읽는다
   readonly review: { readonly state: "approved" | "pending" | "draft" | "none"; readonly currentHash: string | null; readonly pendingItemId: string | null; readonly approvedAt: string | null };
   readonly usedBy: readonly string[];                             // 프로필 id. 공통 묶음은 "common"
 }
@@ -428,6 +429,8 @@ export type EvidenceRef =
   | { readonly kind: "turn" | "call" | "hook" | "material" | "skill"; readonly threadId: string; readonly turnId: string; readonly stepIndex?: number; readonly toolCallId?: string; readonly hookSeq?: number }
   | { readonly kind: "backtest"; readonly backtestRunId: string; readonly toolCallId?: string };
 ```
+
+**내부 부품 [결정: 2026-11-20, 사용자, AGE-33]:** 카드의 `internal`이 참이면 Fresnel이 스스로 싣는 내부 부품이다. 판정 기준은 한 문장이다: 출처가 `builtin`이고 매니페스트에 `group` 블록이 없으면 내부 부품이다(엔진이 싣고 사용자가 켜고 끌 수 없다). 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 내부 부품이 아니다. 화면은 `internal`이 참인 카드를 목록에서 기본으로 숨기고 "내부 부품도 보기"를 켜면 보인다. 선택 필드라 없는 옛 카드(검토본 메타)는 거짓으로 읽는다. 이름과 하는 일(영어, 한국어)은 모델 컨텍스트에 싣지 않는 화면 표시용이고, 클라이언트 카탈로그의 `plugin.internal.<camelCase 이름>.name`과 `.purpose`에 둔다(`internalPluginTextKey`). 내부 부품 이름의 닫힌 목록은 `INTERNAL_PLUGIN_NAMES`이고 호스트 시험이 실제 엔진의 `internal` 카드와 값으로 맞춘다.
 
 - 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
 - `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
