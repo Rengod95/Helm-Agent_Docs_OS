@@ -2,6 +2,7 @@ import type { Result } from "@fresnel/contracts";
 import type {
   PluginReviewFileResult,
   ReviewDecision,
+  ReviewFileSide,
   ReviewItem,
   ReviewState,
   WireHandlers,
@@ -24,13 +25,24 @@ export interface PluginReviewPort {
     readonly name?: string;
   }): Promise<Result<{ readonly items: readonly ReviewItem[] }, PluginPortFailure>>;
   get(itemId: string): Promise<Result<{ readonly item: ReviewItem }, PluginPortFailure>>;
-  file(itemId: string, path: string): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
+  file(
+    itemId: string,
+    path: string,
+    side?: ReviewFileSide,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
     decision: ReviewDecision,
   ): Promise<
-    Result<{ readonly item: ReviewItem; readonly appliedTo: readonly string[] }, PluginPortFailure>
+    Result<
+      {
+        readonly item: ReviewItem;
+        readonly appliedTo: readonly string[];
+        readonly missingPlugins: readonly string[];
+      },
+      PluginPortFailure
+    >
   >;
   onChanged(listener: (change: PluginChange) => void): () => void;
 }
@@ -55,8 +67,14 @@ export function createPluginReviewHandlers(
   return {
     "pluginReview.list": (params) => unwrap(port.list(params)),
     "pluginReview.get": (params) => unwrap(port.get(params.itemId)),
-    "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path)),
+    "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path, params.side)),
     "pluginReview.submitDraft": (params) => unwrap(port.submitDraft(params.draftId)),
-    "pluginReview.decide": (params) => unwrap(port.decide(params.itemId, params.decision)),
+    "pluginReview.decide": async (params) => {
+      const { item, appliedTo, missingPlugins } = await unwrap(
+        port.decide(params.itemId, params.decision),
+      );
+      // 없는 플러그인은 있을 때만 싣는다(화면이 "이 기기에 없어요"를 보인다)
+      return { item, appliedTo, ...(missingPlugins.length === 0 ? {} : { missingPlugins }) };
+    },
   };
 }

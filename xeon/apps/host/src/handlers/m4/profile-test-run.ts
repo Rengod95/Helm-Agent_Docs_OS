@@ -67,6 +67,14 @@ export type ProfilePortFailure =
   | { readonly kind: "project"; readonly failure: ProjectPortFailure };
 
 /** 승인의 프로필 반영이 낼 수 있는 실패. `plugin_invalid`는 대상 프로필 가운데 검사에 실패한 것이 있다는 뜻이다(M5c §4.7.3) */
+/** 승인의 프로필 쓰기 결과 */
+export interface PluginEditApplied {
+  /** 바뀐 프로필 id(공통 묶음은 `common`) */
+  readonly profileIds: readonly string[];
+  /** 대상 프로필이 이미 가리키던, 지금은 이 기기에 없는 플러그인(AGE-34) */
+  readonly missingPlugins: readonly string[];
+}
+
 export type PluginEditFailure =
   | ProfilePortFailure
   | { readonly kind: "plugin_invalid"; readonly issues: readonly PluginEditIssue[] };
@@ -84,8 +92,6 @@ export interface ProfilePreviewRequest {
 /** 처리기가 쓰는 포트 */
 export interface ProfileTestRunPort {
   readonly errors: HostErrorMappers;
-  /** 기본 프로필이 처음 주는 플러그인의 이름(번들과 코어가 아닌 내장). 사용자가 지워 설치돼 있지 않을 수 있다 */
-  firstGivenPlugins(): readonly string[];
   list(): Promise<Result<ProfileListResult, ProfilePortFailure>>;
   get(id: string): Promise<Result<Profile, ProfilePortFailure>>;
   put(
@@ -108,12 +114,14 @@ export interface ProfileTestRunPort {
   defaultReset(
     params: ProfileDefaultResetParams,
   ): Promise<Result<ProfileDefaultResetResult, ProfilePortFailure>>;
+  /** 이 프로필(과 공통 묶음)이 가리키지만 지금 이 기기에 없는 플러그인 이름(`profile.get`의 `missingPlugins`) */
+  missingPlugins(id: string): Promise<Result<readonly string[], ProfilePortFailure>>;
   /** 승인의 프로필 검사(쓰지 않는다). 대상 프로필 하나라도 오류면 `plugin_invalid`다(M5c §4.7.3) */
   checkPluginEdit(request: PluginEditRequest): Promise<Result<void, PluginEditFailure>>;
-  /** 승인의 프로필 쓰기. 검사와 쓰기가 한 잠금 안에서 돈다. 돌려주는 값은 바뀐 프로필 id(공통 묶음은 `common`)다 */
+  /** 승인의 프로필 쓰기. 검사와 쓰기가 한 잠금 안에서 돈다. 돌려주는 값은 바뀐 프로필 id(공통 묶음은 `common`)와 경고로만 넘긴 없는 플러그인이다 */
   applyPluginEdit(
     request: PluginEditRequest,
-  ): Promise<Result<readonly string[], PluginEditFailure>>;
+  ): Promise<Result<PluginEditApplied, PluginEditFailure>>;
   /** 이 호스트가 프로필 파일을 바꿀 때마다 부른다(연결 허브가 `profile.changed`로 전한다) */
   onProfilesChanged(listener: (change: ProfilesChange) => void): Unsubscribe;
   /** 같은 순간에 쓴 내용 전체를 준다. 대화별 켜짐 집합의 복사가 응답 전에 맞는다(M5c §4.1.4) */
@@ -337,7 +345,11 @@ export function createProfileTestRunHandlers(
 ): Pick<WireHandlers, ProfileTestRunMethods> {
   return {
     "profile.list": async () => okOrThrow(await port.list()),
-    "profile.get": async (params) => ({ profile: okOrThrow(await port.get(params.id)) }),
+    "profile.get": async (params) => {
+      const profile = okOrThrow(await port.get(params.id));
+      const missing = okOrThrow(await port.missingPlugins(params.id));
+      return { profile, ...(missing.length === 0 ? {} : { missingPlugins: missing }) };
+    },
     "profile.put": async (params) => okOrThrow(await port.put(params.profile, params.baseRev)),
     "profile.delete": async (params) => okOrThrow(await port.remove(params.id)),
     "profile.clone": async (params) => okOrThrow(await port.clone(params)),

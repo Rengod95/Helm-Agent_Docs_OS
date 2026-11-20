@@ -41,6 +41,7 @@ import {
   type SrtTools,
 } from "./policy.ts";
 import {
+  BASENAME_SEARCH_DEPTH,
   buildProtectedPaths,
   dropProtectedWriteRoots,
   expandBasenameEntries,
@@ -62,9 +63,6 @@ import { wrapArgvWith } from "./wrap-argv.ts";
 import { wrapShellWith, type WrapShellDeps } from "./wrap-shell.ts";
 
 // L0.sandbox.spec §3.1 SandboxService 구현. exec·secrets·os 패키지를 import하지 않고 F 서비스 인터페이스만 받는다.
-
-/** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3) */
-const BASENAME_SEARCH_DEPTH = 3;
 
 export interface SandboxServiceDeps {
   /** fresnel.os 서비스에서 쓰는 부분 */
@@ -296,12 +294,14 @@ export async function createSandboxService(
 
   const resolvePolicy = (policy: SandboxPolicy, baseDir: string): EffectivePolicy => {
     const readOnly = policy.profile === "read-only" || policy.profile === "no-write";
+    // 스크립트 환경은 프로젝트 폴더 하나만 쓰므로 설정의 쓰기 루트 추가분을 더하지 않는다
+    const scriptEnv = policy.profile === "script-env";
     const input: PolicyInput = {
       policy,
       protectedReadDeny: [],
       protectedWriteDeny: [],
       basenameFiles: [],
-      extraWriteRoots: readOnly ? [] : deps.settings().writeRootsExtra,
+      extraWriteRoots: readOnly || scriptEnv ? [] : deps.settings().writeRootsExtra,
       home: dirs.home,
       base: baseDir,
     };
@@ -320,7 +320,8 @@ export async function createSandboxService(
       },
       kept,
     );
-    return readOnly
+    // 읽기 전용·쓰기 없음·스크립트 환경은 srt가 정책과 상관없이 허용하는 임시·로그 폴더에도 쓰지 못하게 막는다
+    return readOnly || scriptEnv
       ? { ...merged, writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]) }
       : merged;
   };
@@ -335,6 +336,7 @@ export async function createSandboxService(
     status: () => currentStatus(withSelfTest),
     escapeRetry: () => deps.settings().escapeRetry,
     resolvePolicy,
+    protectedEntries: () => baseProtectedEntries(),
     tools: () => tools,
     ensureCurrent: async (context: CancelScope): Promise<void> => {
       if (detectedEnabled === deps.settings().enabled) return;
@@ -343,6 +345,33 @@ export async function createSandboxService(
   });
 
   const defaultPolicy: SandboxService["defaultPolicy"] = (input) => {
+    if (input.profile === "script-env") {
+      // 스크립트 환경(가져온 훅): 읽기는 보호 경로만 거부하고(읽기 허용 목록 없음), 쓰기는 프로젝트 폴더 하나다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다.
+      // 스크립트 실행기의 막기(도구, Mach 서비스, 시스템 정보)를 그대로 얹고, 보호 경로 안의 읽기 예외는 readCarveOuts로 받는다
+      const projectDir = input.projectDir;
+      const projectRoots =
+        projectDir !== undefined && projectDir.startsWith("/")
+          ? [canonicalizePath(projectDir)]
+          : [];
+      const { kept, pathEntries } = analyzeRoots(projectRoots);
+      return {
+        writeRoots: kept,
+        readDeny: sortedUnique(
+          pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
+        ),
+        writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
+        network: {
+          allowedDomains: [],
+          deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
+        },
+        allowEscape: false,
+        profile: "script-env",
+        toolDeny: [...systemToolDeny(provider.kind)],
+        machDeny: [...systemToolMachDeny(provider.kind)],
+        ...(systemInfoDeny(provider.kind) ? { systemInfoDeny: true } : {}),
+        ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
+      };
+    }
     if (input.profile === "no-write") {
       // 쓰기 루트 없음, 읽기 허용 목록 프로필(플러그인 호스트). 네트워크는 차단 목록 방식 그대로다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다
       const { pathEntries } = analyzeRoots([]);

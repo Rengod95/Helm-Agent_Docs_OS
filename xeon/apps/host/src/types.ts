@@ -65,6 +65,7 @@ import type {
   StoreId,
   StreamPosition,
   TurnStartInput,
+  SetProfileStartDrive,
   WhenBusy,
   Unsubscribe,
   UsageContext,
@@ -523,6 +524,11 @@ export interface ThreadPort {
     threadId: ThreadId,
     profileId: string,
   ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
+  /**
+   * 프로필을 바꾼 뒤 부른다. 새 프로필의 시작 Drive에 맞춰 엔진이 스택을 바꾼다(AGE-64, X.primitives §4.4.1c): 메시지를 받지 않은 옛 시작 Drive는
+   * 내리고, 이미 일하는 Drive는 두고 끝난 뒤 시작하며, 턴이 도는 중이면 끝난 뒤 시작한다. 결과는 화면에 알릴 값이다
+   */
+  switchStartDrive(threadId: ThreadId): Promise<Result<SetProfileStartDrive, ReadFailure>>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 제목 값(없으면 null). `thread.export`의 머리말과 파일 이름에 쓴다. 값을 가리지 않는다(처리기가 가린다). 모르는 thread는 null이다 */

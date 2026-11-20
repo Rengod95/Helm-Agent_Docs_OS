@@ -5,6 +5,7 @@ import {
   type TBoolean,
   type TInteger,
   type TLiteral,
+  type TNull,
   type TObject,
   type TOptional,
   type TRecord,
@@ -184,6 +185,49 @@ export const ScriptRunnerSchema: TUnion<
 ]);
 export type ScriptRunner = Static<typeof ScriptRunnerSchema>;
 
+/** 환경 모드 스크립트의 셸. 원래 하네스가 `bash`를 지정했으면 `bash`, 아니면 `sh`다 [결정: 2026-11-20, 사용자, AGE-58] */
+export const ScriptEnvShellSchema: TUnion<[TLiteral<"sh">, TLiteral<"bash">]> = Type.Union([
+  Type.Literal("sh"),
+  Type.Literal("bash"),
+]);
+
+/** 환경 모드가 참조하는 파일의 지문 형식(`sha256:<64 hex>`). 가져올 때 적고 실행 직전에 다시 본다 */
+export const SCRIPT_ENV_HASH_PATTERN: string = "^sha256:[0-9a-f]{64}$";
+
+/**
+ * 환경 모드 선언(`scripts[].env`, AGE-58 원칙 가, [제안] 이름 `env`). 가져온 훅이 "원래 돌던 환경"에서 도는 모양이다:
+ * 원래 명령 문자열을 `shell -c`로, 프로젝트 폴더를 작업 폴더로, 사용자의 환경으로 돈다. 기존 선언(`file` + `runner`)은 그대로 "좁은 모드"다.
+ * 이 필드는 선언일 뿐 권한이 아니다: 엔진은 마이그레이션 출처로 승인된 검토본에서만 이 선언을 받아들인다(`ScriptEnvGrant`). 그 밖은 `script_env_not_granted`다.
+ * `file`은 명령 원문을 담은 동반 파일(`scripts/<이름>.cmd`)을 가리키고(내용 해시에 든다), `runner`는 `shell`과 같다.
+ */
+export const ScriptEnvDeclSchema: TObject<{
+  command: TString;
+  shell: typeof ScriptEnvShellSchema;
+  refs: TArray<TObject<{ path: TString; hash: TUnion<[TString, TNull]> }>>;
+  refsKnown: TBoolean;
+}> = Type.Object(
+  {
+    /** 원래 명령 문자열 원문 */
+    command: Type.String({ minLength: 1, maxLength: 4096 }),
+    shell: ScriptEnvShellSchema,
+    /** 명령이 참조한 파일(절대 경로)과 가져올 때의 지문. 지문이 null이면 가져올 때 읽지 못했다(실행 때 파일이 있어도 `unreadable`, 없으면 `missing`으로 닫힌 실패다) */
+    refs: Type.Array(
+      Type.Object(
+        {
+          path: Type.String({ minLength: 1, maxLength: 1024 }),
+          hash: Type.Union([Type.String({ pattern: SCRIPT_ENV_HASH_PATTERN }), Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16 },
+    ),
+    /** 참조 파일을 찾아냈는가. 거짓이면 어떤 파일을 읽는지 알 수 없다(리뷰 카드가 그렇게 말한다) */
+    refsKnown: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type ScriptEnvDecl = Static<typeof ScriptEnvDeclSchema>;
+
 /**
  * 스크립트 선언 하나(`scripts`, 설계 B [제안]). `file`은 확장 루트 기준 상대 경로이고 위치 검사는 `validateManifest`가 한다
  * (`script_path_invalid`). 엔진은 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`로 띄운다. 부르는 것은 코드의 `g.runScript(name)`이다
@@ -195,6 +239,7 @@ export const ManifestScriptDeclSchema: TObject<{
   args: TOptional<TArray<TString>>;
   timeoutMs: TOptional<TInteger>;
   envNames: TOptional<TArray<TString>>;
+  env: TOptional<typeof ScriptEnvDeclSchema>;
 }> = Type.Object(
   {
     name: Type.String({ pattern: SCRIPT_NAME_PATTERN, maxLength: 32 }),
@@ -210,6 +255,8 @@ export const ManifestScriptDeclSchema: TObject<{
         maxItems: 16,
       }),
     ),
+    /** 환경 모드(가져온 훅). 없으면 좁은 모드다 */
+    env: Type.Optional(ScriptEnvDeclSchema),
   },
   { additionalProperties: false },
 );

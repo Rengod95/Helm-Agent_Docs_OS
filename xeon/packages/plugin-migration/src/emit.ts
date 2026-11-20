@@ -2,7 +2,7 @@
 // 순수하고 결정적이다. 시각, 난수, 환경 변수를 쓰지 않는다. 같은 입력이면 같은 바이트를 낸다.
 import { Type } from "typebox";
 import { parse, type SchemaProof } from "@fresnel/contracts";
-import type { PlannedPlugin, ReportLine } from "./types.ts";
+import type { PlannedPlugin, PluginScriptEnvDecl, ReportLine } from "./types.ts";
 
 export const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
 export const MIGRATION_RECORD_PATH = ".fresnel-plugin/migration.json";
@@ -104,6 +104,23 @@ const ReportLineSchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    notes: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            code: Type.Union([
+              Type.Literal("env_mode"),
+              Type.Literal("refs_unknown"),
+              Type.Literal("tool_missing"),
+              Type.Literal("version_hint"),
+              Type.Literal("env_note"),
+            ]),
+            text: Type.String({ minLength: 1 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -149,6 +166,16 @@ interface ManifestUserConfigEntry {
   readonly required: boolean;
 }
 
+/** 환경 모드 선언을 매니페스트 모양으로 옮긴다. 키 순서는 고정이다 */
+function envDeclOf(env: PluginScriptEnvDecl): Record<string, unknown> {
+  return {
+    command: env.command,
+    shell: env.shell,
+    refs: env.refs.map((ref) => ({ path: ref.path, hash: ref.hash })),
+    refsKnown: env.refsKnown,
+  };
+}
+
 /** 실행 선언(Hook 플러그인). 스크립트 선언, 진입 파일, 지점과 결정 상한을 매니페스트 필드로 옮긴다(설계 B [제안]) */
 function runtimeOf(runtime: NonNullable<PlannedPlugin["runtime"]>): Record<string, unknown> {
   const hookDecides = runtime.hookDecides.map((decl) => ({
@@ -161,8 +188,8 @@ function runtimeOf(runtime: NonNullable<PlannedPlugin["runtime"]>): Record<strin
       name: script.name,
       runner: script.runner,
       file: script.file,
-      ...(script.args === undefined || script.args.length === 0 ? {} : { args: [...script.args] }),
       timeoutMs: script.timeoutMs,
+      env: envDeclOf(script.env),
     })),
     plugins: [
       {
@@ -229,6 +256,9 @@ function reportLineRecord(line: ReportLine): Record<string, unknown> {
     ...(line.output !== undefined
       ? { output: { plugin: line.output.plugin, path: line.output.path } }
       : {}),
+    ...(line.notes === undefined
+      ? {}
+      : { notes: line.notes.map((note) => ({ code: note.code, text: note.text })) }),
   };
 }
 

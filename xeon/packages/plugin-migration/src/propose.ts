@@ -3,7 +3,7 @@
 // 항목 하나는 보고 줄 하나를 정확히 낸다(수용 기준 1). 규칙표에 없는 항목은 `no_rule`이다.
 import { assertNever, Bug, parse } from "@fresnel/contracts";
 import { McpServerDefSchema, McpServerIdSchema } from "@fresnel/contracts/capabilities";
-import { looksLikeSecretValue } from "./secrets.ts";
+import { looksLikeSecretValue, maskSecretValues } from "./secrets.ts";
 import {
   claudeNameFor,
   findRule,
@@ -11,6 +11,7 @@ import {
   NO_RULE_ALTERNATIVE,
   toolNameFor,
   type Rule,
+  type RuleDifference,
   type RuleReason,
   type Ruleset,
 } from "./rules.ts";
@@ -38,7 +39,7 @@ import type {
   IrAgent,
   IrCommand,
   IrHook,
-  IrHookScript,
+  IrHookEnv,
   IrInstruction,
   IrKind,
   IrMcp,
@@ -50,6 +51,7 @@ import type {
   PluginRuntimeDecl,
   Question,
   ReportLine,
+  ReportNote,
   ReportStatus,
   SourceItem,
   UserConfigDraft,
@@ -121,7 +123,8 @@ interface HookUnit {
   readonly timeoutSeconds: number;
   /** 원본 시간 제한(초). 없으면 600이다 */
   readonly originalSeconds: number;
-  readonly script: IrHookScript;
+  /** 명령 원문과 참조의 재료(환경 모드, 모든 명령 Hook) */
+  readonly env: IrHookEnv;
 }
 
 /** 항목 하나가 플러그인 하나의 일부로 들어가는 단위. 같은 `groupKey`의 단위는 같은 플러그인이 된다 */
@@ -146,6 +149,8 @@ interface Plan {
   readonly alternative: string | undefined;
   readonly unit: Unit | undefined;
   readonly questions: readonly Question[];
+  /** 보고 줄의 알림(환경 모드 등). 없으면 키가 없다 */
+  readonly notes?: readonly ReportNote[];
 }
 
 interface Entry {
@@ -835,11 +840,16 @@ function scriptSlugOf(text: string): string {
   return slug === "" ? "script" : slug;
 }
 
-/** 파일 이름을 바탕과 확장자로 나눈다. 확장자는 소문자로 바꾼다 */
-function stemOf(fileName: string): { readonly stem: string; readonly extension: string } {
+/**
+ * 선언 이름의 바탕. 명령이 처음 읽는 파일의 이름(확장자 없이)이고, 읽는 파일이 없으면 이벤트 이름이다(`hook-<이벤트>`).
+ * 같은 바탕이 여럿이면 호출자가 `-2`, `-3`을 붙인다.
+ */
+function declBaseOf(env: IrHookEnv, event: string): string {
+  const first = env.refs[0];
+  if (first === undefined) return scriptSlugOf(`hook-${event}`);
+  const fileName = baseNameOf(first.path);
   const dot = fileName.lastIndexOf(".");
-  if (dot <= 0) return { stem: fileName, extension: "" };
-  return { stem: fileName.slice(0, dot), extension: fileName.slice(dot).toLowerCase() };
+  return scriptSlugOf(dot <= 0 ? fileName : fileName.slice(0, dot));
 }
 
 /** `scripts/` 안의 파일 이름. 이미 쓴 이름이면 `-2`, `-3`을 붙인다 */
@@ -854,13 +864,18 @@ function uniqueFileOf(stem: string, extension: string, used: Set<string>): strin
   return name;
 }
 
+/**
+ * Hook 항목의 차이. `notes`는 규칙의 Hook 차이(`hookNotes`)다. `readsInputs`는 참조 파일 본문이 읽는 입력 필드 이름이고,
+ * 규칙의 `scriptInputs`가 그 이름마다 차이 문장을 단다(명령이 읽는 입력은 Fresnel이 채우지 못할 수 있다).
+ */
 function hookDifferencesOf(
   item: SourceItem,
   rule: Rule,
   rs: Ruleset,
+  notes: readonly RuleDifference[],
   originalSeconds: number,
   limitSeconds: number,
-  script: IrHookScript,
+  readsInputs: readonly string[],
 ): Difference[] {
   const out: Difference[] = [];
   if (rule.difference !== undefined) out.push(rule.difference);
@@ -870,10 +885,10 @@ function hookDifferencesOf(
       text: `시간 제한이 달라진다: 원본 ${originalSeconds}초, 여기서는 최대 ${limitSeconds}초`,
     });
   }
-  out.push(...(rs.hookNotes ?? []));
-  const text = new TextDecoder().decode(script.bytes);
-  for (const input of rs.scriptInputs ?? []) {
-    if (text.includes(input.needle)) out.push({ kind: "semantic_loss", text: input.text });
+  out.push(...notes);
+  for (const name of readsInputs) {
+    const input = (rs.scriptInputs ?? []).find((entry) => entry.needle === name);
+    if (input !== undefined) out.push({ kind: "semantic_loss", text: input.text });
   }
   const scope = scopeDifferenceOf(item);
   if (scope !== undefined) out.push(scope);
@@ -881,14 +896,43 @@ function hookDifferencesOf(
 }
 
 /**
+ * 환경 모드의 알림. 원래 명령을 그대로 싣는다는 사실(명령은 가려진 채로 적는다), 이 기기에 없는 도구, 버전의 근거, 찾지 못한 참조,
+ * 찾기 과정의 말을 적는다. 도구가 없어도 훅은 막지 않고 지나간다는 점을 함께 적는다.
+ */
+function envNotesOf(env: IrHookEnv): ReportNote[] {
+  const notes: ReportNote[] = [
+    {
+      code: "env_mode",
+      text: `환경 모드: 원래 명령을 그대로 싣고 원래 환경에서 돈다: ${maskSecretValues(env.command)}`,
+    },
+  ];
+  for (const tool of env.missingTools) {
+    notes.push({
+      code: "tool_missing",
+      text: `이 기기에 \`${tool}\`이 없다. 실행하지 못하면 이 훅은 막지 않고 지나간다.`,
+    });
+  }
+  for (const hint of env.versionHints) notes.push({ code: "version_hint", text: hint });
+  if (!env.refsKnown) {
+    notes.push({
+      code: "refs_unknown",
+      text: "명령이 읽는 파일을 찾지 못했다. 어떤 파일을 읽는지 알 수 없다(추측하지 않는다).",
+    });
+  }
+  for (const note of env.notes) notes.push({ code: "env_note", text: note });
+  return notes;
+}
+
+/**
  * Hook 항목 하나의 판정. 규칙이 `not_ported`이면 이유를 그대로 낸다. 옮기면 같은 설정 파일의 Hook들과 한 플러그인이 된다.
- * 시간 제한은 원본과 `지점 예산 − 1초` 가운데 작은 값이다(엔진이 핸들러를 끊기 전에 스크립트가 끊긴다).
+ * 모든 명령 Hook은 환경 모드로 옮긴다(스크립트를 복사하지 않는다). 시간 제한은 원본과 `지점 예산 − 1초` 가운데 작은 값이다.
  */
 function planHook(item: SourceItem, ir: IrHook, rs: Ruleset): Plan {
   const rule = findRule(rs, { kind: "hook", container: ir.event, key: ir.handler, code: ir.code });
   if (rule === undefined || rule.status === "not_ported") return fromRule(rule);
   const hookRule = rule.hook;
-  if (hookRule === undefined || ir.script === undefined) {
+  const env = ir.env;
+  if (hookRule === undefined || env === undefined) {
     return unported(NO_RULE, NO_RULE_ALTERNATIVE);
   }
   const originalSeconds = ir.timeoutSeconds ?? DEFAULT_HOOK_TIMEOUT_SECONDS;
@@ -903,7 +947,7 @@ function planHook(item: SourceItem, ir: IrHook, rs: Ruleset): Plan {
     sourcePath: item.path,
     timeoutSeconds: Math.min(originalSeconds, limitSeconds),
     originalSeconds,
-    script: ir.script,
+    env,
   };
   const unit: Unit = {
     groupKey: `${item.harness}|hook|${item.path}`,
@@ -916,7 +960,16 @@ function planHook(item: SourceItem, ir: IrHook, rs: Ruleset): Plan {
     userConfig: [],
     hook,
   };
-  return placed(unit, hookDifferencesOf(item, rule, rs, originalSeconds, limitSeconds, ir.script));
+  const differences = hookDifferencesOf(
+    item,
+    rule,
+    rs,
+    rs.hookNotes ?? [],
+    originalSeconds,
+    limitSeconds,
+    env.readsInputs,
+  );
+  return { ...placed(unit, differences), notes: envNotesOf(env) };
 }
 
 function planItem(item: SourceItem, ctx: Context): Plan {
@@ -1059,6 +1112,7 @@ function reportLineOf(entry: Entry, placement: Placement | undefined): ReportLin
     ...(placement === undefined
       ? {}
       : { output: { plugin: placement.plugin, path: placement.path } }),
+    ...(plan.notes === undefined || plan.notes.length === 0 ? {} : { notes: plan.notes }),
   };
 }
 
@@ -1100,7 +1154,6 @@ interface HookBuild {
 function hookBuildOf(built: Built, rs: Ruleset | undefined): HookBuild | undefined {
   const declNames = new Set<string>();
   const fileNames = new Set<string>();
-  const scriptFiles = new Map<string, string>();
   const files: { readonly path: string; readonly bytes: Uint8Array }[] = [];
   const decls: HookScriptDecl[] = [];
   const entries: HookEntryData[] = [];
@@ -1109,22 +1162,22 @@ function hookBuildOf(built: Built, rs: Ruleset | undefined): HookBuild | undefin
   for (const member of built.group.members) {
     const hook = member.unit.hook;
     if (hook === undefined) continue;
-    const { script } = hook;
-    const { stem, extension } = stemOf(script.fileName);
-    let file = scriptFiles.get(script.path);
-    if (file === undefined) {
-      file = uniqueFileOf(scriptSlugOf(stem), extension, fileNames);
-      scriptFiles.set(script.path, file);
-      files.push({ path: `scripts/${file}`, bytes: script.bytes });
-    }
-    const name = uniqueName(scriptSlugOf(stem), declNames, []);
-    const path = `scripts/${file}`;
+    const { env } = hook;
+    // 명령 원문은 동반 파일 `scripts/<이름>.cmd`에 둔다(내용 해시에 든다). 선언에 `env`를 싣는다. 스크립트는 복사하지 않는다
+    const name = uniqueName(declBaseOf(env, hook.event), declNames, []);
+    const path = `scripts/${uniqueFileOf(name, ".cmd", fileNames)}`;
+    files.push({ path, bytes: encodeText(`${env.command}\n`) });
     decls.push({
       name,
-      runner: script.runner,
+      runner: env.shell,
       file: path,
-      args: script.args,
       timeoutMs: Math.round(hook.timeoutSeconds * 1000),
+      env: {
+        command: env.command,
+        shell: env.shell,
+        refs: env.refs,
+        refsKnown: env.refsKnown,
+      },
     });
     entries.push({ event: hook.event, matcher: hook.matcher, script: name });
     records.push({

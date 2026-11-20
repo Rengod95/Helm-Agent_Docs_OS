@@ -292,6 +292,15 @@ realTest(
   60_000,
 );
 
+/** 알림 묶음의 행에서 훅 행만 꺼낸다 */
+function hooksOf(rows: readonly { readonly kind: string }[] | undefined): readonly object[] {
+  return (rows ?? []).flatMap((row) =>
+    row.kind === "hook" && "hook" in row && typeof row.hook === "object" && row.hook !== null
+      ? [row.hook]
+      : [],
+  );
+}
+
 realTest(
   "turnRecord.watch sends each watched turn's step and final deltas, and after unwatch the turn's deltas stop while the other sub keeps hearing it",
   async () => {
@@ -320,7 +329,8 @@ realTest(
       expect(watchB.level).toBe("full");
       expect(watchA.sub).not.toBe(watchB.sub);
 
-      // 턴 하나마다 알림 둘: 단계 0의 묶음(`final` 거짓)과 턴 행을 실은 마지막 묶음(`final` 참)
+      // 턴 하나마다 알림 셋: 훅이 끝난 직후의 알림(단계 번호 1, `final` 거짓), 단계 0의 묶음(`final` 거짓), 턴 행을 실은 마지막 묶음(`final` 참).
+      // 단계 끝 뒤에 끝난 훅은 마지막 묶음에서 `late` 표지를 달고 한 번 더 간다
       const [first, second] = await runTurns(connection, collector, created.threadId, [
         "one",
         "two",
@@ -341,6 +351,7 @@ realTest(
             delta.rows.at(-1)?.kind,
           ]);
       const expectedShape = [
+        [created.threadId, 1, false, "hook", "hook"],
         [created.threadId, 0, false, "step", "hook"],
         [created.threadId, null, true, "hook", "turn"],
       ];
@@ -353,6 +364,31 @@ realTest(
         (delta) => delta.sub === watchA.sub && delta.turnId === first && delta.final,
       );
       expect(finalA?.rows.at(-1)).toEqual({ kind: "turn", status: "completed", complete: true });
+      // 먼저 간 훅 행과 마지막 묶음의 늦은 행은 같은 훅이고(같은 이름과 등록 id), 뒤의 것에만 `late`가 붙는다
+      const liveA = deltas.deltas.find(
+        (delta) =>
+          delta.sub === watchA.sub &&
+          delta.turnId === first &&
+          !delta.final &&
+          delta.stepIndex === 1,
+      );
+      const liveHooks = hooksOf(liveA?.rows);
+      const lateHooks = hooksOf(finalA?.rows);
+      expect(liveHooks.length).toBeGreaterThan(0);
+      expect(
+        liveHooks.map((hook) => [
+          "hook" in hook ? hook.hook : null,
+          "registrationId" in hook ? hook.registrationId : null,
+          "late" in hook ? hook.late : undefined,
+        ]),
+      ).toEqual(
+        lateHooks.map((hook) => [
+          "hook" in hook ? hook.hook : null,
+          "registrationId" in hook ? hook.registrationId : null,
+          undefined,
+        ]),
+      );
+      expect(lateHooks.every((hook) => "late" in hook && hook.late === true)).toBe(true);
 
       // A를 끊으면 A의 알림은 더 오지 않고, B는 다음 턴도 계속 받는다
       expect(await connection.request("turnRecord.unwatch", { sub: watchA.sub })).toEqual({});
@@ -367,7 +403,7 @@ realTest(
       // A의 알림 턴 순서는 끊기 전 두 턴뿐이다(턴마다 두 개)
       expect(
         deltas.deltas.filter((delta) => delta.sub === watchA.sub).map((d) => d.turnId),
-      ).toEqual([first, first, second, second]);
+      ).toEqual([first, first, first, second, second, second]);
     } finally {
       await host.close();
       home.dispose();

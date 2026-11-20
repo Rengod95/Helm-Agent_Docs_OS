@@ -152,47 +152,47 @@ E 번호의 정본은 `product.scope.spec` §4.4.1이고, 최종 판정은 `revi
 | E7 | `tty-confirm`만 확인 | `os-auth`·macOS 키체인(G4-02) |
 
 
-## 11. 아직 [제안]인 저장 문자열 표 (2026-11-20, AGE-30)
+## 11. 저장되는 이름 표 (2026-11-20, AGE-30: land 전 이름 확정)
 
-저장하거나 전송하는 문자열 가운데 이름을 사용자가 아직 확정하지 않은 것만 모았다. 확정은 사용자가 한다. 이 표는 확정하지 않는다. 확인한 표지는 각 스펙의 `[제안]` 글머리다. 설정 키의 기본값이나 화면 배치에 붙은 `[제안]`은 문자열이 아니므로 뺐다. "정할 때"는 이름이 저장 데이터(기록, 파일)에 남는지로 나눈다: **land 전**은 한 번 저장되면 옛 이름을 읽어야 하므로 land 전에 정해야 한다(옛 이름 읽기는 하지 않는다는 결정이 있어 나중에 바꾸면 기존 데이터가 못 읽힌다). **나중**은 통신에만 쓰여 이름을 바꿔도 저장 데이터는 그대로다. 2026-11-18 사용자 결정(Linear AGE-13)으로 통신 메서드 이름을 영어 기반 새 용어로 바꾸는 일은 AGE-38이 하므로, 통신 메서드 행은 그때 함께 확정한다.
+저장하거나 전송하는 문자열 가운데 이름이 [제안]이었던 것을 모았다. **2026-11-20 사용자가 "가"(Linear AGE-30)로 11.1~11.3의 "land 전" 이름을 지금 이름 그대로 확정했다.** 확정한 것은 이름이다. 같은 문장에 붙은 기본값·동작·모양의 [제안]은 그대로이고, 각 스펙의 이름 옆 표지는 `[결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]`로 바꾸었다. 표에서 "나중"인 줄(검증 코드 `script_duplicate`·`script_path_invalid`, 스크립트 실패 종류, `fresnel.pluginSubmit`)과 11.4(통신 메서드와 알림), 11.5(오류 코드)는 확정하지 않았고 AGE-38에서 정한다. 아래 표의 "정할 때" 열은 확정 전의 구분을 남겼고, 확정한 줄은 그렇게 적었다. 설정 키의 기본값이나 화면 배치에 붙은 `[제안]`은 문자열이 아니므로 뺐다. "정할 때"는 이름이 저장 데이터(기록, 파일)에 남는지로 나눈다: **land 전**은 한 번 저장되면 옛 이름을 읽어야 하므로 land 전에 정해야 한다(옛 이름 읽기는 하지 않는다는 결정이 있어 나중에 바꾸면 기존 데이터가 못 읽힌다). **나중**은 통신에만 쓰여 이름을 바꿔도 저장 데이터는 그대로다. 2026-11-18 사용자 결정(Linear AGE-13)으로 통신 메서드 이름을 영어 기반 새 용어로 바꾸는 일은 AGE-38이 하므로, 통신 메서드 행은 그때 함께 확정한다.
 
 ### 11.1 기록 종류(내구 저장)
 
 | 이름 | 저장·전송 위치 | 스펙 절 | 누가 지었나 | 정할 때 |
 |---|---|---|---|---|
-| `lease.requested` | 대화 로그의 내구 kind | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | land 전 |
-| `lease.user_input` | 대화 로그 내구 kind | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | land 전 |
-| `lease.acquired`의 선택 필드 `input`, `requestId` | 대화 로그 내구 kind의 payload | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | land 전 |
-| `lease.released`의 선택 필드 `result` | 대화 로그 내구 kind의 payload | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | land 전 |
-| `drive.command_settled` | 대화 로그 내구 kind. 사용자는 "새 상태 이벤트로 기록"(2026-11-17, U1)만 정했고 이름은 정하지 않았다 | F.records §3.3 표 | M5c Drive 격리 설계(`review.m5-drive-isolation` 1.1), 이름은 구현 C0에서 확정 예정이었다 | land 전 |
-| `profile.applied` | 대화 로그 내구 kind(생산자 X) | F.records §3.3 | `review.m5-profile-project-loader` §3.2 | land 전 |
-| `workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten` | 대화 로그 내구 kind 다섯과 blob 참조(`blob`) | F.records §3.3.3 | 파일 되감기 구현자, AGE-15 | land 전 |
-| `turn.started`의 선택 필드 `invoked` | 대화 로그 payload | F.records §3.3 표 | M5c §4.3.2 | land 전 |
-| `TurnRecord.testRun`의 `kind`, `draft`, `runGroupId`(`draftApproval`은 [결정: AGE-56]) | 턴 기록 저장소(`tr_turn`)와 `ThreadSummary.testRun` | F.wire-settings §3.10 | M5c 테스트 실행 구현자 | land 전 |
-| `DetachedEntry.encoding: "json"` | 기록의 분리 항목(`detached`) | F.records §3.4 | enBig 구현자, AGE-26 | land 전 |
+| `lease.requested` | 대화 로그의 내구 kind | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `lease.user_input` | 대화 로그 내구 kind | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `lease.acquired`의 선택 필드 `input`, `requestId` | 대화 로그 내구 kind의 payload | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `lease.released`의 선택 필드 `result` | 대화 로그 내구 kind의 payload | F.records §3.3 표 | m4/enS2 구현자, AGE-26 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `drive.command_settled` | 대화 로그 내구 kind. 사용자는 "새 상태 이벤트로 기록"(2026-11-17, U1)만 정했고 이름은 정하지 않았다 | F.records §3.3 표 | M5c Drive 격리 설계(`review.m5-drive-isolation` 1.1), 이름은 구현 C0에서 확정 예정이었다 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `profile.applied` | 대화 로그 내구 kind(생산자 X) | F.records §3.3 | `review.m5-profile-project-loader` §3.2 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten` | 대화 로그 내구 kind 다섯과 blob 참조(`blob`) | F.records §3.3.3 | 파일 되감기 구현자, AGE-15 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `turn.started`의 선택 필드 `invoked` | 대화 로그 payload | F.records §3.3 표 | M5c §4.3.2 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `TurnRecord.testRun`의 `kind`, `draft`, `runGroupId`(`draftApproval`은 [결정: AGE-56]) | 턴 기록 저장소(`tr_turn`)와 `ThreadSummary.testRun` | F.wire-settings §3.10 | M5c 테스트 실행 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `DetachedEntry.encoding: "json"` | 기록의 분리 항목(`detached`) | F.records §3.4 | enBig 구현자, AGE-26 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
 
 ### 11.2 매니페스트 필드와 검증 코드(플러그인 파일에 저장)
 
 | 이름 | 저장·전송 위치 | 스펙 절 | 누가 지었나 | 정할 때 |
 |---|---|---|---|---|
-| `scripts`(`name`, `runner`, `file`, `args`, `timeoutMs`) | 플러그인 폴더의 매니페스트 | F.extensions §3.1 | 설계 B, m4/enK 구현자 | land 전 |
-| `SCRIPT_NAME_PATTERN`, 실행기 값 `"sh" \| "bash" \| "bun" \| "node" \| "python3"` | 매니페스트 값 검사 | F.extensions §3.1 | 설계 B | land 전 |
+| `scripts`(`name`, `runner`, `file`, `args`, `timeoutMs`) | 플러그인 폴더의 매니페스트 | F.extensions §3.1 | 설계 B, m4/enK 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `SCRIPT_NAME_PATTERN`, 실행기 값 `"sh" \| "bash" \| "bun" \| "node" \| "python3"` | 매니페스트 값 검사 | F.extensions §3.1 | 설계 B | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
 | 검증 코드 `script_duplicate`, `script_path_invalid` | 검증 보고(`ValidationIssue.code`) | F.extensions §3.7, §4.7 | 설계 B | 나중 |
 | 스크립트 실패 종류 `script_not_declared`, `script_outside_tree`, `script_missing`, `script_not_approved`, `replay_mode_denied`, `script_denied` | 엔진 호출 결과의 값 | F.extensions §3.1.4 | 엔진(X) 구현자 | 나중 |
-| `hookDecides`, 검증 코드 `hook_decision_not_allowed` | 매니페스트, 검증 보고 | F.extensions §3.1, §4.7 | M5e §4.1.1 | land 전 |
-| `InjectInventory.scripts`, `ScriptUse`(`system_tools`, `network`) | 검토 카드(검토본 저장소의 카드 JSON) | F.extensions §3.1.3 | 설계 B, AGE-58 | land 전 |
+| `hookDecides`, 검증 코드 `hook_decision_not_allowed` | 매니페스트, 검증 보고 | F.extensions §3.1, §4.7 | M5e §4.1.1 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `InjectInventory.scripts`, `ScriptUse`(`system_tools`, `network`) | 검토 카드(검토본 저장소의 카드 JSON) | F.extensions §3.1.3 | 설계 B, AGE-58 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
 | `PluginSubmitPortKey`의 이름 `fresnel.pluginSubmit` | 엔진 안 서비스 이름(저장 안 함) | F.extensions 부록 | m4 구현자 | 나중 |
 
 ### 11.3 설정 키
 
 | 이름 | 저장·전송 위치 | 스펙 절 | 누가 지었나 | 정할 때 |
 |---|---|---|---|---|
-| `l1.tools.unattended.approval` | 설정 파일 | L1.tools §6 | M3 T-TOOLS 구현자 | land 전 |
-| `l1.tools.unattended.timeoutSeconds` | 설정 파일 | L1.tools §6 | M3 T-TOOLS 구현자 | land 전 |
-| `x.operations.hookDisabled`(키 이름만 제안) | 설정 파일 | F.wire-settings `hooks.list` 행, X.operations | 2026-11-04 hookrun 구현자 | land 전 |
-| `x.primitives.driveMaxDepth`(깊이 8은 [결정: 2026-11-17, 사용자], 키 이름은 [제안], C0에서 확정 예정) | 설정 파일 | X.primitives §설정 표, review.m5-drive-isolation §6 | M5c Drive 격리 설계 | land 전 |
-| `x.primitives.driveRequiresGroup` | 설정 파일 | X.primitives §설정 표 | M2 X 구현자 | land 전 |
-| `l1.tools.pluginCalls`(이름 제안, 기본 참, 끄면 옛 직접 경로) | 설정 파일 | review.m5-drive-isolation §2(층 C 구현 상태), L1.tools | enE2 구현자 | land 전 |
+| `l1.tools.unattended.approval` | 설정 파일 | L1.tools §6 | M3 T-TOOLS 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `l1.tools.unattended.timeoutSeconds` | 설정 파일 | L1.tools §6 | M3 T-TOOLS 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `x.operations.hookDisabled`(키 이름만 제안) | 설정 파일 | F.wire-settings `hooks.list` 행, X.operations | 2026-11-04 hookrun 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `x.primitives.driveMaxDepth`(깊이 8은 [결정: 2026-11-17, 사용자], 키 이름은 [제안], C0에서 확정 예정) | 설정 파일 | X.primitives §설정 표, review.m5-drive-isolation §6 | M5c Drive 격리 설계 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `x.primitives.driveRequiresGroup` | 설정 파일 | X.primitives §설정 표 | M2 X 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
+| `l1.tools.pluginCalls`(이름 제안, 기본 참, 끄면 옛 직접 경로) | 설정 파일 | review.m5-drive-isolation §2(층 C 구현 상태), L1.tools | enE2 구현자 | 확정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로" |
 
 ### 11.4 통신 메서드와 알림(AGE-38의 이름 정리 때 함께 정한다)
 
@@ -219,5 +219,5 @@ E 번호의 정본은 `product.scope.spec` §4.4.1이고, 최종 판정은 `revi
 ### 11.6 요약과 판단
 
 - 이 표는 이름 묶음 단위로 적었다. "누가 지었나"는 스펙 글머리의 표지(작업 이름, 이슈 번호, 검토 문서 절)를 옮긴 것이고 사람 이름이 아니다. 구현자 이름은 표지에 없을 때 "구현자"로만 적었다.
-- **land 전에 정해야 하는 것**: 11.1(기록 종류)과 11.2(매니페스트 필드), 11.3(설정 키). 저장된 뒤에는 옛 이름을 읽지 않으므로(결정: 옛 읽기 없음) 이름이 바뀌면 기존 데이터를 못 읽는다. 가장 급한 것은 이름 자체를 사용자가 한 번도 본 적 없는 `lease.requested`, `lease.user_input`, `drive.command_settled`, `profile.applied`, `workspace.*` 다섯이다.
+- **land 전에 정해야 했던 것(2026-11-20 사용자가 지금 이름 그대로 확정, AGE-30)**: 11.1(기록 종류)과 11.2(매니페스트 필드), 11.3(설정 키)의 "land 전" 줄. 저장된 뒤에는 옛 이름을 읽지 않으므로(결정: 옛 읽기 없음) 이름이 바뀌면 기존 데이터를 못 읽는다. 가장 급한 것은 이름 자체를 사용자가 한 번도 본 적 없는 `lease.requested`, `lease.user_input`, `drive.command_settled`, `profile.applied`, `workspace.*` 다섯이다.
 - 통신 메서드와 오류 코드는 저장되지 않으므로(응답에만 실림) 나중에 바꿔도 데이터가 깨지지 않는다.

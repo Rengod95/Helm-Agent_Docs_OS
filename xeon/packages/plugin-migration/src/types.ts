@@ -71,6 +71,11 @@ export const DEFAULT_SCAN_LIMITS: ScanLimits = {
 export interface ScanContext {
   /** 사용자 홈의 절대 경로. 항목 경로를 `~/…`로 줄이는 데만 쓴다 */
   readonly homeDir: string;
+  /**
+   * PATH에서 실행 파일 이름을 찾는다(없으면 undefined). 환경 모드 훅의 도구 존재 검사에만 쓴다. 없으면 그 검사를 하지 않는다.
+   * 실행하지 않는다. 호출자(훑기 자식)가 PATH를 어떻게 볼지 정한다.
+   */
+  readonly onPath?: (name: string) => string | undefined;
 }
 
 // ── 중간 표현(IR) ─────────────────────────────────────────────────────────
@@ -202,23 +207,34 @@ export interface IrBlocked {
 export type HookRunner = "sh" | "bash" | "bun" | "node" | "python3";
 
 /**
- * Hook 핸들러 `command`가 가리키는 스크립트 하나. 바이트는 원본 그대로이고(플러그인 `scripts/`로 복사한다), 시크릿 값이 든 것은
- * 항목으로 만들지 않는다(`secret_in_script`).
+ * 환경 모드(가져온 `command` 훅, AGE-58 사용자 결정 2026-11-20: 스크립트는 복사하지 않고 제자리에서 원래 환경으로 돈다)의 재료.
+ * 명령 원문을 그대로 싣는다: 명령에 리터럴 시크릿이 있으면 이 값이 만들어지기 전에 `secret_in_command`로 거른다.
+ * 파일 바이트는 싣지 않는다(참조 파일은 지문만 내고, 입력 필드 이름만 본다).
  */
-export interface IrHookScript {
-  readonly runner: HookRunner;
-  /** 원본 파일 이름(확장자 포함). 복사본의 이름 바탕이다 */
-  readonly fileName: string;
-  /** 표시 경로(홈은 `~`) */
-  readonly path: string;
-  /** 실행기 뒤에 붙는 인자(명령의 스크립트 뒤 토큰). 값에 시크릿이 없다 */
-  readonly args: readonly string[];
-  readonly bytes: Uint8Array;
+export interface IrHookEnv {
+  /** 원래 명령 문자열 원문 */
+  readonly command: string;
+  /** 명령을 돌리는 셸. 원래 훅 객체의 `shell`이 `bash`면 `bash`, 아니면 `sh`다 */
+  readonly shell: "sh" | "bash";
+  /** 명령이 읽을 파일(절대 경로)과 지문(`sha256:<hex>`, 읽지 못했으면 null). 최대 16개 */
+  readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+  /** 참조 파일을 하나라도 찾았는가. 거짓이면 어떤 파일을 읽는지 알 수 없다(추측하지 않는다) */
+  readonly refsKnown: boolean;
+  /** 찾은 참조 파일의 본문이 읽는 입력 필드 이름들(`transcript_path` 등, 정해진 목록에서만 고른다). 본문은 싣지 않는다 */
+  readonly readsInputs: readonly string[];
+  /** 셸 내장과 환경 변수 접두를 건너뛴 첫 실행 단어. 없으면 undefined */
+  readonly firstWord?: string;
+  /** PATH에서 찾지 못한 실행 파일 이름들(`ScanContext.onPath`가 있을 때만 채운다) */
+  readonly missingTools: readonly string[];
+  /** 버전의 근거가 되는 글(`python3.11` 이름, shebang 줄, 옆의 버전 파일 값). 버전을 실행으로 알아내지 않는다 */
+  readonly versionHints: readonly string[];
+  /** 찾기 과정에서 적을 말(상한을 넘은 참조, 지문을 못 낸 파일, 변수로 정해진 파일 등) */
+  readonly notes: readonly string[];
 }
 
 /**
  * 설정 `hooks`의 핸들러 하나(`settings.hooks.<이벤트>[i].hooks[j]`). `code`가 있으면 옮기지 못하는 이유 코드이고,
- * 규칙표가 `not_ported`의 이유 문장을 고른다. 명령 문자열 자체는 싣지 않는다(시크릿이 들어 있을 수 있다).
+ * 규칙표가 `not_ported`의 이유 문장을 고른다. `command` 핸들러를 옮기면 `env`가 있다.
  */
 export interface IrHook {
   readonly kind: "hook";
@@ -234,8 +250,8 @@ export interface IrHook {
   readonly extraKeys: readonly string[];
   /** 옮기지 못하는 이유 코드. 없으면 규칙표가 이벤트와 핸들러로 정한다 */
   readonly code: string | undefined;
-  /** `command` 핸들러가 원본 폴더 안의 스크립트를 가리킬 때만 있다 */
-  readonly script: IrHookScript | undefined;
+  /** `command` 핸들러를 옮길 때만 있다(환경 모드) */
+  readonly env: IrHookEnv | undefined;
 }
 
 export type IrNode =
@@ -320,6 +336,22 @@ export type DifferenceKind =
   | "renamed"
   | "user_choice";
 
+/**
+ * 보고 줄의 알림. 차이(`differences`)와 이유(`reason`)에 들지 않는 사실을 코드와 글로 싣는다.
+ * `env_mode`는 원래 명령을 그대로 싣고 원래 환경에서 돈다는 알림이고, `tool_missing`은 이 기기에 없는 실행 파일이다.
+ */
+export type ReportNoteCode =
+  | "env_mode"
+  | "refs_unknown"
+  | "tool_missing"
+  | "version_hint"
+  | "env_note";
+
+export interface ReportNote {
+  readonly code: ReportNoteCode;
+  readonly text: string;
+}
+
 export interface ReportLine {
   readonly itemId: string;
   readonly harness: HarnessId;
@@ -333,6 +365,8 @@ export interface ReportLine {
   readonly alternative?: string;
   /** 어느 플러그인 초안의 어느 파일로 갔나 */
   readonly output?: { readonly plugin: string; readonly path: string };
+  /** 알림(환경 모드, 없는 도구, 버전 근거 등). 없으면 빈 목록이 아니라 키가 없다 */
+  readonly notes?: readonly ReportNote[];
 }
 
 export interface Question {
@@ -360,6 +394,17 @@ export interface UserConfigDraft {
   readonly secretName: string;
 }
 
+/**
+ * 환경 모드 선언(매니페스트 `scripts[].env`와 같은 모양). `runner`는 `shell`과 같고, `file`은 명령 원문을 담은 동반 파일이다.
+ * 명령 원문은 매니페스트에 든다(AGE-58 사용자 결정, 2026-11-20). 시크릿 값이 없음은 호출자가 확인했다.
+ */
+export interface PluginScriptEnvDecl {
+  readonly command: string;
+  readonly shell: "sh" | "bash";
+  readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+  readonly refsKnown: boolean;
+}
+
 /** Hook 플러그인의 실행 선언. `emit`이 매니페스트 `entry`, `scripts`, `plugins[0]`에 옮긴다 */
 export interface PluginRuntimeDecl {
   /** 확장 루트 기준 진입 파일(`./plugin.js`) */
@@ -367,11 +412,12 @@ export interface PluginRuntimeDecl {
   /** `g.runScript(name)`으로 부를 스크립트 선언들 */
   readonly scripts: readonly {
     readonly name: string;
-    readonly runner: HookRunner;
-    /** 플러그인 폴더 기준 상대 경로(`scripts/<파일>`) */
+    /** 환경 모드의 셸과 같다(`env.shell`) */
+    readonly runner: PluginScriptEnvDecl["shell"];
+    /** 플러그인 폴더 기준 상대 경로(`scripts/<이름>.cmd`, 명령 원문을 담은 동반 파일) */
     readonly file: string;
-    readonly args?: readonly string[];
     readonly timeoutMs: number;
+    readonly env: PluginScriptEnvDecl;
   }[];
   /** `g.on`으로 거는 지점 이름(정렬된 목록) */
   readonly hooks: readonly string[];

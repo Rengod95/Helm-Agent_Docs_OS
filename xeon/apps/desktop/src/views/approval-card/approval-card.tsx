@@ -28,7 +28,7 @@ import {
   type ApprovalAge,
 } from "./card-model.ts";
 import { useGoToThread } from "../thread-link.ts";
-import { AttendGlow } from "../effects/attention-mark.tsx";
+import { AttendGlow, type AttendKind } from "../effects/attention-mark.tsx";
 import { WriteAccessBody } from "./write-access-body.tsx";
 import {
   writeAccessDecisionsOf,
@@ -59,6 +59,15 @@ const KIND_TILE: Readonly<
   question: { icon: <MessageCircleQuestion aria-hidden />, tone: "bg-info-tint text-info-text" },
   review: { icon: <FileText aria-hidden />, tone: "bg-agent-tint text-agent-text" },
 };
+
+/**
+ * 카드 주의 면의 빛깔 조합(DP-190, lcMk4). 종류 칸의 색(KIND_TILE)이 중심이다: 변경 검토는 보라, 질문은 파랑, 도구는 호박이고
+ * 쓰기 허용(가드)은 도구와 같은 호박 칸이지만 주황 쪽으로 기운 조합이라 한 화면에 쌓여도 갈린다
+ */
+export function attendKindOf(kind: ApprovalBodyKind, writeAccess: boolean): AttendKind {
+  if (writeAccess) return "guard";
+  return kind;
+}
 
 /** 입력 중인 칸에서 누른 글자는 바로 가기가 아니다 */
 function isTypingTarget(target: EventTarget): boolean {
@@ -308,10 +317,10 @@ function PendingCard(props: {
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        // 주의 면(DP-190): 대기 중인 카드는 위 변 빛과 안쪽 오로라가 깔린다(답을 보내는 동안은 걷는다)
+        // 주의 면(DP-190): 대기 중인 카드는 위 변 가운데의 빛과 안쪽으로 옅은 번짐이 깔린다(종류마다 빛깔 조합, 답을 보내는 동안은 걷는다)
         className="fx-attend-card grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
       >
-        <AttendGlow pending={!busy} />
+        <AttendGlow pending={!busy} kind={attendKindOf(body.kind, writeAccess !== null)} />
         {/* 머리: 아이콘 칸 28, 제목 13/600, 곁 줄 12 tertiary(종류 · 대화 · 시각). 위험도·출처는 오른쪽 끝 */}
         <header data-slot="approval-head" className="flex min-w-0 items-start gap-3">
           <span

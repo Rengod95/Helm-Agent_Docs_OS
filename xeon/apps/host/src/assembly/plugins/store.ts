@@ -75,6 +75,11 @@ export interface PluginReviewMeta {
   readonly decisionId: string;
   readonly origin: ReviewOrigin;
   readonly inferredManifest: boolean;
+  /**
+   * 승인한 검토 항목의 출처가 마이그레이션(`provenance: "migration"`)이면 참(AGE-58 [제안]). 환경 모드 스크립트(`scripts[].env`)를 받을 자격의 유일한 근거다.
+   * 매니페스트와 검토본 내용에서는 읽지 않는다. 호스트가 승인할 때만 쓴다. 없으면 거짓이다
+   */
+  readonly importedScripts?: boolean;
   readonly card: PluginCard;
 }
 
@@ -86,6 +91,7 @@ const MetaShape = Type.Object({
   decisionId: Type.String(),
   origin: Type.Union(REVIEW_ORIGINS.map((origin) => Type.Literal(origin))),
   inferredManifest: Type.Boolean(),
+  importedScripts: Type.Optional(Type.Boolean()),
   card: PluginCardSchema,
 });
 const MetaSchema: TUnsafe<PluginReviewMeta> = Type.Unsafe<PluginReviewMeta>(
@@ -250,6 +256,12 @@ export interface PluginStore {
   candidateTree(contentHash: string): Result<string, PluginStoreError>;
   /** 후보 스냅샷 안 파일의 바이트. 경로는 호출자가 후보의 파일 목록에서 고른다 */
   readCandidateFile(
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>>;
+  /** 보관된 검토본(키와 해시) 안 파일의 바이트. 그 버전이 보관소에 없거나 파일이 없으면 `not_found`다 */
+  readReviewedFile(
+    key: string,
     contentHash: string,
     path: string,
   ): Promise<Result<Uint8Array, PluginStoreError>>;
@@ -1055,6 +1067,24 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     return ok(new Uint8Array(bytes.value));
   }
 
+  async function readReviewedFile(
+    key: string,
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    const tree = await treePath(key, contentHash);
+    if (!tree.ok) return err(tree.error);
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `reviewed file ${path}` });
+    const file = join(tree.value, path);
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `reviewed file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
+  }
+
   function draftPathOf(draftId: string): string {
     return join(draftsDir, draftId);
   }
@@ -1181,6 +1211,7 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     clearCurrent,
     candidateTree: candidateTreeOf,
     readCandidateFile,
+    readReviewedFile,
     saveDraft,
     writeDraft,
     readDraft,

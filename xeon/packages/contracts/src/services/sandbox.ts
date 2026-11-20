@@ -109,9 +109,11 @@ export interface SandboxNetworkPolicy {
 
 /**
  * 샌드박스 프로필. 생략은 보통 프로필이다. `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단 + 쓰기 허용 승인 없음이다.
- * `"no-write"`는 쓰기 허용 루트 없음(호출 전용 빈 임시 폴더 하나만) + 네트워크는 정책 그대로다(플러그인 호스트용)
+ * `"no-write"`는 쓰기 허용 루트 없음(호출 전용 빈 임시 폴더 하나만) + 네트워크는 정책 그대로다(플러그인 호스트용).
+ * `"script-env"`는 가져온 훅의 "스크립트 환경 프로필"이다(AGE-58 원칙 가, [제안] 이름): 읽기는 보호 경로만 거부하는 거부 목록 방식(`readAllow` 없음, 허용 폴더 `readCarveOuts` 예외만),
+ * 쓰기는 프로젝트 폴더와 이 호출 전용 임시 폴더뿐, 네트워크는 정책 그대로, 그리고 스크립트 실행기의 막기(`toolDeny`, `machDeny`, `systemInfoDeny`, 덧붙이기 실패 시 띄우지 않기)를 그대로 얹는다
  */
-export type SandboxProfile = "read-only" | "no-write";
+export type SandboxProfile = "read-only" | "no-write" | "script-env";
 
 export interface SandboxPolicy {
   /** 절대·정규 경로. 쓰기를 허용하는 디렉터리 */
@@ -151,6 +153,11 @@ export interface SandboxPolicy {
    * macOS(Seatbelt)에서만 쓰이고 다른 제공자는 무시한다 [제안, AGE-58 후속]
    */
   systemInfoDeny?: boolean;
+  /**
+   * 보호 경로 안에서 다시 읽게 하는 경로(`"script-env"` 프로필만). 파일이면 그 이름 하나, 폴더면 그 아래 전부다. 프로필 맨 끝에 `(allow file-read* ...)`로 더해져 보호 경로 거부를 이긴다.
+   * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
+   */
+  readCarveOuts?: string[];
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -170,7 +177,9 @@ const sandboxPolicyShape = Type.Object(
       { additionalProperties: false },
     ),
     allowEscape: Type.Boolean(),
-    profile: Type.Optional(Type.Union([Type.Literal("read-only"), Type.Literal("no-write")])),
+    profile: Type.Optional(
+      Type.Union([Type.Literal("read-only"), Type.Literal("no-write"), Type.Literal("script-env")]),
+    ),
     readAllow: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
     ),
@@ -184,6 +193,9 @@ const sandboxPolicyShape = Type.Object(
       Type.Array(Type.String({ minLength: 1, maxLength: 256 }), { maxItems: 64 }),
     ),
     systemInfoDeny: Type.Optional(Type.Boolean()),
+    readCarveOuts: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -417,6 +429,10 @@ export interface SandboxService {
     readRoots?: readonly string[];
     /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다) */
     systemTools?: boolean;
+    /** `"script-env"`에서만. 쓰기 루트가 되는 프로젝트 폴더(절대 경로). 임시 폴더는 호출마다 샌드박스가 만든다 */
+    projectDir?: string;
+    /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
+    readCarveOuts?: readonly string[];
   }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.

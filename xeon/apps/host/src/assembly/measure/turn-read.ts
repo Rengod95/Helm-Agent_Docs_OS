@@ -313,8 +313,12 @@ function summaryOf(
     scope,
     complete: row.complete,
     profileId,
-    stepCount: bundle.steps,
-    callCount: bundle.calls,
+    // 상세(`record_json`)와 같은 숫자를 낸다. 이어진 턴은 저장된 단계 행이 기록의 단계보다 많다. 요약본(단계를 비운 기록)만 행의 수를 쓴다
+    stepCount: record.steps.length > 0 ? record.steps.length : bundle.steps,
+    callCount:
+      record.steps.length > 0
+        ? record.steps.reduce((sum, step) => sum + step.calls.length, 0)
+        : bundle.calls,
     flags: record.flags,
     frameDepthMax,
     childCount: record.children.length,

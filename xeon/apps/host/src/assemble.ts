@@ -31,6 +31,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import {
   PluginCallTracePortKey,
+  ProcessPortKey,
   ToolsPortKey,
   TurnRecordPortKey,
 } from "@fresnel/contracts/extensions";
@@ -181,6 +182,8 @@ import {
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import { createScriptDraftGate } from "./assembly/plugins/script-gate.ts";
+import { nodeScriptRefReader, readCarveOutsOf } from "./assembly/script-env-host.ts";
+import { createLoginShellRunner, createUserEnvResolver } from "./assembly/user-env.ts";
 import {
   createPluginHostAssembly,
   processPortOf,
@@ -699,6 +702,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
+    // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)
+    hasQueuedInput: (threadId) => {
+      const found = late.session?.query.thread(threadId);
+      return found?.ok === true && (found.value?.queuedInputs ?? 0) > 0;
+    },
     driveInputMaxBytes: () =>
       storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
         .maxBlobBytes,
@@ -1411,6 +1419,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           bootId: randomUUID(),
         }),
         sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
+        // 가져온 훅(환경 모드): 사용자의 로그인 셸 환경, 참조 파일 지문, 보호 경로 안 참조의 읽기 예외, 대화의 프로젝트 폴더(AGE-58 [제안])
+        scriptEnv: {
+          userEnv: createUserEnvResolver({
+            parentEnv: process.env,
+            home: os.dirs.home,
+            run: createLoginShellRunner(() => ext.ports.get(ProcessPortKey)),
+            now: () => clock.now(),
+            logger: os.logger("script-env"),
+          }),
+          refs: nodeScriptRefReader,
+          readCarveOutsFor: readCarveOutsOf(() => sandboxSourceOf(ext)()?.protectedPaths() ?? []),
+          projectDirOf: (threadId) =>
+            threadId === undefined
+              ? undefined
+              : (projectRootOfThread(threadId) ?? workspaceOf(threadId)),
+        },
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}

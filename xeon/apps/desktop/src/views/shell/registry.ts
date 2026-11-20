@@ -19,6 +19,10 @@ export interface ScreenDef {
   readonly Badge?: (props: {
     readonly render: (count: number | undefined) => ReactNode;
   }) => ReactNode;
+  /**
+   * 내비 줄 끝(수 앞)에 세우는 표시 부품. 제안 줄만 크리스탈 표시(DP-223)를 단다: 확인이 필요한 것이 있을 때만 보이고, 내비 전체에서 하나다
+   */
+  readonly Mark?: () => ReactNode;
   /** 무대에 그릴 내용 */
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */

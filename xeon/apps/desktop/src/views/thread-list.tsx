@@ -5,6 +5,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
   Alert,
+  Badge,
   Button,
   Dialog,
   EmptyState,
@@ -21,6 +22,7 @@ import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlipList } from "../lib/motion-presets.tsx";
 import { ProgressOrb } from "./effects/progress-orb.tsx";
 import {
+  useApprovalUrgent,
   useThreadsStatus,
   useThreadSummaries,
   useThreadApprovals,
@@ -72,26 +74,19 @@ const LIST_COLUMN =
 const ROW_HEIGHT = SIDE_ROW;
 
 /**
- * 행 오른쪽 표식(DP-104). 승인은 바탕 없는 따뜻한 숫자(DP-189: 주의는 줄 물듦이 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
+ * 행 오른쪽 표식(DP-104). 승인은 둥근 면 위의 무채색 숫자(DP-189: 줄에는 크리스탈 표시가 없고 수와 그 면이 주의를 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
   thread: ThreadSummary,
   approvals: number,
   child: boolean,
   unsent: boolean,
   now: number,
+  urgent: boolean,
 ): ReactNode {
   const badge = rowBadgeOf(thread, approvals, child, unsent);
   switch (badge) {
     case "approvals":
-      return (
-        // 바탕 없는 숫자만(DP-189 [결정: 2026-11-13 사용자 "원형 뒷배경 빼는게"]). 물듦과 같은 따뜻한 색 + 굵기, 뜻은 sr-only 글이 말한다
-        <span className="fx-attend-count" data-thread-badge="approvals">
-          <span aria-hidden>{approvals}</span>
-          <span className="sr-only">
-            {t("desktop.threads.approvalsBadge", { count: approvals })}
-          </span>
-        </span>
-      );
+      return <ApprovalCount approvals={approvals} urgent={urgent} />;
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
     case "resumable":
       return (
@@ -139,6 +134,48 @@ function relativeTimeText(time: RelativeTime): string {
   }
 }
 
+/** 줄 끝 수의 글: 100 이상은 "99+" */
+function approvalCountText(approvals: number): string {
+  return approvals > 99 ? "99+" : String(approvals);
+}
+
+/**
+ * 줄 끝 승인 수(DP-189 [결정: 2026-11-18 사용자 "숫자의 백그라운드에 동그란 surface를 넣어줘. 패딩은 너무 크지않게 적당히", lcMk3]).
+ * 보통은 caustic 배지(neutral soft, xs 18px, 좌우 6px) 그대로다: 그라데이션 없이 caustic의 면·글자색·모서리([결정: 2026-11-19 사용자 "일반적인 경우는
+ * 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", lcMk4]). 급함(시한 있는 승인)은 빛깔 없이 무채색 안에서 뒤집힌다: 면이 글자색(text.primary),
+ * 숫자가 바탕색(bg.app)·굵기 700이라 멈춘 채로도 보통 수와 갈리고, 보던 줄이 새로 급해진 순간 한 번만 톡 커졌다 앉는다(`data-cue="urgent"`, 0.9초,
+ * 크기만) [결정: 2026-11-19 사용자 "3색없는 버전으로", lcMk5가 lcMk4의 info solid 파랑 면을 바꿈]. 처음 그릴 때(목록을 열 때)는 움직이지 않는다.
+ * 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
+ */
+function ApprovalCount(props: { readonly approvals: number; readonly urgent: boolean }): ReactNode {
+  const waiting = t("desktop.threads.approvalsWaiting", { count: props.approvals });
+  const [seen, setSeen] = useState(props.urgent);
+  const [cue, setCue] = useState(false);
+  // 앞 값과 견주어 그리는 중에 정한다(효과 안에서 상태를 바꾸지 않는다)
+  if (seen !== props.urgent) {
+    setSeen(props.urgent);
+    setCue(props.urgent);
+  }
+  return (
+    <Badge
+      size="xs"
+      // 급함의 뒤집힌 면·글자는 attention.css `.fx-attend-pill[data-urgent]`가 칠한다. 보통은 배지 기본(neutral soft) 그대로다
+      className="fx-attend-pill"
+      data-thread-badge="approvals"
+      data-urgent={props.urgent ? "" : undefined}
+      data-cue={cue ? "urgent" : undefined}
+      onAnimationEnd={() => {
+        setCue(false);
+      }}
+    >
+      <span aria-hidden>{approvalCountText(props.approvals)}</span>
+      <span className="sr-only">
+        {props.urgent ? t("desktop.attention.deadline", { what: waiting }) : waiting}
+      </span>
+    </Badge>
+  );
+}
+
 const ThreadRow = memo(function ThreadRow(props: {
   readonly thread: ThreadSummary;
   /** 하위 에이전트가 만든 자식 대화: 부모 아래 들여 쓴 행 */
@@ -155,6 +192,7 @@ const ThreadRow = memo(function ThreadRow(props: {
   const approvals = useThreadApprovals(id);
   const unsent = unsentRowOf(useTurnFailure(id));
   const attention = approvals > 0 || unlisted > 0;
+  const urgent = useApprovalUrgent(id);
   const running = props.thread.status === "running";
   const [menuOpen, setMenuOpen] = useState(false);
   // 제목이 없는 대화는 첫 입력 미리보기를 제목 자리에 흐리게 두고(DP-141), 미리보기도 없으면 "제목 없음"을 흐리게 둔다. 꼬리에 만든 때를 붙여 서로 구분한다(DP-104)
@@ -174,7 +212,7 @@ const ThreadRow = memo(function ThreadRow(props: {
       <ListNavigationItem
         current={selected}
         // 앞 칸(DP-189 [결정: 2026-11-13 사용자 "좌측 아이콘은 아예 빼버리고"]): 줄 앞에는 표시를 두지 않아 모든 줄의 제목이 같은 열에 선다.
-        // 내 확인이 필요하면 줄 물듦(fx-attend-row)과 끝의 숫자, 도는 중이면 끝의 진행 구슬, 안 보냈으면 caustic 실패 점이다. caustic
+        // 내 확인이 필요하면 줄의 옅은 물듦과 끝의 둥근 면 위 숫자(DP-190, lcMk5), 도는 중이면 끝의 진행 구슬, 안 보냈으면 caustic 실패 점이다. caustic
         // `status="running"`은 스펙트럼 고리를 그려 쓰지 않는다(DP-188). 승인을 기다리는 턴은 멈춰 있으므로 주의가 이긴다(진행 구슬 없음)
         {...(!attention && !running && unsent
           ? {
@@ -182,30 +220,24 @@ const ThreadRow = memo(function ThreadRow(props: {
               statusLabels: { failed: t("desktop.threads.status.unsent") },
             }
           : {})}
+        // 줄 끝 한 칸: 꼬리 글이나 승인 수(둥근 면) · 진행 구슬(도는 중). 줄에는 크리스탈 표시를 두지 않는다(DP-189, lcMk3). 꼬리 글과 진행 구슬 사이 6
         meta={
-          running && !attention ? (
-            <span data-slot="row-progress" className="inline-flex items-center gap-1.5">
-              {metaOf(props.thread, approvals, props.child, unsent, props.now)}
-              <ProgressOrb />
-            </span>
-          ) : (
-            metaOf(props.thread, approvals, props.child, unsent, props.now)
-          )
+          <span data-slot="row-meta" className="inline-flex items-center gap-1">
+            {metaOf(props.thread, approvals, props.child, unsent, props.now, urgent)}
+            {running && !attention ? <ProgressOrb className="ms-0.5" /> : null}
+          </span>
         }
         // 목록 순서가 바뀌거나 행이 들고 날 때 옛 자리에서 이어 온다(ThreadList의 useFlipList)
         data-flip-key={id}
+        // 확인이 필요한 줄의 물듦: 연달아 있는 줄은 attention.css가 한 띠로 잇는다(DP-190)
+        data-attention={attention ? "" : undefined}
         title={tooltip}
         // 오른쪽 클릭은 ⋯와 같은 메뉴를 연다(줄 끝 ⋯ 자리에 붙는다)
         onContextMenu={(event) => {
           event.preventDefault();
           setMenuOpen(true);
         }}
-        className={[
-          ROW_HEIGHT,
-          label.dim ? UNTITLED_LABEL : "",
-          props.child ? CHILD_ROW : "",
-          attention ? "fx-attend-row" : "",
-        ]
+        className={[ROW_HEIGHT, label.dim ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
           .filter((c) => c !== "")
           .join(" ")}
         onSelect={() => {
