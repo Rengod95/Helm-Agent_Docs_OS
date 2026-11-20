@@ -228,6 +228,7 @@ export const BLOCK_SPECS: readonly BlockSpec[] = [
       ref("l0.sandbox.enabled", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.onUnavailable", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.protectedPaths.extra", "platform-sandbox", ["managed", "user", "project"]),
+      ref("l0.sandbox.protectedPaths.allowRead", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.writeRoots.extra", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.escapeRetry", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.network.blockedDomains", "platform-sandbox", ["managed", "user", "project"]),

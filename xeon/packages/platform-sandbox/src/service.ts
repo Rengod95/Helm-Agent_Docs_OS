@@ -42,6 +42,7 @@ import {
 } from "./policy.ts";
 import {
   BASENAME_SEARCH_DEPTH,
+  applyReadRelease,
   buildProtectedPaths,
   dropProtectedWriteRoots,
   expandBasenameEntries,
@@ -256,6 +257,19 @@ export async function createSandboxService(
     if (rejected.length > 0) {
       logger.warn("sandbox.protected_path_extra_rejected", { count: rejected.length });
     }
+    // 읽기 풀기 값 가운데 풀리지 않는 것(상대 경로, 기본 목록 밖, 풀 수 없는 항목)은 개수만 남긴다. 값은 싣지 않는다
+    const releaseValues = deps.settings().protectedPathsAllowRead;
+    if (releaseValues.length > 0) {
+      const chosen = resolveExtraPaths(releaseValues, dirs.home);
+      const { ignored } = applyReadRelease(baseProtectedEntries(), chosen.resolved, dirs.home);
+      if (chosen.rejected.length + ignored.unknown + ignored.pinned > 0) {
+        logger.warn("sandbox.protected_path_release_ignored", {
+          relative: chosen.rejected.length,
+          unknown: ignored.unknown,
+          pinned: ignored.pinned,
+        });
+      }
+    }
     const status = currentStatus(true);
     logStatus(logger, status);
     return status;
@@ -271,16 +285,31 @@ export async function createSandboxService(
   /** 쓰기 루트 후보에 git 항목을 더하고, 보호 경로 안의 루트를 지운다 */
   const analyzeRoots = (
     roots: readonly string[],
+    release = false,
   ): {
     readonly entries: readonly ProtectedPathEntry[];
     readonly kept: string[];
     readonly pathEntries: readonly ProtectedPathEntry[];
+    readonly carved: readonly string[];
   } => {
-    const entries = withGitEntries(baseProtectedEntries(), roots);
+    // 읽기 풀기는 셸 도구 호출(policy.userReadRelease)에만 쓴다. 파일 도구의 보호 경로와 다른 프로필은 풀지 않는다
+    const released = release
+      ? applyReadRelease(
+          baseProtectedEntries(),
+          resolveExtraPaths(deps.settings().protectedPathsAllowRead, dirs.home).resolved,
+          dirs.home,
+        )
+      : undefined;
+    const entries = withGitEntries(released?.entries ?? baseProtectedEntries(), roots);
     const { kept, removed } = dropProtectedWriteRoots(roots, entries);
     if (removed.length > 0) logger.warn("sandbox.write_root_removed", { roots: removed });
     for (const root of kept) knownRoots.add(root);
-    return { entries, kept, pathEntries: entries.filter((entry) => entry.match !== "basename") };
+    return {
+      entries,
+      kept,
+      pathEntries: entries.filter((entry) => entry.match !== "basename"),
+      carved: released?.carved ?? [],
+    };
   };
 
   /** srt가 정책과 상관없이 쓰기를 허용하는 곳(임시·로그 폴더). 읽기 전용 프로필은 이 곳도 쓰기를 막는다 */
@@ -305,7 +334,11 @@ export async function createSandboxService(
       home: dirs.home,
       base: baseDir,
     };
-    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidateWriteRoots(input));
+    const release = policy.userReadRelease === true && policy.profile === undefined;
+    const { entries, kept, pathEntries, carved } = analyzeRoots(
+      readOnly ? [] : candidateWriteRoots(input),
+      release,
+    );
     const merged = mergePolicy(
       {
         ...input,
@@ -321,9 +354,13 @@ export async function createSandboxService(
       kept,
     );
     // 읽기 전용·쓰기 없음·스크립트 환경은 srt가 정책과 상관없이 허용하는 임시·로그 폴더에도 쓰지 못하게 막는다
-    return readOnly || scriptEnv
-      ? { ...merged, writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]) }
-      : merged;
+    if (readOnly || scriptEnv) {
+      return {
+        ...merged,
+        writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]),
+      };
+    }
+    return carved.length === 0 ? merged : { ...merged, readCarve: carved };
   };
 
   const wrapDeps = (withSelfTest: boolean): WrapShellDeps => ({
@@ -425,8 +462,10 @@ export async function createSandboxService(
         canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
       ),
     );
-    const { kept, pathEntries } = analyzeRoots(roots);
+    const release = input.userReadRelease === true;
+    const { kept, pathEntries } = analyzeRoots(roots, release);
     return {
+      ...(release ? { userReadRelease: true } : {}),
       writeRoots: kept,
       readDeny: sortedUnique(
         pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),

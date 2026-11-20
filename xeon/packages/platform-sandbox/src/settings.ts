@@ -55,6 +55,20 @@ const sandboxSettings = defineSettings("l0.sandbox", {
     },
     since: "0.1.0",
   },
+  "protectedPaths.allowRead": {
+    type: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
+    default: [],
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "list",
+      order: 108,
+      label: "Protected paths shell commands may read",
+      help: "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
+    },
+    since: "0.1.0",
+  },
   "writeRoots.extra": {
     type: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
     default: [],
@@ -141,6 +155,8 @@ export interface SandboxSettings {
   readonly enabled: boolean;
   readonly onUnavailable: OnUnavailable;
   readonly protectedPathsExtra: readonly string[];
+  /** 기본 보호 경로 가운데 셸 도구 샌드박스에서 읽기를 푸는 경로(쓰기는 계속 막는다). 사용자·관리자 범위만 받는다 */
+  readonly protectedPathsAllowRead: readonly string[];
   readonly writeRootsExtra: readonly string[];
   readonly escapeRetry: boolean;
   /** 샌드박스 안에서 닿지 못하게 할 도메인(srt deniedDomains). 목록 밖은 모두 허용이다 */
@@ -157,6 +173,7 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   enabled: true,
   onUnavailable: "disable_execute",
   protectedPathsExtra: [],
+  protectedPathsAllowRead: [],
   writeRootsExtra: [],
   escapeRetry: false,
   blockedDomains: [],
@@ -190,6 +207,7 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
   const enabled = read(defs.enabled.key);
   const onUnavailable = read(defs.onUnavailable.key);
   const protectedExtra = read(defs["protectedPaths.extra"].key);
+  const allowRead = read(defs["protectedPaths.allowRead"].key);
   const writeExtra = read(defs["writeRoots.extra"].key);
   const escapeRetry = read(defs.escapeRetry.key);
   const blocked = read(defs["network.blockedDomains"].key);
@@ -209,6 +227,10 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs["protectedPaths.extra"], protectedExtra) && isStringArray(protectedExtra)
         ? protectedExtra
         : DEFAULT_SANDBOX_SETTINGS.protectedPathsExtra,
+    protectedPathsAllowRead:
+      valid(defs["protectedPaths.allowRead"], allowRead) && isStringArray(allowRead)
+        ? allowRead
+        : DEFAULT_SANDBOX_SETTINGS.protectedPathsAllowRead,
     writeRootsExtra:
       valid(defs["writeRoots.extra"], writeExtra) && isStringArray(writeExtra)
         ? writeExtra

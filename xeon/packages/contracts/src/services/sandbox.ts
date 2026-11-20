@@ -158,6 +158,11 @@ export interface SandboxPolicy {
    * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
    */
   readCarveOuts?: string[];
+  /**
+   * 참이면 이 호출에 설정 `l0.sandbox.protectedPaths.allowRead`(사용자가 고른 기본 보호 경로의 읽기 풀기)를 적용한다. 보통 프로필만 받고(`profile` 없음),
+   * 셸 도구의 호출만 참으로 둔다. 생략하면 풀지 않는다 [결정: 2026-11-20, 사용자, AGE-63]
+   */
+  userReadRelease?: boolean;
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -196,6 +201,7 @@ const sandboxPolicyShape = Type.Object(
     readCarveOuts: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
     ),
+    userReadRelease: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -433,6 +439,8 @@ export interface SandboxService {
     projectDir?: string;
     /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
     readCarveOuts?: readonly string[];
+    /** 보통 프로필에서만. 참이면 설정 `l0.sandbox.protectedPaths.allowRead`를 이 정책에 적용한다(셸 도구 호출용). 읽기만 풀고 쓰기는 막은 채다 */
+    userReadRelease?: boolean;
   }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
