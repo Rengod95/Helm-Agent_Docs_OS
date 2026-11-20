@@ -29,6 +29,7 @@ import type {
   TestRunControlError,
   TestRunControlResult,
   TestRunPhaseResult,
+  TraceTurnEntry,
   TraceTurnResult,
 } from "./trace-types.ts";
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
@@ -486,8 +487,25 @@ export interface TrustPrompter {
 // wire 처리기(`trace.turn`, `ext.timings`, `testRun.*`)가 이 포트에 대해 쓰이고, ext-host가 구현해 L4 조립이 연결한다.
 // 값 검증이 없는 순수 인터페이스다. 결과 타입은 wire 결과 타입과 같다.
 
+/**
+ * 핸들러 기록 하나가 버퍼에 쌓인 직후의 알림(턴 기록의 `turnRecord.delta`가 Hook 결과를 단계 끝보다 먼저 보내는 길) [제안, 2026-11-20 enTr].
+ * `entry`는 그 핸들러까지 든 항목의 사본이고 `handlerIndex`가 방금 쌓인 핸들러다. 턴이 열리기 전의 기록(턴 전 훅)은 알리지 않는다
+ */
+export interface TraceRecordEvent {
+  readonly threadId: ThreadId;
+  /** 턴 id. 디스패치 키의 접두에서 얻은 문자열이라 브랜드를 두지 않는다 */
+  readonly turnId: string;
+  readonly entry: TraceTurnEntry;
+  readonly handlerIndex: number;
+}
+
 /** 핸들러 계측 읽기. 원천은 X-15 링 버퍼이고 `ext.timings`의 분포와 `trace.turn`이 같은 값을 쓴다 */
 export interface TraceReadPort {
+  /**
+   * 핸들러 기록이 쌓일 때마다 알린다. 듣는 쪽은 던지지 않고 짧게 끝나야 한다(Hook을 부르는 길 위에서 불린다).
+   * 돌려준 함수로 푼다. 없는 구현(대역)은 알림을 주지 않는다
+   */
+  onRecord?(listener: (event: TraceRecordEvent) => void): Unsubscribe;
   /** X-15 계측이 켜져 있는가(`x.operations.trace.enabled`) */
   enabled(): boolean;
   /** 버퍼에 남은 Turn의 Trace. 버퍼 밖이면 undefined */

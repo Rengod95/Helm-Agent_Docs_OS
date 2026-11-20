@@ -82,7 +82,10 @@ export function createTestRunHandlers(
       }
       // 초안은 대화를 만들기 전에 싣는다. 못 싣으면 아무것도 만들지 않는다(§4.8.1 1, 5)
       const prepared = await testRunDrafts.prepare(params.drafts);
-      if (!prepared.ok) throw wireErrorOfOverlay(prepared.error);
+      if (!prepared.ok)
+        throw wireErrorOfOverlay(prepared.error, (event, fields) =>
+          engine.ports.log.error(event, fields),
+        );
       const { marks, unhold } = prepared.value;
 
       const runGroupId = params.runGroupId ?? `trg-${randomUUID()}`;

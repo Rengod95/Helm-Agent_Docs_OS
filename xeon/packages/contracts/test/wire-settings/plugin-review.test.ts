@@ -206,6 +206,35 @@ describe("pluginReview methods and notification (M5c-1)", () => {
     expect(parse(result, { path: "a", text: "x" }).ok).toBe(false);
   });
 
+  test("pluginReview.file takes an optional side and reports a version that is no longer kept as missing", () => {
+    const params = PLUGIN_REVIEW_WIRE_METHODS["pluginReview.file"].params;
+    const result = PLUGIN_REVIEW_WIRE_METHODS["pluginReview.file"].result;
+    roundTrip(params, { itemId: "rvw_1", path: "a.md" });
+    roundTrip(params, { itemId: "rvw_1", path: "a.md", side: "candidate" });
+    roundTrip(params, { itemId: "rvw_1", path: "a.md", side: "base" });
+    expect(parse(params, { itemId: "rvw_1", path: "a.md", side: "old" }).ok).toBe(false);
+    roundTrip(result, { path: "a.md", text: null, truncated: false, missing: true });
+    roundTrip(result, { path: "a.md", text: "x", truncated: true, missing: false });
+  });
+
+  test("an update item lists the files of the base version and a card carries the manifest version", () => {
+    const withBase = {
+      ...NEW_ITEM,
+      kind: "update",
+      baseHash: HASH,
+      card: { ...PLUGIN_CARD, version: "1.2.0" },
+      baseFiles: [
+        { path: "instructions.md", bytes: 100, sha256: "c".repeat(64) },
+        { path: "old.md", bytes: 5, sha256: "d".repeat(64) },
+      ],
+    } satisfies ReviewItem;
+    roundTrip(ReviewItemSchema, withBase);
+    expect(parse(ReviewItemSchema, { ...withBase, baseFiles: [{ path: "x" }] }).ok).toBe(false);
+    expect(parse(ReviewItemSchema, { ...withBase, card: { ...PLUGIN_CARD, version: 3 } }).ok).toBe(
+      false,
+    );
+  });
+
   test("pluginReview.decide returns the item and the applied profile ids", () => {
     roundTrip(PLUGIN_REVIEW_WIRE_METHODS["pluginReview.decide"].result, {
       item: { ...NEW_ITEM, state: "approved", decidedAt: AT },

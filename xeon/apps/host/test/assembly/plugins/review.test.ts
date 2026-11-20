@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
@@ -531,6 +531,187 @@ test("file reads stay inside the reviewed snapshot", async () => {
   expect(errorOf(await rig.review.file(itemId, "missing.md")).kind).toBe("path_invalid");
   expect(errorOf(await rig.review.file("rvw_NOPE", "instructions.md")).kind).toBe(
     "review_not_found",
+  );
+});
+
+/** 승인된 `kit`을 `edit`로 고친 초안을 제출해 대기 중인 갱신 항목을 만든다(출처 `assistant`라 승인할 수 있다) */
+async function pendingUpdate(
+  rig: Rig,
+  edit: (folder: string) => void,
+): Promise<{ readonly item: ReviewItem; readonly approved: ReviewItem }> {
+  const approved = await approvedKit(rig);
+  const folder = join(rig.pluginsDir, "kit");
+  edit(folder);
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  return { item: valueOf(await rig.review.get(itemId)).item, approved };
+}
+
+test("an update item lists the base version's files, and file reads the base side and the new side by value", async () => {
+  const rig = rigOf();
+  const { item, approved } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully.", "notes.md": "New file." });
+  });
+  expect(item.kind).toBe("update");
+  expect(item.baseHash).toBe(approved.candidateHash);
+  expect(item.baseFiles?.map((file) => file.path).toSorted()).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "instructions.md",
+  ]);
+  expect(item.files.map((file) => file.path).toSorted()).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "instructions.md",
+    "notes.md",
+  ]);
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "base"))).toEqual({
+    path: "instructions.md",
+    text: "Use kit.",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md"))).toEqual({
+    path: "instructions.md",
+    text: "Use kit, carefully.",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "candidate")).text).toBe(
+    "Use kit, carefully.",
+  );
+  // 새 파일은 지난 판에 없고, 지난 판에만 있는 파일은 새 판에 없다
+  expect(errorOf(await rig.review.file(item.itemId, "notes.md", "base")).kind).toBe("path_invalid");
+  expect(valueOf(await rig.review.file(item.itemId, "notes.md")).text).toBe("New file.");
+});
+
+test("a file only the old version had is readable on the base side and is path_invalid on the new side", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "extra.md": "Extra." });
+  });
+  const removedAfter = await pendingUpdateFrom(rig, item);
+  expect(removedAfter.baseFiles?.map((file) => file.path)).toContain("extra.md");
+  expect(valueOf(await rig.review.file(removedAfter.itemId, "extra.md", "base")).text).toBe(
+    "Extra.",
+  );
+  expect(errorOf(await rig.review.file(removedAfter.itemId, "extra.md")).kind).toBe("path_invalid");
+});
+
+/** 대기 항목을 승인한 뒤 `extra.md`를 지운 새 초안을 제출해 갱신 항목을 만든다 */
+async function pendingUpdateFrom(rig: Rig, first: ReviewItem): Promise<ReviewItem> {
+  valueOf(await rig.review.decide(first.itemId, APPROVE));
+  const folder = join(rig.pluginsDir, "kit");
+  rmSync(join(folder, "extra.md"), { force: true });
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  return valueOf(await rig.review.get(itemId)).item;
+}
+
+test("a new plugin item has no base files and refuses the base side", async () => {
+  const rig = rigOf();
+  writeFiles(join(rig.pluginsDir, "kit"), {
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    "instructions.md": "Use kit.",
+  });
+  const item = valueOf(await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued))).item;
+  expect(item.baseHash).toBeNull();
+  expect(item.baseFiles).toBeUndefined();
+  expect(errorOf(await rig.review.file(item.itemId, "instructions.md", "base")).kind).toBe(
+    "path_invalid",
+  );
+});
+
+test("after approval the new side is read from the approved copy and the base side from the old copy", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  const decided = valueOf(await rig.review.decide(item.itemId, APPROVE)).item;
+  expect(decided.state).toBe("approved");
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md")).text).toBe(
+    "Use kit, carefully.",
+  );
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "base")).text).toBe(
+    "Use kit.",
+  );
+});
+
+test("a discarded item's new side and a pruned base are answered as missing, not as an error", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  valueOf(await rig.review.decide(item.itemId, { kind: "discard" }));
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md"))).toEqual({
+    path: "instructions.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+  // 지난 판이 보관 한도를 넘어 지워지면 base 쪽은 missing이다
+  const folder = join(rig.pluginsDir, "kit");
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const pending = valueOf(
+    await rig.review.get(valueOf(await rig.review.submitDraft(draftId)).itemId),
+  ).item;
+  expect(pending.baseHash).not.toBeNull();
+  await inOrder(6, async (position) => {
+    writeFiles(folder, { "instructions.md": `Use kit, version ${position}.` });
+    const id = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+    valueOf(await rig.review.decide(valueOf(await rig.review.submitDraft(id)).itemId, APPROVE));
+  });
+  expect(valueOf(await rig.review.file(pending.itemId, "instructions.md", "base"))).toEqual({
+    path: "instructions.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+});
+
+test("file applies the same limit to both sides: binary is null text, a large file is cut at 256 KiB and marked truncated", async () => {
+  const rig = rigOf();
+  const big = "x".repeat(262144 + 10);
+  const { item } = await pendingUpdate(rig, () => {});
+  valueOf(await rig.review.decide(item.itemId, APPROVE));
+  const folder = join(rig.pluginsDir, "kit");
+  writeFiles(folder, { "big.txt": big });
+  writeFileSync(join(folder, "bin.dat"), Uint8Array.from([1, 0, 2, 3]));
+  const first = valueOf(
+    await rig.review.submitDraft(valueOf(await rig.review.draftCreate(folder, undefined)).draftId),
+  ).itemId;
+  valueOf(await rig.review.decide(first, APPROVE));
+  writeFiles(folder, { "big.txt": `${big}y` });
+  writeFileSync(join(folder, "bin.dat"), Uint8Array.from([9, 0, 9]));
+  const next = valueOf(
+    await rig.review.get(
+      valueOf(
+        await rig.review.submitDraft(
+          valueOf(await rig.review.draftCreate(folder, undefined)).draftId,
+        ),
+      ).itemId,
+    ),
+  ).item;
+  const base = valueOf(await rig.review.file(next.itemId, "big.txt", "base"));
+  expect(base.truncated).toBe(true);
+  expect(base.text?.length).toBe(262144);
+  const fresh = valueOf(await rig.review.file(next.itemId, "big.txt"));
+  expect(fresh.truncated).toBe(true);
+  expect(valueOf(await rig.review.file(next.itemId, "bin.dat", "base"))).toEqual({
+    path: "bin.dat",
+    text: null,
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(next.itemId, "bin.dat")).text).toBeNull();
+});
+
+test("an item card carries the manifest version, and path escapes stay refused on the base side", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  expect(item.card.version).toBe("1.0.0");
+  expect(errorOf(await rig.review.file(item.itemId, "../kit/instructions.md", "base")).kind).toBe(
+    "path_invalid",
+  );
+  expect(errorOf(await rig.review.file(item.itemId, "/etc/hosts", "base")).kind).toBe(
+    "path_invalid",
   );
 });
 

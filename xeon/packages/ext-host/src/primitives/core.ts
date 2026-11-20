@@ -75,6 +75,8 @@ export interface ResolvedDeps {
   readonly setupBudgetMs: () => number | null;
   /** 입력과 `done` 결과의 직렬화 크기 상한(바이트). 넘으면 거절한다(`input_too_large`, `result_too_large`) */
   readonly driveInputMaxBytes: () => number;
+  /** 큐에 든 입력이 있는가. 첫 메시지 뒤의 전환이 건 시작은 먼저 보낸 입력이 모두 처리된 뒤에 부여한다(AGE-64) */
+  readonly hasQueuedInput: (threadId: ThreadId) => boolean;
 }
 
 // ── 경계 신호 (X.primitives.spec §3.5) ────────────────────────────────────
@@ -272,7 +274,28 @@ export interface StartRequest {
   readonly parentLeaseId: string | null;
   /** 기록(`lease.requested`)이 끝났다. 끝나기 전에는 부여하지 않는다. 기록하지 않는 요청은 처음부터 참 */
   recorded: boolean;
+  /**
+   * 프로필 전환이 낸 시작: 스택이 차 있어도 버리지 않고 스택이 빌 때까지 기다린다(AGE-64). 기록하지 않는다
+   * (재시작 뒤에는 열기가 같은 시작 요청을 다시 낸다)
+   */
+  readonly waitStack?: boolean;
+  /**
+   * 첫 메시지 뒤의 전환이 낸 시작: 도는 turn이 끝나고 유휴가 된 경계에서만 부여하고, 사용자 메시지를 이 시작에 보류하지 않는다
+   * (메시지가 먼저 코어 루프에서 처리된다). 부여된 프레임은 메시지를 기다리지 않고 바로 첫 단계를 돈다
+   */
+  readonly afterTurn?: boolean;
 }
+
+/** `ExtHost.switchStartDrive`의 결과 */
+export type SwitchStartDriveOutcome =
+  /** 시작 요청을 걸었다. 다음 경계에서 부여된다 */
+  | "requested"
+  /** 도는 turn이나 이미 일하는 Drive가 끝난 뒤에 시작하도록 걸어 두었다 */
+  | "deferred"
+  /** 새 시작 Drive가 이미 이 대화를 쥐고 있어 바꿀 것이 없다 */
+  | "leading"
+  /** 새 프로필에 시작 Drive가 없다 */
+  | "none";
 
 /** `ExtHost.startDrive`의 거부. 예상 가능한 실패라 값으로 돌려준다 */
 export type StartDriveError =

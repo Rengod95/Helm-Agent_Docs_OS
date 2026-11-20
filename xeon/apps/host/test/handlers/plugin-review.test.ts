@@ -108,6 +108,23 @@ test("a path outside the snapshot answers pluginReview.pathInvalid (3653)", asyn
   expect(error.code).toBe(3653);
 });
 
+test("pluginReview.file passes the side to the port and answers its result unchanged", async () => {
+  const asked: (string | undefined)[] = [];
+  const handlers = createPluginReviewHandlers(
+    partial<PluginReviewPort>({
+      file: (_itemId, path, side) => {
+        asked.push(side);
+        return Promise.resolve(ok({ path, text: null, truncated: false, missing: true }));
+      },
+    }),
+  );
+  expect(
+    await handlers["pluginReview.file"]({ itemId: "rvw_a", path: "a.md", side: "base" }, CONTEXT),
+  ).toEqual({ path: "a.md", text: null, truncated: false, missing: true });
+  await handlers["pluginReview.file"]({ itemId: "rvw_a", path: "a.md" }, CONTEXT);
+  expect(asked).toEqual(["base", undefined]);
+});
+
 test("a successful review answers its result unchanged", async () => {
   const handlers = createPluginReviewHandlers(
     partial<PluginReviewPort>({ submitDraft: () => Promise.resolve(ok({ itemId: "rvw_b" })) }),

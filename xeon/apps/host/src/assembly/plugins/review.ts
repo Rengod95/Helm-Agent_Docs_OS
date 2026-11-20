@@ -26,6 +26,7 @@ import type {
   PluginDraftFromInstructionResult,
   PluginReviewFileResult,
   Provenance,
+  ReviewFileSide,
   ProfileListResult,
   ReviewDecision,
   ReviewItem,
@@ -189,7 +190,12 @@ export interface PluginReview {
     readonly name?: string;
   }): Promise<Result<{ readonly items: readonly ReviewItem[] }, PluginPortFailure>>;
   get(itemId: string): Promise<Result<{ readonly item: ReviewItem }, PluginPortFailure>>;
-  file(itemId: string, path: string): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
+  /** `side`가 없으면 새 판(`candidate`)이다. `base`는 지난 승인 버전이다 */
+  file(
+    itemId: string,
+    path: string,
+    side?: ReviewFileSide,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
@@ -299,6 +305,8 @@ interface ItemFields {
   readonly diff: WhatItDoesDiff;
   readonly evidence: readonly EvidenceRef[];
   readonly files: ReviewItem["files"];
+  /** 지난 승인 버전의 파일 목록. 읽지 못했거나 비교 대상이 없으면 생략한다 */
+  readonly baseFiles?: ReviewItem["files"];
   readonly removal: ReviewItemRemoval | null;
 }
 
@@ -317,6 +325,7 @@ function pendingItemOf(itemId: string, fields: ItemFields, createdAt: string): R
     diff: fields.diff,
     evidence: [...fields.evidence],
     files: [...fields.files],
+    ...(fields.baseFiles === undefined ? {} : { baseFiles: [...fields.baseFiles] }),
     createdAt,
     decidedAt: null,
     reason: null,
@@ -355,6 +364,16 @@ function hashInUse(items: readonly ReviewItem[], hash: string, except: string): 
 
 function filesOf(folder: PluginFolder): ReviewItem["files"] {
   return folder.files.map((file) => ({ path: file.path, bytes: file.bytes, sha256: file.sha256 }));
+}
+
+/** 지난 승인 버전의 파일 목록. 버전이 없거나 보관소에서 읽지 못하면 비워 둔다(그 항목은 비교 없이 새 내용만 보인다) */
+function baseFilesOf(
+  reviewed: ReviewedVersion | null,
+  origin: PluginOriginKind,
+): { readonly baseFiles?: ReviewItem["files"] } {
+  if (reviewed === null) return {};
+  const read = readPluginFolder(reviewed.treePath, { origin });
+  return read.ok ? { baseFiles: filesOf(read.value) } : {};
 }
 
 /** 트리 해시 오류를 초안·제출의 실패로 옮긴다 */
@@ -627,6 +646,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         diff: diffCards(reviewed.value?.meta.card ?? null, withPurpose),
         evidence: input.evidence,
         files: filesOf(folder),
+        ...baseFilesOf(reviewed.value, input.origin),
         removal: null,
       },
       deps.now(),
@@ -799,6 +819,30 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     );
     if (!removed.ok) return removed;
     return ok({ queued: [...created.value, ...removed.value] });
+  }
+
+  /**
+   * 항목의 한 쪽 스냅샷에서 파일 바이트를 읽는다. 그 쪽 스냅샷이 보관소에 없으면 null이다(`missing`).
+   * 새 판은 대기 중이면 후보 스냅샷이고, 승인된 뒤에는 후보가 승인본 보관소로 옮겨 갔으므로 거기서 읽는다.
+   * 지난 승인 버전은 승인본 보관소에서 읽는다(보관 `KEEP_VERSIONS`개를 넘으면 지워져 null이다)
+   */
+  async function readSnapshotFile(
+    item: ReviewItem,
+    side: ReviewFileSide,
+    hash: string,
+    path: string,
+  ): Promise<Result<Uint8Array | null, PluginPortFailure>> {
+    const keyed = keyOfOrigin(item.card.origin, item.name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
+    const fromReviewed = side === "base" || item.state === "approved";
+    const bytes =
+      fromReviewed && key !== null
+        ? await store.readReviewedFile(key, hash, path)
+        : await store.readCandidateFile(hash, path);
+    if (bytes.ok) return ok(bytes.value);
+    if (bytes.error.kind === "not_found") return ok(null);
+    return err(storeFailure(bytes.error));
   }
 
   async function reloadItems(): Promise<readonly ReviewItem[]> {
@@ -1364,7 +1408,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return ok({ item: read.value });
     },
 
-    file: async (itemId, path) => {
+    file: async (itemId, path, side = "candidate") => {
       const read = await store.readItem(itemId);
       if (!read.ok) {
         return read.error.kind === "not_found"
@@ -1372,16 +1416,15 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
           : err(storeFailure(read.error));
       }
       const item = read.value;
-      // 목록에 없는 경로(상위 이동, 절대 경로 포함)는 스냅샷 밖이다
-      if (item.candidateHash === null || !item.files.some((file) => file.path === path)) {
+      // 목록에 없는 경로(상위 이동, 절대 경로 포함)는 스냅샷 밖이다. 새 판은 `files`, 지난 승인 버전은 `baseFiles`가 가른다
+      const listed = side === "base" ? (item.baseFiles ?? []) : item.files;
+      const hash = side === "base" ? item.baseHash : item.candidateHash;
+      if (hash === null || !listed.some((file) => file.path === path)) {
         return err({ kind: "path_invalid" });
       }
-      const bytes = await store.readCandidateFile(item.candidateHash, path);
-      if (!bytes.ok) {
-        return bytes.error.kind === "not_found"
-          ? err({ kind: "path_invalid" })
-          : err(storeFailure(bytes.error));
-      }
+      const bytes = await readSnapshotFile(item, side, hash, path);
+      if (!bytes.ok) return bytes;
+      if (bytes.value === null) return ok({ path, text: null, truncated: false, missing: true });
       return ok(fileTextOf(path, bytes.value));
     },
 

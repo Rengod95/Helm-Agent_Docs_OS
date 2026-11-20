@@ -22,8 +22,8 @@ import { writePlugin, type PluginFiles } from "./support/plugin-fixture.ts";
 import { makeTempDir, putFile, realLoaderFs } from "./support/real-fs.ts";
 
 const DRAFT_ID = "drf_7f3a9c";
-/** `d` + draftId 앞 여섯 글자(영숫자) + `-` + 플러그인 이름 */
-const INTERNAL = "ddrf7f3-notes";
+/** `d` + draftId 끝 여섯 글자(접두 뗀 영숫자) + `-` + 플러그인 이름 */
+const INTERNAL = "d7f3a9c-notes";
 /** 내용 해시. 판 식별자는 앞 여덟 글자를 쓴다 */
 const HASH = `sha256:abcdef12${"0".repeat(56)}`;
 const signal = new AbortController().signal;
@@ -123,11 +123,16 @@ async function fire(harness: LoaderHarness): Promise<void> {
   );
 }
 
-test("internalDraftName keeps a d, the first six letters or digits of the draftId, and the plugin name, within the name pattern", () => {
+test("internalDraftName keeps a d, the last six letters or digits of the draftId, and the plugin name, within the name pattern", () => {
   expect(internalDraftName("notes", DRAFT_ID)).toBe(INTERNAL);
   expect(internalDraftName("notes", "DRF_7F3A9C")).toBe(INTERNAL);
+  // 같은 때 만든 ULID는 앞(시간)이 같고 끝(무작위)만 다르다: 이름이 겹치지 않는다
+  const a = internalDraftName("note-guard", "drf_01JABCDEFGHJKMNPQRSTVWXYAB");
+  const b = internalDraftName("note-guard", "drf_01JABCDEFGHJKMNPQRSTVWXYCD");
+  expect(a).toBe("dvwxyab-note-guard");
+  expect(b).toBe("dvwxycd-note-guard");
   const long = internalDraftName("a".repeat(40), DRAFT_ID);
-  expect(long).toBe(`ddrf7f3-${"a".repeat(24)}`);
+  expect(long).toBe(`d7f3a9c-${"a".repeat(24)}`);
   expect(long.length).toBe(32);
   expect(new RegExp(EXTENSION_NAME_PATTERN).test(long)).toBe(true);
   expect(new RegExp(EXTENSION_NAME_PATTERN).test(INTERNAL)).toBe(true);

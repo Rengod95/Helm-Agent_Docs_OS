@@ -66,15 +66,25 @@ describe("selectSandboxProvider", () => {
     expect(provider.defaultProtectedPaths({ home: "/h", data: "/d", config: "/c" })).toEqual([]);
   });
 
-  test("darwin adds LaunchAgents and the Library sops key, linux adds systemd user units", () => {
+  test("darwin adds LaunchAgents, the Library sops key and macOS secret folders, linux adds systemd user units and Linux secret folders", () => {
     const dirs = { home: "/h", data: "/d", config: "/c" };
-    const darwin = selectSandboxProvider(input({ platform: "darwin" })).defaultProtectedPaths(dirs);
-    expect(darwin.map((entry) => entry.path)).toEqual([
-      "/h/Library/Application Support/sops/age/keys.txt",
-      "/h/Library/LaunchAgents",
-    ]);
-    const linux = selectSandboxProvider(input({})).defaultProtectedPaths(dirs);
-    expect(linux.map((entry) => entry.path)).toEqual(["/h/.config/systemd/user"]);
+    const darwin = selectSandboxProvider(input({ platform: "darwin" }))
+      .defaultProtectedPaths(dirs)
+      .map((entry) => entry.path);
+    expect(darwin).toContain("/h/Library/Application Support/sops/age/keys.txt");
+    expect(darwin).toContain("/h/Library/LaunchAgents");
+    expect(darwin).toContain("/Library/Keychains");
+    expect(darwin).toContain("/h/Library/Keychains");
+    expect(darwin).toContain("/h/Library/Application Support/Google/Chrome");
+    expect(darwin).not.toContain("/h/.config/google-chrome");
+    const linux = selectSandboxProvider(input({}))
+      .defaultProtectedPaths(dirs)
+      .map((entry) => entry.path);
+    expect(linux).toContain("/h/.config/systemd/user");
+    expect(linux).toContain("/h/.config/google-chrome");
+    expect(linux).toContain("/h/.mozilla");
+    expect(linux).not.toContain("/h/Library/Keychains");
+    expect(linux).not.toContain("/Library/Keychains");
   });
 });
 

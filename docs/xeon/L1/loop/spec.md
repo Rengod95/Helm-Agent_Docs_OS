@@ -361,7 +361,7 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 
 | 위치 | 시점 | 커밋 내용 | 커밋 키 | 체크포인트 |
 |---|---|---|---|---|
-| T1 turn 시작 | 구동기가 turn을 열 때 | `item.recorded`(입력 item들, user·custom) → `input.placed`(큐 입력이면) → `turn.started{inputItemIds, requestId, scopeId, origin, invoked?}`(`scopeId`는 drive turn만, 그 밖은 null. FR-L8. `origin`은 입력 출처, §4.4b. `invoked`는 턴을 연 입력들이 `input.queued.invoked`로 실은 한 턴 덧씌우기 항목의 합집합이고, 없으면 필드를 싣지 않는다. M5c §4.3.2 [제안]) | `turn:<turnId>:start` | 없음 |
+| T1 turn 시작 | 구동기가 turn을 열 때 | `item.recorded`(입력 item들, user·custom) → `input.placed`(큐 입력이면) → `turn.started{inputItemIds, requestId, scopeId, origin, invoked?}`(`scopeId`는 drive turn만, 그 밖은 null. FR-L8. `origin`은 입력 출처, §4.4b. `invoked`는 턴을 연 입력들이 `input.queued.invoked`로 실은 한 턴 덧씌우기 항목의 합집합이고, 없으면 필드를 싣지 않는다. M5c §4.3.2, 이름 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]) | `turn:<turnId>:start` | 없음 |
 | T2 단계 시작 | 루프 `openStep` | `step.started{stepIndex}` | `step:<turnId>:<i>:start` | 없음 |
 | T3 응답 확정 | 루프 `commitResponse`, `boundary.message.after` chain 뒤 | 도구 선언 차이 system item(`fresnel.models`가 계산, adr.0009 §3.5)의 `item.recorded` → `part.recorded`×N → `item.recorded`(assistant) | `resp:<turnId>:<i>` | 도구 호출이 있으면 `checkpoint.step{next:"tools", pendingToolCalls}` |
 | (도구) | L1.tools | `effect.intent`, `effect.exec`, `effect.result` + toolResult `item.recorded` | L1.tools.spec | L1.tools.spec |

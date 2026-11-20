@@ -284,7 +284,7 @@ export interface LoadOptions {
    */
   readonly projects?: "cwd" | "on_demand";
   /**
-   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다.
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다(다른 프로젝트의 같은 이름 승인본이 실리지 않는다. 구분 키는 `프로젝트/이름` 문자열이 아니라 `projectId` 칸이다).
    * 없으면 시작 때 프로젝트 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다(호스트의 `projectIdOf`)
    */
   readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
@@ -309,7 +309,7 @@ export interface LoadProjectOptions {
   /** 호출자가 이미 정한 판정(저장하지 않는다) */
   readonly trustOverride?: boolean;
   /**
-   * 이 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 이 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
    * 없으면 프로젝트 검토본을 하나도 싣지 않는다
    */
   readonly projectId?: string;
@@ -586,7 +586,7 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 
 1. 선언: 매니페스트 `scripts`에 이름이 있어야 한다. 없으면 `script_not_declared`.
 2. 위치: 파일 이름이 절대 경로, `..`, 백슬래시, NUL이면 `script_outside_tree`. 실제 위치(심볼릭 링크를 푼 것)가 확장 폴더 밖이면 `script_outside_tree`. 찾지 못하거나 일반 파일이 아니면(폴더 포함) `script_missing`. 파일 시스템 오류도 찾지 못한 것으로 본다.
-3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 승인 카드를 거쳐 뜬다(드래프트 승인 `auto`인 테스트 런은 카드 없음, 그 밖에는 스크립트마다 처음 한 번만 묻고 같은 초안 내용의 같은 스크립트는 그 테스트 런 동안 다시 묻지 않는다. `[결정: 2026-11-19, 사용자, AGE-58]`, L1.tools §4.6.1 6c). 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 카드는 `uses`(`system_tools`: `/bin`, `/usr/bin`의 도구를 읽고 실행, `network`: 격리 플러그인과 같은 네트워크)도 싣는다: 승인하면 이 스크립트가 시스템 도구와 네트워크를 쓸 수 있다는 것이 카드에서 읽힌다. 쓰기와 폴더 밖 데이터 읽기는 목록에 없고 막혀 있다 [제안, AGE-58]. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). 스크립트 실행기가 도는 샌드박스는 도구를 막아도 네이티브 호출로 열리는 길(다른 프로세스 정보, IOKit 속성, 전원 관리, 배포 알림, LaunchServices 데이터베이스)을 프로필에서 닫았고, `launchd` 직접 통신은 막을 수 없어 열려 있다(L0.sandbox §4.9, 미결 14). 카드의 "코드 실행" 안내가 이 열림을 사용자에게 알리는 자리다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가": 이 길은 지금대로 두고 카드 안내와 승인에 기댄다. 더 강한 격리는 후속 이슈]. 검토 카드의 스크립트 줄(`CardScript.uses`)도 같은 `uses`를 싣는다. 실행기 `python3`는 PATH의 shim을 푼 실제 인터프리터의 설치 폴더를 읽기로 열어(`ScriptRunnerDeps.runnerReadRoots`, `IsolationSpawnSpec.runtimeReadRoots`) 돌고, 스크립트 환경에 `PYTHONDONTWRITEBYTECODE=1`을 준다(L0.sandbox §4.9). 가져온 훅 플러그인의 끝까지 시험(훑기 → 적용 → 승인 → 격리 자식의 실제 훅 → 막기·통과, 256 KiB 초과 입력은 묻기 카드)은 `apps/host/test/int/migration-hook-run.int.test.ts`다. [결정: 2026-11-19, 사용자, AGE-58 (3)]
+3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 승인 카드를 거쳐 뜬다(드래프트 승인 `auto`인 테스트 런은 카드 없음, 그 밖에는 스크립트마다 처음 한 번만 묻고 같은 초안 내용의 같은 스크립트는 그 테스트 런 동안 다시 묻지 않는다. `[결정: 2026-11-19, 사용자, AGE-58]`, L1.tools §4.6.1 6c). 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 카드는 `uses`(`system_tools`: `/bin`, `/usr/bin`의 도구를 읽고 실행, `network`: 격리 플러그인과 같은 네트워크)도 싣는다: 승인하면 이 스크립트가 시스템 도구와 네트워크를 쓸 수 있다는 것이 카드에서 읽힌다. 쓰기와 폴더 밖 데이터 읽기는 목록에 없고 막혀 있다 [제안, AGE-58]. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). 스크립트 실행기가 도는 샌드박스는 도구를 막아도 네이티브 호출로 열리는 길(다른 프로세스 정보, IOKit 속성, 전원 관리, 배포 알림, LaunchServices 데이터베이스)을 프로필에서 닫았고, `launchd` 직접 통신은 막을 수 없어 열려 있다(L0.sandbox §4.9, 미결 13). 카드의 "코드 실행" 안내가 이 열림을 사용자에게 알리는 자리다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가": 이 길은 지금대로 두고 카드 안내와 승인에 기댄다. 더 강한 격리는 후속 이슈]. 검토 카드의 스크립트 줄(`CardScript.uses`)도 같은 `uses`를 싣는다. 실행기 `python3`는 PATH의 shim을 푼 실제 인터프리터의 설치 폴더를 읽기로 열어(`ScriptRunnerDeps.runnerReadRoots`, `IsolationSpawnSpec.runtimeReadRoots`) 돌고, 스크립트 환경에 `PYTHONDONTWRITEBYTECODE=1`을 준다(L0.sandbox §4.9). 가져온 훅 플러그인의 끝까지 시험(훑기 → 적용 → 승인 → 격리 자식의 실제 훅 → 막기·통과, 256 KiB 초과 입력은 묻기 카드)은 `apps/host/test/int/migration-hook-run.int.test.ts`다. [결정: 2026-11-19, 사용자, AGE-58 (3)]
 4. 돌려 보기: `replay`면 띄우지 않고 `replay_mode_denied`다. 후보 실행기(`candidate-runner.ts`)도 같은 값으로 거부한다.
 5. 실행기 이름: 조립 루트가 준 `runner(name)`이 절대 경로를 돌려야 한다. 없으면 `spawn_failed`(`code: runner_unavailable`).
 6. 띄우기: `IsolationProcessPort.spawn`이 전부다. 명령은 실행기 절대 경로, 인자는 `[검사를 통과한 실제 파일, ...args]`, `readRoot`는 확장 폴더, 라벨은 `script:<확장>:<스크립트>`다. 환경은 선언된 `envNames` 가운데 허용 값이 있고 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리지 않는 것뿐이다. 샌드박스 프로필을 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일). 샌드박스를 쓸 수 없으면 `sandbox_unavailable`이고 격리 없이 띄우지 않는다.
@@ -1416,7 +1416,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - 격리는 강제다. 설정 `ext.<이름>.isolation`, 매니페스트 `isolation`, 기본 규칙을 보지 않고 언제나 `process`다. 띄우기 포트와 띄우기 설정이 없으면 `isolation_unavailable`로 싣지 않는다. 엔진 안에서 도는 경로가 없다. 매니페스트에 `entry`가 없으면 띄울 코드가 없으므로 `draft_entry_missing`(단계 `isolation`)으로 거부한다.
 - 출처는 사용자 등급(`source: "user"`)이고 신뢰 상한은 §4.6을 따른다.
-- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
+- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자(`drf_` 접두를 뗀 ULID)의 소문자 영숫자 끝 여섯 글자 + `-` + 플러그인 이름. 앞쪽은 시간이라 같은 때 만든 판끼리 겹치므로 무작위인 끝을 쓴다 [구현 2026-11-20, enTr]. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
 - 판 식별자(`versionId`)는 `draft:<draftId>:<내용 해시 앞 8자>`다. 격리 라벨은 `ext:<내부 이름>:<versionId>`다.
 - `LoadedExtensionInfo`는 `isolation: "process"`이고 `name`은 내부 이름이며 `draft: { plugin, draftId }`를 더한다.
 - 로더는 싣기에 성공한 초안을 내부 이름 표로 든다(`loadDraftsOf()`, `draftOf(내부 이름)`). 초안은 이 표로만 구분하고 이름 모양으로 판단하지 않는다.
@@ -1479,6 +1479,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
+- [결정: 2026-11-18, 사용자, AGE-9] 격리 플러그인 프로세스 재시작 한도는 10분 안에 3회를 유지한다(`isolation.maxRestarts` 기본 3, `isolation.restartWindowSec` 기본 600). 코드의 기본도 같다(`isolation/supervisor.ts`의 `PLUGIN_HOST_RESTART_DEFAULTS`).
 - `x.loading-trust.*` 키는 작업 폴더 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
 - `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(작업 폴더의 개인 파일)도 작업 폴더가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 작업 폴더가 `local`로 다시 켤 수 없다.
 - [결정: 2026-11-12 dzX] 조립 루트(`apps/host`)는 재시작할 때 `x.ui.apps`, `x.ui.allowProjectApps`를 읽어 로더 `loadAll`의 `uiPolicy`로 싣는다(`apps/host/src/assembly/settings-sources.ts` `uiPolicyOf`, `apps/host/src/assembly/external.ts` `loadAllOptionsOf`). 불리언이 아닌 칸은 싣지 않아 로더 기본(앱 켬, 작업 폴더 앱 끔)을 쓴다. 작업 폴더 앱 끔이 보수적인 쪽이라 모르는 값도 그쪽으로 간다. 앱 정책 칸은 데스크톱 화면이 설정 값을 직접 읽어 항목을 가리는 일도 맡으므로, 화면과 엔진은 다음 시작까지 값이 어긋날 수 있다 [근거: `apps/desktop/src/plugin-ui/placements.ts`(화면 쪽 `appsAllowed`), `packages/ext-host/src/loading-trust/index.ts` `loadAll` `uiPolicy`].

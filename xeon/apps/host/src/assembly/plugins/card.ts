@@ -308,6 +308,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   return {
     name: folder.name,
     displayName: displayName === "" ? folder.name : displayName,
+    version: manifest.version,
     purpose,
     does: { inject, hook, drive },
     enforcement,
