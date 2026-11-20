@@ -13,8 +13,8 @@ import { testGroup } from "../fixtures/test-group.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// AGE-33 (int, 실제 엔진, 임시 홈): 내부 부품이 모델에 내주는 도구의 수, 그리고 네 부품(host-groups, host-dialog-bridge,
-// host-dialog-area-bridge, host-proposals-bridge)을 기본 프로필에서 빼면 어느 wire 메서드와 도구가 사라지는지를 실제 엔진으로 본다.
+// AGE-33 (int, 실제 엔진, 임시 홈): 내부 부품이 모델에 내주는 도구의 수, 그리고 부품(host-groups, host-dialog-bridge,
+// host-skill-bridge, host-memory-bridge, host-proposals-bridge)을 기본 프로필에서 빼면 어느 wire 메서드와 도구가 사라지는지를 실제 엔진으로 본다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -141,7 +141,10 @@ const UNITS = [
   "cap-mcp",
   "cap-web",
   "cap-knowledge",
-  "host-dialog-area-bridge",
+  "host-goal-bridge",
+  "host-task-bridge",
+  "host-skill-bridge",
+  "host-memory-bridge",
   "host-proposals-bridge",
   "cap-schedule",
 ];
@@ -180,6 +183,7 @@ async function withoutUnit(without: string | undefined) {
       "status.list": await outcome(connection.request("status.list", { threadId })),
       "notify.list": await outcome(connection.request("notify.list", { afterSeq: 0 })),
       "knowledge.skills.list": await outcome(connection.request("knowledge.skills.list", {})),
+      "knowledge.memory.read": await outcome(connection.request("knowledge.memory.read", {})),
       "proposal.list unavailable": JSON.stringify(
         (await connection.request("proposal.list", {})).unavailable,
       ),
@@ -204,6 +208,7 @@ realTest(
     expect(full["status.list"]).toBe("ok");
     expect(full["notify.list"]).toBe("ok");
     expect(full["knowledge.skills.list"]).toBe("ok");
+    expect(full["knowledge.memory.read"]).toBe("ok");
     expect(full["proposal.list unavailable"]).toBe("[]");
     expect(full["group.list"]).toBe(JSON.stringify([full.groupId]));
     expect(full.ask_user).toBe(true);
@@ -221,12 +226,21 @@ realTest(
 );
 
 realTest(
-  "without host-dialog-area-bridge the skills wire method is missing, without host-proposals-bridge proposal.list reports the knowledge queue unavailable, and the other methods stay",
+  "without host-skill-bridge only the skills wire method is missing, without host-memory-bridge only the memory method is missing, and without host-proposals-bridge proposal.list reports the knowledge queue unavailable",
   async () => {
-    const noArea = await withoutUnit("host-dialog-area-bridge");
-    expect(noArea["knowledge.skills.list"]).toBe("jsonrpc.methodNotFound");
-    expect(noArea["command.list"]).toBe("ok");
-    expect(noArea["proposal.list unavailable"]).toBe("[]");
+    const noSkill = await withoutUnit("host-skill-bridge");
+    expect(noSkill["knowledge.skills.list"]).toBe("jsonrpc.methodNotFound");
+    expect(noSkill["knowledge.memory.read"]).toBe("ok");
+    expect(noSkill["command.list"]).toBe("ok");
+
+    const noMemory = await withoutUnit("host-memory-bridge");
+    expect(noMemory["knowledge.memory.read"]).toBe("jsonrpc.methodNotFound");
+    expect(noMemory["knowledge.skills.list"]).toBe("ok");
+
+    // 목표와 태스크 브릿지가 없으면 그 호출은 빈 결과를 낸다(오류가 아니다). 나머지 서비스는 그대로다
+    const noGoalTask = await withoutUnit("host-goal-bridge");
+    expect(noGoalTask["knowledge.skills.list"]).toBe("ok");
+    expect(noGoalTask["knowledge.memory.read"]).toBe("ok");
 
     const noProposals = await withoutUnit("host-proposals-bridge");
     expect(noProposals["proposal.list unavailable"]).toBe(JSON.stringify(["knowledge"]));

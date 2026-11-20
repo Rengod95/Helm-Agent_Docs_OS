@@ -133,9 +133,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Chat interface",
+          "label": "Enable Client Services",
           "labelArgs": {
-            "name": "Chat interface"
+            "name": "Client Services"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -651,29 +651,6 @@
         }
       }
     },
-    "ext.host-dialog-area-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Work-knowledge bridge",
-          "labelArgs": {
-            "name": "Work-knowledge bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.host-dialog-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -686,9 +663,32 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Chat-app bridge",
+          "label": "Enable Ask Service Bridge",
           "labelArgs": {
-            "name": "Chat-app bridge"
+            "name": "Ask Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-goal-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Goal Service Bridge",
+          "labelArgs": {
+            "name": "Goal Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -720,6 +720,29 @@
         }
       }
     },
+    "ext.host-memory-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Memory Service Bridge",
+          "labelArgs": {
+            "name": "Memory Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "ext.host-proposals-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -732,9 +755,55 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Knowledge proposals bridge",
+          "label": "Enable Proposal Service Bridge",
           "labelArgs": {
-            "name": "Knowledge proposals bridge"
+            "name": "Proposal Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-skill-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Skill Service Bridge",
+          "labelArgs": {
+            "name": "Skill Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-task-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Task Service Bridge",
+          "labelArgs": {
+            "name": "Task Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
