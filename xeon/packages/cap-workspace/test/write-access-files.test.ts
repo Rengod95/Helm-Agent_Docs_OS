@@ -57,7 +57,12 @@ function filesSetup(answer: Answer) {
   env.mkdir(`${HOME}/notes`);
   const { port, requests, grantedThreads } = asker(answer);
   const files = createFilesApi(
-    depsFor(env, { protectedPaths: PROTECTED, writeAccess: port, homeDir: HOME }),
+    depsFor(env, {
+      protectedPaths: PROTECTED,
+      writeAccess: port,
+      homeDir: HOME,
+      narrowRoots: true,
+    }),
   );
   return { env, files, requests, grantedThreads };
 }
