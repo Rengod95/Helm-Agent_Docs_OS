@@ -21,6 +21,8 @@ import {
   ProfileListResultSchema,
   ProfileSchema,
   ProfilesFileSchema,
+  START_DRIVE_REJECT_REASONS,
+  ThreadSetProfileResultSchema,
   ThreadProfileViewSchema,
 } from "../../src/wire-settings/wire/profile.ts";
 
@@ -350,5 +352,36 @@ describe("thread lifecycle fields (M5c §3.2)", () => {
     expect(parse(ThreadUpdatedPayloadSchema, { workspace: "/Users/me/app-wt" }).ok).toBe(true);
     expect(parse(ThreadUpdatedPayloadSchema, { workspace: "" }).ok).toBe(false);
     expect(parse(ThreadUpdatedPayloadSchema, { workspace: null }).ok).toBe(false);
+  });
+});
+
+describe("thread.setProfile result startDriveReason", () => {
+  const base = { position: { storeId: "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV", seq: 3 }, preview: {} };
+
+  test("every closed reason round trips next to startDrive rejected", () => {
+    expect(START_DRIVE_REJECT_REASONS).toEqual([
+      "unknown_thread",
+      "child_thread",
+      "unknown_scope",
+      "not_drive",
+      "drive_error",
+    ]);
+    for (const reason of START_DRIVE_REJECT_REASONS) {
+      roundTrip(ThreadSetProfileResultSchema, {
+        ...base,
+        startDrive: "rejected",
+        startDriveReason: reason,
+      });
+    }
+  });
+
+  test("the reason is optional, and a value outside the closed list is refused", () => {
+    roundTrip(ThreadSetProfileResultSchema, { ...base, startDrive: "rejected" });
+    const refused = parse(ThreadSetProfileResultSchema, {
+      ...base,
+      startDrive: "rejected",
+      startDriveReason: "/Users/x/secret: ENOENT",
+    });
+    expect(refused.ok).toBe(false);
   });
 });
