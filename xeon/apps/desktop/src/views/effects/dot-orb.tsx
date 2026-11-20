@@ -63,7 +63,7 @@ const entries = new Set<Entry>();
 let raf = 0;
 let envBound = false;
 
-function isDark(): boolean {
+export function isDark(): boolean {
   const theme = document.documentElement.dataset["theme"];
   if (theme === "dark") return true;
   if (theme === "light") return false;
