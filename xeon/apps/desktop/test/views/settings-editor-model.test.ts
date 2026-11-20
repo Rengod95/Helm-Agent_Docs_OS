@@ -87,9 +87,9 @@ describe("dedicatedEditorOf", () => {
     expect(dedicatedEditorOf(fieldOf("l1.tools.rules", "permissions", "table"))).toBe(
       "permissionRules",
     );
-    expect(dedicatedEditorOf(fieldOf("l0.sandbox.writeRoots.extra", "permissions", "list"))).toBe(
-      "sandboxLists",
-    );
+    expect(
+      dedicatedEditorOf(fieldOf("l0.sandbox.protectedPaths.extra", "permissions", "list")),
+    ).toBe("sandboxLists");
     expect(
       dedicatedEditorOf(fieldOf("l0.sandbox.network.blockedDomains", "permissions", "list")),
     ).toBe("sandboxLists");

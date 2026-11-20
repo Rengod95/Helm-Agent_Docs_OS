@@ -30,11 +30,8 @@ import { RowNote, SettingSection } from "./settings-section.tsx";
 
 const ENABLED_KEY: SettingKey = "l0.sandbox.enabled";
 
-const STATUS_KEYS: readonly SettingKey[] = ["l0.sandbox.onUnavailable", "l0.sandbox.escapeRetry"];
-const WRITE_KEYS: readonly SettingKey[] = [
-  "l0.sandbox.writeRoots.extra",
-  "l0.sandbox.protectedPaths.extra",
-];
+const STATUS_KEYS: readonly SettingKey[] = ["l0.sandbox.onUnavailable"];
+const WRITE_KEYS: readonly SettingKey[] = ["l0.sandbox.protectedPaths.extra"];
 const NETWORK_KEYS: readonly SettingKey[] = ["l0.sandbox.network.blockedDomains"];
 const OTHER_KEYS: readonly SettingKey[] = ["l0.sandbox.nestedNamespaces"];
 
