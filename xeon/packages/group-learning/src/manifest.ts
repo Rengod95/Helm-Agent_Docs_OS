@@ -1,10 +1,10 @@
 import { defineManifest } from "@fresnel/contracts/extensions";
-import { groupManifest, type GroupManifest } from "@fresnel/group-sdk";
+import { orchestrationManifest, type OrchestrationManifest } from "@fresnel/group-sdk";
 import { learningManifestRecordKinds } from "./records.ts";
 
 // L3.learning.spec §3.1 매니페스트. 내장 그룹, 기본 켬 [결정: D-M3-02]. drive를 쓰지 않고 post만 끈다.
 
-export const manifest: GroupManifest = groupManifest(
+export const manifest: OrchestrationManifest = orchestrationManifest(
   defineManifest({
     schemaVersion: 2,
     name: "learning",
@@ -37,6 +37,6 @@ export const manifest: GroupManifest = groupManifest(
         readsRecordKinds: [],
       },
     ],
-    group: {},
+    orchestration: {},
   }),
 );

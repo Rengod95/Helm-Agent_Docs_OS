@@ -2,14 +2,14 @@ import { expect, test } from "bun:test";
 import { defineManifest } from "@fresnel/contracts/extensions";
 import { ExtHostPortKey, hostOf, type ExtHost, SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import type { GroupSettingsSource } from "@fresnel/group-sdk";
+import type { OrchestrationSettingsSource } from "@fresnel/group-sdk";
 import { AssembleError, assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { testGroup } from "../fixtures/test-group.ts";
+import { testOrchestration } from "../fixtures/test-group.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -21,7 +21,7 @@ const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
 interface Captured {
-  settings: GroupSettingsSource | undefined;
+  settings: OrchestrationSettingsSource | undefined;
 }
 
 /** 서비스와 그룹 설정 포트를 붙잡는 시험용 확장 */
@@ -51,7 +51,7 @@ realTest(
   "the group service lists the installed group, and a thread that never led has only the core-loop frame in drive.frames",
   async () => {
     const home = useEngineHome();
-    const group = testGroup(fixedIdFactory(9));
+    const group = testOrchestration(fixedIdFactory(9));
     const captured: Captured = { settings: undefined };
     const host = await startInProcessHost({
       devChecks: true,
@@ -63,7 +63,7 @@ realTest(
 
     // 목록에는 L3 그룹만 오른다(조립 확장과 코어 확장은 그룹이 아니다). 주도한 적 없는 그룹은 drive 역할이 none이다
     const groupId = group.module.manifest.name;
-    expect(await connection.request("group.list", {})).toMatchObject({
+    expect(await connection.request("orchestration.list", {})).toMatchObject({
       groups: [{ id: groupId, drive: "none" }],
     });
 
@@ -90,7 +90,7 @@ realTest(
   30_000,
 );
 
-// X.primitives `x.primitives.driveRequiresGroup`(기본 켜짐): 플러그인 그룹이 아닌 플러그인은 drive를 등록하지 못한다.
+// X.primitives `x.primitives.driveRequiresOrchestration`(기본 켜짐): 플러그인 그룹이 아닌 플러그인은 drive를 등록하지 못한다.
 // 끄면 그룹이 아닌 플러그인도 drive를 등록한다. 설정은 등록 시점(조립 때)에 읽는다
 function plainDriverModule(captured: { ext: ExtHost | undefined }): HostPluginModule {
   return {
@@ -134,7 +134,7 @@ realTest(
         code: "plugin",
         plugin: "drive-plain",
         message:
-          "setup of drive-plain failed: x.primitives.driveRequiresGroup is on and this plugin is not a member of a plugin group",
+          "setup of drive-plain failed: x.primitives.driveRequiresOrchestration is on and this plugin is not a member of a plugin group",
       },
     ]);
     home.dispose();
@@ -143,10 +143,10 @@ realTest(
 );
 
 realTest(
-  "drive policy: with x.primitives.driveRequiresGroup set to false the same plugin registers and stays enabled",
+  "drive policy: with x.primitives.driveRequiresOrchestration set to false the same plugin registers and stays enabled",
   async () => {
     const home = useEngineHome();
-    writeUserSettings(home, { "x.primitives.driveRequiresGroup": false });
+    writeUserSettings(home, { "x.primitives.driveRequiresOrchestration": false });
     const captured: { ext: ExtHost | undefined } = { ext: undefined };
     const host = await startInProcessHost({
       devChecks: true,

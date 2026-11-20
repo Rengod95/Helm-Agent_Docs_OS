@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { defineManifest } from "@fresnel/contracts/extensions";
-import { defineGroup } from "@fresnel/group-sdk";
+import { defineOrchestration } from "@fresnel/group-sdk";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";
 import { callCommand, createRig, type Rig } from "../support/rig.ts";
 
@@ -71,7 +71,7 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
 test("coexist.learning-on-while-helm-holds-lease: another group's on handler and post keep working", async () => {
   const seen: (string | undefined)[] = [];
   const holder: { rig?: Rig } = {};
-  const learn = defineGroup({
+  const learn = defineOrchestration({
     manifest: defineManifest({
       schemaVersion: 2,
       name: "learn-fake",
@@ -79,7 +79,7 @@ test("coexist.learning-on-while-helm-holds-lease: another group's on handler and
       entry: "./src/index.ts",
       trust: { level: "builtin" },
       plugins: [{ layer: "L3", hooks: ["boundary.settle.after"], usesPost: true }],
-      group: {},
+      orchestration: {},
     }),
     setup(g) {
       g.on("boundary.settle.after", async (payload) => {

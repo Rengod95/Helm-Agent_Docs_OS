@@ -11,7 +11,7 @@ import type {
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Command = DriveCommand<never>;
 
@@ -51,7 +51,7 @@ async function install(
   options?: DriveOptions,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(({ last, frame }) => {
         seen.push({ plugin: name, last, calledBy: frame.calledBy, frames: rowsOf(t, thread) });
         return Promise.resolve(decide(last));

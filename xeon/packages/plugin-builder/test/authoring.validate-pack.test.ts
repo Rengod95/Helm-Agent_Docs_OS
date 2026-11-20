@@ -9,7 +9,13 @@ import {
   validateCompositionReport,
   validateExtensionDir,
 } from "@fresnel/core-authoring";
-import { driveGroupFixture, readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
+import {
+  driveOrchestrationFixture,
+  readManifest,
+  readRecord,
+  tempRoot,
+  templateDirs,
+} from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
@@ -20,7 +26,7 @@ async function scaffolded(
 ): Promise<string> {
   const dir = root.path(name);
   if (fixture === "drive-group") {
-    await driveGroupFixture(name, dir, templates);
+    await driveOrchestrationFixture(name, dir, templates);
   } else {
     const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
     if (!made.ok) throw new Error(made.error.message);

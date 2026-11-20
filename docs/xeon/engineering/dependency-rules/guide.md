@@ -155,7 +155,7 @@ import { resolveModel } from "@fresnel/core-models";     // DR-02: 같은 L1
 import { helmSignals } from "@fresnel/group-helm";       // DR-02: P 그룹끼리
 ```
 
-- [결정: review.decisions-2 U-15] `group-sdk`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
+- [결정: review.decisions-2 U-15] `group-sdk`(L3 오케스트레이션 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
 
 ### DR-03 모든 패키지는 `package.json`에 `"fresnel": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 

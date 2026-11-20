@@ -1,8 +1,8 @@
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import {
-  createGuideGroup,
+  createGuideOrchestration,
   createGuideReader,
-  GUIDE_GROUP_NAME,
+  GUIDE_ORCHESTRATION_NAME,
   locateGuideSkills,
   type GuideReader,
 } from "@fresnel/group-guide";
@@ -66,16 +66,16 @@ export function guideSkillRoots(
   threadId: string | undefined,
 ): readonly { readonly dir: string; readonly extension: string }[] {
   return wiring.dir !== undefined && wiring.active(threadId)
-    ? [{ dir: wiring.dir, extension: GUIDE_GROUP_NAME }]
+    ? [{ dir: wiring.dir, extension: GUIDE_ORCHESTRATION_NAME }]
     : [];
 }
 
 /** `ext.list`의 `forcedOn`: 가이드 그룹은 개발 모드에서 켜진 채 잠긴다 */
 export function guideForcedOn(wiring: GuideWiring, name: string): "devMode" | null {
-  return name === GUIDE_GROUP_NAME && wiring.forced() ? "devMode" : null;
+  return name === GUIDE_ORCHESTRATION_NAME && wiring.forced() ? "devMode" : null;
 }
 
 export function guideUnit(loadIndex: number): ExtensionUnit {
-  const module = createGuideGroup();
+  const module = createGuideOrchestration();
   return { manifest: module.manifest, entry: module.entry, loadIndex, builtin: true };
 }

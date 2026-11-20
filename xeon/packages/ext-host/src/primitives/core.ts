@@ -50,10 +50,10 @@ export interface PrimitivesSettingsSource {
   /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장. thread의 session 범위 값까지 합친 실효 값 */
   driveLimits(threadId: ThreadId): DriveLimits;
   /**
-   * x.primitives.driveRequiresGroup(기본 true). 참이면 플러그인 그룹의 구성원이 아닌 플러그인은 drive를 등록하지 못한다
-   * (`drive_requires_group`). 등록 시점(setup)에 읽으므로 Registration을 다시 켜거나 `ext.reload`할 때 바뀐 값이 적용된다
+   * x.primitives.driveRequiresOrchestration(기본 true). 참이면 플러그인 그룹의 구성원이 아닌 플러그인은 drive를 등록하지 못한다
+   * (`drive_requires_orchestration`). 등록 시점(setup)에 읽으므로 Registration을 다시 켜거나 `ext.reload`할 때 바뀐 값이 적용된다
    */
-  driveRequiresGroup(): boolean;
+  driveRequiresOrchestration(): boolean;
   /** x.primitives.capabilityProviders */
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
   /**

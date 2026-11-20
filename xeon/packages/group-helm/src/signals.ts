@@ -1,6 +1,6 @@
 import { assertNever, canonicalJson } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { jsonOf, type SignalDetectedPayload } from "./records.ts";
 import type { AutoStart, HelmSettings } from "./settings.ts";
 import type { HelmPending, HelmSignalKind, HelmState, HelmWatch } from "./state.ts";
@@ -363,7 +363,7 @@ function tallyOf(store: TallyStore, threadId: string, state: Readonly<HelmState>
   return store.get(threadId) ?? openTally(state.watch);
 }
 
-type SignalApi = Pick<GroupApi<HelmState>, "state" | "commit" | "record" | "post">;
+type SignalApi = Pick<OrchestrationApi<HelmState>, "state" | "commit" | "record" | "post">;
 
 /** `tool.execution.after` tap. 메모리 집계만 하고 커밋·기록은 하지 않는다 */
 export function observeTool(

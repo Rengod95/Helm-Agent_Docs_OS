@@ -1,17 +1,17 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { GroupId } from "@fresnel/contracts/extensions";
-import type { GroupMetricsSummary } from "@fresnel/contracts/services";
+import type { OrchestrationId } from "@fresnel/contracts/extensions";
+import type { OrchestrationMetricsSummary } from "@fresnel/contracts/services";
 
-export type { GroupMetricsSummary } from "@fresnel/contracts/services";
+export type { OrchestrationMetricsSummary } from "@fresnel/contracts/services";
 
 /**
  * 그룹 계측 집계(L3.group-sdk.spec §3.12). snapshot은 메모리 카운터만 담는다.
  * denies·chainPatches·handlerErrors는 on 래퍼가, posts·spawns·delegates·commits·records는 wrap이 올린다.
  * tokens·costUsd는 `addUsage`로 더한 값이다. leases·leaseMs와 turn.completed 사용량은 이벤트에서 따로 셈하고(§4.9),
- * 그 값은 `GroupStatus.metrics`에서만 카운터와 합쳐진다. threadId는 모든 thread의 합이라 null이다.
+ * 그 값은 `OrchestrationStatus.metrics`에서만 카운터와 합쳐진다. threadId는 모든 thread의 합이라 null이다.
  */
-export interface GroupMetrics extends GroupMetricsSummary {
-  readonly groupId: GroupId;
+export interface OrchestrationMetrics extends OrchestrationMetricsSummary {
+  readonly groupId: OrchestrationId;
   readonly threadId: ThreadId | null;
   /** first 훅에서 이 그룹 핸들러가 결정(거부)을 돌려준 횟수 */
   readonly denies: number;
@@ -34,17 +34,17 @@ export interface GroupMetrics extends GroupMetricsSummary {
     readonly cacheWrite: number;
   };
   readonly costUsd: number;
-  /** snapshot에서는 0이다. 임대 시간은 `lease.*` 이벤트에서 셈한다(GroupStatus.metrics 참고) */
+  /** snapshot에서는 0이다. 임대 시간은 `lease.*` 이벤트에서 셈한다(OrchestrationStatus.metrics 참고) */
   readonly leaseMs: number;
-  /** snapshot에서는 0이다. 임대 수는 `lease.acquired` 이벤트에서 셈한다(GroupStatus.metrics 참고) */
+  /** snapshot에서는 0이다. 임대 수는 `lease.acquired` 이벤트에서 셈한다(OrchestrationStatus.metrics 참고) */
   readonly leases: number;
 }
 
 /** 카운터 누계에서 snapshot의 id 두 필드를 뺀 값. 계측 기록의 delta 모양이다 */
-export type GroupMetricsTotals = Omit<GroupMetrics, "groupId" | "threadId">;
+export type OrchestrationMetricsTotals = Omit<OrchestrationMetrics, "groupId" | "threadId">;
 
 /** `addUsage`의 인자. 모든 값은 0 이상의 유한한 수다 */
-export interface GroupUsageDelta {
+export interface OrchestrationUsageDelta {
   readonly input: number;
   readonly output: number;
   readonly cacheRead: number;
@@ -52,14 +52,14 @@ export interface GroupUsageDelta {
   readonly costUsd: number;
 }
 
-export interface GroupMetricsHandle {
+export interface OrchestrationMetricsHandle {
   /** 누적값. 순수 조회 */
-  snapshot(): GroupMetrics;
+  snapshot(): OrchestrationMetrics;
   /**
    * 이 그룹이 쓴 토큰과 비용을 누적에 더한다. 음수나 유한하지 않은 값은 호출 계약 위반이라 Bug를 던진다.
    * 그룹 코드가 만든 값이므로 오류 값 대신 버그로 다룬다(TY-24, 자기 코드가 만든 값의 불변 조건)
    */
-  addUsage(delta: GroupUsageDelta): void;
+  addUsage(delta: OrchestrationUsageDelta): void;
 }
 
 /**
@@ -68,5 +68,5 @@ export interface GroupMetricsHandle {
  */
 export interface MetricsRecordedPayload {
   readonly stepId: string;
-  readonly delta: GroupMetricsTotals;
+  readonly delta: OrchestrationMetricsTotals;
 }

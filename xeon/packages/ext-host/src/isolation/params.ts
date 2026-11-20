@@ -10,7 +10,7 @@ import {
   DriveLimitsSchema,
   DriveLockBudgetSchema,
   DriveStepLastSchema,
-  GroupRecordSchema,
+  OrchestrationRecordSchema,
   PluginHostTransferOptionSchema,
   type ScriptRunFailure,
   type ScriptRunResult,
@@ -20,7 +20,7 @@ import {
   type DriveStepParams,
   type DriveStepReply,
   type EventNotifyParams,
-  type GroupRecord,
+  type OrchestrationRecord,
   type HookInvokeParams,
   type HostDisposeParams,
   type HostInitParams,
@@ -290,8 +290,10 @@ export function parsePostReceipt(value: unknown): Result<PostReceipt, ParseError
 }
 
 /** 엔진이 답한 `readRecords` 결과 */
-export function parseGroupRecords(value: unknown): Result<readonly GroupRecord[], ParseError> {
-  return parse(Type.Array(GroupRecordSchema), value);
+export function parseOrchestrationRecords(
+  value: unknown,
+): Result<readonly OrchestrationRecord[], ParseError> {
+  return parse(Type.Array(OrchestrationRecordSchema), value);
 }
 
 const scriptRunResultSchema = Type.Object({

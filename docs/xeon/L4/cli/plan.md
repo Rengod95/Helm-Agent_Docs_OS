@@ -372,8 +372,8 @@ M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확
 | group-new.text-output-next-steps | `test/group-new.test.ts` | unit | 텍스트 출력은 파일 목록과 `bun install`, `bun test` 안내를 보인다 | M3b |
 | group-new.malformed-commands | `test/group-new.test.ts` | unit | `group`, `group new`, 인자 초과, `--dir ""`, 모르는 하위 명령은 사용법 오류다 | M3b |
 | group-new.help-lists-command | `test/group-new.test.ts` | unit | 도움말 개요에 `group new` 줄이 있다 | M3b |
-| group-rules.reserved-names-match-group-sdk | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-sdk `RESERVED_GROUP_NAMES`와 값과 순서가 같다 | M3b |
-| group-rules.pattern-matches-group-sdk | `test/group-rules.test.ts` | unit | 이름 패턴이 group-sdk `GROUP_NAME_PATTERN`과 같다 | M3b |
+| group-rules.reserved-names-match-group-sdk | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-sdk `RESERVED_ORCHESTRATION_NAMES`와 값과 순서가 같다 | M3b |
+| group-rules.pattern-matches-group-sdk | `test/group-rules.test.ts` | unit | 이름 패턴이 group-sdk `ORCHESTRATION_NAME_PATTERN`과 같다 | M3b |
 | group-rules.check-group-name | `test/group-rules.test.ts` | unit | 형식 위반과 예약 이름을 구분해 거부한다 | M3b |
 | group-rules.real-index | `test/group-rules.test.ts` | unit | 실제 `templates/index.json`이 파싱되고 종류별 파일 수가 10, 8, 9다 | M3b |
 | group-rules.index-refuses-other-version | `test/group-rules.test.ts` | unit | `schemaVersion`이 다르면 거부한다 | M3b |

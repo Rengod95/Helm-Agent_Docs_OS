@@ -97,7 +97,7 @@ export interface ExtListPlugin {
   readonly status: RegistrationStatus;
   readonly thread?: RegistrationStatus;
   /** 플러그인 그룹의 구성원이면 참(`group`이 없는 확장은 모두 거짓) */
-  readonly inGroup: boolean;
+  readonly inOrchestration: boolean;
   readonly enabledSource?: EnabledSource;
 }
 const ExtListPluginShape = closed({
@@ -106,7 +106,7 @@ const ExtListPluginShape = closed({
   layer: Type.String({ minLength: 1, maxLength: 16 }),
   status: RegistrationStatusShape,
   thread: Type.Optional(RegistrationStatusShape),
-  inGroup: Type.Boolean(),
+  inOrchestration: Type.Boolean(),
   enabledSource: Type.Optional(EnabledSourceShape),
 });
 
@@ -130,7 +130,7 @@ export interface ExtListEntry {
   /** 유효 층(`effectiveLayer`): 플러그인 층 가운데 가장 높은 층 */
   readonly layer: string;
   /** `group` 선언이 있으면 참 */
-  readonly isGroup: boolean;
+  readonly isOrchestration: boolean;
   readonly version: string;
   readonly location: string;
   /**
@@ -167,7 +167,7 @@ const ExtListEntryShape = closed({
   name: Name,
   displayName: Name,
   layer: Type.String({ minLength: 1, maxLength: 16 }),
-  isGroup: Type.Boolean(),
+  isOrchestration: Type.Boolean(),
   version: Type.String({ minLength: 1, maxLength: 64 }),
   location: Type.String({ maxLength: 4096 }),
   origin: Type.Optional(ExtOriginShape),
@@ -354,14 +354,19 @@ export const ExtTimingsParamsSchema: TUnsafe<Req<ExtTimingsParams>> = Type.Unsaf
   >,
 );
 /** `group.list`(W-24) */
-export interface GroupListParams {
+export interface OrchestrationListParams {
   readonly threadId?: string;
 }
-const GroupListParamsShape2 = request({ threadId: Type.Optional(ThreadRef) });
-export const GroupListParamsSchema: TUnsafe<Req<GroupListParams>> = Type.Unsafe<
-  Req<GroupListParams>
->(GroupListParamsShape2 satisfies SchemaProof<Req<GroupListParams>, typeof GroupListParamsShape2>);
-export interface GroupMetricsSummaryWire {
+const OrchestrationListParamsShape2 = request({ threadId: Type.Optional(ThreadRef) });
+export const OrchestrationListParamsSchema: TUnsafe<Req<OrchestrationListParams>> = Type.Unsafe<
+  Req<OrchestrationListParams>
+>(
+  OrchestrationListParamsShape2 satisfies SchemaProof<
+    Req<OrchestrationListParams>,
+    typeof OrchestrationListParamsShape2
+  >,
+);
+export interface OrchestrationMetricsSummaryWire {
   readonly denies: number;
   readonly posts: number;
   readonly spawns: number;
@@ -377,7 +382,7 @@ const MetricsSummaryShape = closed({
   costUsd: Ms,
   leaseMs: Ms,
 });
-export interface GroupStatusWire {
+export interface OrchestrationStatusWire {
   readonly id: string;
   readonly displayName: string;
   readonly scope: RegistrationStatus;
@@ -385,9 +390,9 @@ export interface GroupStatusWire {
   readonly usesDrive: boolean;
   readonly drive: "holder" | "waiting" | "none" | "error";
   readonly lastError: { readonly kind: string; readonly message: string } | null;
-  readonly metrics: GroupMetricsSummaryWire | null;
+  readonly metrics: OrchestrationMetricsSummaryWire | null;
 }
-const GroupStatusShape = closed({
+const OrchestrationStatusShape = closed({
   id: Name,
   displayName: Name,
   scope: RegistrationStatusShape,
@@ -402,34 +407,39 @@ const GroupStatusShape = closed({
   lastError: Type.Union([closed({ kind: Name, message: Line }), Type.Null()]),
   metrics: Type.Union([MetricsSummaryShape, Type.Null()]),
 });
-export interface GroupListResult {
-  readonly groups: readonly GroupStatusWire[];
+export interface OrchestrationListResult {
+  readonly groups: readonly OrchestrationStatusWire[];
 }
-const GroupListResultShape2 = closed({ groups: Type.Array(GroupStatusShape, { maxItems: 500 }) });
-export const GroupListResultSchema: TUnsafe<GroupListResult> = Type.Unsafe<GroupListResult>(
-  GroupListResultShape2 satisfies SchemaProof<GroupListResult, typeof GroupListResultShape2>,
-);
+const OrchestrationListResultShape2 = closed({
+  groups: Type.Array(OrchestrationStatusShape, { maxItems: 500 }),
+});
+export const OrchestrationListResultSchema: TUnsafe<OrchestrationListResult> =
+  Type.Unsafe<OrchestrationListResult>(
+    OrchestrationListResultShape2 satisfies SchemaProof<
+      OrchestrationListResult,
+      typeof OrchestrationListResultShape2
+    >,
+  );
 
 /** `group.metrics`(W-25) */
-export interface GroupMetricsParams {
+export interface OrchestrationMetricsParams {
   readonly id: string;
   readonly threadId?: string;
   readonly since?: string;
 }
-const GroupMetricsParamsShape2 = request({
+const OrchestrationMetricsParamsShape2 = request({
   id: Name,
   threadId: Type.Optional(ThreadRef),
   since: Type.Optional(Iso),
 });
-export const GroupMetricsParamsSchema: TUnsafe<Req<GroupMetricsParams>> = Type.Unsafe<
-  Req<GroupMetricsParams>
->(
-  GroupMetricsParamsShape2 satisfies SchemaProof<
-    Req<GroupMetricsParams>,
-    typeof GroupMetricsParamsShape2
-  >,
-);
-export interface GroupMetricsFull {
+export const OrchestrationMetricsParamsSchema: TUnsafe<Req<OrchestrationMetricsParams>> =
+  Type.Unsafe<Req<OrchestrationMetricsParams>>(
+    OrchestrationMetricsParamsShape2 satisfies SchemaProof<
+      Req<OrchestrationMetricsParams>,
+      typeof OrchestrationMetricsParamsShape2
+    >,
+  );
+export interface OrchestrationMetricsFull {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly cacheReadTokens: number;
@@ -463,10 +473,10 @@ const MetricsFullShape = closed({
   commits: Count,
   records: Count,
 });
-export interface GroupMetricsResult {
+export interface OrchestrationMetricsResult {
   readonly id: string;
-  /** 계측이 꺼져 있으면(`l3.group-kit.instrumentation = false`) null */
-  readonly metrics: GroupMetricsFull | null;
+  /** 계측이 꺼져 있으면(`l3.orchestration.instrumentation = false`) null */
+  readonly metrics: OrchestrationMetricsFull | null;
   readonly since: string | null;
   /**
    * `since`를 지킬 수 없는 지표 이름. `since`가 없으면 빈 배열이다. 이벤트에서 접는 값(`leases`, `leaseMs`, 토큰, `costUsd`)은 `since`를 지키고,
@@ -475,35 +485,34 @@ export interface GroupMetricsResult {
    */
   readonly sinceIgnoredBy?: readonly string[];
 }
-const GroupMetricsResultShape2 = closed({
+const OrchestrationMetricsResultShape2 = closed({
   id: Name,
   metrics: Type.Union([MetricsFullShape, Type.Null()]),
   since: Type.Union([Iso, Type.Null()]),
   sinceIgnoredBy: Type.Optional(Type.Array(Name, { maxItems: 32 })),
 });
-export const GroupMetricsResultSchema: TUnsafe<GroupMetricsResult> =
-  Type.Unsafe<GroupMetricsResult>(
-    GroupMetricsResultShape2 satisfies SchemaProof<
-      GroupMetricsResult,
-      typeof GroupMetricsResultShape2
+export const OrchestrationMetricsResultSchema: TUnsafe<OrchestrationMetricsResult> =
+  Type.Unsafe<OrchestrationMetricsResult>(
+    OrchestrationMetricsResultShape2 satisfies SchemaProof<
+      OrchestrationMetricsResult,
+      typeof OrchestrationMetricsResultShape2
     >,
   );
 
 /** `group.promotion`(W-26) */
-export interface GroupPromotionParams {
+export interface OrchestrationPromotionParams {
   readonly threadIds?: readonly string[];
 }
-const GroupPromotionParamsShape2 = request({
+const OrchestrationPromotionParamsShape2 = request({
   threadIds: Type.Optional(Type.Array(ThreadRef, { maxItems: 200 })),
 });
-export const GroupPromotionParamsSchema: TUnsafe<Req<GroupPromotionParams>> = Type.Unsafe<
-  Req<GroupPromotionParams>
->(
-  GroupPromotionParamsShape2 satisfies SchemaProof<
-    Req<GroupPromotionParams>,
-    typeof GroupPromotionParamsShape2
-  >,
-);
+export const OrchestrationPromotionParamsSchema: TUnsafe<Req<OrchestrationPromotionParams>> =
+  Type.Unsafe<Req<OrchestrationPromotionParams>>(
+    OrchestrationPromotionParamsShape2 satisfies SchemaProof<
+      Req<OrchestrationPromotionParams>,
+      typeof OrchestrationPromotionParamsShape2
+    >,
+  );
 export interface PromotionCandidate {
   readonly tool: string;
   readonly owner: string;
@@ -516,21 +525,21 @@ const PromotionCandidateShape = closed({
   consumers: Type.Array(Name, { maxItems: 64 }),
   userCalls: Count,
 });
-export interface GroupPromotionResult {
+export interface OrchestrationPromotionResult {
   readonly throughSeq: number;
   readonly threads: number;
   readonly candidates: readonly PromotionCandidate[];
 }
-const GroupPromotionResultShape2 = closed({
+const OrchestrationPromotionResultShape2 = closed({
   throughSeq: Count,
   threads: Count,
   candidates: Type.Array(PromotionCandidateShape, { maxItems: 200 }),
 });
-export const GroupPromotionResultSchema: TUnsafe<GroupPromotionResult> =
-  Type.Unsafe<GroupPromotionResult>(
-    GroupPromotionResultShape2 satisfies SchemaProof<
-      GroupPromotionResult,
-      typeof GroupPromotionResultShape2
+export const OrchestrationPromotionResultSchema: TUnsafe<OrchestrationPromotionResult> =
+  Type.Unsafe<OrchestrationPromotionResult>(
+    OrchestrationPromotionResultShape2 satisfies SchemaProof<
+      OrchestrationPromotionResult,
+      typeof OrchestrationPromotionResultShape2
     >,
   );
 

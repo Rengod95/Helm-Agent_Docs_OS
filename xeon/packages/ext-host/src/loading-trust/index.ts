@@ -1713,7 +1713,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       source: record.source,
       owner: {
         name: manifest.name,
-        ...(manifest.group === undefined ? {} : { group: manifest.group }),
+        ...(manifest.orchestration === undefined ? {} : { orchestration: manifest.orchestration }),
         readsRecordKinds: pluginDeclsOf(manifest).flatMap((decl) => decl.readsRecordKinds ?? []),
       },
       policy: uiPolicy,

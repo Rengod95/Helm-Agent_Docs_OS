@@ -61,7 +61,7 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
     "findings",
   ]);
   expect(checked.manifest?.ui).toEqual(helmUi);
-  expect(checked.manifest?.group?.composition).toEqual(helmComposition);
+  expect(checked.manifest?.orchestration?.composition).toEqual(helmComposition);
   const screens = helmUi.items.flatMap((item) =>
     item.file === undefined ? [] : [join(built.outDir, item.file)],
   );

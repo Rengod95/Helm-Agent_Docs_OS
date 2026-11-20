@@ -45,7 +45,7 @@ A plugin's `register(id, def, setup)` gives a `RegistrationApi`:
 - `capability(key)`: the capability must be in `requires` or `optional`.
 - `onDispose(fn)`: cleanup when the plugin is disabled.
 
-A plugin group's `g` (`GroupApi`, from `defineGroup`) adds: `settings()`, `delegate(spec, options?)`, `delegateStatus(requestId)`, `cancelDelegates(reason?)`, `metrics`, `registerTool(def)`, `registerCommand(name, def)`, `registerMethod(verb, def)` (the verb must be in `methods`), `registerProvider(name, config)`.
+A plugin group's `g` (`OrchestrationApi`, from `defineOrchestration`) adds: `settings()`, `delegate(spec, options?)`, `delegateStatus(requestId)`, `cancelDelegates(reason?)`, `metrics`, `registerTool(def)`, `registerCommand(name, def)`, `registerMethod(verb, def)` (the verb must be in `methods`), `registerProvider(name, config)`.
 
 Replay rules for `on` handlers and drives (the same handler may run again after a crash):
 
@@ -59,8 +59,8 @@ Replay rules for `on` handlers and drives (the same handler may run again after 
 A drive group is a plugin group whose plugin sets `drives: true` and calls `g.drive`. Minimal shape (from the drive template):
 
 ```ts
-const group = defineGroup<State>({
-  manifest: groupManifest(manifestJson), // reads .fresnel-plugin/plugin.json
+const group = defineOrchestration<State>({
+  manifest: orchestrationManifest(manifestJson), // reads .fresnel-plugin/plugin.json
   state: { schema: stateSchema, initial: initialState, version: 1 },
   settings, // defineSettings("ext.<name>", {...})
   setup(g) {
@@ -85,7 +85,7 @@ Rules:
 - `limits` (`maxTurns`, `maxSpawns`, `maxTokens`) caps the drive. A missing field uses the host default, and a value cannot exceed the host ceiling. `loop.budget` shows what is left.
 - One thread has one drive lock. A waiting drive group keeps `on`, `post`, and delegation, but its drive function does not run.
 
-Testing (from the drive template): `checkGroup` (from `@fresnel/group-sdk/testing`) checks setup declarations. `replayDrive` reruns the drive at every commit point and compares the events. The template in `test/replay.test.ts` shows the harness.
+Testing (from the drive template): `checkOrchestration` (from `@fresnel/group-sdk/testing`) checks setup declarations. `replayDrive` reruns the drive at every commit point and compares the events. The template in `test/replay.test.ts` shows the harness.
 
 `scanDriveSource` flags these in drive code: `Date.now` (SD-01), `new Date()` (SD-02), `Math.random` (SD-03), `crypto.randomUUID` (SD-04), `crypto.getRandomValues` (SD-05), `performance.now` (SD-06), `fetch` (SD-07), fs modules and `Bun.file`/`Bun.write` (SD-08), other `Bun.*` (SD-09). SD-10 (warning): state kept outside scope state.
 

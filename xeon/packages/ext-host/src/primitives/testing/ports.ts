@@ -8,7 +8,7 @@ import {
   type Usage,
 } from "@fresnel/contracts/conversation";
 import {
-  GroupRecordSchema,
+  OrchestrationRecordSchema,
   type EnqueueRequest,
   type EnqueueError,
   type EnqueueResult,
@@ -610,7 +610,7 @@ export function memoryRecordStore(): MemoryRecordStore {
           continue;
         }
         // 공개 기록의 payload는 X가 만든 GroupRecord다
-        const record = parse(GroupRecordSchema, payload);
+        const record = parse(OrchestrationRecordSchema, payload);
         if (!record.ok) continue;
         rows.push({
           groupId: record.value.groupId,

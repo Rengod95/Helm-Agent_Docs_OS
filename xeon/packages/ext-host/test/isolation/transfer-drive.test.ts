@@ -27,7 +27,7 @@ const TRANSFER_MAX = 512 * MIB;
 const FRAME_SKELETON = 64 * 1024;
 
 function manifestOf(name: string, file: string): ExtensionManifest {
-  return { ...makeManifest({ name, hooks: [], group: {}, drives: true }), entry: file };
+  return { ...makeManifest({ name, hooks: [], orchestration: {}, drives: true }), entry: file };
 }
 
 const PARENT = manifestOf("ba", "./big-parent-plugin.ts");

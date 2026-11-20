@@ -76,7 +76,7 @@ binds: [xeon/apps/desktop/src/views/**]
 | `web-order.keyboard-move-saves` | 키보드 이동 뒤 `settings.set`이 새 순서로 불림 |
 | `pages.six-states-render` | 화면마다 빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용 상태가 그려짐 |
 | `area.switch-restores-place` | 대화 → LightCraft → 대화로 오가면 같은 대화, 스크롤, 오른쪽 탭 |
-| `runtime-tab.drive-queue-matches-group-status` | 런타임 탭의 보유·대기·거부가 `GroupStatus.drive`와 같고 Helm 밖의 drive 그룹도 보임 |
+| `runtime-tab.drive-queue-matches-group-status` | 런타임 탭의 보유·대기·거부가 `OrchestrationStatus.drive`와 같고 Helm 밖의 drive 그룹도 보임 |
 | `ext-list.exempt-tier-switch-locked` | guard·core tier의 켜짐 토글이 잠김 |
 | `view-host.unknown-widget-placeholder` | 카탈로그 밖 노드만 자리표시, 나머지 트리는 그려짐 |
 | `view-host.ledger-disables-view-only` | 화면 실패 5번 연속이면 그 화면만 `view_disabled`, 확장은 켜짐 |

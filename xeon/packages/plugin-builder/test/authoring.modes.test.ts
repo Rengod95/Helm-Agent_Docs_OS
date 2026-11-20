@@ -55,7 +55,7 @@ for (const mode of ["hook", "inject", "drive"] as const) {
       hooks: root0?.hooks ?? [],
       drives: root0?.drives === true,
       instructions: readManifest(dir).components?.instructions ?? [],
-      group: readManifest(dir).group !== undefined,
+      group: readManifest(dir).orchestration !== undefined,
       entry: manifest["entry"] !== undefined,
     };
     expect(actual).toEqual(EXPECTED[mode]);

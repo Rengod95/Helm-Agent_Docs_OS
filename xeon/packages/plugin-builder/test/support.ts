@@ -28,7 +28,7 @@ export function templateDirs(): TemplateDirs {
  * 드라이브 그룹 뼈대를 group-sdk 템플릿 `drive`에서 복사한다. 제작 도구는 종류가 플러그인 하나뿐이라 그룹 뼈대를 만들지 않으므로,
  * 그룹 시험(검사, 묶기, 재생)은 템플릿 파일을 직접 옮긴다. 목록의 경로에서 첫 칸(`drive/`, `common/`)을 떼고 자리를 채운다.
  */
-export async function driveGroupFixture(
+export async function driveOrchestrationFixture(
   name: string,
   dir: string,
   templates: TemplateDirs,

@@ -1,8 +1,8 @@
 import type { AskCard, ExtensionEntry, RegistrationApi } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
-import { defineGroup, type GroupModule } from "../../src/index.ts";
+import { defineOrchestration, type OrchestrationModule } from "../../src/index.ts";
 import { realHostAccess, wrap } from "../../src/wrap.ts";
-import { groupManifestOf } from "../support/manifests.ts";
+import { orchestrationManifestOf } from "../support/manifests.ts";
 import type { CountingReplayHarness } from "../support/replay-harness.ts";
 import { turnFinished } from "../support/steps.ts";
 
@@ -14,9 +14,9 @@ const STEPS = 3;
  * EV-09 좋은 예: 단계 함수는 커밋된 상태와 직전 결과만 보고 명령을 고른다. 재호출하면 마지막 커밋 상태에서 이어 간다.
  * 턴의 요청 id는 커밋된 상태에서 정한다(엔진이 만든 기본 id는 단계마다 겹칠 수 있다)
  */
-export function goodDriveGroup(): GroupModule {
-  return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name: "good-drive", drives: true }),
+export function goodDriveOrchestration(): OrchestrationModule {
+  return defineOrchestration<{ readonly n: number }>({
+    manifest: orchestrationManifestOf({ name: "good-drive", drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async ({ state, last }) => {
@@ -35,10 +35,10 @@ export function goodDriveGroup(): GroupModule {
 }
 
 /** EV-09 나쁜 예: 단계 함수 밖 클로저 카운터가 진행을 정한다. 재호출하면 처음과 다르게 움직인다 */
-export function badDriveGroup(): GroupModule {
+export function badDriveOrchestration(): OrchestrationModule {
   let calls = 0;
-  return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name: "bad-drive", drives: true }),
+  return defineOrchestration<{ readonly n: number }>({
+    manifest: orchestrationManifestOf({ name: "bad-drive", drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async ({ last }) => {
@@ -58,9 +58,9 @@ export function badDriveGroup(): GroupModule {
 }
 
 /** 커밋을 하지 않는 drive. 재생으로 확인할 것이 없다 */
-export function silentDriveGroup(): GroupModule {
-  return defineGroup({
-    manifest: groupManifestOf({ name: "silent-drive", drives: true }),
+export function silentDriveOrchestration(): OrchestrationModule {
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "silent-drive", drives: true }),
     setup(g) {
       g.drive(async ({ last }) => {
         if (turnFinished(last)) return { do: "yield" };
@@ -83,8 +83,8 @@ function effectGroup(
   name: string,
   harness: CountingReplayHarness,
   keys: (state: number) => string,
-): GroupModule {
-  const manifest = groupManifestOf({ name, drives: true, usesPost: true });
+): OrchestrationModule {
+  const manifest = orchestrationManifestOf({ name, drives: true, usesPost: true });
   const entry: ExtensionEntry = ({ register }) => {
     register(name, { state: EFFECT_STATE }, (api: RegistrationApi<{ readonly n: number }>) => {
       const g = wrap(api, { manifest, state: EFFECT_STATE }, (target) => ({
@@ -120,7 +120,7 @@ function effectGroup(
 }
 
 /** 요청 키가 커밋된 상태 값에서 나온다. 재생해도 같은 키라 효과가 한 번이다 */
-export function onceEffectGroup(harness: CountingReplayHarness): GroupModule {
+export function onceEffectGroup(harness: CountingReplayHarness): OrchestrationModule {
   return effectGroup("once-effects", harness, (n) => `fx:${n}`);
 }
 
@@ -128,7 +128,7 @@ export function onceEffectGroup(harness: CountingReplayHarness): GroupModule {
  * post와 delegate의 요청 키가 클로저 카운터에서 나온다. 끊고 다시 불리면 새 키라 효과가 두 번 난다.
  * 이벤트열은 같다(두 효과는 이벤트를 남기지 않는다)
  */
-export function doubledEffectGroup(harness: CountingReplayHarness): GroupModule {
+export function doubledEffectGroup(harness: CountingReplayHarness): OrchestrationModule {
   let calls = 0;
   return effectGroup("doubled-effects", harness, () => {
     calls += 1;
@@ -156,9 +156,9 @@ const ASK_CARD: AskCard = {
  * 사람 확인을 지나가는 drive 그룹(Y7). 단계마다 `loop.ask`로 묻고, 답이 오면 그 답을 센 수로 커밋한다.
  * ask의 요청 id는 커밋된 상태에서 정하므로 재호출하면 같은 id로 다시 물어 기록된 답을 돌려받는다.
  */
-export function askingDriveGroup(): GroupModule {
-  return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name: "asking-drive", drives: true }),
+export function askingDriveOrchestration(): OrchestrationModule {
+  return defineOrchestration<{ readonly n: number }>({
+    manifest: orchestrationManifestOf({ name: "asking-drive", drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async ({ state, last }) => {

@@ -1,10 +1,10 @@
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 
 // 상태가 없는 정책 그룹이다. state를 두지 않는다.
-const group: GroupModule = defineGroup({
-  manifest: groupManifest(manifestJson),
+const group: OrchestrationModule = defineOrchestration({
+  manifest: orchestrationManifest(manifestJson),
   settings,
   setup(g) {
     // first 훅: 차단 결정을 낸다. 핸들러가 던지면 이 도구 호출은 거부된다(fail-closed)

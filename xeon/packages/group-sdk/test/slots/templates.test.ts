@@ -13,23 +13,23 @@ import {
 } from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
-  checkGroupName,
-  defineGroup,
+  checkOrchestrationName,
+  defineOrchestration,
   TemplateIndexSchema,
-  type GroupModule,
+  type OrchestrationModule,
   type TemplateIndex,
   type TemplateKind,
 } from "../../src/index.ts";
 import { replayDrive } from "../../src/testing/index.ts";
 import { fireSettled, install, serviceRig } from "../support/host.ts";
-import { loadGeneratedGroup } from "../support/load-generated.ts";
-import { groupManifestOf } from "../support/manifests.ts";
+import { loadGeneratedOrchestration } from "../support/load-generated.ts";
+import { orchestrationManifestOf } from "../support/manifests.ts";
 import { createReplayHarness } from "../support/replay-harness.ts";
 import {
   GENERATED_ROOT,
   TEMPLATES_DIR,
   generateTemplate,
-  linkGroupSdk,
+  linkOrchestrationSdk,
   removeGenerated,
 } from "../support/generate-template.ts";
 
@@ -80,8 +80,8 @@ async function generateAndRun<T>(
     const written = await generateTemplate({ kind, name, target: join(root, name) });
     if (!written.ok)
       throw new Error(`generateTemplate(${kind}) failed: ${JSON.stringify(written.error)}`);
-    const linked = await linkGroupSdk(root);
-    if (!linked.ok) throw new Error(`linkGroupSdk failed: ${JSON.stringify(linked.error)}`);
+    const linked = await linkOrchestrationSdk(root);
+    if (!linked.ok) throw new Error(`linkOrchestrationSdk failed: ${JSON.stringify(linked.error)}`);
     return await body(join(root, name));
   } finally {
     removeGenerated(root);
@@ -178,7 +178,7 @@ async function switchOn(t: TestHost, thread: ThreadId, name: string): Promise<vo
  * 재생 시험용: 템플릿 그룹을 기본 켜짐으로 바꾼 같은 그룹. 범위 정의에 defaultEnabled만 더하고 나머지는 그대로 둔다.
  * 재생은 그룹이 도는 동안의 결정성을 보므로 켜진 상태에서 시험한다.
  */
-function enabledByDefault(module: GroupModule): GroupModule {
+function enabledByDefault(module: OrchestrationModule): OrchestrationModule {
   return {
     ...module,
     entry: ({ manifest, register }) =>
@@ -201,7 +201,7 @@ interface PolicyRig {
 
 /** 설정 원천을 붙인 호스트에 그룹 하나를 올리고 세션을 연다. 그룹은 템플릿 기본값(꺼짐)으로 올라간다 */
 async function policyHost(
-  module: GroupModule,
+  module: OrchestrationModule,
   values: (key: string) => unknown,
 ): Promise<PolicyRig> {
   const t = await createTestHost();
@@ -264,15 +264,15 @@ test("template.index-matches-files", async () => {
 });
 
 test("template.name-check-rejects-bad-names", async () => {
-  expect(checkGroupName("focus_lens")).toEqual({
+  expect(checkOrchestrationName("focus_lens")).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "pattern", name: "focus_lens" },
+    error: { kind: "orchestration_name", reason: "pattern", name: "focus_lens" },
   });
-  expect(checkGroupName("core")).toEqual({
+  expect(checkOrchestrationName("core")).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "reserved", name: "core" },
+    error: { kind: "orchestration_name", reason: "reserved", name: "core" },
   });
-  expect(checkGroupName("focus-lens")).toEqual({ ok: true, value: "focus-lens" });
+  expect(checkOrchestrationName("focus-lens")).toEqual({ ok: true, value: "focus-lens" });
 
   // 생성기도 같은 검사를 쓰고, 쓰기 전에 거부한다
   const root = join(GENERATED_ROOT, randomUUID());
@@ -280,7 +280,7 @@ test("template.name-check-rejects-bad-names", async () => {
     const target = join(root, "focus_lens");
     expect(await generateTemplate({ kind: "policy", name: "focus_lens", target })).toEqual({
       ok: false,
-      error: { kind: "group_name", reason: "pattern", name: "focus_lens" },
+      error: { kind: "orchestration_name", reason: "pattern", name: "focus_lens" },
     });
     expect(existsSync(target)).toBe(false);
 
@@ -308,7 +308,7 @@ test("template.manifest-passes-validateManifest", async () => {
       expect(result.issues.filter((found) => found.severity === "error")).toEqual([]);
       expect(result.manifest).toMatchObject({ name: "tpl-manifest", defaultEnabled: false });
       // 그룹 템플릿은 group 선언과 L3 루트 플러그인 하나를 쓴다. drive는 drive 템플릿만 등록하고, 아니면 drives를 적지 않는다
-      expect(result.manifest?.group).toEqual({});
+      expect(result.manifest?.orchestration).toEqual({});
       expect(
         pluginDeclsOf(result.manifest ?? { plugins: [] }).map((plugin) => plugin.layer),
       ).toEqual(["L3"]);
@@ -320,7 +320,7 @@ test("template.manifest-passes-validateManifest", async () => {
       expect(index.templates[kind].drives).toBe(root?.drives === true);
 
       // 실제 등록은 setup이 돌 때 호스트가 validateUsage로 대조한다. 템플릿은 꺼진 상태로 올라가 setup을 건너뛴다
-      const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+      const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
       const t = await createTestHost();
       const installed = await install(t, module);
       expect(installed.issues.filter((found) => found.severity === "error")).toEqual([]);
@@ -379,7 +379,7 @@ test("template.dependencies-match-imports", async () => {
 
 test("template.drive-group-loads-and-toggles", async () => {
   await withGenerated("drive", "tpl-drive", async (dir) => {
-    const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     const { t, thread } = await serviceRig([module]);
     // 로드: 템플릿 기본값은 꺼짐이라 스택도 drive 호출도 없다
     expect(t.host.registration("tpl-drive")?.status).toBe("disabled");
@@ -429,7 +429,7 @@ test("template.drive-group-loads-and-toggles", async () => {
 
 test("template.policy-group-denies-via-first", async () => {
   await withGenerated("policy", "tpl-policy", async (dir) => {
-    const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     const { t, thread } = await policyHost(module, blockedBy("tpl-policy", ["bash"]));
     // 꺼진 기본 상태에서는 막지 않는다
     expect((await callBefore(t, thread, "bash", "tc-off")).decision).toBeUndefined();
@@ -447,7 +447,7 @@ test("template.policy-group-denies-via-first", async () => {
 
 test("template.policy-exception-becomes-deny", async () => {
   await withGenerated("policy", "tpl-policy", async (dir) => {
-    const policy = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const policy = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     const t = await createTestHost();
     // 설정 원천이 읽기에서 던진다. 정책 핸들러의 settings() 호출이 던지므로 핸들러 예외가 된다
     await t.host.registerPlatform({
@@ -464,8 +464,8 @@ test("template.policy-exception-becomes-deny", async () => {
       },
     });
     let laterCalls = 0;
-    const later = defineGroup({
-      manifest: groupManifestOf({ name: "tpl-later", hooks: ["tool.call.before"] }),
+    const later = defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "tpl-later", hooks: ["tool.call.before"] }),
       setup(g) {
         g.on("tool.call.before", () => {
           laterCalls += 1;
@@ -494,7 +494,7 @@ test("template.policy-exception-becomes-deny", async () => {
 
 test("template.policy-group-disable-stops-first-handler", async () => {
   await withGenerated("policy", "tpl-policy", async (dir) => {
-    const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     const { t, thread } = await policyHost(module, blockedBy("tpl-policy", ["bash"]));
     await switchOn(t, thread, "tpl-policy");
     const blockReason = {
@@ -517,10 +517,10 @@ test("template.policy-group-disable-stops-first-handler", async () => {
 
 test("template.replay-test-cuts-at-every-commit", async () => {
   await withGenerated("drive", "tpl-replay", async (dir) => {
-    const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     // 생성된 test/replay.test.ts와 같은 검사를 group-sdk의 재생 하니스로 한다. 생성 파일 자체는 아래 생성 실행 시험이 돌린다
     const report = await replayDrive({
-      group: enabledByDefault(module),
+      orchestration: enabledByDefault(module),
       harness: createReplayHarness(),
     });
     expect(report.failure).toBeUndefined();
@@ -535,7 +535,7 @@ test("template.replay-test-cuts-at-every-commit", async () => {
 
 test("template.observe-group-records-turn-count", async () => {
   await withGenerated("observe", "tpl-observe", async (dir) => {
-    const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
+    const module = await loadGeneratedOrchestration(join(dir, "src/index.ts"));
     const t = await createTestHost();
     await install(t, module);
     const thread = t.newThread();

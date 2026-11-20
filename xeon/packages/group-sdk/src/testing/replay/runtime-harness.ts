@@ -14,7 +14,7 @@ import {
   type MemoryLoopPort,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import type { GroupModule } from "../../types.ts";
+import type { OrchestrationModule } from "../../types.ts";
 import { fakeAgents, type FakeAgents } from "../fake-agents.ts";
 import type { ReplayHarness } from "./replay-drive.ts";
 
@@ -161,7 +161,7 @@ export function createRuntimeReplayHarness(
   return {
     agents: () => current?.agents,
     thread: () => current?.thread,
-    async run(group: GroupModule, restore) {
+    async run(group: OrchestrationModule, restore) {
       // 기준 실행이 새 가짜 포트를 만들고, 절단 실행은 그 포트의 멱등 기억을 이어 쓴다
       if (restore === null || shared === undefined) {
         const loop = memoryLoopPort();

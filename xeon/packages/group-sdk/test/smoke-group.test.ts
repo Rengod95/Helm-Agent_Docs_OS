@@ -7,7 +7,11 @@ import type {
 import { validateManifest } from "@fresnel/contracts/extensions";
 import { createTestHost, flushMicrotasks, type TestHost } from "@fresnel/ext-host/testing";
 import * as entry from "../src/index.ts";
-import { SMOKE_GROUP_MANIFEST, checkGroup, smokeGroup } from "../src/testing/index.ts";
+import {
+  SMOKE_ORCHESTRATION_MANIFEST,
+  checkOrchestration,
+  smokeOrchestration,
+} from "../src/testing/index.ts";
 
 const userText: UserMessage = { role: "user", content: "hello", timestamp: 1_700_000_000_002 };
 const assistantStop: AssistantMessage = {
@@ -38,7 +42,7 @@ const toolResult: ToolResultMessage = {
 
 function install(
   t: TestHost,
-  group: ReturnType<typeof smokeGroup>,
+  group: ReturnType<typeof smokeOrchestration>,
 ): ReturnType<TestHost["host"]["install"]> {
   return t.host.install({
     manifest: group.manifest,
@@ -53,13 +57,13 @@ test("group-sdk entry loads", () => {
 });
 
 test("smoke.manifest-passes-validation", async () => {
-  const validated = validateManifest(SMOKE_GROUP_MANIFEST);
+  const validated = validateManifest(SMOKE_ORCHESTRATION_MANIFEST);
   expect(validated.issues).toEqual([]);
   expect(validated.manifest?.name).toBe("smoke-group");
 
   // 실제 등록은 호스트가 setup 직후 validateUsage로 대조한다
   const t = await createTestHost();
-  const installed = await install(t, smokeGroup());
+  const installed = await install(t, smokeOrchestration());
   expect(installed.setups[0]?.status).toBe("applied");
   expect(installed.issues).toEqual([]);
   expect(t.diagnostics).toEqual([]);
@@ -68,7 +72,7 @@ test("smoke.manifest-passes-validation", async () => {
 test("smoke.uses-on-post-drive-in-one-turn", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  const group = smokeGroup();
+  const group = smokeOrchestration();
   await install(t, group);
   await t.host.openThread(thread);
   await t.settled();
@@ -148,7 +152,7 @@ test("smoke.toggle-applies-at-step-boundary", async () => {
     },
   });
   const thread = t.newThread();
-  await install(t, smokeGroup());
+  await install(t, smokeOrchestration());
   await t.host.openThread(thread);
   await t.settled();
   t.host.startDrive(thread, "smoke-group");
@@ -174,7 +178,7 @@ test("smoke.toggle-applies-at-step-boundary", async () => {
 test("smoke.resume-reads-committed-state", async () => {
   const first = await createTestHost();
   const thread = first.newThread();
-  await install(first, smokeGroup());
+  await install(first, smokeOrchestration());
   await first.host.openThread(thread);
   await first.settled();
   first.host.startDrive(thread, "smoke-group");
@@ -185,7 +189,7 @@ test("smoke.resume-reads-committed-state", async () => {
   const second = await createTestHost({
     shared: { records: first.records, loop: first.loop, queue: first.queue },
   });
-  await install(second, smokeGroup());
+  await install(second, smokeOrchestration());
   await second.host.openThread(thread);
   await second.settled();
   second.host.startDrive(thread, "smoke-group");
@@ -201,10 +205,10 @@ test("smoke.resume-reads-committed-state", async () => {
 });
 
 test("smoke.check-group-has-no-errors", async () => {
-  const group = smokeGroup();
+  const group = smokeOrchestration();
   // M1 테스트 그룹은 defineGroup으로 만든 모듈이다(G-16). 선언과 실제 등록이 맞는다
   expect(group.module.stateVersion).toBe(1);
   expect(group.module.entry).toBe(group.entry);
-  const issues = await checkGroup(group.module);
+  const issues = await checkOrchestration(group.module);
   expect(issues.filter((found) => found.severity === "error")).toEqual([]);
 });

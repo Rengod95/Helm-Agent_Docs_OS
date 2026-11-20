@@ -1,8 +1,8 @@
 import { Bug, canonicalJson, parse } from "@fresnel/contracts";
-import { checkGroupName, GROUP_NAME_PATTERN } from "@fresnel/contracts/services";
+import { checkOrchestrationName, ORCHESTRATION_NAME_PATTERN } from "@fresnel/contracts/services";
 import { orchestrationOf } from "./util.ts";
 import {
-  isGroupExtension,
+  isOrchestrationExtension,
   type CompositionDecl,
   validateManifest,
   type ExtensionEntry,
@@ -13,63 +13,63 @@ import {
 import type { SettingDef, SettingGroup } from "@fresnel/contracts/settings";
 import { stateUpcasters } from "./state.ts";
 import type {
-  GroupDef,
-  GroupDefIssue,
-  GroupDefIssueCode,
-  GroupDefShape,
-  GroupManifest,
-  GroupModule,
-  GroupModuleSettings,
-  GroupSettingDefs,
-  GroupSettingNamespace,
+  OrchestrationDef,
+  OrchestrationDefIssue,
+  OrchestrationDefIssueCode,
+  OrchestrationDefShape,
+  OrchestrationManifest,
+  OrchestrationModule,
+  OrchestrationModuleSettings,
+  OrchestrationSettingDefs,
+  OrchestrationSettingNamespace,
   NoSettings,
 } from "./types.ts";
 import { realHostAccess, wrap } from "./wrap.ts";
 
 export type {
-  GroupApi,
-  GroupDef,
-  GroupDefIssue,
-  GroupDefIssueCode,
-  GroupDefShape,
-  GroupManifest,
-  GroupModule,
-  GroupModuleSettings,
-  GroupSettingDefs,
-  GroupSettingNamespace,
-  GroupSettingValues,
-  GroupStartDriveResult,
+  OrchestrationApi,
+  OrchestrationDef,
+  OrchestrationDefIssue,
+  OrchestrationDefIssueCode,
+  OrchestrationDefShape,
+  OrchestrationManifest,
+  OrchestrationModule,
+  OrchestrationModuleSettings,
+  OrchestrationSettingDefs,
+  OrchestrationSettingNamespace,
+  OrchestrationSettingValues,
+  OrchestrationStartDriveResult,
   NoSettings,
   RunScriptOptions,
 } from "./types.ts";
 export type { StateMigrations } from "./state.ts";
 
 export {
-  checkGroupName,
-  GROUP_NAME_PATTERN,
-  RESERVED_GROUP_NAMES,
-  type GroupNameError,
+  checkOrchestrationName,
+  ORCHESTRATION_NAME_PATTERN,
+  RESERVED_ORCHESTRATION_NAMES,
+  type OrchestrationNameError,
 } from "@fresnel/contracts/services";
 
-function isGroupManifest(manifest: ExtensionManifest): manifest is GroupManifest {
-  return isGroupExtension(manifest) && orchestrationOf(manifest) !== undefined;
+function isOrchestrationManifest(manifest: ExtensionManifest): manifest is OrchestrationManifest {
+  return isOrchestrationExtension(manifest) && orchestrationOf(manifest) !== undefined;
 }
 
 /**
  * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
  * F validateManifest 오류, `group` 선언이나 L3 플러그인이 없으면 Bug를 던진다. 순수 함수
  */
-export function groupManifest(value: unknown): GroupManifest {
+export function orchestrationManifest(value: unknown): OrchestrationManifest {
   const result = validateManifest(value);
   const errors = result.issues.filter((found) => found.severity === "error");
   if (result.manifest === undefined || errors.length > 0) {
     throw new Bug(
-      `groupManifest: invalid manifest: ${errors.map((found) => `${found.code} ${found.path}`).join(", ")}`,
+      `orchestrationManifest: invalid manifest: ${errors.map((found) => `${found.code} ${found.path}`).join(", ")}`,
     );
   }
-  if (!isGroupManifest(result.manifest)) {
+  if (!isOrchestrationManifest(result.manifest)) {
     throw new Bug(
-      `groupManifest: ${result.manifest.name} needs a group declaration and a root plugin with layer L3 (group_missing_orchestration)`,
+      `orchestrationManifest: ${result.manifest.name} needs a group declaration and a root plugin with layer L3 (orchestration_missing)`,
     );
   }
   return result.manifest;
@@ -77,15 +77,21 @@ export function groupManifest(value: unknown): GroupManifest {
 
 // ── 정적 검증 ──────────────────────────────────────────────────────────────
 
-function issue(code: GroupDefIssueCode, path: string, message: string): GroupDefIssue {
+function issue(
+  code: OrchestrationDefIssueCode,
+  path: string,
+  message: string,
+): OrchestrationDefIssue {
   return { severity: "error", code, path, message };
 }
 
 /** 순수 함수. validateManifest(F) 결과와 그룹 규칙을 함께 돌려준다 */
-export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | ManifestIssue)[] {
+export function validateOrchestrationDef(
+  def: OrchestrationDefShape,
+): readonly (OrchestrationDefIssue | ManifestIssue)[] {
   const manifest = withComposition(def.manifest, def.composition);
-  const found: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(manifest).issues];
-  const declared = def.manifest.group?.composition;
+  const found: (OrchestrationDefIssue | ManifestIssue)[] = [...validateManifest(manifest).issues];
+  const declared = def.manifest.orchestration?.composition;
   if (
     def.composition !== undefined &&
     declared !== undefined &&
@@ -95,26 +101,26 @@ export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | 
       issue(
         "composition_conflict",
         "/composition",
-        "def.composition differs from manifest.group.composition: declare it in one place",
+        "def.composition differs from manifest.orchestration.composition: declare it in one place",
       ),
     );
   }
 
-  if (!isGroupManifest(manifest)) {
+  if (!isOrchestrationManifest(manifest)) {
     found.push(
       issue(
-        "group_missing_orchestration",
-        "/manifest/group",
+        "orchestration_missing",
+        "/manifest/orchestration",
         'a group manifest needs a group declaration and a root plugin (no id) with layer "L3"',
       ),
     );
   }
-  if (!checkGroupName(manifest.name).ok) {
+  if (!checkOrchestrationName(manifest.name).ok) {
     found.push(
       issue(
-        "group_name",
+        "orchestration_name",
         "/manifest/name",
-        `group name "${manifest.name}" must match ${GROUP_NAME_PATTERN} and cannot be a reserved name`,
+        `group name "${manifest.name}" must match ${ORCHESTRATION_NAME_PATTERN} and cannot be a reserved name`,
       ),
     );
   }
@@ -171,32 +177,33 @@ function withComposition(
   manifest: ExtensionManifest,
   composition: CompositionDecl | undefined,
 ): ExtensionManifest {
-  if (composition === undefined || manifest.group === undefined) return manifest;
-  return { ...manifest, group: { ...manifest.group, composition } };
+  if (composition === undefined || manifest.orchestration === undefined) return manifest;
+  return { ...manifest, orchestration: { ...manifest.orchestration, composition } };
 }
 
 /** defineGroup이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
 const builtGroups = new WeakSet<object>();
 
 /** value가 이 모듈 인스턴스의 defineGroup이 만든 GroupModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
-export function isGroupModule(value: unknown): value is GroupModule {
+export function isOrchestrationModule(value: unknown): value is OrchestrationModule {
   return typeof value === "object" && value !== null && builtGroups.has(value);
 }
 
 /** 정의를 검증하고 GroupModule을 만든다. 오류가 있으면 Bug를 던진다(§3.3). setup은 실행하지 않는다 */
-export function defineGroup<S = never, const D extends GroupSettingDefs = NoSettings>(
-  def: GroupDef<S, D>,
-): GroupModule {
-  const errors = validateGroupDef(def).filter((found) => found.severity === "error");
+export function defineOrchestration<
+  S = never,
+  const D extends OrchestrationSettingDefs = NoSettings,
+>(def: OrchestrationDef<S, D>): OrchestrationModule {
+  const errors = validateOrchestrationDef(def).filter((found) => found.severity === "error");
   if (errors.length > 0) {
     throw new Bug(
-      `defineGroup(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
+      `defineOrchestration(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
     );
   }
   // 구성 선언은 매니페스트 사본에 채운다(X-16). 매니페스트 상수 자체는 바꾸지 않는다
   const filled = withComposition(def.manifest, def.composition);
-  if (!isGroupManifest(filled)) {
-    throw new Bug(`defineGroup(${def.manifest.name}): manifest is not a group manifest`);
+  if (!isOrchestrationManifest(filled)) {
+    throw new Bug(`defineOrchestration(${def.manifest.name}): manifest is not a group manifest`);
   }
   const entry: ExtensionEntry = ({ register }) => {
     const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
@@ -205,7 +212,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
     );
   };
   const version = def.state?.version ?? 0;
-  const group: GroupModule = {
+  const group: OrchestrationModule = {
     manifest: filled,
     entry,
     ...(def.settings === undefined ? {} : { settings: settingsOf(def.settings) }),
@@ -216,8 +223,8 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
   return group;
 }
 
-function settingsOf<D extends GroupSettingDefs>(
-  group: SettingGroup<GroupSettingNamespace, D>,
-): GroupModuleSettings {
+function settingsOf<D extends OrchestrationSettingDefs>(
+  group: SettingGroup<OrchestrationSettingNamespace, D>,
+): OrchestrationModuleSettings {
   return { namespace: group.namespace, defs: Object.values<SettingDef>(group.defs) };
 }

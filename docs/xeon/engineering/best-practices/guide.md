@@ -25,7 +25,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   - 이 문서는 위 규칙을 바꾸지 않는다. 위 문서와 다르게 읽히는 곳이 있으면 위 문서가 앞선다.
 - 예제 표기:
   - [가정] 예제의 훅 이름(`tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`)은 `F.extensions.spec` §3.4 표의 이름이다. 훅 이름 목록과 fold는 `F.extensions.spec`이 정한다(ADR-0007 §3.3).
-  - [가정] `scope`, `GroupApi`, `LoopHandle`, `Deny`, `PostWhen`, `ScopeId`는 ADR-0007 §3.7 인터페이스 초안의 이름이다. 최종 이름은 `X.primitives.spec`이 정한다. 멱등 키 `requestId`는 브랜드 없는 문자열이다(`F.conversation.spec` §3.5).
+  - [가정] `scope`, `OrchestrationApi`, `LoopHandle`, `Deny`, `PostWhen`, `ScopeId`는 ADR-0007 §3.7 인터페이스 초안의 이름이다. 최종 이름은 `X.primitives.spec`이 정한다. 멱등 키 `requestId`는 브랜드 없는 문자열이다(`F.conversation.spec` §3.5).
   - [가정] `Result`, `ok`, `err`는 `eng.typescript.guide`가 정한 이름이다. 예제는 `{ ok: true; value } | { ok: false; error }` 모양을 쓴다.
   - 이벤트 kind 이름과 envelope 필드(`kind`, `version`, `threadId`, `payload`, `recordedAt`)는 `F.records.spec` §3.1~§3.3과 `eng.events.design` 4.1·4.4·4.5절을 따른다. 쓰기 경로는 `SessionService.commit`이다(`eng.transactions.design` 4.2절, `L1.persistence.spec` §3.3).
 
@@ -105,7 +105,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   }
 
   // 어댑터: 판정 결과를 훅 반환값으로 바꾼다
-  export function setup(g: GroupApi<HelmState>) {
+  export function setup(g: OrchestrationApi<HelmState>) {
     g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWriteCall(call) ? { deny: "helm.readonly_phase" } : undefined));
   }
   ```
@@ -349,7 +349,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   - 큰 값(도구 출력, 이미지, 파일 내용)은 blob으로 빼고 이벤트에는 `BlobRef`만 둔다. blob 파일은 커밋 전에 쓴다(`eng.events.design` EV-04, `eng.transactions.design` TX-04).
   - 대화 쓰기는 `SessionService.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 투영(`p_*`, `cap_*`, `x_*`)은 그 커밋 안에서 투영기가 같은 트랜잭션으로 갱신한다. 코드가 투영 테이블에 직접 쓰지 않는다. 투영은 이벤트에서 다시 만들 수 있어야 한다.
   - 스트리밍 델타는 휘발 이벤트(`session.emitVolatile`, kind `item.updated`)로만 흘린다.
-  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(플러그인 그룹) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
+  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(오케스트레이션 플러그인) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
 - 이유:
   - [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. 큰 출력은 blob + 해시, 토큰 델타는 저장하지 않는다(ADR-0004 §3.1~§3.3).
   - 이벤트는 이미 일어난 일의 기록이라 재생 때 다시 실행하지 않는다. 재생 규칙과 내구·휘발 구분은 `eng.events.design`이 정한다.

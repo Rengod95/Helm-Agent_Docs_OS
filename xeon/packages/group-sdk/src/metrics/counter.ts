@@ -1,10 +1,10 @@
 import { Bug } from "@fresnel/contracts";
-import type { GroupId } from "@fresnel/contracts/extensions";
+import type { OrchestrationId } from "@fresnel/contracts/extensions";
 import type {
-  GroupMetrics,
-  GroupMetricsHandle,
-  GroupMetricsTotals,
-  GroupUsageDelta,
+  OrchestrationMetrics,
+  OrchestrationMetricsHandle,
+  OrchestrationMetricsTotals,
+  OrchestrationUsageDelta,
 } from "./types.ts";
 
 type CounterField =
@@ -19,12 +19,15 @@ type CounterField =
   | "leases";
 
 export interface MetricsCounter {
-  readonly handle: GroupMetricsHandle;
+  readonly handle: OrchestrationMetricsHandle;
   bump(field: CounterField, amount?: number): void;
   /** 마지막으로 기록한 누계 이후의 증가분과, 기록이 성공하면 `markRecorded`에 넘길 현재 누계 */
-  unrecorded(): { readonly delta: GroupMetricsTotals; readonly now: GroupMetricsTotals };
+  unrecorded(): {
+    readonly delta: OrchestrationMetricsTotals;
+    readonly now: OrchestrationMetricsTotals;
+  };
   /** 기록에 성공한 누계를 새 기준으로 삼는다 */
-  markRecorded(now: GroupMetricsTotals): void;
+  markRecorded(now: OrchestrationMetricsTotals): void;
 }
 
 /** 값이 0 이상의 유한한 수인지 본다. addUsage 인자 검사에 쓴다 */
@@ -33,7 +36,7 @@ function isUsageAmount(value: number): boolean {
 }
 
 /** 그룹 하나의 메모리 집계(L3.group-sdk.spec §3.12, §4.9). 프로세스가 뜬 뒤의 값이다 */
-export function createMetricsCounter(groupId: GroupId): MetricsCounter {
+export function createMetricsCounter(groupId: OrchestrationId): MetricsCounter {
   const counts: Record<CounterField, number> = {
     denies: 0,
     chainPatches: 0,
@@ -46,9 +49,9 @@ export function createMetricsCounter(groupId: GroupId): MetricsCounter {
     leases: 0,
   };
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 };
-  let recorded: GroupMetricsTotals = totalsOf();
+  let recorded: OrchestrationMetricsTotals = totalsOf();
 
-  function totalsOf(): GroupMetricsTotals {
+  function totalsOf(): OrchestrationMetricsTotals {
     return {
       ...counts,
       tokens: {
@@ -64,10 +67,10 @@ export function createMetricsCounter(groupId: GroupId): MetricsCounter {
 
   return {
     handle: {
-      snapshot(): GroupMetrics {
+      snapshot(): OrchestrationMetrics {
         return { groupId, threadId: null, ...totalsOf() };
       },
-      addUsage(delta: GroupUsageDelta): void {
+      addUsage(delta: OrchestrationUsageDelta): void {
         const values = [
           delta.input,
           delta.output,
@@ -100,7 +103,10 @@ export function createMetricsCounter(groupId: GroupId): MetricsCounter {
 }
 
 /** 두 누계의 차이. 기록할 증가분을 만든다 */
-function subtractTotals(now: GroupMetricsTotals, before: GroupMetricsTotals): GroupMetricsTotals {
+function subtractTotals(
+  now: OrchestrationMetricsTotals,
+  before: OrchestrationMetricsTotals,
+): OrchestrationMetricsTotals {
   return {
     denies: now.denies - before.denies,
     chainPatches: now.chainPatches - before.chainPatches,

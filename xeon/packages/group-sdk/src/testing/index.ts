@@ -1,6 +1,6 @@
 // @fresnel/group-sdk/testing. 다른 패키지의 testing 서브패스를 import하지 않는다(DR-08).
 export { autoAnswerApprovals, type AutoAnswerApprovals } from "./fake-approvals.ts";
-export { checkGroup } from "./check-group.ts";
+export { checkOrchestration } from "./check-group.ts";
 export {
   fakeAgents,
   type FakeAgents,
@@ -8,7 +8,7 @@ export {
   type FakeCancel,
   type FakeDelegation,
 } from "./fake-agents.ts";
-export { groupCatalogOf } from "./fakes.ts";
+export { orchestrationCatalogOf } from "./fakes.ts";
 export {
   diffEffects,
   effectKindsOf,
@@ -33,10 +33,10 @@ export {
   type DriveScanOptions,
 } from "./scan/scan-drive.ts";
 export {
-  SMOKE_GROUP_MANIFEST,
-  smokeGroup,
-  type SmokeGroup,
-  type SmokeGroupOptions,
-  type SmokeGroupProbe,
-  type SmokeGroupState,
+  SMOKE_ORCHESTRATION_MANIFEST,
+  smokeOrchestration,
+  type SmokeOrchestration,
+  type SmokeOrchestrationOptions,
+  type SmokeOrchestrationProbe,
+  type SmokeOrchestrationState,
 } from "./smoke-group.ts";

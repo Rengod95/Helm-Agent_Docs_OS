@@ -5,7 +5,7 @@ import {
   KnowledgeSearchKey,
   KnowledgeSkillsKey,
 } from "@fresnel/contracts/capabilities";
-import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, type OrchestrationModule } from "@fresnel/group-sdk";
 import {
   createReviewControls,
   registerSettledWatch,
@@ -75,8 +75,8 @@ function knowledgeOf(g: LearningApi): Result<KnowledgePort, KnowledgeFailure> {
  * 학습 그룹 모듈. 조립 루트가 넘기는 의존(시계, 대기열 읽기 면)으로 만든다.
  * 같은 패키지의 default export 대신 팩토리를 둔다: 읽기 면을 주입해야 하기 때문이다(TY-21)
  */
-export function createLearningGroup(deps: LearningDeps): GroupModule {
-  return defineGroup({
+export function createLearningOrchestration(deps: LearningDeps): OrchestrationModule {
+  return defineOrchestration({
     manifest,
     state: learningStateDecl,
     settings: learningSettings,
@@ -124,7 +124,7 @@ export function createLearningGroup(deps: LearningDeps): GroupModule {
       // 취소된 자식의 `agent.settled`는 그룹이 꺼진 동안 구독되지 않으므로, 다시 켠 뒤 첫 turn이 오래된 진행 중 표지를 비우거나 `/learning` 명령 진입이 위임 서비스에 물어 닫는다
       g.onDispose(async () => {
         detach?.();
-        await g.cancelDelegates("group_disabled");
+        await g.cancelDelegates("orchestration_disabled");
       });
     },
   });

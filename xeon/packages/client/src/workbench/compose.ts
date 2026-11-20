@@ -30,7 +30,7 @@ export type GroupComposition =
 
 /** `ext.get`의 매니페스트에서 `group.composition`을 읽는다. 없거나 모양이 맞지 않으면 `none`이다 */
 export function compositionOf(manifest: Readonly<Record<string, unknown>>): GroupComposition {
-  const group = manifest["group"];
+  const group = manifest["orchestration"];
   if (!isRecord(group)) return { kind: "none" };
   const declared = group["composition"];
   if (declared === undefined) return { kind: "none" };
@@ -211,7 +211,7 @@ export function profileInputOf(draft: ProfileDraft): ProfileInput {
   };
 }
 
-/** 새 그룹 이름 규칙(`GROUP_NAME_PATTERN`, group-sdk). 예약 이름은 호스트가 `ext.scaffold`에서 거절한다 */
+/** 새 그룹 이름 규칙(`ORCHESTRATION_NAME_PATTERN`, group-sdk). 예약 이름은 호스트가 `ext.scaffold`에서 거절한다 */
 export const NEW_GROUP_NAME_PATTERN = "^[a-z][a-z0-9-]{1,31}$";
 
 /** "새 그룹"의 시작점. 종류 카탈로그(`ext.kinds`)에서 온다(spec §6.29) */
@@ -514,10 +514,10 @@ export function coreLockedOf(entry: {
 
 /** drive 그룹으로 고를 수 있는 것: 그룹 확장만. 이름 순 */
 export function driverChoicesOf(
-  entries: readonly { readonly name: string; readonly isGroup: boolean }[],
+  entries: readonly { readonly name: string; readonly isOrchestration: boolean }[],
 ): readonly string[] {
   return entries
-    .filter((entry) => entry.isGroup)
+    .filter((entry) => entry.isOrchestration)
     .map((entry) => entry.name)
     .toSorted();
 }

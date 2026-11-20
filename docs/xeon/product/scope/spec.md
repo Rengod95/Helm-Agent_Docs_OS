@@ -216,7 +216,7 @@ foundation-plan.md §7에서 가져오고, 아키텍처 조사 노트(`_research
 |---|---|
 | M0 | on(tap, first, chain), post(steer, followUp, next), drive 락, scope 켜기·끄기의 최소형. 훅 종류 input, request, tool, boundary, session의 선언. |
 | M1 | 테스트용 그룹이 on, post, drive를 실제 루프에서 사용한다. |
-| M2 | `group-sdk`의 `defineGroup`, drive 락 중재, 그룹 상태 레코드. M2에서는 테스트 그룹이 쓴다. |
+| M2 | `group-sdk`의 `defineOrchestration`, drive 락 중재, 그룹 상태 레코드. M2에서는 테스트 그룹이 쓴다. |
 | M3 | Helm 본체가 `group-sdk`을 쓴다(D-a). drive를 쓰지 않는 두 번째 기본 그룹(학습 그룹)과 Helm의 공존. [제안] 제2 그룹은 학습 그룹이고, 그 추가 시 코어 diff 0을 확인한다(`product.vision.spec` S1, 4.4 M3a). |
 
 ## 8. 다른 문서와의 인터페이스

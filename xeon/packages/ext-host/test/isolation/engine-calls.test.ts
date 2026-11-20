@@ -27,7 +27,7 @@ import {
 import type { AnyState } from "../../src/primitives/erased-types.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { echoDefs, makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
+import { echoDefs, makeOrchestrationUnit, makeUnit } from "../primitives/fixtures/support.ts";
 
 const REGISTRATION = "ext-state";
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
@@ -499,7 +499,7 @@ async function driveRig() {
   const seen: { input: JsonValue | null; calledBy: string | null; scope: string | undefined }[] =
     [];
   await t.host.install(
-    makeGroupUnit<AnyState>({ name: "drv-q" }, (g) => {
+    makeOrchestrationUnit<AnyState>({ name: "drv-q" }, (g) => {
       slot.g = g;
       g.drive(({ frame }) => {
         seen.push({

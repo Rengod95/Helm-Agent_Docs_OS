@@ -3,10 +3,10 @@ import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { AgentServicePortKey } from "@fresnel/contracts/services";
-import { defineGroup, type GroupApi } from "../src/index.ts";
+import { defineOrchestration, type OrchestrationApi } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
 import { installInjected } from "./support/injected-group.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 import { fireSettled } from "./support/host.ts";
 
 const SPEC = { agent: "a", task: "t" } as const;
@@ -18,13 +18,13 @@ async function rig(name: string, kind: "on" | "drive") {
   const seen: { results: unknown[] } = { results: [] };
   const manifest =
     kind === "on"
-      ? groupManifestOf({ name, hooks: ["boundary.settle.after"] })
-      : groupManifestOf({ name, drives: true });
+      ? orchestrationManifestOf({ name, hooks: ["boundary.settle.after"] })
+      : orchestrationManifestOf({ name, drives: true });
   const g = await installInjected(
     t,
     manifest,
     () => ({ agents: () => agents }),
-    (api: GroupApi<never>) => {
+    (api: OrchestrationApi<never>) => {
       const run = async (): Promise<void> => {
         seen.results.push(
           await api.delegate({ ...SPEC, requestId: `${name}:1` }),
@@ -54,11 +54,11 @@ test("real-host.delegate-in-on-takes-the-thread-and-signal-from-the-context", as
   // on 핸들러 안에서 delegateStatus와 cancelDelegates는 거부된다
   expect(seen.results[1]).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
   });
   expect(seen.results[2]).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.cancelDelegates", context: "on" },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.cancelDelegates", context: "on" },
   });
   expect(agents.cancels).toEqual([]);
 });
@@ -75,7 +75,11 @@ test("real-host.delegate-in-drive-takes-the-thread-from-the-context", async () =
   expect(seen.results[1]).toMatchObject({ ok: true, status: { state: "running" } });
   expect(seen.results[2]).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.cancelDelegates", context: "drive" },
+    error: {
+      kind: "orchestration.effectNotAllowed",
+      effect: "g.cancelDelegates",
+      context: "drive",
+    },
   });
   expect(agents.cancels).toEqual([]);
 });
@@ -86,7 +90,7 @@ test("real-host.outside-on-and-drive-needs-an-explicit-thread", async () => {
   const spec = { ...SPEC, requestId: "rh-cmd:1" };
   expect(await g.delegate(spec)).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
   const abort = new AbortController();
   const given: ThreadId = thread;
@@ -106,11 +110,11 @@ test("real-host.cancel-delegates-works-inside-on-dispose-after-the-generation-cl
     },
   });
   const results: unknown[] = [];
-  const module = defineGroup({
-    manifest: groupManifestOf({ name: "rh-dispose" }),
+  const module = defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "rh-dispose" }),
     setup(g) {
       g.onDispose(async () => {
-        results.push(await g.cancelDelegates("group_disabled"));
+        results.push(await g.cancelDelegates("orchestration_disabled"));
       });
     },
   });
@@ -124,7 +128,7 @@ test("real-host.cancel-delegates-works-inside-on-dispose-after-the-generation-cl
   // onDispose는 scope의 generation이 닫힌 뒤에 돈다. 포트를 다시 조회하지 않고 setup에서 잡아 둔 서비스로 취소한다
   expect(results).toEqual([{ ok: true, cancelled: false }]);
   expect(agents.cancels).toEqual([
-    { target: { ownerScopeId: "rh-dispose" }, reason: "group_disabled" },
+    { target: { ownerScopeId: "rh-dispose" }, reason: "orchestration_disabled" },
   ]);
   expect(t.diagnostics.filter((entry) => entry.level === "error")).toEqual([]);
 });

@@ -8,7 +8,7 @@ import {
   type MemoryLoopPort,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import { helmGroup } from "../../src/index.ts";
+import { helmOrchestration } from "../../src/index.ts";
 import {
   DEFS,
   callCommand,
@@ -68,8 +68,8 @@ export async function crashAndResume(crash: {
   const thread = first.newThread();
   await installWorld(first, world);
   await first.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
+    manifest: helmOrchestration.manifest,
+    entry: helmOrchestration.entry,
     loadIndex: 4,
     builtin: true,
   });
@@ -83,8 +83,8 @@ export async function crashAndResume(crash: {
   const second = await first.restart();
   await installWorld(second, world);
   await second.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
+    manifest: helmOrchestration.manifest,
+    entry: helmOrchestration.entry,
     loadIndex: 4,
     builtin: true,
   });

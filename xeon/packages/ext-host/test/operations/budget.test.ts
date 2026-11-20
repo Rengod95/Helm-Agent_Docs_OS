@@ -262,7 +262,7 @@ test("budget: drive has no time budget", async () => {
   const thread = t.newThread();
   const gate = deferred<void>();
   await t.host.install(
-    makeUnit({ name: "bud-drive", group: {}, drives: true }, (g) => {
+    makeUnit({ name: "bud-drive", orchestration: {}, drives: true }, (g) => {
       // 단계 함수는 신호를 받지 않는다. 시간 예산이 있었다면 임대가 이 사이에 회수됐을 것이다
       g.drive(async () => {
         await gate.promise;

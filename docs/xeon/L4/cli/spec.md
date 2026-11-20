@@ -523,7 +523,7 @@ export interface GroupTemplatesPort {
 ```
 
 - [spec에 더한 형식] 실패할 수 있는 호출은 `Result`를 돌려준다(`eng.typescript.guide` TY-11). 시험 가짜는 `test/support/group-fs.ts`다. `targetState`는 `isEmptyDir` 대신 세 상태를 준다. 그래야 실패할 때 처음부터 없던 폴더만 지우고 빈 폴더는 남긴다.
-- [결정: 오케스트레이터 기본값] 이름 규칙은 `src/group/rules.ts`가 가진다. `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, 색인 스키마는 `group-sdk`의 값을 옮겨 적은 복사본이다(DR-14). `test/group-rules.test.ts`가 `group-sdk/src/define-group.ts` 텍스트와 비교해 목록이 갈라지면 실패한다.
+- [결정: 오케스트레이터 기본값] 이름 규칙은 `src/group/rules.ts`가 가진다. `ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`, 색인 스키마는 `group-sdk`의 값을 옮겨 적은 복사본이다(DR-14). `test/group-rules.test.ts`가 `group-sdk/src/define-group.ts` 텍스트와 비교해 목록이 갈라지면 실패한다.
 - 검사 순서. 파서가 플래그 충돌(R1)과 이름 형식, 예약 이름(R2 앞부분)을 본다. 명령은 색인을 읽고 설치된 확장 이름과 겹치는지 본다(R2). 대상 폴더가 비어 있는지 본다(R3). 템플릿을 메모리에서 읽고 치환한 뒤에 쓴다. 쓴 뒤 `.fresnel-plugin/plugin.json`을 F `validateManifest`로 검사한다(R4). 오류가 있으면 쓴 것을 지운다. 처음부터 있던 빈 폴더는 지우지 않는다.
 - [결정: 오케스트레이터 기본값] R4 실패는 사용법 오류(2)다. 실패의 원인은 템플릿 결함이지만 명령이 생성 결과를 거부한 것이라 환경 문제(3)로 두지 않았다. 템플릿 위치와 색인, 파일 읽기와 쓰기 실패는 3이다.
 - 치환 자리. `__ID__`는 이름, `__TITLE__`은 이름(표시 이름 옵션은 두지 않는다), `__VERSION__`은 `0.1.0`이다. 파일 내용과 경로에 모두 적용한다. 치환 뒤 경로는 템플릿 묶음 이름(`common`, 종류 이름) 한 마디를 뗀 상대 경로다.
@@ -1238,7 +1238,7 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 25. [미결] `db export`의 저장소 파일 이름(`fresnel.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@fresnel/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@fresnel/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
 27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.
-28. [미결] 기본 그룹 이름 목록의 출처(M3b B4-GRP). `runtime.ts`의 `BUILTIN_GROUP_NAMES`(`helm`, `learning`, `account-rotation`)는 `apps/host/src/assembly/catalog.ts`가 올리는 기본 그룹을 옮겨 적은 값이다. CLI가 host 조립 코드를 import하지 않으려고 둔다(DR-10은 엔진 조립 코드만 허용한다). host가 이름 목록을 내면 그쪽으로 옮기고 이 상수를 없앤다. 그 전까지 기본 그룹을 추가하면 이 목록도 같이 고친다.
+28. [미결] 기본 그룹 이름 목록의 출처(M3b B4-GRP). `runtime.ts`의 `BUILTIN_ORCHESTRATION_NAMES`(`helm`, `learning`, `account-rotation`)는 `apps/host/src/assembly/catalog.ts`가 올리는 기본 그룹을 옮겨 적은 값이다. CLI가 host 조립 코드를 import하지 않으려고 둔다(DR-10은 엔진 조립 코드만 허용한다). host가 이름 목록을 내면 그쪽으로 옮기고 이 상수를 없앤다. 그 전까지 기본 그룹을 추가하면 이 목록도 같이 고친다.
 29. 닫음: 템플릿 패키징(B5-REL). 릴리즈 아카이브는 템플릿을 `group-sdk/templates/`에 싣고, `locateGroupTemplates`가 실행 파일 옆 그 자리를 찾는다. 배치와 탐색 순서는 `L4.release.spec` §3.1과 §3.2이고, 시험은 `test/group-templates-locate.test.ts`와 X11의 `group new`(환경 변수 없이)다.
 30. (닫힘 M4 T-RT2) 생성 패키지의 의존 선언. 생성한 `package.json`은 `@fresnel/contracts`, `@fresnel/group-sdk`(`workspace:*`), `typebox`(`catalog:`)를 적고 drive·policy는 `@fresnel/ext-host`를 개발 의존으로 더한다. 적은 의존은 생성된 코드의 import와 시험이 대조한다.
 31. [미결] `apps/cli/package.json`의 `@fresnel/group-sdk` 워크스페이스 의존은 소스가 쓰지 않는다. knip은 잡지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 작업 범위 밖이다. 다음 정리 때 지운다.

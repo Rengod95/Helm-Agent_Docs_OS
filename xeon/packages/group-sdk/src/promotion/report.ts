@@ -1,5 +1,5 @@
 import type { ToolName } from "@fresnel/contracts/capabilities";
-import type { GroupId, RegistrationId } from "@fresnel/contracts/extensions";
+import type { OrchestrationId, RegistrationId } from "@fresnel/contracts/extensions";
 
 /** 한 도구를 한 scope가 호출한 집계(L3.group-sdk.spec §3.12). 소유 그룹 밖의 scope만 든다 */
 export interface ToolConsumer {
@@ -12,7 +12,7 @@ export interface ToolConsumer {
 
 export interface PromotionCandidate {
   readonly tool: ToolName;
-  readonly owner: GroupId;
+  readonly owner: OrchestrationId;
   /** 소유 그룹을 뺀 소비자. scopeId 순 */
   readonly consumers: readonly ToolConsumer[];
   /** 그룹이 시작하지 않은 turn(사용자 입력 turn)에서의 호출 수. 소비자로 세지 않는다 */
@@ -32,7 +32,7 @@ export interface PromotionReport {
 
 export interface PromotionInput {
   /** 도구 이름 → 등록한 그룹 [가정: X 리소스 등록부] */
-  readonly toolOwners: ReadonlyMap<ToolName, GroupId>;
+  readonly toolOwners: ReadonlyMap<ToolName, OrchestrationId>;
   /**
    * 도구 호출 하나마다 한 항목. `origin`은 그 호출의 turn을 시작한 scope이고, 사용자 입력 turn이면 `"user"`다.
    * `"user"`는 `RegistrationId`(string)와 같은 타입이라 유니온으로 따로 적지 않는다(lint no-redundant-type-constituents).
@@ -62,7 +62,10 @@ function compareText(left: string, right: string): number {
 }
 
 /** 한 도구의 호출을 scope별로 센다. 소유 그룹 자신의 호출과 사용자 입력 호출은 소비자가 아니다 */
-function consumersOf(calls: PromotionInput["calls"], owner: GroupId): readonly ToolConsumer[] {
+function consumersOf(
+  calls: PromotionInput["calls"],
+  owner: OrchestrationId,
+): readonly ToolConsumer[] {
   const tally = new Map<RegistrationId, Tally>();
   for (const call of calls) {
     if (call.origin === USER_ORIGIN || call.origin === owner) continue;

@@ -1,7 +1,7 @@
 import type { ExtensionManifest, PluginDecl } from "@fresnel/contracts/extensions";
-import type { GroupManifest } from "../../src/index.ts";
+import type { OrchestrationManifest } from "../../src/index.ts";
 
-export interface GroupManifestInput {
+export interface OrchestrationManifestInput {
   readonly name: string;
   /** 루트 플러그인(L3)의 on 지점 목록 */
   readonly hooks?: PluginDecl["hooks"];
@@ -16,7 +16,7 @@ export interface GroupManifestInput {
 }
 
 /** validateManifest를 통과하는 그룹 매니페스트. 루트 L3 플러그인 하나와 빈 group 선언을 쓴다 */
-export function groupManifestOf(input: GroupManifestInput): GroupManifest {
+export function orchestrationManifestOf(input: OrchestrationManifestInput): OrchestrationManifest {
   return {
     schemaVersion: 2,
     name: input.name,
@@ -35,7 +35,7 @@ export function groupManifestOf(input: GroupManifestInput): GroupManifest {
         ...(input.requires === undefined ? {} : { requires: input.requires }),
       },
     ],
-    group: {},
+    orchestration: {},
     ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
     ...(input.builtin === false ? {} : { trust: { level: "builtin" } }),
   };

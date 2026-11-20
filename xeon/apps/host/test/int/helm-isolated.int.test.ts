@@ -353,9 +353,9 @@ const BENCH_SAMPLES = 200;
 
 function benchEntry(): string {
   return `import { Type } from "typebox";
-import { defineGroup, groupManifest } from "@fresnel/group-sdk";
-const manifest = groupManifest(${BENCH_MANIFEST});
-const group = defineGroup({
+import { defineOrchestration, orchestrationManifest } from "@fresnel/group-sdk";
+const manifest = orchestrationManifest(${BENCH_MANIFEST});
+const group = defineOrchestration({
   manifest,
   state: { schema: Type.Object({}), initial: {}, version: 1 },
   setup(g) {
@@ -371,7 +371,7 @@ const BENCH_MANIFEST = JSON.stringify({
   name: BENCH_NAME,
   version: "1.0.0",
   entry: "./src/index.ts",
-  group: {},
+  orchestration: {},
   plugins: [{ layer: "L3", drives: true, hooks: [], requires: [], optional: [] }],
 });
 

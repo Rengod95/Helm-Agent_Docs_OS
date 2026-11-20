@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { t as tapeText, tape, tapePlayer } from "@fresnel/core-models/testing";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import { helmGroup } from "../../src/index.ts";
+import { helmOrchestration } from "../../src/index.ts";
 import { WRITE_DENY_REASON } from "../../src/guard.ts";
 import { HelmStateSchema } from "../../src/state.ts";
 import { miniLoop, realTapeClock } from "../support/mini-loop.ts";
@@ -72,8 +72,8 @@ test("uc2.write-deny-and-n-lenses", async () => {
   loop.bind(t);
   await installWorld(t, world);
   await t.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
+    manifest: helmOrchestration.manifest,
+    entry: helmOrchestration.entry,
     loadIndex: 4,
     builtin: true,
   });

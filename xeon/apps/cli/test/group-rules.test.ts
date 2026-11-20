@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  checkGroupName,
+  checkOrchestrationName,
   fillPlaceholders,
-  GROUP_NAME_PATTERN,
+  ORCHESTRATION_NAME_PATTERN,
   isSafeRelativePath,
   parseTemplateIndex,
-  RESERVED_GROUP_NAMES,
+  RESERVED_ORCHESTRATION_NAMES,
   targetPathOf,
 } from "../src/group/rules.ts";
 
@@ -20,53 +20,58 @@ const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "group-sdk");
 const CONTRACTS = join(HERE, "..", "..", "..", "packages", "contracts");
 
 /** 이름 규칙의 정본 파일은 contracts(F)다. group-sdk는 그 값을 다시 내보낸다(AGE-60) */
-function groupSdkSource(): string {
+function orchestrationSdkSource(): string {
   return readFileSync(join(CONTRACTS, "src", "services", "group-names.ts"), "utf8");
 }
 
-/** group-sdk의 `RESERVED_GROUP_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
-function reservedNamesInGroupSdk(source: string): readonly string[] {
-  const block = /RESERVED_GROUP_NAMES: readonly string\[\] = \[([\s\S]*?)\];/.exec(source)?.[1];
+/** group-sdk의 `RESERVED_ORCHESTRATION_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
+function reservedNamesInOrchestrationSdk(source: string): readonly string[] {
+  const block = /RESERVED_ORCHESTRATION_NAMES: readonly string\[\] = \[([\s\S]*?)\];/.exec(
+    source,
+  )?.[1];
   if (block === undefined) return [];
   return [...block.matchAll(/"([^"]*)"/g)].map((match) => match[1] ?? "");
 }
 
-test("the reserved group names match group-sdk's RESERVED_GROUP_NAMES in value and order", () => {
-  const fromKit = reservedNamesInGroupSdk(groupSdkSource());
+test("the reserved group names match group-sdk's RESERVED_ORCHESTRATION_NAMES in value and order", () => {
+  const fromKit = reservedNamesInOrchestrationSdk(orchestrationSdkSource());
   expect(fromKit).toHaveLength(23);
-  expect([...RESERVED_GROUP_NAMES]).toEqual([...fromKit]);
+  expect([...RESERVED_ORCHESTRATION_NAMES]).toEqual([...fromKit]);
 });
 
-test("the name pattern matches group-sdk's GROUP_NAME_PATTERN", () => {
-  const match = /GROUP_NAME_PATTERN: string = "([^"]*)"/.exec(groupSdkSource());
+test("the name pattern matches group-sdk's ORCHESTRATION_NAME_PATTERN", () => {
+  const match = /ORCHESTRATION_NAME_PATTERN: string = "([^"]*)"/.exec(orchestrationSdkSource());
   expect(match?.[1]).toBe("^[a-z][a-z0-9-]{1,31}$");
-  expect(GROUP_NAME_PATTERN).toBe(match?.[1] ?? "");
+  expect(ORCHESTRATION_NAME_PATTERN).toBe(match?.[1] ?? "");
 });
 
-test("checkGroupName accepts hyphenated names and names only the rules refuse", () => {
-  expect(checkGroupName("focus-lens")).toEqual({ ok: true, value: "focus-lens" });
-  expect(checkGroupName(`a${"b".repeat(31)}`)).toEqual({ ok: true, value: `a${"b".repeat(31)}` });
-  expect(checkGroupName("Focus")).toEqual({
-    ok: false,
-    error: { kind: "group_name", reason: "pattern" },
+test("checkOrchestrationName accepts hyphenated names and names only the rules refuse", () => {
+  expect(checkOrchestrationName("focus-lens")).toEqual({ ok: true, value: "focus-lens" });
+  expect(checkOrchestrationName(`a${"b".repeat(31)}`)).toEqual({
+    ok: true,
+    value: `a${"b".repeat(31)}`,
   });
-  expect(checkGroupName("focus_lens")).toEqual({
+  expect(checkOrchestrationName("Focus")).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "pattern" },
+    error: { kind: "orchestration_name", reason: "pattern" },
   });
-  expect(checkGroupName("a")).toEqual({
+  expect(checkOrchestrationName("focus_lens")).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "pattern" },
+    error: { kind: "orchestration_name", reason: "pattern" },
   });
-  expect(checkGroupName(`a${"b".repeat(32)}`)).toEqual({
+  expect(checkOrchestrationName("a")).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "pattern" },
+    error: { kind: "orchestration_name", reason: "pattern" },
   });
-  expect(checkGroupName("core")).toEqual({
+  expect(checkOrchestrationName(`a${"b".repeat(32)}`)).toEqual({
     ok: false,
-    error: { kind: "group_name", reason: "reserved" },
+    error: { kind: "orchestration_name", reason: "pattern" },
   });
-  expect(checkGroupName("helm")).toEqual({ ok: true, value: "helm" });
+  expect(checkOrchestrationName("core")).toEqual({
+    ok: false,
+    error: { kind: "orchestration_name", reason: "reserved" },
+  });
+  expect(checkOrchestrationName("helm")).toEqual({ ok: true, value: "helm" });
 });
 
 test("the real templates/index.json parses and lists 10, 8 and 9 files for drive, policy and observe", () => {

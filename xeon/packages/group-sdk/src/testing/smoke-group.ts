@@ -6,15 +6,15 @@ import {
   type StepResult,
 } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
-import { defineGroup } from "../define-group.ts";
-import type { GroupApi, GroupManifest, GroupModule } from "../types.ts";
+import { defineOrchestration } from "../define-group.ts";
+import type { OrchestrationApi, OrchestrationManifest, OrchestrationModule } from "../types.ts";
 
 /**
  * M1 테스트 그룹의 매니페스트(L3.group-sdk.plan G-01). F.extensions.plan의
  * fixtures/smoke-group.manifest.json과 같은 이름·지점·선언을 쓴다.
  * M2(G-16)부터 defineGroup으로 만든다.
  */
-export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
+export const SMOKE_ORCHESTRATION_MANIFEST: OrchestrationManifest = defineManifest({
   schemaVersion: 2,
   name: "smoke-group",
   version: "0.1.0",
@@ -31,16 +31,16 @@ export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
       drives: true,
     },
   ],
-  group: {},
+  orchestration: {},
   trust: { level: "builtin" },
 });
 
-export interface SmokeGroupState {
+export interface SmokeOrchestrationState {
   /** drive가 지금까지 끝낸 turn 명령 횟수. 커밋된 상태에만 둔다(클로저 상태 금지) */
   readonly count: number;
 }
 
-export interface SmokeGroupOptions {
+export interface SmokeOrchestrationOptions {
   /** tool_call에서 거부할 도구 이름. 기본은 쓰기 도구 write, edit */
   readonly denyTools?: readonly string[];
   /** drive가 낼 turn 명령 횟수. 상태 count가 이 값이 되면 멈춘다(yield). 기본 1 */
@@ -53,23 +53,23 @@ export interface SmokeGroupOptions {
 }
 
 /** 시험이 그룹의 동작을 볼 수 있게 핸들러가 남기는 기록 */
-export interface SmokeGroupProbe {
+export interface SmokeOrchestrationProbe {
   readonly deniedCalls: string[];
   readonly turnEndSteps: string[];
   readonly posts: string[];
 }
 
-export interface SmokeGroup {
-  readonly manifest: GroupManifest;
+export interface SmokeOrchestration {
+  readonly manifest: OrchestrationManifest;
   readonly entry: ExtensionEntry;
   /** defineGroup이 만든 모듈. manifest와 entry는 이 모듈의 것이다 */
-  readonly module: GroupModule;
-  readonly probe: SmokeGroupProbe;
+  readonly module: OrchestrationModule;
+  readonly probe: SmokeOrchestrationProbe;
 }
 
 const DEFAULT_DENY_TOOLS: readonly string[] = ["write", "edit"];
 
-const SMOKE_STATE: StateDecl<SmokeGroupState> = {
+const SMOKE_STATE: StateDecl<SmokeOrchestrationState> = {
   schema: Type.Object({ count: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
   initial: { count: 0 },
   version: 1,
@@ -77,10 +77,10 @@ const SMOKE_STATE: StateDecl<SmokeGroupState> = {
 
 /** 단계 함수의 명령. 턴의 결과가 돌아왔으면 커밋하고, 목표 턴 수에 닿았으면 주도권을 유지한 채 기다리고, 아니면 턴을 낸다 */
 function smokeStep(
-  state: Readonly<SmokeGroupState>,
+  state: Readonly<SmokeOrchestrationState>,
   last: StepResult | null,
   driveTurns: number,
-): DriveCommand<SmokeGroupState> {
+): DriveCommand<SmokeOrchestrationState> {
   // 사용자의 첫 메시지는 시작 주도의 첫 단계 입력이다(AGE-47). 아직 낼 턴이 남았으면 그 메시지가 첫 턴을 시작하게 한다(메시지 내용은 쓰지 않는다)
   const starting = last === null || (last.kind === "user" && state.count < driveTurns);
   if (!starting) {
@@ -97,8 +97,8 @@ function smokeStep(
 }
 
 function registerSmoke(
-  g: GroupApi<SmokeGroupState>,
-  probe: SmokeGroupProbe,
+  g: OrchestrationApi<SmokeOrchestrationState>,
+  probe: SmokeOrchestrationProbe,
   denyTools: ReadonlySet<string>,
   driveTurns: number,
   followUps: number,
@@ -122,13 +122,13 @@ function registerSmoke(
 }
 
 /** M1 테스트 그룹. on(tool.call.before, boundary.step.after), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */
-export function smokeGroup(options: SmokeGroupOptions = {}): SmokeGroup {
+export function smokeOrchestration(options: SmokeOrchestrationOptions = {}): SmokeOrchestration {
   const denyTools = new Set(options.denyTools ?? DEFAULT_DENY_TOOLS);
   const driveTurns = options.driveTurns ?? 1;
   const followUps = options.followUps ?? Number.POSITIVE_INFINITY;
-  const probe: SmokeGroupProbe = { deniedCalls: [], turnEndSteps: [], posts: [] };
-  const module = defineGroup<SmokeGroupState>({
-    manifest: SMOKE_GROUP_MANIFEST,
+  const probe: SmokeOrchestrationProbe = { deniedCalls: [], turnEndSteps: [], posts: [] };
+  const module = defineOrchestration<SmokeOrchestrationState>({
+    manifest: SMOKE_ORCHESTRATION_MANIFEST,
     state: SMOKE_STATE,
     setup(g) {
       registerSmoke(g, probe, denyTools, driveTurns, followUps);

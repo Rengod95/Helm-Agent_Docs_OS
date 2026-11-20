@@ -2,7 +2,7 @@ import { assertNever, attemptAsync, err, ok, parse, type Result } from "@fresnel
 import {
   effectiveLayer,
   HOOKS,
-  isGroupExtension,
+  isOrchestrationExtension,
   pluginsOf,
   type ExtensionManifest,
   type HookName,
@@ -18,7 +18,7 @@ import {
   type McpToolInfo,
 } from "@fresnel/contracts/capabilities";
 import { BLOCK_MODEL } from "@fresnel/contracts/blocks";
-import type { GroupStatus } from "@fresnel/contracts/services";
+import type { OrchestrationStatus } from "@fresnel/contracts/services";
 import type { ScopeStack, SettingCatalog, SettingScope } from "@fresnel/contracts/settings";
 import type {
   CapabilityBinding,
@@ -34,9 +34,9 @@ import type {
   ExtListEntry,
   ExtListPlugin,
   DriveFramesResult,
-  GroupMetricsFull,
-  GroupPromotionResult,
-  GroupStatusWire,
+  OrchestrationMetricsFull,
+  OrchestrationPromotionResult,
+  OrchestrationStatusWire,
   HookEntry,
   HookGuardRiskNote,
   HookHandlerRow,
@@ -68,7 +68,7 @@ import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/pr
 import type { M4HostEnv, M4PortDeps } from "./deps.ts";
 
 // ExtRead 포트 구현(`spec-deltas/t-wa.md` §1). 원천은 `ExtReadSources`가 돌려주는 읽기 값이고(조립 루트가 로더, 실패 장부,
-// `GroupService`, 설정 엔진을 얇게 감싸 넘긴다), 이 파일은 그 값을 wire 모양으로 옮긴다. 값을 새로 계산하지 않는다(§2 1번).
+// `OrchestrationService`, 설정 엔진을 얇게 감싸 넘긴다), 이 파일은 그 값을 wire 모양으로 옮긴다. 값을 새로 계산하지 않는다(§2 1번).
 // 실제 원천은 `ext-read-sources.ts`가 만든다. `EMPTY_EXT_READ_SOURCES`는 시험 대역의 바탕이고 호스트 조립은 쓰지 않는다.
 
 interface SafeModeState {
@@ -186,15 +186,15 @@ export interface ExtReadSources {
     readonly appliesAt: "now" | "nextStepBoundary";
     readonly diagnostics: readonly ExtDiagnostic[];
   }>;
-  /** `GroupService.list()` */
-  groups(): readonly GroupStatus[];
+  /** `OrchestrationService.list()` */
+  groups(): readonly OrchestrationStatus[];
   /** 그룹 하나의 전체 지표. 모르는 그룹은 undefined, 계측이 꺼져 있으면 null */
-  groupMetrics(
+  orchestrationMetrics(
     id: string,
     query: { readonly since: string | undefined; readonly threadId: string | undefined },
-  ): Promise<GroupMetricsFull | null | undefined>;
+  ): Promise<OrchestrationMetricsFull | null | undefined>;
   /** 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
-  promotion(threadIds: readonly string[] | undefined): Promise<GroupPromotionResult>;
+  promotion(threadIds: readonly string[] | undefined): Promise<OrchestrationPromotionResult>;
   /** 주도권 스택의 프레임(`drive.frames`, 맨 아래가 코어 루프). thread가 없으면 빈 목록 */
   driveFrames(threadId: string): Promise<DriveFramesResult>;
   /** 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
@@ -277,7 +277,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   externalHooks: () => [],
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
-  groupMetrics: () => Promise.resolve(undefined),
+  orchestrationMetrics: () => Promise.resolve(undefined),
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
   driveFrames: () => Promise.resolve({ frames: [] }),
   driveFramesChanged: () => () => {},
@@ -635,7 +635,7 @@ export function createExtReadPort(
         layer: entry.decl.layer,
         status: statusOf(entry.registrationId, record.loaded, infos),
         ...(thread === undefined ? {} : { thread }),
-        inGroup: entry.inGroup,
+        inOrchestration: entry.inOrchestration,
         enabledSource: sources.enabledSource(entry.registrationId, threadId),
       };
     });
@@ -645,7 +645,7 @@ export function createExtReadPort(
       name: manifest.name,
       displayName: manifest.displayName ?? manifest.name,
       layer: effectiveLayer(manifest),
-      isGroup: isGroupExtension(manifest),
+      isOrchestration: isOrchestrationExtension(manifest),
       version: manifest.version,
       location: record.location,
       origin: record.origin,
@@ -921,10 +921,10 @@ export function createExtReadPort(
       return ok({ capabilities: bindingsOf() });
     },
 
-    async groupList(params, signal) {
+    async orchestrationList(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      const groups: GroupStatusWire[] = sources.groups().map((group) => {
+      const groups: OrchestrationStatusWire[] = sources.groups().map((group) => {
         const scope =
           params.threadId === undefined
             ? group.scope
@@ -946,14 +946,14 @@ export function createExtReadPort(
       return ok({ groups });
     },
 
-    async groupMetrics(params, signal) {
+    async orchestrationMetrics(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      const metrics = await sources.groupMetrics(params.id, {
+      const metrics = await sources.orchestrationMetrics(params.id, {
         since: params.since,
         threadId: params.threadId,
       });
-      if (metrics === undefined) return err({ kind: "unknown_group", id: params.id });
+      if (metrics === undefined) return err({ kind: "unknown_orchestration", id: params.id });
       return ok({
         id: params.id,
         metrics,
@@ -962,7 +962,7 @@ export function createExtReadPort(
       });
     },
 
-    async groupPromotion(params) {
+    async orchestrationPromotion(params) {
       return ok(await sources.promotion(params.threadIds));
     },
 

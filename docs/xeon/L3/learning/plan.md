@@ -21,7 +21,7 @@ binds: [xeon/packages/group-learning/**]
 |---|---|---|
 | M0 | 없음. 패키지 골격(`export {};`)만 있다 | F 계약 골격, check-layers |
 | M1 | 없음 | F.extensions 훅 타입, X `on`·`post`·`scope` 구현, 이벤트 저장 |
-| M2 | 없음. group-sdk M2 완료가 선행 조건이다 | L3.group-sdk.plan M2(`defineGroup`, `GroupApi`, 도구·명령 등록 `registerTool`·`registerCommand`(G-22)), L2.knowledge.plan(읽기 기능) |
+| M2 | 없음. group-sdk M2 완료가 선행 조건이다 | L3.group-sdk.plan M2(`defineOrchestration`, `OrchestrationApi`, 도구·명령 등록 `registerTool`·`registerCommand`(G-22)), L2.knowledge.plan(읽기 기능) |
 | M3 | 1차 구성요소 전부(LR-01~LR-18, LR-23~LR-28). UC-3 스모크 | M3-new-01(ADR-0015 구현), spec §8.1 REQ-LN-01~11, L1.agents.plan 백그라운드 위임(M3-new-02), L2.knowledge.plan 쓰기·원장·스캔 API, L4.settings-ui.plan 설정 화면, L4 승인 화면 계약 |
 | M4 이후(2차) | 큐레이터, 학습 이력, 스크립트 제안(LR-19~LR-22) | L2-h 예약(큐레이터 트리거를 예약으로 정할 때), L2-d 백업 API |
 
@@ -46,7 +46,7 @@ binds: [xeon/packages/group-learning/**]
 ```text
 xeon/packages/group-learning/
   src/
-    index.ts              defineGroup 진입점. default export
+    index.ts              defineOrchestration 진입점. default export
     manifest.ts           defineManifest 상수(spec §3.1)
     state.ts              LearningStateSchema, INITIAL_LEARNING_STATE
     results.ts            DecisionResult, ApplyTransition, QueueSweep, LearningError(spec §3.9)
@@ -85,11 +85,11 @@ xeon/packages/group-learning/
 
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
-| LR-01 | 매니페스트와 상태: `manifest.ts`, `state.ts`, `index.ts`의 `defineGroup` 뼈대. `validateManifest` 통과 테스트 | group-sdk M2(`defineGroup`, `GroupDef<S>`) | S |
+| LR-01 | 매니페스트와 상태: `manifest.ts`, `state.ts`, `index.ts`의 `defineOrchestration` 뼈대. `validateManifest` 통과 테스트 | group-sdk M2(`defineOrchestration`, `OrchestrationDef<S>`) | S |
 | LR-02 | 설정: `settings.ts`에 spec §6.1의 12개 키 `SettingDef`. 설정 읽기 실패 시 fail-closed 경로 | LR-01, F.wire-settings `defineSettings` | S |
 | LR-03 | 카운터 집계: `boundary.turn.before`로 집계표 열기, `boundary.step.after`(chain, `undefined` 반환)로 step당 도구 반복 계수와 `stepId` 중복 방지, 도구 이름 기반 스킬 쓰기 판정(spec §4.2) | LR-01, F `TurnEndPayload` | M |
 | LR-04 | 임계 판정 순수 함수: `applyTurn`(규칙 0 `in_flight` 포함), `reviewRequestId`, `boundary.settle.after` 핸들러의 상태 커밋(턴당 1회). `origin`·`status`·`hasFinalAnswer`·`lastItemId` 읽기와 필드가 없을 때의 임시 규칙 | LR-02, LR-03, REQ-LN-01 | S |
-| LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [결정: review.m3-design-inputs D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-sdk `GroupApi.delegate`(G-14) | M |
+| LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [결정: review.m3-design-inputs D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-sdk `OrchestrationApi.delegate`(G-14) | M |
 | LR-06 | 제안 도구와 허용 목록: `g.registerTool`로 `learning_propose` 등록, 입력 검사, 읽기 선행 가드(`baseHash`), 후보 수 상한, `toolPolicy.allow` 기본값과 거부 안내 문장(`denyHint`) | LR-05, group-sdk `registerTool`(G-22), L1.tools 실행 시점 허용 검사 | M |
 | LR-07 | 검토 지시: `prompts.ts` 요구 사항 7항목(신호, 선호 순서, 저장 금지, 메모리 영역, DATA 방어, 출력 규약, 편향 문구 금지) 문구 본문 작성 | LR-05 | M |
 | LR-08 | Proposal 이벤트와 투영: `grp.learning.proposal.*`·`grp.learning.fork.*` 비공개 기록 9종, `learningProjector`, `x_learning_proposals`·`x_learning_reviews` DDL | LR-06. X `RegistrationApi.recordPrivate`(review.decisions-2 T-21, spec §3.7.1)의 X 구현 | M |
@@ -100,7 +100,7 @@ xeon/packages/group-learning/
 | LR-14 | 레코드 발행: `records.ts` 8종 스키마와 `recordKinds` 선언, 전이마다 레코드 쓰기 | LR-09 | S |
 | LR-15 | 명령: `g.registerCommand("learning", …)`로 `/learning queue` 하위 명령 6종(`approve --scope` 포함), `/learning review [--cancel]`, `--json` 출력(`ProposalView`, `DecisionResult`). 진입 때 `sweepQueue` | LR-09, LR-10, LR-28, group-sdk `registerCommand`(G-22), REQ-LN-03, L4 승인 화면 계약 | M |
 | LR-16 | 공존 확인: Helm drive lock 중 동작, `drive` 호출 0 계측 | LR-05, group-sdk `DriveArbiter` | S |
-| LR-17 | 사용량 계측: 검토별 입력·출력 토큰을 `x_learning_reviews`와 `GroupMetrics`에 남김 | LR-05, L1.agents 사용량 부모 귀속 | S |
+| LR-17 | 사용량 계측: 검토별 입력·출력 토큰을 `x_learning_reviews`와 `OrchestrationMetrics`에 남김 | LR-05, L1.agents 사용량 부모 귀속 | S |
 | LR-18 | UC-3 테이프 통합 테스트와 M3 코어 diff 0 확인 | LR-01~LR-17, LR-23~LR-28 | M |
 | LR-19 | (2차) 큐레이터 결정적 단계: 유휴 판정, 14일 stale, 30일 archive 후보, 고정·참조·사용자 생성 스킬 제외, archive도 대기열 | LR-09, L2-d 사용 기록과 "에이전트 생성" 표시, spec §10 미결 6 | M |
 | LR-20 | (2차) 큐레이터 LLM 통합: 옵트인, 실행 전 백업 요청, 검토 포크와 같은 위임 경로 | LR-19, L2-d 백업 API | M |
@@ -118,7 +118,7 @@ xeon/packages/group-learning/
 - spec §8.1의 REQ-LN-01~REQ-LN-11. 이 중 REQ-LN-01(`AgentSettledPayload` 필드), REQ-LN-02(`agent.settled` 구독), REQ-LN-05(위임 멱등 내구화), REQ-LN-08(`report` 선택화와 위임 조회·취소)이 없으면 검토 포크가 시작되지 않거나 한 번만 돈다. 학습 그룹 착수(LR-05) 전에 F·X·L1 계약 트랙이 끝나 있어야 한다.
 - M3-new-01(ADR-0015 구현): X 기능 래퍼의 on 핸들러 문맥 검사와 코어 멱등의 내구 기록.
 
-- group-sdk M2: `defineGroup`, `GroupApi<S>`의 `settings()`, `delegate(spec)`(M2는 입력 검사만, 호출은 M3의 G-14), `metrics`, `registerTool`·`registerCommand`(G-22)(L3.group-sdk.plan). 비공개 기록 경로는 X `RegistrationApi.recordPrivate`다(review.decisions-2 T-21, spec §3.7.1). group-sdk은 이 연산을 그대로 전달한다(L3.group-sdk.spec §3.2). 그래서 LR-08이 X 구현을 선행으로 갖는다.
+- group-sdk M2: `defineOrchestration`, `OrchestrationApi<S>`의 `settings()`, `delegate(spec)`(M2는 입력 검사만, 호출은 M3의 G-14), `metrics`, `registerTool`·`registerCommand`(G-22)(L3.group-sdk.plan). 비공개 기록 경로는 X `RegistrationApi.recordPrivate`다(review.decisions-2 T-21, spec §3.7.1). group-sdk은 이 연산을 그대로 전달한다(L3.group-sdk.spec §3.2). 그래서 LR-08이 X 구현을 선행으로 갖는다.
 - L1.agents 백그라운드 위임: 접수 결과(`accepted`/`duplicate`), 부모 대화 범위 `requestId` 멱등, 스냅샷 복제, 실행 시점 도구 허용 검사, 반복·토큰 상한, 사용량 부모 귀속, 취소, 완료 통지(L1.agents.plan).
 - L2.knowledge 쓰기·원장·승인 API: 읽기 기능 4종, `apply`(멱등 키, 승인 증거, `base_stale`), 스캔, 롤백, "에이전트 생성" 표시(L2.knowledge.plan).
 - L4 승인 화면 계약: `ProposalView`와 `/learning queue` 명령 호출 경로(L4.desktop, L4.cli), 설정 화면 `plugins` 탭(L4.settings-ui.plan).
@@ -146,7 +146,7 @@ xeon/packages/group-learning/
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
-| `manifest.validates` | `validateManifest` 오류 0, `group` 선언과 루트 `plugins[0]`의 `drives: false`, 훅 3개(`hooks`), 레코드 8종 접두 `grp.learning.` | LR-01 |
+| `manifest.validates` | `validateManifest` 오류 0, `orchestration` 선언과 루트 `plugins[0]`의 `drives: false`, 훅 3개(`hooks`), 레코드 8종 접두 `grp.learning.` | LR-01 |
 | `settings.defs-valid` | 12개 키가 `checkSettingDef`를 통과하고 기본값이 spec §6.1과 같다 | LR-02 |
 | `settings.read-failure-fails-closed` | 설정 읽기 실패 시 `g.delegate`와 `apply` 호출 0 | LR-02 |
 | `triggers.counts-user-turns` | 사용자 turn 10회째 `boundary.settle.after`에서 `review/user_turns` | LR-03, LR-04 |
@@ -174,7 +174,7 @@ xeon/packages/group-learning/
 | `queue.projection-rebuild-equal` | 이벤트에서 투영을 다시 만들면 같은 행. `diff`가 16 KiB를 넘는 제안을 만들고 프로세스를 재시작해 재생해도 `x_learning_proposals`의 `diff`가 원문과 같고 승인된 제안의 재적용·만료 판정 결과가 재시작 전과 같다 | LR-08 |
 | `feedback.frustration-signal-creates-proposal` | 좌절 표현이 있는 테이프 대화 → `kind: "feedback"` 후보 1개와 `grp.learning.feedback.proposed` | LR-13 |
 | `coexist.helm-lease-held-fork-still-runs` | 테스트 drive 그룹이 drive lock을 가진 상태에서 임계 도달 → 포크 시작, 학습 그룹 `drive` 호출 0 | LR-16 |
-| `records.schema-valid` | 8종 예시 payload가 스키마를 통과하고 `validateGroupRecord`를 통과한다 | LR-14 |
+| `records.schema-valid` | 8종 예시 payload가 스키마를 통과하고 `validateOrchestrationRecord`를 통과한다 | LR-14 |
 | `commands.queue-json-matches-view` | `/learning queue --json` 출력이 `ProposalView[]` 스키마를 따른다 | LR-15 |
 | `triggers.in-flight-blocks-second-review` | `inFlightReviewId`가 있는 동안 임계 도달 → `skip/in_flight`, `g.delegate` 0회. 종료 기록 뒤 다음 turn에 1회 | LR-04, LR-23 |
 | `triggers.settle-before-commit-clears-inflight` | 자식이 §4.3의 4번 커밋보다 먼저 정착(즉시 오류)하는 순서 → 구독 핸들러가 `settledReviewId`를 커밋하고 4번이 `inFlightReviewId`를 세우지 않는다. 다음 turn에 임계 도달 시 검토가 시작된다 | LR-04, LR-23 |
@@ -249,7 +249,7 @@ xeon/packages/group-learning/
 
 | 위험 | 내용 | 대응 |
 |---|---|---|
-| 검토 포크 비용 | Hermes 기준 검토 한 번에 약 3만 토큰이다(`hermes.md` §3.10.1 (가) 5, turn_finalizer.py:780). 사용자 10 turn마다 돌면 누적 비용이 크다 | 임계와 토큰 예산을 설정으로 노출한다. 예약·원격 turn은 세지 않는다. 검토별 사용량을 `x_learning_reviews`와 `GroupMetrics`로 계측해 설정 화면에 보인다(LR-17). 캐시 접두 공유는 L1.agents가 지원할 때만 기대한다 |
+| 검토 포크 비용 | Hermes 기준 검토 한 번에 약 3만 토큰이다(`hermes.md` §3.10.1 (가) 5, turn_finalizer.py:780). 사용자 10 turn마다 돌면 누적 비용이 크다 | 임계와 토큰 예산을 설정으로 노출한다. 예약·원격 turn은 세지 않는다. 검토별 사용량을 `x_learning_reviews`와 `OrchestrationMetrics`로 계측해 설정 화면에 보인다(LR-17). 캐시 접두 공유는 L1.agents가 지원할 때만 기대한다 |
 | 학습 품질을 재는 장치 부재 | Hermes에도 스킬 품질 평가가 없다(`hermes.md` §3.10.1 (바) 셋째 항목, §4.3 둘째 항목) | 1차는 승인율·거절 사유·되돌림 수를 계측만 한다. 평가 루프(테이프 녹화 기반 품질 평가)는 2차 과제로 둔다. 검토 지시에 "Be ACTIVE" 편향 문구를 넣지 않는다 |
 | 프롬프트 주입의 영속화 | 도구 결과나 웹 페이지의 지시문이 교훈이라는 이름으로 스킬 본문에 들어가 이후 대화에 실린다(`hermes.md` §3.10.1 (바) 둘째 항목) | 검토 지시의 DATA 방어(spec §4.4 요구 5), 사전 스캔과 L2-d 적용 스캔 두 번, 승인 기본 켬 |
 | L1 위임 구현 지연 | 계약은 정해졌다(L1.agents.spec §3.2 `DelegateRequest`, §3.3 `AgentService.delegate`, L3.group-sdk.spec §3.4 `DelegateSpec`). core-agents `delegate`는 아직 스텁이다(M3-new-02). `fork: { at: "event" }`는 L1에서 거부되므로 `item` 위치로 바꿨다 | LR-01~LR-04, LR-08~LR-14, LR-26~LR-28은 위임 없이 진행한다. LR-05·LR-23은 group-sdk `testing`의 가짜 `delegate`와 가짜 `agent.settled` 공급으로 먼저 만들고, L1.agents 구현 뒤 계약 테스트를 더한다 |
@@ -265,7 +265,7 @@ xeon/packages/group-learning/
 
 | 작업 | 상태 | 내용 |
 |---|---|---|
-| LR-01 | 완료 | `manifest.ts`, `state.ts`(`lastTurnId`, `lastItemId`를 더함), `index.ts`는 default export 대신 팩토리 `createLearningGroup(deps)`다. 읽기 면을 주입해야 해서다. 시험 `manifest.test.ts` |
+| LR-01 | 완료 | `manifest.ts`, `state.ts`(`lastTurnId`, `lastItemId`를 더함), `index.ts`는 default export 대신 팩토리 `createLearningOrchestration(deps)`다. 읽기 면을 주입해야 해서다. 시험 `manifest.test.ts` |
 | LR-02 | 완료 | `settings.ts`의 12개 키(spec §6.1 표와 같다. 큐레이터 4개는 `stage: "reserved"`). 설정을 읽지 못하면 fail-closed. spec §10 15가 남는다 |
 | LR-03 | 완료 | `handlers.ts`의 집계표(`boundary.turn.before`, `boundary.step.after`). `triggers.test.ts` |
 | LR-04 | 완료 | `triggers.ts`의 `applyTurn`과 `boundary.settle.after` 핸들러. 같은 turn의 재발화를 `lastTurnId`로 한 번만 반영한다 |

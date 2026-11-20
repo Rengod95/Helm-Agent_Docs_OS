@@ -99,7 +99,7 @@ import {
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
-import type { GroupCatalogEntry } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/group-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -164,13 +164,13 @@ export interface ExtensionDeps {
   /** 대화가 지워졌을 때 부른다(측정 저장소의 그 대화 행 지우기). 조립 루트가 넘긴다 */
   readonly onThreadRemoved: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
-  /** 그룹 서비스(`fresnel.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
+  /** 그룹 서비스(`fresnel.orchestration`) 연결: 카탈로그, 설정 저장소, 현재 thread */
   readonly groups: {
     readonly catalog: SettingCatalog;
     readonly store: () => SettingsStorePort | undefined;
     readonly currentThread: () => ThreadId | null;
     readonly heldThreads: () => readonly ThreadId[];
-    readonly entries: () => readonly GroupCatalogEntry[];
+    readonly entries: () => readonly OrchestrationCatalogEntry[];
   };
   /** L2 제안 대기열 어댑터를 받는 자리(`proposal.*` 처리기가 읽는다) */
   readonly knowledgeWire: KnowledgeWireHolder;

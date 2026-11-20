@@ -144,7 +144,7 @@ function v3ToV4(previous: unknown): unknown {
   return { purpose: null, resident: false, fromSource: false, ...previous };
 }
 
-/** GroupDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 1은 키 1, 판 2는 키 2로 한 판씩 옮긴다 */
+/** OrchestrationDef.migrations. 키는 출발 판(L3.group-sdk.spec §4.7). 판 1은 키 1, 판 2는 키 2로 한 판씩 옮긴다 */
 export const authoringStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
   1: v1ToV2,
   2: v2ToV3,

@@ -14,7 +14,7 @@ binds: []
 
 ## 1. 목적과 범위
 
-계획 v2 L3-d의 구성요소 3개(제2의 플러그인 그룹, 정책 플러그인, 그룹 템플릿)를 정한다(`_research/layer-plan-v2.json` L3-d, 세 항목 모두 2차).
+계획 v2 L3-d의 구성요소 3개(제2의 오케스트레이션 플러그인, 정책 플러그인, 그룹 템플릿)를 정한다(`_research/layer-plan-v2.json` L3-d, 세 항목 모두 2차).
 
 근거:
 
@@ -30,7 +30,7 @@ binds: []
 
 다루지 않는 것:
 
-- `defineGroup`, `GroupApi<S>`, `GroupService`, `DriveArbiter`, `replayDrive`의 정의: `L3.group-sdk.spec`
+- `defineOrchestration`, `OrchestrationApi<S>`, `OrchestrationService`, `DriveArbiter`, `replayDrive`의 정의: `L3.group-sdk.spec`
 - 4연산 타입, 훅 표, 매니페스트 스키마, 검증 함수: `F.extensions.spec`
 - 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation`의 정의: `X.loading-trust.spec`
 - `fresnel group new` 명령의 실행(인자 해석, 파일 쓰기, 출력): `L4.cli.spec`
@@ -45,11 +45,11 @@ binds: []
 
 | 용어 | 뜻 |
 |---|---|
-| 플러그인 그룹 | `group` 선언이 있는 확장(`F.extensions.spec` §2). 구성원 플러그인이 훅 핸들러, post, drive, 상태를 묶어 한 번에 켜고 끈다 |
-| 제2의 플러그인 그룹 | Helm, 학습 그룹 밖에 사용자가 추가하는 플러그인 그룹 |
+| 오케스트레이션 플러그인 | `orchestration` 선언이 있는 확장(`F.extensions.spec` §2). 구성원 플러그인이 훅 핸들러, post, drive, 상태를 묶어 한 번에 켜고 끈다 |
+| 제2의 오케스트레이션 플러그인 | Helm, 학습 그룹 밖에 사용자가 추가하는 오케스트레이션 플러그인 |
 | 외부 그룹 | 저장소의 `xeon/packages` 밖에서 설치되는 그룹. 설정 네임스페이스는 `ext.<id>.`다 |
-| 정책 플러그인 | drive 없이 `on`과 `post`만 쓰는 작은 확장. 상태·레코드·토글 필요에 따라 `group` 선언이 있는 플러그인 그룹이거나 `group` 선언이 없는 플러그인이다(4.2절) |
-| 정책 그룹 | `group` 선언이 있는 정책 플러그인 |
+| 정책 플러그인 | drive 없이 `on`과 `post`만 쓰는 작은 확장. 상태·레코드·토글 필요에 따라 `orchestration` 선언이 있는 오케스트레이션 플러그인이거나 `orchestration` 선언이 없는 플러그인이다(4.2절) |
+| 정책 그룹 | `orchestration` 선언이 있는 정책 플러그인 |
 | 정식 예 | 이 문서가 정한 정책 플러그인 3종. 템플릿 검증용 fixture |
 | 그룹 템플릿 | 새 그룹 패키지의 최소 골격 파일 묶음. 종류는 drive, policy, observe |
 | 템플릿 색인 | 템플릿 종류별 파일 목록과 치환 자리를 적은 JSON(`templates/index.json`) |
@@ -57,11 +57,11 @@ binds: []
 
 ## 3. 인터페이스
 
-### 3.1 제2의 플러그인 그룹
+### 3.1 제2의 오케스트레이션 플러그인
 
 #### 3.1.1 그룹으로 만들지 판정하는 기준
 
-[결정] 스킬이나 일반 플러그인으로 충분한 기능은 플러그인 그룹으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(`product.vision.spec` §5, §7.1).
+[결정] 스킬이나 일반 플러그인으로 충분한 기능은 오케스트레이션 플러그인으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(`product.vision.spec` §5, §7.1).
 
 [제안] 판정 순서:
 
@@ -69,9 +69,9 @@ binds: []
 |---|---|---|
 | 1 | 모델에게 알려 주기만 하면 되는가(지시, 절차, 참고 지식) | 스킬. 그룹을 만들지 않는다 |
 | 2 | 새 도구나 서비스 API(다른 그룹도 쓸 수 있는 기능)가 필요한가 | L2 기능 provider 플러그인. 그룹 안에 기능을 두지 않는다(`eng.context-map.design` 3절 협력 규칙 6, CM-06) |
-| 3 | 도구 호출을 막거나(first), 모델 요청·결과를 바꾸거나(chain), 입력을 넣어야(post) 하는가. drive는 쓰지 않는가 | 정책 플러그인(3.2절). 상태·레코드·토글 필요로 `group` 선언 유무를 고른다(4.2.1) |
-| 4 | 여러 턴에 걸친 진행(단계, 병렬 서브에이전트, 결과 커밋 뒤 적용 턴)을 런타임이 구동해야 하는가 | drive 플러그인 그룹(drive 템플릿) |
-| 5 | 관찰과 기록만 하는가(카운터, 신호, 레코드 공개) | 관찰 전용 그룹(observe 템플릿). 토글과 레코드가 필요 없으면 `group` 선언 없이 둔다 |
+| 3 | 도구 호출을 막거나(first), 모델 요청·결과를 바꾸거나(chain), 입력을 넣어야(post) 하는가. drive는 쓰지 않는가 | 정책 플러그인(3.2절). 상태·레코드·토글 필요로 `orchestration` 선언 유무를 고른다(4.2.1) |
+| 4 | 여러 턴에 걸친 진행(단계, 병렬 서브에이전트, 결과 커밋 뒤 적용 턴)을 런타임이 구동해야 하는가 | drive 오케스트레이션 플러그인(drive 템플릿) |
+| 5 | 관찰과 기록만 하는가(카운터, 신호, 레코드 공개) | 관찰 전용 그룹(observe 템플릿). 토글과 레코드가 필요 없으면 `orchestration` 선언 없이 둔다 |
 
 #### 3.1.2 그룹 추가 체크리스트
 
@@ -79,7 +79,7 @@ binds: []
 
 | # | 항목 | 확인 방법 |
 |---|---|---|
-| C1 | 매니페스트에 `group` 선언을 두고, 구성원 플러그인의 `layer: "L3"`, `drives`를 명시한다. 이름은 3.3.4절 규칙을 따른다 | `validateManifest`(`plugin_root_ambiguous`, `group_member_unknown`, `name_invalid`, `name_reserved`). `drive_requires_group`은 X 설치 때 본다 |
+| C1 | 매니페스트에 `orchestration` 선언을 두고, 구성원 플러그인의 `layer: "L3"`, `drives`를 명시한다. 이름은 3.3.4절 규칙을 따른다 | `validateManifest`(`plugin_root_ambiguous`, `orchestration_member_unknown`, `name_invalid`, `name_reserved`). `drive_requires_orchestration`은 X 설치 때 본다 |
 | C2 | 상태 스키마(`StateDecl<S>`: TypeBox 스키마, 초기값, `version`)를 둔다. 상태가 없으면 생략한다 | `group-sdk` 로드 테스트 |
 | C3 | drive 사용 여부를 정한다. 쓰면 상한을 `DriveOptions.limits`로 요청하고, 재생 테스트(C7)를 갖춘다 | `validateUsage`(`drive_undeclared`) |
 | C4 | 쓰는 레코드 kind를 `recordKinds`에 `RecordKindDecl`로 선언한다. 형식은 `grp.<id>.<영역>.<이름>`이다. 읽는 kind는 `readsRecordKinds`에 둔다 | `validateManifest`(`record_kind_prefix`), `validateUsage`(`record_kind_undeclared`, `read_kind_undeclared`) |
@@ -115,7 +115,7 @@ binds: []
 | 규칙 | 내용 |
 |---|---|
 | P1 | 매니페스트 `drives: false`. `drive`를 호출하지 않는다 |
-| P2 | 상태는 선택이다. 상태가 있으면 `group` 선언을 둔다(4.2.1) |
+| P2 | 상태는 선택이다. 상태가 있으면 `orchestration` 선언을 둔다(4.2.1) |
 | P3 | 쓰는 연산은 `on`과 `post`다. 레코드 공개가 필요하면 `record`를 더한다 |
 | P4 | 훅 fold별 용도: tap은 관찰, first는 차단, chain은 형성(`F.extensions.spec` §2, `_research/layer-plan-v2-notes.md` 훅 절) |
 | P5 | 훅 종류 5종(input, request, tool, boundary, session) 모두 쓸 수 있다. 정식 예는 input, tool, boundary 훅을 쓴다 |
@@ -128,7 +128,7 @@ binds: []
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "reviewgate"`, `group` 선언, `plugins[0]`의 `layer: "L3"`, `drives: false`, `usesPost: true`, `hooks: ["tool.result", "boundary.settle.before", "boundary.settle.after"]` |
+| 매니페스트 | `name: "reviewgate"`, `orchestration` 선언, `plugins[0]`의 `layer: "L3"`, `drives: false`, `usesPost: true`, `hooks: ["tool.result", "boundary.settle.before", "boundary.settle.after"]` |
 | 훅과 fold | `tool.result`(chain, 패치 없음: 쓰기 도구 결과 관찰 후 상태 커밋), `boundary.settle.before`(chain: `{ continue: true }` 패치), `boundary.settle.after`(tap: 상태 초기화 커밋) |
 | post | `kind: "context"`, `customType: "grp.reviewgate.review.requested"`, `when: "steer"`, `requestId: "reviewgate:<turnId>"` |
 | 실패 정책 | chain 예외는 그 핸들러의 패치만 버린다(skip). 그 턴은 검토 없이 정착한다. tap 예외는 기록 후 계속한다 |
@@ -139,9 +139,9 @@ binds: []
 // group-sdk/src/testing/policies/reviewgate.ts  (fixture, 4.2.2)
 import { Type, type Static } from "typebox";
 import { defineSettings } from "@fresnel/contracts/settings";
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 
-const reviewgateManifest = groupManifest({                          // 저장소 안 fixture라 매니페스트 객체를 직접 정의한다
+const reviewgateManifest = orchestrationManifest({                          // 저장소 안 fixture라 매니페스트 객체를 직접 정의한다
   schemaVersion: 2, name: "reviewgate", version: "0.1.0", displayName: "검토 강제",
   entry: "./src/testing/policies/reviewgate.ts",
   plugins: [{ layer: "L3", drives: false, usesPost: true, hooks: ["tool.result", "boundary.settle.before", "boundary.settle.after"] }],
@@ -161,7 +161,7 @@ const reviewgateSettings = defineSettings("ext.reviewgate", {      // 내보내�
     allowedScopes: ["user", "project", "launch"], ui: { tab: "plugins", widget: "select", order: 30, label: "검토 방식" }, since: "0.1.0" },
 });
 
-export const reviewgate: GroupModule = defineGroup<ReviewState>({
+export const reviewgate: OrchestrationModule = defineOrchestration<ReviewState>({
   manifest: reviewgateManifest,
   state: { schema: ReviewState, initial: { writes: 0 }, version: 1 },
   settings: reviewgateSettings,
@@ -186,9 +186,9 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
 });
 ```
 
-- `defineGroup`의 입력(`manifest`, `state`, `settings`, `setup`)과 `g.settings()`의 반환 타입(설정 그룹에서 유도한 값 객체)은 `L3.group-sdk.spec` §3.2의 `GroupDef<S>`, `GroupApi<S>`다. 그룹 이름은 매니페스트 `name`에서만 온다. 저장소 안 fixture는 매니페스트 객체를 `groupManifest(…)`로 직접 정의하고, 외부 그룹 템플릿은 `plugin.json`을 읽어 넘긴다(3.3.5).
+- `defineOrchestration`의 입력(`manifest`, `state`, `settings`, `setup`)과 `g.settings()`의 반환 타입(설정 그룹에서 유도한 값 객체)은 `L3.group-sdk.spec` §3.2의 `OrchestrationDef<S>`, `OrchestrationApi<S>`다. 그룹 이름은 매니페스트 `name`에서만 온다. 저장소 안 fixture는 매니페스트 객체를 `orchestrationManifest(…)`로 직접 정의하고, 외부 그룹 템플릿은 `plugin.json`을 읽어 넘긴다(3.3.5).
 - `continue`는 L1이 `canContinue`로 다시 승인한다(`F.extensions.spec` §4.1 boundary 최종 검증). 승인되지 않으면 검토 입력은 큐에 남고 다음 입력과 함께 들어간다.
-- 커밋 수 대신 `AgentBeforeSettlePayload.context`에서 이번 턴의 도구 호출을 세면 상태 없이도 같은 판정을 할 수 있다. 그러면 `group` 선언이 없는 플러그인이 된다(4.2.1). fixture는 상태 경로를 검증하려고 상태를 쓴다 [제안].
+- 커밋 수 대신 `AgentBeforeSettlePayload.context`에서 이번 턴의 도구 호출을 세면 상태 없이도 같은 판정을 할 수 있다. 그러면 `orchestration` 선언이 없는 플러그인이 된다(4.2.1). fixture는 상태 경로를 검증하려고 상태를 쓴다 [제안].
 
 #### 3.2.3 정식 예 2: 커밋 전 검증 (`commitguard`)
 
@@ -196,7 +196,7 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "commitguard"`, `group` 선언, `plugins[0]`의 `layer: "L3"`, `drives: false`, `hooks: ["tool.call.before", "tool.result"]` |
+| 매니페스트 | `name: "commitguard"`, `orchestration` 선언, `plugins[0]`의 `layer: "L3"`, `drives: false`, `hooks: ["tool.call.before", "tool.result"]` |
 | 훅과 fold | `tool.call.before`(first: 커밋 호출 거부), `tool.result`(chain, 패치 없음: 검증 성공과 쓰기 관찰 후 상태 커밋) |
 | post | 쓰지 않는다. 거부 사유는 `ToolCallDecision.reason`으로 모델에 돌아간다 |
 | 실패 정책 | first 예외는 거부(`FIRST_DENY.tool_call`, fail-closed). 그래서 판정 함수가 던지면 커밋은 막힌다. chain 예외는 그 관찰만 버린다(검증 성공을 놓치면 다음 커밋도 거부된다. 안전한 쪽으로 실패한다) |
@@ -211,7 +211,7 @@ type GuardState = Static<typeof GuardState>;
 const commandOf = (input: Readonly<Record<string, JsonValue>>): string =>
   typeof input["command"] === "string" ? input["command"] : "";
 
-const commitguardManifest = groupManifest({
+const commitguardManifest = orchestrationManifest({
   schemaVersion: 2, name: "commitguard", version: "0.1.0", displayName: "커밋 전 검증",
   entry: "./src/testing/policies/commitguard.ts",
   plugins: [{ layer: "L3", drives: false, hooks: ["tool.call.before", "tool.result"] }],
@@ -219,7 +219,7 @@ const commitguardManifest = groupManifest({
   defaultEnabled: false, trust: { level: "builtin" },
 });
 
-export const commitguard: GroupModule = defineGroup<GuardState>({
+export const commitguard: OrchestrationModule = defineOrchestration<GuardState>({
   manifest: commitguardManifest,
   state: { schema: GuardState, initial: { verified: false }, version: 1 },
   settings: commitguardSettings,                         // defineSettings("ext.commitguard", { verifyCommand, commitPattern, invalidateOn })
@@ -245,7 +245,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 
 - `tool.call.before` 핸들러는 재실행 가능한 질의다. 상태를 읽고 결정만 돌려준다. 상태 변경은 `tool.result`에서 `commit`으로만 한다(P6).
 - 한계 [가정]: `bash`로 파일을 바꾸는 경우는 `invalidateOn`에 잡히지 않는다. fixture는 이 한계를 테스트로 고정하지 않는다. 실제 정책으로 쓰려면 작업 트리 지문을 상태에 두는 방식이 필요하다.
-- 상태가 필요하므로 `group` 선언을 둔다(4.2.1).
+- 상태가 필요하므로 `orchestration` 선언을 둔다(4.2.1).
 
 #### 3.2.4 정식 예 3: 가드레일 훅 예 (`guardrail`)
 
@@ -269,7 +269,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "guardrail"`, `group` 선언 없음, `plugins[0]`의 `layer: "plugin"`, `drives: false`, `usesPost: true`, `hooks`: 가드 훅 셋 |
+| 매니페스트 | `name: "guardrail"`, `orchestration` 선언 없음, `plugins[0]`의 `layer: "plugin"`, `drives: false`, `usesPost: true`, `hooks`: 가드 훅 셋 |
 | 훅과 fold | 세 가드 훅 모두 first. 트립와이어면 차단 |
 | post | 모델 요청 차단 때 `kind: "context"`, `customType: "x.guardrail.request.blocked"`, `when: "next"`, `requestId: "guardrail:request:<요청 해시>"`로 차단 사유를 알린다 [제안] |
 | 실패 정책 | 검사 함수 예외는 핸들러 안에서 `unknown` 판정으로 바꾼다. `unknown`의 처리는 `ext.guardrail.onUnknown`(기본 `"deny"`)이다. 핸들러 자체가 던지면 훅 규칙대로 차단이다 |
@@ -317,13 +317,13 @@ export const guardrail: ExtensionEntry = ({ register }) => {
 
 - 검사 함수는 순수 함수로 둔다. 모델 기반 분류기를 on 핸들러에서 부르면 재실행 때 결과가 달라질 수 있다(P6). 모델 분류기는 플러그인 작성자가 고를 수 있으나 재실행 결정성 규칙(4.2.4)을 따른다.
 - 모델 요청 가드의 차단은 그 요청을 보내지 않고 turn을 실패로 끝낸다. 차단 사유 알림은 post로만 한다. turn 실패의 모양은 L1.loop이 정한다.
-- 상태가 없고 `/group` 토글이 필요 없으므로 `group` 선언이 없다(4.2.1). 그래서 `defineGroup` 대신 F `ExtensionEntry`와 `host.register`를 직접 쓴다.
+- 상태가 없고 `/group` 토글이 필요 없으므로 `orchestration` 선언이 없다(4.2.1). 그래서 `defineOrchestration` 대신 F `ExtensionEntry`와 `host.register`를 직접 쓴다.
 
 ### 3.3 그룹 템플릿
 
 #### 3.3.1 템플릿 위치
 
-- [제안] 템플릿 파일은 `xeon/packages/group-sdk/templates/` 아래에 둔다. `eng.context-map.design` C-2([미결] slots의 위치)에 대한 이 문서의 답이다. 이유: (1) 템플릿 골격이 `defineGroup`, `replayDrive`와 같은 변경에서 함께 바뀐다. (2) `group-sdk` 테스트가 템플릿을 생성·로드해 깨짐을 바로 잡는다. (3) context-map이 slots를 이미 `group-sdk` 컨텍스트에 두었다.
+- [제안] 템플릿 파일은 `xeon/packages/group-sdk/templates/` 아래에 둔다. `eng.context-map.design` C-2([미결] slots의 위치)에 대한 이 문서의 답이다. 이유: (1) 템플릿 골격이 `defineOrchestration`, `replayDrive`와 같은 변경에서 함께 바뀐다. (2) `group-sdk` 테스트가 템플릿을 생성·로드해 깨짐을 바로 잡는다. (3) context-map이 slots를 이미 `group-sdk` 컨텍스트에 두었다.
 - 템플릿 디렉터리는 `group-sdk`의 `src/` 밖이므로 패키지 진입점(`exports`)에 들어가지 않는다. `templates/**/*.ts`는 그대로 컴파일하지 않고, 테스트가 임시 디렉터리에 생성한 뒤 컴파일한다(4.3절).
 - 그래도 routes.yaml의 slots `binds`는 비워 둔다. 템플릿 파일은 `L3.group-sdk.spec`의 `binds`(`xeon/packages/group-sdk/**`) 아래에 있기 때문이다. 이 문서는 템플릿의 내용 규칙만 구속한다.
 
@@ -331,9 +331,9 @@ export const guardrail: ExtensionEntry = ({ register }) => {
 
 | 파일 | drive | policy | observe | 내용 |
 |---|---|---|---|---|
-| `.fresnel-plugin/plugin.json` | ● | ● | ● | 외부 그룹 매니페스트(`ExtensionManifest`). 외부 그룹의 기본 형식 |
+| `.fresnel-plugin/plugin.json` | ● | ● | ● | 외부 오케스트레이션 매니페스트(`ExtensionManifest`). 외부 그룹의 기본 형식 |
 | `src/manifest.ts` | 선택 | 선택 | 선택 | 저장소 안 그룹이면 `defineManifest`로 쓴다. `plugin.json`과 둘 중 하나만 둔다 |
-| `src/index.ts` | ● | ● | ● | `defineGroup` 골격. default export는 `GroupModule` |
+| `src/index.ts` | ● | ● | ● | `defineOrchestration` 골격. default export는 `OrchestrationModule` |
 | `src/state.ts` | ● | 선택 | ● | 상태 스키마, 초기값, `version` |
 | `src/settings.ts` | ● | ● | ● | `defineSettings("ext.__ID__", …)` |
 | `test/unit.test.ts` | ● | ● | ● | 핸들러·토글·설정 단위 테스트 |
@@ -387,21 +387,21 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 #### 3.3.4 이름 규칙
 
-- [결정: review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-sdk.spec` §3.2 `GROUP_NAME_PATTERN`이다.
-- 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-sdk.spec` §3.2 `RESERVED_GROUP_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`fresnel`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineGroup`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
+- [결정: review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-sdk.spec` §3.2 `ORCHESTRATION_NAME_PATTERN`이다.
+- 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-sdk.spec` §3.2 `RESERVED_ORCHESTRATION_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`fresnel`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineOrchestration`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
 - 패키지 이름은 저장소 안이면 `@fresnel/group-<id>`, 외부면 제한하지 않는다 [제안].
 - 그룹 이름에서 파생되는 이름: 루트 플러그인의 Registration id `<id>`, 레코드 kind `grp.<id>.<영역>.<이름>`, 설정 키 `ext.<id>.<이름>`, 테이블 `x_<id의 하이픈을 밑줄로>_*`, 비공개 기록 kind `grp.<id>.*`(`recordPrivate`), 명령 `/<id>`(선택).
 
 #### 3.3.5 템플릿 골격 코드
 
-매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.fresnel-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `groupManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineGroup`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
+매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.fresnel-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `orchestrationManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineOrchestration`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
 
 [편차 정리: M4 T-RT2] 아래 코드는 `xeon/packages/group-sdk/templates/`의 실제 파일과 같다. 설계 때 목록과 다른 점(식별자에 이름을 넣지 않음, drive의 `ROUNDS`와 `requestId`, 종류별 `package.json`)과 이유는 `L3.slots.plan` S-01 구현 기록에 있다.
 
 drive 템플릿 `src/index.ts`:
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";
@@ -409,8 +409,8 @@ import { initialState, stateSchema, type State } from "./state.ts";
 /** 골격의 단계 수. 정책 값이 아니라 재생 시험이 끝나는 자리를 보이려는 값이다 */
 const ROUNDS = 3;
 
-const group: GroupModule = defineGroup<State>({
-  manifest: groupManifest(manifestJson),
+const group: OrchestrationModule = defineOrchestration<State>({
+  manifest: orchestrationManifest(manifestJson),
   state: { schema: stateSchema, initial: initialState, version: 1 },
   settings,
   setup(g) {
@@ -468,13 +468,13 @@ export const initialState: State = { phase: "run", round: 0 };
 policy 템플릿 `src/index.ts`(상태 없는 그룹. `state`를 생략한다, `L3.group-sdk.spec` §3.2):
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 
 // 상태가 없는 정책 그룹이다. state를 두지 않는다.
-const group: GroupModule = defineGroup({
-  manifest: groupManifest(manifestJson),
+const group: OrchestrationModule = defineOrchestration({
+  manifest: orchestrationManifest(manifestJson),
   settings,
   setup(g) {
     // first 훅: 차단 결정을 낸다. 핸들러가 던지면 이 도구 호출은 거부된다(fail-closed)
@@ -492,13 +492,13 @@ export default group;
 observe 템플릿 `src/index.ts`:
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";
 
-const group: GroupModule = defineGroup<State>({
-  manifest: groupManifest(manifestJson),
+const group: OrchestrationModule = defineOrchestration<State>({
+  manifest: orchestrationManifest(manifestJson),
   state: { schema: stateSchema, initial: initialState, version: 1 },
   settings,
   setup(g) {
@@ -548,7 +548,7 @@ export const settings: SettingGroup<
   "defaultEnabled": false,
   "trust": { "level": "user" },
   "plugins": [{ "layer": "L3", "hooks": ["tool.call.before"], "drives": false }],
-  "group": {}
+  "orchestration": {}
 }
 ```
 
@@ -612,7 +612,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ## 4. 동작 규칙
 
-### 4.1 제2의 플러그인 그룹
+### 4.1 제2의 오케스트레이션 플러그인
 
 - 새 그룹은 3.1.2 체크리스트 C1~C9를 모두 통과해야 기본 그룹과 같은 경로로 로드된다.
 - [결정] 켜기·끄기는 단계 경계에서 적용되고 정리는 Cordis dispose로 실행된다(`F.extensions.spec` §4.5). 새 그룹도 예외가 없다.
@@ -621,18 +621,18 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ### 4.2 정책 플러그인
 
-#### 4.2.1 `group` 선언 유무의 기준
+#### 4.2.1 `orchestration` 선언 유무의 기준
 
-[제안] 다음 셋 가운데 하나라도 필요하면 `group` 선언을 두고 `plugins[0].layer: "L3"`로 한다. 아니면 `group` 선언 없이 `plugins[0].layer: "plugin"`으로 둔다(`F.extensions.spec` §3.1).
+[제안] 다음 셋 가운데 하나라도 필요하면 `orchestration` 선언을 두고 `plugins[0].layer: "L3"`로 한다. 아니면 `orchestration` 선언 없이 `plugins[0].layer: "plugin"`으로 둔다(`F.extensions.spec` §3.1).
 
 | 필요 | 이유 |
 |---|---|
-| Registration 상태 | 상태 문서와 마이그레이션은 그룹 기반(`defineGroup`)의 `StateDecl` 경로로 다룬다 |
-| 그룹 레코드 공개 | `recordKinds`의 접두가 `grp.<id>.`이어야 다른 그룹이 플러그인 그룹 레코드로 읽는다 |
-| `/group` 토글과 상태줄 표시 | `GroupService`(`fresnel.groups`)는 `group` 선언이 있는 확장만 목록에 올린다 [가정] |
+| Registration 상태 | 상태 문서와 마이그레이션은 그룹 기반(`defineOrchestration`)의 `StateDecl` 경로로 다룬다 |
+| 그룹 레코드 공개 | `recordKinds`의 접두가 `grp.<id>.`이어야 다른 그룹이 오케스트레이션 플러그인 레코드로 읽는다 |
+| `/group` 토글과 상태줄 표시 | `OrchestrationService`(`fresnel.orchestration`)는 `orchestration` 선언이 있는 확장만 목록에 올린다 [가정] |
 
-- `group` 선언이 없는 플러그인도 Registration을 하나 만들고 `ext.<id>.enabled`로 켜고 끈다(`F.extensions.spec` §3.2 마지막 항목). 차이는 그룹 기반 기능(`GroupApi`의 `settings()`, `delegate`, `metrics`, `/group` 명령)을 쓰는지다.
-- [미결] 이 기준의 최종 확정. 정식 예 셋은 이 기준으로 `reviewgate`·`commitguard`에 `group` 선언을 두고, `guardrail`은 `group` 선언 없이 두었다.
+- `orchestration` 선언이 없는 플러그인도 Registration을 하나 만들고 `ext.<id>.enabled`로 켜고 끈다(`F.extensions.spec` §3.2 마지막 항목). 차이는 그룹 기반 기능(`OrchestrationApi`의 `settings()`, `delegate`, `metrics`, `/group` 명령)을 쓰는지다.
+- [미결] 이 기준의 최종 확정. 정식 예 셋은 이 기준으로 `reviewgate`·`commitguard`에 `orchestration` 선언을 두고, `guardrail`은 `orchestration` 선언 없이 두었다.
 
 #### 4.2.2 reviewgate 동작
 
@@ -664,7 +664,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 1. 템플릿은 최소 골격만 담는다. 실제 정책 로직, 렌즈, 프롬프트 문구를 넣지 않는다 [제안].
 2. 생성된 그룹은 수정 없이 `bun test`가 통과해야 한다. 각 템플릿의 단위 테스트, 매니페스트 테스트, (drive면) 재생 테스트가 포함된다.
 3. 생성은 파일 복사와 치환만 한다(R5). 템플릿 안의 코드를 생성 중에 실행하지 않는다.
-4. `group-sdk` 테스트는 세 종류를 임시 디렉터리에 생성하고 로드·토글·재생을 확인한다(`L3.slots.plan` §5). 그래서 `defineGroup`이나 `GroupApi`가 바뀌면 같은 변경에서 템플릿이 함께 고쳐진다.
+4. `group-sdk` 테스트는 세 종류를 임시 디렉터리에 생성하고 로드·토글·재생을 확인한다(`L3.slots.plan` §5). 그래서 `defineOrchestration`이나 `OrchestrationApi`가 바뀌면 같은 변경에서 템플릿이 함께 고쳐진다.
 
 ### 4.4 재생
 
@@ -679,7 +679,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | 1 | 템플릿으로 만든 그룹이 다른 그룹 패키지(`@fresnel/group-helm` 등)를 import함 | 저장소 안이면 check-layers가 `DR-02`로 실패한다. 허용 목록에는 `group-sdk`만 있다. 외부 그룹이면 X 로더가 거부할지는 `X.loading-trust.spec`이 정한다 [가정] |
 | 2 | 그룹 이름이 설치된 확장과 같음 | `validateManifestSet`이 `name_conflict` 오류를 낸다. 생성 명령은 R2에서 미리 거부한다 |
 | 3 | 그룹 이름에 밑줄이나 대문자가 있거나, 예약 이름임 | 생성 명령이 거부한다. 직접 쓴 매니페스트는 X 로더가 확장 id 규칙(review.decisions-2 U-18)과 `RESERVED_EXT_IDS`로 거부한다(CM-07) |
-| 4 | `group` 선언이 없는 정책 플러그인이 `drives: true`를 선언함 | 정책 `x.primitives.driveRequiresGroup`이 참(기본)이면 X 설치가 `drive_requires_group` 오류로 거부한다(F.extensions.spec §4.6). 정책을 거짓으로 풀면 허용된다 |
+| 4 | `orchestration` 선언이 없는 정책 플러그인이 `drives: true`를 선언함 | 정책 `x.primitives.driveRequiresOrchestration`이 참(기본)이면 X 설치가 `drive_requires_orchestration` 오류로 거부한다(F.extensions.spec §4.6). 정책을 거짓으로 풀면 허용된다 |
 | 5 | 정책 그룹이 `drives: false`인데 `g.drive`를 호출함 | `validateUsage`가 `drive_undeclared` 오류를 낸다. 로드가 실패한다 |
 | 6 | 정책이 first 훅(`tool.call.before`)에서 예외를 냄 | 그 도구 호출은 `FIRST_DENY.tool_call`로 거부된다(fail-closed). 뒤 핸들러는 실행되지 않는다 |
 | 7 | 정책이 chain 훅에서 예외를 냄 | 그 핸들러의 패치만 버린다. reviewgate면 그 턴은 검토 없이 정착한다 |
@@ -693,7 +693,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | 대상 | 키 | 정의 방법 | L4 노출 |
 |---|---|---|---|
-| 외부 그룹·정책 플러그인 켜기·끄기 | `ext.<id>.enabled` | X 로더 예약 키. 기본값은 매니페스트 `defaultEnabled`(`F.extensions.spec` §6) | 설정 화면 `plugins` 탭 토글, `/group on\|off <id>`(`group` 선언이 있는 확장만), 설정 파일 |
+| 외부 그룹·정책 플러그인 켜기·끄기 | `ext.<id>.enabled` | X 로더 예약 키. 기본값은 매니페스트 `defaultEnabled`(`F.extensions.spec` §6) | 설정 화면 `plugins` 탭 토글, `/group on\|off <id>`(`orchestration` 선언이 있는 확장만), 설정 파일 |
 | 격리 | `ext.<id>.isolation` | X 로더 예약 키(2차) | `plugins` 탭 |
 | 그룹별 설정 | `ext.<id>.<이름>` | `defineSettings("ext.<id>", …)`를 `src/settings.ts`에 둔다. JSON 매니페스트만 있는 확장은 `userConfig`로 선언한다(`F.wire-settings.spec` §3.8.3 규칙 1) | `plugins` 탭의 그룹 항목 아래 |
 | 정식 예 설정 | `ext.reviewgate.*`, `ext.commitguard.*`, `ext.guardrail.*` | 3.2절 표 | fixture라 기본 배포 카탈로그에 없다 |
@@ -710,7 +710,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | observe 템플릿 | `boundary.settle.after`(tap) | 안 씀 | 안 씀 | 상태 있음, 레코드 씀 |
 | reviewgate | `tool.result`(chain), `boundary.settle.before`(chain), `boundary.settle.after`(tap) | 씀 | 안 씀 | 상태 있음 |
 | commitguard | `tool.call.before`(first), `tool.result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
-| guardrail | 가드 훅 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(`group` 선언 없음) |
+| guardrail | 가드 훅 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(`orchestration` 선언 없음) |
 
 - 훅 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 훅은 `boundary.settle.after`를 빼면 모두 M1 정확화 훅이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 훅 셋은 M3 F 작업이 더한다(ADR-0017).
 
@@ -729,7 +729,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | 이름 | 출처 |
 |---|---|
-| `defineGroup`, `GroupDef<S>`(상태 생략 허용), `groupManifest`, `RESERVED_GROUP_NAMES`, `GroupApi<S>`(`settings()` 포함), `GroupModule`, `GroupService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@fresnel/group-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
+| `defineOrchestration`, `OrchestrationDef<S>`(상태 생략 허용), `orchestrationManifest`, `RESERVED_ORCHESTRATION_NAMES`, `OrchestrationApi<S>`(`settings()` 포함), `OrchestrationModule`, `OrchestrationService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@fresnel/group-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
 | `ExtensionManifest`, `ExtensionEntry`, `RegistrationApi`, `PostItem`, `ToolCallDecision`, `BoundaryPatch`, `InputPatch`, `ToolResultPatch`, `validateManifest`, `validateUsage`, `validateManifestSet`, `FIRST_DENY` | `F.extensions.spec` |
 | `defineSettings`, `SettingDef`, `SettingsTab`, 키 문법, 예약 키 규칙 | `F.wire-settings.spec` |
 | 테스트 계층, 테이프 도우미 `t`·`tape`, `testing` 서브패스 규칙 | `eng.testing.guide` |
@@ -754,7 +754,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 ## 10. 미결 사항
 
 - [결정: 오케스트레이터 기본값] 템플릿 파일 위치는 `xeon/packages/group-sdk/templates/`다(3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다.
-- [미결] 정책 플러그인의 `group` 선언 유무 기준의 최종 확정(4.2.1).
+- [미결] 정책 플러그인의 `orchestration` 선언 유무 기준의 최종 확정(4.2.1).
 - (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 훅 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
 - [미결] 생성 명령 `fresnel group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.

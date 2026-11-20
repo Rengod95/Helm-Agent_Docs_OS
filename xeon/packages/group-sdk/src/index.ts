@@ -1,24 +1,24 @@
 export {
-  GROUP_NAME_PATTERN,
-  RESERVED_GROUP_NAMES,
-  checkGroupName,
-  defineGroup,
-  groupManifest,
-  isGroupModule,
-  validateGroupDef,
-  type GroupApi,
-  type GroupDef,
-  type GroupNameError,
-  type GroupDefIssue,
-  type GroupDefIssueCode,
-  type GroupDefShape,
-  type GroupManifest,
-  type GroupModule,
-  type GroupModuleSettings,
-  type GroupStartDriveResult,
-  type GroupSettingDefs,
-  type GroupSettingNamespace,
-  type GroupSettingValues,
+  ORCHESTRATION_NAME_PATTERN,
+  RESERVED_ORCHESTRATION_NAMES,
+  checkOrchestrationName,
+  defineOrchestration,
+  orchestrationManifest,
+  isOrchestrationModule,
+  validateOrchestrationDef,
+  type OrchestrationApi,
+  type OrchestrationDef,
+  type OrchestrationNameError,
+  type OrchestrationDefIssue,
+  type OrchestrationDefIssueCode,
+  type OrchestrationDefShape,
+  type OrchestrationManifest,
+  type OrchestrationModule,
+  type OrchestrationModuleSettings,
+  type OrchestrationStartDriveResult,
+  type OrchestrationSettingDefs,
+  type OrchestrationSettingNamespace,
+  type OrchestrationSettingValues,
   type NoSettings,
   type RunScriptOptions,
   type StateMigrations,
@@ -41,10 +41,10 @@ export {
   type DelegateToolPolicy,
 } from "./delegate.ts";
 export type {
-  GroupMetrics,
-  GroupMetricsHandle,
-  GroupMetricsSummary,
-  GroupUsageDelta,
+  OrchestrationMetrics,
+  OrchestrationMetricsHandle,
+  OrchestrationMetricsSummary,
+  OrchestrationUsageDelta,
   MetricsRecordedPayload,
 } from "./metrics/types.ts";
 export {
@@ -61,7 +61,7 @@ export {
   type PromotionReport,
   type ToolConsumer,
 } from "./promotion/report.ts";
-export type { GroupSettingsSource } from "./ports/settings.ts";
+export type { OrchestrationSettingsSource } from "./ports/settings.ts";
 export {
   STATE_DOC_MAX_BYTES,
   checkStateCommit,
@@ -72,7 +72,7 @@ export {
   type StateProjectionRow,
 } from "./state.ts";
 export { checkRecordKind, checkPostItem, kindVisibleTo, type RecordCheck } from "./records.ts";
-export { groupSdkSettings } from "./settings.ts";
+export { orchestrationSdkSettings } from "./settings.ts";
 export {
   TEMPLATE_PLACEHOLDERS,
   TemplateIndexSchema,
@@ -83,11 +83,16 @@ export {
   type TemplatePlaceholder,
 } from "./templates.ts";
 export {
-  GroupServiceName,
-  createGroupService,
-  type GroupHostView,
-  type GroupServiceWithUsage,
-  type GroupServiceDeps,
+  OrchestrationServiceName,
+  createOrchestrationService,
+  type OrchestrationHostView,
+  type OrchestrationServiceWithUsage,
+  type OrchestrationServiceDeps,
 } from "./service.ts";
-export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-export type { DriveRole, GroupError, GroupService, GroupStatus } from "@fresnel/contracts/services";
+export type { OrchestrationCatalogEntry, OrchestrationCatalogPort } from "./ports/catalog.ts";
+export type {
+  DriveRole,
+  OrchestrationError,
+  OrchestrationService,
+  OrchestrationStatus,
+} from "@fresnel/contracts/services";

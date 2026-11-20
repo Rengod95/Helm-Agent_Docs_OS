@@ -12,32 +12,38 @@ import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   defaultMetricsRegistry,
   createMetricsRegistry,
-  defineGroup,
+  defineOrchestration,
   summarizeUsage,
-  type GroupApi,
-  type GroupMetrics,
-  type GroupUsageDelta,
+  type OrchestrationApi,
+  type OrchestrationMetrics,
+  type OrchestrationUsageDelta,
 } from "../src/index.ts";
 import { createMetricsCounter } from "../src/metrics/counter.ts";
 import { countedHandler } from "../src/metrics/handler.ts";
 import { install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
-const NONE: GroupUsageDelta = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 };
+const NONE: OrchestrationUsageDelta = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  costUsd: 0,
+};
 
-function usage(part: Partial<GroupUsageDelta>): GroupUsageDelta {
+function usage(part: Partial<OrchestrationUsageDelta>): OrchestrationUsageDelta {
   return { ...NONE, ...part };
 }
 
 /** 토큰과 비용만 본다. 계수 필드는 다른 시험이 본다 */
-function usageOf(snapshot: GroupMetrics | undefined): unknown {
+function usageOf(snapshot: OrchestrationMetrics | undefined): unknown {
   return { tokens: snapshot?.tokens, costUsd: snapshot?.costUsd };
 }
 
 test("metrics.add-usage-accumulates-into-the-snapshot", async () => {
   const cases: readonly {
     readonly name: string;
-    readonly calls: readonly GroupUsageDelta[];
+    readonly calls: readonly OrchestrationUsageDelta[];
     readonly expected: unknown;
   }[] = [
     {
@@ -69,11 +75,11 @@ test("metrics.add-usage-accumulates-into-the-snapshot", async () => {
   await Promise.all(
     cases.map(async (testCase, index) => {
       const t = await createTestHost();
-      let api: GroupApi<never> | undefined;
+      let api: OrchestrationApi<never> | undefined;
       await install(
         t,
-        defineGroup({
-          manifest: groupManifestOf({ name: `usage-sum-${String(index)}` }),
+        defineOrchestration({
+          manifest: orchestrationManifestOf({ name: `usage-sum-${String(index)}` }),
           setup(g) {
             api = g;
           },
@@ -90,11 +96,11 @@ test("metrics.add-usage-accumulates-into-the-snapshot", async () => {
 
 test("metrics.add-usage-rejects-negative-and-non-finite-amounts-without-adding", async () => {
   const t = await createTestHost();
-  let api: GroupApi<never> | undefined;
+  let api: OrchestrationApi<never> | undefined;
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "usage-bad" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "usage-bad" }),
       setup(g) {
         api = g;
       },
@@ -134,11 +140,11 @@ test("metrics.registry-replaces-by-group-id-and-resets", () => {
 test("metrics.setup-registers-the-group-counter-in-the-default-registry", async () => {
   defaultMetricsRegistry.reset();
   const t = await createTestHost();
-  let api: GroupApi<never> | undefined;
+  let api: OrchestrationApi<never> | undefined;
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "registered" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "registered" }),
       setup(g) {
         api = g;
       },
@@ -155,8 +161,8 @@ test("metrics.on-counts-a-defined-first-return-as-a-denial", async () => {
   const thread = t.newThread();
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "denier", hooks: ["tool.call.before"] }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "denier", hooks: ["tool.call.before"] }),
       setup(g) {
         g.on("tool.call.before", (payload) =>
           payload.toolName === "write" ? { block: true, reason: "no writes" } : undefined,
@@ -206,8 +212,8 @@ test("metrics.on-counts-a-defined-chain-return-as-a-patch", async () => {
   };
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "patcher", hooks: ["boundary.message.after"] }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "patcher", hooks: ["boundary.message.after"] }),
       setup(g) {
         g.on("boundary.message.after", (payload) =>
           payload.message.role === "user" ? { message: payload.message } : undefined,
@@ -238,8 +244,8 @@ test("metrics.on-counts-a-thrown-handler-and-the-host-reports-it", async () => {
   const thread = t.newThread();
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "thrower", hooks: ["boundary.settle.after"] }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "thrower", hooks: ["boundary.settle.after"] }),
       setup(g) {
         g.on("boundary.settle.after", () => {
           throw new Error("settle failed");

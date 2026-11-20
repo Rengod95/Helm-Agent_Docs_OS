@@ -12,7 +12,7 @@ import {
   type PluginDecl,
 } from "@fresnel/contracts/extensions";
 import {
-  checkGroupName,
+  checkOrchestrationName,
   type DevkitError,
   type DevkitIssue,
   type ValidationReport,
@@ -57,7 +57,7 @@ function compositionManifest(
     version: "0.0.0",
     entry: "./src/index.ts",
     plugins: [...plugins],
-    group: { composition },
+    orchestration: { composition },
   };
 }
 
@@ -208,7 +208,7 @@ export async function validateExtensionDir(
 
   if (manifest !== undefined) {
     // AU-001: 이름 규칙(validateManifest의 name_reserved와 겹치지 않을 때만)
-    const named = checkGroupName(manifest.name);
+    const named = checkOrchestrationName(manifest.name);
     if (!named.ok && !issues.some((entry) => entry.path === "/name"))
       issues.push({
         severity: "error",

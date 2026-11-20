@@ -6,7 +6,7 @@ import {
   PLUGIN_MODES,
   type DevkitService,
 } from "@fresnel/contracts/services";
-import { checkGroupName, type GroupApi } from "@fresnel/group-sdk";
+import { checkOrchestrationName, type OrchestrationApi } from "@fresnel/group-sdk";
 import { Type, type TSchema } from "typebox";
 import {
   errorKeyOf,
@@ -60,13 +60,13 @@ export interface AuthoringGuide {
 }
 
 /**
- * 도구가 쓰는 상태 문서와 주도 시작 면. `GroupApi`의 부분형이다. `startDrive`는 도구 문맥의 thread에 이 그룹을 시작 요청으로 넣는다
+ * 도구가 쓰는 상태 문서와 주도 시작 면. `OrchestrationApi`의 부분형이다. `startDrive`는 도구 문맥의 thread에 이 그룹을 시작 요청으로 넣는다
  * (drive-isolation.md 2.2, 빌더는 모델이 부르는 이 도구로 시작한다)
  */
 interface StateAccess {
   state(): Readonly<AuthoringState>;
   commit(next: AuthoringState): Promise<unknown>;
-  startDrive(): ReturnType<GroupApi<AuthoringState>["startDrive"]>;
+  startDrive(): ReturnType<OrchestrationApi<AuthoringState>["startDrive"]>;
 }
 
 export interface ToolsEnv {
@@ -327,7 +327,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           `the session ${state.sessionId ?? ""} is still open: call authoring_stop first, then start again`,
         );
       const name = str(input, "name");
-      const checked = checkGroupName(name);
+      const checked = checkOrchestrationName(name);
       if (!checked.ok)
         return refusal("invalid_name", `name ${name} is not allowed (${checked.error.reason})`);
       const purpose = optStr(input, "purpose");
@@ -442,7 +442,9 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         name: state.name,
         dir: state.dir,
         ...(mode === undefined ? {} : { mode }),
-        ...(state.composition === null ? {} : { group: { composition: state.composition } }),
+        ...(state.composition === null
+          ? {}
+          : { orchestration: { composition: state.composition } }),
       });
       if (!made.ok) return failure(made.error);
       await patch(env, {

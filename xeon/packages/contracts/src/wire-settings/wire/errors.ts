@@ -187,7 +187,7 @@ export type WireErrorKind =
   | "testRun.notATestRun"
   | "testRun.notPaused"
   | "extension.notFound"
-  | "group.notFound"
+  | "orchestration.notFound"
   | "extension.safeModeActive"
   | "hooks.notFound"
   | "mcp.serverNotFound"
@@ -953,9 +953,9 @@ export const WIRE_ERRORS: {
     ),
   },
   /** 그 id의 그룹이 설치되어 있지 않다(`group.metrics`) */
-  "group.notFound": {
+  "orchestration.notFound": {
     code: 3402,
-    kind: "group.notFound",
+    kind: "orchestration.notFound",
     retryable: false,
     details: Type.Object({ id: Type.String({ maxLength: 128 }) }, { additionalProperties: false }),
   },

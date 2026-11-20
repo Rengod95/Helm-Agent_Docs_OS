@@ -100,9 +100,11 @@ test("fork.start-outcome: accepted, duplicate and a failed delegation", () => {
     kind: "already",
     childThreadId: THREAD,
   });
-  expect(reviewStartOutcome({ ok: false, error: { kind: "group.delegateUnavailable" } })).toEqual({
+  expect(
+    reviewStartOutcome({ ok: false, error: { kind: "orchestration.delegateUnavailable" } }),
+  ).toEqual({
     kind: "retryLater",
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
 });
 

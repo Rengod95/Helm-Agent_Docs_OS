@@ -3,7 +3,7 @@ import { t } from "@fresnel/client/i18n";
 import type { HandlerFailureEntry, TransitionEntry } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
-import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { thr, trn } from "../../state/helpers.ts";
 import {
@@ -60,9 +60,9 @@ const at = (hour: number, minute: number, second: number): string =>
 
 function group(
   id: string,
-  drive: GroupStatusWire["drive"],
-  over: Partial<GroupStatusWire> = {},
-): GroupStatusWire {
+  drive: OrchestrationStatusWire["drive"],
+  over: Partial<OrchestrationStatusWire> = {},
+): OrchestrationStatusWire {
   return {
     id,
     displayName: id,
@@ -105,7 +105,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "1.0.0",
     location: "/x",
     origin: "builtin",
@@ -113,7 +113,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,

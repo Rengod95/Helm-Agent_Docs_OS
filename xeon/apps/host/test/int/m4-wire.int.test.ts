@@ -126,7 +126,7 @@ realTest(
       const created = await connection.request("thread.create", { testRun: true });
       expect(await connection.request("testRun.phase", { threadId: created.threadId })).toEqual({
         phase: null,
-        group: null,
+        plugin: null,
         seq: null,
         paused: false,
         lock: { holder: null, status: "none", epoch: null },

@@ -1,10 +1,10 @@
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { activeInquiry } from "./drive.ts";
 import { recordFinished } from "./outputs.ts";
 import { transition } from "./phase.ts";
 import { updateState, type HelmState } from "./state.ts";
 
-type LifecycleApi = Pick<GroupApi<HelmState>, "state" | "commit" | "record">;
+type LifecycleApi = Pick<OrchestrationApi<HelmState>, "state" | "commit" | "record">;
 
 /**
  * `thread.start` tap. 마지막 커밋 상태가 일관된지만 본다(L3.helm.spec §4.9). 탐구 단계인데 inquiryId·topic이 없으면

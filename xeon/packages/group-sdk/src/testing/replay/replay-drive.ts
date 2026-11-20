@@ -1,5 +1,5 @@
 import type { JsonValue } from "@fresnel/contracts/conversation";
-import type { GroupModule } from "../../types.ts";
+import type { OrchestrationModule } from "../../types.ts";
 
 /**
  * 가짜 포트가 센 외부 효과 수(L3.group-sdk.spec §3.10, ADR-0015 §3.6). 중복 응답(`duplicate`, 재생된 turn·spawn 명령,
@@ -49,7 +49,7 @@ export interface ReplayHarness {
    * 기준 실행과 같은 가짜 포트의 멱등 기억을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다
    */
   run(
-    group: GroupModule,
+    group: OrchestrationModule,
     restore: { readonly events: readonly JsonValue[]; readonly commits: number } | null,
   ): Promise<{
     readonly events: readonly JsonValue[];
@@ -69,7 +69,7 @@ export interface ReplayHarness {
 
 /** 지점 목록 지정, 사용자 입력 시작은 아직 없다(G-20 남은 몫) */
 export interface ReplayDriveOptions {
-  readonly group: GroupModule;
+  readonly orchestration: OrchestrationModule;
   readonly harness: ReplayHarness;
   /** 기준 실행의 커밋 수 상한. 넘으면 실패한다. 기본 200 */
   readonly maxCommits?: number;
@@ -132,8 +132,8 @@ export function threadMismatches(threads: readonly string[]): readonly number[] 
  * 협조적 코드만 잡는 한계가 있다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 실패로 본다.
  */
 export async function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveReport> {
-  const { group, harness } = options;
-  const baseline = await harness.run(group, null);
+  const { orchestration, harness } = options;
+  const baseline = await harness.run(orchestration, null);
   const baselineDigest = harness.digest(baseline.events);
   const commits = baseline.commitPoints.length;
   const withEffects = baseline.effects === undefined ? {} : { effects: baseline.effects };
@@ -143,7 +143,10 @@ export async function replayDrive(options: ReplayDriveOptions): Promise<ReplayDr
   if (commits === 0) return { commits, baselineDigest, cuts: [], ok: false, failure: "no-commits" };
 
   const cutAt = async (commitIndex: number): Promise<ReplayCut> => {
-    const rerun = await harness.run(group, { events: baseline.events, commits: commitIndex });
+    const rerun = await harness.run(orchestration, {
+      events: baseline.events,
+      commits: commitIndex,
+    });
     const digest = harness.digest(rerun.events);
     const equal = digest === baselineDigest;
     return {

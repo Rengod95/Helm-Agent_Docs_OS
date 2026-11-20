@@ -8,7 +8,7 @@ import {
   type LoadOptions,
   type LoaderPaths,
 } from "../../src/loading-trust/index.ts";
-import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, moduleOf, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, putFile, realLoaderFs } from "./support/real-fs.ts";
 
@@ -23,7 +23,7 @@ beforeEach(async () => {
   userExtensions = join(paths.userDir, "extensions");
   project = join(temp.dir, "project");
   await mkdir(project, { recursive: true });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
 });
 
 afterEach(async () => {
@@ -66,7 +66,7 @@ test("a user extension loads from <userDir>/extensions and its on handler fires"
   expect(harness.policy.tiers.get("hello")).toBe("user");
   await fire(harness);
   // 플러그인이 받은 `@fresnel/contracts`와 `typebox`는 호스트와 같은 값이고, `@fresnel/group-sdk`은 호스트 객체다
-  expect(fakeGroupSdk.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
 });
 
 test("a plugin importing a contracts subpath gets the host's module without the host registering it", async () => {
@@ -87,11 +87,11 @@ export const extension = ({ register }) => {
 `,
   });
   const harness = await harnessOf({
-    loader: { sdkModules: { "@fresnel/group-sdk": fakeGroupSdk } },
+    loader: { sdkModules: { "@fresnel/group-sdk": fakeOrchestrationSdk } },
   });
   const report = await harness.loader.loadAll(loadOptions(harness));
   expect(report.diagnostics).toEqual([]);
-  expect(fakeGroupSdk.seen).toEqual(["sub:error:true", "sub:ok:function"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["sub:error:true", "sub:ok:function"]);
 });
 
 test("safe mode skips user extensions without importing them", async () => {
@@ -105,7 +105,7 @@ test("safe mode skips user extensions without importing them", async () => {
   // 설정 키는 카탈로그에 남는다(X.operations.spec §4.6.3)
   expect(report.settingGroups.map((group) => group.namespace)).toEqual(["ext.hello"]);
   await fire(harness);
-  expect(fakeGroupSdk.seen).toEqual([]);
+  expect(fakeOrchestrationSdk.seen).toEqual([]);
   expect(harness.t.host.registration("hello")).toBeUndefined();
 });
 
@@ -116,7 +116,7 @@ test("safe mode keeps L1 and L2 built-ins and drops L3 built-in groups", async (
       [
         moduleOf({ name: "core-x", layer: "L1" }),
         moduleOf({ name: "cap-x", layer: "L2" }),
-        moduleOf({ name: "group-x", layer: "L3", group: {} }),
+        moduleOf({ name: "group-x", layer: "L3", orchestration: {} }),
       ],
       { cwd: project, startup: { safeMode: { active: true }, disabled: [] } },
     ),
@@ -180,7 +180,7 @@ test("bad manifests give diagnostics and the host continues", async () => {
   const missing = report.diagnostics.find((entry) => entry.code === "manifest_missing");
   expect(missing).toMatchObject({ extension: null, source: "user", severity: "warning" });
   await fire(harness);
-  expect(fakeGroupSdk.seen).toEqual(["good:shared:true:true", "good:fired"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["good:shared:true:true", "good:fired"]);
 });
 
 test("entry failures reject only that extension", async () => {
@@ -222,7 +222,7 @@ test("a user extension cannot ask for the builtin trust level", async () => {
   ]);
   expect(codesOf(report.diagnostics, "greedy")).toEqual(["trust_exceeds_source"]);
   await fire(harness);
-  expect(fakeGroupSdk.seen).toEqual([]);
+  expect(fakeOrchestrationSdk.seen).toEqual([]);
 });
 
 test("a user extension named with the host's hook unit prefix is rejected by name and gets no unit, tier or registration", async () => {
@@ -308,7 +308,7 @@ test("project extensions need project trust", async () => {
     ["proj", "project", "active"],
   ]);
   await fire(allowed);
-  expect(fakeGroupSdk.seen).toEqual(["proj:shared:true:true", "proj:fired"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["proj:shared:true:true", "proj:fired"]);
 });
 
 test("a project without extension resources needs no trust decision", async () => {
@@ -385,7 +385,7 @@ test("a project extension directory that links outside .fresnel/extensions is no
   expect(report.diagnostics.map((entry) => [entry.source, entry.code])).toEqual([
     ["project", "manifest_missing"],
   ]);
-  expect(fakeGroupSdk.seen).toEqual([]);
+  expect(fakeOrchestrationSdk.seen).toEqual([]);
 });
 
 // ── 다시 읽기(ExtensionLoader.reload, §4.4.4) ──────────────────────────────
@@ -450,10 +450,10 @@ test("reload re-imports the edited entry and an open idle thread uses it at once
   const applied = await started.value.applied;
   expect(applied).toMatchObject({ status: "applied", statesCleared: 0 });
   await harness.t.settled();
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toContain("v2");
-  expect(fakeGroupSdk.seen).not.toContain("v1");
+  expect(fakeOrchestrationSdk.seen).toContain("v2");
+  expect(fakeOrchestrationSdk.seen).not.toContain("v1");
   expect(harness.loader.list().map((info) => [info.name, info.state, info.generation])).toEqual([
     ["hello", "active", 1],
   ]);
@@ -466,15 +466,15 @@ test("reload during a running turn leaves the old version to finish the step", a
   const started = await harness.loader.reload("hello", reloadSignal);
   if (!started.ok) throw new Error("reload refused");
   expect(started.value.appliesAt).toBe("nextStepBoundary");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["v1"]);
   await harness.t.boundary(thread).stepEnd();
   await harness.t.settled();
   expect(await started.value.applied).toMatchObject({ status: "applied" });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toEqual(["v2"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["v2"]);
 });
 
 test("a reload whose entry does not import is rejected and the old version keeps running", async () => {
@@ -486,9 +486,9 @@ test("a reload whose entry does not import is rejected and the old version keeps
   expect(started.error.kind).toBe("rejected");
   if (started.error.kind !== "rejected") return;
   expect(started.error.diagnostics.map((entry) => entry.code)).toEqual(["entry_import_failed"]);
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["v1"]);
   expect(harness.loader.list().map((info) => [info.state, info.generation])).toEqual([
     ["active", 0],
   ]);
@@ -511,9 +511,9 @@ test("a reload with an invalid or renamed manifest is rejected before any import
   );
   const renamed = await harness.loader.reload("hello", reloadSignal);
   expect(renamed.ok ? "ok" : renamed.error).toMatchObject({ kind: "rejected" });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["v1"]);
 });
 
 test("a setup that throws in the new version is reported through applied and the old one runs", async () => {
@@ -538,9 +538,9 @@ export const extension = ({ register }) => {
   expect(applied.diagnostics.map((entry) => entry.code)).toEqual(["reload_failed"]);
   expect(harness.loader.diagnostics().map((entry) => entry.code)).toContain("reload_failed");
   await harness.t.settled();
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["v1"]);
   expect(harness.loader.list().map((info) => [info.state, info.generation])).toEqual([
     ["active", 0],
   ]);

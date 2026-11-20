@@ -6,15 +6,15 @@ import {
   pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
 import { buildCatalog } from "@fresnel/contracts/settings";
-import { checkGroup } from "@fresnel/group-sdk/testing";
-import { createLearningGroup, learningManifest, learningSettings } from "../src/index.ts";
+import { checkOrchestration } from "@fresnel/group-sdk/testing";
+import { createLearningOrchestration, learningManifest, learningSettings } from "../src/index.ts";
 import { readLearningSettings } from "../src/settings.ts";
 import { manualClock } from "./support/clock.ts";
 import { foldReader } from "./support/projection.ts";
 import { createRig } from "./support/rig.ts";
 
 function group() {
-  return createLearningGroup({ clock: manualClock(), reader: foldReader(() => []) });
+  return createLearningOrchestration({ clock: manualClock(), reader: foldReader(() => []) });
 }
 
 test("manifest.validates", async () => {
@@ -22,7 +22,7 @@ test("manifest.validates", async () => {
     [],
   );
   // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
-  expect(learningManifest.group).toEqual({});
+  expect(learningManifest.orchestration).toEqual({});
   expect(pluginDeclsOf(learningManifest).map((plugin) => [plugin.id, plugin.layer])).toEqual([
     [undefined, "L3"],
   ]);
@@ -49,7 +49,7 @@ test("manifest.validates", async () => {
   const rig = await createRig();
   expect(rig.installIssues.filter((found) => found.severity === "error")).toEqual([]);
   // 지식 기능이 없는 호스트에서는 X가 setup 전에 거부한다(capability_unavailable). 선언과 무관한 사용 오류는 없다
-  const bare = await checkGroup(group());
+  const bare = await checkOrchestration(group());
   expect(bare.map((found) => found.code)).not.toContain("hook_undeclared");
   expect(bare.map((found) => found.code)).not.toContain("drive_undeclared");
   expect(bare.map((found) => found.code)).not.toContain("post_undeclared");

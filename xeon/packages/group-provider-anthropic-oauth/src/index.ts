@@ -1,4 +1,8 @@
-import { defineGroup, type GroupApi, type GroupModule } from "@fresnel/group-sdk";
+import {
+  defineOrchestration,
+  type OrchestrationApi,
+  type OrchestrationModule,
+} from "@fresnel/group-sdk";
 import { providerAnthropicOauthManifest } from "./manifest.ts";
 import { providerAnthropicOauthSettings } from "./settings.ts";
 import { ANTHROPIC_OAUTH_PROVIDER_NAME, anthropicOauthProvider } from "./provider.ts";
@@ -9,7 +13,7 @@ import { ANTHROPIC_OAUTH_PROVIDER_NAME, anthropicOauthProvider } from "./provide
  * 설정 값은 setup에서 한 번 읽는다. 값을 바꾸면 scope를 다시 켜야 등록에 반영된다.
  */
 function setupProviderAnthropicOauth(
-  g: GroupApi<never, typeof providerAnthropicOauthSettings.defs>,
+  g: OrchestrationApi<never, typeof providerAnthropicOauthSettings.defs>,
 ): void {
   const { acknowledgeRisk, credential } = g.settings();
   if (!acknowledgeRisk || credential === null) return;
@@ -17,7 +21,7 @@ function setupProviderAnthropicOauth(
 }
 
 /** 기본 꺼짐인 위장 provider 플러그인의 그룹 모듈. 신뢰 등급 user, 설정 네임스페이스 `ext.provider-anthropic-oauth`다 */
-export const providerAnthropicOauthGroup: GroupModule = defineGroup<
+export const providerAnthropicOauthOrchestration: OrchestrationModule = defineOrchestration<
   never,
   typeof providerAnthropicOauthSettings.defs
 >({
@@ -27,7 +31,7 @@ export const providerAnthropicOauthGroup: GroupModule = defineGroup<
 });
 
 /** 외부 로더가 부르는 엔트리(X.loading-trust.spec §4.4.2: named `extension`) */
-export const extension: GroupModule["entry"] = providerAnthropicOauthGroup.entry;
+export const extension: OrchestrationModule["entry"] = providerAnthropicOauthOrchestration.entry;
 
 export { DISGUISE_RISK_NOTICE, providerAnthropicOauthManifest } from "./manifest.ts";
 export { providerAnthropicOauthSettings } from "./settings.ts";

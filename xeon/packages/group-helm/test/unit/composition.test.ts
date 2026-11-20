@@ -5,9 +5,9 @@ import {
   type CompositionDecl,
   pluginDeclsOf,
 } from "@fresnel/contracts/extensions";
-import { validateGroupDef } from "@fresnel/group-sdk";
+import { validateOrchestrationDef } from "@fresnel/group-sdk";
 import { helmComposition } from "../../src/composition.ts";
-import { helmGroup, helmManifest } from "../../src/index.ts";
+import { helmOrchestration, helmManifest } from "../../src/index.ts";
 import { HELM_RECORD_KINDS } from "../../src/records.ts";
 import { helmStateDecl, helmStateMigrations } from "../../src/state.ts";
 import { helmSettings } from "../../src/settings.ts";
@@ -19,14 +19,14 @@ function errorsOf<T extends { readonly severity: string }>(issues: readonly T[])
 }
 
 test("composition.defined: the group module carries the composition and both manifests pass validation", () => {
-  expect(helmGroup.manifest.group.composition).toEqual(helmComposition);
-  expect(helmManifest.group.composition).toEqual(helmComposition);
-  expect(errorsOf(validateManifest(helmGroup.manifest).issues)).toEqual([]);
+  expect(helmOrchestration.manifest.orchestration.composition).toEqual(helmComposition);
+  expect(helmManifest.orchestration.composition).toEqual(helmComposition);
+  expect(errorsOf(validateManifest(helmOrchestration.manifest).issues)).toEqual([]);
   expect(errorsOf(validateManifest(helmManifest).issues)).toEqual([]);
   expect(errorsOf(validateComposition(helmComposition, { manifest: helmManifest }))).toEqual([]);
   expect(
     errorsOf(
-      validateGroupDef({
+      validateOrchestrationDef({
         manifest: helmManifest,
         composition: helmComposition,
         state: helmStateDecl,

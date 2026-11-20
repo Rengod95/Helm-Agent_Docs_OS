@@ -67,7 +67,7 @@ xeon/packages/contracts/
 | P6 | `ordering.ts`: `toolOrderKey`(코드 단위 비교, `localeCompare` 금지), `orderTools`, `canonicalToolset`(키 정렬 JSON), `toolsetFingerprint`, `diffToolsets` | P2, P5(`toJsonSchema`) | M |
 | P7 | 예시 정의 `web.search` 픽스처와 이를 쓰는 테스트. 정의 본문은 스펙 §3.9를 그대로 옮긴다 | P3, P5 | S |
 | P8 | `secrets.ts`: 스펙 §3.10 첫 블록(`SecretName` 브랜드, `SecretHandle`, `SecretRefError`, 순수 함수 `parseSecretRef`·`secretRef`·`findForeignSecretSyntax`, 거부 규칙은 `L0.secrets.spec` §3.1 표)과 두 번째 블록(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등과 스키마)을 코드로 옮기고 스펙 §9 13·16·17의 테스트를 둔다(review.decisions-2 U-08) | P1 | S |
-| P9 | `src/services/`: 스펙 §3.12 표의 인터페이스 15종과 `<X>ServiceName`, `SERVICE_NAMES`, 파일별 이름 표의 타입(`sandbox-report.ts`, `secrets.ts`, `secret-admin.ts`, `os.ts`의 `NotifyKind` 포함). 각 소유 문서(L0·L1·L2.mcp spec §3)의 블록을 옮겨 확정하고 소유 문서에 F 이름 인용을 요청한다. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `GroupService`는 F.extensions.plan E10의 포트를 확장한다(스펙 §9 15). `package.json` `exports`에 `"./services"`를 더한다 | P3, F.records.plan R12, F.extensions.plan E10 | L |
+| P9 | `src/services/`: 스펙 §3.12 표의 인터페이스 15종과 `<X>ServiceName`, `SERVICE_NAMES`, 파일별 이름 표의 타입(`sandbox-report.ts`, `secrets.ts`, `secret-admin.ts`, `os.ts`의 `NotifyKind` 포함). 각 소유 문서(L0·L1·L2.mcp spec §3)의 블록을 옮겨 확정하고 소유 문서에 F 이름 인용을 요청한다. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `OrchestrationService`는 F.extensions.plan E10의 포트를 확장한다(스펙 §9 15). `package.json` `exports`에 `"./services"`를 더한다 | P3, F.records.plan R12, F.extensions.plan E10 | L |
 
 P6 해시 선택 [제안]:
 

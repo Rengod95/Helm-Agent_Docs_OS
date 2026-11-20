@@ -1,49 +1,53 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { DriveFrameView, GroupId, RegistrationId } from "@fresnel/contracts/extensions";
+import type {
+  DriveFrameView,
+  OrchestrationId,
+  RegistrationId,
+} from "@fresnel/contracts/extensions";
 import type { ExtHost, RegistrationInfo } from "@fresnel/ext-host";
 import {
-  GroupServiceName,
+  OrchestrationServiceName,
   type DriveRole,
-  type GroupError,
-  type GroupMetricsSummary,
-  type GroupService,
-  type GroupStatus,
+  type OrchestrationError,
+  type OrchestrationMetricsSummary,
+  type OrchestrationService,
+  type OrchestrationStatus,
 } from "@fresnel/contracts/services";
 import { gatherPromotionInput, type PromotionHostView } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
-import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
+import type { OrchestrationCatalogEntry, OrchestrationCatalogPort } from "./ports/catalog.ts";
 import { orchestrationOf } from "./util.ts";
 
-export { GroupServiceName };
+export { OrchestrationServiceName };
 
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
-export type GroupHostView = Pick<
+export type OrchestrationHostView = Pick<
   ExtHost,
   "registrations" | "leaseOf" | "driveFrames" | "queryEvents" | "toolOwner"
 >;
 
-export interface GroupServiceDeps {
-  readonly host: GroupHostView;
+export interface OrchestrationServiceDeps {
+  readonly host: OrchestrationHostView;
   /**
    * 승격 집계가 쓰는 도구 주인 조회: 대화가 보는 이름으로 찾는다. 도구 이름은 대화마다 정해지므로 같은 이름이 여러 주인에게 있을 수 있다.
    * 없으면 이름만으로 찾는 `host.toolOwner`를 쓴다(이름이 대화마다 다르지 않은 조립)
    */
   readonly toolOwnerIn?: PromotionHostView["toolOwnerIn"];
-  readonly catalog: GroupCatalogPort;
+  readonly catalog: OrchestrationCatalogPort;
   /**
    * 서비스가 상태를 보여 줄 thread. 서비스 한 인스턴스는 활성 thread 하나의 그룹 상태를 보인다
    * (L3.group-sdk.spec §3.8 [가정]). 없으면 null
    */
   readonly currentThread: () => ThreadId | null;
-  /** l3.group-sdk.instrumentation 값. 기본 true */
+  /** l3.orchestration.instrumentation 값. 기본 true */
   readonly instrumentation?: () => boolean;
   /**
    * 그룹 계측 요약을 바꿔 넣는다. 없으면 기본 등록부(`defaultMetricsRegistry`)의 카운터와 `refreshUsage`로 캐시한 이벤트 집계를 합친다.
    * 등록되지 않은 그룹은 null이다.
    */
-  readonly metrics?: (id: GroupId) => GroupMetricsSummary | null;
+  readonly metrics?: (id: OrchestrationId) => OrchestrationMetricsSummary | null;
   /**
    * 승격 집계(L3.group-sdk.spec §3.12). 없으면 현재 thread의 이벤트로 `gatherPromotionInput`과
    * `buildPromotionReport`를 돌린다. 현재 thread가 없으면 빈 보고다.
@@ -52,7 +56,7 @@ export interface GroupServiceDeps {
 }
 
 /** createGroupService가 돌려주는 서비스. 상태를 보일 thread를 알려 주고 그 thread의 이벤트 집계를 갱신한다 */
-export interface GroupServiceWithUsage extends GroupService {
+export interface OrchestrationServiceWithUsage extends OrchestrationService {
   /** 상태를 보이는 thread. 없으면 null */
   currentThread(): ThreadId | null;
   /** thread의 `lease.*`·`turn.*` 이벤트로 임대 시간과 비용 캐시를 다시 셈한다. 조회가 실패하면 캐시를 그대로 둔다 */
@@ -74,13 +78,15 @@ const MIGRATION_CODES: ReadonlySet<string> = new Set([
   "state_future_version",
 ]);
 
-function errorOf(info: RegistrationInfo): GroupError | null {
+function errorOf(info: RegistrationInfo): OrchestrationError | null {
   if (info.lastError === undefined) return null;
   const { code, message } = info.lastError;
-  if (info.drive === "error") return { kind: "group.driveThrew", message, atSeq: null };
-  if (STATE_INVALID_CODES.has(code)) return { kind: "group.stateInvalid", message, atSeq: null };
-  if (MIGRATION_CODES.has(code)) return { kind: "group.migrationFailed", message, atSeq: null };
-  return { kind: "group.setupFailed", message, atSeq: null };
+  if (info.drive === "error") return { kind: "orchestration.driveThrew", message, atSeq: null };
+  if (STATE_INVALID_CODES.has(code))
+    return { kind: "orchestration.stateInvalid", message, atSeq: null };
+  if (MIGRATION_CODES.has(code))
+    return { kind: "orchestration.migrationFailed", message, atSeq: null };
+  return { kind: "orchestration.setupFailed", message, atSeq: null };
 }
 
 /**
@@ -89,7 +95,7 @@ function errorOf(info: RegistrationInfo): GroupError | null {
  * 스택에 없으면 `none`이다. drive 오류는 `error`다.
  */
 function driveRoleOf(
-  entry: GroupCatalogEntry,
+  entry: OrchestrationCatalogEntry,
   info: RegistrationInfo | undefined,
   frames: readonly DriveFrameView[],
   at: number,
@@ -102,17 +108,22 @@ function driveRoleOf(
 }
 
 /**
- * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록과 상태를 낸다.
+ * `fresnel.orchestration` 서비스 구현(L3.group-sdk.spec §3.8). 그룹 목록과 상태를 낸다.
  * 상태는 `ExtHost.registrations()`·`driveFrames()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
-export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
+export function createOrchestrationService(
+  deps: OrchestrationServiceDeps,
+): OrchestrationServiceWithUsage {
   let usage: UsageCache | undefined;
 
   /**
    * 기본 계측 요약: 카운터(등록부)에 캐시한 이벤트 집계를 더한다. 토큰과 비용은 이벤트 집계(`turn.completed`와 `agent.settled`) 하나에서 오고(카운터 `addUsage`는 더하지 않는다)
    * 임대 시간은 `lease.*`에서 온다. 캐시는 그 thread를 `refreshUsage`로 갱신했을 때만 있다.
    */
-  function summaryOf(id: GroupId, thread: ThreadId | null): GroupMetricsSummary | null {
+  function summaryOf(
+    id: OrchestrationId,
+    thread: ThreadId | null,
+  ): OrchestrationMetricsSummary | null {
     if (deps.metrics !== undefined) return deps.metrics(id);
     const handle = defaultMetricsRegistry.get(id);
     if (handle === undefined) return null;
@@ -134,7 +145,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     return thread === null ? [] : deps.host.driveFrames(thread);
   }
 
-  function statusOf(entry: GroupCatalogEntry): GroupStatus {
+  function statusOf(entry: OrchestrationCatalogEntry): OrchestrationStatus {
     const id = entry.manifest.name;
     const info = deps.host.registrations().find((scope) => scope.id === id);
     const thread = deps.currentThread();
@@ -160,7 +171,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   }
 
   /** 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
-  function list(): readonly GroupStatus[] {
+  function list(): readonly OrchestrationStatus[] {
     const ranked = deps.catalog.groups().map((entry) => ({ entry, status: statusOf(entry) }));
     const rank = (item: (typeof ranked)[number]): number => {
       if (item.status.drive === "holder") return 0;

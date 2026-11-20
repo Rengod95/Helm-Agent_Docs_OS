@@ -2,7 +2,7 @@ import type { TSchema } from "typebox";
 import type { Result } from "../base/index.ts";
 import type { ServiceKey } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
-import type { GroupRecord, RecordKind, RecordSubject } from "./group-record.ts";
+import type { OrchestrationRecord, RecordKind, RecordSubject } from "./group-record.ts";
 import type { ExtensionManifest } from "./manifest.ts";
 import type { ExtensionOps } from "./ops.ts";
 import type { RegistrationId } from "./registration-id.ts";
@@ -33,7 +33,7 @@ export interface RegistrationApi<S> extends ExtensionOps<S> {
   /** 그룹 레코드를 쓴다. kind는 이 플러그인의 매니페스트 recordKinds에 있어야 한다 */
   record(kind: RecordKind, subject: RecordSubject, payload: JsonValue): Promise<void>;
   /** 다른 그룹 레코드를 읽는다. kind는 매니페스트 readsRecordKinds에 있어야 한다 */
-  readRecords(query: RecordQuery): Promise<readonly GroupRecord[]>;
+  readRecords(query: RecordQuery): Promise<readonly OrchestrationRecord[]>;
   /**
    * 비공개 기록. kind는 자기 접두(플러그인 그룹 grp.<name>.*, 그 밖의 확장 x.<name>.*)만 받는다.
    * 다른 확장의 readRecords로 조회되지 않는다. 의미와 멱등 키 규칙은 X.primitives.spec이 정한다

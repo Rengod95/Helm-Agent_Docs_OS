@@ -6,7 +6,7 @@ import {
   SDK_MODULE_SPECIFIERS,
 } from "../../src/loading-trust/index.ts";
 import { X_SDK_MODULES } from "../../src/loading-trust/virtual-modules.ts";
-import { fakeGroupSdk, SDK } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK } from "./support/plugin-fixture.ts";
 
 test("the SDK specifiers are contracts with its subpaths, group-sdk and typebox", () => {
   expect([...SDK_MODULE_SPECIFIERS]).toEqual([
@@ -41,7 +41,7 @@ test("registering the same objects again does nothing, another object is refused
     error: { kind: "conflict", specifier: "@fresnel/group-sdk" },
   });
   // 충돌은 아무것도 바꾸지 않는다: 처음 객체는 그대로 등록된 상태다
-  expect(registerSdkModules({ "@fresnel/group-sdk": fakeGroupSdk })).toEqual({
+  expect(registerSdkModules({ "@fresnel/group-sdk": fakeOrchestrationSdk })).toEqual({
     ok: true,
     value: undefined,
   });

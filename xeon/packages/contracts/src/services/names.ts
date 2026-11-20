@@ -14,7 +14,7 @@ export const SERVICE_NAMES: {
   readonly secrets: "fresnel.secrets";
   readonly secretAdmin: "fresnel.secretAdmin";
   readonly mcp: "fresnel.mcp";
-  readonly groups: "fresnel.groups";
+  readonly groups: "fresnel.orchestration";
   readonly devkit: "fresnel.devkit";
 } = {
   tasks: "fresnel.tasks",
@@ -31,7 +31,7 @@ export const SERVICE_NAMES: {
   secrets: "fresnel.secrets",
   secretAdmin: "fresnel.secretAdmin",
   mcp: "fresnel.mcp",
-  groups: "fresnel.groups",
+  groups: "fresnel.orchestration",
   devkit: "fresnel.devkit",
 };
 

@@ -14,7 +14,7 @@ binds: []
 
 ## 1. 읽는 법
 
-- 이 문서는 두 절로 나뉩니다. §2는 플랫폼(Fresnel) 용어 표, §3은 용어 원본(`packages/client/src/i18n/terms.json`)에서 생성하는 화면 라벨 표, §4는 이름 변경 대응입니다. Helm과 학습 같은 플러그인 그룹 안의 말(렌즈 등)은 그 그룹 화면 안에서만 씁니다.
+- 이 문서는 두 절로 나뉩니다. §2는 플랫폼(Fresnel) 용어 표, §3은 용어 원본(`packages/client/src/i18n/terms.json`)에서 생성하는 화면 라벨 표, §4는 이름 변경 대응입니다. Helm과 학습 같은 오케스트레이션 플러그인 안의 말(렌즈 등)은 그 그룹 화면 안에서만 씁니다.
 
 - 항목은 한글 가나다 순입니다. 영문 식별자 항목은 뒤에 둡니다.
 - 뜻 칸의 백틱 문자열은 코드 이름, 설정 키, 명령, 파일 이름입니다.
@@ -36,7 +36,7 @@ binds: []
 | 루프 (core-loop) | `runTurn(entry)`이 turn 하나를 실행하는 L1 내부 모듈입니다. pi-agent-core 루프를 포크해 다시 설계했습니다. 예약 정의의 "루프"(L2.schedule)와 다른 뜻입니다 | L1.loop.spec §2 |
 | 리뷰 (review) | 파일 변경 묶음 하나에 대한 승인 절차입니다. 변경 묶음은 `changeset` 산출물로 함께 등록합니다 | L2.artifacts.spec §2 |
 | 마스킹 (redaction) | 시크릿 값이 로그, 이벤트, 모델 입력, 외부 전송에 남지 않게 가리는 일입니다. 다섯 계층(사람 입력, 도구 결과, 외부 전송, 모델 투영, 운영 로그)에서 부릅니다 | L0.secrets.spec §4.4 |
-| 매니페스트 | 확장 하나의 설치 메타 파일(`manifest.ts`)입니다. Claude Code의 `plugin.json` 레이아웃을 따르고 Fresnel 필드를 더합니다. 확장이 담는 플러그인 목록(`plugins[]`)과 선택적 `group` 선언을 적습니다 | F.extensions.spec §3.1 |
+| 매니페스트 | 확장 하나의 설치 메타 파일(`manifest.ts`)입니다. Claude Code의 `plugin.json` 레이아웃을 따르고 Fresnel 필드를 더합니다. 확장이 담는 플러그인 목록(`plugins[]`)과 선택적 `orchestration` 선언을 적습니다 | F.extensions.spec §3.1 |
 | 메타 파일 (시크릿) | 시크릿 이름과 제공자 참조를 잇고 사용 정책을 담는 평문 파일입니다. 값은 없습니다 | L0.secrets.spec §3.2 |
 | 모델 역할 (ModelRole) | 모델을 고르는 용도 이름입니다. `main`, `review`, `summary`, `subagent`, `judge`, `search` 여섯 가지입니다 | L1.models.spec §2 |
 | 목표 (goal) | 완료 조건 문장과 판정 방식입니다. thread마다 활성 목표는 하나입니다 | L2.work.spec §2 |
@@ -60,7 +60,7 @@ binds: []
 | 신뢰 (trust) | 작업 폴더의 확장과 작업 폴더 자원을 쓸지 정하는 판정입니다. 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 확장이 할 수 있는 일을 정합니다 | X.loading-trust.spec §4.6, §4.7 |
 | `실행권` (Scheduler leader) | 옛 이름입니다. `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나, 곧 Scheduler leader가 예약 틱을 돌립니다. 아직 아무도 잡지 않습니다 | L2.schedule.spec §2, L4.host-service.spec HS-102 |
 | 아이템 (item) | 입출력 단위입니다. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지가 있습니다 | F.conversation.spec §2 |
-| 안전 모드 | 외부 확장(`user`·`project` 등급), 외부 훅, L3 내장 플러그인 그룹을 싣지 않고 시작하는 모드입니다 | X.operations.spec §2, §4.6.2 |
+| 안전 모드 | 외부 확장(`user`·`project` 등급), 외부 훅, L3 내장 오케스트레이션 플러그인을 싣지 않고 시작하는 모드입니다 | X.operations.spec §2, §4.6.2 |
 | 알림 (notice) | 사용자 주의가 필요한 상태를 분류한 신호입니다 | L2.dialog.spec §2 |
 | 엔진 | Cordis 호스트, 루프, SQLite를 묶은 라이브러리입니다. 데몬 여부, 전송, 유휴 종료 같은 프로세스 정책은 갖지 않습니다 | architecture.overview.spec §2, L0.process.spec §2 |
 | 예약 (`timer`) | cron 또는 at으로 정한 예약입니다. 기한마다 새 대화를 만들어 실행합니다 | L2.schedule.spec §2 |
@@ -70,7 +70,7 @@ binds: []
 | 자동 끄기 | 실패 기준을 넘은 확장의 Registration을 다음 단계 경계에서 끄는 동작입니다 | X.operations.spec §2 |
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread입니다. 부모 대화와 소유자를 기록합니다 | L1.agents.spec §2 |
 | 프로세스 락 (Process lock, 옛 이름 `자원 임대`, `sys_leases`) | `sys_leases`의 행 하나, 곧 Process lock입니다. 저장 이름 `sys_leases`는 그대로입니다. 자원 이름은 `thread:<threadId>`, `scheduler`, `service` 셋입니다. 소유자 정보와 `epoch`를 담습니다. `epoch`는 자원의 소유자가 바뀔 때마다 1 오르는 펜싱 토큰입니다 | L0.store.spec §2 |
-| 플러그인 그룹 | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 확장입니다. 매니페스트에 `group` 선언이 있으면 플러그인 그룹이고, 없으면 일반 확장입니다. Helm과 학습은 L3 기본 플러그인 그룹입니다 | F.extensions.spec §2, §3.1, L3.group-sdk.spec §2 |
+| 오케스트레이션 플러그인 | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 확장입니다. 매니페스트에 `orchestration` 선언이 있으면 오케스트레이션 플러그인이고, 없으면 일반 확장입니다. Helm과 학습은 L3 기본 오케스트레이션 플러그인입니다 | F.extensions.spec §2, §3.1, L3.group-sdk.spec §2 |
 | 플러그인 | 매니페스트 `plugins[]`의 항목 하나입니다. 한 층에 속하는 단일 기능 단위이고, 엔진에 등록하면 Registration 하나가 됩니다. `drive`는 정책이 허용할 때만 씁니다 | F.extensions.spec §2, §3.1 |
 | 훅 (hook, 옛 이름 `지점`) | 확장이 `on`으로 핸들러를 거는 이름 붙은 런타임 생애주기 위치입니다. 훅마다 fold가 정해져 있습니다. 코드 이름은 `HookName` 등입니다 | F.extensions.spec §2 |
 | 층 | 의존 순위가 같은 패키지 묶음입니다. F, X, L0, L1, L2, L3, L4 순서입니다 | architecture.layers.spec §2 |
@@ -118,7 +118,6 @@ binds: []
 | Embedded | 이 컴퓨터(앱 안) | This computer (in app) | — | proposed |
 | Extension | 확장 | Extension | `ExtensionManifest` | proposed |
 | fold | 보기·막기·고치기·모으기 | Observe·Block·Modify·Collect | `tap`, `first`, `chain`, `collect` | proposed |
-| Group SDK | 그룹 SDK | Group SDK | `group-sdk`, `defineGroup` | proposed |
 | Hook(런타임 생애주기 훅) | 훅 | Hook | `HookName`, `HookDecl`, `HookKind`, `HOOKS`, `HOOK_NAMES` | proposed |
 | Hook handler | 핸들러 | Handler | — | proposed |
 | Injection mode | 주입 방식 | Injection mode | `InjectionMode` | proposed |
@@ -133,11 +132,12 @@ binds: []
 | Orchestration | 오케스트레이션 | Orchestration | `L3` | proposed |
 | System | 시스템 | System | `L0` | proposed |
 | Native UI | 기본 UI | Native UI | `declarative`, `native`, `ViewNode` | proposed |
+| Orchestration plugin | 오케스트레이션 플러그인 | Orchestration plugin | — | proposed |
+| Orchestration SDK | 오케스트레이션 SDK | Orchestration SDK | `group-sdk`, `defineOrchestration` | proposed |
 | Placement | 전체 화면·옆 패널·대화 카드·상태 표시줄·명령·설정 | Page·Side panel·Card·Status bar·Command·Settings | `page`, `well`, `card`, `status`, `command`, `settings` | proposed |
 | Plugin | 플러그인 | Plugin | — | proposed |
 | Plugin App | 플러그인 앱 | Plugin app | `frame`, `app`, `FrameDecl`, `AppDecl` | proposed |
 | Plugin Builder | 플러그인 빌더 | Plugin Builder | `plugin-builder` | proposed |
-| Plugin Group | 플러그인 그룹 | Plugin group | — | proposed |
 | Plugin UI | 플러그인 UI | Plugin UI | `views`, `ui`, `ViewContribution`, `UiContribution` | proposed |
 | post | 입력 넣기: 바로·끝난 뒤·다음 요청에 | Post: Now·After·Next request | `steer`, `followUp`, `next` | proposed |
 | Process lock | — | — | `sys_leases` | proposed |
@@ -173,11 +173,11 @@ binds: []
 | `세션` (`SettingScope` `session`, 락 키 `session:<threadId>`) | `launch`, `thread:<threadId>` | 화면 용어는 "대화"입니다. 저장 문자열 `turn.*`·`scope.changed`·`lease.*`·`trn_`·`sys_leases`는 그대로입니다 |
 | `비밀`, `비밀 핸들` | 시크릿, 시크릿 참조 | `SecretUseMode`는 `InjectionMode`입니다 |
 | `능력` | 기능 (Capability) | 코드 이름 `CapabilityId`는 그대로입니다 |
-| `의도 그룹` | 플러그인 그룹 | 매니페스트 모양 변경은 ADR-0022 §3.2 트랙입니다 |
+| `의도 그룹` | 오케스트레이션 플러그인 | 매니페스트 모양 변경은 ADR-0022 §3.2 트랙입니다 |
 | `scope` (확장 등록 묶음) | `Registration`(`host.register`, `RegistrationId`) | 설정 범위 `scope`는 그대로입니다. 저장 문자열 `scope.changed`·`scopeId`는 그대로입니다 |
 | `drive 임대` (`DriveLease`, lease) | `drive lock`(`DriveLock`), 가진 쪽은 `Driver` | 저장 문자열 `lease.*` 이벤트와 `leaseId`·`leaseEpoch`는 그대로입니다 |
-| 구동 그룹 설정 `x.primitives.activeDriveGroup` | `x.primitives.activeDriver`(화면: 주도 플러그인) | 옛 키는 읽지 않습니다. 새 키 `x.primitives.driveRequiresGroup`(기본 켜짐)이 더해집니다 |
-| 매니페스트 `kind`, `usesDrive`, `points` | `plugins[]`(`layer`, `hooks`, `drives`)와 `group` 선언 유무 | 스키마 2입니다. 옛 형식은 읽지 않습니다 |
+| 구동 그룹 설정 `x.primitives.activeDriveGroup` | `x.primitives.activeDriver`(화면: 주도 플러그인) | 옛 키는 읽지 않습니다. 새 키 `x.primitives.driveRequiresOrchestration`(기본 켜짐)이 더해집니다 |
+| 매니페스트 `kind`, `usesDrive`, `points` | `plugins[]`(`layer`, `hooks`, `drives`)와 `orchestration` 선언 유무 | 스키마 2입니다. 옛 형식은 읽지 않습니다 |
 | group-kit | group-sdk | 패키지 이름 |
 | 예약 종류 `loop` | `repeat` | 예약 상태 파일은 version 2입니다 |
 | bench (측정) | benchmark | `just benchmark`, `just benchmark-gate` |

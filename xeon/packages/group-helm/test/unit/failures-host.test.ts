@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, fakeUsage } from "@fresnel/ext-host/testing";
-import { createGroupService } from "@fresnel/group-sdk";
-import { groupCatalogOf } from "@fresnel/group-sdk/testing";
-import { helmGroup } from "../../src/index.ts";
+import { createOrchestrationService } from "@fresnel/group-sdk";
+import { orchestrationCatalogOf } from "@fresnel/group-sdk/testing";
+import { helmOrchestration } from "../../src/index.ts";
 import { callCommand, drainRounds, settleOnce } from "../support/rig.ts";
 
 test("failures.unknown-error-rethrown: an unexpected exception leaves the drive and marks the group driveThrew", async () => {
@@ -13,7 +13,7 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
       driveLimits: () => ({}),
       driveMaxDepth: () => 8,
       capabilityProviders: () => ({}),
-      driveRequiresGroup: () => true,
+      driveRequiresOrchestration: () => true,
     },
     loop: {
       runTurn: () => {
@@ -27,14 +27,14 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
     },
   });
   const thread = t.newThread();
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf([helmGroup]),
+    catalog: orchestrationCatalogOf([helmOrchestration]),
     currentThread: () => thread,
   });
   await t.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
+    manifest: helmOrchestration.manifest,
+    entry: helmOrchestration.entry,
     loadIndex: 0,
     builtin: true,
   });
@@ -45,7 +45,7 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
   await drainRounds(t, thread, 6);
   const status = service.list().find((group) => group.id === "helm");
   expect(status?.drive).toBe("error");
-  expect(status?.lastError?.kind).toBe("group.driveThrew");
+  expect(status?.lastError?.kind).toBe("orchestration.driveThrew");
   // 모르는 예외는 삼키지 않는다: 탐구는 끝난 기록 없이 마지막 커밋 상태에 남는다
   expect(t.records.events(thread).some((event) => event.kind === "grp.helm.inquiry.finished")).toBe(
     false,

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
 import { NO_EFFECTS, replayDrive } from "@fresnel/group-sdk/testing";
-import { helmGroup } from "../../src/index.ts";
+import { helmOrchestration } from "../../src/index.ts";
 import {
   dedupeInquiryFinished,
   InquiryFinishedPayloadSchema,
@@ -13,7 +13,7 @@ import { createHelmReplay } from "../support/replay.ts";
 
 test("drive.recall-from-committed-state-spawns-once", async () => {
   const replay = createHelmReplay();
-  const report = await replayDrive({ group: helmGroup, harness: replay.harness });
+  const report = await replayDrive({ orchestration: helmOrchestration, harness: replay.harness });
   expect(report.failure).toBeUndefined();
   expect(report.cuts.every((cut) => cut.equal && cut.firstDiff === null)).toBe(true);
   expect(report.cuts.map((cut) => cut.commitIndex)).toEqual(
@@ -29,7 +29,7 @@ test("drive.recall-from-committed-state-spawns-once", async () => {
 test("replay.twice-effects-once: new turns 2, spawns 3, notices 4 (phase changes 3, finish 1), inquiry.finished 1", async () => {
   const replay = createHelmReplay();
   const report = await replayDrive({
-    group: helmGroup,
+    orchestration: helmOrchestration,
     harness: replay.harness,
     expectEffects: { turn: 2, spawn: 3, post: 4, delegate: 0 },
   });

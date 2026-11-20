@@ -12,7 +12,7 @@ binds: [xeon/packages/ext-host/**]
 
 ## 1. 목적
 
-X는 F 다음 순위(1)의 확장 체계 층이다. L1~L3의 플러그인과 플러그인 그룹이 루프에 붙는 장치를 맡는다(`architecture.layers.spec` §4.1, §4.4 X 항목).
+X는 F 다음 순위(1)의 확장 체계 층이다. L1~L3의 플러그인과 오케스트레이션 플러그인이 루프에 붙는 장치를 맡는다(`architecture.layers.spec` §4.1, §4.4 X 항목).
 
 - 네 연산의 실행: on(fold `tap`/`first`/`chain`), post, drive(배타 drive 락), scope. [결정] 훅은 이 네 연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007).
 - 확장의 탐색·검증·로딩과 신뢰 판정, 선택적 프로세스 격리(2차), SDK 가상 모듈과 기본 플러그인 설치.
@@ -57,7 +57,7 @@ X가 정하지 않는 것:
 
 | 대상 | 규칙 | 정본 |
 |---|---|---|
-| 확장 이름 `ExtensionName` | `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음, [결정: review.decisions-2 U-18]). 매니페스트는 `plugins[]` 목록을 두고 `group` 선언이 있으면 플러그인 그룹이다 | `F.extensions.spec` §3.1 |
+| 확장 이름 `ExtensionName` | `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음, [결정: review.decisions-2 U-18]). 매니페스트는 `plugins[]` 목록을 두고 `orchestration` 선언이 있으면 오케스트레이션 플러그인이다 | `F.extensions.spec` §3.1 |
 | `RegistrationId` | `<확장 이름>` 또는 `<확장 이름>/<하위 이름>`(`REGISTRATION_ID_PATTERN`). 주 scope id는 확장 이름 | `F.extensions.spec` §3.2 |
 | 이벤트·레코드 kind | 플러그인 `x.<확장 이름>.<영역>.<이름>`, 그룹 `grp.<그룹 이름>.<영역>.<이름>`. scope 상태 커밋은 `<x\|grp>.<이름>.state.committed`이고 영역 `state`는 X 예약 | `F.records.spec` §3.2, `X.primitives.spec` §4.6.1 |
 | X가 쓰는 코어 kind | `scope.changed`, `lease.acquired`, `lease.released`. post는 core-tasks가 쓰는 `input.queued`로 남는다(`post.accepted` retire, [결정: review.decisions-2 U-05]). 추가 요청: `scope.handler_failed`(휘발), `ScopeChangedPayload.reason` | `F.records.spec` §3.3, `X.operations.spec` §10 |

@@ -102,7 +102,7 @@ cap-<domain>/
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
 | 화면, 명령 표면, 설정 파일 위치 | `L4.settings-ui.spec`, `L4.cli.spec`, `L4.desktop.spec`, `L4.host-service.spec` |
 
-- L2는 drive를 쓰지 않는다. drive 락은 L3 플러그인 그룹만 갖는다(정책 `x.primitives.driveRequiresGroup`이 기본값일 때. `_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
+- L2는 drive를 쓰지 않는다. drive 락은 L3 오케스트레이션 플러그인만 갖는다(정책 `x.primitives.driveRequiresOrchestration`이 기본값일 때. `_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
 - L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 

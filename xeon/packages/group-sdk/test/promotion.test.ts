@@ -7,19 +7,19 @@ import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import {
   buildPromotionReport,
-  createGroupService,
-  defineGroup,
+  createOrchestrationService,
+  defineOrchestration,
   gatherPromotionInput,
   type PromotionHostView,
 } from "../src/index.ts";
-import { groupCatalogOf } from "../src/testing/index.ts";
+import { orchestrationCatalogOf } from "../src/testing/index.ts";
 import { install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 /** 도구를 등록하는 그룹. 소유 scope id는 그룹 이름이다 */
 function toolGroup(name: string, tool: string) {
-  return defineGroup({
-    manifest: groupManifestOf({ name }),
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name }),
     setup(g) {
       g.registerTool({
         name: tool,
@@ -382,9 +382,9 @@ test("promotion.status-line-appears-only-with-candidates", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.settled();
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf([owner]),
+    catalog: orchestrationCatalogOf([owner]),
     currentThread: () => thread,
   });
 

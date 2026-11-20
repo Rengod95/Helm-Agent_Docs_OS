@@ -1,5 +1,9 @@
 import type { EventId, ItemId, ThreadId } from "@fresnel/contracts/conversation";
-import { RECORD_KIND_PATTERN, type GroupId, type RecordKind } from "@fresnel/contracts/extensions";
+import {
+  RECORD_KIND_PATTERN,
+  type OrchestrationId,
+  type RecordKind,
+} from "@fresnel/contracts/extensions";
 import type {
   ChildStatus,
   DelegateRequest,
@@ -83,13 +87,13 @@ export type DelegateReceipt =
 
 export type DelegateError =
   | {
-      readonly kind: "group.delegateInvalid";
+      readonly kind: "orchestration.delegateInvalid";
       readonly field: "requestId" | "report.customType" | "agent" | "fork";
       readonly message: string;
     }
-  | { readonly kind: "group.delegateUnavailable" }
-  | { readonly kind: "group.disabling"; readonly id: string }
-  | { readonly kind: "group.delegateFailed"; readonly message: string };
+  | { readonly kind: "orchestration.delegateUnavailable" }
+  | { readonly kind: "orchestration.disabling"; readonly id: string }
+  | { readonly kind: "orchestration.delegateFailed"; readonly message: string };
 
 /** L1.agents.spec §3.2 ChildStatus를 그룹에 보이는 모양. settled면 종료 상태만 싣는다. 사용량은 싣지 않는다 [제안] */
 export type DelegateStatus =
@@ -102,7 +106,7 @@ export type DelegateStatus =
 
 /** 재실행되는 문맥에서 부를 수 없는 호출(ADR-0015 §3.2 표). `delegateStatus`는 on 핸들러, `cancelDelegates`는 on 핸들러와 drive */
 export interface DelegateContextError {
-  readonly kind: "group.effectNotAllowed";
+  readonly kind: "orchestration.effectNotAllowed";
   readonly effect: "g.delegateStatus" | "g.cancelDelegates";
   readonly context: "on" | "drive";
 }
@@ -111,7 +115,7 @@ export type DelegateStatusResult =
   | { readonly ok: true; readonly status: DelegateStatus | undefined }
   | {
       readonly ok: false;
-      readonly error: DelegateContextError | { readonly kind: "group.delegateUnavailable" };
+      readonly error: DelegateContextError | { readonly kind: "orchestration.delegateUnavailable" };
     };
 
 export type CancelDelegatesResult =
@@ -120,8 +124,8 @@ export type CancelDelegatesResult =
       readonly ok: false;
       readonly error:
         | DelegateContextError
-        | { readonly kind: "group.delegateUnavailable" }
-        | { readonly kind: "group.delegateFailed"; readonly message: string };
+        | { readonly kind: "orchestration.delegateUnavailable" }
+        | { readonly kind: "orchestration.delegateFailed"; readonly message: string };
     };
 
 /** 복구 가능한 실패는 throw하지 않고 값으로 돌려준다(eng.typescript.guide TY-11) */
@@ -136,12 +140,15 @@ const KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
 
 /**
  * 위임 호출 전 입력 검사(L3.group-sdk.spec §5 사례 12). 순수 함수.
- * 잘못이 없으면 undefined, 있으면 `group.delegateInvalid`를 돌려준다.
+ * 잘못이 없으면 undefined, 있으면 `orchestration.delegateInvalid`를 돌려준다.
  */
-export function checkDelegateSpec(spec: DelegateSpec, group: GroupId): DelegateError | undefined {
+export function checkDelegateSpec(
+  spec: DelegateSpec,
+  group: OrchestrationId,
+): DelegateError | undefined {
   if (spec.requestId.length < 1 || spec.requestId.length > DELEGATE_REQUEST_ID_MAX) {
     return {
-      kind: "group.delegateInvalid",
+      kind: "orchestration.delegateInvalid",
       field: "requestId",
       message: `requestId must be 1..${DELEGATE_REQUEST_ID_MAX} characters`,
     };
@@ -152,21 +159,21 @@ export function checkDelegateSpec(spec: DelegateSpec, group: GroupId): DelegateE
     (!spec.report.customType.startsWith(prefix) || !KIND_REGEX.test(spec.report.customType))
   ) {
     return {
-      kind: "group.delegateInvalid",
+      kind: "orchestration.delegateInvalid",
       field: "report.customType",
       message: `report.customType must be a record kind that starts with ${prefix}`,
     };
   }
   if (spec.agent.length < 1 || spec.agent.length > AGENT_NAME_MAX || /\s/u.test(spec.agent)) {
     return {
-      kind: "group.delegateInvalid",
+      kind: "orchestration.delegateInvalid",
       field: "agent",
       message: `agent must be 1..${AGENT_NAME_MAX} characters without whitespace`,
     };
   }
   if (spec.fork?.at === "event") {
     return {
-      kind: "group.delegateInvalid",
+      kind: "orchestration.delegateInvalid",
       field: "fork",
       message:
         'fork.at "event" is rejected by L1.agents (agents.invalid_request); use { at: "item" }',
@@ -194,12 +201,12 @@ export function toDelegateRequest(spec: DelegateSpec): DelegateRequest {
 export function delegateResultOf(result: AgentsDelegateResult): DelegateResult {
   if (result.ok) return { ok: true, receipt: result.receipt };
   if (result.error.kind === "agents.unavailable") {
-    return { ok: false, error: { kind: "group.delegateUnavailable" } };
+    return { ok: false, error: { kind: "orchestration.delegateUnavailable" } };
   }
   return {
     ok: false,
     error: {
-      kind: "group.delegateFailed",
+      kind: "orchestration.delegateFailed",
       message: `${result.error.kind}: ${result.error.message}`,
     },
   };

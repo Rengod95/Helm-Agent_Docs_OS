@@ -275,7 +275,7 @@ describe("신뢰 확인(O-10)", () => {
 describe("켜고 끄기 확인의 길(toggleRouteOf)과 Helm 설명", () => {
   test("꺼져 있던 user 확장을 켜면 신뢰 확인, 그룹을 끄면 끄기 확인, 나머지는 바로", () => {
     const user = entry("web", { origin: "user", status: "disabled" });
-    const group = entry("review", { isGroup: true, origin: "builtin", status: "enabled" });
+    const group = entry("review", { isOrchestration: true, origin: "builtin", status: "enabled" });
     const plain = entry("web", { origin: "builtin", status: "enabled" });
     expect(toggleRouteOf(user, true)).toBe("trust");
     expect(toggleRouteOf(group, false)).toBe("off-confirm");

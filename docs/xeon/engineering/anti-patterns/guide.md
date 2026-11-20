@@ -267,7 +267,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 좋은 예:
 
   ```ts
-  export function setup(g: GroupApi<HelmState>) {
+  export function setup(g: OrchestrationApi<HelmState>) {
     g.on("boundary.step.after", (t, st) => {
       if (!needsHint(st)) return undefined;
       g.post(hintMessage(st), { when: "next", requestId: requestIdFor("helm", st.turn) }); // 멱등 주입

@@ -95,8 +95,8 @@ export function primitivesSource(settings: SettingsEngine): ExtHostDeps["setting
       return intOr(settings.value("x.primitives.driveMaxDepth", threadId), 8);
     },
     // 기본값은 true(그룹만). 값이 불리언이 아니면 가장 안전한 쪽(true)으로 둔다
-    driveRequiresGroup() {
-      return settings.value("x.primitives.driveRequiresGroup") !== false;
+    driveRequiresOrchestration() {
+      return settings.value("x.primitives.driveRequiresOrchestration") !== false;
     },
     capabilityProviders() {
       const value = settings.value("x.primitives.capabilityProviders");

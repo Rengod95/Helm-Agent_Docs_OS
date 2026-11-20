@@ -3,7 +3,7 @@ import { Bug } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { DriveLockBudget, PostItem, StepResult } from "@fresnel/contracts/extensions";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { helmDrive, spawnRequestId, turnRequestId } from "../../src/drive.ts";
 import type { ExplorationMarker } from "../../src/guard.ts";
 import { DEFAULT_HELM_SETTINGS } from "../../src/settings.ts";
@@ -31,7 +31,9 @@ interface Effects {
   readonly posts: string[];
 }
 
-function stubApi(effects: Effects): Pick<GroupApi<HelmState>, "record" | "post" | "capability"> {
+function stubApi(
+  effects: Effects,
+): Pick<OrchestrationApi<HelmState>, "record" | "post" | "capability"> {
   return {
     record: (kind, _subject, payload) => {
       effects.records.push({ kind, payload });

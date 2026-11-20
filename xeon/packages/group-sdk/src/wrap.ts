@@ -48,45 +48,45 @@ import { createMetricsCounter, type MetricsCounter } from "./metrics/counter.ts"
 import { countedHandler } from "./metrics/handler.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { createBoundaryRecorder, INSTRUMENTATION_KEY } from "./metrics/record.ts";
-import type { GroupSettingsSource } from "./ports/settings.ts";
+import type { OrchestrationSettingsSource } from "./ports/settings.ts";
 import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
 import { orchestrationOf } from "./util.ts";
 import { checkStateCommit, migrationChain, type StateMigrations } from "./state.ts";
 import type {
-  GroupApi,
-  GroupSettingDefs,
-  GroupSettingNamespace,
-  GroupSettingValues,
-  GroupStartDriveResult,
+  OrchestrationApi,
+  OrchestrationSettingDefs,
+  OrchestrationSettingNamespace,
+  OrchestrationSettingValues,
+  OrchestrationStartDriveResult,
   RunScriptOptions,
 } from "./types.ts";
 
 /** 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호. 원천은 X `hostOf(g).callContext()`다 */
-export type GroupCallContext = RegistrationCallContext;
+export type OrchestrationCallContext = RegistrationCallContext;
 
-/** wrap이 X의 hostOf를 통해 쓰는 연산. checkGroup 같은 도구가 대역으로 바꿀 수 있게 좁게 나눈다 */
-export interface GroupHostAccess {
+/** wrap이 X의 hostOf를 통해 쓰는 연산. checkOrchestration 같은 도구가 대역으로 바꿀 수 있게 좁게 나눈다 */
+export interface OrchestrationHostAccess {
   registerTool(def: ToolResourceDef): void;
   registerCommand(name: string, def: CommandResourceDef): void;
   registerMethod(verb: string, def: ExtMethodResourceDef): void;
   registerProvider(name: string, config: ProviderResourceDef): void;
   migrateState(fn: StateMigration): void;
   /** 설정 읽기. 내장 그룹은 모든 키, 그 밖의 그룹은 자기 `ext.<id>.*` 키만 값이 나온다 */
-  settingsSource(): GroupSettingsSource | undefined;
+  settingsSource(): OrchestrationSettingsSource | undefined;
   /** L1 위임 서비스(`fresnel.agents`). 없거나 내장 확장이 아니면 undefined */
   agents(): AgentService | undefined;
   /** 재실행 문맥 안이면 그 문맥. 문맥 밖(명령 처리기, 도구 execute, onDispose)이면 undefined */
-  callContext(): GroupCallContext | undefined;
+  callContext(): OrchestrationCallContext | undefined;
   /** 주도 시작 요청(X `hostOf(g).startDrive`, 격리 자식에서는 엔진 왕복). 문맥의 thread에 이 scope를 넣는다 */
-  startDrive(input?: JsonValue): Promise<GroupStartDriveResult>;
+  startDrive(input?: JsonValue): Promise<OrchestrationStartDriveResult>;
 }
 
-export type HostAccessFactory<S> = (api: RegistrationApi<S>) => GroupHostAccess;
+export type HostAccessFactory<S> = (api: RegistrationApi<S>) => OrchestrationHostAccess;
 
 const PORT_ABSENT: ReadonlySet<string> = new Set(["port_unavailable", "service_reserved"]);
 
 /** ext-host가 만든 g에서 X 부가 API를 꺼낸다. setup 안에서만 쓴다 */
-export function realHostAccess<S>(api: RegistrationApi<S>): GroupHostAccess {
+export function realHostAccess<S>(api: RegistrationApi<S>): OrchestrationHostAccess {
   return {
     registerTool: (def) => {
       hostOf(api).registerTool(def);
@@ -121,15 +121,15 @@ function optionalPort<S, Api>(api: RegistrationApi<S>, key: PortKey<Api>): Api |
 }
 
 /** wrap이 읽는 GroupDef의 부분 */
-export interface WrapDef<S, D extends GroupSettingDefs> {
+export interface WrapDef<S, D extends OrchestrationSettingDefs> {
   readonly manifest: ExtensionManifest;
   readonly state?: StateDecl<S>;
   readonly migrations?: StateMigrations;
-  readonly settings?: SettingGroup<GroupSettingNamespace, D>;
+  readonly settings?: SettingGroup<OrchestrationSettingNamespace, D>;
 }
 
 /** 설정 값 하나. 값이 있고 스키마를 통과하면 그 값, 아니면 기본값 */
-function settingValue(def: SettingDef, source: GroupSettingsSource | undefined): unknown {
+function settingValue(def: SettingDef, source: OrchestrationSettingsSource | undefined): unknown {
   const raw = source?.value(def.key);
   if (raw !== undefined) {
     const checked = parse(def.type, raw);
@@ -138,21 +138,21 @@ function settingValue(def: SettingDef, source: GroupSettingsSource | undefined):
   return def.default;
 }
 
-/** 모든 키의 값이 자기 스키마를 통과했으면 GroupSettingValues<D>다 */
-function isSettingValues<D extends GroupSettingDefs>(
-  group: SettingGroup<GroupSettingNamespace, D>,
+/** 모든 키의 값이 자기 스키마를 통과했으면 OrchestrationSettingValues<D>다 */
+function isSettingValues<D extends OrchestrationSettingDefs>(
+  group: SettingGroup<OrchestrationSettingNamespace, D>,
   values: Readonly<Record<string, unknown>>,
-): values is GroupSettingValues<D> {
+): values is OrchestrationSettingValues<D> {
   return Object.entries<SettingDef>(group.defs).every(
     ([name, def]) => parse(def.type, values[name]).ok,
   );
 }
 
-function readSettings<D extends GroupSettingDefs>(
-  group: SettingGroup<GroupSettingNamespace, D> | undefined,
-  source: GroupSettingsSource | undefined,
+function readSettings<D extends OrchestrationSettingDefs>(
+  group: SettingGroup<OrchestrationSettingNamespace, D> | undefined,
+  source: OrchestrationSettingsSource | undefined,
   groupName: string,
-): GroupSettingValues<D> {
+): OrchestrationSettingValues<D> {
   const values: Record<string, unknown> = {};
   if (group !== undefined) {
     for (const [name, def] of Object.entries<SettingDef>(group.defs)) {
@@ -167,16 +167,16 @@ function readSettings<D extends GroupSettingDefs>(
 }
 
 /** 설정 묶음이 없는 그룹의 값. 키가 없는 빈 객체다 */
-function emptySettings<D extends GroupSettingDefs>(
+function emptySettings<D extends OrchestrationSettingDefs>(
   values: Readonly<Record<string, unknown>>,
-): GroupSettingValues<D> {
+): OrchestrationSettingValues<D> {
   if (Object.keys(values).length === 0 && isEmptyValues<D>(values)) return values;
   throw new Bug("group.settings: a group without settings produced values");
 }
 
-function isEmptyValues<D extends GroupSettingDefs>(
+function isEmptyValues<D extends OrchestrationSettingDefs>(
   values: Readonly<Record<string, unknown>>,
-): values is GroupSettingValues<D> {
+): values is OrchestrationSettingValues<D> {
   return Object.keys(values).length === 0;
 }
 
@@ -282,14 +282,14 @@ function runScriptOf<S>(api: RegistrationApi<S>): RunScriptFn {
 }
 
 /**
- * F RegistrationApi<S>를 GroupApi<S, D>로 감싼다(L3.group-sdk.spec §3.2). setup 안에서 한 번 부른다.
+ * F RegistrationApi<S>를 OrchestrationApi<S, D>로 감싼다(L3.group-sdk.spec §3.2). setup 안에서 한 번 부른다.
  * 감싼 연산은 원래 연산을 그대로 부르고 메모리 계측(§4.9)만 더한다.
  */
-export function wrap<S, D extends GroupSettingDefs>(
+export function wrap<S, D extends OrchestrationSettingDefs>(
   api: RegistrationApi<S>,
   def: WrapDef<S, D>,
   hostAccess: HostAccessFactory<S>,
-): GroupApi<S, D> {
+): OrchestrationApi<S, D> {
   const access = hostAccess(api);
   const counter = createMetricsCounter(def.manifest.name);
   defaultMetricsRegistry.register(def.manifest.name, counter.handle);
@@ -382,12 +382,12 @@ export function wrap<S, D extends GroupSettingDefs>(
     ): Promise<DelegateResult> => {
       const invalid = checkDelegateSpec(spec, def.manifest.name);
       if (invalid !== undefined) return { ok: false, error: invalid };
-      if (disposing) return { ok: false, error: { kind: "group.disabling", id: api.id } };
+      if (disposing) return { ok: false, error: { kind: "orchestration.disabling", id: api.id } };
       const agents = agentsOf();
       const context = access.callContext();
       const threadId = options?.threadId ?? context?.threadId;
       if (agents === undefined || threadId === undefined) {
-        return { ok: false, error: { kind: "group.delegateUnavailable" } };
+        return { ok: false, error: { kind: "orchestration.delegateUnavailable" } };
       }
       const called = await attemptAsync(() =>
         agents.delegate(toDelegateRequest(spec), {
@@ -402,7 +402,10 @@ export function wrap<S, D extends GroupSettingDefs>(
       if (!called.ok) {
         return {
           ok: false,
-          error: { kind: "group.delegateFailed", message: describeCause(called.error.cause) },
+          error: {
+            kind: "orchestration.delegateFailed",
+            message: describeCause(called.error.cause),
+          },
         };
       }
       const result = delegateResultOf(called.value);
@@ -417,13 +420,17 @@ export function wrap<S, D extends GroupSettingDefs>(
       if (context?.kind === "on") {
         return {
           ok: false,
-          error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+          error: {
+            kind: "orchestration.effectNotAllowed",
+            effect: "g.delegateStatus",
+            context: "on",
+          },
         };
       }
       const agents = agentsOf();
       const threadId = options?.threadId ?? context?.threadId;
       if (agents === undefined || threadId === undefined) {
-        return { ok: false, error: { kind: "group.delegateUnavailable" } };
+        return { ok: false, error: { kind: "orchestration.delegateUnavailable" } };
       }
       const found = agents.status(threadId, requestId);
       return { ok: true, status: found === undefined ? undefined : delegateStatusOf(found) };
@@ -434,21 +441,25 @@ export function wrap<S, D extends GroupSettingDefs>(
         return {
           ok: false,
           error: {
-            kind: "group.effectNotAllowed",
+            kind: "orchestration.effectNotAllowed",
             effect: "g.cancelDelegates",
             context: context.kind,
           },
         };
       }
       const agents = agentsOf();
-      if (agents === undefined) return { ok: false, error: { kind: "group.delegateUnavailable" } };
+      if (agents === undefined)
+        return { ok: false, error: { kind: "orchestration.delegateUnavailable" } };
       const called = await attemptAsync(() =>
         agents.cancel({ ownerScopeId: api.id }, reason ?? "group disabled"),
       );
       if (!called.ok) {
         return {
           ok: false,
-          error: { kind: "group.delegateFailed", message: describeCause(called.error.cause) },
+          error: {
+            kind: "orchestration.delegateFailed",
+            message: describeCause(called.error.cause),
+          },
         };
       }
       return { ok: true, cancelled: called.value.cancelled };

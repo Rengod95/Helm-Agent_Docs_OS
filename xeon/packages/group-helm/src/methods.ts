@@ -1,6 +1,6 @@
 import { Bug, parse, type SchemaProof } from "@fresnel/contracts";
 import type { ExtMethodDecl } from "@fresnel/contracts/extensions";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { Type, type TUnsafe } from "typebox";
 import { viewOf, type HelmStatusView } from "./commands.ts";
 import { dedupeFindings } from "./findings.ts";
@@ -185,7 +185,7 @@ export const helmMethodDecls: ExtMethodDecl[] = [
 
 // ── 읽기 ────────────────────────────────────────────────────────────────────
 
-type ReadApi = Pick<GroupApi<HelmState>, "readRecords">;
+type ReadApi = Pick<OrchestrationApi<HelmState>, "readRecords">;
 
 const INQUIRIES_MAX = 50;
 
@@ -279,7 +279,10 @@ function inquiryIdOf(params: unknown): string | undefined {
 
 // ── 등록 ────────────────────────────────────────────────────────────────────
 
-export type HelmMethodsApi = Pick<GroupApi<HelmState>, "state" | "readRecords" | "registerMethod">;
+export type HelmMethodsApi = Pick<
+  OrchestrationApi<HelmState>,
+  "state" | "readRecords" | "registerMethod"
+>;
 
 /** 확장 메서드 처리기가 받는 호출 맥락(`group-sdk`의 `registerMethod` 처리기의 둘째 인자) */
 type ExtMethodCallContext = Parameters<

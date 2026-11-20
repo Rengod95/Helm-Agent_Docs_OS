@@ -1,5 +1,5 @@
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
-import type { GroupApi, GroupStartDriveResult } from "@fresnel/group-sdk";
+import type { OrchestrationApi, OrchestrationStartDriveResult } from "@fresnel/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
 import { inquiryIdFrom, needIdFrom } from "./signals.ts";
 import {
@@ -76,7 +76,7 @@ export interface CommandContext {
   readonly terms: readonly string[];
 }
 
-type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit">;
+type CommandApi = Pick<OrchestrationApi<HelmState>, "state" | "commit">;
 
 /**
  * 명령 실행. 효과는 updateState뿐이다. 명령 처리기는 재실행되지 않으므로 ADR-0015 대상이 아니다.
@@ -148,8 +148,8 @@ function failedWrite(failure: StateWriteFailure): Result<never, HelmCommandError
   return err({ kind: "state_write", failure });
 }
 
-/** `GroupApi.startDrive`가 거부했을 때의 오류 값 */
-type StartFailure = Extract<GroupStartDriveResult, { readonly ok: false }>["error"];
+/** `OrchestrationApi.startDrive`가 거부했을 때의 오류 값 */
+type StartFailure = Extract<OrchestrationStartDriveResult, { readonly ok: false }>["error"];
 
 /** 주도 시작 요청이 거부된 이유를 한 줄 문장으로 바꾼다. 상태는 이미 커밋돼 있어 다시 `/helm start`로 이어 갈 수 있다 */
 export function startFailureText(error: StartFailure): string {

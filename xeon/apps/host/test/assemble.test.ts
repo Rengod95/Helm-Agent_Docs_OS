@@ -149,7 +149,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "l2.knowledge.skills.projectSkills",
     "l2.mcp.callTimeoutMs",
     "l2.dialog.ask.timeoutSec",
-    "l3.group-sdk.instrumentation",
+    "l3.orchestration.instrumentation",
     "l3.authoring.devMode",
     "l4.host-service.maxReplayEvents",
     "l4.host.defaultFolder",

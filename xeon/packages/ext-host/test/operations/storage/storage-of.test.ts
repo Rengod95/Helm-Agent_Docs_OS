@@ -9,7 +9,7 @@ import {
   type ExtStorageError,
   type ExtTables,
 } from "../../../src/operations/index.ts";
-import { createSmokeGroup, type TestHost } from "../../../src/testing/index.ts";
+import { createSmokeOrchestration, type TestHost } from "../../../src/testing/index.ts";
 import { assistantStop, makeUnit } from "../../primitives/fixtures/support.ts";
 import { recordOf, textOf } from "../../support/guards.ts";
 import { envelope } from "../support/fake-session.ts";
@@ -266,7 +266,7 @@ async function fireTurnEnd(t: TestHost, thread: ThreadId, key: string) {
 test("storage: the smoke group persists its notes in an extension table and keeps them after a restart", async () => {
   const first = await createStorageHarness();
   const thread = first.t.newThread();
-  const group = createSmokeGroup({
+  const group = createSmokeOrchestration({
     ids: first.t.ids,
     extend: (g) => {
       storageOf(g).defineTables(NOTE_TABLE, noteProjection(1));
@@ -283,7 +283,7 @@ test("storage: the smoke group persists its notes in an extension table and keep
   // 프로세스 재시작: 투영기 등록만 해제되고 테이블과 이벤트는 남는다
   first.policy.storage.release("smoke-group");
   const second = await createStorageHarness({ session: first.session, records: first.records });
-  const group2 = createSmokeGroup({
+  const group2 = createSmokeOrchestration({
     ids: second.t.ids,
     extend: (g) => {
       storageOf(g).defineTables(NOTE_TABLE, noteProjection(1));

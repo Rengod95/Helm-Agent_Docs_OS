@@ -34,7 +34,7 @@ function noticeTexts(rig: Rig): readonly string[] {
 
 test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks and no legacy fields", () => {
   expect(helmManifest.schemaVersion).toBe(2);
-  expect(helmManifest.group).toEqual({ composition: helmComposition });
+  expect(helmManifest.orchestration).toEqual({ composition: helmComposition });
   expect(helmManifest.plugins).toHaveLength(1);
   expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.id)).toEqual([undefined]);
   expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.layer)).toEqual(["L3"]);

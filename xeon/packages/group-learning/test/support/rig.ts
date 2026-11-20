@@ -21,11 +21,11 @@ import { AgentServicePortKey } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { capabilityDefTable, SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
-import type { GroupModule } from "@fresnel/group-sdk";
+import type { OrchestrationModule } from "@fresnel/group-sdk";
 import { fakeAgents, type FakeAgents } from "@fresnel/group-sdk/testing";
 import {
   createLearningBridge,
-  createLearningGroup,
+  createLearningOrchestration,
   type CommandReport,
   type LearningBridge,
   type LearningQueueReader,
@@ -123,7 +123,7 @@ export interface Rig {
   readonly bridge: LearningBridge;
   readonly clock: ManualClock;
   readonly reports: CommandReport[];
-  readonly module: GroupModule;
+  readonly module: OrchestrationModule;
   readonly values: Map<string, unknown>;
   /** 거짓이면 turn과 정착 뒤에 `host.settled()`를 기다리지 않는다(임대를 쥔 drive가 끝나지 않는 시험). 설정 저장소를 읽을 수 없게 하는 스위치도 여기 있다 */
   readonly control: { settingsDown: boolean; readerDown: boolean; waitSettled: boolean };
@@ -137,7 +137,7 @@ export interface Rig {
   state(): LearningState;
   /** 그룹 상태 커밋 이벤트 수 */
   commits(): number;
-  /** 이 kind의 기록 payload. 공개 레코드는 GroupRecord 봉투를 벗긴 안쪽 payload다 */
+  /** 이 kind의 기록 payload. 공개 레코드는 OrchestrationRecord 봉투를 벗긴 안쪽 payload다 */
   payloads(kind: string): readonly unknown[];
   /** 이 kind의 기록(공개와 비공개 모두) */
   events(kind: string): readonly { readonly kind: string; readonly payload: unknown }[];
@@ -211,7 +211,7 @@ export async function rigOn(
     ...Object.entries(options.settings ?? {}),
   ]);
   const tools = new Map<string, ToolResourceDef>();
-  const module = createLearningGroup({
+  const module = createLearningOrchestration({
     clock,
     reader,
     bridge,

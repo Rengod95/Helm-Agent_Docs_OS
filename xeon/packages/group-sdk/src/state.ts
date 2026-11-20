@@ -8,7 +8,7 @@ import { isRecord } from "./util.ts";
 export type StateMigrations = Readonly<Record<number, (previous: unknown) => unknown>>;
 
 /**
- * GroupDef.migrations를 F Upcaster 배열로 바꾼다(L3.group-sdk.spec §4.7). 순수 함수.
+ * OrchestrationDef.migrations를 F Upcaster 배열로 바꾼다(L3.group-sdk.spec §4.7). 순수 함수.
  * upcasters[i]는 v(i+1) → v(i+2)다(F.records.spec versioning). 길이는 version - 1이다.
  * 빠진 출발 버전은 validateGroupDef가 `state_migration_missing`으로 막으므로 여기서 만나면 Bug다.
  */

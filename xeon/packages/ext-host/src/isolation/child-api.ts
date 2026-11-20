@@ -28,7 +28,7 @@ import {
   type DriveOptions,
   type DriveStep,
   type EngineCallParams,
-  type GroupRecord,
+  type OrchestrationRecord,
   type Handler,
   type HookName,
   type PluginEngineCallName,
@@ -73,7 +73,7 @@ import type {
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
 import {
-  parseGroupRecords,
+  parseOrchestrationRecords,
   parsePostReceipt,
   parseScriptOutcome,
   parseStartDriveReply,
@@ -172,7 +172,7 @@ export interface RegState {
 
 /**
  * 격리 자식의 `g`에 더하는 스크립트 실행(설계 B, F.extensions.spec §3.1.4). 자식 대리 객체에만 있다. 공개 타입
- * (`RegistrationApi`, `GroupApi`)에 더하는 일은 P 층의 다음 커밋이다. 거절과 기동 실패는 값으로 돌아온다
+ * (`RegistrationApi`, `OrchestrationApi`)에 더하는 일은 P 층의 다음 커밋이다. 거절과 기동 실패는 값으로 돌아온다
  */
 interface ChildScriptApi {
   runScript(
@@ -496,9 +496,9 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> & Ch
     async record(kind: RecordKind, subject: RecordSubject, payload: JsonValue): Promise<void> {
       await callEngine(env, state, "record", jsonOf({ kind, subject, payload }, "the record"));
     },
-    async readRecords(query: RecordQuery): Promise<readonly GroupRecord[]> {
+    async readRecords(query: RecordQuery): Promise<readonly OrchestrationRecord[]> {
       const reply = await callEngine(env, state, "readRecords", jsonOf(query, "the query"));
-      return checked(parseGroupRecords(reply), "the records");
+      return checked(parseOrchestrationRecords(reply), "the records");
     },
     async recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void> {
       await callEngine(env, state, "recordPrivate", jsonOf({ kind, payload }, "the record"));

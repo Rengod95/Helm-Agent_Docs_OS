@@ -538,7 +538,7 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
       // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
       const lease = host.leaseOf(threadId);
       const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
-      const base: Omit<TestRunPhaseResult, "phase" | "group" | "seq"> = {
+      const base: Omit<TestRunPhaseResult, "phase" | "plugin" | "seq"> = {
         paused: stepPause.requested(threadId),
         lock:
           lease === null
@@ -548,14 +548,14 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
         traceEnabled: trace.enabled(),
         boundaries: boundaryLog.entriesOf(threadId),
       };
-      const phases = record?.manifest.group?.composition?.phases;
+      const phases = record?.manifest.orchestration?.composition?.phases;
       if (record === undefined || phases === undefined) {
-        return ok({ ...base, phase: null, group: null, seq: null });
+        return ok({ ...base, phase: null, plugin: null, seq: null });
       }
       return ok({
         ...base,
         phase: declaredPhaseOf(phases, state.docOf(threadId, record.id)),
-        group: record.extension,
+        plugin: record.extension,
         seq: state.revOf(threadId, record.id),
       });
     },
@@ -678,7 +678,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     if (!testRunThreads.has(threadId)) return;
     const lease = host.leaseOf(threadId);
     const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
-    const phases = record?.manifest.group?.composition?.phases;
+    const phases = record?.manifest.orchestration?.composition?.phases;
     boundaryLog.note(threadId, {
       // 보유자 기록이 없으면 읽을 상태 판이 없어 revision은 0이고 단계는 null이다
       seq: record === undefined ? 0 : state.revOf(threadId, record.id),
@@ -1030,7 +1030,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     // 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: F.extensions.spec §4.5]
     const memberIds = new Set(
       pluginsOf(installed.manifest)
-        .filter((entry) => entry.inGroup)
+        .filter((entry) => entry.inOrchestration)
         .map((entry) => entry.registrationId),
     );
     if (

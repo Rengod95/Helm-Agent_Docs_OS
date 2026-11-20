@@ -66,7 +66,7 @@ xeon/packages/group-helm/
     records.ts            # 레코드 payload 스키마 3종, HELM_RECORD_KINDS, recordDiscoveries, recordFinished, linkWork
     commands.ts           # HelmCommand, HelmStatusView, parseHelmCommand, runHelmCommand, helmCommand
     settings.ts           # AutoStartSchema, helmSettings, HelmSettings
-    index.ts              # helmGroup = defineGroup(...), 공개 export
+    index.ts              # helmOrchestration = defineOrchestration(...), 공개 export
   test/
     unit/                 # *.test.ts (§5)
     int/
@@ -95,11 +95,11 @@ xeon/packages/group-helm/
 | H-06 | 단계 전이: `HelmEvent`, `transition`, `TRANSITIONS`. 스펙 §4.2 표와 1:1. drive 락 필요 판정 훅은 두지 않는다(스펙 §3.3) | H-03 | M |
 | H-07 | 주입: `lenses.ts`(내장 렌즈 6개, `LENS_PRIORITY`, `selectLenses(pending, …)`), `prompts.ts`(블록 구조, 단계별 문구 본문, turn 입력, explorer 과제, requestId), `input.agent.before` chain 핸들러, 알림 post(`when: "next"`), `agents/explorer.md` 본문과 `risk: read` 도구 목록 | H-06 | M |
 | H-08 | 쓰기 거부: `ToolCallMetaView`, `isWriteCall`(`risk !== "read"`), `isGuardedCaller`(`main`, `subagent:explorer`), `guardWrite`. 메타 없음 경고(`/helm status`) | H-03, H-04, M3-02(`ToolCallPayload.risk`·`hints`·`caller`) | S |
-| H-09 | drive 단계 머신: `helmDrive`(단계당 한 분기, 커밋 후 반환), `activeInquiry`, `guarded`, `minLimits`, requestId 함수, `parseExplorerAnswer`, `dedupeFindings`, 상한·중지·부분 실패 처리. 비null 단언 없이 `Result`로 좁힌다 | H-06, H-07, group-sdk M2 산출물(`defineGroup`, `DriveArbiter`, `replayDrive`), X.primitives drive 락 API(부여·`idle` 반납·`DriveLockBudget`), L1.agents `loop.spawn`(explorer 정의 로딩) | L |
+| H-09 | drive 단계 머신: `helmDrive`(단계당 한 분기, 커밋 후 반환), `activeInquiry`, `guarded`, `minLimits`, requestId 함수, `parseExplorerAnswer`, `dedupeFindings`, 상한·중지·부분 실패 처리. 비null 단언 없이 `Result`로 좁힌다 | H-06, H-07, group-sdk M2 산출물(`defineOrchestration`, `DriveArbiter`, `replayDrive`), X.primitives drive 락 API(부여·`idle` 반납·`DriveLockBudget`), L1.agents `loop.spawn`(explorer 정의 로딩) | L |
 | H-10 | 지식 소비: `gatherContext`(읽기 호출, requestId 없음), `callSource`, `degradeOf`, 저하 동작 표, 외부 텍스트 감싸기 | H-09, H-20, L2.web 최소형(`web.search` 서비스, `WebSearchKey`), F `capabilities/defs` 키 상수, L2 읽기 표지(REQ-L2-01. 없으면 `effect_not_allowed` 저하 경로만 동작) | M |
 | H-11 | 발견 기록과 작업 연결: `recordDiscoveries`, `recordFinished`, `linkWork`(`work.tasks`의 `create({ content })`, 멱등 쓰기, requestId `helm:<inquiryId>:cap:task:<findingId>`, 발견별 `Result`) | H-09, H-10, L2.work `WorkTasksKey`와 `idempotent: true` 선언(없으면 건너뛰는 경로만) | M |
-| H-12 | 명령: `parseHelmCommand`, `runHelmCommand`(`Result<HelmStatusView, HelmCommandError>`), `helmCommand`(kind별 문장, `assertNever`), `HelmStatusView`(group-sdk `GroupStatus`에서 drive 락 상태) | H-06, H-20, group-sdk `GroupApi.registerCommand`(L3.group-sdk.plan G-22) | S |
-| H-13 | 조립: `index.ts`의 `helmGroup = defineGroup(...)`와 플러그인 엔트리 export. 조립 루트(`apps/host`)에는 Helm 등록을 두지 않는다. 호스트 설정 카탈로그에 `helmSettings`를 싣는 한 줄(L3.helm.spec §10 미결 13 [제안]) | H-05, H-07, H-08, H-09, H-11, H-12 | S |
+| H-12 | 명령: `parseHelmCommand`, `runHelmCommand`(`Result<HelmStatusView, HelmCommandError>`), `helmCommand`(kind별 문장, `assertNever`), `HelmStatusView`(group-sdk `OrchestrationStatus`에서 drive 락 상태) | H-06, H-20, group-sdk `OrchestrationApi.registerCommand`(L3.group-sdk.plan G-22) | S |
+| H-13 | 조립: `index.ts`의 `helmOrchestration = defineOrchestration(...)`와 플러그인 엔트리 export. 조립 루트(`apps/host`)에는 Helm 등록을 두지 않는다. 호스트 설정 카탈로그에 `helmSettings`를 싣는 한 줄(L3.helm.spec §10 미결 13 [제안]) | H-05, H-07, H-08, H-09, H-11, H-12 | S |
 | H-14 | 재생·재개 단위 테스트: `replayDrive`로 단계마다 재호출, drive 락 교체 뒤 requestId 안정성 | H-13 | M |
 | H-19 | 재생 2회, 효과 1회 시험(스펙 §4.11): `replayDrive` 효과 계수로 모든 커밋 시점에서 끊고 drive·on 핸들러를 두 번 실행. `apply` 분기 안 두 곳 추가 | H-14, L3.group-sdk.plan G-20(효과 계수 확장, M3-new-01) | M |
 | H-20 | 실패 값: `failures.ts`(`HelmFailure`, `failureOf`, `reactionOf`, `HelmCommandError`), `updateState`의 `Result` 반환과 `state_conflict` 1회 재시도, 대기 거부 처리(스펙 §4.13 D-M3-05 a: `lease.rejected` 구독 핸들러) | H-03, 내구 이벤트 `lease.rejected`와 구독 수단(없으면 대기 거부 경로만 빼고 진행) | M |
@@ -116,7 +116,7 @@ xeon/packages/group-helm/
 
 | 산출물 | 소유 계획 | Helm 작업 |
 |---|---|---|
-| `defineGroup`, `GroupApi.settings()`, `GroupApi.registerCommand`, `DriveArbiter`, `replayDrive`, `GroupStatus` | L3.group-sdk.plan (M2: G-04, G-05, G-07, G-12, G-15, G-22) | H-09, H-12, H-13, H-14 |
+| `defineOrchestration`, `OrchestrationApi.settings()`, `OrchestrationApi.registerCommand`, `DriveArbiter`, `replayDrive`, `OrchestrationStatus` | L3.group-sdk.plan (M2: G-04, G-05, G-07, G-12, G-15, G-22) | H-09, H-12, H-13, H-14 |
 | `scanDriveSource` | L3.group-sdk.plan (M3: G-19) | H-18 |
 | drive 락 부여·`idle` 반납, `DriveLockBudget`, 상한 집행, `lease.*` 이벤트 | X.primitives.plan | H-09 |
 | `loop.spawn`, 그룹 제공 에이전트 정의 로딩 | L1.agents.plan | H-09, H-15 |
@@ -128,7 +128,7 @@ xeon/packages/group-helm/
 | `loop.spawn` (thread, `requestId`) 멱등의 대화 DB 기록 | L1.agents.plan(REQ-L1-01) | H-15 fault, H-19 |
 | L2 메서드 효과 등급 선언(`web.search`, `knowledge.*` 읽기, `work.tasks.create` 멱등) | L2.web·knowledge·work plan(REQ-L2-01) | H-10, H-11 |
 | `replayDrive` 효과 계수(G-20 확장) | L3.group-sdk.plan | H-19 |
-| 내구 이벤트 `lease.rejected`, `GroupStatus.drive`의 `"rejected"`와 대기 상한 | L3.group-sdk.plan G-30, X.primitives.plan(REQ-X-08, D-M3-05) | H-20 |
+| 내구 이벤트 `lease.rejected`, `OrchestrationStatus.drive`의 `"rejected"`와 대기 상한 | L3.group-sdk.plan G-30, X.primitives.plan(REQ-X-08, D-M3-05) | H-20 |
 | 외부 확장 로더(자체 API), `@fresnel/contracts`·`@fresnel/group-sdk`·`typebox` 가상 모듈 등록, 첫 실행 설치 | X.loading-trust.plan(M3-15), L4 릴리즈(M3-27) | H-22, H-15 |
 
 ## 4. 채택 코드
@@ -139,7 +139,7 @@ xeon/packages/group-helm/
 | 의존 | 판 | 쓰임 |
 |---|---|---|
 | `@fresnel/contracts` | `workspace:*` | F 타입(extensions, records, capabilities, settings) |
-| `@fresnel/group-sdk` | `workspace:*` | `defineGroup`, `GroupApi`, 테스트 도우미 `replayDrive`(M2), `scanDriveSource`(M3, G-19) |
+| `@fresnel/group-sdk` | `workspace:*` | `defineOrchestration`, `OrchestrationApi`, 테스트 도우미 `replayDrive`(M2), `scanDriveSource`(M3, G-19) |
 | `typebox` | 1.3.27(`catalog:`, L3.group-sdk.plan §4 표, eng.toolchain.guide TC-02) | 상태·레코드·설정 스키마 |
 
 - 참고 자료(코드 복사 없음): 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양"), ext-points 안 1 재생·토글 보장(`_research/ext-points.md` §5), F `renderSearch`의 외부 내용 표지(F.capabilities.spec §3.9).
@@ -152,8 +152,8 @@ xeon/packages/group-helm/
 
 | # | 테스트 이름 | 확인할 동작 |
 |---|---|---|
-| 1 | `manifest.valid-and-usage-matches` | `helmManifest`가 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0. 루트 플러그인 하나(`plugins[0]`)에 `hooks` 6개, `drives`·`usesPost` 참, `group` 선언 있음 |
-| 2 | `records.discovery-schema-valid` | 예시 발견 payload가 `DiscoveryRecordedPayloadSchema`와 F `validateGroupRecord`를 통과하고, `confidence` 범위 밖 값은 실패 |
+| 1 | `manifest.valid-and-usage-matches` | `helmManifest`가 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0. 루트 플러그인 하나(`plugins[0]`)에 `hooks` 6개, `drives`·`usesPost` 참, `orchestration` 선언 있음 |
+| 2 | `records.discovery-schema-valid` | 예시 발견 payload가 `DiscoveryRecordedPayloadSchema`와 F `validateOrchestrationRecord`를 통과하고, `confidence` 범위 밖 값은 실패 |
 | 3 | `records.kinds-have-group-prefix` | `HELM_RECORD_KINDS` 3개가 `grp.helm.` 접두와 `RECORD_KIND_PATTERN`을 만족 |
 | 4 | `state.initial-valid` | `INITIAL_HELM_STATE`가 스키마를 통과하고 `helmStateDecl.version`이 1 |
 | 4a | `state.worst-case-fits-64kib` | 모든 배열이 개수 상한이고 모든 문자열이 길이 상한인 한국어 최악 입력에 `fitState`를 적용하면 직렬화 UTF-8이 60 KiB 이하이고 스키마를 통과한다. 같은 입력이면 같은 결과다. 예산 안 입력은 바꾸지 않는다 |
@@ -193,10 +193,10 @@ xeon/packages/group-helm/
 | 35 | `replay.twice-effects-once` (H-19) | UC-2 기준 실행의 모든 커밋 시점에서 끊고 drive·on 핸들러를 두 번 실행해도 새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1(스펙 §4.11 표) |
 | 36 | `replay.apply-split-points` (H-19) | `recordDiscoveries`와 `linkWork` 사이, `linkWork`와 `applied` 커밋 사이에서 끊어도 작업 2개, 적용 turn 1회 |
 | 37 | `failures.reaction-covers-all-kinds` (H-20) | 모든 `HelmFailure` kind × 단계 쌍이 스펙 §4.12 표의 `HelmReaction`을 돌려준다 |
-| 38 | `failures.unknown-error-rethrown` (H-20) | `failureOf`가 모르는 예외(`Bug`, `TypeError`)는 drive 밖으로 다시 던져지고 테스트 호스트의 `GroupStatus.lastError`가 `group.driveThrew`다 |
+| 38 | `failures.unknown-error-rethrown` (H-20) | `failureOf`가 모르는 예외(`Bug`, `TypeError`)는 drive 밖으로 다시 던져지고 테스트 호스트의 `OrchestrationStatus.lastError`가 `orchestration.driveThrew`다 |
 | 39 | `failures.state-conflict-retries-once` (H-20) | 가짜 X가 `state_conflict`를 한 번 내면 `updateState`가 다시 읽어 성공하고, 두 번 내면 `state_conflict` 실패를 돌려준다 |
 | 40 | `failures.missing-inquiry-finishes-failed` (H-09) | `phase: "explore"`, `inquiryId: null` 상태로 drive를 부르면 예외 없이 `inquiry.finished`(`failed`)와 초기 상태 커밋 |
-| 41 | `lease.wait-rejected-clears-pending` (H-20) | `lease.rejected` 이벤트의 구독 핸들러가 `pending`을 지우고 거부 알림 1건을 `post`한다. 같은 이벤트로 재실행하면 `duplicate`이고, 핸들러는 `GroupStatus`를 읽지 않는다 |
+| 41 | `lease.wait-rejected-clears-pending` (H-20) | `lease.rejected` 이벤트의 구독 핸들러가 `pending`을 지우고 거부 알림 1건을 `post`한다. 같은 이벤트로 재실행하면 `duplicate`이고, 핸들러는 `OrchestrationStatus`를 읽지 않는다 |
 | 42 | `effects.no-capability-in-on-handlers` (H-21) | 신호 훅 세 개를 실행하는 동안 가짜 provider 호출 수가 0 |
 | 43 | `knowledge.undeclared-method-degrades` (H-21) | `readOnly` 선언이 없는 `web.search` 정의로 바꾸면 X 래퍼가 `effect_not_allowed`로 거부하고 provider는 불리지 않으며 탐구는 `degraded`에 `web`을 넣고 끝난다 |
 | 44 | `work.link-idempotent-across-replay` (H-11) | 같은 `findingId`로 `linkWork`를 두 번 부르면 가짜 work provider의 작업이 1개이고 두 번째 결과가 처음 결과와 같다 |
@@ -261,5 +261,5 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 7 | 재시작 뒤 spawn이 중복된다 | 탐구 id 기반 명시 requestId(`drive.requestids-stable-across-lease-change`)와 L1 spawn 멱등의 대화 DB 기록(REQ-L1-01). `resume.after-kill-in-explore`가 둘을 함께 확인한다 |
 | 8 | `record`와 `commit` 사이 강제 종료로 발견 기록이 중복된다 | `findingId` 중복 제거 키, 읽는 쪽 중복 제거 규칙. 원자 API(REQ-X-03)가 생기면 바꾼다 |
 | 9 | 도구 메타가 비어 확산 단계에서 읽기 도구까지 거부된다 | M3-02를 H-08의 선행으로 둔다. 메타가 없는 도구 목록을 `/helm status`에 보여 준다 |
-| 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineGroup` 단위 테스트와 `@fresnel/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
+| 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineOrchestration` 단위 테스트와 `@fresnel/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
 | 11 | 읽기 기능 호출이 재생마다 다시 불려 비용이 는다 | `converge` 한 분기에서만 부르고 결과를 `converged` 커밋으로 고정한다. 재생 횟수는 커밋 시점 사이 끊김 수만큼이라 정상 운영에서는 0이다 |

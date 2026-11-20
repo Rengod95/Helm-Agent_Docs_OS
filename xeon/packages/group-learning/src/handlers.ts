@@ -9,7 +9,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import type { AgentSettledPayload, HandlerContext } from "@fresnel/contracts/extensions";
 import { PrimitiveError } from "@fresnel/ext-host";
-import type { GroupApi, GroupUsageDelta } from "@fresnel/group-sdk";
+import type { OrchestrationApi, OrchestrationUsageDelta } from "@fresnel/group-sdk";
 import type { LearningDeps } from "./deps.ts";
 import type { LearningWriter } from "./proposals/ops.ts";
 import { eventKindOf, payloadOf } from "./proposals/events.ts";
@@ -33,7 +33,7 @@ import { advanceCounters, afterDelegateFailure, applyTurn, type TurnTally } from
 // L3.learning.spec §4.2~§4.3, §4.10. 재실행되는 코드는 on 핸들러 셋과 `agent.settled` 구독 핸들러뿐이다. 핸들러는 기능 메서드를 부르지 않는다(ADR-0015 §3.2).
 // 쓰기는 모두 ambient 안의 `g.recordPrivate`·`g.record`·`g.commit`이다(핸들러는 디스패치 키, 명령 처리기는 호출 id가 멱등 키다).
 
-export type LearningApi = GroupApi<LearningState, LearningSettingDefs>;
+export type LearningApi = OrchestrationApi<LearningState, LearningSettingDefs>;
 
 export interface HandlerEnv {
   readonly g: LearningApi;
@@ -102,7 +102,7 @@ function clean(value: number): number {
 }
 
 /** 검토 사용량을 계측 증가분으로 바꾼다. 사용량이 없으면(`settleInFlight` 경로) 모두 0이다 */
-function usageDeltaOf(usage: Usage | null): GroupUsageDelta {
+function usageDeltaOf(usage: Usage | null): OrchestrationUsageDelta {
   // 스키마는 음수·비유한 값을 막지 않는다. 계측 쓰기는 그런 값을 거부하므로 경계에서 0으로 맞춘다 [결정: 오케스트레이터 기본값]
   return usage === null
     ? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 }

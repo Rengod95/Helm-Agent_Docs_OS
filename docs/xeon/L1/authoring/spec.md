@@ -22,7 +22,7 @@ binds: [xeon/packages/core-authoring/**]
 
 - 코어는 플러그인이 아니다. 프로필·켜짐 상태가 없고 끌 수 없다. 드래프트 검사, 리뷰 제출, 테스트 런, 지난 턴에 돌려 보기는 빌더 플러그인이 꺼져 있어도 같은 호스트 포트로 돈다(화면의 wire `ext.*`도 같은 포트다).
 - 공개 API는 `fresnel.devkit` 서비스 계약(`DevkitService`, `contracts/services/devkit.ts`)이다. 대화하는 빌더는 이 계약만 쓴다. 패키지 `@fresnel/core-authoring`의 export는 호스트(조립 루트)용이다.
-- 이름 규칙의 정본(`GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, `checkGroupName`)과 카탈로그 버전(`KIND_CATALOG_VERSION`)은 contracts에 있다(`F.capabilities.spec`). group-sdk는 이름 규칙을 다시 내보낸다.
+- 이름 규칙의 정본(`ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`, `checkOrchestrationName`)과 카탈로그 버전(`KIND_CATALOG_VERSION`)은 contracts에 있다(`F.capabilities.spec`). group-sdk는 이름 규칙을 다시 내보낸다.
 
 ## 3. 의존
 

@@ -104,7 +104,7 @@ flowchart TB
     desktop["apps/desktop"]
     host["apps/host"]
   end
-  subgraph L3["L3 플러그인 그룹"]
+  subgraph L3["L3 오케스트레이션 플러그인"]
     ghelm["packages/group-helm"]
     glearn["packages/group-learning"]
     gkit["packages/group-sdk"]

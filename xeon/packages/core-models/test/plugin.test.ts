@@ -36,7 +36,7 @@ const PATCHER = defineManifest({
   version: "0.1.0",
   entry: "./src/index.ts",
   plugins: [{ layer: "L3", hooks: ["request.provider.before"] }],
-  group: {},
+  orchestration: {},
   trust: { level: "builtin" },
 });
 
@@ -207,7 +207,7 @@ describe("core-models builtin extension", () => {
           ],
         },
       ],
-      group: {},
+      orchestration: {},
       trust: { level: "builtin" },
     });
     await th.host.install({
@@ -335,7 +335,7 @@ describe("core-models builtin extension", () => {
         version: "0.1.0",
         entry: "./src/index.ts",
         plugins: [{ layer: "L3", hooks: ["guard.model.before"] }],
-        group: {},
+        orchestration: {},
         trust: { level: "builtin" },
       }),
       entry: ({ manifest: own, register }) => {

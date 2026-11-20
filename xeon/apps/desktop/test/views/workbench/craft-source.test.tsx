@@ -52,7 +52,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -60,7 +60,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -71,10 +71,16 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
 
 /** 그룹 `review`는 구성원 `review/lint` 하나를 가진다 */
 const GROUP = entry("review", {
-  isGroup: true,
+  isOrchestration: true,
   plugins: [
-    { registrationId: "review", layer: "L2", status: "enabled", inGroup: true },
-    { registrationId: "review/lint", id: "lint", layer: "L2", status: "enabled", inGroup: true },
+    { registrationId: "review", layer: "L2", status: "enabled", inOrchestration: true },
+    {
+      registrationId: "review/lint",
+      id: "lint",
+      layer: "L2",
+      status: "enabled",
+      inOrchestration: true,
+    },
   ],
 });
 

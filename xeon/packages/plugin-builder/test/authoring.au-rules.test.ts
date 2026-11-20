@@ -2,14 +2,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { validateExtensionDir } from "@fresnel/core-authoring";
-import { driveGroupFixture, readRecord, tempRoot, templateDirs } from "./support.ts";
+import { driveOrchestrationFixture, readRecord, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
 
 async function scaffolded(name: string): Promise<string> {
   const dir = root.path(name);
-  await driveGroupFixture(name, dir, templates);
+  await driveOrchestrationFixture(name, dir, templates);
   return dir;
 }
 
@@ -58,7 +58,7 @@ const view = (fallback: boolean): Record<string, unknown> => ({
 test("authoring.AU-004: two drive blocks and a capability call in an on block are errors", async () => {
   const dir = await scaffolded("au4-blocks");
   editManifest(dir, (manifest) => {
-    manifest["group"] = {
+    manifest["orchestration"] = {
       composition: {
         blocks: [
           { id: "d1", stage: "run", op: "drive" },
@@ -76,8 +76,8 @@ test("authoring.AU-004: two drive blocks and a capability call in an on block ar
   });
   const found = await issuesOf(dir, "AU-004");
   expect(found.map((entry) => [entry.severity, entry.path, entry.message.split(":")[0]])).toEqual([
-    ["error", "/group/composition/blocks/1", "drive_duplicate"],
-    ["error", "/group/composition/blocks/2/consumes", "on_capability_call"],
+    ["error", "/orchestration/composition/blocks/1", "drive_duplicate"],
+    ["error", "/orchestration/composition/blocks/2/consumes", "on_capability_call"],
   ]);
 });
 
@@ -87,7 +87,7 @@ test("authoring.AU-004: a required capability with no provider is a warning only
     manifest["plugins"] = [
       { layer: "L3", drives: true, hooks: [], requires: [{ id: "web.search", range: "^1.0.0" }] },
     ];
-    manifest["group"] = {
+    manifest["orchestration"] = {
       composition: {
         blocks: [{ id: "d1", stage: "run", op: "drive", consumes: ["web.search"] }],
       },
@@ -96,7 +96,7 @@ test("authoring.AU-004: a required capability with no provider is a warning only
   expect(await issuesOf(dir, "AU-004")).toEqual([]);
   const missing = await issuesOf(dir, "AU-004", ["knowledge.search"]);
   expect(missing.map((entry) => [entry.severity, entry.path])).toEqual([
-    ["warning", "/group/composition/blocks/0/consumes/0"],
+    ["warning", "/orchestration/composition/blocks/0/consumes/0"],
   ]);
   expect(await issuesOf(dir, "AU-004", ["web.search"])).toEqual([]);
 });
@@ -130,7 +130,7 @@ test("authoring.AU-010: a spawn step needs a human confirmation", async () => {
   );
   const found = await issuesOf(dir, "AU-010");
   expect(found.map((entry) => [entry.severity, entry.path, entry.file])).toEqual([
-    ["warning", "/group", "src/fan-out.ts"],
+    ["warning", "/orchestration", "src/fan-out.ts"],
   ]);
   writeFileSync(
     join(dir, "src", "confirm.ts"),

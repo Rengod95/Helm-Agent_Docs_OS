@@ -99,7 +99,7 @@ export const PlanIdSchema = Type.Unsafe<PlanId>(Type.String({ pattern: PLAN_ID_P
 export const GoalIdSchema = Type.Unsafe<GoalId>(Type.String({ pattern: GOAL_ID_PATTERN }));
 export const ReportIdSchema = Type.Unsafe<ReportId>(Type.String({ pattern: REPORT_ID_PATTERN }));
 
-/** owner 문자열: "main", 서브에이전트 이름, 플러그인 그룹의 Registration id 등. 해석은 하지 않는다 */
+/** owner 문자열: "main", 서브에이전트 이름, 오케스트레이션 플러그인의 Registration id 등. 해석은 하지 않는다 */
 export const OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9_./:-]{0,63}$";
 export const OwnerSchema = Type.String({ pattern: OWNER_PATTERN });
 

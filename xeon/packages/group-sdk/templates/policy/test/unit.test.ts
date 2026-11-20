@@ -1,7 +1,7 @@
 import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { expect, test } from "bun:test";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import { checkGroup } from "@fresnel/group-sdk/testing";
+import { checkOrchestration } from "@fresnel/group-sdk/testing";
 import group from "../src/index.ts";
 
 test("__ID__.denies-a-blocked-tool-and-passes-the-others", async () => {
@@ -43,6 +43,6 @@ test("__ID__.denies-a-blocked-tool-and-passes-the-others", async () => {
 });
 
 test("__ID__.setup-declares-every-point-and-effect", async () => {
-  const errors = (await checkGroup(group)).filter((found) => found.severity === "error");
+  const errors = (await checkOrchestration(group)).filter((found) => found.severity === "error");
   expect(errors).toEqual([]);
 });

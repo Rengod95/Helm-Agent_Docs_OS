@@ -196,7 +196,7 @@ const SettingsViewSchema = Type.Object({
 
 /**
  * 설정 값을 읽는다. 읽기가 던지거나 값이 스키마를 통과하지 못하면 fail-closed다(§4.1): 호출한 쪽은 검토도 적용도 하지 않는다.
- * `read`는 `GroupApi.settings()`다. 이 함수가 타입을 좁힌다(`GroupSettingValues`는 키별 타입을 싣지 않는다)
+ * `read`는 `OrchestrationApi.settings()`다. 이 함수가 타입을 좁힌다(`OrchestrationSettingValues`는 키별 타입을 싣지 않는다)
  */
 export function readLearningSettings(
   read: () => Readonly<Record<string, unknown>>,

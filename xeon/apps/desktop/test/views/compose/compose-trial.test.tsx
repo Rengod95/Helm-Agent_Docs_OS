@@ -46,7 +46,7 @@ function threadOf(raw: string): ThreadId {
 function resultOf(over: Partial<TestRunPhaseResult> = {}): TestRunPhaseResult {
   return {
     phase: "review",
-    group: "helm",
+    plugin: "helm",
     seq: 7,
     paused: false,
     lock: { holder: "helm", status: "active", epoch: 3 },
@@ -544,7 +544,7 @@ function listRowOf(name: string, registration: ExtListEntry["registration"]): Ex
     name,
     displayName: name,
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "1.0.0",
     location: "/x",
     requestedGrade: "user",
@@ -552,7 +552,7 @@ function listRowOf(name: string, registration: ExtListEntry["registration"]): Ex
     tier: null,
     status: "enabled",
     ...(registration === undefined ? {} : { registration }),
-    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,

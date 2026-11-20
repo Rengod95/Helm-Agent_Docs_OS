@@ -1,4 +1,4 @@
-import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, type OrchestrationModule } from "@fresnel/group-sdk";
 import { accountRotationManifest } from "./manifest.ts";
 import { accountRotationSettings } from "./settings.ts";
 
@@ -11,7 +11,7 @@ function setupAccountRotation(): void {
 }
 
 /** 기본 꺼짐인 계정 회전 플러그인의 그룹 모듈. 신뢰 등급 user, 설정 네임스페이스 `ext.account-rotation`이다 */
-export const accountRotationGroup: GroupModule = defineGroup<
+export const accountRotationOrchestration: OrchestrationModule = defineOrchestration<
   never,
   typeof accountRotationSettings.defs
 >({
@@ -21,7 +21,7 @@ export const accountRotationGroup: GroupModule = defineGroup<
 });
 
 /** 외부 로더가 부르는 엔트리(X.loading-trust.spec §4.4.2: named `extension`) */
-export const extension: GroupModule["entry"] = accountRotationGroup.entry;
+export const extension: OrchestrationModule["entry"] = accountRotationOrchestration.entry;
 
 export { accountRotationManifest, ROTATION_RISK_NOTICE } from "./manifest.ts";
 export { accountRotationSettings } from "./settings.ts";

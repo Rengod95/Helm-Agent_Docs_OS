@@ -9,7 +9,7 @@ import { startInProcessHost } from "../../src/command-run.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { testGroup } from "../fixtures/test-group.ts";
+import { testOrchestration } from "../fixtures/test-group.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -158,7 +158,7 @@ async function withoutUnit(without: string | undefined) {
   const h = useEngineHome();
   writeUserSettings(h, TAPE_SETTINGS);
   const captured: { current: Captured | undefined } = { current: undefined };
-  const group = testGroup(fixedIdFactory(9));
+  const group = testOrchestration(fixedIdFactory(9));
   const host = await startInProcessHost({
     devChecks: true,
     defaultGroups: false,
@@ -191,8 +191,8 @@ async function withoutUnit(without: string | undefined) {
       "proposal.list unavailable": JSON.stringify(
         (await connection.request("proposal.list", {})).unavailable,
       ),
-      "group.list": JSON.stringify(
-        (await connection.request("group.list", {})).groups.map((entry) => entry.id),
+      "orchestration.list": JSON.stringify(
+        (await connection.request("orchestration.list", {})).groups.map((entry) => entry.id),
       ),
       ask_user: names.always.includes("ask_user") || names.deferred.includes("ask_user"),
       groupId: group.module.manifest.name,
@@ -214,7 +214,7 @@ realTest(
     expect(full["knowledge.skills.list"]).toBe("ok");
     expect(full["knowledge.memory.read"]).toBe("ok");
     expect(full["proposal.list unavailable"]).toBe("[]");
-    expect(full["group.list"]).toBe(JSON.stringify([full.groupId]));
+    expect(full["orchestration.list"]).toBe(JSON.stringify([full.groupId]));
     expect(full.ask_user).toBe(true);
 
     const noDialog = await withoutUnit("host-dialog-bridge");

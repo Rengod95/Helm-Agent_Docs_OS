@@ -79,7 +79,7 @@ xeon/packages/ext-host/
 
 ## 3. 작업 분해
 
-선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@fresnel/contracts/extensions`의 타입, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateGroupRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
+선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@fresnel/contracts/extensions`의 타입, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateOrchestrationRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
@@ -92,12 +92,12 @@ xeon/packages/ext-host/
 | P-07 | `cordis-bridge.ts`: 루트 `Context` 생성, Registration 세대마다 `ctx.plugin`으로 fiber 생성, `effect` 래퍼(해제기 멱등), `onDispose` 묶음 effect(역순 순차), `provide` disposer 타입 교정과 await, 포트별 inject 플러그인(ACTIVE에서 참조 설정, 해제에서 비움), 루트 dispose. `cordis.contract.test.ts` | P-02 | M | M0 |
 | P-08 | `post.ts`: `PostQueue.post(scope, item, options)`, `usesPost` 검사(`validateUsage`), `requestId` 길이 검사, `InputQueuePort.enqueue` 위임, `PostReceipt` | P-03, P-05, F E9 | S | M0 |
 | P-09 | `registration.ts`, `boundary.ts`: `RegistrationFn` 구현(정의, id 검사), 상태기계 4상태(마지막 요청 우선), 켜기 적용(fiber 생성 → setup → `validateUsage` → `scope.changed` 초안 → `settle`에서 세대 열기), 끄기 적용(세대 닫기 → drive 락 반납 초안 → `scope.changed` 초안 → `settle`에서 abort와 `fiber.dispose()`), `settle(failed)` 되돌리기, 유휴 적용(`LoopPort.whenIdle`), 세대 가드, `RegistrationInfo` | P-04, P-07 | L | M0 |
-| P-10 | `lease.ts` 중재부 `LeaseBroker`: drive 등록 검사(`drive_requires_group`, `drive_undeclared`, `drive_duplicate`, `drive_outside_setup`), 후보 계산, 단일 후보 부여, `leaseEpoch`, `leaseId` 발급, 상한 클램프(설정 × `DriveOptions`), `lease.acquired`·`lease.released` 초안, 반납 사유 6종, `releasing` 상태 | P-09 | M | M0 |
+| P-10 | `lease.ts` 중재부 `LeaseBroker`: drive 등록 검사(`drive_requires_orchestration`, `drive_undeclared`, `drive_duplicate`, `drive_outside_setup`), 후보 계산, 단일 후보 부여, `leaseEpoch`, `leaseId` 발급, 상한 클램프(설정 × `DriveOptions`), `lease.acquired`·`lease.released` 초안, 반납 사유 6종, `releasing` 상태 | P-09 | M | M0 |
 | P-11 | `lease.ts` 구동부: `LoopHandle`(`turn`, `spawn`, `budget` getter, `signal`), 기본 requestId `${leaseId}:${baseRev}.${i}`, 사용량 집계(재생 제외), 호출 예약(`turn_settled`·`idle`), 같은 판 연속 무효과 반납, 예외 반납과 오류 표시, 동시 호출 금지 | P-10, P-12(상태 판) | L | M0 |
 | P-12 | `state.ts`: 상태 캐시(`openThread`에서 적재), `state()`, `commit()`(스키마, 크기, 멱등 키, `expectStateRev`), 상태 이벤트 kind `<x\|grp>.<name>.state.committed` 초안 | P-05, P-07, P-03 | M | M0 |
 | P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, Registration 정의 수집, 시작 적용 spec §4.5.6과 `RegistrationSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `fresnel.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
 | P-14 | `testing/host.ts`: `createTestHost`와 경계 도우미(`stepEnd`, `turnSettled`, `idle`) | P-13 | S | M0 |
-| P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`RegistrationApi.recordPrivate`), F E9 | S | M1 |
+| P-15 | `state.ts` 확장: `record`(`validateOrchestrationRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`RegistrationApi.recordPrivate`), F E9 | S | M1 |
 | P-16 | 재개: `openThread`가 `ExtThreadSnapshot`으로 켜짐 상태·상태 판·열린 drive 락·차수를 복원하고 첫 경계에서 drive 재호출 또는 `restart` 반납 | P-11, P-12 | M | M1 |
 | P-17 | `services.ts` 기능 바인딩(공급자 하나): `hostOf(g).provide` → `providerServiceName` provide, 바인딩 플러그인이 `capabilityServiceName`으로 다시 provide, Registration fiber의 `inject`를 `requires`에서 계산, `capability(key)` 구현(`optional`은 루트 조회) | P-07, P-13 | M | M1 |
 | P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriver`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |

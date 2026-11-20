@@ -7,10 +7,10 @@ import type {
   ScriptRunResult,
 } from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
-import { defineGroup, type GroupApi, type RunScriptOptions } from "../src/index.ts";
+import { defineOrchestration, type OrchestrationApi, type RunScriptOptions } from "../src/index.ts";
 import { realHostAccess, wrap } from "../src/wrap.ts";
 import { install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 // 타입 시험은 tsc -b가 컴파일 시점에 판정한다. Equal과 Expect는 contracts/test/types/expect.ts와 같은 모양이다.
 type Equal<A, B> =
@@ -24,7 +24,7 @@ type RunScriptValue = Result<ScriptRunResult, ScriptRunFailure>;
 /** g.runScript는 이름과 옵션을 받고 Result의 Promise를 돌려준다. 거절과 기동 실패는 값이다 (F.extensions.spec §3.1.4) */
 export type RunScriptSignature = Expect<
   Equal<
-    GroupApi<never>["runScript"],
+    OrchestrationApi<never>["runScript"],
     (name: string, options?: RunScriptOptions) => Promise<RunScriptValue>
   >
 >;
@@ -34,7 +34,7 @@ export type RunScriptOptionsShape = Expect<Equal<RunScriptOptions, { readonly st
 
 /** 이름이 문자열이 아니면 대입되지 않는다 */
 export type NumericNameRejected = Expect<
-  Equal<Assignable<number, Parameters<GroupApi<never>["runScript"]>[0]>, false>
+  Equal<Assignable<number, Parameters<OrchestrationApi<never>["runScript"]>[0]>, false>
 >;
 
 /** stdin이 문자열이 아니면 옵션으로 대입되지 않는다 */
@@ -65,9 +65,9 @@ async function installWithChildScript(
   t: TestHost,
   name: string,
   run: (scriptName: string, options?: RunScriptOptions) => Promise<RunScriptValue>,
-  sink: { api?: GroupApi<never> },
+  sink: { api?: OrchestrationApi<never> },
 ): Promise<void> {
-  const manifest = groupManifestOf({ name });
+  const manifest = orchestrationManifestOf({ name });
   const entry: ExtensionEntry = ({ register }) => {
     register(manifest.name, {}, (api: RegistrationApi<never>) => {
       const childLike = { ...api, runScript: run };
@@ -81,7 +81,7 @@ async function installWithChildScript(
 test("runScript.child-returns-the-engine-value-unchanged", async () => {
   const calls: [string, RunScriptOptions | undefined][] = [];
   const t = await createTestHost();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await installWithChildScript(
     t,
     "child-script-ok",
@@ -101,7 +101,7 @@ test("runScript.child-returns-the-engine-value-unchanged", async () => {
 test("runScript.child-passes-an-omitted-stdin-through-as-omitted", async () => {
   const calls: [string, RunScriptOptions | undefined][] = [];
   const t = await createTestHost();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await installWithChildScript(
     t,
     "child-script-omit",
@@ -118,7 +118,7 @@ test("runScript.child-passes-an-omitted-stdin-through-as-omitted", async () => {
 
 test("runScript.child-refusal-comes-back-as-the-failure-value", async () => {
   const t = await createTestHost();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await installWithChildScript(
     t,
     "child-script-refuse",
@@ -133,11 +133,11 @@ test("runScript.child-refusal-comes-back-as-the-failure-value", async () => {
 
 test("runScript.in-engine-registration-answers-sandbox_unavailable-with-a-reason", async () => {
   const t = await createTestHost();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "in-engine-script" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "in-engine-script" }),
       setup(g) {
         sink.api = g;
       },

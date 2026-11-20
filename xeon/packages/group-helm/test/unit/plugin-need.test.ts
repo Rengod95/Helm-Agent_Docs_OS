@@ -6,7 +6,7 @@ import type {
   PostItem,
   StepResult,
 } from "@fresnel/contracts/extensions";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { BUILDER_PLUGIN, helmDrive } from "../../src/drive.ts";
 import type { ExplorationMarker } from "../../src/guard.ts";
 import { parseHelmCommand, runHelmCommand, viewOf } from "../../src/commands.ts";
@@ -42,7 +42,7 @@ function textOf(item: PostItem): string {
 /** 단계 함수 한 번 호출. 알림은 `posted`에 쌓인다(효과는 단계 함수가 낸다) */
 function stepper(posted: Posted[]) {
   const marker: ExplorationMarker = { phase: "idle" };
-  const api: Pick<GroupApi<HelmState>, "record" | "post" | "capability"> = {
+  const api: Pick<OrchestrationApi<HelmState>, "record" | "post" | "capability"> = {
     record: () => Promise.resolve(),
     post: (item, options) => {
       posted.push({ requestId: options.requestId, text: textOf(item) });

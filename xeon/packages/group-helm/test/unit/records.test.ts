@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { validateGroupRecord, RECORD_KIND_PATTERN } from "@fresnel/contracts/extensions";
+import { validateOrchestrationRecord, RECORD_KIND_PATTERN } from "@fresnel/contracts/extensions";
 import {
   DiscoveryRecordedPayloadSchema,
   HELM_RECORD_KINDS,
@@ -30,9 +30,9 @@ test("records.discovery-schema-valid", () => {
     subject: { type: "turn", id: "trn_1" },
     payload: jsonOf(SAMPLE),
   } as const;
-  expect(validateGroupRecord(record, decl)).toEqual([]);
+  expect(validateOrchestrationRecord(record, decl)).toEqual([]);
   const bad = { ...record, payload: jsonOf({ ...SAMPLE, confidence: "certain" }) };
-  const issues = validateGroupRecord(bad, decl);
+  const issues = validateOrchestrationRecord(bad, decl);
   expect(issues.length).toBeGreaterThan(0);
   expect(new Set(issues.map((issue) => issue.code))).toEqual(new Set(["record_payload_invalid"]));
 });

@@ -30,7 +30,7 @@ import {
   providerAnthropicOauthManifest,
   providerAnthropicOauthSettings,
 } from "@fresnel/group-provider-anthropic-oauth";
-import { groupSdkSettings } from "@fresnel/group-sdk";
+import { orchestrationSdkSettings } from "@fresnel/group-sdk";
 import {
   loadingTrustSettings,
   operationsSettings,
@@ -150,7 +150,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
     ofDefs("cap-schedule", "l2.schedule", SCHEDULE_SETTING_DEFS),
-    ofGroup("group-sdk", groupSdkSettings),
+    ofGroup("group-sdk", orchestrationSdkSettings),
     ofGroup("group-helm", helmSettings),
     ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
     // 기본 꺼짐 계정 회전 플러그인(기본 플러그인 목록에 든다). 예약 키 enabled·isolation은 X.loading-trust §4.5.2가 정한 모양이다

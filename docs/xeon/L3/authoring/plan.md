@@ -19,7 +19,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ## 2. 패키지와 파일 배치
 
-- `xeon/packages/plugin-builder/`: `src/index.ts`(defineGroup), `src/session/`(상태, 단계 머신), `src/tools/`, `src/guard.ts`, `src/checks/`(AU 규칙), `catalog/kinds/*.json`, `views/*.view.json`, `skills/authoring-guide/`.
+- `xeon/packages/plugin-builder/`: `src/index.ts`(defineOrchestration), `src/session/`(상태, 단계 머신), `src/tools/`, `src/guard.ts`, `src/checks/`(AU 규칙), `catalog/kinds/*.json`, `views/*.view.json`, `skills/authoring-guide/`.
 - 서비스 계약: `xeon/packages/contracts/src/services/devkit.ts` [제안](F 트랙 몫).
 - 서비스 구현: `xeon/apps/host/src/devkit/` [제안](L4 트랙 몫). 템플릿은 `group-sdk/templates`를 파일로 읽습니다.
 
@@ -39,7 +39,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ## 4. 채택 코드
 
-- 템플릿과 이름 규칙: `group-sdk/templates`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`를 그대로 씁니다.
+- 템플릿과 이름 규칙: `group-sdk/templates`, `ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`를 그대로 씁니다.
 - 검사: F `validateManifest`·`validateUsage`·`validateComposition`, group-sdk `scanDriveSource`를 그대로 부릅니다. 규칙을 복사하지 않습니다.
 
 ## 5. 단위 테스트 목록

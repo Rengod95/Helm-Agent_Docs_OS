@@ -4,9 +4,9 @@ import type { StepResult } from "@fresnel/contracts/extensions";
 import { defineSettings } from "@fresnel/contracts/settings";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineGroup, type GroupApi } from "../src/index.ts";
+import { defineOrchestration, type OrchestrationApi } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 const modeInputs = {
   mode: {
@@ -29,9 +29,11 @@ const modeSettings = defineSettings("l3.with-mode", modeInputs);
 
 type ModeDefs = typeof modeSettings.defs;
 
-function modeGroup(sink: { api?: GroupApi<never, ModeDefs> }): ReturnType<typeof defineGroup> {
-  return defineGroup({
-    manifest: groupManifestOf({ name: "with-mode" }),
+function modeGroup(sink: {
+  api?: OrchestrationApi<never, ModeDefs>;
+}): ReturnType<typeof defineOrchestration> {
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "with-mode" }),
     settings: modeSettings,
     setup(g) {
       sink.api = g;
@@ -41,7 +43,7 @@ function modeGroup(sink: { api?: GroupApi<never, ModeDefs> }): ReturnType<typeof
 
 test("wrap.settings-returns-defaults-without-a-source", async () => {
   const t = await createTestHost();
-  const sink: { api?: GroupApi<never, ModeDefs> } = {};
+  const sink: { api?: OrchestrationApi<never, ModeDefs> } = {};
   await install(t, modeGroup(sink));
   expect(sink.api?.settings()).toEqual({ mode: "fast", limit: 3 });
 });
@@ -55,7 +57,7 @@ test("wrap.settings-reads-valid-values-and-falls-back-on-invalid", async () => {
       ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
-  const sink: { api?: GroupApi<never, ModeDefs> } = {};
+  const sink: { api?: OrchestrationApi<never, ModeDefs> } = {};
   await install(t, modeGroup(sink));
   // limit 0은 최소 1 위반이라 기본값 3으로 돌아간다
   expect(sink.api?.settings()).toEqual({ mode: "slow", limit: 3 });
@@ -68,8 +70,8 @@ test("wrap.settings-of-a-group-without-settings-is-empty", async () => {
   let seen: unknown;
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "no-settings" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "no-settings" }),
       setup(g) {
         seen = g.settings();
       },
@@ -80,11 +82,11 @@ test("wrap.settings-of-a-group-without-settings-is-empty", async () => {
 
 test("delegate.rejects-long-request-id", async () => {
   const t = await createTestHost();
-  let api: GroupApi<never> | undefined;
+  let api: OrchestrationApi<never> | undefined;
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "delegator" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "delegator" }),
       setup(g) {
         api = g;
       },
@@ -99,7 +101,7 @@ test("delegate.rejects-long-request-id", async () => {
   const tooLong = await api?.delegate({ ...base, requestId: "x".repeat(49) });
   expect(tooLong).toMatchObject({
     ok: false,
-    error: { kind: "group.delegateInvalid", field: "requestId" },
+    error: { kind: "orchestration.delegateInvalid", field: "requestId" },
   });
   const foreign = await api?.delegate({
     ...base,
@@ -107,25 +109,25 @@ test("delegate.rejects-long-request-id", async () => {
   });
   expect(foreign).toMatchObject({
     ok: false,
-    error: { kind: "group.delegateInvalid", field: "report.customType" },
+    error: { kind: "orchestration.delegateInvalid", field: "report.customType" },
   });
   const noAgent = await api?.delegate({ ...base, agent: "has space" });
   expect(noAgent).toMatchObject({ ok: false, error: { field: "agent" } });
   // 입력이 맞아도 M2에는 위임 서비스가 없다
   expect(await api?.delegate(base)).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
 });
 
 test("wrap.metrics-count-commits-posts-and-spawns", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  let api: GroupApi<{ readonly n: number }> | undefined;
+  let api: OrchestrationApi<{ readonly n: number }> | undefined;
   await install(
     t,
-    defineGroup<{ readonly n: number }>({
-      manifest: groupManifestOf({
+    defineOrchestration<{ readonly n: number }>({
+      manifest: orchestrationManifestOf({
         name: "counted",
         hooks: ["boundary.settle.after"],
         usesPost: true,
@@ -178,8 +180,8 @@ test("wrap.ask-command-reaches-the-host-loop", async () => {
   const results: StepResult[] = [];
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "asks", drives: true }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "asks", drives: true }),
       setup(g) {
         g.drive(async ({ last }) => {
           if (last !== null) {
@@ -227,9 +229,9 @@ test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", asyn
       ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
-  const sink: { api?: GroupApi<never, ModeDefs> } = {};
-  const group = defineGroup({
-    manifest: groupManifestOf({ name: "user-mode", builtin: false }),
+  const sink: { api?: OrchestrationApi<never, ModeDefs> } = {};
+  const group = defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "user-mode", builtin: false }),
     settings: defineSettings("ext.user-mode", modeInputs),
     setup(g) {
       sink.api = g;
@@ -249,8 +251,8 @@ test("wrap.commit-command-is-checked-like-g-commit", async () => {
   const thread = t.newThread();
   await install(
     t,
-    defineGroup<{ readonly n: number }>({
-      manifest: groupManifestOf({ name: "checked", drives: true }),
+    defineOrchestration<{ readonly n: number }>({
+      manifest: orchestrationManifestOf({ name: "checked", drives: true }),
       state: {
         schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
         initial: { n: 0 },
@@ -278,13 +280,13 @@ test("wrap.commit-command-is-checked-like-g-commit", async () => {
 test("wrap.commit-command-counts-only-a-changed-state", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  let api: GroupApi<{ readonly n: number }> | undefined;
+  let api: OrchestrationApi<{ readonly n: number }> | undefined;
   // 시험 관찰용: 단계 함수가 본 커밋 값을 적는다(상태가 아니라 시험 기록이다)
   const seen: number[] = [];
   await install(
     t,
-    defineGroup<{ readonly n: number }>({
-      manifest: groupManifestOf({ name: "tally", drives: true }),
+    defineOrchestration<{ readonly n: number }>({
+      manifest: orchestrationManifestOf({ name: "tally", drives: true }),
       state: {
         schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),
         initial: { n: 0 },
@@ -321,8 +323,8 @@ test("wrap.done-releases-the-lease-with-reason-done", async () => {
   const thread = t.newThread();
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "finisher", drives: true }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "finisher", drives: true }),
       setup(g) {
         g.drive(async ({ last }) => {
           if (last?.kind === "ok" && last.of === "turn") return { do: "done" };
@@ -350,8 +352,8 @@ test("wrap.two-effect-free-yields-release-the-lease-as-idle", async () => {
   const thread = t.newThread();
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "resting", drives: true }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "resting", drives: true }),
       setup(g) {
         g.drive(async () => ({ do: "yield" }));
       },

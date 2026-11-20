@@ -950,7 +950,7 @@ export interface ThinkingLevelSelectPayload {
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
 4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `fresnel.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
-5. [미결] 그룹 정의 역할(6종 밖)을 허용할지(§3.4).
+5. [미결] 오케스트레이션 정의 역할(6종 밖)을 허용할지(§3.4).
 6. [미결] `StepCheckpoint.model`에 `role`을 넣을지(§3.2).
 7. [미결] `l1.models.thinkingLevel` 기본값과 `cacheRetention` 기본값(§4.6).
 8. [미결] 구독 계정 회전(M3, review.decisions-2 U-21)의 약관 검토와 별도 설계 문서(§4.8).

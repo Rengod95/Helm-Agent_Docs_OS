@@ -11,7 +11,7 @@ import {
   type TurnStartResult,
 } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
-import { smokeGroup } from "@fresnel/group-sdk/testing";
+import { smokeOrchestration } from "@fresnel/group-sdk/testing";
 import { startInProcessHost } from "@fresnel/host";
 import { createHostConnection } from "../src/host-client.ts";
 import {
@@ -263,8 +263,8 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
   // 테스트 그룹(group-sdk). 기본 프로필에 들지 않도록 매니페스트 기본 켜짐을 끈 사본을 싣는다(M5c §4.1.2).
   // 그룹은 이 시험이 저장하는 프로필을 대화가 참조할 때만 켜진다. 시험이 덧붙인 도구 호출 지점 처리기는 자기 scope를 끄도록 요청한다
   // (단계 안에서 요청하고, 적용은 단계 경계여야 한다)
-  const group = smokeGroup({ followUps: 0, driveTurns: 1 });
-  const groupManifest = { ...group.manifest, defaultEnabled: false };
+  const group = smokeOrchestration({ followUps: 0, driveTurns: 1 });
+  const orchestrationManifest = { ...group.manifest, defaultEnabled: false };
   const hold: { handle: RegistrationHandle | undefined } = { handle: undefined };
   const entry: ExtensionEntry = (host) =>
     group.entry({
@@ -284,7 +284,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
   const host = await startInProcessHost({
     buildModels: tapeBuildModels(fake),
     defaultGroups: false,
-    extraPlugins: [{ manifest: groupManifest, extension: entry }],
+    extraPlugins: [{ manifest: orchestrationManifest, extension: entry }],
   });
   try {
     const groupId = group.manifest.name;

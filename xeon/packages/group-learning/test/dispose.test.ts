@@ -7,7 +7,7 @@ test("dispose.cancels-in-flight-review: turning the group off cancels its child 
   expect(rig.agents.cancels).toEqual([]);
   await rig.disable();
   expect(rig.agents.cancels).toEqual([
-    { target: { ownerScopeId: "learning" }, reason: "group_disabled" },
+    { target: { ownerScopeId: "learning" }, reason: "orchestration_disabled" },
   ]);
   expect(rig.agents.delegated).toHaveLength(1);
   // 대기열 면은 그룹이 꺼진 동안 없다(호스트가 unavailable로 본다)

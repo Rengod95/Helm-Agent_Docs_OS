@@ -6,12 +6,12 @@ import { Type } from "typebox";
 import {
   STATE_DOC_MAX_BYTES,
   checkStateCommit,
-  defineGroup,
+  defineOrchestration,
   stateUpcasters,
-  type GroupModule,
+  type OrchestrationModule,
 } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 import { turnFinished } from "./support/steps.ts";
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
@@ -58,9 +58,9 @@ test("state.check-commit-covers-schema-size-and-unchanged", () => {
   expect(checkStateCommit(pair, { a: 1, b: 2 }, { b: 2, a: 1 })).toMatchObject({ unchanged: true });
 });
 
-function countingGroup(name: string, seen: number[]): GroupModule {
-  return defineGroup({
-    manifest: groupManifestOf({ name, hooks: ["boundary.settle.after"] }),
+function countingGroup(name: string, seen: number[]): OrchestrationModule {
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name, hooks: ["boundary.settle.after"] }),
     state: counterDecl,
     setup(g) {
       g.on("boundary.settle.after", async (_payload, ctx) => {
@@ -93,9 +93,9 @@ test("state.restore-on-branch", async () => {
   expect(seen).toEqual([0, 1, 1]);
 });
 
-const driven = (name: string, sink: number[]): GroupModule =>
-  defineGroup({
-    manifest: groupManifestOf({ name, drives: true }),
+const driven = (name: string, sink: number[]): OrchestrationModule =>
+  defineOrchestration({
+    manifest: orchestrationManifestOf({ name, drives: true }),
     state: counterDecl,
     setup(g) {
       g.drive(async ({ state, last }) => {
@@ -152,8 +152,8 @@ test("state.rejects-oversize-and-skips-unchanged", async () => {
   const outcomes: (string | undefined)[] = [];
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "big-state", hooks: ["boundary.settle.after"] }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "big-state", hooks: ["boundary.settle.after"] }),
       state: {
         schema: Type.Object({ s: Type.String({ pattern: "^[a-z]*$" }) }),
         initial: { s: "" },
@@ -187,8 +187,8 @@ test("state.migration-upgrades-a-lower-stored-version", async () => {
   await fireSettled(first, thread, "k2");
 
   const V2Schema = Type.Object({ n: Type.Integer({ minimum: 0 }), label: Type.String() });
-  const v2 = defineGroup({
-    manifest: groupManifestOf({ name: "migrating", hooks: ["boundary.settle.after"] }),
+  const v2 = defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "migrating", hooks: ["boundary.settle.after"] }),
     state: { schema: V2Schema, initial: { n: 0, label: "" }, version: 2 },
     migrations: {
       1: (previous) => {

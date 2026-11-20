@@ -6,7 +6,11 @@ import { err, ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type { Profile } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
-import { createRuntimeReplayHarness, replayDrive, smokeGroup } from "@fresnel/group-sdk/testing";
+import {
+  createRuntimeReplayHarness,
+  replayDrive,
+  smokeOrchestration,
+} from "@fresnel/group-sdk/testing";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4HostEnv, M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
@@ -52,7 +56,7 @@ function manifestOf(name: string, group: boolean): string {
         ? { layer: "L3", hooks: ["boundary.settle.after"], drives: true }
         : { layer: "plugin", hooks: ["boundary.settle.after"] },
     ],
-    ...(group ? { group: {} } : {}),
+    ...(group ? { orchestration: {} } : {}),
     defaultEnabled: false,
     trust: { level: "user" },
   });
@@ -178,7 +182,7 @@ const realRunner: ReplayRunner = {
   run: async (input) =>
     ok(
       await replayDrive({
-        group: smokeGroup({ driveTurns: 2, followUps: 0 }).module,
+        orchestration: smokeOrchestration({ driveTurns: 2, followUps: 0 }).module,
         harness: createRuntimeReplayHarness(),
         maxCommits: input.maxCommits,
       }),

@@ -1,4 +1,4 @@
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import {
   HELM_USAGE,
   commandErrorText,
@@ -11,7 +11,7 @@ import {
 import type { SignalTermsStore, TallyStore } from "./signals.ts";
 import type { HelmState } from "./state.ts";
 
-type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit" | "startDrive">;
+type CommandApi = Pick<OrchestrationApi<HelmState>, "state" | "commit" | "startDrive">;
 
 /**
  * g.registerCommand에 넘기는 정의. 처리기는 X의 명령 문맥(thread 있음) 안에서 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려준다.
@@ -23,7 +23,7 @@ export function helmCommand(
   tallies: TallyStore,
   signalTerms: SignalTermsStore,
   missingMeta: ReadonlySet<string>,
-): Parameters<GroupApi<HelmState>["registerCommand"]>[1] {
+): Parameters<OrchestrationApi<HelmState>["registerCommand"]>[1] {
   return {
     description: HELM_USAGE,
     async handler(args, ctx) {

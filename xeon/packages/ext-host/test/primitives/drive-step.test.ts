@@ -44,7 +44,7 @@ import {
   provideModelsPort,
   provideToolsPort,
 } from "./fixtures/fake-plugin-calls.ts";
-import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, snapshotOf } from "./fixtures/support.ts";
 
 interface Counter {
   readonly count: number;
@@ -122,7 +122,7 @@ async function install(
   extra?: (g: RegistrationApi<Counter>) => void,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit<Counter>({ name, def: COUNTER_DEF }, (g) => {
+    makeOrchestrationUnit<Counter>({ name, def: COUNTER_DEF }, (g) => {
       g.drive(step);
       extra?.(g);
     }),
@@ -943,7 +943,7 @@ test("a model command returns the text and usage, deducts the tokens from the bu
     return Promise.resolve(input.last === null ? JUDGE : { do: "done" });
   };
   await t.host.install(
-    makeGroupUnit<Counter>({ name: "model-ok", def: COUNTER_DEF }, (g) => {
+    makeOrchestrationUnit<Counter>({ name: "model-ok", def: COUNTER_DEF }, (g) => {
       g.drive(step, { limits: { maxTokens: 100 } });
     }),
   );
@@ -1184,7 +1184,7 @@ test("tokens that a hook's agents.judge or models.complete spent are deducted fr
   const budgets: DriveLockBudget[] = [];
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit<Counter>({ name: "charged", def: COUNTER_DEF }, (g) => {
+    makeOrchestrationUnit<Counter>({ name: "charged", def: COUNTER_DEF }, (g) => {
       g.drive(
         (input) => {
           budgets.push(input.budget);
@@ -1213,7 +1213,7 @@ async function installLimited(
   limits: DriveLimits,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit<Counter>({ name, def: COUNTER_DEF }, (g) => {
+    makeOrchestrationUnit<Counter>({ name, def: COUNTER_DEF }, (g) => {
       g.drive(step, { limits });
     }),
   );

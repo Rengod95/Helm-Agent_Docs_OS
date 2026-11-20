@@ -435,7 +435,7 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 [제안]
 
 - 확장이 변형을 더할 수 있는 유니온(열린 유니온)은 F가 정한 알려진 변형 목록에 열린 변형 하나를 더해 정의한다.
-- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 플러그인 그룹 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
+- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 오케스트레이션 플러그인 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
   - `extId`·`groupId`는 확장 매니페스트의 이름이고 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 소문자·숫자·하이픈, 밑줄 금지)이다(`F.extensions.spec` §3.1, [결정: review.decisions-2 U-18]). 생산자 id는 `ext.<확장 이름>`, 확장 테이블 접두는 `x_<확장 이름의 '-'를 '_'로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.1·5.2절, `X.operations.spec` §4.4.2).
   - 패턴: `^(?:x|grp)\.[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9_.]{0,63}$`
   - `_` 접두 값은 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9). 이 문서의 이전 판에 있던 `_ext.` 접두는 쓰지 않는다.
@@ -804,7 +804,7 @@ export const badUpcaster: Upcaster = (payload) => ok({ ...(payload as object), m
 
 ### DT-12 F 서브패스 사이 의존은 한 방향이고 순환을 두지 않는다
 
-[제안] `@fresnel/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `GroupService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
+[제안] `@fresnel/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `OrchestrationService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `OrchestrationService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
 
 - 서브패스는 `packages/contracts/package.json` `exports`에 `F.readme` §3의 모양으로 둔다. 소비 층은 서브패스 진입점으로만 import한다(`no-restricted-imports`의 `@fresnel/*/src` 금지).
 - `import/no-cycle`의 `ignoreTypes` 기본값이 `true`라 타입 순환은 린트가 잡지 않으므로(`_research/notes/eng-1.md §2`) `check-layers.ts`가 서브패스 순서를 검사한다 [제안].

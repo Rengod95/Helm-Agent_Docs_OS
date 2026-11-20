@@ -40,7 +40,7 @@ binds: [xeon/packages/core-agents/**]
 - 한 대화의 turn·step 실행, Agent 인스턴스 구성(훅 설치, 체크포인트): L1.loop.spec.
 - 도구 실행, 정책 평가, 승인 요청: L1.tools.spec.
 - 목표의 저장(L2.work.spec)과 완료 게이트에서 판정 결과를 쓰는 일(L1.loop.spec).
-- 그룹 쪽 위임 래퍼(`GroupApi.delegate`): L3.group-sdk.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
+- 그룹 쪽 위임 래퍼(`OrchestrationApi.delegate`): L3.group-sdk.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
 - 모델 선택과 역할 라우팅: L1.models.spec.
 
 ## 2. 용어
@@ -114,7 +114,7 @@ export const AgentDefinitionSchema: TSchema;     // 정의 파일 프런트매�
 export type SpawnOwner =
   | { readonly kind: "tool"; readonly turnId: TurnId; readonly toolCallId: string }
   | { readonly kind: "drive"; readonly turnId: TurnId | null; readonly scopeId: ScopeId; readonly leaseId: LeaseId }
-  | { readonly kind: "scope"; readonly scopeId: ScopeId };            // 그룹 위임(GroupApi.delegate)
+  | { readonly kind: "scope"; readonly scopeId: ScopeId };            // 그룹 위임(OrchestrationApi.delegate)
 
 export interface SpawnOrigin {
   readonly parentThreadId: ThreadId;
@@ -318,7 +318,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | `agent.judged` | 예 | 판정한 대화 | 판정 모델 응답 직후 자기 커밋(§4.8) | `judge:<threadId 해시>:<goalRef>:<run>` |
 
 - 소유: `agent.*`는 core-agents(`run-engine`, 생산자 `core.agents`) 소유다(eng.context-map.design §5.1 `agent.` 행).
-- 사용량 귀속 [제안]: 자식의 모델 사용량은 `agent.settled.usage`에 한 번만 남는다. 부모 `turn.completed`의 사용량에는 넣지 않고, 화면과 그룹 계측이 부모 합계를 낼 때 `agent.settled.usage`를 더한다. durable spec이 경고한 이중 집계를 피하기 위해서다(`_research/refs/pi-durable.md` §3.9 "Double-counted subagent spend").
+- 사용량 귀속 [제안]: 자식의 모델 사용량은 `agent.settled.usage`에 한 번만 남는다. 부모 `turn.completed`의 사용량에는 넣지 않고, 화면과 오케스트레이션 계측이 부모 합계를 낼 때 `agent.settled.usage`를 더한다. durable spec이 경고한 이중 집계를 피하기 위해서다(`_research/refs/pi-durable.md` §3.9 "Double-counted subagent spend").
 
 ## 4. 동작 규칙
 
@@ -367,7 +367,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 모델 도구 `agent`(포그라운드) | 도구 어댑터 → `spawn` | 도구 결과 `content` = `report.text`, `structuredContent` = `{ childThreadId, status, truncated, flags }` |
 | 모델 도구 `agent`(`background: true`) | 도구 어댑터 → `delegate` | 도구 결과 = 접수 문장과 `childThreadId`. 완료 보고는 나중에 inbox로 |
 | drive `loop.spawn` | X → `spawn` | `SpawnOutcome`(answer = `report.text`) |
-| 그룹 `GroupApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
+| 그룹 `OrchestrationApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
 
 훅이 `replace`를 낸 호출(§7.1)은 자식을 만들지 않으므로 위 표와 다르다. 포그라운드(`spawn`)는 `SpawnResult{ status: "completed", answer: 훅이 준 보고, report: null, usage: null, reused: false }`를, 백그라운드(`delegate`)는 `DelegateReceipt{ status: "replaced", report }`를 돌려준다. 어느 쪽도 완료 보고 입력을 쓰지 않는다.
 

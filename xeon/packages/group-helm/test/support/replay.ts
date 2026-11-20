@@ -10,7 +10,7 @@ import {
   type MemoryLoopPort,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import type { GroupModule } from "@fresnel/group-sdk";
+import type { OrchestrationModule } from "@fresnel/group-sdk";
 import type { ReplayHarness } from "@fresnel/group-sdk/testing";
 import {
   DEFS,
@@ -135,7 +135,7 @@ export function createHelmReplay(
   const answers = options.answers ?? defaultAnswers();
   const topic = options.topic ?? "캐시 무효화";
   const harness: ReplayHarness = {
-    async run(group: GroupModule, restore) {
+    async run(group: OrchestrationModule, restore) {
       if (restore === null || shared === undefined) {
         shared = {
           loop: memoryLoopPort(scriptedLoop(fixedIdFactory(9000), answers)),

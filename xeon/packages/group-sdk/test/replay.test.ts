@@ -8,12 +8,12 @@ import {
   threadMismatches,
 } from "../src/testing/index.ts";
 import {
-  askingDriveGroup,
-  badDriveGroup,
+  askingDriveOrchestration,
+  badDriveOrchestration,
   doubledEffectGroup,
-  goodDriveGroup,
+  goodDriveOrchestration,
   onceEffectGroup,
-  silentDriveGroup,
+  silentDriveOrchestration,
 } from "./fixtures/drive-groups.ts";
 import { createReplayHarness, type CountingReplayHarness } from "./support/replay-harness.ts";
 
@@ -41,7 +41,7 @@ function recordingHarness(threadOf: (run: number, actual: ThreadId) => ThreadId)
 
 test("replay.every-run-uses-the-baseline-thread-id", async () => {
   const { harness, threads } = recordingHarness((_run, actual) => actual);
-  const report = await replayDrive({ group: goodDriveGroup(), harness });
+  const report = await replayDrive({ orchestration: goodDriveOrchestration(), harness });
   expect(report.ok).toBe(true);
   // 기준 실행 하나와 절단 실행 커밋 수만큼, 모두 같은 thread id를 써야 한다
   expect(threads).toHaveLength(report.commits + 1);
@@ -52,7 +52,7 @@ test("replay.every-run-uses-the-baseline-thread-id", async () => {
 test("replay.thread-check-reports-a-run-on-another-thread", async () => {
   const other = fixedIdFactory(1000).next("thr");
   const { harness, threads } = recordingHarness((run, actual) => (run === 2 ? other : actual));
-  const report = await replayDrive({ group: goodDriveGroup(), harness });
+  const report = await replayDrive({ orchestration: goodDriveOrchestration(), harness });
   // 이벤트열 비교는 ID를 자리표시자로 바꾸므로 이 실행도 통과한다. thread 검사만 세 번째 실행(번호 2)을 잡는다
   expect(report.ok).toBe(true);
   expect(threadMismatches(threads)).toEqual([2]);
@@ -71,7 +71,7 @@ test("replay.thread-mismatch-fails-with-the-cut-index", async () => {
       return run === 2 ? { ...result, threadId: other } : result;
     },
   };
-  const report = await replayDrive({ group: goodDriveGroup(), harness });
+  const report = await replayDrive({ orchestration: goodDriveOrchestration(), harness });
   // 이벤트열은 같고(ID는 자리표시자로 바뀐다) 둘째 절단만 다른 thread에서 돌았다
   expect(report.cuts.every((cut) => cut.equal)).toBe(true);
   expect(report.ok).toBe(false);
@@ -85,7 +85,10 @@ test("replay.thread-check-lists-every-run-that-differs-from-the-first", () => {
 });
 
 test("replay.cut-at-every-commit-yields-same-events", async () => {
-  const report = await replayDrive({ group: goodDriveGroup(), harness: createReplayHarness() });
+  const report = await replayDrive({
+    orchestration: goodDriveOrchestration(),
+    harness: createReplayHarness(),
+  });
   expect(report.failure).toBeUndefined();
   expect(report.commits).toBe(3);
   expect(report.cuts.map((cut) => cut.commitIndex)).toEqual([1, 2, 3]);
@@ -95,7 +98,10 @@ test("replay.cut-at-every-commit-yields-same-events", async () => {
 });
 
 test("replay.detects-closure-state", async () => {
-  const report = await replayDrive({ group: badDriveGroup(), harness: createReplayHarness() });
+  const report = await replayDrive({
+    orchestration: badDriveOrchestration(),
+    harness: createReplayHarness(),
+  });
   expect(report.ok).toBe(false);
   const bad = report.cuts.filter((cut) => !cut.equal);
   expect(bad.length).toBeGreaterThan(0);
@@ -103,13 +109,16 @@ test("replay.detects-closure-state", async () => {
 });
 
 test("replay.fails-when-the-run-has-nothing-to-cut", async () => {
-  const report = await replayDrive({ group: silentDriveGroup(), harness: createReplayHarness() });
+  const report = await replayDrive({
+    orchestration: silentDriveOrchestration(),
+    harness: createReplayHarness(),
+  });
   expect(report).toMatchObject({ ok: false, failure: "no-commits", commits: 0, cuts: [] });
 });
 
 test("replay.fails-above-the-commit-limit", async () => {
   const report = await replayDrive({
-    group: goodDriveGroup(),
+    orchestration: goodDriveOrchestration(),
     harness: createReplayHarness(),
     maxCommits: 2,
   });
@@ -119,7 +128,7 @@ test("replay.fails-above-the-commit-limit", async () => {
 test("replay.counts-effects-and-asserts-each-happened-once", async () => {
   const harness = createReplayHarness();
   const report = await replayDrive({
-    group: onceEffectGroup(harness),
+    orchestration: onceEffectGroup(harness),
     harness,
     expectEffects: { turn: 3, spawn: 3, delegate: 3, post: 3 },
   });
@@ -132,7 +141,7 @@ test("replay.counts-effects-and-asserts-each-happened-once", async () => {
 
 test("replay.fails-with-effects-doubled-when-events-match-but-effects-repeat", async () => {
   const harness = createReplayHarness();
-  const report = await replayDrive({ group: doubledEffectGroup(harness), harness });
+  const report = await replayDrive({ orchestration: doubledEffectGroup(harness), harness });
   // post와 delegate는 이벤트를 남기지 않으므로 이벤트열 비교만으로는 통과한다. turn과 spawn은 커밋된 상태의 요청 id라 두 번 나지 않는다
   expect(report.cuts.every((cut) => cut.equal)).toBe(true);
   expect(report).toMatchObject({ ok: false, failure: "effects-doubled" });
@@ -147,7 +156,7 @@ test("replay.fails-with-effects-doubled-when-events-match-but-effects-repeat", a
 test("replay.fails-with-effects-mismatch-when-the-baseline-count-is-not-as-expected", async () => {
   const harness = createReplayHarness();
   const report = await replayDrive({
-    group: onceEffectGroup(harness),
+    orchestration: onceEffectGroup(harness),
     harness,
     expectEffects: { delegate: 1 },
   });
@@ -158,7 +167,7 @@ test("replay.fails-with-effects-mismatch-when-the-baseline-count-is-not-as-expec
 test("replay.group-that-asks-passes-with-the-recorded-answer-returned-again", async () => {
   const approvals = autoAnswerApprovals({ q1: { selected: ["yes"] } });
   const report = await replayDrive({
-    group: askingDriveGroup(),
+    orchestration: askingDriveOrchestration(),
     harness: createReplayHarness({ approvals: approvals.service }),
   });
   expect(report.failure).toBeUndefined();

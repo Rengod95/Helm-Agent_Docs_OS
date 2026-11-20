@@ -4,7 +4,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveCommand } from "@fresnel/contracts/extensions";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -32,7 +32,7 @@ function requestDrive(t: Host, thread: ThreadId, scopeId: string): void {
 function installDriveGroups(t: Host, names: readonly string[], calls: string[]): Promise<void> {
   return eachInOrder(names.entries(), async ([loadIndex, name]) => {
     await t.host.install(
-      makeGroupUnit({ name, loadIndex }, (g) => {
+      makeOrchestrationUnit({ name, loadIndex }, (g) => {
         g.drive(({ last }) => {
           if (last === null) calls.push(name);
           return Promise.resolve(last === null ? turnOf(name) : yieldOf());
@@ -55,7 +55,7 @@ test("a group released as idle is granted again only by a new start request", as
   const thread = t.newThread();
   let invocations = 0;
   await t.host.install(
-    makeGroupUnit({ name: "ls-idle" }, (g) => {
+    makeOrchestrationUnit({ name: "ls-idle" }, (g) => {
       g.drive(() => {
         invocations += 1;
         return Promise.resolve(yieldOf());
@@ -119,7 +119,7 @@ test("a drive that returns done is released as done and is not granted again wit
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       {
         name: "ls-lazy",
         def: { state: { schema: OpenSchema, initial: { open: false }, version: 1 } },
@@ -162,7 +162,7 @@ test("a start request made while the drive ahead is running waits and takes the 
   const started = Promise.withResolvers<void>();
   const unblock = Promise.withResolvers<void>();
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       {
         name: "ls-lazy",
         def: { state: { schema: OpenSchema, initial: { open: false }, version: 1 } },
@@ -177,7 +177,7 @@ test("a start request made while the drive ahead is running waits and takes the 
     ),
   );
   await t.host.install(
-    makeGroupUnit({ name: "ls-busy", loadIndex: 1 }, (g) => {
+    makeOrchestrationUnit({ name: "ls-busy", loadIndex: 1 }, (g) => {
       g.drive(({ last }) => {
         if (last === null) calls.push("ls-busy");
         return Promise.resolve(last === null ? turnOf("busy") : yieldOf());
@@ -209,7 +209,7 @@ test("a drive whose state is open runs and takes the lock", async () => {
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       {
         name: "ls-open",
         def: { state: { schema: OpenSchema, initial: { open: true }, version: 1 } },
@@ -236,7 +236,7 @@ test("drive limits are read from the options getter when a lease is taken, so a 
   const thread = t.newThread();
   let maxTurns = 2;
   await t.host.install(
-    makeGroupUnit({ name: "ls-limits" }, (g) => {
+    makeOrchestrationUnit({ name: "ls-limits" }, (g) => {
       g.drive(() => Promise.resolve(yieldOf()), {
         get limits() {
           return { maxTurns };

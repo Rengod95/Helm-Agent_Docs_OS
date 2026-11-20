@@ -725,7 +725,7 @@ export function Orbit(): ReactNode {
                     data-lit={groupSel === group.id && !pickedGroup ? "" : undefined}
                     aria-label={t("desktop.craft.orbit.group.name", {
                       name: group.name,
-                      term: t("term.pluginGroup"),
+                      term: t("term.orchestrationPlugin"),
                     })}
                     aria-pressed={pickedGroup}
                     onClick={() => onPickGroup(group.id)}

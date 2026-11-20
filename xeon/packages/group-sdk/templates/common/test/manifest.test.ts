@@ -6,6 +6,6 @@ test("__ID__.manifest-passes-validateManifest", () => {
   const result = validateManifest(manifestJson);
   expect(result.issues.filter((found) => found.severity === "error")).toEqual([]);
   expect(result.manifest?.name).toBe("__ID__");
-  expect(result.manifest?.group).toEqual({});
+  expect(result.manifest?.orchestration).toEqual({});
   expect(pluginDeclsOf(result.manifest ?? { plugins: [] }).map((plugin) => plugin.layer)).toEqual(["L3"]);
 });

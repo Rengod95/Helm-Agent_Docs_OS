@@ -1,7 +1,11 @@
 import { defineManifest } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DevkitService } from "@fresnel/contracts/services";
-import { defineGroup, type GroupManifest, type GroupModule } from "@fresnel/group-sdk";
+import {
+  defineOrchestration,
+  type OrchestrationManifest,
+  type OrchestrationModule,
+} from "@fresnel/group-sdk";
 import { authoringWriteGuard } from "./guard.ts";
 import { authoringDrive } from "./group-drive.ts";
 import {
@@ -18,7 +22,7 @@ import { authoringTools, AUTHORING_TOOL_NAMES, type AuthoringGuide } from "./gro
 // 일은 주입받은 `fresnel.devkit` 서비스가 하고, 그룹은 도구, 단계 머신(drive), 쓰기 범위 가드(`tool.call.before`)만 가진다.
 // Plugin UI 기여(page, well, card, command)는 T-VIEW 뒤에 더한다.
 
-export const authoringManifest: GroupManifest = defineManifest({
+export const authoringManifest: OrchestrationManifest = defineManifest({
   schemaVersion: 2,
   name: "authoring",
   version: "0.1.0",
@@ -37,7 +41,7 @@ export const authoringManifest: GroupManifest = defineManifest({
       optional: [],
     },
   ],
-  group: {},
+  orchestration: {},
 });
 
 export interface AuthoringDeps {
@@ -55,8 +59,8 @@ export interface AuthoringDeps {
 
 const DEFAULT_FIX_LOOP_LIMIT = 3;
 
-export function createAuthoringGroup(deps: AuthoringDeps): GroupModule {
-  return defineGroup<AuthoringState>({
+export function createAuthoringOrchestration(deps: AuthoringDeps): OrchestrationModule {
+  return defineOrchestration<AuthoringState>({
     manifest: authoringManifest,
     state: {
       schema: AuthoringStateSchema,

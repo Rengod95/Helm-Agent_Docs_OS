@@ -3,16 +3,16 @@ import { expect, test } from "bun:test";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
-  createGroupService,
-  defineGroup,
-  type GroupApi,
+  createOrchestrationService,
+  defineOrchestration,
+  type OrchestrationApi,
   type MetricsRecordedPayload,
 } from "../src/index.ts";
-import { groupCatalogOf } from "../src/testing/index.ts";
+import { orchestrationCatalogOf } from "../src/testing/index.ts";
 import { install, statusOf } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
-const KEY = "l3.group-sdk.instrumentation";
+const KEY = "l3.orchestration.instrumentation";
 
 /** 경계 신호 하나. 턴 id를 돌려주어 기록의 stepId와 맞춰 본다 */
 async function boundary(t: TestHost, thread: ThreadId, key: string): Promise<TurnId> {
@@ -37,7 +37,7 @@ async function postVia(t: TestHost, thread: ThreadId, requestId: string): Promis
 }
 
 /** 경계 핸들러가 아무것도 하지 않는다. 기록은 그룹의 경계 핸들러가 있어야 쓰인다 */
-function boundaryHandler(g: GroupApi<never>): void {
+function boundaryHandler(g: OrchestrationApi<never>): void {
   g.on("boundary.settle.after", () => undefined);
 }
 
@@ -45,11 +45,11 @@ function boundaryHandler(g: GroupApi<never>): void {
 function poster(
   name: string,
   hooks: ("boundary.settle.after" | "tool.call.before")[],
-  sink: { api?: GroupApi<never> },
-  extra?: (g: GroupApi<never>) => void,
+  sink: { api?: OrchestrationApi<never> },
+  extra?: (g: OrchestrationApi<never>) => void,
 ) {
-  return defineGroup({
-    manifest: groupManifestOf({ name, hooks, usesPost: true }),
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name, hooks, usesPost: true }),
     setup(g) {
       sink.api = g;
       g.on("tool.call.before", async (payload) => {
@@ -102,7 +102,7 @@ function delta(part: {
 test("metrics.recorded-writes-the-increase-at-each-boundary", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   const seen: string[] = [];
   await install(
     t,
@@ -142,7 +142,7 @@ test("metrics.recorded-is-absent-when-instrumentation-is-off", async () => {
     },
   });
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(
     t,
     poster("quiet", ["boundary.settle.after", "tool.call.before"], sink, boundaryHandler),
@@ -165,7 +165,7 @@ test("metrics.recorded-is-absent-when-instrumentation-is-off", async () => {
 test("metrics.recorded-is-absent-without-the-declared-point", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(t, poster("undeclared", ["tool.call.before"], sink));
   await t.host.openThread(thread);
   await t.settled();
@@ -181,22 +181,22 @@ test("metrics.recorded-is-absent-without-the-declared-point", async () => {
 test("metrics.status-is-null-when-instrumentation-is-off", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  const module = defineGroup({
-    manifest: groupManifestOf({ name: "status-off" }),
+  const module = defineOrchestration({
+    manifest: orchestrationManifestOf({ name: "status-off" }),
     setup() {},
   });
   await install(t, module);
   await t.host.openThread(thread);
   await t.settled();
-  const off = createGroupService({
+  const off = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf([module]),
+    catalog: orchestrationCatalogOf([module]),
     currentThread: () => thread,
     instrumentation: () => false,
   });
-  const on = createGroupService({
+  const on = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf([module]),
+    catalog: orchestrationCatalogOf([module]),
     currentThread: () => thread,
   });
   expect(statusOf(off, "status-off")?.metrics).toBeNull();
@@ -215,7 +215,7 @@ test("metrics.recorded-does-not-collide-with-the-groups-own-private-record", asy
   // 기록이 별도 핸들러였다면 두 호출이 같은 멱등 키(호출 번호 0)를 받아 그룹 쪽 기록이 거부됐다
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(
     t,
     poster("own-record", ["boundary.settle.after", "tool.call.before"], sink, (g) => {
@@ -251,7 +251,7 @@ test("metrics.recorded-needs-a-boundary-handler", async () => {
   // 지점을 선언만 하고 경계 핸들러를 달지 않은 그룹은 계측 기록을 쓰지 않는다(L3.group-sdk.spec §4.9)
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(t, poster("declared-only", ["boundary.settle.after", "tool.call.before"], sink));
   await t.host.openThread(thread);
   await t.settled();
@@ -266,7 +266,7 @@ test("metrics.recorded-skips-a-turn-already-recorded", async () => {
   // 같은 turn의 경계가 다른 호출로 다시 발화해도 기록은 한 번이다. 그 사이의 증가분은 다음 turn의 기록에 든다
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   await install(
     t,
     poster("refire", ["boundary.settle.after", "tool.call.before"], sink, boundaryHandler),
@@ -295,7 +295,7 @@ test("metrics.recorded-failure-keeps-the-handler-and-carries-the-delta", async (
   // 기록 쓰기가 거부되어도 그룹의 경계 핸들러는 성공이고 증가분은 다음 기록에 든다(L3.group-sdk.spec §4.9)
   const t = await createTestHost();
   const thread = t.newThread();
-  const sink: { api?: GroupApi<never> } = {};
+  const sink: { api?: OrchestrationApi<never> } = {};
   const seen: string[] = [];
   await install(
     t,

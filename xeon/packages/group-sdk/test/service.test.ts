@@ -1,14 +1,18 @@
 import { expect, test } from "bun:test";
-import type { GroupStatus } from "@fresnel/contracts/services";
-import { createGroupService, defineGroup, type GroupModule } from "../src/index.ts";
-import { groupCatalogOf } from "../src/testing/index.ts";
+import type { OrchestrationStatus } from "@fresnel/contracts/services";
+import {
+  createOrchestrationService,
+  defineOrchestration,
+  type OrchestrationModule,
+} from "../src/index.ts";
+import { orchestrationCatalogOf } from "../src/testing/index.ts";
 import { serviceRig, startDriveOf } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 import { turnFinished } from "./support/steps.ts";
 
-function driver(name: string, options: { readonly throws?: boolean } = {}): GroupModule {
-  return defineGroup({
-    manifest: groupManifestOf({ name, drives: true }),
+function driver(name: string, options: { readonly throws?: boolean } = {}): OrchestrationModule {
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name, drives: true }),
     setup(g) {
       g.drive(async ({ last }) => {
         if (options.throws === true) throw new TypeError(`${name} drive failed`);
@@ -20,9 +24,9 @@ function driver(name: string, options: { readonly throws?: boolean } = {}): Grou
 }
 
 /** 첫 단계에서 `to`에게 맡기고, 맡긴 결과가 돌아오면 끝낸다 */
-function handoffDriver(name: string, to: string): GroupModule {
-  return defineGroup({
-    manifest: groupManifestOf({ name, drives: true }),
+function handoffDriver(name: string, to: string): OrchestrationModule {
+  return defineOrchestration({
+    manifest: orchestrationManifestOf({ name, drives: true }),
     setup(g) {
       g.drive(async ({ last }) => {
         if (last === null) return { do: "handoff", to, input: { from: name } };
@@ -32,11 +36,11 @@ function handoffDriver(name: string, to: string): GroupModule {
   });
 }
 
-function quiet(name: string): GroupModule {
-  return defineGroup({ manifest: groupManifestOf({ name }), setup() {} });
+function quiet(name: string): OrchestrationModule {
+  return defineOrchestration({ manifest: orchestrationManifestOf({ name }), setup() {} });
 }
 
-function ids(groups: readonly GroupStatus[]): string[] {
+function ids(groups: readonly OrchestrationStatus[]): string[] {
   return groups.map((group) => group.id);
 }
 
@@ -67,7 +71,7 @@ test("service.drive-roles-come-from-the-frame-stack", async () => {
   await startDriveOf(t, thread, "crashy");
   expect(service.list().find((group) => group.id === "crashy")).toMatchObject({
     drive: "error",
-    lastError: { kind: "group.driveThrew", message: "crashy drive failed" },
+    lastError: { kind: "orchestration.driveThrew", message: "crashy drive failed" },
   });
   // helm은 review에게 맡기므로 helm은 스택 아래 프레임(waiting), review가 맨 위(holder)다
   await startDriveOf(t, thread, "helm");
@@ -85,9 +89,9 @@ test("service.drive-roles-come-from-the-frame-stack", async () => {
 test("service.metrics-follow-the-instrumentation-setting", async () => {
   const { t, thread } = await serviceRig([driver("helm")]);
   let enabled = true;
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf([driver("helm")]),
+    catalog: orchestrationCatalogOf([driver("helm")]),
     currentThread: () => thread,
     instrumentation: () => enabled,
     metrics: () => ({ denies: 1, posts: 2, spawns: 3, delegates: 4, costUsd: 0, leaseMs: 0 }),

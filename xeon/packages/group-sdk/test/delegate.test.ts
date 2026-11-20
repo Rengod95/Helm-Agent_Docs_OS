@@ -4,8 +4,8 @@ import type { AgentService } from "@fresnel/contracts/services";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import type { DelegateResult, DelegateSpec } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
-import type { GroupCallContext } from "../src/wrap.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import type { OrchestrationCallContext } from "../src/wrap.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 import { installInjected } from "./support/injected-group.ts";
 
 function specOf(ids: IdFactory): DelegateSpec {
@@ -27,15 +27,15 @@ function acceptedChild(result: DelegateResult): ThreadId {
   return result.receipt.childThreadId;
 }
 
-function context(kind: "on" | "drive", thread: ThreadId): GroupCallContext {
+function context(kind: "on" | "drive", thread: ThreadId): OrchestrationCallContext {
   return { kind, threadId: thread, signal: new AbortController().signal };
 }
 
-async function rig(ctx?: (thread: ThreadId) => GroupCallContext | undefined) {
+async function rig(ctx?: (thread: ThreadId) => OrchestrationCallContext | undefined) {
   const t = await createTestHost();
   const thread = t.newThread();
   const agents = fakeAgents({ ids: t.ids });
-  const g = await installInjected(t, groupManifestOf({ name: "delegator" }), () => ({
+  const g = await installInjected(t, orchestrationManifestOf({ name: "delegator" }), () => ({
     agents: () => agents,
     callContext: () => ctx?.(thread),
   }));
@@ -126,7 +126,7 @@ test("delegate.rejects-fork-at-event-before-calling-l1", async () => {
   });
   expect(result).toMatchObject({
     ok: false,
-    error: { kind: "group.delegateInvalid", field: "fork" },
+    error: { kind: "orchestration.delegateInvalid", field: "fork" },
   });
   expect(agents.delegated).toEqual([]);
 });
@@ -136,17 +136,17 @@ test("delegate.is-unavailable-without-the-service-or-a-call-context", async () =
   const { spec } = noContext;
   expect(await noContext.g.delegate(spec)).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
   expect(noContext.agents.delegated).toEqual([]);
   const t = await createTestHost();
-  const g = await installInjected(t, groupManifestOf({ name: "no-agents" }), () => ({
+  const g = await installInjected(t, orchestrationManifestOf({ name: "no-agents" }), () => ({
     agents: () => undefined,
     callContext: () => context("on", t.newThread()),
   }));
   expect(await g.delegate(specOf(t.ids))).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
 });
 
@@ -161,23 +161,26 @@ test("delegate.maps-l1-errors-to-group-errors", async () => {
       }),
   };
   const thread = t.newThread();
-  const g = await installInjected(t, groupManifestOf({ name: "mapped" }), () => ({
+  const g = await installInjected(t, orchestrationManifestOf({ name: "mapped" }), () => ({
     agents: () => stub,
     callContext: () => context("on", thread),
   }));
   const spec = specOf(t.ids);
   expect(await g.delegate(spec)).toEqual({
     ok: false,
-    error: { kind: "group.delegateFailed", message: "agents.unknown_definition: no such agent" },
+    error: {
+      kind: "orchestration.delegateFailed",
+      message: "agents.unknown_definition: no such agent",
+    },
   });
   const unavailable = fakeAgents({ ids: t.ids, unavailable: true });
-  const g2 = await installInjected(t, groupManifestOf({ name: "stubbed" }), () => ({
+  const g2 = await installInjected(t, orchestrationManifestOf({ name: "stubbed" }), () => ({
     agents: () => unavailable,
     callContext: () => context("on", thread),
   }));
   expect(await g2.delegate(spec)).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
 });
 
@@ -188,13 +191,13 @@ test("delegate.a-throwing-service-becomes-delegate-failed", async () => {
     ...fakeAgents({ ids: t.ids }),
     delegate: () => Promise.reject(new Error("db down")),
   };
-  const g = await installInjected(t, groupManifestOf({ name: "throws" }), () => ({
+  const g = await installInjected(t, orchestrationManifestOf({ name: "throws" }), () => ({
     agents: () => stub,
     callContext: () => context("on", thread),
   }));
   expect(await g.delegate(specOf(t.ids))).toEqual({
     ok: false,
-    error: { kind: "group.delegateFailed", message: "db down" },
+    error: { kind: "orchestration.delegateFailed", message: "db down" },
   });
 });
 
@@ -206,7 +209,7 @@ test("delegate.a-group-being-disabled-gets-group-disabling", async () => {
   await t.settled();
   expect(await g.delegate(spec)).toEqual({
     ok: false,
-    error: { kind: "group.disabling", id: "delegator" },
+    error: { kind: "orchestration.disabling", id: "delegator" },
   });
   expect(agents.delegated).toEqual([]);
 });
@@ -220,7 +223,7 @@ test("delegate-status.reads-the-child-state-from-a-drive-and-is-denied-in-on-han
   const child = started.receipt.childThreadId;
   expect(g.delegateStatus(spec.requestId)).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
   });
   kind = "drive";
   expect(g.delegateStatus(spec.requestId)).toEqual({
@@ -273,7 +276,7 @@ async function cancelIsDeniedIn(kind: "on" | "drive"): Promise<void> {
   const { agents, g } = await rig((th) => context(kind, th));
   expect(await g.cancelDelegates()).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.cancelDelegates", context: kind },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.cancelDelegates", context: kind },
   });
   expect(agents.cancels).toEqual([]);
 }
@@ -288,7 +291,7 @@ test("cancel-delegates.runs-from-on-dispose-and-aborts-the-groups-children", asy
   const results: unknown[] = [];
   const g = await installInjected(
     t,
-    groupManifestOf({ name: "disposer" }),
+    orchestrationManifestOf({ name: "disposer" }),
     () => ({ agents: () => agents, callContext: () => undefined }),
     (api) => {
       api.onDispose(async () => {
@@ -309,8 +312,8 @@ test("cancel-delegates.runs-from-on-dispose-and-aborts-the-groups-children", asy
   expect(g.id).toBe("disposer");
 });
 
-function manifest(name: string): ReturnType<typeof groupManifestOf> {
-  return groupManifestOf({ name, hooks: ["lifecycle.agent.settled"] });
+function manifest(name: string): ReturnType<typeof orchestrationManifestOf> {
+  return orchestrationManifestOf({ name, hooks: ["lifecycle.agent.settled"] });
 }
 
 test("agent-settled.reaches-only-the-owner-scope-with-the-delegation-result", async () => {
@@ -354,12 +357,12 @@ test("call-context.absent-makes-delegate-and-status-unavailable-while-cancel-run
   // 문맥도 thread도 없으면 delegate와 delegateStatus는 호출 없이 unavailable이다
   expect(await g.delegate({ ...spec, requestId: "no-thread" })).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
   expect(agents.delegated).toHaveLength(1);
   expect(g.delegateStatus(spec.requestId)).toEqual({
     ok: false,
-    error: { kind: "group.delegateUnavailable" },
+    error: { kind: "orchestration.delegateUnavailable" },
   });
   // cancelDelegates는 재실행 문맥 밖이라 막히지 않고 실행된다
   expect(await g.cancelDelegates("group disabled")).toEqual({ ok: true, cancelled: true });
@@ -388,11 +391,11 @@ test("call-context.aborted-on-context-still-rejects-cancel-and-forwards-its-sign
   expect(agents.delegated[0]?.origin.signal.aborted).toBe(true);
   expect(g.delegateStatus(spec.requestId)).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
   });
   expect(await g.cancelDelegates()).toEqual({
     ok: false,
-    error: { kind: "group.effectNotAllowed", effect: "g.cancelDelegates", context: "on" },
+    error: { kind: "orchestration.effectNotAllowed", effect: "g.cancelDelegates", context: "on" },
   });
   expect(agents.cancels).toEqual([]);
 });
@@ -403,8 +406,14 @@ async function twoGroupsOneService() {
   const thread = t.newThread();
   const agents = fakeAgents({ ids: t.ids });
   const access = () => ({ agents: () => agents, callContext: () => undefined });
-  const a = await installInjected(t, groupManifestOf({ name: "group-a" }), access);
-  const b = await installInjected(t, groupManifestOf({ name: "group-b" }), access, undefined, 1);
+  const a = await installInjected(t, orchestrationManifestOf({ name: "group-a" }), access);
+  const b = await installInjected(
+    t,
+    orchestrationManifestOf({ name: "group-b" }),
+    access,
+    undefined,
+    1,
+  );
   await t.host.openThread(thread);
   return { t, thread, agents, a, b };
 }

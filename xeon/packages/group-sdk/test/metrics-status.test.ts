@@ -4,14 +4,14 @@ import type { ThreadId, TurnId, UserMessage } from "@fresnel/contracts/conversat
 import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
-  createGroupService,
-  defineGroup,
-  type GroupApi,
-  type GroupHostView,
+  createOrchestrationService,
+  defineOrchestration,
+  type OrchestrationApi,
+  type OrchestrationHostView,
 } from "../src/index.ts";
-import { groupCatalogOf } from "../src/testing/index.ts";
+import { orchestrationCatalogOf } from "../src/testing/index.ts";
 import { serviceRig, statusOf } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 const ids = fixedIdFactory(500);
 
@@ -93,9 +93,13 @@ const user: UserMessage = { role: "user", content: "hi", timestamp: 1_700_000_00
 
 /** helm을 설치하고 게시 1건과 카운터 비용 0.25를 올린 시험 묶음 */
 async function helmRig() {
-  const sink: { api?: GroupApi<never> } = {};
-  const helm = defineGroup({
-    manifest: groupManifestOf({ name: "helm", hooks: ["boundary.message.after"], usesPost: true }),
+  const sink: { api?: OrchestrationApi<never> } = {};
+  const helm = defineOrchestration({
+    manifest: orchestrationManifestOf({
+      name: "helm",
+      hooks: ["boundary.message.after"],
+      usesPost: true,
+    }),
     setup(g) {
       sink.api = g;
       g.on("boundary.message.after", async () => {
@@ -119,16 +123,16 @@ test("metrics.status-merges-counters-with-thread-usage-after-the-status-command"
   const rig = await helmRig();
   const queried: string[] = [];
   const events = helmEvents(rig.thread);
-  const view: GroupHostView = {
+  const view: OrchestrationHostView = {
     ...rig.t.host,
     queryEvents: async (_threadId, query) => {
       queried.push(query.kindPrefix);
       return ok(events.filter((event) => event.kind.startsWith(query.kindPrefix)));
     },
   };
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: view,
-    catalog: groupCatalogOf([rig.helm]),
+    catalog: orchestrationCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
   });
   const counted = { denies: 0, posts: 1, spawns: 0, delegates: 0 };
@@ -144,16 +148,16 @@ test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
   const rig = await helmRig();
   let failing = false;
   const events = helmEvents(rig.thread);
-  const view: GroupHostView = {
+  const view: OrchestrationHostView = {
     ...rig.t.host,
     queryEvents: async (_threadId, query) => {
       if (failing) return err({ kind: "port_unavailable" });
       return ok(events.filter((event) => event.kind.startsWith(query.kindPrefix)));
     },
   };
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: view,
-    catalog: groupCatalogOf([rig.helm]),
+    catalog: orchestrationCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
   });
   await service.refreshUsage(rig.thread);
@@ -166,9 +170,9 @@ test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
 
 test("metrics.status-real-host-has-no-turn-usage", async () => {
   const rig = await helmRig();
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: rig.t.host,
-    catalog: groupCatalogOf([rig.helm]),
+    catalog: orchestrationCatalogOf([rig.helm]),
     currentThread: () => rig.thread,
   });
   await service.refreshUsage(rig.thread);

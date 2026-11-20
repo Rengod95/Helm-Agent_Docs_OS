@@ -1,13 +1,18 @@
 import { expect, test } from "bun:test";
 import { PrimitiveError } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import { checkRecordKind, checkPostItem, defineGroup, kindVisibleTo } from "../src/index.ts";
+import {
+  checkRecordKind,
+  checkPostItem,
+  defineOrchestration,
+  kindVisibleTo,
+} from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 const DONE_KIND = "grp.writer.note.done";
 
-const manifest = groupManifestOf({
+const manifest = orchestrationManifestOf({
   name: "writer",
   hooks: ["boundary.settle.after"],
   usesPost: true,
@@ -42,7 +47,7 @@ test("records.write-requires-declared-kind", async () => {
   const codes: (string | undefined)[] = [];
   await install(
     t,
-    defineGroup({
+    defineOrchestration({
       manifest,
       setup(g) {
         g.on("boundary.settle.after", async () => {
@@ -73,7 +78,7 @@ test("records.rejects-foreign-prefix", async () => {
   const codes: (string | undefined)[] = [];
   await install(
     t,
-    defineGroup({
+    defineOrchestration({
       manifest,
       setup(g) {
         g.on("boundary.settle.after", async () => {
@@ -131,7 +136,7 @@ test("records.checks-are-pure", () => {
 });
 
 test("records.kind-filter-hides-undeclared-groups", () => {
-  const reader = groupManifestOf({
+  const reader = orchestrationManifestOf({
     name: "reader",
     readsRecordKinds: ["grp.writer.note.*", "grp.other.*", "grp.third.skill.proposed"],
   });

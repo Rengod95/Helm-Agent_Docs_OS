@@ -10,7 +10,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 # L3 플러그인 Plugin Builder (authoring)
 
-에이전트가 층별 플러그인과 플러그인 그룹을 만들 때 쓰는 Plugin Builder입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
+에이전트가 층별 플러그인과 오케스트레이션 플러그인을 만들 때 쓰는 Plugin Builder입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
 
 - [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않습니다. 구현과 보안 항목이 들어올 때마다 계속 갱신합니다. 정적 템플릿보다 "플러그인을 만드는 플러그인"(에이전트가 뼈대, 검사, 시험에 쓰는 Plugin Builder나 그룹)을 우선합니다(`L4.desktop-ux.spec` §12.3 U-8).
 - [결정: 2026-10-31 사용자] 플러그인 화면 모드(선언형, 격리 프레임)는 플러그인을 만드는 에이전트가 고릅니다(ADR-0021 §3.5).
@@ -20,7 +20,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 1.1 정하는 것
 
-- Plugin Builder의 역할과 형태(L3 플러그인 그룹 하나, 이름 `authoring`)
+- Plugin Builder의 역할과 형태(L3 오케스트레이션 플러그인 하나, 이름 `authoring`)
 - Plugin Builder가 쓰는 기능: 뼈대 만들기, 구성 검사, Test run, 개발 모드 재생, 패키징, 검토함 제출(M5c §4.9)
 - 종류 카탈로그(kind catalog)의 모양, 갱신 규칙, 열린 확장 방식
 - 데스크톱 구성기(`L4.desktop-ux.spec` P-21)와 플러그인 화면 모드(ADR-0021)와의 관계
@@ -29,14 +29,14 @@ binds: [xeon/packages/plugin-builder/**]
 ### 1.2 다루지 않는 것
 
 - 매니페스트 스키마, `validateManifest`·`validateUsage`·`validateComposition` 함수의 정의: `F.extensions.spec`
-- `defineGroup`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
+- `defineOrchestration`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
 - 기존 그룹 템플릿 세 종류의 파일 내용: `L3.slots.spec` §3.3. 이 문서는 그 템플릿을 카탈로그의 첫 항목으로 씁니다.
 - 화면(구성기, 시험 실행)의 모양: `L4.desktop-ux.spec` §6.26, §6.28
 - `fresnel group new` 명령: `L4.cli.spec`. Plugin Builder가 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
 
 ### 1.3 이 도메인을 L3에 두는 이유
 
-- 제작 흐름은 플러그인 그룹의 모양 그대로입니다. 모델 도구로 작업하고, 작업 단계를 상태로 커밋하고, 위험한 단계(패키징) 앞에서 사람 확인을 받고(검토함 제출은 확인을 묻지 않는다: 승인은 검토함에서 사용자가 한다, M5c §4.9), 제작 중 쓰기 범위를 `on`(first) 가드로 막아야 합니다. 이 강제는 스킬 문서로는 할 수 없습니다(`L3.readme` §1 "모델의 행동을 코드로 막거나 구동해야 할 때만 그룹").
+- 제작 흐름은 오케스트레이션 플러그인의 모양 그대로입니다. 모델 도구로 작업하고, 작업 단계를 상태로 커밋하고, 위험한 단계(패키징) 앞에서 사람 확인을 받고(검토함 제출은 확인을 묻지 않는다: 승인은 검토함에서 사용자가 한다, M5c §4.9), 제작 중 쓰기 범위를 `on`(first) 가드로 막아야 합니다. 이 강제는 스킬 문서로는 할 수 없습니다(`L3.readme` §1 "모델의 행동을 코드로 막거나 구동해야 할 때만 그룹").
 - 데스크톱 화면 안의 기능으로만 두면 CLI와 서비스 모드에서 에이전트가 같은 흐름을 쓸 수 없습니다. Plugin Builder는 런타임 부품이고 화면은 그 위의 보기입니다.
 - 별도 도메인 문서(spec, plan)와 `routes.yaml` layout 항목이 있어야 구현 작업자가 `docs-route`로 이 문서를 받습니다. `L3.slots.spec`(코드 없음, 템플릿 규칙)과 겹치지 않게, slots는 템플릿 내용 규칙을, 이 문서는 템플릿을 고르고 채우고 검사하고 시험하는 흐름을 맡습니다.
 - `L3/README.md` 도메인 표에 이 도메인을 더하는 일은 README 수정 금지라 사용자 몫으로 남깁니다(§10 미결 1).
@@ -47,7 +47,7 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|
 | Plugin Builder | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
 | 제작 대화 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
-| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 종류는 플러그인 하나뿐이고 그룹은 `group` 선언 유무로 정한다(종류가 아니다). wire `ext.kinds`는 `single-plugin` 하나를 돌려준다 [결정: review/m5/profile-project-loader.md §4.9.5] |
+| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 종류는 플러그인 하나뿐이고 그룹은 `orchestration` 선언 유무로 정한다(종류가 아니다). wire `ext.kinds`는 `single-plugin` 하나를 돌려준다 [결정: review/m5/profile-project-loader.md §4.9.5] |
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
 | 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 Plugin Builder가 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
@@ -57,13 +57,13 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 3.1 형태
 
-[제안] Plugin Builder는 내장 L3 플러그인 그룹입니다.
+[제안] Plugin Builder는 내장 L3 오케스트레이션 플러그인입니다.
 
 | 항목 | 값 |
 |---|---|
-| 이름 | `authoring`(예약 이름과 겹치지 않음, `RESERVED_GROUP_NAMES`) |
+| 이름 | `authoring`(예약 이름과 겹치지 않음, `RESERVED_ORCHESTRATION_NAMES`) |
 | 패키지 | `xeon/packages/plugin-builder`(대화하는 빌더). 파일 일(제작 코어)은 `xeon/packages/core-authoring`(L1, 시스템 모듈, `L1.authoring.spec`) [결정: 2026-11-18 사용자, AGE-60] |
-| 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(플러그인 그룹) |
+| 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(오케스트레이션 플러그인) |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 켜짐. 도구 열한 개가 모두 지연 노출(`exposure: "deferred"`)이라 켜 두어도 "hi" 턴의 문맥은 늘지 않고 모델은 `tool_search`로 찾습니다 [결정: 2026-11-13 사용자, 2026-11-01 결정을 대체]. 안전 모드와 `defaultGroups: false`에서는 싣지 않고, 사용자가 `ext.authoring.enabled`를 명시적으로 끈 설정은 존중합니다 |
 | drive | 씀. 제작 대화 단계 머신(§4.1)을 주도 단계 함수로 돌립니다. 사람 확인은 `ask` 명령(X-17, drive-isolation.md §1.1)을 씁니다 |
@@ -73,7 +73,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 3.2 모델 도구
 
-[제안] 그룹이 등록하는 도구입니다(`GroupApi.registerTool`). 이름은 `authoring_` 접두입니다.
+[제안] 그룹이 등록하는 도구입니다(`OrchestrationApi.registerTool`). 이름은 `authoring_` 접두입니다.
 
 | 도구 | 입력 | 결과 | 위험 |
 |---|---|---|---|
@@ -89,12 +89,12 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_drafts` | `{ name? }` | 플러그인의 초안 목록, 최신 먼저(`draftId`, `parent`, `createdAt`, `submittedItemId`) | 읽기 |
 | `authoring_stop` | `{ sessionId? }` | 열린 제작 대화를 닫고(`idle`) 만든 파일 목록을 돌려줌 | 읽기 |
 
-- [결정: M5c §4.9, §7.7 2026-11-18] `authoring_install`은 폐기했다. 빌더의 산출 경로는 `authoring_submit`이다: 테스트의 턴 하나를 증거(`EvidenceRef` `{kind:"turn"}`)로 받아 `fresnel.devkit.submit`(포트 `PluginSubmitPort`)으로 초안과 검토 항목을 만든다. 시험을 돌리지 않았으면 `no_evidence`로 거절하고 `authoring_trial`을 먼저 돌리라고 안내한다. 증거 턴 id는 빌더 상태에 없어 `turnId` 입력으로 받는다([미결]: 테스트 대화의 턴 id를 빌더가 읽는 길은 `authoring_context`(B-4, 엔진 설계 E1)가 준다). `authoring_package`는 `ext.package`가 남아 있으니 한 파일 묶음을 사용자가 보관하는 단독 도구로 남긴다(제출에는 필요 없다). `authoring_compose`와 구성 검사는 남긴다. 옛 묶음 종류는 §4.9.5로 폐기해 빌더의 묶음 뼈대와 카탈로그 적합성 시험의 묶음 항목은 빠졌고, group-sdk 템플릿 파일은 `fresnel group new`가 그대로 쓴다([미결]: 구성 초안을 단일 플러그인 뼈대에 붙이는 경로(`group` 선언 패치)는 종류와 함께 뺄지 따로 정한다).
+- [결정: M5c §4.9, §7.7 2026-11-18] `authoring_install`은 폐기했다. 빌더의 산출 경로는 `authoring_submit`이다: 테스트의 턴 하나를 증거(`EvidenceRef` `{kind:"turn"}`)로 받아 `fresnel.devkit.submit`(포트 `PluginSubmitPort`)으로 초안과 검토 항목을 만든다. 시험을 돌리지 않았으면 `no_evidence`로 거절하고 `authoring_trial`을 먼저 돌리라고 안내한다. 증거 턴 id는 빌더 상태에 없어 `turnId` 입력으로 받는다([미결]: 테스트 대화의 턴 id를 빌더가 읽는 길은 `authoring_context`(B-4, 엔진 설계 E1)가 준다). `authoring_package`는 `ext.package`가 남아 있으니 한 파일 묶음을 사용자가 보관하는 단독 도구로 남긴다(제출에는 필요 없다). `authoring_compose`와 구성 검사는 남긴다. 옛 묶음 종류는 §4.9.5로 폐기해 빌더의 묶음 뼈대와 카탈로그 적합성 시험의 묶음 항목은 빠졌고, group-sdk 템플릿 파일은 `fresnel group new`가 그대로 쓴다([미결]: 구성 초안을 단일 플러그인 뼈대에 붙이는 경로(`orchestration` 선언 패치)는 종류와 함께 뺄지 따로 정한다).
 - [구현 상태, 2026-11-18] 빌더의 도구 면(M5c §4.9.2~4.9.6)은 다음과 같다. 호스트 쪽 값은 `apps/host/src/assembly/m4/devkit-port.ts`가 준다.
   - `authoring_start`는 이름만 받으면 기존 플러그인의 원본 폴더(`<설정>/plugins/<이름>`)를 연다(`fresnel.devkit`의 선택 메서드 `sourceOf`). 종류와 이름 확인 카드를 건너뛰고 검사 단계(`validate`)부터 시작하며, 뼈대는 만들지 않는다(`scaffold`가 `exists`로 거절한다). 원본이 검토본과 달라도 원본에서 시작하고, 제출은 검토 서비스가 `update` 항목으로 만든다(`provenance: "assistant"`은 바꾸지 않았다). 거절: `not_found`(원본 폴더 없음), `bundled_not_editable`(번들이고 원본 폴더 없음), `source_unavailable`(이 빌드에 `sourceOf`가 없음).
   - `authoring_start`의 `dir`이 있으면 새 플러그인이다(`kind`는 생략하면 `single-plugin`). `purpose`(목적 한 문장, 200자 이하)와 `resident`(상주 모드, 아래)를 상태에 싣는다.
   - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 제작 대화의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
-  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/core-authoring/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 그룹 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
+  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/core-authoring/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 오케스트레이션 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
   - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 제작 대화의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
   - `authoring_context`(지연 읽기 도구, 입력 없음)는 테스트 대화에 붙은 맥락 참조(`craft.context` 사건, M5c §4.8.8)를 기록 순서대로 돌려준다. 발견 참조는 근거 묶음(`findings.bundle`과 같은 값)을 싣고 다른 참조는 `bundle: null`이다. 대화 id는 도구를 부른 대화의 것이다. 모델 컨텍스트에는 줄을 더하지 않는다. 거절: `context_unavailable`(이 빌드에 `craftContext`가 없음).
   - `authoring_replay`는 남긴다. §4.9.7은 폐기를 정하지만 재생 값은 엔진의 `backtest.run`(E)이 준다. 이 가지에는 `backtest.run`의 호스트 처리기가 없어서 옛 개발 모드 재생을 그대로 둔다 [미결: E의 `backtest.run`이 들어온 뒤 지운다] [근거: apps/host/src/assembly/m4/devkit-port.ts, apps/host/src/handlers/m4/devkit.ts].
@@ -123,11 +123,11 @@ interface DevkitService {
 - `trial`은 Test run을 만듭니다(`thread.create { trial: true }`, W-34). Test run은 대상 확장을 `launch` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
 - [결정: M4 T-AUTH] 구현은 `xeon/packages/core-authoring`의 함수(`scaffoldExtension`, `validateExtensionDir`, `validateCompositionReport`, `packExtension`, 시스템 모듈 `L1.authoring.spec`)와 `xeon/packages/plugin-builder`의 `runInstalledReplay`(group-sdk 하니스가 필요해 P에 남고 호스트가 주입한다)이고 `apps/host`의 `assembly/m4/devkit-port.ts`가 wire에 연결합니다.
-- [결정: M4 T-AUTH] `pack`은 엔트리를 한 파일 `dist/index.js`로 번들하고 묶음 매니페스트의 `entry`를 `./dist/index.js`로 바꿉니다. 호스트가 같은 인스턴스를 주는 SDK 모듈(`SDK_MODULE_SPECIFIERS`)은 번들에 넣지 않고 외부 import로 둡니다. `ext.reload`는 한 파일 번들 엔트리만 완전히 다시 읽기 때문입니다(여러 파일 소스는 옛 상대 import가 모듈 캐시에 남습니다). `link`는 `.js`·`.mjs` 엔트리만 받고 `.ts` 소스 폴더는 `invalid_input`으로 돌려 먼저 `pack`하게 합니다. 번들이 한 파일이 아니면 `pack`이 실패합니다. 그룹 템플릿은 `defineGroup`이 만든 모듈 객체를 default로 내므로(`GroupModule.entry`가 함수), 묶을 때 가상 진입 파일이 엔트리의 `extension`이나 default를 함수로 맞춰 `extension`과 default로 다시 냅니다(함수면 그대로). 이 맞춤이 없으면 외부 로더가 `entry_not_function`으로 거절합니다. 시험 `authoring.drive-bundle`이 drive 그룹 하나를 묶어 외부 로더로 불러 drive가 도는 것까지 봅니다.
+- [결정: M4 T-AUTH] `pack`은 엔트리를 한 파일 `dist/index.js`로 번들하고 묶음 매니페스트의 `entry`를 `./dist/index.js`로 바꿉니다. 호스트가 같은 인스턴스를 주는 SDK 모듈(`SDK_MODULE_SPECIFIERS`)은 번들에 넣지 않고 외부 import로 둡니다. `ext.reload`는 한 파일 번들 엔트리만 완전히 다시 읽기 때문입니다(여러 파일 소스는 옛 상대 import가 모듈 캐시에 남습니다). `link`는 `.js`·`.mjs` 엔트리만 받고 `.ts` 소스 폴더는 `invalid_input`으로 돌려 먼저 `pack`하게 합니다. 번들이 한 파일이 아니면 `pack`이 실패합니다. 그룹 템플릿은 `defineOrchestration`이 만든 모듈 객체를 default로 내므로(`OrchestrationModule.entry`가 함수), 묶을 때 가상 진입 파일이 엔트리의 `extension`이나 default를 함수로 맞춰 `extension`과 default로 다시 냅니다(함수면 그대로). 이 맞춤이 없으면 외부 로더가 `entry_not_function`으로 거절합니다. 시험 `authoring.drive-bundle`이 drive 그룹 하나를 묶어 외부 로더로 불러 drive가 도는 것까지 봅니다.
 - [결정: M4 T-AUTH] `pack` 출력은 기본 `<dir>/dist/package`(다시 만들면 비우고 씁니다)이고, 지정한 `out`은 없거나 비어 있어야 합니다(`exists`). 묶음 형식은 폴더 사본이고 `sha256`은 정렬한 `경로 NUL 파일해시` 줄들의 해시입니다(§10 4번은 그대로 미결). 묶음 최상위의 `src`, `test`, `node_modules`, `dist`, `package.json`, `tsconfig.json`과 시크릿 이름(`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*`, `credentials*`)은 넣지 않습니다.
 - [폐기: M5c §7.7] `link`(사용자 확장 위치에 복사), `remove`(폴더 지우기), `previewInstall`(설치 미리 보기, `install.ts`), `release.ts`의 설치 확인(`installConfirmation`)과 `LinkInput.expectedSha256`을 지웠다. 설치는 없다. 플러그인은 검토함에서 승인해야 쓸 수 있다(§4.6, M5c 검토 흐름). 제출 입력 검사는 `validateExtensionDir`가 맡는다(플러그인 파일이 없으면 `no_manifest`, 폴더가 없으면 `not_found`).
 - [폐기: M5c §7.7] 2026-11-04 Q9의 앱 안 설치 미리 보기와 그 사유 목록(`not_absolute`, `folder_missing`, `unknown_key` 등 설치 거절 사유)은 설치 경로와 함께 지웠다. 제출 경로의 검사 사유는 호스트 `PluginSubmitError`를 `DevkitError.reasons`로 옮긴다(`apps/host/src/assembly/m4/devkit-port.ts`).
-- [결정: M4 T-AUTH] `scaffold`의 그룹 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`와 `group.members`는 매니페스트에 패치하고(루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`), 패치할 것이 없으면 템플릿 글자 그대로 씁니다. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
+- [결정: M4 T-AUTH] `scaffold`의 그룹 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`와 `orchestration.members`는 매니페스트에 패치하고(루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`), 패치할 것이 없으면 템플릿 글자 그대로 씁니다. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
 
 ### 3.4 종류 카탈로그
 
@@ -150,7 +150,7 @@ interface KindEntry {
 }
 ```
 
-- [결정: M4 T-AUTH, 개정 review/m5/profile-project-loader.md §4.9.5 2026-11-18] wire `ext.kinds`의 `KindEntry.id`는 `single-plugin` 하나다. 종류는 플러그인 하나뿐이고 그룹은 `group` 선언이 있는 플러그인이라 종류가 아니다. 그래서 카탈로그 항목도 `single-plugin` 하나이고, 옛 그룹 종류의 `group.*` 행은 폐기했다(group-sdk 템플릿은 `fresnel group new`가 쓴다). 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
+- [결정: M4 T-AUTH, 개정 review/m5/profile-project-loader.md §4.9.5 2026-11-18] wire `ext.kinds`의 `KindEntry.id`는 `single-plugin` 하나다. 종류는 플러그인 하나뿐이고 그룹은 `orchestration` 선언이 있는 플러그인이라 종류가 아니다. 그래서 카탈로그 항목도 `single-plugin` 하나이고, 옛 그룹 종류의 `group.*` 행은 폐기했다(group-sdk 템플릿은 `fresnel group new`가 쓴다). 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
 
 M4 첫 카탈로그 [제안]:
 
@@ -251,7 +251,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 - [결정: M4 T-AUTH] 가드 판정은 함수 `authoringWriteGuard`(`guard.ts`)다. `write` 위험 등급 도구는 입력의 `path`·`file_path`·`filePath`가 대상 폴더 안이어야 하고, `exec`(셸)는 `cwd`·`workdir`가 안쪽이어야 한다. 경로를 읽을 수 없는 `write`와 작업 폴더가 없는 `exec`는 막는다. 한계 [미결]: 셸 명령 문자열 속 절대 경로는 보지 않는다.
 - [결정: M4 T-AUTH] 묶기 앞 사람 확인의 카드와 요청 id는 `packConfirmation`(`confirm.ts`)이 만들고, drive가 `ask` 명령으로 냅니다. 답이 `yes`인지는 `confirmedYes`가 읽는다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
-- [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, guide?, devMode?, fixLoopLimit?, workspaceOf? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: true`([결정: 2026-11-13 사용자])·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 2)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·제출 결과(`submitted`: 초안 id와 검토 항목 id)를 가진다.
+- [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringOrchestration({ devkit, guide?, devMode?, fixLoopLimit?, workspaceOf? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: true`([결정: 2026-11-13 사용자])·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 2)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·제출 결과(`submitted`: 초안 id와 검토 항목 id)를 가진다.
 - [결정: 상태 문서 판 2, L3.group-sdk §4.7] 판 1 문서(`installed: {name, version, location}`이 있던 모양)는 `authoringStateMigrations[1]`(`group-state.ts`의 `v1ToV2`)이 옮긴다. `installed`는 버리고 `submitted`는 null로 둔다. 설치 결과에는 검토 항목 id가 없어 `submitted`로 옮길 수 없다([제안] 가장 가까운 유효 상태). 설치로 끝난 대화는 단계 `done`이 그대로 남는다. 설치 요청이던 `pending`과 `denied`의 `install`은 null이다. 이미 판 2 모양인 문서는 그대로 둔다. 모양이 아닌 입력은 스키마가 `Result` 오류로 거른다(던지지 않는다).
 - [결정: M4 T-AUTH] 도구 열(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `ask` 명령으로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive 프레임은 질문 대기(`asking`)로 스택에 남는다. 확인 질문을 여는 도구는 `startDrive`로 주도를 다시 요청한다(엔진이 두 번 연속 효과 없이 `yield`한 프레임을 `idle`로 내리기 때문, E3)). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`ask` 명령) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르고, 호스트는 그 포트로 Test run 대화를 연다(HS-112). 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
 - [결정: 오케스트레이터 기본값, scI] `authoring_start`의 `dir`은 절대 경로로 정한다(`target-dir.ts`의 `resolveTargetDir`). 절대 경로는 그대로 쓰고, 상대 경로는 그 대화의 작업 폴더(`thread.started.workspace`) 안으로만 푼다(밖으로 나가면 `outside_workspace`). 작업 폴더가 없는 대화가 상대 경로를 주면 제작 대화를 열지 않고 `needs_folder`를 돌려주며, 모델은 사용자에게 폴더를 묻는다(앱은 크래프트 "새로 만들기"가 폴더 고르기 창 `pickFolder` 길로 작업 폴더를 정한 대화를 열고, CLI는 경로를 묻는다). 숨은 기본 출력 위치는 두지 않는다. 사용자 결정 목록에 "제작물 기본 출력 위치"로 올린다. 호스트는 `AuthoringWiring.workspaceOf`로 작업 폴더를 준다.
@@ -294,7 +294,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | Test run에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 대화에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
 | 엔진 재시작 | 대화 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 Test run은 그대로 남음 |
-| 안전 모드 | Plugin Builder는 내장 L3 플러그인 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
+| 안전 모드 | Plugin Builder는 내장 L3 오케스트레이션 플러그인이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
@@ -319,7 +319,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 |---|---|
 | `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `fresnel.devkit` 계약 |
 | `X.primitives.spec` | 요구: `ask` 명령과 질문 대기 프레임 상태 `asking`(X-17. 반납 사유 `waiting`은 쓰지 않는다, E3), Test run 단계 경계 멈춤(X-19) |
-| `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
+| `L3.group-sdk.spec` | 받음: `defineOrchestration`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineOrchestration({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
 | `L4.cli.spec` | 제공: `fresnel group new`가 부를 서비스 |

@@ -5,7 +5,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveCommand } from "@fresnel/contracts/extensions";
 import { createTestHost } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 /** 상태가 없는 그룹의 명령(S가 never) */
 type Command = DriveCommand<never>;
@@ -38,7 +38,7 @@ function expectNewLease(t: Host, thread: ThreadId, index: number): void {
 test("a drive that returns without committing and is granted again at the same rev gets a new turn", async () => {
   const t = await createTestHost();
   await t.host.install(
-    makeGroupUnit({ name: "lin-idle" }, (g) => {
+    makeOrchestrationUnit({ name: "lin-idle" }, (g) => {
       // 첫 단계는 turn을 내고, 그 결과를 받은 단계는 효과 없이 끝낸다
       g.drive(({ last }) => Promise.resolve(last === null ? turnOf("go") : yieldOf()));
     }),
@@ -71,7 +71,7 @@ test("a drive that returns without committing and is granted again at the same r
 test("a re-grant after a budget release gets a new lease and a new turn key", async () => {
   const t = await createTestHost();
   await t.host.install(
-    makeGroupUnit({ name: "lin-budget" }, (g) => {
+    makeOrchestrationUnit({ name: "lin-budget" }, (g) => {
       // 첫 turn 뒤 둘째 turn을 낸다. 한도(1)를 넘는 둘째 turn이 budget으로 임대를 반납하게 한다
       g.drive(
         ({ last }) => {

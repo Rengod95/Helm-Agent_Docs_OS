@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { defineManifest, type DriveFrameView, type PostItem } from "@fresnel/contracts/extensions";
 import { LeaseAcquiredPayloadSchema, LeaseReleasedPayloadSchema } from "@fresnel/contracts/records";
-import { defineGroup, type GroupManifest, type GroupModule } from "@fresnel/group-sdk";
+import {
+  defineOrchestration,
+  type OrchestrationManifest,
+  type OrchestrationModule,
+} from "@fresnel/group-sdk";
 import { HelmStateSchema, pluginNeedOf, type HelmState } from "../../src/state.ts";
 import { createRig, type Rig } from "../support/rig.ts";
 
@@ -16,8 +20,8 @@ const BUILDER = "authoring";
 function builderStandIn(
   seen: (readonly DriveFrameView[])[],
   frames: () => readonly DriveFrameView[],
-): GroupModule {
-  const manifest: GroupManifest = defineManifest({
+): OrchestrationModule {
+  const manifest: OrchestrationManifest = defineManifest({
     schemaVersion: 2,
     name: BUILDER,
     version: "0.1.0",
@@ -27,9 +31,9 @@ function builderStandIn(
     defaultEnabled: true,
     trust: { level: "builtin" },
     plugins: [{ layer: "L3", drives: true, usesPost: true, hooks: [], requires: [], optional: [] }],
-    group: {},
+    orchestration: {},
   });
-  return defineGroup({
+  return defineOrchestration({
     manifest,
     setup(g) {
       g.drive(async ({ last, frame }) => {

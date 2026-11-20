@@ -1,7 +1,7 @@
 import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
 import { validateManifest, type ManifestIssue, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { createExtHost, PrimitiveError } from "@fresnel/ext-host";
-import type { GroupDefIssue, GroupModule } from "../types.ts";
+import type { OrchestrationDefIssue, OrchestrationModule } from "../types.ts";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const BODY_LENGTH = 26;
@@ -30,10 +30,12 @@ function counterIds(): IdFactory {
  * 호스트는 포트가 하나도 없는 ext-host라서 임대와 turn은 일어나지 않고, 등록만 본다.
  * setup이 던지면 `setup_threw` 오류 하나를 더한다. 이슈의 severity로 거른다(오류 0개가 통과다).
  */
-export async function checkGroup(
-  module: GroupModule,
-): Promise<readonly (GroupDefIssue | ManifestIssue)[]> {
-  const issues: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(module.manifest).issues];
+export async function checkOrchestration(
+  module: OrchestrationModule,
+): Promise<readonly (OrchestrationDefIssue | ManifestIssue)[]> {
+  const issues: (OrchestrationDefIssue | ManifestIssue)[] = [
+    ...validateManifest(module.manifest).issues,
+  ];
   const rootIndex = Math.max(
     0,
     pluginDeclsOf(module.manifest).findIndex((plugin) => plugin.id === undefined),
@@ -46,7 +48,7 @@ export async function checkGroup(
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
       driveMaxDepth: () => 8,
-      driveRequiresGroup: () => true,
+      driveRequiresOrchestration: () => true,
       capabilityProviders: () => ({}),
     },
     report: () => {},

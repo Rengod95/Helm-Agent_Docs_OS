@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path";
 import { t } from "@fresnel/client/i18n";
 import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
-import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../io.ts";
+import type { GroupIoError, OrchestrationTargetState, GroupTemplatesPort } from "../io.ts";
 
 // L4.cli.spec §3.8. `fresnel group new`의 실제 파일 작업. 시험(group-new-core-diff.test.ts)도 이 구현을 쓴다.
 // 템플릿 위치와 사용자 설정 폴더는 runtime.ts가 넘긴다. 이 파일은 프로세스 환경을 읽지 않는다.
@@ -141,11 +141,11 @@ export function createGroupTemplatesFs(options: GroupFsOptions): GroupTemplatesP
 
     async targetState(path) {
       const found = await io(path, () => stat(path));
-      if (!found.ok) return found.error.missing ? ok<GroupTargetState>("absent") : found;
-      if (!found.value.isDirectory()) return ok<GroupTargetState>("occupied");
+      if (!found.ok) return found.error.missing ? ok<OrchestrationTargetState>("absent") : found;
+      if (!found.value.isDirectory()) return ok<OrchestrationTargetState>("occupied");
       const children = await io(path, () => readdir(path));
       if (!children.ok) return children;
-      return ok<GroupTargetState>(children.value.length === 0 ? "empty" : "occupied");
+      return ok<OrchestrationTargetState>(children.value.length === 0 ? "empty" : "occupied");
     },
 
     makeDir(path) {

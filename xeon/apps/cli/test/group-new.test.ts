@@ -71,7 +71,7 @@ const OBSERVE_MANIFEST = `{
       ]
     }
   ],
-  "group": {},
+  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
@@ -84,7 +84,7 @@ const DRIVE_MANIFEST = `{
   "displayName": "__TITLE__",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "L3", "hooks": ["boundary.settle.after"], "drives": true }],
-  "group": {},
+  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
@@ -97,7 +97,7 @@ const POLICY_MANIFEST = `{
   "displayName": "__TITLE__",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "L3", "hooks": ["tool.call.before"] }],
-  "group": {},
+  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
@@ -206,7 +206,7 @@ test("the generated plugin.json text is exact for a fixed name and version", asy
       ]
     }
   ],
-  "group": {},
+  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }

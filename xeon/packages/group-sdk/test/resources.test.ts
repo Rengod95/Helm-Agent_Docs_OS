@@ -10,9 +10,13 @@ import {
 } from "@fresnel/contracts/extensions";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineGroup, groupManifest, type GroupManifest } from "../src/index.ts";
+import {
+  defineOrchestration,
+  orchestrationManifest,
+  type OrchestrationManifest,
+} from "../src/index.ts";
 import { install } from "./support/host.ts";
-import { groupManifestOf } from "./support/manifests.ts";
+import { orchestrationManifestOf } from "./support/manifests.ts";
 
 test("resources.tool-and-command-released-on-disable", async () => {
   const t = await createTestHost();
@@ -37,8 +41,8 @@ test("resources.tool-and-command-released-on-disable", async () => {
   });
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "tooled" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "tooled" }),
       setup(g) {
         g.registerTool({
           name: "tooled_probe",
@@ -95,8 +99,8 @@ test("resources.provider-released-on-disable", async () => {
   });
   await install(
     t,
-    defineGroup({
-      manifest: groupManifestOf({ name: "provided" }),
+    defineOrchestration({
+      manifest: orchestrationManifestOf({ name: "provided" }),
       setup(g) {
         g.registerProvider("provided-model", {
           api: "openai-completions",
@@ -126,8 +130,8 @@ test("resources.provider-released-on-disable", async () => {
 
 test("resources.group-registerMethod-is-callable-and-released-with-the-group", async () => {
   const t = await createTestHost();
-  const manifest: GroupManifest = {
-    ...groupManifestOf({ name: "methoded" }),
+  const manifest: OrchestrationManifest = {
+    ...orchestrationManifestOf({ name: "methoded" }),
     methods: [
       {
         verb: "echo",
@@ -149,7 +153,7 @@ test("resources.group-registerMethod-is-callable-and-released-with-the-group", a
   };
   await install(
     t,
-    defineGroup({
+    defineOrchestration({
       manifest,
       setup(g) {
         g.registerMethod("echo", {
@@ -187,13 +191,13 @@ test("resources.group-registerMethod-is-callable-and-released-with-the-group", a
 
 // F.capabilities.spec §10 [결정: 2026-11-03 사용자]: 외부 그룹도 plugin.json의 루트 L3 플러그인 `replaces`로 내장 도구를 대체한다
 test("an external group from plugin.json replaces a built-in tool through g.registerTool with its loaded trust", async () => {
-  const manifest = groupManifest({
+  const manifest = orchestrationManifest({
     schemaVersion: 2,
     name: "ext-files",
     version: "0.1.0",
     entry: "./src/index.ts",
     plugins: [{ layer: "L3", hooks: [], replaces: ["read"] }],
-    group: {},
+    orchestration: {},
   });
   expect(pluginDeclsOf(manifest)[0]?.replaces).toEqual(["read"]);
   const t = await createTestHost();
@@ -214,7 +218,7 @@ test("an external group from plugin.json replaces a built-in tool through g.regi
       });
     },
   });
-  const group = defineGroup({
+  const group = defineOrchestration({
     manifest,
     setup(g) {
       g.registerTool({

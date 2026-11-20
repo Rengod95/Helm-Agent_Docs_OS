@@ -8,7 +8,7 @@ import {
   type AuthoringState,
 } from "../src/index.ts";
 import { authoringStateMigrations } from "../src/group-state.ts";
-import { createAuthoringGroup } from "../src/group.ts";
+import { createAuthoringOrchestration } from "../src/group.ts";
 import { devkitProbe } from "./group-support.ts";
 
 // 상태 문서 판 4(판 2: `installed` → `submitted`, 판 3: 종류는 플러그인 하나, 판 4: 목적·상주·원본 시작). 저장된 옛 문서는 엔진이 쓰는 같은 체인(`migrationChain`)으로 옮긴다.
@@ -203,7 +203,7 @@ test("authoring.state-v3.kind-kept: a version 2 document of the single plugin ki
 });
 
 test("authoring.state-v4.declared: the group declares state version 4 with three migration steps", () => {
-  const module = createAuthoringGroup({ devkit: devkitProbe().devkit });
+  const module = createAuthoringOrchestration({ devkit: devkitProbe().devkit });
   expect(module.stateVersion).toBe(4);
   expect(module.stateUpcasters).toHaveLength(3);
 });

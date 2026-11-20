@@ -99,7 +99,7 @@ export interface UiEntryReport extends UiItemReport {
 }
 
 /** 화면 항목을 낸 확장. 카드의 `forKind`가 이 확장의 기록 kind인지 보는 데 쓴다(ADR-0021 §3.2, 보고 1) */
-export interface UiOwner extends Pick<ExtensionManifest, "group" | "name"> {
+export interface UiOwner extends Pick<ExtensionManifest, "orchestration" | "name"> {
   /** 매니페스트 플러그인들의 `readsRecordKinds`를 모은 것. 여기 덮인 kind는 카드로 그릴 수 있다 */
   readonly readsRecordKinds: readonly string[];
 }

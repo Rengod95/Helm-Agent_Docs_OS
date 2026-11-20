@@ -225,7 +225,7 @@ export interface EventKindRegistry {
 규칙 [제안]:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다(09 §3.3 규칙 1을 따른다).
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 오케스트레이션 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
 3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 그룹 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
 4. 벤더 이름(pi, claude, codex)을 코어 kind에 넣지 않는다(09 §3.3 규칙 5).
 5. 이름은 바꾸지 않는다. 의미가 바뀌면 `version`을 올리고 업캐스터를 둔다. 없앤 kind는 카탈로그에 `retired: true`로 남긴다.
@@ -1150,7 +1150,7 @@ export interface SessionService {
 // 정본은 이 블록이다. X.primitives.spec §3.6의 블록을 옮겼다. records는 extensions보다 낮아(F.readme §3)
 // RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다(§3.3 extension-ops.ts와 같은 방식).
 // ExtensionName도 import하지 않는다. queryRecords의 reader는 같은 모양(string)으로 적는다.
-// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
+// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ OrchestrationRecord, reader ↔ ExtensionName.
 export interface ExtCommitRequest {
   readonly threadId: ThreadId;
   /** SessionWriter 멱등 키. 같은 키의 두 번째 커밋은 기록된 결과를 돌려준다. 형식은 COMMIT_KEY_PATTERN */
@@ -1336,7 +1336,7 @@ export interface RecordCommitPort {
 
 ## 7. 훅
 
-- 확장과 플러그인 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
+- 확장과 오케스트레이션 플러그인은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
 - X의 네 연산 중 register, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 훅은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 

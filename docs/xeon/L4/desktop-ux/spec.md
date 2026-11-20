@@ -60,8 +60,8 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | `[gap:W-NN]` | 필요한 wire 메서드나 셸 명령이 없음. §10.1 목록 번호입니다. |
 | `[gap:V-NN]` | 필요한 view-model이 없음. §10.2 목록 번호입니다. |
 | `[gap:C-NN]` | 맞는 caustic 부품이 없음. §9 목록 번호입니다. |
-| LightCraft | 런타임 LightCraft. 층별 플러그인과 플러그인 그룹을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 1급 영역(§4.9) |
-| 확장 | 매니페스트를 가진 플러그인이나 플러그인 그룹(`ExtensionManifest`). 화면에서는 플러그인과 그룹을 함께 "확장"이라 부릅니다 |
+| LightCraft | 런타임 LightCraft. 층별 플러그인과 오케스트레이션 플러그인을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 1급 영역(§4.9) |
+| 확장 | 매니페스트를 가진 플러그인이나 오케스트레이션 플러그인(`ExtensionManifest`). 화면에서는 플러그인과 그룹을 함께 "확장"이라 부릅니다 |
 | 화면 기여 | 확장이 선언형 화면 트리로 앱의 슬롯(`page`, `well`, `card`, `status`, `command`, `settings`)에 더하는 화면(ADR-0021) |
 | Test run | 프로필을 적용해 시험 표지로 만든 대화(SC-19) |
 | 맥락 칸 | LightCraft 왼쪽 패널의 맥락 고르기 하나. 값은 전체 또는 프로필이고 모든 LightCraft 화면이 따릅니다. 대화 범위는 없습니다(§4.9.3) |
@@ -322,7 +322,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 
 ### SC-16 플러그인·그룹 만들기
 
-- 누가: 제2의 Helm 같은 플러그인 그룹이나 L2 provider 플러그인을 만들려는 사용자. 실제 작업은 에이전트가 Plugin Builder(`L3.authoring.spec`)로 합니다
+- 누가: 제2의 Helm 같은 오케스트레이션 플러그인이나 L2 provider 플러그인을 만들려는 사용자. 실제 작업은 에이전트가 Plugin Builder(`L3.authoring.spec`)로 합니다
 - 목표: 구성 초안을 만들고, 에이전트가 뼈대·검사·시험을 거쳐 설치 가능한 폴더를 냅니다.
 - 단계
   1. LightCraft > 구성(P-21)의 "새 그룹"이나 확장 목록의 "새 그룹"을 누릅니다. 구성기가 빈 그룹 머리로 열립니다. 대화에서 "그룹 하나 만들어 줘"라고 해도 됩니다.
@@ -353,7 +353,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   1. 크래프트(P-16 지도 선택 패널, P-13 층 패널, P-17 자세히 보기)에서 켭니다. 크래프트는 전역만 다루고 범위를 고르지 않습니다 [결정: 2026-11-03 사용자, 크래프트 8차 시안]. 이 대화만 끄는 일(`session`)은 대화 영역 오른쪽 "플러그인" 탭에서 합니다(4번). 런타임 탭(§4.9.8)은 그 결과를 보이기만 합니다. 값은 `ext.<이름>.enabled`이고 적용은 다음 단계 경계입니다. 그룹은 그룹 하나의 스위치로 켜고 끕니다(구성원 하나씩 끄기 없음, 15-1).
   2. 처음 켜는 `user`·`project` 위치 확장은 신뢰 확인(O-10)에 매니페스트 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장)을 보입니다. `project` 위치는 작업 폴더 신뢰(O-04)가 `allow`일 때만 켤 수 있습니다.
   3. drive를 등록한 플러그인이 있으면 시작 설정 고르기(프로필의 `startDrive`)를 함께 보입니다.
-  4. 대화 영역 오른쪽 "플러그인" 탭에는 맨 위에 "이 대화에서 끄기" 스위치 목록이 펼쳐져 있고(접힌 줄 아님, 시안 `chat-plugin-off`), 그 아래에 플러그인 화면이 옵니다. 끄면 이 대화에만 적용되고 전역 설정은 그대로입니다. 전역에서 꺼진 플러그인은 스위치가 잠기고 크래프트로 안내합니다. 엔진은 `settings.set` 범위 launch에 `threadId`를 실어 받습니다. 행은 그룹 하나 또는 그룹 없는 플러그인 하나이고(`ext.list` 한 행) 그룹 구성원마다 스위치를 두지 않습니다. 확인 대화 상자는 없고, 경계를 기다리는 동안은 "이번 단계가 끝나면 적용돼요" 배지를 보입니다. 기다리는 동안 스위치는 기다리는 값(끄는 중이면 꺼짐)을 보이고 잠깁니다. 엔진은 이 값을 그 대화의 등록 요청으로 옮깁니다(`followThreadEnabled`, HS-113) [결정: 2026-11-07 기본값, rtC R-4]. 대화가 하나뿐이라 전체 상태가 "꺼짐"으로 보여도 켜짐 값의 출처가 `thread`이면 "전역에서 꺼져 있어요"로 잠그지 않습니다. 구현은 시안(`mockups/chat-plugin-off`)을 따릅니다 [결정: 2026-11-04 사용자: A5]. 탭에서는 화면(프레임)이 위에서 남는 높이를 쓰고, 이 구역은 맨 아래에 접힌 줄 하나로 둡니다(시안은 목록이 맨 위지만 목록이 길면 프레임이 밀려나서 접습니다) [제안]. 상태 막대의 사용량 칸은 쓴 토큰과 문맥 창을 `41k / 100k`로 보이고 막대를 붙입니다(문맥 창을 알 때만 한도와 막대).
+  4. 대화 영역 오른쪽 "플러그인" 탭에는 맨 위에 "이 대화에서 끄기" 스위치 목록이 펼쳐져 있고(접힌 줄 아님, 시안 `chat-plugin-off`), 그 아래에 플러그인 화면이 옵니다. 끄면 이 대화에만 적용되고 전역 설정은 그대로입니다. 전역에서 꺼진 플러그인은 스위치가 잠기고 크래프트로 안내합니다. 엔진은 `settings.set` 범위 launch에 `threadId`를 실어 받습니다. 행은 그룹 하나 또는 그룹 없는 플러그인 하나이고(`ext.list` 한 행) 오케스트레이션 구성원마다 스위치를 두지 않습니다. 확인 대화 상자는 없고, 경계를 기다리는 동안은 "이번 단계가 끝나면 적용돼요" 배지를 보입니다. 기다리는 동안 스위치는 기다리는 값(끄는 중이면 꺼짐)을 보이고 잠깁니다. 엔진은 이 값을 그 대화의 등록 요청으로 옮깁니다(`followThreadEnabled`, HS-113) [결정: 2026-11-07 기본값, rtC R-4]. 대화가 하나뿐이라 전체 상태가 "꺼짐"으로 보여도 켜짐 값의 출처가 `thread`이면 "전역에서 꺼져 있어요"로 잠그지 않습니다. 구현은 시안(`mockups/chat-plugin-off`)을 따릅니다 [결정: 2026-11-04 사용자: A5]. 탭에서는 화면(프레임)이 위에서 남는 높이를 쓰고, 이 구역은 맨 아래에 접힌 줄 하나로 둡니다(시안은 목록이 맨 위지만 목록이 길면 프레임이 밀려나서 접습니다) [제안]. 상태 막대의 사용량 칸은 쓴 토큰과 문맥 창을 `41k / 100k`로 보이고 막대를 붙입니다(문맥 창을 알 때만 한도와 막대).
 - 거치는 화면: P-13, P-17, O-10, O-04
 - 성공 기준: 상태가 `enabling` → `enabled`로 바뀌는 것이 "다음 단계 경계에 적용" 배지와 함께 보입니다. 신뢰가 부족하면 진단(`trust_denied`, `trust_undecided`)이 그대로 보입니다.
 
@@ -380,7 +380,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 비용·토큰, 핸들러 시간과 예산, 실패, 승격 후보, 코어 변경 여부를 한곳에서 봅니다.
 - 단계
   1. 측정(P-20)에서 기간과 대화 맥락을 고릅니다. 첫 화면은 최근 달라진 것, 이상 신호, 읽어 볼 Turn입니다(숫자 판이 아님).
-  2. 확장별 `GroupMetrics`(토큰, 비용, drive 락 시간, 거부, 패치, post, spawn, 위임)를 표로 봅니다.
+  2. 확장별 `OrchestrationMetrics`(토큰, 비용, drive 락 시간, 거부, 패치, post, spawn, 위임)를 표로 봅니다.
   3. 핸들러 시간을 훅별 예산과 비교합니다. 예산의 50% 넘는 p95는 경고 tone입니다 [제안].
   4. 승격 보고(`PromotionReport`)에서 다른 scope가 쓰는 그룹 전용 도구를 봅니다.
   5. 코어 변경 검사(`core-diff-check <base>`)의 마지막 결과 한 줄(보호 경로 `contracts`, `ext-host`, `platform-*`, `core-*` 변경 줄 수)을 봅니다. 실행과 상세는 P-19입니다.
@@ -391,7 +391,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 ### SC-21 묶기: 그룹 구성과 프로필
 
 - 누가: 여러 플러그인을 한 작업 방식으로 묶어 쓰려는 사용자
-- 목표: 확장 묶음과 설정을 이름 붙여 저장하고 대화에 한 번에 적용합니다. 묶음을 새 플러그인 그룹으로 만들 수도 있습니다.
+- 목표: 확장 묶음과 설정을 이름 붙여 저장하고 대화에 한 번에 적용합니다. 묶음을 새 오케스트레이션 플러그인으로 만들 수도 있습니다.
 - 단계
   1. 구성기(P-21) "프로필" 보기에서 층 띠마다 확장의 켜기·끄기·그대로를 고르고, 설정 덮어쓰기와 drive 그룹을 정해 이름을 붙입니다.
   2. "이 대화에 적용"은 엔진이 프로필의 키를 그 대화의 `session` 범위로 한 번에 씁니다(`profile.apply`, W-46. [제거: M5c-1, `review/m5/profile-project-loader.md` §3.4. 지금은 `thread.setProfile { threadId, profileId }`로 대화가 참조하는 프로필을 바꾸고 키를 쓰지 않습니다.]). "새 시험 대화로"는 Test run을 만들며 적용합니다.
@@ -433,7 +433,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | L0 플랫폼 | 없음 | 보기만(구현 이름, 상태) | 없음 | benchmark 서버 묶음 | benchmark 값 | 없음 | 없음(항상 실림) |
 | L1 코어 | 외부 `layer: "L1"` 확장 [가정: 코어 대체가 아닌 추가]. Plugin Builder 카탈로그에 종류 없음 | 훅, 설정 | 켜기·끄기. 내장 core tier는 끌 수 없음 | replay(훅 핸들러), benchmark | 핸들러 시간 | 프로필 | 자동 끄기 면제(core tier), 안전 모드에서 켜짐 |
 | L2 기능 | Plugin Builder 종류 `plugin.l2-provider`(preview) | `provides`, 설정(키, `secret://`) | 켜기, 기능 바인딩 확인 | Test run | 호출 수, 비용 | 프로필 | 자동 끄기, 안전 모드에서 외부 provider 꺼짐 |
-| L3 플러그인 그룹 | 구성기 "새 그룹" + Plugin Builder 종류 `group.drive`·`group.policy`·`group.observe`. CLI `fresnel group new` | 훅, drive 상한, 레코드 종류, 구성 선언(`composition`), 화면 기여(두 모드) | 켜기, 대화 범위, drive 그룹 고르기, 신뢰 | replay(개발 모드), Test run, 트레이스 | `GroupMetrics`, 승격 보고 | 구성기, 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
+| L3 오케스트레이션 플러그인 | 구성기 "새 그룹" + Plugin Builder 종류 `group.drive`·`group.policy`·`group.observe`. CLI `fresnel group new` | 훅, drive 상한, 레코드 종류, 구성 선언(`composition`), 화면 기여(두 모드) | 켜기, 대화 범위, drive 그룹 고르기, 신뢰 | replay(개발 모드), Test run, 트레이스 | `OrchestrationMetrics`, 승격 보고 | 구성기, 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
 | plugin(외부) | Plugin Builder 종류 `plugin.tool`(preview) | 훅, 도구 등록, 설정 | 켜기, 신뢰 | Test run | 핸들러 시간, 실패 | 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
 
 ## 4. 정보 구조
@@ -634,7 +634,7 @@ Fresnel 데스크톱
 | 영역 | 화면 이름 | 다루는 것 | 주 객체 |
 |---|---|---|---|
 | 대화 | 대화 | 대화, 받은 요청, 학습 제안, 예약 | 대화(thread) |
-| 런타임 LightCraft | LightCraft | 층별 플러그인과 플러그인 그룹의 만들기, 설계, 적용, 시험, 측정, 묶기, 제어, 플러그인 화면, 엔진 연결과 진단 | 확장(extension) |
+| 런타임 LightCraft | LightCraft | 층별 플러그인과 오케스트레이션 플러그인의 만들기, 설계, 적용, 시험, 측정, 묶기, 제어, 플러그인 화면, 엔진 연결과 진단 | 확장(extension) |
 
 - [제안] 화면에 보이는 이름은 "대화"와 "크래프트"입니다. 문서와 도움말에서는 "런타임 작업대"라고 풀어 씁니다.
 
@@ -757,8 +757,8 @@ Fresnel 데스크톱
 
 | 구역 | 항목 | 출처 |
 |---|---|---|
-| drive 락 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
-| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
+| drive 락 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `orchestration.list`의 `OrchestrationStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
+| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list`, 매니페스트 `plugins[].hooks`, `OrchestrationStatus.pendingToggle` |
 | 전환 기록 | 단계 경계마다의 drive 락 교대, 켜기·끄기 적용(시각, 턴, 사유) 최근 20개 | `lease.*`, `scope.changed` 이벤트 |
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
 
@@ -2259,7 +2259,7 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 그룹·확장 목록(이름, 패키지, 켜짐, drive 사용, 외부 여부, 신뢰) | 켜짐은 설정 키 `ext.<id>.enabled`, 나머지 메타는 `ext.list` |
 | 시작 설정 | 프로필의 `startDrive`(빈 값 = 자동) |
-| drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
+| drive는 오케스트레이션 플러그인만 | `x.primitives.driveRequiresOrchestration`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 그룹 설정 | `ext.helm.*`, `l3.learning.*`, `ext.account-rotation.acknowledgeRisk` 필드(`buildSettingsView` plugins 탭) |
 | 안전 모드 | `host.status.safeMode` |
 | 핸들러 실패 | `scope.handler_failed` 이벤트(휘발, 내구) |
@@ -2417,20 +2417,20 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 시안 | 스펙에서의 처리 |
 |---|---|
 | 캔버스가 페이지 전체를 채우고 나머지는 모두 그 위에 뜬 반투명 면(블러 12px, 사방 같은 가는 선, 이름표 칩은 블러 없음) | 나눔 보기(§6.22.1 목록 옆 패널 + 캔버스)를 대체합니다. 목록 옆 패널은 없고, 찾기(캔버스 왼쪽 아래)와 선택 패널·층 패널이 뜹니다. 두 쪽 고름 동기화는 "지도와 순서가 고른 것을 함께 읽는다"로 바뀝니다 |
-| 보기 셋: 지도(Orbit, 기본) · 순서(Strata) · 링크(Link). 왼쪽 위 도구 막대에서 바꾸고, 종류 전환과 "구성 요소" 필터(훅·스킬·명령·도구·MCP·보조 에이전트·UI)가 같은 막대에 있음 | §6.22.2의 층 띠 여섯과 이 보기 셋이 겹치는 곳은 시안이 앞섭니다. 지도는 가운데 코어(`core.loop`), 층마다 원 고리(L1, L2, L3, 외부), 점 = 플러그인, 고리 바깥 굵은 호 = 플러그인 그룹입니다. L0·X·F 띠는 그리지 않습니다(X 훅은 순서 보기가 보입니다) |
-| 점 모양은 층: L1 네모, L2 동그라미, L3 마름모, 외부 세모. 상태는 모양과 무관: 꺼짐 = 속 빈 어두움, 실패 = 붉음, 올림 = 후광, 고름 = 얇은 색 고리 | 층 구분은 mono 층 열(DP-31)과 함께 쓰는 지도 표식입니다. 점 색은 그룹 구성원 info 파랑, 단일 플러그인 얼음빛. 색만으로 상태를 전하지 않도록 상태 글은 선택 패널과 `aria-label`에 둡니다(§6.22.7) |
+| 보기 셋: 지도(Orbit, 기본) · 순서(Strata) · 링크(Link). 왼쪽 위 도구 막대에서 바꾸고, 종류 전환과 "구성 요소" 필터(훅·스킬·명령·도구·MCP·보조 에이전트·UI)가 같은 막대에 있음 | §6.22.2의 층 띠 여섯과 이 보기 셋이 겹치는 곳은 시안이 앞섭니다. 지도는 가운데 코어(`core.loop`), 층마다 원 고리(L1, L2, L3, 외부), 점 = 플러그인, 고리 바깥 굵은 호 = 오케스트레이션 플러그인입니다. L0·X·F 띠는 그리지 않습니다(X 훅은 순서 보기가 보입니다) |
+| 점 모양은 층: L1 네모, L2 동그라미, L3 마름모, 외부 세모. 상태는 모양과 무관: 꺼짐 = 속 빈 어두움, 실패 = 붉음, 올림 = 후광, 고름 = 얇은 색 고리 | 층 구분은 mono 층 열(DP-31)과 함께 쓰는 지도 표식입니다. 점 색은 오케스트레이션 구성원 info 파랑, 단일 플러그인 얼음빛. 색만으로 상태를 전하지 않도록 상태 글은 선택 패널과 `aria-label`에 둡니다(§6.22.7) |
 | 줌·이동: 휠·모으기·끌기, 왼쪽 아래 확대 막대(단계 확대, 전체 보기). 이름표 글자는 확대에 따라 1~1.3배로 커지고 작아지지 않음. 점 이름표는 겹치지 않는 것만 보임(고른 것·밝힌 것은 늘 보이고, 나머지는 실패·그룹·켜짐 순으로 놓고 앞선 이름표나 다른 점·층·그룹 이름표를 덮으면 숨김. 숨긴 점은 점의 이름(aria-label)과 가리킬 때 나오는 이름표로 안다) | §6.22.6 의미 줌(이름을 숨긴 막대로 바꿈)을 대체합니다. 줌 범위(35~160%)는 시안이 정하지 않아 그대로 둡니다 [제안]. 미니맵은 시안에 없어 개요에서 그리지 않습니다(`[gap:C-37]`은 구성기 한정) |
 | 코어 구체: 조각 셰이더 진주빛 유리 구체, 말소리 같은 에너지로 움직임(2026-11-03 (2)), 움직임 줄이기는 한 장, WebGL 없음·컨텍스트 손실은 CSS 행성 | 코어의 표현입니다. 데이터에 영향이 없고 구현 세부는 시안 SPEC을 따릅니다 |
 | 배경: 깊은 우주 WebGL 셰이더(어두운 판), 옅은 대기(밝은 판), 지도·순서·링크 뒤에만. 어두운 판 가장 밝은 곳은 본문 글자와 4.5:1, 초당 30번, 탭이 숨겨지면 멈춤, 움직임 줄이기는 한 장, 실패하면 CSS 그라디언트 | DP-01(투명한 가운데)의 크래프트 예외입니다. 자세히 보기에는 배경 셰이더가 없습니다 |
 | 순서(Strata): 시작·생각·행동·마무리 네 묶음, 줄 = 한 순간. 코어 내장 단계(대화 압축, 컨텍스트 조립, 모델 호출, 도구 실행)는 채운 네모, 훅 줄은 속 빈 동그라미. 줄의 규칙 이름표: 관찰(tap), 수정(chain), 차단(first), 합치기(collect). 나머지 훅 33개는 아래에 둠 | §6.22.2의 X 훅 레일을 대체합니다. 훅 이름과 fold는 F `HOOKS`(`F.extensions` §4.1)를 그대로 읽습니다. 코어 단계를 줄로 보이는 것은 스펙 밖의 표현이라 "스펙과 다른 것"에 올립니다(아래). 대체할 수 있는 단계는 `thread.compact.before` 결정과 기능 제공자(`provides`)뿐입니다 |
-| 링크(Link): 고른 플러그인(그룹이면 대표, 없으면 Helm)이 왼쪽 카드, 엮인 플러그인이 오른쪽 줄. 관계 종류별 실 묶음. 종류 다섯: hook(같은 시점), cap(기능 제공·사용), group, drive(보유·경합), record(기록 남김·읽음). 선택 패널은 이 보기에서 숨음 | §6.22.2의 엣지 종류를 대체합니다. 근거는 매니페스트(`plugins[].hooks`, `requires`·`optional`·`provides`, `group.members`, `drives`, `recordKinds`·`readsRecordKinds`)와 정적 검사(`capability_unprovided`, `drive_conflict`)입니다. 이벤트 구독 그래프, 도구 호출 관계, post 큐, provider 등록, 발화 엣지는 스펙이 읽을 근거가 없어 그리지 않습니다. 실제 훅 순서는 읽는 API가 없어 엔진 작업이 필요합니다 |
+| 링크(Link): 고른 플러그인(그룹이면 대표, 없으면 Helm)이 왼쪽 카드, 엮인 플러그인이 오른쪽 줄. 관계 종류별 실 묶음. 종류 다섯: hook(같은 시점), cap(기능 제공·사용), group, drive(보유·경합), record(기록 남김·읽음). 선택 패널은 이 보기에서 숨음 | §6.22.2의 엣지 종류를 대체합니다. 근거는 매니페스트(`plugins[].hooks`, `requires`·`optional`·`provides`, `orchestration.members`, `drives`, `recordKinds`·`readsRecordKinds`)와 정적 검사(`capability_unprovided`, `drive_conflict`)입니다. 이벤트 구독 그래프, 도구 호출 관계, post 큐, provider 등록, 발화 엣지는 스펙이 읽을 근거가 없어 그리지 않습니다. 실제 훅 순서는 읽는 API가 없어 엔진 작업이 필요합니다 |
 | 선택 패널(오른쪽): 이름·표식, 켜짐 스위치 하나, 중요한 것(실패 알림, 구성), 하는 일. "자세히 보기"는 캔버스 전체를 그 플러그인(또는 그룹) 하나로 바꿈 | §6.22.4 검사기의 첫 화면입니다. 훅·drive 락·설정 바인딩·최근 실패 구역은 "자세히 보기"가 맡습니다. 오른쪽 well의 "검사" 탭(§4.9.4)을 따로 둘지는 구현 때 정합니다 [제안: 선택 패널로 합침] |
 | 자세히 보기: 가운데는 한 턴의 흐름(생명선 위 순간 14개 중 이 플러그인이 끼어드는 순간만 펼침, 받는 값·하는 일·넘기는 값), "예시 흐름 / 최근 실행"(순간마다 몇 초째, 걸린 시간, 결과: 지나감·고침·막음·실패·건너뜀), 옆에 상태·구성·설정·버전·코드(접힘). 그룹은 구성원마다 열 하나 | P-17(§6.24)의 본문 모양입니다. 최근 실행은 §6.22.5 트레이스(`trace.turn`, W-43)가 같은 데이터를 읽고 재생 막대는 두지 않습니다 [결정: 2026-11-04 사용자, 시안 Q3 A]. 최근 실행 카드 하나는 제목이 왼쪽 위, 걸린 시간이 오른쪽 위, 설명이 가운데(제목과의 간격은 구역 머리의 제목·설명과 같음), 결과 칩이 맨 아래(칩 위 간격이 본문 줄 간격보다 눈에 띄게 넓음)입니다(`TraceCard`) |
 | 층 패널: 고리를 누르면 그 층의 플러그인이 불리는 순서로 이음선 흐름이 나옴. 카드는 이름과 한 줄 설명, 켜기·끄기는 올릴 때. 카드 순서는 보기 전용입니다 | [결정: 2026-11-04 사용자, 시안 Q2 A] 층 패널의 순서는 불러오는 순서를 보여 주기만 하고 바꿀 수 없습니다(끌기·Alt+←·→ 없음). 순서를 바꾸는 곳은 순서 보기의 훅 줄 안 핸들러 순서뿐입니다(아래 행). 이 줄은 안내 문장을 정보 아이콘 뒤에 둡니다(DP-58) |
 | 훅 줄 안 핸들러 순서 끌기 [결정: 2026-11-03 사용자, 15-2 · (3)] | 티어와 상관없이 자유롭게 바꿉니다. 가드(guard)까지 풀 수 있고 기본값은 가드 맨 앞입니다. 훅 사이 이동은 없습니다. 차단 줄에서 새 순서 때문에 건너뛰어질 수 있는 핸들러가 생기면 저장 전에 이름을 보이고 "취소"와 "그대로 저장"을 묻는 경고 모달(caustic `Dialog`)을 둡니다. [결정: 2026-11-04 사용자] 경고는 권한 확인과 샌드박스가 순서 때문에 건너뛰어진다고 말하지 않습니다. 그것들은 도구 파이프라인의 고정 단계라 순서와 무관하게 항상 돌고(`X.operations` §4.1.3 예 1, §4.1.4), 건너뛰어질 수 있는 것은 이름이 있는 플러그인(가드 tier 포함)입니다. 모달은 그 이름을 보입니다. 엔진은 어떤 순서든 받습니다. 외부 훅(`hook:<id>`)은 이 줄에 아직 없습니다 [근거: apps/host/src/assembly/m4/ext-read-sources.ts의 `isHookUnitName` 거르기]. 외부 훅은 범위 단위로 묶여 있어 순서 읽기에서 빠지고, 훅마다 끌기를 주는 변경은 `X.operations` §4.7.4 '훅별 순서' 항목이 말하는 만큼 큽니다 [제안: 2026-11-04 hookrun 판단, 사용자 결정 전] |
 | 훅 줄 끌기 손잡이와 경고 한 줄 [결정: 2026-11-04 사용자, 시안 Q5 A] | 끌기 손잡이(와 Alt+←·→)는 순서가 승자나 값을 바꾸는 훅에서, 핸들러가 둘 이상일 때만 보입니다. `first` 가운데 고를 값이 있는 훅(`thread.compact.before`, `input.bash.before`, `thread.trust.before`, `thread.fork.before`, `thread.tree.before`)과 `chain` 훅 전부입니다(`hookOrderMatters`, `canvas/hooks.ts`). 막기만 하는 `first`(`tool.call.before` 등), `tap`, `collect`와 핸들러 하나인 줄은 순서를 읽기 전용으로 보입니다. 사용자가 저장한 순서가 무언가를 건너뛰게 할 때만 줄 끝 `추가` 옆에 경고 한 줄(`role="status"`)을 보입니다. 기본 순서에는 없습니다. 저장 전 경고 모달은 그대로입니다 |
 | 훅 줄 끝의 `추가` [결정: 2026-11-03 사용자, 15-3] | 그 훅을 고른 채로 만들기(빌더)를 엽니다. 선언을 바로 고치지 않습니다. §3.1 `hooks[]`는 정적 선언이라 빌더가 만든 플러그인이 선언을 갖습니다 |
-| 켜기·끄기: 선택 패널·자세히 보기의 스위치, 순서 항목의 점, 층 패널 카드 단추. 모두 전역 | [결정: 2026-11-03 사용자, 15-1] 그룹 단위 끄기를 유지합니다(`F.extensions` §4.5). 시안의 그룹 구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 뺍니다. 구현은 그룹 하나의 스위치만 둡니다 |
+| 켜기·끄기: 선택 패널·자세히 보기의 스위치, 순서 항목의 점, 층 패널 카드 단추. 모두 전역 | [결정: 2026-11-03 사용자, 15-1] 그룹 단위 끄기를 유지합니다(`F.extensions` §4.5). 시안의 오케스트레이션 구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 뺍니다. 구현은 그룹 하나의 스위치만 둡니다 |
 | 구성 요소 필터 [결정: 2026-11-04 사용자, 시안 Q6 A] | 구성 요소로 거를 때 대표 플러그인이 없는 그룹도 목록에 남고, 맞는 조각만 보입니다. 대표가 없으면 첫 구성원이 조각을 맡습니다(`snapshot.ts` `piecesCarrierOf`) | 거르기가 구성원의 조각으로 판정하는데 대표 없는 그룹은 조각이 모두 비어 그룹이 사라졌습니다 |
 | 끌까요 질문 [결정: 2026-11-04 사용자, 시안 Q4 B+C] | "끌까요?"는 플러그인 카드 안(선택 패널, 자세히 보기)과 오른쪽 패널 "플러그인" 탭 맨 위에 보입니다. 화면 맨 위 띠는 없앴습니다. 탭 글자 옆에 알릴 것의 수가 붙습니다(`플러그인 2`) | 질문이나 자동 꺼짐이 있는 플러그인 수입니다 |
 | 안내 문장은 정보 아이콘 뒤 [결정: 2026-11-04 사용자, DP-58] | 규칙 이름표(차단·수정 …)의 설명, 내장 칩 설명, 층 패널 힌트, 동작 칩 설명은 정보 아이콘(`InfoTip`)에 두고 올리기·키보드 초점·터치로 엽니다. 경고와 실패는 그대로 보입니다 | 열림 동작은 이 문서 쓸 때 앱에서 확인하지 못했습니다 |
@@ -2443,7 +2443,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 시안에만 있는 것(아직 모형): 층 패널의 순서 값(불러오는 순서), 최근 실행의 숫자와 순간별 설명(Helm 외 플러그인 흐름 문장은 손으로 쓴 값), 설정 편집, 코드 저장, 플러그인 추가의 가져오기, 플러그인 지우기, 그룹에서 제거, 그룹 해제, 에이전트 대화(정해진 답), 대화에서 만들기의 요약(손으로 쓴 값), 대체·추가가 확장 정보 파일을 고치는 일(알림만), 명령 훅 실행, 나머지 훅 33개의 한국어 이름, 프로필 적용, 테스트·성능 측정 내비(옆 시안으로 감). 이 항목마다 wire나 엔진 작업이 있어야 실제가 됩니다.
 
-시안이 스펙과 다르다고 적은 것의 처리: (1) 그룹 구성원 하나씩 끄기는 15-1로 뺍니다. (2) 사용자 훅 핸들러 순서는 15-2로 승인되어 엔진이 사용자 순서 값을 갖습니다(`m4/order`). (3) 줄에 플러그인 더하기는 15-3으로 빌더를 여는 동작이 됩니다. (4) 코어 단계를 줄로 보이는 것은 표현이고, 통째로 대체하거나 새 단계를 루프에 끼우는 것은 스펙에 없습니다(코어 단계 대체 범위는 사용자 질문 14번이 열려 있음). (5) 대화마다 끄기는 크래프트가 다루지 않습니다.
+시안이 스펙과 다르다고 적은 것의 처리: (1) 오케스트레이션 구성원 하나씩 끄기는 15-1로 뺍니다. (2) 사용자 훅 핸들러 순서는 15-2로 승인되어 엔진이 사용자 순서 값을 갖습니다(`m4/order`). (3) 줄에 플러그인 더하기는 15-3으로 빌더를 여는 동작이 됩니다. (4) 코어 단계를 줄로 보이는 것은 표현이고, 통째로 대체하거나 새 단계를 루프에 끼우는 것은 스펙에 없습니다(코어 단계 대체 범위는 사용자 질문 14번이 열려 있음). (5) 대화마다 끄기는 크래프트가 다루지 않습니다.
 
 ```text
 ┌────────────────────────┐
@@ -2471,7 +2471,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 **구현 연결 [결정: 2026-11-04 사용자, T-LAND8]** 개요(`overview`)는 화면 하나입니다. 지도·순서·링크·자세히 보기·선택 패널·층 패널은 모두 같은 공유 상태(`@fresnel/client/workbench`의 `WorkbenchState` 하나)를 읽고 씁니다. 보기(`view`), 고른 것(`sel`·`panel`), 종류 거름(`kind`), 구성 요소 필터(`contrib`), 자세히 보기(`detail`), 찾기(`query`)가 그 상태이고 화면마다 따로 갖지 않습니다. 켜기·끄기는 §6.21·§6.23의 `settings.set { key: "ext.<이름>.enabled", scope: "user" }` 하나이며, 꺼져 있던 `user`·`project` 위치 확장을 켤 때는 처음 켠 기록이 없으므로 켤 때마다 O-10을 묻습니다 [제안: 기본값, 사용자 확인 전]. 목록 읽는 중·오류·오프라인·자동 꺼짐 띠는 캔버스 위에 얇게 얹습니다.
 
-구현 줄(dfB7, 노드 상태): 개요 지도의 점과 이름표는 상태로 색과 모양을 가른다. 주도(`drives`를 선언하고 켜진 점)는 accent 토큰과 바깥 고리 한 겹, 이름표 끝의 "주도" 글이다. 실패는 warning 토큰(주황)이고 자동 꺼짐은 warning 토큰의 속 빈 점선 점과 점선 이름표다. 나머지는 그대로(그룹 구성원 info, 단일 플러그인 얼음빛)다. 시안의 raw oklch 대신 caustic 의미 토큰을 쓰며 시안 주황에 가장 가까운 토큰이 `warning-graphic`이다(실패 색이 danger 토큰이던 것을 옮겼다). 색만으로 가르지 않도록 지도 아래 오른쪽에 지금 있는 상태만 모양과 글로 적는 범례(`aria-label` "상태 범례")를 둔다. 점의 접근 가능한 이름은 "<이름>, <상태>"이고 상태에 "주도"가 더해졌다.
+구현 줄(dfB7, 노드 상태): 개요 지도의 점과 이름표는 상태로 색과 모양을 가른다. 주도(`drives`를 선언하고 켜진 점)는 accent 토큰과 바깥 고리 한 겹, 이름표 끝의 "주도" 글이다. 실패는 warning 토큰(주황)이고 자동 꺼짐은 warning 토큰의 속 빈 점선 점과 점선 이름표다. 나머지는 그대로(오케스트레이션 구성원 info, 단일 플러그인 얼음빛)다. 시안의 raw oklch 대신 caustic 의미 토큰을 쓰며 시안 주황에 가장 가까운 토큰이 `warning-graphic`이다(실패 색이 danger 토큰이던 것을 옮겼다). 색만으로 가르지 않도록 지도 아래 오른쪽에 지금 있는 상태만 모양과 글로 적는 범례(`aria-label` "상태 범례")를 둔다. 점의 접근 가능한 이름은 "<이름>, <상태>"이고 상태에 "주도"가 더해졌다.
 
 | 캔버스가 읽는 것 | 출처 |
 |---|---|
@@ -2603,7 +2603,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 블록(층, 종류, 등급, 버전, 상태, 실패, 표시 이름) | `ext.list { threadId? }` | 대화별 scope 상태 `[gap:W-41]` |
 | 포트 | 매니페스트 → `ext.get` | |
 | 기능 엣지의 실제 바인딩 | `ext.bindings { threadId? }` | |
-| 맥락별 켜짐·대기 | `group.list`(`GroupStatus.scope`, `pendingToggle`, `drive`) | |
+| 맥락별 켜짐·대기 | `orchestration.list`(`OrchestrationStatus.scope`, `pendingToggle`, `drive`) | |
 | drive 락(보유, 차수, 사용량, 후보별 대기 계수) | `group.lease { threadId }`, `lease.*` 이벤트 | `[gap:W-42]` |
 | 훅 레일 | F `HOOKS` 상수 | 정적(앱이 contracts를 읽음) |
 | 트레이스 | `trace.turn { threadId, turnId }` | X-15 |
@@ -2629,7 +2629,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ### 6.23 P-13 확장 목록(LightCraft로 옮김)
 
-구현 줄(dfB4): 확장 목록은 찾기 옆에 층·켜짐 Select(`listLayer`, `listState`)를 두고, 층 묶음 머리는 사람 말(오케스트레이션·기능·플러그인·에이전트 코어) 순서로 위에서 아래로(L3, L2, external, L1) 그리며, 표 열은 이름·신뢰 수준(`origin`)·상태·켜짐이다. 찾기 칸 글은 "찾기"다. 자세히 보기를 열면 목록 머리는 숨기고, 상세 머리는 "끄기/켜기" 단추 하나와 "…" 메뉴(지우기)다(시안 c02, 되돌리기 단추는 기능이 없어 두지 않는다). 개요 범위 칸의 "그룹"은 "플러그인 그룹"이다.
+구현 줄(dfB4): 확장 목록은 찾기 옆에 층·켜짐 Select(`listLayer`, `listState`)를 두고, 층 묶음 머리는 사람 말(오케스트레이션·기능·플러그인·에이전트 코어) 순서로 위에서 아래로(L3, L2, external, L1) 그리며, 표 열은 이름·신뢰 수준(`origin`)·상태·켜짐이다. 찾기 칸 글은 "찾기"다. 자세히 보기를 열면 목록 머리는 숨기고, 상세 머리는 "끄기/켜기" 단추 하나와 "…" 메뉴(지우기)다(시안 c02, 되돌리기 단추는 기능이 없어 두지 않는다). 개요 범위 칸의 "그룹"은 "오케스트레이션 플러그인"이다.
 
 구현 줄(dfB7, 표): 확장 목록은 층마다 따로 두던 표를 없애고 caustic `Table` 한 표로 그린다(시안 c03·e04 `ext-list`). 열은 이름·층·신뢰 수준·상태·켜짐이고, 행은 L3 → L2 → external → L1 순서다. 층은 사람 말 이름의 열이며 층 묶음 머리와 "n/m 켜짐" 글은 그리지 않는다. 층·켜짐 거르기는 목록 머리의 Select가 맡는다. 행 이동(화살표·Home·End)과 Enter·Space 고르기는 `Table`이 하고, 켜짐 스위치는 행 안의 Tab 순서에서 닿는다. 열 정렬은 두지 않는다(정렬을 두면 `Table`의 `aria-sort`를 쓴다). 위 dfB4 줄의 "층 묶음 머리"와 "표 열" 문장은 이 줄이 대체한다.
 
@@ -2669,7 +2669,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 이름, 표시 이름, 층, 종류, 버전, 설치 위치, 유효 등급, tier, 상태(`ScopeStatus`), 진단, 자동 꺼짐 여부, 안전 모드 제외 사유 | `ext.list` |
 | 켜짐 값과 범위 | `settings.get { keys: ["ext.<이름>.enabled"] }` |
 | 시작 설정 | 프로필의 `startDrive`(빈 값 = 자동) |
-| drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
+| drive는 오케스트레이션 플러그인만 | `x.primitives.driveRequiresOrchestration`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 실패 수 | `scope.handler_failed` 이벤트 묶음, 장부 |
 
 | 기능 | wire |
@@ -2677,7 +2677,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
 | 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` |
 | 시작 설정 바꾸기 | 프로필 저장 `profile.put`의 `startDrive` |
-| drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
+| drive는 오케스트레이션 플러그인만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresOrchestration" }`. 끄기 전에 위 문장을 보인다 |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치(W-32. 확장 목록 머리의 "플러그인 가져오기", 아래 W-32 줄) |
 
 - 설정 시안 반영 [결정: 오케스트레이터 기본값]: 설정 시안(`m4/pages-settings`의 `p13-plugins`)이 P-13을 런타임 화면으로 다시 그렸습니다. 그 내용은 LightCraft에 이렇게 나눠 둡니다. P-13은 LightCraft의 최상위 내비 "확장"이고, 시안이 제안한 최상위 "그룹/런타임" 내비는 LightCraft 영역 자체가 맡습니다.
@@ -2686,7 +2686,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 외부 훅 끌까요 질문 [결정: 2026-11-04 사용자, 설계는 제안]: 확장과 같은 규칙이다. 질문은 경고(`Alert tone="warning"`)로 바로 보이고 "{훅} 훅이 {n}번 연속 실패했어요 / 지금은 켜져 있어요. 끌까요?"와 "켜 두기", "끄기"를 둔다. 설명("연속 5번 실패하거나 최근 50번 중 절반 이상 실패하면 물어봐요…")은 정보 아이콘 뒤다(DP-58). 자리는 크래프트 선택 패널(훅을 고르면)과 오른쪽 "플러그인" 탭 맨 위이고, 탭 칸 숫자는 확장 알림 수에 훅 알림 수를 더한다. 답하는 동안 두 단추를 잠그고, 연결이 끊기면 잠그고 흐리게 보인다. 답하면 질문 대신 결과 한 줄("껐어요. 다시 켜려면 아래 버튼을 눌러 주세요." / "계속 켜 둘게요. 또 5번 실패하면 다시 물어볼게요.")과 "다시 켜기"가 남는다. 답이 실패하면 "답을 보내지 못했어요. 다시 시도해 주세요."와 "다시 시도"를 보인다. 이미 꺼진 훅은 danger 띠와 "다시 켜기", 그 아래 최근 실패 세 줄(훅 이름, 메시지. 엔진 거울의 `handlerFailures`, 시각은 기록에 없어 싣지 않는다)을 보인다. 확장과 달리 화면이 설정을 쓰지 않고 호스트가 쓴다. 대화 영역 "런타임" 탭, 안전 모드에서 질문 숨김, 확장 목록 위 개수 띠는 아직 없다 [미결] [근거: `apps/desktop/src/views/workbench/hook-notice.tsx`, `apps/desktop/src/views/runtime/runtime-tab.tsx`].
   - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 락 보유와 epoch·턴·spawn·렌즈, 시작 설정 `startDrive` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
   - P-17 기록 탭과 LightCraft 오른쪽 "기록" 탭에 둡니다: `scope.handler_failed` 기록.
-  - 데이터: 메타·훅·등급 `ext.list`, 대화별 켜진 그룹과 drive 락 읽기 `group.list`, 다시 읽기 `ext.reload`.
+  - 데이터: 메타·훅·등급 `ext.list`, 대화별 켜진 그룹과 drive 락 읽기 `orchestration.list`, 다시 읽기 `ext.reload`.
 - 상태: 빈(사용자 확장 없음 "그룹을 만들려면 [새 그룹]"), 읽는 중 `Skeleton` 행, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서 외부 확장 행은 "안전 모드라 빠짐", `project` 위치는 "작업 폴더 신뢰 필요"), 긴 내용(가상 목록 `[gap:C-04]`, 거르기 유지).
 - 상호작용: 열 정렬, 층·종류·상태 거르기(`Select`), 행의 켜짐 `Switch`. 면제 tier(guard, core)의 `Switch`는 잠그고 이유 `Tooltip` "보안·기본 동작이라 끌 수 없어요".
 - caustic: `Table`, `Switch`, `Select`, `Badge`, `Input`(찾기), `Menu`(행 메뉴), `Alert`.
@@ -2725,7 +2725,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 훅 | 이름, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `plugins[].hooks`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 |
 | drive 락과 상한 | `drives`, 상한 설정, 최근 drive 락(시작, 끝, 사유, 사용 턴·spawn·토큰) | `settings.get`, `lease.*` 이벤트 |
 | 설정 | 확장 설정 필드 | `settings.list` → `buildSettingsView`(plugins 탭에서 이 확장 키만) |
-| 측정 | `GroupMetrics` | `group.metrics { id, threadId? }`. 임시로 `/group status` 결과 |
+| 측정 | `OrchestrationMetrics` | `orchestration.metrics { id, threadId? }`. 임시로 `/group status` 결과 |
 | 기록 | `scope.handler_failed`, `scope.changed`, 로더 진단, 운영 로그 줄 | 이벤트 구독, 진단 |
 | 버전 | 설치본, 번들 버전, 이전 버전, 바뀐 날(§6.24.1) | `ext.versions` |
 | 화면 | 기여한 화면(slot, id, 상태), 화면 장부 | `ext.view.list`, 클라이언트 화면 장부 |
@@ -2878,7 +2878,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 개발 모드 판정: 호스트와 같은 `l3.authoring.devMode` 설정을 읽습니다(`settings.get`). 이 키가 아직 카탈로그에 없어 지금은 읽히지 않고 배포 앱은 늘 개발 모드가 아닌 것으로 잠급니다 `[gap:W-29]`.
 - 코어 변경 검사의 실행과 상세(보호 경로 변경 파일 목록)는 이 화면에만 둡니다. P-20은 마지막 결과 한 줄과 링크만 보입니다(DP-23).
 - 측정 기획서 반영 [결정: 2026-11-03 사용자, `reports/Fresnel 테스트와 측정 기획서.md` §6, §10, §15]: 화면 라벨은 "테스트"입니다(T-TRIAL). 아래는 이 화면에 더하는 것이고 트랙은 `review.m4-plan` §2.0.1(T-TEST-*, T-VIEW-TEST)입니다.
-  - 켬/끔 비교: 새 시험(O-12)의 종류 하나입니다. 같은 케이스를 프로필 둘로 돌려 케이스별로 짝지어 비교합니다. 비교 단위는 플러그인 또는 플러그인 그룹입니다(그룹 구성원 하나씩이 아님, 15-1). 기본은 플러그인 하나씩 끄기이고, 상호작용을 놓칠 수 있다는 한계를 화면에 적습니다.
+  - 켬/끔 비교: 새 시험(O-12)의 종류 하나입니다. 같은 케이스를 프로필 둘로 돌려 케이스별로 짝지어 비교합니다. 비교 단위는 플러그인 또는 오케스트레이션 플러그인입니다(오케스트레이션 구성원 하나씩이 아님, 15-1). 기본은 플러그인 하나씩 끄기이고, 상호작용을 놓칠 수 있다는 한계를 화면에 적습니다.
   - 시작 전 확인: 예상 실행 수(기본 케이스 20 × 반복 3 × 양쪽 = 120회, 첫 변동폭 측정(A/A) 60회 추가 [제안])와 비용 범위("정가 기준 추정")를 보이고 한 번 확인합니다. 거절해도 그 비교를 막지 않고 사용자가 다시 요청할 수 있습니다. 앱과 에이전트는 플러그인을 바꿨을 때 이 비교를 적극적으로 제안해도 됩니다. 실행은 확인 뒤에만 합니다.
   - 결과 읽기: 비율보다 케이스 수를 먼저 보입니다("케이스 20개: 좋아짐 5, 나빠짐 1, 같음 14 → 구분 안 됨"). 판정은 좋아짐·나빠짐·구분 안 됨 셋이고 정확 부호 검정(양측 5%)입니다. "구분 안 됨"을 "효과 없음"으로 쓰지 않습니다. 비교 대상, 케이스 수, 반복 수를 모든 수치에 붙이고 합성 점수를 만들지 않습니다.
   - 플러그인 × 케이스 표: 칸을 누르면 양쪽 Turn이 나란히 열립니다. 모든 숫자는 Turn으로 내려갑니다.
@@ -2939,7 +2939,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - Turn 다시 보기: 모든 숫자에서 내려갑니다. 훅 발화 시간줄(핸들러 결과 다섯: 고침·지나감·막음·실패·건너뜀), 요청 구성 막대(소유자별 토큰), 캐시 사건(깨진 위치, 바뀐 부분, 원인 소유자)을 보입니다. 대화(P-02)에는 Turn의 통과·실패와 메모, 대화별 Turn 번호 곡선(압축·재개·프로필 변경·플러그인 변경을 세로선)을 둡니다(T-QUAL, 단계 5).
   - Turn 다시 보기 구현(T-VIEW-TURN): 성능 측정 화면(`metrics`)이 맥락 칸의 대화(없으면 열린 대화)의 최근 Turn을 골라 `measure.turn`을 읽습니다. 후보 Turn id는 거울이 본 `thread.list`의 `lastTurnId`와 `turn.started` 사실(대화마다 최근 40개)이고, 오래된 Turn을 찾는 wire는 아직 없습니다. 화면은 플러그인별 몫(훅 시간, 요청 구성의 절 토큰, 실패, 캐시 사건), 훅 발화 시간줄, 단계별 요청 구성 막대, 캐시 사건을 보입니다. 플러그인 줄을 누르면 시간줄과 막대에서 그 플러그인만 강조합니다. 핸들러 결과는 wire가 주는 다섯 이름(`modified`, `passed`, `blocked`, `failed`, `skipped`)을 글로 바꾸고(고침·지나감·막음·실패·건너뜀), 모르는 이름은 원문 그대로 보입니다. 캐시 사건의 원인은 호스트가 적은 소유자(`context-hook`, `model`, `tools`)이고 플러그인으로 좁히지 못하면 종류 이름으로 보입니다. 상태는 읽는 중, 오프라인(마지막 값), 오류, 측정 꺼짐, 기록 없음, 긴 목록(100줄까지)입니다.
   - 첫 화면 구현(T-VIEW-PERF): 성능 측정 화면 위쪽에 "최근 달라진 것", "이상 신호", "읽어 볼 Turn", 플러그인 부담 표, Turn 번호 곡선을 둡니다. 원천은 `measure.daily`(Turn당 토큰·비용, 첫 토큰 시간, 호출 시간의 일별 집계)와 맥락 대화의 최근 Turn 20개의 `measure.turn`입니다. 달라진 것은 가장 최근 날의 평균과 앞선 날들의 평균이고 20% 이상 다르면 올랐다·내렸다로 적습니다. 이상 신호는 실패·예산 초과 핸들러가 있는 Turn, 캐시 사건이 있는 Turn, 읽은 Turn의 중앙값 토큰의 2배 이상인 Turn(Turn 4개 이상일 때)입니다. 두 기준(20%, 2배)은 [제안] 기본값입니다. 부담 표는 플러그인별로 Turn당 문맥에 더한 토큰(절 토큰, 절이 없으면 훅이 문맥에 넣은 글자 수를 글자 수 / 4 올림으로 환산한 추정이고 "약 N(추정)"으로 밝힙니다. 둘 중 큰 쪽이라 같은 글을 두 번 세지 않습니다) [구현: fxUM], Turn당 훅 시간, 캐시 사건, 실패를 칸마다 따로 보이고 합치지 않습니다. 플러그인별 비용은 그 플러그인(그룹)에 귀속된 모델 호출(`call` 행의 `scope` 태그: drive turn, 탐구 하위 에이전트, 웹 검색)의 비용 합이고, 귀속된 호출이 없으면 "-"입니다(점유율로 나누어 지어내지 않습니다) [구현: fxHM]. 하위 대화의 호출은 자기 thread의 Turn에도 있고, 부모 Turn을 읽을 때도 호스트가 합쳐 줍니다(`viaChild` 태그). 합친 호출은 소유 그룹의 부담 줄(토큰·비용)에만 세고 부모 Turn의 호출 목록·시간줄·합계에는 넣지 않습니다. 부모 Turn과 하위 대화 Turn을 따로 읽어 더하면 같은 호출을 두 번 세므로 한 화면은 한 thread의 Turn만 읽습니다 [구현: fxHL]. 표의 플러그인 줄, 신호 줄, 읽어 볼 Turn 줄, 곡선의 점은 모두 해당 Turn의 다시 보기로 내려갑니다. 일별 집계의 "달라진 것" 줄은 날 단위 값이라 Turn으로 내려가지 않습니다. 곡선의 세로선(압축·재개·프로필 변경·플러그인 변경)은 그 사건을 읽는 wire가 없어 아직 그리지 않습니다 [미결].
-  - 확장 상세 측정 탭(P-17) [결정: 오케스트레이터 기본값, fxHK]: 그룹이면 `group.metrics` 숫자(토큰·비용·주도 시간·막음·오류·게시·하위)를 보이고, 그룹이 아닌 확장은 "그룹만 측정해요" 대신 위 플러그인 부담 표와 같은 값을 그 확장 몫으로 보인다. 원천과 계산은 같다: 열린 대화의 최근 Turn 20개의 `measure.turn`을 읽어 `perfViewOf`의 `burden`에서 이 확장의 줄을 고른다(새 엔진 지표 없음). 칸은 훅 시간(Turn당), 토큰(Turn당, 추정이면 "약 N(추정)"), 모델 호출(귀속된 호출 수), 캐시 사건, 실패이고, "최근 Turn N개의 Turn당 평균" 줄의 설명(성능 측정 화면과 같은 값)은 정보 아이콘 뒤다(DP-58). 열린 대화가 없거나 Turn이 없으면 한 문장, 읽은 Turn에 이 확장이 없으면 한 문장, 계측이 꺼져 있으면 "계측이 꺼져 있어 측정값이 없어요."이다 [근거: `apps/desktop/src/views/workbench/metrics-tab.tsx`, `apps/desktop/src/views/measure/perf-read.ts`의 `loadOwnerBurden`].
+  - 확장 상세 측정 탭(P-17) [결정: 오케스트레이터 기본값, fxHK]: 그룹이면 `orchestration.metrics` 숫자(토큰·비용·주도 시간·막음·오류·게시·하위)를 보이고, 그룹이 아닌 확장은 "그룹만 측정해요" 대신 위 플러그인 부담 표와 같은 값을 그 확장 몫으로 보인다. 원천과 계산은 같다: 열린 대화의 최근 Turn 20개의 `measure.turn`을 읽어 `perfViewOf`의 `burden`에서 이 확장의 줄을 고른다(새 엔진 지표 없음). 칸은 훅 시간(Turn당), 토큰(Turn당, 추정이면 "약 N(추정)"), 모델 호출(귀속된 호출 수), 캐시 사건, 실패이고, "최근 Turn N개의 Turn당 평균" 줄의 설명(성능 측정 화면과 같은 값)은 정보 아이콘 뒤다(DP-58). 열린 대화가 없거나 Turn이 없으면 한 문장, 읽은 Turn에 이 확장이 없으면 한 문장, 계측이 꺼져 있으면 "계측이 꺼져 있어 측정값이 없어요."이다 [근거: `apps/desktop/src/views/workbench/metrics-tab.tsx`, `apps/desktop/src/views/measure/perf-read.ts`의 `loadOwnerBurden`].
   - 자동 센서(코어가 재는 값)와 선언 센서(매니페스트 `sensors`, 단계 5)는 P-17 상세에 "플러그인 보고"와 구분해 보입니다. 실사용 관찰은 통제 실험이 아니므로 "참고"로만 표시하고 인과처럼 말하지 않습니다.
   - 보관과 본문 [결정: 2026-11-03 사용자]: 원본 측정 기록은 기본 30일 보관이고 설정에서 바꿀 수 있습니다. 일별 집계는 유지합니다. 모델로 나간 요청 본문은 기본으로 저장하지 않으며, 설정에서 누구나 켤 수 있습니다(개발 모드 전용이 아님). 켜면 마스킹 후 저장하고 보관 기간을 따르며, 켤 때 저장 내용을 안내합니다. 기간 고르기의 선택지는 보관 기간 안으로 제한합니다. 측정 켬·끔은 `x.operations.trace.enabled`로 묶습니다. 보관 기간과 본문 저장의 설정 키 이름은 [제안]이라 정하지 않았습니다(미결 34).
   - 크래프트 "부담 보기" [제안]: 지도·순서의 노드에 토큰이나 시간을 표시하는 보기 기준입니다. 시각 부담이 커서 시안으로 먼저 확인합니다(시안 없음).
@@ -2947,10 +2947,10 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
-| 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
+| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `orchestration.metrics`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.orchestration.instrumentation = false`) "계측 꺼짐" |
+| 요약 | `OrchestrationStatus.metrics`(`OrchestrationMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `ext.timings`. 예산 값은 `x.operations.budget.*` |
-| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion { threadIds? }`. P-20 측정 화면의 "승격 보고" 구역이 읽기 전용 표로 보인다(열: 도구, 제공, 쓰는 곳, 직접 호출. 대화가 있으면 그 대화 하나, 없으면 인자 없이 호스트가 고른 최근 대화). 빈 후보, 읽는 중, 오프라인, 읽기 실패는 다른 측정 구역과 같은 `TabBody`다. 설명은 정보 아이콘 뒤(DP-58) [근거: `apps/desktop/src/views/measure/promotion-view.tsx`] |
+| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `orchestration.promotion { threadIds? }`. P-20 측정 화면의 "승격 보고" 구역이 읽기 전용 표로 보인다(열: 도구, 제공, 쓰는 곳, 직접 호출. 대화가 있으면 그 대화 하나, 없으면 인자 없이 호스트가 고른 최근 대화). 빈 후보, 읽는 중, 오프라인, 읽기 실패는 다른 측정 구역과 같은 `TabBody`다. 설명은 정보 아이콘 뒤(DP-58) [근거: `apps/desktop/src/views/measure/promotion-view.tsx`] |
 | 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 
@@ -2998,7 +2998,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 #### 6.28.3 프로필 보기
 
-- 층마다 띠 하나(X 외부 훅, L3 플러그인 그룹, plugin, L2 기능, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
+- 층마다 띠 하나(X 외부 훅, L3 오케스트레이션 플러그인, plugin, L2 기능, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
 - 블록 줄에 "지금 <상태> → <바뀔 상태>"를 보입니다. 지금 상태는 맥락 칸의 대화(또는 전체) 기준입니다.
 - drive 그룹 칸: 시작 설정 `startDrive`는 한 Registration(플러그인) 또는 자동입니다. 바꿔도 이미 쥔 drive 락은 회수하지 않고 다음에 대화를 열 때 적용합니다(`L3.group-sdk.spec` §3.5).
 - first·chain 훅 순서는 기본이 (tier, loadIndex, 등록 순번)이고 사용자가 바꿀 수 있습니다 [결정: 2026-11-03 사용자, 15-2]. 순서 입력은 `hooks.order.get`·`set`·`reset`·`preview` wire와 설정 `x.operations.hookOrder`입니다(`X.operations.spec` §4.1.5). 기본은 guard가 맨 앞이고, guard를 옮겨 안전 검사가 건너뛰어질 수 있으면 경고 모달로 알립니다. 그래서 "런타임에 순서 입력 없음" 배지는 달지 않습니다. 순서 입력 범위는 좁혀졌습니다 [결정: 2026-11-04 사용자, 시안 Q2 A·Q5 A]. 층 패널의 순서는 보기 전용이고, 훅 줄의 끌기는 승자나 값이 바뀌고 플러그인이 둘 이상일 때만 보입니다(위 6.22.0 표).
@@ -3062,7 +3062,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 구현 범위 추가(2026-11-04 comp2): 순수 모델 `workbench/compose.ts`가 새 그룹 초안(이름 규칙 `^[a-z][a-z0-9-]{1,31}$`, 시작점 = `ext.kinds` 종류, `stable`·`preview`만 고름, 대상 폴더 = 사용자가 고른 부모 + 이름, `ext.scaffold` 입력), 흐름 초안 편집(노드 더하기·지우기, 시작 지정, 전이 잇기·끊기, 제목·`askTitle`), 캔버스 자리(시작 노드에서의 깊이 = 행, 위에서 아래로. 같은 깊이는 한 줄에 나란히 가운데로 모은다. 시안 wb-compose S4. 2026-11-07 dsgn10)와 개요 줄(`LayerTree`), Test run 지금 단계 강조, 프로필 `driver` 편집, 코어 확장 잠금(`tier: "core"` 또는 `origin: "builtin"`)을 계산한다. 예약 이름 23개는 호스트(`ext.scaffold`)가 `invalid_input`으로 거절하고 화면이 그 문장을 보인다. 아래 줄의 "아직 없음" 가운데 화면에 닿은 것은 각 화면 커밋이 이 줄을 고친다.
 - 명령(2026-11-04 comp2): `workbench.kinds`·`scaffold`·`validateDir`·`packDir`는 `ext.kinds`·`ext.scaffold`·`ext.validate`·`ext.package`를 그대로 부른다(wire는 W-27·W-28·W-49로 이미 있다). `tests.createTestRun(profileId?)`는 `thread.create { testRun: true, profileId? }`를 보낸다. 호스트 처리기(`handlers/thread.ts`)가 `profileId`를 이미 받으므로 wire 변경은 없다. `ext.test.run`·`ext.test.list`는 호스트 처리기가 채웠다(HS-112, `apps/host/src/handlers/m4/devkit.ts`) [결정: 2026-11-04 사용자 지시에 따른 기본값] [근거: apps/host/src/handlers/m4/devkit.ts].
 - 구현(2026-11-04 comp2, 새 그룹과 코드 보기): 새 그룹은 `ext.kinds`의 종류를 시작점 격자로 보이고, 만들기는 `ext.scaffold` 뒤에 같은 폴더를 `ext.validate`로 검사한다. 만든 뒤 검사 다시 돌리기와 설치 묶음 만들기(`ext.package`)를 두고, 코드 보기는 설치 그룹의 `composition` 블록을 읽기 전용으로 보이며 그 아래 "다음 길" 띠를 둔다. 플러그인 빌더 입구는 `authoring` 확장의 켜기·끄기이고, 켜져 있으면 "플러그인 빌더로 만들기"가 그 그룹 이름을 넘겨 새 그룹을 연다.
-- 구현(2026-11-04 comp2, 흐름 초안): 초안은 이 화면 안의 값이고, 고치기를 시작하면 설치된 `composition.phases`를 복사한다. 초안이 바뀔 때마다 `ext.validateComposition`으로 검사하고, 오류가 있거나 검사를 못 하면 "이 초안으로 새 그룹 만들기"가 눌리지 않는다. 초안은 이 화면을 떠나 "새 그룹 만들기"(`ext.scaffold`의 `group.composition`)로만 나간다.
+- 구현(2026-11-04 comp2, 흐름 초안): 초안은 이 화면 안의 값이고, 고치기를 시작하면 설치된 `composition.phases`를 복사한다. 초안이 바뀔 때마다 `ext.validateComposition`으로 검사하고, 오류가 있거나 검사를 못 하면 "이 초안으로 새 그룹 만들기"가 눌리지 않는다. 초안은 이 화면을 떠나 "새 그룹 만들기"(`ext.scaffold`의 `orchestration.composition`)로만 나간다.
 - 구현(2026-11-04 comp2, 시험 실행과 프로필): 흐름 머리의 "테스트 대화에서 돌려 보기"는 `thread.create { testRun: true, profileId? }`로 테스트 대화를 만들고, `settings.set { key: "ext.<그룹>.enabled", scope: "launch", threadId }`로 그 대화에서 그룹을 켠다. 대화만 만들고 켜지 못하면 실패 문장과 그 대화 id를 함께 보인다. 같은 흐름 자리가 실행 줄로 바뀐다: 멈춤·이어서·한 경계씩(`testRun.pause`·`resume`·`step`, 결과의 멈춘 채 값으로 모습을 정하고 명령 뒤에 `testRun.phase`를 한 번 읽는다), 지금 단계, 새로 읽기, 끝내기(대화는 지우지 않는다). 지금 단계 노드는 active, 지난 단계는 done, 아직 안 온 단계는 dimmed로 그린다. 멈추는 경계에 닿았는지는 wire가 알려 주지 않으므로, 멈춤 결과가 아직 멈춘 채가 아니면 "멈추는 중"으로 두고 이어서로 되돌릴 수 있다. 프로필 보기는 drive 그룹 고르기(자동 또는 설치된 그룹과 저장된 이름)를 `driver`로 저장하고, 내장 코어 확장은 잠김만 보이며, "새 Test run으로"는 저장한 뒤에만 `thread.create { testRun: true, profileId }`로 새 테스트 대화를 만든다.
 - 구현(시험 실행 보기): 조종 줄 아래에 드라이브 락 줄, 가드 칩, 단계 사이 기록 열이 붙습니다. 드라이브 락 줄은 `testRun.phase`의 `lock`으로 쥔 그룹을 mono로 적고, 상태 글을 "주도 유지"(쥔 채), "반납 중"(반납이 정해짐), "주도 없음"(쥔 것 없음)으로 바꿉니다. 가드 칩은 `guardHits`가 0보다 크면 "N번 막았어요"를 경고 색으로 보이고, `traceEnabled`가 거짓이면 "측정이 꺼져 있어요"를 흐린 글과 설명 아이콘으로 보이며, 측정이 켜졌고 0이면 칩을 그리지 않습니다. 단계 사이 기록 열은 `boundaries`를 새것이 위로 보입니다(seq, 단계 이름, 멈춰 기다렸는가). 기록이 없으면 "아직 단계 사이 기록이 없어요"입니다. 셋 모두 명령 뒤의 `testRun.phase` 한 번 읽기와 "새로 읽기"로만 갱신하고, 다시 읽는 타이머는 두지 않습니다.
 - 구현(다시 돌려 검사와 시험 결과): 조종 줄 아래의 "다시 돌려 검사"는 `ext.test.run {kind:"replay", target: 그룹}`을 부르고, 끝날 때까지 진행 막대를 불확실 모양으로 둡니다. 응답은 시험 id뿐이라 `ext.test.list`에서 그 id의 `replay` 보고서를 찾아, 테스트 화면과 같은 판정 틀(판정, 절단 띠, 첫 차이, 효과 수, JSON 복사)로 그리고 목록을 다시 읽습니다. 연결이 없거나 개발 모드(`l3.authoring.devMode`)가 아니면 단추는 `disabled`가 아닌 눌리는 모양(soft)이고 누르면 이유 툴팁을 보입니다. 옆 "개발 모드 켜기…"는 `requestSettingsJump`로 설정 화면의 플러그인 탭, `l3.authoring.devMode` 항목으로 옮깁니다. 설정 항목은 카탈로그 정의만으로 설정 화면에 토글 행이 생기므로 행을 따로 더하지 않습니다(`packages/client/test/settings/devmode-toggle.test.ts`). 아래 "시험 결과" 목록은 `ext.test.list`의 이 그룹 replay 기록을 새것이 위로 보입니다(판정 표지, 시각, 소요). 개발 모드가 아니면 제목은 읽기 전용 "지난 결과"이고, 그 까닭은 설명 아이콘 뒤에 있습니다.
@@ -3076,7 +3076,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 옛 P-22 내용 | 새 자리 |
 |---|---|
 | 종류 고르기(drive, 정책, 관찰, provider, X 훅) | 구성기 "새 그룹"의 시작점. 종류는 Plugin Builder 카탈로그(`L3.authoring.spec` §3.4)이고 고정 목록이 아닙니다 [결정: 2026-10-31 사용자] |
-| 이름과 폴더 검사 | 구성기 그룹 머리. 이름 규칙 `GROUP_NAME_PATTERN`과 예약 이름 23개(`RESERVED_GROUP_NAMES`). 오류 문장은 "소문자로 시작하고 소문자, 숫자, 하이픈만 써서 2~32자로 지어요", "<이름>은 예약된 이름이라 쓸 수 없어요" `[gap:V-23]` |
+| 이름과 폴더 검사 | 구성기 그룹 머리. 이름 규칙 `ORCHESTRATION_NAME_PATTERN`과 예약 이름 23개(`RESERVED_ORCHESTRATION_NAMES`). 오류 문장은 "소문자로 시작하고 소문자, 숫자, 하이픈만 써서 2~32자로 지어요", "<이름>은 예약된 이름이라 쓸 수 없어요" `[gap:V-23]` |
 | 만들 파일 미리 보기 | 구성기 코드 보기(§6.28.5) |
 | 만들기와 검사 | Plugin Builder의 `authoring_scaffold`·`authoring_validate`, 또는 wire `ext.scaffold`(W-27)·`ext.validate`(W-28) |
 | 결과의 다음 동작 | "replay 시험" 버튼(자동 replay 없음 [결정: 2026-10-31 사용자]), Test run에서 켜기, 편집기에서 열기, 사용자 확장 위치에 연결(사람 확인, W-32) |
@@ -3085,7 +3085,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ### 6.30 대화 영역의 런타임 표시
 
-- 대화 머리 런타임 줄: drive 보유 그룹과 단계(플러그인 `status` 기여가 있으면 그 글자), 켜진 확장 수, 이 대화의 확장 실패 수. 누르면 런타임 탭. 데이터는 `lease.*`, `scope.changed`, `scope.handler_failed` 이벤트와 `group.list` `[gap:V-24]`.
+- 대화 머리 런타임 줄: drive 보유 그룹과 단계(플러그인 `status` 기여가 있으면 그 글자), 켜진 확장 수, 이 대화의 확장 실패 수. 누르면 런타임 탭. 데이터는 `lease.*`, `scope.changed`, `scope.handler_failed` 이벤트와 `orchestration.list` `[gap:V-24]`.
 - 트랜스크립트 런타임 행: `lease.acquired`·`lease.released`·`lease.rejected`, `scope.changed`, 같은 턴 안 같은 확장의 `scope.handler_failed` 묶음을 흐린 한 줄로 보입니다(DP-19). 누르면 LightCraft P-17 기록 탭입니다.
 - 런타임 탭(오른쪽): §4.9.4 표.
 - Test run: 머리에 "시험" `Badge`, 적용한 프로필 이름, 멈춤 상태면 "단계 경계에서 멈춤 · 임대 helm 유지"와 "이어서". 학습 그룹은 Test run을 리뷰 대상에서 뺍니다 [결정: 2026-11-04 사용자, B4 1안](§12.1 20번, X-14).
@@ -3508,9 +3508,9 @@ export const palette = [
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | 구현됨. `ext.reenable`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reenable { name }` |
 | W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 구현됨. `ext.health`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.health { name?, threadId? }` |
 | W-23 | 훅별 핸들러 시간(p50, p95, 최대) | P-16, P-17, P-20 | 구현됨. `ext.timings`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | X 운영이 시간을 모으고 `ext.timings { name, threadId? }` [미결] |
-| W-24 | 그룹 상태 목록(`GroupStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | 구현됨. `group.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.list { threadId? }`, 바뀜 알림 |
-| W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | 구현됨. `group.metrics`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.metrics { id, threadId?, since? }` |
-| W-26 | 승격 보고 | P-16, P-20 | 구현됨. `group.promotion`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.promotion { threadIds? }` |
+| W-24 | 그룹 상태 목록(`OrchestrationStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | 구현됨. `orchestration.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `orchestration.list { threadId? }`, 바뀜 알림 |
+| W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | 구현됨. `orchestration.metrics`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `orchestration.metrics { id, threadId?, since? }` |
+| W-26 | 승격 보고 | P-16, P-20 | 구현됨. `orchestration.promotion`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `orchestration.promotion { threadIds? }` |
 | W-27 | 종류 목록과 뼈대 만들기 | P-21, Plugin Builder | 구현됨. `ext.kinds`와 `ext.scaffold`가 있다. CLI `fresnel group new`도 남아 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`, `apps/cli/src/group/rules.ts`] | `ext.kinds`(Plugin Builder 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | 구현됨. `ext.validate { dir }`가 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10. wire `ReplayReport`는 칸별 `cuts`를 싣습니다(§6.26). 개발 모드 판정 키 `l3.authoring.devMode`는 카탈로그에 있습니다 |
@@ -3603,7 +3603,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
 | X-14 | Test run 표지(`ThreadSummary.testRun`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
 | X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), 보관 Turn 수 상한과 그 설정 키는 없다. 대화를 닫으면 메모리에서 푼다 [결정: 2026-11-04 사용자, 기록 개수 상한을 없앰] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 상한 없음은 2026-11-04 결정으로 바뀜] |
-| X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
+| X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineOrchestration({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-19 | Test run 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. drive 락 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.8, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
@@ -3628,7 +3628,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | `L3.authoring.spec` | Plugin Builder. 구성기 "새 그룹"과 시험 실행이 같은 서비스(`fresnel.devkit`)를 씁니다 |
 | `review.m4-plan` | 이 문서의 화면과 간극을 트랙으로 나눈 M4 구현 계획입니다 |
 | `F.extensions.spec`, `X.loading-trust.spec`, `X.operations.spec` | 매니페스트, 신뢰 등급, 예산, 자동 끄기, 안전 모드를 받아 LightCraft에 놓습니다. §10.3 간극을 요구합니다 |
-| `L3.group-sdk.spec`, `L3.slots.spec` | `GroupStatus`, `GroupMetrics`, `PromotionReport`, `replayDrive`, 템플릿을 받습니다 |
+| `L3.group-sdk.spec`, `L3.slots.spec` | `OrchestrationStatus`, `OrchestrationMetrics`, `PromotionReport`, `replayDrive`, 템플릿을 받습니다 |
 
 ### 11.2 수용 기준
 
@@ -3641,7 +3641,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 - P-11 저장 결과가 사용자 설정 파일에 같은 키로 들어갑니다(X7 화면 부분).
 - P-12에서 순서를 바꾸면 `l2.web.search.order`가 그 순서로 저장되고 키보드로도 바꿀 수 있습니다(X9 화면 부분).
 - 대화와 LightCraft를 왼쪽 패널 영역 바꾸기와 ⌘E로 오가고, 돌아오면 같은 대화·스크롤·오른쪽 탭입니다(§4.9).
-- 런타임 탭의 drive 보유·대기열이 `group.list`의 `GroupStatus.drive`와 같고, review·work 같은 다른 drive 그룹도 같은 모양으로 보입니다(§4.9.8).
+- 런타임 탭의 drive 보유·대기열이 `orchestration.list`의 `OrchestrationStatus.drive`와 같고, review·work 같은 다른 drive 그룹도 같은 모양으로 보입니다(§4.9.8).
 - 플러그인 화면은 WebView에서 플러그인 코드를 실행하지 않고, 위젯 카탈로그 밖 노드는 자리표시로 그립니다(ADR-0021). Helm 탐구 전체 화면이 위젯 카탈로그 v1만으로 그려집니다.
 - 플러그인 화면 하나가 렌더 예외를 내도 셸과 다른 화면이 계속 동작하고, 연속 5번 실패한 화면만 `view_disabled`가 됩니다.
 - P-13의 켜짐 토글이 `ext.<이름>.enabled`에 고른 범위로 저장되고, 면제 tier(guard, core)의 토글은 잠겨 있습니다.
@@ -4032,7 +4032,7 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 
 ### 14.1 과제
 
-Fresnel 데스크톱 앱의 두 번째 1급 영역 "크래프트"(런타임 LightCraft) 화면들과, 대화 영역의 "런타임" 탭을 비즈니스 로직 없는 시안으로 만듭니다. 엔진, wire, 셸을 부르지 않고 고정 데이터만 씁니다. Fresnel은 층별 플러그인(L1 코어, L2 기능, L3 플러그인 그룹, 외부 plugin, X 훅)을 조립하는 대화형 에이전트 런타임이고, LightCraft는 그 플러그인을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 곳입니다.
+Fresnel 데스크톱 앱의 두 번째 1급 영역 "크래프트"(런타임 LightCraft) 화면들과, 대화 영역의 "런타임" 탭을 비즈니스 로직 없는 시안으로 만듭니다. 엔진, wire, 셸을 부르지 않고 고정 데이터만 씁니다. Fresnel은 층별 플러그인(L1 코어, L2 기능, L3 오케스트레이션 플러그인, 외부 plugin, X 훅)을 조립하는 대화형 에이전트 런타임이고, LightCraft는 그 플러그인을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 곳입니다.
 
 ### 14.2 만들 곳과 실행
 
@@ -4134,9 +4134,9 @@ export const profiles = [
   { id: "review-trial", title: "review 시험", enable: ["review", "web-exa"], disable: ["helm"], settings: [], driveGroup: "review" },
 ];
 export const templates = [
-  { id: "drive", label: "플러그인 그룹 · drive", hint: "턴을 구동하는 그룹", files: 10 },
-  { id: "policy", label: "플러그인 그룹 · 정책", hint: "first 훅으로 막는 그룹", files: 8 },
-  { id: "observe", label: "플러그인 그룹 · 관찰", hint: "기록만 남기는 그룹", files: 9 },
+  { id: "drive", label: "오케스트레이션 플러그인 · drive", hint: "턴을 구동하는 그룹", files: 10 },
+  { id: "policy", label: "오케스트레이션 플러그인 · 정책", hint: "first 훅으로 막는 그룹", files: 8 },
+  { id: "observe", label: "오케스트레이션 플러그인 · 관찰", hint: "기록만 남기는 그룹", files: 9 },
   { id: "provider", label: "플러그인 · L2 기능", hint: "준비 중", disabled: true },
   { id: "hook", label: "X 훅", hint: "준비 중", disabled: true },
 ];

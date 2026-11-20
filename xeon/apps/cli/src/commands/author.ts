@@ -228,7 +228,7 @@ async function runLs(
         displayName: entry.displayName,
         location: entry.location,
         status: entry.status,
-        isGroup: entry.isGroup,
+        isOrchestration: entry.isOrchestration,
       })),
     );
     return EXIT.ok;

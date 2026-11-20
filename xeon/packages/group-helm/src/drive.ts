@@ -8,7 +8,7 @@ import type {
   StepResult,
   TurnOutcome,
 } from "@fresnel/contracts/extensions";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { Type } from "typebox";
 import { dedupeFindings } from "./findings.ts";
 import { failureOfRefusal, failureOfTurn, type HelmFailure } from "./failures.ts";
@@ -40,7 +40,7 @@ import {
   type InquiryId,
 } from "./state.ts";
 
-type DriveApi = Pick<GroupApi<HelmState>, "record" | "post" | "capability">;
+type DriveApi = Pick<OrchestrationApi<HelmState>, "record" | "post" | "capability">;
 type Command = DriveCommand<HelmState>;
 type TurnCommand = Extract<Command, { readonly do: "turn" }>;
 type Limit = "turns" | "spawns" | "tokens";

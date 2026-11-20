@@ -12,7 +12,7 @@ binds: [xeon/packages/core-*/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ## 1. 목적
 
-L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 그룹 같은 플러그인 그룹(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
+L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 그룹 같은 오케스트레이션 플러그인(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
 
 - 각 도메인은 Cordis 서비스 하나 이상을 제공하는 패키지 하나다. 같은 층끼리는 import하지 않고 서비스로 협력한다(§4).
 - 바퀴를 다시 만들지 않는다. pi-ai는 npm 정확 고정 버전으로 쓰고 부족분만 포크한다(`_research/layer-plan-v2.json` L1 intro, `_research/layer-plan-v2-notes.md` 층 사이 규칙 7). 루프는 pi-agent-core 1.3.0 루프를 core-loop로 포크해 다시 설계한 자체 루프이고 pi-agent-core에는 의존하지 않는다(adr.0009).
@@ -55,7 +55,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 | 실행 환경, 샌드박스 | L0 `platform-exec`, `platform-sandbox`(`fresnel.exec`, `fresnel.sandbox`) | 명령 실행과 샌드박스 래핑은 L2 도구(`cap-workspace`의 `bash` 등)가 쓴다. tools는 잠금 키 산출(`fresnel.exec.canonicalPath`)과 출력 절단(`L1.tools.spec` §3.7)에만 `fresnel.exec`를 쓴다(`L1.tools.spec` §4.12) |
 | 시크릿 해석과 마스킹 | L0 `platform-secrets`(`fresnel.secrets`) | models는 요청 직전에 참조를 해석한다. tools는 값을 해석하지 않고 도구 결과를 2계층 마스킹한다. 실행 env 주입은 `fresnel.exec`가 한다(`L1.tools.spec` §4.12) |
 | 기능(웹, MCP, 지식, 작업, 대화, 산출물, 예약, 작업 도구) | L2 `cap-*` | L2가 L1 서비스(`fresnel.tools`, `fresnel.approvals`, `fresnel.models`, `fresnel.session`, `fresnel.agents`)를 쓴다. L1은 L2를 부르지 않는다 |
-| 플러그인 그룹(Helm, 학습 그룹) | L3 | 훅과 X 연산으로만 L1에 영향을 준다 |
+| 오케스트레이션 플러그인(Helm, 학습 그룹) | L3 | 훅과 X 연산으로만 L1에 영향을 준다 |
 | 전송, 설정 화면, 조립 루트 | L4 | `apps/host`가 L1 패키지를 등록한다(DR-14 예외 2) |
 
 ## 4. 협력

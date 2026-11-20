@@ -10,7 +10,7 @@ import {
   type MemoryLoopPort,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import type { GroupModule } from "@fresnel/group-sdk";
+import type { OrchestrationModule } from "@fresnel/group-sdk";
 import { replayDrive, type ReplayHarness } from "@fresnel/group-sdk/testing";
 import group from "../src/index.ts";
 
@@ -161,7 +161,7 @@ function replayHarness(): ReplayHarness {
  * 템플릿 그룹은 꺼진 상태로 올라간다. 재생은 켜진 그룹을 본다: 범위 정의에 defaultEnabled만 더한다.
  * 켜는 요청을 재생 중에 내면 복원 실행마다 같은 요청 이벤트가 한 번 더 쌓여 이벤트열이 달라진다.
  */
-function enabledByDefault(target: GroupModule): GroupModule {
+function enabledByDefault(target: OrchestrationModule): OrchestrationModule {
   return {
     ...target,
     entry: ({ manifest, register }) =>
@@ -173,7 +173,7 @@ function enabledByDefault(target: GroupModule): GroupModule {
 }
 
 test("__ID__.drive-replays-at-every-commit", async () => {
-  const report = await replayDrive({ group: enabledByDefault(group), harness: replayHarness() });
+  const report = await replayDrive({ orchestration: enabledByDefault(group), harness: replayHarness() });
   expect(report.failure).toBeUndefined();
   expect(report.commits).toBeGreaterThanOrEqual(1);
   expect(report.cuts.every((cut) => cut.equal && cut.firstDiff === null)).toBe(true);

@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { validateManifest, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
-import { checkGroup } from "@fresnel/group-sdk/testing";
+import { checkOrchestration } from "@fresnel/group-sdk/testing";
 import {
-  accountRotationGroup,
+  accountRotationOrchestration,
   accountRotationManifest,
   accountRotationSettings,
   ROTATION_RISK_NOTICE,
@@ -13,7 +13,7 @@ test("manifest.valid-and-off-by-default", () => {
   const checked = validateManifest(accountRotationManifest);
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
-  expect(accountRotationManifest.group).toEqual({});
+  expect(accountRotationManifest.orchestration).toEqual({});
   expect(pluginDeclsOf(accountRotationManifest).map((plugin) => [plugin.id, plugin.layer])).toEqual(
     [[undefined, "L3"]],
   );
@@ -53,6 +53,6 @@ test("settings.acknowledge-risk-defaults-to-false", () => {
 });
 
 test("group.check-group-reports-no-errors", async () => {
-  const issues = await checkGroup(accountRotationGroup);
+  const issues = await checkOrchestration(accountRotationOrchestration);
   expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
 });

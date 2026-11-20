@@ -61,7 +61,7 @@ Record kind names match `^(x|grp)\.<name>\.<area>\.<event>$`. `<area>` is `[a-z]
 
 - Not allowed for authored extensions: `core`, `ext`, `grp`, `x`, `fresnel`, `workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifact`, `artifacts`, `schedule`, `ui`, `test`, and any name starting with `fresnel-hooks-`.
 - Not allowed for any extension: the input source keys `user`, `deleg`, `timer`.
-- The Plugin Builder also refuses the names in `RESERVED_GROUP_NAMES` (`xeon/packages/group-sdk/src/define-group.ts`). These include `cap`, `xh`, `sys`, `p`, `auto`, `all`, `none`, `group`, `groups`, `kit`.
+- The Plugin Builder also refuses the names in `RESERVED_ORCHESTRATION_NAMES` (`xeon/packages/group-sdk/src/define-group.ts`). These include `cap`, `xh`, `sys`, `p`, `auto`, `all`, `none`, `group`, `groups`, `kit`.
 
 ## Minimal valid examples
 
@@ -130,7 +130,7 @@ Packaging copies the normalized manifest and changes only `entry` to `./dist/ind
 - `post_undeclared` / `drive_undeclared`: `usesPost` or `drives` is missing.
 - `capability_undeclared`: a capability is used but not in `requires` or `optional`.
 - `plugin_root_ambiguous`: more than one plugin omits `id`.
-- `group_member_unknown`: `members` names an id that no plugin declares.
+- `orchestration_member_unknown`: `members` names an id that no plugin declares.
 - `entry_invalid`: `entry` is absolute or climbs out of the root with `..`.
 - `name_reserved`: a reserved name (see Naming).
 - AU-002: `trust.level` is `builtin`. AU-009: a secret literal in source. AU-012: a drive breaks the replay rules.

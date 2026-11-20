@@ -17,7 +17,7 @@ const full = (over: Partial<ExtListEntry>): ExtListEntry => ({
   name: "x",
   displayName: "x",
   layer: "L1",
-  isGroup: false,
+  isOrchestration: false,
   version: "1.0.0",
   location: "/x",
   origin: "builtin",

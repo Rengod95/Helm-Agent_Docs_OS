@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { RegistrationApi } from "@fresnel/contracts/extensions";
 import { hostInternalsOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
 
@@ -12,7 +12,7 @@ test("disable applies at step boundary", async () => {
   const order: string[] = [];
   const handlerCalls: string[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "scp-group", hooks: ["tool.call.before"] }, (g) => {
+    makeOrchestrationUnit({ name: "scp-group", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => {
         handlerCalls.push("tool.call.before");
         return undefined;
@@ -340,7 +340,7 @@ async function disableRacingIdle(
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "scp-race" }, (g) => {
+    makeOrchestrationUnit({ name: "scp-race" }, (g) => {
       g.drive(async ({ last }) => {
         if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
         return { do: "turn", input: { kind: "user", content: "go" } };

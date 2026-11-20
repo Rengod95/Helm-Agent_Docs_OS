@@ -247,7 +247,7 @@ function withAwaitingTurn(previous: unknown): unknown {
     : previous;
 }
 
-/** GroupDef.migrations. 키는 출발 버전(L3.group-sdk.spec §4.7) */
+/** OrchestrationDef.migrations. 키는 출발 버전(L3.group-sdk.spec §4.7) */
 export const helmStateMigrations: Readonly<Record<number, (previous: unknown) => unknown>> = {
   1: withAwaitingTurn,
 };

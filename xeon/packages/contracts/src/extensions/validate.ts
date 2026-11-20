@@ -7,7 +7,7 @@ import {
 import { RESERVED_SOURCE_KEYS } from "../records/commit.ts";
 import {
   isRecordKindOf,
-  type GroupRecord,
+  type OrchestrationRecord,
   type RecordKind,
   type RecordKindDecl,
 } from "./group-record.ts";
@@ -50,8 +50,8 @@ export type ManifestIssueCode =
   | "plugin_id_duplicate"
   | "plugin_root_ambiguous"
   | "layer_mixed_external"
-  | "group_member_unknown"
-  | "group_member_duplicate"
+  | "orchestration_member_unknown"
+  | "orchestration_member_duplicate"
   | "hook_unknown"
   | "hook_duplicate"
   /** 내부 훅(H-4)을 내장이 아닌 등급이 선언했다. 거부다 */
@@ -110,7 +110,7 @@ export type ManifestIssueCode =
   | "record_kind_undeclared"
   | "read_kind_undeclared"
   // X 설치 시점(PrimitiveError)과 로더 진단. 정책 설정과 엔트리 실행 결과가 정하므로 정적 검사로 보지 못한다
-  | "drive_requires_group"
+  | "drive_requires_orchestration"
   | "plugin_not_registered"
   | "registration_unknown_plugin"
   // validateManifestSet
@@ -118,7 +118,7 @@ export type ManifestIssueCode =
   | "replace_conflict"
   | "drive_conflict"
   | "capability_unprovided"
-  // validateGroupRecord
+  // validateOrchestrationRecord
   | "record_kind_unregistered"
   | "record_payload_invalid"
   | "record_version_unknown";
@@ -183,13 +183,18 @@ const LEGACY_FIELDS: readonly string[] = [
   "provides",
   "recordKinds",
   "readsRecordKinds",
+  // 이름을 바꾼 최상위 블록. 옛 이름은 읽지 않고 거부한다(AGE-33)
+  "group",
 ];
 
 /** 옮겨 간 곳이 하나로 정해진 이름의 안내 문장 */
 const LEGACY_HINTS: Readonly<Record<string, string>> = {
+  group: 'top-level "group" was renamed to "orchestration"; the old name is not read',
   views: 'top-level "views" was renamed; declare Plugin UI under "ui" and methods under "methods"',
-  composition: 'top-level "composition" moved to "group.composition" (plugin groups only)',
-  phases: 'top-level "phases" moved to "group.composition.phases" (plugin groups only)',
+  composition:
+    'top-level "composition" moved to "orchestration.composition" (orchestration plugins only)',
+  phases:
+    'top-level "phases" moved to "orchestration.composition.phases" (orchestration plugins only)',
 };
 
 function isReservedSourceKey(name: string): boolean {
@@ -252,7 +257,7 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
       return "version_invalid";
     case "plugins":
       return codeForPluginPath(segments);
-    case "group":
+    case "orchestration":
       if (segments[2] === "composition") return "composition_invalid";
       return segments[2] === "members" && segments.length > 3 ? "plugin_id_invalid" : "schema";
     case "ui":
@@ -288,7 +293,7 @@ export function isEntryInsideRoot(entry: string): boolean {
   return true;
 }
 
-function ownPrefix(manifest: Pick<ExtensionManifest, "group" | "name">): string {
+function ownPrefix(manifest: Pick<ExtensionManifest, "orchestration" | "name">): string {
   return `${extensionPrefix(manifest)}.${manifest.name}.`;
 }
 
@@ -787,9 +792,11 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   });
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
-  if (manifest.group?.composition !== undefined) {
+  if (manifest.orchestration?.composition !== undefined) {
     issues.push(
-      ...checkComposition(manifest.group.composition, "/group/composition", { manifest }),
+      ...checkComposition(manifest.orchestration.composition, "/orchestration/composition", {
+        manifest,
+      }),
     );
   }
 
@@ -1073,14 +1080,14 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
   }
 
   const ids = new Set(named);
-  const members = manifest.group?.members ?? [];
+  const members = manifest.orchestration?.members ?? [];
   members.forEach((id, index) => {
     if (!ids.has(id)) {
       issues.push(
         issue(
           "error",
-          "group_member_unknown",
-          `/group/members/${index}`,
+          "orchestration_member_unknown",
+          `/orchestration/members/${index}`,
           `group member "${id}" is not a declared plugin id`,
         ),
       );
@@ -1090,8 +1097,8 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     issues.push(
       issue(
         "error",
-        "group_member_duplicate",
-        `/group/members/${index}`,
+        "orchestration_member_duplicate",
+        `/orchestration/members/${index}`,
         `group member "${id}" is listed twice`,
       ),
     );
@@ -1464,8 +1471,8 @@ export function validateManifestSet(
 }
 
 /** 그룹 레코드 하나. decl이 없으면 record_kind_unregistered. 순수 함수 */
-export function validateGroupRecord(
-  record: GroupRecord,
+export function validateOrchestrationRecord(
+  record: OrchestrationRecord,
   decl: RecordKindDecl | undefined,
 ): readonly ManifestIssue[] {
   if (decl === undefined || decl.kind !== record.kind) {

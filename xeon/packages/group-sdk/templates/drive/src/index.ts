@@ -1,5 +1,5 @@
 import type { DriveCommand, StepResult } from "@fresnel/contracts/extensions";
-import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";
@@ -27,8 +27,8 @@ function stepOf(state: Readonly<State>, last: StepResult | null): DriveCommand<S
   };
 }
 
-const group: GroupModule = defineGroup<State>({
-  manifest: groupManifest(manifestJson),
+const group: OrchestrationModule = defineOrchestration<State>({
+  manifest: orchestrationManifest(manifestJson),
   state: { schema: stateSchema, initial: initialState, version: 1 },
   settings,
   setup(g) {

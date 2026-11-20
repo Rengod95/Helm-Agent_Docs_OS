@@ -13,7 +13,7 @@ import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import { until } from "../isolation/support/fake-process.ts";
 import { acquiredOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Command = DriveCommand<never>;
 
@@ -40,7 +40,7 @@ async function install(
   options: { readonly hold?: { current: boolean }; readonly firstGo?: boolean } = {},
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(({ last }) => {
         seen.push({ last });
         if (last === null) {

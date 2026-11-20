@@ -2,12 +2,12 @@ import { parse } from "@fresnel/contracts";
 import type { ToolName } from "@fresnel/contracts/capabilities";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { TurnStartedPayloadSchema } from "@fresnel/contracts/conversation";
-import type { GroupId, RegistrationId } from "@fresnel/contracts/extensions";
+import type { OrchestrationId, RegistrationId } from "@fresnel/contracts/extensions";
 import { EffectIntentSchema } from "@fresnel/contracts/records";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { PromotionInput } from "./report.ts";
 
-/** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `GroupHostView`가 이 부분을 포함한다 */
+/** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `OrchestrationHostView`가 이 부분을 포함한다 */
 export type PromotionHostView = Pick<ExtHost, "registrations" | "queryEvents"> & {
   /**
    * 대화가 보는 도구 이름으로 그 도구를 등록한 레코드를 찾는다. 같은 이름이 여러 주인에게 있어도 그 대화가 보는 쪽만 돌려준다.
@@ -35,7 +35,7 @@ function owningGroup(
   installed: ReadonlySet<RegistrationId>,
   tool: ToolName,
   threadId: ThreadId,
-): GroupId | undefined {
+): OrchestrationId | undefined {
   const record = host.toolOwnerIn(tool, threadId);
   if (record === undefined || !installed.has(record.scopeId)) return undefined;
   return record.extension;
@@ -61,7 +61,7 @@ export async function gatherPromotionInput(
       intents: await host.queryEvents(threadId, { kindPrefix: "effect.intent" }),
     })),
   );
-  const toolOwners = new Map<ToolName, GroupId>();
+  const toolOwners = new Map<ToolName, OrchestrationId>();
   const calls: PromotionCall[] = [];
   for (const { threadId, turns, intents } of reads) {
     if (!turns.ok || !intents.ok) continue;

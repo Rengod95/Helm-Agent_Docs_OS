@@ -71,18 +71,18 @@ describe("fresnel.devkit and its wire methods", () => {
     // 종류는 single-plugin만 받는다
     const base = { kind: "single-plugin", name: "my-group", dir: "/tmp/x" };
     expect(parse(params, base).ok).toBe(true);
-    expect(parse(params, { ...base, group: { members: ["sync"] } }).ok).toBe(true);
+    expect(parse(params, { ...base, orchestration: { members: ["sync"] } }).ok).toBe(true);
     expect(
       parse(params, {
         ...base,
-        group: {
+        orchestration: {
           composition: { blocks: [{ id: "m", stage: "machine", op: "drive" }] },
         },
         layer: "L3",
       }).ok,
     ).toBe(true);
     expect(parse(params, { ...base, extra: 1 }).ok).toBe(false);
-    expect(parse(params, { ...base, group: { composition: 5 } }).ok).toBe(false);
+    expect(parse(params, { ...base, orchestration: { composition: 5 } }).ok).toBe(false);
     expect(parse(params, { ...base, composition: { blocks: [] } }).ok).toBe(false);
     expect(parse(params, { ...base, views: {} }).ok).toBe(false);
     expect(parse(params, { ...base, kind: "group" }).ok).toBe(false);
@@ -96,7 +96,7 @@ describe("fresnel.devkit and its wire methods", () => {
         {
           severity: "error",
           code: "AU-004",
-          path: "/group/composition",
+          path: "/orchestration/composition",
           message: "m",
           file: "a.ts",
           line: 4,

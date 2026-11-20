@@ -195,7 +195,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["fresnel.groups"],
+    services: ["fresnel.orchestration"],
   },
   {
     id: "helm",

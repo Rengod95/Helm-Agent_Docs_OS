@@ -5,7 +5,7 @@ import {
   WebSearchKey,
   type CapabilityId,
 } from "@fresnel/contracts/capabilities";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { failureOf, type HelmFailure } from "./failures.ts";
 import type { HelmSource, HelmState, InquiryId } from "./state.ts";
 
@@ -21,7 +21,7 @@ export interface ActiveInquiryView {
   readonly round: number;
 }
 
-type KnowledgeApi = Pick<GroupApi<HelmState>, "capability">;
+type KnowledgeApi = Pick<OrchestrationApi<HelmState>, "capability">;
 
 type SourceFailure = Extract<HelmFailure, { kind: "capability" | "lease_lost" }>;
 

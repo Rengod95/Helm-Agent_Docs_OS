@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { validateManifest, pluginDeclsOf } from "@fresnel/contracts/extensions";
 import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
-import { checkGroup } from "@fresnel/group-sdk/testing";
+import { checkOrchestration } from "@fresnel/group-sdk/testing";
 import {
   DISGUISE_RISK_NOTICE,
-  providerAnthropicOauthGroup,
+  providerAnthropicOauthOrchestration,
   providerAnthropicOauthManifest,
   providerAnthropicOauthSettings,
 } from "../../src/index.ts";
@@ -13,7 +13,7 @@ test("manifest.valid-and-off-by-default", () => {
   const checked = validateManifest(providerAnthropicOauthManifest);
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
-  expect(providerAnthropicOauthManifest.group).toEqual({});
+  expect(providerAnthropicOauthManifest.orchestration).toEqual({});
   expect(
     pluginDeclsOf(providerAnthropicOauthManifest).map((plugin) => [plugin.id, plugin.layer]),
   ).toEqual([[undefined, "L3"]]);
@@ -78,6 +78,6 @@ test("settings.defaults-are-off-and-no-credential", () => {
 });
 
 test("group.check-group-reports-no-errors", async () => {
-  const issues = await checkGroup(providerAnthropicOauthGroup);
+  const issues = await checkOrchestration(providerAnthropicOauthOrchestration);
   expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
 });

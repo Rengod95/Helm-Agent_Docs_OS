@@ -184,20 +184,20 @@
     "sources": ["adr.0022", "F.extensions.spec"],
     "status": "proposed"
   },
-  "pluginGroup": {
+  "orchestrationPlugin": {
     "kind": "concept",
     "doc": {
-      "ko": "Plugin Group",
-      "en": "Plugin Group"
+      "ko": "Orchestration plugin",
+      "en": "Orchestration plugin"
     },
     "ui": {
-      "ko": "플러그인 그룹",
-      "en": "Plugin group"
+      "ko": "오케스트레이션 플러그인",
+      "en": "Orchestration plugin"
     },
     "surfaces": ["settings", "workbench"],
     "forbid": {
-      "ui": ["의도 그룹"],
-      "docs": ["의도 그룹"]
+      "ui": ["의도 그룹", "플러그인 그룹", "Plugin group"],
+      "docs": ["의도 그룹", "플러그인 그룹"]
     },
     "sources": ["adr.0022", "F.extensions.spec"],
     "status": "proposed"
@@ -468,18 +468,19 @@
     "sources": ["adr.0022", "L3.authoring.spec"],
     "status": "proposed"
   },
-  "groupSdk": {
+  "orchestrationSdk": {
     "kind": "concept",
     "doc": {
-      "ko": "Group SDK",
-      "en": "Group SDK"
+      "ko": "Orchestration SDK",
+      "en": "Orchestration SDK"
     },
     "ui": {
-      "ko": "그룹 SDK",
-      "en": "Group SDK"
+      "ko": "오케스트레이션 SDK",
+      "en": "Orchestration SDK"
     },
     "surfaces": ["workbench"],
-    "ids": ["group-sdk", "defineGroup"],
+    "ids": ["group-sdk", "defineOrchestration"],
+    "forbid": { "ui": ["그룹 SDK", "Group SDK"], "docs": ["그룹 SDK"] },
     "sources": ["adr.0022", "L3.group-sdk.spec"],
     "status": "proposed"
   },

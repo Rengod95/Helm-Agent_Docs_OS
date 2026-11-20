@@ -6,7 +6,7 @@ import {
   type ExtCommitRejectCode,
   type ExtRecordRow,
   type ExtensionManifest,
-  type GroupRecord,
+  type OrchestrationRecord,
   type RecordKind,
   type RecordCommitPort,
   type RecordKindDecl,
@@ -15,7 +15,7 @@ import {
   extensionPrefix,
   pluginDeclsOf,
   type RegistrationId,
-  validateGroupRecord,
+  validateOrchestrationRecord,
 } from "@fresnel/contracts/extensions";
 import {
   ENVELOPE_MAX_BYTES,
@@ -110,7 +110,7 @@ export interface StateService {
     record: RegistrationRecord,
     generation: Generation,
     query: RecordQuery,
-  ): Promise<readonly GroupRecord[]>;
+  ): Promise<readonly OrchestrationRecord[]>;
   /**
    * 한 thread에서 켜기 전에 저장된 상태 문서를 준비한다(X.primitives.spec §4.5.3 4번, §4.6.1 3번). 저장된 판이 없으면 할 일이 없다.
    * 버전이 낮으면 setup이 등록한 마이그레이션 훅으로 옮겨 새 판으로 커밋한다. 훅이 없거나 결과가 스키마를 어기면,
@@ -139,7 +139,9 @@ export type StateResetError =
   | { readonly kind: "rejected"; readonly code: ExtCommitRejectCode };
 
 /** scope 상태 커밋의 이벤트 kind: <x|grp>.<이름>.state.committed (X.primitives.spec §4.6.1) */
-function stateKindOf(manifest: Pick<ExtensionManifest, "group" | "name">): ExtensionEventKind {
+function stateKindOf(
+  manifest: Pick<ExtensionManifest, "orchestration" | "name">,
+): ExtensionEventKind {
   return `${extensionPrefix(manifest)}.${manifest.name}.state.committed`;
 }
 
@@ -416,14 +418,14 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
         { scopeId: record.id },
       );
     }
-    const groupRecord: GroupRecord = {
+    const groupRecord: OrchestrationRecord = {
       groupId: record.manifest.name,
       kind: input.kind,
       version: decl.version,
       subject: input.subject,
       payload: input.payload,
     };
-    const errors = validateGroupRecord(groupRecord, toRecordKindDecl(decl)).filter(
+    const errors = validateOrchestrationRecord(groupRecord, toRecordKindDecl(decl)).filter(
       (issue) => issue.severity === "error",
     );
     if (errors.length > 0) {
@@ -631,14 +633,14 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
       const amb = ambient();
       const thread = threadOf(amb, record);
       if (amb === undefined) throw new Bug("state.record: ambient vanished");
-      const groupRecord: GroupRecord = {
+      const groupRecord: OrchestrationRecord = {
         groupId: record.manifest.name,
         kind,
         version: decl.version,
         subject,
         payload,
       };
-      const issues = validateGroupRecord(groupRecord, toRecordKindDecl(decl));
+      const issues = validateOrchestrationRecord(groupRecord, toRecordKindDecl(decl));
       const errors = issues.filter((issue) => issue.severity === "error");
       if (errors.length > 0) {
         throw new PrimitiveError(
@@ -752,7 +754,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
           });
         }
       }
-      return rows.map(toGroupRecord);
+      return rows.map(toOrchestrationRecord);
     },
     async resetStored(record, thread) {
       const decl = record.def.state;
@@ -883,7 +885,7 @@ function throwIfRejected(
   });
 }
 
-function toGroupRecord(row: ExtRecordRow): GroupRecord {
+function toOrchestrationRecord(row: ExtRecordRow): OrchestrationRecord {
   return {
     groupId: row.groupId,
     kind: row.kind,

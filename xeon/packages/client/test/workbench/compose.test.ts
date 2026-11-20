@@ -82,15 +82,17 @@ const PROFILE: Profile = {
 
 describe("compositionOf", () => {
   test("group.composition이 있으면 선언을 돌려준다", () => {
-    expect(compositionOf({ group: { composition: COMPOSITION } })).toEqual({
+    expect(compositionOf({ orchestration: { composition: COMPOSITION } })).toEqual({
       kind: "declared",
       composition: COMPOSITION,
     });
   });
   test("선언이 없거나 group이 없거나 모양이 틀리면 none이다", () => {
     expect(compositionOf({})).toEqual({ kind: "none" });
-    expect(compositionOf({ group: {} })).toEqual({ kind: "none" });
-    expect(compositionOf({ group: { composition: { blocks: [] } } })).toEqual({ kind: "none" });
+    expect(compositionOf({ orchestration: {} })).toEqual({ kind: "none" });
+    expect(compositionOf({ orchestration: { composition: { blocks: [] } } })).toEqual({
+      kind: "none",
+    });
     expect(compositionOf({ group: "x" })).toEqual({ kind: "none" });
   });
 });
@@ -443,9 +445,9 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
   test("drive 후보는 그룹만, 이름 순", () => {
     expect(
       driverChoicesOf([
-        { name: "z", isGroup: true },
-        { name: "p", isGroup: false },
-        { name: "a", isGroup: true },
+        { name: "z", isOrchestration: true },
+        { name: "p", isOrchestration: false },
+        { name: "a", isOrchestration: true },
       ]),
     ).toEqual(["a", "z"]);
   });
@@ -497,7 +499,7 @@ describe("블록 이슈의 경로 모양", () => {
     const issue: WireManifestIssue = {
       severity: "error",
       code: "drive_duplicate",
-      path: "/group/composition/blocks/1",
+      path: "/orchestration/composition/blocks/1",
       message: "m",
     };
     expect([...issuesByBlockOf(COMPOSITION, [issue])]).toEqual([["drive", [issue]]]);

@@ -99,7 +99,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
-import type { GroupCatalogEntry } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/group-sdk";
 import {
   openStore,
   storePlugin,
@@ -115,7 +115,10 @@ import {
   scheduleUnit,
   unitOfModule,
 } from "./assembly/extensions.ts";
-import { createHostGroupService, isGroupCatalogManifest } from "./assembly/groups.ts";
+import {
+  createHostOrchestrationService,
+  isOrchestrationCatalogManifest,
+} from "./assembly/groups.ts";
 import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
 import {
   createHostSchedule,
@@ -168,7 +171,7 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
-import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
+import { BUILTIN_ORCHESTRATION_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
@@ -218,7 +221,7 @@ import {
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
-import { GUIDE_GROUP_NAME } from "@fresnel/group-guide";
+import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/group-guide";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -1103,11 +1106,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const lateUnits: ExtensionUnit[] = [];
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
     /** 설치된 그룹(L3 매니페스트)과 로드 순서. 단위 목록과 로더 보고가 채워진 뒤에 읽는다 */
-    const groupEntries = (): readonly GroupCatalogEntry[] => [
+    const groupEntries = (): readonly OrchestrationCatalogEntry[] => [
       ...unitList.units
-        .filter((unit) => isGroupCatalogManifest(unit.manifest))
+        .filter((unit) => isOrchestrationCatalogManifest(unit.manifest))
         .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
-      ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
+      ...externalGroups.filter((entry) => isOrchestrationCatalogManifest(entry.manifest)),
     ];
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
@@ -1256,8 +1259,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
       }),
     });
-    // 그룹 서비스(`fresnel.groups`): 확장 읽기의 `group.*`가 읽는다. 확장 단위가 아니라 조립 루트가 만든다
-    const groupService = createHostGroupService({
+    // 그룹 서비스(`fresnel.orchestration`): 확장 읽기의 `group.*`가 읽는다. 확장 단위가 아니라 조립 루트가 만든다
+    const orchestrationService = createHostOrchestrationService({
       ext,
       settings,
       currentThread: () => portsHandle?.activeThread() ?? null,
@@ -1283,7 +1286,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       inSet: (threadId) => {
         if (threadId === undefined || !isId("thr", threadId)) return false;
         const view = portsHandle?.ports.m4.pluginSet.port.resolve(threadId);
-        return view?.plugins.includes(GUIDE_GROUP_NAME) ?? false;
+        return view?.plugins.includes(GUIDE_ORCHESTRATION_NAME) ?? false;
       },
     });
     const units: ExtensionUnit[] = [
@@ -1380,9 +1383,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const installable = units.map((unit): ExtensionUnit => {
       // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다). 대화별 켜짐은 E(T)가 정한다
       const initialEnabled =
-        unit.builtin && unit.manifest.name === GUIDE_GROUP_NAME
+        unit.builtin && unit.manifest.name === GUIDE_ORCHESTRATION_NAME
           ? guideWiring.forced()
-          : unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
+          : unit.builtin && BUILTIN_ORCHESTRATION_NAMES.includes(unit.manifest.name)
             ? enabledOfBuiltin(unit.manifest.name)
             : undefined;
       return initialEnabled === undefined ? unit : { ...unit, initialEnabled };
@@ -1650,7 +1653,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
-      pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
+      pluginsForced: () => (guideWiring.forced() ? [GUIDE_ORCHESTRATION_NAME] : []),
       // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
       ...(options.pluginHost?.self === undefined ? {} : { migrationSelf: options.pluginHost.self }),
       ...(fileRewind === undefined ? {} : { fileRewind: { service: fileRewind, newRewindId } }),
@@ -1727,7 +1730,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         extensions: extensionRecords,
         loader: () => external.loader,
         now: () => clock.now(),
-        groupService: () => groupService,
+        orchestrationService: () => orchestrationService,
         toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },

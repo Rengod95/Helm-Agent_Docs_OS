@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { err } from "@fresnel/contracts";
 import { ModelsPortKey, type ProviderResourceDef } from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
-import { providerAnthropicOauthGroup } from "../../src/index.ts";
+import { providerAnthropicOauthOrchestration } from "../../src/index.ts";
 
 const ACK = "ext.provider-anthropic-oauth.acknowledgeRisk";
 const CREDENTIAL = "ext.provider-anthropic-oauth.credential";
@@ -42,8 +42,8 @@ async function rigWith(values: Readonly<Record<string, unknown>>): Promise<{
     },
   });
   await t.host.install({
-    manifest: providerAnthropicOauthGroup.manifest,
-    entry: providerAnthropicOauthGroup.entry,
+    manifest: providerAnthropicOauthOrchestration.manifest,
+    entry: providerAnthropicOauthOrchestration.entry,
     loadIndex: 0,
     builtin: false,
   });

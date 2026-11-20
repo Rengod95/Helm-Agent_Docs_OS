@@ -5,7 +5,7 @@ import {
   HOOKS,
   HOOK_POSITIONS,
   internalPluginLayer,
-  isGroupExtension,
+  isOrchestrationExtension,
   pluginDeclsOf,
   SCRIPT_LIMITS,
   SCRIPT_ENV_SANDBOXED_USES,
@@ -376,7 +376,7 @@ function costOf(folder: CardSubject, toolCount: number): CostFigures {
 
 /** 내부 부품 판정(F.extensions.spec §3.1.3): 출처가 내장이고 매니페스트에 `group` 블록이 없다. 대화마다 켜고 끌 수 있는 내장 그룹은 아니다 */
 function isInternalCard(kind: PluginOriginKind, manifest: CardSubject["manifest"]): boolean {
-  return kind === "builtin" && !isGroupExtension(manifest);
+  return kind === "builtin" && !isOrchestrationExtension(manifest);
 }
 
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */

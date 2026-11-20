@@ -9,10 +9,10 @@ import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 export type GroupTemplateKind = "drive" | "policy" | "observe";
 
 /** 확장 id 규칙(review.decisions-2 U-18). group-sdk의 GROUP_NAME_PATTERN과 같은 문자열이다 */
-export const GROUP_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,31}$";
+export const ORCHESTRATION_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,31}$";
 
 /** group-sdk의 RESERVED_GROUP_NAMES와 같은 목록이다. 순서도 같게 둔다 */
-export const RESERVED_GROUP_NAMES: readonly string[] = [
+export const RESERVED_ORCHESTRATION_NAMES: readonly string[] = [
   "core",
   "cap",
   "xh",
@@ -43,20 +43,21 @@ const PLACEHOLDER_ID: string = "__ID__";
 const PLACEHOLDER_TITLE: string = "__TITLE__";
 const PLACEHOLDER_VERSION: string = "__VERSION__";
 /** `__VERSION__`의 기본값(L3.slots.spec §3.3.3) */
-export const DEFAULT_GROUP_VERSION: string = "0.1.0";
+export const DEFAULT_ORCHESTRATION_VERSION: string = "0.1.0";
 
-export interface GroupNameProblem {
-  readonly kind: "group_name";
+export interface OrchestrationNameProblem {
+  readonly kind: "orchestration_name";
   /** 형식 위반(pattern)인지 예약 이름(reserved)인지 */
   readonly reason: "pattern" | "reserved";
 }
 
 /** 그룹 이름을 검사한다(L3.slots.spec §3.3.4, §3.3.6 R2). 설치된 확장과의 충돌은 여기서 보지 않는다 */
-export function checkGroupName(name: string): Result<string, GroupNameProblem> {
-  if (!new RegExp(GROUP_NAME_PATTERN).test(name)) {
-    return err({ kind: "group_name", reason: "pattern" });
+export function checkOrchestrationName(name: string): Result<string, OrchestrationNameProblem> {
+  if (!new RegExp(ORCHESTRATION_NAME_PATTERN).test(name)) {
+    return err({ kind: "orchestration_name", reason: "pattern" });
   }
-  if (RESERVED_GROUP_NAMES.includes(name)) return err({ kind: "group_name", reason: "reserved" });
+  if (RESERVED_ORCHESTRATION_NAMES.includes(name))
+    return err({ kind: "orchestration_name", reason: "reserved" });
   return ok(name);
 }
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoaderPaths } from "../../src/loading-trust/index.ts";
-import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, putFile, realLoaderFs } from "./support/real-fs.ts";
 
@@ -17,7 +17,7 @@ beforeEach(async () => {
   paths = { userDir: join(temp.dir, "user"), managedDir: null, homeDir: join(temp.dir, "home") };
   userExtensions = join(paths.userDir, "extensions");
   await mkdir(userExtensions, { recursive: true });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
 });
 
 afterEach(async () => {
@@ -70,7 +70,7 @@ test("a new name installed after startup is listed and its hook fires without a 
     ["fresh", "active"],
   ]);
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toContain("fresh:fired");
+  expect(fakeOrchestrationSdk.seen).toContain("fresh:fired");
 });
 
 test("during a running turn the new name turns on at the next step boundary", async () => {
@@ -81,14 +81,14 @@ test("during a running turn the new name turns on at the next step boundary", as
   if (!result.ok) throw new Error("load refused");
   expect(result.value.appliesAt).toBe("nextStepBoundary");
   expect(harness.t.host.registration("late")?.status).not.toBe("enabled");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).not.toContain("late:fired");
+  expect(fakeOrchestrationSdk.seen).not.toContain("late:fired");
   await harness.t.boundary(thread).stepEnd();
   await harness.t.settled();
   expect(harness.t.host.registration("late")?.status).toBe("enabled");
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toContain("late:fired");
+  expect(fakeOrchestrationSdk.seen).toContain("late:fired");
 });
 
 test("a package whose entry does not import is refused, leaves no record and can be installed again", async () => {
@@ -150,15 +150,15 @@ test("unload takes the extension out of the host, keeps a disabled record, and e
   ]);
   expect(harness.t.host.registration("gone")).toBeUndefined();
   expect(harness.policy.tiers.get("gone")).toBeUndefined();
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).not.toContain("gone:fired");
+  expect(fakeOrchestrationSdk.seen).not.toContain("gone:fired");
   // 같은 이름의 `ensureLoaded`는 기록이 있으니 `unknown_extension`으로 멈추지 않고, 새 세대로 다시 싣는다
   const again = await harness.loader.ensureLoaded("gone", signal);
   expect(again.state).toBe("active");
   expect(again.generation).toBeGreaterThan(before);
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toContain("gone:fired");
+  expect(fakeOrchestrationSdk.seen).toContain("gone:fired");
 });
 
 test("a package that throws while loading, then is fixed in place, loads on the second install", async () => {
@@ -183,7 +183,7 @@ export const extension = ({ register }) => {
   const second = await harness.loader.loadInstalled("flaky", signal);
   if (!second.ok) throw new Error(`load refused: ${JSON.stringify(second.error)}`);
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).toContain("flaky:fixed");
+  expect(fakeOrchestrationSdk.seen).toContain("flaky:fixed");
   // 내리고 고쳐 다시 실어도 새 코드가 돈다
   expect(await harness.loader.unload("flaky")).toBe(true);
   await putFile(
@@ -197,9 +197,9 @@ export const extension = ({ register }) => {
 `,
   );
   expect((await harness.loader.ensureLoaded("flaky", signal)).state).toBe("active");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toEqual(["flaky:third"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["flaky:third"]);
 });
 
 test("deferStart records a disabled entry without running the code, and ensureLoaded loads it the first time", async () => {
@@ -217,12 +217,12 @@ test("deferStart records a disabled entry without running the code, and ensureLo
   // 코드는 싣지 않았다: 호스트에 등록이 없고 훅이 불리지 않는다
   expect(harness.t.host.registration("approved")).toBeUndefined();
   expect(harness.policy.tiers.get("approved")).toBeUndefined();
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "k0");
-  expect(fakeGroupSdk.seen).not.toContain("approved:fired");
+  expect(fakeOrchestrationSdk.seen).not.toContain("approved:fired");
   // 처음 대화의 집합에 들 때 `ensureLoaded`가 싣는다
   const loaded = await harness.loader.ensureLoaded("approved", signal);
   expect(loaded.state).toBe("active");
   await fireIn(harness, thread, "k1");
-  expect(fakeGroupSdk.seen).toContain("approved:fired");
+  expect(fakeOrchestrationSdk.seen).toContain("approved:fired");
 });

@@ -1,12 +1,12 @@
 import type { TurnOutcome } from "@fresnel/contracts/extensions";
 import { WorkTasksKey } from "@fresnel/contracts/capabilities";
-import type { GroupApi } from "@fresnel/group-sdk";
+import type { OrchestrationApi } from "@fresnel/group-sdk";
 import { callSource } from "./knowledge.ts";
 import { jsonOf, type DiscoveryRecordedPayload, type InquiryFinishedPayload } from "./records.ts";
 import type { HelmFailure } from "./failures.ts";
 import type { HelmState, InquiryId } from "./state.ts";
 
-type OutputApi = Pick<GroupApi<HelmState>, "record" | "capability">;
+type OutputApi = Pick<OrchestrationApi<HelmState>, "record" | "capability">;
 
 /** 작업 연결 requestId. 64자 이하 */
 export function taskRequestId(inquiryId: InquiryId, findingId: string): string {

@@ -50,7 +50,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -58,7 +58,9 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: `${name}#root`, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [
+      { registrationId: `${name}#root`, layer: "L2", status: "enabled", inOrchestration: false },
+    ],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -74,13 +76,19 @@ const base = listLoaded(INITIAL_WORKBENCH, [
   web,
   entry("helm", {
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     plugins: [
-      { registrationId: "helm", layer: "L3", status: "enabled", inGroup: true },
-      { registrationId: "helm/lens", id: "lens", layer: "L3", status: "enabled", inGroup: true },
+      { registrationId: "helm", layer: "L3", status: "enabled", inOrchestration: true },
+      {
+        registrationId: "helm/lens",
+        id: "lens",
+        layer: "L3",
+        status: "enabled",
+        inOrchestration: true,
+      },
     ],
   }),
-  entry("review", { layer: "L3", isGroup: true, status: "disabled", autoDisabled: true }),
+  entry("review", { layer: "L3", isOrchestration: true, status: "disabled", autoDisabled: true }),
   entry("acme", { layer: "external", safeModeExcluded: "안전 모드" }),
 ]);
 
@@ -286,7 +294,7 @@ describe("workbench model", () => {
   });
 
   test("ext.get 결과는 확장 이름 아래에 들어가고 목록에서 사라지면 걷힌다", () => {
-    const got = detailsLoaded(base, "helm", detailOf(entry("helm", { isGroup: true })));
+    const got = detailsLoaded(base, "helm", detailOf(entry("helm", { isOrchestration: true })));
     expect(Object.keys(got.details)).toEqual(["helm"]);
     expect(got.details.helm?.entry.name).toBe("helm");
     const pruned = listLoaded(

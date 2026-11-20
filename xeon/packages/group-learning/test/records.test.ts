@@ -3,8 +3,8 @@ import { toJsonValue } from "@fresnel/contracts/conversation";
 import { decodeEvent, LEARNING_EVENT_KINDS } from "../src/index.ts";
 import {
   RECORD_KIND_PATTERN,
-  validateGroupRecord,
-  type GroupRecord,
+  validateOrchestrationRecord,
+  type OrchestrationRecord,
 } from "@fresnel/contracts/extensions";
 import { learningRecordKindDecls, proposedRecordOf } from "../src/records.ts";
 import { payloadOf, type LearningEvent } from "../src/proposals/events.ts";
@@ -38,7 +38,7 @@ const EXAMPLES: Readonly<Record<string, unknown>> = {
   "grp.learning.script.proposed": { ...BASE, form: "script", occurrences: 3, summary: "script" },
 };
 
-function record(kind: GroupRecord["kind"], payload: unknown): GroupRecord {
+function record(kind: OrchestrationRecord["kind"], payload: unknown): OrchestrationRecord {
   return {
     groupId: "learning",
     kind,
@@ -54,11 +54,11 @@ test("records.schema-valid: the eight public record kinds accept their example a
   for (const decl of learningRecordKindDecls) {
     expect(new RegExp(RECORD_KIND_PATTERN).test(decl.kind)).toBe(true);
     expect(decl.kind.startsWith("grp.learning.")).toBe(true);
-    const issues = validateGroupRecord(record(decl.kind, EXAMPLES[decl.kind]), decl).filter(
+    const issues = validateOrchestrationRecord(record(decl.kind, EXAMPLES[decl.kind]), decl).filter(
       (found) => found.severity === "error",
     );
     expect(issues).toEqual([]);
-    const wrong = validateGroupRecord(record(decl.kind, { unexpected: true }), decl).filter(
+    const wrong = validateOrchestrationRecord(record(decl.kind, { unexpected: true }), decl).filter(
       (found) => found.severity === "error",
     );
     expect(wrong.length).toBeGreaterThan(0);
@@ -123,7 +123,7 @@ test("records.proposed-records-carry-no-body-and-match-their-schema", () => {
     const decl = learningRecordKindDecls.find((found) => found.kind === draft?.kind);
     if (decl === undefined || draft === undefined) throw new Error("missing declaration");
     expect(
-      validateGroupRecord(record(draft.kind, draft.payload), decl).filter(
+      validateOrchestrationRecord(record(draft.kind, draft.payload), decl).filter(
         (found) => found.severity === "error",
       ),
     ).toEqual([]);

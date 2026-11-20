@@ -33,7 +33,7 @@ const DEADLINE_MS = 1000;
 
 /** 주도 픽스처의 매니페스트. 등록 이름은 `dr`이고 그룹 멤버이며 `drives`를 쓴다 */
 const DRIVE_MANIFEST = {
-  ...makeManifest({ name: "dr", hooks: [], group: {}, drives: true }),
+  ...makeManifest({ name: "dr", hooks: [], orchestration: {}, drives: true }),
   entry: "./drive-plugin.ts",
 };
 

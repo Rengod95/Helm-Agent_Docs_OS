@@ -4,10 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { attempt, attemptAsync, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
-  checkGroupName,
+  checkOrchestrationName,
   TEMPLATE_PLACEHOLDERS,
   TemplateIndexSchema,
-  type GroupNameError,
+  type OrchestrationNameError,
   type TemplateIndex,
   type TemplateKind,
   type TemplatePlaceholder,
@@ -28,7 +28,7 @@ const GROUP_SDK_DIR: string = fileURLToPath(new URL("../../", import.meta.url));
  * 생성 루트 아래 node_modules/@fresnel/group-sdk을 이 패키지로 잇는다. 워크스페이스 설치가 하는 일의 시험용 흉내다.
  * 나머지 @fresnel/* 패키지와 typebox는 이 패키지의 node_modules에서 이미 해석된다.
  */
-export async function linkGroupSdk(root: string): Promise<Result<void, GenerateError>> {
+export async function linkOrchestrationSdk(root: string): Promise<Result<void, GenerateError>> {
   const linked = await attemptAsync(async () => {
     await mkdir(join(root, "node_modules", "@fresnel"), { recursive: true });
     await symlink(GROUP_SDK_DIR, join(root, "node_modules", "@fresnel", "group-sdk"), "dir");
@@ -58,7 +58,7 @@ export interface GenerateRequest {
 }
 
 export type GenerateError =
-  | GroupNameError
+  | OrchestrationNameError
   | {
       readonly kind: "placeholder_value";
       readonly field: "title" | "version";
@@ -124,7 +124,7 @@ async function writeTemplateFile(
 export async function generateTemplate(
   request: GenerateRequest,
 ): Promise<Result<readonly string[], GenerateError>> {
-  const named = checkGroupName(request.name);
+  const named = checkOrchestrationName(request.name);
   if (!named.ok) return err(named.error);
   const title = request.title ?? request.name;
   if (!TITLE_PATTERN.test(title)) {

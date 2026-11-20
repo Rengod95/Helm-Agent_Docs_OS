@@ -59,7 +59,7 @@ export interface FresnelPackageField {
 |---|---|---|---|
 | 1 | 의존은 위에서 아래로만 흐른다. 같은 층의 다른 부품은 F 정의를 통해서만 참조한다 | 기본 규칙 1, 2 | `check-layers.ts`, dependency-cruiser |
 | 2 | L3 그룹은 L2 기능의 정의(F3)만 참조하고 provider 구현을 import하지 않는다 | L3 패키지는 `cap-*`를 import하지 않는다. 기능은 `contracts`의 F3 정의와 Cordis 서비스 주입으로 쓴다 [결정: 계획 v2 '층 사이 규칙' 2, `eng.dependency-rules.guide` DR-14] | `check-layers.ts`의 DR-14 컨텍스트 검사(M1부터). DR-14 도입 전 M0 구간은 dependency-cruiser의 `group-*` 경로 규칙 하나가 `cap-*`를 `forbidden`에 넣어 막는다 [제안] |
-| 3 | 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다 | `group-helm`과 `group-learning` 사이 import 금지. 그룹 레코드는 F4 `GroupRecord` 형식과 kind 규칙(`grp.<그룹>.*`)을 따르고, payload 스키마는 F에 두지 않고 그룹 매니페스트 `recordKinds`(`RecordKindDecl`)에 둔다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다 [결정: review.decisions-2 §3 D-10]. 예: Helm은 학습 결과를 L2-d 지식 검색으로 읽는다 | `check-layers.ts`(같은 층 금지) |
+| 3 | 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다 | `group-helm`과 `group-learning` 사이 import 금지. 그룹 레코드는 F4 `OrchestrationRecord` 형식과 kind 규칙(`grp.<그룹>.*`)을 따르고, payload 스키마는 F에 두지 않고 오케스트레이션 매니페스트 `recordKinds`(`RecordKindDecl`)에 둔다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다 [결정: review.decisions-2 §3 D-10]. 예: Helm은 학습 결과를 L2-d 지식 검색으로 읽는다 | `check-layers.ts`(같은 층 금지) |
 | 4 | `drive` 락은 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다 | 실행 규칙. `X.primitives.spec`과 `L3.group-sdk.spec`이 정한다 | ext-host 테스트 |
 | 5 | 켜기와 끄기는 턴 경계(계획 v2 원문의 표기)에서 적용되고, 정리는 Cordis dispose로 실행된다 | 실행 규칙. 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. drive 락 교대도 같은 시점이다 [결정: review.decisions-2 U-01]. `architecture.runtime-flow.design` 4.2절 | ext-host 테스트 |
 | 6 | 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 생성한다 | 설정 키 정의는 `contracts`에만 둔다 | `F.wire-settings.spec`의 생성 검사 |
@@ -74,7 +74,7 @@ export interface FresnelPackageField {
 | `DR-10/cli-host` | `apps/cli` → `apps/host` | CLI의 in-process 전송은 호스트의 조립 코드를 같은 프로세스에서 쓴다. 엔진 조립 코드를 한 곳에 둔다 |
 | `DR-10/cli-client`, `DR-10/desktop-client` | `apps/cli`, `apps/desktop` → `packages/client` | CLI와 데스크톱이 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그를 한 곳에서 쓴다. F는 런타임 로직 없는 계약으로 둔다 [결정: adr.0020] |
 | `DR-10/host-client` | `apps/host` → `packages/client` | 호스트의 `./client` 재노출(`@fresnel/host/client`)과 호스트 시험이 클라이언트 연결 구현을 쓴다. [미결] adr.0020 §3.5는 호스트가 `@fresnel/client`를 import하지 않는다고 적는다. 재노출을 없애고 시험만 쓰는 방식은 시험 한정 DR-10 예외가 필요하다 |
-| `DR-02/group-sdk` | `packages/group-*` 전부(`group-helm`, `group-learning`, `group-account-rotation`, `group-provider-anthropic-oauth`, 앞으로 생길 그룹) → `group-sdk`의 `.`와 `./testing` | 그룹은 `group-sdk`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
+| `DR-02/group-sdk` | `packages/group-*` 전부(`group-helm`, `group-learning`, `group-account-rotation`, `group-provider-anthropic-oauth`, 앞으로 생길 그룹) → `group-sdk`의 `.`와 `./testing` | 그룹은 `group-sdk`의 `defineOrchestration`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
 
 - 예외 대상 패키지(`apps/host`, `packages/client`, `group-sdk`) 자신은 같은 층을 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client` 간선을 DR-10으로, `packages/client` → `apps/*` 간선을 DR-02로 보고한다. `packages/client`는 F(`contracts`)만 import한다 [결정: adr.0020].
 - `plugins/*`는 L1 순위이고 같은 층 예외를 두지 않는다 [결정: review.decisions-2 U-16]. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`를 import하지 않는다. `plugins/provider-anthropic-oauth`는 F의 provider 인터페이스로 provider를 만들고 `core-models` 서비스에 등록한다.
@@ -109,7 +109,7 @@ export interface FresnelPackageField {
 ```mermaid
 flowchart TB
   L4["L4 배포 런타임 (6)"]
-  L3["L3 플러그인 그룹 (5)"]
+  L3["L3 오케스트레이션 플러그인 (5)"]
   L2["L2 기능 (4)"]
   L1["L1 코어 (3)"]
   L0["L0 플랫폼 (2)"]
@@ -315,7 +315,7 @@ flowchart TB
 서비스 이름은 [제안]이다. 최종 이름과 메서드는 각 층의 `spec.md`가 정한다.
 
 - F 계약
-  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 기능 정의, F4 훅 선언 표·호스트 포트·그룹 레코드 형식(`GroupRecord`), F5 Runtime API와 설정 스키마, 층별 서비스 인터페이스(`@fresnel/contracts/services`).
+  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 기능 정의, F4 훅 선언 표·호스트 포트·그룹 레코드 형식(`OrchestrationRecord`), F5 Runtime API와 설정 스키마, 층별 서비스 인터페이스(`@fresnel/contracts/services`).
   - 요구: 없음. pi-ai 타입과 TypeBox만 외부 의존이다.
   - Cordis 서비스: 없음.
 - X 확장 체계
@@ -334,9 +334,9 @@ flowchart TB
   - 제공: 기능마다 서비스 API와 모델 도구 쌍. 예: `web.search`는 그룹 코드가 모델 턴 밖에서 부르는 서비스 API다.
   - 요구: F3 기능 정의, L1 `tools`·`persistence`, L0 서비스.
   - Cordis 서비스: `workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`.
-- L3 플러그인 그룹
+- L3 오케스트레이션 플러그인
   - 제공: `scope` 단위 그룹. Helm(L3-b)과 학습 그룹(L3-c)이 기본 그룹이다.
-  - 요구: X 연산, F3 기능 정의, F4 그룹 레코드 형식. 그룹별 레코드 payload 스키마는 그 그룹 매니페스트가 선언한다.
+  - 요구: X 연산, F3 기능 정의, F4 그룹 레코드 형식. 그룹별 레코드 payload 스키마는 그 오케스트레이션 매니페스트가 선언한다.
   - [결정: `_research/decisions-log.md` 계획 v2] `drive`는 배타 drive 락이고, 학습 그룹은 `drive`를 쓰지 않으며 Helm과 공존한다. drive 락을 한 번에 그룹 하나만 갖는 규칙의 문구는 `_research/layer-plan-v2-notes.md` "층 사이 규칙" 4번이다.
   - [제안: `_research/layer-plan-v2-notes.md`] 학습 그룹은 L1-g 백그라운드 위임으로 검토 포크를 돌린다. 그래서 Helm이 drive 락을 쥐고 있어도 학습 그룹을 함께 켤 수 있다.
   - Cordis 서비스: `groups`(`group-sdk`, 그룹 목록·전환·drive 락 중재).
@@ -351,7 +351,7 @@ flowchart TB
 |---|---|---|---|---|
 | 서비스(Cordis) | 아래 층 기능을 동기·비동기로 부를 때, 같은 층 협력 | F 타입, 서비스 이름 | 호출자 트랜잭션 안에서 실행 | `core-loop`가 `models` 서비스를 주입받아 모델을 부른다 |
 | 이벤트 | 상태 변화를 여러 구독자에게 알릴 때, 그룹 사이 신호 | F2(기록 이벤트), F4(kind 규칙 `x.`/`grp.`) | 내구 이벤트는 커밋 뒤에 방출한다. 휘발 이벤트는 저장하지 않는다 | L4 화면이 `grp.learning.` 접두로 학습 그룹 공개 레코드를 구독한다 |
-| 레코드 | 다른 그룹이나 다음 턴이 읽을 상태 | F4 `GroupRecord` 형식(payload 스키마는 그룹 매니페스트), 확장 접두사 테이블 | 코어 커밋과 같은 트랜잭션 [결정: ADR-0004] | 그룹 상태 레코드(`scope.doc`), 학습 그룹 비공개 기록(`grp.learning.*`, X `ScopeApi.recordPrivate`) |
+| 레코드 | 다른 그룹이나 다음 턴이 읽을 상태 | F4 `OrchestrationRecord` 형식(payload 스키마는 오케스트레이션 매니페스트), 확장 접두사 테이블 | 코어 커밋과 같은 트랜잭션 [결정: ADR-0004] | 그룹 상태 레코드(`scope.doc`), 학습 그룹 비공개 기록(`grp.learning.*`, X `ScopeApi.recordPrivate`) |
 
 ### 4.6 구성요소 통계
 

@@ -4,7 +4,7 @@ import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import { validateManifest } from "@fresnel/contracts/extensions";
 import type { GroupNewCommand } from "../cli/command.ts";
 import {
-  DEFAULT_GROUP_VERSION,
+  DEFAULT_ORCHESTRATION_VERSION,
   fillPlaceholders,
   isSafeRelativePath,
   parseTemplateIndex,
@@ -132,7 +132,7 @@ async function createGroup(
   const values: PlaceholderValues = {
     id: command.name,
     title: command.name,
-    version: DEFAULT_GROUP_VERSION,
+    version: DEFAULT_ORCHESTRATION_VERSION,
   };
   const entry = index.value.templates[command.template];
   const planned = await planFiles(port, entry.files, values);

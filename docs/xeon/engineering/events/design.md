@@ -228,7 +228,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 kind 이름 규칙의 정본은 `F.records.spec` §3.2다. 요약:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다. 영역은 `CoreArea`(`thread`, `turn`, `step`, `item`, `part`, `effect`, `checkpoint`, `scope`, `lease`, `post`, `settings`)다. 예: `effect.result`, `thread.leaf_moved`.
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 오케스트레이션 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
 3. 내구·휘발은 이름이 아닌 카탈로그 항목의 `durable`로 정한다. 같은 kind가 내구와 휘발을 함께 갖지 않는다.
 4. 금지 접두사: `ui.`, `notification.`, `projection.`. 화면 갱신과 알림은 이벤트가 아니다 [제안].
 5. 벤더 이름(`pi`, `anthropic`, `openai`)을 코어 kind에 넣지 않는다.

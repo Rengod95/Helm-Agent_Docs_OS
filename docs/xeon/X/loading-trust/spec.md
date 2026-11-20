@@ -97,7 +97,7 @@ export interface TrustPermissions {
   /** project_trust 지점에 on을 걸 수 있는가 */
   readonly onProjectTrust: boolean;
   readonly post: boolean;
-  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresGroup`(X.primitives.spec §4.4.1)이 허용할 때 */
+  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresOrchestration`(X.primitives.spec §4.4.1)이 허용할 때 */
   readonly drive: boolean;
   /** 도구·명령·provider 등록(X.primitives.spec 리소스 등록) */
   readonly resources: boolean;
@@ -594,7 +594,7 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 8. 표준 출력과 표준 오류: 각각 `SCRIPT_LIMITS.outputBytes`(64 KiB)까지 모으고 넘는 부분은 버린다(`truncated`). 종료는 자식이 끝나고 표준 출력이 닫힌 뒤다.
 9. 기한: `timeoutMs`(생략하면 10초, 상한 60초)가 지나면 프로세스 트리를 `SIGKILL`로 죽이고 `timedOut: true`, `exitCode: null`, `signal: "SIGKILL"`로 답한다.
 10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
-11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
+11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `OrchestrationApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
 
 **환경 모드 [결정: 2026-11-20, 사용자, AGE-58 원칙 가("가져온 스크립트는 원래 돌던 환경에서 돈다"); 아래 세부는 [제안]].** 선언에 `env`(F.extensions §3.1)가 있는 스크립트는 위 1~11 대신 다음 순서로 돈다. 구현은 `script-runner.ts`의 `runEnv`다.
 
@@ -1017,7 +1017,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 엔트리 import(외부 확장) | 로더(Bun `import()`) | 해당 없음(install 전) | `entry_not_found`, `entry_import_failed`, `entry_not_function` | `error` |
 | 엔트리 본문 예외 | 확장 코드 예외, `PrimitiveError`(`registration_foreign_id`, `registration_duplicate`, `registration_unknown_plugin`. 마지막은 `usage_invalid`가 아니라 `entry_threw`의 issues로 코드를 싣는다) | `entryError` | `entry_threw` | `error` |
 | 엔트리가 Registration을 만들지 않음 | 없음 | `registrations` 빈 배열 | `usage_invalid` | `error` |
-| setup 안의 선언 밖 연산 | `PrimitiveError`(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_group`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
+| setup 안의 선언 밖 연산 | `PrimitiveError`(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_orchestration`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
 | setup 본문의 thread 맥락 연산 | `PrimitiveError("no_thread")` | `setups[].failure`(`threw`, `code: "no_thread"`) | `setup_action` | `error` |
 | setup의 그 밖 예외 | 확장 코드 예외, 그 밖의 `PrimitiveError` | `setups[].failure`(`threw`) | `setup_threw` | `error` |
 | setup 시간 초과 | primitives(`setupBudgetMs`) | `setups[].failure`(`timeout`) | `setup_timeout` | `error` |
@@ -1124,7 +1124,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
 - `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 값 `none`은 엔진 안에서 돌리기를 허락하는 예외이고 매니페스트 `isolation`은 설정 값이 없을 때의 요청이다(§4.9.0, F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
-- 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `group.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
+- 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `orchestration.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
 
 #### 4.5.3 `foreignNamespace`와 로딩
@@ -1135,7 +1135,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.5.4 카탈로그 재조립
 
-- 외부 확장 그룹이 자기 설정을 읽는 길은 `RegistrationHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
+- 외부 확장 그룹이 자기 설정을 읽는 길은 `RegistrationHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineOrchestration`).
 - 카탈로그는 시작 때 한 번 만들고 외부 확장이 낸 키는 적재 뒤에야 알려진다. 그래서 조립 루트가 적재 전에 키를 알아야 하는 확장(기본 플러그인 Helm)은 `reservedExtensionSettings(manifest, source)`를 X 루트에서 import해 예약 키(`enabled`, `isolation`)를 만들고, 자기 설정 그룹(`ext.<id>.*`)은 그 그룹의 `defineSettings` 값을 함께 카탈로그에 넣는다. 확장이 선언한 `userConfig` 키는 적재 뒤 `settingsFromManifest(manifest)`가 만든 정의를 조립 루트가 카탈로그에 더한다(앱 안에서 설치한 사용자 플러그인이 설정 읽기·쓰기를 쓰려면 키가 있어야 한다). 설정 스키마 산출물(`schema/`)은 정적 카탈로그만 쓴다 [결정: 2026-11-07 시나리오 작업, 기본값].
 - `LoadReport.settingGroups`는 `rejected`가 아닌 확장의 그룹(`ext.<name>`)만 담는다. `x.*` 설정 그룹(`primitivesSettings`, `loadingTrustSettings`, `operationsSettings`)은 조립 루트(L4 host)가 코어 그룹, `LoadReport.settingGroups`와 함께 `buildCatalog`에 넣는다.
 - 확장 그룹끼리 `duplicateKey`가 나면(같은 이름은 3단계에서 막히므로 [가정] 생기지 않는다) 로드 순서가 뒤인 확장을 `rejected`로 바꾸고 다시 조립한다. 다시 조립한 결과도 `ok: false`이면 남은 이슈는 코어 키 문제이므로 조립 루트가 시작을 거부한다(L4.host-service.spec §4.1 5번).
@@ -1158,7 +1158,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `project` | 예 | 예 | 아니오 | 예 | 예 | 예 | prefix | optional |
 | `untrusted` | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | none | notLoaded |
 
-- `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresGroup`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
+- `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresOrchestration`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
 - `project` 등급의 `thread.trust.before` 금지는 순서 때문이기도 하다. 작업 폴더 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `plugins[].hooks`에 `thread.trust.before`가 있는 작업 폴더 매니페스트를 `usage_invalid`로 거부한다.
 - 격리 `forbidden`: 내장 확장은 L0~L2 서비스를 같은 프로세스에서 제공하므로 격리하지 않는다.
 - 저장 `prefix`는 X.operations.spec의 확장 접두 테이블 API를 쓸 수 있다는 뜻이다. 격리 확장은 등급과 무관하게 직접 접근이 없다(§4.9.6).
@@ -1176,7 +1176,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 #### 4.6.4 외부 확장이 공급하는 기능의 `idempotent` 선언 [결정: M3-REQ-31]
 
 - 값 집합: `trust.level`은 `builtin`, `user`, `project`, `untrusted` 넷이다(§4.6.1). 새 값을 더하지 않는다.
-- 외부 플러그인 그룹(`group` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 작업 폴더 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
+- 외부 오케스트레이션 플러그인(`orchestration` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 작업 폴더 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
 - `idempotent` 선언은 F 기능 정의(`MethodDef.idempotent`)에 있고 공급자가 그 약속을 지키는지는 적합성 시험(ADR-0015 §3.6)으로만 확인된다. 외부 확장은 시험을 강제할 수 없다.
 - 그래서 기능의 현재 공급자가 내장 확장(`builtin: true`, 저장소의 적합성 시험을 통과한 코드)일 때만 `idempotent` 선언을 믿는다. 공급자가 외부 확장(`user`, `project`)이면 X 기능 래퍼는 그 기능의 `idempotent` 메서드를 선언 없음으로 본다. on 핸들러와 drive 함수처럼 재실행되는 문맥에서는 `effect_not_allowed`이고 공급자를 부르지 않는다. 재실행되지 않는 문맥(도구 `execute`, 명령 처리기)에는 영향이 없다.
 - 판정은 호출마다 현재 바인딩된 공급자로 한다. 공급자가 바뀌면 다음 호출부터 새 공급자의 등급을 쓴다. 바인딩이 없으면 믿지 않는다(닫힌 쪽).
@@ -1332,7 +1332,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘는 줄은 두 쪽이 조각 칸(`transfer`)을 주고받아 협상했을 때만 조각 전송(`frame.begin`과 `frame.part`, 아래 단락)으로 보낸다. 협상이 안 된 쪽으로 넘는 줄은 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기(블롭 참조를 넘기고 조각을 따로 읽는 길)는 하지 않는다. 조각은 통신 층이 나누고 합치므로 플러그인 API, `GroupApi`, `RegistrationApi`, 매니페스트는 바뀌지 않는다.
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘는 줄은 두 쪽이 조각 칸(`transfer`)을 주고받아 협상했을 때만 조각 전송(`frame.begin`과 `frame.part`, 아래 단락)으로 보낸다. 협상이 안 된 쪽으로 넘는 줄은 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기(블롭 참조를 넘기고 조각을 따로 읽는 길)는 하지 않는다. 조각은 통신 층이 나누고 합치므로 플러그인 API, `OrchestrationApi`, `RegistrationApi`, 매니페스트는 바뀌지 않는다.
 
 **입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 그 등록의 입력 상한을 **기록하기 전에** 본다. 상한은 협상된 엔진 → 자식 조각 상한(엔진 값 `l0.store.maxBlobBytes`와 자식 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`, 128 MiB, 가운데 작은 값)에서 뼈대 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫 64 KiB]. 협상이 안 된 격리 등록(조각 칸이 없는 자식, 엔진 값이 없는 조립)은 옛 값 16 MiB − 64 KiB(`ISOLATED_DRIVE_INPUT_MAX_BYTES`)를 쓴다. 표의 "16 MiB를 넘으면"은 협상되지 않은 쪽의 동작이고, 협상된 쪽에서는 같은 자리의 협상된 상한을 넘을 때 같은 규칙이다. 등록마다 상한을 읽는 함수는 `markIsolatedStep`이 단계 함수에 단다(`isolation/mark.ts`). 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 

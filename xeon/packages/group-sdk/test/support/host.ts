@@ -2,16 +2,16 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
-  createGroupService,
-  type GroupModule,
-  type GroupServiceWithUsage,
-  type GroupStatus,
+  createOrchestrationService,
+  type OrchestrationModule,
+  type OrchestrationServiceWithUsage,
+  type OrchestrationStatus,
 } from "../../src/index.ts";
-import { groupCatalogOf } from "../../src/testing/index.ts";
+import { orchestrationCatalogOf } from "../../src/testing/index.ts";
 
 export function install(
   t: TestHost,
-  module: GroupModule,
+  module: OrchestrationModule,
   loadIndex = 0,
 ): ReturnType<TestHost["host"]["install"]> {
   return t.host.install({
@@ -45,7 +45,7 @@ export function fireSettled(t: TestHost, thread: ThreadId, key: string): Promise
 /** 로드 순서(loadIndex)를 지키려고 하나씩 설치한다 */
 async function installInOrder(
   t: TestHost,
-  modules: readonly GroupModule[],
+  modules: readonly OrchestrationModule[],
   index = 0,
 ): Promise<void> {
   const [first, ...rest] = modules;
@@ -54,27 +54,27 @@ async function installInOrder(
   await installInOrder(t, rest, index + 1);
 }
 
-/** GroupService 시험이 쓰는 호스트 묶음 */
+/** OrchestrationService 시험이 쓰는 호스트 묶음 */
 export interface ServiceRig {
   readonly t: TestHost;
   readonly thread: ThreadId;
-  readonly service: GroupServiceWithUsage;
+  readonly service: OrchestrationServiceWithUsage;
 }
 
-export async function serviceRig(modules: readonly GroupModule[]): Promise<ServiceRig> {
+export async function serviceRig(modules: readonly OrchestrationModule[]): Promise<ServiceRig> {
   const t = await createTestHost({
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
       driveMaxDepth: () => 8,
-      driveRequiresGroup: () => true,
+      driveRequiresOrchestration: () => true,
       capabilityProviders: () => ({}),
     },
   });
   const thread = t.newThread();
-  const service = createGroupService({
+  const service = createOrchestrationService({
     host: t.host,
-    catalog: groupCatalogOf(modules),
+    catalog: orchestrationCatalogOf(modules),
     currentThread: () => thread,
   });
   await installInOrder(t, modules);
@@ -84,6 +84,9 @@ export async function serviceRig(modules: readonly GroupModule[]): Promise<Servi
 }
 
 /** 서비스 목록에서 id의 상태를 찾는다 */
-export function statusOf(service: GroupServiceWithUsage, id: string): GroupStatus | undefined {
+export function statusOf(
+  service: OrchestrationServiceWithUsage,
+  id: string,
+): OrchestrationStatus | undefined {
   return service.list().find((group) => group.id === id);
 }

@@ -11,7 +11,7 @@ import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost, fixedIdFactory, memoryRecordStore } from "../../src/testing/index.ts";
 import {
   echoDefs,
-  makeGroupUnit,
+  makeOrchestrationUnit,
   makeManifest,
   makeUnit,
   rejectionOf,
@@ -127,7 +127,7 @@ test("drive function: reads and keyed idempotent writes pass, undeclared and key
   const thread = t.newThread();
   const codes: Record<string, string> = {};
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       { name: "re-drv", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
       (g) => {
         g.drive(async () => {
@@ -161,7 +161,7 @@ test("replaying a drive twice produces the effect once", async () => {
   const thread = t.newThread();
   let invocations = 0;
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       { name: "re-twice", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
       (g) => {
         g.drive(async ({ last }) => {
@@ -207,7 +207,7 @@ test("the worker passes the unattended flag and read-only ceiling of the turn th
     makeUnit(
       {
         name: "ew-cond",
-        group: {},
+        orchestration: {},
         loadIndex: 1,
         hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
@@ -245,7 +245,7 @@ test("an undeclared write goes through a request record and the worker, once", a
     makeUnit(
       {
         name: "ew-grp",
-        group: {},
+        orchestration: {},
         loadIndex: 1,
         hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
@@ -327,7 +327,7 @@ test("after a restart, a started request without a result is closed as unknown w
     makeUnit(
       {
         name: "ew-grp",
-        group: {},
+        orchestration: {},
         loadIndex: 1,
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
@@ -370,7 +370,7 @@ test("a turn started by a drive is not a replayed context for the tools inside i
     }),
   );
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       { name: "re-turn", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
       (g) => {
         holder.svc = g.capability(svcKey);
@@ -441,7 +441,7 @@ test("a worker pass that throws does not block the later requests of the scope",
     makeUnit(
       {
         name: "ew-flaky",
-        group: {},
+        orchestration: {},
         loadIndex: 1,
         hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
@@ -478,7 +478,7 @@ test("two scopes of one extension keep their effect requests apart even with the
   await t.host.openThread(thread);
   const manifest = makeManifest({
     name: "ew-two",
-    group: {},
+    orchestration: {},
     hooks: ["boundary.settle.after"],
     requires: [{ id: "demo.echo", range: "^1.0.0" }],
     extraPlugins: [

@@ -18,7 +18,7 @@ import {
   type MemoryRecordStore,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import type { GroupModule } from "@fresnel/group-sdk";
+import type { OrchestrationModule } from "@fresnel/group-sdk";
 import {
   fakeAgents,
   type EffectCounts,
@@ -142,7 +142,7 @@ export function createLearningReplayHarness(
     reader,
     diagnostics: () => lastDiagnostics,
     knowledge: () => shared?.knowledge,
-    async run(group: GroupModule, restore) {
+    async run(group: OrchestrationModule, restore) {
       if (restore === null || shared === undefined) {
         const idsHost = await createTestHost();
         shared = {

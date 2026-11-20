@@ -84,7 +84,10 @@ export interface ExtScaffoldParams {
   readonly name: string;
   readonly dir: string;
   readonly layer?: ExtensionLayer;
-  readonly group?: { readonly members?: readonly string[]; readonly composition?: CompositionDecl };
+  readonly orchestration?: {
+    readonly members?: readonly string[];
+    readonly composition?: CompositionDecl;
+  };
   readonly ui?: UiDecl;
 }
 const ExtScaffoldParamsShape = request({
@@ -92,7 +95,7 @@ const ExtScaffoldParamsShape = request({
   name: Name,
   dir: Path,
   layer: Type.Optional(ExtensionLayerSchema),
-  group: Type.Optional(
+  orchestration: Type.Optional(
     closed({
       members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
       composition: Type.Optional(CompositionDeclSchema),

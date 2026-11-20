@@ -1,5 +1,5 @@
-export { createGuideGroup } from "./group.ts";
-export { GUIDE_GROUP_NAME, guideManifest } from "./manifest.ts";
+export { createGuideOrchestration } from "./group.ts";
+export { GUIDE_ORCHESTRATION_NAME, guideManifest } from "./manifest.ts";
 export {
   createGuideReader,
   locateGuideSkills,

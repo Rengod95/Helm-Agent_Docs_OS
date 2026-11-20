@@ -238,13 +238,15 @@ function codes(source: string): readonly string[] {
 }
 
 test("scan.finds-forbidden-calls-in-real-group-shapes", () => {
-  // defineGroup 인자 안의 setup(메서드와 화살표), 호출 인자·배열 원소 안, 팩토리가 돌려주는 drive 함수
+  // defineOrchestration 인자 안의 setup(메서드와 화살표), 호출 인자·배열 원소 안, 팩토리가 돌려주는 drive 함수
   expect(
-    codes(`export default defineGroup({ setup(g) { g.drive(async () => { Date.now(); }); } });`),
+    codes(
+      `export default defineOrchestration({ setup(g) { g.drive(async () => { Date.now(); }); } });`,
+    ),
   ).toEqual(["SD-01"]);
   expect(
     codes(
-      `export default defineGroup({ setup: (g) => { g.drive(async () => { Math.random(); }); } });`,
+      `export default defineOrchestration({ setup: (g) => { g.drive(async () => { Math.random(); }); } });`,
     ),
   ).toEqual(["SD-03"]);
   expect(codes(`g.drive(async () => { log(Date.now()); });`)).toEqual(["SD-01"]);
@@ -255,12 +257,14 @@ test("scan.finds-forbidden-calls-in-real-group-shapes", () => {
     ),
   ).toEqual(["SD-07"]);
   expect(
-    codes(`defineGroup({ setup(g) { g.drive(async () => { await g.commit({ n: 1 }); }); } });`),
+    codes(
+      `defineOrchestration({ setup(g) { g.drive(async () => { await g.commit({ n: 1 }); }); } });`,
+    ),
   ).toEqual([]);
 });
 
 test("scan.finds-a-drive-nested-in-call-arguments", () => {
-  const source = `export default defineGroup({
+  const source = `export default defineOrchestration({
   setup(g) {
     g.drive(async () => {
       const a = Date.now();

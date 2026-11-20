@@ -1,4 +1,8 @@
-import { defineGroup, type GroupApi, type GroupModule } from "@fresnel/group-sdk";
+import {
+  defineOrchestration,
+  type OrchestrationApi,
+  type OrchestrationModule,
+} from "@fresnel/group-sdk";
 import { helmComposition } from "./composition.ts";
 import { helmDrive } from "./drive.ts";
 import { guardWrite, type ExplorationMarker } from "./guard.ts";
@@ -18,7 +22,7 @@ import {
 import { helmStateDecl, helmStateMigrations, type HelmState } from "./state.ts";
 
 /** 그룹 등록. 설정은 g.settings()로 읽고, drive 상한은 임대를 새로 받을 때마다 다시 읽는다 */
-function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
+function setupHelm(g: OrchestrationApi<HelmState, typeof helmSettings.defs>): void {
   const settings = (): HelmSettings => helmSettingsOf(g.settings());
   const tallies: TallyStore = new Map();
   const signalTerms: SignalTermsStore = new Map();
@@ -63,7 +67,10 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
  * 기본 플러그인(D-M3-01 c)의 그룹 모듈. 신뢰 등급 user, 설정 네임스페이스 `ext.helm`이다.
  * 외부 그룹은 X의 `settingValue`로 자기 `ext.helm.*` 키를 읽는다(g.settings())
  */
-export const helmGroup: GroupModule = defineGroup<HelmState, typeof helmSettings.defs>({
+export const helmOrchestration: OrchestrationModule = defineOrchestration<
+  HelmState,
+  typeof helmSettings.defs
+>({
   manifest: helmManifest,
   composition: helmComposition,
   state: helmStateDecl,
@@ -73,7 +80,7 @@ export const helmGroup: GroupModule = defineGroup<HelmState, typeof helmSettings
 });
 
 /** 외부 로더가 부르는 엔트리(X.loading-trust.spec §4.4.2: named `extension`) */
-export const extension: GroupModule["entry"] = helmGroup.entry;
+export const extension: OrchestrationModule["entry"] = helmOrchestration.entry;
 
 export { helmManifest } from "./manifest.ts";
 export { helmComposition } from "./composition.ts";

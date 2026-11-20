@@ -1,30 +1,30 @@
 import { attemptAsync, parse } from "@fresnel/contracts";
 import {
   AgentSettledPayloadSchema,
-  type GroupId,
+  type OrchestrationId,
   type RecordKind,
   type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import type { MetricsCounter } from "./counter.ts";
 import type { AfterRun } from "./handler.ts";
-import type { GroupMetricsTotals } from "./types.ts";
+import type { OrchestrationMetricsTotals } from "./types.ts";
 
 /** 계측을 켜고 끄는 설정 키(L3.group-sdk.spec §6). 값이 false일 때만 끈 것이다 */
-export const INSTRUMENTATION_KEY = "l3.group-sdk.instrumentation";
+export const INSTRUMENTATION_KEY = "l3.orchestration.instrumentation";
 
 /** 같은 프로세스에서 기록을 마친 turn을 기억하는 개수. 재발화는 대개 최근 turn에 일어난다 */
 const REMEMBERED_TURNS = 64;
 
 interface BoundaryRecordOptions {
   readonly api: Pick<RegistrationApi<never>, "recordPrivate">;
-  readonly groupId: GroupId;
+  readonly groupId: OrchestrationId;
   readonly counter: MetricsCounter;
   /** 경계마다 부른다. 설정을 읽지 못하거나 값이 없으면 참이다 */
   readonly enabled: () => boolean;
 }
 
 /** 증가분 가운데 0이 아닌 값이 하나라도 있는가 */
-function hasChange(delta: GroupMetricsTotals): boolean {
+function hasChange(delta: OrchestrationMetricsTotals): boolean {
   const values = [
     delta.denies,
     delta.chainPatches,

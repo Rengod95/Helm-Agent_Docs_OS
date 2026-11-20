@@ -15,7 +15,7 @@ import {
   releasedOf,
   type Host,
 } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Command = DriveCommand<never>;
 
@@ -106,12 +106,12 @@ test("a user command during a running turn waits for the turn, the step ends, th
   const thread = t.newThread();
   const aCalls: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(recordingStep(aCalls, (last) => (last === null ? GO : YIELD)));
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
@@ -140,12 +140,12 @@ test("a user command while the driver is idle switches the stack at once", async
   const thread = t.newThread();
   const aCalls: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(recordingStep(aCalls, () => YIELD));
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
@@ -171,7 +171,7 @@ test("a user command while the driver waits for an answer takes the stack at onc
   const thread = t.newThread();
   const aCalls: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(
         recordingStep(aCalls, (last) =>
           last === null ? { do: "ask", card: CARD, requestId: "q1" } : DONE,
@@ -180,7 +180,7 @@ test("a user command while the driver waits for an answer takes the stack at onc
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
@@ -206,7 +206,7 @@ test("a user command for the scope that already leads is dropped with a notice a
   const thread = t.newThread();
   const aCalls: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(recordingStep(aCalls, (last) => (last === null ? GO : YIELD)));
     }),
   );
@@ -236,12 +236,12 @@ test("a stop during a running turn revokes the whole stack and empties the queue
   const t = await createTestHost({ loop: gate.options });
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(() => Promise.resolve(GO));
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
@@ -272,7 +272,7 @@ test("a user message held by a driver that is revoked goes back to the input que
   // 첫 단계는 yield로 끝나 주도가 engaged가 된다. 두 번째 단계의 턴이 도는 동안 사용자 메시지를 받는다
   let calls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(() => {
         calls += 1;
         return Promise.resolve(calls === 1 ? YIELD : GO);
@@ -280,7 +280,7 @@ test("a user message held by a driver that is revoked goes back to the input que
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => Promise.resolve(YIELD));
     }),
   );
@@ -306,7 +306,7 @@ test("a user message the top frame does not answer in three steps revokes the wh
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(({ last }) =>
         Promise.resolve(last === null ? { do: "handoff", to: "frame-b", input: "x" } : DONE),
       );
@@ -314,7 +314,7 @@ test("a user message the top frame does not answer in three steps revokes the wh
   );
   const bCalls: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       // 사용자 메시지에 답하지 않는다: 없는 대상에 맡기는 명령은 이 자리에서 거부 결과가 된다
       g.drive(recordingStep(bCalls, (last) => (last === null ? YIELD : UNHANDLED)));
     }),

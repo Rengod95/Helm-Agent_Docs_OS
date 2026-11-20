@@ -121,7 +121,7 @@ export function ExtensionsScreen(): ReactNode {
                       onClick: () => {
                         // 자세히 보기가 열려 있으면 목록으로 돌아가 그 확장을 고른다
                         actions.closeDetail();
-                        if (firstNotice.isGroup) actions.pickGroup(firstNotice.name);
+                        if (firstNotice.isOrchestration) actions.pickGroup(firstNotice.name);
                         else actions.pickPlugin(firstNotice.name);
                       },
                     },
