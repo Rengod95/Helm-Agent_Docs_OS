@@ -46,10 +46,16 @@ function isUnder(root: string, inside: string): boolean {
   return inside === root || inside.startsWith(root.endsWith("/") ? root : `${root}/`);
 }
 
+/** 읽기 예외를 받을 수 있는 참조 파일의 확장자: 스크립트 코드뿐이다. 변환기의 `SCRIPT_EXTENSION`과 같은 목록이다 */
+const CARVE_OUT_SCRIPT = /\.(?:sh|py|js|mjs|ts|rb|pl)$/;
+
 /**
  * 참조 파일 가운데 읽기 보호 경로 안에 있는 것의 읽기 예외를 고른다. 보호 경로 밖의 파일은 예외가 필요 없다.
- * 보호 경로 안의 파일은: 그 폴더가 보호 경로의 엄격한 하위 폴더이면 폴더(옆 모듈 import가 깨지지 않게),
- * 보호 경로 바로 아래의 파일이면 그 파일 하나(보호 경로 폴더를 통째로 열지 않는다)다. 하네스의 토큰과 대화 기록은 계속 막힌다.
+ * 예외를 받는 것은 다른 AI 하네스의 설정 폴더(`agent_credentials`: `~/.claude` 등) 안의 스크립트 파일뿐이다. 명령 문자열에 적힌 경로라는
+ * 이유만으로는 열지 않는다: 토큰 파일(`~/.claude/.credentials.json`), 대화 기록(`.jsonl`), 그 밖의 데이터 파일과 `~/.ssh` 같은 다른 보호 경로는
+ * 참조로 적혀 있어도 계속 막힌다(그 파일을 읽는 훅은 샌드박스의 읽기 거부를 만난다).
+ * 스크립트 파일은: 그 폴더가 보호 경로의 엄격한 하위 폴더이면 폴더(옆 모듈 import가 깨지지 않게),
+ * 보호 경로 바로 아래의 파일이면 그 파일 하나(보호 경로 폴더를 통째로 열지 않는다)다.
  * 목록은 정렬하고 중복을 없앤다
  */
 export function readCarveOutsOf(
@@ -57,10 +63,16 @@ export function readCarveOutsOf(
 ): (refPaths: readonly string[]) => readonly string[] {
   return (refPaths) => {
     const roots = protectedEntries()
-      .filter((entry) => entry.access === "read_write" && entry.match !== "basename")
+      .filter(
+        (entry) =>
+          entry.access === "read_write" &&
+          entry.match !== "basename" &&
+          entry.reason === "agent_credentials",
+      )
       .map((entry) => entry.path);
     const out = new Set<string>();
     for (const file of refPaths) {
+      if (!CARVE_OUT_SCRIPT.test(file)) continue;
       const holder = roots.find((root) => isUnder(root, file));
       if (holder === undefined) continue;
       const folder = dirname(file);

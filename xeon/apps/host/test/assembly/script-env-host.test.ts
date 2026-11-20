@@ -74,6 +74,21 @@ describe("readCarveOutsOf", () => {
         `${home}/.claude/hooks/a.py`,
         `${home}/.claude/c.py`,
       ]),
-    ).toEqual([`${home}/.claude/c.py`, `${home}/.claude/hooks`, `${home}/.ssh/h`]);
+    ).toEqual([`${home}/.claude/c.py`, `${home}/.claude/hooks`]);
+  });
+
+  test("a path named in the command is not opened unless it is a script: tokens and transcripts stay closed", () => {
+    expect(
+      carve([
+        `${home}/.claude/.credentials.json`,
+        `${home}/.claude/settings.json`,
+        `${home}/.claude/projects/p/session.jsonl`,
+        `${home}/.claude/hooks/data.txt`,
+      ]),
+    ).toEqual([]);
+  });
+
+  test("a script under a protected path that is not a harness config folder gets no exception", () => {
+    expect(carve([`${home}/.ssh/h/b.sh`, `${home}/.ssh/x.sh`])).toEqual([]);
   });
 });
