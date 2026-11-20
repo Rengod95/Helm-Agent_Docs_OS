@@ -148,6 +148,16 @@ export type SwitchMode = "default" | "acceptEdits" | "bypass";
 /** `not_available`로 막는 명령 이름. `ext.remove.dropData`는 `ext.remove`의 저장 데이터 지우기 칸이다 */
 export type NotAvailableCommand = "ext.removePreview" | "ext.remove.dropData";
 
+/** 프로필 검사 문제 한 줄(`pluginReview.profileInvalid`의 `details.issues`). `profile`은 프로필 id 또는 `common`이다 */
+export interface ProfileIssueView {
+  readonly code: string;
+  readonly severity: "error" | "warning" | null;
+  readonly profile: string | null;
+  readonly plugin: string | null;
+  readonly other: string | null;
+  readonly key: string | null;
+}
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -174,6 +184,11 @@ export type CommandError =
       readonly path?: string;
       /** 설치 입력이 검사에서 걸린 사유 목록(`details.reasons`). 화면은 `message` 원문을 보이지 않는다 */
       readonly reasons?: readonly DevkitReason[];
+      /**
+       * 승인의 프로필 반영이 걸린 문제(`pluginReview.profileInvalid` 3656의 `details.issues`). 리뷰 화면이 사람이 읽는 말로 옮긴다.
+       * 모양이 틀린 줄은 버린다
+       */
+      readonly profileIssues?: readonly ProfileIssueView[];
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
@@ -349,10 +364,14 @@ export interface ReviewCommands {
 export interface PluginReviewCommands {
   /** `pluginReview.list {}` */
   list(): Promise<Result<WireResult<"pluginReview.list">, CommandError>>;
-  /** `pluginReview.file`. 후보 스냅샷의 파일 하나 */
+  /**
+   * `pluginReview.file`. 파일 하나. `side`를 생략하면 새 판(`candidate`), `base`면 지난 승인 버전이다. 결정한 뒤에도 읽는다.
+   * 그 쪽 스냅샷이 보관소에 없으면 오류가 아니라 `missing: true`로 답한다
+   */
   file(
     itemId: string,
     path: string,
+    side?: WireParams<"pluginReview.file">["side"],
   ): Promise<Result<WireResult<"pluginReview.file">, CommandError>>;
   /** `pluginReview.decide` */
   decide(

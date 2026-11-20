@@ -1,6 +1,7 @@
-// 리뷰 화면의 판 전환기와 표본 장면(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸: `가 │ 나`와 장면 고르기.
+// 리뷰 화면의 배치 견주기와 표본 장면(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸: `1 │ 2 │ 3`과 장면 고르기.
+// 배치 1(band)이 배포 판이다. 2(rail, 요약을 오른쪽 열 위로)와 3(stack, 한 열 = 좁은 창의 모습)은 고르지 않은 안이고 견주기로만 남긴다.
 // 장면 "실제 엔진"은 실제 원천을 그대로 쓰고, 나머지는 `review-samples.ts`의 표본이다(결정도 표본 안에서만 바뀐다).
-// 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다). 키보드 1·2는 판을 바꾼다(글자 입력 중 제외).
+// 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다). 키보드 1·2·3은 배치를 바꾼다(글자 입력 중 제외).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, attempt, err, ok } from "@fresnel/contracts";
 import type { ReviewDecision, ReviewItem } from "@fresnel/contracts/wire";
@@ -8,9 +9,20 @@ import { Select, SelectOption, SegmentedControl, SegmentedControlItem } from "@c
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { manyItems, sampleFile, sampleItems, SAMPLE_PROFILES } from "./testing/review-samples.ts";
 import type { ReviewData, ReviewLoad } from "./review-source.ts";
-import { ReviewView, type ReviewLayout } from "./review-view.tsx";
+import type { DetailArrange } from "./review-detail.tsx";
+import { ReviewView } from "./review-view.tsx";
 
-const LAYOUT_KEY = "fresnel.craft.review.layout";
+const ARRANGE_KEY = "fresnel.craft.review.arrange";
+const ARRANGES: readonly DetailArrange[] = ["band", "rail", "stack"];
+const ARRANGE_WORD: Readonly<Record<DetailArrange, MessageId>> = {
+  band: "desktop.craft.review.dev.band",
+  rail: "desktop.craft.review.dev.rail",
+  stack: "desktop.craft.review.dev.stack",
+};
+
+function arrangeOf(value: string | null): DetailArrange {
+  return ARRANGES.find((a) => a === value) ?? "band";
+}
 const SCENE_KEY = "fresnel.craft.review.scene";
 
 const SCENES = [
@@ -74,7 +86,7 @@ function decided(item: ReviewItem, decision: ReviewDecision): ReviewItem {
   }
 }
 
-const sampleFileOf: ReviewData["file"] = (itemId, path) => sampleFile(itemId, path);
+const sampleFileOf: ReviewData["file"] = (itemId, path, side) => sampleFile(itemId, path, side);
 
 function useSampleData(scene: Scene, live: ReviewData): ReviewData {
   const seed = useMemo(
@@ -123,26 +135,24 @@ function useSampleData(scene: Scene, live: ReviewData): ReviewData {
 }
 
 export function ReviewDev(props: { readonly live: ReviewData }): ReactNode {
-  const [layout, setLayout] = useState<ReviewLayout>(() =>
-    readKey(LAYOUT_KEY) === "cards" ? "cards" : "split",
-  );
+  const [arrange, setArrange] = useState<DetailArrange>(() => arrangeOf(readKey(ARRANGE_KEY)));
   const [scene, setScene] = useState<Scene>(() => {
     const stored = readKey(SCENE_KEY);
     return isScene(stored) ? stored : "live";
   });
   const data = useSampleData(scene, props.live);
-  const chooseLayout = (value: string): void => {
-    const next: ReviewLayout = value === "cards" ? "cards" : "split";
-    writeKey(LAYOUT_KEY, next);
-    setLayout(next);
+  const choose = (value: string): void => {
+    const next = arrangeOf(value);
+    writeKey(ARRANGE_KEY, next);
+    setArrange(next);
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.repeat || typing(e.target)) return;
-      if (e.key !== "1" && e.key !== "2") return;
-      const next: ReviewLayout = e.key === "1" ? "split" : "cards";
-      writeKey(LAYOUT_KEY, next);
-      setLayout(next);
+      const next = ARRANGES[Number(e.key) - 1];
+      if (next === undefined) return;
+      writeKey(ARRANGE_KEY, next);
+      setArrange(next);
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -151,7 +161,7 @@ export function ReviewDev(props: { readonly live: ReviewData }): ReactNode {
   }, []);
   return (
     <div className="rv-root relative flex min-h-0 flex-1 flex-col">
-      <ReviewView key={`${scene}:${layout}`} data={data} layout={layout} />
+      <ReviewView key={scene} data={data} arrange={arrange} />
       <div
         data-review-switcher=""
         className="fixed bottom-2 left-24 z-40 flex items-center gap-1 opacity-55 transition-opacity focus-within:opacity-100 hover:opacity-100"
@@ -160,25 +170,20 @@ export function ReviewDev(props: { readonly live: ReviewData }): ReactNode {
           size="xs"
           variant="ghost"
           aria-label={t("desktop.craft.review.dev.pick")}
-          value={layout}
-          onValueChange={chooseLayout}
+          value={arrange}
+          onValueChange={choose}
         >
-          <SegmentedControlItem
-            value="split"
-            aria-label={t("desktop.craft.review.dev.a")}
-            title={`${t("desktop.craft.review.dev.a")} · 1`}
-            className="font-semibold"
-          >
-            {t("desktop.craft.review.dev.aShort")}
-          </SegmentedControlItem>
-          <SegmentedControlItem
-            value="cards"
-            aria-label={t("desktop.craft.review.dev.b")}
-            title={`${t("desktop.craft.review.dev.b")} · 2`}
-            className="font-semibold"
-          >
-            {t("desktop.craft.review.dev.bShort")}
-          </SegmentedControlItem>
+          {ARRANGES.map((a, index) => (
+            <SegmentedControlItem
+              key={a}
+              value={a}
+              aria-label={t(ARRANGE_WORD[a])}
+              title={`${t(ARRANGE_WORD[a])} · ${String(index + 1)}`}
+              className="font-semibold tabular-nums"
+            >
+              {String(index + 1)}
+            </SegmentedControlItem>
+          ))}
         </SegmentedControl>
         <Select
           size="xs"

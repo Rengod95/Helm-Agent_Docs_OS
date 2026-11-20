@@ -1,11 +1,8 @@
-// 리뷰 화면(C5)의 두 판. 같은 원천(`ReviewData`)과 같은 상세 본문(`review-detail.tsx`)을 쓰고 배치만 다르다.
-//   가(`split`): 왼쪽 목록(대화 목록과 같은 줄) + 오른쪽 상세 카드. 목록을 훑으며 하나씩 깊이 본다.
-//   나(`cards`): 가운데 한 줄의 카드 목록. 고른 카드가 그 자리에서 펼쳐진다. 접힌 카드에도 코드 실행 안내가 보인다.
-// 키(두 판 같음): j·k(↑·↓) 목록 이동, a 승인, r 거절, [ ] 파일 넘기기. 글을 넣는 칸 안에서는 먹지 않는다.
+// 리뷰 화면(C5, AGE-34 둘째 판). 왼쪽 목록(대화 목록과 같은 줄) + 오른쪽 자세히(콘텐츠 영역 전체, `review-detail.tsx`).
+// 키: j·k(↑·↓) 목록 이동, a 승인, r 거절, [ ] 파일 넘기기. 글을 넣는 칸 안에서는 먹지 않는다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   Alert,
-  Button,
   cn,
   EmptyState,
   listNavigationHeading,
@@ -14,13 +11,12 @@ import {
   listNavigationMeta,
   Skeleton,
 } from "@caustic/react";
-import { ChevronDown, ChevronRight, Inbox } from "@caustic/react/icons";
+import { Inbox } from "@caustic/react/icons";
 import { assertNever } from "@fresnel/contracts";
 import type { Profile, ReviewItem } from "@fresnel/contracts/wire";
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -32,29 +28,25 @@ import { ScreenHeader } from "../../shell/screen-header.tsx";
 import { SIDE_ROW } from "../../side-row.ts";
 import { InfoTip } from "../info-tip.tsx";
 import {
-  agoText,
-  CodeNotice,
-  ENTRY_WORD,
-  ReviewBody,
-  ReviewHead,
+  ReviewDetail,
   type Decided,
   type DecisionHandle,
+  type DetailArrange,
   type FileHandle,
 } from "./review-detail.tsx";
 import { KindTile } from "./review-glyphs.tsx";
+import { agoText, ENTRY_WORD } from "./review-parts.tsx";
 import {
-  baseItemOf,
   entryKindOf,
   nextAfter,
   pendingOf,
   primaryKindOf,
   reviewKeyOf,
   stepItem,
+  versionsOf,
   type EntryKind,
 } from "./review-model.ts";
 import type { ReviewData } from "./review-source.ts";
-
-export type ReviewLayout = "split" | "cards";
 
 const GROUP_ORDER: readonly EntryKind[] = ["install", "update", "draft", "remove"];
 
@@ -118,8 +110,6 @@ function useReviewState(data: ReviewData, ready: Ready) {
   const groups = useMemo(() => groupsOf(pending, decidedItems), [pending, decidedItems]);
   const ids = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.itemId)), [groups]);
   const [selected, setSelected] = useState<string | null>(null);
-  // 나 판에서 고른 카드를 접었는지. 가 판은 늘 펼쳐 둔다
-  const [open, setOpen] = useState(true);
   const current = selected !== null && ids.includes(selected) ? selected : (ids[0] ?? null);
   const item = pending.find((i) => i.itemId === current) ?? kept.get(current ?? "") ?? null;
   const handleRef = useRef<DecisionHandle | null>(null);
@@ -147,7 +137,6 @@ function useReviewState(data: ReviewData, ready: Ready) {
       case "next":
       case "prev":
         setSelected(stepItem(ids, current, key === "next" ? 1 : -1));
-        setOpen(true);
         return;
       case "approve":
         handleRef.current?.approve();
@@ -171,13 +160,8 @@ function useReviewState(data: ReviewData, ready: Ready) {
     item,
     decided: current === null ? null : (decided.get(current) ?? null),
     decidedOf: (itemId: string) => decided.get(itemId) ?? null,
-    open,
     select: (itemId: string) => {
       setSelected(itemId);
-      setOpen(true);
-    },
-    collapse: () => {
-      setOpen(false);
     },
     next:
       next === null
@@ -281,7 +265,7 @@ function OfflineBand(props: { readonly offline: boolean }): ReactNode {
   );
 }
 
-// ── 가: 목록 + 상세 ─────────────────────────────────────────────────────
+// ── 목록 ────────────────────────────────────────────────────────────────
 
 const ROW = cn(listNavigationLink({ kind: "sessions", size: "sm" }), SIDE_ROW, "min-w-0 border-0");
 
@@ -331,16 +315,16 @@ function SplitLayout(props: {
   readonly ready: Ready;
   readonly state: ReviewState;
   readonly now: number;
+  readonly arrange: DetailArrange;
 }): ReactNode {
   const { state, ready, now } = props;
   const titleOf = useThreadTitles();
-  const headingId = useId();
   const item = state.item;
   return (
     <div className="flex min-h-0 flex-1">
       <nav
         aria-label={t("desktop.craft.review.listLabel")}
-        className="flex w-[288px] shrink-0 flex-col overflow-y-auto border-e border-border-subtle px-2 pb-4"
+        className="flex w-[272px] shrink-0 flex-col overflow-y-auto border-e border-border-subtle px-2 pt-2 pb-4"
       >
         {state.groups.map((group) => (
           <div key={group.key} className="grid gap-px pt-2 first:pt-0">
@@ -367,171 +351,27 @@ function SplitLayout(props: {
           </div>
         ))}
       </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        {item === null ? (
-          <p className="m-0 p-6 text-ui text-text-tertiary">
-            {t("desktop.craft.review.state.pick")}
-          </p>
-        ) : (
-          <article
-            aria-labelledby={headingId}
-            className="mx-auto my-3 grid max-w-[760px] gap-5 rounded-xl bg-surface-base p-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
-          >
-            <ReviewHead
-              item={item}
-              threadTitle={titleOf(item.originThreadId)}
-              now={now}
-              headingId={headingId}
-            />
-            <ReviewBody
-              key={item.itemId}
-              item={item}
-              base={baseItemOf(ready.items, item)}
-              profiles={ready.profiles}
-              managedOff={ready.managedOff.has(item.name)}
-              offline={ready.offline}
-              threadTitle={titleOf(item.originThreadId)}
-              now={now}
-              data={props.data}
-              decided={state.decided}
-              onDecided={state.onDecided}
-              onNext={state.next}
-              handleRef={state.handleRef}
-              fileRef={state.fileRef}
-            />
-          </article>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── 나: 펼치는 카드 ─────────────────────────────────────────────────────
-
-function CardRow(props: {
-  readonly item: ReviewItem;
-  readonly open: boolean;
-  readonly ready: Ready;
-  readonly state: ReviewState;
-  readonly data: ReviewData;
-  readonly now: number;
-  readonly titleOf: (threadId: string | null) => string | null;
-}): ReactNode {
-  const { item, open, state } = props;
-  const headingId = useId();
-  const bodyId = useId();
-  const decided = state.decidedOf(item.itemId);
-  const ref = useRef<HTMLElement>(null);
-  // 처음 그릴 때는 움직이지 않는다(펼친 첫 카드가 무리 제목을 화면 밖으로 밀지 않게). 사용자가 펼칠 때만 맞춘다
-  const shown = useRef(false);
-  useEffect(() => {
-    if (!shown.current) {
-      shown.current = true;
-      return;
-    }
-    if (open) ref.current?.scrollIntoView({ block: "nearest" });
-  }, [open]);
-  return (
-    <li className="list-none">
-      <article
-        ref={ref}
-        aria-labelledby={headingId}
-        data-review-card={item.itemId}
-        data-open={open ? "" : undefined}
-        className={cn(
-          "grid gap-3 rounded-xl bg-surface-base p-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]",
-          open ? "shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]" : "",
-          decided === null ? "" : "opacity-70",
-        )}
-      >
-        <ReviewHead
+      {item === null ? (
+        <p className="m-0 p-6 text-ui text-text-tertiary">{t("desktop.craft.review.state.pick")}</p>
+      ) : (
+        <ReviewDetail
+          key={item.itemId}
           item={item}
-          threadTitle={props.titleOf(item.originThreadId)}
-          now={props.now}
-          headingId={headingId}
-          trailing={
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-expanded={open}
-              aria-controls={bodyId}
-              className="-me-1.5 shrink-0 gap-1 text-text-secondary"
-              onClick={() => {
-                if (open) state.collapse();
-                else state.select(item.itemId);
-              }}
-            >
-              {open ? t("desktop.craft.review.collapse") : t("desktop.craft.review.expand")}
-              {open ? (
-                <ChevronDown className="size-3.5" aria-hidden="true" />
-              ) : (
-                <ChevronRight className="size-3.5" aria-hidden="true" />
-              )}
-            </Button>
-          }
+          versions={versionsOf(item, ready.items)}
+          profiles={ready.profiles}
+          managedOff={ready.managedOff.has(item.name)}
+          offline={ready.offline}
+          threadTitle={titleOf(item.originThreadId)}
+          now={now}
+          data={props.data}
+          decided={state.decided}
+          onDecided={state.onDecided}
+          onNext={state.next}
+          handleRef={state.handleRef}
+          fileRef={state.fileRef}
+          arrange={props.arrange}
         />
-        {open || item.kind === "remove" ? null : <CodeNotice card={item.card} />}
-        {open ? (
-          <div id={bodyId} className="pt-2">
-            <ReviewBody
-              key={item.itemId}
-              item={item}
-              base={baseItemOf(props.ready.items, item)}
-              profiles={props.ready.profiles}
-              managedOff={props.ready.managedOff.has(item.name)}
-              offline={props.ready.offline}
-              threadTitle={props.titleOf(item.originThreadId)}
-              now={props.now}
-              data={props.data}
-              decided={state.decided}
-              onDecided={state.onDecided}
-              onNext={state.next}
-              handleRef={state.handleRef}
-              fileRef={state.fileRef}
-            />
-          </div>
-        ) : null}
-      </article>
-    </li>
-  );
-}
-
-function CardsLayout(props: {
-  readonly data: ReviewData;
-  readonly ready: Ready;
-  readonly state: ReviewState;
-  readonly now: number;
-}): ReactNode {
-  const { state } = props;
-  const titleOf = useThreadTitles();
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid max-w-[760px] gap-5 px-4 pt-2 pb-8">
-        {state.groups.map((group) => (
-          <section key={group.key} aria-label={t(group.label)} className="grid gap-2">
-            <h2 className="m-0 flex items-baseline gap-2 ps-1 text-ui-sm font-medium text-text-tertiary">
-              {t(group.label)}
-              <span className="text-hint text-text-placeholder tabular-nums">
-                {String(group.items.length)}
-              </span>
-            </h2>
-            <ul className="m-0 grid gap-2 p-0">
-              {group.items.map((item) => (
-                <CardRow
-                  key={item.itemId}
-                  item={item}
-                  open={state.open && item.itemId === state.current}
-                  ready={props.ready}
-                  state={state}
-                  data={props.data}
-                  now={props.now}
-                  titleOf={titleOf}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      )}
     </div>
   );
 }
@@ -541,7 +381,7 @@ function CardsLayout(props: {
 function ReadyView(props: {
   readonly data: ReviewData;
   readonly ready: Ready;
-  readonly layout: ReviewLayout;
+  readonly arrange: DetailArrange;
 }): ReactNode {
   const state = useReviewState(props.data, props.ready);
   // 상대 시각(n분 전)의 기준. 화면을 연 때로 고정한다(그리기마다 바뀌지 않게)
@@ -575,10 +415,14 @@ function ReadyView(props: {
       <OfflineBand offline={props.ready.offline} />
       {empty ? (
         <Empty />
-      ) : props.layout === "split" ? (
-        <SplitLayout data={props.data} ready={props.ready} state={state} now={now} />
       ) : (
-        <CardsLayout data={props.data} ready={props.ready} state={state} now={now} />
+        <SplitLayout
+          data={props.data}
+          ready={props.ready}
+          state={state}
+          now={now}
+          arrange={props.arrange}
+        />
       )}
     </section>
   );
@@ -586,7 +430,8 @@ function ReadyView(props: {
 
 export function ReviewView(props: {
   readonly data: ReviewData;
-  readonly layout: ReviewLayout;
+  /** 개발 빌드의 견주기 판. 배포 빌드는 `band`다 */
+  readonly arrange?: DetailArrange;
 }): ReactNode {
   const { load } = props.data;
   if (load.status !== "ready") {
@@ -609,7 +454,7 @@ export function ReviewView(props: {
         managedOff: load.managedOff,
         offline: load.offline,
       }}
-      layout={props.layout}
+      arrange={props.arrange ?? "band"}
     />
   );
 }

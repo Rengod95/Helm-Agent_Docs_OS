@@ -1,169 +1,85 @@
-// 리뷰 항목 하나의 상세(C5, craft-flows 6.12). 두 판(가·나)이 같은 본문을 쓴다.
-// 순서는 중요도 순이다: 머리(무엇이, 어디서, 무엇을 하려는지) → 늘 보이는 코드 실행 안내 → 승인하면 실행될 것 → 하는 일 →
-// 바뀌는 파일 → 권한과 위험 → 출처 → 승인하면(또는 지우면) → 결정 줄. 섹션 제목은 14/600이고 아이콘을 달지 않는다.
-// 겉면은 받은 요청 카드와 같은 값이다(rounded-xl, p-4, 테두리 subtle, 아이콘 타일 28, 제목 13/500).
+// 리뷰 항목 하나의 자세히(C5, craft-flows 6.12, AGE-34 둘째 판). 카드 면에 가두지 않고 목록 오른쪽 콘텐츠 영역 전체를 쓴다.
+// 배치(`review.css`의 `.rv-detail`): 위에 요약 띠(무엇이, 어디서, 무엇을 하려는지, 버전) → 아래 두 열.
+//   가운데 넓은 열 = 읽는 것: 설명 → 작동 방식(시점 / 입력 / 영향 / 출력) → 승인하면 실행될 것 → 바뀌는 파일(전·후 차이).
+//   오른쪽 좁은 열 = 판단하는 것(`review-judge.tsx`): 코드 실행 경고, 권한과 위험, 출처, 넣을 곳, 거절·승인. 열이 따로 스크롤해
+//   긴 차이를 읽는 동안에도 경고와 결정 단추가 남는다.
+// 섹션 문법은 캔버스 상세 패널(cv4)과 같다(제목 15/600, 아이콘 없음, 섹션 사이 가는 선).
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { Badge, Button, cn, Select, SelectOption, Textarea } from "@caustic/react";
-import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "@caustic/react/icons";
-import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import type { PluginCard } from "@fresnel/contracts/extensions";
-import type { DiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
+import { assertNever } from "@fresnel/contracts";
+import type { HookKind, HookPower, PluginCard } from "@fresnel/contracts/extensions";
+import type { DiffRow as CardDiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
+import { useId, type ReactNode, type Ref } from "react";
 import {
-  useEffect,
-  useId,
-  useImperativeHandle,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-} from "react";
-import { FileChangeDiff } from "../../file-change-view.tsx";
-import type { FileChangeView } from "../../approval-form.ts";
-import { KindGlyph, KindTile } from "./review-glyphs.tsx";
+  changeWhatOf,
+  workFactsOf,
+  type ChangePart,
+  type ChangesFact,
+  type GivesFact,
+  type ReadsFact,
+  type WhenFact,
+} from "./review-facts.ts";
+import { FilesSection, type FileHandle } from "./review-files.tsx";
+import { KindTile } from "./review-glyphs.tsx";
+import { JudgeColumn, type Decided, type DecisionHandle } from "./review-judge.tsx";
 import {
-  approveBlockOf,
-  approveDecisionOf,
-  approveOutcomeOf,
-  codeNoticeOf,
-  decideFailureOf,
-  defaultTargetOf,
   entryKindOf,
-  fileRowsOf,
-  firstFileOf,
   kindsOf,
-  placesOf,
   primaryKindOf,
-  rejectDecisionOf,
   runLinesOf,
-  shortHash,
-  sizeOf,
-  stepFile,
-  warningsOf,
-  type ApproveOutcome,
-  type DecideFailure,
-  type EntryKind,
-  type FileRow,
   type Place,
-  type PluginKind,
   type RunLine,
-  type Target,
-  type Warning,
+  type Versions,
 } from "./review-model.ts";
+import {
+  ACTION_WORD,
+  agoText,
+  Chip,
+  ENTRY_WORD,
+  KindChip,
+  MUTED,
+  originText,
+  Section,
+} from "./review-parts.tsx";
 import type { ReviewData } from "./review-source.ts";
 
-export const ENTRY_WORD: Readonly<Record<EntryKind, MessageId>> = {
-  install: "desktop.craft.review.group.install",
-  update: "desktop.craft.review.group.update",
-  draft: "desktop.craft.review.group.draft",
-  remove: "desktop.craft.review.group.remove",
-};
-
-const ACTION_WORD: Readonly<Record<EntryKind, MessageId>> = {
-  install: "desktop.craft.review.action.install",
-  update: "desktop.craft.review.action.update",
-  draft: "desktop.craft.review.action.draft",
-  remove: "desktop.craft.review.action.remove",
-};
-
-const KIND_WORD: Readonly<Record<PluginKind, MessageId>> = {
-  drive: "desktop.craft.review.kind.drive",
-  hook: "desktop.craft.review.kind.hook",
-  tool: "desktop.craft.review.kind.tool",
-  inject: "desktop.craft.review.kind.inject",
-};
-
-/** 어디서 왔는지 한 줄. 대화에서 만든 것은 그 대화의 이름을 쓴다(거울에 있으면) */
-function originText(item: ReviewItem, threadTitle: string | null): string {
-  if (item.kind === "remove") return t("desktop.craft.review.origin.request");
-  if (item.originThreadId !== null) {
-    return threadTitle === null
-      ? t("desktop.craft.review.origin.thread")
-      : t("desktop.craft.review.origin.threadNamed", { title: threadTitle });
-  }
-  switch (item.provenance) {
-    case "user_instruction":
-      return t("desktop.craft.review.origin.instruction");
-    case "project":
-      return t("desktop.craft.review.origin.project");
-    case "migration":
-      return t("desktop.craft.review.origin.migration");
-    case "bundled":
-      return t("desktop.craft.review.origin.bundled");
-    case "unknown":
-      return t("desktop.craft.review.origin.unknown");
-    case "assistant":
-      return t("desktop.craft.review.origin.folder");
-    default:
-      return assertNever(item.provenance, "review provenance");
-  }
-}
-
-/** 올라온 때를 짧게(방금, n분 전, n시간 전, n일 전) */
-export function agoText(iso: string, now: number): string {
-  const at = Date.parse(iso);
-  if (Number.isNaN(at)) return "";
-  const minutes = Math.max(0, Math.floor((now - at) / 60_000));
-  if (minutes < 1) return t("desktop.craft.review.ago.now");
-  if (minutes < 60) return t("desktop.craft.review.ago.minutes", { count: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t("desktop.craft.review.ago.hours", { count: hours });
-  return t("desktop.craft.review.ago.days", { count: Math.floor(hours / 24) });
-}
-
-/** 상태 칩(outlined). 결정 결과와 항목 종류를 같은 모양으로 쓴다 */
-const CHIP_TONE: Readonly<Record<"neutral" | "warning", string>> = {
-  neutral: "",
-  warning: "text-warning-text shadow-[inset_0_0_0_1px_var(--cs-color-warning-border)]",
-};
-
-function Chip(props: {
-  readonly tone?: "neutral" | "warning";
-  readonly children: ReactNode;
-}): ReactNode {
-  return (
-    <Badge size="sm" variant="outline" className={CHIP_TONE[props.tone ?? "neutral"]}>
-      {props.children}
-    </Badge>
-  );
-}
-
-/** 종류 칩: 종류 색의 그림 + 이름. 종류를 가르는 데만 색을 쓴다 */
-function KindChip(props: { readonly kind: PluginKind }): ReactNode {
-  return (
-    <span
-      className={`rv-kind-${props.kind} inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-ui-sm text-text-secondary shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]`}
-    >
-      <span className="rv-kind-text inline-flex">
-        <KindGlyph kind={props.kind} size={11} />
-      </span>
-      {t(KIND_WORD[props.kind])}
-    </span>
-  );
-}
-
-/** 머리: 종류 타일 28, 이름 13/500, 아래 한 줄은 "무엇을 하려는지 · 어디서", 칩 줄은 타일 왼끝에서 시작한다 */
-export function ReviewHead(props: {
+/** 요약 띠: 종류 타일 28, 이름(19/600)과 버전, "무엇을 하려는지 · 어디서 · 언제", 칩 줄은 타일 왼끝에서 시작한다 */
+function ReviewHead(props: {
   readonly item: ReviewItem;
+  readonly versions: Versions;
   readonly threadTitle: string | null;
   readonly now: number;
-  readonly headingId?: string;
-  readonly trailing?: ReactNode;
+  readonly headingId: string;
 }): ReactNode {
-  const { item } = props;
+  const { item, versions } = props;
   const entry = entryKindOf(item);
   return (
-    <header className="grid gap-2.5">
+    <header className="rv-head grid gap-3">
       <div className="flex min-w-0 items-start gap-3">
         <KindTile kind={primaryKindOf(item.card)} size={28} />
-        <div className="grid min-w-0 flex-1 gap-0.5 pt-px">
-          <h2
-            id={props.headingId}
-            className="m-0 truncate text-ui-strong text-text-primary"
-            title={item.card.displayName}
-          >
-            {item.card.displayName}
-          </h2>
-          <p className="m-0 truncate text-ui-sm text-text-tertiary">
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h2
+              id={props.headingId}
+              className="m-0 truncate text-title-feature font-semibold text-text-primary"
+              title={item.card.displayName}
+            >
+              {item.card.displayName}
+            </h2>
+            {versions.now === null ? null : (
+              <span
+                data-slot="review-version"
+                className="shrink-0 font-mono text-ui-sm text-text-tertiary tabular-nums"
+              >
+                {versions.before === null
+                  ? versions.now
+                  : t("desktop.craft.review.source.versionChange", {
+                      from: versions.before,
+                      to: versions.now,
+                    })}
+              </span>
+            )}
+          </div>
+          <p className="m-0 truncate text-ui text-text-tertiary">
             {t(ACTION_WORD[entry])}
             {" · "}
             {originText(item, props.threadTitle)}
@@ -171,7 +87,6 @@ export function ReviewHead(props: {
             {agoText(item.createdAt, props.now)}
           </p>
         </div>
-        {props.trailing}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <Chip>{t(ENTRY_WORD[entry])}</Chip>
@@ -188,44 +103,374 @@ export function ReviewHead(props: {
   );
 }
 
-/** 코드 실행 안내. 경고라 아이콘 뒤에 숨기지 않고 늘 보인다 [결정: AGE-14] */
-export function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
-  const notice = codeNoticeOf(props.card);
-  if (notice === null) return null;
-  const extra: string[] = [];
-  if (notice.network) extra.push(t("desktop.craft.review.code.network"));
-  if (notice.systemTools) extra.push(t("desktop.craft.review.code.systemTools"));
-  if (notice.usesUnknown) extra.push(t("desktop.craft.review.code.usesUnknown"));
-  if (notice.isolated === false) extra.push(t("desktop.craft.review.code.notIsolated"));
-  return (
-    <p
-      data-slot="review-code-notice"
-      role="note"
-      className="rv-code-notice m-0 rounded-md px-3 py-2 text-ui"
-    >
-      {t("desktop.craft.review.code.notice")}
-      {extra.length === 0 ? null : <> {extra.join(" ")}</>}
-    </p>
-  );
+// ── 작동 방식 ─────────────────────────────────────────────────────────
+
+const PLACE_WORD: Readonly<Record<Place["group"], MessageId>> = {
+  input: "desktop.craft.review.place.input",
+  request: "desktop.craft.review.place.request",
+  tool: "desktop.craft.review.place.tool",
+  turn: "desktop.craft.review.place.turn",
+  thread: "desktop.craft.review.place.thread",
+  other: "desktop.craft.review.place.other",
+};
+
+function placeText(place: Place): string {
+  const word = t(PLACE_WORD[place.group]);
+  if (place.side === "before") return t("desktop.craft.review.place.before", { place: word });
+  if (place.side === "after") return t("desktop.craft.review.place.after", { place: word });
+  return t("desktop.craft.review.place.at", { place: word });
 }
 
-function Section(props: {
-  readonly title: MessageId;
-  readonly children: ReactNode;
-  readonly id?: string;
+const HOOK_READS: Readonly<Record<HookKind, MessageId>> = {
+  input: "desktop.craft.review.fact.reads.input",
+  request: "desktop.craft.review.fact.reads.request",
+  tool: "desktop.craft.review.fact.reads.tool",
+  boundary: "desktop.craft.review.fact.reads.boundary",
+  thread: "desktop.craft.review.fact.reads.thread",
+  lifecycle: "desktop.craft.review.fact.reads.lifecycle",
+  guard: "desktop.craft.review.fact.reads.guard",
+  ask: "desktop.craft.review.fact.reads.ask",
+  agent: "desktop.craft.review.fact.reads.agent",
+};
+
+const POWER_WORD: Readonly<Record<HookPower, MessageId>> = {
+  observe: "desktop.craft.review.fact.changes.observe",
+  modify: "desktop.craft.review.fact.changes.modify",
+  decide: "desktop.craft.review.fact.changes.decide",
+  contribute: "desktop.craft.review.fact.changes.contribute",
+};
+
+/** 칩 하나의 글: 말과 값(사람이 고르거나 적는 이름). 값은 고정폭 글자로 */
+interface FactChip {
+  readonly key: string;
+  readonly word: string;
+  readonly value: string | null;
+  readonly warn: boolean;
+}
+
+function whenChip(fact: WhenFact): FactChip {
+  switch (fact.kind) {
+    case "place":
+      return {
+        key: `place:${fact.place.group}:${fact.place.side ?? ""}`,
+        word: placeText(fact.place),
+        value: null,
+        warn: false,
+      };
+    case "start":
+      return {
+        key: "start",
+        word: t("desktop.craft.review.fact.when.start"),
+        value: null,
+        warn: false,
+      };
+    case "command":
+      return {
+        key: `cmd:${fact.value}`,
+        word: t("desktop.craft.review.fact.when.command"),
+        value: fact.value,
+        warn: false,
+      };
+    case "handoff":
+      return {
+        key: "handoff",
+        word: t("desktop.craft.review.fact.when.handoff"),
+        value: null,
+        warn: false,
+      };
+    case "toolCall":
+      return {
+        key: "toolCall",
+        word: t("desktop.craft.review.fact.when.toolCall"),
+        value: null,
+        warn: false,
+      };
+    case "everyRequest":
+      return {
+        key: "every",
+        word: t("desktop.craft.review.fact.when.everyRequest"),
+        value: null,
+        warn: false,
+      };
+    case "onDemand":
+      return {
+        key: "onDemand",
+        word: t("desktop.craft.review.fact.when.onDemand"),
+        value: null,
+        warn: false,
+      };
+    default:
+      return assertNever(fact, "review when fact");
+  }
+}
+
+function readsChip(fact: ReadsFact): FactChip {
+  switch (fact.kind) {
+    case "hook":
+      return { key: `hook:${fact.hook}`, word: t(HOOK_READS[fact.hook]), value: null, warn: false };
+    case "thread":
+      return {
+        key: "thread",
+        word: t("desktop.craft.review.fact.reads.conversation"),
+        value: null,
+        warn: false,
+      };
+    case "toolArgs":
+      return {
+        key: "toolArgs",
+        word: t("desktop.craft.review.fact.reads.toolArgs"),
+        value: null,
+        warn: false,
+      };
+    case "env":
+      return {
+        key: `env:${fact.value}`,
+        word: t("desktop.craft.review.fact.reads.env"),
+        value: fact.value,
+        warn: false,
+      };
+    default:
+      return assertNever(fact, "review reads fact");
+  }
+}
+
+function changesChip(fact: ChangesFact): FactChip {
+  switch (fact.kind) {
+    case "power":
+      return {
+        key: `power:${fact.power}`,
+        word: t(POWER_WORD[fact.power]),
+        value: null,
+        warn: fact.power === "decide",
+      };
+    case "instructions":
+      return {
+        key: "instructions",
+        word: t("desktop.craft.review.fact.changes.instructions"),
+        value: null,
+        warn: false,
+      };
+    case "leads":
+      return {
+        key: "leads",
+        word: t("desktop.craft.review.fact.changes.leads"),
+        value: null,
+        warn: false,
+      };
+    case "replaces":
+      return {
+        key: `replaces:${fact.value}`,
+        word: t("desktop.craft.review.fact.changes.replaces"),
+        value: fact.value,
+        warn: true,
+      };
+    default:
+      return assertNever(fact, "review changes fact");
+  }
+}
+
+function givesChip(fact: GivesFact): FactChip {
+  switch (fact.kind) {
+    case "tool":
+      return {
+        key: `tool:${fact.value}`,
+        word: t("desktop.craft.review.fact.gives.tool"),
+        value: fact.value,
+        warn: false,
+      };
+    case "server":
+      return {
+        key: `server:${fact.value}`,
+        word: t("desktop.craft.review.fact.gives.server"),
+        value: fact.value,
+        warn: false,
+      };
+    case "command":
+      return {
+        key: `command:${fact.value}`,
+        word: t("desktop.craft.review.fact.gives.command"),
+        value: fact.value,
+        warn: false,
+      };
+    case "agent":
+      return {
+        key: `agent:${fact.value}`,
+        word: t("desktop.craft.review.fact.gives.agent"),
+        value: fact.value,
+        warn: false,
+      };
+    case "skill":
+      return {
+        key: `skill:${fact.value}`,
+        word: t("desktop.craft.review.fact.gives.skill"),
+        value: fact.value,
+        warn: false,
+      };
+    case "ui":
+      return {
+        key: "ui",
+        word: t("desktop.craft.review.fact.gives.ui", { count: fact.count }),
+        value: null,
+        warn: false,
+      };
+    case "decision":
+      return {
+        key: "decision",
+        word: t("desktop.craft.review.fact.gives.decision"),
+        value: null,
+        warn: false,
+      };
+    default:
+      return assertNever(fact, "review gives fact");
+  }
+}
+
+/** 네 줄 가운데 하나: 왼쪽 줄 이름(시점·입력·영향·출력) + 값 칩들. 값이 없으면 줄이 없다 */
+function FactRow(props: {
+  readonly label: MessageId;
+  readonly chips: readonly FactChip[];
 }): ReactNode {
-  const id = useId();
+  if (props.chips.length === 0) return null;
   return (
-    <section aria-labelledby={id} className="grid gap-2.5" data-section={props.id}>
-      <h3 id={id} className="m-0 text-title-3 font-semibold text-text-primary">
-        {t(props.title)}
-      </h3>
-      {props.children}
-    </section>
+    <div className="flex items-start gap-3 py-[3px]">
+      <dt className="w-12 shrink-0 pt-[3px] text-ui-sm leading-4 text-text-tertiary">
+        {t(props.label)}
+      </dt>
+      <dd className="m-0 flex min-w-0 flex-1 flex-wrap gap-1">
+        {props.chips.map((chip) => (
+          <span key={chip.key} className="rv-fact" data-warn={chip.warn ? "" : undefined}>
+            <span>{chip.word}</span>
+            {chip.value === null ? null : <span className="rv-fact-value">{chip.value}</span>}
+          </span>
+        ))}
+      </dd>
+    </div>
   );
 }
 
-const MUTED = "m-0 text-ui text-text-secondary";
+const ROW_WORD: Readonly<Record<CardDiffRow, MessageId>> = {
+  inject: "desktop.craft.review.row.inject",
+  hook: "desktop.craft.review.row.hook",
+  drive: "desktop.craft.review.row.drive",
+  runs: "desktop.craft.review.row.runs",
+  setting: "desktop.craft.review.row.setting",
+  replaces: "desktop.craft.review.row.replaces",
+};
+
+const PART_WORD: Readonly<Record<ChangePart, MessageId>> = {
+  instruction: "desktop.craft.review.change.instruction",
+  skill: "desktop.craft.review.change.skill",
+  tool: "desktop.craft.review.change.tool",
+  mcp: "desktop.craft.review.change.mcp",
+  script: "desktop.craft.review.change.script",
+  agent: "desktop.craft.review.change.agent",
+  command: "desktop.craft.review.change.command",
+  provider: "desktop.craft.review.change.provider",
+  ui: "desktop.craft.review.change.ui",
+  replaces: "desktop.craft.review.change.replaces",
+  hook: "desktop.craft.review.change.hook",
+  driveStart: "desktop.craft.review.change.driveStart",
+  runsCode: "desktop.craft.review.change.runsCode",
+  runsIsolated: "desktop.craft.review.change.runsIsolated",
+};
+
+/** 달라진 일 한 줄: 부품 말(모르면 칸 말)과 이름 */
+function ChangeLine(props: {
+  readonly row: CardDiffRow;
+  readonly what: string;
+  readonly detail?: string;
+}): ReactNode {
+  const what = changeWhatOf(props.what);
+  return (
+    <>
+      <span className="shrink-0 text-ui-sm text-text-tertiary">
+        {t(what.part === null ? ROW_WORD[props.row] : PART_WORD[what.part])}
+      </span>
+      {what.name === "" ? null : (
+        <span
+          className="min-w-0 truncate font-mono text-ui-sm text-text-primary"
+          title={props.detail}
+        >
+          {what.name}
+        </span>
+      )}
+    </>
+  );
+}
+
+function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCard }): ReactNode {
+  const { item } = props;
+  const facts = workFactsOf(props.card);
+  const diff = item.diff;
+  const changes = [
+    ...diff.added.map((entry) => ({ mark: "added" as const, entry })),
+    ...diff.changed.map((entry) => ({ mark: "changed" as const, entry })),
+    ...diff.removed.map((entry) => ({ mark: "removed" as const, entry })),
+  ];
+  const rows = [facts.when, facts.reads, facts.changes, facts.gives];
+  return (
+    <Section title="desktop.craft.review.section.how" id="how">
+      {rows.every((r) => r.length === 0) ? (
+        <p className={MUTED}>{t("desktop.craft.review.fact.none")}</p>
+      ) : (
+        <dl className="m-0 grid">
+          <FactRow label="desktop.craft.review.fact.when" chips={facts.when.map(whenChip)} />
+          <FactRow label="desktop.craft.review.fact.reads" chips={facts.reads.map(readsChip)} />
+          <FactRow
+            label="desktop.craft.review.fact.changes"
+            chips={facts.changes.map(changesChip)}
+          />
+          <FactRow label="desktop.craft.review.fact.gives" chips={facts.gives.map(givesChip)} />
+        </dl>
+      )}
+      {item.kind === "update" && changes.length > 0 ? (
+        <div className="grid gap-1.5 pt-1">
+          <p className="m-0 text-ui-sm text-text-tertiary">
+            {t("desktop.craft.review.does.changes")}
+          </p>
+          <ul className="m-0 grid gap-1 p-0">
+            {changes.map(({ mark, entry }) => (
+              <li
+                key={`${mark}:${entry.row}:${entry.what}`}
+                className="flex min-w-0 items-baseline gap-2 text-ui"
+              >
+                <span className={`rv-change-${mark} w-10 shrink-0 text-ui-sm`}>
+                  {t(
+                    mark === "added"
+                      ? "desktop.craft.review.does.added"
+                      : mark === "removed"
+                        ? "desktop.craft.review.does.removed"
+                        : "desktop.craft.review.does.changed",
+                  )}
+                </span>
+                <ChangeLine
+                  row={entry.row}
+                  what={entry.what}
+                  {...(entry.detail === undefined ? {} : { detail: entry.detail })}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+function AboutSection(props: { readonly card: PluginCard }): ReactNode {
+  const purpose = (props.card.purpose ?? "").trim();
+  return (
+    <Section title="desktop.craft.review.section.about" id="about">
+      {purpose === "" ? (
+        <p className="rv-caution m-0 text-ui">{t("desktop.craft.review.does.purposeMissing")}</p>
+      ) : (
+        <p className="m-0 max-w-[72ch] text-ui-md-relaxed text-text-primary">{purpose}</p>
+      )}
+    </Section>
+  );
+}
+
+// ── 승인하면 실행될 것 ────────────────────────────────────────────────
 
 function RunRow(props: { readonly line: RunLine }): ReactNode {
   const { line } = props;
@@ -296,422 +541,12 @@ function RunsSection(props: { readonly card: PluginCard }): ReactNode {
   );
 }
 
-const PLACE_WORD: Readonly<Record<Place["group"], MessageId>> = {
-  input: "desktop.craft.review.place.input",
-  request: "desktop.craft.review.place.request",
-  tool: "desktop.craft.review.place.tool",
-  turn: "desktop.craft.review.place.turn",
-  thread: "desktop.craft.review.place.thread",
-  other: "desktop.craft.review.place.other",
-};
-
-function placeText(place: Place): string {
-  const word = t(PLACE_WORD[place.group]);
-  if (place.side === "before") return t("desktop.craft.review.place.before", { place: word });
-  if (place.side === "after") return t("desktop.craft.review.place.after", { place: word });
-  return t("desktop.craft.review.place.at", { place: word });
-}
-
-const ROW_WORD: Readonly<Record<DiffRow, MessageId>> = {
-  inject: "desktop.craft.review.row.inject",
-  hook: "desktop.craft.review.row.hook",
-  drive: "desktop.craft.review.row.drive",
-  runs: "desktop.craft.review.row.runs",
-  setting: "desktop.craft.review.row.setting",
-  replaces: "desktop.craft.review.row.replaces",
-};
-
-/** 두 칸짜리 정의 줄(이름 칸 112px) */
-function Fact(props: { readonly term: string; readonly children: ReactNode }): ReactNode {
-  return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] items-baseline gap-3">
-      <dt className="text-ui-sm text-text-tertiary">{props.term}</dt>
-      <dd className="m-0 min-w-0 text-ui text-text-primary [overflow-wrap:anywhere]">
-        {props.children}
-      </dd>
-    </div>
-  );
-}
-
-function DoesSection(props: { readonly item: ReviewItem }): ReactNode {
-  const { item } = props;
-  const places = placesOf(item.card);
-  const diff = item.diff;
-  const changes = [
-    ...diff.added.map((entry) => ({ mark: "added" as const, entry })),
-    ...diff.changed.map((entry) => ({ mark: "changed" as const, entry })),
-    ...diff.removed.map((entry) => ({ mark: "removed" as const, entry })),
-  ];
-  const purpose = (item.card.purpose ?? "").trim();
-  return (
-    <Section title="desktop.craft.review.section.does" id="does">
-      {purpose === "" ? (
-        <p className="rv-caution m-0 text-ui">{t("desktop.craft.review.does.purposeMissing")}</p>
-      ) : (
-        <p className="m-0 text-ui text-text-primary">{purpose}</p>
-      )}
-      {places.length === 0 ? null : (
-        <dl className="m-0 grid gap-1.5">
-          <Fact term={t("desktop.craft.review.does.places")}>
-            {places.map(placeText).join(", ")}
-          </Fact>
-        </dl>
-      )}
-      {item.kind === "update" && changes.length > 0 ? (
-        <div className="grid gap-1.5">
-          <p className="m-0 text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.does.changes")}
-          </p>
-          <ul className="m-0 grid gap-1 p-0">
-            {changes.map(({ mark, entry }) => (
-              <li
-                key={`${mark}:${entry.row}:${entry.what}`}
-                className="flex min-w-0 items-baseline gap-2 text-ui"
-              >
-                <span className={`rv-change-${mark} w-10 shrink-0 text-ui-sm`}>
-                  {t(
-                    mark === "added"
-                      ? "desktop.craft.review.does.added"
-                      : mark === "removed"
-                        ? "desktop.craft.review.does.removed"
-                        : "desktop.craft.review.does.changed",
-                  )}
-                </span>
-                <span className="shrink-0 text-ui-sm text-text-tertiary">
-                  {t(ROW_WORD[entry.row])}
-                </span>
-                <span className="min-w-0 truncate text-text-primary" title={entry.detail}>
-                  {entry.what}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </Section>
-  );
-}
-
-const CHANGE_WORD: Readonly<Record<FileRow["change"], MessageId>> = {
-  added: "desktop.craft.review.files.change.added",
-  changed: "desktop.craft.review.files.change.changed",
-  removed: "desktop.craft.review.files.change.removed",
-  same: "desktop.craft.review.files.change.same",
-};
-const CHANGE_MARK: Readonly<Record<FileRow["change"], string>> = {
-  added: "+",
-  changed: "~",
-  removed: "−",
-  same: "·",
-};
-
-type FileText =
-  | { readonly status: "loading" }
-  | { readonly status: "failed" }
-  | { readonly status: "ready"; readonly text: string | null; readonly truncated: boolean };
-
-const PREVIEW_LINES = 80;
-
-/**
- * 파일 본문을 그림으로. 이전 내용을 엔진이 주지 않으므로 줄 차이가 아니라 쓸 내용의 앞줄이다(기호 없음).
- * 새 파일을 모두 더한 줄로 칠하면 화면 전체가 초록으로 물들어 쓰지 않는다. 새 파일인지는 파일 줄의 + 표시가 말한다
- */
-function viewOf(path: string, text: string): FileChangeView {
-  const lines = text.replace(/\n$/, "").split("\n");
-  return {
-    kind: "write",
-    path,
-    head: lines.slice(0, PREVIEW_LINES),
-    hiddenLines: Math.max(0, lines.length - PREVIEW_LINES),
-  };
-}
-
-/** 바이트 크기 글(1.2 KB) */
-function sizeText(bytes: number): string {
-  const size = sizeOf(bytes);
-  return `${String(size.value)} ${size.unit}`;
-}
-
-function FilesSection(props: {
-  readonly item: ReviewItem;
-  readonly base: ReviewItem | null;
-  readonly data: Pick<ReviewData, "file">;
-  readonly fileRef: Ref<FileHandle>;
-}): ReactNode {
-  const { item, base, data } = props;
-  const rows = fileRowsOf(item, base);
-  const changed = rows.filter((row) => row.change !== "same");
-  const same = rows.length - changed.length;
-  const [current, setCurrent] = useState<string | null>(() => firstFileOf(rows));
-  // 읽은 본문은 경로와 함께 둔다. 고른 경로와 다르면 아직 읽는 중이다(효과 안에서 상태를 바로 바꾸지 않는다)
-  const [read, setRead] = useState<{ readonly path: string; readonly text: FileText } | null>(null);
-  const row = rows.find((r) => r.path === current) ?? null;
-  // 엔진은 대기 중인 항목의 본문만 준다(승인하면 후보 폴더가 버전 폴더로 옮겨 간다). 결정한 뒤에는 목록만 보인다
-  const open = item.state === "pending";
-  const readable = open && row?.readable === true;
-  const text: FileText = read !== null && read.path === current ? read.text : { status: "loading" };
-
-  useImperativeHandle(props.fileRef, () => ({
-    step: (delta) => {
-      setCurrent((now) => stepFile(rows, now, delta));
-    },
-  }));
-
-  useEffect(() => {
-    if (current === null || !readable) return undefined;
-    let live = true;
-    const run = async (): Promise<void> => {
-      const got = await data.file(item.itemId, current);
-      if (!live) return;
-      setRead({
-        path: current,
-        text: got.ok
-          ? { status: "ready", text: got.value.text, truncated: got.value.truncated }
-          : { status: "failed" },
-      });
-    };
-    detach(run(), rethrow);
-    return () => {
-      live = false;
-    };
-  }, [data, item.itemId, current, readable]);
-
-  if (item.kind === "remove") return null;
-  const basis =
-    item.baseHash === null
-      ? t("desktop.craft.review.files.noBase")
-      : base === null
-        ? t("desktop.craft.review.files.baseUnknown")
-        : t("desktop.craft.review.files.base", { hash: shortHash(item.baseHash) ?? "" });
-  const shown = changed.length > 0 ? changed : rows;
-  return (
-    <Section title="desktop.craft.review.section.files" id="files">
-      <p className="m-0 text-ui-sm text-text-tertiary">{basis}</p>
-      {rows.length === 0 ? (
-        <p className={MUTED}>{t("desktop.craft.review.files.none")}</p>
-      ) : (
-        <div className="grid gap-2">
-          <ul className="m-0 grid gap-px p-0" aria-label={t("desktop.craft.review.section.files")}>
-            {shown.map((r) => {
-              const on = r.path === current;
-              return (
-                <li key={r.path} className="list-none">
-                  <button
-                    type="button"
-                    disabled={!open || (!r.readable && r.change !== "removed")}
-                    aria-current={on ? "true" : undefined}
-                    onClick={() => {
-                      setCurrent(r.path);
-                    }}
-                    className={cn(
-                      "flex h-control-sm w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-left text-ui outline-none focus-visible:shadow-focus",
-                      // 카드(surface-base) 위라 control-raised는 밝은 판에서 보이지 않는다
-                      on ? "bg-neutral-selected" : "hover:bg-neutral-hover",
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`rv-change-${r.change} w-3 shrink-0 text-center font-mono`}
-                    >
-                      {CHANGE_MARK[r.change]}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-text-primary">
-                      {r.path}
-                    </span>
-                    <span className="sr-only">{t(CHANGE_WORD[r.change])}</span>
-                    <span className="shrink-0 text-ui-sm text-text-tertiary tabular-nums">
-                      {sizeText(r.bytes)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {same > 0 && changed.length > 0 ? (
-            <p className="m-0 ps-2 text-ui-sm text-text-tertiary">
-              {t("desktop.craft.review.files.sameCount", { count: same })}
-            </p>
-          ) : null}
-          {!open ? (
-            <p className="m-0 ps-2 text-ui-sm text-text-tertiary">
-              {t("desktop.craft.review.files.closed")}
-            </p>
-          ) : row === null ? null : (
-            <div className="grid gap-1.5" aria-live="polite">
-              <div className="flex min-w-0 items-center gap-1">
-                <span className="min-w-0 flex-1 truncate font-mono text-ui-sm text-text-secondary">
-                  {row.path}
-                </span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={t("desktop.craft.review.files.prev")}
-                  title={`${t("desktop.craft.review.files.prev")} · [`}
-                  className="w-control-xs px-0"
-                  onClick={() => {
-                    setCurrent((now) => stepFile(rows, now, -1));
-                  }}
-                >
-                  <ChevronUp aria-hidden="true" className="size-3.5" />
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={t("desktop.craft.review.files.next")}
-                  title={`${t("desktop.craft.review.files.next")} · ]`}
-                  className="w-control-xs px-0"
-                  onClick={() => {
-                    setCurrent((now) => stepFile(rows, now, 1));
-                  }}
-                >
-                  <ChevronDown aria-hidden="true" className="size-3.5" />
-                </Button>
-              </div>
-              <FileBody row={row} text={text} />
-            </div>
-          )}
-        </div>
-      )}
-    </Section>
-  );
-}
-
-function FileBody(props: { readonly row: FileRow; readonly text: FileText }): ReactNode {
-  const { row, text } = props;
-  if (!row.readable) return <p className={MUTED}>{t("desktop.craft.review.files.removedNote")}</p>;
-  if (text.status === "loading") {
-    return (
-      <p role="status" className={MUTED}>
-        {t("desktop.craft.review.files.loading")}
-      </p>
-    );
-  }
-  if (text.status === "failed") {
-    return <p className="m-0 text-ui text-danger-text">{t("desktop.craft.review.files.failed")}</p>;
-  }
-  if (text.text === null) return <p className={MUTED}>{t("desktop.craft.review.files.binary")}</p>;
-  return (
-    <div className="grid gap-1.5">
-      {row.change === "changed" ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.craft.review.files.oldMissing")}
-        </p>
-      ) : null}
-      <FileChangeDiff view={viewOf(row.path, text.text)} />
-      {text.truncated ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.craft.review.files.truncated")}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-const WARNING_WORD: Readonly<Record<Exclude<Warning, "costUp">, MessageId>> = {
-  handEdit: "desktop.craft.review.risk.handEdit",
-  managedOff: "desktop.craft.review.risk.managedOff",
-  purposeMissing: "desktop.craft.review.does.purposeMissing",
-  enforcedNow: "desktop.craft.review.risk.enforcedNow",
-  projectCode: "desktop.craft.review.risk.projectCode",
-};
-
-function RiskSection(props: {
-  readonly item: ReviewItem;
-  readonly managedOff: boolean;
-}): ReactNode {
-  const { item } = props;
-  // 목적 문장 없음은 하는 일 섹션과 결정 줄이 말하므로 여기서 되풀이하지 않는다
-  const warnings = warningsOf(item, props.managedOff).filter((w) => w !== "purposeMissing");
-  const always = item.diff.costDelta.always;
-  return (
-    <Section title="desktop.craft.review.section.risk" id="risk">
-      <dl className="m-0 grid gap-1.5">
-        <Fact term={t("desktop.craft.review.risk.enforcement")}>
-          {item.card.enforcement === "enforced"
-            ? t("desktop.craft.review.risk.enforced")
-            : t("desktop.craft.review.risk.advisory")}
-        </Fact>
-      </dl>
-      {warnings.length === 0 && (always === null || always === 0) ? (
-        <p className={MUTED}>{t("desktop.craft.review.risk.none")}</p>
-      ) : (
-        <ul className="m-0 grid gap-1 p-0">
-          {warnings.map((w) =>
-            w === "costUp" ? null : (
-              <li
-                key={w}
-                className={cn(
-                  "rv-caution list-none text-ui",
-                  w === "handEdit" || w === "managedOff" ? "rv-caution-danger" : null,
-                )}
-              >
-                {t(WARNING_WORD[w])}
-              </li>
-            ),
-          )}
-          {always !== null && always !== 0 ? (
-            <li
-              className={cn("list-none text-ui", always > 0 ? "rv-caution" : "text-text-secondary")}
-            >
-              {always > 0
-                ? t("desktop.craft.review.risk.costUp", { tokens: always })
-                : t("desktop.craft.review.risk.costDown", { tokens: -always })}
-            </li>
-          ) : null}
-        </ul>
-      )}
-    </Section>
-  );
-}
-
-function SourceSection(props: {
-  readonly item: ReviewItem;
-  readonly threadTitle: string | null;
-  readonly now: number;
-}): ReactNode {
-  const { item } = props;
-  return (
-    <Section title="desktop.craft.review.section.source" id="source">
-      <dl className="m-0 grid gap-1.5">
-        <Fact term={t("desktop.craft.review.source.package")}>
-          <span className="font-mono text-ui-sm">{item.name}</span>
-        </Fact>
-        <Fact term={t("desktop.craft.review.source.version")}>
-          <span className="text-text-tertiary">
-            {t("desktop.craft.review.source.versionMissing")}
-          </span>
-        </Fact>
-        {item.candidateHash === null ? null : (
-          <Fact term={t("desktop.craft.review.source.candidate")}>
-            <span className="font-mono text-ui-sm" title={item.candidateHash}>
-              {shortHash(item.candidateHash)}
-            </span>
-          </Fact>
-        )}
-        {item.baseHash === null ? null : (
-          <Fact term={t("desktop.craft.review.source.base")}>
-            <span className="font-mono text-ui-sm" title={item.baseHash}>
-              {shortHash(item.baseHash)}
-            </span>
-          </Fact>
-        )}
-        <Fact term={t("desktop.craft.review.source.from")}>
-          {originText(item, props.threadTitle)}
-        </Fact>
-        <Fact term={t("desktop.craft.review.source.when")}>
-          {agoText(item.createdAt, props.now)}
-        </Fact>
-      </dl>
-    </Section>
-  );
-}
-
 function RemovesSection(props: { readonly item: ReviewItem }): ReactNode {
   const removal = props.item.removal;
   if (removal === null) return null;
   return (
     <Section title="desktop.craft.review.section.removes" id="removes">
-      <ul className="m-0 grid gap-1 p-0">
+      <ul className="m-0 grid gap-1.5 p-0">
         <li className="list-none text-ui text-text-primary">
           {removal.affectedProfiles.length === 0
             ? t("desktop.craft.review.removes.noProfiles")
@@ -734,344 +569,13 @@ function RemovesSection(props: { readonly item: ReviewItem }): ReactNode {
   );
 }
 
-/** 파일 넘기기(키보드 [ ]가 부른다) */
-export interface FileHandle {
-  step(delta: 1 | -1): void;
-}
+/** 상세 배치. `band`가 배포 판이다. 개발 빌드는 버린 두 안(`rail`, `stack`)을 견주어 볼 수 있다(`review-dev.tsx`) */
+export type DetailArrange = "band" | "rail" | "stack";
 
-/** 결정 줄의 바깥 동작(키보드가 부른다) */
-export interface DecisionHandle {
-  approve(): void;
-  reject(): void;
-}
-
-type Phase =
-  | { readonly kind: "idle" }
-  | { readonly kind: "rejecting" }
-  | { readonly kind: "sending"; readonly what: "approve" | "reject" }
-  | { readonly kind: "failed"; readonly failure: DecideFailure };
-
-/** 결정 뒤 화면이 들고 있는 결과(목록의 "방금 결정함" 줄과 상세의 결과 판) */
-export type Decided =
-  | { readonly kind: "approved"; readonly outcome: ApproveOutcome; readonly removal: boolean }
-  | { readonly kind: "sentBack" }
-  | { readonly kind: "discarded" };
-
-const FAILURE_WORD: Readonly<Record<DecideFailure, MessageId>> = {
-  offline: "desktop.craft.review.failure.offline",
-  switching: "desktop.craft.review.failure.switching",
-  notPending: "desktop.craft.review.failure.notPending",
-  notFound: "desktop.craft.review.failure.notFound",
-  handEdit: "desktop.craft.review.failure.handEdit",
-  purposeRequired: "desktop.craft.review.failure.purposeRequired",
-  profileInvalid: "desktop.craft.review.failure.profileInvalid",
-  failed: "desktop.craft.review.failure.failed",
-};
-
-const LIBRARY = "__library__";
-
-function targetValue(target: Target): string {
-  return target.kind === "profile" ? target.profileId : LIBRARY;
-}
-
-/** 승인하면 어떻게 되는지와 결정(승인·거절). 거절 사유는 선택이다 */
-function AfterAndDecide(props: {
+/** 자세히 전체: 요약 띠, 읽는 열, 판단 열. 좁은 창은 `review.css`의 컨테이너 질의가 한 열로 접는다 */
+export function ReviewDetail(props: {
   readonly item: ReviewItem;
-  readonly profiles: readonly Profile[];
-  readonly offline: boolean;
-  readonly data: Pick<ReviewData, "decide">;
-  readonly handleRef: Ref<DecisionHandle>;
-  readonly onDecided: (itemId: string, decided: Decided) => void;
-}): ReactNode {
-  const { item, profiles } = props;
-  const [target, setTarget] = useState<Target>(() => defaultTargetOf(item, profiles));
-  const [purpose, setPurpose] = useState("");
-  const [reason, setReason] = useState("");
-  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-  const reasonRef = useRef<HTMLTextAreaElement>(null);
-  const block = approveBlockOf(item);
-  const needsPurpose = item.kind !== "remove" && (item.card.purpose ?? "").trim() === "";
-  const sending = phase.kind === "sending";
-  const approveDisabled =
-    props.offline || block !== null || sending || (needsPurpose && purpose.trim() === "");
-
-  const send = (what: "approve" | "reject"): void => {
-    const decision =
-      what === "approve" ? approveDecisionOf(item, target, purpose) : rejectDecisionOf(reason);
-    setPhase({ kind: "sending", what });
-    const run = async (): Promise<void> => {
-      const result = await props.data.decide(item.itemId, decision);
-      if (!result.ok) {
-        setPhase({ kind: "failed", failure: decideFailureOf(result.error) });
-        return;
-      }
-      setPhase({ kind: "idle" });
-      if (decision.kind === "approve") {
-        props.onDecided(item.itemId, {
-          kind: "approved",
-          outcome: approveOutcomeOf(item, result.value.appliedTo, profiles),
-          removal: item.kind === "remove",
-        });
-      } else {
-        props.onDecided(item.itemId, {
-          kind: decision.kind === "sendBack" ? "sentBack" : "discarded",
-        });
-      }
-    };
-    detach(run(), rethrow);
-  };
-
-  useImperativeHandle(props.handleRef, () => ({
-    approve: () => {
-      if (!approveDisabled) send("approve");
-    },
-    reject: () => {
-      if (props.offline || sending) return;
-      setPhase({ kind: "rejecting" });
-    },
-  }));
-
-  useEffect(() => {
-    if (phase.kind === "rejecting") reasonRef.current?.focus();
-  }, [phase.kind]);
-
-  const after: ReactNode =
-    item.kind === "remove" ? null : item.kind === "update" ? (
-      <p className={MUTED}>{t("desktop.craft.review.after.update")}</p>
-    ) : (
-      <div className="grid gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.after.target")}
-          </span>
-          <Select
-            size="xs"
-            variant="outline"
-            aria-label={t("desktop.craft.review.after.target")}
-            value={targetValue(target)}
-            onValueChange={(value) => {
-              setTarget(
-                value === LIBRARY ? { kind: "library" } : { kind: "profile", profileId: value },
-              );
-            }}
-          >
-            {profiles.map((profile) => (
-              <SelectOption key={profile.id} value={profile.id}>
-                {profile.title}
-              </SelectOption>
-            ))}
-            <SelectOption value={LIBRARY}>{t("desktop.craft.review.after.library")}</SelectOption>
-          </Select>
-        </div>
-        <p className={MUTED}>
-          {target.kind === "profile"
-            ? t("desktop.craft.review.after.profileNote")
-            : t("desktop.craft.review.after.libraryNote")}
-        </p>
-        <p className="rv-caution m-0 text-ui">{t("desktop.craft.review.after.restart")}</p>
-      </div>
-    );
-
-  return (
-    <>
-      {after === null ? (
-        <RemovesSection item={item} />
-      ) : (
-        <Section title="desktop.craft.review.section.after" id="after">
-          {after}
-          {needsPurpose ? (
-            <label className="grid gap-1">
-              <span className="text-ui-sm text-text-tertiary">
-                {t("desktop.craft.review.after.purpose")}
-              </span>
-              <Textarea
-                size="xs"
-                rows={2}
-                maxLength={200}
-                value={purpose}
-                placeholder={t("desktop.craft.review.after.purposePlaceholder")}
-                className="resize-none"
-                onChange={(event) => {
-                  setPurpose(event.currentTarget.value);
-                }}
-              />
-            </label>
-          ) : null}
-        </Section>
-      )}
-      <div
-        data-slot="review-decide"
-        className="sticky bottom-0 grid gap-2 border-t border-border-subtle bg-surface-base pt-3"
-      >
-        {phase.kind === "rejecting" || (phase.kind === "sending" && phase.what === "reject") ? (
-          <label className="grid gap-1">
-            <span className="text-ui-sm text-text-tertiary">
-              {t("desktop.craft.review.reject.reason")}
-            </span>
-            <Textarea
-              ref={reasonRef}
-              size="xs"
-              rows={2}
-              maxLength={2000}
-              value={reason}
-              className="resize-none"
-              disabled={sending}
-              onChange={(event) => {
-                setReason(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                // 사유 칸의 글자는 화면 키가 아니다. Esc는 취소, ⌘Enter는 거절하기
-                event.stopPropagation();
-                if (event.key === "Escape") setPhase({ kind: "idle" });
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send("reject");
-              }}
-            />
-            <span className="text-ui-sm text-text-tertiary">
-              {t("desktop.craft.review.reject.reasonHint")}
-            </span>
-          </label>
-        ) : null}
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {phase.kind === "failed" ? (
-            <p role="alert" className="m-0 min-w-0 flex-1 text-ui text-danger-text">
-              {t(
-                phase.failure === "profileInvalid" && item.kind === "new"
-                  ? "desktop.craft.review.failure.profileNew"
-                  : FAILURE_WORD[phase.failure],
-              )}
-            </p>
-          ) : props.offline ? (
-            <p className="m-0 min-w-0 flex-1 text-ui text-text-tertiary">
-              {t("desktop.craft.review.locked.offline")}
-            </p>
-          ) : block === "handEdit" ? (
-            <p className="m-0 min-w-0 flex-1 text-ui text-danger-text">
-              {t("desktop.craft.review.locked.handEdit")}
-            </p>
-          ) : sending ? (
-            <p role="status" className="m-0 min-w-0 flex-1 text-ui-sm text-text-tertiary">
-              {t("desktop.craft.review.sending")}
-            </p>
-          ) : (
-            <span className="flex-1" />
-          )}
-          {phase.kind === "rejecting" || (phase.kind === "sending" && phase.what === "reject") ? (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={sending}
-                onClick={() => {
-                  setPhase({ kind: "idle" });
-                }}
-              >
-                {t("desktop.craft.review.reject.cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-danger-text"
-                disabled={sending || props.offline}
-                onClick={() => {
-                  send("reject");
-                }}
-              >
-                {t("desktop.craft.review.reject.confirm")}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={sending || props.offline}
-                aria-keyshortcuts="r"
-                onClick={() => {
-                  setPhase({ kind: "rejecting" });
-                }}
-              >
-                {t("desktop.craft.review.reject")}
-              </Button>
-              <Button
-                size="sm"
-                variant="solid"
-                disabled={approveDisabled}
-                aria-keyshortcuts="a"
-                onClick={() => {
-                  send("approve");
-                }}
-              >
-                {t("desktop.craft.review.approve")}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** 결정 뒤의 결과 판. 승인이면 들어간 프로필과 다음에 할 일을 말한다 */
-function DecidedPanel(props: {
-  readonly decided: Decided;
-  readonly onNext: (() => void) | null;
-}): ReactNode {
-  const { decided } = props;
-  const title: MessageId =
-    decided.kind === "approved"
-      ? decided.removal
-        ? "desktop.craft.review.outcome.removed"
-        : "desktop.craft.review.outcome.approved"
-      : decided.kind === "sentBack"
-        ? "desktop.craft.review.outcome.sentBack"
-        : "desktop.craft.review.outcome.discarded";
-  return (
-    <div
-      role="status"
-      data-slot="review-decided"
-      className="grid gap-2 rounded-lg px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]"
-    >
-      <p className="m-0 flex items-center gap-2 text-ui-strong text-text-primary">
-        {decided.kind === "approved" ? (
-          <Check className="size-3.5 text-success-text" aria-hidden="true" />
-        ) : (
-          <X className="size-3.5 text-text-tertiary" aria-hidden="true" />
-        )}
-        {t(title)}
-      </p>
-      {decided.kind === "approved" && !decided.removal ? (
-        <>
-          {decided.outcome.profiles.length > 0 ? (
-            <p className={MUTED}>
-              {t("desktop.craft.review.outcome.inProfiles", {
-                names: decided.outcome.profiles.join(", "),
-              })}{" "}
-              {t("desktop.craft.review.after.profileNote")}
-            </p>
-          ) : decided.outcome.library ? (
-            <p className={MUTED}>{t("desktop.craft.review.after.libraryNote")}</p>
-          ) : null}
-          {decided.outcome.restart ? (
-            <p className="rv-caution m-0 text-ui">{t("desktop.craft.review.after.restart")}</p>
-          ) : null}
-        </>
-      ) : null}
-      {props.onNext === null ? null : (
-        <div>
-          <Button size="sm" variant="ghost" className="-ms-2.5 gap-1" onClick={props.onNext}>
-            {t("desktop.craft.review.outcome.next")}
-            <ChevronRight className="size-3.5" aria-hidden="true" />
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 상세 본문(머리 아래). 결정이 끝났으면 결정 줄 대신 결과 판을 둔다 */
-export function ReviewBody(props: {
-  readonly item: ReviewItem;
-  readonly base: ReviewItem | null;
+  readonly versions: Versions;
   readonly profiles: readonly Profile[];
   readonly managedOff: boolean;
   readonly offline: boolean;
@@ -1083,34 +587,54 @@ export function ReviewBody(props: {
   readonly onNext: (() => void) | null;
   readonly handleRef: Ref<DecisionHandle>;
   readonly fileRef: Ref<FileHandle>;
+  readonly arrange: DetailArrange;
 }): ReactNode {
   const { item } = props;
+  const headingId = useId();
+  // 지우는 항목의 카드는 지난 승인 버전의 카드다(엔진의 `removal.baseCard`)
+  const card = item.kind === "remove" ? (item.removal?.baseCard ?? item.card) : item.card;
   return (
-    <div className="grid gap-6">
-      {props.managedOff ? (
-        <p role="note" className="rv-code-notice rv-notice-danger m-0 rounded-md px-3 py-2 text-ui">
-          {t("desktop.craft.review.risk.managedOff")}
-        </p>
-      ) : null}
-      {props.decided === null ? null : (
-        <DecidedPanel decided={props.decided} onNext={props.onNext} />
-      )}
-      {item.kind === "remove" ? null : <CodeNotice card={item.card} />}
-      {item.kind === "remove" ? null : <RunsSection card={item.card} />}
-      <DoesSection item={item} />
-      <FilesSection item={item} base={props.base} data={props.data} fileRef={props.fileRef} />
-      <RiskSection item={item} managedOff={props.managedOff} />
-      <SourceSection item={item} threadTitle={props.threadTitle} now={props.now} />
-      {props.decided === null ? (
-        <AfterAndDecide
+    <div className="rv-detail-host">
+      <article aria-labelledby={headingId} className="rv-detail" data-arrange={props.arrange}>
+        <ReviewHead
           item={item}
-          profiles={props.profiles}
-          offline={props.offline}
-          data={props.data}
-          handleRef={props.handleRef}
-          onDecided={props.onDecided}
+          versions={props.versions}
+          threadTitle={props.threadTitle}
+          now={props.now}
+          headingId={headingId}
         />
-      ) : null}
+        <div className="rv-read" data-slot="review-read">
+          <AboutSection card={card} />
+          <HowSection item={item} card={card} />
+          {item.kind === "remove" ? (
+            <RemovesSection item={item} />
+          ) : (
+            <>
+              <RunsSection card={item.card} />
+              <Section title="desktop.craft.review.section.files" id="files">
+                <FilesSection item={item} data={props.data} fileRef={props.fileRef} />
+              </Section>
+            </>
+          )}
+        </div>
+        <JudgeColumn
+          item={item}
+          versions={props.versions}
+          profiles={props.profiles}
+          managedOff={props.managedOff}
+          offline={props.offline}
+          threadTitle={props.threadTitle}
+          now={props.now}
+          data={props.data}
+          decided={props.decided}
+          onDecided={props.onDecided}
+          onNext={props.onNext}
+          handleRef={props.handleRef}
+        />
+      </article>
     </div>
   );
 }
+
+export type { Decided, DecisionHandle } from "./review-judge.tsx";
+export type { FileHandle } from "./review-files.tsx";

@@ -20,7 +20,8 @@ export interface ScreenDef {
     readonly render: (count: number | undefined) => ReactNode;
   }) => ReactNode;
   /**
-   * 내비 줄 끝(수 앞)에 세우는 표시 부품. 제안 줄만 크리스탈 표시(DP-223)를 단다: 확인이 필요한 것이 있을 때만 보이고, 내비 전체에서 하나다
+   * 내비 줄 끝(수 앞)에 세우는 표시 부품(크리스탈 표시, DP-223). 확인이 필요한 것이 있을 때만 보이고, 한 영역의 내비에서 한 줄뿐이다:
+   * 대화 영역은 "제안", Craft 영역은 "리뷰"다. 리뷰 줄의 표시는 같은 줄의 `Badge`가 읽은 수를 문맥으로 받는다(`review-badge.tsx`)
    */
   readonly Mark?: () => ReactNode;
   /** 무대에 그릴 내용 */

@@ -16,7 +16,13 @@ export function createPluginReviewCommands(
 ): PluginReviewCommands {
   return {
     list: () => withConnection((c) => c.request("pluginReview.list", {})),
-    file: (itemId, path) => withConnection((c) => c.request("pluginReview.file", { itemId, path })),
+    file: (itemId, path, side) =>
+      withConnection((c) =>
+        c.request(
+          "pluginReview.file",
+          side === undefined ? { itemId, path } : { itemId, path, side },
+        ),
+      ),
     decide: (itemId, decision) =>
       withWrite((c) => c.request("pluginReview.decide", { itemId, decision })),
     profiles: () => withConnection((c) => c.request("profile.list", {})),

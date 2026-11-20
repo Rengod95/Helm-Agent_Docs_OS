@@ -1,6 +1,6 @@
 import { ok } from "@fresnel/contracts";
 import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
-import type { Profile, ReviewItem } from "@fresnel/contracts/wire";
+import type { Profile, ReviewFileSide, ReviewItem } from "@fresnel/contracts/wire";
 import type { ReviewData } from "../review-source.ts";
 
 // 개발 빌드 전용 표본(스크린샷과 판 비교용). 실제 엔진이 돌려주는 `ReviewItem`과 같은 모양이다. 이름, 해시, 날짜, 명령은 꾸민 값이다.
@@ -120,7 +120,7 @@ serve({
 `,
   "rvw_sample_fetch:plugin.json": `{
   "name": "web-fetch-plus",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "mcpServers": { "fetch": { "command": "node", "args": ["server.js", "--port", "0"], "env": ["FETCH_API_KEY"] } },
   "scripts": { "warm": { "run": "bun scripts/warm.ts", "uses": ["network"] } }
 }
@@ -130,7 +130,175 @@ const urls = ["https://example.com/docs", "https://example.com/changelog"];
 await Promise.all(urls.map((url) => fetch(url)));
 `,
   "instructions.md": "모든 답은 한국어로 쓴다. 코드와 명령은 원문을 그대로 둔다.\n",
+  "rvw_sample_fetch:mcp.js": `// 아주 작은 MCP stdio 서버: 한 줄에 JSON-RPC 메시지 하나
+import { createInterface } from "node:readline";
+
+const PROTOCOL = "2025-06-18";
+const lines = createInterface({ input: process.stdin });
+
+function send(message) {
+  process.stdout.write(\`\${JSON.stringify(message)}\\n\`);
+}
+
+function reply(id, result) {
+  send({ jsonrpc: "2.0", id, result });
+}
+
+function fail(id, code, message) {
+  send({ jsonrpc: "2.0", id, error: { code, message } });
+}
+
+function describe(tools) {
+  return Object.keys(tools).map((name) => ({
+    name,
+    description: tools[name].description ?? name,
+    inputSchema: tools[name].schema ?? { type: "object" },
+  }));
+}
+
+export function serve({ tools }) {
+  lines.on("line", async (line) => {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      fail(null, -32700, "parse error");
+      return;
+    }
+    const { id, method, params } = message;
+    switch (method) {
+      case "initialize":
+        reply(id, {
+          protocolVersion: PROTOCOL,
+          capabilities: { tools: {} },
+          serverInfo: { name: "web-fetch-plus", version: "1.5.0" },
+        });
+        return;
+      case "tools/list":
+        reply(id, { tools: describe(tools) });
+        return;
+      case "tools/call": {
+        const tool = tools[params.name];
+        if (tool === undefined) {
+          fail(id, -32602, \`unknown tool \${params.name}\`);
+          return;
+        }
+        const started = Date.now();
+        try {
+          const out = await tool(params.arguments ?? {});
+          reply(id, { content: [{ type: "text", text: out.text }], meta: { ms: Date.now() - started } });
+        } catch (error) {
+          reply(id, { content: [{ type: "text", text: String(error) }], isError: true });
+        }
+        return;
+      }
+      case "ping":
+        reply(id, {});
+        return;
+      default:
+        fail(id, -32601, \`no method \${method}\`);
+    }
+  });
+}
+`,
 };
+
+/** 지난 승인 버전의 본문(`pluginReview.file`의 `side: "base"`). 여기 없는 경로는 보관소에서 지워진 것으로 본다(`missing`) */
+const BASE_FILES: Readonly<Record<string, string>> = {
+  "rvw_sample_fetch:plugin.json": `{
+  "name": "web-fetch-plus",
+  "version": "1.4.0",
+  "mcpServers": { "fetch": { "command": "node", "args": ["server.js"], "env": ["FETCH_API_KEY"] } }
+}
+`,
+  "rvw_sample_fetch:server.js": `import { serve } from "./mcp.js";
+import { cached } from "./old-cache.js";
+const key = process.env.FETCH_API_KEY;
+serve({
+  tools: {
+    fetch_page: async ({ url }) =>
+      cached(url, async () => {
+        const res = await fetch(url, { headers: { authorization: \`Bearer \${key}\` } });
+        return { text: await res.text() };
+      }),
+  },
+});
+`,
+  "rvw_sample_fetch:mcp.js": `// 아주 작은 MCP stdio 서버: 한 줄에 JSON-RPC 메시지 하나
+import { createInterface } from "node:readline";
+
+const PROTOCOL = "2025-03-26";
+const lines = createInterface({ input: process.stdin });
+
+function send(message) {
+  process.stdout.write(\`\${JSON.stringify(message)}\\n\`);
+}
+
+function reply(id, result) {
+  send({ jsonrpc: "2.0", id, result });
+}
+
+function fail(id, code, message) {
+  send({ jsonrpc: "2.0", id, error: { code, message } });
+}
+
+function describe(tools) {
+  return Object.keys(tools).map((name) => ({
+    name,
+    description: tools[name].description ?? name,
+    inputSchema: tools[name].schema ?? { type: "object" },
+  }));
+}
+
+export function serve({ tools }) {
+  lines.on("line", async (line) => {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      fail(null, -32700, "parse error");
+      return;
+    }
+    const { id, method, params } = message;
+    switch (method) {
+      case "initialize":
+        reply(id, {
+          protocolVersion: PROTOCOL,
+          capabilities: { tools: {} },
+          serverInfo: { name: "web-fetch-plus", version: "1.4.0" },
+        });
+        return;
+      case "tools/list":
+        reply(id, { tools: describe(tools) });
+        return;
+      case "tools/call": {
+        const tool = tools[params.name];
+        if (tool === undefined) {
+          fail(id, -32602, \`unknown tool \${params.name}\`);
+          return;
+        }
+        const out = await tool(params.arguments ?? {});
+        reply(id, { content: [{ type: "text", text: out.text }] });
+        return;
+      }
+      default:
+        fail(id, -32601, \`no method \${method}\`);
+    }
+  });
+}
+`,
+  "rvw_sample_fetch:old-cache.js": `// 같은 주소를 두 번 받지 않는다(프로세스가 사는 동안)
+const store = new Map();
+export async function cached(key, load) {
+  if (store.has(key)) return store.get(key);
+  const value = await load();
+  store.set(key, value);
+  return value;
+}
+`,
+};
+
+const bytesOf = (text: string | undefined): number => new TextEncoder().encode(text ?? "").length;
 
 function filesOf(paths: readonly string[], seed: string): ReviewItem["files"] {
   return paths.map((path) => ({
@@ -163,6 +331,26 @@ export const SAMPLE_PROFILES: readonly Profile[] = [
   },
 ];
 
+const FETCH_BASE_FILES: ReviewItem["files"] = [
+  {
+    path: "plugin.json",
+    bytes: bytesOf(BASE_FILES["rvw_sample_fetch:plugin.json"]),
+    sha256: hex("a1"),
+  },
+  {
+    path: "server.js",
+    bytes: bytesOf(BASE_FILES["rvw_sample_fetch:server.js"]),
+    sha256: hex("a2"),
+  },
+  { path: "mcp.js", bytes: bytesOf(BASE_FILES["rvw_sample_fetch:mcp.js"]), sha256: hex("a3") },
+  {
+    path: "old-cache.js",
+    bytes: bytesOf(BASE_FILES["rvw_sample_fetch:old-cache.js"]),
+    sha256: hex("a4"),
+  },
+  { path: "README.md", bytes: 96, sha256: hex("a5") },
+];
+
 const FETCH_BASE = item({
   itemId: "rvw_sample_fetch_base",
   name: "web-fetch-plus",
@@ -171,13 +359,8 @@ const FETCH_BASE = item({
   candidateHash: hash("4"),
   createdAt: ago(60 * 24 * 9),
   decidedAt: ago(60 * 24 * 9),
-  card: card({ name: "web-fetch-plus", displayName: "Web Fetch Plus" }),
-  files: [
-    { path: "plugin.json", bytes: 220, sha256: hex("a1") },
-    { path: "server.js", bytes: 310, sha256: hex("a2") },
-    { path: "mcp.js", bytes: 1800, sha256: hex("a3") },
-    { path: "old-cache.js", bytes: 640, sha256: hex("a4") },
-  ],
+  card: card({ name: "web-fetch-plus", displayName: "Web Fetch Plus", version: "1.4.0" }),
+  files: FETCH_BASE_FILES,
 });
 
 /** 기본 표본: 할 일 종류 넷이 다 있고, 실행될 스크립트·서버, 파일 차이, 목적 없음, 프로젝트 코드가 있다 */
@@ -191,6 +374,7 @@ export function sampleItems(): readonly ReviewItem[] {
       card: card({
         name: "lint-guard",
         displayName: "Lint Guard",
+        version: "0.3.0",
         purpose: "도구가 TypeScript 파일을 고치기 전에 린트를 돌리고, 걸리면 막는다.",
         enforcement: "enforced",
         runs: { code: true, isolated: true },
@@ -227,9 +411,11 @@ export function sampleItems(): readonly ReviewItem[] {
       kind: "update",
       createdAt: ago(130),
       baseHash: hash("4"),
+      baseFiles: FETCH_BASE_FILES,
       card: card({
         name: "web-fetch-plus",
         displayName: "Web Fetch Plus",
+        version: "1.5.0",
         purpose: "웹 페이지를 읽어 본문만 돌려주는 도구 둘을 준다.",
         runs: { code: true, isolated: true },
         cost: { always: 0, drive: null, onDemand: 410, toolCount: 2, basis: "declared" },
@@ -265,21 +451,26 @@ export function sampleItems(): readonly ReviewItem[] {
         },
       }),
       diff: {
-        added: [{ row: "inject", what: "도구 fetch_many" }],
+        added: [{ row: "inject", what: "tool:fetch_many", detail: "여러 페이지를 한 번에 읽는다" }],
         removed: [],
-        changed: [{ row: "runs", what: "MCP 서버 fetch의 실행 인자", detail: "--port 0 추가" }],
+        changed: [{ row: "inject", what: "mcp:fetch", detail: "node server.js --port 0" }],
         enforcementChange: null,
         costDelta: { always: 120, onDemand: 180 },
       },
       files: [
-        { path: "plugin.json", bytes: 236, sha256: hex("c1") },
         {
-          path: "server.js",
-          bytes: new TextEncoder().encode(FILES["server.js"] ?? "").length,
-          sha256: hex("c2"),
+          path: "plugin.json",
+          bytes: bytesOf(FILES["rvw_sample_fetch:plugin.json"]),
+          sha256: hex("c1"),
         },
-        { path: "mcp.js", bytes: 1800, sha256: hex("a3") },
-        { path: "scripts/warm.ts", bytes: 420, sha256: hex("c4") },
+        { path: "server.js", bytes: bytesOf(FILES["server.js"]), sha256: hex("c2") },
+        { path: "mcp.js", bytes: bytesOf(FILES["rvw_sample_fetch:mcp.js"]), sha256: hex("c3") },
+        {
+          path: "scripts/warm.ts",
+          bytes: bytesOf(FILES["rvw_sample_fetch:scripts/warm.ts"]),
+          sha256: hex("c4"),
+        },
+        { path: "README.md", bytes: 96, sha256: hex("a5") },
       ],
     }),
     item({
@@ -291,6 +482,7 @@ export function sampleItems(): readonly ReviewItem[] {
       card: card({
         name: "review-helper",
         displayName: "Review Helper",
+        version: "0.1.0",
         purpose: null,
         runs: { code: true, isolated: true },
         does: {
@@ -322,6 +514,7 @@ export function sampleItems(): readonly ReviewItem[] {
       card: card({
         name: "release-notes",
         displayName: "Release Notes",
+        version: "2.0.1",
         purpose: "지난 태그 이후 커밋을 읽어 릴리스 노트 초안을 쓴다.",
         cost: { always: 64, drive: null, onDemand: 900, toolCount: null, basis: "declared" },
         does: {
@@ -422,8 +615,22 @@ export function manyItems(): readonly ReviewItem[] {
   return [...out, FETCH_BASE];
 }
 
-/** 표본 파일 본문(`pluginReview.file`과 같은 모양) */
-export function sampleFile(itemId: string, path: string): ReturnType<ReviewData["file"]> {
+/** 표본 파일 본문(`pluginReview.file`과 같은 모양). `base`는 지난 승인 버전이고, 표에 없으면 보관소에 없는 것(`missing`)이다 */
+export function sampleFile(
+  itemId: string,
+  path: string,
+  side?: ReviewFileSide,
+): ReturnType<ReviewData["file"]> {
+  if (side === "base") {
+    const text = BASE_FILES[`${itemId}:${path}`];
+    return Promise.resolve(
+      ok(
+        text === undefined
+          ? { path, text: null, truncated: false, missing: true }
+          : { path, text, truncated: false },
+      ),
+    );
+  }
   const base = path.split("/").pop() ?? path;
   const text = FILES[`${itemId}:${path}`] ?? FILES[path] ?? FILES[base] ?? `// ${path}\n`;
   return Promise.resolve(ok({ path, text, truncated: false }));

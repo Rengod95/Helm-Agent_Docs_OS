@@ -5,6 +5,7 @@ import type {
   PluginReviewFileResult,
   Profile,
   ReviewDecision,
+  ReviewFileSide,
   ReviewItem,
 } from "@fresnel/contracts/wire";
 import { useCommands, type CommandError } from "../../commands.ts";
@@ -33,7 +34,12 @@ export type ReviewLoad =
 export interface ReviewData {
   readonly load: ReviewLoad;
   reload(): void;
-  file(itemId: string, path: string): Promise<Result<PluginReviewFileResult, CommandError>>;
+  /** 파일 하나. `side` 생략은 새 판, `base`는 지난 승인 버전이다. 결정한 뒤에도 읽는다 */
+  file(
+    itemId: string,
+    path: string,
+    side?: ReviewFileSide,
+  ): Promise<Result<PluginReviewFileResult, CommandError>>;
   decide(
     itemId: string,
     decision: ReviewDecision,
@@ -110,7 +116,7 @@ export function useReviewSource(): ReviewData {
 
   // 본문 읽기와 결정은 명령에만 기대므로 그리기마다 새로 만들지 않는다(파일 읽기 효과가 다시 돌지 않게)
   const file = useCallback<ReviewData["file"]>(
-    (itemId, path) => commands.pluginReview.file(itemId, path),
+    (itemId, path, side) => commands.pluginReview.file(itemId, path, side),
     [commands],
   );
   const decide = useCallback<ReviewData["decide"]>(

@@ -16,7 +16,7 @@ import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
-import { ReviewBadge } from "../craft/review/review-badge.tsx";
+import { ReviewBadge, ReviewMark } from "../craft/review/review-badge.tsx";
 import { ReviewScreen } from "../craft/review/review-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -50,6 +50,7 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     area: "workbench",
     label: "desktop.shell.nav.review",
     icon: <ListChecks />,
+    Mark: ReviewMark,
     Badge: ReviewBadge,
     render: () => <ReviewScreen />,
   });

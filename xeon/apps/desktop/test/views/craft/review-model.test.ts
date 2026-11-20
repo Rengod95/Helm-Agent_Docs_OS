@@ -16,12 +16,15 @@ import {
   pendingOf,
   placeOf,
   placesOf,
+  needsTarget,
   rejectDecisionOf,
   reviewKeyOf,
   runLinesOf,
   shortHash,
+  shownFilesOf,
   stepFile,
   stepItem,
+  versionsOf,
   warningsOf,
 } from "../../../src/views/craft/review/review-model.ts";
 import {
@@ -44,7 +47,6 @@ const FETCH = sample("rvw_sample_fetch");
 const DRIVE = sample("rvw_sample_drive");
 const RULE = sample("rvw_sample_rule");
 const REMOVE = sample("rvw_sample_remove");
-const FETCH_BASE = sample("rvw_sample_fetch_base");
 
 describe("what the list says the item is", () => {
   test("wire kinds become four screen kinds: a thread-made or rule-added new item is a draft, a folder import is an install", () => {
@@ -118,40 +120,54 @@ describe("what runs when approved", () => {
 });
 
 describe("files against the last approved version", () => {
-  test("the base is the approved item whose candidate is this item's base hash", () => {
+  test("the previous version's number comes from the approved item whose candidate is this item's base hash", () => {
     expect(baseItemOf(ITEMS, FETCH)?.itemId).toBe("rvw_sample_fetch_base");
     expect(baseItemOf(ITEMS, LINT)).toBeNull();
+    expect(versionsOf(FETCH, ITEMS)).toEqual({ now: "1.5.0", before: "1.4.0" });
+    expect(versionsOf(LINT, ITEMS)).toEqual({ now: "0.3.0", before: null });
+    expect(versionsOf(RULE, ITEMS)).toEqual({ now: null, before: null });
   });
 
-  test("an update compares sha256 per path: changed, then added, removed, same", () => {
-    const rows = fileRowsOf(FETCH, FETCH_BASE);
-    expect(rows.map((row) => [row.path, row.change, row.readable])).toEqual([
-      ["plugin.json", "changed", true],
-      ["server.js", "changed", true],
-      ["scripts/warm.ts", "added", true],
-      ["old-cache.js", "removed", false],
-      ["mcp.js", "same", true],
+  test("an update compares the engine's base files by sha256: changed, then added, removed, same", () => {
+    const rows = fileRowsOf(FETCH);
+    expect(rows.map((row) => [row.path, row.change, row.sides.candidate, row.sides.base])).toEqual([
+      ["mcp.js", "changed", true, true],
+      ["plugin.json", "changed", true, true],
+      ["server.js", "changed", true, true],
+      ["scripts/warm.ts", "added", true, false],
+      ["old-cache.js", "removed", false, true],
+      ["README.md", "same", true, true],
     ]);
-    expect(firstFileOf(rows)).toBe("plugin.json");
+    expect(firstFileOf(rows)).toBe("mcp.js");
+    expect(shownFilesOf(rows).map((row) => row.path)).toEqual([
+      "mcp.js",
+      "plugin.json",
+      "server.js",
+      "scripts/warm.ts",
+      "old-cache.js",
+    ]);
   });
 
-  test("a new plugin's files are all added; an update with no known base is all changed", () => {
-    expect(fileRowsOf(LINT, null).map((row) => row.change)).toEqual(["added", "added", "added"]);
-    expect(fileRowsOf(FETCH, null).map((row) => row.change)).toEqual([
+  test("a new plugin's files are all added; an update without base files is all changed and reads only the new side", () => {
+    expect(fileRowsOf(LINT).map((row) => row.change)).toEqual(["added", "added", "added"]);
+    const rows = fileRowsOf({ kind: FETCH.kind, files: FETCH.files });
+    expect(rows.map((row) => row.change)).toEqual([
+      "changed",
       "changed",
       "changed",
       "changed",
       "changed",
     ]);
+    expect(rows.every((row) => row.sides.candidate && !row.sides.base)).toBe(true);
   });
 
-  test("stepping files stops at the ends and skips removed files", () => {
-    const rows = fileRowsOf(FETCH, FETCH_BASE);
-    expect(stepFile(rows, "plugin.json", -1)).toBe("plugin.json");
-    expect(stepFile(rows, "plugin.json", 1)).toBe("server.js");
-    expect(stepFile(rows, "scripts/warm.ts", 1)).toBe("mcp.js");
-    expect(stepFile(rows, "mcp.js", 1)).toBe("mcp.js");
-    expect(stepFile(rows, null, 1)).toBe("plugin.json");
+  test("stepping walks the shown files (removed ones too) and stops at the ends", () => {
+    const shown = shownFilesOf(fileRowsOf(FETCH));
+    expect(stepFile(shown, "mcp.js", -1)).toBe("mcp.js");
+    expect(stepFile(shown, "mcp.js", 1)).toBe("plugin.json");
+    expect(stepFile(shown, "scripts/warm.ts", 1)).toBe("old-cache.js");
+    expect(stepFile(shown, "old-cache.js", 1)).toBe("old-cache.js");
+    expect(stepFile(shown, null, 1)).toBe("mcp.js");
   });
 
   test("hashes shorten to twelve hex digits", () => {
@@ -161,14 +177,22 @@ describe("files against the last approved version", () => {
 });
 
 describe("deciding", () => {
-  test("a new plugin defaults to keep-only (the engine refuses a profile before a restart); an update follows its origin", () => {
-    expect(defaultTargetOf(DRIVE, SAMPLE_PROFILES)).toEqual({ kind: "library" });
-    expect(
-      defaultTargetOf({ kind: "update", originProfileId: "writing" }, SAMPLE_PROFILES),
-    ).toEqual({ kind: "profile", profileId: "writing" });
-    expect(defaultTargetOf({ kind: "update", originProfileId: "gone" }, SAMPLE_PROFILES)).toEqual({
-      kind: "library",
+  test("the target defaults to the creating chat's profile; without one nothing is chosen and a new item cannot be approved yet", () => {
+    expect(defaultTargetOf(DRIVE, SAMPLE_PROFILES)).toEqual({
+      kind: "profile",
+      profileId: "default",
     });
+    expect(defaultTargetOf(RULE, SAMPLE_PROFILES)).toEqual({
+      kind: "profile",
+      profileId: "writing",
+    });
+    expect(defaultTargetOf(LINT, SAMPLE_PROFILES)).toEqual({ kind: "unset" });
+    expect(defaultTargetOf({ originProfileId: "gone" }, SAMPLE_PROFILES)).toEqual({
+      kind: "unset",
+    });
+    expect(needsTarget(LINT, { kind: "unset" })).toBe(true);
+    expect(needsTarget(LINT, { kind: "library" })).toBe(false);
+    expect(needsTarget(FETCH, { kind: "unset" })).toBe(false);
   });
 
   test("approval sends a profile or keep-only for a new item, nothing for an update, and the purpose when filled", () => {
@@ -209,16 +233,15 @@ describe("deciding", () => {
     expect(decideFailureOf({ kind: "offline" })).toBe("offline");
   });
 
-  test("after approval: profile names, keep-only, and the restart note for a new plugin", () => {
-    expect(approveOutcomeOf(LINT, [], SAMPLE_PROFILES)).toEqual({
-      profiles: [],
-      library: true,
-      restart: true,
+  test("after approval: profile names, and keep-only for a new plugin added to no profile (no restart)", () => {
+    expect(approveOutcomeOf(LINT, [], SAMPLE_PROFILES)).toEqual({ profiles: [], library: true });
+    expect(approveOutcomeOf(LINT, ["writing"], SAMPLE_PROFILES)).toEqual({
+      profiles: ["글쓰기"],
+      library: false,
     });
     expect(approveOutcomeOf(FETCH, ["default", "x"], SAMPLE_PROFILES)).toEqual({
       profiles: ["기본", "x"],
       library: false,
-      restart: false,
     });
   });
 });
