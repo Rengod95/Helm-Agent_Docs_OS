@@ -1,12 +1,14 @@
 // 리뷰 화면의 작은 부품과 말(상세의 두 열과 목록이 같이 쓴다). 섹션 문법은 캔버스 상세 패널(cv4)과 같다:
 // 섹션 제목은 15/600 primary(`text-title-3`)이고 아이콘을 달지 않는다. 섹션과 섹션은 간격과 가는 선으로 가른다.
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { Badge, cn } from "@caustic/react";
+import { Badge, Toast } from "@caustic/react";
+import { Check, CircleAlert, Info, TriangleAlert } from "@caustic/react/icons";
 import { assertNever } from "@fresnel/contracts";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import { useId, type ReactNode } from "react";
 import { KindGlyph } from "./review-glyphs.tsx";
-import type { EntryKind, PluginKind } from "./review-model.ts";
+import type { HookPower } from "@fresnel/contracts/extensions";
+import type { EntryKind, Keeper, Place, PluginKind, PurposeDraft } from "./review-model.ts";
 
 export const ENTRY_WORD: Readonly<Record<EntryKind, MessageId>> = {
   install: "desktop.craft.review.group.install",
@@ -67,6 +69,79 @@ export function agoText(iso: string, now: number): string {
   return t("desktop.craft.review.ago.days", { count: Math.floor(hours / 24) });
 }
 
+const PLACE_WORD: Readonly<Record<Place["group"], MessageId>> = {
+  input: "desktop.craft.review.place.input",
+  request: "desktop.craft.review.place.request",
+  tool: "desktop.craft.review.place.tool",
+  turn: "desktop.craft.review.place.turn",
+  thread: "desktop.craft.review.place.thread",
+  other: "desktop.craft.review.place.other",
+};
+
+export function placeText(place: Place): string {
+  const word = t(PLACE_WORD[place.group]);
+  if (place.side === "before") return t("desktop.craft.review.place.before", { place: word });
+  if (place.side === "after") return t("desktop.craft.review.place.after", { place: word });
+  return t("desktop.craft.review.place.at", { place: word });
+}
+
+/** 누가 지키는가: 요약 띠의 칩 말과 권한과 위험의 줄 말(`keeperOf`) */
+export const KEEPER_CHIP: Readonly<Record<Keeper, MessageId>> = {
+  engine: "desktop.craft.review.chip.enforced",
+  watch: "desktop.craft.review.chip.watch",
+  model: "desktop.craft.review.chip.advisory",
+};
+export const KEEPER_LINE: Readonly<Record<Keeper, MessageId>> = {
+  engine: "desktop.craft.review.risk.enforced",
+  watch: "desktop.craft.review.risk.watch",
+  model: "desktop.craft.review.risk.advisory",
+};
+
+const HOOK_PURPOSE: Readonly<Record<HookPower, MessageId>> = {
+  observe: "desktop.craft.review.purpose.hook.observe",
+  modify: "desktop.craft.review.purpose.hook.modify",
+  decide: "desktop.craft.review.purpose.hook.decide",
+  contribute: "desktop.craft.review.purpose.hook.contribute",
+};
+
+/** 목적 문장 기본값(`purposeDraftOf`)을 사람이 읽는 한 문장으로. 엔진의 상한(200자)을 넘지 않는다 */
+export function purposeText(draft: PurposeDraft): string {
+  return purposeSentence(draft).slice(0, 200);
+}
+
+function purposeSentence(draft: PurposeDraft): string {
+  switch (draft.kind) {
+    case "none":
+      return "";
+    case "toolText":
+      return draft.text;
+    case "drive":
+      if (draft.command !== null) {
+        return t("desktop.craft.review.purpose.driveCommand", { command: draft.command });
+      }
+      return draft.start
+        ? t("desktop.craft.review.purpose.driveStart")
+        : t("desktop.craft.review.purpose.drive");
+    case "hook":
+      return t(HOOK_PURPOSE[draft.power], { place: placeText(draft.place) });
+    case "tools":
+      return draft.names.length === 1
+        ? t("desktop.craft.review.purpose.toolOne", { name: draft.names[0] ?? "" })
+        : t("desktop.craft.review.purpose.toolMany", {
+            count: draft.names.length,
+            names: draft.names.join(", "),
+          });
+    case "server":
+      return t("desktop.craft.review.purpose.server", { name: draft.name });
+    case "skill":
+      return t("desktop.craft.review.purpose.skill", { name: draft.name });
+    case "instructions":
+      return t("desktop.craft.review.purpose.instructions");
+    default:
+      return assertNever(draft, "review purpose draft");
+  }
+}
+
 /** 상태 칩(outlined). 결정 결과와 항목 종류를 같은 모양으로 쓴다 */
 const CHIP_TONE: Readonly<Record<"neutral" | "warning", string>> = {
   neutral: "",
@@ -105,7 +180,7 @@ export function KindChip(props: { readonly kind: PluginKind }): ReactNode {
   );
 }
 
-/** 섹션. `id`는 시험과 찍기 도구가 섹션 순서를 읽는 표지다 */
+/** 섹션. `id`는 시험과 찍기 도구가 섹션 순서를 읽는 표지다. 제목과 내용 사이는 가깝게, 섹션과 섹션은 멀게(`review.css`의 `.rv-sec`) */
 export function Section(props: {
   readonly title: MessageId;
   readonly id: string;
@@ -114,7 +189,7 @@ export function Section(props: {
 }): ReactNode {
   const headingId = useId();
   return (
-    <section aria-labelledby={headingId} className="rv-sec grid gap-3" data-section={props.id}>
+    <section aria-labelledby={headingId} className="rv-sec" data-section={props.id}>
       <h3
         id={headingId}
         className="m-0 flex items-baseline gap-2 text-title-3 font-semibold text-text-primary"
@@ -129,24 +204,96 @@ export function Section(props: {
   );
 }
 
-/** 두 칸짜리 정의 줄. 이름 칸 폭은 부르는 쪽이 정한다(가운데 열 48px, 오른쪽 열 72px) */
-export function Fact(props: {
-  readonly term: string;
-  readonly children: ReactNode;
-  readonly wide?: boolean;
-}): ReactNode {
+/** 이름표-값 줄들의 묶음. 한 격자라 이름표 칸의 폭과 줄 간격이 묶음 안에서 같다(`review.css`의 `.rv-facts`) */
+export function Facts(props: { readonly children: ReactNode }): ReactNode {
+  return <dl className="rv-facts m-0">{props.children}</dl>;
+}
+
+/** 이름표-값 한 줄. `Facts` 안에서만 쓴다 */
+export function Fact(props: { readonly term: string; readonly children: ReactNode }): ReactNode {
   return (
-    <div
-      className={cn(
-        "grid items-baseline gap-3",
-        props.wide === true ? "grid-cols-[72px_minmax(0,1fr)]" : "grid-cols-[48px_minmax(0,1fr)]",
-      )}
-    >
+    <div className="rv-fact-row">
       <dt className="text-ui-sm text-text-tertiary">{props.term}</dt>
       <dd className="m-0 min-w-0 text-ui text-text-primary [overflow-wrap:anywhere]">
         {props.children}
       </dd>
     </div>
+  );
+}
+
+/**
+ * 알림의 세기. 앱의 알림 토스트(caustic `Toast`)의 tone과 같은 이름이다: 정보(info), 주의(warning), 막힘(danger), 끝남(success), 소식(neutral)
+ */
+export type NoticeTone = "info" | "warning" | "danger" | "success" | "neutral";
+
+/**
+ * 알림 카드(m6R4). 앱의 알림 토스트 부품을 제자리(`inline`)에 그린다: 테두리 면, 둥근 모서리 2xl, 세기 색의 맨 그림, 제목(13/500)과 설명(12, 보조 글색).
+ * 떠 있는 토스트가 아니므로 그림자는 없다. 늘 보이는 안내는 `note`, 결정 결과처럼 방금 생긴 것은 `status`로 읽힌다
+ */
+export function NoticeCard(props: {
+  readonly tone: NoticeTone;
+  readonly title: ReactNode;
+  readonly description?: ReactNode;
+  /** 시험과 찍기 도구의 표지 */
+  readonly name: string;
+  readonly live?: boolean;
+  readonly actionLabel?: string;
+  readonly onAction?: () => void;
+}): ReactNode {
+  return (
+    <Toast
+      inline
+      tone={props.tone}
+      shadow="none"
+      title={props.title}
+      role={props.live === true ? "status" : "note"}
+      data-review-notice={props.name}
+      {...(props.description === undefined ? {} : { description: props.description })}
+      {...(props.actionLabel === undefined ? {} : { actionLabel: props.actionLabel })}
+      {...(props.onAction === undefined ? {} : { onAction: props.onAction })}
+    />
+  );
+}
+
+function lineGlyph(tone: NoticeTone): ReactNode {
+  switch (tone) {
+    case "info":
+    case "neutral":
+      return <Info />;
+    case "warning":
+      return <TriangleAlert />;
+    case "danger":
+      return <CircleAlert />;
+    case "success":
+      return <Check />;
+    default:
+      return assertNever(tone, "notice line tone");
+  }
+}
+
+/**
+ * 알림 한 줄: 카드 없이 토스트와 같은 문법(세기 색의 맨 그림 + 무채색 글). 권한과 위험의 줄, 없는 플러그인, 프로필 검사 사유가 쓴다.
+ * 소식(neutral)은 그림도 흐린 색이다
+ */
+export function NoticeLine(props: {
+  readonly tone: NoticeTone;
+  readonly children: ReactNode;
+  readonly slot?: string;
+  readonly as?: "li" | "p";
+}): ReactNode {
+  const Tag = props.as ?? "p";
+  return (
+    <Tag
+      className="rv-line-notice m-0"
+      data-tone={props.tone}
+      {...(props.slot === undefined ? {} : { "data-slot": props.slot })}
+      {...(Tag === "p" ? { role: "note" } : {})}
+    >
+      <span aria-hidden="true" className="rv-line-notice-mark">
+        {lineGlyph(props.tone)}
+      </span>
+      <span className="min-w-0">{props.children}</span>
+    </Tag>
   );
 }
 

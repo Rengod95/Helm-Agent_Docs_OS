@@ -11,6 +11,7 @@ import {
   entryKindOf,
   fileRowsOf,
   firstFileOf,
+  keeperOf,
   kindsOf,
   missingByProfileOf,
   missingForTarget,
@@ -18,6 +19,7 @@ import {
   pendingOf,
   placeOf,
   placesOf,
+  purposeDraftOf,
   needsTarget,
   rejectDecisionOf,
   reviewKeyOf,
@@ -49,6 +51,9 @@ const FETCH = sample("rvw_sample_fetch");
 const DRIVE = sample("rvw_sample_drive");
 const RULE = sample("rvw_sample_rule");
 const REMOVE = sample("rvw_sample_remove");
+const IMPORTED = sample("rvw_sample_imported");
+const IMPORTED_BOX = sample("rvw_sample_imported_box");
+const NOTES = sample("rvw_sample_notes");
 
 describe("what the list says the item is", () => {
   test("wire kinds become four screen kinds: a thread-made or rule-added new item is a draft, a folder import is an install", () => {
@@ -100,12 +105,14 @@ describe("what runs when approved", () => {
         uses: ["system_tools"],
         timeoutMs: 10_000,
         envNames: [],
+        env: null,
       },
     ]);
   });
 
   test("the code notice adds system tools and network from the scripts' uses", () => {
     expect(codeNoticeOf(LINT.card)).toEqual({
+      mode: "narrow",
       isolated: true,
       systemTools: true,
       network: false,
@@ -316,5 +323,71 @@ describe("keyboard", () => {
     expect(nextAfter(ids, "b")).toBe("c");
     expect(nextAfter(ids, "c")).toBe("b");
     expect(nextAfter(["a"], "a")).toBeNull();
+  });
+});
+
+describe("fourth round (m6R4)", () => {
+  test("an imported hook keeps its original command, shell, refs and missing tools on the run line", () => {
+    const [line] = runLinesOf(IMPORTED.card);
+    expect(line?.kind === "script" ? line.env : null).toEqual({
+      command: 'npx prettier --write "$CLAUDE_FILE_PATHS"',
+      shell: "bash",
+      interpreter: "/opt/homebrew/bin/npx",
+      refs: [
+        { path: ".prettierrc", hash: expect.stringMatching(/^sha256:/) },
+        { path: "package.json", hash: null },
+      ],
+      refsKnown: true,
+      missingTools: [],
+      versionHints: [],
+      fromProject: false,
+    });
+  });
+
+  test("the code notice tells your-permissions apart from the sandbox setting and from Fresnel-made scripts", () => {
+    expect(
+      [LINT, FETCH, IMPORTED, IMPORTED_BOX].map((item) => codeNoticeOf(item.card)?.mode),
+    ).toEqual(["narrow", "narrow", "userFull", "sandboxed"]);
+  });
+
+  test("who keeps it: engine-enforced, an observe-only hook the engine runs, or the model's call", () => {
+    expect(
+      [LINT, IMPORTED, REMOVE, FETCH, NOTES, DRIVE].map((item) => keeperOf(item.card)),
+    ).toEqual(["engine", "watch", "watch", "model", "model", "engine"]);
+  });
+
+  test("the purpose default comes from the engine's one tool description, else from the card's facts", () => {
+    expect(purposeDraftOf(DRIVE.card)).toEqual({ kind: "drive", command: "review", start: false });
+    expect(purposeDraftOf(IMPORTED.card)).toEqual({
+      kind: "hook",
+      place: { group: "tool", side: "after" },
+      power: "observe",
+    });
+    expect(purposeDraftOf(LINT.card)).toEqual({
+      kind: "hook",
+      place: { group: "tool", side: "before" },
+      power: "decide",
+    });
+    expect(purposeDraftOf(FETCH.card)).toEqual({
+      kind: "tools",
+      names: ["fetch_page", "fetch_many"],
+    });
+    expect(purposeDraftOf(NOTES.card)).toEqual({ kind: "skill", name: "release-notes" });
+    expect(purposeDraftOf(RULE.card)).toEqual({ kind: "instructions" });
+    const oneTool = {
+      ...FETCH.card,
+      does: {
+        ...FETCH.card.does,
+        inject:
+          FETCH.card.does.inject === null
+            ? null
+            : {
+                ...FETCH.card.does.inject,
+                tools: [{ name: "fetch_page", description: " 페이지 하나를 읽는다 " }],
+              },
+      },
+    };
+    expect(purposeDraftOf(oneTool)).toEqual({ kind: "toolText", text: "페이지 하나를 읽는다" });
+    expect(purposeDraftOf({ ...DRIVE.card, internal: true })).toEqual({ kind: "none" });
   });
 });

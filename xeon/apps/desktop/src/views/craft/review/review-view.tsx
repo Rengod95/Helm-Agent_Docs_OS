@@ -351,7 +351,7 @@ function SplitLayout(props: {
           <div key={group.key} className="grid gap-px pt-2 first:pt-0">
             <div className={cn(listNavigationHeading({ kind: "sessions" }), "justify-start")}>
               <span>{t(group.label)}</span>
-              <span className="ms-auto text-hint text-text-placeholder normal-case tabular-nums">
+              <span className="ms-auto text-hint text-text-placeholder normal-case normal-nums">
                 {String(group.items.length)}
               </span>
             </div>
@@ -424,11 +424,14 @@ function ReadyView(props: {
       className="flex min-h-0 flex-1 flex-col outline-none focus-visible:shadow-none focus-visible:outline-none"
       onKeyDown={state.onKeyDown}
     >
+      {/* 목록과 자세히는 머리 선 바로 아래에서 시작하고 오른쪽 끝까지 간다(`flush`): 세로 선이 머리 선과 만나고, 셸의 오른쪽 막대 자리는
+          화면이 스스로 판단 열 안쪽 여백으로 비킨다(`review.css`의 `--rv-end`, m6R4) */}
       <ScreenHeader
         title={t("desktop.craft.review.title")}
+        flush={!empty}
         meta={
           state.pending.length === 0 ? undefined : (
-            <span className="text-ui text-text-tertiary tabular-nums">
+            <span className="text-ui text-text-tertiary">
               {t("desktop.craft.review.pending", { count: state.pending.length })}
             </span>
           )

@@ -1,5 +1,11 @@
 import { assertNever } from "@fresnel/contracts";
-import type { CardScript, PluginCard, ScriptUse } from "@fresnel/contracts/extensions";
+import type {
+  CardScript,
+  CardScriptEnv,
+  HookPower,
+  PluginCard,
+  ScriptUse,
+} from "@fresnel/contracts/extensions";
 import type { Profile, ReviewDecision, ReviewItem } from "@fresnel/contracts/wire";
 
 // Craft 리뷰 화면(C5, `docs/xeon/review/m6/craft-flows.md` 6.12)의 순수 값.
@@ -70,6 +76,18 @@ export function primaryKindOf(card: PluginCard): PluginKind {
 }
 
 /**
+ * 누가 지키는가(요약 띠의 칩과 권한과 위험의 "지키는 쪽"). 엔진 값은 `card.enforcement` 하나다: Drive이거나 `tap`이 아닌 훅이 있으면 `enforced`,
+ * 아니면 `advisory`(`apps/host/src/assembly/plugins/card.ts`). `advisory`는 "엔진이 강제하지 않는다"는 뜻이지 "모델이 고른다"는 뜻이 아니다.
+ * 모델에 싣는 것(지침, 스킬, 도구)이 없고 `tap` 훅만 가진 플러그인은 엔진이 정해진 자리에서 돌리되 막거나 바꾸지 않으므로 `watch`다(m6R4)
+ */
+export type Keeper = "engine" | "watch" | "model";
+export function keeperOf(card: PluginCard): Keeper {
+  if (card.enforcement === "enforced") return "engine";
+  const kinds = kindsOf(card);
+  return kinds.length === 1 && kinds[0] === "hook" ? "watch" : "model";
+}
+
+/**
  * 훅이 붙는 자리. 내부 이름(`tool.call.before`)을 사용자에게 보이지 않으므로 무리(입력, 모델 요청, 도구 호출, 턴, 대화)와
  * 앞·뒤로 줄인다. 모르는 이름은 `other`다
  */
@@ -134,6 +152,8 @@ export type RunLine =
       readonly uses: readonly ScriptUse[] | null;
       readonly timeoutMs: number;
       readonly envNames: readonly string[];
+      /** 가져온 훅(환경 모드)이면 원래 명령, 셸, 찾지 못한 실행 파일, 읽는 파일. 아니면 null이다 */
+      readonly env: CardScriptEnv | null;
     }
   | {
       readonly kind: "server";
@@ -158,6 +178,7 @@ function scriptLine(script: CardScript): RunLine {
     uses: script.uses ?? null,
     timeoutMs: script.timeoutMs,
     envNames: script.launch.envNames,
+    env: script.env ?? null,
   };
 }
 
@@ -177,10 +198,14 @@ export function runLinesOf(card: PluginCard): readonly RunLine[] {
 }
 
 /**
- * 코드 실행 안내(늘 보이는 경고 한 줄, AGE-14·AC-51). 코드가 도는 플러그인에만 있다. 스크립트가 시스템 도구나 네트워크를 쓰면
- * 그 사실을 같은 줄에 더한다. 문구는 "격리돼 안전하다"가 아니라 파일 범위에 한정해 말한다
+ * 코드 실행 안내(늘 보이는 경고, AGE-14·AC-51). 코드가 도는 플러그인에만 있다. 세 갈래다(m6R4, 엔진 값은 `CardScript.uses`와 `env`):
+ * - `narrow`: Fresnel에서 만든 플러그인의 스크립트. 자기 폴더 밖을 읽거나 쓰지 못한다. 시스템 도구나 네트워크를 쓰면 같은 칸에 더한다.
+ * - `userFull`: 가져온 훅(환경 모드)의 기본값 `user_full_access`. 사용자의 셸 명령 그대로, 사용자 권한으로 돈다. Fresnel이 막지 않는다.
+ * - `sandboxed`: 같은 훅을 설정 `l0.sandbox.sandboxImportedHooks`로 샌드박스 안에서 돌릴 때(`read_wide`, `write_project`).
+ * 한 플러그인에 둘이 섞이면 가장 넓은 쪽을 말한다(userFull → sandboxed → narrow)
  */
 export interface CodeNotice {
+  readonly mode: "narrow" | "userFull" | "sandboxed";
   readonly isolated: boolean | null;
   readonly systemTools: boolean;
   readonly network: boolean;
@@ -188,16 +213,88 @@ export interface CodeNotice {
   readonly usesUnknown: boolean;
 }
 
+type ScriptLine = Extract<RunLine, { readonly kind: "script" }>;
+
+function usesAny(scripts: readonly ScriptLine[], use: ScriptUse): boolean {
+  return scripts.some((line) => line.uses?.includes(use) === true);
+}
+
 export function codeNoticeOf(card: PluginCard): CodeNotice | null {
   const runs = runLinesOf(card);
   if (!card.runs.code && runs.length === 0) return null;
-  const scripts = runs.flatMap((line) => (line.kind === "script" ? [line] : []));
+  const scripts = runs.flatMap((line): ScriptLine[] => (line.kind === "script" ? [line] : []));
+  const mode: CodeNotice["mode"] = usesAny(scripts, "user_full_access")
+    ? "userFull"
+    : usesAny(scripts, "read_wide") || usesAny(scripts, "write_project")
+      ? "sandboxed"
+      : "narrow";
   return {
+    mode,
     isolated: card.runs.isolated,
-    systemTools: scripts.some((line) => line.uses?.includes("system_tools") === true),
-    network: scripts.some((line) => line.uses?.includes("network") === true),
+    systemTools: usesAny(scripts, "system_tools"),
+    network: usesAny(scripts, "network"),
     usesUnknown: scripts.some((line) => line.uses === null),
   };
+}
+
+/**
+ * 목적 문장의 기본값(m6R4: 사용자가 처음부터 쓰지 않고, 채워진 문장을 고칠 때만 고친다). 모델을 부르지 않는다.
+ * 1) 엔진 값: 카드의 `purpose`가 있으면 묻지 않는다(이 함수를 부르지 않는다). 도구 하나만 주고 그 도구에 설명이 있으면 그 설명이다.
+ * 2) 카드의 사실: 대표 종류(Drive → Hook → 도구 → Inject)로 한 문장을 조립한다.
+ * 내부 부품(`internal`)은 리뷰 대상이 아니므로 비워 둔다
+ */
+export type PurposeDraft =
+  | { readonly kind: "none" }
+  | { readonly kind: "toolText"; readonly text: string }
+  | { readonly kind: "drive"; readonly command: string | null; readonly start: boolean }
+  | { readonly kind: "hook"; readonly place: Place; readonly power: HookPower }
+  | { readonly kind: "tools"; readonly names: readonly string[] }
+  | { readonly kind: "server"; readonly name: string }
+  | { readonly kind: "skill"; readonly name: string }
+  | { readonly kind: "instructions" };
+
+/** 한 훅의 힘 가운데 가장 센 것(막기 → 고치기 → 더하기 → 보기) */
+const POWER_ORDER: readonly HookPower[] = ["decide", "modify", "contribute", "observe"];
+
+export function purposeDraftOf(card: PluginCard): PurposeDraft {
+  if (card.internal === true) return { kind: "none" };
+  const inject = card.does.inject;
+  const tools = inject?.tools ?? [];
+  const only = tools.length === 1 ? tools[0] : undefined;
+  const described = only?.description?.trim() ?? "";
+  if (described !== "" && (inject?.mcpServers.length ?? 0) <= 1) {
+    return { kind: "toolText", text: described.slice(0, 200) };
+  }
+  const primary = primaryKindOf(card);
+  switch (primary) {
+    case "drive": {
+      const drive = card.does.drive;
+      return { kind: "drive", command: drive?.commands[0] ?? null, start: drive?.start ?? false };
+    }
+    case "hook": {
+      const hooks = card.does.hook?.hooks ?? [];
+      const powers = new Set(hooks.flatMap((hook) => hook.powers));
+      const power = POWER_ORDER.find((p) => powers.has(p)) ?? "observe";
+      const first = hooks.find((hook) => hook.powers.includes(power)) ?? hooks[0];
+      if (first === undefined) return { kind: "none" };
+      return { kind: "hook", place: placeOf(first.name), power };
+    }
+    case "tool": {
+      if (tools.length > 0) return { kind: "tools", names: tools.map((tool) => tool.name) };
+      const server = inject?.mcpServers[0];
+      return server === undefined ? { kind: "none" } : { kind: "server", name: server.name };
+    }
+    case "inject": {
+      const skills = inject?.instructions.skills ?? [];
+      const skill = skills.length === 1 ? skills[0] : undefined;
+      if (skill !== undefined) return { kind: "skill", name: skill.name };
+      return (inject?.instructions.always.length ?? 0) > 0
+        ? { kind: "instructions" }
+        : { kind: "none" };
+    }
+    default:
+      return assertNever(primary, "purpose draft kind");
+  }
 }
 
 /** 이 항목에서 보여야 할 경고. 순서는 무게 순이다 */

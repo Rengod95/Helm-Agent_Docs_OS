@@ -3,13 +3,23 @@
 // 목적 한 문장, 거절 사유, 실패 사유, 거절·승인). 셋째 판: 결정 칸은 열 바닥에 따로 떠 있지 않고 출처 바로 뒤를 따른다. 열이 넘칠 때만
 // 바닥에 붙는다(sticky). 그래서 짧은 항목에서 출처와 단추 사이가 비지 않는다. 좁은 창에서는 셋으로 나뉜다(`review.css`): 경고는 요약 아래로
 // 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 화면 바닥에 붙는다.
+// 넷째 판(m6R4): 알림 카드는 앱의 알림 토스트와 같은 부품(`NoticeCard`)이고, 권한과 위험의 줄도 토스트와 같은 문법(`NoticeLine`)이다.
+// 목적 한 문장은 비워 두지 않고 카드의 사실로 만든 문장을 채워 둔다. 거절·승인 단추는 한 줄을 반씩 나눠 가진다.
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { Button, cn, Select, SelectOption, Textarea } from "@caustic/react";
-import { Check, ChevronRight, X } from "@caustic/react/icons";
+import { Button, Select, SelectOption, Textarea } from "@caustic/react";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { Profile, ReviewItem } from "@fresnel/contracts/wire";
-import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import {
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import type { ProfileIssueView } from "../../commands.ts";
 import {
   approveBlockOf,
@@ -18,8 +28,10 @@ import {
   codeNoticeOf,
   decideFailureOf,
   defaultTargetOf,
+  keeperOf,
   missingForTarget,
   needsTarget,
+  purposeDraftOf,
   rejectDecisionOf,
   shortHash,
   warningsOf,
@@ -29,7 +41,17 @@ import {
   type Versions,
   type Warning,
 } from "./review-model.ts";
-import { agoText, Fact, MUTED, originText, Section } from "./review-parts.tsx";
+import {
+  agoText,
+  Fact,
+  Facts,
+  KEEPER_LINE,
+  NoticeCard,
+  NoticeLine,
+  originText,
+  purposeText,
+  Section,
+} from "./review-parts.tsx";
 import type { ReviewData } from "./review-source.ts";
 
 /** 결정 줄의 바깥 동작(키보드가 부른다) */
@@ -44,24 +66,45 @@ export type Decided =
   | { readonly kind: "sentBack" }
   | { readonly kind: "discarded" };
 
-/** 코드 실행 안내. 경고라 아이콘 뒤에 숨기지 않고 늘 보인다 [결정: AGE-14] */
+/**
+ * 코드 실행 안내. 경고라 아이콘 뒤에 숨기지 않고 늘 보인다 [결정: AGE-14]. 세기는 토스트의 문법으로 가른다:
+ * 가져온 훅이 사용자 권한으로 돌면 주의(warning), 샌드박스 안의 가져온 훅과 Fresnel에서 만든 스크립트는 정보(info)다
+ */
 function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
   const notice = codeNoticeOf(props.card);
   if (notice === null) return null;
-  const extra: string[] = [];
+  if (notice.mode === "userFull") {
+    return (
+      <NoticeCard
+        name="code"
+        tone="warning"
+        title={t("desktop.craft.review.code.userFull.heading")}
+        description={t("desktop.craft.review.code.userFull.body")}
+      />
+    );
+  }
+  if (notice.mode === "sandboxed") {
+    return (
+      <NoticeCard
+        name="code"
+        tone="info"
+        title={t("desktop.craft.review.code.sandboxed.heading")}
+        description={t("desktop.craft.review.code.sandboxed.body")}
+      />
+    );
+  }
+  const extra: string[] = [t("desktop.craft.review.code.notice")];
   if (notice.network) extra.push(t("desktop.craft.review.code.network"));
   if (notice.systemTools) extra.push(t("desktop.craft.review.code.systemTools"));
   if (notice.usesUnknown) extra.push(t("desktop.craft.review.code.usesUnknown"));
   if (notice.isolated === false) extra.push(t("desktop.craft.review.code.notIsolated"));
   return (
-    <p
-      data-slot="review-code-notice"
-      role="note"
-      className="rv-code-notice m-0 rounded-lg px-3 py-2.5 text-ui"
-    >
-      {t("desktop.craft.review.code.notice")}
-      {extra.length === 0 ? null : <> {extra.join(" ")}</>}
-    </p>
+    <NoticeCard
+      name="code"
+      tone={notice.usesUnknown || notice.isolated === false ? "warning" : "info"}
+      title={t("desktop.craft.review.code.heading")}
+      description={extra.join(" ")}
+    />
   );
 }
 
@@ -72,18 +115,16 @@ function quoted(names: readonly string[]): string {
 
 /**
  * 조용한 경고 한 줄: 넣을 프로필이 이미 가리키던, 지금 이 기기에 없는 플러그인. 거절이 아니다(실행 때 건너뛴다) [결정: 2026-11-20, AGE-34].
- * 글은 무채색, 줄 앞 2px 선만 경고 색(`rv-caution`)
+ * 토스트와 같은 문법: 주의 색의 맨 그림 + 무채색 글
  */
 function MissingNote(props: { readonly names: readonly string[] }): ReactNode {
   if (props.names.length === 0) return null;
   return (
-    <p
-      role="note"
-      data-slot="review-missing"
-      className="rv-caution m-0 text-ui-sm text-text-secondary"
-    >
-      {t("desktop.craft.review.missing.note", { names: quoted(props.names) })}
-    </p>
+    <NoticeLine tone="warning" slot="review-missing">
+      <span className="text-ui-sm text-text-secondary">
+        {t("desktop.craft.review.missing.note", { names: quoted(props.names) })}
+      </span>
+    </NoticeLine>
   );
 }
 
@@ -100,50 +141,44 @@ function RiskSection(props: {
   readonly managedOff: boolean;
 }): ReactNode {
   const { item } = props;
-  // 목적 문장 없음은 설명 섹션과 결정 칸이, 관리 잠금은 위의 띠가 말하므로 여기서 되풀이하지 않는다
+  // 목적 문장 없음은 설명 섹션과 결정 칸이, 관리 잠금은 위의 알림 카드가 말하므로 여기서 되풀이하지 않는다
   const warnings = warningsOf(item, props.managedOff).filter(
     (w) => w !== "purposeMissing" && w !== "managedOff" && w !== "costUp",
   );
   const always = item.diff.costDelta.always;
+  const cost = always !== null && always !== 0 ? always : null;
   return (
     <Section title="desktop.craft.review.section.risk" id="risk">
-      <dl className="m-0 grid gap-1.5">
-        <Fact wide term={t("desktop.craft.review.risk.enforcement")}>
-          {item.card.enforcement === "enforced"
-            ? t("desktop.craft.review.risk.enforced")
-            : t("desktop.craft.review.risk.advisory")}
+      <Facts>
+        <Fact term={t("desktop.craft.review.risk.enforcement")}>
+          {t(KEEPER_LINE[keeperOf(item.card)])}
         </Fact>
-      </dl>
-      {warnings.length === 0 && (always === null || always === 0) ? (
-        <p className={MUTED}>{t("desktop.craft.review.risk.none")}</p>
+      </Facts>
+      {warnings.length === 0 && cost === null ? (
+        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.craft.review.risk.none")}</p>
       ) : (
-        <ul className="m-0 grid gap-1.5 p-0">
+        <ul className="rv-lines m-0 p-0">
           {warnings.map((w) => (
-            <li
-              key={w}
-              className={cn(
-                "rv-caution list-none text-ui",
-                w === "handEdit" ? "rv-caution-danger" : null,
-              )}
-            >
+            <NoticeLine key={w} as="li" tone={w === "handEdit" ? "danger" : "warning"}>
               {t(WARNING_WORD[w])}
-            </li>
+            </NoticeLine>
           ))}
-          {always !== null && always !== 0 ? (
-            <li
-              className={cn("list-none text-ui", always > 0 ? "rv-caution" : "text-text-secondary")}
-            >
-              {always > 0
-                ? t("desktop.craft.review.risk.costUp", { tokens: always })
-                : t("desktop.craft.review.risk.costDown", { tokens: -always })}
-            </li>
-          ) : null}
+          {cost === null ? null : (
+            <NoticeLine as="li" tone={cost > 0 ? "warning" : "neutral"}>
+              {cost > 0
+                ? t("desktop.craft.review.risk.costUp", { tokens: cost })
+                : t("desktop.craft.review.risk.costDown", { tokens: -cost })}
+            </NoticeLine>
+          )}
         </ul>
       )}
     </Section>
   );
 }
 
+/**
+ * 출처. 숫자(버전, 올라온 때)는 보통 글자와 같은 글꼴·자간이다(m6R4). 뜻이 코드인 것(패키지 이름, 해시)만 고정폭으로 남긴다
+ */
 function SourceSection(props: {
   readonly item: ReviewItem;
   readonly versions: Versions;
@@ -153,48 +188,46 @@ function SourceSection(props: {
   const { item, versions } = props;
   return (
     <Section title="desktop.craft.review.section.source" id="source">
-      <dl className="m-0 grid gap-1.5">
-        <Fact wide term={t("desktop.craft.review.source.package")}>
-          <span className="font-mono text-ui-sm">{item.name}</span>
+      <Facts>
+        <Fact term={t("desktop.craft.review.source.package")}>
+          <span className="rv-code">{item.name}</span>
         </Fact>
         {versions.now === null ? null : (
-          <Fact wide term={t("desktop.craft.review.source.version")}>
-            <span className="font-mono text-ui-sm">
-              {versions.before === null
-                ? versions.now
-                : t("desktop.craft.review.source.versionChange", {
-                    from: versions.before,
-                    to: versions.now,
-                  })}
-            </span>
+          <Fact term={t("desktop.craft.review.source.version")}>
+            {versions.before === null
+              ? versions.now
+              : t("desktop.craft.review.source.versionChange", {
+                  from: versions.before,
+                  to: versions.now,
+                })}
           </Fact>
         )}
         {item.candidateHash === null ? null : (
-          <Fact wide term={t("desktop.craft.review.source.candidate")}>
-            <span className="font-mono text-ui-sm" title={item.candidateHash}>
+          <Fact term={t("desktop.craft.review.source.candidate")}>
+            <span className="rv-code" title={item.candidateHash}>
               {shortHash(item.candidateHash)}
             </span>
           </Fact>
         )}
         {item.baseHash === null ? null : (
-          <Fact wide term={t("desktop.craft.review.source.base")}>
-            <span className="font-mono text-ui-sm" title={item.baseHash}>
+          <Fact term={t("desktop.craft.review.source.base")}>
+            <span className="rv-code" title={item.baseHash}>
               {shortHash(item.baseHash)}
             </span>
           </Fact>
         )}
-        <Fact wide term={t("desktop.craft.review.source.from")}>
+        <Fact term={t("desktop.craft.review.source.from")}>
           {originText(item, props.threadTitle)}
         </Fact>
-        <Fact wide term={t("desktop.craft.review.source.when")}>
+        <Fact term={t("desktop.craft.review.source.when")}>
           {agoText(item.createdAt, props.now)}
         </Fact>
-      </dl>
+      </Facts>
     </Section>
   );
 }
 
-/** 결정 뒤의 결과 판. 승인이면 들어간 프로필을 말하고 다음 항목으로 가는 길을 둔다 */
+/** 결정 뒤의 결과 카드(토스트와 같은 부품). 승인이면 들어간 프로필을 말하고 다음 항목으로 가는 단추를 카드 끝에 둔다 */
 function DecidedPanel(props: {
   readonly decided: Decided;
   readonly onNext: (() => void) | null;
@@ -208,43 +241,29 @@ function DecidedPanel(props: {
       : decided.kind === "sentBack"
         ? "desktop.craft.review.outcome.sentBack"
         : "desktop.craft.review.outcome.discarded";
+  const detail: string | null =
+    decided.kind === "approved" && !decided.removal
+      ? decided.outcome.profiles.length > 0
+        ? `${t("desktop.craft.review.outcome.inProfiles", {
+            names: decided.outcome.profiles.join(", "),
+          })} ${t("desktop.craft.review.after.profileNote")}`
+        : decided.outcome.library
+          ? t("desktop.craft.review.after.libraryNote")
+          : t("desktop.craft.review.after.noProfiles")
+      : null;
   return (
-    <div
-      role="status"
-      data-slot="review-decided"
-      className="grid gap-1.5 rounded-lg px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]"
-    >
-      <p className="m-0 flex items-center gap-2 text-ui-strong text-text-primary">
-        {decided.kind === "approved" ? (
-          <Check className="size-3.5 text-success-text" aria-hidden="true" />
-        ) : (
-          <X className="size-3.5 text-text-tertiary" aria-hidden="true" />
-        )}
-        {t(title)}
-      </p>
-      {decided.kind === "approved" && !decided.removal ? (
-        decided.outcome.profiles.length > 0 ? (
-          <p className={MUTED}>
-            {t("desktop.craft.review.outcome.inProfiles", {
-              names: decided.outcome.profiles.join(", "),
-            })}{" "}
-            {t("desktop.craft.review.after.profileNote")}
-          </p>
-        ) : decided.outcome.library ? (
-          <p className={MUTED}>{t("desktop.craft.review.after.libraryNote")}</p>
-        ) : (
-          <p className={MUTED}>{t("desktop.craft.review.after.noProfiles")}</p>
-        )
-      ) : null}
+    <div data-slot="review-decided" className="grid gap-2">
+      <NoticeCard
+        name="decided"
+        live
+        tone={decided.kind === "approved" ? "success" : "neutral"}
+        title={t(title)}
+        {...(detail === null ? {} : { description: detail })}
+        {...(props.onNext === null
+          ? {}
+          : { actionLabel: t("desktop.craft.review.outcome.next"), onAction: props.onNext })}
+      />
       {decided.kind === "approved" ? <MissingNote names={decided.outcome.missing} /> : null}
-      {props.onNext === null ? null : (
-        <div>
-          <Button size="sm" variant="ghost" className="-ms-2.5 gap-1" onClick={props.onNext}>
-            {t("desktop.craft.review.outcome.next")}
-            <ChevronRight className="size-3.5" aria-hidden="true" />
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -337,10 +356,14 @@ function DecidePanel(props: {
 }): ReactNode {
   const { item, profiles } = props;
   const [target, setTarget] = useState<Target>(() => defaultTargetOf(item, profiles));
-  const [purpose, setPurpose] = useState("");
+  // 목적 한 문장의 기본값: 카드의 사실로 만든 문장(모델을 부르지 않는다). 사람은 고칠 것이 있을 때만 고친다(m6R4)
+  const draft = useMemo(() => purposeText(purposeDraftOf(item.card)), [item.card]);
+  const [purpose, setPurpose] = useState(draft);
   const [reason, setReason] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const purposeId = useId();
+  const purposeHintId = useId();
   const block = approveBlockOf(item);
   const needsPurpose = item.kind !== "remove" && (item.card.purpose ?? "").trim() === "";
   const sending = phase.kind === "sending";
@@ -411,38 +434,38 @@ function DecidePanel(props: {
     phase.kind === "failed" ? phase.issues.filter((issue) => issue.severity !== "warning") : [];
   const status: ReactNode =
     phase.kind === "failed" ? (
-      <div role="alert" className="grid gap-1 text-ui text-danger-text">
-        <p className="m-0">{t(FAILURE_WORD[phase.failure])}</p>
+      <div role="alert" className="grid gap-2">
+        <NoticeLine tone="danger">{t(FAILURE_WORD[phase.failure])}</NoticeLine>
         {blocking.length === 0 ? null : (
-          <ul className="m-0 grid gap-1 p-0" data-slot="review-profile-issues">
+          <ul className="rv-lines m-0 p-0" data-slot="review-profile-issues">
             {blocking.map((issue, index) => (
-              <li
+              <NoticeLine
                 key={`${issue.code}:${issue.profile ?? ""}:${issue.plugin ?? ""}:${String(index)}`}
-                className="rv-caution rv-caution-danger list-none text-text-primary"
+                as="li"
+                tone="danger"
               >
                 {issueText(issue, profiles)}
-              </li>
+              </NoticeLine>
             ))}
           </ul>
         )}
       </div>
     ) : props.offline ? (
-      <p className="m-0 text-ui text-text-tertiary">{t("desktop.craft.review.locked.offline")}</p>
+      <NoticeLine tone="neutral">{t("desktop.craft.review.locked.offline")}</NoticeLine>
     ) : block === "handEdit" ? (
-      <p className="m-0 text-ui text-danger-text">{t("desktop.craft.review.locked.handEdit")}</p>
+      <NoticeLine tone="danger">{t("desktop.craft.review.locked.handEdit")}</NoticeLine>
     ) : sending ? (
       <p role="status" className="m-0 text-ui-sm text-text-tertiary">
         {t("desktop.craft.review.sending")}
       </p>
     ) : null;
+  const edited = purpose.trim() !== draft.trim();
 
   return (
-    <div data-slot="review-decide" className="rv-decide grid gap-3">
+    <div data-slot="review-decide" className="rv-decide">
       {item.kind === "new" ? (
-        <label className="grid gap-1.5">
-          <span className="text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.after.target")}
-          </span>
+        <label className="rv-field">
+          <span className="rv-field-label">{t("desktop.craft.review.after.target")}</span>
           <Select
             size="sm"
             variant="outline"
@@ -467,37 +490,60 @@ function DecidePanel(props: {
             ))}
             <SelectOption value={LIBRARY}>{t("desktop.craft.review.after.library")}</SelectOption>
           </Select>
-          {note === null ? null : <span className="text-ui-sm text-text-tertiary">{t(note)}</span>}
+          {note === null ? null : <span className="rv-field-hint">{t(note)}</span>}
           <MissingNote names={targetMissing} />
         </label>
       ) : item.kind === "update" ? (
-        <p className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.craft.review.after.update")}
-        </p>
+        <p className="rv-field-hint m-0">{t("desktop.craft.review.after.update")}</p>
       ) : null}
       {needsPurpose ? (
-        <label className="grid gap-1.5">
-          <span className="text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.after.purpose")}
-          </span>
+        <div className="rv-field">
+          <div className="flex min-h-5 items-center gap-2">
+            <label htmlFor={purposeId} className="rv-field-label">
+              {t("desktop.craft.review.after.purpose")}
+            </label>
+            {edited && draft !== "" ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                className="ms-auto -me-1.5"
+                onClick={() => {
+                  setPurpose(draft);
+                }}
+              >
+                {t("desktop.craft.review.after.purposeReset")}
+              </Button>
+            ) : null}
+          </div>
           <Textarea
+            id={purposeId}
             size="xs"
             rows={2}
             maxLength={200}
             value={purpose}
             placeholder={t("desktop.craft.review.after.purposePlaceholder")}
+            aria-describedby={purposeHintId}
             className="resize-none"
             onChange={(event) => {
               setPurpose(event.currentTarget.value);
             }}
+            onKeyDown={(event) => {
+              // 목적 칸의 글자는 화면 키(a·r·j·k)가 아니다
+              event.stopPropagation();
+            }}
           />
-        </label>
+          <span id={purposeHintId} className="rv-field-hint">
+            {draft === ""
+              ? null
+              : edited
+                ? t("desktop.craft.review.after.purposeEdited")
+                : t("desktop.craft.review.after.purposeHint")}
+          </span>
+        </div>
       ) : null}
       {rejecting ? (
-        <label className="grid gap-1.5">
-          <span className="text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.reject.reason")}
-          </span>
+        <label className="rv-field">
+          <span className="rv-field-label">{t("desktop.craft.review.reject.reason")}</span>
           <Textarea
             ref={reasonRef}
             size="xs"
@@ -516,18 +562,18 @@ function DecidePanel(props: {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) send("reject");
             }}
           />
-          <span className="text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.reject.reasonHint")}
-          </span>
+          <span className="rv-field-hint">{t("desktop.craft.review.reject.reasonHint")}</span>
         </label>
       ) : null}
       {status}
-      <div className="flex items-center justify-end gap-2">
+      {/* 두 단추는 한 줄을 반씩 나눠 가진다(flex-grow 1, 같은 크기) */}
+      <div className="rv-decide-actions">
         {rejecting ? (
           <>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
+              className="flex-1"
               disabled={sending}
               onClick={() => {
                 setPhase({ kind: "idle" });
@@ -538,7 +584,7 @@ function DecidePanel(props: {
             <Button
               size="sm"
               variant="outline"
-              className="text-danger-text"
+              className="flex-1 text-danger-text"
               disabled={sending || props.offline}
               onClick={() => {
                 send("reject");
@@ -551,7 +597,8 @@ function DecidePanel(props: {
           <>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
+              className="flex-1"
               disabled={sending || props.offline}
               aria-keyshortcuts="r"
               onClick={() => {
@@ -565,7 +612,7 @@ function DecidePanel(props: {
               variant="solid"
               disabled={approveDisabled}
               aria-keyshortcuts="a"
-              className="min-w-20"
+              className="flex-1"
               onClick={() => {
                 send("approve");
               }}
@@ -602,17 +649,17 @@ export function JudgeColumn(props: {
   const notice = item.kind === "remove" ? null : <CodeNotice card={item.card} />;
   const alerts =
     props.decided !== null || props.managedOff || notice !== null ? (
-      <div className="rv-alerts grid gap-2">
+      <div className="rv-alerts">
         {props.decided === null ? null : (
           <DecidedPanel decided={props.decided} onNext={props.onNext} />
         )}
         {props.managedOff ? (
-          <p
-            role="note"
-            className="rv-code-notice rv-notice-danger m-0 rounded-lg px-3 py-2.5 text-ui"
-          >
-            {t("desktop.craft.review.risk.managedOff")}
-          </p>
+          <NoticeCard
+            name="managed"
+            tone="danger"
+            title={t("desktop.craft.review.risk.managedOffTitle")}
+            description={t("desktop.craft.review.risk.managedOffBody")}
+          />
         ) : null}
         {notice}
       </div>

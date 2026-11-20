@@ -1,6 +1,28 @@
 /* 리뷰 화면(C5). 종류 색은 종류를 가르는 데만 쓰고 채도를 누른다(캔버스 cv3의 `--cv3-<종류>`와 같은 식).
    그 밖의 색은 caustic 토큰만 쓴다. 인라인 <style>은 셸 CSP가 막으므로 이 파일을 styles.css가 가져온다 */
+/* 숫자의 글꼴(m6R4). 앱의 ui 글꼴 스택에서 SUIT는 한글 범위만 맡고(caustic fonts.css의 unicode-range) 숫자와 라틴 글자는 다음 글꼴
+   (Apple SD Gothic Neo)로 넘어가, "5시간 전"의 5와 "시간 전"이 다른 가족으로 그려졌다. 이 화면에서만 같은 SUIT 파일을 라틴·숫자·문장부호
+   범위로 한 번 더 이름 붙여 스택 앞에 둔다. 공용 토큰(`--cs-font-ui`)과 caustic은 고치지 않는다. 코드(경로, 해시, 명령, 차이)는 고정폭 그대로다 */
+@font-face {
+  font-family: "Fresnel Review Latin";
+  src: url("../../../../node_modules/@caustic/tokens/fonts/suit/SUIT-Variable.woff2")
+    format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0021-007E, U+00A0-00FF, U+2010-2027, U+2030-203A;
+}
+
 .rv-root {
+  --rv-font:
+    "Fresnel Metrics", "Fresnel Review Latin", "SUIT Variable", "SUIT", "Apple SD Gothic Neo",
+    "Malgun Gothic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* 상속되는 글꼴과 `font-ui` 유틸리티(토스트 등 caustic 부품)가 같은 스택을 읽는다 */
+  --font-ui: var(--rv-font);
+  font-family: var(--rv-font);
+  /* 오른쪽 끝 여백(m6R4). 화면은 셸의 오른쪽 막대 자리까지 차고(머리 `flush`), 막대(창 끝 12 + 폭 34)가 뜨는 판단 열만 그만큼 안쪽 여백을 둔다.
+     막대가 없는 화면에서는 16px. 무대가 840px보다 좁으면 셸이 본문에 막대 자리를 다시 주므로(styles.css DP-135) 여기서는 더하지 않는다 */
+  --rv-end: max(16px, calc(var(--stage-rail, 0px) + 12px));
   --rv-inject: color-mix(
     in oklch,
     var(--cs-color-identity-iris) 84%,
@@ -13,6 +35,12 @@
   );
   --rv-drive: color-mix(in oklch, var(--cs-color-agent-stop-1) 84%, var(--cs-color-text-secondary));
   --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--cs-color-text-secondary));
+}
+
+@container stage (max-width: 840px) {
+  .rv-root {
+    --rv-end: 16px;
+  }
 }
 
 .rv-kind-inject {
@@ -37,29 +65,61 @@
   color: var(--rv-kind);
 }
 
-/* 주의 한 줄: 글은 무채색, 줄 앞 2px 선만 경고·위험 색(채도 높은 글자색·물듦 금지) */
-.rv-caution {
-  padding-inline-start: 10px;
+/* 알림 한 줄(m6R4): 토스트와 같은 문법. 세기 색의 맨 그림(16) + 무채색 글, 그림 칸은 글 첫 줄 높이(18)다 */
+.rv-line-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: start;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
   color: var(--cs-color-text-primary);
-  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--cs-color-warning-text) 75%, transparent);
+  list-style: none;
 }
-.rv-caution-danger {
-  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--cs-color-danger-text) 80%, transparent);
+.rv-line-notice-mark {
+  display: grid;
+  place-items: center;
+  height: 18px;
+  color: var(--cs-color-text-tertiary);
+}
+.rv-line-notice-mark svg {
+  width: var(--cs-icon-md);
+  height: var(--cs-icon-md);
+}
+.rv-line-notice[data-tone="warning"] .rv-line-notice-mark {
+  color: var(--cs-color-warning-text);
+}
+.rv-line-notice[data-tone="danger"] .rv-line-notice-mark {
+  color: var(--cs-color-danger-text);
+}
+.rv-line-notice[data-tone="info"] .rv-line-notice-mark {
+  color: var(--cs-color-info-text);
+}
+.rv-line-notice[data-tone="success"] .rv-line-notice-mark {
+  color: var(--cs-color-success-text);
+}
+.rv-lines {
+  display: grid;
+  gap: 8px;
 }
 
-/* 코드 실행 안내: 늘 보이는 칸. 무채색 면과 테두리, 앞 선만 경고 색 */
-.rv-code-notice {
-  color: var(--cs-color-text-primary);
-  background: color-mix(in oklab, var(--cs-color-text-primary) 3%, transparent);
-  box-shadow:
-    inset 2px 0 0 color-mix(in oklab, var(--cs-color-warning-text) 75%, transparent),
-    inset 0 0 0 1px var(--cs-color-border-subtle);
+/* 이름표-값 줄(m6R4): 한 격자라 묶음 안에서 이름표 칸의 폭(72)과 줄 간격(8)이 같고, 이름표와 값이 같은 기준선에 선다 */
+.rv-facts {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+.rv-fact-row {
+  display: contents;
 }
 
-.rv-code-notice.rv-notice-danger {
-  box-shadow:
-    inset 2px 0 0 color-mix(in oklab, var(--cs-color-danger-text) 80%, transparent),
-    inset 0 0 0 1px var(--cs-color-border-subtle);
+/* 뜻이 코드인 값(패키지 이름, 해시, 경로, 셸): 고정폭 12 */
+.rv-code {
+  font-family: var(--cs-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 /* 파일 차이 표시: 기호만 색(바뀜 경고, 추가 성공, 지움 위험), 줄은 무채색 */
@@ -106,19 +166,26 @@
 }
 
 .rv-detail {
-  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다) */
+  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다). 막대 자리(`--rv-end` − 16)는 그 밖에 더한다 */
   --rv-judge-w: clamp(272px, calc(100cqi - 560px), 312px);
   --rv-pad: 24px;
+  /* 판단 열의 안쪽 여백(시작 20, 끝은 막대를 비키는 `--rv-end`) */
+  --rv-judge-start: 20px;
+  --rv-judge-end: var(--rv-end);
+  /* 읽는 열의 끝 여백. 두 열이면 판단 열과 맞닿으므로 24, 한 열이면 막대를 비킨다 */
+  --rv-read-end: var(--rv-pad);
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) var(--rv-judge-w);
+  grid-template-columns: minmax(0, 1fr) calc(var(--rv-judge-w) + var(--rv-end) - 16px);
   grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "head head"
     "read judge";
 }
 
+/* 선(m6R4): 선은 열의 끝에서 끝까지 가고 내용만 안쪽 여백을 가진다. 요약 띠 아래 선은 목록의 세로 선에서 창 오른쪽 끝까지,
+   판단 열의 세로 선은 그 선에서 바닥까지, 섹션 사이 선은 각 열의 양 끝(세로 선과 창 끝)에 닿는다 */
 .rv-head {
   grid-area: head;
   padding: 16px var(--rv-pad) 16px;
@@ -130,7 +197,7 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 var(--rv-pad) 40px;
+  padding: 0 var(--rv-read-end) 40px var(--rv-pad);
 }
 
 .rv-judge {
@@ -141,22 +208,22 @@
   border-inline-start: 1px solid var(--cs-color-border-subtle);
 }
 
-/* 판단 열은 한 스크롤 안에 경고, 권한·출처, 결정 칸을 차례로 둔다. 결정 칸은 내용 바로 뒤를 따르고, 열이 넘칠 때만 바닥에 붙는다.
-   (둘째 판은 결정 칸을 열 바닥에 따로 두어 짧은 항목에서 출처와 단추 사이가 길게 비었다) */
+/* 판단 열은 한 스크롤 안에 알림, 권한·출처, 결정 칸을 차례로 둔다. 결정 칸은 내용 바로 뒤를 따르고, 열이 넘칠 때만 바닥에 붙는다 */
 .rv-judge-scroll {
   display: grid;
   flex: 1;
   align-content: start;
-  gap: 4px;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 16px 0;
+  padding: 0 var(--rv-judge-end) 0 var(--rv-judge-start);
 }
 
+/* 알림 카드 묶음: 카드 사이 8, 아래 섹션과는 섹션 위 여백(24)으로 떨어진다 */
 .rv-alerts {
-  padding-bottom: 12px;
+  display: grid;
+  gap: 8px;
+  padding-top: 20px;
 }
-/* 띄울 경고가 없으면 자리를 차지하지 않아 오른쪽 열 첫 섹션이 가운데 열 첫 섹션과 같은 높이에서 시작한다 */
 .rv-alerts:empty {
   display: none;
 }
@@ -169,25 +236,59 @@
   position: sticky;
   bottom: 0;
   z-index: 1;
-  margin: 0 -16px;
-  padding: 16px 16px 20px;
+  margin-inline: calc(-1 * var(--rv-judge-start)) calc(-1 * var(--rv-judge-end));
+  padding: 20px var(--rv-judge-end) 20px var(--rv-judge-start);
   border-top: 1px solid var(--cs-color-border-subtle);
   background: var(--cs-color-bg-app);
 }
 
-/* 섹션: 위아래 20px, 섹션 사이 가는 선(캔버스 상세 패널 cv4와 같은 문법). 오른쪽 열은 16px */
+/* 섹션(m6R4): 제목과 내용은 가깝게(10), 섹션과 섹션은 멀게(위아래 24 + 선). 선이 열 끝까지 가도록 섹션은 열의 안쪽 여백만큼 바깥으로 넓히고
+   같은 값을 안쪽 여백으로 되돌린다 */
+.rv-sec {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-block: 24px;
+}
 .rv-read > .rv-sec {
-  padding-block: 20px;
+  margin-inline: calc(-1 * var(--rv-pad)) calc(-1 * var(--rv-read-end));
+  padding-inline: var(--rv-pad) var(--rv-read-end);
 }
 .rv-more > .rv-sec {
-  padding-block: 16px;
-}
-.rv-more > .rv-sec:first-child {
-  padding-top: 0;
+  margin-inline: calc(-1 * var(--rv-judge-start)) calc(-1 * var(--rv-judge-end));
+  padding-inline: var(--rv-judge-start) var(--rv-judge-end);
 }
 .rv-read > .rv-sec + .rv-sec,
 .rv-more > .rv-sec + .rv-sec {
   border-top: 1px solid var(--cs-color-border-subtle);
+}
+
+/* 결정 칸: 칸과 칸 사이 16, 이름표와 칸 사이 6 */
+.rv-decide {
+  display: grid;
+  gap: 16px;
+}
+.rv-field {
+  display: grid;
+  gap: 6px;
+}
+.rv-field-label {
+  font-size: var(--text-ui-sm);
+  line-height: var(--text-ui-sm--line-height);
+  font-weight: 500;
+  color: var(--cs-color-text-secondary);
+}
+.rv-field-hint {
+  font-size: var(--text-ui-sm);
+  line-height: var(--text-ui-sm--line-height);
+  color: var(--cs-color-text-tertiary);
+}
+.rv-field-hint:empty {
+  display: none;
+}
+.rv-decide-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* rail: 요약 띠를 오른쪽 열 위로 올리고 읽는 열이 위끝부터 쓴다 */
@@ -197,12 +298,16 @@
     "read judge";
 }
 .rv-detail[data-arrange="rail"] .rv-head {
-  padding: 16px 16px 14px;
+  padding: 16px var(--rv-judge-end) 14px var(--rv-judge-start);
   border-inline-start: 1px solid var(--cs-color-border-subtle);
 }
 
-/* stack(그리고 좁은 영역): 한 열. 경고는 요약 바로 아래로 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 바닥에 붙는다 */
+/* stack(그리고 좁은 영역): 한 열. 알림은 요약 바로 아래로 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 바닥에 붙는다.
+   한 열이면 모든 칸이 막대 쪽 끝을 비킨다(`--rv-read-end`) */
 .rv-detail[data-arrange="stack"] {
+  --rv-read-end: max(var(--rv-pad), var(--rv-end));
+  --rv-judge-start: var(--rv-pad);
+  --rv-judge-end: var(--rv-read-end);
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: max-content max-content minmax(max-content, 1fr) max-content max-content;
   grid-template-areas:
@@ -222,29 +327,25 @@
 }
 .rv-detail[data-arrange="stack"] .rv-alerts {
   grid-area: alerts;
-  padding: 14px var(--rv-pad) 0;
+  padding: 16px var(--rv-read-end) 0 var(--rv-pad);
 }
 .rv-detail[data-arrange="stack"] .rv-more {
   grid-area: more;
-  padding: 0 var(--rv-pad) 24px;
+  padding: 0 var(--rv-read-end) 8px var(--rv-pad);
   border-top: 1px solid var(--cs-color-border-subtle);
-}
-.rv-detail[data-arrange="stack"] .rv-more > .rv-sec:first-child {
-  padding-top: 20px;
 }
 .rv-detail[data-arrange="stack"] .rv-decide-dock {
   grid-area: decide;
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
   margin: 0;
-  padding: 12px var(--rv-pad) 14px;
-  background: var(--cs-color-bg-app);
+  padding: 16px var(--rv-read-end) 16px var(--rv-pad);
 }
 
 @container rv-detail (width < 780px) {
   .rv-detail {
     --rv-pad: 20px;
+    --rv-read-end: max(var(--rv-pad), var(--rv-end));
+    --rv-judge-start: var(--rv-pad);
+    --rv-judge-end: var(--rv-read-end);
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: max-content max-content minmax(max-content, 1fr) max-content max-content;
     grid-template-areas:
@@ -256,7 +357,7 @@
     overflow-y: auto;
   }
   .rv-detail .rv-head {
-    padding: 16px var(--rv-pad) 14px;
+    padding: 16px var(--rv-read-end) 14px var(--rv-pad);
     border-inline-start: 0;
   }
   .rv-detail .rv-read {
@@ -268,24 +369,17 @@
   }
   .rv-detail .rv-alerts {
     grid-area: alerts;
-    padding: 14px var(--rv-pad) 0;
+    padding: 16px var(--rv-read-end) 0 var(--rv-pad);
   }
   .rv-detail .rv-more {
     grid-area: more;
-    padding: 0 var(--rv-pad) 24px;
+    padding: 0 var(--rv-read-end) 8px var(--rv-pad);
     border-top: 1px solid var(--cs-color-border-subtle);
-  }
-  .rv-detail .rv-more > .rv-sec:first-child {
-    padding-top: 20px;
   }
   .rv-detail .rv-decide-dock {
     grid-area: decide;
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
     margin: 0;
-    padding: 12px var(--rv-pad) 14px;
-    background: var(--cs-color-bg-app);
+    padding: 16px var(--rv-read-end) 16px var(--rv-pad);
   }
 }
 

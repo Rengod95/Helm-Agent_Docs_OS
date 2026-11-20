@@ -344,7 +344,7 @@ export function FilesSection(props: {
                     <span className="shrink-0 text-ui-sm text-text-tertiary">
                       {t(CHANGE_WORD[r.change])}
                     </span>
-                    <span className="w-14 shrink-0 text-right text-ui-sm text-text-tertiary tabular-nums">
+                    <span className="w-14 shrink-0 text-right text-ui-sm text-text-tertiary">
                       {sizeText(r.bytes)}
                     </span>
                   </button>

@@ -1,5 +1,10 @@
 import { ok } from "@fresnel/contracts";
-import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
+import {
+  SCRIPT_ENV_SANDBOXED_USES,
+  SCRIPT_ENV_USES,
+  type InjectInventory,
+  type PluginCard,
+} from "@fresnel/contracts/extensions";
 import type { Profile, ReviewFileSide, ReviewItem } from "@fresnel/contracts/wire";
 import type { ReviewData } from "../review-source.ts";
 
@@ -76,6 +81,10 @@ function item(
 }
 
 const FILES: Readonly<Record<string, string>> = {
+  "hooks/format.sh":
+    '#!/bin/bash\n# 다른 하네스에서 가져온 훅: 고친 파일을 prettier로 맞춘다\nnpx prettier --write "$CLAUDE_FILE_PATHS"\n',
+  "hooks/ruff.sh":
+    "#!/bin/sh\n# 다른 하네스에서 가져온 훅: 바뀐 파이썬 파일을 ruff로 검사한다\nruff check --quiet $(git diff --name-only -- '*.py')\n",
   "plugin.json": `{
   "name": "lint-guard",
   "version": "0.3.0",
@@ -488,6 +497,7 @@ export function sampleItems(): readonly ReviewItem[] {
         displayName: "Review Helper",
         version: "0.1.0",
         purpose: null,
+        enforcement: "enforced",
         runs: { code: true, isolated: true },
         does: {
           inject: inventory({
@@ -554,6 +564,105 @@ export function sampleItems(): readonly ReviewItem[] {
         },
       }),
       files: filesOf(["instructions.md"], "f"),
+    }),
+    // 가져온 훅(환경 모드, m6R4): 다른 하네스에서 가져온 셸 명령. 기본은 사용자 권한 그대로 돈다(`SCRIPT_ENV_USES`)
+    item({
+      itemId: "rvw_sample_imported",
+      name: "format-on-edit",
+      createdAt: ago(20),
+      provenance: "migration",
+      card: card({
+        name: "format-on-edit",
+        displayName: "Format On Edit",
+        version: "1.0.0",
+        purpose: null,
+        does: {
+          inject: inventory({
+            scripts: [
+              {
+                name: "format",
+                launch: { command: "bash", args: ["hooks/format.sh"], envNames: [], cwd: null },
+                timeoutMs: 30_000,
+                uses: SCRIPT_ENV_USES,
+                env: {
+                  command: 'npx prettier --write "$CLAUDE_FILE_PATHS"',
+                  shell: "bash",
+                  interpreter: "/opt/homebrew/bin/npx",
+                  refs: [
+                    { path: ".prettierrc", hash: hash("p1") },
+                    { path: "package.json", hash: null },
+                  ],
+                  refsKnown: true,
+                  missingTools: [],
+                  versionHints: [],
+                  fromProject: false,
+                },
+              },
+            ],
+          }),
+          hook: {
+            hooks: [
+              {
+                name: "tool.call.after",
+                fold: "tap",
+                position: "tools.after",
+                powers: ["observe"],
+              },
+            ],
+          },
+          drive: null,
+        },
+      }),
+      files: filesOf(["plugin.json", "hooks/format.sh"], "g"),
+    }),
+    // 같은 가져온 훅을 샌드박스 설정(`l0.sandbox.sandboxImportedHooks`)을 켜고 만든 카드. 실행 파일을 못 찾았고 읽는 파일을 알 수 없다
+    item({
+      itemId: "rvw_sample_imported_box",
+      name: "ruff-check",
+      createdAt: ago(25),
+      provenance: "project",
+      card: card({
+        name: "ruff-check",
+        displayName: "Ruff Check",
+        version: "0.2.0",
+        purpose: "파이썬 파일을 고치기 전에 ruff로 검사하고, 걸리면 막는다.",
+        enforcement: "enforced",
+        origin: { kind: "project", projectId: "prj_helm" },
+        does: {
+          inject: inventory({
+            scripts: [
+              {
+                name: "ruff",
+                launch: { command: "sh", args: ["hooks/ruff.sh"], envNames: [], cwd: null },
+                timeoutMs: 20_000,
+                uses: SCRIPT_ENV_SANDBOXED_USES,
+                env: {
+                  command: "ruff check --quiet $(git diff --name-only -- '*.py')",
+                  shell: "sh",
+                  interpreter: null,
+                  refs: [],
+                  refsKnown: false,
+                  missingTools: ["ruff"],
+                  versionHints: [],
+                  fromProject: true,
+                },
+              },
+            ],
+          }),
+          hook: {
+            hooks: [
+              {
+                name: "tool.call.before",
+                fold: "first",
+                position: "tools.before",
+                powers: ["decide"],
+              },
+            ],
+          },
+          drive: null,
+        },
+      }),
+      files: filesOf(["plugin.json", "hooks/ruff.sh"], "h"),
     }),
     item({
       itemId: "rvw_sample_remove",

@@ -6,7 +6,13 @@
 // 섹션 문법은 캔버스 상세 패널(cv4)과 같다(제목 15/600, 아이콘 없음, 섹션 사이 가는 선).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { HookKind, HookPower, PluginCard } from "@fresnel/contracts/extensions";
+import type {
+  CardScriptEnv,
+  HookKind,
+  HookPower,
+  PluginCard,
+  ScriptUse,
+} from "@fresnel/contracts/extensions";
 import type { DiffRow as CardDiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
 import { useId, type ReactNode, type Ref } from "react";
 import {
@@ -23,10 +29,12 @@ import { KindTile } from "./review-glyphs.tsx";
 import { JudgeColumn, type Decided, type DecisionHandle } from "./review-judge.tsx";
 import {
   entryKindOf,
+  keeperOf,
   kindsOf,
   primaryKindOf,
+  purposeDraftOf,
   runLinesOf,
-  type Place,
+  shortHash,
   type RunLine,
   type Versions,
 } from "./review-model.ts";
@@ -35,9 +43,16 @@ import {
   agoText,
   Chip,
   ENTRY_WORD,
+  Fact,
+  Facts,
+  KEEPER_CHIP,
+  KEEPER_LINE,
   KindChip,
   MUTED,
+  NoticeLine,
   originText,
+  placeText,
+  purposeText,
   Section,
 } from "./review-parts.tsx";
 import type { ReviewData } from "./review-source.ts";
@@ -52,6 +67,7 @@ function ReviewHead(props: {
 }): ReactNode {
   const { item, versions } = props;
   const entry = entryKindOf(item);
+  const keeper = keeperOf(item.card);
   return (
     <header className="rv-head grid gap-3">
       <div className="flex min-w-0 items-start gap-3">
@@ -66,10 +82,7 @@ function ReviewHead(props: {
               {item.card.displayName}
             </h2>
             {versions.now === null ? null : (
-              <span
-                data-slot="review-version"
-                className="shrink-0 font-mono text-ui-sm text-text-tertiary tabular-nums"
-              >
+              <span data-slot="review-version" className="shrink-0 text-ui text-text-tertiary">
                 {versions.before === null
                   ? versions.now
                   : t("desktop.craft.review.source.versionChange", {
@@ -93,17 +106,8 @@ function ReviewHead(props: {
         {kindsOf(item.card).map((kind) => (
           <KindChip key={kind} kind={kind} />
         ))}
-        <Chip
-          tone={item.card.enforcement === "enforced" ? "warning" : "neutral"}
-          title={
-            item.card.enforcement === "enforced"
-              ? t("desktop.craft.review.risk.enforced")
-              : t("desktop.craft.review.risk.advisory")
-          }
-        >
-          {item.card.enforcement === "enforced"
-            ? t("desktop.craft.review.chip.enforced")
-            : t("desktop.craft.review.chip.advisory")}
+        <Chip tone={keeper === "engine" ? "warning" : "neutral"} title={t(KEEPER_LINE[keeper])}>
+          {t(KEEPER_CHIP[keeper])}
         </Chip>
       </div>
     </header>
@@ -111,22 +115,6 @@ function ReviewHead(props: {
 }
 
 // ── 작동 방식 ─────────────────────────────────────────────────────────
-
-const PLACE_WORD: Readonly<Record<Place["group"], MessageId>> = {
-  input: "desktop.craft.review.place.input",
-  request: "desktop.craft.review.place.request",
-  tool: "desktop.craft.review.place.tool",
-  turn: "desktop.craft.review.place.turn",
-  thread: "desktop.craft.review.place.thread",
-  other: "desktop.craft.review.place.other",
-};
-
-function placeText(place: Place): string {
-  const word = t(PLACE_WORD[place.group]);
-  if (place.side === "before") return t("desktop.craft.review.place.before", { place: word });
-  if (place.side === "after") return t("desktop.craft.review.place.after", { place: word });
-  return t("desktop.craft.review.place.at", { place: word });
-}
 
 const HOOK_READS: Readonly<Record<HookKind, MessageId>> = {
   input: "desktop.craft.review.fact.reads.input",
@@ -466,12 +454,21 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
 
 function AboutSection(props: { readonly card: PluginCard }): ReactNode {
   const purpose = (props.card.purpose ?? "").trim();
+  // 목적이 없으면 결정 칸이 채워 둔 기본 문장을 같이 보인다(m6R4). 기본 문장도 못 만들면 이전처럼 적어 달라고 한다
+  const draft = purpose === "" ? purposeText(purposeDraftOf(props.card)) : "";
   return (
     <Section title="desktop.craft.review.section.about" id="about">
-      {purpose === "" ? (
-        <p className="rv-caution m-0 text-ui">{t("desktop.craft.review.does.purposeMissing")}</p>
-      ) : (
+      {purpose !== "" ? (
         <p className="m-0 max-w-[72ch] text-ui-md-relaxed text-text-primary">{purpose}</p>
+      ) : draft === "" ? (
+        <NoticeLine tone="warning">{t("desktop.craft.review.does.purposeMissing")}</NoticeLine>
+      ) : (
+        <div className="grid max-w-[72ch] gap-1.5" data-slot="review-purpose-draft">
+          <p className="m-0 text-ui-md-relaxed text-text-secondary">{draft}</p>
+          <p className="m-0 text-ui-sm text-text-tertiary">
+            {t("desktop.craft.review.does.purposeDrafted")}
+          </p>
+        </div>
       )}
     </Section>
   );
@@ -479,33 +476,106 @@ function AboutSection(props: { readonly card: PluginCard }): ReactNode {
 
 // ── 승인하면 실행될 것 ────────────────────────────────────────────────
 
+const USE_WORD: Readonly<Record<ScriptUse, MessageId>> = {
+  system_tools: "desktop.craft.review.run.usesSystemTools",
+  network: "desktop.craft.review.run.usesNetwork",
+  user_full_access: "desktop.craft.review.run.usesUserFull",
+  user_environment: "desktop.craft.review.run.usesUserEnv",
+  read_wide: "desktop.craft.review.run.usesReadWide",
+  write_project: "desktop.craft.review.run.usesWriteProject",
+};
+
+/**
+ * 가져온 훅(환경 모드)의 사실: 셸, 실행 파일(못 찾았으면 주의 줄), 읽는 파일과 지문. 엔진이 모르는 것은 모른다고 말한다(`refsKnown`)
+ */
+function EnvFacts(props: { readonly env: CardScriptEnv }): ReactNode {
+  const { env } = props;
+  return (
+    <div className="grid gap-2" data-slot="review-env">
+      <Facts>
+        <Fact term={t("desktop.craft.review.run.shell")}>
+          <span className="rv-code">{env.shell}</span>
+        </Fact>
+        {env.interpreter === null ? null : (
+          <Fact term={t("desktop.craft.review.run.interpreter")}>
+            <span className="rv-code">{env.interpreter}</span>
+          </Fact>
+        )}
+        <Fact term={t("desktop.craft.review.run.refs")}>
+          {!env.refsKnown ? (
+            <span className="text-text-secondary">{t("desktop.craft.review.run.refsUnknown")}</span>
+          ) : env.refs.length === 0 ? (
+            <span className="text-text-secondary">{t("desktop.craft.review.run.refsNone")}</span>
+          ) : (
+            <ul className="m-0 grid gap-1 p-0">
+              {env.refs.map((ref) => (
+                <li key={ref.path} className="flex min-w-0 list-none items-baseline gap-2">
+                  <span className="rv-code min-w-0 truncate" title={ref.path}>
+                    {ref.path}
+                  </span>
+                  {ref.hash === null ? (
+                    <span className="ms-auto shrink-0 text-ui-sm text-text-tertiary">
+                      {t("desktop.craft.review.run.noHash")}
+                    </span>
+                  ) : (
+                    <span className="rv-code ms-auto shrink-0 text-text-tertiary" title={ref.hash}>
+                      {shortHash(ref.hash)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Fact>
+        {env.versionHints.length === 0 ? null : (
+          <Fact term={t("desktop.craft.review.run.versionHints")}>
+            <span className="rv-code">{env.versionHints.join(", ")}</span>
+          </Fact>
+        )}
+      </Facts>
+      {env.missingTools.length === 0 && !env.fromProject ? null : (
+        <ul className="rv-lines m-0 p-0">
+          {env.missingTools.length === 0 ? null : (
+            <NoticeLine as="li" tone="warning">
+              {t("desktop.craft.review.run.missingTools", { names: env.missingTools.join(", ") })}
+            </NoticeLine>
+          )}
+          {env.fromProject ? (
+            <NoticeLine as="li" tone="warning">
+              {t("desktop.craft.review.run.fromProject")}
+            </NoticeLine>
+          ) : null}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function RunRow(props: { readonly line: RunLine }): ReactNode {
   const { line } = props;
-  const uses =
-    line.kind === "script" && line.uses !== null
-      ? line.uses.map((use) =>
-          use === "network"
-            ? t("desktop.craft.review.run.usesNetwork")
-            : t("desktop.craft.review.run.usesSystemTools"),
-        )
-      : [];
+  const uses = line.kind === "script" && line.uses !== null ? line.uses : [];
+  const env = line.kind === "script" ? line.env : null;
+  // 가져온 훅은 엔진이 실제로 부르는 원래 명령 한 줄을 보인다(실행기와 인자를 이어 붙인 줄이 아니다)
+  const command = env === null ? line.command : env.command;
   return (
-    <li className="grid gap-1.5 rounded-lg px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
-      <div className="flex min-w-0 items-center gap-2">
+    <li className="grid gap-2.5 rounded-xl px-3 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
         <span className="text-ui-sm text-text-tertiary">
-          {line.kind === "script"
-            ? t("desktop.craft.review.run.script")
-            : t("desktop.craft.review.run.server")}
+          {env !== null
+            ? t("desktop.craft.review.run.imported")
+            : line.kind === "script"
+              ? t("desktop.craft.review.run.script")
+              : t("desktop.craft.review.run.server")}
         </span>
         <span className="min-w-0 truncate text-ui-strong text-text-primary">{line.name}</span>
-        <span className="ms-auto flex shrink-0 items-center gap-1.5">
+        <span className="ms-auto flex shrink-0 flex-wrap items-center gap-1.5">
           {uses.map((use) => (
-            <Chip key={use} tone="warning">
-              {use}
+            <Chip key={use} tone={use === "user_environment" ? "neutral" : "warning"}>
+              {t(USE_WORD[use])}
             </Chip>
           ))}
           {line.kind === "script" ? (
-            <span className="text-ui-sm text-text-tertiary tabular-nums">
+            <span className="text-ui-sm text-text-tertiary">
               {t("desktop.craft.review.run.timeout", {
                 seconds: Math.round(line.timeoutMs / 1000),
               })}
@@ -513,15 +583,16 @@ function RunRow(props: { readonly line: RunLine }): ReactNode {
           ) : null}
         </span>
       </div>
-      {line.command === null ? (
+      {command === null ? (
         <p className="m-0 text-ui-sm text-text-tertiary">
           {t("desktop.craft.review.run.httpServer")}
         </p>
       ) : (
         <code className="block overflow-x-auto rounded-md bg-neutral-soft px-2 py-1.5 font-mono text-ui-sm whitespace-pre text-text-primary">
-          {line.command}
+          {command}
         </code>
       )}
+      {env === null ? null : <EnvFacts env={env} />}
       {line.envNames.length === 0 ? null : (
         <p className="m-0 text-ui-sm text-text-tertiary">
           {t("desktop.craft.review.run.env", { names: line.envNames.join(", ") })}
@@ -562,9 +633,9 @@ function RemovesSection(props: { readonly item: ReviewItem }): ReactNode {
               })}
         </li>
         {removal.removes.state ? (
-          <li className="rv-caution list-none text-ui">
+          <NoticeLine as="li" tone="warning">
             {t("desktop.craft.review.removes.state")}
-          </li>
+          </NoticeLine>
         ) : null}
         {removal.removes.records === null ? null : (
           <li className="list-none text-ui text-text-secondary">

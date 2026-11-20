@@ -263,3 +263,70 @@ describe("states", () => {
     expect(html).toContain("연결이 끊겨 결정할 수 없어요");
   });
 });
+
+describe("fourth round (m6R4)", () => {
+  const IMPORTED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported")));
+  const BOXED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported_box")));
+  const HELPER = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_drive")));
+
+  test("notices are the app's toast part in place, with the toast's tone", () => {
+    expect(LINT_HTML).toMatch(/data-slot="toast" data-tone="info"[^>]*data-review-notice="code"/);
+    const locked = render(ready(LINT, ["lint-guard"]));
+    expect(locked).toMatch(/data-tone="danger"[^>]*data-review-notice="managed"/);
+    expect(IMPORTED).toMatch(/data-tone="warning"[^>]*data-review-notice="code"/);
+    expect(BOXED).toMatch(/data-tone="info"[^>]*data-review-notice="code"/);
+    expect(LINT_HTML).not.toContain("rv-caution");
+  });
+
+  test("an imported hook says it runs as you, and shows the original command, shell and the files it reads", () => {
+    expect(IMPORTED).toContain("이 훅은 당신의 셸 명령 그대로, 당신의 권한으로 돌아요");
+    expect(IMPORTED).toContain("Fresnel이 막지 않아요.");
+    expect(IMPORTED).toContain("npx prettier --write &quot;$CLAUDE_FILE_PATHS&quot;");
+    expect(IMPORTED).toContain(">.prettierrc<");
+    expect(IMPORTED).toContain(">지문 없음<");
+    for (const chip of [">당신의 권한<", ">환경 변수<", ">네트워크<"])
+      expect(IMPORTED).toContain(chip);
+  });
+
+  test("the sandboxed variant, an unknown read set and a missing executable are told apart", () => {
+    expect(BOXED).toContain("샌드박스 안에서 돌아요");
+    for (const chip of [">넓은 읽기<", ">프로젝트에 쓰기<"]) expect(BOXED).toContain(chip);
+    expect(BOXED).toContain("어떤 파일을 읽는지 알 수 없어요");
+    expect(BOXED).toContain("이 기기에서 찾지 못한 실행 파일이에요: ruff.");
+    expect(LINT_HTML).toContain("자기 폴더 밖의 파일은 읽거나 쓸 수 없어요.");
+  });
+
+  test("an observe-only hook is not the model's call: the chip says the engine watches", () => {
+    expect(IMPORTED).toContain(">엔진 관찰<");
+    expect(IMPORTED).not.toContain(">모델 재량<");
+    expect(IMPORTED).toContain("엔진: 정해진 자리에서 돌지만 막거나 바꾸지 않아요");
+  });
+
+  test("a missing purpose comes filled from the card's facts, editable", () => {
+    const area = HELPER.match(/<textarea[^>]*>([^<]*)<\/textarea>/);
+    expect(area?.[1]).toBe("‘/review’ 명령으로 대화를 이끌어요.");
+    expect(HELPER).toContain("카드의 사실로 만든 문장이에요. 고칠 것이 있을 때만 고치세요.");
+    expect(IMPORTED).toContain("도구 호출 뒤에 돌며 내용을 지켜봐요.");
+  });
+
+  test("reject and approve share the row in equal halves", () => {
+    const buttons = [...HELPER.matchAll(/<button[^>]*aria-keyshortcuts="[ar]"[^>]*>/g)].map(
+      (m) => m[0],
+    );
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) expect(button).toContain("flex-1");
+  });
+
+  test("numbers read in the body face: the version is not monospaced, hashes and paths stay code", () => {
+    expect(LINT_HTML).toMatch(
+      /data-slot="review-version" class="shrink-0 text-ui text-text-tertiary"/,
+    );
+    expect(LINT_HTML).toMatch(/class="rv-code"[^>]*>lint-guard</);
+    expect(LINT_HTML).not.toContain("tabular-nums");
+  });
+
+  test("the header is flush so the list and detail lines meet the header line", () => {
+    expect(LINT_HTML).toMatch(/<header class="shell-header[^"]*" data-flush=""/);
+    expect(render(ready([]))).not.toContain("data-flush");
+  });
+});
