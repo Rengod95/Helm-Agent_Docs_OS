@@ -473,6 +473,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | plugin | `plugin.revert` | `{ name: string }` | `{ restored: true }`. 원본 폴더를 현재 검토본 내용으로 되돌린다. 없는 플러그인은 `extension.notFound`(3401), 검토본이 없으면 `plugin.noReviewedCopy`(3625) | M4 (M5c-1) |
 | plugin | `plugin.requestRemove` | `{ name: string }` | `{ itemId: string }`(`remove` 검토 항목). `ext.remove`·`ext.removePreview`를 대체한다. `extension.notFound`(3401), `plugin.requiredByCore`(3626, E2의 L1 분할이 끝나기 전까지만) | M4 (M5c-1) |
 | plugin | `plugin.draft.create` | `{ dir: string, originThreadId?: string }` | `{ draftId: string, contentHash: string, card: PluginCard, info: DraftInfo }`. 원본 폴더 하나를 초안 스냅샷으로 만든다. 검토함에는 아직 가지 않는다. `plugin.invalid`(3621, `details.issues`), `plugin.tooLarge`(3622), `plugin.symlinkRefused`(3623) | M4 (M5c-1) |
+| plugin | `plugin.draft.files` | `{ draftId: string }` | `{ draftId, name, contentHash, files: { path, bytes, sha256 }[] }`(읽기 전용, 경로순). 초안 한 버전의 파일 목록이다. 초안은 `drafts/<draftId>/tree`에 남아 있는 동안(플러그인마다 최근 20개와 검토 항목이 가리키는 초안) 읽는다. 초안을 싣거나 실행하지 않는다. 두 버전의 바뀐 파일은 호출자가 두 목록의 `sha256`을 견줘 가른다 [제안]. `draft.notFound`(3616), 저장된 해시와 트리가 다르면 `store.io`(`details.code: "draft_changed"`) | M4 (AGE-35) |
+| plugin | `plugin.draft.file` | `{ draftId: string, path: string }` | `{ path, text: string \| null, truncated, missing? }`(읽기 전용). `pluginReview.file`과 같은 본문 규칙(이진이면 `text` null, 256 KiB 초과면 앞부분과 `truncated`)이다. `path`는 `plugin.draft.files`에 있어야 하며 상위 이동, 절대 경로, 링크는 `pluginReview.pathInvalid`(3653). `draft.notFound`(3616) | M4 (AGE-35) |
 | plugin | `plugin.draft.discard` | `{ draftId: string }` | `{}`. 초안 하나를 지운다. 검토 항목이 가리키는 초안은 지우지 않는다. `draft.notFound`(3616) | M4 (M5c-1) |
 | plugin | `plugin.draft.list` | `{ name: string }` | `{ drafts: DraftInfo[] }`(최신 먼저, 플러그인마다 보관 20개 [제안]). 없는 플러그인은 `extension.notFound`(3401) | M4 (M5c-1) |
 | plugin | `plugin.draft.fromInstruction` | `{ text: string(1..2000자), name?: string(확장 이름 문법), profileId?: string }` | `{ draftId: string, itemId: string }`. 지침만 든 플러그인 초안과 `user_instruction` 검토 항목을 만든다(`review/m5/profile-project-loader.md` §4.10). `name`을 안 주면 `instr-<내용 해시 앞 6자>`다. `plugin.invalid`(3621), `plugin.exists`(3624) | M4 (M5c-1) |
@@ -823,6 +825,8 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 | `plugin.revert` | `{ name }` | `{ restored: true }`(원본 폴더를 현재 검토본 내용으로 되돌린다) | `extension.notFound`, `plugin.noReviewedCopy` |
 | `plugin.requestRemove` | `{ name }` | `{ itemId }`(`remove` 검토 항목). `ext.remove`·`ext.removePreview`를 대체한다 | `extension.notFound`, `plugin.requiredByCore`(E2의 L1 분할 전까지만) |
 | `plugin.draft.create` | `{ dir, originThreadId? }` | `{ draftId, contentHash, card, info: DraftInfo }` | `plugin.invalid`(`details.issues`), `plugin.tooLarge`, `plugin.symlinkRefused` |
+| `plugin.draft.files` | `{ draftId }` | `{ draftId, name, contentHash, files: { path, bytes, sha256 }[] }`(읽기 전용) | `draft.notFound`, `store.io` |
+| `plugin.draft.file` | `{ draftId, path }` | `{ path, text, truncated, missing? }`(읽기 전용, `pluginReview.file`과 같은 본문 규칙) | `draft.notFound`, `pluginReview.pathInvalid` |
 | `plugin.draft.discard` | `{ draftId }` | `{}` | `draft.notFound` |
 | `plugin.draft.list` | `{ name }` | `{ drafts: DraftInfo[] }`(최신 먼저, 플러그인마다 보관 20개 [제안]) | `extension.notFound` |
 | `plugin.draft.fromInstruction` | `{ text(1~2000자), name?(확장 이름 문법), profileId? }` | `{ draftId, itemId }`. 지침만 든 초안과 `user_instruction` 검토 항목을 만든다(§4.10) | `plugin.invalid`, `plugin.exists` |

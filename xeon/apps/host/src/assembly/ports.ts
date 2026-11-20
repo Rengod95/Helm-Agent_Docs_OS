@@ -1679,6 +1679,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
       draftList: (name) => pluginReview.draftList(name),
       draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
+      draftFiles: (draftId) => pluginReview.draftFiles(draftId),
+      draftFile: (draftId, path) => pluginReview.draftFile(draftId, path),
       draftFromInstruction: (params) => pluginReview.fromInstruction(params),
       invocables: async (threadId) => {
         if (!isId("thr", threadId)) return err({ kind: "thread_not_found", threadId });
