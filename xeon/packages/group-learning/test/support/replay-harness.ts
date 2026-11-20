@@ -1,3 +1,4 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { canonicalJson, ok, err } from "@fresnel/contracts";
 import {
   toJsonValue,
@@ -17,7 +18,7 @@ import {
   type MemoryRecordStore,
   type TestHost,
 } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
+import type { GroupModule } from "@fresnel/group-sdk";
 import {
   fakeAgents,
   type EffectCounts,
@@ -190,7 +191,7 @@ export function createLearningReplayHarness(
         setup(ctx) {
           ctx.providePort(AgentServicePortKey, ports.agents);
           // 시험 대역의 ToolsPort는 파이프라인을 흉내 내지 않으므로 옛 직접 경로를 쓴다(rig.ts와 같은 이유)
-          ctx.providePort(GroupSettingsSourceKey, {
+          ctx.providePort(SETTINGS_READ_PORT, {
             value: (key) => (key === "l1.tools.pluginCalls" ? false : settings[key]),
           });
           ctx.providePort(ToolsPortKey, {

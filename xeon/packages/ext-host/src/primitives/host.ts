@@ -33,7 +33,11 @@ import {
 } from "../operations/trace-buffer.ts";
 import { createBoundaryLog, type BoundaryLog } from "./boundary-log.ts";
 import { createCapabilityBindings, type CapabilityBindings } from "./bindings.ts";
-import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
+import {
+  EMPTY_CAPABILITY_DEFS,
+  SETTINGS_READ_PORT,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
 import {
   createEventQuery,
   toolOwnerOf,
@@ -127,6 +131,11 @@ export interface ExtHostDeps {
   readonly hasQueuedInput?: (threadId: ThreadId) => boolean;
   /** x.primitives.* 설정 값 읽기 */
   readonly settings: PrimitivesSettingsSource;
+  /**
+   * 설정 키(`l3.helm.driveLimits` 같은 전체 키)의 유효 값 읽기. 조립 루트가 설정 엔진에 연결해 넘긴다.
+   * 있으면 호스트가 `fresnel.settings` 포트로 낸다(모든 플러그인의 `settingValue`와 `l1.tools.pluginCalls` 판정이 읽는다). 없으면 포트가 없다
+   */
+  readonly settingValue?: (key: string) => unknown;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
   readonly report: (diagnostic: ExtDiagnostic) => void;
   /** 참이면 페이로드·패치·결정 스키마 검사와 페이로드 동결을 켠다. 기본 참 */
@@ -834,6 +843,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     inject: [],
     apply: (fiber) => {
       fiber.provide(ExtHostPortKey.name, host);
+      const readSetting = deps.settingValue;
+      if (readSetting !== undefined) fiber.provide(SETTINGS_READ_PORT.name, { value: readSetting });
       return Promise.resolve();
     },
   });

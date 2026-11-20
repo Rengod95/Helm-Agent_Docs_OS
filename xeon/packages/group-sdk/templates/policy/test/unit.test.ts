@@ -1,6 +1,6 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { expect, test } from "bun:test";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey } from "@fresnel/group-sdk";
 import { checkGroup } from "@fresnel/group-sdk/testing";
 import group from "../src/index.ts";
 
@@ -9,7 +9,7 @@ test("__ID__.denies-a-blocked-tool-and-passes-the-others", async () => {
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, {
+      ctx.providePort(SETTINGS_READ_PORT, {
         value: (key) => (key === "ext.__ID__.blockedTools" ? ["bash"] : undefined),
       });
     },

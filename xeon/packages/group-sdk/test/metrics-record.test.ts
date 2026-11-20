@@ -1,8 +1,8 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { expect, test } from "bun:test";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
-  GroupSettingsSourceKey,
   createGroupService,
   defineGroup,
   type GroupApi,
@@ -138,7 +138,7 @@ test("metrics.recorded-is-absent-when-instrumentation-is-off", async () => {
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+      ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
   const thread = t.newThread();

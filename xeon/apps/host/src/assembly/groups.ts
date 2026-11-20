@@ -8,11 +8,10 @@ import {
 import {
   createGroupService,
   type GroupServiceDeps,
-  GroupSettingsSourceKey,
   type GroupCatalogEntry,
   type GroupServiceWithUsage,
 } from "@fresnel/group-sdk";
-import { hostOf, type ExtHost, type ExtensionUnit } from "@fresnel/ext-host";
+import type { ExtHost, ExtensionUnit } from "@fresnel/ext-host";
 import type { SettingsEngine } from "./settings-engine.ts";
 
 // m2-plan HOST.6, L3.group-sdk.plan §8. group-sdk은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 만들어
@@ -66,8 +65,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
     trust: { level: "builtin" },
   });
   const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
-    register(loaded.name, { defaultEnabled: true }, (g) => {
-      const host = hostOf(g);
+    register(loaded.name, { defaultEnabled: true }, () => {
       const instrumentation = (): boolean =>
         options.settings.value("l3.group-sdk.instrumentation") !== false;
       const service = createGroupService({
@@ -80,9 +78,6 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         ...(options.onEnabled === undefined ? {} : { onEnabled: options.onEnabled }),
       });
       options.onService?.(service);
-      host.providePort(GroupSettingsSourceKey, {
-        value: (key) => options.settings.value(key),
-      });
     });
   };
   return { manifest, entry, loadIndex: options.loadIndex, builtin: true };

@@ -700,6 +700,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     methodRun: operations.runMethod,
     onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
+    // `fresnel.settings` 포트: 모든 플러그인의 settingValue와 플러그인 호출 경로 판정이 읽는다
+    settingValue: (key) => settings.value(key),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
     // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)

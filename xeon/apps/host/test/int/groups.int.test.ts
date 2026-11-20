@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { defineManifest } from "@fresnel/contracts/extensions";
-import { ExtHostPortKey, hostOf, type ExtHost } from "@fresnel/ext-host";
+import { ExtHostPortKey, hostOf, type ExtHost, SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupSettingsSource } from "@fresnel/group-sdk";
+import type { GroupSettingsSource } from "@fresnel/group-sdk";
 import { AssembleError, assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
@@ -41,7 +41,7 @@ function portProbe(captured: Captured): HostPluginModule {
     extension: ({ register }) => {
       register("port-probe", {}, (g) => {
         const host = hostOf(g);
-        captured.settings = host.port(GroupSettingsSourceKey);
+        captured.settings = host.port(SETTINGS_READ_PORT);
       });
     },
   };

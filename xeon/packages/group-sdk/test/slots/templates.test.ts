@@ -1,3 +1,4 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,7 +15,6 @@ import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   checkGroupName,
   defineGroup,
-  GroupSettingsSourceKey,
   TemplateIndexSchema,
   type GroupModule,
   type TemplateIndex,
@@ -208,7 +208,7 @@ async function policyHost(
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: values });
+      ctx.providePort(SETTINGS_READ_PORT, { value: values });
     },
   });
   await install(t, module);
@@ -453,7 +453,7 @@ test("template.policy-exception-becomes-deny", async () => {
     await t.host.registerPlatform({
       name: "settings-source",
       setup(ctx) {
-        ctx.providePort(GroupSettingsSourceKey, {
+        ctx.providePort(SETTINGS_READ_PORT, {
           value: (key) => {
             if (key === "ext.tpl-policy.blockedTools") {
               throw new TypeError("settings store unreadable");

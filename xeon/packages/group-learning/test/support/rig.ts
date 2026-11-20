@@ -19,9 +19,9 @@ import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
 import { err, ok, parse } from "@fresnel/contracts";
 import { AgentServicePortKey } from "@fresnel/contracts/services";
 import { Type } from "typebox";
-import { capabilityDefTable } from "@fresnel/ext-host";
+import { capabilityDefTable, SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
+import type { GroupModule } from "@fresnel/group-sdk";
 import { fakeAgents, type FakeAgents } from "@fresnel/group-sdk/testing";
 import {
   createLearningBridge,
@@ -224,7 +224,7 @@ export async function rigOn(
     name: "learning-ports",
     setup(ctx) {
       ctx.providePort(AgentServicePortKey, agents);
-      ctx.providePort(GroupSettingsSourceKey, {
+      ctx.providePort(SETTINGS_READ_PORT, {
         value: (key) => {
           if (control.settingsDown) throw new Error("the settings store is down");
           return values.get(key);

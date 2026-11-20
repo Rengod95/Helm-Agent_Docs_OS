@@ -26,6 +26,7 @@ import {
   type CapabilityDefLookup,
   type ExtensionUnit,
   type PayloadOf,
+  SETTINGS_READ_PORT,
 } from "@fresnel/ext-host";
 import {
   createTestHost,
@@ -35,7 +36,7 @@ import {
   type TestHost,
   type TestHostOptions,
 } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
+import type { GroupModule } from "@fresnel/group-sdk";
 import { helmGroup } from "../../src/index.ts";
 import { fakeService } from "./unsafe.ts";
 
@@ -352,7 +353,7 @@ async function provideSettings(
   await t.host.registerPlatform({
     name: "test-settings",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+      ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
 }

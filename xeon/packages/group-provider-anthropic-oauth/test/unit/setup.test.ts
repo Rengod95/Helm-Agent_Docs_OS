@@ -1,8 +1,8 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { expect, test } from "bun:test";
 import { err } from "@fresnel/contracts";
 import { ModelsPortKey, type ProviderResourceDef } from "@fresnel/contracts/extensions";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
-import { GroupSettingsSourceKey } from "@fresnel/group-sdk";
 import { providerAnthropicOauthGroup } from "../../src/index.ts";
 
 const ACK = "ext.provider-anthropic-oauth.acknowledgeRisk";
@@ -38,7 +38,7 @@ async function rigWith(values: Readonly<Record<string, unknown>>): Promise<{
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+      ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
   await t.host.install({

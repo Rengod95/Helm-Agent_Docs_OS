@@ -61,7 +61,7 @@ export {
   type PromotionReport,
   type ToolConsumer,
 } from "./promotion/report.ts";
-export { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
+export type { GroupSettingsSource } from "./ports/settings.ts";
 export {
   STATE_DOC_MAX_BYTES,
   checkStateCommit,

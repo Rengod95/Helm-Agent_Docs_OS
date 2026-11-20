@@ -1,9 +1,10 @@
+import { SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { expect, test } from "bun:test";
 import type { StepResult } from "@fresnel/contracts/extensions";
 import { defineSettings } from "@fresnel/contracts/settings";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineGroup, GroupSettingsSourceKey, type GroupApi } from "../src/index.ts";
+import { defineGroup, type GroupApi } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -51,7 +52,7 @@ test("wrap.settings-reads-valid-values-and-falls-back-on-invalid", async () => {
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+      ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
   const sink: { api?: GroupApi<never, ModeDefs> } = {};
@@ -223,7 +224,7 @@ test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", asyn
   await t.host.registerPlatform({
     name: "settings-source",
     setup(ctx) {
-      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+      ctx.providePort(SETTINGS_READ_PORT, { value: (key) => values[key] });
     },
   });
   const sink: { api?: GroupApi<never, ModeDefs> } = {};
