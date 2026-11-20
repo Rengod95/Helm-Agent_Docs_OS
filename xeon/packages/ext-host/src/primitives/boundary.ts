@@ -459,6 +459,8 @@ export function createBoundary(
       // 턴이 정착했으면 호스트가 턴 덧씌우기를 풀고 집합을 다시 맞춘다(M5c §4.3.4). 맞추기는 다음 유휴 적용으로 간다
       if (signal.kind === "turn_settled") {
         core.ports.get(PluginSetPortKey)?.turnSettled?.(thread.threadId);
+        // 첫 메시지 뒤의 전환이 건 시작은 턴이 끝난 뒤 유휴 경계에서 부여한다(AGE-64). 유휴 적용을 청한다
+        if (lease.hasAfterTurnStart(thread)) requestApply(thread.threadId);
       }
     } else {
       txn.grant?.abort.abort();

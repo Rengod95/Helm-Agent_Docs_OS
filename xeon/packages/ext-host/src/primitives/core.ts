@@ -75,6 +75,8 @@ export interface ResolvedDeps {
   readonly setupBudgetMs: () => number | null;
   /** 입력과 `done` 결과의 직렬화 크기 상한(바이트). 넘으면 거절한다(`input_too_large`, `result_too_large`) */
   readonly driveInputMaxBytes: () => number;
+  /** 큐에 든 입력이 있는가. 첫 메시지 뒤의 전환이 건 시작은 먼저 보낸 입력이 모두 처리된 뒤에 부여한다(AGE-64) */
+  readonly hasQueuedInput: (threadId: ThreadId) => boolean;
 }
 
 // ── 경계 신호 (X.primitives.spec §3.5) ────────────────────────────────────

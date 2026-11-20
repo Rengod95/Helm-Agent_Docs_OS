@@ -123,6 +123,8 @@ export interface ExtHostDeps {
    * 조립 루트가 블롭 상한(`l0.store.maxBlobBytes`)을 읽는 함수를 넘긴다. 격리 플러그인은 프레임 상한(16 MiB)을 넘는 입력을 받지 못한다
    */
   readonly driveInputMaxBytes?: () => number;
+  /** 대화의 입력 큐에 처리를 기다리는 입력이 있는가. 없으면 항상 거짓이다(시험 대역) */
+  readonly hasQueuedInput?: (threadId: ThreadId) => boolean;
   /** x.primitives.* 설정 값 읽기 */
   readonly settings: PrimitivesSettingsSource;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
@@ -633,6 +635,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     strict: deps.strict ?? true,
     setupBudgetMs: deps.setupBudgetMs ?? (() => null),
     driveInputMaxBytes: deps.driveInputMaxBytes ?? (() => DRIVE_INPUT_MAX_BYTES),
+    hasQueuedInput: deps.hasQueuedInput ?? (() => false),
   };
   const bridge = createCordisBridge((cause) => {
     report({ level: "error", code: "handler_failed", message: "cordis effect failed", cause });

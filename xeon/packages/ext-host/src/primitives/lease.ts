@@ -157,6 +157,8 @@ export interface LeaseBroker {
     scopeId: RegistrationId | null,
     fresh: boolean,
   ): Result<SwitchStartDriveOutcome, StartDriveError>;
+  /** 도는 turn이 끝난 뒤 부여하려고 기다리는 시작 요청(`afterTurn`)이 큐에 있는가 */
+  hasAfterTurnStart(thread: ThreadRuntime): boolean;
   /** 읽기: thread의 스택을 아래에서 위로 주는 `drive.frames` 모양. 코어 루프가 맨 아래 깊이 0이다 */
   framesOf(thread: ThreadRuntime): readonly DriveFrameView[];
   /**
@@ -1792,7 +1794,9 @@ export function createLeaseBroker(
     // 첫 메시지 뒤의 전환은 도는 turn이 끝나 유휴가 된 경계에서만 시작한다
     if (
       request.afterTurn === true &&
-      (txn.signal.kind !== "idle" || !loopStatusIdle(thread.threadId))
+      (txn.signal.kind !== "idle" ||
+        !loopStatusIdle(thread.threadId) ||
+        core.deps.hasQueuedInput(thread.threadId))
     ) {
       return;
     }
@@ -2189,6 +2193,9 @@ export function createLeaseBroker(
       }
       hooks.requestApply(threadId);
       return ok(undefined);
+    },
+    hasAfterTurnStart(thread) {
+      return thread.startQueue.some((item) => item.afterTurn === true);
     },
     switchStartDrive(threadId, scopeId, fresh) {
       const thread = core.threads.get(threadId);
