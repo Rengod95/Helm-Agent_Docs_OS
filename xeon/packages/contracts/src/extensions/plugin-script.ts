@@ -62,11 +62,13 @@ export interface ScriptCard {
 export type ScriptUse =
   | "system_tools"
   | "network"
-  /** 환경 모드: 사용자의 PATH와 환경 변수(시크릿 거부 목록 제외)로 돈다 [제안, AGE-58] */
+  /** 환경 모드: 사용자의 PATH와 환경 변수로 돈다. Fresnel 자신의 내부 값(`FRESNEL_*`)만 뺀다 [결정: 2026-11-20, 사용자, AGE-58] */
   | "user_environment"
-  /** 환경 모드: 보호 경로(시크릿 폴더)를 뺀 모든 파일을 읽는다 */
+  /** 환경 모드(기본): 사용자 권한 그대로 돈다. Fresnel이 읽기·쓰기·도구를 막지 않는다(샌드박스 없음) [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해"] */
+  | "user_full_access"
+  /** 환경 모드, 설정 `l0.sandbox.sandboxImportedHooks`를 켠 때: 보호 경로(시크릿 폴더)를 뺀 모든 파일을 읽는다 */
   | "read_wide"
-  /** 환경 모드: 프로젝트 폴더와 훅 전용 임시 폴더에 쓴다. 홈과 그 밖은 쓰지 못한다 */
+  /** 환경 모드, 같은 설정을 켠 때: 프로젝트 폴더와 훅 전용 임시 폴더에 쓴다. 홈과 그 밖은 쓰지 못한다 */
   | "write_project";
 
 /**
@@ -75,8 +77,20 @@ export type ScriptUse =
  */
 export const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
 
-/** 환경 모드 스크립트가 쓸 수 있는 것 전부 [결정: 2026-11-20, 사용자, AGE-58 원칙 가] */
+/**
+ * 환경 모드 스크립트(가져온 훅)가 기본으로 쓸 수 있는 것 [결정: 2026-11-20, 사용자, AGE-58]. 다른 하네스(Claude Code, Codex CLI, Cursor, Gemini CLI)처럼 사용자 권한 그대로 돈다:
+ * 샌드박스 없음, 사용자 환경 변수(Fresnel 내부 값 제외), 네트워크 전체. 이 앞 결정 "전체 가"의 시크릿 읽기 거부와 프로젝트 쓰기만을 이 값이 대신한다
+ */
 export const SCRIPT_ENV_USES: readonly ScriptUse[] = [
+  "user_full_access",
+  "user_environment",
+  "network",
+];
+
+/**
+ * 환경 모드 스크립트를 샌드박스 안에서 돌리는 설정(`l0.sandbox.sandboxImportedHooks`, 기본 끔)을 켰을 때의 권한. 보호 경로 읽기 거부, 프로젝트와 훅 임시 폴더에만 쓰기, 도구와 Mach 서비스 막기
+ */
+export const SCRIPT_ENV_SANDBOXED_USES: readonly ScriptUse[] = [
   "user_environment",
   "read_wide",
   "write_project",
