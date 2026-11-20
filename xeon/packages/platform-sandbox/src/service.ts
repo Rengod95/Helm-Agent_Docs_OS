@@ -575,6 +575,8 @@ export async function createSandboxService(
     refresh,
     dispose: async () => {
       for (const schedule of schedules) schedule.stop();
+      // 중단 신호를 받은 실행이 임시 폴더를 지우고 끝나기를 기다린다. 기다리지 않으면 엔진을 닫는 프로세스가 그대로 끝나 폴더가 남는다
+      await selfTestTail;
       if (!initialized) return;
       initialized = false;
       await srt.reset();

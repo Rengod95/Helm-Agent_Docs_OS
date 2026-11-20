@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 import { repeatAsync, type Clock, type Scheduler, type TimerHandle } from "@fresnel/contracts";
 import type { SelfTestItemId } from "@fresnel/contracts/services";
@@ -73,7 +74,7 @@ async function setup(initial: SandboxSettings = settingsOf()) {
     },
     new AbortController().signal,
   );
-  return { service, scheduler, state, os };
+  return { service, scheduler, state, os, dirs };
 }
 
 /** 조건이 참이 될 때까지 5ms 간격으로 최대 3초 폴링한다(자가 시험은 실제 임시 파일을 만든다) */
@@ -176,5 +177,16 @@ describe("startSelfTests", () => {
     schedule.stop();
     await schedule.first;
     expect(scheduler.pending()).toEqual([]);
+  });
+
+  test("dispose while a run is in flight waits for the run to remove its temp folder", async () => {
+    const { service, dirs } = await setup();
+    const shell = selfTestShell();
+    service.startSelfTests(shell);
+    // 시험이 임시 폴더를 만들고 첫 명령을 낸 뒤에 닫는다
+    await settle(() => shell.calls.length > 0);
+    expect(shell.calls.length).toBeGreaterThan(0);
+    await service.dispose();
+    expect(readdirSync(dirs.tmp)).toEqual([]);
   });
 });

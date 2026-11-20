@@ -472,7 +472,7 @@ export function selectSandboxProvider(input: {
 
 `docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 위치(apps/host)이고 `Shell`은 `fresnel.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
 
-호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `fresnel.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈춘다. doctor는 `selfTest`를 직접 부른다.
+호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `fresnel.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈추고, 진행 중인 실행이 임시 폴더(`fresnel-sandbox-selftest-*`)를 지우고 끝나기를 기다린 뒤 돌아온다(엔진을 닫는 프로세스가 곧바로 끝나도 폴더가 남지 않는다). doctor는 `selfTest`를 직접 부른다.
 
 | id | 시도(샌드박스 안) | 기대 |
 |---|---|---|
