@@ -88,6 +88,8 @@ export type ManifestIssueCode =
   | "script_duplicate"
   /** `scripts`의 `file`이 빈 값이거나 확장 루트 밖을 가리킨다(설계 B [제안]). 거부다 */
   | "script_path_invalid"
+  /** 환경 모드(`scripts[].env`) 선언이 모양에 맞지 않는다: `runner`가 `shell`과 다르거나, `args`·`envNames`가 함께 있거나, 참조 경로가 절대 경로가 아니다(AGE-58 [제안]). 거부다 */
+  | "script_env_invalid"
   | "composition_invalid"
   // validateComposition
   | "composition_duplicate"
@@ -1157,6 +1159,29 @@ function checkScripts(manifest: ExtensionManifest): readonly ManifestIssue[] {
     );
   }
   scripts.forEach((script, index) => {
+    const env = script.env;
+    if (env !== undefined) {
+      const refsOk = env.refs.every(
+        (ref) =>
+          ref.path.startsWith("/") &&
+          !ref.path.includes("\0") &&
+          !ref.path.split("/").includes(".."),
+      );
+      const plain =
+        script.runner === env.shell &&
+        (script.args === undefined || script.args.length === 0) &&
+        (script.envNames === undefined || script.envNames.length === 0);
+      if (!refsOk || !plain) {
+        issues.push(
+          issue(
+            "error",
+            "script_env_invalid",
+            `/scripts/${index}/env`,
+            "an environment-mode script needs runner equal to its shell, no args or envNames, and absolute reference paths without '..'",
+          ),
+        );
+      }
+    }
     if (!isScriptFileValid(script.file)) {
       issues.push(
         issue(

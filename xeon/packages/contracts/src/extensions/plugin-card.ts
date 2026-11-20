@@ -232,17 +232,66 @@ export interface CardScript {
   readonly timeoutMs: number;
   /** 승인하면 이 스크립트가 쓸 수 있는 것(`ScriptCard.uses`와 같은 값). 선택 필드라 없는 옛 카드도 파싱된다. 없으면 화면은 알리지 못한다 */
   readonly uses?: readonly ScriptUse[];
+  /** 환경 모드(가져온 훅)일 때만. 리뷰 화면은 이것으로 "당신의 셸 명령 그대로 돈다"를 그린다 [제안, AGE-58] */
+  readonly env?: CardScriptEnv;
 }
+
+/**
+ * 환경 모드 카드 칸. `command`는 원문 그대로다(가림 규칙은 호스트가 지난다). `interpreter`는 PATH에서 찾아낸 첫 단어의 위치이고 못 찾았으면 null이다.
+ * `refs`의 `hash`가 null이면 지문을 못 냈다. `refsKnown`이 거짓이면 어떤 파일을 읽는지 알 수 없다고 말해야 한다(추측으로 채우지 않는다).
+ * `missingTools`는 이 기기에 없는 실행 파일, `versionHints`는 버전의 근거가 되는 글이다(`python3.11` 이름, shebang, 옆의 `.python-version`)
+ */
+export interface CardScriptEnv {
+  readonly command: string;
+  readonly shell: "sh" | "bash";
+  readonly interpreter: string | null;
+  readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+  readonly refsKnown: boolean;
+  readonly missingTools: readonly string[];
+  readonly versionHints: readonly string[];
+  /** 프로젝트가 싣고 온 훅인가 */
+  readonly fromProject: boolean;
+}
+const CardScriptEnvShape = Type.Object(
+  {
+    command: Type.String({ maxLength: 4096 }),
+    shell: Type.Union([Type.Literal("sh"), Type.Literal("bash")]),
+    interpreter: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+    refs: Type.Array(
+      Type.Object(
+        {
+          path: Type.String({ maxLength: 1024 }),
+          hash: Type.Union([Type.String({ maxLength: 100 }), Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16 },
+    ),
+    refsKnown: Type.Boolean(),
+    missingTools: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 }),
+    versionHints: Type.Array(Type.String({ maxLength: 256 }), { maxItems: 16 }),
+    fromProject: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 const CardScriptShape = Type.Object(
   {
     name: Id,
     launch: CardMcpLaunchShape,
     timeoutMs: Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs }),
     uses: Type.Optional(
-      Type.Array(Type.Union([Type.Literal("system_tools"), Type.Literal("network")]), {
-        maxItems: 2,
-      }),
+      Type.Array(
+        Type.Union([
+          Type.Literal("system_tools"),
+          Type.Literal("network"),
+          Type.Literal("user_environment"),
+          Type.Literal("read_wide"),
+          Type.Literal("write_project"),
+        ]),
+        { maxItems: 5 },
+      ),
     ),
+    env: Type.Optional(CardScriptEnvShape),
   },
   { additionalProperties: false },
 );
