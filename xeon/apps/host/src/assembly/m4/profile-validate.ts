@@ -65,7 +65,42 @@ export interface CommonBody {
   readonly settings: readonly { readonly key: string; readonly value: unknown }[];
 }
 
+/**
+ * 저장 전에 이미 있던 항목(AGE-34). 이 안의 "지금 이 기기에 없는 플러그인"은 저장을 막지 않고 경고(`plugin_unknown`)로만 알린다.
+ * 첫 저장이면 넘기지 않는다(전부 새 항목이다)
+ */
+export interface ProfilePrevious {
+  /** 저장 전의 프로필과 공통 묶음에 든 플러그인 이름 */
+  readonly plugins: ReadonlySet<string>;
+  /** 저장 전의 프로필과 공통 묶음에 든 설정 키 */
+  readonly settingKeys: ReadonlySet<string>;
+}
+
+/** 저장 전 프로필(없으면 첫 저장)과 공통 묶음에서 "이미 있던 항목"을 모은다 */
+export function previousOf(
+  profile:
+    | {
+        readonly plugins: readonly { readonly name: string }[];
+        readonly settings: readonly { readonly key: string }[];
+      }
+    | undefined,
+  common: {
+    readonly plugins: readonly { readonly name: string }[];
+    readonly settings: readonly { readonly key: string }[];
+  },
+): ProfilePrevious {
+  const owners = [common, ...(profile === undefined ? [] : [profile])];
+  return {
+    plugins: new Set(owners.flatMap((owner) => owner.plugins.map((ref) => ref.name))),
+    settingKeys: new Set(owners.flatMap((owner) => owner.settings.map((setting) => setting.key))),
+  };
+}
+
 const SECRET_PREFIX = "secret://";
+
+function ownsKey(plugin: string, key: string): boolean {
+  return key.startsWith(`ext.${plugin}.`);
+}
 
 /** 공통 묶음과 프로필을 합친 플러그인 순서(§4.1.3): 공통이 먼저, 중복은 처음 것을 남긴다 */
 function resolvedPluginNames(profile: CommonBody, common: CommonBody): readonly string[] {
@@ -96,8 +131,11 @@ export function validateProfile(
   common: CommonBody,
   library: ProfileLibrary,
   catalog: ProfileCatalog,
+  previous?: ProfilePrevious,
 ): readonly ProfileIssue[] {
   const issues: ProfileIssue[] = [];
+  /** 저장 전에도 들어 있던, 지금은 없는 플러그인. 이 이름의 참조와 그 이름이 소유한 설정 키는 경고다 */
+  const gone = new Set<string>();
   const names = resolvedPluginNames(profile, common);
   const resolved = new Set(names);
   const settings = collapsedSettings([...common.settings, ...profile.settings]);
@@ -113,7 +151,9 @@ export function validateProfile(
   for (const name of names) {
     const entry = library.lookup(name);
     if (entry === undefined) {
-      issues.push({ code: "plugin_unknown", severity: "error", plugin: name });
+      const kept = previous?.plugins.has(name) === true;
+      if (kept) gone.add(name);
+      issues.push({ code: "plugin_unknown", severity: kept ? "warning" : "error", plugin: name });
       continue;
     }
     entries.set(name, entry);
@@ -165,7 +205,15 @@ export function validateProfile(
   for (const setting of settings) {
     const info = catalog.lookup(setting.key);
     if (info === undefined) {
-      issues.push({ code: "setting_unknown_key", severity: "error", key: setting.key });
+      // 없는 플러그인이 소유한 키가 저장 전에도 있었으면 그 플러그인과 함께 경고로 넘긴다
+      const keptKey =
+        previous?.settingKeys.has(setting.key) === true &&
+        [...gone].some((name) => ownsKey(name, setting.key));
+      issues.push({
+        code: "setting_unknown_key",
+        severity: keptKey ? "warning" : "error",
+        key: setting.key,
+      });
       continue;
     }
     if (info.owner !== null && !resolved.has(info.owner)) {
