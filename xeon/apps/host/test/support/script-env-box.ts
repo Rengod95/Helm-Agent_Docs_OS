@@ -125,6 +125,7 @@ export interface EnvRunSpec {
   /** 참조 파일과 가져올 때의 지문 */
   readonly refs?: ScriptEnvDecl["refs"];
   readonly stdin?: string;
+  /** 스크립트 선언의 제한 시간(ms). 없으면 기본값(`SCRIPT_LIMITS.timeoutDefaultMs`) */
   readonly timeoutMs?: number;
   /** 기본은 이 프로젝트 폴더에 대한 승인 기록(`granted: true`). `"none"`이면 기록을 주지 않는다 */
   readonly grant?: ScriptEnvGrant | "none";
@@ -339,6 +340,7 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
       runner: shell,
       file,
       env: { command: spec.command, shell, refs: [...(spec.refs ?? [])], refsKnown: true },
+      ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
     };
     const grant = spec.grant ?? grantFor(project);
     const extra = spec.extraEnv ?? {};

@@ -35,6 +35,11 @@ import {
 
 const ENVIRONMENT_EXIT_CODE = 2;
 const TEST_TIMEOUT_MS = 240_000;
+/**
+ * 한 스크립트가 샌드박스 안에서 명령을 스무 개 가까이 차례로 띄우는 탐침(b2, b3)의 제한 시간. 기본 10초는 조용한 기계에서 8~9초라 부하가 오면 중간에 끊겨
+ * 결과 줄이 빠진 채 실패한다(측정: 혼자 8.4~9.1초, 묶음 안 10.0초 끊김). 판정은 그대로이고 끊는 시각만 늦춘다.
+ */
+const PROBE_TIMEOUT_MS = 60_000;
 const DISK_TMP = "/tmp";
 
 const gate = await sandboxGateOf();
@@ -834,7 +839,12 @@ suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied out
     async () => {
       const box = requireBox(slot);
       const result = resultOf(
-        await box.run({ name: "b2-exec-paths", shell: "bash", command: EXEC_PROBE }),
+        await box.run({
+          name: "b2-exec-paths",
+          shell: "bash",
+          command: EXEC_PROBE,
+          timeoutMs: PROBE_TIMEOUT_MS,
+        }),
       );
       if (result === undefined) return;
       const results = resultsOf(result.stdout);
@@ -860,6 +870,7 @@ suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied out
           name: "b3-protected-tools",
           shell: "bash",
           command: protectedToolProbe(box.home),
+          timeoutMs: PROBE_TIMEOUT_MS,
         }),
       );
       if (result === undefined) return;
