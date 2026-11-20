@@ -8,7 +8,6 @@ type Terms = Readonly<Record<string, TermDecl>>;
 
 /** 화면(chat) 문자열에 나오면 안 되는 내부 전용 말(설계 §5 C-04 목록) */
 export const CHAT_INTERNAL_WORDS: readonly string[] = [
-  "루프",
   "코어",
   "소켓",
   "tier",

@@ -544,14 +544,8 @@
     "surfaces": ["chat", "settings", "workbench"],
     "ids": ["once", "repeat", "TriggerSpec"],
     "forbid": {
-      "ui": ["루프", "타이머"],
-      "docs": ["timer"],
-      "docsIn": [
-        {
-          "word": "루프",
-          "under": ["L2/schedule/"]
-        }
-      ]
+      "ui": ["타이머"],
+      "docs": ["timer"]
     },
     "sources": ["adr.0022", "L2.schedule.spec"],
     "status": "proposed"
