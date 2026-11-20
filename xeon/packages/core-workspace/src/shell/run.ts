@@ -172,6 +172,8 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
             : sandbox.defaultPolicy({
                 workspaceRoots: [...roots.write, ...grants],
                 tempDir: deps.tempDir,
+                // 사용자가 설정으로 푼 보호 경로 읽기는 셸 도구에만 적용한다
+                userReadRelease: true,
               });
           return runBashCommand(
             sandbox.wrapShell(deps.env, policy),
