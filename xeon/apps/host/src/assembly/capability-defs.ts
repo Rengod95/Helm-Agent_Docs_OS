@@ -26,6 +26,7 @@ import {
   WorkTasks,
   WorkspaceFiles,
   WorkspaceImages,
+  WorkspaceProtection,
   WorkspaceShell,
   type AnyCapabilityDef,
   type CapabilityId,
@@ -66,6 +67,7 @@ export const BUILTIN_CAPABILITY_DEFS: readonly AnyCapabilityDef[] = [
   WorkTasks,
   WorkspaceFiles,
   WorkspaceImages,
+  WorkspaceProtection,
   WorkspaceShell,
 ];
 

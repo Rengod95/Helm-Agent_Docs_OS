@@ -488,7 +488,7 @@ export interface WorkspaceService {
 - 결과: `added`(이번에 더한 것), `alreadyProtected`(이미 보호 중이라 그대로 둔 것), `protected`(쓴 뒤 사용자 범위 전체 목록, 저장된 그대로), `effective: "next_shell_or_file_call"`. 적용은 다음 셸 호출과 다음 파일 도구 호출부터이며 같은 턴 안에서도 적용된다. 시험 `test/sandbox.protect-live.int.test.ts`(L0.sandbox 3.3.1)가 확인한다.
 - 목록(`sandbox_protected`): `blocked`는 지금 읽기와 쓰기가 막힌 경로다. 사용자가 더한 항목(`origin: "user"`)과 Fresnel 자신의 고정 시크릿·데이터(`origin: "fixed"`)를 표시 문자열로 준다(홈 아래는 `~/`). 쓰기만 막힌 기본 자격 폴더는 `suggested`(`path`, `label`, `blocked`)에 있고, `blocked`는 그 줄이 사용자 항목에 이미 있는지다.
 - 실패: 샌드박스가 없으면 두 메서드 모두 `unavailable`이다. 설정 저장소가 없으면 더하기는 `unavailable`이다. 설정 파일을 쓰지 못하면 `store_failed`이고 `detail.code`에 OS 오류 코드만 싣는다. 설정 검사(개수 256 한도)를 넘으면 `invalid_input`이다. 예상한 실패는 모두 `CapabilityError`로 던진다(cap-schedule의 기능 API와 같다).
-- 위험 등급 `read`: 기본 모드에서 묻지 않고 모든 모드에서 허용된다(L1.tools §4.6). 이 도구가 하는 일은 막기를 더하는 것뿐이고 막기를 낮추지 못하므로 묻지 않는다. 대신 사용자 설정 파일이 모델 호출로 바뀌는 사실은 [미결: 기본 모드에서 묻도록 등급을 `write`로 올릴지 사용자 결정].
+- 위험 등급 `read`: 기본 모드에서 묻지 않고 모든 모드에서 허용된다(L1.tools §4.6). 이 도구가 하는 일은 막기를 더하는 것뿐이고 막기를 낮추지 못하므로 묻지 않는다. 대신 사용자 설정 파일이 모델 호출로 바뀌는 사실은 [미결: 기본 모드에서 묻도록 등급을 `write`로 올릴지 사용자 결정] [근거: packages/cap-workspace/src/plugin.ts의 sandbox_protect 등록].
 - 사용자에게 보이는 것: 도구 호출 카드와 결과 문장(더한 것, 이미 막힌 것, 지금 막힌 전체). 설정 저장소가 쓴 뒤에는 `settings.invalidated`를 연결된 모든 화면에 보내므로 설정 화면이 다시 읽는다.
 
 ### 3.6 이벤트와 레코드
@@ -811,5 +811,5 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 16. [미결] 되돌리기의 대화 상태 순서. 호스트가 대화 leaf를 되돌린 뒤 파일 되돌리기를 불러야 `conversation`이 `restored`가 된다. 순서는 호스트 단계(`L4.host-service.spec`)가 정한다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절과 L1.persistence §4.13.2의 되돌리기 항목]
 17. [미결] 덮어쓰기로 고친 파일의 되돌리기. 설계 문구는 계획된 파일만 되돌린다. 덮어쓰기 전의 내용은 `undoBefore`로 이미 저장되므로 나중에 대상을 넓힐 수 있다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절의 undo 규칙]
 18. [미결] `RewindPreviewReason`에 `outside_root`와 보호 경로 사유가 없다. 이 경우 미리보기는 사유를 `null`로 보인다. 사유를 넓히는 것은 F 정의 변경이라 따로 정한다. [근거: F.records 정의 `packages/contracts/src/services/file-rewind.ts`의 `RewindPreviewReason`]
-19. [미결, AGE-63] `sandbox_protect`의 위험 등급 `read`는 묻지 않고 설정 파일을 바꾼다. 막기를 더하기만 하므로 안전 쪽 실패는 없지만, 사용자 설정이 모델 호출로 바뀌는 것을 묻게 하려면 등급을 `write`로 올린다(기본 모드에서 묻는다). 사용자 결정이 필요하다.
-20. [미결, AGE-63] 설정 `l0.sandbox.protectedPaths.extra`의 `runtimeChange`는 `nextTurn`이지만 실제 적용은 다음 셸·파일 호출부터다(L0.sandbox 3.3.1). 설정 화면의 "다음 턴부터" 표시와 실제가 다르다. `live`로 바꿀지 사용자 결정이 필요하다.
+19. [미결, AGE-63] `sandbox_protect`의 위험 등급 `read`는 묻지 않고 설정 파일을 바꾼다. 막기를 더하기만 하므로 안전 쪽 실패는 없지만, 사용자 설정이 모델 호출로 바뀌는 것을 묻게 하려면 등급을 `write`로 올린다(기본 모드에서 묻는다). 사용자 결정이 필요하다. [근거: packages/cap-workspace/src/plugin.ts의 sandbox_protect 등록 policy `read`]
+20. [미결, AGE-63] 설정 `l0.sandbox.protectedPaths.extra`의 `runtimeChange`는 `nextTurn`이지만 실제 적용은 다음 셸·파일 호출부터다(L0.sandbox 3.3.1). 설정 화면의 "다음 턴부터" 표시와 실제가 다르다. `live`로 바꿀지 사용자 결정이 필요하다. [근거: packages/platform-sandbox/test/sandbox.protect-live.int.test.ts]
