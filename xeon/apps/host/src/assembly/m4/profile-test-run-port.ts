@@ -32,13 +32,19 @@ import type {
   Unsubscribe,
 } from "@fresnel/contracts/wire";
 import type {
+  PluginEditApplied,
   PluginEditFailure,
   ProfilePortFailure,
   ProfilePreviewRequest,
   ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
 import { decodeTestRunDrafts } from "../measure/test-run-marks.ts";
-import { COMMON_ID, planPluginEdit, type PluginEditRequest } from "./plugin-edit.ts";
+import {
+  COMMON_ID,
+  planPluginEdit,
+  type PluginEditOutcome,
+  type PluginEditRequest,
+} from "./plugin-edit.ts";
 import type { ProfileStoreSnapshot, ProfilesChange, ProfilesWritten } from "./profile-store.ts";
 import { createProfileStore } from "./profile-store.ts";
 import {
@@ -52,6 +58,8 @@ import {
 } from "./profile-defaults.ts";
 import {
   hasBlockingIssue,
+  previousOf,
+  type ProfilePrevious,
   validateProfile,
   type ProfileBody,
   type ProfileCatalog,
@@ -296,6 +304,31 @@ function autoApprovedOf(json: string | null | undefined): boolean {
   return read.ok && read.value.approval === "auto";
 }
 
+const EMPTY_COMMON: CommonSet = { plugins: [], settings: [], updatedAt: "", rev: 0 };
+
+/** 프로필 검증기. `previous`는 저장 전에도 있던 항목이다(없으면 전부 새 항목) */
+type ProfileCheck = (
+  body: ProfileBody,
+  common: CommonSet,
+  previous?: ProfilePrevious,
+) => readonly ProfileIssue[];
+
+/** 경고로 넘긴 없는 플러그인 이름(`plugin_unknown`, 중복 없음) */
+function missingNamesOf(issues: readonly ProfileIssue[]): readonly string[] {
+  return [
+    ...new Set(
+      issues.flatMap((issue) =>
+        issue.code === "plugin_unknown" && issue.plugin !== undefined ? [issue.plugin] : [],
+      ),
+    ),
+  ];
+}
+
+/** 선택 필드 `missingPlugins`는 있을 때만 싣는다(정확한 선택 속성 규칙) */
+function missingFieldOf(names: readonly string[]): { readonly missingPlugins?: readonly string[] } {
+  return names.length === 0 ? {} : { missingPlugins: names };
+}
+
 export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileTestRunPort {
   const { env } = deps;
   /** 기본 공장 값. 플러그인 목록은 조립이 준 기본 설치 플러그인이다(코어가 아닌 내장 가운데 기본 켜짐과 번들, §4.1.2) */
@@ -332,14 +365,12 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
    * 검증기를 만든다. 시크릿 이름과 플러그인 사실은 쓰기 잠금 밖에서 한 번 읽는다(검증 함수는 동기다).
    * 저장된 목록을 바꾸는 계산은 이 함수가 돌려준 검증기를 잠금 안에서 쓴다.
    */
-  async function checksOf(
-    overlay: PluginFact | null = null,
-  ): Promise<(body: ProfileBody, common: CommonSet) => readonly ProfileIssue[]> {
+  async function checksOf(overlay: PluginFact | null = null): Promise<ProfileCheck> {
     const names = await env.secretNames();
     const pending = new Set(await deps.pendingNames());
     const lib = libraryOf(env, deps.pluginFacts(), pending, overlay);
     const catalog = catalogOf(env, names);
-    return (body, common) => validateProfile(body, common, lib, catalog);
+    return (body, common, previous) => validateProfile(body, common, lib, catalog, previous);
   }
 
   /**
@@ -348,11 +379,8 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
   function planEdit(
     request: PluginEditRequest,
     snapshot: ProfileStoreSnapshot,
-    validate: (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[],
-  ): Result<
-    { readonly changed: readonly Profile[]; readonly common: CommonSet | null },
-    PluginEditFailure
-  > {
+    validate: ProfileCheck,
+  ): Result<PluginEditOutcome, PluginEditFailure> {
     const planned = planPluginEdit({
       profiles: effectiveProfiles(snapshot.profiles, factory()),
       common: snapshot.common,
@@ -494,6 +522,21 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const found = findProfile(snapshot.value.profiles, id, factory());
       return found === undefined ? err({ kind: "not_found", id }) : ok(found);
     },
+    async missingPlugins(id: string): Promise<Result<readonly string[], ProfilePortFailure>> {
+      const snapshot = await store.read();
+      // 파일이 깨져도 기본 프로필은 공장 값으로 읽는다(`get`과 같다). 공통 묶음은 알 수 없어 비어 있는 것으로 본다
+      if (!snapshot.ok) {
+        if (id !== DEFAULT_PROFILE_ID || snapshot.error.kind !== "corrupt") return snapshot;
+        const issuesOf = await checksOf();
+        const base = factory();
+        return ok(missingNamesOf(issuesOf(base, EMPTY_COMMON, previousOf(base, EMPTY_COMMON))));
+      }
+      const found = findProfile(snapshot.value.profiles, id, factory());
+      if (found === undefined) return err({ kind: "not_found", id });
+      const issuesOf = await checksOf();
+      const { common } = snapshot.value;
+      return ok(missingNamesOf(issuesOf(found, common, previousOf(found, common))));
+    },
     async put(
       input: ProfileInput,
       baseRev: number | null,
@@ -526,7 +569,12 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           updatedAt: isoNow(env.clock.now()),
           rev: (storedRev ?? 0) + 1,
         };
-        const issues = issuesOf(profile, snapshot.common);
+        // 저장 전에도 들어 있던 없는 플러그인은 경고다(AGE-34). 첫 저장이면 `previous`가 없어 전부 새 항목이다
+        const issues = issuesOf(
+          profile,
+          snapshot.common,
+          previous === undefined ? undefined : previousOf(previous, snapshot.common),
+        );
         if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
         const next =
           existing === undefined
@@ -535,7 +583,11 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         return ok({
           profiles: next,
           common: snapshot.common,
-          value: { profile, issues: issues.filter((issue) => issue.severity === "warning") },
+          value: {
+            profile,
+            issues: issues.filter((issue) => issue.severity === "warning"),
+            ...missingFieldOf(missingNamesOf(issues)),
+          },
         });
       });
       if (!done.ok) return done;
@@ -569,15 +621,16 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     },
     async applyPluginEdit(
       request: PluginEditRequest,
-    ): Promise<Result<readonly string[], PluginEditFailure>> {
+    ): Promise<Result<PluginEditApplied, PluginEditFailure>> {
       const validate = await checksOf(request.kind === "remove" ? null : request.plugin);
       const snapshot = await store.read();
       if (!snapshot.ok) return snapshot;
       const first = planEdit(request, snapshot.value, validate);
       if (!first.ok) return first;
-      if (first.value.changed.length === 0 && first.value.common === null) return ok([]);
+      if (first.value.changed.length === 0 && first.value.common === null)
+        return ok({ profileIds: [], missingPlugins: first.value.missingPlugins });
       // 잠금 안에서 다시 계산한다. 그사이 저장이 바뀌었으면 검사가 다시 돈다
-      const done = await store.transact<readonly string[], PluginEditFailure>((locked) => {
+      const done = await store.transact<PluginEditApplied, PluginEditFailure>((locked) => {
         const planned = planEdit(request, locked, validate);
         if (!planned.ok) return err(planned.error);
         const changed = planned.value.changed;
@@ -593,7 +646,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
         return ok({
           profiles: [...replaced, ...added],
           common: planned.value.common ?? locked.common,
-          value: ids,
+          value: { profileIds: ids, missingPlugins: planned.value.missingPlugins },
         });
       });
       if (!done.ok) return done;
@@ -645,7 +698,11 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const issuesOf = await checksOf();
       return ok({
         common: snapshot.value.common,
-        issues: issuesOf(EMPTY_BODY, snapshot.value.common),
+        issues: issuesOf(
+          EMPTY_BODY,
+          snapshot.value.common,
+          previousOf(undefined, snapshot.value.common),
+        ),
       });
     },
     async commonPut(params: CommonPutParams): Promise<Result<CommonGetResult, ProfilePortFailure>> {
@@ -669,7 +726,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           updatedAt: isoNow(env.clock.now()),
           rev: snapshot.common.rev + 1,
         };
-        const issues = issuesOf(EMPTY_BODY, next);
+        const issues = issuesOf(EMPTY_BODY, next, previousOf(undefined, snapshot.common));
         if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
         return ok({ profiles: snapshot.profiles, common: next, value: { common: next, issues } });
       });
@@ -695,7 +752,9 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       }
       const common = commonOf(id, snapshot.value.common);
       const issuesOf = await checksOf();
-      const issues = issuesOf(body, common);
+      // 저장된 프로필과 같은 id의 미리 보기는 저장 전 값에서 이미 있던 항목을 경고로 본다(`put`과 같은 규칙, AGE-34)
+      const stored = findProfile(snapshot.value.profiles, id, factory());
+      const issues = issuesOf(body, common, previousOf(stored, snapshot.value.common));
       const missingRequired: { plugin: string; key: string }[] = [];
       for (const issue of issues) {
         if (
@@ -785,7 +844,8 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           updatedAt: isoNow(env.clock.now()),
           rev: current.rev + 1,
         };
-        const issues = issuesOf(profile, snapshot.common);
+        // 이 프로필이 이미 가리키던 없는 플러그인(다른 것)이 플러그인을 빼는 저장을 막지 않는다(AGE-34)
+        const issues = issuesOf(profile, snapshot.common, previousOf(current, snapshot.common));
         if (hasBlockingIssue(issues)) return err({ kind: "invalid" as const, issues });
         const next = snapshot.profiles.some((item) => item.id === profile.id)
           ? snapshot.profiles.map((item) => (item.id === profile.id ? profile : item))
@@ -865,7 +925,6 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       return found ?? { traceEnabled: true, retained: false, entries: [] };
     },
     testRunMarker: (threadId) => markerOf(threadId),
-    firstGivenPlugins: () => env.defaultPlugins(),
     registerTestRun(threadId, profileId, runGroupId, draftsJson) {
       markers.set(threadId, {
         profileId,

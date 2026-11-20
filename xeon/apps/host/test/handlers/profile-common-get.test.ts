@@ -58,7 +58,7 @@ test("profile.common.get on a store nothing was saved to is the empty common set
   await connection.close();
 });
 
-test("profile.common.get returns the stored set and the issues the library gives it now: an unset required key is a warning, a plugin that left the library is an error", async () => {
+test("profile.common.get returns the stored set and the issues the library gives it now: an unset required key is a warning, a plugin that left the library is a warning", async () => {
   const dir = tempDir();
   // 설치된 플러그인 목록을 시험 중에 바꾼다. 검사는 매번 지금 목록으로 한다
   let facts: readonly PluginFact[] = [DEMO];
@@ -103,7 +103,7 @@ test("profile.common.get returns the stored set and the issues the library gives
     issues: [],
   });
 
-  // `demo`가 라이브러리에서 빠지면 저장된 묶음은 그대로이고, 이슈는 오류 `plugin_unknown`으로 바뀐다
+  // `demo`가 라이브러리에서 빠지면 저장된 묶음은 그대로이고, 이미 든 이름이라 이슈는 경고 `plugin_unknown`으로 바뀐다(AGE-34)
   facts = [];
   expect(await connection.request("profile.common.get", {})).toEqual({
     common: {
@@ -112,7 +112,7 @@ test("profile.common.get returns the stored set and the issues the library gives
       updatedAt: filled.common.updatedAt,
       rev: 2,
     },
-    issues: [{ code: "plugin_unknown", severity: "error", plugin: "demo" }],
+    issues: [{ code: "plugin_unknown", severity: "warning", plugin: "demo" }],
   });
   await connection.close();
 });

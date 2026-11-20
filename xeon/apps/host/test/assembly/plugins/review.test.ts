@@ -818,7 +818,7 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
     },
     afterCommit: (context) => {
       seen.push(`after:${context.item.name}`);
-      return Promise.resolve(ok(["p1"]));
+      return Promise.resolve(ok({ profileIds: ["p1"], missingPlugins: [] }));
     },
     reflect: (context) => {
       seen.push(`reflect:${context.item.name}`);

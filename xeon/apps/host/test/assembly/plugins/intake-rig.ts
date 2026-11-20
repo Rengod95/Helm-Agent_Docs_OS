@@ -84,7 +84,12 @@ function hooksFor(edits: PluginEditRequest[]): ApprovalHookDeps {
       checkPluginEdit: () => Promise.resolve(ok(undefined)),
       applyPluginEdit: (request) => {
         edits.push(request);
-        return Promise.resolve(ok(request.kind === "add" ? request.profileIds : []));
+        return Promise.resolve(
+          ok({
+            profileIds: request.kind === "add" ? request.profileIds : [],
+            missingPlugins: [],
+          }),
+        );
       },
     },
     loader: () => undefined,

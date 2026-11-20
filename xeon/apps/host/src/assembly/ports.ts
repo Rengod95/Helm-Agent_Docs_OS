@@ -853,23 +853,20 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!head.ok) return head;
       return ok({ position: { storeId, seq: head.value } });
     },
-    async startDriveAfterSwitch(threadId) {
+    async switchStartDrive(threadId) {
       const found = session.query.thread(threadId);
       if (!found.ok) return found;
-      // 첫 메시지 전의 빈 대화만이다: turn도 큐에 든 입력도 없고, 플러그인이 쥔 주도 프레임이 없다(깊이 0은 코어 루프다)
-      if (found.value === undefined) return ok("not_fresh");
-      if (found.value.lastTurnId !== null || found.value.queuedInputs > 0) return ok("not_fresh");
-      if (deps.ext.driveFrames(threadId).some((frame) => frame.plugin !== null)) {
-        return ok("not_fresh");
-      }
+      if (found.value === undefined) return ok("rejected");
+      // 첫 메시지 전의 빈 대화: turn도 큐에 든 입력도 없다. 이때는 시작 Drive가 첫 메시지를 받는다(AGE-47)
+      const fresh = found.value.lastTurnId === null && found.value.queuedInputs === 0;
       const scopeId = await startDriveOf(threadId);
-      if (scopeId === undefined) return ok("none");
-      const started = deps.ext.startDrive(threadId, scopeId, { trigger: "profile" });
-      if (!started.ok) {
-        logger.warn("profile.switch_start_drive_rejected", { threadId, kind: started.error.kind });
+      // 스택을 어떻게 바꿀지(메시지를 받지 않은 시작 Drive만 내린다, 일하는 Drive는 끝난 뒤 바꾼다)는 엔진이 정한다(X.primitives §4.4.1c)
+      const switched = deps.ext.switchStartDrive(threadId, scopeId ?? null, fresh);
+      if (!switched.ok) {
+        logger.warn("profile.switch_start_drive_rejected", { threadId, kind: switched.error.kind });
         return ok("rejected");
       }
-      return ok("requested");
+      return ok(switched.value);
     },
     hasTitle(threadId) {
       const found = session.query.thread(threadId);

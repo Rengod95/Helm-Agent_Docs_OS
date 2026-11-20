@@ -85,6 +85,13 @@ describe("플러그인 탭의 칸 숫자와 이름표", () => {
     expect(out).toMatch(/data-end-summary=""[^>]*>2<\/span>/);
     expect(shellHtml(storeOf([entry("web")]), true)).toMatch(/data-end-summary=""[^>]*><\/span>/);
   });
+
+  test("펼친 well 머리 아래에는 선이 없다: 본문 판의 가장자리가 가른다(lcMk6)", () => {
+    const head = /<div data-end-head="" class="([^"]*)"/.exec(
+      shellHtml(storeOf(TWO_NOTICES), true),
+    );
+    expect(head?.[1]?.split(" ").filter((name) => name.startsWith("border"))).toEqual([]);
+  });
 });
 
 describe("플러그인 탭 맨 위의 알림", () => {

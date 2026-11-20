@@ -265,7 +265,7 @@ export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): Ex
 - `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`는 F.capabilities.spec §3.1을 그대로 import한다. 두 문서의 기능 ID 형식은 같다.
 - M5c-1 매니페스트 변경 [결정: 2026-11-17, `review/m5/profile-project-loader.md` §3.1, §4.5]: `entry`와 `plugins`는 선택이다. 둘 다 없으면 루트 플러그인 하나(`layer: "plugin"`, `hooks: []`)를 추론한다(`pluginDeclsOf`, §4.5.4). `pluginsOf`와 `effectiveLayer`는 추론한 목록으로 계산한다. 새 선택 필드는 `purpose`, `tools`, `commands`, `components.instructions`다. 옛 매니페스트는 그대로 유효하다. `defaultEnabled`는 바뀌지 않는다.
 - 중복 이름 [결정: M5c-1 §4.5.6]: `tools` 이름이 둘이면 `tool_duplicate`, `commands` 이름이 둘이면 `command_duplicate`(둘 다 오류, §3.7). 두 목록은 따로 센다.
-- 스크립트 선언 [결정: 2026-11-18 저녁, 사용자, AGE-48 (3): 플러그인은 자기 폴더의 스크립트를 실행할 수 있어야 한다(훅 스크립트 변환 포함). 이름과 모양은 [제안, 설계 B]]: 확장 수준 `scripts`(최대 64개). 원소의 `name`은 `SCRIPT_NAME_PATTERN`(소문자로 시작, 소문자·숫자·하이픈, 1~32자), `runner`는 `"sh" | "bash" | "bun" | "node" | "python3"` 가운데 하나(목록 밖은 `schema`), `file`은 확장 루트 기준 상대 경로, `args`는 최대 16개 각 512자, `timeoutMs`는 정수 1~60000(생략하면 10000), `envNames`는 환경 변수 이름 최대 16개다. 이름이 둘이면 `script_duplicate`, `file`이 빈 값·절대 경로·`..` 마디·백슬래시·NUL·드라이브 문자면 `script_path_invalid`다(§4.7). `entry`가 없어도 오류가 아니다. 부를 코드가 없으면 스크립트는 실행되지 않는다.
+- 스크립트 선언 [결정: 2026-11-18 저녁, 사용자, AGE-48 (3): 플러그인은 자기 폴더의 스크립트를 실행할 수 있어야 한다(훅 스크립트 변환 포함). 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B]]: 확장 수준 `scripts`(최대 64개). 원소의 `name`은 `SCRIPT_NAME_PATTERN`(소문자로 시작, 소문자·숫자·하이픈, 1~32자), `runner`는 `"sh" | "bash" | "bun" | "node" | "python3"` 가운데 하나(목록 밖은 `schema`), `file`은 확장 루트 기준 상대 경로, `args`는 최대 16개 각 512자, `timeoutMs`는 정수 1~60000(생략하면 10000), `envNames`는 환경 변수 이름 최대 16개다. 이름이 둘이면 `script_duplicate`, `file`이 빈 값·절대 경로·`..` 마디·백슬래시·NUL·드라이브 문자면 `script_path_invalid`다(§4.7). `entry`가 없어도 오류가 아니다. 부를 코드가 없으면 스크립트는 실행되지 않는다.
 - 환경 모드 선언 `scripts[].env` [결정: 2026-11-20, 사용자, AGE-58 원칙 가("가져온 스크립트는 원래 돌던 환경에서 돈다"); 이름과 모양은 [제안]]: 선택 필드 `env`가 있으면 그 스크립트는 환경 모드이고, 없으면 지금까지의 좁은 모드다(기존 필드와 뜻은 그대로). `env`는 `{command, shell, refs, refsKnown}`이다. `command`는 원래 하네스의 명령 문자열 원문(1~4096자), `shell`은 `"sh" | "bash"`(원래 하네스가 `bash`를 지정했으면 `bash`), `refs`는 명령이 참조한 파일의 절대 경로와 가져올 때의 지문(`sha256:<hex>`, 읽지 못했으면 null) 최대 16개, `refsKnown`은 참조 파일을 찾아냈는가다(거짓이면 어떤 파일을 읽는지 알 수 없다는 뜻이고 추측으로 채우지 않는다). 환경 모드 선언은 `runner`가 `shell`과 같아야 하고 `args`와 `envNames`를 함께 둘 수 없으며 `refs`의 경로는 `..` 없는 절대 경로여야 한다(어기면 `script_env_invalid`, 경로 `/scripts/<i>/env`). `file`은 명령 원문을 담은 동반 파일(`scripts/<이름>.cmd`)을 가리켜 위치 검사와 내용 해시에 든다. **`env`는 선언일 뿐 권한이 아니다**: 엔진은 마이그레이션 출처로 승인된 검토본의 호스트 기록(`ScriptEnvGrant`)이 있을 때만 이 선언을 받아들이고, 그 밖(초안, 사용자 폴더, 빌더, 손으로 만든 플러그인, 프로젝트 폴더 없음)에서는 `script_env_not_granted`로 돌지 않는다(§3.1.4).
 
 #### 3.1.1 Plugin UI와 확장 메서드 (`ui.ts`, `ext-method.ts`) [결정: 2026-10-31 사용자, ADR-0021, ADR-0022 §3.6]
@@ -401,6 +401,7 @@ export interface PluginCard {
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
+  readonly internal?: boolean;                                    // 내부 부품 여부 [결정: 2026-11-20, 사용자, AGE-33]. 이름 `internal`은 [제안]. 없으면 거짓으로 읽는다
   readonly review: { readonly state: "approved" | "pending" | "draft" | "none"; readonly currentHash: string | null; readonly pendingItemId: string | null; readonly approvedAt: string | null };
   readonly usedBy: readonly string[];                             // 프로필 id. 공통 묶음은 "common"
 }
@@ -414,7 +415,7 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
-  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것(`system_tools`, `network`, `SCRIPT_USES`)이고 승인 카드(`ScriptCard.uses`)와 같은 값이다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`의 `system_tools`·`network`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것(`system_tools`, `network`, `SCRIPT_USES`)이고 승인 카드(`ScriptCard.uses`)와 같은 값이다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
 }
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
@@ -429,6 +430,8 @@ export type EvidenceRef =
   | { readonly kind: "turn" | "call" | "hook" | "material" | "skill"; readonly threadId: string; readonly turnId: string; readonly stepIndex?: number; readonly toolCallId?: string; readonly hookSeq?: number }
   | { readonly kind: "backtest"; readonly backtestRunId: string; readonly toolCallId?: string };
 ```
+
+**내부 부품 [결정: 2026-11-20, 사용자, AGE-33]:** 카드의 `internal`이 참이면 Fresnel이 스스로 싣는 내부 부품이다. 판정 기준은 한 문장이다: 출처가 `builtin`이고 매니페스트에 `group` 블록이 없으면 내부 부품이다(엔진이 싣고 사용자가 켜고 끌 수 없다). 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 내부 부품이 아니다. 화면은 `internal`이 참인 카드를 목록에서 기본으로 숨기고 "내부 부품도 보기"를 켜면 보인다. 선택 필드라 없는 옛 카드(검토본 메타)는 거짓으로 읽는다. 이름과 하는 일(영어, 한국어)은 모델 컨텍스트에 싣지 않는 화면 표시용이고, 클라이언트 카탈로그의 `plugin.internal.<camelCase 이름>.name`과 `.purpose`에 둔다(`internalPluginTextKey`). 내부 부품 이름의 닫힌 목록은 `INTERNAL_PLUGIN_NAMES`이고 호스트 시험이 실제 엔진의 `internal` 카드와 값으로 맞춘다.
 
 - 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
 - `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
@@ -1745,7 +1748,7 @@ chain의 보충 규칙 [제안]:
 - [결정] drive lock은 한 thread에 Registration 하나만 가진다(ADR-0007 §3.6). on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
 - [결정] Helm과 학습은 L3 기본 플러그인 그룹이다. 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다. 그래서 Helm이 구동 중이어도 학습 그룹을 함께 켤 수 있다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `_research/decisions-log.md` 20행).
 - `drive`는 매니페스트 `plugins[].drives: true`로 선언한 플러그인만 쓴다(없으면 `drive_undeclared`). 등록만으로 drive lock이 생기지 않는다. 중재(누가 언제 받는지)는 X.primitives.spec이 정한다.
-- drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름과 범위는 [제안]]: 설정 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`)이 참이면 플러그인 그룹의 구성원이 아닌 플러그인(`inGroup`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_group`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
+- drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 [제안]]: 설정 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`)이 참이면 플러그인 그룹의 구성원이 아닌 플러그인(`inGroup`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_group`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
 - [M5a-1 E1] 단계 함수: 엔진이 `DriveStepInput`(상태, 직전 결과 `last`, 남은 한도, 프레임 정보)을 주면 플러그인이 명령 하나를 돌려주고 엔진이 실행한다(§3.2 `DriveStep`). 아래 재생 규율의 "drive 함수"는 이 단계 함수이고 "다시 호출"은 "단계를 다시 부름"이다. 명령의 기본 `requestId`는 `${lineageId}:${그 단계 시작 때의 상태 판}.${단계 안 순번}`이라 같은 단계가 재시작 뒤 다시 돌아도 이미 실행한 명령은 기록된 결과를 돌려준다. 결과는 대화 로그의 상태 사건 `drive.command_settled`로도 남는다(F.records §3.3). `wants`는 없다: 할 일이 없으면 `yield`(주도권 유지, 두 번 연속 효과 없이 `yield`하면 `idle` 반납), 물러나려면 `done`(반납 사유 `done`, 그 상태 판이 바뀌기 전까지 후보가 아님)이다. 주도 중이거나 명령을 기다리는 중에 온 사용자 메시지는 다음 단계의 `last: { kind: "user" }`로 가고, 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 코어 루프로 돌려보낸다.
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `loop.ask`, `post`. ADR-0015가 위임과 기능 호출을 더했다). 상태 변경은 `commit`으로만 한다.
   - 다시 호출되는 시점: drive lock을 받을 때(`loop.ask`의 답이 와서 다시 받는 경우 포함), 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
@@ -1773,7 +1776,7 @@ chain의 보충 규칙 [제안]:
 | `hook_unknown` / `hook_duplicate` | error | `plugins[].hooks`에 `HOOKS`에 없는 이름 / 같은 이름 두 번. 경로 `/plugins/<i>/hooks/<j>` |
 | `hook_internal` | error | 내부 훅(`request.cache.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`)을 `trust.level`이 `builtin`이 아닌 확장이 `hooks`에 적음. 내장은 허용한다 [결정: M5e §5.1 H-4] |
 | `hook_not_fired` | warning | `hooks`에 적은 훅이 이 빌드에서 발화하지 않음(`HOOK_POSITIONS`의 `fired`가 거짓). 등록은 그대로다 [결정: M5e §5.1 H-4] |
-| `hook_decision_not_allowed` | error | `hookDecides`가 그 플러그인의 `hooks`에 없는 훅을 가리키거나, 그 훅이 낼 수 없는 결정 종류를 선언함. 셋(`block`, `ask`, `replace`)을 낼 수 있는 훅은 `tool.call.before`와 `agent.spawn.before`뿐이다 [제안: M5e §4.1.1] |
+| `hook_decision_not_allowed` | error | `hookDecides`가 그 플러그인의 `hooks`에 없는 훅을 가리키거나, 그 훅이 낼 수 없는 결정 종류를 선언함. 셋(`block`, `ask`, `replace`)을 낼 수 있는 훅은 `tool.call.before`와 `agent.spawn.before`뿐이다 이름 `hookDecides`와 이 코드는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 낼 수 있는 훅의 목록은 [제안: M5e §4.1.1] |
 | `capability_invalid` / `range_invalid` | error | 기능 ID 또는 범위 형식 위반 |
 | `capability_duplicate` / `capability_both` | error | 같은 목록 안 중복 / `requires`와 `optional`에 동시에 있음 |
 | `provides_reserved` | error | 예약 접두(F.capabilities.spec §3.1) 기능을 provide |
@@ -1858,7 +1861,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
 | 시작 설정 | 프로필의 `startDrive`(처음 열 때 그 Registration이 주도를 시작한다). 설정 키 `x.primitives.activeDriver`는 없다(drive-isolation.md 2.2) | 프로필 화면의 "시작 설정" 선택 |
-| drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
+| drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
 | 격리 | 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec, 범위 `managed`·`user`). 사용자·프로젝트 등급 플러그인은 기본이 `process`(플러그인 호스트 프로세스)다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"이고 매니페스트 `isolation`은 값이 없을 때의 요청이다(`none`이면 엔진 안, `process`면 격리). 우선순위는 설정, 매니페스트, 기본 `process`. 저장소 패키지(`builtin`)와 `bundled` 출처(Helm, 주도를 쓰므로 P2 전까지)는 엔진 안이다 [결정: 2026-11-17 사용자, M5b-1] | 같은 탭 |
 
 ## 7. 훅

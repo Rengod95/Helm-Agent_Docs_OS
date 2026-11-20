@@ -6,6 +6,9 @@ import {
   CostFiguresSchema,
   EvidenceRefSchema,
   InjectInventorySchema,
+  INTERNAL_PLUGIN_NAMES,
+  internalPluginTextKey,
+  isInternalPluginName,
   PluginCardSchema,
   PluginSettingDefSchema,
   PluginUiDeclSchema,
@@ -260,5 +263,24 @@ describe("script lane of the card (설계 B [제안])", () => {
     const many = Array.from({ length: 65 }, (_, index) => ({ ...lintScript, name: `s${index}` }));
     expect(parse(PluginCardSchema, withScriptLane(many)).ok).toBe(false);
     expect(parse(PluginCardSchema, withScriptLane(many.slice(0, 64))).ok).toBe(true);
+  });
+});
+
+describe("internal plugin marker (AGE-33)", () => {
+  test("the internal flag round trips and may be omitted", () => {
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, internal: true });
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, internal: false });
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, internal: "yes" }).ok).toBe(false);
+  });
+
+  test("text keys are camelCase per field and the name list has no duplicates", () => {
+    expect(internalPluginTextKey("core-loop", "name")).toBe("plugin.internal.coreLoop.name");
+    expect(internalPluginTextKey("host-dialog-area-bridge", "purpose")).toBe(
+      "plugin.internal.hostDialogAreaBridge.purpose",
+    );
+    expect(new Set(INTERNAL_PLUGIN_NAMES).size).toBe(INTERNAL_PLUGIN_NAMES.length);
+    expect(isInternalPluginName("core-loop")).toBe(true);
+    expect(isInternalPluginName("authoring")).toBe(false);
+    expect(isInternalPluginName("guide")).toBe(false);
   });
 });

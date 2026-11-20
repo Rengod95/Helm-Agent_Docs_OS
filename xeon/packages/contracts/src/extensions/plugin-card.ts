@@ -409,6 +409,12 @@ export interface PluginCard {
     readonly projectId?: string;
     readonly createdIn?: { readonly threadId: string };
   };
+  /**
+   * 내부 부품 여부: 엔진이 스스로 싣고 사용자가 켜고 끌 수 없으면 참이다(`origin.kind`가 `builtin`이고 매니페스트에 `group` 블록이 없다).
+   * 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 거짓이다. 선택 필드라 없는 옛 카드(검토본 메타)도 파싱되고, 화면은 없으면 거짓으로 읽는다.
+   * [제안] 이름 `internal` (AGE-33, enIn)
+   */
+  readonly internal?: boolean;
   readonly review: {
     readonly state: CardReviewState;
     readonly currentHash: string | null;
@@ -472,6 +478,7 @@ const PluginCardShape = Type.Object(
       },
       { additionalProperties: false },
     ),
+    internal: Type.Optional(Type.Boolean()),
     review: Type.Object(
       {
         state: CardReviewStateShape,

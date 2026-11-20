@@ -49,8 +49,8 @@ X11 scripts release-smoke.test.ts
 # A commented line is a placeholder for a test file that is not written yet; an uncommented line with an unfilled <파일> fails as
 # missing, so an unfinished condition cannot pass by accident.
 # M4 conditions still open: Y1 (half: approval card; the six-states test is missing), Y6 (half: wire doc tables and registry, and the host int test for knowledge.memory.*; 25 methods
-# have only a handler-level host test, no int test, see the report of track enM4s), Y14 (half: no axe, no keyboard path
-# test), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
+# have only a handler-level host test, no int test, see the report of track enM4s), Y14 (half: no keyboard path
+# test; axe is not added, AGE-37), Y15 (half: the Hangul rule and terms check run as `just check-ts-rules` and `just terms check`, not here).
 # Y1 half: approval-card.same-in-three-places. pages.six-states-render is not written (Y1 stays partial).
 Y1 apps/desktop test/views/approval-card-mounts.test.tsx
 # Moved to M6 (Craft): Y2, Y3, Y5 (placeholders, no test file yet)
@@ -60,10 +60,10 @@ Y1 apps/desktop test/views/approval-card-mounts.test.tsx
 Y4 apps/host test/int/trace-turn.int.test.ts
 # Y5 packages/client <파일>
 # Y5 apps/desktop test/e2e/frame-isolation.e2e.test.ts
-# Y6: the wire doc tables equal the registry; every wire method runs on the real engine with value-comparing tests (AGE-11, 2026-11-18). Not testable on the real engine: sandbox.selfTest/lastSelfTest sandbox-on path, secret.references settingKeys, profileCost.get (defect found).
+# Y6: the wire doc tables equal the registry; every wire method runs on the real engine with value-comparing tests (AGE-11, 2026-11-18). Exceptions named in the condition (AGE-37, 2026-11-20 user decision), not testable on the real engine: sandbox.selfTest/lastSelfTest sandbox-on path, secret.references settingKeys, profileCost.get (defect found).
 Y6 packages/contracts test/wire-settings/wire.doc.test.ts
 Y6 apps/host test/int/knowledge-memory.int.test.ts test/int/profile-wire.int.test.ts test/int/project-wire.int.test.ts test/int/blocks-devkit-wire.int.test.ts test/int/plugin-wire.int.test.ts test/int/migration-wire.int.test.ts test/int/ext-devkit-wire.int.test.ts test/int/turn-record-wire.int.test.ts test/int/metrics-findings-wire.int.test.ts test/int/thread-model-export-wire.int.test.ts test/int/settings-trust-wire.int.test.ts test/int/provider-usage-wire.int.test.ts test/int/craft-chat-wire.int.test.ts test/int/remote-wire.int.test.ts test/int/secret-wire.int.test.ts test/int/sandbox-wire.int.test.ts test/handlers/profile-common-get.test.ts test/handlers/plugin-draft-list.test.ts test/handlers/turn-record-read.test.ts test/handlers/metrics-read.test.ts
-# Y7 half: manifest plugins[] and group, drive policy, loop.ask approval and lock hand-back, same requestId re-run.
+# Y7 (AGE-37, 2026-11-20 user decision): manifest plugins[] Drive declaration, loop.ask approval and lock hand-back, same requestId re-run, and replayDrive through a Drive that asks. The lines below are the whole condition.
 Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
 Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
 Y7 packages/group-sdk test/replay.test.ts
@@ -72,7 +72,7 @@ Y7 packages/group-sdk test/replay.test.ts
 # Y9 packages/ext-host test/trial-pause.test.ts
 # Y9 apps/host test/int/trial.int.test.ts
 # Y9 apps/desktop <파일>
-# Y10 host half stays; the CLI half left M4 scope (2026-11-01 (1), (6)); the profile model moved to M5c/M6 (Z7)
+# Y10 host half stays; the CLI half is out of scope: no CLI is released (2026-11-18, AGE-12; AGE-37 2026-11-20 user decision), so there is no apps/cli line for Y10. The profile model moved to M5c/M6 (Z7)
 Y10 apps/host test/int/profile.int.test.ts
 Y11 packages/ext-host test/loading-trust/version-history.test.ts
 # Y12: the four code defects (ledger cleared on enable, managed install capped at tier user, handler times per hook, safe mode drops X hooks, suggestSafeMode)
@@ -80,9 +80,9 @@ Y12 packages/ext-host test/loading-trust/levels.test.ts test/operations/handler-
 Y12 packages/group-sdk test/service.test.ts
 Y12 apps/host test/int/startup-health.int.test.ts test/assembly/ext-enabled.test.ts
 Y13 scripts caustic-gaps.test.ts
-# Y14 half (AGE-37): control names, alt text and tabindex over the connection screen render. axe and the keyboard path are not written: axe-core is not a dependency of this workspace, adding it is the user's call.
+# Y14 (AGE-37, 2026-11-20 user decision): the condition is name and role checks plus a keyboard path test per screen; axe-core is not added. These two files cover control names, alt text and tabindex over the connection screen render. The keyboard path test and the chat, inbox and Craft screens wait until the design is merged.
 Y14 apps/desktop test/lib/a11y-markup.test.ts test/views/a11y-names.test.tsx
-# Y15 half: en locale tests and the Hangul rule's own tests. The repo scan is `just check-ts-rules`, `just terms check`.
+# Y15 half (the cli.* keys are out of scope, no CLI is released: 2026-11-18 AGE-12, AGE-37): en locale tests and the Hangul rule's own tests. The repo scan is `just check-ts-rules`, `just terms check`.
 Y15 apps/desktop test/en-locale-no-hangul.test.ts test/views/en-locale-smoke.test.tsx test/desktop-locale.test.ts
 Y15 scripts check-ts-rules.test.ts terms-stage3.test.ts
 Y16 scripts req-ledger.test.ts

@@ -96,6 +96,7 @@ test("the repository list parses and names every exit condition it covers", () =
     "Y11",
     "Y12",
     "Y13",
+    "Y14",
     "Y15",
     "Y16",
     "Y17",

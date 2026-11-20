@@ -360,10 +360,18 @@ export const ProfileListResultSchema: TUnsafe<ProfileListResult> = Type.Unsafe<P
   ProfileListResultShape satisfies SchemaProof<ProfileListResult, typeof ProfileListResultShape>,
 );
 
+/** 이 프로필(과 공통 묶음)이 가리키지만 지금 이 기기에 없는 플러그인 이름. 없으면 필드를 싣지 않는다 [결정: 2026-11-20, 사용자, AGE-34] */
+const MissingPluginsShape = Type.Array(ExtensionNameSchema, { maxItems: 256 });
+
 export interface ProfileGetResult {
   readonly profile: Profile;
+  /** 프로필이 가리키지만 이 기기에 없는 플러그인. 실행 때 건너뛴다. 없으면 생략한다 */
+  readonly missingPlugins?: readonly string[];
 }
-const ProfileGetResultShape = closed({ profile: ProfileShape });
+const ProfileGetResultShape = closed({
+  profile: ProfileShape,
+  missingPlugins: Type.Optional(MissingPluginsShape),
+});
 export const ProfileGetResultSchema: TUnsafe<ProfileGetResult> = Type.Unsafe<ProfileGetResult>(
   ProfileGetResultShape satisfies SchemaProof<ProfileGetResult, typeof ProfileGetResultShape>,
 );
@@ -385,10 +393,13 @@ export interface ProfilePutResult {
   readonly profile: Profile;
   /** 경고만 싣는다. 오류가 있으면 저장하지 않고 `profile.invalid`를 낸다 */
   readonly issues: readonly ProfileIssue[];
+  /** 저장 전에도 이 프로필이 가리키던, 지금은 이 기기에 없는 플러그인(경고 `plugin_unknown`과 같은 이름). 없으면 생략한다 */
+  readonly missingPlugins?: readonly string[];
 }
 const ProfilePutResultShape = closed({
   profile: ProfileShape,
   issues: Type.Array(ProfileIssueShape, { maxItems: 512 }),
+  missingPlugins: Type.Optional(MissingPluginsShape),
 });
 export const ProfilePutResultSchema: TUnsafe<ProfilePutResult> = Type.Unsafe<ProfilePutResult>(
   ProfilePutResultShape satisfies SchemaProof<ProfilePutResult, typeof ProfilePutResultShape>,
@@ -644,13 +655,33 @@ const ThreadSetProfilePreviewShape = closed({
   cacheImpact: Type.Optional(CacheImpactSchema),
 });
 
+/**
+ * 전환 뒤 새 프로필의 시작 Drive가 어떻게 됐는가(AGE-64, 이름은 [제안]).
+ * `requested`: 시작을 걸었다. `deferred`: 도는 turn이나 일하는 Drive가 끝난 뒤 시작한다. `leading`: 새 시작 Drive가 이미 쥐고 있다.
+ * `none`: 새 프로필에 시작 Drive가 없다(메시지를 받지 않은 옛 시작 Drive는 내려갔다). `rejected`: 엔진이 거절했다
+ */
+export const SET_PROFILE_START_DRIVES = [
+  "requested",
+  "deferred",
+  "leading",
+  "none",
+  "rejected",
+] as const;
+export type SetProfileStartDrive = (typeof SET_PROFILE_START_DRIVES)[number];
+const SetProfileStartDriveShape = Type.Union(
+  SET_PROFILE_START_DRIVES.map((value) => Type.Literal(value)),
+);
+
 export interface ThreadSetProfileResult {
   readonly position: StreamPosition;
   readonly preview: ThreadSetProfilePreview;
+  /** 선택. 없으면 알리지 않는 옛 호스트다 */
+  readonly startDrive?: SetProfileStartDrive;
 }
 const ThreadSetProfileResultShape = closed({
   position: StreamPositionSchema,
   preview: ThreadSetProfilePreviewShape,
+  startDrive: Type.Optional(SetProfileStartDriveShape),
 });
 export const ThreadSetProfileResultSchema: TUnsafe<ThreadSetProfileResult> =
   Type.Unsafe<ThreadSetProfileResult>(

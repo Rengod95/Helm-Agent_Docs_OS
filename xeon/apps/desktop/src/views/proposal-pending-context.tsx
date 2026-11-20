@@ -33,7 +33,11 @@ export function useProposalPending(): ProposalPending {
   return useContext(ProposalPendingContext);
 }
 
-export function ProposalPendingProvider(props: { readonly children: ReactNode }): ReactNode {
+export function ProposalPendingProvider(props: {
+  readonly children: ReactNode;
+  /** 수의 바닥(개발 빌드의 표본 보기, `app/dev-sample.ts`). 없으면 0 */
+  readonly floor?: number;
+}): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const [count, setCount] = useState(0);
@@ -79,6 +83,10 @@ export function ProposalPendingProvider(props: { readonly children: ReactNode })
     });
   }, [commands, live, read]);
 
-  const value = useMemo<ProposalPending>(() => ({ count, refresh: read }), [count, read]);
+  const floor = props.floor ?? 0;
+  const value = useMemo<ProposalPending>(
+    () => ({ count: Math.max(count, floor), refresh: read }),
+    [count, floor, read],
+  );
   return <ProposalPendingContext value={value}>{props.children}</ProposalPendingContext>;
 }
