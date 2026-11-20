@@ -97,7 +97,7 @@ export function dialogAreaBridgePlugin(holder: DialogAreaHolder, loadIndex: numb
     schemaVersion: 2,
     name: BRIDGE_NAME,
     version: "0.1.0",
-    displayName: "Dialog area bridge",
+    displayName: "Work-knowledge bridge",
     description:
       "Hands the work goal and task services and the knowledge skill and memory services to the host's dialog-area wire methods.",
     defaultEnabled: true,

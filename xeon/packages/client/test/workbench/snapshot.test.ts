@@ -615,6 +615,6 @@ describe("개요 노드 이름", () => {
         listEntry("other-tool", { displayName: "Other Tool" }),
       ]),
     );
-    expect(snap.plugins.map((p) => p.name)).toEqual(["에이전트 실행기", "Other Tool"]);
+    expect(snap.plugins.map((p) => p.name)).toEqual(["에이전트 루프", "Other Tool"]);
   });
 });

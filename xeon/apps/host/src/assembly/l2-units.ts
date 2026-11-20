@@ -136,7 +136,7 @@ export function dialogBridgePlugin(
     schemaVersion: 2,
     name: DIALOG_BRIDGE_NAME,
     version: "0.1.0",
-    displayName: "Dialog bridge",
+    displayName: "Chat-app bridge",
     description:
       "Registers the ask_user tool and hands the command action registry to cap-work (host assembly).",
     defaultEnabled: true,

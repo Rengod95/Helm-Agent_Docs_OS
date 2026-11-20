@@ -662,10 +662,10 @@ scanTest(
         "leak",
         "guard",
       ]);
+      // 기본(샌드박스 설정 꺼짐): 사용자 권한 그대로. 읽기·쓰기·도구를 막지 않는다
       expect(item.card.does.inject?.scripts?.[0]?.uses).toEqual([
+        "user_full_access",
         "user_environment",
-        "read_wide",
-        "write_project",
         "network",
       ]);
       expect(item.card.runs).toEqual({ code: true, isolated: true });

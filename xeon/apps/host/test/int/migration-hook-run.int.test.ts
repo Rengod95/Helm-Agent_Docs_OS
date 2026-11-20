@@ -30,12 +30,14 @@ import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
 // AGE-58 후속(enK6), L4.host-service §4.27, X.loading-trust "스크립트 실행기"와 "환경 모드"(2026-11-20): 가져온 Claude Code 훅은 원래 명령 문자열을
-// 원래 환경(사용자의 셸 환경, 프로젝트 폴더에서, 스크립트 환경 프로필)으로 돈다. 실제 엔진, 실제 샌드박스, 격리 자식으로 끝까지 시험한다.
+// 원래 환경(사용자의 셸 환경, 프로젝트 폴더에서)으로, 사용자 권한 그대로 돈다. 기본(설정 `l0.sandbox.sandboxImportedHooks` 꺼짐)은 샌드박스가 없다.
+// 실제 엔진, 격리 자식으로 끝까지 시험한다.
 // 시험 1: 훑기 → 제안 → 적용 → 검토에서 승인 → 프로필에 넣은 대화 → 도구 호출. `jq`·`grep`을 쓰는 셸 훅과 `python3` 훅이 돈다. 큰 입력은 묻기 카드.
-// 시험 2: 같은 파이프라인에서 인라인 한 줄 훅, 절대 경로 `python3` 훅, `~/.claude/hooks`의 형제 모듈 import, 홈에 쓰려는 훅(막히고 지나감),
-//   프로젝트 안에 쓰는 포매터 대역(바이트를 본다)을 돌린다. 참조 파일을 바꾸면 묻기 카드가 뜨고 돌지 않으며, 되돌리면 다시 돈다.
+// 시험 2: 같은 파이프라인에서 인라인 한 줄 훅, 절대 경로 `python3` 훅, `~/.claude/hooks`의 형제 모듈 import, 홈에 쓰는 훅(쓰인다),
+//   프로젝트 안에 쓰는 포매터 대역(바이트를 본다), 1 MiB를 넘어 지문이 없는(null) 참조 데이터 파일을 읽는 훅을 돌린다(묻지 않고 돈다).
+//   지문이 있는 참조 파일을 바꾸면 묻기 카드가 뜨고 돌지 않으며, 되돌리면 다시 돈다.
 //   없는 실행 파일은 종료 코드 127로 묻기 카드가 된다(표준 오류의 첫 줄을 싣는다).
-// 샌드박스를 쓸 수 없으면 건너뛴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다.
+// 샌드박스를 쓸 수 없으면 건너뛴다(격리 자식은 실제 샌드박스로 뜬다). FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다.
 
 const gate = await realEngineGate();
 const sandbox = await sandboxGate(tmpdir());
@@ -49,13 +51,8 @@ const CHAIN_PROFILE = "migrated-hook-chain";
 const KIB = 1024;
 /** 훅 입력 상한(`SCRIPT_LIMITS.stdinBytes`, 256 KiB)을 넘는 쓰기 본문 */
 const BIG_BYTES = 300 * KIB;
-/** 환경 모드 카드의 기대 사용 목록(`SCRIPT_ENV_USES`) */
-const ENV_USES: readonly ScriptUse[] = [
-  "user_environment",
-  "read_wide",
-  "write_project",
-  "network",
-];
+/** 환경 모드 카드의 기대 사용 목록(`SCRIPT_ENV_USES`, 샌드박스 설정 꺼짐 = 사용자 권한 그대로) */
+const ENV_USES: readonly ScriptUse[] = ["user_full_access", "user_environment", "network"];
 /** 묻기 사유의 머리(`refusalOutcome`의 문구) */
 const UNRUNNABLE_HEAD = "훅을 돌릴 수 없어요: ";
 
@@ -111,6 +108,13 @@ const INLINE_GUARD = `f=$(jq -r '.tool_input.command // empty'); case "$f" in *'
 const HOME_WRITE_HOOK = "echo x >> $HOME/.cache-test.log || exit 1";
 /** 이 기기에 없는 실행 파일을 부르는 훅(종료 코드 127) */
 const MISSING_TOOL_HOOK = "fresnel-no-such-tool-xyz --check";
+/** 훑기의 파일 상한(`maxFileBytes`, 1 MiB)을 넘는 참조 데이터 파일. 훑기는 지문을 내지 못해 `hash: null`로 적는다 */
+const BIG_DATA_BYTES = 1024 * KIB + KIB;
+/**
+ * 큰 데이터 파일을 읽기만 하는 인라인 훅. 명령이 스크립트 파일 하나가 아니라서 옮기지 않는 이유가 되지 않고, 참조는 `hash: null`로 실린다.
+ * 지문을 못 냈다고 묻지 않고 돈다(허용 중심, 2026-11-20)
+ */
+const BIG_DATA_HOOK = "head -c 1 $CLAUDE_PROJECT_DIR/data/big.txt >/dev/null";
 /** 시험 2의 `python3` 가드(절대 경로). 표식 파일에 한 줄 적고 `drop table`을 막는다 */
 const GUARD_PY_TEXT = `import json
 import os
@@ -283,7 +287,7 @@ function chainTape(notesPath: string) {
   );
 }
 
-/** 프로젝트 설정: 인라인 훅, 절대 경로 python 훅, 홈 쓰기 훅, 없는 도구 훅, 포매터 훅 */
+/** 프로젝트 설정: 인라인 훅, 절대 경로 python 훅, 홈 쓰기 훅, 큰 데이터 파일을 읽는 훅, 없는 도구 훅, 포매터 훅 */
 function projectChainSettings(guardPath: string) {
   return {
     hooks: {
@@ -294,6 +298,7 @@ function projectChainSettings(guardPath: string) {
             { type: "command", command: INLINE_GUARD },
             { type: "command", command: `python3 ${guardPath}` },
             { type: "command", command: HOME_WRITE_HOOK },
+            { type: "command", command: BIG_DATA_HOOK },
           ],
         },
         {
@@ -513,7 +518,7 @@ scanTest(
 );
 
 scanTest(
-  "the Claude Code hook chain runs in environment mode: an inline one-liner, a python3 script by absolute path, a ~/.claude/hooks script that imports a sibling module, a write the home folder refuses, and a formatter stand-in that rewrites a project file; a changed referenced script asks and does not run, restoring it runs again, and a missing tool asks with its first stderr line",
+  "the Claude Code hook chain runs in environment mode: an inline one-liner, a python3 script by absolute path, a ~/.claude/hooks script that imports a sibling module, a write to the home folder that succeeds, a formatter stand-in that rewrites a project file, and a hook that reads a referenced file over the scan's size limit (no fingerprint) and runs without asking; a changed referenced script asks and does not run, restoring it runs again, and a missing tool asks with its first stderr line",
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, { ...TAPE_SETTINGS, "l1.tools.permissionMode": "bypass" });
@@ -525,11 +530,13 @@ scanTest(
     const notesPath = join(project, "notes.txt");
     const markerPath = join(project, "guard-ran.txt");
     const cacheLogPath = join(userHome, ".cache-test.log");
+    const bigPath = join(project, "data", "big.txt");
     writeText(
       join(project, ".claude", "settings.json"),
       `${JSON.stringify(projectChainSettings(guardPath), null, 2)}\n`,
     );
     writeText(join(project, ".claude", "hooks", "format.sh"), FORMAT_SH_TEXT);
+    writeText(bigPath, "x".repeat(BIG_DATA_BYTES));
     writeText(guardPath, GUARD_PY_TEXT);
     writeText(
       join(userHome, ".claude", "settings.json"),
@@ -561,7 +568,7 @@ scanTest(
           { path: userHome, scope: "user", label: "home" },
         ],
       });
-      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(6);
+      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(7);
       const proposal = await connection.request("migration.proposal", { scanId: scanned.scanId });
       const applied = await connection.request("migration.apply", {
         proposalId: proposal.proposalId,
@@ -609,7 +616,7 @@ scanTest(
       });
       const homeBefore = filesUnder(userHome);
 
-      // 3. 첫 턴: 인라인 막기, python 막기, 형제 import 막기, 홈 쓰기 실패(통과), 포매터의 쓰기. 승인 카드는 없다
+      // 3. 첫 턴: 인라인 막기, python 막기, 형제 import 막기, 홈 쓰기(성공), 포매터의 쓰기, 큰 데이터 파일을 읽는 훅(지문 없음). 승인 카드는 없다
       const first = await startTurnWhenIdle(connection, {
         threadId: created.threadId,
         input: "run the chain",
@@ -631,10 +638,10 @@ scanTest(
       expect(formatted).not.toContain('isError":true');
       // 포매터 대역은 프로젝트 안의 파일을 제자리에서 고쳤다(바이트를 본다)
       expect(readFileSync(notesPath, "utf8")).toBe(NOTES_FORMATTED);
-      // 가드는 네 번의 Bash 호출에서 돌았다(표식 한 줄씩). 홈에 쓰려던 훅은 파일을 만들지 못했다
+      // 가드는 네 번의 Bash 호출에서 돌았다(표식 한 줄씩). 홈 쓰기 훅도 네 번 돌아 한 줄씩 썼다(기본 길은 샌드박스가 없어 홈에 쓸 수 있다)
       expect(readFileSync(markerPath, "utf8")).toBe("ran\nran\nran\nran\n");
-      expect(existsSync(cacheLogPath)).toBe(false);
-      expect(filesUnder(userHome)).toEqual(homeBefore);
+      expect(readFileSync(cacheLogPath, "utf8")).toBe("x\nx\nx\nx\n");
+      expect(filesUnder(userHome)).toEqual([...homeBefore, ".cache-test.log"].toSorted());
 
       // 4. 참조 파일을 바꾼다. 다음 호출은 묻기 카드가 뜨고, 바뀐 스크립트는 돌지 않는다(표식을 지우고 확인한다)
       rmSync(markerPath);
@@ -701,9 +708,11 @@ scanTest(
         "hook-pretooluse",
         "guard",
         "hook-pretooluse-2",
+        "big",
         "hook-pretooluse-3",
       ]);
       expect(projectScripts.map((script) => script.uses)).toEqual([
+        ENV_USES,
         ENV_USES,
         ENV_USES,
         ENV_USES,
@@ -715,9 +724,11 @@ scanTest(
         INLINE_GUARD,
         `python3 ${guardPath}`,
         HOME_WRITE_HOOK,
+        BIG_DATA_HOOK,
         MISSING_TOOL_HOOK,
       ]);
-      // 참조 파일이 있는 훅은 지문을 싣는다. 가져올 때의 지문은 바뀐 뒤의 것이 아니다(원본 바이트)
+      // 참조 파일이 있는 훅은 지문을 싣는다. 가져올 때의 지문은 바뀐 뒤의 것이 아니다(원본 바이트).
+      // 지문을 못 낸 큰 파일은 `hash: null`이다. 그래도 묻지 않고 돈다(위 첫 턴에 카드가 없었다)
       expect(projectScripts.map((script) => script.env?.refs)).toEqual([
         [
           {
@@ -728,6 +739,7 @@ scanTest(
         [],
         [{ path: guardPath, hash: sha256Of(GUARD_PY_TEXT) }],
         [],
+        [{ path: bigPath, hash: null }],
         [],
       ]);
       expect(projectScripts.map((script) => script.env?.refsKnown)).toEqual([
@@ -735,6 +747,7 @@ scanTest(
         false,
         true,
         false,
+        true,
         false,
       ]);
       // [미결] 프로젝트 범위 훅인데 `fromProject`가 거짓이다: 이식 드래프트는 사용자 폴더(origin `user`)에 놓이고 범위를 어디에도 적지 않아
@@ -745,11 +758,14 @@ scanTest(
         false,
         false,
         false,
+        false,
       ]);
       // 이 기기에 없는 실행 파일은 카드가 이름으로 적는다. 명령이 변수로 시작하면 실행 파일 위치는 찾지 않는다
-      expect(projectScripts[4]?.env?.missingTools).toEqual(["fresnel-no-such-tool-xyz"]);
-      expect(projectScripts[4]?.env?.interpreter).toBeNull();
+      expect(projectScripts[5]?.env?.missingTools).toEqual(["fresnel-no-such-tool-xyz"]);
+      expect(projectScripts[5]?.env?.interpreter).toBeNull();
       expect(projectScripts[1]?.env?.missingTools).toEqual([]);
+      // 데이터 파일을 읽는 인라인 명령의 첫 단어(`head`)는 이 기기에 있다
+      expect(projectScripts[4]?.env?.missingTools).toEqual([]);
       // `sh`는 이 기기의 `/bin/sh`로 찾는다. 명령이 `$CLAUDE_PROJECT_DIR`로 시작하면 찾지 않는다(null)
       expect(projectScripts[0]?.env?.interpreter).toBe("/bin/sh");
       expect(projectScripts[1]?.env?.interpreter).toBeNull();

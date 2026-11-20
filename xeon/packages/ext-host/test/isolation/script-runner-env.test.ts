@@ -15,6 +15,8 @@ import { PassThrough } from "node:stream";
 import { err, ok, type LogFields, type Logger, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
+  HookProcessPort,
+  HookRunSpec,
   IsolatedChild,
   IsolationProcessPort,
   IsolationSpawnError,
@@ -37,8 +39,9 @@ import {
 } from "../../src/isolation/script-runner.ts";
 import { fixedIdFactory } from "../../src/testing/index.ts";
 
-// 환경 모드(AGE-58 원칙 가)의 실행기 시험. 좁은 모드는 script-runner.test.ts가 그대로 본다.
-// 띄우기 포트는 가짜다: 자식을 띄우지 않고 받은 명세를 기록하고 준비한 자식을 돌려준다. 값으로 비교한다.
+// 환경 모드(AGE-58)의 실행기 시험. 기본 길은 샌드박스 없이 훅 포트(`hookProcess`)로 돈다. 샌드박스 길(`envSandboxed: () => true`)은
+// 띄우기 포트(`process.spawn`)로 돈다. 좁은 모드는 script-runner.test.ts가 그대로 본다.
+// 두 포트는 가짜다: 실제 프로세스를 띄우지 않고 받은 명세를 기록한 뒤 계획대로 답한다. 값으로 비교한다.
 // 헬퍼(자식, 시계, 파일 시스템)는 script-runner.test.ts의 것을 그대로 옮겼다.
 
 const dirs: string[] = [];
@@ -174,6 +177,86 @@ function fakeProcess(plan: Plan, failure?: IsolationSpawnError): FakePort {
   return { port, specs, children };
 }
 
+/** 훅 포트 계획. 생략하면 표준 출력과 오류가 비고 종료 코드 0이다 */
+interface HookPlan {
+  readonly stdout?: string;
+  readonly stdoutTruncated?: boolean;
+  readonly stderr?: string;
+  readonly exit?: ExitInfo;
+  readonly timedOut?: boolean;
+  /** 명령을 시작하지 못했다(예: `ENOENT`). 결과의 `spawnError`로 간다 */
+  readonly spawnError?: string;
+  /** 기한 신호가 올 때까지 끝나지 않는다. 신호가 오면 기한이 난 것으로 답한다(기한 연결 시험) */
+  readonly waitForAbort?: boolean;
+}
+
+interface FakeHook {
+  readonly port: HookProcessPort;
+  /** 훅 포트가 받은 명세를 받은 순서대로 기록한다 */
+  readonly runs: HookRunSpec[];
+}
+
+/** 훅 실행 포트 대역. 명세를 기록하고 계획대로 답한다. 실제 프로세스는 띄우지 않는다 */
+function fakeHook(plan: HookPlan = {}): FakeHook {
+  const runs: HookRunSpec[] = [];
+  const port: HookProcessPort = {
+    async run(spec) {
+      runs.push(spec);
+      if (plan.waitForAbort === true) {
+        await new Promise<void>((resolve) => {
+          if (spec.signal.aborted) resolve();
+          else spec.signal.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return {
+          exitCode: null,
+          signal: "SIGKILL",
+          stdout: "",
+          stdoutTruncated: false,
+          stderr: "",
+          timedOut: true,
+        };
+      }
+      const exit = plan.exit ?? { code: 0, signal: null };
+      return {
+        exitCode: exit.code,
+        signal: exit.signal,
+        stdout: plan.stdout ?? "",
+        stdoutTruncated: plan.stdoutTruncated ?? false,
+        stderr: plan.stderr ?? "",
+        timedOut: plan.timedOut ?? false,
+        ...(plan.spawnError === undefined ? {} : { spawnError: plan.spawnError }),
+      };
+    },
+  };
+  return { port, runs };
+}
+
+/** 명세의 값 부분. 신호는 따로 본다(`AbortSignal`은 값으로 비교하지 않는다) */
+function valuesOf(run: HookRunSpec): Omit<HookRunSpec, "signal"> {
+  return {
+    argv: run.argv,
+    cwd: run.cwd,
+    env: run.env,
+    stdin: run.stdin,
+    maxStdoutChars: run.maxStdoutChars,
+    maxStderrChars: run.maxStderrChars,
+  };
+}
+
+/** 기본 길에서 종료 코드 0으로 끝난 결과(출력 없음) */
+const RAN_CLEAN: Result<ScriptRunResult, ScriptRunFailure> = {
+  ok: true,
+  value: {
+    exitCode: 0,
+    signal: null,
+    stdout: "",
+    stdoutTruncated: false,
+    stderr: "",
+    stderrTruncated: false,
+    timedOut: false,
+  },
+};
+
 interface ArmedTimer {
   readonly ms: number;
   readonly fn: () => void;
@@ -235,12 +318,13 @@ const USER_ENV = async (): Promise<Readonly<Record<string, string>>> => ({
 function hookOf(
   refs: ScriptEnvDecl["refs"] = [],
   shell: ScriptEnvDecl["shell"] = "sh",
+  refsKnown = true,
 ): ManifestScriptDecl {
   return {
     name: "hook",
     runner: "sh",
     file: "hook.cmd",
-    env: { command: COMMAND, shell, refs, refsKnown: true },
+    env: { command: COMMAND, shell, refs, refsKnown },
   };
 }
 
@@ -278,18 +362,26 @@ function runnerFor(
 
 interface Attempt {
   readonly outcome: Result<ScriptRunResult, ScriptRunFailure>;
-  /** 띄우기 포트가 받은 호출 수(거절된 호출은 0이어야 한다) */
+  /** 띄우기 포트(샌드박스 길)가 받은 호출 수. 거절된 호출은 0이어야 한다 */
   readonly spawns: number;
+  /** 훅 포트(기본 길)가 받은 호출 수. 거절된 호출은 0이어야 한다 */
+  readonly hookRuns: number;
 }
 
+/** 한 번 돌려 본다. 두 포트는 모두 가짜다. 훅은 `hook` 계획대로 답한다 */
 async function attempt(
   target: ScriptTarget,
   request: ScriptRunRequest,
   extra: Partial<ScriptRunnerDeps> = {},
+  hook: HookPlan = {},
 ): Promise<Attempt> {
-  const fake = fakeProcess({});
-  const outcome = await runnerFor(target, fake.port, extra).run(request);
-  return { outcome, spawns: fake.specs.length };
+  const proc = fakeProcess({});
+  const hooks = fakeHook(hook);
+  const outcome = await runnerFor(target, proc.port, {
+    hookProcess: () => hooks.port,
+    ...extra,
+  }).run(request);
+  return { outcome, spawns: proc.specs.length, hookRuns: hooks.runs.length };
 }
 
 // ── 1. 안전: 자격이 없으면 돌지 않는다 ─────────────────────────────────────────
@@ -329,13 +421,14 @@ test("environment mode without a usable grant (none, disabled, a draft, or no ab
     projectDirOf: () => "relative/project",
   });
   const refused = err<ScriptRunFailure>({ kind: "script_env_not_granted" });
+  const none = { outcome: refused, spawns: 0, hookRuns: 0 };
   expect([noGrant, denied, draftWithGate, noFolder, relativeFolder, relativeWins]).toEqual([
-    { outcome: refused, spawns: 0 },
-    { outcome: refused, spawns: 0 },
-    { outcome: refused, spawns: 0 },
-    { outcome: refused, spawns: 0 },
-    { outcome: refused, spawns: 0 },
-    { outcome: refused, spawns: 0 },
+    none,
+    none,
+    none,
+    none,
+    none,
+    none,
   ]);
   expect(gateCalls).toEqual([]);
 });
@@ -360,10 +453,12 @@ test("the not-granted answer comes before the companion file, the refs and the f
     {
       outcome: { ok: false, error: { kind: "script_env_not_granted" } },
       spawns: 0,
+      hookRuns: 0,
     },
     {
       outcome: { ok: false, error: { kind: "script_env_not_granted" } },
       spawns: 0,
+      hookRuns: 0,
     },
   ]);
   expect(refs.statCalls).toEqual([]);
@@ -378,13 +473,17 @@ test("with the grant, a missing companion is script_missing and nothing starts (
     userEnv: USER_ENV,
     refs: refs.reader,
   });
-  expect(outcome).toEqual({ outcome: { ok: false, error: { kind: "script_missing" } }, spawns: 0 });
+  expect(outcome).toEqual({
+    outcome: { ok: false, error: { kind: "script_missing" } },
+    spawns: 0,
+    hookRuns: 0,
+  });
   expect(refs.statCalls).toEqual([]);
 });
 
-// ── 2. 자격이 있는 정상 경로 ─────────────────────────────────────────────
+// ── 2. 자격이 있는 정상 경로: 기본 길(훅 포트)과 샌드박스 길(띄우기 포트) ─────────
 
-test("a granted run spawns the original command under the shell, in the thread's project folder, with the filtered environment", async () => {
+test("sandboxed: a granted run spawns the original command under the shell, in the thread's project folder, with the filtered environment", async () => {
   const tree = layout();
   const refs = memoryRefs();
   refs.files.set(REF_ALPHA, { size: 12, mtimeMs: 5, hash: HASH_A });
@@ -395,6 +494,7 @@ test("a granted run spawns the original command under the shell, in the thread's
     envTarget(tree, [hookOf([{ path: REF_ALPHA, hash: HASH_A }])], GRANTED),
     fake.port,
     {
+      envSandboxed: () => true,
       userEnv: USER_ENV,
       refs: refs.reader,
       projectDirOf: (threadId) => {
@@ -437,55 +537,91 @@ test("a granted run spawns the original command under the shell, in the thread's
   expect(refs.hashCalls).toEqual([REF_ALPHA]);
 });
 
-test("without a thread folder the folder comes from the grant, and a grant without a folder takes the thread's folder", async () => {
+test("default: a granted run hands the original command to the hook port under the shell, in the thread's project folder, with stdin and the output limits", async () => {
   const tree = layout();
-  const fromGrant = fakeProcess({});
-  await runnerFor(envTarget(tree, [hookOf()], GRANTED), fromGrant.port, {
+  const hook = fakeHook({ stdout: "ok" });
+  const proc = fakeProcess({});
+  const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, {
     userEnv: USER_ENV,
-    projectDirOf: () => undefined,
-  }).run(REQUEST);
-  const fromThread = fakeProcess({});
-  await runnerFor(
-    envTarget(tree, [hookOf()], { granted: true, projectDir: null, fromProject: false }),
-    fromThread.port,
-    { userEnv: USER_ENV, projectDirOf: () => THREAD_DIR },
-  ).run(IN_THREAD);
-  expect(fromGrant.specs.map((spec) => spec.readRoot)).toEqual([GRANT_DIR]);
-  expect(fromGrant.specs.map((spec) => spec.env["CLAUDE_PROJECT_DIR"])).toEqual([GRANT_DIR]);
-  expect(fromThread.specs.map((spec) => spec.readRoot)).toEqual([THREAD_DIR]);
-  expect(fromThread.specs.map((spec) => spec.scriptEnv)).toEqual([
-    { projectDir: THREAD_DIR, readCarveOuts: [] },
+    hookProcess: () => hook.port,
+    projectDirOf: () => THREAD_DIR,
+  }).run({ ...IN_THREAD, stdin: "payload" });
+  expect(outcome).toEqual({
+    ok: true,
+    value: {
+      exitCode: 0,
+      signal: null,
+      stdout: "ok",
+      stdoutTruncated: false,
+      stderr: "",
+      stderrTruncated: false,
+      timedOut: false,
+    },
+  });
+  // 출력 상한은 `SCRIPT_LIMITS.outputBytes`(64 KiB)다
+  expect(hook.runs.map(valuesOf)).toStrictEqual([
+    {
+      argv: ["/bin/sh", "-c", COMMAND],
+      cwd: THREAD_DIR,
+      env: { PATH: "/usr/bin:/bin", HOME: "/Users/tester", CLAUDE_PROJECT_DIR: THREAD_DIR },
+      stdin: "payload",
+      maxStdoutChars: 65536,
+      maxStderrChars: 65536,
+    },
   ]);
+  expect(hook.runs.map((run) => run.signal instanceof AbortSignal)).toEqual([true]);
+  // 기본 길에서는 띄우기 포트를 부르지 않는다
+  expect(proc.specs.length).toBe(0);
 });
 
-test("shell bash uses the runner resolved for bash, with the same command string", async () => {
+test("default: without a thread folder the hook's folder comes from the grant, and a grant without a folder takes the thread's folder", async () => {
+  const tree = layout();
+  const fromGrant = fakeHook({});
+  await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
+    userEnv: USER_ENV,
+    projectDirOf: () => undefined,
+    hookProcess: () => fromGrant.port,
+  }).run(REQUEST);
+  const fromThread = fakeHook({});
+  await runnerFor(
+    envTarget(tree, [hookOf()], { granted: true, projectDir: null, fromProject: false }),
+    fakeProcess({}).port,
+    { userEnv: USER_ENV, projectDirOf: () => THREAD_DIR, hookProcess: () => fromThread.port },
+  ).run(IN_THREAD);
+  expect(fromGrant.runs.map((run) => run.cwd)).toEqual([GRANT_DIR]);
+  expect(fromGrant.runs.map((run) => run.env["CLAUDE_PROJECT_DIR"])).toEqual([GRANT_DIR]);
+  expect(fromThread.runs.map((run) => run.cwd)).toEqual([THREAD_DIR]);
+  expect(fromThread.runs.map((run) => run.env["CLAUDE_PROJECT_DIR"])).toEqual([THREAD_DIR]);
+});
+
+test("default: shell bash uses the runner resolved for bash, with the same command string", async () => {
   const tree = layout();
   const asked: string[] = [];
-  const fake = fakeProcess({});
-  await runnerFor(envTarget(tree, [hookOf([], "bash")], GRANTED), fake.port, {
+  const hook = fakeHook({});
+  await runnerFor(envTarget(tree, [hookOf([], "bash")], GRANTED), fakeProcess({}).port, {
     userEnv: USER_ENV,
+    hookProcess: () => hook.port,
     resolveRunner: (name) => {
       asked.push(name);
       return name === "bash" ? BASH_PATH : undefined;
     },
   }).run(REQUEST);
   expect(asked).toEqual(["bash"]);
-  expect(fake.specs).toStrictEqual([
+  expect(hook.runs.map(valuesOf)).toStrictEqual([
     {
-      command: BASH_PATH,
-      args: ["-c", COMMAND],
-      readRoot: GRANT_DIR,
-      systemTools: true,
-      scriptEnv: { projectDir: GRANT_DIR, readCarveOuts: [] },
+      argv: [BASH_PATH, "-c", COMMAND],
+      cwd: GRANT_DIR,
       env: { PATH: "/usr/bin:/bin", HOME: "/Users/tester", CLAUDE_PROJECT_DIR: GRANT_DIR },
-      label: "script:demo:hook",
+      stdin: "",
+      maxStdoutChars: 65536,
+      maxStderrChars: 65536,
     },
   ]);
 });
 
-// ── 3. 환경 정책 표 ──────────────────────────────────────────────────────
+// ── 3. 환경 정책 표: 기본 길은 사용자 환경을 넘기고, 샌드박스 길은 시크릿 이름을 뺀다 ──
 
-test("the user environment reaching the child is only the allowed names: PATH, HOME, LANG, MISE_SHELL and the project folder", async () => {
+test("sandboxed: the environment reaching the child is only the allowed names (PATH, HOME, LANG, MISE_SHELL and the project folder); secret-named and invalid names are dropped", async () => {
   const tree = layout();
   const fake = fakeProcess({});
   const userEnv: Readonly<Record<string, string>> = {
@@ -506,6 +642,7 @@ test("the user environment reaching the child is only the allowed names: PATH, H
     "1X": "digit",
   };
   await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+    envSandboxed: () => true,
     userEnv: async () => userEnv,
   }).run(REQUEST);
   expect(fake.specs.map((spec) => spec.env)).toStrictEqual([
@@ -518,6 +655,48 @@ test("the user environment reaching the child is only the allowed names: PATH, H
       CLAUDE_PROJECT_DIR: GRANT_DIR,
     },
   ]);
+});
+
+test("default: the hook gets the user's environment minus Fresnel internals (FRESNEL_*, _FRESNEL_*) and invalid names, with the project folder as CLAUDE_PROJECT_DIR", async () => {
+  const tree = layout();
+  const hook = fakeHook({});
+  const userEnv: Readonly<Record<string, string>> = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/Users/tester",
+    LANG: "en_US.UTF-8",
+    MISE_SHELL: "zsh",
+    CLAUDE_PROJECT_DIR: "/somewhere/else",
+    GH_TOKEN: "gh-value",
+    AWS_ACCESS_KEY_ID: "aws-id-value",
+    SSH_AUTH_SOCK: "/tmp/agent.sock",
+    ANTHROPIC_API_KEY: "anthropic-value",
+    NODE_OPTIONS: "--require /evil.js",
+    FRESNEL_HOME: "/Users/tester/.fresnel",
+    fresnel_dev: "dev-value",
+    __FRESNEL_X: "internal-value",
+    "bad-name": "bad",
+    "1X": "digit",
+  };
+  const proc = fakeProcess({});
+  await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, {
+    userEnv: async () => userEnv,
+    hookProcess: () => hook.port,
+  }).run(REQUEST);
+  expect(hook.runs.map((run) => run.env)).toStrictEqual([
+    {
+      PATH: "/usr/bin:/bin",
+      HOME: "/Users/tester",
+      LANG: "en_US.UTF-8",
+      MISE_SHELL: "zsh",
+      GH_TOKEN: "gh-value",
+      AWS_ACCESS_KEY_ID: "aws-id-value",
+      SSH_AUTH_SOCK: "/tmp/agent.sock",
+      ANTHROPIC_API_KEY: "anthropic-value",
+      NODE_OPTIONS: "--require /evil.js",
+      CLAUDE_PROJECT_DIR: GRANT_DIR,
+    },
+  ]);
+  expect(proc.specs.length).toBe(0);
 });
 
 // ── 4. 참조 파일의 지문 ──────────────────────────────────────────────────
@@ -565,51 +744,69 @@ function memoryRefs(): MemoryRefs {
   return { reader, files, statBroken, hashBroken, statCalls, hashCalls };
 }
 
-test("a reference whose fingerprint still matches lets the run start", async () => {
+test("default: a reference whose fingerprint still matches lets the run start", async () => {
   const tree = layout();
   const refs = memoryRefs();
   refs.files.set(REF_ALPHA, { size: 10, mtimeMs: 100, hash: HASH_A });
-  const fake = fakeProcess({ stdout: "ok" });
-  const outcome = await runnerFor(
+  const result = await attempt(
     envTarget(tree, [hookOf([{ path: REF_ALPHA, hash: HASH_A }])], GRANTED),
-    fake.port,
+    REQUEST,
     { userEnv: USER_ENV, refs: refs.reader },
-  ).run(REQUEST);
-  expect(outcome.ok).toBe(true);
-  expect(fake.specs.length).toBe(1);
+    { stdout: "ok" },
+  );
+  expect(result).toEqual({
+    outcome: {
+      ok: true,
+      value: {
+        exitCode: 0,
+        signal: null,
+        stdout: "ok",
+        stdoutTruncated: false,
+        stderr: "",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+    spawns: 0,
+    hookRuns: 1,
+  });
 });
 
 test("a reference whose content changed is script_ref_changed with reason changed, and nothing starts", async () => {
   const tree = layout();
   const refs = memoryRefs();
   refs.files.set(REF_ALPHA, { size: 10, mtimeMs: 100, hash: HASH_B });
-  const fake = fakeProcess({});
-  const outcome = await runnerFor(
+  const result = await attempt(
     envTarget(tree, [hookOf([{ path: REF_ALPHA, hash: HASH_A }])], GRANTED),
-    fake.port,
+    REQUEST,
     { userEnv: USER_ENV, refs: refs.reader },
-  ).run(REQUEST);
-  expect(outcome).toEqual({
-    ok: false,
-    error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "changed" },
+  );
+  expect(result).toEqual({
+    outcome: {
+      ok: false,
+      error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "changed" },
+    },
+    spawns: 0,
+    hookRuns: 0,
   });
-  expect(fake.specs.length).toBe(0);
 });
 
 test("a reference that is gone is script_ref_changed with reason missing", async () => {
   const tree = layout();
   const refs = memoryRefs();
-  const fake = fakeProcess({});
-  const outcome = await runnerFor(
+  const result = await attempt(
     envTarget(tree, [hookOf([{ path: REF_ALPHA, hash: HASH_A }])], GRANTED),
-    fake.port,
+    REQUEST,
     { userEnv: USER_ENV, refs: refs.reader },
-  ).run(REQUEST);
-  expect(outcome).toEqual({
-    ok: false,
-    error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "missing" },
+  );
+  expect(result).toEqual({
+    outcome: {
+      ok: false,
+      error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "missing" },
+    },
+    spawns: 0,
+    hookRuns: 0,
   });
-  expect(fake.specs.length).toBe(0);
 });
 
 test("a reference whose stat or content cannot be read is script_ref_changed with reason unreadable", async () => {
@@ -620,41 +817,44 @@ test("a reference whose stat or content cannot be read is script_ref_changed wit
   const hashFails = memoryRefs();
   hashFails.files.set(REF_ALPHA, { size: 10, mtimeMs: 100, hash: HASH_A });
   hashFails.hashBroken.add(REF_ALPHA);
-  const fake = fakeProcess({});
   const scripts = [hookOf([{ path: REF_ALPHA, hash: HASH_A }])];
-  const onStat = await runnerFor(envTarget(tree, scripts, GRANTED), fake.port, {
+  const onStat = await attempt(envTarget(tree, scripts, GRANTED), REQUEST, {
     userEnv: USER_ENV,
     refs: statFails.reader,
-  }).run(REQUEST);
-  const onHash = await runnerFor(envTarget(tree, scripts, GRANTED), fake.port, {
+  });
+  const onHash = await attempt(envTarget(tree, scripts, GRANTED), REQUEST, {
     userEnv: USER_ENV,
     refs: hashFails.reader,
-  }).run(REQUEST);
+  });
   const unreadable = err<ScriptRunFailure>({
     kind: "script_ref_changed",
     path: REF_ALPHA,
     reason: "unreadable",
   });
-  expect([onStat, onHash]).toEqual([unreadable, unreadable]);
-  expect(fake.specs.length).toBe(0);
+  expect([onStat, onHash]).toEqual([
+    { outcome: unreadable, spawns: 0, hookRuns: 0 },
+    { outcome: unreadable, spawns: 0, hookRuns: 0 },
+  ]);
 });
 
 test("with no reference reader at all, a reference that has a fingerprint is unreadable: the failure is closed", async () => {
   const tree = layout();
-  const fake = fakeProcess({});
-  const outcome = await runnerFor(
+  const result = await attempt(
     envTarget(tree, [hookOf([{ path: REF_ALPHA, hash: HASH_A }])], GRANTED),
-    fake.port,
+    REQUEST,
     { userEnv: USER_ENV },
-  ).run(REQUEST);
-  expect(outcome).toEqual({
-    ok: false,
-    error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "unreadable" },
+  );
+  expect(result).toEqual({
+    outcome: {
+      ok: false,
+      error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "unreadable" },
+    },
+    spawns: 0,
+    hookRuns: 0,
   });
-  expect(fake.specs.length).toBe(0);
 });
 
-test("a reference whose fingerprint was not taken at import fails closed: unreadable when the file exists now, missing when it does not, and unreadable without a reader", async () => {
+test("a reference whose fingerprint was not taken at import (null) is not checked: the run starts with no reader, with the file present, or with the file gone", async () => {
   const tree = layout();
   const decl = hookOf([{ path: REF_ALPHA, hash: null }]);
   const withoutReader = await attempt(envTarget(tree, [decl], GRANTED), REQUEST, {
@@ -666,17 +866,34 @@ test("a reference whose fingerprint was not taken at import fails closed: unread
     userEnv: USER_ENV,
     refs: present.reader,
   });
+  const gone = memoryRefs();
   const absent = await attempt(envTarget(tree, [decl], GRANTED), REQUEST, {
     userEnv: USER_ENV,
-    refs: memoryRefs().reader,
+    refs: gone.reader,
   });
-  const failure = (reason: "missing" | "unreadable"): Result<never, ScriptRunFailure> =>
-    err<ScriptRunFailure>({ kind: "script_ref_changed", path: REF_ALPHA, reason });
   expect([withoutReader, existing, absent]).toEqual([
-    { outcome: failure("unreadable"), spawns: 0 },
-    { outcome: failure("unreadable"), spawns: 0 },
-    { outcome: failure("missing"), spawns: 0 },
+    { outcome: RAN_CLEAN, spawns: 0, hookRuns: 1 },
+    { outcome: RAN_CLEAN, spawns: 0, hookRuns: 1 },
+    { outcome: RAN_CLEAN, spawns: 0, hookRuns: 1 },
   ]);
+  // 확인하지 않으므로 겉모습도 지문도 읽지 않는다
+  expect([present.statCalls, present.hashCalls, gone.statCalls, gone.hashCalls]).toEqual([
+    [],
+    [],
+    [],
+    [],
+  ]);
+});
+
+test("refsKnown false with no listed references just runs, and no reference is read", async () => {
+  const tree = layout();
+  const refs = memoryRefs();
+  const result = await attempt(envTarget(tree, [hookOf([], "sh", false)], GRANTED), REQUEST, {
+    userEnv: USER_ENV,
+    refs: refs.reader,
+  });
+  expect(result).toEqual({ outcome: RAN_CLEAN, spawns: 0, hookRuns: 1 });
+  expect([refs.statCalls, refs.hashCalls]).toEqual([[], []]);
 });
 
 test("a fingerprint is computed again only when size or mtime changes or the declared hash changes; the stat happens every time", async () => {
@@ -684,10 +901,11 @@ test("a fingerprint is computed again only when size or mtime changes or the dec
   const refs = memoryRefs();
   refs.files.set(REF_ALPHA, { size: 10, mtimeMs: 100, hash: HASH_A });
   const scripts: ManifestScriptDecl[] = [hookOf([{ path: REF_ALPHA, hash: HASH_A }])];
-  const fake = fakeProcess({});
-  const runner = runnerFor(envTarget(tree, scripts, GRANTED), fake.port, {
+  const hook = fakeHook({});
+  const runner = runnerFor(envTarget(tree, scripts, GRANTED), fakeProcess({}).port, {
     userEnv: USER_ENV,
     refs: refs.reader,
+    hookProcess: () => hook.port,
   });
   const trace: { readonly ok: boolean; readonly stats: number; readonly hashes: number }[] = [];
   const step = async (): Promise<void> => {
@@ -709,7 +927,7 @@ test("a fingerprint is computed again only when size or mtime changes or the dec
     { ok: true, stats: 4, hashes: 2 },
     { ok: false, stats: 5, hashes: 3 },
   ]);
-  expect(fake.specs.length).toBe(4);
+  expect(hook.runs.length).toBe(4);
 });
 
 test("with several references the first failing one in declaration order is reported", async () => {
@@ -749,33 +967,74 @@ test("with several references the first failing one in declaration order is repo
     { ok: false, error: { kind: "script_ref_changed", path: REF_ZED, reason: "changed" } },
     { ok: false, error: { kind: "script_ref_changed", path: REF_ALPHA, reason: "missing" } },
   ]);
-  expect([zedFirst.spawns, alphaFirst.spawns]).toEqual([0, 0]);
+  expect([zedFirst.hookRuns, alphaFirst.hookRuns]).toEqual([0, 0]);
 });
 
-// ── 5. 돌려 보기, 샌드박스, 사용자 환경, 띄우기 실패 ──────────────────────
+// ── 5. 돌려 보기, 샌드박스 없음 설정, 사용자 환경, 띄우기 실패 ─────────────────
 
 test("a replay request is replay_mode_denied and nothing starts", async () => {
   const tree = layout();
-  const fake = fakeProcess({});
-  const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
-    userEnv: USER_ENV,
-  }).run({ ...REQUEST, replay: true });
-  expect(outcome).toEqual({ ok: false, error: { kind: "replay_mode_denied" } });
-  expect(fake.specs.length).toBe(0);
+  const result = await attempt(
+    envTarget(tree, [hookOf()], GRANTED),
+    { ...REQUEST, replay: true },
+    { userEnv: USER_ENV },
+  );
+  expect(result).toEqual({
+    outcome: { ok: false, error: { kind: "replay_mode_denied" } },
+    spawns: 0,
+    hookRuns: 0,
+  });
 });
 
-test("when the sandbox is off the run is sandbox_unavailable with reason sandbox_off, and nothing starts", async () => {
+test("sandboxed: when the sandbox is off the run is sandbox_unavailable with reason sandbox_off, and nothing starts", async () => {
   const tree = layout();
   const fake = fakeProcess({});
+  const hook = fakeHook({});
   const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+    envSandboxed: () => true,
     userEnv: USER_ENV,
     sandboxAvailable: () => false,
+    hookProcess: () => hook.port,
   }).run(REQUEST);
   expect(outcome).toEqual({
     ok: false,
     error: { kind: "sandbox_unavailable", reason: "sandbox_off" },
   });
   expect(fake.specs.length).toBe(0);
+  expect(hook.runs.length).toBe(0);
+});
+
+test("default: sandboxAvailable false is ignored; the run goes to the hook port and the process port is never called, whether envSandboxed is absent or false", async () => {
+  const tree = layout();
+  const proc = fakeProcess({ stdout: "not used" });
+  const hook = fakeHook({ stdout: "hooked" });
+  const deps = {
+    userEnv: USER_ENV,
+    hookProcess: () => hook.port,
+    sandboxAvailable: () => false,
+  };
+  const absent = await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, deps).run(
+    REQUEST,
+  );
+  const answersFalse = await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, {
+    ...deps,
+    envSandboxed: () => false,
+  }).run(REQUEST);
+  const hooked: Result<ScriptRunResult, ScriptRunFailure> = {
+    ok: true,
+    value: {
+      exitCode: 0,
+      signal: null,
+      stdout: "hooked",
+      stdoutTruncated: false,
+      stderr: "",
+      stderrTruncated: false,
+      timedOut: false,
+    },
+  };
+  expect([absent, answersFalse]).toEqual([hooked, hooked]);
+  expect(proc.specs).toEqual([]);
+  expect(hook.runs.length).toBe(2);
 });
 
 test("without a user environment dependency the run is spawn_failed with code user_env_unavailable, and nothing starts", async () => {
@@ -793,14 +1052,16 @@ test("without a user environment dependency the run is spawn_failed with code us
   expect(fake.specs.length).toBe(0);
 });
 
-test("a spawn refused by the port comes back as the same failure values as the narrow path", async () => {
+test("sandboxed: a spawn refused by the port comes back as the same failure values as the narrow path", async () => {
   const tree = layout();
   const unavailable = fakeProcess({}, { kind: "sandbox_unavailable", reason: "service_missing" });
   const failed = fakeProcess({}, { kind: "spawn_failed", code: "ENOENT", message: "no such file" });
   const onUnavailable = await runnerFor(envTarget(tree, [hookOf()], GRANTED), unavailable.port, {
+    envSandboxed: () => true,
     userEnv: USER_ENV,
   }).run(REQUEST);
   const onFailed = await runnerFor(envTarget(tree, [hookOf()], GRANTED), failed.port, {
+    envSandboxed: () => true,
     userEnv: USER_ENV,
   }).run(REQUEST);
   expect([onUnavailable, onFailed]).toEqual([
@@ -808,6 +1069,129 @@ test("a spawn refused by the port comes back as the same failure values as the n
     { ok: false, error: { kind: "spawn_failed", code: "ENOENT", message: "no such file" } },
   ]);
   expect([unavailable.specs.length, failed.specs.length]).toEqual([1, 1]);
+});
+
+test("default: without a hook process port the run is spawn_failed with code hook_process_unavailable, whether the port is absent or answers undefined, and nothing starts", async () => {
+  const tree = layout();
+  const proc = fakeProcess({});
+  const absent = await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, {
+    userEnv: USER_ENV,
+  }).run(REQUEST);
+  const answersUndefined = await runnerFor(envTarget(tree, [hookOf()], GRANTED), proc.port, {
+    userEnv: USER_ENV,
+    hookProcess: () => undefined,
+  }).run(REQUEST);
+  const unavailable: Result<ScriptRunResult, ScriptRunFailure> = {
+    ok: false,
+    error: {
+      kind: "spawn_failed",
+      code: "hook_process_unavailable",
+      message: "the hook process port is not available",
+    },
+  };
+  expect([absent, answersUndefined]).toEqual([unavailable, unavailable]);
+  expect(proc.specs.length).toBe(0);
+});
+
+test("default: a hook command the system refuses to start (spawnError ENOENT) is spawn_failed with that code", async () => {
+  const tree = layout();
+  const result = await attempt(
+    envTarget(tree, [hookOf()], GRANTED),
+    REQUEST,
+    { userEnv: USER_ENV },
+    { spawnError: "ENOENT" },
+  );
+  expect(result).toEqual({
+    outcome: {
+      ok: false,
+      error: {
+        kind: "spawn_failed",
+        code: "ENOENT",
+        message: "the hook command could not be started",
+      },
+    },
+    spawns: 0,
+    hookRuns: 1,
+  });
+});
+
+test("default: the exit codes 0, 2 and 7 and the stdout and stderr pass through unchanged, with stdoutTruncated from the hook port", async () => {
+  const tree = layout();
+  const plans: HookPlan[] = [
+    { stdout: "fine", exit: { code: 0, signal: null } },
+    { stderr: "not ok", exit: { code: 2, signal: null } },
+    { stdout: "partial", stdoutTruncated: true, stderr: "boom", exit: { code: 7, signal: null } },
+  ];
+  const outcomes = await Promise.all(
+    plans.map(
+      async (plan) =>
+        (await attempt(envTarget(tree, [hookOf()], GRANTED), REQUEST, { userEnv: USER_ENV }, plan))
+          .outcome,
+    ),
+  );
+  expect(outcomes).toEqual([
+    {
+      ok: true,
+      value: {
+        exitCode: 0,
+        signal: null,
+        stdout: "fine",
+        stdoutTruncated: false,
+        stderr: "",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+    {
+      ok: true,
+      value: {
+        exitCode: 2,
+        signal: null,
+        stdout: "",
+        stdoutTruncated: false,
+        stderr: "not ok",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+    {
+      ok: true,
+      value: {
+        exitCode: 7,
+        signal: null,
+        stdout: "partial",
+        stdoutTruncated: true,
+        stderr: "boom",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+  ]);
+});
+
+test("default: the hook run gets a deadline signal from the declared timeoutMs; a run that never ends is cut at that deadline and answers timedOut", async () => {
+  const tree = layout();
+  const hook = fakeHook({ waitForAbort: true });
+  // 선언 기한 1ms다. 기본값(10초)이었다면 이 시험은 테스트의 5초 한도에 걸린다
+  const decl: ManifestScriptDecl = { ...hookOf(), timeoutMs: 1 };
+  const outcome = await runnerFor(envTarget(tree, [decl], GRANTED), fakeProcess({}).port, {
+    userEnv: USER_ENV,
+    hookProcess: () => hook.port,
+  }).run(REQUEST);
+  expect(outcome).toEqual({
+    ok: true,
+    value: {
+      exitCode: null,
+      signal: "SIGKILL",
+      stdout: "",
+      stdoutTruncated: false,
+      stderr: "",
+      stderrTruncated: false,
+      timedOut: true,
+    },
+  });
+  expect(hook.runs.map((run) => run.signal instanceof AbortSignal)).toEqual([true]);
+  expect(hook.runs.map((run) => run.signal.aborted)).toEqual([true]);
 });
 
 // ── 6. 실패 기록(script.env_failed) ──────────────────────────────────────
@@ -836,14 +1220,15 @@ function recordingLogger(): { readonly logger: Logger; readonly calls: LogCall[]
   return { logger, calls };
 }
 
-test("a run that exits 1 logs one warning with the masked last 512 characters of stderr and no environment value", async () => {
+test("default: a run that exits 1 logs one warning with the masked last 512 characters of stderr, the default uses, and no environment value", async () => {
   const tree = layout();
   const { logger, calls } = recordingLogger();
   // 머리 200자, 가운데 400자, 끝 "TAIL SECRET". 끝 512자는 머리 101자와 가운데 400자와 꼬리 11자다
   const stderr = `${"H".repeat(200)}${"M".repeat(400)}TAIL SECRET`;
-  const fake = fakeProcess({ stderr, exit: { code: 1, signal: null } });
-  const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+  const hook = fakeHook({ stderr, exit: { code: 1, signal: null } });
+  const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
     userEnv: async () => ({ PATH: "/usr/bin", LANG: "en_US.SENTINEL-LANG-7f3a" }),
+    hookProcess: () => hook.port,
     logger,
     maskText: (text) => text.replaceAll("SECRET", "[masked]"),
   }).run(REQUEST);
@@ -869,7 +1254,7 @@ test("a run that exits 1 logs one warning with the masked last 512 characters of
         exitCode: 1,
         timedOut: false,
         stderrTail: `${"H".repeat(101)}${"M".repeat(400)}TAIL [masked]`,
-        uses: "user_environment,read_wide,write_project,network",
+        uses: "user_full_access,user_environment,network",
       },
     },
   ]);
@@ -878,31 +1263,123 @@ test("a run that exits 1 logs one warning with the masked last 512 characters of
   expect(logged).not.toContain(GRANT_DIR);
 });
 
-test("a run that exits 0 or 2 logs nothing", async () => {
+test("sandboxed: a run that exits 1 logs one warning with the sandboxed uses (user_environment, read_wide, write_project, network)", async () => {
   const tree = layout();
   const { logger, calls } = recordingLogger();
-  const ok0 = fakeProcess({ stdout: "fine", exit: { code: 0, signal: null } });
-  const ok2 = fakeProcess({ stderr: "not ok", exit: { code: 2, signal: null } });
-  const first = await runnerFor(envTarget(tree, [hookOf()], GRANTED), ok0.port, {
+  const fake = fakeProcess({ stderr: "boom", exit: { code: 1, signal: null } });
+  await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+    envSandboxed: () => true,
     userEnv: USER_ENV,
     logger,
     maskText: (text) => text,
   }).run(REQUEST);
-  const second = await runnerFor(envTarget(tree, [hookOf()], GRANTED), ok2.port, {
+  expect(calls).toEqual([
+    {
+      level: "warn",
+      event: "script.env_failed",
+      fields: {
+        extension: "demo",
+        script: "hook",
+        exitCode: 1,
+        timedOut: false,
+        stderrTail: "boom",
+        uses: "user_environment,read_wide,write_project,network",
+      },
+    },
+  ]);
+});
+
+test("default: a run that exits 0 or 2 logs nothing", async () => {
+  const tree = layout();
+  const { logger, calls } = recordingLogger();
+  const ok0 = fakeHook({ stdout: "fine", exit: { code: 0, signal: null } });
+  const ok2 = fakeHook({ stderr: "not ok", exit: { code: 2, signal: null } });
+  const first = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
     userEnv: USER_ENV,
+    hookProcess: () => ok0.port,
     logger,
     maskText: (text) => text,
   }).run(REQUEST);
-  expect([first.ok, second.ok]).toEqual([true, true]);
+  const second = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
+    userEnv: USER_ENV,
+    hookProcess: () => ok2.port,
+    logger,
+    maskText: (text) => text,
+  }).run(REQUEST);
+  expect([first, second]).toEqual([
+    {
+      ok: true,
+      value: {
+        exitCode: 0,
+        signal: null,
+        stdout: "fine",
+        stdoutTruncated: false,
+        stderr: "",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+    {
+      ok: true,
+      value: {
+        exitCode: 2,
+        signal: null,
+        stdout: "",
+        stdoutTruncated: false,
+        stderr: "not ok",
+        stderrTruncated: false,
+        timedOut: false,
+      },
+    },
+  ]);
   expect(calls).toEqual([]);
 });
 
-test("a run that outlives its deadline logs one warning with a null exit code and timedOut true", async () => {
+test("default: a run the hook port reports as timed out logs one warning with a null exit code and timedOut true", async () => {
+  const tree = layout();
+  const { logger, calls } = recordingLogger();
+  const hook = fakeHook({ exit: { code: null, signal: "SIGKILL" }, timedOut: true });
+  const outcome = await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
+    userEnv: USER_ENV,
+    hookProcess: () => hook.port,
+    logger,
+    maskText: (text) => text,
+  }).run(REQUEST);
+  expect(outcome).toEqual({
+    ok: true,
+    value: {
+      exitCode: null,
+      signal: "SIGKILL",
+      stdout: "",
+      stdoutTruncated: false,
+      stderr: "",
+      stderrTruncated: false,
+      timedOut: true,
+    },
+  });
+  expect(calls).toEqual([
+    {
+      level: "warn",
+      event: "script.env_failed",
+      fields: {
+        extension: "demo",
+        script: "hook",
+        exitCode: null,
+        timedOut: true,
+        stderrTail: "",
+        uses: "user_full_access,user_environment,network",
+      },
+    },
+  ]);
+});
+
+test("sandboxed: a run that outlives its deadline is killed and logs one warning with a null exit code and timedOut true", async () => {
   const tree = layout();
   const timers = manualTimers();
   const { logger, calls } = recordingLogger();
   const fake = fakeProcess({ hang: true });
   const runner = runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+    envSandboxed: () => true,
     userEnv: USER_ENV,
     logger,
     maskText: (text) => text,
@@ -940,12 +1417,13 @@ test("a run that outlives its deadline logs one warning with a null exit code an
   ]);
 });
 
-test("without a masking function the logged stderr tail is empty, so unmasked text is never logged", async () => {
+test("default: without a masking function the logged stderr tail is empty, so unmasked text is never logged", async () => {
   const tree = layout();
   const { logger, calls } = recordingLogger();
-  const fake = fakeProcess({ stderr: "token=plain-text", exit: { code: 1, signal: null } });
-  await runnerFor(envTarget(tree, [hookOf()], GRANTED), fake.port, {
+  const hook = fakeHook({ stderr: "token=plain-text", exit: { code: 1, signal: null } });
+  await runnerFor(envTarget(tree, [hookOf()], GRANTED), fakeProcess({}).port, {
     userEnv: USER_ENV,
+    hookProcess: () => hook.port,
     logger,
   }).run(REQUEST);
   expect(calls.map((call) => call.fields?.["stderrTail"])).toEqual([""]);

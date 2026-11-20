@@ -136,6 +136,7 @@ export function settingsOf(overrides: Partial<SandboxSettings> = {}): SandboxSet
     enabled: true,
     onUnavailable: "disable_execute",
     protectedPathsExtra: [],
+    protectedPathsAllowRead: [],
     writeRootsExtra: [],
     escapeRetry: false,
     blockedDomains: [],

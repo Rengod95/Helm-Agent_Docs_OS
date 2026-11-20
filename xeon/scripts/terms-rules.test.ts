@@ -77,7 +77,7 @@ test("mentions matches Hangul as substring and Latin as a whole word, ignoring c
 
 test("C-04 flags internal words and forbidden aliases in chat strings, C-05 aliases elsewhere", () => {
   const ko = {
-    "desktop.chat.a": "루프가 돌고 있어요",
+    "desktop.chat.a": "코어가 돌고 있어요",
     "desktop.chat.b": "세션을 열었어요",
     "client.settings.tabs.c": "세션과 컨텍스트",
     "client.settings.tabs.d": "비밀번호를 바꿔요",

@@ -7,9 +7,11 @@ import { attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contra
 import {
   isEntryInsideRoot,
   SCRIPT_CARD_PREVIEW_CHARS,
+  SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
   SCRIPT_LIMITS,
   SCRIPT_USES,
+  type HookProcessPort,
   type IsolatedChild,
   type IsolationProcessPort,
   type IsolationSpawnError,
@@ -64,6 +66,9 @@ export interface ScriptRefReader {
 /** 환경 모드 자식에게 주는, 원래 하네스가 채워 주던 변수 이름(프로젝트 폴더) */
 const SCRIPT_ENV_PROJECT_DIR = "CLAUDE_PROJECT_DIR";
 
+/** 환경 모드 자식에게서 빼는 Fresnel 자신의 내부 값의 이름 패턴(`FRESNEL_*`, 대소문자 무시). 사용자의 변수는 넘긴다 [결정: 2026-11-20, 사용자, AGE-58] */
+const INTERNAL_ENV: readonly RegExp[] = [/^_*FRESNEL_/i];
+
 /** 실패한 환경 모드 훅의 표준 오류 끝부분 글자 수(기록용, 가림 규칙을 지난다). 모은 표준 오류(처음 64 KiB)의 끝이다 */
 const ENV_STDERR_TAIL_CHARS = 512;
 
@@ -72,6 +77,13 @@ const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export interface ScriptRunnerDeps {
   /** 띄우기 포트. 샌드박스 프로필은 이 포트가 정한다 */
   readonly process: IsolationProcessPort;
+  /**
+   * 환경 모드(기본)가 쓰는 외부 훅 실행 포트(프로세스 트리 정리, 시간 제한, 표준 입출력 상한). 샌드박스 없이 사용자 권한으로 돈다.
+   * 없으면 환경 모드는 `spawn_failed`(`hook_process_unavailable`)다
+   */
+  readonly hookProcess?: () => HookProcessPort | undefined;
+  /** 참이면 환경 모드를 옛 길(`script-env` 샌드박스 프로필: 보호 경로 읽기 거부, 프로젝트 쓰기만)로 돌린다. 설정 `l0.sandbox.sandboxImportedHooks`, 기본 끔. 호출마다 부른다 */
+  readonly envSandboxed?: () => boolean;
   /** 폴더와 실제 위치와 파일 종류를 보는 포트(확장 로더와 같다) */
   readonly fs: LoaderFs;
   readonly target: ScriptTarget;
@@ -95,11 +107,10 @@ export interface ScriptRunnerDeps {
   /** 표준 입력 미리보기를 카드에 싣기 전에 가린다(엔진의 시크릿 마스킹). 없으면 미리보기를 싣지 않는다 */
   readonly maskText?: (text: string) => string;
   /**
-   * 환경 모드의 사용자 환경(PATH와 환경 변수). 호출마다 부른다(조립 루트가 한 번 얻어 캐시한다). 이 러너는 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름과
-   * 잘못된 이름을 한 번 더 뺀다. 없으면 환경 모드는 `spawn_failed`(`user_env_unavailable`)다. 값은 기록하지 않는다
+   * 환경 모드의 사용자 환경(PATH와 환경 변수). 호출마다 부른다(조립 루트가 한 번 얻어 캐시한다). 기본 길은 Fresnel 내부 값(`FRESNEL_*`)과 잘못된 이름만 뺀다(사용자의 `*_TOKEN` 등은 넘긴다). 샌드박스 설정을 켠 옛 길은 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름도 뺀다. 없으면 환경 모드는 `spawn_failed`(`user_env_unavailable`)다. 값은 기록하지 않는다
    */
   readonly userEnv?: () => Promise<Readonly<Record<string, string>>>;
-  /** 환경 모드 참조 파일의 지문 확인 수단. 없으면 지문이 있는 참조가 하나라도 있는 환경 모드는 `script_ref_changed(unreadable)`다(닫힌 실패) */
+  /** 환경 모드 참조 파일의 지문 확인 수단. 없으면 지문이 있는 참조가 하나라도 있는 환경 모드는 `script_ref_changed(unreadable)`다. 지문이 없는(null) 참조는 확인하지 않는다 */
   readonly refs?: ScriptRefReader;
   /** 참조 파일(절대 경로) 가운데 보호 경로 안에 있어 읽기 예외가 필요한 것의 예외 경로(파일 또는 폴더)를 정한다. 조립 루트가 샌드박스의 보호 경로 표로 만든다. 없으면 예외 없음 */
   readonly readCarveOutsFor?: (refPaths: readonly string[]) => readonly string[];
@@ -264,7 +275,17 @@ function previewOf(stdin: string, mask: ScriptRunnerDeps["maskText"]): string {
   return mask(head);
 }
 
-/** 사용자 환경에서 시크릿 거부 패턴과 잘못된 이름을 뺀다. 이름만 거른다(값은 보지 않는다) */
+/** 사용자 환경에서 Fresnel 내부 값(`FRESNEL_*`)과 잘못된 이름만 뺀다. 이름만 거른다(값은 보지 않는다). 사용자의 `*_TOKEN`, `AWS_*`, `SSH_AUTH_SOCK` 등은 넘긴다 */
+function userEnvOfDefault(source: Readonly<Record<string, string>>): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [name, value] of Object.entries(source)) {
+    if (!ENV_VAR_NAME.test(name) || INTERNAL_ENV.some((pattern) => pattern.test(name))) continue;
+    env[name] = value;
+  }
+  return env;
+}
+
+/** 샌드박스 안에서 돌릴 때(설정을 켠 옛 길): 사용자 환경에서 시크릿 거부 패턴과 잘못된 이름을 뺀다. 이름만 거른다(값은 보지 않는다) */
 function userEnvOf(source: Readonly<Record<string, string>>): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [name, value] of Object.entries(source)) {
@@ -291,6 +312,8 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
     ref: ScriptEnvDecl["refs"][number],
   ): Promise<ScriptRunFailure | undefined> {
     const expected = ref.hash;
+    // 가져올 때 지문을 못 낸(null) 참조는 확인하지 않고 돈다 [결정: 2026-11-20, 사용자, AGE-58 "허용 중심"]
+    if (expected === null) return undefined;
     const reader = deps.refs;
     const failure = (reason: "changed" | "missing" | "unreadable"): ScriptRunFailure => ({
       kind: "script_ref_changed",
@@ -302,8 +325,6 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
     if (!stated.ok || !stated.value.ok) return failure("unreadable");
     const seen = stated.value;
     if (seen.value === null) return failure("missing");
-    // 가져올 때 지문을 못 낸(null) 참조는 지금 있어도 같은 파일인지 확인할 수 없다. 닫힌 실패다(없으면 위의 missing이다)
-    if (expected === null) return failure("unreadable");
     const memo = refMemo.get(ref.path);
     if (
       memo !== undefined &&
@@ -346,7 +367,8 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
     const companion = await locate(deps.fs, target.tree, decl.file);
     if (!companion.ok) return err(companion.error);
     if (request.replay) return err({ kind: "replay_mode_denied" });
-    if (deps.sandboxAvailable?.() === false) {
+    const sandboxed = deps.envSandboxed?.() === true;
+    if (sandboxed && deps.sandboxAvailable?.() === false) {
       return err({ kind: "sandbox_unavailable", reason: "sandbox_off" });
     }
     const resolved = deps.resolveRunner(env.shell);
@@ -369,25 +391,61 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         message: "the user environment could not be read",
       });
     }
-    const userEnv = userEnvOf(loaded.value);
-    const refPaths = env.refs.map((ref) => ref.path);
-    const carveOuts = deps.readCarveOutsFor?.(refPaths) ?? [];
-    const spec: IsolationSpawnSpec = {
-      command: shell,
-      args: ["-c", env.command],
-      readRoot: projectDir,
-      systemTools: true,
-      scriptEnv: { projectDir, readCarveOuts: carveOuts },
-      env: { ...userEnv, [SCRIPT_ENV_PROJECT_DIR]: projectDir },
-      label: `script:${target.extension}:${decl.name}`,
-    };
-    const spawned = await deps.process.spawn(spec);
-    if (!spawned.ok) return err(failureOfSpawn(spawned.error));
-    const result = await runChild(
-      spawned.value,
-      { stdin: request.stdin, timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs },
-      deps,
-    );
+    const timeoutMs = decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs;
+    let result: ScriptRunResult;
+    if (sandboxed) {
+      // 설정을 켠 옛 길: 샌드박스 안에서 돈다(보호 경로 읽기 거부, 프로젝트와 훅 임시 폴더에만 쓰기, 도구와 Mach 서비스 막기)
+      const userEnv = userEnvOf(loaded.value);
+      const refPaths = env.refs.map((ref) => ref.path);
+      const carveOuts = deps.readCarveOutsFor?.(refPaths) ?? [];
+      const spec: IsolationSpawnSpec = {
+        command: shell,
+        args: ["-c", env.command],
+        readRoot: projectDir,
+        systemTools: true,
+        scriptEnv: { projectDir, readCarveOuts: carveOuts },
+        env: { ...userEnv, [SCRIPT_ENV_PROJECT_DIR]: projectDir },
+        label: `script:${target.extension}:${decl.name}`,
+      };
+      const spawned = await deps.process.spawn(spec);
+      if (!spawned.ok) return err(failureOfSpawn(spawned.error));
+      result = await runChild(spawned.value, { stdin: request.stdin, timeoutMs }, deps);
+    } else {
+      // 기본 길: 다른 하네스들처럼 사용자 권한 그대로, 샌드박스 없이 돈다. 프로세스 트리 정리, 시간 제한, 출력 상한은 외부 훅 실행 포트가 맡는다
+      const hooks = deps.hookProcess?.();
+      if (hooks === undefined) {
+        return err({
+          kind: "spawn_failed",
+          code: "hook_process_unavailable",
+          message: "the hook process port is not available",
+        });
+      }
+      const raw = await hooks.run({
+        argv: [shell, "-c", env.command],
+        cwd: projectDir,
+        env: { ...userEnvOfDefault(loaded.value), [SCRIPT_ENV_PROJECT_DIR]: projectDir },
+        stdin: request.stdin,
+        maxStdoutChars: SCRIPT_LIMITS.outputBytes,
+        maxStderrChars: SCRIPT_LIMITS.outputBytes,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (raw.spawnError !== undefined) {
+        return err({
+          kind: "spawn_failed",
+          code: raw.spawnError,
+          message: "the hook command could not be started",
+        });
+      }
+      result = {
+        exitCode: raw.exitCode,
+        signal: raw.signal,
+        stdout: raw.stdout,
+        stdoutTruncated: raw.stdoutTruncated,
+        stderr: raw.stderr,
+        stderrTruncated: raw.stderr.length >= SCRIPT_LIMITS.outputBytes,
+        timedOut: raw.timedOut,
+      };
+    }
     // 막지 않는 오류(종료 코드 2가 아닌 비정상 종료, 기한, 신호)는 원래 하네스처럼 진행하되 표준 오류의 끝부분을 기록에 남긴다. 값은 가림 규칙을 지난다
     if (
       result.timedOut ||
@@ -401,7 +459,7 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         exitCode: result.exitCode,
         timedOut: result.timedOut,
         stderrTail: deps.maskText === undefined ? "" : deps.maskText(tail),
-        uses: SCRIPT_ENV_USES.join(","),
+        uses: (sandboxed ? SCRIPT_ENV_SANDBOXED_USES : SCRIPT_ENV_USES).join(","),
       });
     }
     return ok(result);

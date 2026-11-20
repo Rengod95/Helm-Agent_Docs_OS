@@ -129,6 +129,8 @@ export interface PluginReviewDeps {
   /** 지금 시각(ISO) */
   readonly now: () => string;
   readonly log: Logger;
+  /** 참이면 가져온 훅(환경 모드)이 샌드박스 안에서 돈다(설정 `l0.sandbox.sandboxImportedHooks`). 검토 카드의 권한 표시가 이 값을 따른다. 생략하면 거짓 */
+  readonly envSandboxed?: () => boolean;
   /**
    * 돌려보내기 사유를 `originThreadId` 대화의 다음 입력으로 넣는다(M5c §4.7.3 [제안]). 대화가 없거나 닫혔으면 false다.
    * 생략하면 사유는 항목에만 남는다
@@ -430,9 +432,11 @@ function candidateCard(
   projectId: string | null,
   itemId: string,
   reviewed: ReviewedVersion | null,
+  envSandboxed: boolean,
 ): PluginCard {
   return buildPluginCard({
     folder,
+    envSandboxed,
     origin: originOf(origin, projectId),
     review: {
       state: "pending",
@@ -632,7 +636,14 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const reviewed = await store.current(key);
     if (!reviewed.ok) return err(storeFailure(reviewed.error));
     const itemId = deps.ids.next("rvw");
-    const card = candidateCard(folder, input.origin, input.projectId, itemId, reviewed.value);
+    const card = candidateCard(
+      folder,
+      input.origin,
+      input.projectId,
+      itemId,
+      reviewed.value,
+      deps.envSandboxed?.() === true,
+    );
     const withPurpose: PluginCard = { ...card, purpose: card.purpose ?? input.purpose ?? null };
     const item = pendingItemOf(
       itemId,
