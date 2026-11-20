@@ -7617,6 +7617,7 @@
   "desktop.craft.canvas.cv4.part.hookCount": "{n}개",
   "desktop.craft.canvas.cv4.part.recordCount": "{n}종",
   "desktop.craft.canvas.cv5.name": "G4 · 책갈피 판과 점 바닥",
+  "desktop.craft.canvas.cv6.name": "G5 · 참고 그림 그대로의 판과 점 바닥",
   "desktop.craft.canvas.cv5.cost.tools": "도구 {n}개",
   "desktop.craft.canvas.cv5.more.word": "턴 계속",
   "desktop.craft.canvas.cv5.more.label": "턴의 나머지 보기",
