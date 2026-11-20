@@ -234,6 +234,7 @@ export const BLOCK_SPECS: readonly BlockSpec[] = [
       ref("l0.sandbox.network.blockedDomains", "platform-sandbox", ["managed", "user", "project"]),
       ref("l0.sandbox.credentialFiles", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.nestedNamespaces", "platform-sandbox", ["managed", "user"]),
+      ref("l0.sandbox.sandboxImportedHooks", "platform-sandbox", ["managed", "user"]),
       ref("l0.sandbox.selfTestIntervalMin", "platform-sandbox", ["managed", "user"]),
       ref("l0.exec.shell", "platform-exec", ["managed", "user"]),
       ref("l0.exec.defaultTimeoutMs", "platform-exec", ["managed", "user", "project"]),

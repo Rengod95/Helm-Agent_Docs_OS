@@ -1381,6 +1381,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.localIds,
     now: () => new Date(deps.clock.now()).toISOString(),
     log: deps.logger,
+    envSandboxed: () => deps.settings.value("l0.sandbox.sandboxImportedHooks") === true,
     // 승인의 프로필 반영과 커밋 뒤 실행 중인 판 맞추기(M5c §4.7.3, §4.6.7). 프로필과 플러그인 집합은 엔진 포트가 올라온 뒤에 읽는다
     approvalHooks: approvalHooksOf({
       profiles: {
