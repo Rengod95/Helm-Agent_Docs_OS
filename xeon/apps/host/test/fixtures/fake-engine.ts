@@ -444,6 +444,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       exists: (threadId) => ok(threads.has(threadId)),
       workspaceOf: (threadId) => ok(workspaces.get(threadId) ?? null),
       isCraftChat: (threadId) => ok(craftThreads.has(threadId)),
+      titleOf: (threadId) => ok(threads.has(threadId) ? { title: null } : undefined),
       // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
       applyOpenWorkspace: () => Promise.resolve(),
       sameFolder: () => [],

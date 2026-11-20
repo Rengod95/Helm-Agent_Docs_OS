@@ -41,6 +41,8 @@ import {
   TurnRecordUnwatchParamsSchema,
   TurnRecordWatchParamsSchema,
   TurnRecordWatchResultSchema,
+  TurnRecordRecentParamsSchema,
+  TurnRecordRecentResultSchema,
   TurnRecordSearchParamsSchema,
   TurnRecordSearchResultSchema,
   type FindingsBundleParams,
@@ -65,6 +67,8 @@ import {
   type TurnRecordUnwatchParams,
   type TurnRecordWatchParams,
   type TurnRecordWatchResult,
+  type TurnRecordRecentParams,
+  type TurnRecordRecentResult,
   type TurnRecordSearchParams,
   type TurnRecordSearchResult,
 } from "./turn-record.ts";
@@ -92,6 +96,7 @@ export interface TurnRecordWireSchemas {
   "turnRecord.list": Io<U<Req<TurnRecordListParams>>, U<TurnRecordListResult>>;
   "turnRecord.get": Io<U<Req<TurnRecordGetParams>>, U<TurnRecordGetResult>>;
   "turnRecord.search": Io<U<Req<TurnRecordSearchParams>>, U<TurnRecordSearchResult>>;
+  "turnRecord.recent": Io<U<Req<TurnRecordRecentParams>>, U<TurnRecordRecentResult>>;
   "turnRecord.mark": Io<U<Req<TurnRecordMarkParams>>, typeof EmptyParamsSchema>;
   "turnRecord.watch": Io<U<Req<TurnRecordWatchParams>>, U<TurnRecordWatchResult>>;
   "turnRecord.unwatch": Io<U<Req<TurnRecordUnwatchParams>>, typeof EmptyParamsSchema>;
@@ -116,6 +121,7 @@ export const TURN_RECORD_WIRE_METHODS: Table = {
   "turnRecord.list": m5(TurnRecordListParamsSchema, TurnRecordListResultSchema),
   "turnRecord.get": m5(TurnRecordGetParamsSchema, TurnRecordGetResultSchema),
   "turnRecord.search": m5(TurnRecordSearchParamsSchema, TurnRecordSearchResultSchema),
+  "turnRecord.recent": m5(TurnRecordRecentParamsSchema, TurnRecordRecentResultSchema),
   "turnRecord.mark": m5(TurnRecordMarkParamsSchema, EmptyParamsSchema),
   "turnRecord.watch": m5(TurnRecordWatchParamsSchema, TurnRecordWatchResultSchema),
   "turnRecord.unwatch": m5(TurnRecordUnwatchParamsSchema, EmptyParamsSchema),
