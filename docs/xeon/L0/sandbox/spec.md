@@ -596,15 +596,15 @@ export function selectSandboxProvider(input: {
   - 도구 동작(실제 샌드박스 시험, `script-boundary.int.test.ts`): `command -v`(PATH 탐색), `grep`, `sed`, `awk`, `cat`, `find`, `sort`, `jq`, `curl --version`, 개발자 폴더의 진짜 `git`과 PATH의 `git`(Apple 껍데기: `xcrun` 캐시를 쓰지 못한다는 경고만 내고 돈다)의 읽기 전용 명령이 돈다. 종료 코드, 표준 출력, 표준 오류는 그대로 돌아온다.
 - 확인: `sandbox.no-write.int.test.ts`(실제 srt). 플러그인 폴더 안 읽기, 다른 플러그인 폴더·홈 파일 읽기 거부, 폴더 안 쓰기·작업 폴더 쓰기 거부, 자기 임시 폴더 쓰기와 읽기, `cleanup` 뒤 폴더 삭제, 두 프로세스의 폴더가 다름을 값으로 본다. macOS Seatbelt와 Linux bubblewrap(Docker arm64)에서 모두 통과했다. https(example.com)가 되는 것은 실제 샌드박스 아래 컴파일 바이너리로 손으로 확인했다(시험에 넣지 않았다: 바깥 인터넷이 필요하다).
 
-#### 스크립트 환경 프로필 `script-env` (두 모드) [결정: 2026-11-20, 사용자, AGE-58 원칙 가; 이름과 세부는 [제안]]
+#### 스크립트 환경 프로필 `script-env` (옵트인: 설정 `l0.sandbox.sandboxImportedHooks`를 켰을 때만) [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 이름과 세부는 [제안]]
 
-스크립트 실행기에는 두 모드가 있다. **좁은 모드**는 위의 "쓰기 없음 프로필과 읽기 허용 목록"이고 지금까지와 같다(Fresnel에서 새로 만든 플러그인의 스크립트가 쓴다, 결정 (3)). **환경 모드**는 가져온 훅이 "원래 돌던 환경"에서 돌게 하는 `profile: "script-env"`다: Fresnel은 시크릿이 있는 곳의 읽기, 프로젝트 밖의 쓰기, 키체인·앱 조작·`launchd`를 다루는 도구의 실행만 막는다. 환경 모드를 받는 쪽(누가 받을 수 있는가)은 X.loading-trust §3.8 "환경 모드"가 정한다. 이 프로필은 `IsolationSpawnSpec.scriptEnv`가 있을 때만 만들어진다.
+스크립트 실행기에는 세 길이 있다. **좁은 모드**는 위의 "쓰기 없음 프로필과 읽기 허용 목록"이고 지금까지와 같다(Fresnel에서 새로 만든 플러그인의 스크립트가 쓴다, 결정 (3)). **환경 모드 기본 길**은 가져온 훅을 샌드박스 없이 사용자 권한으로 돌린다. 이 절의 프로필을 쓰지 않는다. 다른 하네스의 훅과 같은 모양이다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. **환경 모드 옛 길**은 설정 `l0.sandbox.sandboxImportedHooks`(managed·user 범위, 기본 끔, 이름은 [제안])를 켰을 때만 쓴다. 이 옛 길에서는 가져온 훅이 `profile: "script-env"` 안에서 돌아 보호 경로를 읽지 못하고, 프로젝트와 임시 폴더 밖에 쓰지 못하며, 도구와 Mach 서비스를 쓰지 못한다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 앞선 샌드박스 작업을 버리지 않으려고 남겼다]. 환경 모드를 받는 쪽(누가 받을 수 있는가)은 X.loading-trust §3.8 "환경 모드"가 정한다. 이 프로필은 `IsolationSpawnSpec.scriptEnv`가 있을 때만 만들어진다. 아래 글머리는 모두 옛 길, 즉 설정을 켰을 때만 적용된다.
 
 - **읽기**: `readAllow`가 없는 거부 목록 방식이다. 보호 경로(기본 목록과 설정 추가분. 키체인, 브라우저 프로필, 비밀번호 관리자, 다른 하네스의 토큰 폴더, `~/.ssh`, `~/.claude`, `.env` 계열 등 3.3절)만 읽기를 거부한다. 쓰기 없음 프로필의 `systemTools`가 더하던 허용 목록은 필요 없어 더하지 않는다.
 - **읽기 예외(`readCarveOuts`)**: 보호 경로 안에 있는 파일 가운데 가져올 때 지문을 적은 참조 파일만 다시 읽게 한다(예: `~/.claude/hooks/x.py`). 파일이 보호 경로의 엄격한 하위 폴더에 있으면 그 폴더(옆 모듈 import가 깨지지 않게, 결정 (4)의 이유), 보호 경로 바로 아래에 있으면 그 파일 하나다(`readCarveOutsOf`, 호스트). Seatbelt 프로필 끝에 `(allow file-read* (subpath …))`, 파일은 `(literal …)`로 더하고 보호 거부를 이긴다(실제 srt 프로필에서 확인: 시험 `sandbox.script-env.int.test.ts`). 같은 보호 경로의 다른 파일(`~/.claude/.credentials.json` 등)은 계속 막힌다. 닫힌 실패(띄우지 않는다): 경로가 절대 경로가 아니거나 없거나 안전하지 않은 글자를 가짐, 보호 경로와 같거나 그것을 품은 폴더(`~/.claude` 자체, 홈, `/`), 보호 파일 이름(`.env` 등)이거나 그것이 든 폴더(깊이 3까지 탐색). 예외는 `script-env` 프로필에서만 받고 bwrap은 예외를 받지 않는다(예외가 없으면 거부 목록 방식 그대로). 예외를 받는 것은 다른 AI 하네스의 설정 폴더(`~/.claude` 등, `agent_credentials`) 안의 스크립트 파일(`.sh`, `.py`, `.js`, `.mjs`, `.ts`, `.rb`, `.pl`)뿐이다. 명령 문자열에 경로가 적혀 있다는 이유만으로는 열지 않는다: 토큰 파일, 대화 기록, 그 밖의 데이터 파일과 `~/.ssh` 같은 다른 보호 경로는 참조로 적혀 있어도 계속 막힌다 [결정: 2026-11-20, 오케스트레이터, AGE-58 "시크릿 읽기는 막는다"의 적용].
 - **쓰기**: 프로젝트 폴더(`projectDir`, 정규 경로)와 이 호출 전용 임시 폴더(`se-<id>`, 0700, `TMPDIR`로 알림, 끝나면 지움)뿐이다. 설정 `writeRoots.extra`는 쓰지 않고, srt가 정책과 상관없이 허용하는 `/tmp/claude`, `~/.npm/_logs`, `~/.claude/debug`는 쓰기 거부에 더한다. 보호 경로(쓰기)는 프로젝트 안에서도 거부다(`.git/hooks`, `.git/config` 등). 홈의 캐시와 로그에는 쓰지 못한다(`uv`의 `~/.cache/uv`, `>> ~/….log`는 오류로 끝난다) [결정: 2026-11-20, 사용자, AGE-58 (1)].
 - **막기(그대로 얹는다)**: 쓰기 없음+`systemTools` 프로필과 같은 `toolDeny`(`osascript`, `security`, `launchctl`, `open` 등), `machDeny`(키체인 데몬, LaunchServices), `systemInfoDeny`, 그리고 프로필 끝에 덧붙이지 못하면 띄우지 않는 닫힌 실패. 네트워크는 정책 그대로(차단 도메인 목록만)다. `launchd` 직접 통신은 이 프로필로도 막지 못한다(위 "막지 못한 길"). 읽기를 넓힌 탓에 보호 경로에 없는 시크릿은 읽힌다: 막는 것은 방지턱이고, 보호 경로 표를 늘려 줄인다.
-- **샌드박스 밖 실행 없음**: `allowEscape`는 거절하고, 격리를 쓸 수 없으면 `onUnavailable` 설정과 상관없이 거절한다(`run_unsandboxed`로 돌리지 않는다). 사용자가 격리를 껐을 때(`disabled`)만 쓰기 없음과 같이 격리 없이 돌고 경고 `isolation.sandbox_not_enforced`를 남긴다. `wrapShell`은 이 프로필을 거절하고(`sandbox_failed`) `wrapArgv`로만 돈다.
+- **샌드박스 밖 실행 없음**: `allowEscape`는 거절하고, 격리를 쓸 수 없으면 `onUnavailable` 설정과 상관없이 거절한다(`run_unsandboxed`로 돌리지 않는다). 스크립트 실행기(좁은 모드와 옛 길)는 사용자가 격리를 껐을 때(`disabled`)에도 띄우지 않고 `sandbox_unavailable`(사유 `sandbox_off`)로 거절한다 [근거: `xeon/packages/ext-host/src/isolation/script-runner.ts`의 `sandboxAvailable` 검사, `xeon/packages/platform-sandbox/src/status.ts`의 `disabled`]. 셸 도구(`wrapShell`)가 `disabled`에서 격리 없이 도는 것과 다르다. 기본 환경 모드 길은 샌드박스를 쓰지 않으므로 이 검사가 없다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. `wrapShell`은 이 프로필을 거절하고(`sandbox_failed`) `wrapArgv`로만 돈다.
 - **정책 모양**: `defaultPolicy({profile: "script-env", projectDir, readCarveOuts, systemTools: true, …})`는 `writeRoots = [정규 projectDir]`(상대 경로나 없는 폴더면 빈 목록), `readDeny`는 보호 경로(읽기), `readAllow` 없음, `profile: "script-env"`를 준다. `platform-process`의 `spawn`은 `spec.scriptEnv`가 있으면 작업 폴더를 `projectDir`로 하고 자식 env를 `childEnv(부모, spec.env)`로 만든다(호출자가 사용자 환경에서 시크릿 거부 패턴을 이미 뺐다). 없으면 동작은 이전과 같다.
 - **Linux(bwrap)**: 거부 목록 방식(홈을 빈 tmpfs로 덮고 보호 경로를 막는다)과 프로젝트·임시 폴더 쓰기까지는 같은 모양이지만 이 맥에서 시험하지 못했다(코드 읽기와 단위 시험뿐). 읽기 예외는 거절하고, 도구·서비스·시스템 정보 막기는 Seatbelt 전용이라 없다(위 표).
 - **시험 틀 수정**: srt의 위반 기록은 프로세스 전체가 공유하고 명령 id로 맞춘다. 시험 도구가 서비스마다 같은 난수 씨앗(`seededRandom(11)`)을 쓰면 파일 사이에 id가 겹쳐 한 파일의 거부가 다음 파일의 명령에 붙었다. 프로세스마다 다른 난수로 바꿨다.
@@ -653,11 +653,12 @@ export function selectSandboxProvider(input: {
 | `l0.sandbox.network.blockedDomains` | `string[]`(`host`, `*.host`, `host:port`) | `[]` | `managed`, `user`, `project` | `restart` | M3 | `permissions`(임시), `list`. 목록 밖은 모두 허용 |
 | `l0.sandbox.credentialFiles` | `string`(`range.enum`: `allow`, `deny`) | `allow` | `managed`, `user` | `nextTurn` | M3 | `permissions`(임시), `select` |
 | `l0.sandbox.nestedNamespaces` | `boolean` | `false` | `managed`, `user` | `restart` | M3 | `permissions`(임시), `toggle`. 켤 때 위험 고지 필요 |
+| `l0.sandbox.sandboxImportedHooks` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M5g [제안] | `permissions`(임시), `toggle`. 켜면 가져온 훅이 샌드박스 안에서 돈다(§4.9 "스크립트 환경 프로필"). 기본은 끔이다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 키 이름은 [제안]] |
 | `l0.sandbox.selfTestIntervalMin` | `integer`(`range` 0~1440, 0은 시작 때만) | `60` | `managed`, `user` | `restart` | M1 | 탭 `advanced`(파일만) |
 | `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | 정의하지 않음 | | | 후속 | 기본 허용 방식이라 허용 목록 키는 두지 않는다(§10 1번) |
 
 - 키 문법은 `F.wire-settings.spec` §3.8.1을 따른다. 정의는 `src/settings.ts`의 `defineSettings("l0.sandbox", …)`다.
-- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 작업 폴더 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
+- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. `sandboxImportedHooks`는 끄는 쪽이 넓히는 키라 같은 규칙을 받는다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 작업 폴더 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
 - 네트워크 키는 srt가 프로세스당 정책 하나라 `restart`다(`_research/notes/L0-1.md` §8). 실행 중 변경(`updateConfig`)은 2차에서 다시 본다.
 - 탭: `_research/settings.md` §4의 5번 탭 '샌드박스와 네트워크'에 둔다. F `SettingsTab`(`F.wire-settings.spec` §3.8.2)에 해당 값이 없어 `"sandbox"` 추가를 F에 요청한다(8.2절). 추가 전까지는 `"permissions"`에 둔다 [제안].
 - 시크릿 값 키는 없다.
@@ -666,7 +667,7 @@ export function selectSandboxProvider(input: {
 
 - `fresnel.sandbox`는 `on` 훅을 선언하지 않는다. 도구 실행 훅(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
-- 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안].
+- 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안]. 다만 승인된 가져온 훅의 기본 길(환경 모드)은 이 샌드박스 밖에서 돈다. 확장이 정책을 바꾸는 API는 여전히 없고, 이 길은 가져오기 검토를 승인한 사용자의 결정으로 열린다(X.loading-trust §3.8) [결정: 2026-11-20, 사용자, AGE-58].
 
 ## 8. 다른 문서와의 인터페이스
 

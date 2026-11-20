@@ -11,6 +11,12 @@ const storedAsk = (key: string): unknown =>
   key === "l0.sandbox.onUnavailable" ? "ask" : undefined;
 
 describe("sandbox settings", () => {
+  test("sandboxImportedHooks is off by default and only managed and user scopes may set it", () => {
+    const def = SANDBOX_SETTING_DEFS.find((d) => d.key === "l0.sandbox.sandboxImportedHooks");
+    expect(def?.default).toBe(false);
+    expect(def?.allowedScopes).toEqual(["managed", "user"]);
+  });
+
   test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.sandbox.enabled",
@@ -21,6 +27,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.network.blockedDomains",
       "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
+      "l0.sandbox.sandboxImportedHooks",
       "l0.sandbox.selfTestIntervalMin",
     ]);
     for (const def of SANDBOX_SETTING_DEFS) {

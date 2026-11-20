@@ -125,6 +125,20 @@ const sandboxSettings = defineSettings("l0.sandbox", {
     },
     since: "0.1.0",
   },
+  sandboxImportedHooks: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 108,
+      label: "Run imported hooks inside the sandbox",
+      help: "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+    },
+    since: "0.1.0",
+  },
   selfTestIntervalMin: {
     type: Type.Integer(),
     default: 60,

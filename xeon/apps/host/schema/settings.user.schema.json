@@ -913,6 +913,29 @@
         }
       }
     },
+    "l0.sandbox.sandboxImportedHooks": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+          "helpKey": "settings.l0.sandbox.sandboxImportedHooks.help",
+          "label": "Run imported hooks inside the sandbox",
+          "labelKey": "settings.l0.sandbox.sandboxImportedHooks.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.sandbox.selfTestIntervalMin": {
       "default": 60,
       "maximum": 1440,
