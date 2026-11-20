@@ -158,11 +158,6 @@ export interface SandboxPolicy {
    * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
    */
   readCarveOuts?: string[];
-  /**
-   * 참이면 이 호출에 설정 `l0.sandbox.protectedPaths.allowRead`(사용자가 고른 기본 보호 경로의 읽기 풀기)를 적용한다. 보통 프로필만 받고(`profile` 없음),
-   * 셸 도구의 호출만 참으로 둔다. 생략하면 풀지 않는다 [결정: 2026-11-20, 사용자, AGE-63]
-   */
-  userReadRelease?: boolean;
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -201,7 +196,6 @@ const sandboxPolicyShape = Type.Object(
     readCarveOuts: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
     ),
-    userReadRelease: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -210,6 +204,7 @@ export const SandboxPolicySchema: TUnsafe<SandboxPolicy> = Type.Unsafe<SandboxPo
   sandboxPolicyShape satisfies SchemaProof<SandboxPolicy, typeof sandboxPolicyShape>,
 );
 
+/** `read_write`는 읽기와 쓰기를 모두 거부한다. `write`는 쓰기만 거부한다(기본 자격 폴더는 이 값이다, L0.sandbox.spec §3.3) */
 export type ProtectedAccess = "read_write" | "write";
 export type ProtectedMatch = "exact" | "prefix" | "basename";
 
@@ -420,6 +415,16 @@ export type SandboxWrapError =
   | { readonly kind: "failed"; readonly message: string }
   | { readonly kind: "aborted" };
 
+/**
+ * 제안 목록의 이 기기 줄(AGE-63, L0.sandbox.spec §3.3.1). `path`는 설정 `extra`에 적는 모양(`~/…` 또는 절대 경로)이고,
+ * `key`는 같은 경로를 보호 경로 비교에 쓰는 정규 절대 경로다.
+ */
+export interface SuggestedProtectedPathView {
+  readonly path: string;
+  readonly label: string;
+  readonly key: string;
+}
+
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
@@ -439,8 +444,6 @@ export interface SandboxService {
     projectDir?: string;
     /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
     readCarveOuts?: readonly string[];
-    /** 보통 프로필에서만. 참이면 설정 `l0.sandbox.protectedPaths.allowRead`를 이 정책에 적용한다(셸 도구 호출용). 읽기만 풀고 쓰기는 막은 채다 */
-    userReadRelease?: boolean;
   }): SandboxPolicy;
   /**
    * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
@@ -448,6 +451,14 @@ export interface SandboxService {
    * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
+  /**
+   * 설정 `l0.sandbox.protectedPaths.extra`의 값 하나를 보호 경로 비교 키(정규 절대 경로)로 바꾼다. `resolveExtraPaths`와 같은 규칙이다
+   * (`~`와 `~/…`는 홈 기준, 절대 경로는 그대로, 있는 경로는 실제 경로로 푼다). 그 밖의 값은 undefined다.
+   * 같은 경로인지 견줄 때 쓴다(cap-workspace의 `sandbox_protect`는 이것으로 중복과 `/`·홈 거부를 정한다).
+   */
+  protectedPathKey(value: string): string | undefined;
+  /** 이 기기에서 제안되는 경로 줄(`suggestedProtectedPaths(platform)`). 기본은 쓰기만 막는 자격 폴더의 목록이고, 설정 extra에 적으면 읽기도 막힌다 */
+  suggestedProtectedPaths(): readonly SuggestedProtectedPathView[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
   /**

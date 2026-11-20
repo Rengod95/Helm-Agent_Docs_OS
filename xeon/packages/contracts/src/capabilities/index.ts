@@ -28,5 +28,6 @@ export * from "./defs/work.ts";
 export * from "./defs/dialog.ts";
 export * from "./defs/artifacts.ts";
 export * from "./defs/schedule.ts";
+export * from "./defs/protection.ts";
 export * from "./defs/agents.ts";
 export * from "./defs/models.ts";

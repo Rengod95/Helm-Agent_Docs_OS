@@ -193,7 +193,6 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
         "l0.sandbox.writeRoots.extra",
         "l0.sandbox.protectedPaths.extra",
         "l0.sandbox.network.blockedDomains",
-        "l0.sandbox.credentialFiles",
         "l0.sandbox.nestedNamespaces",
       ]),
     ],

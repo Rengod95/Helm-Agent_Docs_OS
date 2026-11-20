@@ -128,8 +128,11 @@ describe("wrapArgv", () => {
     const denyWrite = (fs?.denyWrite ?? []).map(String);
     expect(fs?.allowWrite).toContain(r.dirs.workspace);
     expect(denyRead).toContain(r.dirs.data);
-    expect(denyRead).toContain(join(r.dirs.home, ".ssh"));
-    expect(denyRead).toContain(join(r.dirs.workspace, ".env"));
+    // 자격 폴더와 이름 패턴은 기본으로 쓰기만 막는다
+    expect(denyRead).not.toContain(join(r.dirs.home, ".ssh"));
+    expect(denyRead).not.toContain(join(r.dirs.workspace, ".env"));
+    expect(denyWrite).toContain(join(r.dirs.home, ".ssh"));
+    expect(denyWrite).toContain(join(r.dirs.workspace, ".env"));
     expect(denyWrite).toContain(r.dirs.config);
     expect(denyWrite).toContain(join(r.dirs.workspace, ".git", "hooks"));
     expect("network" in (viaArgv?.customConfig ?? {})).toBe(false);

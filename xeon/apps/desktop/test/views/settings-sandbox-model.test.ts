@@ -17,7 +17,7 @@ describe("sandboxListKindOf", () => {
     expect(sandboxListKindOf("l0.sandbox.protectedPaths.extra")).toBe("paths");
     expect(sandboxListKindOf("l2.knowledge.skills.paths")).toBe("paths");
     expect(sandboxListKindOf("l0.sandbox.network.blockedDomains")).toBe("domains");
-    expect(sandboxListKindOf("l0.sandbox.credentialFiles")).toBeNull();
+    expect(sandboxListKindOf("l0.sandbox.nestedNamespaces")).toBeNull();
   });
 });
 

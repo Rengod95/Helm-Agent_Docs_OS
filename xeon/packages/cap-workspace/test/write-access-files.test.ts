@@ -16,10 +16,11 @@ import { memoryEnv } from "./support/memory-env.ts";
 const HOME = "/Users/me";
 const IDS = fixedIdFactory();
 const THREAD: ThreadId = IDS.next("thr");
+// 기본 보호 경로(L0.sandbox.spec §3.3, AGE-63): 자격 폴더와 이름 패턴은 쓰기만 막는다. 쓰기 질문을 묻지 않고 거부하는 것이 시험 대상이다
 const PROTECTED: readonly ProtectedPathEntry[] = [
-  { path: `${HOME}/.ssh`, match: "prefix", access: "read_write", reason: "credentials" },
-  { path: `${HOME}/.claude`, match: "prefix", access: "read_write", reason: "credentials" },
-  { path: ".env", match: "basename", access: "read_write", reason: "secret_key" },
+  { path: `${HOME}/.ssh`, match: "prefix", access: "write", reason: "credentials" },
+  { path: `${HOME}/.claude`, match: "prefix", access: "write", reason: "agent_credentials" },
+  { path: ".env", match: "basename", access: "write", reason: "credentials" },
 ];
 
 type Answer = "allow" | "allow_all" | "deny";

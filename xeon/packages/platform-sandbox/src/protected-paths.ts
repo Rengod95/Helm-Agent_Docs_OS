@@ -7,16 +7,377 @@ import {
   type ProtectedAccess,
   type ProtectedMatch,
   type ProtectedPathEntry,
+  type SandboxPlatform,
 } from "@fresnel/contracts/services";
 import { canonicalizePath, toAbsolutePath } from "./paths.ts";
 
 /** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3). basename 항목을 쓰기 루트 아래에서 찾을 때 쓴다 */
 export const BASENAME_SEARCH_DEPTH = 3;
 
-// L0.sandbox.spec §3.3. 보호 경로는 줄일 수 없고 설정으로 더할 수만 있다.
+// L0.sandbox.spec §3.3. [결정: 2026-11-20, 사용자, AGE-63 "전체 허용, 막을 부분만 대화로 더한다"]
+// 기본은 읽기를 막지 않는다. 자격 폴더·파일은 쓰기만 막고, 읽기까지 막을 것은 설정 `l0.sandbox.protectedPaths.extra`로 고른다.
+// Fresnel 자신의 시크릿·데이터·설정은 읽기도 거부한다(아래 `secret_key`, `fresnel_data` 항목).
 
 type Reason = ProtectedPathEntry["reason"];
 type ProtectedDirs = Pick<OsDirs, "home" | "data" | "config">;
+
+/** 제안 목록의 OS 구분. `all`은 모든 OS다 */
+export type SuggestedOs = "all" | "darwin" | "linux";
+
+/**
+ * 제안 목록의 경로 한 줄. 기본으로는 쓰기만 막고, 설정 `l0.sandbox.protectedPaths.extra`에 `path`를 적으면 셸 도구와 파일 도구가
+ * 읽기와 쓰기를 모두 막는다. `path`는 설정 값과 같은 모양이다(`~/…` 또는 절대 경로). 표시와 제안에 쓴다.
+ */
+export interface SuggestedProtectedPath {
+  readonly path: string;
+  readonly match: "exact" | "prefix";
+  readonly reason: "credentials" | "agent_credentials";
+  readonly os: SuggestedOs;
+  /** 설정 화면이나 제안 문장에 쓰는 짧은 이름(영어) */
+  readonly label: string;
+}
+
+/**
+ * 제안 목록의 이름 패턴 한 줄(`.env`, `.env.*`). 기본으로는 쓰기만 막는다. 설정 `extra`는 경로만 받으므로 이 패턴은 거기서 고를 수 없다
+ * (`appliesViaExtra`는 항상 거짓이다).
+ */
+export interface SuggestedNamePattern {
+  readonly pattern: string;
+  readonly except: readonly string[];
+  readonly reason: "credentials";
+  readonly label: string;
+  readonly appliesViaExtra: false;
+}
+
+/**
+ * 제안 목록: 이전 기본값에서 읽기를 막던 자격 경로다(L0.sandbox.spec §3.3). 기본 항목의 정본이다. 기본으로는 이 목록을 쓰기 전용으로 만들고,
+ * 읽기까지 막으려면 사용자가 설정 `extra`에 적는다. CLI 인증 파일(`~/.npmrc` 등)은 원래 읽기를 허용했다. 막으려면 여기서 골라 `extra`에 적는다.
+ * 브라우저 프로필과 메신저·메일 데이터는 없다(막지 않는다). 막으려면 `extra`에 직접 적는다.
+ */
+export const SUGGESTED_PROTECTED_PATHS: readonly SuggestedProtectedPath[] = [
+  // 클라우드·배포 자격
+  { path: "~/.ssh", match: "prefix", reason: "credentials", os: "all", label: "SSH keys" },
+  { path: "~/.aws", match: "prefix", reason: "credentials", os: "all", label: "AWS credentials" },
+  {
+    path: "~/.kube",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "Kubernetes config",
+  },
+  {
+    path: "~/.config/gcloud",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "Google Cloud credentials",
+  },
+  {
+    path: "~/.azure",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "Azure credentials",
+  },
+  {
+    path: "~/.git-credentials",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "Git stored credentials",
+  },
+  { path: "~/.gnupg", match: "prefix", reason: "credentials", os: "all", label: "GnuPG keys" },
+  {
+    path: "~/.password-store",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "pass password store",
+  },
+  {
+    path: "~/.config/op",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "1Password CLI",
+  },
+  { path: "~/.op", match: "prefix", reason: "credentials", os: "all", label: "1Password CLI data" },
+  {
+    path: "~/.config/glab-cli",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "GitLab CLI tokens",
+  },
+  {
+    path: "~/.cargo/credentials.toml",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "Cargo registry token",
+  },
+  {
+    path: "~/.cargo/credentials",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "Cargo registry token (older)",
+  },
+  {
+    path: "~/.gem/credentials",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "RubyGems key",
+  },
+  {
+    path: "~/.terraform.d/credentials.tfrc.json",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "Terraform Cloud token",
+  },
+  // 다른 AI 하네스의 인증·토큰 폴더(`~/.claude`와 같은 기준)
+  {
+    path: "~/.claude",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "Claude Code tokens",
+  },
+  {
+    path: "~/.codex",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "Codex tokens",
+  },
+  { path: "~/.pi", match: "prefix", reason: "agent_credentials", os: "all", label: "Pi tokens" },
+  {
+    path: "~/.gemini",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "Gemini CLI tokens",
+  },
+  {
+    path: "~/.cursor",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "Cursor tokens",
+  },
+  {
+    path: "~/.config/github-copilot",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "GitHub Copilot tokens",
+  },
+  {
+    path: "~/.config/opencode",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "opencode config",
+  },
+  {
+    path: "~/.local/share/opencode",
+    match: "prefix",
+    reason: "agent_credentials",
+    os: "all",
+    label: "opencode auth",
+  },
+  // CLI 인증 파일: 기본으로 읽을 수 있고 쓰기는 항상 막는다. 읽기도 막으려면 여기서 골라 `extra`에 적는다
+  {
+    path: "~/.config/gh",
+    match: "prefix",
+    reason: "credentials",
+    os: "all",
+    label: "GitHub CLI tokens",
+  },
+  { path: "~/.netrc", match: "exact", reason: "credentials", os: "all", label: "netrc logins" },
+  {
+    path: "~/.docker/config.json",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "Docker registry logins",
+  },
+  {
+    path: "~/.npmrc",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "npm registry tokens",
+  },
+  {
+    path: "~/.pypirc",
+    match: "exact",
+    reason: "credentials",
+    os: "all",
+    label: "PyPI upload tokens",
+  },
+  // macOS: 키체인, 쿠키, 비밀번호 관리자
+  {
+    path: "/Library/Keychains",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "System keychains",
+  },
+  {
+    path: "~/Library/Keychains",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "Login keychain",
+  },
+  {
+    path: "~/Library/Cookies",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "Cookie store",
+  },
+  {
+    path: "~/Library/Application Support/1Password",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "1Password data",
+  },
+  {
+    path: "~/Library/Application Support/Bitwarden",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "Bitwarden data",
+  },
+  {
+    path: "~/Library/Application Support/KeePassXC",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "KeePassXC data",
+  },
+  {
+    path: "~/Library/Group Containers/2BUA8C4S2C.com.1password",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "1Password group container",
+  },
+  {
+    path: "~/Library/Containers/com.1password.1password",
+    match: "prefix",
+    reason: "credentials",
+    os: "darwin",
+    label: "1Password container",
+  },
+  // Linux: 비밀번호 관리자와 키링
+  {
+    path: "~/.config/1Password",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "1Password data",
+  },
+  {
+    path: "~/.config/Bitwarden",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "Bitwarden data",
+  },
+  {
+    path: "~/.config/KeePassXC",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "KeePassXC data",
+  },
+  {
+    path: "~/.config/keepassxc",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "KeePassXC data (lowercase)",
+  },
+  {
+    path: "~/.local/share/keyrings",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "Keyring",
+  },
+  {
+    path: "~/.local/share/kwalletd",
+    match: "prefix",
+    reason: "credentials",
+    os: "linux",
+    label: "KWallet",
+  },
+];
+
+/** 제안 목록의 이름 패턴. 기본으로 쓰기만 막는다(L0.sandbox.spec §3.3). 설정 `extra`로는 고를 수 없다 */
+export const SUGGESTED_NAME_PATTERNS: readonly SuggestedNamePattern[] = [
+  {
+    pattern: ".env",
+    except: [".env.example"],
+    reason: "credentials",
+    label: "Environment file (.env)",
+    appliesViaExtra: false,
+  },
+  {
+    pattern: ".env.*",
+    except: [".env.example"],
+    reason: "credentials",
+    label: "Environment files (.env.*)",
+    appliesViaExtra: false,
+  },
+];
+
+/**
+ * 이 OS에서 제안되는 경로 줄. darwin은 `all`과 `darwin`, linux와 wsl2는 `all`과 `linux`, 그 밖의 OS는 `all`만이다.
+ * 설정 화면과 나중의 도구(제안하기)가 쓴다. 표 전체는 `SUGGESTED_PROTECTED_PATHS`다.
+ */
+export function suggestedProtectedPaths(
+  platform: SandboxPlatform,
+): readonly SuggestedProtectedPath[] {
+  const os =
+    platform === "darwin"
+      ? "darwin"
+      : platform === "linux" || platform === "wsl2"
+        ? "linux"
+        : undefined;
+  return SUGGESTED_PROTECTED_PATHS.filter((row) => row.os === "all" || row.os === os);
+}
+
+/** 기본 항목의 경로(`~/…` 또는 절대 경로)를 이 기기의 정규 절대 경로로 푼다 */
+function resolveSuggested(path: string, home: string): string {
+  return canonicalizePath(toAbsolutePath(path, home, "/"));
+}
+
+/** 제안 줄 하나를 쓰기 전용 기본 항목으로 만든다 */
+function writeOnlyEntry(row: SuggestedProtectedPath, home: string): ProtectedPathEntry {
+  return {
+    path: resolveSuggested(row.path, home),
+    match: row.match,
+    access: "write",
+    reason: row.reason,
+  };
+}
+
+/**
+ * provider가 쓰는 OS별 제안 항목(쓰기 전용). 공통 줄(`all`)은 `buildProtectedPaths`가 만든다.
+ * 여기 있는 줄과 `SUGGESTED_PROTECTED_PATHS`가 같은 표이므로 OS별 목록을 두 곳에 적지 않는다.
+ */
+export function osCredentialEntries(home: string, os: "darwin" | "linux"): ProtectedPathEntry[] {
+  return SUGGESTED_PROTECTED_PATHS.filter((row) => row.os === os).map((row) =>
+    writeOnlyEntry(row, home),
+  );
+}
 
 function entry(
   path: string,
@@ -39,16 +400,6 @@ function pathEntry(
   return entry(canonicalizePath(path), match, access, reason);
 }
 
-function homeEntries(
-  home: string,
-  names: readonly string[],
-  match: "exact" | "prefix",
-  access: ProtectedAccess,
-  reason: Reason,
-): ProtectedPathEntry[] {
-  return names.map((name) => pathEntry(posix.join(home, name), match, access, reason));
-}
-
 /** 설정 `protectedPaths.extra`의 값을 절대 경로로 풀고, 풀 수 없는 값을 따로 돌려준다 */
 export function resolveExtraPaths(
   extra: readonly string[],
@@ -68,51 +419,25 @@ export function resolveExtraPaths(
 
 export interface ProtectedPathInput {
   readonly dirs: ProtectedDirs;
-  /** SandboxProvider.defaultProtectedPaths(dirs) */
+  /** SandboxProvider.defaultProtectedPaths(dirs). OS별 쓰기 전용 자격 항목과 지속 실행 등록 */
   readonly providerEntries: readonly ProtectedPathEntry[];
   /** SecretService.protectedPaths(): 시크릿 파일 절대 경로. 값 없음 */
   readonly secretPaths: readonly string[];
   /** 부모 env의 SOPS_AGE_KEY_FILE */
   readonly ageKeyFileEnv: string | undefined;
-  /** l0.sandbox.protectedPaths.extra를 resolveExtraPaths로 푼 값 */
+  /** l0.sandbox.protectedPaths.extra를 resolveExtraPaths로 푼 값. 읽기와 쓰기를 모두 막는다 */
   readonly extraPaths: readonly string[];
-  /**
-   * 참이면 CLI 인증 파일(CREDENTIAL_READABLE_PATHS)의 읽기를 허용하고 쓰기만 거부한다(M3-REQ-55 기본).
-   * 거짓이면 읽기와 쓰기를 모두 거부한다(`l0.sandbox.credentialFiles = "deny"`)
-   */
-  readonly credentialReadAllowed: boolean;
 }
 
-/** 읽기 허용이 기본인 CLI 인증 파일. 개인 키와 클라우드 자격은 여기 없고 항상 읽기도 거부한다 */
-const CREDENTIAL_READABLE_PREFIX = [".config/gh"] as const;
-const CREDENTIAL_READABLE_EXACT = [".netrc", ".docker/config.json", ".npmrc", ".pypirc"] as const;
-
-/**
- * 홈 아래 시크릿 폴더·파일(읽기·쓰기 거부). 평소 도구가 일하려고 읽는 설정(`~/.gitconfig`, `.npmrc`의 레지스트리 주소 등)은 여기 없다.
- * 그런 것은 위의 CREDENTIAL_READABLE_*(설정으로 고른다)에 있거나 막지 않는다(L0.sandbox.spec §3.3).
- * 브라우저·메신저·비밀번호 관리자 폴더는 OS마다 자리가 달라 provider가 낸다(providers/*.ts).
- */
-const SECRET_HOME_PREFIX = [
-  ".gnupg",
-  ".password-store",
-  ".azure",
-  ".config/op",
-  ".op",
-  ".config/glab-cli",
-] as const;
-const SECRET_HOME_EXACT = [
-  ".cargo/credentials.toml",
-  ".cargo/credentials",
-  ".gem/credentials",
-  ".terraform.d/credentials.tfrc.json",
-] as const;
-/** 다른 AI 하네스의 인증·토큰이 든 폴더(`~/.claude`와 같은 기준) */
-const AGENT_HOME_PREFIX = [
-  ".gemini",
-  ".cursor",
-  ".config/github-copilot",
-  ".config/opencode",
-  ".local/share/opencode",
+/** 홈 아래 기본 쓰기 전용 항목이 쓰는 셸 시작 파일(쓰기 거부, 읽기 허용) */
+const SHELL_STARTUP_FILES = [
+  ".bashrc",
+  ".bash_profile",
+  ".zshrc",
+  ".zprofile",
+  ".zshenv",
+  ".profile",
+  ".gitconfig",
 ] as const;
 
 /** 작업 공간 root마다 붙는 git 실행 경로(L0.sandbox.spec §3.3 git_exec 행) */
@@ -145,12 +470,12 @@ function dedupe(entries: readonly ProtectedPathEntry[]): ProtectedPathEntry[] {
 /**
  * 기본 보호 경로(공통 표 + provider 항목 + 시크릿 경로 + 설정 추가분). 작업 공간 root별 git 항목은 제외한다.
  * 더 구체적인 항목(시크릿)을 앞에 둔다. matchProtectedPath는 맞는 첫 항목을 돌려주기 때문이다.
+ * 읽기 거부는 `read_write` 항목만 만든다. `write` 항목은 쓰기만 막는다(자격 폴더의 기본 상태).
  */
 export function buildProtectedPaths(input: ProtectedPathInput): readonly ProtectedPathEntry[] {
   const { home, data, config } = input.dirs;
-  const credentialAccess: ProtectedAccess = input.credentialReadAllowed ? "write" : "read_write";
   const entries: ProtectedPathEntry[] = [
-    // 시크릿
+    // 시크릿: Fresnel 자신의 것이라 읽기도 거부한다
     pathEntry(posix.join(config, "secrets"), "prefix", "read_write", "secret_key"),
     ...input.secretPaths
       .filter((path) => posix.isAbsolute(path))
@@ -168,36 +493,21 @@ export function buildProtectedPaths(input: ProtectedPathInput): readonly Protect
     // Fresnel 데이터와 설정
     pathEntry(data, "prefix", "read_write", "fresnel_data"),
     pathEntry(config, "prefix", "write", "fresnel_config"),
-    // 자격 파일
-    pathEntry(posix.join(home, ".ssh"), "prefix", "read_write", "credentials"),
-    entry(".env", "basename", "read_write", "credentials", [".env.example"]),
-    entry(".env.*", "basename", "read_write", "credentials", [".env.example"]),
-    ...homeEntries(home, [".claude", ".codex", ".pi"], "prefix", "read_write", "agent_credentials"),
-    ...homeEntries(
-      home,
-      [".aws", ".kube", ".config/gcloud"],
-      "prefix",
-      "read_write",
-      "credentials",
+    // 자격 경로(제안 목록의 공통 줄)와 이름 패턴: 기본은 쓰기만 막는다
+    ...SUGGESTED_PROTECTED_PATHS.filter((row) => row.os === "all").map((row) =>
+      writeOnlyEntry(row, home),
     ),
-    ...homeEntries(home, [".git-credentials"], "exact", "read_write", "credentials"),
-    ...homeEntries(home, SECRET_HOME_PREFIX, "prefix", "read_write", "credentials"),
-    ...homeEntries(home, SECRET_HOME_EXACT, "exact", "read_write", "credentials"),
-    ...homeEntries(home, AGENT_HOME_PREFIX, "prefix", "read_write", "agent_credentials"),
-    ...homeEntries(home, CREDENTIAL_READABLE_PREFIX, "prefix", credentialAccess, "credentials"),
-    ...homeEntries(home, CREDENTIAL_READABLE_EXACT, "exact", credentialAccess, "credentials"),
+    ...SUGGESTED_NAME_PATTERNS.map((pattern) =>
+      entry(pattern.pattern, "basename", "write", pattern.reason, pattern.except),
+    ),
     // 셸 시작 파일
-    ...homeEntries(
-      home,
-      [".bashrc", ".bash_profile", ".zshrc", ".zprofile", ".zshenv", ".profile", ".gitconfig"],
-      "exact",
-      "write",
-      "shell_startup",
+    ...SHELL_STARTUP_FILES.map((name) =>
+      pathEntry(posix.join(home, name), "exact", "write", "shell_startup"),
     ),
     // 지속 실행 등록
     pathEntry(posix.join(home, ".local", "bin"), "prefix", "write", "persistence"),
     ...input.providerEntries,
-    // 설정 추가분
+    // 설정 추가분: 읽기와 쓰기를 모두 막는다
     ...input.extraPaths.map((path) => pathEntry(path, "prefix", "read_write", "user_extra")),
   ];
   return dedupe(entries);
@@ -216,18 +526,27 @@ function nameMatches(pattern: string, name: string): boolean {
   return pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : pattern === name;
 }
 
+/** `expandBasenameEntries`의 결과. 두 목록 모두 정렬되어 있고 중복이 없다 */
+export interface BasenameExpansion {
+  /** 읽기도 거부하는 파일(`read_write` 이름 항목이 맞은 것) */
+  readonly readFiles: string[];
+  /** 쓰기를 거부하는 파일(읽기 전용 이름 항목이 맞은 것을 포함한 모든 맞은 파일) */
+  readonly writeFiles: string[];
+}
+
 /**
  * basename 항목을 쓰기 루트 아래 파일의 리터럴 경로로 바꾼다. 깊이 `depth`까지 훑고 심볼릭 링크 디렉터리는 따라가지 않는다.
- * 실행 중 새로 생긴 파일은 덮지 못한다(L0.sandbox.spec §5.1). 결과는 중복 없이 정렬한다.
+ * 실행 중 새로 생긴 파일은 덮지 못한다(L0.sandbox.spec §5.1). 한 번 훑어 읽기 거부 파일과 쓰기 거부 파일을 함께 돌려준다.
  */
 export function expandBasenameEntries(
   entries: readonly ProtectedPathEntry[],
   roots: readonly string[],
   depth: number,
-): string[] {
+): BasenameExpansion {
   const patterns = entries.filter((item) => item.match === "basename");
-  if (patterns.length === 0) return [];
-  const found = new Set<string>();
+  const readFiles = new Set<string>();
+  const writeFiles = new Set<string>();
+  if (patterns.length === 0) return { readFiles: [], writeFiles: [] };
   const visit = (dir: string, remaining: number): void => {
     const listed = attempt(() => readdirSync(dir, { withFileTypes: true }));
     // 읽을 수 없는 디렉터리는 탐색하지 않는다. 그 아래 basename 항목은 후보에 오르지 않는다
@@ -238,14 +557,16 @@ export function expandBasenameEntries(
         if (remaining > 1) visit(full, remaining - 1);
         continue;
       }
-      const hit = patterns.some(
+      const hits = patterns.filter(
         (item) => nameMatches(item.path, child.name) && !(item.except ?? []).includes(child.name),
       );
-      if (hit) found.add(full);
+      if (hits.length === 0) continue;
+      writeFiles.add(full);
+      if (hits.some((item) => item.access === "read_write")) readFiles.add(full);
     }
   };
   for (const root of roots) visit(root, depth);
-  return [...found].toSorted();
+  return { readFiles: [...readFiles].toSorted(), writeFiles: [...writeFiles].toSorted() };
 }
 
 /**
@@ -265,99 +586,4 @@ export function dropProtectedWriteRoots(
     else removed.push(root);
   }
   return { kept, removed };
-}
-
-/** 설정 `protectedPaths.allowRead`로 풀 수 없는 기본 보호 경로의 이유 코드: 이 제품 자신의 시크릿·데이터·설정 */
-const PINNED_REASONS: ReadonlySet<Reason> = new Set<Reason>([
-  "secret_key",
-  "fresnel_data",
-  "fresnel_config",
-]);
-/** 풀 수 없는 OS 키체인(홈 아래와 시스템). provider가 `credentials`로 내므로 경로로 고른다 */
-const PINNED_KEYCHAIN_HOME = [
-  "Library/Keychains",
-  ".local/share/keyrings",
-  ".local/share/kwalletd",
-];
-const PINNED_KEYCHAIN_ABSOLUTE = ["/Library/Keychains"];
-
-/** 이 항목은 `protectedPaths.allowRead`로 풀 수 없다(L0.sandbox.spec §3.3.1) */
-function isPinnedEntry(item: ProtectedPathEntry, home: string): boolean {
-  if (PINNED_REASONS.has(item.reason)) return true;
-  if (item.match === "basename") return false;
-  const keychains = [
-    ...PINNED_KEYCHAIN_HOME.map((name) => canonicalizePath(posix.join(home, name))),
-    ...PINNED_KEYCHAIN_ABSOLUTE.map((path) => canonicalizePath(path)),
-  ];
-  return keychains.includes(item.path);
-}
-
-export interface ReadReleaseResult {
-  readonly entries: readonly ProtectedPathEntry[];
-  /** 보호 경로 안쪽을 다시 읽게 하는 경로(항목 자체를 푼 것은 없다) */
-  readonly carved: readonly string[];
-  /** 풀지 않은 값의 개수(값은 싣지 않는다) */
-  readonly ignored: { readonly unknown: number; readonly pinned: number };
-}
-
-function trimSlash(value: string): string {
-  return value.length > 1 ? value.replace(/\/+$/, "") : value;
-}
-
-function samePath(a: string, b: string): boolean {
-  return trimSlash(a) === trimSlash(b);
-}
-
-/**
- * 사용자가 고른 경로(정규 절대 경로)로 기본 보호 경로의 읽기를 푼다. 쓰기 거부는 그대로다. 줄이지 않는 규칙은 지킨다: 목록은 남고 항목의 접근만 `write`로 낮아진다.
- * - 항목의 경로와 같으면 그 항목을 `write`(읽기 허용, 쓰기 거부)로 바꾼다.
- * - 항목 안쪽이면 항목은 두고 `carved`에 담는다(읽기 예외, 쓰기는 항목이 계속 막는다).
- * - 어떤 읽기 거부 항목에도 들지 않으면 `unknown`, 풀 수 없는 항목에 들거나 그것을 품으면 `pinned`다. 둘 다 아무것도 풀지 않는다.
- * basename 항목(`.env`)은 이름 규칙이라 경로로 고를 수 없다.
- */
-export function applyReadRelease(
-  entries: readonly ProtectedPathEntry[],
-  chosen: readonly string[],
-  home: string,
-): ReadReleaseResult {
-  const pathEntries = entries.filter((item) => item.match !== "basename");
-  const unlock = new Set<ProtectedPathEntry>();
-  const carved: string[] = [];
-  let unknown = 0;
-  let pinned = 0;
-  for (const path of new Set(chosen)) {
-    const hits = pathEntries.filter(
-      (item) =>
-        item.access === "read_write" && matchProtectedPath([item], path, "read") !== undefined,
-    );
-    if (hits.length === 0) {
-      unknown += 1;
-      continue;
-    }
-    const containsPinned = pathEntries.some(
-      (item) =>
-        isPinnedEntry(item, home) &&
-        (matchProtectedPath([item], path, "write") !== undefined ||
-          matchProtectedPath([{ ...item, path, match: "prefix" }], item.path, "write") !==
-            undefined),
-    );
-    if (containsPinned) {
-      pinned += 1;
-      continue;
-    }
-    let carve = false;
-    for (const hit of hits) {
-      if (samePath(hit.path, path)) unlock.add(hit);
-      else carve = true;
-    }
-    if (carve) carved.push(path);
-  }
-  const released = entries.map((item): ProtectedPathEntry =>
-    unlock.has(item) ? { ...item, access: "write" } : item,
-  );
-  return {
-    entries: dedupe(released),
-    carved: [...new Set(carved)].toSorted(),
-    ignored: { unknown, pinned },
-  };
 }

@@ -42,11 +42,11 @@ import {
 } from "./policy.ts";
 import {
   BASENAME_SEARCH_DEPTH,
-  applyReadRelease,
   buildProtectedPaths,
   dropProtectedWriteRoots,
   expandBasenameEntries,
   resolveExtraPaths,
+  suggestedProtectedPaths,
   withGitEntries,
 } from "./protected-paths.ts";
 import { runSelfTest, SELF_TEST_ITEM_IDS } from "./self-test.ts";
@@ -178,7 +178,6 @@ export async function createSandboxService(
       secretPaths: deps.secrets?.protectedPaths() ?? [],
       ageKeyFileEnv: ageKeyFile,
       extraPaths: extra.resolved,
-      credentialReadAllowed: deps.settings().credentialFiles === "allow",
     });
   };
 
@@ -257,19 +256,6 @@ export async function createSandboxService(
     if (rejected.length > 0) {
       logger.warn("sandbox.protected_path_extra_rejected", { count: rejected.length });
     }
-    // 읽기 풀기 값 가운데 풀리지 않는 것(상대 경로, 기본 목록 밖, 풀 수 없는 항목)은 개수만 남긴다. 값은 싣지 않는다
-    const releaseValues = deps.settings().protectedPathsAllowRead;
-    if (releaseValues.length > 0) {
-      const chosen = resolveExtraPaths(releaseValues, dirs.home);
-      const { ignored } = applyReadRelease(baseProtectedEntries(), chosen.resolved, dirs.home);
-      if (chosen.rejected.length + ignored.unknown + ignored.pinned > 0) {
-        logger.warn("sandbox.protected_path_release_ignored", {
-          relative: chosen.rejected.length,
-          unknown: ignored.unknown,
-          pinned: ignored.pinned,
-        });
-      }
-    }
     const status = currentStatus(true);
     logStatus(logger, status);
     return status;
@@ -285,22 +271,12 @@ export async function createSandboxService(
   /** 쓰기 루트 후보에 git 항목을 더하고, 보호 경로 안의 루트를 지운다 */
   const analyzeRoots = (
     roots: readonly string[],
-    release = false,
   ): {
     readonly entries: readonly ProtectedPathEntry[];
     readonly kept: string[];
     readonly pathEntries: readonly ProtectedPathEntry[];
-    readonly carved: readonly string[];
   } => {
-    // 읽기 풀기는 셸 도구 호출(policy.userReadRelease)에만 쓴다. 파일 도구의 보호 경로와 다른 프로필은 풀지 않는다
-    const released = release
-      ? applyReadRelease(
-          baseProtectedEntries(),
-          resolveExtraPaths(deps.settings().protectedPathsAllowRead, dirs.home).resolved,
-          dirs.home,
-        )
-      : undefined;
-    const entries = withGitEntries(released?.entries ?? baseProtectedEntries(), roots);
+    const entries = withGitEntries(baseProtectedEntries(), roots);
     const { kept, removed } = dropProtectedWriteRoots(roots, entries);
     if (removed.length > 0) logger.warn("sandbox.write_root_removed", { roots: removed });
     for (const root of kept) knownRoots.add(root);
@@ -308,7 +284,6 @@ export async function createSandboxService(
       entries,
       kept,
       pathEntries: entries.filter((entry) => entry.match !== "basename"),
-      carved: released?.carved ?? [],
     };
   };
 
@@ -329,16 +304,14 @@ export async function createSandboxService(
       policy,
       protectedReadDeny: [],
       protectedWriteDeny: [],
-      basenameFiles: [],
+      basenameReadFiles: [],
+      basenameWriteFiles: [],
       extraWriteRoots: readOnly || scriptEnv ? [] : deps.settings().writeRootsExtra,
       home: dirs.home,
       base: baseDir,
     };
-    const release = policy.userReadRelease === true && policy.profile === undefined;
-    const { entries, kept, pathEntries, carved } = analyzeRoots(
-      readOnly ? [] : candidateWriteRoots(input),
-      release,
-    );
+    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidateWriteRoots(input));
+    const names = expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH);
     const merged = mergePolicy(
       {
         ...input,
@@ -349,7 +322,8 @@ export async function createSandboxService(
           .filter((entry) => entry.access === "read_write" && entry.reason === "fresnel_data")
           .map((entry) => entry.path),
         protectedWriteDeny: pathEntries.map((entry) => entry.path),
-        basenameFiles: expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH),
+        basenameReadFiles: names.readFiles,
+        basenameWriteFiles: names.writeFiles,
       },
       kept,
     );
@@ -360,7 +334,7 @@ export async function createSandboxService(
         writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]),
       };
     }
-    return carved.length === 0 ? merged : { ...merged, readCarve: carved };
+    return merged;
   };
 
   const wrapDeps = (withSelfTest: boolean): WrapShellDeps => ({
@@ -462,10 +436,8 @@ export async function createSandboxService(
         canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
       ),
     );
-    const release = input.userReadRelease === true;
-    const { kept, pathEntries } = analyzeRoots(roots, release);
+    const { kept, pathEntries } = analyzeRoots(roots);
     return {
-      ...(release ? { userReadRelease: true } : {}),
       writeRoots: kept,
       readDeny: sortedUnique(
         pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
@@ -587,6 +559,12 @@ export async function createSandboxService(
     // 호출한 쪽이 넘긴 root도 git 항목을 받는다. knownRoots는 bash 정책을 만든 뒤에야 차므로 그것만 쓰면 첫 파일 쓰기가 열린다
     protectedPaths: (roots) =>
       withGitEntries(baseProtectedEntries(), [...knownRoots, ...(roots ?? [])]),
+    protectedPathKey: (value) => resolveExtraPaths([value], dirs.home).resolved[0],
+    suggestedProtectedPaths: () =>
+      suggestedProtectedPaths(currentStatus(false).platform).flatMap((row) => {
+        const key = resolveExtraPaths([row.path], dirs.home).resolved[0];
+        return key === undefined ? [] : [{ path: row.path, label: row.label, key }];
+      }),
     wrapShell: (shell, policy) => wrapShellWith(wrapDeps(true), shell, policy),
     wrapArgv: (policy, request, context) => wrapArgvWith(wrapDeps(true), policy, request, context),
     autoAllow: (policy, request) =>

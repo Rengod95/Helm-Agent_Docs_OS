@@ -15,6 +15,14 @@ export {
 } from "./settings.ts";
 export type { SrtPort } from "./srt.ts";
 export {
+  SUGGESTED_NAME_PATTERNS,
+  SUGGESTED_PROTECTED_PATHS,
+  suggestedProtectedPaths,
+  type SuggestedNamePattern,
+  type SuggestedOs,
+  type SuggestedProtectedPath,
+} from "./protected-paths.ts";
+export {
   decideMcpStdioSandbox,
   shellForMcpStdio,
   type McpStdioSandboxDecision,

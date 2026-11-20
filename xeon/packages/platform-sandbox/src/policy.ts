@@ -12,8 +12,6 @@ export interface EffectivePolicy {
   readonly writeDeny: readonly string[];
   /** 읽기 허용 목록. 있으면 허용 목록 방식이다(`SandboxPolicy.readAllow`). 보호 경로를 품은 항목은 빠져 있다 */
   readonly readAllow?: readonly string[];
-  /** 설정 `protectedPaths.allowRead`로 보호 경로 안쪽을 다시 읽게 하는 경로. 거부 목록 방식에서 srt `allowRead`로 보낸다 */
-  readonly readCarve?: readonly string[];
 }
 
 /** 상태 탐지가 찾은 헬퍼 절대 경로(L0.sandbox.spec §3.2 마지막 행, §5.3) */
@@ -36,8 +34,10 @@ export interface PolicyInput {
    * 이 경로를 품은 넓은 항목만 뺀다. 검토본 사본(`<data>/plugin-store/reviewed/…/tree`)을 격리 플러그인이 읽으려면 필요하다
    */
   readonly carvableReadDeny?: readonly string[];
-  /** basename 항목을 쓰기 루트 아래에서 전개한 파일 경로 */
-  readonly basenameFiles: readonly string[];
+  /** basename 항목 가운데 읽기도 거부하는 것(`read_write`)을 쓰기 루트 아래에서 전개한 파일 경로 */
+  readonly basenameReadFiles: readonly string[];
+  /** basename 항목을 쓰기 루트 아래에서 전개한 파일 경로(쓰기 거부. 읽기 거부 파일도 포함한다) */
+  readonly basenameWriteFiles: readonly string[];
   /** 설정 l0.sandbox.writeRoots.extra */
   readonly extraWriteRoots: readonly string[];
   readonly home: string;
@@ -60,7 +60,7 @@ export function mergePolicy(
 ): EffectivePolicy {
   const { home, base } = input;
   const readDeny = normalizeAll(
-    [...input.policy.readDeny, ...input.protectedReadDeny, ...input.basenameFiles],
+    [...input.policy.readDeny, ...input.protectedReadDeny, ...input.basenameReadFiles],
     home,
     base,
   );
@@ -69,7 +69,7 @@ export function mergePolicy(
       ...input.policy.writeDeny,
       ...input.policy.readDeny,
       ...input.protectedWriteDeny,
-      ...input.basenameFiles,
+      ...input.basenameWriteFiles,
     ],
     home,
     base,
@@ -121,11 +121,7 @@ export function toSrtFileConfig(policy: EffectivePolicy): SrtCommandConfig {
         policy.readAllow === undefined
           ? policy.readDeny.map(toPathEntry)
           : ["/", ...policy.readDeny.map(toPathEntry)],
-      ...(policy.readAllow === undefined
-        ? policy.readCarve === undefined
-          ? {}
-          : { allowRead: policy.readCarve.map(toPathEntry) }
-        : { allowRead: policy.readAllow.map(toPathEntry) }),
+      ...(policy.readAllow === undefined ? {} : { allowRead: policy.readAllow.map(toPathEntry) }),
       denyWrite: policy.writeDeny.map(toPathEntry),
       allowGitConfig: false,
     },

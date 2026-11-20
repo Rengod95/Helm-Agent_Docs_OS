@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { matchProtectedPath } from "@fresnel/contracts/services";
+import { canonicalizePath } from "../src/paths.ts";
 import { createSandboxService } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";
 import {
+  darwinPlatform,
   fakeOs,
   fakeSrt,
   linuxPlatform,
@@ -180,5 +182,64 @@ describe("defaultPolicy no-write with systemTools", () => {
     // 시스템 도구 폴더가 없는 제공자 쪽(여기서는 bwrap)은 Seatbelt 전용 막기를 싣지 않는다
     expect(tools.toolDeny ?? []).toEqual([]);
     expect(tools.machDeny ?? []).toEqual([]);
+  });
+});
+
+describe("protected path keys and the suggested list (AGE-63)", () => {
+  test("protectedPathKey resolves ~, ~/ and absolute values the way the extra list does, and refuses other shapes", async () => {
+    const dirs = makeTestDirs();
+    const service = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    expect(service.protectedPathKey("~")).toBe(canonicalizePath(dirs.home));
+    expect(service.protectedPathKey("~/vault/")).toBe(canonicalizePath(join(dirs.home, "vault")));
+    expect(service.protectedPathKey(join(dirs.root, "x"))).toBe(
+      canonicalizePath(join(dirs.root, "x")),
+    );
+    expect(service.protectedPathKey("/")).toBe("/");
+    expect(service.protectedPathKey("relative/x")).toBeUndefined();
+    expect(service.protectedPathKey("~other/x")).toBeUndefined();
+  });
+
+  test("suggestedProtectedPaths lists this OS's rows in ~/ form, each with its canonical key", async () => {
+    const dirs = makeTestDirs();
+    const linux = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const rows = linux.suggestedProtectedPaths();
+    expect(rows).toContainEqual({
+      path: "~/.ssh",
+      label: "SSH keys",
+      key: canonicalizePath(join(dirs.home, ".ssh")),
+    });
+    // macOS 전용 줄(키체인)은 Linux 목록에 없다
+    expect(rows.map((row) => row.path)).not.toContain("~/Library/Keychains");
+    const darwin = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: darwinPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    expect(darwin.suggestedProtectedPaths().map((row) => row.path)).toContain(
+      "~/Library/Keychains",
+    );
   });
 });

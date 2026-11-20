@@ -115,6 +115,13 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
       allowEscape: false,
     }),
     protectedPaths: () => protectedPaths,
+    // 가짜 홈은 /home/fake다. 시험이 보는 것은 모양(절대 경로와 ~/ 풀이)이다
+    protectedPathKey: (value) => {
+      if (value === "~") return "/home/fake";
+      if (value.startsWith("~/")) return `/home/fake/${value.slice(2)}`;
+      return value.startsWith("/") ? value : undefined;
+    },
+    suggestedProtectedPaths: () => [],
     wrapShell,
     wrapArgv,
     autoAllow: (policy, request) =>
