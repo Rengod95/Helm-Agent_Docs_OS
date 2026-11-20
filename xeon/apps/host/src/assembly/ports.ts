@@ -50,6 +50,8 @@ import {
   type TurnStartInput,
   type WhenBusy,
   type WireResult,
+  START_DRIVE_REJECT_REASONS,
+  type StartDriveRejectReason,
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { stat } from "node:fs/promises";
@@ -264,6 +266,11 @@ export interface PortsHandle {
   releaseAll(): Promise<void>;
   /** 플러그인 원본 폴더 감시를 닫는다(엔진을 닫기 전). 진행 중인 훑기를 기다린다 */
   closeSourceWatch(): Promise<void>;
+}
+
+/** 엔진의 시작 Drive 거부 이유를 wire의 닫힌 목록으로 옮긴다. 목록 밖(`input_too_large` 등)은 비운다 */
+function startDriveRejectReasonOf(kind: string): StartDriveRejectReason | undefined {
+  return START_DRIVE_REJECT_REASONS.find((reason) => reason === kind);
 }
 
 function toLogValue(value: unknown): LogValue {
@@ -856,7 +863,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     async switchStartDrive(threadId) {
       const found = session.query.thread(threadId);
       if (!found.ok) return found;
-      if (found.value === undefined) return ok("rejected");
+      if (found.value === undefined)
+        return ok({ startDrive: "rejected", reason: "unknown_thread" });
       // 첫 메시지 전의 빈 대화: turn도 큐에 든 입력도 없다. 이때는 시작 Drive가 첫 메시지를 받는다(AGE-47)
       const fresh = found.value.lastTurnId === null && found.value.queuedInputs === 0;
       const scopeId = await startDriveOf(threadId);
@@ -864,9 +872,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const switched = deps.ext.switchStartDrive(threadId, scopeId ?? null, fresh);
       if (!switched.ok) {
         logger.warn("profile.switch_start_drive_rejected", { threadId, kind: switched.error.kind });
-        return ok("rejected");
+        const reason = startDriveRejectReasonOf(switched.error.kind);
+        return ok(
+          reason === undefined ? { startDrive: "rejected" } : { startDrive: "rejected", reason },
+        );
       }
-      return ok(switched.value);
+      return ok({ startDrive: switched.value });
     },
     hasTitle(threadId) {
       const found = session.query.thread(threadId);
