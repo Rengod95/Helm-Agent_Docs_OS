@@ -18,6 +18,7 @@ binds: [xeon/packages/cap-workspace/**]
 
 - 파일·셸 도구셋 5종: `read`, `write`, `edit`, `bash`, `grep`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋"). `find`와 `ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡는다.
 - 위 도구가 환원되는 기능 3개의 정의: `workspace.files`, `workspace.shell`, `workspace.images`. 정의 데이터는 F `capabilities/defs/workspace.ts`에 들어간다(`L2.readme` §5.1).
+- 보호 경로 더하기와 목록: 모델 도구 `sandbox_protect`, `sandbox_protected`와 그 기능 `workspace.protection`(3.5.1절, [결정: 2026-11-20, 사용자, AGE-63]). 기능은 막을 경로를 더할 뿐 막기를 푸는 길이 없다.
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
 - 이미지와 첨부 처리: 이미지 읽기, 크기 맞춤, blob 등록, 모델에 참조로 전달.
 - 출력 절단: 한도, 이어 읽기 정보, 절단 코드의 위치.
@@ -471,6 +472,25 @@ export interface WorkspaceService {
 - `L2.readme` §5.6의 대응 규칙을 따른다. consumer는 `WorkspaceFilesKey` 등 기능 단위 키로 API를 얻는다.
 - provider는 `cap-workspace` 하나다. provider 선택 체인(`L2.readme` §5.2)과 `l2.workspace.<기능>.provider` 키를 두지 않는다.
 
+### 3.5.1 기능 `workspace.protection`: 보호 경로 더하기와 목록 [제안, AGE-63]
+
+- 정의는 F `capabilities/defs/protection.ts`다(기능 1.0.0, 메서드 `protect`, `list`, 모델 도구 `sandbox_protect`와 `sandbox_protected`). 구현은 `src/protect/api.ts`, 등록은 `plugin.ts`다. 묶음 `WorkspaceService`에는 넣지 않는다. 기능 단위 키로만 얻는다.
+- 도구는 둘이고 둘 다 지연 노출이다(`exposure: "deferred"`, L1.tools §4.1). 항상 광고되는 목록과 시스템 프롬프트, 환경 설명에는 없다. `tool_search`로만 찾는다.
+
+| 도구 | 메서드 | 입력 | 위험 등급 | 실행 | 분류 |
+|---|---|---|---|---|---|
+| `sandbox_protect` | `protect` | `{ paths }`: 1~32개, 각 1~4096자의 문자열. 추가 속성은 거부 | `read` | `sequential` | 설정을 쓰므로 분류하지 않는다(unsafe) |
+| `sandbox_protected` | `list` | `{}`: 추가 속성은 거부 | `read` | 기본(병렬) | readOnly, safe |
+
+- 더하기만 한다. 메서드, 도구 인자, 설정 쓰기 어디에도 막기를 푸는 길이 없다. 줄이려면 사용자가 설정 화면에서 `l0.sandbox.protectedPaths.extra`를 직접 고친다.
+- 입력 검사: 각 줄은 절대 경로이거나 `~`·`~/`로 시작해야 한다. `/`, 홈 폴더 자체, 홈을 품은 상위 폴더(예: `/Users`)는 "이 폴더를 보호"가 아니라 사실상 전체를 막는 요청이므로 거부한다. 한 줄이라도 거부되면 전체를 거부하고 아무것도 쓰지 않는다(`invalid_input`, 줄 위치와 이유만 싣고 경로 값은 싣지 않는다). 샌드박스의 비교 키(`protectedPathKey`, L0.sandbox 3.1절)가 같은 경로이면 이미 보호 중이다. 끝의 `/`는 비교에서 무시한다. 같은 호출 안의 중복은 한 번만 더한다.
+- 쓰기: 사용자 범위 `l0.sandbox.protectedPaths.extra`에만 쓴다. 프로젝트와 로컬 범위의 파일은 쓰지 않는다. 쓰기는 조립 루트가 넘기는 `ProtectPathsStore`가 한다(호스트는 설정 저장소의 `write("user", …)`로 구현하고, 값 검사는 `checkSettingWrite`가 한다). 이 패키지는 설정 파일을 직접 쓰지 않는다. managed 정책이 같은 키를 정했으면 `locked`로 거부한다. 설정 엔진은 값을 합치지 않고 우선순위가 가장 높은 범위의 값만 쓰므로, managed가 정한 값이 사용자 값을 가린다.
+- 결과: `added`(이번에 더한 것), `alreadyProtected`(이미 보호 중이라 그대로 둔 것), `protected`(쓴 뒤 사용자 범위 전체 목록, 저장된 그대로), `effective: "next_shell_or_file_call"`. 적용은 다음 셸 호출과 다음 파일 도구 호출부터이며 같은 턴 안에서도 적용된다. 시험 `test/sandbox.protect-live.int.test.ts`(L0.sandbox 3.3.1)가 확인한다.
+- 목록(`sandbox_protected`): `blocked`는 지금 읽기와 쓰기가 막힌 경로다. 사용자가 더한 항목(`origin: "user"`)과 Fresnel 자신의 고정 시크릿·데이터(`origin: "fixed"`)를 표시 문자열로 준다(홈 아래는 `~/`). 쓰기만 막힌 기본 자격 폴더는 `suggested`(`path`, `label`, `blocked`)에 있고, `blocked`는 그 줄이 사용자 항목에 이미 있는지다.
+- 실패: 샌드박스가 없으면 두 메서드 모두 `unavailable`이다. 설정 저장소가 없으면 더하기는 `unavailable`이다. 설정 파일을 쓰지 못하면 `store_failed`이고 `detail.code`에 OS 오류 코드만 싣는다. 설정 검사(개수 256 한도)를 넘으면 `invalid_input`이다. 예상한 실패는 모두 `CapabilityError`로 던진다(cap-schedule의 기능 API와 같다).
+- 위험 등급 `read`: 기본 모드에서 묻지 않고 모든 모드에서 허용된다(L1.tools §4.6). 이 도구가 하는 일은 막기를 더하는 것뿐이고 막기를 낮추지 못하므로 묻지 않는다. 대신 사용자 설정 파일이 모델 호출로 바뀌는 사실은 [미결: 기본 모드에서 묻도록 등급을 `write`로 올릴지 사용자 결정].
+- 사용자에게 보이는 것: 도구 호출 카드와 결과 문장(더한 것, 이미 막힌 것, 지금 막힌 전체). 설정 저장소가 쓴 뒤에는 `settings.invalidated`를 연결된 모든 화면에 보내므로 설정 화면이 다시 읽는다.
+
 ### 3.6 이벤트와 레코드
 
 - 이벤트 접두사 `workspace.`는 파일 되감기 이벤트 다섯 종(`workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten`)이 쓴다. 정의는 `F.records.spec` §3.3.3이다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
@@ -491,6 +511,8 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `workspace.images.resize` | readOnly | safe | 등록된 blob에서 다시 만든다. 공급자는 2차 |
 | `workspace.images.register` | 선언 없음 | unsafe | 붙여넣은 데이터가 유일한 사본인 blob을 저장한다. `requestId` 멱등이 없다 |
 | `workspace.shell.run` | 선언 없음 | unsafe | 외부 명령을 실행한다 |
+| `workspace.protection.protect` | 선언 없음 | unsafe | 사용자 설정 `l0.sandbox.protectedPaths.extra`를 쓴다(3.5.1절) |
+| `workspace.protection.list` | readOnly | safe | 보호 목록을 읽는다 |
 
 ## 4. 동작 규칙
 
@@ -765,6 +787,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 8. 0이 아닌 종료 코드의 `bash` 도구 결과는 `isError: true`이고 `content`에 출력 꼬리가 있다. 같은 명령을 서비스로 `failOnNonZero` 없이 부르면 오류 없이 `exitCode`를 돌려준다.
 9. 이미지 파일 `read` 결과의 `content`에 `ImageContent`가 있고 `data`가 `blob:sha256:`로 시작하며, 같은 파일을 두 번 읽으면 같은 sha256이다.
 10. `cap-workspace`의 `src/`와 `test/`에 `chord` import가 0건이다(ADR-0003 §4.2 검증 방법 1~3).
+11. [제안, AGE-63] `workspace.protection`의 두 도구는 지연 노출이고, 입력 모양(`paths`만, 추가 속성 거부)과 정의에 막기를 낮추는 메서드가 없다는 것이 값으로 고정된다(`contracts/test/capabilities/protection-defs.test.ts`). `sandbox_protect`는 `/`·홈·홈을 품은 상위 경로와 상대 경로를 거부하고 한 줄이라도 거부되면 아무것도 쓰지 않는다. 더한 경로는 같은 대화의 다음 파일 도구 호출과 셸 호출에서 막힌다(`test/protect.test.ts`, `test/protect-files.test.ts`, `test/plugin.test.ts`).
 
 ## 10. 미결 사항
 
@@ -788,3 +811,5 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 16. [미결] 되돌리기의 대화 상태 순서. 호스트가 대화 leaf를 되돌린 뒤 파일 되돌리기를 불러야 `conversation`이 `restored`가 된다. 순서는 호스트 단계(`L4.host-service.spec`)가 정한다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절과 L1.persistence §4.13.2의 되돌리기 항목]
 17. [미결] 덮어쓰기로 고친 파일의 되돌리기. 설계 문구는 계획된 파일만 되돌린다. 덮어쓰기 전의 내용은 `undoBefore`로 이미 저장되므로 나중에 대상을 넓힐 수 있다. [근거: 2026-11-18 파일 되감기 설계 "서비스" 절의 undo 규칙]
 18. [미결] `RewindPreviewReason`에 `outside_root`와 보호 경로 사유가 없다. 이 경우 미리보기는 사유를 `null`로 보인다. 사유를 넓히는 것은 F 정의 변경이라 따로 정한다. [근거: F.records 정의 `packages/contracts/src/services/file-rewind.ts`의 `RewindPreviewReason`]
+19. [미결, AGE-63] `sandbox_protect`의 위험 등급 `read`는 묻지 않고 설정 파일을 바꾼다. 막기를 더하기만 하므로 안전 쪽 실패는 없지만, 사용자 설정이 모델 호출로 바뀌는 것을 묻게 하려면 등급을 `write`로 올린다(기본 모드에서 묻는다). 사용자 결정이 필요하다.
+20. [미결, AGE-63] 설정 `l0.sandbox.protectedPaths.extra`의 `runtimeChange`는 `nextTurn`이지만 실제 적용은 다음 셸·파일 호출부터다(L0.sandbox 3.3.1). 설정 화면의 "다음 턴부터" 표시와 실제가 다르다. `live`로 바꿀지 사용자 결정이 필요하다.
