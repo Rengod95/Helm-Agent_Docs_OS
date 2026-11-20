@@ -141,6 +141,32 @@ describe("read", () => {
     expect((await rejection(files.read({ path: "/etc/passwd" }))).data.code).toBe("denied");
   });
 
+  test("a write-only protected entry (a default credential folder) still reads, a read-denied one (protectedPaths.extra) is refused, and writing to the first is refused", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    const files = createFilesApi(
+      depsFor(env, {
+        protectedPaths: [
+          { path: "/work/creds", match: "prefix", access: "write", reason: "credentials" },
+          { path: "/work/vault", match: "prefix", access: "read_write", reason: "user_extra" },
+        ],
+      }),
+    );
+    env.put("/work/creds/id_ed25519", "key\n");
+    env.put("/work/vault/a.txt", "secret\n");
+    expect(asText(await files.read({ path: "creds/id_ed25519" })).text).toBe("key\n");
+    const denied = await rejection(files.read({ path: "vault/a.txt" }));
+    expect(denied.data.detail).toMatchObject({
+      reason: "protected_path",
+      protectedBy: "user_extra",
+    });
+    const write = await rejection(files.write({ path: "creds/new", content: "x" }));
+    expect(write.data.detail).toMatchObject({
+      reason: "protected_path",
+      protectedBy: "credentials",
+    });
+  });
+
   test("read strips a leading @ and folds special spaces", async () => {
     const { env, files } = setup();
     env.put("/work/a b.txt", "ok\n");

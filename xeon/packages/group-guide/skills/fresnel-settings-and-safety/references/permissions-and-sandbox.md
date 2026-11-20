@@ -93,11 +93,11 @@ Other approval settings:
 
 ### Filesystem rules for sandboxed commands
 
-- Reads: allowed, except protected paths. Writes: only under the workspace roots, the temp directory, and `l0.sandbox.writeRoots.extra`.
-- Protected paths are always denied. `l0.sandbox.protectedPaths.extra` adds more (absolute or `~/` paths). Defaults cannot be removed.
-  - Read and write denied: Fresnel's data and secrets directories, the sops age key file, `~/.ssh`, `.env` and `.env.*` (except `.env.example`), `~/.claude`, `~/.codex`, `~/.pi`, `~/.aws`, `~/.kube`, `~/.config/gcloud`, `~/.git-credentials`.
-  - Write denied: Fresnel's config directory; `.git/config`, `.git/hooks`, `.gitmodules` in a work folder; shell startup files (`~/.bashrc`, `~/.zshrc`, `~/.profile`, `~/.gitconfig`, and similar); `~/.local/bin`; `~/Library/LaunchAgents` (macOS); `~/.config/systemd/user` (Linux).
-- CLI credential files (`~/.npmrc`, `~/.netrc`, `~/.config/gh`, `~/.docker/config.json`, `~/.pypirc`) are readable by default and never writable. `l0.sandbox.credentialFiles` = `deny` blocks reads too.
+- Reads: allowed everywhere the user can read, by default. This includes credential files such as `~/.ssh`, `~/.aws`, and `~/.npmrc`. Writes: only under the workspace roots, the temp directory, and `l0.sandbox.writeRoots.extra`.
+- Read and write denied, always: Fresnel's secrets and data directories and the sops age key file.
+- Read and write denied, when listed: `l0.sandbox.protectedPaths.extra` (absolute or `~/` paths). The shell and file tools can neither read nor write those paths. Nothing is blocked for reading by default; the user adds what should be blocked.
+- Write denied by default, reads allowed: `~/.ssh`, `~/.aws`, `~/.kube`, `~/.config/gcloud`, `~/.git-credentials`, `~/.gnupg`, `.env` and `.env.*` (except `.env.example`), `~/.claude`, `~/.codex`, `~/.pi`, the other agent and password-manager folders, the CLI credential files (`~/.npmrc`, `~/.netrc`, `~/.config/gh`, `~/.docker/config.json`, `~/.pypirc`), and the macOS keychains or Linux keyrings. Writing to them stays refused even if their folder is added as a write root.
+- Write denied: Fresnel's config directory; `.git/config`, `.git/hooks`, `.gitmodules` in a work folder; shell startup files (`~/.bashrc`, `~/.zshrc`, `~/.profile`, `~/.gitconfig`, and similar); `~/.local/bin`; `~/Library/LaunchAgents` (macOS); `~/.config/systemd/user` (Linux).
 
 ### Platforms
 
@@ -125,10 +125,9 @@ A missing helper makes the sandbox unavailable with reason `missing_dependency`,
 | `l0.sandbox.onUnavailable` | `disable_execute` | managed, user | Behavior when the sandbox cannot run. |
 | `l0.sandbox.nestedNamespaces` | `false` | managed, user | Lets a browser run inside the sandbox. Weakens isolation. |
 | `l0.sandbox.writeRoots.extra` | `[]` | managed, user | Extra writable directories. |
-| `l0.sandbox.credentialFiles` | `allow` | managed, user | `deny` blocks reads of CLI credential files. |
 | `l0.sandbox.escapeRetry` | `false` | managed, user | No effect in this build (see below). |
 | `l0.sandbox.selfTestIntervalMin` | `60` | managed, user | Minutes between self tests, 0 to 1440. |
-| `l0.sandbox.protectedPaths.extra` | `[]` | managed, user, project | Adds protected paths. |
+| `l0.sandbox.protectedPaths.extra` | `[]` | managed, user, project | Adds paths the shell and file tools can neither read nor write. |
 | `l0.sandbox.network.blockedDomains` | `[]` | managed, user, project | Blocks domains. |
 
 Project and local files can only tighten the sandbox: add protected paths or blocked domains.

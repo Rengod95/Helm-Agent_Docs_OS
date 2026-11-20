@@ -15,7 +15,7 @@ export interface SandboxProvider {
   /** kind가 none이면 이유 */
   readonly unsupported: "unsupported_os" | undefined;
   requiredBinaries(): readonly RequiredBinary[];
-  /** OS별 보호 경로. 공통 표는 protected-paths.ts가 갖는다 */
+  /** OS별 기본 항목(쓰기 전용 자격 폴더와 지속 실행 등록). 공통 표와 제안 목록은 protected-paths.ts가 갖는다 */
   defaultProtectedPaths(
     dirs: Pick<OsDirs, "home" | "data" | "config">,
   ): readonly ProtectedPathEntry[];

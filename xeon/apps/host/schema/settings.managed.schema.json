@@ -1294,34 +1294,6 @@
         }
       }
     },
-    "l0.sandbox.credentialFiles": {
-      "default": "allow",
-      "enum": [
-        "allow",
-        "deny"
-      ],
-      "maxLength": 8,
-      "type": "string",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "deny also blocks reading them from sandboxed shell commands.",
-          "helpKey": "settings.l0.sandbox.credentialFiles.help",
-          "label": "Credential files such as ~/.npmrc and ~/.config/gh",
-          "labelKey": "settings.l0.sandbox.credentialFiles.label",
-          "order": 106,
-          "tab": "permissions",
-          "widget": "select"
-        }
-      }
-    },
     "l0.sandbox.enabled": {
       "default": true,
       "type": "boolean",
@@ -1449,35 +1421,6 @@
         }
       }
     },
-    "l0.sandbox.protectedPaths.allowRead": {
-      "default": [],
-      "items": {
-        "maxLength": 4096,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 64,
-      "type": "array",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
-          "helpKey": "settings.l0.sandbox.protectedPaths.allowRead.help",
-          "label": "Protected paths shell commands may read",
-          "labelKey": "settings.l0.sandbox.protectedPaths.allowRead.label",
-          "order": 108,
-          "tab": "permissions",
-          "widget": "list"
-        }
-      }
-    },
     "l0.sandbox.protectedPaths.extra": {
       "default": [],
       "items": {
@@ -1498,7 +1441,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing is blocked for reading by default.",
           "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
           "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",

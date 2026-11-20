@@ -22,11 +22,9 @@ describe("sandbox settings", () => {
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.protectedPaths.extra",
-      "l0.sandbox.protectedPaths.allowRead",
       "l0.sandbox.writeRoots.extra",
       "l0.sandbox.escapeRetry",
       "l0.sandbox.network.blockedDomains",
-      "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
       "l0.sandbox.sandboxImportedHooks",
       "l0.sandbox.selfTestIntervalMin",
@@ -47,9 +45,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.writeRoots.extra",
-      "l0.sandbox.protectedPaths.allowRead",
       "l0.sandbox.escapeRetry",
-      "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
     ]) {
       expect(byKey.get(key)?.allowedScopes).not.toContain("project");
@@ -70,11 +66,9 @@ describe("sandbox settings", () => {
       enabled: true,
       onUnavailable: "disable_execute",
       protectedPathsExtra: [],
-      protectedPathsAllowRead: [],
       writeRootsExtra: [],
       escapeRetry: false,
       blockedDomains: [],
-      credentialFiles: "allow",
       nestedNamespaces: false,
       selfTestIntervalMin: 60,
     });
@@ -89,8 +83,6 @@ describe("sandbox settings", () => {
       "l0.sandbox.writeRoots.extra": ["/w"],
       "l0.sandbox.escapeRetry": true,
       "l0.sandbox.network.blockedDomains": ["bad.example"],
-      "l0.sandbox.credentialFiles": "deny",
-      "l0.sandbox.protectedPaths.allowRead": ["~/.kube"],
       "l0.sandbox.nestedNamespaces": true,
       "l0.sandbox.selfTestIntervalMin": 0,
     };
@@ -98,11 +90,9 @@ describe("sandbox settings", () => {
       enabled: false,
       onUnavailable: "run_unsandboxed",
       protectedPathsExtra: ["/a", "~/b"],
-      protectedPathsAllowRead: ["~/.kube"],
       writeRootsExtra: ["/w"],
       escapeRetry: true,
       blockedDomains: ["bad.example"],
-      credentialFiles: "deny",
       nestedNamespaces: true,
       selfTestIntervalMin: 0,
     });
@@ -113,7 +103,6 @@ describe("sandbox settings", () => {
       "l0.sandbox.writeRoots.extra": "/w",
       "l0.sandbox.escapeRetry": 1,
       "l0.sandbox.network.blockedDomains": "bad.example",
-      "l0.sandbox.credentialFiles": "maybe",
       "l0.sandbox.nestedNamespaces": "yes",
       "l0.sandbox.selfTestIntervalMin": 99999,
     };

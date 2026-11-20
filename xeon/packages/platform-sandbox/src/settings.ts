@@ -8,9 +8,6 @@ import type { OnUnavailable } from "@fresnel/contracts/services";
 // 물어보기(ask)는 뺐다 [결정: 2026-11-11 사용자]. 저장된 옛 값은 설정 엔진이 무효로 보고 기본값 disable_execute로 읽는다.
 const UNAVAILABLE_VALUES = ["disable_execute", "run_unsandboxed"] as const;
 
-const CREDENTIAL_FILE_VALUES = ["allow", "deny"] as const;
-type CredentialFilesMode = (typeof CREDENTIAL_FILE_VALUES)[number];
-
 const sandboxSettings = defineSettings("l0.sandbox", {
   enabled: {
     type: Type.Boolean(),
@@ -51,21 +48,7 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       widget: "list",
       order: 102,
       label: "Extra protected paths",
-      help: "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
-    },
-    since: "0.1.0",
-  },
-  "protectedPaths.allowRead": {
-    type: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
-    default: [],
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "list",
-      order: 108,
-      label: "Protected paths shell commands may read",
-      help: "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
+      help: "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing is blocked for reading by default.",
     },
     since: "0.1.0",
   },
@@ -107,21 +90,6 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       order: 105,
       label: "Blocked network domains",
       help: "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
-    },
-    since: "0.1.0",
-  },
-  credentialFiles: {
-    type: Type.String({ maxLength: 8 }),
-    default: "allow",
-    range: { enum: [...CREDENTIAL_FILE_VALUES] },
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "select",
-      order: 106,
-      label: "Credential files such as ~/.npmrc and ~/.config/gh",
-      help: "deny also blocks reading them from sandboxed shell commands.",
     },
     since: "0.1.0",
   },
@@ -169,14 +137,10 @@ export interface SandboxSettings {
   readonly enabled: boolean;
   readonly onUnavailable: OnUnavailable;
   readonly protectedPathsExtra: readonly string[];
-  /** 기본 보호 경로 가운데 셸 도구 샌드박스에서 읽기를 푸는 경로(쓰기는 계속 막는다). 사용자·관리자 범위만 받는다 */
-  readonly protectedPathsAllowRead: readonly string[];
   readonly writeRootsExtra: readonly string[];
   readonly escapeRetry: boolean;
   /** 샌드박스 안에서 닿지 못하게 할 도메인(srt deniedDomains). 목록 밖은 모두 허용이다 */
   readonly blockedDomains: readonly string[];
-  /** "allow"(기본)면 ~/.npmrc, ~/.config/gh 같은 CLI 인증 파일을 읽을 수 있다. 쓰기는 항상 거부한다 */
-  readonly credentialFiles: CredentialFilesMode;
   /** 참이면 중첩 사용자 네임스페이스를 허용한다(브라우저 provider용, M3-REQ-56) */
   readonly nestedNamespaces: boolean;
   /** 0이면 시작 때만 자가 시험을 돈다 */
@@ -187,18 +151,12 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   enabled: true,
   onUnavailable: "disable_execute",
   protectedPathsExtra: [],
-  protectedPathsAllowRead: [],
   writeRootsExtra: [],
   escapeRetry: false,
   blockedDomains: [],
-  credentialFiles: "allow",
   nestedNamespaces: false,
   selfTestIntervalMin: 60,
 };
-
-function isCredentialFilesMode(value: unknown): value is CredentialFilesMode {
-  return value === "allow" || value === "deny";
-}
 
 function isOnUnavailable(value: unknown): value is OnUnavailable {
   return value === "disable_execute" || value === "run_unsandboxed";
@@ -221,11 +179,9 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
   const enabled = read(defs.enabled.key);
   const onUnavailable = read(defs.onUnavailable.key);
   const protectedExtra = read(defs["protectedPaths.extra"].key);
-  const allowRead = read(defs["protectedPaths.allowRead"].key);
   const writeExtra = read(defs["writeRoots.extra"].key);
   const escapeRetry = read(defs.escapeRetry.key);
   const blocked = read(defs["network.blockedDomains"].key);
-  const credentialFiles = read(defs.credentialFiles.key);
   const nested = read(defs.nestedNamespaces.key);
   const interval = read(defs.selfTestIntervalMin.key);
   return {
@@ -241,10 +197,6 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs["protectedPaths.extra"], protectedExtra) && isStringArray(protectedExtra)
         ? protectedExtra
         : DEFAULT_SANDBOX_SETTINGS.protectedPathsExtra,
-    protectedPathsAllowRead:
-      valid(defs["protectedPaths.allowRead"], allowRead) && isStringArray(allowRead)
-        ? allowRead
-        : DEFAULT_SANDBOX_SETTINGS.protectedPathsAllowRead,
     writeRootsExtra:
       valid(defs["writeRoots.extra"], writeExtra) && isStringArray(writeExtra)
         ? writeExtra
@@ -257,10 +209,6 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs["network.blockedDomains"], blocked) && isStringArray(blocked)
         ? blocked
         : DEFAULT_SANDBOX_SETTINGS.blockedDomains,
-    credentialFiles:
-      valid(defs.credentialFiles, credentialFiles) && isCredentialFilesMode(credentialFiles)
-        ? credentialFiles
-        : DEFAULT_SANDBOX_SETTINGS.credentialFiles,
     nestedNamespaces:
       valid(defs.nestedNamespaces, nested) && typeof nested === "boolean"
         ? nested
