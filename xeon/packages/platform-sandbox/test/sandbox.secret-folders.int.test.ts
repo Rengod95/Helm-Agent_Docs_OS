@@ -42,37 +42,32 @@ const COMMON_FILES = [
 ];
 const MAC = [
   "Library/Keychains",
-  "Library/Application Support/Google/Chrome",
-  "Library/Application Support/Chromium",
-  "Library/Application Support/Microsoft Edge",
-  "Library/Application Support/BraveSoftware",
-  "Library/Application Support/Arc",
-  "Library/Application Support/Vivaldi",
-  "Library/Application Support/com.operasoftware.Opera",
-  "Library/Application Support/Firefox",
   "Library/Application Support/1Password",
   "Library/Application Support/Bitwarden",
   "Library/Application Support/KeePassXC",
   "Library/Cookies",
 ];
 const LINUX = [
-  ".config/google-chrome",
-  ".config/chromium",
-  ".config/microsoft-edge",
-  ".config/BraveSoftware",
-  ".config/vivaldi",
-  ".config/opera",
-  ".mozilla",
   ".config/1Password",
   ".config/Bitwarden",
   ".config/KeePassXC",
   ".local/share/keyrings",
 ];
+// 브라우저 프로필과 메신저 데이터는 기본으로 막지 않는다 [결정: 2026-11-20, 사용자, AGE-63]
+const MAC_OPEN = [
+  "Library/Application Support/Google/Chrome",
+  "Library/Application Support/Firefox",
+  "Library/Application Support/Arc",
+  "Library/Application Support/Slack",
+  "Library/Application Support/Signal",
+];
+const LINUX_OPEN = [".config/google-chrome", ".mozilla", ".config/Slack", ".config/Signal"];
 
 suite("secret folders in the default protected table (real srt, temp home)", () => {
   let box: RealSandbox;
   const folders = [...COMMON, ...(process.platform === "darwin" ? MAC : LINUX)];
   const files = COMMON_FILES;
+  const openFolders = process.platform === "darwin" ? MAC_OPEN : LINUX_OPEN;
 
   const run = (command: string, wrapped: boolean) => {
     const shell = wrapped
@@ -97,6 +92,10 @@ suite("secret folders in the default protected table (real srt, temp home)", () 
       mkdirSync(dirname(join(box.dirs.home, name)), { recursive: true });
       writeFileSync(join(box.dirs.home, name), FAKE);
     }
+    for (const name of openFolders) {
+      mkdirSync(join(box.dirs.home, name), { recursive: true });
+      writeFileSync(join(box.dirs.home, name, "data.txt"), FAKE);
+    }
   });
 
   afterAll(async () => {
@@ -115,6 +114,18 @@ suite("secret folders in the default protected table (real srt, temp home)", () 
         const read = await run(`cat '${dir}/secret.txt'`, true);
         expect({ name, ok: read.exitCode === 0 }).toEqual({ name, ok: false });
         expect(read.output).not.toContain(FAKE);
+      }),
+    );
+  }, 120_000);
+
+  test("browser profile and messenger folders are readable by default but still not writable", async () => {
+    await Promise.all(
+      openFolders.map(async (name) => {
+        const dir = join(box.dirs.home, name);
+        const read = await run(`cat '${dir}/data.txt'`, true);
+        expect({ name, output: read.output }).toEqual({ name, output: FAKE });
+        const write = await run(`echo x > '${dir}/new.txt'`, true);
+        expect({ name, ok: write.exitCode === 0 }).toEqual({ name, ok: false });
       }),
     );
   }, 120_000);

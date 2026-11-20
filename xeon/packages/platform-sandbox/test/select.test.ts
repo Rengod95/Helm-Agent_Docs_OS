@@ -75,14 +75,18 @@ describe("selectSandboxProvider", () => {
     expect(darwin).toContain("/h/Library/LaunchAgents");
     expect(darwin).toContain("/Library/Keychains");
     expect(darwin).toContain("/h/Library/Keychains");
-    expect(darwin).toContain("/h/Library/Application Support/Google/Chrome");
+    expect(darwin).toContain("/h/Library/Application Support/1Password");
+    // 브라우저 프로필과 메신저·메일은 기본 목록에 없다 [결정: 2026-11-20, 사용자, AGE-63]
+    expect(darwin).not.toContain("/h/Library/Application Support/Google/Chrome");
+    expect(darwin).not.toContain("/h/Library/Application Support/Slack");
     expect(darwin).not.toContain("/h/.config/google-chrome");
     const linux = selectSandboxProvider(input({}))
       .defaultProtectedPaths(dirs)
       .map((entry) => entry.path);
     expect(linux).toContain("/h/.config/systemd/user");
-    expect(linux).toContain("/h/.config/google-chrome");
-    expect(linux).toContain("/h/.mozilla");
+    expect(linux).toContain("/h/.local/share/keyrings");
+    expect(linux).not.toContain("/h/.config/google-chrome");
+    expect(linux).not.toContain("/h/.mozilla");
     expect(linux).not.toContain("/h/Library/Keychains");
     expect(linux).not.toContain("/Library/Keychains");
   });

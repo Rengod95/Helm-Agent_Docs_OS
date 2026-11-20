@@ -13,35 +13,17 @@ const REQUIRED: readonly RequiredBinary[] = [
 ];
 
 /**
- * 홈 아래 Linux 시크릿 폴더: 브라우저 프로필(쿠키·저장된 로그인·방문 기록), 비밀번호 관리자, 키링, 메신저·메일 데이터.
- * snap·flatpak 브라우저는 프로필이 샌드박스 폴더 안에 있다.
+ * 홈 아래 Linux 시크릿 폴더: 비밀번호 관리자와 키링.
+ * 브라우저 프로필과 메신저·메일 데이터는 기본으로 막지 않는다 [결정: 2026-11-20, 사용자, AGE-63]. 막으려면 설정
+ * `l0.sandbox.protectedPaths.extra`에 더한다.
  */
 const HOME_SECRET_FOLDERS = [
-  ".config/google-chrome",
-  ".config/google-chrome-beta",
-  ".config/chromium",
-  ".config/microsoft-edge",
-  ".config/BraveSoftware",
-  ".config/vivaldi",
-  ".config/opera",
-  ".mozilla",
-  ".thunderbird",
-  "snap/firefox/common/.mozilla",
-  "snap/chromium/common/chromium",
-  ".var/app/org.mozilla.firefox",
-  ".var/app/com.google.Chrome",
-  ".var/app/org.chromium.Chromium",
-  ".var/app/com.brave.Browser",
-  ".var/app/com.microsoft.Edge",
   ".config/1Password",
   ".config/Bitwarden",
   ".config/KeePassXC",
   ".config/keepassxc",
   ".local/share/keyrings",
   ".local/share/kwalletd",
-  ".config/Signal",
-  ".config/Slack",
-  ".config/discord",
 ] as const;
 
 /** Linux와 WSL2: bubblewrap + seccomp. WSL2는 같은 provider에 platform만 다르다 */
