@@ -20,6 +20,7 @@ import {
   type ExtensionName,
   type LoaderFs,
   type LoaderPaths,
+  type HookProcessPort,
   type IsolationProcessPort,
   type ManifestIssue,
   type PluginDecl,
@@ -375,6 +376,10 @@ export interface LoaderIsolation {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리(샌드박스)를 쓸 수 있는가. 초안 스크립트가 카드를 열기 전에 묻는다. 없으면 묻지 않는다(띄울 때 막힌다) */
   readonly sandboxAvailable?: () => boolean;
+  /** 환경 모드(기본)의 외부 훅 실행 포트. `ScriptRunnerDeps.hookProcess` */
+  readonly hookProcess?: () => HookProcessPort | undefined;
+  /** 참이면 환경 모드를 샌드박스 안에서 돌린다(옛 길). `ScriptRunnerDeps.envSandboxed` */
+  readonly envSandboxed?: () => boolean;
   /** 환경 모드 스크립트의 사용자 환경(AGE-58 [제안]). 값은 기록하지 않는다. `ScriptRunnerDeps.userEnv` */
   readonly userEnv?: () => Promise<Readonly<Record<string, string>>>;
   /** 환경 모드 참조 파일의 지문 확인 수단. `ScriptRunnerDeps.refs` */
@@ -1462,6 +1467,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           : { sandboxAvailable: isolation.sandboxAvailable }),
         ...(isolation.maskSecrets === undefined ? {} : { maskText: isolation.maskSecrets }),
         ...(isolation.userEnv === undefined ? {} : { userEnv: isolation.userEnv }),
+        ...(isolation.hookProcess === undefined ? {} : { hookProcess: isolation.hookProcess }),
+        ...(isolation.envSandboxed === undefined ? {} : { envSandboxed: isolation.envSandboxed }),
         ...(isolation.scriptRefs === undefined ? {} : { refs: isolation.scriptRefs }),
         ...(isolation.readCarveOutsFor === undefined
           ? {}
