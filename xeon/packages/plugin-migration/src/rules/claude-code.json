@@ -1,6 +1,6 @@
 {
   "harness": "claude-code",
-  "rulesVersion": "2026-11-18",
+  "rulesVersion": "2026-11-20",
   "docs": [
     "https://code.claude.com/docs/en/skills",
     "https://code.claude.com/docs/en/sub-agents",
@@ -877,33 +877,9 @@
       "status": "not_ported",
       "reason": {
         "code": "inline_command",
-        "text": "명령이 셸 문장(파이프, 연결, 리다이렉션, 변수 치환)이거나 원본 폴더의 스크립트 파일 하나를 가리키지 않아 옮기지 않았다. 명령 문자열은 싣지 않았다."
+        "text": "명령이 비어 있거나 문자열이 아니어서 옮기지 않았다. 명령 문자열은 싣지 않았다."
       },
-      "alternative": "명령을 원본 폴더 안의 스크립트 파일 하나로 옮긴 뒤 그 파일을 명령으로 적는다."
-    },
-    {
-      "match": {
-        "kind": "hook",
-        "code": "script_outside_root"
-      },
-      "status": "not_ported",
-      "reason": {
-        "code": "script_outside_root",
-        "text": "스크립트가 원본 폴더(프로젝트 루트 또는 .claude 폴더) 밖에 있거나 심볼릭 링크로 밖을 가리켜 옮기지 않았다."
-      },
-      "alternative": "스크립트를 원본 폴더 안으로 옮긴 뒤 다시 가져온다."
-    },
-    {
-      "match": {
-        "kind": "hook",
-        "code": "unknown_runner"
-      },
-      "status": "not_ported",
-      "reason": {
-        "code": "unknown_runner",
-        "text": "확장자로 실행기를 정할 수 없어 옮기지 않았다(.sh, .py, .js, .mjs, .ts만 옮긴다)."
-      },
-      "alternative": "스크립트를 지원하는 확장자로 바꾸거나 셸 스크립트로 감싼다."
+      "alternative": "명령을 적은 뒤 다시 가져온다."
     },
     {
       "match": {
@@ -928,18 +904,6 @@
         "text": "스크립트 파일을 읽지 못했다(상한을 넘거나 텍스트가 아니다). 옮기지 않았다."
       },
       "alternative": "파일 크기를 줄이거나 텍스트 파일로 바꾼 뒤 다시 가져온다."
-    },
-    {
-      "match": {
-        "kind": "hook",
-        "code": "secret_in_script"
-      },
-      "status": "not_ported",
-      "reason": {
-        "code": "secret_in_script",
-        "text": "스크립트 본문에 시크릿 값 모양의 문자열이 있어 복사하지 않았다. 값은 어디에도 싣지 않았다."
-      },
-      "alternative": "스크립트에서 값을 빼고 환경 변수나 시크릿 저장소 참조로 바꾼 뒤 다시 가져온다. 원본의 키는 교체한다."
     },
     {
       "match": {
@@ -988,6 +952,18 @@
         "text": "시간 제한(timeout)이 양의 수가 아니어서 옮기지 않았다."
       },
       "alternative": "시간 제한을 초 단위 양의 수로 고친 뒤 다시 가져온다."
+    },
+    {
+      "match": {
+        "kind": "hook",
+        "code": "hook_command_too_long"
+      },
+      "status": "not_ported",
+      "reason": {
+        "code": "hook_command_too_long",
+        "text": "명령이 4096자를 넘어 옮기지 않았다. 명령 문자열은 싣지 않았다."
+      },
+      "alternative": "명령을 스크립트 파일 하나로 옮긴 뒤 그 파일을 명령으로 적는다."
     },
     {
       "match": {
@@ -1164,29 +1140,25 @@
     },
     {
       "kind": "semantic_loss",
-      "text": "스크립트에 환경 변수를 주지 않는다(CLAUDE_PROJECT_DIR 등). 스크립트 실행 환경은 플랫폼 허용 목록뿐이다."
+      "text": "명령은 원래 환경(사용자의 PATH, 환경 변수, 가상환경)에서 돈다. CLAUDE_PROJECT_DIR은 프로젝트 폴더로 주지만 CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA, CLAUDE_PLUGIN_OPTION_*, CLAUDE_ENV_FILE은 없다."
     }
   ],
   "scriptInputs": [
     {
       "needle": "transcript_path",
-      "text": "스크립트가 transcript_path를 읽는다. Fresnel은 대화 기록 파일 경로를 플러그인에 주지 않아 값이 비어 달라진다."
+      "text": "명령이 읽는 참조 파일이 transcript_path를 읽는다. Fresnel은 대화 기록 파일 경로를 플러그인에 주지 않아 값이 비어 달라진다."
     },
     {
       "needle": "tool_response",
-      "text": "스크립트가 tool_response를 읽는다. Fresnel은 결과 본문과 오류 여부만 준다(stdout, stderr 구분 같은 구조화 필드는 없다)."
+      "text": "명령이 읽는 참조 파일이 tool_response를 읽는다. Fresnel은 결과 본문과 오류 여부만 준다(stdout, stderr 구분 같은 구조화 필드는 없다)."
     },
     {
       "needle": "CLAUDE_PLUGIN_DATA",
-      "text": "스크립트가 CLAUDE_PLUGIN_DATA를 읽는다. 지속 쓰기 폴더는 플러그인에 없어 옮기지 못한다."
+      "text": "명령이 읽는 참조 파일이 CLAUDE_PLUGIN_DATA를 읽는다. 지속 쓰기 폴더는 플러그인에 없어 옮기지 못한다."
     },
     {
       "needle": "CLAUDE_ENV_FILE",
-      "text": "스크립트가 CLAUDE_ENV_FILE을 쓴다. 환경 파일은 Fresnel에 없어 옮기지 못한다."
-    },
-    {
-      "needle": "CLAUDE_PROJECT_DIR",
-      "text": "스크립트가 CLAUDE_PROJECT_DIR을 읽는다. 환경 변수를 주지 않아 빈 값이 된다."
+      "text": "명령이 읽는 참조 파일이 CLAUDE_ENV_FILE을 쓴다. 환경 파일은 Fresnel에 없어 옮기지 못한다."
     }
   ]
 }

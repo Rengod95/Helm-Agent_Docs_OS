@@ -35,7 +35,14 @@ export interface PluginReviewPort {
     itemId: string,
     decision: ReviewDecision,
   ): Promise<
-    Result<{ readonly item: ReviewItem; readonly appliedTo: readonly string[] }, PluginPortFailure>
+    Result<
+      {
+        readonly item: ReviewItem;
+        readonly appliedTo: readonly string[];
+        readonly missingPlugins: readonly string[];
+      },
+      PluginPortFailure
+    >
   >;
   onChanged(listener: (change: PluginChange) => void): () => void;
 }
@@ -62,6 +69,12 @@ export function createPluginReviewHandlers(
     "pluginReview.get": (params) => unwrap(port.get(params.itemId)),
     "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path, params.side)),
     "pluginReview.submitDraft": (params) => unwrap(port.submitDraft(params.draftId)),
-    "pluginReview.decide": (params) => unwrap(port.decide(params.itemId, params.decision)),
+    "pluginReview.decide": async (params) => {
+      const { item, appliedTo, missingPlugins } = await unwrap(
+        port.decide(params.itemId, params.decision),
+      );
+      // 없는 플러그인은 있을 때만 싣는다(화면이 "이 기기에 없어요"를 보인다)
+      return { item, appliedTo, ...(missingPlugins.length === 0 ? {} : { missingPlugins }) };
+    },
   };
 }

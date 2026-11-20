@@ -3,6 +3,7 @@ import type { SchemaProof, SchemaSound } from "../../base/index.ts";
 import {
   EvidenceRefSchema,
   PLUGIN_ENFORCEMENTS,
+  ExtensionNameSchema,
   PluginCardSchema,
   type EvidenceRef,
   type PluginCard,
@@ -378,10 +379,13 @@ export interface PluginReviewDecideResult {
   readonly item: ReviewItem;
   /** 적용된 프로필 id */
   readonly appliedTo: readonly string[];
+  /** 적용된 프로필이 이미 가리키던, 지금은 이 기기에 없는 플러그인. 경고다(실행 때 건너뛴다). 없으면 생략한다 [결정: 2026-11-20, 사용자, AGE-34] */
+  readonly missingPlugins?: readonly string[];
 }
 const PluginReviewDecideResultShape = closed({
   item: ReviewItemShape,
   appliedTo: Type.Array(Id, { maxItems: 128 }),
+  missingPlugins: Type.Optional(Type.Array(ExtensionNameSchema, { maxItems: 256 })),
 });
 export const PluginReviewDecideResultSchema: TUnsafe<PluginReviewDecideResult> =
   Type.Unsafe<PluginReviewDecideResult>(

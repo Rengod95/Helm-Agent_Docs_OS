@@ -75,6 +75,11 @@ export interface PluginReviewMeta {
   readonly decisionId: string;
   readonly origin: ReviewOrigin;
   readonly inferredManifest: boolean;
+  /**
+   * 승인한 검토 항목의 출처가 마이그레이션(`provenance: "migration"`)이면 참(AGE-58 [제안]). 환경 모드 스크립트(`scripts[].env`)를 받을 자격의 유일한 근거다.
+   * 매니페스트와 검토본 내용에서는 읽지 않는다. 호스트가 승인할 때만 쓴다. 없으면 거짓이다
+   */
+  readonly importedScripts?: boolean;
   readonly card: PluginCard;
 }
 
@@ -86,6 +91,7 @@ const MetaShape = Type.Object({
   decisionId: Type.String(),
   origin: Type.Union(REVIEW_ORIGINS.map((origin) => Type.Literal(origin))),
   inferredManifest: Type.Boolean(),
+  importedScripts: Type.Optional(Type.Boolean()),
   card: PluginCardSchema,
 });
 const MetaSchema: TUnsafe<PluginReviewMeta> = Type.Unsafe<PluginReviewMeta>(

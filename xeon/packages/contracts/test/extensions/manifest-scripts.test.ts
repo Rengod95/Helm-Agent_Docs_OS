@@ -4,6 +4,7 @@ import {
   isScriptFileValid,
   validateManifest,
   type ManifestScriptDecl,
+  type ScriptEnvDecl,
 } from "../../src/extensions/index.ts";
 import { codesOf, pluginJson, validManifest } from "./helpers.ts";
 
@@ -196,5 +197,49 @@ describe("script file must stay inside the extension root (설계 B [제안])", 
     expect(result.issues.map((found) => [found.code, found.path])).toEqual([
       ["script_path_invalid", "/scripts/1/file"],
     ]);
+  });
+});
+
+describe("environment-mode scripts (AGE-58 원칙 가, [제안])", () => {
+  const hash = `sha256:${"a".repeat(64)}`;
+  const env: ScriptEnvDecl = {
+    command: 'python3.11 "$CLAUDE_PROJECT_DIR"/.claude/hooks/x.py --strict',
+    shell: "sh",
+    refs: [{ path: "/Users/u/.claude/hooks/x.py", hash }],
+    refsKnown: true,
+  };
+  const decl = { name: "pre-guard", runner: "sh", file: "scripts/pre-guard.cmd", env };
+
+  test("a well-formed env declaration passes and comes back by value", () => {
+    const manifest = validManifest(withScripts([decl]));
+    expect(manifest.scripts?.[0]?.env).toEqual(env);
+  });
+
+  test("a narrow declaration has no env key", () => {
+    expect(validManifest(withScripts([lint])).scripts?.[0]?.env).toBeUndefined();
+  });
+
+  test("runner different from the shell is script_env_invalid at /scripts/0/env", () => {
+    const result = validateManifest(pluginJson(withScripts([{ ...decl, runner: "bash" }])));
+    expect(distinctCodes(result.issues)).toEqual(["script_env_invalid"]);
+    expect(result.issues[0]?.path).toBe("/scripts/0/env");
+  });
+
+  test("args alongside env, and relative reference paths, are rejected", () => {
+    const withArgs = validateManifest(pluginJson(withScripts([{ ...decl, args: ["x"] }])));
+    expect(distinctCodes(withArgs.issues)).toEqual(["script_env_invalid"]);
+    const relative = validateManifest(
+      pluginJson(withScripts([{ ...decl, env: { ...env, refs: [{ path: "hooks/x.py", hash }] } }])),
+    );
+    expect(distinctCodes(relative.issues)).toEqual(["script_env_invalid"]);
+  });
+
+  test("a malformed hash is a schema issue", () => {
+    const result = validateManifest(
+      pluginJson(
+        withScripts([{ ...decl, env: { ...env, refs: [{ path: "/a", hash: "md5:zz" }] } }]),
+      ),
+    );
+    expect(distinctCodes(result.issues)).toEqual(["schema"]);
   });
 });

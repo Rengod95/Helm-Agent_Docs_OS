@@ -596,6 +596,16 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
 11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
 
+**환경 모드 [결정: 2026-11-20, 사용자, AGE-58 원칙 가("가져온 스크립트는 원래 돌던 환경에서 돈다"); 아래 세부는 [제안]].** 선언에 `env`(F.extensions §3.1)가 있는 스크립트는 위 1~11 대신 다음 순서로 돈다. 구현은 `script-runner.ts`의 `runEnv`다.
+
+1. **자격(가장 중요한 안전 조건).** `ScriptTarget.envGrant.granted`가 참이고 검토된 버전(초안 아님)일 때만 돈다. `envGrant`는 로더가 `ExtensionCandidate.importedScripts`(검토본 후보만 가진다)에서 만들고, 그 값은 호스트가 승인한 검토본의 기록(`meta.json`의 `importedScripts`, 승인한 검토 항목의 출처가 `migration`일 때만 `review.ts`가 쓴다)에서만 온다. 매니페스트의 `env`는 권한이 아니다. 초안, 사용자 폴더 플러그인, 빌더가 만든 플러그인, 손으로 만든 선언은 `script_env_not_granted`이고 좁은 모드로 바꿔 돌지 않는다(초안은 승인 문도 열지 않는다). 프로젝트 폴더가 정해지지 않아도(`ScriptRunnerDeps.projectDirOf(threadId)`가 대화의 프로젝트 루트, 없으면 대화 폴더를 준다. `envGrant.projectDir`가 대체값) 같은 실패다.
+2. 동반 파일(`file`)이 플러그인 폴더 안의 일반 파일이어야 한다(위치 검사 3~4번). 돌려 보기는 `replay_mode_denied`, 격리 불가는 `sandbox_unavailable`이다.
+3. **지문 확인.** `refs`의 지문이 있는 파일마다 실행 직전에 본다. 없으면 `script_ref_changed(missing)`, 읽지 못하면 `unreadable`, 지문이 다르면 `changed`이고 스크립트는 돌지 않는다. 가져올 때 지문을 못 낸(null) 참조는 지금 파일이 있어도 같은 파일인지 확인할 수 없으므로 닫힌 실패(`unreadable`)이고, 없으면 `missing`이다. 훅은 도구 호출마다 돌므로 비용을 줄인다: 파일마다 크기와 수정 시각을 먼저 `stat`하고, 지난번에 같은 지문으로 확인한 파일과 크기·수정 시각·기대 지문이 모두 같으면 내용을 다시 읽지 않는다(호출당 `stat` 한 번, 바뀐 파일만 한 번 해시). 확인과 띄우기 사이의 틈은 막지 못한다(확인 직후에 파일이 바뀌면 그 호출은 바뀐 파일로 돈다). 명령 문자열 자체가 원래 하네스의 설정에서 바뀐 경우는 이 확인이 보지 못한다: 가져오기를 다시 해야 반영된다.
+4. **환경.** `ScriptRunnerDeps.userEnv()`의 사용자 환경에서 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름과 잘못된 이름을 한 번 더 빼고, `CLAUDE_PROJECT_DIR`를 프로젝트 폴더로 채운다. 선언의 `envNames`와 `BASE_ENV_POLICY`는 쓰지 않는다. 호스트의 `userEnv`는 사용자의 로그인 셸을 한 번 띄워 환경을 읽는다(L4.host-service: `user-env.ts`; 시간 제한 5초, 10분 캐시, 실패하면 엔진 프로세스의 환경, 값은 기록하지 않고 변수 개수와 PATH 항목 개수만 기록한다).
+5. **띄우기.** `<shell> -c "<command>"`(`shell`은 `sh` 또는 `bash`, 실행 파일은 `runner(shell)` 아니면 `/bin/<shell>`), 작업 폴더와 `readRoot`는 프로젝트 폴더, `IsolationSpawnSpec.scriptEnv = {projectDir, readCarveOuts}`로 L0.sandbox "스크립트 환경 프로필"을 쓴다. `readCarveOuts`는 보호 경로 안에 있는 참조 파일의 읽기 예외다(`readCarveOutsOf`: 보호 경로의 하위 폴더에 있으면 그 폴더, 보호 경로 바로 아래면 그 파일 하나). 카드와 `ScriptCard.uses`는 `SCRIPT_ENV_USES`다.
+6. **종료 코드와 기록.** 종료 코드의 뜻(0 통과, 2 막기와 표준 오류가 사유, 시간 제한)은 기존 훅 계약대로다. 막지 않는 오류(2가 아닌 비정상 종료, 기한, 신호)는 진행하되 `script.env_failed` 경고로 표준 오류 끝 512자(가림 규칙을 지난 값)와 종료 코드를 로그에 남긴다. 값은 남기지 않는다. 턴 기록의 Hook 행에는 실패 사유를 실을 칸이 없어(`TraceHandlerEntry.reason`은 핸들러가 던진 이유의 닫힌 목록) 새 저장 기록 종류를 만들지 않고 [미결]로 남긴다.
+7. **훅을 돌릴 수 없을 때**: 실행 파일 없음(127), 실행 불가(126), 띄우기 실패, 지문 불일치, 샌드박스 불가는 `outcomeOf`가 "통과"가 아니라 `unrunnable`로 바꾸고 `tool.call.before`는 묻기(`ask`, 사유 "훅을 돌릴 수 없어요: …. 계속할까요?")로 답한다(`adapter-hooks@5`, migration.md §4.3.5). 결정을 내지 않는 자리는 진행한다(`tool.result`는 결과 뒤에 사유를 붙인다).
+
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
 ```ts

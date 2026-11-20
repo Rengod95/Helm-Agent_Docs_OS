@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   hasBlockingIssue,
+  previousOf,
   restartKeysOf,
   validateProfile,
   type ProfileCatalog,
@@ -93,6 +94,64 @@ test("plugin_unknown: a plugin the library does not have is an error", () => {
     NO_COMMON,
     libraryOf([]),
     catalogOf([]),
+  );
+  expect(issues).toEqual([{ code: "plugin_unknown", severity: "error", plugin: "ghost" }]);
+});
+
+test("plugin_unknown is a warning for a plugin the profile already listed before this save, and an error for a plugin this save adds", () => {
+  const before = previousOf(
+    { plugins: [{ name: "ghost" }], settings: [] },
+    { plugins: [{ name: "gone-common" }], settings: [] },
+  );
+  const issues = validateProfile(
+    {
+      plugins: [{ name: "ghost" }, { name: "newghost" }],
+      settings: [],
+      startDrive: null,
+    },
+    { plugins: [{ name: "gone-common" }], settings: [] },
+    libraryOf([]),
+    catalogOf([]),
+    before,
+  );
+  expect(issues).toEqual([
+    { code: "plugin_unknown", severity: "warning", plugin: "gone-common" },
+    { code: "plugin_unknown", severity: "warning", plugin: "ghost" },
+    { code: "plugin_unknown", severity: "error", plugin: "newghost" },
+  ]);
+  expect(hasBlockingIssue(issues)).toBe(true);
+});
+
+test("a setting owned by a plugin that is gone stays a warning only when the key was stored before", () => {
+  const body = {
+    plugins: [{ name: "ghost" }],
+    settings: [
+      { key: "ext.ghost.old", value: 1 },
+      { key: "ext.ghost.fresh", value: 2 },
+    ],
+    startDrive: "ghost",
+  };
+  const issues = validateProfile(
+    body,
+    NO_COMMON,
+    libraryOf([]),
+    catalogOf([]),
+    previousOf({ plugins: [{ name: "ghost" }], settings: [{ key: "ext.ghost.old" }] }, NO_COMMON),
+  );
+  expect(issues).toEqual([
+    { code: "plugin_unknown", severity: "warning", plugin: "ghost" },
+    { code: "setting_unknown_key", severity: "warning", key: "ext.ghost.old" },
+    { code: "setting_unknown_key", severity: "error", key: "ext.ghost.fresh" },
+  ]);
+});
+
+test("without a previous profile every unknown plugin is an error (first save)", () => {
+  const issues = validateProfile(
+    { plugins: [{ name: "ghost" }], settings: [], startDrive: null },
+    NO_COMMON,
+    libraryOf([]),
+    catalogOf([]),
+    previousOf(undefined, NO_COMMON),
   );
   expect(issues).toEqual([{ code: "plugin_unknown", severity: "error", plugin: "ghost" }]);
 });

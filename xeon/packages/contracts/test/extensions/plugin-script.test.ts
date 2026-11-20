@@ -84,7 +84,7 @@ describe("PluginScriptPort returns a Result (설계 B [제안])", () => {
 });
 
 describe("script run failure kinds (설계 B [제안])", () => {
-  test("the failure kinds are exactly the eight of the design (the seven plus the denied card)", () => {
+  test("the failure kinds are exactly the ten (the eight of the design plus the two environment-mode ones)", () => {
     // Record로 쓰면 빠지거나 더한 종류가 컴파일 오류가 된다
     const seen: Record<ScriptRunFailure["kind"], true> = {
       script_not_declared: true,
@@ -95,15 +95,19 @@ describe("script run failure kinds (설계 B [제안])", () => {
       script_denied: true,
       spawn_failed: true,
       sandbox_unavailable: true,
+      script_env_not_granted: true,
+      script_ref_changed: true,
     };
     expect(Object.keys(seen).toSorted()).toEqual([
       "replay_mode_denied",
       "sandbox_unavailable",
       "script_denied",
+      "script_env_not_granted",
       "script_missing",
       "script_not_approved",
       "script_not_declared",
       "script_outside_tree",
+      "script_ref_changed",
       "spawn_failed",
     ]);
   });

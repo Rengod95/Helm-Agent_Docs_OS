@@ -31,6 +31,8 @@ interface FakeSandbox {
     readonly profile?: SandboxProfile;
     readonly readRoots?: readonly string[];
     readonly systemTools?: boolean;
+    readonly projectDir?: string;
+    readonly readCarveOuts?: readonly string[];
   }[];
   /** wrapArgv에 들어온 정책과 요청 순서대로 */
   readonly wrapCalls: readonly {
@@ -48,6 +50,8 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
     profile?: SandboxProfile;
     readRoots?: string[];
     systemTools?: boolean;
+    projectDir?: string;
+    readCarveOuts?: string[];
   }[] = [];
   const wrapCalls: { policy: SandboxPolicy; request: SandboxArgvRequest }[] = [];
   let cleanupCount = 0;
@@ -60,6 +64,8 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
         ...(input.profile === undefined ? {} : { profile: input.profile }),
         ...(input.readRoots === undefined ? {} : { readRoots: [...input.readRoots] }),
         ...(input.systemTools === undefined ? {} : { systemTools: input.systemTools }),
+        ...(input.projectDir === undefined ? {} : { projectDir: input.projectDir }),
+        ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
       });
       if (input.profile === "no-write") {
         return {

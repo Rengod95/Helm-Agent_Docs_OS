@@ -228,6 +228,15 @@ export interface IsolationSpawnSpec {
    * 스크립트 실행기만 켠다. 다른 프로필(훑기 자식, 플러그인 격리 프로세스)은 켜지 않는다 [결정: 2026-11-19, 사용자, AGE-58 "다 열어"]
    */
   readonly systemTools?: true;
+  /**
+   * 환경 모드(가져온 훅, AGE-58 원칙 가)일 때만. 샌드박스는 "script-env" 프로필로 감싼다: 읽기는 보호 경로만 거부, 쓰기는 `projectDir`과 이 호출 전용 임시 폴더뿐.
+   * `readRoot`와 작업 폴더는 `projectDir`이다. `readCarveOuts`는 보호 경로 안에서 다시 읽게 하는 경로(예: `~/.claude/hooks`)다.
+   * 이 값은 호출자(스크립트 실행기)가 `ScriptEnvGrant`를 확인한 뒤에만 채운다. 이 값이 있으면 `env`는 호출자가 정한 사용자 환경이다(시크릿 거부 패턴을 호출자가 뺐다)
+   */
+  readonly scriptEnv?: {
+    readonly projectDir: string;
+    readonly readCarveOuts: readonly string[];
+  };
   /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   /** "ext:<name>:<versionId>" */

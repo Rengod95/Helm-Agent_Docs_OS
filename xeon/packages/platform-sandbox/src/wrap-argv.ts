@@ -8,8 +8,10 @@ import type {
 } from "@fresnel/contracts/services";
 import { mkdirSync, rmSync } from "node:fs";
 import { posix } from "node:path";
-import { canonicalizePath } from "./paths.ts";
 import { tmpdir } from "node:os";
+import { carveOutRules, type CarveOutRules } from "./carve-outs.ts";
+import { canonicalizePath, seatbeltSafe } from "./paths.ts";
+import type { EffectivePolicy } from "./policy.ts";
 import {
   decideExecution,
   envAdditions,
@@ -24,11 +26,6 @@ import {
 // 오래 사는 프로세스(stdio MCP 서버)는 호출자가 argv를 스트림 그대로 spawn하고, 끝나면 cleanup을 부른다.
 
 const NOOP = (): void => {};
-
-/** Seatbelt 규칙 문자열에 그대로 넣어도 되는 경로인가(따옴표, 역슬래시, 줄바꿈이 없다) */
-function seatbeltSafe(path: string): boolean {
-  return path.startsWith("/") && !/["'\\\n\r]/.test(path);
-}
 
 /** 프로필 문자열이 끝나는 자리. 작은따옴표 안에서 `'"'"'`는 이스케이프라 건너뛰고, 처음 만나는 닫는 작은따옴표다 */
 function profileEnd(text: string, from: number): number {
@@ -47,6 +44,11 @@ function profileEnd(text: string, from: number): number {
 
 /** 프로필 끝에 덧붙이는 구간의 표지. 덧붙인 뒤 정확히 한 번 있는지 확인하는 데도 쓴다 */
 const TAIL_MARK = "; script tools";
+
+/** 덧붙이기가 실패했을 때의 메시지(경로와 이름을 싣지 않는다) */
+const TAIL_UNSAFE = "sandbox profile tail rejected an unsafe path or service name";
+const TAIL_PROTECTED =
+  "sandbox profile tail rejected a read carve-out that contains a protected path";
 
 /**
  * `systemInfoDeny`가 더하는 Seatbelt 규칙. 뒤에 오는 규칙이 앞의 규칙을 이긴다(srt 기본 프로필이 허용한 것을 다시 막는다).
@@ -67,20 +69,23 @@ const SYSTEM_INFO_RULES: readonly string[] = [
 const MACH_NAME = /^[A-Za-z0-9._@-]+$/;
 
 /**
- * `policy.readAllowLiteral`, `policy.toolDeny`, `policy.machDeny`, `policy.systemInfoDeny`를 Seatbelt 프로필 맨 끝에 더한다. 뒤에 오는 규칙이 앞의 규칙을 이기므로 허용한 폴더 안의 개별 도구를 다시 막을 수 있다.
- * 더할 규칙이 없거나 Seatbelt가 아니면(bwrap, 격리 없음) 그대로 둔다.
+ * `policy.readAllowLiteral`, `policy.toolDeny`, `policy.machDeny`, `policy.systemInfoDeny`와 읽기 예외(`carve`)를 Seatbelt 프로필 맨 끝에 더한다.
+ * 뒤에 오는 규칙이 앞의 규칙을 이기므로 보호 경로 거부를 예외 폴더에서 풀고(예외 규칙을 맨 앞에 둔다), 허용한 폴더 안의 개별 도구를 다시 막을 수 있다.
+ * 더할 규칙이 없거나 Seatbelt가 아니면(bwrap, 격리 없음) 그대로 둔다(읽기 예외가 있는 bwrap은 호출 전에 거부한다).
  * Seatbelt인데 덧붙이지 못하면(안전하지 않은 경로, srt가 만든 프로필 문자열의 모양이 달라짐) 막기를 조용히 빼지 않고 실패를 돌려준다: 호출자는 스크립트를 띄우지 않는다
  */
 function withProfileTail(
   argv: readonly string[],
   policy: SandboxPolicy,
   kind: WrapShellDeps["provider"]["kind"],
+  carve: CarveOutRules,
 ): Result<string[], string> {
   const wantLiterals = policy.readAllowLiteral ?? [];
   const wantDenied = policy.toolDeny ?? [];
   const wantMach = policy.machDeny ?? [];
   const wantInfo = policy.systemInfoDeny === true;
-  if (wantLiterals.length + wantDenied.length + wantMach.length === 0 && !wantInfo) {
+  const wantCarve = carve.literal.length + carve.subpath.length;
+  if (wantCarve + wantLiterals.length + wantDenied.length + wantMach.length === 0 && !wantInfo) {
     return ok([...argv]);
   }
   if (kind !== "seatbelt") return ok([...argv]);
@@ -89,9 +94,12 @@ function withProfileTail(
     !wantDenied.every(seatbeltSafe) ||
     !wantMach.every((name) => MACH_NAME.test(name))
   ) {
-    return err("sandbox profile tail rejected an unsafe path or service name");
+    return err(TAIL_UNSAFE);
   }
+  // 읽기 예외는 경로를 `carveOutRules`가 이미 확인했다(절대 경로, Seatbelt 안전, 정규 경로, 보호 경로 아님)
   const rules: string[] = [];
+  for (const path of carve.literal) rules.push(`(allow file-read* (literal "${path}"))`);
+  for (const path of carve.subpath) rules.push(`(allow file-read* (subpath "${path}"))`);
   if (wantLiterals.length > 0) {
     rules.push(`(allow file-read* ${wantLiterals.map((path) => `(literal "${path}")`).join(" ")})`);
   }
@@ -146,13 +154,47 @@ export async function wrapArgvWith(
   if (decision.action === "reject") return err({ kind: "unavailable", reason: status.reason });
   if (decision.action === "plain") return ok(plainArgv(request, decision.by));
   const commandId = newCommandId(deps.random);
-  // "no-write" 프로필이 쓸 수 있는 곳은 이 프로세스 전용의 빈 임시 폴더 하나뿐이다. 다른 프로세스와 나누지 않고 cleanup이 지운다
+  const baseDir = request.cwd !== undefined && request.cwd.startsWith("/") ? request.cwd : "/";
+  const scriptEnv = policy.profile === "script-env";
+  const carveOuts = policy.readCarveOuts ?? [];
+  if (carveOuts.length > 0 && !scriptEnv) {
+    return err({ kind: "failed", message: "read carve-outs need the script-env profile" });
+  }
+  // 읽기 예외는 임시 폴더를 만들기 전에 검사한다. 실패해도 남는 것이 없다
+  let resolved: EffectivePolicy | undefined;
+  let carve: CarveOutRules = { literal: [], subpath: [] };
+  if (scriptEnv) {
+    if (carveOuts.length > 0 && deps.provider.kind !== "seatbelt") {
+      return err({
+        kind: "failed",
+        message: "read carve-outs are not supported on this sandbox provider",
+      });
+    }
+    resolved = deps.resolvePolicy(policy, baseDir);
+    const rules = carveOutRules({
+      carveOuts,
+      readDeny: resolved.readDeny,
+      protectedEntries: deps.protectedEntries(),
+    });
+    if (!rules.ok) {
+      return err({
+        kind: "failed",
+        message: rules.error === "protected" ? TAIL_PROTECTED : TAIL_UNSAFE,
+      });
+    }
+    carve = rules.value;
+  }
+  // "no-write"와 "script-env" 프로필이 쓸 수 있는 곳은 이 프로세스 전용의 빈 임시 폴더 하나뿐이다. 다른 프로세스와 나누지 않고 cleanup이 지운다
   let processTemp: string | undefined;
-  if (policy.profile === "no-write") {
-    const dir = posix.join(deps.readOnlyTempBase?.() ?? tmpdir(), `nw-${commandId}`);
+  if (policy.profile === "no-write" || scriptEnv) {
+    const label = scriptEnv ? "script-env" : "no-write";
+    const dir = posix.join(
+      deps.readOnlyTempBase?.() ?? tmpdir(),
+      `${scriptEnv ? "se" : "nw"}-${commandId}`,
+    );
     const made = attempt(() => mkdirSync(dir, { recursive: true, mode: 0o700 }));
     if (!made.ok) {
-      return err({ kind: "failed", message: "no-write sandbox could not prepare its temp folder" });
+      return err({ kind: "failed", message: `${label} sandbox could not prepare its temp folder` });
     }
     // 임시 폴더 기반이 심볼릭 링크 아래(macOS의 `/var/folders`는 `/private/var/folders`)면 Seatbelt는 정규 경로로 비교하므로 허용이 닿지 않는다.
     // 정규 경로로 풀어 쓰기 허용과 `TMPDIR`에 쓴다
@@ -169,11 +211,12 @@ export async function wrapArgvWith(
       processTemp === undefined
         ? quoteArgv([request.command, ...request.args])
         : `export TMPDIR=${quoteArg(processTemp)}; exec ${quoteArgv([request.command, ...request.args])}`,
-    baseDir: request.cwd !== undefined && request.cwd.startsWith("/") ? request.cwd : "/",
+    baseDir,
     cwd: request.cwd,
     abortSignal: context.abortSignal,
     commandId,
     ...(processTemp === undefined ? {} : { readOnlyTemp: processTemp }),
+    ...(resolved === undefined ? {} : { resolved }),
   });
   if (!wrapped.ok) {
     removeTemp();
@@ -183,7 +226,7 @@ export async function wrapArgvWith(
         : { kind: "failed", message: wrapped.error.message },
     );
   }
-  const tailed = withProfileTail(wrapped.value.argv, policy, deps.provider.kind);
+  const tailed = withProfileTail(wrapped.value.argv, policy, deps.provider.kind, carve);
   if (!tailed.ok) {
     // 막기를 덧붙이지 못한 채로는 띄우지 않는다. srt가 이 명령용으로 만든 것을 되돌린다
     removeTemp();

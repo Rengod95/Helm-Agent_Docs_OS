@@ -378,6 +378,8 @@ export {
 // 매니페스트 `scripts`의 스크립트 실행기(설계 B). 확장마다 하나이고, 선언·위치·승인을 검사한 뒤 격리 포트로 띄운다
 export {
   createScriptRunner,
+  type ScriptRefReader,
+  type ScriptRefStat,
   type ScriptRunnerDeps,
   type ScriptTarget,
 } from "./isolation/script-runner.ts";

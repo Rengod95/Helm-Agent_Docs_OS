@@ -411,3 +411,88 @@ test("a script line longer than the launch limits is cut with a mark, and a long
   expect(script?.timeoutMs).toBe(10000);
   expect(parse(PluginCardSchema, card).ok).toBe(true);
 });
+
+const ENV_HASH = `sha256:${"b".repeat(64)}`;
+const ENV_DECLARED = {
+  schemaVersion: 2,
+  name: "env-kit",
+  version: "1.0.0",
+  scripts: [
+    {
+      name: "guard",
+      runner: "sh",
+      file: "scripts/guard.cmd",
+      env: {
+        command: 'PYTHONPATH=x python3.11 "$CLAUDE_PROJECT_DIR"/.claude/hooks/x.py --strict',
+        shell: "sh",
+        refs: [{ path: "/Users/u/proj/.claude/hooks/x.py", hash: ENV_HASH }],
+        refsKnown: true,
+      },
+    },
+    {
+      name: "unknown",
+      runner: "bash",
+      file: "scripts/unknown.cmd",
+      env: { command: "cd src && ./run.sh", shell: "bash", refs: [], refsKnown: false },
+    },
+  ],
+};
+
+test("an environment-mode script line shows the original command, the tool found on PATH, the references with fingerprints and the wide uses (AGE-58)", () => {
+  const folder = folderOf("env-kit", {
+    ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
+  });
+  const card = buildPluginCard({
+    folder,
+    origin: { kind: "project", projectId: "p1" },
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+    whichTool: (name) => (name === "python3.11" ? "/opt/homebrew/bin/python3.11" : undefined),
+  });
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+  const [guard, unknown] = card.does.inject?.scripts ?? [];
+  expect(guard?.uses).toEqual(["user_environment", "read_wide", "write_project", "network"]);
+  expect(guard?.env).toEqual({
+    command: 'PYTHONPATH=x python3.11 "$CLAUDE_PROJECT_DIR"/.claude/hooks/x.py --strict',
+    shell: "sh",
+    interpreter: "/opt/homebrew/bin/python3.11",
+    refs: [{ path: "/Users/u/proj/.claude/hooks/x.py", hash: ENV_HASH }],
+    refsKnown: true,
+    missingTools: [],
+    versionHints: [],
+    fromProject: true,
+  });
+  // `cd`는 셸 내장이라 찾지 않는다. 참조를 못 찾았으면 "알 수 없음"(refsKnown false)으로 두고 추측으로 채우지 않는다
+  expect(unknown?.env).toEqual({
+    command: "cd src && ./run.sh",
+    shell: "bash",
+    interpreter: null,
+    refs: [],
+    refsKnown: false,
+    missingTools: [],
+    versionHints: [],
+    fromProject: true,
+  });
+});
+
+test("a tool that is not on PATH is listed as missing, and a narrow script keeps the narrow uses and no env", () => {
+  const folder = folderOf("env-kit", {
+    ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
+  });
+  const card = buildPluginCard({
+    folder,
+    origin: { kind: "user" },
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+    whichTool: () => undefined,
+  });
+  expect(card.does.inject?.scripts?.[0]?.env?.missingTools).toEqual(["python3.11"]);
+  expect(card.does.inject?.scripts?.[0]?.env?.fromProject).toBe(false);
+  const narrow = cardOf(
+    folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
+  );
+  expect(narrow.does.inject?.scripts?.[0]?.uses).toEqual(["system_tools", "network"]);
+  expect(narrow.does.inject?.scripts?.[0]?.env).toBeUndefined();
+});

@@ -7,7 +7,7 @@ import {
   type PluginEditRequest,
 } from "../../src/assembly/m4/plugin-edit.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
-import type { ProfileBody } from "../../src/assembly/m4/profile-validate.ts";
+import type { ProfileBody, ProfilePrevious } from "../../src/assembly/m4/profile-validate.ts";
 
 // M5c §4.7.3: 승인의 프로필 반영 계산. 바뀌는 프로필과 공통 묶음을 새 값으로 만들고, 이름이 든 대상 프로필을 모두 검사한다.
 // 검사 함수는 가짜다. 드라이버가 목록에 없으면 오류라는 한 가지 규칙만 둔다.
@@ -59,7 +59,11 @@ function driverCheck(body: ProfileBody): readonly ProfileIssue[] {
 function planOf(
   request: PluginEditRequest,
   profiles: readonly Profile[],
-  validate: (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[] = driverCheck,
+  validate: (
+    body: ProfileBody,
+    common: CommonSet,
+    previous: ProfilePrevious,
+  ) => readonly ProfileIssue[] = driverCheck,
   common: CommonSet = COMMON,
 ) {
   return planPluginEdit({ profiles, common, request, validate, updatedAt: NOW });
@@ -71,6 +75,7 @@ test("add appends the plugin to the chosen profile only and bumps that profile's
     ok({
       changed: [{ ...profileOf("p1", ["helm", "kit"], { rev: 2 }), updatedAt: NOW }],
       common: null,
+      missingPlugins: [],
     }),
   );
 });
@@ -78,7 +83,7 @@ test("add appends the plugin to the chosen profile only and bumps that profile's
 test("add to a profile that already lists the plugin changes nothing", () => {
   const profiles = [profileOf("p1", ["helm", "kit"])];
   expect(planOf({ kind: "add", plugin: FACT, profileIds: ["p1"] }, profiles)).toEqual(
-    ok({ changed: [], common: null }),
+    ok({ changed: [], common: null, missingPlugins: [] }),
   );
 });
 
@@ -121,7 +126,7 @@ test("keep changes no list and checks only the profiles that list the plugin", (
     }),
   );
   expect(planOf({ kind: "keep", plugin: FACT }, profiles)).toEqual(
-    ok({ changed: [], common: null }),
+    ok({ changed: [], common: null, missingPlugins: [] }),
   );
 });
 
@@ -153,6 +158,7 @@ test("remove takes the plugin, its settings, and its driver role out of every pr
         { ...profileOf("p2", [], { rev: 2 }), updatedAt: NOW },
       ],
       common: { plugins: [{ name: "helm" }], settings: [], updatedAt: NOW, rev: 2 },
+      missingPlugins: [],
     }),
   );
 });
@@ -177,6 +183,7 @@ test("a factory default profile that is not stored yet is returned as a changed 
     ok({
       changed: [{ ...profileOf("default", ["helm", "kit"], { rev: 1 }), updatedAt: NOW }],
       common: null,
+      missingPlugins: [],
     }),
   );
 });
@@ -192,6 +199,7 @@ test("add to the common id appends the plugin to the common set, bumps its revis
         updatedAt: NOW,
         rev: 2,
       },
+      missingPlugins: [],
     }),
   );
 });
@@ -200,7 +208,7 @@ test("add to the common id when the common set already lists the plugin changes 
   const common: CommonSet = { ...COMMON, plugins: [{ name: "kit" }] };
   expect(
     planOf({ kind: "add", plugin: FACT, profileIds: [COMMON_ID] }, [], driverCheck, common),
-  ).toEqual(ok({ changed: [], common: null }));
+  ).toEqual(ok({ changed: [], common: null, missingPlugins: [] }));
 });
 
 test("add to a profile and the common id at once changes both", () => {
@@ -214,6 +222,7 @@ test("add to a profile and the common id at once changes both", () => {
         updatedAt: NOW,
         rev: 2,
       },
+      missingPlugins: [],
     }),
   );
 });

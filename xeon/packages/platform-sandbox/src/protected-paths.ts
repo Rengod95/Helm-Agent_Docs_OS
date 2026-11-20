@@ -10,6 +10,9 @@ import {
 } from "@fresnel/contracts/services";
 import { canonicalizePath, toAbsolutePath } from "./paths.ts";
 
+/** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3). basename 항목을 쓰기 루트 아래에서 찾을 때 쓴다 */
+export const BASENAME_SEARCH_DEPTH = 3;
+
 // L0.sandbox.spec §3.3. 보호 경로는 줄일 수 없고 설정으로 더할 수만 있다.
 
 type Reason = ProtectedPathEntry["reason"];
