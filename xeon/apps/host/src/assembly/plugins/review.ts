@@ -13,6 +13,7 @@ import {
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   EvidenceRef,
+  ImportedHookOrigin,
   PluginCard,
   PluginOriginKind,
   PluginSubmitPort,
@@ -441,10 +442,12 @@ function candidateCard(
   itemId: string,
   reviewed: ReviewedVersion | null,
   envSandboxed: boolean,
+  importedHookOrigin: ImportedHookOrigin | undefined,
 ): PluginCard {
   return buildPluginCard({
     folder,
     envSandboxed,
+    ...(importedHookOrigin === undefined ? {} : { importedHookOrigin }),
     origin: originOf(origin, projectId),
     review: {
       state: "pending",
@@ -622,6 +625,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     readonly originProfileId: string | null;
     readonly evidence: readonly EvidenceRef[];
     readonly purpose: string | undefined;
+    /** 가져온 훅의 출처(가져오기 계획의 값). 카드의 훅 출처는 이 값에서만 나온다 */
+    readonly importedHookOrigin?: ImportedHookOrigin | undefined;
   }): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const tree = store.candidateTree(input.candidateHash);
     if (!tree.ok) return err(storeFailure(tree.error));
@@ -651,6 +656,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       itemId,
       reviewed.value,
       deps.envSandboxed?.() === true,
+      input.importedHookOrigin,
     );
     const withPurpose: PluginCard = { ...card, purpose: card.purpose ?? input.purpose ?? null };
     const item = pendingItemOf(
@@ -1161,6 +1167,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       readonly purpose: string | undefined;
       readonly provenance: Provenance;
       readonly originProfileId: string | null;
+      readonly importedHookOrigin?: ImportedHookOrigin | undefined;
     },
   ): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const info = await store.readDraft(draftId);
@@ -1183,6 +1190,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       originProfileId: options.originProfileId,
       evidence: options.evidence,
       purpose: options.purpose,
+      importedHookOrigin: options.importedHookOrigin,
     });
     if (!made.ok) return made;
     const linked = await store.writeDraft({
@@ -1227,6 +1235,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       purpose: input.purpose,
       provenance: input.provenance,
       originProfileId: input.originProfileId,
+      importedHookOrigin: input.importedHookOrigin,
     });
     if (!made.ok) return made;
     return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });

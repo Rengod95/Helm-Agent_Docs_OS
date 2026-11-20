@@ -462,6 +462,8 @@ test("an environment-mode script line shows the original command, the tool found
     refsKnown: true,
     missingTools: [],
     versionHints: [],
+    origin: "project",
+    originLabel: null,
     fromProject: true,
   });
   // `cd`는 셸 내장이라 찾지 않는다. 참조를 못 찾았으면 "알 수 없음"(refsKnown false)으로 두고 추측으로 채우지 않는다
@@ -473,8 +475,76 @@ test("an environment-mode script line shows the original command, the tool found
     refsKnown: false,
     missingTools: [],
     versionHints: [],
+    origin: "project",
+    originLabel: null,
     fromProject: true,
   });
+});
+
+test("the hook origin on an environment-mode line comes only from the recorded import origin, never from the manifest, and a missing record reads unknown (enFp)", () => {
+  // 매니페스트에 손으로 `origin: "user"`를 더해도 카드는 그것을 읽지 않는다(선언 스키마가 모르는 키라 폴더 읽기가 거절하거나 무시한다)
+  const forged = {
+    ...ENV_DECLARED,
+    scripts: ENV_DECLARED.scripts.map((script) => ({
+      ...script,
+      env: { ...script.env, origin: "user", originLabel: null },
+    })),
+  };
+  const folder = folderOf("env-kit", {
+    ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
+  });
+  const base = { folder, review: REVIEW, usedBy: [], health: HEALTH } as const;
+  const projectImport = buildPluginCard({
+    ...base,
+    origin: { kind: "user" },
+    importedHookOrigin: { kind: "project", label: "~/work/proj" },
+  });
+  expect(projectImport.does.inject?.scripts?.map((script) => script.env?.origin)).toEqual([
+    "project",
+    "project",
+  ]);
+  expect(projectImport.does.inject?.scripts?.map((script) => script.env?.originLabel)).toEqual([
+    "~/work/proj",
+    "~/work/proj",
+  ]);
+  // "프로젝트가 싣고 옴" 하나로 쓴다: 플러그인은 사용자 폴더라도 훅이 프로젝트에서 왔으면 `fromProject`가 참이다
+  expect(projectImport.does.inject?.scripts?.map((script) => script.env?.fromProject)).toEqual([
+    true,
+    true,
+  ]);
+  expect(parse(PluginCardSchema, projectImport).ok).toBe(true);
+
+  const userImport = buildPluginCard({
+    ...base,
+    origin: { kind: "user" },
+    importedHookOrigin: { kind: "user", label: null },
+  });
+  const userEnv = userImport.does.inject?.scripts?.[0]?.env;
+  expect(userEnv?.origin).toBe("user");
+  expect(userEnv?.originLabel).toBeNull();
+  expect(userEnv?.fromProject).toBe(false);
+  // 사용자 범위 기록에 라벨이 딸려 와도 카드는 라벨을 싣지 않는다
+  const strayLabel = buildPluginCard({
+    ...base,
+    origin: { kind: "user" },
+    importedHookOrigin: { kind: "user", label: "~/stray" },
+  });
+  expect(strayLabel.does.inject?.scripts?.[0]?.env?.originLabel).toBeNull();
+
+  // 기록이 없으면(손으로 만든 폴더, 빌더, 초안) 알 수 없음이다
+  const unrecorded = buildPluginCard({ ...base, origin: { kind: "user" } });
+  expect(unrecorded.does.inject?.scripts?.map((script) => script.env?.origin)).toEqual([
+    "unknown",
+    "unknown",
+  ]);
+  expect(unrecorded.does.inject?.scripts?.map((script) => script.env?.fromProject)).toEqual([
+    false,
+    false,
+  ]);
+  // 매니페스트에 손으로 `origin`을 적으면 선언 스키마가 거절한다: 매니페스트는 출처를 담을 수 없다
+  expect(() =>
+    folderOf("env-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(forged) }),
+  ).toThrow("manifest_invalid");
 });
 
 const ENV_ORIGIN: BuildCardInput["origin"] = { kind: "project", projectId: "p1" };
@@ -541,6 +611,7 @@ test("a tool that is not on PATH is listed as missing, and a narrow script keeps
   });
   expect(card.does.inject?.scripts?.[0]?.env?.missingTools).toEqual(["python3.11"]);
   expect(card.does.inject?.scripts?.[0]?.env?.fromProject).toBe(false);
+  expect(card.does.inject?.scripts?.[0]?.env?.origin).toBe("unknown");
   const narrow = cardOf(
     folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
   );

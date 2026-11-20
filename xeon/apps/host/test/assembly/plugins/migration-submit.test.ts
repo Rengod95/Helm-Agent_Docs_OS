@@ -259,3 +259,83 @@ test("a migrated plugin with an empty purpose is approvable only with a purpose:
   );
   expect(approved.item.state).toBe("approved");
 });
+
+/** 환경 모드 훅 하나가 든 계획. `hookOrigin`은 계획(엔진)이 정한 값이다 */
+function hookPlanOf(
+  name: string,
+  hookOrigin: PlannedPluginWithMigration["hookOrigin"],
+): PlannedPluginWithMigration {
+  const base = planOf(name, "Claude Code 훅(가져옴)", {
+    "plugin.js": "export default function plugin() {}\n",
+    "scripts/guard.cmd": "echo guard\n",
+  });
+  return {
+    ...base,
+    ...(hookOrigin === undefined ? {} : { hookOrigin }),
+    runtime: {
+      entry: "./plugin.js",
+      scripts: [
+        {
+          name: "guard",
+          runner: "sh",
+          file: "scripts/guard.cmd",
+          timeoutMs: 10_000,
+          env: { command: "echo guard", shell: "sh", refs: [], refsKnown: true },
+        },
+      ],
+      hooks: ["tool.call.before"],
+      hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
+    },
+  };
+}
+
+test("an imported hook records where it came from on the review item card, and approval keeps that record (enFp)", async () => {
+  const rig = pluginRigOf();
+  const submitter = submitterOf(rig);
+  const made = valueOf(
+    await submitter.submitPlanned([
+      hookPlanOf("proj-hooks", { kind: "project", label: "~/work/app" }),
+      hookPlanOf("home-hooks", { kind: "user", label: null }),
+      hookPlanOf("loose-hooks", undefined),
+    ]),
+  );
+  const originOf = async (name: string) => {
+    const itemId = made.find((draft) => draft.name === name)?.itemId ?? "";
+    const env = valueOf(await rig.review.get(itemId)).item.card.does.inject?.scripts?.[0]?.env;
+    return [env?.origin, env?.originLabel, env?.fromProject];
+  };
+  expect(await originOf("proj-hooks")).toEqual(["project", "~/work/app", true]);
+  expect(await originOf("home-hooks")).toEqual(["user", null, false]);
+  // 계획에 출처가 없으면 알 수 없음이다
+  expect(await originOf("loose-hooks")).toEqual(["unknown", null, false]);
+
+  // 승인한 뒤의 카드(검토본 메타)도 같은 값이다
+  const itemId = made.find((draft) => draft.name === "proj-hooks")?.itemId ?? "";
+  const approved = valueOf(await rig.review.decide(itemId, APPROVE_TO_WORK)).item;
+  const env = approved.card.does.inject?.scripts?.[0]?.env;
+  expect([env?.origin, env?.originLabel, env?.fromProject]).toEqual([
+    "project",
+    "~/work/app",
+    true,
+  ]);
+});
+
+test("a hand-edited manifest cannot change the recorded hook origin, and a folder submitted any other way reads unknown (enFp)", async () => {
+  const rig = pluginRigOf();
+  const submitter = submitterOf(rig);
+  const made = valueOf(
+    await submitter.submitPlanned([
+      hookPlanOf("proj-hooks", { kind: "project", label: "~/work/app" }),
+    ]),
+  );
+  const itemId = made[0]?.itemId ?? "";
+  // 매니페스트를 손으로 고쳐(출처를 `user`로) 써도 대기 항목의 카드는 제출 때 기록한 값 그대로다
+  const manifestPath = join(rig.userDir, "proj-hooks/.fresnel-plugin/plugin.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.scripts[0].env.origin = "user";
+  writeFiles(join(rig.userDir, "proj-hooks"), {
+    ".fresnel-plugin/plugin.json": `${JSON.stringify(manifest, null, 2)}\n`,
+  });
+  const original = valueOf(await rig.review.get(itemId)).item.card.does.inject?.scripts?.[0]?.env;
+  expect([original?.origin, original?.originLabel]).toEqual(["project", "~/work/app"]);
+});
