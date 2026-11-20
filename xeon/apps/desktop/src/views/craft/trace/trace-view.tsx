@@ -125,11 +125,7 @@ function TurnRow(props: {
     ...(!s.complete && s.status !== "open" ? [t("desktop.craft.trace.status.partial")] : []),
   ].join(" · ");
   return (
-    <ListNavigationItem
-      current={props.current}
-      meta={<span className="viz-figure">{meta}</span>}
-      onSelect={props.onPick}
-    >
+    <ListNavigationItem current={props.current} meta={<span>{meta}</span>} onSelect={props.onPick}>
       <time className="viz-figure" dateTime={new Date(s.startedAt).toISOString()}>
         {clockText(s.startedAt, false)}
       </time>
@@ -146,7 +142,7 @@ function TurnRail(props: { readonly data: TraceData; readonly page: TurnPage }):
         <h2 className="text-ui font-semibold text-text-primary">
           {t("desktop.craft.trace.rail.title")}
         </h2>
-        <span className="viz-figure text-ui-sm text-text-tertiary">
+        <span className="text-ui-sm text-text-tertiary">
           {props.page.next === null
             ? countText(items.length)
             : t("desktop.craft.trace.rail.atLeast", { n: countText(items.length) })}
@@ -235,10 +231,7 @@ function TurnSummaryStrip(props: {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2 text-ui text-text-secondary">
-        <time
-          dateTime={new Date(r.startedAt).toISOString()}
-          className="viz-figure text-text-primary"
-        >
+        <time dateTime={new Date(r.startedAt).toISOString()} className="text-text-primary">
           {clockText(r.startedAt, true)}
         </time>
         <StateChip danger={r.status === "failed" || r.status === "lost"}>
@@ -321,7 +314,7 @@ function HooksSection(props: {
         <>
           <ul className="flex flex-wrap gap-1.5" aria-label={t("desktop.craft.trace.hooks.counts")}>
             {counts.map((c) => (
-              <li key={c.outcome} className="viz-figure text-ui-sm text-text-secondary">
+              <li key={c.outcome} className="text-ui-sm text-text-secondary">
                 <StateChip danger={isFault(c.outcome)}>
                   <span className="me-1.5 inline-flex">
                     <DecisionMark decision={c.outcome} />
@@ -451,7 +444,7 @@ function LoadedSection(props: { readonly record: TurnRecord }): ReactNode {
       )}
       <dl className="grid gap-1 text-ui compact:grid-cols-[10rem_minmax(0,1fr)]">
         <dt className="text-text-tertiary">{t("desktop.craft.trace.loaded.advertised")}</dt>
-        <dd className="viz-figure text-text-secondary">
+        <dd className="text-text-secondary">
           {advertised === null
             ? t("desktop.craft.trace.absent")
             : t("desktop.craft.trace.loaded.advertisedValue", {
@@ -558,7 +551,7 @@ function DriveSection(props: { readonly record: TurnRecord }): ReactNode {
               return (
                 <li
                   key={f.leaseId ?? String(i)}
-                  className="grid gap-2 rounded-xl border border-border-subtle p-4 compact:grid-cols-[minmax(0,1fr)_auto]"
+                  className="grid gap-2 rounded-2xl border border-border-subtle p-4 compact:grid-cols-[minmax(0,1fr)_auto]"
                   style={{ marginInlineStart: `${String(Math.max(0, f.depth - 1) * 16)}px` }}
                 >
                   <div className="grid min-w-0 gap-1">
@@ -850,7 +843,11 @@ const BACK_WORD: Readonly<Record<"metrics" | "chat", MessageId>> = {
   chat: "desktop.craft.trace.back.chat",
 };
 
-export function TraceView(props: { readonly data: TraceData }): ReactNode {
+export function TraceView(props: {
+  readonly data: TraceData;
+  /** 개발 빌드만: 머리 오른쪽 끝의 표본 메뉴(`trace-dev.tsx`) */
+  readonly dev?: ReactNode;
+}): ReactNode {
   const d = props.data;
   const commands = useCommands();
   const [mode, setMode] = useState<TraceMode>("time");
@@ -876,21 +873,24 @@ export function TraceView(props: { readonly data: TraceData }): ReactNode {
           ) : undefined
         }
         controls={
-          <SegmentedControl
-            size={HEADER_SEGMENTED_SIZE}
-            aria-label={t("desktop.craft.trace.mode.label")}
-            value={mode}
-            onValueChange={(v) => {
-              setMode(v === "blocks" ? "blocks" : "time");
-            }}
-          >
-            <SegmentedControlItem value="time">
-              {t("desktop.craft.trace.mode.time")}
-            </SegmentedControlItem>
-            <SegmentedControlItem value="blocks">
-              {t("desktop.craft.trace.mode.blocks")}
-            </SegmentedControlItem>
-          </SegmentedControl>
+          <>
+            <SegmentedControl
+              size={HEADER_SEGMENTED_SIZE}
+              aria-label={t("desktop.craft.trace.mode.label")}
+              value={mode}
+              onValueChange={(v) => {
+                setMode(v === "blocks" ? "blocks" : "time");
+              }}
+            >
+              <SegmentedControlItem value="time">
+                {t("desktop.craft.trace.mode.time")}
+              </SegmentedControlItem>
+              <SegmentedControlItem value="blocks">
+                {t("desktop.craft.trace.mode.blocks")}
+              </SegmentedControlItem>
+            </SegmentedControl>
+            {props.dev}
+          </>
         }
       />
       {d.threadId === null ? (

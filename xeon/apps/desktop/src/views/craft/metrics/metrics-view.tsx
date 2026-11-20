@@ -2,6 +2,9 @@
 // 짜임(사용자 2026-11-20): 그림이 먼저인 판 나를 바탕으로 콘텐츠 영역 전체를 쓴다. 왼쪽은 그림 칸(따로 스크롤),
 // 오른쪽은 인사이트 고정 열(열 안에서 따로 스크롤). 콘텐츠 폭이 `NARROW`보다 좁으면 열 대신 위 요약 줄과 서랍이다.
 // 왼쪽 차례: 머리 숫자 → 표본 줄 → 컨텍스트 분해 → 블록별 시간 │ 날별 흐름 → 최근 턴 → 플러그인 표 → 버전 전후.
+// 셋째 판(m6X3): 머리는 `flush`다. 셸이 flush가 아닌 머리 뒤 첫 요소에 주던 오른쪽 60px(세로 단추 띠 48 + 12)과 위 24px이
+// 인사이트 열 오른쪽에 남던 큰 여백의 원인이었다. 이제 두 열은 머리 선 바로 아래에서 시작하고 인사이트 열은 창 오른쪽 끝까지 간다.
+// 위 여백은 두 열이 같은 24px을 스스로 갖고, 띠는 띠와 같은 높이의 덩어리만 비킨다(`rail-avoid.ts`).
 import { activeLocale, t } from "@fresnel/client/i18n";
 import {
   Button,
@@ -10,6 +13,7 @@ import {
   SelectOption,
   SegmentedControl,
   SegmentedControlItem,
+  Toast,
 } from "@caustic/react";
 import type { ReactNode } from "react";
 import { X } from "@caustic/react/icons";
@@ -218,29 +222,27 @@ function EmptyPage(props: { readonly filtered: boolean; readonly onClear: () => 
   );
 }
 
-/** 기록이 꺼져 있으면(엔진이 `measurement_off`를 알림) 항상 보이는 띠. 0으로 그리지 않는다 */
+/**
+ * 기록이 꺼져 있으면(엔진이 `measurement_off`를 알림) 항상 보이는 알림. 0으로 그리지 않는다.
+ * 리뷰 화면의 알림 카드와 같은 부품이다(m6X3): 앱의 알림 토스트를 제자리(`inline`)에 그림자 없이 그린다
+ */
 function OffBand(props: { readonly data: MetricsData }): ReactNode {
   const commands = useCommands();
   const p = props.data.plugins;
   const off = p.kind === "ready" && p.value.notes.some((n) => n.code === "measurement_off");
   if (!off) return null;
   return (
-    <div
+    <Toast
+      inline
+      tone="warning"
+      shadow="none"
       role="note"
-      className="flex items-center gap-3 rounded-xl border border-warning-border bg-warning-soft px-4 py-2.5 text-ui text-text-primary"
-    >
-      <span className="min-w-0 flex-1">{t("desktop.craft.metrics.off")}</span>
-      <Button
-        size="sm"
-        variant="ghost"
-
-        onClick={() => {
-          commands.showScreen("settings");
-        }}
-      >
-        {t("desktop.craft.metrics.offSettings")}
-      </Button>
-    </div>
+      title={t("desktop.craft.metrics.off")}
+      actionLabel={t("desktop.craft.metrics.offSettings")}
+      onAction={() => {
+        commands.showScreen("settings");
+      }}
+    />
   );
 }
 
@@ -283,7 +285,10 @@ function ChartsColumn(props: {
   const [day, setDay] = useState<string | null>(null);
   const recentRef = useRef<HTMLDivElement>(null);
   return (
-    <div className="grid w-full grid-cols-1 gap-10 px-6 pt-4 pb-12">
+    <div
+      className="cm-charts grid w-full grid-cols-1 gap-10 px-6 pt-6 pb-12"
+      data-narrow={props.narrow ? "" : undefined}
+    >
       <div className="grid grid-cols-1 gap-4">
         <OffBand data={d} />
         <StaleNote data={d} />
@@ -319,7 +324,11 @@ function ChartsColumn(props: {
   );
 }
 
-export function MetricsView(props: { readonly data: MetricsData }): ReactNode {
+export function MetricsView(props: {
+  readonly data: MetricsData;
+  /** 개발 빌드만: 머리 오른쪽 끝의 표본 메뉴(`metrics-dev.tsx`). 배포 빌드는 넘기지 않는다 */
+  readonly dev?: ReactNode;
+}): ReactNode {
   const d = props.data;
   const filtered =
     d.filter.profileId !== null ||
@@ -344,7 +353,16 @@ export function MetricsView(props: { readonly data: MetricsData }): ReactNode {
   const empty = isEmpty(d);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ScreenHeader title={t("desktop.craft.metrics.title")} controls={<FilterBar data={d} />} />
+      <ScreenHeader
+        title={t("desktop.craft.metrics.title")}
+        flush
+        controls={
+          <>
+            <FilterBar data={d} />
+            {props.dev}
+          </>
+        }
+      />
       <div ref={frame} className="relative flex min-h-0 flex-1">
         {empty ? (
           <div className="min-h-0 flex-1 overflow-y-auto">

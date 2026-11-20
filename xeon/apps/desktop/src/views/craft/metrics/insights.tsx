@@ -6,7 +6,7 @@ import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
 import type { EvidenceRef, Finding, MetricDef, Profile } from "@fresnel/contracts/wire";
 import { Button, Chip, IconButton, Popover } from "@caustic/react";
 import { ChevronDown, ChevronRight, X } from "@caustic/react/icons";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { CommandError } from "../../commands.ts";
 import { subjectRefText } from "../trace/place.ts";
 import { InfoTip } from "../info-tip.tsx";
@@ -19,7 +19,8 @@ import {
   sampleStatusOf,
   type ImpactUnit,
 } from "./model.ts";
-import { Card, Gate } from "./parts.tsx";
+import { Gate } from "./parts.tsx";
+import { useRailAvoid } from "./rail-avoid.ts";
 import type { MetricsActions, MetricsData } from "./source.ts";
 
 const RULE_TITLE: Readonly<Record<string, MessageId>> = {
@@ -136,7 +137,7 @@ function NextSteps(props: {
   };
   const holders = profilesWith(props.profiles, props.finding.subject.plugin);
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex min-w-0 items-center gap-0.5">
       {props.finding.next.map((step) => {
         if (step.kind === "remove") {
           return (
@@ -207,7 +208,7 @@ function NextSteps(props: {
         );
       })}
       {failure === null ? null : (
-        <span role="alert" className="text-ui-sm text-danger-text">
+        <span role="alert" className="ms-1.5 min-w-0 truncate text-ui-sm text-danger-text">
           {failure.kind === "unsupported"
             ? t("desktop.craft.metrics.next.unsupported")
             : t("desktop.craft.metrics.next.failed")}
@@ -217,7 +218,17 @@ function NextSteps(props: {
   );
 }
 
-/** 인사이트 하나(열린 카드). 열의 폭(340~420)에 맞춰 근거와 다음 걸음이 한 줄씩 읽히게 쌓는다 */
+/**
+ * 인사이트 하나(열린 카드). 셋째 판(m6X3): 앱의 알림 토스트와 같은 판(rounded-2xl squircle, border-subtle, 그림자 없음)에
+ * 네 묶음을 쌓는다. 묶음 안은 가깝게(4~8), 묶음 사이는 멀게(16), 다음 걸음은 아래 선 뒤의 띠다.
+ *   1. 머리: 종류 타일 28 · 한 줄 제목(13/500, 말줄임) 위 대상(12, 흐림) · 닫기 ×
+ *   2. 숫자: 큰 영향 숫자(18/600)와 단위(13, 보조 글색) 한 기준선, 그 아래 이름-값 줄(12, 이름 흐림 · 값 보조, 양끝)
+ *   3. 근거: "근거 턴 n개"(왼쪽)와 턴 칩(오른쪽) 양끝
+ *   4. 다음 걸음: ghost 단추. 단추 글의 왼쪽이 위 묶음의 왼쪽 선(16)에 선다(띠 6 + 단추 안 10)
+ * 글은 크기 셋(18·13·12), 굵기 셋(600·500·400), 색 셋(주·보조·흐림) 안에서만 가른다. 왼쪽 선은 하나(카드 안 16)다.
+ * 반경은 바깥 2xl(19.2)이고 모서리에 붙은 안의 것은 바깥 − 틈이다: 다음 걸음 단추·닫기 단추 lg(12) ≈ 19.2 − 6~8.
+ * 모든 줄이 한 줄이라 띠를 비킬 때(`--rail-avoid`) 끝 여백만 늘고 높이는 그대로다
+ */
 function InsightCard(props: {
   readonly finding: Finding;
   readonly catalog: ReadonlyMap<string, MetricDef>;
@@ -231,101 +242,113 @@ function InsightCard(props: {
   const figures = insightFiguresOf(f, 2);
   const shown = f.evidence.slice(0, 3);
   const [dismissing, setDismissing] = useState(false);
+  const title = ruleTitleOf(f.ruleId);
   return (
-    <Card as="li" className="gap-3">
-      <div className="flex min-w-0 items-start gap-3">
-        <KindTile kind={kindOfSubject(f.subject.kind)} />
-        <div className="grid min-w-0 flex-1 gap-0.5">
-          {props.onFold === undefined ? (
-            <div className="text-ui leading-5 font-medium text-text-primary">
-              {ruleTitleOf(f.ruleId)}
-            </div>
-          ) : (
-            <button
-              type="button"
-              aria-expanded="true"
-              onClick={props.onFold}
-              className="rounded-none border-0 bg-transparent p-0 text-left text-ui leading-5 font-medium text-text-primary outline-none hover:underline focus-visible:focus-ring"
-            >
-              {ruleTitleOf(f.ruleId)}
-            </button>
-          )}
-          <div className="truncate text-ui-sm text-text-tertiary">{subjectText(f)}</div>
-        </div>
-        <IconButton
-          size="sm"
-          variant="ghost"
-          label={t("desktop.craft.metrics.insight.dismiss")}
-          disabled={props.locked || dismissing}
-          className="-mt-1 -mr-1 shrink-0"
-          onClick={() => {
-            setDismissing(true);
-            detach(
-              props.actions.dismiss(f.id).then((done) => {
-                if (!done.ok) setDismissing(false);
-                return undefined;
-              }),
-              rethrow,
-            );
-          }}
-        >
-          <X />
-        </IconButton>
-      </div>
-      <div className="grid grid-cols-1 gap-2 pl-10">
-        <div className="flex items-baseline gap-1.5">
-          <span className="viz-figure text-title-3 leading-6 font-semibold text-text-primary">
-            {impactValueText(f)}
-          </span>
-          <span className="text-ui-sm text-text-secondary">
-            {t(UNIT_WORD_SHORT[f.impact.unit])}
-          </span>
-        </div>
-        {figures.length === 0 ? null : (
-          <dl className="grid grid-cols-1 gap-1 text-ui-sm">
-            {figures.map((fig) => {
-              const def = props.catalog.get(fig.metric);
-              return (
-                <div key={fig.metric} className="flex min-w-0 items-baseline gap-3">
-                  <dt className="min-w-0 flex-1 truncate text-text-tertiary">
-                    {metricLabelOf(def, fig.metric, props.locale)}
-                  </dt>
-                  <dd className="viz-figure shrink-0 text-text-primary">
-                    {cellText(fig.cell, (v) => metricValueText(def, v))}
-                  </dd>
-                </div>
+    <li
+      data-rail-avoid={CARD_PAD}
+      className="grid min-w-0 grid-cols-1 rounded-2xl border border-border-subtle bg-surface-base"
+    >
+      <div className={`grid min-w-0 grid-cols-1 gap-4 ps-4 pt-3.5 pb-4 ${AVOID_END_16}`}>
+        <div className="flex min-w-0 items-center gap-3">
+          <KindTile kind={kindOfSubject(f.subject.kind)} />
+          <div className="grid min-w-0 flex-1 grid-cols-1">
+            {props.onFold === undefined ? (
+              <div title={title} className="truncate text-ui-strong text-text-primary">
+                {title}
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-expanded="true"
+                title={title}
+                onClick={props.onFold}
+                className="truncate rounded-none border-0 bg-transparent p-0 text-left text-ui-strong text-text-primary outline-none hover:underline focus-visible:focus-ring"
+              >
+                {title}
+              </button>
+            )}
+            <div className="truncate text-ui-sm text-text-tertiary">{subjectText(f)}</div>
+          </div>
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label={t("desktop.craft.metrics.insight.dismiss")}
+            disabled={props.locked || dismissing}
+            className="-me-2 shrink-0 self-start text-text-tertiary"
+            onClick={() => {
+              setDismissing(true);
+              detach(
+                props.actions.dismiss(f.id).then((done) => {
+                  if (!done.ok) setDismissing(false);
+                  return undefined;
+                }),
+                rethrow,
               );
-            })}
-          </dl>
-        )}
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          <span className="mr-1 text-ui-sm text-text-tertiary">
+            }}
+          >
+            <X />
+          </IconButton>
+        </div>
+        <div className="grid min-w-0 grid-cols-1 gap-2">
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="text-title-feature font-semibold text-text-primary">
+              {impactValueText(f)}
+            </span>
+            <span className="truncate text-ui text-text-secondary">
+              {t(UNIT_WORD_SHORT[f.impact.unit])}
+            </span>
+          </div>
+          {figures.length === 0 ? null : (
+            <dl className="m-0 grid grid-cols-1 gap-1 text-ui-sm">
+              {figures.map((fig) => {
+                const def = props.catalog.get(fig.metric);
+                return (
+                  <div key={fig.metric} className="flex min-w-0 items-baseline gap-3">
+                    <dt className="min-w-0 flex-1 truncate text-text-tertiary">
+                      {metricLabelOf(def, fig.metric, props.locale)}
+                    </dt>
+                    <dd className="m-0 shrink-0 text-text-secondary">
+                      {cellText(fig.cell, (v) => metricValueText(def, v))}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          )}
+        </div>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">
             {t("desktop.craft.metrics.evidence.count", { n: countText(f.evidenceTotal) })}
           </span>
-          {shown.map((ref, i) => (
-            <Chip
-              key={
-                ref.kind === "backtest"
-                  ? ref.backtestRunId
-                  : `${ref.threadId}:${ref.turnId}:${String(i)}`
-              }
-              size="sm"
-              variant="outline"
-              disabled={ref.kind === "backtest"}
-              aria-label={
-                ref.kind === "backtest"
-                  ? undefined
-                  : t("desktop.craft.metrics.evidence.open", { n: String(i + 1) })
-              }
-              onClick={() => {
-                props.actions.openTurn(ref);
-              }}
-            >
-              {evidenceLabel(ref, i)}
-            </Chip>
-          ))}
+          <span className="flex shrink-0 items-center gap-1">
+            {shown.map((ref, i) => (
+              <Chip
+                key={
+                  ref.kind === "backtest"
+                    ? ref.backtestRunId
+                    : `${ref.threadId}:${ref.turnId}:${String(i)}`
+                }
+                size="md"
+                radius="lg"
+                variant="outline"
+                disabled={ref.kind === "backtest"}
+                aria-label={
+                  ref.kind === "backtest"
+                    ? undefined
+                    : t("desktop.craft.metrics.evidence.open", { n: String(i + 1) })
+                }
+                onClick={() => {
+                  props.actions.openTurn(ref);
+                }}
+              >
+                {evidenceLabel(ref, i)}
+              </Chip>
+            ))}
+          </span>
         </div>
-        <div className="-ms-2 border-t border-border-subtle pt-2">
+      </div>
+      {f.next.length === 0 ? null : (
+        <div className={`border-t border-border-subtle ps-1.5 py-1.5 ${AVOID_END_6}`}>
           <NextSteps
             finding={f}
             profiles={props.profiles}
@@ -333,21 +356,33 @@ function InsightCard(props: {
             locked={props.locked}
           />
         </div>
-      </div>
-    </Card>
+      )}
+    </li>
   );
 }
+
+/** 카드 안쪽 여백(px). 띠를 비키는 계산의 기준이다(`data-rail-avoid`) */
+const CARD_PAD = 16;
+/** 끝 여백 + 띠 비키기. 띠와 같은 높이일 때만 `--rail-avoid`가 0보다 크다. 바뀔 때 짧게 미끄러진다 */
+const AVOID_END_16 =
+  "pe-[calc(16px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
+const AVOID_END_6 =
+  "pe-[calc(6px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
+const AVOID_END_0 =
+  "pe-[var(--rail-avoid,0px)] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
+const AVOID_END_8 =
+  "pe-[calc(8px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
 
 /** 접힌 인사이트 한 줄(많을 때 여섯째부터). 누르면 카드로 펼친다 */
 function InsightRow(props: { readonly finding: Finding; readonly onOpen: () => void }): ReactNode {
   const f = props.finding;
   return (
-    <li>
+    <li data-rail-avoid="8">
       <button
         type="button"
         aria-expanded="false"
         onClick={props.onOpen}
-        className="grid h-9 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border-0 bg-transparent px-2 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring"
+        className={`grid h-9 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border-0 bg-transparent ps-2 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring ${AVOID_END_8}`}
       >
         <KindTile kind={kindOfSubject(f.subject.kind)} size={20} />
         <span className="min-w-0 truncate">
@@ -381,7 +416,11 @@ function Dismissed(props: { readonly findings: readonly Finding[] }): ReactNode 
       {open ? (
         <ul className="grid grid-cols-1 gap-0.5 pl-6">
           {props.findings.map((f) => (
-            <li key={f.id} className="flex h-8 items-center gap-2 text-ui text-text-secondary">
+            <li
+              key={f.id}
+              data-rail-avoid="0"
+              className={`flex h-8 items-center gap-2 text-ui text-text-secondary ${AVOID_END_0}`}
+            >
               <span className="min-w-0 flex-1 truncate">
                 {ruleTitleOf(f.ruleId)} · {f.subject.plugin}
               </span>
@@ -496,6 +535,8 @@ export function InsightPanel(props: {
   const focus = data.filter.plugin;
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  const scroller = useRef<HTMLDivElement>(null);
+  useRailAvoid(scroller);
   const count =
     data.findings.kind === "ready"
       ? data.findings.value.findings.filter((f) => focus === null || f.subject.plugin === focus)
@@ -503,7 +544,8 @@ export function InsightPanel(props: {
       : null;
   return (
     <aside aria-labelledby="cm-insights-title" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-2 px-5">
+      {/* 머리: 그림 열의 첫 상자와 같은 위 24px에서 시작한다. 좌우 안쪽 여백은 같은 20px(열의 왼쪽 선과 창 끝에서) */}
+      <div className="flex min-h-7 shrink-0 items-center gap-2 px-5 pt-6 pb-3">
         <h2
           id="cm-insights-title"
           className="text-title-3 leading-5 font-semibold text-text-primary"
@@ -511,7 +553,7 @@ export function InsightPanel(props: {
           {t("desktop.craft.metrics.insight.title")}
         </h2>
         {count === null || count === 0 ? null : (
-          <span className="viz-figure text-ui text-text-tertiary">{countText(count)}</span>
+          <span className="text-ui text-text-tertiary">{countText(count)}</span>
         )}
         <InfoTip text={t("desktop.craft.metrics.insight.info")} />
         {focus === null ? null : (
@@ -522,14 +564,14 @@ export function InsightPanel(props: {
             size="sm"
             variant="ghost"
             label={t("desktop.craft.metrics.insight.close")}
-            className="ml-auto"
+            className="-me-1.5 ml-auto"
             onClick={props.onClose}
           >
             <X />
           </IconButton>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-10">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-10">
         <Gate
           load={data.findings}
           height={160}
@@ -548,14 +590,14 @@ export function InsightPanel(props: {
                 {groups.map((group) => (
                   <section
                     key={group.unit}
-                    className="grid grid-cols-1 gap-2"
+                    className="grid grid-cols-1 gap-2.5"
                     aria-label={t(UNIT_GROUP[group.unit])}
                   >
-                    <div className="flex items-center gap-2 text-ui-sm text-text-tertiary">
+                    <div className="flex items-center gap-1.5 text-ui-sm text-text-tertiary">
                       <span>{t(UNIT_GROUP[group.unit])}</span>
-                      <span className="viz-figure">{countText(group.items.length)}</span>
+                      <span>{countText(group.items.length)}</span>
                     </div>
-                    <ul className="grid grid-cols-1 gap-2">
+                    <ul className="m-0 grid grid-cols-1 gap-3 p-0">
                       {group.items.map((f) => {
                         const at = index;
                         index += 1;
@@ -628,12 +670,12 @@ export function InsightSummary(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className="flex h-11 w-full items-center gap-3 rounded-xl border border-border-subtle bg-transparent px-4 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring"
+      className="flex h-11 w-full items-center gap-3 rounded-2xl border border-border-subtle bg-transparent px-4 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring"
     >
       <span className="font-semibold text-text-primary">
         {t("desktop.craft.metrics.insight.title")}
       </span>
-      <span className="viz-figure text-text-tertiary">{countText(findings.length)}</span>
+      <span className="text-text-tertiary">{countText(findings.length)}</span>
       <span className="min-w-0 flex-1 truncate text-text-secondary">
         {top === null
           ? t("desktop.craft.metrics.insight.none")

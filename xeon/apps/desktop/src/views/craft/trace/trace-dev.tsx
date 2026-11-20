@@ -1,11 +1,11 @@
-// 트레이스 화면의 표본 장면 고르기(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸 하나.
+// 트레이스 화면의 표본 장면 고르기(개발 빌드만, `BUILD_CHECKS`). 메트릭과 같은 머리 오른쪽 끝의 메뉴다(m6X3, `scene-menu.tsx`).
 // 장면 "실제 엔진"은 실제 원천이다. 다만 메트릭 표본의 근거 줄에서 왔으면(대화 `thr_sample`) 표본 턴을 보인다.
 // 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다).
-import { t, type MessageId } from "@fresnel/client/i18n";
+import type { MessageId } from "@fresnel/client/i18n";
 import { attempt } from "@fresnel/contracts";
-import { Select, SelectOption } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { useShellActions } from "../../../state/shell/index.ts";
+import { SceneMenu } from "../metrics/scene-menu.tsx";
 import { SAMPLE_THREAD, TRACE_SCENES, sampleTrace, type TraceScene } from "./sample.ts";
 import type { TraceData } from "./source.ts";
 import { TraceView } from "./trace-view.tsx";
@@ -62,31 +62,24 @@ export function TraceDev(props: { readonly live: TraceData }): ReactNode {
         );
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <TraceView key={shown} data={data} />
-      <div
-        data-trace-switcher=""
-        className="fixed bottom-2 left-24 z-40 flex items-center gap-1 opacity-55 transition-opacity focus-within:opacity-100 hover:opacity-100"
-      >
-        <Select
-          size="xs"
-          variant="ghost"
-          aria-label={t("desktop.craft.metrics.dev.scene")}
-          value={scene}
-          onValueChange={(value) => {
-            if (!isScene(value)) return;
-            attempt(() => {
-              localStorage.setItem(SCENE_KEY, value);
-            });
-            setScene(value);
-          }}
-        >
-          {TRACE_SCENES.map((s) => (
-            <SelectOption key={s} value={s}>
-              {t(SCENE_WORD[s])}
-            </SelectOption>
-          ))}
-        </Select>
-      </div>
+      <TraceView
+        key={shown}
+        data={data}
+        dev={
+          <SceneMenu
+            scenes={TRACE_SCENES}
+            words={SCENE_WORD}
+            value={scene}
+            marker="trace"
+            onPick={(value) => {
+              attempt(() => {
+                localStorage.setItem(SCENE_KEY, value);
+              });
+              setScene(value);
+            }}
+          />
+        }
+      />
     </div>
   );
 }

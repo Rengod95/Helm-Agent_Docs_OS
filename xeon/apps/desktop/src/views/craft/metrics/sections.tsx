@@ -122,7 +122,7 @@ export function ContextSection(props: {
           const breakdown = contextOf(pluginRowsOf(result));
           if (breakdown.slices.length === 0) {
             return (
-              <div className="flex min-h-12 items-center rounded-xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+              <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
                 {breakdown.missing.length === 0
                   ? t("desktop.craft.metrics.context.none")
                   : t("desktop.craft.metrics.context.sampleOnly", {
@@ -184,7 +184,7 @@ export function ContextSection(props: {
             <div className="grid grid-cols-1 gap-5">
               <div className="grid grid-cols-1 gap-2">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="viz-figure text-title-1 leading-8 font-semibold text-text-primary">
+                  <span className="text-title-1 leading-8 font-semibold text-text-primary">
                     {tokensText(focused === null ? breakdown.total : focused.total)}
                   </span>
                   <span className="text-ui text-text-secondary">
@@ -202,7 +202,7 @@ export function ContextSection(props: {
                       <span key={part} className="flex items-center gap-1.5">
                         <Swatch color={PART_COLOR[part]} />
                         {t(PART_WORD[part])}
-                        <span className="viz-figure text-text-primary">
+                        <span className="text-text-primary">
                           {tokensText(
                             focused === null ? breakdown.totals[part] : focused.parts[part],
                           )}
@@ -332,7 +332,7 @@ export function TimeSection(props: { readonly data: MetricsData }): ReactNode {
           return (
             <div className="grid grid-cols-1 gap-3">
               <div className="flex items-baseline gap-2">
-                <span className="viz-figure text-title-2 leading-7 font-semibold text-text-primary">
+                <span className="text-title-2 leading-7 font-semibold text-text-primary">
                   {cellText(time.total, msText)}
                 </span>
                 <span className="text-ui text-text-secondary">
@@ -470,7 +470,7 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
           const rows = sortPluginRows(pluginRowsOf(result), sort);
           if (rows.length === 0) {
             return (
-              <div className="flex min-h-12 items-center rounded-xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+              <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
                 {t("desktop.craft.metrics.table.none")}
               </div>
             );
@@ -505,7 +505,7 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
           );
           return (
             <div className="grid grid-cols-1 gap-2">
-              <div className="overflow-x-auto rounded-xl border border-border-subtle">
+              <div className="overflow-x-auto rounded-2xl border border-border-subtle">
                 <table className="viz-figure w-full border-collapse text-ui">
                   <caption className="sr-only">{t("desktop.craft.metrics.table.title")}</caption>
                   <thead>
@@ -953,7 +953,7 @@ function CompareBody(props: { readonly state: CompareState }): ReactNode {
   switch (s.kind) {
     case "idle":
       return (
-        <div className="flex min-h-12 items-center rounded-xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+        <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
           {t("desktop.craft.metrics.compare.noPlugins")}
         </div>
       );
@@ -961,7 +961,7 @@ function CompareBody(props: { readonly state: CompareState }): ReactNode {
       return <LoadingBlock height={120} label={t("desktop.craft.metrics.compare.title")} />;
     case "single":
       return (
-        <div className="flex min-h-12 items-center rounded-xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+        <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
           {t("desktop.craft.metrics.compare.single")}
         </div>
       );
@@ -1100,14 +1100,18 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
       info: t("desktop.craft.metrics.table.defiedInfo"),
     },
   ];
-  // 칸마다 이름·값·덧말 세 줄을 subgrid로 맞춰, 이름이 두 줄로 접혀도 값이 한 줄에 선다
+  // 칸마다 이름·값·덧말 세 줄을 subgrid로 맞춰 값이 한 줄에 선다. 다섯 칸 한 줄(그림 열 42rem 이상)에서는 칸 폭을 이름 길이(max-content)로
+  // 잡고 남는 폭을 칸 사이에 고르게 나눠(justify-between) 이름을 줄이지 않고 한 줄에 둔다(m6X3: 1440에서 두 줄로 넘어가던 것).
+  // 좁으면(두세 칸) 이름이 접힐 수 있다
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-border-subtle px-5 py-4 @[30rem]/metrics:grid-cols-3 @[42rem]/metrics:grid-cols-5">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-2xl border border-border-subtle px-5 py-4 @[30rem]/metrics:grid-cols-3 @[42rem]/metrics:grid-cols-[repeat(5,max-content)] @[42rem]/metrics:justify-between @[42rem]/metrics:gap-x-6">
       {cells.map((c) => (
         <div key={c.id} className="row-span-3 grid min-w-0 grid-rows-subgrid gap-y-1">
           <div className="flex items-end gap-1.5 text-ui-sm text-text-tertiary">
             {c.mark === undefined ? null : <span className="flex h-5 items-center">{c.mark}</span>}
-            <span className="min-w-0 text-pretty">{c.label}</span>
+            <span className="min-w-0 text-pretty @[42rem]/metrics:whitespace-nowrap">
+              {c.label}
+            </span>
             {c.info === undefined ? null : (
               <span className="flex h-5 items-center">
                 <InfoTip text={c.info} />
@@ -1115,7 +1119,7 @@ export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
             )}
           </div>
           <div
-            className={`viz-figure truncate ${c.cell.kind !== "value" ? "text-ui leading-7 text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
+            className={`truncate ${c.cell.kind !== "value" ? "text-ui leading-7 text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
           >
             {cellText(c.cell, c.fmt)}
           </div>

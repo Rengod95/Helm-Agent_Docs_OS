@@ -253,6 +253,13 @@ export function useTraceSource(): TraceData {
       ? { ...recordLoad, value: { ...recordLoad.value, record: live.state.record } }
       : recordLoad;
   const shownRecord = record.kind === "ready" ? record.value.record : null;
+  // 도는 턴이 알림으로 끝나면(누적본이 `open`을 떠나면) 한 번 다시 읽는다(m6X3): 턴 목록의 "도는 중"과 머리의 "실시간"이
+  // 끝난 뒤에도 남던 것. 다시 읽은 기록은 끝난 상태라 구독도 닫힌다
+  const liveEnded =
+    open && live !== null && live.key === recordKey && live.state.record.status !== "open";
+  useEffect(() => {
+    if (liveEnded) setNonce((n) => n + 1);
+  }, [liveEnded]);
   const recorded = shownRecord === null ? new Set<string>() : recordedHookKeys(shownRecord);
   const pending =
     live !== null && live.turnId === turnId

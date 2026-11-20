@@ -1,15 +1,16 @@
-// 메트릭 화면의 표본 장면 고르기(개발 빌드만, `BUILD_CHECKS`). 창 왼쪽 아래의 작은 칸 하나.
+// 메트릭 화면의 표본 장면 고르기(개발 빌드만, `BUILD_CHECKS`). 셋째 판(m6X3): 리뷰 화면처럼 화면 머리 오른쪽 끝의 작은 메뉴
+// ("표본 · <장면>")다. 창 왼쪽 아래 구석은 옆 내비의 설정 줄과 아래 띠에 묻혀 묶인 앱에서 찾기 어려웠다.
 // 판 전환기(가·나)는 사용자가 나의 짜임을 고르며 뺐다(2026-11-20). 장면 "실제 엔진"은 실제 원천을 그대로 쓰고
 // 나머지는 `sample.ts`의 표본이다. 표본의 "이 턴 보기"와 최근 턴도 트레이스로 간다(표본 턴).
 // 고른 값은 localStorage에 남는다(찍기 도구도 이 키를 미리 정한다).
-import { t, type MessageId } from "@fresnel/client/i18n";
+import type { MessageId } from "@fresnel/client/i18n";
 import { attempt } from "@fresnel/contracts";
-import { Select, SelectOption } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { openTrace } from "../trace/target.ts";
 import { DEFAULT_FILTER, type MetricsFilter } from "./model.ts";
 import { MetricsView } from "./metrics-view.tsx";
+import { SceneMenu } from "./scene-menu.tsx";
 import { SCENES, sampleData, type Scene } from "./sample.ts";
 import type { MetricsData } from "./source.ts";
 
@@ -62,31 +63,21 @@ export function MetricsDev(props: { readonly live: MetricsData }): ReactNode {
             shell.updatePlace({ screen: "trace", scroll: 0 });
           },
         });
+  const menu = (
+    <SceneMenu
+      scenes={SCENES}
+      words={SCENE_WORD}
+      value={scene}
+      marker="metrics"
+      onPick={(next) => {
+        writeKey(SCENE_KEY, next);
+        setScene(next);
+      }}
+    />
+  );
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <MetricsView key={scene} data={data} />
-      <div
-        data-metrics-switcher=""
-        className="fixed bottom-2 left-24 z-40 flex items-center gap-1 opacity-55 transition-opacity focus-within:opacity-100 hover:opacity-100"
-      >
-        <Select
-          size="xs"
-          variant="ghost"
-          aria-label={t("desktop.craft.metrics.dev.scene")}
-          value={scene}
-          onValueChange={(value) => {
-            if (!isScene(value)) return;
-            writeKey(SCENE_KEY, value);
-            setScene(value);
-          }}
-        >
-          {SCENES.map((s) => (
-            <SelectOption key={s} value={s}>
-              {t(SCENE_WORD[s])}
-            </SelectOption>
-          ))}
-        </Select>
-      </div>
+      <MetricsView key={scene} data={data} dev={menu} />
     </div>
   );
 }

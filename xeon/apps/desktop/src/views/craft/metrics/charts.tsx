@@ -264,6 +264,8 @@ export function SegmentBar(props: {
   const hot = hovered ?? props.picked ?? null;
   const pick = props.onPick;
   const height = props.height ?? 20;
+  // 띠 양끝의 반경은 높이에 비례한다(32 → 7, 24 → 5, 20 → 4). 판(rounded-2xl)과 같은 부드러움으로 보이게(m6X3). SVG라 squircle은 없다
+  const endRadius = Math.max(4, Math.round(height * 0.22));
   const total = props.segments.reduce((s, x) => s + x.value, 0);
   const gap = 2;
   const usable = Math.max(0, width - gap * Math.max(0, props.segments.length - 1));
@@ -308,7 +310,7 @@ export function SegmentBar(props: {
           </pattern>
         </defs>
         {total === 0 ? (
-          <rect width={width} height={height} rx={4} fill="var(--viz-track)" />
+          <rect width={width} height={height} rx={endRadius} fill="var(--viz-track)" />
         ) : (
           placed.map(({ seg: s, x, w }, i) => (
             <rect
@@ -319,7 +321,7 @@ export function SegmentBar(props: {
               y={0}
               width={w}
               height={height}
-              rx={i === 0 || i === placed.length - 1 ? 4 : 1.5}
+              rx={i === 0 || i === placed.length - 1 ? endRadius : 1.5}
               fill={s.hatch === true ? "url(#viz-hatch)" : s.color}
               {...(pick === undefined || s.id.startsWith("__")
                 ? {}
@@ -350,7 +352,7 @@ export function SegmentBar(props: {
                 style={{ left: x, width: w }}
               >
                 <div className="truncate text-text-secondary">{s.label}</div>
-                <div className="viz-figure truncate text-text-primary">{s.valueText}</div>
+                <div className="truncate text-text-primary">{s.valueText}</div>
               </div>
             ))}
         </div>

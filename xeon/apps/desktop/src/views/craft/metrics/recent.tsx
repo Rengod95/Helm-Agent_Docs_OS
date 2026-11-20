@@ -46,7 +46,7 @@ function TurnDecisions(props: { readonly turn: TurnSummary }): ReactNode {
         <span
           key={i.kind}
           title={i.word}
-          className={`viz-figure inline-flex items-center gap-1 text-ui-sm ${i.kind === "error" ? "text-danger-text" : "text-text-secondary"}`}
+          className={`inline-flex items-center gap-1 text-ui-sm ${i.kind === "error" ? "text-danger-text" : "text-text-secondary"}`}
         >
           <DecisionGlyph decision={i.kind} size={11} />
           <span className="sr-only">{i.word}</span>
@@ -149,7 +149,7 @@ export function RecentTurnsSection(props: {
           const list = props.day === null ? recent.turns : turnsOnDay(recent.turns, props.day);
           if (list.length === 0) {
             return (
-              <div className="flex min-h-12 items-center rounded-xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+              <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
                 {props.day !== null && dayTurns !== null && dayTurns > 0
                   ? t("desktop.craft.metrics.recent.dayOutside", { n: countText(dayTurns) })
                   : t("desktop.craft.metrics.recent.none")}

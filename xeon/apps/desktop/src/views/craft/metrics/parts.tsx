@@ -1,4 +1,4 @@
-// 메트릭·트레이스 화면의 공용 틀: 섹션(제목은 크고 진하게, 아이콘 없음), 카드(받은 요청 카드와 같은 값), 칸의 읽기 상태.
+// 메트릭·트레이스 화면의 공용 틀: 섹션(제목은 크고 진하게, 아이콘 없음), 판, 칸의 읽기 상태. 인사이트 카드는 `insights.tsx`가 따로 그린다(m6X3).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { Button, Skeleton } from "@caustic/react";
@@ -35,13 +35,13 @@ export function Section(props: {
   );
 }
 
-/** 받은 요청 패널의 카드와 같은 값: rounded-xl, p-4, gap-3, border-subtle */
+/** 메트릭·트레이스의 판(m6X3): 알림 토스트와 같은 rounded-2xl(squircle), p-4, gap-3, border-subtle */
 export function Card(props: {
   readonly children: ReactNode;
   readonly className?: string;
   readonly as?: "div" | "li";
 }): ReactNode {
-  const className = `grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-border-subtle bg-surface-base p-4 ${props.className ?? ""}`;
+  const className = `grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-border-subtle bg-surface-base p-4 ${props.className ?? ""}`;
   return props.as === "li" ? (
     <li className={className}>{props.children}</li>
   ) : (
@@ -78,7 +78,7 @@ export function LoadProblem(props: {
     error: "desktop.craft.metrics.state.error",
   };
   return (
-    <div className="flex min-h-12 items-center gap-3 rounded-xl border border-dashed border-border-default px-4 py-3 text-ui text-text-secondary">
+    <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-dashed border-border-default px-4 py-3 text-ui text-text-secondary">
       <span className="min-w-0 flex-1">{t(word[props.kind])}</span>
       {props.kind === "error" && props.onRetry !== undefined ? (
         <Button size="sm" variant="ghost" onClick={props.onRetry}>
@@ -129,7 +129,7 @@ export function Stat(props: {
         {props.info === undefined ? null : <InfoTip text={props.info} />}
       </div>
       <div
-        className={`viz-figure truncate ${props.muted === true ? "text-ui text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
+        className={`truncate ${props.muted === true ? "text-ui text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
       >
         {props.value}
       </div>
