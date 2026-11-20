@@ -440,15 +440,22 @@ export interface SandboxService {
     readRoots?: readonly string[];
     /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다) */
     systemTools?: boolean;
+    /**
+     * 보통 프로필에서만. 참이면 쓰기 범위 제한이 없다(쓰기 루트는 `/`, `workspaceRoots`·`tempDir`는 무시). 거부는 Fresnel 자신의 시크릿·데이터·설정과
+     * 사용자가 더한 `l0.sandbox.protectedPaths.extra`뿐이다. 셸 도구가 쓴다. 생략하면 작업 공간과 임시 폴더만 쓰고 제안 목록 전체를 쓰기 거부한다(MCP 서버)
+     */
+    writeEverywhere?: boolean;
     /** `"script-env"`에서만. 쓰기 루트가 되는 프로젝트 폴더(절대 경로). 임시 폴더는 호출마다 샌드박스가 만든다 */
     projectDir?: string;
     /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
     readCarveOuts?: readonly string[];
   }): SandboxPolicy;
   /**
-   * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
-   * root별 git 항목(`.git/hooks`, `.git/config` 등)이 이 호출의 결과에 들어가므로, bash를 한 번도 돌리지 않은 파일 도구도
-   * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
+   * 보호 경로 전체. L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
+   * `roots`에 `/`가 있으면(쓰기 범위 제한 없음, 보통 대화) Fresnel 자신의 시크릿·데이터·설정과 사용자가 더한 `protectedPaths.extra`만 돌려준다.
+   * 자격 폴더, 셸 시작 파일, `.git/hooks` 등은 기본으로 들어 있지 않다(사용자가 대화로 더한다).
+   * `/`가 없으면(쓰기 범위가 좁은 대화) 제안 목록 전체와 root별 git 항목(`.git/hooks`, `.git/config` 등)을 쓰기 전용으로 더 돌려준다.
+   * 생략하면 쓰기 범위가 좁은 쪽이고, root별 git 항목은 넣지 않는다.
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
   /**
@@ -457,7 +464,7 @@ export interface SandboxService {
    * 같은 경로인지 견줄 때 쓴다(cap-workspace의 `sandbox_protect`는 이것으로 중복과 `/`·홈 거부를 정한다).
    */
   protectedPathKey(value: string): string | undefined;
-  /** 이 기기에서 제안되는 경로 줄(`suggestedProtectedPaths(platform)`). 기본은 쓰기만 막는 자격 폴더의 목록이고, 설정 extra에 적으면 읽기도 막힌다 */
+  /** 이 기기에서 제안되는 경로 줄(`suggestedProtectedPaths(platform)`). 기본으로는 막지 않는 곳의 목록이고, 설정 extra에 적으면 읽기와 쓰기가 막힌다 */
   suggestedProtectedPaths(): readonly SuggestedProtectedPathView[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;

@@ -36,6 +36,7 @@ import {
   mergePolicy,
   socatPathOf,
   toSrtGlobalConfig,
+  WRITE_EVERYWHERE,
   type EffectivePolicy,
   type PolicyInput,
   type SrtTools,
@@ -43,8 +44,10 @@ import {
 import {
   BASENAME_SEARCH_DEPTH,
   buildProtectedPaths,
+  type ProtectedScope,
   dropProtectedWriteRoots,
   expandBasenameEntries,
+  MAX_SCANNED_DIRS,
   resolveExtraPaths,
   suggestedProtectedPaths,
   withGitEntries,
@@ -154,8 +157,6 @@ export async function createSandboxService(
   /** 마지막 갱신에서 srt가 거부해 차단 목록에서 뺀 도메인. 갱신할 때마다 새로 정한다 */
   let rejectedBlockedDomains: readonly string[] = [];
   let refreshing: Promise<SandboxStatus> | undefined;
-  /** 정책에서 본 작업 공간 root. protectedPaths()가 root별 git 항목을 더하는 데 쓴다 */
-  const knownRoots = new Set<string>();
 
   const currentStatus = (withSelfTest: boolean): SandboxStatus => {
     const settings = deps.settings();
@@ -169,7 +170,7 @@ export async function createSandboxService(
     });
   };
 
-  const baseProtectedEntries = (): readonly ProtectedPathEntry[] => {
+  const baseProtectedEntries = (scope: ProtectedScope): readonly ProtectedPathEntry[] => {
     const extra = resolveExtraPaths(deps.settings().protectedPathsExtra, dirs.home);
     const ageKeyFile = parentEnv()["SOPS_AGE_KEY_FILE"];
     return buildProtectedPaths({
@@ -178,6 +179,7 @@ export async function createSandboxService(
       secretPaths: deps.secrets?.protectedPaths() ?? [],
       ageKeyFileEnv: ageKeyFile,
       extraPaths: extra.resolved,
+      scope,
     });
   };
 
@@ -268,18 +270,22 @@ export async function createSandboxService(
     return refreshing;
   };
 
-  /** 쓰기 루트 후보에 git 항목을 더하고, 보호 경로 안의 루트를 지운다 */
+  /**
+   * 쓰기 루트 후보에 보호 경로를 합치고, 보호 경로 안의 루트를 지운다. `narrow`는 작업 공간 root별 git 항목도 더한다.
+   * `open`(쓰기 범위 제한 없음)은 Fresnel 자신의 항목과 사용자가 더한 곳만 막는다
+   */
   const analyzeRoots = (
     roots: readonly string[],
+    scope: ProtectedScope,
   ): {
     readonly entries: readonly ProtectedPathEntry[];
     readonly kept: string[];
     readonly pathEntries: readonly ProtectedPathEntry[];
   } => {
-    const entries = withGitEntries(baseProtectedEntries(), roots);
+    const base = baseProtectedEntries(scope);
+    const entries = scope === "narrow" ? withGitEntries(base, roots) : base;
     const { kept, removed } = dropProtectedWriteRoots(roots, entries);
     if (removed.length > 0) logger.warn("sandbox.write_root_removed", { roots: removed });
-    for (const root of kept) knownRoots.add(root);
     return {
       entries,
       kept,
@@ -298,20 +304,28 @@ export async function createSandboxService(
 
   const resolvePolicy = (policy: SandboxPolicy, baseDir: string): EffectivePolicy => {
     const readOnly = policy.profile === "read-only" || policy.profile === "no-write";
-    // 스크립트 환경은 프로젝트 폴더 하나만 쓰므로 설정의 쓰기 루트 추가분을 더하지 않는다
     const scriptEnv = policy.profile === "script-env";
+    // 쓰기 루트가 `/`인 보통 프로필(셸 도구)은 쓰기 범위 제한이 없다. 보호 경로는 Fresnel 자신의 것과 사용자가 더한 곳뿐이다
+    const open = !readOnly && !scriptEnv && policy.writeRoots.includes(WRITE_EVERYWHERE);
+    const scope: ProtectedScope = open ? "open" : "narrow";
     const input: PolicyInput = {
       policy,
       protectedReadDeny: [],
       protectedWriteDeny: [],
       basenameReadFiles: [],
       basenameWriteFiles: [],
-      extraWriteRoots: readOnly || scriptEnv ? [] : deps.settings().writeRootsExtra,
       home: dirs.home,
       base: baseDir,
     };
-    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidateWriteRoots(input));
+    // `/`(쓰기 범위 제한 없음)는 보통 프로필만 받는다. 스크립트 환경이 `/`를 담아 와도 프로젝트 폴더 쪽만 쓴다
+    const candidates = candidateWriteRoots(input).filter(
+      (root) => open || root !== WRITE_EVERYWHERE,
+    );
+    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidates, scope);
+    // 이름 패턴 항목은 `narrow`에만 있다. `open`은 훑을 것이 없어 작업 공간을 훑지 않는다
     const names = expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH);
+    if (names.truncated)
+      logger.warn("sandbox.basename_scan_truncated", { limit: MAX_SCANNED_DIRS });
     const merged = mergePolicy(
       {
         ...input,
@@ -345,9 +359,8 @@ export async function createSandboxService(
     parentEnv,
     readOnlyTempBase: () => dirs.tmp,
     status: () => currentStatus(withSelfTest),
-    escapeRetry: () => deps.settings().escapeRetry,
     resolvePolicy,
-    protectedEntries: () => baseProtectedEntries(),
+    protectedEntries: () => baseProtectedEntries("narrow"),
     tools: () => tools,
     ensureCurrent: async (context: CancelScope): Promise<void> => {
       if (detectedEnabled === deps.settings().enabled) return;
@@ -364,7 +377,7 @@ export async function createSandboxService(
         projectDir !== undefined && projectDir.startsWith("/")
           ? [canonicalizePath(projectDir)]
           : [];
-      const { kept, pathEntries } = analyzeRoots(projectRoots);
+      const { kept, pathEntries } = analyzeRoots(projectRoots, "narrow");
       return {
         writeRoots: kept,
         readDeny: sortedUnique(
@@ -385,7 +398,7 @@ export async function createSandboxService(
     }
     if (input.profile === "no-write") {
       // 쓰기 루트 없음, 읽기 허용 목록 프로필(플러그인 호스트). 네트워크는 차단 목록 방식 그대로다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다
-      const { pathEntries } = analyzeRoots([]);
+      const { pathEntries } = analyzeRoots([], "narrow");
       return {
         writeRoots: [],
         readDeny: sortedUnique(
@@ -419,7 +432,7 @@ export async function createSandboxService(
     }
     if (input.profile === "read-only") {
       // 쓰기 루트 없음, 네트워크 차단 프로필. 보호 경로 읽기 금지는 그대로 더한다. 호출마다 만드는 임시 폴더는 wrapShell이 더한다
-      const { pathEntries } = analyzeRoots([]);
+      const { pathEntries } = analyzeRoots([], "narrow");
       return {
         writeRoots: [],
         readDeny: sortedUnique(
@@ -431,12 +444,16 @@ export async function createSandboxService(
         profile: "read-only",
       };
     }
-    const roots = sortedUnique(
-      [...input.workspaceRoots, input.tempDir, ...deps.settings().writeRootsExtra].map((root) =>
-        canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
-      ),
-    );
-    const { kept, pathEntries } = analyzeRoots(roots);
+    // 보통 프로필. 셸 도구는 `writeEverywhere`로 쓰기 범위 제한 없이 부른다. 그 밖(MCP 서버)은 작업 공간과 임시 폴더만 쓴다
+    const writeEverywhere = input.writeEverywhere === true;
+    const roots = writeEverywhere
+      ? [WRITE_EVERYWHERE]
+      : sortedUnique(
+          [...input.workspaceRoots, input.tempDir].map((root) =>
+            canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
+          ),
+        );
+    const { kept, pathEntries } = analyzeRoots(roots, writeEverywhere ? "open" : "narrow");
     return {
       writeRoots: kept,
       readDeny: sortedUnique(
@@ -556,9 +573,11 @@ export async function createSandboxService(
   return {
     status: () => currentStatus(true),
     defaultPolicy,
-    // 호출한 쪽이 넘긴 root도 git 항목을 받는다. knownRoots는 bash 정책을 만든 뒤에야 차므로 그것만 쓰면 첫 파일 쓰기가 열린다
+    // 쓰기 루트에 `/`가 든 대화(쓰기 범위 제한 없음)는 `open` 범위(Fresnel 자신의 항목과 사용자가 더한 곳)다. 좁은 대화는 제안 목록과 root별 git 항목을 쓰기 전용으로 막는다
     protectedPaths: (roots) =>
-      withGitEntries(baseProtectedEntries(), [...knownRoots, ...(roots ?? [])]),
+      roots?.includes(WRITE_EVERYWHERE) === true
+        ? baseProtectedEntries("open")
+        : withGitEntries(baseProtectedEntries("narrow"), roots ?? []),
     protectedPathKey: (value) => resolveExtraPaths([value], dirs.home).resolved[0],
     suggestedProtectedPaths: () =>
       suggestedProtectedPaths(currentStatus(false).platform).flatMap((row) => {

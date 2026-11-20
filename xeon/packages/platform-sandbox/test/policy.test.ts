@@ -36,7 +36,6 @@ function input(
     protectedWriteDeny: [],
     basenameReadFiles: [],
     basenameWriteFiles: [],
-    extraWriteRoots: [],
     home,
     base,
     ...overrides,

@@ -14,9 +14,10 @@ import { canonicalizePath, toAbsolutePath } from "./paths.ts";
 /** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3). basename 항목을 쓰기 루트 아래에서 찾을 때 쓴다 */
 export const BASENAME_SEARCH_DEPTH = 3;
 
-// L0.sandbox.spec §3.3. [결정: 2026-11-20, 사용자, AGE-63 "전체 허용, 막을 부분만 대화로 더한다"]
-// 기본은 읽기를 막지 않는다. 자격 폴더·파일은 쓰기만 막고, 읽기까지 막을 것은 설정 `l0.sandbox.protectedPaths.extra`로 고른다.
-// Fresnel 자신의 시크릿·데이터·설정은 읽기도 거부한다(아래 `secret_key`, `fresnel_data` 항목).
+// L0.sandbox.spec §3.3. [결정: 2026-11-20, 사용자, AGE-63 "전체 허용, 막을 부분만 대화로 더한다", "쓰기도 풀기"]
+// 셸 도구와 파일 도구는 읽기와 쓰기를 기본으로 막지 않는다. 막을 곳은 설정 `l0.sandbox.protectedPaths.extra`로 사용자가 더한다(읽기·쓰기 모두 거부).
+// 기본으로 남는 것은 Fresnel 자신의 시크릿·데이터·설정뿐이다(아래 `secret_key`, `fresnel_data`, `fresnel_config` 항목).
+// 쓰기 범위가 좁은 길(플러그인 격리, 가져오기 훑기, 스크립트 실행, MCP 서버)은 아래 제안 목록을 쓰기 전용 거부로 계속 쓴다(`scope: "narrow"`).
 
 type Reason = ProtectedPathEntry["reason"];
 type ProtectedDirs = Pick<OsDirs, "home" | "data" | "config">;
@@ -25,20 +26,26 @@ type ProtectedDirs = Pick<OsDirs, "home" | "data" | "config">;
 export type SuggestedOs = "all" | "darwin" | "linux";
 
 /**
- * 제안 목록의 경로 한 줄. 기본으로는 쓰기만 막고, 설정 `l0.sandbox.protectedPaths.extra`에 `path`를 적으면 셸 도구와 파일 도구가
- * 읽기와 쓰기를 모두 막는다. `path`는 설정 값과 같은 모양이다(`~/…` 또는 절대 경로). 표시와 제안에 쓴다.
+ * 보호 경로 표를 읽는 범위. `open`은 셸 도구와 파일 도구(쓰기 범위 제한 없음)이고, 거부는 Fresnel 자신의 항목과 사용자가 더한 곳뿐이다.
+ * `narrow`는 쓰기 범위가 좁은 길이고, 제안 목록과 이름 패턴을 쓰기 전용으로 더 거부한다
+ */
+export type ProtectedScope = "open" | "narrow";
+
+/**
+ * 제안 목록의 경로 한 줄. 셸 도구와 파일 도구는 기본으로 막지 않고, 설정 `l0.sandbox.protectedPaths.extra`에 `path`를 적으면
+ * 읽기와 쓰기를 모두 막는다. 쓰기 범위가 좁은 길은 기본으로 쓰기를 막는다. `path`는 설정 값과 같은 모양이다(`~/…` 또는 절대 경로). 표시와 제안에 쓴다.
  */
 export interface SuggestedProtectedPath {
   readonly path: string;
   readonly match: "exact" | "prefix";
-  readonly reason: "credentials" | "agent_credentials";
+  readonly reason: "credentials" | "agent_credentials" | "shell_startup" | "persistence";
   readonly os: SuggestedOs;
   /** 설정 화면이나 제안 문장에 쓰는 짧은 이름(영어) */
   readonly label: string;
 }
 
 /**
- * 제안 목록의 이름 패턴 한 줄(`.env`, `.env.*`). 기본으로는 쓰기만 막는다. 설정 `extra`는 경로만 받으므로 이 패턴은 거기서 고를 수 없다
+ * 제안 목록의 이름 패턴 한 줄(`.env`, `.env.*`). 쓰기 범위가 좁은 길만 쓰기를 막는다. 설정 `extra`는 경로만 받으므로 이 패턴은 거기서 고를 수 없다
  * (`appliesViaExtra`는 항상 거짓이다).
  */
 export interface SuggestedNamePattern {
@@ -50,11 +57,44 @@ export interface SuggestedNamePattern {
 }
 
 /**
- * 제안 목록: 이전 기본값에서 읽기를 막던 자격 경로다(L0.sandbox.spec §3.3). 기본 항목의 정본이다. 기본으로는 이 목록을 쓰기 전용으로 만들고,
- * 읽기까지 막으려면 사용자가 설정 `extra`에 적는다. CLI 인증 파일(`~/.npmrc` 등)은 원래 읽기를 허용했다. 막으려면 여기서 골라 `extra`에 적는다.
- * 브라우저 프로필과 메신저·메일 데이터는 없다(막지 않는다). 막으려면 `extra`에 직접 적는다.
+ * 제안 목록: 사용자가 막을 만한 곳이다(L0.sandbox.spec §3.3). 셸 도구와 파일 도구는 기본으로 이 목록을 막지 않고, 사용자가 대화로 골라 설정 `extra`에 적으면
+ * 읽기와 쓰기를 모두 막는다. 자격 경로, 다른 AI 하네스 폴더, 셸 시작 파일, 지속 실행 등록(로그인 때 도는 것)이 든다.
+ * 쓰기 범위가 좁은 길(`narrow`)은 이 표 전체를 쓰기 전용으로 거부한다. 작업 공간별 `.git/hooks`는 홈 아래 경로가 아니라 이 표에 없다(`narrow`만 막는다).
+ * 브라우저 프로필과 메신저·메일 데이터는 없다. 막으려면 `extra`에 직접 적는다.
  */
 export const SUGGESTED_PROTECTED_PATHS: readonly SuggestedProtectedPath[] = [
+  // 셸 시작 파일: 열면 다음 셸이 시작될 때 그 안의 명령이 돈다
+  ...[".bashrc", ".bash_profile", ".zshrc", ".zprofile", ".zshenv", ".profile", ".gitconfig"].map(
+    (name): SuggestedProtectedPath => ({
+      path: `~/${name}`,
+      match: "exact",
+      reason: "shell_startup",
+      os: "all",
+      label: `Shell startup file (${name})`,
+    }),
+  ),
+  // 지속 실행 등록: 로그인이나 부팅 때 도는 것
+  {
+    path: "~/.local/bin",
+    match: "prefix",
+    reason: "persistence",
+    os: "all",
+    label: "User executables (~/.local/bin)",
+  },
+  {
+    path: "~/Library/LaunchAgents",
+    match: "prefix",
+    reason: "persistence",
+    os: "darwin",
+    label: "Login launch agents",
+  },
+  {
+    path: "~/.config/systemd/user",
+    match: "prefix",
+    reason: "persistence",
+    os: "linux",
+    label: "User systemd units",
+  },
   // 클라우드·배포 자격
   { path: "~/.ssh", match: "prefix", reason: "credentials", os: "all", label: "SSH keys" },
   { path: "~/.aws", match: "prefix", reason: "credentials", os: "all", label: "AWS credentials" },
@@ -427,18 +467,8 @@ export interface ProtectedPathInput {
   readonly ageKeyFileEnv: string | undefined;
   /** l0.sandbox.protectedPaths.extra를 resolveExtraPaths로 푼 값. 읽기와 쓰기를 모두 막는다 */
   readonly extraPaths: readonly string[];
+  readonly scope: ProtectedScope;
 }
-
-/** 홈 아래 기본 쓰기 전용 항목이 쓰는 셸 시작 파일(쓰기 거부, 읽기 허용) */
-const SHELL_STARTUP_FILES = [
-  ".bashrc",
-  ".bash_profile",
-  ".zshrc",
-  ".zprofile",
-  ".zshenv",
-  ".profile",
-  ".gitconfig",
-] as const;
 
 /** 작업 공간 root마다 붙는 git 실행 경로(L0.sandbox.spec §3.3 git_exec 행) */
 export function gitProtectedEntries(roots: readonly string[]): ProtectedPathEntry[] {
@@ -468,12 +498,14 @@ function dedupe(entries: readonly ProtectedPathEntry[]): ProtectedPathEntry[] {
 }
 
 /**
- * 기본 보호 경로(공통 표 + provider 항목 + 시크릿 경로 + 설정 추가분). 작업 공간 root별 git 항목은 제외한다.
+ * 보호 경로(Fresnel 자신의 항목 + 설정 추가분, `narrow`면 제안 목록과 이름 패턴 포함). 작업 공간 root별 git 항목은 제외한다.
  * 더 구체적인 항목(시크릿)을 앞에 둔다. matchProtectedPath는 맞는 첫 항목을 돌려주기 때문이다.
- * 읽기 거부는 `read_write` 항목만 만든다. `write` 항목은 쓰기만 막는다(자격 폴더의 기본 상태).
+ * 읽기 거부는 `read_write` 항목만 만든다. `write` 항목은 쓰기만 막는다.
+ * `open`은 provider 항목 가운데 읽기도 막는 시크릿 항목만 남긴다(쓰기 전용 자격·지속 실행 항목은 `narrow`만 쓴다).
  */
 export function buildProtectedPaths(input: ProtectedPathInput): readonly ProtectedPathEntry[] {
   const { home, data, config } = input.dirs;
+  const narrow = input.scope === "narrow";
   const entries: ProtectedPathEntry[] = [
     // 시크릿: Fresnel 자신의 것이라 읽기도 거부한다
     pathEntry(posix.join(config, "secrets"), "prefix", "read_write", "secret_key"),
@@ -493,20 +525,18 @@ export function buildProtectedPaths(input: ProtectedPathInput): readonly Protect
     // Fresnel 데이터와 설정
     pathEntry(data, "prefix", "read_write", "fresnel_data"),
     pathEntry(config, "prefix", "write", "fresnel_config"),
-    // 자격 경로(제안 목록의 공통 줄)와 이름 패턴: 기본은 쓰기만 막는다
-    ...SUGGESTED_PROTECTED_PATHS.filter((row) => row.os === "all").map((row) =>
-      writeOnlyEntry(row, home),
-    ),
-    ...SUGGESTED_NAME_PATTERNS.map((pattern) =>
-      entry(pattern.pattern, "basename", "write", pattern.reason, pattern.except),
-    ),
-    // 셸 시작 파일
-    ...SHELL_STARTUP_FILES.map((name) =>
-      pathEntry(posix.join(home, name), "exact", "write", "shell_startup"),
-    ),
-    // 지속 실행 등록
-    pathEntry(posix.join(home, ".local", "bin"), "prefix", "write", "persistence"),
-    ...input.providerEntries,
+    // 쓰기 범위가 좁은 길만: 제안 목록의 공통 줄과 이름 패턴을 쓰기 전용으로 막는다
+    ...(narrow
+      ? [
+          ...SUGGESTED_PROTECTED_PATHS.filter((row) => row.os === "all").map((row) =>
+            writeOnlyEntry(row, home),
+          ),
+          ...SUGGESTED_NAME_PATTERNS.map((pattern) =>
+            entry(pattern.pattern, "basename", "write", pattern.reason, pattern.except),
+          ),
+        ]
+      : []),
+    ...input.providerEntries.filter((item) => narrow || item.access === "read_write"),
     // 설정 추가분: 읽기와 쓰기를 모두 막는다
     ...input.extraPaths.map((path) => pathEntry(path, "prefix", "read_write", "user_extra")),
   ];
@@ -526,8 +556,16 @@ function nameMatches(pattern: string, name: string): boolean {
   return pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : pattern === name;
 }
 
+/**
+ * 한 번에 훑는 디렉터리 수의 상한. 훑기는 동기라 이벤트 루프를 막으므로 큰 폴더에서 끝없이 돌지 않게 한다
+ * (폴더 4만 개가 든 작업 공간을 깊이 3으로 훑으면 6.3초가 걸렸다, enHt 보고).
+ */
+export const MAX_SCANNED_DIRS = 5000;
+
 /** `expandBasenameEntries`의 결과. 두 목록 모두 정렬되어 있고 중복이 없다 */
 export interface BasenameExpansion {
+  /** 참이면 훑는 디렉터리 수가 `MAX_SCANNED_DIRS`에 닿아 일부를 훑지 못했다 */
+  readonly truncated: boolean;
   /** 읽기도 거부하는 파일(`read_write` 이름 항목이 맞은 것) */
   readonly readFiles: string[];
   /** 쓰기를 거부하는 파일(읽기 전용 이름 항목이 맞은 것을 포함한 모든 맞은 파일) */
@@ -546,8 +584,11 @@ export function expandBasenameEntries(
   const patterns = entries.filter((item) => item.match === "basename");
   const readFiles = new Set<string>();
   const writeFiles = new Set<string>();
-  if (patterns.length === 0) return { readFiles: [], writeFiles: [] };
+  if (patterns.length === 0) return { readFiles: [], writeFiles: [], truncated: false };
+  let scanned = 0;
   const visit = (dir: string, remaining: number): void => {
+    if (scanned >= MAX_SCANNED_DIRS) return;
+    scanned += 1;
     const listed = attempt(() => readdirSync(dir, { withFileTypes: true }));
     // 읽을 수 없는 디렉터리는 탐색하지 않는다. 그 아래 basename 항목은 후보에 오르지 않는다
     if (!listed.ok) return;
@@ -566,7 +607,11 @@ export function expandBasenameEntries(
     }
   };
   for (const root of roots) visit(root, depth);
-  return { readFiles: [...readFiles].toSorted(), writeFiles: [...writeFiles].toSorted() };
+  return {
+    readFiles: [...readFiles].toSorted(),
+    writeFiles: [...writeFiles].toSorted(),
+    truncated: scanned >= MAX_SCANNED_DIRS,
+  };
 }
 
 /**

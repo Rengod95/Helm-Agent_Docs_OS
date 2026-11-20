@@ -37,6 +37,7 @@ function build(
     secretPaths: [],
     ageKeyFileEnv: undefined,
     extraPaths: [],
+    scope: "narrow",
     ...overrides,
   });
 }
@@ -238,7 +239,11 @@ describe("protected paths", () => {
       join(root, ".env"),
       join(root, ".env.local"),
     ]);
-    expect(expandBasenameEntries([], [root], 3)).toEqual({ readFiles: [], writeFiles: [] });
+    expect(expandBasenameEntries([], [root], 3)).toEqual({
+      readFiles: [],
+      writeFiles: [],
+      truncated: false,
+    });
   });
 
   test("a name pattern that is read-denied lands in both lists, a write-only one only in the write list", () => {
@@ -305,7 +310,7 @@ describe("protected paths", () => {
     expect(policy.writeDeny).toContain(dirs.config);
     expect(
       service
-        .protectedPaths()
+        .protectedPaths([dirs.workspace])
         .some((entry) => entry.path === join(dirs.workspace, ".git", "hooks")),
     ).toBe(true);
   });

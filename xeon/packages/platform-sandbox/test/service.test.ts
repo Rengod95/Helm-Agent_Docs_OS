@@ -45,25 +45,14 @@ describe("sandbox service wiring", () => {
     );
 
     // nextTurn 설정은 다음 호출부터 반영된다
-    current = settingsOf({
-      protectedPathsExtra: [],
-      writeRootsExtra: [join(dirs.root, "extra-out")],
-    });
+    current = settingsOf({ protectedPathsExtra: [] });
     expect(
       matchProtectedPath(service.protectedPaths(), join(dirs.home, "vault", "a"), "read"),
     ).toBeUndefined();
     const policy = service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
-    expect(policy.writeRoots).toContain(join(dirs.root, "extra-out"));
+    expect(policy.writeRoots).toEqual([dirs.workspace, dirs.tmp].toSorted());
     expect(policy.network).toEqual({ allowedDomains: [], deniedDomains: [] });
     expect(policy.allowEscape).toBe(false);
-    // 설정으로 더한 쓰기 루트는 자동 허용 대상이 아니다
-    const decision = service.autoAllow(policy, {
-      command: "ls",
-      cwd: dirs.workspace,
-      workspaceRoots: [dirs.workspace],
-      tempDir: dirs.tmp,
-    });
-    expect(decision).toEqual({ allow: false, blocks: ["write_root_outside"] });
   });
 
   test("protectedPaths covers the roots the caller passes from the first call", async () => {
@@ -90,10 +79,14 @@ describe("sandbox service wiring", () => {
         "write",
       )?.reason,
     ).toBe("git_exec");
-    // root를 모르면(넘기지 않았고 정책으로 본 적도 없으면) 알 수 없다. 이 경우를 막는 것은 호출한 쪽이 root를 넘기는 것이다
+    // root를 넘기지 않으면 git 항목은 없다
     expect(matchProtectedPath(service.protectedPaths(), hook, "write")).toBeUndefined();
-    service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
-    expect(matchProtectedPath(service.protectedPaths(), hook, "write")?.reason).toBe("git_exec");
+    // 쓰기 범위 제한이 없는 대화(root에 `/`가 있다)는 .git/hooks도 제안 목록도 막지 않는다
+    const open = service.protectedPaths([dirs.workspace, "/"]);
+    expect(matchProtectedPath(open, hook, "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.home, ".zshrc"), "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.home, ".ssh", "id"), "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.data, "x"), "read")?.reason).toBe("fresnel_data");
   });
 
   test("a bug-level error from detection degrades to an unavailable status", async () => {

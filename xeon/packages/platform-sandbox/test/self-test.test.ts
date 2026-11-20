@@ -1,10 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { ok } from "@fresnel/contracts";
 import type { SelfTestItemId, Shell } from "@fresnel/contracts/services";
 import {
+  MAX_STALE_SELF_TEST_SWEEPS,
   runSelfTest,
+  STALE_SELF_TEST_DIR_MS,
+  sweepStaleSelfTestDirs,
   SELF_TEST_ITEM_IDS,
   isSensitiveEnvName,
   type SelfTestDeps,
@@ -197,5 +207,82 @@ describe("sensitive env names", () => {
     for (const name of ["PATH", "HOME", "LANG", "HTTP_PROXY", "TOKENIZER", "KEYBOARD"]) {
       expect(isSensitiveEnvName(name)).toBe(false);
     }
+  });
+});
+
+const PREFIX = "fresnel-sandbox-selftest-";
+const HOUR = 60 * 60_000;
+
+function staleFolder(dirs: TestDirs, name: string, ageMs: number): string {
+  const path = join(dirs.tmp, name);
+  mkdirSync(path, { recursive: true });
+  writeFileSync(join(path, "left-behind"), "x");
+  const at = new Date(Date.now() - ageMs);
+  utimesSync(path, at, at);
+  return path;
+}
+
+describe("stale self-test folders", () => {
+  test("a run sweeps old folders of its own kind and keeps fresh ones, other names and links", async () => {
+    const dirs = makeTestDirs();
+    mkdirSync(dirs.tmp, { recursive: true });
+    const old = staleFolder(dirs, `${PREFIX}old1`, 3 * HOUR);
+    const fresh = staleFolder(dirs, `${PREFIX}fresh`, 60_000);
+    const other = staleFolder(dirs, "other-old", 3 * HOUR);
+    const outside = staleFolder(dirs, "outside-target", 3 * HOUR);
+    symlinkSync(outside, join(dirs.tmp, `${PREFIX}link`));
+    const report = await runSelfTest(
+      { ...deps(dirs), clock: { now: () => Date.now() } },
+      selfTestShell(),
+      NO_CANCEL,
+    );
+    expect(report.passed).toBe(true);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(fresh)).toBe(true);
+    expect(existsSync(other)).toBe(true);
+    expect(existsSync(join(outside, "left-behind"))).toBe(true);
+    expect(existsSync(join(dirs.tmp, `${PREFIX}link`))).toBe(true);
+    // 이번 실행의 폴더는 끝에 지워지고, 남는 것은 위의 보존 대상뿐이다
+    expect(readdirSync(dirs.tmp).toSorted()).toEqual(
+      [`${PREFIX}fresh`, `${PREFIX}link`, "other-old", "outside-target"].toSorted(),
+    );
+  });
+
+  test("the age limit decides: a folder just under it stays, just over it goes", async () => {
+    const dirs = makeTestDirs();
+    mkdirSync(dirs.tmp, { recursive: true });
+    const under = staleFolder(dirs, `${PREFIX}under`, STALE_SELF_TEST_DIR_MS - 5 * 60_000);
+    const over = staleFolder(dirs, `${PREFIX}over`, STALE_SELF_TEST_DIR_MS + 5 * 60_000);
+    const removed = await sweepStaleSelfTestDirs({
+      dirs,
+      clock: { now: () => Date.now() },
+      logger: memoryLogger(),
+    });
+    expect(removed).toBe(1);
+    expect(existsSync(under)).toBe(true);
+    expect(existsSync(over)).toBe(false);
+  });
+
+  test("one sweep removes at most the cap, and the rest wait for the next run", async () => {
+    const dirs = makeTestDirs();
+    mkdirSync(dirs.tmp, { recursive: true });
+    const total = MAX_STALE_SELF_TEST_SWEEPS + 5;
+    for (let index = 0; index < total; index += 1)
+      staleFolder(dirs, `${PREFIX}n${index}`, 3 * HOUR);
+    const input = { dirs, clock: { now: () => Date.now() }, logger: memoryLogger() };
+    expect(await sweepStaleSelfTestDirs(input)).toBe(MAX_STALE_SELF_TEST_SWEEPS);
+    expect(readdirSync(dirs.tmp)).toHaveLength(5);
+    expect(await sweepStaleSelfTestDirs(input)).toBe(5);
+    expect(readdirSync(dirs.tmp)).toEqual([]);
+  });
+
+  test("a missing temp root sweeps nothing and does not throw", async () => {
+    const dirs = makeTestDirs();
+    const removed = await sweepStaleSelfTestDirs({
+      dirs: { ...dirs, tmp: join(dirs.root, "no-such-tmp") },
+      clock: { now: () => Date.now() },
+      logger: memoryLogger(),
+    });
+    expect(removed).toBe(0);
   });
 });
