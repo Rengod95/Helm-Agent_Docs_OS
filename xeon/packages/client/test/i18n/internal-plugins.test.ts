@@ -64,7 +64,7 @@ test("each layer group has an English and a Korean display name", () => {
     "Bridges",
   ]);
   expect(INTERNAL_PLUGIN_LAYERS.map((layer) => ko[internalLayerTextKey(layer)])).toEqual([
-    "핵심",
+    "코어",
     "기능",
     "브릿지",
   ]);
