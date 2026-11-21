@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BeamEdge } from "./effects/beam.tsx";
 import { DrawnCheck } from "./effects/drawn-check.tsx";
+import { LINE_GLYPH } from "./illustrations/line-glyph.ts";
 
 /**
  * 도구 호출 줄의 상태 칩(dzM2 시안 §3, DP-118·127). 실행 중에는 테두리 칩 + 경과 초이고 칩 아래 변의 곧은 구간에 beam 작은 변형이 흐른다
@@ -26,19 +27,17 @@ export type CallChipProps = {
   readonly changed?: boolean;
 };
 
+/** 실패 그림은 알림 그림의 바탕 선(`LINE_GLYPH`, 화면 1.15px, m6R7)을 받는다. 칸은 16이고 칩에서 12, 줄 표시에서 14로 그려진다 */
 const ICON_PROPS = {
   viewBox: "0 0 16 16",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.75,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
+  ...LINE_GLYPH,
+  className: `${LINE_GLYPH.className} call-chip-icon`,
   "aria-hidden": true,
 } as const;
 
 function AlertIcon(): ReactNode {
   return (
-    <svg {...ICON_PROPS} className="call-chip-icon">
+    <svg {...ICON_PROPS}>
       <circle cx="8" cy="8" r="6" />
       <path d="M8 5v3.5M8 11h.01" />
     </svg>
@@ -48,7 +47,7 @@ function AlertIcon(): ReactNode {
 /** 막힘·거부: 사고가 아니라 정책이 멈춘 것이라 느낌표 대신 금지 표시를 쓴다 */
 function BanIcon(): ReactNode {
   return (
-    <svg {...ICON_PROPS} className="call-chip-icon">
+    <svg {...ICON_PROPS}>
       <circle cx="8" cy="8" r="6" />
       <path d="m3.8 3.8 8.4 8.4" />
     </svg>
