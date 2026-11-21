@@ -17,7 +17,7 @@ import {
 
 // Drive 스택 그림 둘(lcM6b~lcM6e, L4 desktop-ux §6.6.1). 둘은 같은 칸을 같은 말(`DriveStep.stateText`)로 말한다.
 // - 띠(`DriveStackBand`): 입력창 윗변에 붙은 얇은 탭(보이는 줄 28). 셋만 있다(lcM6g, 사용자 2026-11-21): "Driving by <플러그인 이름>" 한 구절
-//   ("Driving by"는 무채색 글이고 턴이 도는 동안 밝기 물결, 이름은 또렷하게), 턴 수(턴마다 한 칸인 막대와 "2/4턴"), 멈추기 단추(xs soft).
+//   ("Driving by"는 무채색 글이고 턴이 도는 동안 밝기 물결, 이름은 또렷하게), 가운뎃점 뒤 턴 수("· 2/4턴", 막대 없음: lcM6i), 멈추기 단추(xs soft).
 //   기다리는 플러그인 수, 드래프트 표시, 도움말은
 //   오른쪽 패널(런타임 탭의 Drive 카드와 쌓인 판, Drive 제목 옆 정보 아이콘)이 맡는다.
 //   Drive가 턴을 돌리는 동안 입력창의 빛이 띠의 윗변으로 옮겨 온다(`BeamBand`, 입력창 빛은 꺼진다). 좁으면 턴 수를 뺀다(@container).
@@ -213,53 +213,6 @@ function wordLookOf(state: DriveStep["state"]): DriveWordLook {
   return state === "asking" ? "warning" : "quiet";
 }
 
-/** 턴 한도가 이만큼까지면 한 턴을 한 칸으로 나눈다(96px에 8칸이면 칸이 10px). 넘으면 칸이 점처럼 작아져 이어진 막대다 */
-const TRACK_SEGMENTS_MAX = 8;
-
-/**
- * 띠의 턴 막대(lcM6e). 한도가 작으면 턴마다 한 칸(칸 사이 2px)이라 "2/4턴"의 2가 찬 칸 둘로 읽힌다. 높이 4, 바탕은 caustic
- * Progress의 트랙(neutral-track + 1px border-subtle), 찬 칸은 neutral-solid, 90%부터 경고색
- */
-function TurnTrack(props: { readonly meter: DriveMeter; readonly className: string }): ReactNode {
-  const { meter } = props;
-  const fill = meter.warn ? "bg-warning-solid" : "bg-neutral-solid";
-  const track = "bg-neutral-track shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]";
-  const whole = Number.isInteger(meter.max) && meter.max >= 1 && meter.max <= TRACK_SEGMENTS_MAX;
-  if (!whole) {
-    return (
-      <Progress
-        decorative
-        size="sm"
-        tone={meter.warn ? "warning" : "neutral"}
-        value={Math.round(meter.ratio * 100)}
-        data-slot="drive-band-track"
-        className={props.className}
-      />
-    );
-  }
-  // 칸은 몇째 턴인가로 이름 붙인다(1턴, 2턴, …): 한도가 같으면 같은 칸이다
-  const cells = Array.from({ length: meter.max }, (_, index) => ({
-    turn: `turn-${String(index + 1)}`,
-    done: index < meter.used,
-  }));
-  return (
-    <span
-      aria-hidden
-      data-slot="drive-band-track"
-      data-cells={meter.max}
-      className={`flex h-1 gap-0.5 ${props.className}`}
-    >
-      {cells.map((cell) => (
-        <span
-          key={cell.turn}
-          data-done={cell.done ? "" : undefined}
-          className={`h-full min-w-0 flex-1 rounded-full ${cell.done ? fill : track}`}
-        />
-      ))}
-    </span>
-  );
-}
-
 /** 드래프트 Drive(테스트 런에서만 돈다)의 표시. 원샷 목록의 드래프트 칩과 같다 */
 function DraftChip(): ReactNode {
   return (
@@ -296,11 +249,11 @@ const BAND_ROW = "h-[var(--drive-band-h,28px)]";
 
 /**
  * 띠의 한 줄(lcM6g, 사용자 2026-11-21 "Driving by <plugin name>"). 왼쪽부터 한 구절 "Driving by authoring"("Driving by" 12/500 무채색,
- * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 24 떨어져 턴 막대 96, 6 뒤에 "2/4턴", 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
- * 구절과 막대 사이 24는 구절 안 낱말 사이(4)의 여섯 배다: 구절(누가)과 턴 막대·숫자(얼마나)가 흐리게 봐도 두 묶음으로 갈라진다
- * (lcM6h, 사용자 2026-11-21 "간격이 더 있어야 분리가 되어 보인다". 12는 한 묶음으로 붙고, 20은 흐리게 보면 경계이고, 28·32는 막대가 떠 보였다).
+ * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 가운뎃점(양옆 6) 뒤 "2/4턴"(12 tertiary), 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
+ * 턴 막대는 없다(lcM6i, 사용자 2026-11-21 "턴 막대는 그냥 제거하자"). 구절과 턴 수는 대화 기록의 Drive 머리 줄("Driving by authoring · 0/4턴 · …")과
+ * 같은 문법이다: 한 기준선에 서고 가운뎃점이 둘을 가른다(간격만 둔 안은 턴 수가 이름에서 떨어져 떠 보였다. `_notes/design/lc/lcM6i-shots/band-options-*.png`).
  * 맨 위 칸이 Driving이 아니면(답을 기다림 등) 구절 대신 상태 글과 이름을 8 떨어뜨려 둔다. 줄은 윗변 테두리(1px) 아래 27px의 가운데에 선다(`pt-px`).
- * 구절의 두 글은 한 기준선에 서고, 막대는 숫자의 대문자 높이 가운데에, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
+ * 구절의 두 글과 턴 수는 한 기준선에 서고, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
  */
 function BandBody(props: {
   readonly view: DriveStackView;
@@ -329,7 +282,7 @@ function BandBody(props: {
         <BeamBand state={props.beam} />
       </div>
       <div className="relative mx-3 flex h-full min-w-0 items-center ps-3.5 pe-1.5 pt-px">
-        <span data-slot="drive-band-group" className="flex min-w-0 items-center gap-6">
+        <span data-slot="drive-band-group" className="flex min-w-0 items-baseline">
           {top.state === "driving" ? (
             <DrivingBy
               name={top.name}
@@ -358,14 +311,17 @@ function BandBody(props: {
             </span>
           )}
           {turns === undefined ? null : (
+            // 가운뎃점 양옆은 6으로 같다(대화 기록 머리 줄과 같은 점). 점은 꾸밈이라 읽지 않는다
             <span
               data-slot="drive-band-turns"
-              className="hidden shrink-0 items-center gap-1.5 @min-[26rem]:inline-flex"
+              className="hidden shrink-0 items-baseline text-footnote tabular-nums @min-[26rem]:inline-flex"
             >
-              <TurnTrack meter={turns} className="w-24 shrink-0" />
+              <span aria-hidden data-slot="drive-band-sep" className="px-1.5 text-text-tertiary">
+                ·
+              </span>
               <span
                 data-slot="drive-band-turns-text"
-                className={`text-footnote tabular-nums ${turns.warn ? "text-warning-text" : "text-text-tertiary"}`}
+                className={turns.warn ? "text-warning-text" : "text-text-tertiary"}
               >
                 {turns.text}
               </span>
