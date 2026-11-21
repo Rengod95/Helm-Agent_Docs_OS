@@ -16,7 +16,8 @@ import {
 // (a) 작업 공간 밖(가짜 홈 아래)에 쓰인다, (b) .git/hooks, 가짜 LaunchAgents, 가짜 셸 시작 파일에 쓰인다,
 // (c) `protectedPaths.extra`에 더한 곳은 읽기·쓰기가 막힌다, (d) Fresnel 자신의 세 항목은 전과 같이 막힌다,
 // (e) 쓰기 범위가 좁은 길(읽기 전용 프로필, 기본 좁은 정책)은 전과 같이 못 쓴다, (f) 사용자가 `sandbox_protect`로 더하면 다음 명령부터 쓰기도 막힌다,
-// (g) `wrapArgv`의 열린 정책(MCP 서버와 플러그인 격리가 쓰는 길)도 셸과 같이 쓰고 같은 거부를 받는다.
+// (g) `wrapArgv`의 열린 정책(MCP 서버와 플러그인 격리가 쓰는 길)도 셸과 같이 쓰고 같은 거부를 받는다,
+// (h) 열린 정책의 읽기 예외(`readCarveOuts`)는 보호 경로 안의 그 폴더만 다시 읽게 하고 보호 경로를 품은 예외는 거절한다.
 // 가짜 홈과 임시 폴더만 쓴다. 실제 홈·키·키체인은 읽거나 쓰지 않는다.
 
 const environment = readSandboxEnvironment();
@@ -207,20 +208,25 @@ suite(
     }, 120_000);
 
     /** `wrapArgv`로 감싼 열린 정책 명령줄을 실제로 돌린다. MCP 서버와 플러그인 격리 자식이 쓰는 길이다 [결정: 2026-11-21, 사용자, AGE-63] */
-    const runArgv = async (command: string) => {
+    const runArgv = async (
+      command: string,
+      options: { readonly cwd?: string; readonly readCarveOuts?: readonly string[] } = {},
+    ) => {
+      const cwd = options.cwd ?? workspace;
       const wrapped = await box.service.wrapArgv(
         box.service.defaultPolicy({
           workspaceRoots: [workspace],
           tempDir: box.dirs.tmp,
           writeEverywhere: true,
+          ...(options.readCarveOuts === undefined ? {} : { readCarveOuts: options.readCarveOuts }),
         }),
-        { command: "bash", args: ["-c", command], cwd: workspace },
+        { command: "bash", args: ["-c", command], cwd },
         { abortSignal: undefined },
       );
       if (!wrapped.ok) throw new Error(`wrapArgv refused the open policy: ${wrapped.error.kind}`);
       try {
         return await runCollected(box.shell, wrapped.value.argv, {
-          cwd: workspace,
+          cwd,
           env: { ...wrapped.value.env },
         });
       } finally {
@@ -255,6 +261,46 @@ suite(
       const configWrite = await runArgv(`echo x >> '${join(box.dirs.config, "settings.json")}'`);
       expect(configWrite.exitCode === 0).toBe(false);
       expect(readFileSync(join(box.dirs.config, "settings.json"), "utf8")).toBe(SEED);
+    }, 120_000);
+
+    test("(h) a read carve-out on the open policy re-reads the plugin folder inside Fresnel's data; the rest of the data folder stays denied", async () => {
+      // 검토본 사본처럼 보호 경로(`fresnel_data`) 안의 폴더만 다시 읽힌다. 같은 데이터 폴더의 다른 파일은 막히고, 보호 경로를 품은 예외는 띄우지 않는다 [제안, AGE-63]
+      const tree = join(box.dirs.data, "plugin-store", "tree");
+      mkdirSync(tree, { recursive: true });
+      writeFileSync(join(tree, "main.txt"), "tree-entry-ok\n");
+      const own = await runArgv(`cat '${join(tree, "main.txt")}'`, {
+        cwd: tree,
+        readCarveOuts: [tree],
+      });
+      expect(own.exitCode).toBe(0);
+      expect(own.output).toContain("tree-entry-ok");
+      const sibling = await runArgv(`cat '${join(box.dirs.data, "canary.txt")}'`, {
+        cwd: tree,
+        readCarveOuts: [tree],
+      });
+      expect(sibling.exitCode === 0).toBe(false);
+      expect(sibling.output).not.toContain(SEED);
+      // 밖(작업 공간)에 있는 예외는 이미 읽히므로 규칙 없이 통과한다
+      const outside = await runArgv("echo outside-ok", { readCarveOuts: [workspace] });
+      expect(outside.exitCode).toBe(0);
+      expect(outside.output).toContain("outside-ok");
+      // 보호 경로를 품은 예외(데이터 폴더 전체)는 값으로 거절한다
+      const whole = await box.service.wrapArgv(
+        box.service.defaultPolicy({
+          workspaceRoots: [workspace],
+          tempDir: box.dirs.tmp,
+          writeEverywhere: true,
+          readCarveOuts: [box.dirs.data],
+        }),
+        { command: "bash", args: ["-c", "true"], cwd: workspace },
+        { abortSignal: undefined },
+      );
+      if (whole.ok)
+        throw new Error("a carve-out that contains the protected data folder was accepted");
+      expect(whole.error).toEqual({
+        kind: "failed",
+        message: "sandbox profile tail rejected a read carve-out that contains a protected path",
+      });
     }, 120_000);
 
     test("known srt limit: its own dangerous-file denies still apply under the host's working directory", async () => {

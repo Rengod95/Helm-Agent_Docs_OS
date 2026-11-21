@@ -210,6 +210,85 @@ describe("wrapArgv script-env: temp folder and read rules", () => {
   });
 });
 
+describe("wrapArgv open policy: read carve-outs (plugin folder inside Fresnel's data)", () => {
+  test("a carve-out inside the read-denied data folder becomes one allow rule in the tail, and nothing else is added", async () => {
+    const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
+    const tree = join(r.dirs.data, "plugin-store", "tree");
+    mkdirSync(tree, { recursive: true });
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+      readCarveOuts: [tree],
+    });
+    const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
+    expect(result.ok).toBe(true);
+    const command = result.ok ? (result.value.argv[2] ?? "") : "";
+    expect(command.split("; script tools").length).toBe(2);
+    const tail = command.slice(
+      command.indexOf("; script tools"),
+      command.indexOf("' /bin/bash -c '"),
+    );
+    expect(tail).toBe(
+      ["; script tools", `(allow file-read* (subpath "${canonicalizePath(tree)}"))`, ""].join("\n"),
+    );
+    if (result.ok) result.value.cleanup();
+  });
+
+  test("a carve-out outside every read-denied path adds no rule, so the tail is not written", async () => {
+    const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+      readCarveOuts: [r.project],
+    });
+    const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
+    expect(result.ok).toBe(true);
+    const command = result.ok ? (result.value.argv[2] ?? "") : "";
+    expect(command.includes("; script tools")).toBe(false);
+    if (result.ok) result.value.cleanup();
+  });
+
+  test("a carve-out that is or contains the protected data folder is refused as a value", async () => {
+    const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+      readCarveOuts: [r.dirs.data],
+    });
+    const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "failed",
+        message: "sandbox profile tail rejected a read carve-out that contains a protected path",
+      },
+    });
+  });
+
+  test("on bwrap a carve-out inside the denied data folder is refused as a value, so nothing is started with it", async () => {
+    const r = await rig();
+    const tree = join(r.dirs.data, "plugin-store", "tree");
+    mkdirSync(tree, { recursive: true });
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+      readCarveOuts: [tree],
+    });
+    const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "failed",
+        message: "read carve-outs are not supported on this sandbox provider",
+      },
+    });
+  });
+});
+
 describe("wrapArgv script-env: profile tail with read carve-outs", () => {
   test("the carve-out allows come first in the tail, then the tool denies, and the tail is applied once", async () => {
     const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
@@ -399,7 +478,10 @@ describe("wrapArgv script-env: provider and profile guards", () => {
     );
     expect(result).toEqual({
       ok: false,
-      error: { kind: "failed", message: "read carve-outs need the script-env profile" },
+      error: {
+        kind: "failed",
+        message: "read carve-outs need the script-env profile or the open policy",
+      },
     });
   });
 

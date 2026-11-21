@@ -154,7 +154,8 @@ export interface SandboxPolicy {
    */
   systemInfoDeny?: boolean;
   /**
-   * 보호 경로 안에서 다시 읽게 하는 경로(`"script-env"` 프로필만). 파일이면 그 이름 하나, 폴더면 그 아래 전부다. 프로필 맨 끝에 `(allow file-read* ...)`로 더해져 보호 경로 거부를 이긴다.
+   * 보호 경로 안에서 다시 읽게 하는 경로(`"script-env"` 프로필과 열린 정책에서만). 파일이면 그 이름 하나, 폴더면 그 아래 전부다. 프로필 맨 끝에 `(allow file-read* ...)`로 더해져 보호 경로 거부를 이긴다.
+   * 열린 정책에서는 읽기 거부 경로 안에 있는 것만 규칙이 된다(밖의 것은 이미 읽히므로 뺀다) [제안, AGE-63].
    * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
    */
   readCarveOuts?: string[];
@@ -448,7 +449,7 @@ export interface SandboxService {
     writeEverywhere?: boolean;
     /** `"script-env"`에서만. 쓰기 루트가 되는 프로젝트 폴더(절대 경로). 임시 폴더는 호출마다 샌드박스가 만든다 */
     projectDir?: string;
-    /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
+    /** `"script-env"`와 열린 정책(`writeEverywhere`)에서. 보호 경로 안에서 읽게 하는 경로(script-env는 가져올 때 지문을 적은 파일과 그 폴더, 열린 정책은 플러그인 폴더) */
     readCarveOuts?: readonly string[];
   }): SandboxPolicy;
   /**

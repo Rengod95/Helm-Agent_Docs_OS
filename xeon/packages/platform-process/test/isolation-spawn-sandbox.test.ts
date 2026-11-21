@@ -175,16 +175,17 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     expect(await child.exited).toEqual({ code: 0, signal: null });
   });
 
-  test("by default (no narrow) the policy is open: writes everywhere but protected paths, no profile and no read allow-list", async () => {
+  test("by default (no narrow) the policy is open: writes everywhere but protected paths, no profile and no read allow-list; the plugin folder is the only read exception", async () => {
     const dir = tempDirOf();
     const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
     const { port, background } = open({ sandbox: () => sandbox.source });
     const child = await started(port, specOf({ readRoot: dir, args: [MCP_CHILD, "echo"] }));
 
     const call = onlyWrapCall(sandbox);
-    // 쓰기 루트 `/`, 프로필 없음, 읽기 허용 목록 없음. 임시 폴더는 쓰기 루트가 아니다(셸 도구와 같다)
+    // 쓰기 루트 `/`, 프로필 없음, 읽기 허용 목록 없음. 임시 폴더는 쓰기 루트가 아니다(셸 도구와 같다).
+    // 읽기 예외는 `readRoot` 하나다: 검토본 폴더가 보호 경로 안에 있어도 자기 코드를 읽는다 [제안, AGE-63]
     expect(sandbox.policyInputs).toEqual([
-      { workspaceRoots: [], tempDir: dir, writeEverywhere: true },
+      { workspaceRoots: [], tempDir: dir, writeEverywhere: true, readCarveOuts: [dir] },
     ]);
     expect(call.policy.writeRoots).toEqual(["/"]);
     expect(call.policy.profile).toBeUndefined();

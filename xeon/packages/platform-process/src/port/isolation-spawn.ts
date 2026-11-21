@@ -20,8 +20,8 @@ import { spawnPiped } from "./spawn-piped.ts";
 // L0.process.spec §4.8 `spawn`, review.m5-drive-isolation §3.1·§3.4(M5b-1). 격리 확장의 플러그인 호스트 프로세스를 띄운다.
 // 1. 명령줄은 샌드박스 서비스 `wrapArgv`가 만든 것이다. 격리를 쓸 수 없으면 띄우지 않고 `sandbox_unavailable`이다(닫힌 실패).
 //    사용자가 격리를 껐거나(`disabled`) 격리 불가 시 실행을 허락한(`run_unsandboxed`) 때만 격리 없이 띄우고 경고 `isolation.sandbox_not_enforced`를 남긴다.
-// 2. 정책은 `spec`이 고른다 [결정: 2026-11-21, 사용자, AGE-63]. `narrow`가 없으면 열린 정책이다: `defaultPolicy({ workspaceRoots: [], tempDir: cwd, writeEverywhere: true })`,
-//    쓰기 루트 `/`, 보호 경로(Fresnel 자신의 시크릿·데이터, 사용자 `extra`)만 거부, 네트워크는 차단 목록만, 샌드박스 밖 실행 없음.
+// 2. 정책은 `spec`이 고른다 [결정: 2026-11-21, 사용자, AGE-63]. `narrow`가 없으면 열린 정책이다: `defaultPolicy({ workspaceRoots: [], tempDir: cwd, writeEverywhere: true, readCarveOuts: [readRoot] })`,
+//    쓰기 루트 `/`, 보호 경로(Fresnel 자신의 시크릿·데이터, 사용자 `extra`)만 거부(`readRoot`만 예외), 네트워크는 차단 목록만, 샌드박스 밖 실행 없음.
 //    `narrow: true`면 좁은 정책이다: 샌드박스의 "쓰기 없음" 프로필(`profile: "no-write"`, 승인 전 드래프트용). 쓰기 루트 없음(이 프로세스 전용 빈 임시 폴더 하나만, 끝나면 지운다),
 //    읽기는 허용 목록(`readRoot`, 실행 파일, `spec.runtimeReadRoots`, 런타임이 꼭 필요한 시스템 경로)이고 네트워크는 차단 목록만이다.
 //    `scriptEnv`가 있으면 옛 길의 "script-env" 프로필이 먼저 쓰인다(옵트인, 바뀌지 않는다). `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다.
@@ -59,9 +59,16 @@ function spawnFailed(code: string, message: string): Result<never, IsolationSpaw
 /**
  * 열린 정책(`narrow`가 없는 기본): 셸 도구와 같은 쓰기 범위 제한 없는 정책이다. 쓰기 루트 `/`, 거부는 Fresnel 자신의 시크릿·데이터·설정과
  * 사용자가 더한 곳뿐, 네트워크는 차단 목록만이다 [결정: 2026-11-21, 사용자, AGE-63]. `tempDir`은 정책 입력이 요구하지만 열린 정책은 쓰지 않는다.
+ * 읽기 예외는 `readRoot` 하나다: 플러그인 폴더(검토본 사본)가 `fresnel_data` 아래에 있으면 보호 거부가 자기 코드까지 막아 자식이 기동하지 못하므로,
+ * 샌드박스가 그 폴더만 다시 읽게 한다. 밖에 있으면 샌드박스가 규칙을 더하지 않는다 [제안, AGE-63].
  */
-function openPolicy(sandbox: IsolationSandboxSource, cwd: string): SandboxPolicy {
-  return sandbox.defaultPolicy({ workspaceRoots: [], tempDir: cwd, writeEverywhere: true });
+function openPolicy(sandbox: IsolationSandboxSource, cwd: string, readRoot: string): SandboxPolicy {
+  return sandbox.defaultPolicy({
+    workspaceRoots: [],
+    tempDir: cwd,
+    writeEverywhere: true,
+    readCarveOuts: [readRoot],
+  });
 }
 
 /**
@@ -90,7 +97,7 @@ function policyOf(
 ): SandboxPolicy {
   if (spec.scriptEnv !== undefined) return scriptEnvPolicy(sandbox, spec.scriptEnv);
   if (spec.narrow === true) return pluginHostPolicy(sandbox, cwd, spec);
-  return openPolicy(sandbox, cwd);
+  return openPolicy(sandbox, cwd, spec.readRoot);
 }
 
 /**

@@ -466,6 +466,8 @@ export async function createSandboxService(
         deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
       },
       allowEscape: false,
+      // 읽기 예외는 열린 정책(`writeEverywhere`)과 스크립트 환경에서 받는다. 다른 보통 프로필에 실리면 wrapArgv가 거절한다
+      ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
     };
   };
 
