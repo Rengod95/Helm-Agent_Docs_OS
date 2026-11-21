@@ -20,7 +20,7 @@ import {
   type ImpactUnit,
 } from "./model.ts";
 import { Gate } from "./parts.tsx";
-import { useRailAvoid } from "./rail-avoid.ts";
+import { useRailAvoid } from "../../shell/rail-avoid.ts";
 import type { MetricsActions, MetricsData } from "./source.ts";
 
 const RULE_TITLE: Readonly<Record<string, MessageId>> = {
@@ -243,7 +243,7 @@ function EvidenceButton(props: {
       variant="ghost"
       disabled={!openable}
       aria-label={t("desktop.craft.metrics.evidence.show", { n: countText(f.evidenceTotal) })}
-      className="-ms-2.5 w-fit font-normal"
+      className="-me-3.5 shrink-0 font-normal"
       onClick={() => {
         props.onShow(f);
       }}
@@ -258,13 +258,16 @@ function EvidenceButton(props: {
  * 인사이트 하나(열린 카드). 셋째 판(m6X3): 앱의 알림 토스트와 같은 판(rounded-2xl squircle, border-subtle, 그림자 없음)에
  * 세 묶음을 쌓는다. 묶음 안은 가깝게(4~8), 묶음 사이는 멀게(16).
  *   1. 머리: 종류 타일 28 · 한 줄 제목(13/500, 말줄임) 위 대상(12, 흐림) · 닫기 ×
- *   2. 숫자: 큰 영향 숫자(18/600)와 단위(13, 보조 글색) 한 기준선, 그 아래 이름-값 줄(12, 이름 흐림 · 값 보조, 양끝)
- *   3. 바닥 한 줄(넷째 판, 사용자 2026-11-21): 왼쪽에 근거 턴 단추(ghost, 가장 약함, 글 왼쪽이 왼쪽 선 16에 선다),
- *      오른쪽에 다음 걸음 단추(면 있음, `NextSteps`). 주 행동의 오른쪽 끝이 위 이름-값 줄의 값 열 선에 선다.
- *      좁으면 다음 걸음이 다음 줄 오른쪽으로 내려간다
+ *   2. 숫자: 큰 영향 숫자(18/600)와 단위(13, 보조 글색) 한 기준선, 같은 줄 오른쪽 끝에 근거 턴 단추(ghost, 가장 약함,
+ *      꺾쇠의 오른쪽 끝이 값 열 선에 선다), 그 아래 이름-값 줄(12, 이름 흐림 · 값 보조, 양끝)
+ *   3. 바닥 한 줄: 오른쪽에 다음 걸음 단추만(면 있음, `NextSteps`). 주 행동의 오른쪽 끝이 위 이름-값 줄의 값 열 선에 선다.
+ *      다섯째 판(m6X5): 넷째 판은 근거 단추를 바닥 왼쪽에 두었는데, 1440 창에서 단추 셋(근거 · 빼기 · 막기로 올리기)이 304px로
+ *      바닥 285px(띠 옆에서는 263px)을 넘어 다음 걸음이 다음 줄로 내려갔다. 근거 단추를 영향 숫자 줄로 올려 바닥은 늘 한 줄이다
  * 글은 크기 셋(18·13·12), 굵기 셋(600·500·400), 색 셋(주·보조·흐림) 안에서만 가른다. 왼쪽 선은 하나(카드 안 16)다.
  * 반경은 바깥 2xl(19.2), 단추는 sm 기본 lg(12)다. 단추는 모서리에서 16 떨어져 같은 중심이 아니므로 2xl보다 두 단계 작게 둔다.
- * 모든 줄이 한 줄이라 띠를 비킬 때(`--rail-avoid`) 끝 여백만 늘고 높이는 그대로다
+ * 띠 비키기(다섯째 판, 리뷰 m6R5와 같은 길): 카드의 면과 테두리는 열 끝까지 가고, 그 안의 줄(머리, 큰 숫자, 이름-값 줄, 바닥) 가운데
+ * 오른쪽 세로 단추 띠와 실제로 겹치는 줄만 `data-under-rail`을 받아 띠 왼쪽 12px 앞에서 끝난다(`views/shell/rail-avoid.ts`, 줄의 `data-rail-avoid`).
+ * 줄은 모두 한 줄(말줄임)이라 비켜도 높이는 그대로다
  */
 function InsightCard(props: {
   readonly finding: Finding;
@@ -281,12 +284,9 @@ function InsightCard(props: {
   const [dismissing, setDismissing] = useState(false);
   const title = ruleTitleOf(f.ruleId);
   return (
-    <li
-      data-rail-avoid={CARD_PAD}
-      className="grid min-w-0 grid-cols-1 rounded-2xl border border-border-subtle bg-surface-base"
-    >
-      <div className={`grid min-w-0 grid-cols-1 gap-4 ps-4 pt-3.5 pb-4 ${AVOID_END_16}`}>
-        <div className="flex min-w-0 items-center gap-3">
+    <li className="grid min-w-0 grid-cols-1 rounded-2xl border border-border-subtle bg-surface-base">
+      <div className="grid min-w-0 grid-cols-1 gap-4 ps-4 pt-3.5 pe-4 pb-4">
+        <div data-rail-avoid="" className="flex min-w-0 items-center gap-3">
           <KindTile kind={kindOfSubject(f.subject.kind)} />
           <div className="grid min-w-0 flex-1 grid-cols-1">
             {props.onFold === undefined ? (
@@ -327,20 +327,27 @@ function InsightCard(props: {
           </IconButton>
         </div>
         <div className="grid min-w-0 grid-cols-1 gap-2">
-          <div className="flex min-w-0 items-baseline gap-1.5">
-            <span className="text-title-feature font-semibold text-text-primary">
-              {impactValueText(f)}
-            </span>
-            <span className="truncate text-ui text-text-secondary">
-              {t(UNIT_WORD_SHORT[f.impact.unit])}
-            </span>
+          <div data-rail-avoid="" className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="text-title-feature font-semibold text-text-primary">
+                {impactValueText(f)}
+              </span>
+              <span className="truncate text-ui text-text-secondary">
+                {t(UNIT_WORD_SHORT[f.impact.unit])}
+              </span>
+            </div>
+            <EvidenceButton finding={f} onShow={props.onShowEvidence} />
           </div>
           {figures.length === 0 ? null : (
             <dl className="m-0 grid grid-cols-1 gap-1 text-ui-sm">
               {figures.map((fig) => {
                 const def = props.catalog.get(fig.metric);
                 return (
-                  <div key={fig.metric} className="flex min-w-0 items-baseline gap-3">
+                  <div
+                    key={fig.metric}
+                    data-rail-avoid=""
+                    className="flex min-w-0 items-baseline gap-3"
+                  >
                     <dt className="min-w-0 flex-1 truncate text-text-tertiary">
                       {metricLabelOf(def, fig.metric, props.locale)}
                     </dt>
@@ -353,44 +360,31 @@ function InsightCard(props: {
             </dl>
           )}
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <EvidenceButton finding={f} onShow={props.onShowEvidence} />
-          {f.next.length === 0 ? null : (
-            <div className="ms-auto">
-              <NextSteps
-                finding={f}
-                profiles={props.profiles}
-                actions={props.actions}
-                locked={props.locked}
-              />
-            </div>
-          )}
-        </div>
+        {f.next.length === 0 ? null : (
+          <div data-rail-avoid="" className="grid min-w-0 grid-cols-1">
+            <NextSteps
+              finding={f}
+              profiles={props.profiles}
+              actions={props.actions}
+              locked={props.locked}
+            />
+          </div>
+        )}
       </div>
     </li>
   );
 }
 
-/** 카드 안쪽 여백(px). 띠를 비키는 계산의 기준이다(`data-rail-avoid`) */
-const CARD_PAD = 16;
-/** 끝 여백 + 띠 비키기. 띠와 같은 높이일 때만 `--rail-avoid`가 0보다 크다. 바뀔 때 짧게 미끄러진다 */
-const AVOID_END_16 =
-  "pe-[calc(16px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
-const AVOID_END_0 =
-  "pe-[var(--rail-avoid,0px)] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
-const AVOID_END_8 =
-  "pe-[calc(8px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
-
 /** 접힌 인사이트 한 줄(많을 때 여섯째부터). 누르면 카드로 펼친다 */
 function InsightRow(props: { readonly finding: Finding; readonly onOpen: () => void }): ReactNode {
   const f = props.finding;
   return (
-    <li data-rail-avoid="8">
+    <li data-rail-avoid="">
       <button
         type="button"
         aria-expanded="false"
         onClick={props.onOpen}
-        className={`grid h-9 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border-0 bg-transparent ps-2 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring ${AVOID_END_8}`}
+        className="grid h-9 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border-0 bg-transparent ps-2 pe-2 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring"
       >
         <KindTile kind={kindOfSubject(f.subject.kind)} size={20} />
         <span className="min-w-0 truncate">
@@ -426,8 +420,8 @@ function Dismissed(props: { readonly findings: readonly Finding[] }): ReactNode 
           {props.findings.map((f) => (
             <li
               key={f.id}
-              data-rail-avoid="0"
-              className={`flex h-8 items-center gap-2 text-ui text-text-secondary ${AVOID_END_0}`}
+              data-rail-avoid=""
+              className="flex h-8 items-center gap-2 text-ui text-text-secondary"
             >
               <span className="min-w-0 flex-1 truncate">
                 {ruleTitleOf(f.ruleId)} · {f.subject.plugin}
@@ -459,12 +453,12 @@ function NoInsights(props: {
   return (
     <div className="grid grid-cols-1 gap-5">
       <div className="grid grid-cols-1 gap-1">
-        <p className="text-ui font-medium text-text-primary">
+        <p data-rail-avoid="" className="text-ui font-medium text-text-primary">
           {props.focus === null
             ? t("desktop.craft.metrics.insight.none")
             : t("desktop.craft.metrics.insight.noneFor", { plugin: props.focus })}
         </p>
-        <p className="text-ui-sm text-text-secondary">
+        <p data-rail-avoid="" className="text-ui-sm text-text-secondary">
           {status !== null && status.short !== null && status.short > 0
             ? t("desktop.craft.metrics.insight.noneShort", {
                 n: countText(status.turns),
@@ -475,10 +469,16 @@ function NoInsights(props: {
       </div>
       {WATCH_GROUPS.map((group) => (
         <div key={group.id} className="grid grid-cols-1 gap-1.5">
-          <div className="text-ui-sm text-text-tertiary">{t(group.title)}</div>
+          <div data-rail-avoid="" className="text-ui-sm text-text-tertiary">
+            {t(group.title)}
+          </div>
           <ul className="grid grid-cols-1 gap-1">
             {group.rules.map((rule) => (
-              <li key={rule.id} className="flex items-center gap-2 text-ui-sm text-text-secondary">
+              <li
+                key={rule.id}
+                data-rail-avoid=""
+                className="flex items-center gap-2 text-ui-sm text-text-secondary"
+              >
                 <span className="text-text-tertiary">
                   <KindGlyph kind={rule.kind} size={12} />
                 </span>
@@ -546,7 +546,9 @@ export function InsightPanel(props: {
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const scroller = useRef<HTMLDivElement>(null);
-  useRailAvoid(scroller);
+  // 띠와 겹치는 줄(`[data-rail-avoid]`)만 비킨다. 폭을 끝 바깥 여백으로 쓰는 규칙은 `viz.css`의 `.cm-insights [data-under-rail]`이다.
+  // 비킬 줄끼리 겹쳐 싸지 않는다(안팎이 두 번 줄지 않게). 좁은 창의 서랍(`onClose`가 있다)은 띠를 덮으므로 비키지 않는다
+  useRailAvoid(scroller, "");
   const count =
     data.findings.kind === "ready"
       ? data.findings.value.findings.filter((f) => focus === null || f.subject.plugin === focus)
@@ -581,7 +583,10 @@ export function InsightPanel(props: {
           </IconButton>
         )}
       </div>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-10">
+      <div
+        ref={props.onClose === undefined ? scroller : undefined}
+        className="cm-insights min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-10"
+      >
         <Gate
           load={data.findings}
           height={160}
@@ -603,7 +608,10 @@ export function InsightPanel(props: {
                     className="grid grid-cols-1 gap-2.5"
                     aria-label={t(UNIT_GROUP[group.unit])}
                   >
-                    <div className="flex items-center gap-1.5 text-ui-sm text-text-tertiary">
+                    <div
+                      data-rail-avoid=""
+                      className="flex items-center gap-1.5 text-ui-sm text-text-tertiary"
+                    >
                       <span>{t(UNIT_GROUP[group.unit])}</span>
                       <span>{countText(group.items.length)}</span>
                     </div>

@@ -237,3 +237,9 @@
     }
   }
 }
+
+/* 인사이트 열이 띠를 비키는 법(m6X5, 리뷰 m6R5와 같은 길). 카드의 면과 테두리는 열 끝까지 가고, 띠와 실제로 겹치는 줄만
+   끝 바깥 여백으로 띠 왼쪽 12px 앞에서 끝난다. 폭은 `views/shell/rail-avoid.ts`의 `useRailAvoid`가 잰다(`--rail-cut`) */
+.cm-insights [data-under-rail] {
+  margin-inline-end: var(--rail-cut, 0px);
+}
