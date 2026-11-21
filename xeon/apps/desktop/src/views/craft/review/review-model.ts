@@ -182,6 +182,23 @@ function scriptLine(script: CardScript): RunLine {
   };
 }
 
+/**
+ * 가져온 훅의 출처 위험 줄(m6R6, 엔진 값은 enFp의 `origin`·`originLabel`·`fromProject`). 사용자 설정에서 온 훅은 줄이 없다(null).
+ * `fromProject`는 `origin`이 `project`이거나 플러그인 자체가 프로젝트 폴더에서 왔을 때 참이라, 둘을 "프로젝트 폴더의 설정에서 옴" 한 줄로 쓴다.
+ * 폴더 표시(`label`)는 엔진이 `project`에만 준다. 엔진이 출처를 기록하지 못한 훅은 "어디서 왔는지 알 수 없음"이다
+ */
+export type HookOriginLine =
+  | { readonly kind: "project"; readonly label: string | null }
+  | { readonly kind: "unknown" };
+
+export function hookOriginLineOf(env: CardScriptEnv): HookOriginLine | null {
+  if (env.origin === "project" || env.fromProject) {
+    return { kind: "project", label: env.originLabel };
+  }
+  if (env.origin === "unknown") return { kind: "unknown" };
+  return null;
+}
+
 /** 승인하면 실행될 명령들. 스크립트가 먼저, 그다음 MCP 서버다 */
 export function runLinesOf(card: PluginCard): readonly RunLine[] {
   const inject = card.does.inject;
@@ -297,8 +314,18 @@ export function purposeDraftOf(card: PluginCard): PurposeDraft {
   }
 }
 
-/** 이 항목에서 보여야 할 경고. 순서는 무게 순이다. 비용은 위험이 아니라 따로 `costViewOf`가 말한다(m6R5) */
-export type Warning = "handEdit" | "purposeMissing" | "enforcedNow" | "projectCode" | "managedOff";
+/**
+ * 이 항목에서 보여야 할 경고. 순서는 무게 순이다. 비용은 위험이 아니라 따로 `costViewOf`가 말한다(m6R5).
+ * `projectCode`는 프로젝트 폴더에서 온 플러그인의 코드이거나 프로젝트 설정에서 가져온 훅이다. `hookOriginUnknown`은 엔진이 출처를 기록하지 못한 가져온 훅이다(m6R6).
+ * 실행 섹션의 훅 카드가 같은 사실을 훅마다 폴더와 함께 말하고, 여기는 결정 열의 요약 한 줄이다
+ */
+export type Warning =
+  | "handEdit"
+  | "purposeMissing"
+  | "enforcedNow"
+  | "projectCode"
+  | "hookOriginUnknown"
+  | "managedOff";
 
 /** `managedOff`는 관리자가 이 플러그인을 꺼 둔 경우다(`ext.list`의 `enabledSource: managed`) */
 export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warning[] {
@@ -310,7 +337,16 @@ export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warn
   if (change !== null && change.from === "advisory" && change.to === "enforced") {
     out.push("enforcedNow");
   }
-  if (item.provenance === "project" && item.card.runs.code) out.push("projectCode");
+  const origins = runLinesOf(item.card).flatMap((line) =>
+    line.kind === "script" && line.env !== null ? [hookOriginLineOf(line.env)] : [],
+  );
+  if (
+    (item.provenance === "project" && item.card.runs.code) ||
+    origins.some((origin) => origin?.kind === "project")
+  ) {
+    out.push("projectCode");
+  }
+  if (origins.some((origin) => origin?.kind === "unknown")) out.push("hookOriginUnknown");
   return out;
 }
 

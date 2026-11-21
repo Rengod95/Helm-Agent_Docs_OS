@@ -136,6 +136,7 @@ const WARNING_WORD: Readonly<Record<Warning, MessageId>> = {
   purposeMissing: "desktop.craft.review.does.purposeMissing",
   enforcedNow: "desktop.craft.review.risk.enforcedNow",
   projectCode: "desktop.craft.review.risk.projectCode",
+  hookOriginUnknown: "desktop.craft.review.run.originUnknown",
 };
 
 function RiskSection(props: {

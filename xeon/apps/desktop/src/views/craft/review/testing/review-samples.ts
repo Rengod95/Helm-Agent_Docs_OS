@@ -85,6 +85,8 @@ const FILES: Readonly<Record<string, string>> = {
     '#!/bin/bash\n# 다른 하네스에서 가져온 훅: 고친 파일을 prettier로 맞춘다\nnpx prettier --write "$CLAUDE_FILE_PATHS"\n',
   "hooks/ruff.sh":
     "#!/bin/sh\n# 다른 하네스에서 가져온 훅: 바뀐 파이썬 파일을 ruff로 검사한다\nruff check --quiet $(git diff --name-only -- '*.py')\n",
+  "hooks/log.sh":
+    '#!/bin/bash\n# 다른 하네스에서 가져온 훅: 도구 호출 기록을 한 줄씩 남긴다\njq -c . >> "$HOME/.claude/tool-log.jsonl"\n',
   "plugin.json": `{
   "name": "lint-guard",
   "version": "0.3.0",
@@ -596,6 +598,8 @@ export function sampleItems(): readonly ReviewItem[] {
                   refsKnown: true,
                   missingTools: [],
                   versionHints: [],
+                  origin: "user",
+                  originLabel: null,
                   fromProject: false,
                 },
               },
@@ -616,19 +620,19 @@ export function sampleItems(): readonly ReviewItem[] {
       }),
       files: filesOf(["plugin.json", "hooks/format.sh"], "g"),
     }),
-    // 같은 가져온 훅을 샌드박스 설정(`l0.sandbox.sandboxImportedHooks`)을 켜고 만든 카드. 실행 파일을 못 찾았고 읽는 파일을 알 수 없다
+    // 같은 가져온 훅을 샌드박스 설정(`l0.sandbox.sandboxImportedHooks`)을 켜고 만든 카드. 실행 파일을 못 찾았고 읽는 파일을 알 수 없다.
+    // 프로젝트 폴더의 설정(`~/code/helm/.claude/settings.json`)에서 가져왔다(enFp `origin: "project"`, m6R6)
     item({
       itemId: "rvw_sample_imported_box",
       name: "ruff-check",
       createdAt: ago(25),
-      provenance: "project",
+      provenance: "migration",
       card: card({
         name: "ruff-check",
         displayName: "Ruff Check",
         version: "0.2.0",
         purpose: "파이썬 파일을 고치기 전에 ruff로 검사하고, 걸리면 막는다.",
         enforcement: "enforced",
-        origin: { kind: "project", projectId: "prj_helm" },
         does: {
           inject: inventory({
             scripts: [
@@ -645,6 +649,8 @@ export function sampleItems(): readonly ReviewItem[] {
                   refsKnown: false,
                   missingTools: ["ruff"],
                   versionHints: [],
+                  origin: "project",
+                  originLabel: "~/code/helm",
                   fromProject: true,
                 },
               },
@@ -664,6 +670,55 @@ export function sampleItems(): readonly ReviewItem[] {
         },
       }),
       files: filesOf(["plugin.json", "hooks/ruff.sh"], "h"),
+    }),
+    // 엔진이 출처를 기록하지 못한 가져온 훅(관리 설정에서 왔거나 가져온 뒤 폴더에서 바뀐 것: enFp `origin: "unknown"`, m6R6)
+    item({
+      itemId: "rvw_sample_imported_unknown",
+      name: "tool-log",
+      createdAt: ago(32),
+      provenance: "migration",
+      card: card({
+        name: "tool-log",
+        displayName: "Tool Log",
+        version: "1.0.0",
+        purpose: "도구를 부를 때마다 그 기록을 한 줄씩 파일에 남긴다.",
+        does: {
+          inject: inventory({
+            scripts: [
+              {
+                name: "log",
+                launch: { command: "bash", args: ["hooks/log.sh"], envNames: [], cwd: null },
+                timeoutMs: 10_000,
+                uses: SCRIPT_ENV_USES,
+                env: {
+                  command: 'jq -c . >> "$HOME/.claude/tool-log.jsonl"',
+                  shell: "bash",
+                  interpreter: "/opt/homebrew/bin/jq",
+                  refs: [],
+                  refsKnown: true,
+                  missingTools: [],
+                  versionHints: [],
+                  origin: "unknown",
+                  originLabel: null,
+                  fromProject: false,
+                },
+              },
+            ],
+          }),
+          hook: {
+            hooks: [
+              {
+                name: "tool.call.after",
+                fold: "tap",
+                position: "tools.after",
+                powers: ["observe"],
+              },
+            ],
+          },
+          drive: null,
+        },
+      }),
+      files: filesOf(["plugin.json", "hooks/log.sh"], "k"),
     }),
     item({
       itemId: "rvw_sample_remove",

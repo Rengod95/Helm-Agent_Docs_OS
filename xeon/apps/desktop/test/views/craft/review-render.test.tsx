@@ -265,6 +265,26 @@ describe("states", () => {
   });
 });
 
+describe("hook origin (m6R6)", () => {
+  const BOXED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported_box")));
+  const UNKNOWN = render(
+    ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported_unknown")),
+  );
+  const MINE = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported")));
+
+  test("a hook from a project's settings says so on its run card with the folder, in the warning line shape", () => {
+    expect(BOXED).toMatch(
+      /data-tone="warning" data-slot="review-hook-origin">.*프로젝트 폴더의 설정에서 온 훅이에요.*~\/code\/helm/,
+    );
+    expect(BOXED).not.toContain("프로젝트가 싣고 온 훅이에요");
+  });
+
+  test("an unrecorded hook says its origin is unknown, and a user hook adds no origin line", () => {
+    expect(UNKNOWN).toMatch(/data-slot="review-hook-origin">.*어디서 온 훅인지 알 수 없어요/);
+    expect(MINE).not.toContain('data-slot="review-hook-origin"');
+  });
+});
+
 describe("fourth round (m6R4)", () => {
   const IMPORTED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported")));
   const BOXED = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_imported_box")));

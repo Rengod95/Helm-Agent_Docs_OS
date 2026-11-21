@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Bug } from "@fresnel/contracts";
+import type { CardScriptEnv } from "@fresnel/contracts/extensions";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import {
   approveDecisionOf,
@@ -30,6 +31,7 @@ import {
   stepFile,
   stepItem,
   versionsOf,
+  hookOriginLineOf,
   warningsOf,
 } from "../../../src/views/craft/review/review-model.ts";
 import {
@@ -54,6 +56,7 @@ const RULE = sample("rvw_sample_rule");
 const REMOVE = sample("rvw_sample_remove");
 const IMPORTED = sample("rvw_sample_imported");
 const IMPORTED_BOX = sample("rvw_sample_imported_box");
+const IMPORTED_UNKNOWN = sample("rvw_sample_imported_unknown");
 const NOTES = sample("rvw_sample_notes");
 
 describe("what the list says the item is", () => {
@@ -389,6 +392,8 @@ describe("fourth round (m6R4)", () => {
       refsKnown: true,
       missingTools: [],
       versionHints: [],
+      origin: "user",
+      originLabel: null,
       fromProject: false,
     });
   });
@@ -438,5 +443,34 @@ describe("fourth round (m6R4)", () => {
     };
     expect(purposeDraftOf(oneTool)).toEqual({ kind: "toolText", text: "페이지 하나를 읽는다" });
     expect(purposeDraftOf({ ...DRIVE.card, internal: true })).toEqual({ kind: "none" });
+  });
+});
+
+function envOf(item: ReviewItem): CardScriptEnv {
+  const [line] = runLinesOf(item.card);
+  if (line?.kind !== "script" || line.env === null) throw new Bug(`no env on ${item.itemId}`);
+  return line.env;
+}
+
+describe("where an imported hook came from (m6R6)", () => {
+  test("a project hook names its folder, an unrecorded one says it is unknown, a user hook adds no line", () => {
+    expect(
+      [IMPORTED_BOX, IMPORTED_UNKNOWN, IMPORTED].map((item) => hookOriginLineOf(envOf(item))),
+    ).toEqual([{ kind: "project", label: "~/code/helm" }, { kind: "unknown" }, null]);
+  });
+
+  test("a hook the plugin's own project folder carried reads as the same project line, without a folder", () => {
+    const env = envOf(IMPORTED_UNKNOWN);
+    expect(hookOriginLineOf({ ...env, origin: "unknown", fromProject: true })).toEqual({
+      kind: "project",
+      label: null,
+    });
+    expect(hookOriginLineOf({ ...env, origin: "user", fromProject: false })).toBeNull();
+  });
+
+  test("the judging column sums it up once: project code, or unknown origin", () => {
+    expect(
+      [IMPORTED_BOX, IMPORTED_UNKNOWN, IMPORTED].map((item) => warningsOf(item, false)),
+    ).toEqual([["projectCode"], ["hookOriginUnknown"], ["purposeMissing"]]);
   });
 });

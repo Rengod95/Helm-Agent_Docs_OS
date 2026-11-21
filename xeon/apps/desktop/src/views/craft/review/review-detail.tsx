@@ -29,12 +29,14 @@ import { KindTile } from "./review-glyphs.tsx";
 import { JudgeColumn, type Decided, type DecisionHandle } from "./review-judge.tsx";
 import {
   entryKindOf,
+  hookOriginLineOf,
   keeperOf,
   kindsOf,
   primaryKindOf,
   purposeDraftOf,
   runLinesOf,
   shortHash,
+  type HookOriginLine,
   type RunLine,
   type Versions,
 } from "./review-model.ts";
@@ -486,10 +488,36 @@ const USE_WORD: Readonly<Record<ScriptUse, MessageId>> = {
 };
 
 /**
+ * 훅의 출처 위험 줄(m6R6): 다섯째 판의 위험 줄 모양(주의 색의 느낌표 없는 세모 + 무채색 글) 그대로. 프로젝트에서 왔으면 그 폴더를 고정폭 흐린 글로
+ * 다음 줄에 둔다(긴 경로가 문장을 밀지 않게, 넘치면 말줄임과 title로 전체)
+ */
+function OriginLine(props: { readonly origin: HookOriginLine }): ReactNode {
+  const { origin } = props;
+  if (origin.kind === "unknown") {
+    return (
+      <NoticeLine as="li" tone="warning" slot="review-hook-origin">
+        {t("desktop.craft.review.run.originUnknown")}
+      </NoticeLine>
+    );
+  }
+  return (
+    <NoticeLine as="li" tone="warning" slot="review-hook-origin">
+      <span className="block">{t("desktop.craft.review.run.originProject")}</span>
+      {origin.label === null ? null : (
+        <span className="rv-code block truncate text-text-tertiary" title={origin.label}>
+          {origin.label}
+        </span>
+      )}
+    </NoticeLine>
+  );
+}
+
+/**
  * 가져온 훅(환경 모드)의 사실: 셸, 실행 파일(못 찾았으면 주의 줄), 읽는 파일과 지문. 엔진이 모르는 것은 모른다고 말한다(`refsKnown`)
  */
 function EnvFacts(props: { readonly env: CardScriptEnv }): ReactNode {
   const { env } = props;
+  const origin = hookOriginLineOf(env);
   return (
     <div className="grid gap-2" data-slot="review-env">
       <Facts>
@@ -533,18 +561,14 @@ function EnvFacts(props: { readonly env: CardScriptEnv }): ReactNode {
           </Fact>
         )}
       </Facts>
-      {env.missingTools.length === 0 && !env.fromProject ? null : (
+      {env.missingTools.length === 0 && origin === null ? null : (
         <ul className="rv-lines m-0 p-0">
+          {origin === null ? null : <OriginLine origin={origin} />}
           {env.missingTools.length === 0 ? null : (
             <NoticeLine as="li" tone="warning">
               {t("desktop.craft.review.run.missingTools", { names: env.missingTools.join(", ") })}
             </NoticeLine>
           )}
-          {env.fromProject ? (
-            <NoticeLine as="li" tone="warning">
-              {t("desktop.craft.review.run.fromProject")}
-            </NoticeLine>
-          ) : null}
         </ul>
       )}
     </div>
