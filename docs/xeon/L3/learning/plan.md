@@ -8,16 +8,16 @@ depends_on: [L3.learning.spec, adr.0015, L3.group-sdk.plan, L2.knowledge.plan, L
 binds: [xeon/packages/plugin-learning/**]
 ---
 
-# L3 학습 그룹 구현 계획
+# L3 학습 플러그인 구현 계획
 
 ## 1. 목표와 마일스톤 배치
 
-목표는 L3.learning.spec의 1차 구성요소(학습 트리거, 검토 포크, 승인 대기열, 메타인지 피드백 제안)를 M3에 넣는 것이다. 근거는 `product.scope.spec` 4.1 I8(학습 그룹 M3), 4.3 M3 행, 4.4 M3 종료 조건, 4.5 UC-3 행이다.
+목표는 L3.learning.spec의 1차 구성요소(학습 트리거, 검토 포크, 승인 대기열, 메타인지 피드백 제안)를 M3에 넣는 것이다. 근거는 `product.scope.spec` 4.1 I8(학습 플러그인 M3), 4.3 M3 행, 4.4 M3 종료 조건, 4.5 UC-3 행이다.
 
-- M3 설계 개정(2026-10-26): spec §1.0의 변경(ADR-0015 효과 분류, `agent.settled` 구독, 지연 정리, 범위 선택, Result 종류)에 맞춰 작업 LR-03·LR-05·LR-09·LR-15를 고치고 LR-23~LR-28을 더했다. `review.m3-plan`의 작업 번호는 M3-new-03(학습 그룹 1차)이다(`review.m3-design-inputs` §5.2).
+- M3 설계 개정(2026-10-26): spec §1.0의 변경(ADR-0015 효과 분류, `agent.settled` 구독, 지연 정리, 범위 선택, Result 종류)에 맞춰 작업 LR-03·LR-05·LR-09·LR-15를 고치고 LR-23~LR-28을 더했다. `review.m3-plan`의 작업 번호는 M3-new-03(학습 플러그인 1차)이다(`review.m3-design-inputs` §5.2).
 - 사용자 결정 D-M3-02(기본 켬), 03(보고 없음), 04(끄기 때 즉시 취소), 09(프로젝트 범위는 승인 화면에서만), 32(대기열 둘)를 받았다(2026-10-26, `review.m3-design-inputs` §3). 작업은 이 결정대로 구현한다.
 
-| 마일스톤 | 학습 그룹 작업 | 선행 조건(다른 층) |
+| 마일스톤 | 학습 플러그인 작업 | 선행 조건(다른 층) |
 |---|---|---|
 | M0 | 없음. 패키지 골격(`export {};`)만 있다 | F 계약 골격, check-layers |
 | M1 | 없음 | F.extensions 훅 타입, X `on`·`post`·`scope` 구현, 이벤트 저장 |
@@ -107,7 +107,7 @@ xeon/packages/plugin-learning/
 | LR-21 | (2차) 학습 이력: 대기열과 원장 시간순 합치기, `/learning history`, 되돌리기 | LR-10, `knowledge.ledger.read` | M |
 | LR-22 | (2차) 스크립트 제안: 반복 명령 묶음 탐지(최소 반복 3회 [가정]), `kind: "script"` 후보 | LR-06, LR-10 | M |
 | LR-23 | 완료 구독: `agent.settled` 구독 핸들러, `reviewFinishOutcome`, `fork.finished`·`review.finished` 기록, `settledReviewId` 커밋과 `inFlightReviewId` 비우기(§4.3 선후 경합). 구독이 없을 때 명령 진입의 `g.delegateStatus` 대체 경로 | LR-05, REQ-LN-02·07·08 | M |
-| LR-24 | 그룹 끄기 취소: `onDispose`의 `g.cancelDelegates`와 `inFlightReviewId` 커밋(REQ-X-12 [가정]), 커밋하지 못하는 구성에서는 다시 켠 뒤 `inFlightReviewId` 정리 [결정: review.m3-design-inputs D-M3-04] | LR-23, REQ-LN-06·08 | S |
+| LR-24 | 플러그인 끄기 취소: `onDispose`의 `g.cancelDelegates`와 `inFlightReviewId` 커밋(REQ-X-12 [가정]), 커밋하지 못하는 구성에서는 다시 켠 뒤 `inFlightReviewId` 정리 [결정: review.m3-design-inputs D-M3-04] | LR-23, REQ-LN-06·08 | S |
 | LR-25 | ADR-0015 재생 시험: 모든 커밋 시점에서 끊고 재개, 핸들러 2회 실행, 위임·기록·커밋 계수 1(spec §9 17·18·19) | LR-05, LR-23, orchestration-sdk `replayDrive` 효과 계수(G-20 확장), M3-new-01 | M |
 | LR-26 | 범위 선택과 신뢰 표지: `Proposal.scope`, `approve --scope`, `KnowledgeChange.scope`, `afterUntrusted` 기록과 화면 필드 [결정: review.m3-design-inputs D-M3-09] | LR-09, LR-10, REQ-LN-01·09·10 | S |
 | LR-27 | 충돌 처리: `name_exists` 거부, 유사 스킬 `conflictsWith`(옛 LR-12 충돌 표시를 대신한다. LR-12 번호는 비워 둔다) | LR-06 | S |
@@ -115,7 +115,7 @@ xeon/packages/plugin-learning/
 
 선행 조건(다른 층):
 
-- spec §8.1의 REQ-LN-01~REQ-LN-11. 이 중 REQ-LN-01(`AgentSettledPayload` 필드), REQ-LN-02(`agent.settled` 구독), REQ-LN-05(위임 멱등 내구화), REQ-LN-08(`report` 선택화와 위임 조회·취소)이 없으면 검토 포크가 시작되지 않거나 한 번만 돈다. 학습 그룹 착수(LR-05) 전에 F·X·L1 계약 트랙이 끝나 있어야 한다.
+- spec §8.1의 REQ-LN-01~REQ-LN-11. 이 중 REQ-LN-01(`AgentSettledPayload` 필드), REQ-LN-02(`agent.settled` 구독), REQ-LN-05(위임 멱등 내구화), REQ-LN-08(`report` 선택화와 위임 조회·취소)이 없으면 검토 포크가 시작되지 않거나 한 번만 돈다. 학습 플러그인 착수(LR-05) 전에 F·X·L1 계약 트랙이 끝나 있어야 한다.
 - M3-new-01(ADR-0015 구현): X 기능 래퍼의 on 핸들러 문맥 검사와 코어 멱등의 내구 기록.
 
 - orchestration-sdk M2: `defineOrchestration`, `OrchestrationApi<S>`의 `settings()`, `delegate(spec)`(M2는 입력 검사만, 호출은 M3의 G-14), `metrics`, `registerTool`·`registerCommand`(G-22)(L3.group-sdk.plan). 비공개 기록 경로는 X `RegistrationApi.recordPrivate`다(review.decisions-2 T-21, spec §3.7.1). orchestration-sdk은 이 연산을 그대로 전달한다(L3.group-sdk.spec §3.2). 그래서 LR-08이 X 구현을 선행으로 갖는다.
@@ -127,7 +127,7 @@ xeon/packages/plugin-learning/
 
 그대로 쓰는 외부 패키지는 워크스페이스 공용 `typebox` 1.3.27(`catalog:`, L3.group-sdk.plan §4 표)뿐이다. Hermes 소스는 가져오지 않는다. Hermes는 MIT 라이선스이고 Python이므로 개념만 TypeScript로 재구현한다(`_research/refs/hermes.md` §4.1 라이선스 항목, §4.2 첫 항목). 아래 표의 소스 경로는 설계 참고 위치이며, 커밋은 `0319e113c9602b86ffda350e931cb4b035e1d5d8`이다(`_research/notes/L3-3.md` §0).
 
-| Hermes 요소 | 참고 위치 | 학습 그룹 대응 | 바꾸는 점 |
+| Hermes 요소 | 참고 위치 | 학습 플러그인 대응 | 바꾸는 점 |
 |---|---|---|---|
 | 카운터 트리거 | `agent/turn_context.py:758-767`, `agent/turn_iteration_prep.py:166-167`, `agent/tool_executor.py:744-747`, `agent/turn_finalizer.py:763-791`(`hermes.md` §3.10.1 (가)) | `triggers.ts` `applyTurn` | 단계 경계 이벤트(`boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`) 기준. 순수 함수로 분리. 커밋 턴당 1회 |
 | 캐시 패리티 포크 | `background_review.py:965-975`, `1147-1160`(`hermes.md` §3.10.1 (나) 8) | `review/fork.ts` `buildReviewSpec` | 스레드 대신 L1-g 백그라운드 위임. 캐시 공유는 L1.agents 지원 여부에 따름 [가정] |
@@ -173,7 +173,7 @@ xeon/packages/plugin-learning/
 | `queue.sweep-on-command-entry` | 결정 처리 도중 적용 전에 프로세스를 끊고 다시 띄운 뒤 아무 `/learning` 명령 진입 때 `approved` 미적용 행을 같은 `idempotencyKey`로 재적용하고(가짜 L2-d 원장 행 1개) 만료 행을 `expired`로 바꾼다. on 핸들러에서는 정리하지 않는다 | LR-09 |
 | `queue.projection-rebuild-equal` | 이벤트에서 투영을 다시 만들면 같은 행. `diff`가 16 KiB를 넘는 제안을 만들고 프로세스를 재시작해 재생해도 `x_learning_proposals`의 `diff`가 원문과 같고 승인된 제안의 재적용·만료 판정 결과가 재시작 전과 같다 | LR-08 |
 | `feedback.frustration-signal-creates-proposal` | 좌절 표현이 있는 테이프 대화 → `kind: "feedback"` 후보 1개와 `grp.learning.feedback.proposed` | LR-13 |
-| `coexist.helm-lease-held-fork-still-runs` | 테스트 drive 그룹이 drive lock을 가진 상태에서 임계 도달 → 포크 시작, 학습 그룹 `drive` 호출 0 | LR-16 |
+| `coexist.helm-lease-held-fork-still-runs` | 테스트 Drive 플러그인이 drive lock을 가진 상태에서 임계 도달 → 포크 시작, 학습 플러그인 `drive` 호출 0 | LR-16 |
 | `records.schema-valid` | 8종 예시 payload가 스키마를 통과하고 `validateOrchestrationRecord`를 통과한다 | LR-14 |
 | `commands.queue-json-matches-view` | `/learning queue --json` 출력이 `ProposalView[]` 스키마를 따른다 | LR-15 |
 | `triggers.in-flight-blocks-second-review` | `inFlightReviewId`가 있는 동안 임계 도달 → `skip/in_flight`, `g.delegate` 0회. 종료 기록 뒤 다음 turn에 1회 | LR-04, LR-23 |
@@ -184,8 +184,8 @@ xeon/packages/plugin-learning/
 | `settled.finish-records-once` | 같은 `agent.settled`로 구독 핸들러 2회 → `fork.finished`·`review.finished` 각 1개, `inFlightReviewId` null | LR-23 |
 | `settled.ignores-foreign-request-ids` | `requestId`가 `learning:review:`로 시작하지 않거나 주체가 다른 scope → `ignore` | LR-23 |
 | `settled.status-fallback-on-command` | 구독 없는 구성에서 `/learning queue` 진입 → `delegateStatus` 조회로 종료 기록 | LR-23 |
-| `dispose.cancels-in-flight-review` | 검토 중 그룹 끄기 → `cancelDelegates` 1회, 자식 `agent.settled{ aborted }` | LR-24 |
-| `dispose.clears-inflight-id-after-cancel` | 그룹 끄기 뒤 다시 켜면 `inFlightReviewId`가 null이고 명령을 부르지 않아도 다음 임계에서 검토가 시작된다. `onDispose`에서 커밋하지 못하는 구성이면 첫 명령 진입의 대체 조회로 비워진다 | LR-24 |
+| `dispose.cancels-in-flight-review` | 검토 중 플러그인 끄기 → `cancelDelegates` 1회, 자식 `agent.settled{ aborted }` | LR-24 |
+| `dispose.clears-inflight-id-after-cancel` | 플러그인 끄기 뒤 다시 켜면 `inFlightReviewId`가 null이고 명령을 부르지 않아도 다음 임계에서 검토가 시작된다. `onDispose`에서 커밋하지 못하는 구성이면 첫 명령 진입의 대체 조회로 비워진다 | LR-24 |
 | `replay.agent-settled-twice-one-delegate` | ADR-0015: 모든 커밋 시점에서 끊고 재개, `boundary.settle.after` 2회 실행 → 위임 1, `fork.started` 1, 상태 반영 1 | LR-25 |
 | `replay.no-capability-calls-in-handlers` | on 핸들러·구독 핸들러 실행 중 `g.capability` 호출 0 | LR-25 |
 | `scope.tool-proposals-are-user-scope` | `learning_propose`로 만든 스킬 후보의 `scope`는 `user` | LR-26 |
@@ -199,8 +199,8 @@ xeon/packages/plugin-learning/
 ### 5.2 테이프 통합 (M3 스모크)
 
 - 이름: `plugin-learning/test/uc3.int.test.ts`의 `uc3.threshold-review-queue-and-helm-coexist`.
-- 구성: 실제 SQLite 임시 파일, X·orchestration-sdk 실구현, L1-g·L2-d 가짜, 테스트용 drive 그룹(Helm 대역), 테이프 `test/tapes/uc3-review.tape.jsonl`(주 대화 10 turn + 검토 포크 응답).
-- 확인: (1) 임계를 넘는 대화에서 포크가 백그라운드로 1회 실행되고 후보가 대기열에 들어가며, 승인 전 스킬 디렉터리와 메모리 파일 해시가 같다. (2) drive 그룹이 drive lock을 가진 동안에도 (1)이 성립한다. (3) 승인 뒤에만 L2-d `apply`가 불린다.
+- 구성: 실제 SQLite 임시 파일, X·orchestration-sdk 실구현, L1-g·L2-d 가짜, 테스트용 Drive 플러그인(Helm 대역), 테이프 `test/tapes/uc3-review.tape.jsonl`(주 대화 10 turn + 검토 포크 응답).
+- 확인: (1) 임계를 넘는 대화에서 포크가 백그라운드로 1회 실행되고 후보가 대기열에 들어가며, 승인 전 스킬 디렉터리와 메모리 파일 해시가 같다. (2) Drive 플러그인이 drive lock을 가진 동안에도 (1)이 성립한다. (3) 승인 뒤에만 L2-d `apply`가 불린다.
 - [제안] 계층(L-IN-19): `eng.testing.guide` TS-01은 `scenario` 계층을 저장소 전체에 1개(`apps/cli` 스모크)로 제한한다. 이 테스트는 패키지 안 `int` 계층으로 둔다. 실제 SQLite와 X·orchestration-sdk 실구현을 쓰므로 UC-3 검증에 충분하고, 저장소 전체 스모크 수 제한을 바꾸지 않는다.
 - 추가 확인(M3 설계 개정): (4) 검토 결과가 부모 대화의 모델 입력에 없다([결정: review.m3-design-inputs D-M3-03]). (5) 검토 도중 프로세스를 끊고 재개해도 자식 대화는 1개다(ADR-0015).
 
@@ -239,8 +239,8 @@ xeon/packages/plugin-learning/
    | 27 정착이 시작 커밋보다 먼저인 경합 | `triggers.settle-before-commit-clears-inflight` |
    | 28 취소 뒤 `inFlightReviewId` 복구 | `dispose.clears-inflight-id-after-cancel` |
 
-2. M3 검증(`product.scope.spec` 4.4 M3, 5절): 학습 그룹을 추가하는 변경에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/platform-*/**`, `xeon/packages/core-*/**` 경로의 diff가 0이다. 확인 방법은 그 변경 묶음에 대한 `git diff --stat <기준>..HEAD -- <경로들>` 결과가 비어 있는 것이다. 같은 검사를 `xeon/scripts/core-diff-check.ts <기준 커밋>`이 한다(`bun scripts/core-diff-check.ts <기준>`, 종료코드 0 통과, 1 위반, 2 환경 문제). 필요한 F·X·L1 변경은 학습 그룹 변경보다 앞선 별도 변경으로 끝나 있어야 한다.
-3. 학습 그룹이 쓰는 연산(`on`, `scope`, `recordPrivate`, `record`, orchestration-sdk `delegate`)이 통합 테스트에서 호출된다(`product.scope.spec` 4.4 M3, `product.vision.spec` S1). `post`는 쓰지 않는다(spec §7, `usesPost: false`).
+2. M3 검증(`product.scope.spec` 4.4 M3, 5절): 학습 플러그인을 추가하는 변경에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/platform-*/**`, `xeon/packages/core-*/**` 경로의 diff가 0이다. 확인 방법은 그 변경 묶음에 대한 `git diff --stat <기준>..HEAD -- <경로들>` 결과가 비어 있는 것이다. 같은 검사를 `xeon/scripts/core-diff-check.ts <기준 커밋>`이 한다(`bun scripts/core-diff-check.ts <기준>`, 종료코드 0 통과, 1 위반, 2 환경 문제). 필요한 F·X·L1 변경은 학습 플러그인 변경보다 앞선 별도 변경으로 끝나 있어야 한다.
+3. 학습 플러그인이 쓰는 연산(`on`, `scope`, `recordPrivate`, `record`, orchestration-sdk `delegate`)이 통합 테스트에서 호출된다(`product.scope.spec` 4.4 M3, `product.vision.spec` S1). `post`는 쓰지 않는다(spec §7, `usesPost: false`).
 4. 승인 전 파일 불변 검증: 통합 테스트가 가짜 L2-d 저장소의 스킬 디렉터리와 메모리 파일 해시를 대화 전, 후보 생성 뒤, 거절 뒤에 비교하고 모두 같다.
 5. `just verify`가 종료코드 0이다. `just check-layers`와 `just depcruise`가 `plugin-learning`의 import를 허용 목록 안으로 확인한다.
 6. 2차 작업(LR-19~LR-22)은 M3 완료 기준에 넣지 않는다.

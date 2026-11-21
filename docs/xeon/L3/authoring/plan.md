@@ -14,7 +14,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ## 1. 목표와 마일스톤 배치
 
-- M4: 서비스 `fresnel.devkit`(host 구현), 그룹 `authoring`(도구, 단계 머신, 가드, 선언형 화면), 카탈로그 첫 판(spec §3.4 표), 검사 AU-001~AU-012, 카탈로그 적합성 시험.
+- M4: 서비스 `fresnel.devkit`(host 구현), 플러그인 `authoring`(도구, 단계 머신, 가드, 선언형 화면), 카탈로그 첫 판(spec §3.4 표), 검사 AU-001~AU-012, 카탈로그 적합성 시험.
 - M4 밖: 묶음 서명, 로컬 카탈로그 공유, `x.hook` 종류(외부 훅 확정 뒤).
 
 ## 2. 패키지와 파일 배치
@@ -29,7 +29,7 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|---|---|
 | AU-T1 | F: `DevkitService` 계약, `KindEntry`·`CompositionDecl` 스키마. contracts는 T-F만 고치므로 T-F가 만들고 이 트랙은 요구를 넘김 | T-F의 `composition`(X-16) | S |
 | AU-T2 | host: `fresnel.devkit` 구현(scaffold, validate, validateComposition, trial, pack, link), wire W-27·W-28·W-47·W-49 처리기 | AU-T1, T-WB의 `thread.create { trial }`(W-34) | M |
-| AU-T3 | 그룹 골격, 상태 스키마, 단계 머신(drive), `loop.ask` 사용 | AU-T1, X-17 | M |
+| AU-T3 | 플러그인 골격, 상태 스키마, 단계 머신(drive), `loop.ask` 사용 | AU-T1, X-17 | M |
 | AU-T4 | 도구 9개와 `/author` 명령 | AU-T2, AU-T3 | M |
 | AU-T5 | 쓰기 범위 가드(`tool.call.before`) | AU-T3 | S |
 | AU-T6 | 카탈로그 첫 판과 적합성 시험, AU 규칙 | AU-T2 | M |
@@ -47,7 +47,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 시험 | 확인할 동작 |
 |---|---|
 | `authoring.catalog-conformance` | `stable`·`preview` 항목마다 뼈대 → `validate` 오류 0 |
-| `authoring.scaffold-equals-group-new` | 그룹 세 종류의 생성 파일이 `fresnel group new`와 바이트 같음 |
+| `authoring.scaffold-equals-group-new` | 플러그인 세 종류의 생성 파일이 `fresnel group new`와 바이트 같음 |
 | `authoring.guard-blocks-outside-dir` | 대화에서 대상 폴더 밖 `write` 거부, 대화 끝나면 허용 |
 | `authoring.package-requires-ask` | 확인 전 파일 쓰기 0, 대기 중 drive 락 반납(`lease.released { reason: "waiting" }`) |
 | `authoring.replay-dev-only` | 배포 형태에서 `dev_mode_required` |

@@ -14,7 +14,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 
 ### 1.1 정하는 것
 
-- 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 그룹 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
+- 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 플러그인 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
 - 자원 디렉터리 탐색과 소비처(§3.2). 실행 파일이 든 폴더를 자원 디렉터리로 보고, 세 소비처가 그 안에서 어떻게 찾는지 정합니다.
 - 번들 바이너리의 버전, 라이선스, 출처와 Linux의 시스템 요구(§3.3). 대상 플랫폼은 §3.4입니다.
 - 서명과 공증 단계, 시크릿이 없을 때의 미서명 상태(§4).
@@ -74,9 +74,9 @@ fresnel-<버전>-<triple>/
 |---|---|---|---|
 | 번들 바이너리 목록 | `binaries.lock.json` | 번들 후보가 없으므로 시스템 후보를 찾습니다 | `xeon/packages/platform-os/src/binaries/resolve.ts` |
 | 기본 플러그인 | `default-plugins/<이름>/` | 설치하지 않고 `no_bundle`로 알립니다. 오류가 아닙니다 | `xeon/apps/host/src/assembly/default-plugins.ts`, `xeon/apps/host/src/assemble.ts`(`defaultPluginsDir`) |
-| 그룹 템플릿 | `orchestration-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
+| 플러그인 템플릿 | `orchestration-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
 
-그룹 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
+플러그인 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
 
 1. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`. 빈 값은 없는 것으로 다룹니다.
 2. `<자원 디렉터리>/orchestration-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
@@ -173,7 +173,7 @@ fresnel-<버전>-<triple>/
 ### 8.1 결정
 
 - [결정: review.m3-design-inputs D-M3-25 행 1~6] Developer ID 서명과 공증(옛 Tauri 구현(커밋 424f338a)은 Tauri 내장 서명, 지금은 §4.2의 Electron 서명 단계), macOS 14 이상 arm64만 지원, macOS는 sops·age·rg를 번들하고 Linux는 시스템 요구, 단일 아카이브, npm 공개 없음.
-- [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 그룹 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
+- [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 플러그인 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
 - [결정: 오케스트레이터 기본값] 릴리즈 스크립트는 workspace 패키지를 import하지 않습니다(`eng.dependency-rules.guide` §1). 스크립트가 함께 쓰는 값은 `xeon/scripts/release-bundle.json`에 둡니다.
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
 - [결정: 2026-11-04 사용자, A2 2안] 앱 안 업데이트는 M4에 확인 줄과 상태 표시만, 내려받기와 교체는 M5.

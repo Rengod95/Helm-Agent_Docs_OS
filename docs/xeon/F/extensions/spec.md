@@ -32,7 +32,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 - 4연산의 타입: `on`, `post`, `drive`, `register`(이전 이름 `scope`), 그리고 `DriveStep`, `DriveCommand`, `StepResult`, `DriveLock`, `RegistrationDef`, `RegistrationApi`
 - 훅 선언 표 전체(pi 이벤트 41종과 guard·lifecycle 5종)와 `HOOKS` 상수, `HookDecl` 타입
 - fold별 실패 규칙과 재생 계약
-- 그룹 간 레코드 `OrchestrationRecord`, 확장 레코드 종류 등록 `RecordKindDecl`, 접두 규칙
+- 플러그인 간 레코드 `OrchestrationRecord`, 확장 레코드 종류 등록 `RecordKindDecl`, 접두 규칙
 - X가 쓰는 호스트 포트 타입(`ports.ts`, §3.2.1)
 
 다루지 않는 것:
@@ -49,7 +49,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 |---|---|
 | 확장 (extension) | 매니페스트 하나와 엔트리 모듈 하나로 이루어진 설치 단위. 플러그인 하나 이상을 담는다 |
 | 플러그인 (plugin) | 한 층에 속하는 단일 기능 단위. 매니페스트 `plugins[]`의 항목 하나가 Registration 하나가 된다. `drive`는 정책이 허용할 때만 쓴다(§4.6) |
-| 오케스트레이션 플러그인 (group) | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 단위. 매니페스트 `orchestration` 선언이 있는 확장이다. Helm과 학습은 L3 기본 오케스트레이션 플러그인이다 |
+| 플러그인 (group) | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 단위. 매니페스트 `orchestration` 선언이 있는 확장이다. Helm과 학습은 L3 기본 플러그인이다 |
 | 훅 (point) | 확장이 `on`으로 핸들러를 거는 이름 붙은 위치. 이름은 pi 이벤트명을 그대로 쓴다 |
 | 훅 종류 (kind) | `input`, `request`, `tool`, `boundary`, `thread`, `lifecycle`, `guard` 일곱 가지 |
 | fold | 한 훅에 걸린 여러 핸들러의 결과를 합치는 규칙. `tap`, `first`, `chain` 세 가지. 훅 선언이 정하고 확장은 고르지 않는다 |
@@ -58,7 +58,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 | 현재값 (value), 패치 (patch) | `chain` 훅에서 핸들러가 받는 누적 값과 돌려주는 변경 |
 | Registration | 플러그인 하나가 엔진에 등록한 것 전체. 상태 문서, 정리 동작, 켜기·끄기 상태를 가진다. 엔진 내부 개념이며 화면에 쓰지 않는다. 옛 이름은 `scope`이고 저장 문자열(`scope.changed`, `scopeId`)은 그대로다 |
 | drive lock | 한 thread에서 진행을 맡을 배타 권한. 한 번에 Registration 하나만 가진다. 가진 쪽은 Driver. 옛 이름은 `drive 임대`(`lease`)이고 저장 문자열(`lease.*` 이벤트, `leaseId`, `leaseEpoch`)은 그대로다 |
-| 그룹 레코드 | 오케스트레이션 플러그인이 다른 확장에게 공개하는 내구 레코드. F에 스키마가 있는 형식으로만 쓴다 |
+| 플러그인 레코드 | 플러그인이 다른 확장에게 공개하는 내구 레코드. F에 스키마가 있는 형식으로만 쓴다 |
 
 턴과 step [제안]:
 
@@ -159,12 +159,12 @@ export const PluginDeclSchema = Type.Object({
 }, { additionalProperties: false });
 export type PluginDecl = Static<typeof PluginDeclSchema>;
 
-/** 오케스트레이션 플러그인 선언. 있으면 그 확장은 오케스트레이션 플러그인이다 */
+/** 플러그인 선언. 있으면 그 확장은 플러그인이다 */
 export const OrchestrationDeclSchema = Type.Object({
   /** 한 번에 켜고 끄는 플러그인 id. 생략하면 모든 플러그인이 구성원이다.
    *  루트 플러그인(id 없음)은 적지 않으며 `members`가 있어도 항상 구성원이다 */
   members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
-  /** 구성 선언(X-16, §3.1.2). 오케스트레이션 플러그인에만 둘 수 있다. 작성자가 선언한다 */
+  /** 구성 선언(X-16, §3.1.2). 플러그인에만 둘 수 있다. 작성자가 선언한다 */
   composition: Type.Optional(CompositionDeclSchema),
 }, { additionalProperties: false });
 export type OrchestrationDecl = Static<typeof OrchestrationDeclSchema>;
@@ -233,9 +233,9 @@ export type ExtensionManifest = Static<typeof ExtensionManifestSchema>;
 /** 항등 함수. TS 모듈로 매니페스트를 쓰는 내장 패키지용 */
 export function defineManifest<const M extends ExtensionManifest>(manifest: M): M;
 
-/** `orchestration` 선언이 있으면 오케스트레이션 플러그인이다. 기록·상태 접두를 이 함수 하나로 고른다 */
+/** `orchestration` 선언이 있으면 플러그인이다. 기록·상태 접두를 이 함수 하나로 고른다 */
 export function isOrchestrationExtension(manifest: Pick<ExtensionManifest, "group">): boolean;
-/** 확장 접두: 오케스트레이션 플러그인이면 "grp", 아니면 "x" */
+/** 확장 접두: 플러그인이면 "grp", 아니면 "x" */
 export function extensionPrefix(manifest: Pick<ExtensionManifest, "group">): "grp" | "x";
 /** 루트 플러그인(id 없음)은 확장 `name`, 그 밖은 "<name>/<id>". 저장된 `scopeId` 값과 같은 규칙이다 */
 export function registrationIdOf(manifest: Pick<ExtensionManifest, "name">, pluginId: string | undefined): string;
@@ -260,7 +260,7 @@ export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): Ex
 - 유효 층 [제안]: 확장의 유효 층(로드 순서, tier, 안전 모드)은 `plugins[].layer` 가운데 가장 높은 층이다. 외부 `plugin`은 `L1`~`L3`와 한 확장에 섞을 수 없다. 단일 플러그인 확장은 그 플러그인의 `layer`와 같다. 층이 섞인 내장 확장은 유효 층으로 한 번에 판정한다 [제안: 기본값, 미결 1번].
 - 파일 위치 [제안]: 외부 확장은 `.fresnel-plugin/plugin.json`에 둔다(Claude Code `.claude-plugin/plugin.json` 레이아웃). 내장 패키지(`core-*`, `cap-*`, `group-*`)는 엔트리 모듈이 `manifest` 상수를 export하고 X가 같은 스키마로 검사한다. 탐색 규칙은 X.loading-trust.spec이 정한다.
 - 알 수 없는 최상위 키는 지우고 경고한다. `userConfig` 항목과 `components` 안의 알 수 없는 키는 오류다(Claude Code 규칙, `_research/refs/claude-code.md` 99행).
-- Claude Code의 `dependencies`(확장 사이 직접 의존)는 채택하지 않는다 [제안]. 그룹끼리 직접 참조하지 않는다는 층 사이 규칙 3 때문이다. 확장 사이 의존은 기능 요구(`requires`, `optional`)와 레코드 종류(`readsRecordKinds`)로만 표현한다.
+- Claude Code의 `dependencies`(확장 사이 직접 의존)는 채택하지 않는다 [제안]. 플러그인끼리 직접 참조하지 않는다는 층 사이 규칙 3 때문이다. 확장 사이 의존은 기능 요구(`requires`, `optional`)와 레코드 종류(`readsRecordKinds`)로만 표현한다.
 - `plugins[].layer`의 `plugin`은 층 패키지가 아닌 외부 플러그인을 뜻한다. 외부 플러그인은 L2 기능 provider, 관찰·형성 핸들러, 도구 등록을 할 수 있다.
 - `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`는 F.capabilities.spec §3.1을 그대로 import한다. 두 문서의 기능 ID 형식은 같다.
 - M5c-1 매니페스트 변경 [결정: 2026-11-17, `review/m5/profile-project-loader.md` §3.1, §4.5]: `entry`와 `plugins`는 선택이다. 둘 다 없으면 루트 플러그인 하나(`layer: "plugin"`, `hooks: []`)를 추론한다(`pluginDeclsOf`, §4.5.4). `pluginsOf`와 `effectiveLayer`는 추론한 목록으로 계산한다. 새 선택 필드는 `purpose`, `tools`, `commands`, `components.instructions`다. 옛 매니페스트는 그대로 유효하다. `defaultEnabled`는 바뀌지 않는다.
@@ -329,17 +329,17 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
 
 #### 3.1.2 구성 선언 (`composition.ts`) [결정: 2026-10-31 사용자, X-16]
 
-정본은 `extensions/composition.ts`입니다. `orchestration.composition`은 오케스트레이션 플러그인의 선택 필드이고, 작성자가 직접 씁니다. 오케스트레이션 플러그인이 아닌 확장은 `group`이 없어 둘 곳이 없고, 최상위 `composition`·`phases`는 `legacy_field`로 거부합니다(안내 문장이 `orchestration.composition`을 가리킵니다). 런타임 동작을 바꾸지 않는 설계 모델이라 구성기와 작업대가 읽습니다. 선언이 없으면 구성기는 "구성 정보 없음" 블록 하나를 보이고 Hook 이름으로 구성을 추정하지 않습니다. Stage 이름 목록은 플러그인 빌더 카탈로그가 정합니다 [제안]. F는 이름 문법(`COMPOSITION_ID_PATTERN`)만 봅니다. `slot` → `stage`, `points` → `hooks`, op `"scope"` → `"register"`는 ADR-0022 §3.6을 따른 [제안]입니다.
+정본은 `extensions/composition.ts`입니다. `orchestration.composition`은 플러그인의 선택 필드이고, 작성자가 직접 씁니다. 플러그인이 아닌 확장은 `group`이 없어 둘 곳이 없고, 최상위 `composition`·`phases`는 `legacy_field`로 거부합니다(안내 문장이 `orchestration.composition`을 가리킵니다). 런타임 동작을 바꾸지 않는 설계 모델이라 구성기와 작업대가 읽습니다. 선언이 없으면 구성기는 "구성 정보 없음" 블록 하나를 보이고 Hook 이름으로 구성을 추정하지 않습니다. Stage 이름 목록은 플러그인 빌더 카탈로그가 정합니다 [제안]. F는 이름 문법(`COMPOSITION_ID_PATTERN`)만 봅니다. `slot` → `stage`, `points` → `hooks`, op `"scope"` → `"register"`는 ADR-0022 §3.6을 따른 [제안]입니다.
 
 ```ts
 export type CompositionOp = "on" | "post" | "drive" | "record" | "register";
 export type CompositionProduct =
-  | { kind: "record"; recordKind: RecordKind }   // 공개 기록 grp.<그룹>.*
+  | { kind: "record"; recordKind: RecordKind }   // 공개 기록 grp.<플러그인>.*
   | { kind: "post" }                             // 입력 큐 post
   | { kind: "state" };                           // 비공개 상태 문서
 
 export interface CompositionBlock {
-  readonly id: string;                           // 오케스트레이션 플러그인 안에서 유일
+  readonly id: string;                           // 플러그인 안에서 유일
   readonly stage: string;                        // Stage 이름(역할)
   readonly op: CompositionOp;
   readonly plugin?: string;                      // 소속 플러그인 id. 생략하면 루트 플러그인 [제안]
@@ -433,7 +433,7 @@ export type EvidenceRef =
   | { readonly kind: "backtest"; readonly backtestRunId: string; readonly toolCallId?: string };
 ```
 
-**내부 부품 [결정: 2026-11-20, 사용자, AGE-33]:** 카드의 `internal`이 참이면 Fresnel이 스스로 싣는 내부 부품이다. 판정 기준은 한 문장이다: 출처가 `builtin`이고 매니페스트에 `orchestration` 블록이 없으면 내부 부품이다(엔진이 싣고 사용자가 켜고 끌 수 없다). 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 내부 부품이 아니다. 화면은 `internal`이 참인 카드를 목록에서 기본으로 숨기고 "내부 부품도 보기"를 켜면 보인다. 선택 필드라 없는 옛 카드(검토본 메타)는 거짓으로 읽는다. 이름과 하는 일(영어, 한국어)은 모델 컨텍스트에 싣지 않는 화면 표시용이고, 클라이언트 카탈로그의 `plugin.internal.<camelCase 이름>.name`과 `.purpose`에 둔다(`internalPluginTextKey`). 내부 부품 이름의 닫힌 목록은 `INTERNAL_PLUGIN_NAMES`이고 호스트 시험이 실제 엔진의 `internal` 카드와 값으로 맞춘다. 한국어 이름은 영어 이름의 영문 단어를 남기지 않고 전부 한글로 쓴다(에이전트 루프, 태스크 엔진, 도구 런타임, 서브에이전트, 클라이언트 서비스, 애스크·프로포절·골·태스크·스킬·메모리 서비스 브릿지; 약어 MCP는 그대로) [결정: 2026-11-20, 사용자, AGE-33]. 이름 속 bridge는 "브릿지"로 쓴다(용어 `bridge`의 금지 별칭 "브리지") [결정: 2026-11-20, 사용자, AGE-33]. 설명에 쓴 "없으면 안 되는 일"은 해당 부품을 기본 프로필에서 뺀 실제 엔진 시험(`apps/host/test/int/internal-parts-tools.int.test.ts`)으로 확인한다.
+**내부 부품 [결정: 2026-11-20, 사용자, AGE-33]:** 카드의 `internal`이 참이면 Fresnel이 스스로 싣는 내부 부품이다. 판정 기준은 한 문장이다: 출처가 `builtin`이고 매니페스트에 `orchestration` 블록이 없으면 내부 부품이다(엔진이 싣고 사용자가 켜고 끌 수 없다). 내장이어도 대화마다 켜고 끌 수 있는 플러그인(`authoring`, `guide`)은 내부 부품이 아니다. 화면은 `internal`이 참인 카드를 목록에서 기본으로 숨기고 "내부 부품도 보기"를 켜면 보인다. 선택 필드라 없는 옛 카드(검토본 메타)는 거짓으로 읽는다. 이름과 하는 일(영어, 한국어)은 모델 컨텍스트에 싣지 않는 화면 표시용이고, 클라이언트 카탈로그의 `plugin.internal.<camelCase 이름>.name`과 `.purpose`에 둔다(`internalPluginTextKey`). 내부 부품 이름의 닫힌 목록은 `INTERNAL_PLUGIN_NAMES`이고 호스트 시험이 실제 엔진의 `internal` 카드와 값으로 맞춘다. 한국어 이름은 영어 이름의 영문 단어를 남기지 않고 전부 한글로 쓴다(에이전트 루프, 태스크 엔진, 도구 런타임, 서브에이전트, 클라이언트 서비스, 애스크·프로포절·골·태스크·스킬·메모리 서비스 브릿지; 약어 MCP는 그대로) [결정: 2026-11-20, 사용자, AGE-33]. 이름 속 bridge는 "브릿지"로 쓴다(용어 `bridge`의 금지 별칭 "브리지") [결정: 2026-11-20, 사용자, AGE-33]. 설명에 쓴 "없으면 안 되는 일"은 해당 부품을 기본 프로필에서 뺀 실제 엔진 시험(`apps/host/test/int/internal-parts-tools.int.test.ts`)으로 확인한다.
 
 **내부 부품의 이름과 층 [결정: 2026-11-20, 사용자, AGE-33]:** 표시 이름은 사용자가 정한 영어 이름을 그대로 쓴다. `cap-dialog`는 Client Services, `host-dialog-bridge`는 Ask Service Bridge, `host-proposals-bridge`는 Proposal Service Bridge다. 목표·태스크·스킬·메모리를 앱에 내주던 `host-dialog-area-bridge` 하나는 넷으로 나뉜다: `host-goal-bridge`(Goal Service Bridge, `work.goals`), `host-task-bridge`(Task Service Bridge, `work.tasks`), `host-skill-bridge`(Skill Service Bridge, `knowledge.skills`), `host-memory-bridge`(Memory Service Bridge, `knowledge.memory`). 식별자는 [제안]이다. 넷은 각자 자기 기능 하나에만 선택 의존하고 자기 서비스 하나만 앱에 넘긴다. 기능이 없을 때의 빈 결과나 `unavailable`, 올라오는 순서(cap-knowledge 뒤), 꺼졌을 때의 정리는 하나였을 때와 같고 모델이 보는 도구와 컨텍스트는 바뀌지 않는다(브릿지는 도구를 등록하지 않는다). 옛 예약 키 `ext.host-dialog-area-bridge.enabled`는 없어졌고 저장된 값을 옮기지 않는다(배포 전이다. 파일에 남아 있어도 카탈로그에 없는 키로 보존만 된다). 내부 부품 이름은 22개다. 카드의 `internalLayer`는 이름에서 끌어낸 값이다: `core-*`와 `core-agents`는 `core`, `cap-*`는 `capability`, `host-*`는 `bridge`다(`INTERNAL_PLUGIN_LAYERS`, `internalPluginLayer`). 묶음의 표시 이름은 카탈로그 `plugin.internal.layer.<값>`(영어 Core, Capabilities, Bridges, 한국어 코어, 기능, 브릿지)에 둔다. 한국어 "코어"는 용어 검사 C-04가 화면 문장에서 막지만, 사용자가 "핵심말고 코어"로 정해 `plugin.internal.layer.core` 키 하나에 한해 허용한다(`scripts/terms-rules.ts`의 `CHAT_INTERNAL_WORD_EXCEPTIONS`) [결정: 2026-11-20, 사용자, AGE-33]. 화면이 브릿지를 기능과 따로 묶을지 같이 묶을지는 [미결]이다(안 가: `bridge`를 셋째 묶음으로 따로 보인다, 안 나: `bridge`를 `capability`와 합쳐 두 묶음으로 보인다. 값은 셋이라 어느 안이든 화면이 정한다).
 
@@ -548,7 +548,7 @@ export interface ExtensionOps<S> {
     options?: SubscribeOptions,
   ): Unsubscribe;
   post(item: PostItem, options: PostOptions): Promise<PostReceipt>;
-  /** 그룹만 쓴다. 등록만 하고 임대는 X가 중재한다 */
+  /** Drive를 맡도록 선언한 플러그인만 쓴다. 등록만 하고 임대는 X가 중재한다 */
   drive(step: DriveStep<S>, options?: DriveOptions): void;
 }
 ```
@@ -562,7 +562,7 @@ export interface DriveLimits {
 }
 
 export interface DriveOptions {
-  /** 그룹이 요청하는 상한. 없는 필드는 X 기본값 x.primitives.driveDefaultLimits를 쓰고, 천장 x.primitives.driveLimits보다 클 수 없다(§6) */
+  /** Drive를 맡은 플러그인이 요청하는 상한. 없는 필드는 X 기본값 x.primitives.driveDefaultLimits를 쓰고, 천장 x.primitives.driveLimits보다 클 수 없다(§6) */
   readonly limits?: DriveLimits;
 }
 
@@ -689,7 +689,7 @@ export type AskCard = QuestionApprovalDetail;
 export interface AskRequest {
   readonly requestId: string;       // 필수 1~64자. 결정적이어야 한다(ADR-0015 §3.4). Registration id로 시작하는 이름을 권한다
   readonly card: AskCard;
-  readonly title?: string;          // 1~120자. 생략하면 오케스트레이션 플러그인 표시 이름
+  readonly title?: string;          // 1~120자. 생략하면 플러그인 표시 이름
 }
 export type AskOutcome =
   | { readonly status: "answered"; readonly answer: QuestionAnswerJson }
@@ -706,7 +706,7 @@ export interface DriveLock {
 }
 ```
 
-- `ask` 명령 [결정: 2026-10-31 사용자, X-17. M5a E1에서 `loop.ask`를 명령으로 바꿨다]: 첫 실행은 question kind 승인(`origin.caller`는 `ext:<그룹>`이고 화면은 `grp:<그룹>`으로 보입니다 [결정: 오케스트레이터 기본값, `APPROVAL_CALLER_PATTERN`을 바꾸지 않기 위해])을 만들고 drive lock을 `lease.released` 사유 `waiting`으로 반납합니다(저장 이름 `lease.*`는 그대로입니다). 반납과 함께 `signal`이 켜지고 이 호출의 약속은 이행되지 않습니다. `approval.resolved`가 오면 X가 그 Registration을 다시 후보로 올리고, drive lock을 다시 받으면 drive 함수가 마지막 커밋 상태로 다시 호출됩니다(§4.6). 같은 `requestId`의 재호출은 새 승인을 만들지 않고 기록된 `AskOutcome`을 바로 돌려줍니다. 기다리는 동안 turn·spawn 예산을 쓰지 않습니다. 효과 표(§4.3)에서 on 핸들러에는 없고(`n/a`), drive에서 허용하며 `requestId`가 필수입니다. 보장 주체는 X입니다. 화면 문구에서는 이 승인을 Question이라 부릅니다(ADR-0022 §3.5).
+- `ask` 명령 [결정: 2026-10-31 사용자, X-17. M5a E1에서 `loop.ask`를 명령으로 바꿨다]: 첫 실행은 question kind 승인(`origin.caller`는 `ext:<플러그인>`이고 화면은 `grp:<플러그인>`으로 보입니다 [결정: 오케스트레이터 기본값, `APPROVAL_CALLER_PATTERN`을 바꾸지 않기 위해])을 만들고 drive lock을 `lease.released` 사유 `waiting`으로 반납합니다(저장 이름 `lease.*`는 그대로입니다). 반납과 함께 `signal`이 켜지고 이 호출의 약속은 이행되지 않습니다. `approval.resolved`가 오면 X가 그 Registration을 다시 후보로 올리고, drive lock을 다시 받으면 drive 함수가 마지막 커밋 상태로 다시 호출됩니다(§4.6). 같은 `requestId`의 재호출은 새 승인을 만들지 않고 기록된 `AskOutcome`을 바로 돌려줍니다. 기다리는 동안 turn·spawn 예산을 쓰지 않습니다. 효과 표(§4.3)에서 on 핸들러에는 없고(`n/a`), drive에서 허용하며 `requestId`가 필수입니다. 보장 주체는 X입니다. 화면 문구에서는 이 승인을 Question이라 부릅니다(ADR-0022 §3.5).
 
 ```ts
 // registration-id.ts, registration.ts
@@ -737,11 +737,11 @@ export interface RegistrationApi<S> extends ExtensionOps<S> {
   state(): Readonly<S>;
   /** 상태 문서를 교체 커밋한다. 커밋된 값을 돌려준다 */
   commit(next: S): Promise<Readonly<S>>;
-  /** 그룹 레코드를 쓴다. kind는 매니페스트 recordKinds에 있어야 한다 */
+  /** 플러그인 레코드를 쓴다. kind는 매니페스트 recordKinds에 있어야 한다 */
   record(kind: RecordKind, subject: RecordSubject, payload: JsonValue): Promise<void>;
-  /** 다른 그룹 레코드를 읽는다. kind는 매니페스트 readsRecordKinds에 있어야 한다 */
+  /** 다른 플러그인 레코드를 읽는다. kind는 매니페스트 readsRecordKinds에 있어야 한다 */
   readRecords(query: RecordQuery): Promise<readonly OrchestrationRecord[]>;
-  /** 비공개 기록. kind는 자기 접두(그룹 grp.<name>.*, 플러그인 x.<name>.*)만 받는다.
+  /** 비공개 기록. kind는 자기 접두(Drive 플러그인 grp.<name>.*, 플러그인 x.<name>.*)만 받는다.
    *  다른 확장의 readRecords로 조회되지 않는다. 의미와 멱등 키 규칙은 X.primitives.spec이 정한다
    *  [결정: review.decisions-2 T-21] */
   recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void>;
@@ -1300,7 +1300,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 42 | `guard.model.before` | guard | first | BeforeProviderRequestPayload | GuardDecision | closed |  | — | — | — | 제공자 요청 본문이 확정된 뒤, 전송 전. `request.provider.before`의 모든 핸들러 뒤 최종 값으로 발화한다 |
 | 43 | `guard.tool.before` | guard | first | ToolCallPayload | GuardDecision | closed |  | — | — | — | 도구 호출 허가 판정이 끝난 뒤, 실행 전. `tool.call.before` 뒤에 발화한다 |
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
-| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 시점이고 다른 훅이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
+| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 시점이고 다른 훅이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 플러그인이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
 | 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(drive lock 요청 거부)의 커밋 뒤 |
 | 47 | `ask.human.before` | ask | first | AskHumanBeforePayload | AskHumanBeforeDecision | open |  | — | — | — | 사람에게 묻기 카드를 새로 만들기 전(승인 서비스 `open`). 결정은 `cancel`(카드 없이 취소)과 `answer`(질문 종류만)다. 실패는 결정 없음이고 사람에게 묻는다. M5e 스펙 §4.3.1 |
 | 48 | `ask.human.after` | ask | tap | AskHumanAfterPayload | void | open |  | — | — | — | 해결이 커밋된 뒤(위치 `ask`의 뒤, 이벤트로도 구독한다). 결정 없음. M5e 스펙 §4.3.2 |
@@ -1372,7 +1372,7 @@ export interface ToolCallPayload {
   /** 기능 도구면 대응 기능과 메서드(F.capabilities.spec §7) */
   readonly capability?: CapabilityRef;
   /**
-   * 도구의 효과 범위. 미선언은 "exec"(L1.tools가 채운다). 그룹 핸들러의 쓰기 판정에 쓴다 [결정: M3-REQ-04].
+   * 도구의 효과 범위. 미선언은 "exec"(L1.tools가 채운다). 플러그인 핸들러의 쓰기 판정에 쓴다 [결정: M3-REQ-04].
    * 선택이다 [제안]: L1.tools가 채우기 전(M3-REQ-71)의 호출자가 컴파일되도록 열어 둔다. L1.tools가 채운 뒤에는 항상 있고, 그때 필수로 올릴지 다시 본다
    */
   readonly risk?: ToolRisk;
@@ -1399,7 +1399,7 @@ export interface ToolExecutionEndPayload {
   readonly toolName: ToolName;
   /** 호출 인자(시크릿을 가린 값). 선택이다 [제안]: L1.tools가 채우기 전(M3-REQ-71)의 호출자가 컴파일되도록 열어 둔다 */
   readonly input?: Readonly<Record<string, JsonValue>>;
-  /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. input과 같은 이유로 선택이다 [제안] */
+  /** 호출이 속한 step. 학습 플러그인의 step 중복 방지에 쓴다. input과 같은 이유로 선택이다 [제안] */
   readonly stepId?: StepId;
   readonly result: unknown;   // M3-REQ-05: 런타임은 JSON 값을 끝까지 검사한다(CheckedJsonValueSchema). 정적 타입은 호출자 호환으로 unknown이다
   readonly isError: boolean;
@@ -1459,14 +1459,14 @@ export interface AgentSettledPayload {
   readonly aborted: boolean;
   // 아래 네 필드는 선택이다 [제안]: L1.loop가 채우기 전(M3-REQ-77)의 호출자가 컴파일되도록 열어 둔다.
   // 없을 때 읽는 쪽의 기본: origin "user", status는 aborted가 참이면 "aborted" 아니면 "completed", hasFinalAnswer 참, lastItemId 없음
-  // (학습 그룹은 lastItemId가 없으면 검토 포크를 시작하지 않는다). 채운 뒤 필수로 올릴지 다시 본다
+  // (학습 플러그인은 lastItemId가 없으면 검토 포크를 시작하지 않는다). 채운 뒤 필수로 올릴지 다시 본다
   /** 입력 출처 [제안: M3-REQ-06, 100]. 값은 F.conversation.spec §3.5의 TurnOrigin */
   readonly origin?: TurnOrigin;
   /** "aborted"이면 aborted가 참이다 */
   readonly status?: "completed" | "aborted" | "error";
   /** turn이 사용자에게 보일 최종 어시스턴트 답으로 끝났는가 */
   readonly hasFinalAnswer?: boolean;
-  /** turn의 마지막 item. 없으면 null. 학습 그룹의 검토 포크 지점이다 */
+  /** turn의 마지막 item. 없으면 null. 학습 플러그인의 검토 포크 지점이다 */
   readonly lastItemId?: ItemId | null;
 }
 
@@ -1558,7 +1558,7 @@ export interface SessionCompactFailedPayload {
 - `McpServersChangePayload.servers[].status` 값 집합은 [가정]이다. `L2.mcp.spec`의 서버 상태 이름이 다르면 그쪽 이름으로 고친다.
 - pi `model_select`(`request.model.after`)의 `source: "cycle"`은 Fresnel에 대응 기능이 없어 뺐다(`L1.models.spec` §7.2).
 
-### 3.6 그룹 간 레코드 (`group-record.ts`)
+### 3.6 플러그인 간 레코드 (`group-record.ts`)
 
 ```ts
 import type { ExtensionEventKind } from "../records/kinds.ts";
@@ -1571,7 +1571,7 @@ export const RECORD_KIND_PATTERN = "^(x|grp)\\.[a-z][a-z0-9-]{1,31}\\.[a-z][a-z0
 export const RECORD_KIND_READ_PATTERN =
   "^(x|grp)\\.[a-z][a-z0-9-]{1,31}\\.(\\*|[a-z][a-z0-9_]{0,31}\\.(\\*|[a-z][a-z_]*))$";
 
-export type OrchestrationId = ExtensionName;      // `orchestration` 선언이 있는 확장(오케스트레이션 플러그인)의 name
+export type OrchestrationId = ExtensionName;      // `orchestration` 선언이 있는 확장(플러그인)의 name
 
 export interface RecordSubject {
   readonly type: "thread" | "turn" | "step" | "item" | "task" | "external";
@@ -1603,9 +1603,9 @@ export function isRecordKindOf(kind: string, owner: { name: string; group?: obje
 
 `validateOrchestrationRecord`는 import 순환을 피하려고 `validate.ts`에 둔다(§3.7).
 
-- 그룹 레코드는 대화 이벤트 로그에 이벤트로 저장된다. 이벤트 종류(`EventKind`)는 레코드의 `kind` 문자열을 그대로 쓰고, `EventEnvelope`가 감싼다. `RecordKind`는 F.records.spec §3.2의 `ExtensionEventKind`와 같은 타입이므로 `parseEventKind`를 통과한다. 코어 커밋과 같은 트랜잭션으로 쓴다.
-- 접두 규칙 [제안]: 이벤트 kind, 레코드 kind, `FresnelCustomMessage.customType`(`PostItem.customType`)은 모두 이 형식 하나를 쓴다. `orchestration` 선언이 없는 확장은 `x.<확장 이름>.`, 오케스트레이션 플러그인은 `grp.<그룹 이름>.`이다. 접두는 확장 단위라서 확장 안의 모든 플러그인이 같은 접두를 쓴다. 설정 키와 wire 메서드의 `ext.` 접두는 다른 규칙이다(F.wire-settings.spec §3.8.1).
-- 그룹의 비공개 상태는 확장 접두 테이블(대화 저장 C안)에 둔다. 비공개 상태는 다른 그룹이 읽지 않는다. 공개할 정보는 그룹 레코드로만 낸다.
+- 플러그인 레코드는 대화 이벤트 로그에 이벤트로 저장된다. 이벤트 종류(`EventKind`)는 레코드의 `kind` 문자열을 그대로 쓰고, `EventEnvelope`가 감싼다. `RecordKind`는 F.records.spec §3.2의 `ExtensionEventKind`와 같은 타입이므로 `parseEventKind`를 통과한다. 코어 커밋과 같은 트랜잭션으로 쓴다.
+- 접두 규칙 [제안]: 이벤트 kind, 레코드 kind, `FresnelCustomMessage.customType`(`PostItem.customType`)은 모두 이 형식 하나를 쓴다. `orchestration` 선언이 없는 확장은 `x.<확장 이름>.`, Drive 플러그인은 `grp.<플러그인 이름>.`이다. 접두는 확장 단위라서 확장 안의 모든 플러그인이 같은 접두를 쓴다. 설정 키와 wire 메서드의 `ext.` 접두는 다른 규칙이다(F.wire-settings.spec §3.8.1).
+- 플러그인의 비공개 상태는 확장 접두 테이블(대화 저장 C안)에 둔다. 비공개 상태는 다른 플러그인이 읽지 않는다. 공개할 정보는 플러그인 레코드로만 낸다.
 
 ### 3.7 검증 함수 (`validate.ts`)
 
@@ -1675,7 +1675,7 @@ export function validateManifestSet(
   coreCapabilityIds?: ReadonlySet<string>,
 ): readonly ManifestIssue[];
 
-/** 그룹 레코드 하나. decl이 없으면 record_kind_unregistered. 순수 함수 */
+/** 플러그인 레코드 하나. decl이 없으면 record_kind_unregistered. 순수 함수 */
 export function validateOrchestrationRecord(record: OrchestrationRecord, decl: RecordKindDecl | undefined): readonly ManifestIssue[];
 ```
 
@@ -1746,30 +1746,30 @@ chain의 보충 규칙 [제안]:
   - `next`: 다음 경계 뒤에 모델 요청을 정확히 한 번 일으키는 입력으로 넣는다.
   - pi `deliverAs`의 `steer`, `followUp`, `nextTurn`과 같은 순서다(`_research/ext-points.md` §1.4).
 - `requestId`는 필수다. 같은 대화에서 같은 `requestId`의 두 번째 post는 `duplicate: true`를 돌려주고 큐에 넣지 않는다.
-- `post`는 플러그인과 그룹 모두 쓸 수 있다. 매니페스트 `usesPost`가 참이어야 한다.
+- `post`는 단일 플러그인과 Drive 플러그인 모두 쓸 수 있다. 매니페스트 `usesPost`가 참이어야 한다.
 
 ### 4.5 켜기·끄기
 
 - [결정] 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5).
 - [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `boundary.step.after` 처리 뒤)다(F.conversation.spec §2, §2.1). drive lock 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive lock의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다. `loop.ask`의 반납(사유 `waiting`)은 호출한 drive 함수가 이미 호출 사이에 있으므로 이 규칙과 부딪히지 않는다(ADR-0022 §3.2.3).
-- 켜기·끄기의 단위는 Registration이다. 오케스트레이션 플러그인의 구성원(`orchestration.members` 전체)은 한 번에 켜지고 꺼진다. 구성원 하나가 setup에 실패하면 그룹 전체 켜기가 실패하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결 5번].
+- 켜기·끄기의 단위는 Registration이다. 플러그인의 구성원(`orchestration.members` 전체)은 한 번에 켜지고 꺼진다. 구성원 하나가 setup에 실패하면 플러그인 전체 켜기가 실패하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결 5번].
 - `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 시점에서 바뀐다.
 - 확장 코드를 새 버전으로 바꾸는 일(`ext.reload`, 버전 되돌리기)도 같은 단계 경계에 적용한다 [결정: 2026-11-03 사용자]. 실행 중인 step과 `loop.turn()`은 끊지 않고 옛 세대의 핸들러가 그 step을 끝낸다. 새 세대는 다음 경계부터 받는다. 새 버전을 싣지 못하면(검사 실패, setup 실패) 옛 버전이 그대로 돌고 기록은 남지 않는다. 쥐고 있는 drive lock은 반납하지 않고 다음 경계에서 새 drive 함수로 이어 간다. 정본은 X.primitives.spec §4.4.10이다.
 - 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive lock 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
 
 ### 4.6 drive lock
 
-- [결정] drive lock은 한 thread에 Registration 하나만 가진다(ADR-0007 §3.6). on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
-- [결정] Helm과 학습은 L3 기본 오케스트레이션 플러그인이다. 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다. 그래서 Helm이 구동 중이어도 학습 그룹을 함께 켤 수 있다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `_research/decisions-log.md` 20행).
+- [결정] drive lock은 한 thread에 Registration 하나만 가진다(ADR-0007 §3.6). on, post, 백그라운드 위임은 여러 플러그인이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
+- [결정] Helm과 학습은 L3 기본 플러그인이다. 학습 플러그인은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다. 그래서 Helm이 구동 중이어도 학습 플러그인을 함께 켤 수 있다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `_research/decisions-log.md` 20행).
 - `drive`는 매니페스트 `plugins[].drives: true`로 선언한 플러그인만 쓴다(없으면 `drive_undeclared`). 등록만으로 drive lock이 생기지 않는다. 중재(누가 언제 받는지)는 X.primitives.spec이 정한다.
-- drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 [제안]]: 설정 `x.primitives.driveRequiresOrchestration`(boolean, 기본 `true`)이 참이면 오케스트레이션 플러그인의 구성원이 아닌 플러그인(`inOrchestration`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_orchestration`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
+- drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 [제안]]: 설정 `x.primitives.driveRequiresOrchestration`(boolean, 기본 `true`)이 참이면 플러그인의 구성원이 아닌 플러그인(`inOrchestration`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_orchestration`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "Drive는 Drive 플러그인만"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
 - [M5a-1 E1] 단계 함수: 엔진이 `DriveStepInput`(상태, 직전 결과 `last`, 남은 한도, 프레임 정보)을 주면 플러그인이 명령 하나를 돌려주고 엔진이 실행한다(§3.2 `DriveStep`). 아래 재생 규율의 "drive 함수"는 이 단계 함수이고 "다시 호출"은 "단계를 다시 부름"이다. 명령의 기본 `requestId`는 `${lineageId}:${그 단계 시작 때의 상태 판}.${단계 안 순번}`이라 같은 단계가 재시작 뒤 다시 돌아도 이미 실행한 명령은 기록된 결과를 돌려준다. 결과는 대화 로그의 상태 사건 `drive.command_settled`로도 남는다(F.records §3.3). `wants`는 없다: 할 일이 없으면 `yield`(주도권 유지, 두 번 연속 효과 없이 `yield`하면 `idle` 반납), 물러나려면 `done`(반납 사유 `done`, 그 상태 판이 바뀌기 전까지 후보가 아님)이다. 주도 중이거나 명령을 기다리는 중에 온 사용자 메시지는 다음 단계의 `last: { kind: "user" }`로 가고, 단계 함수가 `USER_MESSAGE_STEP_LIMIT`(3) 단계 안에 `turn`이나 `done`으로 처리하지 않으면 주도권을 `revoked`로 내리고 메시지를 코어 루프로 돌려보낸다.
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `loop.ask`, `post`. ADR-0015가 위임과 기능 호출을 더했다). 상태 변경은 `commit`으로만 한다.
-  - 다시 호출되는 시점: drive lock을 받을 때(`loop.ask`의 답이 와서 다시 받는 경우 포함), 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
+  - 다시 호출되는 시점: drive lock을 받을 때(`loop.ask`의 답이 와서 다시 받는 경우 포함), 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 플러그인이 아직 활성일 때.
   - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${lineageId}:${순번}`이다. `leaseId`는 부여마다 새로 발급해 펜싱에 쓰고, `lineageId`는 `lease.acquired` 페이로드에 실려 사유 `waiting` 반납 바로 뒤 같은 Registration의 부여가 이어받는다. 그 밖의 부여는 자기 `leaseId`와 같은 값으로 새 계통을 연다(REQ-X-04, X.primitives.spec §4.4.1 11번). 기능 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
   - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-sdk.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
 - 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive lock에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `DriveLockBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 drive lock은 `releasing`이 된다.
-  - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 drive lock은 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).
+  - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 drive lock은 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 플러그인은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).
 
 ### 4.7 정적 검사 규칙
 
@@ -1794,7 +1794,7 @@ chain의 보충 규칙 [제안]:
 | `capability_invalid` / `range_invalid` | error | 기능 ID 또는 범위 형식 위반 |
 | `capability_duplicate` / `capability_both` | error | 같은 목록 안 중복 / `requires`와 `optional`에 동시에 있음 |
 | `provides_reserved` | error | 예약 접두(F.capabilities.spec §3.1) 기능을 provide |
-| `record_kind_prefix` | error | 오케스트레이션 플러그인(`group` 있음)은 `grp.<name>.`, 그 밖은 `x.<name>.` 접두가 아닌 레코드 종류를 선언하거나, `RECORD_KIND_PATTERN`(4마디) 형식이 아님 |
+| `record_kind_prefix` | error | 플러그인(`group` 있음)은 `grp.<name>.`, 그 밖은 `x.<name>.` 접두가 아닌 레코드 종류를 선언하거나, `RECORD_KIND_PATTERN`(4마디) 형식이 아님 |
 | `record_kind_duplicate` | error | 같은 `kind`를 두 번 선언 |
 | `read_kind_invalid` | error | `readsRecordKinds`가 자기 접두를 가리킴(자기 레코드는 선언 없이 읽음) 또는 형식 위반 |
 | `replaces_invalid` / `replaces_duplicate` | error | `replaces`의 이름이 `TOOL_NAME_PATTERN`이 아니거나 `__`를 담음 / 같은 이름을 두 번 적음 [결정: 2026-11-03 사용자] |
@@ -1828,19 +1828,19 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 | `drive_conflict` | warning | `drives: true`이고 기본 켜짐인 Registration이 둘 이상. Registration id를 메시지에 쓴다. 실행 중에는 X가 drive lock을 하나만 준다 |
 | `capability_unprovided` | warning | 어떤 플러그인의 `requires` 기능을 집합 안의 누구도 `provides`하지 않고 코어 기능도 아님 |
 
-### 4.8 그룹 간 통신
+### 4.8 플러그인 간 통신
 
-- [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4 형식의 이벤트와 그룹 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3).
-- [결정: review.decisions-2 D-10] F는 그룹 레코드의 형식(kind 접두, `OrchestrationRecord`, `RecordKindDecl`)만 두고 그룹 사이 레코드의 payload 스키마는 두지 않는다. payload 스키마는 쓰는 그룹이 매니페스트 `recordKinds`에 선언한다. 그룹은 다른 그룹의 비공개 기록(`RegistrationApi.recordPrivate`)을 읽지 않는다.
-- 그룹 패키지는 다른 그룹 패키지를 import하지 않는다(같은 층 import 금지, `_research/foundation-plan.md` §3). check-layers가 이를 거부한다.
-- 그룹 레코드 쓰기는 `RegistrationApi.record`만 쓴다. 쓰는 그룹은 매니페스트 `recordKinds`에 `RecordKindDecl`을 선언한다. X는 쓰기 시 `validateOrchestrationRecord`로 payload를 검사한다.
-- 읽기는 `RegistrationApi.readRecords`만 쓴다. 읽는 그룹은 `readsRecordKinds`에 종류나 `grp.<id>.*`를 선언한다. 대상 그룹이 설치되어 있지 않으면 빈 목록이다(오류 아님).
+- [결정] 플러그인끼리 직접 참조하지 않는다. 플러그인 사이 통신은 F4 형식의 이벤트와 플러그인 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3).
+- [결정: review.decisions-2 D-10] F는 플러그인 레코드의 형식(kind 접두, `OrchestrationRecord`, `RecordKindDecl`)만 두고 플러그인 사이 레코드의 payload 스키마는 두지 않는다. payload 스키마는 쓰는 플러그인이 매니페스트 `recordKinds`에 선언한다. 플러그인은 다른 플러그인의 비공개 기록(`RegistrationApi.recordPrivate`)을 읽지 않는다.
+- 플러그인 패키지는 다른 플러그인 패키지를 import하지 않는다(같은 층 import 금지, `_research/foundation-plan.md` §3). check-layers가 이를 거부한다.
+- 플러그인 레코드 쓰기는 `RegistrationApi.record`만 쓴다. 쓰는 플러그인은 매니페스트 `recordKinds`에 `RecordKindDecl`을 선언한다. X는 쓰기 시 `validateOrchestrationRecord`로 payload를 검사한다.
+- 읽기는 `RegistrationApi.readRecords`만 쓴다. 읽는 플러그인은 `readsRecordKinds`에 종류나 `grp.<id>.*`를 선언한다. 대상 플러그인이 설치되어 있지 않으면 빈 목록이다(오류 아님).
 - 비공개 기록 쓰기는 `RegistrationApi.recordPrivate`만 쓴다. kind는 자기 접두만 받고 `readsRecordKinds`와 다른 확장의 `readRecords`로 조회되지 않는다.
 
 ### 4.9 열거형 확장 예약 (2차)
 
 - 확장이 추가하는 이벤트 종류, 파트 종류, 레코드 종류는 접두로 구분한다(`_research/layer-plan-v2.json` F4 "열거형 확장 예약", 2차).
-- [제안] 그룹은 `grp.<groupId>.`, 플러그인은 `x.<extensionName>.` 접두를 쓴다(§3.6, F.records.spec §3.2). 코어 종류 이름은 이 두 접두와 `_` 접두를 쓰지 않는다(`_` 접두는 ACP v2 관례, `_research/item-catalog.md` F절 열거형 확장 예약 행).
+- [제안] Drive 플러그인은 `grp.<groupId>.`, 플러그인은 `x.<extensionName>.` 접두를 쓴다(§3.6, F.records.spec §3.2). 코어 종류 이름은 이 두 접두와 `_` 접두를 쓰지 않는다(`_` 접두는 ACP v2 관례, `_research/item-catalog.md` F절 열거형 확장 예약 행).
 - 타입 수준 확장은 선언 병합으로 한다. 대상은 agent-core `CustomAgentMessages`이고 모듈 이름은 `@earendil-works/pi-agent-core`다(`_research/notes/F-2.md` §5.2).
 - M0에서는 `RecordKind`의 접두 검사만 구현한다. 파트·이벤트 종류의 접두 검사와 선언 병합 규칙은 M2 이후다.
 
@@ -1857,12 +1857,12 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 2. first 핸들러가 `undefined`도 결정 타입도 아닌 값을 돌려줌: 결정 스키마(`HookDecl.result`) 위반은 예외와 같게 거부값으로 처리한다.
 3. chain 핸들러가 패치 스키마를 위반함: 그 핸들러의 패치를 버린다(skip).
 4. detached tap 핸들러가 끝나기 전에 대화가 종료됨: 결과를 기다리지 않는다. 핸들러 예외는 기록만 한다.
-5. 주도권은 후보 가운데 고르지 않는다(E3, drive-isolation.md 2.2). 주도를 받는 계기는 사용자의 주도 시작 명령(`startDrive`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`) 셋뿐이다. 설정 키 `x.primitives.activeDriver`와 대기 상한 `leaseWaitLimit`은 없다. 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresOrchestration`(기본 참)이 `drive_requires_orchestration`으로 거부한다.
+5. 주도권은 후보 가운데 고르지 않는다(E3, drive-isolation.md 2.2). 주도를 받는 계기는 사용자의 주도 시작 명령(`startDrive`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`) 셋뿐이다. 설정 키 `x.primitives.activeDriver`와 대기 상한 `leaseWaitLimit`은 없다. Drive 플러그인이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresOrchestration`(기본 참)이 `drive_requires_orchestration`으로 거부한다.
 5-1. 매니페스트에 선언한 플러그인을 엔트리가 `register`하지 않음: 로더 진단 `plugin_not_registered`(warning)를 낸다 [제안].
-6. drive 함수가 예외를 던짐: drive lock을 반납하고 그룹의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
+6. drive 함수가 예외를 던짐: drive lock을 반납하고 플러그인의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
 7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 drive lock을 반납한다 [제안].
-8. `readRecords`의 대상 그룹이 제거됨: 이미 기록된 레코드는 이벤트 로그에 남으므로 계속 읽힌다. 새 레코드만 없다.
-9. 레코드 `version`이 읽는 쪽이 아는 버전보다 큼: `record_version_unknown` 경고와 함께 payload를 원형 그대로 돌려준다. 해석 실패 처리는 읽는 그룹 몫이다.
+8. `readRecords`의 대상 플러그인이 제거됨: 이미 기록된 레코드는 이벤트 로그에 남으므로 계속 읽힌다. 새 레코드만 없다.
+9. 레코드 `version`이 읽는 쪽이 아는 버전보다 큼: `record_version_unknown` 경고와 함께 payload를 원형 그대로 돌려준다. 해석 실패 처리는 읽는 플러그인 몫이다.
 10. pi 확장을 그대로 올릴 때 `tool.call.before`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool.call.before`는 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정: review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 훅을 따로 더한다.
 
 ## 6. 설정 노출
@@ -1871,11 +1871,11 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 
 | 연결 | 내용 | L4 노출 |
 |---|---|---|
-| 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
-| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 오케스트레이션 플러그인이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
+| 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인" 탭의 확장별 설정 |
+| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 단일 플러그인과 Drive 플러그인이 같은 키를 쓴다(`l3.<플러그인>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
 | 시작 설정 | 프로필의 `startDrive`(처음 열 때 그 Registration이 주도를 시작한다). 설정 키 `x.primitives.activeDriver`는 없다(drive-isolation.md 2.2) | 프로필 화면의 "시작 설정" 선택 |
-| drive 정책 | 키 `x.primitives.driveRequiresOrchestration`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 제안]. 참이면 오케스트레이션 플러그인의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
+| drive 정책 | 키 `x.primitives.driveRequiresOrchestration`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 범위는 제안]. 참이면 플러그인의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "Drive를 맡도록 선언하지 않은 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
 | 격리 | 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec, 범위 `managed`·`user`). 사용자·프로젝트 등급 플러그인은 기본이 `process`(플러그인 호스트 프로세스)다. 설정 값 `none`은 "엔진 안에서 돌리기를 허락하는 예외"이고 매니페스트 `isolation`은 값이 없을 때의 요청이다(`none`이면 엔진 안, `process`면 격리). 우선순위는 설정, 매니페스트, 기본 `process`. 저장소 패키지(`builtin`)와 `bundled` 출처(Helm, 주도를 쓰므로 P2 전까지)는 엔진 안이다 [결정: 2026-11-17 사용자, M5b-1] | 같은 탭 |
 
 ## 7. 훅
@@ -1896,7 +1896,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 
 - [결정: m2c G1-03] `thread.trust.before`는 kind가 `thread`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `HookDecl.threadless: true`가 이 훅을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 훅은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 훅에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 기능 도구 호출은 tool 훅을 지난다. 페이로드의 `capability` 필드로 기능을 식별한다(F.capabilities.spec §7).
-- [결정: adr.0017] 훅 5종 밖 Fresnel 고유 이벤트는 수명주기 훅으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, drive lock 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, Registration 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
+- [결정: adr.0017] 훅 5종 밖 Fresnel 고유 이벤트는 수명주기 훅으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, drive lock 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 플러그인 레코드 쓰기, Registration 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1918,7 +1918,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 | `CapabilityId`, `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`, `ServiceKey`, `ToolName` | F.capabilities.spec |
 | `EventKind`, `ExtensionEventKind`, `EXTENSION_KIND_PATTERN`, `EventEnvelope`, `DurableEventDraft`, 확장 접두 테이블 규칙 [가정] | F.records.spec |
 | `ThreadId`, `TurnId`, `StepId`, `ItemId`, `AgentMessage`, `Message`, `ToolResultMessage`, `TextContent`, `ImageContent`, `JsonValue`, `Usage`, 용어표(thread, turn, step), `requestId` 필드의 뜻 | F.conversation.spec |
-| 바운디드 컨텍스트와 소유 경계(그룹 레코드와 비공개 상태의 소유) | eng.context-map.design |
+| 바운디드 컨텍스트와 소유 경계(플러그인 레코드와 비공개 상태의 소유) | eng.context-map.design |
 | 설정 키 형식 | F.wire-settings.spec |
 
 ## 9. 수용 기준
@@ -1928,8 +1928,8 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개, M5e의 새 4개를 더한 집합과 같다(50개).
 4. `drives: true`이고 기본 켜짐인 플러그인을 가진 매니페스트 두 개를 `validateManifestSet`에 넣으면 `drive_conflict` 경고가 나온다.
 5. `Handler<"tool.call.before">`의 반환 타입은 `ToolCallDecision | undefined`(Promise 포함)이고, `Handler<"boundary.step.after">`는 `(payload, current: BoundaryValue, ctx)`를 받아 `BoundaryPatch | undefined`를 반환하며, `Handler<"thread.start">`는 `void`를 반환한다(타입 테스트).
-6. 스키마 1 매니페스트(`schemaVersion: 1`, 최상위 `kind`·`points`·`usesDrive`)는 `schema_version_unsupported`와 `legacy_field`로 거부된다. `plugins[]`와 선택적 `group`이 있는 스키마 2 매니페스트는 통과한다. 정책 `x.primitives.driveRequiresOrchestration`이 참일 때 그룹이 아닌 플러그인의 `drive`는 X가 `drive_requires_orchestration`으로 거부한다.
-7. 그룹 `learning`이 `grp.helm.item.tagged` 종류를 선언하면 `record_kind_prefix` 오류다. `grp.learning.skill.proposed`는 통과하고 F.records.spec의 `parseEventKind`도 통과한다.
+6. 스키마 1 매니페스트(`schemaVersion: 1`, 최상위 `kind`·`points`·`usesDrive`)는 `schema_version_unsupported`와 `legacy_field`로 거부된다. `plugins[]`와 선택적 `group`이 있는 스키마 2 매니페스트는 통과한다. 정책 `x.primitives.driveRequiresOrchestration`이 참일 때 Drive 플러그인이 아닌 플러그인의 `drive`는 X가 `drive_requires_orchestration`으로 거부한다.
+7. 플러그인 `learning`이 `grp.helm.item.tagged` 종류를 선언하면 `record_kind_prefix` 오류다. `grp.learning.skill.proposed`는 통과하고 F.records.spec의 `parseEventKind`도 통과한다.
 8. `ExtensionManifest`의 `requires[].id` 스키마는 F.capabilities.spec의 `CapabilityIdSchema`와 같은 객체다(동일 참조 테스트).
 9. `CHAIN_RULES["tool.result"]`로 `content`만 바꾸면 `structuredContent`가 사라지고, 둘 다 주면 둘 다 유지된다.
 10. `CHAIN_RULES["input.user.before"]`에서 `handled` 패치 뒤 `stop`이 참이다.
@@ -1950,7 +1950,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_o
 - [미결] 기능·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.
 - 닫음: thread 훅 15종의 발화 문서 배정(§7 표, `L1.readme` §6).
-- [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, Registration만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
+- [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 플러그인은 on, post, drive, Registration만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
 - [결정: review.decisions-2 U-01] 켜기·끄기와 drive lock 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).
 - [미결] [근거: review/m5/profile-project-loader.md §3.1] M5c-1 `HookPosition`, `HookPower`의 정의. 코드에도 이 문서에도 없다. M5e 제안(`review/m5/hooks-core-boundary.md`)을 확정하거나 이 문서 §4.1에 `HOOK_POSITIONS`를 세운 뒤 카드의 문자열 자리를 바꾼다(§3.1.3).

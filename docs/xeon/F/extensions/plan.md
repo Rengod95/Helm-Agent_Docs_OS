@@ -17,7 +17,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
 | M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 훅(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLock`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `OrchestrationRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/register), L1 core-loop·core-tools의 훅 발화 |
-| M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
+| M1 | 걷는 골격 스모크: 테스트용 플러그인이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 플러그인의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 플러그인 |
 | M2 이후 | M1 밖 훅의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
 
 - M0에서 나머지 30개 훅은 같은 PR에서 표만 채운다. `HookDecl`의 모든 필드를 채우되 페이로드 스키마의 pi 고유 하위 타입은 `Type.Unknown()`으로 둘 수 있다(스펙 §3.3 페이로드 형태 규칙).
@@ -130,10 +130,10 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `isolation and trust values` | `isolation: "vm"`은 `isolation_invalid`, `trust.level: "root"`는 `trust_invalid` |
 | | `name conflict` | 같은 `name`의 매니페스트 둘을 `validateManifestSet`에 넣으면 `name_conflict` |
 | | `capability unprovided` | `requires` 기능을 집합 안의 누구도 `provides`하지 않으면 `capability_unprovided` 경고 |
-| `group-record.test.ts` | `prefix violation rejected` | 그룹 `learning`이 `grp.helm.item.tagged`를 선언하면 `record_kind_prefix`, 플러그인이 `grp.` 접두를 쓰면 같은 오류, 3마디 `grp.learning.proposed`도 같은 오류 |
+| `group-record.test.ts` | `prefix violation rejected` | 플러그인 `learning`이 `grp.helm.item.tagged`를 선언하면 `record_kind_prefix`, 플러그인이 `grp.` 접두를 쓰면 같은 오류, 3마디 `grp.learning.proposed`도 같은 오류 |
 | | `record kind is event kind` | `grp.learning.skill.proposed`, `x.acme-notes.note.synced`가 `RECORD_KIND_PATTERN`과 F.records `parseEventKind`를 모두 통과한다 |
 | | `read pattern` | `grp.learning.*`, `grp.learning.skill.*`는 통과, `grp.*`와 형식 위반은 `read_kind_invalid` |
-| | `read own prefix rejected` | 그룹 `learning`의 `readsRecordKinds`에 `grp.learning.*`가 있으면 `read_kind_invalid` |
+| | `read own prefix rejected` | 플러그인 `learning`의 `readsRecordKinds`에 `grp.learning.*`가 있으면 `read_kind_invalid` |
 | | `payload validated` | 선언된 payload 스키마 위반은 `record_payload_invalid`, 미등록 종류는 `record_kind_unregistered` |
 | | `version unknown` | 선언보다 큰 `version`의 레코드는 `record_version_unknown` 경고 |
 | `ops.type-test.ts` | `handler narrows by fold` | `Handler<"tool.call.before">` 반환이 `ToolCallDecision \| undefined`(Promise 포함), `Handler<"boundary.step.after">`가 `(payload, current: BoundaryValue, ctx)`를 받고 `BoundaryPatch \| undefined`를 반환, `Handler<"thread.start">`가 `void`를 반환 |
@@ -154,7 +154,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
    - L1 각 plan이 훅을 발화할 때 `HOOKS`의 이름을 문자열 상수로 쓰지 않고 `HookName` 타입으로 쓰는지.
    - `CapabilityIdSchema`가 F.capabilities와 같은 객체인지.
    - `DurableEventDraft`, `EventKind`, `ExtensionEventKind`, ID 브랜드(`ThreadId` 등), `AgentMessage` 재노출을 F.records.spec, F.conversation.spec의 위치에서 import하고 다시 정의하지 않는지.
-   - L3.helm.spec과 L3.learning.spec의 매니페스트가 `plugins[].drives`(Helm 참, 학습 거짓)를 쓰고, `recordKinds`를 자기 접두로만 선언하며, 다른 그룹의 비공개 기록을 읽는 선언이 없는지(스펙 §4.8).
+   - L3.helm.spec과 L3.learning.spec의 매니페스트가 `plugins[].drives`(Helm 참, 학습 거짓)를 쓰고, `recordKinds`를 자기 접두로만 선언하며, 다른 플러그인의 비공개 기록을 읽는 선언이 없는지(스펙 §4.8).
 
 ## 7. 위험과 대응
 

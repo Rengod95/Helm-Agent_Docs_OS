@@ -227,7 +227,7 @@ const searchFields = {
   freshness: Type.Optional(FreshnessSchema),
 };
 
-/** 서비스 입력. provider는 그룹 코드와 호스트만 지정한다 */
+/** 서비스 입력. provider는 플러그인 코드와 호스트만 지정한다 */
 export const WebSearchInputSchema = Type.Object({
   ...searchFields,
   provider: Type.Optional(ProviderIdSchema),
@@ -271,7 +271,7 @@ export const WebSearchOutputSchema = Type.Object({
 export const WebSearch = defineCapability({
   id: "web.search",
   version: "1.0.0",
-  description: "웹 검색. 모델 도구와 그룹 코드가 같은 서비스를 쓴다.",
+  description: "웹 검색. 모델 도구와 플러그인 코드가 같은 서비스를 쓴다.",
   service: {
     methods: {
       search: {
@@ -964,7 +964,7 @@ export const registrations: readonly WebProviderRegistration[] = [
 
 대화당 호출 상한(§4.4.4), "대화에 나온 URL" 검사(§4.6.6), 에이전트 계층 도메인 정책(§4.5.2)은 호출한 대화와 주체를 알아야 한다.
 
-이 문서는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`(`L2.readme` §5.8)를 쓴다. consumer 코드는 채우지 않는다. X(그룹·확장 호출)와 L1.tools(도구 어댑터)가 덮어써서 채운다.
+이 문서는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`(`L2.readme` §5.8)를 쓴다. consumer 코드는 채우지 않는다. X(플러그인·확장 호출)와 L1.tools(도구 어댑터)가 덮어써서 채운다.
 
 - 호출한 대화는 `context.threadId`, 도구 호출은 `context.toolCallId`다.
 - 이 문서에서 `caller.kind`, `caller.agent`, `caller.extension`, `caller.afterUntrusted`로 짧게 쓴 것은 `CallOptions.context.caller`의 필드(`CallerInfo`)다.
@@ -1093,7 +1093,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - [제안] `sN`은 대화 안에서 유일하다. 같은 대화에서 같은 정규화 URL(§4.3.3)은 같은 ID를 다시 쓴다. 새 URL은 다음 번호를 받는다. 모델이 여러 호출의 결과를 한 답변에서 `[sN]`으로 인용해도 겹치지 않게 하기 위해서다.
 - 번호 할당기는 대화별 메모리 표다. 프로세스에서 그 대화의 첫 웹 호출 때 `fresnel.session`의 이벤트 읽기 API로 그 대화의 웹 도구 결과(`tool.settled`의 `structuredContent.sources`)를 읽어 표를 채운다 [가정: L1.persistence.spec이 type 필터 읽기를 제공한다]. 테이블을 따로 두지 않는다.
 - 결과가 기록되지 않은 호출(크래시)에서 쓴 번호는 다음 호출에서 다른 URL에 다시 쓰일 수 있다. 그 결과는 모델에게 전달되지 않았으므로 인용이 섞이지 않는다.
-- 대화가 없는 호출(호스트, 대화 밖 그룹 호출)은 호출 안에서만 `s1`부터 번호를 매긴다.
+- 대화가 없는 호출(호스트, 대화 밖 플러그인 호출)은 호출 안에서만 `s1`부터 번호를 매긴다.
 
 #### 4.2.2 렌더링
 
@@ -1322,7 +1322,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 ### 4.7 robots.txt
 
 - [결정: review.m3-design-inputs D-M3-23 행 4] 기본(`never`)은 robots.txt를 따르지 않는다. 따르려면 `auto`나 `always`로 바꾼다. `auto`는 아래 자동 수집 경로에 적용한다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
-- 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 그룹 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
+- 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 플러그인 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
 - 구현은 `auto`를 이렇게 읽는다: 자동 수집 경로(조사의 하위 fetch)이거나, 호출자가 호스트가 아닌 `urls` 일괄 fetch이면 적용한다. 일괄 호출의 URL이 사용자 입력에서 왔는지는 구분하지 않는다 [제안].
 - 설정 `l2.web.policy.robots`: `never`(기본, 적용 안 함), `auto`(위 규칙), `always`(모든 fetch에 적용). 관리 범위에서 잠글 수 있다.
 - 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Fresnel`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
@@ -1339,7 +1339,7 @@ ADR-0005 §3.1의 ①(모델용 도구)과 ②(서비스 API)를 이 문서의 �
 | 경로 | 호출자 | 실행 |
 |---|---|---|
 | ① 모델용 도구 | 모델 | 아래 `l2.web.search.modelTool`에 따라 hosted 서버 도구 또는 `web_search` 함수 도구 |
-| ② 서비스 API | L3 그룹 코드, 호스트, 다른 웹 메서드 | 앞단 `search`. 선택 체인(§4.8.2) |
+| ② 서비스 API | L3 플러그인 코드, 호스트, 다른 웹 메서드 | 앞단 `search`. 선택 체인(§4.8.2) |
 
 [미결] ①에서 무엇을 광고할지와 그 책임 경계(§10 미결 3). M2 구현 상태: 모델에는 `web_search` 함수 도구(B안)만 나간다. `decideModelSearchTool`과 `isWrapperOnlyChain`은 구현과 시험이 있지만 호스트 조립이 부르지 않고, 설정 `l2.web.search.modelTool`은 값을 읽는 곳이 없다. A안(hosted)은 §10 미결 3의 막힘이 풀릴 때까지 연결하지 않는다. 선택지:
 
@@ -1803,12 +1803,12 @@ export const webSettings = defineSettings("l2.web", {
 
 - 이 문서는 새 훅을 정의하지 않는다.
 - 모델 도구 경로는 `F.extensions.spec`의 tool 훅(`tool.call.before` first, `tool.result` chain, `tool_execution_*` tap)을 지난다. 페이로드의 `capability` 필드(`{ id: "web.fetch", method: "fetch" }` 등)로 핸들러가 웹 기능을 골라 거부하거나 결과를 바꿀 수 있다(`F.capabilities.spec` §7). Helm이 확산 단계에서 쓰기 도구를 막는 경로와 같다.
-- 그룹 코드의 서비스 호출(`g.capability(WebSearchKey).search(...)`)은 tool 훅을 지나지 않는다. 그래서 정책·상한·untrusted 표식은 앞단 서비스 안에서 적용한다(§4.1). 도구 어댑터에만 두면 그룹 경로가 빠진다.
+- 플러그인 코드의 서비스 호출(`g.capability(WebSearchKey).search(...)`)은 tool 훅을 지나지 않는다. 그래서 정책·상한·untrusted 표식은 앞단 서비스 안에서 적용한다(§4.1). 도구 어댑터에만 두면 플러그인 경로가 빠진다.
 - `cap-web`이 거는 훅(구독만, 결과를 바꾸지 않음):
   - `input.user.before`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
   - `thread.shutdown`(#39, tap): 그 대화의 브라우저 "세션"을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
   - `boundary.step.before`(#19, tap): `l2.web.search.modelTool = auto` 판정을 대화 첫 턴에 한 번 계산해 고정한다(§4.8.1).
-- drive와의 관계: L2는 drive를 쓰지 않는다(`L2.readme` §4). L3 그룹 `drive` 함수 안의 `web.search` 호출은 일반 서비스 호출이다.
+- drive와의 관계: L2는 drive를 쓰지 않는다(`L2.readme` §4). L3 플러그인 `drive` 함수 안의 `web.search` 호출은 일반 서비스 호출이다.
 - post: 쓰지 않는다. `web.research`의 완료 알림을 대화에 넣는 경로는 2차 설계 때 정한다.
 
 ## 8. 다른 문서와의 인터페이스

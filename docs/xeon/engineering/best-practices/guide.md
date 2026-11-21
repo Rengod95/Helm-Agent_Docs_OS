@@ -15,7 +15,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 ## 1. 적용 범위
 
 - 대상 코드: `xeon/**` 전부다. `xeon/vendor/**`의 원본은 대상에서 빼고, 그것을 감싸는 래퍼는 대상에 넣는다.
-- 대상 작업: `routes.yaml`의 `by_task.implement`에 속하는 모든 작업과 리뷰다. 확장·그룹 작업은 `by_task.extension` 문서(`X.readme`, `X.primitives.spec`, `F.extensions.spec`)를 함께 읽는다.
+- 대상 작업: `routes.yaml`의 `by_task.implement`에 속하는 모든 작업과 리뷰다. 확장·플러그인 작업은 `by_task.extension` 문서(`X.readme`, `X.primitives.spec`, `F.extensions.spec`)를 함께 읽는다.
 - "기본 선택"은 다른 방법을 쓸 이유가 없을 때 따르는 방식이다. 다른 방법을 쓰려면 4절 절차를 따른다.
 - 다른 구속 문서와의 관계:
   - 타입 규칙(브랜드 ID, `Result`, 금지 구문, `isolatedDeclarations` 주석)은 `eng.typescript.guide`(`../typescript/guide.md`)가 정한다.
@@ -51,9 +51,9 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 <a id="bp-01"></a>
 ### BP-01 계약 먼저: F 타입·스키마부터 정한다
 
-- 규칙: 새 기능은 `xeon/packages/contracts`(F)에 TypeBox 스키마와 타입을 먼저 정한다. 구현 패키지는 그 타입을 import해서 쓴다. 경계에서 들어오는 값(도구 인자, 이벤트 `payload`, 설정)은 그 스키마로 검증한다. 그룹의 비공개 레코드(`grp.<그룹>.*`) 스키마는 F에 두지 않고 그 그룹이 소유한다([결정: review.decisions-2 D-10]).
+- 규칙: 새 기능은 `xeon/packages/contracts`(F)에 TypeBox 스키마와 타입을 먼저 정한다. 구현 패키지는 그 타입을 import해서 쓴다. 경계에서 들어오는 값(도구 인자, 이벤트 `payload`, 설정)은 그 스키마로 검증한다. 플러그인의 비공개 레코드(`grp.<플러그인>.*`) 스키마는 F에 두지 않고 그 플러그인이 소유한다([결정: review.decisions-2 D-10]).
 - 이유:
-  - 같은 층 협력은 F 정의를 통해서만 한다. 그룹 사이 정보는 L2 기능의 레코드와 서비스로 주고받는다(`_research/foundation-plan.md §3`, `architecture.layers.spec §3.1`). F에 타입이 없으면 같은 층 패키지가 서로를 import하게 된다.
+  - 같은 층 협력은 F 정의를 통해서만 한다. 플러그인 사이 정보는 L2 기능의 레코드와 서비스로 주고받는다(`_research/foundation-plan.md §3`, `architecture.layers.spec §3.1`). F에 타입이 없으면 같은 층 패키지가 서로를 import하게 된다.
   - 훅 선언(이름, fold, 페이로드 타입)도 F4에 둔다(ADR-0007 §3.3). L1과 X가 같은 선언을 공유한다.
   - `isolatedDeclarations` 아래에서 `export const X = Type.Object(...)`는 TS9010으로 실패한다. 공개 스키마는 명시 타입 주석을 단다(`_research/notes/eng-2.md` Compile 항목). 세부는 `eng.typescript.guide`와 `eng.domain-types.guide`가 정한다.
 - 좋은 예:
@@ -126,7 +126,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 <a id="bp-03"></a>
 ### BP-03 훅은 선택 표로 고른다
 
-- 규칙: 확장(L3 그룹, 플러그인)이 루프에 개입할 때는 아래 표에서 목적에 맞는 연산 하나를 고른다. 위 행으로 해결되면 아래 행을 쓰지 않는다. 표에 없는 경로(DB 직접 쓰기, 루프 내부 객체 변경)는 쓰지 않는다.
+- 규칙: 확장(Drive 플러그인, 플러그인)이 루프에 개입할 때는 아래 표에서 목적에 맞는 연산 하나를 고른다. 위 행으로 해결되면 아래 행을 쓰지 않는다. 표에 없는 경로(DB 직접 쓰기, 루프 내부 객체 변경)는 쓰지 않는다.
 
   | 목적 | 연산 | 규칙 | 근거 |
   |---|---|---|---|
@@ -134,12 +134,12 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   | 차단 | `on(point)`, fold `first` | `{ deny: reason }`을 돌려준다. 핸들러 오류는 거부로 환산된다(fail-closed) | ADR-0007 §3.2 |
   | 변형 | `on(point)`, fold `chain` | 앞 핸들러 결과를 받아 교체 값을 돌려준다. 오류는 그 핸들러만 건너뛴다 | ADR-0007 §3.2 |
   | 입력 주입 | `post(item, { when, requestId })` | `when`은 `steer`(다음 도구 라운드 뒤), `followUp`(정착 뒤), `next`(경계 뒤 정확히 한 요청). `requestId`는 필수이고 같은 값은 한 번만 들어간다 | ADR-0007 §3.1 |
-  | 루프 구동 | `drive(fn, limits)` | 배타 drive 락, 그룹당 한 슬롯. `fn`은 마지막 커밋 상태로 다시 호출되어도 같은 진행을 낸다. 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상한은 `{turns, tokens, spawns}` | ADR-0007 §3.1, §3.6, `_research/ext-points.md §5` 안 1 |
+  | 루프 구동 | `drive(fn, limits)` | 배타 drive 락, 플러그인당 한 슬롯. `fn`은 마지막 커밋 상태로 다시 호출되어도 같은 진행을 낸다. 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상한은 `{turns, tokens, spawns}` | ADR-0007 §3.1, §3.6, `_research/ext-points.md §5` 안 1 |
   | 묶음과 토글 | `scope(id, { state })` | 위 등록을 한 단위로 묶는다. `enable`·`disable`은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다([결정: review.decisions-2 U-01]). 정리는 Cordis dispose | ADR-0007 §3.6 |
 
-- 그룹별 기본:
-  - [결정] Helm은 `drive`를 쓸 수 있다. 학습 그룹은 `drive`를 쓰지 않고 `on`과 L1 백그라운드 위임으로 동작해 Helm과 함께 켤 수 있다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
-  - [제안] 새 그룹은 `on`과 `post`로 시작한다. 루프 소유가 꼭 필요한 근거(여러 턴을 그룹이 이어서 진행해야 함)가 있을 때만 `drive`를 쓴다.
+- 플러그인별 기본:
+  - [결정] Helm은 `drive`를 쓸 수 있다. 학습 플러그인은 `drive`를 쓰지 않고 `on`과 L1 백그라운드 위임으로 동작해 Helm과 함께 켤 수 있다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
+  - [제안] 새 플러그인은 `on`과 `post`로 시작한다. 루프 소유가 꼭 필요한 근거(여러 턴을 플러그인이 이어서 진행해야 함)가 있을 때만 `drive`를 쓴다.
 - 이유:
   - 연산 넷과 fold 셋이 강제 수준, 실패 정책, 재생 규칙을 대신한다. 정해진 연산을 지나야 `requestId` 멱등, 단계 경계 토글, 재생 규칙이 적용된다(ADR-0007 §3.5).
   - `on` 핸들러는 다시 실행해도 되는 질의로 쓴다. 재생 규칙이 이 계약 하나로 남았다(ADR-0007 §3.5).
@@ -349,7 +349,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   - 큰 값(도구 출력, 이미지, 파일 내용)은 blob으로 빼고 이벤트에는 `BlobRef`만 둔다. blob 파일은 커밋 전에 쓴다(`eng.events.design` EV-04, `eng.transactions.design` TX-04).
   - 대화 쓰기는 `SessionService.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 투영(`p_*`, `cap_*`, `x_*`)은 그 커밋 안에서 투영기가 같은 트랜잭션으로 갱신한다. 코드가 투영 테이블에 직접 쓰지 않는다. 투영은 이벤트에서 다시 만들 수 있어야 한다.
   - 스트리밍 델타는 휘발 이벤트(`session.emitVolatile`, kind `item.updated`)로만 흘린다.
-  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(오케스트레이션 플러그인) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
+  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(플러그인) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
 - 이유:
   - [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. 큰 출력은 blob + 해시, 토큰 델타는 저장하지 않는다(ADR-0004 §3.1~§3.3).
   - 이벤트는 이미 일어난 일의 기록이라 재생 때 다시 실행하지 않는다. 재생 규칙과 내구·휘발 구분은 `eng.events.design`이 정한다.
@@ -549,7 +549,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 - 기본 선택과 다른 방법이 린트·스캔 규칙에 걸리면 `eng.typescript.guide` 4.1절 형식의 disable 주석을 단다: `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)`. 이 문서가 미리 허용한 경우는 이슈 URL 대신 `(eng.best-practices.guide BP-NN)`을 쓴다.
 - 검사 수단이 없는 기본 선택을 벗어날 때는 코드 주석을 따로 두지 않고 PR 설명에 `BP-NN 예외: <이유>`를 적는다. 리뷰어가 이유를 승인한다.
 - 같은 예외가 두 번 이상 나오면 이 문서의 규칙을 고칠지 검토한다. 규칙을 고치는 변경은 짝 안티패턴 항목도 함께 고친다.
-- 사용자 결정에서 나온 규칙(BP-03의 Helm·학습 그룹 기본, BP-05의 단일 DI, BP-07의 SOPS 참조, BP-08의 단일 DB)을 벗어나려면 ADR로 승인한다.
+- 사용자 결정에서 나온 규칙(BP-03의 Helm·학습 플러그인 기본, BP-05의 단일 DI, BP-07의 SOPS 참조, BP-08의 단일 DB)을 벗어나려면 ADR로 승인한다.
 - 린트 규칙을 끄는 방식은 `eng.typescript.guide` 4.1절이 정본이다.
 
 ## 5. 미결 사항

@@ -17,7 +17,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
 | M0 | 내장 패키지 `manifest` 상수 로딩, `validateManifest`·`validateManifestSet`·`validateUsage` 연결, 같은 프로세스 로딩(`ExtHost.install` 위임, `InstallResult` → 진단 변환), tier 등록(`policy.admit`), 실패 격리(한 확장 실패가 시작을 막지 않음, 내장 필수 예외), 로드 순서, 진단 레코드, 신뢰 등급 상수(`TRUST_MATRIX`) | L4.host-service 조립 3단계, X.primitives(`ExtHost.install`) |
-| M1 | 걷는 골격 연결: 테스트용 그룹 하나를 로드해 `fresnel chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 기능 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 그룹 |
+| M1 | 걷는 골격 연결: 테스트용 플러그인 하나를 로드해 `fresnel chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 기능 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 플러그인 |
 | M2 이후 | 외부 확장 탐색(`.fresnel-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `thread.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
 
 - [제안] 신뢰 판정은 프로젝트 확장이 처음 생기는 시점(M2)에 맞춘다. M0·M1에는 내장 확장만 있으므로 판정 대상이 없다. 다만 `TRUST_MATRIX`와 `TrustLevel`은 M0에 두어 X.primitives가 연산 허용 검사에 쓸 수 있게 한다.

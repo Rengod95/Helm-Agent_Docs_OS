@@ -14,12 +14,12 @@ binds: [xeon/packages/core-agents/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: L1.agents.spec의 `fresnel.agents`를 구현한다. M2에서 Helm의 렌즈 N개 탐구(UC-2)가 서브에이전트 N개를 돌려 결과를 커밋하고, M3에서 학습 그룹의 검토 포크(UC-3)가 백그라운드 위임으로 돈다.
+목표: L1.agents.spec의 `fresnel.agents`를 구현한다. M2에서 Helm의 렌즈 N개 탐구(UC-2)가 서브에이전트 N개를 돌려 결과를 커밋하고, M3에서 학습 플러그인의 검토 포크(UC-3)가 백그라운드 위임으로 돈다.
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | core-agents 코드 없음 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | core-agents 코드 없음. 걸어 다니는 골격 범위 밖이다. 단, contracts M1에서 `LoopHandle.spawn`, `SpawnSpec`, `SpawnOutcome` 타입 자리를 확보한다(F.extensions.spec §3.2, 이미 F에 있음). M1 테스트 그룹의 drive는 `loop.spawn`을 부르지 않는다. [제안] X가 `fresnel.agents`가 없을 때 `spawn`을 `{ status: "error", answer: "agents.unavailable" }`로 돌려주는지만 확인한다 | `_research/foundation-plan.md` §5 P4 M1 범위, `product.scope.spec` §4.3 M1 행 |
+| M1 | core-agents 코드 없음. 걸어 다니는 골격 범위 밖이다. 단, contracts M1에서 `LoopHandle.spawn`, `SpawnSpec`, `SpawnOutcome` 타입 자리를 확보한다(F.extensions.spec §3.2, 이미 F에 있음). M1 테스트 플러그인의 drive는 `loop.spawn`을 부르지 않는다. [제안] X가 `fresnel.agents`가 없을 때 `spawn`을 `{ status: "error", answer: "agents.unavailable" }`로 돌려주는지만 확인한다 | `_research/foundation-plan.md` §5 P4 M1 범위, `product.scope.spec` §4.3 M1 행 |
 | M2 | 자식 대화 생성과 부모 연결, 포그라운드 `spawn`(모델 도구 `agent`, drive `loop.spawn`), 권한 상한과 차단 목록, 깊이·동시 상한, 결과 반환(길이 상한, 모방 검사, 격리 블록), requestId 파생과 재개 중복 방지, 확장 정의(매니페스트 `components.agents`)와 코드 등록 `define` | product.scope.spec M2 종료 조건 "렌즈 N개 탐구에서 서브에이전트 N개 결과 커밋 뒤 적용 턴을 한 번 실행"(UC-2) |
 | M3 | 백그라운드 위임(`delegate`, 완료 보고 post, 직접 취소), 목표 판정(`judge`, 상한, `agent.judged`) | product.scope.spec M3 종료 조건 UC-3, "목표 판정이 실행 횟수 상한에서 멈춘다" |
 | 2차(M3 이후) | 프로젝트·사용자 디렉터리 정의 파일 로더와 위치 우선순위, 새 스레드 handoff, 판정 B안(제한된 자식 대화) 검토 | `_research/layer-plan-v2.json` L1-g 2차 행 |
@@ -86,7 +86,7 @@ xeon/packages/core-agents/
 - core-persistence: 커밋 API, 자식 대화 재개, 자식 연결 kind(`agent.*`, F 요청 3 반영), `p_agents` 투영과 `TxView.agentByRequestId`, `ResumePlan.openChildren`(L1.persistence.plan PS-23).
 - core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`boundary.settle.before`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
-- ext-host: `loop.spawn` → `fresnel.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-sdk.plan).
+- ext-host: `loop.spawn` → `fresnel.agents.spawn` 연결, 플러그인 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-sdk.plan).
 
 ### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
 
@@ -156,7 +156,7 @@ xeon/packages/core-agents/
 
 - 위 단위 테스트가 패키지 단위 `bun test`로 통과한다(단계별 범위).
 - M2: UC-2 수용 기준(서브에이전트 N개 결과 커밋 뒤 적용 턴 1회)을 통합 테스트로 확인할 수 있는 훅을 제공한다. `@fresnel/core-agents/testing`의 `spawnRecorder`가 `agent.spawned`·`agent.settled`의 seq를 기록하고, `settleAll(parentThreadId, requestIds)`가 N개 정착을 기다린다. L3.helm.plan의 통합 테스트가 "N개 `agent.settled` seq < 적용 turn의 `turn.started` seq, 적용 turn 1회"를 이 훅으로 검사한다.
-- M3: UC-3 경로(학습 그룹 `g.delegate` → `delegate` → 보고 post)가 Helm drive 락 중에도 동작하는 테스트가 L3.learning.plan 쪽에 있고 이 패키지의 훅으로 돈다.
+- M3: UC-3 경로(학습 플러그인 `g.delegate` → `delegate` → 보고 post)가 Helm drive 락 중에도 동작하는 테스트가 L3.learning.plan 쪽에 있고 이 패키지의 훅으로 돈다.
 - `just verify`가 종료코드 0이다.
 - check-layers: core-agents가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`를 import하지 않는다.
 
@@ -169,5 +169,5 @@ xeon/packages/core-agents/
 | F 카탈로그의 `agent.*` 코드 반영이 늦음 | contracts 코드에 `agent.*` 카탈로그 항목이 들어오기 전에는 AG-1을 시작하지 않는다. core-agents 소유 확장 kind는 쓸 수 없으므로(코어는 `x.` 접두를 쓰지 않는다) M2 시작 선행으로 둔다 |
 | core-loop의 자식 turn 진입점 구현이 늦음 | L1.loop.spec §3.1·§4.13에 `runChildTurn`이 정의되었고 구현은 L1.loop.plan LP15(M2)다. LP15가 끝나기 전에는 `testing/fakeLoop`로 core-agents를 먼저 구현·테스트한다 |
 | 백그라운드 자식이 동시 풀을 독점 | M3에서 풀 공유를 측정하고 [미결](L1.agents.spec §10) 결정에 따라 백그라운드 몫을 나눈다 |
-| 그룹 위임 래퍼(orchestration-sdk)와 필드 불일치 | L1.agents.spec §3.2 대응표를 L3.group-sdk.spec에 수정 요청으로 냈다. M3 착수 전에 두 문서의 필드를 대조한다 |
+| 플러그인 위임 래퍼(orchestration-sdk)와 필드 불일치 | L1.agents.spec §3.2 대응표를 L3.group-sdk.spec에 수정 요청으로 냈다. M3 착수 전에 두 문서의 필드를 대조한다 |
 | 재개 때 끊긴 자식의 재실행이 중복 효과를 냄 | 자식 대화의 도구 효과는 자식 대화의 3단 기록과 `decideEffectRecovery`로 닫힌다(L1.persistence.spec). core-agents는 자식을 새로 만들지 않고 같은 대화를 재개한다(AG-6) |

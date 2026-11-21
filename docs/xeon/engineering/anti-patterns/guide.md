@@ -35,7 +35,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 |---|---|---|---|
 | [AP-A-01](#ap-a-01) | 같은 층 패키지 import | BP-09, BP-11 | `check-layers.ts`, dependency-cruiser |
 | [AP-A-02](#ap-a-02) | 상향 의존 | BP-11 | `check-layers.ts`, dependency-cruiser |
-| [AP-A-03](#ap-a-03) | 그룹 간 직접 호출 | BP-03 | `check-layers.ts`, 리뷰 질문 |
+| [AP-A-03](#ap-a-03) | 플러그인 간 직접 호출 | BP-03 | `check-layers.ts`, 리뷰 질문 |
 | [AP-A-04](#ap-a-04) | 구 설계 전제 복귀: 커널만 상태 변경 | BP-03, BP-08 | 리뷰 질문 |
 | [AP-A-05](#ap-a-05) | 구 설계 전제 복귀: 홈서버 데몬 필수 | BP-06 | 리뷰 질문, M1 스모크 |
 | [AP-A-06](#ap-a-06) | Effect와 Cordis 이중 DI | BP-05 | `no-restricted-imports`, 리뷰 질문 |
@@ -72,7 +72,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: `core-loop`가 `core-models`를 import하거나, `cap-web`이 `cap-knowledge`의 함수를 직접 부른다.
 - 왜 문제인가:
   - [결정] 같은 층의 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3` "층 순위와 의존 방향", `architecture.layers.spec §3` 규칙 2).
-  - 같은 층 간선이 생기면 패키지 교체와 그룹 단위 켜고 끄기가 어려워진다. 사용자가 층마다 플러그인을 교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)과 맞지 않는다.
+  - 같은 층 간선이 생기면 패키지 교체와 플러그인 단위 켜고 끄기가 어려워진다. 사용자가 층마다 플러그인을 교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)과 맞지 않는다.
   - 같은 층 예외는 두 개뿐이다. `group-*` → `orchestration-sdk`(`DR-02/orchestration-sdk`)과 `apps/cli` → `apps/host`(`DR-10/cli-host`)다([결정: review.decisions-2 U-15], `eng.dependency-rules.guide` 4절 허용 목록). `plugins/*`는 L1 순위이고 같은 층 예외가 없다([결정: review.decisions-2 U-16]).
 - 나쁜 예:
 
@@ -126,13 +126,13 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 감지 방법: `just check-layers`, `just depcruise`, oxlint `import/no-cycle`. 아래층에 위층 개념이 필요해 보이면 그 개념의 타입을 F로 내리는 변경을 먼저 한다(`eng.best-practices.guide` BP-01).
 
 <a id="ap-a-03"></a>
-#### AP-A-03 그룹 간 직접 호출
+#### AP-A-03 플러그인 간 직접 호출
 
-- 증상: `plugin-helm`이 `plugin-learning`을 import해 학습 결과를 읽거나, 학습 그룹의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
+- 증상: `plugin-helm`이 `plugin-learning`을 import해 학습 결과를 읽거나, 학습 플러그인의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
 - 왜 문제인가:
-  - [결정] 그룹끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 그룹 사이 정보는 L2 기능의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
-  - [결정: review.decisions-2 D-10] 그룹 사이 레코드의 스키마는 F에 두지 않는다. 그룹은 다른 그룹의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
-  - 사용자가 그룹 간 강결합을 우려했다(`_research/decisions-log.md` 2026-10-21 사용자 의중). Helm과 학습 그룹은 따로 켜고 끌 수 있어야 하고, 학습 그룹은 Helm 없이도 동작해야 한다.
+  - [결정] 플러그인끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 플러그인 사이 정보는 L2 기능의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
+  - [결정: review.decisions-2 D-10] 플러그인 사이 레코드의 스키마는 F에 두지 않는다. 플러그인은 다른 플러그인의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
+  - 사용자가 플러그인 간 강결합을 우려했다(`_research/decisions-log.md` 2026-10-21 사용자 의중). Helm과 학습 플러그인은 따로 켜고 끌 수 있어야 하고, 학습 플러그인은 Helm 없이도 동작해야 한다.
 - 나쁜 예:
 
   ```ts
@@ -146,18 +146,18 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
   ```ts
   // xeon/packages/plugin-helm/src/lens.ts
-  // 학습 결과는 L2 knowledge가 저장한다. Helm은 그 검색 서비스로만 읽는다. 학습 그룹이 꺼져 있으면 결과가 비어 있을 뿐이다.
+  // 학습 결과는 L2 knowledge가 저장한다. Helm은 그 검색 서비스로만 읽는다. 학습 플러그인이 꺼져 있으면 결과가 비어 있을 뿐이다.
   const hits = await knowledge.search({ query: topic, kinds: ["skill", "memory"], limit: 5 });
   ```
 
-  학습 그룹의 `grp.learning.*` 이벤트를 Helm이 구독하지 않는다(D-10).
+  학습 플러그인의 `grp.learning.*` 이벤트를 Helm이 구독하지 않는다(D-10).
 
-- 감지 방법: `just check-layers`(L3 같은 층 import 거부). 리뷰 질문: "이 그룹은 다른 그룹이 꺼져 있어도 시작하고 동작하는가?"
+- 감지 방법: `just check-layers`(L3 같은 층 import 거부). 리뷰 질문: "이 플러그인은 다른 플러그인이 꺼져 있어도 시작하고 동작하는가?"
 
 <a id="ap-a-04"></a>
 #### AP-A-04 구 설계 전제 복귀: 커널만 상태 변경
 
-- 증상: 모든 상태 변경을 한 곳의 "커널 리듀서"로 모으고, 확장·도구·그룹이 상태를 바꾸려면 커널 명령을 만들어 보내도록 하는 구조를 다시 만든다. `docs/design/10-kernel.md`의 지시(`Directive`)나 커널 상태 검사를 옮겨 온다.
+- 증상: 모든 상태 변경을 한 곳의 "커널 리듀서"로 모으고, 확장·도구·플러그인이 상태를 바꾸려면 커널 명령을 만들어 보내도록 하는 구조를 다시 만든다. `docs/design/10-kernel.md`의 지시(`Directive`)나 커널 상태 검사를 옮겨 온다.
 - 왜 문제인가:
   - [결정] 사용자가 "커널만 상태 변경"에 이견을 밝혔고, 제품 방향을 대화형 런타임으로 바꿨다(`_research/decisions-log.md` 2026-10-19 이견 목록). 기존 `docs/design/01~26`은 커널·홈서버 데몬 전제라 그대로 따르지 않는다(`_research/README.md`).
   - Fresnel의 상태 변경 경로는 훅 4연산과 서비스다(ADR-0007). 원자성은 단일 DB 트랜잭션이 보장한다(ADR-0004). 별도의 커널 관문을 두면 같은 보장을 두 번 구현하게 된다.
@@ -168,7 +168,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
   export function kernelApply(state: World, cmd: KernelCommand): World {
     switch (cmd.type) {
       case "tool.approve": return { ...state, approvals: [...state.approvals, cmd.id] };
-      case "helm.phase":   return { ...state, helm: { phase: cmd.phase } }; // 그룹 상태까지 커널이 소유
+      case "helm.phase":   return { ...state, helm: { phase: cmd.phase } }; // 플러그인 상태까지 커널이 소유
       // ... 모든 변경이 여기를 지난다
     }
   }
@@ -177,7 +177,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 좋은 예:
 
   ```ts
-  // 그룹 상태는 그룹 scope의 상태 레코드가 소유하고, 커밋은 단일 DB 트랜잭션이 원자성을 맡는다.
+  // 플러그인 상태는 플러그인 scope의 상태 레코드가 소유하고, 커밋은 단일 DB 트랜잭션이 원자성을 맡는다.
   export const Helm = scope("helm", { state: doc<HelmState>() }, (g) => {
     g.on("boundary.step.after", async (t, st) => { await g.commit(nextPhase(st, t)); }); // [가정] 훅 이름
   });
@@ -220,7 +220,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: opencode의 `@opencode/ai`처럼 Effect `Layer`로 의존을 묶는 패키지를 그대로 가져와 Cordis 서비스와 함께 쓴다. 또는 pi durable의 Chord, `tsyringe`·`inversify` 같은 다른 컨테이너를 들인다.
 - 왜 문제인가:
   - [결정] DI는 Cordis 하나다(`_research/decisions-log.md` 3차, ADR-0002 §3).
-  - Effect 기반 패키지를 Cordis와 함께 쓰면 의존성 주입과 수명 관리 체계가 둘이 된다(`_research/ref-synthesis.md` "피할 것"). 수명이 둘이면 그룹을 끌 때 정리(dispose)가 한쪽에서만 일어난다.
+  - Effect 기반 패키지를 Cordis와 함께 쓰면 의존성 주입과 수명 관리 체계가 둘이 된다(`_research/ref-synthesis.md` "피할 것"). 수명이 둘이면 플러그인을 끌 때 정리(dispose)가 한쪽에서만 일어난다.
 - 나쁜 예:
 
   ```ts
@@ -247,10 +247,10 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-a-07"></a>
 #### AP-A-07 확장의 상태 변경 우회 경로
 
-- 증상: 그룹이나 플러그인이 `platform-store`를 직접 열어 대화 이벤트를 쓰거나, 루프 객체의 내부 배열에 메시지를 push하거나, 다른 그룹의 상태 레코드를 바꾼다.
+- 증상: 플러그인이 `platform-store`를 직접 열어 대화 이벤트를 쓰거나, 루프 객체의 내부 배열에 메시지를 push하거나, 다른 플러그인의 상태 레코드를 바꾼다.
 - 왜 문제인가:
   - [결정] 확장이 루프에 개입하는 연산은 `on`, `post`, `drive`, `scope` 넷뿐이다. `drive`의 효과도 `loop.turn`, `loop.spawn`, `post`로만 낸다(ADR-0007 §3.1).
-  - 우회 경로로 쓴 기록은 `requestId` 멱등, 단계 경계 토글, 재생 규칙을 거치지 않는다. 재개 때 같은 입력이 두 번 들어가거나, 꺼진 그룹이 상태를 계속 바꾼다.
+  - 우회 경로로 쓴 기록은 `requestId` 멱등, 단계 경계 토글, 재생 규칙을 거치지 않는다. 재개 때 같은 입력이 두 번 들어가거나, 꺼진 플러그인이 상태를 계속 바꾼다.
   - 확장 기록은 단일 DB의 확장 접두사 테이블(`x_<확장 id의 '-'를 '_'로>_`, `eng.context-map.design` 5.2절)에 두고 코어 테이블과 섞지 않는다(ADR-0004 §3.3).
 - 나쁜 예:
 
@@ -276,7 +276,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
   }
   ```
 
-- 감지 방법: `check-layers.ts`의 DR-14 검사(컨텍스트가 다른 구현 패키지 import 금지, M1부터)가 그룹의 `@fresnel/platform-store` import를 거부한다(`eng.dependency-rules.guide` DR-14). 편집기 안 즉시 피드백으로 `no-restricted-imports`에 `@fresnel/platform-store`를 조립 루트(`apps/host`) 밖에서 금지하는 패턴을 둔다 [제안]. `check-layers.ts`가 선언되지 않은 import를 거부한다. 리뷰 질문: "이 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가?"
+- 감지 방법: `check-layers.ts`의 DR-14 검사(컨텍스트가 다른 구현 패키지 import 금지, M1부터)가 플러그인의 `@fresnel/platform-store` import를 거부한다(`eng.dependency-rules.guide` DR-14). 편집기 안 즉시 피드백으로 `no-restricted-imports`에 `@fresnel/platform-store`를 조립 루트(`apps/host`) 밖에서 금지하는 패턴을 둔다 [제안]. `check-layers.ts`가 선언되지 않은 import를 거부한다. 리뷰 질문: "이 플러그인 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가?"
 
 <a id="ap-a-08"></a>
 #### AP-A-08 격리 없이 신뢰 등급만 선언
@@ -311,16 +311,16 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-a-09"></a>
 #### AP-A-09 `drive` 남용과 클로저 상태
 
-- 증상: 관찰이나 차단만 하면 되는 그룹이 `drive`를 잡는다. 학습 그룹이 `drive`를 쓴다. `drive` 함수가 진행 상태를 클로저 지역 변수에 두어, 재개 때 처음부터 다시 돈다.
+- 증상: 관찰이나 차단만 하면 되는 플러그인이 `drive`를 잡는다. 학습 플러그인이 `drive`를 쓴다. `drive` 함수가 진행 상태를 클로저 지역 변수에 두어, 재개 때 처음부터 다시 돈다.
 - 왜 문제인가:
-  - [결정] `drive`는 배타 락이고 한 번에 그룹 하나만 가진다. 학습 그룹은 `drive`를 쓰지 않고 Helm과 함께 켤 수 있어야 한다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
+  - [결정] `drive`는 배타 락이고 한 번에 플러그인 하나만 가진다. 학습 플러그인은 `drive`를 쓰지 않고 Helm과 함께 켤 수 있어야 한다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
   - [제안] `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출되어도 같은 진행을 내야 한다. 상태는 scope 상태 레코드에만 둔다(`_research/ext-points.md §5` 안 1 "재생·토글 보장", §6 판단 근거). 클로저에 둔 상태는 재개 때 사라지고, 이 위반은 타입으로 막지 못한다.
 - 나쁜 예:
 
   ```ts
   export const Learning = scope("learning", { state: doc<LearnState>() }, (g) => {
     let reviewed = 0;                       // 클로저 상태: 재개하면 0으로 돌아간다
-    g.drive(async (loop) => {               // 학습 그룹이 임대를 잡아 Helm과 공존할 수 없다
+    g.drive(async (loop) => {               // 학습 플러그인이 임대를 잡아 Helm과 공존할 수 없다
       while (reviewed < 3) { await loop.turn({ input: reviewPrompt() }); reviewed += 1; }
     });
   });
@@ -345,7 +345,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
   });
   ```
 
-- 감지 방법: 재생 테스트(`drive`를 임의 경계에서 끊고 마지막 커밋 상태로 다시 호출해 같은 `loop.turn` 순서가 나오는지)를 `eng.testing.guide`의 형식으로 둔다. 리뷰 질문: "`drive` 안에서 `let`으로 선언한 진행 변수가 있는가? 이 그룹은 `on`과 `post`만으로 같은 일을 할 수 있는가?"
+- 감지 방법: 재생 테스트(`drive`를 임의 경계에서 끊고 마지막 커밋 상태로 다시 호출해 같은 `loop.turn` 순서가 나오는지)를 `eng.testing.guide`의 형식으로 둔다. 리뷰 질문: "`drive` 안에서 `let`으로 선언한 진행 변수가 있는가? 이 플러그인은 `on`과 `post`만으로 같은 일을 할 수 있는가?"
 
 ### 2.3 코드 (AP-C)
 
@@ -453,7 +453,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
 - 증상: 모듈 최상위의 `let`, 모듈 수준 `Map` 캐시, `getInstance()` 싱글턴, `export let`로 상태를 공유한다.
 - 왜 문제인가:
-  - 그룹을 단계 경계에서 끄고 켜면 정리는 Cordis dispose로 실행된다(ADR-0007 §3.6). 모듈 전역 상태는 dispose 대상이 아니어서 끈 뒤에도 남는다.
+  - 플러그인을 단계 경계에서 끄고 켜면 정리는 Cordis dispose로 실행된다(ADR-0007 §3.6). 모듈 전역 상태는 dispose 대상이 아니어서 끈 뒤에도 남는다.
   - CLI in-process와 서비스 모드는 한 프로세스에 대화 여러 개를 둘 수 있다(ADR-0006). 전역 상태는 대화 사이에 섞인다.
   - 테스트 파일 사이에도 상태가 샌다. `mock.module`이 기본 실행에서 파일 사이로 누수되는 것과 같은 종류의 문제다(`_research/notes/eng-3.md` 2번).
   - pi-agent-core 포크에서 `setDefaultStreamFn` 같은 전역 상태를 없앤 선례가 있다(`docs/design/12-runtime-engine.md §3.4.1` F-5).
@@ -461,7 +461,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
   ```ts
   // xeon/packages/core-tools/src/registry.ts
-  const tools = new Map<string, ToolDef>();          // 모든 세션과 그룹이 공유
+  const tools = new Map<string, ToolDef>();          // 모든 세션과 플러그인이 공유
   export function registerTool(def: ToolDef) { tools.set(def.name, def); }
   ```
 
@@ -752,7 +752,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-s-03"></a>
 #### AP-S-03 확장별 DB 파일로 원자성 상실
 
-- 증상: 확장이나 그룹마다 `new Database("helm.sqlite")`처럼 별도 SQLite 파일을 만들고, 대화 기록과 그룹 기록을 따로 커밋하거나 `ATTACH`로 묶는다.
+- 증상: 확장이나 플러그인마다 `new Database("helm.sqlite")`처럼 별도 SQLite 파일을 만들고, 대화 기록과 플러그인 기록을 따로 커밋하거나 `ATTACH`로 묶는다.
 - 왜 문제인가:
   - WAL 모드에서는 `ATTACH`로 묶어도 파일 하나하나의 원자성만 보장하고 여러 파일에 걸친 원자성은 보장하지 않는다(`_research/session-storage.md` "놓치기 쉬운 제약").
   - [결정] DB 파일은 하나이고 확장 기록은 확장 접두사 테이블에 둔다. outbox는 별도 프로세스로 격리한 확장에만 쓴다(ADR-0004 §3.1, §3.3).
@@ -767,7 +767,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 좋은 예:
 
   ```ts
-  // 그룹 기록은 grp.helm.* 이벤트로 남긴다. x_helm_* 테이블은 확장 투영기만 쓴다(eng.context-map.design 5.2절).
+  // 플러그인 기록은 grp.helm.* 이벤트로 남긴다. x_helm_* 테이블은 확장 투영기만 쓴다(eng.context-map.design 5.2절).
   // 투영기는 SessionService.commit 안에서 돌므로 세션 이벤트와 같은 트랜잭션에 들어간다.
   export const helmLensProjector: Projector = {
     name: "ext.helm", version: 1, tables: ["x_helm_lenses"], ddl: [HELM_LENSES_DDL], kinds: ["grp.helm.lens.added"],
@@ -1011,11 +1011,11 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 
 | 질문 | 항목 |
 |---|---|
-| 이 그룹은 다른 그룹이 꺼져 있어도 시작하고 동작하는가? | AP-A-03 |
+| 이 플러그인은 다른 플러그인이 꺼져 있어도 시작하고 동작하는가? | AP-A-03 |
 | Fresnel 문서에 없는 중앙 상태 관문(커널 리듀서, 지시 계산)을 새로 만드는가? | AP-A-04 |
 | 상주 프로세스가 없을 때 이 기능은 무엇을 하는가? | AP-A-05 |
 | 새 의존이 자기 수명 관리(Layer, Scope, container)를 갖는가? | AP-A-06 |
-| 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가? | AP-A-07 |
+| 플러그인 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가? | AP-A-07 |
 | 신뢰 등급 2·3 확장이 선언하지 않은 기능에 접근할 수 있는가? | AP-A-08 |
 | `drive` 안에 `let` 진행 변수가 있는가? `on`과 `post`로 같은 일을 할 수 있는가? | AP-A-09 |
 | 이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가? 밖이면 타입 가드, `satisfies`, `parse`로 바꿨는가? | AP-C-01, AP-C-10 |

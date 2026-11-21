@@ -18,7 +18,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 ## 1. 문제
 
-- 한 루프 단계는 여러 기록을 남긴다. 모델 응답, 효과 의도와 결과, 확장(L3 그룹)의 기록, 입력 큐 상태가 함께 바뀐다. 일부만 저장되면 재개 때 상태가 어긋난다.
+- 한 루프 단계는 여러 기록을 남긴다. 모델 응답, 효과 의도와 결과, 확장(L3 플러그인)의 기록, 입력 큐 상태가 함께 바뀐다. 일부만 저장되면 재개 때 상태가 어긋난다.
 - 크래시는 아무 시점에서나 난다. 커밋된 것은 정전 뒤에도 남아야 하고, 커밋되지 않은 것은 흔적이 없어야 한다.
 - CLI와 데스크톱이 같은 대화를 동시에 열 수 있다. 두 프로세스가 한 대화에 번갈아 쓰면 `seq`와 루프 상태가 깨진다.
 - 네트워크 재시도, 재개, 확장의 `post` 재호출로 같은 쓰기가 두 번 올 수 있다.
@@ -64,7 +64,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 [결정] 대화 이벤트, 투영, 확장 접두사 테이블 기록, 작업 상태를 한 DB 파일의 한 트랜잭션으로 묶는다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004).
 
-- 확장(L3 그룹, 사용자 플러그인)은 기본으로 같은 프로세스에서 돈다(층 구성 계획 v2 "확장 프로세스 격리는 기본값이 아니어도 된다"). 같은 프로세스 확장의 기록은 코어 커밋과 같은 트랜잭션에 들어간다.
+- 확장(L3 플러그인, 사용자 플러그인)은 기본으로 같은 프로세스에서 돈다(층 구성 계획 v2 "확장 프로세스 격리는 기본값이 아니어도 된다"). 같은 프로세스 확장의 기록은 코어 커밋과 같은 트랜잭션에 들어간다.
 - [결정] 파일을 나누는 안(2.1의 C)은 신뢰 등급 2·3 확장이 별도 프로세스로 돌 때만 쓴다(`_research/session-storage.md` 권장안). 그 경우의 반영 규칙은 7절이다.
 - "작업 상태"는 입력 큐, turn 상태, 효과 상태, drive 락 상태다. 모두 내구 이벤트와 그 투영으로 남는다(`eng.events.design` 4.4절).
 
@@ -427,7 +427,7 @@ CREATE TABLE requests (
 | 확장 상태 커밋(scope 상태) | `x.<name>.state.committed`, `grp.<name>.state.committed` | on 핸들러 안 `st:<scope 해시>:<dispatchKey>:<n>`, drive 함수 안 `${leaseId}:${baseRev}.c<n>` | 같은 디스패치·같은 판의 커밋 한 번 | `X.primitives.spec` §4.6.1 |
 | 취소 의도 | `turn.abort_requested` | `abort:<turnId>` | 취소 의도 한 번 | `L1.tasks.spec` §4.2 |
 | turn 끝 | `turn.completed` | `turn:<turnId>:end` | turn 종결 하나 | `L1.loop.spec` T6 |
-| 서브에이전트 생성(run-engine agents) | 자식 `thread.started` + 부모 `agent.spawned` | `spawn:<부모 threadId 해시>:<자식 requestId>`. 자식 requestId는 `<ownerRequestId>:spawn:<n>` 또는 drive·그룹이 준 값 | 생성 한 번 | `L1.agents.spec` §3.5, §4.5 |
+| 서브에이전트 생성(run-engine agents) | 자식 `thread.started` + 부모 `agent.spawned` | `spawn:<부모 threadId 해시>:<자식 requestId>`. 자식 requestId는 `<ownerRequestId>:spawn:<n>` 또는 drive·플러그인이 준 값 | 생성 한 번 | `L1.agents.spec` §3.5, §4.5 |
 | 서브에이전트 정착 | `agent.settled` | `agent:<childThreadId>:settled` | 정착 한 번 | `L1.agents.spec` §3.5 |
 | 승인 요청·해결(tool-runtime) | `approval.requested`/`approval.resolved` | `approval:<threadId>:<requestKey>:request`(64자를 넘으면 해시로 줄인다) / `approval:<approvalId>:resolve` | 각 한 번 | `L1.tools.spec` §3.9 |
 | thread 생성(session-core) | `thread.started` | `thread:<threadId>:start` | 한 번 | `L1.persistence.spec` §3.9 |
@@ -553,7 +553,7 @@ flowchart TD
 
 - 소유 간선은 생성 때 정하고 바꾸지 않는다. turn은 `turn.started`의 thread, 도구 호출은 `effect.intent`가 속한 `turnId`, 자식 thread는 `agent.spawned`의 소유자(`turnId`, `toolCallId`)에 기록한다.
 - 메모리에서는 L1 tasks가 노드마다 `AbortController`를 두고, 자식 신호를 `AbortSignal.any([부모, 자기])`로 만든다(`_research/packages.md §4.3` L1-a 취소 전파).
-- 백그라운드 위임(L1-g, 학습 그룹의 검토 포크)은 경계다. 보통 취소는 경계를 넘지 않는다. 그 작업을 직접 취소하거나 대화 취소에 `{ background: true }`를 줄 때만 넘는다(durable `spec.md` 1972-2030 "a background task is a boundary").
+- 백그라운드 위임(L1-g, 학습 플러그인의 검토 포크)은 경계다. 보통 취소는 경계를 넘지 않는다. 그 작업을 직접 취소하거나 대화 취소에 `{ background: true }`를 줄 때만 넘는다(durable `spec.md` 1972-2030 "a background task is a boundary").
 
 ### 6.2 취소 규칙
 

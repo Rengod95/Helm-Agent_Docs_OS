@@ -8,20 +8,20 @@ depends_on: [L3.helm.spec, L3.group-sdk.plan, L2.web.plan, L2.knowledge.plan, L2
 binds: [xeon/packages/plugin-helm/**]
 ---
 
-# L3 Helm 그룹 구현 계획
+# L3 Helm 플러그인 구현 계획
 
 대상 스펙: L3.helm.spec(M3 세부 설계판, 2026-10-26). 패키지: `@fresnel/plugin-helm`(`xeon/packages/plugin-helm`).
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] Helm 본체는 M3 범위다. 2026-10-25 M2 마감 결정 D-a가 E1(UC-2)과 Helm 본체(H-02~H-15)를 M3로 옮겼다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 설계 착수 시점은 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(adr.0015)"이다(사용자 2026-10-25). M1·M2의 drive 경로 검증은 orchestration-sdk의 테스트 그룹이 맡는다.
+[결정] Helm 본체는 M3 범위다. 2026-10-25 M2 마감 결정 D-a가 E1(UC-2)과 Helm 본체(H-02~H-15)를 M3로 옮겼다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 설계 착수 시점은 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(adr.0015)"이다(사용자 2026-10-25). M1·M2의 drive 경로 검증은 orchestration-sdk의 테스트 플러그인이 맡는다.
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M0 | 없음. 의존 대상(`contracts`의 extensions·records·capabilities·settings 타입)만 준비된다 | 없음 |
 | M1 | 스캐폴드: 패키지 디렉터리, `package.json`(`fresnel.layer: "L3"`, `fresnel.domain: "helm"`), `tsconfig.json`, 빈 `src/index.ts`, `test/` 디렉터리. 호스트 조립 루트는 Helm을 등록하지 않는다 | H-01(완료) |
 | M2 | 설정 `ext.helm.driveLimits` 하나(`src/settings.ts`). 본체 없음 | 완료 |
-| M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 그룹 공존 확인, `scanDriveSource` 정적 검사, 기본 플러그인 패키징(D-M3-01) | H-02 ~ H-22 |
+| M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 플러그인 공존 확인, `scanDriveSource` 정적 검사, 기본 플러그인 패키징(D-M3-01) | H-02 ~ H-22 |
 | 2차 이후 | 렌즈 제안 경로(L3.helm.spec §10 미결 6), 다회 라운드와 종료 판정(미결 7), 신호 임계 설정 노출(미결 8) | 미배정 |
 
 M3 착수 조건(선행):
@@ -33,7 +33,7 @@ M3 착수 조건(선행):
 | 사용자 결정(받음, 2026-10-26) | D-M3-01 c(기본 플러그인), D-M3-05 a(대기, 상한 뒤 거부), D-M3-06 a(유휴 자율 turn 허용), D-M3-07 a(안전 모드 적재 안 함), D-M3-11 c(자체 확장 API만). 동작은 L3.helm.spec §4.13 표 | H-02(`defaultEnabled`, `trust.level`), H-20(대기 거부), H-22(패키징) |
 | M3-15 | X 외부 확장 로더(자체 API), 자체 패키지 가상 모듈 등록, 기본 플러그인 첫 실행 설치 | H-22, H-15 |
 
-학습 그룹과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 기능(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
+학습 플러그인과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 플러그인의 레코드를 읽지 않는다. 학습 플러그인이 적용한 스킬과 메모리는 L2 지식 기능(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 플러그인이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
 
 ## 2. 패키지와 파일 배치
 
@@ -106,7 +106,7 @@ xeon/packages/plugin-helm/
 | H-22 | 기본 플러그인 패키징(D-M3-01): `.fresnel-plugin/plugin.json` 생성(매니페스트 대조 테스트), 엔트리 번들 빌드(`@fresnel/contracts`·`@fresnel/orchestration-sdk`·`typebox`는 외부 import), 릴리즈 자원 배치, 첫 실행 설치와 갱신 규칙(원본 해시 일치 때만 교체), 외부 로더 적재 int 테스트(`user` 등급, 안전 모드 미적재) | H-13, X.loading-trust 외부 확장 로더와 가상 모듈 등록(M3-15), L4 릴리즈(M3-27) | M |
 | H-21 | 효과 등급 적합 시험: 선언 없는 메서드를 가진 가짜 provider로 X 래퍼 거부와 저하 동작 확인, on 핸들러의 기능 호출 0 확인(스펙 §9 21번) | H-10, H-11, X.primitives 기능 래퍼 문맥 검사(REQ-X-01) | S |
 | H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@fresnel/ext-host/testing`, `@fresnel/core-models/testing`, 가짜 서브에이전트 | M |
-| H-16 | 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
+| H-16 | 학습 플러그인 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 플러그인 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 플러그인과 공존 통합 확인 | H-10, L3.learning M3 | S |
 | H-17 | 문서 대조: 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수 대조 테스트 | H-04, H-06, H-02 | S |
 | H-18 | 정적 결정성 검사: `scanDriveSource`로 `drive.ts` 검사(테스트 26번) | H-09, L3.group-sdk.plan G-19(M3) | S |
 
@@ -119,7 +119,7 @@ xeon/packages/plugin-helm/
 | `defineOrchestration`, `OrchestrationApi.settings()`, `OrchestrationApi.registerCommand`, `DriveArbiter`, `replayDrive`, `OrchestrationStatus` | L3.group-sdk.plan (M2: G-04, G-05, G-07, G-12, G-15, G-22) | H-09, H-12, H-13, H-14 |
 | `scanDriveSource` | L3.group-sdk.plan (M3: G-19) | H-18 |
 | drive 락 부여·`idle` 반납, `DriveLockBudget`, 상한 집행, `lease.*` 이벤트 | X.primitives.plan | H-09 |
-| `loop.spawn`, 그룹 제공 에이전트 정의 로딩 | L1.agents.plan | H-09, H-15 |
+| `loop.spawn`, 플러그인 제공 에이전트 정의 로딩 | L1.agents.plan | H-09, H-15 |
 | `web.search` 최소형(내장 검색 래퍼 또는 검색 플러그인, [결정: 2026-11-04 사용자 B15]로 SearXNG 삭제) | L2.web.plan | H-10 |
 | `knowledge.search`, `knowledge.skills`, `knowledge.memory` 읽기 기능 | L2.knowledge.plan | H-10(없으면 저하 동작) |
 | `work.tasks`의 `create` | L2.work.plan | H-11(없으면 건너뜀) |
@@ -182,13 +182,13 @@ xeon/packages/plugin-helm/
 | 25 | `drive.requestids-stable-across-lease-change` | drive 락을 반납하고 새 `leaseId`로 다시 받아도 같은 탐구의 spawn·turn requestId가 같아 중복 실행이 없다 |
 | 26 | `drive.source-is-deterministic` (H-18) | `scanDriveSource`가 `drive.ts`에서 `Date.now`, `Math.random`, 직접 I/O를 찾지 못한다 |
 | 27 | `knowledge.degrades-when-web-missing` | `web.search` provider가 없거나 `unavailable`이면 `degraded`에 `web`, 탐구는 `applied`로 끝남 |
-| 28 | `knowledge.learning-absent-is-empty` | 학습 그룹이 없어도 `gatherContext` 결과가 같고 `readRecords` 호출은 0이다 |
+| 28 | `knowledge.learning-absent-is-empty` | 학습 플러그인이 없어도 `gatherContext` 결과가 같고 `readRecords` 호출은 0이다 |
 | 29 | `knowledge.untrusted-text-wrapped` | 외부 텍스트가 표지로 감싸지고, 본문 안 표지 문자열이 이스케이프된다. 본문 내용에 따라 전이가 바뀌지 않는다 |
 | 30 | `commands.start-stop-status` | `/helm start 주제`가 `pending` 커밋, 탐구 중 start는 오류, `/helm stop`이 `stopRequested` 커밋, `status`는 상태를 바꾸지 않음 |
 | 31 | `disable.at-step-boundary-releases-lease` | 탐구 중 disable 요청 뒤 다음 단계 경계에서 `lease.released`(`disabled`) 1건, 핸들러 미호출, 상태 보존, 다시 켜면 같은 단계에서 이어짐 |
 | 31a | `disable.while-explorer-waits` | 하위 대화가 답을 기다리며 부모 대화가 실행 중일 때 disable 요청이 락 신호를 abort하고 scope가 `disabled`에 닿음 |
-| 32 | `coexist.learning-on-while-helm-holds-lease` | 테스트 호스트에 drive를 쓰지 않는 가짜 그룹(학습 그룹 역할, `plugin-learning` import 없음)을 함께 켜고, Helm drive 락 중에도 그 그룹의 on 핸들러와 post가 동작 |
-| 33 | `coexist.waiting-lease-keeps-signals` | 다른 그룹이 drive 락을 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
+| 32 | `coexist.learning-on-while-helm-holds-lease` | 테스트 호스트에 drive를 쓰지 않는 가짜 플러그인(학습 플러그인 역할, `plugin-learning` import 없음)을 함께 켜고, Helm drive 락 중에도 그 플러그인의 on 핸들러와 post가 동작 |
+| 33 | `coexist.waiting-lease-keeps-signals` | 다른 플러그인이 drive 락을 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
 | 34 | `restore.invalid-state-resets` | `thread.start`에서 탐구 단계인데 `inquiryId`가 없는 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`). 스키마 위반 상태는 X가 Registration을 켜지 않아 이 핸들러까지 오지 않는다 |
 | 35 | `replay.twice-effects-once` (H-19) | UC-2 기준 실행의 모든 커밋 시점에서 끊고 drive·on 핸들러를 두 번 실행해도 새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1(스펙 §4.11 표) |
 | 36 | `replay.apply-split-points` (H-19) | `recordDiscoveries`와 `linkWork` 사이, `linkWork`와 `applied` 커밋 사이에서 끊어도 작업 2개, 적용 turn 1회 |
@@ -223,7 +223,7 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 1 확산 단계 쓰기 거부, 끈 뒤 실행 | `uc2.write-deny-and-n-lenses`, `guard.denies-write-in-diverge-only` |
 | 2 렌즈 N개 → spawn N, 적용 turn 1 | `uc2.write-deny-and-n-lenses`, `drive.n-lenses-n-spawns-then-one-apply-turn` |
 | 3 재호출해도 spawn 중복 없음 | `drive.recall-from-committed-state-spawns-once`, `drive.requestids-stable-across-lease-change`, `resume.after-kill-in-explore` |
-| 4 학습 그룹 꺼져도 동작 | `knowledge.learning-absent-is-empty`, `coexist.learning-on-while-helm-holds-lease` |
+| 4 학습 플러그인 꺼져도 동작 | `knowledge.learning-absent-is-empty`, `coexist.learning-on-while-helm-holds-lease` |
 | 5 drive 락 대기 중 신호 기록 계속 | `coexist.waiting-lease-keeps-signals` |
 | 6 `writeGuard` 거짓 | `guard.respects-write-guard-setting` |
 | 7 first 예외는 거부 | `guard.exception-becomes-deny` |
@@ -244,7 +244,7 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 22 단언 없는 상태 좁히기 | `failures.missing-inquiry-finishes-failed` |
 
 2. `cd xeon && just verify`가 종료코드 0이다(oxfmt, oxlint type-aware, `tsc -b`, check-layers, depcruise, knip, 영향 범위 `bun test`).
-3. Helm 본체를 추가하는 변경(M3의 H-02~H-21 커밋 묶음)에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/orchestration-sdk/**` 경로의 diff가 0이다(product.vision.spec S1 "코어 수정 없이 그룹 추가"). 이 조건을 깨야 하면 해당 변경을 F·X·orchestration-sdk 계획의 작업으로 먼저 넣고 Helm 작업은 그 뒤에 한다.
+3. Helm 본체를 추가하는 변경(M3의 H-02~H-21 커밋 묶음)에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/orchestration-sdk/**` 경로의 diff가 0이다(product.vision.spec S1 "코어 수정 없이 플러그인 추가"). 이 조건을 깨야 하면 해당 변경을 F·X·orchestration-sdk 계획의 작업으로 먼저 넣고 Helm 작업은 그 뒤에 한다.
 4. H-17 대조 테스트가 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수의 일치를 확인한다.
 5. 패키지 커버리지는 eng.testing.guide TS-10의 L3 임계를 넘는다.
 

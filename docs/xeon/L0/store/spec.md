@@ -943,7 +943,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 ## 7. 훅
 
 - 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다.
-- 확장(L3 그룹, 사용자 플러그인)과의 관계는 둘이다.
+- 확장(L3 플러그인, 사용자 플러그인)과의 관계는 둘이다.
   - 확장 접두사 테이블: X 로딩(`X.loading-trust.spec`)이 확장을 켤 때 `extensions.register(name)`과 `migrations.apply`를 부르고, 확장을 제거할 때 X(`X.operations.spec` §4.4.7 `dropExtension`)가 소유 장부 `xh_ext_tables`의 이름 목록으로 `extensions.drop(name, tables)`를 부른다.
   - 확장 투영기는 §4.5 소유 판정으로 그 확장의 것인 `x_` 테이블만 쓴다(TX-03). 확장은 `@fresnel/platform-store`를 import할 수 없다(DR-14). 범위 핸들이나 투영 트랜잭션 핸들만 받는다.
 

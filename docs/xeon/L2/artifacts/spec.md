@@ -156,7 +156,7 @@ export const ArtifactMetaSchema = Type.Object({
 
 /** 생산자. "model"(도구 경로), "user"(L4 명령), "cap.<도메인>"(다른 L2), "x.<확장>" 또는 "grp.<그룹>" */
 export const ArtifactProducerSchema = Type.String({
-  pattern: "^(model|user|cap\\.[a-z][a-z0-9-]{1,31}|(x|grp)\\.[a-z][a-z0-9-]{1,31})$",   // 확장·그룹 이름은 EXTENSION_NAME_PATTERN(review.decisions-2 U-18)
+  pattern: "^(model|user|cap\\.[a-z][a-z0-9-]{1,31}|(x|grp)\\.[a-z][a-z0-9-]{1,31})$",   // 확장·플러그인 이름은 EXTENSION_NAME_PATTERN(review.decisions-2 U-18)
 });
 
 export const ArtifactOriginSchema = Type.Object({
@@ -375,7 +375,7 @@ export const ArtifactsRegistry = defineCapability({
 export const ArtifactsRegistryKey = serviceKey(ArtifactsRegistry);
 ```
 
-- `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 대화 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 그룹 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
+- `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 대화 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 플러그인 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
 - `artifact_update` 도구의 `meta`는 `summary`만 바꾼다. 도구 경로에서 `toInput`은 `meta`를 `{ summary }`로 통째로 바꾸므로 기존 `tags`·`sources`가 사라진다. [제안] provider는 도구 경로(`producer: "model"` 또는 `CallContext.toolCallId`가 있는 호출)의 `meta`를 기존 메타와 `summary` 필드만 병합한다. 서비스 경로는 §3.2 주석대로 전체 교체다.
 - `artifact_create`의 `kind`는 텍스트로 만들 수 있는 4종으로 줄였다. `changeset`은 리뷰가, `file`·`image`는 서비스 경로가 등록한다.
 
@@ -496,7 +496,7 @@ export const ArtifactsReviews = defineCapability({
           changes: ChangeSourceSchema,
           /** 제출 시 코멘트를 넣을 전달 모드. 생략하면 l2.artifacts.reviews.deliverAs */
           deliverAs: Type.Optional(PostWhenSchema),
-          /** 거짓이면 승인 요청을 내지 않는다(그룹 코드가 직접 결정할 때). 기본 참 */
+          /** 거짓이면 승인 요청을 내지 않는다(플러그인 코드가 직접 결정할 때). 기본 참 */
           requestApproval: Type.Optional(Type.Boolean()),
         }),
         output: ReviewViewSchema,
@@ -960,7 +960,7 @@ export interface HandoffReceivedPayload {
 ```
 
 - 모든 payload의 문자열 필드는 256 KiB 한도(`F.records.spec` §3.4 규칙 3) 안에 든다. 본문과 diff는 항상 blob이므로 이벤트에는 참조만 실린다(`eng.events.design` EV-04).
-- `artifact.review_decided`의 `by: "model"`은 그룹이나 모델이 결정하는 경우를 위해 남겨 둔다. 도구 경로에는 결정 도구가 없으므로 1차에서는 나오지 않는다.
+- `artifact.review_decided`의 `by: "model"`은 플러그인이나 모델이 결정하는 경우를 위해 남겨 둔다. 도구 경로에는 결정 도구가 없으므로 1차에서는 나오지 않는다.
 - [미결] 제목 이벤트의 이름: `eng.events.design` §4.4는 `session.retitled`, `F.records.spec` §3.3은 `thread.updated`(`ThreadUpdatedPayload.title`)를 둔다. 이 문서는 두 이름이 같은 L1 소유 이벤트를 가리킨다고 보고 "제목 이벤트"로 부른다. 어느 쪽이든 artifacts는 그 kind를 쓰지 않는다(§10 미결 2).
 
 ### 3.7 투영 (`cap.artifacts`)
@@ -1242,7 +1242,7 @@ export const ReviewAnswerSchema = Type.Object({
 - L4는 `approval.respond { decision: "answer", answer: ReviewAnswer }`(F wire §3.3.1)로 답한다. provider는 `approval.resolved` 이벤트를 받으면 `artifact.review_decided`, `artifact.review_commented`를 커밋하고, `submit`이 참이면 §4.2.6 제출 절차를 탄다. 원격 클라이언트도 같은 경로를 쓴다(`L2.schedule.spec` §4.5.2).
 - 승인 kind 값은 지금 `tool | question | plan`이다(`eng.events.design` §4.4 `approval.requested`). `review` 추가는 L1.tools 변경 요청이고 [미결]이다(§10 미결 4, `L2.readme` §5.7·§10 미결 14). 받아들여지지 않으면 `question` kind에 `answerSchema`를 붙이는 안으로 대신한다.
 - 리뷰 승인 요청은 도구 호출을 막지 않는다. `review_request` 도구는 리뷰를 연 뒤 바로 돌아가고, 승인 대기는 대화 진행과 별개다. 그래서 승인 요청은 L1.tools의 "도구 승인 대기"와 달리 턴을 멈추지 않는 비차단 요청이어야 한다 [가정: L1.tools.spec이 비차단 승인 요청을 허용]. 허용하지 않으면 리뷰 결정은 L4의 리뷰 화면이 `approve`/`reject`/`comment`/`submit`을 부르는 경로로만 들어오고, 그 경로는 F wire 메서드 추가가 필요하다(§10 미결 4).
-- 그룹 코드는 서비스 메서드(`approve`, `reject`, `comment`, `submit`)를 직접 부른다. 이때 `by`는 `group`이다.
+- 플러그인 코드는 서비스 메서드(`approve`, `reject`, `comment`, `submit`)를 직접 부른다. 이때 `by`는 `group`이다.
 
 #### 4.2.5 거절 적용 [결정: M3b B2-ART는 후보 A]
 
@@ -1423,9 +1423,9 @@ export const ReviewAnswerSchema = Type.Object({
 | 7 | diff 해석 실패 | `diff_unparsable`, `detail.line` |
 | 8 | 리뷰 열린 뒤 파일이 다시 바뀜 | 거절 적용 확인(§4.2.5 규칙 2)에서 `conflict`. 다른 hunk에는 영향이 없다 |
 | 9 | 같은 파일에 거절 hunk 둘, 하나만 충돌 | 그 파일 전체를 쓰지 않고 두 hunk 모두 `conflict`(§4.2.5 규칙 1) |
-| 10 | 승인 서비스가 `review` kind를 받지 않음 | `open`은 `requestApproval`을 무시하고 리뷰만 연다. 경고 로그. 결정은 L4·그룹 경로로만 들어온다 |
+| 10 | 승인 서비스가 `review` kind를 받지 않음 | `open`은 `requestApproval`을 무시하고 리뷰만 연다. 경고 로그. 결정은 L4·플러그인 경로로만 들어온다 |
 | 11 | 제출 중 post 성공 뒤 `review_submitted` 커밋 전에 종료 | 재시도에서 post는 `duplicate: true`, 커밋은 처음 한 번 된다 |
-| 12 | 웹 내용을 쓴 산출물에 `meta.sources`가 없음 | 내보내기가 본문을 그대로 넣는다. 생산자 책임이다. L3 그룹은 web 결과로 산출물을 만들 때 출처를 옮겨 적는다(§3.1 둘째 항목) |
+| 12 | 웹 내용을 쓴 산출물에 `meta.sources`가 없음 | 내보내기가 본문을 그대로 넣는다. 생산자 책임이다. L3 플러그인은 web 결과로 산출물을 만들 때 출처를 옮겨 적는다(§3.1 둘째 항목) |
 | 13 | 자동 제목 모델 호출 실패 | 건너뛴다. 오류를 사용자에게 보이지 않는다 |
 | 14 | 사용자가 이름을 붙이는 사이 자동 제목 도착 | `onlyIfUntitled`로 자동 제목이 적용되지 않는다 |
 | 15 | 투영 테이블 손상·버전 변경 | 열 때 `cap.artifacts` 투영기만 재생성한다(`eng.events.design` §5.4). 목록이 같다(수용 기준 1) |
@@ -1471,7 +1471,7 @@ export const ReviewAnswerSchema = Type.Object({
 | drive | 쓰지 않는다. L2는 drive를 쓰지 않는다(`L2.readme` §4.2) |
 | scope | 기능 켜기·끄기는 X의 scope 규칙을 따른다. 꺼지면 도구가 다음 단계 경계에서 빠지고 열린 리뷰는 그대로 남는다 |
 
-- 그룹 사용 예: 탐구 그룹은 탐구 노트·비교표를 `register`로 등록하고, 출처를 `meta.sources`로 옮겨 적는다.
+- 플러그인 사용 예: 탐구 플러그인은 탐구 노트·비교표를 `register`로 등록하고, 출처를 `meta.sources`로 옮겨 적는다.
 
 ## 8. 다른 문서와의 인터페이스
 

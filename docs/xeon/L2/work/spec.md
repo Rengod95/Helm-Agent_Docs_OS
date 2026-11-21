@@ -57,7 +57,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 | 계획 모드 | 삭제됨 [결정: 2026-11-13 사용자]. 쓰기 도구를 막던 권한 모드였다. 용어로만 남는다 |
 | 목표 (goal) | 완료 조건 문장과 판정 방식. 스레드마다 활성 목표는 하나다 |
 | 판정 (judgment) | 한 턴이 끝난 뒤 목표 충족 여부를 정한 결과 하나 |
-| 판정자 (judge) | 판정을 내리는 주체. 기본은 별도 판정 모델이고 L3 그룹이 대신할 수 있다 |
+| 판정자 (judge) | 판정을 내리는 주체. 기본은 별도 판정 모델이고 L3 플러그인이 대신할 수 있다 |
 | 완료 보고 (report) | 결과 요약, 사용 자원, 남은 항목, 산출물 참조를 정해진 스키마로 묶은 기록 |
 
 이 문서는 다음 이름을 다른 문서에서 가져다 쓴다.
@@ -99,7 +99,7 @@ export const PlanIdSchema = Type.Unsafe<PlanId>(Type.String({ pattern: PLAN_ID_P
 export const GoalIdSchema = Type.Unsafe<GoalId>(Type.String({ pattern: GOAL_ID_PATTERN }));
 export const ReportIdSchema = Type.Unsafe<ReportId>(Type.String({ pattern: REPORT_ID_PATTERN }));
 
-/** owner 문자열: "main", 서브에이전트 이름, 오케스트레이션 플러그인의 Registration id 등. 해석은 하지 않는다 */
+/** owner 문자열: "main", 서브에이전트 이름, 플러그인의 Registration id 등. 해석은 하지 않는다 */
 export const OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9_./:-]{0,63}$";
 export const OwnerSchema = Type.String({ pattern: OWNER_PATTERN });
 
@@ -112,7 +112,7 @@ export type ArtifactRef = Static<typeof ArtifactRefSchema>;
 ```
 
 - [제안] 작업·계획·목표·보고 ID는 ULID 접두 ID(eng.domain-types.guide DT-06)를 쓰지 않고 스레드 안 순번을 쓴다. 모델이 `task_write`에서 ID를 직접 적어야 하므로 짧아야 한다(Claude Code 작업 도구도 순번 ID를 쓴다, `_research/l2e.md` §3.1 A1). DT-06의 "외부 발급 ID는 브랜드만 붙이고 패턴은 따로 둔다" 규칙과 같은 처리다. 다른 스레드의 같은 ID와 구별할 일이 없다. 모든 조회는 스레드 범위다.
-- 호출 문맥: 서비스 메서드는 대상 스레드를 알아야 한다. 대상 스레드는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`의 `threadId`다(`L2.readme` §5.8). 도구 경로에서는 L1.tools가 도구 호출의 스레드로 채우고, 그룹 경로에서는 X의 capability 래퍼가 `HandlerContext.threadId`(F.extensions.spec §3.2)로 채운다. 없으면 `invalid_input`이다.
+- 호출 문맥: 서비스 메서드는 대상 스레드를 알아야 한다. 대상 스레드는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`의 `threadId`다(`L2.readme` §5.8). 도구 경로에서는 L1.tools가 도구 호출의 스레드로 채우고, 플러그인 경로에서는 X의 capability 래퍼가 `HandlerContext.threadId`(F.extensions.spec §3.2)로 채운다. 없으면 `invalid_input`이다.
 - 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드에 `replay: "safe"`와 `idempotent: true`를 선언한다. 계획 쓰기 메서드 여섯 개(`enterMode`, `exitMode`, `submit`, `approve`, `reject`, `revise`)는 계획 모드와 함께 삭제됐다 [결정: 2026-11-13 사용자](§3.9 표).
 
 ### 3.2 `work.tasks`
@@ -300,7 +300,7 @@ export const WorkTasksKey = serviceKey(WorkTasks);
 export function parseTaskList(text: string): readonly { id: string; status: WorkTaskStatus; label: string }[] | null;
 ```
 
-- [제안] 모델 도구는 `task_write` 하나다(`_research/l2e.md` §3.1 A1의 "도구: task_write(목록 연산)"). 결과가 전체 목록이라 조회 도구를 따로 두지 않는다. `create`, `update`, `link`, `list`는 그룹 코드와 L4 화면이 쓰는 서비스 메서드다.
+- [제안] 모델 도구는 `task_write` 하나다(`_research/l2e.md` §3.1 A1의 "도구: task_write(목록 연산)"). 결과가 전체 목록이라 조회 도구를 따로 두지 않는다. `create`, `update`, `link`, `list`는 플러그인 코드와 L4 화면이 쓰는 서비스 메서드다.
 - 상태 5종 [제안]: `pending`, `in_progress`, `completed`, `failed`, `cancelled`. omp todo의 5종 상태와 수가 같다(`_research/l2e.md` §3.1 A1). 막힘은 상태로 두지 않고 계산한다. 상태로 두면 선행 작업이 끝날 때마다 다른 작업의 상태를 고쳐야 하기 때문이다.
 - `executionMode: "sequential"`: 같은 단계에서 `task_write`가 두 번 호출되면 순서대로 적용해야 결과 목록이 결정적이다.
 - `MethodDef.errors`의 고유 코드는 `task_` 접두로 공통 코드와 겹치지 않는다(`L2.readme` §5.5).
@@ -329,7 +329,7 @@ export const GoalJudgeSpecSchema = Type.Union([
   }, { additionalProperties: false }),
   Type.Object({
     kind: Type.Literal("delegated"),
-    /** 판정을 넣을 주체의 Registration id(F.extensions.spec RegistrationId). 예: "<그룹 이름>" */
+    /** 판정을 넣을 주체의 Registration id(F.extensions.spec RegistrationId). 예: "<플러그인 이름>" */
     owner: Type.String({ minLength: 1, maxLength: 64 }),
     /** 턴이 끝난 뒤 판정을 기다리는 시간. 생략하면 설정 l2.work.goal.delegatedTimeoutSec */
     timeoutSec: Type.Optional(Type.Integer({ minimum: 1, maximum: 3600 })),
@@ -440,7 +440,7 @@ export const WorkGoalsKey = serviceKey(WorkGoals);
 
 - [결정] 모델 자가 판정은 채택하지 않는다(`_research/decisions-log.md` 2026-10-21 결정(3차) "목표 판정은 별도 판정 모델+상한", §4.3.1). 그래서 `work.goals`에는 모델 도구가 없다. `_research/l2e.md` §3.1 A5가 제안한 `goal_complete`(자가 판정일 때만)는 정의하지 않는다. 이름은 예약만 해 둔다.
 - `tools: []`는 F.capabilities.spec §4.4의 "도구 없는 기능"에 기댄다. 그 문서에서 아직 [미결]이다(`L2.readme` §10 미결 8). 허용되지 않으면 §10 W-3의 대안을 쓴다.
-- `judge` 메서드가 판정 주입 인터페이스다. 함수 객체를 넘기는 주입은 JSON 스키마로 표현할 수 없고 재개 때 다시 붙일 수도 없다. 그래서 판정 방식은 데이터(`GoalJudgeSpec`)로 목표에 기록하고, `delegated` 판정자는 턴이 끝난 뒤 `judge`로 결과를 넣는다 [제안]. L3 그룹의 기준 검사기는 이 경로로 기본 판정 모델을 대신한다(§7.3).
+- `judge` 메서드가 판정 주입 인터페이스다. 함수 객체를 넘기는 주입은 JSON 스키마로 표현할 수 없고 재개 때 다시 붙일 수도 없다. 그래서 판정 방식은 데이터(`GoalJudgeSpec`)로 목표에 기록하고, `delegated` 판정자는 턴이 끝난 뒤 `judge`로 결과를 넣는다 [제안]. L3 플러그인의 기준 검사기는 이 경로로 기본 판정 모델을 대신한다(§7.3).
 
 ### 3.5 `work.reports`
 
@@ -552,14 +552,14 @@ export const WORK_CAPABILITIES = [WorkTasks, WorkGoals, WorkReports] as const;
 
 | type | 구분 | 주요 payload | 멱등 키(커밋 `requestId`) | 소비자 |
 |---|---|---|---|---|
-| `work.task_created` | 내구 | `{ task: WorkTask, ref }` | `work:tasks:<호출 requestId>` | `cap.work` 투영, L4 작업 목록·보드, L3 그룹 |
-| `work.task_changed` | 내구 | `{ taskId, from, set, cause }` | 같음. 자동 시작은 원인 커밋의 키를 같이 쓴다 | 투영, L4, L3 그룹 |
+| `work.task_created` | 내구 | `{ task: WorkTask, ref }` | `work:tasks:<호출 requestId>` | `cap.work` 투영, L4 작업 목록·보드, L3 플러그인 |
+| `work.task_changed` | 내구 | `{ taskId, from, set, cause }` | 같음. 자동 시작은 원인 커밋의 키를 같이 쓴다 | 투영, L4, L3 플러그인 |
 | `work.task_linked` | 내구 | `{ taskId, blockedBy[] }` | `work:tasks:<호출 requestId>` | 투영, L4 그래프 |
 | `work.task_unlinked` | 내구 | `{ taskId, blockedBy[] }` | 같음 | 투영, L4 그래프 |
 | `work.plan_submitted` | 내구(옛 기록, 더는 쓰지 않음 [결정: 2026-11-13 사용자]) | 아무 값(`Type.Unknown()`, 읽기만 [결정: 2026-11-15 사용자]) | — | 투영, L4 계획 카드(읽기) |
 | `work.plan_withdrawn` | 내구(옛 기록, 더는 쓰지 않음) | 아무 값(`Type.Unknown()`, 읽기만 [결정: 2026-11-15 사용자]) | — | 투영, L4 계획 카드(읽기) |
 | `work.goal_set` | 내구 | `{ goal: Goal }`(`judgments: 0`, `status: "active"`) | `work:goals:<호출 requestId>` | 투영, L4 상태줄, schedule.loops |
-| `work.goal_judged` | 내구 | `GoalJudgment & { usage }` | `work:goal:<goalId>:judge:<turnId>` | 투영, L4, 보고 생성, L3 그룹 |
+| `work.goal_judged` | 내구 | `GoalJudgment & { usage }` | `work:goal:<goalId>:judge:<turnId>` | 투영, L4, 보고 생성, L3 플러그인 |
 | `work.goal_settled` | 내구 | `{ goalId, status, judgments }` | 종결 원인 커밋의 키 | 투영, L4, schedule.loops |
 | `work.report_built` | 내구 | `{ report: WorkReport }` | 목표 종결이면 그 커밋의 키, 직접 호출이면 `work:reports:<호출 requestId>` | 투영, L4 보고 화면, 알림(dialog.notify) |
 
@@ -885,8 +885,8 @@ export interface JudgePort {
 - `judge: { kind: "delegated", owner }` 목표는 판정 모델을 부르지 않는다. 턴이 끝나면 cap-work는 판정 대기 상태가 되고, `owner` 주체가 `work.goals.judge({ goalId, turnId, verdict })`를 부르면 그 값을 판정으로 기록한다.
 - `judge` 호출 검사: 목표가 `active`이고 `delegated`여야 한다(`goal_not_delegated`). `turnId`는 판정 대기 중인 턴이어야 한다(`goal_turn_stale`). 같은 턴의 판정이 이미 있으면 기존 판정을 돌려준다(멱등).
 - 대기 시간이 `timeoutSec`(생략하면 `l2.work.goal.delegatedTimeoutSec`)을 넘으면 판정 실패(`failure.code = "timeout"`)로 기록한다.
-- delegated 판정자(L3 그룹의 기준 검사기 등)는 `boundary.settle.after` 훅 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
-- 그룹이 판정자를 바꾸는 방법은 목표를 걸 때 `judge`를 지정하는 것뿐이다. 판정자 교체는 `set({ replace: true, judge })`다.
+- delegated 판정자(L3 플러그인의 기준 검사기 등)는 `boundary.settle.after` 훅 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
+- 플러그인이 판정자를 바꾸는 방법은 목표를 걸 때 `judge`를 지정하는 것뿐이다. 판정자 교체는 `set({ replace: true, judge })`다.
 - `owner` 확인: 다른 주체가 `judge`를 부르는 것을 막으려면 호출자 식별이 필요하다. [제안] `CallOptions.context.caller.extension`(`F.capabilities.spec` §3.2, `L2.readme` §5.8)이 `owner`와 같을 때만 받고, 다르면 `denied`다(§10 W-6).
 
 #### 4.3.5 다음 단계 시작
@@ -894,9 +894,9 @@ export interface JudgePort {
 - [결정: M3-new-02] 미충족이고 종결이 아니면 완료 게이트가 `continue: true`를 돌려주고 지시 custom 항목을 같은 단계 경계 커밋에 싣는다(§4.3.2 5번). `post`로 다음 턴을 시작하지 않는다. 지시 문장은 `goalGateDecision`이 만든 영어 문장이다(`The goal is not yet shown to be met. <rationale> Missing: <criteria>. Continue working, and show evidence for each criterion.`).
   - `customType`이 `work.` 접두가 아니고 `x.cap-work.…`인 이유: 내장 `cap-*`가 접두 없이 쓸 수 있는 것은 자기 도메인 영역의 이벤트 kind뿐이다. 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3, `F.conversation.spec` §3.5.2). `cap-work`의 확장 이름은 `cap-work`다. 경계 엔트리로는 core kind 중 custom `item.recorded`만 쓸 수 있다(`L1.loop.spec` §3.6).
 - `continuation`은 목표에 기록하는 값이다. 게이트는 `"self"`와 `"external"`을 구별하지 않고 판정과 한 단계 더 돌기만 한다. `goalId`를 가진 루프(`schedule.loops`)와의 결합(`"external"`이면 `work.goals`가 다음 턴을 투입하지 않는다)은 `L2.schedule.spec` §4.1.4가 정한다 [미결: 그 문서의 구현이 들어올 때 확인].
-- `delegated` 판정자 목표는 게이트가 판정하지 않는다. 판정이 `work.goals.judge`로 들어오면 기록하고 종결 여부를 정하지만 다음 단계를 시작하지는 않는다 [미결: 위임 판정자가 미충족 뒤 다음 턴을 시작하는 길(`post`)은 이 구현에 없다. 그룹이 `goals.status`로 결과를 읽고 자기 `drive`로 이어 간다].
+- `delegated` 판정자 목표는 게이트가 판정하지 않는다. 판정이 `work.goals.judge`로 들어오면 기록하고 종결 여부를 정하지만 다음 단계를 시작하지는 않는다 [미결: 위임 판정자가 미충족 뒤 다음 턴을 시작하는 길(`post`)은 이 구현에 없다. 플러그인이 `goals.status`로 결과를 읽고 자기 `drive`로 이어 간다].
 - `goals.status`는 `goalId`가 없으면 활성 목표를 돌려주고 없으면 `null`이다. `closed: true`를 주면 활성이 없을 때 가장 최근에 건 목표(달성·상한·해제로 끝난 것)를 돌려준다. 상태 막대 목표 칸이 끝난 목표의 결과를 보이려고 쓴다 [결정: 오케스트레이터 기본값, rtG]. 시험: `test/goals-service.int.test.ts`.
-- 위임 판정의 대기 시간 제한(`l2.work.goal.delegatedTimeoutSec`)은 이 구현에 없다 [미결: 타이머 주체와 `failure.code = "timeout"` 기록은 위임 판정자를 쓰는 그룹이 생길 때 정한다].
+- 위임 판정의 대기 시간 제한(`l2.work.goal.delegatedTimeoutSec`)은 이 구현에 없다 [미결: 타이머 주체와 `failure.code = "timeout"` 기록은 위임 판정자를 쓰는 플러그인이 생길 때 정한다].
 - `schedule.loops`는 `work.goals`를 선택 의존으로 쓴다(`L2.readme` §6). 루프 종료 조건으로 목표 판정을 쓰는 방법은 `L2.schedule.spec` §4.1.4가 정한다.
 
 #### 4.3.6 판정 실패 정책
@@ -908,13 +908,13 @@ export interface JudgePort {
 ### 4.4 완료 보고
 
 1. 보고는 턴 결과 형식이다. 모델 도구가 없고 모델이 보고를 쓰지 않는다.
-2. 목표가 종결되면(`met`, `limit_reached`, `judge_failed`, `cleared`) cap-work가 같은 커밋에 `work.report_built`를 넣는다. 그룹이나 L4는 `reports.build`로 턴 단위 보고를 따로 만들 수 있다.
+2. 목표가 종결되면(`met`, `limit_reached`, `judge_failed`, `cleared`) cap-work가 같은 커밋에 `work.report_built`를 넣는다. 플러그인이나 L4는 `reports.build`로 턴 단위 보고를 따로 만들 수 있다.
 3. `summary` 생성 규칙 [제안]: 호출자가 준 값이 있으면 그대로 쓴다(4,000자까지). 없으면 목표 보고는 마지막 판정의 `reason`이다. 목표 종결은 turn 정착 직전에 일어나 마지막 turn의 최종 텍스트가 아직 기록 전이라 목표 보고에 넣지 않는다. 턴 보고는 그 turn의 마지막 어시스턴트 텍스트 앞부분이다(합계 4,000자 이하). 요약을 위해 모델을 따로 부르지 않는다. 판정 모델이 이미 결과를 읽었고 추가 비용을 들이지 않으려는 것이다.
 4. `resources.agent`는 대상 범위 턴들의 `turn.completed.usage` 합계, `resources.judge`는 `work.goal_judged.usage` 합계, `durationMs`는 범위 첫 이벤트와 마지막 이벤트의 `recordedAt` 차이다. 범위는 목표면 `work.goal_set`부터 종결 커밋까지, 턴이면 그 턴이다.
 5. `remaining.tasks`는 `pending`, `in_progress`, `failed` 작업(최대 100개)이다.
 6. `artifacts`는 호출자가 준 목록이다. `artifacts.registry`의 범위 조회와 합치는 규칙은 `L2.artifacts.spec`이 범위 조회를 제공할 때 더한다 [미결: 이 구현에 없다. 목표 종결 보고의 산출물은 비어 있다].
 7. `plan`은 항상 `null`이다. 계획 기록이 없어져 범위 안의 결정된 계획을 찾을 곳이 없다. 칸은 옛 보고를 읽으려고 타입에 남긴다 [결정: 2026-11-15 사용자]. [근거: 2026-11-15 사용자 결정]
-8. 보고는 `work.report_built` 이벤트로 남아 다른 소비자(L4 보고 화면, `dialog.notify`의 완료 알림, 학습 그룹)가 읽는다.
+8. 보고는 `work.report_built` 이벤트로 남아 다른 소비자(L4 보고 화면, `dialog.notify`의 완료 알림, 학습 플러그인)가 읽는다.
 
 ### 4.5 재개
 
@@ -944,7 +944,7 @@ export interface JudgePort {
 8. (삭제됨 [결정: 2026-11-13 사용자]) 계획 산출물 등록은 없다. [근거: 2026-11-13 사용자 결정]
 9. 판정 모델이 조건과 관계없는 답을 냄: 스키마는 통과하면 판정으로 기록한다. 판정 품질은 이 계약의 범위 밖이다. 상한이 비용을 막는다.
 10. `l1.agents.judge.maxRuns`보다 많은 판정 시도: 상한에 이른 목표는 종결이므로 더 판정하지 않는다. `judge` 호출은 `goal_closed`다.
-11. 목표가 있는 스레드에서 drive 그룹이 켜짐: 판정은 계속하고 post만 멈춘다(§4.3.5).
+11. 목표가 있는 스레드에서 Drive를 맡는 플러그인이 켜짐: 판정은 계속하고 post만 멈춘다(§4.3.5).
 12. 투영 테이블 손상: 재생성으로 복구한다(eng.events.design §5.4). 순번 카운터는 재생성 뒤 다시 채운다.
 13. 되감기로 목표 설정 이전으로 돌아감: §4.1.5의 재생성 방식에서는 활성 가지에 `work.goal_set`이 없으므로 목표가 없다. 되감은 가지에서 남은 post는 L1.tasks의 입력 큐 규칙을 따른다.
 
@@ -1018,8 +1018,8 @@ export const manifest = defineManifest({
 
 ### 7.3 L3와의 관계
 
-- L3 그룹은 작업 생성(`work.tasks.create`), 목표 판정 대체(`judge: { kind: "delegated", owner: "<그룹 이름>" }` + `work.goals.judge`)를 쓸 수 있다. 모두 서비스 경로이고 그룹은 `cap-work`를 import하지 않는다.
-- drive를 쓰지 않는 그룹은 `work.*` 이벤트를 읽기만 할 수 있다(예: 실패 작업 수를 세는 투영).
+- L3 플러그인은 작업 생성(`work.tasks.create`), 목표 판정 대체(`judge: { kind: "delegated", owner: "<플러그인 이름>" }` + `work.goals.judge`)를 쓸 수 있다. 모두 서비스 경로이고 플러그인은 `cap-work`를 import하지 않는다.
+- drive를 쓰지 않는 플러그인은 `work.*` 이벤트를 읽기만 할 수 있다(예: 실패 작업 수를 세는 투영).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1027,9 +1027,9 @@ export const manifest = defineManifest({
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `WorkTasks`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
+| `WorkTasks`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 플러그인 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
 | `WorkTaskId`, `PlanId`, `GoalId`, `ReportId`와 스키마, `WorkTask`, `WorkTaskView`, `Goal`, `GoalJudgment`, `GoalVerdict`, `GoalJudgeSpec`, `WorkReport`, `ArtifactRef`(work 쪽 사본) | L3, L4, L2.dialog.spec(알림), L2.schedule.spec |
-| `work.*` 이벤트 10종(`WORK_EVENT_CATALOG`) | eng.events.design 카탈로그, L4, L3 그룹, L2.dialog.spec(알림) |
+| `work.*` 이벤트 10종(`WORK_EVENT_CATALOG`) | eng.events.design 카탈로그, L4, L3 플러그인, L2.dialog.spec(알림) |
 | 설정 `l2.work.*` 3개 | L4.settings-ui.spec |
 | 명령 `/goal`, `/tasks` | L2.dialog.spec, L4.cli.spec |
 
@@ -1070,7 +1070,7 @@ export const manifest = defineManifest({
 - W-3 [미결] 도구 없는 기능(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 기능의 메서드를 `work.tasks`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
-- W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
+- W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 플러그인 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 플러그인 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
 - W-7 닫힘 [결정: review.m3-design-inputs D-M3-15]: 판정 실패는 `stop`이다(§4.3.6). 설정 `l2.work.goal.onJudgeError`는 [결정: 키를 지운다. 게이트가 값을 읽지 않았고 정책이 `stop`으로 닫혔으므로 설정이 필요 없다. §6.1 표에서도 뺐다].
 - W-8 [삭제됨 [결정: 2026-11-13 사용자]] `l2.work.plans.*` 키와 그 탭 배치 질문. 키가 없다. [근거: 2026-11-13 사용자 결정]
 - W-9 [결정: 2026-11-04 사용자 B16] `work.reports` 마일스톤. 결정(D-M3-30 행 2)대로 M3에서 `work.goals`와 같은 커밋(d74e980c)으로 구현했다. 배치와 구현이 일치한다. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이고 사용자가 인정했다(`L2.readme` §10 17번).

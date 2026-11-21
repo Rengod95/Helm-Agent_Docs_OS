@@ -23,7 +23,7 @@ binds: [xeon/packages/core-context/**]
 | M0 | 코드 없음. 선행: contracts에 `L1.context.spec` §3.1 F 요청 타입(`ContextServiceName`, `ContextService`, `AssembleOptions`, `AssembledContext`)과 `L1.models.spec`의 `CachePolicy`, `ModelBinding`, `ContextUsageEstimate`가 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | 최소 조립: 고정 접두(기본 프롬프트 + 대화 메시지 + `orderTools` 정렬 도구 목록), 접두 system item 기록, `convertToLlm`, 훅 `context`. 오버플로우는 `recoverOverflow`가 `fail(disabled)`를 돌려주고 core-loop가 명확한 오류로 턴을 끝낸다 | `_research/foundation-plan.md` §5 P4 M1, `L1.context.spec` §4.7 6번 |
 | M2 | 컴팩션 포크(컷 포인트, 요약, 임계, 비파괴 엔트리), 오버플로우 복구, 캐시 표식, 도구 변경 `SystemMessage`, 절 갱신, 모델 전환 경고, 훅 나머지 5개(`request.cache.before`은 선언만), 떠난 가지 요약 초안, 설정 `l1.context.*` | 계획 v2 L1-e 1차 행 |
-| M3 | 없음(M2 결과를 Helm·학습 그룹 테이프로 다듬기만 한다) | — |
+| M3 | 없음(M2 결과를 Helm·학습 플러그인 테이프로 다듬기만 한다) | — |
 | 2차(M3 이후) | 도구 결과 선제 제거, 컴팩션 후 재주입, 추가 워크스페이스 루트, 캐시 워밍 | 계획 v2 L1-e 2차 행 |
 
 ## 2. 패키지와 파일 배치

@@ -50,7 +50,7 @@ binds: []
 | `like_scan_2char_20000_docs` | 2글자 질의의 대화 LIKE 탐색(문서 20,000개 전체 훑기) | 23~28 ms | 30 ms | 참고 | 없음 | M3-REQ-98 | 참고 수치(indicative) |
 | `index_fit_<N>_skills` | 8,000자 예산에 실리는 스킬 수(설명 160자) | 33개(N≥40) | 해당 없음 | 참고 | 없음 | M3-REQ-98 | 참고 수치(indicative) |
 | `index_fit_<N>_skills_desc60` | 같은 예산에 설명 60자일 때 | 57개(N≥80) | 해당 없음 | 참고 | 없음 | M3-REQ-98 | 참고 수치(indicative) |
-| `lease_turn_overhead` | drive 락을 쓰는 그룹이 있을 때 turn당 추가 시간(메모리 호스트, 저장소 I/O 없음) | 0.017~0.022 ms | 0.07~0.08 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-41 | 참고 수치(indicative) |
+| `lease_turn_overhead` | drive 락을 쓰는 플러그인이 있을 때 turn당 추가 시간(메모리 호스트, 저장소 I/O 없음) | 0.017~0.022 ms | 0.07~0.08 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-41 | 참고 수치(indicative) |
 | `lease_records_per_turn` | turn당 추가 기록(`lease.acquired`·`lease.released`) | 0.667개 | 해당 없음 | 참고 | 없음 | M3-REQ-41 | 참고 수치(indicative) |
 | `dispatch_overhead_per_handler` | 빈 tap 핸들러 하나를 예산 정책(`OperationsPolicy`)으로 돌린 시간 − 정책 없는 시간 | 0 ms(−0.004~0.000) | 0.013 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-40 | 참고 수치(indicative) |
 | `store_commit_event` | 사용자 item 이벤트 커밋 1건(`synchronous=FULL`, WAL, 디스크) | 5.4~7.0 ms | 12.7 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-64, M3-29 | 참고 수치(indicative) |

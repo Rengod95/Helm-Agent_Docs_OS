@@ -8,26 +8,26 @@ depends_on: [L3.group-sdk.spec, L3.helm.spec, L3.learning.spec, L3.slots.spec, L
 binds: [xeon/packages/orchestration-sdk/**, xeon/packages/plugin-helm/**, xeon/packages/plugin-learning/**, xeon/packages/plugin-guide/**]
 ---
 
-# L3 오케스트레이션 플러그인 층
+# L3 플러그인 층
 
 ## 1. 목적
 
-L3는 훅 4연산(`on`, `post`, `drive`, `register`)과 L2 기능을 묶어 하나의 사상(의도)을 코드 수준으로 루프에 적용하는 그룹 플러그인 층이다. 오케스트레이션 플러그인은 Registration 여럿으로 이루어지고, 루프를 직접 구동하려면 `drive`를 등록해 drive 락을 받는다(`_research/layer-plan-v2.json` L3 intro).
+L3는 훅 4연산(`on`, `post`, `drive`, `register`)과 L2 기능을 묶어 하나의 사상(의도)을 코드 수준으로 루프에 적용하는 플러그인 층이다. 플러그인은 Registration 여럿으로 이루어지고, 루프를 직접 구동하려면 `drive`를 등록해 drive 락을 받는다(`_research/layer-plan-v2.json` L3 intro).
 
-그룹이 필요한 이유:
+Drive 플러그인이 필요한 이유:
 
 - [결정] Helm(탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 발견 지원)을 스킬이나 일반 플러그인으로 두면 모델에 강제력이 없다. 스킬은 프롬프트에 들어가는 지시문이라 모델이 따르지 않아도 막을 수단이 없다. 그래서 코드 수준에서 루프를 제어한다. 제2의 Helm 같은 사상도 루프에 붙였다 뗄 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 사용자 의중, `product.vision.spec` §7.1).
-- [결정] 기능 중심 층(실행, 통합, 멀티에이전트, 지식)은 거의 바뀌지 않는 코어 플러그인으로 두고, Helm 같은 커스텀 기능과 사상은 그 위에 의도 중심 그룹 플러그인으로 얹는다(`_research/decisions-log.md` 2026-10-21 구상 변경).
-- 그룹이 루프를 제어하는 방식은 셋이다. `on`(fold first)으로 도구 호출을 거부하고, `on`(fold chain)으로 모델 요청을 형성하고, `drive`로 턴을 직접 구동한다(`product.vision.spec` §7.1).
-- 스킬이나 일반 플러그인으로 충분한 기능은 그룹으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(`product.vision.spec` §5).
+- [결정] 기능 중심 층(실행, 통합, 멀티에이전트, 지식)은 거의 바뀌지 않는 코어 플러그인으로 두고, Helm 같은 커스텀 기능과 사상은 그 위에 의도 중심 플러그인으로 얹는다(`_research/decisions-log.md` 2026-10-21 구상 변경).
+- Drive 플러그인이 루프를 제어하는 방식은 셋이다. `on`(fold first)으로 도구 호출을 거부하고, `on`(fold chain)으로 모델 요청을 형성하고, `drive`로 턴을 직접 구동한다(`product.vision.spec` §7.1).
+- 스킬이나 일반 플러그인으로 충분한 기능은 Drive 플러그인으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 Drive 플러그인을 쓴다(`product.vision.spec` §5).
 
 이 층이 제공하는 것:
 
 | 제공물 | 내용 |
 |---|---|
-| 그룹 기반 | `orchestration-sdk`. `defineOrchestration`, 오케스트레이션 서비스 `fresnel.orchestration`, drive 락 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
-| 기본 오케스트레이션 플러그인 둘 | Helm(`plugin-helm`, drive 사용), 학습 그룹(`plugin-learning`, drive 미사용). 함께 켤 수 있다. 학습 그룹은 내장 그룹이고, Helm은 같은 L3 그룹 코드를 기본 오케스트레이션 플러그인으로 배포한다 [결정: review.m3-design-inputs D-M3-01] |
-| 추가 그룹 슬롯 | `slots`. 코드 없음. 제2의 오케스트레이션 플러그인 기준, 정책 플러그인 정식 예, 그룹 템플릿을 문서로 정한다 |
+| Drive 플러그인 기반 | `orchestration-sdk`. `defineOrchestration`, 오케스트레이션 서비스 `fresnel.orchestration`, drive 락 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
+| 기본 플러그인 둘 | Helm(`plugin-helm`, drive 사용), 학습 플러그인(`plugin-learning`, drive 미사용). 함께 켤 수 있다. 학습 플러그인은 내장 플러그인이고, Helm은 같은 L3 플러그인 코드를 기본 플러그인으로 배포한다 [결정: review.m3-design-inputs D-M3-01] |
+| 추가 플러그인 슬롯 | `slots`. 코드 없음. 제2의 플러그인 기준, 정책 플러그인 정식 예, 플러그인 템플릿을 문서로 정한다 |
 
 이 문서의 표는 공통 확정 이름과 네 도메인 spec(`L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec`, `L3.slots.spec`)의 현재 본문을 기준으로 맞췄다. 도메인 spec이 바뀌면 이 표를 함께 고친다.
 
@@ -37,28 +37,28 @@ L3는 훅 4연산(`on`, `post`, `drive`, `register`)과 L2 기능을 묶어 하�
 
 | 도메인 | 이름 | 계획 v2 | 패키지 경로 | 문서 | 마일스톤 | drive |
 |---|---|---|---|---|---|---|
-| orchestration-sdk | 그룹 기반 | L3-a | `xeon/packages/orchestration-sdk` | `L3.group-sdk.spec`, `L3.group-sdk.plan` | M1 테스트 그룹(on·post·drive), M2 본체, 2차 재생 검사·승격·계측 | 제공(drive 락 정책). 자신은 쓰지 않는다. M1 테스트 그룹은 쓴다 |
-| helm | Helm (기본 오케스트레이션 플러그인) | L3-b | `xeon/packages/plugin-helm` | `L3.helm.spec`, `L3.helm.plan` | M2 | 쓴다 |
-| learning | 학습 그룹 (빌트인에서 뺌, 2026-11-18. 재설계 재료) | L3-c | `xeon/packages/plugin-learning` | `L3.learning.spec`, `L3.learning.plan` | M3(Helm과 공존), 2차 큐레이터·학습 이력·스크립트 제안 | 쓰지 않는다 [결정] |
-| authoring | 플러그인 빌더 (내장 그룹, 기본 켜짐·도구 지연) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-builder` (파일 일은 `xeon/packages/core-authoring`, `L1.authoring.spec`) | `L3.authoring.spec` | M4 | 쓴다 |
-| guide | Fresnel Guide (내장 그룹, 기본 꺼짐·개발 모드에서 켜짐) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-guide` | `L3.guide.spec` | - | 쓰지 않는다 |
-| slots | 추가 그룹 슬롯 | L3-d | 없음(코드 없음, 템플릿 문서만) | `L3.slots.spec`, `L3.slots.plan` | 2차(세 항목 모두) | 템플릿 종류에 따른다(drive 템플릿만 쓴다) |
+| orchestration-sdk | Drive 플러그인 기반 | L3-a | `xeon/packages/orchestration-sdk` | `L3.group-sdk.spec`, `L3.group-sdk.plan` | M1 테스트 플러그인(on·post·drive), M2 본체, 2차 재생 검사·승격·계측 | 제공(drive 락 정책). 자신은 쓰지 않는다. M1 테스트 플러그인은 쓴다 |
+| helm | Helm (기본 플러그인) | L3-b | `xeon/packages/plugin-helm` | `L3.helm.spec`, `L3.helm.plan` | M2 | 쓴다 |
+| learning | 학습 플러그인 (빌트인에서 뺌, 2026-11-18. 재설계 재료) | L3-c | `xeon/packages/plugin-learning` | `L3.learning.spec`, `L3.learning.plan` | M3(Helm과 공존), 2차 큐레이터·학습 이력·스크립트 제안 | 쓰지 않는다 [결정] |
+| authoring | 플러그인 빌더 (내장 플러그인, 기본 켜짐·도구 지연) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-builder` (파일 일은 `xeon/packages/core-authoring`, `L1.authoring.spec`) | `L3.authoring.spec` | M4 | 쓴다 |
+| guide | Fresnel Guide (내장 플러그인, 기본 꺼짐·개발 모드에서 켜짐) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-guide` | `L3.guide.spec` | - | 쓰지 않는다 |
+| slots | 추가 플러그인 슬롯 | L3-d | 없음(코드 없음, 템플릿 문서만) | `L3.slots.spec`, `L3.slots.plan` | 2차(세 항목 모두) | 템플릿 종류에 따른다(drive 템플릿만 쓴다) |
 
-- [결정] 마일스톤 M1은 테스트용 그룹이 on/post/drive를 쓰는 것까지다(`_research/foundation-plan.md` §5 P4). M2·M3 배치는 `product.scope.spec` §4.3의 [제안]을 따른다.
-- [결정] 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임으로 돌린다(`_research/decisions-log.md` 2026-10-21 계획 v2, `F.extensions.spec` §4.6).
+- [결정] 마일스톤 M1은 테스트용 플러그인이 on/post/drive를 쓰는 것까지다(`_research/foundation-plan.md` §5 P4). M2·M3 배치는 `product.scope.spec` §4.3의 [제안]을 따른다.
+- [결정] 학습 플러그인은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임으로 돌린다(`_research/decisions-log.md` 2026-10-21 계획 v2, `F.extensions.spec` §4.6).
 
 도메인별 요약(각 spec §1 기준):
 
-- orchestration-sdk: `defineOrchestration`으로 그룹을 선언하고(매니페스트, 선택 상태 스키마, 설정 스키마), `OrchestrationApi<S>`(= F `RegistrationApi<S>` + `settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`)를 그룹에 준다. `OrchestrationService`(`fresnel.orchestration`, 타입은 F `services/groups.ts`)가 그룹 목록, 켜기·끄기 요청, 상태(`OrchestrationStatus`), drive 락 정책(`DriveArbiter`를 F `DriveLockArbiterPort`로 제공)을 맡는다. drive 락 메커니즘(부여, 반납, 상한 집행, 재호출, drive 락 이벤트)은 `X.primitives.spec`이 맡는다. 2차에 재생 규율 검사(`replayDrive` 확장, `scanDriveSource`), 승격, 계측을 더한다.
-- helm: 탐구 신호 감지(tap), 관점·방법 주입(chain, post), 탐구 구동(drive, 병렬 서브에이전트), 지식 소비(L2 기능과 학습 그룹 레코드 읽기), 발견 기록과 작업 연결이다.
+- orchestration-sdk: `defineOrchestration`으로 플러그인을 선언하고(매니페스트, 선택 상태 스키마, 설정 스키마), `OrchestrationApi<S>`(= F `RegistrationApi<S>` + `settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`)를 플러그인에 준다. `OrchestrationService`(`fresnel.orchestration`, 타입은 F `services/groups.ts`)가 플러그인 목록, 켜기·끄기 요청, 상태(`OrchestrationStatus`), drive 락 정책(`DriveArbiter`를 F `DriveLockArbiterPort`로 제공)을 맡는다. drive 락 메커니즘(부여, 반납, 상한 집행, 재호출, drive 락 이벤트)은 `X.primitives.spec`이 맡는다. 2차에 재생 규율 검사(`replayDrive` 확장, `scanDriveSource`), 승격, 계측을 더한다.
+- helm: 탐구 신호 감지(tap), 관점·방법 주입(chain, post), 탐구 구동(drive, 병렬 서브에이전트), 지식 소비(L2 기능과 학습 플러그인 레코드 읽기), 발견 기록과 작업 연결이다.
 - learning: 학습 트리거(카운터 관찰), 검토 포크(`OrchestrationApi.delegate`로 L1 백그라운드 위임), 승인 대기열, 2차의 큐레이터·학습 이력·스크립트 제안이다. 저장은 L2 knowledge가 소유한다.
-- slots: 제2의 오케스트레이션 플러그인 판정 기준과 추가 체크리스트, 정책 플러그인(drive 없이 on과 post만 쓰는 작은 그룹)의 정식 예 3종, 그룹 템플릿 3종이다.
+- slots: 제2의 플러그인 판정 기준과 추가 체크리스트, 정책 플러그인(drive 없이 on과 post만 쓰는 작은 플러그인)의 정식 예 3종, 플러그인 템플릿 3종이다.
 
 ## 3. 패키지 배치
 
 ```mermaid
 flowchart TD
-  subgraph L3["L3 오케스트레이션 플러그인"]
+  subgraph L3["L3 플러그인"]
     kit["orchestration-sdk<br/>defineOrchestration · fresnel.orchestration · DriveArbiter"]
     helm["plugin-helm"]
     learn["plugin-learning"]
@@ -88,12 +88,12 @@ flowchart TD
 | 간선 | 판정 | 근거 |
 |---|---|---|
 | `plugin-helm`, `plugin-learning` → `orchestration-sdk` | 허용 [결정: review.decisions-2 U-15]. 허용 목록 `DR-02/orchestration-sdk`(`from`은 `packages/plugin-*`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
-| `orchestration-sdk` → 다른 그룹 | 금지 | DR-02 (b) "orchestration-sdk은 다른 그룹을 import하지 않는다" |
-| 그룹 ↔ 그룹 (`plugin-helm` ↔ `plugin-learning`, 외부 그룹 포함) | 금지 [결정] | `F.extensions.spec` §4.8, `eng.context-map.design` CM-06 |
+| `orchestration-sdk` → 다른 플러그인 | 금지 | DR-02 (b) "orchestration-sdk은 다른 그룹을 import하지 않는다" |
+| 플러그인 ↔ 플러그인 (`plugin-helm` ↔ `plugin-learning`, 외부 플러그인 포함) | 금지 [결정] | `F.extensions.spec` §4.8, `eng.context-map.design` CM-06 |
 | L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 기능은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
-| L3 → X `ext-host` | `orchestration-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `OrchestrationApi`로 받는다 | DR-01, DR-14 |
-| L3 → L0 `platform-*` | DR-15로 소스 import 금지(시험 파일 예외). 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-15, DR-14 나쁜 예 |
+| L3 → X `ext-host` | `orchestration-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 플러그인 패키지는 X 타입을 F에서 가져오고, 연산은 `OrchestrationApi`로 받는다 | DR-01, DR-14 |
+| L3 → L0 `platform-*` | DR-15로 소스 import 금지(시험 파일 예외). 플러그인은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-15, DR-14 나쁜 예 |
 | L3 → L1 `core-*` | DR-15로 소스 import 금지(시험 파일 예외). `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-15, DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
 | 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
@@ -111,17 +111,17 @@ flowchart TD
 
 | 대상 | 규칙 | 정본 |
 |---|---|---|
-| 그룹 이름(확장 이름) | 기본 그룹 `helm`, `learning`. 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음)을 따른다 [결정: review.decisions-2 U-18]. 밑줄을 금지하므로 테이블 접두의 경계를 하나로 읽는다 | `L3.group-sdk.spec` §3.2 `ORCHESTRATION_NAME_PATTERN`, `L3.slots.spec` §3.3 |
+| 플러그인 이름(확장 이름) | 기본 플러그인 `helm`, `learning`. 플러그인 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음)을 따른다 [결정: review.decisions-2 U-18]. 밑줄을 금지하므로 테이블 접두의 경계를 하나로 읽는다 | `L3.group-sdk.spec` §3.2 `ORCHESTRATION_NAME_PATTERN`, `L3.slots.spec` §3.3 |
 | 예약 이름 | 정본은 `RESERVED_ORCHESTRATION_NAMES`(`L3.group-sdk.spec` §3.2): `core`, `cap`, `xh`, `sys`, `p`, `ext`, `grp`, `x`, `fresnel`, L2 도메인 이름(`workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`), `auto`, `all`, `none`, `group`, `groups`, `kit`. 설치된 확장 이름과의 충돌은 `name_conflict`로 따로 거부한다 | `L3.group-sdk.spec` §3.2, `eng.context-map.design` §5.2, `F.extensions.spec` §4.7 `name_reserved` |
-| Registration id | 루트 플러그인(id 없음)의 Registration id는 그룹 이름. id가 있는 플러그인은 `<그룹>/<플러그인 id>`(`REGISTRATION_ID_PATTERN`) | `F.extensions.spec` §3.1 |
-| 그룹 레코드 kind | `grp.<그룹>.<영역>.<이름>`(`RecordKind`, 4마디) | `F.extensions.spec` §3.6 |
+| Registration id | 루트 플러그인(id 없음)의 Registration id는 플러그인 이름. id가 있는 플러그인은 `<플러그인 이름>/<플러그인 id>`(`REGISTRATION_ID_PATTERN`) | `F.extensions.spec` §3.1 |
+| 플러그인 레코드 kind | `grp.<플러그인>.<영역>.<이름>`(`RecordKind`, 4마디) | `F.extensions.spec` §3.6 |
 | 커스텀 메시지 `customType` | 레코드 kind와 같은 형식 | `F.extensions.spec` §3.2 `PostItem` |
-| 비공개 기록 kind | `grp.<그룹>.<영역>.<이름>`. X `RegistrationApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹은 조회하지 못한다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유) [결정: review.decisions-2 T-21] | `X.primitives.spec` §4.6.1, `L3.group-sdk.spec` §3.2 |
-| 비공개 테이블 | `x_<그룹의 하이픈을 밑줄로>_<지역 이름>`. 지역 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `eng.context-map.design` §5.2, `X.operations.spec` |
-| 설정 키(기본 그룹·orchestration-sdk) | `l3.<도메인>.<이름>` | `F.wire-settings.spec` §3.8.1, §3.8.3 규칙 3 |
-| 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
-| 명령 | `/group …`(orchestration-sdk), `/<그룹 이름> …`(각 그룹) | `L3.group-sdk.spec`, 각 그룹 spec |
-| 서비스 이름 | `fresnel.orchestration`(`OrchestrationService`, orchestration-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다. 중재 포트 `DriveLockArbiterPort`는 E3에서 걷었다(drive-isolation.md 2.2) [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
+| 비공개 기록 kind | `grp.<플러그인>.<영역>.<이름>`. X `RegistrationApi.recordPrivate(kind, payload)`로 쓰고 다른 플러그인은 조회하지 못한다. 상태 이벤트는 `grp.<플러그인>.state.committed`(X 소유) [결정: review.decisions-2 T-21] | `X.primitives.spec` §4.6.1, `L3.group-sdk.spec` §3.2 |
+| 비공개 테이블 | `x_<플러그인의 하이픈을 밑줄로>_<지역 이름>`. 지역 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `eng.context-map.design` §5.2, `X.operations.spec` |
+| 설정 키(기본 플러그인·orchestration-sdk) | `l3.<도메인>.<이름>` | `F.wire-settings.spec` §3.8.1, §3.8.3 규칙 3 |
+| 설정 키(외부 플러그인) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 플러그인도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
+| 명령 | `/group …`(orchestration-sdk), `/<플러그인 이름> …`(각 플러그인) | `L3.group-sdk.spec`, 각 플러그인 spec |
+| 서비스 이름 | `fresnel.orchestration`(`OrchestrationService`, orchestration-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다. 중재 포트 `DriveLockArbiterPort`는 E3에서 걷었다(drive-isolation.md 2.2) [결정: review.decisions-2 D-04]. 플러그인은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
 | 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
@@ -133,7 +133,7 @@ flowchart TD
 | helm 레코드(작성) | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` |
 | learning 레코드(작성) | `grp.learning.skill.proposed`, `grp.learning.skill.approved`, `grp.learning.skill.rejected`, `grp.learning.skill.applied`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished`, (2차) `grp.learning.script.proposed` |
 | 레코드 읽기 | helm과 learning은 서로의 레코드를 읽지 않는다. 두 매니페스트의 `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10] |
-| orchestration-sdk 설정 | `l3.orchestration.instrumentation`, `l3.orchestration.statusLine`. 구동 그룹을 고르는 키는 없다. 주도는 주도 시작 명령, 프로필의 시작 설정(`startDrive`), 맨 위 프레임의 맡기기로 받는다 [근거: drive-isolation.md 2.2] |
+| orchestration-sdk 설정 | `l3.orchestration.instrumentation`, `l3.orchestration.statusLine`. Drive 플러그인을 고르는 키는 없다. 주도는 주도 시작 명령, 프로필의 시작 설정(`startDrive`), 맨 위 프레임의 맡기기로 받는다 [근거: drive-isolation.md 2.2] |
 | helm 설정 | `l3.helm.autoStart`, `l3.helm.driveLimits`, `l3.helm.maxLenses`, `l3.helm.writeGuard` |
 | learning 설정 | `l3.learning.trigger.userTurns`, `l3.learning.trigger.toolIterations`, `l3.learning.review.maxIterations`, `l3.learning.review.tokenBudget`, `l3.learning.review.model`, `l3.learning.approval.required`, `l3.learning.scan.enabled`, `l3.learning.queue.expiryDays`, `l3.learning.curator.enabled`, `l3.learning.curator.intervalHours`, `l3.learning.curator.minIdleHours`, `l3.learning.curator.llmConsolidate` |
 | 명령 | `/group status`, `/group on <id>`, `/group off <id>`, `/group drive <id\|auto>`; `/helm start`, `/helm stop`, `/helm status`; `/learning queue`, `/learning review`, `/learning history` |
@@ -143,23 +143,23 @@ flowchart TD
 
 ## 5. 소비 지도
 
-그룹이 소비하는 것(각 그룹 spec의 매니페스트 `plugins[]`의 `hooks`, `requires`, `optional`, `readsRecordKinds` 기준):
+플러그인이 소비하는 것(각 플러그인 spec의 매니페스트 `plugins[]`의 `hooks`, `requires`, `optional`, `readsRecordKinds` 기준):
 
-| 그룹 | F 타입 | X 연산 | L1 서비스 | L2 기능 | 다른 그룹 레코드 |
+| 플러그인 | F 타입 | X 연산 | L1 서비스 | L2 기능 | 다른 플러그인 레코드 |
 |---|---|---|---|---|---|
-| orchestration-sdk | `ExtensionManifest`, `validateManifest`, `RegistrationApi`, `DriveFn`, `LoopHandle`, `DriveLock`, `DriveLimits`, `SettingDef`, `defineSettings` | `register`(그룹 등록), `drive` 등록 전달, `DriveLockArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `fresnel.ext`, `fresnel.agents`(`delegate` 구현) | 없음 | 없음 |
+| orchestration-sdk | `ExtensionManifest`, `validateManifest`, `RegistrationApi`, `DriveFn`, `LoopHandle`, `DriveLock`, `DriveLimits`, `SettingDef`, `defineSettings` | `register`(플러그인 등록), `drive` 등록 전달, `DriveLockArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `fresnel.ext`, `fresnel.agents`(`delegate` 구현) | 없음 | 없음 |
 | helm | `RegistrationApi`, `LoopHandle`, `SpawnSpec`, `OrchestrationRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`thread.start`), `post`, `drive`, `register` | `fresnel.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
 | learning | `RegistrationApi`, `OrchestrationRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`, `thread.start`), `post` 선언, `register`. chain·first·drive 없음 | `fresnel.agents`(`OrchestrationApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
 | slots 템플릿 | 위와 같은 F 타입 | 템플릿 종류에 따른다 | 선택 | 선택 | 선택 |
 
-그룹 사이 통신:
+플러그인 사이 통신:
 
-| 쓰는 그룹 | 레코드 kind | 읽는 그룹 | 읽는 방법 | 표지 |
+| 쓰는 플러그인 | 레코드 kind | 읽는 플러그인 | 읽는 방법 | 표지 |
 |---|---|---|---|---|
 | learning | `grp.learning.*` 8종 | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
 | helm | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
 
-그룹 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정: review.decisions-2 D-10]. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 기능을 거쳐 helm에 전달된다.
+플러그인 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정: review.decisions-2 D-10]. 학습 플러그인이 적용한 스킬과 메모리는 L2 지식 기능을 거쳐 helm에 전달된다.
 
 ```mermaid
 flowchart LR
@@ -174,8 +174,8 @@ flowchart LR
   helm -. "직접 호출·import 없음" .- learn
 ```
 
-- [결정] 그룹끼리 직접 참조하지 않는다(`F.extensions.spec` §4.8). 다른 그룹의 레코드도 읽지 않는다 [결정: review.decisions-2 D-10].
-- [제안] 그룹은 다른 그룹을 서비스로도 부르지 않는다. 두 그룹이 같은 기능을 필요로 하면 그 기능을 L2로 옮긴다(`eng.context-map.design` CM-06, 3절 협력 규칙 6·7).
+- [결정] 플러그인끼리 직접 참조하지 않는다(`F.extensions.spec` §4.8). 다른 플러그인의 레코드도 읽지 않는다 [결정: review.decisions-2 D-10].
+- [제안] 플러그인은 다른 플러그인을 서비스로도 부르지 않는다. 두 플러그인이 같은 기능을 필요로 하면 그 기능을 L2로 옮긴다(`eng.context-map.design` CM-06, 3절 협력 규칙 6·7).
 
 ## 6. 층 경계
 
@@ -183,12 +183,12 @@ flowchart LR
 
 | # | 규칙 | L3 적용 | 표지 | 강제 수단 |
 |---|---|---|---|---|
-| 2 | L3 그룹은 L2 기능의 정의(F3)만 참조하고 provider 구현은 모른다 | 그룹은 `cap-*`를 import하지 않고 `g.capability(ServiceKey)`로 쓴다. 쓰는 기능은 매니페스트 `requires`, `optional`에 선언한다 | [결정] 원칙과 `cap-*` import 금지(계획 v2 규칙 2, DR-14) | depcruise `group-*` → `cap-*` 금지 [제안](`architecture.layers.spec` §9), `validateUsage` `capability_undeclared` |
-| 3 | 그룹끼리 직접 참조하지 않는다. 통신은 F4 스키마가 있는 이벤트와 레코드로만 한다 | `g.record`, `g.readRecords`만 쓴다. `recordKinds`, `readsRecordKinds` 선언 | [결정] | check-layers DR-02(같은 층 import), depcruise, `validateUsage` `record_kind_undeclared`·`read_kind_undeclared`, X 쓰기 시 `validateOrchestrationRecord` |
-| 4 | drive 락은 한 thread에 Registration 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다 | Helm만 기본으로 drive를 등록한다. 정책 `x.primitives.driveRequiresOrchestration`이 기본값(참)이면 오케스트레이션 플러그인의 구성원만 drive를 등록할 수 있다. 정책은 `DriveArbiter`(orchestration-sdk), 메커니즘은 X | [결정] | ext-host 테스트, `validateManifestSet` `drive_conflict`, orchestration-sdk 단위 테스트 |
-| 5 | 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 적용 시점은 단계 경계. 비활성화 순서는 on 제외 → drive 락 반납 → `onDispose` | [결정] 원칙, 단계 경계 해석은 [결정: review.decisions-2 U-01] | ext-host 테스트, M1 스모크(drive 그룹 토글) |
-| 6 | 모든 설정은 F5 설정 스키마 하나에서 화면, 파일, 명령을 함께 만든다 | 기본 그룹은 `defineSettings("l3.<도메인>", …)`, 외부 그룹은 `ext.<id>` | [결정] | `buildCatalog`의 `foreignNamespace`·`duplicateKey`, `F.wire-settings.spec` 생성 검사 |
-| 7 | 이미 있는 패키지는 그대로 쓰고, 부족하면 포크한다 | L3 구성요소 21개(`_research/layer-plan-v2.json` L3-a 7, L3-b 5, L3-c 6, L3-d 3)에서 채택하는 코드는 없다. L3-c 학습 그룹의 4개(학습 트리거, 검토 포크, 큐레이터, 학습 이력 보기)는 Hermes 자기 개선 루프의 설계를 차용하고(출처 표기 '설계', `L3.learning.plan` §4), 나머지 17개는 선례가 없어 자체 구현이다. 템플릿은 `create-cordis` 스캐폴딩 방식을 참고만 한다. `_research/packages.md` §4.6의 "17개 모두 자체"는 학습 그룹 분리 전 집계라 갱신이 필요하다 | [결정] 원칙(`_research/decisions-log.md` 2026-10-21 결정 2차) | 리뷰, `_research/packages.md` §4.6 |
+| 2 | L3 플러그인은 L2 기능의 정의(F3)만 참조하고 provider 구현은 모른다 | 플러그인은 `cap-*`를 import하지 않고 `g.capability(ServiceKey)`로 쓴다. 쓰는 기능은 매니페스트 `requires`, `optional`에 선언한다 | [결정] 원칙과 `cap-*` import 금지(계획 v2 규칙 2, DR-14) | depcruise `group-*` → `cap-*` 금지 [제안](`architecture.layers.spec` §9), `validateUsage` `capability_undeclared` |
+| 3 | 플러그인끼리 직접 참조하지 않는다. 통신은 F4 스키마가 있는 이벤트와 레코드로만 한다 | `g.record`, `g.readRecords`만 쓴다. `recordKinds`, `readsRecordKinds` 선언 | [결정] | check-layers DR-02(같은 층 import), depcruise, `validateUsage` `record_kind_undeclared`·`read_kind_undeclared`, X 쓰기 시 `validateOrchestrationRecord` |
+| 4 | drive 락은 한 thread에 Registration 하나만 가진다. on, post, 백그라운드 위임은 여러 플러그인이 함께 쓴다 | Helm만 기본으로 drive를 등록한다. 정책 `x.primitives.driveRequiresOrchestration`이 기본값(참)이면 플러그인의 구성원만 drive를 등록할 수 있다. 정책은 `DriveArbiter`(orchestration-sdk), 메커니즘은 X | [결정] | ext-host 테스트, `validateManifestSet` `drive_conflict`, orchestration-sdk 단위 테스트 |
+| 5 | 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 적용 시점은 단계 경계. 비활성화 순서는 on 제외 → drive 락 반납 → `onDispose` | [결정] 원칙, 단계 경계 해석은 [결정: review.decisions-2 U-01] | ext-host 테스트, M1 스모크(drive 플러그인 토글) |
+| 6 | 모든 설정은 F5 설정 스키마 하나에서 화면, 파일, 명령을 함께 만든다 | 기본 플러그인은 `defineSettings("l3.<도메인>", …)`, 외부 플러그인은 `ext.<id>` | [결정] | `buildCatalog`의 `foreignNamespace`·`duplicateKey`, `F.wire-settings.spec` 생성 검사 |
+| 7 | 이미 있는 패키지는 그대로 쓰고, 부족하면 포크한다 | L3 구성요소 21개(`_research/layer-plan-v2.json` L3-a 7, L3-b 5, L3-c 6, L3-d 3)에서 채택하는 코드는 없다. L3-c 학습 플러그인의 4개(학습 트리거, 검토 포크, 큐레이터, 학습 이력 보기)는 Hermes 자기 개선 루프의 설계를 차용하고(출처 표기 '설계', `L3.learning.plan` §4), 나머지 17개는 선례가 없어 자체 구현이다. 템플릿은 `create-cordis` 스캐폴딩 방식을 참고만 한다. `_research/packages.md` §4.6의 "17개 모두 자체"는 학습 플러그인 분리 전 집계라 갱신이 필요하다 | [결정] 원칙(`_research/decisions-log.md` 2026-10-21 결정 2차) | 리뷰, `_research/packages.md` §4.6 |
 
 drive 재생 규율(규칙 4의 부속):
 
@@ -199,7 +199,7 @@ L3가 정하지 않는 것:
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 4연산 타입, 훅 표, 매니페스트, 그룹 레코드 스키마 | `F.extensions.spec` |
+| 4연산 타입, 훅 표, 매니페스트, 플러그인 레코드 스키마 | `F.extensions.spec` |
 | 4연산 실행, drive 락 메커니즘, 유휴 시 토글 시점 | `X.primitives.spec` |
 | 디스패치 순서와 tier 정의 | `X.operations.spec` |
 | 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation` | `X.loading-trust.spec` |
@@ -209,44 +209,44 @@ L3가 정하지 않는 것:
 
 ## 7. 공존 규칙
 
-Helm과 학습 그룹을 동시에 켰을 때:
+Helm과 학습 플러그인을 동시에 켰을 때:
 
 | 항목 | 동작 | 근거 |
 |---|---|---|
-| drive 보유 그룹 | Helm만 drive를 쓴다. 학습 그룹은 drive를 등록하지 않으므로 drive 락 경쟁이 없다 | [결정] `F.extensions.spec` §4.6 |
-| on 핸들러 동시 실행 | 두 그룹의 핸들러가 같은 훅에 함께 걸린다. tap은 모두 실행, first는 먼저 결정한 쪽, chain은 순서대로 합성 | `F.extensions.spec` §4.1 |
+| drive 보유 플러그인 | Helm만 drive를 쓴다. 학습 플러그인은 drive를 등록하지 않으므로 drive 락 경쟁이 없다 | [결정] `F.extensions.spec` §4.6 |
+| on 핸들러 동시 실행 | 두 플러그인의 핸들러가 같은 훅에 함께 걸린다. tap은 모두 실행, first는 먼저 결정한 쪽, chain은 순서대로 합성 | `F.extensions.spec` §4.1 |
 | 핸들러 순서 | tier, 확장 로드 순서, 등록 순서의 사전식 순서. tier 정의는 L3가 정하지 않는다 | `X.operations.spec`으로 위임, `F.extensions.spec` §4.2 |
-| delegate 동시 실행 | Helm의 `loop.spawn`(drive 락 안)과 학습 그룹의 `delegate`(drive 락 밖 백그라운드 위임)가 함께 돈다. 학습 쪽 상한은 `l3.learning.review.*` 설정이 건다 | [결정] 층 사이 규칙 4 "백그라운드 위임은 여러 그룹이 함께 쓴다", 상한 귀속은 [미결](`_research/notes/L3-2.md` §6 8) |
+| delegate 동시 실행 | Helm의 `loop.spawn`(drive 락 안)과 학습 플러그인의 `delegate`(drive 락 밖 백그라운드 위임)가 함께 돈다. 학습 쪽 상한은 `l3.learning.review.*` 설정이 건다 | [결정] 층 사이 규칙 4 "백그라운드 위임은 여러 그룹이 함께 쓴다", 상한 귀속은 [미결](`_research/notes/L3-2.md` §6 8) |
 | 레코드 읽기 | 서로의 레코드를 선택적으로 읽는다(5절). 한쪽이 꺼져 있어도 다른 쪽은 빈 결과로 동작한다 | [제안] |
-| 제3의 drive 그룹 | 주도권 스택이 정한다. 맨 위 프레임이 주도하고 맡긴 프레임은 `waiting`으로 기다린다. 맡기기 깊이가 `x.primitives.driveMaxDepth`(기본 8)를 넘으면 거절한다. 사용자 명령은 단계 경계에서 맨 위 프레임을 바꾼다 [결정: 2026-11-17 사용자] | `L3.group-sdk.spec`, `product.vision.spec` §5 |
+| 제3의 drive 플러그인 | 주도권 스택이 정한다. 맨 위 프레임이 주도하고 맡긴 프레임은 `waiting`으로 기다린다. 맡기기 깊이가 `x.primitives.driveMaxDepth`(기본 8)를 넘으면 거절한다. 사용자 명령은 단계 경계에서 맨 위 프레임을 바꾼다 [결정: 2026-11-17 사용자] | `L3.group-sdk.spec`, `product.vision.spec` §5 |
 
 기본 켬 상태 요약:
 
-| 그룹 | 기본 상태 | 설정 키 |
+| 플러그인 | 기본 상태 | 설정 키 |
 |---|---|---|
 | helm | 켬 [제안]. 탐구 구동 자동 시작은 `l3.helm.autoStart`가 정한다 | `ext.helm.enabled`(X 예약 키). 기본값은 매니페스트 `defaultEnabled` |
 | learning | 켬 [제안]. 승인 대기열 기본 켬 [결정: 계획 v2 L3-c "기본은 켜 둡니다"]. 큐레이터는 2차이고 기본 꺼짐 [제안] | `ext.learning.enabled`(X 예약 키. 기본값은 매니페스트 `defaultEnabled`), `l3.learning.approval.required` |
-| 외부 그룹, 정책 플러그인 | 매니페스트 `defaultEnabled`. 템플릿 기본값은 꺼짐 [제안] | `ext.<id>.enabled` |
+| 외부 플러그인, 정책 플러그인 | 매니페스트 `defaultEnabled`. 템플릿 기본값은 꺼짐 [제안] | `ext.<id>.enabled` |
 
 ## 8. L4 노출 요약
 
 | 노출 | 내용 | 소유 문서 |
 |---|---|---|
-| 설정 화면 `plugins` 탭 | 그룹 목록과 토글, 그룹별 설정(4절 키), drive 등록 정책 토글(`x.primitives.driveRequiresOrchestration`. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다), drive 락 상한(`x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`, `l3.helm.driveLimits`), drive 스택 깊이 상한(`x.primitives.driveMaxDepth`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
+| 설정 화면 `plugins` 탭 | 플러그인 목록과 토글, 플러그인별 설정(4절 키), drive 등록 정책 토글(`x.primitives.driveRequiresOrchestration`. 끄기 전에 "Drive를 맡도록 선언하지 않은 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다), drive 락 상한(`x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`, `l3.helm.driveLimits`), drive 스택 깊이 상한(`x.primitives.driveMaxDepth`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
 | `/group` 명령 | `status`, `on <id>`, `off <id>`, `drive <id\|auto>` | `L3.group-sdk.spec`(동작), `L4.cli.spec`(해석) |
 | `/helm` 명령 | `start`, `stop`, `status` | `L3.helm.spec`, `L4.cli.spec` |
 | `/learning` 명령 | `queue`, `review`, `history`(`history`는 2차) | `L3.learning.spec`, `L4.cli.spec` |
-| 상태줄 | 활성 그룹, drive 락을 가진 플러그인, drive 락 남은 예산, Helm 단계. `l3.orchestration.statusLine`로 끈다 | `L3.group-sdk.spec`, `L4.cli.spec`, `L4.desktop.spec` |
+| 상태줄 | 활성 플러그인, drive 락을 가진 플러그인, drive 락 남은 예산, Helm 단계. `l3.orchestration.statusLine`로 끈다 | `L3.group-sdk.spec`, `L4.cli.spec`, `L4.desktop.spec` |
 | 학습 승인 화면 | 대기열의 후보(diff 포함) 승인·수정·거절 | `L3.learning.spec`, `L4.desktop.spec` |
 
 ## 9. 층 수용 기준
 
-1. M1: 테스트 그룹 하나가 `on`(tap, first, chain), `post`, `drive`를 쓰는 테이프 대화에서 `fresnel chat` 한 턴이 실행되고, 그 그룹을 켜고 끄는 요청이 단계 경계에서 적용된다(`_research/foundation-plan.md` §5 P4, §6 M1).
+1. M1: 테스트 플러그인 하나가 `on`(tap, first, chain), `post`, `drive`를 쓰는 테이프 대화에서 `fresnel chat` 한 턴이 실행되고, 그 플러그인을 켜고 끄는 요청이 단계 경계에서 적용된다(`_research/foundation-plan.md` §5 P4, §6 M1).
 2. M2(UC-2): Helm이 확산 단계일 때 쓰기 도구 호출은 실행되지 않고 거부 사유가 모델에 돌아가며, 같은 호출은 Helm을 끈 다음 턴에서 실행된다. 렌즈 N개로 탐구하면 서브에이전트 N개가 시작되고, 결과 커밋 이벤트 뒤에 적용 턴이 정확히 한 번 실행된다(`product.usecases.spec` UC-2).
-3. M3(UC-3): 카운터 임계를 넘는 테이프 대화를 실행하면 검토 포크가 백그라운드로 한 번 실행되고 후보가 대기열에 들어가며, 승인 전에는 스킬 디렉터리와 메모리 파일의 내용이 바뀌지 않는다. Helm이 drive 락을 가진 상태에서도 학습 그룹의 트리거와 검토 포크가 동작한다(`product.usecases.spec` UC-3).
+3. M3(UC-3): 카운터 임계를 넘는 테이프 대화를 실행하면 검토 포크가 백그라운드로 한 번 실행되고 후보가 대기열에 들어가며, 승인 전에는 스킬 디렉터리와 메모리 파일의 내용이 바뀌지 않는다. Helm이 drive 락을 가진 상태에서도 학습 플러그인의 트리거와 검토 포크가 동작한다(`product.usecases.spec` UC-3).
 4. M3: `plugin-learning`을 추가하는 변경에서 `contracts`, `ext-host`, `platform-*`, `core-*` 경로의 diff가 0이다(`product.scope.spec` §4.4, `product.vision.spec` S1).
-5. 그룹(테스트 그룹, Helm, 학습 그룹, 템플릿 그룹)을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
-6. `plugin-helm`, `plugin-learning`, 템플릿 그룹 사이 import가 0이다. 하나라도 넣으면 `just verify`가 `DR-02`로 실패한다.
+5. 플러그인(테스트 플러그인, Helm, 학습 플러그인, 템플릿 플러그인)을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
+6. `plugin-helm`, `plugin-learning`, 템플릿 플러그인 사이 import가 0이다. 하나라도 넣으면 `just verify`가 `DR-02`로 실패한다.
 7. `group-*`의 `package.json` `fresnel.layer`가 모두 `L3`이고, 허용 목록 밖의 같은 층 import가 0이다.
 
 ## 10. 결정 근거와 미결 사항
@@ -256,10 +256,10 @@ Helm과 학습 그룹을 동시에 켰을 때:
 | 결정 | 근거 |
 |---|---|
 | [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), register 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 |
-| [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않고 Helm과 공존한다. Helm은 내장 등록 대신 기본 플러그인(별도 패키지, 설치하면 켬)으로 배포하고 자체 확장 API만 쓴다 [결정: review.m3-design-inputs D-M3-01, D-M3-11] | `_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `review.m3-design-inputs` §3 |
-| [결정] 그룹이 필요한 이유는 스킬·일반 플러그인에 모델 강제력이 없기 때문이다. 제2의 Helm도 붙였다 뗄 수 있어야 한다 | `_research/decisions-log.md` 2026-10-21 사용자 의중 |
-| [결정] 학습 저장은 L2 knowledge, 정책은 L3 학습 그룹 | `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |
-| [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블. 그룹 비공개 상태는 `x_<그룹>_*` | `_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 |
+| [결정] Helm과 학습 플러그인은 L3 기본 플러그인이다. 학습 플러그인은 drive를 쓰지 않고 Helm과 공존한다. Helm은 내장 등록 대신 기본 플러그인(별도 패키지, 설치하면 켬)으로 배포하고 자체 확장 API만 쓴다 [결정: review.m3-design-inputs D-M3-01, D-M3-11] | `_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `review.m3-design-inputs` §3 |
+| [결정] Drive 플러그인이 필요한 이유는 스킬·일반 플러그인에 모델 강제력이 없기 때문이다. 제2의 Helm도 붙였다 뗄 수 있어야 한다 | `_research/decisions-log.md` 2026-10-21 사용자 의중 |
+| [결정] 학습 저장은 L2 knowledge, 정책은 L3 학습 플러그인 | `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |
+| [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블. 플러그인 비공개 상태는 `x_<플러그인>_*` | `_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 |
 | [결정] DI는 Cordis 하나. 같은 층 협력은 F 정의와 Cordis 서비스로만 | `_research/decisions-log.md` 2026-10-21 결정 3차, `_research/foundation-plan.md` §3 |
 | [결정] 예산은 pi 방식. 기본 상한 없음, 상한은 drive 락에만. drive 락 상한 기본값(`l3.helm.driveLimits`)과 학습 검토 상한(`l3.learning.review.maxIterations`)은 pi 방식의 예외로 둔다 [결정: review.decisions-2 U-12, U-22] | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 입출력 가드레일은 내장 검사를 두지 않는다. F·X가 fail-closed 가드 훅 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 두고 검사는 플러그인이 한다 [결정: review.m3-design-inputs D-M3-30, adr.0017] | `_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가", `review.m3-design-inputs` D-M3-30 |
@@ -268,7 +268,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 공통 모순(L3 네 문서에 걸린다):
 
-1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `RegistrationApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
+1. [결정: review.decisions-2 T-21] 플러그인 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<플러그인>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `RegistrationApi.recordPrivate(kind, payload)`로 쓰고 다른 플러그인의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<플러그인>.state.committed`(X 소유)다.
 2. (닫힘) [결정: adr.0015] on 핸들러 외부 효과와 `OrchestrationApi.delegate`·`loop.spawn`의 관계. C안(선언형 허용)으로 on 핸들러의 결정적 `requestId` `delegate`를 허용한다. L3 orchestration-sdk·Helm·학습·slots 문서에 반영했다.
 3. 맞춤: `package.json` `fresnel.domain`의 `kit`을 routes.yaml `orchestration-sdk`에 맞췄다(3절, M3-35).
 4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `orchestration-sdk` 한 방향 허용 목록(`DR-02/orchestration-sdk`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
@@ -276,12 +276,12 @@ Helm과 학습 그룹을 동시에 켰을 때:
 도메인 문서에서 모은 것:
 
 5. (닫힘) [결정: review.m3-design-inputs D-M3-05] drive 락 충돌 때는 대기가 기본이고 대기 상한을 넘으면 거부한다. 정책(`DriveArbiter`)과 메커니즘(X)의 분담은 REQ-X-08과 `L3.group-sdk.spec` §3.5가 정한다.
-6. (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 상태에서 drive 락을 받은 drive 그룹은 drive 락 상한 안에서 자율 turn을 시작할 수 있다. 토글 적용 시점은 `X.primitives.spec` §4.5.5다.
+6. (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 상태에서 drive 락을 받은 drive 플러그인은 drive 락 상한 안에서 자율 turn을 시작할 수 있다. 토글 적용 시점은 `X.primitives.spec` §4.5.5다.
 7. [미결] 학습 검토 포크 spawn의 상한 귀속(drive 락 밖 위임)(`_research/notes/L3-2.md` §6 8).
 8. [결정: 계획 v2 규칙 2, DR-14] L3 → `cap-*` import 금지는 기본 규칙이다(`architecture.layers.spec` 3.1절 판정). depcruise 규칙 추가는 `architecture.layers.spec` §9가 다룬다.
 9. [미결] Helm 내부 설계(단계·신호 식별자와 전이표의 확정, 렌즈 목록, 종료 판정, 부분 결과 허용)(`L3.helm.spec` §10 미결 1·2·3·16, `product.usecases.spec` 미결 1). 단계 순서(발산, 다른 분야 탐색, 수렴, 현재 작업 적용)와 신호 종류 셋(막힘, 반복, 새 분야 진입)은 계획 v2로 정해졌다 [결정]. `L3.helm.spec`은 식별자(`diverge` 등, `stuck` 등)와 전이표를 [제안]으로 둔다.
-10. (닫힘) 제안 대기열 소유는 대기열 둘 유지다 [결정: review.m3-design-inputs D-M3-32]. 학습 그룹 소유와 L2 knowledge 소유를 L4가 한 목록으로 보인다. 병합 규칙은 `L3.learning.spec` §4.5 규칙 4([제안]: 같은 이름 거부, 자동 병합 없음)로 닫았다.
+10. (닫힘) 제안 대기열 소유는 대기열 둘 유지다 [결정: review.m3-design-inputs D-M3-32]. 학습 플러그인 소유와 L2 knowledge 소유를 L4가 한 목록으로 보인다. 병합 규칙은 `L3.learning.spec` §4.5 규칙 4([제안]: 같은 이름 거부, 자동 병합 없음)로 닫았다.
 11. [결정: 오케스트레이터 기본값] `slots` 템플릿 파일 위치는 `orchestration-sdk/templates/`다(`L3.slots.spec` §3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 남는다.
 12. [미결] 정책 플러그인에 `orchestration` 선언을 둘지 말지의 최종 기준(`L3.slots.spec` §4.2).
 13. (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 훅 셋으로 바꿨다(adr.0017, `L3.slots.spec` §3.2.4).
-14. [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
+14. [결정: review.decisions-2 U-18] 새 플러그인 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.

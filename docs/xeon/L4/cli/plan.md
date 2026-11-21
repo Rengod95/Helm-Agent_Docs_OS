@@ -378,7 +378,7 @@ M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확
 | group-rules.real-index | `test/group-rules.test.ts` | unit | 실제 `templates/index.json`이 파싱되고 종류별 파일 수가 10, 8, 9다 | M3b |
 | group-rules.index-refuses-other-version | `test/group-rules.test.ts` | unit | `schemaVersion`이 다르면 거부한다 | M3b |
 | group-rules.paths-and-placeholders | `test/group-rules.test.ts` | unit | 안전하지 않은 상대 경로를 거르고, 묶음 이름을 뗀 대상 경로를 낸다 | M3b |
-| group-new.output-passes-core-diff-check-with-zero-lines | `test/group-new-core-diff.test.ts` | int | 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹(drive 10, observe 9, policy 8 파일)을 임시 저장소에 커밋하면 `scripts/core-diff-check.ts`가 보호 경로 0줄로 통과한다. `ext-host` README를 바꾸면 그 경로 한 줄을 보고한다 | M3b |
+| group-new.output-passes-core-diff-check-with-zero-lines | `test/group-new-core-diff.test.ts` | int | 실제 파일 시스템과 실제 `templates/`로 만든 세 플러그인(drive 10, observe 9, policy 8 파일)을 임시 저장소에 커밋하면 `scripts/core-diff-check.ts`가 보호 경로 0줄로 통과한다. `ext-host` README를 바꾸면 그 경로 한 줄을 보고한다 | M3b |
 
 ### 5.2 scenario
 

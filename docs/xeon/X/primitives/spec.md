@@ -25,7 +25,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 - `scope`: 상태 문서와 커밋, 마이그레이션 훅, 켜기·끄기 상태기계와 적용 시점(실행 중인 turn이 없을 때 포함), `record`/`readRecords` 구현
 - 리소스 등록(pi API 형태)의 유지·변환·비지원 표와 자동 해제
 - `@fresnel/ext-host` 공개 API 이름과 시그니처, 호스트 포트, `CapabilityId`에서 Cordis 서비스 이름을 유도하는 규칙
-- 그룹 간 이벤트 이름 격리 정책
+- 플러그인 간 이벤트 이름 격리 정책
 - 설정 키 `x.primitives.*`
 
 다루지 않는 것:
@@ -665,7 +665,7 @@ export interface RegistrationHostApi<S = unknown> {
   settingValue(key: string): unknown;
   /** 상태 문서 마이그레이션. setup 안에서 한 번만 부른다 */
   migrateState(fn: StateMigration): void;
-  /** 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(§4.6.1, M3-REQ-24 [제안]). F `RegistrationApi.commit`에 둘째 인자가 없어 여기에 둔다 */
+  /** 상태 커밋과 플러그인 레코드를 한 트랜잭션으로 낸다(§4.6.1, M3-REQ-24 [제안]). F `RegistrationApi.commit`에 둘째 인자가 없어 여기에 둔다 */
   commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
   /** 줄 세운 읽기-계산-커밋(§4.6.1, M3-REQ-23 [제안]). 실패는 값이다 */
   updateState(fn: (prev: Readonly<S>) => S, records?: (next: S) => readonly RecordInput[]): Promise<Result<Readonly<S>, StateUpdateError>>;
@@ -1111,10 +1111,10 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1 등록과 주도권 계기 [결정: 2026-11-17 사용자, 3a]
 
-1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 정책 `x.primitives.driveRequiresOrchestration`(기본 `true`)이 참이고 이 플러그인이 오케스트레이션 플러그인의 구성원(`inOrchestration`)이 아니면 `drive_requires_orchestration`, 플러그인의 `drives`가 참이 아니면 `drive_undeclared`, 같은 Registration에서 두 번 부르면 `drive_duplicate`다. Registration당 슬롯은 하나다([결정] ADR-0007 §3.1). 정책을 거짓으로 풀면 `drives: true`를 선언한 모든 플러그인이 등록할 수 있다([결정: 2026-11-01 사용자]). 정책은 setup 때 읽으므로 바뀐 값은 Registration을 다시 켜거나 `ext.reload`할 때 적용된다. `untrusted` 확장은 로드되지 않으므로 정책과 무관하게 drive를 못 쓴다.
+1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 정책 `x.primitives.driveRequiresOrchestration`(기본 `true`)이 참이고 이 플러그인이 플러그인의 구성원(`inOrchestration`)이 아니면 `drive_requires_orchestration`, 플러그인의 `drives`가 참이 아니면 `drive_undeclared`, 같은 Registration에서 두 번 부르면 `drive_duplicate`다. Registration당 슬롯은 하나다([결정] ADR-0007 §3.1). 정책을 거짓으로 풀면 `drives: true`를 선언한 모든 플러그인이 등록할 수 있다([결정: 2026-11-01 사용자]). 정책은 setup 때 읽으므로 바뀐 값은 Registration을 다시 켜거나 `ext.reload`할 때 적용된다. `untrusted` 확장은 로드되지 않으므로 정책과 무관하게 drive를 못 쓴다.
 2. 등록은 주도권을 주지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
 3. 주도권 스택은 thread마다 하나다. 스택의 프레임 하나가 drive 락 하나(§2 용어의 주도권 프레임)이고, 0번이 맨 아래 플러그인 프레임(코어 루프 위), 마지막이 맨 위다. 맨 위 프레임만 단계 함수를 부른다. 아래 프레임은 `waiting`이며 맡기기(§4.4.1b)에서만 생긴다. 한 thread에서 단계 함수를 부르는 scope는 맨 위 하나다([결정] ADR-0007 §3.6). 부여 판단(시작 요청 큐 처리)은 경계 훅(`step_end`, `turn_settled`, `idle`)에서만 한다. `openThread`는 프로필 시작 요청을 큐에 넣을 뿐 부여하지 않는다.
-3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 drive 락을 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
+3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 drive 락을 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 오케스트레이션 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
 4. 시작 계기는 셋뿐이다([결정: 2026-11-17 사용자], drive-isolation.md 2.2). 중재 후보 목록, 선택 설정, 대기 계수는 없다 [근거: packages/ext-host/src/primitives/lease.ts].
    - 사용자 명령: `ExtHost.startDrive(threadId, scopeId, options?)`다(`trigger`의 기본값은 `user`). 플러그인은 `RegistrationHostApi.startDrive(input?)`를 쓰고 ambient 문맥의 thread를 쓴다. 이 호출은 약속이다(격리 자식에서는 엔진 왕복이므로, §3.8의 격리 호스트 단락). 문맥이 없으면 `no_context`다. 주도 중에도 받아 큐에 넣는다.
    - 프로필 시작: `ThreadOpenOptions.startDrive`다. 열 때 열린 drive 락(`openLeases`)가 없을 때만 그 scope의 `profile` 요청을 넣는다.
@@ -1170,7 +1170,7 @@ lifecycle [결정: adr.0017]:
 
 1. [결정] 일반 대화 턴에는 기본 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` 20행). 상한은 주도권 프레임(drive 락)에만 건다. [결정: review.decisions-2 U-12] 주도권 프레임에는 기본 상한을 둔다. drive는 사용자 입력 없이 턴을 만들기 때문이다. 기본 상한은 설정 두 단계로 정하고, 둘 다 사용자가 설정 화면에서 조정한다(§6).
    - 일반 기본값 `x.primitives.driveDefaultLimits`(기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`): 상한을 명시하지 않은 drive 락에 쓴다.
-   - 그룹 덮어쓰기: 그룹이 자기 설정(예: `ext.helm.driveLimits`, Helm 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)을 `DriveOptions.limits`로 넘긴다.
+   - 플러그인 덮어쓰기: 플러그인이 자기 설정(예: `ext.helm.driveLimits`, Helm 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)을 `DriveOptions.limits`로 넘긴다.
    - 천장 `x.primitives.driveLimits`(기본 `{}`, 천장 없음): 어떤 drive 락도 이 값을 넘지 못한다.
 2. 실효 상한은 필드마다 정한다. 먼저 `base[k] = DriveOptions.limits[k] ?? driveDefaultLimits(threadId)[k]`다. `driveLimits(threadId)[k]`가 있으면 `min(base[k], driveLimits(threadId)[k])`, 없으면 `base[k]`다. `base[k]`도 천장도 없으면 그 필드는 상한 없음(`DriveLockBudget`의 `null`)이다. 두 설정은 drive 락을 받는 thread로 읽는다(둘 다 session 범위를 받는 키이기 때문이다). 사용자가 `driveDefaultLimits`에 일부 필드만 적으면(`{ maxTurns: 6 }`) 빠진 필드는 내장 기본값(`withDriveDefaults`)으로 채워 돌려준다. 그래서 필드를 비워도 기본 상한은 사라지지 않고, 상한을 풀려면 큰 값을 적는다. `DriveOptions.limits`가 천장보다 크면 천장 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
 3. 실효 상한은 프레임 부여 때 한 번 정하고 `lease.acquired.limits`에 기록한다. `DriveOptions.limits`도 등록 때 복사하지 않고 부여 때 읽는다(getter로 넘긴 설정은 다음 drive 락부터 반영된다). drive 락 도중 설정을 바꿔도 현재 프레임에는 반영하지 않는다 [제안].
@@ -1237,7 +1237,7 @@ invoke(lease):
 - [결정] 키에서 계통 id를 빼지 않는다. 함수가 커밋 없이 반환했다가(`idle` 반납 등) 같은 상태 판에서 다시 부여받으면 새 turn을 열어야 한다. 키에 계통이 없으면 옛 결과가 재생되어 그 drive가 멈춘다. `drive-lineage.test.ts`가 이 경우를 고정한다.
 - [결정] 상태 커밋·`record`의 멱등 키(`state.ts`의 `nextIdentity`)는 이 결정의 범위가 아니다. 그 키는 `leaseId`를 그대로 쓴다. 상태 커밋은 판을 올려 `baseRev`를 바꾸므로 같은 판의 재호출이 같은 커밋을 다시 내는 경우가 없다.
 - 키 길이: `lineageId` 40자 이하(`leaseId`와 같은 발급 값이거나 앞 부여의 계통) + 판·일련번호 십진수. 64자 상한(F.extensions.spec §2) 안이다.
-- 명시 `requestId`(예: L3.helm.spec의 `helm:<inquiryId>:turn:<phase>:<round>`)는 그대로 쓴다. 포트의 멱등 범위가 (scopeId, requestId)라서 다른 그룹의 키와 섞이지 않는다.
+- 명시 `requestId`(예: L3.helm.spec의 `helm:<inquiryId>:turn:<phase>:<round>`)는 그대로 쓴다. 포트의 멱등 범위가 (scopeId, requestId)라서 다른 플러그인의 키와 섞이지 않는다.
 - thread가 실행 중이면 `loop.turn`은 그 turn이 정착한 뒤에 새 turn을 시작한다. 사용자 입력은 주도권과 관계없이 turn을 시작할 수 있다 [제안]. 주도권은 단계 함수가 turn을 시작할 권한을 뜻하고, 사용자 입력을 막지 않는다.
 - 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 `loop.turn`은 끊지 않는다([제안] ADR-0007 §3.6, F.extensions.spec §4.5). `lease.signal`은 반납이 시작되면 abort되어 drive 함수가 협조적으로 멈출 수 있게 한다. `runTurn`에는 이 신호를 넘기지 않고 thread 신호를 넘긴다. thread 신호는 `closeThread`에서만 abort되며 사용자 중단 경로가 아니다. 사용자 중단은 turn 범위의 취소(`interrupt`)로 들어가고 X에는 `turn_settled`의 `userInterrupted`로 알려진다(§4.4.1 12번). 반납으로 진행 중인 turn이 끊기지 않게 하기 위해서다 [제안]. `spawn`에는 `lease.signal`을 넘긴다.
 - eng.transactions.design §4.7·§4.8의 drive 턴·spawn 키는 이 규칙을 따른다. 옛 형식(`drive:<scopeId>:<leaseEpoch>:<turnIndex>`)은 쓰지 않는다.
@@ -1272,9 +1272,9 @@ invoke(lease):
 
 - 맡은 프레임이 `done`이 아닌 사유(`error`, `disabled`, `budget`, `idle`, `restart`, `revoked`)로 위쪽만 내려가면 바로 아래 프레임(`waiting`)은 `{ kind: "handoff", status: "aborted", result: null }`을 받는다(§4.4.1b 7번).
 
-#### 4.4.6 Helm과 학습 그룹의 공존
+#### 4.4.6 Helm과 학습 플러그인의 공존
 
-[결정] Helm과 학습은 L3 기본 오케스트레이션 플러그인이고 학습은 `drives: false`라 drive를 쓰지 않는다(F.extensions.spec §4.6). drive를 등록한 Registration만 주도할 수 있다.
+[결정] Helm과 학습은 L3 기본 플러그인이고 학습은 `drives: false`라 drive를 쓰지 않는다(F.extensions.spec §4.6). drive를 등록한 Registration만 주도할 수 있다.
 
 ```text
 thread T, 두 Registration 모두 켜짐
@@ -1287,7 +1287,7 @@ helm drive: commit(state) → loop.turn(apply) ...
 learning이 drive를 등록하지 않으므로 주도권을 받는 쪽은 helm 하나다
 ```
 
-- 학습 그룹의 검토 포크는 L1 백그라운드 위임 서비스로 실행하고 `loop.spawn`을 쓰지 않는다. 그래서 Helm drive 락의 `spawns` 상한에 들어가지 않는다.
+- 학습 플러그인의 검토 포크는 L1 백그라운드 위임 서비스로 실행하고 `loop.spawn`을 쓰지 않는다. 그래서 Helm drive 락의 `spawns` 상한에 들어가지 않는다.
 
 #### 4.4.7 기능 래퍼의 문맥 검사
 
@@ -1315,10 +1315,10 @@ learning이 drive를 등록하지 않으므로 주도권을 받는 쪽은 helm �
 5. 풀림. 멈춘 디스패치는 `resume`이나 `step`이 풀거나, 그 디스패치의 `options.signal`(turn의 취소 신호)이 중단되거나, thread를 닫거나 다시 열 때 끝난다. 중단으로 풀린 뒤에도 요청은 남으므로 다음 경계는 다시 멈춘다.
 6. `resume(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `{ kind: "not_paused" }`다. 그 밖에는 요청을 거두고 멈춘 경계를 풀어 `{ paused: false }`를 돌려준다.
 7. `step(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `not_paused`다. 멈춘 중이면 그 경계를 풀고 요청은 남긴다(다음 경계에서 다시 멈춘다). 아직 멈추지 않았으면 다음 경계 하나를 지나가게 표하고, 그 뒤 경계부터 멈춘다. 두 경우 모두 `{ paused: true }`를 돌려준다.
-8. 설정과 안전 모드에서 독립이다. 멈춤 게이트는 `x.operations.*` 설정과 안전 모드를 읽지 않는다. 안전 모드는 로더가 L3 그룹과 사용자·작업 폴더 tier를 싣지 않는 것(`startupFilter`)이고, 호스트는 그 값을 보지 않는다. 게이트의 판단 재료는 thread의 멈춤 요청과 디스패치의 훅 이름뿐이다. 그래서 설정을 끄거나 안전 모드를 켜도 Test run의 멈춤은 같다.
+8. 설정과 안전 모드에서 독립이다. 멈춤 게이트는 `x.operations.*` 설정과 안전 모드를 읽지 않는다. 안전 모드는 로더가 L3 플러그인과 사용자·작업 폴더 tier를 싣지 않는 것(`startupFilter`)이고, 호스트는 그 값을 보지 않는다. 게이트의 판단 재료는 thread의 멈춤 요청과 디스패치의 훅 이름뿐이다. 그래서 설정을 끄거나 안전 모드를 켜도 Test run의 멈춤은 같다.
 9. `phase(threadId)`는 읽기만 한다. 아무것도 커밋하지 않는다(와이어 `testRun.phase`, W-50).
    - drive 락 보유자가 없으면(drive 락이 없거나, 커밋되지 않았거나, 반납이 커밋되었으면) `{ phase: null, group: null, seq: null }`이다.
-   - 보유자 그룹의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 그룹 이름만 알리는 안은 [미결]로 남긴다 [제안].
+   - 보유자 플러그인의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 플러그인 이름만 알리는 안은 [미결]로 남긴다 [제안].
    - 있으면 `group`은 보유자의 확장 이름이고, `seq`는 그 scope의 커밋된 상태 판 `rev`다 [제안: 캐시에 이벤트 seq가 없으므로 판 `rev`를 쓴다]. `phase`는 상태 문서의 `phase` 문자열이 `phases.nodes[].id` 가운데 하나일 때만 그 값이고, 아니면 null이다. 상태 문서의 나머지는 내보내지 않는다(F.extensions.spec §3.6).
    - [결정: 2026-11-04 사용자 지시에 따른 기본값] 칸은 모두 실제 값이다. `paused`는 이 대화에 멈춤 요청이 걸려 있는가다. `lock`은 드라이브 락(`holder`, `status`, `epoch`)이고 `traceEnabled`는 `x.operations.trace.enabled`의 현재 값이다. `guardHits`는 thread의 남은 Turn 전체에서 핸들러 결과가 `blocked`인 기록 수다(`TraceBuffer.blockedCount`). 계측이 꺼져 있거나 thread를 모르면 0이다. 숨기는 훅 단위 행은 기록에 들지 않으므로 세지 않는다. `boundaries`는 11의 기록이다.
 10. `not_available`은 이 구현에 없다. 포트를 제공하지 않는 조립이 쓰는 값이다.
@@ -1355,7 +1355,7 @@ learning이 drive를 등록하지 않으므로 주도권을 받는 쪽은 helm �
 1. `host.register(id, def, setup)`(F `RegistrationFn`)는 정의만 등록하고 `RegistrationHandle`을 돌려준다. setup은 켜기가 적용될 때 실행된다. `install`이 엔트리를 부르면서 넘기는 `register`가 이 함수다(§3.2).
 2. Registration id는 F `registrationIdOf`가 정한다: 루트 플러그인은 매니페스트 `name`, 그 밖은 `<name>/<플러그인 id>`다(`REGISTRATION_ID_PATTERN`). 다른 확장 이름으로 시작하는 id는 `registration_foreign_id`, 이 확장이 `plugins[]`에 선언하지 않은 id는 `registration_unknown_plugin`, 같은 id를 두 번 정의하면 `registration_duplicate`다. 선언했지만 `register`하지 않은 플러그인은 로더 진단 `plugin_not_registered`(warning)다 [제안].
 3. 초기 켜기 요청: `ext.<name>.enabled` 설정 값(X.loading-trust.spec 소유)이 있으면 그 값, 없으면 `RegistrationDef.defaultEnabled ?? plugins[].defaultEnabled ?? (루트 ? manifest.defaultEnabled ?? true : false)`다(F `pluginDefaultEnabled`) [제안]. 옛 규칙의 "하위 scope는 `false`"와 같은 결과다.
-4. 오케스트레이션 플러그인의 구성원(`orchestration.members` 전체)은 한 번에 켜지고 꺼진다. 한 구성원의 setup이 실패하면 그룹 전체 켜기가 실패(`disabled`에 머묾)하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결]. 구현은 설치(시작 켜기) 때의 setup 실패에 적용한다. 설치 뒤 구성원 하나만 따로 켜고 끄는 길(`RegistrationHandle`)은 Registration 단위로 남는다(M4 후속).
+4. 플러그인의 구성원(`orchestration.members` 전체)은 한 번에 켜지고 꺼진다. 한 구성원의 setup이 실패하면 플러그인 전체 켜기가 실패(`disabled`에 머묾)하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결]. 구현은 설치(시작 켜기) 때의 setup 실패에 적용한다. 설치 뒤 구성원 하나만 따로 켜고 끄는 길(`RegistrationHandle`)은 Registration 단위로 남는다(M4 후속).
 
 #### 4.5.2 상태기계
 
@@ -1421,7 +1421,7 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 
 근거: 유휴 thread에는 다가올 단계 경계가 없다. 경계까지 미루면 사용자가 다음 입력을 보낼 때까지 토글이 보류된다. 유휴 상태에는 중간에 끊길 step이 없으므로 즉시 적용해도 경계 적용과 같은 보장을 낸다. L1이 turn 시작을 막는 동안 적용하므로 입력과 경합하지 않는다.
 
-- 유휴 적용으로 drive 락이 부여되면 drive 함수가 곧바로 불려 `loop.turn`으로 turn을 시작할 수 있다. 사용자 입력 없이 turn이 시작되는 경로는 이것뿐이다 [제안]. L3.readme §10 미결 6("drive 그룹의 자율 턴 시작 허용 여부")에 대한 이 문서의 답이다.
+- 유휴 적용으로 drive 락이 부여되면 drive 함수가 곧바로 불려 `loop.turn`으로 turn을 시작할 수 있다. 사용자 입력 없이 turn이 시작되는 경로는 이것뿐이다 [제안]. L3.readme §10 미결 6("drive를 맡는 플러그인의 자율 턴 시작 허용 여부")에 대한 이 문서의 답이다.
 
 #### 4.5.6 install의 시작 적용
 
@@ -1450,7 +1450,7 @@ ADR-0022 §3.3 5번의 규칙입니다. [결정: 2026-11-04 사용자] 세 층(�
 
 결정 기록 [결정: 2026-11-04 사용자]: (a) 프로젝트는 여러 대화를 묶는 개념입니다(`project`/`local` 파일 범위로 읽지 않습니다). (b) 설정 파일 변경이 `threadToggle`을 지우지 않습니다(제안대로). (c) 프로필 적용의 기본 층이 크래프트 맥락 칸 값을 따릅니다(제안대로).
 
-이 정의가 바꾸는 곳: 위 1번(프로젝트 층 값의 출처), 3번(열린 thread가 보는 프로젝트 값), 4번(`profile.apply`의 `layer: "project"`와 "프로젝트 층 쓰기에는 프로젝트 신뢰가 필요" 문장: 신뢰는 폴더 기준이라 묶음 단위와 맞지 않음), 5번(출처 배지 `"project"`), ADR-0022 §3.3 1번("이 폴더에서만 켜는 오케스트레이션 플러그인, 이 폴더의 기본 프로필")과 3번, `F.wire-settings.spec`의 `profile.apply` 인자 `layer`, `review.m4-plan` Y3·UX-15의 "전역 → 프로젝트 → 대화" 배지, `L4.desktop-ux.spec`의 맥락 칸 값과 §6.28 프로필 적용 층. 설정 파일의 `project`·`local` 범위 자체(`settings` 범위 규칙)와 폴더 기반 신뢰 등급 "이 프로젝트"는 이 결정과 별개라 바뀌지 않습니다.
+이 정의가 바꾸는 곳: 위 1번(프로젝트 층 값의 출처), 3번(열린 thread가 보는 프로젝트 값), 4번(`profile.apply`의 `layer: "project"`와 "프로젝트 층 쓰기에는 프로젝트 신뢰가 필요" 문장: 신뢰는 폴더 기준이라 묶음 단위와 맞지 않음), 5번(출처 배지 `"project"`), ADR-0022 §3.3 1번("이 폴더에서만 켜는 플러그인, 이 폴더의 기본 프로필")과 3번, `F.wire-settings.spec`의 `profile.apply` 인자 `layer`, `review.m4-plan` Y3·UX-15의 "전역 → 프로젝트 → 대화" 배지, `L4.desktop-ux.spec`의 맥락 칸 값과 §6.28 프로필 적용 층. 설정 파일의 `project`·`local` 범위 자체(`settings` 범위 규칙)와 폴더 기반 신뢰 등급 "이 프로젝트"는 이 결정과 별개라 바뀌지 않습니다.
 
 프로젝트의 정의 [결정: 2026-11-04 사용자]: 프로젝트는 대화(thread) 여러 개를 묶은 이름 있는 묶음이고, 공통 지침, 공통 파일, 플러그인 설정을 함께 씁니다. 작업 폴더는 선택입니다. 지금 폴더 기준의 설정 화면 이름은 "작업 폴더 설정"으로 바꿉니다. 폴더에서 온 코드의 신뢰(`X.loading-trust.spec`)는 그대로 폴더 기준입니다. 구현은 M5입니다. M4에서는 프로젝트 층을 구현하지 않고 위 4.5.2의 규칙을 유지합니다.
 
@@ -1465,7 +1465,7 @@ M5에서 정할 것 [제안]: 호스트 저장소에 프로젝트 레코드(`pro
 3. 대화를 열 때 `seedPluginSet`이, 단계 경계마다 `applyPluginSet`이 E(T)를 계산해 등록별 켜기·끄기 요청을 기존 경로(`scope.request(record, enabled, undefined, threadId)`)로 낸다. 요청은 등록마다 마지막으로 맞춘 E(T) 값과 다를 때만 낸다(`pluginReconciled`). 엔진이 `disable()`로 끈 등록(자동 끄기, 안전 모드)은 E(T)가 바뀔 때까지 그대로 꺼져 있다. 열기 때 seed는 E(T)가 이긴다. 턴이 정착한 신호는 건너뛴다. 집합이 같으면 `profile.applied`를 남기지 않고, 바뀌면 `reason`, `profileId`, `profileRev`, `commonRev`, `added`, `removed`, `overlay`를 경계 기여에 넣는다. 프로필을 고친 뒤 열린 대화는 `recompute`가 요청만 옮기고 적용은 다음 경계다(유휴 대화는 §4.5.5).
 4. 열린 대화에서는 E(T)가 이긴다. 같은 확장의 Registration은 그 확장이 E(T)에 있으면 함께 켜진다. `plugins[].defaultEnabled`(비루트 선언의 기본 꺼짐 포함)는 켜짐에 쓰지 않는다(M5c §4.1.9). 대화가 없는 전역 상태(`record.desired`)는 아직 매니페스트 기본을 쓴다 [미결: 전역 상태를 기본 프로필의 집합으로 바꿀지] [근거: apps/host/src/assembly/m4/ext-read-port.ts `orderPreview`가 기본 프로필 집합을 따로 쓴다]. 실패 장부는 확장 단위(`ext:<이름>`)라서 같은 확장의 다른 Registration이 성공하면 연속 실패가 비워진다 [미결: 장부를 Registration 단위로 둘지] [근거: apps/host/src/assembly/m4/ext-read-sources.ts `health`].
 5. 훅 단위(`x.operations.hookDefs`의 훅 정의, `hookUnitName`으로 만든 단위)는 플러그인이 아니라서 E(T)가 켜고 끄지 않는다. 폴더 신뢰와 저장된 끄기가 정한다. seed와 apply는 `isHookUnitName`인 등록을 건너뛴다.
-6. 가이드 그룹(`guide`)의 스킬은 대화의 E(T)에 가이드가 있을 때만 모델에 나간다(`cap-knowledge`의 확장 제공 스킬 루트가 대화 id를 받는다). 개발 모드는 가이드를 모든 대화의 E(T)에 넣고 잠근다(`forcedOn: "devMode"`). 대화의 프로필이 기본 목록의 내장 단위를 모두 뺀 경우(예: `[guide]`만 든 프로필)에는 `turn.start`가 응답하지 않았다(guide 시험에서 실측, 60초 시간 초과). 어느 단위가 빠져서인지는 확인하지 않았다. 내장 단위(`core-loop` 등)처럼 tier가 `builtin`인 것은 코어가 아니라서 프로필이 뺄 수 있다 [미결: 빠졌을 때 턴이 멈추지 않게 할 규칙] [근거: apps/host/src/assembly/groups.ts `host-groups`, packages/ext-host/src/operations/tier.ts `assignTier`].
+6. 가이드 플러그인(`guide`)의 스킬은 대화의 E(T)에 가이드가 있을 때만 모델에 나간다(`cap-knowledge`의 확장 제공 스킬 루트가 대화 id를 받는다). 개발 모드는 가이드를 모든 대화의 E(T)에 넣고 잠근다(`forcedOn: "devMode"`). 대화의 프로필이 기본 목록의 내장 단위를 모두 뺀 경우(예: `[guide]`만 든 프로필)에는 `turn.start`가 응답하지 않았다(guide 시험에서 실측, 60초 시간 초과). 어느 단위가 빠져서인지는 확인하지 않았다. 내장 단위(`core-loop` 등)처럼 tier가 `builtin`인 것은 코어가 아니라서 프로필이 뺄 수 있다 [미결: 빠졌을 때 턴이 멈추지 않게 할 규칙] [근거: apps/host/src/assembly/groups.ts `host-groups`, packages/ext-host/src/operations/tier.ts `assignTier`].
 7. `hooks.order.preview`는 대화를 받지 않으므로 기본 프로필의 집합(`PluginSetHandle.defaultView`)에 든 확장의 핸들러만 본다.
 
 ### 4.6 상태 문서, 기록, 레코드
@@ -1501,7 +1501,7 @@ commit(next):
   rejected(invalid)        → throw Bug("commit.invalid: …")   // 초안과 키는 X가 만들므로 X 결함
 ```
 
-- 이벤트 kind [제안]: 그룹은 `grp.<name>.state.committed`, 플러그인은 `x.<name>.state.committed`다. F.records.spec §3.2의 확장 kind 형식(`<x|grp>.<확장 이름>.<영역>.<이름>`)을 따른다. 영역 `state`는 X 예약이다. 확장은 `recordKinds`에 `.state.` 영역을 선언할 수 없다. [미결] 이 예약을 F `validateManifest`의 오류 코드로 둘지(`record_kind_reserved` 추가 요청).
+- 이벤트 kind [제안]: orchestration 플러그인은 `grp.<name>.state.committed`, 그 밖의 플러그인은 `x.<name>.state.committed`다. F.records.spec §3.2의 확장 kind 형식(`<x|grp>.<확장 이름>.<영역>.<이름>`)을 따른다. 영역 `state`는 X 예약이다. 확장은 `recordKinds`에 `.state.` 영역을 선언할 수 없다. [미결] 이 예약을 F `validateManifest`의 오류 코드로 둘지(`record_kind_reserved` 추가 요청).
 - 하위 scope도 같은 kind를 쓰고 payload의 `scopeId`로 구분한다.
 - payload [제안]: `{ scopeId, rev, prevEventId, version, doc }`. `prevEventId`는 같은 가지에서 그 scope의 바로 앞 상태 이벤트 id이고 첫 커밋이면 `null`이다. 상태 이벤트는 가지마다 `prevEventId`로 이어진 선형 이력을 이룬다.
 - 투영 [제안]: X 소유 투영기가 테이블 `x_<name의 하이픈을 밑줄로>_state`(열: `thread_id`, `scope_id`, `event_id`, `prev_event_id`, `rev`, `version`, `doc`, 기본 키 `event_id`)를 같은 `SessionWriter` 트랜잭션에서 갱신한다(eng.transactions.design TX-03, §4.2 `ProducerHandle`). 상태 이벤트와 투영 행이 한 트랜잭션이다. 행은 가지마다 쌓이고 덮어쓰지 않는다. 활성 가지의 상태는 활성 가지 사슬 위의 `event_id` 중 가장 나중 행이다. L3.group-sdk.spec §3.6 `StateProjectionRow`도 이 열 이름을 쓴다.
@@ -1519,7 +1519,7 @@ commit(next):
 - 멱등 신원(키와 지문)은 `record`·`recordPrivate`와 같이 호출 시점에 호출 순서대로 받는다. 줄에서 기다리는 `commit`·`updateState`도 같다. `updateState`의 재시도는 같은 신원에 접미사 `.a1`을 붙인 키와 지문을 쓰고 호출 순번을 더 쓰지 않는다. 시간 예산을 넘겨 버려진 핸들러(좀비)나 닫힌 대화의 핸들러는 신원을 받을 때와 줄에서 실행될 때 `handler_aborted`로 거부되어 커밋하지 못한다(`commit`, `commitWith`, `updateState`, `record`, `recordPrivate`).
 - [제안, M3-REQ-23] 같은 프로세스 안의 직렬화. X는 (thread, scope)마다 커밋 줄을 하나 둔다. `commit`은 호출 순서대로 하나씩 실행하고, 호출 때의 판을 기대 판으로 잡는다. 앞 커밋이 끝난 뒤 캐시 판이 기대 판과 다르면 저장소를 부르지 않고 `state_conflict`다(앞선 커밋이 이긴다). 줄 덕분에 겹친 호출의 결과가 호출 순서만으로 정해진다.
 - [제안, M3-REQ-23] `hostOf(g).updateState(fn, records?)`는 줄 안에서 최신 상태를 읽어 `fn`을 적용하고 커밋한다. 같은 프로세스의 겹침으로는 충돌하지 않아 갱신을 잃지 않는다. 저장소가 판 충돌을 내면(다른 프로세스, 가지 이동) 저장소에서 상태를 다시 읽고 `fn`을 한 번 더 적용하며, 두 번째도 충돌이면 `err({ kind: "state_conflict" })`다. `state_schema`, `state_too_large`, `storage_unavailable`, `lease_revoked`도 던지지 않고 값으로 돌려준다. 이것으로 Helm `updateState` 큐를 지울 수 있다.
-- [제안, M3-REQ-24] `hostOf(g).commitWith(next, records)`는 상태 커밋 초안과 `records`의 그룹 레코드 초안을 한 `RecordCommitPort.commit` 요청으로 낸다(같은 requestId, 같은 트랜잭션). 레코드는 `record`와 같은 검사(`record_kind_undeclared`, `record_invalid`)를 받고, 상태가 충돌하면 레코드도 남지 않는다. `updateState`의 `records`도 같다. F `RegistrationApi.commit(next)`는 둘째 인자가 없어 F 변경(`commit(next, { records })`) 대신 X 부가 API로 둔다.
+- [제안, M3-REQ-24] `hostOf(g).commitWith(next, records)`는 상태 커밋 초안과 `records`의 플러그인 레코드 초안을 한 `RecordCommitPort.commit` 요청으로 낸다(같은 requestId, 같은 트랜잭션). 레코드는 `record`와 같은 검사(`record_kind_undeclared`, `record_invalid`)를 받고, 상태가 충돌하면 레코드도 남지 않는다. `updateState`의 `records`도 같다. F `RegistrationApi.commit(next)`는 둘째 인자가 없어 F 변경(`commit(next, { records })`) 대신 X 부가 API로 둔다.
 - 핸들러가 받는 `ctx.state`는 디스패치 시작 때의 캐시 값이다. 같은 디스패치 안의 `commit`은 뒤 핸들러의 `ctx.state`를 바꾸지 않는다. `g.state()`는 호출 시점의 캐시 값을 돌려준다.
 
 #### 4.6.2 상태 캐시
@@ -1557,7 +1557,7 @@ readRecords(query):
 - [결정: M3b B4-GRP] 저장된 상태가 스키마·버전 검사를 못 넘기면(`state_schema`, `state_future_version`, `state_migration_*`) scope는 그 thread에서 켜지지 않고 `lastError`가 남는다. 되돌릴 길은 `ExtHost.resetRegistrationState(threadId, scopeId)`다. 활성 가지의 마지막 판 위에 선언 `initial`을 새 판(rev+1)으로 커밋하고(키 `reset:<scope 해시>:<기존 rev>`, 같은 판의 재호출은 한 번만 쓴다) 거부와 `lastError`를 지운 뒤 적용을 예약한다. 이전 판은 기록에 남는다. 오류가 저장 상태 오류가 아니면 `not_refused`, scope나 열린 thread가 없으면 `unknown_scope`·`thread_not_open`이다. 사람 확인은 호출하는 L3·L4의 몫이다.
 - `orchestration` 선언이 없는 확장도 `x.<name>.` 레코드를 쓸 수 있다. `OrchestrationRecord.groupId`에는 확장 이름이 들어간다 [제안, F `OrchestrationId = ExtensionName`].
 - 읽기 범위는 현재 thread다 [제안]. 다른 thread의 레코드 조회는 M2 이후 별도 질의로 둔다.
-- 대상 그룹이 설치되어 있지 않아도 빈 목록이나 기존 기록을 돌려준다(F.extensions.spec §5 8번).
+- 대상 플러그인이 설치되어 있지 않아도 빈 목록이나 기존 기록을 돌려준다(F.extensions.spec §5 8번).
 - `readRecords`는 다른 확장이 `recordPrivate`로 쓴 행을 돌려주지 않는다(§4.6.5). `readsRecordKinds`가 `grp.<id>.*`처럼 넓게 선언되어도 같다. 거르는 일은 포트가 `reader` 인자로 한다(F.records.spec §3.9 비공개 기록 규칙 3). X는 `reader`에 `readRecords`를 부른 scope의 확장 이름만 넣고, 다른 확장 이름을 넣지 않는다.
 
 #### 4.6.5 recordPrivate
@@ -1575,7 +1575,7 @@ recordPrivate(kind, payload):
   RecordCommitPort.commit({ threadId, requestId: rid, visibility: "private", drafts: [draft(kind, payload)] })
 ```
 
-- kind는 자기 접두만 받는다. 그룹은 `grp.<name>.*`, 플러그인은 `x.<name>.*`다. 영역 `state`는 X 예약이라 쓸 수 없다(§4.6.1).
+- kind는 자기 접두만 받는다. orchestration 플러그인은 `grp.<name>.*`, 그 밖의 플러그인은 `x.<name>.*`다. 영역 `state`는 X 예약이라 쓸 수 없다(§4.6.1).
 - 매니페스트 `recordKinds`에 선언할 필요가 없다. 공개 kind(`recordKinds`에 있는 kind)와 같은 이름은 거부한다. 같은 kind가 공개와 비공개로 섞이지 않게 하기 위해서다.
 - payload 검사는 X가 하지 않는다. 스키마는 쓰는 확장의 투영기와 문서가 정한다. 큰 값(제안 본문, diff)은 F `BlobRef`로 분리하고 이벤트에는 참조만 싣는다(L3.learning.spec §3.7.1 조건 3).
 - 멱등 키와 카운터는 `record`와 같다. 재실행된 on 핸들러의 같은 호출은 같은 키를 받아 두 번째 커밋이 `replayed`다.
@@ -1603,7 +1603,7 @@ recordPrivate(kind, payload):
 
 ### 4.7 post
 
-1. 첫 `post` 호출 때 `validateUsage`의 `post_undeclared` 검사를 한다. 매니페스트 `usesPost`가 참이 아니면 `PrimitiveError("post_undeclared")`로 거부한다. 플러그인과 그룹 모두 쓸 수 있다.
+1. 첫 `post` 호출 때 `validateUsage`의 `post_undeclared` 검사를 한다. 매니페스트 `usesPost`가 참이 아니면 `PrimitiveError("post_undeclared")`로 거부한다. 모든 플러그인이 쓸 수 있다.
 2. `requestId`가 1~64자가 아니면 `TypeError`로 거부한다(F 타입 위반).
 3. `InputQueuePort.enqueue({ threadId, scopeId, requestId, when, item })`를 부른다. 같은 thread에서 같은 (scopeId, requestId)의 두 번째 post는 `ok({ duplicate: true })`를 받고 큐에 넣지 않는다. X는 `PostReceipt { requestId, duplicate }`로 돌려준다. 포트가 `err(EnqueueError)`를 돌려주면 확장에는 예외로 옮긴다: `invalid_request_id`·`mode_not_supported`는 `TypeError`, `thread_closed`·`thread_not_found`는 `PrimitiveError("no_thread")`, 저장소 실패(`busy`, `disk_full`, `io`, `read_only`, `ownership_lost`)는 `PrimitiveError("storage_unavailable")`이고 원인은 `cause`에 둔다. 포트는 `Bug`를 던지지 않는다.
 4. 멱등 범위는 thread와 scope다 [제안]. F.extensions.spec §4.4는 "같은 대화"만 적었다. scope를 더하면 다른 확장이 같은 문자열을 써도 서로의 post를 지우지 않는다. 커밋 키는 L1.tasks가 만들고, 키에 scope id를 넣을 때 `/`를 `:`로 바꾼다([결정: review.decisions-2 U-13]).
@@ -1620,7 +1620,7 @@ recordPrivate(kind, payload):
 
 - [미결] `next`의 시작 여부. 조사 결과 pi `deliverAs: "nextTurn"`은 요청을 시작하지 않고 다음 사용자 입력에 붙는다. 소비된 메시지는 전사에 남아 이후 요청에도 보인다(`_research/notes/X-1.md` §0, §4.1). ADR-0007 §3.1의 "경계 뒤 정확히 한 요청에 들어간다"는 pi의 `nextTurn`과 경계 `continue`를 합친 문구다. [제안] 위 표처럼 `next`는 시작하지 않는다(pi `nextTurn`과 1:1). 스스로 turn을 시작하는 경로는 drive뿐이다. 사용자 확인 전이므로 [미결]로 둔다. 확인되면 ADR-0007 §3.1과 architecture.runtime-flow.design §4의 `next` 행을 고친다.
 - [미결] 유휴 상태의 `post`. [제안] 위 표처럼 세 값 모두 보관만 하고 turn을 시작하지 않는다. pi 유휴 `triggerTurn: true`(즉시 실행)에 해당하는 값(`start`)을 `PostWhen`에 더할지는 F와 ADR을 바꾸는 사안이다(`_research/notes/X-1.md` §4.2 안 3).
-- [미결] pi `sendMessage(…, {triggerTurn: false})`(실행 끝에 기록만)에 대응하는 연산. [제안] 그룹은 `record`, 대화에 보이게 하려면 `post(kind: "context", when: "followUp")`로 옮긴다. 어댑터 매핑은 X.loading-trust.spec이 정한다.
+- [미결] pi `sendMessage(…, {triggerTurn: false})`(실행 끝에 기록만)에 대응하는 연산. [제안] 플러그인은 `record`, 대화에 보이게 하려면 `post(kind: "context", when: "followUp")`로 옮긴다. 어댑터 매핑은 X.loading-trust.spec이 정한다.
 
 ### 4.8 리소스 등록
 
@@ -1644,7 +1644,7 @@ recordPrivate(kind, payload):
 | `setActiveTools`·`getActiveTools`·`getAllTools`(1738-1750) | 변환 | `capability(tools 키)` 메서드 | L1.tools.spec [가정] |
 | `setModel`(1763), `setThinkingLevel`(1772) | 변환 | 대화 설정 변경(`settings.changed`) 경로 | L1.models.spec, F.wire-settings.spec |
 | `exec`(1735) | 비지원(primitives 범위 밖) | 기능 서비스 | X.loading-trust.spec 어댑터, L0.exec.spec |
-| `events` | 비지원 | 그룹 레코드와 서비스로 대체 | §4.9 |
+| `events` | 비지원 | 플러그인 레코드와 서비스로 대체 | §4.9 |
 | `ctx.ui.*` | 범위 밖 | L2.dialog, L4 | X.loading-trust.spec 어댑터 |
 | 명령 전용 "세션" 제어(`newSession`, `reload`, `fork` 등) | 비지원 | drive와 L4 명령 | [미결] `_research/notes/X-3.md` §5 2번 |
 
@@ -1662,22 +1662,22 @@ recordPrivate(kind, payload):
 8. 세대가 닫히면(scope를 끄거나 공급자 재시작으로 세대를 다시 만들 때) 그 세대가 등록한 리소스는 모두 해제된다. 새 세대의 setup이 다시 등록한다.
 9. [제안, M4 T-XV] 확장 메서드(`ext_method`)는 포트 없이 X가 보관하고, 이름 정책을 거치지 않는다. 같은 확장 안에서 동사가 유일하다. 규칙과 호출 절차는 §4.12다.
 
-### 4.9 그룹 간 이벤트 이름 격리
+### 4.9 플러그인 간 이벤트 이름 격리
 
 adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thisArg 필터가 없으면 전역으로 전달된다(`events.ts:77-86`).
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
-| A | Cordis `ctx.emit`/`ctx.on`을 확장에 그대로 노출 | pi `pi.events`와 비슷하고 구현이 없다 | 같은 이름이면 모든 그룹이 받는다. 스키마 없는 통신이 생겨 F.extensions.spec §4.8(그룹끼리 직접 참조 금지, F 스키마로만 통신)을 어긴다. Cordis 타입이 확장 API에 새어 나간다(DR-11) |
-| B | 노출하되 이름을 `x.<name>.`/`grp.<name>.` 접두로 강제, 전달은 전역 | 충돌이 사라진다 | 누구나 다른 그룹 접두를 구독할 수 있어 숨은 결합이 남는다. 휘발이라 재개 뒤 신호가 사라진다 |
-| C | 그룹마다 `ctx.isolate`나 thisArg 필터로 격리 | Cordis 기능을 쓴다 | 격리가 서비스 조회에도 걸려 기능 공유가 복잡해진다(`reflect.ts:211-212`). rc API 의존이 늘어난다 |
-| D | 확장에 범용 이벤트 버스를 주지 않는다. 확장 사이 통신은 그룹 레코드(내구, 스키마, 읽기 선언)와 기능 서비스로만 한다 | F §4.8과 그대로 맞는다. 재생과 감사가 된다. Cordis 이벤트 API를 감출 수 있다 | pi `pi.events` 예제(1단위, `_research/notes/X-3.md` §2.3)는 어댑터 없이 올라오지 않는다 |
+| A | Cordis `ctx.emit`/`ctx.on`을 확장에 그대로 노출 | pi `pi.events`와 비슷하고 구현이 없다 | 같은 이름이면 모든 플러그인이 받는다. 스키마 없는 통신이 생겨 F.extensions.spec §4.8(플러그인끼리 직접 참조 금지, F 스키마로만 통신)을 어긴다. Cordis 타입이 확장 API에 새어 나간다(DR-11) |
+| B | 노출하되 이름을 `x.<name>.`/`grp.<name>.` 접두로 강제, 전달은 전역 | 충돌이 사라진다 | 누구나 다른 플러그인 접두를 구독할 수 있어 숨은 결합이 남는다. 휘발이라 재개 뒤 신호가 사라진다 |
+| C | 플러그인마다 `ctx.isolate`나 thisArg 필터로 격리 | Cordis 기능을 쓴다 | 격리가 서비스 조회에도 걸려 기능 공유가 복잡해진다(`reflect.ts:211-212`). rc API 의존이 늘어난다 |
+| D | 확장에 범용 이벤트 버스를 주지 않는다. 확장 사이 통신은 플러그인 레코드(내구, 스키마, 읽기 선언)와 기능 서비스로만 한다 | F §4.8과 그대로 맞는다. 재생과 감사가 된다. Cordis 이벤트 API를 감출 수 있다 | pi `pi.events` 예제(1단위, `_research/notes/X-3.md` §2.3)는 어댑터 없이 올라오지 않는다 |
 
 [결정: P-26, M2] D를 채택한다. ext-host는 확장에 Cordis `Context`와 `emit`을 노출하지 않는다. 훅은 자체 레지스트리로 디스패치하므로 Cordis 이벤트 이름 공간을 쓰지 않는다. `g`, `hostOf(g)`, `PlatformContext`, `ExtHost`, `ResourceRegistry` 어디에도 `emit`, `parallel`, `serial`, `bail`, `waterfall`, `broadcast`, `ctx`, `root`, `reflect`, `fiber`, `plugin`이 없다는 것을 시험이 확인한다(`event-isolation.test.ts`). 서비스 이름은 §3.7 규칙으로 격리한다.
 
-[결정: ADR-0017 §3.7 1번, M3-REQ-26] pi 확장 어댑터를 두지 않으므로 `pi.events` 호환 휘발 이벤트 버스(`primitives/event-bus.ts`)를 지웠다. 그룹 사이 격리는 그룹 레코드의 kind 접두 필터 하나다.
+[결정: ADR-0017 §3.7 1번, M3-REQ-26] pi 확장 어댑터를 두지 않으므로 `pi.events` 호환 휘발 이벤트 버스(`primitives/event-bus.ts`)를 지웠다. 플러그인 사이 격리는 플러그인 레코드의 kind 접두 필터 하나다.
 
-- 쓰기: `record`와 `recordPrivate`는 자기 접두(그룹 `grp.<이름>.`, 플러그인 `x.<이름>.`)의 kind만 받는다.
+- 쓰기: `record`와 `recordPrivate`는 자기 접두(orchestration 플러그인은 `grp.<이름>.`, 그 밖의 플러그인은 `x.<이름>.`)의 kind만 받는다.
 - 읽기: `readRecords`는 자기 접두이거나 매니페스트 `readsRecordKinds`가 덮는 kind만 받는다(`isKindReadable`). 덮지 않으면 `read_kind_undeclared`다. 비공개 기록은 쓴 확장만 읽는다(§4.6.5).
 - 시험: `event-isolation.test.ts`가 확장에 Cordis 이벤트 API가 없음과 접두 필터를 확인한다.
 
@@ -1689,7 +1689,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 2. 워커: 요청이 커밋된 뒤와 `openThread` 때(재시작 복구) 그 scope의 요청 레코드를 읽고, 결과가 없는 요청을 레코드 순서대로 실행한다. 재실행되지 않는 문맥(`withoutAmbient`)에서 돌며 기능 래퍼 검사를 받지 않는 원본 서비스를 부른다. scope마다 한 번에 하나만 돈다.
 3. 순서: `effect.started { scopeId, key }` 커밋 → 메서드 호출(`requestId = key`, `CallOptions.context` 채움) → `effect.settled { scopeId, key, outcome }` 커밋. `outcome`은 `ok { output }`, `failed { code, message }`(오류 거부, 공급자 없음 `unavailable`), `unknown`이다. 각 커밋 키는 `eff:<scope 해시>:<key>:<단계>`라 같은 단계를 다시 커밋해도 한 번이다.
 4. 재시작 복구: `started`는 있고 `settled`가 없으면 결과 불명이다. 메서드 `replay`가 `"safe"`면 다시 부르고, 아니면(정의를 모르는 경우 포함) 부르지 않고 `outcome: { kind: "unknown" }`으로 닫는다.
-5. 결과 통지 [제안]: 그룹은 `readRecords({ kind: "<접두>effect.settled" })`로 다음 경계나 on 핸들러에서 읽는다. 별도 통지 훅은 없다.
+5. 결과 통지 [제안]: 플러그인은 `readRecords({ kind: "<접두>effect.settled" })`로 다음 경계나 on 핸들러에서 읽는다. 별도 통지 훅은 없다.
 6. 처리 한 번이 던져도 scope의 처리 표시를 지우고(`finally`) 뒤 요청이 이어서 실행된다. 닫힌 thread의 요청은 건너뛰고 다음 `openThread`에서 이어서 처리한다. 같은 확장의 scope들은 레코드의 `scopeId`로 나뉘어 같은 `key`를 써도 섞이지 않는다.
 7. 시험: `replay-effects.test.ts`의 요청 → started → settled 순서와 한 번 실행, 재시작 뒤 `unknown` 종결.
 
@@ -1745,7 +1745,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 7. detached tap(`dispatch: "detached"`, 훅 5개)은 핸들러 완료를 기다리지 않고 `{ detached: true, failures: [] }`를 바로 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 `policy.onHandlerFailure`와 진단으로만 보고된다. 시간 예산은 받는다(초과하면 signal을 abort하고 `timeout`으로 센다). thread가 닫히면(대화 종료, `ExtHost.dispose`) 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행하지 않으며, 늦게 끝난 값과 예외는 버린다(`aborted`는 실패로 세지 않는다). 디스패치 옵션의 `signal`은 detached에는 쓰지 않는다. 호출한 turn이 끝나도 계속 도는 것이 목적이기 때문이다.
 8. 같은 `requestId`로 두 번째 post: `duplicate: true`, 큐 변화 없음.
 9. `usesPost` 없이 post: `post_undeclared`로 거부. 확장은 계속 로드된 상태다(경고로 끝내지 않는다. X.loading-trust.spec이 로드 실패로 바꿀 수 있다).
-10. 두 그룹이 drive를 등록하고 기본 활성: X는 중재하지 않는다. 주도권은 시작 계기(§4.4.1 4번)로만 생기고 맨 위 프레임 하나만 단계 함수를 부른다. 주도 중 사용자 명령은 전환 정책(§4.4.1a)에 따라 스택을 바꾼다. 실행 중이면 그 단계가 끝난 경계에서다.
+10. 두 플러그인이 drive를 등록하고 기본 활성: X는 중재하지 않는다. 주도권은 시작 계기(§4.4.1 4번)로만 생기고 맨 위 프레임 하나만 단계 함수를 부른다. 주도 중 사용자 명령은 전환 정책(§4.4.1a)에 따라 스택을 바꾼다. 실행 중이면 그 단계가 끝난 경계에서다.
 11. drive 함수가 예외: drive 락 반납(`error`), drive 오류 표시, on 핸들러 유지, 사용자 토글까지 재시도 없음.
 12. `turns` 상한 2에서 세 번째 `loop.turn`: `lease_budget`으로 거부, drive 락 `releasing`, 다음 경계에서 `lease.released { reason: "budget" }`.
 13. 비협조적 확장(시간 예산을 넘긴 핸들러, 반납 신호를 무시하는 drive 함수): X는 결과를 버리고 포트 호출을 거부할 뿐 코드 실행을 멈추지 못한다. 반복 실패의 자동 끄기는 X.operations.spec, 격리는 X.loading-trust.spec(2차)이다.
@@ -1768,15 +1768,15 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | L4 노출 |
 |---|---|---|---|---|---|
-| `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
+| `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 설정 화면 "플러그인" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
 | `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 drive 락 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
 | `x.primitives.driveMaxDepth` [결정: 2026-11-17 사용자. 키 이름은 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] | 정수≥1 | `8` | managed, user, project, launch, profile | `nextTurn`. 맡기기가 소비한다(§4.4.1b, §4.4.2 7번) | L4 설정 화면의 주도권 항목(숫자 칸). 탭 배치는 L4가 정한다 [제안] |
-| `x.primitives.driveRequiresOrchestration` [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 오케스트레이션 플러그인만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
+| `x.primitives.driveRequiresOrchestration` [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "기능 공급자" 표 |
 
 - `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `driveRequiresOrchestration`은 `toggle`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
-- 3a에서 `x.primitives.activeDriver`와 `x.primitives.leaseWaitLimit`을 없앴다(drive-isolation.md 2.2). 구동 그룹을 고르는 키는 없다 [근거: packages/ext-host/src/primitives/settings.ts]. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
-- [결정: review.decisions-2 U-12] 상한을 명시하지 않은 drive 락의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `ext.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
+- 3a에서 `x.primitives.activeDriver`와 `x.primitives.leaseWaitLimit`을 없앴다(drive-isolation.md 2.2). 구동 플러그인을 고르는 키는 없다 [근거: packages/ext-host/src/primitives/settings.ts]. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
+- [결정: review.decisions-2 U-12] 상한을 명시하지 않은 drive 락의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 플러그인 덮어쓰기(예: `ext.helm.driveLimits`)는 각 플러그인이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
 - 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext enable|disable <registrationId>`가 `RegistrationHandle.enable/disable`을 부른다.
 - 파일: 사용자·작업 폴더 설정 파일의 같은 키(F.wire-settings.spec).
 
@@ -1789,7 +1789,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `on` | 레지스트리, 스냅샷, fold 디스패처, 시간 예산 | 기록하지 않는다. fold 결과는 해당 이벤트(예: `effect.intent`)에 남는다 |
 | `post` | `InputQueuePort.enqueue` 위임, 멱등, `usesPost` 검사 | `input.queued`(`source.type: "extension"`) |
 | `drive` | `LeaseBroker`(주도권 스택, 시작 요청 큐), `StepLoop`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
-| `scope` | `RegistrationRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
+| `scope` | `RegistrationRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 플러그인 레코드 kind, 비공개 기록 kind |
 
 - `post`, `drive`, `boundary.settle.before`의 `continue`가 겹치는 문제(ADR-0007 §4.2)는 다음 구분으로 둔다. 같은 turn 안의 한 번 연장은 경계 훅 chain의 `continue`, 다음 turn에 붙는 입력은 `post`, turn을 스스로 시작하는 루프 소유는 `drive`다.
 - 재생: on 핸들러는 다시 실행해도 되는 질의다([결정] F.extensions.spec §4.3). 재개 때 열린 의도는 저장된 최종 인자를 쓰고 `tool.call.before` 핸들러를 다시 부르지 않는다(eng.events.design §7.1 3번). 이 판단은 L1이 하며, L1은 그 경우 `dispatch`를 부르지 않는다.
@@ -1847,7 +1847,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 8. 시간 예산 50ms 정책에서 100ms 걸리는 first 핸들러는 `timeout` 실패와 `FIRST_DENY` 결정을 낸다(가짜 타이머로 진행).
 9. 같은 `requestId`로 두 번 post하면 두 번째 `PostReceipt.duplicate`가 참이고 큐 항목은 하나다.
 10. `usesPost`가 없는 매니페스트의 scope가 post하면 `post_undeclared`로 거부된다.
-11. drive를 등록한 두 그룹이 켜져 있어도 주도권은 시작 계기로만 생긴다. 사용자 명령 하나로 그 등록의 프레임만 쌓이고, 다른 등록의 단계 함수 호출 수는 0이다.
+11. drive를 등록한 두 플러그인이 켜져 있어도 주도권은 시작 계기로만 생긴다. 사용자 명령 하나로 그 등록의 프레임만 쌓이고, 다른 등록의 단계 함수 호출 수는 0이다.
 12. `maxTurns: 2` drive 락에서 세 번째 `loop.turn`은 `lease_budget`으로 거부되고 drive 락 상태가 `releasing`이 된다.
 13. 첫 호출에서 `loop.turn` 한 번 뒤 프로세스 재시작을 흉내 내고 같은 상태 판으로 다시 호출하면, 같은 기본 `requestId`가 만들어지고 `runTurn`이 `replayed: true`를 돌려주며 새 turn이 실행되지 않는다.
 14. drive 함수가 같은 상태 판으로 두 번 연속 효과 없이 반환하면 drive 락이 `idle` 사유로 반납된다.
@@ -1865,7 +1865,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 26. `registerPlatform`으로 등록한 L0 모듈이 `providePort(ScopedStorePortKey, impl)`를 부르면 `ExtHost.ports.get(ScopedStorePortKey)`가 그 구현을 돌려준다. L0 모듈의 setup이 `err({ reason, cause })`를 돌려주면 `registerPlatform`은 `{ ok: false, error: { kind: "setup_failed", module, reason, cause } }`를 돌려주고 그 모듈의 포트는 조회되지 않는다. setup이 던지면 `registerPlatform`이 그대로 던진다(버그).
 27. on 핸들러가 카운터를 1 올려 커밋한 뒤 소비 커밋 전 재시작을 흉내 내면, 다시 실행된 핸들러의 `ctx.state`는 커밋된 판이고, 같은 키의 커밋은 `replayed`이며 `commit`의 반환값·캐시·저장소의 doc이 모두 처음 커밋한 값과 같다.
 28. 판 2까지 커밋하고 판 1 이벤트 뒤로 되감은 뒤 `openThread`를 다시 부르면 `state()`는 판 1의 doc이고, 다음 커밋은 `expectStateRev.rev = 1`로 성공해 판 2(새 `event_id`, `prev_event_id` = 판 1 이벤트 id)가 된다.
-29. 그룹 `learning`이 `recordPrivate("grp.learning.proposal.created", p)`를 부르면 `visibility: "private"`로 커밋되고, `readsRecordKinds: ["grp.learning.*"]`를 선언한 다른 그룹의 `readRecords`는 그 행을 돌려주지 않는다. 같은 그룹의 `readRecords`는 돌려준다.
+29. 플러그인 `learning`이 `recordPrivate("grp.learning.proposal.created", p)`를 부르면 `visibility: "private"`로 커밋되고, `readsRecordKinds: ["grp.learning.*"]`를 선언한 다른 플러그인의 `readRecords`는 그 행을 돌려주지 않는다. 같은 플러그인의 `readRecords`는 돌려준다.
 30. [M3-REQ-102] 도구 `execute`와 명령 처리기 안에서 `recordPrivate`, `record`, `commit`, `state()`가 `no_thread` 없이 동작한다. 같은 도구 호출 id(명령은 호출 id)로 다시 실행하면 기록과 상태 커밋이 한 번만 남고, 다른 id면 새로 남는다. 위임 자식 대화에서 실행된 도구의 기록은 그 자식 대화에만 남는다. thread가 열려 있지 않거나 명령의 `threadId`가 `null`이면 `no_thread`다.
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
 31. `fresnel.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
@@ -1882,7 +1882,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
 44. (M2, X.3) detached 훅(`thread.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
-45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
+45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 플러그인 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
 54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 기능을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 기능을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 58. (M4, X-17) drive 함수가 `loop.ask`를 부르면 question 승인이 하나 열리고(`origin.caller`는 `ext:<확장 이름>`), 프레임이 `asking`이 되어 답을 기다리며 drive 락는 반납하지 않는다. 답이 오면 같은 프레임이 이어 가고(차수는 바뀌지 않는다), 같은 `requestId`의 재호출이 `answered`를 돌려주며, 승인은 한 번만 열린다. 거부와 만료는 `denied`와 `resolvedBy`로 돌려준다. 끈 Registration의 승인은 닫히지 않고 남는다. 승인 포트가 없으면 `port_unavailable`이다. 확인: `packages/ext-host/test/primitives/drive-ask.test.ts`.
 59. (M4, X-19) Test run 대화에서 `pause`를 부르면 다음 `boundary.step.after` 디스패치가 처리 뒤에 멈추고, `resume`이 풀면 같은 결과로 끝난다. 멈춘 동안 drive 함수는 한 번만 불렸고 drive 락은 같으며 `lease.released`가 없고 `loop.turn`은 하나뿐이다. `step`은 경계 하나만 지나가게 하고 요청이 없으면 `not_paused`, Test run이 아니면 `not_a_test_run`이다. 중단과 thread 닫기도 멈춘 디스패치를 푼다. `phase`는 drive 락 보유자의 `composition.phases`와 커밋된 `phase`를 읽고 쓰지 않는다. 확인: `packages/ext-host/test/primitives/test-run-pause.test.ts`(단계 경계 기록과 200건 상한 포함), `packages/ext-host/test/operations/trace-buffer.test.ts`(`guardHits`).
@@ -1892,7 +1892,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [결정: M4 T-ASKRUN 확인, 2026-11-03] drive 함수가 `loop.ask`에 다시 닿는 경우의 동작은 맞다. `drive-ask.test.ts`와 `drive-ask-rerun.test.ts`(실제 호스트와 승인 서비스 대역)가 값으로 고정한다. 옛 방식(답이 없으면 `waiting`으로 반납하고 재부여)은 3a에서 걷어 냈다. 3a에서는 재시작 뒤 복원된 `asking` 프레임이 같은 `requestId`로 `ask`를 다시 내면 `approvals.open`이 기존 미해결 승인을 돌려주고, 프레임은 다시 기다린다. 답이 있으면 기록된 `AskOutcome`을 돌려준다. 서로 다른 `requestId`의 ask 둘은 각자 승인을 만들고, 앞의 ask는 재호출마다 기록된 답을 받는다. 승인 키는 같은 대화 안에서만 같으므로 다른 thread의 같은 `requestId`와 섞이지 않는다.
 - [닫힘] (X-17) 재부여 뒤 기본 키 `loop.turn`·`loop.spawn`의 재실행. 선택지 (A)를 골랐다(사용자 결정, 2026-11-03: 락 신원을 가능한 한 안정되게 유지해 재개한 drive가 turn·문맥·캐시를 지키게 한다). `leaseId`는 부여마다 새로 발급하는 펜싱 값으로 두고, `lease.acquired`에 `lineageId`를 더했다. 3a에서 대기 반납이 없어져 계통을 이어받는 경우는 남지 않는다(`lineageId = leaseId`, §4.4.1 11번). 기본 키는 `lineageId`로 만든다(§4.4.4). 키에서 id를 통째로 빼는 (B)는 `idle` 반납 뒤 같은 판에서 다시 받은 drive가 옛 결과를 재생해 멈추므로 고르지 않았다. 확인: `drive-ask-rerun.test.ts`(turn·spawn·재시작·ask 둘·낡은 핸들), `drive-lineage.test.ts`(`idle`, `budget`, `revoked` 재부여는 새 계통).
 - [미결] (X-17) `host.ts`의 `track`이 `abandoned` 옵션을 무시한다. `core.ts`의 `HostCore.track(task, options)`은 `abandoned`를 선언하고 `registration.ts`의 시간 초과 setup 뒤처리가 쓰지만, `host.ts`의 구현은 `task`만 받는다. 그래서 `ask`의 답 기다림은 정산 추적에서 뗀다(§4.4.4a). `host.ts`가 옵션을 지키면 그 자리를 `core.track(…, { abandoned: true })`로 바꿀 수 있다. 이 문서는 `host.ts`의 수정을 정하지 않는다.
-- [미결] (X-17) `loop.ask`의 기본 제목. F.extensions.spec §3.2는 "오케스트레이션 플러그인 표시 이름"이라고만 적었다. 매니페스트에 그룹 전용 표시 이름 필드가 없어서 지금은 `displayName`(없거나 빈 값이면 확장 이름)을 쓴다(§4.4.4). 그룹 표시 이름의 정본이 정해지면 바꾼다.
+- [미결] (X-17) `loop.ask`의 기본 제목. F.extensions.spec §3.2는 "플러그인 표시 이름"이라고만 적었다. 매니페스트에 orchestration 전용 표시 이름 필드가 없어서 지금은 `displayName`(없거나 빈 값이면 확장 이름)을 쓴다(§4.4.4). orchestration 표시 이름의 정본이 정해지면 바꾼다.
 - [미결] `post.when = next`가 turn을 스스로 시작하는지. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 시작하지 않음을 확인했다. [제안] 시작하지 않는다(§4.7). 확정되면 ADR-0007 §3.1, architecture.runtime-flow.design §4 표를 고친다.
 - [미결] 유휴 상태 post의 동작(보관, 시작, 오류)과 `start` 값 추가 여부(§4.7).
 - [미결] pi `triggerTurn: false` 대응 연산(§4.7).

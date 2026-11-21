@@ -149,7 +149,7 @@ P6 해시 선택 [제안]:
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | 도구 이름 네임스페이스(`플러그인:이름`)와 provider 도구 이름 허용 문자 충돌 | 외부 플러그인 도구가 provider 요청에서 거부되거나, 충돌 해소 규칙이 늦게 정해져 이름 변경(major)이 생긴다 | M0는 `TOOL_NAME_WIRE_PATTERN`만 오류로 강제하고 충돌은 `tool_name_conflict` 오류로 등록을 막는다. 확장 도구 이름은 `<확장 이름>__<이름>`으로 정했다(`F.capabilities.spec`, [결정: 2026-11-04 사용자, 결정 목록 R3]). 남은 것은 예약 접두 목록뿐이고 엔지니어링 세부다 |
-| Cordis 타입 결합 요구가 F 순수성과 충돌 | 그룹 코드가 `ctx.get` 직접 호출로 타입 없이 서비스를 쓰게 된다 | `ScopeApi.capability(key)` 경로만 문서화하고, X에 `ctx.get` 직접 사용 금지 lint를 제안한다. 선언 병합 여부는 [미결] |
+| Cordis 타입 결합 요구가 F 순수성과 충돌 | 플러그인 코드가 `ctx.get` 직접 호출로 타입 없이 서비스를 쓰게 된다 | `ScopeApi.capability(key)` 경로만 문서화하고, X에 `ctx.get` 직접 사용 금지 lint를 제안한다. 선언 병합 여부는 [미결] |
 | 기능 정의 선례 없음 | `ToolSpecFor` 분배 타입의 추론이 기대와 다르거나 컴파일 비용이 크다 | P4를 별도 작업으로 두고 타입 테스트로 먼저 고정한다. dur `ToolRegistration`은 형태 참고만 한다 |
 | TypeBox 두 벌 설치 | `TSchema` 동일성 검사(`instanceof`, 심볼 키)가 버전 사이에서 어긋날 수 있다 | F 코드는 TypeBox 내부 심볼에 의존하지 않고 JSON 구조만 읽는다. 버전 [미결] 해소 전까지 P2에서 설치 상태를 보고 |
 | `isolatedDeclarations`와 추론형 정의 | export 상수마다 타입 주석이 필요해 정의 파일이 길어진다 | `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있다(`_research/foundation-plan.md` §2). 정의 파일도 예외 없이 명시 주석을 단다. 주석이 지나치게 길면 메서드·도구 스키마를 별도 export 상수로 나누고 `typeof`로 참조한다 |

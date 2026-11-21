@@ -18,7 +18,7 @@ by_task:
     - eng.transactions.design
     - eng.events.design
     - eng.context-map.design
-  extension:          # 훅, 플러그인, 그룹을 건드리는 작업
+  extension:          # 훅, 플러그인을 건드리는 작업
     - X.readme
     - X.primitives.spec
     - F.extensions.spec
@@ -85,10 +85,10 @@ layout:
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
-    # 계정 회전 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.8이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
+    # 계정 회전 플러그인(L3 플러그인 패키지)은 L1 모델 스펙 §4.8이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
     - path: "xeon/packages/plugin-account-rotation/**"
       docs: [L1.models.spec]
-    # 위장 provider 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.11.3이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
+    # 위장 provider 플러그인(L3 플러그인 패키지)은 L1 모델 스펙 §4.11.3이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
     - path: "xeon/packages/plugin-provider-anthropic-oauth/**"
       docs: [L1.models.spec]
   # 층 밖 코드 경로. layout에 자기 층 항목이 없는 문서(architecture, adr, eng)의 binds 허용 목록이다.
@@ -192,6 +192,6 @@ manifest:
     - adr.0019   # 시크릿 기본 저장소 SOPS(age)
     - adr.0020   # L4 공유 클라이언트 패키지 packages/client
     - adr.0021   # 플러그인 화면 기여: 선언형 모드와 격리 프레임 모드(화면마다 선언)
-    - adr.0022   # 플러그인 그룹 모델과 도메인 용어 정리(proposed, §3.2 사용자 확인 대기)
+    - adr.0022   # 플러그인 모델과 도메인 용어 정리(proposed, §3.2 사용자 확인 대기)
     - adr.0023   # 플러그인과 프로필: 고정 코어, Inject·Hook·Drive, 주도권 스택, 검토, 프로젝트 재정의(draft)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"

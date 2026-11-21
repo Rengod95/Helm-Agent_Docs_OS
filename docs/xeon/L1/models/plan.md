@@ -19,7 +19,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 
 목표: `L1.models.spec`의 `fresnel.models`를 구현한다. M1 스모크의 한 턴이 테이프 모델로 재생되고, 시크릿 참조가 요청 직전에만 해석되며, 위장 플러그인 없이 core-models 테스트가 통과해야 한다.
 
-마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm, M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
+마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm, M3는 첫 공개 릴리즈 후보(학습 플러그인, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|

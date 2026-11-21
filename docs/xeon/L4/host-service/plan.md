@@ -30,7 +30,7 @@ binds: [xeon/apps/host/**]
 - 처리기 5개: `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`. 알림 `events.batch`, `stream.chunk`, `$/cancelRequest`. 나머지 메서드는 `notImplemented`.
 - stdio 전송 팩토리(`transport/stdio.ts`)를 `startStdioHost`에 연결하고 `WIRE_CONFORMANCE_CASES`를 in-process와 stdio에서 통과한다(AH-02).
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다. `L4.desktop.plan` D1은 이 개발 진입을 자식 프로세스로 띄워 적합성 테스트를 돈다.
-- `assemble` 최소형: M1에 존재하는 패키지만 싣는다. 테스트용 그룹(on/post/drive 사용)과 모델 테이프 provider를 `extraPlugins`로 받는다.
+- `assemble` 최소형: M1에 존재하는 패키지만 싣는다. 테스트용 플러그인(on/post/drive 사용)과 모델 테이프 provider를 `extraPlugins`로 받는다.
 - 카탈로그 조립과 기동 거부(`CatalogIssue`), `fresnel config schema`.
 - `apps/cli`의 `chat.scenario.test.ts`(저장소 유일한 scenario 테스트, `eng.testing.guide` TS-01)가 이 호스트로 동작한다.
 
@@ -256,7 +256,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 - M1
   1. `just verify` 종료코드 0.
   2. `WIRE_CONFORMANCE_CASES`가 in-process와 stdio에서 통과한다(`conformance-*`). 이로써 `F.wire-settings.plan` §6이 이 plan에 맡긴 A1·A2·A4·A7·A10의 실제 전송 통과를 확인한다.
-  3. `apps/cli`의 `chat.scenario.test.ts`가 `startInProcessHost`로 한 턴, 강제 종료 뒤 재개, drive 그룹 토글을 통과한다(`product.scope.spec` §4.4 M1).
+  3. `apps/cli`의 `chat.scenario.test.ts`가 `startInProcessHost`로 한 턴, 강제 종료 뒤 재개, drive 플러그인 토글을 통과한다(`product.scope.spec` §4.4 M1).
   4. `host-hello-gating`, `handler-throw-internal-error`, `cancel-request`, `subscribe-replay-no-dup`, `stream-chunk-not-replayed`, `assemble-catalog-refused`, `settings-*`(M1분)가 통과한다.
   5. H1 허용 목록 항목이 사용자 승인으로 들어갔고, `apps/cli` → `@fresnel/host`가 `just check-layers`를 통과한다. 승인 전이면 M1 완료를 막는 항목으로 보고한다.
 - M2
@@ -281,7 +281,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | 컴파일 바이너리 크기(Bun 런타임 포함, 수치 미확인) | 데스크톱 번들이 커진다 | 단일 바이너리로 런타임 1벌만 둔다. 크기 상한은 `L4.desktop.plan`이 측정 뒤 정한다(ADR-0008 §6) |
 | 재전송 구현이 "등록과 head 읽기가 같은 JS 턴" 가정에 기댄다 | L0.store가 커밋을 워커 스레드로 옮기면 중복이나 누락이 생긴다 | `subscribe-replay-no-dup`를 커밋 위치별로 돌린다. L0.store 변경 때 이 가정을 리뷰 항목으로 둔다 |
 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다(§5 `int`·`fault`) | `just verify`의 check-layers에서 막힌다 | `L4.desktop.plan` R10과 같은 결정 하나로 푼다(허용 목록 항목 또는 `platform-process/testing` 도우미). 사람 확인이 필요하고, 결정 전까지 M1 완료를 막는 항목으로 보고한다 |
-| 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-sdk.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
+| 테스트용 플러그인과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 플러그인의 위치와 이름은 `L3.group-sdk.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
 
 ## 8. M2 구현 기록 (m2-plan HOST.1·HOST.2·HOST.3·HOST.4·HOST.5·HOST.6·HOST.7)
 
@@ -397,8 +397,8 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | 작업 | 상태 | 내용과 시험 |
 |---|---|---|
 | M3-18 | 구현 | `proposal.list`·`proposal.decide` 처리기(`handlers/proposal.ts`)와 포트(`assembly/proposals.ts`, `EnginePorts.proposals`). 학습 대기열과 L2 대기열을 한 목록으로 합치고 결정을 출처로 보낸다(spec HS-79). `test/assembly/proposals.test.ts`(합치기 순서, 상태 필터, 커서 쪽 읽기, 읽지 못하는 출처, 결정 경로와 오류 표), `test/handlers/proposal.test.ts`(params 위반은 -32602, 결정 실패는 오류 값) |
-| 학습 그룹 조립 | 구현 | `assembly/learning.ts`(내장 그룹 단위, 브리지 확장 `host-proposals-bridge`, 안전 모드·`defaultGroups` 판정, 투영기 등록 `registerLearningProjection`, 읽기 면 자리 `slotReader`, `/learning` 명령 실행기 `createLearningRunner`). `AssembleOptions.safeMode`를 더했다. 투영기가 대기열 행을 만들므로 SQLite 저장소와 `learningStore` 옵션은 없앴다. 설정 그룹 `l3.learning`을 카탈로그와 `schema/`에 더했다. `test/assembly/learning.test.ts`(명령 실행기, 읽기 면 자리), `test/int/proposals.int.test.ts`(실제 SQLite 대화 DB와 cap-knowledge 위에서 모델 테이프가 `learning_propose`를 부르면 투영된 대기열에 후보가 서고, 승인 전에는 스킬 파일이 없고, 승인이 `/learning` 명령을 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 싣지 않는다) |
-| M3-REQ-104 | 구현 | `knowledgePlugin`에 `trustedEvidenceSources: ["learning.queue"]`(학습 그룹을 싣는 구성에서만). `test/int/proposals.int.test.ts` |
+| 학습 플러그인 조립 | 구현 | `assembly/learning.ts`(내장 플러그인 단위, 브리지 확장 `host-proposals-bridge`, 안전 모드·`defaultGroups` 판정, 투영기 등록 `registerLearningProjection`, 읽기 면 자리 `slotReader`, `/learning` 명령 실행기 `createLearningRunner`). `AssembleOptions.safeMode`를 더했다. 투영기가 대기열 행을 만들므로 SQLite 저장소와 `learningStore` 옵션은 없앴다. 설정 그룹 `l3.learning`을 카탈로그와 `schema/`에 더했다. `test/assembly/learning.test.ts`(명령 실행기, 읽기 면 자리), `test/int/proposals.int.test.ts`(실제 SQLite 대화 DB와 cap-knowledge 위에서 모델 테이프가 `learning_propose`를 부르면 투영된 대기열에 후보가 서고, 승인 전에는 스킬 파일이 없고, 승인이 `/learning` 명령을 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 싣지 않는다) |
+| M3-REQ-104 | 구현 | `knowledgePlugin`에 `trustedEvidenceSources: ["learning.queue"]`(학습 플러그인을 싣는 구성에서만). `test/int/proposals.int.test.ts` |
 
 남은 것: 안전 모드를 켜는 입구(CLI 인자, 설정)는 이 단계에 없다. `AssembleOptions.safeMode`만 있다 [미결].
 

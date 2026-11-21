@@ -435,7 +435,7 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 [제안]
 
 - 확장이 변형을 더할 수 있는 유니온(열린 유니온)은 F가 정한 알려진 변형 목록에 열린 변형 하나를 더해 정의한다.
-- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 오케스트레이션 플러그인 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
+- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 플러그인 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
   - `extId`·`groupId`는 확장 매니페스트의 이름이고 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 소문자·숫자·하이픈, 밑줄 금지)이다(`F.extensions.spec` §3.1, [결정: review.decisions-2 U-18]). 생산자 id는 `ext.<확장 이름>`, 확장 테이블 접두는 `x_<확장 이름의 '-'를 '_'로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.1·5.2절, `X.operations.spec` §4.4.2).
   - 패턴: `^(?:x|grp)\.[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9_.]{0,63}$`
   - `_` 접두 값은 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9). 이 문서의 이전 판에 있던 `_ext.` 접두는 쓰지 않는다.
@@ -443,11 +443,11 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 - 열린 변형의 정적 타입은 템플릿 리터럴 `` `x.${string}` | `grp.${string}` ``이다. 그래야 알려진 리터럴과 겹치지 않아 `switch`가 좁히기를 유지한다. `Type.String({ pattern })`만 쓰면 정적 타입이 `string`이 되어 알려진 변형과 겹친다.
 - 소비자는 알려진 변형을 모두 처리하고, 열린 변형은 오류 없이 통과(전달·저장)하거나 무시한다. `default`에서 `isOpenVariant`로 열린 변형을 걸러낸 뒤 `assertNever`를 호출한다(TY-14 두 번째 좋은 예).
 - 알려진 목록에 없고 `x.`·`grp.` 접두도 없는 값은 `parse`가 거부한다. 이 경우는 버전 불일치이고 DT-10이 다룬다.
-- 닫힌 유니온으로 둘 것과 열린 유니온으로 둘 것은 F 스펙이 유니온마다 정한다. 판단 기준: L3 그룹이나 플러그인이 새 변형을 만들 필요가 있는가.
+- 닫힌 유니온으로 둘 것과 열린 유니온으로 둘 것은 F 스펙이 유니온마다 정한다. 판단 기준: L3 플러그인이 새 변형을 만들 필요가 있는가.
 
 이유:
 
-- Helm과 학습 그룹은 L3 기본 그룹이고, 사용자는 그룹과 플러그인을 추가·교체한다(`_research/decisions-log.md` 2026-10-21 배포 단위 정정). F 유니온이 닫혀 있으면 새 그룹마다 F 수정이 필요하다.
+- Helm과 학습 플러그인은 L3 기본 플러그인이고, 사용자는 플러그인을 추가·교체한다(`_research/decisions-log.md` 2026-10-21 배포 단위 정정). F 유니온이 닫혀 있으면 새 플러그인마다 F 수정이 필요하다.
 - 접두 문자열 규약은 런타임에 확장 변형을 한 번의 문자열 검사로 구분한다. pi agent-core는 선언 병합으로 타입을 확장하지만(`_research/packages.md §4.1` F4 열거형 확장 예약) 선언 병합은 런타임 검증 스키마를 바꾸지 못한다. 접두 규약은 정적 타입과 런타임 검사를 같은 방식으로 다룬다.
 - 소비자가 모르는 확장 변형에서 실패하면 그 확장을 끈 대화나 그 확장이 없는 클라이언트가 열리지 않는다. 통과 규칙은 확장을 켜고 끄는 일(`scope` 토글)이 저장된 데이터의 읽기 가능성에 영향을 주지 않게 한다.
 

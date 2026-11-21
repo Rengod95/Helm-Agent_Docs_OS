@@ -37,7 +37,7 @@ Fresnel 워크스페이스의 패키지가 무엇을 import할 수 있는지 정
 | 제외 | 고정 외부 코드 | `vendor/*` | 없음 |
 
 - 숫자가 작을수록 아래 층이다. 화살표 F → X → L0 → L1 → P → L4는 "왼쪽이 오른쪽에 쓰인다"는 뜻이다.
-- [제안: `review/m5/hooks-core-boundary.md` 6.3, DR-15] 플러그인 등급 P(순위 4)는 L2 기능과 L3 그룹을 한 등급으로 본다. `package.json`의 `"fresnel": {"layer": "L2"}`와 `"L3"`은 전환 동안 P의 별칭으로 읽는다(P 디렉터리에서만, 다른 디렉터리에서는 DR-03 위반). 플러그인이 import할 수 있는 범위는 DR-15가 정한다.
+- [제안: `review/m5/hooks-core-boundary.md` 6.3, DR-15] 플러그인 등급 P(순위 4)는 L2 기능과 L3 플러그인을 한 등급으로 본다. `package.json`의 `"fresnel": {"layer": "L2"}`와 `"L3"`은 전환 동안 P의 별칭으로 읽는다(P 디렉터리에서만, 다른 디렉터리에서는 DR-03 위반). 플러그인이 import할 수 있는 범위는 DR-15가 정한다.
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위로 센다. 현재 `scripts/check-layers.ts`의 `expectedLayer()`와 `.dependency-cruiser.cjs`의 `LAYERS`가 이 값을 쓴다. 플러그인이 import할 수 있는 범위는 DR-09가 정한다.
 - [결정: review.decisions-2 U-14] X는 L0 아래(순위 1)에 둔다. 판정과 근거는 `architecture.layers.spec` 4.3.3절이다. 이 순위에서 `ext-host`는 OS 기능(프로세스 실행, 파일 잠금, 저장)을 L0에서 import할 수 없고, 다음 세 조건을 지킨다.
   1. X 소스와 테스트에서 L0·L1 import가 0건이다(DR-01. 테스트도 대상이다).
@@ -78,7 +78,7 @@ packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports hig
 
 이유:
 
-- 아래 층은 위 층보다 덜 바뀐다. 의존이 한 방향이면 위 층을 고치거나 교체해도 아래 층은 다시 빌드하거나 다시 테스트할 필요가 없다. 사용자가 L2 기능과 L3 그룹을 추가·교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)이 이 성질을 전제한다.
+- 아래 층은 위 층보다 덜 바뀐다. 의존이 한 방향이면 위 층을 고치거나 교체해도 아래 층은 다시 빌드하거나 다시 테스트할 필요가 없다. 사용자가 L2 기능과 L3 플러그인을 추가·교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)이 이 성질을 전제한다.
 - `tsc -b` 프로젝트 참조와 turbo `--affected`가 패키지 그래프를 따라 일을 줄인다. 방향이 섞이면 영향 범위가 커진다.
 
 좋은 예:
@@ -111,7 +111,7 @@ export type { ExtHost } from "@fresnel/ext-host";  // DR-01: F는 어떤 워크�
 
 ### DR-02 같은 층 패키지끼리 import하지 않는다
 
-[결정] `_research/foundation-plan.md §3`. 같은 층의 협력은 F에 둔 정의(타입, 스키마, 서비스 이름)와 Cordis 서비스로만 한다. L3 그룹(`plugin-helm`, `plugin-learning`)끼리도 같다.
+[결정] `_research/foundation-plan.md §3`. 같은 층의 협력은 F에 둔 정의(타입, 스키마, 서비스 이름)와 Cordis 서비스로만 한다. L3 플러그인(`plugin-helm`, `plugin-learning`)끼리도 같다.
 
 - L1 코어끼리(`core-loop`와 `core-models` 등), P 플러그인끼리(`cap-*`, `group-*`, `plugin-builder`), L4 앱끼리(DR-10) 모두 해당한다.
 - 협력 방법:
@@ -122,7 +122,7 @@ export type { ExtHost } from "@fresnel/ext-host";  // DR-01: F는 어떤 워크�
 이유:
 
 - 같은 층 패키지를 사용자가 교체할 수 있어야 한다. 직접 import가 있으면 교체한 패키지가 원래 패키지의 export 모양을 그대로 흉내 내야 한다. F 정의와 서비스 주입이면 F 계약만 맞추면 된다.
-- 학습 그룹과 Helm 그룹은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2). 둘 사이에 import가 있으면 한쪽을 끌 때 다른 쪽이 깨진다.
+- 학습 플러그인과 Helm 플러그인은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2). 둘 사이에 import가 있으면 한쪽을 끌 때 다른 쪽이 깨진다.
 
 좋은 예:
 
@@ -152,10 +152,10 @@ import { resolveModel } from "@fresnel/core-models";     // DR-02: 같은 L1
 
 ```ts
 // packages/plugin-learning/src/index.ts  (P)
-import { helmSignals } from "@fresnel/plugin-helm";       // DR-02: P 그룹끼리
+import { helmSignals } from "@fresnel/plugin-helm";       // DR-02: P 플러그인끼리
 ```
 
-- [결정: review.decisions-2 U-15] `orchestration-sdk`(L3 오케스트레이션 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `orchestration-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/orchestration-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/plugin-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `orchestration-sdk`의 나머지 경로는 위반이다. `orchestration-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
+- [결정: review.decisions-2 U-15] `orchestration-sdk`(L3 오케스트레이션 정의 API)은 플러그인이 공통으로 쓰는 정의 도우미다. `group-*` → `orchestration-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/orchestration-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/plugin-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 플러그인과 `orchestration-sdk`의 나머지 경로는 위반이다. `orchestration-sdk`은 다른 플러그인을 import하지 않는다. 플러그인 공통 기반을 플러그인마다 중복하지 않기 위해서다.
 
 ### DR-03 모든 패키지는 `package.json`에 `"fresnel": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 

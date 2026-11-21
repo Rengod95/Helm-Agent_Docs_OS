@@ -22,15 +22,15 @@ Fresnel 대화 저장소는 세 가지 일을 한다(`_research/session-storage.
 
 1. 모델에 보낼 대화 이력을 다시 조립하는 원천이다.
 2. 크래시나 재시작 뒤 이어서 실행하는 근거다.
-3. 학습 그룹, 대화 검색, UI가 과거 대화를 읽는 자료다.
+3. 학습 플러그인, 대화 검색, UI가 과거 대화를 읽는 자료다.
 
 이 세 가지를 한 저장 형식으로 처리하려면 다음 질문에 답해야 한다.
 
 - 무엇을 원본으로 저장하고 무엇을 파생물로 두는가.
 - 스트리밍 토큰처럼 빈도가 높은 흐름을 저장하는가.
-- 여러 구독자(UI, 학습 그룹, 대화 검색 색인)가 같은 순서로 같은 기록을 받는 방법은 무엇인가.
+- 여러 구독자(UI, 학습 플러그인, 대화 검색 색인)가 같은 순서로 같은 기록을 받는 방법은 무엇인가.
 - 재시작 뒤 상태를 다시 만들 때 도구 실행 같은 외부 효과를 다시 일으키지 않는 방법은 무엇인가.
-- 확장(L3 그룹, 사용자 플러그인)이 대화에 자기 기록을 남길 때 코어 기록과 섞이지 않게 하는 방법은 무엇인가.
+- 확장(L3 플러그인, 사용자 플러그인)이 대화에 자기 기록을 남길 때 코어 기록과 섞이지 않게 하는 방법은 무엇인가.
 - 이벤트 모양이 버전마다 바뀔 때 옛 기록을 읽는 방법은 무엇인가.
 
 ## 2. 선택지 비교
@@ -195,7 +195,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `thread.branch_summarized` | 내구 | session-core | 떠난 가지 요약 | 투영, 컨텍스트 조립 |
 | `turn.started` | 내구 | run-engine (`core.loop`) | 입력 item id들, `requestId` | 투영, UI, 확장(on `boundary.step.before` [훅 이름은 `F.extensions.spec` §3.4 표, adr.0017]) |
 | `turn.updated` | 휘발 | run-engine (`core.loop`) | 상태 | UI |
-| `turn.completed` | 내구 | run-engine (`core.loop`) | 종결 상태(`completed`·`interrupted`·`failed`), step 수, 사용량, 오류 | 투영, UI, 학습 그룹 |
+| `turn.completed` | 내구 | run-engine (`core.loop`) | 종결 상태(`completed`·`interrupted`·`failed`), step 수, 사용량, 오류 | 투영, UI, 학습 플러그인 |
 | `step.started` | 내구 | run-engine (`core.loop`) | `stepIndex` | 투영 |
 | `step.updated` | 휘발 | run-engine (`core.loop`) | 상태 | UI |
 | `step.completed` | 내구 | run-engine (`core.loop`) | 종결 상태, `stopReason`, assistant·toolResult item id | 투영, 재개 |
@@ -205,7 +205,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `part.recorded` | 내구 | run-engine (`core.loop`) | `{ part: PartRecord }` | 투영(파트), 컨텍스트 조립 |
 | `effect.intent` | 내구 | tool-runtime (`core.tools`) | `effectId`, `toolCallId`, 도구 이름, 실행 인자(모델이 낸 인자. `tool.call.before`은 인자를 바꾸지 않는다, review.decisions-2 U-06), `replay`(safe·unsafe) | 투영(효과), 재개 |
 | `effect.exec` | 내구 | tool-runtime (`core.tools`) | `effectId`, `startedAt` | 투영, 재개(실행 시작 여부, 재실행 수) |
-| `effect.result` | 내구 | tool-runtime (`core.tools`) | `effectId`, `status`, 구조화 출력, `blobRef`, `synthesized` | 투영, 컨텍스트 조립, 학습 그룹 |
+| `effect.result` | 내구 | tool-runtime (`core.tools`) | `effectId`, `status`, 구조화 출력, `blobRef`, `synthesized` | 투영, 컨텍스트 조립, 학습 플러그인 |
 | `checkpoint.step` | 내구 | session-core (`core.persistence`, 내용은 루프가 만든다) | `StepCheckpoint` | 투영(`step_checkpoints`), 재개 |
 | `scope.changed` | 내구 | extension-host (`xh`) | `scopeId`, `status`(enabled·disabled) | 투영, ext-host |
 | `lease.acquired` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 상한 `limits` | 투영, ext-host 재개 |
@@ -228,7 +228,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 kind 이름 규칙의 정본은 `F.records.spec` §3.2다. 요약:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다. 영역은 `CoreArea`(`thread`, `turn`, `step`, `item`, `part`, `effect`, `checkpoint`, `scope`, `lease`, `post`, `settings`)다. 예: `effect.result`, `thread.leaf_moved`.
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 오케스트레이션 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
 3. 내구·휘발은 이름이 아닌 카탈로그 항목의 `durable`로 정한다. 같은 kind가 내구와 휘발을 함께 갖지 않는다.
 4. 금지 접두사: `ui.`, `notification.`, `projection.`. 화면 갱신과 알림은 이벤트가 아니다 [제안].
 5. 벤더 이름(`pi`, `anthropic`, `openai`)을 코어 kind에 넣지 않는다.
@@ -282,7 +282,7 @@ export interface SessionService {
 3. 투영 테이블은 모두 지우고 `events` 전체를 재생해 다시 만들 수 있어야 한다. 투영에만 있고 이벤트에서 나오지 않는 값은 두지 않는다.
 4. 투영 스키마 버전(`Projector.version`)은 이벤트 payload 버전과 독립이다. 투영 규칙이나 테이블 모양이 바뀌면 투영 버전만 올리고, 다음 열기 때 그 투영기의 테이블만 다시 만든다(09 §3.13.2, `F.records.spec` §3.7 규칙 5).
 5. 투영기는 자기 소유 테이블만 쓴다. 코어 투영기 `core`는 `p_*`와 `step_checkpoints`, L2 기능 투영기 `cap.<도메인>`은 `cap_<도메인>_*`, 확장 투영기 `ext.<확장 이름>`은 `x_<확장 이름의 '-'를 '_'로>_*`다. 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.2절, `L1.persistence.spec` §4.5.2).
-6. 투영기는 어떤 kind의 이벤트든 읽을 수 있다. 예를 들어 학습 그룹 투영기는 `effect.result`를 세어 `x_learning_*`에 쓴다. 다른 컨텍스트의 테이블은 읽지도 쓰지도 않는다.
+6. 투영기는 어떤 kind의 이벤트든 읽을 수 있다. 예를 들어 학습 플러그인 투영기는 `effect.result`를 세어 `x_learning_*`에 쓴다. 다른 컨텍스트의 테이블은 읽지도 쓰지도 않는다.
 7. 단계 체크포인트는 내구 이벤트 `checkpoint.step`이다(`F.records.spec` §3.6). 커밋 계획에 체크포인트가 있으면 저장소가 `checkpoint.step` 초안을 그 커밋 끝에 붙이고, 코어 투영기가 `step_checkpoints` 행을 갱신한다(`L1.persistence.spec` §4.1 8단계). `step_checkpoints`는 다른 투영 테이블과 같이 재생으로 다시 만들 수 있다. 체크포인트 레코드의 `schemaVersion`(`STEP_CHECKPOINT_SCHEMA_VERSION`)이 현재와 다르면 그 체크포인트를 쓰지 않고 이전 이벤트를 재생해 루프 상태를 만든다.
 
 투영기와 투영 트랜잭션 핸들의 정본은 `L1.persistence.spec` §3.4다(F 이동 요청 FR-P1). 요약:
@@ -591,7 +591,7 @@ for await (const ev of stream) {
 좋은 예:
 
 ```ts
-// L3 Helm 그룹: 자기 접두 (helm은 ext-host가 만든 생산자 "ext.helm" 핸들)
+// L3 Helm 플러그인: 자기 접두 (helm은 ext-host가 만든 생산자 "ext.helm" 핸들)
 helm.draft({ id: ids.next("evt"), kind: "grp.helm.phase.changed", threadId, causationId: turnCompletedId,
   payload: { from: "diverge", to: "converge" } /* … */ });
 ```
@@ -736,7 +736,7 @@ g.on("tool.call.before", async (call) => {
 
 이유: 재개 때 drive 함수는 마지막으로 커밋된 scope 상태로 다시 불린다. 클로저 지역 변수에 둔 진행 정보는 재시작 때 사라지고 같은 단계를 처음부터 반복한다.
 
-강제: 리뷰. `L3.group-sdk.spec`의 drive 재생 테스트 도우미(커밋 시점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지)를 그룹 테스트에서 쓴다.
+강제: 리뷰. `L3.group-sdk.spec`의 drive 재생 테스트 도우미(커밋 시점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지)를 플러그인 테스트에서 쓴다.
 
 좋은 예:
 
