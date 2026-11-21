@@ -13,8 +13,8 @@ import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire
 // [제안, AGE-63] (int, 실제 엔진, 임시 홈): 모델이 `sandbox_protect`로 더한 폴더는 설정 파일의 사용자 목록에 적히고, 같은 턴의
 // 다음 셸 호출이 그 안의 파일을 읽지도 쓰지도 못한다. 더하기 전에는 같은 명령이 읽는다(대조). 모든 파일은 임시 엔진 홈 안에 있다.
 // 권한 모드는 bypass로 둔다. 셸은 실제 샌드박스에서 돈다.
-// 주의: 보호된 폴더를 읽는 셸 호출은 "작업 폴더 밖 쓰기" 승인 질문도 낸다(core-workspace run.ts의 쓰기 허용 흐름이
-// "Operation not permitted" 문구에 반응한다). 시험은 그 질문을 거부로 답한다. 이 흐름의 문제는 보고서의 미결 사항이다.
+// 주의: 보호된 폴더를 읽는 셸 호출은 샌드박스가 막아 실패한다. 작업 폴더 밖 쓰기 승인 카드는 없다(2026-11-21 결정, AGE-63).
+// 시험은 혹시 나오는 승인 질문을 거부로 답한다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;

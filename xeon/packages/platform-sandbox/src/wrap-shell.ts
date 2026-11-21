@@ -285,7 +285,7 @@ export async function srtWrap(
   return ok(wrapped);
 }
 
-/** 쓰기 거부를 기다리는 최대 시간(ms). 늦게 도착한 거부 줄이 막힌 경로를 알려 쓰기 허용 질문을 가능하게 한다(L2.workspace.spec §4.3.1) */
+/** 쓰기 거부를 기다리는 최대 시간(ms). 늦게 도착한 거부 줄이 막힌 경로를 `sandbox.write_blocked`로 알려 도구 결과의 막힘 안내에 싣게 한다(L1.tools.spec §4.12.3) */
 const WRITE_VIOLATION_WAIT_MS = 600;
 
 /** 출력이 이 문구를 담으면 쓰기 거부일 수 있다. 막힌 경로를 정하는 근거가 아니라(경로는 위반 보고에서만 읽는다) 위반 줄을 기다릴지 정하는 신호다 */

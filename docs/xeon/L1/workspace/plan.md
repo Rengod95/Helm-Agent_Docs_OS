@@ -33,12 +33,9 @@ src/
   errors.ts                  169   WorkspaceFailure, guarded, 공통 코드 대응
   roots.ts                   215   허용 root, 경로 해석과 탈출 검사
   scope.ts                    28   scopedDeps (대화별 작업 폴더)
-  write-access.ts            245   쓰기 루트 후보, 승인 요청, askOutsideWrite
-  write-access-adapter.ts     86   L2ApprovalsPort 어댑터, writeAccessTitle
   ports/blobs.ts              10   BlobSink
   ports/threads.ts            13   ThreadWorkspaces
-  ports/write-access.ts       36   WriteAccessPort
-  shell/run.ts               277   createShellApi (샌드박스 래핑과 쓰기 허용 재실행)
+  shell/run.ts               277   createShellApi (샌드박스 래핑과 막힘 보고)
   shell/unattended.ts         17   무인 제한 시간 상한
   shell/upstream/bash.ts     126   runBashCommand (pi 포크 본문)
   files/atomic.ts             92   atomicWrite (임시 파일과 이름 바꾸기)
@@ -47,7 +44,7 @@ src/
   upstream/get-or-throw.ts    10   getOrThrow
   upstream/output.ts         303   OutputBuffer, boundOutput, characterEnd (pi 포크)
 test/
-  roots.test.ts, errors.test.ts, output.test.ts, shell.test.ts, write-access.test.ts, fork-records.test.ts
+  roots.test.ts, errors.test.ts, output.test.ts, shell.test.ts, fork-records.test.ts
   support/memory-env.ts, fakes.ts, assertions.ts, adapter.ts   (이 패키지 전용 사본)
 PATCHES.md, UPSTREAM.json, LICENSE.pi   (이 패키지의 포크 기록)
 ```
@@ -65,8 +62,8 @@ PATCHES.md, UPSTREAM.json, LICENSE.pi   (이 패키지의 포크 기록)
 | W2 | `deps.ts`를 제네릭(`WorkspaceDeps<S extends WorkspaceShellSettings>`)으로 바꾼다. L2 설정 파일을 import하지 않게 하려는 것이다. `scopedDeps`도 제네릭으로 바꾼다 | W1 | S |
 | W3 | 포크 기록을 나눈다. `PATCHES.md` 표 행과 `UPSTREAM.json`의 `copiedPaths`, `originalSha256`, `partialCopies`, `modifications`를 두 패키지에 맞춘다(7절) | W1 | M |
 | W4 | `cap-workspace`가 `@fresnel/core-workspace`를 가져다 쓴다. 파일 도구, 이미지, 플러그인, 조립의 import를 바꾼다. `deps.ts`는 `WorkspaceDeps<WorkspaceSettings>` 별칭이 된다 | W1, W2 | M |
-| W5 | 시험을 옮긴다. 셸, 경로, 오류, 출력, 쓰기 허용(셸 부분)은 `core-workspace/test`로 가고, 파일 도구의 쓰기 허용 시험은 `cap-workspace/test/write-access-files.test.ts`로 나눈다. 시험 대역은 두 패키지가 각자 둔다(DR-08) | W1 | M |
-| W6 | 호스트 import를 바꾼다. `writeAccessTitle`은 `@fresnel/core-workspace`에서 가져온다. `apps/host`의 `package.json`과 `tsconfig.json`에 의존을 더한다 | W4 | S |
+| W5 | 시험을 옮긴다. 셸, 경로, 오류, 출력은 `core-workspace/test`로 가고, 파일 도구의 시험은 `cap-workspace/test`에 남는다. 시험 대역은 두 패키지가 각자 둔다(DR-08) | W1 | M |
+| W6 | 호스트 import를 바꾼다. `apps/host`의 `package.json`과 `tsconfig.json`에 의존을 더한다 | W4 | S |
 | W7 | 설정 파일을 갱신한다. 루트 `tsconfig.json`, `knip.json`, `bun.lock`(`bun install`, 작업 공간 항목만 더해짐), 라우팅 `routes.yaml`의 L1 `domains`(`workspace`), DR-07 허용 목록(`DR-07/core-workspace-test-spawn`) | W1~W6 | S |
 | W8 | `core-tools/src/policy/rules.ts`의 `"workspace.files"`를 `WorkspaceFiles.id`로 바꾼다(D-32) | 없음 | S |
 | W9 | 문서: `L1.workspace.spec`(이 문서의 짝), `L1/README.md` 도메인 표, `L2.workspace.spec`과 `L2.workspace.plan`의 파일 위치, `hooks-core-boundary` §6.1, §8 D-27·D-32, §9 6단계 | W1~W8 | M |
@@ -91,10 +88,9 @@ pi(`earendil-works/pi`, 커밋 `cdaf6c2`, `packages/durable`)의 포크 세 개�
 | `errors.test.ts` | 공통 코드 표(`FileErrorCode`, `ExecutionErrorCode`), `CapabilityError` 만들기, 버그와 완성된 오류 유지, 모르는 실패의 `internal` 변환 |
 | `output.test.ts` | 출력 버퍼의 꼬리 보관, 줄과 바이트 한도, 제어 문자 정리, 문자 경계 |
 | `shell.test.ts` | 셸 결과와 종료 코드, 샌드박스 거부와 서비스 없음 거부, 샌드박스 차단 보고, 제한 시간(기본, 무인 상한, 요청이 짧을 때), 시크릿 참조 전달과 승인 증거, cwd 검사, 출력 꼬리 절단과 spill |
-| `write-access.test.ts` | 쓰기 루트 후보(`grantRootFor`), 계획(`planWriteAccess`), 출력의 거부 문구 경로(`pathsFromDenialOutput`), 셸 쓰기 질문 세 선택지, 무인 호출과 보호 경로 거부, 읽기 전용 프로필, 홈 폴더 후보 |
 | `fork-records.test.ts` | `PATCHES.md` 표, `UPSTREAM.json` `modifications`, 소스 표지의 id 집합이 같다. 복사 경로가 있다. Chord와 pi-durable import가 없다. 소스에 `node:fs`, `Bun.file`, `Bun.spawn`, `process.platform`이 없다(DR-13) |
 
-파일 도구의 쓰기 허용 시험(`cap-workspace/test/write-access-files.test.ts`)과 쓰기 어댑터 통합 시험(`cap-workspace/test/write-access-adapter.int.test.ts`, `core-tools` 대역을 쓴다)은 L2에 남는다. 원자 쓰기(`atomic.ts`)와 줄세우기(`queue.ts`)에는 따로 단위 시험이 없다. 그 동작은 L2의 `write-edit.test.ts`, `write-edit.int.test.ts`(SIGKILL 시험 포함)가 본다.
+파일 도구의 시험은 `cap-workspace/test/file-tools-outside.test.ts`(작업 폴더 밖과 보호 경로의 거부)가 본다. [결정: 2026-11-21, 사용자, AGE-63] '프로젝트 밖에 쓰기' 승인 카드를 지웠다. 막히면 도구 결과의 막힘 안내만 남는다. 원자 쓰기(`atomic.ts`)와 줄세우기(`queue.ts`)에는 따로 단위 시험이 없다. 그 동작은 L2의 `write-edit.test.ts`, `write-edit.int.test.ts`(SIGKILL 시험 포함)가 본다.
 
 ## 6. 완료 기준
 

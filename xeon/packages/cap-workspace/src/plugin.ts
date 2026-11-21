@@ -13,7 +13,6 @@ import { join } from "node:path";
 import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
-  ApprovalServicePortKey,
   ExecPortKey,
   FileRewindPortKey,
   OsPortKey,
@@ -21,9 +20,7 @@ import {
   SessionPortKey,
   StoreServicePortKey,
   ToolServiceName,
-  type ApprovalService,
   type ExecService,
-  type L2ApprovalsPort,
   type OsService,
   type ToolOutputFiles,
   type SandboxService,
@@ -62,7 +59,7 @@ const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
 
 export interface WorkspacePluginOptions {
   /**
-   * 경로 검사, 샌드박스 셸, 쓰기 허용 승인, 파일 변경 줄 세우기의 구현 묶음. 조립 루트가 코어 패키지의 `workspaceCore`를 넘긴다.
+   * 경로 검사, 샌드박스 셸, 파일 변경 줄 세우기의 구현 묶음. 조립 루트가 코어 패키지의 `workspaceCore`를 넘긴다.
    * 이 패키지는 구현을 import하지 않는다(DR-15).
    */
   readonly core: WorkspaceCore;
@@ -70,8 +67,6 @@ export interface WorkspacePluginOptions {
   readonly settings: WorkspaceSettingsSource;
   /** 무인 호출의 셸 제한 시간 상한(ms). 조립 루트가 `l0.exec.unattendedTimeoutMs`를 읽어 넘긴다. 없으면 상한을 걸지 않는다 */
   readonly unattendedTimeoutMs?: () => number;
-  /** `fresnel.approvals`를 작업 폴더 밖 쓰기 허용 승인(kind tool)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 묻지 않고 막는다 */
-  readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   /** 잘린 도구 출력의 파일 사본. 조립 루트가 넘긴다. 있으면 그 폴더를 `read`·`grep`의 읽기 루트에 더한다 */
   readonly outputFiles?: ToolOutputFiles;
   /**
@@ -150,7 +145,6 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const session = optionalPort(host, SessionPortKey);
       const store = optionalPort(host, StoreServicePortKey);
       const logger = os.logger("workspace");
-      const approvalService = optionalPort(host, ApprovalServicePortKey);
       // 파일 되감기의 원본 저장과 되감기 포트. 세션, blob, 이벤트 id 발급기가 모두 있어야 한다. 생산자 핸들은 한 번만 받는다
       const rewindStore =
         session === undefined || store === undefined || options.ids === undefined
@@ -163,11 +157,6 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
               logger,
               limits: DEFAULT_REWIND_LIMITS,
             });
-      const writeAccess =
-        options.approvals === undefined || approvalService === undefined
-          ? undefined
-          : options.core.createWriteAccessAdapter(options.approvals(approvalService));
-
       const roots: RootsDeps = {
         env: exec,
         roots: (context) => options.core.defaultRoots(exec, context, options.outputFiles),
@@ -186,9 +175,7 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
           ? {}
           : { threads: threadWorkspaces(options.core, session, exec, os.dirs.config) }),
         rg: rgResolver(os),
-        homeDir: os.dirs.home,
         core: options.core,
-        ...(writeAccess === undefined ? {} : { writeAccess }),
         ...(options.unattendedTimeoutMs === undefined
           ? {}
           : { unattendedTimeoutMs: options.unattendedTimeoutMs }),

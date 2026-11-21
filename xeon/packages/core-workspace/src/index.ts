@@ -12,8 +12,6 @@ import { scopedDeps } from "./scope.ts";
 import { createShellApi } from "./shell/run.ts";
 import { getOrThrow } from "./upstream/get-or-throw.ts";
 import { characterEnd, utf8ByteLength } from "./upstream/output.ts";
-import { askOutsideWrite } from "./write-access.ts";
-import { createWriteAccessAdapter } from "./write-access-adapter.ts";
 
 export { WorkspaceFailure, guarded } from "./errors.ts";
 export type { RgResolver, WorkspaceDeps, WorkspaceShellSettings } from "./deps.ts";
@@ -21,17 +19,9 @@ export { envAtCwd } from "./env.ts";
 export type { WorkspaceEnv } from "./env.ts";
 export type { BlobSink } from "./ports/blobs.ts";
 export type { ThreadWorkspaces } from "./ports/threads.ts";
-export type {
-  WriteAccessError,
-  WriteAccessPort,
-  WriteAccessRequest,
-  WriteAccessVia,
-} from "./ports/write-access.ts";
 export { craftRoots, defaultRoots, relativeToRoots, resolveWorkspacePath } from "./roots.ts";
 export type { AllowedRoots, PathAccess, ResolvedPath, RootsDeps } from "./roots.ts";
 export { scopedDeps } from "./scope.ts";
-export { askOutsideWrite } from "./write-access.ts";
-export { createWriteAccessAdapter, writeAccessTitle } from "./write-access-adapter.ts";
 export { atomicWrite } from "./files/atomic.ts";
 export type { AtomicEnv, AtomicWriteOptions } from "./files/atomic.ts";
 export { mutationKey, queueInCallOrder } from "./files/queue.ts";
@@ -43,12 +33,10 @@ export { characterEnd, utf8ByteLength } from "./upstream/output.ts";
  * 코어 구현 묶음. 조립 루트가 기능 패키지의 `core` 옵션으로 넘긴다. 각 멤버는 같은 이름의 코어 함수다.
  */
 export const workspaceCore: WorkspaceCore = {
-  createWriteAccessAdapter,
   defaultRoots,
   envAtCwd,
   scopedDeps,
   createShellApi,
-  askOutsideWrite,
   atomicWrite,
   mutationKey,
   queueInCallOrder,

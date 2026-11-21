@@ -54,7 +54,7 @@ import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
 import { protectPathsStoreOf } from "./protect-paths.ts";
-import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
+import { workspaceCore } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
@@ -501,13 +501,11 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       "cap-workspace",
       (loadIndex) =>
         workspacePlugin({
-          // 경로 검사, 샌드박스 셸, 쓰기 허용 승인의 구현 묶음(core-workspace가 낸다)
+          // 경로 검사, 샌드박스 셸, 파일 변경 줄 세우기의 구현 묶음(core-workspace가 낸다)
           core: workspaceCore,
           settings: workspaceSource(settings),
           // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
-          // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
-          approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           outputFiles: deps.toolOutputs,
           // 보호 경로 더하기(모델 도구 `sandbox_protect`, AGE-63): 사용자 범위 extra에만 쓴다. 설정 저장소가 없으면 unavailable이다
           protectPaths: protectPathsStoreOf(settings, deps.groups.store),

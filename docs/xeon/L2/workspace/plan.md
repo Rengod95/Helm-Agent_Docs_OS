@@ -35,7 +35,9 @@ M3 이후(2차·보류) 표:
 
 ## 2. 패키지와 파일 배치
 
-층 D 이동(2026-11-18, `hooks-core-boundary` §9 6단계): 아래 트리의 `roots.ts`, `errors.ts`, `env.ts`, `deps.ts`(서비스 의존 부분), `scope.ts`, `write-access.ts`, `write-access-adapter.ts`, `ports/blobs.ts`, `ports/threads.ts`, `ports/write-access.ts`, `shell/run.ts`, `shell/unattended.ts`, `shell/upstream/bash.ts`, `files/atomic.ts`, `files/queue.ts`, `files/upstream/path-utils.ts`, `upstream/get-or-throw.ts`, `upstream/output.ts`는 `xeon/packages/core-workspace`로 옮겼다. 트리는 이동 전 계획이다. 현재 배치는 `L1.workspace.plan` §2에 있다. `cap-workspace`에 남는 것은 모델 도구와 이미지, 등록, 설정이다.
+층 D 이동(2026-11-18, `hooks-core-boundary` §9 6단계): 아래 트리의 `roots.ts`, `errors.ts`, `env.ts`, `deps.ts`(서비스 의존 부분), `scope.ts`, `ports/blobs.ts`, `ports/threads.ts`, `shell/run.ts`, `shell/unattended.ts`, `shell/upstream/bash.ts`, `files/atomic.ts`, `files/queue.ts`, `files/upstream/path-utils.ts`, `upstream/get-or-throw.ts`, `upstream/output.ts`는 `xeon/packages/core-workspace`로 옮겼다. 트리는 이동 전 계획이다. 현재 배치는 `L1.workspace.plan` §2에 있다. `cap-workspace`에 남는 것은 모델 도구와 이미지, 등록, 설정이다.
+
+[결정: 2026-11-21, 사용자, AGE-63] '프로젝트 밖에 쓰기' 승인 카드를 지웠다. 막히면 도구 결과의 막힘 안내만 남는다.
 
 ```
 xeon/packages/cap-workspace/
