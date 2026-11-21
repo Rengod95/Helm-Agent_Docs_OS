@@ -110,9 +110,8 @@ Layers follow the docs: F = contracts, X = extension system, L0 = platform, L1 =
 | `l0.sandbox.enabled` | `true` | boolean | managed, user | nextTurn |
 | `l0.sandbox.onUnavailable` | `disable_execute` | `disable_execute`, `run_unsandboxed` | managed, user | nextTurn |
 | `l0.sandbox.network.blockedDomains` | `[]` | domain list | managed, user, project | restart |
-| `l0.sandbox.protectedPaths.extra` | `[]` | paths | managed, user, project | nextTurn |
+| `l0.sandbox.protectedPaths.extra` | `[]` | paths (blocks reads and writes) | managed, user, project | nextTurn |
 | `l0.sandbox.writeRoots.extra` | `[]` | paths | managed, user | nextTurn |
-| `l0.sandbox.credentialFiles` | `allow` | `allow`, `deny` | managed, user | nextTurn |
 | `l0.sandbox.nestedNamespaces` | `false` | boolean | managed, user | restart |
 | `l0.sandbox.selfTestIntervalMin` | `60` | 0 to 1440 (0 = at startup only) | managed, user | restart |
 | `l0.secrets.approval.default` | `per-session` | `none`, `per-session`, `per-use` | managed, user | nextTurn |

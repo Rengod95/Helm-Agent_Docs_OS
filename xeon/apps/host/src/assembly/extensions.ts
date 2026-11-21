@@ -38,6 +38,7 @@ import {
   WebFetch,
   WebSearch,
   WorkTasks,
+  WorkspaceProtection,
   type AnyCapabilityDef,
   type CapabilityApi,
   type Notice,
@@ -52,6 +53,7 @@ import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
+import { protectPathsStoreOf } from "./protect-paths.ts";
 import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
@@ -281,6 +283,7 @@ export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   ArtifactsReviews,
   ArtifactsSessions,
   ScheduleEntries,
+  WorkspaceProtection,
 ];
 
 /**
@@ -506,6 +509,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
           approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           outputFiles: deps.toolOutputs,
+          // 보호 경로 더하기(모델 도구 `sandbox_protect`, AGE-63): 사용자 범위 extra에만 쓴다. 설정 저장소가 없으면 unavailable이다
+          protectPaths: protectPathsStoreOf(settings, deps.groups.store),
           // 편집 도구의 원본 저장과 파일 되감기 이벤트 id(L1.persistence.spec §4.13.2). 없으면 원본을 저장하지 않는다
           ids: deps.ids,
           loadIndex,

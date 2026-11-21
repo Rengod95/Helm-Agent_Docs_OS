@@ -3,7 +3,7 @@ import { WorkspaceShell, type CallContext, type SecretRef } from "@fresnel/contr
 import type { CancelScope, SecretEnvRequest, ShellApi } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
-import { resolveWorkspacePath } from "../roots.ts";
+import { resolveWorkspacePath, WRITE_ANYWHERE } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
@@ -172,8 +172,8 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
             : sandbox.defaultPolicy({
                 workspaceRoots: [...roots.write, ...grants],
                 tempDir: deps.tempDir,
-                // 사용자가 설정으로 푼 보호 경로 읽기는 셸 도구에만 적용한다
-                userReadRelease: true,
+                // 쓰기 root에 `/`가 있으면 쓰기 범위 제한이 없다. 좁은 대화(플러그인 만들기 시험)는 지금처럼 작업 폴더와 허용한 루트만 쓴다
+                ...(roots.write.includes(WRITE_ANYWHERE) ? { writeEverywhere: true } : {}),
               });
           return runBashCommand(
             sandbox.wrapShell(deps.env, policy),

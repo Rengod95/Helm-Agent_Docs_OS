@@ -1060,7 +1060,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("platform-exec"),
       }),
     );
-    await register("platform-sandbox", sandboxPlatform(sandboxSource(settings), lifetime.signal));
+    // 호스트 시험 묶음(`scripts/test-pkg.sh`)만 `FRESNEL_HOST_TEST_NO_SELFTEST=1`로 시작 때 자가 시험을 끈다: 엔진마다 샌드박스 명령 여섯 개를 띄우면 묶음이 15% 늘어난다.
+    // 자가 시험 자체는 sandbox 시험과 `sandbox.selfTest` wire 시험이 따로 돈다
+    await register(
+      "platform-sandbox",
+      sandboxPlatform(
+        sandboxSource(settings),
+        lifetime.signal,
+        undefined,
+        process.env["FRESNEL_HOST_TEST_NO_SELFTEST"] !== "1",
+      ),
+    );
     // 가벼운 길의 호출 추적 포트(턴 기록이 받는다). 측정 저장소를 열기 전에는 줄을 버린다
     await register("platform-plugin-call-trace", {
       name: "platform-plugin-call-trace",

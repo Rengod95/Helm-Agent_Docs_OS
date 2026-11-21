@@ -61,7 +61,7 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
   /** 격리하지 않고 요청 그대로의 argv를 돌려준다. 판정은 실제 규칙을 쓴다. cleanup은 아무 일도 하지 않는다 */
   const wrapArgv: SandboxService["wrapArgv"] = (policy, request) => {
     wrappedArgv.push({ request, policy });
-    const decision = decideExecution(status, policy, false);
+    const decision = decideExecution(status, policy);
     if (decision.action === "reject") {
       return Promise.resolve(err({ kind: "unavailable", reason: status.reason }));
     }
@@ -79,7 +79,7 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
   const wrapShell = (shell: Shell, policy: SandboxPolicy): Shell => ({
     async exec(command, execOptions, context) {
       wrapped.push({ command, policy });
-      const decision = decideExecution(status, policy, false);
+      const decision = decideExecution(status, policy);
       switch (decision.action) {
         case "reject":
           return err(rejectionError(decision, status));
@@ -115,6 +115,13 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
       allowEscape: false,
     }),
     protectedPaths: () => protectedPaths,
+    // 가짜 홈은 /home/fake다. 시험이 보는 것은 모양(절대 경로와 ~/ 풀이)이다
+    protectedPathKey: (value) => {
+      if (value === "~") return "/home/fake";
+      if (value.startsWith("~/")) return `/home/fake/${value.slice(2)}`;
+      return value.startsWith("/") ? value : undefined;
+    },
+    suggestedProtectedPaths: () => [],
     wrapShell,
     wrapArgv,
     autoAllow: (policy, request) =>

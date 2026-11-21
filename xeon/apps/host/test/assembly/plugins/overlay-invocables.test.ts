@@ -70,6 +70,7 @@ test("invocablesOf는 스킬, 명령, Drive 시작, 플러그인 전체 순서�
             path: "skills/lint/SKILL.md",
             description: "Lints code",
             descriptionChars: 11,
+            body: "Lint it.",
             when: "on_demand",
           },
           {
@@ -77,6 +78,7 @@ test("invocablesOf는 스킬, 명령, Drive 시작, 플러그인 전체 순서�
             path: "skills/plain/SKILL.md",
             description: null,
             descriptionChars: 0,
+            body: "Plain.",
             when: "on_demand",
           },
         ],

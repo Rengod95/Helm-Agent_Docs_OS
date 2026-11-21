@@ -4,11 +4,13 @@ import {
   wireError,
   type DraftInfo,
   type InvocableEntry,
+  type PluginDraftFilesResult,
   type PluginDraftFromInstructionParams,
   type PluginDraftFromInstructionResult,
   type PluginGetResult,
   type PluginListFilter,
   type PluginListResult,
+  type PluginReviewFileResult,
   type PluginScanResult,
   type WireError,
   type WireHandlers,
@@ -90,6 +92,13 @@ export interface PluginPort {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 목록(`plugin.draft.files`, 읽기만) */
+  draftFiles(draftId: string): Promise<Result<PluginDraftFilesResult, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 하나(`plugin.draft.file`, 읽기만) */
+  draftFile(
+    draftId: string,
+    path: string,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   /**
    * 한 줄 지침(§4.10): 지침만 든 원본 폴더를 쓰고 초안과 `user_instruction` 검토 항목을 만든다. 입력은 wire 매개변수 그대로다.
    * 같은 이름을 새 버전으로 덮어쓰는 규칙과 기본 프로필은 포트가 정한다
@@ -108,6 +117,8 @@ export type PluginMethods =
   | "plugin.revert"
   | "plugin.draft.create"
   | "plugin.draft.list"
+  | "plugin.draft.files"
+  | "plugin.draft.file"
   | "plugin.draft.discard"
   | "plugin.draft.fromInstruction";
 
@@ -181,6 +192,8 @@ export function createPluginHandlers(port: PluginPort): Pick<WireHandlers, Plugi
     "plugin.revert": (params) => unwrap(port.revert(params.name)),
     "plugin.draft.create": (params) => unwrap(port.draftCreate(params.dir, params.originThreadId)),
     "plugin.draft.list": (params) => unwrap(port.draftList(params.name)),
+    "plugin.draft.files": (params) => unwrap(port.draftFiles(params.draftId)),
+    "plugin.draft.file": (params) => unwrap(port.draftFile(params.draftId, params.path)),
     "plugin.draft.discard": async (params) => {
       await unwrapVoid(port.draftDiscard(params.draftId));
       return {};

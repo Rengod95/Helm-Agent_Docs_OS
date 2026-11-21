@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { basename } from "node:path";
 import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
-import type { PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
+import type { CardScript, PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
 import type {
   InvocableEntry,
   PluginGetResult,
@@ -234,6 +234,41 @@ function reviewKeyOfOrigin(
   return key.ok ? key.value : null;
 }
 
+/**
+ * 원본 폴더로 만든 카드의 환경 모드 스크립트에 승인본의 훅 출처를 옮긴다. 출처는 폴더(손으로 고칠 수 있다)에서 읽지 않고 승인한 검토본 카드의 값만 쓴다.
+ * 이름과 원문 명령이 모두 같은 스크립트만 옮긴다. 폴더에 새로 생기거나 명령이 바뀐 스크립트는 `unknown`으로 남는다
+ */
+function withReviewedHookOrigin(card: PluginCard, reviewed: PluginCard): PluginCard {
+  const inject = card.does.inject;
+  const scripts = inject?.scripts;
+  const reviewedScripts = reviewed.does.inject?.scripts;
+  if (inject === null || scripts === undefined || reviewedScripts === undefined) return card;
+  const next: CardScript[] = [];
+  for (const script of scripts) {
+    const env = script.env;
+    const match =
+      env === undefined
+        ? undefined
+        : reviewedScripts.find(
+            (candidate) => candidate.name === script.name && candidate.env?.command === env.command,
+          );
+    if (env === undefined || match?.env === undefined) {
+      next.push(script);
+      continue;
+    }
+    next.push({
+      ...script,
+      env: {
+        ...env,
+        origin: match.env.origin,
+        originLabel: match.env.originLabel,
+        fromProject: match.env.origin === "project" || env.fromProject,
+      },
+    });
+  }
+  return { ...card, does: { ...card.does, inject: { ...inject, scripts: next } } };
+}
+
 /** 사용자·번들 키(이름)를 프로젝트 키보다 앞에 둔다. 같은 이름이면 앞의 것이 쥔다(로더의 규칙과 같다) */
 function userFirst(a: string, b: string): number {
   const aProject = a.includes("/");
@@ -383,7 +418,11 @@ async function buildIndex(deps: PluginServiceDeps): Promise<Result<Index, Plugin
     if (existing !== undefined && existing.reviewKey === key) {
       byName.set(name, {
         ...existing,
-        card: { ...existing.card, review: approvedReview(version), health },
+        card: {
+          ...withReviewedHookOrigin(existing.card, version.meta.card),
+          review: approvedReview(version),
+          health,
+        },
         reviewedHash: version.contentHash,
       });
       continue;

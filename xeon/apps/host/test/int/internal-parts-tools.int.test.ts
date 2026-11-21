@@ -66,7 +66,7 @@ async function advertisedNames(
 }
 
 realTest(
-  "the model sees 8 tools up front (7 plus tool_search) and the other 33 only through tool_search",
+  "the model sees 8 tools up front (7 plus tool_search) and the other 35 only through tool_search",
   async () => {
     writeUserSettings(home, TAPE_SETTINGS);
     const captured: { current: Captured | undefined } = { current: undefined };
@@ -94,7 +94,8 @@ realTest(
         ].toSorted(),
       );
       // 검색으로만 찾는 것: 서브에이전트(core-agents) 1, 산출물과 리뷰(cap-artifacts) 3, 지식과 메모리(cap-knowledge) 6,
-      // MCP(cap-mcp) 3, 예약(cap-schedule) 1, 웹(cap-web) 6, 그리고 내부 부품이 아닌 authoring 플러그인의 13
+      // MCP(cap-mcp) 3, 예약(cap-schedule) 1, 웹(cap-web) 6, 보호 경로(cap-workspace, AGE-63) 2,
+      // 그리고 내부 부품이 아닌 authoring 플러그인의 13
       expect(names.deferred.filter((name) => name === "agent")).toHaveLength(1);
       expect(
         names.deferred.filter((name) => name.startsWith("artifact_") || name === "review_request"),
@@ -113,9 +114,12 @@ realTest(
       ).toHaveLength(6);
       expect(names.deferred.filter((name) => name.startsWith("mcp_"))).toHaveLength(3);
       expect(names.deferred.filter((name) => name === "schedule_create")).toHaveLength(1);
+      expect(
+        names.deferred.filter((name) => name === "sandbox_protect" || name === "sandbox_protected"),
+      ).toHaveLength(2);
       expect(names.deferred.filter((name) => name.startsWith("web_"))).toHaveLength(6);
       expect(names.deferred.filter((name) => name.startsWith("authoring_"))).toHaveLength(13);
-      expect(names.deferred).toHaveLength(33);
+      expect(names.deferred).toHaveLength(35);
     } finally {
       await engine.close();
     }

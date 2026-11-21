@@ -92,12 +92,12 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-05 | `wrapShell` 데코레이터: `wrap-shell.ts`(spec §4.2 1~10단계), argv → 셸 문자열 인용, `commandId` 생성, srt env 차이 계산, 래핑 실패 처리 | SB-02, SB-03, SB-04 | L |
 | SB-06 | `autoAllow` 판정: `auto-allow.ts`, 경로 마디 포함 비교 | SB-03 | S |
 | SB-07 | 자가 시험: `self-test.ts` 6항목, canary 준비·정리, status 반영 | SB-05, L0.exec.plan EX-12(`SENSITIVE_ENV_PATTERNS`) | M |
-| SB-08 | `onUnavailable` 정책: `wrapShell` 안의 2값 분기(물어보기 없음, 4.5절), `enabled=false` 처리, `escapeRetry` 검사 | SB-05 | S |
+| SB-08 | `onUnavailable` 정책: `wrapShell` 안의 2값 분기(물어보기 없음, 4.5절), `enabled=false` 처리, `allowEscape` 거부 | SB-05 | S |
 | SB-09 | 위반 기록 수집: `getViolationsForCommand` → `SandboxViolation` 변환(합치기, 200자 자르기, 50개 상한), Linux 모니터 기본 끔 | SB-05 | S |
 | SB-10 | doctor 출력: `describeSandboxStatus`의 severity·hints, 시작 로그 한 줄. `L4.cli.plan`에 종료 코드 2 계열 연결 요청 | SB-02 | S |
-| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` M1 6키(`enabled`, `onUnavailable`, `protectedPaths.extra`, `writeRoots.extra`, `escapeRetry`, `selfTestIntervalMin`. spec §6 표의 `network.allowedDomains`, `network.deniedDomains` 2키는 M2에서 더한다), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
+| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` M1 6키(`enabled`, `onUnavailable`, `protectedPaths.extra`, `selfTestIntervalMin`. spec §6 표의 `network.allowedDomains`, `network.deniedDomains` 2키는 M2에서 더한다), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
 | SB-12 | 서비스 등록: `service.ts`의 `createSandboxService`, ext-host로 `SandboxServiceName` 등록, dispose 때 srt `reset()`. `fakeSandbox`와 `testing` 서브패스 | SB-05~SB-11, `X.primitives.plan` 등록 API | M |
-| SB-13 | (M3b B0-SBX 구현: `network.blockedDomains` 차단 목록 방식, `credentialFiles`, `nestedNamespaces`, MCP stdio 출처별 판정. 아래 나머지는 후속) 네트워크 정책: `l0.sandbox.network.*` 키 활성화, `strictAllowlist` 해제 여부, 프록시 env와 exec 허용 목록 연동, `deniedResolvedAddresses` 기본값, `L0.secrets` sentinel 모드(후속)와 프록시 공존 확인 | SB-12 | L |
+| SB-13 | (M3b B0-SBX 구현: `network.blockedDomains` 차단 목록 방식, `nestedNamespaces`, MCP stdio 출처별 판정. (`credentialFiles`는 AGE-63에서 뺐다, spec §3.3.1.) 아래 나머지는 후속) 네트워크 정책: `l0.sandbox.network.*` 키 활성화, `strictAllowlist` 해제 여부, 프록시 env와 exec 허용 목록 연동, `deniedResolvedAddresses` 기본값, `L0.secrets` sentinel 모드(후속)와 프록시 공존 확인 | SB-12 | L |
 | SB-14 | (M2) 프로필·오프라인 검증: 이름 붙은 프로필(정책 묶음)과 실행 없는 규칙 검사 명령. Gemini CLI policy 구조는 참고만 | SB-12 | M |
 | SB-15 | (M2+) Windows 대응: srt-win alpha 재평가. 채택하면 win32 provider를 `srt`로 올리고 Windows CI | SB-12 | L |
 | SB-16 | (후속, sentinel 모드) 프록시 훅: 자식 HTTPS 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 `SandboxService`에 둘지 정하고 구현한다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안 비교, TLS 종단(`L0.secrets.spec` §10 6번). 선행 조건이 `L0.secrets.plan` SC-20이다 | SB-13 | L |
@@ -146,9 +146,9 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | write root inside protected path is removed | `protected-paths.test.ts` | `writeRoots`에 데이터 디렉터리가 있으면 유효 정책에서 빠짐 |
 | matchProtectedPath decides by access | `protected-paths.test.ts` | `write` 전용 항목은 읽기에 걸리지 않음, prefix는 경로 마디 비교(`/a/bc`는 `/a/b` 아님) |
 | autoAllow decision table | `auto-allow.test.ts` | 조건 5개 참·거짓 32조합의 `allow`와 `blocks` |
-| autoAllow never allows escape | `auto-allow.test.ts` | `escapeRetry` 참이어도 `allowEscape: true`는 `escape_requested` |
+| autoAllow never allows escape | `auto-allow.test.ts` | `allowEscape: true`는 `escape_requested`, `wrapShell`은 거부 |
 | onUnavailable disable_execute rejects without spawn | `on-unavailable.test.ts` | 아래 `Shell` 호출 0회, `sandbox_unavailable` |
-| onUnavailable escape needs escapeRetry | `on-unavailable.test.ts` | 격리 불가에서 `allowEscape: false` 또는 `escapeRetry` 꺼짐은 거부, `escapeRetry` 켜짐이면 실행하고 `unsandboxedBy: "escape"` |
+| onUnavailable escape is always refused | `on-unavailable.test.ts` | 격리 불가에서 `allowEscape: true`는 항상 거부 |
 | onUnavailable run_unsandboxed runs and marks | `on-unavailable.test.ts` | 실행, `unsandboxedBy: "run_unsandboxed"` |
 | disabled sandbox runs and marks disabled | `on-unavailable.test.ts` | `enabled=false`이면 `unsandboxedBy: "disabled"`, 상태 reason `disabled` |
 | status reports missing binaries | `status.test.ts` | PATH에 `bwrap` 없음 → `missing: ["bwrap"]`, `reason: "missing_dependency"`, hints에 설치 명령 |

@@ -75,8 +75,8 @@ test("the same card yields an empty difference with a zero cost change", () => {
   expect(diff.removed).toEqual([]);
   expect(diff.changed).toEqual([]);
   expect(diff.enforcementChange).toBeNull();
-  // 항상 싣는 비용은 0 차이이고, 필요할 때 비용은 모르는 값(null)이라 차이도 모른다
-  expect(diff.costDelta).toEqual({ always: 0, onDemand: null });
+  // 스킬이 없어 필요할 때 비용도 0이다. 같은 카드라 두 비용 모두 차이가 0이다
+  expect(diff.costDelta).toEqual({ always: 0, onDemand: 0 });
 });
 
 test("a removed tool is listed as removed with its description and the cost change is the difference", () => {

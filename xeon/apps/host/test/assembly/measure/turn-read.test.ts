@@ -1904,3 +1904,216 @@ test("a window that crosses the retention cutoff reads the same cache, block and
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---- 모든 대화의 최근 턴(turnRecord.recent, AGE-36) ------------------------
+
+type RecentArgs = Partial<Parameters<TurnRecordReadPort["recent"]>[0]>;
+
+function recentOf(port: TurnRecordReadPort, args: RecentArgs = {}) {
+  const out = port.recent({
+    from: null,
+    to: null,
+    profileId: null,
+    plugin: null,
+    scopes: null,
+    cursor: null,
+    limit: 50,
+    titleOf: (threadId) => ok({ title: `title of ${threadId}` }),
+    ...args,
+  });
+  if (!out.ok) throw new Bug("recent must answer in this test");
+  return out.value;
+}
+
+function putTurn(
+  store: MeasureStore,
+  thread: string,
+  turn: string,
+  startedAt: number,
+  extra: Partial<TrTurnRow> = {},
+  parts: Parameters<typeof writeTurn>[4] = {},
+): void {
+  writeTurn(store, thread, turn, startedAt, parts, {
+    recordJson: recordJson(thread, turn, startedAt),
+    ...extra,
+  });
+}
+
+test("turnRecord.recent lists turns of every thread by start time, newest first, with titles", () => {
+  const store = memory();
+  // 시작 시각 순서와 저장 순서가 다르다(늦게 저장된 오래된 턴)
+  putTurn(store, "thr_a", "trn_a1", NOW - 3 * HOUR);
+  putTurn(store, "thr_b", "trn_b1", NOW - 1 * HOUR);
+  putTurn(store, "thr_a", "trn_a2", NOW - 2 * HOUR);
+  putTurn(store, "thr_c", "trn_c0", NOW - 4 * HOUR);
+  const out = recentOf(portOf(store));
+  expect(out.items.map((i) => [i.turn.threadId, i.turn.turnId, i.title])).toEqual([
+    ["thr_b", "trn_b1", "title of thr_b"],
+    ["thr_a", "trn_a2", "title of thr_a"],
+    ["thr_a", "trn_a1", "title of thr_a"],
+    ["thr_c", "trn_c0", "title of thr_c"],
+  ]);
+  expect(out.next).toBeNull();
+  store.close();
+});
+
+test("turnRecord.recent pages with a cursor and a turn that appears while reading is neither repeated nor lost", () => {
+  const store = memory();
+  for (let i = 0; i < 7; i += 1)
+    putTurn(store, `thr_${String(i % 3)}`, `trn_${String(i)}`, NOW - (10 - i) * HOUR);
+  // 시작 시각이 같은 두 턴은 행 id로 가른다
+  putTurn(store, "thr_9", "trn_tie1", NOW - 20 * HOUR);
+  putTurn(store, "thr_9", "trn_tie2", NOW - 20 * HOUR);
+  const port = portOf(store);
+  const first = recentOf(port, { limit: 3 });
+  expect(first.items.map((i) => i.turn.turnId)).toEqual(["trn_6", "trn_5", "trn_4"]);
+  expect(first.next).not.toBeNull();
+  // 첫 쪽을 읽은 뒤 가장 새 턴이 생긴다
+  putTurn(store, "thr_new", "trn_new", NOW);
+  const seen = first.items.map((i) => i.turn.turnId);
+  let cursor = first.next;
+  while (cursor !== null) {
+    const page = recentOf(port, { limit: 3, cursor });
+    seen.push(...page.items.map((i) => i.turn.turnId));
+    cursor = page.next;
+  }
+  expect(seen).toEqual([
+    "trn_6",
+    "trn_5",
+    "trn_4",
+    "trn_3",
+    "trn_2",
+    "trn_1",
+    "trn_0",
+    "trn_tie2",
+    "trn_tie1",
+  ]);
+  // 새 턴은 처음부터 다시 읽으면 맨 앞에 온다
+  expect(recentOf(port, { limit: 1 }).items[0]?.turn.turnId).toBe("trn_new");
+  store.close();
+});
+
+test("turnRecord.recent filters by period, profile, plugin decision and scope, and hides test runs by default", () => {
+  const store = memory();
+  putTurn(store, "thr_a", "trn_old", NOW - 10 * DAY);
+  putTurn(store, "thr_a", "trn_p2", NOW - 3 * HOUR, { profileId: "prof-2" });
+  putTurn(
+    store,
+    "thr_a",
+    "trn_blocked",
+    NOW - 2 * HOUR,
+    {},
+    {
+      hooks: [hook("thr_a", "trn_blocked", 1, { plugin: "guard", result: "blocked" })],
+    },
+  );
+  putTurn(
+    store,
+    "thr_a",
+    "trn_passed",
+    NOW - 1 * HOUR,
+    {},
+    {
+      hooks: [
+        hook("thr_a", "trn_passed", 1, { plugin: "guard", result: "passed", decision: "none" }),
+      ],
+    },
+  );
+  putTurn(
+    store,
+    "thr_a",
+    "trn_asked",
+    NOW - 30 * 60_000,
+    {},
+    {
+      hooks: [
+        hook("thr_a", "trn_asked", 1, { plugin: "other", result: "passed", decision: "ask" }),
+      ],
+    },
+  );
+  putTurn(store, "thr_t", "trn_test", NOW - 20 * 60_000, { scopeKind: "test" });
+  const port = portOf(store);
+  const ids = (args: RecentArgs) => recentOf(port, args).items.map((i) => i.turn.turnId);
+  expect(ids({})).toEqual(["trn_asked", "trn_passed", "trn_blocked", "trn_p2", "trn_old"]);
+  expect(ids({ scopes: ["test"] })).toEqual(["trn_test"]);
+  expect(ids({ from: NOW - 4 * HOUR, to: NOW - HOUR })).toEqual(["trn_blocked", "trn_p2"]);
+  expect(ids({ profileId: "prof-2" })).toEqual(["trn_p2"]);
+  // 통과만 한 턴과 다른 플러그인의 결정은 남지 않는다
+  expect(ids({ plugin: "guard" })).toEqual(["trn_blocked"]);
+  expect(ids({ plugin: "other" })).toEqual(["trn_asked"]);
+  expect(ids({ plugin: "nobody" })).toEqual([]);
+  store.close();
+});
+
+test("turnRecord.recent answers empty for an empty store and refuses a bad cursor or range", () => {
+  const store = memory();
+  const port = portOf(store);
+  expect(recentOf(port)).toMatchObject({ items: [], next: null });
+  const bad = port.recent({
+    from: null,
+    to: null,
+    profileId: null,
+    plugin: null,
+    scopes: null,
+    cursor: "nope",
+    limit: 5,
+    titleOf: () => ok({ title: null }),
+  });
+  expect(bad).toEqual({ ok: false, error: { kind: "invalid_cursor" } });
+  const range = port.recent({
+    from: 5,
+    to: 5,
+    profileId: null,
+    plugin: null,
+    scopes: null,
+    cursor: null,
+    limit: 5,
+    titleOf: () => ok({ title: null }),
+  });
+  expect(range.ok).toBe(false);
+  store.close();
+});
+
+const goneTitleOf: RecentArgs["titleOf"] = (threadId) =>
+  ok(threadId === "thr_gone" ? undefined : { title: null });
+
+test("turnRecord.recent leaves out turns of deleted threads and still fills the page", () => {
+  const store = memory();
+  for (let i = 0; i < 6; i += 1)
+    putTurn(store, i < 4 ? "thr_gone" : "thr_live", `trn_${String(i)}`, NOW - (10 - i) * HOUR);
+  const port = portOf(store);
+  const out = recentOf(port, { limit: 2, titleOf: goneTitleOf });
+  expect(out.items.map((i) => i.turn.turnId)).toEqual(["trn_5", "trn_4"]);
+  // 남은 턴은 모두 지워진 대화의 것이라 쪽은 비고 끝난다
+  const rest = recentOf(port, {
+    limit: 2,
+    titleOf: goneTitleOf,
+    ...(out.next === null ? {} : { cursor: out.next }),
+  });
+  expect(rest).toMatchObject({ items: [], next: null });
+  store.close();
+});
+
+test("turnRecord.recent keeps working on a store opened before the started_at index existed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "turn-recent-"));
+  try {
+    const path = join(dir, "measure.db");
+    const first = must(openMeasureStore(path));
+    putTurn(first, "thr_a", "trn_1", NOW - HOUR);
+    first.close();
+    const raw = new Database(path);
+    raw.run("DROP INDEX tr_turn_started");
+    raw.close();
+    const second = must(openMeasureStore(path));
+    expect(recentOf(portOf(second)).items.map((i) => i.turn.turnId)).toEqual(["trn_1"]);
+    const raw2 = new Database(path, { readonly: true });
+    const found = raw2
+      .query("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'tr_turn_started'")
+      .all();
+    raw2.close();
+    expect(found).toHaveLength(1);
+    second.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

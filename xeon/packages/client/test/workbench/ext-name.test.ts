@@ -64,20 +64,18 @@ const pick = (name: string, displayName: string): string =>
 describe("기능 부품 이름", () => {
   test("cap·host 부품과 그룹이 한국어 이름을 쓴다", () => {
     expect(pick("cap-workspace", "Workspace tools")).toBe("작업 폴더 도구");
-    expect(pick("cap-dialog", "Client Services")).toBe("Client 서비스");
+    expect(pick("cap-dialog", "Client Services")).toBe("클라이언트 서비스");
     expect(pick("cap-artifacts", "Artifacts and reviews")).toBe("산출물과 검토");
-    expect(pick("host-dialog-bridge", "Ask Service Bridge")).toBe("Ask Service 브릿지");
+    expect(pick("host-dialog-bridge", "Ask Service Bridge")).toBe("애스크 서비스 브릿지");
     expect(pick("cap-work", "Work management")).toBe("작업 관리");
     expect(pick("cap-mcp", "MCP client")).toBe("MCP 연결");
     expect(pick("cap-web", "Web tools")).toBe("웹 도구");
     expect(pick("cap-knowledge", "Knowledge and memory")).toBe("지식과 기억");
-    expect(pick("host-goal-bridge", "Goal Service Bridge")).toBe("Goal Service 브릿지");
-    expect(pick("host-task-bridge", "Task Service Bridge")).toBe("Task Service 브릿지");
-    expect(pick("host-skill-bridge", "Skill Service Bridge")).toBe("Skill Service 브릿지");
-    expect(pick("host-memory-bridge", "Memory Service Bridge")).toBe("Memory Service 브릿지");
-    expect(pick("host-proposals-bridge", "Proposal Service Bridge")).toBe(
-      "Proposal Service 브릿지",
-    );
+    expect(pick("host-goal-bridge", "Goal Service Bridge")).toBe("골 서비스 브릿지");
+    expect(pick("host-task-bridge", "Task Service Bridge")).toBe("태스크 서비스 브릿지");
+    expect(pick("host-skill-bridge", "Skill Service Bridge")).toBe("스킬 서비스 브릿지");
+    expect(pick("host-memory-bridge", "Memory Service Bridge")).toBe("메모리 서비스 브릿지");
+    expect(pick("host-proposals-bridge", "Proposal Service Bridge")).toBe("프로포절 서비스 브릿지");
     expect(pick("cap-schedule", "Schedules")).toBe("예약");
     expect(pick("host-groups", "Group service")).toBe("그룹 서비스");
     expect(pick("authoring", "Plugin Builder")).toBe("플러그인 빌더");

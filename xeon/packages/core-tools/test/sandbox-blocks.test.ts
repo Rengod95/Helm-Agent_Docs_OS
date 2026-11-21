@@ -48,7 +48,7 @@ describe("sandboxBlockLines", () => {
       "Blocked by network policy: localhost is in blockedDomains.",
     ]);
     expect(sandboxBlockLines([WRITE])).toEqual([
-      "Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: /etc/hosts. To allow a folder that is not protected, add it to l0.sandbox.writeRoots.extra.",
+      "Blocked by sandbox: writing to a protected path is not allowed: /etc/hosts.",
     ]);
     expect(sandboxBlockLines([READ])).toEqual([
       "Blocked by sandbox: reading a protected path is not allowed: /Users/u/.npmrc",
@@ -69,7 +69,7 @@ describe("sandboxBlockLines", () => {
       path: `/p/${i}`,
     }));
     expect(sandboxBlockLines(paths)).toEqual([
-      "Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: /p/0, /p/1, /p/2, /p/3, /p/4 (and 2 more). To allow a folder that is not protected, add it to l0.sandbox.writeRoots.extra.",
+      "Blocked by sandbox: writing to a protected path is not allowed: /p/0, /p/1, /p/2, /p/3, /p/4 (and 2 more).",
     ]);
   });
 
@@ -161,7 +161,7 @@ describe("bash result path", () => {
           "curl: (7) Couldn't connect to server",
           "",
           "Blocked by network policy: localhost is in blockedDomains.",
-          "Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: /etc/hosts. To allow a folder that is not protected, add it to l0.sandbox.writeRoots.extra.",
+          "Blocked by sandbox: writing to a protected path is not allowed: /etc/hosts.",
         ].join("\n"),
       },
     ]);
@@ -192,7 +192,7 @@ describe("bash result path", () => {
       { type: "text", text: "done\n" },
       {
         type: "text",
-        text: "Blocked by sandbox: writing outside the workspace or to a protected path is not allowed: /etc/hosts. To allow a folder that is not protected, add it to l0.sandbox.writeRoots.extra.",
+        text: "Blocked by sandbox: writing to a protected path is not allowed: /etc/hosts.",
       },
     ]);
     expect(outcome.result?.details).toEqual({

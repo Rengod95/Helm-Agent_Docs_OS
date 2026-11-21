@@ -150,7 +150,7 @@ export async function wrapArgvWith(
   if (context.abortSignal?.aborted === true) return err({ kind: "aborted" });
   await deps.ensureCurrent(context);
   const status = deps.status();
-  const decision = decideExecution(status, policy, deps.escapeRetry());
+  const decision = decideExecution(status, policy);
   if (decision.action === "reject") return err({ kind: "unavailable", reason: status.reason });
   if (decision.action === "plain") return ok(plainArgv(request, decision.by));
   const commandId = newCommandId(deps.random);
