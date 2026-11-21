@@ -4,8 +4,9 @@
 // 엔진 상태와 엔진 연결은 건드리지 않는다(앱 안 감시자들은 겹치지 않은 거울을 읽는다). 표본 대화를 열거나 표본 승인에 답하면 엔진이 모르는 id라
 // 실패한다(보기 전용). 정식 빌드(`BUILD_CHECKS` false)에서는 켜지지 않고 단축키도 걸리지 않는다.
 // 켜고 끄기: ⌘⌥⇧S(macOS, 다른 OS는 Ctrl+Alt+Shift+S). 값은 이 창의 localStorage에 두고 창을 다시 읽는다.
-// 쌓임 장면(AGE-65): 표본이 켜져 있고 `fresnel.dev.sampleScene`에 장면 조각(쉼표로 나눔: ask, askLong, tool, goal, queued)이 있으면
-// 열린 실제 대화에 질문 여럿인 승인·긴 질문·도구 승인·진행 중 목표·대기 입력을 겹친다. 입력창 위에 쌓이는 부품의 조합을 묶은 앱에서 보려고 둔다.
+// 쌓임 장면(AGE-65): 표본이 켜져 있으면 열린 실제 대화에 질문 여럿인 승인·긴 질문·도구 승인·진행 중 목표·대기 입력 가운데 고른 조각을
+// 겹친다. 입력창 위에 쌓이는 부품의 조합을 묶은 앱에서 보려고 둔다. 조각은 `fresnel.dev.sampleScene`(쉼표로 나눔: ask, askLong, tool, goal,
+// queued)이고, 값이 없으면 기본 장면(질문 셋 넘김 카드 + 목표 줄, lcQ3)이라 ⌘⌥⇧S 하나로 개발자 콘솔 없이 켜진다. 빈 글이면 장면이 없다.
 
 import { t } from "@fresnel/client/i18n";
 import { assertNever, attempt, parse } from "@fresnel/contracts";
@@ -214,13 +215,25 @@ export function sampleScenePartsOf(raw: string | null): readonly SampleScenePart
   return SCENE_PARTS.filter((part) => names.has(part));
 }
 
+/**
+ * 장면 값이 없을 때의 기본 장면(lcQ3, 사용자 2026-11-21 "개발자 콘솔 없이"): 질문 셋이 든 넘김 카드와 진행 중 목표 줄.
+ * 다른 화면의 "표본 · …" 머리 메뉴는 그 화면 안의 데이터만 바꾸지만, 이 장면은 창이 뜰 때 거울에 겹치고 열린 실제 대화가 있어야 해서
+ * 대화 머리에 메뉴를 두지 않고 ⌘⌥⇧S 표본에 넣는다
+ */
+const DEFAULT_SAMPLE_SCENE: readonly SampleScenePart[] = ["ask", "goal"];
+
+/** 저장된 장면 값의 조각. 값이 없으면(한 번도 고르지 않음) 기본 장면, 빈 글이면 장면 없음 */
+export function sampleSceneOf(raw: string | null): readonly SampleScenePart[] {
+  return raw === null ? DEFAULT_SAMPLE_SCENE : sampleScenePartsOf(raw);
+}
+
 /** 개발 빌드이고 표본이 켜져 있을 때의 장면 조각 */
 export function sampleSceneOn(
   storage: () => Storage = () => localStorage,
 ): readonly SampleScenePart[] {
   if (!sampleStateOn(storage)) return [];
   const read = attempt(() => storage().getItem(SAMPLE_SCENE_KEY));
-  return read.ok ? sampleScenePartsOf(read.value) : [];
+  return read.ok ? sampleSceneOf(read.value) : [];
 }
 
 const option = (id: string, label: string, description?: string) =>

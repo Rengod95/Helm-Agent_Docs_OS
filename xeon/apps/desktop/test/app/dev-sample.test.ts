@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   isSampleToggle,
   SAMPLE_STATE_KEY,
+  sampleSceneOf,
   sampleScenePartsOf,
   sampleStateOn,
   sampleView,
@@ -102,6 +103,14 @@ describe("withSampleScene", () => {
       sampleScenePartsOf("goal, ask,nope,ask"),
       sampleScenePartsOf("queued,tool,askLong"),
     ]).toEqual([[], [], ["ask", "goal"], ["askLong", "tool", "queued"]]);
+  });
+
+  test("with no stored scene the sample shows the paged three-question card and the goal row (lcQ3)", () => {
+    expect([sampleSceneOf(null), sampleSceneOf(""), sampleSceneOf("tool")]).toEqual([
+      ["ask", "goal"],
+      [],
+      ["tool"],
+    ]);
   });
 
   test("puts the cards, the goal and the queued input on the open thread", () => {
