@@ -195,7 +195,7 @@ xeon/packages/contracts/
 | | `key prefix matches layer` | `l1.loop.x` + `layer: "L2"` → D1 위반 | |
 | | `records settings.changed alignment` | F.records `SettingsChangedPayload` 픽스처의 `key`·`scope`가 `SettingKey`·`SettingScope` 스키마를 통과하고, `SettingScope` 다섯 값 모두 `SettingsChangedPayloadSchema`를 통과한다(settings → records import는 `F.readme` §3 순서상 허용) | |
 | `define.test.ts` | `builds full keys` | `defineSettings("l1.loop", {maxSteps})`의 키가 `l1.loop.maxSteps`이고 리터럴 타입으로 추론됨 | |
-| | `duplicate key across groups` | 두 그룹이 같은 키 → `duplicateKey` | S9 |
+| | `duplicate key across groups` | 두 플러그인이 같은 키 → `duplicateKey` | S9 |
 | | `extension cannot use core namespace` | 매니페스트 userConfig에서 온 정의가 `l1.` → `foreignNamespace` | S9 |
 | | `manifest userConfig mapping` | `settingsFromManifest`가 `ext.<name>.<키>` 키, `ui.label`, `secret`(sensitive), 확장의 층을 만든다. 값 스키마가 없는 항목은 `invalidDef` issue | |
 | | `reserved extension keys` | userConfig가 `enabled`, `isolation`을 쓰면 `invalidDef` | |

@@ -67,7 +67,10 @@ export interface ScaffoldInput {
   /** `single-plugin`일 때 플러그인의 층. 생략하면 템플릿 기본값 [제안] */
   readonly layer?: ExtensionLayer;
   /** `group` 선언 초안. 있으면 매니페스트에 `group`이 붙는다 */
-  readonly group?: { readonly members?: readonly string[]; readonly composition?: CompositionDecl };
+  readonly orchestration?: {
+    readonly members?: readonly string[];
+    readonly composition?: CompositionDecl;
+  };
   /** Plugin UI 초안 */
   readonly ui?: UiDecl;
 }
@@ -112,7 +115,7 @@ export const REPLAY_FAILURES = [
   "no-commits",
 ] as const;
 export type ReplayFailure = (typeof REPLAY_FAILURES)[number];
-/** 절단 한 칸: 앞에서 `commitIndex`개의 커밋을 복원해 다시 돌린 결과. group-sdk `ReplayCut`의 wire 모양 */
+/** 절단 한 칸: 앞에서 `commitIndex`개의 커밋을 복원해 다시 돌린 결과. orchestration-sdk `ReplayCut`의 wire 모양 */
 export interface ReplayCut {
   /** 앞에서 몇 개의 커밋을 복원했는가(1부터) */
   readonly commitIndex: number;
@@ -122,7 +125,7 @@ export interface ReplayCut {
   readonly firstDiff: number | null;
 }
 
-/** group-sdk `ReplayDriveReport`의 wire 모양 */
+/** orchestration-sdk `ReplayDriveReport`의 wire 모양 */
 export interface ReplayReport {
   readonly ok: boolean;
   readonly commits: number;

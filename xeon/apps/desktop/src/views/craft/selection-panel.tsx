@@ -313,7 +313,7 @@ function GroupBody({ group }: { readonly group: CanvasGroup }): ReactNode {
       meta={
         <>
           <Chip size="xs" tone="info" variant="soft">
-            {t("term.pluginGroup")}
+            {t("desktop.craft.orbit.kind.group")}
           </Chip>
           <CardMeta>v{group.version}</CardMeta>
           <CardMeta>{t(ORIGIN_TEXT[group.origin])}</CardMeta>

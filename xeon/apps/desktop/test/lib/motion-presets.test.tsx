@@ -131,7 +131,7 @@ describe("줄 들어옴 값(dzM2 시안 §2, DP-117)", () => {
         end === undefined ||
         (end.opacity !== undefined && end.opacity !== 1) ||
         (end.transform !== undefined &&
-          !["translateY(0px)", "scaleX(1)", "scaleY(1)"].includes(String(end.transform))) ||
+          !["translateY(0px)", "scaleX(1)"].includes(String(end.transform))) ||
         (end.filter !== undefined && end.filter !== "blur(0px)"),
     );
     expect(wrong).toEqual([]);

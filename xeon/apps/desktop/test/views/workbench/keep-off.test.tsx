@@ -111,7 +111,7 @@ describe("끌까요: 선택 패널(플러그인 카드)", () => {
   test("질문이 없는 자동 꺼짐은 선택 패널에 다시 켜기 단추를 보이고 질문은 보이지 않는다", () => {
     const plain = entry("review", {
       layer: "L3",
-      isGroup: true,
+      isOrchestration: true,
       status: "disabled",
       autoDisabled: true,
     });
@@ -136,7 +136,7 @@ describe("끌까요: 자세히 보기", () => {
   test("질문이 없는 자동 꺼짐은 자동으로 꺼졌다는 글과 다시 켜기를 보인다", () => {
     const plain = entry("review", {
       layer: "L3",
-      isGroup: true,
+      isOrchestration: true,
       status: "disabled",
       autoDisabled: true,
     });

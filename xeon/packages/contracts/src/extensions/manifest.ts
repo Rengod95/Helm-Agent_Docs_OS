@@ -307,7 +307,7 @@ export const PluginDeclSchema: TObject<{
       ),
     ),
     usesPost: Type.Optional(Type.Boolean()),
-    /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다 */
+    /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresOrchestration`이 정한다 */
     drives: Type.Optional(Type.Boolean()),
     requires: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     optional: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
@@ -335,7 +335,7 @@ export const PluginDeclSchema: TObject<{
 export type PluginDecl = Static<typeof PluginDeclSchema>;
 
 /** 플러그인 그룹 선언. 있으면 그 확장은 플러그인 그룹이다 */
-export const GroupDeclSchema: TObject<{
+export const OrchestrationDeclSchema: TObject<{
   members: TOptional<TArray<typeof PluginIdSchema>>;
   composition: TOptional<TUnsafe<CompositionDecl>>;
 }> = Type.Object(
@@ -350,7 +350,7 @@ export const GroupDeclSchema: TObject<{
   },
   { additionalProperties: false },
 );
-export type GroupDecl = Static<typeof GroupDeclSchema>;
+export type OrchestrationDecl = Static<typeof OrchestrationDeclSchema>;
 
 /** Claude Code plugin.json의 레이아웃과 메타 필드를 따르고 Fresnel 필드를 더한다 */
 export const ExtensionManifestSchema: TObject<{
@@ -373,7 +373,7 @@ export const ExtensionManifestSchema: TObject<{
   scripts: TOptional<TArray<typeof ManifestScriptDeclSchema>>;
   entry: TOptional<TString>;
   plugins: TOptional<TArray<typeof PluginDeclSchema>>;
-  group: TOptional<typeof GroupDeclSchema>;
+  orchestration: TOptional<typeof OrchestrationDeclSchema>;
   ui: TOptional<TUnsafe<UiDecl>>;
   methods: TOptional<TArray<TUnsafe<ExtMethodDecl>>>;
   isolation: TOptional<TUnion<[TLiteral<"none">, TLiteral<"process">]>>;
@@ -415,7 +415,7 @@ export const ExtensionManifestSchema: TObject<{
     entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
     /** 확장이 담는 플러그인. 생략할 수 있다(M5c-1). 생략하면 루트 플러그인 하나를 추론한다(§4.5.4) */
     plugins: Type.Optional(Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 })),
-    group: Type.Optional(GroupDeclSchema),
+    orchestration: Type.Optional(OrchestrationDeclSchema),
     /** Plugin UI 기여(ADR-0021). 확장 수준이고 화면마다 mode가 native 또는 app이다 */
     ui: Type.Optional(UiDeclSchema),
     /** 확장 메서드 `ext.<확장 이름>.<verb>`. Plugin UI와 따로 선언할 수 있다 */
@@ -433,13 +433,15 @@ export function defineManifest<const M extends ExtensionManifest>(manifest: M): 
 }
 
 /** `group` 선언이 있으면 플러그인 그룹이다. 기록·상태 접두를 이 함수 하나로 고른다 */
-export function isGroupExtension(manifest: Pick<ExtensionManifest, "group">): boolean {
-  return manifest.group !== undefined;
+export function isOrchestrationExtension(
+  manifest: Pick<ExtensionManifest, "orchestration">,
+): boolean {
+  return manifest.orchestration !== undefined;
 }
 
 /** 확장 접두: 플러그인 그룹이면 "grp", 아니면 "x" */
-export function extensionPrefix(manifest: Pick<ExtensionManifest, "group">): "grp" | "x" {
-  return isGroupExtension(manifest) ? "grp" : "x";
+export function extensionPrefix(manifest: Pick<ExtensionManifest, "orchestration">): "grp" | "x" {
+  return isOrchestrationExtension(manifest) ? "grp" : "x";
 }
 
 /** 루트 플러그인(id 없음)은 확장 이름, 그 밖은 "<확장 이름>/<플러그인 id>" */
@@ -471,20 +473,20 @@ export interface PluginEntry {
   /** id가 없는 루트 플러그인인가 */
   readonly root: boolean;
   /** 플러그인 그룹의 구성원인가. `group.members`가 없으면 모든 플러그인, 있으면 루트와 목록의 플러그인 */
-  readonly inGroup: boolean;
+  readonly inOrchestration: boolean;
 }
 
 export function pluginsOf(
-  manifest: Pick<ExtensionManifest, "name" | "plugins" | "group">,
+  manifest: Pick<ExtensionManifest, "name" | "plugins" | "orchestration">,
 ): readonly PluginEntry[] {
-  const members = manifest.group?.members;
+  const members = manifest.orchestration?.members;
   return pluginDeclsOf(manifest).map((decl, index) => ({
     index,
     registrationId: registrationIdOf(manifest, decl.id),
     decl,
     root: decl.id === undefined,
-    inGroup:
-      manifest.group !== undefined &&
+    inOrchestration:
+      manifest.orchestration !== undefined &&
       (members === undefined || decl.id === undefined || members.includes(decl.id)),
   }));
 }

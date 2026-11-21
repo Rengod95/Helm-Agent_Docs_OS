@@ -1,11 +1,11 @@
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import {
-  createGuideGroup,
+  createGuideOrchestration,
   createGuideReader,
-  GUIDE_GROUP_NAME,
+  GUIDE_ORCHESTRATION_NAME,
   locateGuideSkills,
   type GuideReader,
-} from "@fresnel/group-guide";
+} from "@fresnel/plugin-guide";
 
 // 가이드 그룹 `guide`(L3.guide.spec)를 내장 그룹으로 싣는다. 기본은 꺼짐이다. 대화가 쓰는 프로필이 넣었거나(M5c §4.1, E(T)),
 // 개발 모드(`l3.authoring.devMode`)이면 모든 대화에서 켜진 채 잠긴다([결정: 2026-11-13 사용자]).
@@ -66,16 +66,16 @@ export function guideSkillRoots(
   threadId: string | undefined,
 ): readonly { readonly dir: string; readonly extension: string }[] {
   return wiring.dir !== undefined && wiring.active(threadId)
-    ? [{ dir: wiring.dir, extension: GUIDE_GROUP_NAME }]
+    ? [{ dir: wiring.dir, extension: GUIDE_ORCHESTRATION_NAME }]
     : [];
 }
 
 /** `ext.list`의 `forcedOn`: 가이드 그룹은 개발 모드에서 켜진 채 잠긴다 */
 export function guideForcedOn(wiring: GuideWiring, name: string): "devMode" | null {
-  return name === GUIDE_GROUP_NAME && wiring.forced() ? "devMode" : null;
+  return name === GUIDE_ORCHESTRATION_NAME && wiring.forced() ? "devMode" : null;
 }
 
 export function guideUnit(loadIndex: number): ExtensionUnit {
-  const module = createGuideGroup();
+  const module = createGuideOrchestration();
   return { manifest: module.manifest, entry: module.entry, loadIndex, builtin: true };
 }

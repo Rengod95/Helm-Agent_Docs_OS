@@ -43,7 +43,7 @@ L4는 층 F~P를 하나의 실행 가능한 런타임으로 조립하고 사용�
 
 | 마일스톤 | cli | desktop | host-service | settings-ui |
 |---|---|---|---|---|
-| M1 | `fresnel chat` in-process(print 우선, 최소 대화형), `--json`, `--continue`/`--resume`, `config get`, `config schema`(로컬 명령), 저장소 유일의 scenario 테스트 | 스캐폴드, TS `StdioTransportFactory`·`HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES` 통과(옛 Tauri 구현(커밋 424f338a)의 Rust 툴체인 없음) | in-process 전송, 처리기 5개(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`), stdio 전송과 적합성 통과, `assemble` 최소형(테스트용 그룹 포함), `fresnel config schema` | 없음 |
+| M1 | `fresnel chat` in-process(print 우선, 최소 대화형), `--json`, `--continue`/`--resume`, `config get`, `config schema`(로컬 명령), 저장소 유일의 scenario 테스트 | 스캐폴드, TS `StdioTransportFactory`·`HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES` 통과(옛 Tauri 구현(커밋 424f338a)의 Rust 툴체인 없음) | in-process 전송, 처리기 5개(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`), stdio 전송과 적합성 통과, `assemble` 최소형(테스트용 플러그인 포함), `fresnel config schema` | 없음 |
 | M2 | `sessions`, `config set/reset/list`, 시크릿 관리 명령(`secret *`, UC-6, 값 열람 `secret reveal` 포함), `doctor`(검색 provider 상태 포함), 승인·잠금 프롬프트, 컴파일 바이너리의 `host --stdio` 서브커맨드 | 데스크톱(Electron 셸)과 엔진 사이드카, 정상 종료 시 사이드카 없음, CLI와 메시지 열 동일 | 나머지 처리기(`thread.*`(`thread.rename` 포함), `turn.interrupt`, `turn.resume`, `events.unsubscribe`, `approval.respond`, `settings.set/reset/list`와 알림 `settings.invalidated`, `command.list/run`, `trust.get/decide`, `secret.references`, `host.status`), `thread.open` 잠금과 `thread.locked`, stdio 종료 절차, 첫 입력 제목, 외부 바이너리 점검(`Engine.diagnose`) | 얇은 화면(view-model, 일반 렌더러, 키 단위 편집기) |
 | M3 | `service start/status/stop/ensure/launch-mode/run` | 서비스 소켓 릴레이, OS 알림 | 서비스 모드 전부(등록 파일, `ensure`, 유휴 종료, 인증), 예약 틱, 알림 라우팅 | 12탭 전체, 전용 편집기, 시크릿 탭(값 보기 포함), 레이트 리밋·계정 회전 항목, 첫 실행 권장 화면, 게이지 자리 |
 
@@ -125,7 +125,7 @@ L4 각 문서가 아래 층 문서의 무엇을 쓰는지 적는다. 실제로 �
 
 - DR-10: 앱(`apps/*`)끼리 import하지 않는다. 예외 하나를 둔다 [결정: review.decisions-2 U-15]: `apps/cli` → `@fresnel/host`(진입점 `.`, `./client`, `./plugin-host`)의 한 방향 간선. `./plugin-host`는 내부 명령 `plugin-host --stdio`가 엔진을 싣지 않고 플러그인 호스트 본체만 싣도록 더했다(`L4.host-service.spec` §4.22). 허용 목록 항목 `DR-10/cli-host`로 연다. 이는 `architecture.layers.spec` §3.2의 "층 기반 패키지"(L4는 `host`)를 L4에 적용한 결과다. `apps/host`는 다른 앱을 import하지 않는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 엔진 바이너리를 실행한다(`L4.host-service.spec` §3.1).
 - DR-14: 조립 루트는 `apps/host` 하나다. 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 조립 루트가 아니며 F와 `@fresnel/host` 공개 진입점 외의 워크스페이스 패키지를 import하지 않는다(같은 절 수정안).
-- 조립 위치 결정의 근거: 조립 코드는 L3 그룹까지 모두 import하므로 L4 아래 어느 순위에도 둘 수 없다(DR-01·DR-02). CLI가 항상 서비스를 거치는 안은 in-process 결정과 충돌한다(`L4.host-service.spec` §3.1 비교표).
+- 조립 위치 결정의 근거: 조립 코드는 L3 플러그인까지 모두 import하므로 L4 아래 어느 순위에도 둘 수 없다(DR-01·DR-02). CLI가 항상 서비스를 거치는 안은 in-process 결정과 충돌한다(`L4.host-service.spec` §3.1 비교표).
 - 셸 호출은 `apps/desktop/src/shell/`의 어댑터만 거친다. 실행 때 preload가 내놓는 `window.fresnelShell`이 있으면 Electron 다리를 쓴다. 옛 Tauri 구현(커밋 424f338a)의 `@tauri-apps/*`는 `src/shell/tauri-bridge.ts` 한 파일만 import했고, 지금은 그 의존을 쓰지 않는다 [근거: `xeon/apps/desktop/src/shell/`]. WebView 코드 안에서도 셸 경계 모듈로 제한한다(`L4.desktop.spec` §4.9 W2, §11.1).
 - UI(CLI 화면, 데스크톱 WebView, 설정 화면)는 F의 `@fresnel/contracts/wire`·`@fresnel/contracts/settings` 서브패스와 `HostConnection`으로만 엔진에 접근한다. 엔진 내부 패키지를 import하지 않는다(ADR-0006 §3.2).
 - 처리기와 연결 코드는 엔진 포트(`EnginePorts`)만 쓰고, 아래 층 서비스 어댑터는 `apps/host/src/assemble.ts` 한 곳에 둔다(`L4.host-service.plan` §2).

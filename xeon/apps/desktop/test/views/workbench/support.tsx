@@ -25,7 +25,7 @@ export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEn
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -34,7 +34,7 @@ export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEn
     tier: null,
     status: "enabled",
     // 루트 플러그인의 등록 id는 확장 이름이다(README: 루트면 확장 이름, 구성원이면 "<확장>/<id>")
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -47,7 +47,7 @@ export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEn
 export function asked(over: Partial<ExtListEntry> = {}): ExtListEntry {
   return entry("review", {
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     status: "enabled",
     autoDisabled: false,
     keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
@@ -61,12 +61,18 @@ const ENTRIES: readonly ExtListEntry[] = [
   entry("web", { displayName: "웹 검색" }),
   entry("review", {
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     status: "disabled",
     autoDisabled: true,
     plugins: [
-      { registrationId: "review", layer: "L3", status: "disabled", inGroup: true },
-      { registrationId: "review/lint", id: "lint", layer: "L3", status: "disabled", inGroup: true },
+      { registrationId: "review", layer: "L3", status: "disabled", inOrchestration: true },
+      {
+        registrationId: "review/lint",
+        id: "lint",
+        layer: "L3",
+        status: "disabled",
+        inOrchestration: true,
+      },
     ],
   }),
 ];

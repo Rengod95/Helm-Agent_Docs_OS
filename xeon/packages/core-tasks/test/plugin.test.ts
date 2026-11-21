@@ -27,7 +27,7 @@ const POSTER_MANIFEST: ExtensionManifest = {
   version: "0.1.0",
   entry: "./src/index.ts",
   plugins: [{ layer: "L3", hooks: ["boundary.settle.after"], usesPost: true }],
-  group: {},
+  orchestration: {},
 };
 
 async function setup() {

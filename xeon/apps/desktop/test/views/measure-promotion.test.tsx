@@ -32,13 +32,13 @@ describe("promotion report", () => {
 
   test("the command sends the thread id, or no argument without a thread", async () => {
     const engine = engineFake([summary(thr(1))], undefined, {
-      results: { "group.promotion": REPORT },
+      results: { "orchestration.promotion": REPORT },
     });
     const app = makeApp(engine.fake);
     await until(() => app.engine.read.getState().link.phase === "live", "live link");
     expect(await app.commands.measure.promotion("thr_1")).toEqual({ ok: true, value: REPORT });
     expect(await app.commands.measure.promotion(null)).toEqual({ ok: true, value: REPORT });
-    const sent = engine.params.filter((entry) => entry.method === "group.promotion");
+    const sent = engine.params.filter((entry) => entry.method === "orchestration.promotion");
     expect(sent.map((entry) => entry.params)).toEqual([{ threadIds: ["thr_1"] }, {}]);
     await app.stop();
   });

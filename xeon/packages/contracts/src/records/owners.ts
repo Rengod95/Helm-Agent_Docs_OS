@@ -189,13 +189,13 @@ export const CONTEXTS: readonly ContextDef[] = [
     services: ["fresnel.schedule"],
   },
   {
-    id: "group-sdk",
+    id: "orchestration-sdk",
     layer: "L3",
-    domains: ["group-sdk", "slots"],
+    domains: ["orchestration-sdk", "slots"],
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["fresnel.groups"],
+    services: ["fresnel.orchestration"],
   },
   {
     id: "helm",

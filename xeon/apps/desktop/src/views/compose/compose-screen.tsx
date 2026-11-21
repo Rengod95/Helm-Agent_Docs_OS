@@ -27,7 +27,7 @@ export function ComposeScreen(): ReactNode {
   const controller = useWorkbenchController();
   const link = tabLinkOf(useLinkPhase());
   const entries = useWorkbench((s) => s.entries);
-  const groups = entries.filter((entry) => entry.isGroup);
+  const groups = entries.filter((entry) => entry.isOrchestration);
   const [view, setView] = useState<ComposeViewId>("group");
   const [picked, setPicked] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);

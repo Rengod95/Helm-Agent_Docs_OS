@@ -47,6 +47,7 @@ const TURN_BASE: TurnRecord = {
   turnId: trn(1),
   startedSeq: null,
   inputItemIds: [],
+  invoked: [],
   startedAt: null,
   origin: "user",
   scopeId: null,
@@ -129,6 +130,9 @@ const LEASE: LeaseRecord = {
   releasedSeq: 9,
   releasedAt: END,
   releaseReason: "budget",
+  parent: null,
+  requestId: null,
+  inputLine: null,
 };
 
 function goalRecord(): GoalState["goal"] {
@@ -227,6 +231,8 @@ describe("selectTurnSummary", () => {
       inputItemIds: [],
       origin: "scheduled",
       leadScopeId: "g",
+      requestId: null,
+      invoked: [],
       model: "m-1",
       startedAt: START,
       running: false,
@@ -339,13 +345,57 @@ describe("selectLeadSegments", () => {
         limits: { maxTurns: 3 },
         turnIds: [trn(2), trn(3)],
         used: { turns: 2, tokens: 150, spawns: 0 },
+        parent: null,
+        requestId: null,
+        inputLine: null,
+        branchesRunning: 0,
       },
     ]);
     expect(selectLeadOfTurn(s, T, trn(2))?.leaseId).toBe("l1");
     expect(selectLeadOfTurn(s, T, trn(4))).toBeUndefined();
   });
 
-  test("보유 중인 임대는 active이고 반납 사유와 반납 seq가 없다", () => {
+  test("임대 기록의 핸드오프 출처, 넘겨받은 입력 한 줄, 도는 갈래 수를 구간에 싣는다(lcM6c Drive 카드)", () => {
+    const handed: LeaseRecord = {
+      ...LEASE,
+      releasedSeq: null,
+      releasedAt: null,
+      releaseReason: null,
+      parent: "l0",
+      requestId: "req-1",
+      inputLine: "리팩터링 결과를 검증해 줘",
+    };
+    const s = mirrorOf({
+      [T]: convoOf({
+        leases: [handed],
+        agents: [
+          agentOf(thr(31), "running"),
+          agentOf(thr(32), "running"),
+          agentOf(thr(33), "completed"),
+        ],
+      }),
+    });
+    const [segment] = selectLeadSegments(s, T);
+    expect(
+      segment === undefined
+        ? null
+        : {
+            parent: segment.parent,
+            requestId: segment.requestId,
+            inputLine: segment.inputLine,
+            branchesRunning: segment.branchesRunning,
+            spawns: segment.used.spawns,
+          },
+    ).toEqual({
+      parent: "l0",
+      requestId: "req-1",
+      inputLine: "리팩터링 결과를 검증해 줘",
+      branchesRunning: 2,
+      spawns: 3,
+    });
+  });
+
+  test("보유 중인 임대는 active이고 반납 사유와 반납 seq가 없다. 도는 턴은 엔진처럼 한도의 턴 수에 아직 세지 않는다(lcM6d)", () => {
     const held: LeaseRecord = {
       ...LEASE,
       releasedSeq: null,
@@ -355,14 +405,17 @@ describe("selectLeadSegments", () => {
     const s = mirrorOf({
       [T]: convoOf({
         leases: [held],
-        turns: [turnOf(2, { startedSeq: 6, scopeId: "g" })],
+        turns: [
+          turnOf(2, { startedSeq: 6, scopeId: "g", completion: DONE }),
+          turnOf(3, { startedSeq: 7, scopeId: "g" }),
+        ],
       }),
     });
     expect(selectLeadSegments(s, T)[0]).toMatchObject({
       active: true,
       releasedSeq: null,
       releaseReason: null,
-      turnIds: [trn(2)],
+      turnIds: [trn(2), trn(3)],
       used: { turns: 1, tokens: 0, spawns: 0 },
     });
   });

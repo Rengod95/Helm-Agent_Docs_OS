@@ -3,7 +3,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { DevkitService } from "@fresnel/contracts/services";
 import {
-  createAuthoringGroup,
+  createAuthoringOrchestration,
   type AuthoringDeps,
   type AuthoringGuide,
 } from "@fresnel/plugin-builder";
@@ -103,6 +103,6 @@ export function authoringDepsOf(wiring: AuthoringWiring): AuthoringDeps {
 }
 
 export function authoringUnit(wiring: AuthoringWiring, loadIndex: number): ExtensionUnit {
-  const module = createAuthoringGroup(authoringDepsOf(wiring));
+  const module = createAuthoringOrchestration(authoringDepsOf(wiring));
   return { manifest: module.manifest, entry: module.entry, loadIndex, builtin: true };
 }

@@ -120,7 +120,7 @@ function requestedOf(events: readonly EventWire[]) {
 const LIMIT_BYTES = 1_048_576;
 const OVER_LIMIT = "x".repeat(LIMIT_BYTES + 1);
 
-const BASE_SETTINGS = { "x.primitives.driveRequiresGroup": false };
+const BASE_SETTINGS = { "x.primitives.driveRequiresOrchestration": false };
 const LIMITED_SETTINGS = { ...BASE_SETTINGS, "l0.store.maxBlobBytes": LIMIT_BYTES };
 
 realTest(

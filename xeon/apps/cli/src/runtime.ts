@@ -241,7 +241,7 @@ export function createRealIo(): CliIo {
  * 폴더 없이 설치된 기본 그룹 이름(apps/host의 assembly/catalog.ts가 올린다). CLI는 host 조립 코드를 import하지 않으므로
  * 여기 옮겨 적는다. 목록이 어긋나면 `fresnel group new`가 기본 그룹과 겹치는 이름을 거르지 못한다 [미결: L4.cli.spec §10]
  */
-const BUILTIN_GROUP_NAMES: readonly string[] = ["helm", "learning", "account-rotation"];
+const BUILTIN_ORCHESTRATION_NAMES: readonly string[] = ["helm", "learning", "account-rotation"];
 
 /** 사용자 설정 폴더(`<OsDirs.config>`). 확장은 그 아래 `extensions/`에 있다. 위치 규칙은 L0.os가 정한다(resolveOsDirs) */
 function userConfigDirOf(): string | null {
@@ -284,7 +284,7 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
         dirname(process.execPath),
       ),
       userConfigDir: userConfigDirOf,
-      builtinNames: BUILTIN_GROUP_NAMES,
+      builtinNames: BUILTIN_ORCHESTRATION_NAMES,
     }),
     // 합성 루트의 시계는 L0.os의 운영 시계다(eng.typescript.guide TY-21). 엔진 안의 시각도 같은 구현이 낸다
     clock: systemClock(),

@@ -1,0 +1,311 @@
+import { expect, test } from "bun:test";
+import { parse } from "@fresnel/contracts";
+import { WebSearch } from "@fresnel/contracts/capabilities";
+import {
+  FIRST_DENY,
+  pluginsOf,
+  validateManifest,
+  validateUsage,
+  pluginDeclsOf,
+} from "@fresnel/contracts/extensions";
+import { capabilityDefTable } from "@fresnel/ext-host";
+import { helmComposition, helmManifest } from "../../src/index.ts";
+import { HelmStateSchema, INITIAL_HELM_STATE, type HelmState } from "../../src/state.ts";
+import { createRig, DEFS, type Rig } from "../support/rig.ts";
+
+function statesOf(rig: Rig): readonly HelmState[] {
+  return rig.t.records
+    .events(rig.thread)
+    .filter((event) => event.kind === "grp.helm.state.committed")
+    .flatMap((event) => {
+      const payload: unknown = event.payload;
+      if (typeof payload !== "object" || payload === null || !("doc" in payload)) return [];
+      const checked = parse(HelmStateSchema, payload.doc);
+      return checked.ok ? [checked.value] : [];
+    });
+}
+
+function noticeTexts(rig: Rig): readonly string[] {
+  return rig.t.queue.items.flatMap((entry) => {
+    const content = entry.item.content;
+    return typeof content === "string" ? [content] : [];
+  });
+}
+
+test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks and no legacy fields", () => {
+  expect(helmManifest.schemaVersion).toBe(2);
+  expect(helmManifest.orchestration).toEqual({ composition: helmComposition });
+  expect(helmManifest.plugins).toHaveLength(1);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.id)).toEqual([undefined]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.layer)).toEqual(["L3"]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.drives)).toEqual([true]);
+  expect(pluginDeclsOf(helmManifest).map((plugin) => plugin.hooks)).toEqual([
+    [
+      "input.agent.before",
+      "tool.call.before",
+      "tool.execution.after",
+      "boundary.settle.after",
+      "thread.start",
+    ],
+  ]);
+  for (const legacy of [
+    "kind",
+    "points",
+    "usesDrive",
+    "layer",
+    "usesPost",
+    "requires",
+    "optional",
+    "recordKinds",
+    "readsRecordKinds",
+  ]) {
+    expect(Object.keys(helmManifest)).not.toContain(legacy);
+  }
+  expect(
+    validateManifest(helmManifest).issues.filter((issue) => issue.severity === "error"),
+  ).toEqual([]);
+});
+
+test("manifest.valid-and-usage-matches", async () => {
+  expect(
+    validateManifest(helmManifest).issues.filter((issue) => issue.severity === "error"),
+  ).toEqual([]);
+  const root = pluginsOf(helmManifest).find((plugin) => plugin.root);
+  if (root === undefined) throw new Error("helm has no root plugin");
+  expect(root.decl.hooks).toHaveLength(5);
+  expect(root.decl.drives).toBe(true);
+  expect(root.decl.usesPost).toBe(true);
+  const rig = await createRig();
+  const info = rig.t.host.registrations().find((item) => item.id === "helm");
+  expect(info?.status).toBe("enabled");
+  const usage = {
+    on: [...root.decl.hooks],
+    post: true,
+    drive: true,
+    capabilities: [],
+    recordKinds: root.decl.recordKinds?.map((decl) => decl.kind) ?? [],
+    readsRecordKinds: [],
+  };
+  expect(
+    validateUsage(helmManifest, root, usage).filter((issue) => issue.severity === "error"),
+  ).toEqual([]);
+  expect(rig.t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
+});
+
+test("commands.start-stop-status", async () => {
+  const rig = await createRig();
+  // 시작 요청은 다음 경계에서 부여된다. 경계를 돌리기 전까지는 대기 요청만 커밋된 상태다
+  await rig.command("start 캐시 무효화");
+  expect(statesOf(rig).at(-1)?.pending).toMatchObject({ topic: "캐시 무효화", source: "command" });
+  const commits = statesOf(rig).length;
+  // 시작을 기다리는 탐구가 있으면 다른 주제의 start는 오류이고 상태를 바꾸지 않는다(같은 주제는 시작이다)
+  const again = await rig.command("start 다른 주제");
+  const status = await rig.command("status");
+  expect(statesOf(rig)).toHaveLength(commits);
+  expect(again).toBe("이미 탐구 중이거나 시작을 기다리는 탐구가 있습니다.");
+  expect(status?.split("\n")[0]).toBe(
+    "[helm] 시작을 기다리는 중이에요, 단계: 대기, 주제: 캐시 무효화",
+  );
+  expect(status).not.toContain("waiting");
+  expect(status).toContain("캐시 무효화");
+  // 명령 결과는 모델 입력 대기열에 쌓이지 않는다
+  expect(noticeTexts(rig)).toEqual([]);
+  // stop은 대기 중인 요청을 지운다
+  await rig.command("stop");
+  await rig.settle("k3");
+  expect(statesOf(rig).at(-1)?.pending).toBeNull();
+  // 잘못된 하위 명령은 사용법을 알린다
+  expect(await rig.command("explode")).toContain("사용법");
+});
+
+test("commands: stop issued while the lenses run ends the inquiry stopped before the apply turn", async () => {
+  const holder: { rig?: Rig; sent: boolean } = { sent: false };
+  const rig = await createRig({
+    onSpawn: async () => {
+      const target = holder.rig;
+      if (target === undefined || holder.sent) return;
+      holder.sent = true;
+      // 명령 처리기는 요청을 쌓고, 다음 on 지점(여기서는 정착 지점)이 상태에 반영한다
+      await target.command("stop");
+      await target.settle("during-explore");
+    },
+  });
+  holder.rig = rig;
+  await rig.command("start 캐시 무효화");
+  await rig.settle("s");
+  await rig.drain();
+  const finished = rig.records("grp.helm.inquiry.finished");
+  expect(finished).toHaveLength(1);
+  expect(finished[0]).toMatchObject({ outcome: "stopped" });
+  expect(rig.t.loop.turns).toHaveLength(1);
+  // 렌즈는 한 번에 하나씩 돈다. 정지는 실행 중인 렌즈가 끝난 다음 단계에서 읽히므로 두 번째 렌즈부터는 돌지 않는다
+  expect(rig.t.loop.spawns).toHaveLength(1);
+});
+
+test("guard.exception-becomes-deny", async () => {
+  let armed = false;
+  const values = {
+    get "ext.helm.writeGuard"(): boolean {
+      if (armed) throw new Error("settings unavailable");
+      return true;
+    },
+  };
+  const rig = await createRig({ settings: values });
+  armed = true;
+  const outcome = await rig.t.host.dispatch(
+    "tool.call.before",
+    { toolCallId: "call_1", toolName: "bash", input: {}, risk: "exec" },
+    { threadId: rig.thread, dispatchKey: "k" },
+  );
+  expect(outcome.decision).toEqual(FIRST_DENY["tool.call.before"]);
+  expect(outcome.substituted).toBe(true);
+});
+
+test("effects.no-capability-in-on-handlers", async () => {
+  const rig = await createRig();
+  const dispatched = [
+    await rig.t.host.dispatch(
+      "input.agent.before",
+      {
+        prompt: "`LRU` 캐시",
+        systemPrompt: "s",
+        systemPromptOptions: {},
+        driver: null,
+        stack: [],
+      },
+      {
+        threadId: rig.thread,
+        dispatchKey: "a",
+        initial: { messages: [], systemPrompt: "s" },
+      },
+    ),
+    await rig.t.host.dispatch(
+      "tool.execution.after",
+      { toolCallId: "c1", toolName: "bash", input: {}, result: "ok", isError: false },
+      { threadId: rig.thread, dispatchKey: "b" },
+    ),
+    await rig.t.host.dispatch(
+      "boundary.settle.after",
+      { turnId: rig.t.ids.next("trn"), aborted: false },
+      { threadId: rig.thread, dispatchKey: "c" },
+    ),
+  ];
+  expect(dispatched).toHaveLength(3);
+  expect(
+    rig.fakes.web.calls +
+      rig.fakes.knowledge.calls +
+      rig.fakes.memory.calls +
+      rig.fakes.tasks.calls,
+  ).toBe(0);
+});
+
+test("knowledge.undeclared-method-degrades: a provider method without readOnly is refused by the X wrapper", async () => {
+  const { readOnly: _declared, ...search } = WebSearch.service.methods.search;
+  const undeclared = { ...WebSearch, service: { ...WebSearch.service, methods: { search } } };
+  const defs = capabilityDefTable([undeclared]);
+  const rig = await createRig({ host: { capabilityDefs: (id) => defs(id) ?? DEFS(id) } });
+  await rig.runInquiry("캐시 무효화");
+  expect(rig.fakes.web.calls).toBe(0);
+  expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "applied" });
+});
+
+for (const [name, options] of [
+  ["no provider", { without: ["web" as const] }],
+  ["an unavailable provider", { webError: "unavailable" }],
+] as const) {
+  test(`knowledge.degrades-when-web-missing: ${name} still ends applied`, async () => {
+    const rig = await createRig(options);
+    await rig.runInquiry("캐시 무효화");
+    expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "applied" });
+    expect(rig.t.loop.turns).toHaveLength(2);
+  });
+}
+
+test("a missing work capability skips the task links but keeps the discoveries", async () => {
+  const rig = await createRig({ without: ["work"] });
+  await rig.runInquiry("캐시 무효화");
+  expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "applied" });
+  expect(rig.records("grp.helm.discovery.recorded")).toHaveLength(3);
+  expect(rig.fakes.tasks.created).toEqual([]);
+});
+
+test("restore.invalid-state-resets: session.start with an inconsistent state commits the initial state and a failed finish", async () => {
+  const rig = await createRig();
+  await rig.t.records.commit({
+    threadId: rig.thread,
+    requestId: "inconsistent",
+    drafts: [
+      {
+        id: rig.t.ids.next("evt"),
+        threadId: rig.thread,
+        kind: "grp.helm.state.committed",
+        version: 1,
+        turnId: null,
+        stepId: null,
+        causationId: null,
+        correlationId: null,
+        durable: true,
+        payload: {
+          scopeId: "helm",
+          rev: 99,
+          prevEventId: null,
+          version: 1,
+          doc: { ...INITIAL_HELM_STATE, phase: "explore" },
+        },
+      },
+    ],
+  });
+  await rig.t.host.closeThread(rig.thread);
+  await rig.t.host.openThread(rig.thread);
+  await rig.t.host.dispatch(
+    "thread.start",
+    { reason: "resume", threadId: rig.thread },
+    { threadId: rig.thread, dispatchKey: "ss" },
+  );
+  await rig.t.settled();
+  expect(rig.records("grp.helm.inquiry.finished")).toEqual([
+    expect.objectContaining({
+      outcome: "failed",
+      reason: expect.stringContaining("state inconsistent"),
+    }),
+  ]);
+  expect(statesOf(rig).at(-1)).toEqual(INITIAL_HELM_STATE);
+});
+
+test("failures.missing-inquiry-finishes-failed: the drive of an explore state without an inquiry id finishes failed", async () => {
+  const rig = await createRig();
+  await rig.t.records.commit({
+    threadId: rig.thread,
+    requestId: "inconsistent-2",
+    drafts: [
+      {
+        id: rig.t.ids.next("evt"),
+        threadId: rig.thread,
+        kind: "grp.helm.state.committed",
+        version: 1,
+        turnId: null,
+        stepId: null,
+        causationId: null,
+        correlationId: null,
+        durable: true,
+        payload: {
+          scopeId: "helm",
+          rev: 99,
+          prevEventId: null,
+          version: 1,
+          doc: { ...INITIAL_HELM_STATE, phase: "explore" },
+        },
+      },
+    ],
+  });
+  await rig.t.host.closeThread(rig.thread);
+  // 재개는 프로필의 시작 설정으로 한다. 열린 임대가 없는 탐구를 시작 요청으로 다시 주도한다
+  await rig.t.host.openThread(rig.thread);
+  await rig.t.settled();
+  rig.t.host.startDrive(rig.thread, "helm");
+  await rig.t.settled();
+  await rig.drain(4);
+  expect(rig.records("grp.helm.inquiry.finished")[0]).toMatchObject({ outcome: "failed" });
+  expect(statesOf(rig).at(-1)).toEqual(INITIAL_HELM_STATE);
+  expect(rig.t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
+});

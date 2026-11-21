@@ -19,7 +19,7 @@ const LIST: CommandListResult = {
       args: [{ name: "sub", choices: ["list", "approve"] }],
       kind: "action",
       source: "extension",
-      origin: "group-learning",
+      origin: "plugin-learning",
       hasShell: false,
     },
     {
@@ -29,7 +29,7 @@ const LIST: CommandListResult = {
       args: [{ name: "action", choices: ["start", "stop", "status"] }],
       kind: "action",
       source: "extension",
-      origin: "group-helm",
+      origin: "plugin-helm",
       hasShell: false,
     },
     {
@@ -84,7 +84,7 @@ describe("commandListView and completeSlash", () => {
       description: "탐구를 시작하거나 멈추고 상태를 봐요: /helm start [주제] | stop | status",
       hint: "<start|stop>",
       kind: "action",
-      origin: "group-helm",
+      origin: "plugin-helm",
       source: "extension",
       needsShellConfirm: false,
       firstChoices: ["start", "stop", "status"],

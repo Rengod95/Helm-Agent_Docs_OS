@@ -51,7 +51,7 @@ export function toggleRouteOf(
 ): "trust" | "off-confirm" | "direct" {
   if (entry === undefined) return "direct";
   if (target) return needsTrustConfirm(entry) ? "trust" : "direct";
-  return entry.isGroup ? "off-confirm" : "direct";
+  return entry.isOrchestration ? "off-confirm" : "direct";
 }
 
 export function TrustDialog(props: {

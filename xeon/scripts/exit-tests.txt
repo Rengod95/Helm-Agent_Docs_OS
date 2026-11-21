@@ -15,9 +15,9 @@ E6 apps/host test/int/cap-mcp.int.test.ts test/int/cap-mcp-stdio.int.test.ts
 E7 packages/platform-secrets test/admin.int.test.ts test/sops-real.int.test.ts
 # M3a (review.m3-plan): X1 Helm E1/UC-2, X2 learning UC-3, X3 S1 core-diff check (the script's own tests; the S1 run itself
 # is `bun scripts/core-diff-check.ts <base>` at M3a close).
-X1 packages/group-helm test/int/uc2.int.test.ts test/int/plugin.int.test.ts
+X1 packages/plugin-helm test/int/uc2.int.test.ts test/int/plugin.int.test.ts
 X1 apps/host test/int/helm.int.test.ts
-X2 packages/group-learning test/uc3.int.test.ts
+X2 packages/plugin-learning test/uc3.int.test.ts
 X2 apps/host test/int/proposals.int.test.ts
 X3 scripts core-diff-check.test.ts
 # M3b conditions (review.m3b-plan 1.1, product.scope.spec 4.4 M3b). A commented line is a placeholder for a test file that is not
@@ -66,7 +66,7 @@ Y6 apps/host test/int/knowledge-memory.int.test.ts test/int/profile-wire.int.tes
 # Y7 (AGE-37, 2026-11-20 user decision): manifest plugins[] Drive declaration, loop.ask approval and lock hand-back, same requestId re-run, and replayDrive through a Drive that asks. The lines below are the whole condition.
 Y7 packages/contracts test/extensions/manifest-plugins.test.ts test/extensions/drive-ask.test.ts
 Y7 packages/ext-host test/primitives/drive-policy.test.ts test/primitives/drive-ask.test.ts test/primitives/drive-ask-rerun.test.ts
-Y7 packages/group-sdk test/replay.test.ts
+Y7 packages/orchestration-sdk test/replay.test.ts
 # Moved to M6 (Craft): Y8, Y9 (the ext-host pause test already exists as test-run-pause.test.ts; M6 W8 re-states it)
 # Y8 packages/plugin-builder <파일>
 # Y9 packages/ext-host test/trial-pause.test.ts
@@ -77,7 +77,7 @@ Y10 apps/host test/int/profile.int.test.ts
 Y11 packages/ext-host test/loading-trust/version-history.test.ts
 # Y12: the four code defects (ledger cleared on enable, managed install capped at tier user, handler times per hook, safe mode drops X hooks, suggestSafeMode)
 Y12 packages/ext-host test/loading-trust/levels.test.ts test/operations/handler-timings.test.ts test/operations/safe-mode-x-hooks.test.ts
-Y12 packages/group-sdk test/service.test.ts
+Y12 packages/orchestration-sdk test/service.test.ts
 Y12 apps/host test/int/startup-health.int.test.ts test/assembly/ext-enabled.test.ts
 Y13 scripts caustic-gaps.test.ts
 # Y14 (AGE-37, 2026-11-20 user decision): the condition is name and role checks plus a keyboard path test per screen; axe-core is not added. These two files cover control names, alt text and tabindex over the connection screen render. The keyboard path test and the chat, inbox and Craft screens wait until the design is merged.

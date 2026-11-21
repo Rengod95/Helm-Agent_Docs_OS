@@ -46,7 +46,7 @@ function threadOf(raw: string): ThreadId {
 function resultOf(over: Partial<TestRunPhaseResult> = {}): TestRunPhaseResult {
   return {
     phase: "review",
-    group: "helm",
+    plugin: "helm",
     seq: 7,
     paused: false,
     lock: { holder: "helm", status: "active", epoch: 3 },
@@ -164,13 +164,13 @@ function render(
 
 /** 초안을 고치는 중에 시험이 설치된 그룹을 돌린다는 경고. 정보 아이콘 글과 따로 보인다 */
 const DRAFT_WARNING =
-  "지금 고치는 초안은 테스트에 들어가지 않아요. 테스트 대화는 설치된 그룹을 돌려요.";
+  "지금 고치는 초안은 테스트에 들어가지 않아요. 테스트 대화는 설치된 플러그인을 돌려요.";
 
 describe("시험 시작 줄", () => {
   test("설치된 그룹은 시작 단추가 눌리고, 설명은 정보 아이콘 뒤에 있다", () => {
     const html = render(trialOf());
     expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(false);
-    expect(html).toContain("테스트 대화를 새로 만들고 이 그룹을 그 대화에서 켜요.");
+    expect(html).toContain("테스트 대화를 새로 만들고 이 플러그인을 그 대화에서 켜요.");
   });
 
   test("초안을 고치는 중이면 설치된 그룹을 돈다는 경고가 단추 옆에 글로 보인다", () => {
@@ -194,7 +194,7 @@ describe("시험 시작 줄", () => {
   test("설치되지 않은 그룹은 잠기고, 이유가 보이고 설명이 정보 아이콘에 있다", () => {
     const html = render(trialOf(), "live", false);
     expect(buttonNamed(html, "테스트 대화에서 돌려 보기")?.disabled).toBe(true);
-    expect(html).toContain("설치되지 않은 그룹이라 지금은 돌릴 수 없어요.");
+    expect(html).toContain("설치되지 않은 플러그인이라 지금은 돌릴 수 없어요.");
     expect(html).toContain("설치한 뒤 다시 열면 테스트 대화에서 켤 수 있어요.");
   });
 
@@ -211,7 +211,7 @@ describe("시험 시작 줄", () => {
       }),
     );
     expect(html).toContain("이 엔진에는 아직 없는 기능이에요.");
-    expect(html).toContain("테스트 대화 thr_01234567는 만들었지만 이 그룹을 켜지 못했어요.");
+    expect(html).toContain("테스트 대화 thr_01234567는 만들었지만 이 플러그인을 켜지 못했어요.");
   });
 });
 
@@ -520,7 +520,7 @@ describe("테스트 결과 목록", () => {
 
   test("기록이 없으면 빈 글이고, 읽는 중·오프라인·읽기 실패를 각각 보인다", () => {
     const cases: readonly (readonly [TabRead<readonly ExtTestRecord[]>, string])[] = [
-      [{ kind: "ready", value: [], stale: false }, "아직 이 그룹의 테스트 결과가 없어요"],
+      [{ kind: "ready", value: [], stale: false }, "아직 이 플러그인의 테스트 결과가 없어요"],
       [{ kind: "loading" }, "불러오는 중…"],
       [{ kind: "offline" }, "엔진에 연결되어 있지 않아 목록을 읽지 못해요."],
       [{ kind: "error" }, "테스트 결과를 불러오지 못했어요."],
@@ -544,7 +544,7 @@ function listRowOf(name: string, registration: ExtListEntry["registration"]): Ex
     name,
     displayName: name,
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "1.0.0",
     location: "/x",
     requestedGrade: "user",
@@ -552,7 +552,7 @@ function listRowOf(name: string, registration: ExtListEntry["registration"]): Ex
     tier: null,
     status: "enabled",
     ...(registration === undefined ? {} : { registration }),
-    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,

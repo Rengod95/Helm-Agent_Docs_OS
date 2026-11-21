@@ -26,7 +26,7 @@ export const TEAM: ExtensionManifest = defineManifest({
   name: "team",
   version: "0.3.0",
   entry: "./src/index.ts",
-  group: {},
+  orchestration: {},
   plugins: [
     { layer: "L3", hooks: ["input.user.before", "input.bash.before"], drives: true },
     {

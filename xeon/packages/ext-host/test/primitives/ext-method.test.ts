@@ -161,7 +161,7 @@ test("a second Registration of the same extension cannot register a verb another
   const codes: (string | undefined)[] = [];
   const manifest = makeManifest({
     name: "twin",
-    group: {},
+    orchestration: {},
     methods: [declOf("ping")],
     extraPlugins: [{ id: "second", layer: "plugin", hooks: [], defaultEnabled: true }],
   });

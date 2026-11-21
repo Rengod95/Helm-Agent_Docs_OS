@@ -19,7 +19,7 @@ const HOLD_MANIFEST = defineManifest({
   defaultEnabled: true,
   entry: "./src/index.ts",
   plugins: [{ layer: "L3", hooks: ["guard.output.before"] }],
-  group: {},
+  orchestration: {},
   trust: { level: "builtin" },
 });
 

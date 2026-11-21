@@ -4,8 +4,10 @@
 import type { ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
 import type {
   AgentRecord,
+  AppliedProfile,
   ApprovalTrail,
   ConvoMarker,
+  DriveInputRecord,
   GoalState,
   Intervention,
   LeaseRecord,
@@ -88,6 +90,10 @@ export type TurnSummary = {
   readonly inputItemIds: TurnRecord["inputItemIds"];
   /** 주도 턴이면 임대한 scope id(그 확장이 주도한 턴) */
   readonly leadScopeId: string | null;
+  /** 턴을 시작한 입력의 요청 id. 모르면 null */
+  readonly requestId: string | null;
+  /** 이 턴에 얹힌 원샷(`turn.started.invoked`) */
+  readonly invoked: TurnRecord["invoked"];
   readonly model: string | null;
   readonly startedAt: string | null;
   readonly running: boolean;
@@ -131,6 +137,8 @@ function summarizeTurn(turn: TurnRecord): TurnSummary {
     startedSeq: turn.startedSeq,
     inputItemIds: turn.inputItemIds,
     leadScopeId: turn.scopeId,
+    requestId: turn.requestId,
+    invoked: turn.invoked,
     model: turn.model,
     startedAt: turn.startedAt,
     running: done === null,
@@ -194,8 +202,16 @@ export type LeadSegment = {
   readonly limits: LeaseRecord["limits"];
   /** 이 구간에서 주도한 턴(같은 scope이고 구간 안에서 시작한 턴). 오래된 것이 앞이다 */
   readonly turnIds: readonly TurnId[];
-  /** 한도 대비 사용량: 턴 수, 토큰 합(끝난 턴의 사용량), 위임 수 */
+  /** 한도 대비 사용량: 턴 수(끝난 턴만, 엔진의 한도 셈과 같다), 토큰 합(끝난 턴의 사용량), 위임 수 */
   readonly used: { readonly turns: number; readonly tokens: number; readonly spawns: number };
+  /** 핸드오프한 쪽 임대 id. 사용자 명령이나 스타트 Drive면 null */
+  readonly parent: string | null;
+  /** 시작 요청 id. 프로필의 스타트 Drive면 null */
+  readonly requestId: string | null;
+  /** 넘겨받은 입력의 한 줄. 없으면 null */
+  readonly inputLine: string | null;
+  /** 이 임대가 낸 하위 에이전트 가운데 아직 도는 것(병렬 갈래) */
+  readonly branchesRunning: number;
 };
 
 const leadCache = new WeakMap<ThreadConvo, readonly LeadSegment[]>();
@@ -216,9 +232,10 @@ export function selectLeadSegments(s: EngineMirror, threadId: ThreadId): readonl
         (lease.releasedSeq === null || t.startedSeq <= lease.releasedSeq),
     );
     const tokens = mine.reduce((sum, t) => sum + (t.completion?.usage?.totalTokens ?? 0), 0);
-    const spawns = c.agents.filter(
+    const spawned = c.agents.filter(
       (a) => a.owner.kind === "drive" && a.owner.leaseId === lease.leaseId,
-    ).length;
+    );
+    const spawns = spawned.length;
     return {
       leaseId: lease.leaseId,
       scopeId: lease.scopeId,
@@ -231,7 +248,13 @@ export function selectLeadSegments(s: EngineMirror, threadId: ThreadId): readonl
       releaseReason: lease.releaseReason,
       limits: lease.limits,
       turnIds: mine.map((t) => t.turnId),
-      used: { turns: mine.length, tokens, spawns },
+      // 턴 수는 끝난 턴만 센다: 엔진은 턴이 끝나 돌아온 뒤에 그 턴을 한도에 더한다(ext-host lease `charge`). 도는 턴까지 세면
+      // 띠·카드(`drive.frames`의 used)는 0/4인데 이 줄은 1/4가 된다(lcM6d)
+      used: { turns: mine.filter((t) => t.completion !== null).length, tokens, spawns },
+      parent: lease.parent,
+      requestId: lease.requestId,
+      inputLine: lease.inputLine,
+      branchesRunning: spawned.filter((a) => a.status === "running").length,
     };
   });
   leadCache.set(c, made);
@@ -404,6 +427,42 @@ export function selectNow(s: EngineMirror, threadId: ThreadId): NowState {
 export function selectMarkers(s: EngineMirror, threadId: ThreadId): readonly ConvoMarker[] {
   const markers = convoOf(s, threadId).markers;
   return markers.length === 0 ? NO_MARKERS : markers;
+}
+
+// ── 프로필과 Drive 입력(M6a) ──────────────────────────────────────────
+
+/** 대화에 마지막으로 적용된 프로필. 아직 적용 사건을 못 봤으면 null */
+export function selectAppliedProfile(s: EngineMirror, threadId: ThreadId): AppliedProfile | null {
+  return convoOf(s, threadId).profile;
+}
+
+const NO_DRIVE_INPUTS: readonly DriveInputRecord[] = Object.freeze([]);
+
+/**
+ * 코어 루프로 돌려보낸 사용자 메시지의 입력 요청 id(엔진 `returnToLoop`가 `user-return:<요청 id>`를 64자로 자른다).
+ * 그 메시지는 입력 큐와 턴이 보이므로 Drive 입력 줄은 물러난다
+ */
+export function returnedRequestIdOf(requestId: string): string {
+  return `user-return:${requestId}`.slice(0, 64);
+}
+
+/**
+ * 화면에 보일 Drive 입력. 글이 없는 것(읽지 못한 `held`, `settled`만 본 것)과 코어 루프로 돌아가 입력 큐나 턴이 된 것은 뺀다.
+ * 오래된 것부터다
+ */
+export function selectDriveInputs(
+  s: EngineMirror,
+  threadId: ThreadId,
+): readonly DriveInputRecord[] {
+  const c = convoOf(s, threadId);
+  if (c.driveInputs.length === 0) return NO_DRIVE_INPUTS;
+  const taken = new Set<string>();
+  for (const turn of c.turns) if (turn.requestId !== null) taken.add(turn.requestId);
+  for (const input of s.queuedInputs) if (input.threadId === threadId) taken.add(input.requestId);
+  const shown = c.driveInputs.filter(
+    (record) => record.text !== null && !taken.has(returnedRequestIdOf(record.requestId)),
+  );
+  return shown.length === c.driveInputs.length ? c.driveInputs : shown;
 }
 
 // ── 작업 판(DP-195) ────────────────────────────────────────────────────

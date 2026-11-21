@@ -5,7 +5,7 @@ import { Bug } from "@fresnel/contracts";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
-  createSmokeGroup,
+  createSmokeOrchestration,
   createTestHost,
   memoryRecordStore,
   type MemoryRecordStore,
@@ -61,7 +61,7 @@ function realRecords(h: Harness): MemoryRecordStore {
 async function snapshotAfterDrive(records: MemoryRecordStore): Promise<unknown> {
   const t = await createTestHost({ shared: { records } });
   const thread = t.newThread();
-  const { unit } = createSmokeGroup({ ids: t.ids });
+  const { unit } = createSmokeOrchestration({ ids: t.ids });
   await t.host.install(unit);
   await t.host.openThread(thread);
   await t.settled();
@@ -86,7 +86,7 @@ describe("M-01 group drive on the real session store", () => {
     const records = realRecords(h);
     const t = await createTestHost({ shared: { records } });
     const thread = t.newThread();
-    const { unit } = createSmokeGroup({ ids: t.ids });
+    const { unit } = createSmokeOrchestration({ ids: t.ids });
     const installed = await t.host.install(unit);
     expect(installed.setups[0]?.status).toBe("applied");
     await t.host.openThread(thread);

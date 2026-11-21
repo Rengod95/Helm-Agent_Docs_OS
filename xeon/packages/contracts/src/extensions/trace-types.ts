@@ -259,7 +259,7 @@ export interface TestRunPhaseResult {
   /** Test run 대화에서 `grp.<id>.state.committed`의 `phase`만. 없으면 null */
   readonly phase: string | null;
   /** `phase`를 읽은 그룹 확장 이름. `phase`가 없으면 null */
-  readonly group: string | null;
+  readonly plugin: string | null;
   readonly seq: number | null;
   /** 이 대화에 멈춤 요청이 걸려 있는가. 참이면 다음 단계 경계에서 멈춘다 */
   readonly paused: boolean;
@@ -275,7 +275,7 @@ export interface TestRunPhaseResult {
 const TestRunPhaseResultShape = Type.Object(
   {
     phase: Type.Union([Name, Type.Null()]),
-    group: Type.Union([Name, Type.Null()]),
+    plugin: Type.Union([Name, Type.Null()]),
     seq: Type.Union([Count, Type.Null()]),
     paused: Type.Boolean(),
     lock: TestRunLockShape,

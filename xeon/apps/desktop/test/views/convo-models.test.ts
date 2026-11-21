@@ -243,6 +243,10 @@ const LEAD: LeadSegment = {
   limits: { maxTurns: 8, maxTokens: 50_000 },
   turnIds: [trn(1)],
   used: { turns: 3, tokens: 46_000, spawns: 0 },
+  parent: null,
+  requestId: null,
+  inputLine: null,
+  branchesRunning: 0,
 };
 
 describe("lead", () => {
@@ -304,6 +308,8 @@ function turnOf(over: Partial<TurnSummary>): TurnSummary {
     startedSeq: 1,
     inputItemIds: [],
     leadScopeId: null,
+    requestId: null,
+    invoked: [],
     model: null,
     startedAt: "2026-11-11T00:00:00.000Z",
     running: false,

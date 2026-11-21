@@ -9,7 +9,7 @@ import type {
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
-import { checkGroupName } from "@fresnel/contracts/services";
+import { checkOrchestrationName } from "@fresnel/contracts/services";
 import { KIND_CATALOG } from "./catalog.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import type { TemplateDirs } from "./templates-dir.ts";
@@ -118,8 +118,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function patchManifest(text: string, input: ScaffoldInput): Result<string, DevkitError> {
   const wantsPatch =
-    input.group?.composition !== undefined ||
-    (input.group?.members?.length ?? 0) > 0 ||
+    input.orchestration?.composition !== undefined ||
+    (input.orchestration?.members?.length ?? 0) > 0 ||
     input.ui !== undefined ||
     input.layer !== undefined;
   // 패치할 것이 없으면 템플릿 글자 그대로 둔다(`fresnel group new`와 같은 파일, spec §9 A-2)
@@ -133,7 +133,7 @@ function patchManifest(text: string, input: ScaffoldInput): Result<string, Devki
   const patchedRoot: Record<string, unknown> = { ...root };
   if (input.layer !== undefined) patchedRoot["layer"] = input.layer;
 
-  const composition = input.group?.composition;
+  const composition = input.orchestration?.composition;
   if (composition !== undefined) {
     const hooks = new Set<unknown>(arrayOf(root["hooks"]));
     for (const block of composition.blocks) {
@@ -144,10 +144,10 @@ function patchManifest(text: string, input: ScaffoldInput): Result<string, Devki
       (block) => block.op === "drive" && block.plugin === undefined,
     );
     if (patchedRoot["drives"] !== true) delete patchedRoot["drives"];
-    manifest["group"] = { composition };
+    manifest["orchestration"] = { composition };
   }
   plugins[0] = patchedRoot;
-  for (const member of input.group?.members ?? []) {
+  for (const member of input.orchestration?.members ?? []) {
     plugins.push({
       id: member,
       layer: "L3",
@@ -181,7 +181,7 @@ export async function scaffoldExtension(
   if (kind === undefined) return err(invalid(`unknown kind: ${input.kind}`));
   if (kind.status === "blocked")
     return err({ kind: "blocked_kind", message: kind.blockedReason ?? "kind is blocked" });
-  const named = checkGroupName(input.name);
+  const named = checkOrchestrationName(input.name);
   if (!named.ok)
     return err(
       invalid(

@@ -18,7 +18,7 @@
     "**/*.md",
     "**/*.html",
     "**/*.toml",
-    "packages/group-sdk/templates/**",
+    "packages/orchestration-sdk/templates/**",
     "packages/plugin-builder/templates/**"
   ]
 }

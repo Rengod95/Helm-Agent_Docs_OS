@@ -2,17 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
 import { parseEventKind } from "../../src/records/index.ts";
 import {
-  GroupRecordSchema,
+  OrchestrationRecordSchema,
   RECORD_KIND_PATTERN,
   RECORD_KIND_READ_PATTERN,
   RecordKindDeclJsonSchema,
   isRecordKindOf,
-  validateGroupRecord,
+  validateOrchestrationRecord,
   validateManifest,
-  type GroupRecord,
+  type OrchestrationRecord,
   type RecordKindDecl,
 } from "../../src/extensions/index.ts";
-import { codesOf, groupJson, pluginJson } from "./helpers.ts";
+import { codesOf, orchestrationJson, pluginJson } from "./helpers.ts";
 
 function decl(kind: string): Record<string, unknown> {
   return { kind, version: 1, description: "d", payload: { type: "object" } };
@@ -21,7 +21,7 @@ function decl(kind: string): Record<string, unknown> {
 describe("record kinds", () => {
   test("prefix violation rejected", () => {
     const foreign = validateManifest(
-      groupJson({}, { recordKinds: [decl("grp.helm.item.tagged")] }),
+      orchestrationJson({}, { recordKinds: [decl("grp.helm.item.tagged")] }),
     );
     expect(codesOf(foreign.issues)).toEqual(["record_kind_prefix"]);
     const pluginUsingGroupPrefix = validateManifest(
@@ -29,15 +29,16 @@ describe("record kinds", () => {
     );
     expect(codesOf(pluginUsingGroupPrefix.issues)).toEqual(["record_kind_prefix"]);
     const threeSegments = validateManifest(
-      groupJson({}, { recordKinds: [decl("grp.learning.proposed")] }),
+      orchestrationJson({}, { recordKinds: [decl("grp.learning.proposed")] }),
     );
     expect(codesOf(threeSegments.issues)).toContain("record_kind_prefix");
   });
 
   test("own prefix accepted", () => {
     expect(
-      validateManifest(groupJson({}, { recordKinds: [decl("grp.learning.skill.proposed")] }))
-        .issues,
+      validateManifest(
+        orchestrationJson({}, { recordKinds: [decl("grp.learning.skill.proposed")] }),
+      ).issues,
     ).toEqual([]);
     expect(
       validateManifest(pluginJson({}, { recordKinds: [decl("x.acme-notes.note.synced")] })).issues,
@@ -61,21 +62,23 @@ describe("record kinds", () => {
     for (const bad of ["grp.*", "grp.learning", "item.*", "grp.learning.skill.*.x", "GRP.a.*"]) {
       expect(pattern.test(bad)).toBe(false);
     }
-    const bad = validateManifest(groupJson({}, { readsRecordKinds: ["grp.*"] }));
+    const bad = validateManifest(orchestrationJson({}, { readsRecordKinds: ["grp.*"] }));
     expect(codesOf(bad.issues)).toEqual(["read_kind_invalid"]);
-    const ok = validateManifest(groupJson({}, { readsRecordKinds: ["grp.helm.*"] }));
+    const ok = validateManifest(orchestrationJson({}, { readsRecordKinds: ["grp.helm.*"] }));
     expect(ok.issues).toEqual([]);
   });
 
   test("read own prefix rejected", () => {
-    const own = validateManifest(groupJson({}, { readsRecordKinds: ["grp.learning.*"] }));
+    const own = validateManifest(orchestrationJson({}, { readsRecordKinds: ["grp.learning.*"] }));
     expect(codesOf(own.issues)).toEqual(["read_kind_invalid"]);
-    const ownKind = validateManifest(groupJson({}, { readsRecordKinds: ["grp.learning.skill.*"] }));
+    const ownKind = validateManifest(
+      orchestrationJson({}, { readsRecordKinds: ["grp.learning.skill.*"] }),
+    );
     expect(codesOf(ownKind.issues)).toEqual(["read_kind_invalid"]);
   });
 
   test("isRecordKindOf", () => {
-    const group = { name: "learning", group: {} };
+    const group = { name: "learning", orchestration: {} };
     const plugin = { name: "acme-notes" };
     expect(isRecordKindOf("grp.learning.skill.proposed", group)).toBe(true);
     expect(isRecordKindOf("grp.helm.skill.proposed", group)).toBe(false);
@@ -86,7 +89,7 @@ describe("record kinds", () => {
   });
 });
 
-function record(overrides: Partial<GroupRecord> = {}): GroupRecord {
+function record(overrides: Partial<OrchestrationRecord> = {}): OrchestrationRecord {
   return {
     groupId: "learning",
     kind: "grp.learning.skill.proposed",
@@ -97,7 +100,7 @@ function record(overrides: Partial<GroupRecord> = {}): GroupRecord {
   };
 }
 
-describe("validateGroupRecord", () => {
+describe("validateOrchestrationRecord", () => {
   const registered: RecordKindDecl = {
     kind: "grp.learning.skill.proposed",
     version: 2,
@@ -111,32 +114,36 @@ describe("validateGroupRecord", () => {
   };
 
   test("a matching record has no issue", () => {
-    expect(validateGroupRecord(record(), registered)).toEqual([]);
+    expect(validateOrchestrationRecord(record(), registered)).toEqual([]);
   });
 
   test("payload validated", () => {
-    const issues = validateGroupRecord(record({ payload: { name: 1 } }), registered);
+    const issues = validateOrchestrationRecord(record({ payload: { name: 1 } }), registered);
     expect(issues.length).toBeGreaterThan(0);
     expect(new Set(codesOf(issues))).toEqual(new Set(["record_payload_invalid"]));
     expect(issues[0]?.severity).toBe("error");
   });
 
   test("unregistered kind", () => {
-    expect(codesOf(validateGroupRecord(record(), undefined))).toEqual(["record_kind_unregistered"]);
+    expect(codesOf(validateOrchestrationRecord(record(), undefined))).toEqual([
+      "record_kind_unregistered",
+    ]);
     const other: RecordKindDecl = { ...registered, kind: "grp.learning.skill.saved" };
-    expect(codesOf(validateGroupRecord(record(), other))).toEqual(["record_kind_unregistered"]);
+    expect(codesOf(validateOrchestrationRecord(record(), other))).toEqual([
+      "record_kind_unregistered",
+    ]);
   });
 
   test("version unknown", () => {
-    const issues = validateGroupRecord(record({ version: 3 }), registered);
+    const issues = validateOrchestrationRecord(record({ version: 3 }), registered);
     expect(codesOf(issues)).toEqual(["record_version_unknown"]);
     expect(issues[0]?.severity).toBe("warning");
-    expect(validateGroupRecord(record({ version: 1 }), registered)).toEqual([]);
+    expect(validateOrchestrationRecord(record({ version: 1 }), registered)).toEqual([]);
   });
 });
 
 describe("record schemas", () => {
-  test("GroupRecordSchema accepts a record and rejects an event-only kind", () => {
+  test("OrchestrationRecordSchema accepts a record and rejects an event-only kind", () => {
     const ok = {
       groupId: "learning",
       kind: "grp.learning.skill.proposed",
@@ -144,9 +151,9 @@ describe("record schemas", () => {
       subject: { type: "item", id: "itm_x" },
       payload: { a: [1, null] },
     };
-    expect(parse(GroupRecordSchema, ok).ok).toBe(true);
-    expect(parse(GroupRecordSchema, { ...ok, kind: "item.recorded" }).ok).toBe(false);
-    expect(parse(GroupRecordSchema, { ...ok, version: 0 }).ok).toBe(false);
+    expect(parse(OrchestrationRecordSchema, ok).ok).toBe(true);
+    expect(parse(OrchestrationRecordSchema, { ...ok, kind: "item.recorded" }).ok).toBe(false);
+    expect(parse(OrchestrationRecordSchema, { ...ok, version: 0 }).ok).toBe(false);
   });
 
   test("RecordKindDeclJsonSchema carries the payload as a JSON Schema object", () => {

@@ -17,7 +17,11 @@ export {
   type RecordCommitPort,
   type ScopedStorePort,
 } from "./ports.ts";
-export { capabilityDefTable, type CapabilityDefLookup } from "./capability-guard.ts";
+export {
+  SETTINGS_READ_PORT,
+  capabilityDefTable,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
 export { capabilityServiceName, isReservedServiceName, providerServiceName } from "./services.ts";
 export {
   DEFAULT_DISPATCH_POLICY,

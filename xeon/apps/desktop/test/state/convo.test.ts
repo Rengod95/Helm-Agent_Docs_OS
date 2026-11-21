@@ -39,6 +39,7 @@ const start = (c: Convo, seq: number, sec: number, origin: "user" | "scheduled" 
     scopeId: null,
     requestId: null,
     inputItemIds: [],
+    invoked: [],
     model: "m1",
   });
 
@@ -470,6 +471,8 @@ describe("EMPTY_THREAD_CONVO", () => {
       tasks: {},
       taskOrder: [],
       markers: [],
+      profile: null,
+      driveInputs: [],
     });
   });
 });

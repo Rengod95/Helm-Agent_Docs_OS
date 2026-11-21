@@ -7,7 +7,7 @@ import { SessionFeedPortKey } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { Type } from "typebox";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeUnit } from "./fixtures/support.ts";
 
 // M3-REQ-102·108(수명주기 지점은 커밋 뒤에 발화). lease.rejected는 새로 발행되지 않고 옛 기록을 읽을 때만 있다
 
@@ -16,7 +16,7 @@ type Host = Awaited<ReturnType<typeof createTestHost>>;
 function installDriveGroups(t: Host, names: readonly string[]): Promise<void> {
   return eachInOrder(names.entries(), async ([loadIndex, name]) => {
     await t.host.install(
-      makeGroupUnit({ name, loadIndex }, (g) => {
+      makeOrchestrationUnit({ name, loadIndex }, (g) => {
         g.drive(() => {
           return Promise.resolve({ do: "yield" });
         });

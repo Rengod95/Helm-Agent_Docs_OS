@@ -31,7 +31,7 @@ export const RecordKindSchema: TUnsafe<RecordKind> = Type.Unsafe<RecordKind>(
 );
 
 /** kind가 group인 확장의 name */
-export type GroupId = ExtensionName;
+export type OrchestrationId = ExtensionName;
 
 export const RecordSubjectSchema: TObject<{
   type: TUnion<
@@ -61,7 +61,7 @@ export const RecordSubjectSchema: TObject<{
 );
 export type RecordSubject = Static<typeof RecordSubjectSchema>;
 
-export const GroupRecordSchema: TObject<{
+export const OrchestrationRecordSchema: TObject<{
   groupId: TString;
   kind: typeof RecordKindSchema;
   version: TInteger;
@@ -78,7 +78,7 @@ export const GroupRecordSchema: TObject<{
   },
   { additionalProperties: false },
 );
-export type GroupRecord = Static<typeof GroupRecordSchema>;
+export type OrchestrationRecord = Static<typeof OrchestrationRecordSchema>;
 
 /** 확장 레코드 종류 등록 */
 export interface RecordKindDecl {
@@ -107,9 +107,9 @@ export const RecordKindDeclJsonSchema: TObject<{
 /** kind가 owner의 접두(플러그인 그룹 grp.<name>., 그 밖의 확장 x.<name>.)에 속하는 올바른 레코드 kind인가. `group` 선언이 있으면 플러그인 그룹이다 */
 export function isRecordKindOf(
   kind: string,
-  owner: { readonly name: string; readonly group?: object | undefined },
+  owner: { readonly name: string; readonly orchestration?: object | undefined },
 ): boolean {
-  const prefix = `${owner.group !== undefined ? "grp" : "x"}.${owner.name}.`;
+  const prefix = `${owner.orchestration !== undefined ? "grp" : "x"}.${owner.name}.`;
   return kind.startsWith(prefix) && RECORD_KIND_REGEX.test(kind);
 }
 

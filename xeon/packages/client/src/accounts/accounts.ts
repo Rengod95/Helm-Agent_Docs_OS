@@ -15,7 +15,7 @@ export const RATE_LIMIT_KEY = "l1.models.rateLimit";
 export const ROTATION_ACK_KEY = "ext.account-rotation.acknowledgeRisk";
 
 /**
- * 약관 위험 고지 문구. `packages/group-account-rotation/src/manifest.ts`의 `ROTATION_RISK_NOTICE`와 같은 글이다.
+ * 약관 위험 고지 문구. `packages/plugin-account-rotation/src/manifest.ts`의 `ROTATION_RISK_NOTICE`와 같은 글이다.
  * 설정 화면은 켜기 전에 이 문구를 보인다(L1.models.spec §4.8). 읽을 때의 로케일로 만든다.
  */
 export function rotationRiskNotice(): string {

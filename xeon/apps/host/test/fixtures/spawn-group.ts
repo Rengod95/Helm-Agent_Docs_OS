@@ -49,11 +49,11 @@ export function childModels(
 const SPAWN_GROUP_NAME = "spawn-group";
 
 const StateSchema = Type.Object({ answers: Type.Array(Type.String()) });
-type SpawnGroupState = Static<typeof StateSchema>;
-const INITIAL_STATE: SpawnGroupState = { answers: [] };
+type SpawnOrchestrationState = Static<typeof StateSchema>;
+const INITIAL_STATE: SpawnOrchestrationState = { answers: [] };
 
 /** `index`번째 자식을 띄우는 명령. 요청 id가 순서를 정하므로 재실행돼도 같은 자식이다 */
-function childCommand(index: number): DriveCommand<SpawnGroupState> {
+function childCommand(index: number): DriveCommand<SpawnOrchestrationState> {
   return {
     do: "spawn",
     agent: "explorer",
@@ -62,7 +62,7 @@ function childCommand(index: number): DriveCommand<SpawnGroupState> {
   };
 }
 
-export interface SpawnGroupProbe {
+export interface SpawnOrchestrationProbe {
   /** drive가 받은 자식 결과를 순서대로 */
   readonly outcomes: SpawnOutcome[];
   /** 단계 함수가 불린 횟수 */
@@ -76,12 +76,12 @@ export interface SpawnGroupProbe {
 }
 
 /** 임대를 받으면 `count`개 자식을 차례로 띄우고 답을 상태에 커밋한다 */
-export function spawnGroup(count: number): {
+export function spawnOrchestration(count: number): {
   readonly module: HostPluginModule;
-  readonly probe: SpawnGroupProbe;
+  readonly probe: SpawnOrchestrationProbe;
 } {
   const committed = Promise.withResolvers<void>();
-  const probe: SpawnGroupProbe = {
+  const probe: SpawnOrchestrationProbe = {
     outcomes: [],
     calls: 0,
     mainThread: undefined,
@@ -96,7 +96,7 @@ export function spawnGroup(count: number): {
     description: "Test group whose drive spawns child agents with loop.spawn.",
     defaultEnabled: true,
     entry: "./src/index.ts",
-    group: {},
+    orchestration: {},
     plugins: [{ layer: "L3", hooks: [], drives: true }],
     trust: { level: "builtin" },
   });

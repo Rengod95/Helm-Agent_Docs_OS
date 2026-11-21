@@ -17,7 +17,7 @@ import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { KIND_CATALOG } from "@fresnel/core-authoring";
 import {
   AuthoringStateSchema,
-  createAuthoringGroup,
+  createAuthoringOrchestration,
   INITIAL_AUTHORING_STATE,
   type AuthoringDeps,
   type AuthoringState,
@@ -199,7 +199,7 @@ export function devkitProbe(): DevkitProbe {
   return probe;
 }
 
-export interface GroupRig {
+export interface OrchestrationRig {
   readonly t: TestHost;
   readonly thread: ThreadId;
   /** 등록된 도구 이름 */
@@ -224,7 +224,9 @@ export interface GroupRig {
 
 let calls = 0;
 
-export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Promise<GroupRig> {
+export async function createOrchestrationRig(
+  options: Partial<AuthoringDeps> = {},
+): Promise<OrchestrationRig> {
   const t = await createTestHost();
   const approvals = fakeApprovals(t.timers.now);
   await t.host.registerPlatform({
@@ -253,7 +255,7 @@ export async function createGroupRig(options: Partial<AuthoringDeps> = {}): Prom
     },
   });
   const probe = devkitProbe();
-  const module = createAuthoringGroup({ devkit: probe.devkit, ...options });
+  const module = createAuthoringOrchestration({ devkit: probe.devkit, ...options });
   await t.host.install({
     manifest: module.manifest,
     entry: module.entry,

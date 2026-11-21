@@ -12,7 +12,7 @@ import {
   provideApprovals,
   releasedOf,
 } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 /** 상태가 없는 그룹의 명령(S가 never). 어떤 단계 함수에도 그대로 들어간다 */
 type Command = DriveCommand<never>;
@@ -40,7 +40,7 @@ test("a user start grants the frame at depth 0 with no parent", async () => {
   const t = await createTestHost();
   let calls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(() => {
         calls += 1;
         return Promise.resolve(yieldCommand());
@@ -73,7 +73,7 @@ test("a user start that arrives while the first step runs waits for the step to 
   const started = Promise.withResolvers<void>();
   const unblock = Promise.withResolvers<void>();
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(async () => {
         calls.push("a");
         started.resolve();
@@ -83,7 +83,7 @@ test("a user start that arrives while the first step runs waits for the step to 
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(() => {
         calls.push("b");
         return Promise.resolve(yieldCommand());
@@ -112,7 +112,7 @@ test("an enabled drive with no start request takes no frame", async () => {
   const t = await createTestHost();
   let calls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "frame-idle" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-idle" }, (g) => {
       g.drive(() => {
         calls += 1;
         return Promise.resolve(yieldCommand());
@@ -134,7 +134,7 @@ test("a restored stack shows the lower frame waiting and only the top frame call
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-low" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-low" }, (g) => {
       g.drive(() => {
         calls.push("low");
         return Promise.resolve(yieldCommand());
@@ -143,7 +143,7 @@ test("a restored stack shows the lower frame waiting and only the top frame call
   );
   const seenDepths: number[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-high" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-high" }, (g) => {
       g.drive(({ frame }) => {
         calls.push("high");
         seenDepths.push(frame.frameDepth);
@@ -207,7 +207,7 @@ test("an ask keeps the frame asking, resumes the same run with the answer, and a
   await provideApprovals(t, approvals);
   const lasts: (StepResult | null)[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "frame-ask" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-ask" }, (g) => {
       g.drive(({ last }) => {
         lasts.push(last);
         return Promise.resolve(
@@ -244,7 +244,7 @@ test("after a restart the same question waits on its pending approval and opens 
   const approvals = fakeApprovals(t.timers.now);
   await provideApprovals(t, approvals);
   const lasts: (StepResult | null)[] = [];
-  const askStep = makeGroupUnit({ name: "frame-ask-again" }, (g) => {
+  const askStep = makeOrchestrationUnit({ name: "frame-ask-again" }, (g) => {
     g.drive(({ last }) => {
       lasts.push(last);
       return Promise.resolve(
@@ -291,7 +291,7 @@ test("a user stop revokes every frame and empties the start queue, and a later u
   const started = Promise.withResolvers<void>();
   const unblock = Promise.withResolvers<void>();
   await t.host.install(
-    makeGroupUnit({ name: "frame-a" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-a" }, (g) => {
       g.drive(({ last }) =>
         Promise.resolve(
           last === null ? { do: "handoff", to: "frame-b", input: "go" } : yieldCommand(),
@@ -300,7 +300,7 @@ test("a user stop revokes every frame and empties the start queue, and a later u
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-b" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-b" }, (g) => {
       g.drive(async () => {
         started.resolve();
         await unblock.promise;
@@ -309,7 +309,7 @@ test("a user stop revokes every frame and empties the start queue, and a later u
     }),
   );
   await t.host.install(
-    makeGroupUnit({ name: "frame-c" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-c" }, (g) => {
       g.drive(() => Promise.resolve(yieldCommand()));
     }),
   );
@@ -350,7 +350,7 @@ test("a profile start on a new conversation grants once, and reopening with the 
   const t = await createTestHost();
   let calls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "frame-p" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-p" }, (g) => {
       g.drive(() => {
         calls += 1;
         return Promise.resolve(yieldCommand());

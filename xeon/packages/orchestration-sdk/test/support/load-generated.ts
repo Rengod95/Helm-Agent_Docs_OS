@@ -1,0 +1,19 @@
+import { pathToFileURL } from "node:url";
+import { Bug } from "@fresnel/contracts";
+import { isOrchestrationModule, type OrchestrationModule } from "../../src/index.ts";
+
+/**
+ * 생성 시험이 만든 그룹 소스의 default export를 읽는다. 동적 import는 모양을 모르는 값을 돌려주므로 여기서 한 번만 좁힌다.
+ * 생성 결과는 defineGroup을 거쳐 검증된 GroupModule이어야 하고, 아니면 생성기 또는 템플릿의 버그다.
+ */
+export async function loadGeneratedOrchestration(file: string): Promise<OrchestrationModule> {
+  const loaded: unknown = await import(pathToFileURL(file).href);
+  if (typeof loaded !== "object" || loaded === null || !("default" in loaded)) {
+    throw new Bug(`generated group ${file} has no default export`);
+  }
+  const candidate: unknown = loaded.default;
+  if (!isOrchestrationModule(candidate)) {
+    throw new Bug(`generated group ${file} default export is not a defineOrchestration result`);
+  }
+  return candidate;
+}

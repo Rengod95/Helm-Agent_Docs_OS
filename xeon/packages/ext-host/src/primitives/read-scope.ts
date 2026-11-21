@@ -1,7 +1,7 @@
 import { extensionPrefix, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 /** 확장이 쓰는 kind 접두: 플러그인 그룹은 `grp.<이름>.`, 그 밖은 `x.<이름>.`. 확장 안의 모든 플러그인이 같다 */
-export function ownKindPrefix(manifest: Pick<ExtensionManifest, "group" | "name">): string {
+export function ownKindPrefix(manifest: Pick<ExtensionManifest, "orchestration" | "name">): string {
   return `${extensionPrefix(manifest)}.${manifest.name}.`;
 }
 
@@ -10,7 +10,7 @@ export function ownKindPrefix(manifest: Pick<ExtensionManifest, "group" | "name"
  * 끝의 `*`는 접두 일치다. 확장 사이 이벤트 격리(§4.9)는 이 규칙 하나다
  */
 export function isKindReadable(
-  manifest: Pick<ExtensionManifest, "group" | "name">,
+  manifest: Pick<ExtensionManifest, "orchestration" | "name">,
   readsRecordKinds: readonly string[] | undefined,
   kind: string,
 ): boolean {

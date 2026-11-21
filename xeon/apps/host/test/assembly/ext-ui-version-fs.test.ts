@@ -148,7 +148,7 @@ function writeBundle(bundleDir: string, version: string): void {
       name: "helm",
       version,
       entry: "./dist/index.js",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "L3", hooks: [] }],
     }),
   );

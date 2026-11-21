@@ -29,6 +29,43 @@ describe("errorOf", () => {
     });
   });
 
+  test("a profile rejection on approve (3656) keeps the engine's issues and drops malformed ones", () => {
+    const invalid = wireError("pluginReview.profileInvalid", {
+      details: {
+        issues: [
+          { code: "plugin_unknown", severity: "error", profile: "default", plugin: "helm" },
+          { code: "replace_conflict", profile: "common", plugin: "a", other: "b" },
+        ],
+      },
+    });
+    expect(errorOf(invalid)).toEqual({
+      kind: "rejected",
+      code: 3656,
+      profileIssues: [
+        {
+          code: "plugin_unknown",
+          severity: "error",
+          profile: "default",
+          plugin: "helm",
+          other: null,
+          key: null,
+        },
+        {
+          code: "replace_conflict",
+          severity: null,
+          profile: "common",
+          plugin: "a",
+          other: "b",
+          key: null,
+        },
+      ],
+    });
+    expect(errorOf(wireError("pluginReview.profileInvalid", { details: { issues: [] } }))).toEqual({
+      kind: "rejected",
+      code: 3656,
+    });
+  });
+
   test("thread.locked keeps the owner and only the options this screen can draw", () => {
     const locked = wireError("thread.locked", {
       details: { ownerKind: "cli", options: ["observe", "fork", "delegate"] },

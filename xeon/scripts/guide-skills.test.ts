@@ -15,7 +15,9 @@ function filesUnder(root: string, prefix = ""): string[] {
 }
 
 test("guideDirOf reads the guide path and rejects a wrong shape or a path that leaves the repository", () => {
-  expect(guideDirOf({ guide: "packages/group-guide/skills" })).toBe("packages/group-guide/skills");
+  expect(guideDirOf({ guide: "packages/plugin-guide/skills" })).toBe(
+    "packages/plugin-guide/skills",
+  );
   expect(guideDirOf(null)).toBeNull();
   expect(guideDirOf({})).toBeNull();
   expect(guideDirOf({ guide: 3 })).toBeNull();
@@ -23,11 +25,11 @@ test("guideDirOf reads the guide path and rejects a wrong shape or a path that l
   expect(guideDirOf({ guide: "../outside" })).toBeNull();
 });
 
-test("the committed release bundle names the group-guide skills folder", () => {
+test("the committed release bundle names the plugin-guide skills folder", () => {
   const config: unknown = JSON.parse(
     readFileSync(`${import.meta.dir}/release-bundle.json`, "utf8"),
   );
-  expect(guideDirOf(config)).toBe("packages/group-guide/skills");
+  expect(guideDirOf(config)).toBe("packages/plugin-guide/skills");
 });
 
 test("copyTree stages the same files as the guide folder: four skill folders, each with SKILL.md", () => {

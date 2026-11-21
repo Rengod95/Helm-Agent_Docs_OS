@@ -11,7 +11,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Command = DriveCommand<never>;
 
@@ -45,7 +45,7 @@ async function install(
   options?: DriveOptions,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(({ last, budget }) => {
         seen.push({ plugin: name, last, budget, frames: t.host.driveFrames(thread) });
         return Promise.resolve(decide(last));

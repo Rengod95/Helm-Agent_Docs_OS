@@ -363,10 +363,10 @@ export function createRegistrationApi(
           scopeId: record.id,
         });
       }
-      if (core.deps.settings.driveRequiresGroup() && !plugin.inGroup) {
+      if (core.deps.settings.driveRequiresOrchestration() && !plugin.inOrchestration) {
         throw new PrimitiveError(
-          "drive_requires_group",
-          "x.primitives.driveRequiresGroup is on and this plugin is not a member of a plugin group",
+          "drive_requires_orchestration",
+          "x.primitives.driveRequiresOrchestration is on and this plugin is not a member of a plugin group",
           { scopeId: record.id },
         );
       }

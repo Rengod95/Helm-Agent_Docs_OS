@@ -7,7 +7,7 @@ import {
   type CompositionDecl,
   type PluginDecl,
 } from "../../src/extensions/index.ts";
-import { codesOf, groupJson, pluginJson } from "./helpers.ts";
+import { codesOf, orchestrationJson, pluginJson } from "./helpers.ts";
 
 const detect = { id: "detect", stage: "detect", op: "on", hooks: ["input.user.before"] } as const;
 const machine = { id: "machine", stage: "machine", op: "drive" } as const;
@@ -231,35 +231,38 @@ describe("manifest group.composition", () => {
 
   test("a group with a matching composition is valid", () => {
     const result = validateManifest(
-      groupJson({ plugins, group: { composition: { blocks: [detect, machine], phases } } }),
+      orchestrationJson({
+        plugins,
+        orchestration: { composition: { blocks: [detect, machine], phases } },
+      }),
     );
     expect(result.issues).toEqual([]);
-    expect(result.manifest?.group?.composition?.blocks.map((b) => b.id)).toEqual([
+    expect(result.manifest?.orchestration?.composition?.blocks.map((b) => b.id)).toEqual([
       "detect",
       "machine",
     ]);
   });
 
-  test("issues carry the /group/composition prefix and mismatches against the plugin", () => {
+  test("issues carry the /orchestration/composition prefix and mismatches against the plugin", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         plugins: [{ layer: "L3", hooks: [], drives: true }],
-        group: { composition: { blocks: [detect, machine] } },
+        orchestration: { composition: { blocks: [detect, machine] } },
       }),
     );
     expect(result.issues.map((i) => [i.code, i.path])).toEqual([
-      ["hook_undeclared", "/group/composition/blocks/0/hooks/0"],
+      ["hook_undeclared", "/orchestration/composition/blocks/0/hooks/0"],
     ]);
   });
 
   test("blocks are checked against their own plugin in a multi-plugin group", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         plugins: [
           { layer: "L3", hooks: [] },
           { id: "sync", layer: "L3", hooks: ["input.user.before"], drives: true },
         ],
-        group: {
+        orchestration: {
           composition: {
             blocks: [
               { ...detect, plugin: "sync" },
@@ -276,12 +279,14 @@ describe("manifest group.composition", () => {
     const plugin = validateManifest(pluginJson({ composition: { blocks: [machine] } }));
     expect(plugin.issues.map((i) => [i.code, i.path])).toEqual([["legacy_field", "/composition"]]);
     expect(plugin.issues[0]?.message).toContain("group.composition");
-    const shape = validateManifest(groupJson({ group: { composition: { blocks: [] } } }));
+    const shape = validateManifest(
+      orchestrationJson({ orchestration: { composition: { blocks: [] } } }),
+    );
     expect(codesOf(shape.issues)).toEqual(["composition_invalid"]);
   });
 
   test("a plugin without group has no place for composition: schema rejects", () => {
     const result = validateManifest(pluginJson({ group: undefined }));
-    expect(result.manifest?.group).toBeUndefined();
+    expect(result.manifest?.orchestration).toBeUndefined();
   });
 });

@@ -48,7 +48,7 @@ export interface AddonMeta {
   readonly location?: string | undefined;
   readonly requestedGrade?: string | undefined;
   readonly effectiveGrade?: string | undefined;
-  readonly isGroup?: boolean | undefined;
+  readonly isOrchestration?: boolean | undefined;
   /** `ext.list` 상태가 꺼짐·끄는 중이면 거짓 */
   readonly enabled?: boolean | undefined;
   /** 안전 모드로 실리지 않았으면 참 */
@@ -158,7 +158,7 @@ export interface AddonDetail {
   readonly location: string | undefined;
   readonly requestedGrade: string | undefined;
   readonly effectiveGrade: string | undefined;
-  readonly isGroup: boolean;
+  readonly isOrchestration: boolean;
   readonly screens: readonly AddonScreen[];
   readonly features: readonly AddonFeature[];
   /** 플러그인 앱 화면이 선언한 셸 기능 권한(고정 순서, 겹침 없음) */
@@ -493,7 +493,7 @@ export function addonDetailOf(
     location: info?.location,
     requestedGrade: info?.requestedGrade,
     effectiveGrade: info?.effectiveGrade,
-    isGroup: info?.isGroup === true,
+    isOrchestration: info?.isOrchestration === true,
     screens,
     features: featuresOf(entries, row.off, locale),
     capabilities,
@@ -586,7 +586,7 @@ export function addonMetaOf(
     location: entry === undefined || entry.location === "" ? undefined : entry.location,
     requestedGrade: entry?.requestedGrade,
     effectiveGrade: entry?.effectiveGrade,
-    isGroup: entry?.isGroup,
+    isOrchestration: entry?.isOrchestration,
     enabled:
       entry === undefined ? undefined : entry.status === "enabled" || entry.status === "enabling",
     safeMode: entry === undefined ? undefined : entry.safeModeExcluded !== null,

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { LoadOptions, LoaderPaths } from "../../src/loading-trust/index.ts";
-import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, moduleOf, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, putFile, realLoaderFs } from "./support/real-fs.ts";
 
@@ -53,7 +53,7 @@ beforeEach(async () => {
   userExtensions = join(paths.userDir, "extensions");
   project = join(temp.dir, "project");
   await mkdir(project, { recursive: true });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
 });
 
 afterEach(async () => {
@@ -111,7 +111,7 @@ test("a broken screen file leaves the extension active: its hook runs and only t
     ["demo", "card", "ok", []],
   ]);
   await fire(harness);
-  expect(fakeGroupSdk.seen).toEqual(["demo:shared:true:true", "demo:fired"]);
+  expect(fakeOrchestrationSdk.seen).toEqual(["demo:shared:true:true", "demo:fired"]);
 });
 
 test("uiEntries carries the manifest version and the install tier", async () => {

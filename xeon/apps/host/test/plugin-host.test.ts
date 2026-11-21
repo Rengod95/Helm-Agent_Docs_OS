@@ -130,6 +130,6 @@ describe("plugin-host exit codes", () => {
   });
 
   test("the plugin host gets the group SDK under its published module name", () => {
-    expect(Object.keys(HOST_SDK_MODULES)).toEqual(["@fresnel/group-sdk"]);
+    expect(Object.keys(HOST_SDK_MODULES)).toEqual(["@fresnel/orchestration-sdk"]);
   });
 });

@@ -33,7 +33,7 @@ import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
-  GroupStatusWire,
+  OrchestrationStatusWire,
 } from "@fresnel/contracts/wire";
 import {
   Alert,
@@ -61,6 +61,8 @@ import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
 import { useToggleRequest } from "./craft-parts.tsx";
 import { linkOf, RoleText, type LinkState } from "../runtime/runtime-tab.tsx";
+import { DriveStackCards } from "../convo/drive-stack.tsx";
+import { driveStackOf } from "../convo/drive-stack-model.ts";
 
 /** 한 묶음의 읽기 상태. `idle`은 대화가 없어 읽을 것이 없다는 뜻이다 */
 type Load<T> =
@@ -74,7 +76,7 @@ const ERROR: { readonly kind: "error" } = { kind: "error" };
 const IDLE: { readonly kind: "idle" } = { kind: "idle" };
 
 interface DriveData {
-  readonly groups: readonly GroupStatusWire[];
+  readonly groups: readonly OrchestrationStatusWire[];
   readonly frames: readonly DriveFrameView[];
 }
 
@@ -338,19 +340,19 @@ function Gauge(props: {
 function DriveSection(props: {
   readonly name: string;
   readonly drive: Load<DriveData>;
-  readonly isGroup: boolean;
+  readonly isOrchestration: boolean;
 }): ReactNode {
   const { drive } = props;
   const title = t("desktop.inspect.drive.title");
   if (drive.kind === "idle") {
-    return props.isGroup ? (
+    return props.isOrchestration ? (
       <Section title={title}>
         <p className={MUTED}>{t("desktop.inspect.drive.noThread")}</p>
       </Section>
     ) : null;
   }
   if (drive.kind === "loading") {
-    return props.isGroup ? (
+    return props.isOrchestration ? (
       <Section title={title}>
         <Skeleton height={24} />
       </Section>
@@ -373,6 +375,8 @@ function DriveSection(props: {
         <p className="m-0 flex flex-wrap items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t(RoleText[role])}</span>
         </p>
+        {/* 쌓인 판: 맨 위가 지금 Drive를 쥔 칸, 맨 아래 "기본"(lcM6b §6.6.1) */}
+        <DriveStackCards view={driveStackOf(drive.value.frames)} />
         <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui">
           <Gauge
             label={t("desktop.inspect.drive.turns")}
@@ -397,7 +401,7 @@ function DriveSection(props: {
 
 /** 주도 락 구역을 보일지: 그룹이거나, 목록에서 이 확장이 drive를 쓴다고 읽힌 경우다 */
 function driveShown(entry: ExtListEntry, drive: Load<DriveData>): boolean {
-  if (entry.isGroup) return true;
+  if (entry.isOrchestration) return true;
   return (
     drive.kind === "ready" && drive.value.groups.some((g) => g.id === entry.name && g.usesDrive)
   );
@@ -654,7 +658,7 @@ export function InspectBody(props: {
 }): ReactNode {
   const { entry, data } = props;
   const row = rowOf(entry, props.pending);
-  const isGroup = entry.isGroup;
+  const isOrchestration = entry.isOrchestration;
   return (
     <div className="grid content-start gap-5">
       <header className="grid gap-2">
@@ -706,7 +710,7 @@ export function InspectBody(props: {
             <HooksSection load={data.detail} timings={data.timings} />
           </Section>
           {driveShown(entry, data.drive) && (
-            <DriveSection name={entry.name} drive={data.drive} isGroup={isGroup} />
+            <DriveSection name={entry.name} drive={data.drive} isOrchestration={isOrchestration} />
           )}
           <Section title={t("desktop.inspect.features.title")}>
             <FeaturesSection load={data.detail} />
@@ -714,7 +718,7 @@ export function InspectBody(props: {
           <Section title={t("desktop.inspect.settings.title")}>
             <SettingsSection load={data.settings} />
           </Section>
-          {isGroup && (
+          {isOrchestration && (
             <Section title={t("desktop.inspect.composition.title")}>
               <CompositionSection load={data.detail} />
             </Section>

@@ -263,6 +263,7 @@ describe("palette screen navigation", () => {
       "screen:chat:schedules",
       "screen:chat:plugins",
       "screen:workbench:overview",
+      "screen:workbench:craftReview",
       "screen:workbench:extensions",
       "screen:workbench:tests",
       "screen:workbench:metrics",
@@ -272,6 +273,7 @@ describe("palette screen navigation", () => {
     ]);
     expect(screenTargetsOf("workbench").map((t) => t.screen)).toEqual([
       "overview",
+      "craftReview",
       "extensions",
       "tests",
       "metrics",

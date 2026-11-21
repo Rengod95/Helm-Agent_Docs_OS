@@ -11,7 +11,7 @@ import type {
   ReviewedSourceEntry,
 } from "../../src/loading-trust/index.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
-import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { makeTempDir, realLoaderFs } from "./support/real-fs.ts";
 
 const HASH_A = `sha256:${"a".repeat(64)}`;
@@ -29,7 +29,7 @@ beforeEach(async () => {
   project = join(temp.dir, "project");
   reviewedRoot = join(temp.dir, "plugin-store", "reviewed");
   await mkdir(project, { recursive: true });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
 });
 
 afterEach(async () => {
@@ -86,7 +86,7 @@ async function profileEnables(
 
 /** 발화 기록만 본다. 기본 엔트리는 설치 때 `:shared:` 검증 기록도 남긴다 */
 function fired(): string[] {
-  return fakeGroupSdk.seen.filter((entry) => !entry.includes(":shared:"));
+  return fakeOrchestrationSdk.seen.filter((entry) => !entry.includes(":shared:"));
 }
 
 test("startup leaves a reviewed plugin outside the default set off; the first ensureLoaded loads it from the reviewed copy", async () => {
@@ -122,21 +122,21 @@ test("startup leaves a reviewed plugin outside the default set off; the first en
   expect(first.state).toBe("active");
   expect(first.root).toBe(lazyRoot);
   await profileEnables(harness, thread, "lazy-kit");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "first");
   expect(fired()).toEqual(["eager-kit:fired", "lazy-kit:fired"]);
 
   // 내리면 기록은 남고, 같은 이름을 다시 싣는다. 세대가 올라간다
   expect(await harness.loader.unload("lazy-kit")).toBe(true);
   expect(harness.loader.list().find((info) => info.name === "lazy-kit")?.state).toBe("disabled");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "off");
   expect(fired()).toEqual(["eager-kit:fired"]);
   const again = await harness.loader.ensureLoaded("lazy-kit", signal);
   expect(again.state).toBe("active");
   expect(again.generation).toBeGreaterThan(first.generation);
   await profileEnables(harness, thread, "lazy-kit");
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
   await fireIn(harness, thread, "again");
   expect(fired()).toEqual(["eager-kit:fired", "lazy-kit:fired"]);
 });
@@ -154,7 +154,7 @@ test("a copy approved while the plugin was off is the one ensureLoaded runs", as
   const newRoot = await writePlugin(join(reviewedRoot, "lazy-kit", "b"), "tree", {
     name: "lazy-kit",
     defaultEnabled: false,
-    entry: `import * as kit from "${["@fresnel", "group-sdk"].join("/")}";
+    entry: `import * as kit from "${["@fresnel", "orchestration-sdk"].join("/")}";
 export const extension = ({ register }) => {
   register("lazy-kit", {}, (g) => {
     g.on("boundary.settle.after", () => { kit.record("lazy-kit:v2"); });

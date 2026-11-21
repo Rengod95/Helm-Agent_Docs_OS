@@ -89,8 +89,8 @@ export async function folderHash(
 }
 
 /**
- * 로더는 엔트리의 `extension`이나 default가 함수이기를 바란다. 그룹 템플릿은 `defineGroup`이 만든 모듈 객체를 default로 내므로
- * (`GroupModule.entry`가 함수다) 묶을 때 그 둘을 함수로 맞추는 얇은 진입 파일을 앞에 둔다. 함수면 그대로 쓴다.
+ * 로더는 엔트리의 `extension`이나 default가 함수이기를 바란다. 그룹 템플릿은 `defineOrchestration`이 만든 모듈 객체를 default로 내므로
+ * (`OrchestrationModule.entry`가 함수다) 묶을 때 그 둘을 함수로 맞추는 얇은 진입 파일을 앞에 둔다. 함수면 그대로 쓴다.
  */
 function wrapperSource(entryPath: string): string {
   return [

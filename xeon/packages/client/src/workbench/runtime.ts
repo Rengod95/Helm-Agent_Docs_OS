@@ -1,9 +1,9 @@
 // 런타임 탭(spec L4.desktop-ux §4.9.8)의 순수 모델. 대화 영역 오른쪽 "런타임" 탭이 그리는 값을 만든다.
 // drive 구역의 보유자와 대기열은 주도권 스택(`drive.frames`)이 정한다: 맨 위 플러그인 프레임이 보유자, `waiting` 프레임이 대기다.
-// 그룹의 표시 이름과 오류는 `group.list`의 `GroupStatus`에서 온다. Helm만 다루지 않는다: `drive`를 쓰는 그룹(review, work 등)은 같은 모양으로 나온다.
+// 그룹의 표시 이름과 오류는 `group.list`의 `OrchestrationStatus`에서 온다. Helm만 다루지 않는다: `drive`를 쓰는 그룹(review, work 등)은 같은 모양으로 나온다.
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
-import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import {
   failureRowsOfOwner,
   rowOf,
@@ -13,20 +13,20 @@ import {
   type HandlerFailureEntry,
 } from "./model.ts";
 
-/** 그룹의 drive 역할(`GroupStatus.drive`) */
-export type DriveRole = GroupStatusWire["drive"];
+/** 그룹의 drive 역할(`OrchestrationStatus.drive`) */
+export type DriveRole = OrchestrationStatusWire["drive"];
 
-/** drive 구역의 그룹 한 줄. `id`는 그룹 id이고 등록 id와 같다(group-sdk가 매니페스트 이름을 등록 id로 쓴다) */
+/** drive 구역의 그룹 한 줄. `id`는 그룹 id이고 등록 id와 같다(orchestration-sdk가 매니페스트 이름을 등록 id로 쓴다) */
 export interface DriveMemberVM {
   readonly id: string;
   readonly displayName: string;
 }
 
-/** 런타임 탭 drive 구역. 보유자와 대기열은 `drive.frames`에서, 오류는 `GroupStatus.drive`에서 온다 */
+/** 런타임 탭 drive 구역. 보유자와 대기열은 `drive.frames`에서, 오류는 `OrchestrationStatus.drive`에서 온다 */
 export interface RuntimeDriveView {
   /** 맨 위 플러그인 프레임의 그룹. 플러그인 프레임이 없으면 null */
   readonly holder: DriveMemberVM | null;
-  /** 보유자가 `GroupStatus.drive`의 `holder` 그룹과 같은가. 둘 다 없으면 참 */
+  /** 보유자가 `OrchestrationStatus.drive`의 `holder` 그룹과 같은가. 둘 다 없으면 참 */
   readonly holderAgrees: boolean;
   /** 맡겨서 기다리는 프레임(`state: "waiting"`)의 그룹. 프레임 목록의 순서(아래에서 위)다 */
   readonly queue: readonly DriveMemberVM[];
@@ -45,31 +45,36 @@ export interface RuntimeDriveView {
 }
 
 /** 그룹 id의 표시 이름을 `group.list`에서 찾는다. 목록에 없으면 id를 그대로 쓴다 */
-function memberOf(groupList: readonly GroupStatusWire[], id: string): DriveMemberVM {
-  return { id, displayName: groupList.find((group) => group.id === id)?.displayName ?? id };
+function memberOf(
+  orchestrationList: readonly OrchestrationStatusWire[],
+  id: string,
+): DriveMemberVM {
+  return { id, displayName: orchestrationList.find((group) => group.id === id)?.displayName ?? id };
 }
 
 /**
- * drive 구역 값. `groupList`는 `group.list`의 결과, `frames`는 같은 대화의 `drive.frames` 결과(아래에서 위 순서)다.
+ * drive 구역 값. `orchestrationList`는 `group.list`의 결과, `frames`는 같은 대화의 `drive.frames` 결과(아래에서 위 순서)다.
  * drive를 쓰지 않는 그룹(`drive: "none"`)은 어느 목록에도 들지 않는다.
  */
 export function runtimeViewOf(
-  groupList: readonly GroupStatusWire[],
+  orchestrationList: readonly OrchestrationStatusWire[],
   frames: readonly DriveFrameView[],
 ): RuntimeDriveView {
   const top = frames.findLast((frame) => frame.plugin !== null);
   const topPlugin = top?.plugin ?? null;
-  const holderGroup = groupList.find((group) => group.drive === "holder");
+  const holderGroup = orchestrationList.find((group) => group.drive === "holder");
   const queue = frames.flatMap((frame) =>
-    frame.state === "waiting" && frame.plugin !== null ? [memberOf(groupList, frame.plugin)] : [],
+    frame.state === "waiting" && frame.plugin !== null
+      ? [memberOf(orchestrationList, frame.plugin)]
+      : [],
   );
   return {
-    holder: topPlugin === null ? null : memberOf(groupList, topPlugin),
+    holder: topPlugin === null ? null : memberOf(orchestrationList, topPlugin),
     holderAgrees: (holderGroup?.id ?? null) === topPlugin,
     queue,
-    errored: groupList
+    errored: orchestrationList
       .filter((group) => group.drive === "error")
-      .map((group) => memberOf(groupList, group.id)),
+      .map((group) => memberOf(orchestrationList, group.id)),
     frames,
     used: top?.used ?? { turns: 0, spawns: 0, tokens: 0 },
     limits: {
@@ -95,11 +100,11 @@ export interface RuntimeExtRowVM {
 
 /**
  * 이 대화의 켜진 확장·그룹 행. 대화 범위 상태(`registration`, 없으면 전역 `status`)가 꺼짐이고 자동 꺼짐도 아니면 뺀다.
- * 그룹에 켜짐 요청이 걸려 있으면(`GroupStatus.pendingToggle`) 상태는 켜는 중·끄는 중이다.
+ * 그룹에 켜짐 요청이 걸려 있으면(`OrchestrationStatus.pendingToggle`) 상태는 켜는 중·끄는 중이다.
  */
 export function runtimeRowsOf(
   entries: readonly ExtListEntry[],
-  groups: readonly GroupStatusWire[],
+  groups: readonly OrchestrationStatusWire[],
 ): readonly RuntimeExtRowVM[] {
   return entries.flatMap((entry) => {
     const status = entry.registration ?? entry.status;

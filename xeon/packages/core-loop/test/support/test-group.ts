@@ -9,12 +9,12 @@ import type { ExtensionUnit } from "@fresnel/ext-host";
 
 // M1 걸어 다니는 골격의 테스트용 그룹: on(turn_end), post(followUp 한 번), drive(turn 명령 몇 번), scope(켜기·끄기).
 
-export const TEST_GROUP_ID = "test-group";
+export const TEST_ORCHESTRATION_ID = "test-group";
 export const TEST_NOTE_KIND = "grp.test-group.note.recorded";
 
-const TEST_GROUP_MANIFEST: ExtensionManifest = defineManifest({
+const TEST_ORCHESTRATION_MANIFEST: ExtensionManifest = defineManifest({
   schemaVersion: 2,
-  name: TEST_GROUP_ID,
+  name: TEST_ORCHESTRATION_ID,
   version: "0.1.0",
   entry: "./index.ts",
   defaultEnabled: false,
@@ -39,18 +39,18 @@ const TEST_GROUP_MANIFEST: ExtensionManifest = defineManifest({
       ],
     },
   ],
-  group: {},
+  orchestration: {},
   trust: { level: "builtin" },
 });
 
-export interface TestGroupProbe {
+export interface TestOrchestrationProbe {
   /** turn_end 핸들러가 본 단계 */
   readonly turnEnds: StepId[];
   /** drive 단계가 돌려준 turn 명령 수 */
   driveCalls: number;
 }
 
-export interface TestGroupOptions {
+export interface TestOrchestrationOptions {
   readonly ids: IdFactory;
   readonly driveTurns?: number;
   readonly postFollowUp?: boolean;
@@ -59,11 +59,11 @@ export interface TestGroupOptions {
 
 const StateSchema = Type.Object({ count: Type.Integer({ minimum: 0 }) });
 
-export function createTestGroup(options: TestGroupOptions): {
+export function createTestOrchestration(options: TestOrchestrationOptions): {
   readonly unit: ExtensionUnit;
-  readonly probe: TestGroupProbe;
+  readonly probe: TestOrchestrationProbe;
 } {
-  const probe: TestGroupProbe = { turnEnds: [], driveCalls: 0 };
+  const probe: TestOrchestrationProbe = { turnEnds: [], driveCalls: 0 };
   const flags = { posted: false };
   const driveTurns = options.driveTurns ?? 0;
   const entry: ExtensionEntry = ({ manifest, register }) => {
@@ -117,7 +117,7 @@ export function createTestGroup(options: TestGroupOptions): {
   };
   return {
     unit: {
-      manifest: TEST_GROUP_MANIFEST,
+      manifest: TEST_ORCHESTRATION_MANIFEST,
       entry,
       loadIndex: 7,
       builtin: false,

@@ -23,8 +23,8 @@ export {
 } from "./host.ts";
 export { runPortContract, type PortContractFactories } from "./port-contract.ts";
 export {
-  createSmokeGroup,
-  SMOKE_GROUP_MANIFEST,
-  type SmokeGroupOptions,
-  type SmokeGroupProbe,
+  createSmokeOrchestration,
+  SMOKE_ORCHESTRATION_MANIFEST,
+  type SmokeOrchestrationOptions,
+  type SmokeOrchestrationProbe,
 } from "./smoke-group.ts";

@@ -116,7 +116,7 @@ describe("WIRE_ERRORS", () => {
       "testRun.notATestRun": 3312,
       "testRun.notPaused": 3313,
       "extension.notFound": 3401,
-      "group.notFound": 3402,
+      "orchestration.notFound": 3402,
       "extension.safeModeActive": 3403,
       "hooks.notFound": 3405,
       "mcp.serverNotFound": 3406,
@@ -297,7 +297,7 @@ describe("WIRE_ERRORS", () => {
 
   test("extension and group errors name what was not found, and safe mode carries no details", () => {
     const extension = WIRE_ERRORS["extension.notFound"].details;
-    const group = WIRE_ERRORS["group.notFound"].details;
+    const group = WIRE_ERRORS["orchestration.notFound"].details;
     if (extension === undefined || group === undefined) throw new Error("details expected");
     expect([
       parse(extension, { name: "alpha" }).ok,
@@ -309,7 +309,7 @@ describe("WIRE_ERRORS", () => {
     expect(wireError("extension.notFound", { details: { name: "alpha" } }).code).toBe(3401);
     for (const kind of [
       "extension.notFound",
-      "group.notFound",
+      "orchestration.notFound",
       "extension.safeModeActive",
     ] as const) {
       const code = WIRE_ERRORS[kind].code;

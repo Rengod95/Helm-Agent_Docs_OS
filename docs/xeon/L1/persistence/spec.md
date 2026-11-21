@@ -400,7 +400,7 @@ export interface SessionService {
 
 - `ext.commit`의 지문: `ExtCommitRequest.fingerprintSource`가 있으면 그 값으로 지문을 만든다. 상태 커밋은 키의 신원 부분만 담으므로 정당한 재실행이 `key_reused`가 되지 않는다(`X.primitives.spec` §4.6.1 지문 규칙).
 - `ext.commit`의 공개 범위 [결정: review.decisions-2 T-21]: `ExtCommitRequest.visibility`가 `"private"`이면(X `ScopeApi.recordPrivate`, `X.primitives.spec` §4.6.5) 그 커밋의 이벤트 행 `events.private_owner`에 행의 소유 확장 이름을 넣는다. 소유 확장은 kind의 둘째 마디(`x.<name>.*`, `grp.<name>.*`의 `<name>`)이고, 낙인한 생산자 `ext.<name>`의 `<name>`과 같아야 한다. 다르면(다른 확장 접두 kind를 비공개로 커밋하면) `rejected(invalid)`다(`F.records.spec` §3.9 비공개 규칙 1). 생략하거나 `"public"`이면 NULL이다. 저장 위치는 `events` 행의 `private_owner` 열 하나이고, envelope 필드와 투영 열은 따로 두지 않는다 [제안]. `visibility`는 지문에 넣는다. 같은 `requestId`로 공개 범위만 바꿔 다시 커밋하면 `key_reused`다 [제안].
-- `ext.queryRecords` 조회 [결정: review.decisions-2 T-21]: 현재 thread의 활성 가지 위 그룹 레코드 중 `query.kind`(정확히 일치 또는 `.*` 접두 일치)와 `subject`에 맞는 행을 `seq` 순으로 돌려준다. `private_owner`가 NULL이 아닌 행은 `private_owner`가 조회한 확장(`reader`)과 같을 때만 돌려준다. `readsRecordKinds`가 `grp.<id>.*`처럼 넓어도 같다. X가 넘기는 `kinds` 허용 목록 검사(`read_kind_undeclared`)는 X 몫이고, 이 필터는 그 뒤 저장소에서 한 번 더 적용한다. 조회한 확장은 `RecordCommitPort.queryRecords(threadId, query, reader)`의 셋째 인자다(`F.records.spec` §3.9 비공개 규칙 3, FR-P11 반영). 시그니처의 `reader`는 `string`이고 값은 `ExtensionName`이다. 필터는 SQL 조건 `private_owner IS NULL OR private_owner = :reader`로 적용한다 [제안].
+- `ext.queryRecords` 조회 [결정: review.decisions-2 T-21]: 현재 thread의 활성 가지 위 플러그인 레코드 중 `query.kind`(정확히 일치 또는 `.*` 접두 일치)와 `subject`에 맞는 행을 `seq` 순으로 돌려준다. `private_owner`가 NULL이 아닌 행은 `private_owner`가 조회한 확장(`reader`)과 같을 때만 돌려준다. `readsRecordKinds`가 `grp.<id>.*`처럼 넓어도 같다. X가 넘기는 `kinds` 허용 목록 검사(`read_kind_undeclared`)는 X 몫이고, 이 필터는 그 뒤 저장소에서 한 번 더 적용한다. 조회한 확장은 `RecordCommitPort.queryRecords(threadId, query, reader)`의 셋째 인자다(`F.records.spec` §3.9 비공개 규칙 3, FR-P11 반영). 시그니처의 `reader`는 `string`이고 값은 `ExtensionName`이다. 필터는 SQL 조건 `private_owner IS NULL OR private_owner = :reader`로 적용한다 [제안].
 - 확장 투영기는 비공개 행도 그대로 받는다. 투영기의 `kinds`에는 자기 접두만 둘 수 있으므로(`X.operations.spec` §4.4.4 `kind_not_owned`) 다른 확장의 비공개 행은 전달되지 않는다. 투영 계층에서 따로 거르지 않는다.
 
 ### 3.4 투영기
@@ -1445,7 +1445,7 @@ export type SessionSettingsError =
 - post: 확장 post의 기록은 `input.queued` 하나다(`post.accepted` retire, review.decisions-2 U-05). core-persistence는 커밋 경로와 커밋 키 멱등만 제공한다.
 - drive: drive 락 획득·반납(`lease.acquired`, `lease.released`)은 X가 `ext.commit`으로 커밋한다. 재개 때 열린 drive 락의 목록(`ext.loadThread`의 `openLeases`, 오래된 것부터)을 X에 넘긴다. drive 함수 재호출은 X가 한다(`F.extensions.spec` §4.6).
 - scope: `scope.changed`와 상태 판(`x|grp.<name>.state.committed`)은 X가 커밋하고, 접두 테이블 투영은 §4.5.2로 같은 커밋에 들어간다.
-- [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)", `eng.context-map.design` §3 규칙 4). 두 그룹의 비공개 상태는 각각 `x_helm_*`, `x_learning_*`에 있고 이 문서의 등록 검사로 서로의 테이블을 쓰지 못한다.
+- [결정] Helm과 학습 플러그인은 L3 기본 플러그인이다. 학습 플러그인은 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)", `eng.context-map.design` §3 규칙 4). 두 플러그인의 비공개 상태는 각각 `x_helm_*`, `x_learning_*`에 있고 이 문서의 등록 검사로 서로의 테이블을 쓰지 못한다.
 
 ## 8. 다른 문서와의 인터페이스
 

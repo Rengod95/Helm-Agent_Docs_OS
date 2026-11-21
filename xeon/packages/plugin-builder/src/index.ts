@@ -11,7 +11,7 @@ export {
   replayInDevMode,
   type ReplayRunner,
 } from "./confirm.ts";
-export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";
+export { authoringManifest, createAuthoringOrchestration, type AuthoringDeps } from "./group.ts";
 export { authoringSettings } from "./settings.ts";
 export {
   AUTHORING_PHASES,

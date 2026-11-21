@@ -30,6 +30,8 @@ function turn(n: number, over: Partial<TurnSummary> = {}): TurnSummary {
     startedSeq: n,
     inputItemIds: [],
     leadScopeId: null,
+    requestId: null,
+    invoked: [],
     model: null,
     startedAt: null,
     running: false,

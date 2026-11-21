@@ -82,12 +82,12 @@ function filesUnder(root: string): number {
 test("templates are found from the CLI source tree", () => {
   expect(TEMPLATES).not.toBeNull();
   expect(TEMPLATES === null ? "" : join(TEMPLATES, "index.json")).toBe(
-    join(HERE, "..", "..", "..", "packages", "group-sdk", "templates", "index.json"),
+    join(HERE, "..", "..", "..", "packages", "orchestration-sdk", "templates", "index.json"),
   );
 });
 
 test("group-new.output-passes-core-diff-check-with-zero-lines", async () => {
-  if (TEMPLATES === null) throw new Error("group-sdk templates not found");
+  if (TEMPLATES === null) throw new Error("orchestration-sdk templates not found");
   const { repo, base } = freshRepo();
   const h = createHarness({
     cwd: repo,
@@ -107,13 +107,13 @@ test("group-new.output-passes-core-diff-check-with-zero-lines", async () => {
   ];
   const codes = await Promise.all(
     groups.map(([name, flags]) =>
-      h.run(["group", "new", name, ...flags, "--dir", `xeon/packages/group-${name}`]),
+      h.run(["group", "new", name, ...flags, "--dir", `xeon/packages/plugin-${name}`]),
     ),
   );
   expect(codes).toEqual([EXIT.ok, EXIT.ok, EXIT.ok]);
-  expect(filesUnder(join(repo, "xeon", "packages", "group-focus-drive"))).toBe(10);
-  expect(filesUnder(join(repo, "xeon", "packages", "group-focus-observe"))).toBe(9);
-  expect(filesUnder(join(repo, "xeon", "packages", "group-focus-policy"))).toBe(8);
+  expect(filesUnder(join(repo, "xeon", "packages", "plugin-focus-drive"))).toBe(10);
+  expect(filesUnder(join(repo, "xeon", "packages", "plugin-focus-observe"))).toBe(9);
+  expect(filesUnder(join(repo, "xeon", "packages", "plugin-focus-policy"))).toBe(8);
 
   git(repo, ["add", "-A"]);
   git(repo, ["commit", "-q", "-m", "groups"]);

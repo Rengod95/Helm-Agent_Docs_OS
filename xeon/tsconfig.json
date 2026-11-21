@@ -74,10 +74,10 @@
       "path": "./packages/cap-schedule"
     },
     {
-      "path": "./packages/group-sdk"
+      "path": "./packages/orchestration-sdk"
     },
     {
-      "path": "./packages/group-guide"
+      "path": "./packages/plugin-guide"
     },
     {
       "path": "./packages/core-authoring"
@@ -89,16 +89,16 @@
       "path": "./packages/plugin-migration"
     },
     {
-      "path": "./packages/group-helm"
+      "path": "./packages/plugin-helm"
     },
     {
-      "path": "./packages/group-learning"
+      "path": "./packages/plugin-learning"
     },
     {
-      "path": "./packages/group-account-rotation"
+      "path": "./packages/plugin-account-rotation"
     },
     {
-      "path": "./packages/group-provider-anthropic-oauth"
+      "path": "./packages/plugin-provider-anthropic-oauth"
     },
     {
       "path": "./plugins/provider-anthropic-oauth"

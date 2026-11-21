@@ -186,7 +186,7 @@ test("settings: reserved defs shape", () => {
   ).toBe("L2");
   expect(
     reservedExtensionSettings(
-      makeManifest({ name: "set-shape", layer: "L3", group: {} }),
+      makeManifest({ name: "set-shape", layer: "L3", orchestration: {} }),
       "builtin",
     ).defs[0]?.layer,
   ).toBe("L3");

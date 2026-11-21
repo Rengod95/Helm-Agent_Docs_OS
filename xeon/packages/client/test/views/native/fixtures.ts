@@ -3,9 +3,9 @@ import { join } from "node:path";
 import { parseJson } from "@fresnel/contracts";
 import { validateUiTree, type UiNode } from "@fresnel/contracts/extensions";
 
-// group-helm의 화면 트리 파일과 시험용 데이터. 실제 파일을 읽어 시험이 실제 트리에 묶이게 한다.
+// plugin-helm의 화면 트리 파일과 시험용 데이터. 실제 파일을 읽어 시험이 실제 트리에 묶이게 한다.
 
-const HELM_UI_DIR = join(import.meta.dir, "../../../../group-helm/ui");
+const HELM_UI_DIR = join(import.meta.dir, "../../../../plugin-helm/ui");
 
 export function helmViewFiles(): readonly string[] {
   return readdirSync(HELM_UI_DIR)
@@ -49,10 +49,10 @@ export function helmInquiryDoc(inquiryId: string | null): unknown {
 /** helm 화면 문구 카탈로그(`locales/ko.json`). 키가 풀린 한국어 화면을 시험하려고 읽는다 */
 export function helmKoMessages(): Readonly<Record<string, string>> {
   const json: unknown = JSON.parse(
-    readFileSync(join(import.meta.dir, "../../../../group-helm/locales/ko.json"), "utf8"),
+    readFileSync(join(import.meta.dir, "../../../../plugin-helm/locales/ko.json"), "utf8"),
   );
   if (typeof json !== "object" || json === null || Array.isArray(json)) {
-    throw new Error("group-helm locales/ko.json is not an object");
+    throw new Error("plugin-helm locales/ko.json is not an object");
   }
   return Object.fromEntries(
     Object.entries(json).flatMap(([key, value]) =>

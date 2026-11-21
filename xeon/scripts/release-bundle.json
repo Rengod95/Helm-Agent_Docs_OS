@@ -1,8 +1,8 @@
 {
-  "templates": "packages/group-sdk/templates",
-  "guide": "packages/group-guide/skills",
+  "templates": "packages/orchestration-sdk/templates",
+  "guide": "packages/plugin-guide/skills",
   "defaultPlugins": [
-    { "name": "helm", "buildScript": "packages/group-helm/scripts/build-plugin.ts" }
+    { "name": "helm", "buildScript": "packages/plugin-helm/scripts/build-plugin.ts" }
   ],
   "bundledBinaries": {
     "aarch64-apple-darwin": {

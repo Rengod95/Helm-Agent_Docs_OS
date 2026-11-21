@@ -25,7 +25,7 @@
         "@fresnel/client": "workspace:*",
         "@fresnel/contracts": "workspace:*",
         "@fresnel/core-models": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "@fresnel/host": "workspace:*",
         "@fresnel/platform-os": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
@@ -106,11 +106,11 @@
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/core-workspace": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
-        "@fresnel/group-account-rotation": "workspace:*",
-        "@fresnel/group-guide": "workspace:*",
-        "@fresnel/group-helm": "workspace:*",
-        "@fresnel/group-provider-anthropic-oauth": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/plugin-account-rotation": "workspace:*",
+        "@fresnel/plugin-guide": "workspace:*",
+        "@fresnel/plugin-helm": "workspace:*",
+        "@fresnel/plugin-provider-anthropic-oauth": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
         "@fresnel/platform-os": "workspace:*",
         "@fresnel/platform-process": "workspace:*",
@@ -424,12 +424,12 @@
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-account-rotation": {
-      "name": "@fresnel/group-account-rotation",
+    "packages/plugin-account-rotation": {
+      "name": "@fresnel/plugin-account-rotation",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -437,23 +437,23 @@
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-guide": {
-      "name": "@fresnel/group-guide",
+    "packages/plugin-guide": {
+      "name": "@fresnel/plugin-guide",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-helm": {
-      "name": "@fresnel/group-helm",
+    "packages/plugin-helm": {
+      "name": "@fresnel/plugin-helm",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -462,12 +462,12 @@
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-learning": {
-      "name": "@fresnel/group-learning",
+    "packages/plugin-learning": {
+      "name": "@fresnel/plugin-learning",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -475,12 +475,12 @@
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-provider-anthropic-oauth": {
-      "name": "@fresnel/group-provider-anthropic-oauth",
+    "packages/plugin-provider-anthropic-oauth": {
+      "name": "@fresnel/plugin-provider-anthropic-oauth",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -488,8 +488,8 @@
         "@types/bun": "catalog:",
       },
     },
-    "packages/group-sdk": {
-      "name": "@fresnel/group-sdk",
+    "packages/orchestration-sdk": {
+      "name": "@fresnel/orchestration-sdk",
       "version": "0.0.0",
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
@@ -579,7 +579,7 @@
       "dependencies": {
         "@fresnel/contracts": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
-        "@fresnel/group-sdk": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
       },
       "devDependencies": {
         "@fresnel/core-authoring": "workspace:*",
@@ -800,17 +800,17 @@
 
     "@fresnel/ext-host": ["@fresnel/ext-host@workspace:packages/ext-host"],
 
-    "@fresnel/group-account-rotation": ["@fresnel/group-account-rotation@workspace:packages/group-account-rotation"],
+    "@fresnel/plugin-account-rotation": ["@fresnel/plugin-account-rotation@workspace:packages/plugin-account-rotation"],
 
-    "@fresnel/group-guide": ["@fresnel/group-guide@workspace:packages/group-guide"],
+    "@fresnel/plugin-guide": ["@fresnel/plugin-guide@workspace:packages/plugin-guide"],
 
-    "@fresnel/group-helm": ["@fresnel/group-helm@workspace:packages/group-helm"],
+    "@fresnel/plugin-helm": ["@fresnel/plugin-helm@workspace:packages/plugin-helm"],
 
-    "@fresnel/group-learning": ["@fresnel/group-learning@workspace:packages/group-learning"],
+    "@fresnel/plugin-learning": ["@fresnel/plugin-learning@workspace:packages/plugin-learning"],
 
-    "@fresnel/group-provider-anthropic-oauth": ["@fresnel/group-provider-anthropic-oauth@workspace:packages/group-provider-anthropic-oauth"],
+    "@fresnel/plugin-provider-anthropic-oauth": ["@fresnel/plugin-provider-anthropic-oauth@workspace:packages/plugin-provider-anthropic-oauth"],
 
-    "@fresnel/group-sdk": ["@fresnel/group-sdk@workspace:packages/group-sdk"],
+    "@fresnel/orchestration-sdk": ["@fresnel/orchestration-sdk@workspace:packages/orchestration-sdk"],
 
     "@fresnel/host": ["@fresnel/host@workspace:apps/host"],
 

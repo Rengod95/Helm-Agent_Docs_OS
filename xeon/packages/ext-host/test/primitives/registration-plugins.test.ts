@@ -121,7 +121,7 @@ function failingSecondMember(name: string, group: boolean): ExtensionManifest {
   const layer = group ? "L3" : "plugin";
   return makeManifest({
     name,
-    ...(group ? { group: {} } : {}),
+    ...(group ? { orchestration: {} } : {}),
     extraPlugins: [{ id: "extra", layer, hooks: [], defaultEnabled: true }],
   });
 }

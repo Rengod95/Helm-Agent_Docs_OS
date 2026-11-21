@@ -1,0 +1,88 @@
+import { parse } from "@fresnel/contracts";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import { TurnStartedPayloadSchema } from "@fresnel/contracts/conversation";
+import type { OrchestrationId, RegistrationId } from "@fresnel/contracts/extensions";
+import { EffectIntentSchema } from "@fresnel/contracts/records";
+import type { ExtHost } from "@fresnel/ext-host";
+import type { PromotionInput } from "./report.ts";
+
+/** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `OrchestrationHostView`가 이 부분을 포함한다 */
+export type PromotionHostView = Pick<ExtHost, "registrations" | "queryEvents"> & {
+  /**
+   * 대화가 보는 도구 이름으로 그 도구를 등록한 레코드를 찾는다. 같은 이름이 여러 주인에게 있어도 그 대화가 보는 쪽만 돌려준다.
+   * 이름은 호출을 기록한 대화에서 모델이 본 이름이다
+   */
+  toolOwnerIn(name: string, threadId: ThreadId): ReturnType<ExtHost["toolOwner"]>;
+};
+
+type PromotionCall = PromotionInput["calls"][number];
+
+/**
+ * turn 시작 이벤트의 출처. drive turn은 임대한 scope id다. scopeId가 null이고 출처가 사용자 입력(`user`, 또는 옛 기록에 없음)이면 `"user"`다.
+ * 위임·예약·원격·기타 turn은 호출을 만든 scope를 이벤트에서 알 수 없어 `null`로 두고 집계에서 뺀다(L3.group-sdk.spec §10).
+ */
+function turnOriginOf(payload: unknown): RegistrationId | null {
+  const checked = parse(TurnStartedPayloadSchema, payload);
+  if (!checked.ok) return null;
+  if (checked.value.scopeId !== null) return checked.value.scopeId;
+  return (checked.value.origin ?? "user") === "user" ? "user" : null;
+}
+
+/** 도구를 설치된 그룹이 등록했을 때만 그 그룹을 돌려준다. 그룹 scope id는 그룹 이름이다 */
+function owningGroup(
+  host: PromotionHostView,
+  installed: ReadonlySet<RegistrationId>,
+  tool: ToolName,
+  threadId: ThreadId,
+): OrchestrationId | undefined {
+  const record = host.toolOwnerIn(tool, threadId);
+  if (record === undefined || !installed.has(record.scopeId)) return undefined;
+  return record.extension;
+}
+
+/**
+ * 승격 집계 입력을 X 이벤트에서 모은다(L3.group-sdk.spec §3.12, G-18).
+ * 호출 한 건은 `effect.intent` 하나다. 도구 실행 전에 한 번 커밋되고 같은 요청 키(`tool:<키>:intent`)로는 다시 쓰이지 않는다.
+ * `turn.started`로 그 turn의 출처를 알고, `toolOwnerIn`으로 그 대화가 보는 도구 가운데 설치된 그룹이 등록한 것만 고른다.
+ * 한 thread의 조회가 실패하면(Result err) 그 thread는 건너뛰고 나머지를 모은다.
+ */
+export async function gatherPromotionInput(
+  host: PromotionHostView,
+  threadIds: readonly ThreadId[],
+): Promise<PromotionInput> {
+  const installed: ReadonlySet<RegistrationId> = new Set(
+    host.registrations().map((info) => info.id),
+  );
+  const reads = await Promise.all(
+    threadIds.map(async (threadId) => ({
+      threadId,
+      turns: await host.queryEvents(threadId, { kindPrefix: "turn.started" }),
+      intents: await host.queryEvents(threadId, { kindPrefix: "effect.intent" }),
+    })),
+  );
+  const toolOwners = new Map<ToolName, OrchestrationId>();
+  const calls: PromotionCall[] = [];
+  for (const { threadId, turns, intents } of reads) {
+    if (!turns.ok || !intents.ok) continue;
+    const origins = new Map<TurnId, RegistrationId>();
+    for (const event of turns.value) {
+      if (event.turnId === null) continue;
+      const origin = turnOriginOf(event.payload);
+      if (origin !== null) origins.set(event.turnId, origin);
+    }
+    for (const event of intents.value) {
+      if (event.turnId === null) continue;
+      const origin = origins.get(event.turnId);
+      if (origin === undefined) continue;
+      const checked = parse(EffectIntentSchema, event.payload);
+      if (!checked.ok) continue;
+      const tool = checked.value.toolName;
+      const owner = owningGroup(host, installed, tool, threadId);
+      if (owner === undefined) continue;
+      toolOwners.set(tool, owner);
+      calls.push({ tool, seq: event.seq, threadId, origin });
+    }
+  }
+  return { toolOwners, calls };
+}

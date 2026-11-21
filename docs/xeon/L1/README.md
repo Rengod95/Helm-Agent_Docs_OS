@@ -12,7 +12,7 @@ binds: [xeon/packages/core-*/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ## 1. 목적
 
-L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 그룹 같은 플러그인 그룹(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
+L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전트 런타임의 실행(태스크, 루프), 모델 호출, 도구 실행과 권한, 컨텍스트와 컴팩션, 영속성과 복구, 서브에이전트를 맡는다. Helm과 학습 플러그인 같은 플러그인(L3)과 기능(L2)은 이 층이 연 서비스와 훅 위에 얹힌다(`_research/decisions-log.md` 2026-10-21 구상 변경).
 
 - 각 도메인은 Cordis 서비스 하나 이상을 제공하는 패키지 하나다. 같은 층끼리는 import하지 않고 서비스로 협력한다(§4).
 - 바퀴를 다시 만들지 않는다. pi-ai는 npm 정확 고정 버전으로 쓰고 부족분만 포크한다(`_research/layer-plan-v2.json` L1 intro, `_research/layer-plan-v2-notes.md` 층 사이 규칙 7). 루프는 pi-agent-core 1.3.0 루프를 core-loop로 포크해 다시 설계한 자체 루프이고 pi-agent-core에는 의존하지 않는다(adr.0009).
@@ -55,7 +55,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 | 실행 환경, 샌드박스 | L0 `platform-exec`, `platform-sandbox`(`fresnel.exec`, `fresnel.sandbox`) | 명령 실행과 샌드박스 래핑은 L2 도구(`cap-workspace`의 `bash` 등)가 쓴다. tools는 잠금 키 산출(`fresnel.exec.canonicalPath`)과 출력 절단(`L1.tools.spec` §3.7)에만 `fresnel.exec`를 쓴다(`L1.tools.spec` §4.12) |
 | 시크릿 해석과 마스킹 | L0 `platform-secrets`(`fresnel.secrets`) | models는 요청 직전에 참조를 해석한다. tools는 값을 해석하지 않고 도구 결과를 2계층 마스킹한다. 실행 env 주입은 `fresnel.exec`가 한다(`L1.tools.spec` §4.12) |
 | 기능(웹, MCP, 지식, 작업, 대화, 산출물, 예약, 작업 도구) | L2 `cap-*` | L2가 L1 서비스(`fresnel.tools`, `fresnel.approvals`, `fresnel.models`, `fresnel.session`, `fresnel.agents`)를 쓴다. L1은 L2를 부르지 않는다 |
-| 플러그인 그룹(Helm, 학습 그룹) | L3 | 훅과 X 연산으로만 L1에 영향을 준다 |
+| 플러그인(Helm, 학습 플러그인) | L3 | 훅과 X 연산으로만 L1에 영향을 준다 |
 | 전송, 설정 화면, 조립 루트 | L4 | `apps/host`가 L1 패키지를 등록한다(DR-14 예외 2) |
 
 ## 4. 협력
@@ -254,7 +254,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 
 ## 9. 마일스톤
 
-계획 v2의 단계 표시(`_research/layer-plan-v2.json` L1, 구성요소 51개)를 집계했다. 1차 39, 2차 10, 보류 1, 배포 제외 1이다. 마일스톤 정의는 `product.scope.spec` §4.3을 따른다: M1 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2 L2 기능과 Helm(승인 프로토콜 통합 포함), M3 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등). 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안]. 아래 배치의 정본은 각 도메인 plan이다.
+계획 v2의 단계 표시(`_research/layer-plan-v2.json` L1, 구성요소 51개)를 집계했다. 1차 39, 2차 10, 보류 1, 배포 제외 1이다. 마일스톤 정의는 `product.scope.spec` §4.3을 따른다: M1 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2 L2 기능과 Helm(승인 프로토콜 통합 포함), M3 첫 공개 릴리즈 후보(학습 플러그인, 공유 서비스 모드, 목표 판정 등). 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안]. 아래 배치의 정본은 각 도메인 plan이다.
 
 | 도메인 | M1 | M2 | M3 | M3 이후(2차) | 보류 | 배포 제외 | 1차/전체 |
 |---|---|---|---|---|---|---|---|
@@ -270,7 +270,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 - 집계 방식: 숫자는 구성요소 단위다. 구성요소 일부를 앞 마일스톤으로 당긴 경우는 괄호로 적고 숫자에 넣지 않는다. 그래서 합계 열의 숫자는 당기기 전과 같다(M1 24, M2 14 + 배포 제외 1, M3 1, 2차 10, 보류 1, 배포 제외 1, 합 51). "1차/전체" 열은 계획 JSON 표기라 당기기와 무관하다.
 - 각주 1: 완료 게이트는 계획 JSON에서 2차다. drive 계속 지시(M2 Helm)와 목표 판정(M3)이 `boundary.settle.before`의 계속을 쓰므로 횟수 상한(`l1.loop.gate.maxContinues`)만 M2로 당긴다(`L1.loop.plan` §1).
 - 각주 2: 리플레이 커서는 계획 JSON의 2차 구성요소 "되감기, 리플레이 커서, JSONL 내보내기"의 일부다. M3 공유 서비스 모드의 원격 클라이언트 재접속에 필요해 이 부분만 M3로 당긴다(`L1.persistence.plan` §1).
-- M1 스모크: 모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글이 단계 경계에서 적용(`_research/foundation-plan.md` §6). L1의 몫은 models·loop·tools·persistence·tasks의 M1 열과 context의 최소 조립이다.
+- M1 스모크: 모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 플러그인 토글이 단계 경계에서 적용(`_research/foundation-plan.md` §6). L1의 몫은 models·loop·tools·persistence·tasks의 M1 열과 context의 최소 조립이다.
 - 각주 3: 레이트 리밋과 계정 회전은 계획 JSON에서 2차다. 설정을 M3 설정 화면에서 조작할 수 있어야 하므로 M3로 당긴다 [결정: review.decisions-2 U-21]. 합계의 2차 칸 10에는 그대로 센다(당기기 집계 방식). 구독 계정 회전의 약관 검토는 M3 착수 전에 한다(`L1.models.spec` §4.8).
 - 목표 판정(`judge` 호출)은 `L1.agents.spec`의 구성요소 표에 따로 없고 제품 범위 I11(M3)이다. 판정 출력에 구조화 출력이 필요해 models의 구조화 출력 최소형을 M3에 당긴다(`L1.models.spec` §3.10).
 
@@ -302,7 +302,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 3. 도구 훅 재실행 금지: 재생과 재개에서 이미 결정된 도구 호출에 대해 `tool.call.before` 훅을 다시 발화하지 않는다. 저장된 `effect.intent.args`가 재실행 입력이다(`architecture.runtime-flow.design` §4.2, `F.records.spec` §3.5).
 4. 커밋 뒤 방출: tap 훅과 구독자 전달은 커밋 뒤, chain·first 결과는 커밋 전에 받아 커밋에 넣는다(`L1.loop.spec` §7).
 5. 단계 경계: 확장 켜기·끄기, drive 락 교대, 도구 목록 변경은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용한다 [결정: review.decisions-2 U-01](`F.extensions.spec` §4.5).
-6. 예산: 단계 수와 비용에 기본 상한을 두지 않는다. 사용자 중단, 컨텍스트 한도, 추론 레벨별 토큰 예산만 둔다. 상한은 그룹의 drive 락에만 걸린다(`_research/layer-plan-v2-notes.md` 가드레일 절). 이 예외는 [결정: review.decisions-2 U-12]이다. 목표 판정 횟수 상한(`l1.agents.judge.maxRuns`)은 결정 4의 별도 상한이다.
+6. 예산: 단계 수와 비용에 기본 상한을 두지 않는다. 사용자 중단, 컨텍스트 한도, 추론 레벨별 토큰 예산만 둔다. 상한은 플러그인의 drive 락에만 걸린다(`_research/layer-plan-v2-notes.md` 가드레일 절). 이 예외는 [결정: review.decisions-2 U-12]이다. 목표 판정 횟수 상한(`l1.agents.judge.maxRuns`)은 결정 4의 별도 상한이다.
 7. 시크릿: 값은 요청·실행 직전에만 해석하고 이벤트, 로그, 훅 페이로드에 싣지 않는다(`_research/secrets.md` §6.2).
 8. 시계·ID·난수는 주입받는다. 모델은 테이프 가짜로 시험한다(`eng.testing.guide` TS-04, 테이프 모듈은 `@fresnel/core-models/testing`).
 
@@ -316,7 +316,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 8개다. 대화형 에이전�
 | [결정] 위장 provider는 `plugins/provider-anthropic-oauth`로 분리, 배포 제외, 기본 꺼짐 | `_research/decisions-log.md` 2026-10-21 결정 2차, `product.scope.spec` N6 |
 | [결정] 승인·질문은 L1-d 승인 프로토콜 하나(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | `_research/foundation-plan.md` §1 결정 5 |
 | [결정] 목표 판정은 별도 판정 모델 + 실행 횟수 상한 | `_research/foundation-plan.md` §1 결정 4 |
-| [결정] Helm과 학습 그룹은 L3 기본 그룹. 학습 그룹은 drive를 쓰지 않는다. 검토 포크를 백그라운드 위임으로 돌리고, L1이 제공하는 쪽은 `fresnel.agents`의 백그라운드 위임과 `post` 경로다 | `_research/decisions-log.md` 2026-10-21 계획 v2(학습 그룹 drive 미사용, Helm과 공존), `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `L1.agents.spec` §4.7 |
+| [결정] Helm과 학습 플러그인은 L3 기본 플러그인. 학습 플러그인은 drive를 쓰지 않는다. 검토 포크를 백그라운드 위임으로 돌리고, L1이 제공하는 쪽은 `fresnel.agents`의 백그라운드 위임과 `post` 경로다 | `_research/decisions-log.md` 2026-10-21 계획 v2(학습 플러그인 drive 미사용, Helm과 공존), `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `L1.agents.spec` §4.7 |
 | [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정 2차, ADR-0004 |
 | [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), scope | `_research/decisions-log.md` 2026-10-21 계획 v2, ADR-0007 |
 

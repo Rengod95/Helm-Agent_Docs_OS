@@ -6,9 +6,9 @@ import {
   SDK_MODULE_SPECIFIERS,
 } from "../../src/loading-trust/index.ts";
 import { X_SDK_MODULES } from "../../src/loading-trust/virtual-modules.ts";
-import { fakeGroupSdk, SDK } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK } from "./support/plugin-fixture.ts";
 
-test("the SDK specifiers are contracts with its subpaths, group-sdk and typebox", () => {
+test("the SDK specifiers are contracts with its subpaths, orchestration-sdk and typebox", () => {
   expect([...SDK_MODULE_SPECIFIERS]).toEqual([
     "@fresnel/contracts",
     "@fresnel/contracts/capabilities",
@@ -18,16 +18,16 @@ test("the SDK specifiers are contracts with its subpaths, group-sdk and typebox"
     "@fresnel/contracts/services",
     "@fresnel/contracts/settings",
     "@fresnel/contracts/wire",
-    "@fresnel/group-sdk",
+    "@fresnel/orchestration-sdk",
     "typebox",
   ]);
-  // X가 직접 등록하는 모듈과 조립 루트가 넘기는 group-sdk이 지정자 전체가 된다
-  expect([...Object.keys(X_SDK_MODULES), "@fresnel/group-sdk"].toSorted()).toEqual(
+  // X가 직접 등록하는 모듈과 조립 루트가 넘기는 orchestration-sdk이 지정자 전체가 된다
+  expect([...Object.keys(X_SDK_MODULES), "@fresnel/orchestration-sdk"].toSorted()).toEqual(
     [...SDK_MODULE_SPECIFIERS].toSorted(),
   );
   expect(Object.keys(SDK).toSorted()).toEqual([
     "@fresnel/contracts",
-    "@fresnel/group-sdk",
+    "@fresnel/orchestration-sdk",
     "typebox",
   ]);
 });
@@ -35,13 +35,13 @@ test("the SDK specifiers are contracts with its subpaths, group-sdk and typebox"
 test("registering the same objects again does nothing, another object is refused", () => {
   expect(registerSdkModules(SDK)).toEqual({ ok: true, value: undefined });
   expect(registerSdkModules(SDK)).toEqual({ ok: true, value: undefined });
-  const other = registerSdkModules({ "@fresnel/group-sdk": { marker: Symbol("other") } });
+  const other = registerSdkModules({ "@fresnel/orchestration-sdk": { marker: Symbol("other") } });
   expect(other).toEqual({
     ok: false,
-    error: { kind: "conflict", specifier: "@fresnel/group-sdk" },
+    error: { kind: "conflict", specifier: "@fresnel/orchestration-sdk" },
   });
   // 충돌은 아무것도 바꾸지 않는다: 처음 객체는 그대로 등록된 상태다
-  expect(registerSdkModules({ "@fresnel/group-sdk": fakeGroupSdk })).toEqual({
+  expect(registerSdkModules({ "@fresnel/orchestration-sdk": fakeOrchestrationSdk })).toEqual({
     ok: true,
     value: undefined,
   });

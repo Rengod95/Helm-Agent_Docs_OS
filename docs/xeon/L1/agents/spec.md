@@ -21,7 +21,7 @@ binds: [xeon/packages/core-agents/**]
 - 층 구성 계획 v2 L1-g 구성요소 6개(`_research/layer-plan-v2.json` L1-g): 인프로세스 자식 대화, 권한 상한, 깊이와 동시 상한, 결과 반환, 백그라운드 위임, 서브에이전트 정의 파일(2차).
 - 패키지 판정(`_research/packages.md` §4.3 L1-g 행): 자식 대화는 agent-core `Agent` 클래스 그대로, 정의 파일은 pi `utils/frontmatter.ts` 포크, 나머지는 설계.
 - [결정] 목표 판정은 별도 판정 모델이 하고 실행 횟수에 상한을 건다(`_research/foundation-plan.md` §1 결정 4).
-- [결정] 학습 그룹은 drive를 쓰지 않는다. 그래서 Helm이 drive 락 중이어도 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 검토 포크를 L1-g 백그라운드 위임으로 실행하는 방식은 계획 v2 메모를 따른다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
+- [결정] 학습 플러그인은 drive를 쓰지 않는다. 그래서 Helm이 drive 락 중이어도 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 검토 포크를 L1-g 백그라운드 위임으로 실행하는 방식은 계획 v2 메모를 따른다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
 
 정하는 것:
 
@@ -40,7 +40,7 @@ binds: [xeon/packages/core-agents/**]
 - 한 대화의 turn·step 실행, Agent 인스턴스 구성(훅 설치, 체크포인트): L1.loop.spec.
 - 도구 실행, 정책 평가, 승인 요청: L1.tools.spec.
 - 목표의 저장(L2.work.spec)과 완료 게이트에서 판정 결과를 쓰는 일(L1.loop.spec).
-- 그룹 쪽 위임 래퍼(`GroupApi.delegate`): L3.group-sdk.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
+- 플러그인 쪽 위임 래퍼(`OrchestrationApi.delegate`): L3.group-sdk.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
 - 모델 선택과 역할 라우팅: L1.models.spec.
 
 ## 2. 용어
@@ -51,7 +51,7 @@ binds: [xeon/packages/core-agents/**]
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread. 부모 대화 연결과 소유자를 기록한다 |
 | 포그라운드 자식 | 부모의 도구 호출이나 drive `loop.spawn`이 결과를 기다리는 자식. 부모 turn이 소유한다 |
 | 백그라운드 자식 | 핸들을 즉시 돌려주고 완료 보고를 부모 inbox에 넣는 자식. 소유 경계라서 부모 취소가 넘지 않는다. 사용자 중지는 넘는다(§4.7 3번) |
-| 소유자 | 자식을 만든 쪽. (부모 turn, 도구 호출) 또는 (drive 락) 또는 (그룹 scope) |
+| 소유자 | 자식을 만든 쪽. (부모 turn, 도구 호출) 또는 (drive 락) 또는 (플러그인 scope) |
 | 깊이 | 주 대화 0, 그 자식 1, 손자 2 |
 | 최종 보고 | 자식 turn의 마지막 어시스턴트 메시지 텍스트. 부모에 돌아가는 유일한 내용 |
 | 격리 블록 | 최종 보고를 감싸 부모 모델이 데이터로 읽게 하는 표지 |
@@ -114,7 +114,7 @@ export const AgentDefinitionSchema: TSchema;     // 정의 파일 프런트매�
 export type SpawnOwner =
   | { readonly kind: "tool"; readonly turnId: TurnId; readonly toolCallId: string }
   | { readonly kind: "drive"; readonly turnId: TurnId | null; readonly scopeId: ScopeId; readonly leaseId: LeaseId }
-  | { readonly kind: "scope"; readonly scopeId: ScopeId };            // 그룹 위임(GroupApi.delegate)
+  | { readonly kind: "scope"; readonly scopeId: ScopeId };            // 오케스트레이션 위임(OrchestrationApi.delegate)
 
 export interface SpawnOrigin {
   readonly parentThreadId: ThreadId;
@@ -156,7 +156,7 @@ export interface SpawnRequest extends SpawnSpec {
 }
 
 export interface ReportDelivery {
-  /** 완료 보고 PostItem.customType. 그룹은 자기 grp.<이름>. 접두, 코어 경로는 AGENT_REPORT_TYPE */
+  /** 완료 보고 PostItem.customType. orchestration 플러그인은 자기 grp.<이름>. 접두, 코어 경로는 AGENT_REPORT_TYPE */
   readonly customType: RecordKind | typeof AGENT_REPORT_TYPE;
   readonly display: boolean;
   readonly when: Extract<PostWhen, "followUp" | "next">;
@@ -201,10 +201,10 @@ export type ChildStatus =
 export const AGENT_REPORT_TYPE = "agent.report" as const;
 ```
 
-- F 대응: `SpawnSpec{ agent, task, requestId?, background?, label? }`(`label`은 그룹이 띄운 자식의 승인 출처 이름이다. scope·drive 소유 자식의 `ChildTurnRequest.tools.source = { scopeId, label }`로 가고 도구 소유 자식에는 없다)와 `SpawnOutcome{ childThreadId, status, answer? }`(F.extensions.spec §3.2)는 그대로 쓴다. `SpawnRequest`, `SpawnResult`는 선택 필드를 더한 확장형이다. `SpawnOutcome.answer`에는 `report.text`를 넣는다.
+- F 대응: `SpawnSpec{ agent, task, requestId?, background?, label? }`(`label`은 플러그인이 띄운 자식의 승인 출처 이름이다. scope·drive 소유 자식의 `ChildTurnRequest.tools.source = { scopeId, label }`로 가고 도구 소유 자식에는 없다)와 `SpawnOutcome{ childThreadId, status, answer? }`(F.extensions.spec §3.2)는 그대로 쓴다. `SpawnRequest`, `SpawnResult`는 선택 필드를 더한 확장형이다. `SpawnOutcome.answer`에는 `report.text`를 넣는다.
 - `LoopHandle.spawn(spec)`(drive): X가 `AgentService.spawn(spec, origin)`으로 넘긴다. `origin.owner`는 `{ kind: "drive" }`, `ownerRequestId`는 X가 정한 `spec.requestId ?? "${lineageId}:${순번}"`이다(F.extensions.spec §4.6).
 - `spec.background: true`인 `LoopHandle.spawn`은 `delegate`와 같은 경로를 쓰고 바로 `{ childThreadId, status: "running" }`을 돌려준다. F `SpawnOutcome.status`에 `"running"`이 없어 추가를 요청한다(§8.3 F 요청 2).
-- `DelegateRequest`는 L3.group-sdk.spec §3.4 `DelegateSpec`(`agent`, `task`, `requestId`, `report`, `toolPolicy.deny`, `forkFrom`)을 받는다. 대응: `toolPolicy` → `tools`, `forkFrom: ItemId` → `fork: { at: "item", itemId }`. 학습 그룹의 `snapshot{ threadId, upToEventId }`(L3.learning.spec §3)는 `fork: { at: "event", eventId: upToEventId }`이고, 학습 그룹의 `allowTools`·`enforceAtDispatch`는 `tools.allow`·`tools.keepParentList`다.
+- `DelegateRequest`는 L3.group-sdk.spec §3.4 `DelegateSpec`(`agent`, `task`, `requestId`, `report`, `toolPolicy.deny`, `forkFrom`)을 받는다. 대응: `toolPolicy` → `tools`, `forkFrom: ItemId` → `fork: { at: "item", itemId }`. 학습 플러그인의 `snapshot{ threadId, upToEventId }`(L3.learning.spec §3)는 `fork: { at: "event", eventId: upToEventId }`이고, 학습 플러그인의 `allowTools`·`enforceAtDispatch`는 `tools.allow`·`tools.keepParentList`다.
 
 ### 3.3 `AgentService` (`services/agents.ts`)
 
@@ -318,7 +318,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | `agent.judged` | 예 | 판정한 대화 | 판정 모델 응답 직후 자기 커밋(§4.8) | `judge:<threadId 해시>:<goalRef>:<run>` |
 
 - 소유: `agent.*`는 core-agents(`run-engine`, 생산자 `core.agents`) 소유다(eng.context-map.design §5.1 `agent.` 행).
-- 사용량 귀속 [제안]: 자식의 모델 사용량은 `agent.settled.usage`에 한 번만 남는다. 부모 `turn.completed`의 사용량에는 넣지 않고, 화면과 그룹 계측이 부모 합계를 낼 때 `agent.settled.usage`를 더한다. durable spec이 경고한 이중 집계를 피하기 위해서다(`_research/refs/pi-durable.md` §3.9 "Double-counted subagent spend").
+- 사용량 귀속 [제안]: 자식의 모델 사용량은 `agent.settled.usage`에 한 번만 남는다. 부모 `turn.completed`의 사용량에는 넣지 않고, 화면과 오케스트레이션 계측이 부모 합계를 낼 때 `agent.settled.usage`를 더한다. durable spec이 경고한 이중 집계를 피하기 위해서다(`_research/refs/pi-durable.md` §3.9 "Double-counted subagent spend").
 
 ## 4. 동작 규칙
 
@@ -367,7 +367,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 모델 도구 `agent`(포그라운드) | 도구 어댑터 → `spawn` | 도구 결과 `content` = `report.text`, `structuredContent` = `{ childThreadId, status, truncated, flags }` |
 | 모델 도구 `agent`(`background: true`) | 도구 어댑터 → `delegate` | 도구 결과 = 접수 문장과 `childThreadId`. 완료 보고는 나중에 inbox로 |
 | drive `loop.spawn` | X → `spawn` | `SpawnOutcome`(answer = `report.text`) |
-| 그룹 `GroupApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
+| 오케스트레이션 `OrchestrationApi.delegate` | orchestration-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 플러그인이 정한 `customType`으로 inbox에 |
 
 훅이 `replace`를 낸 호출(§7.1)은 자식을 만들지 않으므로 위 표와 다르다. 포그라운드(`spawn`)는 `SpawnResult{ status: "completed", answer: 훅이 준 보고, report: null, usage: null, reused: false }`를, 백그라운드(`delegate`)는 `DelegateReceipt{ status: "replaced", report }`를 돌려준다. 어느 쪽도 완료 보고 입력을 쓰지 않는다.
 
@@ -402,8 +402,8 @@ export type AgentJudgedPayload = JudgeRecord;
 
 - deny는 티어와 무관하게 확정되므로(L1.tools.spec §4.5 2단계) 사용자 규칙으로 풀 수 없다. 깊이 한도는 설정으로 바꾼다.
 - 도구 부류 표지는 도구 등록이 선언한다(L1.tools.spec §3.1 `ToolPolicyMeta.classes`). 표지가 없는 도구는 이 목록에 걸리지 않으므로 L2 spec이 자기 도구의 부류를 선언해야 한다(§8.4).
-- 생성 검사(drive·scope 경로): 도구 호출이 아닌 생성도 `PolicyInput{ tool: "agent", classes: ["spawn"], caller, depth }`로 평가한다. drive와 그룹 위임의 caller는 `main`, depth 0이다.
-  - [결정: 감사 l1/A-03] 구현은 `ToolService.checkSpawn`(L1.tools.spec)이 같은 규칙 평가기로 판정하고, `prepare`가 `owner.kind`가 `tool`이 아닐 때 부른다. `deny`는 `agents.denied`로 거부하고 자식 thread를 만들지 않는다. `ask`는 승인 요청을 올리지 않고 통과시킨다(호출자가 그룹 코드이고 막을 수 있는 것은 사용자의 명시적 deny뿐이다).
+- 생성 검사(drive·scope 경로): 도구 호출이 아닌 생성도 `PolicyInput{ tool: "agent", classes: ["spawn"], caller, depth }`로 평가한다. drive와 오케스트레이션 위임의 caller는 `main`, depth 0이다.
+  - [결정: 감사 l1/A-03] 구현은 `ToolService.checkSpawn`(L1.tools.spec)이 같은 규칙 평가기로 판정하고, `prepare`가 `owner.kind`가 `tool`이 아닐 때 부른다. `deny`는 `agents.denied`로 거부하고 자식 thread를 만들지 않는다. `ask`는 승인 요청을 올리지 않고 통과시킨다(호출자가 플러그인 코드이고 막을 수 있는 것은 사용자의 명시적 deny뿐이다).
 - [결정: 감사 l1/A-01] 중첩 자식의 상한은 부모 자식의 상한 안에 든다. `ceilingOf`는 부모 자식이 받은 `ceiling`(실행 중인 자식의 `ChildMeta`)을 입력으로 받아 `allow`는 교집합, `deny`는 합집합으로 합치고 거부 안내는 이번 요청의 것이 없으면 부모 것을 잇는다.
 - 샌드박스 프로필 [결정: 2026-11-13 사용자]: `ceiling.sandbox = 부모 상한.sandbox ?? 정의.permissions.sandbox`다. 부모 상한이 프로필을 정했으면 그쪽이 이기고, 자식이 더 넓은 프로필을 얻지 못한다. 정의가 `"read-only"`를 요구하면 부모 상한에 프로필이 없어도 자식은 read-only다. 손자 정의가 `sandbox`를 적지 않아도 부모 상한의 `read-only`를 이어받는다. 상한의 프로필은 core-tools 파이프라인이 정책 판정(L1.tools.spec §4.5 읽기 전용 샌드박스 상한)과 `CallContext.sandbox`(L1.tools.spec §3)에 쓴다.
 
@@ -413,12 +413,12 @@ export type AgentJudgedPayload = JudgeRecord;
 - 깊이 규칙: 자식 깊이 = 부모 깊이 + 1. 자식 깊이가 `l1.agents.maxDepth`를 넘으면 생성하지 않는다(`agents.depth_exceeded`). 기본 1이면 주 대화만 자식을 만든다. 이중 방어: 한도에 이른 자식은 `subagent.no-spawn` 규칙으로 `agent` 도구가 광고 목록에서 빠지고, 서비스도 생성 때 다시 검사한다.
 - 동시 수: 전체 상한은 L1.tasks.spec의 풀 `subagents`(크기 `l1.tasks.limits.subagents`, 기본 16)다. 자식 turn은 모델 요청·도구를 실행하는 동안 이 풀의 슬롯을 쥔다(L1.tasks.spec §4.5 표). [제안] core-agents는 여기에 소유 트리 루트 하나가 동시에 돌리는 자식 수 상한 `l1.agents.maxConcurrent`(기본 8)를 더한다. 한 대화의 병렬 spawn이 전체 풀을 차지하지 않게 하기 위해서다. 두 상한 중 하나라도 차면 FIFO로 기다리고 상태는 `queued`다. 대기 중인 자식도 취소할 수 있다.
 - 포그라운드와 백그라운드는 같은 풀을 쓴다 [결정: M3-REQ-67, 오케스트레이터 기본값]. 백그라운드 전용 몫은 두지 않는다. 한 소유 트리 루트가 풀을 독점하지 못하게 하는 장치는 `l1.agents.maxConcurrent`(루트별 상한) 하나다. 백그라운드 자식이 전체 풀을 채워 포그라운드가 오래 기다리는 문제는 실사용 시험에서 확인한 뒤 몫을 나눈다.
-- 상한 귀속 [결정: M3-REQ-67, 오케스트레이터 기본값]: drive 락 안의 위임(`owner.kind: "drive"`)은 `loop.spawn` 호출이 drive 락의 `maxSpawns`에 센다. drive 락 밖의 위임(`owner.kind: "scope"`, 그룹 `delegate`)은 drive 락 상한에 세지 않고, `maxDepth`, `maxConcurrent`, 전체 풀 상한만 받는다. drive 락이 없는 호출이므로 drive 락 예산의 대상이 아니다. 그룹이 자기 호출 수를 제한하려면 자기 설정으로 한다.
+- 상한 귀속 [결정: M3-REQ-67, 오케스트레이터 기본값]: drive 락 안의 위임(`owner.kind: "drive"`)은 `loop.spawn` 호출이 drive 락의 `maxSpawns`에 센다. drive 락 밖의 위임(`owner.kind: "scope"`, 오케스트레이션 `delegate`)은 drive 락 상한에 세지 않고, `maxDepth`, `maxConcurrent`, 전체 풀 상한만 받는다. drive 락이 없는 호출이므로 drive 락 예산의 대상이 아니다. 플러그인이 자기 호출 수를 제한하려면 자기 설정으로 한다.
 
 ### 4.5 requestId 파생과 재개
 
 - [제안] 자식 requestId는 소유 작업의 requestId에서 파생한다: `<ownerRequestId>:spawn:<n>`. `n`은 그 소유 작업 안에서 0부터 매기는 생성 순번이다. durable spec 3206-3266의 "request ID derived from its task ID, which a rerun keeps"와 같은 규칙이다. 도구 호출의 `ownerRequestId`는 `tool:<toolCallId>`(L1.tools.spec §4.3)이므로 모델 도구 한 번의 자식은 `tool:<toolCallId>:spawn:0`이다.
-- drive와 그룹 위임은 호출자가 requestId를 준다(`spec.requestId`, `DelegateRequest.requestId`). 이 값을 자식 requestId로 그대로 쓴다. 예: Helm `helm:<inquiryId>:spawn:<round>:<lensId>`(L3.helm.spec §4.5).
+- drive와 오케스트레이션 위임은 호출자가 requestId를 준다(`spec.requestId`, `DelegateRequest.requestId`). 이 값을 자식 requestId로 그대로 쓴다. 예: Helm `helm:<inquiryId>:spawn:<round>:<lensId>`(L3.helm.spec §4.5).
 - 64자를 넘으면 `spawn:` + `sha256(원래 키)` 앞 40자로 바꾼다 [제안].
 - 멱등: `spawn`·`delegate`는 부모 대화의 `agent.spawned`에서 같은 requestId를 찾는다(커밋 안의 조회 `TxView.agentByRequestId`, 투영 `p_agents`, L1.persistence.spec §3.2·§3.10, eng.transactions.design §4.7). 있으면:
   - 정착했으면(`agent.settled` 있음) 기록된 결과를 돌려준다(`reused: true`). 자식을 다시 돌리지 않는다.
@@ -457,15 +457,15 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ### 4.7 백그라운드 위임
 
-[제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 락 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
+[제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 락 없이 플러그인도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
 
 1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다. 앞 훅이 `replace`를 내면 자식 없이 `"replaced"`와 보고를 돌려준다(§7.1). 앞 훅이 막으면 `agents.denied`다.
 2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `fresnel.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
-   - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
+   - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 플러그인이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
 3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다. 사용자 중지(`interrupt`)만은 경계를 넘는다 [결정: 2026-11-17 사용자]: 도는 turn의 유무와 상관없이 이 대화의 백그라운드 자식을 사유 `user`로 취소하고, 그 자식은 `agent.settled{ status: "aborted" }`로 정착한다(§4.7 4번). 구현은 `xeon/packages/core-loop/src/service.ts`의 `interrupt`와 `stopBackgroundSubagents`다.
-4. 직접 취소: `AgentService.cancel({ childThreadId })` 또는 `{ parentThreadId, requestId }`. 대화 전체 취소에 `{ background: true }`를 주면 경계를 넘는다(L1.tasks.spec). 취소된 백그라운드 자식도 `agent.settled{ status: "aborted" }`와 보고 post를 남긴다. 그룹 비활성화 때의 정리는 그룹이 `onDispose`에서 `cancel`을 부른다(L3.learning.spec §5 사례 5).
-5. 학습 그룹: 검토 포크는 이 경로로 돈다. drive 락을 쓰지 않으므로 Helm이 drive 락을 가진 동안에도 위임이 동작한다(`_research/layer-plan-v2-notes.md` L3-c, F.extensions.spec §4.6). 부모 이력 복제는 `fork`, 광고 목록 유지는 `tools.keepParentList`로 표현한다. 캐시 접두가 실제로 공유되려면 모델, 도구 배열 순서, 시스템 프롬프트, 메시지 접두가 같아야 한다 [가정: L3.learning.spec §4.3]. 정의 `prompt`가 부모와 다르면 공유되지 않으므로, 검토 포크용 정의는 부모 시스템 프롬프트를 쓰고 검토 지시를 `task`에 넣는 방식을 쓴다 [제안].
+4. 직접 취소: `AgentService.cancel({ childThreadId })` 또는 `{ parentThreadId, requestId }`. 대화 전체 취소에 `{ background: true }`를 주면 경계를 넘는다(L1.tasks.spec). 취소된 백그라운드 자식도 `agent.settled{ status: "aborted" }`와 보고 post를 남긴다. 플러그인 비활성화 때의 정리는 플러그인이 `onDispose`에서 `cancel`을 부른다(L3.learning.spec §5 사례 5).
+5. 학습 플러그인: 검토 포크는 이 경로로 돈다. drive 락을 쓰지 않으므로 Helm이 drive 락을 가진 동안에도 위임이 동작한다(`_research/layer-plan-v2-notes.md` L3-c, F.extensions.spec §4.6). 부모 이력 복제는 `fork`, 광고 목록 유지는 `tools.keepParentList`로 표현한다. 캐시 접두가 실제로 공유되려면 모델, 도구 배열 순서, 시스템 프롬프트, 메시지 접두가 같아야 한다 [가정: L3.learning.spec §4.3]. 정의 `prompt`가 부모와 다르면 공유되지 않으므로, 검토 포크용 정의는 부모 시스템 프롬프트를 쓰고 검토 지시를 `task`에 넣는 방식을 쓴다 [제안].
 6. 재개: 보고 입력은 `agent.settled`와 같은 커밋이라 `agent.settled`가 있으면 보고도 있다. 재전송 규칙이 필요 없다. 보고 입력의 `requestId`는 `<requestId>:report`이고 같은 키가 이미 있으면 `draftQueued`가 초안을 만들지 않는다(durable spec 3206-3266 reporter의 requestId 파생). 정착 전에 끊긴 백그라운드 자식은 재개 때 다시 실행된다(§4.5). `eng.transactions.design` §7 표에 이 경로를 "outbox 불필요(같은 커밋)" 행으로 더하도록 요청한다(§8.4).
 
 ### 4.8 목표 판정
@@ -539,7 +539,7 @@ export type AgentJudgedPayload = JudgeRecord;
 ## 7. 훅
 
 - core-agents는 훅을 소유하지 않는다(`L1.readme` §6 소유표). 서브에이전트 앞뒤 훅 둘(`agent.spawn.before`, `agent.spawn.after`)은 이 서비스가 발화한다(§7.1). 훅의 정의와 합치기는 F 계약(`contracts/src/extensions/hooks.ts`)과 ext-host가 정하고, core-agents는 디스패치 결과만 받는다.
-- 자식 대화 안의 훅(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
+- 자식 대화 안의 훅(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 플러그인 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
 - drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 락 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
 - post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `fresnel.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
@@ -637,15 +637,15 @@ export type AgentJudgedPayload = JudgeRecord;
 - [미결] 지시문 모방 검사의 표지 목록과 한국어 문구 목록(§4.6). Claude Code 원문 표지를 확인한 뒤 고친다.
 - [미결] 백그라운드 자식 정착 때 부모 대화가 삭제된 경우 보고 처리(§5 사례 7).
 - [미결] 같은 requestId의 동시 호출이 앞 훅을 각각 받는다(§7.1). 정확히 한 번을 동시 호출까지 보장하려면 (부모, requestId)의 생성 중 호출을 기다리게 하는 장치가 필요하다. 지금은 자식 생성 직전의 연결 다시 보기로 자식 중복만 막는다 [근거: core-agents/src/service.ts `provision`의 연결 다시 보기].
-- [미결] `DelegateReceipt.status: "replaced"`를 그룹 쪽이 읽는다. `group-learning/src/review/fork.ts`의 `status === "accepted"` 분기는 `replaced`를 "이미 있음"(`already`)으로 바꾼다. 검토 위임을 훅이 대체한 경우 학습 그룹이 어떻게 볼지 정해야 한다(L3.learning.spec) [근거: group-learning/src/review/fork.ts:79].
+- [미결] `DelegateReceipt.status: "replaced"`를 플러그인 쪽이 읽는다. `plugin-learning/src/review/fork.ts`의 `status === "accepted"` 분기는 `replaced`를 "이미 있음"(`already`)으로 바꾼다. 검토 위임을 훅이 대체한 경우 학습 플러그인이 어떻게 볼지 정해야 한다(L3.learning.spec) [근거: plugin-learning/src/review/fork.ts:79].
 - [미결] 자식 사용량의 부모 귀속 표시 방식(§3.5). 부모 합계에 더하는 화면 규칙은 L4와 함께 정한다.
 - [결정: M3-REQ-67, 오케스트레이터 기본값] `maxConcurrent`(기본 8)는 루트별 상한이고 전체 풀 `l1.tasks.limits.subagents`(기본 16) 안에서 FIFO로 함께 적용한다. 루트 둘이 각각 8을 쓰면 전체 풀이 찬다.
 - [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.
 - [미결] `agent.judged`를 판정 호출의 자기 커밋으로 쓰는 정리(§4.8)와 L1.loop.spec §4.9 "확장 kind 엔트리로 T4에 기록"의 맞춤.
-- [결정: M3-REQ-67, 오케스트레이터 기본값] 그룹 위임(`scope` 소유자)의 caller는 `main`으로 둔다. 어느 그룹이 맡겼는지는 `agent.spawned.owner.scopeId`에 남으므로 별도 caller 이름 `group:<이름>`을 만들지 않는다. 정책 규칙의 `caller: "main"` 조건이 그룹 위임에도 같게 적용된다.
+- [결정: M3-REQ-67, 오케스트레이터 기본값] 오케스트레이션 위임(`scope` 소유자)의 caller는 `main`으로 둔다. 어느 플러그인이 맡겼는지는 `agent.spawned.owner.scopeId`에 남으므로 별도 caller 이름 `group:<이름>`을 만들지 않는다. 정책 규칙의 `caller: "main"` 조건이 오케스트레이션 위임에도 같게 적용된다.
 - [결정: M3b B3-L1M] `JudgeInput.stepId`(선택)를 더했다. 있으면 같은 `goalRef`의 마지막 `agent.judged`가 그 단계에서 남긴 것일 때 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. `agent.judged`의 `stepId` 칸에 그 단계를 적는다. `run`은 호출자가 넘기지 않고 `agent.judged` 수에서 구한다. `boundary.settle.before` 페이로드에 `stepId`(선택)를 실어 완료 게이트가 넘긴다.
 - [결정: M3b B3-L1M, 오케스트레이터 기본값] `completeStructured`는 core-agents의 `structured.ts`에 둔다. F `ModelService`와 core-models에는 더하지 않는다. 쓰는 곳이 판정 하나이고, 계정 풀·폴백과 함께 쓰는 형태가 필요해지면 그때 F 요청으로 올린다(`L1.models.spec` §3.10, §4.10과 맞춤).
 - [결정: M3b B3-L1M] 자식 turn의 `turn.started.origin`은 core-loop `runChildTurn`이 `delegation`으로 정한다(`L1.loop.spec` §4.4b). `ChildTurnRequest`에 필드를 더하지 않는다.
 - [미결] `lifecycle.agent.settled` 훅을 `agent.settled` 커밋에서 발화하는 쪽(ext-host 또는 core-persistence)이 아직 없다.
 - [미결] `undecidable` 판정을 게이트가 계속으로 다룰지(지금 [제안])와 `agent_before_settle` 핸들러를 L2.work가 거는 시점.
-- [결정: 오케스트레이터 기본값] 재시작 뒤 `cancel({ ownerScopeId })`는 `session.threads.list`로 대화를 훑어 정착하지 않은 자식의 `agent.spawned.owner`를 대조한다. `AgentView`에 소유자를 더하지 않는다(F 변경 없음). 대화가 많으면 느리므로 그룹 비활성화처럼 드문 경로에서만 부른다.
+- [결정: 오케스트레이터 기본값] 재시작 뒤 `cancel({ ownerScopeId })`는 `session.threads.list`로 대화를 훑어 정착하지 않은 자식의 `agent.spawned.owner`를 대조한다. `AgentView`에 소유자를 더하지 않는다(F 변경 없음). 대화가 많으면 느리므로 플러그인 비활성화처럼 드문 경로에서만 부른다.

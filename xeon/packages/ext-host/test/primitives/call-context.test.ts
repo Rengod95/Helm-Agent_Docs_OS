@@ -7,7 +7,7 @@ import {
 } from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";
-import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeUnit } from "./fixtures/support.ts";
 
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
 
@@ -80,7 +80,7 @@ test("callContext is the drive context with the lease signal, and cut inside tur
   const driveSeen: { context: RegistrationCallContext | undefined; aborted: boolean | undefined } =
     { context: undefined, aborted: undefined };
   await t.host.install(
-    makeGroupUnit({ name: "cc-drive" }, (g) => {
+    makeOrchestrationUnit({ name: "cc-drive" }, (g) => {
       const host = hostOf(g);
       inTurn.host = host;
       g.drive(async ({ last }) => {

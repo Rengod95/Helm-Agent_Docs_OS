@@ -4,13 +4,18 @@
 // 엔진 상태와 엔진 연결은 건드리지 않는다(앱 안 감시자들은 겹치지 않은 거울을 읽는다). 표본 대화를 열거나 표본 승인에 답하면 엔진이 모르는 id라
 // 실패한다(보기 전용). 정식 빌드(`BUILD_CHECKS` false)에서는 켜지지 않고 단축키도 걸리지 않는다.
 // 켜고 끄기: ⌘⌥⇧S(macOS, 다른 OS는 Ctrl+Alt+Shift+S). 값은 이 창의 localStorage에 두고 창을 다시 읽는다.
+// 쌓임 장면(AGE-65): 표본이 켜져 있으면 열린 실제 대화에 질문 여럿인 승인·긴 질문·도구 승인·진행 중 목표·대기 입력 가운데 고른 조각을
+// 겹친다. 입력창 위에 쌓이는 부품의 조합을 묶은 앱에서 보려고 둔다. 조각은 `fresnel.dev.sampleScene`(쉼표로 나눔: ask, askLong, tool, goal,
+// queued)이고, 값이 없으면 기본 장면(질문 셋 넘김 카드 + 목표 줄, lcQ3)이라 ⌘⌥⇧S 하나로 개발자 콘솔 없이 켜진다. 빈 글이면 장면이 없다.
 
 import { t } from "@fresnel/client/i18n";
-import { assertNever, attempt } from "@fresnel/contracts";
+import { assertNever, attempt, parse } from "@fresnel/contracts";
 import { isId, type EventId, type ThreadId } from "@fresnel/contracts/conversation";
+import { GoalRecordSchema } from "@fresnel/contracts/records";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
+import { EMPTY_THREAD_CONVO } from "../state/engine/convo.ts";
 import type { LiveApprovalRequest } from "../state/engine/input.ts";
-import type { EngineMirror, PendingApproval } from "../state/engine/state.ts";
+import type { EngineMirror, PendingApproval, QueuedInput } from "../state/engine/state.ts";
 import type { ReadonlyStore } from "../state/shared/readonly-store.ts";
 import { BUILD_CHECKS } from "./build.ts";
 
@@ -194,26 +199,232 @@ export function withSampleMirror(state: EngineMirror, now: number): EngineMirror
   };
 }
 
+// ── 쌓임 장면(AGE-65) ─────────────────────────────────────────────────
+
+/** localStorage 키. 값은 장면 조각을 쉼표로 이은 글(예: "ask,goal") */
+const SAMPLE_SCENE_KEY = "fresnel.dev.sampleScene";
+
+/** 장면 조각: 질문 셋인 승인, 선택지가 많은 긴 질문 하나, 도구 승인, 진행 중 목표, 대기 입력 */
+export type SampleScenePart = "ask" | "askLong" | "tool" | "goal" | "queued";
+const SCENE_PARTS: readonly SampleScenePart[] = ["ask", "askLong", "tool", "goal", "queued"];
+
+/** 장면 글을 조각 목록으로 읽는다. 모르는 조각과 겹친 조각은 버린다 */
+export function sampleScenePartsOf(raw: string | null): readonly SampleScenePart[] {
+  if (raw === null) return [];
+  const names = new Set(raw.split(",").map((part) => part.trim()));
+  return SCENE_PARTS.filter((part) => names.has(part));
+}
+
+/**
+ * 장면 값이 없을 때의 기본 장면(lcQ3 브리프 2026-11-21 "개발자 콘솔 없이 켤 수 있게"): 질문 셋이 든 넘김 카드와 진행 중 목표 줄.
+ * 다른 화면의 "표본 · …" 머리 메뉴는 그 화면 안의 데이터만 바꾸지만, 이 장면은 창이 뜰 때 거울에 겹치고 열린 실제 대화가 있어야 해서
+ * 대화 머리에 메뉴를 두지 않고 ⌘⌥⇧S 표본에 넣는다
+ */
+const DEFAULT_SAMPLE_SCENE: readonly SampleScenePart[] = ["ask", "goal"];
+
+/** 저장된 장면 값의 조각. 값이 없으면(한 번도 고르지 않음) 기본 장면, 빈 글이면 장면 없음 */
+export function sampleSceneOf(raw: string | null): readonly SampleScenePart[] {
+  return raw === null ? DEFAULT_SAMPLE_SCENE : sampleScenePartsOf(raw);
+}
+
+/** 개발 빌드이고 표본이 켜져 있을 때의 장면 조각 */
+export function sampleSceneOn(
+  storage: () => Storage = () => localStorage,
+): readonly SampleScenePart[] {
+  if (!sampleStateOn(storage)) return [];
+  const read = attempt(() => storage().getItem(SAMPLE_SCENE_KEY));
+  return read.ok ? sampleSceneOf(read.value) : [];
+}
+
+const option = (id: string, label: string, description?: string) =>
+  description === undefined ? { id, label } : { id, label, description };
+
+/** 질문 셋: 한 개 고르기 + 직접 입력, 한 개 고르기, 여러 개 고르기 */
+function sampleAsk(): LiveApprovalRequest["body"] {
+  return {
+    kind: "question",
+    question: {
+      questions: [
+        {
+          id: "purpose",
+          header: t("desktop.dev.sample.ask.purpose.header"),
+          text: t("desktop.dev.sample.ask.purpose.text"),
+          options: [
+            option(
+              "test",
+              t("desktop.dev.sample.ask.purpose.test"),
+              t("desktop.dev.sample.ask.purpose.testHint"),
+            ),
+            option("scrape", t("desktop.dev.sample.ask.purpose.scrape")),
+            option("shot", t("desktop.dev.sample.ask.purpose.shot")),
+            option("auto", t("desktop.dev.sample.ask.purpose.auto")),
+          ],
+          multiSelect: false,
+          allowFreeText: true,
+        },
+        {
+          id: "where",
+          header: t("desktop.dev.sample.ask.where.header"),
+          text: t("desktop.dev.sample.ask.where.text"),
+          options: [
+            option("repo", t("desktop.dev.sample.ask.where.repo")),
+            option("ci", t("desktop.dev.sample.ask.where.ci")),
+          ],
+          multiSelect: false,
+          allowFreeText: false,
+        },
+        {
+          id: "browsers",
+          header: t("desktop.dev.sample.ask.browsers.header"),
+          text: t("desktop.dev.sample.ask.browsers.text"),
+          options: [
+            option("chromium", "Chromium"),
+            option("firefox", "Firefox"),
+            option("webkit", "WebKit"),
+          ],
+          multiSelect: true,
+          allowFreeText: false,
+        },
+      ],
+    },
+  };
+}
+
+/** 선택지가 많고 설명이 긴 질문 하나(작은 창에서 카드 안쪽이 스크롤되는지 본다) */
+function sampleAskLong(): LiveApprovalRequest["body"] {
+  const hint = t("desktop.dev.sample.ask.long.hint");
+  return {
+    kind: "question",
+    question: {
+      questions: [
+        {
+          id: "plan",
+          header: t("desktop.dev.sample.ask.long.header"),
+          text: t("desktop.dev.sample.ask.long.text"),
+          options: ["a", "b", "c", "d", "e", "f"].map((id, index) =>
+            option(id, t("desktop.dev.sample.ask.long.option", { n: index + 1 }), hint),
+          ),
+          multiSelect: false,
+          allowFreeText: true,
+        },
+      ],
+    },
+  };
+}
+
+function sampleGoal(): EngineMirror["convo"][string]["goal"] {
+  const parsed = parse(GoalRecordSchema, {
+    goalId: "g1",
+    condition: t("desktop.dev.sample.goal"),
+    judge: { kind: "model" },
+    maxRuns: 3,
+    continuation: "self",
+    judgments: 2,
+    status: "active",
+    lastVerdict: null,
+  });
+  return parsed.ok ? { goal: parsed.value, seq: 0, judgments: [] } : null;
+}
+
+/** 열린 실제 대화에 장면 조각을 겹친다(순수 함수). 열린 대화가 없으면 그대로 둔다 */
+export function withSampleScene(
+  state: EngineMirror,
+  parts: readonly SampleScenePart[],
+  now: number,
+): EngineMirror {
+  const threadId = state.transcript?.threadId ?? null;
+  if (threadId === null || parts.length === 0) return state;
+  const approvalsById: Record<string, PendingApproval> = { ...state.approvals.byId };
+  const approvalIds: EventId[] = [];
+  const bodies: {
+    readonly tail: string;
+    readonly body: LiveApprovalRequest["body"];
+    readonly title: string;
+  }[] = [];
+  if (parts.includes("ask"))
+    bodies.push({ tail: "SCENQA", body: sampleAsk(), title: t("desktop.dev.sample.ask.title") });
+  if (parts.includes("askLong"))
+    bodies.push({
+      tail: "SCENQB",
+      body: sampleAskLong(),
+      title: t("desktop.dev.sample.ask.title"),
+    });
+  if (parts.includes("tool"))
+    bodies.push({ tail: "SCENTA", body: SAMPLE_TOOL, title: 'Allow tool "bash"?' });
+  bodies.forEach((spec, index) => {
+    const approvalId = eventIdOf(spec.tail, 1);
+    if (approvalId === null || approvalsById[approvalId] !== undefined) return;
+    approvalIds.push(approvalId);
+    approvalsById[approvalId] = {
+      approvalId,
+      threadId,
+      seq: 900 + index,
+      request: {
+        origin: { threadId, turnId: null, stepId: null, toolCallId: null, caller: "main" },
+        requestKey: `scene-${spec.tail}`,
+        title: spec.title,
+        remember: ["once"],
+        surfaceThreadId: threadId,
+        requestedAt: now,
+        body: spec.body,
+      },
+    };
+  });
+  const goal = parts.includes("goal") ? sampleGoal() : null;
+  const convo =
+    goal === null
+      ? state.convo
+      : { ...state.convo, [threadId]: { ...(state.convo[threadId] ?? EMPTY_THREAD_CONVO), goal } };
+  const inputId = eventIdOf("SCENQD", 1);
+  const queued: readonly QueuedInput[] =
+    parts.includes("queued") && inputId !== null
+      ? [
+          ...state.queuedInputs,
+          {
+            inputId,
+            threadId,
+            mode: "followUp",
+            requestId: "scene-queued",
+            sourceType: "user",
+            preview: { kind: "text", text: t("desktop.dev.sample.queued") },
+          },
+        ]
+      : state.queuedInputs;
+  return {
+    ...state,
+    approvals: {
+      ...state.approvals,
+      ids: [...state.approvals.ids, ...approvalIds],
+      byId: approvalsById,
+    },
+    convo,
+    queuedInputs: queued,
+  };
+}
+
 /** 거울 읽기 면에 표본을 겹친 읽기 면. 같은 거울 값에는 같은 객체를 돌려준다(구독자가 매번 다시 그리지 않게) */
 export function sampleView(
   read: ReadonlyStore<EngineMirror>,
   now: () => number,
+  scene: readonly SampleScenePart[] = [],
 ): ReadonlyStore<EngineMirror> {
   let seen: EngineMirror | null = null;
   let shown: EngineMirror = read.getState();
+  const overlay = (state: EngineMirror): EngineMirror =>
+    withSampleScene(withSampleMirror(state, now()), scene, now());
   const view = (state: EngineMirror): EngineMirror => {
     if (state !== seen) {
       seen = state;
-      shown = withSampleMirror(state, now());
+      shown = overlay(state);
     }
     return shown;
   };
   return {
     getState: () => view(read.getState()),
-    getInitialState: () => withSampleMirror(read.getInitialState(), now()),
+    getInitialState: () => overlay(read.getInitialState()),
     subscribe: (listener) =>
       read.subscribe((state, previous) => {
-        listener(view(state), withSampleMirror(previous, now()));
+        listener(view(state), overlay(previous));
       }),
   };
 }

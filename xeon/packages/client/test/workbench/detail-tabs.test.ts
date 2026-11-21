@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { ExtUiEntry, GroupMetricsResult } from "@fresnel/contracts/wire";
+import type { ExtUiEntry, OrchestrationMetricsResult } from "@fresnel/contracts/wire";
 import {
   costText,
   durationOf,
   enabledScopeOf,
   extSettingPrefixes,
   extSettingRowsOf,
-  groupMetricsOf,
+  orchestrationMetricsOf,
   screenRowsOf,
   settingScopeOf,
   slotOf,
@@ -28,7 +28,9 @@ const ui = (over: Partial<ExtUiEntry> = {}): ExtUiEntry => ({
   ...over,
 });
 
-const metricsResult = (metrics: GroupMetricsResult["metrics"]): GroupMetricsResult => ({
+const metricsResult = (
+  metrics: OrchestrationMetricsResult["metrics"],
+): OrchestrationMetricsResult => ({
   id: "review",
   metrics,
   since: null,
@@ -207,7 +209,7 @@ describe("측정 탭 값", () => {
   });
 
   test("측정 값은 토큰 네 칸(입력, 출력, 캐시 읽기, 캐시 쓰기)과 나머지 수를 그대로 옮긴다", () => {
-    expect(groupMetricsOf(metricsResult(FULL))).toEqual({
+    expect(orchestrationMetricsOf(metricsResult(FULL))).toEqual({
       tokens: [
         { key: "input", value: 1200 },
         { key: "output", value: 300 },
@@ -224,7 +226,7 @@ describe("측정 탭 값", () => {
   });
 
   test("계측이 꺼져 있으면(metrics가 null) 값이 없다", () => {
-    expect(groupMetricsOf(metricsResult(null))).toBeNull();
+    expect(orchestrationMetricsOf(metricsResult(null))).toBeNull();
   });
 });
 

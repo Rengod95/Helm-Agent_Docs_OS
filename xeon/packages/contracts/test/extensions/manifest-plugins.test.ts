@@ -4,7 +4,7 @@ import {
   validateUsage,
   type ExtensionUsage,
 } from "../../src/extensions/index.ts";
-import { codesOf, groupJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
+import { codesOf, orchestrationJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
 
 const noUsage: ExtensionUsage = {
   on: [],
@@ -28,7 +28,7 @@ describe("plugins[] format", () => {
 
   test("a multi-plugin group with ids is valid", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
         plugins: [
           { layer: "L3", hooks: ["tool.call.before"] },
@@ -47,9 +47,9 @@ describe("plugins[] format", () => {
 
   test("a group whose members list a subset of the plugins is valid", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
-        group: { members: ["explore"] },
+        orchestration: { members: ["explore"] },
         plugins: [
           { layer: "L3", hooks: [] },
           { id: "explore", layer: "L3", hooks: [] },
@@ -142,7 +142,7 @@ describe("plugin ids and roots", () => {
 
   test("a repeated plugin id is plugin_id_duplicate", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         plugins: [
           { id: "explore", layer: "L3", hooks: [] },
           { id: "explore", layer: "L3", hooks: [] },
@@ -157,7 +157,7 @@ describe("plugin ids and roots", () => {
 
   test("a plugin id that does not match the pattern is plugin_id_invalid", () => {
     const result = validateManifest(
-      groupJson({
+      orchestrationJson({
         plugins: [{ id: "Bad_Id", layer: "L3", hooks: [] }],
       }),
     );
@@ -186,10 +186,10 @@ describe("layers", () => {
 });
 
 describe("group members", () => {
-  test("a member that is not a declared plugin id is group_member_unknown", () => {
+  test("a member that is not a declared plugin id is orchestration_member_unknown", () => {
     const result = validateManifest(
-      groupJson({
-        group: { members: ["ghost"] },
+      orchestrationJson({
+        orchestration: { members: ["ghost"] },
         plugins: [
           { layer: "L3", hooks: [] },
           { id: "explore", layer: "L3", hooks: [] },
@@ -198,14 +198,14 @@ describe("group members", () => {
     );
     expect(result.manifest).toBeUndefined();
     expect(result.issues.map((i) => [i.code, i.path])).toEqual([
-      ["group_member_unknown", "/group/members/0"],
+      ["orchestration_member_unknown", "/orchestration/members/0"],
     ]);
   });
 
-  test("a member listed twice is group_member_duplicate", () => {
+  test("a member listed twice is orchestration_member_duplicate", () => {
     const result = validateManifest(
-      groupJson({
-        group: { members: ["explore", "explore"] },
+      orchestrationJson({
+        orchestration: { members: ["explore", "explore"] },
         plugins: [
           { layer: "L3", hooks: [] },
           { id: "explore", layer: "L3", hooks: [] },
@@ -214,7 +214,7 @@ describe("group members", () => {
     );
     expect(result.manifest).toBeUndefined();
     expect(result.issues.map((i) => [i.code, i.path])).toEqual([
-      ["group_member_duplicate", "/group/members/1"],
+      ["orchestration_member_duplicate", "/orchestration/members/1"],
     ]);
   });
 });
@@ -233,13 +233,15 @@ describe("record kind prefix", () => {
   test("a group needs grp.<name>. and rejects x.<name>.", () => {
     expect(
       codesOf(
-        validateManifest(groupJson({}, { recordKinds: [decl("x.learning.skill.proposed")] }))
-          .issues,
+        validateManifest(
+          orchestrationJson({}, { recordKinds: [decl("x.learning.skill.proposed")] }),
+        ).issues,
       ),
     ).toEqual(["record_kind_prefix"]);
     expect(
-      validateManifest(groupJson({}, { recordKinds: [decl("grp.learning.skill.proposed")] }))
-        .issues,
+      validateManifest(
+        orchestrationJson({}, { recordKinds: [decl("grp.learning.skill.proposed")] }),
+      ).issues,
     ).toEqual([]);
   });
 
@@ -259,7 +261,7 @@ describe("record kind prefix", () => {
 describe("validateUsage with plugin entries", () => {
   test("usage is checked against the plugin's own declaration and paths use its index", () => {
     const manifest = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
         plugins: [
           { layer: "L3", hooks: ["tool.call.before"], usesPost: true },
@@ -282,7 +284,7 @@ describe("validateUsage with plugin entries", () => {
   });
 
   test("drive and post use of the root plugin without declarations report the root paths", () => {
-    const manifest = validManifest(groupJson());
+    const manifest = validManifest(orchestrationJson());
     const issues = validateUsage(manifest, pluginAt(manifest, 0), {
       ...noUsage,
       post: true,
@@ -296,7 +298,7 @@ describe("validateUsage with plugin entries", () => {
 
   test("the root plugin's declared hooks are used without issues", () => {
     const manifest = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
         plugins: [
           { layer: "L3", hooks: ["tool.call.before"] },

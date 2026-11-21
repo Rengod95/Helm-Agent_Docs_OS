@@ -46,27 +46,27 @@
     "approvedBy": "adr.0020"
   },
   {
-    "id": "DR-02/group-sdk",
+    "id": "DR-02/orchestration-sdk",
     "rule": "DR-02",
-    "from": "packages/group-*",
-    "to": "@fresnel/group-sdk",
+    "from": "packages/plugin-*",
+    "to": "@fresnel/orchestration-sdk",
     "entries": [".", "./testing"],
-    "reason": "Every L3 group (packages/group-<name>, group-sdk excepted) uses the shared group definition helpers of group-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other group-sdk entries stay violations. The group templates (group-sdk/templates) import the same entries.",
+    "reason": "Every L3 group (packages/plugin-<name>) uses the shared group definition helpers of orchestration-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other orchestration-sdk entries stay violations. The group templates (orchestration-sdk/templates) import the same entries.",
     "approvedBy": "review.decisions-2"
   },
   {
-    "id": "DR-02/plugin-builder-group-sdk",
+    "id": "DR-02/plugin-builder-orchestration-sdk",
     "rule": "DR-02",
     "from": "packages/plugin-builder",
-    "to": "@fresnel/group-sdk",
+    "to": "@fresnel/orchestration-sdk",
     "entries": [".", "./testing"],
-    "reason": "The Plugin Builder (L3.authoring.spec) is an L3 package outside the packages/group-* family. It validates and scaffolds groups with the group-sdk name rules and the drive source scan (scanDriveSource), through the entries \".\" and \"./testing\" only.",
+    "reason": "The Plugin Builder (L3.authoring.spec) is an L3 package outside the packages/plugin-* family. It validates and scaffolds groups with the orchestration-sdk name rules and the drive source scan (scanDriveSource), through the entries \".\" and \"./testing\" only.",
     "approvedBy": "L3.authoring.spec"
   },
   {
-    "id": "DR-07/group-sdk-test-spawn",
+    "id": "DR-07/orchestration-sdk-test-spawn",
     "rule": "DR-07",
-    "from": "packages/group-sdk",
+    "from": "packages/orchestration-sdk",
     "to": "Bun.spawn",
     "reason": "The cross-group import test runs scripts/check-layers.ts on a fixture workspace and reads its DR-02 failure (L3.group-sdk.plan G-21).",
     "approvedBy": "L3.group-sdk.plan",

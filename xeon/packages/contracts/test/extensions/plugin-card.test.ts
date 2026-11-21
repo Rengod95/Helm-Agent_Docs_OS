@@ -299,7 +299,7 @@ describe("internal plugin marker (AGE-33)", () => {
     expect(internalPluginTextKey("host-goal-bridge", "purpose")).toBe(
       "plugin.internal.hostGoalBridge.purpose",
     );
-    expect(INTERNAL_PLUGIN_NAMES).toHaveLength(22);
+    expect(INTERNAL_PLUGIN_NAMES).toHaveLength(21);
     expect(INTERNAL_PLUGIN_NAMES).not.toContain("host-dialog-area-bridge");
     expect(new Set(INTERNAL_PLUGIN_NAMES).size).toBe(INTERNAL_PLUGIN_NAMES.length);
     expect(isInternalPluginName("core-loop")).toBe(true);

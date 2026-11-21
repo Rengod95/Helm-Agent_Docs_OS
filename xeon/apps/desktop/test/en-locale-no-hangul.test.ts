@@ -13,7 +13,7 @@ import { optionLabelOf } from "../src/views/pages/settings/settings-model.ts";
 // 한국어 항목은 자기 이름(`한국어`)이라 제외 목록에 둔다.
 
 const HANGUL = /[가-힣]/u;
-const HELM_DIR = join(import.meta.dir, "../../../packages/group-helm");
+const HELM_DIR = join(import.meta.dir, "../../../packages/plugin-helm");
 
 let previous: Locale = "ko";
 beforeAll(() => {

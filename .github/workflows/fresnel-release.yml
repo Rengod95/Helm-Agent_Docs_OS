@@ -16,7 +16,7 @@ on:
       - "xeon/scripts/release*"
       - "xeon/scripts/electron-*"
       - "xeon/apps/desktop-shell/**"
-      - "xeon/packages/group-sdk/templates/**"
+      - "xeon/packages/orchestration-sdk/templates/**"
       - ".github/workflows/fresnel-release.yml"
 
 concurrency:

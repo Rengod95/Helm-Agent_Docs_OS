@@ -20,7 +20,7 @@
       "path": "../host"
     },
     {
-      "path": "../../packages/group-sdk"
+      "path": "../../packages/orchestration-sdk"
     },
     {
       "path": "../../packages/platform-os"
