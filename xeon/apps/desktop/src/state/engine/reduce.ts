@@ -222,8 +222,17 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       let changed = false;
       for (const mark of input.marks) {
         const known = byId[mark.threadId];
-        if (known === undefined || known.spawnedBy !== undefined) continue;
-        byId[mark.threadId] = { ...known, spawnedBy: mark.spawnedBy };
+        if (known === undefined) continue;
+        const spawnedBy =
+          known.spawnedBy === undefined && mark.spawnedBy !== undefined ? mark.spawnedBy : null;
+        const testRun =
+          known.testRun === undefined && mark.testRun !== undefined ? mark.testRun : null;
+        if (spawnedBy === null && testRun === null) continue;
+        byId[mark.threadId] = {
+          ...known,
+          ...(spawnedBy === null ? {} : { spawnedBy }),
+          ...(testRun === null ? {} : { testRun }),
+        };
         changed = true;
       }
       if (!changed) return keep(state, "stale");
@@ -653,6 +662,7 @@ function convoOf(convo: Convo, fact: DurableFact, at: ConvoAt, before: EngineMir
         scopeId: fact.start?.scopeId ?? null,
         requestId: fact.start?.requestId ?? null,
         inputItemIds: fact.start?.inputItemIds ?? [],
+        invoked: fact.start?.invoked ?? [],
         model: before.threads.byId[fact.threadId]?.model ?? null,
       });
     case "turn.completed":

@@ -38,6 +38,15 @@ export function getTurnRecord(
   return callTurnRecord(connection, "turnRecord.get", params, options);
 }
 
+/** 모든 대화의 턴을 시작 시각 역순으로 한 쪽씩 읽는다(`turnRecord.recent`). 메트릭 화면의 "최근 턴"이 쓴다 */
+export function recentTurnRecords(
+  connection: TurnRecordConnection,
+  params: WireParams<"turnRecord.recent">,
+  options?: WireRequestOptions,
+): TurnRecordRead<"turnRecord.recent"> {
+  return callTurnRecord(connection, "turnRecord.recent", params, options);
+}
+
 /** 훅 결과로 턴을 찾는다(`turnRecord.search`). 한 쪽씩 돌려준다 */
 export function searchTurnRecords(
   connection: TurnRecordConnection,

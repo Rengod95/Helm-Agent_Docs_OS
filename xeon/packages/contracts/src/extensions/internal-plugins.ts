@@ -19,7 +19,10 @@ export const INTERNAL_PLUGIN_NAMES = [
   "cap-mcp",
   "cap-web",
   "cap-knowledge",
-  "host-dialog-area-bridge",
+  "host-goal-bridge",
+  "host-task-bridge",
+  "host-skill-bridge",
+  "host-memory-bridge",
   "host-proposals-bridge",
   "cap-schedule",
 ] as const;
@@ -29,6 +32,49 @@ const INTERNAL_NAME_SET: ReadonlySet<string> = new Set(INTERNAL_PLUGIN_NAMES);
 
 export function isInternalPluginName(name: string): name is InternalPluginName {
   return INTERNAL_NAME_SET.has(name);
+}
+
+/**
+ * 내부 부품의 층 값(목록 화면이 코어와 기능으로 나눠 보이는 데 쓴다) [결정: 2026-11-20, 사용자, AGE-33]. 값 이름은 [제안].
+ * `core`는 에이전트가 돌아가는 데 필요한 L1 코어, `capability`는 에이전트에게 도구와 기능을 주는 L2 기능, `bridge`는 기능을 앱에 이어 주는 호스트 조립 부품이다.
+ * 브릿지를 기능과 같은 묶음으로 보일지 따로 보일지는 화면이 정한다(두 묶음으로 보이려면 `bridge`를 `capability`와 합치면 된다)
+ */
+export const INTERNAL_PLUGIN_LAYERS = ["core", "capability", "bridge"] as const;
+export type InternalPluginLayer = (typeof INTERNAL_PLUGIN_LAYERS)[number];
+
+const INTERNAL_LAYER_OF: Readonly<Record<InternalPluginName, InternalPluginLayer>> = {
+  "core-persistence": "core",
+  "core-tasks": "core",
+  "core-models": "core",
+  "core-context": "core",
+  "core-tools": "core",
+  "core-loop": "core",
+  "host-groups": "bridge",
+  "core-agents": "core",
+  "cap-workspace": "capability",
+  "cap-dialog": "capability",
+  "cap-artifacts": "capability",
+  "host-dialog-bridge": "bridge",
+  "cap-work": "capability",
+  "cap-mcp": "capability",
+  "cap-web": "capability",
+  "cap-knowledge": "capability",
+  "host-goal-bridge": "bridge",
+  "host-task-bridge": "bridge",
+  "host-skill-bridge": "bridge",
+  "host-memory-bridge": "bridge",
+  "host-proposals-bridge": "bridge",
+  "cap-schedule": "capability",
+};
+
+/** 내부 부품 이름의 층 값. 내부 부품이 아닌 이름은 `undefined`다 */
+export function internalPluginLayer(name: string): InternalPluginLayer | undefined {
+  return isInternalPluginName(name) ? INTERNAL_LAYER_OF[name] : undefined;
+}
+
+/** 층 묶음의 표시 이름 카탈로그 키: `plugin.internal.layer.core`, `.capability`, `.bridge` */
+export function internalLayerTextKey(layer: InternalPluginLayer): string {
+  return `plugin.internal.layer.${layer}`;
 }
 
 /** 내부 부품 텍스트의 두 칸 */

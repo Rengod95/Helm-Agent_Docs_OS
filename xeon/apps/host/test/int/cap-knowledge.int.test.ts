@@ -91,27 +91,32 @@ describe("skill_view", () => {
     expect(text).not.toContain("user skill body marker");
   });
 
-  realTest("a project skill loads only when the project is trusted", async () => {
-    const trusted = await viewSkill({
-      userSettings: { "x.loading-trust.defaultProjectTrust": "always" },
-      skill: "proj-demo",
-      prepare: prepareProjectSkill,
-    });
-    expect(trusted).toContain("project skill body marker");
-    // 기본 정책이 ask이고 프롬프트를 띄울 클라이언트가 없으면 결정이 없다: 싣지 않는다(fail-closed)
-    const untrusted = await viewSkill({
-      userSettings: {},
-      skill: "proj-demo",
-      prepare: prepareProjectSkill,
-    });
-    expect(untrusted).not.toContain("project skill body marker");
-    const denied = await viewSkill({
-      userSettings: { "x.loading-trust.defaultProjectTrust": "never" },
-      skill: "proj-demo",
-      prepare: prepareProjectSkill,
-    });
-    expect(denied).not.toContain("project skill body marker");
-  });
+  realTest(
+    "a project skill loads only when the project is trusted",
+    async () => {
+      const trusted = await viewSkill({
+        userSettings: { "x.loading-trust.defaultProjectTrust": "always" },
+        skill: "proj-demo",
+        prepare: prepareProjectSkill,
+      });
+      expect(trusted).toContain("project skill body marker");
+      // 기본 정책이 ask이고 프롬프트를 띄울 클라이언트가 없으면 결정이 없다: 싣지 않는다(fail-closed)
+      const untrusted = await viewSkill({
+        userSettings: {},
+        skill: "proj-demo",
+        prepare: prepareProjectSkill,
+      });
+      expect(untrusted).not.toContain("project skill body marker");
+      const denied = await viewSkill({
+        userSettings: { "x.loading-trust.defaultProjectTrust": "never" },
+        skill: "proj-demo",
+        prepare: prepareProjectSkill,
+      });
+      expect(denied).not.toContain("project skill body marker");
+      // 엔진을 세 번 새로 띄운다(한 번 1.5~2초, 부하가 오면 5초 기본값을 넘는다). 넘으면 시험이 남긴 작업 폴더 이동이 다음 시험을 깨뜨린다
+    },
+    60_000,
+  );
 
   realTest(
     "a thread without a workspace gets no project skill even when the engine's directory has one",

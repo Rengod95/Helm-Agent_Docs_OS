@@ -412,6 +412,8 @@ export function EndPanel(props: {
       </Presence>
       <FloatingBar
         label={t("desktop.shell.end.label")}
+        // 끝까지 쓰는 화면이 막대의 자리를 재는 표지(`rail-avoid.ts`)
+        data-end-bar=""
         orientation="vertical"
         size="sm"
         shadow="2"

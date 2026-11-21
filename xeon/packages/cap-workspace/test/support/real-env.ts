@@ -31,13 +31,19 @@ export function override(base: WorkspaceEnv, overrides: Partial<WorkspaceEnv>): 
   return Object.assign(derived, overrides);
 }
 
-export function realDeps(env: WorkspaceEnv): WorkspaceDeps {
+/** `narrowRoots`가 참이면 쓰기 root에서 `/`(제한 없음)를 뺀 좁은 대화다. 작업 폴더 밖 쓰기가 막히는 길을 시험할 때 쓴다 */
+export function realDeps(env: WorkspaceEnv, narrowRoots = false): WorkspaceDeps {
   return {
     env,
     core: workspaceCore,
     roots: {
       env,
-      roots: (context) => defaultRoots(env, context),
+      roots: async (context) => {
+        const roots = await defaultRoots(env, context);
+        return narrowRoots
+          ? { ...roots, write: roots.write.filter((root) => root !== "/") }
+          : roots;
+      },
       protectedPaths: () => [],
     },
     sandbox: undefined,

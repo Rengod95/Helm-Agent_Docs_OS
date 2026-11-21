@@ -37,11 +37,13 @@ const DRAFT = {
 };
 
 describe("plugin wire methods (M5c-1)", () => {
-  test("the registry table names exactly the ten plugin methods", () => {
+  test("the registry table names exactly the twelve plugin methods", () => {
     expect(Object.keys(PLUGIN_WIRE_METHODS).toSorted()).toEqual(
       [
         "plugin.draft.create",
         "plugin.draft.discard",
+        "plugin.draft.file",
+        "plugin.draft.files",
         "plugin.draft.fromInstruction",
         "plugin.draft.list",
         "plugin.get",
@@ -134,6 +136,31 @@ describe("plugin wire methods (M5c-1)", () => {
     });
     expect(parse(DraftInfoSchema, { ...DRAFT, label: "a".repeat(80) }).ok).toBe(true);
     expect(parse(DraftInfoSchema, { ...DRAFT, label: "a".repeat(81) }).ok).toBe(false);
+  });
+
+  test("plugin.draft.files and plugin.draft.file are read-only and take a draft id (and a path)", () => {
+    const files = PLUGIN_WIRE_METHODS["plugin.draft.files"];
+    expect(parse(files.params, { draftId: "drf_1" }).ok).toBe(true);
+    expect(parse(files.params, {}).ok).toBe(false);
+    roundTrip(files.result, {
+      draftId: "drf_1",
+      name: "acme-notes",
+      contentHash: HASH,
+      files: [{ path: "plugin.json", bytes: 12, sha256: "a".repeat(64) }],
+    });
+    expect(
+      parse(files.result, {
+        draftId: "drf_1",
+        name: "acme-notes",
+        contentHash: HASH,
+        files: [{ path: "plugin.json", bytes: -1, sha256: "a".repeat(64) }],
+      }).ok,
+    ).toBe(false);
+    const file = PLUGIN_WIRE_METHODS["plugin.draft.file"];
+    expect(parse(file.params, { draftId: "drf_1", path: "a/b.md" }).ok).toBe(true);
+    expect(parse(file.params, { draftId: "drf_1" }).ok).toBe(false);
+    roundTrip(file.result, { path: "a/b.md", text: "x", truncated: false });
+    roundTrip(file.result, { path: "a.bin", text: null, truncated: false });
   });
 
   test("plugin.draft.discard takes a draft id and returns an empty object", () => {

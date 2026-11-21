@@ -689,7 +689,7 @@ export const CostBasisSchema: TUnion<TLiteral<CostBasis>[]> = literalUnion([
   "unknown",
 ]);
 
-/** 정적으로 센 값과 측정을 합칠 때 쓰는 비용 칸(§3.3). M5c의 카드와 `profile.preview.cost`도 이 모양을 쓴다 */
+/** 정적으로 센 값과 측정을 합칠 때 쓰는 비용 칸(§3.3). M5c의 카드와 `profile.preview.cost`도 이 모양을 쓴다. 숫자의 단위는 어림 토큰(글자 수 / 4 올림)이다 */
 export interface CostFigures {
   readonly always: number | null;
   readonly drive: number | null;
@@ -1600,6 +1600,74 @@ export const TurnRecordSearchResultSchema: TUnsafe<TurnRecordSearchResult> =
     TurnRecordSearchResultShape satisfies SchemaProof<
       TurnRecordSearchResult,
       typeof TurnRecordSearchResultShape
+    >,
+  );
+
+/**
+ * `turnRecord.recent` params(AGE-36). 모든 대화의 턴을 시작 시각 역순으로 쪽 단위로 읽는다. 기본은 `turnRecord.search`와 같은 범위(`live`, `overlay_reviewed`)다.
+ * `from`은 포함, `to`는 제외인 시작 시각(epoch ms)이다. `plugin`은 그 플러그인의 Hook이 결정(통과·건너뜀 아닌 값)을 낸 턴만 남긴다
+ */
+export interface TurnRecordRecentParams {
+  readonly from?: number;
+  readonly to?: number;
+  readonly profileId?: string;
+  readonly plugin?: string;
+  readonly scopes?: ScopeKind[];
+  readonly cursor?: string;
+  /** 기본 50, 최대 200 */
+  readonly limit?: number;
+}
+const TurnRecordRecentParamsShape = request({
+  from: Type.Optional(Type.Number()),
+  to: Type.Optional(Type.Number()),
+  profileId: Type.Optional(Id),
+  plugin: Type.Optional(Name),
+  scopes: Type.Optional(Type.Array(ScopeKindSchema, { maxItems: SCOPE_KINDS.length })),
+  cursor: Type.Optional(Cursor),
+  limit: Type.Optional(Limit),
+});
+export const TurnRecordRecentParamsSchema: TUnsafe<Req<TurnRecordRecentParams>> = Type.Unsafe<
+  Req<TurnRecordRecentParams>
+>(
+  TurnRecordRecentParamsShape satisfies SchemaProof<
+    Req<TurnRecordRecentParams>,
+    typeof TurnRecordRecentParamsShape
+  >,
+);
+
+/** `turnRecord.recent`의 한 줄. 대화 제목이 없는 대화는 `title`이 null이다 */
+export interface RecentTurnItem {
+  readonly turn: TurnSummary;
+  readonly title: string | null;
+}
+const RecentTurnItemShape = closed({
+  turn: TurnSummarySchema,
+  title: Nullable(Type.String({ maxLength: 1024 })),
+});
+export const RecentTurnItemSchema: TUnsafe<RecentTurnItem> = Type.Unsafe<RecentTurnItem>(
+  RecentTurnItemShape satisfies SchemaProof<RecentTurnItem, typeof RecentTurnItemShape>,
+);
+
+/**
+ * `turnRecord.recent` 결과. 지워진 대화의 턴은 빼므로 쪽이 `limit`보다 짧아도 `next`가 null이 아니면 이어서 읽는다
+ */
+export interface TurnRecordRecentResult {
+  readonly enabled: boolean;
+  readonly level: RecordLevel;
+  readonly items: RecentTurnItem[];
+  readonly next: string | null;
+}
+const TurnRecordRecentResultShape = closed({
+  enabled: Type.Boolean(),
+  level: RecordLevelSchema,
+  items: Type.Array(RecentTurnItemSchema, { maxItems: 200 }),
+  next: Nullable(Cursor),
+});
+export const TurnRecordRecentResultSchema: TUnsafe<TurnRecordRecentResult> =
+  Type.Unsafe<TurnRecordRecentResult>(
+    TurnRecordRecentResultShape satisfies SchemaProof<
+      TurnRecordRecentResult,
+      typeof TurnRecordRecentResultShape
     >,
   );
 

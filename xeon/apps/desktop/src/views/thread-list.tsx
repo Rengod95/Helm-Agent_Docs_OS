@@ -36,7 +36,7 @@ import { SIDE_ROW } from "./side-row.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
-import { folderLabel, folderPartsOf, sidebarGroupsOf } from "./thread-groups.ts";
+import { folderLabel, folderPartsOf, listedThreadsOf, sidebarGroupsOf } from "./thread-groups.ts";
 import {
   relativeTimeOf,
   rowBadgeOf,
@@ -458,7 +458,8 @@ export function ThreadList(props: {
   readonly folderPick?: FolderPickInvoke | undefined;
 }): ReactNode {
   const commands = useCommands();
-  const threads = useThreadSummaries();
+  // 테스트 런 대화는 보통 목록에 없다(테스트 화면에서 연다, lcM6e)
+  const threads = listedThreadsOf(useThreadSummaries());
   const status = useThreadsStatus();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);

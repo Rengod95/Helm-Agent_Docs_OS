@@ -129,6 +129,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
           }),
         ),
       deleteProfile: () => Promise.resolve(ok(2)),
+      defaultProfileFor: () => Promise.resolve(ok("default")),
+      resetDefaultProfile: () => Promise.resolve(err({ kind: "unsupported" })),
+      invocables: () => Promise.resolve(ok([])),
+      pluginsInProfile: () => Promise.resolve(ok(new Set<string>())),
+      drafts: () => Promise.resolve(ok([])),
       previewProfile: () =>
         Promise.resolve(
           ok({
@@ -264,6 +269,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     },
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    pluginReview: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      file: () => Promise.resolve(err({ kind: "unsupported" })),
+      decide: () => Promise.resolve(err({ kind: "unsupported" })),
+      profiles: () => Promise.resolve(err({ kind: "unsupported" })),
+      onChanged: () => () => {},
     },
     skills: {
       view: () => Promise.resolve(err({ kind: "unsupported" })),

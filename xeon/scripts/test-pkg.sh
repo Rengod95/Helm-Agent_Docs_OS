@@ -51,6 +51,8 @@ case "$(basename "$PWD")" in
     if [[ "$(uname -s)" == "Darwin" ]]; then workers=4; fi
     if [[ "$(basename "$PWD")" == "host" ]]; then workers="${FRESNEL_HOST_TEST_PARALLEL:-$workers}"; else workers="${FRESNEL_CLI_TEST_PARALLEL:-$workers}"; fi
     if [[ "$workers" -gt 1 ]]; then bun_args=("--parallel=$workers"); fi
+    # apps/host: the engines the tests open skip the startup sandbox self test (assemble.ts; about 47 s of 317 s measured). The self test has its own tests.
+    if [[ "$(basename "$PWD")" == "host" ]]; then export FRESNEL_HOST_TEST_NO_SELFTEST=1; fi
     ;;
 esac
 

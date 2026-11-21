@@ -60,6 +60,7 @@ test("매니페스트가 없는 스킬 폴더는 추론한 매니페스트로 �
       path: "SKILL.md",
       description: "Say hello politely",
       descriptionChars: 18,
+      body: "Body text here.",
       when: "on_demand",
     },
   ]);
@@ -313,6 +314,7 @@ test("머리말이 없는 SKILL.md는 폴더 이름과 목적 없음으로 읽�
       path: "SKILL.md",
       description: null,
       descriptionChars: 0,
+      body: "Just a body.",
       when: "on_demand",
     },
   ]);

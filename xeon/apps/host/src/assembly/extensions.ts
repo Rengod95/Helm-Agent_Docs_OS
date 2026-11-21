@@ -38,6 +38,7 @@ import {
   WebFetch,
   WebSearch,
   WorkTasks,
+  WorkspaceProtection,
   type AnyCapabilityDef,
   type CapabilityApi,
   type Notice,
@@ -52,6 +53,7 @@ import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
+import { protectPathsStoreOf } from "./protect-paths.ts";
 import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
@@ -88,7 +90,13 @@ import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
-import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
+import {
+  goalBridgePlugin,
+  memoryBridgePlugin,
+  skillBridgePlugin,
+  taskBridgePlugin,
+  type DialogAreaHolder,
+} from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
@@ -275,6 +283,7 @@ export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   ArtifactsReviews,
   ArtifactsSessions,
   ScheduleEntries,
+  WorkspaceProtection,
 ];
 
 /**
@@ -500,6 +509,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
           approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           outputFiles: deps.toolOutputs,
+          // 보호 경로 더하기(모델 도구 `sandbox_protect`, AGE-63): 사용자 범위 extra에만 쓴다. 설정 저장소가 없으면 unavailable이다
+          protectPaths: protectPathsStoreOf(settings, deps.groups.store),
           // 편집 도구의 원본 저장과 파일 되감기 이벤트 id(L1.persistence.spec §4.13.2). 없으면 원본을 저장하지 않는다
           ids: deps.ids,
           loadIndex,
@@ -620,8 +631,11 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
-    // 대화 영역 브리지는 목표·작업·계획(cap-work)과 스킬(cap-knowledge) 뒤에 올라와야 그 기능 API를 얻는다
-    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
+    // 목표·태스크 브리지는 cap-work 뒤에, 스킬·메모리 브리지는 cap-knowledge 뒤에 올라와야 그 기능 API를 얻는다
+    ["host-goal-bridge", (loadIndex) => goalBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-task-bridge", (loadIndex) => taskBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-skill-bridge", (loadIndex) => skillBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-memory-bridge", (loadIndex) => memoryBridgePlugin(deps.dialogArea, loadIndex)],
     ["host-proposals-bridge", (loadIndex) => proposalsBridgePlugin(deps.knowledgeWire, loadIndex)],
     ...(authoring
       ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]

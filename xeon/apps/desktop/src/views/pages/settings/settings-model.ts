@@ -106,7 +106,6 @@ const EDITOR_BY_KEY: ReadonlyMap<SettingKey, DedicatedEditorKind> = new Map<
   ["l1.models.rateLimit", "rateLimit"],
   ["l1.models.fallbackChains", "fallbackChain"],
   ["l1.tools.rules", "permissionRules"],
-  ["l0.sandbox.writeRoots.extra", "sandboxLists"],
   ["l0.sandbox.protectedPaths.extra", "sandboxLists"],
   ["l2.knowledge.skills.paths", "sandboxLists"],
   ["l0.sandbox.network.blockedDomains", "sandboxLists"],

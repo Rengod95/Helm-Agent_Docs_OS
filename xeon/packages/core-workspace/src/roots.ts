@@ -21,15 +21,24 @@ import {
 
 export type { AllowedRoots, PathAccess, ResolvedPath, RootsDeps };
 
-/** M1의 허용 root: 읽기·쓰기 모두 `env.cwd`의 정규 경로 하나 */
+/**
+ * 보통 대화의 쓰기 root에 더하는 루트. 쓰기 범위 제한이 없다는 뜻이다 [결정: 2026-11-20, 사용자, AGE-63 "쓰기도 풀기"].
+ * 거부는 보호 경로(Fresnel 자신의 항목과 사용자가 더한 곳)뿐이다. 작업 폴더를 앞에 둬서 `relativeToRoots`가 작업 폴더 기준 상대 경로를 돌려준다
+ */
+export const WRITE_ANYWHERE = "/";
+
+/** 보통 대화의 허용 root: 읽기는 `env.cwd`의 정규 경로(와 출력 사본), 쓰기는 그 경로와 `/`(제한 없음) */
 export async function defaultRoots(
   env: Pick<ExecutionEnv, "cwd" | "canonicalPath">,
   context: CancelScope,
   outputs?: ToolOutputFiles,
 ): Promise<AllowedRoots> {
   const root = getOrThrow(await env.canonicalPath(env.cwd, context));
-  if (outputs === undefined) return { read: [root], write: [root] };
-  return { read: [root, await spillReadRoot(env, outputs, context)], write: [root] };
+  if (outputs === undefined) return { read: [root], write: [root, WRITE_ANYWHERE] };
+  return {
+    read: [root, await spillReadRoot(env, outputs, context)],
+    write: [root, WRITE_ANYWHERE],
+  };
 }
 
 /**

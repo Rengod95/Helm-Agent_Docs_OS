@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
+import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plugins.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
@@ -21,6 +22,10 @@ type HookPower = string;
 export const PLUGIN_ORIGIN_KINDS = ["builtin", "bundled", "user", "project", "managed"] as const;
 export type PluginOriginKind = (typeof PLUGIN_ORIGIN_KINDS)[number];
 const PluginOriginKindShape = Type.Union(PLUGIN_ORIGIN_KINDS.map((name) => Type.Literal(name)));
+
+const InternalPluginLayerShape = Type.Union(
+  INTERNAL_PLUGIN_LAYERS.map((name) => Type.Literal(name)),
+);
 
 export const PLUGIN_HEALTH_STATES = ["ok", "idle", "error", "stopped", "integrity"] as const;
 export type PluginHealthState = (typeof PLUGIN_HEALTH_STATES)[number];
@@ -236,6 +241,15 @@ export interface CardScript {
   readonly env?: CardScriptEnv;
 }
 
+/** 가져온 훅의 출처 범위. 사용자 설정(`~/.claude`)에서 옴, 프로젝트 설정(`<프로젝트>/.claude`)에서 옴, 알 수 없음 */
+export type ScriptOrigin = "user" | "project" | "unknown";
+
+/** 가져오기 계획이 검토 항목에 남기는 훅 출처(엔진이 정한 값). 카드의 `origin`과 `originLabel`이 된다 */
+export interface ImportedHookOrigin {
+  readonly kind: "user" | "project";
+  readonly label: string | null;
+}
+
 /**
  * 환경 모드 카드 칸. `command`는 원문 그대로다(가림 규칙은 호스트가 지난다). `interpreter`는 PATH에서 찾아낸 첫 단어의 위치이고 못 찾았으면 null이다.
  * `refs`의 `hash`가 null이면 지문을 못 냈다. `refsKnown`이 거짓이면 어떤 파일을 읽는지 알 수 없다고 말해야 한다(추측으로 채우지 않는다).
@@ -249,7 +263,16 @@ export interface CardScriptEnv {
   readonly refsKnown: boolean;
   readonly missingTools: readonly string[];
   readonly versionHints: readonly string[];
-  /** 프로젝트가 싣고 온 훅인가 */
+  /**
+   * 훅이 어디서 왔는가 [제안, enFp]. 값은 가져오기가 실제로 읽은 설정 파일의 자리에서 엔진이 정하고 검토 항목에 기록한다.
+   * 매니페스트에서는 읽지 않는다(손으로 고쳐도 바뀌지 않는다). 기록이 없으면 `unknown`이다
+   */
+  readonly origin: ScriptOrigin;
+  /**
+   * `origin`이 `project`일 때 그 프로젝트 폴더의 사람이 읽는 표시(홈은 `~`로 줄인다). 그 밖에는 null이다
+   */
+  readonly originLabel: string | null;
+  /** 프로젝트가 싣고 온 훅인가. `origin`이 `project`이거나 플러그인 자체가 프로젝트 폴더 출처이면 참이다("프로젝트가 싣고 옴" 하나로 쓴다) */
   readonly fromProject: boolean;
 }
 const CardScriptEnvShape = Type.Object(
@@ -270,6 +293,8 @@ const CardScriptEnvShape = Type.Object(
     refsKnown: Type.Boolean(),
     missingTools: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 }),
     versionHints: Type.Array(Type.String({ maxLength: 256 }), { maxItems: 16 }),
+    origin: Type.Union([Type.Literal("user"), Type.Literal("project"), Type.Literal("unknown")]),
+    originLabel: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
     fromProject: Type.Boolean(),
   },
   { additionalProperties: false },
@@ -416,6 +441,11 @@ export interface PluginCard {
    * [제안] 이름 `internal` (AGE-33, enIn)
    */
   readonly internal?: boolean;
+  /**
+   * 내부 부품의 층 값. 목록 화면이 내부 부품을 코어와 기능으로 나눠 보이는 데 쓴다. `internal`이 참인 카드에만 있다
+   * [결정: 2026-11-20, 사용자, AGE-33] 이름 `internalLayer`는 [제안]
+   */
+  readonly internalLayer?: InternalPluginLayer;
   readonly review: {
     readonly state: CardReviewState;
     readonly currentHash: string | null;
@@ -480,6 +510,7 @@ const PluginCardShape = Type.Object(
       { additionalProperties: false },
     ),
     internal: Type.Optional(Type.Boolean()),
+    internalLayer: Type.Optional(InternalPluginLayerShape),
     review: Type.Object(
       {
         state: CardReviewStateShape,

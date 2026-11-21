@@ -3,7 +3,7 @@ import { parse } from "@fresnel/contracts";
 import { WIRE_ERRORS, WireError } from "@fresnel/contracts/wire";
 import { Type } from "typebox";
 import type { LockedOption } from "../state/ui/index.ts";
-import type { CommandError } from "../views/commands.ts";
+import type { CommandError, ProfileIssueView } from "../views/commands.ts";
 
 // wire 오류를 화면이 구분하는 오류로 바꾼다. 구분하는 것은 셋이다:
 // - -32601: host에 그 메서드가 없다(unsupported). 오래된 엔진이거나 아직 구현하지 않은 메서드다.
@@ -48,6 +48,40 @@ const ReasonsDetailsSchema = Type.Object({
     { maxItems: 20 },
   ),
 });
+const PROFILE_INVALID_CODE = WIRE_ERRORS["pluginReview.profileInvalid"].code;
+/** 프로필 반영 실패의 details(wire/errors.ts `IssuesDetails`). 줄마다 따로 읽어 모양이 틀린 줄만 버린다 */
+const ProfileIssuesListSchema = Type.Object({
+  issues: Type.Array(Type.Unknown(), { maxItems: 256 }),
+});
+const ProfileIssueSchema = Type.Object({
+  code: Type.String({ maxLength: 64 }),
+  severity: Type.Optional(Type.String({ maxLength: 16 })),
+  profile: Type.Optional(Type.String({ maxLength: 128 })),
+  plugin: Type.Optional(Type.String({ maxLength: 128 })),
+  other: Type.Optional(Type.String({ maxLength: 128 })),
+  key: Type.Optional(Type.String({ maxLength: 160 })),
+});
+
+function profileIssuesOf(details: unknown): readonly ProfileIssueView[] {
+  const list = parse(ProfileIssuesListSchema, details);
+  if (!list.ok) return [];
+  return list.value.issues.flatMap((raw): ProfileIssueView[] => {
+    const issue = parse(ProfileIssueSchema, raw);
+    if (!issue.ok) return [];
+    const v = issue.value;
+    return [
+      {
+        code: v.code,
+        severity: v.severity === "error" || v.severity === "warning" ? v.severity : null,
+        profile: v.profile ?? null,
+        plugin: v.plugin ?? null,
+        other: v.other ?? null,
+        key: v.key ?? null,
+      },
+    ];
+  });
+}
+
 /** 계약의 details 스키마(wire/errors.ts)와 같은 모양. 대안 이름은 모르는 값을 버리려고 문자열로 읽는다 */
 const LockedDetailsSchema = Type.Object({
   ownerKind: Type.String({ maxLength: 32 }),
@@ -86,6 +120,13 @@ export function errorOf(cause: unknown): CommandError {
     const details = parse(InvalidValueDetailsSchema, cause.data.details);
     const detail = details.ok ? details.value.issues[0]?.message : undefined;
     if (detail !== undefined) return { kind: "rejected", code: cause.code, detail };
+  }
+  if (cause.code === PROFILE_INVALID_CODE) {
+    // 승인의 프로필 반영이 걸렸다. 엔진이 준 사유를 리뷰 화면이 사람의 말로 옮긴다(사유가 없으면 코드만)
+    const issues = profileIssuesOf(cause.data.details);
+    return issues.length === 0
+      ? { kind: "rejected", code: cause.code }
+      : { kind: "rejected", code: cause.code, profileIssues: issues };
   }
   if (cause.code === INVALID_PARAMS_CODE) {
     // 설치처럼 입력 문제를 `<종류>: <내용>` 문장으로 알리는 메서드가 있다. 첫 문장을 `issue`에 남긴다(화면이 종류를 가른다).

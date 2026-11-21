@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { matchProtectedPath } from "@fresnel/contracts/services";
+import { canonicalizePath } from "../src/paths.ts";
 import { createSandboxService } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";
 import {
+  darwinPlatform,
   fakeOs,
   fakeSrt,
   linuxPlatform,
@@ -43,25 +45,14 @@ describe("sandbox service wiring", () => {
     );
 
     // nextTurn 설정은 다음 호출부터 반영된다
-    current = settingsOf({
-      protectedPathsExtra: [],
-      writeRootsExtra: [join(dirs.root, "extra-out")],
-    });
+    current = settingsOf({ protectedPathsExtra: [] });
     expect(
       matchProtectedPath(service.protectedPaths(), join(dirs.home, "vault", "a"), "read"),
     ).toBeUndefined();
     const policy = service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
-    expect(policy.writeRoots).toContain(join(dirs.root, "extra-out"));
+    expect(policy.writeRoots).toEqual([dirs.workspace, dirs.tmp].toSorted());
     expect(policy.network).toEqual({ allowedDomains: [], deniedDomains: [] });
     expect(policy.allowEscape).toBe(false);
-    // 설정으로 더한 쓰기 루트는 자동 허용 대상이 아니다
-    const decision = service.autoAllow(policy, {
-      command: "ls",
-      cwd: dirs.workspace,
-      workspaceRoots: [dirs.workspace],
-      tempDir: dirs.tmp,
-    });
-    expect(decision).toEqual({ allow: false, blocks: ["write_root_outside"] });
   });
 
   test("protectedPaths covers the roots the caller passes from the first call", async () => {
@@ -88,10 +79,14 @@ describe("sandbox service wiring", () => {
         "write",
       )?.reason,
     ).toBe("git_exec");
-    // root를 모르면(넘기지 않았고 정책으로 본 적도 없으면) 알 수 없다. 이 경우를 막는 것은 호출한 쪽이 root를 넘기는 것이다
+    // root를 넘기지 않으면 git 항목은 없다
     expect(matchProtectedPath(service.protectedPaths(), hook, "write")).toBeUndefined();
-    service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
-    expect(matchProtectedPath(service.protectedPaths(), hook, "write")?.reason).toBe("git_exec");
+    // 쓰기 범위 제한이 없는 대화(root에 `/`가 있다)는 .git/hooks도 제안 목록도 막지 않는다
+    const open = service.protectedPaths([dirs.workspace, "/"]);
+    expect(matchProtectedPath(open, hook, "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.home, ".zshrc"), "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.home, ".ssh", "id"), "write")).toBeUndefined();
+    expect(matchProtectedPath(open, join(dirs.data, "x"), "read")?.reason).toBe("fresnel_data");
   });
 
   test("a bug-level error from detection degrades to an unavailable status", async () => {
@@ -180,5 +175,64 @@ describe("defaultPolicy no-write with systemTools", () => {
     // 시스템 도구 폴더가 없는 제공자 쪽(여기서는 bwrap)은 Seatbelt 전용 막기를 싣지 않는다
     expect(tools.toolDeny ?? []).toEqual([]);
     expect(tools.machDeny ?? []).toEqual([]);
+  });
+});
+
+describe("protected path keys and the suggested list (AGE-63)", () => {
+  test("protectedPathKey resolves ~, ~/ and absolute values the way the extra list does, and refuses other shapes", async () => {
+    const dirs = makeTestDirs();
+    const service = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    expect(service.protectedPathKey("~")).toBe(canonicalizePath(dirs.home));
+    expect(service.protectedPathKey("~/vault/")).toBe(canonicalizePath(join(dirs.home, "vault")));
+    expect(service.protectedPathKey(join(dirs.root, "x"))).toBe(
+      canonicalizePath(join(dirs.root, "x")),
+    );
+    expect(service.protectedPathKey("/")).toBe("/");
+    expect(service.protectedPathKey("relative/x")).toBeUndefined();
+    expect(service.protectedPathKey("~other/x")).toBeUndefined();
+  });
+
+  test("suggestedProtectedPaths lists this OS's rows in ~/ form, each with its canonical key", async () => {
+    const dirs = makeTestDirs();
+    const linux = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const rows = linux.suggestedProtectedPaths();
+    expect(rows).toContainEqual({
+      path: "~/.ssh",
+      label: "SSH keys",
+      key: canonicalizePath(join(dirs.home, ".ssh")),
+    });
+    // macOS 전용 줄(키체인)은 Linux 목록에 없다
+    expect(rows.map((row) => row.path)).not.toContain("~/Library/Keychains");
+    const darwin = await createSandboxService(
+      {
+        os: fakeOs(dirs),
+        settings: () => settingsOf(),
+        srt: fakeSrt(),
+        platform: darwinPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    expect(darwin.suggestedProtectedPaths().map((row) => row.path)).toContain(
+      "~/Library/Keychains",
+    );
   });
 });

@@ -20,7 +20,9 @@ import {
   useNow,
   useOpenThreadId,
 } from "../../state/engine/index.ts";
+import type { LeadSegment } from "../../state/engine/index.ts";
 import { ShellStoreContext } from "../../state/shell/index.ts";
+import { useDriveFrames } from "../convo/drive-frames.ts";
 import { Presence, SwapFade, useChangedSinceMount } from "../../lib/motion-presets.tsx";
 import { Reveal } from "../convo/tool-line.tsx";
 import { Aurora, type AuroraState } from "../effects/aurora.tsx";
@@ -29,6 +31,7 @@ import { DrawnCheck } from "../effects/drawn-check.tsx";
 import { auroraOn } from "../effects/fx-config.ts";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
 import {
+  leadsBesideBandOf,
   nowShownOf,
   nowViewOf,
   progressPercentOf,
@@ -57,7 +60,7 @@ export function NowStrip(): ReactNode {
 function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
   const now = useNow(props.threadId);
   const agents = useAgentRows(props.threadId);
-  const leads = useLeadSegments(props.threadId);
+  const leads = useLeadSegmentsBesideBand(props.threadId);
   const [open, setOpen] = useState(false);
   const shown = nowShownOf(now, agents, leads);
   return (
@@ -68,6 +71,11 @@ function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
       ) : null}
     </Presence>
   );
+}
+
+/** 이 띠가 보일 Drive 구간: 입력창 위 Drive 띠가 같은 말을 하면 뺀다(`leadsBesideBandOf`, lcM6g) */
+function useLeadSegmentsBesideBand(threadId: ThreadId): readonly LeadSegment[] {
+  return leadsBesideBandOf(useLeadSegments(threadId), useDriveFrames(threadId));
 }
 
 function PulseIcon(props: { readonly pulse: NowPulse; readonly goal: boolean }): ReactNode {
@@ -97,7 +105,7 @@ function headlineText(headline: NowHeadline): string {
     case "agents":
       return t("desktop.now.headline.agents", { count: headline.count });
     case "lead":
-      return t("desktop.now.lead.short", { name: headline.name });
+      return t("desktop.drive.drivingBy", { name: headline.name });
     case "stopping":
       return t("desktop.now.headline.stopping");
     default:
@@ -149,7 +157,7 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
     items.push({
       key: "lead",
       extra: true,
-      node: t("desktop.now.lead.short", { name: view.lead.name }),
+      node: t("desktop.drive.drivingBy", { name: view.lead.name }),
     });
   }
   if (view.pendingApprovals > 0) {
@@ -405,7 +413,7 @@ function NowBody(props: { readonly id: string; readonly view: NowView }): ReactN
           </SectionHead>
           <p className="m-0 flex min-h-7 items-center gap-2 text-ui text-text-primary">
             <Compass aria-hidden className={`${ICON} text-text-tertiary`} />
-            {t("desktop.now.lead.long", { name: view.lead.name })}
+            {t("desktop.drive.drivingBy", { name: view.lead.name })}
           </p>
         </section>
       )}

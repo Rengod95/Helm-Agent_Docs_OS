@@ -3,6 +3,7 @@ import {
   folderLabel,
   folderPartsOf,
   groupByWorkspace,
+  listedThreadsOf,
   sidebarGroupsOf,
 } from "../../src/views/thread-groups.ts";
 import { summary, thr } from "../state/helpers.ts";
@@ -94,5 +95,33 @@ describe("sidebarGroupsOf", () => {
     expect(
       groups.map((g) => [g.workspace, g.items.map((r) => [r.thread.threadId, r.child])]),
     ).toEqual([[null, [[thr(2), false]]]]);
+  });
+});
+
+describe("listedThreadsOf (lcM6e)", () => {
+  test("drops test-run threads from the plain list and keeps the order of the rest", () => {
+    const plain = summary(thr(1), { title: "보통", workspace: "/p/app" });
+    const run = summary(thr(2), {
+      title: "테스트 런",
+      workspace: "/p/app",
+      testRun: { profileId: "review", target: "helm", paused: false },
+    });
+    const draftRun = summary(thr(3), {
+      title: "드래프트 런",
+      workspace: null,
+      testRun: { profileId: null, target: null, paused: true, kind: "draft", draft: true },
+    });
+    const later = summary(thr(4), { title: "나중", workspace: null });
+    const listed = listedThreadsOf([plain, run, draftRun, later]);
+    expect(listed.map((thread) => thread.threadId)).toEqual([thr(1), thr(4)]);
+    expect(
+      sidebarGroupsOf(listed).map((group) => [
+        group.workspace,
+        group.items.map((row) => row.thread.title),
+      ]),
+    ).toEqual([
+      ["/p/app", ["보통"]],
+      [null, ["나중"]],
+    ]);
   });
 });

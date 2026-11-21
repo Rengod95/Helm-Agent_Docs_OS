@@ -407,7 +407,7 @@ scanTest(
         decision: { kind: "approve", profileIds: [], libraryOnly: true },
       });
       expect(decided.item.state).toBe("approved");
-      // 환경 모드 카드: 원래 명령 문자열이 그대로 있고, 참조 파일은 가져올 때의 지문과 함께 적힌다. 프로젝트 범위 훅은 `fromProject`가 참이어야 한다(아래 [미결] 참조)
+      // 환경 모드 카드: 원래 명령 문자열이 그대로 있고, 참조 파일은 가져올 때의 지문과 함께 적힌다. 프로젝트 범위 훅은 `origin`이 `project`이고 `fromProject`가 참이다
       const guardPath = join(project, ".claude", "hooks", "guard.sh");
       const pyPath = join(project, ".claude", "hooks", "py_guard.py");
       const envScripts = decided.item.card.does.inject?.scripts ?? [];
@@ -421,7 +421,9 @@ scanTest(
           refsKnown: true,
           missingTools: [],
           versionHints: [],
-          fromProject: false,
+          origin: "project",
+          originLabel: envScripts[0]?.env?.originLabel ?? null,
+          fromProject: true,
         },
         {
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/py_guard.py",
@@ -431,7 +433,9 @@ scanTest(
           refsKnown: true,
           missingTools: [],
           versionHints: [],
-          fromProject: false,
+          origin: "project",
+          originLabel: envScripts[0]?.env?.originLabel ?? null,
+          fromProject: true,
         },
       ]);
       expect(envScripts.map((script) => script.uses)).toEqual([ENV_USES, ENV_USES]);
@@ -750,15 +754,26 @@ scanTest(
         true,
         false,
       ]);
-      // [미결] 프로젝트 범위 훅인데 `fromProject`가 거짓이다: 이식 드래프트는 사용자 폴더(origin `user`)에 놓이고 범위를 어디에도 적지 않아
-      // 카드가 프로젝트 출처를 알 수 없다(보고 참조). 바로잡으면 여기는 전부 참이어야 한다
+      // 프로젝트 범위 훅: 가져오기가 읽은 설정 파일의 자리에서 엔진이 정한 출처가 검토 항목까지 실려 온다(이식 드래프트는 사용자 폴더에 놓여도)
+      expect(projectScripts.map((script) => script.env?.origin)).toEqual([
+        "project",
+        "project",
+        "project",
+        "project",
+        "project",
+        "project",
+      ]);
+      // 라벨은 프로젝트 폴더의 표시다(설정 파일 자리에서 `/.claude/settings.json`을 뺀 것. 홈 밑이면 `~`). 임시 폴더가 실제 경로로 풀릴 수 있어 끝만 본다
+      expect(
+        projectScripts.map((script) => script.env?.originLabel?.endsWith("/proj") === true),
+      ).toEqual([true, true, true, true, true, true]);
       expect(projectScripts.map((script) => script.env?.fromProject)).toEqual([
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
       ]);
       // 이 기기에 없는 실행 파일은 카드가 이름으로 적는다. 명령이 변수로 시작하면 실행 파일 위치는 찾지 않는다
       expect(projectScripts[5]?.env?.missingTools).toEqual(["fresnel-no-such-tool-xyz"]);
@@ -776,6 +791,8 @@ scanTest(
       });
       const userScripts = userItem.item.card.does.inject?.scripts ?? [];
       expect(userScripts.map((script) => script.env?.fromProject)).toEqual([false]);
+      expect(userScripts.map((script) => script.env?.origin)).toEqual(["user"]);
+      expect(userScripts.map((script) => script.env?.originLabel)).toEqual([null]);
       expect(userScripts.map((script) => script.env?.command)).toEqual([
         `python3 ${userHome}/.claude/hooks/x.py`,
       ]);

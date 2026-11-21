@@ -173,7 +173,7 @@ export function proposalsBridgePlugin(
     schemaVersion: 2,
     name: BRIDGE_NAME,
     version: "0.1.0",
-    displayName: "Knowledge proposals bridge",
+    displayName: "Proposal Service Bridge",
     description:
       "Hands the knowledge proposal queue adapter to the proposal.list and proposal.decide handlers (host assembly).",
     defaultEnabled: true,

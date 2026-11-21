@@ -35,9 +35,9 @@ interface Fixture {
   readonly box: RealSandbox;
   /** 임시 프로젝트 폴더(쓰기 루트) */
   readonly project: string;
-  /** 가짜 홈(`box.dirs.home`). 보호 경로 `~/.ssh`, `~/.claude`가 여기 있다 */
+  /** 가짜 홈(`box.dirs.home`). `~/.ssh`, `~/.claude`가 여기 있다(기본으로 읽을 수 있다) */
   readonly home: string;
-  /** `~/.claude/hooks`: 읽기 예외 폴더. 안에 `helper.py`, `x.py`가 있다 */
+  /** `<vault>/hooks`: 읽기 예외 폴더. 보호 경로(설정 extra) 안쪽이다. 안에 `helper.py`, `x.py`가 있다 */
   readonly hooks: string;
   /** 프로젝트와 가짜 홈 밖의 임시 폴더(쓰기 루트가 아니다) */
   readonly outside: string;
@@ -117,12 +117,17 @@ suite("script-env profile (real srt)", () => {
     const home = box.dirs.home;
     mkdirSync(join(home, ".ssh"), { recursive: true });
     writeFileSync(join(home, ".ssh", "id_key"), line("key-value"));
-    const hooks = join(home, ".claude", "hooks");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    writeFileSync(join(home, ".claude", "secret.json"), line("secret-json"));
+    writeFileSync(join(home, "note.txt"), line("home-note"));
+    // Fresnel 데이터 폴더(읽기 거부)의 파일
+    mkdirSync(box.dirs.data, { recursive: true });
+    writeFileSync(join(box.dirs.data, "canary.txt"), line("data-value"));
+    // 읽기 예외 폴더는 설정 extra(읽기 거부)인 vault 안에 둔다. 그래야 예외가 실제로 거부를 이긴다
+    const hooks = join(box.vault, "hooks");
     mkdirSync(hooks, { recursive: true });
     writeFileSync(join(hooks, "helper.py"), line("helper-value"));
     writeFileSync(join(hooks, "x.py"), line("x-value"));
-    writeFileSync(join(home, ".claude", "secret.json"), line("secret-json"));
-    writeFileSync(join(home, "note.txt"), line("home-note"));
     state = { box, project, home, hooks, outside: join(box.dirs.workspace, "outside.txt") };
   });
 
@@ -182,7 +187,7 @@ suite("script-env profile (real srt)", () => {
     expect(existsSync(tempDir)).toBe(false);
   });
 
-  test("(iv) protected paths are not read: the vault, ~/.ssh and ~/.claude; an ordinary home file is read", async () => {
+  test("(iv) read-denied paths: the vault (listed in extra) and Fresnel's data stay unread; ~/.ssh, ~/.claude and an ordinary home file are read by default", async () => {
     const { project, box, home } = fixture();
     const run = await runIn(
       scriptPolicy(),
@@ -192,25 +197,26 @@ suite("script-env profile (real srt)", () => {
         readOk(join(home, ".ssh", "id_key")),
         readOk(join(home, ".claude", "secret.json")),
         readOk(join(home, "note.txt")),
+        readOk(join(box.dirs.data, "canary.txt")),
       ].join("; "),
     );
     expect(run.exitCode).toBe(0);
-    expect(run.lines).toEqual(["denied", "denied", "denied", "ok"]);
+    expect(run.lines).toEqual(["denied", "ok", "ok", "ok", "denied"]);
     expect(run.lines.join("\n")).not.toContain(VAULT_SECRET);
   });
 
   seatbeltTest(
-    "(v) a folder carve-out reads its files; the protected sibling and ~/.ssh stay denied",
+    "(v) a folder carve-out inside the read-denied vault reads its files; the protected sibling and Fresnel's data stay denied",
     async () => {
-      const { project, hooks, home } = fixture();
+      const { project, hooks, box } = fixture();
       const run = await runIn(
         scriptPolicy([hooks]),
         project,
         [
           readValue(join(hooks, "helper.py")),
           readValue(join(hooks, "x.py")),
-          readOk(join(home, ".claude", "secret.json")),
-          readOk(join(home, ".ssh", "id_key")),
+          readOk(join(box.vault, "secret.txt")),
+          readOk(join(box.dirs.data, "canary.txt")),
         ].join("; "),
       );
       expect(run.exitCode).toBe(0);
