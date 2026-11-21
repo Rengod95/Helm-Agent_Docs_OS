@@ -1,4 +1,4 @@
-/* 도구 호출 줄의 상태 칩(`call-chip.tsx`, dzM2 시안 §3, dzE 시안 §3). 실행 중: 테두리 칩 + 경과 초, 테두리 위를 beam(.fx-beam-edge)이 돈다. 끝남: 칩 틀 없이 체크 하나(.call-chip-done, DP-67),
+/* 도구 호출 줄의 상태 칩(`call-chip.tsx`, dzM2 시안 §3, dzE 시안 §3). 실행 중: 테두리 칩 + 경과 초, 아래 변의 곧은 구간에 beam(.fx-beam-edge)이 흐른다. 끝남: 칩 틀 없이 체크 하나(.call-chip-done, DP-67),
    바뀐 순간에만 선이 그려진다(drawn-check.css). 실패: 빛깔이 바뀌고 바뀐 순간에만 바탕이 한 번 번진다. caustic에는 이 keyframes가 없어 여기에 둔다.
    Tauri CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다. 색은 caustic 토큰만 쓰므로 라이트·다크는 토큰이 따라간다. */
 .call-chip {
@@ -28,10 +28,14 @@
 }
 /* 끝남: 칩 틀(테두리·채움·여백) 없이 caustic 기본 체크 14px만 둔다. 빛깔은 success.text다: 틀 없는 맨 글리프라
    success.graphic(라이트 L 0.83)은 흰 카드 위에서 너무 흐리다 */
+/* 실행 중: 빛은 아래 변의 곧은 구간(양 끝 반경 12px 사이)에만 선다(beam.css "곧은 구간", DP-127 개정 2026-11-21 lcQ3). 칩 글이 짧아도
+   곧은 구간이 옅어짐(8px) 세 번인 24px보다 짧아지지 않게 최소 폭을 높이의 두 배(48px)로 둔다. 지금 글("실행 중" 약 56px)은 이보다 넓다 */
 .call-chip[data-status="running"] {
   --call-chip-pad: 0.5rem;
+  justify-content: center;
+  min-width: 3rem;
 }
-/* 승인 대기 칩: 글도 경고 쪽으로 기운다(고리는 beam.css의 wait 색) */
+/* 승인 대기 칩: 글도 경고 쪽으로 기운다(아래 변 선은 beam.css의 wait 색) */
 .call-chip[data-waiting="true"] {
   --call-chip-ink: var(--cs-color-text-secondary);
 }
@@ -92,7 +96,7 @@
     opacity: 0;
   }
 }
-/* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. beam은 beam.css가 정지한 고리로 바꾼다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
+/* 움직임 줄이기: 전환 없이 끝 모양이 바로 보인다. beam은 beam.css가 아래 변의 정지한 선으로 바꾼다(앱 설정 data-motion=reduce는 styles.css의 공통 규칙이 같은 효과를 낸다) */
 @media (prefers-reduced-motion: reduce) {
   .call-chip,
   .call-chip .call-chip-fill {

@@ -2,9 +2,17 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import type { LiveApprovalRequest } from "../../state/engine/input.ts";
-import { Badge, Button } from "@caustic/react";
+import { Badge, Button, ScrollArea } from "@caustic/react";
 import { ChevronRight, FileText, MessageCircleQuestion, ShieldCheck } from "@caustic/react/icons";
-import { memo, useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  memo,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useApproval, useThread } from "../../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../../state/ui/index.ts";
 import {
@@ -18,6 +26,15 @@ import { useCommands, type ApprovalDecision } from "../commands.ts";
 import { APPROVE_ALL_ANSWER } from "../review-model.ts";
 import { QuestionBody, ReviewBody, RiskBadge, ToolBody, toolHasArgs } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
+import {
+  questionAutoAdvanceOf,
+  questionPageKeyOf,
+  questionPageOf,
+  questionPagedOf,
+  questionPrimaryOf,
+  questionStepsOf,
+} from "./question-pages.ts";
+import { QuestionPager } from "./question-pager.tsx";
 import {
   approvalAgeOf,
   approvalExpiryOf,
@@ -127,7 +144,12 @@ type Action = {
   readonly label: MessageId;
   readonly decision: ApprovalDecision | null;
   readonly look: "solid" | "soft" | "ghost";
+  /** 답을 보내지 않는 동작(질문 넘김의 "다음"). 있으면 decision 대신 이것을 부른다 */
+  readonly onPress?: () => void;
 };
+
+/** 질문 선택지를 눌러 고른 뒤 다음 질문으로 넘기기까지(고른 표시가 눈에 들어올 만큼) */
+const AUTO_ADVANCE_MS = 220;
 
 /** 단추 크기: 네 종류 모두 폼 표준 sm(28)이다 */
 const ACTION_SIZE = "sm";
@@ -139,15 +161,17 @@ function ActionButton(props: {
 }): ReactNode {
   const { action } = props;
   const decision = action.decision;
+  const press = action.onPress;
   return (
     <Button
       type="button"
       data-action={action.id}
       size={ACTION_SIZE}
       variant={action.look}
-      disabled={props.disabled || decision === null}
+      disabled={props.disabled || (press === undefined && decision === null)}
       onClick={() => {
-        if (decision !== null) props.onRespond(decision);
+        if (press !== undefined) press();
+        else if (decision !== null) props.onRespond(decision);
       }}
     >
       {t(action.label)}
@@ -179,6 +203,39 @@ function PendingCard(props: {
   const { body } = request;
   const busy = sendState === "sending";
 
+  // 질문 넘김(DP-224): 지금 보이는 질문과 사용자가 넘긴 횟수(새 질문으로 초점을 옮길 때를 안다)
+  const questions = body.kind === "question" ? body.question.questions : [];
+  const paged = questionPagedOf(questions.length);
+  const [pageWanted, setPageWanted] = useState(0);
+  const page = questionPageOf(pageWanted, questions.length);
+  const [focusTick, setFocusTick] = useState(0);
+  const lastPage = questionPrimaryOf(page, questions.length) === "answer";
+  const goToPage = (next: number): void => {
+    const target = questionPageOf(next, questions.length);
+    if (target === page) return;
+    setPageWanted(target);
+    setFocusTick((n) => n + 1);
+  };
+  // 선택지를 눌러 고르면 잠깐(선택이 눈에 보이게) 뒤 다음 질문으로 간다. 그 사이 사용자가 넘겼으면 하지 않는다
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (advance.current !== null) clearTimeout(advance.current);
+    },
+    [],
+  );
+  const onPointerPick = (index: number): void => {
+    const question = questions[index];
+    if (question === undefined || index !== page) return;
+    if (!questionAutoAdvanceOf({ question, picked: true, page, count: questions.length })) return;
+    if (advance.current !== null) clearTimeout(advance.current);
+    advance.current = setTimeout(() => {
+      advance.current = null;
+      setPageWanted((shown) => (shown === index ? index + 1 : shown));
+      setFocusTick((n) => n + 1);
+    }, AUTO_ADVANCE_MS);
+  };
+
   const writeAccess = writeAccessViewOf(request);
   const decisions: Decisions = decisionsOf(request, { draft });
   const respond = (decision: ApprovalDecision): void => {
@@ -198,6 +255,12 @@ function PendingCard(props: {
     if (busy || isTypingTarget(event.target)) return;
     const action = approvalKeyOf(event, event.target === event.currentTarget);
     if (action === null) return;
+    // 넘기는 질문 카드에서 기본 답 글쇠(Y, 카드의 Enter)는 주 단추와 같다: 마지막 질문 전에는 "다음"이다
+    if (action === "primary" && paged && !lastPage) {
+      event.preventDefault();
+      goToPage(page + 1);
+      return;
+    }
     const decision = action === "primary" ? decisions.primary : decisions.deny;
     if (decision === null) return;
     event.preventDefault();
@@ -278,15 +341,27 @@ function PendingCard(props: {
       look: "soft",
     });
   }
-  answers.push({
-    id: "primary",
-    label:
-      writeAccess === null
-        ? primaryLabelOf(body.kind)
-        : "desktop.approvals.writeAccess.once.button",
-    decision: decisions.primary,
-    look: "solid",
-  });
+  answers.push(
+    paged && !lastPage
+      ? {
+          id: "next",
+          label: "desktop.approvals.question.next",
+          decision: null,
+          look: "solid",
+          onPress: () => {
+            goToPage(page + 1);
+          },
+        }
+      : {
+          id: "primary",
+          label:
+            writeAccess === null
+              ? primaryLabelOf(body.kind)
+              : "desktop.approvals.writeAccess.once.button",
+          decision: decisions.primary,
+          look: "solid",
+        },
+  );
   const tool = body.kind === "tool" ? body.tool : null;
   // 쓰기 허용 승인은 같은 값을 구조로 이미 보여 원시 인자 단추 대신, 잘린 경로·명령이 있을 때만 "전체 보기"를 둔다
   const hasArgs = writeAccess === null && tool !== null && toolHasArgs(tool);
@@ -303,26 +378,46 @@ function PendingCard(props: {
         draft={draft}
         disabled={busy}
         onChange={setDraft}
+        page={page}
+        focusTick={focusTick}
+        onPointerPick={onPointerPick}
       />
     ) : (
       <ReviewBody review={body.review} />
     );
 
   const tile = KIND_TILE[body.kind];
+  const steps = paged ? questionStepsOf(questions, draft, page) : [];
+  const pager = paged ? <QuestionPager steps={steps} disabled={busy} onPage={goToPage} /> : null;
+  /** ←·→는 질문을 넘긴다. 선택지 묶음이 화살표로 선택을 옮기기 전에(잡기 단계에서) 받는다. 입력 칸 안의 글쇠는 그대로 둔다 */
+  const onPageKey = (event: KeyboardEvent<HTMLElement>): void => {
+    if (!paged || busy || isTypingTarget(event.target)) return;
+    const delta = questionPageKeyOf(event);
+    if (delta === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    goToPage(page + delta);
+  };
   return (
-    <li data-slot="approval-card-item" data-approval-id={id} className="list-none">
+    <li
+      data-slot="approval-card-item"
+      data-approval-id={id}
+      className="flex min-h-0 list-none flex-col"
+    >
       <article
         data-slot="approval-card"
         data-approval-kind={body.kind}
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
+        onKeyDownCapture={onPageKey}
         // 주의 면(DP-190): 대기 중인 카드는 위 변 가운데의 빛과 안쪽으로 옅은 번짐이 깔린다(종류마다 빛깔 조합, 답을 보내는 동안은 걷는다)
-        className="fx-attend-card grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
+        // 높이: 쌓임 띠가 준 상한(`--approval-card-max`) 안에서 본문만 스크롤하고 머리와 단추 줄은 늘 보인다(DP-225)
+        className="fx-attend-card flex max-h-(--approval-card-max) min-h-0 flex-col gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
       >
         <AttendGlow pending={!busy} kind={attendKindOf(body.kind, writeAccess !== null)} />
         {/* 머리: 아이콘 칸 28, 제목 13/600, 곁 줄 12 tertiary(종류 · 대화 · 시각). 위험도·출처는 오른쪽 끝 */}
-        <header data-slot="approval-head" className="flex min-w-0 items-start gap-3">
+        <header data-slot="approval-head" className="flex min-w-0 shrink-0 items-start gap-3">
           <span
             aria-hidden
             className={`grid size-7 shrink-0 place-items-center rounded-lg [&_svg]:size-4 ${tile.tone}`}
@@ -352,24 +447,35 @@ function PendingCard(props: {
             </span>
           )}
         </header>
-        {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다 */}
-        <div
-          data-slot="approval-body"
-          className="grid min-w-0 gap-2 pl-10 [&:not(:has(>:not(:empty)))]:hidden"
+        {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다.
+            본문은 카드 높이 상한 안에서 혼자 스크롤한다(가장자리 흐림이 더 있음을 알린다).
+            스크롤 상자는 사방 4px 넓히고 본문이 같은 만큼 안쪽 여백을 가져, 선택지의 초점 고리(바깥 3px)가 상자에 잘리지 않고 글 자리는 그대로다 */}
+        <ScrollArea
+          fade
+          label={t("desktop.approvals.body.label")}
+          className="-m-1 h-auto min-h-0 w-[calc(100%+0.5rem)] shrink [&:not(:has([data-slot=approval-body]>:not(:empty)))]:hidden"
         >
-          {bodyNode}
-          {sendState === undefined || sendState === "sending" ? null : (
-            <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
-              {t(APPROVAL_FAILURE_ID[sendState])}
-              {detail === undefined ? null : ` (${detail})`}
-            </p>
-          )}
-        </div>
-        {/* 단추 줄: 대기열 띠 안에서 본문이 스크롤될 때도 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면) */}
+          <div data-slot="approval-body" className="grid min-w-0 gap-2 p-1 pl-11">
+            {bodyNode}
+            {sendState === undefined || sendState === "sending" ? null : (
+              <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
+                {t(APPROVAL_FAILURE_ID[sendState])}
+                {detail === undefined ? null : ` (${detail})`}
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+        {/* 단추 줄: 본문 스크롤 밖이라 늘 보인다. 넘기는 질문 카드는 왼쪽에 넘김 표시를 둔다(DP-224) */}
         <div
           data-slot="approval-actions"
-          className="sticky bottom-0 flex min-w-0 flex-wrap items-center gap-2 bg-surface-base pl-10"
+          className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 pl-10"
         >
+          {pager}
+          {paged ? (
+            <span className="sr-only" aria-live="polite">
+              {t("desktop.approvals.question.position", { n: page + 1, total: questions.length })}
+            </span>
+          ) : null}
           {hasArgs ? (
             <Button
               type="button"
@@ -532,7 +638,7 @@ export function ApprovalCardList(props: {
 }): ReactNode {
   const within = props.within ?? null;
   return (
-    <ul className="m-0 grid gap-2 p-0" aria-label={props.label}>
+    <ul className="m-0 flex min-h-0 flex-col gap-2 p-0" aria-label={props.label}>
       {props.ids.map((id) => (
         <ApprovalCard key={id} id={id} within={within} />
       ))}
