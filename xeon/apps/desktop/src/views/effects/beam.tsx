@@ -6,7 +6,8 @@
 //   이웃끼리 다른 위상으로 세기와 자리를 바꾸며, 입력창은 같은 알갱이가 상자 안쪽으로 흐리게 번진다. 모두 transform·opacity 키프레임이라 합성기에서만 돈다.
 // - 입력창의 빛은 모든 상태(도는 중, 움직임 줄이기, 승인 대기)에서 아래 변의 곧은 구간에만 선다: 둥근 모서리의 곡선과 옆·윗면은 보통 테두리 색이다.
 //   양 끝은 곡선이 시작하기 전에 짧게 옅어진다(`edgeSpanOf`, DP-167 개정 [결정: 2026-11-21 사용자 "채팅창 모서리 부분에 곡선쪽은 노란색을 포함하여
-//   강조색이 반영안되고 bottom border 영역에만 색이 적용되도록", AGE-65 lcQ2]). 실행 중 칩(`BeamEdge`)은 그대로 둔다(아래 변 곡선까지 빛난다).
+//   강조색이 반영안되고 bottom border 영역에만 색이 적용되도록", AGE-65 lcQ2]). 실행 중 칩(`BeamEdge`)도 같은 규칙이다: 아래 두 곡선에는
+//   빛을 두지 않고 곧은 구간에서만 흐른다(DP-127·167 개정 [결정: 2026-11-21 사용자, 다른 부품 중 도구 칩만 맞춤 "1. 가", AGE-65 lcQ3]).
 // `BeamScope`는 감싼 내용 안에서 대상(`target`, 예: `.composer-box`)을 찾아 그 자리·반경·모서리 모양을 재고 그 위에 판을 겹친다.
 // 잰 값은 화면 px이므로 앱 확대(`<html>`의 `zoom`)로 나눠 판의 CSS px로 옮긴다(DP-171, `boxOf`). 확대를 바꾸면 상자 크기가 바뀌어 다시 잰다.
 // `BeamEdge`는 부모(실행 중 칩)의 아래 변에 선만 있는 작은 변형을 붙인다. 판은 누르기를 막지 않고 화면 낭독에서 빠진다.
@@ -25,6 +26,7 @@ import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx"
 import { cssZoomOf } from "../../lib/zoom.ts";
 import {
   GLOW_EDGE_FADE,
+  GLOW_EDGE_FADE_CHIP,
   GLOW_TUNE,
   LINE_TUNE,
   type GlowSpark,
@@ -77,6 +79,15 @@ export function boxOf(scope: DOMRect, target: DOMRect, radius: string, shape = "
     radius: Number.isFinite(parsed) ? parsed : 16,
     shape: corner,
   };
+}
+
+/**
+ * 실제로 그려지는 모서리 반경. CSS는 이웃한 두 반경의 합이 변보다 길면 줄인다: 알약(`9999px`)은 높이(또는 폭)의 반이 된다.
+ * 실행 중 칩은 높이 24px 알약이라 12px이다. 읽지 못한 반경(NaN)과 음수는 0으로 본다
+ */
+export function usedRadiusOf(radius: number, width: number, height: number): number {
+  const r = Number.isFinite(radius) ? radius : 0;
+  return Math.max(0, Math.min(r, width / 2, height / 2));
 }
 
 /** 아래 변의 곧은 구간: 판 왼끝에서 곧은 구간이 시작하는 자리와 양 끝이 옅어지는 길이(px). 끝 자리는 폭 − from이다 */
@@ -148,14 +159,24 @@ type PlateStyle = CSSProperties & {
   readonly "--fx-edge-fade": string;
 };
 
-function plateStyleOf(box: Box | null): PlateStyle | undefined {
-  if (box === null) return undefined;
-  const span = edgeSpanOf(box.width, box.radius);
+type EdgeStyle = CSSProperties & {
+  readonly "--fx-edge-from": string;
+  readonly "--fx-edge-fade": string;
+};
+
+function edgeStyleOf(span: EdgeSpan): EdgeStyle {
+  return {
+    "--fx-edge-from": `${String(span.from)}px`,
+    "--fx-edge-fade": `${String(span.fade)}px`,
+  };
+}
+
+function plateStyleOf(box: Box): PlateStyle {
+  const span = edgeSpanOf(box.width, usedRadiusOf(box.radius, box.width, box.height));
   return {
     "--fx-beam-radius": `${String(box.radius)}px`,
     "--fx-corner": box.shape,
-    "--fx-edge-from": `${String(span.from)}px`,
-    "--fx-edge-fade": `${String(span.fade)}px`,
+    ...edgeStyleOf(span),
     left: box.left,
     top: box.top,
     width: box.width,
@@ -163,12 +184,19 @@ function plateStyleOf(box: Box | null): PlateStyle | undefined {
   };
 }
 
+/** 판의 인라인 스타일: 입력창은 잰 상자 전부, 칩은 잰 곧은 구간만, 띠는 없음(CSS가 정한다) */
+function styleOfPlate(box: Box | null, span: EdgeSpan | null): CSSProperties | undefined {
+  if (box !== null) return plateStyleOf(box);
+  return span === null ? undefined : edgeStyleOf(span);
+}
+
 /**
- * 판: 번짐 겹(입력창만, 상자 안쪽으로), 선 겹(1px 고리의 아래쪽: 흐르는 무지개 + 숨 쉬는 알갱이), 멈춘 선(wait·still).
- * box가 없으면(BeamEdge) CSS가 부모에 맞춘다
+ * 판: 번짐 겹(입력창만, 상자 안쪽으로), 선 겹(아래 변 곧은 구간의 1px 띠: 흐르는 무지개 + 숨 쉬는 알갱이), 멈춘 선(wait·still).
+ * box가 없으면(BeamEdge·BeamBand) CSS가 부모에 맞추고, 칩은 잰 곧은 구간(`span`)만 넘긴다
  */
 function GlowPlate(props: {
   readonly box: Box | null;
+  readonly span?: EdgeSpan | null;
   readonly look: BeamLook;
   readonly variant: GlowVariant;
 }): ReactNode {
@@ -184,7 +212,7 @@ function GlowPlate(props: {
       data-look={props.look}
       data-variant={props.variant}
       data-scheme={scheme}
-      style={plateStyleOf(props.box)}
+      style={styleOfPlate(props.box, props.span ?? null)}
     >
       {/* 번짐은 판 크기의 겹(veil) 안에 둔다: 곧은 구간 마스크를 번짐 칸에 바로 걸면 흐림이 칸 밖으로 번진 부분이 잘려 위 변이 각진다 */}
       {live && tune.bloom.length > 0 ? (
@@ -266,15 +294,43 @@ export function BeamScope(props: {
   );
 }
 
+function sameSpan(a: EdgeSpan | null, b: EdgeSpan): boolean {
+  return a !== null && a.from === b.from && a.fade === b.fade;
+}
+
 /**
  * 부모 요소의 아래 변에 선 겹만 있는 작은 빛(실행 중 칩, dzE 시안 §3). 부모는 `position: relative`이고 1px 테두리를 가진다.
- * 판은 CSS가 부모 테두리 위(inset -1px)에 두고 반경은 부모를 따른다(잴 것이 없다)
+ * 판은 CSS가 부모 테두리 위(inset -1px)에 두고 반경은 부모를 따른다. 빛은 입력창과 같이 아래 변의 곧은 구간에만 선다
+ * (DP-127·167 개정 [결정: 2026-11-21 사용자 "1. 가", AGE-65 lcQ3]): 칩의 폭과 실제 반경(알약이라 높이의 반)을 재서 `edgeSpanOf`로
+ * 곧은 구간을 정한다. 칩 글(경과 초)이 길어져 폭이 바뀌면 다시 잰다. 재기 전(서버 렌더)에는 CSS 기본값(r 12px, 옅어짐 8px)이다
  */
 export function BeamEdge(props: { readonly state: BeamState }): ReactNode {
   const reduced = useMotionReduced();
+  const plate = useRef<HTMLSpanElement | null>(null);
+  const [span, setSpan] = useState<EdgeSpan | null>(null);
+  useLayoutEffect(() => {
+    const el = plate.current;
+    if (el === null || typeof ResizeObserver === "undefined") return undefined;
+    const measure = (): void => {
+      const rect = el.getBoundingClientRect();
+      const box = boxOf(rect, rect, getComputedStyle(el).borderTopLeftRadius, "", cssZoomOf(el));
+      const next = edgeSpanOf(
+        box.width,
+        usedRadiusOf(box.radius, box.width, box.height),
+        GLOW_EDGE_FADE_CHIP,
+      );
+      setSpan((prev) => (sameSpan(prev, next) ? prev : next));
+    };
+    const resize = new ResizeObserver(measure);
+    resize.observe(el);
+    measure();
+    return () => {
+      resize.disconnect();
+    };
+  }, []);
   return (
-    <span aria-hidden className="fx-beam-edge">
-      <GlowPlate box={null} look={beamLookOf(props.state, reduced)} variant="chip" />
+    <span ref={plate} aria-hidden className="fx-beam-edge">
+      <GlowPlate box={null} span={span} look={beamLookOf(props.state, reduced)} variant="chip" />
     </span>
   );
 }
