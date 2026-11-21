@@ -689,7 +689,7 @@ export const CostBasisSchema: TUnion<TLiteral<CostBasis>[]> = literalUnion([
   "unknown",
 ]);
 
-/** 정적으로 센 값과 측정을 합칠 때 쓰는 비용 칸(§3.3). M5c의 카드와 `profile.preview.cost`도 이 모양을 쓴다 */
+/** 정적으로 센 값과 측정을 합칠 때 쓰는 비용 칸(§3.3). M5c의 카드와 `profile.preview.cost`도 이 모양을 쓴다. 숫자의 단위는 어림 토큰(글자 수 / 4 올림)이다 */
 export interface CostFigures {
   readonly always: number | null;
   readonly drive: number | null;

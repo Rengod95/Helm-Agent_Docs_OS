@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
+import { textTokens } from "@fresnel/core-context";
 import {
   HOOKS,
   PluginCardSchema,
@@ -13,6 +14,8 @@ import {
   type BuildCardInput,
   type CardSubject,
 } from "../../../src/assembly/plugins/card.ts";
+import { pluginCostOf } from "../../../src/assembly/m4/profile-cost.ts";
+import { pluginCostOf as measuredCostOf } from "../../../src/assembly/measure/turn-context.ts";
 import {
   readPluginFolder,
   type PluginFolder,
@@ -67,7 +70,7 @@ test("스킬 폴더의 카드는 스키마를 만족하고 Inject 칸만 채운�
   ]);
 });
 
-test("비용: 항상 싣는 지침의 글자 수 합과 도구 수, 나머지는 null이다", () => {
+test("비용: 항상 싣는 지침과 스킬의 토큰 어림값, 도구 수. Drive 중 양은 null이다", () => {
   const card = cardOf(
     folderOf("rules-kit", {
       "SKILL.md": SKILL,
@@ -75,13 +78,121 @@ test("비용: 항상 싣는 지침의 글자 수 합과 도구 수, 나머지는
       "instructions/extra.md": "해요체.",
     }),
   );
+  // 지침은 14글자(4토큰)와 4글자(1토큰), 스킬은 설명 18글자(5토큰)와 본문 "Body"(1토큰)다
   expect(card.cost).toEqual({
-    always: "Keep it short.".length + "해요체.".length,
+    always: 5,
     drive: null,
-    onDemand: null,
+    onDemand: 6,
     toolCount: 0,
     basis: "declared",
   });
+});
+
+test("비용: 선언된 도구의 이름과 설명이 항상 싣는 양에 든다", () => {
+  const card = cardOf(
+    folderOf("tool-cost", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "tool-cost",
+        version: "1.0.0",
+        tools: [{ name: "ping", description: "abcdefgh" }],
+        entry: "./plugin.ts",
+      }),
+      "plugin.ts": "export {};",
+    }),
+  );
+  // "ping\nabcdefgh"는 13글자라 4토큰이다
+  expect(card.cost).toEqual({
+    always: 4,
+    drive: null,
+    onDemand: 0,
+    toolCount: 1,
+    basis: "declared",
+  });
+});
+
+test("비용: 도구를 선언하지 않은 코드 플러그인은 셀 수 없어 숫자가 null이다", () => {
+  const card = cardOf(
+    folderOf("code-no-tools", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "code-no-tools",
+        version: "1.0.0",
+        entry: "./plugin.ts",
+      }),
+      "plugin.ts": "export {};",
+      "instructions.md": "Keep it short.",
+    }),
+  );
+  expect(card.cost).toEqual({
+    always: null,
+    drive: null,
+    onDemand: null,
+    toolCount: null,
+    basis: "unknown",
+  });
+});
+
+test("비용: 같은 재료의 카드 값과 프로필 미리 보기 값이 같다", async () => {
+  const folder = folderOf("same-cost", {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "same-cost",
+      version: "1.0.0",
+      tools: [{ name: "note_save", description: "노트를 저장해요. Save a note." }],
+      entry: "./plugin.ts",
+    }),
+    "plugin.ts": "export {};",
+    "instructions.md": "Keep it short. 짧게 답해요.",
+    "SKILL.md": `---\nname: s\ndescription: "설명 description"\n---\n본문입니다. Body text here.\n`,
+  });
+  const files = new Map([
+    ["/ext/instructions.md", "Keep it short. 짧게 답해요."],
+    [
+      "/ext/SKILL.md",
+      `---\nname: s\ndescription: "설명 description"\n---\n본문입니다. Body text here.\n`,
+    ],
+  ]);
+  const profile = await pluginCostOf(
+    {
+      code: true,
+      root: "/ext",
+      tools: [{ name: "note_save", description: "노트를 저장해요. Save a note." }],
+      instructions: ["instructions.md"],
+      skills: ["SKILL.md"],
+    },
+    (path) => Promise.resolve(files.get(path)),
+  );
+  expect(cardOf(folder).cost).toEqual(profile);
+});
+
+test("비용: 지침만 있는 플러그인의 카드 값이 턴 기록의 항상 값과 같다", () => {
+  const text = "Keep it short. 짧게 답해요. 한글이 섞여도 같은 어림이다.";
+  const card = cardOf(folderOf("measured-same", { "instructions.md": text }));
+  const measured = measuredCostOf({
+    materials: [
+      {
+        plugin: "measured-same",
+        versionId: null,
+        registrationId: null,
+        kind: "always",
+        material: "instruction",
+        ref: "instructions.md",
+        tokens: textTokens(text),
+        truncated: false,
+        omitted: 0,
+        itemId: null,
+        attribution: "declared",
+      },
+    ],
+    tools: [],
+    skills: [],
+  });
+  expect(measured).toHaveLength(1);
+  expect(card.cost.always).toBe(
+    measured.find((row) => row.plugin === "measured-same")?.always ?? null,
+  );
+  expect(card.cost.always).toBe(textTokens(text));
 });
 
 test("매니페스트 목적이 스킬 설명보다 우선한다. 둘 다 없으면 null이다", () => {

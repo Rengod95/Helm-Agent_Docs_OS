@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { assertNever, attempt, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
+import { parseFrontmatter as parseYamlFrontmatter } from "@fresnel/core-agents";
 import { JsonValueSchema, type JsonValue } from "@fresnel/contracts/conversation";
 import {
   ExtensionNameSchema,
@@ -39,6 +40,8 @@ export interface SkillMaterial {
   readonly description: string | null;
   /** 설명의 글자 수(코드 포인트). 설명이 없으면 0 */
   readonly descriptionChars: number;
+  /** 머리말 뒤의 본문(앞뒤 공백 없이). 머리말이 YAML로 읽히지 않으면 파일 전체다. 카드의 비용 어림이 쓴다 */
+  readonly body: string;
   readonly when: "on_demand";
 }
 interface McpMaterial {
@@ -331,6 +334,12 @@ function parseFrontmatter(text: string): ReadonlyMap<string, string> {
   return fields;
 }
 
+/** 스킬 파일의 본문. 프로필 미리 보기의 비용 계산과 같은 머리말 읽기(`core-agents`)를 쓴다 */
+function skillBodyOf(text: string): string {
+  const parsed = parseYamlFrontmatter(text);
+  return parsed.ok ? parsed.value.body : text;
+}
+
 function unquote(value: string): string {
   const quoted =
     value.length >= 2 &&
@@ -552,6 +561,7 @@ export function readPluginFolder(
       path,
       description,
       descriptionChars: description === null ? 0 : Array.from(description).length,
+      body: skillBodyOf(read.value.text),
       when: "on_demand",
     });
   }

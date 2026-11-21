@@ -26,6 +26,7 @@ import {
   type PluginUiDecl,
 } from "@fresnel/contracts/extensions";
 import { compareUtf8 } from "./content-hash.ts";
+import { declaredCostOf } from "./declared-cost.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
 
 // 플러그인 카드(M5c §3.1, §4.5.5, §4.5.9). 읽은 폴더와 매니페스트에서 정적으로 계산한다.
@@ -393,17 +394,31 @@ function isolatedOf(kind: PluginOriginKind): boolean {
   }
 }
 
-/** 비용 칸. 지침 글자 수의 단순 합(토큰 환산 전)이다. 스킬 본문과 명령 본문은 읽지 않으므로 null이다 */
-function costOf(folder: CardSubject, toolCount: number): CostFigures {
-  const alwaysChars = folder.materials.instructions.reduce(
-    (sum, item) => sum + Array.from(item.text).length,
-    0,
-  );
+/**
+ * 비용 칸(토큰 어림값, `textTokens` = 글자 수 / 4 올림). 프로필 미리 보기와 같은 계산(`declaredCostOf`)이다.
+ * - always = 지침 파일 + 선언된 도구(이름, 설명). 인자 스키마와 MCP 서버가 내는 도구는 정적으로 알 수 없어 들어 있지 않다(턴 기록의 값보다 작을 수 있다)
+ * - onDemand = 스킬마다 설명(색인 줄)과 본문
+ * - drive = null. Drive 중에만 싣는 지침은 훅이 실행 중에 넣어 정적 근거가 없다(측정은 `profileCost.get`)
+ * 코드 플러그인이 도구를 선언하지 않으면 도구 비용을 셀 수 없어 숫자는 null, basis는 unknown이다(프로필 미리 보기와 같다)
+ */
+function costOf(folder: CardSubject): CostFigures {
+  const tools = folder.manifest.tools ?? [];
+  if (folder.manifest.entry !== undefined && tools.length === 0) {
+    return { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" };
+  }
+  const figures = declaredCostOf({
+    tools,
+    instructions: folder.materials.instructions.map((item) => item.text),
+    skills: folder.materials.skills.map((skill) => ({
+      description: skill.description ?? "",
+      body: skill.body,
+    })),
+  });
   return {
-    always: alwaysChars,
+    always: figures.always,
     drive: null,
-    onDemand: null,
-    toolCount,
+    onDemand: figures.onDemand,
+    toolCount: figures.toolCount,
     basis: "declared",
   };
 }
@@ -444,7 +459,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     does: { inject, hook, drive },
     enforcement,
     runs: { code, isolated: code ? isolatedOf(input.origin.kind) : null },
-    cost: costOf(folder, manifest.tools?.length ?? 0),
+    cost: costOf(folder),
     health: input.health,
     origin,
     internal,

@@ -398,7 +398,7 @@ export interface PluginCard {
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
   readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
-  readonly cost: CostFigures;                                     // basis는 declared 또는 unknown
+  readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
   readonly internal?: boolean;                                    // 내부 부품 여부 [결정: 2026-11-20, 사용자, AGE-33]. 이름 `internal`은 [제안]. 없으면 거짓으로 읽는다
@@ -426,6 +426,7 @@ export interface PluginSettingDef { readonly key: string; readonly label: string
 
 // 최소 로컬 정의. E 문서(review/m5/turn-record-metrics.md §3.3, §3.5)의 정본을 옮긴 것이고, E 구현이 생기면 import로 바꾸고 이 블록을 지운다
 export type CostBasis = "measured" | "estimated" | "declared" | "unknown";
+// 단위는 어림 토큰(`textTokens`, 글자 수 / 4 올림)이다. 카드(정적)와 `profile.preview`는 같은 계산(host `declaredCostOf`)이다: always = 지침 파일 + 선언된 도구(이름, 설명), onDemand = 스킬 설명 + 본문. 도구 인자 스키마와 MCP 서버의 도구는 정적으로 알 수 없어 빠지고, 코드 플러그인이 도구를 선언하지 않으면 숫자는 null·basis는 unknown이다. drive는 정적 근거가 없어 카드에서 늘 null이다(측정은 `profileCost.get`). 턴 기록의 값(도구 정의 전체, 스킬 색인은 `knowledge` 몫)보다 작을 수 있다
 export interface CostFigures { readonly always: number | null; readonly drive: number | null; readonly onDemand: number | null; readonly toolCount: number | null; readonly basis: CostBasis }
 export type EvidenceRef =
   | { readonly kind: "turn" | "call" | "hook" | "material" | "skill"; readonly threadId: string; readonly turnId: string; readonly stepIndex?: number; readonly toolCallId?: string; readonly hookSeq?: number }
