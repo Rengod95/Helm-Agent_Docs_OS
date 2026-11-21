@@ -89,7 +89,7 @@ export function QuantityControl(props: {
         inputMode="decimal"
         aria-label={field.label}
         containerClassName={FIELD_WIDTH.short}
-        className="text-end tabular-nums"
+        className="text-end"
         value={text}
         placeholder={zeroIsNone ? t("desktop.settings.field.quantity.none") : undefined}
         suffix={<span className="text-ui text-text-tertiary">{suffixTextOf(suffix)}</span>}

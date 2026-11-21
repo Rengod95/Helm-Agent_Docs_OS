@@ -288,7 +288,7 @@ function StorageTables(props: {
           </li>
         ))}
       </ul>
-      <p className="m-0 text-ui-sm tabular-nums text-text-tertiary">
+      <p className="m-0 text-ui-sm text-text-tertiary">
         {t("desktop.workbench.remove.storage.total", { count: totalRowsOf(props.tables) })}
       </p>
       <label className="inline-flex cursor-pointer items-center gap-2 text-ui text-text-primary">

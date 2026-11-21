@@ -122,7 +122,7 @@ function LineCounts(props: {
 }): ReactNode {
   const added = <span className="text-success-text">+{props.added}</span>;
   return (
-    <span className="inline-flex flex-none items-center gap-1.5 text-ui-sm tabular-nums">
+    <span className="inline-flex flex-none items-center gap-1.5 text-ui-sm">
       {props.wholeWrite ? (
         <Tooltip content={t("desktop.changes.wholeWrite")} side="top">
           <span data-whole-write>{added}</span>
@@ -295,7 +295,7 @@ function UntrackedList(props: {
               </span>
               {call.state === "pending" ? <ProgressOrb /> : null}
               {props.showTurn && turn !== undefined ? (
-                <span className="flex-none text-footnote text-text-tertiary tabular-nums">
+                <span className="flex-none text-footnote text-text-tertiary">
                   {turnLabelOf(turn)}
                 </span>
               ) : null}

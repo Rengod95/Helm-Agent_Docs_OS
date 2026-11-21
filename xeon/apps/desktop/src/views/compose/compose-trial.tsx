@@ -248,7 +248,7 @@ function GuardChip(props: { readonly phase: TestRunPhaseResult }): ReactNode {
   switch (chip.kind) {
     case "hits":
       return (
-        <span className="text-footnote text-warning-text tabular-nums">
+        <span className="text-footnote text-warning-text">
           {t("desktop.compose.trial.guard.hits", { count: chip.count })}
         </span>
       );

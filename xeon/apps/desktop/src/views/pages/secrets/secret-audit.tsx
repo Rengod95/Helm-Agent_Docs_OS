@@ -66,11 +66,7 @@ function AuditRow(props: {
       data-slot="audit-row"
       className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-start gap-3 py-1.5"
     >
-      <time
-        dateTime={entry.at}
-        title={entry.at}
-        className="pt-px text-ui-sm text-text-tertiary tabular-nums"
-      >
+      <time dateTime={entry.at} title={entry.at} className="pt-px text-ui-sm text-text-tertiary">
         {relative ?? entry.at}
       </time>
       <span className="grid min-w-0">

@@ -202,7 +202,6 @@
 .fx-attend-count {
   color: var(--cs-color-text-secondary);
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 대화 줄 승인 수의 둥근 면(thread-list.tsx ApprovalCount) ---------- */

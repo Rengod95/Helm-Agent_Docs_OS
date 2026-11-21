@@ -117,7 +117,7 @@ function StepRow(props: { readonly step: CheckStep; readonly disabled: boolean }
           )}
         </span>
         {done && step.elapsedMs !== undefined && step.elapsedMs !== null ? (
-          <span className="flex-none pt-px font-mono text-mono-sm text-text-tertiary tabular-nums">
+          <span className="flex-none pt-px text-footnote text-text-tertiary">
             {elapsedText(step.elapsedMs)}
           </span>
         ) : null}
@@ -230,7 +230,7 @@ export function CheckInline(props: CheckInlineProps): ReactNode {
             {result.state !== "running" &&
             result.elapsedMs !== undefined &&
             result.elapsedMs !== null ? (
-              <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
+              <span className="flex-none text-footnote text-text-tertiary">
                 {elapsedText(result.elapsedMs)}
               </span>
             ) : null}

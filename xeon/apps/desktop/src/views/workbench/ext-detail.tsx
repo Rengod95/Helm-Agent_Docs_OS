@@ -446,7 +446,7 @@ export function ExtDetail(props: {
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
           <DetailName row={row} />
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
-            <span className="font-mono text-mono-sm">{row.layer}</span>
+            <span>{row.layer}</span>
             <span>
               {`${kindText(row.kind)}${entry.origin === undefined ? "" : ` · ${originText(entry.origin)}`} · ${row.version}`}
             </span>

@@ -619,7 +619,7 @@ function sequenceOf(html: string): string[] {
 function cellTextOf(html: string, cellId: string): string | null {
   const from = html.indexOf(`data-bar-cell="${cellId}"`);
   if (from < 0) return null;
-  const match = /tabular-nums">([^<]*)</.exec(html.slice(from));
+  const match = /data-bar-text[^>]*>([^<]*)</.exec(html.slice(from));
   return match?.[1] ?? null;
 }
 

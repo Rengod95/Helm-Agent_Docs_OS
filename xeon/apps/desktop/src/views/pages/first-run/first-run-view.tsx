@@ -205,7 +205,7 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
         titleId={headingId}
         meta={
           <span
-            className="text-ui-sm tabular-nums text-text-tertiary"
+            className="text-ui-sm text-text-tertiary"
             aria-label={t("desktop.firstRun.progress", {
               done: doneCount,
               total: STEP_ORDER.length,
@@ -304,7 +304,7 @@ function Indicator(props: { readonly n: number; readonly status: StepIndicator }
       </span>
     );
   return (
-    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-none text-text-secondary tabular-nums">
+    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-none text-text-secondary">
       {props.n}
     </span>
   );
@@ -521,16 +521,14 @@ function ToolStatus(props: { readonly row: BinaryView["rows"][number] }): ReactN
   if (row.ok) {
     return (
       <span className="text-text-secondary">
-        {t("desktop.settings.tools.status.available")} ·{" "}
-        <span className="font-mono text-mono-sm">{row.note}</span>
+        {t("desktop.settings.tools.status.available")} · <span>{row.note}</span>
       </span>
     );
   }
   const tone = row.need === "required" ? "text-danger-text" : "text-warning-text";
   return (
     <span className={tone}>
-      {t("desktop.settings.tools.status.unavailable")} ·{" "}
-      <span className="font-mono text-mono-sm">{row.note}</span>
+      {t("desktop.settings.tools.status.unavailable")} · <span>{row.note}</span>
       {row.impact === "" ? null : ` · ${row.impact}`}
     </span>
   );
