@@ -226,7 +226,7 @@ describe("validateComposition", () => {
   });
 });
 
-describe("manifest group.composition", () => {
+describe("manifest orchestration.composition", () => {
   const plugins = [{ layer: "L3", hooks: ["input.user.before"], drives: true }];
 
   test("a group with a matching composition is valid", () => {
@@ -275,10 +275,10 @@ describe("manifest group.composition", () => {
     expect(result.issues).toEqual([]);
   });
 
-  test("top-level composition is rejected with a pointer to group.composition", () => {
+  test("top-level composition is rejected with a pointer to orchestration.composition", () => {
     const plugin = validateManifest(pluginJson({ composition: { blocks: [machine] } }));
     expect(plugin.issues.map((i) => [i.code, i.path])).toEqual([["legacy_field", "/composition"]]);
-    expect(plugin.issues[0]?.message).toContain("group.composition");
+    expect(plugin.issues[0]?.message).toContain("orchestration.composition");
     const shape = validateManifest(
       orchestrationJson({ orchestration: { composition: { blocks: [] } } }),
     );
