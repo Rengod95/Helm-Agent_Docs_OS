@@ -415,6 +415,7 @@ function turn(
     scopeId: options.scopeId ?? null,
     requestId: null,
     inputItemIds: [input],
+    invoked: [],
     model: MODEL,
     steps: options.steps,
     lastStepIndex: options.steps - 1,
@@ -532,6 +533,9 @@ export const CONVO: ThreadConvo = {
       releasedSeq: 157.5,
       releasedAt: at(170),
       releaseReason: null,
+      parent: null,
+      requestId: null,
+      inputLine: null,
     },
   ],
   markers: [

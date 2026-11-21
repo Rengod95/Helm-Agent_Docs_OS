@@ -14,28 +14,24 @@ import { itm } from "../state/helpers.ts";
 
 const user = (n: number): TranscriptRow => ({
   key: `u${n}`,
-  lead: null,
   kind: "user",
   id: itm(n),
   prevId: null,
 });
 const reply = (n: number): TranscriptRow => ({
   key: `r${n}`,
-  lead: null,
   kind: "reply",
   id: itm(n),
   blocks: [],
 });
-const live = (n: number): TranscriptRow => ({ key: `l${n}`, lead: null, kind: "live", id: itm(n) });
+const live = (n: number): TranscriptRow => ({ key: `l${n}`, kind: "live", id: itm(n) });
 const result = (n: number): TranscriptRow => ({
   key: `x${n}`,
-  lead: null,
   kind: "result",
   id: itm(n),
 });
 const foot = (n: number): TranscriptRow => ({
   key: `f${n}`,
-  lead: null,
   kind: "turnFoot",
   turnId: null,
   replyId: itm(n),
@@ -49,7 +45,8 @@ describe("들어옴 갈래", () => {
     expect(rowEnterOf("marker")).toBe("divider");
     expect(rowEnterOf("compaction")).toBe("compaction");
     expect(rowEnterOf("card")).toBe("card");
-    expect(rowEnterOf("leadHead")).toBe("leadHead");
+    // Drive 구간 머리는 조용한 한 줄이라 도구 줄과 같이 4px 오른다(lcM6g: 레일이 그어지는 움직임을 없앴다)
+    expect(rowEnterOf("leadHead")).toBe("quiet");
   });
 
   test("줄이 그리는 item id: 발 줄은 없다", () => {

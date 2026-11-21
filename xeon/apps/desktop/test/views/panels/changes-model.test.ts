@@ -71,6 +71,8 @@ function turn(n: number, input: ItemId, over: Partial<TurnSummary> = {}): TurnSu
     startedSeq: n,
     inputItemIds: [input],
     leadScopeId: null,
+    requestId: null,
+    invoked: [],
     model: null,
     startedAt: "2026-11-13T00:00:00.000Z",
     running: false,

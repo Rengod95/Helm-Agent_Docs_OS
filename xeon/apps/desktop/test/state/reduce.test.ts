@@ -1026,3 +1026,33 @@ describe("spawned marks", () => {
     expect(state.threads.byId[thr(9)]).toBeUndefined();
   });
 });
+
+describe("test-run marks (lcM6e)", () => {
+  test("attach testRun to a thread that has none, beside spawnedBy, and keep an existing marker", () => {
+    const fresh = thr(3);
+    const marked = thr(4);
+    const runMark = { profileId: "review", target: "helm", paused: false };
+    const state = run([
+      {
+        type: "threads",
+        threads: [
+          summary(fresh, { title: null }),
+          summary(marked, { testRun: { profileId: null, target: null, paused: true } }),
+        ],
+      },
+      {
+        type: "spawned",
+        marks: [
+          { threadId: fresh, testRun: runMark },
+          { threadId: marked, testRun: runMark },
+        ],
+      },
+    ]);
+    expect(state.threads.byId[fresh]).toEqual(summary(fresh, { title: null, testRun: runMark }));
+    expect(state.threads.byId[marked]?.testRun).toEqual({
+      profileId: null,
+      target: null,
+      paused: true,
+    });
+  });
+});

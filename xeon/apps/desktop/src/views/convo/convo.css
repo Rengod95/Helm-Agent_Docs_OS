@@ -305,22 +305,9 @@
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: -2px;
 }
-/* 생각하는 중(DP-212): 답이 놓일 자리의 말풍선 면. 줄 높이·왼쪽 선은 줄과 같고(구슬이 접힌 "생각" 줄의 chevron 자리), 폭은 글에 맞춘다.
-   기다림 줄과 생각 블록 머리가 같은 면이라 자리가 그대로 잇는다. 생각이 끝나면 면이 빠져 보통 줄이 된다 */
-.convo-line[data-live="true"] {
-  justify-self: start;
-  width: fit-content;
-  max-width: calc(100% + 12px);
-  padding-inline-end: 10px;
-  border-radius: var(--cs-radius-lg);
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
-}
-.convo-line[data-live="true"]:has(> .convo-line-hit:hover),
-.convo-line[data-live="true"]:has(> .convo-line-hit:focus-visible) {
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-default);
-}
+/* 생각하는 중(DP-212, 면은 2026-11-20 사용자 결정 AGE-65로 뺐다): 답이 놓일 자리에 구슬 아이콘과 반짝이는 "생각하는 중" 글만 둔다.
+   면·테두리·글에 맞춘 폭이 없는 보통 줄(`.convo-line`)이라 구슬과 글이 접힌 "생각" 줄·도구 줄과 같은 왼쪽 선에 서고,
+   마우스를 올렸을 때의 면도 다른 줄과 같다. 기다림 줄과 생각 블록 머리가 같은 줄이라 자리가 그대로 잇는다(`data-live`는 표지로만 남는다) */
 .convo-line[data-toggle="true"] > :not(.convo-line-hit) {
   pointer-events: none;
 }
@@ -688,29 +675,7 @@
   box-shadow: 0 0 6px 0.5px color-mix(in oklch, var(--fx-crystal-b) 45%, transparent);
 }
 
-/* ── 주도 구간 레일 ─────────────────────────────────────────────── */
-.convo-row[data-lead] {
-  position: relative;
-}
-.convo-row[data-lead]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 2px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--cs-color-agent-border);
-  /* 주도 머리가 새로 생길 때 레일이 위에서 아래로 그어진다(ROW_ENTER.leadHead) */
-  transform-origin: top center;
-}
-.convo-lead-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--cs-color-agent-solid);
-}
+/* ── Drive 구간 머리 줄의 한도(lcM6g: 레일과 점을 없앴다. 구간은 머리 줄과 끝 줄의 글로만 보인다) ── */
 .convo-meter-warn {
   color: var(--cs-color-warning-text);
 }
@@ -834,4 +799,54 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "Driving" 글(lcM6g, 사용자 2026-11-21 "무지개스럽고 과하다 → 무채색 기반 그라데이션"). 색 없이 밝기만 다르다:
+   - 쉴 때(카드, 런타임 목록, 대화 기록의 머리 줄, 움직임 줄이기)는 text-secondary 한 색이다.
+   - 흐르는 것(`data-wave`)은 한 화면에 한 곳, 입력창 위 띠의 "Driving by"뿐이고 Drive가 턴을 돌리는 동안만이다(drive-stack.tsx `DriveWord`).
+     생각하는 중의 반짝임(thinking-indicator.css `.thinking-shimmer`)과 같은 짜임이다: 무늬 폭 400%, 가운데 20%에 text-primary 빛,
+     오른쪽에서 왼쪽 끝까지 2초. 바탕만 반짝임의 tertiary 대신 secondary라 쉴 때 글보다 어두워지지 않는다.
+     초당 30번만 옮긴다(steps): 다시 그리는 넓이는 글 상자뿐, 쉬는 화면은 0이다.
+   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 흐르지 않고 secondary 한 색이다 */
+.drive-word {
+  --drive-word-base: var(--cs-color-text-secondary);
+  --drive-word-high: var(--cs-color-text-primary);
+  color: var(--drive-word-base);
+}
+.drive-word[data-wave] {
+  background-image: linear-gradient(
+    90deg,
+    var(--drive-word-base) 0%,
+    var(--drive-word-base) 40%,
+    var(--drive-word-high) 50%,
+    var(--drive-word-base) 60%,
+    var(--drive-word-base) 100%
+  );
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: drive-wave 2s steps(60) infinite;
+}
+/* 왼쪽에서 오른쪽으로(읽는 방향) 지나간다: 무늬의 오른쪽 끝에서 왼쪽 끝으로 옮긴다 */
+@keyframes drive-wave {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drive-word[data-wave] {
+    animation: none;
+    background-image: none;
+    color: var(--drive-word-base);
+  }
+}
+:root[data-motion="reduce"] .drive-word[data-wave] {
+  animation: none;
+  background-image: none;
+  color: var(--drive-word-base);
 }

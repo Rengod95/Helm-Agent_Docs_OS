@@ -47,6 +47,13 @@ async function liveApp(extra: Extra) {
   return { app, ...engine };
 }
 
+/** `thread.open write`의 답: 이 연결이 쓰기 소유자가 됐다 */
+const OPENED_WRITE = {
+  threadId: thr(1),
+  role: "owner",
+  position: { storeId: STORE, seq: 8 },
+} as const;
+
 /** 메서드 이름으로 보낸 params를 보낸 순서대로 모은다 */
 const paramsOf = (
   calls: readonly { readonly method: string; readonly params: unknown }[],
@@ -523,24 +530,56 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("프로필 적용은 thread.setProfile로 대화 id와 프로필 id만 보내고 바뀜의 미리 보기를 돌려준다", async () => {
+  test("프로필 적용은 대화를 쓰기로 연 뒤 thread.setProfile로 대화 id와 프로필 id만 보내고 바뀜의 미리 보기를 돌려준다", async () => {
     const set: ThreadSetProfileResult = {
       position: { storeId: STORE, seq: 9 },
       preview: { cacheImpact: "none" },
     };
-    const { app, params } = await liveApp({ results: { "thread.setProfile": set } });
+    const { app, params, methods } = await liveApp({
+      results: { "thread.open": OPENED_WRITE, "thread.setProfile": set },
+    });
     expect(await app.commands.workbench.applyProfile("quiet", thr(1))).toEqual({
       ok: true,
       value: set,
     });
+    // 첫 턴 전의 대화는 관찰로만 열려 있다. setProfile은 쓰기 소유자만 부르므로 먼저 쓰기로 연다(lcM6b)
+    expect(paramsOf(params, "thread.open").at(-1)).toEqual({ threadId: thr(1), mode: "write" });
+    expect(orderOf(methods, "thread.open", "thread.setProfile").slice(-2)).toEqual([
+      "thread.open",
+      "thread.setProfile",
+    ]);
     expect(paramsOf(params, "thread.setProfile")).toEqual([
       { threadId: thr(1), profileId: "quiet" },
     ]);
     await app.stop();
   });
 
+  test("다른 프로세스가 대화를 쥐었으면(thread.locked) setProfile을 보내지 않고 locked 값을 돌려준다", async () => {
+    const { app, methods } = await liveApp({
+      failFor: (method, sent) =>
+        method === "thread.open" &&
+        typeof sent === "object" &&
+        sent !== null &&
+        "mode" in sent &&
+        sent.mode === "write"
+          ? {
+              code: WIRE_ERRORS["thread.locked"].code,
+              kind: "thread.locked",
+              details: { ownerKind: "cli", options: ["observe", "fork"] },
+            }
+          : undefined,
+    });
+    expect(await app.commands.workbench.applyProfile("quiet", thr(1))).toEqual({
+      ok: false,
+      error: { kind: "locked", ownerKind: "cli", options: ["observe", "fork"] },
+    });
+    expect(methods.includes("thread.setProfile")).toBe(false);
+    await app.stop();
+  });
+
   test("프로필이 없으면(profile.notFound) 코드를 담은 오류 값이다", async () => {
     const { app } = await liveApp({
+      results: { "thread.open": OPENED_WRITE },
       errors: {
         "thread.setProfile": {
           code: WIRE_ERRORS["profile.notFound"].code,

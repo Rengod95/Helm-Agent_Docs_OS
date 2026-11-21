@@ -14,6 +14,7 @@ import { InspectTab } from "./inspect-tab.tsx";
 import { MetricsScreen } from "../measure/metrics-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
+import { RecordsJump } from "./records-jump.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { ReviewBadge, ReviewMark } from "../craft/review/review-badge.tsx";
@@ -145,7 +146,14 @@ export function runtimeEndTab(store: WorkbenchStore): EndTabDef {
     label: "desktop.shell.tab.runtime",
     icon: <Layers />,
     badge: hookBadgeOf(store),
-    render: () => scoped(store, <RuntimeTab />),
+    // Drive 카드의 "기록 보기"가 플러그인 상세로 간다(lcM6c)
+    render: () =>
+      scoped(
+        store,
+        <RecordsJump>
+          <RuntimeTab />
+        </RecordsJump>,
+      ),
   };
 }
 

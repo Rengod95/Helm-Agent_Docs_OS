@@ -13,6 +13,9 @@ import {
 import { useCommands } from "../commands.ts";
 import { useModelNameOf } from "../model-usage.ts";
 import { ReplyActions } from "./message-actions.tsx";
+import { DrivingBy } from "./drive-stack.tsx";
+import { InvokedMark } from "./one-shot.tsx";
+import { profileTitleOf, useProfiles } from "./profile-listing.ts";
 import {
   clockOf,
   leaderNameOf,
@@ -86,7 +89,8 @@ export function TurnFoot(props: {
   const stop = summary === undefined ? null : stopNoticeOf(summary);
   const meta = summary === undefined ? "" : turnMetaOf(summary, nameOf);
   const lines = summary === undefined ? [] : turnDetailLinesOf(summary);
-  if (stop === null && meta === "" && props.replyId === null) return null;
+  const invoked = summary?.invoked.length ?? 0;
+  if (stop === null && meta === "" && props.replyId === null && invoked === 0) return null;
   return (
     <div className="grid gap-1" data-slot="convo-turn-foot">
       {stop === null ? null : (
@@ -101,25 +105,29 @@ export function TurnFoot(props: {
         {props.replyId === null ? null : (
           <ReplyActions threadId={props.threadId} itemId={props.replyId} />
         )}
-        {meta === "" ? null : lines.length === 0 ? (
-          <span className="convo-line-meta ml-auto px-1.5">{meta}</span>
-        ) : (
-          <Tooltip
-            side="top"
-            align="end"
-            content={
-              <span className="grid gap-0.5">
-                {lines.map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
+        {/* 원샷 표지는 턴 값(단계·시간)과 같은 오른쪽 묶음에 선다. 왼쪽 답 동작은 hover 전에도 자리를 차지한다 */}
+        <div className="ml-auto flex min-w-0 items-center gap-1">
+          {summary === undefined ? null : <InvokedMark invoked={summary.invoked} />}
+          {meta === "" ? null : lines.length === 0 ? (
+            <span className="convo-line-meta px-1.5">{meta}</span>
+          ) : (
+            <Tooltip
+              side="top"
+              align="end"
+              content={
+                <span className="grid gap-0.5">
+                  {lines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </span>
+              }
+            >
+              <span className="convo-line-meta rounded-xs px-1.5" tabIndex={0}>
+                {meta}
               </span>
-            }
-          >
-            <span className="convo-line-meta ml-auto rounded-xs px-1.5" tabIndex={0}>
-              {meta}
-            </span>
-          </Tooltip>
-        )}
+            </Tooltip>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -128,22 +136,31 @@ export function TurnFoot(props: {
 /** 변화 표지 한 줄(압축 구분선과 한 벌) */
 export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   const nameOf = useModelNameOf();
+  const profiles = useProfiles();
   const clock = clockOf(props.marker.at);
-  const text = markerTextOf(props.marker, nameOf);
+  const text = markerTextOf(props.marker, nameOf, (id) => profileTitleOf(profiles, id));
   const { change } = props.marker;
   // 모델 바꿈은 화면 이름으로 적고 참조(`provider/model`)는 hover에 둔다
   const title = change.kind === "model" ? change.model : undefined;
+  // 프로필 전환으로 권한이 바뀌었으면 그 줄은 경고색이다(숨기지 않는다)
+  const warn = change.kind === "profile" && change.permission !== null;
   return (
     <div className="convo-divider" role="separator" aria-label={text}>
       <span className="flex items-baseline gap-2">
-        <span title={title}>{text}</span>
+        <span title={title} className={warn ? "text-warning-text" : undefined}>
+          {text}
+        </span>
         {clock === "" ? null : <span className="text-footnote">{clock}</span>}
       </span>
     </div>
   );
 }
 
-/** 주도 구간 머리: 표지 + "helm이 이끄는 중" + 한도 칸 */
+/**
+ * Drive 구간 머리(lcM6g, 사용자 2026-11-21: 보라 점과 왼쪽 띠를 없앴다). 색 없는 조용한 한 줄이다: 지금 Drive 중이면
+ * "Driving by authoring"(앞 글 13/400 secondary, 이름 13/500 primary. 물결은 입력창 위 띠만 흐르므로 여기는 멈춰 있다), 끝났으면
+ * "authoring의 Drive", 이어서 한도 칸(12 tertiary, 가운데 점으로 나눔). 구간의 시작은 이 줄이, 끝은 끝 줄(`LeadEnd`)이 말한다
+ */
 export function LeadHead(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;
@@ -154,21 +171,32 @@ export function LeadHead(props: {
   const meters = leadMetersOf(lead);
   return (
     <div
-      className="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1"
+      className="flex min-h-7 min-w-0 flex-wrap items-baseline gap-y-1"
       data-slot="convo-lead-head"
     >
-      <span aria-hidden className="convo-lead-dot" />
-      <span className="text-ui-strong text-text-primary">
-        {lead.active
-          ? t("desktop.convo.lead.active", { name })
-          : t("desktop.convo.lead.past", { name })}
-      </span>
+      {lead.active ? (
+        <DrivingBy
+          name={name}
+          wave={false}
+          wordSlot="convo-lead-driving"
+          nameSlot="convo-lead-name"
+          wordClassName="text-ui"
+          nameClassName="text-ui font-medium text-text-primary"
+        />
+      ) : (
+        <span className="text-ui text-text-secondary">
+          {t("desktop.convo.lead.past", { name })}
+        </span>
+      )}
       {meters.length === 0 ? null : (
-        <span className="convo-line-meta flex items-center gap-1.5">
-          {meters.map((meter, index) => (
-            <span key={meter.text} className={meter.warn ? "convo-meter-warn" : undefined}>
-              {index === 0 ? "" : "· "}
-              {meter.text}
+        // 칸마다 앞에 가운데 점. 점 양옆은 6으로 같다(글자 빈칸을 쓰지 않아 점이 뒤 글에 붙어 보이지 않는다)
+        <span data-slot="convo-lead-meters" className="convo-line-meta flex items-baseline">
+          {meters.map((meter) => (
+            <span key={meter.text} className="whitespace-nowrap">
+              <span aria-hidden className="px-1.5">
+                ·
+              </span>
+              <span className={meter.warn ? "convo-meter-warn" : undefined}>{meter.text}</span>
             </span>
           ))}
         </span>
@@ -177,7 +205,7 @@ export function LeadHead(props: {
   );
 }
 
-/** 주도 구간 끝: 반납 사유 */
+/** Drive 구간 끝: 반납 사유(머리 줄과 같은 왼쪽 선, tertiary). 다음 턴과는 아래 24로 떨어진다 */
 export function LeadEnd(props: {
   readonly threadId: ThreadId;
   readonly leaseId: string;

@@ -246,6 +246,21 @@ export function BeamEdge(props: { readonly state: BeamState }): ReactNode {
 }
 
 /**
+ * Drive 띠의 윗변 빛(lcM6c·lcM6d). 입력창 빛(field)과 같은 기법의 얇은 변형이다: 띠(탭) 윗변의 곧은 구간에만 1px 선과 알갱이가 흐르고
+ * (위 두 모서리 곡선은 빛나지 않는다), 그 바로 아래 6px만 옅게 번진다. 빛깔은 붉은 기운을 뺀 띠 전용 팔레트다(beam.css).
+ * 판은 CSS가 부모(띠 면) 테두리 위(inset -1px)에 두고 반경은 부모를 따른다(잴 것이 없다).
+ * 상태와 모양은 입력창과 같다(run 살아 있는 빛, wait 경고 색 선, 움직임 줄이기면 정지 선, off면 판이 없다)
+ */
+export function BeamBand(props: { readonly state: BeamState }): ReactNode {
+  const reduced = useMotionReduced();
+  return (
+    <span aria-hidden className="fx-beam-band">
+      <GlowPlate box={null} look={beamLookOf(props.state, reduced)} variant="band" />
+    </span>
+  );
+}
+
+/**
  * 아래 변을 흐르는 선(대화를 불러오는 동안 머리 줄 아래). border-beam `line` 그대로다. `position: relative`인 부모를 덮고
  * 아래 변에서 위로 번진다. 꺼져 있으면 border-beam이 애니메이션을 걸지 않는다
  */
