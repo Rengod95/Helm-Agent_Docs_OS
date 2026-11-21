@@ -245,7 +245,7 @@ const group = defineSettings("l1.models", {
       tab: "models",
       widget: "table",
       order: 30,
-      label: "Models by group",
+      label: "Models by plugin",
       help: "scope id → role → provider/modelId[:thinking level]",
     },
     since: "0.1.0",

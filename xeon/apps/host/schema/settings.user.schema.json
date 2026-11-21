@@ -2145,7 +2145,7 @@
         "ui": {
           "help": "scope id → role → provider/modelId[:thinking level]",
           "helpKey": "settings.l1.models.groupRouting.help",
-          "label": "Models by group",
+          "label": "Models by plugin",
           "labelKey": "settings.l1.models.groupRouting.label",
           "order": 30,
           "tab": "models",
@@ -4679,7 +4679,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Covers direct calls from extensions and groups, not model tools. allow creates at once, ask requests approval, deny blocks.",
+          "help": "Covers direct calls from plugins, not model tools. allow creates at once, ask requests approval, deny blocks.",
           "helpKey": "settings.l2.schedule.entries.directCreate.help",
           "label": "Direct schedule creation by extensions",
           "labelKey": "settings.l2.schedule.entries.directCreate.label",
@@ -6203,9 +6203,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
+          "help": "Records how much time a plugin that holds the Drive spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
           "helpKey": "settings.l3.orchestration.instrumentation.help",
-          "label": "Group instrumentation",
+          "label": "Drive instrumentation",
           "labelKey": "settings.l3.orchestration.instrumentation.label",
           "order": 200,
           "tab": "plugins",
@@ -7506,7 +7506,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Applies to drive leases that set no limits of their own. If a group sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
+          "help": "Applies to drive leases that set no limits of their own. If a plugin sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
           "helpKey": "settings.x.primitives.driveDefaultLimits.help",
           "label": "Default drive limits",
           "labelKey": "settings.x.primitives.driveDefaultLimits.label",
@@ -7596,9 +7596,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
+          "help": "When on, only plugins that declare a Drive can register a drive. When off, plugins that do not declare one can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
           "helpKey": "settings.x.primitives.driveRequiresOrchestration.help",
-          "label": "Drive only from plugin groups",
+          "label": "Drive only from Drive plugins",
           "labelKey": "settings.x.primitives.driveRequiresOrchestration.label",
           "order": 112,
           "tab": "plugins",
