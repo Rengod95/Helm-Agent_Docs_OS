@@ -1,0 +1,245 @@
+/* 메트릭(C9)과 트레이스(C8)의 그림 색. caustic 토큰만 쓴다(셸 CSP가 인라인 <style>을 막아 이 파일로 두고 styles.css가 가져온다).
+   색은 종류를 가르는 데만 쓴다: Inject·Hook·Drive·도구 넷. 값은 프로필 캔버스(cv3)의 종류 색과 같은 식이다(oklab에서 섞어 색상은 그대로 두고 채도만 누른다).
+   중립 먹(--viz-ink-1~3)은 종류가 아닌 그림(턴 수, 전후 비교)에 쓴다.
+   Hook 결정(막음·물음·고침·통과·시간 초과)은 먼저 점 구슬의 모양(glyphs.tsx)으로 가르고, 색은 누른 색으로 거든다:
+   막음은 산호, 물음은 호박, 고침은 슬레이트, 통과는 흐린 먹, 고장(오류·시간 초과)만 위험 글자색이다.
+   다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정). */
+:root {
+  --viz-inject: color-mix(
+    in oklab,
+    var(--cs-color-identity-iris) 78%,
+    var(--cs-color-text-primary)
+  );
+  --viz-hook: color-mix(in oklab, var(--cs-color-identity-amber) 62%, var(--cs-color-text-primary));
+  --viz-drive: color-mix(in oklab, var(--cs-color-agent-stop-1) 82%, var(--cs-color-text-primary));
+  --viz-tool: color-mix(in oklab, var(--cs-color-identity-mint) 70%, var(--cs-color-text-primary));
+  --viz-model: var(--cs-color-text-tertiary);
+  --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
+  --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
+  --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent);
+  --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent);
+  --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 60%, transparent);
+  --viz-ink-3: color-mix(in oklab, var(--cs-color-text-primary) 86%, transparent);
+  --viz-modified: color-mix(
+    in oklab,
+    var(--cs-color-identity-slate) 60%,
+    var(--cs-color-text-primary)
+  );
+  --viz-asked: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 58%,
+    var(--cs-color-text-primary)
+  );
+  --viz-blocked: color-mix(
+    in oklab,
+    var(--cs-color-identity-coral) 52%,
+    var(--cs-color-text-primary)
+  );
+  --viz-fault: var(--cs-color-danger-text);
+  /* 종류 타일(인사이트 카드의 28px 아이콘 칸)의 면과 그림 색. 프로필 캔버스 G5(m4/cv7 cv6.css)의 탭 면과 같은 값이다:
+     옅게 섞은 파스텔이 아니라 그 밝기에서 그릴 수 있는 진한 색. 밝은 테마는 밝은 면 + 같은 색상의 진한 글(명암비 4.5:1 넘게) */
+  --viz-inject-tab: oklch(0.82 0.1 240);
+  --viz-hook-tab: oklch(0.85 0.15 85);
+  --viz-drive-tab: oklch(0.82 0.09 288);
+  --viz-tool-tab: oklch(0.84 0.15 150);
+  --viz-block-tab: color-mix(
+    in srgb,
+    var(--cs-color-text-primary) 9%,
+    var(--cs-color-surface-base)
+  );
+  --viz-inject-tab-text: oklch(0.42 0.088 240);
+  --viz-hook-tab-text: oklch(0.43 0.085 75);
+  --viz-drive-tab-text: oklch(0.42 0.2 288);
+  --viz-tool-tab-text: oklch(0.42 0.11 150);
+  --viz-block-tab-text: var(--cs-color-text-secondary);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
+    --viz-inject-tab: oklch(0.263 0.055 235);
+    --viz-hook-tab: oklch(0.283 0.056 92);
+    --viz-drive-tab: oklch(0.263 0.105 288);
+    --viz-tool-tab: oklch(0.283 0.056 150);
+    --viz-block-tab: color-mix(
+      in srgb,
+      var(--cs-color-text-primary) 13%,
+      var(--cs-color-bg-canvas)
+    );
+    --viz-inject-tab-text: var(--cs-color-info-text);
+    --viz-hook-tab-text: var(--cs-color-warning-text);
+    --viz-drive-tab-text: var(--cs-color-agent-text);
+    --viz-tool-tab-text: var(--cs-color-success-text);
+    --viz-inject: color-mix(
+      in oklab,
+      var(--cs-color-identity-iris) 74%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-hook: color-mix(
+      in oklab,
+      var(--cs-color-identity-amber) 74%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-drive: color-mix(
+      in oklab,
+      var(--cs-color-agent-stop-1) 76%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-tool: color-mix(
+      in oklab,
+      var(--cs-color-identity-mint) 66%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+    --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+    --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+    --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+    --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+    --viz-modified: color-mix(
+      in oklab,
+      var(--cs-color-identity-slate) 62%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-asked: color-mix(
+      in oklab,
+      var(--cs-color-identity-amber) 58%,
+      var(--cs-color-text-secondary)
+    );
+    --viz-blocked: color-mix(
+      in oklab,
+      var(--cs-color-identity-coral) 52%,
+      var(--cs-color-text-secondary)
+    );
+  }
+}
+:root[data-theme="dark"] {
+  /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
+  --viz-inject-tab: oklch(0.263 0.055 235);
+  --viz-hook-tab: oklch(0.283 0.056 92);
+  --viz-drive-tab: oklch(0.263 0.105 288);
+  --viz-tool-tab: oklch(0.283 0.056 150);
+  --viz-block-tab: color-mix(in srgb, var(--cs-color-text-primary) 13%, var(--cs-color-bg-canvas));
+  --viz-inject-tab-text: var(--cs-color-info-text);
+  --viz-hook-tab-text: var(--cs-color-warning-text);
+  --viz-drive-tab-text: var(--cs-color-agent-text);
+  --viz-tool-tab-text: var(--cs-color-success-text);
+  --viz-inject: color-mix(
+    in oklab,
+    var(--cs-color-identity-iris) 74%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-hook: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 74%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-drive: color-mix(
+    in oklab,
+    var(--cs-color-agent-stop-1) 76%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-tool: color-mix(
+    in oklab,
+    var(--cs-color-identity-mint) 66%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
+  --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
+  --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
+  --viz-ink-1: color-mix(in oklab, var(--cs-color-text-primary) 38%, transparent);
+  --viz-ink-2: color-mix(in oklab, var(--cs-color-text-primary) 62%, transparent);
+  --viz-modified: color-mix(
+    in oklab,
+    var(--cs-color-identity-slate) 62%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-asked: color-mix(
+    in oklab,
+    var(--cs-color-identity-amber) 58%,
+    var(--cs-color-text-secondary)
+  );
+  --viz-blocked: color-mix(
+    in oklab,
+    var(--cs-color-identity-coral) 52%,
+    var(--cs-color-text-secondary)
+  );
+}
+
+@layer components {
+  /* 고정 숫자폭은 표의 열·축 눈금·줄마다 같은 자리에 서는 값의 열·바뀌는 값(올림 값, 도는 턴)에만 단다. 한 번 나오는 숫자(큰 숫자, 숫자 줄, 개수)는
+     주변 글과 같은 글꼴과 숫자 폭이다(m6X3, 앱 전체 규칙 m4/lcNum). 축 글자는 흐리게 */
+  .viz-figure {
+    font-variant-numeric: tabular-nums;
+  }
+  .viz-axis {
+    fill: var(--cs-color-text-tertiary);
+    font-size: 11px;
+  }
+  .viz-gridline {
+    stroke: var(--viz-grid);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  /* 막대·칸에 올리면 같은 묶음의 다른 칸이 물러난다 */
+  .viz-hoverable [data-viz-mark] {
+    transition: opacity 120ms ease;
+  }
+  .viz-hoverable[data-viz-hot] [data-viz-mark]:not([data-viz-hot]) {
+    opacity: 0.35;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viz-hoverable [data-viz-mark] {
+      transition: none;
+    }
+  }
+  /* 눌러 고르는 그림 칸(날별 기둥): 키보드 초점은 칸 테두리로 */
+  .viz-pick:focus-visible > rect:first-child {
+    stroke: var(--cs-color-focus-ring);
+    stroke-width: 2;
+  }
+  /* 표본이 적은 칸과 기록되지 않은 칸의 빗금 */
+  .viz-hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--viz-track) 0 2px,
+      transparent 2px 6px
+    );
+  }
+  /* 트레이스 흐름 줄의 진행 중 표시(움직임 줄이기면 멈춘다) */
+  @keyframes viz-live {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .viz-live {
+    animation: viz-live 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .viz-live {
+      animation: none;
+    }
+  }
+}
+
+/* 그림 열의 끝 여백(m6X3). 머리가 flush라 셸은 막대 자리를 비우지 않는다. 인사이트 열이 오른쪽에 있으면 그림 열은 막대에 닿지 않아 24px이고,
+   좁은 창(인사이트가 서랍, `data-narrow`)에서는 그림 열이 창 끝까지 가므로 막대 자리(`--stage-rail`) + 12px을 비운다.
+   무대가 840px보다 좁으면 셸이 이미 본문에 막대 자리를 주므로(styles.css DP-135) 24px로 돌린다. px 유틸리티를 이기도록 utilities 층에 둔다 */
+@layer utilities {
+  .cm-charts[data-narrow] {
+    padding-inline-end: max(24px, calc(var(--stage-rail, 0px) + 12px));
+  }
+  @container stage (max-width: 840px) {
+    .cm-charts[data-narrow] {
+      padding-inline-end: 24px;
+    }
+  }
+}
+
+/* 인사이트 열이 띠를 비키는 법(m6X5, 리뷰 m6R5와 같은 길). 카드의 면과 테두리는 열 끝까지 가고, 띠와 실제로 겹치는 줄만
+   끝 바깥 여백으로 띠 왼쪽 12px 앞에서 끝난다. 폭은 `views/shell/rail-avoid.ts`의 `useRailAvoid`가 잰다(`--rail-cut`) */
+.cm-insights [data-under-rail] {
+  margin-inline-end: var(--rail-cut, 0px);
+}
