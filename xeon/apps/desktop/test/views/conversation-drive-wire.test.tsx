@@ -583,19 +583,30 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
     // 띠는 넷만 보인다: 이름, 상태 글, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
     expect(band?.querySelector('[data-slot="drive-band-name"]')?.textContent).toBe("verifier");
-    expect(band?.querySelector('[data-slot="drive-band-turns"]')?.textContent).toBe(
+    expect(band?.querySelector('[data-slot="drive-band-turns-text"]')?.textContent).toBe(
       t("desktop.convo.lead.turns", { used: 7, max: 8 }),
     );
     expect(band?.querySelector('[data-slot="drive-band-below"]')).toBeNull();
     expect(band?.querySelector('[data-slot="info-tip"]')).toBeNull();
     expect(band?.querySelectorAll("[data-drive-step]").length).toBe(0);
-    // 턴 막대는 한도 8이라 한 턴 한 칸이고, 쓴 7칸이 찬다(lcM6e)
-    const track = band?.querySelector('[data-slot="drive-band-track"]');
+    // 턴 막대는 없다(lcM6i, 사용자 2026-11-21 "턴 막대는 그냥 제거하자"): 턴 수는 가운뎃점 뒤 글 하나이고 점은 읽지 않는다
+    const turnsPart = band?.querySelector('[data-slot="drive-band-turns"]');
     expect([
-      track?.getAttribute("data-cells"),
-      track?.querySelectorAll("[data-done]").length,
-      track?.children.length,
-    ]).toEqual(["8", 7, 8]);
+      band?.querySelector('[data-slot="drive-band-track"]') ?? null,
+      band?.querySelector('[role="progressbar"]') ?? null,
+      [...(turnsPart?.children ?? [])].map((el) => [
+        el.getAttribute("data-slot"),
+        el.getAttribute("aria-hidden"),
+        el.textContent,
+      ]),
+    ]).toEqual([
+      null,
+      null,
+      [
+        ["drive-band-sep", "true", "·"],
+        ["drive-band-turns-text", null, t("desktop.convo.lead.turns", { used: 7, max: 8 })],
+      ],
+    ]);
     // 상태 글은 칩이 아니라 글이다(lcM6e). 빛이 꺼져 있으면(턴이 돌지 않음) 흐르지 않는 무채색 글이다(lcM6g)
     const word = band?.querySelector('[data-slot="drive-band-state"]');
     expect([
@@ -608,17 +619,23 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     // lcM6g: "Driving by 이름" 구절이 먼저, 그 뒤 턴 수. 구절 안은 앞 글과 이름 둘이다
     const phrase = word?.parentElement;
     const group = band?.querySelector('[data-slot="drive-band-group"]');
-    // lcM6h: 구절과 턴 묶음 사이는 24(gap-6), 구절 안 낱말 사이 4(gap-1)의 여섯 배라 두 묶음으로 갈라져 보인다
+    // lcM6i: 막대를 위해 벌린 간격(24)은 없다. 구절과 턴 수는 한 기준선에 서고 가운뎃점(양옆 6)이 가른다(대화 기록 머리 줄과 같은 문법)
     expect([
       [...(phrase?.children ?? [])].map((el) => el.getAttribute("data-slot")),
       [...(group?.children ?? [])].map((el) => el.getAttribute("data-slot")),
-      [...(group?.classList ?? [])].filter((name) => name.startsWith("gap-")),
+      [...(group?.classList ?? [])].filter(
+        (name) => name.startsWith("gap-") || name.startsWith("items-"),
+      ),
       [...(phrase?.classList ?? [])].filter((name) => name.startsWith("gap-")),
+      [...(band?.querySelector('[data-slot="drive-band-sep"]')?.classList ?? [])].filter((name) =>
+        name.startsWith("px-"),
+      ),
     ]).toEqual([
       ["drive-band-state", "drive-band-name"],
       ["drive-driving-by", "drive-band-turns"],
-      ["gap-6"],
+      ["items-baseline"],
       ["gap-1"],
+      ["px-1.5"],
     ]);
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");
@@ -756,34 +773,6 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       word?.hasAttribute("data-wave"),
       word?.classList.contains("text-warning-text"),
     ]).toEqual([false, true]);
-  });
-
-  test("턴 한도가 8을 넘으면 칸을 나누지 않은 막대다", async () => {
-    const container = await mount(
-      <DriveProbe />,
-      withWorkbench({
-        driveFrames: () =>
-          Promise.resolve(
-            ok([
-              frame(0, null, "waiting"),
-              frame(1, "helm", "driving", {
-                used: { turns: 3, spawns: 0, tokens: 0 },
-                limits: { turns: 20 },
-              }),
-            ]),
-          ),
-      }),
-    );
-    const track = container.querySelector(
-      '[data-slot="drive-stack-band"] [data-slot="drive-band-track"]',
-    );
-    expect([track?.getAttribute("data-cells") ?? null, track?.getAttribute("data-slot")]).toEqual([
-      null,
-      "drive-band-track",
-    ]);
-    expect(container.querySelector('[data-slot="drive-band-turns-text"]')?.textContent).toBe(
-      t("desktop.convo.lead.turns", { used: 3, max: 20 }),
-    );
   });
 
   test("멈추기는 칩이 아니라 면이 깔린 xs 단추(soft)이고 바탕보다 한 단 위다", async () => {

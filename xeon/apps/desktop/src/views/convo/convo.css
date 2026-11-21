@@ -322,6 +322,14 @@
   height: 14px;
   color: var(--cs-color-text-tertiary);
 }
+/* 생각 구슬(캔버스)은 아이콘 칸 안의 블록이라 칸(14)과 가운데가 같다(lcM6i, 사용자 2026-11-21 "생각하는 중 텍스트랑 좌측 아이콘이
+   align center가 안 맞아"). 앱의 caustic 고리 안전망(attention.css `[data-slot$="-orb"]`)이 `dot-orb` 슬롯에도 걸려 구슬을 글줄 안
+   상자(inline-grid, 세로 middle)로 바꾸면 14 칸 안 18 글줄에 얹혀 2.55 아래로 처졌다. 그래서 여기서 블록으로 되돌린다.
+   묶인 앱의 8배 실측: 칸 가운데 14, 글 잉크 가운데 한글 "생각하는 중" 13.75·영어 "Thinking" 14.25(차이 -0.25·+0.25),
+   도구 줄 아이콘과 같은 자리다. 칸을 0.5 올리는 안은 미리보기 브라우저에서만 맞고 앱에서는 영어가 +0.75로 벌어져 버렸다 */
+.convo-line > .convo-line-icon > .thinking-indicator {
+  display: block;
+}
 .convo-line-verb {
   flex: none;
   font-weight: 500;

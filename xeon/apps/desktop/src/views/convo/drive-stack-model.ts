@@ -15,9 +15,6 @@ export type DriveMeter = {
   readonly amount: string;
   /** 0..1, 막대의 채움 */
   readonly ratio: number;
-  /** 쓴 양과 한도. 띠의 턴 막대가 칸을 나눌 때 쓴다(턴 한도가 작으면 한 턴 한 칸) */
-  readonly used: number;
-  readonly max: number;
   readonly warn: boolean;
 };
 
@@ -62,7 +59,7 @@ function meterOf(kind: DriveMeter["kind"], used: number, max: number, text: stri
     kind === "tokens"
       ? `${tokenCountText(used)}/${tokenCountText(max)}`
       : `${String(used)}/${String(max)}`;
-  return { kind, text, amount, ratio, used, max, warn: max <= 0 || used / max >= WARN_RATIO };
+  return { kind, text, amount, ratio, warn: max <= 0 || used / max >= WARN_RATIO };
 }
 
 /** 한도가 있는 칸만: 턴, 토큰, 위임 */
