@@ -218,7 +218,7 @@ test("--drive and --policy together are a usage error and write nothing", async 
   const h = harness(fake);
   expect(await h.run(["group", "new", "focus-lens", "--drive", "--policy"])).toBe(EXIT.usage);
   expect(h.stderrText()).toBe(
-    "fresnel: --drive와 --policy는 함께 쓸 수 없다\n  해결: 둘 중 하나만 쓴다. 없으면 관찰 그룹(observe)을 만든다\n",
+    "fresnel: --drive와 --policy는 함께 쓸 수 없다\n  해결: 둘 중 하나만 쓴다. 없으면 관찰 플러그인(observe)을 만든다\n",
   );
   expect(fake.files.size).toBe(0);
   expect(fake.dirs.size).toBe(0);
@@ -226,11 +226,11 @@ test("--drive and --policy together are a usage error and write nothing", async 
 
 test("names that break the rules are rejected as usage errors before anything is written", async () => {
   const cases: readonly (readonly [string, string])[] = [
-    ["Focus", `fresnel: "Focus"은 그룹 이름 형식에 맞지 않는다`],
-    ["focus_lens", `fresnel: "focus_lens"은 그룹 이름 형식에 맞지 않는다`],
-    ["core", `fresnel: "core"은 예약된 그룹 이름이다`],
-    ["a", `fresnel: "a"은 그룹 이름 형식에 맞지 않는다`],
-    ["a".repeat(33), `fresnel: "${"a".repeat(33)}"은 그룹 이름 형식에 맞지 않는다`],
+    ["Focus", `fresnel: "Focus"은 플러그인 이름 형식에 맞지 않는다`],
+    ["focus_lens", `fresnel: "focus_lens"은 플러그인 이름 형식에 맞지 않는다`],
+    ["core", `fresnel: "core"은 예약된 플러그인 이름이다`],
+    ["a", `fresnel: "a"은 플러그인 이름 형식에 맞지 않는다`],
+    ["a".repeat(33), `fresnel: "${"a".repeat(33)}"은 플러그인 이름 형식에 맞지 않는다`],
   ];
   await Promise.all(
     cases.map(async ([name, firstLine]) => {
@@ -357,7 +357,7 @@ test("the text output lists the files and the next steps, and does not install a
   const h = harness(templatesFake());
   expect(await h.run(["group", "new", "focus-lens"])).toBe(EXIT.ok);
   expect(h.stdoutText().split("\n")).toEqual([
-    "그룹 focus-lens을 만들었다: /work/project/focus-lens (observe, 파일 5개)",
+    "플러그인 focus-lens을 만들었다: /work/project/focus-lens (observe, 파일 5개)",
     "  package.json",
     "  README.md",
     "  .fresnel-plugin/plugin.json",
@@ -374,7 +374,7 @@ test("the text output lists the files and the next steps, and does not install a
 test("malformed group commands are usage errors", async () => {
   const cases: readonly (readonly [readonly string[], string])[] = [
     [["group"], "fresnel: group에는 하위 명령이 필요하다"],
-    [["group", "new"], "fresnel: group new에는 그룹 이름이 필요하다"],
+    [["group", "new"], "fresnel: group new에는 플러그인 이름이 필요하다"],
     [["group", "new", "a-one", "b-two"], "fresnel: group new에 인자가 너무 많다"],
     [["group", "new", "focus-lens", "--dir", ""], "fresnel: --dir에 폴더가 없다"],
     [["group", "frob"], "fresnel: 모르는 명령 group frob"],

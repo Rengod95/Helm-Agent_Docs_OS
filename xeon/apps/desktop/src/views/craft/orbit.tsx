@@ -723,10 +723,7 @@ export function Orbit(): ReactNode {
                     data-group=""
                     data-picked={pickedGroup ? "" : undefined}
                     data-lit={groupSel === group.id && !pickedGroup ? "" : undefined}
-                    aria-label={t("desktop.craft.orbit.group.name", {
-                      name: group.name,
-                      term: t("term.orchestrationPlugin"),
-                    })}
+                    aria-label={t("desktop.craft.orbit.group.name", { name: group.name })}
                     aria-pressed={pickedGroup}
                     onClick={() => onPickGroup(group.id)}
                     onPointerMove={spot}

@@ -182,25 +182,19 @@
     },
     "surfaces": ["settings", "workbench"],
     "sources": ["adr.0022", "F.extensions.spec"],
-    "status": "proposed"
-  },
-  "orchestrationPlugin": {
-    "kind": "concept",
-    "doc": {
-      "ko": "Orchestration plugin",
-      "en": "Orchestration plugin"
-    },
-    "ui": {
-      "ko": "오케스트레이션 플러그인",
-      "en": "Orchestration plugin"
-    },
-    "surfaces": ["settings", "workbench"],
+    "status": "proposed",
     "forbid": {
-      "ui": ["의도 그룹", "플러그인 그룹", "Plugin group"],
-      "docs": ["의도 그룹", "플러그인 그룹"]
-    },
-    "sources": ["adr.0022", "F.extensions.spec"],
-    "status": "proposed"
+      "ui": [
+        "그룹",
+        "플러그인 그룹",
+        "오케스트레이션 플러그인",
+        "오케스트레이션 SDK",
+        "Plugin group",
+        "Orchestration plugin",
+        "Orchestration SDK"
+      ],
+      "docs": ["플러그인 그룹", "오케스트레이션 플러그인"]
+    }
   },
   "profile": {
     "kind": "concept",
@@ -466,22 +460,6 @@
       "docs": ["제작 확장"]
     },
     "sources": ["adr.0022", "L3.authoring.spec"],
-    "status": "proposed"
-  },
-  "orchestrationSdk": {
-    "kind": "concept",
-    "doc": {
-      "ko": "Orchestration SDK",
-      "en": "Orchestration SDK"
-    },
-    "ui": {
-      "ko": "오케스트레이션 SDK",
-      "en": "Orchestration SDK"
-    },
-    "surfaces": ["workbench"],
-    "ids": ["orchestration-sdk", "defineOrchestration"],
-    "forbid": { "ui": ["그룹 SDK", "Group SDK"], "docs": ["그룹 SDK"] },
-    "sources": ["adr.0022", "L3.group-sdk.spec"],
     "status": "proposed"
   },
   "stages": {
