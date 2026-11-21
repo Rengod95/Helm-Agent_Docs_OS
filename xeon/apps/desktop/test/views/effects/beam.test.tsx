@@ -7,7 +7,9 @@ import {
   beamStateOf,
   BeamEdge,
   boxOf,
+  edgeSpanOf,
 } from "../../../src/views/effects/beam.tsx";
+import { GLOW_EDGE_FADE } from "../../../src/views/effects/fx-config.ts";
 
 // beam(DP-107). 상태 판단과 자리 계산은 순수하게, 부품은 서버 렌더로 본다.
 
@@ -94,6 +96,28 @@ describe("boxOf", () => {
 
   test("확대가 틀린 값이면 1로 본다", () => {
     expect(boxOf(rect(0, 0, 10, 10), rect(5, 5, 10, 10), "", "", 0).left).toBe(5);
+  });
+});
+
+describe("edgeSpanOf", () => {
+  test("빛은 아래 변의 곧은 구간(반경부터 폭 − 반경)에만 서고 양 끝 16px 옅어진다(DP-167 개정 2026-11-21 lcQ2)", () => {
+    // 1440×900 창의 입력창: 712×84, 반경 23.2px squircle. 곧은 구간 23.2 ~ 688.8
+    expect(edgeSpanOf(712, 23.2)).toEqual({ from: 23.2, fade: 16 });
+    expect(GLOW_EDGE_FADE).toBe(16);
+  });
+
+  test("곧은 구간이 옅어짐 두 번보다 짧으면 옅어짐을 구간의 반으로 줄인다", () => {
+    expect(edgeSpanOf(60, 20)).toEqual({ from: 20, fade: 10 });
+  });
+
+  test("반경은 폭의 반을 넘지 않고, 곧은 구간이 없으면 옅어짐은 0", () => {
+    expect(edgeSpanOf(30, 23.2)).toEqual({ from: 15, fade: 0 });
+    expect(edgeSpanOf(0, 23.2)).toEqual({ from: 0, fade: 0 });
+  });
+
+  test("음수 반경·폭은 0으로 본다", () => {
+    expect(edgeSpanOf(100, -4)).toEqual({ from: 0, fade: 16 });
+    expect(edgeSpanOf(-10, 8)).toEqual({ from: 0, fade: 0 });
   });
 });
 

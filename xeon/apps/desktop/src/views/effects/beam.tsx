@@ -2,8 +2,11 @@
 // 그 안쪽으로 부드럽게 번지는 빛이 음성 녹음 이펙트처럼 살아 움직인다. 사용자는 그 빛이 돌지 않고 아래 변 전체 폭에 고정되기를 원했다(2026-11-13).
 // - 머리 줄 아래(대화를 불러오는 중): 곧은 한 변이라 border-beam `line`을 그대로 쓴다(`BeamLine`).
 // - 입력창·실행 중 칩: border-beam `line`은 78px 빛 한 점이 아래 변을 오가는 것이라 "아래 변 전체"가 되지 않는다. 그래서 그 결(빛깔·두 겹·숨)로
-//   직접 만든 "아래 변 빛(edge glow)"이다: 1px 고리 마스크의 아래쪽(모서리 곡선이 시작하는 곳부터 끝까지)에 무지개가 흐르고, 그 위의 빛 알갱이들이
+//   직접 만든 "아래 변 빛(edge glow)"이다: 아래 변의 1px 선에 무지개가 흐르고, 그 위의 빛 알갱이들이
 //   이웃끼리 다른 위상으로 세기와 자리를 바꾸며, 입력창은 같은 알갱이가 상자 안쪽으로 흐리게 번진다. 모두 transform·opacity 키프레임이라 합성기에서만 돈다.
+// - 입력창의 빛은 모든 상태(도는 중, 움직임 줄이기, 승인 대기)에서 아래 변의 곧은 구간에만 선다: 둥근 모서리의 곡선과 옆·윗면은 보통 테두리 색이다.
+//   양 끝은 곡선이 시작하기 전에 짧게 옅어진다(`edgeSpanOf`, DP-167 개정 [결정: 2026-11-21 사용자 "채팅창 모서리 부분에 곡선쪽은 노란색을 포함하여
+//   강조색이 반영안되고 bottom border 영역에만 색이 적용되도록", AGE-65 lcQ2]). 실행 중 칩(`BeamEdge`)은 그대로 둔다(아래 변 곡선까지 빛난다).
 // `BeamScope`는 감싼 내용 안에서 대상(`target`, 예: `.composer-box`)을 찾아 그 자리·반경·모서리 모양을 재고 그 위에 판을 겹친다.
 // 잰 값은 화면 px이므로 앱 확대(`<html>`의 `zoom`)로 나눠 판의 CSS px로 옮긴다(DP-171, `boxOf`). 확대를 바꾸면 상자 크기가 바뀌어 다시 잰다.
 // `BeamEdge`는 부모(실행 중 칩)의 아래 변에 선만 있는 작은 변형을 붙인다. 판은 누르기를 막지 않고 화면 낭독에서 빠진다.
@@ -20,7 +23,13 @@ import {
 } from "react";
 import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
 import { cssZoomOf } from "../../lib/zoom.ts";
-import { GLOW_TUNE, LINE_TUNE, type GlowSpark, type GlowVariant } from "./fx-config.ts";
+import {
+  GLOW_EDGE_FADE,
+  GLOW_TUNE,
+  LINE_TUNE,
+  type GlowSpark,
+  type GlowVariant,
+} from "./fx-config.ts";
 import { useFxScheme } from "./fx-scheme.ts";
 
 export type BeamState = "off" | "run" | "wait";
@@ -68,6 +77,23 @@ export function boxOf(scope: DOMRect, target: DOMRect, radius: string, shape = "
     radius: Number.isFinite(parsed) ? parsed : 16,
     shape: corner,
   };
+}
+
+/** 아래 변의 곧은 구간: 판 왼끝에서 곧은 구간이 시작하는 자리와 양 끝이 옅어지는 길이(px). 끝 자리는 폭 − from이다 */
+export type EdgeSpan = {
+  readonly from: number;
+  readonly fade: number;
+};
+
+/**
+ * 곧은 구간(DP-167 개정 [결정: 2026-11-21 사용자, AGE-65 lcQ2]). 둥근 모서리와 squircle(`superellipse(2)`)은 둘 다 반경 r의 칸 안에서 휘므로
+ * 아래 변은 r에서 폭 − r까지 곧다. 빛은 그 안에서만 서고 양 끝 `fade`만큼 옅어져 r에서 0이 된다. 반경은 폭의 반을 넘지 않고,
+ * 곧은 구간이 옅어짐 두 번보다 짧으면 옅어짐을 그 반으로 줄인다(구간 가운데에서 가장 밝다)
+ */
+export function edgeSpanOf(width: number, radius: number, fade: number = GLOW_EDGE_FADE): EdgeSpan {
+  const half = Math.max(width, 0) / 2;
+  const from = Math.min(Math.max(radius, 0), half);
+  return { from, fade: Math.max(0, Math.min(fade, half - from)) };
 }
 
 function sameBox(a: Box | null, b: Box): boolean {
@@ -118,13 +144,18 @@ function Sparks(props: {
 type PlateStyle = CSSProperties & {
   readonly "--fx-beam-radius": string;
   readonly "--fx-corner": string;
+  readonly "--fx-edge-from": string;
+  readonly "--fx-edge-fade": string;
 };
 
 function plateStyleOf(box: Box | null): PlateStyle | undefined {
   if (box === null) return undefined;
+  const span = edgeSpanOf(box.width, box.radius);
   return {
     "--fx-beam-radius": `${String(box.radius)}px`,
     "--fx-corner": box.shape,
+    "--fx-edge-from": `${String(span.from)}px`,
+    "--fx-edge-fade": `${String(span.fade)}px`,
     left: box.left,
     top: box.top,
     width: box.width,
@@ -155,9 +186,12 @@ function GlowPlate(props: {
       data-scheme={scheme}
       style={plateStyleOf(props.box)}
     >
+      {/* 번짐은 판 크기의 겹(veil) 안에 둔다: 곧은 구간 마스크를 번짐 칸에 바로 걸면 흐림이 칸 밖으로 번진 부분이 잘려 위 변이 각진다 */}
       {live && tune.bloom.length > 0 ? (
-        <div className="fx-glow-bloom">
-          <Sparks sparks={tune.bloom} className="fx-glow-cloud" />
+        <div className="fx-glow-veil">
+          <div className="fx-glow-bloom">
+            <Sparks sparks={tune.bloom} className="fx-glow-cloud" />
+          </div>
         </div>
       ) : null}
       <div className="fx-glow-edge">

@@ -114,6 +114,13 @@ export const GLOW_TUNE: Readonly<Record<GlowVariant, GlowTune>> = {
   },
 };
 
+/**
+ * 입력창 빛의 양 끝이 옅어지는 길이(px). 빛은 아래 변의 곧은 구간(모서리 반경 r부터 폭 − r까지)에만 서고, 그 양 끝에서 이 길이만큼
+ * 옅어져 곡선이 시작하는 자리(r)에서 0이 된다(DP-167 개정 [결정: 2026-11-21 사용자, AGE-65 lcQ2]). 712px 입력창(r 23.2)에서 곧은 구간 665.6px의
+ * 2.4%라 끝이 뚝 끊기지 않을 만큼만 짧다
+ */
+export const GLOW_EDGE_FADE = 16;
+
 /** 대화를 불러오는 동안 머리 줄 아래를 흐르는 선(border-beam `line`). 한 번 지나가는 데 걸리는 초와 세기 */
 export const LINE_TUNE: Readonly<
   Record<FxScheme, { readonly duration: number; readonly strength: number }>
