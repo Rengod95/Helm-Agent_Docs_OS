@@ -1,6 +1,7 @@
 import { extSettingPrefixes, threadSetProfileRequestOf } from "@fresnel/client/workbench";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ScopeHandlerFailedPayloadSchema } from "@fresnel/contracts/records";
+import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { SettingDefWire } from "@fresnel/contracts/settings";
 import type {
   EventsBatchParams,
@@ -72,6 +73,21 @@ export function subscribeDriveFrames(
   return connection.onNotification("drive.framesChanged", (params) => {
     if (params.threadId === threadId) listener();
   });
+}
+
+/** 공통 묶음에서 온 플러그인의 사용처 표지(카드의 `usedBy`) */
+const COMMON_USER = "common";
+
+/** 프로필(과 공통 묶음)에 든 플러그인 이름. 원샷 목록이 이미 든 플러그인을 가를 때 쓴다 */
+export function pluginSetOf(
+  cards: readonly Pick<PluginCard, "name" | "usedBy">[],
+  profileId: string,
+): ReadonlySet<string> {
+  return new Set(
+    cards
+      .filter((card) => card.usedBy.includes(COMMON_USER) || card.usedBy.includes(profileId))
+      .map((card) => card.name),
+  );
 }
 
 /** M5c-1에서 wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
@@ -205,10 +221,13 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("profile.list", {}));
       return got.ok ? ok(got.value.profiles) : err(got.error);
     },
+    // `thread.setProfile`은 쓰기 소유자만 부른다. 앱은 첫 턴(`turn.start`) 전까지 대화를 관찰로만 열므로, 고르기 전에 쓰기로 연다
+    // (`thread.open write`, 이미 쥐었으면 그대로다). 다른 프로세스가 쥐었으면 그 오류(locked)를 그대로 돌려준다
     applyProfile: (id, threadId) =>
-      withConnection((c) =>
-        c.request("thread.setProfile", threadSetProfileRequestOf(id, threadId)),
-      ),
+      withConnection(async (c) => {
+        await c.request("thread.open", { threadId, mode: "write" });
+        return c.request("thread.setProfile", threadSetProfileRequestOf(id, threadId));
+      }),
     putProfile: (profile, baseRev) =>
       withConnection((c) => c.request("profile.put", { profile, baseRev })),
     async deleteProfile(id) {
@@ -219,6 +238,26 @@ export function createWorkbenchCommands(
       withConnection((c) =>
         c.request("profile.preview", threadId === undefined ? { id } : { id, threadId }),
       ),
+    async defaultProfileFor(workspace) {
+      const got = await withConnection((c) =>
+        c.request("profile.defaultFor", workspace === null ? {} : { workspace }),
+      );
+      return got.ok ? ok(got.value.profileId) : err(got.error);
+    },
+    resetDefaultProfile: (preview) =>
+      withConnection((c) => c.request("profile.default.reset", { preview })),
+    async invocables(threadId) {
+      const got = await withConnection((c) => c.request("plugin.invocables", { threadId }));
+      return got.ok ? ok(got.value.entries) : err(got.error);
+    },
+    async pluginsInProfile(profileId) {
+      const got = await withConnection((c) => c.request("plugin.list", { filter: { profileId } }));
+      return got.ok ? ok(pluginSetOf(got.value.plugins, profileId)) : err(got.error);
+    },
+    async drafts(name) {
+      const got = await withConnection((c) => c.request("plugin.draft.list", { name }));
+      return got.ok ? ok(got.value.drafts) : err(got.error);
+    },
     validateComposition: (composition) =>
       withConnection((c) => c.request("ext.validateComposition", { composition })),
     async kinds() {

@@ -15,7 +15,8 @@ import {
 } from "./support/real-sandbox.ts";
 
 // [결정: 2026-11-20, 사용자, AGE-63 "전체 허용, 막을 부분만 대화로 더한다"] 기본은 읽기를 막지 않는다. 실제 srt로 확인한다:
-// (a) 기본 상태에서 사용자 폴더 안의 자격 파일과 다른 하네스 폴더를 읽는다, (b) 쓰기 경계는 그대로다,
+// (a) 기본 상태에서 사용자 폴더 안의 자격 파일과 다른 하네스 폴더를 읽는다, (b) 쓰기 범위가 좁은 길(MCP 서버 정책)의 쓰기 경계는 그대로다
+// (셸 도구의 쓰기 제한 없음은 sandbox.open-writes.int.test.ts),
 // (c) Fresnel 자신의 시크릿·데이터 폴더는 읽기도 막힌다, (d) 설정 extra 경로는 읽기와 쓰기를 모두 막힌다,
 // (g) 셸 정책과 파일 도구가 보는 보호 경로 목록이 같다. 임시 홈만 쓰고 실제 홈의 파일은 읽지 않는다.
 
@@ -51,10 +52,7 @@ suite(
       runCollected(wrapped ? shellFor(true) : box.shell, command, { cwd: workspace });
 
     beforeAll(async () => {
-      // 자격 폴더를 쓰기 루트로 더해도 보호 경로 안의 루트는 빠진다(b)
-      box = await startRealSandbox((dirs) => ({
-        writeRootsExtra: [join(dirs.home, ".ssh"), join(dirs.home, ".claude")],
-      }));
+      box = await startRealSandbox();
       home = box.dirs.home;
       workspace = box.dirs.workspace;
       const files: Record<string, string> = {
@@ -116,7 +114,7 @@ suite(
       }
     });
 
-    test("(b) writes outside the workspace are still refused, and nothing is created", async () => {
+    test("(b) on the narrow policy (MCP servers), writes outside the workspace are still refused, and nothing is created", async () => {
       const outside = join(home, "escaped.txt");
       const write = await run(`echo x > '${outside}'`, true);
       expect(write.exitCode === 0).toBe(false);
@@ -124,8 +122,9 @@ suite(
     });
 
     test("(b) a former credential folder added as a write root stays write-protected", async () => {
+      // 쓰기 범위가 좁은 정책(쓰기 제한 없음이 아닌 길)에 자격 폴더를 쓰기 루트로 넘겨도 보호 경로 안의 루트는 빠진다
       const policy = box.service.defaultPolicy({
-        workspaceRoots: [workspace],
+        workspaceRoots: [workspace, join(home, ".ssh"), join(home, ".claude")],
         tempDir: box.dirs.tmp,
       });
       expect(policy.writeRoots).not.toContain(join(home, ".ssh"));

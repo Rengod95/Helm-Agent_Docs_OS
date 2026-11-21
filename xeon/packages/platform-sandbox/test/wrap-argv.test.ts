@@ -217,22 +217,11 @@ describe("wrapArgv", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("allowEscape is refused without escapeRetry and runs plain as escape with it", async () => {
+  test("allowEscape is always refused: there is no run outside the sandbox", async () => {
     const r = await rig();
     const refused = await r.service.wrapArgv(r.policy({ allowEscape: true }), tool(), NO_CANCEL);
     expect(!refused.ok && refused.error).toEqual({ kind: "unavailable", reason: undefined });
     expect(r.srt.wrapCalls.length).toBe(0);
-    const allowed = await rig({ settings: { escapeRetry: true } });
-    const ran = await allowed.service.wrapArgv(
-      allowed.policy({ allowEscape: true }),
-      tool(),
-      NO_CANCEL,
-    );
-    expect(ran.ok).toBe(true);
-    if (!ran.ok) return;
-    expect(ran.value.sandboxed).toBe(false);
-    expect(ran.value.unsandboxedBy).toBe("escape");
-    expect(ran.value.argv).toEqual(["node", "server.js"]);
   });
 
   test("a non-empty network allow-list is err failed and srt is never called", async () => {

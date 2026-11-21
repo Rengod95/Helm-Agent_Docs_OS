@@ -142,7 +142,7 @@ function renderProtect(out: ProtectOutput): ToolContent {
   };
 }
 
-/** 지금 막힌 것과 제안 목록을 모델에 돌려준다. 제안 줄은 쓰기만 막힌 상태가 기본이라는 것을 함께 적는다 */
+/** 지금 막힌 것과 제안 목록을 모델에 돌려준다. 제안 줄은 기본으로 막혀 있지 않다(읽기도 쓰기도 된다)는 것을 함께 적는다 */
 function renderList(out: ProtectedListOutput): ToolContent {
   const blocked =
     out.blocked.length === 0
@@ -160,7 +160,7 @@ function renderList(out: ProtectedListOutput): ToolContent {
           .join(", ");
   const text =
     `Blocked now (reads and writes): ${blocked}. ` +
-    `Suggested (write-blocked by default; add with sandbox_protect to block reads too): ${suggested}.`;
+    `Suggested (not blocked by default, reads and writes both work; add with sandbox_protect to block them): ${suggested}.`;
   return { content: [{ type: "text", text }], structuredContent: out };
 }
 

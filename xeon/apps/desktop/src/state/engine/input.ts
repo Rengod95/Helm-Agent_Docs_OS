@@ -11,6 +11,7 @@ import type {
   ThreadUpdatedPayload,
   TurnCompletedPayload,
   TurnId,
+  TurnInvoked,
   TurnStartedPayload,
 } from "@fresnel/contracts/conversation";
 import type {
@@ -142,6 +143,8 @@ type TurnStartInfo = {
   readonly requestId: string | null;
   /** 이 턴을 시작한 입력 item(사용자 말, 주도 입력). 줄 모델이 턴의 첫 줄을 고른다 */
   readonly inputItemIds: readonly ItemId[];
+  /** 이 턴에 얹힌 원샷(`turn.started.invoked`). 없으면 빈 목록 */
+  readonly invoked: readonly TurnInvoked[];
 };
 
 type VolatileBase = {
@@ -215,14 +218,16 @@ export type MirrorInput =
   | { readonly type: "subscribe_failed" }
   | { readonly type: "threads"; readonly threads: readonly ThreadSummary[] }
   /**
-   * 새로 열린 대화의 `spawnedBy` 표지. 대화 시작 사실(`thread.started`)에는 위임으로 만든 자식인지가 없어서 목록을 다시 읽어 표지만 가져온다.
-   * 표지가 없는 대화에만 붙이고 다른 칸은 건드리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
+   * 새로 열린 대화의 표지: `spawnedBy`(위임으로 만든 자식), `testRun`(테스트 런). 대화 시작 사실(`thread.started`)에는 둘 다 없어서
+   * 목록을 다시 읽어 표지만 가져온다. 그 표지가 없는 대화에만 붙이고 다른 칸은 건드리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
+   * (`testRun`은 lcM6e: 보통 대화 목록이 테스트 런을 빼려면 새로 만든 테스트 런에도 표지가 있어야 한다)
    */
   | {
       readonly type: "spawned";
       readonly marks: readonly {
         readonly threadId: ThreadId;
-        readonly spawnedBy: NonNullable<ThreadSummary["spawnedBy"]>;
+        readonly spawnedBy?: NonNullable<ThreadSummary["spawnedBy"]>;
+        readonly testRun?: NonNullable<ThreadSummary["testRun"]>;
       }[];
     }
   | { readonly type: "transcript_opening"; readonly threadId: ThreadId }

@@ -21,6 +21,9 @@ export interface SrtTools {
   readonly ripgrepCommand?: string;
 }
 
+/** 쓰기 루트가 이 값이면 쓰기 범위 제한이 없다는 뜻이다(셸 도구). 보호 경로는 거부 목록으로 남는다 */
+export const WRITE_EVERYWHERE = "/";
+
 /** M1은 네트워크를 전부 차단한다. 허용 도메인 정책은 M2 이후다(L0.sandbox.spec §1) */
 export const BLOCKED_NETWORK: SandboxNetworkPolicy = { allowedDomains: [], deniedDomains: [] };
 
@@ -38,8 +41,6 @@ export interface PolicyInput {
   readonly basenameReadFiles: readonly string[];
   /** basename 항목을 쓰기 루트 아래에서 전개한 파일 경로(쓰기 거부. 읽기 거부 파일도 포함한다) */
   readonly basenameWriteFiles: readonly string[];
-  /** 설정 l0.sandbox.writeRoots.extra */
-  readonly extraWriteRoots: readonly string[];
   readonly home: string;
   /** 상대 경로의 기준 디렉터리 */
   readonly base: string;
@@ -95,13 +96,9 @@ function isWithin(inner: string, outer: string): boolean {
   return inner === outer || inner.startsWith(outer.endsWith("/") ? outer : `${outer}/`);
 }
 
-/** 정책이 쓸 쓰기 루트 후보(호출자 정책 + 설정 추가분)를 정규 절대 경로로 만든다 */
+/** 정책이 쓸 쓰기 루트 후보(호출자 정책)를 정규 절대 경로로 만든다 */
 export function candidateWriteRoots(input: PolicyInput): string[] {
-  return normalizeAll(
-    [...input.policy.writeRoots, ...input.extraWriteRoots],
-    input.home,
-    input.base,
-  );
+  return normalizeAll(input.policy.writeRoots, input.home, input.base);
 }
 
 /** srt는 글롭 메타문자가 든 문자열을 패턴으로 읽는다. 그런 경로만 literal 표기로 넘긴다 */

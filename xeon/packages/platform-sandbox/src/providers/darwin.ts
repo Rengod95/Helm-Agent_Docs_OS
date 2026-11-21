@@ -24,12 +24,6 @@ export function createDarwinProvider(): SandboxProvider {
           access: "read_write",
           reason: "secret_key",
         },
-        {
-          path: posix.join(dirs.home, "Library", "LaunchAgents"),
-          match: "prefix",
-          access: "write",
-          reason: "persistence",
-        },
       ];
       return entries;
     },

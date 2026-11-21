@@ -17,6 +17,7 @@ function setup(fuzzy = true) {
   env.mkdir("/work");
   const files = createFilesApi(
     depsFor(env, {
+      narrowRoots: true,
       protectedPaths: PROTECTED,
       settings: () => ({ ...DEFAULT_WORKSPACE_SETTINGS, edit: { fuzzy } }),
     }),

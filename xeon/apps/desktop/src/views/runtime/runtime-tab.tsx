@@ -1,5 +1,5 @@
-// 런타임 탭(대화 영역 오른쪽 "런타임", spec §4.9.8). 구역 넷: 주도 락, 켜진 그룹과 확장, 전환 기록, 실패.
-// 데이터는 열린 대화 하나를 따라 읽는다(`ext.list`, `group.list`, `drive.frames`). 목록 알림(`reloadOnExtChanges`)마다, 그리고 주도권 스택이 바뀐 알림(`drive.framesChanged`)마다 다시 읽는다.
+// 런타임 탭(대화 영역 오른쪽 "런타임", spec §4.9.8). 구역 넷: Drive, 켜진 플러그인, 전환 기록, 실패.
+// 데이터는 열린 대화 하나를 따라 읽는다(`ext.list`, `group.list`, `drive.frames`). 목록 알림(`reloadOnExtChanges`)마다, 그리고 Drive 스택이 바뀐 알림(`drive.framesChanged`)마다 다시 읽는다.
 // 전환 기록과 실패 기록은 엔진 거울이 받은 이벤트를 쓴다(읽기를 하지 않는다).
 // 모양은 `RuntimeBody`가 그린다. 값은 `packages/client/src/workbench/runtime.ts`의 모델이 만든다.
 import { t, type MessageId } from "@fresnel/client/i18n";
@@ -22,13 +22,15 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
 import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
-import { Alert, Badge, Skeleton, StatusDot } from "@caustic/react";
+import { Alert, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   useHandlerFailures,
+  useLeadSegments,
   useLinkPhase,
   useOpenThreadId,
+  useThreadRunning,
   useTransitions,
 } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
@@ -36,6 +38,16 @@ import { reloadOnExtChanges, useWorkbenchController } from "../workbench/control
 import { FailureRecords } from "../workbench/ext-detail.tsx";
 import { kindText, stateText, stateTone } from "../workbench/ext-row.tsx";
 import { HookAnswersContext, HookNoticeList } from "../workbench/hook-notice.tsx";
+import {
+  DriveStackCards,
+  DriveWord,
+  type DriveStopControl,
+  type DriveWordLook,
+} from "../convo/drive-stack.tsx";
+import { useDriveStop } from "../convo/drive-frames.ts";
+import { driveStackOf, type DriveLeaseFacts } from "../convo/drive-stack-model.ts";
+import { useOpenExtensionRecords } from "../extension-records-link.ts";
+import { InfoTip } from "../craft/info-tip.tsx";
 
 /** 한 묶음의 읽기 상태 */
 export type Load<T> =
@@ -111,67 +123,118 @@ export function linkOf(phase: ReturnType<typeof useLinkPhase>): LinkState {
   return "pending";
 }
 
-function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
+/**
+ * 구역 하나: 제목(있으면 그 옆에 정보 아이콘, 사이 4px)과 내용. 제목과 내용 사이 12px.
+ * 첫 구역 뒤의 구역은 위에 가는 선과 24px을 두어 구역끼리 묶임이 보이게 한다(lcM6d)
+ */
+function Section(props: {
+  readonly title: string;
+  readonly info?: { readonly text: string; readonly label: string };
+  readonly divided?: boolean;
+  readonly children: ReactNode;
+}): ReactNode {
   return (
-    <section aria-label={props.title} className="grid content-start gap-2">
-      <h3 className="m-0 text-ui font-semibold text-text-primary">{props.title}</h3>
+    <section
+      aria-label={props.title}
+      className={`grid content-start gap-3 ${props.divided === true ? "border-t border-border-subtle pt-6" : ""}`}
+    >
+      <h3 className="m-0 flex items-center gap-1 text-ui font-semibold text-text-primary">
+        {props.title}
+        {props.info === undefined ? null : (
+          <InfoTip text={props.info.text} label={props.info.label} />
+        )}
+      </h3>
       {props.children}
     </section>
   );
 }
 
+/** 플러그인 한 줄: 화면 이름과 id(고정폭, 흐리게) */
 function Member(props: { readonly member: DriveMemberVM }): ReactNode {
   const { member } = props;
   return (
-    <li className="flex flex-wrap items-center gap-2 text-ui">
-      <span className="text-text-primary">{member.displayName}</span>
-      <span className="font-mono text-text-tertiary">{member.id}</span>
+    <li className="flex min-w-0 items-baseline gap-2 text-ui">
+      <span className="min-w-0 truncate text-text-primary">{member.displayName}</span>
+      <span className="shrink-0 font-mono text-footnote text-text-tertiary">{member.id}</span>
     </li>
   );
 }
 
-function DriveSection(props: { readonly view: RuntimeDriveView }): ReactNode {
+/** 플러그인 순서 표의 한 칸: 왼쪽 이름표(h4)와 오른쪽 값. 칸 사이는 가는 선 */
+function PluginRow(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
+  return (
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-x-3 px-3 py-2.5">
+      <h4 className="m-0 text-footnote font-normal text-text-tertiary">{props.label}</h4>
+      <div className="min-w-0">{props.children}</div>
+    </div>
+  );
+}
+
+/** 런타임 탭 Drive 카드가 거울에서 읽는 값(lcM6c): 임대 기록(어떻게 쥐었나, 언제부터, 갈래), 도는 턴, 플러그인 기록으로 가기 */
+export type RuntimeDriveExtras = {
+  readonly leases: readonly DriveLeaseFacts[];
+  readonly running: boolean;
+  readonly onOpenRecords: ((plugin: string) => void) | null;
+};
+
+function DriveSection(props: {
+  readonly view: RuntimeDriveView;
+  readonly frames: readonly DriveFrameView[];
+  readonly stop: DriveStopControl | null;
+  readonly extras: RuntimeDriveExtras | null;
+}): ReactNode {
   const { view } = props;
   return (
-    <div className="grid gap-2">
+    <div data-slot="drive-section" className="grid gap-4">
       {!view.holderAgrees && <Alert tone="warning">{t("desktop.runtime.lock.mismatch")}</Alert>}
-      <p className="m-0 flex flex-wrap items-center gap-2 text-ui">
-        <span className="text-text-tertiary">{t("desktop.runtime.lock.holder")}</span>
-        {view.holder === null ? (
-          <span className="text-text-tertiary">{t("desktop.runtime.lock.holder.none")}</span>
-        ) : (
-          <>
-            <span className="text-text-primary">{view.holder.displayName}</span>
-            <span className="font-mono text-text-tertiary">{view.holder.id}</span>
-          </>
-        )}
-      </p>
-      <div className="grid gap-1">
-        <h4 className="m-0 text-ui font-medium text-text-secondary">
-          {t("desktop.runtime.queue.title")}
-        </h4>
-        {view.queue.length === 0 ? (
-          <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.queue.empty")}</p>
-        ) : (
-          <ul className="m-0 grid list-none gap-1 p-0">
-            {view.queue.map((member) => (
-              <Member key={member.id} member={member} />
-            ))}
-          </ul>
+      {/* 쌓인 판: 맨 위가 지금 Driving 중인 칸의 카드, 아래가 핸드오프하고 기다리는 칸, 맨 아래 "기본"(lcM6b·lcM6c §6.6.1) */}
+      <DriveStackCards
+        view={driveStackOf(props.frames)}
+        stop={props.stop}
+        leases={props.extras?.leases ?? []}
+        running={props.extras?.running ?? false}
+        onOpenRecords={props.extras?.onOpenRecords ?? null}
+      />
+      {/* 플러그인 순서(lcM6d): 플러그인 목록(group.list)이 말하는 지금 Driving 중인 플러그인, 기다리는 플러그인, 오류가 난 플러그인.
+          카드와 16px 떨어진 한 상자 안에서 이름표 | 값 두 칸 표로 묶는다(받은 요청 카드의 정보 줄과 같은 결) */}
+      <div
+        role="group"
+        aria-label={t("desktop.runtime.lock.details")}
+        data-slot="drive-plugins"
+        className="grid divide-y divide-border-subtle rounded-lg border border-border-subtle"
+      >
+        <PluginRow label={t("desktop.runtime.lock.holder")}>
+          {view.holder === null ? (
+            <p className="m-0 text-ui text-text-tertiary">
+              {t("desktop.runtime.lock.holder.none")}
+            </p>
+          ) : (
+            <ul className="m-0 grid list-none p-0">
+              <Member member={view.holder} />
+            </ul>
+          )}
+        </PluginRow>
+        <PluginRow label={t("desktop.runtime.queue.title")}>
+          {view.queue.length === 0 ? (
+            <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.queue.empty")}</p>
+          ) : (
+            <ul className="m-0 grid list-none gap-1 p-0">
+              {view.queue.map((member) => (
+                <Member key={member.id} member={member} />
+              ))}
+            </ul>
+          )}
+        </PluginRow>
+        {view.errored.length > 0 && (
+          <PluginRow label={t("desktop.runtime.errored.title")}>
+            <ul className="m-0 grid list-none gap-1 p-0">
+              {view.errored.map((member) => (
+                <Member key={member.id} member={member} />
+              ))}
+            </ul>
+          </PluginRow>
         )}
       </div>
-      {view.errored.length > 0 && (
-        <div className="grid gap-1">
-          <h4 className="m-0 text-ui font-medium text-text-secondary">
-            {t("desktop.runtime.errored.title")}
-          </h4>
-          <ul className="m-0 grid list-none gap-1 p-0">
-            {view.errored.map((member) => (
-              <Member key={member.id} member={member} />
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -182,6 +245,16 @@ export const RoleText: Readonly<Record<DriveRoleOf, MessageId>> = {
   waiting: "desktop.runtime.role.waiting",
   error: "desktop.runtime.role.error",
   none: "desktop.runtime.role.none",
+};
+
+/**
+ * 역할을 Drive 띠·카드의 상태 글 문법으로(lcM6f: 칩을 없앴다). 쥔 플러그인은 "Driving" 그라데이션 글(물결은 입력창 위 띠만이라 여기는
+ * 멈춰 있다), 기다림은 tertiary 글, 오류는 경고색 글이다
+ */
+const RoleLook: Readonly<Record<Exclude<DriveRoleOf, "none">, DriveWordLook>> = {
+  holder: "driving",
+  waiting: "quiet",
+  error: "warning",
 };
 
 /** 전환 기록의 해제 사유마다 글 하나다(템플릿으로 만들지 않는다) */
@@ -235,11 +308,15 @@ function transitionTextOf(change: TransitionChange): MessageId {
   }
 }
 
+/** 구역 안의 목록 상자: 둥금 8, 옅은 테두리, 줄 사이 가는 선(플러그인 순서 표와 같은 결) */
+const LIST_BOX =
+  "m-0 grid list-none divide-y divide-border-subtle rounded-lg border border-border-subtle p-0";
+
 function TransitionRow(props: { readonly row: TransitionRowVM }): ReactNode {
   const { row } = props;
   return (
-    <li className="flex flex-wrap items-center gap-2 text-ui">
-      <span className="font-mono text-text-tertiary">{row.time}</span>{" "}
+    <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 py-2 text-ui">
+      <span className="font-mono text-footnote text-text-tertiary tabular-nums">{row.time}</span>{" "}
       {row.turn !== null && (
         <>
           <span className="font-mono text-text-tertiary">
@@ -248,32 +325,45 @@ function TransitionRow(props: { readonly row: TransitionRowVM }): ReactNode {
         </>
       )}
       <span className="text-text-primary">{t(transitionTextOf(row.change))}</span>{" "}
-      <span className="font-mono text-text-tertiary">{row.subject}</span>
+      <span className="font-mono text-footnote text-text-tertiary">{row.subject}</span>
     </li>
   );
 }
 
+/**
+ * 켜진 플러그인 한 줄(lcM6d): 첫 줄은 화면 이름(없으면 id), Drive 역할 칩(있을 때), 오른쪽 끝 상태. 둘째 줄은 곁 정보 한 줄
+ * "id · 층 · 종류 · 훅 n개"(footnote tertiary). 배지를 줄이고 이름이 앞에 오게 했다
+ */
 function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
   const { row } = props;
   return (
-    <li className="grid gap-1 rounded-md px-2 py-1.5 text-ui">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 truncate text-text-primary">
-          {row.displayName !== null && <span>{row.displayName} </span>}
-          <span className="font-mono text-text-tertiary">{row.name}</span>
+    <li className="grid gap-0.5 px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-ui text-text-primary">
+          {row.displayName ?? row.name}
         </span>
-        <span className="font-mono text-text-tertiary">{row.layer}</span>
-        <Badge size="sm">{kindText(row.kind)}</Badge>
         {row.drive !== null && row.drive !== "none" && (
-          <Badge size="sm">{t(RoleText[row.drive])}</Badge>
+          <DriveWord
+            look={RoleLook[row.drive]}
+            text={t(RoleText[row.drive])}
+            slot="runtime-drive-role"
+            wave={false}
+            className={`text-ui-sm ${row.drive === "holder" ? "font-semibold" : ""}`}
+          />
         )}
-        <span className="ms-auto">
+        <span className="ms-auto shrink-0">
           <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
         </span>
       </div>
-      <span className="text-text-tertiary">
-        {t("desktop.runtime.exts.hooks", { count: row.hookCount })}
-      </span>
+      <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-footnote text-text-tertiary">
+        <span className="font-mono">{row.name}</span>
+        <span aria-hidden>·</span>
+        <span>{row.layer}</span>
+        <span aria-hidden>·</span>
+        <span>{kindText(row.kind)}</span>
+        <span aria-hidden>·</span>
+        <span>{t("desktop.runtime.exts.hooks", { count: row.hookCount })}</span>
+      </p>
     </li>
   );
 }
@@ -290,6 +380,10 @@ export function RuntimeBody(props: {
   readonly failures: readonly HandlerFailureEntry[];
   readonly transitions: readonly TransitionEntry[];
   readonly notices?: ReactNode;
+  /** 도는 턴이 있으면 맨 위 판의 Drive 멈추기 */
+  readonly stop?: DriveStopControl | null;
+  /** Drive 카드의 거울 값. 없으면 카드는 어떻게·언제부터 줄을 비운다 */
+  readonly drive?: RuntimeDriveExtras | null;
 }): ReactNode {
   const { data, link } = props;
   const noThread = props.threadId === null;
@@ -302,7 +396,7 @@ export function RuntimeBody(props: {
         <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.transitions.empty")}</p>
       );
     return (
-      <ul className="m-0 grid list-none gap-1 p-0">
+      <ul className={LIST_BOX}>
         {rows.map((row) => (
           <TransitionRow key={row.seq} row={row} />
         ))}
@@ -318,7 +412,14 @@ export function RuntimeBody(props: {
     if (data.drive.kind === "error")
       return <Alert tone="danger">{t("desktop.runtime.lock.failed")}</Alert>;
     const { groups, frames } = data.drive.value;
-    return <DriveSection view={runtimeViewOf(groups, frames)} />;
+    return (
+      <DriveSection
+        view={runtimeViewOf(groups, frames)}
+        frames={frames}
+        stop={props.stop ?? null}
+        extras={props.drive ?? null}
+      />
+    );
   };
   const extsBody = (): ReactNode => {
     if (noThread) return null;
@@ -332,7 +433,7 @@ export function RuntimeBody(props: {
     if (rows.length === 0)
       return <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.exts.empty")}</p>;
     return (
-      <ul className="m-0 grid list-none gap-0.5 p-0">
+      <ul className={LIST_BOX}>
         {rows.map((row) => (
           <ExtRow key={row.name} row={row} />
         ))}
@@ -341,12 +442,21 @@ export function RuntimeBody(props: {
   };
   const groups = failureGroupsOf(props.failures);
   return (
-    <div className="grid content-start gap-5">
+    <div className="grid content-start gap-6">
       {props.notices}
-      <Section title={t("desktop.runtime.section.lock")}>{driveBody()}</Section>
-      <Section title={t("desktop.runtime.section.exts")}>{extsBody()}</Section>
-      <Section title={t("desktop.runtime.section.transitions")}>{transitionsBody()}</Section>
-      <Section title={t("desktop.runtime.section.failures")}>
+      <Section
+        title={t("desktop.runtime.section.lock")}
+        info={{ text: t("desktop.drive.info"), label: t("desktop.drive.infoLabel") }}
+      >
+        {driveBody()}
+      </Section>
+      <Section title={t("desktop.runtime.section.exts")} divided>
+        {extsBody()}
+      </Section>
+      <Section title={t("desktop.runtime.section.transitions")} divided>
+        {transitionsBody()}
+      </Section>
+      <Section title={t("desktop.runtime.section.failures")} divided>
         {groups.length === 0 ? (
           <p className="m-0 text-ui text-text-tertiary">{t("desktop.runtime.failures.empty")}</p>
         ) : (
@@ -391,6 +501,33 @@ function RuntimeHookNotices(): ReactNode {
 /** 런타임 탭. 열린 대화와 엔진 연결을 읽어 `RuntimeBody`에 넘긴다. 맨 위 훅 알림은 워크벤치 스토어를 읽는 `RuntimeHookNotices`다 */
 export function RuntimeTab(): ReactNode {
   const threadId = useOpenThreadId();
+  return threadId === null ? (
+    <RuntimeTabFor threadId={null} />
+  ) : (
+    <RuntimeTabLive threadId={threadId} />
+  );
+}
+
+/** 열린 대화가 있으면 그 대화의 Drive 멈추기와 카드 값(임대 기록, 도는 턴, 기록으로 가기)을 맨 위 판에 둔다 */
+function RuntimeTabLive(props: { readonly threadId: ThreadId }): ReactNode {
+  const live = useLinkPhase() === "live";
+  const stop = useDriveStop(props.threadId, !live);
+  const segments = useLeadSegments(props.threadId);
+  const running = useThreadRunning(props.threadId);
+  const openRecords = useOpenExtensionRecords();
+  const drive = useMemo(
+    (): RuntimeDriveExtras => ({ leases: segments, running, onOpenRecords: openRecords }),
+    [segments, running, openRecords],
+  );
+  return <RuntimeTabFor threadId={props.threadId} stop={stop} drive={drive} />;
+}
+
+function RuntimeTabFor(props: {
+  readonly threadId: ThreadId | null;
+  readonly stop?: DriveStopControl | null;
+  readonly drive?: RuntimeDriveExtras | null;
+}): ReactNode {
+  const { threadId } = props;
   const link = linkOf(useLinkPhase());
   const data = useRuntimeData(threadId, link === "live");
   const failures = useHandlerFailures();
@@ -403,6 +540,8 @@ export function RuntimeTab(): ReactNode {
       failures={failures}
       transitions={transitions}
       notices={<RuntimeHookNotices />}
+      stop={props.stop ?? null}
+      drive={props.drive ?? null}
     />
   );
 }

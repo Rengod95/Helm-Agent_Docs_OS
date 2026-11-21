@@ -23,7 +23,7 @@ import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-mode
 // 모델·추론 수준은 이름 자체가 값이라 아이콘이 정보를 더하지 않는다(사용자: 추론 수준 아이콘 제거).
 
 /** 세 칩이 같은 클래스를 쓴다. 높이는 `size="sm"`(28)이 정한다 */
-const COMPOSER_CHIP_CLASS =
+export const COMPOSER_CHIP_CLASS =
   "min-w-0 gap-1 px-2 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 /** 모드마다 앞 아이콘 14 */
@@ -59,7 +59,7 @@ export function permissionModeChipText(mode: PermissionMode): string {
 }
 
 /** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary). 설명은 자르지 않고 줄을 바꾼다 */
-function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
+export function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
   return (
     <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
       <span className="truncate">{props.title}</span>

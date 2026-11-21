@@ -169,15 +169,17 @@ describe("defaultPolicy script-env", () => {
     expect(missing.writeRoots).toEqual([]);
   });
 
-  test("the setting of extra write roots does not reach the script environment", async () => {
-    const extra = join(makeTestDirs().root, "extra");
-    mkdirSync(extra, { recursive: true });
-    const r = await rig({ settings: { writeRootsExtra: [extra] } });
-    expect(scriptPolicy(r).writeRoots).toEqual([canonicalizePath(r.project)]);
-    const wrapped = await r.service.wrapArgv(scriptPolicy(r), tool, NO_CANCEL);
+  test("a script environment policy that lists the open write root `/` still only writes the project folder", async () => {
+    const r = await rig();
+    const wrapped = await r.service.wrapArgv(
+      { ...scriptPolicy(r), writeRoots: ["/", canonicalizePath(r.project)] },
+      tool,
+      NO_CANCEL,
+    );
     expect(wrapped.ok).toBe(true);
     const allowed = (r.srt.wrapCalls[0]?.customConfig.filesystem?.allowWrite ?? []).map(String);
-    expect(allowed).not.toContain(extra);
+    expect(allowed).not.toContain("/");
+    expect(allowed).toContain(canonicalizePath(r.project));
     if (wrapped.ok) wrapped.value.cleanup();
   });
 });
@@ -426,8 +428,8 @@ describe("wrapArgv script-env: provider and profile guards", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("allowEscape is refused for the script environment even with escapeRetry on", async () => {
-    const r = await rig({ settings: { escapeRetry: true } });
+  test("allowEscape is refused for the script environment", async () => {
+    const r = await rig();
     const result = await r.service.wrapArgv(
       scriptPolicy(r, { allowEscape: true }),
       tool,

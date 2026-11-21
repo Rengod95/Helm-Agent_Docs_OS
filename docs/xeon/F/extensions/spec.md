@@ -398,7 +398,7 @@ export interface PluginCard {
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
   readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
-  readonly cost: CostFigures;                                     // basis는 declared 또는 unknown
+  readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
   readonly internal?: boolean;                                    // 내부 부품 여부 [결정: 2026-11-20, 사용자, AGE-33]. 이름 `internal`은 [제안]. 없으면 거짓으로 읽는다
@@ -426,6 +426,7 @@ export interface PluginSettingDef { readonly key: string; readonly label: string
 
 // 최소 로컬 정의. E 문서(review/m5/turn-record-metrics.md §3.3, §3.5)의 정본을 옮긴 것이고, E 구현이 생기면 import로 바꾸고 이 블록을 지운다
 export type CostBasis = "measured" | "estimated" | "declared" | "unknown";
+// 단위는 어림 토큰(`textTokens`, 글자 수 / 4 올림)이다. 카드(정적)와 `profile.preview`는 같은 계산(host `declaredCostOf`)이다: always = 지침 파일 + 선언된 도구(이름, 설명), onDemand = 스킬 설명 + 본문. 도구 인자 스키마와 MCP 서버의 도구는 정적으로 알 수 없어 빠지고, 코드 플러그인이 도구를 선언하지 않으면 숫자는 null·basis는 unknown이다. drive는 정적 근거가 없어 카드에서 늘 null이다(측정은 `profileCost.get`). 턴 기록의 값(도구 정의 전체, 스킬 색인은 `knowledge` 몫)보다 작을 수 있다
 export interface CostFigures { readonly always: number | null; readonly drive: number | null; readonly onDemand: number | null; readonly toolCount: number | null; readonly basis: CostBasis }
 export type EvidenceRef =
   | { readonly kind: "turn" | "call" | "hook" | "material" | "skill"; readonly threadId: string; readonly turnId: string; readonly stepIndex?: number; readonly toolCallId?: string; readonly hookSeq?: number }
@@ -476,7 +477,7 @@ export interface PluginScriptPort { run(request: ScriptRunRequest): Promise<Resu
   - (5b) `refs`의 파일마다 지문을 다시 보아, 없으면 `script_ref_changed(reason: "missing")`, 읽지 못하면 `unreadable`, 지문이 다르면 `changed`다. 이때 스크립트는 돌지 않는다. 지문이 null인 참조는 확인하지 않는다. `refsKnown`이 거짓이어도 막지 않는다 [결정: 2026-11-20, 사용자, AGE-58 "허용 중심"].
   - (5c) 기본 길 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]: `<shell> -c "<command>"`를 프로젝트 폴더에서 사용자의 환경으로, 샌드박스 없이 사용자 권한으로 띄운다. 외부 훅 실행 포트(`HookProcessPort.run`)가 프로세스 트리 정리, 시간 제한, 출력 상한을 맡는다. 포트는 출력 상한을 글자 수로 받으므로 표준 출력과 표준 오류는 각각 65,536자까지다. Linux도 같다(bwrap을 쓰지 않는다). 환경 변수는 사용자의 것을 그대로 넘기고 `FRESNEL_*`(대소문자 무시, 앞 밑줄 포함)과 잘못된 이름만 뺀다. `CLAUDE_PROJECT_DIR`는 프로젝트 폴더로 채운다. 네트워크 차단 목록(`l0.sandbox.network.blockedDomains`)은 이 길에 적용되지 않는다. 검토 카드의 `CardScript.uses`는 `SCRIPT_ENV_USES`(`user_full_access`, `user_environment`, `network`)다. 검토 화면은 항상 보이는 경고 "이 훅은 당신의 셸 명령 그대로, 당신의 권한으로 돌아요. Fresnel이 막지 않아요"를 보이도록 스펙을 정한다. 이 트랙에서는 화면을 바꾸지 않고 값과 스펙만 정했다.
   - (5d) 옛 길: 설정 `l0.sandbox.sandboxImportedHooks`를 켰을 때만 쓴다(기본 끔, 이름은 [제안]). `IsolationProcessPort.spawn`에 `scriptEnv`를 주고 L0.sandbox "스크립트 환경 프로필"로 띄운다. 환경 변수는 시크릿 거부 패턴에 걸리는 이름도 뺀다. 격리를 쓸 수 없으면 `sandbox_unavailable`이다. 검토 카드의 `CardScript.uses`는 `SCRIPT_ENV_SANDBOXED_USES`(`user_environment`, `read_wide`, `write_project`, `network`)다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 앞선 작업을 버리지 않으려고 남겼다].
-  - 카드가 싣는 설정 값은 검토 항목을 만들 때의 값이다. 검토 카드의 `CardScript.env`는 원문 명령, 찾아낸 첫 단어의 실행 파일 위치, 참조 파일과 지문, 이 기기에 없는 실행 파일, 버전의 근거 글, 프로젝트에서 온 코드 표시를 싣는다(`CardScriptEnv`).
+  - 카드가 싣는 설정 값은 검토 항목을 만들 때의 값이다. 검토 카드의 `CardScript.env`는 원문 명령, 찾아낸 첫 단어의 실행 파일 위치, 참조 파일과 지문, 이 기기에 없는 실행 파일, 버전의 근거 글, 훅 출처, 프로젝트에서 온 코드 표시를 싣는다(`CardScriptEnv`). 훅 출처는 닫힌 값 `origin: "user" | "project" | "unknown"`(사용자 설정에서 옴, 프로젝트 설정에서 옴, 알 수 없음)과 `originLabel`(`project`일 때 그 프로젝트 폴더의 표시, 홈은 `~`, 그 밖은 null)이다 [제안, enFp]. 값은 가져오기 계획이 훑기가 읽은 설정 파일의 자리에서 정해 검토 항목을 만들 때 카드에 기록한 것이고, 매니페스트와 드래프트 폴더에서는 읽지 않는다(`env` 선언 스키마가 모르는 키를 거절한다). 기록이 없으면 `unknown`이다. `fromProject`는 `origin`이 `project`이거나 플러그인 출처가 프로젝트 폴더이면 참이다("프로젝트가 싣고 옴" 하나). 화면은 `origin`에서 "프로젝트 폴더의 설정에서 온 훅이에요" 같은 위험 줄을 만든다(엔진은 종류만 준다). 프로젝트에서 온 훅도 승인되면 그대로 돈다(막거나 더 묻지 않는다).
 - 부를 코드가 없으면(`entry`가 없고 `scripts`만 있으면) 아무것도 실행되지 않는다. 이것은 오류가 아니다.
 - 포트 키(`PortKey`)와 서비스 이름은 X 층 구현 때 정한다 [미결] [근거: packages/contracts/src/extensions/ports.ts의 `PortKey` 목록]. 이 절은 계약만 정한다. 엔진 실행기(`createScriptRunner`)와 `engine.call` 메서드 `runScript`는 X 층에 있다(X.loading-trust.spec §3.8). 격리 자식의 `g.runScript`는 그 메서드를 부른다. 공개 타입은 P 층 `OrchestrationApi.runScript`다(L3.group-sdk.spec §3.2). F `RegistrationApi`에는 이 연산을 더하지 않았다. 그래서 group-sdk을 거치지 않고 `RegistrationApi`로 받은 `g`에는 타입이 없다(격리 자식에서는 런타임에 같은 연산이 있다) [제안: 보고 대상]. 엔진 안(내장) 등록의 `g.runScript`는 띄우지 않고 `sandbox_unavailable`(reason `in_engine_registration`)을 값으로 준다(group-sdk `wrap`) [제안].
 

@@ -13,12 +13,22 @@ import { memoryEnv } from "./support/memory-env.ts";
 
 const CONTEXT: CancelScope = { abortSignal: undefined };
 
+/** 쓰기 root에서 `/`(제한 없음)를 뺀 좁은 대화의 root. 작업 폴더 밖 경로가 막히는 길을 시험한다 */
+async function narrowRoots(
+  env: Parameters<typeof defaultRoots>[0],
+  context: CancelScope,
+  outputs?: Parameters<typeof defaultRoots>[2],
+): ReturnType<typeof defaultRoots> {
+  const roots = await defaultRoots(env, context, outputs);
+  return { ...roots, write: roots.write.filter((root) => root !== "/") };
+}
+
 function resolver(cwd: string, protectedPaths: readonly ProtectedPathEntry[] = []) {
   const env = memoryEnv({ cwd });
   env.mkdir(cwd);
   const deps = {
     env,
-    roots: (context: CancelScope) => defaultRoots(env, context),
+    roots: (context: CancelScope) => narrowRoots(env, context),
     protectedPaths: () => protectedPaths,
   };
   const resolve = (path: string, access: PathAccess = "read") =>
@@ -120,7 +130,7 @@ describe("path resolution", () => {
     const seen: (readonly string[])[] = [];
     const deps = {
       env,
-      roots: (context: CancelScope) => defaultRoots(env, context),
+      roots: (context: CancelScope) => narrowRoots(env, context),
       protectedPaths: (roots: readonly string[]): readonly ProtectedPathEntry[] => {
         seen.push(roots);
         return roots.map((root) => ({
@@ -173,7 +183,7 @@ describe("saved tool output (read root)", () => {
     };
     const deps = {
       env,
-      roots: (context: CancelScope) => defaultRoots(env, context, outputs),
+      roots: (context: CancelScope) => narrowRoots(env, context, outputs),
       protectedPaths: () => [],
       outputs,
     };
@@ -270,9 +280,28 @@ describe("craftRoots (test conversation)", () => {
     });
   });
 
-  test("a normal conversation keeps the default roots: the working folder for read and write", async () => {
+  test("a normal conversation can write outside the working folder, except to protected paths", async () => {
     const env = memoryEnv({ cwd: "/work" });
     env.mkdir("/work");
-    expect(await defaultRoots(env, CONTEXT)).toEqual({ read: ["/work"], write: ["/work"] });
+    env.mkdir("/elsewhere");
+    const deps = {
+      env,
+      roots: (context: CancelScope) => defaultRoots(env, context),
+      protectedPaths: (): readonly ProtectedPathEntry[] => [
+        { path: "/elsewhere/vault", match: "prefix", access: "read_write", reason: "user_extra" },
+      ],
+    };
+    const outside = await resolveWorkspacePath(deps, "/elsewhere/new.txt", "write", CONTEXT);
+    expect(outside.canonical).toBe("/elsewhere/new.txt");
+    const denied = await failure(
+      resolveWorkspacePath(deps, "/elsewhere/vault/a.txt", "write", CONTEXT),
+    );
+    expect(denied.detail).toMatchObject({ reason: "protected_path", protectedBy: "user_extra" });
+  });
+
+  test("a normal conversation reads the working folder and writes anywhere (the working folder first)", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    expect(await defaultRoots(env, CONTEXT)).toEqual({ read: ["/work"], write: ["/work", "/"] });
   });
 });

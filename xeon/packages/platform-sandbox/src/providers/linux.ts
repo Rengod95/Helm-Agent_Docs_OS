@@ -1,4 +1,3 @@
-import { posix } from "node:path";
 import type { ProtectedPathEntry } from "@fresnel/contracts/services";
 import { osCredentialEntries } from "../protected-paths.ts";
 import type { RequiredBinary, SandboxProvider } from "../provider.ts";
@@ -24,12 +23,6 @@ export function createLinuxProvider(platform: "linux" | "wsl2"): SandboxProvider
       const entries: ProtectedPathEntry[] = [
         // 비밀번호 관리자와 키링(제안 목록의 linux 줄): 쓰기만 막는다
         ...osCredentialEntries(dirs.home, "linux"),
-        {
-          path: posix.join(dirs.home, ".config", "systemd", "user"),
-          match: "prefix",
-          access: "write",
-          reason: "persistence",
-        },
       ];
       return entries;
     },

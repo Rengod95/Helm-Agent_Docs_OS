@@ -74,7 +74,7 @@ export function bubbleLikelyClampedOf(text: string): boolean {
  * 내 말 말풍선. 12줄을 넘으면 접고 아래를 흐리게 하며, 말풍선 아래 "더 보기"·"접기"(xs ghost, 링크 색)를 둔다.
  * 펼침은 같은 글의 높이가 접힌 높이에서 전체 높이로 잇는 것이라 `HeightGlide`로 잇는다(`Collapse`는 0 ↔ 전체 높이라 맞지 않는다)
  */
-function UserBubble(props: { readonly text: string }): ReactNode {
+export function UserBubble(props: { readonly text: string }): ReactNode {
   const [open, setOpen] = useState(false);
   // 첫 그림부터 접힌 높이로 선다. 긴 글을 전부 펼쳐 그린 뒤 줄이면 가상 목록이 그 높이(수만 px)를 재어 스크롤 자리가 어긋난다
   const [clamped, setClamped] = useState(() => bubbleLikelyClampedOf(props.text));

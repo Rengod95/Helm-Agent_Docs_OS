@@ -48,6 +48,7 @@ import type {
   MigrationProposal,
   McpDefDraft,
   MigrationScan,
+  PlannedHookOrigin,
   PluginRuntimeDecl,
   Question,
   ReportLine,
@@ -208,6 +209,35 @@ function presentOf<T>(values: readonly (T | undefined)[]): T[] {
 
 function scopeGroupOf(scope: ItemScope): ScopeGroup {
   return scope === "project" || scope === "local" ? "project" : "user";
+}
+
+/** 설정 파일의 표시 경로에서 프로젝트 폴더를 구한다: `<폴더>/.claude/settings.json`과 `settings.local.json`은 `<폴더>`, 그 밖은 파일이 든 폴더 */
+function projectFolderOf(settingsPath: string): string {
+  const slash = settingsPath.lastIndexOf("/");
+  const dir = slash < 0 ? "" : settingsPath.slice(0, slash);
+  const claudeDir = "/.claude";
+  if (dir.endsWith(claudeDir)) {
+    const folder = dir.slice(0, dir.length - claudeDir.length);
+    return folder === "" ? "/" : folder;
+  }
+  return dir === "" ? "." : dir;
+}
+
+/**
+ * Hook 플러그인의 출처. 훅 플러그인은 설정 파일 하나에서만 나오므로(`groupKey`에 파일 경로가 든다) 범위가 하나다.
+ * `user`는 사용자 범위(`~/.claude`)만이다. 관리형과 플러그인 범위는 사용자의 것이 아니므로 `undefined`(알 수 없음)로 둔다
+ */
+function hookOriginOf(group: Group): PlannedHookOrigin | undefined {
+  for (const member of group.members) {
+    const hook = member.unit.hook;
+    if (hook === undefined) continue;
+    const scope = member.unit.scope;
+    if (scope === "project" || scope === "local") {
+      return { kind: "project", label: projectFolderOf(hook.sourcePath) };
+    }
+    return scope === "user" ? { kind: "user", label: null } : undefined;
+  }
+  return undefined;
 }
 
 function scopeWordOf(group: ScopeGroup): string {
@@ -1337,6 +1367,7 @@ export function propose(
   const plugins: PlannedPluginWithMigration[] = built.map((plugin) => {
     const { group } = plugin;
     const hookBuild = hookBuildOf(plugin, byHarness.get(group.harness));
+    const hookOrigin = hookBuild === undefined ? undefined : hookOriginOf(group);
     if (hookBuild !== undefined) {
       for (const file of hookBuild.files) plugin.tree.set(file.path, file.bytes);
     }
@@ -1358,6 +1389,7 @@ export function propose(
       pendingBuilder: [],
       userConfig: group.members.flatMap((member) => member.unit.userConfig),
       ...(hookBuild === undefined ? {} : { runtime: hookBuild.runtime }),
+      ...(hookOrigin === undefined ? {} : { hookOrigin }),
       migration: {
         rulesVersions,
         sources: [...sources.values()],

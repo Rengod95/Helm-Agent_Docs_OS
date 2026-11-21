@@ -606,6 +606,8 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 6. **종료 코드와 기록.** 종료 코드의 뜻(0 통과, 2 막기와 표준 오류가 사유, 시간 제한)은 기존 훅 계약대로다. 막지 않는 오류(2가 아닌 비정상 종료, 기한, 신호)는 진행하되 `script.env_failed` 경고로 표준 오류 끝 512자(가림 규칙을 지난 값)와 종료 코드를 로그에 남긴다. 값은 남기지 않는다. 턴 기록의 Hook 행에는 실패 사유를 실을 칸이 없어(`TraceHandlerEntry.reason`은 핸들러가 던진 이유의 닫힌 목록) 새 저장 기록 종류를 만들지 않고 [미결]로 남긴다.
 7. **훅을 돌릴 수 없을 때**: 실행 파일 없음(127), 실행 불가(126), 띄우기 실패(포트의 `spawnError`, 외부 훅 실행 포트가 없으면 `hook_process_unavailable`), 지문이 있는 참조의 불일치·없음·읽기 실패, 환경 모드 자격 없음(`script_env_not_granted`)은 `outcomeOf`가 이들을 "통과"로 두지 않고 `unrunnable`로 바꾸고 `tool.call.before`는 묻기(`ask`, 사유 "훅을 돌릴 수 없어요: …. 계속할까요?")로 답한다(`adapter-hooks@5`, migration.md §4.3.5). 옛 길에서 격리를 쓸 수 없는 `sandbox_unavailable`도 묻는다. 기본 길에는 쓰기 거부나 격리 불가로 묻는 경우가 없다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. 기한 초과(`timedOut`)는 지금 어댑터가 통과로 둔다. 묻기로 바꿀지는 [미결](§10 28번)이다 [근거: `xeon/packages/plugin-migration/src/adapters/hook-plugin.ts`의 `outcomeOf`]. 결정을 내지 않는 자리는 진행한다(`tool.result`는 결과 뒤에 사유를 붙인다).
 
+환경 모드 훅의 출처(사용자 설정/프로젝트 설정/알 수 없음)는 실행 권한이 아니라 카드 표시다. 값은 호스트가 승인 기록(검토 항목의 카드)에 적은 것만 쓰고 매니페스트에서 읽지 않으며, 출처가 프로젝트여도 자격과 실행은 달라지지 않는다(F.extensions §3.1, migration.md §4.3.5 (자)) [제안, enFp].
+
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
 ```ts

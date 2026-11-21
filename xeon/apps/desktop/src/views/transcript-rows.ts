@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ItemId, TurnId } from "@fresnel/contracts/conversation";
 import type { AnchoredCompaction } from "../state/engine/compaction-anchor.ts";
-import type { ConvoMarker } from "../state/engine/convo.ts";
+import type { ConvoMarker, DriveInputRecord } from "../state/engine/convo.ts";
 import type { ItemShape, ShapeBlock } from "../state/engine/index.ts";
 import type { CompactionRecord } from "../state/engine/state.ts";
 import type { VirtualRow } from "./virtual-list.tsx";
@@ -23,11 +23,8 @@ export type CallBlock = Extract<ShapeBlock, { readonly kind: "call" }>;
 /** 주도 구간 머리·끝이 읽는 값(`LeadSegment`에서 줄 모델이 쓰는 것만) */
 export type LeadRef = { readonly leaseId: string; readonly turnIds: readonly TurnId[] };
 
-type Lead = { readonly lead: string | null };
-
-/** 목록의 한 줄. 모든 줄은 속한 주도 구간(`lead`, lease id)을 든다. 레일이 그 값으로 이어진다 */
+/** 목록의 한 줄. Drive 구간은 머리 줄(`leadHead`)과 끝 줄(`leadEnd`)로만 보인다(lcM6g: 왼쪽 레일을 없앴다) */
 export type TranscriptRow = VirtualRow &
-  Lead &
   (
     | {
         readonly kind: "user";
@@ -45,6 +42,8 @@ export type TranscriptRow = VirtualRow &
     | { readonly kind: "pending" }
     | { readonly kind: "compaction"; readonly record: CompactionRecord }
     | { readonly kind: "marker"; readonly marker: ConvoMarker }
+    /** Drive가 받은 사용자 말(`lease.user_input`). 보낸 자리에 바로 서고 전달 대기 → 전달됨을 조용히 보인다 */
+    | { readonly kind: "driveInput"; readonly input: DriveInputRecord }
     | { readonly kind: "leadHead"; readonly leaseId: string }
     | { readonly kind: "leadEnd"; readonly leaseId: string }
     | {
@@ -99,7 +98,6 @@ function exchangesOf(
 /** 교환 하나의 줄. 도구 호출을 묶고, 호출 사이 생각은 묶음에, 글 앞 생각은 답 줄에 넣는다 */
 function bodyRowsOf(
   exchange: Exchange,
-  lead: string | null,
   prevOf: ReadonlyMap<ItemId, ItemId>,
 ): { readonly rows: TranscriptRow[]; readonly lastReply: ItemId | null } {
   const rows: TranscriptRow[] = [];
@@ -115,7 +113,7 @@ function bodyRowsOf(
   const flushActivity = (): void => {
     const first = pending.find((entry) => entry.block.kind === "call");
     if (first !== undefined && first.block.kind === "call") {
-      rows.push({ kind: "activity", key: `act:${first.block.callId}`, lead, entries: pending });
+      rows.push({ kind: "activity", key: `act:${first.block.callId}`, entries: pending });
     }
     pending = [];
   };
@@ -125,7 +123,6 @@ function bodyRowsOf(
       rows.push({
         kind: "reply",
         key: replyKey(entry.itemId, entry.block.index),
-        lead,
         id: entry.itemId,
         blocks: [entry.block],
       });
@@ -142,7 +139,6 @@ function bodyRowsOf(
         rows.push({
           kind: "user",
           key: shape.id,
-          lead,
           id: shape.id,
           prevId: prevOf.get(shape.id) ?? null,
         });
@@ -151,7 +147,7 @@ function bodyRowsOf(
       case "custom":
         flushActivity();
         flushHeld();
-        rows.push({ kind: shape.kind, key: shape.id, lead, id: shape.id });
+        rows.push({ kind: shape.kind, key: shape.id, id: shape.id });
         break;
       case "assistant": {
         let text: ShapeBlock[] = [];
@@ -161,7 +157,6 @@ function bodyRowsOf(
           rows.push({
             kind: "reply",
             key: replyKey(shape.id, firstText?.index ?? 0),
-            lead,
             id: shape.id,
             blocks: text,
           });
@@ -191,7 +186,6 @@ function bodyRowsOf(
             rows.push({
               kind: "card",
               key: `card:${block.callId}`,
-              lead,
               itemId: shape.id,
               call: block,
             });
@@ -235,6 +229,7 @@ function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
     case "pending":
     case "compaction":
     case "marker":
+    case "driveInput":
     case "leadHead":
     case "leadEnd":
     case "turnFoot":
@@ -244,17 +239,22 @@ function itemIdsOf(row: TranscriptRow): readonly ItemId[] {
   }
 }
 
-/** 표지를 놓을 교환 번호. seq가 그 교환의 턴 시작보다 앞이면 그 교환 앞이다. 어디에도 없으면 끝(교환 수) */
+/** seq로 놓을 교환 번호. seq가 그 교환의 턴 시작보다 앞이면 그 교환 앞이다. 어디에도 없으면 끝(교환 수) */
+function seqSlotOf(seq: number, exchanges: readonly Exchange[]): number {
+  const at = exchanges.findIndex(
+    (e) => e.turn !== null && e.turn.startedSeq !== null && e.turn.startedSeq > seq,
+  );
+  return at >= 0 ? at : exchanges.length;
+}
+
+/** 표지를 놓을 교환 번호. 예약 실행은 그 턴 앞이고, 나머지는 seq 자리다 */
 function markerSlotOf(marker: ConvoMarker, exchanges: readonly Exchange[]): number {
   if (marker.change.kind === "scheduled_start") {
     const turnId = marker.change.turnId;
     const at = exchanges.findIndex((e) => e.turn?.turnId === turnId);
     if (at >= 0) return at;
   }
-  const at = exchanges.findIndex(
-    (e) => e.turn !== null && e.turn.startedSeq !== null && e.turn.startedSeq > marker.seq,
-  );
-  return at >= 0 ? at : exchanges.length;
+  return seqSlotOf(marker.seq, exchanges);
 }
 
 export function transcriptRowsOf(input: {
@@ -265,6 +265,8 @@ export function transcriptRowsOf(input: {
   readonly anchors: readonly AnchoredCompaction[];
   readonly turns: readonly TurnRef[];
   readonly markers: readonly ConvoMarker[];
+  /** Drive가 받은 사용자 말. 표지처럼 seq 자리에 선다 */
+  readonly driveInputs?: readonly DriveInputRecord[];
   readonly leads: readonly LeadRef[];
   /** 열린 대화가 도는 중이다. 마지막 교환에는 턴 발 줄을 두지 않는다 */
   readonly running: boolean;
@@ -289,13 +291,29 @@ export function transcriptRowsOf(input: {
     const slot = markerSlotOf(marker, exchanges);
     markersAt.set(slot, [...(markersAt.get(slot) ?? []), marker]);
   }
-  const markerRows = (slot: number): TranscriptRow[] =>
-    (markersAt.get(slot) ?? []).map((marker) => ({
-      kind: "marker",
-      key: `mark:${marker.seq}`,
-      lead: null,
-      marker,
-    }));
+  const inputsAt = new Map<number, DriveInputRecord[]>();
+  for (const driveInput of input.driveInputs ?? []) {
+    const slot = seqSlotOf(driveInput.seq, exchanges);
+    inputsAt.set(slot, [...(inputsAt.get(slot) ?? []), driveInput]);
+  }
+  // 한 자리에서는 seq 순서다. 표지와 보낸 말이 섞여도 일어난 차례대로 선다
+  const markerRows = (slot: number): TranscriptRow[] => {
+    const placed: { readonly seq: number; readonly row: TranscriptRow }[] = [
+      ...(markersAt.get(slot) ?? []).map((marker) => ({
+        seq: marker.seq,
+        row: { kind: "marker", key: `mark:${marker.seq}`, marker } as const,
+      })),
+      ...(inputsAt.get(slot) ?? []).map((driveInput) => ({
+        seq: driveInput.seq,
+        row: {
+          kind: "driveInput",
+          key: `drive-input:${driveInput.requestId}`,
+          input: driveInput,
+        } as const,
+      })),
+    ];
+    return placed.toSorted((a, b) => a.seq - b.seq).map((entry) => entry.row);
+  };
 
   const head: TranscriptRow[] = [];
   const after = new Map<ItemId, TranscriptRow[]>();
@@ -314,7 +332,6 @@ export function transcriptRowsOf(input: {
     const row: TranscriptRow = {
       kind: "compaction",
       key: `compact:${anchor.record.eventId}`,
-      lead: null,
       record: anchor.record,
     };
     if (at === null) head.push(row);
@@ -326,17 +343,15 @@ export function transcriptRowsOf(input: {
   exchanges.forEach((exchange, index) => {
     rows.push(...markerRows(index));
     const lead = exchange.turn === null ? undefined : leadOfTurn.get(exchange.turn.turnId);
-    const leaseId = lead?.leaseId ?? null;
     if (lead !== undefined && !openedLeads.has(lead.leaseId)) {
       openedLeads.add(lead.leaseId);
       rows.push({
         kind: "leadHead",
         key: `lead:${lead.leaseId}`,
-        lead: lead.leaseId,
         leaseId: lead.leaseId,
       });
     }
-    const body = bodyRowsOf(exchange, leaseId, prevOf);
+    const body = bodyRowsOf(exchange, prevOf);
     // 요약 구분선은 자리 item의 줄이 다 나온 뒤 한 번만 선다. 한 item이 묶음에 호출을 여럿 담거나 글 줄과 묶음에 걸치면
     // 그 item의 줄이 여럿이라, 줄마다 붙이면 같은 구분선(같은 키)이 여러 번 나온다
     const lastRowOf = new Map<ItemId, number>();
@@ -356,7 +371,6 @@ export function transcriptRowsOf(input: {
       rows.push({
         kind: "turnFoot",
         key: `foot:${turnId ?? exchange.shapes[0]?.id ?? index}`,
-        lead: leaseId,
         turnId,
         replyId: body.lastReply,
       });
@@ -367,7 +381,6 @@ export function transcriptRowsOf(input: {
       rows.push({
         kind: "leadEnd",
         key: `lead-end:${lead.leaseId}`,
-        lead: null,
         leaseId: lead.leaseId,
       });
     }
@@ -378,13 +391,13 @@ export function transcriptRowsOf(input: {
     const recorded = new Set(input.shapes.map((shape) => shape.id));
     for (const id of input.live) {
       if (recorded.has(id)) continue;
-      rows.push({ kind: "live", key: id, lead: null, id });
+      rows.push({ kind: "live", key: id, id });
       liveShown = true;
     }
   }
   // 생각 표시는 대화 본문 한 곳이다(DP-212): 기다림 줄도 목록 안 답 자리에 선다(입력창 위에 따로 붙지 않는다)
   if (input.awaiting === true && input.showLive && !liveShown) {
-    rows.push({ kind: "pending", key: "pending", lead: null });
+    rows.push({ kind: "pending", key: "pending" });
   }
   return rows;
 }

@@ -1363,29 +1363,6 @@
         }
       }
     },
-    "l0.sandbox.escapeRetry": {
-      "default": false,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
-          "helpKey": "settings.l0.sandbox.escapeRetry.help",
-          "label": "Allow retry outside the sandbox",
-          "labelKey": "settings.l0.sandbox.escapeRetry.label",
-          "order": 104,
-          "tab": "permissions",
-          "widget": "toggle"
-        }
-      }
-    },
     "l0.sandbox.nestedNamespaces": {
       "default": false,
       "type": "boolean",
@@ -1487,7 +1464,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing is blocked for reading by default.",
+          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
           "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
           "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",
@@ -1534,33 +1511,6 @@
         "runtimeChange": "restart",
         "secret": false,
         "since": "0.1.0"
-      }
-    },
-    "l0.sandbox.writeRoots.extra": {
-      "default": [],
-      "items": {
-        "maxLength": 4096,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 256,
-      "type": "array",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Extra writable directories",
-          "labelKey": "settings.l0.sandbox.writeRoots.extra.label",
-          "order": 103,
-          "tab": "permissions",
-          "widget": "list"
-        }
       }
     },
     "l0.secrets.ageKey.filePath": {

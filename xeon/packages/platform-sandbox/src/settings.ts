@@ -2,7 +2,7 @@ import { Type } from "typebox";
 import { defineSettings, validateSettingValue, type SettingDef } from "@fresnel/contracts/settings";
 import type { OnUnavailable } from "@fresnel/contracts/services";
 
-// L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable, writeRoots.extra, escapeRetry)는 project 범위를 받지 않는다.
+// L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable)는 project 범위를 받지 않는다.
 // 네트워크는 기본 허용이고 차단 도메인만 관리한다(M3-REQ-55). 허용 목록 키(l0.sandbox.network.allowedDomains)는 정의하지 않는다.
 
 // 물어보기(ask)는 뺐다 [결정: 2026-11-11 사용자]. 저장된 옛 값은 설정 엔진이 무효로 보고 기본값 disable_execute로 읽는다.
@@ -48,34 +48,7 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       widget: "list",
       order: 102,
       label: "Extra protected paths",
-      help: "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing is blocked for reading by default.",
-    },
-    since: "0.1.0",
-  },
-  "writeRoots.extra": {
-    type: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
-    default: [],
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "list",
-      order: 103,
-      label: "Extra writable directories",
-    },
-    since: "0.1.0",
-  },
-  escapeRetry: {
-    type: Type.Boolean(),
-    default: false,
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "toggle",
-      order: 104,
-      label: "Allow retry outside the sandbox",
-      help: 'Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and "Extra writable directories" keeps the answer.',
+      help: "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
     },
     since: "0.1.0",
   },
@@ -137,8 +110,6 @@ export interface SandboxSettings {
   readonly enabled: boolean;
   readonly onUnavailable: OnUnavailable;
   readonly protectedPathsExtra: readonly string[];
-  readonly writeRootsExtra: readonly string[];
-  readonly escapeRetry: boolean;
   /** 샌드박스 안에서 닿지 못하게 할 도메인(srt deniedDomains). 목록 밖은 모두 허용이다 */
   readonly blockedDomains: readonly string[];
   /** 참이면 중첩 사용자 네임스페이스를 허용한다(브라우저 provider용, M3-REQ-56) */
@@ -151,8 +122,6 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   enabled: true,
   onUnavailable: "disable_execute",
   protectedPathsExtra: [],
-  writeRootsExtra: [],
-  escapeRetry: false,
   blockedDomains: [],
   nestedNamespaces: false,
   selfTestIntervalMin: 60,
@@ -179,8 +148,6 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
   const enabled = read(defs.enabled.key);
   const onUnavailable = read(defs.onUnavailable.key);
   const protectedExtra = read(defs["protectedPaths.extra"].key);
-  const writeExtra = read(defs["writeRoots.extra"].key);
-  const escapeRetry = read(defs.escapeRetry.key);
   const blocked = read(defs["network.blockedDomains"].key);
   const nested = read(defs.nestedNamespaces.key);
   const interval = read(defs.selfTestIntervalMin.key);
@@ -197,14 +164,6 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs["protectedPaths.extra"], protectedExtra) && isStringArray(protectedExtra)
         ? protectedExtra
         : DEFAULT_SANDBOX_SETTINGS.protectedPathsExtra,
-    writeRootsExtra:
-      valid(defs["writeRoots.extra"], writeExtra) && isStringArray(writeExtra)
-        ? writeExtra
-        : DEFAULT_SANDBOX_SETTINGS.writeRootsExtra,
-    escapeRetry:
-      valid(defs.escapeRetry, escapeRetry) && typeof escapeRetry === "boolean"
-        ? escapeRetry
-        : DEFAULT_SANDBOX_SETTINGS.escapeRetry,
     blockedDomains:
       valid(defs["network.blockedDomains"], blocked) && isStringArray(blocked)
         ? blocked

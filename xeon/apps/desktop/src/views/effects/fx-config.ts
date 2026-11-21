@@ -42,8 +42,11 @@ export function schemeOf(root: HTMLElement, osDark: boolean): FxScheme {
 
 // ── 입력창 아래 변 빛(DP-167) ────────────────────────────────────────
 
-/** 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다) */
-export type GlowVariant = "field" | "chip";
+/**
+ * 크기 변형. field는 입력창(선 + 안쪽 번짐), chip은 실행 중 칩(선만: 번짐이 칩 글을 덮는다),
+ * band는 Drive 띠(lcM6c·lcM6d): 띠의 윗변 곧은 구간에만 선, 그 바로 아래 6px의 옅은 번짐. 빛깔은 붉은 기운을 뺀 띠 전용 팔레트
+ */
+export type GlowVariant = "field" | "chip" | "band";
 
 /** 빛깔 이름. beam.css의 `--fx-glow-<이름>`(border-beam `line` colorful 팔레트) */
 type GlowTint =
@@ -56,7 +59,8 @@ type GlowTint =
   | "indigo"
   | "cyan"
   | "orange"
-  | "magenta";
+  | "magenta"
+  | "yellow";
 
 /** 아래 변 위의 빛 알갱이 하나. 자리와 폭은 상자 폭에 대한 비율이다 */
 export type GlowSpark = {
@@ -102,6 +106,25 @@ export const GLOW_TUNE: Readonly<Record<GlowVariant, GlowTune>> = {
       { at: 0.6, width: 0.3, tint: "blue", phase: 2 },
       { at: 0.76, width: 0.3, tint: "indigo", phase: 1 },
       { at: 0.92, width: 0.3, tint: "orange", phase: 3 },
+    ],
+  },
+  // 띠(lcM6d): 붉은 기운(분홍·주황·자홍)을 뺀 초록·파랑·보라·노랑 계열만 쓴다(사용자 2026-11-20, 입력창 빛은 그대로).
+  // 흰 심(core)도 띠는 차가운 흰빛이다(beam.css). 번짐은 테두리 바로 아래 6px만, 덩이 넷이다
+  band: {
+    line: [
+      { at: 0.07, width: 0.26, tint: "teal", phase: 0 },
+      { at: 0.21, width: 0.26, tint: "blue", phase: 2 },
+      { at: 0.36, width: 0.26, tint: "purple", phase: 1 },
+      { at: 0.5, width: 0.26, tint: "core", phase: 3 },
+      { at: 0.64, width: 0.26, tint: "green", phase: 0 },
+      { at: 0.79, width: 0.26, tint: "yellow", phase: 2 },
+      { at: 0.93, width: 0.26, tint: "indigo", phase: 1 },
+    ],
+    bloom: [
+      { at: 0.16, width: 0.34, tint: "teal", phase: 1 },
+      { at: 0.4, width: 0.34, tint: "blue", phase: 3 },
+      { at: 0.62, width: 0.34, tint: "green", phase: 0 },
+      { at: 0.84, width: 0.34, tint: "purple", phase: 2 },
     ],
   },
   chip: {

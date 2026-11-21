@@ -21,6 +21,8 @@
   --fx-glow-cyan: rgb(40 180 220);
   --fx-glow-orange: rgb(255 160 30);
   --fx-glow-magenta: rgb(240 50 180);
+  /* 띠 전용(lcM6d): 붉은 기운을 뺀 팔레트의 노랑 */
+  --fx-glow-yellow: rgb(245 205 60);
   /* 세기: 선, 흐르는 무지개 바탕, 번짐 */
   --fx-glow-line: 1;
   --fx-glow-flow: 0.6;
@@ -418,6 +420,107 @@
 .fx-beam[data-variant="chip"] {
   --fx-beam-radius: 12px;
   inset: 0;
+}
+
+/* 띠 변형(Drive 띠, lcM6c·lcM6d). 띠의 보이는 줄은 28이라 입력창과 같은 빛이면 너무 세다(사용자 2026-11-20). 그래서 띠만:
+   - 빛깔: 붉은 기운(분홍·주황·자홍)을 빼고 초록·파랑·보라·노랑 계열만 둔다. 흰 심은 차가운 흰빛(라이트는 파랑)이다.
+   - 자리: 윗변의 곧은 구간에만 1px 선이 있다. 위 두 모서리의 곡선(반경 12)에서는 빛이 없고, 곡선이 끝난 뒤 20px에 걸쳐 들어온다.
+   - 번짐: 선 바로 아래 6px, 흐림 3px만. 세기는 선 0.8, 흐르는 바탕 0.42, 번짐 0.34(라이트 0.6·0.26).
+   판은 띠 면 테두리 위(inset -1px)에 겹치고 반경은 띠 면을 따른다. 알갱이·키프레임은 입력창과 같다 */
+.fx-beam-band {
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.fx-beam[data-variant="band"] {
+  /* 띠 면의 위 모서리(rounded-t-xl)와 빛이 곡선 뒤에서 들어오는 길이 */
+  --fx-beam-radius: 12px;
+  --fx-band-fade: 20px;
+  --fx-glow-core: rgb(236 246 255);
+  --fx-glow-line: 0.8;
+  --fx-glow-flow: 0.42;
+  --fx-glow-bloom: 0.34;
+  inset: 0;
+}
+.fx-beam[data-variant="band"][data-scheme="light"] {
+  --fx-glow-core: var(--fx-glow-blue);
+  --fx-glow-flow: 0.6;
+  --fx-glow-bloom: 0.26;
+}
+/* 선 겹: 고리 마스크 대신 윗변의 곧은 구간(양끝 반경만큼 들인 1px 줄)이다. 양끝은 가로 마스크로 사그라진다 */
+.fx-beam[data-variant="band"] .fx-glow-edge {
+  inset: 0 var(--fx-beam-radius) auto;
+  height: 1px;
+  padding: 0;
+  border-radius: 0;
+  -webkit-mask: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--fx-band-fade),
+    #000 calc(100% - var(--fx-band-fade)),
+    transparent
+  );
+  mask: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--fx-band-fade),
+    #000 calc(100% - var(--fx-band-fade)),
+    transparent
+  );
+}
+/* 흐르는 바탕: 붉은 기운 없이 이웃끼리 섞여도 붉어지지 않는 순서(노랑은 초록 곁에만) */
+.fx-beam[data-variant="band"] .fx-glow-flow {
+  background: linear-gradient(
+    90deg,
+    var(--fx-glow-teal),
+    var(--fx-glow-blue),
+    var(--fx-glow-indigo),
+    var(--fx-glow-purple),
+    var(--fx-glow-blue),
+    var(--fx-glow-cyan),
+    var(--fx-glow-green),
+    var(--fx-glow-yellow),
+    var(--fx-glow-green),
+    var(--fx-glow-teal),
+    var(--fx-glow-blue),
+    var(--fx-glow-indigo),
+    var(--fx-glow-purple),
+    var(--fx-glow-blue),
+    var(--fx-glow-cyan),
+    var(--fx-glow-green),
+    var(--fx-glow-yellow),
+    var(--fx-glow-green),
+    var(--fx-glow-teal)
+  );
+}
+/* 번짐 겹: 선 바로 아래 6px, 선과 같은 곧은 구간에만 */
+.fx-beam[data-variant="band"] .fx-glow-bloom {
+  top: 0;
+  right: var(--fx-beam-radius);
+  bottom: auto;
+  left: var(--fx-beam-radius);
+  height: 6px;
+  filter: blur(3px);
+  -webkit-mask: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--fx-band-fade),
+    #000 calc(100% - var(--fx-band-fade)),
+    transparent
+  );
+  mask: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--fx-band-fade),
+    #000 calc(100% - var(--fx-band-fade)),
+    transparent
+  );
+}
+.fx-beam[data-variant="band"] .fx-glow-cloud {
+  top: -55%;
+  bottom: auto;
+  transform-origin: 50% 0;
 }
 
 /* 정지 선(머리 줄 아래 선의 움직임 줄이기) */
