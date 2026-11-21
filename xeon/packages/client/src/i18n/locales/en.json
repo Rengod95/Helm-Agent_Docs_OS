@@ -5205,7 +5205,7 @@
   "desktop.craft.metrics.kpi.context": "Plugin context per turn",
   "desktop.craft.metrics.kpi.defied": "Blocked despite instructions",
   "desktop.craft.metrics.kpi.fewTurns": "Sum of turn records · small sample",
-  "desktop.craft.metrics.kpi.label": "Headline numbers",
+  "desktop.craft.metrics.kpi.label": "Key figures",
   "desktop.craft.metrics.kpi.share": "{pct} of {n} blocks and asks",
   "desktop.craft.metrics.kpi.same": "Same as previous {n} days",
   "desktop.craft.metrics.kpi.ofRuled": "of blocks and asks",
