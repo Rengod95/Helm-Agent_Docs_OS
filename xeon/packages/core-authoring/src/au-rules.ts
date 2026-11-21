@@ -38,7 +38,7 @@ export function au004(
       path: entry.path,
       message: `${entry.code}: ${entry.message}`,
     }));
-  const composition = manifest?.group?.composition;
+  const composition = manifest?.orchestration?.composition;
   if (manifest === undefined || composition === undefined || providers === undefined)
     return aliased;
   const missing = validateComposition(composition, {
@@ -49,7 +49,7 @@ export function au004(
     .map((entry) => ({
       severity: "warning" as const,
       code: "AU-004",
-      path: `/group/composition${entry.path}`,
+      path: `/orchestration/composition${entry.path}`,
       message: `${entry.code}: ${entry.message}`,
     }));
   return [...aliased, ...missing];
@@ -88,7 +88,7 @@ export function au010(
   manifest: ExtensionManifest,
   sources: readonly SourceText[],
 ): readonly DevkitIssue[] {
-  const nodes = manifest.group?.composition?.phases?.nodes ?? [];
+  const nodes = manifest.orchestration?.composition?.phases?.nodes ?? [];
   const costlyInSource = sources.find((source) => COSTLY_STEP.test(source.text));
   const costly = costlyInSource !== undefined || nodes.some((node) => node.kind === "spawn");
   if (!costly) return [];
@@ -102,7 +102,7 @@ export function au010(
     {
       severity: "warning",
       code: "AU-010",
-      path: "/group",
+      path: "/orchestration",
       message:
         "a step that costs (spawn or delegate) has no human confirmation: ask with loop.ask, add a human phase node, or set approval: true",
       ...(costlyInSource === undefined || match === null
@@ -130,7 +130,7 @@ export function au011(sources: readonly SourceText[]): readonly DevkitIssue[] {
     found.push({
       severity: "warning",
       code: "AU-011",
-      path: "/group",
+      path: "/orchestration",
       message: "the state document is used but no state declaration with a version was found",
       ...(first === undefined ? {} : { file: first.file }),
     });
@@ -141,7 +141,7 @@ export function au011(sources: readonly SourceText[]): readonly DevkitIssue[] {
     found.push({
       severity: "warning",
       code: "AU-011",
-      path: "/group",
+      path: "/orchestration",
       message: `state.version is ${String(version)} but no migrations were found`,
       file: declaring.file,
     });

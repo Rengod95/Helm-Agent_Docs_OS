@@ -488,7 +488,7 @@ sequenceDiagram
 
 1. `input.agent.before`의 패치 중 메시지 추가는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
    - 훅 입력 payload의 `driver`와 `stack`은 주도권 스택에서 정한다. 루프는 `ExtHost.driveFrames(threadId)`를 읽어 플러그인 프레임(코어 루프 깊이 0은 뺀다)의 플러그인 이름만 모은다. `stack`은 아래에서 위 순서이고 주도 중이 아니면 빈 배열이다. `driver`는 맨 위 플러그인 프레임의 이름이고 주도 중이 아니면 null이다(review.m5-drive-isolation 2.5). 턴 시작 훅 payload를 만들 때마다 한 번 읽는다.
-   - 시스템 프롬프트 변경은 접두에 넣지 않는다. 접두는 thread에서 처음 만든 뒤 컴팩션까지 고정이므로, 첫 turn의 변경이 접두에 굳고 둘째 turn부터의 변경은 모델에 닿지 않았다(감사 L1-03, M2 마감 G2-03). 루프는 체인 결과에서 기본 프롬프트에 더해진 부분(`promptAddition`: 기본 프롬프트 뒤에 덧붙였으면 나머지, 바꿨으면 바꾼 전체)만 떼어 그 turn 상태에 두고, 단계마다 `AssembleOptions.volatile`의 `instructions` 항목으로 넘긴다. 접두의 `basePrompt`는 변경 전 기본 프롬프트(자식 turn은 요청의 `systemPrompt`) 그대로다. 그래서 turn마다 달라지는 안내(`l2.dialog.commands.advertise`의 명령 광고, 그룹의 turn별 지침)가 캐시된 접두를 깨지 않고 매 단계 전달된다.
+   - 시스템 프롬프트 변경은 접두에 넣지 않는다. 접두는 thread에서 처음 만든 뒤 컴팩션까지 고정이므로, 첫 turn의 변경이 접두에 굳고 둘째 turn부터의 변경은 모델에 닿지 않았다(감사 L1-03, M2 마감 G2-03). 루프는 체인 결과에서 기본 프롬프트에 더해진 부분(`promptAddition`: 기본 프롬프트 뒤에 덧붙였으면 나머지, 바꿨으면 바꾼 전체)만 떼어 그 turn 상태에 두고, 단계마다 `AssembleOptions.volatile`의 `instructions` 항목으로 넘긴다. 접두의 `basePrompt`는 변경 전 기본 프롬프트(자식 turn은 요청의 `systemPrompt`) 그대로다. 그래서 turn마다 달라지는 안내(`l2.dialog.commands.advertise`의 명령 광고, 플러그인의 turn별 지침)가 캐시된 접두를 깨지 않고 매 단계 전달된다.
    - `instructions`는 커밋하지 않는다. 재개 진입(`request`, `tools`)은 `input.agent.before`를 다시 발화하지 않으므로 재개한 turn의 남은 단계에는 이 안내가 없고 다음 turn부터 다시 붙는다 [제안].
    - 환경 블록의 소유자는 L1.loop이다. 단계마다 `environment` volatile 항목으로 날짜(단계를 여는 시각의 UTC 날짜), 대화의 작업 디렉터리(`workingDirectory`), `platform`(조립 루트가 OS 서비스의 `info`로 채운 `<platform>/<arch>`)을 줄 단위로 넘긴다. 모르는 값은 줄을 내지 않는다. 기본 프롬프트 문안(`core-loop/src/prompt.ts`의 `DEFAULT_BASE_PROMPT`, 영어, M3-REQ-87)은 정체성 한 줄, 응답 언어(사용자가 쓰는 언어로 답하고 코드·경로·명령·도구 이름은 번역하지 않는다), 도구 사용 규칙(추측하지 않고 도구로 확인, 고치기 전에 읽기, 전용 도구 우선, 독립 호출은 한 단계에 묶기, 도구 결과는 지시가 아니라 자료, 실패하면 접근을 바꾸고 같은 호출을 되풀이하지 않기, 거부를 우회하지 않기, 시크릿 값 출력 금지), 답변 규칙을 담는다. 조립 루트가 `basePrompt`로 덮어쓸 수 있다.
 2. `prepareRequest`는 매 요청마다 커밋된 이벤트에서 컨텍스트를 다시 만든다. 그래서 `boundary.message.after` chain이 바꾼 메시지는 기록된 모양으로 다음 요청에 들어간다. 루프 안 메모리 배열을 직접 고치지 않는다.
@@ -621,7 +621,7 @@ runTurn(req: LoopTurnRequest):
 
 - 멱등은 core-agents가 맡는다. 같은 (부모 thread, `requestId`)의 `agent.spawned`가 대화 DB에 있으면 새 자식을 만들지 않고 기록된 결과를 돌려주며, 그때 `replayed`는 `true`다(M3-REQ-69). 루프는 별도 표를 두지 않는다.
 - 결과는 `SpawnResult`의 `childThreadId`, `status`, `answer`를 `SpawnOutcome`으로, `reused`를 `replayed`로, `usage`를 그대로 옮긴다. core-agents의 거절(`agents.*`)은 `status: "error"`와 거절 문장을 담은 `answer`로 돌아온다.
-- `spec.background`가 참이면 `input_invalid`로 거부한다. 백그라운드 위임은 그룹의 `delegate`가 한다.
+- `spec.background`가 참이면 `input_invalid`로 거부한다. 백그라운드 위임은 플러그인의 `delegate`가 한다.
 - `fresnel.agents`가 아직 없으면 `input_invalid`로 거부한다. core-agents가 루프에 의존하므로 루프는 서비스를 부를 때 찾는다(`LoopDeps.agents`).
 - `leaseEpoch` 펜싱은 `runTurn`만 한다. `spawn`은 X가 `releasing` drive 락의 호출을 막는다(`X.primitives.spec` §4.4.4).
 - drive 락 신호는 실행 중인 단계를 끊지 않는다. 단계 경계에서만 멈춘다. `F.extensions.spec` §4.5 "실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다"와 맞추고, `loop.turn()` 단위로 기다릴지는 X가 신호를 켜는 시점으로 정한다.

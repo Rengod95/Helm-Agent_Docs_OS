@@ -19,7 +19,7 @@ const callRead = (id: string): ScriptedResponse => ({
   stopReason: "toolUse",
 });
 
-/** 학습 제안 id 유도(group-learning/src/review/propose.ts)와 같은 식: `prop_` + sha256 hex 앞 26자 대문자 */
+/** 학습 제안 id 유도(plugin-learning/src/review/propose.ts)와 같은 식: `prop_` + sha256 hex 앞 26자 대문자 */
 function proposalIdOf(toolCallId: string): string {
   const digest = new Bun.CryptoHasher("sha256").update(toolCallId).digest("hex");
   return `prop_${digest.slice(0, 26).toUpperCase()}`;

@@ -3,9 +3,9 @@ import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import type { DevkitError, ReplayFailure, ReplayReport } from "@fresnel/contracts/services";
 import { runInstalledReplay } from "@fresnel/plugin-builder";
 
-// 개발 모드 replay(W-29)의 실행 자리와 보고 변환. group-sdk `replayDrive`의 보고(`ReplayDriveReport`)를 와이어 `ReplayReport`로 옮긴다.
+// 개발 모드 replay(W-29)의 실행 자리와 보고 변환. orchestration-sdk `replayDrive`의 보고(`ReplayDriveReport`)를 와이어 `ReplayReport`로 옮긴다.
 // 실행기(`ReplayRunner`)는 설치된 그룹을 실어 재생하는 쪽이다. 기본 실행기(`installedReplayRunner`)는 `@fresnel/plugin-builder`의
-// `runInstalledReplay`다. 재생기가 `@fresnel/group-sdk/testing`을 쓰므로 운영 호스트 코드는 그 서브패스를 직접 import하지 않는다(DR-08).
+// `runInstalledReplay`다. 재생기가 `@fresnel/orchestration-sdk/testing`을 쓰므로 운영 호스트 코드는 그 서브패스를 직접 import하지 않는다(DR-08).
 // 그래서 보고 모양은 필요한 칸만 구조로 적는다.
 
 interface ReplayRunCut {
@@ -22,7 +22,7 @@ type ReplayRunFailure =
   | "effects-doubled"
   | "effects-mismatch";
 
-/** group-sdk `ReplayDriveReport`와 구조가 맞는 보고. 실행기는 이 모양을 돌려준다 */
+/** orchestration-sdk `ReplayDriveReport`와 구조가 맞는 보고. 실행기는 이 모양을 돌려준다 */
 export interface ReplayRunReport {
   readonly ok: boolean;
   readonly commits: number;

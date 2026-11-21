@@ -43,9 +43,9 @@ test("the committed release-bundle.json parses into the bundle the release build
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value).toEqual({
-    templates: "packages/group-sdk/templates",
-    guide: "packages/group-guide/skills",
-    defaultPlugins: [{ name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" }],
+    templates: "packages/orchestration-sdk/templates",
+    guide: "packages/plugin-guide/skills",
+    defaultPlugins: [{ name: "helm", buildScript: "packages/plugin-helm/scripts/build-plugin.ts" }],
     bundledBinaries: {
       [MAC]: {
         platform: "darwin",
@@ -93,8 +93,8 @@ test("a bundle config with a bad value, an extra key or a missing field is confi
     ["uppercase binary name", '"name": "sops"', '"name": "Sops"'],
     ["empty license", '"license": "BSD-3-Clause"', '"license": ""'],
     ["unknown key", '"systemRequired": {', '"extra": 1,\n  "systemRequired": {'],
-    ["missing templates", '"templates": "packages/group-sdk/templates",', ""],
-    ["missing guide", '"guide": "packages/group-guide/skills",', ""],
+    ["missing templates", '"templates": "packages/orchestration-sdk/templates",', ""],
+    ["missing guide", '"guide": "packages/plugin-guide/skills",', ""],
     ["number platform", '"platform": "darwin"', '"platform": 7'],
     ["empty plugin name", '"name": "helm"', '"name": ""'],
   ];
@@ -178,11 +178,11 @@ test("sumsBody writes one `<sha256>  <path>` line per file, sorted by path", () 
     sumsBody([
       { path: "fresnel", sha256: a },
       { path: "THIRD-PARTY-NOTICES.txt", sha256: b },
-      { path: "group-sdk/templates/index.json", sha256: c },
+      { path: "orchestration-sdk/templates/index.json", sha256: c },
       { path: "binaries/age", sha256: d },
     ]),
   ).toEqual(
-    `${d}  binaries/age\n${a}  fresnel\n${c}  group-sdk/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n`,
+    `${d}  binaries/age\n${a}  fresnel\n${c}  orchestration-sdk/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n`,
   );
 });
 
@@ -361,7 +361,7 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
     "fresnel",
     "fresnel-web",
     "ui/index.html",
-    "group-sdk/templates/index.json",
+    "orchestration-sdk/templates/index.json",
     "guide/skills/fresnel-plugin-authoring/SKILL.md",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",

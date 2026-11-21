@@ -396,7 +396,7 @@ test("ui: a kind the manifest reads (exact or by prefix) can be carded, another 
 
 test("ui: a group cards its own grp.<name>. kind, a plugin of the same name does not", async () => {
   const cards = [cardOf("finished", "grp.helm.inquiry.finished"), cardOf("web", "grp.web.x")];
-  const group: UiOwner = { name: "helm", group: {}, readsRecordKinds: [] };
+  const group: UiOwner = { name: "helm", orchestration: {}, readsRecordKinds: [] };
   expect(await cardKindsOf(cards, group)).toEqual([
     { id: "finished", state: "ok", forKind: "grp.helm.inquiry.finished" },
     { id: "web", state: "invalid" },

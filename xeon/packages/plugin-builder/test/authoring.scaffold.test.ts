@@ -39,13 +39,13 @@ test("authoring.scaffold: a composition draft is patched into the manifest and t
   };
   const dir = root.path("patched");
   const made = await scaffoldExtension(
-    { kind: "single-plugin", name: "patched", dir, group: { composition } },
+    { kind: "single-plugin", name: "patched", dir, orchestration: { composition } },
     { templates, displayName: "Patched" },
   );
   if (!made.ok) throw new Error(made.error.message);
   const manifest = readManifest(dir);
   expect(manifest.displayName).toBe("Patched");
-  expect(manifest.group).toEqual({ composition });
+  expect(manifest.orchestration).toEqual({ composition });
   expect(pluginDeclsOf(manifest)[0]?.hooks).toContain("tool.call.before");
   expect(pluginDeclsOf(manifest)[0]?.drives).toBeUndefined();
 });
@@ -59,7 +59,7 @@ test("authoring.scaffold: a single plugin takes the requested layer", async () =
   if (!made.ok) throw new Error(made.error.message);
   const manifest = readManifest(dir);
   expect(pluginDeclsOf(manifest).map((plugin) => plugin.layer)).toEqual(["L2"]);
-  expect(manifest.group).toBeUndefined();
+  expect(manifest.orchestration).toBeUndefined();
 });
 
 test("authoring.scaffold: refusals leave the target folder untouched", async () => {

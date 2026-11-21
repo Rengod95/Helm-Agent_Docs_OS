@@ -532,7 +532,7 @@ export interface SessionCompactFailedPayload {
 ### 7.4 post, drive, scope와의 관계
 
 - post: core-context는 `post`를 쓰지 않는다. 컴팩션 완료는 `thread.compact.after`(tap) 훅과 내구 이벤트 `thread.compacted`로 알리고 따로 post 항목을 만들지 않는다 [제안]. 확장이 `post`로 넣은 context 항목(custom item)은 조립 때 다른 custom item과 같은 규칙으로 변환한다(§4.1).
-- drive: drive 락 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) drive 락 그룹이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `thread.compact.before`는 drive 락 여부와 상관없이 발화하고 drive 락 그룹을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
+- drive: drive 락 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) drive 락을 쥔 플러그인이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `thread.compact.before`는 drive 락 여부와 상관없이 발화하고 drive 락을 쥔 플러그인을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
 - scope: 확장이 꺼지면 그 확장의 `context`, `request.system.before`, `request.cache.before`, `session_*compact*` 핸들러는 X가 단계 경계에서 핸들러 스냅샷에서 뺀다(F.extensions.spec §4.5). 진행 중인 조립과 컴팩션은 시작 때의 스냅샷으로 끝까지 간다. 그래서 핸들러 제거는 다음 단계의 `assemble`부터 적용된다. 그 확장이 등록한 도구가 빠지는 일은 §4.3 도구 변경 규칙을 따른다.
 
 ## 8. 다른 문서와의 인터페이스

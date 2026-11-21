@@ -26,7 +26,7 @@ describe("manifest with optional entry and plugins (M5c-1)", () => {
     expect(manifest.plugins).toBeUndefined();
     expect(pluginDeclsOf(manifest)).toEqual([{ layer: "plugin", hooks: [] }]);
     expect(pluginsOf(manifest)).toEqual([
-      expect.objectContaining({ registrationId: "acme-notes", root: true, inGroup: false }),
+      expect.objectContaining({ registrationId: "acme-notes", root: true, inOrchestration: false }),
     ]);
     expect(effectiveLayer(manifest)).toBe("plugin");
   });

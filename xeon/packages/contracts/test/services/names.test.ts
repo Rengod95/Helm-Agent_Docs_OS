@@ -10,7 +10,7 @@ import {
   ContextServiceName,
   ExecPortKey,
   ExecServiceName,
-  GroupServiceName,
+  OrchestrationServiceName,
   DevkitServiceName,
   LoopServiceName,
   LoopServicePortKey,
@@ -61,7 +61,7 @@ const CONSTANTS: typeof SERVICE_NAMES = {
   secrets: SecretServiceName,
   secretAdmin: SecretAdminServiceName,
   mcp: McpServiceName,
-  groups: GroupServiceName,
+  groups: OrchestrationServiceName,
   devkit: DevkitServiceName,
 };
 

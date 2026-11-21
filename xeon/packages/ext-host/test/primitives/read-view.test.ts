@@ -5,13 +5,13 @@ import { HOOKS, type DriveCommand, type DriveFrameView } from "@fresnel/contract
 import { createTestHost } from "../../src/testing/index.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { echoDefs, makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { echoDefs, makeOrchestrationUnit, makeUnit } from "./fixtures/support.ts";
 
 // X.primitives.spec §4.4.9: 조립 루트가 wire 확장 읽기에 쓰는 읽기 전용 조회
 
 test("threadStatus: unknown for a thread that is not open, then enabled, disabling after a thread-only disable", async () => {
   const t = await createTestHost();
-  await t.host.install(makeGroupUnit({ name: "scp-group", hooks: [] }, () => {}));
+  await t.host.install(makeOrchestrationUnit({ name: "scp-group", hooks: [] }, () => {}));
   const view = extReadViewOf(t.host);
   const thread = t.newThread();
   expect(view.threadStatus(thread, "scp-group")).toBeUndefined();
@@ -33,7 +33,7 @@ function turnThenYield(last: unknown): DriveCommand<never> {
 test("driveFrames: only the core frame until a start request is granted, then the plugin frame at depth 1 with its lease and usage", async () => {
   const t = await createTestHost();
   await t.host.install(
-    makeGroupUnit({ name: "frame-driver" }, (g) => {
+    makeOrchestrationUnit({ name: "frame-driver" }, (g) => {
       g.drive(({ last }) => Promise.resolve(turnThenYield(last)), { limits: { maxTurns: 3 } });
     }),
   );

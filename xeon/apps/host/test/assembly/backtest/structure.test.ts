@@ -67,7 +67,8 @@ function forbiddenOf(specifier: string): string | null {
     "core-loop",
     "handlers/",
     "@fresnel/cap-",
-    "@fresnel/group-",
+    "@fresnel/plugin-",
+    "@fresnel/orchestration-sdk",
   ];
   return forbidden.some((part) => specifier.includes(part)) ? specifier : null;
 }

@@ -8,7 +8,7 @@ import { parse } from "@fresnel/contracts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 type Command = DriveCommand<never>;
 
@@ -31,7 +31,7 @@ async function install(
   decide: (last: StepResult | null) => Command,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(({ last, frame }) => {
         seen.push({ plugin: name, last, calledBy: frame.calledBy, input: frame.input });
         return Promise.resolve(decide(last));

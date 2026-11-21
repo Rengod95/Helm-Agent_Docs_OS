@@ -519,7 +519,7 @@ function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailO
           )}
           <span aria-hidden>·</span>
           <span>{t(ORIGIN_TEXT[row.trust])}</span>
-          {detail.isGroup ? (
+          {detail.isOrchestration ? (
             <>
               <span aria-hidden>·</span>
               <span>{t("desktop.addons.detail.group")}</span>

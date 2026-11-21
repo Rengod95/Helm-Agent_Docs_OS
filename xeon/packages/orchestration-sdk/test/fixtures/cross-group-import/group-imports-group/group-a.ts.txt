@@ -1,0 +1,3 @@
+import { value } from "@fresnel/plugin-b";
+
+export const fromB: number = value;

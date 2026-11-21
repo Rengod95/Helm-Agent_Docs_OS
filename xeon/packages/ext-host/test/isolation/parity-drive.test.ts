@@ -74,7 +74,7 @@ const CONFIGS: readonly Config[] = [
 
 /** 엔트리 파일은 픽스처 루트 아래의 파일이다. 등록 이름은 매니페스트 이름과 같다 */
 function manifestOf(name: string, file: string): ExtensionManifest {
-  return { ...makeManifest({ name, hooks: [], group: {}, drives: true }), entry: file };
+  return { ...makeManifest({ name, hooks: [], orchestration: {}, drives: true }), entry: file };
 }
 
 const PARITY = manifestOf("dp", "./drive-parity-plugin.ts");

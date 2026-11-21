@@ -20,7 +20,7 @@ const USAGE_ISSUE_CODES: Readonly<Record<string, ManifestIssue["code"]>> = {
   hook_undeclared: "hook_undeclared",
   post_undeclared: "post_undeclared",
   drive_undeclared: "drive_undeclared",
-  drive_requires_group: "drive_requires_group",
+  drive_requires_orchestration: "drive_requires_orchestration",
   capability_undeclared: "capability_undeclared",
   record_kind_undeclared: "record_kind_undeclared",
   read_kind_undeclared: "read_kind_undeclared",

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { KIND_CATALOG_VERSION } from "@fresnel/contracts/services";
 import { KIND_CATALOG, kindEntryOf, locateTemplateDirs, scaffoldExtension } from "../src/index.ts";
 
-// 제작 코어(L1)의 공개 모양. 코어는 플러그인(group-sdk)을 import하지 않고, 이름 규칙은 contracts의 정본을 쓴다.
+// 제작 코어(L1)의 공개 모양. 코어는 플러그인(orchestration-sdk)을 import하지 않고, 이름 규칙은 contracts의 정본을 쓴다.
 
 test("종류 카탈로그는 contracts의 카탈로그 버전을 쓰고 항목을 하나 낸다", () => {
   expect(KIND_CATALOG.map((entry) => entry.id)).toEqual(["single-plugin"]);

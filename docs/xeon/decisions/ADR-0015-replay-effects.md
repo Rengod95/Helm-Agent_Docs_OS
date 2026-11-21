@@ -5,7 +5,7 @@ domain: replay-effects
 kind: adr
 status: accepted
 depends_on: [adr.0004, adr.0007, adr.0009, F.extensions.spec, F.capabilities.spec, X.primitives.spec]
-binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/capabilities/**, xeon/packages/ext-host/src/primitives/**, xeon/packages/group-sdk/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
+binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/capabilities/**, xeon/packages/ext-host/src/primitives/**, xeon/packages/orchestration-sdk/**, xeon/packages/plugin-helm/**, xeon/packages/plugin-learning/**]
 ---
 
 # ADR-0015 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)

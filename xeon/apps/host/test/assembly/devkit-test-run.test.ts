@@ -6,7 +6,11 @@ import { err, ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type { Profile } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
-import { createRuntimeReplayHarness, replayDrive, smokeGroup } from "@fresnel/group-sdk/testing";
+import {
+  createRuntimeReplayHarness,
+  replayDrive,
+  smokeOrchestration,
+} from "@fresnel/orchestration-sdk/testing";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4HostEnv, M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
@@ -21,7 +25,7 @@ import { partial } from "../fixtures/unsafe.ts";
 
 // 제작 포트의 `ext.test.run`·`ext.test.list`(`assembly/m4/devkit-port.ts`)를 실제 파일 잠금과 실제 기록 파일 위에서 본다.
 // 재생 실행기는 이 시험에서 스모크 그룹을 실제 하니스(`replayDrive` + 런타임 하니스)로 돌리는 것을 넘기거나, 넘기지 않으면 기본
-// 실행기(`runInstalledReplay`, plugin-builder)를 쓴다. 시험 파일만 `@fresnel/group-sdk/testing`을 import한다(DR-08).
+// 실행기(`runInstalledReplay`, plugin-builder)를 쓴다. 시험 파일만 `@fresnel/orchestration-sdk/testing`을 import한다(DR-08).
 // Test run 대화의 생성, 프로필, 등록은 가짜다.
 
 const root = mkdtempSync(join(tmpdir(), "devkit-test-run-"));
@@ -52,7 +56,7 @@ function manifestOf(name: string, group: boolean): string {
         ? { layer: "L3", hooks: ["boundary.settle.after"], drives: true }
         : { layer: "plugin", hooks: ["boundary.settle.after"] },
     ],
-    ...(group ? { group: {} } : {}),
+    ...(group ? { orchestration: {} } : {}),
     defaultEnabled: false,
     trust: { level: "user" },
   });
@@ -178,7 +182,7 @@ const realRunner: ReplayRunner = {
   run: async (input) =>
     ok(
       await replayDrive({
-        group: smokeGroup({ driveTurns: 2, followUps: 0 }).module,
+        orchestration: smokeOrchestration({ driveTurns: 2, followUps: 0 }).module,
         harness: createRuntimeReplayHarness(),
         maxCommits: input.maxCommits,
       }),

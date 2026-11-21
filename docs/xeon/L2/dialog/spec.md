@@ -191,7 +191,7 @@ export function renderAsk(out: AskResult): ToolContent;
 export const DialogAsk = defineCapability({
   id: "dialog.ask",
   version: "1.0.0",
-  description: "모델이나 그룹 코드가 사용자에게 질문하고 답을 받는다. 답은 승인 프로토콜(kind question)로 받는다.",
+  description: "모델이나 플러그인 코드가 사용자에게 질문하고 답을 받는다. 답은 승인 프로토콜(kind question)로 받는다.",
   service: {
     methods: {
       ask: {
@@ -291,7 +291,7 @@ export const CommandRegisterInput = Type.Object(
     args: Type.Optional(Type.Array(CommandArgSchema, { maxItems: 16 })),
     /** 템플릿 본문. pi 치환 문법(§4.2.2) */
     template: Type.String({ minLength: 1, maxLength: 32768 }),
-    /** 등록 주체 이름(확장 이름). 예: "<그룹 이름>" */
+    /** 등록 주체 이름(확장 이름). 예: "<플러그인 이름>" */
     origin: Type.String({ minLength: 1, maxLength: 64 }),
   },
   { additionalProperties: false },
@@ -405,7 +405,7 @@ export interface CommandActionRegistry {
 
 ```ts
 // defs/dialog.ts (4/7)
-/** "core.turn", "<그룹 이름>.phase" 같은 "<소유자>.<이름>" */
+/** "core.turn", "<플러그인 이름>.phase" 같은 "<소유자>.<이름>" */
 export const STATUS_ITEM_ID_PATTERN = "^[a-z][a-z0-9-]{0,31}\\.[a-z][a-z0-9-]{0,31}$";
 export const StatusItemSchema = Type.Object(
   {
@@ -625,7 +625,7 @@ export const DialogNotify = defineCapability({
   description: "사용자 주의가 필요한 상태를 5종으로 분류하고 알린다.",
   service: {
     methods: {
-      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "unsafe" },
+      emit: { description: "플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "unsafe" },
       list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe", readOnly: true },
     },
   },
@@ -776,7 +776,7 @@ sequenceDiagram
 
 - `_research/l2e.md` §3.2 B1의 `prompts.ask(spec) → 답 Promise`는 이 문서의 `dialog.ask.ask`다.
 - 기본(`wait` 생략 또는 거짓): 메서드는 요청을 만든 즉시 `input_required`를 돌려준다. 대기는 승인 기록(내구)으로만 존재한다. 도구 경로는 항상 이 방식이다(`toInput`이 `wait: false`를 넣는다).
-- `wait: true`(그룹 경로): 메서드가 `ApprovalsPort.wait`로 해결까지 기다린 뒤 완료 출력을 돌려준다. 이 Promise는 메모리 대기다.
+- `wait: true`(플러그인 경로): 메서드가 `ApprovalsPort.wait`로 해결까지 기다린 뒤 완료 출력을 돌려준다. 이 Promise는 메모리 대기다.
   - 프로세스가 끝나면 Promise는 사라진다. 승인 요청과 답은 내구 기록에 남는다.
   - 호출자는 재개 뒤 같은 `requestId`로 `ask`를 다시 불러 저장된 답을 받는다. drive 함수는 재개 때 같은 순서로 다시 호출되므로(F.extensions.spec §4.6) 같은 키를 쓰면 질문이 두 번 나가지 않는다.
   - `CallOptions.signal`이 취소되면 기다림만 멈추고 `aborted` 오류를 낸다. 승인 요청은 취소하지 않는다. 요청을 거두려면 L1 취소 경로를 쓴다.
@@ -846,7 +846,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 - [제안] 같은 이름이 여러 출처에 있으면 `builtin` > `capability` > `project` > `user` > `extension` 순으로 앞의 것을 쓴다. 가려진 명령은 `list({ includeHidden: true })`에서 보이고 진단을 남긴다.
 - pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 작업 폴더보다 앞선다(`prompt-templates.ts` 238-304행). Fresnel은 설정 우선순위(작업 폴더가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
-- `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 그룹 명령은 `<그룹>:<이름>` 형식을 권한다.
+- `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 플러그인 명령은 `<플러그인>:<이름>` 형식을 권한다.
 - 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/tasks`가 여기에 들어간다(`/plan`은 2026-11-13 폐지 [결정: 2026-11-13 사용자]).
 - `builtin` 출처는 클라이언트(L4)가 `declareBuiltin(명령 선언 목록)`으로 알린다(`dialog.commands` API 객체의 TS 메서드, 반환 함수로 해제). 이 패키지는 `builtin` 명령을 실행하지 않는다. `builtin`이 이긴 이름은 `expand`가 `matched: false`, `run`이 `not_command`를 돌려주고 실행은 클라이언트가 한다. 목록과 광고에는 보인다.
 - 같은 등급 안에서는 들어온 순서가 앞선 것이 이긴다(파일 명령은 작업 폴더 디렉터리, 사용자 디렉터리, 설정 디렉터리 순). 템플릿 `register`로 올린 명령에는 해제 수단이 없다. 코드가 해제해야 하면 `registerAction`을 쓴다.
@@ -890,9 +890,9 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 훅(tap) |
 | `core.usage` | "턴 합계 51.7k 토큰 · $0.0022": 이 대화에서 끝난 턴의 누적 토큰과 비용. 제목 같은 배경 호출은 빼므로 문맥 링 팝오버·설정의 "이 대화 합계"(배경 호출 포함)보다 작을 수 있고, 칸 글자가 "턴 합계"라 둘을 구분한다 [결정: 오케스트레이터 기본값, rtF T-1] | `turn.completed.usage` |
 
-- 내장 세그먼트의 글 [결정: 오케스트레이터 기본값, fxLC]. 엔진은 로케일을 모르므로 문장을 만들지 않는다. `core.turn`은 `textKey`(`desktop.status.core.turn.idle|running|approval|question`)를, `core.usage`는 `textKey: desktop.status.core.usage`와 숫자 인자 `textArgs: { tokens, usd }`를 보낸다. 클라이언트가 현재 로케일 문장으로 풀고 토큰은 `Intl` compact, 비용은 USD 통화 형식(소수 둘 또는 넷, 0.0001 밑은 `< $0.0001`)으로 적는다(`{n, number, compact|usd}`, `client/i18n/format.ts`). `text`는 키를 모르는 소비자(CLI, 옛 클라이언트)를 위한 한국어 글이고 `textKey` 없는 칸(그룹이 올린 것)은 `text`가 그대로 보인다.
-- 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
-- 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<그룹 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.
+- 내장 세그먼트의 글 [결정: 오케스트레이터 기본값, fxLC]. 엔진은 로케일을 모르므로 문장을 만들지 않는다. `core.turn`은 `textKey`(`desktop.status.core.turn.idle|running|approval|question`)를, `core.usage`는 `textKey: desktop.status.core.usage`와 숫자 인자 `textArgs: { tokens, usd }`를 보낸다. 클라이언트가 현재 로케일 문장으로 풀고 토큰은 `Intl` compact, 비용은 USD 통화 형식(소수 둘 또는 넷, 0.0001 밑은 `< $0.0001`)으로 적는다(`{n, number, compact|usd}`, `client/i18n/format.ts`). `text`는 키를 모르는 소비자(CLI, 옛 클라이언트)를 위한 한국어 글이고 `textKey` 없는 칸(플러그인이 올린 것)은 `text`가 그대로 보인다.
+- 플러그인 상태 세그먼트: 플러그인은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<플러그인 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
+- 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<플러그인 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.
 - 변경은 휘발 이벤트 `dialog.status`(전체 스냅숏)로 나간다. 스냅숏은 스레드마다 마지막 상태 하나만 메모리에 둔다. 같은 단계 안의 변경은 100 ms 단위로 묶는다 [제안]. 첫 변경부터 100 ms 뒤에 마지막 상태를 한 이벤트로 내보낸다.
 - [결정: review.m2-plan DG.3] 구현 규칙:
   - 설정 `status.segments`가 고른 세그먼트만 `list`와 이벤트에 나온다. 둘이 같은 목록을 쓰므로 재접속한 클라이언트가 이벤트와 같은 화면을 그린다. 이벤트는 앞 32개만 싣고, `list`는 선택된 전체를 돌려준다.
@@ -961,7 +961,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 - `turn.completed`의 종결 `interrupted`는 사용자가 직접 끊은 것이라 알리지 않는다.
 - 파생 알림은 새 이벤트를 쓰지 않는다. 원인 내구 이벤트에서 순수 함수 `classifyNotice(event): Notice | null`로 계산한다. 그래서 `list`는 `afterSeq` 뒤의 내구 이벤트를 읽어 같은 결과를 낸다.
-- `emit`은 그룹·플러그인이 직접 알릴 때 쓰고 `dialog.notified` 내구 이벤트를 남긴다.
+- `emit`은 플러그인이 직접 알릴 때 쓰고 `dialog.notified` 내구 이벤트를 남긴다.
 - 구현 대응은 `xeon/packages/cap-dialog/src/notify/classify.ts`다. 제목은 120자, 본문은 1000자를 넘지 않게 자르고, `sourceType`은 원인 이벤트 종류다. 아래에 없는 종류와 해석할 수 없는 payload는 `null`이다.
   - `turn.completed`: `completed`는 `completed`("작업이 끝났어요"), `failed`는 `error`("턴이 실패했어요", 본문은 `error` 문구), `interrupted`는 `null`.
   - `work.goal_settled`: `met`는 `completed`("목표를 달성했어요"), `limit_reached`는 `completed`("목표 판정 한도에 도달했어요"). 두 경우 본문은 `판정 N회`다. `judge_failed`는 `error`("목표 판정에 실패했어요"). `active`와 `cleared`는 `null`.
@@ -974,7 +974,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 | 경로 | 소유 | 상주 수준(`L2.readme` §8) |
 |---|---|---|
-| 같은 프로세스 소비자(L4 in-process 클라이언트, 그룹) | `NoticeFeed.subscribe` | 1 |
+| 같은 프로세스 소비자(L4 in-process 클라이언트, 플러그인) | `NoticeFeed.subscribe` | 1 |
 | 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 `notify.list`, `L4.host-service.spec` HS-94) | 1 |
 | OS 알림(데스크톱 알림 센터) | cap-dialog가 `fresnel.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
@@ -1036,7 +1036,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `l2.dialog.notify.backgroundCompleted` | boolean | true | — | live | user, project, local | execution | false | 화면 |
 
 - 질문 기본 시간 제한 0은 Claude Code의 기본(제한 없음)과 같고, 시간 제한은 옵션이다(`_research/l2e.md` §3.2 B1).
-- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(그룹·확장 세그먼트)를 보인다는 뜻이다. 이 기능은 L3 그룹 이름을 기본값에 쓰지 않는다. 특정 그룹 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정: review.decisions-2 D-11].
+- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(플러그인·확장 세그먼트)를 보인다는 뜻이다. 이 기능은 L3 플러그인 이름을 기본값에 쓰지 않는다. 특정 플러그인 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정: review.decisions-2 D-11].
 - `shellInjection`을 `managed`에서 `off`로 잠그면 조직이 명령 파일의 셸 실행을 막을 수 있다.
 - `styles.active`의 값 검사는 등록된 스타일 목록과 대조하는 의미 검사라 `range.enum`으로 두지 않는다. 모르는 값이면 `default`로 적용하고 진단을 남긴다.
 - 알림 분류별 켜기·끄기를 키 다섯 개로 나눈 이유: 설정 화면이 토글 목록으로 그리기 쉽고, `range`가 문자열 배열을 다루지 않기 때문이다(F.wire-settings.spec D5).
@@ -1082,7 +1082,7 @@ export const manifest = defineManifest({
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `DialogAsk`, `DialogCommands`, `DialogStatus`, `DialogAttachments`, `DialogAside`, `DialogStyles`, `DialogNotify`, 각 `*Key`, `DialogService`, `DialogServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.work.spec(명령 등록), L4 |
+| `DialogAsk`, `DialogCommands`, `DialogStatus`, `DialogAttachments`, `DialogAside`, `DialogStyles`, `DialogNotify`, 각 `*Key`, `DialogService`, `DialogServiceName` | L3 플러그인 문서, L3.group-sdk.spec, L2.work.spec(명령 등록), L4 |
 | `AskQuestion`, `AskAnswer`, `AskResult`, `AskApprovalSubjectSchema`, `validateAskAnswer`, `buildAskAnswerSchema`, `defaultAskAnswer` | L1.tools.spec(kind `question`의 대상·답 검사), L4 질문 화면, L2.mcp.spec(서버 주도 요청의 화면 모양 참고) |
 | `CommandInfo`, `CommandActionRegistry`, `CommandArg` | L4.cli.spec, L4.desktop.spec, L2.work.spec |
 | `StatusItem`, 휘발 `dialog.status` | L4 |

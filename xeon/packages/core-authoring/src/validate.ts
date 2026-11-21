@@ -12,7 +12,7 @@ import {
   type PluginDecl,
 } from "@fresnel/contracts/extensions";
 import {
-  checkGroupName,
+  checkOrchestrationName,
   type DevkitError,
   type DevkitIssue,
   type ValidationReport,
@@ -21,7 +21,7 @@ import { au004, au008, au010, au011, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 
 // L3.authoring.spec §3.3 `validate`, §3.5 제작 검사. F 검사 함수(validateManifest, validateComposition)와
-// group-sdk 재생 규율 검사(검사기를 넘기면 scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
+// orchestration-sdk 재생 규율 검사(검사기를 넘기면 scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
 // 릴리즈 바이너리는 검사기를 싣지 않는다(파서 `@swc/core`가 바이너리에 들어가면 안 된다). 그래서 이 모듈은 testing 진입점을 import하지 않는다.
 
 export const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
@@ -57,7 +57,7 @@ function compositionManifest(
     version: "0.0.0",
     entry: "./src/index.ts",
     plugins: [...plugins],
-    group: { composition },
+    orchestration: { composition },
   };
 }
 
@@ -141,7 +141,7 @@ interface DriveFinding {
   readonly line: number;
 }
 
-/** 소스 한 파일을 재생 규율로 검사하는 함수. `scanDriveSource`(`@fresnel/group-sdk/testing`)와 같은 모양이다 */
+/** 소스 한 파일을 재생 규율로 검사하는 함수. `scanDriveSource`(`@fresnel/orchestration-sdk/testing`)와 같은 모양이다 */
 type DriveScanner = (
   source: string,
   options: { readonly fileName: string },
@@ -208,7 +208,7 @@ export async function validateExtensionDir(
 
   if (manifest !== undefined) {
     // AU-001: 이름 규칙(validateManifest의 name_reserved와 겹치지 않을 때만)
-    const named = checkGroupName(manifest.name);
+    const named = checkOrchestrationName(manifest.name);
     if (!named.ok && !issues.some((entry) => entry.path === "/name"))
       issues.push({
         severity: "error",
@@ -275,7 +275,7 @@ export async function validateExtensionDir(
       code: "AU-012",
       path: "",
       message:
-        "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/group-sdk/testing to check the drive",
+        "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/orchestration-sdk/testing to check the drive",
     });
   issues.push(...au004(issues, manifest, options.providers));
   if (manifest !== undefined) {

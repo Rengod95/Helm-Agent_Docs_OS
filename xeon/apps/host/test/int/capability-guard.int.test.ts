@@ -57,7 +57,7 @@ interface Probe {
 const probeKey: ServiceKey<Probe> = { capability: "demo.probe", version: "1.0.0" };
 
 function manifestOf(name: string, kind: "plugin" | "group") {
-  const isGroup = kind === "group";
+  const isOrchestration = kind === "group";
   return defineManifest({
     schemaVersion: 2,
     name,
@@ -66,12 +66,12 @@ function manifestOf(name: string, kind: "plugin" | "group") {
     description: "capability guard test",
     defaultEnabled: true,
     entry: "./src/index.ts",
-    ...(isGroup ? { group: {} } : {}),
+    ...(isOrchestration ? { orchestration: {} } : {}),
     plugins: [
       {
-        layer: isGroup ? "L3" : "plugin",
+        layer: isOrchestration ? "L3" : "plugin",
         hooks: [],
-        ...(isGroup ? { drives: true } : {}),
+        ...(isOrchestration ? { drives: true } : {}),
         ...(name === "cg-provider"
           ? { provides: [{ id: "demo.probe", version: "1.0.0" }] }
           : { requires: [{ id: "demo.probe", range: "^1.0.0" }] }),

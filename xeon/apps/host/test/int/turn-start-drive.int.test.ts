@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
-import { smokeGroup } from "@fresnel/group-sdk/testing";
+import { smokeOrchestration } from "@fresnel/orchestration-sdk/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
@@ -21,7 +21,7 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     // driveTurns 0인 스모크 그룹은 turn을 내지 않고 사용자 메시지를 처리하지 않는다: 첫 메시지를 첫 단계가 받고, 3단계 안에 처리하지 않아 코어 루프가 돌려받은 입력의 turn을 낸다
-    const group = smokeGroup({ followUps: 0, driveTurns: 0 });
+    const group = smokeOrchestration({ followUps: 0, driveTurns: 0 });
     const host = await startInProcessHost({
       devChecks: true,
       defaultGroups: false,

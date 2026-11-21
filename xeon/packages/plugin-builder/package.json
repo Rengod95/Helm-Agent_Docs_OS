@@ -15,7 +15,7 @@
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
     "@fresnel/ext-host": "workspace:*",
-    "@fresnel/group-sdk": "workspace:*"
+    "@fresnel/orchestration-sdk": "workspace:*"
   },
   "devDependencies": {
     "@fresnel/core-authoring": "workspace:*",

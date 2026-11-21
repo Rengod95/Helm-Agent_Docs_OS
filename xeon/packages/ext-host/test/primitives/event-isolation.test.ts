@@ -69,7 +69,7 @@ test("group isolation is the kind prefix filter on records", async () => {
   let writer: (() => Promise<void>) | undefined;
   await t.host.install(
     makeUnit(
-      { name: "iso-a", group: {}, recordKinds: kinds, hooks: ["boundary.settle.after"] },
+      { name: "iso-a", orchestration: {}, recordKinds: kinds, hooks: ["boundary.settle.after"] },
       (g) => {
         writer = () => g.record("grp.iso-a.note.made", { type: "thread", id: thread }, { n: 1 });
         g.on("boundary.settle.after", async () => {
@@ -82,7 +82,7 @@ test("group isolation is the kind prefix filter on records", async () => {
     makeUnit(
       {
         name: "iso-b",
-        group: {},
+        orchestration: {},
         loadIndex: 1,
         readsRecordKinds: ["grp.iso-a.*"],
         hooks: ["boundary.settle.after"],
@@ -95,12 +95,15 @@ test("group isolation is the kind prefix filter on records", async () => {
     ),
   );
   await t.host.install(
-    makeUnit({ name: "iso-c", group: {}, loadIndex: 2, hooks: ["boundary.settle.after"] }, (g) => {
-      g.on("boundary.settle.after", async () => {
-        const failure = await rejectionOf(() => g.readRecords({ kind: "grp.iso-a.*" }));
-        rows.undeclared = failure instanceof Error ? failure.message : "readable";
-      });
-    }),
+    makeUnit(
+      { name: "iso-c", orchestration: {}, loadIndex: 2, hooks: ["boundary.settle.after"] },
+      (g) => {
+        g.on("boundary.settle.after", async () => {
+          const failure = await rejectionOf(() => g.readRecords({ kind: "grp.iso-a.*" }));
+          rows.undeclared = failure instanceof Error ? failure.message : "readable";
+        });
+      },
+    ),
   );
   await t.host.dispatch(
     "boundary.settle.after",

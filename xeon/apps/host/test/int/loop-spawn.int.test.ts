@@ -10,7 +10,7 @@ import {
   childReport,
   loopPortProbe,
   SPAWN_CHILD_COUNT,
-  spawnGroup,
+  spawnOrchestration,
 } from "../fixtures/spawn-group.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -77,7 +77,7 @@ realTest(
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
-    const group = spawnGroup(SPAWN_CHILD_COUNT);
+    const group = spawnOrchestration(SPAWN_CHILD_COUNT);
     const host = await startInProcessHost({
       devChecks: true,
       defaultGroups: false,

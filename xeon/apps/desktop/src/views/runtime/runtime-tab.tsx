@@ -21,7 +21,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
 import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
-import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import { Alert, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -57,7 +57,7 @@ export type Load<T> =
 
 /** drive 구역의 읽은 값: 그룹 목록과 대화의 주도권 스택(`drive.frames`) */
 interface DriveData {
-  readonly groups: readonly GroupStatusWire[];
+  readonly groups: readonly OrchestrationStatusWire[];
   readonly frames: readonly DriveFrameView[];
 }
 

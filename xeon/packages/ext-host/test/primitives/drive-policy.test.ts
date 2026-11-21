@@ -3,7 +3,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveCommand, RegistrationSetup } from "@fresnel/contracts/extensions";
 import { createStaticPrimitivesSettings } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeManifest, makeUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeManifest, makeUnit } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -41,7 +41,7 @@ test("default policy: a plain extension whose plugin declares drives registers n
     makeUnit({ name: "drv-plain", drives: true }, drivingSetup(calls, "drv-plain")),
   );
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status, setup.failure?.code])).toEqual(
-    [["drv-plain", "failed", "drive_requires_group"]],
+    [["drv-plain", "failed", "drive_requires_orchestration"]],
   );
   await t.host.openThread(thread);
   await t.settled();
@@ -53,14 +53,14 @@ test("default policy: a plain extension whose plugin declares drives registers n
       id: "drv-plain",
       status: "disabled",
       drive: "none",
-      lastError: { code: "drive_requires_group" },
+      lastError: { code: "drive_requires_orchestration" },
     },
   ]);
 });
 
 test("an open policy lets the same plain extension register drive and take the lock", async () => {
   const t = await createTestHost({
-    settingsSource: createStaticPrimitivesSettings({ driveRequiresGroup: false }),
+    settingsSource: createStaticPrimitivesSettings({ driveRequiresOrchestration: false }),
   });
   const thread = t.newThread();
   const calls: string[] = [];
@@ -93,7 +93,7 @@ test("default policy: a plugin group member with drives takes the lock", async (
   const thread = t.newThread();
   const calls: string[] = [];
   const outcome = await t.host.install(
-    makeGroupUnit({ name: "drv-group" }, drivingSetup(calls, "drv-group")),
+    makeOrchestrationUnit({ name: "drv-group" }, drivingSetup(calls, "drv-group")),
   );
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status])).toEqual([
     ["drv-group", "applied"],
@@ -114,7 +114,7 @@ test("default policy: a named plugin that group.members lists may drive", async 
   const outcome = await t.host.install({
     manifest: makeManifest({
       name: "drv-listed",
-      group: { members: ["main"] },
+      orchestration: { members: ["main"] },
       extraPlugins: [{ id: "main", layer: "L3", hooks: [], drives: true, defaultEnabled: true }],
     }),
     loadIndex: 0,
@@ -141,7 +141,7 @@ test("default policy: a named plugin that group.members does not list cannot dri
   const outcome = await t.host.install({
     manifest: makeManifest({
       name: "drv-part",
-      group: { members: ["main"] },
+      orchestration: { members: ["main"] },
       extraPlugins: [
         { id: "main", layer: "L3", hooks: [] },
         { id: "helper", layer: "L3", hooks: [], drives: true, defaultEnabled: true },
@@ -155,7 +155,7 @@ test("default policy: a named plugin that group.members does not list cannot dri
   });
   expect(outcome.unregistered).toEqual(["drv-part", "drv-part/main"]);
   expect(outcome.setups.map((setup) => [setup.scopeId, setup.status, setup.failure?.code])).toEqual(
-    [["drv-part/helper", "failed", "drive_requires_group"]],
+    [["drv-part/helper", "failed", "drive_requires_orchestration"]],
   );
   await t.host.openThread(thread);
   await t.settled();
@@ -165,7 +165,7 @@ test("default policy: a named plugin that group.members does not list cannot dri
 
 test("an open policy still refuses drive from a plugin whose drives is not true", async () => {
   const t = await createTestHost({
-    settingsSource: createStaticPrimitivesSettings({ driveRequiresGroup: false }),
+    settingsSource: createStaticPrimitivesSettings({ driveRequiresOrchestration: false }),
   });
   const calls: string[] = [];
   const outcome = await t.host.install(
@@ -179,7 +179,7 @@ test("an open policy still refuses drive from a plugin whose drives is not true"
 
 test("with the policy open, two enabled drive registrations: only the one a start request names holds the lock", async () => {
   const t = await createTestHost({
-    settingsSource: createStaticPrimitivesSettings({ driveRequiresGroup: false }),
+    settingsSource: createStaticPrimitivesSettings({ driveRequiresOrchestration: false }),
   });
   const thread = t.newThread();
   const calls: string[] = [];

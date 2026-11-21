@@ -11,7 +11,7 @@ const PRIMITIVE_ERROR_CODES = [
   "no_context",
   "no_thread",
   "post_undeclared",
-  "drive_requires_group",
+  "drive_requires_orchestration",
   "drive_undeclared",
   "drive_duplicate",
   "drive_outside_setup",

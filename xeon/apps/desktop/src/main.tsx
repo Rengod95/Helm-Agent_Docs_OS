@@ -7,6 +7,7 @@ import { createApp } from "./app/bootstrap.ts";
 import { BUILD_CHECKS } from "./app/build.ts";
 import {
   installSampleToggle,
+  sampleSceneOn,
   sampleStateOn,
   sampleView,
   SAMPLE_PROPOSALS,
@@ -264,7 +265,9 @@ if (container === null) {
       },
     });
   }
-  const engineView = sample ? sampleView(app.engine.read, () => Date.now()) : app.engine.read;
+  const engineView = sample
+    ? sampleView(app.engine.read, () => Date.now(), sampleSceneOn())
+    : app.engine.read;
   const render = (locale: string): void => {
     root.render(
       <ShellStoreContext value={shell}>

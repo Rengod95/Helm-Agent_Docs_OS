@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { MUTED, PLAIN_TABLE, TabBody } from "../workbench/tab-body.tsx";
 import { SectionTitle } from "./measure-parts.tsx";
 
-export type PromotionReport = WireResult<"group.promotion">;
+export type PromotionReport = WireResult<"orchestration.promotion">;
 type Candidate = PromotionReport["candidates"][number];
 
 /** 후보 하나의 행 id. 소유자와 도구 이름의 쌍이다 */

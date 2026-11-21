@@ -66,7 +66,7 @@ async function boot(): Promise<Setup> {
     makeUnit(
       {
         name: "direct",
-        group: {},
+        orchestration: {},
         recordKinds: [
           {
             kind: "grp.direct.note.recorded",

@@ -294,9 +294,44 @@ describe("question approval card", () => {
     expect(freeOnly).not.toContain('type="radio"');
   });
 
-  test("the answer button starts disabled and a deny button is offered", () => {
+  test("two questions are paged: the first page offers next, the pager and the deny button", () => {
     const out = html(picker);
+    // 마지막 질문 전에는 주 단추가 "다음"이고 "답하기"는 아직 없다(DP-224)
+    expect(out).toContain('data-action="next"');
+    expect(out).not.toContain(">답하기<");
+    expect(out).toContain("거부");
+    expect(out).toContain('data-slot="question-pager"');
+    expect(out).toContain('aria-label="질문 1 / 2 · Scope, 아직 답하지 않음"');
+    expect(out).toContain('aria-label="질문 2 / 2, 아직 답하지 않음"');
+    expect(out.match(/aria-current="step"/g)?.length).toBe(1);
+  });
+
+  test("only the current question page is reachable; the others are hidden and inert", () => {
+    const out = html(picker);
+    const pages = [...out.matchAll(/<div[^>]*data-question-page="([a-z]+)"[^>]*>/g)];
+    expect(pages.map((page) => page[1])).toEqual(["current", "after"]);
+    expect(pages[0]?.[0]).not.toContain("inert");
+    expect(pages[1]?.[0]).toContain('aria-hidden="true"');
+    expect(pages[1]?.[0]).toContain("inert");
+    expect(pages[0]?.[0]).toContain('aria-label="질문 1 / 2"');
+  });
+
+  test("a single question has no pager and the answer button starts disabled", () => {
+    const one = questionRequest({
+      questions: [
+        {
+          id: "q1",
+          text: "Which one?",
+          options: [{ id: "a", label: "Alpha" }],
+          multiSelect: false,
+          allowFreeText: false,
+        },
+      ],
+    });
+    const out = html(one);
     expect(out).toMatch(/<button[^>]*disabled[^>]*>답하기/);
+    expect(out).not.toContain('data-slot="question-pager"');
+    expect(out).not.toContain("data-question-page");
     expect(out).toContain("거부");
   });
 });
@@ -397,7 +432,7 @@ const withCaller = (caller: string): LiveApprovalRequest => ({
 describe("approval origin line", () => {
   test("a child agent request shows where it came from, and a main request shows nothing", () => {
     expect(html(withCaller("subagent:렌즈"))).toContain("요청한 곳: 보조 에이전트 렌즈");
-    expect(html(withCaller("ext:helm"))).toContain("요청한 곳: 그룹 helm");
+    expect(html(withCaller("ext:helm"))).toContain("요청한 곳: 플러그인 helm");
     expect(html(withCaller("main"))).not.toContain("요청한 곳");
   });
 });

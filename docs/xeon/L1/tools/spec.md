@@ -165,7 +165,7 @@ export interface ToolRegisterError { readonly kind: "name_conflict"; readonly to
 ```
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 기능 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
-- 호출 문맥 [결정: m2c G1-09, A-08]: 기능 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `afterUntrusted`는 같은 turn이 웹·MCP 도구 결과를 이미 읽었으면 `true`이고 아니면 필드가 없다(§4.3 `afterUntrusted` 규칙). `extension`은 확장·그룹 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
+- 호출 문맥 [결정: m2c G1-09, A-08]: 기능 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `afterUntrusted`는 같은 turn이 웹·MCP 도구 결과를 이미 읽었으면 `true`이고 아니면 필드가 없다(§4.3 `afterUntrusted` 규칙). `extension`은 확장·플러그인 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
 - 샌드박스 프로필 [결정: 2026-11-13 사용자]: 어댑터는 `ToolRunContext.ceiling.sandbox`가 `"read-only"`이면 `CallContext.sandbox: "read-only"`를 싣는다. 없으면 필드가 없다. 도구 구현(cap-workspace의 bash)은 이 값이 있으면 읽기 전용 샌드박스(쓰기 루트 없음, 네트워크 차단) 안에서만 실행하고, 샌드박스를 쓸 수 없으면 실행하지 않고 거부한다. 이 거부가 §4.5의 승인 생략을 뒷받침한다.
 - `DirectToolRegistration.tool`은 F `AgentTool`(F.conversation.spec §3.1.1)이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
 - `core.<L1 도메인>` 순서 키 [제안]: L1이 내장하는 도구(`tool_search`, L1.agents.spec의 `agent`)의 순서 키다. F.capabilities.spec §4.5는 `ext.`, `mcp.` 접두만 정했으므로 추가를 요청한다(§8.3 F 요청 2).
@@ -194,7 +194,7 @@ export interface ToolRunContext {
   readonly surfaceThreadId: ThreadId;
   /** 자식 대화면 부모의 정책 관점. 있으면 정책 결정에 ceiling 단계를 적용한다(§4.5, L1.agents.spec §4.3) */
   readonly ceiling?: PolicyCeiling;
-  /** 그룹(scope·drive 소유자)이 띄운 자식 대화면 그 출처(`RunSource`). core-agents가 `ChildTurnRequest.tools.source`로 주고 승인 origin이 이어 받는다. 모델의 `agent` 도구가 띄운 자식에는 싣지 않는다 */
+  /** 플러그인(scope·drive 소유자)이 띄운 자식 대화면 그 출처(`RunSource`). core-agents가 `ChildTurnRequest.tools.source`로 주고 승인 origin이 이어 받는다. 모델의 `agent` 도구가 띄운 자식에는 싣지 않는다 */
   readonly source?: RunSource;
   readonly signal: AbortSignal;
   /** 소유 컨텍스트의 초안 생성기. core-loop가 자기 생산자로 만든다(eng.context-map.design CM-01) */
@@ -261,7 +261,7 @@ export interface ToolService extends ToolsPort {
 ```
 
 - [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `fresnel.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
-- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따르고, `exposure`는 `def.exposure`(`always` | `deferred`, 생략은 `always`)다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 그룹의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
+- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따르고, `exposure`는 `def.exposure`(`always` | `deferred`, 생략은 `always`)다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 플러그인의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
 
 ```ts
 /** `prepare`를 통과해 실행할 수 있는 호출. 인자는 도구 스키마 검증과 변환을 마친 값이다 */
@@ -495,13 +495,13 @@ export interface ApprovalOrigin {
   readonly toolCallId: string | null;
   readonly caller: CallerId;
   /**
-   * 그룹(Helm 등)이 띄운 하위 대화의 요청이면 그 출처. 화면이 "렌즈 실패 사례 · grp:helm"으로 보인다.
+   * 플러그인(Helm 등)이 띄운 하위 대화의 요청이면 그 출처. 화면이 "렌즈 실패 사례 · grp:helm"으로 보인다.
    * `caller`와 `interactive`는 바꾸지 않는다. 승인 서비스가 활성 호출의 `ToolRunContext.source`로 채운다 [결정: 2026-10-31 사용자, fxHL]
    */
   readonly source?: RunSource;
 }
 
-/** 자식 대화를 띄운 소유 그룹의 출처. `scopeId`는 그룹 등록 id, `label`은 그룹이 `SpawnSpec.label`로 준 이름(없으면 null) */
+/** 자식 대화를 띄운 소유 플러그인의 출처. `scopeId`는 플러그인 등록 id, `label`은 플러그인이 `SpawnSpec.label`로 준 이름(없으면 null) */
 export interface RunSource {
   readonly scopeId: string;
   readonly label: string | null;
@@ -740,7 +740,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - `exposure: "always"`는 항상 광고한다. 내장 도구와 L2 작업 도구의 기본값이다.
    - `exposure: "deferred"`는 처음부터 지연 도구다.
    - `exposure: "auto"`는 광고 후보 수(always + auto)가 `l1.tools.exposure.deferThreshold`를 넘으면 지연 도구가 된다. MCP 서버 도구의 기본값이다. 넘으면 auto 도구가 모두 지연이고(일부만 고르지 않는다), 임계가 0이면 항상 지연이다. 
-   - 내장 도구의 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 항상 싣는 도구는 작업 폴더 도구(`read`, `write`, `edit`, `bash`, `grep`), 질문(`ask_user`), 작업 목록(`task_write`)과 도구 실행 틀이 스스로 쓰는 `tool_search`(지연 도구가 있을 때)이다. `read_tool_output`은 폐지됐다(§4.8 6번). 그 밖의 내장 도구는 각 기능의 등록(`CapabilityToolsRegistration.exposure`)이 `deferred`로 지정한다: 웹(`web_search`, `web_fetch`, `web_browse_*`), 지식(`knowledge_search`, `session_scroll`, `session_read`, `memory_manage`, `skill_view`, `skill_manage`), MCP 기능 도구(`mcp_servers`, `mcp_list_resources`, `mcp_read_resource`)와 MCP 서버 도구, 산출물(`artifact_create`, `artifact_update`, `review_request`, `session_rename`), 예약(`schedule_create`), 보호 경로(`sandbox_protect`, `sandbox_protected`, AGE-63), 서브에이전트(`agent`), 학습 제안(`learning_propose`). 작업 폴더 도구 `ls`와 `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡고, 두 도구의 등록과 지연 노출 항목은 두지 않는다(L2.workspace.spec §3.2). 계획 도구 셋(`enter_plan_mode`, `exit_plan_mode`, `submit_plan`)도 [결정: 2026-11-13 사용자] 폐지되어 등록과 지연 노출 항목이 없다. 기본값 `always`는 바꾸지 않는다: 지정하지 않은 확장·그룹 도구는 그대로 항상 실린다. 확장·그룹 도구 정의(`ToolResourceDef.exposure`)와 직접 등록(`DirectToolRegistration.exposure`)도 같은 값을 받는다.
+   - 내장 도구의 노출 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 항상 싣는 도구는 작업 폴더 도구(`read`, `write`, `edit`, `bash`, `grep`), 질문(`ask_user`), 작업 목록(`task_write`)과 도구 실행 틀이 스스로 쓰는 `tool_search`(지연 도구가 있을 때)이다. `read_tool_output`은 폐지됐다(§4.8 6번). 그 밖의 내장 도구는 각 기능의 등록(`CapabilityToolsRegistration.exposure`)이 `deferred`로 지정한다: 웹(`web_search`, `web_fetch`, `web_browse_*`), 지식(`knowledge_search`, `session_scroll`, `session_read`, `memory_manage`, `skill_view`, `skill_manage`), MCP 기능 도구(`mcp_servers`, `mcp_list_resources`, `mcp_read_resource`)와 MCP 서버 도구, 산출물(`artifact_create`, `artifact_update`, `review_request`, `session_rename`), 예약(`schedule_create`), 보호 경로(`sandbox_protect`, `sandbox_protected`, AGE-63), 서브에이전트(`agent`), 학습 제안(`learning_propose`). 작업 폴더 도구 `ls`와 `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡고, 두 도구의 등록과 지연 노출 항목은 두지 않는다(L2.workspace.spec §3.2). 계획 도구 셋(`enter_plan_mode`, `exit_plan_mode`, `submit_plan`)도 [결정: 2026-11-13 사용자] 폐지되어 등록과 지연 노출 항목이 없다. 기본값 `always`는 바꾸지 않는다: 지정하지 않은 확장·플러그인 도구는 그대로 항상 실린다. 확장·플러그인 도구 정의(`ToolResourceDef.exposure`)와 직접 등록(`DirectToolRegistration.exposure`)도 같은 값을 받는다.
    - 지연 도구가 하나라도 있으면 내장 도구 `tool_search`(순서 키 `core.tools`)를 광고한다. `tool_search`는 질의(`query: string`, `limit?: number`)로 지연 도구의 이름·설명을 찾고, 결과로 고른 도구를 활성화한다. 활성화된 도구는 다음 단계부터 광고된다.
    - 대화 중간의 추가는 L1.context.spec이 `diffToolsets`의 `added`를 pi-ai `SystemMessage.toolsAdded`로 대화 기록에 넣는다(F.capabilities.spec §4.5). Anthropic 경로에서는 pi-ai가 `tool_addition` 블록으로 바꾸고, 첫 요청의 지연 자리표시 도구(`anthropic-messages.ts:200-209`, `defer_loading: true`)가 캐시 접두를 지킨다(`anthropic-messages.ts:1141-1149`).
 5. 활성화 [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"]: 지연 도구는 셋 중 하나면 광고된다. (가) `tool_search`가 활성화했다(아래). (나) 등록이 준 상태 조건 `activeWhen(threadId)`이 참이다. 조건은 대화 상태를 읽기만 하는 동기 질의이고 `planExposure`가 부른다. (다) 서브에이전트 정의의 도구 제한(`allow`)이 그 도구의 이름을 glob 없이 그대로 적었다. 정의가 그 도구를 쓰라고 정한 것이라 검색을 거치지 않는다(학습 검토 에이전트의 `learning_propose`). 모델이 대화 중 도구 추가를 받을 수 없으면(`AdvertiseInput.deferralAvailable === false`, core-loop가 `CachePolicy.midConversationToolChanges`에서 채운다) 활성화한 도구가 요청에 실리지 않으므로(L1.context.spec §4.3 5번 `defer`) 지연하지 않고 모든 도구를 싣고 `tool_search`는 싣지 않는다. 도구가 128개를 넘으면 이 예외 없이 지연으로 줄인다. 이 모델에서는 도구 정의가 줄지 않는다.
@@ -748,7 +748,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - `tool_search` 구현 [결정: L1A.5]: 인자는 `query`(1~200자)와 `limit`(1~20, 기본 5)다. 질의를 영숫자 토큰으로 나눠 아직 활성화되지 않은 지연 도구의 이름(일치 10점, 포함 5점)과 설명(포함 2점)에 점수를 매기고 점수 0은 뺀다. 한글 같은 비영숫자 질의는 토큰이 없어 맞는 것이 없다. 그래서 도구 설명이 영어 키워드로 질의하라고 알리고, 맞는 도구가 없으면 결과가 지연 도구의 이름만 나열한다(설명은 싣지 않는다) [결정: 2026-11-13 사용자 "애매한 것들 전부 지연으로 넣어"의 구현 판단]. 점수가 같으면 순서 키 순이다. 전역 deny로 뺀 도구는 찾지 않는다. 결과 `content`는 도구 이름과 설명 첫 줄의 목록이고 `structuredContent`는 `{ activated }`다. 광고 목록에 남은 자리(128 − 현재 광고 수)만큼만 활성화하고 넘는 수는 결과 문장에 적는다. 도구는 `risk: read`, `replay: "safe"`다.
    - 재계산 위치: `tool_search`와 core-loop가 각자 활성 가지의 `effect.intent`(도구 이름)와 `effect.result`(`structuredContent.activated`)를 읽는다. core-loop는 turn마다 한 번 읽고 같은 turn의 `tool_search` 결과를 그때그때 더한다.
    - `tool_search` 광고: 지연 도구가 있거나 상한 때문에 지연이 생길 때 광고한다. 한 번 광고하면 지연 도구를 모두 활성화해도 목록에 남겨 캐시 접두를 흔들지 않는다(같은 등록 상태에서). 자리는 하나를 쓴다.
-6a. 광고 구조 [결정: 2026-11-13 사용자]: 광고하는 `parameters`는 F.capabilities.spec §4.3 `toModelSchema`로 줄인 구조다(anyOf-const는 `enum`, 내장 도구는 검증 키워드 제거, MCP·확장·그룹 도구는 `enum`만). 실행 전 검증은 도구 정의의 원래 `parameters`로 한다(`validateToolArguments`). 서버가 거부하는 한도 중 모델이 알아야 하는 것은 필드 `description`에 있다.
+6a. 광고 구조 [결정: 2026-11-13 사용자]: 광고하는 `parameters`는 F.capabilities.spec §4.3 `toModelSchema`로 줄인 구조다(anyOf-const는 `enum`, 내장 도구는 검증 키워드 제거, MCP·확장·플러그인 도구는 `enum`만). 실행 전 검증은 도구 정의의 원래 `parameters`로 한다(`validateToolArguments`). 서버가 거부하는 한도 중 모델이 알아야 하는 것은 필드 `description`에 있다.
 6. 도구 수 상한: 광고 목록(내장 `tool_search` 포함)은 `MAX_TOOLS_PER_REQUEST = 128`(F.capabilities.spec §4.3) 이하다. core-tools가 집행한다.
    - always + auto 후보가 128을 넘으면 auto 도구를 순서 뒤쪽부터 지연 도구로 돌린다.
    - always 도구만으로 128을 넘으면 `advertise`가 `AdvertiseError { kind: "too_many" }` 값을 돌려주고(던지지 않는다. 확장이 정하는 always 도구 수가 만드는 예상 가능한 실패다) 루프는 그 단계의 모델 요청을 보내지 않고 `tools_unavailable`로 닫는다.
@@ -904,7 +904,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 | 티어 | 출처 | 예 |
 |---|---|---|
 | `default` | core-tools 내장 규칙, L1 패키지가 `registerRules("core:<도메인>", …)`로 넣은 규칙(L1.agents.spec의 자식 차단 규칙) | `default.read-allow`, `subagent.no-spawn` |
-| `extension` | 확장이 등록한 규칙(2차: 매니페스트 선언). M2까지는 내장 그룹만 | Helm이 쓰기 금지를 규칙으로 표현할 때 |
+| `extension` | 확장이 등록한 규칙(2차: 매니페스트 선언). M2까지는 내장 플러그인만 | Helm이 쓰기 금지를 규칙으로 표현할 때 |
 | `user` | 설정 `l1.tools.rules`의 `user`, `project`, `local`, `launch` 범위 값 | `{ tool: "bash", args: [{ pointer: "/command", pattern: "^git status( |$)" }], effect: "allow" }`(접두 일치라 `git status && rm x`도 정규식은 통과하지만, 아래 연쇄 규칙이 ask로 낮춘다) |
 | `managed` | 설정 `l1.tools.rules`의 `managed` 범위 값 | `{ tool: "*", mcpServer: "untrusted-*", effect: "deny" }` |
 
@@ -912,7 +912,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 코어 규칙 등록 [제안]: L1 패키지는 `ToolService.registerRules(source, rules)`로 default 티어 규칙을 넣는다. `source`는 `core:<도메인>`이고 `TieredRule.source`에 그대로 들어간다. 같은 `source`로 다시 부르면 그 출처의 규칙을 통째로 바꾼다. core-agents는 `l1.agents.maxDepth`가 바뀔 때 차단 규칙을 다시 등록한다. 등록은 `validateRules`를 거치고, 문제가 있는 규칙은 적재하지 않고 `RuleRegistration.issues`로 돌려준다. 규칙 변경은 다음 단계 경계의 `advertise`와 다음 도구 호출 평가부터 적용한다(M2).
 - bash 연쇄 규칙: 도구 `bash`의 `/command`를 정규식으로 보는 allow 규칙은 명령에 `;`, `&`, `|`, `<`, `>`, `$(`, 백틱, 개행이 있으면 allow가 아니라 ask로 평가한다(규칙 id와 티어는 그대로, 평가기 `demoteCompound`). 셸 구문을 해석하지 않는 보수적 판정이라 따옴표 안의 `;`도 ask다. deny와 ask 규칙, `/command` 조건이 없는 규칙은 그대로다. 셸 명령 단위 규칙은 §4.11의 2차다.
 - 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.read-tool-allow`(도구 `read` → allow. 이름만으로 허용하지 않고 기능 `workspace.files`와 risk `read`를 함께 본다. 같은 이름을 등록한 확장 도구는 기능 id가 없고 위험 등급이 exec라 모드 기본값을 따른다), `default.bash-ask`(도구 `bash` → ask. 읽기 전용 샌드박스 상한 아래의 `read` 호출에는 적용하지 않는다, 위 절). 나머지는 모드 기본값을 따른다.
-- 확장의 `tool.call.before` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 그룹 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
+- 확장의 `tool.call.before` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 플러그인 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
 
 ### 4.6 권한 모드와 위험 등급
 
@@ -960,7 +960,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문 승인은 L2 dialog 기능이 자기 도구의 실행 안에서 `fresnel.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
 2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `thread.prompt.before`를 발화한다.
-   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
+   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(플러그인 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
 4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `thread.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
@@ -973,7 +973,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `thread`·`always`: M4의 승인 기억은 요청 단위뿐이라 도구 승인(`remember`는 `["once"]`)도 어댑터 요청도 제안하지 않는다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. `open`·`request`는 `once` 하나가 아닌 목록을 `approvals.request_invalid`로 거절하고, 응답이 `once` 밖이면 `answer_invalid`이며 요청은 대기 그대로다. 같은 도구의 다음 ask는 다시 묻는다(대화 단위 허용 목록 `isRemembered`는 없앴다). 예외 [결정: 2026-11-13 사용자]: 샌드박스 밖 쓰기 허용 승인(`ruleId: "sandbox.write_access"`, L2.workspace.spec §4.3.1)만 `remember: ["once", "thread"]`를 낸다. 이 규칙에서 허용+`thread`는 그 대화(와 하위 대화)에서 이후 이 규칙의 질문을 건너뛴다. `ApprovalService.remembered(threadId, ruleId)`가 `approval.resolved` 기록에서 읽는다(재시작 뒤에도 같다). 다른 규칙이 `thread`를 내면 요청이 거절된다(`approvals.request_invalid`). 예외 2 [결정: 2026-11-15 사용자]: 웹 접근 승인(`ruleId: "web.access"`, L2.web.spec §4.5.5)은 `remember: ["once", "always", "thread"]`를 이 순서로 낸다. 이 규칙에서 기억 범위는 도메인 정책 설정에 쓰는 선택이다: `always` = 이 사이트 계속 허용, `thread` = 모든 사이트 허용(이름과 달리 그 대화에 묶이지 않는다). 설정 쓰기는 cap-web이 허용 응답을 받은 뒤 한다. 승인 서비스는 이 두 값을 해결 기록에 남길 뿐 `remembered`로 읽지 않는다. 시크릿 의심 질문처럼 기억을 허용하지 않는 질문은 이 규칙이라도 `["once"]`만 낸다. 그 밖의 규칙이 `thread`·`always`를 내면 요청이 거절된다(`approvals.request_invalid`). 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 저장된 `approval.requested`·`approval.resolved` 사건의 `thread`·`always` 값은 스키마가 그대로 읽는다(저장 문자열은 바꾸지 않는다).
 6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 `setTimeout` 기반 대체 `systemScheduler`. 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[fresnel:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하거나 던지면 대기로 되돌리고 5초 뒤 다시 시도한다. 만료 시각이 지난 요청은 만료 커밋이 실패해 아직 대기여도 응답을 받지 않는다(`already_resolved`, 만료를 다시 시도한다).
 6c. 무인 정책 [결정: D-M3-12, M3-REQ-73. 키 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 기본 제한 시간은 제안]: 사람이 답할 수 없는(`interactive: false`) **주 대화**(`caller: "main"`, `depth: 0`, 표면 대화가 자기 자신) turn의 승인은 설정 `l1.tools.unattended.approval`을 따른다. `expire`(기본)는 기다리다 `l1.tools.unattended.timeoutSeconds`(기본 3600 [제안])가 지나면 6b로 거부한다(요청에 `expiresAt`이 이미 있으면 그 값이 먼저다). `wait`는 만료 없이 기다린다. `deny`는 7번처럼 바로 거부한다. 정책 평가는 `wait`·`expire`일 때 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(`interactive` 입력 = `run.interactive || 기다리는 정책`). 서브에이전트 등 주 대화가 아닌 호출은 정책과 관계없이 7번대로 바로 거부한다. print 모드는 사용자 입력이라 대화형이므로 이 정책 밖이다(사전 허용 규칙 적용과 전체 자동 승인 플래그는 L4 몫, D-M3-14).
-7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 6단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다 [근거: packages/core-tools/src/approvals/service.ts open]: 정책이 허용한 뒤 파이프라인이 다시 묻는 시크릿 사용 승인(§4.12)과 기능 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
+7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 6단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다 [근거: packages/core-tools/src/approvals/service.ts open]: 정책이 허용한 뒤 파이프라인이 다시 묻는 시크릿 사용 승인(§4.12)과 기능 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 플러그인 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 옛 계획 승인의 건너뜀 [결정: 2026-11-13 사용자 폐지, 2026-11-15 사용자 정리]: 계획 승인은 더는 만들지 않는다. 요청 종류에 `plan`이 없어 `request`·`open`으로 만들 수 없다. 열 때(`restore`) 옛 `plan` 요청은 `approval.requested` 기록에 있어도 대기 목록에 올리지 않고 건너뛴다. 쓰기도 없다. 그래서 정착 커밋(`resolvedBy: "cancelled"`)도 없고, 이미 해결된 옛 `plan` 기록도 그냥 지나간다. 옛 body는 kind만 읽는다(`approvalBodyOf`가 `undefined`를 돌려준다). 응답을 받지 않으므로 그 id로 `respond`하면 `unknown_approval`이다. 옛 대화가 닫힐 때 `restore`가 이 요청을 찾지 못하므로 해결 기록 없이 남는다. 화면과 대기는 이 기록에 기대지 않아 실행에는 영향이 없다 [제안]. 모드를 쓰는 경로는 없다. [근거: packages/core-tools/src/approvals/pending.ts approvalBodyOf, packages/core-tools/src/approvals/service.ts restore]
@@ -1178,7 +1178,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `thread.prompt.after` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
 
 - `ToolCallPayload.capability`는 기능 도구일 때 채운다(F.capabilities.spec §7).
-- [결정: M3-REQ-71, M3-02] `tool.call.before`, `guard.tool.before`, `tool.result`의 페이로드는 `risk`(도구 등급), `hints`(도구 작성자의 힌트, 없으면 `{}`), `caller`(`ToolRunContext.caller`)를 항상 채운다. Helm의 쓰기 판정과 그룹 핸들러의 자식 대화 구분에 쓴다. `tool.execution.after`는 시크릿을 가린 호출 인자 `input`과 `stepId`를 싣는다(실행 전에 닫힌 호출도 같다). F 스키마에서는 이 필드들이 아직 선택이다: 채우는 쪽이 갖춰졌으므로 필수로 올릴 수 있다(F 변경 요청, 이 문서는 고치지 않는다).
+- [결정: M3-REQ-71, M3-02] `tool.call.before`, `guard.tool.before`, `tool.result`의 페이로드는 `risk`(도구 등급), `hints`(도구 작성자의 힌트, 없으면 `{}`), `caller`(`ToolRunContext.caller`)를 항상 채운다. Helm의 쓰기 판정과 플러그인 핸들러의 자식 대화 구분에 쓴다. `tool.execution.after`는 시크릿을 가린 호출 인자 `input`과 `stepId`를 싣는다(실행 전에 닫힌 호출도 같다). F 스키마에서는 이 필드들이 아직 선택이다: 채우는 쪽이 갖춰졌으므로 필수로 올릴 수 있다(F 변경 요청, 이 문서는 고치지 않는다).
 - 서브에이전트 대화의 도구 호출에도 같은 훅이 같은 규칙으로 발화한다. `HandlerContext.threadId`는 자식 대화다 [제안].
 - `post`, `drive`, `scope`와의 관계: core-tools는 post·drive를 쓰지 않는다. 확장 비활성화(scope)로 도구 등록이 빠지면 다음 단계 경계의 `advertise`에서 사라진다(F.capabilities.spec §5 사례 5).
 - 확장 규칙 등록(extension 티어)은 2차다. 그 전에는 확장이 `tool.call.before` 핸들러로 거부한다. L1 코어 규칙 등록(`registerRules`, default 티어)은 M2다.

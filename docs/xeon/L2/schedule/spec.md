@@ -37,7 +37,7 @@ binds: [xeon/packages/cap-schedule/**]
 - 입력 큐와 전달 모드: `L1.tasks.spec`(`fresnel.tasks`).
 - 서비스 프로세스 수명, 등록 파일, 유휴 종료 판정 함수, 원격 연결의 수용과 인증: `L4.host-service.spec`. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이고, 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 - 목표 판정: `L2.work.spec`(`work.goals`). 이 문서는 선택 의존으로만 쓴다.
-- 예약 대화에서 어떤 그룹 동작을 끌지 정하는 규칙: L3 그룹 문서(§4.4.8 경계).
+- 예약 대화에서 어떤 플러그인 동작을 끌지 정하는 규칙: L3 플러그인 문서(§4.4.8 경계).
 - OS 서비스 등록(launchd, systemd)과 재부팅 뒤 자동 시작: 2차(`product.scope.spec` §4.2 N3).
 
 ### 1.1 소유 경계표
@@ -55,7 +55,7 @@ binds: [xeon/packages/cap-schedule/**]
 | 대기 예약 수 계산(`pendingSchedules`) | 없음 | 유휴 종료 판정 `decideIdle`(L4.host-service) |
 | 원격 승인 중계 정책과 감사 기록 | 승인 응답 `fresnel.approvals` (`L1.tools.spec`) | 원격 연결 수용, 토큰 인증(L4.host-service). `loopback`이 아닌 리스너는 1차에 열지 않는다(U-11) |
 | 알림 대상 이벤트 kind(`schedule.run_finished` 등) | 없음 | 알림 채널(`dialog.notify`, [제안] §4.5.4), 알림 라우팅(L4.host-service HS-42), OS 알림(L0.os) |
-| 예약 대화 표식(`schedule.run_started`) | 없음 | 예약 대화에서의 그룹 정책(L3) |
+| 예약 대화 표식(`schedule.run_started`) | 없음 | 예약 대화에서의 플러그인 정책(L3) |
 
 ### 1.2 상주 수준
 
@@ -80,7 +80,7 @@ binds: [xeon/packages/cap-schedule/**]
 | 용어 | 뜻 |
 |---|---|
 | 반복 예약 (loop) | 같은 대화에 같은 프롬프트를 반복 투입하는 정의. 반복 한 번이 iteration이다 |
-| 웨이크업 (wakeup) | 모델이나 그룹이 "n초 뒤 이 프롬프트로 다시 깨워 달라"고 남긴 일회성 예약. 같은 대화에 투입한다 |
+| 웨이크업 (wakeup) | 모델이나 플러그인이 "n초 뒤 이 프롬프트로 다시 깨워 달라"고 남긴 일회성 예약. 같은 대화에 투입한다 |
 | 종료 조건 | 반복 예약을 멈추는 조건 4종: 횟수, 시간, 셸 종료 코드, 모델 선언(§4.1.2) |
 | 작업 (job) | 백그라운드에서 도는 단위. 출처는 위임 에이전트, 백그라운드 프로세스, 반복 예약, 예약 실행이다 |
 | 입력 필요 (needs_input) | 작업이 사용자 답을 기다리는 상태. 승인 대기와 질문 대기를 묶는다 |
@@ -305,7 +305,7 @@ export const ScheduleLoopsKey = serviceKey(ScheduleLoops);
 ```
 
 - `schedule_wakeup`의 `toContent`가 `new Date(...).toISOString()`을 쓰지만 입력(`dueAt`)만으로 결과가 정해지므로 순수 결정 함수다(`F.capabilities.spec` §4.2 부속 규칙 1). 시각을 읽지 않는다.
-- 반복 예약 시작 도구는 두지 않는다. 반복 예약은 사용자 명령(`/loop`, `L4.cli.spec`)이나 그룹 코드가 시작한다 [제안]. 모델이 스스로 반복하려면 `schedule_wakeup`을 쓴다. 근거: Claude Code `/loop`는 사용자 명령이고 모델 쪽 도구는 `ScheduleWakeup`이다(`_research/l2e.md` §3.4 D2).
+- 반복 예약 시작 도구는 두지 않는다. 반복 예약은 사용자 명령(`/loop`, `L4.cli.spec`)이나 플러그인 코드가 시작한다 [제안]. 모델이 스스로 반복하려면 `schedule_wakeup`을 쓴다. 근거: Claude Code `/loop`는 사용자 명령이고 모델 쪽 도구는 `ScheduleWakeup`이다(`_research/l2e.md` §3.4 D2).
 
 ### 3.3 `schedule.jobs`
 
@@ -887,7 +887,7 @@ export const ScheduleRemote = defineCapability({
           decision: Type.Union([Type.Literal("allow"), Type.Literal("deny"), Type.Literal("answer")]),
           answer: Type.Optional(Type.Unknown()),
           remember: Type.Optional(Type.Union([Type.Literal("once"), Type.Literal("thread"), Type.Literal("always")])),
-          /** L4 host가 인증한 원격 클라이언트 id. 모델·그룹은 이 메서드를 부르지 않는다 */
+          /** L4 host가 인증한 원격 클라이언트 id. 모델·플러그인은 이 메서드를 부르지 않는다 */
           clientId: Type.String({ minLength: 1, maxLength: 64 }),
         }),
         output: Type.Object({ applied: Type.Boolean() }),
@@ -971,7 +971,7 @@ export interface RunStartedPayload {
   dueAt: number;
   firedAt: number;
   missed: boolean;                  // 놓친 기한을 따라잡은 실행이면 참
-  /** 예약 세션 표식. L3 그룹이 예약 세션에서 자기 동작을 줄이는 근거로 읽는다(§4.4.8) */
+  /** 예약 세션 표식. L3 플러그인이 예약 세션에서 자기 동작을 줄이는 근거로 읽는다(§4.4.8) */
   origin: "timer";
   requestId: string;                // timer:<timerId>:<dueAt>
 }
@@ -1090,7 +1090,7 @@ CREATE INDEX cap_schedule_runs_open ON cap_schedule_runs(status) WHERE status IN
 
 ### 3.9 호스트 연동 인터페이스 (`SchedulerHost`)
 
-[제안] 틱 시작·정지와 대기 예약 수는 기능 메서드로 두지 않는다. 모델이나 그룹이 부를 일이 아니고, 호스트가 동기로 읽어야 하기 때문이다(`L4.host-service.spec` `ActivityPort.snapshot()`은 동기). `cap-schedule`이 패키지 export로 내고 조립 루트(`apps/host`)만 import한다(`eng.context-map.design` §4.3 "조립 루트만: 모든 패키지 import").
+[제안] 틱 시작·정지와 대기 예약 수는 기능 메서드로 두지 않는다. 모델이나 플러그인이 부를 일이 아니고, 호스트가 동기로 읽어야 하기 때문이다(`L4.host-service.spec` `ActivityPort.snapshot()`은 동기). `cap-schedule`이 패키지 export로 내고 조립 루트(`apps/host`)만 import한다(`eng.context-map.design` §4.3 "조립 루트만: 모든 패키지 import").
 
 ```ts
 // xeon/packages/cap-schedule/src/tick/host.ts
@@ -1205,7 +1205,7 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
   - 반복 상한 `maxIterations`: 입력값과 설정 `l2.schedule.loops.maxIterations` 중 작은 값. 도달하면 `max_iterations`.
   - 만료 `expiresAt`: 시작 + `expiresInHours`(기본·상한 설정 `l2.schedule.loops.maxLifetimeHours`, 기본 168시간). Claude Code의 7일 만료를 참고값으로 쓴다(`_research/refs/claude-code.md` 148행). 도달하면 `expired`.
 - 판정 순서는 `model` → `goal` → `count` → `shell` → `duration` → `max_iterations` → `expired`다. 여러 조건이 같은 경계에서 맞으면 앞의 사유를 기록한다.
-- 셸 조건 명령의 승인: 반복 예약을 사용자 명령으로 시작했으면 명령도 사용자가 정한 것이므로 반복마다 승인을 묻지 않는다. 그룹 코드가 시작했으면 시작 때 `fresnel.approvals`에 `tool` kind 승인을 한 번 요청한다 [제안]. 셸 명령은 매 반복 다시 실행되기 때문이다. 승인 정책 자체는 L1.tools가 정한다.
+- 셸 조건 명령의 승인: 반복 예약을 사용자 명령으로 시작했으면 명령도 사용자가 정한 것이므로 반복마다 승인을 묻지 않는다. 플러그인 코드가 시작했으면 시작 때 `fresnel.approvals`에 `tool` kind 승인을 한 번 요청한다 [제안]. 셸 명령은 매 반복 다시 실행되기 때문이다. 승인 정책 자체는 L1.tools가 정한다.
 - 상한 없는 반복 예약은 만들 수 없다. 근거: "상한 없는 루프는 비용 사고로 이어진다"(`_research/items-from-refs.md` L1-b 종료 조건 집합 행).
 
 #### 4.1.3 간격과 웨이크업
@@ -1279,7 +1279,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 소유자 표시는 그 대화의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정: review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `fresnel.session`의 조회 API다 [가정].
 - `create`의 `worktree`는 워크트리를 만든 뒤 그 경로를 `workspace`로 대화를 만든다. 워크트리 연산(만들기, 목록, 지우기)은 `L0.os.spec`에 없다. [미결] L0.os에 연산 추가를 요청할지, `fresnel.exec`로 `git worktree`를 실행할지 정한다(§10 미결 13). 워크트리 격리(파일 시스템 경계, 샌드박스 허용 경로)는 L0(`L0.os.spec`, `L0.sandbox.spec`)의 것이다.
 - `worktreeRemove`는 그 워크트리를 쓰는 대화 중 working인 것이 있으면 `worktree_in_use`다.
-- 워크트리 도구 노출 [제안]: 기본 꺼짐(`l2.schedule.tools.worktree: false`). 선택 기능이고, 켜면 모델이 브랜치와 디렉터리를 만들고 지울 수 있다. 서비스 메서드는 항상 쓸 수 있으므로 L4 명령(`/worktree`)과 그룹은 영향을 받지 않는다.
+- 워크트리 도구 노출 [제안]: 기본 꺼짐(`l2.schedule.tools.worktree: false`). 선택 기능이고, 켜면 모델이 브랜치와 디렉터리를 만들고 지울 수 있다. 서비스 메서드는 항상 쓸 수 있으므로 L4 명령(`/worktree`)과 플러그인은 영향을 받지 않는다.
 - 근거: `_research/l2e.md` §3.4 D4, 상주 수준 1(공유 관제는 2, §6).
 
 ### 4.4 예약 실행
@@ -1291,7 +1291,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 #### 4.4.1 실행 형태
 
 - 기한마다 새 대화를 만든다. 실행 대화의 작업 디렉터리는 타이머의 `workspace`(없으면 사용자 기본 작업 디렉터리 [가정: L1.persistence 기본값])다. 근거: Hermes는 잡마다 새 AIAgent를 만든다(`_research/refs/hermes.md` §3.10.4).
-- 실행 대화의 첫 입력은 타이머 `prompt`다. 이전 실행의 대화는 이어받지 않는다. 이어받아야 하는 작업은 프롬프트나 그룹 코드가 산출물·메모리를 읽어 해결한다.
+- 실행 대화의 첫 입력은 타이머 `prompt`다. 이전 실행의 대화는 이어받지 않는다. 이어받아야 하는 작업은 프롬프트나 플러그인 코드가 산출물·메모리를 읽어 해결한다.
 - 기존 대화를 대상으로 하는 예약은 1차에 두지 않는다 [제안]. 기존 대화는 다른 클라이언트가 쓰기 소유를 쥐고 있을 수 있어 잠금 충돌이 생긴다. 필요하면 `schedule.loops`의 웨이크업을 쓴다.
 
 #### 4.4.2 cron과 at
@@ -1377,11 +1377,11 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 대기 예약 수는 `SchedulerHost.pendingSchedules()`다: `enabled = 1 AND next_due_at IS NOT NULL`인 타이머 수 + `claimed`·`started` 실행 수. 서비스 호스트가 `ActivitySnapshot.pendingSchedules`에 넣고 `decideIdle`이 읽는다(`L4.host-service.spec` SV-04).
 - 그래서 켜진 cron 타이머가 하나라도 있으면 서비스는 사실상 계속 살아 있다. 이는 의도한 동작이다. 사용자가 서비스를 멈추고 싶으면 `fresnel service stop`을 쓰고, 그동안의 기한은 놓친 실행 정책을 따른다.
 
-#### 4.4.8 예약 대화와 L3 그룹의 경계
+#### 4.4.8 예약 대화와 L3 플러그인의 경계
 
-- Hermes는 cron "세션"에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Fresnel에서 "예약 대화에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
-- 이 기능이 하는 일은 표식뿐이다. 실행 대화의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 대화를 예약 대화로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 대화 메타에 남긴다 [가정].
-- 이 기능은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
+- Hermes는 cron "세션"에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Fresnel에서 "예약 대화에서는 학습 검토를 끈다" 같은 규칙은 L3 플러그인 소관이다.
+- 이 기능이 하는 일은 표식뿐이다. 실행 대화의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 플러그인은 자기 투영기에서 이 kind를 읽어 그 대화를 예약 대화로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 대화 메타에 남긴다 [가정].
+- 이 기능은 L3 플러그인을 부르지 않고 L3 플러그인의 설정도 읽지 않는다. 이 문서는 L3 플러그인 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
 #### 4.4.9 M3b 구현 범위: 트리거 상태 기계 [결정: 오케스트레이터 기본값, M3b B1-SCH]
 
@@ -1404,7 +1404,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
 - [결정: 오케스트레이터 기본값, M4 T-RT1] 사용자가 부른 `create`와 `cancel`은 저장에 실패하면 메모리 상태를 호출 전으로 되돌리고 `store_failed`를 돌려준다. 되돌리지 않으면 `list`가 저장되지 않은 항목을 보이고 다음 저장이 그 항목을 몰래 쓴다. `cancel`은 저장에 성공한 뒤에 파일 감시를 해제한다. 저장 사이에 다른 커밋이 끼어 상태가 바뀌었으면 그 커밋이 이 변경을 이어받았으므로 되돌리지 않는다. 틱이 만드는 claim과 실행 기록의 저장 실패는 §4.4.5가 따로 정한다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
-- [결정: 2026-11-03 사용자] 직접 호출의 정책. 모델 도구 경로 밖에서 `schedule.entries.create`를 부르는 호출(확장·그룹 코드, 호스트 코드)은 설정 `l2.schedule.entries.directCreate`를 따른다. 기본은 `allow`다(바로 만든다). `deny`는 `denied` `CapabilityError`로 거부하고 항목을 만들지 않는다. `ask`는 호출 문맥에 대화(`threadId`)가 있고 무인 실행이 아닐 때 `fresnel.approvals`에 kind `tool` 승인을 낸다(`toolName` `schedule.entries.create`, 위험 등급 `exec`, 기억 `once`, 요청 키는 호출마다 새 값). 허용이면 만들고 거부면 `denied`다. 대화가 없으면 `unavailable`, 무인 실행이면 `denied`로 거부하고 승인을 내지 않는다. 승인 서비스가 없으면 `unavailable`이다. 설정은 호출마다 읽는다. 모델 호출(`caller.kind`가 `model`)은 이 설정을 읽지 않고 `schedule_create`의 승인 경로를 그대로 쓴다. 와이어 `schedule.create`(UI·CLI가 부르는 호스트 처리기)는 기능 API를 거치지 않으므로 이 설정을 받지 않는다. 와이어 호출은 `createdBy`를 `host`로 남긴다.
+- [결정: 2026-11-03 사용자] 직접 호출의 정책. 모델 도구 경로 밖에서 `schedule.entries.create`를 부르는 호출(확장·플러그인 코드, 호스트 코드)은 설정 `l2.schedule.entries.directCreate`를 따른다. 기본은 `allow`다(바로 만든다). `deny`는 `denied` `CapabilityError`로 거부하고 항목을 만들지 않는다. `ask`는 호출 문맥에 대화(`threadId`)가 있고 무인 실행이 아닐 때 `fresnel.approvals`에 kind `tool` 승인을 낸다(`toolName` `schedule.entries.create`, 위험 등급 `exec`, 기억 `once`, 요청 키는 호출마다 새 값). 허용이면 만들고 거부면 `denied`다. 대화가 없으면 `unavailable`, 무인 실행이면 `denied`로 거부하고 승인을 내지 않는다. 승인 서비스가 없으면 `unavailable`이다. 설정은 호출마다 읽는다. 모델 호출(`caller.kind`가 `model`)은 이 설정을 읽지 않고 `schedule_create`의 승인 경로를 그대로 쓴다. 와이어 `schedule.create`(UI·CLI가 부르는 호스트 처리기)는 기능 API를 거치지 않으므로 이 설정을 받지 않는다. 와이어 호출은 `createdBy`를 `host`로 남긴다.
 - [결정: 2026-11-03 사용자] 항목의 `createdBy`(선택 필드). 만든 쪽을 `approvalCallerOf`와 같은 값으로 남긴다: `ext:<확장 이름>`, `main`, `subagent:<이름>`, `background`, `host`. 문맥이 없는 기능 호출은 `host`다. 저장 파일(`state.json`)의 항목에 선택 필드로 더한다. 이 필드가 없는 옛 항목은 version을 올리지 않고 그대로 읽는다. 목록(`schedule.list`)으로 사용자가 확장이 만든 예약을 볼 수 있다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 기능 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 기능만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 기능 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
 - [결정: 오케스트레이터 기본값, M4 W-07] `update(scheduleId, patch)`는 항목의 켜짐(`enabled`), 제목(`title`), 프롬프트(`prompt`)를 고친다. 트리거와 `workspace`는 고치지 않는다. 생략한 필드는 그대로 둔다. 실패 값은 `not_found`(모르는 id), `limit_reached { max }`(켜기가 `maxActive`를 넘을 때), `store_failed`다. 다른 메서드와 같이 `open()`을 먼저 거치므로, 저장소를 읽지 못하면 `store_failed`를 돌려주고 아무것도 쓰지 않는다. 와이어 `schedule.update`의 `nextRunAt`은 항목의 `nextDueAt`을 옮긴 값이다 [제안].
@@ -1506,7 +1506,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.service.ensureOnCreate` | boolean | true | — | live | managed, user | execution | false | 화면. 서비스 모드 연동 |
 | `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`fresnel service remote on`) |
 | `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(시크릿 탭). 값은 `secret://<name>` |
-| `l2.schedule.entries.directCreate` | string | `"allow"` | enum `allow`, `ask`, `deny` | live | managed, user | execution | false | 화면. 모델 도구가 아닌 확장·그룹의 `schedule.entries.create` 직접 호출(§4.4.9) [결정: 2026-11-03 사용자] |
+| `l2.schedule.entries.directCreate` | string | `"allow"` | enum `allow`, `ask`, `deny` | live | managed, user | execution | false | 화면. 모델 도구가 아닌 확장·플러그인의 `schedule.entries.create` 직접 호출(§4.4.9) [결정: 2026-11-03 사용자] |
 | `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |
 | `l2.schedule.tools.wakeup` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_wakeup`, `loop_done` |
 | `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `job_*`, `monitor_start` |
@@ -1529,7 +1529,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | drive | 쓰지 않는다. 다음 턴 시작은 post로만 한다(`L2.readme` §4.2) |
 | scope | 기능이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 반복 예약은 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |
 
-- 그룹 사용 예: 탐구 그룹은 "제2 관점 재검토" 반복 예약을 `count` 조건과 `goalId`로 시작하고, 매주 문헌 점검을 `timers.create`로 만든다(`_research/l2e.md` §3.4 D1·D2 L3 예).
+- 플러그인 사용 예: 탐구 플러그인은 "제2 관점 재검토" 반복 예약을 `count` 조건과 `goalId`로 시작하고, 매주 문헌 점검을 `timers.create`로 만든다(`_research/l2e.md` §3.4 D1·D2 L3 예).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1537,11 +1537,11 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `ScheduleLoops`, `ScheduleJobs`, `ScheduleSessions`, `ScheduleTimers`, `ScheduleRemote`와 각 `*Key` | L3 그룹 문서, `L4.cli.spec`, `L4.desktop.spec` |
+| `ScheduleLoops`, `ScheduleJobs`, `ScheduleSessions`, `ScheduleTimers`, `ScheduleRemote`와 각 `*Key` | L3 플러그인 문서, `L4.cli.spec`, `L4.desktop.spec` |
 | `ScheduleService`, `ScheduleServiceName`, `SCHEDULE_CAPABILITIES`(§3.11) | `L2.readme` §5.6, `X.primitives.spec` |
 | `SchedulerHost`, `createSchedulerHost` | `L4.host-service.spec`(HS-39~HS-41, `ActivityPort.pendingSchedules`) |
 | `SCHEDULE_EVENT_CATALOG`와 payload 타입 | `F.records.spec`, `L4.host-service.spec`(알림 대상 kind) |
-| `schedule.run_started { origin: "timer" }` 표식 | L3 그룹 문서 |
+| `schedule.run_started { origin: "timer" }` 표식 | L3 플러그인 문서 |
 | `cap_schedule_*` DDL, 투영기 `cap.schedule` | `L1.persistence.spec`(투영기 등록), `L0.store.spec`(scoped 핸들) |
 | 설정 그룹 `l2.schedule` | `L4.settings-ui.spec` |
 

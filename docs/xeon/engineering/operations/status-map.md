@@ -75,7 +75,7 @@ binds: []
 | X/로더 | 자체 확장 API만 로드, 안전 모드, 확장용 SDK 가상 모듈 | 구현됨 (M3a) | 29, 34, 110 |
 | X/로더 | 외부 훅(셸 JSON 프로토콜) | M4 이월 | 34 |
 | X/로더 | 비협조 확장 코드의 프로세스 격리 | M4 이월 | 34 |
-| X/런타임 | 기능 래퍼, CAS 상태 판, drive 락 충돌 대기, 그룹 이벤트 격리, 요청 레코드 워커, dispose 순서, 구독 디스패치, 가드레일 실패 정책 합성 | 구현됨 (M3a) | 22, 23, 24, 25, 26, 27, 28, 30, 33, 102, 108 |
+| X/런타임 | 기능 래퍼, CAS 상태 판, drive 락 충돌 대기, 플러그인 이벤트 격리, 요청 레코드 워커, dispose 순서, 구독 디스패치, 가드레일 실패 정책 합성 | 구현됨 (M3a) | 22, 23, 24, 25, 26, 27, 28, 30, 33, 102, 108 |
 | X/신뢰 | 외부 확장 `idempotent` 선언을 믿는 조건, 샌드박스 강제 위치와 `tool_call` 처리 순서 | 부분 (B3-SEC) | 31, 32 |
 | X/알림 | 자동 끄기 알림 `scope.handler_failed` 발신 | 부분 (B1-NTF) | 35 |
 | X/투영기 | 필수 투영기 예외 격리 경로와 예외 주입 시험 | 부분 (B3-DATA) | 36 |
@@ -99,7 +99,7 @@ binds: []
 | L0/os, L0/store | macOS `fullfsync` 기본값, 접두 밖 문장 거부 운영 적용, `processStartFingerprint` | 부분 (B5-PERF). macOS 측정 대기 | 64 |
 | L1/loop | 승인 만료, 무인 승인 정책, 승인 프로토콜 구현, 도구 위험과 호출 주체 기록, 재실행 횟수 | 구현됨 (M3a) | 71, 72, 73, 74, 76 |
 | L1/agents | 백그라운드 위임 스텁 해소, 완료 통지, 보고 처리, `(thread, requestId)` 멱등 | 구현됨 (M3a) | 65, 66, 69 |
-| L1/agents | 그룹 위임 caller 표기, 서브에이전트 풀 공유, 검토 포크 사용량 귀속 | 부분 (B3-L1M) | 67, 70 |
+| L1/agents | 오케스트레이션 위임 caller 표기, 서브에이전트 풀 공유, 검토 포크 사용량 귀속 | 부분 (B3-L1M) | 67, 70 |
 | L1/loop, L1/tools | 입력 출처 기록, 서브에이전트 `tools.deny`와 티어 규칙, 가드레일 발화 위치 | 구현됨 (M3a) | 77, 78, 109 |
 | L1/loop | 목표 판정(`completeStructured`, `agent_before_settle`) | 부분 (B1-NTF). 판정 한도 전달과 실제 core-loop 통합 시험 이월 | 79 |
 | L1/persistence | 서비스 자동 재개, `replayFrom`, 재개 때 모델 요청 재전송 | 부분 (B1-SVC) | 80, 81 |
@@ -119,8 +119,8 @@ binds: []
 | L2/web | 검색 provider 체인과 키 플러그인 첫 사용 고지 | 부분 (B2-WEB). 고지는 호출 뒤 경고로 나감 | — |
 | L2/mcp | 정의 `env`·`headers` 평문 허용 거부와 시크릿 이름 패턴 | 부분 (B3-SEC) | 97 |
 | L2/knowledge | 인덱스 예산과 `LIKE` 탐색 범위 | 부분 (B5-PERF). 측정 완료, 예산 수치 대기 | 98 |
-| F/계약, L1/agents | 그룹이 코어 내구 이벤트(`lease.rejected`, `agent.settled`)를 받는 수단 | 구현됨 (M3a) | 101, 103 |
-| L3/learning, L3/helm | 그룹 본체. 이월: 저장 상태 스키마 위반 재설정, 재설치 표지, 그룹 시험 틈, SIGKILL 장애 시험 | 부분 (B4-GRP) | — |
+| F/계약, L1/agents | 플러그인이 코어 내구 이벤트(`lease.rejected`, `agent.settled`)를 받는 수단 | 구현됨 (M3a) | 101, 103 |
+| L3/learning, L3/helm | 플러그인 본체. 이월: 저장 상태 스키마 위반 재설정, 재설치 표지, 플러그인 시험 틈, SIGKILL 장애 시험 | 부분 (B4-GRP) | — |
 | L4/cli | `fresnel service start`, `status`, `stop`, `--safe-mode`, `--listen-tcp` | 구현됨 표기 있음 (`M3b B1-SVC`). 이월 있음 → 부분 | — |
 | L4/cli | `fresnel chat -p --auto-approve`: 도구 승인만 허용 | 부분 (B1-SCH) | — |
 | L4/cli | `fresnel schedule add/list/cancel/run` | 구현됨 표기 있음 (`M3b B1-SCH2`). 이월 있음 → 부분 | 93 |
@@ -150,7 +150,7 @@ binds: []
 | M3-40 원격 점검 Phase 2(옛 Tauri 구현(커밋 424f338a)의 Victauri PoC). 데스크톱 화면 점검 도구라서 화면과 함께 옮깁니다 | `review.m3b-plan` §1.2 `[결정: 오케스트레이터 기본값]` |
 | `label`·`help` 필드 제거. `labelKey`·`helpKey`를 남깁니다 | M3-REQ-21, `review.m3b-plan` §5 |
 | 데스크톱 쪽 항목: `desktop_settings_read/write`, 트레이 아이콘과 메뉴, `handler_failed` 화면 표시, 설정 쓰기 흐름의 reducer와 초안 | 이월 목록(B4-DSK, B1-NTF, B3-SET) |
-| 학습 그룹의 Curator, 이력, 스크립트 제안 | 이월 목록(LR-17 항목의 "M4+") |
+| 학습 플러그인의 Curator, 이력, 스크립트 제안 | 이월 목록(LR-17 항목의 "M4+") |
 | 앱 안 업데이터, 옛 Tauri 구현(커밋 424f338a)의 번들 리소스 매핑(패키징) | 이월 목록(B5-REL) |
 
 ## 4. 제품 이름 상수

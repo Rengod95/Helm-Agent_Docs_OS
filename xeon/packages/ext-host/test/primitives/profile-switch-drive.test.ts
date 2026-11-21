@@ -11,7 +11,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import { createTestHost, fixedIdFactory, type MemoryLoopOptions } from "../../src/testing/index.ts";
 import { acquiredOf, releasedOf, type Host } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 const ids = fixedIdFactory(7000);
 const TURN = ids.next("trn");
@@ -39,7 +39,7 @@ function stepOf(calls: Call[], name: string, finish: () => boolean): DriveStep<n
 
 async function install(t: Host, name: string, step: DriveStep<never>): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(step);
     }),
   );

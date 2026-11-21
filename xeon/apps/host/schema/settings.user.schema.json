@@ -6187,7 +6187,7 @@
         }
       }
     },
-    "l3.group-sdk.instrumentation": {
+    "l3.orchestration.instrumentation": {
       "default": true,
       "type": "boolean",
       "x-fresnel": {
@@ -6203,36 +6203,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
-          "helpKey": "settings.l3.groupSdk.instrumentation.help",
+          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
+          "helpKey": "settings.l3.orchestration.instrumentation.help",
           "label": "Group instrumentation",
-          "labelKey": "settings.l3.groupSdk.instrumentation.label",
+          "labelKey": "settings.l3.orchestration.instrumentation.label",
           "order": 200,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "l3.group-sdk.statusLine": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
-          "helpKey": "settings.l3.groupSdk.statusLine.help",
-          "label": "Show groups in status line",
-          "labelKey": "settings.l3.groupSdk.statusLine.label",
-          "order": 201,
           "tab": "plugins",
           "widget": "toggle"
         }
@@ -7608,7 +7583,7 @@
         }
       }
     },
-    "x.primitives.driveRequiresGroup": {
+    "x.primitives.driveRequiresOrchestration": {
       "default": true,
       "type": "boolean",
       "x-fresnel": {
@@ -7622,9 +7597,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
-          "helpKey": "settings.x.primitives.driveRequiresGroup.help",
+          "helpKey": "settings.x.primitives.driveRequiresOrchestration.help",
           "label": "Drive only from plugin groups",
-          "labelKey": "settings.x.primitives.driveRequiresGroup.label",
+          "labelKey": "settings.x.primitives.driveRequiresOrchestration.label",
           "order": 112,
           "tab": "plugins",
           "widget": "toggle"

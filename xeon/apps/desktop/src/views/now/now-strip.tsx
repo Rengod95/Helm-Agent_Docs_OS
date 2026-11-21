@@ -218,7 +218,7 @@ export function NowStripView(props: {
     <section
       data-now-strip=""
       aria-label={t("desktop.now.label")}
-      className="@container relative isolate mx-3 mb-1.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-raised"
+      className="@container relative isolate overflow-hidden rounded-xl border border-border-subtle bg-surface-raised"
     >
       {auroraOn("strip") ? <StripAurora view={view} /> : null}
       {/* 줄 전체가 펼침 단추다. 끝의 chevron은 같은 동작을 보이는 표시라 따로 탭 순서에 두지 않는다 */}

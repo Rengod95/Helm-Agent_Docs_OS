@@ -184,7 +184,7 @@ for (const threadId of ["thread", null] as const) {
       makeUnit(
         {
           name: "ro-writer",
-          group: {},
+          orchestration: {},
           usesPost: true,
           methods: [decl("look", true), decl("change", false)],
           recordKinds: [

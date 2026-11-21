@@ -3,7 +3,7 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   costText,
-  groupMetricsOf,
+  orchestrationMetricsOf,
   type DurationVM,
   type GroupMetricsVM,
   type TabRead,
@@ -150,9 +150,9 @@ export function MetricsPanel(props: { readonly view: MetricsBody }): ReactNode {
 
 /** 측정 탭: 그룹이면 `group.metrics`를, 아니면 열린 대화의 최근 Turn에서 이 확장의 부담을 읽는다(둘 다 대화가 열려 있을 때 그 대화 기준) */
 export function MetricsTab(props: {
-  readonly entry: Pick<ExtListEntry, "name" | "isGroup">;
+  readonly entry: Pick<ExtListEntry, "name" | "isOrchestration">;
 }): ReactNode {
-  if (!props.entry.isGroup) return <PluginMetricsTab name={props.entry.name} />;
+  if (!props.entry.isOrchestration) return <PluginMetricsTab name={props.entry.name} />;
   return <GroupMetricsTab name={props.entry.name} />;
 }
 
@@ -176,7 +176,7 @@ function GroupMetricsTab(props: { readonly name: string }): ReactNode {
   const { name } = props;
   const load = useCallback(async () => {
     const got = await commands.workbench.metrics(name, threadId ?? undefined);
-    return got.ok ? ok(groupMetricsOf(got.value)) : err(got.error);
+    return got.ok ? ok(orchestrationMetricsOf(got.value)) : err(got.error);
   }, [commands, name, threadId]);
   const read = useTabRead(`${name}\u0000${threadId ?? ""}`, link, load);
   return <MetricsPanel view={{ kind: "read", read }} />;

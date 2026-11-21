@@ -7,7 +7,7 @@ import type {
   ScaffoldInput,
   SourceFacts,
 } from "@fresnel/contracts/services";
-import { createGroupRig, devkitProbe, type GroupRig } from "./group-support.ts";
+import { createOrchestrationRig, devkitProbe, type OrchestrationRig } from "./group-support.ts";
 
 // 빌더 도구의 v4 면(M5c §4.9.3, §4.9.2, §4.9.4, §4.9.6): 이름만으로 기존 플러그인 열기, 초안 목록, 세 방식의 제출 도달, 목적 한 문장,
 // 상주 표지. 도구는 실제 호스트 위에서 부르고 devkit은 호출을 기록하는 대역이다(group-support.ts).
@@ -17,7 +17,10 @@ const SOURCE_DIR = "/config/plugins/demo";
 const EVIDENCE_TURN = "turn_1";
 
 /** 한 번 확인된 세션을 검사 단계까지 맞춘다: 새 플러그인 시작, 종류·이름 확인 예 */
-async function confirmedNewSession(rig: GroupRig, extra: Record<string, string | boolean> = {}) {
+async function confirmedNewSession(
+  rig: OrchestrationRig,
+  extra: Record<string, string | boolean> = {},
+) {
   const started = await rig.call("authoring_start", {
     kind: "single-plugin",
     name: "demo",
@@ -31,7 +34,7 @@ async function confirmedNewSession(rig: GroupRig, extra: Record<string, string |
 }
 
 /** 검사를 지나 시험 대화의 턴을 증거로 제출하기 직전까지 간다 */
-async function trialed(rig: GroupRig): Promise<void> {
+async function trialed(rig: OrchestrationRig): Promise<void> {
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
   await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "demo" });
   await rig.t.boundary(rig.thread).turnSettled();
@@ -53,7 +56,7 @@ test("authoring.fix.a: a name alone opens the source folder at once (no kind or 
       );
     },
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   const started = await rig.call("authoring_start", { name: "demo" });
   expect(started).toMatchObject({
     ok: true,
@@ -92,7 +95,7 @@ async function refusedStart(failure: DevkitError): Promise<void> {
     ...base.devkit,
     sourceOf: () => Promise.resolve(err(failure)),
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   expect(await rig.call("authoring_start", { name: "demo" })).toEqual({
     ok: false,
     error: { kind: failure.kind, message: failure.message },
@@ -109,7 +112,7 @@ test("authoring.fix.b2: a bundled plugin with no source folder is refused as bun
 });
 
 test("authoring.fix.c: without a sourceOf in this build a name alone is refused, and a new plugin still needs kind and dir", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   expect(await rig.call("authoring_start", { name: "demo" })).toMatchObject({
     ok: false,
     error: { kind: "source_unavailable" },
@@ -128,7 +131,7 @@ async function modeReachesSubmit(mode: "hook" | "inject" | "drive"): Promise<voi
       return Promise.resolve(ok({ dir: input.dir, files: ["src/index.ts"] }));
     },
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   await confirmedNewSession(rig);
   expect(await rig.call("authoring_scaffold", { sessionId: "auth-demo", mode })).toMatchObject({
     ok: true,
@@ -155,7 +158,7 @@ test("authoring.modes.bad: a mode outside the three is refused by the schema and
       return Promise.resolve(ok({ dir: input.dir, files: [] }));
     },
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   await confirmedNewSession(rig);
   const refused = await rig.call("authoring_scaffold", {
     sessionId: "auth-demo",
@@ -194,7 +197,7 @@ test("authoring.drafts.a: the drafts of a plugin come newest first with their pa
       return Promise.resolve(ok({ drafts: name === "demo" ? drafts : [] }));
     },
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   expect(await rig.call("authoring_drafts", {})).toEqual({
     ok: false,
     error: { kind: "no_name", message: expect.stringContaining("name") },
@@ -217,7 +220,7 @@ test("authoring.drafts.a: the drafts of a plugin come newest first with their pa
 });
 
 test("authoring.drafts.b: without a draftList in this build the tool says so", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   expect(await rig.call("authoring_drafts", { name: "demo" })).toMatchObject({
     ok: false,
     error: { kind: "drafts_unavailable" },
@@ -230,7 +233,7 @@ test("authoring.purpose: the purpose given at start reaches the submit when the 
     ...base.devkit,
     sourceOf: () => Promise.resolve(ok(SOURCE)),
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   await rig.call("authoring_start", { name: "demo", purpose: "로그를 정리한다" });
   expect(rig.state()).toMatchObject({ purpose: "로그를 정리한다", resident: false });
   await trialed(rig);
@@ -250,7 +253,7 @@ test("authoring.resident: the resident flag set at start is kept in the state, a
     ...base.devkit,
     sourceOf: () => Promise.resolve(ok(SOURCE)),
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   await rig.call("authoring_start", { name: "demo", resident: true });
   expect(rig.state()).toMatchObject({ resident: true });
   await rig.call("authoring_stop", {});
@@ -278,7 +281,7 @@ test("authoring.context.a: the context tool reads the references of the calling 
       );
     },
   };
-  const rig = await createGroupRig({ devkit });
+  const rig = await createOrchestrationRig({ devkit });
   expect(await rig.call("authoring_context", {})).toEqual({
     ok: true,
     threadId: rig.thread,
@@ -294,7 +297,7 @@ test("authoring.context.a: the context tool reads the references of the calling 
 });
 
 test("authoring.context.b: without a craftContext in this build the context tool says so", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   expect(await rig.call("authoring_context", {})).toMatchObject({
     ok: false,
     error: { kind: "context_unavailable" },

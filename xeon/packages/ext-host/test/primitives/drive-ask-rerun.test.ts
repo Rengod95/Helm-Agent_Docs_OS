@@ -21,7 +21,7 @@ import {
   type FakeApprovals,
   type Host,
 } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 /** 진행 위치 상태: 아직 묻지 않은 요청의 번호. 답이 온 요청 뒤에 커밋하며 넘어간다 */
 type Progress = { readonly at: number };
@@ -122,7 +122,7 @@ async function installAskChain(
   before?: Command,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name, def: progressDef }, (g) => {
+    makeOrchestrationUnit({ name, def: progressDef }, (g) => {
       g.drive(chainStep(run, requestIds, before));
     }),
   );
@@ -395,7 +395,7 @@ test("a command from a step whose lease was revoked while it waited is not run",
     gate.open = resolve;
   });
   await t.host.install(
-    makeGroupUnit({ name: "rerun-fence" }, (g) => {
+    makeOrchestrationUnit({ name: "rerun-fence" }, (g) => {
       g.drive(async ({ last }) => {
         // 첫 단계는 명령을 내기 전에 기다린다. 기다리는 동안 사용자 중단으로 임대가 반납된다
         if (last !== null) return yieldOf();

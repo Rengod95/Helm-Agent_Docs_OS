@@ -101,18 +101,23 @@ export function ApprovalQueue(): ReactNode {
     .map((row) => row.id);
   const band = useRef<HTMLElement | null>(null);
   const idsKey = ids.join(",");
-  // 새 카드가 오면 마지막 카드의 단추 줄까지 보이게 띠 안에서 스크롤한다(rtE R-1)
+  // 새 카드가 오면 마지막 카드가 아래 가장자리(테두리)까지 보이게 띠 안에서 스크롤한다(rtE R-1, DP-225). 카드 하나의 높이는 띠 상한 안이라 다 들어간다
   useEffect(() => {
     if (idsKey === "") return;
-    const bars = band.current?.querySelectorAll('[data-slot="approval-actions"]') ?? [];
-    const last = bars[bars.length - 1];
+    const cards = band.current?.querySelectorAll('[data-slot="approval-card"]') ?? [];
+    const last = cards[cards.length - 1];
     if (last instanceof HTMLElement && typeof last.scrollIntoView === "function") {
       last.scrollIntoView({ block: "nearest" });
     }
   }, [idsKey]);
   // 띠가 입력창 위로 올라와 가라앉고, 마지막 승인에 답하면 내려가며 사라진다(dzM2 시안 §8). 대화를 처음 열 때는 움직이지 않는다
   return (
-    <Presence show={ids.length > 0} variant="band" initial={false} className="grid min-h-0">
+    <Presence
+      show={ids.length > 0}
+      variant="band"
+      initial={false}
+      className="flex min-h-0 flex-col"
+    >
       {ids.length === 0 ? null : <ApprovalBand band={band} ids={ids} within={openThreadId} />}
     </Presence>
   );
@@ -126,21 +131,25 @@ function ApprovalBand(props: {
   const { band, ids } = props;
   const openThreadId = props.within;
   return (
-    // 입력창 바로 위 띠. 높이는 화면의 40%까지만 차지하고, 넘는 카드는 띠 안의 스크롤 영역에서 넘긴다.
-    // 머리(개수)는 스크롤 밖에 둬 늘 보인다. 카드의 응답 단추 줄은 카드 안에서 바닥에 붙는다(approval-card.tsx).
+    // 입력창 바로 위 띠(DP-225). 높이는 화면의 50%까지이고(선택지 넷과 직접 입력이 있는 질문이 900px 창에서 스크롤 없이 들어간다), 카드 하나는 그 안에 다 들어가 본문만 스크롤한다(`--approval-card-max`:
+    // 띠 상한에서 머리 18 + 사이 8을 뺀 값). 카드가 여럿이면 카드마다 같은 상한을 갖고 띠가 스크롤한다(가장자리 흐림).
+    // 머리(개수)는 스크롤 밖에 둬 늘 보인다. 쌓임 그릇이 높이를 줄이면 카드 하나일 때는 카드가 함께 줄어 단추 줄이 늘 보인다.
     <section
       ref={band}
-      className="flex min-h-0 max-h-[calc(var(--app-dvh)*0.4)] flex-col gap-2"
+      data-approval-band=""
+      className="flex max-h-[calc(var(--app-dvh)*0.5)] min-h-0 flex-col gap-2 [--approval-card-max:calc(var(--app-dvh)*0.5-1.625rem)]"
       aria-label={t("desktop.approvals.queue.label")}
     >
-      <h2 className="m-0 flex-none px-3 text-ui-strong text-text-primary">
+      <h2 className="m-0 flex-none text-ui-strong text-text-primary">
         {t("desktop.approvals.queue.title", { count: ids.length })}
       </h2>
-      <ScrollArea label={t("desktop.approvals.queue.label")} className="min-h-0 flex-1">
-        <div className="px-3 py-1.5">
+      {ids.length === 1 ? (
+        <ApprovalCardList ids={ids} within={openThreadId} />
+      ) : (
+        <ScrollArea fade label={t("desktop.approvals.queue.label")} className="min-h-0 flex-1">
           <ApprovalCardList ids={ids} within={openThreadId} />
-        </div>
-      </ScrollArea>
+        </ScrollArea>
+      )}
     </section>
   );
 }

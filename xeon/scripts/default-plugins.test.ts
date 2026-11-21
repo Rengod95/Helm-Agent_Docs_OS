@@ -7,10 +7,10 @@ test("defaultPluginsOf reads the release bundle list", () => {
     defaultPluginsOf({
       templates: "x",
       defaultPlugins: [
-        { name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" },
+        { name: "helm", buildScript: "packages/plugin-helm/scripts/build-plugin.ts" },
       ],
     }),
-  ).toEqual([{ name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" }]);
+  ).toEqual([{ name: "helm", buildScript: "packages/plugin-helm/scripts/build-plugin.ts" }]);
 });
 
 test("defaultPluginsOf rejects a wrong shape or a name that leaves its folder", () => {

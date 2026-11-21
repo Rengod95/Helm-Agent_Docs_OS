@@ -7,7 +7,7 @@
 // `drive`는 setup에서 단계 함수를 한 번 받아 두고, 엔진이 단계마다 `drive.step` 요청으로 부른다(drive-isolation.md 1.1, 3.2).
 // 막힌 API(`provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
 // setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
-// `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
+// `port`는 예외다. orchestration-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
 import type { AsyncLocalStorage } from "node:async_hooks";
 import {
@@ -28,7 +28,7 @@ import {
   type DriveOptions,
   type DriveStep,
   type EngineCallParams,
-  type GroupRecord,
+  type OrchestrationRecord,
   type Handler,
   type HookName,
   type PluginEngineCallName,
@@ -73,7 +73,7 @@ import type {
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
 import {
-  parseGroupRecords,
+  parseOrchestrationRecords,
   parsePostReceipt,
   parseScriptOutcome,
   parseStartDriveReply,
@@ -172,7 +172,7 @@ export interface RegState {
 
 /**
  * 격리 자식의 `g`에 더하는 스크립트 실행(설계 B, F.extensions.spec §3.1.4). 자식 대리 객체에만 있다. 공개 타입
- * (`RegistrationApi`, `GroupApi`)에 더하는 일은 P 층의 다음 커밋이다. 거절과 기동 실패는 값으로 돌아온다
+ * (`RegistrationApi`, `OrchestrationApi`)에 더하는 일은 P 층의 다음 커밋이다. 거절과 기동 실패는 값으로 돌아온다
  */
 interface ChildScriptApi {
   runScript(
@@ -496,9 +496,9 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> & Ch
     async record(kind: RecordKind, subject: RecordSubject, payload: JsonValue): Promise<void> {
       await callEngine(env, state, "record", jsonOf({ kind, subject, payload }, "the record"));
     },
-    async readRecords(query: RecordQuery): Promise<readonly GroupRecord[]> {
+    async readRecords(query: RecordQuery): Promise<readonly OrchestrationRecord[]> {
       const reply = await callEngine(env, state, "readRecords", jsonOf(query, "the query"));
-      return checked(parseGroupRecords(reply), "the records");
+      return checked(parseOrchestrationRecords(reply), "the records");
     },
     async recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void> {
       await callEngine(env, state, "recordPrivate", jsonOf({ kind, payload }, "the record"));

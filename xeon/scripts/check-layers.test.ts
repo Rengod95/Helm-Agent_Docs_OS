@@ -47,10 +47,12 @@ interface PkgOptions {
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
   const base = dir.split("/")[1] ?? "";
   const name = `@fresnel/${base}`;
-  // group-sdk의 도메인은 접두를 뺀 kit이 아니라 group-sdk이다(M3-35)
+  // orchestration-sdk의 도메인은 문서 id(L3.group-sdk.*)를 따라 group-sdk이다(M3-35)
   const domain =
     options.domain ??
-    (base === "group-sdk" ? base : base.replace(/^(?:platform|core|cap|group)-/, ""));
+    (base === "orchestration-sdk"
+      ? "group-sdk"
+      : base.replace(/^(?:platform|core|cap|plugin)-/, ""));
   const dependencies = Object.fromEntries(deps.map((d) => [d, "workspace:*"]));
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
@@ -95,8 +97,8 @@ test("expectedLayer maps directories to layers", () => {
   expect(expectedLayer("packages/platform-store")).toBe("L0");
   expect(expectedLayer("packages/core-loop")).toBe("L1");
   expect(expectedLayer("packages/cap-web")).toBe("P");
-  expect(expectedLayer("packages/group-helm")).toBe("P");
-  expect(expectedLayer("packages/group-sdk")).toBe("P");
+  expect(expectedLayer("packages/plugin-helm")).toBe("P");
+  expect(expectedLayer("packages/orchestration-sdk")).toBe("P");
   expect(expectedLayer("packages/plugin-builder")).toBe("P");
   expect(expectedLayer("packages/plugin-migration")).toBe("P");
   expect(expectedLayer("plugins/provider-anthropic-oauth")).toBe("L1");
@@ -109,8 +111,8 @@ test("expectedLayer maps directories to layers", () => {
 test("expectedDomain strips the layer prefix", () => {
   expect(expectedDomain("packages/core-loop")).toBe("loop");
   expect(expectedDomain("packages/platform-store")).toBe("store");
-  expect(expectedDomain("packages/group-sdk")).toBe("group-sdk");
-  expect(expectedDomain("packages/group-helm")).toBe("helm");
+  expect(expectedDomain("packages/orchestration-sdk")).toBe("group-sdk");
+  expect(expectedDomain("packages/plugin-helm")).toBe("helm");
   expect(expectedDomain("packages/contracts")).toBe("contracts");
   expect(expectedDomain("packages/ext-host")).toBe("ext-host");
   expect(expectedDomain("plugins/provider-anthropic-oauth")).toBe("provider-anthropic-oauth");
@@ -249,16 +251,19 @@ test("allowlist: a listed same-layer pair passes, an unlisted pair still fails",
 });
 
 test("allowlist: only the listed entry points are allowed", () => {
-  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";\nimport "@fresnel/group-sdk/internal";' },
+  pkg("packages/plugin-helm", "L3", ["@fresnel/orchestration-sdk"], {
+    files: {
+      "src/a.ts":
+        'import "@fresnel/orchestration-sdk";\nimport "@fresnel/orchestration-sdk/internal";',
+    },
   });
-  pkg("packages/group-sdk", "L3");
+  pkg("packages/orchestration-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-sdk-helm",
+      id: "DR-02/orchestration-sdk-helm",
       rule: "DR-02",
-      from: "packages/group-helm",
-      to: "@fresnel/group-sdk",
+      from: "packages/plugin-helm",
+      to: "@fresnel/orchestration-sdk",
     },
   ]);
   expect(lines()).toHaveLength(1);
@@ -266,68 +271,68 @@ test("allowlist: only the listed entry points are allowed", () => {
 });
 
 test("allowlist: the entry must match the rule and the importing package", () => {
-  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  pkg("packages/plugin-helm", "L3", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/group-learning", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  pkg("packages/plugin-learning", "L3", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/group-sdk", "L3");
+  pkg("packages/orchestration-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-sdk-helm",
+      id: "DR-02/orchestration-sdk-helm",
       rule: "DR-02",
-      from: "packages/group-helm",
-      to: "@fresnel/group-sdk",
+      from: "packages/plugin-helm",
+      to: "@fresnel/orchestration-sdk",
     },
   ]);
   const found = checkLayers(root).violations;
   expect(found.map((v) => `${v.file}:${v.line} ${v.rule}`)).toEqual([
-    "packages/group-learning/src/a.ts:1 DR-02",
+    "packages/plugin-learning/src/a.ts:1 DR-02",
   ]);
 });
 
 test("allowlist: a family pattern matches each package of the family and no deeper path", () => {
-  expect(matchesFrom("packages/group-*", "packages/group-helm")).toBe(true);
-  expect(matchesFrom("packages/group-*", "packages/group-sdk")).toBe(true);
-  expect(matchesFrom("packages/group-*", "packages/group-x/sub")).toBe(false);
-  expect(matchesFrom("packages/group-*", "packages/core-loop")).toBe(false);
-  expect(matchesFrom("packages/group-*", "packages/group-")).toBe(false);
-  expect(matchesFrom("packages/group-helm", "packages/group-helm")).toBe(true);
-  expect(matchesFrom("packages/group-helm", "packages/group-learning")).toBe(false);
+  expect(matchesFrom("packages/plugin-*", "packages/plugin-helm")).toBe(true);
+  expect(matchesFrom("packages/plugin-*", "packages/orchestration-sdk")).toBe(false);
+  expect(matchesFrom("packages/plugin-*", "packages/plugin-x/sub")).toBe(false);
+  expect(matchesFrom("packages/plugin-*", "packages/core-loop")).toBe(false);
+  expect(matchesFrom("packages/plugin-*", "packages/plugin-")).toBe(false);
+  expect(matchesFrom("packages/plugin-helm", "packages/plugin-helm")).toBe(true);
+  expect(matchesFrom("packages/plugin-helm", "packages/plugin-learning")).toBe(false);
 });
 
-test("allowlist: the group-sdk family entry covers each group, its two entries and nothing else", () => {
-  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk", "@fresnel/group-learning"], {
+test("allowlist: the orchestration-sdk family entry covers each group, its two entries and nothing else", () => {
+  pkg("packages/plugin-helm", "L3", ["@fresnel/orchestration-sdk", "@fresnel/plugin-learning"], {
     files: {
       "src/a.ts": [
-        'import "@fresnel/group-sdk";',
-        'import "@fresnel/group-sdk/testing";',
-        'import "@fresnel/group-sdk/internal";',
-        'import "@fresnel/group-learning";',
+        'import "@fresnel/orchestration-sdk";',
+        'import "@fresnel/orchestration-sdk/testing";',
+        'import "@fresnel/orchestration-sdk/internal";',
+        'import "@fresnel/plugin-learning";',
       ].join("\n"),
     },
   });
-  pkg("packages/group-learning", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  pkg("packages/plugin-learning", "L3", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/group-sdk", "L3");
+  pkg("packages/orchestration-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-sdk",
+      id: "DR-02/orchestration-sdk",
       rule: "DR-02",
-      from: "packages/group-*",
-      to: "@fresnel/group-sdk",
+      from: "packages/plugin-*",
+      to: "@fresnel/orchestration-sdk",
       entries: [".", "./testing"],
     },
   ]);
-  // group-helm의 두 허용 진입점은 통과한다. 내부 진입점과 다른 그룹 import는 소스 파일에서 위반이다
+  // plugin-helm의 두 허용 진입점은 통과한다. 내부 진입점과 다른 그룹 import는 소스 파일에서 위반이다
   const sources = checkLayers(root)
-    .violations.filter((v) => v.file === "packages/group-helm/src/a.ts")
+    .violations.filter((v) => v.file === "packages/plugin-helm/src/a.ts")
     .map(formatViolation);
   expect(sources).toEqual([
-    "packages/group-helm/src/a.ts:3 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/group-sdk; share through F contracts or Cordis services",
-    "packages/group-helm/src/a.ts:4 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/group-learning; share through F contracts or Cordis services",
+    "packages/plugin-helm/src/a.ts:3 DR-02 P package @fresnel/plugin-helm imports same-layer package @fresnel/orchestration-sdk; share through F contracts or Cordis services",
+    "packages/plugin-helm/src/a.ts:4 DR-02 P package @fresnel/plugin-helm imports same-layer package @fresnel/plugin-learning; share through F contracts or Cordis services",
   ]);
 });
 
@@ -684,8 +689,9 @@ test("patternLines reports each matching line once", () => {
   ).toEqual([2]);
 });
 
-// DR-15 plugin rank P (6.3): P sits between L1 and L4; cap-*, group-* and plugin-builder are P; L2 and L3 are aliases of P
-const P_REASON = "; a plugin imports only contracts, ext-host, group-sdk and external packages";
+// DR-15 plugin rank P (6.3): P sits between L1 and L4; cap-*, plugin-* and plugin-builder are P; L2 and L3 are aliases of P
+const P_REASON =
+  "; a plugin imports only contracts, ext-host, orchestration-sdk and external packages";
 
 test("the rank order is F X L0 L1 P L4 and P is above L1 and below L4", () => {
   expect(Object.keys(RANK)).toEqual(["F", "X", "L0", "L1", "P", "L4"]);
@@ -698,7 +704,7 @@ test("L2 and L3 are accepted as P only where the directory is a plugin", () => {
   pkg("packages/cap-web", "L2", ["@fresnel/contracts"], {
     files: { "src/a.ts": 'import "@fresnel/contracts";' },
   });
-  pkg("packages/group-helm", "L3", ["@fresnel/contracts"], {
+  pkg("packages/plugin-helm", "L3", ["@fresnel/contracts"], {
     files: { "src/a.ts": 'import "@fresnel/contracts";' },
   });
   pkg("packages/plugin-builder", "P", ["@fresnel/contracts"], {
@@ -732,7 +738,7 @@ test("DR-03: a cap-* domain must be in routes.yaml layout.L2, group domains are 
   );
   pkg("packages/cap-web", "P");
   pkg("packages/cap-newthing", "L2");
-  pkg("packages/group-newthing", "L3");
+  pkg("packages/plugin-newthing", "L3");
   const { violations } = checkLayers(root, { routesFile: routes });
   expect(violations.map((v) => `${v.file} ${v.rule}`)).toEqual([
     "packages/cap-newthing/package.json DR-03",
@@ -750,44 +756,44 @@ test("DR-01: a plugin imports no L4 package", () => {
   ]);
 });
 
-test("DR-02: plugins never import each other, cap-* or group-*", () => {
+test("DR-02: plugins never import each other, cap-* or plugin-*", () => {
   pkg("packages/cap-web", "L2", ["@fresnel/cap-mcp"], {
     files: { "src/a.ts": 'import "@fresnel/cap-mcp";' },
   });
   pkg("packages/cap-mcp", "L2");
-  pkg("packages/group-helm", "L3", ["@fresnel/cap-web"], {
+  pkg("packages/plugin-helm", "L3", ["@fresnel/cap-web"], {
     files: { "src/a.ts": 'import "@fresnel/cap-web";' },
   });
   expect(lines()).toEqual([
     "packages/cap-web/src/a.ts:1 DR-02 P package @fresnel/cap-web imports same-layer package @fresnel/cap-mcp; share through F contracts or Cordis services",
-    "packages/group-helm/src/a.ts:1 DR-02 P package @fresnel/group-helm imports same-layer package @fresnel/cap-web; share through F contracts or Cordis services",
+    "packages/plugin-helm/src/a.ts:1 DR-02 P package @fresnel/plugin-helm imports same-layer package @fresnel/cap-web; share through F contracts or Cordis services",
   ]);
 });
 
-test("DR-02/group-sdk: the family entry covers the groups and the Plugin Builder, not cap-*", () => {
-  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+test("DR-02/orchestration-sdk: the family entry covers the groups and the Plugin Builder, not cap-*", () => {
+  pkg("packages/plugin-helm", "L3", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/plugin-builder", "L3", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  pkg("packages/plugin-builder", "L3", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/cap-web", "L2", ["@fresnel/group-sdk"], {
-    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
+  pkg("packages/cap-web", "L2", ["@fresnel/orchestration-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/orchestration-sdk";' },
   });
-  pkg("packages/group-sdk", "L3");
+  pkg("packages/orchestration-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-sdk",
+      id: "DR-02/orchestration-sdk",
       rule: "DR-02",
-      from: "packages/group-*",
-      to: "@fresnel/group-sdk",
+      from: "packages/plugin-*",
+      to: "@fresnel/orchestration-sdk",
       entries: [".", "./testing"],
     },
     {
-      id: "DR-02/plugin-builder-group-sdk",
+      id: "DR-02/plugin-builder-orchestration-sdk",
       rule: "DR-02",
       from: "packages/plugin-builder",
-      to: "@fresnel/group-sdk",
+      to: "@fresnel/orchestration-sdk",
       entries: [".", "./testing"],
     },
   ]);

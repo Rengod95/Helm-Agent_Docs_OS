@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, kindsOf, payloadField } from "./support/inspect.ts";
-import { createTestGroup, TEST_GROUP_ID, TEST_NOTE_KIND } from "./support/test-group.ts";
+import {
+  createTestOrchestration,
+  TEST_ORCHESTRATION_ID,
+  TEST_NOTE_KIND,
+} from "./support/test-group.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 
 const read = (id: string): ScriptedResponse => ({
@@ -30,7 +34,7 @@ test("group_on_post_and_scope_walk_through_a_turn_with_the_loop", async () => {
     tools: [{ name: "read" }],
     script: [read("c1"), answer("first done"), answer("follow up done")],
   });
-  const group = createTestGroup({ ids: h.host.ids, postFollowUp: true });
+  const group = createTestOrchestration({ ids: h.host.ids, postFollowUp: true });
   const installed = await h.host.host.install(group.unit);
   expect(installed.entryError).toBeUndefined();
   await h.host.settled();
@@ -47,7 +51,7 @@ test("group_on_post_and_scope_walk_through_a_turn_with_the_loop", async () => {
   const inputs = events.filter((event) => event.kind === "input.queued");
   expect(inputs.map((event) => payloadField(event, "source"))).toContainEqual({
     type: "extension",
-    scopeId: TEST_GROUP_ID,
+    scopeId: TEST_ORCHESTRATION_ID,
   });
   expect(h.models.requests.at(-1)?.messages.at(-1)).toMatchObject({ content: "group follow up" });
 });
@@ -60,7 +64,7 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
         name: "read",
         run: () => {
           // 단계 0 안에서 켜기를 요청한다. 적용은 그 단계의 경계다
-          state.h?.host.host.registration(TEST_GROUP_ID)?.enable();
+          state.h?.host.host.registration(TEST_ORCHESTRATION_ID)?.enable();
           return Promise.resolve({ text: "A" });
         },
       },
@@ -68,7 +72,7 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
         name: "ls",
         run: () => {
           // 단계 1 안에서 끄기를 요청한다
-          state.h?.host.host.registration(TEST_GROUP_ID)?.disable();
+          state.h?.host.host.registration(TEST_ORCHESTRATION_ID)?.disable();
           return Promise.resolve({ text: "B" });
         },
       },
@@ -84,7 +88,7 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
     ],
   });
   state.h = h;
-  const group = createTestGroup({ ids: h.host.ids, enabled: false });
+  const group = createTestOrchestration({ ids: h.host.ids, enabled: false });
   await h.host.host.install(group.unit);
   await h.host.settled();
 
@@ -119,8 +123,9 @@ test("a_start_request_becomes_a_lease_at_a_boundary_and_runs_a_turn_after_the_us
         run: () => {
           // 단계 0 안에서 그룹을 켜고 사용자 시작 요청을 넣는다. 켜기와 요청의 임대 부여는 그 단계의 경계에서 적용된다
           const current = state.h;
-          current?.host.host.registration(TEST_GROUP_ID)?.enable();
-          if (current !== null) current.host.host.startDrive(current.threadId, TEST_GROUP_ID);
+          current?.host.host.registration(TEST_ORCHESTRATION_ID)?.enable();
+          if (current !== null)
+            current.host.host.startDrive(current.threadId, TEST_ORCHESTRATION_ID);
           return Promise.resolve({ text: "A" });
         },
       },
@@ -128,7 +133,7 @@ test("a_start_request_becomes_a_lease_at_a_boundary_and_runs_a_turn_after_the_us
     script: [read("c1"), answer("user turn done"), answer("drive turn done")],
   });
   state.h = h;
-  const group = createTestGroup({ ids: h.host.ids, driveTurns: 1, enabled: false });
+  const group = createTestOrchestration({ ids: h.host.ids, driveTurns: 1, enabled: false });
   await h.host.host.install(group.unit);
   await h.host.settled();
 
@@ -151,14 +156,17 @@ test("a_start_request_becomes_a_lease_at_a_boundary_and_runs_a_turn_after_the_us
   const acquired = events
     .filter((event) => event.kind === "lease.acquired")
     .map((event) => event.payload);
-  expect(acquired).toMatchObject([{ scopeId: TEST_GROUP_ID, depth: 0, leaseEpoch: 1 }]);
+  expect(acquired).toMatchObject([{ scopeId: TEST_ORCHESTRATION_ID, depth: 0, leaseEpoch: 1 }]);
   // drive 함수는 turn이 정착한 뒤 loop.turn을 불러 임대 scope의 turn을 연다
   const started = events.filter((event) => event.kind === "turn.started");
   expect(started).toHaveLength(2);
   const driveStart = started[1];
-  expect(driveStart === undefined ? null : payloadField(driveStart, "scopeId")).toBe(TEST_GROUP_ID);
+  expect(driveStart === undefined ? null : payloadField(driveStart, "scopeId")).toBe(
+    TEST_ORCHESTRATION_ID,
+  );
   const driveStartIndex = events.findIndex(
-    (event) => event.kind === "turn.started" && payloadField(event, "scopeId") === TEST_GROUP_ID,
+    (event) =>
+      event.kind === "turn.started" && payloadField(event, "scopeId") === TEST_ORCHESTRATION_ID,
   );
   expect(kinds.indexOf("turn.completed")).toBeLessThan(driveStartIndex);
   expect(group.probe.driveCalls).toBe(1);

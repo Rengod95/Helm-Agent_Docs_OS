@@ -256,7 +256,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 M2:
 
 1. `L2.web.spec` §9 수용 기준 1~13이 단위 테스트로 통과한다. 특히 1(주소 미설정이면 래퍼, 설정하면 SearXNG. SearXNG 부분은 삭제됨 2026-11-04, 사용자 B15)과 2(`meta.fallbacks`)가 M2 종료 조건 E4(§1 목표의 새 문구)를 확인한다.
-2. Helm 테스트 그룹이 `g.capability(WebSearchKey).search({ query })`와 `g.capability(WebFetchKey).fetch({ url })`를 `cap-web` import 없이 호출하고 타입 검사를 통과한다(`F.capabilities.spec` §9 수용 기준 4).
+2. Helm 테스트 플러그인이 `g.capability(WebSearchKey).search({ query })`와 `g.capability(WebFetchKey).fetch({ url })`를 `cap-web` import 없이 호출하고 타입 검사를 통과한다(`F.capabilities.spec` §9 수용 기준 4).
 3. `cd xeon && just verify` 종료코드 0. 가격표 검사는 경고만 내고 0으로 끝난다.
 4. WEB-R16 확인: `fetch/convert/` 아래에 `fetch(` 호출을 넣은 임시 변경으로 `just lint` 또는 `just check-layers`가 실패하는 것을 한 번 확인하고 되돌린다.
 5. 테스트 실행 중 루프백 밖 네트워크 요청 0(`eng.testing.guide` §5).

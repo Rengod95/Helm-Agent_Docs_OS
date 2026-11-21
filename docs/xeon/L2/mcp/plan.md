@@ -19,7 +19,7 @@ binds: [xeon/packages/cap-mcp/**]
 | M0 | 없음 | — |
 | M1 | 없음. 이번 실행(foundation-plan P4)에서는 패키지 스캐폴드(`package.json`, 빈 `src/index.ts`, `fresnel` 필드)까지만 만든다 | `_research/foundation-plan.md` §5 P4 "L2 웹·MCP는 스캐폴드까지만", `product.scope.spec` §4.3 |
 | M2 | MCP 브리지(연결, 도구·프롬프트·리소스 노출, 재연결), 서버 정의(설정 키, `.mcp.json` 가져오기, 허용·차단·도구별 승인), 서버 주도 요청(MRTR → 승인 프로토콜 → 재시도), annotations 매핑, 서버 상태 저장 | `product.scope.spec` §4.3 M2 "`cap-mcp` 1차 구성요소", `_research/layer-plan-v2.json` L2-b 1차 |
-| M3 | 1차 추가 없음. M2 결과를 학습 그룹·서비스 모드와 함께 안정화한다(서비스 모드에서 stdio 서버 수명) | `product.scope.spec` §4.3 M3 |
+| M3 | 1차 추가 없음. M2 결과를 학습 플러그인·서비스 모드와 함께 안정화한다(서비스 모드에서 stdio 서버 수명) | `product.scope.spec` §4.3 M3 |
 
 M2 완료 기준에 `product.scope.spec` §4.4 M2 종료 조건 "테스트 MCP 서버의 도구가 도구 목록에 노출된다"를 그대로 옮긴다(§6).
 
@@ -76,7 +76,7 @@ xeon/packages/cap-mcp/
 
 - `adapter.ts`라는 이름은 `eng.context-map.design` CM-03의 좋은 예(`xeon/packages/cap-mcp/src/adapter.ts`)와 같다. SDK의 `Client`, `Tool`, `CallToolResult`, `InputRequiredResult` 타입과 zod 스키마는 `adapter.ts`, `transport/`, `oauth/`, `tasks/schemas.ts` 안에서만 쓴다. 그 밖의 파일은 F 타입(`McpToolInfo`, `McpContent` 등)과 패키지 내부 타입만 본다.
 - 이 경계는 `no-restricted-imports` 규칙(경로 패턴 예외)으로 강제한다. 규칙 추가는 `eng.dependency-rules.guide` 4절 절차를 따른다.
-- `package.json`의 `exports`에 `"./testing": "./src/testing/index.ts"`를 둔다(`eng.testing.guide` TS-06). `L2.dialog`나 L3 그룹 테스트가 스텁 서버를 쓸 수 있다.
+- `package.json`의 `exports`에 `"./testing": "./src/testing/index.ts"`를 둔다(`eng.testing.guide` TS-06). `L2.dialog`나 L3 플러그인 테스트가 스텁 서버를 쓸 수 있다.
 
 ## 3. 작업 분해
 

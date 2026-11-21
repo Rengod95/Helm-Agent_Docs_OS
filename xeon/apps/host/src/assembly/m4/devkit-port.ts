@@ -12,7 +12,7 @@ import {
 import {
   type CraftContextPort,
   EXTENSION_NAME_PATTERN,
-  isGroupExtension,
+  isOrchestrationExtension,
   validateManifest,
   type ExtensionManifest,
   type PluginSubmitError,
@@ -310,7 +310,7 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     if (manifest === null) {
       return err({ kind: "invalid_input", message: `${target} has no readable manifest` });
     }
-    if (!isGroupExtension(manifest)) {
+    if (!isOrchestrationExtension(manifest)) {
       return err({
         kind: "invalid_input",
         message: `${target} is not a plugin group (its manifest has no group)`,

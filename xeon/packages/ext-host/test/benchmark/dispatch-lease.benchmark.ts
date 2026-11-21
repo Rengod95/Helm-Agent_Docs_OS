@@ -28,7 +28,7 @@ import {
   memoryRecordStore,
   type TestHost,
 } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
+import { makeOrchestrationUnit, makeUnit } from "../primitives/fixtures/support.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";
 
 type Line =
@@ -91,7 +91,7 @@ async function turnBatch(withDrive: boolean): Promise<TurnBatch> {
   let drives = 0;
   if (withDrive) {
     await t.host.install(
-      makeGroupUnit({ name: "benchmark-drive" }, (g) => {
+      makeOrchestrationUnit({ name: "benchmark-drive" }, (g) => {
         g.drive(() => {
           drives += 1;
           return Promise.resolve({ do: "yield" });

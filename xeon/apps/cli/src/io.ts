@@ -59,7 +59,7 @@ export interface GroupIoError {
 }
 
 /** 대상 폴더의 상태. absent는 없음, empty는 있지만 비었음, occupied는 내용이 있거나 폴더가 아님 */
-export type GroupTargetState = "absent" | "empty" | "occupied";
+export type OrchestrationTargetState = "absent" | "empty" | "occupied";
 
 /**
  * `fresnel group new`가 읽고 쓰는 파일 작업(L4.cli.spec §3.8, L3.slots.spec §3.3.6 R3). 템플릿 코드는 실행하지 않는다(R5).
@@ -75,7 +75,7 @@ export interface GroupTemplatesPort {
    * 매니페스트가 없는 폴더는 건너뛰고, 있는데 읽지 못하면 실패다
    */
   installedExtensionNames(workspace: string): Promise<Result<readonly string[], GroupIoError>>;
-  targetState(path: string): Promise<Result<GroupTargetState, GroupIoError>>;
+  targetState(path: string): Promise<Result<OrchestrationTargetState, GroupIoError>>;
   makeDir(path: string): Promise<Result<void, GroupIoError>>;
   /** 상위 폴더가 없으면 만든다 */
   writeFile(path: string, bytes: Uint8Array): Promise<Result<void, GroupIoError>>;

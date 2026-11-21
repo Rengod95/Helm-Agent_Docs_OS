@@ -64,7 +64,7 @@ AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 
 import { Type, type Static } from "typebox";
 import { defineCapability, serviceKey, type ToolContent } from "../index.ts";
 
-/** 모델과 그룹 코드가 넘기는 경로. 상대 경로는 cwd 기준. 앞의 "@"는 지운다(§4.3) */
+/** 모델과 플러그인 코드가 넘기는 경로. 상대 경로는 cwd 기준. 앞의 "@"는 지운다(§4.3) */
 const PathParam = Type.String({ minLength: 1, maxLength: 4096, description: "파일 경로(상대 또는 절대)" });
 
 /** 절단 정보. 절단이 없으면 필드 자체를 두지 않는다 */
@@ -348,7 +348,7 @@ export const RunInput = Type.Object({
   cwd: Type.Optional(PathParam),
   /** 참이면 0이 아닌 종료 코드를 exit_nonzero 오류로 낸다. 모델 도구는 항상 참이다 */
   failOnNonZero: Type.Optional(Type.Boolean()),
-  /** 그룹 코드가 시크릿을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
+  /** 플러그인 코드가 시크릿을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
   secretEnv: Type.Optional(Type.Record(EnvName, SecretRefParam)),
 });
 export const RunOutput = Type.Object({
@@ -408,7 +408,7 @@ export const WorkspaceShell = defineCapability({
 export const WorkspaceShellKey = serviceKey(WorkspaceShell);
 ```
 
-- 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 그룹 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
+- 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 플러그인 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
 - `secretEnv`는 모델 도구 파라미터에 없다. M1의 시크릿 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `fresnel.exec`와 `fresnel.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 시크릿 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
 - `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. core-loop(pi-agent-core 1.3.0 배치 규칙을 옮긴 `loop/tool-batch.ts`, adr.0009)는 한 배치에 `sequential` 도구가 하나라도 있으면 그 배치를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
 
@@ -749,8 +749,8 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 - 이 문서는 훅을 새로 정의하지 않는다.
 - 7개 도구 호출은 `tool.call.before`(fold first), `tool.result`(fold chain), `tool.execution.before`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
-- 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
-- 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 훅을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
+- 사용 예: L3 플러그인은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
+- 플러그인 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 훅을 지나지 않는다(`F.capabilities.spec` §3.9 플러그인 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -758,7 +758,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages`와 각 `…Key` | `L1.tools.spec`(도구 어댑터), L3 그룹 spec |
+| `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages`와 각 `…Key` | `L1.tools.spec`(도구 어댑터), L3 오케스트레이션 SDK spec |
 | `WorkspaceService`, `WorkspaceServiceName` | `L2.readme` §5.6, X.primitives.spec |
 | `FileChange`, `FileChangeSchema` | `L2.artifacts.spec`(리뷰), L4 UI |
 | `WorkspaceImage`, `ImageLimits`, `ImageBlobRefSchema` | `L2.dialog.spec`(첨부), `L1.context.spec`(자리표시 치환) |

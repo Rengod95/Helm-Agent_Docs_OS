@@ -135,7 +135,7 @@ test("commitWith writes the state and the records in one transaction", async () 
     makeUnit(
       {
         name: "sq-rec",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,
@@ -171,7 +171,7 @@ test("a conflicting commitWith leaves no record behind", async () => {
     makeUnit(
       {
         name: "sq-rec",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,
@@ -205,7 +205,7 @@ test("commitWith validates the record like record() does", async () => {
     makeUnit(
       {
         name: "sq-rec",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,

@@ -137,6 +137,21 @@ export const GLOW_TUNE: Readonly<Record<GlowVariant, GlowTune>> = {
   },
 };
 
+/**
+ * 입력창 빛의 양 끝이 옅어지는 길이(px). 빛은 아래 변의 곧은 구간(모서리 반경 r부터 폭 − r까지)에만 서고, 그 양 끝에서 이 길이만큼
+ * 옅어져 곡선이 시작하는 자리(r)에서 0이 된다(DP-167 개정 [결정: 2026-11-21 사용자, AGE-65 lcQ2]). 712px 입력창(r 23.2)에서 곧은 구간 665.6px의
+ * 2.4%라 끝이 뚝 끊기지 않을 만큼만 짧다
+ */
+export const GLOW_EDGE_FADE = 16;
+
+/**
+ * 실행 중 칩 빛의 양 끝이 옅어지는 길이(px). 칩도 입력창과 같은 규칙이다: 빛은 아래 변의 곧은 구간 [r, 폭 − r]에만 서고 r에서 0이 된다
+ * (DP-127·167 개정 [결정: 2026-11-21 사용자 "1. 가", AGE-65 lcQ3]). 칩은 높이 24px 알약이라 r이 12px이고 곧은 구간은 "실행 중" 글에서
+ * 약 32px뿐이라 입력창의 16px이면 가운데 한 점만 밝다. 그래서 그 반이다. 칩은 곧은 구간이 이 길이 세 번(24px)보다 짧아지지 않게
+ * 실행 중 최소 폭(call-chip.css, 높이의 두 배 48px)을 둔다
+ */
+export const GLOW_EDGE_FADE_CHIP = 8;
+
 /** 대화를 불러오는 동안 머리 줄 아래를 흐르는 선(border-beam `line`). 한 번 지나가는 데 걸리는 초와 세기 */
 export const LINE_TUNE: Readonly<
   Record<FxScheme, { readonly duration: number; readonly strength: number }>

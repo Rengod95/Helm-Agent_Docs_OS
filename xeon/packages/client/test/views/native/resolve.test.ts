@@ -42,7 +42,7 @@ const boundText = (path: string, format?: "bytes"): UiNode => ({
   bind: { text: format === undefined ? { path } : { path, format } },
 });
 
-describe("resolveTree on the group-helm inquiry tree", () => {
+describe("resolveTree on the plugin-helm inquiry tree", () => {
   test("lenses become one Row per element, and the hidden EmptyState is omitted", () => {
     const resolved = resolveTree(
       loadHelmTree("helm-inquiry.view.json"),
