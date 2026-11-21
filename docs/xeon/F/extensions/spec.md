@@ -397,7 +397,7 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63]
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
@@ -416,7 +416,7 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
-  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`의 `system_tools`·`network`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것(`system_tools`, `network`, `SCRIPT_USES`)이고 승인 카드(`ScriptCard.uses`)와 같은 값이다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것이고 승인 카드(`ScriptCard.uses`)와 같은 값이다. 열린 정책의 스크립트(승인된 플러그인, 설정을 끈 승인 전 드래프트)는 `SCRIPT_USES` = `sandbox_full_access`·`user_environment`·`network`이다. 좁은 길(설정 `narrowDrafts`를 켠 승인 전 드래프트)은 `SCRIPT_NARROW_USES` = `system_tools`·`network`이다 [결정: 2026-11-21, 사용자, AGE-63; 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
 }
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }

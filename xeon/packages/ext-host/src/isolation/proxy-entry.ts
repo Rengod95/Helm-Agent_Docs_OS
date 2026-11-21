@@ -134,12 +134,12 @@ export interface IsolationLaunchInfo {
   readonly versionId: string;
 }
 
-/** 띄울 명령. 환경은 허용 목록으로만 만든다(시크릿과 DB 경로를 넣지 않는다) */
+/** 띄울 명령. 환경은 호스트가 정한 값만 싣는다(시크릿과 DB 경로를 넣지 않는다). 부모 env는 포트가 정책에 따라 옮긴다 */
 export interface IsolationLaunch {
   readonly command: string;
   readonly args: readonly string[];
   readonly env: Readonly<Record<string, string>>;
-  /** 호스트 런타임이 확장 루트 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 없으면 확장 루트와 실행 파일만 읽는다 */
+  /** 호스트 런타임이 확장 루트 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 좁은 정책에서만 쓰인다. 열린 정책은 읽기가 열려 있어 무시한다 */
   readonly runtimeReadRoots?: readonly string[];
 }
 

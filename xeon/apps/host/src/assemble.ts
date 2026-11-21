@@ -1429,6 +1429,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           bootId: randomUUID(),
         }),
         sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
+        // 승인 전 드래프트의 스크립트만 좁은 길(설정을 켠 때). 승인된 플러그인은 설정과 상관없이 열린 정책이다 [결정: 2026-11-21, AGE-63]
+        narrowDrafts: () => settings.value("l0.sandbox.narrowDrafts") === true,
         // 가져온 훅(환경 모드): 사용자의 로그인 셸 환경, 참조 파일 지문, 보호 경로 안 참조의 읽기 예외, 대화의 프로젝트 폴더(AGE-58 [제안])
         scriptEnv: {
           userEnv: createUserEnvResolver({

@@ -109,7 +109,7 @@ export interface CandidateLaunchInfo {
   readonly versionId: string;
 }
 
-/** 띄울 명령. 환경은 허용 목록으로만 만든다(구조가 proxy-entry의 `IsolationLaunch`와 같다) */
+/** 띄울 명령. 환경은 호스트가 정한 값만 싣는다(구조가 proxy-entry의 `IsolationLaunch`와 같다). 부모 env는 포트가 정책에 따라 옮긴다 */
 export interface CandidateLaunch {
   readonly command: string;
   readonly args: readonly string[];

@@ -379,7 +379,10 @@ function driveOf(
   return drives ? { start: true, commands: [] } : null;
 }
 
-/** 격리 여부. 저장소 패키지(builtin)만 엔진 안에서 돈다(§4.5.5, 엔진 설계 §3) */
+/**
+ * 샌드박스 안에서 도는가. 저장소 패키지(builtin)만 엔진 안에서 돈다(§4.5.5, 엔진 설계 §3). 그 밖의 코드는 샌드박스 하나(열린 정책, 막는 것은 보호 셋)다
+ * [결정: 2026-11-21, 사용자, AGE-63]
+ */
 function isolatedOf(kind: PluginOriginKind): boolean {
   switch (kind) {
     case "builtin":

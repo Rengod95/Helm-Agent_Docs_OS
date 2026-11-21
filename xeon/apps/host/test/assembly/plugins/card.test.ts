@@ -470,13 +470,13 @@ test("a declared script's card line is its runner, then the relative file and ar
         cwd: null,
       },
       timeoutMs: 10000,
-      uses: ["system_tools", "network"],
+      uses: ["sandbox_full_access", "user_environment", "network"],
     },
     {
       name: "report",
       launch: { command: "python3", args: ["scripts/report.py"], envNames: [], cwd: null },
       timeoutMs: 5000,
-      uses: ["system_tools", "network"],
+      uses: ["sandbox_full_access", "user_environment", "network"],
     },
   ]);
   expect(parse(PluginCardSchema, card).ok).toBe(true);
@@ -660,7 +660,7 @@ test("the hook origin on an environment-mode line comes only from the recorded i
 
 const ENV_ORIGIN: BuildCardInput["origin"] = { kind: "project", projectId: "p1" };
 
-test("the environment-mode uses are the user's own access by default and the sandboxed list when the sandbox setting is on, and a narrow script keeps its narrow uses either way (AGE-58)", () => {
+test("the environment-mode uses are the user's own access by default and the sandboxed list when the sandbox setting is on, and a script without an env declaration keeps the open uses either way (AGE-58, AGE-63)", () => {
   const envFolder = folderOf("env-kit", {
     ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
   });
@@ -693,8 +693,8 @@ test("the environment-mode uses are the user's own access by default and the san
     ["user_environment", "read_wide", "write_project", "network"],
   ]);
 
-  // 좁은 스크립트(환경 모드 선언이 없는 것)는 샌드박스 설정과 상관없이 좁은 사용 목록이다
-  const narrow = buildPluginCard({
+  // 환경 모드 선언이 없는 스크립트는 샌드박스 설정과 상관없이 열린 정책의 사용 목록이다. 검토 카드는 승인하면 생기는 권한을 싣는다
+  const open = buildPluginCard({
     folder: scriptFolder,
     origin: ENV_ORIGIN,
     review: REVIEW,
@@ -702,13 +702,13 @@ test("the environment-mode uses are the user's own access by default and the san
     health: HEALTH,
     envSandboxed: true,
   });
-  expect(narrow.does.inject?.scripts?.map((script) => script.uses)).toEqual([
-    ["system_tools", "network"],
-    ["system_tools", "network"],
+  expect(open.does.inject?.scripts?.map((script) => script.uses)).toEqual([
+    ["sandbox_full_access", "user_environment", "network"],
+    ["sandbox_full_access", "user_environment", "network"],
   ]);
 });
 
-test("a tool that is not on PATH is listed as missing, and a narrow script keeps the narrow uses and no env", () => {
+test("a tool that is not on PATH is listed as missing, and a script without an env declaration shows the open uses and no env", () => {
   const folder = folderOf("env-kit", {
     ".fresnel-plugin/plugin.json": JSON.stringify(ENV_DECLARED),
   });
@@ -723,9 +723,13 @@ test("a tool that is not on PATH is listed as missing, and a narrow script keeps
   expect(card.does.inject?.scripts?.[0]?.env?.missingTools).toEqual(["python3.11"]);
   expect(card.does.inject?.scripts?.[0]?.env?.fromProject).toBe(false);
   expect(card.does.inject?.scripts?.[0]?.env?.origin).toBe("unknown");
-  const narrow = cardOf(
+  const scripted = cardOf(
     folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
   );
-  expect(narrow.does.inject?.scripts?.[0]?.uses).toEqual(["system_tools", "network"]);
-  expect(narrow.does.inject?.scripts?.[0]?.env).toBeUndefined();
+  expect(scripted.does.inject?.scripts?.[0]?.uses).toEqual([
+    "sandbox_full_access",
+    "user_environment",
+    "network",
+  ]);
+  expect(scripted.does.inject?.scripts?.[0]?.env).toBeUndefined();
 });

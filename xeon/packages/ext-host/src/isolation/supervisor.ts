@@ -142,7 +142,7 @@ export interface RestartLimitInfo {
 
 export interface PluginHostSupervisorDeps {
   readonly process: IsolationProcessPort;
-  /** 띄울 때마다 읽는다. 허용 목록 환경만 담는다 */
+  /** 띄울 때마다 읽는다. 호스트가 정한 환경 값만 담는다(부모 env는 포트가 정책에 따라 옮긴다) */
   readonly specOf: () => IsolationSpawnSpec;
   /** 취소 함수를 돌려준다. ext-host의 시계 주입과 같은 모양이다 */
   readonly setTimer: (ms: number, fn: () => void) => () => void;

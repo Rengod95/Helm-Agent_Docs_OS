@@ -1,7 +1,8 @@
 // 매니페스트 `scripts`의 스크립트를 실행하는 실행기(설계 B, F.extensions.spec §3.1.4, drive-isolation §3.4). 엔진(X)이 구현한다.
 // 검사 순서는 계약(plugin-script.ts의 `PluginScriptPort`)이 정한 대로다: 선언 → 위치(렉시컬과 실제 위치가 확장 폴더 안) →
-// 일반 파일 → 승인 → 돌려 보기 플래그 → 띄우기. 띄우는 것은 주입된 `IsolationProcessPort.spawn`뿐이다. 샌드박스 프로필을
-// 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일뿐). 기한이 지나면 프로세스 트리를 죽이고 `timedOut`으로 답한다.
+// 일반 파일 → 승인 → 돌려 보기 플래그 → 띄우기. 띄우는 것은 주입된 `IsolationProcessPort.spawn`뿐이다. 정책은 호출이 고른다
+// [결정: 2026-11-21, 사용자, AGE-63]: 승인된 플러그인과 설정을 끈 승인 전 드래프트는 열린 정책(셸 도구와 같이 읽고 쓰고, 막는 것은 보호 셋뿐)이다.
+// 설정 `narrowDrafts`를 켠 승인 전 드래프트만 `narrow`(쓰기 없음, 자기 폴더 읽기)로 돈다. 기한이 지나면 프로세스 트리를 죽이고 `timedOut`으로 답한다.
 // 기동 실패와 샌드박스 없음은 결과 값이다. 초안(승인되지 않은 버전)은 승인 문(`draftGate`)이 호출마다 카드를 열어 승인한 호출만 띄운다(테스트 런에서만, AGE-58). 승인 카드를 재사용하는 길은 없다.
 import { attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import {
@@ -10,6 +11,7 @@ import {
   SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
   SCRIPT_LIMITS,
+  SCRIPT_NARROW_USES,
   SCRIPT_USES,
   type HookProcessPort,
   type IsolatedChild,
@@ -91,7 +93,10 @@ export interface ScriptRunnerDeps {
   readonly resolveRunner: (name: ScriptRunner) => string | undefined;
   /** 실행기가 시작하는 데 읽어야 하는 경로(읽기 전용, `python3`의 설치 폴더 등). 없으면 실행 파일 말고는 더 열지 않는다 */
   readonly runnerReadRoots?: (name: ScriptRunner, command: string) => readonly string[];
-  /** 허용 목록에 든 환경 값. 선언된 `envNames` 가운데 여기 있는 것만 자식에게 넘긴다 */
+  /**
+   * 허용 목록에 든 환경 값. 선언된 `envNames` 가운데 여기 있는 것을 `spec.env`로 싣는다. 열린 정책은 사용자 환경 전부(`FRESNEL_` 이름 제외)를 더 옮기고,
+   * 좁은 길만 허용 목록 env가 자식 env의 전부다 [결정: 2026-11-21, 사용자, AGE-63]
+   */
   readonly allowedEnv: Readonly<Record<string, string>>;
   /** 기한과 정리 시계. 취소 함수를 돌려준다(격리의 다른 시계와 같은 모양이다) */
   readonly setTimer: (ms: number, fn: () => void) => () => void;
@@ -104,6 +109,11 @@ export interface ScriptRunnerDeps {
   readonly draftGate?: ScriptDraftGate;
   /** 이 기기에서 격리할 수 있는가. 거짓이면 카드를 열지 않고 거절한다(카드를 승인해도 띄우지 못하는 것을 막는다) */
   readonly sandboxAvailable?: () => boolean;
+  /**
+   * 참이면 승인 전 드래프트(`target.approved`가 거짓)의 스크립트(환경 모드 아님)를 좁은 길(`narrow`: 쓰기 없음, 자기 폴더 읽기)로 돌린다.
+   * 설정 `l0.sandbox.narrowDrafts`(기본 끔) [결정: 2026-11-21, 사용자, AGE-63]. 호출마다 부른다. 승인된 스크립트와 환경 모드 스크립트는 이 값을 보지 않는다
+   */
+  readonly narrowDrafts?: () => boolean;
   /** 표준 입력 미리보기를 카드에 싣기 전에 가린다(엔진의 시크릿 마스킹). 없으면 미리보기를 싣지 않는다 */
   readonly maskText?: (text: string) => string;
   /**
@@ -486,14 +496,17 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
           message: `no absolute path is set for the ${decl.runner} runner`,
         });
       }
+      // 승인 전 드래프트만, 설정을 켰을 때 좁은 길이다. 승인된 스크립트는 열린 정책으로 돈다 [결정: 2026-11-21, 사용자, AGE-63]
+      const narrow = !target.approved && deps.narrowDrafts?.() === true;
       const runtimeReadRoots = deps.runnerReadRoots?.(decl.runner, runner) ?? [];
       const spec: IsolationSpawnSpec = {
         command: runner,
         args: [located.value, ...(decl.args ?? [])],
         readRoot: target.tree,
+        // 읽기 허용 목록과 시스템 도구 경로는 좁은 길에서만 쓰인다. 열린 정책은 읽기가 열려 있어 이 값을 무시한다
         ...(runtimeReadRoots.length === 0 ? {} : { runtimeReadRoots }),
-        // 스크립트가 시스템 도구(`grep`, `sed`, `git` 읽기 전용 등)를 쓰도록 읽기·실행 허용을 넓힌다. 쓰기와 폴더 밖 데이터 읽기는 여전히 막힌다
         systemTools: true,
+        ...(narrow ? { narrow: true } : {}),
         // `python3`는 설치 폴더가 읽기 전용이라 `__pycache__`를 쓰지 못한다. 쓰려다 실패하지 않게 막는다
         env: {
           ...envOf(decl.envNames ?? [], deps.allowedEnv),
@@ -528,7 +541,7 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
         envNames: Object.keys(spec.env),
         stdinBytes: new TextEncoder().encode(request.stdin).byteLength,
         stdinPreview: previewOf(request.stdin, deps.maskText),
-        uses: SCRIPT_USES,
+        uses: narrow ? SCRIPT_NARROW_USES : SCRIPT_USES,
       };
       return gate({
         extension: target.extension,
