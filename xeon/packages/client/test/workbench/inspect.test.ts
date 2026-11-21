@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtHookTiming } from "@fresnel/contracts/extensions";
-import type { ExtBindingEdge, ExtHookInfo, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtBindingEdge, ExtHookInfo, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import {
   budgetLevelOf,
   inspectCompositionOf,
@@ -156,7 +156,7 @@ describe("검사 탭 구성 구역과 설정 바인딩", () => {
 });
 
 describe("검사 탭 주도 락 구역: 역할은 런타임 탭과 같은 값에서 온다", () => {
-  const groups: GroupStatusWire[] = [
+  const groups: OrchestrationStatusWire[] = [
     {
       id: "helm",
       displayName: "helm",

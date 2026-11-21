@@ -555,7 +555,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 |---|---|---|---|---|---|
 | M1 env | 승인된 CLI 명령(`gh`, `kubectl` 등) | 값(자식 env). 셸이 `env`로 출력할 수 있다 | 도구 자식 프로세스 env | 명령 패턴, `per-use` 승인, 출력 마스킹(2계층) | 에이전트용(bash 도구, 실행마다 승인)은 마일스톤 M1이고 M1 시크릿 검증 경로다 [결정: review.decisions-2 U-19]. 사람 직접 실행 `secret run`은 마일스톤 M2 |
 | M2 sentinel | HTTPS 토큰을 쓰는 CLI와 도구 | sentinel 문자열 | 런타임 프록시 메모리. 전송 직전 헤더에서 치환 | 호스트 바인딩, TLS 종단 | 설계만 이 문서에서 정하고 구현은 후속 |
-| M3 런타임 HTTP | 런타임 내장 HTTP 경로(`GuardedHttp`, 모델 provider 호출, 테스트 그룹 HTTP 도구) | 핸들 | 부모 프로세스. `withHttp`가 전송 직전 헤더·본문에서 치환. 모델 provider 키는 core-models가 `lease`(purpose `model.provider:<id>`)로 열어 프로세스 안 HTTP 클라이언트에만 넘긴다 | 호스트 바인딩, 응답 에코 검사 | 마일스톤 M1(모델 provider 키, review.decisions-2 U-19 보충), 기본 안전 모드. 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다 |
+| M3 런타임 HTTP | 런타임 내장 HTTP 경로(`GuardedHttp`, 모델 provider 호출, 테스트 플러그인 HTTP 도구) | 핸들 | 부모 프로세스. `withHttp`가 전송 직전 헤더·본문에서 치환. 모델 provider 키는 core-models가 `lease`(purpose `model.provider:<id>`)로 열어 프로세스 안 HTTP 클라이언트에만 넘긴다 | 호스트 바인딩, 응답 에코 검사 | 마일스톤 M1(모델 provider 키, review.decisions-2 U-19 보충), 기본 안전 모드. 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다 |
 | M4 브라우저 입력 | 로그인 폼 | 핸들 | 부모 프로세스. 드라이버가 입력할 때만 | origin 바인딩, 스크린샷 마스킹 | 마일스톤 M2, 기본 안전 모드 |
 
 - 기본 모드 [제안]: M3과 M4가 기본 안전 모드다. `_research/secrets.md` §6.2 마지막 줄은 기본값을 M3과 M2로 적었으나, M2가 후속이므로 1차 기본은 M3과 M4로 둔다.
@@ -787,7 +787,7 @@ M2 설계(후속 구현):
 - `platform-secrets`는 on 훅, post, drive를 선언하지 않는다. 훅 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
 - 제공자 추가는 훅 대신 서비스 메서드 `registerProvider`로 한다. 등록할 수 있는 확장의 신뢰 등급은 `X.loading-trust.spec`이 정한다 [가정]. 같은 `id`의 제공자는 하나만 등록되고, `sops`는 내장이라 교체할 수 없다 [제안].
 - 감사 수신은 `onAudit` 콜백이다. 확장이 시크릿 사용을 관찰하려면 tool-runtime이 기록한 대화 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
-- drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 시크릿을 직접 lease하지 않고 L2 기능(`fresnel.web` 등)을 거쳐 쓴다.
+- drive와의 관계: 없음. Helm과 학습 플러그인(L3 기본 플러그인)은 시크릿을 직접 lease하지 않고 L2 기능(`fresnel.web` 등)을 거쳐 쓴다.
 
 ## 8. 다른 문서와의 인터페이스
 

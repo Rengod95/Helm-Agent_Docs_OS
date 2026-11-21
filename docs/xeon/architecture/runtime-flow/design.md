@@ -16,7 +16,7 @@ binds: [xeon/packages/core-loop/**, xeon/packages/core-persistence/**, xeon/pack
 
 이 약속이 없으면 다음 문제가 생긴다.
 
-- 확장이 루프 중간에 끼어드는 시점이 문서마다 달라진다. Helm처럼 루프를 구동하는 그룹은 재생 규율을 지킬 기준을 잃는다.
+- 확장이 루프 중간에 끼어드는 시점이 문서마다 달라진다. Helm처럼 루프를 구동하는 플러그인은 재생 규율을 지킬 기준을 잃는다.
 - 도구 효과와 확장 기록이 서로 다른 시점에 저장되어, 크래시 뒤 상태가 어긋난다.
 - 전송(in-process, stdio, service)마다 흐름이 달라져 같은 기능을 두 번 만들게 된다(`_research/process.md` §3, Goose 사례).
 
@@ -144,13 +144,13 @@ sequenceDiagram
 
 ### 4.3 drive 흐름
 
-`drive`는 루프 구동 권한의 배타 drive 락이다. 그룹 하나만 drive 락을 가진다.
+`drive`는 루프 구동 권한의 배타 drive 락이다. 플러그인 하나만 drive 락을 가진다.
 
 ```mermaid
 sequenceDiagram
   participant HOST as 호스트 (L4)
   participant LEASE as drive 임대 (X-b ext-host)
-  participant GRP as 그룹 drive 함수 (L3 group-helm)
+  participant GRP as 플러그인 drive 함수 (L3 plugin-helm)
   participant LP as 루프 서비스 (L1-b core-loop)
   participant PERS as 영속성 (L1-f core-persistence)
 
@@ -186,7 +186,7 @@ sequenceDiagram
 - [결정: review.decisions-2 U-01] `scope.disable`이 오면 다음 단계 경계에서 `lease.released`를 기록한다. 진행 중인 `loop.turn`은 끊지 않고 정착까지 진행하며, drive 함수에는 `lease.signal` abort로 알린다(`X.primitives.spec` §4.5.3).
 - `loop.turn`의 중복 실행은 `requestId`로 막는다. 파생 규칙(예: scope id와 턴 번호의 해시)은 `X.primitives.spec`이 정한다.
 - 알려진 한계: `drive`는 async 함수라 재생 규율을 어긴 코드를 타입으로 막을 수 없다. 클로저 지역 변수에 상태를 두면 재개 때 그 상태를 잃는다(`_research/ext-points.md` §5 안 1 "재생").
-  - [제안] 완화책: 그룹 상태는 `scope.doc`에만 둔다. `group-sdk`의 `defineGroup`은 `drive` 함수에 상태를 인자로만 넘기고, 반환값이나 클로저 상태를 다음 호출에 넘기지 않는다.
+  - [제안] 완화책: 플러그인 상태는 `scope.doc`에만 둔다. `orchestration-sdk`의 `defineOrchestration`은 `drive` 함수에 상태를 인자로만 넘기고, 반환값이나 클로저 상태를 다음 호출에 넘기지 않는다.
   - [제안] L3-a "drive 재생 규율 검사"를 테스트 도구로 제공한다. 같은 `st`로 `drive`를 두 번 호출해 낸 효과 목록이 같은지 비교한다.
 - 비협조적 확장 코드는 프로세스 경계 없이 강제로 멈출 수 없다. 상한은 협조적 코드에만 유효하다(`_research/ext-points.md` §6.1 3번).
 
@@ -250,7 +250,7 @@ flowchart TB
 
 ### 4.5 서브에이전트, 목표 판정, 승인 대기
 
-서브에이전트(L1-g `core-agents`)는 같은 프로세스 안의 자식 대화이다. 모든 태스크와 자식 대화는 소유자를 명시하고, 대화 하나는 소유 트리 하나를 이룬다. 부모가 중단되면 abort가 소유 트리를 따라 자식에게 전파되고, 자식은 부모보다 오래 살지 않는다(durable spec 1972-2030 §5.4 소유 순회와 abort 전파, 2156-2200 §5.5 구조적 동시성). 자식의 권한은 부모 권한을 넘지 못하고, 깊이와 동시 실행 수에 상한을 둔다. 자식 제출의 `requestId`는 부모에서 파생해 재개 때 중복 생성을 막는다(durable spec 3206-3266). 학습 그룹의 검토 포크는 `drive` 없이 이 백그라운드 위임으로 돈다.
+서브에이전트(L1-g `core-agents`)는 같은 프로세스 안의 자식 대화이다. 모든 태스크와 자식 대화는 소유자를 명시하고, 대화 하나는 소유 트리 하나를 이룬다. 부모가 중단되면 abort가 소유 트리를 따라 자식에게 전파되고, 자식은 부모보다 오래 살지 않는다(durable spec 1972-2030 §5.4 소유 순회와 abort 전파, 2156-2200 §5.5 구조적 동시성). 자식의 권한은 부모 권한을 넘지 못하고, 깊이와 동시 실행 수에 상한을 둔다. 자식 제출의 `requestId`는 부모에서 파생해 재개 때 중복 생성을 막는다(durable spec 3206-3266). 학습 플러그인의 검토 포크는 `drive` 없이 이 백그라운드 위임으로 돈다.
 
 목표 지속(L2-e `cap-work`)의 완료 판정은 루프를 도는 모델의 자가 판정에 맡기지 않는다. 별도 판정 모델이 증거를 보고 판정하고, 판정 실행 횟수에는 상한을 둔다(사용자 결정, `_research/foundation-plan.md` §1 4번). 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L2.work는 이 키를 참조한다. 판정 모델은 L1-c 용도별 라우팅의 한 용도로 고른다. 판정 결과는 단계 경계 커밋에 내구 이벤트로 남아 재개 때 다시 판정하지 않는다 [제안].
 
@@ -289,7 +289,7 @@ flowchart TB
 
 - 제공: 흐름 순서, 커밋 시점, 재개 순서. `L1.loop.spec`, `L1.persistence.spec`, `L1.tools.spec`, `X.primitives.spec`, `L4.host-service.spec`이 이 순서를 따른다.
 - 요구: 레코드와 이벤트 이름(`F.records.spec`), 훅 선언 표(`F.extensions.spec`), Runtime API(`F.wire-settings.spec`), 트랜잭션 규칙(`eng.transactions.design`), 이벤트 규칙(`eng.events.design`).
-- 마일스톤: M1 스모크(모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글의 경계 적용)가 이 문서의 4.1, 4.3, 4.4를 확인한다(`_research/foundation-plan.md` §6). 원문의 "턴 경계"는 단계 경계로 읽는다 [결정: review.decisions-2 U-01]. 유즈케이스 대응은 `product.usecases.spec`이 정한다.
+- 마일스톤: M1 스모크(모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 플러그인 토글의 경계 적용)가 이 문서의 4.1, 4.3, 4.4를 확인한다(`_research/foundation-plan.md` §6). 원문의 "턴 경계"는 단계 경계로 읽는다 [결정: review.decisions-2 U-01]. 유즈케이스 대응은 `product.usecases.spec`이 정한다.
 
 ## 7. 미결 사항
 
@@ -301,4 +301,4 @@ flowchart TB
 - [미결] 대화 잠금 구현. 네이티브 flock 바인딩과 `proper-lockfile`은 크래시 직후 대기 시간이 다르다(`_research/process.md` §6.5 4번).
 - (결정) 서비스 모드 유휴 종료에서 승인 대기 대화를 live로 센다 [결정: 2026-11-04 사용자 B11](`_research/process.md` §6.4).
 - [미결] 데스크톱 전송을 stdio로 유지할지 로컬 소켓으로 바꿀지(`_research/notes/arch-2.md` §5 6행).
-- [미결] 그룹 사이 이벤트를 전역으로 전달할지 그룹 필터를 기본으로 둘지(`_research/notes/arch-1.md` §8).
+- [미결] 플러그인 사이 이벤트를 전역으로 전달할지 플러그인 필터를 기본으로 둘지(`_research/notes/arch-1.md` §8).

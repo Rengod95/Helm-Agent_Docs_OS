@@ -101,7 +101,7 @@ describe("Y9 test-run pause", () => {
           return Promise.resolve(
             ok({
               phase: "tool",
-              group: "review",
+              plugin: "review",
               seq: 3,
               paused: true,
               lock: { holder: "review", status: "active", epoch: 1 },

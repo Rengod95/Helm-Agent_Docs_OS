@@ -169,7 +169,7 @@ export function createWorkbenchCommands(
     },
     get: (name) => withConnection((c) => c.request("ext.get", { name })),
     async groups(threadId) {
-      const got = await withConnection((c) => c.request("group.list", { threadId }));
+      const got = await withConnection((c) => c.request("orchestration.list", { threadId }));
       return got.ok ? ok(got.value.groups) : err(got.error);
     },
     async driveFrames(threadId) {
@@ -323,7 +323,7 @@ export function createWorkbenchCommands(
     },
     metrics: (id, threadId) =>
       withConnection((c) =>
-        c.request("group.metrics", threadId === undefined ? { id } : { id, threadId }),
+        c.request("orchestration.metrics", threadId === undefined ? { id } : { id, threadId }),
       ),
     async views() {
       const got = await withConnection((c) => c.request("ext.ui.list", {}));

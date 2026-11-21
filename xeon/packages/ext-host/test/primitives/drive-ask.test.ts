@@ -19,7 +19,7 @@ import {
   releasedOf,
   type Host,
 } from "./fixtures/fake-approvals.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 /** 상태가 없는 그룹의 명령(S가 never). 어떤 단계 함수에도 그대로 들어간다 */
 type Command = DriveCommand<never>;
@@ -98,7 +98,7 @@ async function installAsker(
   request: AskRequest,
 ): Promise<void> {
   await t.host.install(
-    makeGroupUnit({ name }, (g) => {
+    makeOrchestrationUnit({ name }, (g) => {
       g.drive(({ last, budget }) => {
         probe.lasts.push(last);
         probe.budgets.push(budget);

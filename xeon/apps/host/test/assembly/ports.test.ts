@@ -409,7 +409,7 @@ function harness(configDir = "/nonexistent-config"): Harness {
         }),
         safeMode: { active: false, cause: null },
         extensions: () => [],
-        groupService: () => undefined,
+        orchestrationService: () => undefined,
         toolOwnerIn: () => undefined,
         loader: () => undefined,
       },

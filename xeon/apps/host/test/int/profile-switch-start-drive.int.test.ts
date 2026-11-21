@@ -125,7 +125,7 @@ function releasedOf(
 
 async function startRig() {
   const home = useEngineHome();
-  writeUserSettings(home, { ...TAPE_SETTINGS, "x.primitives.driveRequiresGroup": false });
+  writeUserSettings(home, { ...TAPE_SETTINGS, "x.primitives.driveRequiresOrchestration": false });
   const seen: Seen[] = [];
   const hold: { promise: Promise<void> | null } = { promise: null };
   const releaser: { current: () => void } = { current: () => {} };

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
-import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import {
   clockTextOf,
   failureClockOf,
@@ -13,9 +13,9 @@ import {
 
 function group(
   id: string,
-  drive: GroupStatusWire["drive"],
-  over: Partial<GroupStatusWire> = {},
-): GroupStatusWire {
+  drive: OrchestrationStatusWire["drive"],
+  over: Partial<OrchestrationStatusWire> = {},
+): OrchestrationStatusWire {
   return {
     id,
     displayName: id,
@@ -56,7 +56,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "1.0.0",
     location: "/x",
     origin: "builtin",
@@ -64,7 +64,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -151,7 +151,7 @@ describe("runtime-tab 행: 이 대화의 켜진 그룹과 확장", () => {
       [
         entry("helm", { hookCount: 5 }),
         entry("review", { status: "enabled", registration: "disabled", hookCount: 2 }),
-        entry("web", { isGroup: false, layer: "L2", hookCount: 1 }),
+        entry("web", { isOrchestration: false, layer: "L2", hookCount: 1 }),
       ],
       [group("helm", "holder", { pendingToggle: "disable" })],
     );
@@ -171,7 +171,14 @@ describe("runtime-tab 행: 이 대화의 켜진 그룹과 확장", () => {
 
   test("자동 꺼진 확장은 대화에서 꺼져 있어도 자동 꺼짐 상태로 보인다", () => {
     const rows = runtimeRowsOf(
-      [entry("review", { status: "disabled", autoDisabled: true, isGroup: false, layer: "L3" })],
+      [
+        entry("review", {
+          status: "disabled",
+          autoDisabled: true,
+          isOrchestration: false,
+          layer: "L3",
+        }),
+      ],
       [],
     );
     expect(rows.map((r) => [r.name, r.state])).toEqual([["review", "auto_disabled"]]);

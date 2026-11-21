@@ -133,7 +133,9 @@ function healthOf(entry: ExtHealthEntry | undefined): CanvasHealth | undefined {
 function piecesCarrierOf(entry: ExtListEntry): string | undefined {
   const root = entry.plugins.find((p) => p.id === undefined);
   if (root !== undefined) return root.registrationId;
-  const first = entry.isGroup ? entry.plugins.find((p) => p.inGroup) : entry.plugins[0];
+  const first = entry.isOrchestration
+    ? entry.plugins.find((p) => p.inOrchestration)
+    : entry.plugins[0];
   return first?.registrationId;
 }
 
@@ -168,7 +170,7 @@ function pluginOf(
     pieces: carriesPieces ? piecesOf(manifest) : [],
     on,
     ...(role === undefined ? {} : { role }),
-    ...(plugin.inGroup ? { group: entry.name } : {}),
+    ...(plugin.inOrchestration ? { group: entry.name } : {}),
     ...(requires.length === 0 ? {} : { requires }),
     ...(optional.length === 0 ? {} : { optional }),
     ...(drives === undefined ? {} : { drives }),
@@ -188,7 +190,7 @@ function groupOf(entry: ExtListEntry, manifest: ExtensionManifest | undefined): 
     ...(description === undefined ? {} : { role: description }),
     version: entry.version,
     origin: originOf(entry.origin),
-    members: entry.plugins.filter((p) => p.inGroup).map((p) => p.registrationId),
+    members: entry.plugins.filter((p) => p.inOrchestration).map((p) => p.registrationId),
   };
 }
 
@@ -206,7 +208,7 @@ export function snapshotOf(
       const carriesPieces = plugin.registrationId === carrier;
       plugins.push(pluginOf(entry, plugin, detail, manifest, s.health, carriesPieces));
     }
-    if (entry.isGroup) groups.push(groupOf(entry, manifest));
+    if (entry.isOrchestration) groups.push(groupOf(entry, manifest));
   }
   return { plugins, groups };
 }

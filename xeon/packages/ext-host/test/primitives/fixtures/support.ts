@@ -4,7 +4,7 @@ import type {
   ExtensionLayer,
   ExtensionManifest,
   ExtMethodDecl,
-  GroupDecl,
+  OrchestrationDecl,
   HookName,
   PluginDecl,
   RegistrationDef,
@@ -67,7 +67,7 @@ export const assistantStop: AssistantMessage = {
 export interface ManifestInput {
   readonly name: string;
   /** 플러그인 그룹이면 `{}`(구성원은 모든 플러그인), 구성원을 고르려면 `{ members: [...] }` */
-  readonly group?: GroupDecl;
+  readonly orchestration?: OrchestrationDecl;
   /** 확장 수준 기본 켜짐. 루트 플러그인의 기본값이 된다 */
   readonly defaultEnabled?: boolean;
   readonly layer?: ExtensionLayer;
@@ -91,7 +91,7 @@ export interface ManifestInput {
 /** validateManifest를 통과하는 최소 매니페스트(스키마 2). 루트 플러그인 하나와 `extraPlugins` */
 export function makeManifest(input: ManifestInput): ExtensionManifest {
   const root: PluginDecl = {
-    layer: input.layer ?? (input.group === undefined ? "plugin" : "L3"),
+    layer: input.layer ?? (input.orchestration === undefined ? "plugin" : "L3"),
     hooks: [...(input.hooks ?? [])],
     ...(input.usesPost === undefined ? {} : { usesPost: input.usesPost }),
     ...(input.drives === undefined ? {} : { drives: input.drives }),
@@ -110,7 +110,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     plugins: [root, ...(input.extraPlugins ?? [])],
     ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
     ...(input.trust === undefined ? {} : { trust: input.trust }),
-    ...(input.group === undefined ? {} : { group: input.group }),
+    ...(input.orchestration === undefined ? {} : { orchestration: input.orchestration }),
     ...(input.methods === undefined ? {} : { methods: input.methods }),
   };
 }
@@ -157,12 +157,12 @@ export const toolResultMessage: ToolResultMessage = {
   timestamp: 1_700_000_000_005,
 };
 
-/** drive를 쓰는 플러그인 그룹 확장 단위: `group: {}`와 루트 플러그인 `drives: true` */
-export function makeGroupUnit<S = never>(
-  input: Omit<UnitInput<S>, "group" | "drives">,
+/** drive를 쓰는 플러그인 그룹 확장 단위: `orchestration: {}`와 루트 플러그인 `drives: true` */
+export function makeOrchestrationUnit<S = never>(
+  input: Omit<UnitInput<S>, "orchestration" | "drives">,
   setup: RegistrationSetup<S>,
 ): ExtensionUnit {
-  return makeUnit({ ...input, group: {}, drives: true }, setup);
+  return makeUnit({ ...input, orchestration: {}, drives: true }, setup);
 }
 
 /** 시험 전용: 타입을 어긴 값을 흉내 낸다. 스키마·가드가 막는지 확인할 때만 쓴다 */

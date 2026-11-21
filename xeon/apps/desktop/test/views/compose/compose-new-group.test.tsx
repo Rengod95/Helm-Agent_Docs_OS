@@ -303,7 +303,7 @@ describe("engine-provided English texts", () => {
   test("the known kinds and the AU-012 warning are shown in Korean, unknown ones as written", async () => {
     const { kindTitleOf, issueTextOf } =
       await import("../../../src/views/compose/compose-wire-text.ts");
-    expect(kindTitleOf("plugin-group", "Plugin group")).toBe("플러그인 그룹");
+    expect(kindTitleOf("plugin-group", "Plugin group")).toBe("Drive 플러그인");
     expect(kindTitleOf("single-plugin", "Single plugin")).toBe("단일 플러그인");
     expect(kindTitleOf("future-kind", "Future")).toBe("Future");
     expect(

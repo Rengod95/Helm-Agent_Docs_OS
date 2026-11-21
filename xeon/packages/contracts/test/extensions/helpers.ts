@@ -24,13 +24,13 @@ export function pluginJson(
   };
 }
 
-/** 올바른 플러그인 그룹 매니페스트 JSON(L3 루트 플러그인 하나, `group: {}`). 인자 뜻은 pluginJson과 같다 */
-export function groupJson(
+/** 올바른 플러그인 그룹 매니페스트 JSON(L3 루트 플러그인 하나, `orchestration: {}`). 인자 뜻은 pluginJson과 같다 */
+export function orchestrationJson(
   overrides: Readonly<Record<string, unknown>> = {},
   pluginOverrides: Readonly<Record<string, unknown>> = {},
 ): Record<string, unknown> {
   return pluginJson(
-    { name: "learning", group: {}, ...overrides },
+    { name: "learning", orchestration: {}, ...overrides },
     { layer: "L3", ...pluginOverrides },
   );
 }

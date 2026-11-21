@@ -20,7 +20,7 @@ function newHost() {
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
       driveMaxDepth: () => 8,
-      driveRequiresGroup: () => true,
+      driveRequiresOrchestration: () => true,
       capabilityProviders: () => ({}),
     },
     report: () => {},

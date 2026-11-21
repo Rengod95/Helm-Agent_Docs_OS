@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupRecord } from "@fresnel/contracts/extensions";
+import type { OrchestrationRecord } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
@@ -148,12 +148,12 @@ test("record and read declarations", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   const results: unknown[] = [];
-  const rows: GroupRecord[] = [];
+  const rows: OrchestrationRecord[] = [];
   await t.host.install(
     makeUnit(
       {
         name: "rec-group",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         recordKinds: [
           {
@@ -202,7 +202,7 @@ test("recordPrivate is hidden from other extensions", async () => {
     makeUnit(
       {
         name: "prv-learning",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         recordKinds: [
           {
@@ -235,7 +235,7 @@ test("recordPrivate is hidden from other extensions", async () => {
     makeUnit(
       {
         name: "prv-other",
-        group: {},
+        orchestration: {},
         hooks: ["boundary.settle.after"],
         loadIndex: 1,
         readsRecordKinds: ["grp.prv-learning.*"],

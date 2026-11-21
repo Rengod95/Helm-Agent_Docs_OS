@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { AUTHORING_TOOL_NAMES, authoringManifest } from "../src/index.ts";
-import { createGroupRig, type GroupRig } from "./group-support.ts";
+import { createOrchestrationRig, type OrchestrationRig } from "./group-support.ts";
 
 const DIR = "/work/demo";
 
-async function confirmedSession(rig: GroupRig): Promise<void> {
+async function confirmedSession(rig: OrchestrationRig): Promise<void> {
   const started = await rig.call("authoring_start", {
     kind: "single-plugin",
     name: "demo",
@@ -22,8 +22,8 @@ test("authoring.manifest: builtin plugin group, default on, thirteen tools regis
   expect(authoringManifest.name).toBe("authoring");
   expect(authoringManifest.defaultEnabled).toBe(true);
   expect(authoringManifest.trust).toEqual({ level: "builtin" });
-  expect(authoringManifest.group).toEqual({});
-  const rig = await createGroupRig();
+  expect(authoringManifest.orchestration).toEqual({});
+  const rig = await createOrchestrationRig();
   const names = rig.toolNames();
   expect(names).toEqual([...AUTHORING_TOOL_NAMES].toSorted());
   // 문맥 비용 0: 도구는 모두 `tool_search`로 찾아야 광고된다
@@ -31,7 +31,7 @@ test("authoring.manifest: builtin plugin group, default on, thirteen tools regis
 });
 
 test("authoring.intent: tools wait for the user to confirm the kind and the name", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
   expect(rig.state().phase).toBe("intent");
   const early = await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
@@ -45,7 +45,7 @@ test("authoring.intent: tools wait for the user to confirm the kind and the name
 });
 
 test("authoring.start-drive: a child conversation cannot start the builder, so the tool refuses and opens no session", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   const child = rig.t.newThread();
   await rig.t.host.openThread(child, { child: true });
   await rig.t.settled();
@@ -60,7 +60,7 @@ test("authoring.start-drive: a child conversation cannot start the builder, so t
 });
 
 test("authoring.A-3: with a session open, a write outside the target folder is blocked, inside it passes", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toBeUndefined();
   await confirmedSession(rig);
   expect(await rig.guard("write", "write", { path: "/elsewhere/a.ts" })).toEqual({
@@ -74,7 +74,7 @@ test("authoring.A-3: with a session open, a write outside the target folder is b
 });
 
 test("authoring.A-3: the guard lifts when the session ends", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   expect(rig.probe.calls).toEqual([`scaffold:${DIR}`]);
@@ -86,7 +86,7 @@ test("authoring.A-3: the guard lifts when the session ends", async () => {
 });
 
 test("authoring.A-4: package writes nothing before a yes, and the frame stays on the stack asking while the question is open", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
@@ -117,7 +117,7 @@ test("authoring.A-4: package writes nothing before a yes, and the frame stays on
 });
 
 test("authoring.A-4: a refused package confirmation packs nothing and a later call asks again", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
@@ -138,7 +138,7 @@ test("authoring.A-4: a refused package confirmation packs nothing and a later ca
 });
 
 test("authoring.A-5: replay returns dev_mode_required in a shipped build and runs in development mode", async () => {
-  const shipped = await createGroupRig();
+  const shipped = await createOrchestrationRig();
   await confirmedSession(shipped);
   expect(await shipped.call("authoring_replay", { sessionId: "auth-demo" })).toEqual({
     ok: false,
@@ -147,7 +147,7 @@ test("authoring.A-5: replay returns dev_mode_required in a shipped build and run
   expect(shipped.probe.calls).toEqual([]);
   expect(shipped.state().replay).toBe("dev_mode_required");
 
-  const dev = await createGroupRig({ devMode: () => true });
+  const dev = await createOrchestrationRig({ devMode: () => true });
   await confirmedSession(dev);
   expect(await dev.call("authoring_replay", { sessionId: "auth-demo" })).toMatchObject({
     ok: true,
@@ -157,7 +157,7 @@ test("authoring.A-5: replay returns dev_mode_required in a shipped build and run
 });
 
 test("authoring.fix-loop: the same error three times stops and asks the user", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   rig.probe.validation = {
@@ -187,7 +187,7 @@ test("authoring.drive-source-is-deterministic: the drive keeps the replay discip
 });
 
 test("authoring.restore: thread.start tells the model about an open session and says nothing without one", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   const resume = async (key: string) => {
     await rig.t.host.dispatch(
       "thread.start",
@@ -215,7 +215,7 @@ test("authoring.restore: thread.start tells the model about an open session and 
 });
 
 test("authoring.target-dir: a relative dir resolves inside the working folder, an absolute dir stays, no folder refuses a relative dir", async () => {
-  const rig = await createGroupRig({ workspaceOf: () => "/work/space" });
+  const rig = await createOrchestrationRig({ workspaceOf: () => "/work/space" });
   const outside = await rig.call("authoring_start", {
     kind: "single-plugin",
     name: "demo",
@@ -233,7 +233,7 @@ test("authoring.target-dir: a relative dir resolves inside the working folder, a
 });
 
 test("authoring.target-dir: without a working folder a relative dir opens no session and an absolute dir does", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   const refused = await rig.call("authoring_start", {
     kind: "single-plugin",
     name: "demo",
@@ -251,7 +251,7 @@ test("authoring.target-dir: without a working folder a relative dir opens no ses
 });
 
 test("authoring.stop: an open session closes to idle, keeps the files, and a new session opens in another folder", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   expect(rig.state().files).toHaveLength(2);
@@ -281,7 +281,7 @@ test("authoring.stop: an open session closes to idle, keeps the files, and a new
 });
 
 test("authoring.resume: an answer to the confirmation queues a followUp so the same flow continues without the user typing", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
@@ -303,7 +303,7 @@ test("authoring.resume: an answer to the confirmation queues a followUp so the s
 });
 
 test("authoring.resume: a declined package also queues a followUp so the model can answer the user", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
@@ -317,7 +317,7 @@ test("authoring.resume: a declined package also queues a followUp so the model c
 });
 
 test("authoring.card-text: the confirmation cards are Korean and name the kind and the folder", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir: DIR });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
@@ -329,7 +329,7 @@ test("authoring.card-text: the confirmation cards are Korean and name the kind a
 });
 
 test("authoring.guide: lists the topics and reads a body or a reference file from the injected guide", async () => {
-  const rig = await createGroupRig({
+  const rig = await createOrchestrationRig({
     guide: {
       topics: () => ({
         ok: true,
@@ -362,7 +362,7 @@ test("authoring.guide: lists the topics and reads a body or a reference file fro
 });
 
 test("authoring.guide: without an injected guide the tool says so and opens no session", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   expect(await rig.call("authoring_guide", {})).toMatchObject({
     ok: false,
     error: { kind: "guide_unavailable" },
@@ -371,7 +371,7 @@ test("authoring.guide: without an injected guide the tool says so and opens no s
 });
 
 test("authoring.lease: the builder takes the stack only when authoring_start asks for it; with no session it never takes it by itself", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   const acquired = () =>
     rig.t.records
       .events(rig.thread)
@@ -405,7 +405,7 @@ test("authoring.lease: the builder takes the stack only when authoring_start ask
 });
 
 test("authoring.submit: without a Test run the review refuses with no_evidence and names authoring_trial, and sends nothing", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
@@ -419,7 +419,7 @@ test("authoring.submit: without a Test run the review refuses with no_evidence a
 });
 
 test("authoring.submit: after a Test run, the turn of that run is the evidence and the draft and item are recorded; nothing is installed", async () => {
-  const rig = await createGroupRig();
+  const rig = await createOrchestrationRig();
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });

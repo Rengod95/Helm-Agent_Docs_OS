@@ -5,8 +5,8 @@ import type { SdkModules } from "../../../src/loading-trust/index.ts";
 import * as typebox from "typebox";
 import { putFile } from "./real-fs.ts";
 
-/** 호스트 쪽 `@fresnel/group-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
-export const fakeGroupSdk: {
+/** 호스트 쪽 `@fresnel/orchestration-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
+export const fakeOrchestrationSdk: {
   readonly marker: symbol;
   readonly seen: string[];
   record(value: string): void;
@@ -15,14 +15,14 @@ export const fakeGroupSdk: {
   /** 플러그인이 받은 typebox와 contracts가 호스트 것과 같은 값인지 기록한다 */
   verify(name: string, type: unknown, ok: unknown): void;
 } = {
-  marker: Symbol("host-group-sdk"),
+  marker: Symbol("host-orchestration-sdk"),
   seen: [],
   capabilityError: CapabilityError,
   record(value) {
-    fakeGroupSdk.seen.push(value);
+    fakeOrchestrationSdk.seen.push(value);
   },
   verify(name, type, ok) {
-    fakeGroupSdk.seen.push(
+    fakeOrchestrationSdk.seen.push(
       `${name}:shared:${String(type === typebox.Type)}:${String(ok === contracts.ok)}`,
     );
   },
@@ -31,7 +31,7 @@ export const fakeGroupSdk: {
 /** 프로세스 전역 등록이라 모든 시험이 같은 객체를 넘긴다 */
 export const SDK: SdkModules = {
   "@fresnel/contracts": contracts,
-  "@fresnel/group-sdk": fakeGroupSdk,
+  "@fresnel/orchestration-sdk": fakeOrchestrationSdk,
   typebox,
 };
 
@@ -43,7 +43,7 @@ export interface PluginFiles {
   readonly trustLevel?: string;
   /** 루트 플러그인의 층. 생략하면 `plugin` */
   readonly layer?: string;
-  /** 참이면 플러그인 그룹(`group: {}`) */
+  /** 참이면 플러그인 그룹(`orchestration: {}`) */
   readonly group?: boolean;
   /** 엔트리 파일 본문. 생략하면 `on` 핸들러 하나를 등록하는 기본 엔트리다 */
   readonly entry?: string;
@@ -62,7 +62,7 @@ export interface PluginFiles {
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
 function defaultEntry(name: string): string {
   // 플러그인 본문은 문자열이다. 층 검사가 import로 읽지 않게 지정자를 조립한다
-  const kitSpecifier = ["@fresnel", "group-sdk"].join("/");
+  const kitSpecifier = ["@fresnel", "orchestration-sdk"].join("/");
   return `import * as kit from "${kitSpecifier}";
 import { ok } from "@fresnel/contracts";
 import { Type } from "typebox";
@@ -97,7 +97,7 @@ export async function writePlugin(
         ...(files.drives === true ? { drives: true } : {}),
       },
     ],
-    ...(files.group === true ? { group: {} } : {}),
+    ...(files.group === true ? { orchestration: {} } : {}),
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
     ...(files.ui === undefined ? {} : { ui: files.ui }),
     ...(files.isolation === undefined ? {} : { isolation: files.isolation }),

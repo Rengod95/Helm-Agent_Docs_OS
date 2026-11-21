@@ -13,7 +13,7 @@ import {
 
 const phaseOf = (over: Partial<TestRunPhaseResult> = {}): TestRunPhaseResult => ({
   phase: "review",
-  group: "helm",
+  plugin: "helm",
   seq: 7,
   paused: false,
   lock: { holder: "helm", status: "active", epoch: 3 },

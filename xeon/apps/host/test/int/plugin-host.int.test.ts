@@ -8,7 +8,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import type { PluginHostSupervisor } from "@fresnel/ext-host";
-import { buildHelmPlugin } from "@fresnel/group-helm/build";
+import { buildHelmPlugin } from "@fresnel/plugin-helm/build";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
@@ -23,7 +23,7 @@ import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire
 // 자식은 실제로 `bun apps/host/src/main.ts plugin-host --stdio`로 뜨고, 샌드박스만 대역이다(명령줄을 그대로 돌려준다).
 // 플러그인의 훅은 상태를 커밋하고 기록을 쓰며, 자기 프로세스 번호와 커밋된 값을 시험 폴더의 파일에 쓴다.
 // 평범한 `register` 플러그인의 `g`에는 `registerTool`·`registerCommand`가 없어 도구와 명령은 이 묶음에서 시험하지 않는다.
-// 도구와 명령은 `defineGroup` 플러그인으로 마지막 시험이 본다(group-sdk의 wrap이 자식의 `hostOf`를 쓴다).
+// 도구와 명령은 `defineOrchestration` 플러그인으로 마지막 시험이 본다(orchestration-sdk의 wrap이 자식의 `hostOf`를 쓴다).
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -314,8 +314,8 @@ realTest(
   60_000,
 );
 
-// ── defineGroup 플러그인 ────────────────────────────────────────────────
-// 사용자 그룹(`defineGroup`)도 같은 자식 프로세스에서 돈다. 도구와 명령은 자식의 `hostOf(g)`로 등록되고 엔진이 그 선언을 받아 부른다.
+// ── defineOrchestration 플러그인 ────────────────────────────────────────────────
+// 사용자 그룹(`defineOrchestration`)도 같은 자식 프로세스에서 돈다. 도구와 명령은 자식의 `hostOf(g)`로 등록되고 엔진이 그 선언을 받아 부른다.
 // 상태 버전은 1이다: 이 시험은 상태 이전이 없는 경우를 본다. 버전 2 이상의 이전은 자식이 `state.migrate` 요청으로 맡는다(F.extensions 부록).
 
 const GROUP_NAME = "pluginhostgroup";
@@ -326,7 +326,7 @@ const GROUP_MANIFEST = JSON.stringify({
   name: GROUP_NAME,
   version: "1.0.0",
   entry: "./src/index.ts",
-  group: {},
+  orchestration: {},
   plugins: [{ layer: "L3", hooks: ["boundary.settle.after"], requires: [], optional: [] }],
 });
 
@@ -334,9 +334,9 @@ const GROUP_MANIFEST = JSON.stringify({
 function groupEntryText(reportName: string): string {
   return `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { defineGroup, groupManifest } from "@fresnel/group-sdk";
-const manifest = groupManifest(${GROUP_MANIFEST});
-const group = defineGroup({
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
+const manifest = orchestrationManifest(${GROUP_MANIFEST});
+const group = defineOrchestration({
   manifest,
   state: { schema: Type.Object({ count: Type.Integer() }), initial: { count: 0 }, version: 1 },
   setup(g) {
@@ -402,7 +402,7 @@ function groupModels() {
 }
 
 realTest(
-  "a defineGroup plugin runs in its own process: its hook commits, its tool and command read the committed state",
+  "a defineOrchestration plugin runs in its own process: its hook commits, its tool and command read the committed state",
   async () => {
     const home = useEngineHome();
     const reportName = `group-report-${randomUUID()}.json`;

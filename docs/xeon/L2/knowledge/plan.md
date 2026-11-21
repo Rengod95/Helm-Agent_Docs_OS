@@ -28,16 +28,16 @@ M2 안의 순서와 근거:
 
 1. 읽기 경로 먼저(K1, K2, K4, K9의 스킬·메모리 부분): Helm(M2)이 `knowledge.skills.view`, `knowledge.memory.read`, `knowledge.search.query`를 `optional`로 쓴다(`L3.helm.spec` §3.8). Helm의 M2 종료 조건은 이 기능 없이도 `degraded`로 끝나지만, 실제 탐구 품질에는 읽기 경로가 필요하다.
 2. 원장(K5)과 승인 게이트(K6)와 검사(K7)를 쓰기 도구 광고보다 먼저 만든다. 쓰기 도구(`skill_manage`, `memory_manage`)는 K5~K7이 끝난 뒤에 광고를 켠다. 승인 없는 쓰기 경로가 한 번도 배포되지 않게 하기 위해서다(`_research/refs/hermes.md` §4.3 "기본 무승인 자기 수정"을 피함).
-3. 학습 그룹(M3, `product.scope.spec` §4.1 I8)이 이 기능에 의존하는 것은 원장(`ledger.list`·`rollback`), 승인 증거를 받는 쓰기 경로(K6), 대화 검색(K8, K9), 검사(`ledger.scan`)다(`L3.learning.spec` §3.1 requires, §4.5, §4.6). 그래서 이 넷은 M2 안에서 끝내고 M3 시작 전에 학습 그룹의 테스트 그룹 호출로 확인한다(§6 완료 기준 4).
+3. 학습 플러그인(M3, `product.scope.spec` §4.1 I8)이 이 기능에 의존하는 것은 원장(`ledger.list`·`rollback`), 승인 증거를 받는 쓰기 경로(K6), 대화 검색(K8, K9), 검사(`ledger.scan`)다(`L3.learning.spec` §3.1 requires, §4.5, §4.6). 그래서 이 넷은 M2 안에서 끝내고 M3 시작 전에 학습 플러그인의 테스트 플러그인 호출로 확인한다(§6 완료 기준 4).
 4. 인덱스 델타 알림(K11)은 마지막이다. 첫 turn 블록(K2, K4)이 먼저 있어야 델타의 기준이 생긴다.
 
 ### 1.2 M3 이후
 
 | 항목 | 마일스톤 | 내용 | 근거 |
 |---|---|---|---|
-| L3 그룹 연계 확인 | M3 | 테스트 그룹 source를 `trustedEvidenceSources`에 넣고 `ApprovalEvidence`로 적용, `ledger.scan` 사전 검사, `rollback`의 `rollback_conflict` 경로를 통합 테스트에서 확인 | `product.scope.spec` §4.4 M3 UC-3 |
+| L3 플러그인 연계 확인 | M3 | 테스트 플러그인 source를 `trustedEvidenceSources`에 넣고 `ApprovalEvidence`로 적용, `ledger.scan` 사전 검사, `rollback`의 `rollback_conflict` 경로를 통합 테스트에서 확인 | `product.scope.spec` §4.4 M3 UC-3 |
 | L4 화면 연계 | M3 | 메모리 열람·편집, 제안 대기열 결정, 원장 열람·되돌리기, 드리프트 "현재 파일 받아들이기" | `product.scope.spec` §4.1 I14(설정 화면 M3), `L4.settings-ui.spec` |
-| `created_by` 바꾸기(Hermes `curator adopt`) | 2차 | 큐레이터(학습 그룹 2차)와 함께 | `L3.learning.spec` §4.8.1 |
+| `created_by` 바꾸기(Hermes `curator adopt`) | 2차 | 큐레이터(학습 플러그인 2차)와 함께 | `L3.learning.spec` §4.8.1 |
 | 반복 작업 스크립트 저장(`kind: "script"`) | 2차 | 저장 위치 [미결] | `L3.learning.spec` §4.8.3 |
 | 대화 FTS 외부 콘텐츠 테이블 | 2차 | 인덱스 크기 실측 뒤 판단 | `L2.knowledge.spec` §10 미결 9 |
 | 스킬 루트 `.gitignore` 규칙 | 2차 | `ignore` 의존 재도입 여부 | `L2.knowledge.spec` §10 미결 10 |
@@ -313,7 +313,7 @@ xeon/packages/cap-knowledge/
 |---|---|---|
 | `test/defs.test.ts` | `four knowledge capabilities validate with zero issues` | 네 정의 `validateCapability` 0건, 집합 `validateCapabilitySet` 0건 |
 | `test/idempotency.conformance.test.ts` | `knowledge writes dedupe on requestId across a store reopen`(메서드 열한 개), `a different requestId is a new write` | 기능 적합성(ADR-0015 §3.6, M3-REQ-88·89, L-IN-17). `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, `memory.add`·`replace`·`remove`·`manage`, `ledger.rollback`을 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 두 번째 결과가 처음과 같고 원장 행이 하나 늘어난 채이며 정본 파일이 그대로다. 입력은 처음 호출의 것을 그대로 보내므로 멱등 확인이 계산보다 앞서지 않으면 `base_stale`·`name_conflict`로 실패한다. 같은 키에 다른 입력은 `key_reused`이고 다른 대화·메서드의 같은 `requestId`는 새 쓰기다 |
-| `test/trusted-evidence.test.ts` | `withTrustedEvidence`, `learning.queue evidence declared by the assembly`, `project scope needs the user's approval evidence` | M3-REQ-104. 조립 루트가 선언한 출처가 설정 값과 합쳐져 믿어지고 L2가 승인 요청을 내지 않는다. 선언이 없으면 같은 호출이 승인을 한 번 더 묻는다. 첫 마디가 호출 확장과 다르면 출처를 빌릴 수 없다. 프로젝트 범위는 모델, 증거 없는 확장, 꾸민 출처, 빌린 출처가 `denied`이고 선언된 출처의 증거만 받는다. 기본값에는 어느 그룹 이름도 없다 |
+| `test/trusted-evidence.test.ts` | `withTrustedEvidence`, `learning.queue evidence declared by the assembly`, `project scope needs the user's approval evidence` | M3-REQ-104. 조립 루트가 선언한 출처가 설정 값과 합쳐져 믿어지고 L2가 승인 요청을 내지 않는다. 선언이 없으면 같은 호출이 승인을 한 번 더 묻는다. 첫 마디가 호출 확장과 다르면 출처를 빌릴 수 없다. 프로젝트 범위는 모델, 증거 없는 확장, 꾸민 출처, 빌린 출처가 `denied`이고 선언된 출처의 증거만 받는다. 기본값에는 어느 플러그인 이름도 없다 |
 | `test/proposal-wire.test.ts` | `proposalRowOf`, `afterUntrusted`, `list`, `decide`, `scope chosen at approval` | M3-REQ-91. 지식 제안이 합친 목록의 행(`source: "knowledge"`)으로 옮겨지고(`destructive`, `scope`, `reason`), `afterUntrusted`가 제안에서 원장으로 이어진다. 상태 필터와 키셋 쪽 나누기, 학습 전용 상태는 빈 목록. 결정: 승인·거절·중복(`closed`)·없음·`edit`/`revert`(`unsupported`)·잘못된 판(`revision_mismatch`)·확장 결정(`approval_required`)·`base_stale`. 승인 때 고른 `project` 범위는 새 스킬만 받고 메모리와 기존 스킬 수정은 `scope_not_allowed` |
 | 같음 | `write tool params exclude approval and overrideScan` | `skill_manage`, `memory_manage` 파라미터에 두 필드가 없음 |
 | `test/upstream-skills.test.ts` | `discovery rules match pi` | 픽스처 트리에서 SKILL.md 루트 정지, 점·`node_modules` 건너뜀, 루트 `.md` 처리, 이름 검증 경고가 pi 원본 규칙과 같음 |
@@ -387,7 +387,7 @@ spec §9 수용 기준과 테스트의 대응:
 | 3 | `test/fts-indexer.test.ts` · `idempotent on redelivery`, `cursor and rows in one transaction` |
 | 4 | `test/memory.test.ts` · `limit exceeded rejected with entries` |
 | 5 | `test/defs.test.ts` · `four knowledge capabilities validate with zero issues` |
-| 6 | 테스트 그룹 호출 테스트(아래 4항)와 `check-layers.ts` DR-02·DR-14 검사 |
+| 6 | 테스트 플러그인 호출 테스트(아래 4항)와 `check-layers.ts` DR-02·DR-14 검사 |
 | 7 | `test/approval.test.ts` · `background destructive always queued` |
 | 8 | `test/query.test.ts` · `korean short query uses like`, `three char query uses fts`, `nfc normalization` |
 | 9 | `test/probe.test.ts` · `probe failure disables session search` |
@@ -400,7 +400,7 @@ spec §9 수용 기준과 테스트의 대응:
 1. 승인 전 불변: `L2.knowledge.spec` §9 수용 기준 1, 7이 단위 테스트(`approval.test.ts`)로 통과한다.
 2. 원장 롤백: 수용 기준 2, 10이 통과한다(`ledger.test.ts`).
 3. FTS 멱등: 수용 기준 3, 13이 통과한다(`fts-indexer.test.ts`).
-4. 학습 그룹 대비: 테스트 그룹이 `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `KnowledgeSearchKey`, `KnowledgeLedgerKey`를 `cap-knowledge` import 없이 호출하고, `ApprovalEvidence`를 단 적용과 `requestId` 멱등을 확인한다(수용 기준 6).
+4. 학습 플러그인 대비: 테스트 플러그인이 `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `KnowledgeSearchKey`, `KnowledgeLedgerKey`를 `cap-knowledge` import 없이 호출하고, `ApprovalEvidence`를 단 적용과 `requestId` 멱등을 확인한다(수용 기준 6).
 5. 네 정의 `validateCapability` 이슈 0건(수용 기준 5).
 6. 위 표의 나머지 수용 기준 4, 8, 9, 11, 12가 표의 테스트로 통과한다.
 7. `cd xeon && just verify` 종료코드 0.
@@ -416,10 +416,10 @@ spec §9 수용 기준과 테스트의 대응:
 | trigram 인덱스 크기(합성 데이터 약 3배) | DB 크기 증가 | 실제 코퍼스 측정(완료 기준 8), 필요하면 외부 콘텐츠 테이블(2차) | `_research/notes/L2-3.md` §3.2 |
 | 원장 blob 증가 | 스킬 본문 변경마다 전후 blob이 쌓임 | 내용 주소로 같은 내용은 한 번만 저장. 보존 기간과 정리 정책은 [미결](`L2.knowledge.spec` §10 미결 6). 원장 blob 총량을 L4 진단에 보인다 | `_research/refs/hermes.md` §3.10.1 (라) |
 | 정본 파일과 DB 색인 불일치(바깥 편집, 크래시) | 오래된 인덱스, 잘못된 `base_stale` | 시작 시 복구와 재색인, `view`의 해시 재확인, 재색인 명령(`skills.reindex`, L4 명령) | `L2.knowledge.spec` §4.3.5, §4.4.3 |
-| 스킬 인덱스 비대화 | 매 대화 컨텍스트 비용 증가 | 인덱스 예산과 설명 자르기, 초과분은 검색 안내. 큐레이터(학습 그룹 2차)가 정리 | `_research/refs/hermes.md` §3.10.1 (바) |
+| 스킬 인덱스 비대화 | 매 대화 컨텍스트 비용 증가 | 인덱스 예산과 설명 자르기, 초과분은 검색 안내. 큐레이터(학습 플러그인 2차)가 정리 | `_research/refs/hermes.md` §3.10.1 (바) |
 | pi `skills.ts` 포크와 upstream 차이 | 규격 변경을 놓침 | `UPSTREAM.json` 커밋 고정, pi 업그레이드 때 diff 검토, 탐색 규칙 회귀 테스트 | ADR-0003 §4 |
 | `Bun.YAML.parse` 결과의 순환 객체 | frontmatter 처리 중 무한 순회 | 일반 객체 검사와 순환 검출 뒤 오류 진단 | `bun-types` 1.4.3 `bun.d.ts:1494` 주석 |
 | 승인 창 이중화(L1.tools 일반 승인 + 이 기능 게이트) | 사용자 피로 | 쓰기 도구의 일반 승인 기본 `allow` 요청(`L2.knowledge.spec` §10 미결 5) | `L2.knowledge.spec` §3.6 |
 | 위협 패턴 규칙의 오탐 | 정상 스킬 쓰기 거부 | 사용자 행위자는 `overrideScan`으로 경고로 낮출 수 있음. 규칙 집합 버전 관리와 회귀 예시 테스트 | `L2.knowledge.spec` §4.6 |
-| 두 제안 대기열(knowledge, learning) | 사용자 혼란 | 학습 그룹 제안은 증거로 바로 적용하고 이 대기열에는 에이전트 직접 쓰기만 둔다. 통합 여부는 [미결] | `L2.knowledge.spec` §10 미결 3 |
+| 두 제안 대기열(knowledge, learning) | 사용자 혼란 | 학습 플러그인 제안은 증거로 바로 적용하고 이 대기열에는 에이전트 직접 쓰기만 둔다. 통합 여부는 [미결] | `L2.knowledge.spec` §10 미결 3 |
 | `consumer_cursors`·투영기 선언 테이블에 대한 저장소 권한 가정 | K8 구현 막힘 | K8 착수 전 `L0.store.plan`, `L1.persistence.plan`과 확인. 막히면 FTS 테이블을 대화 밖 상태로 두고 대화 삭제 이벤트 구독으로 지운다 | `L2.knowledge.spec` §3.8, §8 |

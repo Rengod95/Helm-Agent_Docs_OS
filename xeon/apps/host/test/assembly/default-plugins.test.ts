@@ -46,7 +46,7 @@ function manifest(version: string, name: string): string {
     name,
     version,
     entry: "./dist/index.js",
-    group: {},
+    orchestration: {},
     plugins: [{ layer: "L3", hooks: [] }],
   });
 }

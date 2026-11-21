@@ -50,7 +50,7 @@ describe("Test run marker, trace and explain", () => {
     roundTrip(WIRE_METHODS["testRun.pause"].result, { paused: true });
     roundTrip(WIRE_METHODS["testRun.phase"].result, {
       phase: "plan",
-      group: "helm",
+      plugin: "helm",
       seq: 9,
       paused: true,
       lock: { holder: "helm", status: "releasing", epoch: 4 },
@@ -141,7 +141,7 @@ describe("Test run marker, trace and explain", () => {
     const phase = WIRE_METHODS["testRun.phase"].result;
     const full = {
       phase: "plan",
-      group: "helm",
+      plugin: "helm",
       seq: 9,
       paused: true,
       lock: { holder: "helm", status: "active", epoch: 2 },
@@ -153,7 +153,7 @@ describe("Test run marker, trace and explain", () => {
     // 커밋된 임대가 없으면 lock은 none이고 holder와 epoch는 null이다. 계측이 꺼져 있으면 traceEnabled가 거짓이다
     const none = {
       phase: null,
-      group: null,
+      plugin: null,
       seq: null,
       paused: false,
       lock: { holder: null, status: "none", epoch: null },

@@ -12,7 +12,7 @@ binds: [xeon/packages/cap-*/**]
 
 ## 1. 목적
 
-L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provider 모음이다. 같은 기능이 서비스 API와 모델 도구로 함께 노출되므로, L3 그룹은 도구 호출 없이 코드에서 서비스를 바로 호출한다(`_research/layer-plan-v2.json` L2 intro, `F.capabilities.spec` §1).
+L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provider 모음이다. 같은 기능이 서비스 API와 모델 도구로 함께 노출되므로, L3 플러그인은 도구 호출 없이 코드에서 서비스를 바로 호출한다(`_research/layer-plan-v2.json` L2 intro, `F.capabilities.spec` §1).
 
 - 층 순위는 P(4)다(옛 L2 등급. 6.3 DR-15). F(0) → X(1) → L0(2) → L1(3) → P(4) → L4(5)이다(`_research/foundation-plan.md` §3, `architecture.layers.spec` §4.1). 선언 `"layer": "L2"`는 전환 동안 P의 별칭이다.
 - L2 패키지는 소스에서 F와 X만 import한다. L0·L1은 시험 파일에서만 쓴다. 두 예외(`cap-dialog` → `core-tools`, `cap-workspace` → `core-workspace`)는 허용 목록 `DR-15/*`의 [미결] 항목이다(`eng.dependency-rules.guide` DR-15, [근거: `xeon/scripts/dependency-allowlist.json`]). L2 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02).
@@ -98,13 +98,13 @@ cap-<domain>/
 | 되감기, 체크포인트, 파일 복원, 대화 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
 | 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 시크릿 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
 | 서브에이전트 실행, 백그라운드 위임 | `L1.agents.spec` |
-| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 락 사용) | L3 그룹 문서(`L3.readme`) |
+| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 락 사용) | L3 플러그인 문서(`L3.readme`) |
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
 | 화면, 명령 표면, 설정 파일 위치 | `L4.settings-ui.spec`, `L4.cli.spec`, `L4.desktop.spec`, `L4.host-service.spec` |
 
-- L2는 drive를 쓰지 않는다. drive 락은 L3 플러그인 그룹만 갖는다(정책 `x.primitives.driveRequiresGroup`이 기본값일 때. `_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
-- [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
-- L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
+- L2는 drive를 쓰지 않는다. drive 락은 L3 플러그인만 갖는다(정책 `x.primitives.driveRequiresOrchestration`이 기본값일 때. `_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
+- [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 플러그인)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
+- L3 플러그인 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 플러그인이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 
 ## 5. 공통 provider 규약
 
@@ -199,7 +199,7 @@ export interface WebService {
 | `question` | `dialog.ask`, `mcp.client`(MCP 서버 주도 요청) | `L2.dialog.spec` §4.1, `L2.mcp.spec` §4.6 | mcp는 L1.tools가 올리는 안과 `cap-mcp`가 포트로 직접 부르는 안이 [미결]이다(`L2.mcp.spec` §10 미결 2) |
 | `plan` | 없음(옛 기록 읽기만) | `L2.work.spec` §4.2 | 삭제됨 [결정: 2026-11-13 사용자]. 새 요청은 L1.tools가 `approvals.request_invalid`로 거부한다 |
 | `review` | `artifacts.reviews` | `L2.artifacts.spec` §4.2.4 | [미결] 비차단 요청. 받아들여지지 않으면 `question` + `answerSchema`로 대신한다(`L2.artifacts.spec` §10 미결 4) |
-| `tool` | `knowledge.*` 쓰기 게이트, `schedule.loops`(그룹이 시작한 셸 종료 조건) | `L2.knowledge.spec` §4.5.1, `L2.schedule.spec` §4.1.2 | |
+| `tool` | `knowledge.*` 쓰기 게이트, `schedule.loops`(플러그인이 시작한 셸 종료 조건) | `L2.knowledge.spec` §4.5.1, `L2.schedule.spec` §4.1.2 | |
 
 - `schedule.remote`는 요청하지 않고 원격 클라이언트의 응답을 `respond`로 중계만 한다(`L2.schedule.spec` §4.5.2).
 - [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@fresnel/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
@@ -236,13 +236,13 @@ export interface ApprovalsPort {
 }
 ```
 
-- 기능마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 그룹 경로에서 결과를 기다리는 `dialog.ask`가, `cancel`은 2026-11-15 정리로 지운 `work.plans`가 쓰던 호출이다, `respond`는 `schedule.remote`가 쓴다.
+- 기능마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 플러그인 경로에서 결과를 기다리는 `dialog.ask`가, `cancel`은 2026-11-15 정리로 지운 `work.plans`가 쓰던 호출이다, `respond`는 `schedule.remote`가 쓴다.
 
 ### 5.8 호출 문맥 (`CallOptions.context`)
 
 여러 L2 서비스가 대상 대화(`work`, `dialog`, `artifacts`, `schedule`), 턴(`artifacts.reviews`), 도구 호출 여부(`artifacts`), 호출 주체(`web`의 대화 상한·정책, `knowledge`의 행위자, `work.goals.judge`의 호출자 확인)를 알아야 한다. 도구 경로의 `toInput`은 순수 함수라 이 값을 입력에 넣을 수 없다.
 
-호출 문맥은 `F.capabilities.spec` §3.2의 `CallOptions.context: CallContext`(`threadId`, `turnId`, `toolCallId`, `caller: CallerInfo`)가 정본이다. 여섯 도메인 spec(`L2.work.spec`, `L2.dialog.spec`, `L2.artifacts.spec`, `L2.schedule.spec`, `L2.web.spec`, `L2.knowledge.spec`)은 이 타입을 인용한다. `CallerInfo`는 `kind`(`model` | `extension` | `host`), `agent`(`main` | `subagent` | `background`), `extension`, `afterUntrusted`를 갖는다. `context`는 L1.tools 어댑터(도구 경로)와 X의 capability 래퍼(그룹·확장 경로)가 덮어써서 채우고 consumer가 직접 채우지 않는다.
+호출 문맥은 `F.capabilities.spec` §3.2의 `CallOptions.context: CallContext`(`threadId`, `turnId`, `toolCallId`, `caller: CallerInfo`)가 정본이다. 여섯 도메인 spec(`L2.work.spec`, `L2.dialog.spec`, `L2.artifacts.spec`, `L2.schedule.spec`, `L2.web.spec`, `L2.knowledge.spec`)은 이 타입을 인용한다. `CallerInfo`는 `kind`(`model` | `extension` | `host`), `agent`(`main` | `subagent` | `background`), `extension`, `afterUntrusted`를 갖는다. `context`는 L1.tools 어댑터(도구 경로)와 X의 capability 래퍼(플러그인·확장 경로)가 덮어써서 채우고 consumer가 직접 채우지 않는다.
 
 - `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다.
 - 대상 대화 해석: 메서드 입력에 `threadId`가 있으면 그것을 쓰고, 없으면 `context.threadId`를 쓴다. 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다. 모델이 다른 대화를 대상으로 삼지 못하게 하려는 것이다.
@@ -255,7 +255,7 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 - 위치: F `xeon/packages/contracts/src/records/catalog/<domain>.ts`. 이벤트가 있는 도메인(work, dialog, artifacts, schedule, workspace)만 만든다. 접두사만 예약한 도메인(mcp, web, knowledge)은 type을 실제로 더할 때 같은 형식으로 만든다.
 - 형식: `F.records.spec` §3.3의 `CatalogEntry`(`kind`, `version`, `durable`, `payload`, `retired?`) 배열이다. export 이름은 `<DOMAIN>_EVENT_CATALOG`(`WORK_EVENT_CATALOG`, `DIALOG_EVENT_CATALOG`, `ARTIFACT_EVENT_CATALOG`, `SCHEDULE_EVENT_CATALOG`)다. 휘발 이벤트는 `durable: false`다. `records/catalog/index.ts`가 코어 카탈로그와 도메인 카탈로그를 병합한다.
 - 이름 규칙: `<접두사>.<이름>`, 점 하나, snake_case(`F.records.spec` §3.2 규칙 1)와 과거형(`eng.events.design` §4.5 규칙 1)을 함께 지킨다. 휘발 `<대상>.status`는 `eng.events.design` §4.5 규칙 2를 따른다.
-- 접두 예외: 내장 `cap-*`는 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 그룹 레코드 kind와 커스텀 메시지 `customType`은 이 예외에 들지 않고 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3). 그래서 `cap-work`의 이벤트는 `work.goal_judged`이고 커스텀 메시지는 `x.cap-work.goal.continue`다.
+- 접두 예외: 내장 `cap-*`는 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 플러그인 레코드 kind와 커스텀 메시지 `customType`은 이 예외에 들지 않고 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3). 그래서 `cap-work`의 이벤트는 `work.goal_judged`이고 커스텀 메시지는 `x.cap-work.goal.continue`다.
 - 소유 생산자: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행이 있다. 커밋 때 접두사 소유 검사는 이 표로 한다.
 - payload 스키마를 records 쪽에 둘지 capabilities 정의 파일에서 import할지는 F 안의 도메인 순서(`F.readme` §3)를 따르고 `F.records.plan`이 정한다.
 
@@ -346,7 +346,7 @@ flowchart LR
 
 | 결정 | 근거 |
 |---|---|
-| [결정] L2 기능은 F3 정의를 구현한 provider이고 그룹은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
+| [결정] L2 기능은 F3 정의를 구현한 provider이고 플러그인은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
 | [결정] 같은 층 패키지는 import하지 않는다. 협력은 F 정의와 Cordis 서비스로만 한다 | `_research/foundation-plan.md` §3, `eng.dependency-rules.guide` DR-02 |
 | [결정] 유료 웹 API는 플러그인, 기본은 로컬 도구 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
 | [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
@@ -364,7 +364,7 @@ flowchart LR
 5. [미결] `artifacts.reviews` → `workspace.files` 선택 의존(§6). 리뷰가 도구 결과 `details`의 diff만으로 충분하면 간선을 없앤다(`L2.workspace.spec`, `L2.artifacts.spec`).
 6. [미결] dialog의 테이블 접두사. 공통 규약은 "없음"이고 `eng.context-map.design` §4.1은 "예약 `cap_dialog_*`"다. 예약을 둘지 정한다.
 7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 기능 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정: review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
-8. [미결] 도구 없는 기능(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 그룹과 다른 기능만 쓰는 기능이 있다. 허용되지 않으면 해당 기능에 관리용 도구를 두어야 한다.
+8. [미결] 도구 없는 기능(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 플러그인과 다른 기능만 쓰는 기능이 있다. 허용되지 않으면 해당 기능에 관리용 도구를 두어야 한다.
 9. [결정: review.decisions-2 U-23] 상주 수준 2 기능의 서비스 모드 꺼짐 처리(§8). 서비스 자동 기동을 시도하고, 실패하면 `unavailable` + `service_mode_off`와 조치 안내로 거부한다. 예약 생성의 기본값 이름은 `autoStart`다.
 10. (닫음) `workspace.images` 최소형을 M2에 둔 실제 배치를 인정한다(§2 각주 ws, [결정: 2026-11-04 사용자 B16]). JSON의 "이미지와 첨부 처리 2차"와 `dialog.attachments` 1차(M2) 사이의 차이를 사용자가 확인한다.
 11. [결정: 사용자 확인 2026-10-22] 마일스톤 M2·M3 정의가 확정됐다(`product.scope.spec` §4.3). 이 문서의 마일스톤 칸도 그 정의를 따른다.

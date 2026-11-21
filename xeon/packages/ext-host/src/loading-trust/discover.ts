@@ -16,7 +16,7 @@ import type { InstallSource } from "./trust/levels.ts";
 
 export type { LoaderFs, LoaderPaths } from "@fresnel/contracts/extensions";
 
-/** 내장 패키지(core-*, cap-*, group-*)가 export하는 확장 모듈. 조립 루트(L4 host)가 목록을 넘긴다 */
+/** 내장 패키지(core-*, cap-*, plugin-*)가 export하는 확장 모듈. 조립 루트(L4 host)가 목록을 넘긴다 */
 export interface BuiltinExtensionModule {
   readonly manifest: ExtensionManifest;
   /** 엔트리. 내장 패키지는 named export `extension`으로 둔다 */

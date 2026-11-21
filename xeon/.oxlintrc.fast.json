@@ -11,7 +11,7 @@
     "**/.turbo/**",
     "**/coverage/**",
     "vendor/**",
-    "packages/group-sdk/templates/**",
+    "packages/orchestration-sdk/templates/**",
     "packages/core-authoring/templates/**",
     "apps/desktop/mockups/**"
   ]

@@ -5,7 +5,7 @@
   "displayName": "__TITLE__",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "L3", "hooks": [], "drives": true }],
-  "group": {},
+  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { SecretMeta } from "@fresnel/contracts/capabilities";
 import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
-import { accountRotationGroup } from "@fresnel/group-account-rotation";
+import { accountRotationOrchestration } from "@fresnel/plugin-account-rotation";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
@@ -69,8 +69,8 @@ realTest(
       // 플러그인은 기본 꺼짐이다. 사용자가 켠 상태를 매니페스트 기본값으로 만든다
       extraPlugins: [
         {
-          manifest: { ...accountRotationGroup.manifest, defaultEnabled: true },
-          extension: accountRotationGroup.entry,
+          manifest: { ...accountRotationOrchestration.manifest, defaultEnabled: true },
+          extension: accountRotationOrchestration.entry,
         },
       ],
       buildModels: tapeBuildModels(

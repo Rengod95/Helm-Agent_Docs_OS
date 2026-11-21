@@ -31,7 +31,7 @@ binds: [xeon/packages/contracts/src/records/**]
 ### 1.2 다루지 않는 것
 
 - 테이블, DDL, PRAGMA, 잠금, blob 파일 배치: `L0.store.spec`(L0-e)과 `L1.persistence.spec`(L1-f). F는 레코드 형태와 규칙만 정한다.
-- 그룹 간 레코드, 확장 접두사 테이블 스키마: `F.extensions.spec`.
+- 플러그인 간 레코드, 확장 접두사 테이블 스키마: `F.extensions.spec`.
 - 와이어 표현(ISO 시각, 프레임, 커서, 민감 필드 제거): `F.wire-settings.spec`.
 - 대화 모델 이름(ID, item, part, 알림): `F.conversation.spec`.
 
@@ -225,8 +225,8 @@ export interface EventKindRegistry {
 규칙 [제안]:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다(09 §3.3 규칙 1을 따른다).
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
-3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 그룹 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 플러그인 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
+3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 플러그인 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
 4. 벤더 이름(pi, claude, codex)을 코어 kind에 넣지 않는다(09 §3.3 규칙 5).
 5. 이름은 바꾸지 않는다. 의미가 바뀌면 `version`을 올리고 업캐스터를 둔다. 없앤 kind는 카탈로그에 `retired: true`로 남긴다.
 6. `_` 접두 열거형 값 예약 같은 열거형 확장 규칙은 M2 이후 `F.extensions.spec`이 정한다.
@@ -355,7 +355,7 @@ export interface ScopeHandlerFailedPayload {
 }
 export interface LeaseAcquiredPayload {
   leaseId: string;                // F.extensions.spec DriveLock.leaseId
-  scopeId: string;                // 임대를 받은 그룹의 scope
+  scopeId: string;                // 임대를 받은 플러그인의 scope
   /** 계통 id(필수). `waiting` 반납 바로 뒤 같은 thread·scope의 부여는 앞 drive 락의 값을 이어받고, 그 밖의 부여는 자기 leaseId와 같다. 기본 requestId 재료(X.primitives.spec §4.4.1 11번) */
   lineageId: string;
   limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLock.limits(DriveLimits)
@@ -374,7 +374,7 @@ export interface LeaseAcquiredPayload {
 export interface LeaseReleasedPayload {
   leaseId: string;
   scopeId: string;
-  /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
+  /** disabled: 플러그인 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
    *  done: 단계 함수가 `done` 명령으로 주도권을 내려놓음(M5a E1, `review.m5-drive-isolation` 2.6),
    *  waiting: 옛 기록 읽기용. 더 쓰지 않는다. 질문 대기는 반납이 아니라 프레임 상태 `asking`이다(drive-isolation.md 2.1, 2.6). 맡기기로 아래 프레임이 기다리는 상태도 반납이 아니다. 번호는 F.extensions.spec 절 */
@@ -390,7 +390,7 @@ export interface DriveCommandSettledPayload {
 }
 /** drive 락 요청이 대기 상한 뒤 거부됐다(옛 기록). E3부터 엔진은 발행하지 않고 읽기 전용으로 남긴다(drive-isolation.md 2.6). 스키마는 옛 기록을 읽으려고 둔다 [결정: adr.0017, M3-REQ-99] */
 export interface LeaseRejectedPayload {
-  groupId: string;                // 요청한 그룹(ExtensionName)
+  groupId: string;                // 요청한 플러그인(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
   requestSeq: number;             // 거부된 요청의 순번(0 이상)
 }
@@ -544,7 +544,7 @@ export interface AgentSettledEventPayload {
   usage: Usage | null;            // 자식 사용량은 여기에만 남는다
   error: string | null;
   /**
-   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 그룹이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
+   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 플러그인이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
    * 선택이라 version을 올리지 않는다. 없으면(옛 기록) agent.spawned의 owner를 읽는다 [제안: M3-REQ-103, REQ-LN-02]
    */
   owner?: SpawnOwnerJson;
@@ -603,7 +603,7 @@ export interface ToolUntrustedReadPayload {
   | `caller` | `approvalCallerOf(CallContext.caller)`. 형식은 `APPROVAL_CALLER_PATTERN` | 변환 함수 하나 |
 
   - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
-  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
+  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·플러그인 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 대화 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 대화 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
@@ -1150,7 +1150,7 @@ export interface SessionService {
 // 정본은 이 블록이다. X.primitives.spec §3.6의 블록을 옮겼다. records는 extensions보다 낮아(F.readme §3)
 // RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다(§3.3 extension-ops.ts와 같은 방식).
 // ExtensionName도 import하지 않는다. queryRecords의 reader는 같은 모양(string)으로 적는다.
-// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
+// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ OrchestrationRecord, reader ↔ ExtensionName.
 export interface ExtCommitRequest {
   readonly threadId: ThreadId;
   /** SessionWriter 멱등 키. 같은 키의 두 번째 커밋은 기록된 결과를 돌려준다. 형식은 COMMIT_KEY_PATTERN */
@@ -1238,7 +1238,7 @@ export interface RecordCommitPort {
   /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
   loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
-   * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
+   * 플러그인 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다(아래 규칙)
    */
   queryRecords(
@@ -1336,9 +1336,9 @@ export interface RecordCommitPort {
 
 ## 7. 훅
 
-- 확장과 플러그인 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
+- 확장과 플러그인은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
 - X의 네 연산 중 register, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 훅은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
-- 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
+- 플러그인 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
 

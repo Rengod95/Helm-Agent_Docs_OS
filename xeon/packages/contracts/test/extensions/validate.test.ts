@@ -7,7 +7,7 @@ import {
   type ExtensionUsage,
 } from "../../src/extensions/index.ts";
 import { RESERVED_SOURCE_KEYS } from "../../src/records/index.ts";
-import { codesOf, groupJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
+import { codesOf, orchestrationJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
 
 const noUsage: ExtensionUsage = {
   on: [],
@@ -66,7 +66,7 @@ describe("validateUsage", () => {
   });
 
   test("post and drive need their declarations", () => {
-    const manifest = validManifest(groupJson());
+    const manifest = validManifest(orchestrationJson());
     const plugin = pluginAt(manifest, 0);
     expect(
       validateUsage(manifest, plugin, { ...noUsage, post: true }).map((i) => [i.code, i.path]),
@@ -74,7 +74,7 @@ describe("validateUsage", () => {
     expect(
       validateUsage(manifest, plugin, { ...noUsage, drive: true }).map((i) => [i.code, i.path]),
     ).toEqual([["drive_undeclared", "/plugins/0/drives"]]);
-    const declared = validManifest(groupJson({}, { usesPost: true, drives: true }));
+    const declared = validManifest(orchestrationJson({}, { usesPost: true, drives: true }));
     expect(
       validateUsage(declared, pluginAt(declared, 0), { ...noUsage, post: true, drive: true }),
     ).toEqual([]);
@@ -82,7 +82,7 @@ describe("validateUsage", () => {
 
   test("record kinds must be declared", () => {
     const manifest = validManifest(
-      groupJson(
+      orchestrationJson(
         {},
         {
           recordKinds: [
@@ -110,7 +110,7 @@ describe("validateUsage", () => {
 
   test("reads are covered by exact kinds and prefix patterns", () => {
     const manifest = validManifest(
-      groupJson({}, { readsRecordKinds: ["grp.helm.*", "grp.web.page.fetched"] }),
+      orchestrationJson({}, { readsRecordKinds: ["grp.helm.*", "grp.web.page.fetched"] }),
     );
     const plugin = pluginAt(manifest, 0);
     const ok = validateUsage(manifest, plugin, {
@@ -130,7 +130,7 @@ describe("validateUsage", () => {
   });
 
   test("own records are read without a declaration", () => {
-    const manifest = validManifest(groupJson());
+    const manifest = validManifest(orchestrationJson());
     expect(
       validateUsage(manifest, pluginAt(manifest, 0), {
         ...noUsage,
@@ -143,7 +143,7 @@ describe("validateUsage", () => {
 describe("validateManifest rules", () => {
   test("drives is a plugin field, accepted without a group at the schema level", () => {
     expect(validateManifest(pluginJson({}, { drives: true })).issues).toEqual([]);
-    expect(validateManifest(groupJson({}, { drives: true })).issues).toEqual([]);
+    expect(validateManifest(orchestrationJson({}, { drives: true })).issues).toEqual([]);
   });
 
   test("usesDrive is a legacy field and is rejected", () => {
@@ -153,7 +153,7 @@ describe("validateManifest rules", () => {
   });
 
   test("a group is not tied to one layer (layer_kind_mismatch is no longer raised)", () => {
-    expect(validateManifest(groupJson({}, { layer: "L2" })).issues).toEqual([]);
+    expect(validateManifest(orchestrationJson({}, { layer: "L2" })).issues).toEqual([]);
     expect(validateManifest(pluginJson({}, { layer: "L3" })).issues).toEqual([]);
   });
 
@@ -192,7 +192,9 @@ describe("validateManifest rules", () => {
       expect(codesOf(validateManifest(pluginJson({ name })).issues)).toEqual(["name_reserved"]);
       const builtin = pluginJson({ name, trust: { level: "builtin" } });
       expect(codesOf(validateManifest(builtin).issues)).toEqual(["name_reserved"]);
-      expect(codesOf(validateManifest(groupJson({ name })).issues)).toEqual(["name_reserved"]);
+      expect(codesOf(validateManifest(orchestrationJson({ name })).issues)).toEqual([
+        "name_reserved",
+      ]);
     }
   });
 
@@ -255,7 +257,7 @@ describe("validateManifest rules", () => {
 
   test("record kind duplicate", () => {
     const decl = { kind: "grp.learning.skill.proposed", version: 1, description: "d", payload: {} };
-    const result = validateManifest(groupJson({}, { recordKinds: [decl, decl] }));
+    const result = validateManifest(orchestrationJson({}, { recordKinds: [decl, decl] }));
     expect(codesOf(result.issues)).toEqual(["record_kind_duplicate"]);
     expect(result.issues[0]?.path).toBe("/plugins/0/recordKinds/1/kind");
   });
@@ -330,8 +332,8 @@ describe("validateManifestSet", () => {
   });
 
   test("drive conflict", () => {
-    const helm = validManifest(groupJson({ name: "helm" }, { drives: true }));
-    const other = validManifest(groupJson({ name: "other" }, { drives: true }));
+    const helm = validManifest(orchestrationJson({ name: "helm" }, { drives: true }));
+    const other = validManifest(orchestrationJson({ name: "other" }, { drives: true }));
     const issues = validateManifestSet([helm, other]);
     expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
       ["drive_conflict", "warning", "helm/plugins/0/drives"],
@@ -339,17 +341,17 @@ describe("validateManifestSet", () => {
     expect(issues[0]?.message).toContain("helm, other");
 
     const disabled = validManifest(
-      groupJson({ name: "other", defaultEnabled: false }, { drives: true }),
+      orchestrationJson({ name: "other", defaultEnabled: false }, { drives: true }),
     );
     expect(validateManifestSet([helm, disabled])).toEqual([]);
-    const learning = validManifest(groupJson({ name: "learning" }));
+    const learning = validManifest(orchestrationJson({ name: "learning" }));
     expect(validateManifestSet([helm, learning])).toEqual([]);
   });
 
   test("a non-root driver is off by default and does not conflict", () => {
-    const helm = validManifest(groupJson({ name: "helm" }, { drives: true }));
+    const helm = validManifest(orchestrationJson({ name: "helm" }, { drives: true }));
     const sync = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "other",
         plugins: [
           { layer: "L3", hooks: [] },

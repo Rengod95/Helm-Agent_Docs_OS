@@ -32,7 +32,7 @@ binds: []
 | 경로 | 내용 |
 |---|---|
 | `fresnel` | 컴파일된 엔진과 CLI (Windows는 `fresnel.exe`) |
-| `group-sdk/templates/` | `fresnel group new`의 템플릿과 `index.json` |
+| `orchestration-sdk/templates/` | `fresnel group new`의 템플릿과 `index.json` |
 | `default-plugins/` | 기본 플러그인(`helm`) |
 | `binaries/`, `binaries.lock.json` | macOS 아카이브에만 있습니다. 번들 바이너리(sops, age, rg)와 목록 |
 | `THIRD-PARTY-NOTICES.txt` | 번들 바이너리의 고지와 시스템 요구 목록 |
@@ -311,7 +311,7 @@ fresnel service start --listen-tcp <호스트>:<포트>
 
 ## 6. 안전 모드
 
-안전 모드는 외부 확장과 L3 내장 그룹을 싣지 않고 시작합니다. 확장이 원인인 장애를 좁혀 볼 때 씁니다(`X.operations.spec` §4.6).
+안전 모드는 외부 확장과 L3 내장 플러그인을 싣지 않고 시작합니다. 확장이 원인인 장애를 좁혀 볼 때 씁니다(`X.operations.spec` §4.6).
 
 ### 6.1 켜기
 
@@ -332,7 +332,7 @@ fresnel config set x.operations.safeMode.default true
 | 대상 | 안전 모드 |
 |---|---|
 | 외부 확장(사용자·프로젝트 범위). 기본 플러그인 Helm 포함 | 꺼짐 |
-| L3 내장 그룹(학습 그룹) | 꺼짐 |
+| L3 내장 플러그인(학습 플러그인) | 꺼짐 |
 | 외부 훅 전체 | 꺼짐 |
 | `guard`, `core` 계층과 L0~L2 내장 패키지 | 켜짐 |
 

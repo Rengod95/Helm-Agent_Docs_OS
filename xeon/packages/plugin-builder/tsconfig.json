@@ -17,7 +17,7 @@
       "path": "../ext-host"
     },
     {
-      "path": "../group-sdk"
+      "path": "../orchestration-sdk"
     }
   ]
 }

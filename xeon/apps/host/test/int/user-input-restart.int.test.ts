@@ -21,7 +21,7 @@ import { collectEvents, HELLO_PARAMS, startInputWhenIdle } from "../fixtures/wir
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
-const BASE_SETTINGS = { ...TAPE_SETTINGS, "x.primitives.driveRequiresGroup": false };
+const BASE_SETTINGS = { ...TAPE_SETTINGS, "x.primitives.driveRequiresOrchestration": false };
 
 interface Call {
   readonly last: StepResult | null;

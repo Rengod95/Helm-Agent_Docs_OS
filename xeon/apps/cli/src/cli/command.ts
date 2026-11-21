@@ -13,7 +13,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@fresnel/contracts/settings";
 import { isCopyName } from "../commands/db-usage.ts";
-import { checkGroupName, type GroupTemplateKind } from "../group/rules.ts";
+import { checkOrchestrationName, type GroupTemplateKind } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
 // L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 시크릿 값 argv 금지 같은 규칙을
@@ -103,7 +103,7 @@ export interface GroupNewCommand {
 
 /**
  * `fresnel author <명령>`(L3.authoring.spec §4.5, L4.cli.spec §3.1). 모델 없이 도는 제작 명령이다.
- * `scaffold <이름> --dir <폴더> [--group]`, `validate <폴더>`, `pack <폴더> [--out <폴더>]`, `install <폴더> [--yes]`, `remove <이름> [--drop-data] [--yes]`, `ls`
+ * `scaffold <이름> --dir <폴더>`, `validate <폴더>`, `pack <폴더> [--out <폴더>]`, `install <폴더> [--yes]`, `remove <이름> [--drop-data] [--yes]`, `ls`
  */
 export type AuthorCommand =
   | {
@@ -2137,7 +2137,7 @@ const GROUP_FLAGS: FlagTable = {
 
 /** 그룹 이름 검사(L3.slots.spec §3.3.4). 형식과 예약 이름을 본다. 설치된 확장과의 충돌은 명령이 본다 */
 function groupNameOf(text: string): Result<string, UsageError> {
-  const checked = checkGroupName(text);
+  const checked = checkOrchestrationName(text);
   if (checked.ok) return ok(text);
   const message =
     checked.error.reason === "reserved"

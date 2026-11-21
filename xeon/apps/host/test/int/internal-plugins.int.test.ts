@@ -37,16 +37,16 @@ realTest(
           .map((card) => card.name)
           .toSorted(),
       ).toEqual([...INTERNAL_PLUGIN_NAMES].toSorted());
-      // 층 값은 이름 표에서 끌어낸다(코어 7, 기능 8, 브릿지 7)
+      // 층 값은 이름 표에서 끌어낸다(코어 7, 기능 8, 브릿지 6)
       const layers = builtin
         .filter((card) => card.internal === true)
         .map((card) => `${card.internalLayer ?? "none"}:${card.name}`)
         .toSorted();
       expect(layers.filter((line) => line.startsWith("core:"))).toHaveLength(7);
       expect(layers.filter((line) => line.startsWith("capability:"))).toHaveLength(8);
-      expect(layers.filter((line) => line.startsWith("bridge:"))).toHaveLength(7);
+      expect(layers.filter((line) => line.startsWith("bridge:"))).toHaveLength(6);
       expect(layers.filter((line) => line.startsWith("none:"))).toEqual([]);
-      expect(INTERNAL_PLUGIN_NAMES).toHaveLength(22);
+      expect(INTERNAL_PLUGIN_NAMES).toHaveLength(21);
       expect(
         builtin
           .filter((card) => card.internal === false)

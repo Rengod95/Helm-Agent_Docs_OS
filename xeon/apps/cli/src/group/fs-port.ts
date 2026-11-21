@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path";
 import { t } from "@fresnel/client/i18n";
 import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
-import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../io.ts";
+import type { GroupIoError, OrchestrationTargetState, GroupTemplatesPort } from "../io.ts";
 
 // L4.cli.spec §3.8. `fresnel group new`의 실제 파일 작업. 시험(group-new-core-diff.test.ts)도 이 구현을 쓴다.
 // 템플릿 위치와 사용자 설정 폴더는 runtime.ts가 넘긴다. 이 파일은 프로세스 환경을 읽지 않는다.
@@ -18,8 +18,8 @@ export interface GroupFsOptions {
 }
 
 /**
- * 템플릿 디렉터리를 찾는다: 환경 변수 FRESNEL_GROUP_TEMPLATES_DIR, 릴리즈의 자원 디렉터리(`<resourceDir>/group-sdk/templates`),
- * 없으면 `from`에서 위로 올라가며 packages/group-sdk/templates를 찾는다(소스 실행)
+ * 템플릿 디렉터리를 찾는다: 환경 변수 FRESNEL_GROUP_TEMPLATES_DIR, 릴리즈의 자원 디렉터리(`<resourceDir>/orchestration-sdk/templates`),
+ * 없으면 `from`에서 위로 올라가며 packages/orchestration-sdk/templates를 찾는다(소스 실행)
  */
 export function locateGroupTemplates(
   env: Readonly<Record<string, string | undefined>>,
@@ -29,12 +29,12 @@ export function locateGroupTemplates(
   const override = env["FRESNEL_GROUP_TEMPLATES_DIR"];
   if (override !== undefined && override !== "") return override;
   if (resourceDir !== undefined) {
-    const bundled = join(resourceDir, "group-sdk", "templates");
+    const bundled = join(resourceDir, "orchestration-sdk", "templates");
     if (existsSync(join(bundled, "index.json"))) return bundled;
   }
   let dir = from;
   for (;;) {
-    const candidate = join(dir, "packages", "group-sdk", "templates");
+    const candidate = join(dir, "packages", "orchestration-sdk", "templates");
     if (existsSync(join(candidate, "index.json"))) return candidate;
     const parent = dirname(dir);
     if (parent === dir) return null;
@@ -141,11 +141,11 @@ export function createGroupTemplatesFs(options: GroupFsOptions): GroupTemplatesP
 
     async targetState(path) {
       const found = await io(path, () => stat(path));
-      if (!found.ok) return found.error.missing ? ok<GroupTargetState>("absent") : found;
-      if (!found.value.isDirectory()) return ok<GroupTargetState>("occupied");
+      if (!found.ok) return found.error.missing ? ok<OrchestrationTargetState>("absent") : found;
+      if (!found.value.isDirectory()) return ok<OrchestrationTargetState>("occupied");
       const children = await io(path, () => readdir(path));
       if (!children.ok) return children;
-      return ok<GroupTargetState>(children.value.length === 0 ? "empty" : "occupied");
+      return ok<OrchestrationTargetState>(children.value.length === 0 ? "empty" : "occupied");
     },
 
     makeDir(path) {

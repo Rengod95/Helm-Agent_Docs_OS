@@ -108,7 +108,7 @@ export type SpawnOwner =
       readonly scopeId: RegistrationId;
       readonly leaseId: DriveLockId;
     }
-  /** 그룹 위임(GroupApi.delegate) */
+  /** 그룹 위임(OrchestrationApi.delegate) */
   | { readonly kind: "scope"; readonly scopeId: RegistrationId };
 
 export interface SpawnOrigin {

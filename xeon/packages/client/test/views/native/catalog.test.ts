@@ -107,8 +107,8 @@ describe("forbidden prop names", () => {
   });
 });
 
-describe("group-helm view trees", () => {
-  test("the group-helm view files are the five known trees", () => {
+describe("plugin-helm view trees", () => {
+  test("the plugin-helm view files are the five known trees", () => {
     expect(helmViewFiles()).toEqual([
       "helm-finished.view.json",
       "helm-inquiry.view.json",

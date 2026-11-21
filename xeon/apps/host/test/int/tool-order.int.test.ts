@@ -48,7 +48,7 @@ function writePluginFolder(root: string, tag: string, marker: string): void {
       purpose: `Tool that writes ${tag}`,
       defaultEnabled: false,
       entry: "./src/index.ts",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "L3", hooks: [], requires: [], optional: [] }],
     }),
   );
@@ -56,15 +56,15 @@ function writePluginFolder(root: string, tag: string, marker: string): void {
     join(root, "src", "index.ts"),
     `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { defineGroup, groupManifest } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
 export const extension = (ctx) => {
-  const group = defineGroup({
-    manifest: groupManifest({
+  const group = defineOrchestration({
+    manifest: orchestrationManifest({
       schemaVersion: 2,
       name: ctx.manifest.name,
       version: "1.0.0",
       entry: "./src/index.ts",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "L3", hooks: [], requires: [], optional: [] }],
     }),
     setup(g) {

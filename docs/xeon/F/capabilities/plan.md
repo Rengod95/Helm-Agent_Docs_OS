@@ -18,7 +18,7 @@ binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src
 |---|---|---|
 | M0 | `CapabilityId`·`SemVer`·`SemVerRange`·`ToolName` 스키마, `MethodDef`, `ToolSpec`(기계 이름 `name`과 표시 제목 `label` 포함), `CapabilityDef`, `defineCapability`, `ServiceKey`·`serviceKey`, `CapabilityError`, `validateCapability`·`validateCapabilitySet`, `toJsonSchema`, `toolOrderKey`·`orderTools`·`canonicalToolset`·`toolsetFingerprint`·`diffToolsets`, `web.search` 예시 픽스처, `./services`의 서비스 인터페이스 14종과 `SERVICE_NAMES`(스펙 §3.12, review.decisions-2 D-04) | X(ext-host 최소형), F.extensions(매니페스트가 ID 스키마를 import), L0 `platform-*`, L1 `core-*`(서비스 구현과 주입) |
 | M1 | 걷는 골격의 도구 `read`, `bash`를 이 정의 형식으로 정의한다(`ls`는 2026-11-13 폐지 [결정: 2026-11-13 사용자]). 정의는 F.capabilities.spec §3.9의 배치 제안에 따라 `capabilities/defs/workspace.ts`에 둔다 | L1 core-tools(도구 어댑터, `AgentTool` 생성), L2 cap-workspace(provider) |
-| M2 이후 | 내장 L2 기능 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 group-sdk |
+| M2 이후 | 내장 L2 기능 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 orchestration-sdk |
 
 - 기계 이름·표시 제목 분리는 계획 v2에서 2차 항목이다(`_research/layer-plan-v2.json` F3). pi-ai `Tool.name`과 agent-core `AgentTool.label`에 이미 있으므로 M0에 같이 넣는다.
 - M1 스모크(`_research/foundation-plan.md` §5 P4)의 도구 3종은 이 형식을 거쳐야 한다. L1 core-tools가 `ToolSpec`을 `AgentTool`로 바꾸는 어댑터를 M1에 만든다(L1.tools.plan).
@@ -67,7 +67,7 @@ xeon/packages/contracts/
 | P6 | `ordering.ts`: `toolOrderKey`(코드 단위 비교, `localeCompare` 금지), `orderTools`, `canonicalToolset`(키 정렬 JSON), `toolsetFingerprint`, `diffToolsets` | P2, P5(`toJsonSchema`) | M |
 | P7 | 예시 정의 `web.search` 픽스처와 이를 쓰는 테스트. 정의 본문은 스펙 §3.9를 그대로 옮긴다 | P3, P5 | S |
 | P8 | `secrets.ts`: 스펙 §3.10 첫 블록(`SecretName` 브랜드, `SecretHandle`, `SecretRefError`, 순수 함수 `parseSecretRef`·`secretRef`·`findForeignSecretSyntax`, 거부 규칙은 `L0.secrets.spec` §3.1 표)과 두 번째 블록(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등과 스키마)을 코드로 옮기고 스펙 §9 13·16·17의 테스트를 둔다(review.decisions-2 U-08) | P1 | S |
-| P9 | `src/services/`: 스펙 §3.12 표의 인터페이스 15종과 `<X>ServiceName`, `SERVICE_NAMES`, 파일별 이름 표의 타입(`sandbox-report.ts`, `secrets.ts`, `secret-admin.ts`, `os.ts`의 `NotifyKind` 포함). 각 소유 문서(L0·L1·L2.mcp spec §3)의 블록을 옮겨 확정하고 소유 문서에 F 이름 인용을 요청한다. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `GroupService`는 F.extensions.plan E10의 포트를 확장한다(스펙 §9 15). `package.json` `exports`에 `"./services"`를 더한다 | P3, F.records.plan R12, F.extensions.plan E10 | L |
+| P9 | `src/services/`: 스펙 §3.12 표의 인터페이스 15종과 `<X>ServiceName`, `SERVICE_NAMES`, 파일별 이름 표의 타입(`sandbox-report.ts`, `secrets.ts`, `secret-admin.ts`, `os.ts`의 `NotifyKind` 포함). 각 소유 문서(L0·L1·L2.mcp spec §3)의 블록을 옮겨 확정하고 소유 문서에 F 이름 인용을 요청한다. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `OrchestrationService`는 F.extensions.plan E10의 포트를 확장한다(스펙 §9 15). `package.json` `exports`에 `"./services"`를 더한다 | P3, F.records.plan R12, F.extensions.plan E10 | L |
 
 P6 해시 선택 [제안]:
 
@@ -149,7 +149,7 @@ P6 해시 선택 [제안]:
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | 도구 이름 네임스페이스(`플러그인:이름`)와 provider 도구 이름 허용 문자 충돌 | 외부 플러그인 도구가 provider 요청에서 거부되거나, 충돌 해소 규칙이 늦게 정해져 이름 변경(major)이 생긴다 | M0는 `TOOL_NAME_WIRE_PATTERN`만 오류로 강제하고 충돌은 `tool_name_conflict` 오류로 등록을 막는다. 확장 도구 이름은 `<확장 이름>__<이름>`으로 정했다(`F.capabilities.spec`, [결정: 2026-11-04 사용자, 결정 목록 R3]). 남은 것은 예약 접두 목록뿐이고 엔지니어링 세부다 |
-| Cordis 타입 결합 요구가 F 순수성과 충돌 | 그룹 코드가 `ctx.get` 직접 호출로 타입 없이 서비스를 쓰게 된다 | `ScopeApi.capability(key)` 경로만 문서화하고, X에 `ctx.get` 직접 사용 금지 lint를 제안한다. 선언 병합 여부는 [미결] |
+| Cordis 타입 결합 요구가 F 순수성과 충돌 | 플러그인 코드가 `ctx.get` 직접 호출로 타입 없이 서비스를 쓰게 된다 | `ScopeApi.capability(key)` 경로만 문서화하고, X에 `ctx.get` 직접 사용 금지 lint를 제안한다. 선언 병합 여부는 [미결] |
 | 기능 정의 선례 없음 | `ToolSpecFor` 분배 타입의 추론이 기대와 다르거나 컴파일 비용이 크다 | P4를 별도 작업으로 두고 타입 테스트로 먼저 고정한다. dur `ToolRegistration`은 형태 참고만 한다 |
 | TypeBox 두 벌 설치 | `TSchema` 동일성 검사(`instanceof`, 심볼 키)가 버전 사이에서 어긋날 수 있다 | F 코드는 TypeBox 내부 심볼에 의존하지 않고 JSON 구조만 읽는다. 버전 [미결] 해소 전까지 P2에서 설치 상태를 보고 |
 | `isolatedDeclarations`와 추론형 정의 | export 상수마다 타입 주석이 필요해 정의 파일이 길어진다 | `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있다(`_research/foundation-plan.md` §2). 정의 파일도 예외 없이 명시 주석을 단다. 주석이 지나치게 길면 메서드·도구 스키마를 별도 export 상수로 나누고 `typeof`로 참조한다 |

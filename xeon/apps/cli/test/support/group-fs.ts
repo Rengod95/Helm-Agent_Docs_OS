@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../../src/io.ts";
+import type { GroupIoError, OrchestrationTargetState, GroupTemplatesPort } from "../../src/io.ts";
 
 // 시험 도구: `fresnel group new`의 파일 작업을 메모리에서 흉내 낸다(L4.cli.plan §5). 템플릿 파일과 설치 목록을 넣고,
 // 쓰인 파일과 만든 폴더를 Map·Set으로 본다. 실제 파일 시스템은 group-new-core-diff.test.ts가 쓴다.
@@ -66,9 +66,10 @@ export function createMemoryGroupFs(options: MemoryGroupOptions = {}): MemoryGro
     installedExtensionNames(): Promise<Result<readonly string[], GroupIoError>> {
       return Promise.resolve(ok(options.installed ?? []));
     },
-    targetState(path): Promise<Result<GroupTargetState, GroupIoError>> {
-      if (childrenOf(path, files, dirs)) return Promise.resolve(ok<GroupTargetState>("occupied"));
-      return Promise.resolve(ok<GroupTargetState>(dirs.has(path) ? "empty" : "absent"));
+    targetState(path): Promise<Result<OrchestrationTargetState, GroupIoError>> {
+      if (childrenOf(path, files, dirs))
+        return Promise.resolve(ok<OrchestrationTargetState>("occupied"));
+      return Promise.resolve(ok<OrchestrationTargetState>(dirs.has(path) ? "empty" : "absent"));
     },
     makeDir(path) {
       dirs.add(path);

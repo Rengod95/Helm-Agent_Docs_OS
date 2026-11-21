@@ -17,7 +17,7 @@ import { createTestHost, flushMicrotasks, type TestHost } from "../../src/testin
 import { createOperationsHarness } from "../operations/support/harness.ts";
 import {
   assistantStop,
-  makeGroupUnit,
+  makeOrchestrationUnit,
   makeUnit,
   toolResultMessage,
   userText,
@@ -69,7 +69,7 @@ function watch(run: Promise<StepOutcome>): {
 }
 
 /** 핸들러가 아무 결정도 하지 않는 `boundary.step.after` 확장. 값은 `{ entries: [], continue: true }`가 된다 */
-function stepGroupUnit(name: string, counts: { step: number }): ExtensionUnit {
+function stepOrchestrationUnit(name: string, counts: { step: number }): ExtensionUnit {
   return makeUnit({ name, hooks: ["boundary.step.after"] }, (g) => {
     g.on("boundary.step.after", () => {
       counts.step += 1;
@@ -88,7 +88,7 @@ test("a Test run pauses at the next boundary.step.after and resumes with the out
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-a", counts));
+  await t.host.install(stepOrchestrationUnit("pause-a", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
 
@@ -111,26 +111,29 @@ test("the request applies only at the boundary: handlers and loop.turn proceed u
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "pause-b", hooks: ["tool.call.before", "boundary.step.after"] }, (g) => {
-      g.on("tool.call.before", () => {
-        counts.toolCall += 1;
-        return undefined;
-      });
-      g.on("boundary.step.after", () => {
-        counts.step += 1;
-        return { continue: true };
-      });
-      g.drive(async ({ last }) => {
-        if (last !== null) return { do: "yield" };
-        counts.drive += 1;
-        // 같은 상태 판의 같은 기본 키는 재생되므로 호출마다 요청 키를 바꾼다
-        return {
-          do: "turn",
-          input: { kind: "user", content: "go" },
-          requestId: `pause-b:${counts.drive}`,
-        };
-      });
-    }),
+    makeOrchestrationUnit(
+      { name: "pause-b", hooks: ["tool.call.before", "boundary.step.after"] },
+      (g) => {
+        g.on("tool.call.before", () => {
+          counts.toolCall += 1;
+          return undefined;
+        });
+        g.on("boundary.step.after", () => {
+          counts.step += 1;
+          return { continue: true };
+        });
+        g.drive(async ({ last }) => {
+          if (last !== null) return { do: "yield" };
+          counts.drive += 1;
+          // 같은 상태 판의 같은 기본 키는 재생되므로 호출마다 요청 키를 바꾼다
+          return {
+            do: "turn",
+            input: { kind: "user", content: "go" },
+            requestId: `pause-b:${counts.drive}`,
+          };
+        });
+      },
+    ),
   );
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
@@ -179,7 +182,7 @@ test("a held boundary keeps the drive lock: no second drive call, no release, no
   });
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "pause-c", hooks: ["boundary.step.after"] }, (g) => {
+    makeOrchestrationUnit({ name: "pause-c", hooks: ["boundary.step.after"] }, (g) => {
       g.on("boundary.step.after", () => ({ continue: true }));
       g.drive(async ({ last }) => {
         if (last !== null) return { do: "yield" };
@@ -225,7 +228,7 @@ test("step releases the held boundary, and the next boundary holds again", async
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-d1", counts));
+  await t.host.install(stepOrchestrationUnit("pause-d1", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
   expect(control.pause(thread)).toEqual(paused);
@@ -251,7 +254,7 @@ test("step without a held boundary lets exactly one boundary pass, then holds th
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-d2", counts));
+  await t.host.install(stepOrchestrationUnit("pause-d2", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
   expect(control.pause(thread)).toEqual(paused);
@@ -276,7 +279,7 @@ test("a thread that is not a Test run answers not_a_test_run and its boundary is
   const t = await createTestHost();
   const plain = t.newThread();
   const unopened = t.newThread();
-  await t.host.install(stepGroupUnit("pause-e", counts));
+  await t.host.install(stepOrchestrationUnit("pause-e", counts));
   await t.host.openThread(plain);
   const control = testRunControlOf(t.host);
   for (const threadId of [plain, unopened]) {
@@ -309,7 +312,7 @@ test("aborting the signal of a held dispatch releases it, and the request stays 
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-g1", counts));
+  await t.host.install(stepOrchestrationUnit("pause-g1", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
   expect(control.pause(thread)).toEqual(paused);
@@ -335,7 +338,7 @@ test("closing the thread releases a held boundary and drops the Test run marker"
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-g2", counts));
+  await t.host.install(stepOrchestrationUnit("pause-g2", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
   expect(control.pause(thread)).toEqual(paused);
@@ -353,7 +356,7 @@ test("dispose releases a held boundary", async () => {
   const counts = { step: 0 };
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-g3", counts));
+  await t.host.install(stepOrchestrationUnit("pause-g3", counts));
   await t.host.openThread(thread, { testRun: true });
   expect(testRunControlOf(t.host).pause(thread)).toEqual(paused);
 
@@ -370,7 +373,7 @@ test("the gate reads no operations setting: with the trace off it holds and resu
   const harness = await createOperationsHarness({ settings: { trace: { enabled: false } } });
   const t = harness.t;
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-h", counts));
+  await t.host.install(stepOrchestrationUnit("pause-h", counts));
   await t.host.openThread(thread, { testRun: true });
   const control = testRunControlOf(t.host);
   expect(control.pause(thread)).toEqual(paused);
@@ -400,11 +403,15 @@ const PHASES: PhasesDecl = {
 const PhaseStateSchema = Type.Object({ phase: Type.String() });
 
 /** drive 그룹 하나. drive는 처음 상태가 `next`가 아니면 `phase`를 `next`로 한 번 커밋한다 */
-function phaseGroupUnit(name: string, phases: PhasesDecl | undefined, next: string): ExtensionUnit {
+function phaseOrchestrationUnit(
+  name: string,
+  phases: PhasesDecl | undefined,
+  next: string,
+): ExtensionUnit {
   return makeUnit<{ readonly phase: string }>(
     {
       name,
-      group:
+      orchestration:
         phases === undefined
           ? {}
           : { composition: { blocks: [{ id: "machine", stage: "machine", op: "drive" }], phases } },
@@ -423,7 +430,7 @@ function phaseGroupUnit(name: string, phases: PhasesDecl | undefined, next: stri
 test("phase reads the committed phase of the drive-lock holder's group", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-phase", PHASES, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-phase", PHASES, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-phase");
@@ -432,7 +439,7 @@ test("phase reads the committed phase of the drive-lock holder's group", async (
     ok: true,
     value: {
       phase: "build",
-      group: "pause-phase",
+      plugin: "pause-phase",
       seq: 1,
       paused: false,
       lock: { holder: "pause-phase", status: "active", epoch: 1 },
@@ -446,7 +453,7 @@ test("phase reads the committed phase of the drive-lock holder's group", async (
 test("a committed phase outside the declared nodes reads as null, with the group and the rev", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-phase-x", PHASES, "ghost"));
+  await t.host.install(phaseOrchestrationUnit("pause-phase-x", PHASES, "ghost"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-phase-x");
@@ -455,7 +462,7 @@ test("a committed phase outside the declared nodes reads as null, with the group
     ok: true,
     value: {
       phase: null,
-      group: "pause-phase-x",
+      plugin: "pause-phase-x",
       seq: 1,
       paused: false,
       lock: { holder: "pause-phase-x", status: "active", epoch: 1 },
@@ -469,7 +476,7 @@ test("a committed phase outside the declared nodes reads as null, with the group
 test("a drive-lock holder without a phases declaration answers the phase fields null and still shows the lock", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-plain", undefined, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-plain", undefined, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-plain");
@@ -478,7 +485,7 @@ test("a drive-lock holder without a phases declaration answers the phase fields 
     ok: true,
     value: {
       phase: null,
-      group: null,
+      plugin: null,
       seq: null,
       paused: false,
       lock: { holder: "pause-plain", status: "active", epoch: 1 },
@@ -492,7 +499,7 @@ test("a drive-lock holder without a phases declaration answers the phase fields 
 test("phase shows the pause request while it is held and clears it on resume", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-phase-held", PHASES, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-phase-held", PHASES, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   const control = testRunControlOf(t.host);
@@ -511,7 +518,7 @@ test("a Test run without a drive-lock holder answers all null and lock none", as
     ok: true,
     value: {
       phase: null,
-      group: null,
+      plugin: null,
       seq: null,
       paused: false,
       lock: { holder: null, status: "none", epoch: null },
@@ -527,7 +534,7 @@ test("a Test run without a drive-lock holder answers all null and lock none", as
 test("a Test run logs one boundary per boundary.step.after, with the rev and committed phase at that point and paused where the request held it", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-bounds", PHASES, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-bounds", PHASES, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-bounds");
@@ -547,7 +554,7 @@ test("a Test run logs one boundary per boundary.step.after, with the rev and com
     ok: true,
     value: {
       phase: "build",
-      group: "pause-bounds",
+      plugin: "pause-bounds",
       seq: 1,
       paused: false,
       lock: { holder: "pause-bounds", status: "active", epoch: 1 },
@@ -565,7 +572,7 @@ test("a Test run logs one boundary per boundary.step.after, with the rev and com
 test("a group without composition phases logs phase null and still the committed rev", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-bounds-plain", undefined, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-bounds-plain", undefined, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-bounds-plain");
@@ -575,7 +582,7 @@ test("a group without composition phases logs phase null and still the committed
     ok: true,
     value: {
       phase: null,
-      group: null,
+      plugin: null,
       seq: null,
       paused: false,
       lock: { holder: "pause-bounds-plain", status: "active", epoch: 1 },
@@ -589,14 +596,14 @@ test("a group without composition phases logs phase null and still the committed
 test("a Test run without a drive-lock holder logs seq 0 and phase null", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(stepGroupUnit("pause-bounds-free", { step: 0 }));
+  await t.host.install(stepOrchestrationUnit("pause-bounds-free", { step: 0 }));
   await t.host.openThread(thread, { testRun: true });
   await stepEnd(t, thread);
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
     value: {
       phase: null,
-      group: null,
+      plugin: null,
       seq: null,
       paused: false,
       lock: { holder: null, status: "none", epoch: null },
@@ -633,7 +640,7 @@ async function passOneBoundary(
 test("the boundary log keeps the newest 200 entries, oldest first", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
-  await t.host.install(phaseGroupUnit("pause-bounds-cap", PHASES, "build"));
+  await t.host.install(phaseOrchestrationUnit("pause-bounds-cap", PHASES, "build"));
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   t.host.startDrive(thread, "pause-bounds-cap");
@@ -652,7 +659,7 @@ test("the boundary log keeps the newest 200 entries, oldest first", async () => 
     ok: true,
     value: {
       phase: "build",
-      group: "pause-bounds-cap",
+      plugin: "pause-bounds-cap",
       seq: 1,
       paused: false,
       lock: { holder: "pause-bounds-cap", status: "active", epoch: 1 },
@@ -667,7 +674,7 @@ test("a thread that is not a Test run logs no boundaries and phase still answers
   const counts = { step: 0 };
   const t = await createTestHost();
   const plain = t.newThread();
-  await t.host.install(stepGroupUnit("pause-bounds-plain-thread", counts));
+  await t.host.install(stepOrchestrationUnit("pause-bounds-plain-thread", counts));
   await t.host.openThread(plain);
   await stepEnd(t, plain);
   await stepEnd(t, plain);

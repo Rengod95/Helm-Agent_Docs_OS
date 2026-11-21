@@ -64,11 +64,11 @@ describe("설치 그룹의 흐름 보기(읽기 전용)", () => {
 
   test("읽기 전용 문장과 고치기 단추가 있고, 편집 자리는 없다", () => {
     const html = flowHtml(null);
-    expect(html).toContain("설치된 그룹은 고칠 수 없어요. 복제해서 초안으로 고쳐요");
+    expect(html).toContain("설치된 플러그인은 고칠 수 없어요. 복제해서 초안으로 고쳐요");
     expect(html).toContain("초안으로 고치기");
     expect(html).not.toContain("단계 더하기");
     expect(html).not.toContain("노드 지우기");
-    expect(html).not.toContain("이 초안으로 새 그룹 만들기");
+    expect(html).not.toContain("이 초안으로 새 플러그인 만들기");
   });
 
   test("단계 선언이 없으면 안내 문장이고 고칠 것도 없다", () => {
@@ -95,7 +95,7 @@ describe("초안의 흐름 보기(편집)", () => {
     const html = flowHtml(PHASES);
     expect(html).toContain("단계 더하기");
     expect(html).toContain("단계를 고르면 여기서 고쳐요.");
-    expect(html).toContain("이 초안으로 새 그룹 만들기");
+    expect(html).toContain("이 초안으로 새 플러그인 만들기");
     expect(html).toContain("되돌리기");
     expect(html).not.toContain("초안으로 고치기");
     expect(html).not.toContain("설치된 그룹은 고칠 수 없어요");
@@ -116,7 +116,9 @@ describe("초안의 흐름 보기(편집)", () => {
       </CommandsContext.Provider>,
     );
     expect(html).toContain("엔진에 연결되면 검사하고 만들 수 있어요.");
-    const make = html.split("<button").find((part) => part.includes("이 초안으로 새 그룹 만들기"));
+    const make = html
+      .split("<button")
+      .find((part) => part.includes("이 초안으로 새 플러그인 만들기"));
     expect(make).toContain("disabled");
   });
 });
@@ -335,6 +337,6 @@ describe("시험 실행의 노드 상태", () => {
     );
     const start = html.split("<button").find((part) => part.includes("테스트 대화에서 돌려 보기"));
     expect(start).toContain("disabled");
-    expect(html).toContain("설치되지 않은 그룹이라 지금은 돌릴 수 없어요.");
+    expect(html).toContain("설치되지 않은 플러그인이라 지금은 돌릴 수 없어요.");
   });
 });

@@ -6,7 +6,7 @@ import { MAX_CHAINED_REINVOKES } from "../../src/primitives/lease.ts";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 /** 상태가 없는 그룹의 명령. S가 never인 명령은 어떤 상태 타입의 단계 함수에도 그대로 들어간다 */
 type Command = DriveCommand<never>;
@@ -73,7 +73,7 @@ test("lease is granted once the thread is open and the drive function runs", asy
   const { t, thread } = await setup();
   const calls: number[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "drv-basic" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-basic" }, (g) => {
       g.drive(({ last }) => {
         // 한 호출의 첫 단계(last가 null)만 센다. 그 뒤 단계는 명령 결과를 받는다
         if (last === null) calls.push(1);
@@ -101,7 +101,7 @@ test("reinvoke replays committed turn", async () => {
   const { t, thread } = await setup();
   const outcomes: boolean[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "drv-replay" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-replay" }, (g) => {
       g.drive(({ last }) => {
         if (last === null) return Promise.resolve(turnOf("go"));
         outcomes.push(true);
@@ -129,7 +129,7 @@ test("idle twice releases", async () => {
   const { t, thread } = await setup();
   let calls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-idle" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-idle" }, (g) => {
       g.drive(() => {
         calls += 1;
         return Promise.resolve(yieldOf());
@@ -161,7 +161,7 @@ test("throw releases and keeps handlers", async () => {
   const handlerCalls: string[] = [];
   let driveCalls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-throw", hooks: ["boundary.settle.after"] }, (g) => {
+    makeOrchestrationUnit({ name: "drv-throw", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", () => {
         handlerCalls.push("handler");
       });
@@ -194,7 +194,7 @@ test("third turn rejected at turns 2", async () => {
   const { t, thread } = await setup();
   let issued = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-budget" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-budget" }, (g) => {
       // 단계마다 turn을 하나씩 낸다. 세 번째 시도는 예산이 없어 거부되고 임대가 budget으로 반납된다
       g.drive(
         () => {
@@ -218,7 +218,7 @@ test("turn is rejected once maxTokens is spent (default usage 10 tokens per turn
   const { t, thread } = await setup();
   let issued = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-tokens" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-tokens" }, (g) => {
       g.drive(
         () => {
           issued += 1;
@@ -240,7 +240,7 @@ test("turn is rejected once maxTokens is spent (default usage 10 tokens per turn
 test("limits clamp to settings", async () => {
   const { t, thread } = await setup({ settings: { driveLimits: { maxTurns: 5 } } });
   await t.host.install(
-    makeGroupUnit({ name: "drv-clamp" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-clamp" }, (g) => {
       g.drive(() => Promise.resolve(yieldOf()), { limits: { maxTurns: 10, maxTokens: 100 } });
     }),
   );
@@ -258,7 +258,7 @@ async function acquiredLimits(
 ): Promise<unknown> {
   const { t, thread } = await setup(settings === undefined ? {} : { settings });
   await t.host.install(
-    makeGroupUnit({ name: "drv-limits" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-limits" }, (g) => {
       g.drive(
         () => Promise.resolve(yieldOf()),
         requested === undefined ? undefined : { limits: requested },
@@ -305,13 +305,13 @@ test("the defaults and the ceiling are read for the thread that receives the lea
         asked.push(`ceiling:${threadId}`);
         return threadId === state.quiet ? { maxTurns: 1 } : {};
       },
-      driveRequiresGroup: () => true,
+      driveRequiresOrchestration: () => true,
       driveMaxDepth: () => 8,
       capabilityProviders: () => ({}),
     },
   });
   await t.host.install(
-    makeGroupUnit({ name: "drv-session-scope" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-session-scope" }, (g) => {
       g.drive(() => Promise.resolve(yieldOf()));
     }),
   );
@@ -350,7 +350,7 @@ test("with two drive groups enabled, only the group a start request names gets t
     ] as const,
     async ([name, loadIndex]) => {
       await t.host.install(
-        makeGroupUnit({ name, loadIndex }, (g) => {
+        makeOrchestrationUnit({ name, loadIndex }, (g) => {
           g.drive(() => {
             calls.push(name);
             return Promise.resolve(yieldOf());
@@ -379,10 +379,10 @@ test("drive registration rules", async () => {
   const codes: string[] = [];
   const attempt = (
     name: string,
-    run: (g: Parameters<Parameters<typeof makeGroupUnit>[1]>[0]) => void,
+    run: (g: Parameters<Parameters<typeof makeOrchestrationUnit>[1]>[0]) => void,
   ) =>
     t.host.install(
-      makeGroupUnit({ name }, (g) => {
+      makeOrchestrationUnit({ name }, (g) => {
         try {
           run(g);
         } catch (error) {
@@ -405,7 +405,7 @@ test("a drive that only commits state is called again with the new state at each
   const { t, thread } = await setup();
   const seen: number[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "drv-commit-only", def: counterDef }, (g) => {
+    makeOrchestrationUnit({ name: "drv-commit-only", def: counterDef }, (g) => {
       g.drive(({ state }) => {
         seen.push(state.n);
         return Promise.resolve(state.n < 3 ? commitOf(state.n + 1) : yieldOf());
@@ -433,7 +433,7 @@ test("a drive whose commands have no effect is called again at most the chain li
   const { t, thread } = await setup();
   const seen: number[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "drv-noop-forever", def: counterDef }, (g) => {
+    makeOrchestrationUnit({ name: "drv-noop-forever", def: counterDef }, (g) => {
       g.drive(({ state }) => {
         seen.push(state.n);
         return Promise.resolve(handoffOf());
@@ -460,7 +460,7 @@ test("loop.ask without the approval port is refused as port_unavailable and the 
   const { t, thread } = await setup();
   const results: StepResult[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "drv-ask" }, (g) => {
+    makeOrchestrationUnit({ name: "drv-ask" }, (g) => {
       g.drive(({ last }) => {
         if (last === null) return Promise.resolve(askOf());
         results.push(last);

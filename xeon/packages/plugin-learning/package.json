@@ -1,0 +1,28 @@
+{
+  "name": "@fresnel/plugin-learning",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "typecheck": "tsc -b",
+    "test": "bash ../../scripts/test-pkg.sh",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/orchestration-sdk": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@fresnel/ext-host": "workspace:*",
+    "@types/bun": "catalog:"
+  },
+  "fresnel": {
+    "layer": "L3",
+    "domain": "learning"
+  }
+}

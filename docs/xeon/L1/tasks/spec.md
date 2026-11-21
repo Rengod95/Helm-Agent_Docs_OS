@@ -40,7 +40,7 @@ binds: [xeon/packages/core-tasks/**]
 - [결정] 커널(L1-a/b/f/g)은 직접 구현하고 durable `docs/spec.md`를 설계 근거로 인용한다. 소유 트리 1972-2200, requestId 2288-2301(`_research/foundation-plan.md` §1 표 1번).
 - [결정] DI는 Cordis 하나이고 Cordis는 ext-host 뒤에 둔다. core-tasks는 Cordis를 import하지 않는다(ADR-0002 §3 3·4번).
 - [결정] 훅은 on, post, drive, scope 4연산이다. `post`는 입력 큐에 넣고, 같은 `requestId`는 한 번만 들어간다(adr.0007 §3.1).
-- [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 학습 그룹의 검토 포크는 백그라운드 위임으로 돈다(`eng.context-map.design` §3 협력 규칙 4).
+- [결정] Helm은 L3 기본 플러그인이다. 학습 플러그인도 L3 기본 플러그인이며 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 학습 플러그인의 검토 포크는 백그라운드 위임으로 돈다(`eng.context-map.design` §3 협력 규칙 4).
 - 구성요소 판정: 범위 트리 자체, 취소 전파 설계, 병렬 도구 실행 그대로, 동시 실행 상한 자체, 내구 입력 큐 설계(`_research/packages.md` §4.3 L1-a 행).
 
 ## 2. 용어
@@ -436,7 +436,7 @@ abort(target, reason, { background }):
 
 ### 4.3 백그라운드 경계
 
-- 백그라운드 위임(L1-g, 학습 그룹의 검토 포크)은 경계다. 보통 취소와 정착 대기는 경계를 건너지 않는다(`eng.transactions.design` §6.1 끝, durable spec 2014-2017).
+- 백그라운드 위임(L1-g, 학습 플러그인의 검토 포크)은 경계다. 보통 취소와 정착 대기는 경계를 건너지 않는다(`eng.transactions.design` §6.1 끝, durable spec 2014-2017).
 - 경계를 넘는 경우는 둘이다. 그 노드를 직접 `abort`하거나, 위쪽 노드를 `{ background: true }`로 `abort`할 때다(durable spec 2027-2033).
 - `thread` 노드의 `settle()`도 백그라운드 자식을 기다리지 않는다. 엔진 종료(`close()`)는 백그라운드를 포함해 모두에 신호를 보내고 의도는 쓰지 않는다.
 

@@ -68,7 +68,7 @@ function driveUnit(
       version: "0.1.0",
       entry: "./index.ts",
       plugins: [{ layer: "L3", hooks: [], drives: true }],
-      group: {},
+      orchestration: {},
       trust: { level: "builtin" },
     }),
     entry,

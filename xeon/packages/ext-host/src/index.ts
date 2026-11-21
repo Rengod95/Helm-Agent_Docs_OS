@@ -62,6 +62,7 @@ export {
   type EventPrefixQuery,
   type EventQueryError,
   // primitives §3.7, §3.8
+  SETTINGS_READ_PORT,
   capabilityDefTable,
   type CapabilityDefLookup,
   capabilityServiceName,

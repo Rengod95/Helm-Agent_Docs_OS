@@ -47,7 +47,7 @@ function writeDrivePlugin(home: EngineHome): void {
       purpose: "Drive that stays on the stack until told to finish",
       defaultEnabled: false,
       entry: "./src/index.ts",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "plugin", hooks: [], drives: true }],
     }),
   );

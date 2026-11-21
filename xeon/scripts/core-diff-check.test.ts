@@ -17,13 +17,15 @@ test("protected directories match by segment and wildcard", () => {
   );
   expect(isProtected("xeon/packages/core/x.ts", "xeon/packages/core-*/")).toBe(false);
   expect(isProtected("xeon/packages/core-loop", "xeon/packages/core-*/")).toBe(false);
-  expect(isProtected("xeon/packages/group-learning/src/a.ts", "xeon/packages/core-*/")).toBe(false);
+  expect(isProtected("xeon/packages/plugin-learning/src/a.ts", "xeon/packages/core-*/")).toBe(
+    false,
+  );
 });
 
 test("violations keeps only protected paths in order", () => {
   expect(
     violations([
-      "xeon/packages/group-learning/src/index.ts",
+      "xeon/packages/plugin-learning/src/index.ts",
       "xeon/packages/core-agents/src/a.ts",
       "docs/xeon/L3/learning/spec.md",
       "xeon/packages/platform-os/src/b.ts",
@@ -74,13 +76,13 @@ function write(dir: string, files: Record<string, string>): void {
 }
 
 test("a change set outside the protected paths is clean", async () => {
-  const dir = await repoWith({ "xeon/packages/group-learning/src/index.ts": "x\n" });
+  const dir = await repoWith({ "xeon/packages/plugin-learning/src/index.ts": "x\n" });
   expect(await checkCoreDiff(dir, "HEAD~1", "HEAD")).toEqual({ kind: "clean", changed: 1 });
 });
 
 test("a change set that touches a protected path is reported with the path", async () => {
   const dir = await repoWith({
-    "xeon/packages/group-learning/src/index.ts": "x\n",
+    "xeon/packages/plugin-learning/src/index.ts": "x\n",
     "xeon/packages/contracts/src/a.ts": "changed\n",
     "xeon/packages/core-loop/src/b.ts": "b\n",
   });

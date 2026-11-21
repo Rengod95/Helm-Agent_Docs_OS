@@ -99,7 +99,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
-import type { GroupServiceWithUsage } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/orchestration-sdk";
 import {
   openStore,
   storePlugin,
@@ -115,7 +115,10 @@ import {
   scheduleUnit,
   unitOfModule,
 } from "./assembly/extensions.ts";
-import { isGroupCatalogManifest } from "./assembly/groups.ts";
+import {
+  createHostOrchestrationService,
+  isOrchestrationCatalogManifest,
+} from "./assembly/groups.ts";
 import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
 import {
   createHostSchedule,
@@ -168,7 +171,7 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
-import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
+import { BUILTIN_ORCHESTRATION_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
@@ -218,7 +221,7 @@ import {
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
-import { GUIDE_GROUP_NAME } from "@fresnel/group-guide";
+import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/plugin-guide";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -700,6 +703,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     methodRun: operations.runMethod,
     onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
+    // `fresnel.settings` 포트: 모든 플러그인의 settingValue와 플러그인 호출 경로 판정이 읽는다
+    settingValue: (key) => settings.value(key),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
     // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)
@@ -1100,8 +1105,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 서비스가 올라온 뒤에 올리는 단위(예약). 확장 읽기 목록이 내장 단위와 함께 읽는다 */
     const lateUnits: ExtensionUnit[] = [];
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
-    /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
-    const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    /** 설치된 그룹(L3 매니페스트)과 로드 순서. 단위 목록과 로더 보고가 채워진 뒤에 읽는다 */
+    const groupEntries = (): readonly OrchestrationCatalogEntry[] => [
+      ...unitList.units
+        .filter((unit) => isOrchestrationCatalogManifest(unit.manifest))
+        .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+      ...externalGroups.filter((entry) => isOrchestrationCatalogManifest(entry.manifest)),
+    ];
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1249,6 +1259,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
       }),
     });
+    // 그룹 서비스(`fresnel.orchestration`): 확장 읽기의 `group.*`가 읽는다. 확장 단위가 아니라 조립 루트가 만든다
+    const orchestrationService = createHostOrchestrationService({
+      ext,
+      settings,
+      currentThread: () => portsHandle?.activeThread() ?? null,
+      groups: groupEntries,
+      toolOwnerIn: toolVisibility.toolOwnerIn,
+    });
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
@@ -1268,7 +1286,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       inSet: (threadId) => {
         if (threadId === undefined || !isId("thr", threadId)) return false;
         const view = portsHandle?.ports.m4.pluginSet.port.resolve(threadId);
-        return view?.plugins.includes(GUIDE_GROUP_NAME) ?? false;
+        return view?.plugins.includes(GUIDE_ORCHESTRATION_NAME) ?? false;
       },
     });
     const units: ExtensionUnit[] = [
@@ -1328,23 +1346,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
-          // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
-          onEnabled: (id) => {
-            operations.autoDisabler.clearLedger(`ext:${id}`);
-            // 자동 끄기 장부를 비우면 멈춘 확장이 다시 E(T)에 들 수 있다(M5c §4.1.12)
-            portsHandle?.ports.m4.pluginSet.recomputeAll();
-          },
-          onService: (service) => {
-            groupServiceSlot.current = service;
-          },
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
-          entries: () => [
-            ...unitList.units
-              .filter((unit) => isGroupCatalogManifest(unit.manifest))
-              .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
-            ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
-          ],
+          entries: groupEntries,
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
@@ -1379,9 +1383,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const installable = units.map((unit): ExtensionUnit => {
       // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다). 대화별 켜짐은 E(T)가 정한다
       const initialEnabled =
-        unit.builtin && unit.manifest.name === GUIDE_GROUP_NAME
+        unit.builtin && unit.manifest.name === GUIDE_ORCHESTRATION_NAME
           ? guideWiring.forced()
-          : unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
+          : unit.builtin && BUILTIN_ORCHESTRATION_NAMES.includes(unit.manifest.name)
             ? enabledOfBuiltin(unit.manifest.name)
             : undefined;
       return initialEnabled === undefined ? unit : { ...unit, initialEnabled };
@@ -1649,7 +1653,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
-      pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
+      pluginsForced: () => (guideWiring.forced() ? [GUIDE_ORCHESTRATION_NAME] : []),
       // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
       ...(options.pluginHost?.self === undefined ? {} : { migrationSelf: options.pluginHost.self }),
       ...(fileRewind === undefined ? {} : { fileRewind: { service: fileRewind, newRewindId } }),
@@ -1726,7 +1730,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         extensions: extensionRecords,
         loader: () => external.loader,
         now: () => clock.now(),
-        groupService: () => groupServiceSlot.current,
+        orchestrationService: () => orchestrationService,
         toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },

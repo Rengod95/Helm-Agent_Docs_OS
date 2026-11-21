@@ -32,8 +32,8 @@ import type {
   ExtListEntry,
   ExtUiEntry,
   ExtVersionsResult,
-  GroupMetricsResult,
-  GroupStatusWire,
+  OrchestrationMetricsResult,
+  OrchestrationStatusWire,
   HookEntry,
   HostClientView,
   NotifyDeliveredParams,
@@ -866,7 +866,9 @@ export interface MeasureCommands {
   /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
   daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
   /** `group.promotion`: 승격 보고(읽기 전용). 대화가 없으면 인자 없이 보내 호스트가 가장 최근 대화를 고른다 */
-  promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
+  promotion(
+    threadId: string | null,
+  ): Promise<Result<WireResult<"orchestration.promotion">, CommandError>>;
 }
 
 /** 확장이 소유한 저장 테이블 한 줄 */
@@ -933,7 +935,7 @@ export interface WorkbenchCommands {
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */
-  groups(threadId: ThreadId): Promise<Result<readonly GroupStatusWire[], CommandError>>;
+  groups(threadId: ThreadId): Promise<Result<readonly OrchestrationStatusWire[], CommandError>>;
   /** `drive.frames { threadId }`: 대화의 주도권 스택 프레임(아래에서 위, 맨 아래는 코어 루프) */
   driveFrames(threadId: ThreadId): Promise<Result<readonly DriveFrameView[], CommandError>>;
   /**
@@ -1040,7 +1042,10 @@ export interface WorkbenchCommands {
    */
   settings(name: string, threadId?: ThreadId): Promise<Result<ExtSettingsRead, CommandError>>;
   /** `group.metrics { id, threadId? }`: 그룹 하나의 계측. 계측이 꺼져 있으면 `metrics`가 null이다 */
-  metrics(id: string, threadId?: ThreadId): Promise<Result<GroupMetricsResult, CommandError>>;
+  metrics(
+    id: string,
+    threadId?: ThreadId,
+  ): Promise<Result<OrchestrationMetricsResult, CommandError>>;
   /** `ext.ui.list`(옛 이름 `ext.view.list`): 확장이 기여한 화면 항목 전부. 확장마다 거르는 일은 화면이 한다 */
   views(): Promise<Result<readonly ExtUiEntry[], CommandError>>;
 }

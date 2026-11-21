@@ -20,14 +20,14 @@ const plugin = {
   layer: "L3",
   status: "enabled",
   thread: "enabling",
-  inGroup: true,
+  inOrchestration: true,
   enabledSource: "profile",
 };
 const entry = {
   name: "learning",
   displayName: "Learning",
   layer: "L3",
-  isGroup: true,
+  isOrchestration: true,
   version: "1.2.0",
   location: "/home/u/.fresnel/plugins/learning",
   origin: "project",
@@ -44,7 +44,7 @@ const entry = {
       id: "review",
       layer: "L2",
       status: "disabled",
-      inGroup: false,
+      inOrchestration: false,
     },
   ],
   diagnostics: [{ severity: "warning", code: "x", message: "m", file: "a.ts", line: 3 }],
@@ -82,7 +82,7 @@ describe("M4 ext read methods", () => {
   });
 
   test("ext.list rejects the old shape: kind, scope, pointCount, no plugins", () => {
-    const { plugins: _plugins, hookCount: _hookCount, isGroup: _isGroup, ...rest } = entry;
+    const { plugins: _plugins, hookCount: _hookCount, isOrchestration: _isGroup, ...rest } = entry;
     const oldShape = { ...rest, kind: "plugin", scope: "enabling", pointCount: 2 };
     expect(parse(WIRE_METHODS["ext.list"].result, { extensions: [oldShape] }).ok).toBe(false);
     expect(
@@ -214,7 +214,8 @@ describe("M4 ext read methods", () => {
       parse(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersions: "1.0.1" }).ok,
     ).toBe(false);
     expect(
-      parse(WIRE_METHODS["group.metrics"].result, { id: "g", metrics: null, since: null }).ok,
+      parse(WIRE_METHODS["orchestration.metrics"].result, { id: "g", metrics: null, since: null })
+        .ok,
     ).toBe(true);
   });
 
@@ -246,7 +247,7 @@ describe("M4 ext read methods", () => {
         },
       ],
     });
-    roundTrip(WIRE_METHODS["group.metrics"].result, {
+    roundTrip(WIRE_METHODS["orchestration.metrics"].result, {
       id: "g",
       metrics: null,
       since: "2026-11-03T00:00:00.000Z",

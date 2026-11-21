@@ -33,7 +33,11 @@ import {
 } from "../operations/trace-buffer.ts";
 import { createBoundaryLog, type BoundaryLog } from "./boundary-log.ts";
 import { createCapabilityBindings, type CapabilityBindings } from "./bindings.ts";
-import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
+import {
+  EMPTY_CAPABILITY_DEFS,
+  SETTINGS_READ_PORT,
+  type CapabilityDefLookup,
+} from "./capability-guard.ts";
 import {
   createEventQuery,
   toolOwnerOf,
@@ -127,6 +131,11 @@ export interface ExtHostDeps {
   readonly hasQueuedInput?: (threadId: ThreadId) => boolean;
   /** x.primitives.* 설정 값 읽기 */
   readonly settings: PrimitivesSettingsSource;
+  /**
+   * 설정 키(`l3.helm.driveLimits` 같은 전체 키)의 유효 값 읽기. 조립 루트가 설정 엔진에 연결해 넘긴다.
+   * 있으면 호스트가 `fresnel.settings` 포트로 낸다(모든 플러그인의 `settingValue`와 `l1.tools.pluginCalls` 판정이 읽는다). 없으면 포트가 없다
+   */
+  readonly settingValue?: (key: string) => unknown;
   /** 진단 출력. 확장 오류, 경고, 포트 부재 */
   readonly report: (diagnostic: ExtDiagnostic) => void;
   /** 참이면 페이로드·패치·결정 스키마 검사와 페이로드 동결을 켠다. 기본 참 */
@@ -158,7 +167,7 @@ export interface ExtensionUnit {
   readonly entry: ExtensionEntry;
   /** 로드 순번. 0부터. 핸들러 정렬의 둘째 키 */
   readonly loadIndex: number;
-  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
+  /** 내장 패키지(core-*, cap-*, plugin-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
   readonly builtin: boolean;
   /**
    * 로더가 정한 유효 신뢰 등급(X.loading-trust §4.6: 설치 위치 상한과 요청의 낮은 쪽). 매니페스트의 요청을 그대로 넘기지 않는다.
@@ -529,7 +538,7 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
       // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
       const lease = host.leaseOf(threadId);
       const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
-      const base: Omit<TestRunPhaseResult, "phase" | "group" | "seq"> = {
+      const base: Omit<TestRunPhaseResult, "phase" | "plugin" | "seq"> = {
         paused: stepPause.requested(threadId),
         lock:
           lease === null
@@ -539,14 +548,14 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
         traceEnabled: trace.enabled(),
         boundaries: boundaryLog.entriesOf(threadId),
       };
-      const phases = record?.manifest.group?.composition?.phases;
+      const phases = record?.manifest.orchestration?.composition?.phases;
       if (record === undefined || phases === undefined) {
-        return ok({ ...base, phase: null, group: null, seq: null });
+        return ok({ ...base, phase: null, plugin: null, seq: null });
       }
       return ok({
         ...base,
         phase: declaredPhaseOf(phases, state.docOf(threadId, record.id)),
-        group: record.extension,
+        plugin: record.extension,
         seq: state.revOf(threadId, record.id),
       });
     },
@@ -669,7 +678,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     if (!testRunThreads.has(threadId)) return;
     const lease = host.leaseOf(threadId);
     const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
-    const phases = record?.manifest.group?.composition?.phases;
+    const phases = record?.manifest.orchestration?.composition?.phases;
     boundaryLog.note(threadId, {
       // 보유자 기록이 없으면 읽을 상태 판이 없어 revision은 0이고 단계는 null이다
       seq: record === undefined ? 0 : state.revOf(threadId, record.id),
@@ -834,6 +843,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     inject: [],
     apply: (fiber) => {
       fiber.provide(ExtHostPortKey.name, host);
+      const readSetting = deps.settingValue;
+      if (readSetting !== undefined) fiber.provide(SETTINGS_READ_PORT.name, { value: readSetting });
       return Promise.resolve();
     },
   });
@@ -1019,7 +1030,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     // 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: F.extensions.spec §4.5]
     const memberIds = new Set(
       pluginsOf(installed.manifest)
-        .filter((entry) => entry.inGroup)
+        .filter((entry) => entry.inOrchestration)
         .map((entry) => entry.registrationId),
     );
     if (

@@ -99,7 +99,7 @@ interface LayoutEntry {
   package?: string;
   domains?: string[];
   path?: string;
-  /** Per-domain path overrides when one template does not fit (e.g. L3 group-sdk, helm). */
+  /** Per-domain path overrides when one template does not fit (e.g. L3 orchestration-sdk, helm). */
   paths?: Record<string, string>;
   docs?: string[];
 }

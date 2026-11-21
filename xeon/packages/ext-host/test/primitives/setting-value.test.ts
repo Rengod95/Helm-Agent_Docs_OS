@@ -62,3 +62,20 @@ test("without the settings port every key reads as undefined", async () => {
   const seen = await readAll(false, false);
   expect(Object.values(seen).every((value) => value === undefined)).toBe(true);
 });
+
+test("the host provides the settings port itself, with no provider plugin loaded", async () => {
+  const t = await createTestHost({ settingValue: (key) => VALUES[key] });
+  const seen: Record<string, unknown> = {};
+  await t.host.install(
+    makeUnit({ name: "mine", builtin: true }, (g) => {
+      seen["ext.mine.limit"] = hostOf(g).settingValue("ext.mine.limit");
+      seen["l3.helm.driveLimits"] = hostOf(g).settingValue("l3.helm.driveLimits");
+      seen["unknown.key"] = hostOf(g).settingValue("unknown.key");
+    }),
+  );
+  expect(seen).toEqual({
+    "ext.mine.limit": 7,
+    "l3.helm.driveLimits": { maxTurns: 2 },
+    "unknown.key": undefined,
+  });
+});

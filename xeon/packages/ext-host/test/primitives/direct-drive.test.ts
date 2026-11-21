@@ -4,7 +4,7 @@ import type { DriveCommand } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeOrchestrationUnit } from "./fixtures/support.ts";
 
 // X.primitives.spec §4.4.3, §4.6.6: 명령·도구가 연 ambient의 상태 커밋도 drive 재호출을 일으킨다
 
@@ -43,7 +43,7 @@ async function boot(
   const thread = t.newThread();
   const seen: number[] = [];
   await t.host.install(
-    makeGroupUnit(
+    makeOrchestrationUnit(
       {
         name: "cmd-drive",
         def: { state: { schema: CounterSchema, initial: { n: 0 }, version: 1 } },

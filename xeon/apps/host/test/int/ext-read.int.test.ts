@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { DriveFrameView, TraceReadPort } from "@fresnel/contracts/extensions";
-import type { GroupStatus } from "@fresnel/contracts/services";
+import type { OrchestrationStatus } from "@fresnel/contracts/services";
 import type { ExtListEntry, WireMethodName } from "@fresnel/contracts/wire";
 import {
   createExtReadPort,
@@ -32,9 +32,9 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "ext.health",
   "ext.timings",
   "ext.bindings",
-  "group.list",
-  "group.metrics",
-  "group.promotion",
+  "orchestration.list",
+  "orchestration.metrics",
+  "orchestration.promotion",
   "drive.frames",
   "hooks.list",
   "hooks.disableConfirm",
@@ -73,7 +73,7 @@ const ALPHA_ENTRY: ExtListEntry = {
   name: "alpha",
   displayName: "Alpha",
   layer: "L2",
-  isGroup: false,
+  isOrchestration: false,
   version: "1.2.0",
   location: "/ext/alpha",
   origin: "user",
@@ -87,7 +87,7 @@ const ALPHA_ENTRY: ExtListEntry = {
       registrationId: "alpha",
       layer: "L2",
       status: "enabled",
-      inGroup: false,
+      inOrchestration: false,
       enabledSource: "none",
     },
   ],
@@ -123,7 +123,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       name: "team",
       displayName: "team",
       layer: "L3",
-      isGroup: true,
+      isOrchestration: true,
       version: "0.3.0",
       location: "/ext/team",
       origin: "user",
@@ -137,7 +137,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
           registrationId: "team",
           layer: "L3",
           status: "enabled",
-          inGroup: true,
+          inOrchestration: true,
           enabledSource: "none",
         },
         {
@@ -145,7 +145,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
           id: "scout",
           layer: "L2",
           status: "disabled",
-          inGroup: true,
+          inOrchestration: true,
           enabledSource: "none",
         },
       ],
@@ -161,7 +161,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       registrationId: "team",
       layer: "L3",
       status: "enabled",
-      inGroup: true,
+      inOrchestration: true,
       enabledSource: "none",
     },
     {
@@ -170,7 +170,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       layer: "L2",
       status: "disabled",
       thread: "enabled",
-      inGroup: true,
+      inOrchestration: true,
       enabledSource: "profile",
     },
   ]);
@@ -464,7 +464,7 @@ test("ext.bindings: Registration-level edges, who provides and who uses each cap
   await connection.close();
 });
 
-const TEAM_GROUP: GroupStatus = {
+const TEAM_GROUP: OrchestrationStatus = {
   id: "team",
   displayName: "Team",
   scope: "enabled",
@@ -472,7 +472,7 @@ const TEAM_GROUP: GroupStatus = {
   usesDrive: true,
   drive: "holder",
   leaseId: "lease_1",
-  lastError: { kind: "group.driveThrew", message: "boom", atSeq: 3 },
+  lastError: { kind: "orchestration.driveThrew", message: "boom", atSeq: 3 },
   recordKinds: [],
   metrics: { denies: 1, posts: 2, spawns: 3, delegates: 4, costUsd: 0.5, leaseMs: 900 },
 };
@@ -497,7 +497,8 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   };
   const { sources } = createRecordedSources({
     groups: () => [TEAM_GROUP],
-    groupMetrics: (id) => Promise.resolve(id === "team" ? full : id === "quiet" ? null : undefined),
+    orchestrationMetrics: (id) =>
+      Promise.resolve(id === "team" ? full : id === "quiet" ? null : undefined),
     promotion: (threadIds) =>
       Promise.resolve({
         throughSeq: 40,
@@ -507,7 +508,7 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   });
   const connection = connect(sources);
   await connection.request("host.hello", HELLO_PARAMS);
-  expect(await connection.request("group.list", {})).toEqual({
+  expect(await connection.request("orchestration.list", {})).toEqual({
     groups: [
       {
         id: "team",
@@ -516,13 +517,16 @@ test("group.list, group.metrics, group.promotion pass the group service values t
         pendingToggle: null,
         usesDrive: true,
         drive: "holder",
-        lastError: { kind: "group.driveThrew", message: "boom" },
+        lastError: { kind: "orchestration.driveThrew", message: "boom" },
         metrics: { denies: 1, posts: 2, spawns: 3, delegates: 4, costUsd: 0.5, leaseMs: 900 },
       },
     ],
   });
   expect(
-    await connection.request("group.metrics", { id: "team", since: "2026-11-01T00:00:00.000Z" }),
+    await connection.request("orchestration.metrics", {
+      id: "team",
+      since: "2026-11-01T00:00:00.000Z",
+    }),
   ).toMatchObject({
     id: "team",
     metrics: full,
@@ -530,20 +534,22 @@ test("group.list, group.metrics, group.promotion pass the group service values t
     // 이벤트에서 접는 값(임대, 토큰, 비용)만 since를 지킨다
     sinceIgnoredBy: expect.not.arrayContaining(["leases", "leaseMs"]),
   });
-  const unfiltered = await connection.request("group.metrics", { id: "team" });
+  const unfiltered = await connection.request("orchestration.metrics", { id: "team" });
   expect(unfiltered.sinceIgnoredBy).toEqual([]);
-  expect(await connection.request("group.metrics", { id: "quiet" })).toEqual({
+  expect(await connection.request("orchestration.metrics", { id: "quiet" })).toEqual({
     id: "quiet",
     metrics: null,
     since: null,
     sinceIgnoredBy: [],
   });
-  const unknown = await failureOf(connection.request("group.metrics", { id: "nope" }));
+  const unknown = await failureOf(connection.request("orchestration.metrics", { id: "nope" }));
   expect(unknown).toMatchObject({
     code: 3402,
-    data: { kind: "group.notFound", details: { id: "nope" } },
+    data: { kind: "orchestration.notFound", details: { id: "nope" } },
   });
-  expect(await connection.request("group.promotion", { threadIds: ["thr_a", "thr_b"] })).toEqual({
+  expect(
+    await connection.request("orchestration.promotion", { threadIds: ["thr_a", "thr_b"] }),
+  ).toEqual({
     throughSeq: 40,
     threads: 2,
     candidates: [{ tool: "grep", owner: "team", consumers: ["alpha"], userCalls: 3 }],
@@ -554,7 +560,7 @@ test("group.list, group.metrics, group.promotion pass the group service values t
 test("group.promotion: an empty candidate list when the sources have no promotion data", async () => {
   const connection = connect(createRecordedSources().sources);
   await connection.request("host.hello", HELLO_PARAMS);
-  expect(await connection.request("group.promotion", {})).toEqual({
+  expect(await connection.request("orchestration.promotion", {})).toEqual({
     throughSeq: 0,
     threads: 0,
     candidates: [],
@@ -695,6 +701,6 @@ test("without sources the port reads as a host with no extensions", async () => 
   await connection.request("host.hello", HELLO_PARAMS);
   expect(await connection.request("ext.list", {})).toEqual({ extensions: [] });
   expect(await connection.request("hooks.list", {})).toEqual({ hooks: [] });
-  expect(await connection.request("group.list", {})).toEqual({ groups: [] });
+  expect(await connection.request("orchestration.list", {})).toEqual({ groups: [] });
   await connection.close();
 });

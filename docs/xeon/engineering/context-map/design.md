@@ -5,7 +5,7 @@ domain: context-map
 kind: design
 status: draft
 depends_on: [eng.dependency-rules.guide, eng.events.design, F.records.spec]
-binds: [xeon/packages/contracts/**, xeon/packages/ext-host/**, xeon/packages/platform-*/**, xeon/packages/core-*/**, xeon/packages/cap-*/**, xeon/packages/group-sdk/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
+binds: [xeon/packages/contracts/**, xeon/packages/ext-host/**, xeon/packages/platform-*/**, xeon/packages/core-*/**, xeon/packages/cap-*/**, xeon/packages/orchestration-sdk/**, xeon/packages/plugin-helm/**, xeon/packages/plugin-learning/**]
 ---
 
 # 컨텍스트 지도
@@ -20,7 +20,7 @@ Fresnel 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유
 - 단일 DB 파일(`eng.transactions.design` 3.1절)에 대화 코어, L2 기능, 확장의 테이블이 함께 있다. 소유 규칙이 없으면 한 컨텍스트가 다른 컨텍스트 테이블을 직접 읽고 써서, 투영 재생성·확장 제거·스키마 변경 때 숨은 결합이 드러난다.
 - 같은 층 패키지끼리는 import할 수 없다(DR-02). 그러면 같은 일을 하는 L1 패키지 넷(tasks, loop, context, agents)이 어떤 단위로 협력하는지, 그 단위가 무엇을 외부에 내놓는지를 따로 정해야 한다.
 - 외부 라이브러리(pi-ai, MCP SDK, Electron, Cordis, bun:sqlite)의 타입이 여러 컨텍스트로 퍼지면 버전 고정과 포크 범위를 관리할 수 없다.
-- Helm과 학습 그룹은 L3 기본 그룹으로 공존한다. 둘 사이, 그리고 그룹과 기능 사이의 결합 방식이 정해지지 않으면 한 그룹을 끌 때 다른 쪽이 깨진다(`_research/decisions-log.md` 2026-10-21 "그룹 간 강결합 우려").
+- Helm과 학습 플러그인은 L3 기본 플러그인으로 공존한다. 둘 사이, 그리고 플러그인과 기능 사이의 결합 방식이 정해지지 않으면 한 플러그인을 끌 때 다른 쪽이 깨진다(`_research/decisions-log.md` 2026-10-21 "그룹 간 강결합 우려").
 
 ## 2. 선택지 비교
 
@@ -37,12 +37,12 @@ Fresnel 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유
 협력 규칙:
 
 1. [결정] 컨텍스트 사이 협력은 F 정의, Cordis 서비스, 이벤트로만 한다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3`, DR-02). DI는 Cordis 하나다(`_research/decisions-log.md` 2026-10-21 결정 3차).
-2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
-3. [결정] 대화 코어(L1 persistence, 컨텍스트 `session-core`)가 대화 테이블과 투영을 소유한다. 확장과 그룹은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정: review.decisions-2 U-18], 5.2절).
-4. [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(on, post, scope만). 두 그룹은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2, 층 구성 계획 v2 L3-c).
-5. [결정] 학습 그룹의 저장(스킬, 메모리, 대화 검색, 변경 원장)은 L2 knowledge가 소유한다. 학습 그룹은 정책(트리거, 검토 포크, 제안)만 가진다(층 구성 계획 v2 "Hermes 학습 루프를 별도 그룹으로": "저장소인 스킬, 메모리, 세션 검색, 변경 원장은 L2-d에 남깁니다").
-6. [결정] 웹 같은 기능은 L2 기능으로 두고 그룹이 서비스 API로 쓴다. 그룹 안에 기능을 두지 않는다(`_research/decisions-log.md` 2026-10-21 "웹 탐색 같은 기능을 그룹 안에 둘지 코어 층에 둘지(그룹 간 강결합 우려)", 층 구성 계획 v2 L3-a "그룹 안 도구가 두 번째 소비자를 얻으면 L2로 승격").
-7. [제안] 그룹은 다른 그룹을 서비스로도 부르지 않는다. 그룹 사이 정보는 이벤트와 L2 기능의 레코드로만 주고받는다(층 구성 계획 v2 층 사이 규칙 3, "Helm은 학습 결과를 그룹 레코드와 L2-d 검색으로 읽습니다").
+2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `orchestration-sdk` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
+3. [결정] 대화 코어(L1 persistence, 컨텍스트 `session-core`)가 대화 테이블과 투영을 소유한다. 확장과 플러그인은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정: review.decisions-2 U-18], 5.2절).
+4. [결정] Helm은 L3 기본 플러그인이다. 학습 플러그인도 L3 기본 플러그인이며 drive를 쓰지 않는다(on, post, scope만). 두 플러그인은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2, 층 구성 계획 v2 L3-c).
+5. [결정] 학습 플러그인의 저장(스킬, 메모리, 대화 검색, 변경 원장)은 L2 knowledge가 소유한다. 학습 플러그인은 정책(트리거, 검토 포크, 제안)만 가진다(층 구성 계획 v2 "Hermes 학습 루프를 별도 그룹으로": "저장소인 스킬, 메모리, 세션 검색, 변경 원장은 L2-d에 남깁니다").
+6. [결정] 웹 같은 기능은 L2 기능으로 두고 플러그인이 서비스 API로 쓴다. 플러그인 안에 기능을 두지 않는다(`_research/decisions-log.md` 2026-10-21 "웹 탐색 같은 기능을 그룹 안에 둘지 코어 층에 둘지(그룹 간 강결합 우려)", 층 구성 계획 v2 L3-a "그룹 안 도구가 두 번째 소비자를 얻으면 L2로 승격").
+7. [제안] 플러그인은 다른 플러그인을 서비스로도 부르지 않는다. 플러그인 사이 정보는 이벤트와 L2 기능의 레코드로만 주고받는다(층 구성 계획 v2 층 사이 규칙 3, "Helm은 학습 결과를 그룹 레코드와 L2-d 검색으로 읽습니다").
 
 ## 4. 구조와 흐름
 
@@ -70,13 +70,13 @@ Fresnel 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유
 | `dialog` | L2 | dialog | `cap-dialog` | 없음(예약 `cap_dialog_*`) | `dialog.` | `fresnel.dialog` | `fresnel.approvals`, `fresnel.tools`, `fresnel.os`(알림), `fresnel.exec`(첨부·명령 파일 읽기, `L2.dialog.spec` §8) |
 | `artifacts` | L2 | artifacts | `cap-artifacts` | `cap_artifacts_*`(산출물 색인 투영) | `artifact.` | `fresnel.artifacts` | `fresnel.session`(제목 요청 포함), `fresnel.store`, `fresnel.tools` |
 | `schedule` | L2 | schedule | `cap-schedule` | `cap_schedule_*`(타이머, 루프 정의) | `schedule.` | `fresnel.schedule` | `fresnel.store`, `fresnel.tasks`(post), `fresnel.process`, `fresnel.os` |
-| `group-sdk` | L3 | group-sdk, slots | `group-sdk`(slots는 코드 없음) | 없음 | 없음(그룹 상태는 각 그룹의 `grp.<groupId>.`) | `fresnel.groups` | `fresnel.ext` |
-| `helm` | L3 | helm | `group-helm` | `x_helm_*` | `grp.helm.` | 없음 | `fresnel.groups`, `fresnel.ext`, L2 서비스(`fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.agents`) |
-| `learning` | L3 | learning | `group-learning` | `x_learning_*`(트리거 카운터) | `grp.learning.` | 없음 | `fresnel.groups`, `fresnel.ext`, `fresnel.knowledge`, `fresnel.agents`(백그라운드 위임) |
+| `orchestration-sdk` | L3 | orchestration-sdk, slots | `orchestration-sdk`(slots는 코드 없음) | 없음 | 없음(플러그인 상태는 각 플러그인의 `grp.<groupId>.`) | `fresnel.orchestration` | `fresnel.ext` |
+| `helm` | L3 | helm | `plugin-helm` | `x_helm_*` | `grp.helm.` | 없음 | `fresnel.orchestration`, `fresnel.ext`, L2 서비스(`fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.agents`) |
+| `learning` | L3 | learning | `plugin-learning` | `x_learning_*`(트리거 카운터) | `grp.learning.` | 없음 | `fresnel.orchestration`, `fresnel.ext`, `fresnel.knowledge`, `fresnel.agents`(백그라운드 위임) |
 | `clients` | L4 | cli, desktop, settings-ui | `apps/cli`, `apps/desktop`(`src/settings` 포함) | 설정 파일(스키마는 F wire-settings) | 없음 | 없음 | F5 wire(전송 계층). Cordis 서비스를 직접 쓰지 않는다 |
 | `host` | L4 | host-service | `apps/host` | 서비스 모드 상태 파일(1차). OS 서비스 등록 파일만 2차 | 없음 | 없음(F5 wire 서버) | 조립 루트: 모든 패키지를 import해 플러그인을 등록 |
 
-- 사용자 확장(플러그인)은 layout 밖이다. 각 확장은 자기 컨텍스트 하나이고 `x_<extKey>_*` 테이블과 `x.<extId>.` kind만 소유한다. 플러그인 그룹은 `grp.<groupId>.` kind를 소유한다(`F.records.spec` §3.2).
+- 사용자 확장(플러그인)은 layout 밖이다. 각 확장은 자기 컨텍스트 하나이고 `x_<extKey>_*` 테이블과 `x.<extId>.` kind만 소유한다. 플러그인은 `grp.<groupId>.` kind를 소유한다(`F.records.spec` §3.2).
 - (b)열의 이름은 F 코어 kind 영역(`F.records.spec` §3.2 `CoreArea`)과 L1 spec이 F에 추가를 요청한 영역(`input.`, `approval.`, `agent.`, `eng.events.design` 4.4절)이다.
 - `contracts`는 공유 커널이다. 모든 컨텍스트가 의존하고, 컨텍스트 사이에서 주고받는 타입·서비스 인터페이스·이벤트 카탈로그를 둔다.
 
@@ -118,7 +118,7 @@ flowchart LR
     WS["workspace"]
   end
   subgraph L3["L3"]
-    GK["group-sdk"]
+    GK["orchestration-sdk"]
     HE["helm"]
     LE["learning"]
   end
@@ -148,8 +148,8 @@ flowchart LR
   TR -->|"고객-공급자: 승인"| DL
   TR -->|"고객-공급자: 승인"| WK
   XH -->|"고객-공급자: scope·drive"| GK
-  GK -->|"고객-공급자: defineGroup"| HE
-  GK -->|"고객-공급자: defineGroup"| LE
+  GK -->|"고객-공급자: defineOrchestration"| HE
+  GK -->|"고객-공급자: defineOrchestration"| LE
   WEB -->|"고객-공급자"| HE
   KN -->|"고객-공급자: 검색·레코드"| HE
   KN -->|"고객-공급자: 저장·제안"| LE
@@ -173,7 +173,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  L4["L4 clients · host<br/>(host = 조립 루트)"] --> L3["L3 group-sdk · helm · learning"]
+  L4["L4 clients · host<br/>(host = 조립 루트)"] --> L3["L3 orchestration-sdk · helm · learning"]
   L3 --> L2["L2 workspace · mcp · web · knowledge · work · dialog · artifacts · schedule"]
   L2 --> L1["L1 session-core · run-engine · model-gateway · tool-runtime"]
   L1 --> L0["L0 platform-store · platform-execution · platform-secrets · platform-os"]
@@ -190,12 +190,12 @@ flowchart TD
 | # | 위치 | 어긋남 | 처리 |
 |---|---|---|---|
 | 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `fresnel.tasks`·`fresnel.loop`·`fresnel.context`·`fresnel.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
-| 2 | `extension-host`(X, 순위 1) | 플러그인 그룹(P, 순위 4)을 호스트하고, 대화 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 훅 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
+| 2 | `extension-host`(X, 순위 1) | 플러그인(P, 순위 4)을 호스트하고, 대화 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 훅 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
 | 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)의 기능은 L2에 있으나 이벤트는 L1이 소유한다(계획 승인은 2026-11-13 폐지 [결정: 2026-11-13 사용자]) | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `fresnel.approvals`로 요청하고 결과를 이벤트로 받는다 |
 | 4 | 대화 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `fresnel.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
-| 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
+| 5 | 학습 플러그인(L3)의 저장 | 플러그인의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 플러그인은 `x_learning_*`에 트리거 카운터만 둔다 |
 | 6 | `settings-ui`(L4) | layout 경로 `xeon/packages/client/src/settings/**`가 `client` 패키지 안이다(adr.0020). 화면은 `desktop`에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |
-| 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `group-sdk` 컨텍스트에 둔다. 미결 C-2 |
+| 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `orchestration-sdk` 컨텍스트에 둔다. 미결 C-2 |
 | 8 | `plugins/provider-anthropic-oauth` | L1 순위(`AGENTS.md`)이지만 layout 도메인 밖이고 배포판에서 빠진다 | `model-gateway` 컨텍스트에 속한다. layout `plugins` 항목이 `L1.models.spec`을 문서로 지정한다. import 규칙은 DR-09 |
 | 9 | F `records`의 이벤트 카탈로그 | L2 기능이 이벤트 type을 더할 때마다 F를 고친다 | 카탈로그 파일을 소유 컨텍스트별로 나눈다(`contracts/src/records/catalog/<컨텍스트>.ts`) [제안]. 소유는 5.1절 |
 | 10 | `sys_leases`(L0 store) | 프로세스 락 저장은 L0, 대화 프로세스 락의 뜻(자원 `thread:<id>`)은 L1 session-core | L0은 일반 프로세스 락만 제공하고, 자원 이름과 갱신 정책은 소유 컨텍스트가 정한다(`eng.transactions.design` 3.3절) |
@@ -236,10 +236,10 @@ flowchart TD
 | L2-f | 사용자 대화 | L2 dialog | `cap-dialog` | `dialog` |
 | L2-g | 산출물과 대화 | L2 artifacts | `cap-artifacts` | `artifacts` |
 | L2-h | 예약과 백그라운드 | L2 schedule | `cap-schedule` | `schedule` |
-| L3-a | 그룹 기반 | L3 group-sdk | `group-sdk` | `group-sdk` |
-| L3-b | Helm(기본 그룹) | L3 helm | `group-helm` | `helm` |
-| L3-c | 학습 그룹(기본 그룹) | L3 learning | `group-learning` | `learning` |
-| L3-d | 추가 그룹 슬롯 | L3 slots | 없음(템플릿) | `group-sdk` |
+| L3-a | 플러그인 기반 | L3 orchestration-sdk | `orchestration-sdk` | `orchestration-sdk` |
+| L3-b | Helm(기본 플러그인) | L3 helm | `plugin-helm` | `helm` |
+| L3-c | 학습 플러그인(기본 플러그인) | L3 learning | `plugin-learning` | `learning` |
+| L3-d | 추가 플러그인 슬롯 | L3 slots | 없음(템플릿) | `orchestration-sdk` |
 | (계획 밖) | CLI | L4 cli | `apps/cli` | `clients` |
 | (계획 밖) | 데스크톱 | L4 desktop | `apps/desktop` | `clients` |
 | (계획 밖) | 설정 화면 | L4 settings-ui | `packages/client/src/settings` | `clients` |
@@ -282,13 +282,13 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `schedule.` | schedule | `cap.schedule` | `L2.schedule.spec` 카탈로그 | 예약 |
 | `grp.helm.` | helm | `ext.helm` | `L3.helm.spec` 카탈로그 | 허용 |
 | `grp.learning.` | learning | `ext.learning` | `L3.learning.spec` 카탈로그 | 허용 |
-| `grp.<groupId>.` | 그 플러그인 그룹 | `ext.<groupId>` | 확장 매니페스트 | 허용 |
+| `grp.<groupId>.` | 그 플러그인 | `ext.<groupId>` | 확장 매니페스트 | 허용 |
 | `x.<extId>.` | 그 확장(플러그인) | `ext.<extId>` | 확장 매니페스트 | 허용 |
 | `ui.`, `notification.`, `projection.` | 금지 | 없음 | 없음 | 없음 |
 
 - kind 단위 예외 [제안]: `thread.compacted`는 컴팩션을 하는 `core.context`가 낸다(`L1.context.spec` §1). toolResult `item.recorded`는 E3 커밋에서 core-tools가 커밋하지만 초안은 루프의 생산자 핸들(`core.loop`)로 만든다(`L1.tools.spec`). 복구 합성 결과(`effect.result{synthesized: true}`와 `isError: true` toolResult `item.recorded`)는 `core.persistence`의 `recover`만 추가로 쓸 수 있다(`L1.persistence.spec` §3.9). `TYPE_PREFIX_OWNERS`는 이 셋을 kind 단위 예외 항목으로 적는다.
 - 확장 상태 커밋 kind `x.<name>.state.committed`, `grp.<name>.state.committed`는 그 확장의 접두 안이지만 영역 `state`는 X 예약이다. 생산자는 X가 대행하는 그 확장의 생산자 id다(`X.primitives.spec` §4.6.1).
-- `contracts`, `platform-*`, `group-sdk`, `clients`, `host`는 이벤트 kind를 소유하지 않는다. group-sdk이 다루는 그룹 상태는 각 그룹의 `grp.<groupId>.` kind다.
+- `contracts`, `platform-*`, `orchestration-sdk`, `clients`, `host`는 이벤트 kind를 소유하지 않는다. orchestration-sdk이 다루는 플러그인 상태는 각 플러그인의 `grp.<groupId>.` kind다.
 - "예약"은 이름 충돌을 막으려고 소유를 정해 둔 접두사다. kind를 실제로 더할 때 해당 spec의 카탈로그에 올린다.
 - `thread.resumed`, `input.*`, `turn.abort_requested`, `agent.*`, `approval.*`는 F 코어 카탈로그(`F.records.spec` §3.3)에 있다. payload 정본은 F다(`eng.events.design` 4.4절).
 
@@ -320,7 +320,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 
 ### 5.3 서비스 이름 소유표
 
-[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3)는 `@fresnel/contracts/services`에 둔다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정: review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `fresnel.mcp`뿐이다. `fresnel.workspace`, `fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.dialog`, `fresnel.artifacts`, `fresnel.schedule`은 같은 도메인 기능 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 기능 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 시크릿 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 시크릿 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정: review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
+[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `OrchestrationService`(L3)는 `@fresnel/contracts/services`에 둔다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정: review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `fresnel.mcp`뿐이다. `fresnel.workspace`, `fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.dialog`, `fresnel.artifacts`, `fresnel.schedule`은 같은 도메인 기능 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 기능 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 시크릿 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 시크릿 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정: review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
 
 | 서비스 이름 | F 인터페이스(위치) | 제공 패키지 | 등록 | 주요 소비 컨텍스트 |
 |---|---|---|---|---|
@@ -339,18 +339,18 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `fresnel.models` | `ModelService`(services. `ModelsPort`를 확장한다) | `core-models` | 예 | run-engine, web |
 | `fresnel.tools` | `ToolService`(services. `ToolsPort`를 확장한다) | `core-tools` | 예 | run-engine, L2 전체(도구 등록) |
 | `fresnel.approvals` | `ApprovalService`(services) | `core-tools` | 예 | dialog, work, knowledge, host |
-| `fresnel.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-sdk, helm, learning, host |
-| `fresnel.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 그룹 |
+| `fresnel.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, orchestration-sdk, helm, learning, host |
+| `fresnel.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 플러그인 |
 | `fresnel.file-rewind` | `FileRewindService`(services. 포트 키 `FileRewindPortKey`. [미결] [근거: packages/contracts/test/services/names.test.ts의 열여섯 이름 시험. 아래 문장과 어긋나므로 `F.capabilities.spec` §3.12를 고칠지 정한다]) | `cap-workspace` | 예(`host.provide`) | host |
-| `fresnel.mcp` | `McpService`(services. `McpPort`를 확장한다. 기능 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 그룹, host |
-| `fresnel.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 그룹 |
+| `fresnel.mcp` | `McpService`(services. `McpPort`를 확장한다. 기능 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 플러그인, host |
+| `fresnel.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 플러그인 |
 | `fresnel.knowledge` | `KnowledgeService`(capabilities) | `cap-knowledge` | 아니오(묶음 이름) | helm, learning |
-| `fresnel.work` | `WorkService`(capabilities) | `cap-work` | 아니오(묶음 이름) | helm, 그룹 |
-| `fresnel.dialog` | `DialogService`(capabilities) | `cap-dialog` | 아니오(묶음 이름) | 그룹 |
-| `fresnel.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 그룹, host |
-| `fresnel.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 그룹, host |
-| `fresnel.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-sdk` | 예 | helm, learning, host |
-| `fresnel.devkit` | `DevkitService`(services, `F.capabilities.spec` §3.12 `services/devkit.ts`, 구현은 L4가 DI로 줌) | `apps/host` | 예 | 플러그인 빌더 그룹, host wire |
+| `fresnel.work` | `WorkService`(capabilities) | `cap-work` | 아니오(묶음 이름) | helm, 플러그인 |
+| `fresnel.dialog` | `DialogService`(capabilities) | `cap-dialog` | 아니오(묶음 이름) | 플러그인 |
+| `fresnel.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 플러그인, host |
+| `fresnel.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 플러그인, host |
+| `fresnel.orchestration` | `OrchestrationService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `orchestration-sdk` | 예 | helm, learning, host |
+| `fresnel.devkit` | `DevkitService`(services, `F.capabilities.spec` §3.12 `services/devkit.ts`, 구현은 L4가 DI로 줌) | `apps/host` | 예 | 플러그인 빌더, host wire |
 
 - `helm`, `learning`, 사용자 확장은 서비스를 제공하지 않는다(3절 협력 규칙 7).
 - L4(`clients`, `host`)는 Cordis 서비스를 제공하지 않는다. `host`는 F5 wire 서버를 열고, `clients`는 그 wire로 접속한다.
@@ -393,7 +393,7 @@ export const extTablePrefix = (extId: string): string => `x_${extId.replaceAll("
 - 새 테이블, 이벤트 kind, 서비스는 소유 컨텍스트가 정해진 뒤에만 만든다. 표에 없는 접두사는 저장소가 거부한다(`store.prefix_not_owned`).
 - 컨텍스트 사이 데이터 읽기는 서비스 API 또는 이벤트 구독(자기 투영으로 받아 두기)뿐이다. 다른 컨텍스트 테이블에 JOIN하지 않는다. 그래서 조회가 여러 컨텍스트 데이터를 합쳐야 하면, 소유 컨텍스트가 조회 API를 제공하거나 소비자가 자기 투영을 만든다.
 - 외부 라이브러리 타입은 부패 방지 계층 안에만 있다. pi-ai 메시지 타입은 F1이 별칭으로 재노출하는 것만 쓰고, pi-ai provider·스트림 API는 `model-gateway` 밖에서 보이지 않는다.
-- L3 그룹이 쓰는 기능이 다른 그룹에도 필요해지면 그룹 안 도구를 L2로 옮긴다. 그룹끼리 서비스를 주고받는 방식으로 해결하지 않는다.
+- L3 플러그인이 쓰는 기능이 다른 플러그인에도 필요해지면 플러그인 안 도구를 L2로 옮긴다. 플러그인끼리 서비스를 주고받는 방식으로 해결하지 않는다.
 - 컨텍스트 이름, 접두사, 서비스 이름을 바꾸려면 이 문서, `owners.ts`, `eng.dependency-rules.guide`의 `MODULE_OWNERS` 관련 항목을 같은 커밋에서 고친다.
 
 마일스톤 배치:
@@ -405,7 +405,7 @@ export const extTablePrefix = (extId: string): string => `x_${extId.replaceAll("
 | `fresnel.store`, `fresnel.session`, `fresnel.ext` 서비스 등록 | 예 | | | | 예
 | L1 서비스(`fresnel.tasks`, `fresnel.loop`, `fresnel.models`, `fresnel.tools`, `fresnel.approvals`) | | 예 | |
 | `check-layers.ts`의 다른 컨텍스트 패키지 import 검사(DR-14, CM-05) | | 예 | |
-| L2·L3 서비스와 접두사 | | 테스트용 그룹만 | 예 |
+| L2·L3 서비스와 접두사 | | 테스트용 플러그인만 | 예 |
 
 ## 7. 구현 작업자 규칙
 
@@ -540,11 +540,11 @@ export const inject: readonly string[] = [StoreServiceName];   // 주입받는�
 import { openStore } from "@fresnel/platform-store";             // 다른 컨텍스트 구현 import
 ```
 
-### CM-06 그룹은 다른 그룹을 부르지 않는다. 공유가 필요한 기능은 L2로 옮긴다
+### CM-06 플러그인은 다른 플러그인을 부르지 않는다. 공유가 필요한 기능은 L2로 옮긴다
 
-이유: Helm과 학습 그룹은 따로 켜고 끈다. 한 그룹이 다른 그룹의 함수나 서비스를 부르면 한쪽을 끌 때 다른 쪽이 깨진다. 웹 같은 기능을 그룹 안에 두면 두 번째 그룹이 그 그룹에 묶인다.
+이유: Helm과 학습 플러그인은 따로 켜고 끈다. 한 플러그인이 다른 플러그인의 함수나 서비스를 부르면 한쪽을 끌 때 다른 쪽이 깨진다. 웹 같은 기능을 플러그인 안에 두면 두 번째 플러그인이 그 플러그인에 묶인다.
 
-강제: DR-02(L3 그룹끼리 import 금지), 5.3절에 그룹 제공 서비스가 없으므로 `inject`에 그룹 서비스 이름이 나오면 로딩이 실패한다.
+강제: DR-02(L3 플러그인끼리 import 금지), 5.3절에 플러그인 제공 서비스가 없으므로 `inject`에 오케스트레이션 서비스 이름이 나오면 로딩이 실패한다.
 
 좋은 예:
 
@@ -556,7 +556,7 @@ const hits = await knowledge.search({ query: topic, kinds: ["skill", "memory"], 
 나쁜 예:
 
 ```ts
-// helm이 학습 그룹 내부 상태를 직접 읽는다
+// helm이 학습 플러그인 내부 상태를 직접 읽는다
 const learned = ctx.get("learning").recentProposals();
 ```
 
@@ -583,15 +583,15 @@ const learned = ctx.get("learning").recentProposals();
 
 1. `routes.yaml` `layout`의 모든 도메인(F 5, X 3, L0 6, L1 7, L2 8, L3 4, L4 4, 합계 37)이 `CONTEXTS`의 `domains`에 정확히 한 번 나온다. 테스트가 `routes.yaml`을 읽어 대조한다.
 2. 이벤트 카탈로그의 모든 kind 접두와 모든 투영기 `ddl`·`scoped` 접두사가 `TYPE_PREFIX_OWNERS`·`TABLE_PREFIX_OWNERS`에 소유자를 가진다. 소유되지 않은 접두사가 0개다.
-3. 4.1절 표의 패키지 경로가 `routes.yaml` layout의 경로 규칙(`platform-{domain}`, `core-{domain}`, `cap-{domain}`, `group-sdk`·`group-helm`·`group-learning`, `apps/*`)과 일치한다.
-4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
+3. 4.1절 표의 패키지 경로가 `routes.yaml` layout의 경로 규칙(`platform-{domain}`, `core-{domain}`, `cap-{domain}`, `orchestration-sdk`·`plugin-helm`·`plugin-learning`, `apps/*`)과 일치한다.
+4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `orchestration-sdk` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
 5. 확장 id `focus_lens`, `core`를 가진 매니페스트는 로드되지 않는다. `focus-lens`는 로드되고 테이블 접두가 `x_focus_lens_`다. 이 확장이 지역 이름 `my_notes`로 테이블을 만들면 거부된다.
 6. `ext.helm` 생산자로 `effect.result`를 커밋하면 실패하고 행이 남지 않는다(`eng.events.design` 수용 기준 9와 같은 시험).
 
 ## 9. 미결 사항
 
 - [미결 C-1] 컨텍스트 이름과 식별자 정리. 층 구성 계획 v2·`_research/packages.md`의 하위 층 id(`L1-a`~`L1-g`, `L2-a`~`L2-h`)와 layout 도메인 이름이 다르게 읽히는 곳(L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`)과, 이 문서가 새로 붙인 컨텍스트 이름(`run-engine`, `session-core`, `tool-runtime`, `model-gateway`, `platform-execution`)을 문서 전체에서 어느 쪽으로 부를지 정한다. 이 문서는 코드·서비스·접두사에 layout 도메인 이름을, 묶음에 컨텍스트 이름을 쓴다.
-- [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(그룹 템플릿 문서)을 `group-sdk` 컨텍스트에 두었다. 템플릿이 `group-sdk` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
+- [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(플러그인 템플릿 문서)을 `orchestration-sdk` 컨텍스트에 두었다. 템플릿이 `orchestration-sdk` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
 - [미결 C-3] L2 기능 테이블 접두사. 이 문서는 L2에 `cap_<도메인>_`, 설치형 확장에 `x_<extKey>_`를 쓴다. 내장 L2 기능도 사용자가 교체할 수 있는 플러그인이므로 `x_`로 통일할지 정한다.
-- [결정: review.decisions-2 U-15] C-5 `group-sdk` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 `group-*` → `group-sdk` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-sdk` 행의 서비스(`fresnel.groups`)는 그대로 둔다.
+- [결정: review.decisions-2 U-15] C-5 `orchestration-sdk` 런타임 도우미를 플러그인이 import하는 방식. 허용 목록 `DR-02/orchestration-sdk`(`from`은 `packages/plugin-*`)로 `group-*` → `orchestration-sdk` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `orchestration-sdk` 행의 서비스(`fresnel.orchestration`)는 그대로 둔다.
 - [결정: review.decisions-2 U-18] C-6 확장 id 형식. `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`, 지역 테이블 이름에는 밑줄을 쓰지 않는다(5.2절, CM-07). adr.0004의 `[a-z0-9_]` 서술은 이 형식으로 고친다(decisions 문서 담당).

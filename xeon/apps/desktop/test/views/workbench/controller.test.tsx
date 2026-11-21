@@ -37,7 +37,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -45,7 +45,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -212,13 +212,13 @@ describe("reload: 목록 뒤의 보조 읽기", () => {
 describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른다", () => {
   const REVIEW_OFF = entry("review", {
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     status: "disabled",
     autoDisabled: true,
   });
   const REVIEW_ON = entry("review", {
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     status: "enabled",
     autoDisabled: false,
   });

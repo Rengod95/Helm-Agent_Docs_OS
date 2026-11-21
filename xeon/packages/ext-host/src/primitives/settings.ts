@@ -39,7 +39,7 @@ export const primitivesSettings: SettingGroup<
     readonly driveDefaultLimits: SettingDefInput;
     readonly driveLimits: SettingDefInput;
     readonly driveMaxDepth: SettingDefInput;
-    readonly driveRequiresGroup: SettingDefInput;
+    readonly driveRequiresOrchestration: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
   }
 > = defineSettings("x.primitives", {
@@ -85,7 +85,7 @@ export const primitivesSettings: SettingGroup<
     },
     since: "0.1.0",
   },
-  driveRequiresGroup: {
+  driveRequiresOrchestration: {
     type: Type.Boolean(),
     default: true,
     runtimeChange: "restart",
@@ -119,7 +119,7 @@ export interface StaticPrimitivesSettings {
   readonly driveDefaultLimits?: DriveLimits;
   readonly driveLimits?: DriveLimits;
   readonly driveMaxDepth?: number;
-  readonly driveRequiresGroup?: boolean;
+  readonly driveRequiresOrchestration?: boolean;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
 }
 
@@ -139,7 +139,7 @@ export function createStaticPrimitivesSettings(
     driveDefaultLimits: (_threadId: ThreadId) => withDriveDefaults(values.driveDefaultLimits ?? {}),
     driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
     driveMaxDepth: (_threadId: ThreadId) => values.driveMaxDepth ?? DEFAULT_DRIVE_MAX_DEPTH,
-    driveRequiresGroup: () => values.driveRequiresGroup ?? true,
+    driveRequiresOrchestration: () => values.driveRequiresOrchestration ?? true,
     capabilityProviders: () => values.capabilityProviders ?? {},
   };
 }

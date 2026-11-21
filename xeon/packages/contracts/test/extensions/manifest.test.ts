@@ -13,9 +13,9 @@ import {
   validateUsage,
   type ExtensionManifest,
 } from "../../src/extensions/index.ts";
-import { codesOf, groupJson, pluginAt, pluginJson } from "./helpers.ts";
+import { codesOf, orchestrationJson, pluginAt, pluginJson } from "./helpers.ts";
 
-const smokeGroup: unknown = JSON.parse(
+const smokeOrchestration: unknown = JSON.parse(
   readFileSync(join(import.meta.dir, "fixtures/smoke-group.manifest.json"), "utf8"),
 );
 
@@ -104,14 +104,14 @@ describe("ExtensionManifest", () => {
   });
 
   test("smoke group fixture valid", () => {
-    const result = validateManifest(smokeGroup);
+    const result = validateManifest(smokeOrchestration);
     expect(result.issues).toEqual([]);
-    expect(result.manifest?.group).toEqual({});
+    expect(result.manifest?.orchestration).toEqual({});
     expect(result.manifest?.plugins?.map((plugin) => plugin.layer)).toEqual(["L3"]);
   });
 
   test("smoke group usage matches its declaration", () => {
-    const manifest = validateManifest(smokeGroup).manifest;
+    const manifest = validateManifest(smokeOrchestration).manifest;
     if (manifest === undefined) throw new Error("fixture must be valid");
     const issues = validateUsage(manifest, pluginAt(manifest, 0), {
       on: ["tool.call.before", "boundary.step.after"],
@@ -144,6 +144,6 @@ describe("ExtensionManifest", () => {
   });
 
   test("a group manifest json helper is valid", () => {
-    expect(validateManifest(groupJson()).issues).toEqual([]);
+    expect(validateManifest(orchestrationJson()).issues).toEqual([]);
   });
 });

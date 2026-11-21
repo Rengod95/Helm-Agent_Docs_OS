@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { attemptAsync, err } from "@fresnel/contracts";
 import { PrimitiveError } from "../../src/primitives/index.ts";
-import { createSmokeGroup, createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
+import { createSmokeOrchestration, createTestHost } from "../../src/testing/index.ts";
+import { makeOrchestrationUnit, snapshotOf } from "./fixtures/support.ts";
 
 test("a restarted host picks up enabled scopes, state and the open lease", async () => {
   const first = await createTestHost();
   const thread = first.newThread();
-  const a = createSmokeGroup({ ids: first.ids });
+  const a = createSmokeOrchestration({ ids: first.ids });
   await first.host.install(a.unit);
   await first.host.openThread(thread);
   await first.settled();
@@ -21,7 +21,7 @@ test("a restarted host picks up enabled scopes, state and the open lease", async
   const second = await createTestHost({
     shared: { records: first.records, loop: first.loop, queue: first.queue },
   });
-  const b = createSmokeGroup({ ids: second.ids, driveTurns: 1 });
+  const b = createSmokeOrchestration({ ids: second.ids, driveTurns: 1 });
   await second.host.install(b.unit);
   await second.host.openThread(thread);
   await second.settled();
@@ -39,7 +39,7 @@ test("the drive function is re-invoked after a restart with the same request key
   const thread = first.newThread();
   const keys: string[] = [];
   const unitOf = () =>
-    makeGroupUnit({ name: "res-replay" }, (g) => {
+    makeOrchestrationUnit({ name: "res-replay" }, (g) => {
       g.drive(async ({ last }) => {
         if (last === null) return { do: "turn", input: { kind: "user", content: "go" } };
         if (last.kind === "ok" && last.of === "turn") {
@@ -72,7 +72,7 @@ test("the drive function is re-invoked after a restart with the same request key
 test("an open lease whose scope is gone is released with restart", async () => {
   const first = await createTestHost();
   const thread = first.newThread();
-  await first.host.install(createSmokeGroup({ ids: first.ids }).unit);
+  await first.host.install(createSmokeOrchestration({ ids: first.ids }).unit);
   await first.host.openThread(thread);
   await first.settled();
   first.host.startDrive(thread, "smoke-group");

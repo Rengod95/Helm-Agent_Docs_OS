@@ -2,7 +2,11 @@
 // 출처 배지의 범위는 wire가 준 범위 값에서만 고른다. 값이 없으면 배지를 두지 않는다(프로젝트 범위를 추정하지 않는다).
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
-import type { EnabledSource, ExtUiEntry, GroupMetricsResult } from "@fresnel/contracts/wire";
+import type {
+  EnabledSource,
+  ExtUiEntry,
+  OrchestrationMetricsResult,
+} from "@fresnel/contracts/wire";
 import { buildSettingsView } from "../settings/view.ts";
 import type { BadgeScope, FieldVM } from "../settings/types.ts";
 
@@ -179,7 +183,7 @@ export interface GroupMetricsVM {
  * `group.metrics` 결과의 측정 값. 계측이 꺼져 있으면(`metrics`가 null) null이다.
  * 합치는 점수는 만들지 않는다. `since`는 이 탭이 요청하지 않으므로 무시한다.
  */
-export function groupMetricsOf(result: GroupMetricsResult): GroupMetricsVM | null {
+export function orchestrationMetricsOf(result: OrchestrationMetricsResult): GroupMetricsVM | null {
   const m = result.metrics;
   if (m === null) return null;
   return {

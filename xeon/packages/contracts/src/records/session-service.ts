@@ -518,7 +518,7 @@ export interface SessionSettingsStore {
 // 정본은 F.records.spec §3.9 블록이다. records는 extensions보다 낮아(F.readme §3)
 // RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다.
 // 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery,
-// ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
+// ExtRecordRow ↔ OrchestrationRecord, reader ↔ ExtensionName.
 
 export interface ExtCommitRequest {
   readonly threadId: ThreadId;
