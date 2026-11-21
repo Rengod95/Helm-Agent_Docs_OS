@@ -1,9 +1,9 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type {
-  GroupStatusWire,
   Profile,
   ProfileIssue,
   SetProfileStartDrive,
+  StartDriveRejectReason,
 } from "@fresnel/contracts/wire";
 import { permissionModeOf } from "../permission-mode-model.ts";
 import type { ProfilesRead } from "./profile-listing.ts";
@@ -144,36 +144,41 @@ export type StartDriveOutcome = {
   readonly kind: "deferred" | "rejected";
   readonly plugin: string;
   /**
-   * 거절의 까닭 가운데 화면이 따로 아는 것(lcM6f). 엔진은 `startDrive: "rejected"`에 까닭을 싣지 않는다(호스트 로그
-   * `profile.switch_start_drive_rejected`의 `kind`에만 있다). 그래서 거절을 받은 뒤 `group.list`를 읽어 그 플러그인의 Drive가 오류
-   * 상태(`drive: "error"`)면 `driveError`, Drive를 쓰지 않는 그룹이면 `cannotDrive`다. 모르면 null(엔진이 받아들이지 않았다는 말만 한다)
+   * 거절의 까닭. 엔진이 `thread.setProfile` 결과의 `startDriveReason`으로 준 값 그대로다(lcM6h). 거절이 아니거나, 까닭을 싣지 않는
+   * 호스트면 null이고 화면은 엔진이 받아들이지 않았다는 말만 한다. 화면이 다른 목록을 읽어 까닭을 짐작하지 않는다
    */
-  readonly reason: StartRejectReason | null;
+  readonly reason: StartDriveRejectReason | null;
 };
-
-export type StartRejectReason = "driveError" | "cannotDrive";
 
 export function startDriveOutcomeOf(
   result: SetProfileStartDrive | null,
+  reason: StartDriveRejectReason | null,
   plugin: string | null,
 ): StartDriveOutcome | null {
   if (plugin === null) return null;
-  if (result === "deferred" || result === "rejected") return { kind: result, plugin, reason: null };
+  if (result === "deferred") return { kind: result, plugin, reason: null };
+  if (result === "rejected") return { kind: result, plugin, reason };
   return null;
 }
 
 /**
- * 거절된 스타트 Drive의 까닭을 `group.list`에서 찾는다. 그 플러그인 그룹의 Drive가 오류 상태면 `driveError`(엔진 `drive_error`),
- * Drive를 쓰지 않는 그룹이면 `cannotDrive`(엔진 `not_drive`). 목록에 없거나 둘 다 아니면 모른다(null)
+ * 거절 줄의 까닭 글(lcM6h). 엔진의 닫힌 목록 하나마다 한 문장이다. `unknown_scope`(플러그인이 지금 엔진에 없음)는 막힘의 "플러그인이 없어요",
+ * `not_drive`는 "Drive를 맡을 수 없는 플러그인이에요"와 같은 문장을 쓴다. 까닭이 없거나 이 화면이 모르는 값이면 일반 문장이다
  */
-export function startRejectReasonOf(
-  groups: readonly Pick<GroupStatusWire, "id" | "drive" | "usesDrive">[],
-  plugin: string,
-): StartRejectReason | null {
-  const group = groups.find((one) => one.id === plugin);
-  if (group === undefined) return null;
-  if (group.drive === "error") return "driveError";
-  return group.usesDrive ? null : "cannotDrive";
+const REJECT_TEXT: Readonly<Record<StartDriveRejectReason, MessageId>> = {
+  unknown_thread: "desktop.startDrive.reason.unknownThread",
+  child_thread: "desktop.startDrive.reason.childThread",
+  unknown_scope: "desktop.startDrive.reason.missing",
+  not_drive: "desktop.startDrive.reason.cannotDrive",
+  drive_error: "desktop.startDrive.reason.driveError",
+};
+
+export function startRejectReasonText(reason: StartDriveRejectReason | null): MessageId {
+  // 이 화면보다 새 호스트가 목록 밖 값을 보내도 일반 문장으로 말한다
+  if (reason === null || !Object.hasOwn(REJECT_TEXT, reason)) {
+    return "desktop.startDrive.reason.refused";
+  }
+  return REJECT_TEXT[reason];
 }
 
 /**

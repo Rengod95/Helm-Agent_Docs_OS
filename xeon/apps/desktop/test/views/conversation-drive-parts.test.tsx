@@ -31,7 +31,7 @@ import {
   profileTitleOf,
   startDriveBlockOf,
   startDriveOutcomeOf,
-  startRejectReasonOf,
+  startRejectReasonText,
   startOutcomeSettled,
   type ProfileChipView,
 } from "../../src/views/convo/profile-chip-model.ts";
@@ -318,7 +318,7 @@ describe("전환의 스타트 Drive 결과(thread.setProfile.startDrive, AGE-64,
   test("기다림·거절만 알리고, 시작했거나 이미 쥐었거나 없거나 옛 호스트면 알리지 않는다", () => {
     expect(
       (["requested", "deferred", "leading", "none", "rejected", null] as const).map((result) =>
-        startDriveOutcomeOf(result, "helm"),
+        startDriveOutcomeOf(result, null, "helm"),
       ),
     ).toEqual([
       null,
@@ -329,7 +329,15 @@ describe("전환의 스타트 Drive 결과(thread.setProfile.startDrive, AGE-64,
       null,
     ]);
     // 새 프로필에 스타트 Drive가 없으면 결과가 무엇이든 알릴 것이 없다
-    expect(startDriveOutcomeOf("deferred", null)).toBeNull();
+    expect(startDriveOutcomeOf("deferred", null, null)).toBeNull();
+    // 까닭은 거절에만 붙는다(lcM6h)
+    expect([
+      startDriveOutcomeOf("rejected", "drive_error", "helm"),
+      startDriveOutcomeOf("deferred", "drive_error", "helm"),
+    ]).toEqual([
+      { kind: "rejected", plugin: "helm", reason: "drive_error" },
+      { kind: "deferred", plugin: "helm", reason: null },
+    ]);
   });
 
   test("기다림은 그 플러그인이 스택에 서거나, 턴이 끝났는데 플러그인 Drive가 없으면 내린다. 거절은 남는다", () => {
@@ -390,18 +398,30 @@ describe("전환의 스타트 Drive 결과(thread.setProfile.startDrive, AGE-64,
     expect(rejected).toContain(t("desktop.startDrive.reason.refused"));
   });
 
-  test("엔진은 거절의 까닭을 주지 않아 플러그인 목록(group.list)에서 아는 것만 찾는다(lcM6f)", () => {
-    expect([
-      startRejectReasonOf([rejectGroup("helm", "error", true)], "helm"),
-      startRejectReasonOf([rejectGroup("helm", "none", false)], "helm"),
-      startRejectReasonOf([rejectGroup("helm", "none", true)], "helm"),
-      startRejectReasonOf([rejectGroup("other", "error", true)], "helm"),
-      startRejectReasonOf([], "helm"),
-    ]).toEqual(["driveError", "cannotDrive", null, null, null]);
+  test("거절의 까닭은 엔진의 startDriveReason 값마다 한 문장이고, 없으면 일반 문장이다(lcM6h)", () => {
+    expect(
+      (
+        [
+          "unknown_thread",
+          "child_thread",
+          "unknown_scope",
+          "not_drive",
+          "drive_error",
+          null,
+        ] as const
+      ).map((reason) => t(startRejectReasonText(reason))),
+    ).toEqual([
+      t("desktop.startDrive.reason.unknownThread"),
+      t("desktop.startDrive.reason.childThread"),
+      t("desktop.startDrive.reason.missing"),
+      t("desktop.startDrive.reason.cannotDrive"),
+      t("desktop.startDrive.reason.driveError"),
+      t("desktop.startDrive.reason.refused"),
+    ]);
     const html = renderToString(
       <ProfileNotices
         state={stateOf({
-          startOutcome: { kind: "rejected", plugin: "helm", reason: "driveError" },
+          startOutcome: { kind: "rejected", plugin: "helm", reason: "drive_error" },
         })}
       />,
     );
@@ -765,16 +785,3 @@ describe("프로필 아이콘 변주와 기본 이름(lcM6c)", () => {
     ).toBe(true);
   });
 });
-
-/** 스타트 Drive 거절의 까닭을 찾는 group.list 줄(필요한 칸만) */
-function rejectGroup(
-  id: string,
-  drive: "holder" | "waiting" | "none" | "error",
-  usesDrive: boolean,
-): {
-  readonly id: string;
-  readonly drive: "holder" | "waiting" | "none" | "error";
-  readonly usesDrive: boolean;
-} {
-  return { id, drive, usesDrive };
-}

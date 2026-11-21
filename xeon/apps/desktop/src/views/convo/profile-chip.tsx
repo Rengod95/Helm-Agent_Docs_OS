@@ -10,7 +10,7 @@ import {
 } from "@caustic/react";
 import { Check, RotateCcw } from "@caustic/react/icons";
 import { profileFailureOf } from "@fresnel/client/workbench";
-import { t, type MessageId } from "@fresnel/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
@@ -32,13 +32,12 @@ import {
   profileRowLookOf,
   startDriveOutcomeOf,
   startOutcomeSettled,
-  startRejectReasonOf,
+  startRejectReasonText,
   startDriveBlockOf,
   startDriveBlockText,
   type ProfileChipView,
   type StartDriveBlock,
   type StartDriveOutcome,
-  type StartRejectReason,
 } from "./profile-chip-model.ts";
 import { ProfileGlyph } from "./profile-glyph.tsx";
 import { reloadProfiles, useProfiles, type ProfilesRead } from "./profile-listing.ts";
@@ -201,17 +200,8 @@ export function useProfileChip(
         const change = done.value.preview.permission;
         setPermission(change === undefined ? null : { target: id, change });
         const result: SetProfileStartDrive | null = done.value.startDrive ?? null;
-        const outcome = startDriveOutcomeOf(result, plugin);
-        setStartOutcome(outcome);
-        if (outcome?.kind !== "rejected") return undefined;
-        // 엔진은 거절의 까닭을 주지 않는다: 플러그인 목록에서 그 플러그인의 Drive가 오류 상태인지만 본다(lcM6f). 읽지 못하면 까닭을 모른다
-        return commands.workbench.groups(threadId).then((groups) => {
-          if (!groups.ok) return undefined;
-          const reason = startRejectReasonOf(groups.value, outcome.plugin);
-          if (reason === null) return undefined;
-          setStartOutcome((now) => (now === outcome ? { ...outcome, reason } : now));
-          return undefined;
-        });
+        setStartOutcome(startDriveOutcomeOf(result, done.value.startDriveReason ?? null, plugin));
+        return undefined;
       }),
       rethrow,
     );
@@ -549,7 +539,8 @@ export function ProfileNotices(props: { readonly state: ProfileChipState }): Rea
         <div data-slot="start-drive-rejected">
           <ProblemLine tone="warning" role="status">
             {t("desktop.startDrive.rejected", { plugin: state.startOutcome.plugin })}.{" "}
-            {t(rejectReasonText(state.startOutcome.reason))}. {t("desktop.startDrive.fallback")}
+            {t(startRejectReasonText(state.startOutcome.reason))}.{" "}
+            {t("desktop.startDrive.fallback")}
           </ProblemLine>
         </div>
       )}
@@ -558,13 +549,6 @@ export function ProfileNotices(props: { readonly state: ProfileChipState }): Rea
       )}
     </>
   );
-}
-
-/** 거절 줄의 까닭 글. 화면이 모르면 엔진이 받아들이지 않았다는 말이다 */
-function rejectReasonText(reason: StartRejectReason | null): MessageId {
-  if (reason === "driveError") return "desktop.startDrive.reason.driveError";
-  if (reason === "cannotDrive") return "desktop.startDrive.reason.cannotDrive";
-  return "desktop.startDrive.reason.refused";
 }
 
 /**

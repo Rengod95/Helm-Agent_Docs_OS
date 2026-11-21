@@ -305,22 +305,9 @@
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: -2px;
 }
-/* 생각하는 중(DP-212): 답이 놓일 자리의 말풍선 면. 줄 높이·왼쪽 선은 줄과 같고(구슬이 접힌 "생각" 줄의 chevron 자리), 폭은 글에 맞춘다.
-   기다림 줄과 생각 블록 머리가 같은 면이라 자리가 그대로 잇는다. 생각이 끝나면 면이 빠져 보통 줄이 된다 */
-.convo-line[data-live="true"] {
-  justify-self: start;
-  width: fit-content;
-  max-width: calc(100% + 12px);
-  padding-inline-end: 10px;
-  border-radius: var(--cs-radius-lg);
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
-}
-.convo-line[data-live="true"]:has(> .convo-line-hit:hover),
-.convo-line[data-live="true"]:has(> .convo-line-hit:focus-visible) {
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-default);
-}
+/* 생각하는 중(DP-212, 면은 2026-11-20 사용자 결정 AGE-65로 뺐다): 답이 놓일 자리에 구슬 아이콘과 반짝이는 "생각하는 중" 글만 둔다.
+   면·테두리·글에 맞춘 폭이 없는 보통 줄(`.convo-line`)이라 구슬과 글이 접힌 "생각" 줄·도구 줄과 같은 왼쪽 선에 서고,
+   마우스를 올렸을 때의 면도 다른 줄과 같다. 기다림 줄과 생각 블록 머리가 같은 줄이라 자리가 그대로 잇는다(`data-live`는 표지로만 남는다) */
 .convo-line[data-toggle="true"] > :not(.convo-line-hit) {
   pointer-events: none;
 }

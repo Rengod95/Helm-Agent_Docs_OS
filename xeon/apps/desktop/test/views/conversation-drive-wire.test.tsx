@@ -371,7 +371,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
     );
   });
 
-  test("거절을 받고 플러그인 목록이 그 Drive를 오류 상태로 말하면 그 까닭을 쓴다(lcM6f)", async () => {
+  test("거절과 함께 엔진이 준 까닭(startDriveReason)을 쓰고 플러그인 목록을 읽어 짐작하지 않는다(lcM6h)", async () => {
     const asked: string[] = [];
     const container = await mount(
       <ChipProbe />,
@@ -384,24 +384,12 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
               position: { storeId: "sto_00000000000000000000000001", seq: 9 },
               preview: {},
               startDrive: "rejected",
+              startDriveReason: "child_thread",
             }),
           ),
         groups: (threadId) => {
           asked.push(threadId);
-          return Promise.resolve(
-            ok([
-              {
-                id: "helm",
-                displayName: "Helm",
-                scope: "enabled",
-                pendingToggle: null,
-                usesDrive: true,
-                drive: "error",
-                lastError: null,
-                metrics: null,
-              },
-            ]),
-          );
+          return Promise.resolve(ok([]));
         },
       }),
     );
@@ -413,8 +401,8 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       asked,
       container.querySelector('[data-slot="start-drive-rejected"]')?.textContent,
     ]).toEqual([
-      [T],
-      `${t("desktop.startDrive.rejected", { plugin: "helm" })}. ${t("desktop.startDrive.reason.driveError")}. ${t("desktop.startDrive.fallback")}`,
+      [],
+      `${t("desktop.startDrive.rejected", { plugin: "helm" })}. ${t("desktop.startDrive.reason.childThread")}. ${t("desktop.startDrive.fallback")}`,
     ]);
   });
 
@@ -620,12 +608,17 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     // lcM6g: "Driving by 이름" 구절이 먼저, 그 뒤 턴 수. 구절 안은 앞 글과 이름 둘이다
     const phrase = word?.parentElement;
     const group = band?.querySelector('[data-slot="drive-band-group"]');
+    // lcM6h: 구절과 턴 묶음 사이는 24(gap-6), 구절 안 낱말 사이 4(gap-1)의 여섯 배라 두 묶음으로 갈라져 보인다
     expect([
       [...(phrase?.children ?? [])].map((el) => el.getAttribute("data-slot")),
       [...(group?.children ?? [])].map((el) => el.getAttribute("data-slot")),
+      [...(group?.classList ?? [])].filter((name) => name.startsWith("gap-")),
+      [...(phrase?.classList ?? [])].filter((name) => name.startsWith("gap-")),
     ]).toEqual([
       ["drive-band-state", "drive-band-name"],
       ["drive-driving-by", "drive-band-turns"],
+      ["gap-6"],
+      ["gap-1"],
     ]);
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");

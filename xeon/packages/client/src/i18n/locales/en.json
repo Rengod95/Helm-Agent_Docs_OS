@@ -2206,6 +2206,8 @@
   "desktop.startDrive.rejected": "Start Drive {plugin} didn't start",
   "desktop.startDrive.reason.refused": "The engine refused to start it",
   "desktop.startDrive.reason.driveError": "Its Drive stopped with an error",
+  "desktop.startDrive.reason.unknownThread": "The engine can't find this conversation",
+  "desktop.startDrive.reason.childThread": "Sub-conversations don't use a start Drive",
   "desktop.startDrive.deferred": "{plugin} Drive starts when this turn ends",
   "desktop.convo.more": "Show more",
   "desktop.convo.status.done": "Done",

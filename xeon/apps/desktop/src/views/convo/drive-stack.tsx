@@ -296,7 +296,9 @@ const BAND_ROW = "h-[var(--drive-band-h,28px)]";
 
 /**
  * 띠의 한 줄(lcM6g, 사용자 2026-11-21 "Driving by <plugin name>"). 왼쪽부터 한 구절 "Driving by authoring"("Driving by" 12/500 무채색,
- * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 12 떨어져 턴 막대 96, 6 뒤에 "2/4턴", 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
+ * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 24 떨어져 턴 막대 96, 6 뒤에 "2/4턴", 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
+ * 구절과 막대 사이 24는 구절 안 낱말 사이(4)의 여섯 배다: 구절(누가)과 턴 막대·숫자(얼마나)가 흐리게 봐도 두 묶음으로 갈라진다
+ * (lcM6h, 사용자 2026-11-21 "간격이 더 있어야 분리가 되어 보인다". 12는 한 묶음으로 붙고, 20은 흐리게 보면 경계이고, 28·32는 막대가 떠 보였다).
  * 맨 위 칸이 Driving이 아니면(답을 기다림 등) 구절 대신 상태 글과 이름을 8 떨어뜨려 둔다. 줄은 윗변 테두리(1px) 아래 27px의 가운데에 선다(`pt-px`).
  * 구절의 두 글은 한 기준선에 서고, 막대는 숫자의 대문자 높이 가운데에, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
  */
@@ -327,7 +329,7 @@ function BandBody(props: {
         <BeamBand state={props.beam} />
       </div>
       <div className="relative mx-3 flex h-full min-w-0 items-center ps-3.5 pe-1.5 pt-px">
-        <span data-slot="drive-band-group" className="flex min-w-0 items-center gap-3">
+        <span data-slot="drive-band-group" className="flex min-w-0 items-center gap-6">
           {top.state === "driving" ? (
             <DrivingBy
               name={top.name}
