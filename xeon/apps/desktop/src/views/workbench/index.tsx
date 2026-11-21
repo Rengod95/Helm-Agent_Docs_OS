@@ -16,6 +16,8 @@ import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
+import { ReviewBadge, ReviewMark } from "../craft/review/review-badge.tsx";
+import { ReviewScreen } from "../craft/review/review-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
@@ -24,6 +26,7 @@ import {
   FlaskConical,
   Layers,
   LayoutGrid,
+  ListChecks,
   Package,
   Plug,
   SquareStack,
@@ -40,7 +43,20 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     area: "workbench",
     label: "desktop.shell.nav.overview",
     icon: <LayoutGrid />,
+    // 캔버스가 무대 가장자리까지 깔리고 막대와 겹치는 판은 캔버스가 스스로 비킨다
+    bleed: true,
     render: () => scoped(store, <CraftScreen />),
+  });
+  registry.registerScreen({
+    id: "craftReview",
+    area: "workbench",
+    label: "desktop.shell.nav.review",
+    icon: <ListChecks />,
+    Mark: ReviewMark,
+    Badge: ReviewBadge,
+    // 목록과 두 열이 창 끝까지 가고, 막대와 겹치는 줄만 화면이 비킨다(m6R5, `review-view.tsx`의 `useRailAvoid`)
+    bleed: true,
+    render: () => <ReviewScreen />,
   });
   registry.registerScreen({
     id: "extensions",

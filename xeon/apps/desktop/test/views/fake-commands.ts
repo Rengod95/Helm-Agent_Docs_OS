@@ -265,6 +265,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    pluginReview: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      file: () => Promise.resolve(err({ kind: "unsupported" })),
+      decide: () => Promise.resolve(err({ kind: "unsupported" })),
+      profiles: () => Promise.resolve(err({ kind: "unsupported" })),
+      onChanged: () => () => {},
+    },
     skills: {
       view: () => Promise.resolve(err({ kind: "unsupported" })),
       list: () => Promise.resolve(err({ kind: "unsupported" })),

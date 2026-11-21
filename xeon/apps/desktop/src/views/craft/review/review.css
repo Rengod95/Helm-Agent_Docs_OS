@@ -1,0 +1,446 @@
+/* 리뷰 화면(C5). 종류 색은 종류를 가르는 데만 쓰고 채도를 누른다(캔버스 cv3의 `--cv3-<종류>`와 같은 식).
+   그 밖의 색은 caustic 토큰만 쓴다. 인라인 <style>은 셸 CSP가 막으므로 이 파일을 styles.css가 가져온다 */
+/* 숫자의 글꼴(m6R4). 앱의 ui 글꼴 스택에서 SUIT는 한글 범위만 맡고(caustic fonts.css의 unicode-range) 숫자와 라틴 글자는 다음 글꼴
+   (Apple SD Gothic Neo)로 넘어가, "5시간 전"의 5와 "시간 전"이 다른 가족으로 그려졌다. 이 화면에서만 같은 SUIT 파일을 라틴·숫자·문장부호
+   범위로 한 번 더 이름 붙여 스택 앞에 둔다. 공용 토큰(`--cs-font-ui`)과 caustic은 고치지 않는다. 코드(경로, 해시, 명령, 차이)는 고정폭 그대로다 */
+@font-face {
+  font-family: "Fresnel Review Latin";
+  src: url("../../../../node_modules/@caustic/tokens/fonts/suit/SUIT-Variable.woff2")
+    format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0021-007E, U+00A0-00FF, U+2010-2027, U+2030-203A;
+}
+
+.rv-root {
+  --rv-font:
+    "Fresnel Metrics", "Fresnel Review Latin", "SUIT Variable", "SUIT", "Apple SD Gothic Neo",
+    "Malgun Gothic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* 상속되는 글꼴과 `font-ui` 유틸리티(토스트 등 caustic 부품)가 같은 스택을 읽는다 */
+  --font-ui: var(--rv-font);
+  font-family: var(--rv-font);
+  /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
+     오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
+  --rv-end: 20px;
+  /* 숫자 0이 영문 O처럼 동그랗게 나오는 SUIT의 ss01을 이 화면에서 끈다(caustic base가 body에 "cv11", "ss01"을 건다).
+     앱 전체 수정(lcNum, fonts.css 5)과 같은 값이다 */
+  font-feature-settings: "cv11";
+  --rv-inject: color-mix(
+    in oklch,
+    var(--cs-color-identity-iris) 84%,
+    var(--cs-color-text-secondary)
+  );
+  --rv-hook: color-mix(
+    in oklch,
+    var(--cs-color-identity-amber) 80%,
+    var(--cs-color-text-secondary)
+  );
+  --rv-drive: color-mix(in oklch, var(--cs-color-agent-stop-1) 84%, var(--cs-color-text-secondary));
+  --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--cs-color-text-secondary));
+}
+
+/* 막대와 겹치는 줄(m6R5): 그 줄만 끝 바깥 여백으로 막대 왼쪽 12px 앞에서 끝난다. 폭은 훅이 잰다(`--rail-cut`). 선과 면은 그대로 끝까지 간다 */
+.rv-root [data-under-rail] {
+  margin-inline-end: var(--rail-cut, 0px);
+}
+
+.rv-kind-inject {
+  --rv-kind: var(--rv-inject);
+}
+.rv-kind-hook {
+  --rv-kind: var(--rv-hook);
+}
+.rv-kind-drive {
+  --rv-kind: var(--rv-drive);
+}
+.rv-kind-tool {
+  --rv-kind: var(--rv-tool);
+}
+
+/* 종류 타일: 옅은 종류 색 바탕 + 종류 색 그림(받은 요청 카드의 아이콘 타일 28과 같은 자리) */
+.rv-tile {
+  color: var(--rv-kind);
+  background: color-mix(in oklab, var(--rv-kind) 15%, transparent);
+}
+.rv-kind-text {
+  color: var(--rv-kind);
+}
+
+/* 알림 한 줄(m6R4): 토스트와 같은 문법. 세기 색의 맨 그림(16) + 무채색 글, 그림 칸은 글 첫 줄 높이(18)다 */
+.rv-line-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: start;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  color: var(--cs-color-text-primary);
+  list-style: none;
+}
+.rv-line-notice-mark {
+  display: grid;
+  place-items: center;
+  height: 18px;
+  color: var(--cs-color-text-tertiary);
+}
+.rv-line-notice-mark svg {
+  width: var(--cs-icon-md);
+  height: var(--cs-icon-md);
+}
+.rv-line-notice[data-tone="warning"] .rv-line-notice-mark {
+  color: var(--cs-color-warning-text);
+}
+.rv-line-notice[data-tone="danger"] .rv-line-notice-mark {
+  color: var(--cs-color-danger-text);
+}
+.rv-line-notice[data-tone="info"] .rv-line-notice-mark {
+  color: var(--cs-color-info-text);
+}
+.rv-line-notice[data-tone="success"] .rv-line-notice-mark {
+  color: var(--cs-color-success-text);
+}
+.rv-lines {
+  display: grid;
+  gap: 8px;
+}
+
+/* 이름표-값 줄(m6R4): 한 격자라 묶음 안에서 이름표 칸의 폭(72)과 줄 간격(8)이 같고, 이름표와 값이 같은 기준선에 선다 */
+.rv-facts {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+.rv-fact-row {
+  display: contents;
+}
+
+/* 뜻이 코드인 값(패키지 이름, 해시, 경로, 셸): 고정폭 12 */
+.rv-code {
+  font-family: var(--cs-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+/* 파일 차이 표시: 기호만 색(바뀜 경고, 추가 성공, 지움 위험), 줄은 무채색 */
+.rv-change-added {
+  color: var(--cs-color-success-text);
+}
+.rv-change-changed {
+  color: var(--cs-color-warning-text);
+}
+.rv-change-removed {
+  color: var(--cs-color-danger-text);
+}
+.rv-change-same {
+  color: var(--cs-color-text-placeholder);
+}
+
+/* ── 자세히 배치(AGE-34 둘째 판) ─────────────────────────────────────────
+   카드 면 없이 목록 오른쪽 콘텐츠 영역 전체를 쓴다. 위 요약 띠 + 아래 두 열(가운데 읽는 열, 오른쪽 판단 열).
+   두 열은 따로 스크롤한다: 긴 차이를 읽는 동안 오른쪽 열의 경고와 결정 칸이 그대로 남는다.
+   개발 빌드의 견주기 판: rail(요약 띠를 오른쪽 열 위로), stack(한 열). 좁은 영역(780px 아래)은 늘 stack이다 */
+/* 목록과 자세히의 줄(셋째 판). 옆 내비를 연 1265~1400px 창에서 읽는 열이 420px 남짓으로 좁던 것을 고친다:
+   1) 목록(272→216px)과 판단 열(312→272px)을 먼저 줄여 읽는 열에 돌려준다.
+   2) 그래도 읽는 열이 460px 아래로 내려가는 폭(자세히 780px 아래)이면 한 열로 접는다(읽는 열이 자세히 폭 전체를 쓰고 결정 칸은 바닥에 붙는다).
+   옆 내비를 연 창 기준: 1440 → 읽는 열 520px, 1360 → 500px, 1320 아래 → 한 열 */
+.rv-split {
+  container: rv-split / inline-size;
+}
+.rv-list {
+  width: 272px;
+}
+@container rv-split (width < 1180px) {
+  .rv-list {
+    width: clamp(216px, calc(100cqi - 840px), 272px);
+  }
+}
+
+.rv-detail-host {
+  container: rv-detail / inline-size;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rv-detail {
+  /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다). 넷째 판이 더하던 막대 자리(44)는 읽는 열에 돌려준다 */
+  --rv-judge-w: clamp(272px, calc(100cqi - 560px), 312px);
+  --rv-pad: 24px;
+  /* 판단 열의 안쪽 여백(시작 20, 끝 `--rv-end` 20) */
+  --rv-judge-start: 20px;
+  --rv-judge-end: var(--rv-end);
+  /* 읽는 열의 끝 여백. 두 열이면 판단 열과 맞닿으므로 24, 한 열이면 막대를 비킨다 */
+  --rv-read-end: var(--rv-pad);
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) var(--rv-judge-w);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "head head"
+    "read judge";
+}
+
+/* 선(m6R4): 선은 열의 끝에서 끝까지 가고 내용만 안쪽 여백을 가진다. 요약 띠 아래 선은 목록의 세로 선에서 창 오른쪽 끝까지,
+   판단 열의 세로 선은 그 선에서 바닥까지, 섹션 사이 선은 각 열의 양 끝(세로 선과 창 끝)에 닿는다 */
+.rv-head {
+  grid-area: head;
+  padding: 16px var(--rv-pad) 16px;
+  border-bottom: 1px solid var(--cs-color-border-subtle);
+}
+
+.rv-read {
+  grid-area: read;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--rv-read-end) 40px var(--rv-pad);
+}
+
+.rv-judge {
+  grid-area: judge;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-inline-start: 1px solid var(--cs-color-border-subtle);
+}
+
+/* 판단 열은 한 스크롤 안에 알림, 권한·출처, 결정 칸을 차례로 둔다. 결정 칸은 내용 바로 뒤를 따르고, 열이 넘칠 때만 바닥에 붙는다 */
+.rv-judge-scroll {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--rv-judge-end) 0 var(--rv-judge-start);
+}
+
+/* 알림 카드 묶음: 카드 사이 8, 아래 섹션과는 섹션 위 여백(24)으로 떨어진다 */
+.rv-alerts {
+  display: grid;
+  gap: 8px;
+  padding-top: 20px;
+}
+.rv-alerts:empty {
+  display: none;
+}
+
+.rv-more {
+  display: grid;
+}
+
+.rv-decide-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: calc(-1 * var(--rv-judge-start)) calc(-1 * var(--rv-judge-end));
+  padding: 20px var(--rv-judge-end) 20px var(--rv-judge-start);
+  border-top: 1px solid var(--cs-color-border-subtle);
+  background: var(--cs-color-bg-app);
+}
+
+/* 섹션(m6R4): 제목과 내용은 가깝게(10), 섹션과 섹션은 멀게(위아래 24 + 선). 선이 열 끝까지 가도록 섹션은 열의 안쪽 여백만큼 바깥으로 넓히고
+   같은 값을 안쪽 여백으로 되돌린다 */
+.rv-sec {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-block: 24px;
+}
+.rv-read > .rv-sec {
+  margin-inline: calc(-1 * var(--rv-pad)) calc(-1 * var(--rv-read-end));
+  padding-inline: var(--rv-pad) var(--rv-read-end);
+}
+.rv-more > .rv-sec {
+  margin-inline: calc(-1 * var(--rv-judge-start)) calc(-1 * var(--rv-judge-end));
+  padding-inline: var(--rv-judge-start) var(--rv-judge-end);
+}
+.rv-read > .rv-sec + .rv-sec,
+.rv-more > .rv-sec + .rv-sec {
+  border-top: 1px solid var(--cs-color-border-subtle);
+}
+
+/* 결정 칸: 칸과 칸 사이 16, 이름표와 칸 사이 6 */
+.rv-decide {
+  display: grid;
+  gap: 16px;
+}
+.rv-field {
+  display: grid;
+  gap: 6px;
+}
+.rv-field-label {
+  font-size: var(--text-ui-sm);
+  line-height: var(--text-ui-sm--line-height);
+  font-weight: 500;
+  color: var(--cs-color-text-secondary);
+}
+.rv-field-hint {
+  font-size: var(--text-ui-sm);
+  line-height: var(--text-ui-sm--line-height);
+  color: var(--cs-color-text-tertiary);
+}
+.rv-field-hint:empty {
+  display: none;
+}
+.rv-decide-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* rail: 요약 띠를 오른쪽 열 위로 올리고 읽는 열이 위끝부터 쓴다 */
+.rv-detail[data-arrange="rail"] {
+  grid-template-areas:
+    "read head"
+    "read judge";
+}
+.rv-detail[data-arrange="rail"] .rv-head {
+  padding: 16px var(--rv-judge-end) 14px var(--rv-judge-start);
+  border-inline-start: 1px solid var(--cs-color-border-subtle);
+}
+
+/* stack(그리고 좁은 영역): 한 열. 알림은 요약 바로 아래로 올라가고, 권한·출처는 읽는 열 아래로 내려가고, 결정 칸은 바닥에 붙는다.
+   한 열이면 모든 칸의 끝 여백이 같다(`--rv-read-end`). 막대와 겹치는 줄만 막대를 비킨다 */
+.rv-detail[data-arrange="stack"] {
+  --rv-read-end: max(var(--rv-pad), var(--rv-end));
+  --rv-judge-start: var(--rv-pad);
+  --rv-judge-end: var(--rv-read-end);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: max-content max-content minmax(max-content, 1fr) max-content max-content;
+  grid-template-areas:
+    "head"
+    "alerts"
+    "read"
+    "more"
+    "decide";
+  overflow-y: auto;
+}
+.rv-detail[data-arrange="stack"] .rv-read {
+  overflow: visible;
+  padding-bottom: 8px;
+}
+.rv-detail[data-arrange="stack"] :is(.rv-judge, .rv-judge-scroll) {
+  display: contents;
+}
+.rv-detail[data-arrange="stack"] .rv-alerts {
+  grid-area: alerts;
+  padding: 16px var(--rv-read-end) 0 var(--rv-pad);
+}
+.rv-detail[data-arrange="stack"] .rv-more {
+  grid-area: more;
+  padding: 0 var(--rv-read-end) 8px var(--rv-pad);
+  border-top: 1px solid var(--cs-color-border-subtle);
+}
+.rv-detail[data-arrange="stack"] .rv-decide-dock {
+  grid-area: decide;
+  margin: 0;
+  padding: 16px var(--rv-read-end) 16px var(--rv-pad);
+}
+
+@container rv-detail (width < 780px) {
+  .rv-detail {
+    --rv-pad: 20px;
+    --rv-read-end: max(var(--rv-pad), var(--rv-end));
+    --rv-judge-start: var(--rv-pad);
+    --rv-judge-end: var(--rv-read-end);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content max-content minmax(max-content, 1fr) max-content max-content;
+    grid-template-areas:
+      "head"
+      "alerts"
+      "read"
+      "more"
+      "decide";
+    overflow-y: auto;
+  }
+  .rv-detail .rv-head {
+    padding: 16px var(--rv-read-end) 14px var(--rv-pad);
+    border-inline-start: 0;
+  }
+  .rv-detail .rv-read {
+    overflow: visible;
+    padding-bottom: 8px;
+  }
+  .rv-detail :is(.rv-judge, .rv-judge-scroll) {
+    display: contents;
+  }
+  .rv-detail .rv-alerts {
+    grid-area: alerts;
+    padding: 16px var(--rv-read-end) 0 var(--rv-pad);
+  }
+  .rv-detail .rv-more {
+    grid-area: more;
+    padding: 0 var(--rv-read-end) 8px var(--rv-pad);
+    border-top: 1px solid var(--cs-color-border-subtle);
+  }
+  .rv-detail .rv-decide-dock {
+    grid-area: decide;
+    margin: 0;
+    padding: 16px var(--rv-read-end) 16px var(--rv-pad);
+  }
+}
+
+/* 자세히가 좁은 두 열(780~860px): 좌우 여백을 20px로 */
+@container rv-detail (780px <= width < 860px) {
+  .rv-detail {
+    --rv-pad: 20px;
+  }
+}
+
+/* 작동 방식의 값 칩(캔버스 cv4 `.cv4-fact`와 같은 값) */
+.rv-fact {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  max-width: 100%;
+  column-gap: 6px;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cs-color-text-primary);
+  background: var(--cs-color-neutral-track);
+}
+.rv-fact[data-warn] {
+  color: var(--cs-color-warning-text);
+  background: color-mix(in oklab, var(--cs-color-warning-text) 12%, transparent);
+}
+.rv-fact-value {
+  overflow-wrap: anywhere;
+  font: 11px/16px var(--cs-font-mono, ui-monospace, monospace);
+  color: var(--cs-color-text-tertiary);
+}
+.rv-fact[data-warn] .rv-fact-value {
+  color: inherit;
+}
+
+/* 차이와 파일 본문은 긴 줄을 접어 보인다. 가로 스크롤 뒤에 숨은 줄 끝은 리뷰에서 놓치기 쉽다(줄 끝에 붙인 코드) */
+.rv-diff [data-slot="code-diff-line"] {
+  grid-template-columns: calc(var(--spacing) * 8.5) calc(var(--spacing) * 4) minmax(0, 1fr) calc(
+      var(--spacing) * 3
+    );
+  /* 줄 높이를 한 줄(20px)에 묶지 않는다. 접힌 줄이 다음 줄과 겹치지 않게 */
+  height: auto;
+  min-height: calc(var(--spacing) * 5);
+  white-space: pre-wrap;
+}
+.rv-diff [data-slot="code-diff-content"] {
+  overflow-wrap: anywhere;
+}
+
+/* 접힌 줄의 들여쓰기(셋째 판): 줄 앞 공백만큼 내어 쓴다. 첫 줄은 제자리에서 시작하고, 넘어간 줄은 코드의 들여쓰기 칸에서 이어진다.
+   `--rv-indent`는 줄마다 앞 공백 폭(ch, 탭은 4칸)이다(`review-files.tsx`) */
+.rv-diff [data-slot="code-diff-content"] {
+  tab-size: 4;
+}
+.rv-line {
+  display: block;
+  padding-inline-start: var(--rv-indent, 0ch);
+  text-indent: calc(-1 * var(--rv-indent, 0ch));
+}

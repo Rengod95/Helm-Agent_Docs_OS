@@ -180,7 +180,7 @@ function NavRow(props: {
         )
       }
       className={props.active ? `${SIDE_ROW} ${ACTIVE_LABEL}` : SIDE_ROW}
-      // 수 앞 표시는 화면이 준 부품 하나뿐이다(제안 줄의 크리스탈, DP-223). 다른 줄은 수만 둔다(DP-211 [결정: 2026-11-13 사용자 "남용"])
+      // 수 앞 표시는 화면이 준 부품 하나뿐이다(제안·리뷰 줄의 크리스탈, DP-223). 다른 줄은 수만 둔다(DP-211 [결정: 2026-11-13 사용자 "남용"])
       {...(Mark === undefined ? {} : { meta: <Mark />, "data-crystal-host": "" })}
       count={badge === undefined || badge <= 0 ? undefined : badge}
       onSelect={props.onSelect}

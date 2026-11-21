@@ -55,6 +55,7 @@ import { createMcpCommands } from "./mcp.ts";
 import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
+import { createPluginReviewCommands } from "./plugin-review.ts";
 import { createMemoryCommands } from "./memory.ts";
 import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
@@ -625,6 +626,9 @@ export function createCommands(
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
+    pluginReview: createPluginReviewCommands(withConnection, withWriteConnection, () =>
+      session.connection(),
+    ),
     skills: createSkillCommands(withConnection),
     memory: createMemoryCommands(withConnection, withWriteConnection),
     usage: createUsageCommands(withConnection),
