@@ -170,10 +170,16 @@ async function startMigrationHost(bundles: string) {
 /** 홈을 임시 폴더로 바꾸고 돌려줄 복원 함수를 만든다. 실제 홈은 읽히지 않는다 */
 function redirectHome(home: string): () => void {
   const previous = process.env["HOME"];
+  // 훑기 프로세스(Bun)는 트랜스파일 캐시를 홈(~/Library/Caches/bun)에 쓴다. 훑기가 셸 도구처럼 쓸 수 있게 열린 뒤(AGE-63)로는
+  // 그 캐시가 가짜 홈에 생겨 "원본 폴더는 그대로" 비교를 깨므로, 이 시험에서는 캐시를 끈다(환경 변수는 자식에게 그대로 넘어간다)
+  const previousCache = process.env["BUN_RUNTIME_TRANSPILER_CACHE_PATH"];
   process.env["HOME"] = home;
+  process.env["BUN_RUNTIME_TRANSPILER_CACHE_PATH"] = "0";
   return () => {
     if (previous === undefined) delete process.env["HOME"];
     else process.env["HOME"] = previous;
+    if (previousCache === undefined) delete process.env["BUN_RUNTIME_TRANSPILER_CACHE_PATH"];
+    else process.env["BUN_RUNTIME_TRANSPILER_CACHE_PATH"] = previousCache;
   };
 }
 
