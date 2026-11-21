@@ -13,6 +13,7 @@ import {
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   EvidenceRef,
+  ImportedHookOrigin,
   PluginCard,
   PluginOriginKind,
   PluginSubmitPort,
@@ -22,6 +23,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type {
   DraftInfo,
+  PluginDraftFilesResult,
   PluginDraftFromInstructionParams,
   PluginDraftFromInstructionResult,
   PluginReviewFileResult,
@@ -170,6 +172,13 @@ export interface PluginReview {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 목록(읽기만, `plugin.draft.files`). 지워진 초안은 `draft_not_found`다 */
+  draftFiles(draftId: string): Promise<Result<PluginDraftFilesResult, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 하나(읽기만, `plugin.draft.file`). 목록에 없는 경로는 `path_invalid`다 */
+  draftFile(
+    draftId: string,
+    path: string,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   /**
    * 초안 하나의 재료(덧씌우기가 쓴다, §4.3.8). 없으면 `ok(undefined)`다. 이름은 초안이 속한 플러그인이고 `tree`는 스냅샷 트리 폴더다
    */
@@ -433,10 +442,12 @@ function candidateCard(
   itemId: string,
   reviewed: ReviewedVersion | null,
   envSandboxed: boolean,
+  importedHookOrigin: ImportedHookOrigin | undefined,
 ): PluginCard {
   return buildPluginCard({
     folder,
     envSandboxed,
+    ...(importedHookOrigin === undefined ? {} : { importedHookOrigin }),
     origin: originOf(origin, projectId),
     review: {
       state: "pending",
@@ -614,6 +625,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     readonly originProfileId: string | null;
     readonly evidence: readonly EvidenceRef[];
     readonly purpose: string | undefined;
+    /** 가져온 훅의 출처(가져오기 계획의 값). 카드의 훅 출처는 이 값에서만 나온다 */
+    readonly importedHookOrigin?: ImportedHookOrigin | undefined;
   }): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const tree = store.candidateTree(input.candidateHash);
     if (!tree.ok) return err(storeFailure(tree.error));
@@ -643,6 +656,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       itemId,
       reviewed.value,
       deps.envSandboxed?.() === true,
+      input.importedHookOrigin,
     );
     const withPurpose: PluginCard = { ...card, purpose: card.purpose ?? input.purpose ?? null };
     const item = pendingItemOf(
@@ -1055,6 +1069,36 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
   }
 
+  /**
+   * 초안 한 버전의 파일 목록. 스냅샷 트리를 다시 해시해 목록을 만들고, 기록된 해시와 다르면 `draft_changed`다.
+   * 읽기만 한다: 초안을 싣거나 실행하지 않는다
+   */
+  async function listDraftFiles(
+    draftId: string,
+  ): Promise<Result<PluginDraftFilesResult, PluginPortFailure>> {
+    const info = await store.readDraft(draftId);
+    if (!info.ok) {
+      return info.error.kind === "not_found"
+        ? err({ kind: "draft_not_found", draftId })
+        : err(storeFailure(info.error));
+    }
+    const hashed = hashPluginTree(join(store.draftDir(draftId), "tree"));
+    if (!hashed.ok) return err(treeFailure(hashed.error));
+    if (hashed.value.contentHash !== info.value.contentHash) {
+      return err({ kind: "store", code: "draft_changed" });
+    }
+    return ok({
+      draftId,
+      name: info.value.name,
+      contentHash: info.value.contentHash,
+      files: hashed.value.files.map((file) => ({
+        path: file.path,
+        bytes: file.bytes,
+        sha256: file.sha256,
+      })),
+    });
+  }
+
   /** 같은 이름의 초안을 최근 `KEEP_DRAFTS`개만 남긴다. 검토 항목이 가리키는 초안은 남긴다 */
   async function retainDrafts(name: string): Promise<void> {
     const listed = await store.listDrafts();
@@ -1123,6 +1167,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       readonly purpose: string | undefined;
       readonly provenance: Provenance;
       readonly originProfileId: string | null;
+      readonly importedHookOrigin?: ImportedHookOrigin | undefined;
     },
   ): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const info = await store.readDraft(draftId);
@@ -1145,6 +1190,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       originProfileId: options.originProfileId,
       evidence: options.evidence,
       purpose: options.purpose,
+      importedHookOrigin: options.importedHookOrigin,
     });
     if (!made.ok) return made;
     const linked = await store.writeDraft({
@@ -1189,6 +1235,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       purpose: input.purpose,
       provenance: input.provenance,
       originProfileId: input.originProfileId,
+      importedHookOrigin: input.importedHookOrigin,
     });
     if (!made.ok) return made;
     return ok({ draftId: created.value.draftId, itemId: made.value.item.itemId });
@@ -1385,6 +1432,23 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         contentHash: info.value.contentHash,
         tree: join(store.draftDir(draftId), "tree"),
       });
+    },
+
+    draftFiles: (draftId) => listDraftFiles(draftId),
+
+    draftFile: async (draftId, path) => {
+      const listed = await listDraftFiles(draftId);
+      if (!listed.ok) return listed;
+      if (!listed.value.files.some((file) => file.path === path)) {
+        return err({ kind: "path_invalid" });
+      }
+      const bytes = await store.readDraftFile(draftId, path);
+      if (!bytes.ok) {
+        return bytes.error.kind === "not_found"
+          ? err({ kind: "path_invalid" })
+          : err(storeFailure(bytes.error));
+      }
+      return ok(fileTextOf(path, bytes.value));
     },
 
     draftDiscard: (draftId) =>

@@ -15,6 +15,7 @@ import {
 export type TurnRecordMethod =
   | "turnRecord.list"
   | "turnRecord.get"
+  | "turnRecord.recent"
   | "turnRecord.search"
   | "turnRecord.mark"
   | "turnRecord.watch"

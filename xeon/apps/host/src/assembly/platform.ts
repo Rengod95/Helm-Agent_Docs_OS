@@ -95,12 +95,13 @@ function logFirstReport(
 /**
  * fresnel.os, fresnel.secrets, fresnel.exec가 먼저 등록되어 있어야 한다. 시작 때 상태 탐지와 srt 초기화를 한 번 하고(L0.sandbox.spec §4.1),
  * 자가 시험(`startSelfTests`)을 조립 루트에서 한 번 시작한다: 시작 직후 한 번 돌고 `l0.sandbox.selfTestIntervalMin`분마다 반복한다.
- * 시작을 막지 않는다. 서비스 dispose가 반복을 멈춘다(L0.sandbox.spec §4.7)
+ * 시작을 막지 않는다. 서비스 dispose가 반복을 멈춘다(L0.sandbox.spec §4.7). `startSelfTest`가 거짓이면 시작 때 자가 시험을 걸지 않는다(호스트 시험 묶음만 쓴다, `assemble.ts`)
  */
 export function sandboxPlatform(
   settings: () => SandboxSettings,
   signal: AbortSignal,
   create: SandboxFactory = createSandboxService,
+  startSelfTest: boolean = true,
 ): PlatformModule {
   return {
     name: "platform-sandbox",
@@ -108,7 +109,7 @@ export function sandboxPlatform(
       const os = ctx.port(OsPortKey);
       const handle = await create({ os, secrets: ctx.port(SECRETS_KEY), settings }, signal);
       ctx.providePort(SANDBOX_KEY, handle);
-      logFirstReport(handle, os.logger("sandbox"), ctx.port(ExecPortKey));
+      if (startSelfTest) logFirstReport(handle, os.logger("sandbox"), ctx.port(ExecPortKey));
       ctx.onDispose(() => handle.dispose());
     },
   };

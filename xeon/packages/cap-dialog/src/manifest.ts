@@ -20,7 +20,7 @@ export function dialogManifest(): ExtensionManifest {
     schemaVersion: 2,
     name: DIALOG_EXTENSION_NAME,
     version: "0.1.0",
-    displayName: "Chat interface",
+    displayName: "Client Services",
     description: "Questions, slash commands, status line, attachments and notices (L2).",
     defaultEnabled: true,
     entry: "./src/index.ts",

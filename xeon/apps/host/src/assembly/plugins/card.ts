@@ -4,6 +4,7 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  internalPluginLayer,
   isGroupExtension,
   pluginDeclsOf,
   SCRIPT_LIMITS,
@@ -16,6 +17,7 @@ import {
   type CostFigures,
   type HookName,
   type HookPositionRow,
+  type ImportedHookOrigin,
   type InjectInventory,
   type ManifestScriptDecl,
   type PluginCard,
@@ -52,6 +54,11 @@ export interface BuildCardInput {
   readonly whichTool?: (name: string) => string | undefined;
   /** 참이면 환경 모드 스크립트의 권한을 샌드박스 안의 값(`SCRIPT_ENV_SANDBOXED_USES`)으로 싣는다(설정 `l0.sandbox.sandboxImportedHooks`). 생략하면 거짓: 사용자 권한 그대로(`SCRIPT_ENV_USES`) */
   readonly envSandboxed?: boolean;
+  /**
+   * 가져온 훅의 출처(가져오기 계획이 검토 항목에 기록한 값). 환경 모드 스크립트의 `origin`과 `originLabel`은 이 값에서만 나온다. 매니페스트에서는 읽지 않는다.
+   * 없으면 `unknown`이다(프로젝트 폴더 출처의 플러그인은 `project`, 라벨 없음)
+   */
+  readonly importedHookOrigin?: ImportedHookOrigin;
 }
 
 type PositionRow = HookPositionRow["positions"][number];
@@ -185,11 +192,11 @@ const SHELL_WORDS: ReadonlySet<string> = new Set([
 
 /**
  * 환경 모드 칸(AGE-58 [제안]). 원문 명령, 찾아낸 첫 단어의 위치(PATH 탐색만, 실행하지 않는다), 참조 파일과 지문, 이 기기에 없는 실행 파일을 싣는다.
- * 버전의 근거 글은 가져오기 보고서가 갖고 있고 매니페스트에는 없어 카드는 비워 둔다. `fromProject`는 출처가 프로젝트인 검토 항목이다
+ * 버전의 근거 글은 가져오기 보고서가 갖고 있고 매니페스트에는 없어 카드는 비워 둔다. `origin`은 가져오기가 검토 항목에 기록한 훅 출처이고 매니페스트에서는 읽지 않는다. `fromProject`는 `origin`이 프로젝트이거나 플러그인이 프로젝트 폴더 출처일 때 참이다
  */
 function envOf(
   decl: ManifestScriptDecl,
-  fromProject: boolean,
+  source: ScriptSource,
   which: (name: string) => string | undefined,
 ): CardScript["env"] {
   const env = decl.env;
@@ -204,7 +211,35 @@ function envOf(
     refsKnown: env.refsKnown,
     missingTools: tool !== undefined && found === undefined ? [tool] : [],
     versionHints: [],
-    fromProject,
+    origin: source.origin,
+    originLabel: source.originLabel,
+    fromProject: source.origin === "project" || source.pluginFromProject,
+  };
+}
+
+/** 스크립트 칸이 쓰는 출처 재료. `origin`은 엔진이 기록한 값에서만 정한다 */
+interface ScriptSource {
+  readonly origin: "user" | "project" | "unknown";
+  readonly originLabel: string | null;
+  /** 플러그인 자체가 프로젝트 폴더 출처인가 */
+  readonly pluginFromProject: boolean;
+}
+
+function scriptSourceOf(
+  pluginFromProject: boolean,
+  imported: ImportedHookOrigin | undefined,
+): ScriptSource {
+  if (imported !== undefined) {
+    return {
+      origin: imported.kind,
+      originLabel: imported.kind === "project" ? imported.label : null,
+      pluginFromProject,
+    };
+  }
+  return {
+    origin: pluginFromProject ? "project" : "unknown",
+    originLabel: null,
+    pluginFromProject,
   };
 }
 
@@ -217,11 +252,11 @@ const ENV_COMMAND_CHARS = 4096;
  */
 function scriptOf(
   decl: ManifestScriptDecl,
-  fromProject: boolean,
+  source: ScriptSource,
   which: (name: string) => string | undefined,
   envSandboxed: boolean,
 ): CardScript {
-  const env = envOf(decl, fromProject, which);
+  const env = envOf(decl, source, which);
   const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
   const argv = [decl.file, ...(decl.args ?? [])];
   return {
@@ -247,7 +282,7 @@ function scriptOf(
 
 function injectOf(
   folder: CardSubject,
-  fromProject: boolean,
+  source: ScriptSource,
   which: (name: string) => string | undefined,
   envSandboxed: boolean,
 ): InjectInventory | null {
@@ -286,7 +321,7 @@ function injectOf(
   const agents = unique(materials.agents.map((agent) => agent.name));
   // 승인하면 실행될 명령 줄. 부를 코드(`entry`)가 없으면 아무도 부르지 않으므로 실행되지 않는다(validate.ts)
   const scripts = (manifest.scripts ?? []).map((decl) =>
-    scriptOf(decl, fromProject, which, envSandboxed),
+    scriptOf(decl, source, which, envSandboxed),
   );
 
   const empty =
@@ -384,7 +419,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const { manifest, materials } = folder;
   const inject = injectOf(
     folder,
-    input.origin.kind === "project",
+    scriptSourceOf(input.origin.kind === "project", input.importedHookOrigin),
     input.whichTool ?? ((name) => Bun.which(name) ?? undefined),
     input.envSandboxed === true,
   );
@@ -396,6 +431,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const displayName = manifest.displayName?.trim() ?? "";
   const purpose = manifest.purpose ?? singleSkillPurpose(materials.skills);
   const projectId = input.origin.projectId;
+  const internal = isInternalCard(input.origin.kind, manifest);
+  const internalLayer = internal ? internalPluginLayer(manifest.name) : undefined;
   const origin =
     projectId === undefined ? { kind: input.origin.kind } : { kind: input.origin.kind, projectId };
 
@@ -410,7 +447,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     cost: costOf(folder, manifest.tools?.length ?? 0),
     health: input.health,
     origin,
-    internal: isInternalCard(input.origin.kind, manifest),
+    internal,
+    ...(internalLayer === undefined ? {} : { internalLayer }),
     review: input.review,
     usedBy: input.usedBy,
   };

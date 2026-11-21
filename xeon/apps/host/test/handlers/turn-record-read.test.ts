@@ -422,3 +422,47 @@ test("profileCost.get asks the port with the profile's plugin names and answers 
   expect(asked).toHaveLength(before);
   await connection.close();
 });
+
+test("turnRecord.recent maps the params to the port, gives it the thread titles and turns a bad cursor into invalidParams", async () => {
+  const asked: unknown[] = [];
+  const looked: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      measure: {
+        turnRecord: portWith({
+          recent: (query) => {
+            const { titleOf, ...rest } = query;
+            asked.push(rest);
+            looked.push(titleOf("thr_unknown"));
+            if (query.cursor === "bad") return err({ kind: "invalid_cursor" });
+            return ok({ enabled: true, level: "full" as const, items: [], next: "5:3" });
+          },
+        }),
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("turnRecord.recent", {})).toEqual({
+    enabled: true,
+    level: "full",
+    items: [],
+    next: "5:3",
+  });
+  await connection.request("turnRecord.recent", {
+    from: 1,
+    to: 9,
+    profileId: "p",
+    plugin: "guard",
+    scopes: ["live"],
+    cursor: "5:3",
+    limit: 7,
+  });
+  expect(asked).toEqual([
+    { from: null, to: null, profileId: null, plugin: null, scopes: null, cursor: null, limit: 50 },
+    { from: 1, to: 9, profileId: "p", plugin: "guard", scopes: ["live"], cursor: "5:3", limit: 7 },
+  ]);
+  // 이 가짜 엔진에 없는 대화는 지워진 대화와 같이 undefined다
+  expect(looked).toEqual([ok(undefined), ok(undefined)]);
+  const bad = await wireErrorOf(connection.request("turnRecord.recent", { cursor: "bad" }));
+  expect(bad.code).toBe(-32602);
+});

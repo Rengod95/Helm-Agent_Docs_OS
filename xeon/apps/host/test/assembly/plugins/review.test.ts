@@ -843,3 +843,142 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
     valueOf(await rig.store.readLog()).map((entry) => [entry.decision, entry.profileIds]),
   ).toEqual([["approved", ["p1"]]]);
 });
+
+// AGE-35: 초안 한 버전의 파일을 읽기만 하는 길(`draftFiles`, `draftFile`). 초안은 `drafts/<id>/tree`에 남아 있어 검토 항목이 닫혀도 읽힌다.
+const sha256Of = (text: string): string =>
+  new Bun.CryptoHasher("sha256").update(text).digest("hex");
+
+test("a draft version lists its files with sizes and hashes and reads each one, and two versions differ by their hashes", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "cmp-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("cmp-kit", "Compare"),
+    "keep.md": "same",
+    "edit.md": "before",
+    "gone.md": "removed later",
+  });
+  const first = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  rmSync(join(folder, "gone.md"));
+  writeFiles(folder, { "edit.md": "after", "new.md": "added" });
+  const second = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+
+  const one = valueOf(await rig.review.draftFiles(first));
+  const two = valueOf(await rig.review.draftFiles(second));
+  expect(one.name).toBe("cmp-kit");
+  expect(one.files.find((file) => file.path === "edit.md")).toEqual({
+    path: "edit.md",
+    bytes: 6,
+    sha256: sha256Of("before"),
+  });
+  expect(two.files.map((file) => file.path)).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "edit.md",
+    "keep.md",
+    "new.md",
+  ]);
+  expect(valueOf(await rig.review.draftFile(first, "edit.md"))).toEqual({
+    path: "edit.md",
+    text: "before",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.draftFile(second, "edit.md")).text).toBe("after");
+  expect(valueOf(await rig.review.draftFile(first, "gone.md")).text).toBe("removed later");
+  const hashOf = (files: typeof one.files, path: string): string | undefined =>
+    files.find((file) => file.path === path)?.sha256;
+  expect(hashOf(one.files, "keep.md")).toBe(hashOf(two.files, "keep.md"));
+  expect(hashOf(one.files, "edit.md")).not.toBe(hashOf(two.files, "edit.md"));
+  expect(hashOf(two.files, "gone.md")).toBeUndefined();
+});
+
+test("submitting a later draft closes the earlier item and drops its review snapshot, but both draft versions stay readable", async () => {
+  // m6T2가 본 "리뷰에 올린 버전의 보관 폴더가 비어 있음"의 재현: 다른 버전을 올리면 앞 항목이 superseded가 되고 그 후보 스냅샷이 지워진다
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "snap-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("snap-kit", "Snap"),
+    "notes.md": "v-one",
+  });
+  const first = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  writeFiles(folder, { "notes.md": "v-two" });
+  const second = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+
+  const firstItem = valueOf(await rig.review.submitDraft(first)).itemId;
+  expect(valueOf(await rig.review.file(firstItem, "notes.md")).text).toBe("v-one");
+  const secondItem = valueOf(await rig.review.submitDraft(second)).itemId;
+  expect(valueOf(await rig.review.get(firstItem)).item.state).toBe("superseded");
+  expect(valueOf(await rig.review.file(firstItem, "notes.md"))).toEqual({
+    path: "notes.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+  expect(valueOf(await rig.review.file(secondItem, "notes.md")).text).toBe("v-two");
+  // 초안 쪽은 그대로다
+  expect(valueOf(await rig.review.draftFile(first, "notes.md")).text).toBe("v-one");
+  expect(valueOf(await rig.review.draftFile(second, "notes.md")).text).toBe("v-two");
+});
+
+test("reading a draft refuses unknown drafts, paths outside the list, escapes, absolute paths and links", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "neg-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("neg-kit", "Negative"),
+    "notes.md": "inside",
+  });
+  const other = join(rig.root, "src", "other-kit");
+  writeFiles(other, {
+    ".fresnel-plugin/plugin.json": manifestOf("other-kit", "Other"),
+    "secret.md": "other plugin",
+  });
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const otherId = valueOf(await rig.review.draftCreate(other, undefined)).draftId;
+
+  expect(errorOf(await rig.review.draftFiles("drf_not_there")).kind).toBe("draft_not_found");
+  expect(errorOf(await rig.review.draftFiles("../../etc")).kind).toBe("draft_not_found");
+  expect(errorOf(await rig.review.draftFile("drf_not_there", "notes.md")).kind).toBe(
+    "draft_not_found",
+  );
+  // 다른 플러그인의 파일은 이 초안의 목록에 없다
+  expect(errorOf(await rig.review.draftFile(draftId, "secret.md")).kind).toBe("path_invalid");
+  expect(valueOf(await rig.review.draftFile(otherId, "secret.md")).text).toBe("other plugin");
+  const refused = await Promise.all(
+    ["../notes.md", "../../x", "/etc/passwd", "a\\b", "notes.md/..", ""].map((path) =>
+      rig.review.draftFile(draftId, path),
+    ),
+  );
+  expect(refused.map((result) => errorOf(result).kind)).toEqual([
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+  ]);
+  // 저장소 안의 스냅샷에 링크가 생겼으면 목록을 주지 않는다(링크를 따라 읽지 않는다)
+  const tree = join(rig.store.draftDir(draftId), "tree");
+  symlinkSync("/etc/hosts", join(tree, "link.md"));
+  expect(errorOf(await rig.review.draftFiles(draftId)).kind).toBe("symlink_refused");
+  expect(errorOf(await rig.review.draftFile(draftId, "link.md")).kind).toBe("symlink_refused");
+});
+
+test("a draft file is cut at 256 KiB, a binary file has no text, and a draft changed on disk is draft_changed", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "big-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("big-kit", "Big"),
+    "big.md": "a".repeat(262144 + 10),
+  });
+  writeFileSync(join(folder, "data.bin"), new Uint8Array([1, 0, 2, 3]));
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const big = valueOf(await rig.review.draftFile(draftId, "big.md"));
+  expect(big.truncated).toBe(true);
+  expect(big.text?.length).toBe(262144);
+  expect(valueOf(await rig.review.draftFile(draftId, "data.bin"))).toEqual({
+    path: "data.bin",
+    text: null,
+    truncated: false,
+  });
+  writeFileSync(join(rig.store.draftDir(draftId), "tree", "big.md"), "tampered");
+  const changed = errorOf(await rig.review.draftFiles(draftId));
+  expect(changed).toEqual({ kind: "store", code: "draft_changed" });
+});

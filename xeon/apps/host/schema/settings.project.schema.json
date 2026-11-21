@@ -257,7 +257,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
           "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
           "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",

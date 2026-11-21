@@ -125,6 +125,7 @@ export interface EnvRunSpec {
   /** 참조 파일과 가져올 때의 지문 */
   readonly refs?: ScriptEnvDecl["refs"];
   readonly stdin?: string;
+  /** 스크립트 선언의 제한 시간(ms). 없으면 기본값(`SCRIPT_LIMITS.timeoutDefaultMs`) */
   readonly timeoutMs?: number;
   /** 기본은 이 프로젝트 폴더에 대한 승인 기록(`granted: true`). `"none"`이면 기록을 주지 않는다 */
   readonly grant?: ScriptEnvGrant | "none";
@@ -172,6 +173,7 @@ export interface ScriptEnvBox {
 async function createService(
   dirs: OsDirs,
   scheduler: SystemScheduler,
+  protectedPathsExtra: readonly string[],
 ): Promise<SandboxServiceHandle> {
   return createSandboxService(
     {
@@ -181,7 +183,11 @@ async function createService(
         logger: () => LOGGER,
         resolveBinary: (name) => resolveOnPath(name),
       },
-      settings: () => readSandboxSettings(() => undefined),
+      // 기본은 읽기를 막지 않는다(AGE-63). 이 상자는 사용자가 `extra`에 적은 상태를 흉내 낸다
+      settings: () => ({
+        ...readSandboxSettings(() => undefined),
+        protectedPathsExtra: [...protectedPathsExtra],
+      }),
     },
     new AbortController().signal,
   );
@@ -276,10 +282,17 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
     mkdirSync(dir, { recursive: true });
   }
   const scheduler = systemScheduler();
+  // 사용자가 `l0.sandbox.protectedPaths.extra`에 적은 것으로 가정한다: 가짜 홈의 키, 자격 파일, 키체인 폴더와 프로젝트 `.env`
+  const extra = [
+    join(home, ".ssh"),
+    join(home, ".claude", "credentials.json"),
+    join(home, "Library", "Keychains"),
+    join(project, ".env"),
+  ];
   // srt는 프로세스 전역 싱글턴이다. 먼저 만든 서비스를 끄고 나서 시험 서비스를 만든다
-  const warmup = await createService(dirs, scheduler);
+  const warmup = await createService(dirs, scheduler, extra);
   await warmup.dispose();
-  const service = await createService(dirs, scheduler);
+  const service = await createService(dirs, scheduler, extra);
   const platform = detectProcessPlatform();
   if (!platform.ok) throw new Error("this test needs a supported platform");
   const background: BackgroundRegistryController = createBackgroundRegistry({
@@ -327,6 +340,7 @@ export async function openScriptEnvBox(): Promise<ScriptEnvBox> {
       runner: shell,
       file,
       env: { command: spec.command, shell, refs: [...(spec.refs ?? [])], refsKnown: true },
+      ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
     };
     const grant = spec.grant ?? grantFor(project);
     const extra = spec.extraEnv ?? {};

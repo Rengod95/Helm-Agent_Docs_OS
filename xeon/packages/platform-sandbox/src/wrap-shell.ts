@@ -42,8 +42,6 @@ export interface WrapShellDeps {
   readonly status: () => SandboxStatus;
   /** 거부 문구를 출력한 실패 명령이 쓰기 거부 줄을 기다리는 최대 시간(ms). 생략하면 600 */
   readonly violationWaitMs?: number;
-  /** l0.sandbox.escapeRetry */
-  readonly escapeRetry: () => boolean;
   /** 호출자 정책에 보호 경로와 설정 추가분을 합쳐 유효 정책을 만든다 */
   readonly resolvePolicy: (policy: SandboxPolicy, baseDir: string) => EffectivePolicy;
   /** srt에 넘길 헬퍼 경로. 검증 후보를 만들 때 쓴다 */
@@ -154,7 +152,6 @@ export type ExecutionDecision =
 export function decideExecution(
   status: SandboxStatus,
   policy: Pick<SandboxPolicy, "allowEscape" | "profile">,
-  escapeRetry: boolean,
 ): ExecutionDecision {
   if (status.reason === "disabled") return { action: "plain", by: "disabled" };
   // 스크립트 환경은 격리 불가일 때 onUnavailable이 run_unsandboxed여도 샌드박스 밖에서 돌지 않는다(닫힌 실패). 사용자가 끈 경우(disabled)만 위에서 허락한다
@@ -162,9 +159,8 @@ export function decideExecution(
     if (policy.allowEscape) return { action: "reject", cause: "escape" };
     return status.available ? { action: "sandboxed" } : { action: "reject", cause: "unavailable" };
   }
-  if (policy.allowEscape) {
-    return escapeRetry ? { action: "plain", by: "escape" } : { action: "reject", cause: "escape" };
-  }
+  // 샌드박스 밖에서 다시 실행하는 길은 없다(설정 escapeRetry는 지웠다). 밖 실행을 요구하는 호출은 거부한다
+  if (policy.allowEscape) return { action: "reject", cause: "escape" };
   if (status.available) return { action: "sandboxed" };
   switch (status.onUnavailable) {
     case "disable_execute":
@@ -434,7 +430,7 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
       }
       await deps.ensureCurrent(context);
       const status = deps.status();
-      const decision = decideExecution(status, policy, deps.escapeRetry());
+      const decision = decideExecution(status, policy);
       // 읽기 전용 프로필은 샌드박스 밖 실행이나 격리 불가 우회를 허용하지 않는다: 돌리지 않고 거부한다
       if (policy.profile === "read-only" && decision.action !== "sandboxed") {
         return err(readOnlyUnavailableError(status));

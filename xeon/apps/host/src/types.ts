@@ -66,6 +66,7 @@ import type {
   StreamPosition,
   TurnStartInput,
   SetProfileStartDrive,
+  StartDriveRejectReason,
   WhenBusy,
   Unsubscribe,
   UsageContext,
@@ -433,6 +434,12 @@ export type ThreadCompactFailure =
   /** 컨텍스트 서비스가 읽기, 투영, 요약, 커밋 가운데 하나를 마치지 못했다 */
   | { readonly kind: "context_failed"; readonly error: ContextError };
 
+/** `switchStartDrive`의 결과. `reason`은 `startDrive`가 `rejected`이고 이유가 닫힌 목록 안일 때만 있다 */
+interface SwitchStartDriveResult {
+  readonly startDrive: SetProfileStartDrive;
+  readonly reason?: StartDriveRejectReason;
+}
+
 export interface ThreadPort {
   /**
    * `creationKey`가 있으면 같은 키로 이미 만든 thread를 돌려준다. 돌려준 `threadId`는 처음 만든 것이고 새 thread는 없다
@@ -458,6 +465,8 @@ export interface ThreadPort {
   workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;
   /** 테스트 대화(표지가 있는 대화)인가. 모르는 대화는 거짓이다. 읽기 실패는 오류 값이다(M5c §4.8.5) */
   isCraftChat(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /** 대화 제목(없는 제목은 null). 모르는(지워진) 대화는 undefined다. 최근 턴 목록이 제목을 붙이고 지워진 대화의 턴을 거르는 데 쓴다 */
+  titleOf(threadId: ThreadId): Result<{ readonly title: string | null } | undefined, ReadFailure>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   /**
@@ -528,7 +537,7 @@ export interface ThreadPort {
    * 프로필을 바꾼 뒤 부른다. 새 프로필의 시작 Drive에 맞춰 엔진이 스택을 바꾼다(AGE-64, X.primitives §4.4.1c): 메시지를 받지 않은 옛 시작 Drive는
    * 내리고, 이미 일하는 Drive는 두고 끝난 뒤 시작하며, 턴이 도는 중이면 끝난 뒤 시작한다. 결과는 화면에 알릴 값이다
    */
-  switchStartDrive(threadId: ThreadId): Promise<Result<SetProfileStartDrive, ReadFailure>>;
+  switchStartDrive(threadId: ThreadId): Promise<Result<SwitchStartDriveResult, ReadFailure>>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 제목 값(없으면 null). `thread.export`의 머리말과 파일 이름에 쓴다. 값을 가리지 않는다(처리기가 가린다). 모르는 thread는 null이다 */

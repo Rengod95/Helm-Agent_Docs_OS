@@ -107,6 +107,8 @@ interface Harness {
     fork: Awaited<ReturnType<SessionService["threads"]["fork"]>>;
     revert: Awaited<ReturnType<SessionService["threads"]["revert"]>>;
     remove: ReturnType<SessionService["threads"]["remove"]>;
+    /** `ext.switchStartDrive`의 답 */
+    switchStart: ReturnType<ExtHost["switchStartDrive"]>;
   };
   lostCallback: (() => void) | undefined;
   /** 예약 서비스 가짜의 값과 구독 목록. 시험이 바꾸고 알림을 낸다 */
@@ -148,6 +150,7 @@ function harness(configDir = "/nonexistent-config"): Harness {
     openForWrite: ok(partial<OpenReport>({})),
     recover: ok(partial<ResumePlan>({})),
     openThreadError: undefined,
+    switchStart: ok("none"),
     admit: ok({ status: "started", inputId: ids.next("evt"), turnId: TURN }),
     admitted: [],
     runningTurn: null,
@@ -346,6 +349,7 @@ function harness(configDir = "/nonexistent-config"): Harness {
         ? Promise.resolve()
         : Promise.reject(state.openThreadError);
     },
+    switchStartDrive: () => state.switchStart,
     closeThread: () => {
       calls.push("ext.closeThread");
       if (state.closeThread === "throw") return Promise.reject(new Error("close failed"));
@@ -581,6 +585,55 @@ describe("threads", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test("switchStartDrive carries the engine's refusal as startDrive rejected with one closed reason each", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const reasons = [
+      "unknown_thread",
+      "child_thread",
+      "unknown_scope",
+      "not_drive",
+      "drive_error",
+    ] as const;
+    await sequentially(reasons, async (kind) => {
+      h.state.switchStart = err({ kind });
+      expect(await ports.threads.switchStartDrive(THREAD)).toEqual({
+        ok: true,
+        value: { startDrive: "rejected", reason: kind },
+      });
+    });
+  });
+
+  test("switchStartDrive leaves the reason empty when the engine's refusal is outside the closed list", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.switchStart = err({ kind: "input_too_large" });
+    expect(await ports.threads.switchStartDrive(THREAD)).toEqual({
+      ok: true,
+      value: { startDrive: "rejected" },
+    });
+  });
+
+  test("switchStartDrive on a thread the engine has no row for is rejected as unknown_thread", async () => {
+    const h = harness();
+    h.state.threadExists = false;
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.switchStartDrive(THREAD)).toEqual({
+      ok: true,
+      value: { startDrive: "rejected", reason: "unknown_thread" },
+    });
+  });
+
+  test("switchStartDrive passes the engine's outcome without a reason", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.switchStart = ok("deferred");
+    expect(await ports.threads.switchStartDrive(THREAD)).toEqual({
+      ok: true,
+      value: { startDrive: "deferred" },
+    });
   });
 
   test("a thread without a profile start drive opens the extension host without startDrive", async () => {

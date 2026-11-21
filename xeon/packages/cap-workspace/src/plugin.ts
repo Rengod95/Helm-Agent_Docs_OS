@@ -2,6 +2,8 @@ import { err, ok } from "@fresnel/contracts";
 import {
   WorkspaceFiles,
   WorkspaceFilesKey,
+  WorkspaceProtection,
+  WorkspaceProtectionKey,
   WorkspaceShell,
   WorkspaceImagesKey,
   WorkspaceShellKey,
@@ -46,6 +48,11 @@ import { createRewindCapture } from "./rewind/capture.ts";
 import { DEFAULT_REWIND_LIMITS } from "./rewind/limits.ts";
 import { createFileRewindService } from "./rewind/service.ts";
 import { createRewindStore } from "./rewind/store.ts";
+import {
+  createProtectApi,
+  UNAVAILABLE_PROTECT_STORE,
+  type ProtectPathsStore,
+} from "./protect/api.ts";
 
 // L2.workspace.plan W4. 구현 패키지(platform-exec, platform-sandbox, core-tools)를 import하지 않고 F 서비스 인터페이스를
 // 포트(fresnel.exec, fresnel.sandbox, fresnel.os, fresnel.tools)로만 받는다. Cordis는 import하지 않는다(DR-11).
@@ -72,6 +79,11 @@ export interface WorkspacePluginOptions {
    * (L1.persistence.spec §4.13.2). 세션 포트와 blob 포트가 있어야 한다.
    */
   readonly ids?: IdFactory;
+  /**
+   * 사용자 범위 `l0.sandbox.protectedPaths.extra`의 읽기와 더하기 포트(모델 도구 `sandbox_protect`, AGE-63). 조립 루트가 설정 저장소로
+   * 구현해 넘긴다. 이 패키지는 설정 파일을 직접 쓰지 않는다. 없으면 더하기는 unavailable이다
+   */
+  readonly protectPaths?: ProtectPathsStore;
   readonly loadIndex?: number;
 }
 
@@ -187,6 +199,11 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       host.provide(WorkspaceShellKey, service.shell);
 
       host.provide(WorkspaceImagesKey, service.images);
+      // 보호 경로 더하기와 목록(AGE-63). 샌드박스가 없으면 두 메서드 모두 unavailable로 답한다
+      host.provide(
+        WorkspaceProtectionKey,
+        createProtectApi({ sandbox, store: options.protectPaths ?? UNAVAILABLE_PROTECT_STORE }),
+      );
       if (rewindStore === undefined) {
         logger.warn("workspace.rewind_missing", {
           effect: "edits do not keep originals and file rewind is not available",
@@ -229,6 +246,15 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
           def: WorkspaceShell,
           key: WorkspaceShellKey,
           policy: { bash: { risk: "exec", riskUnderReadOnlySandbox: "read" } },
+        },
+        // [제안, AGE-63] 보호 경로 더하기는 설정 extra에 더하기만 하고 막기를 낮추지 못한다. 그래서 가장 가벼운 등급 read를 쓴다.
+        // 등급 read는 기본 모드에서 묻지 않는다(L1.tools §4.6). 지연 노출이라 평소 광고 목록에는 없다
+        {
+          kind: "capability",
+          def: WorkspaceProtection,
+          key: WorkspaceProtectionKey,
+          policy: { sandbox_protect: { risk: "read" }, sandbox_protected: { risk: "read" } },
+          exposure: { sandbox_protect: "deferred", sandbox_protected: "deferred" },
         },
       ];
       // 이름 충돌은 확장 조합이 낼 수 있는 시작 실패다. 먼저 넣은 등록을 거두고 setup이 값으로 알린다

@@ -35,6 +35,8 @@ import {
   TurnRecordListParamsSchema,
   TurnRecordMarkParamsSchema,
   TurnRecordSchema,
+  TurnRecordRecentParamsSchema,
+  TurnRecordRecentResultSchema,
   TurnRecordSearchParamsSchema,
   TurnRecordUnwatchParamsSchema,
   TurnRecordWatchResultSchema,
@@ -508,6 +510,27 @@ describe("메서드 params와 result 스키마(미등록)", () => {
       false,
     );
     expect(parse(TurnRecordSearchParamsSchema, { ...base, period: { days: 0 } }).ok).toBe(false);
+  });
+
+  test("turnRecord.recent takes optional filters, a 1..200 limit and rejects unknown keys", () => {
+    expect(parse(TurnRecordRecentParamsSchema, {}).ok).toBe(true);
+    const full = {
+      from: 1,
+      to: 2,
+      profileId: "p",
+      plugin: "guard",
+      scopes: ["live"],
+      cursor: "1:2",
+      limit: 200,
+    };
+    expect(parse(TurnRecordRecentParamsSchema, full).ok).toBe(true);
+    expect(parse(TurnRecordRecentParamsSchema, { limit: 201 }).ok).toBe(false);
+    expect(parse(TurnRecordRecentParamsSchema, { limit: 0 }).ok).toBe(false);
+    expect(parse(TurnRecordRecentParamsSchema, { threadId: "thr_1" }).ok).toBe(false);
+    expect(
+      parse(TurnRecordRecentResultSchema, { enabled: true, level: "full", items: [], next: null })
+        .ok,
+    ).toBe(true);
   });
 
   test("turnRecord.mark accepts only followed and not_followed", () => {

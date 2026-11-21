@@ -144,13 +144,16 @@ describe("wrapShell", () => {
     const denyRead = (fs?.denyRead ?? []).map(String);
     const denyWrite = (fs?.denyWrite ?? []).map(String);
     expect(denyRead).toContain(f.dirs.data);
-    expect(denyRead).toContain(join(f.dirs.home, ".ssh"));
-    expect(denyRead).toContain(join(f.dirs.workspace, ".env"));
-    expect(denyRead).toContain(join(f.dirs.workspace, "pkg", ".env.local"));
-    expect(denyRead).not.toContain(join(f.dirs.workspace, ".env.example"));
+    // 자격 폴더와 이름 패턴은 기본으로 쓰기만 막는다(읽기는 설정 extra로 막는다)
+    expect(denyRead).not.toContain(join(f.dirs.home, ".ssh"));
+    expect(denyRead).not.toContain(join(f.dirs.workspace, ".env"));
+    expect(denyRead).not.toContain(join(f.dirs.workspace, "pkg", ".env.local"));
+    expect(denyWrite).toContain(join(f.dirs.home, ".ssh"));
     expect(denyWrite).toContain(f.dirs.config);
     expect(denyWrite).toContain(join(f.dirs.workspace, ".git", "hooks"));
     expect(denyWrite).toContain(join(f.dirs.workspace, ".env"));
+    expect(denyWrite).toContain(join(f.dirs.workspace, "pkg", ".env.local"));
+    expect(denyWrite).not.toContain(join(f.dirs.workspace, ".env.example"));
     expect("network" in (wrap?.customConfig ?? {})).toBe(false);
   });
 

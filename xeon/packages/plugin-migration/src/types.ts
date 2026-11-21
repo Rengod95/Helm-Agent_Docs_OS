@@ -438,6 +438,17 @@ export interface PlannedPlugin {
   readonly userConfig: readonly UserConfigDraft[];
   /** Hook 플러그인이면 있다. 없으면 매니페스트에 실행 선언이 없다 */
   readonly runtime?: PluginRuntimeDecl;
+  /**
+   * Hook 플러그인이 어느 설정 파일에서 왔는지(enFp [제안]). 엔진이 훑기가 읽은 자리의 범위로 정한다. 매니페스트에는 싣지 않는다:
+   * 호스트가 이 값을 검토 항목에 기록하고, 카드의 훅 출처(`origin`)는 그 기록에서만 나온다. Hook 플러그인이 아니거나 범위를 모르면 없다
+   */
+  readonly hookOrigin?: PlannedHookOrigin;
+}
+
+/** 가져온 훅의 출처. `label`은 프로젝트 범위일 때 그 프로젝트 폴더의 표시(홈은 `~`)이고 사용자 범위는 null이다 */
+export interface PlannedHookOrigin {
+  readonly kind: "user" | "project";
+  readonly label: string | null;
 }
 
 export interface ProfileProposal {

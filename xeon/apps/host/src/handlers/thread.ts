@@ -139,7 +139,8 @@ export function createThreadSetProfileHandler(
         ...(toolsChanged === undefined ? {} : { toolsChanged }),
         ...(cacheImpact === undefined ? {} : { cacheImpact }),
       },
-      startDrive: started.value,
+      startDrive: started.value.startDrive,
+      ...(started.value.reason === undefined ? {} : { startDriveReason: started.value.reason }),
     };
   };
 }

@@ -1,20 +1,18 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
 
-// 샌드박스 목록 편집기(L4.desktop-ux §6.13)의 순수 모델. 두 목록을 다룬다: 쓰기 경로(`l0.sandbox.writeRoots.extra`)와
-// 차단 도메인(`l0.sandbox.network.blockedDomains`). 차단이 먼저다. 보호 경로 안의 쓰기 경로는 지워지고(L0.sandbox §3.4),
-// 차단 도메인은 허용 목록보다 먼저 검사한다(L0.sandbox §3.2). 화면은 이 순서를 "차단 우선" 문장으로 말한다.
+// 샌드박스 목록 편집기(L4.desktop-ux §6.13)의 순수 모델. 경로 목록(보호 경로, 스킬 경로)과
+// 차단 도메인(`l0.sandbox.network.blockedDomains`)을 다룬다. 차단 도메인은 허용 목록보다 먼저 검사한다(L0.sandbox §3.2). 화면은 이 순서를 "차단 우선" 문장으로 말한다.
 
 export type SandboxListKind = "paths" | "domains";
 
 const KIND_BY_KEY: ReadonlyMap<SettingKey, SandboxListKind> = new Map<SettingKey, SandboxListKind>([
-  ["l0.sandbox.writeRoots.extra", "paths"],
   ["l0.sandbox.protectedPaths.extra", "paths"],
   ["l2.knowledge.skills.paths", "paths"],
   ["l0.sandbox.network.blockedDomains", "domains"],
 ]);
 
-/** 키로 목록 종류를 고른다. 경로 목록(쓰기 폴더, 보호 경로, 스킬 경로)이나 도메인 목록이 아니면 `null`이다 */
+/** 키로 목록 종류를 고른다. 경로 목록(보호 경로, 스킬 경로)이나 도메인 목록이 아니면 `null`이다 */
 export function sandboxListKindOf(key: SettingKey): SandboxListKind | null {
   return KIND_BY_KEY.get(key) ?? null;
 }
