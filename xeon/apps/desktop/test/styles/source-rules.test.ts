@@ -237,10 +237,10 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
     ),
   ].map((m) => [Number(m[1]), Number(m[2])] as const);
   const list = codeOf(join(SRC, "views/thread-list.tsx"));
-  const kinds = ["review", "question", "tool", "guard"].map((kind) =>
+  const kinds = ["review", "question", "tool"].map((kind) =>
     rule(`.fx-attend-glow[data-kind="${kind}"]`),
   );
-  // 종류마다 중심색(a)과 이웃 색(b·c)이 있고, 따뜻한 색상각(40~100)은 호박 칸인 도구·가드에만 있다. 위험(33) 근처(21~45)는 어디에도 없다
+  // 종류마다 중심색(a)과 이웃 색(b·c)이 있고, 따뜻한 색상각(40~100)은 호박 칸인 도구에만 있다. 위험(33) 근처(21~45)는 어디에도 없다
   const centre = (block: string): number[] => hues(block.slice(0, block.indexOf("--fx-attend-b")));
   expect([
     /color:\s*var\(--cs-color-text-secondary\)/.test(count),
@@ -282,13 +282,12 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
     false,
     false,
     true,
-    [true, true, true, true],
-    [false, false, true, true],
+    [true, true, true],
+    [false, false, true],
     [
       [290, 290],
       [240, 238],
       [80, 86],
-      [66, 68],
     ],
     [],
     true,

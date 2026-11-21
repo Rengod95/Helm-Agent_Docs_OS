@@ -1,6 +1,6 @@
 // 개발 빌드 전용 "표본 상태 보기"(lcMk2, Linear AGE-53). 실제 키·대기 승인이 없어도 확인 대기 표시(크리스탈, DP-223)를 묶은 앱에서 보려고
 // 화면이 읽는 거울 면에 표본을 겹친다: 확인이 필요한 대화 둘(하나는 시한이 있는 승인), 기다리는 제안 둘(받은 요청 카드 하나가 따라 나온다).
-// 승인 카드 네 종류(질문, 도구, 변경 검토, 쓰기 허용)가 하나씩 있어 종류마다 다른 오로라 빛깔 조합을 한 화면에서 볼 수 있다(lcMk4).
+// 승인 카드 세 종류(질문, 도구, 변경 검토)가 하나씩 있어 종류마다 다른 오로라 빛깔 조합을 한 화면에서 볼 수 있다(lcMk4).
 // 엔진 상태와 엔진 연결은 건드리지 않는다(앱 안 감시자들은 겹치지 않은 거울을 읽는다). 표본 대화를 열거나 표본 승인에 답하면 엔진이 모르는 id라
 // 실패한다(보기 전용). 정식 빌드(`BUILD_CHECKS` false)에서는 켜지지 않고 단축키도 걸리지 않는다.
 // 켜고 끄기: ⌘⌥⇧S(macOS, 다른 OS는 Ctrl+Alt+Shift+S). 값은 이 창의 localStorage에 두고 창을 다시 읽는다.
@@ -19,8 +19,8 @@ export const SAMPLE_STATE_KEY = "fresnel.dev.sampleState";
 /** 표본 제안 수(받은 요청 카드와 내비 "제안" 줄) */
 export const SAMPLE_PROPOSALS = 2;
 
-/** 표본 승인의 종류: 질문, 도구(명령 실행), 변경 검토, 쓰기 허용(샌드박스 밖 쓰기, 카드 종류 "가드") */
-type SampleKind = "question" | "tool" | "review" | "guard";
+/** 표본 승인의 종류: 질문, 도구(명령 실행), 변경 검토 */
+type SampleKind = "question" | "tool" | "review";
 
 /** 표본 대화: id 꼬리, 제목 키, 시한 여부, 기다리는 승인들의 종류(차례대로) */
 const THREADS: readonly {
@@ -39,7 +39,7 @@ const THREADS: readonly {
     tail: "SAMP02",
     title: "desktop.dev.sample.threadReadme",
     urgent: true,
-    kinds: ["review", "guard"],
+    kinds: ["review"],
   },
 ];
 
@@ -61,25 +61,6 @@ const SAMPLE_TOOL = {
     args: { command: "bun run deploy --dry-run" },
     argsHash: "sample",
     ruleId: null,
-  },
-} as const;
-
-/** 표본 쓰기 허용: 샌드박스 밖 경로에 쓰는 명령(write-access-model의 `subject: "write_access"`) */
-const SAMPLE_GUARD = {
-  kind: "tool",
-  tool: {
-    toolName: "bash",
-    risk: "write",
-    args: {
-      subject: "write_access",
-      tool: "bash",
-      command: "npm install -g pnpm",
-      writePaths: ["~/.npm/_cacache/index-v5"],
-      allowRoots: ["~/.npm"],
-      homeWide: false,
-    },
-    argsHash: "sample-guard",
-    ruleId: "sandbox.write_access",
   },
 } as const;
 
@@ -126,8 +107,6 @@ function sampleBody(kind: SampleKind): LiveApprovalRequest["body"] {
       return SAMPLE_TOOL;
     case "review":
       return sampleReview();
-    case "guard":
-      return SAMPLE_GUARD;
     default:
       return assertNever(kind, "SampleKind");
   }
