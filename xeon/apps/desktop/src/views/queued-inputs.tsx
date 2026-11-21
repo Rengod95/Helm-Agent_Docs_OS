@@ -258,7 +258,7 @@ function QueuedList(props: {
         data-queue-head={held ? "held" : "queued"}
       >
         <span>{t("term.inputQueue")}</span>
-        <span className="tabular-nums">{chips.length}</span>
+        <span>{chips.length}</span>
         <InfoTip text={t("desktop.composer.queue.info")} />
         {held ? (
           <>

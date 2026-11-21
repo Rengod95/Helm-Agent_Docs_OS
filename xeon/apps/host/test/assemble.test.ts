@@ -107,18 +107,18 @@ test("the core groups build one catalog with the keys of every package that decl
     "core-tasks",
     "core-tools",
     "ext-host",
-    "plugin-account-rotation",
-    "plugin-helm",
-    "plugin-provider-anthropic-oauth",
-    "orchestration-sdk",
     "host",
+    "orchestration-sdk",
     "platform-exec",
     "platform-os",
     "platform-process",
     "platform-sandbox",
     "platform-secrets",
     "platform-store",
+    "plugin-account-rotation",
     "plugin-builder",
+    "plugin-helm",
+    "plugin-provider-anthropic-oauth",
   ]);
   // 내장 확장의 예약 키가 정적 카탈로그에 있어 파일 스키마와 `config list`가 같은 키를 본다(X10)
   expect(built.catalog.has("ext.cap-web.enabled")).toBe(true);

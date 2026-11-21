@@ -27,7 +27,7 @@ export function UsageMeter(props: UsageMeterProps): ReactNode {
         className="min-w-0 flex-1"
       />
       <span
-        className={`flex-none text-ui-sm tabular-nums ${used > limit ? "text-danger-text" : "text-text-tertiary"}`}
+        className={`flex-none text-ui-sm ${used > limit ? "text-danger-text" : "text-text-tertiary"}`}
       >
         {props.valueText}
       </span>

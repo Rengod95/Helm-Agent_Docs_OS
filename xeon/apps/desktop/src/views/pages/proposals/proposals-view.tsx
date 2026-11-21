@@ -399,9 +399,7 @@ function Row(props: {
             {line}
           </span>
         </span>
-        <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
-          {age}
-        </span>
+        <span className="shrink-0 whitespace-nowrap text-ui-xs text-text-tertiary">{age}</span>
       </Button>
     </li>
   );

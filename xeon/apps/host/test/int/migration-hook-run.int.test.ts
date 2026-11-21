@@ -332,10 +332,15 @@ function userChainSettings(userHome: string) {
 
 function redirectHome(home: string): () => void {
   const previous = process.env["HOME"];
+  // macOS의 /usr/bin/python3은 바이트코드 캐시를 홈(~/Library/Caches/com.apple.python)에 쓴다. 이 시험은 훅이 홈에 쓴 파일만 세므로 인터프리터의 캐시 쓰기를 끈다
+  const previousNoBytecode = process.env["PYTHONDONTWRITEBYTECODE"];
   process.env["HOME"] = home;
+  process.env["PYTHONDONTWRITEBYTECODE"] = "1";
   return () => {
     if (previous === undefined) delete process.env["HOME"];
     else process.env["HOME"] = previous;
+    if (previousNoBytecode === undefined) delete process.env["PYTHONDONTWRITEBYTECODE"];
+    else process.env["PYTHONDONTWRITEBYTECODE"] = previousNoBytecode;
   };
 }
 

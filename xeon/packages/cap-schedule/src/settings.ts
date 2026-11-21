@@ -27,7 +27,7 @@ const scheduleSettings = defineSettings("l2.schedule", {
       widget: "select",
       order: 350,
       label: "Direct schedule creation by extensions",
-      help: "Covers direct calls from extensions and groups, not model tools. allow creates at once, ask requests approval, deny blocks.",
+      help: "Covers direct calls from plugins, not model tools. allow creates at once, ask requests approval, deny blocks.",
     },
     since: "0.1.0",
   },

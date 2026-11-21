@@ -86,7 +86,7 @@ function faceButton(face: StatusCellFace, onClick?: () => void): ReactNode {
         </span>
       )}
       {text === null ? null : (
-        <span data-bar-text className="min-w-0 truncate whitespace-nowrap tabular-nums">
+        <span data-bar-text className="min-w-0 truncate whitespace-nowrap">
           {text}
         </span>
       )}

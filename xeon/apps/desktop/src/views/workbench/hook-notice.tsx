@@ -187,7 +187,7 @@ function HookNoticeView(props: {
                 <li key={`${f.afterSeq}:${f.point}`} className="text-ui text-text-secondary">
                   {time !== null && (
                     <>
-                      <span className="font-mono">{time}</span> ·{" "}
+                      <span>{time}</span> ·{" "}
                     </>
                   )}
                   <span className="font-mono">{f.point}</span> · {f.message}

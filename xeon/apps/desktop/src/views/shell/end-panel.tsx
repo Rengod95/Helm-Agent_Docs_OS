@@ -283,7 +283,7 @@ function PluginMenuRow(props: {
             </span>
           </span>
           {count !== undefined && count > 0 ? (
-            <span className="flex-none rounded-full bg-neutral-track px-1.5 text-ui-sm tabular-nums text-text-secondary">
+            <span className="flex-none rounded-full bg-neutral-track px-1.5 text-ui-sm text-text-secondary">
               {count}
             </span>
           ) : tab.shortcut !== undefined && keyLabel !== undefined ? (
@@ -387,7 +387,7 @@ export function EndPanel(props: {
               <span className="flex-none text-ui font-semibold text-text-primary">{label}</span>
               <span
                 data-end-summary=""
-                className="flex min-w-0 items-center gap-1.5 truncate text-ui-sm font-normal tabular-nums text-text-tertiary"
+                className="flex min-w-0 items-center gap-1.5 truncate text-ui-sm font-normal text-text-tertiary"
               >
                 <WellSummary tab={current} stored={currentStored} />
               </span>

@@ -192,15 +192,13 @@ function FillBlock(props: {
       <div className="flex min-w-0 items-baseline gap-2">
         {fill.kind === "known" ? (
           <>
-            <span className="text-title-3 text-text-primary tabular-nums">{fill.percent}%</span>
-            <span className="text-ui text-text-secondary tabular-nums">
+            <span className="text-title-3 text-text-primary">{fill.percent}%</span>
+            <span className="text-ui text-text-secondary">
               {tokenCountText(fill.used)} / {tokenCountText(fill.limit)}
             </span>
           </>
         ) : fill.kind === "noLimit" ? (
-          <span className="text-title-3 text-text-primary tabular-nums">
-            {tokenCountText(fill.used)}
-          </span>
+          <span className="text-title-3 text-text-primary">{tokenCountText(fill.used)}</span>
         ) : (
           <span className="text-title-3 text-text-tertiary">—</span>
         )}
@@ -463,7 +461,7 @@ function UsageBlock(props: { readonly threadId: ThreadId }): ReactNode {
       title={t("desktop.context.usage.title")}
       info={t("desktop.context.usage.help")}
       end={
-        <span className="text-footnote text-text-tertiary tabular-nums">
+        <span className="text-footnote text-text-tertiary">
           {t("desktop.context.usage.turns", { count: report.turns })}
         </span>
       }
@@ -658,7 +656,7 @@ function LoadedRow(props: {
       className="-mx-1.5 flex min-h-8 min-w-0 cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-1.5 text-start outline-none hover:bg-fill-hover focus-visible:focus-ring"
     >
       <span className="flex-none text-ui text-text-primary">{props.label}</span>
-      <span className="min-w-0 flex-1 truncate text-end text-footnote text-text-tertiary tabular-nums">
+      <span className="min-w-0 flex-1 truncate text-end text-footnote text-text-tertiary">
         {props.value}
       </span>
       <ChevronRight aria-hidden className="size-icon-sm flex-none text-text-tertiary" />

@@ -45,9 +45,7 @@ export function TaskBoardView(props: {
           label={t("desktop.tasks.progressLabel")}
           className="min-w-0 flex-1"
         />
-        <span className="flex-none text-ui-sm font-normal tabular-nums text-text-tertiary">
-          {counts}
-        </span>
+        <span className="flex-none text-ui-sm font-normal text-text-tertiary">{counts}</span>
       </div>
       {board.current === null ? null : <CurrentCard task={board.current} handlers={handlers} />}
       {board.next.length === 0 ? null : (

@@ -1,31 +1,9 @@
 /* 리뷰 화면(C5). 종류 색은 종류를 가르는 데만 쓰고 채도를 누른다(캔버스 cv3의 `--cv3-<종류>`와 같은 식).
    그 밖의 색은 caustic 토큰만 쓴다. 인라인 <style>은 셸 CSP가 막으므로 이 파일을 styles.css가 가져온다 */
-/* 숫자의 글꼴(m6R4). 앱의 ui 글꼴 스택에서 SUIT는 한글 범위만 맡고(caustic fonts.css의 unicode-range) 숫자와 라틴 글자는 다음 글꼴
-   (Apple SD Gothic Neo)로 넘어가, "5시간 전"의 5와 "시간 전"이 다른 가족으로 그려졌다. 이 화면에서만 같은 SUIT 파일을 라틴·숫자·문장부호
-   범위로 한 번 더 이름 붙여 스택 앞에 둔다. 공용 토큰(`--cs-font-ui`)과 caustic은 고치지 않는다. 코드(경로, 해시, 명령, 차이)는 고정폭 그대로다 */
-@font-face {
-  font-family: "Fresnel Review Latin";
-  src: url("../../../../node_modules/@caustic/tokens/fonts/suit/SUIT-Variable.woff2")
-    format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0021-007E, U+00A0-00FF, U+2010-2027, U+2030-203A;
-}
-
 .rv-root {
-  --rv-font:
-    "Fresnel Metrics", "Fresnel Review Latin", "SUIT Variable", "SUIT", "Apple SD Gothic Neo",
-    "Malgun Gothic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  /* 상속되는 글꼴과 `font-ui` 유틸리티(토스트 등 caustic 부품)가 같은 스택을 읽는다 */
-  --font-ui: var(--rv-font);
-  font-family: var(--rv-font);
   /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
      오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
   --rv-end: 20px;
-  /* 숫자 0이 영문 O처럼 동그랗게 나오는 SUIT의 ss01을 이 화면에서 끈다(caustic base가 body에 "cv11", "ss01"을 건다).
-     앱 전체 수정(lcNum, fonts.css 5)과 같은 값이다 */
-  font-feature-settings: "cv11";
   --rv-inject: color-mix(
     in oklch,
     var(--cs-color-identity-iris) 84%,

@@ -86,7 +86,7 @@ function OpenTasksOverview(): ReactNode {
                 <span className="min-w-0 flex-1 truncate text-ui font-medium text-text-primary">
                   {titleOf(group.threadId)}
                 </span>
-                <span className="flex-none text-ui-sm font-normal tabular-nums text-text-tertiary">
+                <span className="flex-none text-ui-sm font-normal text-text-tertiary">
                   {t("desktop.tasks.progress", { done: group.done, total: group.total })}
                 </span>
               </span>

@@ -230,7 +230,7 @@ function RecentRow(props: {
       <span className="min-w-0 flex-1 truncate font-mono text-footnote text-text-tertiary">
         {tail ?? ""}
       </span>
-      <span className="shrink-0 text-footnote text-text-tertiary tabular-nums">
+      <span className="shrink-0 text-footnote text-text-tertiary">
         {t("desktop.threads.recentCount", { count: item.count })}
       </span>
     </button>

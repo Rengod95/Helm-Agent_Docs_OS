@@ -77,7 +77,7 @@ export function TrustedFoldersView(props: TrustedFoldersViewProps): ReactNode {
     verdict: entry.verdict,
     locked: props.busy.has(entry.path),
     cells: [
-      <span key="age" className="block truncate text-ui-sm text-text-tertiary tabular-nums">
+      <span key="age" className="block truncate text-ui-sm text-text-tertiary">
         {savedAgeTextOf(entry.savedAt, props.nowMs)}
       </span>,
     ],

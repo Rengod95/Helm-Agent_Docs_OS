@@ -71,7 +71,7 @@ function ToolsTable(props: { readonly view: BinaryView }): ReactNode {
         }
         if (column.key === "note") {
           return row.ok ? (
-            <span className="font-mono text-mono-sm text-text-secondary">{row.note}</span>
+            <span className="text-text-secondary">{row.note}</span>
           ) : (
             <span className="text-warning-text">{row.note}</span>
           );
@@ -169,7 +169,7 @@ export function EngineScreen(): ReactNode {
             >
               {appVersion === null ? null : (
                 <ListDescriptionRow term={t("desktop.workbench.engine.app")}>
-                  <span className="font-mono text-mono-sm">{appVersion}</span>
+                  <span>{appVersion}</span>
                 </ListDescriptionRow>
               )}
               <ListDescriptionRow term={t("desktop.workbench.engine.phase")}>
