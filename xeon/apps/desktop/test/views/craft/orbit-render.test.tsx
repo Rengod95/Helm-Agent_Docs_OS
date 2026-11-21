@@ -71,7 +71,7 @@ describe("Orbit with 77 plugins", () => {
   });
 
   test("a group's lead dot does not repeat the group name as a second label", () => {
-    // 그룹 이름표(data-group 단추)가 이름을 한 번 그리고, 같은 이름의 대표 점은 이름표를 달지 않는다
+    // 플러그인 이름표(data-group 단추)가 이름을 한 번 그리고, 같은 이름의 대표 점은 이름표를 달지 않는다
     expect(html.match(/>Helm<\/button>/g)?.length).toBe(1);
     expect(html.match(/craft-label[^>]*>Helm</g)?.length).toBe(1);
   });

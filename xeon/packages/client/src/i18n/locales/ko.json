@@ -579,7 +579,7 @@
   "cli.usage.author.installSyntax": "fresnel author install <묶음 폴더> [--yes]",
   "cli.usage.author.packSyntax": "fresnel author pack <폴더> [--out <폴더>]",
   "cli.usage.author.removeSyntax": "fresnel author remove <이름> [--drop-data] [--yes]",
-  "cli.usage.author.scaffoldSyntax": "fresnel author scaffold <이름> --dir <폴더> [--group]",
+  "cli.usage.author.scaffoldSyntax": "fresnel author scaffold <이름> --dir <폴더>",
   "cli.usage.author.validateSyntax": "fresnel author validate <폴더>",
   "cli.render.notices.otherThread": " (다른 대화)",
   "cli.render.notices.owner.extension": "확장 {name}",

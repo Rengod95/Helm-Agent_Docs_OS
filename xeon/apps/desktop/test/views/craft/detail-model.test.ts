@@ -67,7 +67,7 @@ describe("switchOf: 스위치는 그룹 단위 하나(15-1)", () => {
     expect(sw).toEqual({ targets: ["exa"], total: 1, onCount: 0, autoOff: false });
   });
 
-  test("스위치 이름: 그룹에 속하면 그룹 이름", () => {
+  test("스위치 이름: 그룹에 속하면 플러그인 이름", () => {
     expect(switchNameOf(need(targetOf(snap, "helm/explore")))).toBe("Helm");
     expect(switchNameOf(need(targetOf(snap, "exa")))).toBe("Exa search");
   });

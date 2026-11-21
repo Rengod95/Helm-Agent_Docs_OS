@@ -12,7 +12,7 @@ import type { OrchestrationApi, OrchestrationManifest, OrchestrationModule } fro
 /**
  * M1 테스트 그룹의 매니페스트(L3.group-sdk.plan G-01). F.extensions.plan의
  * fixtures/smoke-group.manifest.json과 같은 이름·지점·선언을 쓴다.
- * M2(G-16)부터 defineGroup으로 만든다.
+ * M2(G-16)부터 defineOrchestration으로 만든다.
  */
 export const SMOKE_ORCHESTRATION_MANIFEST: OrchestrationManifest = defineManifest({
   schemaVersion: 2,
@@ -62,7 +62,7 @@ export interface SmokeOrchestrationProbe {
 export interface SmokeOrchestration {
   readonly manifest: OrchestrationManifest;
   readonly entry: ExtensionEntry;
-  /** defineGroup이 만든 모듈. manifest와 entry는 이 모듈의 것이다 */
+  /** defineOrchestration이 만든 모듈. manifest와 entry는 이 모듈의 것이다 */
   readonly module: OrchestrationModule;
   readonly probe: SmokeOrchestrationProbe;
 }
@@ -121,7 +121,7 @@ function registerSmoke(
   });
 }
 
-/** M1 테스트 그룹. on(tool.call.before, boundary.step.after), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */
+/** M1 테스트 그룹. on(tool.call.before, boundary.step.after), post, drive, scope를 한 번씩 쓴다. defineOrchestration으로 만든다 */
 export function smokeOrchestration(options: SmokeOrchestrationOptions = {}): SmokeOrchestration {
   const denyTools = new Set(options.denyTools ?? DEFAULT_DENY_TOOLS);
   const driveTurns = options.driveTurns ?? 1;

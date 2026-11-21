@@ -28,7 +28,7 @@ export interface HostOrchestrationsOptions {
 
 /**
  * 그룹 카탈로그에 올릴 매니페스트인가. `group` 선언이 있고 id 없는 루트 플러그인이 L3다.
- * orchestration-sdk의 defineGroup이 그룹을 알아보는 기준(orchestrationOf)과 같다. 옛 형식의 `layer === "L3"`를 대신한다
+ * orchestration-sdk의 defineOrchestration이 그룹을 알아보는 기준(orchestrationOf)과 같다. 옛 형식의 `layer === "L3"`를 대신한다
  */
 export function isOrchestrationCatalogManifest(manifest: ExtensionManifest): boolean {
   return (

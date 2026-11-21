@@ -419,7 +419,7 @@ describe("캔버스 자리와 개요", () => {
   });
 });
 
-describe("프로필의 drive 그룹과 코어 잠금", () => {
+describe("프로필의 Drive 플러그인과 코어 잠금", () => {
   test("빈 값은 자동(null)", () => {
     const draft = profileDraftOf(null);
     expect(withDriver(draft, "helm").driver).toBe("helm");
@@ -506,14 +506,14 @@ describe("블록 이슈의 경로 모양", () => {
   });
 });
 
-describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록", () => {
+describe("저장하지 않은 프로필 바꿈과 Drive 플러그인 고르기 목록", () => {
   test("저장된 값과 같으면 저장하지 않은 바꿈이 없고, 이름 앞뒤 공백은 바꿈이 아니다", () => {
     const draft = profileDraftOf(PROFILE);
     expect(profileUnsavedOf(draft, PROFILE)).toBe(false);
     expect(profileUnsavedOf({ ...draft, title: "  조용히 " }, PROFILE)).toBe(false);
   });
 
-  test("이름, drive 그룹, 플러그인 목록 중 하나라도 다르면 바꿈이다", () => {
+  test("이름, Drive 플러그인, 플러그인 목록 중 하나라도 다르면 바꿈이다", () => {
     const draft = profileDraftOf(PROFILE);
     expect(profileUnsavedOf({ ...draft, title: "다른 이름" }, PROFILE)).toBe(true);
     expect(profileUnsavedOf(withDriver(draft, null), PROFILE)).toBe(true);
@@ -536,13 +536,13 @@ describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록"
   });
 });
 
-describe("drive 그룹 고르기 값", () => {
+describe("Drive 플러그인 고르기 값", () => {
   test("자동이 첫 값이고 그 뒤에 설치된 그룹과 저장된 이름이 온다", () => {
     expect(driverPicksOf(null, ["helm", "lens"])).toEqual([AUTO_DRIVER_PICK, "helm", "lens"]);
     expect(driverPicksOf("gone", ["helm"])).toEqual([AUTO_DRIVER_PICK, "helm", "gone"]);
   });
 
-  test("자동 값은 null로 바뀌고, 그룹 이름은 그대로다", () => {
+  test("자동 값은 null로 바뀌고, 플러그인 이름은 그대로다", () => {
     expect(driverOfPick(AUTO_DRIVER_PICK)).toBeNull();
     expect(driverOfPick("helm")).toBe("helm");
     expect(withDriver(profileDraftOf(null), driverOfPick(AUTO_DRIVER_PICK)).driver).toBeNull();

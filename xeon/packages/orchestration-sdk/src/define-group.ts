@@ -181,10 +181,10 @@ function withComposition(
   return { ...manifest, orchestration: { ...manifest.orchestration, composition } };
 }
 
-/** defineGroup이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
+/** defineOrchestration이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
 const builtGroups = new WeakSet<object>();
 
-/** value가 이 모듈 인스턴스의 defineGroup이 만든 GroupModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
+/** value가 이 모듈 인스턴스의 defineOrchestration이 만든 GroupModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
 export function isOrchestrationModule(value: unknown): value is OrchestrationModule {
   return typeof value === "object" && value !== null && builtGroups.has(value);
 }

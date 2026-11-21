@@ -103,7 +103,7 @@ export interface GroupNewCommand {
 
 /**
  * `fresnel author <명령>`(L3.authoring.spec §4.5, L4.cli.spec §3.1). 모델 없이 도는 제작 명령이다.
- * `scaffold <이름> --dir <폴더> [--group]`, `validate <폴더>`, `pack <폴더> [--out <폴더>]`, `install <폴더> [--yes]`, `remove <이름> [--drop-data] [--yes]`, `ls`
+ * `scaffold <이름> --dir <폴더>`, `validate <폴더>`, `pack <폴더> [--out <폴더>]`, `install <폴더> [--yes]`, `remove <이름> [--drop-data] [--yes]`, `ls`
  */
 export type AuthorCommand =
   | {
