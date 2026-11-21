@@ -785,3 +785,319 @@ export function PairBars(props: {
     </div>
   );
 }
+
+// ───────── 머리 숫자의 작은 그림 ─────────
+// 축 없는 작은 그림(AGE-36 넷째 판). 값은 올리면 읽힌다: 그림은 고른 칸(`hot`)을 알리고, 칸 위의 숫자 자리가 그 값과 날로 바뀐다(`kpi.tsx`).
+// 표식은 아래 큰 그림들과 한 식구다: 턴은 중립 먹, 막음·물음은 Hook 결정의 색과 결(꽉 찬 먹·촘촘한 점), 컨텍스트는 먹의 선.
+
+/** 위 모서리만 둥근 기둥(바닥에 붙은 쪽은 각지게) */
+function columnPath(x: number, y: number, w: number, h: number): string {
+  const r = Math.min(2, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+
+/** 칸 고르기: 포인터의 x를 칸 번호로 */
+function slotAt(clientX: number, el: SVGSVGElement, n: number): number {
+  const box = el.getBoundingClientRect();
+  const at = Math.floor(((clientX - box.left) / Math.max(1, box.width)) * n);
+  return Math.max(0, Math.min(n - 1, at));
+}
+
+/** 작은 기둥의 가장 큰 너비(px). 날이 적어 칸이 넓어도 기둥은 가늘게 두고 칸 가운데에 선다(선 그림의 점과 같은 x) */
+const MINI_BAR_MAX = 20;
+
+/**
+ * 날마다 작은 기둥. 값이 0인 날은 바닥 선만, 값을 낼 수 없는 날(null)은 낮은 빗금 칸이다. 기둥 사이 틈은 2px(날이 많으면 1px).
+ * 올린 날의 기둥만 남고 나머지는 물러난다
+ */
+export function MiniColumns(props: {
+  readonly series: Series;
+  /** 날마다 한 칸(`id`는 날) */
+  readonly points: readonly { readonly id: string; readonly value: number | null }[];
+  readonly height: number;
+  readonly label: string;
+  readonly hot: number | null;
+  readonly onHot: (index: number | null) => void;
+}): ReactNode {
+  const ref = useRef<HTMLDivElement>(null);
+  const width = useWidth(ref);
+  const prefix = `viz${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const n = Math.max(1, props.points.length);
+  const slot = width / n;
+  const gap = n > 20 ? 1 : 2;
+  const bar = Math.max(1, Math.min(MINI_BAR_MAX, slot - gap));
+  const max = Math.max(1, ...props.points.map((p) => p.value ?? 0));
+  const h = props.height;
+  return (
+    <div ref={ref} className="min-w-0">
+      <svg
+        role="img"
+        aria-label={props.label}
+        width={width}
+        height={h}
+        className="viz-hoverable block touch-none"
+        {...(props.hot === null ? {} : { "data-viz-hot": "" })}
+        onPointerMove={(e) => {
+          props.onHot(slotAt(e.clientX, e.currentTarget, n));
+        }}
+        onPointerLeave={() => {
+          props.onHot(null);
+        }}
+      >
+        <TextureDefs prefix={prefix} series={[props.series]} />
+        {props.points.map((p, i) => {
+          const v = p.value;
+          const x = i * slot + (slot - bar) / 2;
+          const mark = {
+            "data-viz-mark": "",
+            ...(props.hot === i ? { "data-viz-hot": "" } : {}),
+          };
+          if (v === null) {
+            return (
+              <rect
+                key={p.id}
+                {...mark}
+                x={x}
+                y={h - 7}
+                width={bar}
+                height={6}
+                rx={1}
+                fill="url(#viz-hatch-mini)"
+              />
+            );
+          }
+          if (v <= 0) return null;
+          const bh = Math.max(2, (v / max) * (h - 2));
+          return (
+            <path
+              key={p.id}
+              {...mark}
+              d={columnPath(x, h - 1 - bh, bar, bh)}
+              fill={fillOf(prefix, props.series)}
+            />
+          );
+        })}
+        <line className="viz-gridline" x1={0} x2={width} y1={h - 0.5} y2={h - 0.5} />
+        <defs>
+          <pattern
+            id="viz-hatch-mini"
+            width="4"
+            height="4"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="4" stroke="var(--viz-ink-1)" strokeWidth="1.5" />
+          </pattern>
+        </defs>
+      </svg>
+    </div>
+  );
+}
+
+/** 점 고르기: 양끝에 점이 서는 선에서 포인터에 가장 가까운 점의 번호 */
+function nearestAt(clientX: number, el: SVGSVGElement, n: number, inset: number): number {
+  if (n <= 1) return 0;
+  const box = el.getBoundingClientRect();
+  const at = Math.round(
+    ((clientX - box.left - inset) / Math.max(1, box.width - inset * 2)) * (n - 1),
+  );
+  return Math.max(0, Math.min(n - 1, at));
+}
+
+/**
+ * 날마다 한 점을 잇는 흐름 선(값의 크기가 아니라 오르내림을 본다: 바닥은 0이 아니라 가장 낮은 값 근처다).
+ * 값이 없는 날에서 선이 끊긴다. 마지막 점에 표지를 두고, 올린 날에는 세로 선과 점이 선다
+ */
+export function MiniLine(props: {
+  readonly values: readonly (number | null)[];
+  readonly height: number;
+  readonly label: string;
+  readonly hot: number | null;
+  readonly onHot: (index: number | null) => void;
+}): ReactNode {
+  const ref = useRef<HTMLDivElement>(null);
+  const width = useWidth(ref);
+  const n = Math.max(1, props.values.length);
+  const known = props.values.filter((v): v is number => v !== null);
+  const lo = Math.min(...known);
+  const hi = Math.max(...known);
+  const pad = Math.max((hi - lo) * 0.2, hi * 0.05, 1);
+  const min = Math.max(0, lo - pad);
+  const max = hi + pad;
+  const h = props.height;
+  const inset = 4;
+  const xOf = (i: number): number =>
+    n === 1 ? width / 2 : inset + (i / (n - 1)) * (width - inset * 2);
+  const yOf = (v: number): number =>
+    inset + (1 - (v - min) / Math.max(1, max - min)) * (h - inset * 2);
+  const runs: { i: number; v: number }[][] = [];
+  props.values.forEach((v, i) => {
+    if (v === null) {
+      runs.push([]);
+      return;
+    }
+    const last = runs.at(-1);
+    if (last === undefined) runs.push([{ i, v }]);
+    else last.push({ i, v });
+  });
+  const paths = runs.filter((r) => r.length > 0);
+  const lastIndex = props.values.findLastIndex((v) => v !== null);
+  const lastValue = props.values[lastIndex] ?? null;
+  const hotValue = props.hot === null ? null : (props.values[props.hot] ?? null);
+  return (
+    <div ref={ref} className="min-w-0">
+      <svg
+        role="img"
+        aria-label={props.label}
+        width={width}
+        height={h}
+        className="block touch-none"
+        onPointerMove={(e) => {
+          props.onHot(nearestAt(e.clientX, e.currentTarget, n, inset));
+        }}
+        onPointerLeave={() => {
+          props.onHot(null);
+        }}
+      >
+        {paths.map((run) => {
+          const line = run.map((p, k) => `${k === 0 ? "M" : "L"}${xOf(p.i)},${yOf(p.v)}`).join("");
+          const first = run[0];
+          const end = run.at(-1);
+          if (first === undefined || end === undefined) return null;
+          return (
+            <g key={String(first.i)}>
+              {run.length > 1 ? (
+                <path
+                  d={`${line}L${xOf(end.i)},${h}L${xOf(first.i)},${h}Z`}
+                  style={{ fill: "color-mix(in oklab, var(--viz-ink-2) 12%, transparent)" }}
+                />
+              ) : null}
+              <path
+                d={line}
+                fill="none"
+                stroke="var(--viz-ink-2)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          );
+        })}
+        {props.hot !== null ? (
+          <line
+            x1={xOf(props.hot)}
+            x2={xOf(props.hot)}
+            y1={0}
+            y2={h}
+            stroke="var(--viz-grid)"
+            strokeWidth={1}
+          />
+        ) : null}
+        {hotValue !== null && props.hot !== null ? (
+          <circle
+            cx={xOf(props.hot)}
+            cy={yOf(hotValue)}
+            r={4}
+            fill="var(--viz-ink-3)"
+            stroke="var(--cs-color-surface-base)"
+            strokeWidth={2}
+          />
+        ) : lastValue !== null ? (
+          <circle
+            cx={xOf(lastIndex)}
+            cy={yOf(lastValue)}
+            r={4}
+            fill="var(--viz-ink-2)"
+            stroke="var(--cs-color-surface-base)"
+            strokeWidth={2}
+          />
+        ) : null}
+      </svg>
+    </div>
+  );
+}
+
+/** 이어 붙인 가는 띠(한 전체의 갈래). 갈래 사이 2px 틈, 양끝은 둥글다. 올린 갈래만 남는다 */
+export function MiniSegments(props: {
+  readonly parts: readonly {
+    readonly id: string;
+    readonly value: number;
+    readonly color: string;
+  }[];
+  readonly label: string;
+  readonly hot: number | null;
+  readonly onHot: (index: number | null) => void;
+}): ReactNode {
+  const ref = useRef<HTMLDivElement>(null);
+  const width = useWidth(ref);
+  const total = props.parts.reduce((s, p) => s + p.value, 0);
+  const shown = props.parts.filter((p) => p.value > 0);
+  const room = Math.max(0, width - 2 * Math.max(0, shown.length - 1));
+  const places = placeAlong(
+    shown.map((p) => (total <= 0 ? 0 : Math.max(2, (p.value / total) * room))),
+    2,
+  );
+  return (
+    <div ref={ref} className="min-w-0">
+      <svg
+        role="img"
+        aria-label={props.label}
+        width={width}
+        height={8}
+        className="viz-hoverable block"
+        {...(props.hot === null ? {} : { "data-viz-hot": "" })}
+      >
+        {shown.map((p, i) => {
+          const at = places[i]?.x ?? 0;
+          const w = places[i]?.w ?? 0;
+          const index = props.parts.indexOf(p);
+          return (
+            <rect
+              key={p.id}
+              data-viz-mark=""
+              {...(props.hot === index ? { "data-viz-hot": "" } : {})}
+              x={at}
+              y={0}
+              width={w}
+              height={8}
+              rx={i === 0 || i === shown.length - 1 ? 4 : 1}
+              fill={p.color}
+              onPointerEnter={() => {
+                props.onHot(index);
+              }}
+              onPointerLeave={() => {
+                props.onHot(null);
+              }}
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** 전체 가운데 몫 하나(가는 미터). 바탕은 옅은 길, 채움은 중립 먹이다 */
+export function MiniMeter(props: {
+  readonly share: number;
+  readonly label: string;
+  readonly onHot: (hot: boolean) => void;
+}): ReactNode {
+  return (
+    <div
+      role="img"
+      aria-label={props.label}
+      className="relative h-2 min-w-0 overflow-hidden rounded-full bg-[var(--viz-track)]"
+      onPointerEnter={() => {
+        props.onHot(true);
+      }}
+      onPointerLeave={() => {
+        props.onHot(false);
+      }}
+    >
+      <div
+        className="absolute inset-y-0 left-0 rounded-full bg-[var(--viz-ink-2)]"
+        style={{ width: `${String(Math.round(props.share * 1000) / 10)}%` }}
+      />
+    </div>
+  );
+}

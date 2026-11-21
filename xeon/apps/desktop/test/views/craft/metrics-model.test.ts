@@ -12,16 +12,24 @@ import {
   coveredDays,
   dailyOf,
   dayKeyOf,
-  eligibleThreadsOf,
+  changeOf,
+  dailyContextOf,
+  dayWindowOf,
+  evidenceTurnsOf,
   foldSlices,
   insightGroupsOf,
   isPartialTurn,
-  mergeRecent,
+  mergeFirstPage,
   metricFilterOf,
+  periodTotalsOf,
   pluginRowsOf,
+  previousWindowOf,
   rawDecisionsOf,
+  recentParamsOf,
   sampleStatusOf,
+  shareOf,
   sortPluginRows,
+  sumCells,
 } from "../../../src/views/craft/metrics/model.ts";
 
 const exact = (value: number, n: number, denom?: number): MetricValue => ({
@@ -239,44 +247,74 @@ function summary(
   };
 }
 
+function row(id: string): { turn: TurnSummary; title: string | null } {
+  return { turn: summary("a", id, T0), title: null };
+}
+
+function approx(value: number): MetricValue {
+  return { value, n: 30, state: "approx" };
+}
+
 describe("recent turns", () => {
   const filter = { days: 7, profileId: null, includeTests: false, plugin: null } as const;
 
-  test("threads are picked by recent activity inside the period, tests and other profiles left out", () => {
-    const threads = [
-      { threadId: "old", title: null, updatedAt: T0 - 9 * DAY, profileId: null, test: false },
-      { threadId: "a", title: "A", updatedAt: T0 - DAY, profileId: null, test: false },
-      { threadId: "b", title: "B", updatedAt: T0 - 60_000, profileId: "p2", test: false },
-      { threadId: "t", title: "T", updatedAt: T0, profileId: null, test: true },
-    ];
+  test("the engine list takes the period start, or one UTC day, with tests and profile kept out unless chosen", () => {
     expect([
-      eligibleThreadsOf(threads, filter, T0).map((th) => th.threadId),
-      eligibleThreadsOf(threads, { ...filter, includeTests: true }, T0).map((th) => th.threadId),
-      eligibleThreadsOf(threads, { ...filter, profileId: "p2" }, T0).map((th) => th.threadId),
-    ]).toEqual([["b", "a"], ["t", "b", "a"], ["b"]]);
+      recentParamsOf(filter, T0, null, false),
+      recentParamsOf(
+        { ...filter, includeTests: true, profileId: "p2", plugin: "g" },
+        T0,
+        null,
+        true,
+      ),
+      recentParamsOf({ ...filter, plugin: "g" }, T0, "2026-11-18", false),
+    ]).toEqual([
+      { from: T0 - 7 * DAY, scopes: ["live", "overlay_reviewed"] },
+      {
+        from: T0 - 7 * DAY,
+        scopes: ["live", "overlay_reviewed", "overlay_draft", "test", "craft"],
+        profileId: "p2",
+        plugin: "g",
+      },
+      {
+        from: Date.UTC(2026, 10, 18),
+        to: Date.UTC(2026, 10, 19),
+        scopes: ["live", "overlay_reviewed"],
+      },
+    ]);
+    expect(dayWindowOf("2026-11-18")).toEqual({
+      from: Date.UTC(2026, 10, 18),
+      to: Date.UTC(2026, 10, 19),
+    });
   });
 
-  test("pages merge newest first and turns outside the period drop", () => {
-    const merged = mergeRecent(
-      [
-        { title: "A", items: [summary("a", "a1", T0 - 2 * DAY), summary("a", "a0", T0 - 8 * DAY)] },
-        { title: null, items: [summary("b", "b1", T0 - DAY)] },
-      ],
-      filter,
-      T0,
-    );
-    expect(merged.map((r) => [r.turn.turnId, r.title])).toEqual([
-      ["b1", null],
-      ["a1", "A"],
+  test("a reread first page goes on top and the rows read further down stay, without repeats", () => {
+    expect(
+      mergeFirstPage([row("new"), row("1"), row("2")], [row("1"), row("2"), row("3")]).map(
+        (r) => r.turn.turnId,
+      ),
+    ).toEqual(["new", "1", "2", "3"]);
+  });
+
+  test("evidence points at each turn once, in order, and replayed turns are left out", () => {
+    expect(
+      evidenceTurnsOf([
+        { kind: "call", threadId: "a", turnId: "1", toolCallId: "c1" },
+        { kind: "backtest", backtestRunId: "run" },
+        { kind: "hook", threadId: "a", turnId: "1", hookSeq: 2 },
+        { kind: "turn", threadId: "b", turnId: "1" },
+      ]),
+    ).toEqual([
+      { threadId: "a", turnId: "1" },
+      { threadId: "b", turnId: "1" },
     ]);
   });
 
   test("a day counts as covered only when every turn of that day was read", () => {
-    const turns = mergeRecent(
-      [{ title: null, items: [summary("a", "1", T0), summary("a", "2", T0 - DAY)] }],
-      filter,
-      T0,
-    );
+    const turns = [summary("a", "1", T0), summary("a", "2", T0 - DAY)].map((turn) => ({
+      turn,
+      title: null,
+    }));
     const daily = [
       { day: dayKeyOf(T0 - DAY), turns: 1, calls: 0, blocked: null, asked: null, modified: null },
       { day: dayKeyOf(T0), turns: 3, calls: 0, blocked: null, asked: null, modified: null },
@@ -299,6 +337,126 @@ describe("recent turns", () => {
       isPartialTurn(summary("a", "2", T0, { complete: false, status: "open" })),
       isPartialTurn(summary("a", "3", T0)),
     ]).toEqual([true, false, false]);
+  });
+});
+
+describe("headline figures", () => {
+  const window = { from: T0 - 7 * DAY, to: T0 };
+
+  test("context per day adds the plugin parts it knows; a day nobody measured stays empty", () => {
+    const result: MetricsQueryResult = {
+      window,
+      rows: [
+        {
+          key: { day: "2026-11-18", plugin: "a" },
+          values: { "cost.always": approx(100), "cost.on_demand": approx(20) },
+        },
+        {
+          key: { day: "2026-11-18", plugin: "b" },
+          values: {
+            "cost.always": approx(50),
+            "cost.drive": { value: null, n: 2, state: "insufficient_sample" },
+          },
+        },
+        {
+          key: { day: "2026-11-19", plugin: "a" },
+          values: { "cost.always": { value: null, n: 2, state: "insufficient_sample" } },
+        },
+      ],
+      notes: [],
+    };
+    expect(dailyContextOf(result, ["2026-11-17", "2026-11-18", "2026-11-19"])).toEqual([
+      { day: "2026-11-17", total: null },
+      { day: "2026-11-18", total: 170 },
+      { day: "2026-11-19", total: null },
+    ]);
+  });
+
+  test("the previous period reads its turns from the time sample and sums the plugin counts", () => {
+    const plugins: MetricsQueryResult = {
+      window,
+      rows: [
+        {
+          key: { plugin: "a" },
+          values: {
+            "cost.always": approx(400),
+            "hook.outcomes.blocked": exact(0.1, 100, 100),
+            "hook.outcomes.asked": exact(0.05, 100, 100),
+            "inst.defied_calls": exact(4, 30),
+          },
+        },
+        {
+          key: { plugin: "b" },
+          values: { "cost.always": approx(100), "inst.defied_calls": exact(1, 30) },
+        },
+      ],
+      notes: [],
+    };
+    const blocks: MetricsQueryResult = {
+      window,
+      rows: [
+        { key: {}, values: { "block.time_split": { value: 18_000, n: 120, state: "approx" } } },
+      ],
+      notes: [],
+    };
+    const expired: MetricsQueryResult = {
+      window,
+      rows: [
+        {
+          key: {},
+          values: {
+            "block.time_split": {
+              value: null,
+              n: 0,
+              state: "unavailable",
+              reason: "beyond_retention",
+            },
+          },
+        },
+      ],
+      notes: [],
+    };
+    expect([
+      periodTotalsOf(plugins, blocks),
+      periodTotalsOf({ window, rows: [], notes: [] }, expired),
+    ]).toEqual([
+      { turns: 120, context: 500, blocked: 10, asked: 5, defied: 5 },
+      { turns: null, context: null, blocked: null, asked: null, defied: null },
+    ]);
+  });
+
+  test("a change needs both values and a non-zero past; a share stays between 0 and 1", () => {
+    expect([changeOf(112, 100), changeOf(90, 100), changeOf(5, 0), changeOf(null, 10)]).toEqual([
+      0.12,
+      -0.1,
+      null,
+      null,
+    ]);
+    expect([shareOf(25, 100), shareOf(120, 100), shareOf(3, 0), shareOf(null, 9)]).toEqual([
+      0.25,
+      1,
+      null,
+      null,
+    ]);
+    expect(previousWindowOf(7, T0)).toEqual({ from: T0 - 14 * DAY, to: T0 - 7 * DAY });
+  });
+
+  test("summing plugin cells keeps known values and marks a partial sum as approximate", () => {
+    const rows = pluginRowsOf({
+      window,
+      rows: [
+        { key: { plugin: "a" }, values: { "inst.defied_calls": exact(3, 10) } },
+        {
+          key: { plugin: "b" },
+          values: { "inst.defied_calls": { value: null, n: 2, state: "insufficient_sample" } },
+        },
+      ],
+      notes: [],
+    });
+    expect([sumCells(rows, (r) => r.defied), sumCells(rows.slice(1), (r) => r.defied)]).toEqual([
+      { kind: "value", value: 3, approx: true, n: 0 },
+      { kind: "sample", n: 2 },
+    ]);
   });
 });
 

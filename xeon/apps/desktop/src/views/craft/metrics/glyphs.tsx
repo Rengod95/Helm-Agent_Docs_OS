@@ -81,15 +81,17 @@ export function KindGlyph(props: { readonly kind: Kind; readonly size?: number }
   );
 }
 
-/** 28px 아이콘 타일(받은 요청 카드의 타일 크기). 옅은 종류 색 바탕 + 종류 색 그림 */
+/**
+ * 28px 아이콘 타일(받은 요청 카드의 타일 크기). 넷째 판(AGE-36): 프로필 캔버스 G5의 탭과 같은 진한 종류 면 + 종류의 글 색 그림이다.
+ * 셋째 판의 옅은 섞음(종류 색 14%)은 거의 무채색으로 보였다
+ */
 export function KindTile(props: { readonly kind: Kind; readonly size?: number }): ReactNode {
   const size = props.size ?? 28;
-  const color = KIND_COLOR[props.kind];
   const style: CSSProperties = {
     width: size,
     height: size,
-    color,
-    background: `color-mix(in oklab, ${color} 14%, transparent)`,
+    color: `var(--viz-${props.kind}-tab-text)`,
+    background: `var(--viz-${props.kind}-tab)`,
   };
   return (
     <span

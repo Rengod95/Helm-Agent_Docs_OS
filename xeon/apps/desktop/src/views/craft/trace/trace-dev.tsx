@@ -42,7 +42,8 @@ export function TraceDev(props: { readonly live: TraceData }): ReactNode {
   const [scene, setScene] = useState<TraceScene>(readScene);
   const [turnId, setTurnId] = useState<string | null>(null);
   const [pages, setPages] = useState(1);
-  const fromSample = props.live.threadId === SAMPLE_THREAD;
+  // 메트릭 표본의 대화는 `thr_sample_<k>`(제목 여섯)다
+  const fromSample = props.live.threadId?.startsWith(SAMPLE_THREAD) === true;
   const shown: TraceScene = scene === "live" && fromSample ? "sample" : scene;
   const data =
     shown === "live"

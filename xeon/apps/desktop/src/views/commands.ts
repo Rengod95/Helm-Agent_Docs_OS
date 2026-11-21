@@ -855,6 +855,10 @@ export interface CraftMetricsCommands {
   turns(
     params: WireParams<"turnRecord.list">,
   ): Promise<Result<WireResult<"turnRecord.list">, CommandError>>;
+  /** `turnRecord.recent`: 모든 대화의 턴을 시작 시각 역순으로 한 쪽씩(기간·프로필·플러그인·범위 거르기). 메트릭의 "최근 턴"이 쓴다 */
+  recent(
+    params: WireParams<"turnRecord.recent">,
+  ): Promise<Result<WireResult<"turnRecord.recent">, CommandError>>;
   /** `turnRecord.get { detail: "full" }`: 턴 하나의 기록. 없으면 `record`가 null이고 `absent`가 이유다 */
   turn(
     threadId: string,

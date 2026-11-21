@@ -36,9 +36,39 @@
     var(--cs-color-text-primary)
   );
   --viz-fault: var(--cs-color-danger-text);
+  /* 종류 타일(인사이트 카드의 28px 아이콘 칸)의 면과 그림 색. 프로필 캔버스 G5(m4/cv7 cv6.css)의 탭 면과 같은 값이다:
+     옅게 섞은 파스텔이 아니라 그 밝기에서 그릴 수 있는 진한 색. 밝은 테마는 밝은 면 + 같은 색상의 진한 글(명암비 4.5:1 넘게) */
+  --viz-inject-tab: oklch(0.82 0.1 240);
+  --viz-hook-tab: oklch(0.85 0.15 85);
+  --viz-drive-tab: oklch(0.82 0.09 288);
+  --viz-tool-tab: oklch(0.84 0.15 150);
+  --viz-block-tab: color-mix(
+    in srgb,
+    var(--cs-color-text-primary) 9%,
+    var(--cs-color-surface-base)
+  );
+  --viz-inject-tab-text: oklch(0.42 0.088 240);
+  --viz-hook-tab-text: oklch(0.43 0.085 75);
+  --viz-drive-tab-text: oklch(0.42 0.2 288);
+  --viz-tool-tab-text: oklch(0.42 0.11 150);
+  --viz-block-tab-text: var(--cs-color-text-secondary);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
+    --viz-inject-tab: oklch(0.263 0.055 235);
+    --viz-hook-tab: oklch(0.283 0.056 92);
+    --viz-drive-tab: oklch(0.263 0.105 288);
+    --viz-tool-tab: oklch(0.283 0.056 150);
+    --viz-block-tab: color-mix(
+      in srgb,
+      var(--cs-color-text-primary) 13%,
+      var(--cs-color-bg-canvas)
+    );
+    --viz-inject-tab-text: var(--cs-color-info-text);
+    --viz-hook-tab-text: var(--cs-color-warning-text);
+    --viz-drive-tab-text: var(--cs-color-agent-text);
+    --viz-tool-tab-text: var(--cs-color-success-text);
     --viz-inject: color-mix(
       in oklab,
       var(--cs-color-identity-iris) 74%,
@@ -82,6 +112,16 @@
   }
 }
 :root[data-theme="dark"] {
+  /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
+  --viz-inject-tab: oklch(0.263 0.055 235);
+  --viz-hook-tab: oklch(0.283 0.056 92);
+  --viz-drive-tab: oklch(0.263 0.105 288);
+  --viz-tool-tab: oklch(0.283 0.056 150);
+  --viz-block-tab: color-mix(in srgb, var(--cs-color-text-primary) 13%, var(--cs-color-bg-canvas));
+  --viz-inject-tab-text: var(--cs-color-info-text);
+  --viz-hook-tab-text: var(--cs-color-warning-text);
+  --viz-drive-tab-text: var(--cs-color-agent-text);
+  --viz-tool-tab-text: var(--cs-color-success-text);
   --viz-inject: color-mix(
     in oklab,
     var(--cs-color-identity-iris) 74%,

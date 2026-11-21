@@ -1,7 +1,8 @@
 import { detach, err, ok, type Result } from "@fresnel/contracts";
 import type { HostConnection } from "@fresnel/contracts/wire";
-import { watchTurnRecord, type TurnRecordFailure } from "@fresnel/client";
+import { recentTurnRecords, watchTurnRecord, type TurnRecordFailure } from "@fresnel/client";
 import type { CommandError, CraftMetricsCommands } from "../views/commands.ts";
+import { errorOf } from "./command-error.ts";
 
 // Craft 메트릭(C9)과 트레이스(C8) 화면이 부르는 wire(M5d §3.5, §3.8): 지표, 인사이트, 턴 기록과 그 구독.
 // 다음 걸음 셋(테스트 챗 열기, 프로필에서 빼기, 인사이트 닫기)은 쓰기라 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다(`withWrite`).
@@ -13,10 +14,13 @@ type WithConnection = <T>(
   run: (connection: HostConnection) => Promise<T>,
 ) => Promise<Result<T, CommandError>>;
 
-/** 구독 실패를 화면의 실패 갈래로 옮긴다. 응답을 못 받았으면 `failed`, 엔진이 거절했으면 그 코드다 */
+/**
+ * 턴 기록 호출의 실패를 화면의 실패 갈래로 옮긴다. 응답을 못 받았으면 `failed`, 그 밖의 엔진 오류는 다른 명령과 같은 규칙(`errorOf`)이라
+ * 메서드가 없는 엔진은 `unsupported`다(화면은 "아직 없어요"를 보인다)
+ */
 function commandErrorOf(failure: TurnRecordFailure): CommandError {
   if (failure.kind === "transport") return { kind: "failed" };
-  if (failure.kind === "host") return { kind: "rejected", code: failure.error.code };
+  if (failure.kind === "host") return errorOf(failure.error);
   return { kind: "rejected", code: null };
 }
 
@@ -41,6 +45,11 @@ export function createCraftMetricsCommands(
     profiles: () => withConnection((c) => c.request("profile.list", {})),
     plugin: (name) => withConnection((c) => c.request("plugin.get", { name })),
     turns: (params) => withConnection((c) => c.request("turnRecord.list", params)),
+    recent: async (params) => {
+      const got = await withConnection((c) => recentTurnRecords(c, params));
+      if (!got.ok) return got;
+      return got.value.ok ? ok(got.value.value) : err(commandErrorOf(got.value.error));
+    },
     turn: (threadId, turnId) =>
       withConnection((c) => c.request("turnRecord.get", { threadId, turnId, detail: "full" })),
     watch: async (threadId, onDelta) => {

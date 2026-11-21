@@ -1,4 +1,4 @@
-// 메트릭 화면의 그림 섹션: 컨텍스트 분해, 블록별 시간, 플러그인 표, 날별 흐름, 버전 전후, 머리 숫자.
+// 메트릭 화면의 그림 섹션: 컨텍스트 분해, 블록별 시간, 플러그인 표, 날별 흐름, 버전 전후, 표본 줄. 머리 숫자는 `kpi.tsx`다.
 // 모든 그림은 같은 내용의 표로 바꿔 볼 수 있다. 값이 없는 칸은 0이 아니라 "아직 기록되지 않음"·"표본 부족"이다.
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -46,7 +46,6 @@ import {
   type PluginSort,
   type TimeBlock,
 } from "./model.ts";
-import { InfoTip } from "../info-tip.tsx";
 import { Card, Gate, LoadProblem, LoadingBlock, Section } from "./parts.tsx";
 import type { MetricsActions, MetricsData, PluginVersionRow } from "./source.ts";
 
@@ -332,7 +331,7 @@ export function TimeSection(props: { readonly data: MetricsData }): ReactNode {
           return (
             <div className="grid grid-cols-1 gap-3">
               <div className="flex items-baseline gap-2">
-                <span className="text-title-2 leading-7 font-semibold text-text-primary">
+                <span className="text-title-feature font-semibold text-text-primary">
                   {cellText(time.total, msText)}
                 </span>
                 <span className="text-ui text-text-secondary">
@@ -600,7 +599,7 @@ export function PluginTableSection(props: { readonly data: MetricsData }): React
 // 그것도 안 되면 0이 아니라 빗금 칸이다. 기둥을 누르면 그날의 턴이 "최근 턴"에 걸린다.
 
 const DECISION_KINDS = ["blocked", "asked", "modified"] as const;
-type DecisionKind = (typeof DECISION_KINDS)[number];
+export type DecisionKind = (typeof DECISION_KINDS)[number];
 
 const DECISION_WORD: Readonly<Record<DecisionKind, MessageId>> = {
   blocked: "desktop.craft.metrics.daily.blocked",
@@ -637,13 +636,14 @@ export function dayLongText(day: string): string {
 }
 
 /** 그날 결정 한 칸: 엔진 값, 턴 요약의 합, 또는 낼 수 없음 */
-interface DayDecisions {
+export interface DayDecisions {
   readonly day: string;
   readonly values: Readonly<Record<DecisionKind, number>> | null;
   readonly source: "engine" | "turns" | "none";
 }
 
-function dayDecisionsOf(
+/** 날마다 결정 수. 엔진 값이 있으면 그것, 없고 그날 턴을 다 읽었으면 턴 요약의 합(좁혀 볼 때는 쓰지 않는다), 아니면 낼 수 없음 */
+export function dayDecisionsOf(
   points: readonly DayPoint[],
   covered: ReadonlySet<string>,
   turns: readonly RecentTurn[],
@@ -1007,133 +1007,6 @@ function CompareBody(props: { readonly state: CompareState }): ReactNode {
     default:
       return assertNever(s, "CompareState");
   }
-}
-
-// ───────── 머리 숫자 ─────────
-
-/**
- * 머리 줄: 턴, 턴당 플러그인 컨텍스트, 막음, 물음, 지침이 있어도 막은 횟수.
- * 막음·물음을 엔진이 표본 부족으로 내지 않고 화면이 기간의 턴을 다 읽었으면, 턴 요약의 합을 "표본 적음" 표지와 함께 보인다
- */
-export function KpiStrip(props: { readonly data: MetricsData }): ReactNode {
-  const d = props.data;
-  if (d.plugins.kind !== "ready" || d.daily.kind !== "ready") {
-    return <LoadingBlock height={64} label={t("desktop.craft.metrics.kpi.label")} />;
-  }
-  const rows = pluginRowsOf(d.plugins.value);
-  const turns = dailyOf(d.daily.value).reduce((s, p) => s + p.turns, 0);
-  const recent = d.recent.kind === "ready" ? d.recent.value : null;
-  // 기간의 턴을 다 읽었을 때만 합을 쓴다(읽은 턴 수가 메트릭의 턴 수 이상)
-  const raw =
-    recent !== null && turns > 0 && recent.turns.length >= turns
-      ? rawDecisionsOf(recent.turns.map((r) => r.turn))
-      : null;
-  const sum = (pick: (r: PluginRow) => Cell): Cell => {
-    const known = rows.map(pick).filter((c) => c.kind === "value");
-    if (known.length === 0) return rows.map(pick)[0] ?? { kind: "absent", reason: null };
-    const partial = known.length < rows.length;
-    return {
-      kind: "value",
-      value: known.reduce((s, c) => s + (valueOf(c) ?? 0), 0),
-      approx: partial,
-      n: 0,
-    };
-  };
-  const context = contextOf(rows);
-  const fromRaw = (cell: Cell, value: number | undefined): { cell: Cell; few: boolean } =>
-    cell.kind === "sample" && value !== undefined && d.filter.plugin === null
-      ? { cell: { kind: "value", value, approx: false, n: turns }, few: true }
-      : { cell, few: false };
-  const blocked = fromRaw(
-    sum((r) => r.blocked),
-    raw?.blocked,
-  );
-  const asked = fromRaw(
-    sum((r) => r.asked),
-    raw?.asked,
-  );
-  const cells: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly cell: Cell;
-    readonly fmt: (v: number) => string;
-    readonly info?: string;
-    readonly mark?: ReactNode;
-    readonly few?: boolean;
-  }[] = [
-    {
-      id: "turns",
-      label: t("desktop.craft.metrics.kpi.turns"),
-      cell: { kind: "value", value: turns, approx: false, n: turns },
-      fmt: countText,
-    },
-    {
-      id: "context",
-      label: t("desktop.craft.metrics.kpi.context"),
-      cell:
-        context.slices.length === 0
-          ? { kind: "sample", n: 0 }
-          : { kind: "value", value: context.total, approx: true, n: 0 },
-      fmt: tokensText,
-    },
-    {
-      id: "blocked",
-      label: t("desktop.craft.metrics.kpi.blocked"),
-      cell: blocked.cell,
-      few: blocked.few,
-      fmt: countText,
-      mark: <DecisionGlyph decision="blocked" size={11} />,
-    },
-    {
-      id: "asked",
-      label: t("desktop.craft.metrics.kpi.asked"),
-      cell: asked.cell,
-      few: asked.few,
-      fmt: countText,
-      mark: <DecisionGlyph decision="asked" size={11} />,
-    },
-    {
-      id: "defied",
-      label: t("desktop.craft.metrics.kpi.defied"),
-      cell: sum((r) => r.defied),
-      fmt: countText,
-      info: t("desktop.craft.metrics.table.defiedInfo"),
-    },
-  ];
-  // 칸마다 이름·값·덧말 세 줄을 subgrid로 맞춰 값이 한 줄에 선다. 다섯 칸 한 줄(그림 열 42rem 이상)에서는 칸 폭을 이름 길이(max-content)로
-  // 잡고 남는 폭을 칸 사이에 고르게 나눠(justify-between) 이름을 줄이지 않고 한 줄에 둔다(m6X3: 1440에서 두 줄로 넘어가던 것).
-  // 좁으면(두세 칸) 이름이 접힐 수 있다
-  return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-2xl border border-border-subtle px-5 py-4 @[30rem]/metrics:grid-cols-3 @[42rem]/metrics:grid-cols-[repeat(5,max-content)] @[42rem]/metrics:justify-between @[42rem]/metrics:gap-x-6">
-      {cells.map((c) => (
-        <div key={c.id} className="row-span-3 grid min-w-0 grid-rows-subgrid gap-y-1">
-          <div className="flex items-end gap-1.5 text-ui-sm text-text-tertiary">
-            {c.mark === undefined ? null : <span className="flex h-5 items-center">{c.mark}</span>}
-            <span className="min-w-0 text-pretty @[42rem]/metrics:whitespace-nowrap">
-              {c.label}
-            </span>
-            {c.info === undefined ? null : (
-              <span className="flex h-5 items-center">
-                <InfoTip text={c.info} />
-              </span>
-            )}
-          </div>
-          <div
-            className={`truncate ${c.cell.kind !== "value" ? "text-ui leading-7 text-text-tertiary" : "text-title-2 leading-7 font-semibold text-text-primary"}`}
-          >
-            {cellText(c.cell, c.fmt)}
-          </div>
-          {c.few === true ? (
-            <span className="text-ui-sm text-text-tertiary">
-              {t("desktop.craft.metrics.kpi.fewTurns")}
-            </span>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ───────── 표본 ─────────

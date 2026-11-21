@@ -3,8 +3,8 @@
 // 닫으면 목록에서 빠지고, 영향이 두 배로 늘거나 절반으로 줄면 엔진이 다시 연다(`findings.ts` reopens). 닫은 것은 접힌 칸에 있다.
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
-import type { EvidenceRef, Finding, MetricDef, Profile } from "@fresnel/contracts/wire";
-import { Button, Chip, IconButton, Popover } from "@caustic/react";
+import type { Finding, MetricDef, Profile } from "@fresnel/contracts/wire";
+import { Button, IconButton, Popover, ToneScopeContext, type ToneScope } from "@caustic/react";
 import { ChevronDown, ChevronRight, X } from "@caustic/react/icons";
 import { useRef, useState, type ReactNode } from "react";
 import type { CommandError } from "../../commands.ts";
@@ -50,7 +50,7 @@ const UNIT_GROUP: Readonly<Record<ImpactUnit, MessageId>> = {
   turns: "desktop.craft.metrics.impactGroup.turns",
 };
 
-function ruleTitleOf(ruleId: string): string {
+export function ruleTitleOf(ruleId: string): string {
   const id = RULE_TITLE[ruleId];
   return id === undefined ? t("desktop.craft.metrics.rule.other") : t(id);
 }
@@ -105,16 +105,22 @@ function metricLabelOf(def: MetricDef | undefined, id: string, locale: string): 
   return locale.startsWith("ko") ? def.label.ko : def.label.en;
 }
 
-function evidenceLabel(ref: EvidenceRef, index: number): string {
-  if (ref.kind === "backtest") return t("desktop.craft.metrics.evidence.backtest");
-  return t("desktop.craft.metrics.evidence.turn", { n: String(index + 1) });
-}
-
 function profilesWith(profiles: readonly Profile[], plugin: string): Profile[] {
   return profiles.filter((p) => p.plugins.some((ref) => ref.name === plugin));
 }
 
-/** 다음 걸음의 단추 */
+/**
+ * 다음 걸음 단추의 색 갈래. Button의 `tone` 속성은 caustic이 통째로 deprecated로 표시해 lint가 막으므로, 단추 묶음을
+ * accent 범위로 감싸고 단추는 강세(variant)만 정한다. 빼기의 팝오버는 떠 있는 층이라 범위가 풀린다
+ */
+const ACCENT_SCOPE: ToneScope = { tone: "accent", variant: "soft" };
+
+/**
+ * 다음 걸음의 단추. 넷째 판(사용자 2026-11-21: "면이 있는 변형, 오른쪽"): 둘 다 면이 있다. 주 행동(고치기·막기로 올리기)이
+ * 가장 강한 accent solid(어두운 판 흰 면, 밝은 판 검은 면), 프로필에서 빼기는 한 단계 약한 accent soft다. neutral soft는 어두운
+ * 판에서 카드 면과 거의 같아 면이 사라지고, neutral solid는 어두운 판에서 회색이라 주 행동이 약해 버렸다.
+ * 주 행동이 오른쪽 끝에 선다(읽는 차례의 마지막, 카드 오른쪽 값 열의 선)
+ */
 function NextSteps(props: {
   readonly finding: Finding;
   readonly profiles: readonly Profile[];
@@ -136,97 +142,128 @@ function NextSteps(props: {
     );
   };
   const holders = profilesWith(props.profiles, props.finding.subject.plugin);
+  const steps = props.finding.next.toSorted(
+    (a, b) => Number(a.kind !== "remove") - Number(b.kind !== "remove"),
+  );
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
-      {props.finding.next.map((step) => {
-        if (step.kind === "remove") {
+    <ToneScopeContext value={ACCENT_SCOPE}>
+      <div className="flex min-w-0 items-center justify-end gap-1.5">
+        {failure === null ? null : (
+          <span role="alert" className="me-1 min-w-0 truncate text-ui-sm text-danger-text">
+            {failure.kind === "unsupported"
+              ? t("desktop.craft.metrics.next.unsupported")
+              : t("desktop.craft.metrics.next.failed")}
+          </span>
+        )}
+        {steps.map((step) => {
+          if (step.kind === "remove") {
+            return (
+              <Popover
+                key={step.kind}
+                size="sm"
+                side="bottom"
+                align="end"
+                anchor={
+                  <Button size="sm" variant="soft" disabled={props.locked || holders.length === 0}>
+                    {t("desktop.craft.metrics.next.remove")}
+                  </Button>
+                }
+              >
+                <div className="grid w-64 gap-2 p-1 text-ui">
+                  <p className="text-text-secondary">
+                    {t("desktop.craft.metrics.next.removeAsk", {
+                      plugin: props.finding.subject.plugin,
+                    })}
+                  </p>
+                  <ul className="grid grid-cols-1 gap-1">
+                    {holders.map((profile) => (
+                      <li key={profile.id} className="flex h-8 items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-text-primary">
+                          {profile.title}
+                        </span>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          loading={busy === `remove:${profile.id}`}
+                          onClick={() => {
+                            run(`remove:${profile.id}`, () =>
+                              props.actions.removeFromProfile(
+                                profile,
+                                props.finding.subject.plugin,
+                              ),
+                            );
+                          }}
+                        >
+                          {t("desktop.craft.metrics.next.removeConfirm")}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-ui-sm text-text-tertiary">
+                    {t("desktop.craft.metrics.next.removeNote")}
+                  </p>
+                </div>
+              </Popover>
+            );
+          }
+          const label =
+            step.kind === "promote"
+              ? t("desktop.craft.metrics.next.promote")
+              : t("desktop.craft.metrics.next.fix");
           return (
-            <Popover
+            <Button
               key={step.kind}
               size="sm"
-              side="bottom"
-              align="start"
-              anchor={
-                <Button size="sm" variant="ghost" disabled={props.locked || holders.length === 0}>
-                  {t("desktop.craft.metrics.next.remove")}
-                </Button>
-              }
+              variant="solid"
+              disabled={props.locked}
+              loading={busy === step.kind}
+              onClick={() => {
+                run(step.kind, () => props.actions.openFix(props.finding));
+              }}
             >
-              <div className="grid w-64 gap-2 p-1 text-ui">
-                <p className="text-text-secondary">
-                  {t("desktop.craft.metrics.next.removeAsk", {
-                    plugin: props.finding.subject.plugin,
-                  })}
-                </p>
-                <ul className="grid grid-cols-1 gap-1">
-                  {holders.map((profile) => (
-                    <li key={profile.id} className="flex h-8 items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-text-primary">
-                        {profile.title}
-                      </span>
-                      <Button
-                        size="xs"
-                        variant="outline"
-
-                        loading={busy === `remove:${profile.id}`}
-                        onClick={() => {
-                          run(`remove:${profile.id}`, () =>
-                            props.actions.removeFromProfile(profile, props.finding.subject.plugin),
-                          );
-                        }}
-                      >
-                        {t("desktop.craft.metrics.next.removeConfirm")}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-ui-sm text-text-tertiary">
-                  {t("desktop.craft.metrics.next.removeNote")}
-                </p>
-              </div>
-            </Popover>
+              {label}
+            </Button>
           );
-        }
-        const label =
-          step.kind === "promote"
-            ? t("desktop.craft.metrics.next.promote")
-            : t("desktop.craft.metrics.next.fix");
-        return (
-          <Button
-            key={step.kind}
-            size="sm"
-            variant="ghost"
+        })}
+      </div>
+    </ToneScopeContext>
+  );
+}
 
-            disabled={props.locked}
-            loading={busy === step.kind}
-            onClick={() => {
-              run(step.kind, () => props.actions.openFix(props.finding));
-            }}
-          >
-            {label}
-          </Button>
-        );
-      })}
-      {failure === null ? null : (
-        <span role="alert" className="ms-1.5 min-w-0 truncate text-ui-sm text-danger-text">
-          {failure.kind === "unsupported"
-            ? t("desktop.craft.metrics.next.unsupported")
-            : t("desktop.craft.metrics.next.failed")}
-        </span>
-      )}
-    </div>
+/** 근거 턴을 보러 가는 단추. 카드의 근거 줄(글 + 턴 칩)을 대신한다: 누르면 "최근 턴"이 이 인사이트의 근거 턴만 보인다 */
+function EvidenceButton(props: {
+  readonly finding: Finding;
+  readonly onShow: (finding: Finding) => void;
+}): ReactNode {
+  const f = props.finding;
+  const openable = f.evidence.some((ref) => ref.kind !== "backtest");
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={!openable}
+      aria-label={t("desktop.craft.metrics.evidence.show", { n: countText(f.evidenceTotal) })}
+      className="-ms-2.5 w-fit font-normal"
+      onClick={() => {
+        props.onShow(f);
+      }}
+    >
+      {t("desktop.craft.metrics.evidence.count", { n: countText(f.evidenceTotal) })}
+      <ChevronRight />
+    </Button>
   );
 }
 
 /**
  * 인사이트 하나(열린 카드). 셋째 판(m6X3): 앱의 알림 토스트와 같은 판(rounded-2xl squircle, border-subtle, 그림자 없음)에
- * 네 묶음을 쌓는다. 묶음 안은 가깝게(4~8), 묶음 사이는 멀게(16), 다음 걸음은 아래 선 뒤의 띠다.
+ * 세 묶음을 쌓는다. 묶음 안은 가깝게(4~8), 묶음 사이는 멀게(16).
  *   1. 머리: 종류 타일 28 · 한 줄 제목(13/500, 말줄임) 위 대상(12, 흐림) · 닫기 ×
  *   2. 숫자: 큰 영향 숫자(18/600)와 단위(13, 보조 글색) 한 기준선, 그 아래 이름-값 줄(12, 이름 흐림 · 값 보조, 양끝)
- *   3. 근거: "근거 턴 n개"(왼쪽)와 턴 칩(오른쪽) 양끝
- *   4. 다음 걸음: ghost 단추. 단추 글의 왼쪽이 위 묶음의 왼쪽 선(16)에 선다(띠 6 + 단추 안 10)
+ *   3. 바닥 한 줄(넷째 판, 사용자 2026-11-21): 왼쪽에 근거 턴 단추(ghost, 가장 약함, 글 왼쪽이 왼쪽 선 16에 선다),
+ *      오른쪽에 다음 걸음 단추(면 있음, `NextSteps`). 주 행동의 오른쪽 끝이 위 이름-값 줄의 값 열 선에 선다.
+ *      좁으면 다음 걸음이 다음 줄 오른쪽으로 내려간다
  * 글은 크기 셋(18·13·12), 굵기 셋(600·500·400), 색 셋(주·보조·흐림) 안에서만 가른다. 왼쪽 선은 하나(카드 안 16)다.
- * 반경은 바깥 2xl(19.2)이고 모서리에 붙은 안의 것은 바깥 − 틈이다: 다음 걸음 단추·닫기 단추 lg(12) ≈ 19.2 − 6~8.
+ * 반경은 바깥 2xl(19.2), 단추는 sm 기본 lg(12)다. 단추는 모서리에서 16 떨어져 같은 중심이 아니므로 2xl보다 두 단계 작게 둔다.
  * 모든 줄이 한 줄이라 띠를 비킬 때(`--rail-avoid`) 끝 여백만 늘고 높이는 그대로다
  */
 function InsightCard(props: {
@@ -237,10 +274,10 @@ function InsightCard(props: {
   readonly locked: boolean;
   readonly locale: string;
   readonly onFold?: () => void;
+  readonly onShowEvidence: (finding: Finding) => void;
 }): ReactNode {
   const f = props.finding;
   const figures = insightFiguresOf(f, 2);
-  const shown = f.evidence.slice(0, 3);
   const [dismissing, setDismissing] = useState(false);
   const title = ruleTitleOf(f.ruleId);
   return (
@@ -316,47 +353,20 @@ function InsightCard(props: {
             </dl>
           )}
         </div>
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">
-            {t("desktop.craft.metrics.evidence.count", { n: countText(f.evidenceTotal) })}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
-            {shown.map((ref, i) => (
-              <Chip
-                key={
-                  ref.kind === "backtest"
-                    ? ref.backtestRunId
-                    : `${ref.threadId}:${ref.turnId}:${String(i)}`
-                }
-                size="md"
-                radius="lg"
-                variant="outline"
-                disabled={ref.kind === "backtest"}
-                aria-label={
-                  ref.kind === "backtest"
-                    ? undefined
-                    : t("desktop.craft.metrics.evidence.open", { n: String(i + 1) })
-                }
-                onClick={() => {
-                  props.actions.openTurn(ref);
-                }}
-              >
-                {evidenceLabel(ref, i)}
-              </Chip>
-            ))}
-          </span>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <EvidenceButton finding={f} onShow={props.onShowEvidence} />
+          {f.next.length === 0 ? null : (
+            <div className="ms-auto">
+              <NextSteps
+                finding={f}
+                profiles={props.profiles}
+                actions={props.actions}
+                locked={props.locked}
+              />
+            </div>
+          )}
         </div>
       </div>
-      {f.next.length === 0 ? null : (
-        <div className={`border-t border-border-subtle ps-1.5 py-1.5 ${AVOID_END_6}`}>
-          <NextSteps
-            finding={f}
-            profiles={props.profiles}
-            actions={props.actions}
-            locked={props.locked}
-          />
-        </div>
-      )}
     </li>
   );
 }
@@ -366,8 +376,6 @@ const CARD_PAD = 16;
 /** 끝 여백 + 띠 비키기. 띠와 같은 높이일 때만 `--rail-avoid`가 0보다 크다. 바뀔 때 짧게 미끄러진다 */
 const AVOID_END_16 =
   "pe-[calc(16px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
-const AVOID_END_6 =
-  "pe-[calc(6px+var(--rail-avoid,0px))] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
 const AVOID_END_0 =
   "pe-[var(--rail-avoid,0px)] transition-[padding] duration-150 ease-out motion-reduce:transition-none";
 const AVOID_END_8 =
@@ -527,6 +535,8 @@ export function InsightPanel(props: {
   readonly data: MetricsData;
   readonly locale: string;
   readonly onClose?: () => void;
+  /** 카드의 "근거 턴 n개"를 눌렀다: 화면이 "최근 턴"을 그 근거로 거른다 */
+  readonly onShowEvidence: (finding: Finding) => void;
 }): ReactNode {
   const { data } = props;
   const catalog = data.catalog.kind === "ready" ? data.catalog.value : new Map<string, MetricDef>();
@@ -611,6 +621,7 @@ export function InsightPanel(props: {
                             actions={data.actions}
                             locked={locked}
                             locale={props.locale}
+                            onShowEvidence={props.onShowEvidence}
                             {...(at < OPEN_FIRST && !opened.has(f.id)
                               ? {}
                               : {

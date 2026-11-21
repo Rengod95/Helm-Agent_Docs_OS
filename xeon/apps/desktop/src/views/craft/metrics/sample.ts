@@ -16,10 +16,16 @@ import type {
 } from "@fresnel/contracts/wire";
 import {
   BLOCK_TIME_METRICS,
+  DAILY_CONTEXT_METRICS,
   DAILY_METRICS,
   PLUGIN_METRICS,
+  RECENT_FIRST_PAGE,
+  RECENT_PAGE,
+  dayWindowOf,
   type MetricsFilter,
+  type PeriodTotals,
   type RecentTurn,
+  type TurnBrief,
 } from "./model.ts";
 import type { Load, MetricsActions, MetricsData, RecentTurns } from "./source.ts";
 
@@ -407,18 +413,37 @@ function fewAt(x: RecentTurn, i: number): RecentTurn {
   };
 }
 
-/** 최근 턴(표본). 턴 id는 트레이스 표본이 받는 모양(`trn_sample_N`, 대화 `thr_sample`)이다 */
-function recentSample(count: number, days: number): RecentTurns {
+/** 표본 대화(여섯). 대화 id는 트레이스 표본이 받는 모양(`thr_sample…`)이고 제목은 개발용 카탈로그에서 온다 */
+const SAMPLE_THREADS = 6;
+function sampleThreadOf(i: number): string {
+  return `thr_sample_${String(i % SAMPLE_THREADS)}`;
+}
+function sampleTitleOf(threadId: string): string | null {
+  const k = Number(threadId.slice(threadId.lastIndexOf("_") + 1));
+  return Number.isInteger(k) ? (titlesOf()[k % SAMPLE_THREADS] ?? null) : null;
+}
+
+function sampleFlags(i: number): TurnFlags {
+  return flagsOf({
+    blockedIntent: i % 5 === 1 ? 1 : 0,
+    asked: i % 3 === 2 ? 1 : 0,
+    modified: i % 4 === 3 ? 2 : 0,
+    timedOut: i === 9 ? 1 : 0,
+  });
+}
+
+/** 최근 턴(표본) 전부. 턴 id는 트레이스 표본이 받는 모양(`trn_sample_N`)이다 */
+function recentSample(count: number, days: number): RecentTurn[] {
   const turns: RecentTurn[] = [];
-  const titles = titlesOf();
   for (let i = 0; i < count; i += 1) {
     const startedAt = NOW - Math.round((i * (days * DAY)) / Math.max(count, 1) / 1.15) - i * 97_000;
     const status: TurnSummary["status"] = i === 0 ? "open" : i === 7 ? "interrupted" : "completed";
+    const threadId = sampleThreadOf(i);
     turns.push({
-      title: titles[i % titles.length] ?? null,
+      title: sampleTitleOf(threadId),
       turn: {
-        threadId: "thr_sample",
-        turnId: `trn_sample_${String((i % 12) + 1)}`,
+        threadId,
+        turnId: `trn_sample_${String(i + 1)}`,
         startedAt,
         endedAt: status === "open" ? null : startedAt + 15_000,
         status,
@@ -427,26 +452,100 @@ function recentSample(count: number, days: number): RecentTurns {
         profileId: "prof_daily",
         stepCount: 1 + (i % 4),
         callCount: (i * 3) % 7,
-        flags: flagsOf({
-          blockedIntent: i % 5 === 1 ? 1 : 0,
-          asked: i % 3 === 2 ? 1 : 0,
-          modified: i % 4 === 3 ? 2 : 0,
-          timedOut: i === 9 ? 1 : 0,
-        }),
+        flags: sampleFlags(i),
         frameDepthMax: 0,
         childCount: 0,
       },
     });
   }
-  return { turns, threads: Math.min(12, 5 + Math.floor(count / 10)), partial: count > 30 };
+  return turns;
+}
+
+/** 표본 턴 전부에서 첫 쪽(200)과 쪽 읽기를 만든다. 날을 고르면 그 UTC 하루만 */
+function recentPagesOf(all: readonly RecentTurn[]): {
+  readonly first: RecentTurns;
+  readonly page: MetricsActions["recentPage"];
+} {
+  const first: RecentTurns = {
+    turns: all.slice(0, RECENT_FIRST_PAGE),
+    next: all.length > RECENT_FIRST_PAGE ? String(RECENT_FIRST_PAGE) : null,
+  };
+  return {
+    first,
+    page: (day, cursor) => {
+      const list =
+        day === null
+          ? all
+          : all.filter((r) => {
+              const w = dayWindowOf(day);
+              return r.turn.startedAt >= w.from && r.turn.startedAt < w.to;
+            });
+      const start = cursor === null ? 0 : Number(cursor);
+      const items = list.slice(start, start + RECENT_PAGE);
+      const next = start + RECENT_PAGE < list.length ? String(start + RECENT_PAGE) : null;
+      return Promise.resolve(ok({ items, next }));
+    },
+  };
+}
+
+/** 근거 턴 하나의 줄 값(표본). 턴 번호로 시각과 결정을 정한다 */
+function sampleBrief(threadId: string, turnId: string): TurnBrief {
+  const n = Number(turnId.slice(turnId.lastIndexOf("_") + 1));
+  const i = Number.isInteger(n) ? n : 0;
+  return {
+    threadId,
+    turnId,
+    startedAt: NOW - i * 3_100_000,
+    status: "completed",
+    complete: true,
+    stepCount: 1 + (i % 4),
+    callCount: (i * 3) % 7,
+    flags: sampleFlags(i),
+  };
 }
 
 function evidence(n: number): EvidenceRef[] {
   return Array.from({ length: n }, (_, i) => ({
     kind: "turn" as const,
-    threadId: "thr_sample",
-    turnId: `trn_sample_${String(i + 1)}`,
+    threadId: sampleThreadOf(i),
+    turnId: `trn_sample_${String(i * 3 + 2)}`,
   }));
+}
+
+/** 날 × 플러그인의 컨텍스트(표본). 행 수가 엔진 상한(1000) 안에 들게 앞의 여섯 플러그인만, 날마다 조금씩 오르내린다 */
+function dailyContextResult(days: number, daily: MetricsQueryResult): MetricsQueryResult {
+  const rows: MetricRow[] = [];
+  for (const row of daily.rows) {
+    const day = row.key.day;
+    if (day === undefined) continue;
+    const at = Date.parse(`${day}T00:00:00Z`);
+    const k = Math.round((NOW - at) / DAY);
+    const wave = 1 + 0.08 * Math.sin(k * 1.3) - 0.012 * k;
+    for (const seed of SEEDS.slice(0, 6)) {
+      rows.push({
+        key: { day, plugin: seed.name },
+        values: {
+          [DAILY_CONTEXT_METRICS.always]: v(Math.round(seed.always * wave), 20, true),
+          [DAILY_CONTEXT_METRICS.drive]: v(Math.round(seed.drive * wave), 20, true),
+          [DAILY_CONTEXT_METRICS.onDemand]: v(Math.round(seed.onDemand * wave), 20, true),
+        },
+      });
+    }
+  }
+  return { window: window(days), rows, notes: [] };
+}
+
+/** 지난 기간(표본): 지금보다 조금 적거나 많다. 표본이 적은 장면은 지난 기간 기록이 없다 */
+function previousOf(days: number, many: boolean, empty: boolean): PeriodTotals {
+  if (empty) return { turns: null, context: null, blocked: null, asked: null, defied: null };
+  const scale = (days / 7) * (many ? 6 : 1);
+  return {
+    turns: Math.round(148 * (days / 7) * (many ? 6.2 : 1)),
+    context: 13_900,
+    blocked: Math.round(74 * scale),
+    asked: Math.round(36 * scale),
+    defied: Math.round(25 * scale),
+  };
 }
 
 function finding(
@@ -630,6 +729,8 @@ const NO_ACTIONS: MetricsActions = {
   removeFromProfile: () => Promise.resolve(ok(null)),
   openTurn: () => {},
   evidence: () => Promise.resolve(ok({ items: [], next: null })),
+  recentPage: () => Promise.resolve(ok({ items: [], next: null })),
+  turnBrief: (threadId, turnId) => Promise.resolve(ok(sampleBrief(threadId, turnId))),
   versions: () =>
     Promise.resolve(
       ok([
@@ -689,6 +790,36 @@ export function sampleData(
       filter.plugin === null
         ? null
         : ready(focusDailyResult(many ? 30 : filter.days, filter.plugin)),
+    threadTitle: sampleTitleOf,
+  };
+  /** 표본 턴 전부로 최근 턴의 첫 쪽과 쪽 읽기를, 날별 흐름으로 날 × 플러그인 컨텍스트를, 그리고 지난 기간을 붙인다 */
+  const extras = (
+    turns: readonly RecentTurn[],
+    daily: MetricsQueryResult,
+    list: readonly Finding[],
+    few = false,
+  ): Pick<MetricsData, "recent" | "dailyContext" | "previous" | "actions"> => {
+    const pages = recentPagesOf(turns);
+    return {
+      recent: ready(pages.first),
+      dailyContext: ready(
+        few ? { window: window(days), rows: [], notes: [] } : dailyContextResult(days, daily),
+      ),
+      previous: ready(previousOf(days, many, few)),
+      actions: {
+        ...base.actions,
+        recentPage: pages.page,
+        evidence: (findingId) => {
+          const f = list.find((x) => x.id === findingId);
+          return Promise.resolve(
+            ok({
+              items: f === undefined ? [] : evidence(Math.min(f.evidenceTotal, 200)),
+              next: null,
+            }),
+          );
+        },
+      },
+    };
   };
   const all = (load: Load<never>): MetricsData => ({
     ...base,
@@ -699,6 +830,8 @@ export function sampleData(
     findings: load,
     dismissed: load,
     recent: load,
+    dailyContext: load,
+    previous: load,
   });
   switch (scene) {
     case "loading":
@@ -719,13 +852,12 @@ export function sampleData(
         daily: ready(empty),
         findings: ready(none),
         dismissed: ready(none),
-        recent: ready({ turns: [], threads: 0, partial: false }),
+        ...extras([], empty, [], true),
       };
     }
     case "few": {
       const r = fewResults(days);
       const none: FindingsListResult = { asOf: NOW, dataRevision: 1, findings: [] };
-      const recent = recentSample(6, 2);
       return {
         ...base,
         plugins: ready(r.plugins),
@@ -734,7 +866,7 @@ export function sampleData(
         findings: ready(none),
         dismissed: ready(none),
         // 6턴은 이틀에 나뉜다(어제 2, 오늘 4): 메트릭의 날별 턴 수와 같게
-        recent: ready({ ...recent, turns: recent.turns.map(fewAt) }),
+        ...extras(recentSample(6, 2).map(fewAt), r.daily, [], true),
       };
     }
     case "off": {
@@ -763,7 +895,7 @@ export function sampleData(
         daily: ready(dailyResult(days, false)),
         findings: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
         dismissed: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
-        recent: ready(recentSample(24, days)),
+        ...extras(recentSample(24, days), dailyResult(days, false), []),
       };
     }
     case "quiet":
@@ -774,17 +906,18 @@ export function sampleData(
         daily: ready(dailyResult(days, false)),
         findings: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
         dismissed: ready({ asOf: NOW, dataRevision: 1, findings: [] }),
-        recent: ready(recentSample(40, days)),
+        ...extras(recentSample(40, days), dailyResult(days, false), []),
       };
     case "sample":
     case "many": {
       const list = findings(many);
+      const daily = dailyResult(days, many);
       return {
         ...base,
-        recent: ready(recentSample(many ? 200 : 40, days)),
+        ...extras(recentSample(many ? 640 : 172, days), daily, list),
         plugins: ready(pluginsResult(days, many)),
         blocks: ready(blocksResult(days)),
-        daily: ready(dailyResult(days, many)),
+        daily: ready(daily),
         findings: ready({ asOf: NOW, dataRevision: 3, findings: list }),
         dismissed: ready({
           asOf: NOW,

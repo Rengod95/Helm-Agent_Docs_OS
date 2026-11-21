@@ -27,16 +27,17 @@ import {
 import { useWidth } from "./charts.tsx";
 import { InsightPanel, InsightSummary } from "./insights.tsx";
 import { DEFAULT_FILTER, PERIODS, dailyOf, isPeriod, type MetricsFilter } from "./model.ts";
-import { RecentTurnsSection } from "./recent.tsx";
+import { KpiStrip } from "./kpi.tsx";
+import { RecentTurnsSection, type RecentFilter } from "./recent.tsx";
 import {
   CompareSection,
   ContextSection,
   DailySection,
-  KpiStrip,
   PluginTableSection,
   SampleBand,
   TimeSection,
 } from "./sections.tsx";
+import type { Finding } from "@fresnel/contracts/wire";
 import type { MetricsData } from "./source.ts";
 
 /** 이 폭(px, 콘텐츠 영역)보다 좁으면 인사이트가 서랍으로 간다. 1100px 창에서 내비를 뺀 폭이 이 아래다 */
@@ -280,10 +281,18 @@ function ChartsColumn(props: {
   readonly data: MetricsData;
   readonly narrow: boolean;
   readonly onOpenInsights: () => void;
+  readonly recent: RecentFilter;
+  readonly onRecent: (next: RecentFilter) => void;
 }): ReactNode {
   const d = props.data;
-  const [day, setDay] = useState<string | null>(null);
+  const day = props.recent.kind === "day" ? props.recent.day : null;
   const recentRef = useRef<HTMLDivElement>(null);
+  // 인사이트 카드에서 근거를 고르면 "최근 턴"으로 내린다
+  useEffect(() => {
+    if (props.recent.kind === "evidence") {
+      recentRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [props.recent]);
   return (
     <div
       className="cm-charts grid w-full grid-cols-1 gap-10 px-6 pt-6 pb-12"
@@ -304,7 +313,7 @@ function ChartsColumn(props: {
           height={128}
           pickedDay={day}
           onPickDay={(picked) => {
-            setDay(day === picked ? null : picked);
+            props.onRecent(day === picked ? { kind: "all" } : { kind: "day", day: picked });
             recentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
           }}
         />
@@ -312,9 +321,9 @@ function ChartsColumn(props: {
       <div ref={recentRef} className="scroll-mt-4">
         <RecentTurnsSection
           data={d}
-          day={day}
-          onClearDay={() => {
-            setDay(null);
+          filter={props.recent}
+          onClear={() => {
+            props.onRecent({ kind: "all" });
           }}
         />
       </div>
@@ -340,6 +349,12 @@ export function MetricsView(props: {
   const narrow = width > 0 && width < NARROW;
   const [drawer, setDrawer] = useState(false);
   const drawerOpen = narrow && drawer;
+  // "최근 턴"의 거르기: 날(날별 기둥) 또는 인사이트의 근거(카드의 "근거 턴 n개"). 근거를 고르면 서랍을 닫고 목록으로 내린다
+  const [recent, setRecent] = useState<RecentFilter>({ kind: "all" });
+  const showEvidence = (finding: Finding): void => {
+    setRecent({ kind: "evidence", finding });
+    setDrawer(false);
+  };
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const onKey = (e: KeyboardEvent): void => {
@@ -382,6 +397,8 @@ export function MetricsView(props: {
                 onOpenInsights={() => {
                   setDrawer(true);
                 }}
+                recent={recent}
+                onRecent={setRecent}
               />
             </div>
             {narrow ? null : (
@@ -389,7 +406,7 @@ export function MetricsView(props: {
                 className="flex min-h-0 shrink-0 flex-col border-l border-border-subtle"
                 style={{ width: columnWidthOf(width) }}
               >
-                <InsightPanel data={d} locale={activeLocale()} />
+                <InsightPanel data={d} locale={activeLocale()} onShowEvidence={showEvidence} />
               </div>
             )}
             {drawerOpen ? (
@@ -410,6 +427,7 @@ export function MetricsView(props: {
                   <InsightPanel
                     data={d}
                     locale={activeLocale()}
+                    onShowEvidence={showEvidence}
                     onClose={() => {
                       setDrawer(false);
                     }}
