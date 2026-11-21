@@ -15,7 +15,8 @@ import {
 // [결정: 2026-11-20, 사용자, AGE-63 "쓰기도 풀기"] 셸 도구는 쓰기 범위 제한이 없다. 실제 srt로 확인한다:
 // (a) 작업 공간 밖(가짜 홈 아래)에 쓰인다, (b) .git/hooks, 가짜 LaunchAgents, 가짜 셸 시작 파일에 쓰인다,
 // (c) `protectedPaths.extra`에 더한 곳은 읽기·쓰기가 막힌다, (d) Fresnel 자신의 세 항목은 전과 같이 막힌다,
-// (e) 쓰기 범위가 좁은 길(읽기 전용, MCP 서버)은 전과 같이 못 쓴다, (f) 사용자가 `sandbox_protect`로 더하면 다음 명령부터 쓰기도 막힌다.
+// (e) 쓰기 범위가 좁은 길(읽기 전용 프로필, 기본 좁은 정책)은 전과 같이 못 쓴다, (f) 사용자가 `sandbox_protect`로 더하면 다음 명령부터 쓰기도 막힌다,
+// (g) `wrapArgv`의 열린 정책(MCP 서버와 플러그인 격리가 쓰는 길)도 셸과 같이 쓰고 같은 거부를 받는다.
 // 가짜 홈과 임시 폴더만 쓴다. 실제 홈·키·키체인은 읽거나 쓰지 않는다.
 
 const environment = readSandboxEnvironment();
@@ -158,7 +159,7 @@ suite(
       expect(readFileSync(join(box.dirs.config, "settings.json"), "utf8")).toBe(SEED);
     }, 120_000);
 
-    test("(e) the narrow policy (MCP servers) and the read-only profile still cannot write outside their roots", async () => {
+    test("(e) the narrow default policy (no writeEverywhere, the approval-free narrow drafts use the no-write profile) and the read-only profile still cannot write outside their roots", async () => {
       const target = join(home, "narrow-escape.txt");
       const viaNarrow = await narrow(`echo x > '${target}'`);
       expect(viaNarrow.exitCode === 0).toBe(false);
@@ -203,6 +204,57 @@ suite(
       const read = await run(`cat '${file}'`);
       expect(read.exitCode === 0).toBe(false);
       expect(readFileSync(file, "utf8").trim()).toBe("first");
+    }, 120_000);
+
+    /** `wrapArgv`로 감싼 열린 정책 명령줄을 실제로 돌린다. MCP 서버와 플러그인 격리 자식이 쓰는 길이다 [결정: 2026-11-21, 사용자, AGE-63] */
+    const runArgv = async (command: string) => {
+      const wrapped = await box.service.wrapArgv(
+        box.service.defaultPolicy({
+          workspaceRoots: [workspace],
+          tempDir: box.dirs.tmp,
+          writeEverywhere: true,
+        }),
+        { command: "bash", args: ["-c", command], cwd: workspace },
+        { abortSignal: undefined },
+      );
+      if (!wrapped.ok) throw new Error(`wrapArgv refused the open policy: ${wrapped.error.kind}`);
+      try {
+        return await runCollected(box.shell, wrapped.value.argv, {
+          cwd: workspace,
+          env: { ...wrapped.value.env },
+        });
+      } finally {
+        wrapped.value.cleanup();
+      }
+    };
+
+    test("(g) wrapArgv with the open policy: a sandboxed process writes outside the workspace, under the fake home", async () => {
+      const target = join(home, "argv-elsewhere.txt");
+      const write = await runArgv(`echo moved > '${target}'`);
+      expect(write.exitCode).toBe(0);
+      expect(readFileSync(target, "utf8").trim()).toBe("moved");
+    }, 120_000);
+
+    test("(g) wrapArgv with the open policy: a path in protectedPaths.extra is refused for reading and writing", async () => {
+      const secret = join(box.vault, "secret.txt");
+      const read = await runArgv(`cat '${secret}'`);
+      expect(read.exitCode === 0).toBe(false);
+      expect(read.output).not.toContain(VAULT_SECRET);
+      const write = await runArgv(`echo x >> '${secret}'`);
+      expect(write.exitCode === 0).toBe(false);
+      expect(readFileSync(secret, "utf8")).toBe(VAULT_SECRET);
+    }, 120_000);
+
+    test("(g) wrapArgv with the open policy: Fresnel's own data and secret folders stay denied", async () => {
+      const dataRead = await runArgv(`cat '${join(box.dirs.data, "canary.txt")}'`);
+      expect(dataRead.exitCode === 0).toBe(false);
+      expect(dataRead.output).not.toContain(SEED);
+      const secretRead = await runArgv(`cat '${join(box.dirs.config, "secrets", "key.txt")}'`);
+      expect(secretRead.exitCode === 0).toBe(false);
+      expect(secretRead.output).not.toContain(SEED);
+      const configWrite = await runArgv(`echo x >> '${join(box.dirs.config, "settings.json")}'`);
+      expect(configWrite.exitCode === 0).toBe(false);
+      expect(readFileSync(join(box.dirs.config, "settings.json"), "utf8")).toBe(SEED);
     }, 120_000);
 
     test("known srt limit: its own dangerous-file denies still apply under the host's working directory", async () => {

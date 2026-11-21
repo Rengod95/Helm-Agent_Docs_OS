@@ -94,6 +94,20 @@ const sandboxSettings = defineSettings("l0.sandbox", {
     },
     since: "0.1.0",
   },
+  narrowDrafts: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 109,
+      label: "Run unapproved plugin drafts in a narrow sandbox",
+      help: "On runs the scripts of plugin drafts you have not approved yet in a narrow sandbox: they can only read the plugin's own folder and cannot write. Off works like approved plugins.",
+    },
+    since: "0.1.0",
+  },
   selfTestIntervalMin: {
     type: Type.Integer(),
     default: 60,

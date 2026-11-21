@@ -114,7 +114,7 @@ suite(
       }
     });
 
-    test("(b) on the narrow policy (MCP servers), writes outside the workspace are still refused, and nothing is created", async () => {
+    test("(b) on the narrow default policy (no writeEverywhere), writes outside the workspace are still refused, and nothing is created", async () => {
       const outside = join(home, "escaped.txt");
       const write = await run(`echo x > '${outside}'`, true);
       expect(write.exitCode === 0).toBe(false);

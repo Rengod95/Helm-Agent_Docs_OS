@@ -13,19 +13,20 @@ import type {
 } from "@fresnel/contracts/services";
 import { isAbsolute, resolve as resolvePath } from "node:path";
 import type { ProcessPlatformProvider } from "../select.ts";
-import { childEnv, VALID_ENV_NAME } from "./child-env.ts";
+import { childEnv, openChildEnv, VALID_ENV_NAME } from "./child-env.ts";
 import { DEFAULT_STDIN_CLOSE_MS, stopperOfPiped } from "./child-stop.ts";
 import { spawnPiped } from "./spawn-piped.ts";
 
 // L0.process.spec §4.8 `spawn`, review.m5-drive-isolation §3.1·§3.4(M5b-1). 격리 확장의 플러그인 호스트 프로세스를 띄운다.
 // 1. 명령줄은 샌드박스 서비스 `wrapArgv`가 만든 것이다. 격리를 쓸 수 없으면 띄우지 않고 `sandbox_unavailable`이다(닫힌 실패).
 //    사용자가 격리를 껐거나(`disabled`) 격리 불가 시 실행을 허락한(`run_unsandboxed`) 때만 격리 없이 띄우고 경고 `isolation.sandbox_not_enforced`를 남긴다.
-// 2. 정책은 §3.4대로다. 샌드박스의 "쓰기 없음" 프로필(`profile: "no-write"`): 쓰기 루트 없음(이 프로세스 전용 빈 임시 폴더 하나만, 끝나면 지운다),
-//    네트워크는 허용 목록 없이 거부 목록만(사용자 차단 도메인), 샌드박스 밖 실행 없음. 읽기는 허용 목록이다:
-//    `readRoot`(플러그인 폴더), 실행 파일, `spec.runtimeReadRoots`(소스 실행의 작업 공간)와 런타임이 꼭 필요한 시스템 경로뿐이다.
-//    `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다.
-// 3. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 `spec.env`(호출자가 허용 목록으로 만든 값)를 더하고, 샌드박스가 준 env를 마지막에 덮는다.
-//    시크릿은 넘기지 않는다. cwd는 `spec.readRoot`다.
+// 2. 정책은 `spec`이 고른다 [결정: 2026-11-21, 사용자, AGE-63]. `narrow`가 없으면 열린 정책이다: `defaultPolicy({ workspaceRoots: [], tempDir: cwd, writeEverywhere: true })`,
+//    쓰기 루트 `/`, 보호 경로(Fresnel 자신의 시크릿·데이터, 사용자 `extra`)만 거부, 네트워크는 차단 목록만, 샌드박스 밖 실행 없음.
+//    `narrow: true`면 좁은 정책이다: 샌드박스의 "쓰기 없음" 프로필(`profile: "no-write"`, 승인 전 드래프트용). 쓰기 루트 없음(이 프로세스 전용 빈 임시 폴더 하나만, 끝나면 지운다),
+//    읽기는 허용 목록(`readRoot`, 실행 파일, `spec.runtimeReadRoots`, 런타임이 꼭 필요한 시스템 경로)이고 네트워크는 차단 목록만이다.
+//    `scriptEnv`가 있으면 옛 길의 "script-env" 프로필이 먼저 쓰인다(옵트인, 바뀌지 않는다). `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다.
+// 3. 자식 env는 열린 정책에서 부모 env의 `FRESNEL_` 이름만 뺀 값에 `spec.env`를 더하고, 좁은 정책과 `scriptEnv`에서는 허용 목록 env에 `spec.env`를 더한다.
+//    샌드박스가 준 env는 마지막에 덮는다. cwd는 `spec.readRoot`다(`scriptEnv`면 `projectDir`).
 // 4. `BackgroundRegistry`에 owner kind `plugin-host`, ref 라벨로 등록한다. 정지 순서는 MCP 서버와 같다(stdin 닫기, 유예, SIGTERM, 유예, SIGKILL).
 // 5. `kill(SIGTERM|SIGKILL)`은 프로세스 트리 전체에 보낸다. `exited`는 종료와 표준 출력 닫힘 뒤에 이행한다.
 
@@ -41,7 +42,7 @@ export interface IsolationProcessDeps {
   readonly background: BackgroundRegistry;
   /** 샌드박스 서비스를 spawn 때마다 찾는다(조립 순서상 이 포트가 서비스보다 먼저 만들어진다). undefined를 돌려주면 `sandbox_unavailable`이다 */
   readonly sandbox: () => IsolationSandboxSource | undefined;
-  /** 부모 env. 허용 목록 이름만 자식에게 옮긴다 */
+  /** 부모 env. 열린 정책은 `FRESNEL_` 이름만 빼고 옮기고, 좁은 정책과 옛 길은 허용 목록 이름만 옮긴다 */
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
   readonly scheduler: Scheduler;
   readonly logger: Logger;
@@ -56,7 +57,15 @@ function spawnFailed(code: string, message: string): Result<never, IsolationSpaw
 }
 
 /**
- * 플러그인 호스트의 샌드박스 정책: "쓰기 없음" 프로필과 읽기 허용 목록이다(L0.sandbox.spec §4.9). `defaultPolicy`가 보호 경로,
+ * 열린 정책(`narrow`가 없는 기본): 셸 도구와 같은 쓰기 범위 제한 없는 정책이다. 쓰기 루트 `/`, 거부는 Fresnel 자신의 시크릿·데이터·설정과
+ * 사용자가 더한 곳뿐, 네트워크는 차단 목록만이다 [결정: 2026-11-21, 사용자, AGE-63]. `tempDir`은 정책 입력이 요구하지만 열린 정책은 쓰지 않는다.
+ */
+function openPolicy(sandbox: IsolationSandboxSource, cwd: string): SandboxPolicy {
+  return sandbox.defaultPolicy({ workspaceRoots: [], tempDir: cwd, writeEverywhere: true });
+}
+
+/**
+ * 좁은 정책(`narrow: true`, 승인 전 드래프트용): "쓰기 없음" 프로필과 읽기 허용 목록이다(L0.sandbox.spec §4.9). `defaultPolicy`가 보호 경로,
  * 사용자의 차단 도메인, 런타임이 꼭 필요한 시스템 읽기 경로를 채운다. 이 포트는 플러그인 폴더, 실행 파일, 런타임 읽기 경로만 더한다.
  */
 function pluginHostPolicy(
@@ -71,6 +80,29 @@ function pluginHostPolicy(
     readRoots: [cwd, spec.command, ...(spec.runtimeReadRoots ?? [])],
     ...(spec.systemTools === true ? { systemTools: true } : {}),
   });
+}
+
+/** 호출마다 정책을 고른다. `scriptEnv`(옛 길)가 `narrow`보다 먼저다. 둘 다 없으면 열린 정책이다 */
+function policyOf(
+  sandbox: IsolationSandboxSource,
+  cwd: string,
+  spec: IsolationSpawnSpec,
+): SandboxPolicy {
+  if (spec.scriptEnv !== undefined) return scriptEnvPolicy(sandbox, spec.scriptEnv);
+  if (spec.narrow === true) return pluginHostPolicy(sandbox, cwd, spec);
+  return openPolicy(sandbox, cwd);
+}
+
+/**
+ * 자식 env의 바탕. 좁은 정책과 옛 길은 허용 목록 env이고, 열린 정책은 부모 env에서 `FRESNEL_` 이름만 뺀 값이다 [결정: 2026-11-21, 사용자, AGE-63].
+ * 어느 쪽이든 `spec.env`를 더한다.
+ */
+function baseEnvOf(
+  spec: IsolationSpawnSpec,
+  parentEnv: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  if (spec.scriptEnv !== undefined || spec.narrow === true) return childEnv(parentEnv, spec.env);
+  return openChildEnv(parentEnv, spec.env);
 }
 
 /**
@@ -110,10 +142,7 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
       });
       return err({ kind: "sandbox_unavailable", reason: "service_missing" });
     }
-    const policy =
-      spec.scriptEnv === undefined
-        ? pluginHostPolicy(sandbox, cwd, spec)
-        : scriptEnvPolicy(sandbox, spec.scriptEnv);
+    const policy = policyOf(sandbox, cwd, spec);
     const wrapped = await sandbox.wrapArgv(
       policy,
       { command: spec.command, args: spec.args, cwd },
@@ -169,8 +198,8 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
           command,
           args,
           cwd,
-          // 샌드박스가 정한 값(프록시 주소 등)은 허용 목록 env보다 앞선다
-          env: Object.assign(childEnv(deps.parentEnv, spec.env), wrapped.env),
+          // 샌드박스가 정한 값(프록시 주소 등)은 자식 env 바탕보다 앞선다
+          env: Object.assign(baseEnvOf(spec, deps.parentEnv), wrapped.env),
           label: spec.label,
         },
         { platform, scheduler: deps.scheduler, logger: deps.logger, drainMs },

@@ -138,6 +138,40 @@ describe("wrapArgv", () => {
     expect("network" in (viaArgv?.customConfig ?? {})).toBe(false);
   });
 
+  test("the open policy (writeEverywhere) writes root /, denies only the protected paths, makes no temp folder and no TMPDIR export, like the shell", async () => {
+    const r = await rig();
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+    });
+    const result = await r.service.wrapArgv(
+      policy,
+      tool({ command: "true", args: [], cwd: r.dirs.workspace }),
+      NO_CANCEL,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sandboxed).toBe(true);
+    const wrapped = r.srt.wrapCalls[0];
+    const fs = wrapped?.customConfig.filesystem;
+    const denyRead = (fs?.denyRead ?? []).map(String);
+    const denyWrite = (fs?.denyWrite ?? []).map(String);
+    // 쓰기 루트는 `/` 하나다. 작업 공간과 임시 폴더는 쓰기 루트가 아니다
+    expect(fs?.allowWrite).toEqual(["/"]);
+    // 거부는 Fresnel 자신의 항목뿐이다: 데이터와 설정, 자격 폴더와 이름 패턴, 작업 공간 git 항목은 열린 정책에서 막지 않는다
+    expect(denyRead).toContain(r.dirs.data);
+    expect(denyWrite).toContain(r.dirs.data);
+    expect(denyWrite).toContain(r.dirs.config);
+    expect(denyWrite).not.toContain(join(r.dirs.home, ".ssh"));
+    expect(denyWrite).not.toContain(join(r.dirs.workspace, ".env"));
+    expect(denyWrite).not.toContain(join(r.dirs.workspace, ".git", "hooks"));
+    // 임시 폴더를 만들지 않고 TMPDIR도 바꾸지 않는다(셸 도구와 같다)
+    expect(wrapped?.command).toBe("true");
+    expect(readdirSync(r.dirs.tmp).filter((name) => name.startsWith("nw-"))).toEqual([]);
+    result.value.cleanup();
+  });
+
   test("cleanup runs the srt cleanup once however often it is called", async () => {
     const r = await rig();
     const result = await r.service.wrapArgv(r.policy(), tool(), NO_CANCEL);
