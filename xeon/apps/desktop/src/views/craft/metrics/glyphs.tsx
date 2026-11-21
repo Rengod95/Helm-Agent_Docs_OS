@@ -4,8 +4,10 @@ import { assertNever } from "@fresnel/contracts";
 import type { HookOutcomeOrSkipped } from "@fresnel/contracts/extensions";
 import type { SubjectKind } from "@fresnel/contracts/wire";
 import type { CSSProperties, ReactNode } from "react";
+import { LINE_GLYPH } from "../../illustrations/line-glyph.ts";
+import { KIND_PATHS, type GlyphKind } from "../kind-paths.ts";
 
-export type Kind = "inject" | "hook" | "drive" | "tool" | "block";
+export type Kind = GlyphKind;
 
 export const KIND_COLOR: Readonly<Record<Kind, string>> = {
   inject: "var(--viz-inject)",
@@ -33,50 +35,22 @@ export function kindOfSubject(kind: SubjectKind): Kind {
   }
 }
 
-const STROKE = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.5,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-} as const;
-
+/** 종류 그림 하나. 획은 리뷰 화면과 같은 `kind-paths.ts`, 선은 `LINE_GLYPH`(화면 1px, m6R7)다 */
 export function KindGlyph(props: { readonly kind: Kind; readonly size?: number }): ReactNode {
   const s = props.size ?? 12;
   return (
-    <svg width={s} height={s} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      {props.kind === "inject" ? (
-        <g {...STROKE}>
-          <path d="M1.5 6h6" />
-          <path d="M5 3.5 7.5 6 5 8.5" />
-          <path d="M10.25 2v8" />
-        </g>
-      ) : null}
-      {props.kind === "hook" ? (
-        <g {...STROKE}>
-          <path d="M6 1.6 10.4 6 6 10.4 1.6 6Z" />
-          <path d="M6 4.4v3.2" />
-        </g>
-      ) : null}
-      {props.kind === "drive" ? (
-        <g {...STROKE}>
-          <path d="M2.2 2.6 5.6 6 2.2 9.4" />
-          <path d="M6.4 2.6 9.8 6 6.4 9.4" />
-        </g>
-      ) : null}
-      {props.kind === "tool" ? (
-        <g {...STROKE}>
-          <path d="M4.2 1.6v2.6M7.8 1.6v2.6" />
-          <path d="M2.6 4.2h6.8v1.6a3.4 3.4 0 0 1-6.8 0Z" />
-          <path d="M6 9.2v1.6" />
-        </g>
-      ) : null}
-      {props.kind === "block" ? (
-        <g {...STROKE}>
-          <rect x="2" y="2" width="8" height="8" rx="1.5" />
-          <path d="M2 6h8" />
-        </g>
-      ) : null}
+    <svg
+      width={s}
+      height={s}
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      focusable="false"
+      data-kind-glyph={props.kind}
+      {...LINE_GLYPH}
+    >
+      {KIND_PATHS[props.kind].map((d) => (
+        <path key={d} d={d} />
+      ))}
     </svg>
   );
 }
