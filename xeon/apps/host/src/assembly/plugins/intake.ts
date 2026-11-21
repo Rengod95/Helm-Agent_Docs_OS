@@ -1,5 +1,5 @@
 import { err, type Result } from "@fresnel/contracts";
-import type { EvidenceRef } from "@fresnel/contracts/extensions";
+import type { EvidenceRef, ImportedHookOrigin } from "@fresnel/contracts/extensions";
 import type { Provenance } from "@fresnel/contracts/wire";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 
@@ -41,6 +41,8 @@ export type IntakeRequest =
       readonly provenance: "user_instruction" | "migration";
       readonly originThreadId: string | null;
       readonly evidence: readonly EvidenceRef[];
+      /** 가져온 훅의 출처(가져오기 계획의 값). `migration` 제출만 싣는다. 검토 항목의 카드가 이 값을 훅 출처로 적는다 */
+      readonly importedHookOrigin?: ImportedHookOrigin | undefined;
     });
 
 /** 입구가 검토 서비스에 넘기는 한 번의 요청. 검토 서비스는 직렬 큐 안에서 준비, 초안, 항목 순으로 한다 */
@@ -52,6 +54,8 @@ export interface AdmitInput {
   readonly evidence: readonly EvidenceRef[];
   readonly purpose: string | undefined;
   readonly prepare: IntakePrepare | undefined;
+  /** 가져온 훅의 출처. 출처가 `migration`일 때만 있다 */
+  readonly importedHookOrigin: ImportedHookOrigin | undefined;
 }
 
 /** 입구의 결과. 초안 id와 항목 id다 */
@@ -96,6 +100,8 @@ export function createPluginDraftIntake(admission: PluginAdmission): PluginDraft
         evidence: request.evidence,
         purpose: request.purpose,
         prepare: request.prepare,
+        importedHookOrigin:
+          request.provenance === "migration" ? request.importedHookOrigin : undefined,
       });
     },
   };

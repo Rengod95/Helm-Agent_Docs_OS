@@ -73,7 +73,13 @@ function shellSetup(answer: Answer) {
   };
   const { port, requests, grantedThreads } = asker(answer);
   const shell = createShellApi(
-    depsFor(env, { sandbox, protectedPaths: PROTECTED, writeAccess: port, homeDir: HOME }),
+    depsFor(env, {
+      sandbox,
+      protectedPaths: PROTECTED,
+      writeAccess: port,
+      homeDir: HOME,
+      narrowRoots: true,
+    }),
   );
   return { env, shell, sandbox, requests, grantedThreads };
 }

@@ -45,7 +45,8 @@ export function carveOutRules(input: {
     if (input.readDeny.some((denied) => isInside(target, denied))) return err("protected");
     const named = isFile
       ? matchProtectedPath(basenameEntries, target, "read") !== undefined
-      : expandBasenameEntries(basenameEntries, [target], BASENAME_SEARCH_DEPTH).length > 0;
+      : expandBasenameEntries(basenameEntries, [target], BASENAME_SEARCH_DEPTH).readFiles.length >
+        0;
     if (named) return err("protected");
     if (isFile) literal.push(target);
     else subpath.push(target);

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { posix } from "node:path";
 import { attemptAsync, type Clock, type Logger, type RandomSource } from "@fresnel/contracts";
 import {
@@ -119,6 +119,52 @@ function denied(outcome: RunOutcome): boolean {
   return outcome.exitCode !== undefined && outcome.exitCode !== 0;
 }
 
+/** 자가 시험 임시 폴더의 이름 접두. 만들 때와 낡은 폴더를 쓸어 낼 때 같은 값을 쓴다 */
+const SELF_TEST_DIR_PREFIX = "fresnel-sandbox-selftest-";
+
+/**
+ * 이 나이(ms)보다 오래된 자가 시험 폴더만 낡았다고 본다. 한 번의 시험은 1분 안에 끝나므로, 도는 중인 다른 엔진의 폴더는 이 나이에 닿지 않는다.
+ * 엔진이 죽거나 시간 초과로 끊겨 `finally`가 못 돈 폴더가 낡은 폴더다(enHt 보고)
+ */
+export const STALE_SELF_TEST_DIR_MS: number = 60 * 60_000;
+
+/** 한 번의 시작에서 지우는 낡은 폴더의 최대 개수. 시작을 오래 막지 않게 한다. 남은 것은 다음 시험이 지운다 */
+export const MAX_STALE_SELF_TEST_SWEEPS: number = 20;
+
+/**
+ * 같은 임시 루트의 낡은 `fresnel-sandbox-selftest-*` 폴더를 쓸어 낸다. 심볼릭 링크는 따라가지 않고 건드리지도 않는다(`lstat`이 폴더인 것만 지운다).
+ * 지운 개수를 돌려준다. 실패는 로그만 남기고 시험을 막지 않는다
+ */
+export async function sweepStaleSelfTestDirs(
+  deps: Pick<SelfTestDeps, "dirs" | "clock" | "logger">,
+): Promise<number> {
+  const listed = await attemptAsync(() => readdir(deps.dirs.tmp));
+  if (!listed.ok) return 0;
+  const now = deps.clock.now();
+  const named = listed.value
+    .filter((name) => name.startsWith(SELF_TEST_DIR_PREFIX))
+    .map((name) => posix.join(deps.dirs.tmp, name));
+  const stale = (
+    await Promise.all(
+      named.map(async (path) => {
+        const info = await attemptAsync(() => lstat(path));
+        const old =
+          info.ok && info.value.isDirectory() && now - info.value.mtimeMs >= STALE_SELF_TEST_DIR_MS;
+        return old ? [path] : [];
+      }),
+    )
+  )
+    .flat()
+    .slice(0, MAX_STALE_SELF_TEST_SWEEPS);
+  const results = await Promise.all(
+    stale.map((path) => attemptAsync(() => rm(path, { recursive: true, force: true }))),
+  );
+  const removed = results.filter((result) => result.ok).length;
+  if (removed < results.length) deps.logger.warn("sandbox.self_test_sweep_failed", {});
+  if (removed > 0) deps.logger.info("sandbox.self_test_swept", { removed });
+  return removed;
+}
+
 async function removeQuietly(logger: Logger, dir: string | undefined): Promise<void> {
   if (dir === undefined) return;
   try {
@@ -141,9 +187,8 @@ export async function runSelfTest(
   const items: SelfTestItem[] = [];
   try {
     await mkdir(deps.dirs.tmp, { recursive: true });
-    workspace = await realpath(
-      await mkdtemp(posix.join(deps.dirs.tmp, "fresnel-sandbox-selftest-")),
-    );
+    await sweepStaleSelfTestDirs(deps);
+    workspace = await realpath(await mkdtemp(posix.join(deps.dirs.tmp, SELF_TEST_DIR_PREFIX)));
     await mkdir(probeDir, { recursive: true });
     const canary = `canary-${newCommandId(deps.random)}`;
     await writeFile(posix.join(probeDir, "canary"), canary);

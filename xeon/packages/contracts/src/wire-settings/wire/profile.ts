@@ -672,16 +672,37 @@ const SetProfileStartDriveShape = Type.Union(
   SET_PROFILE_START_DRIVES.map((value) => Type.Literal(value)),
 );
 
+/**
+ * 스타트 Drive가 거절된 이유(AGE-32, 이름은 [제안]). `startDrive`가 `rejected`일 때만 실린다. 닫힌 목록이라 목록 밖의 이유는 싣지 않는다.
+ * `unknown_thread`: 엔진이 이 대화를 모른다. `child_thread`: 자식 대화라 시작 Drive를 쓰지 않는다.
+ * `unknown_scope`: 프로필의 시작 Drive 플러그인이 지금 엔진에 등록돼 있지 않다. `not_drive`: 그 플러그인이 Drive를 등록하지 않았다.
+ * `drive_error`: 그 Drive가 이전 오류로 꺼져 있다. 내부 경로나 오류 원문은 싣지 않는다
+ */
+export const START_DRIVE_REJECT_REASONS = [
+  "unknown_thread",
+  "child_thread",
+  "unknown_scope",
+  "not_drive",
+  "drive_error",
+] as const;
+export type StartDriveRejectReason = (typeof START_DRIVE_REJECT_REASONS)[number];
+const StartDriveRejectReasonShape = Type.Union(
+  START_DRIVE_REJECT_REASONS.map((value) => Type.Literal(value)),
+);
+
 export interface ThreadSetProfileResult {
   readonly position: StreamPosition;
   readonly preview: ThreadSetProfilePreview;
   /** 선택. 없으면 알리지 않는 옛 호스트다 */
   readonly startDrive?: SetProfileStartDrive;
+  /** 선택. `startDrive`가 `rejected`이고 이유가 닫힌 목록 안일 때만 싣는다 */
+  readonly startDriveReason?: StartDriveRejectReason;
 }
 const ThreadSetProfileResultShape = closed({
   position: StreamPositionSchema,
   preview: ThreadSetProfilePreviewShape,
   startDrive: Type.Optional(SetProfileStartDriveShape),
+  startDriveReason: Type.Optional(StartDriveRejectReasonShape),
 });
 export const ThreadSetProfileResultSchema: TUnsafe<ThreadSetProfileResult> =
   Type.Unsafe<ThreadSetProfileResult>(

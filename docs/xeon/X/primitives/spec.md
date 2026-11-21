@@ -1157,7 +1157,7 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1c 프로필 전환의 시작 Drive [결정: 2026-11-20, 사용자, AGE-64]
 
-`ExtHost.switchStartDrive(threadId, scopeId | null, fresh)`가 `thread.setProfile`의 뒤에 시작 Drive를 맞춘다. `scopeId`가 null이면 새 프로필에 시작 Drive가 없다. `fresh`는 첫 메시지 전의 빈 대화다. 결과는 `requested`(시작 요청을 걸었다), `deferred`(도는 turn이나 이미 일하는 Drive가 끝난 뒤 시작한다), `leading`(새 시작 Drive가 이미 쥐고 있다), `none`(새 프로필에 시작 Drive가 없다)이다.
+`ExtHost.switchStartDrive(threadId, scopeId | null, fresh)`가 `thread.setProfile`의 뒤에 시작 Drive를 맞춘다. `scopeId`가 null이면 새 프로필에 시작 Drive가 없다. `fresh`는 첫 메시지 전의 빈 대화다. 결과는 `requested`(시작 요청을 걸었다), `deferred`(도는 turn이나 이미 일하는 Drive가 끝난 뒤 시작한다), `leading`(새 시작 Drive가 이미 쥐고 있다), `none`(새 프로필에 시작 Drive가 없다)이다. 거부는 `StartDriveError`다. 호스트는 `unknown_thread`, `child_thread`, `unknown_scope`, `not_drive`, `drive_error`를 wire `thread.setProfile`의 `startDriveReason`으로 옮긴다(F.wire-settings). 이 길에서 `input_too_large`는 나지 않는다.
 
 1. 마지막 전환만 유효하다. 호출은 먼저 이전 전환이 걸어 둔 기다리는 시작(`waitStack`)을 모두 큐에서 지운다. 기록한 적이 없어 `dropped`는 남기지 않는다. 사용자 명령 `startDrive`(`trigger: "user"`)도 같은 요청을 지운다(사용자가 직접 말한 쪽이 이긴다).
 2. "아직 메시지를 받지 않은 시작 Drive"는 엔진의 사실로 판정한다: 스택에 프레임이 하나이고, 그 프레임이 프로필 시작(`awaitUser`)이며 첫 단계 전이고(`firstStepDone` 거짓, 도는 중 아님), 받은 메시지(`userSeq`, `inbox`, 전달 중, 쥐고 있는 메시지)와 쓴 turn(`used.turns`)이 없다.

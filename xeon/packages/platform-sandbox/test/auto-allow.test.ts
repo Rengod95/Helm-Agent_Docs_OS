@@ -101,12 +101,12 @@ describe("autoAllow decision table", () => {
 });
 
 describe("autoAllow never allows escape", () => {
-  test("escapeRetry true still blocks allowEscape calls with escape_requested", async () => {
+  test("allowEscape calls are blocked with escape_requested", async () => {
     const dirs = makeTestDirs();
     const service = await createSandboxService(
       {
         os: fakeOs(dirs),
-        settings: () => settingsOf({ escapeRetry: true }),
+        settings: () => settingsOf(),
         srt: fakeSrt(),
         platform: linuxPlatform(),
         parentEnv: () => ({}),
@@ -130,11 +130,12 @@ describe("autoAllow never allows escape", () => {
       { command: ["ls"], cwd: dirs.workspace, workspaceRoots: [dirs.workspace], tempDir: dirs.tmp },
     );
     expect(normal).toEqual({ allow: true });
-    // 샌드박스 밖 재시도 허용 설정이 있어도 격리된 호출의 실행 경로는 그대로다
+    // 샌드박스 밖에서 다시 실행하는 길은 없다: 밖 실행을 요구하는 호출은 실행하지 않고 거부한다
     const shell = recordingShell();
     const result = await service
       .wrapShell(shell, escaping)
       .exec("ls", { cwd: dirs.workspace }, NO_CANCEL);
-    expect(result.ok && result.value.sandbox?.unsandboxedBy).toBe("escape");
+    expect(!result.ok && result.error.code).toBe("sandbox_unavailable");
+    expect(shell.calls.length).toBe(0);
   });
 });

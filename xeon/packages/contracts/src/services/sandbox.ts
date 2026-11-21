@@ -158,11 +158,6 @@ export interface SandboxPolicy {
    * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
    */
   readCarveOuts?: string[];
-  /**
-   * 참이면 이 호출에 설정 `l0.sandbox.protectedPaths.allowRead`(사용자가 고른 기본 보호 경로의 읽기 풀기)를 적용한다. 보통 프로필만 받고(`profile` 없음),
-   * 셸 도구의 호출만 참으로 둔다. 생략하면 풀지 않는다 [결정: 2026-11-20, 사용자, AGE-63]
-   */
-  userReadRelease?: boolean;
 }
 
 const sandboxPolicyShape = Type.Object(
@@ -201,7 +196,6 @@ const sandboxPolicyShape = Type.Object(
     readCarveOuts: Type.Optional(
       Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 64 }),
     ),
-    userReadRelease: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -210,6 +204,7 @@ export const SandboxPolicySchema: TUnsafe<SandboxPolicy> = Type.Unsafe<SandboxPo
   sandboxPolicyShape satisfies SchemaProof<SandboxPolicy, typeof sandboxPolicyShape>,
 );
 
+/** `read_write`는 읽기와 쓰기를 모두 거부한다. `write`는 쓰기만 거부한다(기본 자격 폴더는 이 값이다, L0.sandbox.spec §3.3) */
 export type ProtectedAccess = "read_write" | "write";
 export type ProtectedMatch = "exact" | "prefix" | "basename";
 
@@ -420,6 +415,16 @@ export type SandboxWrapError =
   | { readonly kind: "failed"; readonly message: string }
   | { readonly kind: "aborted" };
 
+/**
+ * 제안 목록의 이 기기 줄(AGE-63, L0.sandbox.spec §3.3.1). `path`는 설정 `extra`에 적는 모양(`~/…` 또는 절대 경로)이고,
+ * `key`는 같은 경로를 보호 경로 비교에 쓰는 정규 절대 경로다.
+ */
+export interface SuggestedProtectedPathView {
+  readonly path: string;
+  readonly label: string;
+  readonly key: string;
+}
+
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
@@ -435,19 +440,32 @@ export interface SandboxService {
     readRoots?: readonly string[];
     /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다) */
     systemTools?: boolean;
+    /**
+     * 보통 프로필에서만. 참이면 쓰기 범위 제한이 없다(쓰기 루트는 `/`, `workspaceRoots`·`tempDir`는 무시). 거부는 Fresnel 자신의 시크릿·데이터·설정과
+     * 사용자가 더한 `l0.sandbox.protectedPaths.extra`뿐이다. 셸 도구가 쓴다. 생략하면 작업 공간과 임시 폴더만 쓰고 제안 목록 전체를 쓰기 거부한다(MCP 서버)
+     */
+    writeEverywhere?: boolean;
     /** `"script-env"`에서만. 쓰기 루트가 되는 프로젝트 폴더(절대 경로). 임시 폴더는 호출마다 샌드박스가 만든다 */
     projectDir?: string;
     /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
     readCarveOuts?: readonly string[];
-    /** 보통 프로필에서만. 참이면 설정 `l0.sandbox.protectedPaths.allowRead`를 이 정책에 적용한다(셸 도구 호출용). 읽기만 풀고 쓰기는 막은 채다 */
-    userReadRelease?: boolean;
   }): SandboxPolicy;
   /**
-   * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
-   * root별 git 항목(`.git/hooks`, `.git/config` 등)이 이 호출의 결과에 들어가므로, bash를 한 번도 돌리지 않은 파일 도구도
-   * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
+   * 보호 경로 전체. L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
+   * `roots`에 `/`가 있으면(쓰기 범위 제한 없음, 보통 대화) Fresnel 자신의 시크릿·데이터·설정과 사용자가 더한 `protectedPaths.extra`만 돌려준다.
+   * 자격 폴더, 셸 시작 파일, `.git/hooks` 등은 기본으로 들어 있지 않다(사용자가 대화로 더한다).
+   * `/`가 없으면(쓰기 범위가 좁은 대화) 제안 목록 전체와 root별 git 항목(`.git/hooks`, `.git/config` 등)을 쓰기 전용으로 더 돌려준다.
+   * 생략하면 쓰기 범위가 좁은 쪽이고, root별 git 항목은 넣지 않는다.
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
+  /**
+   * 설정 `l0.sandbox.protectedPaths.extra`의 값 하나를 보호 경로 비교 키(정규 절대 경로)로 바꾼다. `resolveExtraPaths`와 같은 규칙이다
+   * (`~`와 `~/…`는 홈 기준, 절대 경로는 그대로, 있는 경로는 실제 경로로 푼다). 그 밖의 값은 undefined다.
+   * 같은 경로인지 견줄 때 쓴다(cap-workspace의 `sandbox_protect`는 이것으로 중복과 `/`·홈 거부를 정한다).
+   */
+  protectedPathKey(value: string): string | undefined;
+  /** 이 기기에서 제안되는 경로 줄(`suggestedProtectedPaths(platform)`). 기본으로는 막지 않는 곳의 목록이고, 설정 extra에 적으면 읽기와 쓰기가 막힌다 */
+  suggestedProtectedPaths(): readonly SuggestedProtectedPathView[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
   /**

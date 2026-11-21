@@ -274,6 +274,10 @@ export interface PluginStore {
     draftId: string,
     meta: (contentHash: string) => DraftInfo,
   ): Promise<Result<DraftInfo, PluginStoreError>>;
+  /**
+   * 초안 스냅샷(`drafts/<draftId>/tree`) 안 파일의 바이트(읽기만). 경로가 폴더 밖이거나, 없거나, 일반 파일이 아니면(링크 포함) `not_found`다
+   */
+  readDraftFile(draftId: string, path: string): Promise<Result<Uint8Array, PluginStoreError>>;
   /** 초안 정보 파일을 다시 쓴다(검토 항목을 연결할 때) */
   writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>>;
   /** 초안 정보 하나. 없으면 `not_found`, 깨졌으면 `corrupt`다 */
@@ -1127,6 +1131,29 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     });
   }
 
+  async function readDraftTreeFile(
+    draftId: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    if (!localIdOk("drf", draftId)) return err({ kind: "not_found", what: `draft ${draftId}` });
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `draft file ${path}` });
+    const file = join(draftPathOf(draftId), "tree", path);
+    const meta = await attemptAsync(() => lstat(file));
+    if (!meta.ok) {
+      return codeOf(meta.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `draft file ${path}` })
+        : err(ioOf(file, meta.error.cause));
+    }
+    if (!meta.value.isFile()) return err({ kind: "not_found", what: `draft file ${path}` });
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `draft file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
+  }
+
   async function writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>> {
     if (!localIdOk("drf", info.draftId)) return err({ kind: "invalid_name", name: info.draftId });
     return locked(() =>
@@ -1213,6 +1240,7 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     readCandidateFile,
     readReviewedFile,
     saveDraft,
+    readDraftFile: readDraftTreeFile,
     writeDraft,
     readDraft,
     listDrafts,

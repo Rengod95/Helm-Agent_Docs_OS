@@ -24,8 +24,9 @@ import {
 
 // 환경 모드(가져온 훅, AGE-58 원칙 가) 시험(트랙 enK9). 두 묶음이 있다.
 // (A) 옛 샌드박스 길(`envSandboxed: () => true`, 설정 `l0.sandbox.sandboxImportedHooks`를 켠 경우): 실행기(`createScriptRunner`)가
-//     실제 띄우기 포트와 실제 샌드박스(srt, Seatbelt)로 돌린다. 샌드박스의 홈은 임시 가짜 홈이라 보호 경로(`~/.ssh`,
-//     `~/.claude`, `~/Library/Keychains`)가 가짜 홈에 있다. 행렬 20행(a/b 변형 포함), 막혀야 하는 행, 우회 재현, 닫힌 실패 행을 본다.
+//     실제 띄우기 포트와 실제 샌드박스(srt, Seatbelt)로 돌린다. 샌드박스의 홈은 임시 가짜 홈이다. 기본은 자격 폴더를 읽기로 막지 않으므로(AGE-63)
+//     이 상자는 사용자가 설정 `protectedPaths.extra`에 가짜 홈의 키·자격 파일·키체인 폴더와 프로젝트 `.env`를 적은 상태를 흉내 낸다.
+//     행렬 20행(a/b 변형 포함), 막혀야 하는 행, 우회 재현, 닫힌 샌드박스 행을 본다.
 //     확인하는 것은 종료 코드, 정확한 표준 출력, 파일 생김 여부다. 가짜 비밀의 내용은 결과에 나오면 안 된다.
 // (B) 기본 길(사용자 권한, 샌드박스 없음, `envSandboxed` 거짓): 실제 `createHookRunner`로 돈다. 자식의 HOME은 가짜 홈이고
 //     가짜 비밀 파일을 읽고 가짜 홈에 쓸 수 있다. 환경 이름 거르기, 참조 지문, 작업 폴더, 종료 코드를 값으로 비교한다.
@@ -34,6 +35,11 @@ import {
 
 const ENVIRONMENT_EXIT_CODE = 2;
 const TEST_TIMEOUT_MS = 240_000;
+/**
+ * 한 스크립트가 샌드박스 안에서 명령을 스무 개 가까이 차례로 띄우는 탐침(b2, b3)의 제한 시간. 기본 10초는 조용한 기계에서 8~9초라 부하가 오면 중간에 끊겨
+ * 결과 줄이 빠진 채 실패한다(측정: 혼자 8.4~9.1초, 묶음 안 10.0초 끊김). 판정은 그대로이고 끊는 시각만 늦춘다.
+ */
+const PROBE_TIMEOUT_MS = 60_000;
 const DISK_TMP = "/tmp";
 
 const gate = await sandboxGateOf();
@@ -587,7 +593,7 @@ suite("env mode, sandboxed old path: negative rows (must be denied)", () => {
   });
 
   test(
-    "N01 the fake ~/.ssh key cannot be read",
+    "N01 the fake ~/.ssh key, listed in protectedPaths.extra, cannot be read",
     async () => {
       const box = requireBox(slot);
       const key = join(box.home, ".ssh", "id_fake");
@@ -600,7 +606,7 @@ suite("env mode, sandboxed old path: negative rows (must be denied)", () => {
   );
 
   test(
-    "N02 ~/.claude/credentials.json cannot be read while the hook x.py beside it is readable",
+    "N02 ~/.claude/credentials.json, listed in extra, cannot be read while the hook x.py beside it is readable",
     async () => {
       const box = requireBox(slot);
       const hook = join(box.home, ".claude", "hooks", "x.py");
@@ -621,7 +627,7 @@ suite("env mode, sandboxed old path: negative rows (must be denied)", () => {
   );
 
   test(
-    "N03 the fake keychain cannot be read, and its folder cannot be listed",
+    "N03 the fake keychain, listed in extra, cannot be read, and its folder cannot be listed",
     async () => {
       const box = requireBox(slot);
       const keychains = join(box.home, "Library", "Keychains");
@@ -638,7 +644,7 @@ suite("env mode, sandboxed old path: negative rows (must be denied)", () => {
   );
 
   test(
-    "N04 the project .env cannot be read",
+    "N04 the project .env, listed in extra, cannot be read",
     async () => {
       const box = requireBox(slot);
       writeFileSync(join(box.project, ".env"), `${box.secrets.env}\n`);
@@ -833,7 +839,12 @@ suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied out
     async () => {
       const box = requireBox(slot);
       const result = resultOf(
-        await box.run({ name: "b2-exec-paths", shell: "bash", command: EXEC_PROBE }),
+        await box.run({
+          name: "b2-exec-paths",
+          shell: "bash",
+          command: EXEC_PROBE,
+          timeoutMs: PROBE_TIMEOUT_MS,
+        }),
       );
       if (result === undefined) return;
       const results = resultsOf(result.stdout);
@@ -851,7 +862,7 @@ suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied out
   );
 
   test(
-    "system tools cannot read the protected fake-home secrets, list the keychain folder, or read the hardware identifiers",
+    "system tools cannot read the fake-home secrets listed in extra, list the keychain folder, or read the hardware identifiers",
     async () => {
       const box = requireBox(slot);
       const result = resultOf(
@@ -859,6 +870,7 @@ suite("env mode, sandboxed old path: bypass replays (enK6 cases, same denied out
           name: "b3-protected-tools",
           shell: "bash",
           command: protectedToolProbe(box.home),
+          timeoutMs: PROBE_TIMEOUT_MS,
         }),
       );
       if (result === undefined) return;

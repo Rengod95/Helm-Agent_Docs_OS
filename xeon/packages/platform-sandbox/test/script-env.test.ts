@@ -117,8 +117,12 @@ describe("defaultPolicy script-env", () => {
     expect(policy.readAllow).toBeUndefined();
     expect(policy.readAllowLiteral).toBeUndefined();
     expect(policy.writeRoots).toEqual([canonicalizePath(r.project)]);
-    expect(policy.readDeny).toContain(join(r.dirs.home, ".ssh"));
-    expect(policy.readDeny).toContain(join(r.dirs.home, ".claude"));
+    // 자격 폴더는 기본으로 쓰기만 막으므로 읽기 거부 목록에 없다. Fresnel 데이터와 extra 항목만 읽기를 막는다
+    expect(policy.readDeny).not.toContain(join(r.dirs.home, ".ssh"));
+    expect(policy.readDeny).not.toContain(join(r.dirs.home, ".claude"));
+    expect(policy.readDeny).toContain(r.dirs.data);
+    expect(policy.writeDeny).toContain(join(r.dirs.home, ".ssh"));
+    expect(policy.writeDeny).toContain(join(r.dirs.home, ".claude"));
     expect(policy.writeDeny).toContain(join(r.project, ".git", "hooks"));
     expect(policy.writeDeny).toContain(join(r.project, ".git", "config"));
     expect(policy.network).toEqual({ allowedDomains: [], deniedDomains: ["blocked.example"] });
@@ -165,15 +169,17 @@ describe("defaultPolicy script-env", () => {
     expect(missing.writeRoots).toEqual([]);
   });
 
-  test("the setting of extra write roots does not reach the script environment", async () => {
-    const extra = join(makeTestDirs().root, "extra");
-    mkdirSync(extra, { recursive: true });
-    const r = await rig({ settings: { writeRootsExtra: [extra] } });
-    expect(scriptPolicy(r).writeRoots).toEqual([canonicalizePath(r.project)]);
-    const wrapped = await r.service.wrapArgv(scriptPolicy(r), tool, NO_CANCEL);
+  test("a script environment policy that lists the open write root `/` still only writes the project folder", async () => {
+    const r = await rig();
+    const wrapped = await r.service.wrapArgv(
+      { ...scriptPolicy(r), writeRoots: ["/", canonicalizePath(r.project)] },
+      tool,
+      NO_CANCEL,
+    );
     expect(wrapped.ok).toBe(true);
     const allowed = (r.srt.wrapCalls[0]?.customConfig.filesystem?.allowWrite ?? []).map(String);
-    expect(allowed).not.toContain(extra);
+    expect(allowed).not.toContain("/");
+    expect(allowed).toContain(canonicalizePath(r.project));
     if (wrapped.ok) wrapped.value.cleanup();
   });
 });
@@ -193,7 +199,8 @@ describe("wrapArgv script-env: temp folder and read rules", () => {
       [canonicalizePath(r.project), temp].toSorted(),
     );
     expect(fs?.allowRead).toBeUndefined();
-    expect((fs?.denyRead ?? []).map(String)).toContain(join(r.dirs.home, ".ssh"));
+    expect((fs?.denyRead ?? []).map(String)).not.toContain(join(r.dirs.home, ".ssh"));
+    expect((fs?.denyRead ?? []).map(String)).toContain(r.dirs.data);
     expect((fs?.denyRead ?? []).map(String)).not.toContain("/");
     expect((fs?.denyWrite ?? []).map(String)).toContain(canonicalizePath("/tmp/claude"));
     expect(call?.binShell).toBe("bash");
@@ -259,8 +266,8 @@ describe("wrapArgv script-env: profile tail with read carve-outs", () => {
     readonly message: string;
   }[] = [
     {
-      name: "the protected folder itself",
-      carveOut: (r) => join(r.dirs.home, ".claude"),
+      name: "the Fresnel data folder itself (read-denied)",
+      carveOut: (r) => r.dirs.data,
       message: "sandbox profile tail rejected a read carve-out that contains a protected path",
     },
     {
@@ -292,6 +299,7 @@ describe("wrapArgv script-env: profile tail with read carve-outs", () => {
   for (const refusal of refusals) {
     test(`a read carve-out of ${refusal.name} is refused as a value, before srt and temp folder`, async () => {
       const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
+      mkdirSync(r.dirs.data, { recursive: true });
       const result = await r.service.wrapArgv(
         scriptPolicy(r, { readCarveOuts: [refusal.carveOut(r)] }),
         tool,
@@ -303,12 +311,19 @@ describe("wrapArgv script-env: profile tail with read carve-outs", () => {
     });
   }
 
-  test("a read carve-out of a protected file name (.env in the project) is refused as a value", async () => {
-    const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
-    const envPath = join(r.project, ".env");
-    writeFileSync(envPath, "A=1");
+  test("a read carve-out of a folder listed in protectedPaths.extra is refused as a value", async () => {
+    // 설정 목록은 같은 배열을 가리키므로 폴더를 만든 뒤에 넣어도 된다
+    const listed: string[] = [];
+    const r = await rig({
+      platform: darwinPlatform(),
+      srt: { seatbeltProfile: PROFILE },
+      settings: { protectedPathsExtra: listed },
+    });
+    const vault = join(r.dirs.root, "vault");
+    mkdirSync(vault, { recursive: true });
+    listed.push(vault);
     const result = await r.service.wrapArgv(
-      scriptPolicy(r, { readCarveOuts: [envPath] }),
+      scriptPolicy(r, { readCarveOuts: [vault] }),
       tool,
       NO_CANCEL,
     );
@@ -320,6 +335,21 @@ describe("wrapArgv script-env: profile tail with read carve-outs", () => {
       },
     });
     expect(r.srt.wrapCalls.length).toBe(0);
+  });
+
+  test("a read carve-out of a file named like a write-only protected name (.env in the project) is accepted, since reads of it are not denied by default", async () => {
+    const r = await rig({ platform: darwinPlatform(), srt: { seatbeltProfile: PROFILE } });
+    const envPath = join(r.project, ".env");
+    writeFileSync(envPath, "A=1");
+    const result = await r.service.wrapArgv(
+      scriptPolicy(r, { readCarveOuts: [envPath] }),
+      tool,
+      NO_CANCEL,
+    );
+    expect(result.ok).toBe(true);
+    const command = result.ok ? (result.value.argv[2] ?? "") : "";
+    expect(command).toContain(`(allow file-read* (literal "${envPath}"))`);
+    if (result.ok) result.value.cleanup();
   });
 });
 
@@ -398,8 +428,8 @@ describe("wrapArgv script-env: provider and profile guards", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("allowEscape is refused for the script environment even with escapeRetry on", async () => {
-    const r = await rig({ settings: { escapeRetry: true } });
+  test("allowEscape is refused for the script environment", async () => {
+    const r = await rig();
     const result = await r.service.wrapArgv(
       scriptPolicy(r, { allowEscape: true }),
       tool,

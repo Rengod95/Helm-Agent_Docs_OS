@@ -132,6 +132,8 @@ export interface RealSandbox {
   readonly vault: string;
   readonly service: SandboxServiceHandle;
   readonly shell: Shell;
+  /** 설정을 바꾼다(서비스는 다시 만들지 않는다). 다음 호출부터 바뀐 값을 본다(L0.sandbox.spec §3.3.1 시험용) */
+  readonly setSettings: (next: Partial<SandboxSettings>) => void;
 }
 
 /** 실제 srt로 서비스를 만든다. 임시 디렉터리 아래 home, data, workspace를 쓴다 */
@@ -150,7 +152,7 @@ export async function startRealSandbox(
   const vault = join(dirs.root, "vault");
   mkdirSync(vault, { recursive: true });
   writeFileSync(join(vault, "secret.txt"), VAULT_SECRET);
-  const settings: SandboxSettings = {
+  let settings: SandboxSettings = {
     ...readSandboxSettings(() => undefined),
     protectedPathsExtra: [vault],
     ...(typeof overrides === "function" ? overrides(dirs) : overrides),
@@ -177,7 +179,15 @@ export async function startRealSandbox(
     },
     new AbortController().signal,
   );
-  return { dirs, vault, service, shell: realShell() };
+  return {
+    dirs,
+    vault,
+    service,
+    shell: realShell(),
+    setSettings: (next) => {
+      settings = { ...settings, ...next };
+    },
+  };
 }
 
 const NO_CANCEL: CancelScope = { abortSignal: undefined };

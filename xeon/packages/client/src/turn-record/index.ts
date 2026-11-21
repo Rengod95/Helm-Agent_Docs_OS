@@ -57,6 +57,7 @@ export {
   markTurnRecord,
   metricsCatalog,
   queryMetrics,
+  recentTurnRecords,
   searchTurnRecords,
   type CollectedPages,
   type PageOf,

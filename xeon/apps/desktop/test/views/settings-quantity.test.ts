@@ -31,7 +31,9 @@ function numberWidget(over: {
 
 describe("numberControlOf", () => {
   test("an integer up to 20 is a stepper, a bigger or open range is a unit field", () => {
-    expect(numberControlOf("l0.sandbox.escapeRetry", numberWidget({ min: 0, max: 5 }))).toEqual({
+    expect(
+      numberControlOf("l0.sandbox.selfTestIntervalMin", numberWidget({ min: 0, max: 5 })),
+    ).toEqual({
       kind: "stepper",
     });
     expect(

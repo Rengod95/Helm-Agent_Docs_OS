@@ -118,6 +118,27 @@ interface ListOut {
 
 type Absent = "never_recorded" | "purged" | "off";
 
+interface RecentQuery {
+  readonly from: number | null;
+  readonly to: number | null;
+  readonly profileId: string | null;
+  readonly plugin: string | null;
+  readonly scopes: readonly ScopeKind[] | null;
+  readonly cursor: string | null;
+  readonly limit: number;
+  /** 대화 제목을 준다. 없는 대화(지워짐)는 undefined라서 그 턴은 뺀다 */
+  readonly titleOf: (
+    threadId: string,
+  ) => Result<{ readonly title: string | null } | undefined, TurnReadError>;
+}
+
+interface RecentOut {
+  readonly enabled: boolean;
+  readonly level: RecordLevel;
+  readonly items: { readonly turn: TurnSummary; readonly title: string | null }[];
+  readonly next: string | null;
+}
+
 interface GetOut {
   readonly enabled: boolean;
   readonly level: RecordLevel;
@@ -160,6 +181,8 @@ export interface TurnRecordReadPort {
   /** 턴 기록 사건을 구독한다(구독 알림 `turnRecord.delta`의 원천). 끊는 함수를 돌려준다 */
   onEvent(listener: (event: TurnRecordEvent) => void): Unsubscribe;
   list(query: ListQuery): Result<ListOut, TurnReadError>;
+  /** 모든 대화의 턴을 시작 시각 역순으로 한 쪽씩(`turnRecord.recent`) */
+  recent(query: RecentQuery): Result<RecentOut, TurnReadError>;
   get(threadId: string, turnId: string): Result<GetOut, TurnReadError>;
   search(query: {
     readonly plugin: string;
@@ -566,6 +589,28 @@ function uniqueNotes(notes: readonly MetricNote[]): MetricNote[] {
   return out;
 }
 
+/** 목록 행 하나를 요약으로 만든다. 행이 그새 지워졌으면 undefined */
+function summaryOfStored(
+  store: MeasureStore,
+  item: { readonly threadId: string; readonly turnId: string },
+): Result<TurnSummary | undefined, TurnReadError> {
+  const bundle = store.readTurn(item.threadId, item.turnId);
+  if (!bundle.ok) return err(storeError(bundle.error));
+  if (bundle.value === undefined) return ok(undefined);
+  const parsedJson = parseJson(bundle.value.turn.recordJson);
+  if (!parsedJson.ok) return err({ kind: "corrupt" });
+  const record = parse(TurnRecordSchema, parsedJson.value);
+  if (!record.ok) return err({ kind: "corrupt" });
+  const summary = summaryOf(
+    bundle.value.turn,
+    { steps: bundle.value.steps.length, calls: bundle.value.calls.length },
+    record.value,
+    bundle.value.turn.profileId,
+  );
+  if (summary === null) return err({ kind: "corrupt" });
+  return ok(summary);
+}
+
 // ---- 포트 -----------------------------------------------------------------------
 
 export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort {
@@ -603,21 +648,9 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
       }
       const items: TurnSummary[] = [];
       for (const item of page.value.items) {
-        const bundle = store.readTurn(item.threadId, item.turnId);
-        if (!bundle.ok) return err(storeError(bundle.error));
-        if (bundle.value === undefined) continue;
-        const parsedJson = parseJson(bundle.value.turn.recordJson);
-        if (!parsedJson.ok) return err({ kind: "corrupt" });
-        const record = parse(TurnRecordSchema, parsedJson.value);
-        if (!record.ok) return err({ kind: "corrupt" });
-        const summary = summaryOf(
-          bundle.value.turn,
-          { steps: bundle.value.steps.length, calls: bundle.value.calls.length },
-          record.value,
-          bundle.value.turn.profileId,
-        );
-        if (summary === null) return err({ kind: "corrupt" });
-        items.push(summary);
+        const summary = summaryOfStored(store, item);
+        if (!summary.ok) return summary;
+        if (summary.value !== undefined) items.push(summary.value);
       }
       return ok({
         enabled: source.enabled(),
@@ -625,6 +658,51 @@ export function createTurnRecordPort(source: TurnReadSource): TurnRecordReadPort
         items,
         next: page.value.next,
       });
+    },
+
+    recent(query) {
+      const store = source.store();
+      const level: RecordLevel = source.enabled() ? "full" : "log_only";
+      if (store === undefined)
+        return ok({ enabled: source.enabled(), level: "none", items: [], next: null });
+      if (query.from !== null && query.to !== null && !(query.from < query.to))
+        return err({ kind: "invalid_filter", message: "from must be before to" });
+      const items: { turn: TurnSummary; title: string | null }[] = [];
+      let cursor = query.cursor;
+      let next: string | null = null;
+      // 지워진 대화의 턴은 건너뛰므로 쪽이 차지 않으면 더 읽는다. 읽는 양은 쪽 크기의 여덟 배까지다
+      let scanned = 0;
+      const maxScan = query.limit * 8;
+      while (items.length < query.limit && scanned < maxScan) {
+        const want = Math.min(query.limit - items.length, maxScan - scanned);
+        const page = store.recentTurns({
+          limit: want,
+          scopes: [...(query.scopes ?? DEFAULT_SCOPES)],
+          ...(cursor === null ? {} : { cursor }),
+          ...(query.from === null ? {} : { from: query.from }),
+          ...(query.to === null ? {} : { to: query.to }),
+          ...(query.profileId === null ? {} : { profileId: query.profileId }),
+          ...(query.plugin === null ? {} : { plugin: query.plugin }),
+        });
+        if (!page.ok) {
+          if (page.error.kind === "invalid_cursor") return err({ kind: "invalid_cursor" });
+          return err(storeError(page.error));
+        }
+        scanned += page.value.items.length;
+        for (const item of page.value.items) {
+          const thread = query.titleOf(item.threadId);
+          if (!thread.ok) return thread;
+          if (thread.value === undefined) continue;
+          const summary = summaryOfStored(store, item);
+          if (!summary.ok) return summary;
+          if (summary.value !== undefined)
+            items.push({ turn: summary.value, title: thread.value.title });
+        }
+        next = page.value.next;
+        cursor = next;
+        if (next === null) break;
+      }
+      return ok({ enabled: source.enabled(), level, items, next });
     },
 
     onEvent(listener) {

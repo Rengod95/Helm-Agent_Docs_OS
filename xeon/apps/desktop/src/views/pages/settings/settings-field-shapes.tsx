@@ -25,8 +25,6 @@ export const SEGMENTED_KEYS: ReadonlySet<SettingKey> = new Set<SettingKey>([
   "l2.web.policy.unseenUrl",
   "x.loading-trust.defaultProjectTrust",
   "l2.mcp.approvalMode",
-  // gitleaks generic-api-key가 이 키 이름과 다음 줄을 비밀 값으로 읽어 목록 끝에 둔다(오탐)
-  "l0.sandbox.credentialFiles",
 ]);
 
 /** segmented로 그릴 선택지 수의 상한 */

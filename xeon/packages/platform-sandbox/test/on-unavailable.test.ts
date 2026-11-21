@@ -78,21 +78,11 @@ describe("onUnavailable", () => {
     expect(r.srt.initializeCalls.length).toBe(0);
   });
 
-  test("an escape call on an unavailable sandbox is refused unless escapeRetry is on", async () => {
+  test("an escape call on an unavailable sandbox is always refused (there is no retry outside the sandbox)", async () => {
     const r = await rig(WIN32, { onUnavailable: "disable_execute" });
     const refused = await exec(r, r.policy({ allowEscape: true }));
     expect(!refused.ok && refused.error.code).toBe("sandbox_unavailable");
     expect(r.shell.calls.length).toBe(0);
-    r.set({ escapeRetry: true });
-    const escaped = await exec(r, r.policy({ allowEscape: true }));
-    expect(escaped.ok && escaped.value.sandbox).toEqual({
-      sandboxed: false,
-      level: "none",
-      unsandboxedBy: "escape",
-      violations: [],
-      violationsTruncated: false,
-    });
-    expect(r.shell.calls.length).toBe(1);
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
@@ -105,16 +95,13 @@ describe("onUnavailable", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("an escape call is rejected unless escapeRetry is on", async () => {
+  test("an escape call is rejected", async () => {
     const r = await rig(linuxPlatform());
     expect(r.service.status().available).toBe(true);
     const denied = await exec(r, r.policy({ allowEscape: true }));
     expect(!denied.ok && denied.error.code).toBe("sandbox_unavailable");
     expect(!denied.ok && denied.error.message).toContain("outside the sandbox");
     expect(r.shell.calls.length).toBe(0);
-    r.set({ escapeRetry: true });
-    const allowed = await exec(r, r.policy({ allowEscape: true }));
-    expect(allowed.ok && allowed.value.sandbox?.unsandboxedBy).toBe("escape");
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 

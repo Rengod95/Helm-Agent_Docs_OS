@@ -12,6 +12,7 @@ import {
   type PluginSettingDef,
 } from "../../extensions/index.ts";
 import { EmptyParamsSchema } from "./notifications.ts";
+import { PluginReviewFileResultSchema, type PluginReviewFileResult } from "./plugin-review.ts";
 import { closed, m4, request, type Io, type M4Spec, type Req } from "./schema-kit.ts";
 
 // M5c-1 플러그인 wire(docs/xeon/review/m5/profile-project-loader.md §3.4, §3.6). 이 파일은 레지스트리(methods.ts)에 등록하지 않는다.
@@ -24,6 +25,8 @@ const Path = Type.String({ minLength: 1, maxLength: 4096 });
 const Iso = Type.String({ minLength: 1, maxLength: 40 });
 const ThreadRef = Type.String({ minLength: 1, maxLength: 64 });
 const ContentHash = Type.String({ pattern: "^sha256:[0-9a-f]{64}$" });
+const Count = Type.Integer({ minimum: 0 });
+const Sha256Hex = Type.String({ pattern: "^[0-9a-f]{64}$" });
 
 const OriginShape = Type.Union(PLUGIN_ORIGIN_KINDS.map((name) => Type.Literal(name)));
 const CardReviewStateShape = Type.Union(CARD_REVIEW_STATES.map((name) => Type.Literal(name)));
@@ -265,6 +268,60 @@ export const PluginDraftIdParamsSchema: TUnsafe<Req<PluginDraftIdParams>> = Type
     typeof PluginDraftIdParamsShape
   >,
 );
+/** `plugin.draft.files`의 한 줄. `ReviewFileEntry`와 같은 모양이다 */
+export interface DraftFileEntry {
+  readonly path: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+const DraftFileShape = closed({ path: Path, bytes: Count, sha256: Sha256Hex });
+
+/**
+ * `plugin.draft.files`(읽기 전용): 초안 한 버전의 파일 목록. 초안은 `drafts/<draftId>/tree`에 그대로 남아 있으므로(플러그인마다 최근 20개와
+ * 검토 항목이 가리키는 초안) 보관된 초안이면 언제든 읽는다. 지워진 초안은 `draft.notFound`(3616)다. 이 길은 읽기만 하고 초안을 싣거나 실행하지 않는다.
+ * 두 버전의 바뀐 파일은 호출자가 두 목록의 `sha256`을 견줘 가른다(추가, 삭제, 변경) [제안]
+ */
+export interface PluginDraftFilesResult {
+  readonly draftId: string;
+  readonly name: string;
+  readonly contentHash: string;
+  /** 경로순. 해시에 들어가는 파일만이다(`.git` 따위는 없다) */
+  readonly files: readonly DraftFileEntry[];
+}
+const PluginDraftFilesResultShape = closed({
+  draftId: Id,
+  name: Name,
+  contentHash: ContentHash,
+  files: Type.Array(DraftFileShape, { maxItems: 2000 }),
+});
+export const PluginDraftFilesResultSchema: TUnsafe<PluginDraftFilesResult> =
+  Type.Unsafe<PluginDraftFilesResult>(
+    PluginDraftFilesResultShape satisfies SchemaProof<
+      PluginDraftFilesResult,
+      typeof PluginDraftFilesResultShape
+    >,
+  );
+
+/**
+ * `plugin.draft.file`(읽기 전용): 초안 한 버전의 파일 하나. `path`는 `plugin.draft.files`에 있어야 하고, 없으면(상위 이동, 절대 경로, 심볼릭 링크 포함)
+ * `pluginReview.pathInvalid`(3653)다. 본문 규칙은 `pluginReview.file`과 같다: 텍스트가 아니면 `text`가 null, 256 KiB를 넘으면 앞부분만 싣고 `truncated`다.
+ * `missing`은 쓰지 않는다
+ */
+export interface PluginDraftFileParams {
+  readonly draftId: string;
+  readonly path: string;
+}
+const PluginDraftFileParamsShape = request({ draftId: Id, path: Path });
+export const PluginDraftFileParamsSchema: TUnsafe<Req<PluginDraftFileParams>> = Type.Unsafe<
+  Req<PluginDraftFileParams>
+>(
+  PluginDraftFileParamsShape satisfies SchemaProof<
+    Req<PluginDraftFileParams>,
+    typeof PluginDraftFileParamsShape
+  >,
+);
+export type PluginDraftFileResult = PluginReviewFileResult;
+
 /** `plugin.draft.list`: 최신 먼저 */
 export interface PluginDraftListResult {
   readonly drafts: readonly DraftInfo[];
@@ -341,6 +398,8 @@ export interface PluginWireSchemas {
   /** 빈 결과(`{}`). methods.ts의 `EmptyResultSchema`와 같은 스키마다 */
   "plugin.draft.discard": Io<U<Req<PluginDraftIdParams>>, typeof EmptyParamsSchema>;
   "plugin.draft.list": Io<U<Req<PluginNameParams>>, U<PluginDraftListResult>>;
+  "plugin.draft.files": Io<U<Req<PluginDraftIdParams>>, U<PluginDraftFilesResult>>;
+  "plugin.draft.file": Io<U<Req<PluginDraftFileParams>>, U<PluginDraftFileResult>>;
   "plugin.draft.fromInstruction": Io<
     U<Req<PluginDraftFromInstructionParams>>,
     U<PluginDraftFromInstructionResult>
@@ -362,6 +421,8 @@ export const PLUGIN_WIRE_METHODS: Table = {
   "plugin.draft.create": m4(PluginDraftCreateParamsSchema, PluginDraftCreateResultSchema),
   "plugin.draft.discard": m4(PluginDraftIdParamsSchema, EmptyParamsSchema),
   "plugin.draft.list": m4(PluginNameParamsSchema, PluginDraftListResultSchema),
+  "plugin.draft.files": m4(PluginDraftIdParamsSchema, PluginDraftFilesResultSchema),
+  "plugin.draft.file": m4(PluginDraftFileParamsSchema, PluginReviewFileResultSchema),
   "plugin.draft.fromInstruction": m4(
     PluginDraftFromInstructionParamsSchema,
     PluginDraftFromInstructionResultSchema,
