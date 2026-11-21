@@ -145,7 +145,7 @@ desktop-run:
     {{bun}} run --cwd apps/desktop-shell build
     cd apps/desktop-shell && FRESNEL_DESKTOP_INSPECT=1 exec node_modules/.bin/electron .
 
-# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기(전환 3단계): 셸 번들 뒤 @electron/packager로 묶는다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. Resources에 화면, 엔진, 웹 게이트웨이(fresnel-web, `just desktop-sidecar host --gateway`), 기본 플러그인(default-plugins/, 릴리스와 같은 목록), 가이드 스킬(guide/skills/, 릴리스와 같은 폴더), 트레이 아이콘, licenses/(Electron, Chromium, npm 고지)가 들어가고 크기는 마지막 줄에 나온다. 개발용 환경 변수는 묶은 앱에서 꺼져 있다. 출력 apps/desktop-shell/dist-app/. just verify 밖
+# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기(전환 3단계): 셸 번들 뒤 @electron/packager로 묶는다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. Resources에 화면, 엔진, 웹 게이트웨이(fresnel-web, `just desktop-sidecar host --gateway`), 기본 플러그인(default-plugins/, 릴리스와 같은 목록), 가이드 스킬(guide/skills/, 릴리스와 같은 폴더), 트레이 아이콘, licenses/(Electron, Chromium, npm 고지, 글꼴 OFL 세 개)가 들어가고 크기는 마지막 줄에 나온다. 개발용 환경 변수는 묶은 앱에서 꺼져 있다. 출력 apps/desktop-shell/dist-app/. just verify 밖
 [group('local')]
 desktop-build-electron:
     #!/usr/bin/env bash
