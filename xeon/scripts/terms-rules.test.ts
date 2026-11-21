@@ -104,6 +104,15 @@ test("C-04 flags internal words and forbidden aliases in chat strings, C-05 alia
   ]);
 });
 
+test("C-04 allows 코어 only in the Korean name of the core layer group (2026-11-20, AGE-33)", () => {
+  const found = checkCatalogStyle(
+    { "plugin.internal.layer.core": "코어", "plugin.internal.layer.capability": "코어 기능" },
+    {},
+    TERMS,
+  );
+  expect(summary(found)).toEqual(["C-04 locales/ko.json plugin.internal.layer.capability"]);
+});
+
 test("C-04 and C-05 tell the user which label to write", () => {
   const found = checkCatalogStyle({ "desktop.chat.b": "세션을 열었어요" }, {}, TERMS);
   expect(found[0]?.fix).toBe('use the label "대화" (terms.json thread)');

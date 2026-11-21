@@ -53,8 +53,8 @@ describe("bash", () => {
       window: { maxBytes: 51200, maxLines: 2000 },
     });
     expect(call?.options?.timeout).toBeUndefined();
-    // 샌드박스 정책의 쓰기 root는 작업 root와 임시 디렉터리다
-    expect(sandbox?.policies[0]?.writeRoots).toEqual(["/work", "/tmp/fresnel"]);
+    // 보통 대화는 쓰기 범위 제한이 없다: 정책의 쓰기 root는 `/`다
+    expect(sandbox?.policies[0]?.writeRoots).toEqual(["/"]);
   });
 
   test("bash nonzero exit is tool error", async () => {

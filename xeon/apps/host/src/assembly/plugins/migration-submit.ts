@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { attemptAsync, err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import type { ReviewItem } from "@fresnel/contracts/wire";
-import { ExtensionNameSchema } from "@fresnel/contracts/extensions";
+import { ExtensionNameSchema, type ImportedHookOrigin } from "@fresnel/contracts/extensions";
 import { emit, type PlannedPluginWithMigration } from "@fresnel/plugin-migration";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import { hashPluginTree } from "./content-hash.ts";
@@ -53,6 +53,8 @@ interface StagedPlan {
   readonly files: ReadonlyMap<string, Uint8Array>;
   /** 임시 폴더를 읽은 내용 해시. 승인본과 같은지 보는 데 쓴다 */
   readonly contentHash: string;
+  /** 계획이 정한 훅 출처. 매니페스트가 아니라 엔진의 계획에서 온 값이다 */
+  readonly hookOrigin: ImportedHookOrigin | undefined;
 }
 
 const NAME_ISSUE = {
@@ -146,7 +148,13 @@ async function stage(
   const checked = await checkStaged(join(root.value, plan.name), files);
   await attemptAsync(() => rm(root.value, { recursive: true, force: true }));
   if (!checked.ok) return err(checked.error);
-  return ok({ name: plan.name, purpose: plan.purpose, files, contentHash: checked.value });
+  return ok({
+    name: plan.name,
+    purpose: plan.purpose,
+    files,
+    contentHash: checked.value,
+    hookOrigin: plan.hookOrigin,
+  });
 }
 
 /** 계획 목록을 제출한다. 의존은 `deps`로 받는다 */
@@ -207,6 +215,7 @@ export function createMigrationSubmitter(deps: MigrationSubmitDeps): MigrationSu
       originProfileId: null,
       evidence: [],
       purpose: staged.purpose,
+      importedHookOrigin: staged.hookOrigin,
       prepare: prepareOf(staged, dir),
     });
     if (!made.ok) {

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { attemptAsync } from "@fresnel/contracts";
 import { parseFrontmatter } from "@fresnel/core-agents";
-import { textTokens } from "@fresnel/core-context";
+import { declaredCostOf } from "../plugins/declared-cost.ts";
 import type { ProfileCostFigures, ProfilePluginCost, ToolsChanged } from "@fresnel/contracts/wire";
 
 // 프로필 미리 보기의 정적 비용과 도구 변화(M5c §4.2.8, §3.4). 실행하지 않고 매니페스트가 선언한 재료와 그 파일 글자 수만 읽는다.
@@ -116,14 +116,18 @@ export async function pluginCostOf(
   if (readableTexts.length !== texts.length || readableSkills.length !== skills.length) {
     return UNKNOWN_COST;
   }
-  let always = 0;
-  for (const tool of inventory.tools) always += textTokens(`${tool.name}\n${tool.description}`);
-  for (const text of readableTexts) always += textTokens(text);
-  let onDemand = 0;
-  for (const skill of readableSkills) {
-    onDemand += textTokens(skill.description) + textTokens(skill.body);
-  }
-  return { always, drive: null, onDemand, toolCount: inventory.tools.length, basis: "declared" };
+  const figures = declaredCostOf({
+    tools: inventory.tools,
+    instructions: readableTexts,
+    skills: readableSkills,
+  });
+  return {
+    always: figures.always,
+    drive: null,
+    onDemand: figures.onDemand,
+    toolCount: figures.toolCount,
+    basis: "declared",
+  };
 }
 
 /**

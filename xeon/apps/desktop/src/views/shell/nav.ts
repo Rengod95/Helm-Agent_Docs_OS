@@ -20,6 +20,7 @@ const CHAT_NAV: readonly NavItem[] = [
 
 const WORKBENCH_NAV: readonly NavItem[] = [
   { id: "overview", label: "desktop.shell.nav.overview" },
+  { id: "craftReview", label: "desktop.shell.nav.review" },
   { id: "extensions", label: "desktop.shell.nav.extensions" },
   { id: "tests", label: "desktop.shell.nav.tests" },
   { id: "metrics", label: "desktop.shell.nav.metrics" },

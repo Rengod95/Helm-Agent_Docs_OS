@@ -1,4 +1,4 @@
-import { parse } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../../connection-types.ts";
@@ -58,6 +58,7 @@ export function createM5Handlers(
 ): {
   readonly "turnRecord.list": WireHandler<"turnRecord.list">;
   readonly "turnRecord.get": WireHandler<"turnRecord.get">;
+  readonly "turnRecord.recent": WireHandler<"turnRecord.recent">;
   readonly "turnRecord.search": WireHandler<"turnRecord.search">;
   readonly "turnRecord.mark": WireHandler<"turnRecord.mark">;
   readonly "turnRecord.watch": WireHandler<"turnRecord.watch">;
@@ -92,6 +93,27 @@ export function createM5Handlers(
         ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
         ...(params.scope === undefined ? {} : { scope: params.scope }),
         ...(params.flags === undefined ? {} : { flags: params.flags }),
+      });
+      if (!out.ok) throw wireErrorOfTurnRead(out.error);
+      return done(out.value);
+    },
+
+    "turnRecord.recent": (params) => {
+      const out = port.recent({
+        from: params.from ?? null,
+        to: params.to ?? null,
+        profileId: params.profileId ?? null,
+        plugin: params.plugin ?? null,
+        scopes: params.scopes ?? null,
+        cursor: params.cursor ?? null,
+        limit: params.limit ?? 50,
+        titleOf: (raw) => {
+          const threadId = parse(ThreadIdSchema, raw);
+          if (!threadId.ok) return ok(undefined);
+          const found = threads.titleOf(threadId.value);
+          if (!found.ok) return err({ kind: "store", cause: { kind: "io", cause: found.error } });
+          return ok(found.value);
+        },
       });
       if (!out.ok) throw wireErrorOfTurnRead(out.error);
       return done(out.value);

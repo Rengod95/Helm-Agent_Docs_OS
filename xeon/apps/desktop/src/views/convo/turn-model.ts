@@ -114,13 +114,40 @@ const PERMISSION_MODE_NAME: Readonly<Record<PermissionMode, MessageId>> = {
 };
 
 /** 표지에 보일 권한 모드 이름. 세 모드가 아닌 값(옛 기록·확장 값)은 그대로 둔다 */
-function permissionModeNameOf(value: string): string {
+export function permissionModeNameOf(value: string): string {
   const mode = permissionModeOf(value);
   return mode === null ? value : t(PERMISSION_MODE_NAME[mode]);
 }
 
+/** 프로필 id를 화면 이름(제목)으로. 목록을 아직 못 읽었으면 id 그대로다 */
+export type ProfileNameOf = (id: string) => string;
+
+/** 프로필 바뀜 한 줄: "프로필: 기본 → 리뷰", 찾지 못해 바뀌었으면 그 사실, 권한이 바뀌면 덧붙인다 */
+function profileMarkerTextOf(
+  change: Extract<ConvoMarker["change"], { kind: "profile" }>,
+  profileNameOf: ProfileNameOf,
+): string {
+  const to = profileNameOf(change.to);
+  const text =
+    change.from === null
+      ? t("desktop.convo.marker.profileSet", { to })
+      : change.missing
+        ? t("desktop.convo.marker.profileMissing", { from: profileNameOf(change.from), to })
+        : t("desktop.convo.marker.profile", { from: profileNameOf(change.from), to });
+  if (change.permission === null) return text;
+  return t("desktop.convo.marker.profilePermission", {
+    text,
+    from: permissionModeNameOf(change.permission.from),
+    to: permissionModeNameOf(change.permission.to),
+  });
+}
+
 /** 변화 표지 한 줄. 모델은 화면 이름(`nameOf`)으로, 권한 모드는 칩과 같은 이름으로 적는다(DP-144) */
-export function markerTextOf(marker: ConvoMarker, nameOf: ModelNameOf = prettyModelId): string {
+export function markerTextOf(
+  marker: ConvoMarker,
+  nameOf: ModelNameOf = prettyModelId,
+  profileNameOf: ProfileNameOf = (id) => id,
+): string {
   const change = marker.change;
   switch (change.kind) {
     case "model":
@@ -143,6 +170,8 @@ export function markerTextOf(marker: ConvoMarker, nameOf: ModelNameOf = prettyMo
           : t("desktop.convo.marker.rewound");
     case "branch_summarized":
       return t("desktop.convo.marker.branchSummarized");
+    case "profile":
+      return profileMarkerTextOf(change, profileNameOf);
     default:
       return assertNever(change, "ConvoMarker");
   }

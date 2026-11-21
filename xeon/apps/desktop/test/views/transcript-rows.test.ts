@@ -114,7 +114,6 @@ describe("transcriptRowsOf: 줄 종류와 묶음", () => {
     expect(rows[1]).toEqual({
       kind: "reply",
       key: itm(2),
-      lead: null,
       id: itm(2),
       blocks: [thinking(0), text(1)],
     });
@@ -195,7 +194,6 @@ describe("transcriptRowsOf: 턴과 표지", () => {
     expect(rows[2]).toEqual({
       kind: "turnFoot",
       key: `foot:${trn(1)}`,
-      lead: null,
       turnId: trn(1),
       replyId: itm(2),
     });
@@ -227,7 +225,7 @@ describe("transcriptRowsOf: 턴과 표지", () => {
     expect(keys(rows)).toEqual([`compact:${evt(2)}`, itm(1), "act:c1", `compact:${evt(1)}`]);
   });
 
-  test("주도 구간은 첫 턴 앞에 머리, 마지막 턴 뒤에 끝 줄이 서고, 그 사이 줄은 구간 id를 든다", () => {
+  test("주도 구간은 첫 턴 앞에 머리, 마지막 턴 뒤에 끝 줄이 서고, 그 사이 줄은 보통 줄이다(레일 없음)", () => {
     const lead: LeadRef = { leaseId: "lease-1", turnIds: [trn(2), trn(3)] };
     const rows = rowsOf({
       shapes: [
@@ -241,17 +239,18 @@ describe("transcriptRowsOf: 턴과 표지", () => {
       turns: [turn(1, 10, [1]), turn(2, 20, [3]), turn(3, 30, [5])],
       leads: [lead],
     });
-    expect(rows.map((row) => [row.key, row.lead])).toEqual([
-      [itm(1), null],
-      [itm(2), null],
-      [`foot:${trn(1)}`, null],
-      ["lead:lease-1", "lease-1"],
-      [itm(4), "lease-1"],
-      [`foot:${trn(2)}`, "lease-1"],
-      [itm(6), "lease-1"],
-      [`foot:${trn(3)}`, "lease-1"],
-      ["lead-end:lease-1", null],
+    expect(rows.map((row) => [row.key, row.kind])).toEqual([
+      [itm(1), "user"],
+      [itm(2), "reply"],
+      [`foot:${trn(1)}`, "turnFoot"],
+      ["lead:lease-1", "leadHead"],
+      [itm(4), "reply"],
+      [`foot:${trn(2)}`, "turnFoot"],
+      [itm(6), "reply"],
+      [`foot:${trn(3)}`, "turnFoot"],
+      ["lead-end:lease-1", "leadEnd"],
     ]);
+    expect(rows.some((row) => "lead" in row)).toBe(false);
   });
 
   test("빈 대화는 줄이 없다", () => {
@@ -277,11 +276,10 @@ describe("transcriptRowsOf: 턴과 표지", () => {
       anchors: [anchor(1, itm(3))],
     });
     expect(rows).toEqual([
-      { kind: "user", key: itm(1), lead: null, id: itm(1), prevId: null },
+      { kind: "user", key: itm(1), id: itm(1), prevId: null },
       {
         kind: "activity",
         key: "act:c1",
-        lead: null,
         entries: [
           {
             itemId: itm(2),
@@ -293,7 +291,7 @@ describe("transcriptRowsOf: 턴과 표지", () => {
           },
         ],
       },
-      { kind: "compaction", key: `compact:${evt(1)}`, lead: null, record: recordOf(1) },
+      { kind: "compaction", key: `compact:${evt(1)}`, record: recordOf(1) },
     ]);
   });
 

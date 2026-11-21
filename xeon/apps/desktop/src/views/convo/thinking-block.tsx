@@ -66,7 +66,7 @@ export function ThinkingBlock(props: {
   );
 }
 
-/** 첫 응답을 기다리는 줄: 답이 놓일 자리의 말풍선 면에 생각 구슬과 "생각하는 중". 목록의 마지막 줄(`pending`)이 그린다 */
+/** 첫 응답을 기다리는 줄: 답이 놓일 자리에 생각 구슬과 "생각하는 중"만 둔다(면·테두리 없음, DP-212). 목록의 마지막 줄(`pending`)이 그린다 */
 export function ThinkingPending(): ReactNode {
   return (
     <div role="status" className="convo-line" data-live="true">

@@ -30,8 +30,8 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function filesAt(root: string) {
-  return createFilesApi(realDeps(realEnv(root)));
+function filesAt(root: string, narrowRoots = false) {
+  return createFilesApi(realDeps(realEnv(root), narrowRoots));
 }
 
 describe("write and edit on a real file system", () => {
@@ -179,15 +179,23 @@ describe("atomic write under SIGKILL", () => {
   }, 20_000);
 });
 
-describe("writes outside the sandbox root are refused", () => {
-  test("write and edit refuse paths outside the working directory", async () => {
+describe("writes outside the working directory", () => {
+  test("a normal conversation writes outside the working directory (no write limit)", async () => {
+    const root = tempRoot();
+    const outside = tempRoot();
+    const files = filesAt(root);
+    await files.write({ path: join(outside, "new.txt"), content: "x" });
+    expect(readFileSync(join(outside, "new.txt"), "utf8")).toBe("x");
+  });
+
+  test("a narrow conversation (plugin-builder test chat) refuses paths outside the working directory", async () => {
     const root = tempRoot();
     const outside = tempRoot();
     writeFileSync(join(outside, "victim.txt"), "safe\n");
     mkdirSync(join(root, "inside"));
     symlinkSync(outside, join(root, "link"));
     symlinkSync(join(outside, "victim.txt"), join(root, "victim-link.txt"));
-    const files = filesAt(root);
+    const files = filesAt(root, true);
     const attempts: readonly (() => Promise<unknown>)[] = [
       () => files.write({ path: join(outside, "new.txt"), content: "x" }),
       () => files.write({ path: "../escape.txt", content: "x" }),

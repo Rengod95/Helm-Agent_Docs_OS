@@ -1,4 +1,6 @@
 import type { AgentRow, LeadSegment, NowState } from "../../state/engine/index.ts";
+import type { DriveFramesRead } from "../convo/drive-frames.ts";
+import { driveBandShownOf, driveStackOf } from "../convo/drive-stack-model.ts";
 
 // 입력창 위 "지금 띠"의 순수 판정(L4.desktop-ux DP-100 [결정: 2026-11-11 사용자]). 화면 부품(now-strip.tsx)에서 떼어 React 밖에서 시험한다.
 // 값은 dzT1의 선택자(`selectNow`, `selectAgentRows`, `selectLeadSegments`)가 준다. 이 파일은 무엇을 보일지만 정한다.
@@ -142,4 +144,20 @@ export function nowViewOf(
 export function progressPercentOf(progress: NowView["progress"]): number | null {
   if (progress === null || progress.total === 0) return null;
   return Math.round((progress.done / progress.total) * 100);
+}
+
+const NO_LEADS: readonly LeadSegment[] = [];
+
+/**
+ * 지금 띠가 보일 Drive 구간(lcM6g). 입력창 위 Drive 띠(composer.tsx `DriveStackBand`)가 보이면 같은 사실("Driving by authoring", 턴 수)을
+ * 그 띠가 이미 말하므로 여기서는 뺀다(입력창 위 두 줄이 같은 말을 하지 않게). 띠를 그릴지 아직 모르면(스택을 읽는 중) 역시 뺀다: 대화를
+ * 열자마자 이 줄이 떴다가 띠가 오면 사라지는 깜빡임을 막는다. 연결이 없거나 스택을 못 읽었거나 기본 루프만 돌면 띠가 없으므로 그대로 둔다
+ */
+export function leadsBesideBandOf(
+  leads: readonly LeadSegment[],
+  frames: DriveFramesRead,
+): readonly LeadSegment[] {
+  if (frames.kind === "loading") return NO_LEADS;
+  if (frames.kind === "ready" && driveBandShownOf(driveStackOf(frames.frames))) return NO_LEADS;
+  return leads;
 }

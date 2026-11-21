@@ -21,6 +21,7 @@ function render(
   width: number,
   start: (model: ShellModel) => ShellModel = (model) => model,
   chat: ReactNode = <p>채팅 화면 내용</p>,
+  chatBleed = false,
 ): string {
   const store = createShellStore(width, start);
   const registry = createShellRegistry();
@@ -29,6 +30,7 @@ function render(
     area: "chat",
     label: "desktop.shell.nav.chat",
     render: () => chat,
+    ...(chatBleed ? { bleed: true } : {}),
   });
   registry.registerEndTab({
     id: "inbox",
@@ -81,6 +83,15 @@ describe("Shell slots", () => {
     expect(main).not.toMatch(/\bpe-10\b/);
     expect(main).toContain("data-rail");
     expect(main).toContain("[--shell-rail:3rem]");
+  });
+
+  test("a screen registered to run to the edge (bleed) gets no rail inset; it steps around the bar itself (m6R5)", () => {
+    const out = render(1400, (model) => model, <p>끝까지 쓰는 화면</p>, true);
+    const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
+    expect(main).not.toContain("data-rail");
+    expect(main).not.toContain("--stage-rail");
+    expect(out).toContain("끝까지 쓰는 화면");
+    expect(out).toMatch(/<div[^>]*data-slot="floating-bar"[^>]*data-end-bar=""/);
   });
 
   test("the floating bar stands in the vertical middle under the head, not in the head's top right corner (DP-135)", () => {

@@ -34,8 +34,8 @@ function input(
     policy,
     protectedReadDeny: [],
     protectedWriteDeny: [],
-    basenameFiles: [],
-    extraWriteRoots: [],
+    basenameReadFiles: [],
+    basenameWriteFiles: [],
     home,
     base,
     ...overrides,
@@ -89,13 +89,22 @@ describe("policy", () => {
         {
           protectedReadDeny: ["/p/read"],
           protectedWriteDeny: ["/p/read", "/p/write"],
-          basenameFiles: ["/w/.env"],
+          // 읽기도 거부하는 이름 항목은 두 목록에, 쓰기만 거부하는 이름 항목은 쓰기 목록에만 든다
+          basenameReadFiles: ["/r/.env"],
+          basenameWriteFiles: ["/r/.env", "/w/.env"],
         },
       ),
       [],
     );
-    expect(effective.readDeny).toEqual(["/p/read", "/secret-a", "/w/.env"]);
-    expect(effective.writeDeny).toEqual(["/frozen", "/p/read", "/p/write", "/secret-a", "/w/.env"]);
+    expect(effective.readDeny).toEqual(["/p/read", "/r/.env", "/secret-a"]);
+    expect(effective.writeDeny).toEqual([
+      "/frozen",
+      "/p/read",
+      "/p/write",
+      "/r/.env",
+      "/secret-a",
+      "/w/.env",
+    ]);
   });
 
   test("emits literal paths only: plain strings never carry glob characters", () => {

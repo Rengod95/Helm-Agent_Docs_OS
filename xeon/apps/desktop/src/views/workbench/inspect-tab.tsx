@@ -61,6 +61,8 @@ import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
 import { useToggleRequest } from "./craft-parts.tsx";
 import { linkOf, RoleText, type LinkState } from "../runtime/runtime-tab.tsx";
+import { DriveStackCards } from "../convo/drive-stack.tsx";
+import { driveStackOf } from "../convo/drive-stack-model.ts";
 
 /** 한 묶음의 읽기 상태. `idle`은 대화가 없어 읽을 것이 없다는 뜻이다 */
 type Load<T> =
@@ -373,6 +375,8 @@ function DriveSection(props: {
         <p className="m-0 flex flex-wrap items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t(RoleText[role])}</span>
         </p>
+        {/* 쌓인 판: 맨 위가 지금 Drive를 쥔 칸, 맨 아래 "기본"(lcM6b §6.6.1) */}
+        <DriveStackCards view={driveStackOf(drive.value.frames)} />
         <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui">
           <Gauge
             label={t("desktop.inspect.drive.turns")}

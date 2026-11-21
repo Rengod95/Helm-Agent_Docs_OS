@@ -133,9 +133,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Chat interface",
+          "label": "Enable Client Services",
           "labelArgs": {
-            "name": "Chat interface"
+            "name": "Client Services"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -651,29 +651,6 @@
         }
       }
     },
-    "ext.host-dialog-area-bridge.enabled": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed"
-        ],
-        "layer": "L2",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Enable Work-knowledge bridge",
-          "labelArgs": {
-            "name": "Work-knowledge bridge"
-          },
-          "labelKey": "settings.ext.enabled.label",
-          "order": 10,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "ext.host-dialog-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -686,9 +663,32 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Chat-app bridge",
+          "label": "Enable Ask Service Bridge",
           "labelArgs": {
-            "name": "Chat-app bridge"
+            "name": "Ask Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-goal-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Goal Service Bridge",
+          "labelArgs": {
+            "name": "Goal Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -720,6 +720,29 @@
         }
       }
     },
+    "ext.host-memory-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Memory Service Bridge",
+          "labelArgs": {
+            "name": "Memory Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "ext.host-proposals-bridge.enabled": {
       "default": true,
       "type": "boolean",
@@ -732,9 +755,55 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Enable Knowledge proposals bridge",
+          "label": "Enable Proposal Service Bridge",
           "labelArgs": {
-            "name": "Knowledge proposals bridge"
+            "name": "Proposal Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-skill-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Skill Service Bridge",
+          "labelArgs": {
+            "name": "Skill Service Bridge"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.host-task-bridge.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Task Service Bridge",
+          "labelArgs": {
+            "name": "Task Service Bridge"
           },
           "labelKey": "settings.ext.enabled.label",
           "order": 10,
@@ -1294,34 +1363,6 @@
         }
       }
     },
-    "l0.sandbox.credentialFiles": {
-      "default": "allow",
-      "enum": [
-        "allow",
-        "deny"
-      ],
-      "maxLength": 8,
-      "type": "string",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "deny also blocks reading them from sandboxed shell commands.",
-          "helpKey": "settings.l0.sandbox.credentialFiles.help",
-          "label": "Credential files such as ~/.npmrc and ~/.config/gh",
-          "labelKey": "settings.l0.sandbox.credentialFiles.label",
-          "order": 106,
-          "tab": "permissions",
-          "widget": "select"
-        }
-      }
-    },
     "l0.sandbox.enabled": {
       "default": true,
       "type": "boolean",
@@ -1340,29 +1381,6 @@
           "label": "Sandbox shell commands",
           "labelKey": "settings.l0.sandbox.enabled.label",
           "order": 100,
-          "tab": "permissions",
-          "widget": "toggle"
-        }
-      }
-    },
-    "l0.sandbox.escapeRetry": {
-      "default": false,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
-          "helpKey": "settings.l0.sandbox.escapeRetry.help",
-          "label": "Allow retry outside the sandbox",
-          "labelKey": "settings.l0.sandbox.escapeRetry.label",
-          "order": 104,
           "tab": "permissions",
           "widget": "toggle"
         }
@@ -1449,35 +1467,6 @@
         }
       }
     },
-    "l0.sandbox.protectedPaths.allowRead": {
-      "default": [],
-      "items": {
-        "maxLength": 4096,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 64,
-      "type": "array",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Warning: the agent can read these folders. Sandboxed shell commands can read the paths you list here, even though they are protected by default. Writing to them stays blocked, and Fresnel's own secrets, data folder and keychains can never be listed. Use absolute paths or paths starting with ~/, each equal to or inside a default protected path. Project settings cannot set this.",
-          "helpKey": "settings.l0.sandbox.protectedPaths.allowRead.help",
-          "label": "Protected paths shell commands may read",
-          "labelKey": "settings.l0.sandbox.protectedPaths.allowRead.label",
-          "order": 108,
-          "tab": "permissions",
-          "widget": "list"
-        }
-      }
-    },
     "l0.sandbox.protectedPaths.extra": {
       "default": [],
       "items": {
@@ -1498,7 +1487,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
           "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
           "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",
@@ -1545,33 +1534,6 @@
         "runtimeChange": "restart",
         "secret": false,
         "since": "0.1.0"
-      }
-    },
-    "l0.sandbox.writeRoots.extra": {
-      "default": [],
-      "items": {
-        "maxLength": 4096,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 256,
-      "type": "array",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Extra writable directories",
-          "labelKey": "settings.l0.sandbox.writeRoots.extra.label",
-          "order": 103,
-          "tab": "permissions",
-          "widget": "list"
-        }
       }
     },
     "l0.secrets.ageKey.filePath": {

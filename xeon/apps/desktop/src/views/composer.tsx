@@ -16,11 +16,13 @@ import {
 } from "react";
 import {
   useAborting,
+  useAppliedProfile,
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
   useQueuedInputs,
   useRetrying,
+  useThreadApprovals,
   useThreadRunning,
   useWriteAccessAllowed,
   type ProviderRetry,
@@ -92,6 +94,19 @@ import { runThreadCompact } from "./thread-compact.ts";
 import { QueuedInputs, useHeldCount, useSendHeld } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 import { ProblemLine } from "./pages/shared/problem-state.tsx";
+import { useDriveFrames, useDriveStop } from "./convo/drive-frames.ts";
+import { DriveStackBand } from "./convo/drive-stack.tsx";
+import { driveBandBeamOf, driveStackOf } from "./convo/drive-stack-model.ts";
+import { useComposerBeamYield } from "./effects/convo-beam.tsx";
+import { OneShotChips, OneShotRow, useOneShotSource, type LiveOneShot } from "./convo/one-shot.tsx";
+import {
+  ONE_SHOT_MAX,
+  addPick,
+  oneShotRowsOf,
+  oneShotSendOf,
+  type OneShotPick,
+} from "./convo/one-shot-model.ts";
+import { ProfileChip, ProfileNotices, useProfileChip } from "./convo/profile-chip.tsx";
 import { Presence, SwapFade } from "../lib/motion-presets.tsx";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
@@ -203,6 +218,11 @@ export function RetryStatus(props: {
   );
 }
 
+/** 슬래시 목록 원샷 행의 DOM id(aria-activedescendant). 키의 `:`·`@`는 id에 써도 되지만 밑줄로 바꿔 둔다 */
+function oneShotDomIdOf(key: string): string {
+  return `composer-oneshot-${key.replaceAll(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
 /** 선택된 대화의 입력창만 초점 요청을 받는다. 선택이 없으면 어느 입력창이든 받는다 */
 export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): boolean {
   return selected === null || selected === own;
@@ -297,6 +317,31 @@ function ComposerFor(props: {
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const [unknownName, setUnknownName] = useState<string | null>(null);
+  // Drive 스택 띠(입력창 맨 위). 플러그인이 이끌 때만 보인다
+  const driveFrames = useDriveFrames(props.threadId);
+  const driveStack = driveFrames.kind === "ready" ? driveStackOf(driveFrames.frames) : null;
+  // 프로필 칩(아래 줄 왼쪽)과 그 줄(권한이 바뀌는 전환, 시작할 수 없는 스타트 Drive, 미뤄진 스타트 Drive, 입력창 위). lcM6a·lcM6e §6.6.1
+  const profileChip = useProfileChip(props.threadId, setError, {
+    plugins:
+      driveStack === null ? [] : driveStack.steps.flatMap((step) => (step.core ? [] : [step.name])),
+    running,
+  });
+  const driveStop = useDriveStop(props.threadId, props.engineGone);
+  // Drive 띠가 보이는 동안 입력창 빛은 꺼지고 띠의 윗변이 같은 빛을 낸다(lcM6c). 띠가 없으면 입력창 빛은 전과 같다
+  const approvals = useThreadApprovals(props.threadId);
+  const driveBeam = driveBandBeamOf({
+    view: driveStack,
+    running,
+    approvals,
+  });
+  useComposerBeamYield(driveBeam.band);
+  // 원샷: 이번 턴에 얹을 것(지울 수 있음)과 Drive가 끝날 때까지 남은 것(대화에 걸린 덧씌우기)
+  const [picks, setPicks] = useState<readonly OneShotPick[]>([]);
+  const [oneShotNote, setOneShotNote] = useState<string | null>(null);
+  const applied = useAppliedProfile(props.threadId);
+  const liveOneShots: readonly LiveOneShot[] = (applied?.overlay ?? [])
+    .filter((item) => item.until === "release")
+    .map((item) => ({ plugin: item.plugin, draft: item.draftId !== undefined }));
   const fileInput = useRef<HTMLInputElement>(null);
   const attachBlocked = attachDisabledReason({
     composerReason: props.disabledReason,
@@ -339,8 +384,29 @@ function ComposerFor(props: {
   }, [commands, props.threadId, startsSlash]);
   const menuRows = menuDismissed ? [] : slashMenuOf(draft, engineRows ?? [], skillsView);
   const menuIssues = menuDismissed ? [] : slashIssuesOf(draft, skillsView);
-  const menuActive = menuRows.length > 0;
-  const activeRow = menuRows[Math.min(menuIndex, menuRows.length - 1)];
+  // 원샷 목록은 다음 단계에 쓰일 프로필 기준이다(바꾸는 중이면 바뀔 프로필)
+  const oneShotSource = useOneShotSource(
+    props.threadId,
+    profileChip.view.pending?.id ?? profileChip.view.currentId,
+    startsSlash,
+  );
+  const typingSlash = startsSlash && !/\s/.test(draft);
+  const oneShotRows =
+    menuDismissed || !typingSlash || oneShotSource.kind !== "ready"
+      ? []
+      : oneShotRowsOf({
+          entries: oneShotSource.entries,
+          inSet: oneShotSource.inSet,
+          drafts: oneShotSource.drafts,
+          typed: draft.slice(1),
+        });
+  const oneShotFailed = !menuDismissed && typingSlash && oneShotSource.kind === "failed";
+  const menuSize = menuRows.length + oneShotRows.length;
+  const menuActive = menuSize > 0;
+  const menuAt = Math.min(menuIndex, menuSize - 1);
+  const activeRow = menuRows[menuAt];
+  const activeOneShot =
+    menuAt >= menuRows.length ? oneShotRows[menuAt - menuRows.length] : undefined;
 
   const upload = async (id: string, source: AttachmentSource): Promise<void> => {
     const added = await commands.addAttachment(props.threadId, source);
@@ -448,7 +514,26 @@ function ComposerFor(props: {
     setEngineRows(rows);
     return rows;
   };
+  /** 원샷을 고르면 친 `/이름`을 지우고 칩 줄에 더한다. 한 턴 상한을 넘으면 더하지 않고 알린다 */
+  const pickOneShot = (pick: OneShotPick): void => {
+    const next = addPick(picks, pick);
+    if (next.full) {
+      setError(t("desktop.oneShot.limit", { max: ONE_SHOT_MAX }));
+      return;
+    }
+    setPicks(next.picks);
+    setError(null);
+    draftRef.current = "";
+    setDraft("");
+    setMenuIndex(0);
+    textarea.current?.focus();
+  };
   const fillSlash = (index: number): void => {
+    if (index >= menuRows.length) {
+      const pick = oneShotRows[index - menuRows.length];
+      if (pick !== undefined) pickOneShot(pick);
+      return;
+    }
     const row = menuRows[index];
     if (row === undefined) return;
     const next = slashFillOf(row);
@@ -482,14 +567,28 @@ function ComposerFor(props: {
         runThreadCompact(commands, props.threadId, app.instructions ?? undefined);
         return;
       }
-      // 앱도 엔진도 모르는 `/명령`은 모델로 보내기 전에 한 번 묻는다
-      if (text.startsWith("/")) {
-        const rows = engineRows ?? (await loadEngineRows());
-        const unknown = unknownSlashOf(text, rows, skillsView);
-        if (unknown !== null) {
-          setUnknownName(unknown);
-          return;
-        }
+    }
+    // 원샷: 고른 칩과, 엔진 명령도 스킬도 아닌 `/이름 나머지`를 `plugin.invocables`로 푼 것을 덧씌우기로 싣는다
+    const rows = text.startsWith("/") ? (engineRows ?? (await loadEngineRows())) : null;
+    const oneShot = oneShotSendOf({
+      text,
+      picks,
+      entries: oneShotSource.kind === "ready" ? oneShotSource.entries : null,
+      inSet: oneShotSource.kind === "ready" ? oneShotSource.inSet : new Set<string>(),
+      slashFree: text.startsWith("/") && unknownSlashOf(text, rows ?? [], skillsView) !== null,
+      hasAttachments: parts.length > 0,
+    });
+    if (oneShot.kind === "problem") {
+      setError(oneShot.text);
+      return;
+    }
+    const typedOneShot = oneShot.text !== text || oneShot.notice !== null;
+    // 앱도 엔진도 원샷도 모르는 `/명령`은 모델로 보내기 전에 한 번 묻는다
+    if (parts.length === 0 && !force && !typedOneShot && rows !== null) {
+      const unknown = unknownSlashOf(text, rows, skillsView);
+      if (unknown !== null) {
+        setUnknownName(unknown);
+        return;
       }
     }
     if (!latch.current.tryAcquire()) return;
@@ -500,13 +599,14 @@ function ComposerFor(props: {
     draftRef.current = "";
     setDraft("");
     const sentId = requestId.current;
-    if (running) sent.current.set(sentId, { text, parts });
+    if (running) sent.current.set(sentId, { text: oneShot.text, parts });
     const result = await commands.sendTurn(
       props.threadId,
-      text,
+      oneShot.text,
       sentId,
       parts.length === 0 ? undefined : parts,
       whenBusy,
+      oneShot.overlay,
     );
     latch.current.release();
     if (!result.ok) sent.current.delete(sentId);
@@ -514,6 +614,8 @@ function ComposerFor(props: {
     if (result.ok) {
       requestId.current = newRequestId();
       setChips([]);
+      setPicks([]);
+      setOneShotNote(oneShot.notice);
       return;
     }
     // 실패하면 입력을 돌려주고(그 사이 새로 쓴 것이 없을 때만) 오류를 보인다
@@ -570,12 +672,12 @@ function ComposerFor(props: {
     if (menuActive && !event.nativeEvent.isComposing) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        setMenuIndex(slashMoveOf(menuIndex, menuRows.length, event.key === "ArrowDown" ? 1 : -1));
+        setMenuIndex(slashMoveOf(menuAt, menuSize, event.key === "ArrowDown" ? 1 : -1));
         return;
       }
       if (event.key === "Tab" && !event.shiftKey) {
         event.preventDefault();
-        fillSlash(Math.min(menuIndex, menuRows.length - 1));
+        fillSlash(menuAt);
         return;
       }
       if (event.key === "Escape") {
@@ -603,8 +705,12 @@ function ComposerFor(props: {
 
   /** 보내기 Enter. 슬래시 목록에서 고른 행이 입력과 다르면 보내지 않고 그 행으로 채운다. 이미 같으면 보낸다 */
   const commitEnter = (whenBusy: BusyInputMode): void => {
+    if (menuActive && activeOneShot !== undefined) {
+      pickOneShot(activeOneShot);
+      return;
+    }
     if (menuActive && activeRow !== undefined && activeRow.label !== draftRef.current.trim()) {
-      fillSlash(Math.min(menuIndex, menuRows.length - 1));
+      fillSlash(menuAt);
       return;
     }
     detach(send(false, whenBusy), rethrow);
@@ -688,7 +794,7 @@ function ComposerFor(props: {
           </div>
         )}
       </Presence>
-      {menuActive || menuIssues.length > 0 ? (
+      {menuActive || menuIssues.length > 0 || oneShotFailed ? (
         <ul
           id="composer-slash-list"
           role="listbox"
@@ -709,7 +815,7 @@ function ComposerFor(props: {
               ) : null}
               <SlashRow
                 row={row}
-                selected={index === Math.min(menuIndex, menuRows.length - 1)}
+                selected={index === menuAt}
                 onFill={() => {
                   fillSlash(index);
                 }}
@@ -719,6 +825,34 @@ function ComposerFor(props: {
               />
             </Fragment>
           ))}
+          {oneShotRows.length === 0 ? null : (
+            <li
+              role="presentation"
+              data-composer-slash-group="oneShot"
+              className="px-2.5 pt-1.5 text-ui text-text-tertiary"
+            >
+              {t("desktop.oneShot.group")}
+            </li>
+          )}
+          {oneShotRows.map((pick, index) => (
+            <OneShotRow
+              key={pick.key}
+              id={oneShotDomIdOf(pick.key)}
+              pick={pick}
+              selected={menuRows.length + index === menuAt}
+              onPick={() => {
+                pickOneShot(pick);
+              }}
+              onHover={() => {
+                setMenuIndex(menuRows.length + index);
+              }}
+            />
+          ))}
+          {oneShotFailed ? (
+            <li role="presentation" className="px-2.5 py-1 text-ui text-text-tertiary">
+              {t("desktop.oneShot.failed")}
+            </li>
+          ) : null}
           {menuIssues.map((issue) => (
             <li
               key={issue}
@@ -754,8 +888,28 @@ function ComposerFor(props: {
       <Presence show={retrying !== null} variant="band" initial={false}>
         {retrying === null ? null : <RetryStatus key={retrying.at} retry={retrying} />}
       </Presence>
+      <ProfileNotices state={profileChip} />
+      <Presence show={oneShotNote !== null} variant="band" initial={false}>
+        {oneShotNote === null ? null : (
+          <ProblemLine tone="warning" role="status">
+            {oneShotNote}
+          </ProblemLine>
+        )}
+      </Presence>
+      <OneShotChips
+        picks={picks}
+        live={liveOneShots}
+        onRemove={(key) => {
+          setPicks((current) => current.filter((pick) => pick.key !== key));
+          setError(null);
+          textarea.current?.focus();
+        }}
+      />
       {/* 상자 안의 빈 곳(꼬리 줄의 틈, 칩 사이)을 눌러도 글 칸에 초점이 가고 커서는 글 끝이다(DP-131). 단추·칩·첨부는 제 동작을 하고,
           글 칸 안(안쪽 여백 포함)은 브라우저가 그대로 맡아 눌러 끌면 글이 골라진다 */}
+      {driveStack === null ? null : (
+        <DriveStackBand view={driveStack} stop={driveStop} beam={driveBeam.state} />
+      )}
       <div
         className="contents"
         onMouseDown={(event) => {
@@ -774,7 +928,13 @@ function ComposerFor(props: {
           aria-autocomplete={menuActive ? "list" : undefined}
           aria-controls={menuActive ? "composer-slash-list" : undefined}
           aria-activedescendant={
-            menuActive && activeRow !== undefined ? `composer-slash-${activeRow.name}` : undefined
+            !menuActive
+              ? undefined
+              : activeRow !== undefined
+                ? `composer-slash-${activeRow.name}`
+                : activeOneShot !== undefined
+                  ? oneShotDomIdOf(activeOneShot.key)
+                  : undefined
           }
           variant="solid"
           size="md"
@@ -784,7 +944,7 @@ function ComposerFor(props: {
           rows={1}
           // 48에서 시작해 글이 늘면 max-h(240, 약 11줄)까지 자라고 넘으면 안에서 스크롤한다(field-sizing). 비우면 48로 돌아간다
           className="max-h-60 min-h-12 resize-none pt-3 pb-0 [field-sizing:content]"
-          containerClassName={`composer-box rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
+          containerClassName={`composer-box relative z-[1] rounded-[calc(var(--radius-2xl)+4px)] ${COMPOSER_FOOTER_CLASS}`}
           value={draft}
           // 안내 글(placeholder)은 없다. 입력을 막은 때만 그 이유를 보인다
           placeholder={props.disabledReason ?? undefined}
@@ -795,6 +955,7 @@ function ComposerFor(props: {
             setMenuIndex(0);
             setMenuDismissed(false);
             setUnknownName(null);
+            setOneShotNote(null);
           }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
@@ -824,6 +985,7 @@ function ComposerFor(props: {
               >
                 <Plus aria-hidden />
               </IconButton>
+              <ProfileChip state={profileChip} disabled={props.disabledReason !== null} />
             </>
           }
           submit={

@@ -189,6 +189,7 @@ describe("manifest", () => {
       { id: "workspace.files", version: "1.0.0" },
       { id: "workspace.shell", version: "1.0.0" },
       { id: "workspace.images", version: "1.0.0" },
+      { id: "workspace.protection", version: "1.0.0" },
     ]);
     const unit = workspacePlugin({ core: workspaceCore, settings: { layers: () => [] } });
     expect(unit.builtin).toBe(true);
@@ -198,6 +199,20 @@ describe("manifest", () => {
 });
 
 describe("plugin", () => {
+  test("the protection tools are registered deferred, at risk read, and nothing else is exposed for them", async () => {
+    const { registered } = await boot();
+    const protection = registered.find(
+      (registration) =>
+        registration.kind === "capability" && registration.def.id === "workspace.protection",
+    );
+    expect(protection).toMatchObject({
+      kind: "capability",
+      key: { capability: "workspace.protection", version: "1.0.0" },
+      policy: { sandbox_protect: { risk: "read" }, sandbox_protected: { risk: "read" } },
+      exposure: { sandbox_protect: "deferred", sandbox_protected: "deferred" },
+    });
+  });
+
   test("installing provides the capabilities and a consumer reads them", async () => {
     const { t, env, installed } = await boot();
     expect(installed.setups[0]?.status).toBe("applied");
@@ -266,7 +281,7 @@ describe("plugin", () => {
 
   test("all four files tools reach L1.tools, with their risk", async () => {
     const { registered } = await boot();
-    expect(registered).toHaveLength(2);
+    expect(registered).toHaveLength(3);
     const [files, shell] = registered;
     expect(files?.kind === "capability" ? files.def.id : undefined).toBe("workspace.files");
     expect(files?.kind === "capability" ? files.def.tools.map((tool) => tool.name) : []).toEqual([
@@ -296,7 +311,11 @@ describe("plugin", () => {
   test("uninstalling removes the tool registrations", async () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(WORKSPACE_EXTENSION_NAME);
-    expect(unregistered.toSorted()).toEqual(["workspace.files", "workspace.shell"]);
+    expect(unregistered.toSorted()).toEqual([
+      "workspace.files",
+      "workspace.protection",
+      "workspace.shell",
+    ]);
   });
 
   test("a refused tool registration fails the setup by value and takes back the first one", async () => {

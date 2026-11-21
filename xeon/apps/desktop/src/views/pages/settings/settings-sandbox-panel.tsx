@@ -30,16 +30,10 @@ import { RowNote, SettingSection } from "./settings-section.tsx";
 
 const ENABLED_KEY: SettingKey = "l0.sandbox.enabled";
 
-const STATUS_KEYS: readonly SettingKey[] = ["l0.sandbox.onUnavailable", "l0.sandbox.escapeRetry"];
-const WRITE_KEYS: readonly SettingKey[] = [
-  "l0.sandbox.writeRoots.extra",
-  "l0.sandbox.protectedPaths.extra",
-];
+const STATUS_KEYS: readonly SettingKey[] = ["l0.sandbox.onUnavailable"];
+const WRITE_KEYS: readonly SettingKey[] = ["l0.sandbox.protectedPaths.extra"];
 const NETWORK_KEYS: readonly SettingKey[] = ["l0.sandbox.network.blockedDomains"];
-const OTHER_KEYS: readonly SettingKey[] = [
-  "l0.sandbox.credentialFiles",
-  "l0.sandbox.nestedNamespaces",
-];
+const OTHER_KEYS: readonly SettingKey[] = ["l0.sandbox.nestedNamespaces"];
 
 /** 점검 결과. 아직 안 했으면 `idle`, 하는 중이면 `running`, 셸이 점검을 돌려주지 않았으면 `none` */
 export type SandboxCheck =

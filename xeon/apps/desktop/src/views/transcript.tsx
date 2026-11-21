@@ -7,6 +7,7 @@ import {
   useCompactionAnchors,
   useAwaitingFirstResponse,
   useConvoMarkers,
+  useDriveInputs,
   useLeadSegments,
   useOpenThreadId,
   useOpenThreadRunning,
@@ -138,6 +139,7 @@ function ThreadRows(props: { readonly threadId: ThreadId }): ReactNode {
   const anchors = useCompactionAnchors(threadId);
   const turns = useTurnSummaries(threadId);
   const markers = useConvoMarkers(threadId);
+  const driveInputs = useDriveInputs(threadId);
   const leads = useLeadSegments(threadId);
   const running = useOpenThreadRunning();
   const awaiting = useAwaitingFirstResponse();
@@ -154,11 +156,12 @@ function ThreadRows(props: { readonly threadId: ThreadId }): ReactNode {
         anchors,
         turns,
         markers,
+        driveInputs,
         leads,
         running,
         awaiting,
       }),
-    [anchors, awaiting, leads, live, markers, running, shapes, status, turns],
+    [anchors, awaiting, driveInputs, leads, live, markers, running, shapes, status, turns],
   );
   const onRowMount = useRowEnter(threadId, rows, live);
   const epoch = useHistoryEpoch(rows);
